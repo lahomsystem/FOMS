@@ -3476,6 +3476,22 @@ def _group_queue(links: list[ExternalOrderLink], orders: dict,
             "return_requested_count": sum(
                 1 for row in members
                 if ((row.triage_state or {}).get("return") or {}).get("requested_at")),
+            # 승인까지 끝난 건수 (T8-S2).
+            "return_approved_count": sum(
+                1 for row in members
+                if ((row.triage_state or {}).get("return") or {}).get("approved_at")),
+            # **접수는 됐는데 승인이 안 된 건** — 이 상태가 제일 위험하다. 아무도 말 안 하면
+            # 환불이 안 나간 채 잊힌다. 사유(보류·상태 미도달·호출 실패)를 함께 낸다.
+            "return_awaiting_approval": [
+                {"external_id": row.external_id,
+                 "reason": str((((row.triage_state or {}).get("return") or {})
+                                .get("approve_skipped_reason")) or "")}
+                for row in members
+                if (((row.triage_state or {}).get("return") or {}).get("requested_at")
+                    and not ((row.triage_state or {}).get("return") or {}).get("approved_at")
+                    and (((row.triage_state or {}).get("return") or {})
+                         .get("approve_skipped_reason")))
+            ],
             # 주문 만들기 POST 가 나갈 링크. 대표(최고금액)가 **이미 주문을 가진** 집에서
             # 대표 id 로 보내면 promote_link_to_order 가 그 주문을 멱등 반환만 하고
             # 형제는 하나도 안 옮긴다 — 화면은 "N건을 옮깁니다" 라고 말한 뒤 0건이 움직인다
@@ -4118,6 +4134,13 @@ def naver_ingest_return(link_id: int):
     payload = request.get_json(silent=True) or {}
     reason = str(payload.get("reason") or "").strip().upper()
     detail = str(payload.get("detail") or "").strip()[:500]
+    # 승인까지 한 번에 (T8-S2). **기본은 꺼짐** — 켜면 환불이 확정되고 되돌리는
+    # 엔드포인트가 없다. 화면 체크박스를 믿지 않고 여기서 불리언으로 정규화한다
+    # (문자열 "false" 가 참으로 읽히면 안 켠 사람이 환불을 낸다).
+    approve = payload.get("approve")
+    if isinstance(approve, str):
+        approve = approve.strip().lower() not in ("", "false", "0", "no", "n")
+    approve = bool(approve)
     if reason not in RETURN_REASONS:
         return jsonify({"success": False, "data": None,
                         "error": "반품 사유를 고르세요."}), 400
@@ -4129,21 +4152,29 @@ def naver_ingest_return(link_id: int):
     link = _link_by_id(db, link_id)
     base_rev = _fulfillment_state(db, link)["rev"] if link is not None else ""
 
-    queued = enqueue_naver_return(link_id, reason, detail or None, session.get("user_id"))
+    queued = enqueue_naver_return(link_id, reason, detail or None, session.get("user_id"),
+                                  approve=approve)
     if not queued:
         return jsonify({"success": False, "data": None,
                         "error": "작업 큐를 쓸 수 없습니다(REDIS_URL 미설정 또는 큐 장애). "
                                  "지금은 판매자센터에서 처리하세요."}), 503
 
+    # 승인은 **다른 사건**이다 — 돈이 나간다. 감사 원장에서 접수와 갈라 읽을 수 있어야
+    # "누가 환불을 냈나"에 답할 수 있다. 라벨은 `audit_message_display` 에 등재돼 있어야
+    # 하고(미등재면 CI red), 그 등재가 이 갈래의 계약이다.
     log_access(
-        f"네이버 반품 접수 요청 (link {link_id}, {RETURN_REASONS[reason]})",
+        (f"네이버 반품 접수+승인 요청 (link {link_id}, {RETURN_REASONS[reason]})"
+         if approve else
+         f"네이버 반품 접수 요청 (link {link_id}, {RETURN_REASONS[reason]})"),
         session.get("user_id"),
-        action="NAVER_INGEST_RETURN_ENQUEUE",
-        detail={"link_id": link_id, "reason": reason, "return_detail": detail},
+        action=("NAVER_INGEST_RETURN_APPROVE_ENQUEUE" if approve
+                else "NAVER_INGEST_RETURN_ENQUEUE"),
+        detail={"link_id": link_id, "reason": reason, "return_detail": detail,
+                "approve": approve},
     )
     return jsonify({"success": True,
                     "data": {"link_id": link_id, "reason": reason, "queued": True,
-                             "rev": base_rev},
+                             "approve": approve, "rev": base_rev},
                     "error": None})
 
 @admin_bp.route("/admin/naver-ingest/<int:link_id>/fulfillment-clear", methods=["POST"])

@@ -109,6 +109,8 @@
    호출을 열지 않는다. #}
 {% set return_pending_count = grp.return_pending_count if grp else 0 %}
 {% set return_requested_count = grp.return_requested_count if grp else 0 %}
+{# 접수는 됐는데 **승인이 안 된** 건(T8-S2). 아무도 말 안 하면 환불이 안 나간 채 잊힌다. #}
+{% set return_awaiting = grp.return_awaiting_approval if grp else [] %}
 {# 클레임이 이미 도는 집은 서버 `_claim_guard` 가 거절한다 — 버튼도 같이 닫는다.
    우리가 접수한 뒤에는 네이버 클레임이 붙어 locked 로 닫힌다(멱등은 서버가 또 본다). #}
 {% set can_return = not locked and return_pending_count > 0 %}
@@ -319,6 +321,19 @@
             </button>
             {% endif %}
 
+            {# 접수는 나갔는데 **승인이 남은** 건 (T8-S2). 승인은 환불이라 남아 있으면
+               고객 돈이 안 돌아간 상태다 — 조용히 두면 아무도 모른다. 사유까지 낸다:
+               보류 걸린 건은 우리가 못 풀고(판매자센터), 상태 미도달은 다시 누르면 된다. #}
+            {% if return_awaiting %}
+            <div class="alert alert-warning py-2 mb-0 w-100 small" data-foms-no-autodismiss>
+                <b>반품 접수됨 — 승인 남음 {{ return_awaiting|length }}건.</b>
+                환불은 아직 나가지 않았습니다.
+                {% for row in return_awaiting %}
+                <span class="d-block">{{ row.external_id }}: {{ row.reason }}</span>
+                {% endfor %}
+            </div>
+            {% endif %}
+
             {# 다시 읽기(T4) — **항상** 낸다. 잠긴 주문에서 오히려 더 필요하다(취소·반품이
                어디까지 갔는지를 이 버튼으로 본다). 네이버에 쓰는 것은 없다 — 상세 조회
                하나뿐이라 되돌릴 게 없어 확인 모달도 두지 않는다.
@@ -412,8 +427,10 @@
         <div class="wb-acts__why small">
             이 주문은 발송처리가 끝났습니다 — 취소가 필요하면 <b>반품 접수</b>를 쓰세요.
             {# 접수는 `RETURN_REQUEST` 까지다. 승인·환불이 어디서 일어나는지를 여기서 말하지
-               않으면 사람이 이 버튼으로 환불까지 끝났다고 읽는다. #}
-            승인·환불은 판매자센터에서 사람이 합니다.
+               않으면 사람이 이 버튼으로 환불까지 끝났다고 읽는다.
+               2026-08-31: 승인을 FOMS 에서도 할 수 있게 됐다(모달 체크박스). 그래도 **기본은
+               접수까지**라 이 문장은 남는다 — 체크를 안 켜면 환불은 안 나간다. #}
+            승인·환불은 모달에서 <b>승인까지 한 번에</b> 를 켜거나, 판매자센터에서 합니다.
         </div>
         {% elif locked and dispatched_any %}
         {# 잠금 안내는 취소를 언급하지 않는다. 잠김 + 발송분이 겹치면 취소 버튼이 사라진 이유가
@@ -1177,6 +1194,12 @@
                 <div class="alert alert-danger py-2 mb-2" data-foms-no-autodismiss>
                     네이버로 나가는 호출이라 <b>되돌릴 수 없습니다</b>. 접수하면 구매자에게
                     <b>반품 진행이 보이고</b>, 커머스API 로는 수거 정보를 다시 바꿀 수 없습니다.
+                    {# 승인 체크 시에만 보이는 줄 — JS 가 토글한다. 접수보다 한 단계 더
+                       무겁다(돈이 나간다)는 것을 고르는 자리에서 말한다. #}
+                    <span class="d-block mt-1" id="wb-return-approve-warn" hidden>
+                        <b>승인까지 켰습니다 — 환불이 즉시 확정됩니다.</b>
+                        승인은 되돌리는 방법이 아예 없습니다.
+                    </span>
                 </div>
                 {# ③ 사유 — 네이버가 아는 코드만 보낸다(서버가 다시 검사한다).
                       취소 사유와 **다른 목록**이다.
@@ -1191,6 +1214,20 @@
                     <option value="{{ code }}">{{ label }}</option>
                     {% endfor %}
                 </select>
+                {# ③-2 승인까지 한 번에 (T8-S2, 사용자 결정 2026-08-31).
+                      **기본 꺼짐.** 켜면 환불이 확정되고 되돌리는 엔드포인트가 없다.
+                      별도 버튼을 안 만든 이유: 접수 뒤 화면을 다시 열어 또 누르게 하면
+                      지금의 판매자센터 왕복과 같은 모양이 되고, 그러면 이 기능이 존재할
+                      이유가 사라진다(접수 기능 실호출 0회가 그 증거다). #}
+                <div class="form-check mb-2">
+                    <input class="form-check-input" type="checkbox" id="wb-return-approve">
+                    <label class="form-check-label small" for="wb-return-approve">
+                        <b>승인까지 한 번에</b> — 접수만 하지 않고 <b>환불을 확정</b>합니다.
+                        <span class="d-block text-muted">
+                            네이버가 보류를 걸어 둔 건은 승인하지 않고 사유를 남깁니다.
+                        </span>
+                    </label>
+                </div>
                 <label class="form-label small fw-semibold mb-1" for="wb-return-detail">
                     상세 사유 <span class="text-muted fw-normal">(선택, 500자)</span>
                 </label>
@@ -1211,8 +1248,9 @@
                 <p class="small text-muted mb-0">
                     <b>물건은 오가지 않습니다</b> — 시공 전이라 고객에게 간 물건이 없고
                     <b>주문(금액)만 반품</b>됩니다(택배 자동 수거도 아닙니다). 접수는
-                    <b>반품 요청</b>까지고, <b>승인·환불은 판매자센터에서 사람이</b> 합니다 —
-                    이 버튼으로 환불이 나가지 않습니다. <b>FOMS 주문은 그대로입니다</b>.
+                    <b>반품 요청</b>까지입니다 — <b>위 '승인까지 한 번에' 를 켜지 않으면 이
+                    버튼으로 환불이 나가지 않습니다</b>(승인은 판매자센터에서 사람이 하거나,
+                    체크를 켜고 다시 접수하면 됩니다). <b>FOMS 주문은 그대로입니다</b>.
                     실패하면 화면 위 실패 목록에 사유가 남습니다.
                 </p>
             </div>

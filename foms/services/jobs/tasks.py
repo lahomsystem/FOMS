@@ -343,7 +343,7 @@ def _enqueue_refresh_after(action: str, link_id: int, actor_user_id=None) -> boo
 
 
 def run_naver_fulfillment_task(link_id: int, action: str, actor_user_id=None,
-                               reason=None, detail=None):
+                               reason=None, detail=None, approve=False):
     """발주확인·발송처리·취소·반품접수 1건 실행 (NAVER-INGEST-02 T16-G, WORKER 전용).
 
     web 은 enqueue 만 한다 — 커머스API 에 등록된 호출 IP 가 WORKER 것뿐이라 web 에서 나가면
@@ -385,7 +385,8 @@ def run_naver_fulfillment_task(link_id: int, action: str, actor_user_id=None,
                 # ``except FulfillmentError`` 의 커밋 규율이다(실패 사유를 DB 에 남긴다).
                 result = naver_fulfillment.request_return(
                     db, client, link_id=int(link_id), reason=str(reason or ""),
-                    detail=detail, actor_user_id=actor_user_id)
+                    detail=detail, actor_user_id=actor_user_id,
+                    approve=bool(approve))
             else:
                 raise ValueError(f"알 수 없는 작업입니다: {action}")
             db.commit()

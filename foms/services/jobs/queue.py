@@ -280,8 +280,9 @@ def enqueue_naver_cancel(link_id: int, reason: str, detail: Optional[str] = None
 
 
 def enqueue_naver_return(link_id: int, reason: str, detail: Optional[str] = None,
-                         actor_user_id: Optional[int] = None) -> bool:
-    """판매자 반품 접수 job enqueue (T8-S1).
+                         actor_user_id: Optional[int] = None,
+                         approve: bool = False) -> bool:
+    """판매자 반품 접수 job enqueue (T8-S1). ``approve`` 면 승인까지 (T8-S2).
 
     취소와 **같은 출구**(WORKER)를 쓴다 — 커머스API 에 등록된 호출 IP 가 WORKER 것뿐이다.
     같은 태스크(``run_naver_fulfillment_task``)에 ``action="return"`` 으로 태운다:
@@ -308,7 +309,7 @@ def enqueue_naver_return(link_id: int, reason: str, detail: Optional[str] = None
         q.enqueue(
             f"{_TASK_PATH_PREFIX}.run_naver_fulfillment_task",
             int(link_id), "return", actor_user_id,
-            reason=str(reason), detail=detail,
+            reason=str(reason), detail=detail, approve=bool(approve),
             job_timeout="5m",
         )
         return True

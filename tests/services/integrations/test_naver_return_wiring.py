@@ -182,7 +182,7 @@ def test_worker_task_routes_return_action_to_request_return(app, monkeypatch):
 
     assert out == {"returned": ["X"], "skipped": []}
     assert seen == [{"link_id": 5, "reason": "COLOR_AND_SIZE",
-                     "detail": "색상 상이", "actor_user_id": 42}]
+                     "detail": "색상 상이", "actor_user_id": 42, "approve": False}]
 
 
 # ────────────────────────────────────────────────────────────── R6 라우트
@@ -196,7 +196,8 @@ def test_return_route_enqueues_and_returns_base_rev(app, client, workbench_on, m
     calls: list[tuple] = []
     monkeypatch.setattr(
         jobs_queue, "enqueue_naver_return",
-        lambda lid, reason, detail, actor: calls.append((lid, reason, detail, actor)) or True)
+        lambda lid, reason, detail, actor, approve=False:
+            calls.append((lid, reason, detail, actor, approve)) or True)
 
     res = client.post(f"/admin/naver-ingest/{link_id}/return",
                       json={"reason": "COLOR_AND_SIZE", "detail": "색상 상이"})
@@ -206,7 +207,52 @@ def test_return_route_enqueues_and_returns_base_rev(app, client, workbench_on, m
     assert body["success"] is True
     assert body["data"]["queued"] is True
     assert body["data"]["rev"]
-    assert calls == [(link_id, "COLOR_AND_SIZE", "색상 상이", actor_id)]
+    # 승인은 **안 보낸 사람에게 기본으로 켜지지 않는다** — 돈이 나가는 갈래다(T8-S2).
+    assert calls == [(link_id, "COLOR_AND_SIZE", "색상 상이", actor_id, False)]
+    assert body["data"]["approve"] is False
+
+
+def test_return_route_passes_approve_flag(app, client, workbench_on, monkeypatch):
+    """`승인까지 한 번에` 를 켜면 그 뜻이 큐까지 그대로 간다 (T8-S2)."""
+    from foms.services.jobs import queue as jobs_queue
+
+    _login(client)
+    link_id = int(_link(dispatched_ours=True).id)
+    calls: list[tuple] = []
+    monkeypatch.setattr(
+        jobs_queue, "enqueue_naver_return",
+        lambda lid, reason, detail, actor, approve=False:
+            calls.append((lid, approve)) or True)
+
+    res = client.post(f"/admin/naver-ingest/{link_id}/return",
+                      json={"reason": "COLOR_AND_SIZE", "approve": True})
+
+    assert res.status_code == 200
+    assert calls == [(link_id, True)]
+    assert res.get_json()["data"]["approve"] is True
+
+
+def test_return_route_does_not_read_string_false_as_true(app, client, workbench_on,
+                                                         monkeypatch):
+    """문자열 ``"false"`` 를 참으로 읽으면 **안 켠 사람이 환불을 낸다**.
+
+    JSON 이 아니라 폼·직접 호출로 오는 값이 문자열일 수 있다. `bool("false")` 는 True 다.
+    """
+    from foms.services.jobs import queue as jobs_queue
+
+    _login(client)
+    link_id = int(_link(dispatched_ours=True).id)
+    calls: list[tuple] = []
+    monkeypatch.setattr(
+        jobs_queue, "enqueue_naver_return",
+        lambda lid, reason, detail, actor, approve=False:
+            calls.append((lid, approve)) or True)
+
+    res = client.post(f"/admin/naver-ingest/{link_id}/return",
+                      json={"reason": "COLOR_AND_SIZE", "approve": "false"})
+
+    assert res.status_code == 200
+    assert calls == [(link_id, False)]
 
 
 def test_return_route_rejects_a_code_outside_the_whitelist(app, client, workbench_on,
@@ -343,7 +389,11 @@ def test_return_button_appears_after_dispatch(app, client, workbench_on):
     assert 'id="wb-return"' in body
     assert 'id="wb-modal-return"' in body
     assert "되돌릴 수 없습니다" in body
-    assert "승인·환불은 판매자센터에서 사람이" in body
+    # 2026-08-31: 승인을 FOMS 에서도 할 수 있게 됐다(모달 체크박스, 기본 꺼짐).
+    # 그래도 **기본은 접수까지**라, 체크를 안 켜면 환불이 안 나간다는 사실을 화면이 말한다.
+    assert "승인까지 한 번에" in body
+    assert 'id="wb-return-approve"' in body
+    assert "켜지 않으면 이" in body and "환불이 나가지 않습니다" in body
     assert "물건은 오가지 않습니다" in body
     assert "주문(금액)만 반품" in body
     assert "회수는 우리 차량이 갑니다" not in body
