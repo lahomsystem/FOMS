@@ -689,11 +689,19 @@
             </p>
             {% endif %}
         </div>
-        {% elif selected.candidates and not selected.order_id %}
+        {% elif not selected.order_id %}
+        {# 후보가 0건이어도 이 섹션을 낸다(T2). 예전에는 후보가 없으면 섹션 자체를
+           안 냈는데, 자동 매칭이 못 잡는 조합(가족 대리결제·시공지 변경·번호 변경)이
+           바로 **재결제**라서, 정작 붙여야 할 때 붙이기가 화면에 없었다. 빈 상자를
+           내는 게 아니라 **찾는 자리**를 내는 것이다. #}
         <div class="wb-cmp-title" data-cmp-section="relation">
-            관계 <span class="wb-cmp-title__sub">이 고객의 기존 주문 {{ selected.candidates|length }}건 — 새 주문이 아닐 수 있다</span>
+            관계 <span class="wb-cmp-title__sub">
+                {% if selected.candidates %}이 고객의 기존 주문 {{ selected.candidates|length }}건 — 새 주문이 아닐 수 있다
+                {% else %}자동으로 찾은 기존 주문 없음 — 직접 찾아 붙일 수 있다{% endif %}
+            </span>
         </div>
         <div class="wb-relation wb-relation--ask" data-foms-no-autodismiss>
+            {% if selected.candidates %}
             <p class="wb-relation__why">
                 새 주문이 아니라 <b>기존 주문의 추가결제(차액)</b>거나 <b>취소 후 재결제</b>일 수 있습니다.
                 맞으면 아래에서 붙이세요 — 새 주문을 만들지 않습니다.
@@ -938,6 +946,41 @@
             </div>
             {% endif %}
             {% endfor %}
+            {% else %}
+            {# 후보 0건. **"기존 주문이 없습니다"라고 단정하지 않는다** — 자동 매칭은 세
+               축(수취인 전화·주문자 전화·이름+주소)뿐이라 가족이 대신 결제했거나 시공지가
+               바뀌었으면 있는 주문도 못 잡는다. 그 관측이 "정말 신규"와 똑같이 보인다. #}
+            <p class="wb-relation__why">
+                이 고객의 기존 주문을 <b>자동으로 찾지 못했습니다.</b> 전화·이름·주소가 모두
+                달라도(가족이 대신 결제 · 시공지 변경 · 번호 변경) 같은 시공 건일 수 있습니다.
+                <b>새 주문을 만들기 전에</b> 아래에서 직접 찾아보세요.
+            </p>
+            {% endif %}
+
+            {#
+              찾아서 붙이기(T2). 서버(`POST .../attach`)는 후보 목록과 무관하게
+              ``order_id`` 를 받는다 — 막혀 있던 것은 **화면**뿐이었다. 검색은 읽기 전용
+              GET 이고, 붙이기는 기존 라우트 그대로다(되돌릴 수 있다).
+              후보 표의 정리 계획 카드(붙이기+ERP 처리 한 트랜잭션)는 이 경로에 없다 —
+              그 카드는 후보 목록 안 주문만 받는다(`/reconcile` 이 목록 밖을 거절한다).
+            #}
+            <div class="wb-seek">
+                <label class="wb-seek__label" for="wb-seek-q">
+                    {% if selected.candidates %}여기에 없나요? {% endif %}주문을 직접 찾아 붙이기
+                </label>
+                <div class="wb-seek__bar">
+                    <input type="search" id="wb-seek-q" class="form-control form-control-sm wb-seek__q"
+                           placeholder="이름 · 전화 뒷자리 · 주문번호" autocomplete="off"
+                           data-link-id="{{ selected.link_id }}">
+                    <button type="button" class="btn btn-sm btn-outline-primary" id="wb-seek-run"
+                            data-link-id="{{ selected.link_id }}">찾기</button>
+                </div>
+                {# 결과는 서버 조각이 채운다. 비어 있으면 자리를 차지하지 않는다. #}
+                <div class="wb-seek__result" id="wb-seek-result" aria-live="polite"></div>
+                {# 붙인 결과. 새로고침으로 바로 넘기지 않는 이유는 **예약금에 넣을 금액**
+                   때문이다 — 시스템이 넣지 않으므로 사람이 그 숫자를 읽고 옮겨 적는다. #}
+                <div class="wb-seek__done" id="wb-seek-done" hidden></div>
+            </div>
         </div>
         {% endif %}
     </div>

@@ -4251,6 +4251,45 @@ def _record_link_history(db: Session, *, order_id: int, link_id: int, event_type
     ))
 
 
+@admin_bp.route("/admin/naver-ingest/<int:link_id>/order-search")
+@login_required
+@role_required(["ADMIN", "MANAGER", "STAFF"])
+def naver_ingest_order_search(link_id: int) -> str:
+    """붙일 주문을 **이름·전화·주문번호로 찾는다** — 후보 0건일 때의 진입점 (T2).
+
+    자동 후보는 세 축뿐이라(수취인 전화·주문자 전화·이름+주소) 재결제가 다른 이름·다른
+    전화·다른 주소로 오면 0건이 되고, 그러면 붙이기 버튼이 화면에 아예 없다. 판정은
+    :func:`search_orders_for_attach` 가 하고 이 라우트는 **조각만 그린다**.
+
+    읽기 전용 GET 이다 — 아무것도 바꾸지 않으므로 write manifest 등재도 감사 라벨도 없다
+    (:func:`naver_ingest_triage_pane` 과 같은 규율). 붙이는 것은 기존
+    ``POST .../attach`` 가 그대로 한다 — 새 mutation 을 파지 않는다.
+
+    Query:
+        ``q``: 검색어(이름·전화·주문번호). 짧으면 조회하지 않고 그렇게 말한다.
+
+    Returns:
+        결과 조각 HTML(레이아웃 없음). 게이트 OFF 는 404(그 화면에는 이 경로가 없다),
+        없는 링크는 404.
+    """
+    from foms.services.feature_flags import is_naver_workbench_enabled
+    from foms.services.integrations.naver_commerce.order_candidates import (
+        search_orders_for_attach,
+    )
+
+    if not is_naver_workbench_enabled(session.get("user_id")):
+        abort(404)
+    db = get_db()
+    link = _link_by_id(db, link_id)
+    if link is None:
+        abort(404)
+    return render_template(
+        "admin/partials/naver_workbench_seek.html",
+        seek=search_orders_for_attach(db, link, query=request.args.get("q", "")),
+        seek_link_id=link_id,
+    )
+
+
 @admin_bp.route("/admin/naver-ingest/<int:link_id>/attach", methods=["POST"])
 @login_required
 @role_required(["ADMIN", "MANAGER", "STAFF"])

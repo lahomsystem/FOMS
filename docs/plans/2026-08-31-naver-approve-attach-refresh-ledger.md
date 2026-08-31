@@ -24,7 +24,7 @@
 | T1a | 승인 서비스 — `client.approve_return_product_order` + `fulfillment._approve_returns` | 보류면 승인 안 함 · 상태 미도달이면 승인 안 함 · 재조회 실패 시 미승인 · body 없음 | **DONE** |
 | T1b | 승인 배선 — 큐·태스크·라우트 payload `approve` + 감사 라벨 분리 | 라우트가 `approve` 전달 · 문자열 `"false"` 방어 · `NAVER_INGEST_RETURN_APPROVE_ENQUEUE` 등재 | **DONE** |
 | T1c | 승인 화면 — 체크박스(기본 꺼짐)·빨간 띠 한 줄·중간 상태 띠·자산 핀 범프 | 모달 문구 계약 갱신 · `?v=` 핀 2곳 + 계약 2곳 함께 범프 | **DONE** |
-| T2 | 후보 0건일 때 주문 찾아서 붙이기 (검색 → 붙이기) | 검색 라우트 계약 · 후보 0건 화면에 진입점 노출 · 붙인 뒤 기존 흐름과 동일 | **PENDING — 다음 세션** |
+| T2 | 후보 0건일 때 주문 찾아서 붙이기 (검색 → 붙이기) | 검색 라우트 계약 · 후보 0건 화면에 진입점 노출 · 붙인 뒤 기존 흐름과 동일 | **DONE** |
 
 ## 배포 상태 (2026-08-31)
 
@@ -85,5 +85,54 @@ production 승격은 **안 했다** — 사용자 명시 요청 시에만.
 - 커밋은 `git commit -F <msg> -- <경로>`. 공유 저장소라 경로를 명시한다.
 - push 전 `pre_push_smoke` exit 0, push 후 **전 워크플로 나열**로 CI 판정.
 
+## T2 에서 만든 것 (2026-08-31)
+
+**읽기 전용 검색 + 기존 붙이기.** 새 mutation 을 파지 않았으므로 mutation 계약 5종은
+해당 없다(라우트는 GET, 감사 라벨·manifest 없음 — pane 프래그먼트와 같은 규율).
+
+| 조각 | 자리 |
+|---|---|
+| 검색 서비스 | `order_candidates.search_orders_for_attach` (+`_search_clauses`·`_search_views`·`_search_reason`) |
+| 라우트 | `GET /admin/naver-ingest/<link_id>/order-search?q=` — 게이트 OFF·없는 링크 404 |
+| 조각 | `templates/admin/partials/naver_workbench_seek.html` (id 를 달지 않는다 — pane 안에 꽂힌다) |
+| pane 진입점 | `naver_workbench_pane.html` 관계 블록 — **후보 0건에서도 렌더**(`wb-seek-q`·`wb-seek-run`) |
+| JS | `submitSeek`·`submitSeekAttach`·`showSeekResult` (위임, Enter 키 포함) |
+| 계약 | `tests/services/integrations/test_naver_order_search_attach.py` 17종 |
+
+결정 넷 —
+
+1. **술어는 ERP 대시보드 검색을 그대로 쓴다**(`customer_contact_only=True`) — 고객명·전화·
+   주소만. 담당자·품목까지 열면 "박 대리 담당 200건"이 붙이기 후보로 뜬다. 주문번호는 그
+   술어에 없어서 따로 더한다(숫자는 전화 자릿수 경로가 먼저 가로챈다 — 통합검색이 데인 자리).
+2. **붙이기는 `/attach` 그대로다.** `/reconcile`(붙이기+ERP 처리 한 트랜잭션)은 후보 목록 안
+   주문만 받는다 — 그 가드를 풀면 취소 처리(휴지통) 갈래가 범용 삭제 경로가 된다. 대신
+   **예약금 안내 문장을 검색 결과 버튼이 들고 다닌다**(정리 카드를 안 거치므로 안 실으면
+   검색 경로만 그 숫자를 잃는다).
+3. **초안·휴지통은 결과에 없다**(`Order.active_filter()`). 자동 후보는 `not_deleted` 인데
+   검색은 이름으로 draft 도 부르므로 더 좁힌다 — 초안에 집을 묶으면 승격 레이스에 걸린다.
+4. **한 글자는 조회하지 않는다**(성씨 한 자 = 전체 훑기). 다만 **번호 한 자리는 다르다** —
+   정확 일치라 id 술어 하나로만 나간다.
+
+뒤집은 계약 둘 (테스트를 고쳤다) —
+
+* `test_attach_section_is_absent_without_candidates` → `test_candidate_table_is_absent_without_candidates`.
+  "후보 0건이면 섹션을 안 낸다"가 T2 의 전제와 정면으로 부딪힌다. 지키려던 뜻은 **빈 표를
+  내지 않는 것**이라 그 축만 남겼다.
+* `test_new_household_gets_no_relation_badge` 의 `data-cmp-section="relation"` 부정 단언 →
+  `wb-attach` 부정 단언. "이 집이 후속으로 보이면 안 된다"는 뜻은 배지와 붙이기 버튼이 말한다.
+
+남긴 한계(고치지 않았다) —
+
+* 전화 검색은 `erp_phone_digits`(인덱스 컬럼)를 탄다. 그 컬럼이 빈 **옛 비ERP 주문**은
+  `phone` 원문 ILIKE 로만 걸려서, `010-9999-8888` 을 `98888` 로는 못 찾는다. ERP 저장을
+  거친 주문은 컬럼이 차 있어 정상이다 — FOMS 전 화면이 쓰는 검색과 같은 한계라 여기서만
+  다른 축을 만들지 않았다.
+* 검색은 `log_access` 를 남기지 않는다(읽기 전용 GET — pane·상세와 같은 규율).
+
 ## 기록
-(작업하며 채운다)
+
+- 2026-08-31 T2 구현. 워크트리 `c:/tmp/nvfind` (origin/deploy `21c38d2e` 기준).
+  검증: `tests/services/integrations` **1172 passed** · `tests/domains` **5580 passed, 5 skipped** ·
+  `pre_push_smoke` **exit 0** · `APP_OK`.
+  자산 핀 `?v=20260831c → 20260831d` (템플릿 2곳 + 계약 테스트 2곳 함께).
+  failopen 인벤토리는 재생성해도 **줄번호만** 움직여 되돌렸다(게이트가 lineno-무관).
