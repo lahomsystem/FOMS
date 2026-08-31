@@ -603,3 +603,36 @@ PG 레인 1차 실패는 `tests/postgres/test_order_import.py` 의 **세그폴�
 ## BLOCKED (2단계)
 
 - **S6 탭2 실무** — 위 2가지에 대한 사용자 결정 대기.
+
+## 사용자 결정 (2026-08-31, AskUserQuestion)
+
+| 항목 | 결정 |
+|---|---|
+| 탭2 실무 | **규칙 고치고 만든다** — 스펙 §4.3 전제를 명시 개정(§13 개정 A), 고객 성명+주문번호만 노출 |
+| 탭2 인라인 버튼 | **넣는다** — `[입금 확인]`·`[정산 청구]` |
+| 탭3 담당자별 매출 | **관리자급(ADMIN·MANAGER)만** — 서버 payload 단계에서 제외 |
+
+### 인라인 버튼 착수 전 확인한 사실 (CEO 직접 확인)
+
+두 엔드포인트 모두 **이미 존재**하고 manifest 상 `FINANCE_MUTATION` 이다
+(`docs/harness/foms_order_mutation_policy_manifest.json:658-661`, `:453-456`).
+`FINANCE_MUTATION` 허용 집합 = `SETTLEMENT_DASHBOARD_READ` 집합이라 **신규 권한 확장 0**,
+신규 라우트가 아니므로 **mutation manifest 등재 대상도 아니다**.
+
+**단, 두 버튼의 성격이 다르다 — 목업이 이걸 감췄다.**
+
+| 버튼 | 엔드포인트 | 실제 요구 |
+|---|---|---|
+| 입금 확인 | `POST /api/orders/<id>/payment-confirm` | `{type: 'balance'\|'deposit', confirmed: bool}` — **원클릭 가능** |
+| 정산 청구 | `POST /api/orders/<id>/settlement/issue` | `department`·`amount`·`reason` **3개 필수**(각각 없으면 400) — **원클릭 불가, 폼이 필요하다** |
+
+→ 실무 탭의 `[정산 청구]` 는 컴팩트 폼(부서·금액·사유)을 띄운 뒤 같은 엔드포인트로 보낸다.
+CSRF 헤더는 쓰지 않는다 — 기존 호출부(`static/js/orders/erp-order-shared.js:2893`)와 같은
+same-origin 세션 인증이다.
+
+### S6 행 표면 구현 (커밋 `69e7479f`)
+
+`foms/services/settlement_rows.py`(flat) + `GET /api/settlement/rows` + 계약 테스트 25건.
+집계 API 의 "주문 행 미노출" 계약은 **그 엔드포인트에 그대로 유지**하고, 행 표면에
+별도 노출 계약을 붙였다(연락처·주소·현금영수증 원문 금지 — 필드명이 아니라 **값**으로 검사).
+캡 없음(필터 먼저 → 전량 개수 보고 → 페이지 절단), 60건/page, 경과일 오래된 순.
