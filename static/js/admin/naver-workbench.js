@@ -45,6 +45,7 @@
     var BULK_POLL_TIMEOUT_MS = 90000;
     /** 전체 다시 읽기 진행 조회(집 수와 무관하게 서버 조회 1회). */
     var REFRESH_PROGRESS_URL = '/admin/naver-ingest/triage/refresh-progress';
+    var REFRESH_RUNNING_URL = '/admin/naver-ingest/triage/refresh-running';
     /** 운영 실측 2026-08-30: 58집 62초. 캡 200집이면 그 3배 남짓이라 창을 여유 있게. */
     var REFRESH_POLL_INTERVAL_MS = 3000;
     var REFRESH_POLL_TIMEOUT_MS = 300000;
@@ -81,6 +82,9 @@
     /** 전체 다시 읽기 폴링 토큰·타이머(벌크·단건과 따로 둔다 — 서로를 끊으면 안 된다). */
     var refreshAllToken = 0;
     var refreshAllTimer = null;
+    // 남이 눌러 놓은 다시 읽기를 따라가는 폴링(NVREPAY-05 T1) — 자기 요청 폴링과 별개 축이다.
+    var refreshRunningToken = 0;
+    var refreshRunningTimer = null;
 
     /** 수집 폴링 토큰·타이머. 단건(pollToken)·벌크(bulkToken)와 **따로 둔다** —
         하나를 나눠 쓰면 '지금 수집' 을 누른 순간 돌고 있던 집 조작 폴링이 끊기고(그
@@ -141,6 +145,8 @@
         applyFontScale(readFontScale());
         syncNavOffset();
         syncBulk();
+        // 서버가 "남이 돌리는 중" 이라 그렸으면 여기서도 따라간다 — 끝나면 스스로 새로 그린다.
+        syncRefreshRunning();
         // 서버가 전체 렌더에서 내린 "목록 밖 집" 판정을 첫 화면에서 읽어 둔다 —
         // 이후 조각 교체는 이 값을 옮겨 붙인다(applyOfflistFlag).
         paneOfflist = readOfflistFlag();
@@ -170,7 +176,11 @@
      */
     async function submitRefreshAll(button) {
         var count = safeId(button.dataset.count) || '';
+        // 걸리는 시간은 **서버가 만든 값**을 그대로 옮긴다 — 툴팁·모달·진행 라벨이 같은
+        // 말을 해야 한다(여기서 다시 계산하면 같은 화면이 두 말을 하는 자리가 된다).
+        var eta = (button.dataset.eta || '').trim();
         var message = '아직 변할 수 있는 ' + (count || '전체') + '개 주문을 네이버에서 다시 읽습니다.\n'
+            + (eta ? eta + ' 걸립니다. 끝나면 화면이 스스로 새로 그려집니다.\n' : '')
             + '조회만 하며 네이버에는 아무것도 보내지 않습니다.\n'
             + '취소·반품이 처음 발견되면 담당자·관리자에게 알림이 갑니다.';
         if (!window.confirm(message)) {
@@ -265,6 +275,84 @@
                 return;
             }
             refreshAllTimer = window.setTimeout(tick, REFRESH_POLL_INTERVAL_MS);
+        }
+    }
+
+    /**
+     * **남이 눌러 놓은** 전체 다시 읽기를 이 화면에서도 따라간다 (NVREPAY-05 T1).
+     *
+     * 왜: :func:`watchRefreshAll` 은 자기가 방금 큐에 넣은 링크 id 를 들고 있어야 돈다.
+     * 그래서 진행 표시가 누른 브라우저 안에만 있었고, 다른 관리자에게는 돌고 있는 중에도
+     * `다시 읽기 45주문` 이라 적혀 있었다 — 그래서 또 누른다.
+     *
+     * 서버가 띠를 그렸을 때만 돈다(`#wb-refresh-all-running`). 끝나면 화면을 스스로 새로
+     * 그린다 — 그 순간이 버튼이 돌아오는 순간이다. 조회는 회차당 1회, 마감이 있다.
+     *
+     * @returns {void}
+     */
+    function syncRefreshRunning() {
+        stopRefreshRunningWatch();
+        if (!document.getElementById('wb-refresh-all-running')) {
+            return;
+        }
+        var mine = refreshRunningToken;
+        var deadline = Date.now() + REFRESH_POLL_TIMEOUT_MS;
+        refreshRunningTimer = window.setTimeout(tick, REFRESH_POLL_INTERVAL_MS);
+
+        async function tick() {
+            if (mine !== refreshRunningToken) {
+                return;
+            }
+            const state = await readRefreshRunning();
+            if (mine !== refreshRunningToken) {
+                return;
+            }
+            if (state && !state.running) {
+                // 끝났다 — 남의 요청이라도 결과는 이 화면의 목록에 그대로 들어온다.
+                stopRefreshRunningWatch();
+                await softRefresh();
+                return;
+            }
+            var chip = document.getElementById('wb-refresh-all-running');
+            if (state && chip) {
+                chip.innerHTML = '';
+                chip.appendChild(document.createTextNode(
+                    '다시 읽는 중 — ' + state.total + '주문 중 ' + state.done + '주문 완료 · '
+                    + (state.actor || '다른 관리자') + ' 시작'));
+            }
+            if (Date.now() >= deadline) {
+                // 무한 폴링 금지. 서버 창(5분)과 같은 마감이라 여기서 접어도 띠는 사라진다.
+                stopRefreshRunningWatch();
+                await softRefresh();
+                return;
+            }
+            refreshRunningTimer = window.setTimeout(tick, REFRESH_POLL_INTERVAL_MS);
+        }
+    }
+
+    /** 남의 다시 읽기 진행을 읽는다(일시 오류는 다음 회차에 다시 묻는다). */
+    async function readRefreshRunning() {
+        try {
+            const response = await fetch(REFRESH_RUNNING_URL, {
+                credentials: 'same-origin',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            if (!response.ok) {
+                return null;
+            }
+            const payload = await response.json();
+            return payload && payload.success ? (payload.data || null) : null;
+        } catch (error) {
+            return null;
+        }
+    }
+
+    /** 남의 다시 읽기 폴링을 끊는다(완료·마감·화면 교체). */
+    function stopRefreshRunningWatch() {
+        refreshRunningToken += 1;
+        if (refreshRunningTimer !== null) {
+            window.clearTimeout(refreshRunningTimer);
+            refreshRunningTimer = null;
         }
     }
 
@@ -1204,6 +1292,8 @@
             // 내려주므로 들고 다니던 값 대신 서버 값을 읽는다(이 쪽이 더 정확하다).
             applyFontScale(readFontScale());
             syncBulk();
+            // 새로 받은 화면에 진행 띠가 있으면 폴링을 다시 건다(교체로 끊긴다).
+            syncRefreshRunning();
             paneOfflist = readOfflistFlag();
             restoreFind(find);
             // 새 목록이 더 짧으면(집 하나가 큐에서 빠지면) 문서가 줄어 브라우저가 스크롤을

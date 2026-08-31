@@ -39,7 +39,14 @@ from foms.services.integrations.naver_commerce.mapping import (
     group_key_text,
     unwrap_detail,
 )
-from models import ExternalOrderLink, Notification, Order, OrderAssignment, User
+from models import (
+    ExternalOrderLink,
+    Notification,
+    Order,
+    OrderAssignment,
+    SecurityLog,
+    User,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -543,6 +550,212 @@ TERMINAL_ORDER_STATUSES = frozenset({"CANCELED", "RETURNED", "PURCHASE_DECIDED"}
 #: 같은 집을 이 시간 안에 두 번 읽지 않는다. 화면이 끝을 안 말하던 시절 사용자가 28초
 #: 간격으로 두 번 눌렀고(운영 2026-08-30 04:20:13·04:20:41) 두 번째는 통째로 낭비였다.
 REFRESH_ALL_COOLDOWN_SECONDS = 600
+
+#: 감사 원장에서 **전체 다시 읽기 요청**을 찾는 태그. 요청을 쓰는 쪽(라우트)과 읽는 쪽
+#: (:func:`running_refresh_all`)이 같은 문자열을 봐야 하므로 상수로 둔다 — 한쪽만 바뀌면
+#: 진행 표시가 조용히 빈손이 되고, 그건 "아무도 안 눌렀다"로 읽힌다.
+REFRESH_ALL_AUDIT_ACTION = "NAVER_INGEST_REFRESH_ALL_ENQUEUE"
+
+#: 요청 하나를 **지금 돌고 있다**고 볼 창(초). 누른 사람 화면의 폴링 마감
+#: (``REFRESH_POLL_TIMEOUT_MS`` = 300000)과 같은 값이다. 두 값을 갈라 두면 한쪽 화면만
+#: 영원히 `다시 읽는 중` 으로 남는다.
+REFRESH_ALL_RUN_WINDOW_SECONDS = 300
+
+#: 집 하나를 다시 읽는 데 걸리는 시간(초) — 추정이 아니라 **실측**이다.
+#: ``claim_sync.refreshed_at`` 스탬프 분포로 쟀다: 운영 45집 42.3초(집당 0.94s, 2026-08-30
+#: 23:25 요청), 스테이징 85집 81.7초(집당 0.97s, 2026-08-30 07:13 요청). 두 환경의 기울기가
+#: 같고 스탬프가 등간격이라(운영 45집 구간 11·22·32·42초) 집 수에 선형으로 본다.
+REFRESH_ALL_SECONDS_PER_HOUSE = 1.0
+
+#: 느린 쪽 실측(초/집). 워커 동시성이 1이라 앞에 다른 일이 서 있으면 그만큼 통째로 밀린다
+#: (운영 2026-08-30 04:20 연타 실측: 첫 스탬프가 요청 +40.5초·+69.0초). 사람에게 말하는
+#: 시간이 **범위**여야 하는 이유다 — 한 값으로 말하면 밀린 날 화면이 거짓말한 게 된다.
+REFRESH_ALL_SECONDS_PER_HOUSE_SLOW = 2.0
+
+
+def refresh_all_eta_text(count: int) -> str:
+    """집 ``count`` 개를 다시 읽는 데 걸릴 시간을 사람이 읽는 한 마디로 (NVREPAY-05 T2).
+
+    왜 필요한가: 버튼은 몇 집인지만 말하고 **얼마나 걸리는지**는 말하지 않았다. 사람은
+    그 침묵을 "곧 끝난다"로 읽고, 1분이 지나면 멈춘 걸로 읽는다(2026-08-30 운영에서 28초
+    만에 다시 눌린 사건의 절반은 이 침묵이었다).
+
+    한 값이 아니라 **범위**로 말한다. 처리 속도 자체는 두 환경에서 거의 같지만
+    (:data:`REFRESH_ALL_SECONDS_PER_HOUSE`), 워커가 하나뿐이라 앞선 작업이 있으면 시작이
+    통째로 밀린다(:data:`REFRESH_ALL_SECONDS_PER_HOUSE_SLOW`). 한 값으로 말하면 밀린 날
+    화면이 거짓말한 것이 된다.
+
+    Args:
+        count: 다시 읽을 집 수.
+
+    Returns:
+        ``"약 1~2분"`` 같은 한 마디. 셀 게 없으면 빈 문자열(화면이 아무 말도 안 한다).
+    """
+    if count <= 0:
+        return ""
+    low_seconds = count * REFRESH_ALL_SECONDS_PER_HOUSE
+    high_seconds = count * REFRESH_ALL_SECONDS_PER_HOUSE_SLOW
+    if high_seconds < 60:
+        return "약 1분 안"
+    # 올림으로 말한다 — 남는 시간은 사람이 견디지만 모자란 예고는 또 "멈췄나" 가 된다.
+    low_minutes = max(1, int(-(-low_seconds // 60)))
+    high_minutes = int(-(-high_seconds // 60))
+    if high_minutes <= low_minutes:
+        return f"약 {low_minutes}분"
+    return f"약 {low_minutes}~{high_minutes}분"
+
+
+def refreshed_household_counts(
+    session: Session, since: datetime, *,
+    order_nos: Optional[list[str]] = None,
+) -> tuple[int, int]:
+    """``since`` 이후 다시 읽힌 집을 센다 — 진행 표시 두 곳의 **하나뿐인** 판정.
+
+    끝난 집의 정의는 하나다: 그 집의 상품주문이 **전부** ``since`` 이후에 다시 읽혔다.
+    대표 링크 하나만 보면 안 되는 이유는 워커가 형제 상품주문을 같이 읽고 스탬프도
+    형제마다 찍기 때문이고, 값이 없거나 깨진 스탬프를 **안 읽은 것**으로 세는 이유는
+    진행 표시가 실제보다 앞서 가면 사람이 낡은 화면을 최신으로 믿기 때문이다.
+
+    Args:
+        session: DB 세션.
+        since: 요청이 큐에 들어간 시각(UTC naive).
+        order_nos: 셀 집(주문번호) 목록. ``None`` 이면 수집된 네이버 집 **전부**를 센다
+            (남이 누른 요청은 어떤 집을 넣었는지 화면이 모르기 때문 — T1).
+
+    Returns:
+        ``(끝난 집, 센 집)``.
+    """
+    refreshed_at = ExternalOrderLink.triage_state[STATE_KEY]["refreshed_at"].as_string()
+    query = (session.query(ExternalOrderLink.external_order_no, refreshed_at)
+             .filter(ExternalOrderLink.channel == CHANNEL,
+                     ExternalOrderLink.external_order_no.isnot(None)))
+    if order_nos is not None:
+        if not order_nos:
+            return 0, 0
+        query = query.filter(ExternalOrderLink.external_order_no.in_(order_nos))
+    rows = query.all()  # perf-ok: 링크 단위 스칼라 투영(운영 200행), 관리자 전용 폴링
+
+    done_by_house: dict[str, bool] = {}
+    for order_no, stamp in rows:
+        key = str(order_no)
+        done_by_house[key] = done_by_house.get(key, True) and _refreshed_since(stamp, since)
+    return sum(1 for value in done_by_house.values() if value), len(done_by_house)
+
+
+def _refreshed_since(stamp: Optional[str], since: datetime) -> bool:
+    """이 상품주문이 ``since`` 이후에 다시 읽혔는가.
+
+    값이 없거나 깨졌으면 **아직 안 읽은 것**으로 본다 — 진행 표시가 실제보다 앞서 가면
+    사람이 낡은 화면을 최신으로 믿는다.
+
+    Args:
+        stamp: ``claim_sync.refreshed_at`` 문자열(ISO) 또는 ``None``.
+        since: 요청이 큐에 들어간 시각.
+
+    Returns:
+        ``since`` 이후에 읽혔으면 True.
+    """
+    if not stamp:
+        return False
+    try:
+        parsed = datetime.fromisoformat(str(stamp))
+    except (TypeError, ValueError):
+        return False
+    if parsed.tzinfo is not None:
+        parsed = parsed.replace(tzinfo=None)
+    return parsed >= since
+
+
+def running_refresh_all(
+    session: Session, *, now: Optional[datetime] = None,
+) -> Optional[dict[str, Any]]:
+    """**지금 누가 전체 다시 읽기를 돌리고 있나** — 누구의 브라우저에서든 (NVREPAY-05 T1).
+
+    왜 필요한가: 진행 표시는 누른 브라우저 안에만 있었다. 다른 관리자가 같은 목록을 열면
+    돌고 있는 중인데도 `다시 읽기 45주문` 이라 적혀 있고, 그래서 또 누른다 — 2026-08-30
+    운영에서 한 사람이 28초 만에 두 번 눌러 낭비된 것과 **같은 낭비를 두 사람이** 낸다.
+
+    **새 상태 저장소를 만들지 않는다.** 요청은 이미 감사 원장에 남고(누가·언제·몇 집),
+    처리 진행은 워커가 찍는 ``claim_sync.refreshed_at`` 가 이미 말한다. 둘을 붙이면
+    "누가 언제 눌렀고 어디까지 왔나"가 나온다. 판정도 누른 사람 화면과 같은 함수
+    (:func:`refreshed_household_counts`)를 쓴다 — 두 벌이면 조용히 갈린다.
+
+    끝난 집 수는 요청이 넣은 집 수를 **넘지 않게 자른다**. 어떤 집을 넣었는지는 감사 행에
+    없어서 수집된 집 전부를 세는데, 그 사이 단건 `다시 읽기` 나 자동 스윕이 찍은 스탬프가
+    섞이면 진행이 100%를 넘을 수 있다.
+
+    Args:
+        session: DB 세션.
+        now: 지금 시각(테스트 주입). 생략하면 UTC naive 현재.
+
+    Returns:
+        돌고 있으면 ``{"actor", "started_at", "elapsed_seconds", "total", "done",
+        "pending", "eta"}``. 아무도 안 돌리고 있거나(창 밖) 이미 끝났으면 ``None``.
+    """
+    stamp = now or now_utc_naive()
+    window_start = stamp - timedelta(seconds=REFRESH_ALL_RUN_WINDOW_SECONDS)
+    row = (session.query(SecurityLog.timestamp, SecurityLog.user_id, SecurityLog.detail)
+           .filter(SecurityLog.action == REFRESH_ALL_AUDIT_ACTION,
+                   SecurityLog.timestamp >= window_start,
+                   SecurityLog.timestamp <= stamp)
+           .order_by(SecurityLog.timestamp.desc(), SecurityLog.id.desc())
+           .first())  # perf-ok: (timestamp, id) 인덱스 + 창 5분
+    if row is None:
+        return None
+    started_at, user_id, detail = row
+    total = _audit_queued_count(detail)
+    if total <= 0:
+        # 대상 0으로 끝난 요청(쿨다운)은 돌고 있는 게 아니다.
+        return None
+
+    done = min(refreshed_household_counts(session, started_at)[0], total)
+    if done >= total:
+        return None
+    return {"actor": _actor_name(session, user_id),
+            "started_at": started_at.isoformat(),
+            "elapsed_seconds": max(0, int((stamp - started_at).total_seconds())),
+            "total": total, "done": done, "pending": total - done,
+            "eta": refresh_all_eta_text(total)}
+
+
+def _audit_queued_count(detail: Any) -> int:
+    """감사 행의 ``detail`` 에서 큐에 넣은 집 수를 꺼낸다.
+
+    ``detail`` 은 JSONB 라 보통 dict 로 오지만, 상한을 넘겨 잘린 행
+    (:func:`audit_writer.normalize_security_detail`)은 ``{"truncated": True}`` 다.
+    모양이 다르면 **0** 을 준다 — 모르는 요청을 진행 중이라고 그리지 않는다.
+
+    Args:
+        detail: 감사 행의 ``detail`` 값.
+
+    Returns:
+        큐에 넣은 집 수(모르면 0).
+    """
+    if not isinstance(detail, dict):
+        return 0
+    try:
+        return max(0, int(detail.get("queued") or 0))
+    except (TypeError, ValueError):
+        return 0
+
+
+def _actor_name(session: Session, user_id: Optional[int]) -> str:
+    """요청을 누른 사람 이름. 모르면 빈 문자열(화면이 `다른 관리자` 라고 말한다).
+
+    감사 행에 행위자가 없던 시절(2026-08-31 이전 요청)의 행도 그대로 읽힌다 — 이름이
+    없다고 진행 표시를 통째로 접으면 그게 더 나쁘다.
+
+    Args:
+        session: DB 세션.
+        user_id: 감사 행의 행위자 id(없으면 ``None``).
+
+    Returns:
+        사용자 이름 또는 빈 문자열.
+    """
+    if not user_id:
+        return ""
+    name = session.query(User.name).filter(User.id == int(user_id)).scalar()
+    return str(name or "")
 
 
 def _is_terminal_link(claim_status: str, order_status: str) -> bool:
