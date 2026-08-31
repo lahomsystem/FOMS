@@ -1,0 +1,232 @@
+/*
+ * 정산 대시보드 · 탭 2 "실무(경리·수금)" 전용 스타일 (SETTLE-TABS-01).
+ *
+ * 원본: docs/design/mockups/settlement-dashboard-v2-operations.html <style> :7-228.
+ * 값(색·크기·간격·브레이크포인트)은 목업을 그대로 옮겼고, 강제로 바꾼 것만 아래에 적는다.
+ *
+ * 1) **클래스 이름** — 목업은 독립 문서라 `.panel`/`.chip`/`.grid`/`.btn`/`.kpi` 같은 맨이름을
+ *    썼다. FOMS 문서에는 Bootstrap 5 와 `css/foundation/erp-pro.css` 가 전역으로 먼저 실려
+ *    있어서(`layout_head.html`) `.btn`·`.grid`·`.chip` 을 그대로 쓰면 전역 규칙이 그대로 걸린다.
+ *    네임스페이스만으로는 못 막는다(Bootstrap `.btn` 은 `.foms-settle` 안에서도 매칭된다).
+ *    그래서 **이름 자체를 `s-ops-` 접두어로 바꿨다.**
+ * 2) **`s-ops-` 인 이유(요약 탭과 갈라 쓴다)** — 이 마크업은 요약 탭과 같은 루트 안에 산다.
+ *    `.s-filterbar`·`.s-foot` 같은 요약 탭 클래스를 재사용하면 `dashboard.js` 의 단일
+ *    `querySelector` 배선이 실무 탭 노드를 잡고, 계약 테스트(`class="s-filterbar"` 1개)도 깨진다.
+ * 3) **토큰** — 색·간격 토큰은 `settlement-dashboard.css` 가 `.foms-settle` 에 이미 선언한
+ *    `--s-*` 를 그대로 물려받는다. 여기서 새로 만드는 것은 이 화면에만 있는 배지·aging 램프뿐이고
+ *    전부 `--s-ops-*` 로 접두어를 갈랐다. 전역 선택자(`:root`/`body`/`*`)는 건드리지 않는다.
+ *
+ * 목업에서 **제거**한 것(근거 데이터가 시스템에 없다 — 없는 숫자를 그리지 않는다):
+ *   `.teaser*`(미래 티저 3종) · 일별 수금 차트 · `.chan-strip`(네이버 수수료 대사) ·
+ *   `.soon`(미구현 배지) · `.mockup-badge` · `.foot-note`.
+ * 목업에 **없어서 추가**한 것: 과입금 칸(`.s-ops-over`) — 잔금이 0 에서 잘리므로 이 칸이 없으면
+ * 돌려줄 돈이 화면에서 사라진다. 그리고 번호 페이저(`.s-ops-pager`)와 청구 폼(`.s-ops-form`).
+ *
+ * aging 램프는 목업의 파랑 시퀀셜이 아니라 **요약 탭과 같은 주황 램프**를 쓴다. 같은 페이지의
+ * 두 탭이 같은 지표(미수 aging)를 다른 색으로 그리면 그 자체가 결함이다.
+ *
+ * 변경 시 `templates/cs/partials/settlement_dashboard_body.html` 의 `?v=` 핀을 반드시 범프한다
+ * (Service Worker staticCacheFirst 라 핀 없이는 배포가 반영되지 않는다).
+ */
+
+/* ── 이 화면 전용 토큰 ─────────────────────────────────────────── */
+.foms-settle .s-ops {
+  --s-ops-green: #15803d;
+  --s-ops-green-soft: #e7f6ec;
+  --s-ops-blue: #2563eb;
+  --s-ops-blue-soft: #eaf1ff;
+  --s-ops-orange: #c2410c;
+  --s-ops-orange-soft: #fdeee6;
+  --s-ops-neutral: #4b5563;
+  --s-ops-neutral-soft: #f1f3f7;
+  --s-ops-red-soft: #fdeaea;
+  /* 미수 경과 램프 — 요약 탭 aging 차트(ORANGE_RAMP5)와 같은 5단계 순서색 */
+  --s-ops-ramp-1: #f19979;
+  --s-ops-ramp-2: #eb6834;
+  --s-ops-ramp-3: #c74b12;
+  --s-ops-ramp-4: #9f3701;
+  --s-ops-ramp-5: #752600;
+
+  display: grid;
+  gap: 12px;
+}
+
+/* ── KPI 스트립 ────────────────────────────────────────────────── */
+.foms-settle .s-ops-kpis {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
+}
+.foms-settle .s-ops-kpi {
+  background: var(--s-surface); border: 1px solid var(--s-line);
+  border-radius: var(--s-radius); padding: 10px 14px;
+}
+.foms-settle .s-ops-kpi-k { font-size: 11.5px; color: var(--s-muted); font-weight: 600; }
+.foms-settle .s-ops-kpi-v {
+  font-size: 21px; font-weight: 700; margin-top: 2px; letter-spacing: -0.2px;
+  font-variant-numeric: tabular-nums;
+}
+.foms-settle .s-ops-kpi-v i { font-style: normal; font-size: 13px; font-weight: 600; color: var(--s-muted); }
+.foms-settle .s-ops-kpi-sub { font-size: 11.5px; color: var(--s-faint); margin-top: 2px; }
+.foms-settle .s-ops-kpi--warn .s-ops-kpi-v { color: var(--s-bad); }
+
+/* ── 패널 ──────────────────────────────────────────────────────── */
+.foms-settle .s-ops-panel {
+  background: var(--s-surface); border: 1px solid var(--s-line);
+  border-radius: var(--s-radius); min-width: 0;
+}
+.foms-settle .s-ops-head {
+  display: flex; align-items: center; gap: 8px; padding: 9px 12px;
+  border-bottom: 1px solid var(--s-line-soft); flex-wrap: wrap;
+}
+.foms-settle .s-ops-title { font-weight: 700; }
+.foms-settle .s-ops-sub { font-weight: 500; color: var(--s-muted); font-size: 11.5px; }
+.foms-settle .s-ops-spacer { flex: 1; }
+.foms-settle .s-ops-body { padding: 12px; }
+.foms-settle .s-ops-note { font-size: 11.5px; color: var(--s-faint); padding: 6px 4px 0; }
+.foms-settle .s-ops-legalnote { color: var(--s-faint); font-size: 11px; line-height: 1.6; padding: 0 2px 6px; }
+
+/* ── 버튼 (Bootstrap `.btn` 을 피해 이름을 갈랐다) ─────────────── */
+.foms-settle .s-ops-btn {
+  border: 1px solid var(--s-line); background: var(--s-surface); color: var(--s-text);
+  padding: 5px 11px; border-radius: 7px; font-size: 12px; cursor: pointer; font-weight: 600;
+  font-family: inherit; line-height: 1.35;
+}
+.foms-settle .s-ops-btn:hover { background: var(--s-surface-soft); }
+.foms-settle .s-ops-btn:focus-visible { outline: 2px solid var(--s-accent); outline-offset: 1px; }
+.foms-settle .s-ops-btn[disabled] { opacity: .5; cursor: default; }
+.foms-settle .s-ops-btn--primary { background: var(--s-ops-blue); border-color: var(--s-ops-blue); color: #fff; }
+.foms-settle .s-ops-btn--primary:hover { background: #1d4fd8; }
+.foms-settle .s-ops-btn--ghost { border-color: transparent; background: transparent; color: var(--s-muted); }
+.foms-settle .s-ops-btn--xs { padding: 2.5px 8px; font-size: 11px; border-radius: 6px; }
+
+/* ── 미수금 aging (퍼센트 폭 HTML 막대 — 숨은 pane 폭 0 함정이 없다) ── */
+.foms-settle .s-ops-aging-row {
+  display: grid; grid-template-columns: 78px 1fr; gap: 10px; align-items: center;
+  padding: 4px; border-radius: 7px; cursor: pointer; border: 1px solid transparent;
+  min-height: 30px; width: 100%; text-align: left; background: none; font-family: inherit;
+}
+.foms-settle .s-ops-aging-row:hover { background: var(--s-surface-soft); }
+.foms-settle .s-ops-aging-row:focus-visible { outline: 2px solid var(--s-accent); outline-offset: -2px; }
+.foms-settle .s-ops-aging-row[aria-pressed="true"] { background: var(--s-ops-blue-soft); border-color: #c7dbff; }
+.foms-settle .s-ops-aging-lbl { font-size: 12px; color: var(--s-muted); font-weight: 600; text-align: right; }
+.foms-settle .s-ops-aging-track { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.foms-settle .s-ops-aging-bar {
+  height: 18px; border-radius: 0 4px 4px 0; min-width: 3px;
+  width: var(--s-ops-bar-pct, 0%); background: var(--s-ops-bar-color, var(--s-ops-ramp-2));
+}
+.foms-settle .s-ops-aging-val { font-size: 11.5px; color: var(--s-text); font-weight: 600; white-space: nowrap; }
+.foms-settle .s-ops-aging-val small { color: var(--s-faint); font-weight: 500; }
+.foms-settle .s-ops-aging--has-sel .s-ops-aging-row:not([aria-pressed="true"]) .s-ops-aging-bar { opacity: .3; }
+
+/* ── 필터 칩 ───────────────────────────────────────────────────── */
+.foms-settle .s-ops-filterbar {
+  display: flex; gap: 6px; padding: 8px 10px; flex-wrap: wrap; align-items: center;
+  border-bottom: 1px solid var(--s-line-soft);
+}
+.foms-settle .s-ops-grp { display: flex; gap: 4px; align-items: center; }
+.foms-settle .s-ops-grp-lbl { font-size: 11px; color: var(--s-faint); font-weight: 600; margin: 0 2px 0 6px; }
+.foms-settle .s-ops-chip {
+  border: 1px solid var(--s-line); background: var(--s-surface); border-radius: 999px;
+  padding: 3px 10px; font-size: 11.5px; color: var(--s-muted); cursor: pointer; font-family: inherit;
+}
+.foms-settle .s-ops-chip:focus-visible { outline: 2px solid var(--s-accent); outline-offset: 1px; }
+.foms-settle .s-ops-chip[aria-pressed="true"] { background: #111827; border-color: #111827; color: #fff; font-weight: 600; }
+.foms-settle .s-ops-chip--clear {
+  border: none; background: var(--s-ops-blue-soft); color: var(--s-ops-blue); font-weight: 600;
+  border-radius: 999px; padding: 3px 10px; font-size: 11.5px; cursor: pointer; font-family: inherit;
+}
+
+/* ── 그리드 ────────────────────────────────────────────────────── */
+.foms-settle .s-ops-gridwrap { max-height: 640px; overflow: auto; }
+.foms-settle .s-ops-grid { width: 100%; border-collapse: collapse; }
+.foms-settle .s-ops-grid th,
+.foms-settle .s-ops-grid td { padding: 6px 9px; border-bottom: 1px solid var(--s-line-soft); white-space: nowrap; }
+.foms-settle .s-ops-grid thead th {
+  position: sticky; top: 0; z-index: 2; background: var(--s-surface-soft);
+  font-size: 11px; color: var(--s-muted); text-align: left; font-weight: 700;
+  border-bottom: 1px solid var(--s-line);
+}
+.foms-settle .s-ops-grid td { font-size: 12.5px; vertical-align: middle; }
+.foms-settle .s-ops-grid .s-ops-num { text-align: right; font-variant-numeric: tabular-nums; }
+.foms-settle .s-ops-grid tbody tr:hover { background: var(--s-surface-soft); }
+.foms-settle .s-ops-grid tr.s-ops-row--overdue { background: #fff7f7; }
+.foms-settle .s-ops-grid tr.s-ops-row--overdue:hover { background: #fdefef; }
+.foms-settle .s-ops-grid td.s-ops-balance { font-weight: 700; }
+.foms-settle .s-ops-grid td.s-ops-balance.s-ops-balance--paid { color: var(--s-faint); font-weight: 500; }
+/* 과입금은 "받을 돈"이 아니라 "돌려줄 돈"이라 잔금과 색을 분리한다. */
+.foms-settle .s-ops-grid td.s-ops-over { color: var(--s-ops-orange); font-weight: 700; }
+.foms-settle .s-ops-cust-nm { font-weight: 700; }
+.foms-settle .s-ops-cust-no { color: var(--s-faint); font-size: 11px; margin-left: 5px; font-variant-numeric: tabular-nums; }
+.foms-settle .s-ops-subline { font-size: 10.5px; margin-top: 1px; }
+.foms-settle .s-ops-subline--ok { color: var(--s-ops-green); font-weight: 600; }
+.foms-settle .s-ops-subline--warn { color: var(--s-amber); font-weight: 600; }
+.foms-settle .s-ops-dash { color: var(--s-faint); }
+
+/* 배지 — 색만으로 말하지 않는다(글자가 같은 사실을 반복한다). */
+.foms-settle .s-ops-b {
+  display: inline-block; font-size: 11px; font-weight: 700; border-radius: 5px;
+  padding: 1.5px 7px; white-space: nowrap;
+}
+.foms-settle .s-ops-b--ch-normal { background: var(--s-ops-neutral-soft); color: var(--s-ops-neutral); }
+.foms-settle .s-ops-b--ch-ext { background: var(--s-ops-green-soft); color: var(--s-ops-green); }
+.foms-settle .s-ops-b--e0 { background: var(--s-ops-neutral-soft); color: var(--s-ops-neutral); }
+.foms-settle .s-ops-b--e1 { background: var(--s-amber-soft); color: var(--s-amber); }
+.foms-settle .s-ops-b--e2 { background: var(--s-ops-orange-soft); color: var(--s-ops-orange); }
+.foms-settle .s-ops-b--e3 { background: var(--s-ops-red-soft); color: var(--s-bad); }
+.foms-settle .s-ops-b--paid { background: var(--s-ops-green-soft); color: var(--s-ops-green); }
+.foms-settle .s-ops-b--cash-req { background: var(--s-amber-soft); color: var(--s-amber); }
+.foms-settle .s-ops-b--cash-ok { background: var(--s-ops-green-soft); color: var(--s-ops-green); }
+.foms-settle .s-ops-b--settle-wait { background: var(--s-amber-soft); color: var(--s-amber); }
+.foms-settle .s-ops-b--settle-ok { background: var(--s-ops-blue-soft); color: var(--s-ops-blue); }
+
+.foms-settle .s-ops-actions { display: flex; gap: 5px; align-items: center; }
+.foms-settle .s-ops-foot {
+  display: flex; gap: 14px; align-items: center; padding: 8px 12px;
+  color: var(--s-muted); font-size: 11.5px; border-top: 1px solid var(--s-line-soft); flex-wrap: wrap;
+}
+.foms-settle .s-ops-foot b { color: var(--s-text); }
+
+/* ── 번호 페이저 ───────────────────────────────────────────────── */
+.foms-settle .s-ops-pager {
+  display: flex; gap: 4px; align-items: center; flex-wrap: wrap;
+  padding: 8px 12px 12px; justify-content: center;
+}
+.foms-settle .s-ops-page {
+  border: 1px solid var(--s-line); background: var(--s-surface); color: var(--s-muted);
+  min-width: 28px; padding: 3px 8px; border-radius: 6px; font-size: 11.5px;
+  cursor: pointer; font-family: inherit; font-variant-numeric: tabular-nums;
+}
+.foms-settle .s-ops-page:hover { background: var(--s-surface-soft); }
+.foms-settle .s-ops-page:focus-visible { outline: 2px solid var(--s-accent); outline-offset: 1px; }
+.foms-settle .s-ops-page[aria-current="page"] {
+  background: var(--s-accent); border-color: var(--s-accent); color: #fff; font-weight: 700;
+}
+.foms-settle .s-ops-page[disabled] { opacity: .4; cursor: default; }
+.foms-settle .s-ops-page-gap { color: var(--s-faint); padding: 0 2px; font-size: 11.5px; }
+
+/* ── 정산 청구 폼 ──────────────────────────────────────────────── */
+.foms-settle .s-ops-form {
+  margin: 10px 12px; padding: 10px 12px; border: 1px solid var(--s-line);
+  border-radius: var(--s-radius); background: var(--s-surface-soft);
+}
+.foms-settle .s-ops-form-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.foms-settle .s-ops-form-title { font-weight: 700; font-size: 12.5px; }
+.foms-settle .s-ops-form-target { color: var(--s-muted); font-size: 11.5px; }
+.foms-settle .s-ops-form-grid {
+  display: grid; grid-template-columns: 150px 150px 1fr auto; gap: 8px; align-items: end; margin-top: 8px;
+}
+.foms-settle .s-ops-field { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.foms-settle .s-ops-field--action { justify-content: end; }
+.foms-settle .s-ops-field-lbl { font-size: 11px; color: var(--s-muted); font-weight: 600; }
+.foms-settle .s-ops-input {
+  border: 1px solid var(--s-line); border-radius: 7px; padding: 5px 8px;
+  font-size: 12px; font-family: inherit; background: var(--s-surface); color: var(--s-text);
+  min-width: 0; width: 100%;
+}
+.foms-settle .s-ops-input:focus-visible { outline: 2px solid var(--s-accent); outline-offset: -1px; }
+.foms-settle .s-ops-form-note { font-size: 11px; color: var(--s-faint); margin-top: 6px; }
+
+/* ── 반응형: 목업과 같은 980px 브레이크포인트 ─────────────────── */
+@media (max-width: 980px) {
+  .foms-settle .s-ops-kpis { grid-template-columns: repeat(2, 1fr); }
+  .foms-settle .s-ops-form-grid { grid-template-columns: 1fr 1fr; }
+}

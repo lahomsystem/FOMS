@@ -1,0 +1,11 @@
+{% extends "cs/layout.html" %}
+
+{# 정산 대시보드 전체 문서(SETTLE-DASH-01). 화면 내용은 body partial 이 통째로 갖는다.
+
+   **자산 링크(CSS `<link>` · 차트 `<script defer>`)를 여기 styles/scripts 블록으로 옮기지 마라.**
+   `GET /erp/settlement` 은 ERP 셸 탭 요청이면 `cs/partials/settlement_dashboard_body.html`
+   **하나만** 낸다(`foms/web/cs/settlement_dashboard.py:72-76`). layout 블록은 그 경로에
+   실리지 않으므로, 여기로 옮기는 순간 탭으로 들어온 사용자는 CSS 도 차트 JS 도 없는
+   맨 마크업을 보게 된다(실측 대시보드에서 실제로 났던 사고와 같은 병).
+   그래서 자산 링크는 body partial 안에 있고, `?v=` 핀도 자산당 그 한 곳에만 둔다. #}
+{% block content %}{% include 'cs/partials/settlement_dashboard_body.html' %}{% endblock %}
