@@ -810,12 +810,13 @@ def test_dashboard_js_bounds_comparison_series_to_axis_groups():
     )
 
 
-def test_dashboard_js_draws_no_bar_for_zero_value():
-    """값이 0 이면 막대를 **아예 그리지 않는다** — 0 을 보이는 막대로 그리면 거짓 표기다.
+def test_dashboard_js_draws_no_series_bar_for_zero_value():
+    """값이 0 이면 **시리즈 색 막대는** 그리지 않는다 — 0 을 매출색으로 칠하면 거짓 표기다.
 
-    목업은 모든 막대에 최소 높이(1.5px)를 줬다. 그러면 0건인 구간에도 실선이 남아
-    "적지만 있다"로 읽힌다. 운영 aging 은 `D91_PLUS` 6억 대 나머지 수백만이라 이 하한이
-    거짓 신호를 가장 크게 만드는 자리다. 0 은 그리지 않고, 양수는 최소 높이를 보장한다.
+    목업은 모든 막대에 최소 높이(1.5px)를 줬다. 서열 차트(aging)에서는 그 하한이
+    "적지만 있다"는 거짓 신호를 만든다 — 운영 aging 은 `D91_PLUS` 6억 대 나머지 수백만이라
+    가장 크게 왜곡되는 자리다. 그래서 0 은 시리즈 색으로 그리지 않고, 양수는 최소 높이를
+    보장한다. 시계열 차트만 `zeroFloor` 로 **중립색 baseline 스텁**을 켠다(아래 테스트).
     """
     js = _read_code(f"static/{JS_ASSET}")
 
@@ -828,8 +829,36 @@ def test_dashboard_js_draws_no_bar_for_zero_value():
         f"양수 막대의 최소 높이 보장이 없다: {height.group(1)}"
     )
     assert re.search(r"if\s*\(\s*bh\s*>\s*0\s*\)", js), (
-        "높이 0 일 때 path 를 건너뛰는 가드가 없다"
+        "높이 0 일 때 시리즈 색 path 를 건너뛰는 가드가 없다"
     )
+
+
+def test_zero_floor_stub_is_opt_in_and_neutral_colored():
+    """시계열 차트만 0 버킷에 중립색 baseline 스텁을 깐다(`zeroFloor`).
+
+    스텁이 없으면 완료 0건인 날의 칸이 SVG 에서 통째로 사라진다. 운영처럼 완료가 드문
+    달에는 31칸 중 대부분이 비어 막대의 리듬이 무너지고, 전폭을 잇는 전월 비교 라인만
+    남아 **막대 차트가 라인 차트로 읽힌다**(사용자 지적, 2026-08-31).
+
+    스텁 색은 시리즈 색이 아니라 `--s-zero-bar` 다 — 매출 0 을 매출색으로 칠하지 않는다.
+    옵트인이라 aging 카드의 0 억제 계약은 그대로 유지된다.
+    """
+    js = _read_code(f"static/{JS_ASSET}")
+    css = _read_code(f"static/{CSS_ASSET}")
+
+    assert re.search(r"else\s+if\s*\(\s*cfg\.zeroFloor\s*\)", js), (
+        "0 버킷 baseline 스텁이 cfg.zeroFloor 옵트인으로 갈려 있지 않다"
+    )
+    stub = re.search(r"else\s+if\s*\(\s*cfg\.zeroFloor\s*\)\s*\{([^}]*)\}", js)
+    assert stub and "--s-zero-bar" in stub.group(1), (
+        f"스텁이 중립 토큰(--s-zero-bar)을 쓰지 않는다: {stub.group(1) if stub else None}"
+    )
+    assert "--s-zero-bar:" in css, "--s-zero-bar 토큰 선언이 CSS 에 없다"
+
+    # aging 은 켜지 않는다 — 켜면 위 테스트가 지키는 거짓 신호 방지가 무너진다.
+    aging = re.search(r"columnChart\(ctx,\s*host,\s*\{[^}]*?twoLineX:\s*true.*?\}\);", js, re.S)
+    assert aging, "aging 차트 호출을 찾지 못했다"
+    assert "zeroFloor" not in aging.group(0), "aging 차트에 zeroFloor 가 켜져 있다"
 
 
 # ==========================================================================
