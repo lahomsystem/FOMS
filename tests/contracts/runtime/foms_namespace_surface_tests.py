@@ -1497,12 +1497,22 @@ def test_namespaced_erp_sync_columns_shim_preserves_canonical_contract() -> None
 
 
 def test_namespaced_geocode_helpers_shim_preserves_canonical_contract() -> None:
-    """The legacy services path should re-export the canonical geocode helpers."""
+    """The legacy services path should re-export the canonical geocode helpers.
+
+    ``apply_geocode_to_order`` + its outcome constants joined the surface when the SIDEFX
+    ``GEOCODE`` handler landed: the RQ task and the outbox handler must share one decision
+    function (no second copy of the geocode judgement/persist rules).
+    """
     expected_public_names = [
         "compute_address_hash",
         "extract_address_from_structured_data",
         "extract_address_from_order",
         "get_order_display_address",
+        "apply_geocode_to_order",
+        "GEOCODE_OUTCOME_SKIPPED",
+        "GEOCODE_OUTCOME_SUCCESS",
+        "GEOCODE_OUTCOME_FAILED",
+        "GEOCODE_OUTCOME_NO_ADDRESS",
     ]
 
     assert namespaced_geocode_helpers.__all__ == expected_public_names

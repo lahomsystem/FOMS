@@ -1563,10 +1563,23 @@
         const GEOCODE_POLL_INTERVALS_MS = [1500, 3000, 6000, 12000, 20000];
         const GEOCODE_POLL_MAX_RETRIES = GEOCODE_POLL_INTERVALS_MS.length;
 
+        // 진행(새 좌표 해소)이 있는 회차는 재시도 횟수를 소모하지 않는다 — 단일 RQ 워커가
+        // 건당 몇 초씩 순차로 채우는 동안 5회 소진으로 조기 종료되면 안 되기 때문.
+        // 대신 무한 폴링이 되지 않도록 전체 상한(라운드 수·총 경과시간)을 별도로 둔다.
+        let geocodePollRounds = 0;
+        let geocodePollStartedAt = 0;
+        const GEOCODE_POLL_MAX_ROUNDS = 120;
+        const GEOCODE_POLL_MAX_ELAPSED_MS = 300000;
+
         // 다음 폴 회차의 지연(ms). geocodePollRetries는 1-기반 회차 카운터.
         function geocodePollDelayMs() {
             const idx = Math.max(0, Math.min(geocodePollRetries - 1, GEOCODE_POLL_INTERVALS_MS.length - 1));
             return GEOCODE_POLL_INTERVALS_MS[idx];
+        }
+
+        // 진행 배너 문구: 남은 pending 건수를 사람이 읽을 수 있게 노출한다.
+        function geocodePollProgressText(pendingCount, delayMs) {
+            return '주소 변환 중... ' + pendingCount + '건 남음 (' + (delayMs / 1000) + '초 후 갱신)';
         }
 
         function configureStatusFilter() {
@@ -1829,6 +1842,8 @@
                 geocodePollTimeoutId = null;
             }
             geocodePollRetries = 0;
+            geocodePollRounds = 0;
+            geocodePollStartedAt = 0;
             const banner = document.getElementById('geocode-poll-banner');
             if (banner) {
                 banner.style.display = 'none';
@@ -1849,6 +1864,8 @@
                 geocodePollTimeoutId = null;
             }
             geocodePollRetries = 0;
+            geocodePollRounds = 0;
+            geocodePollStartedAt = 0;
             const banner = document.getElementById('geocode-poll-banner');
             const pollText = document.getElementById('geocode-poll-text');
             if (banner) {
@@ -1891,14 +1908,21 @@
                     .then(function (r) { return r.json(); })
                     .then(function (data) {
                         if (!data.success) { clearGeocodePoll(); return; }
+                        // 부분 갱신 가능 여부 — 카카오 클라 렌더가 살아 있으면 마커만 교체한다.
+                        const kakaoActive = !!(window.FomsMapViewKakao && window.FomsMapViewKakao.isActive());
+                        let resolvedPending = false;
                         // measurement: 서버 응답으로 전체 재구성 (2026-03-15)
                         if (Array.isArray(data.orders)) {
                             currentOrders = data.orders;
                             updateOrderList(currentOrders);
-                            const resolvedPending = currentOrders.some(function (o) {
+                            resolvedPending = currentOrders.some(function (o) {
                                 return pendingBefore.has(o.id) && o.conversion_status === 'success';
                             });
-                            if (resolvedPending) {
+                            // pending 이 풀릴 때마다 전체 loadMap() 을 돌면 지도가 숨겨졌다 다시 뜨고
+                            // (showLoading) 사용자가 보던 확대/이동 시점까지 setBounds 로 리셋된다.
+                            // 카카오 렌더에서는 아래 updateMarkers(preserveView) 부분 갱신으로 처리하고,
+                            // 부분 갱신 수단이 없는 folium 폴백에서만 기존 전체 재로딩을 유지한다.
+                            if (resolvedPending && !kakaoActive) {
                                 clearGeocodePoll();
                                 loadMap();
                                 return;
@@ -1918,10 +1942,12 @@
                                 return o;
                             });
                             if (anyResolved) updateOrderList(currentOrders);
+                            resolvedPending = anyResolved;
                         }
                         document.getElementById('order-count-badge').textContent = currentOrders.length;
-                        // 카카오 클라 렌더 활성 시 폴링으로 마커도 갱신(뷰포트 유지)
-                        if (window.FomsMapViewKakao && window.FomsMapViewKakao.isActive()) {
+                        // 카카오 클라 렌더 활성 시 폴링으로 마커도 갱신(뷰포트 유지) —
+                        // 새로 풀린 좌표를 전체 재로딩(깜빡임 + 시점 리셋) 없이 부분 반영한다.
+                        if (kakaoActive) {
                             const pollMarkers = Array.isArray(data.data) ? data.data : [];
                             window.FomsMapViewKakao.updateMarkers(
                                 document.getElementById('map-content'), pollMarkers, {
@@ -1929,16 +1955,25 @@
                                     onOpenDetail: asDetailHandler
                                 });
                         }
-                        const stillPending = currentOrders.some(function (o) { return o.conversion_status === 'pending'; });
+                        const pendingCount = currentOrders.filter(function (o) {
+                            return o.conversion_status === 'pending';
+                        }).length;
                         const banner = document.getElementById('geocode-poll-banner');
                         const pollText = document.getElementById('geocode-poll-text');
-                        if (stillPending && geocodePollRetries < GEOCODE_POLL_MAX_RETRIES) {
-                            geocodePollRetries++;
+                        if (!geocodePollStartedAt) geocodePollStartedAt = Date.now();
+                        geocodePollRounds++;
+                        // 전체 상한: 진행이 계속돼도 무한 폴링이 되지 않도록 라운드 수·총 경과시간으로 끊는다.
+                        const pollExhausted = geocodePollRounds >= GEOCODE_POLL_MAX_ROUNDS
+                            || (Date.now() - geocodePollStartedAt) >= GEOCODE_POLL_MAX_ELAPSED_MS;
+                        // 진행이 있었으면 시도 횟수를 소모하지 않는다(간격은 그대로 유지 —
+                        // 1.5초로 되돌리면 서버를 연타한다). 진행이 없을 때만 백오프를 한 칸 넓힌다.
+                        if (!resolvedPending) geocodePollRetries++;
+                        if (pendingCount > 0 && !pollExhausted && geocodePollRetries <= GEOCODE_POLL_MAX_RETRIES) {
                             const delay = geocodePollDelayMs();
                             if (banner) banner.style.display = 'block';
-                            if (pollText) pollText.textContent = '주소 변환 중... ' + (delay / 1000) + '초 후 갱신 (' + geocodePollRetries + '/' + GEOCODE_POLL_MAX_RETRIES + ')';
+                            if (pollText) pollText.textContent = geocodePollProgressText(pendingCount, delay);
                             geocodePollTimeoutId = setTimeout(function () { loadMap(true); }, delay);
-                        } else if (stillPending) {
+                        } else if (pendingCount > 0) {
                             geocodePollFailed();  // 소진했는데 pending 잔존 → 실패 고지
                         } else {
                             clearGeocodePoll();
@@ -1964,16 +1999,20 @@
             document.getElementById('order-count-badge').textContent = currentOrders.length;
 
             // 주소 변환 대기 주문 있으면 계단식 간격으로 목록만 조용히 갱신(첫 확인 1.5초)
-            const hasPending = currentOrders.some(function (o) {
+            const pendingCount = currentOrders.filter(function (o) {
                 return o.conversion_status === 'pending';
-            });
+            }).length;
             const banner = document.getElementById('geocode-poll-banner');
             const pollText = document.getElementById('geocode-poll-text');
-            if (hasPending) {
+            if (pendingCount > 0) {
+                // 폴링 사이클의 시작점(최초 로드·필터 변경)에서만 카운터를 초기화한다.
+                // 폴 도중에는 여기로 되돌아오지 않으므로 백오프가 1.5초로 되감기지 않는다.
                 geocodePollRetries = 1;
+                geocodePollRounds = 0;
+                geocodePollStartedAt = Date.now();
                 const delay = geocodePollDelayMs();
                 if (banner) banner.style.display = 'block';
-                if (pollText) pollText.textContent = '주소 변환 중... ' + (delay / 1000) + '초 후 갱신 (1/' + GEOCODE_POLL_MAX_RETRIES + ')';
+                if (pollText) pollText.textContent = geocodePollProgressText(pendingCount, delay);
                 geocodePollTimeoutId = setTimeout(function () { loadMap(true); }, delay);
             } else {
                 clearGeocodePoll();
