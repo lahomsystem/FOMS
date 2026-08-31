@@ -56,133 +56,6 @@
   display: none;
 }
 
-/* --- 견적서 공유 (T7) --- */
-.foms-share-est__logo {
-  max-height: 32px;
-  margin-bottom: 8px;
-}
-
-.foms-share-est__section-title {
-  margin: 20px 0 8px;
-  font-size: 1rem;
-  font-weight: 700;
-}
-
-.foms-share-est__tbl {
-  width: 100%;
-  border-collapse: collapse;
-  background: #fff;
-  font-size: 0.9rem;
-}
-
-.foms-share-est__tbl th,
-.foms-share-est__tbl td {
-  border: 1px solid #e5e7eb;
-  padding: 8px 10px;
-  text-align: left;
-  vertical-align: top;
-}
-
-.foms-share-est__tbl th {
-  background: #f3f4f6;
-  white-space: nowrap;
-  font-weight: 600;
-}
-
-.foms-share-est__scroll {
-  overflow-x: auto;
-}
-
-.foms-share-est__tbl--items {
-  min-width: 480px;
-}
-
-.foms-share-est__num {
-  text-align: right;
-  white-space: nowrap;
-}
-
-.foms-share-est__total {
-  font-weight: 700;
-}
-
-.foms-share-est__empty {
-  text-align: center;
-  color: #6b7280;
-}
-
-.foms-share-est__sum {
-  margin-top: 16px;
-}
-
-.foms-share-est__account {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px 10px;
-  padding: 8px 10px;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  background: #fff;
-  margin-bottom: 6px;
-}
-
-.foms-share-est__bank {
-  font-weight: 700;
-}
-
-.foms-share-est__notice {
-  margin: 8px 0 0;
-  font-size: 0.85rem;
-  color: #b91c1c;
-}
-
-.foms-share-est__company {
-  margin-top: 28px;
-  padding-top: 12px;
-  border-top: 1px solid #e5e7eb;
-  font-size: 0.8rem;
-  color: #6b7280;
-}
-
-.foms-share-est__company p {
-  margin: 2px 0;
-}
-
-/* --- 파일 다운로드 섹션 (Phase A 후속 — 고객 다운로드) --- */
-.foms-share-view__files-title {
-  margin: 0 0 8px;
-  font-size: 0.95rem;
-  font-weight: 700;
-  color: #111827;
-}
-
-.foms-share-view__downloads {
-  margin-top: 16px;
-}
-
-/* --- 견적서 저장·인쇄 버튼 --- */
-.foms-share-est__actions {
-  margin-top: 20px;
-  text-align: center;
-}
-
-.foms-share-est__print-btn {
-  padding: 10px 24px;
-  border: 1px solid #d1d5db;
-  border-radius: 8px;
-  background: #111827;
-  color: #fff;
-  font-size: 0.9rem;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-@media print {
-  .foms-share-est__actions {
-    display: none;
-  }
-}
-
 /* ── 도면 + 계약서 통합 열람(kind='bundle', 2026-08-25) ─────────────────────
    한 페이지에 두 문서가 이어 붙으므로 어디까지가 도면이고 어디부터 계약서인지
    구분선과 제목으로 갈라 준다. 고객이 스크롤하다 길을 잃지 않게. */
@@ -203,6 +76,111 @@
   /* 인쇄는 계약서만 — 도면은 이미지 presign 이라 인쇄본에 의미가 없다. */
   .foms-share-bundle .foms-share-view__header,
   .foms-share-bundle [aria-label="도면"] {
+    display: none;
+  }
+}
+
+/* ── 도면 저장 카드 (2026-08-31) ────────────────────────────────────────────
+   카톡으로 링크를 받은 고객이 폰에서 누른다. 주 버튼(일괄 저장) 하나가 위계의
+   꼭대기고, 개별 저장은 <details> 로 접어 시각 소음을 낮춘다.
+   터치 타깃은 최소 44px(애플 HIG·머티리얼 공통 하한). */
+.foms-share-dl {
+  margin-top: 20px;
+  padding: 16px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(17, 24, 39, 0.06);
+}
+
+.foms-share-dl__title {
+  margin: 0 0 12px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #111827;
+}
+
+.foms-share-dl__primary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 52px;
+  padding: 12px 16px;
+  border-radius: 10px;
+  background: #111827;
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 700;
+  text-align: center;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.foms-share-dl__primary:active {
+  background: #374151;
+}
+
+.foms-share-dl__primary.is-busy {
+  background: #6b7280;
+  pointer-events: none;
+}
+
+.foms-share-dl__status {
+  margin: 10px 0 0;
+  font-size: 0.85rem;
+  color: #4b5563;
+  text-align: center;
+}
+
+.foms-share-dl__status[hidden] {
+  display: none;
+}
+
+.foms-share-dl__inapp {
+  margin: 10px 0 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #fffbeb;
+  color: #92400e;
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.foms-share-dl__each {
+  margin-top: 12px;
+  border-top: 1px solid #f3f4f6;
+  padding-top: 8px;
+}
+
+.foms-share-dl__each-summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  font-size: 0.85rem;
+  color: #6b7280;
+  cursor: pointer;
+}
+
+.foms-share-dl__list {
+  margin: 4px 0 0;
+  padding-left: 20px;
+}
+
+.foms-share-dl__list li {
+  margin: 8px 0;
+  word-break: break-all;
+  font-size: 0.85rem;
+}
+
+.foms-share-dl__list a {
+  display: inline-block;
+  min-height: 44px;
+  line-height: 44px;
+  color: #1d4ed8;
+}
+
+@media print {
+  .foms-share-dl {
     display: none;
   }
 }

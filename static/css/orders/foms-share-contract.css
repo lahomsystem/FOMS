@@ -1,0 +1,761 @@
+/* 고객 공유 **계약서 문서** 스타일 (비로그인 독립 문서, 2026-08-31).
+
+   출처는 ERP 견적서 탭 `templates/orders/partials/estimate_pane.html` 의 인라인
+   `erp-est-*` 규칙이다 — 고객이 보는 계약서가 ERP 계약서 폼과 같은 모양이어야 해서
+   클래스 이름을 그대로 유지한 채 이식했다(향후 ERP 폼이 바뀌면 두 파일을 diff 로
+   대조해 기계적으로 따라갈 수 있게).
+
+   차이 두 가지:
+   1) 이 페이지에는 ERP 셸도 Bootstrap 도 없다 → 필요한 리셋을 `.foms-share-contract`
+      래퍼가 자체로 갖춘다(box-sizing / table / button / 여백).
+   2) ERP 는 700px 고정 문서지만 고객은 폰으로 본다 → 폭은 유동(max-width 700px),
+      좁은 화면에서 2단 그리드가 1단으로 접히고 품목표는 **가로 스크롤 없이** 5칸이
+      전부 보이도록 백분율 폭 + 반응형 폰트로 줄인다(금액칸 잘림 = 원래 신고 사유).
+
+   공유 페이지에만 있는 부품(계좌 복사 버튼·저장 버튼·안내)은 ERP 대응물이 없으므로
+   `foms-share-contract__*` 접두어를 쓴다. `foms-share-view.css`(도면 공유 소관)와는
+   클래스가 겹치지 않는다. */
+
+/* ── 래퍼 리셋 — ERP 셸/Bootstrap 부재분 보충 ───────────────────────────────── */
+.foms-share-contract,
+.foms-share-contract *,
+.foms-share-contract *::before,
+.foms-share-contract *::after {
+  box-sizing: border-box;
+}
+
+.foms-share-contract {
+  margin: 0;
+}
+
+.foms-share-contract table {
+  border-collapse: collapse;
+}
+
+.foms-share-contract p {
+  margin: 0;
+}
+
+.foms-share-contract button {
+  font-family: inherit;
+}
+
+.erp-est-hidden {
+  display: none !important;
+}
+
+/* ── 문서 본체 ─────────────────────────────────────────────────────────────── */
+.erp-est-doc {
+  background: #fff;
+  border: 1px solid #bbb;
+  box-shadow: 0 1px 8px rgba(0, 0, 0, .06);
+  width: 100%;
+  max-width: 700px;
+  margin: 12px auto;
+  font-family: 'Malgun Gothic', '맑은 고딕', 'Apple SD Gothic Neo', sans-serif;
+  font-size: 12px;
+  color: #222;
+  line-height: 1.5;
+  overflow: hidden;
+  position: relative;
+}
+
+/* ── 상단 무지개 바 ── */
+.erp-est-topbar {
+  height: 4px;
+  background: linear-gradient(90deg,
+      #d32f2f 0%, #d32f2f 12.5%,
+      #f57c00 12.5%, #f57c00 25%,
+      #fbc02d 25%, #fbc02d 37.5%,
+      #388e3c 37.5%, #388e3c 50%,
+      #1976d2 50%, #1976d2 62.5%,
+      #512da8 62.5%, #512da8 75%,
+      #5d4037 75%, #5d4037 87.5%,
+      #616161 87.5%, #616161 100%);
+}
+
+/* ── 헤더: 로고 + 웹사이트 ── */
+.erp-est-header {
+  padding: 18px 28px 0;
+}
+
+.erp-est-logo-img {
+  height: 44px;
+  width: auto;
+  display: block;
+  object-fit: contain;
+}
+
+.erp-est-logo--lahom {
+  max-width: 180px;
+}
+
+.erp-est-logo--haud {
+  max-width: none;
+}
+
+.erp-est-website {
+  font-size: 10px;
+  color: #6b7280;
+  margin-top: 3px;
+  letter-spacing: 0.3px;
+}
+
+/* ── 계약번호 줄 ── */
+.erp-est-num-row {
+  padding: 12px 28px 0;
+  font-size: 12px;
+}
+
+.erp-est-num-label {
+  color: #444;
+  font-weight: 600;
+  margin-right: 20px;
+}
+
+.erp-est-num-value {
+  font-weight: 700;
+  color: #111;
+}
+
+/* ── 사업자/고객 정보 2단 ── */
+.erp-est-info-box {
+  margin: 14px 28px 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.erp-est-info-left,
+.erp-est-info-right {
+  position: relative;
+  padding: 10px 14px 12px 18px;
+}
+
+/* 갈색 bar: padding 제외한 content 높이에만 */
+.erp-est-info-left::before,
+.erp-est-info-right::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 10px;
+  bottom: 12px;
+  width: 6px;
+  background: #ede8de;
+  border-radius: 1px;
+}
+
+.erp-est-info-title {
+  font-weight: 700;
+  font-size: 12.5px;
+  color: #111;
+  margin-bottom: 8px;
+  letter-spacing: 0.5px;
+}
+
+.erp-est-info-tbl {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.erp-est-info-tbl td {
+  padding: 3px 0;
+  font-size: 11px;
+  vertical-align: top;
+  line-height: 1.7;
+  color: #333;
+  word-break: break-word;
+}
+
+.erp-est-lbl {
+  color: #555;
+  width: 68px;
+  min-width: 68px;
+  white-space: nowrap;
+  font-weight: 400;
+  padding-right: 10px;
+}
+
+.erp-est-info-right .erp-est-lbl {
+  width: 62px;
+  min-width: 62px;
+}
+
+.erp-est-spacer td {
+  height: 8px;
+}
+
+/* ── 인감 도장 ── */
+.erp-est-stamp {
+  position: absolute;
+  left: 100px;
+  top: 54px;
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+  opacity: 0.85;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.erp-est-stamp.erp-est-stamp--factory2 {
+  width: 30px;
+  height: 30px;
+}
+
+/* ── 안내 문구 ── */
+.erp-est-notice-text {
+  text-align: center;
+  padding: 18px 28px 10px;
+  font-size: 12px;
+  color: #333;
+  letter-spacing: 0.3px;
+}
+
+/* ── 계약 내용 테이블 ── */
+.erp-est-contract {
+  margin: 0 28px;
+  max-width: 100%;
+}
+
+.erp-est-contract-title {
+  text-align: center;
+  font-weight: 700;
+  font-size: 13px;
+  color: #222;
+  background: #ede8de;
+  padding: 8px 0;
+  border: none;
+  letter-spacing: 1px;
+}
+
+.erp-est-tbl {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  border: none;
+}
+
+.erp-est-tbl th {
+  background: #faf8f4;
+  border: none;
+  border-bottom: 1px solid #c5b9a6;
+  padding: 7px 6px;
+  text-align: center;
+  font-weight: 600;
+  font-size: 11px;
+  color: #333;
+  overflow: hidden;
+}
+
+.erp-est-tbl td {
+  border: none;
+  border-bottom: 1px solid #d4cbbe;
+  padding: 7px 6px;
+  font-size: 11px;
+  text-align: center;
+  color: #333;
+  overflow: hidden;
+  /* `word-break: break-word`(= anywhere)는 들어갈 자리가 있어도 눈치껏 끊는다.
+     금액 문서에서 "2400x2400x600" 이 "2400x2400x60 / 0" 으로 갈리면 오독이다.
+     `overflow-wrap: break-word` 는 **정말 안 들어갈 때만** 끊는다. */
+  word-break: normal;
+  overflow-wrap: break-word;
+}
+
+.erp-est-tbl td.text-end {
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* 열 폭은 백분율 고정 — 좁은 화면에서도 "금액"칸이 화면 밖으로 밀려나지 않게 한다.
+   (신고 사유: 카톡 인앱 브라우저에서 금액 칸이 잘려 보이지 않음) */
+.erp-est-col--name { width: 27%; }
+.erp-est-col--spec { width: 23%; }
+.erp-est-col--color { width: 15%; }
+.erp-est-col--qty { width: 10%; }
+.erp-est-col--amount { width: 25%; }
+
+.erp-est-th-amount .erp-est-th-vat {
+  font-weight: 400;
+  font-size: 9px;
+  color: #777;
+}
+
+/* 규격 셀 다중 라인 */
+.erp-est-td-spec {
+  white-space: pre-line;
+  text-align: left;
+  line-height: 1.7;
+}
+
+.erp-est-empty-msg {
+  color: #6b7280;
+  padding: 24px 0;
+  text-align: center;
+}
+
+/* ── 결제정보 + 합계 하단 ── */
+.erp-est-pay-box {
+  margin: 10px 28px 0;
+  display: grid;
+  grid-template-columns: 55fr 45fr;
+  gap: 10px;
+}
+
+.erp-est-pay-left {
+  position: relative;
+  padding: 10px 14px 12px 18px;
+}
+
+.erp-est-pay-right {
+  position: relative;
+  padding: 10px 14px 12px 18px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.erp-est-pay-left::before,
+.erp-est-pay-right::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 10px;
+  bottom: 12px;
+  width: 6px;
+  background: #ede8de;
+  border-radius: 1px;
+}
+
+.erp-est-pay-title {
+  font-weight: 700;
+  font-size: 12px;
+  color: #111;
+  margin-bottom: 6px;
+}
+
+.erp-est-bank-line {
+  font-size: 11px;
+  color: #333;
+  margin-top: 2px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+
+.erp-est-bank-line .fw-bold {
+  font-weight: 700;
+}
+
+.erp-est-pay-account-block + .erp-est-pay-account-block {
+  margin-top: 8px;
+}
+
+.erp-est-pay-holder {
+  font-size: 10.5px;
+  color: #444;
+  margin-top: 3px;
+}
+
+.erp-est-pay-warn {
+  font-size: 10px;
+  color: #c62828;
+  margin-top: 6px;
+  font-weight: 500;
+}
+
+.erp-est-sep {
+  margin: 0 6px;
+  color: #6b7280;
+}
+
+.erp-est-sum-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 12.5px;
+}
+
+.erp-est-sum-label {
+  color: #333;
+  font-weight: 600;
+}
+
+.erp-est-sum-value {
+  font-weight: 700;
+  font-size: 14px;
+  color: #111;
+  white-space: nowrap;
+}
+
+.erp-est-sum-deposit {
+  color: #6b7280;
+  font-size: 13px;
+}
+
+.erp-est-sum-free-input {
+  color: #555;
+  font-size: 13px;
+}
+
+.erp-est-sum-free-input-val {
+  font-size: 13px;
+  color: #333;
+  font-weight: 700;
+}
+
+.erp-est-sum-deposit-val {
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.erp-est-sum-discount {
+  color: #6b7280;
+  font-size: 13px;
+}
+
+.erp-est-sum-discount-val {
+  font-size: 13px;
+  color: #c0392b;
+  font-weight: 700;
+}
+
+.erp-est-sum-balance {
+  border-top: 1px solid #ccc;
+  margin-top: 8px;
+  padding-top: 8px;
+}
+
+.erp-est-sum-balance .erp-est-sum-value {
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.erp-est-sum-balance-val {
+  color: #111;
+}
+
+/* ── 하단 푸터 ── */
+.erp-est-footer {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 28px 16px 18px;
+  font-size: 11px;
+  color: #555;
+  margin: 14px 28px 0;
+}
+
+.erp-est-footer::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 10px;
+  bottom: 16px;
+  width: 6px;
+  background: #ede8de;
+  border-radius: 1px;
+}
+
+.erp-est-footer-date {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.erp-est-footer-date .erp-est-lbl {
+  font-weight: 600;
+  color: #444;
+  width: auto;
+  min-width: 0;
+  padding-right: 0;
+}
+
+.erp-est-footer-legal {
+  font-size: 10px;
+  color: #6b7280;
+  text-align: right;
+}
+
+/* ── 공유 전용 부품 (ERP 대응물 없음) ────────────────────────────────────────
+   계좌 복사 버튼은 계좌번호 바로 옆에 둔다(고객이 찾기 쉽게). 대신 PNG 저장 시에는
+   문서 루트를 그대로 캡처하므로 버튼이 그림에 찍히면 안 된다 → 내보내기 중에는
+   `--exporting` 클래스로 숨긴다(ERP `erp-est-exporting` 선례). */
+.foms-share-contract__copy {
+  flex: 0 0 auto;
+  margin-left: 6px;
+  position: relative;
+  padding: 2px 10px;
+  border: 1px solid #c9c1b4;
+  border-radius: 999px;
+  background: #fff;
+  color: #5b5348;
+  font-size: 10px;
+  line-height: 1.6;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+/* 터치 타깃 44px — 알약 모양(겉모습)은 그대로 두고 히트 영역만 넓힌다.
+   min-height 로 키우면 계약서 줄 간격이 흐트러지고 버튼이 동그래진다. */
+.foms-share-contract__copy::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 100%;
+  min-width: 44px;
+  height: 44px;
+  transform: translate(-50%, -50%);
+}
+
+.foms-share-contract__copy:hover,
+.foms-share-contract__copy:focus-visible {
+  border-color: #8d8271;
+  color: #222;
+  outline: none;
+}
+
+.foms-share-contract__copy.is-copied {
+  border-color: #2e7d32;
+  color: #2e7d32;
+  background: #f1f8f2;
+}
+
+/* 스크롤 안전망 — 백분율 폭으로 이미 다 보이지만, 병적으로 긴 내용이 들어오면
+   가로 스크롤로 넘긴다. 안내는 실제로 넘칠 때(JS 판정)만 나온다. */
+.foms-share-contract__scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.foms-share-contract__scroll-hint {
+  display: none;
+  margin: 4px 0 0;
+  font-size: 10px;
+  color: #8a7f70;
+  text-align: right;
+}
+
+.foms-share-contract__scroll.is-scrollable + .foms-share-contract__scroll-hint {
+  display: block;
+}
+
+/* 문서 밖 조작부 — PNG 캡처 대상(문서 루트) 바깥이라 그림에 찍히지 않는다. */
+.foms-share-contract__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin: 16px 0 0;
+}
+
+.foms-share-contract__btn {
+  min-height: 44px;
+  padding: 12px 22px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #fff;
+  color: #111827;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.foms-share-contract__btn--primary {
+  border-color: #111827;
+  background: #111827;
+  color: #fff;
+}
+
+.foms-share-contract__btn[disabled] {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.foms-share-contract__note {
+  margin: 8px 0 0;
+  font-size: 0.8rem;
+  color: #6b7280;
+  text-align: center;
+}
+
+/* 실패는 조용히 죽지 않는다 — 안내를 화면에 띄운다. */
+.foms-share-contract__error {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fef2f2;
+  color: #b91c1c;
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+.foms-share-contract__error[hidden] {
+  display: none;
+}
+
+/* 내보내기(html2canvas) 중에는 조작부·안내를 문서에서 감춘다. */
+.foms-share-contract--exporting .foms-share-contract__copy,
+.foms-share-contract--exporting .foms-share-contract__scroll-hint {
+  display: none !important;
+}
+
+.foms-share-contract--exporting .foms-share-contract__scroll {
+  overflow: visible;
+}
+
+/* ── 좁은 화면 ─────────────────────────────────────────────────────────────── */
+@media (max-width: 599.98px) {
+  /* 규격 열을 조금 넓힌다 — 치수 한 줄이 통째로 들어가야 오독이 없다. */
+  .erp-est-col--name { width: 24%; }
+  .erp-est-col--spec { width: 28%; }
+  .erp-est-col--color { width: 13%; }
+
+  .erp-est-doc {
+    font-size: 11px;
+  }
+
+  .erp-est-header {
+    padding: 14px 14px 0;
+  }
+
+  .erp-est-logo-img {
+    height: 34px;
+  }
+
+  .erp-est-num-row {
+    padding: 10px 14px 0;
+    font-size: 11px;
+  }
+
+  .erp-est-info-box {
+    margin: 12px 14px 0;
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .erp-est-notice-text {
+    padding: 14px 14px 8px;
+    font-size: 11px;
+  }
+
+  .erp-est-contract {
+    margin: 0 14px;
+  }
+
+  .erp-est-tbl th,
+  .erp-est-tbl td {
+    padding: 6px 3px;
+    font-size: 10px;
+  }
+
+  .erp-est-tbl td.text-end {
+    padding-right: 4px;
+  }
+
+  .erp-est-pay-box {
+    margin: 10px 14px 0;
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .erp-est-sum-value {
+    font-size: 13px;
+  }
+
+  .erp-est-sum-balance .erp-est-sum-value {
+    font-size: 14px;
+  }
+
+  .erp-est-footer {
+    margin: 12px 14px 0;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .erp-est-footer-legal {
+    text-align: left;
+  }
+}
+
+@media (max-width: 359.98px) {
+  .erp-est-tbl th,
+  .erp-est-tbl td {
+    font-size: 9px;
+    padding: 5px 2px;
+  }
+}
+
+/* ── 인쇄 ─────────────────────────────────────────────────────────────────── */
+@media print {
+  .foms-share-contract__actions,
+  .foms-share-contract__note,
+  .foms-share-contract__error,
+  .foms-share-contract__copy,
+  .foms-share-contract__scroll-hint {
+    display: none !important;
+  }
+
+  .erp-est-doc {
+    border: none;
+    box-shadow: none;
+    margin: 0;
+  }
+}
+
+/* --- 인앱 브라우저 저장 폴백 (2026-08-31) ---------------------------------
+   카카오톡 등 앱 안 브라우저는 <a download> 를 무시하는 사례가 있어, 만든 이미지를
+   화면에 붙여 "길게 눌러 저장" 경로를 남긴다. 저장 성공 시에도 손해가 없다. */
+.foms-share-contract__fallback {
+  margin: 12px 0 0;
+  padding: 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.foms-share-contract__fallback[hidden] {
+  display: none;
+}
+
+.foms-share-contract__fallback-hint {
+  margin: 0 0 8px;
+  font-size: 0.86rem;
+  line-height: 1.5;
+  color: #374151;
+}
+
+.foms-share-contract__fallback-img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+}
+
+/* --- 저장용 오프스크린 클론 (2026-08-31) --------------------------------
+   화면 노드를 그대로 캡처하면 좁은 화면 레이아웃이 그림에 찍힌다. 저장물은 ERP
+   계약서와 같은 700px 문서여야 한다(ERP `.erp-est-export-clone` 선례). */
+.foms-share-contract__export-clone {
+  position: fixed !important;
+  left: -10000px !important;
+  top: 0 !important;
+  width: 700px !important;
+  min-width: 700px !important;
+  max-width: 700px !important;
+  margin: 0 !important;
+  z-index: -1 !important;
+  pointer-events: none !important;
+}
+
+.foms-share-contract__export-clone .foms-share-contract__copy {
+  display: none !important;
+}
