@@ -30,7 +30,10 @@ from foms.services.order_geocode import reset_order_geocode_on_address_change
 from foms.services.order_geocode_outbox import enqueue_order_address_geocode
 from foms.services.orders.revision import RevisionError, execute_order_mutation
 from foms.services.measurement_dates import extract_all_measurement_dates
-from foms.services.measurement_read_model import apply_measurement_dashboard_order_scope
+from foms.services.measurement_read_model import (
+    apply_measurement_dashboard_order_scope,
+    measurement_schedule_on_dates,
+)
 from foms.services.measurement_undated import build_measurement_undated_payload
 from foms.services.measurement_route import build_measurement_route_payload
 from foms.services.measurement_time import parse_measurement_time_minutes
@@ -246,6 +249,11 @@ erp_measurement_bp = Blueprint(
     url_prefix='/api/erp/measurement',
 )
 
+#: 실측 미러링 패널 폭주 가드. 모집단을 날짜창으로 좁힌 **뒤**에만 적용한다
+#: (좁히기 전에 걸면 오래된 주문이 조용히 빠진다 — 이 API 의 옛 결함).
+#: 운영 기준 창 안 주문은 68건이라 실제로는 발동하지 않는다.
+MEASUREMENT_PANEL_SAFETY_CAP = 2000
+
 
 @erp_measurement_bp.route('/summary')
 @login_required
@@ -255,20 +263,44 @@ def api_erp_measurement_summary():
     Legacy summary contract를 유지하기 위해 `active_filter()` 기반 주문 집합과
     multi-source 실측일 추출(`extract_all_measurement_dates`)을 그대로 사용한다.
     화면 본문의 recent-only `dashboard_active_filter(days=60)`와는 범위가 다를 수 있다.
+
+    **모집단을 날짜창으로 SQL 에서 좁힌다**(2026-09-01). 예전에는 `id` 내림차순
+    1,500행을 structured_data 째로 읽고 파이썬에서 날짜를 판정했는데, 이 화면은 주문
+    편집 페이지가 열려 있는 동안 30초마다 이 API 를 부른다 — 운영 기준 창 안 주문이
+    68건인데 매번 1,500행을 읽었다(스테이징 서버 263ms, 응답 250B).
+    캡을 **먼저** 걸고 뒤에서 좁히는 구조라 오래된 주문의 다가오는 실측일이 조용히
+    빠지는 결함도 함께 있었다. 이제 SQL 이 후보를 좁히고 파이썬이 정밀 판정한다.
     """
     db = get_db()
     today_kst = measurement_api.get_today_kst()
     range_start = today_kst
     range_end = today_kst + datetime.timedelta(days=14)
+    window_dates = [
+        (range_start + datetime.timedelta(days=offset)).strftime('%Y-%m-%d')
+        for offset in range((range_end - range_start).days + 1)
+    ]
 
     base_query = db.query(Order).filter(Order.active_filter())
     base_query = apply_measurement_dashboard_order_scope(base_query)
+    base_query = base_query.filter(measurement_schedule_on_dates(window_dates))
 
     current_user = getattr(g, 'current_user', None)
     mine_filter_active = erp_mine_only_from_request(request) and current_user
 
     from sqlalchemy.orm import selectinload
-    panel_orders = base_query.options(selectinload(Order.schedule_dates)).order_by(Order.id.desc()).limit(1500).all()
+    panel_orders = (
+        base_query.options(selectinload(Order.schedule_dates))
+        .order_by(Order.id.desc())
+        .limit(MEASUREMENT_PANEL_SAFETY_CAP)
+        .all()
+    )
+    if len(panel_orders) >= MEASUREMENT_PANEL_SAFETY_CAP:
+        # 이 캡은 **좁힌 뒤**의 폭주 가드다(운영 창 안 68건 기준 500배 여유). 발동은
+        # 그 자체로 이상 신호이므로 무음으로 넘기지 않는다.
+        logger.warning(
+            "measurement summary panel safety cap fired: cap=%s window=%s~%s",
+            MEASUREMENT_PANEL_SAFETY_CAP, window_dates[0], window_dates[-1],
+        )
     if mine_filter_active:
         panel_orders = [
             o for o in panel_orders
