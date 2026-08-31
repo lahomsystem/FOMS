@@ -374,6 +374,7 @@ def erp_measurement_dashboard():
     # 모바일 v2 큐: 홈과 동일한 깔끔한 queue-card-v2용 view-model (cohort에서만 계산)
     from foms.services.feature_flags import (
         is_mobile_v2_shell,
+        is_naver_bulk_dispatch_enabled,
         resolve_shell_variant_cached,
     )
     from foms.services.erp_mobile_order_display import (
@@ -507,6 +508,7 @@ def erp_measurement_dashboard():
             kakao_js_key=KAKAO_JS_API_KEY,
             route_strip_inline=route_strip_inline,
             bulk_dispatch=_naver_dispatch_preview(selected_date, today_date),
+            naver_bulk_dispatch_enabled=is_naver_bulk_dispatch_enabled(),
         )
     )
     apply_erp_shell_fragment_headers(response, request)

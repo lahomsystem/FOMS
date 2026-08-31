@@ -2458,6 +2458,10 @@ _PAC_PARTIALS_SHARED_HTML_ALLOWLIST = frozenset(
         "erp_mobile_shell_header.html",
         "erp_mobile_v2_tab_notice.html",
         "erp_sub_nav.html",
+        # NAVER-BULKDISPATCH-01 T4: 일괄 발송처리 버튼 배선. 워크벤치(admin)와 실측
+        # 대시보드(measurement) **둘 다** include 하는 교차 도메인 파셜이라 여기 산다 —
+        # 되돌릴 수 없는 조작의 확인 문구와 요청 코드를 두 벌로 두면 한쪽만 고쳐진다.
+        "naver_bulk_dispatch_button.html",
         "foms_alpine_toast.html",
         "foms_app_shell.html",
         "foms_attachment_preview_modal.html",

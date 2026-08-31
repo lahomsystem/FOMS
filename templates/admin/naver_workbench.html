@@ -260,9 +260,19 @@
             <b>오늘 실측한 네이버 건 ({{ bulk_dispatch.date }})</b>
             <span class="wb-ghost__sub">지금 보낼 수 있는 집 {{ bulk_dispatch.eligible }}집{% if bulk_dispatch.blocked %} ·
                 먼저 해결할 집 {{ bulk_dispatch.blocked }}집{% endif %} —
-                <b>미리보기입니다. 아직 아무것도 나가지 않습니다.</b>
+                {% if not (naver_bulk_dispatch_enabled and bulk_dispatch.eligible) %}<b>미리보기입니다. 아직 아무것도 나가지 않습니다.</b>{% endif %}
                 발송처리하면 FOMS에서는 취소할 수 없습니다(반품으로만 처리).</span>
+            {% if naver_bulk_dispatch_enabled and bulk_dispatch.eligible %}
+            <button type="button" class="btn btn-sm btn-primary ms-auto"
+                    data-naver-bulk-dispatch-run
+                    data-naver-bulk-dispatch-count="{{ bulk_dispatch.eligible }}">
+                오늘 {{ bulk_dispatch.eligible }}집 발송처리
+            </button>
+            {% endif %}
         </summary>
+        {% if naver_bulk_dispatch_enabled and bulk_dispatch.eligible %}
+        {% include 'partials/shared/naver_bulk_dispatch_button.html' %}
+        {% endif %}
         <table class="wb-ghost__list">
             <thead>
                 <tr><th>주문</th><th>네이버 주문</th><th>실측</th><th>지금 보낼 수 있나</th><th class="text-end">열기</th></tr>
