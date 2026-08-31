@@ -63,7 +63,7 @@ _API_LEAK_INV = Path("docs/harness/foms_api_error_leak_inventory.json")
 _WORKFLOWS = Path(".github/workflows")
 _PERSONA_DIR = Path("templates/partials/v3")
 
-EXPECTED_PACKETS = 123
+EXPECTED_PACKETS = 122
 REQUIRED_WORKFLOWS = ("ci.yml", "harness-ci.yml", "perf-gate.yml", "postgres-lane.yml")
 REQUIRED_PERSONAS = ("construction", "cs", "drawing", "production", "sales", "shipment")
 # core seed/reference data the app loads at runtime (tracked, not the generated holidays_*).

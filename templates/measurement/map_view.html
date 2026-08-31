@@ -1103,9 +1103,7 @@
             opacity: 0.5;
         }
 
-        /* ── 카카오 지도 클라이언트 렌더 (folium 폴백과 병행) ─────────────
-           동선 순번 핀·연결선 색은 foms-route-strip.css 팔레트 SSOT
-           (.foms-route-pin/.foms-route-c*/--foms-route-line)를 그대로 쓴다. */
+        /* ── 카카오 지도 클라이언트 렌더 (folium 폴백과 병행) ───────────── */
         .foms-kmap-canvas {
             width: 100%;
             height: 100%;
@@ -1317,8 +1315,6 @@
             }
         }
     </style>
-    <!-- 동선 팔레트 SSOT (순번 핀 .foms-route-pin/.foms-route-c* + --foms-route-line) -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/measurement/foms-route-strip.css') }}?v=20260805a">
     <!-- 모바일/태블릿 세로 스킨(바텀시트·컴팩트 팝업·상세 풀시트). 위 인라인 <style> 뒤에
          로드돼야 동일 특이성 규칙에서 이긴다 — 링크 순서 변경 금지. -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/measurement/map-mobile.css') }}?v=20260720a">
@@ -1551,7 +1547,7 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js" defer></script>
     <script src="{{ url_for('static', filename='js/runtime/common_utils.js') }}?v=20260327" defer></script>
     <!-- 카카오 지도 클라이언트 렌더 모듈 (defer: DOMContentLoaded 전에 정의 완료) -->
-    <script src="{{ url_for('static', filename='js/measurement/map-view-kakao.js') }}?v=20260811a" defer></script>
+    <script src="{{ url_for('static', filename='js/measurement/map-view-kakao.js') }}?v=20260901a" defer></script>
     <!-- 모바일 바텀시트/상세 풀시트 컨트롤러. defer 라 아래 인라인 스크립트(파싱 중 실행)가
          전역(loadOrderDetail 등)을 정의한 뒤에 실행된다 — 감싸기 전제. -->
     <script src="{{ url_for('static', filename='js/measurement/map-mobile-sheet.js') }}?v=20260720a" defer></script>
@@ -1613,8 +1609,7 @@
         const initialStatus = (dashboardParam === 'measurement') ? 'ALL' : (urlParams.get('status') || 'ALL');
         const initialManager = urlParams.get('manager') || '';
         const initialSearch = urlParams.get('q') || urlParams.get('search') || '';
-        // 동선(route) 오버레이 opt-in + 내 주문(mine) 필터 파라미터 전파 (기본 지도 동작 무변경)
-        const initialRoute = urlParams.get('route') || '';
+        // 내 주문(mine) 필터 파라미터 전파 (기본 지도 동작 무변경)
         const initialMine = urlParams.get('mine') || '';
         // AS 미완료 지도(dashboard=as): 날짜 무관 전체 표시 + 버킷 필터
         const isAsMap = dashboardParam === 'as';
@@ -1955,7 +1950,6 @@
                             const pollMarkers = Array.isArray(data.data) ? data.data : [];
                             window.FomsMapViewKakao.updateMarkers(
                                 document.getElementById('map-content'), pollMarkers, {
-                                    routeMode: !!initialRoute,
                                     onOpenDetail: asDetailHandler
                                 });
                         }
@@ -2063,7 +2057,6 @@
                         updateAvailUnknownNote(data.summary);
                     }
                     window.FomsMapViewKakao.render(mapContentEl, markers, {
-                        routeMode: !!initialRoute,
                         onOpenDetail: asDetailHandler
                     }).then(function (ok) {
                         if (!ok) {
@@ -2093,7 +2086,6 @@
             applyMapCommonParams(params, dateFilter, statusFilter);
             if (searchQuery) params.set('q', searchQuery);
             if (dashboardParam) params.set('dashboard', dashboardParam);
-            if (initialRoute) params.set('route', initialRoute);
             if (initialMine) params.set('mine', initialMine);
 
             fetch('/api/generate_map?' + params)

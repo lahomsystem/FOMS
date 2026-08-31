@@ -34,7 +34,7 @@ UNDATED_API = "/api/erp/measurement/undated"
 # ---------------------------------------------------------------- 공용 헬퍼
 
 def _login_admin(client):
-    """세션 직접 주입 로그인 (tests/domains/test_measurement_route_eta.py 관례)."""
+    """세션 직접 주입 로그인 (실측 도메인 테스트 공통 관례)."""
     user = User(
         username="undated_admin",
         password=generate_password_hash("admin"),

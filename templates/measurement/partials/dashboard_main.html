@@ -103,12 +103,6 @@
             <i class="fas fa-map"></i>
             <span class="d-none d-sm-inline">지도</span>
           </a>
-          <a class="erp-pro-btn erp-pro-btn--outline"
-            href="/map_view?date={{ selected_date }}&status=ALL&dashboard=measurement&route=1{% if erp_mine_only %}&mine=1{% endif %}"
-            target="_blank" rel="noopener">
-            <i class="fas fa-route"></i>
-            <span class="d-none d-sm-inline">동선 지도</span>
-          </a>
           <button class="erp-pro-btn erp-pro-btn--outline" type="button" id="btn-undated-measurement"
             data-undated-trigger="measurement" data-undated-q="{{ search_q or '' }}">
             <i class="fas fa-calendar-xmark"></i>

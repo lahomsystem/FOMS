@@ -39,10 +39,11 @@ def test_undated_button_exists():
 
 def test_undated_button_is_last_in_filter_actions():
     html = _read(DASHBOARD_MAIN)
-    # 기준점은 액션줄의 마지막 지도 진입점(동선 지도 링크)이다. 2026-08-31 에 "동선 추천"
-    # 버튼(`id="btn-route-plan"`)이 폐지되면서 그 자리를 이 링크가 물려받았다.
-    assert html.index('&route=1') < html.index(BUTTON_ID), (
-        "실측일 미정 버튼은 동선 지도 링크 뒤(액션줄 오른쪽 끝)에 와야 한다"
+    # 기준점은 액션줄의 마지막 지도 진입점(핀 지도 링크)이다. 2026-08-31 "동선 추천"
+    # 버튼(`id="btn-route-plan"`) 폐지, 2026-09-01 "동선 지도" 링크 폐지로 기준점이
+    # 두 번 밀렸다 — 삭제가 위치 계약을 깨뜨리는 자리라 남긴다.
+    assert html.index('open_map=1') < html.index(BUTTON_ID), (
+        "실측일 미정 버튼은 지도 링크 뒤(액션줄 오른쪽 끝)에 와야 한다"
     )
 
 
