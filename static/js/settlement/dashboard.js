@@ -595,8 +595,8 @@
     return { cur: cur, prev: prev };
   }
 
-  function renderLegend(ctx, mode) {
-    var lg = ctx.els.mainLegend;
+  function renderLegend(ctx, els, mode) {
+    var lg = els.legend;
     if (!lg) return;
     clear(lg);
     if (mode === 'none') return;
@@ -626,8 +626,8 @@
     lg.appendChild(mk(CTX, prevLabel, 's-lg-line'));
   }
 
-  function renderMainTable(ctx, cmp) {
-    var table = ctx.els.mainTable;
+  function renderMainTable(ctx, els, cmp) {
+    var table = els.table;
     if (!table) return;
     clear(table);
     var data = ctx.state.data;
@@ -658,20 +658,21 @@
     table.appendChild(tbody);
   }
 
-  function renderMainChart(ctx) {
+  function renderMainChart(ctx, els) {
     var state = ctx.state;
     var data = state.data;
-    var host = ctx.els.mainChart;
+    var host = els.chart;
+    if (!host) return;
     var buckets = data.buckets || [];
     var prevBuckets = data.prev_buckets || [];
     var totalCount = sum(buckets, function (b) { return b.count; });
     var empty = buckets.length === 0 || (totalCount === 0 && sum(buckets, function (b) { return b.revenue; }) === 0);
-    toggle(ctx.els.emptyBuckets, !empty);
-    toggle(ctx.els.mainTableWrap, empty);
+    toggle(els.empty, !empty);
+    toggle(els.tableWrap, empty);
     if (empty) {
       clear(host);
-      renderLegend(ctx, 'none');
-      if (ctx.els.mainSub) ctx.els.mainSub.textContent = '완료일 기준 · 이 기간에 집계할 매출이 없습니다';
+      renderLegend(ctx, els, 'none');
+      if (els.sub) els.sub.textContent = '완료일 기준 · 이 기간에 집계할 매출이 없습니다';
       return;
     }
 
@@ -698,13 +699,13 @@
       // 누적 = 영역 라인차트 (순증=막대, 누적=영역)
       var curCum = cumsum(series.cur);
       var prevCum = cumsum(series.prev);
-      if (ctx.els.mainSub) {
+      if (els.sub) {
         var cumHead = curWord ? curWord + ' 누적' : granWord + ' 누적';
-        ctx.els.mainSub.textContent = cmp
+        els.sub.textContent = cmp
           ? cumHead + ' vs ' + prevMonthWord + ' 누적 · 완료일 기준'
           : cumHead + ' · 완료일 기준';
       }
-      renderLegend(ctx, cmp ? 'line' : 'none');
+      renderLegend(ctx, els, cmp ? 'line' : 'none');
       var lineSeries = [];
       if (cmp) lineSeries.push({ color: CTX, values: prevCum });
       lineSeries.push({ color: ACCENT, values: curCum, endDot: true, area: true });
@@ -721,24 +722,24 @@
           return rows;
         },
       });
-      renderMainTable(ctx, cmp);
+      renderMainTable(ctx, els, cmp);
       return;
     }
 
     // 목업의 분기 기준은 granularity 다(일별=금액구간 램프·캡 없음, 주/월별=단색·캡 있음).
     // 버킷 수로 가르면 범위 UI 가 붙어 13주 이상을 볼 때 주별 차트가 조용히 램프로 바뀐다.
     var dense = state.gran === 'day';
-    if (ctx.els.mainSub) {
+    if (els.sub) {
       // 월별은 당월이 아니라 최근 N개월을 본다(buildUrl 이 6개월을 요청한다) — 목업과 같이
       // 구간 길이를 말한다. 일/주별만 "8월 일별" 처럼 당월을 앞에 붙인다.
       var head = state.gran === 'month'
         ? '최근 ' + buckets.length + '개월'
         : (curWord ? curWord + ' ' + granWord : granWord);
-      ctx.els.mainSub.textContent = cmp
+      els.sub.textContent = cmp
         ? head + '(막대) vs ' + prevWord + '(라인) · 완료일 기준'
         : head + ' · 완료일 기준';
     }
-    renderLegend(ctx, dense ? (cmp ? 'bucketcmp' : 'bucket') : (cmp ? 'barline' : 'none'));
+    renderLegend(ctx, els, dense ? (cmp ? 'bucketcmp' : 'bucket') : (cmp ? 'barline' : 'none'));
     var groups = buckets.map(function (b, i) {
       var v = series.cur[i];
       return {
@@ -769,12 +770,11 @@
         return rows;
       },
     });
-    renderMainTable(ctx, cmp);
+    renderMainTable(ctx, els, cmp);
   }
 
   /** 완료일 미상 각주 — 어느 기간 버킷에도 못 들어가는 건이라 암묵 drop 을 금지한다. */
-  function renderUnknownCompletion(ctx) {
-    var node = ctx.els.unknownCompletion;
+  function renderUnknownCompletion(ctx, node) {
     if (!node) return;
     var unknown = ctx.state.data.unknown_completion || {};
     var count = unknown.count || 0;
@@ -1535,6 +1535,9 @@
   function renderAnalytics(ctx) {
     if (!ctx.els.analyticsGrid) return;
     renderAnalyticsKpis(ctx);
+    // 요약 탭과 **같은 함수**를 다른 호스트 묶음으로 한 번 더 부른다(복제 아님).
+    renderMainChart(ctx, ctx.els.anMainEls);
+    renderUnknownCompletion(ctx, ctx.els.anUnknownCompletion);
     renderAnalyticsChannels(ctx);
     renderAnalyticsManagers(ctx);
     renderAnalyticsStages(ctx);
@@ -1547,8 +1550,8 @@
     if (!ctx.state.data) return;
     renderRangeLine(ctx);
     renderKpis(ctx);
-    renderMainChart(ctx);
-    renderUnknownCompletion(ctx);
+    renderMainChart(ctx, ctx.els.mainEls);
+    renderUnknownCompletion(ctx, ctx.els.unknownCompletion);
     renderAging(ctx);
     renderSettlementStatus(ctx);
     renderStages(ctx);
@@ -1753,14 +1756,14 @@
         if (ctx.els.cmpToggle && ctx.els.cmpToggle.disabled) return;
         ctx.state.cmp = !ctx.state.cmp;
         syncToggles(ctx);
-        if (ctx.state.data) renderMainChart(ctx);   // prev_buckets 는 이미 응답에 있다 — 재조회 없음
+        if (ctx.state.data) renderMainChart(ctx, ctx.els.mainEls);   // prev_buckets 는 이미 응답에 있다 — 재조회 없음
         return;
       }
       if (e.target.closest('[data-settlement-cumulative]')) {
         if (ctx.els.cumToggle && ctx.els.cumToggle.disabled) return;
         ctx.state.cum = !ctx.state.cum;
         syncToggles(ctx);
-        if (ctx.state.data) renderMainChart(ctx);   // 누적은 클라이언트 누산 — 재조회 없음
+        if (ctx.state.data) renderMainChart(ctx, ctx.els.mainEls);   // 누적은 클라이언트 누산 — 재조회 없음
         return;
       }
       if (e.target.closest('[data-settlement-retry]')) {
@@ -1778,11 +1781,26 @@
     var q = function (sel) { return root.querySelector(sel); };
     return {
       kpis: q('#foms-settle-kpis'),
-      mainChart: q('#foms-settle-main-chart'),
-      mainTable: q('#foms-settle-main-table'),
-      mainTableWrap: q('.s-tblv'),
-      mainLegend: q('#foms-settle-main-legend'),
-      mainSub: q('[data-settlement-main-sub]'),
+      // 추이 차트 묶음 2벌(요약·분석). 같은 렌더 함수가 els 만 바꿔 두 번 돈다.
+      // `.s-tblv` 는 이제 문서에 둘이라 카드 안으로 스코프해서 잡는다 — 루트 querySelector
+      // 로 잡으면 분석 카드가 요약 카드의 표를 토글한다.
+      mainEls: {
+        chart: q('#foms-settle-main-chart'),
+        table: q('#foms-settle-main-table'),
+        tableWrap: root.querySelector('.s-card--main .s-tblv'),
+        legend: q('#foms-settle-main-legend'),
+        sub: q('[data-settlement-main-sub]'),
+        empty: q('[data-settlement-empty="buckets"]'),
+      },
+      anMainEls: {
+        chart: q('#foms-settle-an-main-chart'),
+        table: q('#foms-settle-an-main-table'),
+        tableWrap: root.querySelector('#foms-settle-an-trend-card .s-tblv'),
+        legend: q('#foms-settle-an-main-legend'),
+        sub: q('[data-settlement-an-main-sub]'),
+        empty: q('[data-settlement-empty="an_buckets"]'),
+      },
+      anUnknownCompletion: q('[data-settlement-an-unknown-completion]'),
       agingChart: q('#foms-settle-aging-chart'),
       agingSub: q('[data-settlement-aging-sub]'),
       agingCritical: q('[data-settlement-aging-critical]'),
@@ -1799,7 +1817,6 @@
       emptyAging: q('[data-settlement-empty="aging"]'),
       emptyStages: q('[data-settlement-empty="stages"]'),
       emptyChannels: q('[data-settlement-empty="channels"]'),
-      emptyBuckets: q('[data-settlement-empty="buckets"]'),
       loading: q('[data-settlement-loading]'),
       error: q('[data-settlement-error]'),
       errorDetail: q('[data-settlement-error-detail]'),
