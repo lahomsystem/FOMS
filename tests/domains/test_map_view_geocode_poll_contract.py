@@ -88,7 +88,9 @@ def test_manager_save_full_reload_is_untouched():
     """마커 색 동기용 전체 재로딩은 이번 변경 범위 밖 — 회귀 가드."""
     content = _read()
 
+    # res.ok 동반 검사는 2026-08-31 CSRF 403 대응으로 추가됨(실패 사유 표시). 성공 분기의
+    # 계약(applyMapManagerValue → loadMap)만 고정하고 조건식 형태는 느슨하게 둔다.
     assert re.search(
-        r"if \(data\.success\) \{\s*applyMapManagerValue\(orderId, cleanName\);\s*loadMap\(\);",
+        r"if \([^)]*data\.success\) \{\s*applyMapManagerValue\(orderId, cleanName\);\s*loadMap\(\);",
         content,
     )
