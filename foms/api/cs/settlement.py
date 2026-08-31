@@ -29,7 +29,14 @@ from foms.services.datetime_kst import get_today_kst
 from foms.services.settlement_aggregation import aggregate_settlement
 from foms.services.settlement_rows import PER_PAGE, list_settlement_rows
 from foms.web.auth import login_required
-from foms.web.cs.settlement_dashboard import can_view_settlement_dashboard
+from foms.web.cs.settlement_dashboard import (
+    can_view_manager_breakdown,
+    can_view_settlement_dashboard,
+)
+
+#: 담당자별 매출 = 직원 실적. 관리자급이 아니면 **payload 에서 빼고** 내려보낸다
+#: (클라 숨김 금지 — 데이터를 내려주고 감추면 개발자 도구로 그대로 보인다).
+_MANAGER_ONLY_KEYS = ("managers", "managers_total")
 
 #: 파라미터 미지정 시 시계열 세밀도. 화면 기본이 "이번 달 일별"이다.
 _DEFAULT_GRANULARITY = "day"
@@ -86,7 +93,8 @@ def api_settlement_aggregates():
         권한 거부 403, 파라미터 오류(형식·범위 역전·12개월 초과·granularity) 400 —
         모두 같은 형식이다.
     """
-    if not can_view_settlement_dashboard(getattr(g, "current_user", None)):
+    user = getattr(g, "current_user", None)
+    if not can_view_settlement_dashboard(user):
         return _error("정산 대시보드 열람 권한이 없습니다.", 403)
 
     default_from, default_to = _default_month_range()
@@ -104,6 +112,10 @@ def api_settlement_aggregates():
     except ValueError as exc:
         # 집계 커널이 사람이 읽는 한글 사유를 담아 던진다 — 그대로 전달한다(내부 스택 노출 없음).
         return _error(str(exc), 400)
+
+    if not can_view_manager_breakdown(user):
+        for key in _MANAGER_ONLY_KEYS:
+            data.pop(key, None)
 
     return jsonify({"success": True, "data": data, "error": None})
 

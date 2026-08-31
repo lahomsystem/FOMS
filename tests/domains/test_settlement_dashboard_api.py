@@ -78,19 +78,29 @@ SETTLEMENT_POLICY_ID = "SETTLEMENT_DASHBOARD_READ"
 #: 열람 권한이 같아야 하는 기준 정책(AUTH-FINANCE-01).
 FINANCE_POLICY_ID = "FINANCE_MUTATION"
 
-#: `aggregate_settlement` 반환 스키마 최상위 키(M1 docstring line 786-787).
+#: `aggregate_settlement` 반환 스키마 최상위 키(M1 docstring + SETTLE-TABS S4 확장).
+#: `prev_totals` 는 KPI 델타용 이전 기간 스칼라, `managers`/`managers_total` 은 분석 탭의
+#: 담당자별 매출이다. 셋 다 신규 쿼리 없이 이미 읽은 행에서 파생된다.
 _M1_DATA_KEYS = {
     "range",
     "kpi",
     "buckets",
     "prev_buckets",
+    "prev_totals",
     "aging",
     "aging_unknown",
     "channels",
+    "managers",
+    "managers_total",
     "settlement_status",
     "stages",
     "unknown_completion",
 }
+
+#: 담당자별 매출 = 직원 실적이라 관리자급에게만 내려간다(스펙 §13.6, 사용자 결정).
+#: 그 아래 actor 가 받는 키 집합은 이 둘이 빠진 것이다.
+_MANAGER_ONLY_DATA_KEYS = {"managers", "managers_total"}
+_STAFF_DATA_KEYS = _M1_DATA_KEYS - _MANAGER_ONLY_DATA_KEYS
 
 #: ERP 서브 내비 정본(완료 대시보드 진입 링크가 사는 템플릿). 정산 링크도 여기 붙는다.
 _SUB_NAV_TEMPLATE = "partials/shared/erp_sub_nav.html"
@@ -392,6 +402,46 @@ def test_api_success_envelope_and_m1_schema(client, app):
         db_session, month_from="2026-07", month_to="2026-08", granularity="day"
     )
     assert data == json.loads(json.dumps(expected)), "라우트는 M1 결과를 그대로 실어야 한다"
+
+
+# ==========================================================================
+# 담당자별 매출 = 직원 실적. 화면 열람 권한보다 한 단계 좁다(스펙 §13.6).
+# ==========================================================================
+@pytest.mark.parametrize("role,team", [("ADMIN", None), ("MANAGER", None)])
+def test_manager_breakdown_is_served_to_managers(client, app, role, team):
+    """관리자급은 담당자별 매출을 받는다."""
+    _seed_order(completion="2026-08-05", sd=_money(items_total=2_000_000, deposit=0))
+    _login(client, _make_user(role=role, team=team))
+
+    data = client.get(API_URL).get_json()["data"]
+
+    assert _MANAGER_ONLY_DATA_KEYS <= set(data), "관리자급에게 담당자별 매출이 안 갔다"
+
+
+@pytest.mark.parametrize("team", ["CS", "SALES"])
+def test_manager_breakdown_is_stripped_from_payload_for_staff(client, app, team):
+    """STAFF 는 정산 화면은 보되 담당자별 매출은 **payload 에서부터** 못 받는다.
+
+    데이터를 다 내려주고 클라이언트에서 감추는 방식은 개발자 도구로 그대로 보인다 —
+    이 저장소의 클라 숨김 금지 원칙이라 서버가 키를 지우고 보내는지를 본다.
+    """
+    _seed_order(
+        completion="2026-08-05",
+        sd=_money(items_total=2_000_000, deposit=0),
+        customer_name="실적노출탐지",
+    )
+    _login(client, _make_user(role="STAFF", team=team))
+
+    response = client.get(API_URL)
+    data = response.get_json()["data"]
+
+    assert response.status_code == 200, "STAFF 는 정산 화면 자체는 볼 수 있어야 한다"
+    assert set(data) == _STAFF_DATA_KEYS, (
+        f"STAFF payload 키가 계약과 다르다: {set(data) ^ _STAFF_DATA_KEYS}"
+    )
+    assert "담당자" not in json.dumps(data, ensure_ascii=False), (
+        "담당자 이름이 다른 키에 얹혀 새어 나갔다"
+    )
 
 
 def test_api_defaults_to_previous_and_current_month_day_granularity(client, app):

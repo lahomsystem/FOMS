@@ -23,6 +23,7 @@ from __future__ import annotations
 import calendar
 import datetime
 import re
+from collections import Counter
 from typing import Any
 
 # 순서 주의(알파벳 순 아님): `foms.services.orders.*` 를 `erp_display` 보다 **먼저** 둔다.
@@ -35,6 +36,9 @@ from foms.services.orders.erp_policy_constants import (
     ORDER_SETTLEMENT_ALERT_TARGET_STATUSES,
     STAGE_LABELS,
 )
+# AS 청구 4분류 SSOT. 이 모듈은 `foms.api.files` 를 먼저 import 해서 위 순환 고리를 스스로
+# 피하므로(모듈 상단 주석의 회피와 같은 것) orders 블록 뒤 어디에 놓아도 안전하다.
+from foms.services.as_dashboard_display import as_billing_badge_kind
 from foms.services.datetime_kst import get_today_kst
 from foms.services.erp_display import (
     _ensure_dict,
@@ -73,6 +77,14 @@ _MAX_RANGE_MONTHS = 12
 _DEFAULT_CHANNEL = "일반"
 # 단계 카드에서 빼는 완료 계열 stage code(SPEC §4.4).
 _COMPLETED_STAGE_CODES = ("COMPLETED", "AS_COMPLETED")
+# 담당자 미상 버킷. 조회 결과에서 **항상 마지막**에 온다(매출 순위와 섞이면 "1등 담당자"가
+# 사람이 아닌 빈칸이 되는 일이 생긴다).
+_MANAGER_UNASSIGNED_LABEL = "(미지정)"
+# 담당자 표기가 이 값들이면 미지정으로 접는다("-" 는 파생 실패의 표시값이다).
+_MANAGER_UNASSIGNED_KEYS = ("", "-")
+# 부서별 차감 카드가 세는 부서 집합. `deduction_total` 도 같은 범위여야 현재 구간 카드와
+# 직전 구간 스칼라를 나란히 놓고 비교할 수 있다.
+_SETTLEMENT_DEPARTMENT_CODES = frozenset(code for code, _ in SETTLEMENT_DEPARTMENT_OPTIONS)
 
 # 미수 경과일 버킷 — (코드, 라벨) 고정 순서. 반환 스키마의 `aging` 순서 정본.
 AGING_BUCKETS: tuple[tuple[str, str], ...] = (
@@ -331,6 +343,34 @@ def _as_billing_paid_amount(billing: Any) -> int | None:
     return amount if isinstance(amount, int) and amount > 0 else 0
 
 
+def _manager_display_name(sd: dict, manager_name: Any) -> str:
+    """담당자 표시명 — 완료 대시보드 카드(`_serialize_completion_orders`)와 같은 파생.
+
+    ``sd.parties.manager.name`` → ``Order.manager_name`` → ``"-"`` 순으로 첫 유효값을 쓴다.
+    이웃 표면이 이미 이 순서로 그리고 있어, 여기서 순서를 바꾸면 같은 주문의 담당자가
+    카드와 집계에서 갈린다.
+
+    ``normalize_manager_name``/``apply_erp_display_fields`` 는 **부르지 않는다** —
+    ``erp_display`` 가 숫자형 후보마다 ``User`` SELECT 를 날려 행 루프에서 N+1 이 된다
+    (모듈 docstring 이 못박은 금지선). 문자열만 본다.
+
+    Args:
+        sd: ``_ensure_dict`` 를 통과한 structured_data.
+        manager_name: ``Order.manager_name`` 컬럼값.
+
+    Returns:
+        표시명(앞뒤 공백 제거). 파생 불가면 ``"-"``.
+    """
+    parties = sd.get("parties")
+    manager = parties.get("manager") if isinstance(parties, dict) else None
+    name = manager.get("name") if isinstance(manager, dict) else None
+    text = str(name).strip() if name else ""
+    if text:
+        return text
+    fallback = str(manager_name).strip() if manager_name else ""
+    return fallback or "-"
+
+
 def _row_amounts(sd: dict) -> dict:
     """출고가·예약금·잔금·과입금 파생 — 완료 대시보드 ``_completion_row`` 와 같은 식.
 
@@ -373,7 +413,7 @@ def _settlement_row(order: Any, channel: str) -> dict:
     같은 헬퍼로 낸다.
 
     Args:
-        order: ``id/status/structured_data`` 만 실린 결과 행.
+        order: ``id/status/manager_name/as_axis_status/structured_data`` 만 실린 결과 행.
         channel: 외부 판매채널 코드 또는 "일반".
 
     Returns:
@@ -389,10 +429,15 @@ def _settlement_row(order: Any, channel: str) -> dict:
     settlement = sd.get("settlement")
     issued = _cash_receipt_issued(settlement)
     shipment = sd.get("shipment")
+    as_billing = shipment.get("as_billing") if isinstance(shipment, dict) else None
     return {
         "id": order.id,
         "status": order.status,
         "channel": channel,
+        "manager": _manager_display_name(sd, order.manager_name),
+        # AS 모집단 판정은 AS 축 투영(AS-AXIS-01). status 는 overlay 라 외부 write 한 번에
+        # 모집단이 통째로 빠진다(2026-08-14 사고).
+        "has_as_axis": order.as_axis_status is not None,
         "month_key": completion_month_key(completion_date),
         "day_key": completion_day_key(completion_date),
         **_row_amounts(sd),
@@ -404,9 +449,9 @@ def _settlement_row(order: Any, channel: str) -> dict:
         "cash_receipt_state": _cash_receipt_state(cash_receipt, issued),
         "cash_receipt_issued": issued,
         "deductions": _deduction_entries(settlement),
-        "as_billing_paid": _as_billing_paid_amount(
-            shipment.get("as_billing") if isinstance(shipment, dict) else None
-        ),
+        "as_billing_paid": _as_billing_paid_amount(as_billing),
+        # 4분류('paid'|'paid_unconfirmed'|'undecided'|None)를 규칙 복제 없이 그대로 싣는다.
+        "as_billing_kind": as_billing_badge_kind(as_billing),
     }
 
 
@@ -470,6 +515,9 @@ def _channel_map(db: Any) -> dict[int, str]:
 def _load_rows(db: Any) -> list[dict]:
     """모집단 전량을 파생 행 리스트로 읽는다(날짜 술어 없음).
 
+    담당자(``manager_name``)·AS 축(``as_axis_status``)은 **같은 쿼리에 컬럼으로만** 더
+    붙인다. 별도 쿼리나 행별 조회로 가져오면 모듈 docstring 이 금지한 N+1 이 된다.
+
     Args:
         db: SQLAlchemy Session.
 
@@ -478,7 +526,13 @@ def _load_rows(db: Any) -> list[dict]:
     """
     channels = _channel_map(db)
     orders = (
-        db.query(Order.id, Order.status, Order.structured_data)
+        db.query(
+            Order.id,
+            Order.status,
+            Order.manager_name,
+            Order.as_axis_status,
+            Order.structured_data,
+        )
         .filter(*_population_filters())
         .all()
     )
@@ -566,6 +620,41 @@ def _build_buckets(rows: list[dict], months: list[str], granularity: str) -> lis
 # ---------------------------------------------------------------------------
 
 
+def _revenue_of(rows: list[dict]) -> int:
+    """출고가 합계. 미산출(None)은 0 기여 — 건수에는 남고 금액만 빠진다."""
+    return sum(row["shipping_price"] for row in rows if isinstance(row["shipping_price"], int))
+
+
+def _collected_split(rows: list[dict]) -> tuple[int, int]:
+    """수금 근사를 두 항으로 나눈다: (완료월 귀속 예약금, 잔금 확인된 건의 잔금).
+
+    두 항의 합이 ``collected_approx`` 다. 카드가 '예약금 얼마·잔금 얼마'를 따로 그려도
+    총액이 갈리지 않게 한 곳에서만 낸다 — 화면이 따로 더하면 반올림·모집단이 어긋난다.
+
+    Args:
+        rows: 합산 대상 파생 행.
+
+    Returns:
+        (예약금 합, 확인된 잔금 합).
+    """
+    deposit = sum(row["deposit"] or 0 for row in rows)
+    balance = sum(
+        row["balance"] for row in rows
+        if row["paid"] and isinstance(row["balance"], int)
+    )
+    return deposit, balance
+
+
+def _deduction_total(rows: list[dict]) -> int:
+    """부서별 차감 합계(절대값). 카드가 세는 부서 집합과 같은 범위만 센다."""
+    return sum(
+        amount
+        for row in rows
+        for department, amount in row["deductions"]
+        if department in _SETTLEMENT_DEPARTMENT_CODES
+    )
+
+
 def _build_kpi(in_period: list[dict], all_rows: list[dict]) -> dict:
     """상단 KPI. 매출·건수·수금·과입금은 기간 내, 미수는 **기간 무관 모집단 전체**.
 
@@ -576,17 +665,9 @@ def _build_kpi(in_period: list[dict], all_rows: list[dict]) -> dict:
     Returns:
         반환 스키마의 ``kpi`` dict.
     """
-    revenue = sum(
-        row["shipping_price"] for row in in_period
-        if isinstance(row["shipping_price"], int)
-    )
+    revenue = _revenue_of(in_period)
     count = len(in_period)
-    # 수금 근사: 완료월에 귀속된 예약금 + 잔금 확인(balance_confirmed)된 건의 잔금.
-    collected = sum(row["deposit"] or 0 for row in in_period)
-    collected += sum(
-        row["balance"] for row in in_period
-        if row["paid"] and isinstance(row["balance"], int)
-    )
+    collected_deposit, collected_balance = _collected_split(in_period)
     receivable = [row for row in all_rows if _is_receivable(row)]
     return {
         "revenue": revenue,
@@ -594,8 +675,42 @@ def _build_kpi(in_period: list[dict], all_rows: list[dict]) -> dict:
         "avg_shipping_price": revenue // count if count else 0,
         "receivable_total": sum(row["balance"] for row in receivable),
         "receivable_count": len(receivable),
-        "collected_approx": collected,
+        # 두 항을 따로 낸다(분석 탭이 수금 구성을 쪼개 본다). 합은 기존 키 그대로다 —
+        # `collected_deposit + collected_balance == collected_approx` 는 항등식이다.
+        "collected_deposit": collected_deposit,
+        "collected_balance": collected_balance,
+        "collected_approx": collected_deposit + collected_balance,
         "overpaid_total": sum(row["overpaid"] for row in in_period),
+    }
+
+
+def _build_period_totals(rows: list[dict]) -> dict:
+    """기간 스칼라 합계 — ``prev_totals``(직전 구간 비교선)용. 신규 쿼리 없음.
+
+    이미 계산해 둔 직전 구간 행을 다시 접기만 한다.
+
+    ``receivable_*``·aging 은 **넣지 않는다**. 그 둘은 기간 무관 지표(모집단 전체)라
+    "직전 구간의 미수" 라는 값이 애초에 존재하지 않는다 — 담으면 화면이 없는 비교를 그린다.
+
+    Args:
+        rows: 직전 구간 파생 행.
+
+    Returns:
+        revenue/completed_count/avg_shipping_price/collected_*/overpaid_total/
+        deduction_total 스칼라 dict.
+    """
+    revenue = _revenue_of(rows)
+    count = len(rows)
+    collected_deposit, collected_balance = _collected_split(rows)
+    return {
+        "revenue": revenue,
+        "completed_count": count,
+        "avg_shipping_price": revenue // count if count else 0,
+        "collected_deposit": collected_deposit,
+        "collected_balance": collected_balance,
+        "collected_approx": collected_deposit + collected_balance,
+        "overpaid_total": sum(row["overpaid"] for row in rows),
+        "deduction_total": _deduction_total(rows),
     }
 
 
@@ -658,8 +773,109 @@ def _build_channels(in_period: list[dict]) -> list[dict]:
     return ordered
 
 
+def _manager_group_key(name: str) -> str:
+    """담당자 그룹 키 — 앞뒤 공백·대소문자 차이를 한 행으로 접는다.
+
+    "Kim" / " kim" / "KIM" 은 한 사람이다. 접지 않으면 같은 담당자가 순위표에 여러 줄로
+    쪼개져 1등이 실제보다 작아진다. ``casefold`` 는 ``lower`` 보다 넓은 접기다.
+
+    Args:
+        name: 행에서 파생한 담당자 표시명.
+
+    Returns:
+        그룹 키. 미지정(빈 값·"-")이면 빈 문자열(= 미지정 버킷 sentinel).
+    """
+    key = name.strip().casefold()
+    return "" if key in _MANAGER_UNASSIGNED_KEYS else key
+
+
+def _build_managers(in_period: list[dict]) -> tuple[list[dict], dict]:
+    """담당자별 건수·매출(기간 내)과 그 합계.
+
+    모집단은 ``channels``/``settlement_status`` 와 같은 기간 스코프다. 그래야
+    ``managers_total`` 이 ``kpi.revenue``/``kpi.completed_count`` 와 정확히 맞는다 —
+    한 행도 빠지지 않으니(미지정도 버킷을 받는다) 합이 KPI 와 갈릴 수 없다.
+
+    Args:
+        in_period: 기간 내 파생 행.
+
+    Returns:
+        ([{"manager", "count", "revenue"}] 매출 내림차순(미지정은 항상 마지막),
+         {"count", "revenue"} 합계).
+    """
+    stats: dict[str, dict] = {}
+    spellings: dict[str, Counter] = {}
+    for row in in_period:
+        key = _manager_group_key(row["manager"])
+        entry = stats.setdefault(
+            key, {"manager": _MANAGER_UNASSIGNED_LABEL, "count": 0, "revenue": 0}
+        )
+        entry["count"] += 1
+        if isinstance(row["shipping_price"], int):
+            entry["revenue"] += row["shipping_price"]
+        if key:
+            spellings.setdefault(key, Counter())[row["manager"]] += 1
+    for key, counter in spellings.items():
+        # 표기는 가장 흔한 원본 철자로 낸다. 동수면 사전순으로 갈라 결과가 DB 행 순서에
+        # 따라 흔들리지 않게 한다.
+        stats[key]["manager"] = sorted(counter.items(), key=lambda kv: (-kv[1], kv[0]))[0][0]
+    unassigned = stats.pop("", None)
+    ordered = sorted(
+        stats.values(), key=lambda item: (-item["revenue"], -item["count"], item["manager"])
+    )
+    if unassigned is not None:
+        ordered.append(unassigned)
+    return ordered, {
+        "count": sum(item["count"] for item in ordered),
+        "revenue": sum(item["revenue"] for item in ordered),
+    }
+
+
+def _as_billing_breakdown(in_period: list[dict]) -> dict:
+    """AS 청구 판정 분포(기간 내) — 4분류 SSOT ``as_billing_badge_kind`` 를 3버킷으로 접는다.
+
+    모집단은 **``as_axis_status IS NOT NULL``**(AS-AXIS-01, `erp_as_scope_condition`).
+    구 술어 ``status in ('AS_RECEIVED','AS_COMPLETED')`` 는 status 가 overlay 라 외부
+    write 한 번에 AS 건이 통째로 빠졌다(2026-08-14 사고). 다만 AS 축 투영이 비었는데 유상
+    확정만 남은 레거시 행이 있어 그런 행도 **분모에 넣는다** — 안 넣으면
+    ``as_billing_paid_count`` 가 ``as_total_count`` 를 넘는다(분자 > 분모).
+
+    분류는 정확히 3갈래라 합이 ``as_total_count`` 다:
+    'paid'=유상 확정 / None=무상(또는 유상 계열 아님) / 'paid_unconfirmed'·'undecided'=미확정.
+
+    Args:
+        in_period: 기간 내 파생 행.
+
+    Returns:
+        as_total_count/as_billing_paid_count/as_billing_paid_amount/
+        as_billing_free_count/as_billing_undecided_count.
+    """
+    total = paid_count = paid_amount = free = undecided = 0
+    for row in in_period:
+        is_paid = row["as_billing_paid"] is not None
+        if is_paid:
+            paid_count += 1
+            paid_amount += row["as_billing_paid"]
+        if not (row["has_as_axis"] or is_paid):
+            continue
+        total += 1
+        if is_paid:
+            continue
+        if row["as_billing_kind"] is None:
+            free += 1
+        else:
+            undecided += 1
+    return {
+        "as_total_count": total,
+        "as_billing_paid_count": paid_count,
+        "as_billing_paid_amount": paid_amount,
+        "as_billing_free_count": free,
+        "as_billing_undecided_count": undecided,
+    }
+
+
 def _build_settlement_status(in_period: list[dict]) -> dict:
-    """정산 현황(기간 내): 청구 여부·현금영수증·AS 유상 확정·부서별 차감.
+    """정산 현황(기간 내): 청구 여부·현금영수증·AS 청구 분포·부서별 차감.
 
     Args:
         in_period: 기간 내 파생 행.
@@ -670,15 +886,11 @@ def _build_settlement_status(in_period: list[dict]) -> dict:
     issued = sum(1 for row in in_period if row["settlement_issued"])
     dept_amount = {code: 0 for code, _ in SETTLEMENT_DEPARTMENT_OPTIONS}
     dept_count = {code: 0 for code, _ in SETTLEMENT_DEPARTMENT_OPTIONS}
-    as_paid_count = as_paid_amount = 0
     for row in in_period:
         for department, amount in row["deductions"]:
             if department in dept_amount:
                 dept_amount[department] += amount
                 dept_count[department] += 1
-        if row["as_billing_paid"] is not None:
-            as_paid_count += 1
-            as_paid_amount += row["as_billing_paid"]
     return {
         "issued_count": issued,
         "pending_count": len(in_period) - issued,
@@ -686,8 +898,7 @@ def _build_settlement_status(in_period: list[dict]) -> dict:
             1 for row in in_period if row["cash_receipt_state"] == "requested"
         ),
         "cash_receipt_issued": sum(1 for row in in_period if row["cash_receipt_issued"]),
-        "as_billing_paid_count": as_paid_count,
-        "as_billing_paid_amount": as_paid_amount,
+        **_as_billing_breakdown(in_period),
         "deductions_by_department": [
             {
                 "department": code,
@@ -783,8 +994,8 @@ def aggregate_settlement(
         granularity: "day" | "week" | "month".
 
     Returns:
-        range/kpi/buckets/prev_buckets/aging/aging_unknown/channels/
-        settlement_status/stages/unknown_completion 키를 가진 dict.
+        range/kpi/buckets/prev_buckets/prev_totals/aging/aging_unknown/channels/
+        managers/managers_total/settlement_status/stages/unknown_completion 키를 가진 dict.
 
     Raises:
         ValueError: month 형식 오류, granularity 미지원, 범위 역전, 12개월 초과.
@@ -800,18 +1011,19 @@ def aggregate_settlement(
     in_period = [row for row in all_rows if _row_month(row) in current]
     prev_period = [row for row in all_rows if _row_month(row) in previous]
     aging, aging_unknown = _build_aging(all_rows, get_today_kst())
+    managers, managers_total = _build_managers(in_period)
     return {
-        "range": {
-            "month_from": month_from,
-            "month_to": month_to,
-            "granularity": granularity,
-        },
+        "range": {"month_from": month_from, "month_to": month_to,
+                  "granularity": granularity},
         "kpi": _build_kpi(in_period, all_rows),
         "buckets": _build_buckets(in_period, months, granularity),
         "prev_buckets": _build_buckets(prev_period, prev_months, granularity),
+        "prev_totals": _build_period_totals(prev_period),
         "aging": aging,
         "aging_unknown": aging_unknown,
         "channels": _build_channels(in_period),
+        "managers": managers,
+        "managers_total": managers_total,
         "settlement_status": _build_settlement_status(in_period),
         "stages": _build_stages(db),
         "unknown_completion": _build_unknown_completion(all_rows),

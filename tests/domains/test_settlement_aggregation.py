@@ -66,6 +66,8 @@ def _seed_order(
     is_erp_order: bool = True,
     deleted_at: str | None = None,
     customer_name: str = "정산고객",
+    manager_name: str | None = "담당자",
+    as_axis_status: str | None = None,
     commit: bool = True,
 ) -> Order:
     """정산 모집단 주문 1건을 시드한다.
@@ -79,6 +81,10 @@ def _seed_order(
         is_erp_order: ERP 주문 플래그. False 면 모집단에서 제외돼야 한다(D4).
         deleted_at: soft delete 표식.
         customer_name: 표시용 이름.
+        manager_name: Order.manager_name 컬럼값(담당자 집계 fallback 축).
+        as_axis_status: AS 축 투영값. None 이면 `before_insert` 훅이 status 에서 유도한다
+            (AS 계열 status 가 아니면 그대로 None). AS 축은 있는데 status 는 완료로
+            덮인 2026-08-14 사고형 행을 만들려면 명시로 준다 — 훅이 명시값을 존중한다.
         commit: False 면 호출자가 모아서 commit 한다(대량 시드용).
 
     Returns:
@@ -98,10 +104,11 @@ def _seed_order(
         address="서울시 강남구",
         product="붙박이장",
         status=status,
-        manager_name="담당자",
+        manager_name=manager_name,
         is_erp_order=is_erp_order,
         erp_stage_code=stage,
         deleted_at=deleted_at,
+        as_axis_status=as_axis_status,
         structured_data=payload,
     )
     db_session.add(order)
@@ -178,7 +185,23 @@ def _days_ago(days: int) -> str:
 
 
 def test_returns_exact_schema_keys(app):
-    """브리프 §3 이 못박은 키 집합을 정확히 낸다(키 추가·누락 모두 red)."""
+    """브리프 §3 이 못박은 키 집합을 정확히 낸다(키 추가·누락 모두 red).
+
+    분석(analytics) 탭이 추가한 키까지 여기서 못박는다:
+
+    - ``managers``/``managers_total`` — 담당자별 매출 순위표. 화면이 KPI 와 나란히
+      그리므로 합계가 `kpi` 와 어긋나면 안 된다(별도 항등 테스트가 잠근다).
+    - ``prev_totals`` — 직전 구간 스칼라. `prev_buckets` 는 시계열이라 "직전 구간 총
+      수금" 같은 값을 낼 수 없어 스칼라를 따로 낸다.
+    - ``kpi.collected_deposit``/``collected_balance`` — 기존 `collected_approx` 를
+      구성 두 항으로 쪼갠 것(합은 그대로 `collected_approx`).
+    - ``settlement_status.as_total_count``/``as_billing_free_count``/
+      ``as_billing_undecided_count`` — AS 청구 판정 분포. 유상 확정 1개 숫자만으로는
+      "아직 안 정한 AS 가 몇 건인가"를 볼 수 없었다.
+
+    `==` 를 `<=`/`issubset` 으로 낮추지 않는다 — 키가 조용히 늘어나는 것을 잡는 게
+    이 단언의 존재 이유다.
+    """
     _seed_order(completion="2026-07-15", sd=_money(1000000, 300000))
     _seed_order(completion="2026-07-16", sd=_money(500000, 0), status="AS_RECEIVED",
                 stage="MEASURE")
@@ -188,16 +211,25 @@ def test_returns_exact_schema_keys(app):
     )
 
     assert set(result) == {
-        "range", "kpi", "buckets", "prev_buckets", "aging", "aging_unknown",
-        "channels", "settlement_status", "stages", "unknown_completion",
+        "range", "kpi", "buckets", "prev_buckets", "prev_totals", "aging",
+        "aging_unknown", "channels", "managers", "managers_total",
+        "settlement_status", "stages", "unknown_completion",
     }
     assert result["range"] == {
         "month_from": "2026-07", "month_to": "2026-07", "granularity": "day",
     }
     assert set(result["kpi"]) == {
         "revenue", "completed_count", "avg_shipping_price", "receivable_total",
-        "receivable_count", "collected_approx", "overpaid_total",
+        "receivable_count", "collected_approx", "collected_deposit",
+        "collected_balance", "overpaid_total",
     }
+    assert set(result["prev_totals"]) == {
+        "revenue", "completed_count", "avg_shipping_price", "collected_deposit",
+        "collected_balance", "collected_approx", "overpaid_total", "deduction_total",
+    }
+    assert set(result["managers_total"]) == {"count", "revenue"}
+    for item in result["managers"]:
+        assert set(item) == {"manager", "count", "revenue"}
     for bucket in result["buckets"] + result["prev_buckets"]:
         assert set(bucket) == {"key", "label", "revenue", "count"}
         assert isinstance(bucket["label"], str) and bucket["label"]
@@ -211,7 +243,8 @@ def test_returns_exact_schema_keys(app):
         assert set(item) == {"channel", "count", "revenue"}
     assert set(result["settlement_status"]) == {
         "issued_count", "pending_count", "cash_receipt_requested", "cash_receipt_issued",
-        "as_billing_paid_count", "as_billing_paid_amount", "deductions_by_department",
+        "as_total_count", "as_billing_paid_count", "as_billing_paid_amount",
+        "as_billing_free_count", "as_billing_undecided_count", "deductions_by_department",
     }
     for item in result["settlement_status"]["deductions_by_department"]:
         assert set(item) == {"department", "label", "amount", "count"}
@@ -1048,3 +1081,368 @@ def test_as_billing_requires_strict_confirmed_true(app):
     status = result["settlement_status"]
     assert status["as_billing_paid_count"] == 1
     assert status["as_billing_paid_amount"] == 150000
+
+
+# --- 계약 13: 담당자별 매출 -----------------------------------------------
+
+
+def _manager_sd(name: str, items_total: int) -> dict:
+    """`parties.manager.name` 이 실린 structured_data(담당자 파생 1순위 축)."""
+    return {"totals": {"items_total": items_total}, "parties": {"manager": {"name": name}}}
+
+
+def test_manager_derivation_prefers_structured_parties_over_column(app):
+    """담당자 표시명은 `sd.parties.manager.name` → `Order.manager_name` → "-" 순이다.
+
+    이웃 표면(`foms/api/cs/dashboard.py` 완료 카드 직렬화)이 이미 이 순서로 그린다.
+    순서를 뒤집으면 같은 주문의 담당자가 카드와 집계에서 갈린다.
+    """
+    _seed_order(completion="2026-07-10", sd=_manager_sd("김성훈", 100000),
+                manager_name="컬럼담당")
+    _seed_order(completion="2026-07-11", sd=_money(200000, 0), manager_name="컬럼담당")
+
+    result = aggregate_settlement(
+        db_session, month_from="2026-07", month_to="2026-07", granularity="month"
+    )
+
+    managers = _by_key(result["managers"], "manager")
+    assert set(managers) == {"김성훈", "컬럼담당"}
+    assert managers["김성훈"]["count"] == 1
+    assert managers["김성훈"]["revenue"] == 100000
+    assert managers["컬럼담당"]["count"] == 1
+
+
+def test_manager_grouping_folds_case_and_whitespace(app):
+    """대소문자·앞뒤 공백만 다른 표기는 한 행으로 접힌다.
+
+    접지 않으면 같은 담당자가 순위표에서 여러 줄로 쪼개져 1등 매출이 실제보다 작아진다.
+    표기는 **가장 흔한 원본 철자**를 쓴다("Kim" 2회 > "kim" 1회 → "Kim").
+    """
+    for index, raw in enumerate(("Kim", " Kim ", "kim")):
+        _seed_order(completion=f"2026-07-1{index}", sd=_money(100000, 0),
+                    manager_name=raw, customer_name=f"고객{index}")
+
+    result = aggregate_settlement(
+        db_session, month_from="2026-07", month_to="2026-07", granularity="month"
+    )
+
+    assert len(result["managers"]) == 1
+    assert result["managers"][0] == {"manager": "Kim", "count": 3, "revenue": 300000}
+
+
+def test_manager_unassigned_bucket_is_last_and_not_dropped(app):
+    """담당자 미상(빈 값·"-")은 `(미지정)` 한 행으로 모이고 **항상 마지막**이다.
+
+    매출이 1등이어도 마지막이다 — 순위 정렬에 섞으면 "1등 담당자"가 사람이 아닌 빈칸이
+    된다. 그렇다고 버리지도 않는다(암묵 drop 금지 — 버리면 합계가 KPI 와 갈린다).
+    """
+    _seed_order(completion="2026-07-10", sd=_money(9000000, 0), manager_name=None)
+    _seed_order(completion="2026-07-11", sd=_money(1000000, 0), manager_name="-")
+    _seed_order(completion="2026-07-12", sd=_money(500000, 0), manager_name="   ")
+    _seed_order(completion="2026-07-13", sd=_money(300000, 0), manager_name="박영희")
+
+    result = aggregate_settlement(
+        db_session, month_from="2026-07", month_to="2026-07", granularity="month"
+    )
+
+    assert [item["manager"] for item in result["managers"]] == ["박영희", "(미지정)"]
+    assert result["managers"][-1]["count"] == 3
+    assert result["managers"][-1]["revenue"] == 10500000
+
+
+def test_managers_are_ordered_by_revenue_desc(app):
+    """순위표는 매출 내림차순이다(건수 순이 아니다)."""
+    _seed_order(completion="2026-07-10", sd=_money(100000, 0), manager_name="적은매출")
+    _seed_order(completion="2026-07-11", sd=_money(100000, 0), manager_name="적은매출")
+    _seed_order(completion="2026-07-12", sd=_money(100000, 0), manager_name="적은매출")
+    _seed_order(completion="2026-07-13", sd=_money(900000, 0), manager_name="큰매출")
+
+    result = aggregate_settlement(
+        db_session, month_from="2026-07", month_to="2026-07", granularity="month"
+    )
+
+    assert [item["manager"] for item in result["managers"]] == ["큰매출", "적은매출"]
+    assert [item["revenue"] for item in result["managers"]] == [900000, 300000]
+
+
+def test_managers_total_equals_kpi_revenue_and_count(app):
+    """항등식 — `sum(count) == kpi.completed_count`, `sum(revenue) == kpi.revenue`.
+
+    화면이 KPI 카드와 담당자 순위표를 나란히 그린다. 한 행이라도 새면(미지정 drop·
+    출고가 None 건 제외) 두 숫자가 눈앞에서 어긋난다. 출고가 미산출 건은 매출에 0 을
+    기여하되 **건수에는 남아야** 한다.
+    """
+    _seed_order(completion="2026-07-10", sd=_manager_sd("김성훈", 1000000))
+    _seed_order(completion="2026-07-11", sd=_money(500000, 0), manager_name="박영희")
+    _seed_order(completion="2026-07-12", sd=_money(None, 100000), manager_name="박영희")
+    _seed_order(completion="2026-07-13", sd=_money(300000, 0), manager_name=None)
+    _seed_order(completion="2026-07-14", sd=_money(200000, 0), manager_name="Kim")
+    _seed_order(completion="2026-07-15", sd=_money(200000, 0), manager_name=" kim ")
+    # 기간 밖 — 담당자 합계에도 KPI 에도 들어오면 안 된다.
+    _seed_order(completion="2026-02-10", sd=_money(9000000, 0), manager_name="김성훈")
+
+    result = aggregate_settlement(
+        db_session, month_from="2026-07", month_to="2026-07", granularity="month"
+    )
+
+    kpi, total = result["kpi"], result["managers_total"]
+    assert sum(item["count"] for item in result["managers"]) == kpi["completed_count"]
+    assert sum(item["revenue"] for item in result["managers"]) == kpi["revenue"]
+    assert total == {"count": kpi["completed_count"], "revenue": kpi["revenue"]}
+    assert total == {"count": 6, "revenue": 2200000}
+    managers = _by_key(result["managers"], "manager")
+    assert managers["박영희"]["count"] == 2
+    assert managers["박영희"]["revenue"] == 500000
+    assert managers["Kim"]["count"] == 2
+
+
+def test_managers_are_empty_when_period_has_no_rows(app):
+    """기간에 건이 없으면 순위표는 비고 합계는 0 이다(가짜 `(미지정)` 0행 금지)."""
+    _seed_order(completion="2026-02-10", sd=_money(9000000, 0), manager_name="김성훈")
+
+    result = aggregate_settlement(
+        db_session, month_from="2026-07", month_to="2026-07", granularity="month"
+    )
+
+    assert result["managers"] == []
+    assert result["managers_total"] == {"count": 0, "revenue": 0}
+
+
+# --- 계약 14: 수금 분해 ---------------------------------------------------
+
+
+def test_collected_split_sums_to_collected_approx(app):
+    """항등식 — `collected_deposit + collected_balance == collected_approx`.
+
+    분석 탭이 수금을 '예약금/잔금' 두 막대로 쪼개 그린다. 두 항을 화면이 따로 더하게
+    두면 총액이 KPI 와 갈린다. 커널이 세 값을 한 곳에서 낸다.
+    """
+    _seed_order(completion="2026-07-10", sd={
+        "totals": {"items_total": 1000000},
+        "payment": {"deposit": 300000, "balance_confirmed": True},
+    })
+    _seed_order(completion="2026-07-11", sd={
+        "totals": {"items_total": 500000}, "payment": {"deposit": 100000},
+    })
+
+    kpi = aggregate_settlement(
+        db_session, month_from="2026-07", month_to="2026-07", granularity="month"
+    )["kpi"]
+
+    assert kpi["collected_deposit"] == 400000
+    assert kpi["collected_balance"] == 700000
+    assert kpi["collected_approx"] == 1100000
+    assert kpi["collected_deposit"] + kpi["collected_balance"] == kpi["collected_approx"]
+
+
+def test_collected_balance_only_counts_confirmed_balances(app):
+    """잔금 항은 `balance_confirmed` 건만 센다 — 미수는 수금이 아니다."""
+    _seed_order(completion="2026-07-10", sd={
+        "totals": {"items_total": 1000000},
+        "payment": {"deposit": 200000, "balance_confirmed": False},
+    })
+
+    kpi = aggregate_settlement(
+        db_session, month_from="2026-07", month_to="2026-07", granularity="month"
+    )["kpi"]
+
+    assert kpi["collected_deposit"] == 200000
+    assert kpi["collected_balance"] == 0
+    assert kpi["collected_approx"] == 200000
+    assert kpi["receivable_total"] == 800000
+
+
+# --- 계약 15: AS 청구 분포 -------------------------------------------------
+
+
+def _as_sd(billing: dict | None, items_total: int = 100000) -> dict:
+    """AS 청구 blob 이 실린 structured_data. billing=None 이면 shipment 자체가 없다."""
+    payload: dict = {"totals": {"items_total": items_total}}
+    if billing is not None:
+        payload["shipment"] = {"as_billing": billing}
+    return payload
+
+
+def _as_counts(result: dict) -> tuple[int, int, int, int]:
+    """(총건, 유상확정, 무상, 미확정) 튜플 — 분할 항등식 단언용."""
+    status = result["settlement_status"]
+    return (
+        status["as_total_count"],
+        status["as_billing_paid_count"],
+        status["as_billing_free_count"],
+        status["as_billing_undecided_count"],
+    )
+
+
+def test_as_breakdown_partitions_the_as_population(app):
+    """분할 항등식 — 유상확정 + 무상 + 미확정 == `as_total_count`.
+
+    4분류 SSOT(`as_billing_badge_kind`)의 'paid'/'paid_unconfirmed'/'undecided'/None 을
+    3버킷으로 접는다. 어느 갈래도 어디에도 안 잡히면 화면의 도넛 합이 총건과 안 맞는다.
+    """
+    _seed_order(completion="2026-07-10", status="AS_COMPLETED", sd=_as_sd(
+        {"type": "paid", "confirmed": True, "amount": 150000}))
+    _seed_order(completion="2026-07-11", status="AS_COMPLETED", sd=_as_sd(
+        {"type": "paid", "confirmed": "Y", "amount": 999999}))
+    _seed_order(completion="2026-07-12", status="AS_COMPLETED", sd=_as_sd(
+        {"type": "paid", "confirmed": False, "amount": 300000}))
+    _seed_order(completion="2026-07-13", status="AS_COMPLETED", sd=_as_sd(
+        {"type": "undecided"}))
+    _seed_order(completion="2026-07-14", status="AS_COMPLETED", sd=_as_sd(
+        {"type": "free", "confirmed": True}))
+    _seed_order(completion="2026-07-15", status="AS_RECEIVED", sd=_as_sd(None))
+
+    result = aggregate_settlement(
+        db_session, month_from="2026-07", month_to="2026-07", granularity="month"
+    )
+
+    total, paid, free, undecided = _as_counts(result)
+    assert (total, paid, free, undecided) == (6, 1, 2, 3)
+    assert paid + free + undecided == total
+    assert result["settlement_status"]["as_billing_paid_amount"] == 150000
+
+
+def test_as_population_uses_as_axis_status_not_legacy_status(app):
+    """AS 모집단은 `as_axis_status IS NOT NULL`(AS-AXIS-01) — status 술어가 아니다.
+
+    `status in ('AS_RECEIVED','AS_COMPLETED')` 는 2026-08-14 사고로 폐기됐다. status 는
+    overlay projection 이라 외부 write 한 번에 'COMPLETED' 로 덮이고, 그 순간 AS 건이
+    모집단에서 통째로 빠진다. **구 술어가 놓치던 바로 그 행**을 여기서 잡는다.
+    """
+    _seed_order(completion="2026-07-10", status="COMPLETED", as_axis_status="COMPLETED",
+                sd=_as_sd({"type": "undecided"}))
+    _seed_order(completion="2026-07-11", status="COMPLETED", as_axis_status="IN_PROGRESS",
+                sd=_as_sd({"type": "free"}))
+    # AS 축이 없는 순수 완료건 — 분모에 들어오면 안 된다.
+    _seed_order(completion="2026-07-12", status="COMPLETED", sd=_money(100000, 0))
+
+    result = aggregate_settlement(
+        db_session, month_from="2026-07", month_to="2026-07", granularity="month"
+    )
+
+    total, paid, free, undecided = _as_counts(result)
+    assert (total, paid, free, undecided) == (2, 0, 1, 1)
+    assert paid + free + undecided == total
+
+
+def test_as_total_covers_legacy_paid_row_without_axis(app):
+    """AS 축이 비었는데 유상 확정만 남은 레거시 행도 분모에 든다(분자 > 분모 방지).
+
+    투영 백필 이전 데이터가 그렇다. 분모에서 빼면 `as_billing_paid_count` 가
+    `as_total_count` 를 넘어 화면이 "2건 중 3건 유상" 을 그린다.
+    """
+    _seed_order(completion="2026-07-10", status="COMPLETED", as_axis_status=None,
+                sd=_as_sd({"type": "paid", "confirmed": True, "amount": 50000}))
+    _seed_order(completion="2026-07-11", status="AS_COMPLETED", sd=_as_sd({"type": "free"}))
+
+    result = aggregate_settlement(
+        db_session, month_from="2026-07", month_to="2026-07", granularity="month"
+    )
+
+    total, paid, free, undecided = _as_counts(result)
+    assert (total, paid, free, undecided) == (2, 1, 1, 0)
+    assert paid <= total
+    assert paid + free + undecided == total
+
+
+def test_as_counts_are_zero_without_as_rows(app):
+    """AS 축도 유상 청구도 없으면 AS 분포는 전부 0 이다."""
+    _seed_order(completion="2026-07-10", sd=_money(100000, 0))
+
+    result = aggregate_settlement(
+        db_session, month_from="2026-07", month_to="2026-07", granularity="month"
+    )
+
+    assert _as_counts(result) == (0, 0, 0, 0)
+
+
+def test_as_counts_are_scoped_to_the_requested_period(app):
+    """AS 분포도 `channels`/정산현황과 같은 기간 스코프다(기간 밖 AS 는 안 센다)."""
+    _seed_order(completion="2026-07-10", status="AS_COMPLETED", sd=_as_sd({"type": "free"}))
+    _seed_order(completion="2026-02-10", status="AS_COMPLETED", sd=_as_sd({"type": "free"}))
+
+    result = aggregate_settlement(
+        db_session, month_from="2026-07", month_to="2026-07", granularity="month"
+    )
+
+    assert _as_counts(result) == (1, 0, 1, 0)
+
+
+# --- 계약 16: 직전 구간 스칼라 --------------------------------------------
+
+
+def test_prev_totals_are_scoped_to_the_previous_window(app):
+    """`prev_totals` 는 **직전 구간**만 센다(요청 구간이 새어 들어오면 비교가 무의미)."""
+    _seed_order(completion="2026-06-10", sd={
+        "totals": {"items_total": 500000},
+        "payment": {"deposit": 200000, "balance_confirmed": True},
+    })
+    _seed_order(completion="2026-07-10", sd=_money(900000, 100000))
+
+    result = aggregate_settlement(
+        db_session, month_from="2026-07", month_to="2026-07", granularity="month"
+    )
+
+    prev = result["prev_totals"]
+    assert prev["revenue"] == 500000
+    assert prev["completed_count"] == 1
+    assert prev["avg_shipping_price"] == 500000
+    assert prev["collected_deposit"] == 200000
+    assert prev["collected_balance"] == 300000
+    assert prev["collected_approx"] == 500000
+    # 요청 구간 KPI 는 그대로여야 한다(양방향 누수 확인).
+    assert result["kpi"]["revenue"] == 900000
+    assert result["kpi"]["completed_count"] == 1
+
+
+def test_prev_totals_match_the_same_range_run_one_window_earlier(app):
+    """직전 구간 스칼라 = 그 구간을 **요청 구간으로 돌렸을 때**의 값과 같다.
+
+    스코프와 정의(수금 분해·과입금·차감 범위)를 한 번에 잠근다. 한쪽만 규칙이 바뀌면
+    화면이 사과와 오렌지를 비교한다.
+    """
+    _seed_order(completion="2026-06-10", sd={
+        "totals": {"items_total": 1000000},
+        "payment": {"deposit": 300000, "balance_confirmed": True},
+        "settlement": {"deductions": [{"department": "SALES", "amount": -40000}]},
+    })
+    _seed_order(completion="2026-06-20", sd=_money(200000, 500000))  # 과입금 300,000
+    _seed_order(completion="2026-07-10", sd=_money(900000, 0))
+
+    current = aggregate_settlement(
+        db_session, month_from="2026-07", month_to="2026-07", granularity="month"
+    )
+    shifted = aggregate_settlement(
+        db_session, month_from="2026-06", month_to="2026-06", granularity="month"
+    )
+
+    prev, kpi = current["prev_totals"], shifted["kpi"]
+    for key in ("revenue", "completed_count", "avg_shipping_price",
+                "collected_deposit", "collected_balance", "collected_approx",
+                "overpaid_total"):
+        assert prev[key] == kpi[key], key
+    assert prev["deduction_total"] == sum(
+        item["amount"] for item in shifted["settlement_status"]["deductions_by_department"]
+    )
+    assert prev["deduction_total"] == 40000
+    assert prev["overpaid_total"] == 300000
+
+
+def test_prev_totals_omit_period_independent_metrics(app):
+    """`prev_totals` 에 미수·aging 키를 담지 않는다.
+
+    그 둘은 기간 무관 지표(모집단 전체)라 "직전 구간의 미수" 라는 값이 존재하지 않는다.
+    담으면 화면이 없는 비교를 그린다 — 실제로는 같은 숫자를 두 번 보여주게 된다.
+    """
+    _seed_order(completion="2026-06-10", sd=_money(1000000, 100000))
+    _seed_order(completion="2026-07-10", sd=_money(1000000, 100000))
+
+    result = aggregate_settlement(
+        db_session, month_from="2026-07", month_to="2026-07", granularity="month"
+    )
+
+    prev = result["prev_totals"]
+    assert not [key for key in prev if key.startswith("receivable")]
+    assert not [key for key in prev if "aging" in key]
+    # 미수는 기간 무관이라 KPI 한 곳에만 있고, 두 건 모두를 센다.
+    assert result["kpi"]["receivable_count"] == 2
