@@ -216,6 +216,8 @@
 .foms-settle .s-axis-t { font-size: 10.5px; fill: var(--s-faint); font-variant-numeric: tabular-nums; }
 .foms-settle .s-axis-sub { font-size: 10px; fill: var(--s-faint); }
 .foms-settle .s-cap-t { font-size: 10.5px; font-weight: 700; fill: var(--s-muted); font-variant-numeric: tabular-nums; }
+/* 비교 라인이 축을 넘어간 구간 표식. 잘라놓고 말 안 하면 "그날은 축 상한이었다"로 읽힌다. */
+.foms-settle .s-clip-mark { pointer-events: none; }
 .foms-settle .s-cgrp path { transition: filter .12s; }
 .foms-settle .s-cgrp.s-on path { filter: brightness(1.12); }
 .foms-settle .s-hit:focus,

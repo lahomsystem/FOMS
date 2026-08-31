@@ -43,6 +43,9 @@
   var BLUE_BUCKET4 = ['#86b6ef', '#5598e7', '#2a78d6', '#104281']; // 매출 금액구간 램프
   var BUCKET_EDGES = [450, 700, 900];                              // 만원
   var BUCKET_LABELS = ['~449만', '450~699만', '700~899만', '900만~'];
+  // 비교 라인이 y축 상한을 끌어올릴 수 있는 배수. 막대가 주 마크라 그 1.5배까지만
+  // 양보하고, 그 위는 축 상단에 고정하고 캐럿으로 표시한다(columnChart 주석 참조).
+  var LINE_HEADROOM = 1.5;
   var ORANGE_RAMP5 = ['#f19979', '#eb6834', '#c74b12', '#9f3701', '#752600']; // 미수 aging 램프
   var FAM = { rev: '#2a78d6', ar: '#eb6834', col: '#1baf7a', vol: '#6b7280' };
   var FAM_TINT = { rev: '#f1f6fd', ar: '#fdf3ed', col: '#eefaf5', vol: '#f4f6f8' };
@@ -372,7 +375,16 @@
       return acc.concat(gr.bars.map(function (b) { return b.v; }));
     }, [0]));
     var lineMax = cfg.line && cfg.line.values.length ? Math.max.apply(null, cfg.line.values) : 0;
-    var sc = niceScale(Math.max(barMax, lineMax), cfg.tickCount || 4);
+    // 축 상한: 막대가 주(主) 마크다. 비교 라인이 막대보다 아무리 커도 축을 끌고 올라갈 수
+    // 있는 한도를 둔다 — 목업은 두 시리즈 규모가 비슷한 가정치라 `max(barMax, lineMax)` 로
+    // 충분했지만, 실데이터에서는 전월의 큰 하루 하나가 축 상한을 잡아 **당월 막대 전체를
+    // 납작하게** 만든다(스테이징 2026-08 실측: 전월 스파이크 2,200만이 축을 3,000만으로
+    // 끌어올려 막대가 전부 눌렸다). 넘치는 라인 구간은 아래에서 축 상단에 고정하고
+    // 캐럿으로 "여기서 축을 넘어간다"를 표시한다 — 잘라놓고 말 안 하면 그게 거짓말이다.
+    var axisMax = barMax > 0
+      ? Math.max(barMax, Math.min(lineMax, barMax * LINE_HEADROOM))
+      : lineMax;
+    var sc = niceScale(axisMax, cfg.tickCount || 4);
     var Y = function (v) { return pad.t + ph - v / sc.top * ph; };
     var centerX = function (gi) { return pad.l + gi * band + band / 2; };
 
@@ -423,13 +435,25 @@
     });
     if (cfg.line && cfg.line.values.length) {
       var pts = [];
+      var clipped = [];
       for (var li = 0; li < cfg.line.values.length && li < g; li++) {
-        pts.push(centerX(li).toFixed(1) + ',' + Y(cfg.line.values[li]).toFixed(1));
+        var lv = cfg.line.values[li];
+        // 축을 넘는 값은 상단에 고정하되 그 사실을 캐럿으로 남긴다. 툴팁은 축이 아니라
+        // 원본 값을 읽으므로 실제 숫자는 그대로 확인된다.
+        if (lv > sc.top) { clipped.push(li); lv = sc.top; }
+        pts.push(centerX(li).toFixed(1) + ',' + Y(lv).toFixed(1));
       }
       if (pts.length > 1) {
         s += '<polyline points="' + pts.join(' ') + '" fill="none" stroke="' + cfg.line.color +
           '" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>';
       }
+      clipped.forEach(function (li) {
+        var cxi = centerX(li);
+        var top = pad.t;
+        s += '<path class="s-clip-mark" d="M' + (cxi - 4).toFixed(1) + ',' + (top + 5) +
+          ' L' + cxi.toFixed(1) + ',' + top + ' L' + (cxi + 4).toFixed(1) + ',' + (top + 5) +
+          ' Z" fill="' + cfg.line.color + '"><title>축 위로 넘어간 구간입니다. 값은 툴팁에서 확인하세요.</title></path>';
+      });
     }
     cfg.groups.forEach(function (gr, gi) { // hit 레이어는 라인 위 — 밴드 전체가 타깃
       s += '<rect class="s-ghit" x="' + (pad.l + gi * band) + '" y="' + pad.t + '" width="' + band +
