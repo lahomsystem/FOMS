@@ -236,6 +236,39 @@ def test_width_hint_still_flags_real_axis_mismatch_from_option():
     assert any("문 방식" in line for line in hint["mismatch"])
 
 
+def test_width_hint_reads_size_option_over_product_line_name():
+    """운영 실사례 2026-08-31(주문 2026083175016621): 상품명 길이가 사이즈 옵션을 이겼다.
+
+    본품 상품명은 '라홈 루나 3000 붙박이장 안방 작은방 슬라이딩 240cm' 인데 고객이 고른
+    사이즈는 '330'(=330cm) 이다. 상품명의 '240cm' 를 읽어 2,400 + 340 = 2,740 이 떴다.
+    사이즈 옵션이 정본이므로 3,300 + 340 = 3,640 이어야 한다.
+    """
+    main = _row("라홈 루나 3000 붙박이장 안방 작은방 슬라이딩 240cm", option="사이즈: 330")
+    addon = _row("1cm", option="길이추가(1cm): 1cm", quantity=34, role="addon")
+    hint = build_width_hint(main, [addon])
+    assert hint["total_mm"] == 3640
+    assert "3,300mm × 1" in hint["formula"]
+
+
+def test_width_hint_size_option_units():
+    """사이즈 값의 단위 해석 — 단위가 적혀 있으면 그대로, 없으면 cm(운영 표기)."""
+    # 단위 없는 세 자리 = cm (운영 실데이터: 150/180/330).
+    assert build_width_hint(_row("라홈 로라 180cm", option="사이즈: 150（몰딩） / 색상: 클린 화이트"),
+                            [])["total_mm"] == 1500
+    # 단위가 적혀 있으면 그대로 읽는다(냉장고장 '사이즈: 1800mm 이하').
+    assert build_width_hint(_row("라홈 냉장고장", option="사이즈: 1800mm 이하 / 색상: 화이트"),
+                            [])["total_mm"] == 1800
+    # 네 자리 이상 단위 없는 값은 mm 표기로 본다 — cm 로 읽으면 30m 가 된다.
+    assert build_width_hint(_row("라홈 냉장고장", option="사이즈: 3000 / 색상: 화이트"),
+                            [])["total_mm"] == 3000
+    # 사이즈가 아닌 키의 숫자는 폭이 아니다(서랍 1단을 1cm 로 읽으면 안 된다).
+    assert build_width_hint(_row("라홈 내부 서랍 옵션", option="서랍: 1단(소)"), []) is None
+    # 제품 키에 든 모듈 길이는 지금대로 읽는다(회귀 방지).
+    assert build_width_hint(_row("라홈 무몰딩 붙박이장 로라 시리즈 30cm",
+                                 option="제품: 로라 무몰딩 여닫이 30cm / 컬러: 화이트",
+                                 quantity=10), [])["total_mm"] == 3000
+
+
 def test_width_hint_none_when_no_length_in_source():
     """길이를 못 읽으면 틀린 숫자를 만들지 않는다 — 힌트 자체를 안 준다."""
     assert build_width_hint(_row("붙박이장 세트", option="색상: 화이트"), []) is None
