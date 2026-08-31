@@ -25,6 +25,7 @@ if [ "$USE_RQ_WORKER" = "1" ]; then
       --interval "${FOMS_ESCALATION_INTERVAL_SECONDS:-60}" --json &
   fi
 
+
   # 네이버 스마트스토어 주문 수집 (NAVER-INGEST-01). escalation 과 같은 배선이다:
   # 백그라운드 서브셸이라 수집 실패가 rq worker 본체를 죽이지 않고, 다중 replica 여도
   # 멱등(UNIQUE (channel, external_id))이라 안전하다.
@@ -33,6 +34,19 @@ if [ "$USE_RQ_WORKER" = "1" ]; then
   if [ "$FOMS_NAVER_SYNC_ENABLED" = "1" ]; then
     python scripts/maintenance/run_naver_order_sync.py --loop \
       --interval "${FOMS_NAVER_SYNC_INTERVAL_SECONDS:-300}" --json &
+  fi
+
+
+  # 좌표 스윕 (GEO-SWEEP-01): 좌표 없는 주문을 미리 지오코딩 큐에 넣어, 사용자가 지도를
+  # 열 때까지 좌표가 비어 있는 문제를 없앤다 (주문 생성/주소 수정의 지오코딩 예약이 SIDEFX
+  # outbox 로 가는데 그 워커가 운영에 배포된 적이 없어 소비되지 않는 상태의 안전망).
+  # 새 Railway 서비스를 만들지 않고 이 worker 컨테이너를 재사용한다 — rq worker 가 어차피
+  # 같은 큐를 소비하므로 배선이 가장 짧다. escalation 과 같은 패턴: 백그라운드 서브셸이라
+  # 스윕 실패가 rq worker 본체에 영향 없고, 스윕은 idempotent(enqueue 전에 pending +
+  # geocoded_at 시도 표식을 커밋)라 replica 가 여럿이어도 중복으로 큐가 부풀지 않는다.
+  if [ "$FOMS_GEOCODE_SWEEP_ENABLED" = "1" ]; then
+    python scripts/maintenance/run_geocode_sweep.py --loop \
+      --interval "${FOMS_GEOCODE_SWEEP_INTERVAL_SECONDS:-60}" --json &
   fi
   exec rq worker default --url "$REDIS_URL"
 else

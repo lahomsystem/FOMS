@@ -13,6 +13,16 @@ SIDEFX-00 outbox 를 소비하는 delivery/expiry/retention worker 다. 세 loop
 이 프로세스는 mechanics 만 수행한다 — handler registry 가 비어 있으면(이 packet 만 배포된
 상태) dispatch 가 NoHandler 로 재시도/DEAD 되므로 handler 배포 전에는 delivery 를 켜지 않는다.
 
+현재 등록된 delivery handler(=delivery 를 켜도 DEAD 로 떨어지지 않는 effect_type):
+
+* ``STORAGE_DELETE`` — :func:`foms.services.storage_delete_handler.handle_storage_delete`
+  (WIZ-DELETE-01, 공용·source_domain 분기).
+* ``GEOCODE`` — :func:`foms.services.geocode_delivery_handler.handle_geocode`
+  (DATA-MEASUREMENT-01 소비단. 주소 변경 tx 가 예약한 행을 소비해 Order 좌표를 채운다).
+
+그 밖의 effect_type(NOTIFICATION·CACHE_INVALIDATE 등)은 아직 handler 가 없다 — 그 종류의
+행이 쌓이는 도메인을 켜기 전에 handler 를 먼저 배포해야 한다.
+
 배포: ``railway-domain-sidefx.toml`` 별도 service, start command
 ``python tools/ops/run_domain_side_effect_outbox.py --loop --interval 5
 --expiry-scan-interval 300 --retention-scan-interval 86400``.
@@ -55,6 +65,7 @@ from foms.services.sidefx_worker import (  # noqa: E402
     run_retention_once,
     upsert_heartbeat,
 )
+from foms.services.geocode_delivery_handler import handle_geocode  # noqa: E402
 from foms.services.storage_delete_handler import handle_storage_delete  # noqa: E402
 from foms.services.upload_cleanup import run_upload_expiry_scan_once  # noqa: E402
 from foms.services.order_import_cleanup import run_order_import_expiry_scan_once  # noqa: E402
@@ -190,6 +201,9 @@ def main(argv: Optional[list[str]] = None) -> int:
     # 분기). 이게 없으면 STORAGE_DELETE 행이 NoHandler → 재시도 → DEAD 로 쌓인다. replace=True
     # 로 재시작·재-import 시 중복 등록을 idempotent 하게 처리한다.
     register_handler("STORAGE_DELETE", handle_storage_delete, replace=True)
+    # DATA-MEASUREMENT-01: 주소 변경이 예약한 GEOCODE 행을 소비한다. 이게 없으면 운영에 쌓인
+    # GEOCODE PENDING 이 NoHandler 로 10회 재시도 후 전부 DEAD 가 된다(readiness fail-closed).
+    register_handler("GEOCODE", handle_geocode, replace=True)
     # UPLOAD-02: 만료 ticket/draft cleanup 을 300s expiry scan 에 배선(별도 scheduler 없음).
     # replace=True 로 재시작·재-import 시 중복 등록을 idempotent 하게 처리한다.
     register_expiry_scan_provider("upload_expiry", run_upload_expiry_scan_once, replace=True)
