@@ -244,3 +244,61 @@ def test_guard_inactive_by_default_under_testing(client, app):
 
     assert resp.status_code == 200
     assert resp.headers.get("X-Write-Guard") is None
+
+
+# --------------------------------------------------------------------------
+# 회귀 고정: standalone 문서(/map_view)도 CSRF 배선을 갖는다
+#
+# 운영 사고 2026-08-31 — map_view.html 이 layout_head 를 쓰지 않아 토큰/래퍼가 통째로
+# 빠져 있었고, ADMIN 계정의 주소 수정이 403 invalid_csrf_token 으로 막혔다.
+# (security_logs: uid 38 upperkill, erp_map.api_update_order_address)
+# --------------------------------------------------------------------------
+def _extract_csrf_meta(html: str) -> str:
+    """렌더된 페이지에서 ``<meta name="csrf-token">`` 값을 뽑는다."""
+    import re
+
+    m = re.search(r'<meta name="csrf-token" content="([^"]+)">', html)
+    assert m, "렌더된 페이지에 csrf-token meta 가 없다"
+    return m.group(1)
+
+
+def test_map_view_page_serves_csrf_token(client, app, guard_on):
+    """/map_view 가 토큰 meta 와 fetch 자동 부착 래퍼를 함께 서빙한다."""
+    _login(client)
+
+    resp = client.get("/map_view")
+
+    assert resp.status_code == 200
+    html = resp.get_data(as_text=True)
+    assert _extract_csrf_meta(html)
+    assert "window.__FOMS_CSRF_BOUND" in html
+    assert "X-CSRF-Token" in html
+
+
+def test_update_address_passes_guard_with_token_from_map_view(client, app, guard_on):
+    """/map_view 가 준 토큰으로 주소 수정 POST 가 write guard 를 통과한다."""
+    _login(client)
+    oid = _create_order()
+
+    page = client.get("/map_view")
+    token = _extract_csrf_meta(page.get_data(as_text=True))
+
+    resp = client.post(
+        f"/api/orders/{oid}/update_address",
+        json={"address": "경기 오산시 가수동 449"},
+        headers={"X-CSRF-Token": token},
+    )
+
+    assert resp.headers.get("X-Write-Guard") is None, "가드가 여전히 차단한다"
+    assert resp.status_code != 403
+
+
+def test_update_address_without_token_is_still_blocked(client, app, guard_on):
+    """음성 대조군: 토큰이 없으면 여전히 403 이어야 한다(가드가 무력화되지 않았다)."""
+    _login(client)
+    oid = _create_order()
+
+    resp = client.post(f"/api/orders/{oid}/update_address", json={"address": "서울"})
+
+    assert resp.status_code == 403
+    assert resp.headers.get("X-Write-Guard") == "blocked"

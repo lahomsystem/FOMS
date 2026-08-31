@@ -12,6 +12,7 @@ import requests
 from flask import Blueprint, jsonify, request
 
 from foms.web.auth import login_required
+from foms.services.common.address_query import query_variants, strip_detail
 from foms.services.common.geocode_config import kakao_rest_headers
 
 logger = logging.getLogger(__name__)
@@ -22,65 +23,24 @@ address_bp = Blueprint("address", __name__, url_prefix="/api/address")
 def _strip_detail(q: str) -> str:
     """검색어에서 동호수·상세주소 노이즈를 제거하고 핵심 부분만 반환.
 
-    예)
-      "의왕시청역 제일풍경채 어바니티 108-1701" → "의왕시청역 제일풍경채 어바니티"
-      "경기 의왕시 시청로 42 108-1701"          → "경기 의왕시 시청로 42"
-      "잠실 르엘 101동 1502호"                  → "잠실 르엘"
+    전처리 정본은 :mod:`foms.services.common.address_query` (GEO-QUERY-01) — 지오코딩
+    워커와 **같은** 규칙을 쓰기 위한 얇은 위임이다. 여기에 규칙을 다시 쓰지 말 것.
+
+    :param q: 원본 검색어.
+    :return: 상세주소가 제거된 검색어.
     """
-    if not q:
-        return q
-
-    # 쉼표 뒤 상세주소 제거
-    if "," in q:
-        q = q.split(",")[0].strip()
-
-    # 도로명 + 건물번호 이후 잘라내기 (예: 시청로 42 108-1701 → 시청로 42)
-    road_match = re.match(r"(.*?(?:대로|로|길)\s+\d+(?:-\d+)?)", q)
-    if road_match:
-        stripped = road_match.group(1).strip()
-        if stripped != q:
-            return stripped
-
-    # X동 Y호 패턴 제거
-    q = re.sub(r"\s+\d+동\s*\d+호?", "", q).strip()
-
-    # NNN-NNN 동호수 패턴 제거 (3자리 이상)
-    q = re.sub(r"\s+\d{3,}-\d{3,}$", "", q).strip()
-
-    return q
+    return strip_detail(q)
 
 
 def _query_variants(q: str) -> list[str]:
     """검색에 사용할 쿼리 후보 목록 (우선순위 순).
 
-    1) 원본
-    2) 동호수 제거 버전
-    3) 마지막 단어 제거 버전 (아파트 이름 일부 제거)
-    4) 공백 제거 버전 (잠실 르엘 → 잠실르엘)
+    전처리 정본은 :mod:`foms.services.common.address_query` (GEO-QUERY-01).
+
+    :param q: 원본 검색어.
+    :return: 중복 제거된 후보 목록.
     """
-    seen: set[str] = set()
-    variants: list[str] = []
-
-    def add(v: str) -> None:
-        v = v.strip()
-        if v and v not in seen:
-            seen.add(v)
-            variants.append(v)
-
-    add(q)
-    stripped = _strip_detail(q)
-    add(stripped)
-
-    # 마지막 토큰(동호수·단지명 일부)을 제거한 버전
-    tokens = stripped.split()
-    if len(tokens) >= 2:
-        add(" ".join(tokens[:-1]))
-
-    # 공백 제거 (한글 건물명 붙여쓰기 대응)
-    add(re.sub(r"\s+", "", q))
-    add(re.sub(r"\s+", "", stripped))
-
-    return variants
+    return query_variants(q)
 
 
 def _doc_to_result(d, source="address"):

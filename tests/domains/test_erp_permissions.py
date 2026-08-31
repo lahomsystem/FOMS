@@ -21,6 +21,24 @@ def test_can_edit_erp_allows_admin_and_sales_teams() -> None:
     assert not erp_permissions.can_edit_erp(SimpleNamespace(role="USER", team="CONSTRUCTION"))
 
 
+def test_can_edit_erp_normalizes_team_like_the_policy_gate() -> None:
+    """team 정규화가 AUTH-01 정책 게이트와 일치해야 한다.
+
+    갈라지면 team=MEASURE 실측 담당자가 정책 게이트는 통과하고 erp_edit_required
+    에서만 403 을 맞는다(운영 실사례: 지도 화면 주소 수정).
+    """
+    from foms.services.orders.order_mutation_policy import normalize_team
+
+    assert normalize_team("MEASURE") == "SALES"
+    assert erp_permissions.can_edit_erp(SimpleNamespace(role="USER", team="MEASURE"))
+    assert erp_permissions.can_edit_erp(SimpleNamespace(role="USER", team=" measure "))
+    assert erp_permissions.can_edit_erp(SimpleNamespace(role="USER", team="cs"))
+    assert erp_permissions.can_edit_erp_construction(
+        SimpleNamespace(role="USER", team=" construction ")
+    )
+    assert not erp_permissions.can_edit_erp(SimpleNamespace(role="USER", team=None))
+
+
 def test_build_mine_sql_filter_escapes_like_pattern_and_adds_all_condition_groups() -> None:
     user = SimpleNamespace(id=7, name="홍%_길", username="hong")
 

@@ -10,6 +10,7 @@ from foms.services.common.address_ai_ops_loader import (
     FOMSAddressLearningSystem,
     FOMSAdvancedAddressProcessor,
 )
+from foms.services.common.address_query import query_variants, strip_detail
 from foms.services.common.geocode_config import (
     DELAY_BETWEEN_REQUESTS,
     kakao_rest_headers,
@@ -175,50 +176,16 @@ class FOMSAddressConverter:
             return None, None, f"키워드 API 오류: {str(e)}", None
     
     def _strip_detail_for_geocoding(self, address):
-        """지오코딩 전 상세주소(동/호수, 아파트명 등)를 분리하여 핵심 주소만 반환
-        
-        예시:
-          "경기 파주시 정석로 140 1008-2101"
-            → "경기 파주시 정석로 140"
-          "경기 평택시 현덕면 화양현화2로 45, e편한세상 평택 라씨엘로 102-2002"
-            → "경기 평택시 현덕면 화양현화2로 45"
-          "서울 송파구 올림픽로 300 롯데월드타워 35층"
-            → "서울 송파구 올림픽로 300"
+        """지오코딩 전 상세주소(동/호수 등)를 떼고 핵심 주소만 반환.
+
+        전처리 정본은 :mod:`foms.services.common.address_query` (GEO-QUERY-01) — 지도
+        주소 검색 모달과 **같은** 규칙을 쓰기 위한 얇은 위임이다. 규칙을 여기에 다시
+        쓰면 두 벌이 갈라져 "모달에선 찾는데 좌표는 안 나오는" 상태가 된다.
+
+        :param address: 원본 주소.
+        :return: 상세주소가 제거된 주소.
         """
-        if not address:
-            return address
-        
-        original = address.strip()
-        
-        # 1. 쉼표 뒤의 상세주소 분리 (아파트명, 동호수 등)
-        if ',' in original:
-            original = original.split(',')[0].strip()
-        
-        # 2. 도로명 주소: [도로명] [건물번호] 이후 부분 제거
-        #    도로명(대로/로/길) + 공백 + 건물번호 까지만 추출
-        road_match = re.match(
-            r'(.*?(?:대로|로|길)\s+\d+(?:-\d+)?)',
-            original
-        )
-        if road_match:
-            stripped = road_match.group(1).strip()
-            if stripped != original:
-                return stripped
-        
-        # 3. 아파트 동호수 패턴 직접 제거
-        #    "동패동 2287 1008동 2101호" → "동패동 2287"
-        cleaned = re.sub(r'\s+\d+동\s*\d+호?', '', original)
-        if cleaned != original:
-            return cleaned.strip()
-        
-        # 4. 지번 주소 뒤의 큰 숫자-숫자 패턴 제거 (동호수로 추정)
-        #    "동패동 2287 1008-2101" → "동패동 2287"
-        #    (양쪽 모두 3자리 이상이면 동호수일 가능성 높음)
-        cleaned = re.sub(r'\s+\d{3,}-\d{3,}$', '', original)
-        if cleaned != original:
-            return cleaned.strip()
-        
-        return original
+        return strip_detail(address)
 
     def _cache_key(self, address):
         normalized = self._normalize_address(self._strip_detail_for_geocoding(address or ''))
@@ -307,6 +274,11 @@ class FOMSAddressConverter:
         seen = set()
         
         # 상세주소 제거 버전을 먼저 시도 (가장 정확)
+        # GEO-QUERY-01: 모달 검색과 동일한 후보(붙여쓴 동호수 제거본 등)를 함께 시도해
+        # "모달에선 찾는데 워커는 못 찾는" 비대칭을 없앤다.
+        shared_variants = [
+            (f"shared_variant{i}", v) for i, v in enumerate(query_variants(address or ""))
+        ]
         for name, addr in [
             ("stripped", stripped_address),
             ("processed_stripped", processed_stripped),
@@ -314,7 +286,7 @@ class FOMSAddressConverter:
             ("processed", processed_address),
             ("normalized", normalized_address),
             ("original", address)
-        ]:
+        ] + shared_variants:
             if addr and addr.strip() and addr.strip() not in seen:
                 seen.add(addr.strip())
                 strategies.append((name, addr.strip()))
