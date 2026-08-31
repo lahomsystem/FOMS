@@ -4,10 +4,12 @@
 <section class="foms-shell-body foms-drawing-mobile-v2" aria-label="도면 모바일 갤러리">{% if drawing_preview_cards %}
   {# share_mode 는 비로그인 고객 공유 열람에서만 켠다 — 고객에게 '승인'·'16:9'·'lightbox'
      같은 ERP 내부 낱말을 보여주지 않으려고 문구만 갈아 끼운다(ERP 화면은 무변경). #}
+  {% if not share_mode %}
   <div class="foms-section-header section-header">
     <h2 class="section-header__title foms-section-header__title">도면 미리보기</h2>
-    {% if not share_mode %}<span class="section-header__count foms-section-header__count">16:9</span>{% endif %}
+    <span class="section-header__count foms-section-header__count">16:9</span>
   </div>
+  {% endif %}
   <div class="foms-drawing-card-grid attach-grid foms-attach-grid" data-foms-lightbox-gallery>
     {% for card in drawing_preview_cards %}
       <button
@@ -23,5 +25,6 @@
       </button>
     {% endfor %}
   </div>
-  <p class="foms-drawing-mobile-v2__hint">{% if share_mode %}이미지를 누르면 크게 볼 수 있습니다{% else %}좌우 스와이프로 승인 · 핀치로 확대 (lightbox){% endif %}</p>
+  {# 공유 페이지는 같은 안내를 머리글이 이미 하고 있다 — 두 번 쓰지 않는다. #}
+  {% if not share_mode %}<p class="foms-drawing-mobile-v2__hint">좌우 스와이프로 승인 · 핀치로 확대 (lightbox)</p>{% endif %}
 {% endif %}</section>

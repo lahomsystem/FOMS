@@ -338,8 +338,8 @@ def test_view_estimate_has_copy_and_png_and_amount_and_asset_pins(client, db, r2
     assert 'erp-est-col--amount' in body
     assert '금액 <span class="erp-est-th-vat">(VAT 포함)</span>' in body
     # (d) 신규 자산 ?v 핀(캐시 무효화 — 핀 없이 배포하면 옛 스타일이 남는다).
-    assert 'css/orders/foms-share-contract.css?v=20260831a' in body
-    assert 'js/orders/share-contract.js?v=20260831a' in body
+    assert 'css/orders/foms-share-contract.css?v=20260831b' in body
+    assert 'js/orders/share-contract.js?v=20260831b' in body
 
 
 def test_view_estimate_has_no_inline_style_or_script(client, db, r2):
@@ -439,8 +439,8 @@ def test_view_bundle_uses_same_contract_partial(client, db, r2):
     assert 'data-share-copy-value="461-082990-04-011"' in body
     assert 'data-share-contract-save' in body
     assert 'erp-est-col--amount' in body
-    assert 'css/orders/foms-share-contract.css?v=20260831a' in body
-    assert 'js/orders/share-contract.js?v=20260831a' in body
+    assert 'css/orders/foms-share-contract.css?v=20260831b' in body
+    assert 'js/orders/share-contract.js?v=20260831b' in body
     assert 'window.print()' not in body
 
 
@@ -915,3 +915,44 @@ def test_share_drawing_page_uses_customer_wording_not_erp(client, db, r2):
     assert '좌우 스와이프로 승인' not in body
     assert 'lightbox)' not in body
     assert '>16:9<' not in body
+
+
+def test_share_drawing_page_has_no_preview_heading(client, db, r2):
+    """고객 화면에는 '도면 미리보기' 머리줄을 두지 않는다 — 머리글이 이미 말한다."""
+    order = _mk_order()
+    _add_drawing_attachment(order, 'plan-a.png')
+    _, token = _mk_share(order)
+
+    body = client.get(f'/s/{token}').get_data(as_text=True)
+    assert '도면 미리보기' not in body
+    # 안내는 페이지 머리글 한 곳에서만 (갤러리 파셜이 같은 말을 반복하지 않는다)
+    assert body.count('이미지를 누르면 크게 볼 수 있습니다') == 1
+
+
+def test_share_gallery_sizing_is_scoped_to_share_page():
+    """미리보기 크기 재정의는 공유 페이지에만 걸어야 한다 — 공용 CSS 를 고치면 ERP 큐가 같이 커진다."""
+    import pathlib
+    root = pathlib.Path(__file__).resolve().parents[2]
+    share = (root / 'static/css/orders/foms-share-view.css').read_text(encoding='utf-8')
+    common = (root / 'static/css/components/foms-drawing-mobile.css').read_text(encoding='utf-8')
+
+    assert '.foms-share-view .foms-drawing-card-grid' in share
+    assert 'minmax(min(100%, 300px), 1fr)' in share
+    # 공용 파일의 ERP 기준 하한은 그대로여야 한다
+    assert 'minmax(140px, 1fr)' in common
+    # 저장 버튼은 터치 하한을 지키되 화면 폭을 다 먹지 않는다
+    assert 'max-width: 340px' in share
+
+
+def test_erp_gallery_keeps_its_own_wording():
+    """ERP 화면(share_mode 아님)은 머리줄·안내 문구를 그대로 유지한다."""
+    from flask import render_template_string
+    import app as app_module
+
+    tpl = "{% include 'drawing/partials/drawing_mobile_v2_gallery.html' %}"
+    with app_module.app.test_request_context():
+        html = render_template_string(
+            tpl, drawing_preview_cards=[{'url': 'http://x/a.png', 'label': 'a.png'}])
+    assert '도면 미리보기' in html
+    assert '좌우 스와이프로 승인' in html
+    assert '16:9' in html
