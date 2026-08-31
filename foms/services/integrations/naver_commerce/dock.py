@@ -114,6 +114,18 @@ _LENGTH_UNIT_MM = {"mm": 1.0, "cm": 10.0, "m": 1000.0}
 #: 수납구성(TYPE A 등)·거울도어 같은 구성 옵션은 폭과 무관하다.
 _LENGTH_ADDON_HINTS = ("길이추가", "길이 추가")
 
+#: 고객이 고른 **폭**을 담은 옵션 키. 이 키의 값은 상품명보다 우선한다 — 상품명은 라인
+#: 이름이라 실제 주문과 다른 길이가 박혀 있다(운영 실사례: `루나 3000 … 240cm` 상품에
+#: `사이즈: 330` 주문 = 3,300mm, 상품명을 읽으면 2,400mm 로 900mm 가 모자란다).
+SIZE_OPTION_KEYS = ("사이즈", "싸이즈", "규격", "폭", "size")
+
+#: 단위 없는 사이즈 값을 cm 로 볼 상한(값 자체 기준). 라홈 사이즈 옵션은 cm 로 적는다(운영 실데이터
+#: `150`·`180`·`330`). 네 자리 이상은 mm 표기로 본다 — cm 로 읽으면 30m 가 나온다.
+_UNITLESS_CM_MAX = 1000
+
+#: 사이즈 값 맨 앞의 단위 없는 수. 뒤에 한글이 붙은 값(`1단(소)`)은 길이가 아니므로 뺀다.
+_SIZE_NUMBER_RE = re.compile(r"^(\d+(?:\.\d+)?)(?![\d.가-힣])")
+
 def parse_length_mm(text: str) -> Optional[int]:
     """원문에서 첫 길이를 mm 정수로 뽑는다(없으면 None).
 
@@ -128,6 +140,42 @@ def parse_length_mm(text: str) -> Optional[int]:
         return None
     value, unit = match.group(1), match.group(2).lower()
     return int(round(float(value) * _LENGTH_UNIT_MM[unit]))
+
+
+def size_option_mm(option_text: str) -> Optional[int]:
+    """옵션 원문의 **사이즈 키** 값에서 폭(mm)을 읽는다(없으면 None).
+
+    왜 상품명보다 먼저 보나: 상품명은 판매 라인 이름이라 고객이 고른 폭과 무관한 길이가
+    박혀 있다(`라홈 루나 3000 … 슬라이딩 240cm` 상품에 `사이즈: 330` 주문). 상품명을
+    읽으면 총폭이 2,400mm 로 나오지만 실제 주문은 3,300mm 다.
+
+    단위 해석: 값에 단위가 적혀 있으면 그대로(`1800mm 이하` → 1800), 없으면 cm 로 본다
+    (`330` → 3,300). 단 네 자리 이상 단위 없는 값은 mm 표기로 본다.
+
+    Args:
+        option_text: 네이버 ``productOption`` 원문.
+
+    Returns:
+        mm 정수. 사이즈 키가 없거나 값에서 수를 못 읽으면 None.
+    """
+    for segment in _text(option_text).split("/"):
+        if ":" not in segment:
+            continue
+        key, raw_value = segment.split(":", 1)
+        if key.strip().lower() not in SIZE_OPTION_KEYS:
+            continue
+        value = raw_value.strip()
+        explicit = parse_length_mm(value)
+        if explicit:
+            return explicit
+        match = _SIZE_NUMBER_RE.match(value)
+        if not match:
+            continue
+        number = float(match.group(1))
+        if number <= 0:
+            continue
+        return int(round(number * (10.0 if number < _UNITLESS_CM_MAX else 1.0)))
+    return None
 
 
 def _row_axes(row: dict[str, Any]) -> dict[str, str]:
@@ -151,6 +199,10 @@ def _width_unit_mm(row: dict[str, Any], *, is_main: bool) -> Optional[int]:
     blob = f"{_text(row.get('product_name'))} {_text(row.get('option_text'))}"
     if not is_main and not any(hint in blob for hint in _LENGTH_ADDON_HINTS):
         return None
+    if is_main:
+        size_mm = size_option_mm(row.get("option_text") or "")
+        if size_mm:
+            return size_mm
     return parse_length_mm(blob)
 
 
@@ -907,6 +959,7 @@ __all__ = [
     "build_dock_payload",
     "PRODUCT_NAME_KEYS",
     "build_width_hint",
+    "size_option_mm",
     "main_product_name",
     "parse_length_mm",
     "split_option_copies",
