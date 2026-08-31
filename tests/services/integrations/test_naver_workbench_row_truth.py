@@ -124,7 +124,7 @@ def test_finished_household_is_marked_not_merely_unmarked(client, workbench_on, 
     if expect_done:
         assert "발주확인 완료" in body, "끝난 집에 아무 표시가 없다"
     else:
-        assert "발주확인 전" in body
+        assert "발주확인 할 차례" in body
 
 
 def test_list_header_does_not_reuse_the_strip_wording(client, workbench_on):
