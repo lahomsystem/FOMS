@@ -131,6 +131,7 @@ jobs:
           tests/domains/test_release_gate.py \
           tests/domains/test_rev_99.py \
           tests/domains/test_settlement_dashboard_render.py \
+          tests/domains/test_settlement_operations_render.py \
           tests/domains/test_state_guard.py \
           tests/domains/test_stored_xss_sinks.py \
           tests/performance/test_perf_regression_guard.py \
