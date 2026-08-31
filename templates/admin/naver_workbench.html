@@ -19,7 +19,7 @@
 {% block title %}네이버 수집{% endblock %}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260830c">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260831a">
 {% endblock %}
 
 {% block content %}
@@ -65,6 +65,21 @@
            한 번에 집 수십 개의 상세 조회가 나간다. 네이버에 쓰는 것은 없다(조회만). #}
         {# 대상이 0 이어도 **말은 한다**. 쿨다운이 생기면서 "방금 다 읽어서 0" 이 흔해졌는데,
            버튼이 그냥 사라지면 관리자는 기능이 없어진 걸로 읽는다(조용한 소멸 금지). #}
+        {# 남이 눌러 놓은 다시 읽기(NVREPAY-05 T1) — 진행 표시가 누른 브라우저 안에만 있어서,
+           다른 관리자에게는 돌고 있는 중에도 `다시 읽기 45주문` 으로 보였고 그래서 또 눌렸다.
+           돌고 있는 동안에는 버튼 자리를 진행이 차지한다(같은 조회를 두 번 하지 않는다). #}
+        {% if refresh_running and refresh_running.running %}
+        <button type="button" class="btn btn-outline-secondary btn-sm" id="wb-refresh-all-running"
+                disabled
+                data-total="{{ refresh_running.total }}" data-done="{{ refresh_running.done }}"
+                title="{{ refresh_running.actor or '다른 관리자' }}님이 시작한 전체 다시 읽기가 지금 돌고 있습니다(전체 {{ refresh_running.total }}주문 · {{ refresh_running.eta }} 걸립니다). 끝나면 이 화면이 스스로 새로 그려집니다. 지금 또 누르면 같은 조회를 두 번 하게 되므로 잠가 둡니다.">
+            다시 읽는 중 — {{ refresh_running.total }}주문 중 <b>{{ refresh_running.done }}주문</b> 완료 ·
+            {{ refresh_running.actor or '다른 관리자' }} 시작
+        </button>
+        {% endif %}
+        {# 진행 띠를 못 만들었을 때(조회 실패·컨텍스트 없음)는 **버튼이 그대로 나온다** —
+           보조 정보 하나 때문에 조작 자리가 사라지는 게 더 나쁘다. #}
+        {% if not (refresh_running and refresh_running.running) %}
         {% if refresh_all and not refresh_all.count and refresh_all.skipped_recent %}
         <button type="button" class="btn btn-outline-secondary btn-sm" id="wb-refresh-all-idle"
                 disabled
@@ -73,11 +88,14 @@
         </button>
         {% endif %}
         {% if refresh_all and refresh_all.count %}
+        {# `data-eta` 는 확인 모달이 읽는다 — 툴팁·모달·진행 라벨이 **서버가 만든 같은 값**을
+           말해야 한다(세 자리가 따로 계산하면 같은 화면이 세 말을 한다). #}
         <button type="button" class="btn btn-outline-secondary btn-sm" id="wb-refresh-all"
-                data-count="{{ refresh_all.count }}"
-                title="아직 변할 수 있는 {{ refresh_all.count }}개 주문을 네이버에서 다시 읽어 상태를 갱신합니다. 취소·반품이 끝났거나 구매확정된 주문{% if refresh_all.skipped_done %} {{ refresh_all.skipped_done }}건{% endif %}은 다시 읽어도 값이 바뀌지 않아 대상에서 뺍니다. 네이버에는 아무것도 보내지 않습니다(조회만). 취소·반품이 처음 발견되면 담당자·관리자에게 알림이 갑니다.">
+                data-count="{{ refresh_all.count }}" data-eta="{{ refresh_all.eta }}"
+                title="아직 변할 수 있는 {{ refresh_all.count }}개 주문을 네이버에서 다시 읽어 상태를 갱신합니다({{ refresh_all.eta }} 걸립니다). 취소·반품이 끝났거나 구매확정된 주문{% if refresh_all.skipped_done %} {{ refresh_all.skipped_done }}건{% endif %}은 다시 읽어도 값이 바뀌지 않아 대상에서 뺍니다. 네이버에는 아무것도 보내지 않습니다(조회만). 취소·반품이 처음 발견되면 담당자·관리자에게 알림이 갑니다.">
             다시 읽기 <b>{{ refresh_all.count }}주문</b>
         </button>
+        {% endif %}
         {% endif %}
         {# 글자 크기 조절 — 브라우저를 80% 로 축소해 쓰면 11~12px 가 9~10px 로 보인다.
            브라우저 확대는 화면 전체를 키워 목록이 잘리므로, 이 화면 글자만 단계로 키운다.
@@ -971,5 +989,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260830c" defer></script>
+<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260831a" defer></script>
 {% endblock %}
