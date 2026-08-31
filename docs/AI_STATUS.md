@@ -10,7 +10,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 
 ## 진행 중
 - [2026-08-31] **지오코딩 사전변환 복원 T1~T3 deploy** — 2026-07-27 커밋 4개가 주문 생성·주소수정의 지오코딩 예약을 RQ→SIDEFX outbox 로 옮겼는데 **그 워커가 운영에 배포된 적이 없다**(heartbeat 0행, outbox 전 행 PENDING·attempts=0). 그래서 지도를 열어야 건당 2.9초씩 변환됐다. T1=워커 컨테이너 좌표 스윕(`FOMS_GEOCODE_SWEEP_ENABLED`), T2=지도 폴링 부분갱신, T3=GEOCODE handler 등록+failed 24h 백오프. 잔여=production 승격·SIDEFX 서비스 등록. 원장 `2026-08-31-geocode-prefetch-restore-ledger.md`
-- [2026-08-31] **고객 공유 링크 UX** — 계약서 폼 이식·계좌 복사·PNG 저장(700px 클론)·도면 ZIP 일괄 저장. deploy 반영, 실기기(iOS·Android 카톡 인앱) 확인 대기. 원장에 미검증 5건
+- [2026-08-31] **고객 공유 링크 UX 운영 반영 완료(PR #208)** — 계약서 폼 이식·계좌 복사·PNG 저장(700px 클론)·도면 ZIP. 운영 자산 실서빙 확인. **잔여=실기기(카톡 인앱) 확인**, 미검증 5건은 원장에
 - [2026-08-31] **네이버 일괄 발송처리** — 미리보기 2화면 + 일괄 버튼. 킬스위치 기본 꺼짐. 운영 PR #205. 상세는 설계서
 - [2026-08-30] **네이버 이력 탭 상태 칸 재설계 deploy(`9d19da0b`)** — 재결제·추가결제·발송처리 축 신설, 축별 3줄. 부분 인덱스 2벌(`naverdisp_00`). 취소 확정 날짜는 축을 따로 판다(반품 축에 `cancel` 금지 — 08-27 누출). **운영 승격·실화면 대조 완료**(PR #200 · 08-31 운영 50행 실측). 원장 `2026-08-30-naver-history-status-column-ledger.md`(계약서 §15 정본)
 - [2026-08-31] **고객 문서 공유 T16 운영 반영 완료** — PR #196 머지(production `d6f1c84e`) + 운영 `web` env `SOLAPI_TEMPLATE_SHARE_BOTH_ID_{LAHOM,HAUD}` 등록 후 재배포. 이제 도면+계약서가 **버튼 2개 한 통**으로 나간다. 운영 화면 확인 완료(드롭다운 항목·자산 핀·재잠금 오라클 200). 함정: `railway variables --set` 은 재배포를 안 건다. **운영 실발송·두 링크 실열람까지 확인 — T16 종결(08-31)**

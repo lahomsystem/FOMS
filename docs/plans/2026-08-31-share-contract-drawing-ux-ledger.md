@@ -72,6 +72,8 @@ iOS·Android 인앱 브라우저 다운로드 제약 정리.
 - T2 DONE — ZIP 일괄 저장 라우트 + 다운로드 섹션 UI (`foms/api/share.py`, `share_drawing_body.html`)
 - T3 DONE — `docs/harness/evidence/2026-08-31-share-route-contracts.md`
 - CEO 교차검수 DONE — 조건부 승인, 지적 S1~S5 전부 반영
+- **deploy DONE** — `72e16e1b`, CI 4/4 green
+- **운영 승격 DONE** — PR #208 머지(production `a6175cd7`), 검사 4/4 pass. 운영 자산 실서빙 확인(`foms-share-contract.css` 200 · `export-clone` 규칙 존재 · `share-contract.js` 에 `EXPORT_WIDTH = 700`·`toDataURL`). **잔여 = 실기기(iOS·Android 카톡 인앱) 확인**
 
 ### 총괄이 직접 잡아 고친 것 (T1~T3 산출물의 결함)
 
