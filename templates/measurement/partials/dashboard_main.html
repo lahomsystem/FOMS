@@ -107,6 +107,11 @@
             <i class="fas fa-route"></i>
             <span class="d-none d-sm-inline">동선</span>
           </button>
+          <button class="erp-pro-btn erp-pro-btn--outline" type="button" id="btn-undated-measurement"
+            data-undated-trigger="measurement" data-undated-q="{{ search_q or '' }}">
+            <i class="fas fa-calendar-xmark"></i>
+            <span class="d-none d-sm-inline">실측일 미정</span>
+          </button>
         </div>
       </form>
     </div>
@@ -1132,6 +1137,56 @@
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
           <i class="fas fa-times"></i> 닫기
         </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 실측일 미정 모달 -->
+<div class="modal fade" id="undatedMeasurementModal" tabindex="-1" aria-hidden="true"
+  aria-labelledby="undatedMeasurementModalLabel">
+  <div class="modal-dialog modal-dialog-centered modal-xl modal-fullscreen-md-down modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="undatedMeasurementModalLabel">
+          <i class="fas fa-calendar-xmark"></i> 실측일 미정
+          <span class="badge bg-primary ms-1" id="undated-count-badge">-</span>
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
+      </div>
+      <div class="modal-body">
+        <div class="text-muted small mb-2" id="undated-meta"></div>
+        <div id="undated-loading" class="py-4 text-center text-muted d-none" role="status">
+          <i class="fas fa-spinner fa-spin"></i> 실측일 미정 주문을 불러오는 중...
+        </div>
+        <div id="undated-error" class="alert alert-danger d-none" data-foms-no-autodismiss role="alert"></div>
+        <div id="undated-truncated" class="alert alert-warning py-2 px-3 mb-2 small d-none"
+          data-foms-no-autodismiss role="status"></div>
+        <div id="undated-empty" class="py-4 text-center text-muted d-none">
+          <div>실측일이 미정인 주문이 없습니다.</div>
+          <div class="small">현재 조회 조건(검색어·담당자) 기준입니다.</div>
+        </div>
+        <div id="undated-result" class="table-responsive d-none">
+          <table class="table table-sm table-hover align-middle" id="undated-table">
+            <thead class="table-light">
+              <tr>
+                <th>주문번호</th>
+                <th>고객</th>
+                <th>연락처</th>
+                <th>주소</th>
+                <th>담당자</th>
+                <th>상태</th>
+                <th>접수일</th>
+                <th>제품</th>
+                <th>수정</th>
+              </tr>
+            </thead>
+            <tbody id="undated-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
       </div>
     </div>
   </div>
