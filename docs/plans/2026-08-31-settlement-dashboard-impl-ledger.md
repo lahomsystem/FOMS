@@ -29,7 +29,7 @@
 | T10 | M2 | M2 커밋 | 커밋 SHA + smoke exit 0 | **DONE** — 아래 커밋 로그 |
 | T11 | M3 | 템플릿 + CSS(?v 핀) + 차트 JS(defer·자체 SVG) + 네비 policy_can 은닉 | 핀·은닉 계약 pytest green + perf guard exit 0 | **DONE** — 렌더 계약 77건 + perf guard 5건 green |
 | T12 | M3 | 실화면 검증: 콘솔 에러 0, 차트 렌더, 시드 주문 기반 | 스크린샷 + 콘솔 로그 기록 | **DONE (로컬)** — 아래 §M3 실화면 검증. 스테이징 재확인은 배포 후 |
-| T13 | M3 | M3 커밋 + push + 전 워크플로 CI green(gh run list 나열 판정) | CI 워크플로 전량 green 기록 | **커밋 DONE / push 사용자 승인 대기** |
+| T13 | M3 | M3 커밋 + push + 전 워크플로 CI green(gh run list 나열 판정) | CI 워크플로 전량 green 기록 | **DONE** — deploy push 완료, 4개 워크플로 전량 green |
 | T14 | M4 | 성능 실측: 집계 쿼리 EXPLAIN Seq Scan 없음 + 페이지 TTFB | 수치 기록 + 예산 판정 명시 | **부분 DONE** — 커널을 운영 DB에 물려 실측(12개월 day 0.696초). 잔여: 스테이징 페이지 TTFB + EXPLAIN |
 | T15 | M4 | failopen 인벤토리 재생성 필요 여부 판정(신규 try/except 시) | 판정 근거 + 필요 시 재생성 커밋 | **DONE — 재생성 불요** |
 
@@ -372,10 +372,35 @@ aging 은 `D91_PLUS` 가 491건 6.0억으로 압도적 — 화면에서 이 버�
 - **인벤토리 3종 재생성 불요** — 신규 코드에 broad `except` 0개, 쓰기 0개, 신규 라우트는 GET 전용이라
   write guard·mutation policy manifest 등재 대상이 아니다(게이트 실행으로 확인)
 
+### deploy push + CI (2026-08-31, 사용자 승인 후 실행)
+
+`push_own_session_commits.py` 로 자기 세션 커밋만 올렸다(타 세션 커밋 미포함).
+origin/deploy 반영 SHA: `bee2e445`(docs) `c94a1dda`(M1) `ae0ef5ec`(M2) `5e2ce970`(M3) `f6c49ae5`(원장) `86e91a1f`(ci.yml).
+
+**1차 푸시에서 FOMS CI red — CI-DOCSCOPE-01**
+`test_settlement_dashboard_render.py` 가 "docs/ 를 읽는 테스트"로 판정돼 ci.yml 문서 전용 서브셋 등재를 요구했다.
+실제로는 docs 를 읽지 않고 자산 핀 전역 스캔에서 **제외 목록에 넣는데**, 탐지기가 `"docs"` 리터럴 + 파일 읽기 조합만 본다(보수적 판정이 의도다).
+탐지를 피하려고 리터럴을 숨기면 가드가 스스로 눈을 가리므로, **게이트가 시키는 대로 등재**했다(`86e91a1f`).
+`pre_push_smoke` 는 이 게이트를 포함하지 않는다 — 알려진 사각이 그대로 재현됐다.
+재발 방지로 이번엔 **본 스위트를 로컬에서 전량** 돌렸다: `6787 passed, 5 skipped` (2분 55초).
+ci.yml 은 CRLF 파일이라 삽입 시 개행이 깨졌고(그 줄만 LF + 문자 `r` 혼입) 바로잡은 뒤 YAML 파싱까지 확인했다.
+
+**최종 CI — 4개 워크플로 전량 green** (`86e91a1f`)
+
+| 워크플로 | 결과 |
+|---|---|
+| FOMS CI | success |
+| FOMS PostgreSQL Lane | success (1회 재실행) |
+| perf-gate (staging) | success |
+| Harness CI | success |
+
+PG 레인 1차 실패는 `tests/postgres/test_order_import.py` 의 **세그폴트(exit 139)** 였다.
+해당 커밋은 `ci.yml` 1줄만 바꿨고 PG 레인은 그 파일을 읽지 않는다. 재실행 1회로 통과 — 일시적 실패로 판정.
+
 **남은 것**
-1. `deploy` push + `gh run list` 전 워크플로 green 확인 (T13)
-2. 스테이징 실화면 재확인 — 로컬에서는 끝냈다 (T12 스테이징분)
-3. 스테이징 페이지 TTFB + `EXPLAIN` (T14 잔여). 커널 자체는 운영 실측으로 이미 통과
+1. 스테이징 실화면 재확인 — 로컬에서는 끝냈다 (T12 스테이징분)
+2. 스테이징 페이지 TTFB + `EXPLAIN` (T14 잔여). 커널 자체는 운영 실측으로 이미 통과
+3. 다크 테마 대응 — 사용자 결정: **나중에**
 4. production 승격 — 별도 사용자 승인 사항
 
 ## BLOCKED / 미결
@@ -393,6 +418,28 @@ aging 은 `D91_PLUS` 가 491건 6.0억으로 압도적 — 화면에서 이 버�
   ... (총 72개)
   ```
   본 세션은 워크트리에서만 작업해 이 문제를 건드리지 않았다. **승격 여부는 사용자 결정 사항.**
+
+  **내용 판정 (사용자 요청으로 실시, 2026-08-31)** — 각 커밋이 추가한 코드 줄을 표본으로 뽑아
+  `git grep` 으로 `origin/deploy` 에 실재하는지 확인했다(파일 단위 diff 는 upstream 이 1,282커밋 앞서 무의미).
+
+  | 구분 | 건수 | 뜻 |
+  |---|---|---|
+  | 코드 표본 전량 발견 | 36 | 다른 SHA 로 이미 upstream 에 있다 — **가져올 것 없음** |
+  | 일부만 발견 | 5 | 대부분 반영됐고 잔여는 후속 커밋이 덮어썼을 가능성 |
+  | **표본 0건 발견 (진짜 미반영)** | **4** | 아래 |
+  | 코드 변경 없음(docs·원장·인벤토리) | 28 | 문서 계보 차이 — 가져올 실익 낮음 |
+
+  **진짜 미반영 4건**
+
+  | SHA | 내용 | 판단 |
+  |---|---|---|
+  | `478d953b` | `fix(encoding)`: Windows 한글 깨짐 근본 차단 — PS 파일 BOM·콘솔 UTF-8·python 스트림. 13파일(계약 테스트 신설 포함) | **실질 가치 있음.** upstream 에 `OutputEncoding` 처리가 **0파일**(로컬 10파일) — 기능이 통째로 없다 |
+  | `a1bf5ca3` | `feat`: 가드 완화 — 임시폴더 하위 `Remove-Item` 허용 (`guard_policy.py`) | 하네스 로컬 정책. 올릴지는 취향 문제 |
+  | `0f2c44f7` | `feat`: pip 가드 완화 — 기본 PyPI 설치 allow | 〃 |
+  | `fb1bae40` | `test`: ERP 공유 스크립트 핀을 AS 순서 헬퍼 범프에 맞춤 | 대응 기능 커밋이 upstream 에 있으면 불요. 단독으로는 의미 적음 |
+
+  나머지 예약금 clamp·배너 자동닫힘·단계 강제 변경·AS 재접수 등 우려했던 수정들은 **전부 upstream 에 이미 있다**(다른 SHA).
+  즉 실제로 유실 위험이 있는 것은 **인코딩 수정 1건**이다.
 
 - **M2 로 넘기는 미결 5건 (M1 구현 중 드러남)**
   1. ~~**출고가 미산출 건수가 반환값에 없다.**~~ **해소** — 운영 실검증 결과 그 191건은 전부 비-ERP 주문이었고
