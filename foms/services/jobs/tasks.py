@@ -68,17 +68,19 @@ def geocode_order_address(order_id):
     """
     주문 주소 지오코딩 (Phase C).
     RQ job으로 enqueue되어 worker에서 실행.
-    FOMSAddressConverter로 좌표 획득 후 Order.lat/lng/geocode_status/geocoded_at/address_hash 갱신.
+    판정·저장 규칙(주소 추출 → address_hash 스킵 → 변환 → success/failed 기록)은
+    foms.services.geocode_helpers.apply_geocode_to_order 가 SSOT다. SIDEFX GEOCODE
+    handler 도 같은 함수를 부른다(로직 2벌 금지). 이 함수는 세션 소유만 담당한다.
     """
-    import datetime
-
     if not order_id:
         return
     try:
         from db import db_session
         from models import Order
-        from foms.services.common.address_converter import FOMSAddressConverter
-        from foms.services.geocode_helpers import extract_address_from_order, compute_address_hash
+        from foms.services.geocode_helpers import (
+            GEOCODE_OUTCOME_SKIPPED,
+            apply_geocode_to_order,
+        )
 
         db = db_session()
         try:
@@ -86,35 +88,8 @@ def geocode_order_address(order_id):
             if not order:
                 return
 
-            address = extract_address_from_order(order)
-            if not address:
-                order.lat = None
-                order.lng = None
-                order.geocode_status = "failed"
-                order.geocoded_at = datetime.datetime.now()
+            if apply_geocode_to_order(order) != GEOCODE_OUTCOME_SKIPPED:
                 db.commit()
-                return
-
-            new_hash = compute_address_hash(address)
-            if order.address_hash == new_hash and order.lat is not None and order.lng is not None:
-                return
-
-            converter = FOMSAddressConverter()
-            lat, lng, status = converter.convert_address(address)
-
-            order.geocoded_at = datetime.datetime.now()
-            order.address_hash = new_hash
-
-            if lat is not None and lng is not None:
-                order.lat = float(lat)
-                order.lng = float(lng)
-                order.geocode_status = "success"
-            else:
-                order.lat = None
-                order.lng = None
-                order.geocode_status = "failed"
-
-            db.commit()
         finally:
             db.close()
             db_session.remove()

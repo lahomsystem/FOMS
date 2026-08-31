@@ -28,10 +28,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from sqlalchemy import or_  # noqa: E402
 from sqlalchemy.orm import sessionmaker  # noqa: E402
 
 from db import engine  # noqa: E402
+from foms.services.geocode_candidates import build_missing_geocode_query  # noqa: E402
 from models import Order  # noqa: E402
 
 # 동기 모드에서 카카오 지오코딩 API 를 연타하지 않도록 건당 최소 간격(초).
@@ -39,19 +39,21 @@ SYNC_SLEEP_SEC = 0.15
 
 
 def _candidate_query(session, include_failed: bool):
-    """좌표 없는 주문 쿼리 (활성 주문만, 주소 있는 건만)."""
-    query = session.query(Order).filter(
-        Order.active_filter(),
-        or_(Order.lat.is_(None), Order.lng.is_(None)),
-        Order.address.isnot(None),
-        Order.address != '',
-        Order.address != '-',
-    )
-    if include_failed:
-        return query.filter(
-            or_(Order.geocode_status.is_(None), Order.geocode_status == 'failed')
-        )
-    return query.filter(Order.geocode_status.is_(None))
+    """좌표 없는 주문 쿼리 (활성 주문만, 주소 있는 건만).
+
+    술어 SSOT 는 :func:`foms.services.geocode_candidates.build_missing_geocode_query`
+    다 — 주기 스윕(``scripts/maintenance/run_geocode_sweep.py``)과 같은 조건식을 쓴다
+    (로직 2벌 금지). 이 CLI 는 운영자가 손으로 도는 일회성 백필이라 ``pending`` 재시도
+    (``pending_retry_before``)는 쓰지 않는다 — 스윕이 담당한다.
+
+    Args:
+        session: SQLAlchemy 세션.
+        include_failed: ``geocode_status='failed'`` 건도 대상에 포함할지 여부.
+
+    Returns:
+        :class:`~models.Order` 를 돌려주는 SQLAlchemy Query.
+    """
+    return build_missing_geocode_query(session, include_failed=include_failed)
 
 
 def _run_enqueue(orders: list[Order]) -> tuple[int, int]:
