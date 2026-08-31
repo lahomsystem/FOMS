@@ -32,7 +32,21 @@
 검증: `tests/services/integrations` + `tests/domains` **6752 passed, 5 skipped** ·
 `pre_push_smoke` exit 0 · **CI 4/4 green**(Harness · FOMS CI · PostgreSQL Lane · perf-gate,
 커밋별 전 워크플로 나열로 판정).
-production 승격은 **안 했다** — 사용자 명시 요청 시에만.
+**production 승격 완료** (2026-08-31, 사용자 명시 요청) — PR [#213](https://github.com/lahomsystem/FOMS/pull/213)
+머지 `c462bdb9`. 승격 트리에서 직접 검증: `APP_OK` · `tests/services/integrations` **1185 passed** ·
+`tests/domains` **5369 passed, 5 skipped** · `pre_push_smoke` exit 0 · PR 검사 **4/4 green**.
+
+승격에서 배운 것 둘 —
+
+* **`promote_completeness` 의 incomplete 는 곧 의존이 아니다.** "미승격 30건"이 떴는데 그중
+  네이버 23건은 **이미 운영에 있었다**(예전에 다른 SHA 로 cherry-pick 돼 patch-id 가 달라진 것).
+  제목 대조 + 운영 소스 grep(`request_return`·`NAVER_INGEST_RETURN_ENQUEUE`·`wb-return-confirm`)
+  으로 확인하고 우리 5건만 올렸다. 그대로 28건을 다시 얹었으면 같은 패치를 두 번 얹을 뻔했다.
+* **인벤토리 충돌은 손으로 병합하지 않는다.** `foms_failopen_inventory.json` 한 곳만 충돌(줄번호 축) —
+  `failopen_scan.py` 로 **재생성**해 해결(558 catches, 0 unclassified).
+
+운영에 처음 생긴 것: **반품 승인 체크박스**(기본 꺼짐 — 켜면 환불 확정, 되돌리는 API 없음)와
+**주문 찾아서 붙이기**.
 네이버 반품 접수·승인 실호출은 여전히 **0회**(불가역이라 진짜 반품 건에서 사용자가 확인).
 
 ## T2 를 시작할 때 필요한 사실 (조사 다시 하지 마라)
