@@ -11,7 +11,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 ## 진행 중
 - [2026-08-31] **네이버 일괄 발송처리** — 미리보기 2화면 + 일괄 버튼. 킬스위치 기본 꺼짐. 운영 PR #205. 상세는 설계서
 - [2026-08-30] **네이버 이력 탭 상태 칸 재설계 deploy(`9d19da0b`)** — 재결제·추가결제·발송처리 축 신설, 축별 3줄. 부분 인덱스 2벌(`naverdisp_00`). 취소 확정 날짜는 축을 따로 판다(반품 축에 `cancel` 금지 — 08-27 누출). **운영 승격·실화면 대조 완료**(PR #200 · 08-31 운영 50행 실측). 원장 `2026-08-30-naver-history-status-column-ledger.md`(계약서 §15 정본)
-- [2026-08-31] **고객 문서 공유 T16 운영 반영 완료** — PR #196 머지(production `d6f1c84e`) + 운영 `web` env `SOLAPI_TEMPLATE_SHARE_BOTH_ID_{LAHOM,HAUD}` 등록 후 재배포. 이제 도면+계약서가 **버튼 2개 한 통**으로 나간다. 운영 화면 확인 완료(드롭다운 항목·자산 핀·재잠금 오라클 200). 함정: `railway variables --set` 은 재배포를 안 건다. 잔여: 운영 실발송 1건 육안.
+- [2026-08-31] **고객 문서 공유 T16 운영 반영 완료** — PR #196 머지(production `d6f1c84e`) + 운영 `web` env `SOLAPI_TEMPLATE_SHARE_BOTH_ID_{LAHOM,HAUD}` 등록 후 재배포. 이제 도면+계약서가 **버튼 2개 한 통**으로 나간다. 운영 화면 확인 완료(드롭다운 항목·자산 핀·재잠금 오라클 200). 함정: `railway variables --set` 은 재배포를 안 건다. **운영 실발송·두 링크 실열람까지 확인 — T16 종결(08-31)**
 - ⚠️ [2026-08-23] **로컬 dev DB 행 소실(로컬 한정)** — pytest 파일이 conftest 보다 먼저 `db` import → 로컬 PG 에 `drop_all`. 스테이징·운영 무관. 근본 수정: `assert_engine_not_postgresql`(env 문자열 아닌 엔진 판정)
 - [2026-08-30] **`tests/visual` CI 등재 14개(CI-VISUAL-01)** — 브라우저 없이 도는 파일을 ci.yml 에. 2주 반 산 red 의 자리다. 미결 `8c1ef69a` 는 `0e98c108` 중복.
 

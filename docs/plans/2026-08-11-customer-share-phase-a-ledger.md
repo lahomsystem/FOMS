@@ -148,7 +148,10 @@
 - **운영 env 등록 완료(2026-08-30)** — FOMS-PRODUCTION `web` 서비스에
   `SOLAPI_TEMPLATE_SHARE_BOTH_ID_LAHOM=KA01TP260825021747177Iu2C2ykuJfS` ·
   `_HAUD=KA01TP260825021755111MLTAvg2dLLn` (`railway variables --set` 2건, `--kv` 재확인).
-  `--skip-deploys` 없이 걸어 `web` 재배포 유발(env 즉시 반영).
+  **env 가 러닝 프로세스에 살아 있다는 증거는 재배포 로그가 아니라 실발송이다** — 직후 운영 실발송이
+  통합 템플릿 id 로 나갔다(= `_both_template_id(brand)` 가 값을 읽었다). `railway variables --set` 이
+  재배포를 거는지는 확인하지 못했다(같은 시각 머지 배포와 겹쳐 인과를 가를 수 없었다).
+  AI_STATUS 에는 타 세션이 '재배포를 안 건다' 로 기록해 뒀으니 그쪽을 따른다.
 - **운영 실발송 검증 완료 — T16 종결(2026-08-31)**. 사용자 요청 1건에 대한 production 측정
   (`claude_master` id57 해제 → 측정 → 재잠금). 가상 주문 5070 `CLAUDE-TEST-T16-PROD`, 라홈,
   **수신번호는 사용자 본인 번호 010-8327-7282**(더미 번호 규칙의 예외 — 실발송 자체가 검증 목적이라
