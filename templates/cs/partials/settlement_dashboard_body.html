@@ -1,11 +1,19 @@
-{# 정산 대시보드 body (SETTLE-DASH-01 M2 스텁).
+{# 정산 대시보드 body (SETTLE-DASH-01 M3).
+
    ERP 셸 탭 요청은 이 partial 만 받고, 전체 문서 요청은 cs/settlement_dashboard.html 이
    같은 partial 을 감싼다(완료 대시보드와 같은 3종 세트 관례).
-   화면 내용(KPI 카드·차트·필터)과 전용 CSS/JS 는 M3 몫이다. 데이터는 아래
-   data-aggregates-url 의 집계 API 에서 가져온다 — JSON.parse('{{ ... |tojson }}') 금지. #}
-<div class="container-fluid erp-dashboard erp-pro erp-settlement"
-  data-foms-settlement-dashboard="1"
-  data-aggregates-url="{{ url_for('settlement_api.api_settlement_aggregates') }}">
+
+   **자산 링크가 이 파일 안에 있는 이유(옮기지 마라)**: 이 화면은 ERP 셸 프래그먼트로도
+   들어온다(`wants_erp_shell_tab_body`). full 템플릿의 styles/scripts 블록에 두면
+   프래그먼트 경로에서 **통째로 빠져** 스타일도 기능도 없는 화면이 된다.
+   as_dashboard_body.html:18-25,629-642 · completion_dashboard_body.html:1,108 과 같은 배치다.
+   `?v=` 핀은 Service Worker(staticCacheFirst)가 static 을 캐시하기 때문에 필수다 —
+   CSS/JS 를 고치면 이 핀을 반드시 범프한다. 핀은 자산당 저장소 전역에서 한 곳에만 둔다.
+
+   데이터는 전부 `data-aggregates-url` 의 집계 API 에서 fetch 로 가져온다. 템플릿이 JSON 을
+   스크립트로 심는 방식은 금지라 초기 페이로드를 마크업에 넣지 않는다. #}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/settlement/settlement-dashboard.css') }}?v=20260831a">
+<div class="container-fluid erp-dashboard erp-pro erp-settlement">
   <header class="erp-pro-header">
     <h1 class="erp-pro-header__title">
       <i class="fas fa-coins"></i>
@@ -25,17 +33,134 @@
   {% set erp_sub_nav_active = 'settlement' %}
   {% include 'partials/shared/erp_sub_nav.html' %}
 
-  <div class="erp-pro-card mt-3">
-    <div class="erp-pro-card__header foms-section-header section-header">
-      <h3 class="erp-pro-card__title foms-section-header__title">
-        <i class="fas fa-chart-column"></i>
-        매출·미수 집계
-      </h3>
+  <div id="foms-settlement-root" class="foms-settle foms-settlement-root"
+    data-foms-settlement-dashboard="1"
+    data-aggregates-url="{{ url_for('settlement_api.api_settlement_aggregates') }}">
+
+    {# 권한 부제는 실제 허용 집합이다(SPEC §5 = FINANCE_MUTATION 과 같은 집합).
+       목업의 "ADMIN·MANAGER 전용" 은 CS/영업 담당을 빠뜨린 문구라 교정했다. #}
+    <div class="s-strip">
+      <span class="s-who">ADMIN · MANAGER · CS/영업 담당 열람 · 매출 인식: 완료일 기준 (완료 · AS접수 · AS완료)</span>
+      <span class="s-spacer"></span>
+      <span class="s-stamp" data-settlement-stamp></span>
     </div>
-    <div class="erp-pro-card__body foms-shell-body">
-      <div id="foms-settlement-root" class="foms-settlement-root" aria-live="polite">
-        <p class="text-muted mb-0">집계 화면은 준비 중입니다.</p>
+
+    <nav class="s-filterbar" aria-label="기간 필터">
+      <div class="s-seg" role="group" aria-label="기간 단위">
+        <button type="button" data-settlement-granularity="day" aria-pressed="true">일별</button>
+        <button type="button" data-settlement-granularity="week" aria-pressed="false">주별</button>
+        <button type="button" data-settlement-granularity="month" aria-pressed="false">월별</button>
       </div>
+      <button type="button" class="s-toggle" data-settlement-compare aria-pressed="true">전월 비교 <span class="s-knob" aria-hidden="true"></span></button>
+      <button type="button" class="s-toggle" data-settlement-cumulative aria-pressed="false">누적 보기 <span class="s-knob" aria-hidden="true"></span></button>
+      <span class="s-scope" data-settlement-range>조회 기간을 불러오는 중입니다.</span>
+      {# 목업 문구("모든 카드가 같은 기간 스코프를 따릅니다")는 실구현에서 사실이 아니다 —
+         미수·aging 은 기간 무관 모집단 전체이고, 단계 카드는 현재 시점 스냅샷이다(SPEC §4.4). #}
+      <span class="s-note">미수·aging 은 기간과 무관한 전체 집계 · 단계 카드는 현재 시점 스냅샷</span>
+    </nav>
+
+    {# 상태 3종은 서로 다른 노드·다른 문구다. 무음 실패 금지, 권한 실패와 통신 실패 혼동 금지.
+       Bootstrap `.alert` 를 쓰지 않는다 — script.js 가 5초 뒤 자동으로 닫는다. #}
+    <div class="s-state s-state--loading" data-settlement-loading aria-live="polite">
+      <div class="s-state-title">집계를 불러오는 중입니다…</div>
+      <div class="s-state-detail">완료일 기준 전량 집계라 첫 조회에 몇 초가 걸릴 수 있습니다.</div>
     </div>
+    <div class="s-state s-state--error s-hidden" data-settlement-error role="alert">
+      <div class="s-state-title">집계를 불러오지 못했습니다.</div>
+      <div class="s-state-detail" data-settlement-error-detail>네트워크 또는 서버 오류입니다.</div>
+      <button type="button" class="s-retry" data-settlement-retry>다시 시도</button>
+    </div>
+    <div class="s-state s-state--denied s-hidden" data-settlement-denied role="alert">
+      <div class="s-state-title">정산 대시보드 열람 권한이 없습니다.</div>
+      <div class="s-state-detail">이 화면은 ADMIN · MANAGER · CS/영업 담당만 볼 수 있습니다. 권한이 필요하면 관리자에게 요청하세요.</div>
+    </div>
+
+    <div class="s-grid" data-settlement-grid>
+
+      <div class="s-kpis" id="foms-settle-kpis"></div>
+
+      <div class="s-card s-card--main">
+        <div class="s-card-head">
+          <span class="s-card-title">출고가 매출 추이</span>
+          <span class="s-card-sub" data-settlement-main-sub>완료일 기준</span>
+          <span class="s-head-right"><span class="s-legend" id="foms-settle-main-legend"></span></span>
+        </div>
+        <div class="s-chart-host" id="foms-settle-main-chart"></div>
+        <div class="s-empty s-hidden" data-settlement-empty="buckets">
+          이 기간에 완료된 주문이 <b>없습니다</b>.<br>
+          기간을 넓히거나 다른 단위(주별 · 월별)로 보세요.
+        </div>
+        {# 완료일 미상 건은 어느 기간 버킷에도 못 들어간다. 암묵 drop 하지 않고 반드시 각주로 낸다. #}
+        <p class="s-cardnote s-hidden" data-settlement-unknown-completion>완료일 미상 건은 기간 합계에서 제외됩니다.</p>
+        <details class="s-tblv">
+          <summary>표로 보기</summary>
+          <div class="s-tblwrap"><table class="s-dt" id="foms-settle-main-table"></table></div>
+        </details>
+      </div>
+
+      <div class="s-side">
+        <div class="s-card" id="foms-settle-settle-status">
+          <div class="s-card-head">
+            <span class="s-card-title">정산 처리 현황</span>
+            <span class="s-card-sub" data-settlement-status-sub>기간 완료 건 기준</span>
+          </div>
+          <div data-settlement-status-body></div>
+          {# 운영 실데이터는 이 카드가 **전부 0** 이다. 0 을 막대/원으로 그리면 빈 카드로 보인다. #}
+          <div class="s-empty s-hidden" data-settlement-empty="settlement_status">
+            이 기간에 기록된 <b>정산 처리 내역이 없습니다</b>.<br>
+            청구 · 현금영수증 발행 · AS 유상 확정 · 부서 귀속 차감이 모두 0건입니다.
+          </div>
+        </div>
+      </div>
+
+      <div class="s-card s-card--aging">
+        <div class="s-card-head">
+          <span class="s-card-title">미수금 aging</span>
+          <span class="s-card-sub" data-settlement-aging-sub>잔금 입금 미확인 · 기간 무관 전체</span>
+        </div>
+        <div class="s-chart-host" id="foms-settle-aging-chart"></div>
+        <p class="s-aging-note s-hidden" data-settlement-aging-critical><i class="s-fdot"></i><span data-settlement-aging-critical-text></span></p>
+        {# aging 은 완료일이 있어야 경과일이 나온다. 완료일 미상 미수는 버킷 밖에 따로 센다. #}
+        <p class="s-cardnote s-hidden" data-settlement-aging-unknown>완료일 미상 미수는 경과일을 산출할 수 없어 버킷 밖에서 따로 셉니다.</p>
+        <div class="s-empty s-hidden" data-settlement-empty="aging">
+          잔금 입금이 확인되지 않은 <b>미수 건이 없습니다</b>.
+        </div>
+      </div>
+
+      <div class="s-card s-card--stages">
+        <div class="s-card-head">
+          <span class="s-card-title">진행 단계별 물린 금액</span>
+          {# 단계 라벨은 API 가 주는 stages[].label(= STAGE_LABELS) 을 그대로 쓴다. 화면에 단계
+             이름을 하드코딩하지 않는다 — 목업이 지어낸 단계가 실화면에 남는 사고를 막는다. #}
+          <span class="s-card-sub" data-settlement-stages-sub>완료 전 주문의 출고가 합 · 현재 시점 스냅샷(기간 스코프 밖)</span>
+        </div>
+        <div class="s-stages" id="foms-settle-stages"></div>
+        <div class="s-empty s-hidden" data-settlement-empty="stages">
+          완료 전 단계에 남아 있는 주문이 <b>없습니다</b>.
+        </div>
+      </div>
+
+      <div class="s-card s-card--channel">
+        <div class="s-card-head">
+          <span class="s-card-title">채널별 매출 비중</span>
+          <span class="s-card-sub" data-settlement-channel-sub>기간 · 출고가</span>
+        </div>
+        <div class="s-chbar" id="foms-settle-channel-bar"></div>
+        <div class="s-chlegend" id="foms-settle-channel-legend"></div>
+        <div class="s-empty s-hidden" data-settlement-empty="channels">
+          이 기간에 채널별로 집계할 <b>매출이 없습니다</b>.
+        </div>
+      </div>
+
+    </div>
+
+    <div class="s-foot">
+      출고가 = 품목합 + 배송 − 할인 · 잔금 = 출고가 − 예약금 ·
+      매출 인식: 완료일(시공 완료일) 기준 · 정산 대상 상태: 완료 · AS 접수 · AS 완료 ·
+      수금은 입금 확인 토글 기반 근사치입니다.
+    </div>
+
+    <div class="s-tt" id="foms-settle-tooltip" role="tooltip"></div>
   </div>
 </div>
+<script src="{{ url_for('static', filename='js/settlement/dashboard.js') }}?v=20260831a" defer></script>
