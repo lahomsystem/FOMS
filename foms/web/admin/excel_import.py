@@ -1,164 +1,24 @@
-"""엑셀 업로드/다운로드 Blueprint (canonical; SFC-B11B): /upload, /download_excel.
+"""주문 목록 엑셀 다운로드 Blueprint (canonical; SFC-B11B): /download_excel.
 
-import(POST /upload)는 ORDER-IMPORT-01 정본 서비스(:mod:`foms.services.orders.order_import`)
-로 위임한다 — strict schema·full validate·create_order batch all-or-none·file-hash receipt·
-private artifact 24h 는 서비스가 소유하고, 이 route 는 in-handler ``evaluate_policy``
-(``MANAGER_MUTATION`` = Admin/Manager)·파일 수신·flash/redirect·error download 스트림만 배선한다.
+현재 필터/검색/정렬 조건으로 조회한 주문 목록을 xlsx 로 내보낸다. 이 Blueprint 는
+**내보내기 전용**이다 — 엑셀 업로드(가져오기) 기능은 제거됐다.
 """
 import os
 import datetime
-from io import BytesIO
 from flask import (
-    Blueprint, render_template, request, redirect, url_for, flash, session,
-    send_file, abort,
+    Blueprint, request, redirect, url_for, flash, session, send_file,
 )
-from werkzeug.utils import secure_filename
 from sqlalchemy import or_, func, String
 import pandas as pd
 
-from foms.web.auth import login_required, log_access, get_user_by_id
+from foms.web.auth import login_required, log_access
 from db import get_db
-from models import Order, OrderImportArtifact, User
+from models import Order
 from foms.services.files.storage_paths import UPLOAD_FOLDER
 from foms.services.orders.status_constants import STATUS
-from foms.services.files.file_utils import allowed_file
 from foms.services.order_display_utils import format_options_for_display
-from foms.services.storage import get_storage
-from foms.services.orders.order_mutation_policy import (
-    POLICY_REGISTRY, evaluate_policy, normalize_team,
-)
-from foms.services.orders.order_create import OwnerPolicyError
-from foms.services.orders.order_import import (
-    REQUIRED_COLUMNS,
-    OrderImportError,
-    OrderImportValidationError,
-    import_orders,
-)
 
 excel_bp = Blueprint('excel', __name__, url_prefix='')
-
-#: import route 정책 — bulk delete/restore/excel-import(Admin/Manager). manifest 정본과 동일.
-_IMPORT_POLICY_ID = 'MANAGER_MUTATION'
-#: 빈 템플릿 헤더(필수 + 흔한 선택 컬럼). import 서비스 정규화 키와 일치.
-_TEMPLATE_COLUMNS = list(REQUIRED_COLUMNS) + [
-    '옵션', '비고', '접수시간', '실측일', '실측시간', '설치완료일', '담당자', '결제금액']
-
-
-def _current_user():
-    """세션 user_id 로 현재 사용자 로드(in-handler 권한 판정용)."""
-    uid = session.get('user_id')
-    return get_user_by_id(uid) if uid else None
-
-
-def _require_import_policy():
-    """MANAGER_MUTATION 정책을 in-handler 로 판정하고 거부면 abort(그 외 403)."""
-    decision = evaluate_policy(POLICY_REGISTRY[_IMPORT_POLICY_ID], _current_user())
-    if not decision.allowed:
-        log_access(f"엑셀 import 권한 거부({decision.code})", session.get('user_id'))
-        abort(decision.status)
-
-
-def _form_owner_id():
-    """폼의 explicit owner user_id 를 int 로 파싱한다(없으면 None)."""
-    raw = request.form.get('owner_user_id')
-    try:
-        return int(raw) if raw not in (None, '') else None
-    except (TypeError, ValueError):
-        return None
-
-
-def _active_sales_owners(db):
-    """import owner 후보 = 활성 SALES(MEASURE→SALES 정규화) 사용자 (id, name) 목록."""
-    rows = (db.query(User.id, User.name, User.team)
-            .filter(User.is_active.is_(True)).order_by(User.name).all())
-    return [{"id": uid, "name": (nm or '').strip() or f"user#{uid}"}
-            for uid, nm, team in rows if normalize_team(team) == 'SALES']
-
-
-@excel_bp.route('/upload', methods=['GET', 'POST'])
-@login_required
-def upload_excel():
-    """엑셀 파일 업로드로 주문 일괄 등록(Admin/Manager, strict·all-or-none·멱등)."""
-    _require_import_policy()
-    if request.method != 'POST':
-        return render_template('admin/upload.html',
-                               sales_owners=_active_sales_owners(get_db()))
-
-    if 'excel_file' not in request.files or request.files['excel_file'].filename == '':
-        flash('파일이 선택되지 않았습니다.', 'error')
-        return redirect(request.url)
-    file = request.files['excel_file']
-    if not allowed_file(file.filename):
-        flash('허용되지 않은 파일 형식입니다. .xlsx 또는 .xls 파일만 업로드 가능합니다.', 'error')
-        log_access(f"엑셀 import 실패: 형식 - {file.filename}", session.get('user_id'))
-        return redirect(request.url)
-
-    filename = secure_filename(file.filename) or 'import.xlsx'
-    defaults = {k: request.form.get(k)
-                for k in ('scheduled_date', 'as_received_date', 'as_completed_date')}
-    db = get_db()
-    try:
-        receipt = import_orders(
-            db, actor=_current_user(), owner_user_id=_form_owner_id(),
-            file_bytes=file.read(), filename=filename,
-            storage=get_storage(), form_defaults=defaults)
-    except OrderImportValidationError as exc:
-        return _flash_validation_error(exc, filename)
-    except (OrderImportError, OwnerPolicyError) as exc:
-        db.rollback()
-        flash(f'엑셀 import 실패: {exc}', 'error')
-        log_access(f"엑셀 import 실패: {filename} - {exc}", session.get('user_id'))
-        return redirect(request.url)
-
-    if receipt.idempotent:
-        flash(f'이미 등록된 파일입니다({receipt.row_count}건, 재생성 없음).', 'info')
-    else:
-        flash(f'{receipt.row_count}개의 주문이 성공적으로 등록되었습니다.', 'success')
-    log_access(f"엑셀 import: {filename} → {receipt.row_count}건(artifact={receipt.artifact_id})",
-               session.get('user_id'),
-               {"artifact_id": receipt.artifact_id, "idempotent": receipt.idempotent,
-                "order_ids": receipt.resource_order_ids})
-    return redirect(url_for('order_pages.index'))
-
-
-def _flash_validation_error(exc: OrderImportValidationError, filename: str):
-    """full validate 실패를 flash 하고 error download 링크를 안내한다(주문 미생성)."""
-    receipt = exc.receipt
-    errors_url = url_for('excel.download_order_import_errors', artifact_id=receipt.artifact_id)
-    flash(f'{len(receipt.row_errors)}개 행 검증 실패 — 주문이 생성되지 않았습니다. '
-          f'에러 리포트: {errors_url}', 'error')
-    log_access(f"엑셀 import 검증 실패: {filename} - {len(receipt.row_errors)}행"
-               f"(artifact={receipt.artifact_id})", session.get('user_id'))
-    return redirect(request.url)
-
-
-@excel_bp.route('/admin/order-imports/<int:artifact_id>/errors')
-@login_required
-def download_order_import_errors(artifact_id):
-    """FAILED import artifact 의 에러 리포트를 private key 에서 스트림한다(Admin/Manager)."""
-    _require_import_policy()
-    db = get_db()
-    artifact = db.get(OrderImportArtifact, artifact_id)
-    if artifact is None or not artifact.error_object_key:
-        abort(404)
-    data = get_storage().read_file_bytes(artifact.error_object_key)
-    if data is None:
-        abort(404)
-    return send_file(BytesIO(data), as_attachment=True,
-                     download_name=f'import_errors_{artifact_id}.csv', mimetype='text/csv')
-
-
-@excel_bp.route('/download_excel_template')
-@login_required
-def download_excel_template():
-    """import 용 빈 템플릿(필수+선택 컬럼 헤더)을 다운로드한다(Admin/Manager)."""
-    _require_import_policy()
-    buf = BytesIO()
-    pd.DataFrame(columns=_TEMPLATE_COLUMNS).to_excel(buf, index=False, engine='openpyxl')
-    buf.seek(0)
-    return send_file(
-        buf, as_attachment=True, download_name='order_import_template.xlsx',
-        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
 
 @excel_bp.route('/download_excel')

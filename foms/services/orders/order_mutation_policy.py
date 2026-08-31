@@ -149,7 +149,7 @@ POLICY_REGISTRY: dict[str, Policy] = {
 
     # --- 관리(MANAGER+/ADMIN) -----------------------------------------------
     "MANAGER_MUTATION": _p("MANAGER_MUTATION", teams=(),
-                           description="bulk delete/restore/excel-import — ADMIN/MANAGER."),
+                           description="bulk delete/restore — ADMIN/MANAGER."),
     "ADMIN_MUTATION": _p("ADMIN_MUTATION", teams=(), manager_ok=False,
                          description="permanent delete — ADMIN 전용."),
 

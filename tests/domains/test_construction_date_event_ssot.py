@@ -8,7 +8,7 @@
 
 * 시공일을 움직이는 **모든 쓰기 경로**가 이벤트를 정확히 **1건** 남긴다 —
   PUT 전체저장 / PATCH 필드 / ``update_order_field(scheduled_date)`` / 시공불가 재예약 /
-  품목별 시공일 인라인 패치 / 레거시 편집 폼 / 엑셀 임포트(생성이라 0건).
+  품목별 시공일 인라인 패치 / 레거시 편집 폼.
 * payload 는 ``{"from", "to", "source"}`` 이고 날짜는 **정규화 + 안정 정렬 콤마 연결**이다.
 * 허위 이벤트 0: 값 무변경 · 표기만 다름(``2026-07-20`` vs ``2026/07/20``) · 다중값 순서만
   바뀜 · 주문 생성(이전 값 없음)은 전부 0건.
@@ -17,8 +17,6 @@
 
 from __future__ import annotations
 
-import io
-import uuid
 from typing import Any
 
 import pytest
@@ -263,65 +261,6 @@ def test_legacy_edit_form_emits_event(client):
     )
     assert resp.status_code in (200, 302), resp.get_data(as_text=True)[:400]
     assert _from_to(order_id) == [("2026-07-20", "2026-08-11")]
-
-
-# --------------------------------------------------------------------------- #
-# 7. 엑셀 임포트 broadcast (서비스 계층 직접 호출)
-# --------------------------------------------------------------------------- #
-class _FakeStorage:
-    """server-derived private key 로 바이트를 담는 in-memory 저장소(테스트용)."""
-
-    def __init__(self) -> None:
-        self.blobs: dict[str, bytes] = {}
-
-    def upload_file(self, file_obj: Any, filename: str, folder: str) -> dict[str, Any]:
-        """업로드 계약(`{'success','key','filename'}`)을 흉내낸다."""
-        file_obj.seek(0)
-        self.blobs[f"{folder}/{filename}"] = file_obj.read()
-        return {"success": True, "key": f"{folder}/{filename}", "filename": filename}
-
-
-def test_excel_import_broadcast_creates_no_event(app):
-    """엑셀 임포트 broadcast(scheduled_date 공통값)는 **생성**이라 이벤트 0건.
-
-    HTTP 라우트(`/upload`)로 몰지 않고 정본 서비스 :func:`import_orders` 를 직접 호출한다 —
-    라우트는 admin 폼·정책 게이트·worker readiness 하네스를 요구해 domain lane 에서 비실용적
-    이고, 시공일을 심는 코드는 서비스의 broadcast defaults(`order_import.py:197`) 이기 때문이다.
-    생성에는 "이전 값"이 없으므로 이벤트를 만들지 않는 것이 계약이다(허위 from 금지).
-    """
-    import pandas as pd
-
-    from foms.services.orders.order_import import import_orders
-
-    admin = _make_user(f"cde_imp_admin_{uuid.uuid4().hex[:6]}", role="ADMIN")
-    sales = _make_user(f"cde_imp_sales_{uuid.uuid4().hex[:6]}", role="STAFF", team="SALES")
-
-    buf = io.BytesIO()
-    pd.DataFrame(
-        [{
-            "접수일": "2026-07-24", "고객명": "임포트 고객", "전화번호": "010-1111-2222",
-            "주소": "서울시 강남구", "제품": "침대", "옵션": "블랙",
-            "비고": uuid.uuid4().hex, "결제금액": 100000,
-        }],
-        columns=["접수일", "고객명", "전화번호", "주소", "제품", "옵션", "비고", "결제금액"],
-    ).to_excel(buf, index=False, engine="openpyxl")
-
-    receipt = import_orders(
-        db_session,
-        actor=admin,
-        owner_user_id=sales.id,
-        file_bytes=buf.getvalue(),
-        filename="broadcast.xlsx",
-        storage=_FakeStorage(),
-        form_defaults={"scheduled_date": "2026-08-20"},
-        check_readiness=False,
-    )
-    created_ids = list(receipt.resource_order_ids or [])
-    assert len(created_ids) == 1
-
-    created = db_session.get(Order, created_ids[0])
-    assert created.scheduled_date == "2026-08-20"  # broadcast 값이 실제로 박혔다
-    assert _events(created_ids[0]) == []  # 생성이라 이벤트 없음
 
 
 # --------------------------------------------------------------------------- #

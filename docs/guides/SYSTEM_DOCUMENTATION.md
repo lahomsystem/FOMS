@@ -232,7 +232,7 @@ CREATE TABLE security_logs (
    - 주문 관리 (생성, 수정, 삭제)
    - 일괄 작업 수행
    - 휴지통 관리 (복원, 삭제)
-   - 엑셀 업로드/다운로드
+   - 엑셀 다운로드
 
 3. **STAFF (직원)**
    - 주문 조회 및 추가
@@ -284,8 +284,6 @@ CREATE TABLE security_logs (
 - `GET /api/orders`: 캘린더용 주문 데이터 (JSON)
 
 ### 데이터 관리 API
-- `GET /upload`: 엑셀 업로드 폼
-- `POST /upload`: 엑셀 파일 처리
 - `GET /download_excel`: 필터된 데이터 엑셀 다운로드
 
 ### 일괄 작업 API

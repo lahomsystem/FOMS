@@ -17,9 +17,8 @@ the view runs and without trusting the default parser to cap file size:
 
 2. A 4-field route body-cap manifest (``route_pattern``, ``max_body_bytes``,
    ``max_files``, ``category``) declaring the ceiling for each public surface:
-   telemetry 2 KiB, login 16 KiB, Excel import 10 MiB + 64 KiB body overhead,
-   legacy multipart upload 50 MiB + 256 KiB, and a 1 MiB ``normal`` default for
-   everything else. Presigned / direct-upload endpoints are excluded (their file
+   telemetry 2 KiB, login 16 KiB, legacy multipart upload 50 MiB + 256 KiB, and
+   a 1 MiB ``normal`` default for everything else. Presigned / direct-upload endpoints are excluded (their file
    bytes never transit the app — the browser PUTs straight to R2/S3).
 
 3. A pre-handler ``before_request`` guard that rejects an oversized *declared*
@@ -54,9 +53,6 @@ _MIB = 1024 * 1024
 _TELEMETRY_CAP = 2 * _KIB
 _LOGIN_CAP = 16 * _KIB
 _NORMAL_CAP = 1 * _MIB
-
-# Excel import: one file, 10 MiB of file bytes + 64 KiB body/multipart overhead.
-_EXCEL_CAP = 10 * _MIB + 64 * _KIB
 
 # Legacy multipart upload: file/total <= 50 MiB + 256 KiB body overhead.
 _LEGACY_CAP = 50 * _MIB + 256 * _KIB
@@ -98,7 +94,6 @@ _MANIFEST: tuple[BodyCap, ...] = (
     BodyCap(r"^/api/foms/rum$", _TELEMETRY_CAP, 0, "telemetry"),
     BodyCap(r"^/channel/wam/api/telemetry$", _TELEMETRY_CAP, 0, "telemetry"),
     BodyCap(r"^/login$", _LOGIN_CAP, 0, "login"),
-    BodyCap(r"^/upload$", _EXCEL_CAP, 1, "excel"),
     BodyCap(r"^/api/orders/\d+/attachments$", _LEGACY_CAP, _LEGACY_MAX_FILES, "legacy"),
     BodyCap(r"^/api/chat/upload$", _LEGACY_CAP, _LEGACY_MAX_FILES, "legacy"),
 )

@@ -583,10 +583,6 @@
       "mode": "guard",
       "rule": "/api/orders/<int:order_id>/change-reason"
     },
-    "excel.upload_excel": {
-      "mode": "guard",
-      "rule": "/upload"
-    },
     "foms_rum.ingest_rum_event": {
       "mode": "exempt",
       "reason": "anonymous RUM/Web-Vitals ingest — sendBeacon 무인증 수집. ingest policy(무인증·부작용 없음)로만 방어, CSRF 대상 아님.",

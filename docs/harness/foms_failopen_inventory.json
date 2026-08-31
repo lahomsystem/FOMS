@@ -5,12 +5,12 @@
   "overlap_api_error_01": "API-ERROR-01 owns response/stdout exposure (print_exc/str(e) -> log_handled_exception). This packet owns swallow classification. Sites that log via log_handled_exception are LOG_AND_CONTINUE here.",
   "marker_convention": "Silent-by-design catches carry an inline `# failopen: intentional: <reason>` (or `fail-closed`) marker; the scanner reads it as the justification. No bare allowlist, no lint-disable.",
   "baselines": {
-    "broad_total": 558,
+    "broad_total": 556,
     "unclassified": 0,
     "swallow_by_control_flow": 180
   },
   "disposition_counts": {
-    "FAIL_CLOSED": 33,
+    "FAIL_CLOSED": 31,
     "INTENTIONAL": 17,
     "LOG_AND_CONTINUE": 328,
     "SWALLOW_BY_CONTROL_FLOW": 180
@@ -24,7 +24,7 @@
     "persistence": 3,
     "platform": 5,
     "runtime": 3,
-    "services": 142,
+    "services": 140,
     "storage": 21,
     "telemetry": 30,
     "web": 38
@@ -48,7 +48,7 @@
     "foms/persistence/designer/repositories.py:173",
     "foms/persistence/designer/repositories.py:211",
     "foms/persistence/designer/repositories.py:505",
-    "foms/platform/request_limits.py:180",
+    "foms/platform/request_limits.py:175",
     "foms/services/app_init.py:146",
     "foms/services/channel_client.py:309",
     "foms/services/channel_dispatch.py:56",
@@ -71,8 +71,6 @@
     "foms/services/jobs/tasks.py:499",
     "foms/services/jobs/tasks.py:505",
     "foms/services/notifications/push_sender.py:377",
-    "foms/services/orders/order_import.py:167",
-    "foms/services/orders/order_import.py:388",
     "foms/web/orders/trash.py:143",
     "wdcalculator_db.py:179"
   ],
@@ -2852,7 +2850,7 @@
     },
     {
       "path": "foms/platform/request_limits.py",
-      "lineno": 180,
+      "lineno": 175,
       "handler_type": "base_exception",
       "disposition": "FAIL_CLOSED",
       "owner": "platform",
@@ -2861,7 +2859,7 @@
     },
     {
       "path": "foms/platform/request_limits.py",
-      "lineno": 186,
+      "lineno": 181,
       "handler_type": "broad_exception",
       "disposition": "INTENTIONAL",
       "owner": "platform",
@@ -4208,24 +4206,6 @@
       "owner": "services",
       "has_logging": true,
       "justification": "logs via logger/log_handled_exception"
-    },
-    {
-      "path": "foms/services/orders/order_import.py",
-      "lineno": 167,
-      "handler_type": "broad_exception",
-      "disposition": "FAIL_CLOSED",
-      "owner": "services",
-      "has_logging": false,
-      "justification": "re-raises"
-    },
-    {
-      "path": "foms/services/orders/order_import.py",
-      "lineno": 388,
-      "handler_type": "broad_exception",
-      "disposition": "FAIL_CLOSED",
-      "owner": "services",
-      "has_logging": false,
-      "justification": "re-raises"
     },
     {
       "path": "foms/services/orders/order_text_parser.py",

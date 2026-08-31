@@ -1,13 +1,13 @@
 """RELEASE-GATE-00: read-only FOMS remediation deploy-readiness verifier.
 
-최종 packet. §3 bug-audit remediation 전체(124 packet)가 배포 준비되었는지 **값 노출
+최종 packet. §3 bug-audit remediation 전체(123 packet)가 배포 준비되었는지 **값 노출
 없이**(카운트/bool/상태 토큰만) 종합 검증한다. **application mutation 절대 금지** —
 파일을 읽고 worker readiness collector(SELECT only)를 호출할 뿐, DB write·상태 변경이
 0 이다. 실패 항목이 하나라도 있으면 nonzero 로 종료해 deploy 를 막는다(fail-closed).
 
 검증 도메인과 exit code (report §5.2 line ~996 SSOT):
 
-* **artifact/config (exit 3)** — packet coverage(124 resolved·created_tests landed),
+* **artifact/config (exit 3)** — packet coverage(123 resolved·created_tests landed),
   CI workflow 존재, persona artifact, enforcement flag 안전 기본(well-formed),
   API leak 0(str(e)/print_exc inventory baseline 무성장), unresolved/silent broad
   catch 0(failopen inventory unclassified 0).
@@ -63,7 +63,7 @@ _API_LEAK_INV = Path("docs/harness/foms_api_error_leak_inventory.json")
 _WORKFLOWS = Path(".github/workflows")
 _PERSONA_DIR = Path("templates/partials/v3")
 
-EXPECTED_PACKETS = 124
+EXPECTED_PACKETS = 123
 REQUIRED_WORKFLOWS = ("ci.yml", "harness-ci.yml", "perf-gate.yml", "postgres-lane.yml")
 REQUIRED_PERSONAS = ("construction", "cs", "drawing", "production", "sales", "shipment")
 # core seed/reference data the app loads at runtime (tracked, not the generated holidays_*).
@@ -116,7 +116,7 @@ def exit_code_for(results: Sequence[CheckResult]) -> int:
 
 # --- artifact/config checks (exit 3) -----------------------------------------
 def check_packet_coverage(repo_root: Path, *, expected: int = EXPECTED_PACKETS) -> CheckResult:
-    """124 packet 이 모두 존재하고 각 created_tests 가 landed(파일 존재)인지 확인."""
+    """123 packet 이 모두 존재하고 각 created_tests 가 landed(파일 존재)인지 확인."""
     try:
         manifest = json.loads((repo_root / _PACKET_MANIFEST).read_text(encoding="utf-8"))
     except (OSError, ValueError):

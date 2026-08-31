@@ -33,7 +33,6 @@ _CATEGORIES = [
     ("telemetry", "/api/foms/rum", 2 * _KIB),
     ("telemetry", "/channel/wam/api/telemetry", 2 * _KIB),
     ("login", "/login", 16 * _KIB),
-    ("excel", "/upload", 10 * _MIB + 64 * _KIB),
     ("legacy", "/api/orders/1/attachments", 50 * _MIB + 256 * _KIB),
 ]
 
