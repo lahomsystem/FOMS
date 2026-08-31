@@ -600,8 +600,8 @@ def build_preview(session: Session, *, on_date: str) -> dict[str, Any]:
     """
     empty: dict[str, Any] = {"date": on_date, "count": 0, "eligible": 0, "blocked": 0,
                              "rows": [], "day_total": 0, "sent": 0, "failed": 0,
-                             "last_sent_at": "", "state": "none", "day_rows": [],
-                             "show": False}
+                             "last_sent_at": "", "last_sent_time": "", "state": "none",
+                             "day_rows": [], "show": False}
     try:
         targets = build_day_summary(session, on_date=on_date)
     except SQLAlchemyError as exc:  # 보조 정보라 화면을 막지 않는다(failopen — 로그로 남긴다)
@@ -621,11 +621,15 @@ def build_preview(session: Session, *, on_date: str) -> dict[str, Any]:
         state = "partial"
     else:
         state = "pending"
+    last_sent_at = sent_times[-1] if sent_times else ""
     return {"date": on_date, "count": len(rows), "eligible": eligible,
             "blocked": len(rows) - eligible, "rows": rows,
             "day_total": len(day_rows), "sent": sent,
             "failed": sum(1 for row in day_rows if row["state"] == "failed"),
-            "last_sent_at": sent_times[-1] if sent_times else "",
+            "last_sent_at": last_sent_at,
+            # 머리말은 "오늘"을 말하고 있으니 시:분만 쓴다. 날짜를 붙여 자르는 일을
+            # 템플릿에 시키면 두 화면이 각자 자르다 한쪽이 어긋난다.
+            "last_sent_time": last_sent_at[11:] if len(last_sent_at) >= 16 else "",
             "state": state, "day_rows": day_rows, "show": True}
 
 

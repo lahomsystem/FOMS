@@ -22,10 +22,10 @@
 | task | 상태 | 완료 기준 |
 |---|---|---|
 | **T1** `build_day_summary` 신설 + `select_targets`/`build_preview` 재배치 | DONE | 기존 select/execute/preview/strip 테스트 4파일 green + 신규 day-summary 테스트(전부 발송·수동 발송분·일부 발송·실패 표식·대상 0) green |
-| **T2** 진행 조회 GET 라우트 | PENDING | ADMIN/MANAGER 200 + 띠와 **같은 함수** 값, STAFF 차단, 쓰기 0 |
-| **T3** 워크벤치 띠 상태화 | PENDING | 완료/부분/실패/대기 4상태가 화면 문구로 갈린다 + 대상 0 이면 띠 없음 |
-| **T4** 실측 대시보드 띠 상태화 | PENDING | 같은 4상태, v3 풀페이지 버튼 0개 유지 |
-| **T5** 버튼 직후 진행 표시(alert 제거) + 폴링 | PENDING | 새로고침 없이 "N집 발송 완료"까지 바뀐다 |
+| **T2** 진행 조회 GET 라우트 | DONE | ADMIN/MANAGER 200 + 띠와 **같은 함수** 값, STAFF 차단, 쓰기 0 |
+| **T3** 워크벤치 띠 상태화 | DONE | 완료/부분/실패/대기 4상태가 화면 문구로 갈린다 + 대상 0 이면 띠 없음 |
+| **T4** 실측 대시보드 띠 상태화 | DONE | 같은 4상태, v3 풀페이지 버튼 0개 유지 |
+| **T5** 버튼 직후 진행 표시(alert 제거) + 폴링 | DONE | 새로고침 없이 "N집 발송 완료"까지 바뀐다 |
 | **T6** 게이트·푸시 | PENDING | `pre_push_smoke` exit 0 + smoke 사각 3종(policy manifest·ACTION_LABELS·docs-scope) 직접 실행 + deploy push 후 `gh run list` 전 워크플로 green |
 
 ## 기록
@@ -35,3 +35,11 @@
   발송 판정은 두 신호(우리 표식 + `extract_delivery.send_date`) — 워커 멱등 판정과 같은 자리를 읽는다.
   신규 `test_naver_bulk_dispatch_day_summary.py` 15개 + 기존 4파일 34개 = 49 passed.
   red-check: `_is_dispatched` 의 네이버 신호를 끄면 수동 발송분 테스트 2개가 빨개진다(확인함).
+- T2 DONE: `GET /admin/naver-ingest/bulk-dispatch/state` (ADMIN·MANAGER, 읽기 전용, `build_preview` 그대로).
+  매니페스트 2종은 POST/PUT/PATCH/DELETE 만 등재 대상이고 감사 스캐너도 GET 을 제외한다 — 확인함.
+- T3/T4 DONE: 두 띠 모두 `show`+`state` 로 갈라 렌더. 완료=초록 배지·부분=두 수 병기·실패=빨간 줄·대기=종전 문구.
+  표는 `day_rows`(오늘 전체)로 바꿔 발송된 집이 시각과 함께 남는다. 워크벤치 자산 핀 `?v=20260831e`(CSS·JS 동반).
+- T5 DONE: 성공 경로 `window.alert` 제거 — 띠 안 `[data-naver-bulk-dispatch-status]` 진행 문구 + 3초 간격
+  최대 20회 폴링. 종료 조건은 `eligible === 0`(남은 집 수로 재면 막힌 집이 있는 날 안 끝난다).
+- 검증: bulk_dispatch 관련 63개 + 워크벤치 325개 + 등재 계약 240개 + measurement 244개 green.
+  red-check 2건: 띠 게이트를 `count` 로 되돌리면 완료 상태 테스트 2개가 빨개진다(확인함).

@@ -1,8 +1,13 @@
 {#
-  오늘 실측한 네이버 건 — 발송처리 미리보기 (NAVER-BULKDISPATCH-01 T3).
+  오늘 실측한 네이버 건 — 발송처리 띠 (NAVER-BULKDISPATCH-02).
 
-  워크벤치의 같은 띠와 **같은 값**을 쓴다(`bulk_dispatch.select_targets`). 화면마다 따로
+  워크벤치의 같은 띠와 **같은 값**을 쓴다(`bulk_dispatch.build_preview`). 화면마다 따로
   세면 두 화면이 다른 수를 말한다 — 네이버 집 수가 45집 vs 43집으로 갈렸던 그 결함이다.
+
+  **대상이 0이 돼도 사라지지 않는다.** 1회차 운영(2026-08-31)에서 버튼을 누르고 새로고침
+  했더니 띠가 통째로 사라져 발송 여부를 화면으로 알 수 없었다. 사라짐이 "다 나갔다"와
+  "애초에 대상이 없었다"를 동시에 뜻했기 때문이다. 오늘 네이버 건이 하나라도 있으면
+  (`show`) 띠를 띄우고 안의 내용이 `state` 에 따라 바뀐다.
 
   **v3 풀페이지에서는 버튼을 감춘다.** 그 셸은 페이지 스크립트를 통째로 싣지 않아
   (`dashboard.html` 의 `shell_variant != 'v3'` 게이트), 버튼을 그리면 보이는데 안 눌린다 —
@@ -11,26 +16,46 @@
   변수: `bulk_dispatch` (없으면 아무것도 렌더하지 않는다 — 다른 화면에서 include 해도 안전),
   `naver_bulk_dispatch_enabled` (전역 킬스위치), `shell_variant`.
 #}
-{% if bulk_dispatch and bulk_dispatch.count %}
-<details class="alert alert-light border erp-naver-dispatch" data-foms-no-autodismiss
+{% if bulk_dispatch and bulk_dispatch.show %}
+{% set can_run = naver_bulk_dispatch_enabled and bulk_dispatch.eligible and shell_variant != 'v3' %}
+<details class="alert {% if bulk_dispatch.state == 'done' %}alert-success{% else %}alert-light{% endif %} border erp-naver-dispatch"
+         data-foms-no-autodismiss
          data-naver-dispatch-count="{{ bulk_dispatch.count }}"
+         data-naver-dispatch-state="{{ bulk_dispatch.state }}"
+         data-naver-dispatch-sent="{{ bulk_dispatch.sent }}"
          data-naver-dispatch-date="{{ bulk_dispatch.date }}">
   <summary class="fw-semibold">
+    {% if bulk_dispatch.state == 'done' %}
+    <i class="fas fa-circle-check text-success"></i>
+    오늘 {{ bulk_dispatch.sent }}집 네이버 발송처리 완료{% if bulk_dispatch.last_sent_time %}
+    <span class="text-muted small ms-1">({{ bulk_dispatch.last_sent_time }})</span>{% endif %}
+    <div class="text-muted small fw-normal mt-1">
+      오늘 실측한 네이버 건은 전부 나갔습니다 — 판매자센터를 다시 열 필요 없습니다.
+    </div>
+    {% else %}
     <i class="fas fa-truck text-primary"></i>
-    오늘 실측한 네이버 건 {{ bulk_dispatch.count }}집
+    오늘 실측한 네이버 건 {{ bulk_dispatch.day_total }}집
     <span class="text-muted small ms-1">
-      (보낼 수 있음 {{ bulk_dispatch.eligible }}집{% if bulk_dispatch.blocked %} ·
+      {% if bulk_dispatch.sent %}({{ bulk_dispatch.sent }}집 발송됨 ·
+      {{ bulk_dispatch.count }}집 남음 ·{% else %}({% endif %}
+      보낼 수 있음 {{ bulk_dispatch.eligible }}집{% if bulk_dispatch.blocked %} ·
       먼저 해결할 집 {{ bulk_dispatch.blocked }}집{% endif %})
     </span>
     <div class="text-muted small fw-normal mt-1">
       네이버에 발송처리할 대상입니다.
       발송처리 후에는 FOMS에서 취소할 수 없습니다(반품으로만 처리).
-      {% if not (naver_bulk_dispatch_enabled and bulk_dispatch.eligible and shell_variant != 'v3') %}
+      {% if not can_run %}
       <b>미리보기이며 아직 아무것도 나가지 않습니다.</b>
       {% endif %}
     </div>
+    {% endif %}
   </summary>
-  {% if naver_bulk_dispatch_enabled and bulk_dispatch.eligible and shell_variant != 'v3' %}
+  {% if bulk_dispatch.failed %}
+  <div class="alert alert-danger py-2 px-3 mt-2 mb-0" data-foms-no-autodismiss>
+    발송처리 실패 {{ bulk_dispatch.failed }}집 — 아래 사유를 해결한 뒤 다시 보내세요.
+  </div>
+  {% endif %}
+  {% if can_run %}
   <div class="mt-2">
     <button type="button" class="btn btn-sm btn-primary"
             data-naver-bulk-dispatch-run
@@ -40,18 +65,19 @@
     </button>
     <span class="text-muted small ms-2">누르면 되돌릴 수 없습니다.</span>
   </div>
+  <div class="small fw-semibold text-primary mt-2" data-naver-bulk-dispatch-status hidden></div>
   {% include 'partials/shared/naver_bulk_dispatch_button.html' %}
   {% endif %}
   <div class="table-responsive mt-2">
     <table class="table table-sm mb-0">
       <thead>
         <tr>
-          <th>주문</th><th>네이버 주문</th><th>실측</th><th>지금 보낼 수 있나</th>
+          <th>주문</th><th>네이버 주문</th><th>실측</th><th>발송</th>
         </tr>
       </thead>
       <tbody>
-        {% for row in bulk_dispatch.rows %}
-        <tr data-naver-dispatch-link-id="{{ row.link_id }}">
+        {% for row in bulk_dispatch.day_rows %}
+        <tr data-naver-dispatch-link-id="{{ row.link_id }}" data-naver-dispatch-row="{{ row.link_id }}">
           <td>
             {% for oid in row.order_ids %}
             <a href="{{ url_for('order_edit.edit_order', order_id=oid, open='erp-order') }}"
@@ -61,7 +87,7 @@
           </td>
           <td>
             {{ row.order_no or '-' }}
-            <div class="text-muted small">보낼 상품주문 {{ row.product_orders }}건</div>
+            <div class="text-muted small">{% if row.state == 'sent' %}발송 상품주문 {{ row.sent_orders }}건{% else %}보낼 상품주문 {{ row.product_orders }}건{% endif %}</div>
           </td>
           <td>
             {% if row.measurement_done %}
@@ -70,8 +96,14 @@
             <span class="badge bg-warning text-dark">완료 표시 없음</span>
             {% endif %}
           </td>
-          <td>
-            {% if row.eligible %}
+          <td data-naver-dispatch-state-cell>
+            {% if row.state == 'sent' %}
+            <span class="text-success small fw-semibold">발송됨</span>
+            <div class="text-muted small">{{ row.sent_at }}{% if row.sent_by_naver %} · 판매자센터에서 보낸 건입니다{% endif %}</div>
+            {% elif row.state == 'failed' %}
+            <span class="badge bg-danger">실패</span>
+            <div class="text-muted small">{{ row.failure_reason }}</div>
+            {% elif row.eligible %}
             <span class="text-muted small">보낼 수 있음</span>
             {% else %}
             <span class="badge bg-secondary">보낼 수 없음</span>
