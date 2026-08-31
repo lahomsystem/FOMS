@@ -30,13 +30,15 @@ railway run python scripts/ops/railway_bootstrap.py
 
 ### 방법 A: 로컬 DB가 SQLite인 경우 (`%USERPROFILE%\FOMS-runtime\localdb\furniture_orders.db` 등 — `FOMS_RUNTIME_OUTPUT_ROOT` 미설정 시 기본)
 
-SQLite 데이터를 Postgres로 바로 옮기는 것은 까다롭습니다. 가장 쉬운 방법은 **CSV 내보내기/가져오기** 또는 **어드민 페이지에서 엑셀 업로드** 기능을 사용하는 것입니다.
+SQLite 데이터를 Postgres로 바로 옮기는 것은 까다롭습니다. **CSV 내보내기/가져오기**를 사용하세요.
+
+> 참고: 예전에 있던 어드민 "엑셀 업로드" 기능은 2026-08-31 제거됐습니다(운영 마지막 사용 2025-05-28). 대량 등록이 다시 필요하면 `psql \copy` 또는 전용 스크립트를 쓰세요.
 
 **추천 방법 (엑셀 복원):**
 1. 로컬에서 앱을 실행 (`python app.py`)
 2. 어드민 페이지 또는 메인 페이지에서 "엑셀 다운로드"를 통해 현재 모든 주문 데이터를 엑셀로 저장.
 3. 배포된 Railway 앱(웹사이트)에 접속.
-4. "엑셀 파일 업로드" 기능을 통해 데이터 대량 등록.
+4. `psql \copy` 로 CSV 를 대상 테이블에 적재.
 
 ### 방법 B: 로컬 DB가 PostgreSQL인 경우
 

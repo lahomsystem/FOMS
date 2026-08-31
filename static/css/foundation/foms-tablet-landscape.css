@@ -827,8 +827,8 @@
     text-decoration: none;
     white-space: nowrap;
   }
-  /* pcbar 고스트 버튼(엑셀 임포트·지도 생성) — create(채움 primary)와 구분되는 보조 액션.
-     기존 기능 라우트 재사용(excel.upload_excel / erp_map.map_view). 48px 터치 타깃. */
+  /* pcbar 고스트 버튼(지도 생성) — create(채움 primary)와 구분되는 보조 액션.
+     기존 기능 라우트 재사용(erp_map.map_view). 48px 터치 타깃. */
   body.erp-mobile-v2-layout .foms-tdash-pcbar__btn {
     display: inline-flex;
     align-items: center;

@@ -46,7 +46,7 @@ EXPECTED_PACKETS = frozenset({
     "AS-BACKFILL-00", "STATE-CORE-00", "STATE-PROD-01", "STATE-PROD-ACTIONS-01", "CONSTRUCTION-BACKFILL-00",
     "STATE-CONST-CS-01", "STATE-DRAWING-01", "DRAWING-REVISION-BACKFILL-00", "STATE-AS-01", "STATE-QUEST-01",
     "DATA-01", "DATA-MEASUREMENT-01", "SHIPMENT-WRITER-01", "ORDER-CREATE-01", "ORDER-COPY-01",
-    "ORDER-IMPORT-01", "CHANNEL-INBOUND-ORDER-01", "STATE-FORM-01", "STATE-OVERLAY-01", "DRAFT-LIFECYCLE-01",
+    "CHANNEL-INBOUND-ORDER-01", "STATE-FORM-01", "STATE-OVERLAY-01", "DRAFT-LIFECYCLE-01",
     "STORAGE-WRITER-01", "STATE-LEGACY-01", "STATE-CONTROLS-01", "STATE-GUARD-01", "WIZ-01",
     "WIZ-PRESET-01", "WIZ-TRANSFER-01", "WIZ-DELETE-01", "UPLOAD-01", "FILE-LEGACY-AUDIT-00",
     "FILE-LEGACY-BACKFILL-01", "FILE-01", "UPLOAD-INTENT-01", "UPLOAD-02", "BLUEPRINT-01",
@@ -80,7 +80,7 @@ REV99_DEPENDS_ON = frozenset({
     "EVENT-REVERT-01", "STATE-MODEL-00", "STATE-AXES-REPAIR-00", "PRODUCTION-BACKFILL-00", "QUEST-BACKFILL-00",
     "AS-BACKFILL-00", "STATE-CORE-00", "STATE-PROD-01", "STATE-PROD-ACTIONS-01", "CONSTRUCTION-BACKFILL-00",
     "STATE-CONST-CS-01", "STATE-DRAWING-01", "DRAWING-REVISION-BACKFILL-00", "STATE-AS-01", "STATE-QUEST-01",
-    "DATA-01", "DATA-MEASUREMENT-01", "SHIPMENT-WRITER-01", "ORDER-CREATE-01", "ORDER-COPY-01", "ORDER-IMPORT-01",
+    "DATA-01", "DATA-MEASUREMENT-01", "SHIPMENT-WRITER-01", "ORDER-CREATE-01", "ORDER-COPY-01",
     "CHANNEL-INBOUND-ORDER-01", "STATE-FORM-01", "STATE-OVERLAY-01", "DRAFT-LIFECYCLE-01", "STORAGE-WRITER-01",
     "STATE-LEGACY-01", "STATE-CONTROLS-01", "STATE-GUARD-01", "WIZ-01", "WIZ-PRESET-01", "WIZ-TRANSFER-01",
     "WIZ-DELETE-01", "UPLOAD-01", "FILE-LEGACY-AUDIT-00", "FILE-LEGACY-BACKFILL-01", "FILE-01", "UPLOAD-INTENT-01",
@@ -185,7 +185,7 @@ def test_packet_set_exact(manifest):
         "missing": EXPECTED_PACKETS - keys,
         "extra": keys - EXPECTED_PACKETS,
     }
-    assert len(manifest) == 124
+    assert len(manifest) == 123
 
 
 def test_entry_schema(manifest):
@@ -220,7 +220,7 @@ def test_explicit_deps_reference_existing_packets(manifest):
 
 def test_graph_is_acyclic(manifest):
     order = toposort(manifest)
-    assert len(order) == 124
+    assert len(order) == 123
 
 
 def test_backfill_artifact_set_exact(manifest):
@@ -242,7 +242,7 @@ def test_packet_harness_rule(manifest):
 
 def test_rev99_depends_on_exact(manifest):
     got = manifest["REV-99"]["depends_on"]
-    assert len(got) == len(set(got)) == 111
+    assert len(got) == len(set(got)) == 110
     assert set(got) == REV99_DEPENDS_ON, {
         "missing": REV99_DEPENDS_ON - set(got),
         "extra": set(got) - REV99_DEPENDS_ON,

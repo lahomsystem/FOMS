@@ -720,11 +720,6 @@
       "policy_id": "STAFF_MUTATION",
       "rule": "/api/orders/<int:order_id>/change-reason"
     },
-    "excel.upload_excel": {
-      "mode": "guard",
-      "policy_id": "MANAGER_MUTATION",
-      "rule": "/upload"
-    },
     "foms_rum.ingest_rum_event": {
       "mode": "exempt",
       "reason": "anonymous RUM/Web-Vitals ingest - 무인증·부작용 없음(ingest policy).",

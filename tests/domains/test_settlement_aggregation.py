@@ -264,7 +264,7 @@ def test_population_excludes_non_erp_orders(app):
 
     `active_filter()` 는 ERP draft 만 잘라내므로 비-ERP 주문은 **그 필터를 통과한다**.
     `Order.is_erp_order.is_(True)` 를 빼면 완료 대시보드 베이스 쿼리와 파리티가 깨지고
-    엑셀 업로드분이 매출로 잡힌다.
+    비-ERP 주문이 매출로 잡힌다.
     """
     _seed_order(completion="2026-07-10", sd=_money(100000, 0), is_erp_order=True)
     _seed_order(completion="2026-07-10", sd=_money(9000000, 0), is_erp_order=False)

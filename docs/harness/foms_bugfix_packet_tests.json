@@ -397,7 +397,6 @@
    "OPS-ROUTE-01",
    "ORDER-COPY-01",
    "ORDER-CREATE-01",
-   "ORDER-IMPORT-01",
    "PACK-01",
    "PASSWORD-POLICY-01",
    "PGTEST-00",
@@ -2257,33 +2256,6 @@
   "deploy_check_ids": [],
   "deployment_evidence_mode": "HEARTBEAT"
  },
- "ORDER-IMPORT-01": {
-  "depends_on": [
-   "ORDER-CREATE-01",
-   "SIDEFX-WORKER-01"
-  ],
-  "dependency_classes": {
-   "packet_harness": true,
-   "backfill_artifact": false,
-   "write_guard": true,
-   "postgres": true
-  },
-  "commands": [
-   "python -m pytest tests/postgres/test_order_import.py -q"
-  ],
-  "existing_regressions": [
-   "tests/postgres/test_sidefx_outbox.py"
-  ],
-  "created_tests": [
-   {
-    "path": "tests/postgres/test_order_import.py",
-    "owner_packet": "ORDER-IMPORT-01"
-   }
-  ],
-  "browser_scenarios": [],
-  "deploy_check_ids": [],
-  "deployment_evidence_mode": "HEARTBEAT"
- },
  "CHANNEL-INBOUND-ORDER-01": {
   "depends_on": [
    "ORDER-CREATE-01",
@@ -2497,7 +2469,6 @@
    "DELETE-RETENTION-01",
    "ORDER-CREATE-01",
    "ORDER-COPY-01",
-   "ORDER-IMPORT-01",
    "CHANNEL-INBOUND-ORDER-01",
    "DRAFT-LIFECYCLE-01",
    "STATE-LEGACY-01",
