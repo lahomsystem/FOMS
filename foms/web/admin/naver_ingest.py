@@ -317,38 +317,25 @@ def _place_pending_group_count(db) -> int:
 
 
 def _dispatch_pending_clause() -> ColumnElement[bool]:
-    """'발송처리 전' 조건 — 우리 표식도 네이버 ``sendDate`` 도 없는 링크.
+    """'발송처리 전' 조건 — **정본은 서비스 계층**이다.
 
-    부분 인덱스 ``ix_external_order_link_dispatch_pending`` 의 조건식과 **글자까지 같아야**
-    한다. 조건식이 어긋나면 PostgreSQL 이 부분 인덱스를 증명하지 못해 통째로 무시하고,
-    그때 나오는 Seq Scan 은 "선택도가 낮아서"로 오독된다(2026-08-30 CEO 지적 1).
+    본문은 :func:`foms.services.integrations.naver_commerce.bulk_dispatch.dispatch_pending_clause`
+    로 옮겼다(2026-08-31, NAVER-BULKDISPATCH-01 T1). 일괄 발송처리 선별이 같은 술어를
+    써야 하는데, 서비스가 web 을 import 할 수는 없어서다. 여기 한 벌을 더 적으면 두 술어가
+    갈라지고, 그건 화면 큐(우리 표식만)와 워커(두 신호)가 이미 어긋나 있던 결함과 같은
+    모양이다.
 
-    :data:`models.JSONColumn` 의 베이스 타입이 ``JSON`` 이라(``JSON().with_variant(JSONB,…)``)
-    ``.as_string()`` 이 ``CAST(… AS VARCHAR)`` 를 붙인다 — 인덱스 조건식도 **그 모양**이어야
-    한다. 마이그레이션에 손으로 적지 말고 아래 렌더 결과를 그대로 붙인다::
-
-        coalesce(CAST(((external_order_links.triage_state -> 'fulfillment')
-                       ->> 'dispatched_at') AS VARCHAR), '') = ''
-        AND coalesce(CAST(((external_order_links.raw_snapshot -> 'delivery')
-                       ->> 'sendDate') AS VARCHAR), '') = ''
-
-    (``str(clause.compile(dialect=postgresql.dialect(),
-    compile_kwargs={"literal_binds": True}))`` 로 언제든 다시 뽑을 수 있다.)
-
-    **알려진 어긋남 1개(수용)**: :func:`mapping.extract_delivery` 는 최상위 ``delivery`` 가
-    없으면 ``productOrder.delivery`` → ``order.delivery`` 로 내려가지만 이 SQL 은 최상위만
-    본다. 수집 파이프라인이 저장하는 모양은 최상위라 실데이터는 같다. 경로 셋을
-    ``coalesce`` 로 잇지 않는 이유는 조건식이 세 배로 길어져 "정확히 일치" 규율이 먼저
-    깨지기 때문이다.
+    이 이름을 남겨 두는 이유: 이력 탭 칩과 **부분 인덱스 조건식 일치 계약 테스트**가
+    이 자리에서 import 한다.
 
     Returns:
         SQLAlchemy 불리언 식(``and_`` 두 조각).
     """
-    from sqlalchemy import and_, func
+    from foms.services.integrations.naver_commerce.bulk_dispatch import (
+        dispatch_pending_clause,
+    )
 
-    ours = ExternalOrderLink.triage_state["fulfillment"]["dispatched_at"].as_string()
-    naver = ExternalOrderLink.raw_snapshot["delivery"]["sendDate"].as_string()
-    return and_(func.coalesce(ours, "") == "", func.coalesce(naver, "") == "")
+    return dispatch_pending_clause()
 
 
 def _dispatch_pending_group_count(db) -> int:
