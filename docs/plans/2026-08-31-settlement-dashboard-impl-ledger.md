@@ -24,13 +24,13 @@
 | T5 | M1 | `foms/services/settlement_aggregation.py` 집계 서비스 구현 (D6 로 경로 교정) | `python -m pytest tests/domains/test_settlement_aggregation.py -q` green | **DONE** — 818줄·함수 31개, 전 함수 50줄 이하, `try/except` 0, 쓰기 0 |
 | T6 | M1 | 단위·계약 테스트: 모집단 술어·201건 캡 무관성·금액 파리티·이중계상 방지·채널 조인·aging 경계·완료일 미상 버킷 | 위 pytest green + `APP_OK` | **DONE** — 42 함수/67건 green, mutation 11종 전부 검출 |
 | T7 | M1 | M1 커밋 (pre_push_smoke exit 0) | 커밋 SHA + smoke exit 0 기록 | **DONE** — 아래 커밋 로그 |
-| T8 | M2 | 정책 `SETTLEMENT_DASHBOARD_READ` 등재 + 페이지/API 라우트 + 핸들러 내 가드 | 라우트 200/403 실동작 | PENDING |
-| T9 | M2 | 권한 매트릭스 테스트(허용 4·거부 5 × 전 GET 라우트) + 기존 게이트 무회귀 | `python -m pytest tests/domains/test_settlement_dashboard_api.py tests/domains/test_auth_finance.py tests/domains/test_write_guard.py -q` green | PENDING |
-| T10 | M2 | M2 커밋 | 커밋 SHA + smoke exit 0 | PENDING |
+| T8 | M2 | 정책 `SETTLEMENT_DASHBOARD_READ` 등재 + 페이지/API 라우트 + 핸들러 내 가드 | 라우트 200/403 실동작 | **DONE** — actor 9종 × 라우트 2종 실 HTTP 확인 |
+| T9 | M2 | 권한 매트릭스 테스트(허용 4·거부 5 × 전 GET 라우트) + 기존 게이트 무회귀 | 위 pytest green | **DONE** — 19 함수/62건 green, 기존 게이트 무회귀 |
+| T10 | M2 | M2 커밋 | 커밋 SHA + smoke exit 0 | **DONE** — 아래 커밋 로그 |
 | T11 | M3 | 템플릿 + CSS(?v 핀) + 차트 JS(defer·자체 SVG) + 네비 policy_can 은닉 | 핀·은닉 계약 pytest green + perf guard exit 0 | PENDING |
 | T12 | M3 | 실화면 검증(gstack browse 스테이징): 콘솔 에러 0, 차트 렌더, 시드 주문 기반 | 스크린샷 + 콘솔 로그 기록 | PENDING |
 | T13 | M3 | M3 커밋 + push + 전 워크플로 CI green(gh run list 나열 판정) | CI 워크플로 전량 green 기록 | PENDING |
-| T14 | M4 | 성능 실측: 집계 쿼리 EXPLAIN Seq Scan 없음 + 페이지 TTFB | 수치 기록 + 예산 판정 명시 | PENDING |
+| T14 | M4 | 성능 실측: 집계 쿼리 EXPLAIN Seq Scan 없음 + 페이지 TTFB | 수치 기록 + 예산 판정 명시 | **부분 DONE** — 커널을 운영 DB에 물려 실측(12개월 day 0.696초). 잔여: 스테이징 페이지 TTFB + EXPLAIN |
 | T15 | M4 | failopen 인벤토리 재생성 필요 여부 판정(신규 try/except 시) | 판정 근거 + 필요 시 재생성 커밋 | PENDING |
 
 ## 실측 기록 (Q1·Q2) — 2026-08-31, 운영 DB 읽기전용 1회
@@ -205,7 +205,60 @@ JSONB 파싱 비용이 지배적이지 않다. 12개월 상한(§4.2)이면 커�
 | T | SHA | 내용 |
 |---|---|---|
 | T0 | `f5a292ca` | docs(settlement): 목업 5·리서치 5·스펙·원장 2 등재 (워크트리 `session/settle-dash`) |
-| T5~T7 | (아래) | feat(settlement): M1 집계 서비스 + 계약 테스트 |
+| T5~T7 | `d965677c` | feat(settlement): M1 집계 서비스 + 계약 테스트 |
+| T8~T10 | (아래) | feat(settlement): M2 권한 정책 + 페이지/API 라우트 |
+
+### M2 결과
+
+라우트 2종(전부 GET):
+
+| 경로 | 엔드포인트 | 거부 시 |
+|---|---|---|
+| `GET /erp/settlement` | `erp_settlement_page.erp_settlement_dashboard` | `abort(403)` → 403 HTML |
+| `GET /api/settlement/aggregates` | `settlement_api.api_settlement_aggregates` | 403 + `{'success': False, 'data': None, 'error': ...}` |
+
+스펙 URL 은 그대로 지켜졌다(파일 경로만 D6 로 교정, URL 은 `url_prefix` 소관).
+API 파라미터는 스펙의 `month=YYYY-MM` 대신 `month_from`/`month_to`/`granularity` — 전월 비교선(§7 필터바)에 범위가 필요하다.
+
+**실 HTTP 권한 매트릭스** (actor 9종 × 라우트 2종):
+허용 4종(ADMIN·MANAGER·STAFF+CS·STAFF+SALES) 전부 200. 거부 5종 전부 403.
+미인증은 `@login_required` 가 302 → `/login`.
+
+예외 1건 기록: `(STAFF, CONSTRUCTION)` 은 페이지에서 403 이 아니라 **302** 다.
+원인은 정산과 무관한 선행 플랫폼 가드 `foms/platform/http.py` `_erp_construction_team_restrict` —
+`/erp/*` 페이지 이동을 allowlist 로 제한해 정산 핸들러의 `abort(403)` 에 **도달조차 못 한다**.
+같은 actor 의 **API 는 정상 403**(가드가 `/api/` 를 제외). 결과는 어느 쪽이든 접근 불가라 기능상 문제 없고,
+공용 가드 수정은 범위 밖이라 손대지 않았다. 이 예외를 전용 테스트로 명시 고정했다 —
+다른 거부 actor 가 302 로 새면 즉시 red.
+
+### M2 에서 CEO 가 직접 고친 것 — `policy_can` 이 만든 hot path 회귀
+
+진입 링크 은닉을 위해 `policy_can('SETTLEMENT_DASHBOARD_READ')` 를 공용 `templates/partials/shared/erp_sub_nav.html`
+에 넣었는데, 이 파일은 **템플릿 11곳**에 실린다. 그런데 `_template_policy_can` → `_current_user()` 가
+`g.current_user`(이미 `foms/platform/http.py` 의 `_set_current_user` before_request 가 채워 둔 값)를 재사용하지 않고
+`get_user_by_id()`(무캐시 DB 쿼리)를 **다시** 불렀다. 즉 ERP 전 표면의 렌더 비용이 늘었다.
+
+근본 수정: `_current_user()` 가 `g.current_user` 를 먼저 본다(없을 때만 조회 — 폴백 유지).
+
+**실측 (ERP 완료 대시보드 1회 렌더의 `FROM users` 쿼리 수)**
+```
+수정 전(매번 재조회)      status=200  users SELECT=4
+수정 후(g.current_user)  status=200  users SELECT=2
+```
+정산 화면만이 아니라 `policy_can` 을 쓰는 **기존 표면 전부**가 같이 이득을 본다.
+
+### M2 검증 기록 (CEO 직접 실행)
+```
+cd c:/tmp/foms-s-settle-dash
+python -c "import app; print('APP_OK')"                                    → APP_OK
+python -m pytest tests/domains/test_settlement_dashboard_api.py \
+  tests/domains/test_auth_finance.py tests/domains/test_settlement_aggregation.py \
+  tests/domains/test_write_guard.py tests/domains/test_auth_enforcement.py -q  → 203 passed
+powershell scripts/ops/pre_push_smoke.ps1                                  → 330 passed / exit 0
+```
+
+**manifest 등재 불요 — 실행으로 확인**: write guard·mutation policy manifest 게이트는 url_map 중
+POST/PUT/PATCH/DELETE endpoint 만 모집단으로 잡는다. 신규 2종은 GET 전용이라 미등재가 정상이고 두 스위트 green.
 
 ### M1 검증 기록 (CEO 직접 실행, 서브에이전트 보고와 별개)
 
@@ -224,6 +277,45 @@ powershell scripts/ops/pre_push_smoke.ps1                          → 330 passe
 변경분이 **건드리지도 않은 파일들(`naver_commerce/fulfillment.py`·`web/admin/naver_ingest.py`)의 줄번호**였다.
 원본으로 되돌린 뒤 드리프트 게이트 3종 44건이 그대로 통과함을 확인 → 불필요한 변경이라 커밋에서 제외.
 (신규 모듈에 `try/except` 가 0개라 애초에 인벤토리 등재 대상이 아니다.)
+
+### M1 운영 실데이터 검증 (2026-08-31, 읽기전용·쓰기 0)
+
+합성 테스트가 못 잡는 실데이터 결함을 잡기 위해 커널을 **운영 DB에 직접 물려** 돌렸다.
+SQLAlchemy 엔진에 `SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY` 를 connect 이벤트로 강제.
+
+**성능 (한국↔싱가포르 공인망 경유 — 운영 내부망은 더 짧다)**
+
+| 호출 | 시간 | 버킷 |
+|---|---|---|
+| 6개월 month | 3.004초(첫 호출·연결 워밍업 포함) | 6 |
+| 6개월 week | 0.710초 | 32 |
+| 6개월 day | 0.832초 | 184 |
+| **12개월 day (최대 범위)** | **0.696초** | 365 |
+
+→ **§4.2 성능 가드 충족.** 스펙 §10 Q4(플랫 컬럼/집계 테이블)는 착수 불요 확정.
+M4 는 스테이징 TTFB·EXPLAIN 만 남는다.
+
+**불변식 5종 통과**: 버킷 count 합 = `completed_count` / 버킷 revenue 합 = `revenue` /
+채널 count 합 = `completed_count` / `issued+pending` = `completed_count` / aging 합(+unknown) = `receivable_count`.
+
+**운영 실측값 (2026-03~2026-08)**: 매출 15.8억 / 1,772건 / 평균 89.4만원 /
+미수 760건 10.86억 / 수금 근사 7.15억 / 과입금 160만원 / 완료일 미상 85건.
+aging 은 `D91_PLUS` 가 491건 6.0억으로 압도적 — 화면에서 이 버킷이 지배적으로 보일 것을 M3 이 감안해야 한다.
+
+**앞선 psycopg2 실측과의 차이 2건 — 전부 규명, 커널이 맞다**
+
+1. **완료일 미상 85 vs 254**: 254 = ERP 85 + **비-ERP 169**. 앞선 측정에는 `is_erp_order` 조건이 없었다.
+   커널은 D4 대로 비-ERP 를 제외한다. 금액이 양쪽 동일(44,109,370원)했던 이유는 그 169건이 전부 출고가 미산출이라 0 을 기여했기 때문.
+2. **미수 760 vs 759**: 같은 술어를 같은 모집단에 돌려 대조한 결과 **두 술어가 갈리는 행 0개**.
+   모집단 자체가 2,168 → 2,169 로 늘었다(약 1시간 간격의 라이브 데이터 증가). 로직 차이가 아니다.
+
+**부수 확정 — M2 미결 #1 해소**: `is_erp_order` 조건이 출고가 미산출 191건을 **전부** 걷어낸다.
+**ERP 모집단 1,978건 중 출고가 `None` 은 0건.** 따라서 `avg_shipping_price` 가 미산출 건 때문에 낮아지는 문제는
+현재 운영 데이터에 존재하지 않는다. (구조적으로는 여전히 가능하므로 화면 각주 여부는 M3 판단으로 남긴다.)
+
+**부수 확정 — 정산 처리 현황 카드의 실제 렌더값**: `issued_count` 0 / `pending_count` 1,772 /
+현금영수증 요청 **98건**(저장 키 기준 SQL 로는 0 이었으나 파생 규칙 `_cash_receipt_state` 로는 98건 — 파생과 저장 키가 다르다는 원장 주석이 맞았다) /
+발행 0 / AS 유상 2건 18만원 / 부서 차감 5종 전부 0.
 
 ### M1 설계 확정 사항 (브리프에 없어 구현 중 정한 것)
 
@@ -254,9 +346,8 @@ powershell scripts/ops/pre_push_smoke.ps1                          → 330 passe
   본 세션은 워크트리에서만 작업해 이 문제를 건드리지 않았다. **승격 여부는 사용자 결정 사항.**
 
 - **M2 로 넘기는 미결 5건 (M1 구현 중 드러남)**
-  1. **출고가 미산출 건수가 반환값에 없다.** 운영 191건이 `revenue` 에서는 빠지고 `completed_count` 에는 들어가
-     `avg_shipping_price` 가 그만큼 낮게 나온다. 스펙 §3 스키마에 키가 없어 노출하지 않았다 —
-     화면 각주 또는 `shipping_price_unknown_count` 키 추가를 M2 에서 결정.
+  1. ~~**출고가 미산출 건수가 반환값에 없다.**~~ **해소** — 운영 실검증 결과 그 191건은 전부 비-ERP 주문이었고
+     D4(`is_erp_order`)가 걷어낸다. ERP 모집단 1,978건 중 출고가 `None` 은 0건. 스키마 변경 불요.
   2. **월 라벨에 연도가 없다**(`"7월"`). 해를 걸치는 12개월 범위에서 축 라벨이 중복된다.
   3. **`SETTLEMENT_DEPARTMENTS` 5종 밖 부서 코드의 차감액은 집계에서 빠진다.** 쓰기 API 가 400 으로 막으므로
      앱 경로로는 생길 수 없으나 과거·수동 데이터에는 가능. `기타` 행 필요 여부 결정.

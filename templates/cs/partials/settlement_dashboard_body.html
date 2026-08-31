@@ -1,0 +1,41 @@
+{# 정산 대시보드 body (SETTLE-DASH-01 M2 스텁).
+   ERP 셸 탭 요청은 이 partial 만 받고, 전체 문서 요청은 cs/settlement_dashboard.html 이
+   같은 partial 을 감싼다(완료 대시보드와 같은 3종 세트 관례).
+   화면 내용(KPI 카드·차트·필터)과 전용 CSS/JS 는 M3 몫이다. 데이터는 아래
+   data-aggregates-url 의 집계 API 에서 가져온다 — JSON.parse('{{ ... |tojson }}') 금지. #}
+<div class="container-fluid erp-dashboard erp-pro erp-settlement"
+  data-foms-settlement-dashboard="1"
+  data-aggregates-url="{{ url_for('settlement_api.api_settlement_aggregates') }}">
+  <header class="erp-pro-header">
+    <h1 class="erp-pro-header__title">
+      <i class="fas fa-coins"></i>
+      <span>정산 대시보드</span>
+    </h1>
+    <div class="erp-pro-header__actions">
+      <a class="erp-pro-btn erp-pro-btn--secondary" href="{{ url_for('erp_completion_page.erp_completion_dashboard') }}">
+        <i class="fas fa-clipboard-check"></i>
+        <span class="d-none d-md-inline">시공 완료</span>
+      </a>
+      <a class="erp-pro-btn erp-pro-btn--secondary" href="{{ url_for('order_pages.index') }}">
+        <i class="fas fa-home"></i>
+        <span class="d-none d-md-inline">홈</span>
+      </a>
+    </div>
+  </header>
+  {% set erp_sub_nav_active = 'settlement' %}
+  {% include 'partials/shared/erp_sub_nav.html' %}
+
+  <div class="erp-pro-card mt-3">
+    <div class="erp-pro-card__header foms-section-header section-header">
+      <h3 class="erp-pro-card__title foms-section-header__title">
+        <i class="fas fa-chart-column"></i>
+        매출·미수 집계
+      </h3>
+    </div>
+    <div class="erp-pro-card__body foms-shell-body">
+      <div id="foms-settlement-root" class="foms-settlement-root" aria-live="polite">
+        <p class="text-muted mb-0">집계 화면은 준비 중입니다.</p>
+      </div>
+    </div>
+  </div>
+</div>

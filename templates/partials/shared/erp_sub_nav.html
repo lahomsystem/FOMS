@@ -1,4 +1,4 @@
-{# ERP 서브 내비. erp_sub_nav_active: 'dashboard' | 'measurement' | 'production' | 'construction' | 'as' | 'shipment' | 'drawing_workbench' #}
+{# ERP 서브 내비. erp_sub_nav_active: 'dashboard' | 'measurement' | 'production' | 'construction' | 'as' | 'shipment' | 'drawing_workbench' | 'completion' | 'settlement' | 'history' #}
 {# 시공팀(CONSTRUCTION)은 출고·시공만 표시 #}
 {% set _active = erp_sub_nav_active | default('dashboard') %}
 {% set _construction_only = current_user and (current_user.team or '') == 'CONSTRUCTION' %}
@@ -51,6 +51,15 @@
     <i class="fas fa-clipboard-check"></i>
     <span>시공 완료</span>
   </a>
+  {# 정산 대시보드는 전사 매출·미수 총액을 보여준다 — backend 와 **같은 policy_id** 로 은닉한다
+     (은닉은 게이트가 아니다; 실제 차단은 라우트 핸들러의 user_can 판정이다). #}
+  {% if policy_can('SETTLEMENT_DASHBOARD_READ') %}
+  <a class="erp-pro-nav-item {% if _active == 'settlement' %}active{% endif %}"
+    href="{{ url_for('erp_settlement_page.erp_settlement_dashboard') }}">
+    <i class="fas fa-coins"></i>
+    <span>정산</span>
+  </a>
+  {% endif %}
   <a class="erp-pro-nav-item {% if _active == 'history' %}active{% endif %}"
     href="{{ url_for('erp_history.history_dashboard') }}">
     <i class="fas fa-history"></i>
