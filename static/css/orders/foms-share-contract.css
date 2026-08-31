@@ -759,3 +759,13 @@
 .foms-share-contract__export-clone .foms-share-contract__copy {
   display: none !important;
 }
+
+/* 인쇄 버튼은 PC 에서만 (2026-08-31) ────────────────────────────────────────
+   폰에서는 쓸모가 없다 — 카카오톡 인앱 웹뷰에는 인쇄 구현 자체가 없고, 모바일
+   브라우저에서도 고객이 쓰는 길은 '이미지로 저장'이다. 마크업은 남겨 두고
+   (PC 에서는 그대로 쓴다) 좁은 화면에서만 감춘다. */
+@media (max-width: 599.98px) {
+  .foms-share-contract__actions [data-share-print] {
+    display: none;
+  }
+}

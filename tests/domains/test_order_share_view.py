@@ -338,8 +338,8 @@ def test_view_estimate_has_copy_and_png_and_amount_and_asset_pins(client, db, r2
     assert 'erp-est-col--amount' in body
     assert '금액 <span class="erp-est-th-vat">(VAT 포함)</span>' in body
     # (d) 신규 자산 ?v 핀(캐시 무효화 — 핀 없이 배포하면 옛 스타일이 남는다).
-    assert 'css/orders/foms-share-contract.css?v=20260831b' in body
-    assert 'js/orders/share-contract.js?v=20260831b' in body
+    assert 'css/orders/foms-share-contract.css?v=20260831c' in body
+    assert 'js/orders/share-contract.js?v=20260831c' in body
 
 
 def test_view_estimate_has_no_inline_style_or_script(client, db, r2):
@@ -439,8 +439,8 @@ def test_view_bundle_uses_same_contract_partial(client, db, r2):
     assert 'data-share-copy-value="461-082990-04-011"' in body
     assert 'data-share-contract-save' in body
     assert 'erp-est-col--amount' in body
-    assert 'css/orders/foms-share-contract.css?v=20260831b' in body
-    assert 'js/orders/share-contract.js?v=20260831b' in body
+    assert 'css/orders/foms-share-contract.css?v=20260831c' in body
+    assert 'js/orders/share-contract.js?v=20260831c' in body
     assert 'window.print()' not in body
 
 
@@ -956,3 +956,14 @@ def test_erp_gallery_keeps_its_own_wording():
     assert '도면 미리보기' in html
     assert '좌우 스와이프로 승인' in html
     assert '16:9' in html
+
+
+def test_contract_print_button_is_desktop_only():
+    """인쇄 버튼은 좁은 화면에서 감춘다 — 폰에서는 '이미지로 저장'이 유일한 길이다."""
+    import pathlib
+    root = pathlib.Path(__file__).resolve().parents[2]
+    css = (root / 'static/css/orders/foms-share-contract.css').read_text(encoding='utf-8')
+    block = css[css.index('인쇄 버튼은 PC 에서만'):]
+    assert '@media (max-width: 599.98px)' in block
+    assert '[data-share-print]' in block
+    assert 'display: none' in block
