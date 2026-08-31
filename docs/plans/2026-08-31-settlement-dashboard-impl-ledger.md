@@ -29,9 +29,9 @@
 | T10 | M2 | M2 커밋 | 커밋 SHA + smoke exit 0 | **DONE** — 아래 커밋 로그 |
 | T11 | M3 | 템플릿 + CSS(?v 핀) + 차트 JS(defer·자체 SVG) + 네비 policy_can 은닉 | 핀·은닉 계약 pytest green + perf guard exit 0 | **DONE** — 렌더 계약 77건 + perf guard 5건 green |
 | T12 | M3 | 실화면 검증: 콘솔 에러 0, 차트 렌더, 시드 주문 기반 | 스크린샷 + 콘솔 로그 기록 | **DONE (로컬)** — 아래 §M3 실화면 검증. 스테이징 재확인은 배포 후 |
-| T13 | M3 | M3 커밋 + push + 전 워크플로 CI green(gh run list 나열 판정) | CI 워크플로 전량 green 기록 | PENDING |
+| T13 | M3 | M3 커밋 + push + 전 워크플로 CI green(gh run list 나열 판정) | CI 워크플로 전량 green 기록 | **커밋 DONE / push 사용자 승인 대기** |
 | T14 | M4 | 성능 실측: 집계 쿼리 EXPLAIN Seq Scan 없음 + 페이지 TTFB | 수치 기록 + 예산 판정 명시 | **부분 DONE** — 커널을 운영 DB에 물려 실측(12개월 day 0.696초). 잔여: 스테이징 페이지 TTFB + EXPLAIN |
-| T15 | M4 | failopen 인벤토리 재생성 필요 여부 판정(신규 try/except 시) | 판정 근거 + 필요 시 재생성 커밋 | PENDING |
+| T15 | M4 | failopen 인벤토리 재생성 필요 여부 판정(신규 try/except 시) | 판정 근거 + 필요 시 재생성 커밋 | **DONE — 재생성 불요** |
 
 ## 실측 기록 (Q1·Q2) — 2026-08-31, 운영 DB 읽기전용 1회
 
@@ -360,6 +360,23 @@ aging 은 `D91_PLUS` 가 491건 6.0억으로 압도적 — 화면에서 이 버�
 | 출고가 `None` | revenue 에서 제외, `completed_count` 에는 포함 | §3 이 `avg = revenue // completed_count` 로 못박음 |
 | import 순서 | `foms.services.orders.*` 를 `erp_display` 앞에 배치 | 기존 순환(`erp_display → erp_policy → services.orders → erp_order_detail → erp_display`) 때문. 이 배치라야 `import app` 없이 단독 import 성공 |
 | services → web import | 허용 | 파리티를 위해 `completion_dashboard` 의 `_cash_receipt_state`·`_completion_month_key`·`SETTLEMENT_DEPARTMENT_OPTIONS` 를 **재사용**(복제 금지). 저장소 선례 5건(`erp_permissions`·`context_processors`·`order_edit_view_context` 등) |
+
+## 현재 상태 요약 (2026-08-31 마감 시점)
+
+**M1·M2·M3 구현 완료, 커밋 4개. push 는 사용자 승인 대기.**
+
+- 워크트리 `c:\tmp\foms-s-settle-dash`, 브랜치 `session/settle-dash` (base `origin/deploy` 98ec0bfa)
+- 커밋: `f5a292ca`(docs) → `d965677c`(M1) → `35a2717a`(M2) → `9340e64e`(M3)
+- 테스트 신규 3파일 **206건** (집계 67 · 권한 62 · 렌더 77), 전부 green
+- `pre_push_smoke` 330 passed exit 0, perf guard green, 드리프트·계약 게이트 무회귀
+- **인벤토리 3종 재생성 불요** — 신규 코드에 broad `except` 0개, 쓰기 0개, 신규 라우트는 GET 전용이라
+  write guard·mutation policy manifest 등재 대상이 아니다(게이트 실행으로 확인)
+
+**남은 것**
+1. `deploy` push + `gh run list` 전 워크플로 green 확인 (T13)
+2. 스테이징 실화면 재확인 — 로컬에서는 끝냈다 (T12 스테이징분)
+3. 스테이징 페이지 TTFB + `EXPLAIN` (T14 잔여). 커널 자체는 운영 실측으로 이미 통과
+4. production 승격 — 별도 사용자 승인 사항
 
 ## BLOCKED / 미결
 
