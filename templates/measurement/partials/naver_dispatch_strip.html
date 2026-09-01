@@ -70,13 +70,14 @@
   #}
   {% if bulk_dispatch.unlinked %}
   <div class="alert alert-warning py-2 px-3 mt-2 mb-0" data-foms-no-autodismiss>
-    <div class="fw-semibold">붙이면 대상이 되는 집 {{ bulk_dispatch.unlinked }}집 — 수집은 됐는데 주문에 안 붙었습니다(전화 일치).</div>
+    <div class="fw-semibold">붙이면 대상이 되는 집 {{ bulk_dispatch.unlinked }}집 — 수집은 됐는데 주문에 안 붙었습니다.</div>
     <ul class="mb-0 mt-1 small">
       {% for row in bulk_dispatch.unlinked_rows %}
       <li>
         {{ row.order_no }} · 상품주문 {{ row.links }}건 →
         <a href="{{ url_for('order_edit.edit_order', order_id=row.order_id, open='erp-order') }}"
            target="_blank" rel="noopener">#{{ row.order_id }} {{ row.customer }}</a>
+        <span class="text-muted">{{ row.reason }}</span>
       </li>
       {% endfor %}
     </ul>

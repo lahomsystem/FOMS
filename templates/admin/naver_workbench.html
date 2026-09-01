@@ -303,7 +303,7 @@
         #}
         {% if bulk_dispatch.unlinked %}
         <div class="wb-bulkdispatch__linkline">
-            붙이면 대상이 되는 집 {{ bulk_dispatch.unlinked }}집 — 수집은 됐는데 주문에 안 붙었습니다(전화 일치).
+            붙이면 대상이 되는 집 {{ bulk_dispatch.unlinked }}집 — 수집은 됐는데 주문에 안 붙었습니다.
             <ul class="wb-bulkdispatch__linklist">
                 {% for row in bulk_dispatch.unlinked_rows %}
                 <li>
@@ -311,6 +311,7 @@
                     →
                     <a href="{{ url_for('order_edit.edit_order', order_id=row.order_id, open='erp-order') }}"
                        target="_blank" rel="noopener">#{{ row.order_id }} {{ row.customer }}</a>
+                    <span class="wb-ghost__dim">{{ row.reason }}</span>
                 </li>
                 {% endfor %}
             </ul>
