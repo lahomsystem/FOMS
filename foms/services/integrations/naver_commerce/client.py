@@ -562,6 +562,51 @@ class NaverCommerceClient:
             headers={"Content-Type": "application/json"},
         )
 
+    def approve_cancel_product_order(self, product_order_id: str) -> dict:
+        """판매자 취소 **승인** — 구매자가 낸 취소 요청을 승인한다 (T9-G1).
+
+        **환불이 확정된다. 되돌리는 엔드포인트가 없다.**
+
+        **규격 출처**: 커머스API센터 공개 문서(2026-09-01 원문 확인) —
+        ``apicenter.commerce.naver.com/llms/`` 의
+        ``post-v1-pay-order-seller-product-orders-productOrderId-claim-cancel-approve.md``
+        와 ``wiki-주문-주문-상태-변경-흐름도.md``. 로그인·JS 없이 열리는 갈래다.
+
+        **body 를 보내지 않는다.** 문서의 요청 파라미터 표는 Path 의 ``productOrderId``
+        하나뿐이고 요청 본문 절이 아예 없다("요청은 path의 productOrderId만으로 동작하며
+        별도 본문이 필요 없고"). :meth:`approve_return_product_order` 와 같은 모양이다.
+        2026-08-27 원장의 ``approvalData`` 근거는 폐기됐다 — 없는 필드를 지어내
+        불가역 API 에 보내지 않는다.
+
+        **출발 상태**: 흐름도 분기 C 가 ``CANCEL_REQUEST``(발주확인 후 취소요청)에서
+        ``approveCancelApplication`` → 환불처리 → ``CANCEL_DONE`` 을 적고, 분기 B 가
+        환불처리 불가로 ``CANCELING`` 에 머문 건도 같은 호출로 재판정한다고 적는다.
+        그 밖의 상태는 400 이다 — 상태를 먼저 읽고 건다.
+
+        **취소 거부 API 는 존재하지 않는다.** 취소 철회는 구매자만 한다(흐름도 분기 C
+        "구매자 취소철회" → ``CANCEL_REJECT``). 판매자가 거절하는 경로를 만들지 않는다.
+
+        **이미 승인된 건·취소 요청이 없는 건은 처리되지 않는다** — 예외가 아니라
+        ``data.failProductOrderInfos`` 로 온다. 응답이 접수·반품 승인과 **동형**이라
+        호출자가 ``_split_result`` 를 그대로 쓴다.
+
+        Args:
+            product_order_id: 승인할 ``productOrderId``.
+
+        Returns:
+            응답 payload(원본). 건별 성공/실패는 ``data.successProductOrderIds`` 와
+            ``data.failProductOrderInfos`` 로 온다.
+
+        Raises:
+            ValueError: 상품주문번호가 비었을 때(빈 요청으로 불가역 API 를 때리지 않는다).
+        """
+        pid = str(product_order_id or "").strip()
+        if not pid:
+            raise ValueError("승인할 상품주문번호가 없습니다.")
+        return self._request(
+            "POST", f"/v1/pay-order/seller/product-orders/{pid}/claim/cancel/approve",
+        )
+
     def request_return_product_order(self, product_order_id: str, *, reason: str,
                                      collect_method: str,
                                      detail: Optional[str] = None,

@@ -356,6 +356,73 @@ def enqueue_naver_return_reject(link_id: int, reason: str,
         return False
 
 
+def enqueue_naver_cancel_approve(link_id: int,
+                                 actor_user_id: Optional[int] = None) -> bool:
+    """구매자 취소요청 **승인** job enqueue (T9-G1).
+
+    접수·승인·거부와 **같은 출구**(WORKER)·같은 태스크(``run_naver_fulfillment_task``,
+    ``action="cancel-approve"``)를 쓴다 — 실패 사유를 DB 에 남기고 커밋하는 규율이 그 자리에
+    이미 있고, 갈래를 새로 파면 그 규율이 두 벌이 된다.
+
+    **사유가 없다.** 네이버 취소 승인은 path 파라미터만 받는다(공식 문서 2026-09-01).
+    보낼 것이 없으니 화이트리스트로 거를 것도 없다 — 대신 서비스가 호출 직전에 클레임
+    상태와 보류값을 한 번 더 본다.
+
+    큐가 없으면 False 를 돌려주고 화면이 "지금은 승인할 수 없다"를 그대로 보여준다 —
+    **불가역 경로라 조용히 성공한 척하는 것이 제일 나쁘다**.
+
+    Args:
+        link_id: 기준 수집 링크 id(그 링크가 속한 집 전체가 함께 처리된다).
+        actor_user_id: 화면에서 누른 사람(기록용).
+
+    Returns:
+        큐에 넣었으면 True.
+    """
+    q = get_rq_queue()
+    if not q:
+        return False
+    try:
+        q.enqueue(
+            f"{_TASK_PATH_PREFIX}.run_naver_fulfillment_task",
+            int(link_id), "cancel-approve", actor_user_id,
+            job_timeout="5m",
+        )
+        return True
+    except Exception as e:
+        logger.error(f"[RQ] enqueue_naver_cancel_approve error: {e}", exc_info=True)
+        return False
+
+
+def enqueue_naver_return_approve(link_id: int,
+                                 actor_user_id: Optional[int] = None) -> bool:
+    """반품 **승인** job enqueue — 접수와 분리된 독립 경로 (T9-G2).
+
+    접수 경로(:func:`enqueue_naver_return` 의 ``approve=True``)와 **다른 action** 을 쓴다.
+    같은 action 으로 묶으면 감사 원장에서 "접수하면서 승인한 것"과 "이미 있던 반품을
+    승인한 것"이 안 갈린다 — 환불을 누가 냈는지 읽으려는 목적이 무너진다.
+
+    Args:
+        link_id: 기준 수집 링크 id(그 링크가 속한 집 전체가 함께 처리된다).
+        actor_user_id: 화면에서 누른 사람(기록용).
+
+    Returns:
+        큐에 넣었으면 True.
+    """
+    q = get_rq_queue()
+    if not q:
+        return False
+    try:
+        q.enqueue(
+            f"{_TASK_PATH_PREFIX}.run_naver_fulfillment_task",
+            int(link_id), "return-approve", actor_user_id,
+            job_timeout="5m",
+        )
+        return True
+    except Exception as e:
+        logger.error(f"[RQ] enqueue_naver_return_approve error: {e}", exc_info=True)
+        return False
+
+
 def enqueue_naver_backfill(start_iso: str, end_iso: str, dry_run: bool = False):
     """네이버 과거 주문 소급 수집(백필) job enqueue (NAVER-INGEST-BACKFILL).
 

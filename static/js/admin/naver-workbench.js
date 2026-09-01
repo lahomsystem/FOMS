@@ -114,6 +114,8 @@
         'wb-cancel-confirm': submitCancel,
         'wb-return-confirm': submitReturn,
         'wb-reject-confirm': submitReturnReject,
+        'wb-cancel-approve-confirm': submitCancelApprove,
+        'wb-return-approve-confirm': submitReturnApprove,
         'wb-reject-save': saveRejectTemplate,
         'wb-review-done': submitReviewDone,
         'wb-refresh': submitRefresh,
@@ -2340,6 +2342,59 @@
         }
         watchFulfillment(id, result.data && result.data.rev, '반품 거부');
         await hideModal(document.getElementById('wb-modal-return-reject'));
+    }
+
+
+    /**
+     * 구매자가 낸 취소 요청을 **승인**한다 (T9-G1).
+     *
+     * 거부와 같은 모양이되 보낼 본문이 없다 — 네이버 규격이 path 파라미터만 받는다.
+     * 그래서 입력 검증도 없고, 확인은 모달의 목록 재진술과 경고가 맡는다.
+     *
+     * **되돌릴 수 없다.** 승인 시점에 환불이 확정되고, 취소를 거절하는 API 는 없다.
+     *
+     * @param {HTMLElement} btn 확인 버튼(`data-link-id`).
+     */
+    async function submitCancelApprove(btn) {
+        await submitClaimApprove(btn, 'cancel');
+    }
+
+    /**
+     * 고객이 낸 반품 요청을 **승인**한다 — 접수와 분리된 독립 경로 (T9-G2).
+     *
+     * @param {HTMLElement} btn 확인 버튼(`data-link-id`).
+     */
+    async function submitReturnApprove(btn) {
+        await submitClaimApprove(btn, 'return');
+    }
+
+    /**
+     * 승인 2종의 공통 몸통 — 라우트·라벨·모달 id 만 다르다 (T9).
+     *
+     * 한 벌로 두는 이유는 서버 라우트와 같다: 갈래를 복사하면 `watchFulfillment` 로
+     * 결과를 지켜보는 자리나 실패 시 버튼을 되살리는 자리가 한쪽에서만 조용히 낡는다.
+     *
+     * @param {HTMLElement} btn 확인 버튼(`data-link-id`).
+     * @param {string} kind `'cancel'` 또는 `'return'`.
+     */
+    async function submitClaimApprove(btn, kind) {
+        var id = safeId(btn.dataset.linkId);
+        if (!id) {
+            return;
+        }
+        var isCancel = kind === 'cancel';
+        var path = isCancel ? '/cancel-approve' : '/return-approve';
+        var label = isCancel ? '취소 승인' : '반품 승인';
+        var modalId = isCancel ? 'wb-modal-cancel-approve' : 'wb-modal-return-approve';
+        btn.disabled = true;
+        const result = await postJson(BASE + id + path, {});
+        if (!result.ok) {
+            window.alert(result.error);
+            btn.disabled = false;
+            return;
+        }
+        watchFulfillment(id, result.data && result.data.rev, label);
+        await hideModal(document.getElementById(modalId));
     }
 
     /* ── 주문 찾아서 붙이기 (T2) ─────────────────────────────────────── */
