@@ -186,7 +186,12 @@ ERP Order Tab Pane (shared between add_order and edit_order)
                         </div>
                         <div class="col-md-4">
                             <label class="form-label mb-1">담당자</label>
-                            <input type="text" class="form-control form-control-sm" id="erp-manager" autocomplete="off" lang="ko">
+                            <input type="text" class="form-control form-control-sm" id="erp-manager" list="manager_name_options" autocomplete="off" lang="ko" placeholder="목록에서 고르거나 직접 입력">
+                            <datalist id="manager_name_options">
+                                {% for name in foms_manager_name_options() %}
+                                <option value="{{ name }}"></option>
+                                {% endfor %}
+                            </datalist>
                         </div>
                         <div class="col-md-4">
                             <label class="form-label mb-1">시공 담당자</label>

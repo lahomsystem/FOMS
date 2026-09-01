@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import time
 from collections import namedtuple
@@ -33,6 +34,7 @@ from foms.web.auth import ROLES
 from foms.services.orders.status_constants import BULK_ACTION_STATUS, STATUS
 from foms.persistence.main.db import get_db
 from foms.persistence.main.models import User
+from foms.services.erp_shipment_settings import load_erp_shipment_settings
 from foms.services.menu_config import load_menu_config
 
 __all__ = [
@@ -199,9 +201,47 @@ def inject_status_list() -> dict[str, Any]:
     }
 
 
+logger = logging.getLogger(__name__)
+
+
+def manager_name_options() -> list[str]:
+    """담당자 입력 칸의 후보 목록 — 출고설정 실측담당자 이름(표시 순서대로).
+
+    주문 담당자는 자유 입력이라 표기가 조금만 달라도 안내 문자의 담당자 연락처가
+    대표번호로 떨어진다(:func:`foms.api.share._settings_manager_phone` 이 이름 일치로
+    번호를 찾는다). 후보를 띄워 주면 대부분은 고르고, 목록에 없는 사람은 그대로 직접
+    칠 수 있다 — datalist 라 값 자체는 제약하지 않는다.
+
+    호출한 템플릿에서만 설정을 읽으므로 다른 화면 렌더 비용은 늘지 않는다.
+
+    Returns:
+        중복 없는 담당자 이름 목록. 설정을 못 읽으면 빈 목록(입력은 그대로 동작).
+    """
+    try:
+        settings = load_erp_shipment_settings() or {}
+    except Exception:
+        logger.warning('담당자 후보 목록 조회 실패 — 빈 목록으로 렌더한다', exc_info=True)
+        return []
+    entries = settings.get("measurement_manager") or []
+    names: list[str] = []
+    seen: set[str] = set()
+    for entry in sorted(
+        (e for e in entries if isinstance(e, dict)),
+        key=lambda e: (e.get("sort_order", 999), str(e.get("name") or "")),
+    ):
+        name = str(entry.get("name") or "").strip()
+        if name and name not in seen:
+            seen.add(name)
+            names.append(name)
+    return names
+
+
 def utility_processor() -> dict[str, Any]:
     """Inject small template utility helpers."""
-    return {"parse_json_string": parse_json_string}
+    return {
+        "parse_json_string": parse_json_string,
+        "foms_manager_name_options": manager_name_options,
+    }
 
 
 def inject_menu() -> dict[str, Any]:
