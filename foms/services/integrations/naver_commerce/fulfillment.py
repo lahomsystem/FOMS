@@ -1198,14 +1198,21 @@ def request_return(session: Session, client: Any, *, link_id: int, reason: str,
 
 #: 반품 **거부**를 걸 수 있는 클레임 상태 (T8-S3).
 #:
-#: 승인(:data:`RETURN_APPROVABLE_STATUSES`)보다 **좁다**. 수거중·수거완료까지 열지 않는
-#: 이유는 규격을 아직 못 봤기 때문이다(설계서 §2-6) — 이미 회수 절차가 붙은 상태에서
-#: 거부가 무엇을 뜻하는지 문서가 말하지 않았다. 불가역 경로에서 모르는 상태를 열어 두고
-#: 400 을 받아 보며 배우지 않는다. 규격이 확인되면 그때 넓힌다.
-RETURN_REJECTABLE_STATUSES = ("RETURN_REQUEST", "RETURN_REQUESTED")
+#: **문서가 정한 값이다**(커머스API 공개 문서 2026-09-01 원문): 거부 endpoint 는
+#: "반품요청·수거중 상태를 반품철회로 전이"시킨다. 상태 흐름도의 R-2(거부) 분기도
+#: 1단계 ``RETURN_REQUEST`` 또는 ``COLLECTING`` 에서만 갈라진다. ``RETURN_REQUESTED``
+#: 는 읽기 쪽 별칭이다(:data:`mapping.CLAIM_STATUS_LABELS` 에 이미 있다).
+#:
+#: 승인(:data:`RETURN_APPROVABLE_STATUSES`)보다 여전히 **좁다** — ``COLLECT_DONE``
+#: (수거 완료)은 넣지 않는다. 문서 서술이 거부 용례로 "회수된 상품에 문제"를 들긴 하지만
+#: **상태 전이를 규정한 문장과 흐름도는 둘 다 수거완료를 거부 출발점으로 적지 않는다.**
+#: 불가역 경로에서는 서술이 아니라 규정 문장을 따른다 — 400 을 받아 보며 배우지 않는다.
+RETURN_REJECTABLE_STATUSES = ("RETURN_REQUEST", "RETURN_REQUESTED", "COLLECTING")
 
-#: 거부 사유 문장 상한. **네이버 제한이 아니라 우리 상한이다**(설계서 §2-3 미확인).
-#: 취소·반품 상세사유가 500자라 같은 값을 보수적으로 쓴다. 문서를 보고 더 짧으면 줄인다.
+#: 거부 사유 문장 상한. **여전히 네이버 제한이 아니라 우리 상한이다.**
+#: 2026-09-01 공개 문서 원문에도 ``rejectReturnReason`` 의 길이 제한이 **없다**
+#: (타입 string·필수만 적혀 있다). 상한이 문서에 없는 것이 확인된 것이라, 취소·반품
+#: 상세사유와 같은 500 자를 보수적으로 유지한다.
 RETURN_REJECT_REASON_MAX = 500
 
 #: 자주 쓰는 거부 문장 — **채워 넣기만 한다**(사용자 결정 2026-08-31: 문안은 자유 입력).
@@ -1242,7 +1249,7 @@ def is_return_rejectable(link: ExternalOrderLink) -> bool:
 
     조건 셋:
 
-    1. 클레임 상태가 :data:`RETURN_REJECTABLE_STATUSES` 안이다(= 반품 **요청**이 걸려 있다).
+    1. 클레임 상태가 :data:`RETURN_REJECTABLE_STATUSES` 안이다(반품 **요청**·**수거중**).
     2. **보류가 걸려 있지 않다.** 걸렸으면 우리가 풀지 않는다 — 안심케어 건은 보류해제
        자체가 금지다(승인과 같은 규율).
     3. 아직 우리가 **승인·거부하지 않았다.** 멱등은 우리 표식으로만 판정한다 —

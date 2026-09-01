@@ -2,7 +2,8 @@
 
 > 2026-08-31. 선행: `2026-08-31-naver-return-approve_SPEC.md`(반품 승인, **운영 배포 완료**
 > `c462bdb9`). 그 설계서 §3 이 "다음"으로 미뤄 둔 칸을 연다.
-> **이 문서는 규격 한 칸이 비어 있다(§2). 그 칸이 차기 전에는 호출 코드를 쓰지 않는다.**
+> **규격(§2)은 2026-09-01 공개 문서 원문으로 채워졌다.** 호출 코드가 열렸다 —
+> 남은 것은 게이트를 켜는 일뿐이다(§6-1).
 
 ## 0. 한 줄
 
@@ -17,32 +18,47 @@
   열게 된다. 한 업무가 두 군데로 갈리면 사람은 처음부터 판매자센터에서 끝낸다 —
   승인 설계서가 적은 것과 같은 실패다.
 
-## 2. 규격 — **미확인 (이 문서의 유일한 공백)**
+## 2. 규격 — **확인 완료 (2026-09-01)**
 
-승인 설계서 §2 가 참고로 적어 둔 것:
+**출처**: 커머스API센터 공개 문서 갈래 `apicenter.commerce.naver.com/llms/`.
+`llms.txt` 인덱스와 endpoint 별 `.md` 상세가 **로그인·JS 없이 열린다**(HTTP 200).
+2026-08-27~31 원장이 "apicenter 는 로그인·JS 라 세션이 못 연다"고 적은 것은 **화면 갈래**
+얘기였고, 문서 갈래는 그동안 열려 있었다 — 사용자가 이 URL 을 짚어 그 전제가 깨졌다.
 
-```
-POST /v1/pay-order/seller/product-orders/:productOrderId/claim/return/reject
-필요 필드로 rejectReturnReason (string, required) 가 있다고 적혀 있음
-```
+읽은 문서 셋:
 
-**그 문장은 우리 문서에만 있다.** 공식 문서(apicenter, 로그인·JS)는 세션이 직접 못 연다.
-`approvalData` 사고가 정확히 이 자리에서 났다 — 우리 원장이 근거라고 적은 문장이 출처에
-없었고, 그대로 갔으면 **없는 필드를 불가역 API 에 보낼 뻔했다.**
+| 문서 | 쓴 곳 |
+|---|---|
+| `post-...-claim-return-reject.md` | body·응답·에러·curl (아래 표 #2~#5, #7) |
+| `wiki-주문-주문-상태-변경-흐름도.md` | claimStatus enum 원문·R-2 거부 분기 (#6) |
+| `post-...-claim-return-approve.md` | 승인이 "본문이 필요 없고" — 우리 T1 구현 독립 재확인 |
 
-착수 전에 문서 원문에서 확인할 것:
-
-| # | 확인할 것 | 왜 |
+| # | 확인할 것 | **답** |
 |---|---|---|
-| 1 | ~~엔드포인트 경로와 메서드~~ **확인됨 (2026-09-01)** | 아래 §2-1 |
-| 2 | Request Body **필드명**(`rejectReturnReason` 맞는가)·**필수 여부** | 승인은 body 자체가 없었다 |
-| 3 | 사유 문장 **글자수 제한**·허용 문자 | 자유 입력이라 상한이 곧 화면 제약 |
-| 4 | 사유가 **구매자에게 노출되는가**(어디에 어떻게) | 문안 규칙의 전제 |
-| 5 | 응답 형태 — `successProductOrderIds`/`failProductOrderInfos` 동형인가 | 동형이면 `_split_result` 재사용 |
-| 6 | 거부 뒤 `claimStatus` 가 무엇이 되는가 | 화면 배지·유령 판정이 그 값을 읽는다 |
-| 7 | 되돌리는 엔드포인트가 있는가 | 없다고 보고 설계하되 확인은 필요 |
+| 1 | 엔드포인트 경로·메서드 | `POST /v1/pay-order/seller/product-orders/{productOrderId}/claim/return/reject` (2026-09-01 확인) |
+| 2 | Request Body 필드명·필수 여부 | **`rejectReturnReason` (body, string, 필수) 한 줄뿐이다.** 사유 *코드* 필드는 **없다**. `Content-Type: application/json` (curl 예시에 `-d` 있음) |
+| 3 | 글자수 제한·허용 문자 | **문서에 제한이 없다** — 타입 `string`·필수만 적혀 있다. 공개 OAS 링크도 없다. 따라서 우리 상한 500 을 그대로 유지한다(없다고 확인된 것이지 못 찾은 것이 아니다) |
+| 4 | 구매자 노출 여부 | **노출된다** — "구매자 알림과 사후 분쟁 대응의 근거가 됩니다". 모달의 재진술 문구가 사실에 맞다 |
+| 5 | 응답 형태 | **접수·승인과 동형** — `data.successProductOrderIds` / `data.failProductOrderInfos` (+ `timestamp`·`traceId`). `_split_result` 그대로 재사용 |
+| 6 | 거부 뒤 `claimStatus` | **`RETURN_REJECT`**(반품 거부/철회). 상품주문상태는 클레임 직전 `DELIVERING`/`DELIVERED` 로 복귀하고 `claimType` 은 `RETURN` 으로 남는다 |
+| 7 | 되돌리는 엔드포인트 | **없다.** 대신 환불이 발생하지 않고 **구매자가 다시 반품을 신청할 수 있다**. 이력은 `completedClaims` 로 누적된다 |
 
-### 2-1. 확인된 것 — 경로와 **권한 스코프** (2026-09-01, 사용자 제공 API 그룹 목록)
+### 2-1. 규격이 바꾼 것 — **호출 가능한 상태가 넓어졌다**
+
+문서의 규정 문장: *"클레임 상태 머신에서 **반품요청·수거중** 상태를 반품철회로 전이시켜
+상품 주문을 클레임 직전 상태(배송완료 등)로 되돌립니다."* 흐름도의 R-2(거부) 분기도
+1단계 `RETURN_REQUEST` **또는 `COLLECTING`** 에서 갈라진다.
+
+그래서 `RETURN_REJECTABLE_STATUSES` 에 **`COLLECTING` 을 더했다**
+(`("RETURN_REQUEST", "RETURN_REQUESTED", "COLLECTING")`).
+
+**`COLLECT_DONE`(수거 완료)은 더하지 않았다.** 문서 서술이 거부 용례로 "회수된 상품에
+문제가 있어 환불을 거부해야 하는 경우"를 들긴 하지만, **상태 전이를 규정한 문장과 흐름도는
+둘 다 수거완료를 거부 출발점으로 적지 않는다.** 불가역 경로에서는 서술이 아니라 규정을
+따른다 — 400 을 받아 보며 배우지 않는다. (승인은 `COLLECT_DONE` 에 열려 있으므로,
+계약 테스트에서 이 값이 **모집단 안의 음성 대조군**이다.)
+
+### 2-2. 권한 스코프 (2026-09-01, 사용자 제공 API 그룹 목록)
 
 커머스API센터의 우리 애플리케이션 **API 그룹 `주문 판매자`** 목록에 이 줄이 있다:
 
@@ -50,18 +66,21 @@ POST /v1/pay-order/seller/product-orders/:productOrderId/claim/return/reject
 POST /v1/pay-order/seller/product-orders/{productOrderId}/claim/return/reject
 ```
 
-두 가지가 확정된다 —
-
-* **경로·메서드가 우리가 가정한 것과 정확히 같다**(접수 `claim/return/request`,
-  승인 `claim/return/approve` 와 형제).
-* **권한이 이미 열려 있다.** 같은 API 그룹 안에 있으므로 스코프를 새로 신청할 필요가 없다.
+**권한이 이미 열려 있다** — 같은 API 그룹 안이라 스코프를 새로 신청할 필요가 없다.
 
 같은 목록에 `claim/return/holdback` 과 `claim/return/holdback/release` 도 있다 —
 **호출할 수 있다는 것과 호출해야 한다는 것은 다르다.** §3 대로 보류·보류해제는 영구히
 만들지 않는다(안심케어 건은 보류해제 자체가 금지).
 
-**아직 비어 있는 것은 #2~#7이다**(body 필드·글자수·노출 위치·응답·거부 뒤 상태·되돌리기).
-목록 화면에는 그 값이 없다 — 그 줄을 눌러 들어간 **상세 문서**에 있다.
+### 2-3. 문서가 덤으로 확인해 준 것
+
+- **보류 건·반품완료 건은 예외가 아니라 `failProductOrderInfos` 로 온다.** 우리가 보류 건을
+  술어에서 미리 빼는 설계(§4-2)는 여전히 옳다 — 부분 실패로 받아 사람이 읽는 것보다
+  아예 안 보내는 쪽이 낫다.
+- **에러**: 400 = 상태 전이 불가·**사유 누락**, 500 = 일시 장애. 빈 문장을 3겹으로 막는
+  설계가 문서의 400 조건과 정확히 맞물린다.
+- **승인은 본문이 없다** — T1 구현(`approve_return_product_order` 가 body 를 안 만든다)이
+  이 문서로 **독립 재확인**됐다. `approvalData` 폐기 판단이 옳았다.
 
 ## 3. 범위
 
@@ -89,7 +108,8 @@ POST /v1/pay-order/seller/product-orders/{productOrderId}/claim/return/reject
 화면 재진술과 서버 처리가 **한 벌**을 쓴다(`is_return_pending` 과 같은 규율 — 어긋나면
 불가역 호출이 과대 진술 위에서 나간다). 조건:
 
-1. 클레임이 **반품 요청 상태**다(`RETURN_REQUEST` 축 — 정확한 값 집합은 §2-6 확인 후 확정).
+1. 클레임이 **반품 요청·수거중 상태**다(`RETURN_REQUEST`·`RETURN_REQUESTED`·`COLLECTING`
+   — 문서가 정한 집합, §2-1). `COLLECT_DONE` 은 넣지 않는다.
 2. **보류가 걸려 있지 않다**(`extract_claim_holdback`). 걸렸으면 우리가 풀지 않는다.
 3. 아직 우리가 **승인·거부하지 않았다**(`triage_state['return']` 표식으로만 판정 —
    네이버 `requestChannel` 은 API 분과 수동분을 갈라 주지 않는다).
@@ -180,43 +200,52 @@ T3 규율 그대로 — 성공·실패와 무관하게 그 집을 다시 읽는�
 | 되돌릴 수 없다 | 불가역 4종 세트 모달. 단건만(일괄 없음) |
 | 거부가 **분쟁으로 돌아온다** | 보낸 문장·시각·행위자를 감사 로그에 남긴다 |
 | 보류 걸린 건 | 거부 중단 + 판매자센터 안내. 우리가 풀지 않는다 |
-| 규격 추측 | **§2 가 차기 전에는 호출 코드를 쓰지 않는다** |
+| 규격 추측 | ~~§2 가 차기 전에는 호출 코드를 쓰지 않는다~~ → **닫힘**: 2026-09-01 공개 문서 원문으로 채움. 계약 테스트가 선로에 나가는 body 를 `{rejectReturnReason}` 하나로 고정한다(여분 필드 = 빨강) |
 
 ## 6. 검증
 
 | 층 | 무엇 |
 |---|---|
 | 단위 | 빈 사유면 안 보냄 · 보류면 안 보냄 · 상태 밖이면 안 보냄 · 부분 실패 · 멱등(두 번 눌러도 1회) |
-| 계약 | mutation 5종 · 모달 문구(문장 재진술) · 자산 `?v=` 핀 |
+| 계약 | mutation 5종 · 모달 문구(문장 재진술) · 자산 `?v=` 핀 · **선로 요청 1종**(경로·`rejectReturnReason` 단일 필드·`Content-Type`) · **상태 집합 음성 대조군**(`COLLECT_DONE` 등) |
 | 스위트 | `tests/services/integrations` + `tests/domains` 전량 · `pre_push_smoke` exit 0 · `APP_OK` |
 | 실호출 | **스테이징에서 못 한다** — 같은 실계정이라 진짜 거부가 나간다. 사용자가 진짜 건에서 확인 |
 
-## 6-1. 구현 상태 (2026-08-31) — **규격 한 줄만 비어 있다**
+## 6-1. 구현 상태 (2026-09-01) — **코드는 완성. 게이트만 남았다**
 
-규격을 기다리는 동안 나머지를 다 만들었다. 게이트
-``FOMS_NAVER_RETURN_REJECT_ENABLED`` 가 **꺼져 있어** 화면에도 라우트에도 없다.
+규격을 기다리는 동안 나머지를 다 만들어 뒀고, 2026-09-01 에 마지막 한 줄이 채워졌다.
+게이트 ``FOMS_NAVER_RETURN_REJECT_ENABLED`` 가 **아직 꺼져 있어** 화면에도 라우트에도
+없다 — 켜는 것은 사람의 결정이다(§6-2).
 
 | 조각 | 자리 | 상태 |
 |---|---|---|
-| 클라이언트 | `client.reject_return_product_order` | **막혀 있다** — 인자 검사는 하고, 호출 직전 `NotImplementedError`(§2 를 가리킨다) |
+| 클라이언트 | `client.reject_return_product_order` | **완료 (2026-09-01)** — `POST .../claim/return/reject` + body `{"rejectReturnReason": 문장}` + `Content-Type: application/json`. `NotImplementedError` 제거 |
 | 서비스 | `fulfillment.reject_return` · `is_return_rejectable` · `RETURN_REJECTABLE_STATUSES` · `RETURN_REJECT_FILLS` | 완료 |
 | 큐·워커 | `enqueue_naver_return_reject` · `run_naver_fulfillment_task(action="return-reject")` · `REFRESH_AFTER_ACTIONS` | 완료 |
 | 라우트 | `POST /admin/naver-ingest/<link_id>/return-reject` (ADMIN·MANAGER, 게이트 2겹) | 완료 |
 | 상용구 저장 | `reject_templates.py`(SystemSetting) + `POST /admin/naver-ingest/reject-templates`(ADMIN) + 모달 안 저장·지우기 | 완료 |
 | 계약 6종 ×2 라우트 | policy manifest · write guard manifest · audit coverage · 감사 라벨 2종 · **주문 이벤트 라벨** · 자산 핀 | 완료 |
 | 화면 | pane 버튼 + 모달(4종 세트 + 자유 입력 + 상용구 채우기 + 보낼 문장 되읽기) | 완료 |
-| 계약 테스트 | `tests/services/integrations/test_naver_return_reject.py` 30종 | 완료 |
+| 계약 테스트 | `tests/services/integrations/test_naver_return_reject.py` **37종**(선로 요청·사유코드 부재·상태 집합 3종 추가) | 완료 |
 
-**켜는 순서**: ① §2 표를 문서 원문으로 채운다 ② `reject_return_product_order` 의 요청
-한 줄을 채운다(그 함수의 `NotImplementedError` 를 지운다) ③ Railway `FOMS_NAVER_RETURN_REJECT_ENABLED=1` ④ 관리자가 화면에서 상용구 문장을
-확정한다(코드 5종은 그때까지의 기본값일 뿐이다).
+## 6-2. 켜는 순서 — 남은 것은 ③④뿐
 
-**규격이 채워지면 같이 볼 것**: `RETURN_REJECTABLE_STATUSES` 를 넓힐지(§4-2 는 지금
-`RETURN_REQUEST` 축만 연다) · `RETURN_REJECT_REASON_MAX`(지금은 우리 상한 500).
+① ~~§2 표를 문서 원문으로 채운다~~ **완료 2026-09-01**
+② ~~`reject_return_product_order` 의 요청 한 줄~~ **완료 2026-09-01**
+③ Railway 스테이징 web·worker 에 `FOMS_NAVER_RETURN_REJECT_ENABLED=1` — **변수만 넣으면
+   실행 중 프로세스는 옛 env 를 든다. 재배포(새 부팅) 뒤에야 켜진 것이다.**
+   worker 는 1 대라 재배포가 큐를 전면 정지시킨다 —
+   `python tools/ops/check_worker_redeploy_safe.py`(0 안전) 먼저.
+④ 관리자가 화면에서 상용구 문장을 확정한다(코드 5종은 그때까지의 기본값일 뿐이다).
+⑤ 운영 승격은 별건 — 사용자 명시 요청이 있을 때만.
+
+**규격이 채워지며 같이 정리된 것**: `RETURN_REJECTABLE_STATUSES` 에 `COLLECTING` 추가
+(§2-1) · `RETURN_REJECT_REASON_MAX` 는 500 유지(문서에 상한이 **없음**을 확인, §2 #3).
 
 ## 7. 미결 (사람만 답한다)
 
-- **Q1** 상용구 5종 **문장 확정**(§4-3 표는 초안이다). 글자수 제한(§2-3)을 본 뒤 확정한다.
+- **Q1** 상용구 5종 **문장 확정**(§4-3 표는 초안이다). 글자수는 이제 제약이 아니다 —
+  문서에 `rejectReturnReason` 길이 제한이 **없다**(§2 #3). 우리 상한 500 안에서 자유.
   → 2026-09-01 사용자 결정으로 **성격이 바뀌었다**: 문장은 이제 코드 상수가 아니라
   **관리자가 화면에서 저장**하는 값이다(§4-3a). 코드의 5종은 *아무도 저장하지 않았을 때*
   보이는 기본값으로만 남는다 — 확정은 운영에서 관리자가 한다.
