@@ -1544,3 +1544,95 @@ def test_drawing_detail_css_not_loaded_via_mobile_surfaces() -> None:
     (로드는 오직 foms-tablet-bundle.css @import 경유)."""
     surfaces = _read(MOBILE_SURFACES_CSS)
     assert "foms-tablet-drawing-detail" not in surfaces
+
+
+# ==========================================================================
+# 완료 대시보드 부트스트랩 — 같은 페이지가 모집단을 두 번 읽지 않는다 (2026-09-01)
+#
+# 모바일 코호트에서는 서버가 태블릿 그리드를 렌더하며 모집단을 읽고, 같은 페이지의 사진
+# 리뷰 스크립트가 `/api/orders/completion` 으로 또 읽었다(스테이징 실측 49ms + 62ms).
+# 이제 렌더가 읽은 것을 그대로 실어 보낸다. **조건이 어긋난 목록을 조용히 보여주면 안 되므로**
+# 부트스트랩에는 필터가 함께 실리고 화면이 대조한다.
+# ==========================================================================
+def _seed_completion_order(customer_name: str, construction_date: str = "2026-08-20"):
+    """완료 모집단 주문 1건."""
+    from db import db_session as _db
+    from models import Order as _Order
+
+    order = _Order(
+        received_date="2026-01-05",
+        customer_name=customer_name,
+        phone="010-2222-3333",
+        address="Seoul",
+        product="붙박이장",
+        status="COMPLETED",
+        erp_stage_code="COMPLETED",
+        is_erp_order=True,
+        structured_data={
+            "parties": {"customer": {"name": customer_name}},
+            "schedule": {"construction": {"date": construction_date}},
+            "items": [{"product_name": "붙박이장", "price": 3_000_000}],
+            "payment": {"deposit": 1_000_000},
+        },
+    )
+    _db.add(order)
+    _db.commit()
+    return order
+
+
+def test_completion_page_ships_the_list_it_already_read_in_mobile_cohort(login, monkeypatch):
+    """모바일 코호트 렌더는 사진 리뷰 목록을 **페이지에 실어** 보낸다(API 재호출 제거).
+
+    실린 목록은 `/api/orders/completion` 이 내주는 것과 같아야 한다 — 다르면 화면마다
+    다른 목록을 보게 된다.
+    """
+    import json as _json
+    import re as _re
+
+    from foms.web.cs import completion_dashboard as cd
+
+    monkeypatch.setattr(cd, "is_mobile_v2_shell", lambda _variant: True)
+    _seed_completion_order("부트스트랩고객")
+
+    html = login.get("/erp/completion").get_data(as_text=True)
+    island = _re.search(
+        r'<script type="application/json" id="erp-completion-bootstrap">(.*?)</script>',
+        html, _re.S,
+    )
+    assert island, "부트스트랩 블록이 없다 — 화면이 같은 모집단을 다시 읽는다"
+
+    payload = _json.loads(island.group(1))
+    api_orders = login.get("/api/orders/completion").get_json()["orders"]
+
+    assert [row["id"] for row in payload["orders"]] == [row["id"] for row in api_orders]
+    assert payload["orders"] == api_orders, "부트스트랩과 API 목록이 다르다"
+    assert set(payload["filters"]) == {"q", "focus_order", "mine"}, (
+        "화면이 대조할 필터가 빠졌다 — 조건이 어긋난 목록을 조용히 쓰게 된다"
+    )
+
+
+def test_completion_page_has_no_bootstrap_outside_the_mobile_cohort(login, monkeypatch):
+    """PC/legacy 는 서버가 모집단을 읽지 않는다 — 부트스트랩을 만들려고 쿼리를 새로 넣지 않는다."""
+    from foms.web.cs import completion_dashboard as cd
+
+    monkeypatch.setattr(cd, "is_mobile_v2_shell", lambda _variant: False)
+    _seed_completion_order("피시고객")
+
+    html = login.get("/erp/completion").get_data(as_text=True)
+
+    assert 'id="erp-completion-bootstrap"' not in html, (
+        "PC 경로에 부트스트랩이 생겼다 — 첫 페인트를 막는 쿼리가 새로 들어갔다"
+    )
+
+
+def test_completion_script_uses_bootstrap_only_when_filters_match() -> None:
+    """스크립트는 필터가 **정확히 같을 때만** 실린 목록을 쓰고, 1회 소비 후 노드를 지운다."""
+    root = Path(__file__).resolve().parents[2]
+    body = (root / "templates/cs/partials/completion_scripts.html").read_text(encoding="utf-8")
+
+    assert "function consumeCompletionBootstrap()" in body
+    assert "node.parentNode.removeChild(node)" in body, "1회 소비가 아니다(중복 렌더 위험)"
+    for field in ("q", "focus_order", "mine"):
+        assert f"payload.filters.{field}" in body, f"필터 {field} 대조가 없다"
+    assert "? Promise.resolve(completionBootstrap)" in body, "부트스트랩 경로가 fetch 를 건너뛰지 않는다"
+    assert "fetch(completionApiUrl, { credentials: 'same-origin' })" in body, "폴백 fetch 가 사라졌다"
