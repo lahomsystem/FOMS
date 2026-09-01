@@ -194,6 +194,7 @@ def _safe_unwrap(detail: dict) -> tuple[dict, dict, dict]:
 
 def ingest_detail(
     session: Session, detail: dict, *, today: str, now: Optional[datetime] = None,
+    reviewed: bool = False,
 ) -> str:
     """상세 1건을 **링크로만** 보관한다(주문은 만들지 않는다). 결과 코드를 돌려준다.
 
@@ -212,6 +213,10 @@ def ingest_detail(
         detail: 상품주문 상세 1건.
         today: 접수일 대체값(매핑 검증용).
         now: 테스트용 시각 주입.
+        reviewed: True 면 만든 링크를 **확인 완료로 표시**해 처리 큐에 넣지 않는다.
+            과거 구간 소급 수집 전용이다 — 백필은 "과거 원본을 확보"하는 일이지 "지금
+            처리할 일"이 아니다. 표시하지 않으면 90일치 전 주문이 통째로 처리 탭에 쌓인다
+            (스테이징 실측 2026-09-01: 링크 1,560건 = 798집이 큐에 밀려들었다).
 
     Returns:
         ``"collected"`` / ``"skipped"`` / ``"pending_review"``.
@@ -228,6 +233,10 @@ def ingest_detail(
         return "pending_review"
 
     order_no = str((_safe_unwrap(detail)[0] or {}).get("orderId") or "") or None
+    # 백필 표식은 **두 벌**이다: 큐를 비우는 ``reviewed_at`` 과, 나중에 "이건 소급분"임을
+    # 되짚을 ``triage_state.backfill``. 시각만 남기면 사람이 확인한 것과 구분되지 않는다.
+    stamp = now_utc_naive() if reviewed else None
+    state = {"backfill": {"at": stamp.isoformat()}} if reviewed else None
     savepoint = session.begin_nested()
     try:
         session.add(
@@ -242,6 +251,8 @@ def ingest_detail(
                 place_order_status=_place_status_value(detail),
                 # 묶음키 사본 — 이력 표가 확인 큐와 같은 정의로 집을 셀 수 있게 한다.
                 group_key=_group_key_value(detail),
+                reviewed_at=stamp,
+                triage_state=state,
             )
         )
         session.flush()
@@ -258,6 +269,7 @@ def sync_naver_orders(
     session: Session, *, client: Any, start: datetime, end: datetime,
     dry_run: bool = False, now: Optional[datetime] = None,
     notify_claims: bool = True, collect_all: bool = False,
+    mark_reviewed: bool = False,
 ) -> SyncResult:
     """한 구간을 수집한다(호출자가 commit 을 소유한다).
 
@@ -277,6 +289,8 @@ def sync_naver_orders(
             결제완료 필터에 하나도 안 걸린다. 결과가 "긁었는데 0건"이라 조용히 실패한다.
             ``lastChangedType`` 으로 이벤트 축을 좁히는 길도 있으나 그 enum 값이 공개
             문서에 없어(지어내지 않는다) 상세 조회 결과를 정본으로 삼는다.
+        mark_reviewed: True 면 만든 링크를 확인 완료로 표시해 처리 큐에 넣지 않는다
+            (:func:`ingest_detail` 의 ``reviewed``).
 
     Returns:
         :class:`SyncResult` 집계.
@@ -322,7 +336,8 @@ def sync_naver_orders(
     today = get_today_kst().strftime("%Y-%m-%d")
     for detail in details:
         try:
-            outcome = ingest_detail(session, detail, today=today, now=now)
+            outcome = ingest_detail(session, detail, today=today, now=now,
+                                    reviewed=mark_reviewed)
         except NaverMappingError as exc:
             result.errors.append(str(exc))
             continue
