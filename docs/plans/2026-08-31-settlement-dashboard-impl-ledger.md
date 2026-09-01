@@ -1402,3 +1402,47 @@ perf-gate 2차 red 는 TTFB 였다. 같은 경로를 여러 런에 걸쳐 분포
   → 이 축들은 **키에 직접 넣거나**(예: users/settings 전용 카운터를 세션 훅에서 함께 올림)
   아니면 그 축을 읽는 화면을 S2 대상에서 제외해야 한다.
 - 남은 조사: `orders` 테이블 쓰기 전량(진행 중).
+
+### S0-3 결론(orders) + **S0 최종 판정**
+
+`orders` 쓰기 **110경로: 엔진 경유 46 / 미경유 61 / 확인필요 3.**
+직접 확인한 2건:
+- `foms/api/production/orders.py:862-865` — 수정 제작 시작이 `structured_data`+`status="PRODUCTION"`
+  +flat sync 를 직접 쓰고 `db.commit()`, 엔진·무효화 **둘 다 없음**(같은 파일의 다른 라우트는
+  전부 엔진 경유인데 이 하나만 빠져 있다).
+- `foms/web/orders/trash.py:118-126` — `UPDATE orders SET id = ...` 로 **주문 id 를 전면 재번호**하는
+  raw SQL 이 실재한다.
+
+**S0 합계(3표 합산)**: 163경로 중 엔진 경유 **51(31%)**.
+→ **`execute_order_mutation` intent 는 신호원으로 쓸 수 없다. 확정.**
+
+#### 판정 1 — 신호원은 전역 세션 훅, 키는 **패밀리가 아니라 테이블**
+
+`before_flush` 에서 더러운 엔티티의 **테이블 이름**을 모아 `after_commit` 에 카운터를 올리면:
+- `orders`·`order_schedule_dates`·`order_attachments`·`users`·`system_settings`·`order_assignments`
+  가 **전부 한 장치로 덮인다**. 스펙 §5-2 가 걱정한 "users·settings 는 패밀리 밖" 문제는
+  키를 패밀리가 아니라 테이블로 잡으면 사라진다(그 쓰기들도 ORM 을 통과한다 —
+  `auth/routes.py` 는 전부 ORM 대입이다).
+- 워커 프로세스(썸네일·지오코딩 outbox·네이버 워터마크)도 **같은 훅이 그 프로세스에 등록돼
+  있고 카운터 저장소(Redis)가 공유**면 덮인다. 배선 요구사항이지 구멍이 아니다.
+
+#### 판정 2 — 남는 진짜 구멍은 **ORM 우회 쓰기뿐**이고 셀 수 있다
+
+직접 센 값: `.update({` **16곳**, `execute(text(` UPDATE/DELETE/INSERT **4곳**,
+query-level `.delete()` **0곳**, 그리고 `bulk_insert_mappings`(`restore_order_schedule_dates.py:63-79`),
+raw `DELETE FROM orders`(`delete_retention.py:412`), id 재번호(`trash.py:118-126`).
+→ **S1 의 완료 기준에 "이 목록 전수 등재 + 소스 스캔 게이트"를 넣는다**(새 우회 쓰기가 들어오면 red).
+
+#### 판정 3 — S2 파일럿
+
+모든 화면이 `order_attachments` 를 읽는다(`/erp/history/` 조차 `erp_product_items.py:92-95` 로
+읽는다). 따라서 "단일 축 화면"은 없다. 테이블 단위 카운터면 축 수는 문제가 안 되므로,
+파일럿은 **읽는 테이블 수가 가장 적고 사용자 축이 약한 `/erp/history/`**(orders + attachments)
+로 간다. 다만 워커 썸네일 쓰기가 그 프로세스에서 훅을 타는지 **S1 에서 먼저 증명**하고 넘어간다.
+
+#### 부수 — 기존 하네스의 사각
+
+`tools/harness/order_mutation_writer_scan.py` 는 `flag_modified(order,"structured_data")` 와
+`.mutation_version =` 두 신호만 본다. `Order(...)` 생성·`setattr` flat 대입·raw UPDATE/DELETE·
+`db.delete` 는 **스캔 밖**이라 이번 61건과 격차가 난다. S1 게이트는 이 스캐너를 확장하거나
+별도 스캐너로 만들어야 한다.
