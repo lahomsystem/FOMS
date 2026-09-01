@@ -45,7 +45,8 @@
 | T4 | 구 이름 부분 치환 수정 | **DONE** `84fca19d6` | 신규 계약 7건 green |
 | T5 | 실호출 대조(T3·T4) — 운영 카카오 키 | **DONE** | 아래 §T5 결과 표 |
 | T6 | 전수 검증 + deploy push | **DONE** `f3d3f04f5` | 본 스위트 7645 green · smoke exit 0 |
-| T7 | 문서 반영(AI_STATUS·CHANGELOG·원장 마감) | 진행 중 | — |
+| T7 | 문서 반영(AI_STATUS·CHANGELOG·원장 마감) | **DONE** | — |
+| T8 | 운영 승격(사용자 승인 후) | **DONE** PR #243 · production `c8492b6b` | 검사 4종 pass · WORKER 신코드 확인 |
 
 ---
 
@@ -223,3 +224,28 @@ visual 레인 실패 19건은 **본 변경과 무관한 기존 드리프트**다
 * 실측 지도에서 `pending` 재큐 동작이 바뀌었다: 예전에는 `pending` 을 절대 재큐하지 않아
   고착 건이 영구히 남았는데, 이제 600초 백오프를 지난 `pending` 은 다시 집는다.
   중복 enqueue 는 재큐 시 `geocoded_at` 시도 표식을 찍어 막는다.
+
+
+### T8 — 운영 승격 (2026-09-02)
+
+사용자 승인 후 자기 커밋 4개만 cherry-pick → PR #243 → merge.
+
+* 승격 트리 직접 검증: 본 스위트 **7632 passed**, PG 레인 **738 passed**, `pre_push_smoke` exit 0, `APP_OK`.
+  (승격 PR 은 production 계보 워크플로로 돌아 본 스위트를 다 돌지 않는다 — 그래서 트리에서 직접 돌렸다.)
+* PR 검사 4종 전부 pass(test 2m56s · pg-lane 2m1s · harness 1m11s · perf-gate 1m18s), `mergeStateStatus=CLEAN`.
+* 충돌은 docs 계보 2건뿐: `docs/AI_STATUS.md` 는 production 계보 유지(ours),
+  조사 원장은 production 에 없던 파일이라 통째로 반입. **코드 파일은 production 과 승격 베이스가 전부 동일**
+  (`git diff --numstat origin/production 43c765436^` 전 파일 0) — 코드 의존 0건.
+  completeness 가 보고한 missing 84건은 전부 docs 계보였다.
+
+**운영 반영 확인**
+
+| 축 | 결과 |
+|---|---|
+| web `/healthz` | `{"commit":"c8492b6be13c…","status":"ok"}` |
+| WORKER 신코드 | 부팅 로그 `[geocode-sweep] started (… pending_retry=600s failed_retry=86400s)` — `failed_retry` 는 이번 변경에만 있는 문구 |
+| 워커 로그 오류 | 없음(sweep 라운드 `scanned=0 queued=0` — 좌표 미달 0 유지) |
+| 운영 DB (읽기 전용) | `success 3784 · failed 20 · NULL 8`, `address_error 0`(배포 직후라 정상) |
+
+`failed` 20건은 2026-09-01 07:47 UTC 백필이 마지막 시도라, 24시간 백오프가 지나는 시점부터
+스윕이 자동으로 다시 집는다. 그중 주소가 진짜 나쁜 건만 `address_error` 로 갈라져 이후 쿼터를 태우지 않는다.
