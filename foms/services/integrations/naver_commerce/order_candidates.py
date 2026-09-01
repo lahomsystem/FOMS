@@ -19,7 +19,14 @@
 
 * 수취인 전화 일치 = 100 (가장 강한 단서)
 * 주문자 전화 일치 = 80
-* 이름 + 주소 앞부분 일치 = 60 (전화가 바뀐 재주문 대비)
+* 이름 + 주소 일치 = 60 (전화가 바뀐 재주문 대비)
+* 수령인명만 일치 = 40 (주소까지 바뀐 재주문 대비 — 동명이인 가능, 사람이 고른다)
+
+주소는 글자 그대로 견주지 않는다. 네이버는 ``서울특별시 성북구 화랑로48길 16 (석관동,
+두산아파트) 110동 2403호`` 처럼 공식 전체 표기를 주고 사람은 ``성북구 화랑로48길 16,
+두산아파트 110동 2403호`` 로 입력해서, 같은 집인데 글자가 다르다.
+:func:`foms.services.common.address_query.match_key` 로 양쪽을 접어 견준다(공용 SSOT —
+두 벌로 두면 한쪽만 고쳐지는 날 두 화면이 다른 집을 짚는다).
 
 같은 주문이 여러 규칙에 걸리면 가장 높은 점수만 남긴다.
 """
@@ -32,6 +39,7 @@ from typing import Any, Optional
 
 from sqlalchemy import or_
 
+from foms.services.common.address_query import match_key as address_match_key
 from foms.services.datetime_kst import now_utc_naive
 from foms.services.integrations.naver_commerce.mapping import (
     CLAIM_PHASE_DONE,
@@ -55,8 +63,10 @@ CANDIDATE_WINDOW_DAYS = 180
 #: 화면에 보여줄 최대 후보 수. 더 많으면 사람이 못 고른다.
 CANDIDATE_LIMIT = 5
 
-#: 주소 비교에 쓰는 앞부분 길이. 상세주소(동·호)는 빼고 건물까지만 본다.
-ADDRESS_PREFIX_LEN = 10
+#: 주소 비교는 :func:`foms.services.common.address_query.match_key` 로 접어서 견준다.
+#: 앞 10자 ``startswith`` 를 쓰던 시절의 결함: 네이버는 ``서울특별시 …`` 전체 표기를 주고
+#: 사람은 ``성북구 …`` 로 입력해, 같은 집인데 접두가 통째로 어긋났다(운영 링크 243건 중
+#: 수령인명이 맞는 224건에서 119건만 통과 — 2026-09-01 진단).
 
 #: 정리 대기 띠에 실을 최대 집 수(NVREPAY-02). 넘으면 잘라내고 **잘랐다고 말한다** —
 #: 조용한 절단은 "이게 전부"로 읽힌다.
@@ -76,6 +86,9 @@ SEARCH_SCAN_CAP = 60
 SCORE_RECIPIENT_PHONE = 100
 SCORE_ORDERER_PHONE = 80
 SCORE_NAME_ADDRESS = 60
+#: 수령인명만 맞고 주소는 다른 경우. 동명이인을 만날 수 있어 **가장 약한 단서**다 —
+#: 그래도 보여 준다: 안 보여 주면 사람이 "기존 주문 없음"으로 읽고 중복 주문을 만든다.
+SCORE_NAME_ONLY = 40
 
 #: 후보 스캔 상한. 이름+주소 규칙은 인덱스가 이름까지만 걸려 후보가 많아질 수 있다.
 NAME_SCAN_CAP = 200
@@ -652,8 +665,7 @@ def find_order_candidates(session, link: ExternalOrderLink, *,
             if current is None or score > current[0]:
                 scored[int(order.id)] = (score, reason)
 
-    if keys["name"] and keys["address"]:
-        prefix = keys["address"][:ADDRESS_PREFIX_LEN]
+    if keys["name"]:
         # 이름으로 좁힌 뒤 주소는 파이썬에서 비교한다 — 주소 LIKE 는 인덱스가 없다.
         rows = (
             base.filter(Order.customer_name == keys["name"])
@@ -661,11 +673,23 @@ def find_order_candidates(session, link: ExternalOrderLink, *,
             .limit(NAME_SCAN_CAP)
             .all()
         )
+        if len(rows) >= NAME_SCAN_CAP:
+            # 캡에 닿았다 = 이 뒤로 더 있는데 안 봤다. 조용히 자르면 "이게 전부"로 읽힌다.
+            logger.warning("[NAVER] 후보 이름 스캔 캡(%d) 도달 — link_id=%s name=%s",
+                           NAME_SCAN_CAP, getattr(link, "id", None), keys["name"])
+        link_key = address_match_key(keys["address"])
         for order in rows:
-            if not (order.address or "").startswith(prefix):
+            if int(order.id) in scored:
                 continue
-            if int(order.id) not in scored:
+            order_key = address_match_key(order.address)
+            if link_key and order_key and link_key == order_key:
                 scored[int(order.id)] = (SCORE_NAME_ADDRESS, "이름·주소 일치")
+            else:
+                # 주소까지 바뀐 재주문(시공지 변경·가족 대리주문)이 실재한다. 이름만으로는
+                # 동명이인을 만날 수 있으므로 **점수를 낮추고 근거를 그대로 적어** 사람이
+                # 고르게 한다 — 일괄 발송처리 매칭이 이미 같은 축을 쓴다
+                # (:func:`bulk_dispatch.find_unlinked_matches`, 운영 규칙 2026-09-01).
+                scored[int(order.id)] = (SCORE_NAME_ONLY, "수령인명만 일치")
 
     if not scored:
         return []

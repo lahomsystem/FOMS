@@ -66,3 +66,48 @@ def test_modal_and_geocode_pipeline_share_the_same_preprocessing() -> None:
         assert _strip_detail(sample) == strip_detail(sample)
         assert _query_variants(sample) == query_variants(sample)
         assert converter._strip_detail_for_geocoding(sample) == strip_detail(sample)
+
+
+# --- NAVER-MATCH-01: 주소 매칭 키(match_key) ---------------------------------
+
+_EQUIVALENT_TO_INCIDENT = [
+    "서울특별시 성북구 화랑로48길 16 (석관동, 두산아파트) 110동 2403호",
+    "서울시 성북구 화랑로48길 16 두산아파트 110동 2403호",
+    "서울 성북구 화랑로48길 16, 두산아파트 110동 2403호",
+    "성북구 화랑로48길 16, 두산아파트 110동 2403호",
+    "성북구 화랑로48길 16",
+]
+
+
+def test_match_key_folds_notation_variants_to_one_key():
+    """시/도 표기·괄호·쉼표·공백이 달라도 같은 집이면 같은 키가 나와야 한다."""
+    from foms.services.common.address_query import match_key
+
+    keys = {match_key(addr) for addr in _EQUIVALENT_TO_INCIDENT}
+    assert keys == {"성북구화랑로48길16"}
+
+
+def test_match_key_separates_different_buildings_and_districts():
+    """음성 대조군 — 건물번호나 행정구역이 다르면 키가 갈려야 한다."""
+    from foms.services.common.address_query import match_key
+
+    base = match_key("서울특별시 성북구 화랑로48길 16 (석관동, 두산아파트) 110동 2403호")
+    assert base != match_key("성북구 화랑로48길 18, 두산아파트 110동 2403호")
+    assert base != match_key("성동구 화랑로48길 16, 두산아파트 110동 2403호")
+
+
+def test_match_key_refuses_keys_too_coarse_to_identify_a_home():
+    """행정구역 한 층만 남은 키는 사람을 특정하지 못한다 — 빈 문자열로 거절한다."""
+    from foms.services.common.address_query import match_key
+
+    for coarse in ("", "   ", "서울특별시", "서울 성북구", "성북구"):
+        assert match_key(coarse) == ""
+
+
+def test_strip_sido_keeps_words_that_merely_start_like_a_sido():
+    """``서울시청로`` 처럼 낱말 한가운데를 자르면 안 된다."""
+    from foms.services.common.address_query import strip_sido
+
+    assert strip_sido("서울시청로 12") == "서울시청로 12"
+    assert strip_sido("서울특별시 성북구 화랑로48길 16") == "성북구 화랑로48길 16"
+    assert strip_sido("경기도수원시 팔달구 인계로 123") == "수원시 팔달구 인계로 123"
