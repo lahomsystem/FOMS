@@ -28,7 +28,7 @@ from sqlalchemy.sql.elements import ColumnElement
 
 from db import get_db
 from foms.services.datetime_kst import (format_datetime_kst, get_today_kst,
-                                        now_utc_naive)
+                                        now_kst, now_utc_naive)
 from foms.services.integrations.naver_commerce.constants import SELLER_CENTER_URL
 from foms.services.integrations.naver_commerce.fulfillment import CLOSE_NOW_RELATIONS
 from foms.services.integrations.naver_commerce.mapping import (
@@ -41,7 +41,8 @@ from foms.services.integrations.naver_commerce.promotion import (
     summarize_link_household,
     summarize_snapshot,
 )
-from foms.services.jobs.queue import enqueue_naver_order_sync, get_rq_runtime_status
+from foms.services.jobs.queue import (enqueue_naver_backfill, enqueue_naver_order_sync,
+                                     get_rq_runtime_status)
 from foms.web.admin.routes import admin_bp
 from foms.web.auth import log_access, login_required, role_required
 from models import ExternalOrderLink, Order, OrderEvent
@@ -5052,6 +5053,127 @@ def naver_ingest_run_state():
     }})
 
 
+@admin_bp.route("/admin/naver-ingest/backfill", methods=["POST"])
+@login_required
+@role_required(["ADMIN"])
+def naver_ingest_backfill():
+    """"과거 주문 소급 수집" — 구간을 검사하고 rq 큐에 넣기만 한다(실행은 WORKER).
+
+    수집 워터마크는 **앞으로만** 간다. 첫 실행(2026-08-25) 이전에 들어온 네이버 주문은
+    FOMS 에 원본이 아예 없고, 원본이 없으면 붙이기 후보에도 일괄 발송 대상에도 나타나지
+    않는다 — 붙이기로는 못 메우는 구멍이라 과거를 한 번 긁어와야 한다.
+
+    구간 검사는 **넣기 전에** 여기서 한다. 큐에 들어간 뒤에 거절하면 사람은 "요청했다"는
+    말만 듣고 아무 일도 안 일어난 것을 나중에야 안다. 판정 규칙 자체는 서비스와 같은
+    함수(:func:`~foms.services.integrations.naver_commerce.backfill.validate_range`)를 쓴다
+    — 두 벌이 되면 화면이 통과시킨 구간을 워커가 거절한다.
+
+    "지금 수집" 과 같은 워커 판정 규율을 쓴다(확실히 0대일 때만 막는다).
+
+    Body:
+        ``from``·``to``: ``YYYY-MM-DD`` (form 또는 JSON). ``to`` 는 그날 끝까지로 읽는다.
+
+    Returns:
+        성공: ``{"success": True, "data": {"queued", "rev", "from", "to"}}``.
+        구간 오류: 400. 워커 없음·큐 장애: 503 + 사람 말로 된 사유.
+    """
+    from foms.services.integrations.naver_commerce import backfill as bf
+
+    payload = request.get_json(silent=True) if request.is_json else None
+    payload = payload if isinstance(payload, dict) else {}
+    raw_from = str(payload.get("from") or request.form.get("from") or "").strip()[:10]
+    raw_to = str(payload.get("to") or request.form.get("to") or "").strip()[:10]
+    try:
+        begin = datetime.datetime.strptime(raw_from, "%Y-%m-%d")
+        finish = datetime.datetime.strptime(raw_to, "%Y-%m-%d")
+    except ValueError:
+        return jsonify({
+            "success": False, "data": None,
+            "error": "날짜 형식이 올바르지 않습니다. 2026-06-03 처럼 시작일과 종료일을 적어 주세요.",
+        }), 400
+    # 종료일은 **그날 끝까지**로 읽는다. 날짜만 받아 0시로 두면 사람이 고른 마지막 날이
+    # 통째로 빠지고, 그 침묵은 "그날은 주문이 없었다"로 읽힌다.
+    finish = finish + datetime.timedelta(days=1) - datetime.timedelta(milliseconds=1)
+    now = now_kst()
+    try:
+        begin, finish = bf.validate_range(begin, finish, now=now)
+    except bf.BackfillRangeError as exc:
+        return jsonify({"success": False, "data": None, "error": str(exc)}), 400
+
+    db = get_db()
+    status = get_rq_runtime_status()
+    worker_count = int(status.get("worker_count", 0) or 0)
+    worker_count_known = bool(status.get("worker_count_known", True))
+    if status.get("state") == "reachable" and worker_count_known and worker_count == 0:
+        log_access(
+            "네이버 과거 주문 소급 수집 실패(워커 없음)",
+            session.get("user_id"),
+            action="NAVER_INGEST_BACKFILL_ENQUEUE",
+            detail={"queued": False, "reason": "no_worker",
+                    "from": begin.isoformat(), "to": finish.isoformat()},
+        )
+        return jsonify({
+            "success": False, "data": None,
+            "error": "수집을 맡을 워커가 한 대도 살아 있지 않습니다. 지금 넣으면 아무도 "
+                     "꺼내지 않는 큐에 남으므로 넣지 않았습니다. WORKER 서비스 상태를 "
+                     "확인한 뒤 다시 눌러 주세요.",
+        }), 503
+
+    base_rev = str(bf.read_state(db).get("rev") or "")
+    queued = enqueue_naver_backfill(begin.isoformat(), finish.isoformat())
+    log_access(
+        "네이버 과거 주문 소급 수집 요청" + ("" if queued else " 실패(큐 없음)"),
+        session.get("user_id"),
+        action="NAVER_INGEST_BACKFILL_ENQUEUE",
+        detail={"queued": bool(queued), "from": begin.isoformat(), "to": finish.isoformat(),
+                "worker_count": worker_count, "worker_count_known": worker_count_known},
+    )
+    if not queued:
+        return jsonify({
+            "success": False, "data": None,
+            "error": "작업 큐에 넣지 못했습니다(REDIS_URL 미설정 또는 큐 장애). "
+                     "네이버 호출은 WORKER 에서만 가능하므로 web 직접 실행은 없습니다.",
+        }), 503
+    return jsonify({"success": True, "error": None, "data": {
+        "queued": True,
+        "rev": base_rev,
+        "from": begin.isoformat(),
+        "to": finish.isoformat(),
+    }})
+
+
+@admin_bp.route("/admin/naver-ingest/backfill-state")
+@login_required
+@role_required(["ADMIN"])
+def naver_ingest_backfill_state():
+    """소급 수집이 어디까지 갔는지만 돌려준다(읽기 전용 GET).
+
+    백필은 창(하루)마다 커밋하며 진척을 남긴다. 화면은 이 경로를 폴링해 ``rev`` 가 바뀌면
+    다시 그린다 — F5 를 기다리게 하면 사람은 멈춘 것으로 읽는다.
+
+    **쓰기가 없다** — write manifest 등재도 감사 라벨도 없다(GET 은 대상 밖). 권한은
+    실행과 같은 ADMIN 으로 묶는다.
+
+    Returns:
+        ``{"success": True, "data": {"rev", "running", "requested_from", "requested_to",
+        "done_through", "last_summary", "last_error", "finished_at"}}``.
+    """
+    from foms.services.integrations.naver_commerce import backfill as bf
+
+    state = bf.read_state(get_db())
+    summary = state.get("last_summary") if isinstance(state.get("last_summary"), dict) else {}
+    return jsonify({"success": True, "error": None, "data": {
+        "rev": str(state.get("rev") or ""),
+        "running": bool(state.get("running")),
+        "requested_from": str(state.get("requested_from") or ""),
+        "requested_to": str(state.get("requested_to") or ""),
+        "done_through": str(state.get("done_through") or ""),
+        "finished_at": str(state.get("finished_at") or ""),
+        "last_error": str(state.get("last_error") or ""),
+        "last_summary": dict(summary or {}),
+    }})
+
+
 @admin_bp.route("/admin/naver-ingest/app-expiry", methods=["POST"])
 @login_required
 @role_required(["ADMIN"])
@@ -5124,6 +5246,8 @@ __all__ = [
     "naver_ingest_run_now",
     "naver_ingest_set_app_expiry",
     "naver_ingest_run_state",
+    "naver_ingest_backfill",
+    "naver_ingest_backfill_state",
     "naver_ingest_snapshot",
     "PAGE_SIZE",
     "VALID_STATUSES",

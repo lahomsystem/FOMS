@@ -672,6 +672,8 @@ def test_namespaced_jobs_tasks_shim_preserves_canonical_contract() -> None:
         "run_notification_escalation_task",
         # NAVER-INGEST-01 §3.1: 수집 실행은 WORKER 의 rq job 이다(web 직접 호출 금지).
         "run_naver_order_sync_task",
+        # NAVER-INGEST-BACKFILL: 과거 구간 소급 수집도 같은 이유로 WORKER job 이다.
+        "run_naver_backfill_task",
     ]
 
     assert namespaced_jobs_tasks.__all__ == expected_public_names
