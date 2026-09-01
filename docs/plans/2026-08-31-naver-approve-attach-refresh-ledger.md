@@ -25,6 +25,54 @@
 | T1b | 승인 배선 — 큐·태스크·라우트 payload `approve` + 감사 라벨 분리 | 라우트가 `approve` 전달 · 문자열 `"false"` 방어 · `NAVER_INGEST_RETURN_APPROVE_ENQUEUE` 등재 | **DONE** |
 | T1c | 승인 화면 — 체크박스(기본 꺼짐)·빨간 띠 한 줄·중간 상태 띠·자산 핀 범프 | 모달 문구 계약 갱신 · `?v=` 핀 2곳 + 계약 2곳 함께 범프 | **DONE** |
 | T2 | 후보 0건일 때 주문 찾아서 붙이기 (검색 → 붙이기) | 검색 라우트 계약 · 후보 0건 화면에 진입점 노출 · 붙인 뒤 기존 흐름과 동일 | **DONE** |
+| T4 | 반품 **거부** (T8-S3) — 규격 확보 후 완성 | 선로 요청이 문서 그대로(`rejectReturnReason` 단일 필드) · 계약 37종 · `COLLECTING` 편입 + `COLLECT_DONE` 대조군 | **DONE (게이트 OFF)** |
+
+### T4 규격 해소 (2026-09-01) — **막힌 곳이 열렸다**
+
+**전제가 틀렸었다.** 원장이 "apicenter 는 로그인·JS 라 세션이 못 연다"고 적은 것은 **화면
+갈래** 얘기였고, 같은 도메인의 **문서 갈래는 로그인 없이 열려 있었다**. 사용자가 짚어 준
+`https://apicenter.commerce.naver.com/llms/llms.txt` 가 인덱스이고, endpoint 마다 `.md`
+상세가 200 으로 떨어진다. **다음에 네이버 규격이 필요하면 여기부터 본다** — 검색·화면 캡처
+전에.
+
+읽은 문서: `post-...-claim-return-reject.md` · `wiki-주문-주문-상태-변경-흐름도.md` ·
+`post-...-claim-return-approve.md`. 설계서 §2 표 #2~#7 을 전부 채웠다.
+
+바뀐 것 셋:
+
+1. **클라이언트가 열렸다** — body 는 `{"rejectReturnReason": 문장}` 하나, `Content-Type:
+   application/json`. `NotImplementedError` 제거. 문서에 **사유 코드 필드가 없다** —
+   지어내지 않았다.
+2. **`RETURN_REJECTABLE_STATUSES` 에 `COLLECTING` 추가.** 문서 규정 문장이 "반품요청·수거중
+   상태를 반품철회로 전이"라고 적고 흐름도 R-2 도 같다. **`COLLECT_DONE` 은 안 넣었다** —
+   서술이 "회수된 상품에 문제"를 들지만 규정 문장·흐름도 둘 다 출발점으로 안 적는다.
+   불가역 경로에서는 서술이 아니라 규정을 따른다.
+3. **`RETURN_REJECT_REASON_MAX` 는 500 유지** — 문서에 길이 제한이 **없음을 확인**했다
+   (못 찾은 것이 아니라 없다). 우리 상한으로 남긴다.
+
+덤: 승인 문서가 "본문이 필요 없고"라고 적어 **T1 의 body 없는 승인 구현이 독립 재확인**됐다
+(`approvalData` 폐기 판단이 옳았다).
+
+**남은 것은 게이트뿐.** 설계서 §6-2 순서: Railway 변수 `FOMS_NAVER_RETURN_REJECT_ENABLED=1`
+→ **재배포해야 실행 중 프로세스가 든다**(변수만 넣으면 옛 env) → worker 1 대라 재배포 전
+`tools/ops/check_worker_redeploy_safe.py` → 관리자가 화면에서 상용구 문장 확정.
+
+## T4 반품 거부 — 만든 것 (2026-08-31 ~ 09-01, deploy `2b83b41d`·`5ad8485b`)
+
+접수·승인과 **대상이 다르다**: 접수는 우리가 반품을 내는 것, 거부는 **고객이 낸 요청**을
+되돌려보내는 것. 그래서 접수 모달의 체크박스가 아니라 별도 라우트·별도 모달이다.
+
+- 서비스 `fulfillment.reject_return`·`is_return_rejectable`(요청 걸린 행만 · 보류 건 제외 ·
+  멱등 · 보낸 문장 원문 기록) · 큐/워커 `return-reject` + 자동 다시읽기 편입.
+- 라우트 `POST .../return-reject` — **ADMIN·MANAGER**(접수·승인보다 좁다). 빈 문장은
+  화면·라우트·서비스 3겹 차단. 주문 이력에 `NAVER_RETURN_REJECTED` + 보낸 문장.
+- 상용구: **회사 전체 공유 · ADMIN 만 편집**(`SystemSetting` 키 하나, 새 표 없음).
+  저장 전에는 코드 기본 5종. 목록 통째 덮어쓰기 + `version` 낙관적 잠금(409).
+  저장 상한 = 보낼 때 상한.
+- 계약: manifest 2 × 라우트 2 · audit coverage · 감사 라벨 2종 · 주문 이벤트 라벨 ·
+  자산 핀 `20260901a`. 테스트 `test_naver_return_reject.py` **30종**.
+- **게이트 `FOMS_NAVER_RETURN_REJECT_ENABLED` 기본 꺼짐** — 규격이 안 채워져서다.
+  눌러도 안 나가는 버튼을 보여 주면 담당자는 처리됐다고 믿는다.
 
 ## 배포 상태 (2026-08-31)
 

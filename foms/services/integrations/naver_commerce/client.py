@@ -595,6 +595,55 @@ class NaverCommerceClient:
             "POST", f"/v1/pay-order/seller/product-orders/{pid}/claim/return/approve",
         )
 
+    def reject_return_product_order(self, product_order_id: str, *, reason: str) -> dict:
+        """판매자 반품 **거부(철회)** — 고객이 낸 반품 요청을 되돌려보낸다 (T8-S3).
+
+        **규격 출처**: 커머스API센터 공개 문서(2026-09-01 원문 확인) —
+        ``apicenter.commerce.naver.com/llms/`` 의
+        ``post-v1-pay-order-seller-product-orders-productOrderId-claim-return-reject.md``.
+        로그인·JS 없이 열리는 ``llms.txt`` 갈래다. 화면이 막혔다고 규격을 지어내던
+        자리를 이 문서가 닫았다(``approvalData`` 사고와 같은 자리).
+
+        **body 는 ``rejectReturnReason`` 한 필드다**(string, **필수**). 문서의 요청 본문
+        표에 그 한 줄만 있고 curl 예시에 ``Content-Type: application/json`` 과 ``-d`` 가
+        있다. 승인(:meth:`approve_return_product_order`)이 "본문이 필요 없고"인 것과 갈린다.
+
+        **문장은 구매자에게 간다** — 문서가 "구매자 알림과 사후 분쟁 대응의 근거"라고
+        적는다. 그래서 호출자가 보낸 원문을 상태와 감사 로그 양쪽에 남긴다.
+
+        **되돌리는 엔드포인트는 없다.** 거부 뒤 클레임 상태는 ``RETURN_REJECT`` 가 되고
+        상품주문상태는 클레임 직전(``DELIVERING``/``DELIVERED``)으로 복귀한다. 환불은
+        발생하지 않으며 **구매자가 다시 반품을 신청할 수 있다**(이력은 ``completedClaims``
+        에 쌓인다).
+
+        **보류 건·반품완료 건은 처리되지 않는다** — 예외가 아니라
+        ``data.failProductOrderInfos`` 로 온다. 응답이 접수·승인과 **동형**이라 호출자가
+        ``_split_result`` 를 그대로 쓴다.
+
+        Args:
+            product_order_id: 거부할 ``productOrderId``.
+            reason: 구매자에게 **그대로 전달되는** 거부 사유 문장.
+
+        Returns:
+            응답 payload(원본). 건별 성공/실패는 ``data.successProductOrderIds`` 와
+            ``data.failProductOrderInfos`` 로 온다.
+
+        Raises:
+            ValueError: 상품주문번호나 사유 문장이 비었을 때. 빈 요청으로 불가역 API 를
+                때리지 않는다 — 문서도 **사유 누락을 400** 으로 적는다.
+        """
+        pid = str(product_order_id or "").strip()
+        if not pid:
+            raise ValueError("거부할 상품주문번호가 없습니다.")
+        text = str(reason or "").strip()
+        if not text:
+            raise ValueError("거부 사유 문장이 없습니다.")
+        return self._request(
+            "POST", f"/v1/pay-order/seller/product-orders/{pid}/claim/return/reject",
+            json_body={"rejectReturnReason": text},
+            headers={"Content-Type": "application/json"},
+        )
+
     # -- HTTP ------------------------------------------------------------- #
 
     def _session(self) -> Any:

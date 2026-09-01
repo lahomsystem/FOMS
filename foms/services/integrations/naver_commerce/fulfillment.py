@@ -52,6 +52,11 @@ __all__ = [
     "RETURN_COLLECT_METHOD",
     "request_return",
     "is_return_pending",
+    "reject_return",
+    "is_return_rejectable",
+    "RETURN_REJECT_REASON_MAX",
+    "RETURN_REJECTABLE_STATUSES",
+    "RETURN_REJECT_FILLS",
     "HEALTHY_SYNC_STATUSES",
     "CLOSE_NOW_RELATIONS",
 ]
@@ -1189,3 +1194,165 @@ def request_return(session: Session, client: Any, *, link_id: int, reason: str,
                 len(failures), len(approved))
     return {"returned": ok_ids, "approved": approved,
             "skipped": [pid for pid in failures]}
+
+
+#: 반품 **거부**를 걸 수 있는 클레임 상태 (T8-S3).
+#:
+#: **문서가 정한 값이다**(커머스API 공개 문서 2026-09-01 원문): 거부 endpoint 는
+#: "반품요청·수거중 상태를 반품철회로 전이"시킨다. 상태 흐름도의 R-2(거부) 분기도
+#: 1단계 ``RETURN_REQUEST`` 또는 ``COLLECTING`` 에서만 갈라진다. ``RETURN_REQUESTED``
+#: 는 읽기 쪽 별칭이다(:data:`mapping.CLAIM_STATUS_LABELS` 에 이미 있다).
+#:
+#: 승인(:data:`RETURN_APPROVABLE_STATUSES`)보다 여전히 **좁다** — ``COLLECT_DONE``
+#: (수거 완료)은 넣지 않는다. 문서 서술이 거부 용례로 "회수된 상품에 문제"를 들긴 하지만
+#: **상태 전이를 규정한 문장과 흐름도는 둘 다 수거완료를 거부 출발점으로 적지 않는다.**
+#: 불가역 경로에서는 서술이 아니라 규정 문장을 따른다 — 400 을 받아 보며 배우지 않는다.
+RETURN_REJECTABLE_STATUSES = ("RETURN_REQUEST", "RETURN_REQUESTED", "COLLECTING")
+
+#: 거부 사유 문장 상한. **여전히 네이버 제한이 아니라 우리 상한이다.**
+#: 2026-09-01 공개 문서 원문에도 ``rejectReturnReason`` 의 길이 제한이 **없다**
+#: (타입 string·필수만 적혀 있다). 상한이 문서에 없는 것이 확인된 것이라, 취소·반품
+#: 상세사유와 같은 500 자를 보수적으로 유지한다.
+RETURN_REJECT_REASON_MAX = 500
+
+#: 자주 쓰는 거부 문장 — **채워 넣기만 한다**(사용자 결정 2026-08-31: 문안은 자유 입력).
+#:
+#: 강제하지 않는 이유: 담당자가 자유 입력을 골랐다. 그래도 매번 처음부터 쓰게 두면 오타와
+#: 감정 섞인 문장이 그대로 구매자에게 간다 — 되돌릴 수 없다. 그래서 버튼을 누르면 입력칸에
+#: 들어가고 **그 자리에서 고칠 수 있게** 한다.
+#:
+#: 상황 5종은 사용자가 지목한 실제 업무다(제작 착수·시공 완료·사용 파손·기간 경과·실측 후).
+#: **문장 자체는 초안이다** — 주문제작품 청약철회 제한은 조건이 걸리는 영역이라
+#: 운영에 켜기 전에 사용자가 확정한다(설계서 §7 Q1).
+RETURN_REJECT_FILLS = (
+    {"label": "제작 착수",
+     "text": "주문하신 상품은 고객님 치수에 맞춰 이미 제작에 들어가 재판매가 불가능하여 "
+             "반품이 어렵습니다."},
+    {"label": "시공 완료",
+     "text": "시공이 완료된 건으로 원상 복구가 불가능하여 반품이 어렵습니다."},
+    {"label": "사용·파손",
+     "text": "제품에 사용·파손 흔적이 확인되어 반품 조건에 해당하지 않습니다."},
+    {"label": "기간 경과",
+     "text": "반품 가능 기간이 지나 단순 변심에 의한 반품이 어렵습니다."},
+    {"label": "실측 후",
+     "text": "실측 방문이 완료된 건으로 방문 비용이 발생하여 단순 변심에 의한 반품이 "
+             "어렵습니다."},
+)
+
+
+def is_return_rejectable(link: ExternalOrderLink) -> bool:
+    """이 상품주문에 **반품 거부를 보낼 것인가** — 화면과 서버의 공통 술어 (T8-S3).
+
+    :func:`reject_return` 이 실제로 보낼 대상을 고르는 조건 그대로다. 한 벌만 두는 이유는
+    :func:`is_return_pending` 과 같다 — 화면이 집 전체 수로 재진술하면 "3건 거부합니다"로
+    읽히는데 서버는 요청이 걸린 1건만 보낸다. **불가역 경로에서 그 과대 진술이 곧 사고다.**
+
+    조건 셋:
+
+    1. 클레임 상태가 :data:`RETURN_REJECTABLE_STATUSES` 안이다(반품 **요청**·**수거중**).
+    2. **보류가 걸려 있지 않다.** 걸렸으면 우리가 풀지 않는다 — 안심케어 건은 보류해제
+       자체가 금지다(승인과 같은 규율).
+    3. 아직 우리가 **승인·거부하지 않았다.** 멱등은 우리 표식으로만 판정한다 —
+       네이버 ``requestChannel`` 은 API 분과 판매자센터 수동분을 갈라 주지 않는다.
+
+    Args:
+        link: 수집 링크.
+
+    Returns:
+        거부를 보낼 건이면 True.
+    """
+    from foms.services.integrations.naver_commerce.mapping import (
+        extract_claim,
+        extract_claim_holdback,
+    )
+
+    snapshot = link.raw_snapshot or {}
+    status = str(extract_claim(snapshot).get("status") or "")
+    if status not in RETURN_REJECTABLE_STATUSES:
+        return False
+    if extract_claim_holdback(snapshot).get("holdback_status"):
+        return False
+    state = _return_state(link)
+    return not (state.get("rejected_at") or state.get("approved_at"))
+
+
+def reject_return(session: Session, client: Any, *, link_id: int, reason: str,
+                  actor_user_id: Optional[int] = None,
+                  now: Optional[datetime] = None) -> dict[str, Any]:
+    """고객이 낸 반품 요청을 **거부**한다 (WORKER 실행, T8-S3).
+
+    접수·승인과 같은 모양이다 — 상품주문 1건씩이라 집을 돌며 부르고, 한 건이 실패해도
+    나머지는 계속 부른다. 반쪽만 처리된 채 사람이 사유를 못 보는 상태가 제일 나쁘다.
+
+    **되돌릴 수 없다.** 거부하면 구매자에게 거부 사실과 **이 문장이 그대로** 간다.
+    그래서 문장은 상태와 감사 로그 양쪽에 원문으로 남긴다 — 분쟁이 나면 무엇을 보냈는가가
+    유일한 방어선이다.
+
+    **FOMS 주문은 건드리지 않는다**(접수·취소와 같은 규율). 주문 이력에 표식을 남기는 것은
+    라우트의 일이다 — 여기서 하면 워커 실패 때 이력만 남는다.
+
+    Args:
+        session: DB 세션(호출자가 commit 을 소유한다).
+        client: 커머스API 클라이언트.
+        link_id: 기준 링크 id(같은 집 전체가 함께 처리된다).
+        reason: 구매자에게 그대로 전달되는 거부 사유 문장.
+        actor_user_id: 누른 사람(기록용).
+        now: 시각 주입(테스트).
+
+    Returns:
+        ``{"rejected": [...], "skipped": [...]}``.
+
+    Raises:
+        FulfillmentError: 사유 문장이 비었거나, 거부할 건이 하나도 없거나,
+            네이버 호출이 전부 실패했을 때.
+    """
+    stamp = now or now_utc_naive()
+    text = str(reason or "").strip()
+    if not text:
+        # 빈 문장으로 불가역 API 를 때리지 않는다(사유 코드 화이트리스트와 같은 자리).
+        raise FulfillmentError("거부 사유 문장을 입력하세요 — 구매자에게 그대로 전달됩니다.")
+    text = text[:RETURN_REJECT_REASON_MAX]
+
+    links = _links_of_group(session, link_id)
+    if not links:
+        raise FulfillmentError(f"수집 기록을 찾을 수 없습니다 (link {link_id}).")
+
+    # 술어는 화면과 **한 벌**이다. 여기서 다시 구현하면 재진술 건수와 처리 건수가 갈린다.
+    todo = [row for row in links if is_return_rejectable(row)]
+    if not todo:
+        raise FulfillmentError(
+            "거부할 반품 요청이 없습니다 — 이미 처리됐거나, 네이버가 보류를 걸어 둔 "
+            "건입니다(보류는 판매자센터에서 처리하세요).")
+
+    ok_ids: list[str] = []
+    failures: dict[str, str] = {}
+    by_id = {str(row.external_id): row for row in todo}
+    for pid, row in by_id.items():
+        try:
+            response = client.reject_return_product_order(pid, reason=text)
+        except Exception as exc:  # noqa: BLE001 - 사유를 사람에게 그대로 보여준다
+            failures[pid] = str(exc)[:500]
+            logger.error("[NAVER] 반품 거부 실패 link=%s pid=%s: %s", link_id, pid, exc,
+                         exc_info=True)
+            continue
+        ok, fails = _split_result(response, [pid])
+        ok_ids.extend(ok)
+        failures.update(fails)
+
+    for pid in ok_ids:
+        _write_return_state(by_id[pid], {
+            "rejected_at": stamp.isoformat(),
+            "rejected_by": actor_user_id,
+            # 보낸 문장 원문. 요약하지 않는다 — 분쟁에서 필요한 것은 요약이 아니다.
+            "reject_reason": text,
+        })
+    if failures:
+        _mark_failures(by_id, failures, action="return-reject", stamp=stamp)
+    session.flush()
+
+    if failures and not ok_ids:
+        detail_text = "; ".join(f"{pid}: {why}" for pid, why in failures.items())
+        raise FulfillmentError(f"반품 거부가 실패했습니다 — {detail_text}")
+    logger.info("[NAVER] 반품 거부 link=%s 성공=%d 실패=%d", link_id, len(ok_ids),
+                len(failures))
+    return {"rejected": ok_ids, "skipped": [pid for pid in failures]}

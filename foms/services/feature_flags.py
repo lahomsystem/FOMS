@@ -346,6 +346,30 @@ def is_naver_bulk_dispatch_enabled() -> bool:
     return env_bool("FOMS_NAVER_BULK_DISPATCH_ENABLED")
 
 
+def is_naver_return_reject_enabled() -> bool:
+    """네이버 **반품 거부**가 켜져 있나 (T8-S3).
+
+    **기본값은 꺼짐이다. 이제는 켤 수 있다** — 2026-09-01 에 규격이 확인돼
+    ``client.reject_return_product_order`` 가 열렸다(설계서 §2, 공개 문서 원문). 그전까지
+    이 스위치가 닫고 있던 것은 "화면은 다 있는데 네이버로 나가는 한 줄만 비어 있는" 상태였다
+    — 그 상태로 버튼이 보이면 담당자가 눌러 놓고 안 나간 줄 모른다.
+
+    켜는 순서: ① Railway 에 ``FOMS_NAVER_RETURN_REJECT_ENABLED=1`` ② **재배포**(변수만 넣으면
+    실행 중 프로세스는 옛 env 를 든다) — worker 는 1 대라 재배포가 큐를 전면 정지시키니
+    ``tools/ops/check_worker_redeploy_safe.py`` 를 먼저 본다 ③ 관리자가 화면에서 상용구
+    문장을 확정한다(코드 5종은 아무도 저장하지 않았을 때의 기본값일 뿐이다).
+
+    **거부는 불가역이고 문장이 구매자에게 그대로 간다.** 켜기 전에 ③ 을 끝내는 쪽이 낫다.
+
+    코호트를 쓰지 않는 이유는 일괄 발송처리와 같다 — 이 스위치의 일은 "기능 자체를 당장
+    끌 수 있는가" 하나이고, 누가 누를 수 있는지는 **롤**(ADMIN·MANAGER)이 정한다.
+
+    Returns:
+        켜져 있으면 True.
+    """
+    return env_bool("FOMS_NAVER_RETURN_REJECT_ENABLED")
+
+
 def is_mobile_v2_shell(variant: str) -> bool:
     """shell variant가 v2 셸 계열(``v2``/``v3``)인지 판정한다.
 
