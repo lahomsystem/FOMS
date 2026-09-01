@@ -178,6 +178,7 @@
                             <th>이름</th>
                             <th>역할</th>
                             <th>팀</th>
+                            <th title="알림톡·문자 발신에 쓸 개인 발신번호(솔라피 등록분). 비어 있으면 대표번호로 나갑니다.">발신번호</th>
                             <th>상태</th>
                             <th>최근 로그인</th>
                             <th>생성일</th>
@@ -191,6 +192,13 @@
                             <td>{{ user.name }}</td>
                             <td>{{ ROLES.get(user.role, user.role) }}</td>
                             <td>{{ TEAMS.get(user.team, user.team or '-') }}</td>
+                            <td>
+                                {% if user.sender_phone %}
+                                <span class="badge bg-info text-dark">등록 ****{{ user.sender_phone[-4:] }}</span>
+                                {% else %}
+                                <span class="badge bg-light text-muted border">미등록</span>
+                                {% endif %}
+                            </td>
                             <td>
                                 {% if user.is_active %}
                                 <span class="badge bg-success">활성</span>
@@ -221,7 +229,7 @@
                         </tr>
                         {% else %}
                         <tr>
-                            <td colspan="7" class="text-center py-3">등록된 사용자가 없습니다.</td>
+                            <td colspan="9" class="text-center py-3">등록된 사용자가 없습니다.</td>
                         </tr>
                         {% endfor %}
                     </tbody>
