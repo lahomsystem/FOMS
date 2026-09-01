@@ -25,7 +25,7 @@
 | T1b | 승인 배선 — 큐·태스크·라우트 payload `approve` + 감사 라벨 분리 | 라우트가 `approve` 전달 · 문자열 `"false"` 방어 · `NAVER_INGEST_RETURN_APPROVE_ENQUEUE` 등재 | **DONE** |
 | T1c | 승인 화면 — 체크박스(기본 꺼짐)·빨간 띠 한 줄·중간 상태 띠·자산 핀 범프 | 모달 문구 계약 갱신 · `?v=` 핀 2곳 + 계약 2곳 함께 범프 | **DONE** |
 | T2 | 후보 0건일 때 주문 찾아서 붙이기 (검색 → 붙이기) | 검색 라우트 계약 · 후보 0건 화면에 진입점 노출 · 붙인 뒤 기존 흐름과 동일 | **DONE** |
-| T4 | 반품 **거부** (T8-S3) — 규격 확보 후 완성 | 선로 요청이 문서 그대로(`rejectReturnReason` 단일 필드) · 계약 37종 · `COLLECTING` 편입 + `COLLECT_DONE` 대조군 | **DONE (게이트 OFF)** |
+| T4 | 반품 **거부** (T8-S3) — 규격 확보 후 완성 | 선로 요청이 문서 그대로(`rejectReturnReason` 단일 필드) · 계약 37종 · `COLLECTING` 편입 + `COLLECT_DONE` 대조군 | **DONE — 운영 반영(PR #229 · `7976fb2c`) + 게이트 ON** |
 
 ### T4 규격 해소 (2026-09-01) — **막힌 곳이 열렸다**
 
@@ -53,9 +53,52 @@
 덤: 승인 문서가 "본문이 필요 없고"라고 적어 **T1 의 body 없는 승인 구현이 독립 재확인**됐다
 (`approvalData` 폐기 판단이 옳았다).
 
-**남은 것은 게이트뿐.** 설계서 §6-2 순서: Railway 변수 `FOMS_NAVER_RETURN_REJECT_ENABLED=1`
-→ **재배포해야 실행 중 프로세스가 든다**(변수만 넣으면 옛 env) → worker 1 대라 재배포 전
-`tools/ops/check_worker_redeploy_safe.py` → 관리자가 화면에서 상용구 문장 확정.
+### T4 운영 승격 (2026-09-01, PR #229 · production `7976fb2c`)
+
+**단독 승격이 불가능했다.** 이 세션 커밋은 2개(`e8f18f1f`·`731af6bf`)뿐인데 **T4 본체가
+운영에 아예 없었다** — `test_naver_return_reject.py`·`reject_templates.py`·설계서 전부
+`origin/production` 에 부재. 한 줄을 채우는 보수만 떼어 올릴 수 없어 T4 체인 8개를 통째로
+cherry-pick 했다(deploy HEAD merge 는 안 했다. 전 커밋이 T4 한 기능이다).
+
+체인: `944fdeac` `81b495d9` `156769ec`(설계서) → `5fd47b96`(본체) → `5f36d3be`(상용구)
+→ `eb2875ee`(원장) → `2e5c243c`(규격 확정) → `cf240f6a`(게이트 설명) → `63bf524e`(인벤토리).
+
+충돌 3건과 처리:
+
+* `foms_failopen_inventory.json`·`foms_audit_coverage_inventory.json` — **생성물이라 손으로
+  병합하지 않고 승격 트리(production 기준)에서 스캐너 재실행.** 558 catches / 0 unclassified ·
+  203 routes / unaudited 0 / 100.0%. 별도 커밋으로 분리해 무엇이 재생성인지 보이게 했다.
+* `docs/AI_STATUS.md` — 계보가 갈렸다. **production 쪽 유지**(승격 diff 에 AI_STATUS 없음).
+  운영 트리의 상태 문서를 deploy 계보로 덮으면 남의 기록이 사라진다.
+
+검증은 **승격 트리에서 직접** 돌렸다(승격 PR 이 본 스위트를 안 도는 구멍 때문):
+`tests/services/integrations` + `tests/domains` **7119 passed / 5 skipped** · `pre_push_smoke`
+exit 0 · `APP_OK`. PR 검사 4종(harness·perf-gate·pg-lane·test) 전부 pass.
+
+**머지해도 화면은 그대로다** — 게이트가 꺼진 채 올라갔다. `promote_completeness` 는
+incomplete 85건을 냈지만 대부분 `AI_STATUS`·failopen 인벤토리 공유 파일 잡음이었고,
+진짜 의존은 **운영 소스 grep**(`reject_return_product_order`·`RETURN_REJECTABLE_STATUSES`·
+`reject_templates.py` 부재)으로 판정했다.
+
+### T4 게이트 ON (2026-09-01, 운영 web `09aeca29`)
+
+`FOMS_NAVER_RETURN_REJECT_ENABLED=1` 을 운영 **`web` 에만** 넣고 재배포했다. 재배포
+`09aeca29`(reason=redeploy, 02:41:59Z)가 변수 등록보다 **뒤에** 부팅했고 healthz 가
+`7976fb2c` 를 서빙한다 — 변수만 넣고 "켜졌다"고 말하지 않는다는 규율 그대로다.
+
+**`WORKER` 는 건드리지 않았다.** 소스로 확인했다: `is_naver_return_reject_enabled()` 를 읽는
+곳은 `foms/web/admin/naver_ingest.py` 두 곳(pane 재진술·라우트 가드)뿐이고, 워커의
+`run_naver_fulfillment_task` 는 게이트를 보지 않고 `fulfillment.reject_return` 을 바로 부른다.
+설계서 이전 판이 "web·worker" 라고 적었던 것은 확인 없이 쓴 것이고 소스로 반증됐다 —
+그대로 따랐으면 **얻는 것 없이 큐를 전면 정지**시킬 뻔했다(worker 1대, 08-31 실사례 14분 지연).
+
+확인하지 **못한** 것: 화면에 버튼이 실제로 뜨는지는 눈으로 못 봤다. pane 은 로그인이 필요하고
+운영 측정 계정은 기본 잠금(요청 1건당 1회)이다. 배포 인과와 healthz 까지가 이 세션의 근거다.
+
+**남은 것은 상용구 문장 확정뿐** — 코드 5종은 기본값이고 **법률 검토를 거친 문안이 아니다**.
+주문제작품 청약철회 제한은 조건이 걸리는 영역이라 관리자가 화면에서 확정해야 한다.
+
+**남은 것은 상용구 문장 확정뿐**(게이트는 위에서 켰다).
 
 ## T4 반품 거부 — 만든 것 (2026-08-31 ~ 09-01, deploy `2b83b41d`·`5ad8485b`)
 
@@ -80,7 +123,21 @@
 검증: `tests/services/integrations` + `tests/domains` **6752 passed, 5 skipped** ·
 `pre_push_smoke` exit 0 · **CI 4/4 green**(Harness · FOMS CI · PostgreSQL Lane · perf-gate,
 커밋별 전 워크플로 나열로 판정).
-production 승격은 **안 했다** — 사용자 명시 요청 시에만.
+**production 승격 완료** (2026-08-31, 사용자 명시 요청) — PR [#213](https://github.com/lahomsystem/FOMS/pull/213)
+머지 `c462bdb9`. 승격 트리에서 직접 검증: `APP_OK` · `tests/services/integrations` **1185 passed** ·
+`tests/domains` **5369 passed, 5 skipped** · `pre_push_smoke` exit 0 · PR 검사 **4/4 green**.
+
+승격에서 배운 것 둘 —
+
+* **`promote_completeness` 의 incomplete 는 곧 의존이 아니다.** "미승격 30건"이 떴는데 그중
+  네이버 23건은 **이미 운영에 있었다**(예전에 다른 SHA 로 cherry-pick 돼 patch-id 가 달라진 것).
+  제목 대조 + 운영 소스 grep(`request_return`·`NAVER_INGEST_RETURN_ENQUEUE`·`wb-return-confirm`)
+  으로 확인하고 우리 5건만 올렸다. 그대로 28건을 다시 얹었으면 같은 패치를 두 번 얹을 뻔했다.
+* **인벤토리 충돌은 손으로 병합하지 않는다.** `foms_failopen_inventory.json` 한 곳만 충돌(줄번호 축) —
+  `failopen_scan.py` 로 **재생성**해 해결(558 catches, 0 unclassified).
+
+운영에 처음 생긴 것: **반품 승인 체크박스**(기본 꺼짐 — 켜면 환불 확정, 되돌리는 API 없음)와
+**주문 찾아서 붙이기**.
 네이버 반품 접수·승인 실호출은 여전히 **0회**(불가역이라 진짜 반품 건에서 사용자가 확인).
 
 ## T2 를 시작할 때 필요한 사실 (조사 다시 하지 마라)
