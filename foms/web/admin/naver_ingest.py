@@ -3366,6 +3366,33 @@ def _dispatched_count(links: list[ExternalOrderLink]) -> int:
                if ((row.triage_state or {}).get("fulfillment") or {}).get("dispatched_at"))
 
 
+def _dispatched_any(links: list[ExternalOrderLink]) -> bool:
+    """이 집에서 **하나라도 발송이 나갔나** — 취소/반품 갈래를 가르는 값.
+
+    :func:`_dispatched_count` 와 달리 **신호를 둘 본다.** 우리 표식만 세면 판매자센터에서
+    사람이 직접 발송한 집을 못 본다 — 그 집에서 화면은 취소 버튼을 열어 주고 반품 버튼은
+    안 냈다. 정작 같은 화면의 정리 띠·관계 블록은 네이버 원본을 읽어 그 집을 "반품 건"
+    이라고 부르고 있었다(2026-09-01 사용자 신고).
+
+    서비스 쪽은 이미 두 신호를 본다 — :func:`fulfillment.is_return_pending`,
+    ``dispatch_order``, ``_approve_returns``. 취소만 우리 표식뿐이었고 이 함수가 그 축을
+    화면에서 맞춘다(``cancel_order`` 도 같은 날 두 신호로 고쳤다).
+
+    Args:
+        links: 한 집의 링크 목록.
+
+    Returns:
+        우리 표식이든 네이버 원본이든 발송 흔적이 하나라도 있으면 True.
+    """
+    from foms.services.integrations.naver_commerce.fulfillment import (
+        _naver_dispatched_at,
+    )
+
+    return any(((row.triage_state or {}).get("fulfillment") or {}).get("dispatched_at")
+               or _naver_dispatched_at(row)
+               for row in links)
+
+
 def _group_queue(links: list[ExternalOrderLink], orders: dict,
                  *, truncated: bool, limit: Optional[int] = None) -> list[dict[str, Any]]:
     """확인 대기 링크를 **한 집 = 한 줄**로 묶는다 (T14-C).
@@ -3478,7 +3505,9 @@ def _group_queue(links: list[ExternalOrderLink], orders: dict,
             #  · dispatched_any  = 하나라도 나갔다(취소는 이 순간부터 반품 흐름 — 서버가 거절한다)
             "dispatched_count": dispatched_n,
             "dispatched": dispatched_n == len(members) and bool(members),
-            "dispatched_any": dispatched_n > 0,
+            # 갈래 판정은 **두 신호**다(우리 표식 + 네이버 원본) — `dispatched_count` 는
+            # "우리가 눌러서 나간 수"라 뜻이 다르다. 섞으면 발송처리 모달 재진술이 흔들린다.
+            "dispatched_any": _dispatched_any(members),
             # 주문 만들기가 **실제로 옮길** 형제 수. 집 전체 수(count)로 재진술하면 이미
             # 주문이 붙은 형제까지 세어 "3건을 주문 1건으로" 라고 읽히는데 서버는 2건만
             # 옮긴다(리뷰 M-2). 술어는 promotion 모듈 한 벌을 그대로 쓴다.
