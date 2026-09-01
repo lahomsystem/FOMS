@@ -455,10 +455,16 @@ pane 은 **취소처리 버튼**을 열어 줬다. 띠가 pane 옆에 서면서 
 접수가 그 자리를 대신한다 · 서버가 취소를 거부하고 네이버로 한 건도 안 나간다.
 스테이징 실화면으로도 확인했다(취소 버튼 없음 · 반품 접수 열림).
 
-**아직 안 고친 것**: 발송처리 모달의 "N건을 보냅니다" 재진술이 같은 이유로 부풀 수 있다
-(`dispatched_count` 는 우리 표식만 세는데 `dispatch_order` 는 네이버가 발송을 말하는 형제도
-뺀다). 형제 일부만 판매자센터 발송된 집에서만 어긋나고, `dispatched_count` 는 별도 뜻이
-있어 임의로 바꾸지 않았다.
+~~**아직 안 고친 것**: 발송처리 모달의 "N건을 보냅니다" 재진술이 같은 이유로 부풀 수 있다~~
+→ **고쳤다 (2026-09-02).** `fulfillment.is_dispatch_pending(link)` 를 신설해 화면 재진술과
+`dispatch_order` 의 대상 선별이 **술어 한 벌**을 쓴다(우리 표식 + 네이버 `delivery.sendDate`).
+큐 집에 `dispatch_pending_count` 가 붙고 모달이 그 값만 읽는다. `dispatched_count` 는 뜻이
+다른 값(= 우리가 보낸 수)이라 그대로 두고, 부분 발송 안내 줄은 계속 그 값을 쓴다.
+`bulk_dispatch._is_dispatched` 도 같은 술어로 위임했다 — 선별과 워커가 갈리면 "보낼 수 있다"
+고 고른 집이 워커에서 실패로 되돌아온다.
+계약: `tests/services/integrations/test_naver_dispatch_duplicate_block.py` §③ 4건
+(양성 = 판매자센터 발송 형제 · 교차 단언 = 화면 재진술 == 서버 payload 건수 ·
+음성 대조군 = 양쪽 신호 없는 집 · 집 없는 단건 폴백).
 
 ### 사유 목록은 서버가 정본
 

@@ -20,6 +20,8 @@
 
 from __future__ import annotations
 
+import re
+
 import pytest
 from sqlalchemy.orm.attributes import flag_modified
 
@@ -42,7 +44,10 @@ from tests.services.integrations.test_naver_workbench import (  # noqa: F401 - f
     _uid,
     workbench_on,
 )
-from tests.services.integrations.test_naver_workbench_v3_followup import _sibling
+from tests.services.integrations.test_naver_workbench_v3_followup import (
+    _modal_of,
+    _sibling,
+)
 
 PANE_PATH = "/admin/naver-ingest/triage/pane"
 
@@ -283,3 +288,105 @@ def test_a_clean_household_still_goes_out(app):
     assert sorted(sent_ids) == sorted([lead.external_id, sib.external_id]), sent_ids
     assert sorted(result["dispatched"]) == sorted([lead.external_id, sib.external_id])
     assert _state(lead.id)["dispatched_at"] and _state(sib.id)["dispatched_at"]
+
+
+# --------------------------------------------------------------------------- #
+# ③ 재진술 == 서버가 보낼 건수 (계약 §0-2 · 2026-09-02)
+#
+# 화면 모달은 지금까지 `집 전체 수 - 우리 표식 수` 로 셌다. 그 식은 판매자센터에서 사람이
+# 직접 보낸 형제를 **빼지 않는다** — "3건을 보냅니다"라고 말하고 서버는 1건만 보낸다.
+# 불가역 경로의 과대 진술이라 그 자체가 사고다. 두 자리가 이제 술어 한 벌
+# (`fulfillment.is_dispatch_pending`)을 쓰고, 아래 단언이 그 한 벌을 잠근다.
+# --------------------------------------------------------------------------- #
+
+def _modal_dispatch_count(pane: str) -> int:
+    """발송 모달이 재진술한 건수(모달이 없으면 실패시킨다)."""
+    modal = _modal_of(pane, "wb-modal-dispatch")
+    found = re.search(r"(\d+)건을 네이버에 발송처리로 보냅니다", modal)
+    assert found, f"모달 재진술 문장을 못 찾았다: {modal[:800]}"
+    return int(found.group(1))
+
+
+def _server_dispatch_count(link_id: int) -> int:
+    """같은 집을 서버가 실제로 보내는 상품주문 수(네이버 호출 payload 로 센다)."""
+    client = _StubClient()
+    dispatch_order(db_session, client, link_id=int(link_id), actor_user_id=7)
+    db_session.commit()
+    return sum(len(call) for call in client.dispatch_calls)
+
+
+def test_modal_does_not_count_the_sibling_naver_already_sent(client, workbench_on):
+    """형제가 **판매자센터에서 이미 나갔으면** 모달이 그 건을 빼고 말한다.
+
+    양성 표본이다 — 우리 표식은 하나도 없고 네이버 원본만 발송을 말한다. 옛 식
+    (`집 전체 수 - 우리 표식 수`)은 여기서 3을 내놓는데 서버는 2건만 보낸다.
+    """
+    _login(client)
+    lead = _collected(order_no="N-DSPC-NAVER", product="붙박이장 본품", amount=1000000)
+    sib = _sibling(lead, product="구성 A", amount=2000)
+    _sibling(lead, product="구성 B", amount=3000)
+    _naver_sent(sib)
+
+    pane = _pane_html(client, lead.id)
+    modal = _modal_of(pane, "wb-modal-dispatch")
+
+    assert _modal_dispatch_count(pane) == 2, modal
+    assert "3건을 네이버에 발송처리" not in modal, "네이버가 이미 보낸 형제까지 세었다"
+    assert "1건</b>은 다시 보내지 않습니다" in modal, "빠지는 건을 화면이 말하지 않는다"
+
+
+def test_modal_count_equals_what_the_server_sends(client, workbench_on):
+    """**화면 재진술 == 서버 발송 건수** — 두 신호가 섞인 집에서 한 번에 잰다.
+
+    집은 4건이다: 우리가 보낸 1건 · 판매자센터가 보낸 1건 · 남은 2건.
+    같은 pane 을 읽고 같은 집을 워커 경로로 보내, 화면이 약속한 수와 네이버로 나간 payload
+    건수를 직접 맞대 본다. 이 단언이 없으면 두 식이 다시 갈려도 아무도 모른다.
+    """
+    _login(client)
+    lead = _collected(order_no="N-DSPC-MIX", product="붙박이장 본품", amount=1000000)
+    ours = _sibling(lead, product="구성 A", amount=2000)
+    naver = _sibling(lead, product="구성 B", amount=3000)
+    _sibling(lead, product="구성 C", amount=4000)
+    _mark_dispatched(ours)
+    _naver_sent(naver)
+
+    promised = _modal_dispatch_count(_pane_html(client, lead.id))
+    sent = _server_dispatch_count(lead.id)
+
+    assert promised == 2, f"화면이 약속한 건수가 틀렸다: {promised}"
+    assert promised == sent, f"화면 {promised}건 vs 서버 {sent}건 — 재진술이 갈렸다"
+
+
+def test_a_clean_household_promises_every_product_order(client, workbench_on):
+    """음성 대조군 — 양쪽 신호가 **하나도 없는** 집은 집 전체 수를 그대로 말한다.
+
+    같은 모집단(발송처리 버튼이 열리는 집) 안에서 고른 반증축이다. 술어가 과하게 빼면
+    화면이 과소 진술을 하고, 사람은 남은 건이 안 나간 줄 알고 판매자센터로 간다.
+    """
+    _login(client)
+    lead = _collected(order_no="N-DSPC-CLEAN", product="붙박이장 본품", amount=1000000)
+    _sibling(lead, product="구성 A", amount=2000)
+    _sibling(lead, product="구성 B", amount=3000)
+
+    pane = _pane_html(client, lead.id)
+    modal = _modal_of(pane, "wb-modal-dispatch")
+
+    assert _modal_dispatch_count(pane) == 3, modal
+    assert "다시 보내지 않습니다" not in modal, "뺄 것이 없는데 뺐다고 말한다"
+    assert _server_dispatch_count(lead.id) == 3, "정상 집의 발송이 줄었다"
+
+
+def test_single_link_pane_without_household_counts_both_signals(client, workbench_on):
+    """집이 없는 단건 pane 도 **두 신호**로 센다(폴백이 우리 표식만 보면 안 된다).
+
+    큐 밖 단건은 `grp` 가 없어 템플릿 폴백 식이 답한다. 네이버가 이미 보낸 단건은 버튼이
+    잠기므로(위 ①) 모달 자체가 없어야 한다 — 폴백이 1건이라고 말할 자리가 아예 없다.
+    """
+    _login(client)
+    link = _collected(order_no="N-DSPC-ONE", product="붙박이장", amount=1000000)
+    _naver_sent(link)
+
+    pane = _pane_html(client, link.id)
+
+    assert 'id="wb-modal-dispatch"' not in pane, "네이버가 이미 보낸 단건에 모달이 남았다"
+    assert "건을 네이버에 발송처리로 보냅니다" not in pane, pane[-1500:]

@@ -24,6 +24,7 @@ POPULATION_FIELDS = (
     "key", "count", "extra_count", "place_pending", "place_pending_count",
     "claim_blocking", "canceled", "relation", "close_now", "locked", "can_pick",
     "in_queue", "dispatched", "dispatched_any", "dispatched_count",
+    "dispatch_pending_count",
     "promotable_count", "household_count", "household_place_pending",
 )
 

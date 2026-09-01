@@ -287,6 +287,30 @@ def is_place_pending(link: ExternalOrderLink) -> bool:
                 in CONFIRMED_PLACE_STATUSES)
 
 
+def is_dispatch_pending(link: ExternalOrderLink) -> bool:
+    """이 상품주문에 **발송처리가 아직 남았는가** — 화면 재진술과 서버 처리의 공통 술어.
+
+    :func:`dispatch_order` 가 실제로 보낼 대상(``todo``)을 고르는 조건 그대로다.
+    신호는 **두 벌**이다 — ①우리 표식(``dispatched_at``) ②네이버 원본
+    ``delivery.sendDate``(:func:`_naver_dispatched_at` — 판매자센터에서 사람이 직접 보낸
+    발송). ②를 빼고 화면이 우리 표식만 세면 "3건을 발송처리로 보냅니다"라고 읽히는데
+    서버는 1건만 보낸다 — 계약 §0-2(모달 재진술 == 서버가 처리할 건수) 위반이고,
+    되돌릴 수 없는 경로의 과대 진술은 그 자체가 사고다
+    (설계서 ``2026-08-29-naver-origin-cleanup-strip_SPEC.md`` §7-E 에 남아 있던 결함,
+    2026-09-02 수정).
+
+    :func:`bulk_dispatch.dispatch_pending_clause` 는 같은 축의 **SQL** 술어다(부분 인덱스
+    조건식과 글자까지 같아야 해서 별도로 있다). 파이썬 판정은 이 함수 하나뿐이다.
+
+    Args:
+        link: 수집 링크(상품주문 1건).
+
+    Returns:
+        아직 발송처리가 나가지 않은 건이면 True.
+    """
+    return not (_state(link).get("dispatched_at") or _naver_dispatched_at(link))
+
+
 def _links_of_group(session: Session, link_id: int) -> list[ExternalOrderLink]:
     """같은 **집**의 링크 전부(한 집은 통째로 처리한다).
 
@@ -762,7 +786,10 @@ def dispatch_order(session: Session, client: Any, *, link_id: int,
     ours_done = [row for row in links if _state(row).get("dispatched_at")]
     naver_done = [row for row in links
                   if row not in ours_done and _naver_dispatched_at(row)]
-    todo = [row for row in links if row not in ours_done and row not in naver_done]
+    # 보낼 대상은 **술어 한 벌**로 고른다(:func:`is_dispatch_pending`) — 화면 모달이
+    # 재진술하는 건수가 같은 함수에서 나온다. 위 두 목록은 사유 문장을 만들기 위해
+    # (우리 표식 / 네이버 기록) 갈라 둔 것이고, 대상 선별은 여기 한 줄이 전부다.
+    todo = [row for row in links if is_dispatch_pending(row)]
     if not todo:
         if naver_done:
             # **조용히 성공으로 돌려주지 않는다.** web 은 enqueue 만 하고 이미
