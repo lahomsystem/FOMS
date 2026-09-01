@@ -246,6 +246,15 @@ def test_run_auto_init_uses_internal_startup_policy(monkeypatch):
         "register_dashboard_cache_invalidation_listener",
         lambda: calls.append("register_dashboard_cache_invalidation_listener"),
     )
+    # HB-S1: 테이블 버전 카운터 훅도 startup 배선이다. 빠지면 렌더 전 304 의 신호원이
+    # 통째로 사라져 화면이 낡은 본문을 재사용한다.
+    import foms.services.common.table_version_counter as table_version_module
+
+    monkeypatch.setattr(
+        table_version_module,
+        "register_table_version_listener",
+        lambda: calls.append("register_table_version_listener"),
+    )
     app_init.run_auto_init(_FakeApp())
 
     assert calls == [
@@ -253,6 +262,7 @@ def test_run_auto_init_uses_internal_startup_policy(monkeypatch):
         "verify_erp_flat_columns_ready",
         "register_date_sync_listener",
         "register_dashboard_cache_invalidation_listener",
+        "register_table_version_listener",
         "exit_app_context",
     ]
     # Purity guarantees: no create_all baseline, no startup backfill.

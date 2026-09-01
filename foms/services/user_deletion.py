@@ -26,6 +26,7 @@ from typing import Any
 
 from sqlalchemy import text
 
+from foms.services.common.table_version_counter import mark_tables_dirty
 from foms.services.security.password_policy import set_strong_password
 from models import (
     AccessLog,
@@ -255,6 +256,9 @@ def _nullify_references(
     """
     for model, column_name in fields:  # perf-ok
         column = getattr(model, column_name)
+        # HB-S1: query-level update() 는 세션 훅이 못 본다. 모델 목록이 바뀌어도
+        # 자동으로 따라오도록 __tablename__ 으로 등재한다(추적 대상 밖은 무시된다).
+        mark_tables_dirty(db, model.__tablename__)
         count = (
             db.query(model)
             .filter(column == user_id)
@@ -278,6 +282,8 @@ def _delete_references(
     """
     for model, column_name in fields:  # perf-ok
         column = getattr(model, column_name)
+        # HB-S1: query-level delete() 도 세션 훅 밖이다 — 같은 이유로 등재한다.
+        mark_tables_dirty(db, model.__tablename__)
         count = (
             db.query(model)
             .filter(column == user_id)

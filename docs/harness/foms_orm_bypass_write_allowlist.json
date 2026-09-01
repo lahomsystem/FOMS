@@ -1,0 +1,118 @@
+{
+  "packet": "HB-S1",
+  "summary": "ORM-bypass write sites that legitimately carry no table-version signal because every table they touch is outside table_version_counter.VERSIONED_TABLES. Each entry is matched by (path suffix, enclosing function name) — line-number free on purpose. Adding an entry here is a claim that the site writes no versioned table; if a screen later starts reading one of those tables, that table must be added to VERSIONED_TABLES and the entry removed (the site then needs mark_tables_dirty). Regenerate the inventory with `python tools/harness/orm_bypass_write_scan.py`.",
+  "signals": {
+    "UNTRACKED_TABLE": "Writes only tables outside VERSIONED_TABLES — the counter is irrelevant to it.",
+    "TEMP_TABLE": "Writes a session-scoped temporary table only."
+  },
+  "entries": [
+    {
+      "path": "foms/api/notifications/__init__.py",
+      "func": "api_notifications_mark_all_read",
+      "signal": "UNTRACKED_TABLE",
+      "reason": "notification_user_states.read_at only."
+    },
+    {
+      "path": "foms/api/notifications/__init__.py",
+      "func": "api_notifications_archive_all",
+      "signal": "UNTRACKED_TABLE",
+      "reason": "notification_user_states.archived_at only."
+    },
+    {
+      "path": "foms/api/notifications/__init__.py",
+      "func": "api_notifications_delete_all",
+      "signal": "UNTRACKED_TABLE",
+      "reason": "notifications hard delete (admin); no versioned table touched."
+    },
+    {
+      "path": "foms/services/security/channel_order/create_flag.py",
+      "func": "enable",
+      "signal": "UNTRACKED_TABLE",
+      "reason": "channel_inbound_event_logs.receipt_state only."
+    },
+    {
+      "path": "foms/services/security/channel_order/create_flag.py",
+      "func": "disable",
+      "signal": "UNTRACKED_TABLE",
+      "reason": "channel_inbound_event_logs.receipt_state only."
+    },
+    {
+      "path": "foms/services/security/cutover/mark_ops.py",
+      "func": "begin_drain",
+      "signal": "UNTRACKED_TABLE",
+      "reason": "feature_cutover_fences only."
+    },
+    {
+      "path": "foms/services/security/cutover/mark_ops.py",
+      "func": "abort_drain",
+      "signal": "UNTRACKED_TABLE",
+      "reason": "feature_cutover_fences only."
+    },
+    {
+      "path": "foms/services/security/cutover/mark_ops.py",
+      "func": "mark_cutover",
+      "signal": "UNTRACKED_TABLE",
+      "reason": "feature_cutover_markers + feature_cutover_fences only."
+    },
+    {
+      "path": "foms/services/security/cutover/wdc_link_fence.py",
+      "func": "seed_wdc_link_runtime_state",
+      "signal": "UNTRACKED_TABLE",
+      "reason": "wdc_link_runtime_state singleton row only."
+    },
+    {
+      "path": "foms/services/security/cutover/wdc_link_fence.py",
+      "func": "freeze_wdc_link",
+      "signal": "UNTRACKED_TABLE",
+      "reason": "wdc_link_runtime_state singleton row only."
+    },
+    {
+      "path": "foms/services/security/cutover/wdc_link_fence.py",
+      "func": "canonicalize_wdc_link",
+      "signal": "UNTRACKED_TABLE",
+      "reason": "wdc_link_runtime_state singleton row only."
+    },
+    {
+      "path": "foms/services/security/cutover/wdc_link_fence.py",
+      "func": "abort_wdc_link",
+      "signal": "UNTRACKED_TABLE",
+      "reason": "wdc_link_runtime_state singleton row only."
+    },
+    {
+      "path": "foms/services/sidefx_outbox.py",
+      "func": "_delete_batch",
+      "signal": "UNTRACKED_TABLE",
+      "reason": "domain_side_effect_outbox retention purge only."
+    },
+    {
+      "path": "foms/services/user_deletion.py",
+      "func": "_detach_notification_user_states",
+      "signal": "UNTRACKED_TABLE",
+      "reason": "notification_events + notification_user_states only."
+    },
+    {
+      "path": "foms/services/user_deletion.py",
+      "func": "_purge_owned_chat_rooms",
+      "signal": "UNTRACKED_TABLE",
+      "reason": "chat_messages + chat_room_members only."
+    },
+    {
+      "path": "scripts/maintenance/naver_claim_drill.py",
+      "func": "_delete_notifications",
+      "signal": "UNTRACKED_TABLE",
+      "reason": "notification_events + notification_user_states + notifications only."
+    },
+    {
+      "path": "scripts/ops/erp_build_step_runner.py",
+      "func": "_migrate_legacy_step_keys",
+      "signal": "UNTRACKED_TABLE",
+      "reason": "system_build_steps only (build-step bookkeeping)."
+    },
+    {
+      "path": "scripts/ops/erp_build_step_runner.py",
+      "func": "_upsert_step",
+      "signal": "UNTRACKED_TABLE",
+      "reason": "system_build_steps only (build-step bookkeeping)."
+    }
+  ]
+}

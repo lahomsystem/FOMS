@@ -19,6 +19,29 @@ _repo_root_str = str(_REPO_ROOT)
 if _repo_root_str not in sys.path:
     sys.path.insert(0, _repo_root_str)
 
+def _register_worker_session_wiring() -> None:
+    """worker 프로세스에서도 필요한 전역 세션 훅을 등록한다(HB-S1).
+
+    worker 는 ``rq worker default --url $REDIS_URL`` 로 뜨느라 ``app.py`` 를 import
+    하지 않는다(Procfile). 즉 :func:`foms.services.app_init.run_auto_init` 가 돌지
+    않아 web 프로세스에 걸린 세션 훅이 **하나도 없다**. 썸네일(:func:`create_thumbnail_for_attachment`
+    → ``order_attachments``)·지오코딩(:func:`geocode_order_address` → ``orders``)·
+    네이버 동기화가 전부 이 프로세스에서 커밋하므로, 테이블 버전 카운터를 여기서
+    등록하지 않으면 그 쓰기가 신호를 못 남기고 그 축을 읽는 화면이 낡은 304 를 받는다.
+
+    등록 대상은 **카운터 훅 하나뿐**이다. 날짜 동기화·대시보드 무효화까지 worker 에
+    끌어오는 것은 별개 결정이라 여기서 하지 않는다(현행 동작 유지).
+    """
+    from foms.services.common.table_version_counter import (
+        register_table_version_listener,
+    )
+
+    register_table_version_listener()
+
+
+_register_worker_session_wiring()
+
+
 __all__ = [
     "create_thumbnail_for_attachment",
     "geocode_order_address",

@@ -19,6 +19,7 @@ from sqlalchemy import String, text
 
 from foms.web.auth import get_user_by_id, log_access, login_required, role_required
 from db import get_db
+from foms.services.common.table_version_counter import mark_tables_dirty
 from foms.services.erp_display import _ensure_dict, apply_erp_display_fields
 from foms.services.erp_order_flags import is_erp_order_record
 from foms.services.order_display_utils import format_options_for_display
@@ -117,6 +118,9 @@ def reset_order_ids(db):
         mapping_exists = db.execute(text("SELECT COUNT(*) FROM temp_order_mapping")).scalar() > 0
         max_id = new_id
         if mapping_exists:
+            # HB-S1: raw UPDATE 라 ORM 세션 훅이 못 본다. 주문 id 전면 재번호는 모든
+            # 화면의 본문을 바꾸므로 커밋 시점 카운터 증가 대상으로 직접 등재한다.
+            mark_tables_dirty(db, "orders")
             db.execute(
                 text(
                     """

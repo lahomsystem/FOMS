@@ -1177,3 +1177,512 @@ sd `schedule.measurement.date` 64 · 레거시 `measurement_date` 컬럼 64 · �
 
 CI 전 워크플로 green(FOMS CI · PostgreSQL Lane · Harness CI · perf-gate), 스테이징 배포
 확인(`/healthz` commit == `6d584f1d`). **production 승격은 별도 승인 대기.**
+
+### P3 production 승격 + 운영 재측정 (2026-09-01)
+
+PR **#221 머지** — `origin/production` `70dc48f1`. 4커밋(정산 원장 docs 2 + 성능 1 + 원장 1).
+승격 트리(`c:\tmp\promo-mp`)에서 **cherry-pick 충돌 0건** — 사전검사가 타 세션 커밋 4건
+(`703e61e3`·`6d212ecb`·`f990db5f`·`be52d9c3`)을 같은 파일이라는 이유로 missing 으로 표시했지만
+실제 적용에는 의존이 없었다(파일 교집합은 의존의 상한이지 실체가 아니다).
+승격 트리 검증: `APP_OK` · 전체 스위트 **7,394 passed / 585 skipped** · `pre_push_smoke` exit 0.
+PR 체크 4종 전부 success, mergeStateStatus=CLEAN. 운영 배포 확인(`/healthz` == `70dc48f1`).
+
+**운영 재측정**(읽기 전용 GET, 해제→측정→재잠금):
+
+| 항목 | 값 |
+|---|---|
+| 서버 시간 | **28.7ms** (healthz base 105.4ms, min ttfb 134.1ms) |
+| 패널 | 15일 · **63건** (DB 대조 68주문과 정합 — 자가실측 4체크 완료분 제외) |
+| 응답 | 24,948B(운영은 케이스가 많아 스테이징 2,338B 보다 크다) |
+
+⚠️ **운영 '전' 값은 이 엔드포인트에 대해 측정된 적이 없다**(스테이징 전후만 있다:
+263.1ms → 18.1ms). 운영 수치는 '후'만 사실이고, 전후 배수를 운영 기준으로 말하지 않는다.
+
+**부수 기록 — `claude_master` production 비밀번호가 세션 도중 바뀌었다.**
+22:4x 측정 때는 로컬 secrets 파일 값이 실패하고 이전 세션 스크립트에 하드코딩된 값이 302 였는데,
+09:0x 재측정에서는 정반대였다(secrets 값이 302). 로그인 실패는 `security_logs` `LOGIN_FAIL`(user 57)로
+남는다. 측정 래퍼는 두 후보를 순서대로 시도하도록 고쳤다. **현재 정본은 secrets 파일 값**이다.
+
+---
+
+## P4 — 완료 대시보드 이중 읽기 (2026-09-01)
+
+### 사실 정정: 이중 읽기는 **모바일 코호트에서만** 일어난다
+
+`/erp/completion` 은 태블릿 금액 그리드를 **모바일 v2 코호트에서만** 서버 렌더한다
+(`foms/web/cs/completion_dashboard.py:553-554`, 라우트 docstring 이 "PC/legacy 는 서버 쿼리
+추가 없음"이라고 명시). 같은 페이지가 include 하는 사진 리뷰 스크립트는 코호트와 무관하게
+`/api/orders/completion` 을 부른다. 따라서:
+
+| 경로 | 모집단 읽기 |
+|---|---|
+| PC/legacy | **1회**(클라 fetch만) |
+| 모바일 v2 | **2회**(서버 렌더 + 클라 fetch) |
+
+조사 보고는 "가장 명확한 사례"라고 했지만 PC 는 해당 없음이다 — 범위를 좁혀 기록한다.
+스테이징 실측: 페이지 렌더 서버 49ms · `/api/orders/completion` 서버 62ms.
+
+### 수정
+
+서버가 **이미 읽은** 주문을 그대로 직렬화해 페이지에 싣고(`<script type="application/json"
+id="erp-completion-bootstrap">`), 화면은 그것을 1회 소비한 뒤 노드를 지운다. 두 번째 읽기가
+사라진다. PC 경로에는 부트스트랩을 만들지 않는다 — 거기서 만들면 첫 페인트를 막는 쿼리를
+새로 넣는 셈이다.
+
+**조용한 불일치 방지**: 부트스트랩에 `filters{q, focus_order, mine}` 를 함께 싣고 화면이
+자기 파라미터와 대조한다. 하나라도 다르면 부트스트랩을 버리고 평소대로 API 를 부른다.
+직렬화는 API 와 **같은 함수**(`_serialize_completion_orders`)를 쓴다 — 두 목록이 갈릴 수 없다.
+
+계약 3건: 코호트 렌더의 부트스트랩이 API 응답과 **완전히 동일**(HTTP 파리티) ·
+PC 경로에는 부트스트랩 부재 · 스크립트가 필터 대조 후에만 사용하고 1회 소비.
+음성 대조군: 직렬화 대상을 비우면 파리티 테스트가 red(확인함).
+
+전체 스위트 **7,394 passed / 585 skipped**, `pre_push_smoke` exit 0.
+
+---
+
+## P5 — 계정 사고 원인 규명 + 정책 보강 (2026-09-01)
+
+세션 도중 `claude_master` production 비밀번호가 바뀐 건의 원인을 확인했다(직접 파일 확인).
+
+**원인**: 2026-08-31 21:58 다른 세션의 해제 스크립트
+(`…/a9dda555-…/scratchpad/prod_account.py:26-39`)가 `unlock()` **안에서**
+`set_strong_password(user, password)` 를 함께 불렀다 — 함수명·docstring 은 잠금 해제만
+표방하는데 **해제가 비밀번호를 조용히 교체**했다. `is_active`·`approval_status` 도 함께 바꾼다.
+그 뒤 2026-09-01 08:37 정식 로테이션(랜덤 20자 + `password_policy_version=1` + secrets 파일
+동기화 + 302 검증 + 재잠금)이 돌아 지금은 **secrets 파일 값이 정본**이다
+(secrets 파일 mtime 2026-09-01 08:37:27 — 직접 확인).
+
+절차 위반은 아니었다: 문서(`REAL_SERVER_TEST_ACCOUNT.md:29`)가 `password` 갱신을 허용 예외로
+두고 있었고, **"로테이션하면 기록하라"는 요구가 없었다**. 공백이 사고를 조용하게 만들었다.
+
+**보강(문서 개정)** — `docs/guides/REAL_SERVER_TEST_ACCOUNT.md` §"해제는 `is_active`만 바꾼다":
+해제/재잠금이 만지는 컬럼은 `is_active` 하나 · 비번 교체는 별도 로테이션 절차 ·
+로테이션은 원장에 시각·환경·secrets 동기화 여부를 남기되 **값은 절대 금지** ·
+측정 스크립트에 비밀번호 하드코딩 금지(secrets 파일에서 읽기).
+
+**정리**: `c:\tmp\prod_probe.py` 의 평문 비밀번호(이미 무효값)를 secrets 읽기로 교체,
+`c:\tmp\prod_run_probe.py` 는 CLI 인자 대신 secrets 전용으로 바꿨다(셸 기록에 평문이 남지 않게).
+
+---
+
+## P6 — 셸 하트비트 재검증 설계 (2026-09-01, 스펙만 · 착수 전)
+
+스펙: `docs/specs/2026-09-01-shell-heartbeat-cheap-revalidation_SPEC.md`.
+
+요지: 304 가 서버를 아끼지 못하는 이유는 ETag 를 **렌더 뒤**에 붙기 때문이다
+(`erp_shell_http.py:76-78`). 커밋 훅이 이미 무효화 intent 를 알고 있으므로
+(`dashboard_cache.py:655-690` ← `revision.py:177-204`) **패밀리별 정수 카운터**를 올려두고,
+라우트가 렌더 전에 `hash(경로·파라미터·사용자·코호트·오늘·카운터)` 로 조건부 응답을 끝내는 안.
+
+착수 전 반드시 답해야 할 것(스펙 §5): mutation 엔진을 **거치지 않는 쓰기 경로**가 남아 있으면
+낡은 304 가 나간다(지금 결함보다 나쁘다) → 5개 테이블 쓰기 경로 전수 조사가 S0.
+`users`·`system_settings` 는 패밀리 밖이라 별도 처리 필요. Flask-Compress 의 ETag 접미사
+재작성과의 대조 규칙도 먼저 정해야 한다. 기존 조건부 계약 테스트 2건은 **의미 유지한 채** 재작성.
+
+단계: S0 전수조사 → S1 카운터 배선(읽는 쪽 없음) → S2 화면 1개 적용 후 스테이징 실측 →
+S3 확대. 승인 대기.
+
+### P4 부수 — CI red 1회와 그 사각지대 (2026-09-01)
+
+`erp-order-shared.js` 핀을 `20260901a` 로 올렸더니 FOMS CI 가 red 였다:
+`tests/visual/test_alimtalk_ui_contract.py::test_share_trace_assets_pinned_together` 가
+`erp_order_js.html` 안의 `?v=20260901a` 를 **정확히 2개**(트레이스 CSS + 공유 JS)로 세는데,
+같은 날 다른 세션이 그 값을 쓰고 있어서 3개가 됐다. 핀은 자산 단위이므로 내 자산만
+`20260901m` 으로 분리하고 계약 테스트를 함께 갱신했다(deploy `6740af20`, CI 4종 green).
+
+**사각지대 기록**: `pre_push_smoke` 서브셋과 내 로컬 전체 실행(`--ignore=tests/visual`)이
+이 테스트를 돌지 않아 로컬은 계속 초록이었다. **핀을 만졌으면 push 전에
+`pytest tests/visual/test_alimtalk_ui_contract.py` 를 따로 돌린다.**
+(같은 교훈을 메모리 `sw-stale-js-version-bump` 에도 추가.)
+
+### P4 부수 2 — perf-gate 가 잡은 것(정당한 red)과 예산 재시드 (2026-09-01)
+
+승격 PR #224 에서 perf-gate 가 **블로킹 red**: `/erp/completion?view=fragment` 전송 바이트
+**26,109 > 예산 18,466**. 게이트가 옳다 — 목록을 API 응답에서 페이지 안으로 옮겼으니 그 경로의
+바이트는 늘어난다. 다만 **총량은 그대로**다:
+
+| | 프래그먼트 | API | 합계 | 요청 수 |
+|---|---|---|---|---|
+| 전 | 13,661B | 12,456B | 26,117B | 2 |
+| 후 | 26,109B | 0 | **26,109B** | **1** |
+
+= **-8B**. 바이트가 늘어난 게 아니라 옮겨온 것이라, 관측 26,109×1.3 → **33,941** 로 재시드하고
+사유를 `perf_budgets.json` `_comment` 에 남겼다. **dTTFB 예산(107)은 손대지 않았다** — 완화가
+아니라 경로 재배치의 반영이라는 점을 기록한다(증상 완화용 재시드 금지 원칙과 구분).
+
+참고: 같은 게이트가 deploy push 때는 **advisory** 라 exit 0 이었다(`--advisory`). 승격 PR 에서만
+블로킹이므로, deploy 만 보고 "예산 통과"라고 읽으면 안 된다.
+
+### P4 결론 — **되돌렸다**(사용자 판단). 남길 것은 측정값이다
+
+perf-gate 2차 red 는 TTFB 였다. 같은 경로를 여러 런에 걸쳐 분포로 비교했다
+(전부 스테이징, 각 표본은 같은 코드끼리):
+
+| | dTTFB 표본 | 중앙값 | 최대 | 전송 |
+|---|---|---|---|---|
+| 부트스트랩 전 | 39·42·47·67·60·59·64 | **59ms** | 67 | 13.6KB |
+| 부트스트랩 후 | 114·99·71·53·73·71·88 | **73ms** | **114** | 26.1KB |
+
+예산 107. **중앙값 +14ms·최대 +47ms** 로 첫 페인트 경로의 여유가 사라져 게이트가 흔들렸다
+(1차 red = 바이트, 2차 = TTFB).
+
+체감은 사실상 무승부다 — API 왕복 1회(RTT 약 110ms + 서버 62ms)가 사라진 대신 렌더가 그만큼
+무거워졌다. 확실히 남는 이득은 **서버가 모집단을 한 번 덜 읽는 것**뿐이었다. 첫 페인트 예산을
+먹고 TTFB 예산 완화까지 요구하는 대가로는 비싸다 → **revert**(사용자 판단), 예산도 18466 원복.
+
+**남는 사실(다음 시도의 출발점)**:
+- 모바일 코호트에서 `/erp/completion` 이 모집단을 2회 읽는 것은 **여전히 사실**이다.
+- 다만 해법은 "렌더에 실어 보내기"가 아니다 — 첫 페인트를 막는 경로에 일을 더하는 방식이라
+  총량이 같아도 예산을 먹는다. **두 번째 읽기만 없애는 방식**(짧은 TTL DTO 캐시로 모집단 공유,
+  `dashboard_cache.py` 인프라 재사용)이 남은 후보다. 바이트도 첫 페인트도 그대로 둔다.
+- 방법론 교훈: **"총 바이트가 같다"는 근거만으로 경로를 옮기면 안 된다.** 게이트는 경로별이고,
+  첫 페인트 경로는 총량이 아니라 그 경로의 비용으로 평가받는다.
+
+---
+
+## P7 — 하트비트 S0 전수조사 (2026-09-01, 진행 중 · 1/3 도착)
+
+### S0-1 결론(일정·첨부): **엔진 intent 는 신호원으로 못 쓴다**
+
+`order_schedule_dates`·`order_attachments` 쓰기 **29경로 중 `execute_order_mutation` 경유는 2건**
+(`blueprint_projection.py:177` via `erp_orders_blueprint.py:218`, `as_upload_anchor.py:205` via
+`as_cycle_service.py:353`). 나머지 27경로는 신호가 없다.
+
+직접 확인한 것 2가지:
+- `OrderScheduleDate(` 생성자는 저장소 런타임 코드에 **정확히 1곳** — `order_date_sync.py:271`
+  (`grep` 전수 1/1). 그 경로는 **ORM `before_flush` 훅**이라 엔진 밖이다.
+- `upload_ticket.py:296` 은 `order.mutation_version` 을 손으로 +1 하지만
+  `upload_ticket_routes.py` 에는 무효화 호출이 **하나도 없다**(직접 grep 0건).
+
+또 하나 드러난 사실: **무효화 경로가 이미 두 갈래**다. 엔진 intent
+(`dashboard_cache.py:670`)와, 그와 무관한 `order_date_sync.py:543-562` 의 자체 `after_commit`
+(`invalidate_all_dashboard_slice_caches()`). 즉 "intent 하나가 SSOT" 라는 스펙 §4 의 전제가 틀렸다.
+
+### 스펙 수정 방향(§4 교체) — 신호원을 **세션 훅**으로
+
+저장소가 이미 답을 적어두고 있다: `order_date_sync.py:519-521` 주석 —
+"이 훅은 **모든 쓰기가 통과하는 유일 지점**이라 … 라우트/서비스별 emit 은 두지 않는다
+(경로가 늘어날 때마다 구멍이 생기고 중복 기록이 난다)."
+
+→ 버전 카운터는 `execute_order_mutation` 이 아니라 **전역 `before_flush`/`after_commit`
+세션 훅**에서 올린다. 그러면 라우트 수와 무관하게 ORM 을 통과하는 모든 쓰기가 덮인다.
+남는 구멍은 ORM 을 우회하는 것뿐이고, 그 수는 작다(직접 센 값: `.update({` **16곳**,
+`execute(text(` 중 UPDATE/DELETE/INSERT **4곳**, query-level `.delete()` **0곳**).
+그중 실제로 화면 데이터를 바꾸는 것(예: `restore_order_schedule_dates.py` 전역 삭제·재삽입,
+`delete_retention.py:412` CASCADE)은 **명시적으로 카운터를 올리도록** 목록화해야 한다.
+
+### 남은 조사
+
+`orders` 테이블 쓰기 전량 / `users`·`system_settings`·`order_assignments` 쓰기 — 조사 중.
+
+### S0-2 결론(users·system_settings·배정): 패밀리 밖 축이 실재한다
+
+**24경로 중 엔진 경유 3**(전부 다른 엔진 tx 에 편승한 형태), **미경유 21**,
+그중 수동 무효화로 보정되는 것 2 → **신호가 아예 없는 경로 19**.
+
+직접 확인한 것 3가지:
+- `foms/web/auth/routes.py` 전체에 `invalidate_` **0건**(grep). 사용자 이름·팀·역할·비활성
+  전환이 캐시에 아무 신호도 안 준다.
+- `foms/api/shipment/settings.py:171` 만 유일하게 `invalidate_dashboard_families(SHIPMENT, ORDERS)`
+  를 부른다 — `system_settings` 7개 키 중 1개만 보정된다.
+- `foms/services/orders/order_create.py` 에 `execute_order_mutation` **0건** — 신규 주문의
+  INITIAL_OWNER 배정이 신호 없이 들어간다(주문 대시보드 owner 필터가 읽는 축).
+
+가장 아픈 것: 담당자 **이름**이 `orders` 패밀리 캐시 슬라이스 안에 들어 있다
+(`dashboard_read_model.py:428` → `orders/dashboard.py:345`, TTL 300초). 그래서 이름 변경·
+탈퇴 익명화·비활성 전환이 최대 300초 동안 옛 값으로 남는다 — **지금도 그렇다**(이 설계와 무관한
+기존 결함). 렌더 전 304 를 붙이면 그 창이 TTL 이 아니라 **재검증 주기**로 늘어난다.
+
+### S0 중간 판정
+
+- 신호원을 세션 훅으로 바꾸면 `orders`·일정·첨부는 덮인다(ORM 통과).
+- 그러나 `users`·`system_settings` 는 **패밀리 개념 밖**이고, 워커 프로세스 쓰기
+  (썸네일·네이버 워터마크)는 web 프로세스의 after_commit 과 무관하다.
+  → 이 축들은 **키에 직접 넣거나**(예: users/settings 전용 카운터를 세션 훅에서 함께 올림)
+  아니면 그 축을 읽는 화면을 S2 대상에서 제외해야 한다.
+- 남은 조사: `orders` 테이블 쓰기 전량(진행 중).
+
+### S0-3 결론(orders) + **S0 최종 판정**
+
+`orders` 쓰기 **110경로: 엔진 경유 46 / 미경유 61 / 확인필요 3.**
+직접 확인한 2건:
+- `foms/api/production/orders.py:862-865` — 수정 제작 시작이 `structured_data`+`status="PRODUCTION"`
+  +flat sync 를 직접 쓰고 `db.commit()`, 엔진·무효화 **둘 다 없음**(같은 파일의 다른 라우트는
+  전부 엔진 경유인데 이 하나만 빠져 있다).
+- `foms/web/orders/trash.py:118-126` — `UPDATE orders SET id = ...` 로 **주문 id 를 전면 재번호**하는
+  raw SQL 이 실재한다.
+
+**S0 합계(3표 합산)**: 163경로 중 엔진 경유 **51(31%)**.
+→ **`execute_order_mutation` intent 는 신호원으로 쓸 수 없다. 확정.**
+
+#### 판정 1 — 신호원은 전역 세션 훅, 키는 **패밀리가 아니라 테이블**
+
+`before_flush` 에서 더러운 엔티티의 **테이블 이름**을 모아 `after_commit` 에 카운터를 올리면:
+- `orders`·`order_schedule_dates`·`order_attachments`·`users`·`system_settings`·`order_assignments`
+  가 **전부 한 장치로 덮인다**. 스펙 §5-2 가 걱정한 "users·settings 는 패밀리 밖" 문제는
+  키를 패밀리가 아니라 테이블로 잡으면 사라진다(그 쓰기들도 ORM 을 통과한다 —
+  `auth/routes.py` 는 전부 ORM 대입이다).
+- 워커 프로세스(썸네일·지오코딩 outbox·네이버 워터마크)도 **같은 훅이 그 프로세스에 등록돼
+  있고 카운터 저장소(Redis)가 공유**면 덮인다. 배선 요구사항이지 구멍이 아니다.
+
+#### 판정 2 — 남는 진짜 구멍은 **ORM 우회 쓰기뿐**이고 셀 수 있다
+
+직접 센 값: `.update({` **16곳**, `execute(text(` UPDATE/DELETE/INSERT **4곳**,
+query-level `.delete()` **0곳**, 그리고 `bulk_insert_mappings`(`restore_order_schedule_dates.py:63-79`),
+raw `DELETE FROM orders`(`delete_retention.py:412`), id 재번호(`trash.py:118-126`).
+→ **S1 의 완료 기준에 "이 목록 전수 등재 + 소스 스캔 게이트"를 넣는다**(새 우회 쓰기가 들어오면 red).
+
+#### 판정 3 — S2 파일럿
+
+모든 화면이 `order_attachments` 를 읽는다(`/erp/history/` 조차 `erp_product_items.py:92-95` 로
+읽는다). 따라서 "단일 축 화면"은 없다. 테이블 단위 카운터면 축 수는 문제가 안 되므로,
+파일럿은 **읽는 테이블 수가 가장 적고 사용자 축이 약한 `/erp/history/`**(orders + attachments)
+로 간다. 다만 워커 썸네일 쓰기가 그 프로세스에서 훅을 타는지 **S1 에서 먼저 증명**하고 넘어간다.
+
+#### 부수 — 기존 하네스의 사각
+
+`tools/harness/order_mutation_writer_scan.py` 는 `flag_modified(order,"structured_data")` 와
+`.mutation_version =` 두 신호만 본다. `Order(...)` 생성·`setattr` flat 대입·raw UPDATE/DELETE·
+`db.delete` 는 **스캔 밖**이라 이번 61건과 격차가 난다. S1 게이트는 이 스캐너를 확장하거나
+별도 스캐너로 만들어야 한다.
+
+---
+
+## P8 — 하트비트 S1 구현 완료 (2026-09-01, 카운터 배선 · 읽는 쪽 없음)
+
+신설: `foms/services/common/table_version_counter.py`.
+게이트: `tools/harness/orm_bypass_write_scan.py` + `docs/harness/foms_orm_bypass_write_{allowlist,inventory}.json`.
+계약: `tests/domains/test_table_version_counter.py` (21 케이스).
+
+### S1-1 신호원 — `after_flush` 수집 → `after_commit` INCR
+
+키는 `foms:tabver:v1:<table>`. 추적 대상은 S0 이 지목한 6개 테이블
+(`orders`·`order_schedule_dates`·`order_attachments`·`users`·`system_settings`·`order_assignments`).
+그 밖 테이블은 카운터를 만들지 않는다 — `access_logs` 처럼 요청마다 늘어나는 감사 테이블까지
+세면 Redis 왕복만 늘고 화면 신선도에는 기여가 0이다.
+
+**`before_flush` 가 아니라 `after_flush` 를 쓴다.** `before_flush` 리스너는 서로의 결과를
+못 본다. 일정 행의 유일한 생산자(`order_date_sync.py:271` 의 `OrderScheduleDate(...)`)가 바로
+`before_flush` 훅이라, 우리 리스너가 먼저 등록되면 그 신규 행을 통째로 놓친다. `after_flush`
+는 모든 `before_flush` 가 끝난 뒤 돌면서 `session.new/dirty/deleted` 는 아직 flush 이전
+상태로 남아 있다(SQLAlchemy 계약).
+
+### S1-2 워커 프로세스 증명 — **훅은 등록돼 있지 않았다**
+
+원장이 요구한 증명의 답은 "아니오"다. 근거 3단:
+
+- `Procfile` / `railway-worker.toml` 의 워커 기동 명령은 `rq worker default --url $REDIS_URL`.
+- 그 경로는 `app.py` 를 import 하지 않는다 → `app.py:74-75` 의 `run_auto_init(app)` 가 안 돈다.
+- 저장소의 세션 리스너는 **전부** `register_*()` 함수 안에 있고(`grep listens_for` 로 확인:
+  `models.py:3540` 의 `Order before_insert` 하나만 모듈 최상위), 그 함수를 부르는 곳은
+  `app_init.run_auto_init` 뿐이다.
+
+→ 즉 워커는 지금까지 날짜 동기화·대시보드 무효화 훅도 **하나도 없이** 돌고 있었다
+(이번 작업과 무관한 기존 사실. 여기서 고치지 않는다 — 동작 변경이라 별개 결정이다).
+
+수정: 워커 진입 모듈 `foms/services/jobs/tasks.py` 가 import 시점에
+`_register_worker_session_wiring()` 으로 **카운터 훅 하나만** 등록한다. 계약 테스트가
+그 모듈 최상위 호출의 존재를 AST 로 고정한다. → 썸네일(`order_attachments`)·지오코딩
+(`orders`)·네이버 동기화 축이 S2 대상에서 빠지지 않는다.
+
+### S1-3 ORM 우회 쓰기 — 스캐너가 S0 수기 집계보다 **2배 이상**을 찾았다
+
+스캐너 결과 **45곳**(S0 수기 집계는 약 20곳). S0 이 놓쳤고 이번에 잡힌 **추적 테이블** 쓰기:
+
+| 위치 | 테이블 | 성격 |
+|---|---|---|
+| `foms/api/drawing/erp_orders_drawing.py` `perform_drawing_transfer` | order_attachments | **운영 라우트** |
+| `foms/services/files/legacy_attachment_backfill.py` `apply_manual_mappings` | order_attachments | 백필 |
+| `foms/services/user_deletion.py` `_nullify_references` | order_assignments | 계정 삭제 |
+| `scripts/migrations/migrate_local_uploads_to_r2.py` `main` | orders | 1회성 마이그레이션 |
+| `scripts/ops/erp_build_step_runner.py` `step_5_url_normalize_view`·`step_7_backfill_workflow` | orders | 빌드 스텝 |
+
+전부 `mark_tables_dirty(session, ...)` 로 등재했다(등재만 — 커밋 실패 시 카운터도 안 오른다).
+`migrate_local_uploads_to_r2.py` 만 `engine.begin()` Connection 이라 세션이 없어
+`bump_table_versions("orders")` 를 커밋 후 직접 부른다.
+
+최종: **MARKED 21 / UNTRACKED_TABLE 24 / UNSIGNALED 0.**
+남은 24곳은 전부 추적 밖 테이블(notifications·chat·feature_cutover·wdc_link_runtime_state·
+sidefx outbox·system_build_steps)이고 allowlist 에 사유와 함께 등재했다.
+
+### S1-4 게이트 등재 (사각지대 방지)
+
+- `.github/workflows/ci.yml` 문서 전용 서브셋 — 새 테스트가 인벤토리 JSON 을 읽으므로
+  CI-DOCSCOPE-01 계약 대상이다(등재 안 하면 문서만 바뀐 커밋에서 조용히 빠진다).
+- `scripts/ops/pre_push_smoke.ps1` repo-state sync 게이트 블록.
+- `tests/contracts/runtime/test_ptc_physical_exactness.py` — `foms/services/common/` 은
+  정확일치 allowlist라 신규 모듈 등재 필수.
+- `tests/domains/test_app_init.py` — startup 배선 순서 계약에 카운터 훅 추가.
+
+### S1-5 검증
+
+| 항목 | 결과 |
+|---|---|
+| `pytest -q --ignore=tests/visual -p no:playwright` | **7870 passed**, 585 skipped |
+| `pytest tests/visual/test_alimtalk_ui_contract.py tests/visual/test_p1_mockup_structure.py` | 74 passed |
+| `scripts/ops/pre_push_smoke.ps1` | **exit 0** (377 passed) |
+| `python tools/harness/orm_bypass_write_scan.py --check` | unsignaled **0** |
+| deploy `0f6e86c2` CI | FOMS CI · PostgreSQL Lane · Harness CI **success** (perf-gate 는 뒤 푸시에 취소돼 아래로 재판정) |
+| perf-gate 수동 dispatch(= **블로킹** 모드, run 33461579236) | **PASS** — 12경로 전부, `/erp/history/` dTTFB 2ms(예산 99)·wire 7158(예산 10174) |
+
+부수: 내 편집으로 줄이 밀려 `foms_failopen_inventory.json`(+ 신규 fail-open 4건, 전부
+`has_logging: true`)·`foms_state_writer_inventory.json`·`foms_order_mutation_writer_inventory.json`
+이 재생성됐다. 함께 커밋한다.
+
+### S1 남은 천장(정직하게 기록)
+
+1. `MARKED` 판정은 **함수 단위**다. 한 함수가 우회 쓰기 둘을 하고 하나만 등재해도 둘 다
+   MARKED 로 보인다(기존 `order_mutation_writer_scan.py` 의 파일 단위 천장보다는 좁다).
+2. `mark_tables_dirty` 만 부르고 DB 작업이 하나도 없으면 트랜잭션이 시작되지 않아
+   `after_soft_rollback` 이 안 난다 → 등재분이 다음 커밋까지 남는다. **과다 증가**라
+   안전한 방향이고, 계약 테스트가 이 조건을 명시한다.
+3. `session.dirty` 는 "UPDATE 가 날 수도 있는" 후보라 실제 변경이 없어도 센다. 역시 과다 증가.
+4. 워커에 등록한 것은 **카운터 훅 하나뿐**이다. 날짜 동기화·대시보드 무효화는 여전히 web 전용.
+
+### S2 착수 조건 (승인 대기)
+
+파일럿은 계획대로 `/erp/history/`. S1 이 답한 것: 워커 축은 이제 신호를 남긴다(S1-2),
+우회 쓰기 신호 누락 0(S1-3). **아직 안 정한 것**: 스펙 §5-5 의 Flask-Compress ETag 접미사
+(`"abc:br"`) 대조 규칙 — 렌더 전 304 를 내면 압축 경로 재평가가 개입하지 않으므로 S2 착수
+전에 먼저 정해야 한다.
+
+---
+
+## P9 — 하트비트 S2a 구현 (2026-09-01, 그림자 모드 · 동작 변경 0)
+
+신설: `foms/services/common/fragment_revalidation.py`, `tests/domains/test_fragment_revalidation.py`(19 케이스).
+배선: `/erp/history/` 한 곳(`foms/web/orders/history.py::_observe_fragment_version`).
+플래그: `FOMS_FRAGMENT_SHADOW_REVALIDATION_ENABLED`(기본 off, **스테이징 전용**).
+
+### S2a-1 선결과제 (a) — Flask-Compress 접미사 대조 규칙 확정
+
+`flask_compress.py:229-237` 이 `status_code >= 300` 이면 **압축도 ETag 재작성도 하지 않고
+조기 반환**한다. 재작성은 `:263-268`, 조건부 재평가는 `:270-276`.
+
+→ **304 에는 `:br` 이 안 붙는다.** 규칙 = 받은 검증자에서 `:<algo>` 를 벗기고 비교
+(`strip_content_encoding_suffix`). 모르는 접미사는 안 벗긴다(키에 콜론이 들어가도 안전).
+S2a 는 이 함수를 아직 쓰지 않지만 규칙을 계약 테스트로 먼저 고정했다.
+
+### S2a-2 선결과제 (b) — 키 축은 소스 독해로 안 닫힌다
+
+`/erp/history/` 프래그먼트는 전역 컨텍스트 프로세서를 그대로 받는다:
+`inject_foms_flags`(코호트 플래그 12종 + shell_variant)·`inject_foms_nav_badges`(주문 건수).
+템플릿이 그중 무엇을 실제로 쓰는지 읽어서 세는 것은 검증이 아니다.
+
+→ 대응 2가지:
+- **코호트는 골라내지 않고 통째로 넣는다** (`_cohort_material` = `inject_foms_flags()` 전량).
+  과다 포함의 대가는 재렌더 한 번, 과소 포함의 대가는 조용히 낡은 화면이다.
+- **모르는 요청 인자가 오면 키를 포기한다**(`None`). 새 필터가 `allowed_args` 에 없으면
+  그 필터를 바꿔도 같은 키가 나온다 — 그럴 바엔 단축을 안 한다.
+
+### S2a-3 그림자 관측이 하는 일
+
+키를 만들고 렌더는 **지금 그대로** 한 뒤, Redis 에 `키 → sha256(본문)[:16]` 을 1시간 TTL 로
+적어둔다. 다음에 같은 키가 오면 그때 본문 해시와 대조해 `new` / `match` / `MISMATCH` 를
+진단 헤더 `X-FOMS-FRAGVER` 로 노출하고, MISMATCH 면 경고 로그 + `foms:fragver:v1:mismatch`
+카운터를 올린다. **응답 본문·상태코드·ETag 는 전부 불변**(계약 테스트가 고정).
+
+MISMATCH = "키에 빠진 축이 있다"는 증거다. 계약 테스트가 그 상황을 실제로 만든다
+(카운터를 고정한 채 새 주문을 넣어 본문만 바꾸면 MISMATCH 가 뜬다) — 렌더 전 304 였다면
+**낡은 본문이 나갔을** 상황이다.
+
+키 재료: 라우트 · 정규화 인자 · uid/role/team/mine · 코호트 전량 · KST 오늘 ·
+4개 테이블 카운터(orders·order_attachments·order_schedule_dates·users).
+`get_table_versions` 가 `None`(Redis 없음)이면 키도 `None` → 지금 동작 그대로(fail-safe).
+
+### S2a-4 검증
+
+| 항목 | 결과 |
+|---|---|
+| `tests/domains/test_fragment_revalidation.py` | 19 passed |
+| 전체 스위트 | 7888 passed, 585 skipped |
+| `pre_push_smoke` | exit 0 |
+| 기존 조건부 계약(`test_erp_shell_fragment_conditional.py`) | 그대로 통과(ETag 경로 무변경) |
+
+부수: fail-open 3건 추가(전부 `has_logging: true`) → `foms_failopen_inventory.json` 재생성.
+
+### S2a 남은 일 — **스테이징 관측**
+
+`FOMS_FRAGMENT_SHADOW_REVALIDATION_ENABLED=1` 을 스테이징 web 에만 켜고 하루 둔다.
+판정: `foms:fragver:v1:mismatch` 카운터 **0**. 0 이 아니면 로그의 route/key 로 빠진 축을
+찾아 키에 추가한다. 0 이 확인된 뒤에만 S2b(렌더 전 304)를 승인받아 착수한다.
+
+### S2a-5 스테이징 관측 1차 — **mismatch 1건, 원인 2개 확정**
+
+플래그를 스테이징 web(`FOMS-DEV`/`FOMS`)에 켜고 관측했다. 그림자 모드는 살아서 돌았다
+(`X-FOMS-FRAGVER: new → match`). 그리고 **mismatch 가 0 이 아니라 1** 이었다 — 그림자
+모드를 먼저 깐 이유가 그대로 나왔다.
+
+**원인 ① 세션 축 누락 (확정).** 같은 사용자로 세션 두 벌을 만들어 같은 프래그먼트를
+받아 본문을 대조했더니 단 한 줄이 달랐다:
+
+```
+-<input type="hidden" name="csrf_token" value="ImU3Yzk2ZGY0...">
++<input type="hidden" name="csrf_token" value="IjRlYmE4MThl...">
+```
+
+키 재료에 세션이 없어서 **같은 키 · 다른 본문**이 된다. 렌더 전 304 를 그대로 켰다면
+로그아웃 후 재로그인했을 때 웜 캐시의 옛 프래그먼트가 304 로 되살아나 **옛 세션의 CSRF
+토큰이 박힌 폼**이 뜨고, 저장이 403 으로 실패한다.
+
+**원인 ② 릴리스 축 누락.** 본문에 자산 `?v=` 핀이 **26개** 박혀 있다. 핀을 올리는 배포가
+나가면 테이블 카운터·사용자·날짜가 전부 그대로인데 마크업만 바뀐다 → 그 순간 렌더 전
+304 가 옛 마크업을 계속 돌려준다.
+
+**수정**: 키 재료에 `session`(세션 CSRF 원시 토큰의 12자 digest — 토큰 자체는 안 넣는다)과
+`release`(`FOMS_RELEASE_ID` → Railway 식별자 → `templates/**` digest → 프로세스 uuid 순
+폴백)를 추가. 계약 테스트 5건 추가(총 24건).
+
+### S2a-6 곁가지 관측 — 키를 흔드는 것과 안 흔드는 것
+
+- 조용한 창(6요청·2분30초): `new` → `match`×5, 본문 해시 동일, 카운터 무변동.
+  **아무 일도 없으면 키는 안정적이다.**
+- `users` 카운터는 **로그인마다** 오른다(`last_login` 쓰기). `users` 를 키에 넣은 화면은
+  누가 로그인할 때마다 키가 바뀐다 — 정확성 문제는 아니고 **적중률** 문제다.
+  운영 규모에서 얼마나 깎이는지는 S2b 착수 전에 따로 재야 한다.
+- `system_settings` 는 사용자 활동 없이도 올랐다(45초 창에서 15→16). 배경 쓰기 주체가
+  있다. `/erp/history/` 키에는 이 테이블이 없어 이번 파일럿에는 영향 없다.
+- 스테이징 `orders`·`order_attachments`·`order_schedule_dates` 카운터는 **키 자체가 없다**
+  (관측 창 동안 주문 쓰기 0건). 스테이징이 조용하다는 증거이고, 동시에
+  **스테이징 관측만으로는 쓰기 축을 검증할 수 없다**는 증거다.
+
+### S2a-7 관측 비용 — 이 게이트의 측정 바닥보다 작다
+
+`/erp/history/` dTTFB(예산 99), perf-gate 4런:
+
+| 런 | 그림자 | dTTFB |
+|---|---|---|
+| 33461579236 | off (S2a 미배포) | 2 |
+| 33464401974 | off (배포·플래그 off) | 5 |
+| 33467530874 | **on** | 9 |
+| 33467782716 | **on** | 0 |
+
+분포가 겹친다. "+7ms 든다"고도 "공짜"라고도 말할 수 없고, 말할 수 있는 것은 네 런 전부
+예산의 10% 안이라는 것뿐이다. 압축은 `br` 이 아니라 **`zstd`** 였다(`"...:zstd"`) —
+접미사 목록에 zstd 를 넣어둔 것이 실측으로 옳았다.
+
+### S2a-8 수정 후 재관측 — **mismatch 0**
+
+deploy `419f03c5f`(CI 4/4 green) 배포 후, 관측 창을 새로 열고(그림자 진단 키만 삭제 —
+테이블 카운터·대시보드 캐시는 무관) **mismatch 를 만들었던 그 시나리오 그대로** 다시 쳤다.
+
+| 시나리오 | 수정 전 | 수정 후 |
+|---|---|---|
+| 같은 사용자 · 다른 세션 2벌 | 두 번째가 **MISMATCH**(같은 키·다른 본문) | 둘 다 `new` (**키가 갈렸다**) |
+| 같은 세션 5회 반복 | `new` → `match`×4 | `new` → `match`×4 (동일) |
+| `foms:fragver:v1:mismatch` | **1** | **0** |
+
+본문은 세션마다 여전히 다르다(CSRF 토큰). 달라진 것은 **그 다름이 이제 키에 반영된다**는
+것이다 — 렌더 전 304 가 옛 세션 토큰을 되살릴 경로가 닫혔다.
+
+### S2a 남은 일 — 스테이징만으로는 못 닫는 것
+
+1. **쓰기 축 미검증.** 관측 창 내내 스테이징 `orders`·`order_attachments`·
+   `order_schedule_dates` 카운터는 **키조차 생기지 않았다**(주문 쓰기 0건). 즉
+   "쓰기가 나면 키가 바뀐다"는 계약 테스트로만 고정돼 있고 실환경 관측 증거는 없다.
+2. **적중률 미측정.** `users` 가 로그인마다 오르는데(관측 중 17→26) `/erp/history/` 키가
+   `users` 를 포함한다. 운영에서 사람들이 출근하며 로그인하는 동안 다른 사용자의 키까지
+   함께 무효화된다 — **정확성이 아니라 이득**의 문제다. `/erp/history/` 가 정말
+   `users` 를 읽는지 좁히면 회복되지만, 좁히는 근거는 소스 독해가 아니라 관측이어야 한다.
+3. 위 둘 다 **트래픽이 있는 환경에서만** 답이 나온다.

@@ -221,6 +221,7 @@ if ($Full) {
         "tests/domains/test_audit_coverage_inventory.py",
         "tests/domains/test_rev_99.py",
         "tests/domains/test_state_guard.py",
+        "tests/domains/test_table_version_counter.py",
         "tests/domains/test_write_guard.py",
         # 호출부 명단 계약: 새 호출 지점이 명단에 없으면 CI red. smoke 사각이라
         # 2026-08-20 에 4커밋 연속 red 를 냈다(as_upload_anchor 의 append_client_log).
