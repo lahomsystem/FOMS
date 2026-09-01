@@ -269,6 +269,29 @@ def test_width_hint_size_option_units():
                                  quantity=10), [])["total_mm"] == 3000
 
 
+def test_width_hint_reads_size_from_fullwidth_paired_option():
+    """운영 실사례 2026-09-01(주문 2026090191203001): 키·값이 **전각 슬래시**로 짝지어 온다.
+
+    원문 `사이즈 ／ 색상: 180cm ／ 클린 화이트 / 손잡이: 푸쉬타입 / 화장대: TYPE 01 （600mm）`
+    — 그룹은 반각 `/`, 그룹 안의 짝은 전각 `／` 다. 반각으로만 자르면 키가 '색상' 으로 읽혀
+    사이즈를 못 찾고 상품명의 '150cm' 로 떨어진다(총폭 1,500mm 오출력).
+    """
+    main = _row("라홈 로라 붙박이장 화장대 포함 누드 거울 작은방 여닫이 150cm 푸쉬타입 친환경 E0",
+                option="사이즈 ／ 색상: 180cm ／ 클린 화이트 / 손잡이: 푸쉬타입"
+                       " / 화장대: TYPE 01 （600mm）")
+    hint = build_width_hint(main, [])
+    assert hint["total_mm"] == 1800
+
+
+def test_width_hint_pairs_fullwidth_keys_by_position():
+    """전각 짝은 **자리로** 맞춘다 — 사이즈가 뒤에 오면 값도 뒤엣것을 읽는다."""
+    main = _row("라홈 로라 150cm", option="색상 ／ 사이즈: 클린 화이트 ／ 210cm")
+    assert build_width_hint(main, [])["total_mm"] == 2100
+    # 짝이 모자라면 그 값은 안 쓴다(상품명으로 떨어진다).
+    main2 = _row("라홈 로라 150cm", option="색상 ／ 사이즈: 클린 화이트")
+    assert build_width_hint(main2, [])["total_mm"] == 1500
+
+
 def test_width_hint_none_when_no_length_in_source():
     """길이를 못 읽으면 틀린 숫자를 만들지 않는다 — 힌트 자체를 안 준다."""
     assert build_width_hint(_row("붙박이장 세트", option="색상: 화이트"), []) is None
