@@ -164,6 +164,53 @@ class TestOrderDraftModel:
             db_session.commit()
         db_session.rollback()
 
+    def test_upsert_recovers_when_select_misses_existing_row(self, app, monkeypatch):
+        """Sentry UniqueViolation: get_draft 가 놓친 기존 행에 INSERT 해도 갱신으로 흡수."""
+        from foms.services import order_draft_service as svc
+
+        user = _make_user("draft-race-user")
+        key = "new.race-unique-key"
+        db_session.add(
+            OrderDraft(
+                user_id=user.id,
+                draft_key=key,
+                step=1,
+                payload={"schema_version": 1, "step": 1, "data": {"customer_name": "이전"}},
+                expires_at=_expires_at(),
+            )
+        )
+        db_session.commit()
+
+        calls = {"n": 0}
+        real_get = svc.get_draft
+
+        def flaky_get(db, user_id, draft_key):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                return None
+            return real_get(db, user_id, draft_key)
+
+        monkeypatch.setattr(svc, "get_draft", flaky_get)
+        row = svc.upsert_draft(
+            db_session,
+            user_id=user.id,
+            draft_key=key,
+            step=4,
+            payload={
+                "schema_version": 1,
+                "step": 4,
+                "data": {"customer_name": "경합후", "deposit": "100000"},
+            },
+        )
+        db_session.commit()
+
+        assert row.step == 4
+        assert row.payload["data"]["customer_name"] == "경합후"
+        assert (
+            db_session.query(OrderDraft).filter_by(user_id=user.id, draft_key=key).count()
+            == 1
+        )
+
     def test_expires_at_index_exists(self, app):
         indexes = {idx["name"] for idx in inspect(engine).get_indexes("order_drafts")}
         assert "ix_order_drafts_expires_at" in indexes
