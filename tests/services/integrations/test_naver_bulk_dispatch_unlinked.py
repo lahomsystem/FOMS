@@ -310,3 +310,79 @@ def test_match_survives_hundreds_of_newer_unlinked_links(today):
 
     rows = find_unlinked_matches(db_session, on_date=today)
     assert [row["order_no"] for row in rows] == [order_no]
+
+
+# --------------------------------------------------------------------------- #
+# 못 보내는 건 갈래 — "원본이 없다" vs "네이버 주문이 아니다" (T8)
+# --------------------------------------------------------------------------- #
+
+def _set_coverage(start: str) -> None:
+    """소급 수집이 훑은 구간을 기록해 둔다(백필 상태 = 커버리지 정본)."""
+    from foms.services.integrations.naver_commerce import backfill as bf
+
+    bf._write_state(db_session, {"requested_from": start + "T00:00:00+09:00",  # noqa: SLF001
+                                 "requested_to": start + "T23:59:59+09:00", "rev": 1})
+    db_session.commit()
+
+
+def test_order_inside_coverage_without_origin_is_called_foreign(today):
+    """수집이 훑은 구간 안인데 원본이 없으면 **네이버 주문이 아니다**라고 말한다."""
+    from foms.services.integrations.naver_commerce.bulk_dispatch import (
+        COVERAGE_MARGIN_DAYS, build_preview,
+    )
+    from datetime import date, timedelta
+
+    _set_coverage("2026-01-01")
+    received = (date.fromisoformat("2026-01-01")
+                + timedelta(days=COVERAGE_MARGIN_DAYS + 1)).isoformat()
+    order = _order_measured_today(today, customer="원본없음", phone="010-9999-0001")
+    order.received_date = received
+    db_session.commit()
+
+    preview = build_preview(db_session, on_date=today)
+    ids = [row["order_id"] for row in preview["foreign"]]
+    assert int(order.id) in ids
+    assert preview["coverage_from"] == "2026-01-01"
+
+
+def test_order_before_coverage_is_called_unknown(today):
+    """구간 밖이면 **모른다**고 말한다 — 원본을 받아 온 적이 없다."""
+    from foms.services.integrations.naver_commerce.bulk_dispatch import build_preview
+
+    _set_coverage("2026-08-01")
+    order = _order_measured_today(today, customer="범위밖", phone="010-9999-0002")
+    order.received_date = "2026-07-01"
+    db_session.commit()
+
+    preview = build_preview(db_session, on_date=today)
+    assert int(order.id) in [row["order_id"] for row in preview["unknown"]]
+    assert int(order.id) not in [row["order_id"] for row in preview["foreign"]]
+
+
+def test_matched_order_is_not_called_unsendable(today):
+    """붙일 짝이 있는 집은 '못 보낸다' 갈래에 넣지 않는다(두 줄이 같은 집을 말하면 안 된다)."""
+    from foms.services.integrations.naver_commerce.bulk_dispatch import build_preview
+
+    _set_coverage("2026-01-01")
+    order = _order_measured_today(today)
+    order.received_date = "2026-08-01"
+    db_session.commit()
+    _loose(f"N-UM-{_uid()}", count=1)
+
+    preview = build_preview(db_session, on_date=today)
+    assert preview["unlinked"] == 1
+    assert int(order.id) not in [row["order_id"] for row in preview["foreign"]]
+    assert int(order.id) not in [row["order_id"] for row in preview["unknown"]]
+
+
+def test_without_backfill_nothing_is_called_foreign(today):
+    """소급 수집을 안 돌렸으면 아무것도 '네이버 아님'으로 단정하지 않는다."""
+    from foms.services.integrations.naver_commerce.bulk_dispatch import build_preview
+
+    order = _order_measured_today(today, customer="커버리지없음", phone="010-9999-0003")
+    order.received_date = "2026-08-20"
+    db_session.commit()
+
+    preview = build_preview(db_session, on_date=today)
+    assert preview["foreign"] == []
+    assert int(order.id) in [row["order_id"] for row in preview["unknown"]]
