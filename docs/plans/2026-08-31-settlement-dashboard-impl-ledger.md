@@ -1282,3 +1282,96 @@ PC 경로에는 부트스트랩 부재 · 스크립트가 필터 대조 후에�
 
 단계: S0 전수조사 → S1 카운터 배선(읽는 쪽 없음) → S2 화면 1개 적용 후 스테이징 실측 →
 S3 확대. 승인 대기.
+
+### P4 부수 — CI red 1회와 그 사각지대 (2026-09-01)
+
+`erp-order-shared.js` 핀을 `20260901a` 로 올렸더니 FOMS CI 가 red 였다:
+`tests/visual/test_alimtalk_ui_contract.py::test_share_trace_assets_pinned_together` 가
+`erp_order_js.html` 안의 `?v=20260901a` 를 **정확히 2개**(트레이스 CSS + 공유 JS)로 세는데,
+같은 날 다른 세션이 그 값을 쓰고 있어서 3개가 됐다. 핀은 자산 단위이므로 내 자산만
+`20260901m` 으로 분리하고 계약 테스트를 함께 갱신했다(deploy `6740af20`, CI 4종 green).
+
+**사각지대 기록**: `pre_push_smoke` 서브셋과 내 로컬 전체 실행(`--ignore=tests/visual`)이
+이 테스트를 돌지 않아 로컬은 계속 초록이었다. **핀을 만졌으면 push 전에
+`pytest tests/visual/test_alimtalk_ui_contract.py` 를 따로 돌린다.**
+(같은 교훈을 메모리 `sw-stale-js-version-bump` 에도 추가.)
+
+### P4 부수 2 — perf-gate 가 잡은 것(정당한 red)과 예산 재시드 (2026-09-01)
+
+승격 PR #224 에서 perf-gate 가 **블로킹 red**: `/erp/completion?view=fragment` 전송 바이트
+**26,109 > 예산 18,466**. 게이트가 옳다 — 목록을 API 응답에서 페이지 안으로 옮겼으니 그 경로의
+바이트는 늘어난다. 다만 **총량은 그대로**다:
+
+| | 프래그먼트 | API | 합계 | 요청 수 |
+|---|---|---|---|---|
+| 전 | 13,661B | 12,456B | 26,117B | 2 |
+| 후 | 26,109B | 0 | **26,109B** | **1** |
+
+= **-8B**. 바이트가 늘어난 게 아니라 옮겨온 것이라, 관측 26,109×1.3 → **33,941** 로 재시드하고
+사유를 `perf_budgets.json` `_comment` 에 남겼다. **dTTFB 예산(107)은 손대지 않았다** — 완화가
+아니라 경로 재배치의 반영이라는 점을 기록한다(증상 완화용 재시드 금지 원칙과 구분).
+
+참고: 같은 게이트가 deploy push 때는 **advisory** 라 exit 0 이었다(`--advisory`). 승격 PR 에서만
+블로킹이므로, deploy 만 보고 "예산 통과"라고 읽으면 안 된다.
+
+### P4 결론 — **되돌렸다**(사용자 판단). 남길 것은 측정값이다
+
+perf-gate 2차 red 는 TTFB 였다. 같은 경로를 여러 런에 걸쳐 분포로 비교했다
+(전부 스테이징, 각 표본은 같은 코드끼리):
+
+| | dTTFB 표본 | 중앙값 | 최대 | 전송 |
+|---|---|---|---|---|
+| 부트스트랩 전 | 39·42·47·67·60·59·64 | **59ms** | 67 | 13.6KB |
+| 부트스트랩 후 | 114·99·71·53·73·71·88 | **73ms** | **114** | 26.1KB |
+
+예산 107. **중앙값 +14ms·최대 +47ms** 로 첫 페인트 경로의 여유가 사라져 게이트가 흔들렸다
+(1차 red = 바이트, 2차 = TTFB).
+
+체감은 사실상 무승부다 — API 왕복 1회(RTT 약 110ms + 서버 62ms)가 사라진 대신 렌더가 그만큼
+무거워졌다. 확실히 남는 이득은 **서버가 모집단을 한 번 덜 읽는 것**뿐이었다. 첫 페인트 예산을
+먹고 TTFB 예산 완화까지 요구하는 대가로는 비싸다 → **revert**(사용자 판단), 예산도 18466 원복.
+
+**남는 사실(다음 시도의 출발점)**:
+- 모바일 코호트에서 `/erp/completion` 이 모집단을 2회 읽는 것은 **여전히 사실**이다.
+- 다만 해법은 "렌더에 실어 보내기"가 아니다 — 첫 페인트를 막는 경로에 일을 더하는 방식이라
+  총량이 같아도 예산을 먹는다. **두 번째 읽기만 없애는 방식**(짧은 TTL DTO 캐시로 모집단 공유,
+  `dashboard_cache.py` 인프라 재사용)이 남은 후보다. 바이트도 첫 페인트도 그대로 둔다.
+- 방법론 교훈: **"총 바이트가 같다"는 근거만으로 경로를 옮기면 안 된다.** 게이트는 경로별이고,
+  첫 페인트 경로는 총량이 아니라 그 경로의 비용으로 평가받는다.
+
+---
+
+## P7 — 하트비트 S0 전수조사 (2026-09-01, 진행 중 · 1/3 도착)
+
+### S0-1 결론(일정·첨부): **엔진 intent 는 신호원으로 못 쓴다**
+
+`order_schedule_dates`·`order_attachments` 쓰기 **29경로 중 `execute_order_mutation` 경유는 2건**
+(`blueprint_projection.py:177` via `erp_orders_blueprint.py:218`, `as_upload_anchor.py:205` via
+`as_cycle_service.py:353`). 나머지 27경로는 신호가 없다.
+
+직접 확인한 것 2가지:
+- `OrderScheduleDate(` 생성자는 저장소 런타임 코드에 **정확히 1곳** — `order_date_sync.py:271`
+  (`grep` 전수 1/1). 그 경로는 **ORM `before_flush` 훅**이라 엔진 밖이다.
+- `upload_ticket.py:296` 은 `order.mutation_version` 을 손으로 +1 하지만
+  `upload_ticket_routes.py` 에는 무효화 호출이 **하나도 없다**(직접 grep 0건).
+
+또 하나 드러난 사실: **무효화 경로가 이미 두 갈래**다. 엔진 intent
+(`dashboard_cache.py:670`)와, 그와 무관한 `order_date_sync.py:543-562` 의 자체 `after_commit`
+(`invalidate_all_dashboard_slice_caches()`). 즉 "intent 하나가 SSOT" 라는 스펙 §4 의 전제가 틀렸다.
+
+### 스펙 수정 방향(§4 교체) — 신호원을 **세션 훅**으로
+
+저장소가 이미 답을 적어두고 있다: `order_date_sync.py:519-521` 주석 —
+"이 훅은 **모든 쓰기가 통과하는 유일 지점**이라 … 라우트/서비스별 emit 은 두지 않는다
+(경로가 늘어날 때마다 구멍이 생기고 중복 기록이 난다)."
+
+→ 버전 카운터는 `execute_order_mutation` 이 아니라 **전역 `before_flush`/`after_commit`
+세션 훅**에서 올린다. 그러면 라우트 수와 무관하게 ORM 을 통과하는 모든 쓰기가 덮인다.
+남는 구멍은 ORM 을 우회하는 것뿐이고, 그 수는 작다(직접 센 값: `.update({` **16곳**,
+`execute(text(` 중 UPDATE/DELETE/INSERT **4곳**, query-level `.delete()` **0곳**).
+그중 실제로 화면 데이터를 바꾸는 것(예: `restore_order_schedule_dates.py` 전역 삭제·재삽입,
+`delete_retention.py:412` CASCADE)은 **명시적으로 카운터를 올리도록** 목록화해야 한다.
+
+### 남은 조사
+
+`orders` 테이블 쓰기 전량 / `users`·`system_settings`·`order_assignments` 쓰기 — 조사 중.

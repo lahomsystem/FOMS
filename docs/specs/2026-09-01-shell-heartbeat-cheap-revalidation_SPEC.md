@@ -51,6 +51,15 @@ ETag 는 **렌더가 끝난 뒤** 붙는다(`foms/services/common/erp_shell_http
 
 ## 4. 설계안: 커밋 시점에 올리는 **패밀리 버전 카운터**
 
+> **2026-09-01 S0 1차 결과로 수정됨**: 아래 1번의 신호원을 `execute_order_mutation` intent 로
+> 잡으면 **안 된다**. 일정·첨부 쓰기 29경로 중 엔진 경유는 2건뿐이고, 일정 행의 유일한
+> 생산자(`order_date_sync.py:271`)부터가 엔진 밖 `before_flush` 훅이다. 신호원은
+> **전역 세션 훅**(`before_flush` 에서 더러운 엔티티 종류를 모으고 `after_commit` 에서 카운터
+> 증가)으로 간다 — 같은 이유로 날짜 동기화가 이미 그 자리를 쓰고 있다
+> (`order_date_sync.py:519-521`: "모든 쓰기가 통과하는 유일 지점"). ORM 우회 쓰기
+> (`.update({` 16곳 · raw SQL 4곳)는 개별 등재 대상. 상세는 원장 §P7.
+
+
 이미 있는 것을 쓴다: 대시보드 캐시 무효화가 **`Session.after_commit` 리스너**로 배선돼 있고
 (`foms/services/common/dashboard_cache.py:655-690`), 무효화 intent 는 canonical mutation
 엔진이 남긴다(`foms/services/orders/revision.py:177-204`).
