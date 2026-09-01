@@ -139,18 +139,31 @@ def _normalized_args(req: Any, allowed_args: Sequence[str]) -> list[list[str]] |
     return out
 
 
+_COHORT_CACHE_ATTR: Final[str] = "_foms_fragver_cohort_cache"
+
+
 def _cohort_material() -> dict[str, Any]:
-    """코호트·플래그 축을 통째로 키 재료에 넣는다.
+    """코호트·플래그 축을 통째로 키 재료에 넣는다(요청당 1회 캐시).
 
     어떤 플래그를 템플릿이 실제로 쓰는지 골라내는 대신 **전부 넣는다**. 골라내려면
     템플릿을 읽어서 세야 하는데, 그 셈이 틀리면 낡은 304 가 나간다(스펙 §8.1-b).
     과다 포함의 대가는 재렌더 한 번이고, 과소 포함의 대가는 조용히 낡은 화면이다.
 
+    렌더에서 이미 `inject_foms_flags` 가 돌므로 여기서 또 부르면 env·쿠키 파싱이
+    한 요청에 두 벌 난다. `resolve_shell_variant_cached` 와 같은 방식으로 `flask.g`
+    에 요청당 1회만 캐시한다(첫 페인트 경로에 일을 더하지 않는다는 P4 교훈).
+
     Returns:
-        JSON 직렬화 가능한 플래그 딕셔너리(실패 시 빈 딕셔너리가 아니라 예외를
-        올려보내지 않고 ``None`` 표식을 담아 키가 조용히 같아지지 않게 한다).
+        JSON 직렬화 가능한 플래그 딕셔너리. 만들 수 없으면 표식을 담아 돌려준다
+        (빈 딕셔너리로 조용히 같아지지 않게).
     """
     try:
+        from flask import g, has_request_context
+
+        cached = getattr(g, _COHORT_CACHE_ATTR, None) if has_request_context() else None
+        if cached is not None:
+            return cached
+
         from foms.services.context_processors import (
             _current_shell_variant,
             inject_foms_flags,
@@ -158,7 +171,10 @@ def _cohort_material() -> dict[str, Any]:
 
         flags = dict(inject_foms_flags())
         flags["_shell_variant"] = _current_shell_variant()
-        return {k: v for k, v in sorted(flags.items()) if _json_safe(v)}
+        material = {k: v for k, v in sorted(flags.items()) if _json_safe(v)}
+        if has_request_context():
+            setattr(g, _COHORT_CACHE_ATTR, material)
+        return material
     except Exception:
         logger.warning("[FragVer] cohort material unavailable", exc_info=True)
         return {"_cohort": "unavailable"}
@@ -246,8 +262,12 @@ def record_shadow_observation(key: str, body: bytes, *, route_id: str) -> str:
         return SHADOW_STATE_NEW
     redis_key = f"{SHADOW_KEY_PREFIX}:{route_id}:{key}"
     try:
-        previous = client.get(redis_key)
-        client.setex(redis_key, _SHADOW_TTL_S, digest)
+        # GET + SETEX 를 파이프라인으로 묶어 왕복 1회로 끝낸다. 관측은 첫 페인트
+        # 경로에 얹히므로 왕복 수가 그대로 응답 시간이다(P4 교훈).
+        pipe = client.pipeline()
+        pipe.get(redis_key)
+        pipe.setex(redis_key, _SHADOW_TTL_S, digest)
+        previous = (pipe.execute() or [None])[0]
     except Exception:
         logger.warning("[FragVer] shadow observation failed (non-fatal)", exc_info=True)
         return SHADOW_STATE_NEW

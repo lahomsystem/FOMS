@@ -179,16 +179,37 @@ def test_no_redis_abandons_the_key():
 # 4. 그림자 관측
 # --------------------------------------------------------------------------- #
 
+class _FakePipeline:
+    """GET+SETEX 를 한 왕복으로 묶는 실제 구현과 같은 모양."""
+
+    def __init__(self, redis: "_FakeRedis") -> None:
+        self._redis = redis
+        self._ops: list = []
+
+    def get(self, k):
+        self._ops.append(("get", k))
+
+    def setex(self, k, ttl, v):
+        self._ops.append(("setex", k, v))
+
+    def execute(self):
+        out = []
+        for op in self._ops:
+            if op[0] == "get":
+                out.append(self._redis.store.get(op[1]))
+            else:
+                self._redis.store[op[1]] = op[2]
+                out.append(True)
+        return out
+
+
 class _FakeRedis:
     def __init__(self) -> None:
         self.store: dict[str, str] = {}
         self.counters: dict[str, int] = {}
 
-    def get(self, k):
-        return self.store.get(k)
-
-    def setex(self, k, ttl, v):
-        self.store[k] = v
+    def pipeline(self):
+        return _FakePipeline(self)
 
     def incr(self, k):
         self.counters[k] = self.counters.get(k, 0) + 1
@@ -242,10 +263,7 @@ def test_shadow_observation_never_raises_on_redis_failure():
     from foms.services.common import dashboard_cache as dc
 
     class _Boom:
-        def get(self, k):
-            raise RuntimeError("redis down")
-
-        def setex(self, k, ttl, v):
+        def pipeline(self):
             raise RuntimeError("redis down")
 
         def incr(self, k):
