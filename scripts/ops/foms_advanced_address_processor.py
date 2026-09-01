@@ -192,11 +192,21 @@ class FOMSAdvancedAddressProcessor:
         return address
     
     def _normalize_district(self, address: str) -> str:
-        """구/군/동 정규화"""
-        # 구 이름 보완
+        """구/군/동 정규화.
+
+        구 이름 보완('강남' -> '강남구')은 **앞뒤가 한글이 아닐 때만** 한다. 부분 문자열
+        전역 치환이던 시절의 결함(2026-09-01): ``서울특별시 서초구 서초대로 396 강남빌딩``
+        의 건물명이 ``강남구빌딩`` 이 되고 :meth:`extract_address_components` 가
+        ``district='강남구'`` 로 뒤집혀, 6단계 simplified 폴백이 **서울특별시 강남구 좌표를
+        성공으로 반환**했다(서초구 주소인데 강남구 핀).
+        """
+        # 구 이름 보완 — 낱말 경계(한글이 이어지지 않을 때)에서만 치환한다.
         for mistake, correction in self.common_mistakes.items():
-            if mistake in address and correction not in address:
-                address = address.replace(mistake, correction)
+            if mistake == correction:
+                continue  # '로'->'로' 같은 무의미 항목
+            pattern = r'(?<![가-힣])' + re.escape(mistake) + r'(?![가-힣])'
+            if correction not in address:
+                address = re.sub(pattern, correction, address)
         
         # 동 이름 처리
         address = re.sub(r'(\w+)동(?!\d)', r'\1동', address)

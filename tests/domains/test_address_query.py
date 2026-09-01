@@ -28,6 +28,44 @@ def test_road_address_keeps_building_number() -> None:
     assert strip_detail("경기 의왕시 시청로 42 108-1701") == "경기 의왕시 시청로 42"
 
 
+def test_beon_gil_road_is_not_truncated() -> None:
+    """``NNN번길`` 은 앞 도로와 **다른 도로**다 — 건물번호에서 자르면 안 된다.
+
+    2026-09-01 조사: ``판교로 256번길 25`` 가 ``판교로 256`` 으로 잘렸다. 잘린 값도
+    카카오에서 좌표가 나오므로 실패가 아니라 **엉뚱한 좌표로 성공**한다(핀이 수백 m~수 km
+    어긋난 채 정상으로 보인다 — 실패보다 나쁘다).
+    """
+    assert strip_detail("서울 강남구 강남대로 123번길 45") == "서울 강남구 강남대로 123번길 45"
+    assert (strip_detail("경기 성남시 분당구 판교로 256번길 25 (삼평동)")
+            == "경기 성남시 분당구 판교로 256번길 25")
+    assert (strip_detail("인천 서구 청라한내로 88번길 12-3 202동 1503호")
+            == "인천 서구 청라한내로 88번길 12-3")
+
+
+def test_beon_gil_guard_does_not_split_building_number() -> None:
+    r"""음성 대조군: 번길 방어가 건물번호 자릿수를 갉아먹으면 안 된다.
+
+    부정 전방탐색만 두면 백트래킹이 ``123`` 을 ``12`` 로 줄여 전방탐색을 우회한다 —
+    원래 결함보다 나쁜 절단이다. 숫자 경계(``(?!\d)``)가 함께 있어야 한다.
+    """
+    for sample in ("서울 강남구 강남대로 123번길 45", "경기 성남시 분당구 판교로 256번길 25"):
+        assert strip_detail(sample) == sample
+        assert sample in query_variants(sample)
+
+
+def test_plain_road_addresses_still_truncate() -> None:
+    """음성 대조군: ``번길`` 이 없는 도로명은 종전대로 건물번호까지만 남는다."""
+    assert strip_detail("서울 강남구 테헤란로 152 5층") == "서울 강남구 테헤란로 152"
+    assert strip_detail("서울 서초구 서초대로 396 강남빌딩 5층") == "서울 서초구 서초대로 396"
+    assert (strip_detail("경기 고양시 일산서구 강선로 188 (일산동, 후곡마을11단지아파트) 1105동 1406호")
+            == "경기 고양시 일산서구 강선로 188")
+
+
+def test_attached_road_number_gil_is_unchanged() -> None:
+    """음성 대조군: ``통일로68길 4`` 처럼 붙여쓴 길 표기는 종전 결과를 유지한다."""
+    assert strip_detail("서울시 은평구 통일로68길 4 101동 202호") == "서울시 은평구 통일로68길 4"
+
+
 def test_dong_ho_and_ho_only_tails() -> None:
     assert strip_detail("잠실 르엘 101동 1502호") == "잠실 르엘"
     assert strip_detail("잠실르엘101동1502호") == "잠실르엘"
