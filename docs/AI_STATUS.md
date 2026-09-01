@@ -10,6 +10,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
+- [2026-09-02] **트리아지 자동매칭 사고 반영 완료** — 잔여: 전화 어긋남 36건 재판정. `docs/incidents/2026-09-01-naver-triage-auto-match-miss.md`
 - [2026-09-02] **네이버 클레임 승인 T9 운영 ON**(PR #249 · production `b0c81413` · web 재배포 23:23Z) — 취소 요청 승인 신설(`claim/cancel/approve`)+반품 승인 독립 경로. 게이트 2종 `FOMS_NAVER_{CANCEL,RETURN}_APPROVE_ENABLED=1`(web 전용). **취소 거부 API 는 네이버에 없다.** 후속: 유령 주문 단계 잠금 해제(사유 필수)는 deploy `549a801f`. 원장: `docs/plans/2026-09-01-naver-claim-approve-ledger.md`
 - [2026-09-01] **네이버 과거 주문 백필 deploy 반영** — 워크벤치 90일 1회 실행·워터마크 불변·소급분은 큐 밖·매칭 캡 해소(`naverbf_00`). **운영 실행 승인 대기**. 원장 `docs/plans/2026-09-01-naver-ingest-backfill-ledger.md`
 - [2026-09-02] **지오코딩 일시오류/주소오류 분리 운영 반영 완료(PR #243 · production `c8492b6b`)** — ①변환기가 실패 사유를 가른다(타임아웃·429·비200=transient) ②`geocode_status` 4상태화(`address_error` 신설·화면은 3상태 정규화) + 재시도 SSOT `geocode_retry.py`(pending 600초·failed 24h 백오프, `address_error` 제외) ③`번길` 절단 — 실호출 **426m 오차** ④구 이름 부분 치환 — 실호출 **3,968m 오차**. WORKER 신코드 확인(`failed_retry=86400s`), 운영 failed 20건은 24h 백오프 뒤 자동 재시도. 원장 `docs/plans/2026-09-01-geocode-transient-vs-data-error-plan.md`
@@ -17,7 +18,6 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 - [2026-09-01] **네이버 반품 거부(T8-S3) 운영 ON**(PR #229 · `7976fb2c` · web 재배포 `09aeca29`) — 규격은 공개 문서 `apicenter.commerce.naver.com/llms/`(**네이버 규격은 여기부터**): body 는 `rejectReturnReason` 하나. **게이트는 web 전용**(WORKER 재배포 금지 — 큐 정지). **잔여=상용구 문장 확정.** 원장 T4
 - [2026-09-01] **엑셀 내보내기·동선 전면 삭제 deploy(`8f0f2a1d`, 커밋 2개)** — 상단 예산 확보로 상세는 "기록 보관 — 2026-08-31 정리"로 이관.
 - [2026-09-01] **네이버 일괄 발송처리 결과 UI·안 붙은 수집분 운영 반영(PR #219·#227)** — 띠가 **완료/일부/실패/대기 4상태**, 버튼 직후 폴링, 실패 줄마다 재시도, **안 붙은 수집분을 전화·수령인명으로 짚는다**. **잔여=운영 자산 핀 범프·실브라우저 확인·미연결 21묶음 붙이기**. 원장 `2026-08-31-naver-bulk-dispatch-result-ui-ledger.md`
-- [2026-08-31] **지오코딩 사전변환 복원 production 완료(`365b1280`)** — 스윕 가동, 좌표 미달 121→0. 원장 §12
 - [2026-09-01] **계약서 열람 이력 원장 운영 반영(PR #237 · production `b1ed7bff`)** — 라이브 반영으로 사라졌던 "고객이 그날 본 금액"을 열람 시점에 남긴다. `order_share_snapshots`(`sharehist_00`, 운영 DB 확인). 내용이 바뀐 순간에만 1행, 적재 실패는 로그만 남기고 고객 화면은 산다. 설계 `docs/specs/2026-09-01-share-contract-view-history-design.md`
 - ⚠️ [2026-08-23] **로컬 dev DB 행 소실(로컬 한정)** — pytest 파일이 conftest 보다 먼저 `db` import → 로컬 PG 에 `drop_all`. 스테이징·운영 무관. 근본 수정: `assert_engine_not_postgresql`(env 문자열 아닌 엔진 판정)
 
@@ -49,6 +49,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 
 
 ## 최근 완료 (최대 5개)
+- [2026-08-31] **지오코딩 사전변환 복원 production 완료(`365b1280`)** — 스윕 가동, 좌표 미달 121→0. 원장 §12
 - [2026-09-01] 공유 링크 — 계약서 라이브 반영 + 모바일 합본 사진(PR #235). 발급 동결(D6)→라이브, 모바일 도면 일괄은 ZIP 대신 사진 1장. **잔여=실기기(카톡 인앱) 확인 5건.** 원장 `docs/plans/2026-08-31-share-contract-drawing-ux-ledger.md`
 - [2026-08-31] **SIDEFX 워커 서비스 등록·가동(T5 해소)** — heartbeat 3행 최초 생성, GEOCODE·STORAGE_DELETE 소진 중. ⚠ **Railway 가 Config as Code(railway*.toml) 폐기** → 저장소 toml 은 사문, startCommand 직접 지정으로 배선. **기존 서비스도 toml 이 아니라 API 설정으로 도는지 확인 필요.** 원장 §16
 - [2026-08-31] **엑셀 업로드·동선 추천 제거 + 동선 API 5초 수리 production 완료(`eda377ce`)** — 원장 §12·§14·§15
