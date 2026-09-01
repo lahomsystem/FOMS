@@ -1094,3 +1094,191 @@ production 56.0 vs 64.9. ETag 는 **렌더 후** `add_etag()`/`make_conditional(
 
 착수 전 사용자 선택 대기. 측정 스크립트: `c:\tmp\screen_api_census.py` ·
 `c:\tmp\interaction_api_census.py` · `c:\tmp\settle_perf_probe.py`(healthz 델타).
+
+---
+
+## P3 — 실측 요약 API 30초 폴링 (2026-09-01, 계획 · 승인 대기)
+
+대상: `GET /api/erp/measurement/summary` (`foms/api/measurement/routes.py:250-`)
++ 폴링 호출부 `static/js/orders/erp-order-shared.js:5676-5678`.
+
+### 근거 (운영 DB 읽기 전용 실측, 2026-09-01)
+
+| 항목 | 값 |
+|---|---|
+| 활성 주문 | 3,795 |
+| **앞으로 15일(오늘~+14) 안에 실측일이 있는 주문** | **68** |
+| 현재 이 API 가 읽는 행 | 최대 **1,500**(id 내림차순, structured_data + schedule_dates 동반) |
+| 스테이징 서버 시간 | **263ms** / 응답 250B(zstd) |
+| 반복 | 주문 편집 화면이 열려 있는 동안 **30초마다 무한**(`clearInterval` 없음) |
+
+**SQL 로 좁혀도 안 잃는다** — 같은 창에서:
+`order_schedule_dates(kind='measurement')` 로 걸리는 주문 **68**,
+sd `schedule.measurement.date` 64 · 레거시 `measurement_date` 컬럼 64 · 항목별 `measurement_date` 0,
+**(sd ∪ 레거시 ∪ 항목) − osd = 0건**. 읽기 모델이 상위집합이다.
+인덱스도 있다: `ON order_schedule_dates (date, order_id) WHERE kind='measurement'`
+(`startup_schema_00_ensure_orders_flat_and_indexes.py:79`).
+선례: `_sched_any(kind, dates)`(`foms/services/orders/dashboard_control_tower.py:58`) —
+주석에 "실측 대시보드 패널과 날짜별 카운트 정합(운영 8/6 25vs23 근본 수정)"이라 적힌 바로 그 술어.
+
+### 곁가지 결함(같이 고친다)
+
+`limit(1500)` 을 **먼저** 걸고 그 다음 파이썬에서 날짜를 판정한다 — 프로젝트가 아는
+"캡 뒤 분류 = 조용한 누락". 오래된 주문의 다가오는 실측일이 패널에서 소리 없이 빠진다.
+
+### Task
+
+| T | 내용 | 완료 기준 |
+|---|---|---|
+| T1 | 서버: 모집단을 `schedule_dates.any(kind='measurement', date.in_(15일))` EXISTS 로 좁힌다. `limit(1500)` 제거, 안전 상한은 좁힌 **뒤**에 두고 발동 시 `logger.warning` | 계약 테스트 3건 green: ① 창 밖 주문 제외 ② **id 가 오래된 주문도 창 안이면 포함**(옛 캡 결함 회귀 테스트, 음성 대조군으로 옛 구현에서 red 확인) ③ 안전 상한 발동 시 경고 로그 |
+| T2 | 클라: 문서가 숨겨져 있으면 폴링을 건너뛰고 복귀 시 1회 갱신. 패널이 사라지면 타이머 정지 | 계약 테스트(소스 리터럴: `visibilitychange`·정지 경로) + 실화면에서 탭 숨김 동안 요청 0 |
+| T3 | 검증·배포 | 정산·실측 스위트 + 전체 스위트 + `pre_push_smoke` exit 0 → deploy → CI 전 워크플로 green → 스테이징 전후 서버시간 비교 |
+
+범위 밖(손대지 않는다): 패널 UI·표시 규칙·`extract_all_measurement_dates` 판정 로직·
+`mine` 필터의 파이썬 판정·자가실측 4체크 제외 규칙. **SQL 이 후보를 좁히고 파이썬이 정밀
+판정한다는 구조는 그대로**(정산 커널과 같은 형태).
+
+### P3 구현·검증 (2026-09-01)
+
+| 파일 | 변경 |
+|---|---|
+| `foms/services/measurement_read_model.py` | `measurement_schedule_on_dates(dates)` 신설 — `schedule_dates.any(kind='measurement', date.in_(...))`. varchar 컬럼이라 범위 비교 대신 **정확 일치 IN**(오염값 회피) |
+| `foms/api/measurement/routes.py` | summary 모집단을 15일 창으로 SQL 에서 좁힌다. `limit(1500)` 제거 → 좁힌 **뒤** `MEASUREMENT_PANEL_SAFETY_CAP=2000` + 발동 시 `logger.warning` |
+| `static/js/orders/erp-order-shared.js` | 폴링이 숨김 상태를 건너뛰고, 패널이 사라지면 `clearInterval`. 복귀 시 1회 갱신(`visibilitychange`, 단일 등록 가드 `window.__FOMS_ERP_MEASUREMENT_VISIBILITY_BOUND`) |
+| `templates/orders/partials/erp_order_js.html` | `erp-order-shared.js` 핀 `20260829a` → `20260901a`(계약 테스트 동반 갱신) |
+| 테스트 | 모집단 계약 4건(창 밖 제외·**오래된 id 포함**·콤마 복수 일정 전 날짜·캡 경고) + JS 계약 1건 |
+
+**음성 대조군**: SQL 좁히기 한 줄을 지우면(옛 구현 재현)
+`test_summary_panel_includes_old_order_ids_inside_the_window` 가 red — 캡 결함이 실제로
+잡힌다는 것을 확인했다.
+
+**운영 DB EXPLAIN ANALYZE**(읽기 전용): 좁힌 모집단 조회 **3.8ms**(rows=64).
+`Hash Semi Join` — 이 규모(주문 3,795 · osd 3,434)에선 Seq Scan 이 더 싸다고 플래너가 판단.
+
+**로컬 A/B 는 판정 불가**로 기록한다: 로컬 dev 서버는 요청당 약 2.06초의 고정 비용이 있어
+좁히기 유무 차이(OLD 2,060ms vs NEW 2,032ms)가 그 안에 묻힌다. 로컬 DB 주문 718건이라
+옛 캡(1500)이 애초에 발동하지 않는 것도 이유다. **판정은 스테이징 전후 실측으로 한다.**
+
+로컬 검증: 전체 스위트 **7,391 passed / 585 skipped**, `pre_push_smoke` exit 0, `APP_OK`.
+로컬 시드 705건은 검증 후 삭제 확인.
+
+### P3 스테이징 전후 (2026-09-01, 같은 방법론 healthz 델타)
+
+| | 서버 시간 | 응답(해압/전송) | 비고 |
+|---|---|---|---|
+| 전 (`f076c07d` 계열) | **263.1ms** | 2,338B / 250B | id 내림차순 1,500행을 structured_data 째로 읽음 |
+| 후 (`6d584f1d`) | **18.1ms** | 2,338B / 250B | 창 안 주문만 읽음 |
+
+**14.5배**. 응답 바이트가 전후 동일하다 — 내용이 그대로라는 방증이다(계약 테스트 4건과
+운영 DB 대조 "osd 로 좁혀도 놓치는 주문 0건"이 의미 파리티를 따로 고정한다).
+
+폴링 자체도 줄었다: 숨겨진 탭에서는 요청이 나가지 않고(복귀 시 1회 갱신), 패널이 사라지면
+타이머가 접힌다 — 전에는 주문 편집 화면을 한 번 열면 탭이 숨겨져 있든 말든 30초마다 계속 돌았다.
+
+CI 전 워크플로 green(FOMS CI · PostgreSQL Lane · Harness CI · perf-gate), 스테이징 배포
+확인(`/healthz` commit == `6d584f1d`). **production 승격은 별도 승인 대기.**
+
+### P3 production 승격 + 운영 재측정 (2026-09-01)
+
+PR **#221 머지** — `origin/production` `70dc48f1`. 4커밋(정산 원장 docs 2 + 성능 1 + 원장 1).
+승격 트리(`c:\tmp\promo-mp`)에서 **cherry-pick 충돌 0건** — 사전검사가 타 세션 커밋 4건
+(`703e61e3`·`6d212ecb`·`f990db5f`·`be52d9c3`)을 같은 파일이라는 이유로 missing 으로 표시했지만
+실제 적용에는 의존이 없었다(파일 교집합은 의존의 상한이지 실체가 아니다).
+승격 트리 검증: `APP_OK` · 전체 스위트 **7,394 passed / 585 skipped** · `pre_push_smoke` exit 0.
+PR 체크 4종 전부 success, mergeStateStatus=CLEAN. 운영 배포 확인(`/healthz` == `70dc48f1`).
+
+**운영 재측정**(읽기 전용 GET, 해제→측정→재잠금):
+
+| 항목 | 값 |
+|---|---|
+| 서버 시간 | **28.7ms** (healthz base 105.4ms, min ttfb 134.1ms) |
+| 패널 | 15일 · **63건** (DB 대조 68주문과 정합 — 자가실측 4체크 완료분 제외) |
+| 응답 | 24,948B(운영은 케이스가 많아 스테이징 2,338B 보다 크다) |
+
+⚠️ **운영 '전' 값은 이 엔드포인트에 대해 측정된 적이 없다**(스테이징 전후만 있다:
+263.1ms → 18.1ms). 운영 수치는 '후'만 사실이고, 전후 배수를 운영 기준으로 말하지 않는다.
+
+**부수 기록 — `claude_master` production 비밀번호가 세션 도중 바뀌었다.**
+22:4x 측정 때는 로컬 secrets 파일 값이 실패하고 이전 세션 스크립트에 하드코딩된 값이 302 였는데,
+09:0x 재측정에서는 정반대였다(secrets 값이 302). 로그인 실패는 `security_logs` `LOGIN_FAIL`(user 57)로
+남는다. 측정 래퍼는 두 후보를 순서대로 시도하도록 고쳤다. **현재 정본은 secrets 파일 값**이다.
+
+---
+
+## P4 — 완료 대시보드 이중 읽기 (2026-09-01)
+
+### 사실 정정: 이중 읽기는 **모바일 코호트에서만** 일어난다
+
+`/erp/completion` 은 태블릿 금액 그리드를 **모바일 v2 코호트에서만** 서버 렌더한다
+(`foms/web/cs/completion_dashboard.py:553-554`, 라우트 docstring 이 "PC/legacy 는 서버 쿼리
+추가 없음"이라고 명시). 같은 페이지가 include 하는 사진 리뷰 스크립트는 코호트와 무관하게
+`/api/orders/completion` 을 부른다. 따라서:
+
+| 경로 | 모집단 읽기 |
+|---|---|
+| PC/legacy | **1회**(클라 fetch만) |
+| 모바일 v2 | **2회**(서버 렌더 + 클라 fetch) |
+
+조사 보고는 "가장 명확한 사례"라고 했지만 PC 는 해당 없음이다 — 범위를 좁혀 기록한다.
+스테이징 실측: 페이지 렌더 서버 49ms · `/api/orders/completion` 서버 62ms.
+
+### 수정
+
+서버가 **이미 읽은** 주문을 그대로 직렬화해 페이지에 싣고(`<script type="application/json"
+id="erp-completion-bootstrap">`), 화면은 그것을 1회 소비한 뒤 노드를 지운다. 두 번째 읽기가
+사라진다. PC 경로에는 부트스트랩을 만들지 않는다 — 거기서 만들면 첫 페인트를 막는 쿼리를
+새로 넣는 셈이다.
+
+**조용한 불일치 방지**: 부트스트랩에 `filters{q, focus_order, mine}` 를 함께 싣고 화면이
+자기 파라미터와 대조한다. 하나라도 다르면 부트스트랩을 버리고 평소대로 API 를 부른다.
+직렬화는 API 와 **같은 함수**(`_serialize_completion_orders`)를 쓴다 — 두 목록이 갈릴 수 없다.
+
+계약 3건: 코호트 렌더의 부트스트랩이 API 응답과 **완전히 동일**(HTTP 파리티) ·
+PC 경로에는 부트스트랩 부재 · 스크립트가 필터 대조 후에만 사용하고 1회 소비.
+음성 대조군: 직렬화 대상을 비우면 파리티 테스트가 red(확인함).
+
+전체 스위트 **7,394 passed / 585 skipped**, `pre_push_smoke` exit 0.
+
+---
+
+## P5 — 계정 사고 원인 규명 + 정책 보강 (2026-09-01)
+
+세션 도중 `claude_master` production 비밀번호가 바뀐 건의 원인을 확인했다(직접 파일 확인).
+
+**원인**: 2026-08-31 21:58 다른 세션의 해제 스크립트
+(`…/a9dda555-…/scratchpad/prod_account.py:26-39`)가 `unlock()` **안에서**
+`set_strong_password(user, password)` 를 함께 불렀다 — 함수명·docstring 은 잠금 해제만
+표방하는데 **해제가 비밀번호를 조용히 교체**했다. `is_active`·`approval_status` 도 함께 바꾼다.
+그 뒤 2026-09-01 08:37 정식 로테이션(랜덤 20자 + `password_policy_version=1` + secrets 파일
+동기화 + 302 검증 + 재잠금)이 돌아 지금은 **secrets 파일 값이 정본**이다
+(secrets 파일 mtime 2026-09-01 08:37:27 — 직접 확인).
+
+절차 위반은 아니었다: 문서(`REAL_SERVER_TEST_ACCOUNT.md:29`)가 `password` 갱신을 허용 예외로
+두고 있었고, **"로테이션하면 기록하라"는 요구가 없었다**. 공백이 사고를 조용하게 만들었다.
+
+**보강(문서 개정)** — `docs/guides/REAL_SERVER_TEST_ACCOUNT.md` §"해제는 `is_active`만 바꾼다":
+해제/재잠금이 만지는 컬럼은 `is_active` 하나 · 비번 교체는 별도 로테이션 절차 ·
+로테이션은 원장에 시각·환경·secrets 동기화 여부를 남기되 **값은 절대 금지** ·
+측정 스크립트에 비밀번호 하드코딩 금지(secrets 파일에서 읽기).
+
+**정리**: `c:\tmp\prod_probe.py` 의 평문 비밀번호(이미 무효값)를 secrets 읽기로 교체,
+`c:\tmp\prod_run_probe.py` 는 CLI 인자 대신 secrets 전용으로 바꿨다(셸 기록에 평문이 남지 않게).
+
+---
+
+## P6 — 셸 하트비트 재검증 설계 (2026-09-01, 스펙만 · 착수 전)
+
+스펙: `docs/specs/2026-09-01-shell-heartbeat-cheap-revalidation_SPEC.md`.
+
+요지: 304 가 서버를 아끼지 못하는 이유는 ETag 를 **렌더 뒤**에 붙기 때문이다
+(`erp_shell_http.py:76-78`). 커밋 훅이 이미 무효화 intent 를 알고 있으므로
+(`dashboard_cache.py:655-690` ← `revision.py:177-204`) **패밀리별 정수 카운터**를 올려두고,
+라우트가 렌더 전에 `hash(경로·파라미터·사용자·코호트·오늘·카운터)` 로 조건부 응답을 끝내는 안.
+
+착수 전 반드시 답해야 할 것(스펙 §5): mutation 엔진을 **거치지 않는 쓰기 경로**가 남아 있으면
+낡은 304 가 나간다(지금 결함보다 나쁘다) → 5개 테이블 쓰기 경로 전수 조사가 S0.
+`users`·`system_settings` 는 패밀리 밖이라 별도 처리 필요. Flask-Compress 의 ETag 접미사
+재작성과의 대조 규칙도 먼저 정해야 한다. 기존 조건부 계약 테스트 2건은 **의미 유지한 채** 재작성.
+
+단계: S0 전수조사 → S1 카운터 배선(읽는 쪽 없음) → S2 화면 1개 적용 후 스테이징 실측 →
+S3 확대. 승인 대기.
