@@ -410,3 +410,81 @@ def test_cancel_placeholder_does_not_suggest_a_stock_reason(client, workbench_on
 
     assert "고객 통화 확인 — 재고 없음" not in body
     assert "새 주문으로 다시 결제하셨습니다" in body
+
+
+# --------------------------------------------------------------------------- #
+# 재현 — 네이버만 "발송됨"이라고 말하는 집에서 pane 이 취소를 연다
+# --------------------------------------------------------------------------- #
+
+def test_pane_closes_cancel_when_only_naver_says_dispatched(client, workbench_on):
+    """네이버 원본이 발송을 말하면 **취소 버튼이 닫혀야** 한다.
+
+    판매자센터에서 사람이 직접 발송처리한 집은 우리 표식(``dispatched_at``)이 없다.
+    그런데 화면 다른 자리(정리 띠·관계 블록)는 ``delivery.sendDate`` 를 읽어 "이미 발송
+    처리된 주문 — 반품"이라고 말한다. 두 축이 갈리면 같은 집을 두고 화면이 "반품 건"이라
+    적어 놓고 **취소 버튼**을 열어 준다.
+    """
+    _login(client)
+    order = _order(tel="010-9200-0099")
+    sent = _link(order_no="N-ORG-99-SENT", tel="010-9200-0099", amount=1_000_000,
+                 order_id=int(order.id), relation="NEW", dispatched=True)
+
+    body = _body(client, link_id=int(sent.id))
+
+    # 버튼을 아예 안 내든 잠그든 둘 다 좋다 — **누를 수 없으면** 된다.
+    at = body.find('id="wb-cancel"')
+    if at >= 0:
+        tag = body[body.rfind("<button", 0, at):body.find(">", at) + 1]
+        assert "disabled" in tag, f"네이버가 발송을 말하는데 취소가 열려 있다: {tag}"
+        assert "wb-modal-cancel" not in tag, "잠갔다면서 모달을 열어 준다"
+        # 이유 없이 잠근 버튼은 사람이 계속 누른다.
+        assert "네이버에 이미 발송 기록이 있습니다" in tag, tag
+    # 빈손 통과를 막는다: 버튼을 감췄어도 **취소 모달이 남아 있으면** 안 된다.
+    # 모달이 살아 있으면 다른 경로(북마크·직접 호출)가 그 입력을 그대로 쓴다.
+    assert 'id="wb-cancel-reason"' not in body, "취소 모달이 그대로 살아 있다"
+
+
+def test_pane_offers_return_instead_when_only_naver_says_dispatched(client, workbench_on):
+    """취소를 닫았으면 **반품 접수**가 그 자리를 대신해야 한다.
+
+    둘 다 닫으면 담당자는 판매자센터로 갈 수밖에 없는데, 그 집은 우리가 처리할 수 있다.
+    """
+    _login(client)
+    order = _order(tel="010-9200-0098")
+    sent = _link(order_no="N-ORG-98-SENT", tel="010-9200-0098", amount=1_000_000,
+                 order_id=int(order.id), relation="NEW", dispatched=True)
+
+    body = _body(client, link_id=int(sent.id))
+
+    at = body.find('id="wb-return"')
+    assert at >= 0, "반품 접수 버튼이 없다"
+    tag = body[body.rfind("<button", 0, at):body.find(">", at) + 1]
+    assert "disabled" not in tag, f"취소도 반품도 닫히면 화면이 막다른 길이 된다: {tag}"
+
+
+def test_service_refuses_cancel_when_only_naver_says_dispatched(app):
+    """서버도 막는다 — 화면만 고치면 열린 탭·북마크가 그 가드를 우회한다.
+
+    발송처리·반품 접수·반품 승인은 이미 두 신호를 본다. 취소만 빠져 있었다.
+    """
+    from foms.services.integrations.naver_commerce import fulfillment
+
+    order = _order(tel="010-9200-0097")
+    sent = _link(order_no="N-ORG-97-SENT", tel="010-9200-0097", amount=1_000_000,
+                 order_id=int(order.id), relation="NEW", dispatched=True)
+
+    class _Client:
+        def __init__(self):
+            self.calls = []
+
+        def request_cancel_product_order(self, pid, *, reason, detail=None):
+            self.calls.append(pid)
+            return {"data": {"successProductOrderIds": [pid], "failProductOrderInfos": []}}
+
+    fake = _Client()
+    with pytest.raises(fulfillment.FulfillmentError) as exc:
+        fulfillment.cancel_order(db_session, fake, link_id=int(sent.id),
+                                 reason="INTENT_CHANGED")
+
+    assert "반품" in str(exc.value)
+    assert fake.calls == [], "되돌릴 수 없는 취소가 네이버로 나갔다"

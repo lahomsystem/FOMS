@@ -49,7 +49,9 @@
     · dispatched      = 집 전체가 나갔다 → 발송처리는 더 할 일이 없다
     · dispatched_any  = 하나라도 나갔다 → 취소는 이 순간부터 반품 흐름(서버가 거절한다) #}
 {% set dispatched = grp.dispatched if grp else selected.fulfillment.dispatched_at %}
-{% set dispatched_any = grp.dispatched_any if grp else selected.fulfillment.dispatched_at %}
+{# 집이 없을 때(큐 밖 단건)도 **두 신호**를 본다 — 서버 `_dispatched_any` 와 한 벌. #}
+{% set dispatched_any = grp.dispatched_any if grp
+                        else (selected.fulfillment.dispatched_at or selected.dispatch.naver_at) %}
 {% set dispatched_count = grp.dispatched_count if grp else (1 if selected.fulfillment.dispatched_at else 0) %}
 {# 네이버가 **이미 발송을 말하고 있는** 집(2026-08-26 T5). 지금까지 발송처리 판정은
    우리 표식만 봤다 — 판매자센터에서 이미 나간 집에 버튼이 열렸고, 누르면 되돌릴 수 없는
@@ -100,7 +102,11 @@
 {# 취소는 **하나라도** 나갔으면 닫는다 — 서버 `cancel_order` 가 형제 중 발송된 건이
    있으면 집 전체를 거절한다(반품 흐름). 링크 기준으로 두면 안 나간 형제로 열었을 때
    버튼이 열려 있다가 서버에서 실패한다. #}
-{% set can_cancel = not locked and not dispatched_any %}
+{# `not naver_sent_at`: 네이버 원본이 발송을 말하는 집도 취소가 아니라 반품 흐름이다.
+   우리 표식만 보면 **판매자센터에서 사람이 직접 발송한 집**을 놓친다 — 그 집에서 화면이
+   다른 자리(정리 띠·관계 블록)로는 "반품 건"이라 적어 놓고 여기서는 취소를 열어 줬다.
+   서버 `cancel_order` 도 같은 두 신호로 한 겹 더 막는다(발송처리와 같은 규율). #}
+{% set can_cancel = not locked and not dispatched_any and not naver_sent_at %}
 {# 반품 접수(T8-S1)가 **실제로 나갈** 건수. 술어는 서버와 한 벌
    (`fulfillment.is_return_pending`) — 집 전체 수로 재진술하면 부분 발송 집에서
    "3건 접수합니다"라고 읽히는데 서버는 나간 1건만 보낸다. **불가역 경로라 그 과대
@@ -309,7 +315,7 @@
             {% if not dispatched_any %}
             <button type="button"
                     class="btn btn-sm {{ 'btn-outline-danger' if can_cancel else 'btn-outline-secondary' }}"
-                    id="wb-cancel" {% if can_cancel %}data-bs-toggle="modal" data-bs-target="#wb-modal-cancel"{% else %}disabled title="{{ lock_why }}"{% endif %}>
+                    id="wb-cancel" {% if can_cancel %}data-bs-toggle="modal" data-bs-target="#wb-modal-cancel"{% else %}disabled title="{{ lock_why or naver_sent_why }}"{% endif %}>
                 취소처리
             </button>
             {% endif %}

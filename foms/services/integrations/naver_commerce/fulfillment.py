@@ -871,7 +871,14 @@ def cancel_order(session: Session, client: Any, *, link_id: int, reason: str,
     _claim_guard(session, links, action="cancel", stamp=stamp)
 
     # 발송처리가 나간 집은 취소가 아니라 반품 흐름이다(네이버도 거절한다).
-    dispatched = [row for row in links if _state(row).get("dispatched_at")]
+    #
+    # **신호를 둘 본다.** 우리 표식(``dispatched_at``)만 보면 **판매자센터에서 사람이 직접
+    # 발송한 집**을 놓친다 — 우리 쪽에 흔적이 없어서다. 그 집에 취소를 보내면 되돌릴 수 없는
+    # 경로에서 400 을 받아 보며 배우는 꼴이 되고, 화면은 이미 다른 자리(정리 띠·관계 블록)에서
+    # 같은 집을 "반품 건"이라고 부르고 있었다. 발송처리·반품 접수·반품 승인은 이미 두 신호를
+    # 보는데(:func:`_naver_dispatched_at` 사용처) 취소만 빠져 있던 자리다.
+    dispatched = [row for row in links
+                  if _state(row).get("dispatched_at") or _naver_dispatched_at(row)]
     if dispatched:
         reason_text = ("이미 발송처리한 주문입니다 — 취소가 아니라 반품으로 처리해야 합니다"
                        "(판매자센터).")
