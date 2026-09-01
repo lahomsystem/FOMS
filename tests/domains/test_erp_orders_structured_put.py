@@ -1182,6 +1182,15 @@ def test_identity_flat_sync_helper_keeps_existing_value_when_structured_lacks_it
     _sync_identity_flat_columns(order, {})
     assert (order.customer_name, order.phone) == ("홍길동", "010-1234-5678")
 
-    # 더미 전화(가상 주문 규칙)는 실제 값을 덮지 않는다.
-    _sync_identity_flat_columns(order, {"parties": {"customer": {"phone": "000-0000-0000"}}})
-    assert order.phone == "010-1234-5678"
+    # 자리표시자 전화는 실제 값을 덮지 않는다. 문자열 한 값만 막으면 변형이 통과한다 —
+    # 운영 주문 #4648 의 정본에 실제로 ``000000000`` 이 들어가 있었다.
+    for placeholder in ("000-0000-0000", "000000000", "0000000000000", "010-", ""):
+        _sync_identity_flat_columns(
+            order, {"parties": {"customer": {"phone": placeholder}}}
+        )
+        assert order.phone == "010-1234-5678", placeholder
+
+    # 실제 번호는 통과해야 한다(시내번호·안심번호 포함).
+    for real in ("02-123-4567", "0502-2681-1527", "010-9621-5670"):
+        _sync_identity_flat_columns(order, {"parties": {"customer": {"phone": real}}})
+        assert order.phone == real
