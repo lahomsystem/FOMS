@@ -212,10 +212,15 @@ def test_delivery_marks_done_when_order_was_deleted(pg_engine, converter):
 
 
 # --------------------------------------------------------------------------- #
-# 4. 변환 실패 — failed 기록 + DONE
+# 4. 주소 오류 — address_error 기록 + DONE
 # --------------------------------------------------------------------------- #
-def test_delivery_records_failed_status_without_retry(pg_engine, failing_converter):
-    """좌표를 못 찾으면 ``geocode_status='failed'`` 를 남기고 DONE(재호출 폭주 방지)."""
+def test_delivery_records_address_error_without_retry(pg_engine, failing_converter):
+    """주소를 못 찾으면 ``geocode_status='address_error'`` 를 남기고 DONE(재호출 폭주 방지).
+
+    사유를 안 돌려주는 변환기 대역은 실패를 permanent 로 본다(GEO-FAILKIND-01 폴백).
+    일시 오류는 반대로 예외를 올려 재시도된다 —
+    :func:`test_transient_failure_is_retried_not_recorded` 가 그 축을 잠근다.
+    """
     _quiesce(pg_engine)
     s = _session(pg_engine)
     try:
@@ -232,12 +237,58 @@ def test_delivery_records_failed_status_without_retry(pg_engine, failing_convert
     try:
         assert s.get(DomainSideEffectOutbox, row_id).status == "DONE"
         stored = s.get(Order, order_id)
-        assert stored.geocode_status == "failed"
+        assert stored.geocode_status == "address_error"
         assert stored.lat is None and stored.lng is None
         assert stored.geocoded_at is not None  # 실패 시각 — 재큐 백오프의 기준
     finally:
         s.close()
     assert failing_converter.calls == [_ADDRESS]
+
+
+def test_transient_failure_is_retried_not_recorded(pg_engine, monkeypatch):
+    """음성 대조군: 일시 오류는 굳히지 않고 outbox 재시도로 돌린다.
+
+    2026-09-01 사고의 자리다 — 이 축이 없으면 네트워크 사고가 "주소오류"로 굳는다.
+    handler 가 예외를 올리므로 tx 가 롤백되고, 주문 상태는 손대기 전 그대로여야 한다.
+    """
+    from foms.services.geocode_retry import FAILURE_TRANSIENT
+
+    class _TransientConverter:
+        def __init__(self):
+            self.calls: list[str] = []
+
+        def convert_address_with_reason(self, address):
+            self.calls.append(address)
+            return None, None, "일시 오류", FAILURE_TRANSIENT
+
+    fake = _TransientConverter()
+    monkeypatch.setattr(
+        "foms.services.common.address_converter.FOMSAddressConverter",
+        lambda *a, **kw: fake,
+    )
+
+    _quiesce(pg_engine)
+    s = _session(pg_engine)
+    try:
+        order = _make_order(s)
+        order_id = order.id
+        row_id = _enqueue(s, order)
+    finally:
+        s.close()
+
+    result = _deliver(pg_engine)
+
+    assert result["dead"] == 0
+    assert result["retried"] == 1, "일시 오류는 재시도 대상이어야 한다"
+    s = _session(pg_engine)
+    try:
+        assert s.get(DomainSideEffectOutbox, row_id).status != "DONE"
+        stored = s.get(Order, order_id)
+        assert stored.geocode_status != "address_error"
+        assert stored.geocode_status != "failed"
+    finally:
+        s.close()
+    assert fake.calls == [_ADDRESS]
 
 
 # --------------------------------------------------------------------------- #

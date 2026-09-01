@@ -11,7 +11,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 
 ## 진행 중
 - [2026-09-01] **네이버 과거 주문 백필 deploy 반영** — 워크벤치 90일 1회 실행·워터마크 불변·소급분은 큐 밖·매칭 캡 해소(`naverbf_00`). **운영 실행 승인 대기**. 원장 `docs/plans/2026-09-01-naver-ingest-backfill-ledger.md`
-- [2026-09-01] **지오코딩 `주소오류` — 근본 수정 4건 대기**(주소는 무죄, 당장 조치 완료). 원장 `docs/plans/2026-09-01-geocode-transient-vs-data-error-ledger.md`
+- [2026-09-01] **지오코딩 일시오류/주소오류 분리 deploy(`f3d3f04f5`)** — 근본 수정 4건. ①변환기가 실패 사유를 가른다(타임아웃·429·비200=transient) ②`geocode_status` 4상태화(`address_error` 신설·화면은 3상태 정규화) + 재시도 SSOT `geocode_retry.py`(pending 600초·failed 24h 백오프, `address_error` 제외) ③`번길` 절단 — 실호출 **426m 오차** ④구 이름 부분 치환 — 실호출 **3,968m 오차**. 계약 44건(전부 음성 대조군). **잔여=운영 승격 승인 대기.** 원장 `docs/plans/2026-09-01-geocode-transient-vs-data-error-plan.md`
 - [2026-09-01] **네이버 재결제 옛 주문을 띠에서 바로 취소·반품 + 발송 축 결함 수정 deploy** — 처리 탭 띠 줄에서 바로 쏜다(낡은 줄 차단·모달 4종 세트·결과 감시). **판매자센터 발송 집이 띠에선 '반품'인데 pane 은 취소를 열어 주던 결함** — `dispatched_any`·`cancel_order` 가 우리 표식만 봤다. 설계서 §7-E. **잔여=운영 승격**
 - [2026-09-01] **네이버 반품 거부(T8-S3) 운영 ON**(PR #229 · `7976fb2c` · web 재배포 `09aeca29`) — 규격은 공개 문서 `apicenter.commerce.naver.com/llms/`(**네이버 규격은 여기부터**): body 는 `rejectReturnReason` 하나. **게이트는 web 전용**(WORKER 재배포 금지 — 큐 정지). **잔여=상용구 문장 확정.** 원장 T4
 - [2026-09-01] **엑셀 내보내기·동선 전면 삭제 deploy(`8f0f2a1d`, 커밋 2개)** — 엑셀: `download_excel`·수납장 `export_excel`·pandas/openpyxl. 동선: `/api/erp/measurement/route`·`route-eta`·`measurement_route.py`·`foms-route-strip.js`·지도 오버레이·"동선 지도" 링크 2곳. ROUTE-01 패킷 123→122(하드코딩 **5곳**), `?v=` 핀 5곳 범프. 보존: `/api/calculate_route`·`measurement_time.py`·핀 지도·히어로. **운영 반영 완료(PR #223 · `68f1100d`)** — perf-gate 막힘의 정체는 회귀가 아니라 예산 파일 계보(측정=스테이징 vs 기준=PR 브랜치)였고, 정산 세션의 completion 예산 재시드 한 항목만 반입해 검사 4종 통과. 원장 §18
