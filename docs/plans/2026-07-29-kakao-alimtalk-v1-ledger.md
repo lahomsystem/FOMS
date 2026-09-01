@@ -6,9 +6,10 @@
 
 | Task | 내용 | 완료 기준 | 상태 | 커밋 SHA | 비고 |
 |---|---|---|---|---|---|
-| T0 | 선결 확인 (sidefx worker·solapi 의존) | `SOLAPI_OK` + T0.decision 기록 | DONE | 57ee6e5e | T0.decision: **WORKER_OFF** (2026-08-11 railway status — 서비스 web·WORKER·FOMS-cron·Postgres·Redis뿐, sidefx 미가동 → 동기 폴백 경로). SOLAPI_OK 확인. 키는 로컬 .env(gitignore) 저장 |
+| T0 | 선결 확인 (sidefx worker·solapi 의존) | `SOLAPI_OK` + T0.decision 기록 | DONE | 57ee6e5e | 2026-08-11 **WORKER_OFF**. 2026-09-01 운영 SIDEFX SUCCESS → **WORKER_ON** 승격(자동 발송=handler, 수동=동기 유지). 사용자 확인: Solapi 설정 완료 |
 | T1 | 변수 빌더·자격 판정 | `pytest tests/domains/test_kakao_alimtalk_service.py -q` PASS + APP_OK | DONE | 02195c63 | 24 passed 오케스트레이터 재검증. 멱등키=`alimtalk:measure:` 포맷으로 스펙 정정. 전화=첫 유효 토큰. 길이 가드 2단(축약+절단) |
-| T2 | Solapi 발송·이력 기록 | `pytest tests/domains/test_kakao_alimtalk_send.py -q` PASS + APP_OK | DONE | 3a97bbfb | 47 passed+회귀 208 재검증. WORKER_OFF 동기 경로, D3 브랜드 분기, 앵커 이벤트 승격 패턴, 슬롯 미소진 스킵(원인 해소 후 자동 재개) |
+| T2 | Solapi 발송·이력 기록 | `pytest tests/domains/test_kakao_alimtalk_send.py -q` PASS + APP_OK | DONE | 3a97bbfb | 47 passed+회귀 208 재검증. D3 브랜드 분기, 앵커 이벤트 승격, 슬롯 미소진 스킵. 2026-09-01 자동 동기 폴백 제거 → T2b |
+| T2b | 자동 발송을 SIDEFX handler 로 | `pytest tests/domains/test_kakao_alimtalk_send.py tests/domains/test_alimtalk_delivery_handler.py -q` PASS + APP_OK | IN_PROGRESS | | 저장=예약만, 워커=Solapi. 수동은 동기 유지. SIDEFX 에 SOLAPI_* 복사 필요 |
 | T3 | 자동 트리거 3경로 배선 | `pytest tests/domains/test_kakao_alimtalk_trigger.py tests/domains/test_erp_orders_structured*.py -q` PASS | DONE | 529da0b7 | 배선 3곳(PUT :1159·PATCH :849·field_update :597 measurement_date 가드)+MEASUREMENT_TIME_CHANGED 이벤트. 재검증 74 passed. red 확인 완료 |
 | T4 | 수동 API + manifest 등재 | `pytest tests/domains/test_kakao_alimtalk_api.py tests/domains/test_write_guard.py -q` PASS | DONE | cb58edb6 | 45 passed 재검증. preview GET+send-manual POST, manifest 2종 등재, body 전면 무시. 후속 후보: _ineligible_reason public 승격 |
 | T5 | UI 3표면 | 계약 테스트 PASS + gstack browse 3뷰포트 스모크 | DONE | baa0fee8 | 117 passed 재검증(게이트 포함). 태블릿=자체 흐름(선례 준수), 상태 한 줄+모달. browse 스모크는 T6에 통합 실행 예정 |

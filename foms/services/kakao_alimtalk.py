@@ -9,9 +9,9 @@
   partial UNIQUE ``(effect_type, dedupe_key)`` 가 DB 제약으로 담당하고, 이력은
   ``structured_data['alimtalk_measurement']`` + ``OrderEvent`` 에 남는다.
 
-발송 실행은 T0 결정(WORKER_OFF)에 따라 **요청 스레드 동기 호출**이다 — outbox 행은
-멱등 전용으로 먼저 insert 하고 성공 시 DONE 으로 닫는다. 나중에 sidefx worker 가 붙으면
-남은 PENDING 행이 그대로 재시도 경로가 된다(handler 등록은 T0 재판정 시).
+자동 발송 실행은 SIDEFX ``ALIMTALK_SEND`` handler 몫이다. 저장 경로는 outbox 행만
+선점하고(``maybe_send_measure_alimtalk``), 배달 워커가 소비한다. 수동 발송은 확인 모달이
+결과를 기다려야 하므로 요청 스레드에서 :func:`send_alimtalk` 을 동기 호출한다.
 """
 
 from __future__ import annotations
@@ -32,7 +32,7 @@ from foms.services.datetime_kst import now_utc_naive
 from foms.services.erp_display import erp_deposit_amount_from_structured
 from foms.services.order_date_sync import _normalize_date_str
 from foms.services.sidefx_outbox import enqueue_side_effect
-from models import DomainSideEffectOutbox, Order, OrderEvent, User
+from models import Order, OrderEvent, User
 
 __all__ = [
     "ALIMTALK_TEMPLATE_MEASURE",
@@ -51,7 +51,9 @@ __all__ = [
     "brand_config",
     "sender_phone",
     "send_alimtalk",
+    "send_alimtalk_in_session",
     "maybe_send_measure_alimtalk",
+    "is_alimtalk_retryable_error",
     "confirm_channel",
     "ALIMTALK_CHANNEL_PROBE_DELAY_SEC",
 ]
@@ -299,6 +301,10 @@ _ERROR_SIGNATURES: tuple[tuple[str, tuple[str, ...]], ...] = (
 #: 브랜드 템플릿 미승인)이 해소되면 같은 일정이라도 다음 저장에서 자동 발송돼야 하기
 #: 때문이다(D3 단계 가동). 나머지 사유(미설정·draft·일정없음)는 이력도 남기지 않는다.
 _RECORDED_SKIP_REASONS = frozenset({"no_valid_phone", "brand_profile_missing"})
+
+#: handler 가 예외로 올려 워커 재시도할 오류. 그 외(템플릿 불일치 등)는 DONE 으로 닫아
+#: 같은 본문을 10번 보내지 않는다. ``not_configured`` 는 SIDEFX env 누락일 수 있어 재시도.
+_RETRYABLE_SEND_ERRORS = frozenset({"network", "unknown", "balance", "auth", "not_configured"})
 
 #: 발신번호·발신프로필 env 접미사로 쓰는 브랜드 코드(:func:`resolve_brand` 반환값).
 _BRANDS = ("LAHOM", "HAUD")
@@ -682,6 +688,60 @@ def _record_skip(session: Session, order: Order, reason: str) -> None:
     )
 
 
+def is_alimtalk_retryable_error(error: str | None) -> bool:
+    """SIDEFX handler 가 워커 재시도를 올려야 하는 발송 오류인지 반환한다."""
+    return error in _RETRYABLE_SEND_ERRORS
+
+
+def _already_sent(order: Order, dedupe_key: Optional[str]) -> bool:
+    """같은 멱등키로 이미 성공 이력이 있으면 True(재전달 시 Solapi 0회)."""
+    if not dedupe_key:
+        return False
+    hist = (order.structured_data or {}).get("alimtalk_measurement")
+    if not isinstance(hist, dict):
+        return False
+    return (
+        hist.get("dedupe_key") == dedupe_key
+        and hist.get("error") is None
+        and bool(hist.get("message_id"))
+    )
+
+
+def send_alimtalk_in_session(
+    session: Session,
+    order: Order,
+    *,
+    manual_by: Optional[int] = None,
+    dedupe_key: Optional[str] = None,
+    event_id: Optional[int] = None,
+) -> dict:
+    """자격 판정·발송·이력을 ``session`` 안에서 수행한다(커밋은 호출자).
+
+    Args:
+        session: 호출자 세션(SIDEFX worker 또는 수동 API 세션).
+        order: 그 세션에 attach 된 주문.
+        manual_by: 수동 발송자 user id(자동이면 None).
+        dedupe_key: 이력 멱등키(생략 시 자동 키).
+        event_id: 자동 경로 앵커 OrderEvent id.
+
+    Returns:
+        ``{'sent': bool, 'error': str | None}``.
+    """
+    sd = order.structured_data or {}
+    key = dedupe_key or build_dedupe_key(int(order.id), sd)
+    if _already_sent(order, key):
+        return {"sent": True, "error": None}
+    error = _ineligible_reason(order, sd)
+    message_id = None
+    if error is None:
+        message_id, error = _dispatch(sd)
+    _record_history(
+        session, order, dedupe_key=key, message_id=message_id,
+        error=error, sent_by=manual_by, event_id=event_id,
+    )
+    return {"sent": error is None, "error": error}
+
+
 def send_alimtalk(
     order_id: int,
     *,
@@ -703,25 +763,15 @@ def send_alimtalk(
     session = _session_factory()
     try:
         order = session.get(Order, order_id)
-        sd = (order.structured_data or {}) if order is not None else {}
-        error = _ineligible_reason(order, sd)
         if order is None:
             logger.warning("알림톡 발송 대상 주문 없음 (order_id=%s)", order_id)
-            return {"sent": False, "error": error}
-        message_id = None
-        if error is None:
-            message_id, error = _dispatch(sd)
-        _record_history(
-            session,
-            order,
-            dedupe_key=dedupe_key or build_dedupe_key(order_id, sd),
-            message_id=message_id,
-            error=error,
-            sent_by=manual_by,
-            event_id=event_id,
+            return {"sent": False, "error": "order_not_found"}
+        result = send_alimtalk_in_session(
+            session, order, manual_by=manual_by,
+            dedupe_key=dedupe_key, event_id=event_id,
         )
         session.commit()
-        return {"sent": error is None, "error": error}
+        return result
     finally:
         session.close()
 
@@ -898,25 +948,11 @@ def _reserve_dedupe(order_id: int) -> tuple[int, int] | None:
         session.close()
 
 
-def _mark_outbox_done(outbox_id: int) -> None:
-    """동기 발송에 성공한 outbox 행을 DONE 으로 닫는다(worker 승격 시 재소비 방지)."""
-    session = _session_factory()
-    try:
-        row = session.get(DomainSideEffectOutbox, outbox_id)
-        if row is not None:
-            row.status = "DONE"
-            row.completed_at = now_utc_naive()
-            session.commit()
-    finally:
-        session.close()
-
-
 def maybe_send_measure_alimtalk(order_id: int) -> None:
     """실측 예약 알림톡 자동 발송 진입점 — 주문 저장 **커밋 후** 호출 전용.
 
-    킬스위치·설정 게이트 → outbox 선점(중복 차단) → 동기 발송 → 성공 시 DONE 마킹.
-    주문 저장 트랜잭션을 절대 막지 않도록 모든 예외를 내부에서 로그로 처리하며 호출부로
-    전파하지 않는다. 발송 실패 행은 PENDING 으로 남아 worker 가 붙으면 재시도된다.
+    킬스위치·설정 게이트 → outbox 선점(중복 차단). 실제 Solapi 호출은 SIDEFX
+    ``ALIMTALK_SEND`` handler 가 한다. 주문 저장을 막지 않도록 예외는 로그만 남긴다.
 
     Args:
         order_id: 방금 저장된 주문 id.
@@ -924,11 +960,6 @@ def maybe_send_measure_alimtalk(order_id: int) -> None:
     try:
         if not _env_flag("FOMS_ALIMTALK_AUTO_ENABLED") or not is_configured():
             return
-        reserved = _reserve_dedupe(order_id)
-        if reserved is None:
-            return
-        outbox_id, event_id = reserved
-        if send_alimtalk(order_id, event_id=event_id).get("sent"):
-            _mark_outbox_done(outbox_id)
+        _reserve_dedupe(order_id)
     except Exception:  # 주문 저장 경로 비차단 — 실패는 로그로만 남긴다
         logger.exception("알림톡 자동 발송 처리 실패 (order_id=%s)", order_id)

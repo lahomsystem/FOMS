@@ -96,8 +96,8 @@ FOMS 주문에서 고객에게 카카오 알림톡을 자동/수동 발송한다
 | `PATCH /orders/<id>/structured/fields` (인라인) | 같은 파일 :602 |
 | `PUT /api/orders/<id>` 빠른수정 `measurement_date` | [field_update.py:443-447](../../foms/api/orders/field_update.py) |
 
-각 경로 커밋 후 공통 헬퍼 `maybe_send_measure_alimtalk(order_id)` 호출 (자격 판정 → outbox insert → 발송). draft autosave 경로는 배선 제외(draft = 미자격). `_record_structured_events`의 measurement **time 비교 추가**는 이벤트 정확성 개선으로 동반(현재 date만 비교).
-- 발송 실행: **T0에서 Railway sidefx DELIVERY worker 가동 확인** — 가동이면 handler 등록([run_domain_side_effect_outbox.py:192](../../tools/ops/run_domain_side_effect_outbox.py) 선례) 후 worker 소비. **미가동이면** outbox 행은 dedupe 전용 insert + 커밋 직후 동기 발송(수동 선례 [channel_integration.py:371-390](../../foms/api/channel/channel_integration.py)) + 성공 시 DONE 마킹 — worker가 나중에 붙으면 재시도 경로로 자연 승격.
+각 경로 커밋 후 공통 헬퍼 `maybe_send_measure_alimtalk(order_id)` 호출 (자격 판정 → outbox insert). draft autosave 경로는 배선 제외(draft = 미자격). `_record_structured_events`의 measurement **time 비교 추가**는 이벤트 정확성 개선으로 동반(현재 date만 비교).
+- 발송 실행: SIDEFX worker 가 `ALIMTALK_SEND` handler 로 Solapi 를 부른다. 저장 요청 스레드는 예약만 한다. 수동 발송만 요청 스레드에서 동기(`send_alimtalk`) — 확인 모달이 결과를 기다린다. SIDEFX 서비스 env 에 web 과 같은 `SOLAPI_*` 가 없으면 재시도 후 DEAD.
 - 자동발송 킬스위치: `FOMS_ALIMTALK_AUTO_ENABLED` (기본 off → 스테이징 검증 → 운영 on). 수동 발송은 자격증명 존재 게이트(`is_configured()` 선례, [channel_client.py:68-70](../../foms/services/channel_client.py)).
 
 ### 6.4 수동 발송 API
@@ -119,7 +119,7 @@ FOMS 주문에서 고객에게 카카오 알림톡을 자동/수동 발송한다
 - 기존 JS 수정 파일은 `?v=` 범프 + 핀 전수 grep (SW staticCacheFirst 규약).
 
 ### 6.6 env (Railway, FOMS-DEV/PRODUCTION 각각) — D3 브랜드 2프로필
-`SOLAPI_API_KEY` / `SOLAPI_API_SECRET` / `SOLAPI_SENDER_PHONE`(등록 발신번호 — failover 전제) / `FOMS_ALIMTALK_AUTO_ENABLED` + 브랜드별: `SOLAPI_PF_ID_LAHOM` / `SOLAPI_TEMPLATE_MEASURE_ID_LAHOM` / `SOLAPI_PF_ID_HAUD` / `SOLAPI_TEMPLATE_MEASURE_ID_HAUD`. 브랜드의 PF/TEMPLATE 쌍이 미설정이면 해당 브랜드 건은 발송 스킵 + `ALIMTALK_FAILED(brand_profile_missing)` 이력.
+`SOLAPI_API_KEY` / `SOLAPI_API_SECRET` / `SOLAPI_SENDER_PHONE`(등록 발신번호 — failover 전제) / `FOMS_ALIMTALK_AUTO_ENABLED`(web — 예약 게이트) + 브랜드별: `SOLAPI_PF_ID_LAHOM` / `SOLAPI_TEMPLATE_MEASURE_ID_LAHOM` / `SOLAPI_PF_ID_HAUD` / `SOLAPI_TEMPLATE_MEASURE_ID_HAUD`. **SIDEFX 서비스에도 같은 `SOLAPI_*` 를 복사**해야 자동 발송이 나간다(web 에만 있으면 예약만 되고 워커는 `not_configured` 재시도). 브랜드의 PF/TEMPLATE 쌍이 미설정이면 해당 브랜드 건은 발송 스킵 + `ALIMTALK_FAILED(brand_profile_missing)` 이력.
 ### 6.6 env (Railway, FOMS-DEV/PRODUCTION 각각)
 `SOLAPI_API_KEY` / `SOLAPI_API_SECRET` / `SOLAPI_PF_ID` / `SOLAPI_TEMPLATE_MEASURE_ID` / `SOLAPI_SENDER_PHONE`(등록 발신번호 — failover 전제) / `FOMS_ALIMTALK_AUTO_ENABLED`
 
@@ -148,5 +148,5 @@ FOMS 주문에서 고객에게 카카오 알림톡을 자동/수동 발송한다
 1. **WL 채팅 URL 심사**: `pf.kakao.com/_{id}/chat` 웹링크 승인 명시 규정 미발견(금지 조항도 없음). 반려 시 폴백 = 대표번호 안내 문구로 템플릿 재제출.
 2. **품목내역 멀티라인 심사**: 기술 지원 확인, 심사 관행 불확정. 반려 시 폴백 = "첫 품목 + 외 N건" 요약형 재제출.
 3. **Solapi `text` 파라미터 상충**: API 문서(대체발송 콘텐츠) vs SDK 예제 경고(기입 시 발송 실패) — 스테이징 실계정 확인 전 미사용.
-4. **sidefx worker 가동 여부**: T0 확인. 미가동 = §6.3 동기 폴백 경로 채택.
+4. **SIDEFX env**: 운영 SIDEFX 는 2026-09-01 가동. 자동 발송은 handler. SIDEFX 에 `SOLAPI_*` 가 없으면 예약만 되고 배달은 재시도 후 DEAD.
 5. 발신프로필 심사 소요 일수 1차 출처 없음(비공식 1~3영업일) — §4를 코드와 병행해 리드타임 흡수.
