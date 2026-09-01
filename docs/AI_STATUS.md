@@ -4,25 +4,23 @@
 > 직전: **고객 공유 링크 UX 개편 — 계약서 폼 이식·도면 일괄 저장(ZIP)** — 카톡으로 보내는 계약서 링크가 ERP 계약서 폼 그대로 뜨고(계좌 복사·PNG 저장), 도면 링크에 일괄 저장 버튼. 무반응이던 `window.print()` 제거. 원장 `docs/plans/2026-08-31-share-contract-drawing-ux-ledger.md`
 > 이 파일 상단 40줄이 세션 시작 컨텍스트의 전부다(hygiene 계약 테스트로 강제). 상세 이력: "## 최근 완료"·"## 기록 보관", 과거 헤더 상세는 기록 보관에 이관.
 
+
 ## 스택
 Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
-- [2026-09-01] **네이버 반품 거부(T8-S3) — 규격 한 줄만 남았다(BLOCKED)** — 화면·권한(실행 ADMIN·MANAGER / 문장 편집 ADMIN)·기록(주문 이력+감사)·상용구 전역 저장·계약 30종까지 deploy 완료(`2b83b41d`·`5ad8485b`, CI 4/4). **게이트 `FOMS_NAVER_RETURN_REJECT_ENABLED` 꺼짐** — `client.reject_return_product_order` 가 `NotImplementedError` 로 막혀 있다(추측 body 금지). 커머스API 상세 문서 대기(경로·스코프는 확인됨). 원장 `2026-08-31-naver-approve-attach-refresh-ledger.md` T4
-- [2026-09-01] **네이버 T1·T2·T3 운영 승격 완료(PR #213 · `c462bdb9`)** — 반품 승인(체크박스 기본 꺼짐·환불 확정) · 후보 0건일 때 주문 찾아서 붙이기 · 조작 4종 뒤 자동 다시읽기. 승격 함정: `promote_completeness` incomplete 30건 중 네이버 23건은 **이미 운영에 있었다**(옛 cherry-pick 로 patch-id 만 달라짐) — 제목 대조+운영 소스 grep 으로 확인 후 5건만 승격. 인벤토리 충돌은 `failopen_scan.py` 재생성으로 해결
+- [2026-09-01] **네이버 반품 거부(T8-S3) BLOCKED — 규격 한 줄만 남았다** — 화면·권한·기록·상용구 전역 저장·계약 30종 deploy(`5ad8485b`, CI 4/4). 게이트 `FOMS_NAVER_RETURN_REJECT_ENABLED` 꺼짐 · `client.reject_return_product_order` 가 `NotImplementedError`(추측 body 금지). 커머스API 상세 문서 대기. 원장 T4
+- [2026-09-01] **네이버 T1·T2·T3 운영 승격(PR #213 · `c462bdb9`)** — 반품 승인(기본 꺼짐·환불 확정)·후보 0건 주문 찾아서 붙이기·조작 뒤 자동 다시읽기. 함정: `promote_completeness` incomplete 30건 중 23건은 **이미 운영에 있었다**(옛 cherry-pick patch-id 차이) — 소스 grep 확인 후 5건만
 - [2026-09-01] **다음 작업: 엑셀 내보내기·동선 전면 삭제** — v3 미사용 확인으로 route 엔드포인트도 삭제 가능. 카운트다운·지도 동선 포함. **범위·함정 전부 원장 §17.**
 - [2026-09-01] **네이버 일괄 발송처리 결과 UI 운영 반영(PR #219 · `376362c3`)** — 스위치 ON, 1회차 **6집 26건 전부 성공**. 띠가 안 사라지고 **완료/일부/실패/대기 4상태**, 수동 발송분도 '발송됨', 버튼 직후 폴링, 실패 줄마다 재시도. **잔여=실브라우저 확인**. 원장 `2026-08-31-naver-bulk-dispatch-result-ui-ledger.md`
 - [2026-08-31] **엑셀 업로드·동선 추천 제거 + 동선 API 5초 수리 production 완료(`eda377ce`)** — 원장 §12·§14·§15
 - [2026-08-31] **SIDEFX 워커 서비스 등록·가동(T5 해소)** — heartbeat 3행 최초 생성, GEOCODE·STORAGE_DELETE 소진 중. ⚠ **Railway 가 Config as Code(railway*.toml) 폐기** → 저장소 toml 은 사문, startCommand 직접 지정으로 배선. **기존 서비스도 toml 이 아니라 API 설정으로 도는지 확인 필요.** 원장 §16
-- [2026-08-31] **엑셀 업로드(가져오기) 제거 deploy(`d61dccd8`)** — 운영 15개월 미사용(아티팩트 0행, 마지막 2025-05-28). **엑셀 다운로드는 유지**(2026-07-03까지 실사용) — `excel_import.py` 는 같은 Blueprint 라 통째 삭제 금지. DB 표는 남겼다(빈 표). 감사 원장 패킷 124→123. 잔여=production 승격. 원장 §12
 - [2026-08-31] **지오코딩 사전변환 복원 production 완료(`365b1280`)** — 스윕 가동, 좌표 미달 121→0. 원장 §12
 - [2026-08-31] **고객 공유 링크 UX 운영 반영(PR #208·#209·#211)** — 계약서 폼 이식·계좌 복사·PNG 저장(700px 클론)·도면 ZIP·미리보기 flexible·폰 인쇄버튼 제거. **잔여=실기기(카톡 인앱) 확인**, 미검증 5건은 원장에
 - [2026-08-31] **운영 승격 PR 11분 → 3분(PR #210)** — CI 단축 5건이 deploy 에만 있어 승격 관문이 옛 속도로 돌던 구멍. production 반영 완료(전체 스위트 로컬 106초)
 - [2026-08-30] **네이버 이력 탭 상태 칸 재설계 deploy(`9d19da0b`)** — 재결제·추가결제·발송처리 축 신설, 축별 3줄. 부분 인덱스 2벌(`naverdisp_00`). 취소 확정 날짜는 축을 따로 판다(반품 축에 `cancel` 금지 — 08-27 누출). **운영 승격·실화면 대조 완료**(PR #200 · 08-31 운영 50행 실측). 원장 `2026-08-30-naver-history-status-column-ledger.md`(계약서 §15 정본)
-- [2026-08-31] **고객 문서 공유 T16 운영 반영 완료** — PR #196 머지(production `d6f1c84e`) + 운영 `web` env `SOLAPI_TEMPLATE_SHARE_BOTH_ID_{LAHOM,HAUD}` 등록 후 재배포. 이제 도면+계약서가 **버튼 2개 한 통**으로 나간다. 운영 화면 확인 완료(드롭다운 항목·자산 핀·재잠금 오라클 200). 함정: `railway variables --set` 은 재배포를 안 건다. **운영 실발송·두 링크 실열람까지 확인 — T16 종결(08-31)**
 - ⚠️ [2026-08-23] **로컬 dev DB 행 소실(로컬 한정)** — pytest 파일이 conftest 보다 먼저 `db` import → 로컬 PG 에 `drop_all`. 스테이징·운영 무관. 근본 수정: `assert_engine_not_postgresql`(env 문자열 아닌 엔진 판정)
-- [2026-08-30] **`tests/visual` CI 등재 14개(CI-VISUAL-01)** — 브라우저 없이 도는 파일을 ci.yml 에. 2주 반 산 red 의 자리다. 미결 `8c1ef69a` 는 `0e98c108` 중복.
 
 ## 알려진 이슈
 - 차단 이슈 없음. 남은 구조 부채는 `WR-B1`/`WR-J1`/`WR-H1` 처럼 explicit future-batch 조건으로만 존재한다. `wdcalculator_scripts_config.html` Jinja 변수 주입 구간의 JS lint false-positive 는 기존과 동일.
@@ -121,6 +119,10 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 - [2026-04-15] **Strict final canonical tree `SFC-B11B` slice 2 (`dashboards`, §6.16):** 구현을 `foms/web/dashboards/routes.py`로 이전; `foms/web/dashboards/__init__.py`는 `routes`만 import; `apps/dashboards.py`는 `foms.web.dashboards` 재노출 shim. 검증: `APP_OK`, `verify_result.py --json`, `pytest tests` **586 passed**. 근거: batch11b **§Slice B11B-2**.
 
 ## 기록 보관 (strict canonical / 이전 배치 요약)
+
+- [2026-08-31] **엑셀 업로드(가져오기) 제거 deploy(`d61dccd8`)** — 운영 15개월 미사용(아티팩트 0행, 마지막 2025-05-28). **엑셀 다운로드는 유지**(2026-07-03까지 실사용) — `excel_import.py` 는 같은 Blueprint 라 통째 삭제 금지. DB 표는 남겼다(빈 표). 감사 원장 패킷 124→123. 잔여=production 승격. 원장 §12
+- [2026-08-31] **고객 문서 공유 T16 운영 반영 완료** — PR #196 머지(production `d6f1c84e`) + 운영 `web` env `SOLAPI_TEMPLATE_SHARE_BOTH_ID_{LAHOM,HAUD}` 등록 후 재배포. 이제 도면+계약서가 **버튼 2개 한 통**으로 나간다. 운영 화면 확인 완료(드롭다운 항목·자산 핀·재잠금 오라클 200). 함정: `railway variables --set` 은 재배포를 안 건다. **운영 실발송·두 링크 실열람까지 확인 — T16 종결(08-31)**
+- [2026-08-30] **`tests/visual` CI 등재 14개(CI-VISUAL-01)** — 브라우저 없이 도는 파일을 ci.yml 에. 2주 반 산 red 의 자리다. 미결 `8c1ef69a` 는 `0e98c108` 중복.
 
 - [2026-08-25] **네이버 수집 운영 개방·안정화** — 전량 승격(production `39fa919d`) 뒤 열쇠·플래그 투입(WORKER 수집 300초 · web 워크벤치 `COHORT=all`). 개방 직후 `주문 만들기` 가 `naver_ingest_bot` 부재로 막혀 있었다(설치 체크리스트 ① 미실행) → 운영 id 61·62 생성으로 해소. 워크벤치 머리줄이 전역 nav(z-index 1000) 밑에 깔리던 결함 · 도크 머리말↔링크 집 불일치 · 붙이기 중복 이력 수정 deploy(`6ed045c9`). 원장 `docs/plans/2026-08-25-naver-full-promotion-roadmap.md` §18
 
