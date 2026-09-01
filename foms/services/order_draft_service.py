@@ -6,6 +6,7 @@ import copy
 import datetime
 from typing import Any
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from models import OrderDraft
@@ -95,6 +96,78 @@ def draft_to_api_dict(row: OrderDraft) -> dict[str, Any]:
     }
 
 
+def _is_user_key_unique_violation(exc: IntegrityError) -> bool:
+    """True when flush hit uq_order_drafts_user_key (PG name or SQLite columns)."""
+    raw = str(getattr(exc, "orig", None) or exc).lower()
+    if "uq_order_drafts_user_key" in raw:
+        return True
+    return "unique" in raw and "draft_key" in raw
+
+
+def _apply_draft_fields(
+    row: OrderDraft,
+    *,
+    step: int,
+    validated: dict[str, Any],
+    now: datetime.datetime,
+    draft_key: str,
+    order_id: int | None,
+) -> None:
+    """Write upsert fields onto an existing OrderDraft row."""
+    row.step = step
+    row.payload = validated
+    row.schema_version = int(validated.get("schema_version") or 1)
+    row.updated_at = now
+    row.expires_at = _expires_at_for_key(draft_key, now)
+    if order_id is not None:
+        row.order_id = order_id
+
+
+def _insert_or_recover_draft(
+    db: Session,
+    *,
+    user_id: int,
+    key: str,
+    step: int,
+    validated: dict[str, Any],
+    now: datetime.datetime,
+    order_id: int | None,
+) -> OrderDraft:
+    """INSERT a draft; on (user_id, draft_key) race, UPDATE the winner row."""
+    row = OrderDraft(
+        user_id=user_id,
+        order_id=order_id,
+        draft_key=key,
+        step=step,
+        payload=validated,
+        schema_version=int(validated.get("schema_version") or 1),
+        expires_at=_expires_at_for_key(key, now),
+    )
+    try:
+        with db.begin_nested():
+            db.add(row)
+            db.flush()
+    except IntegrityError as exc:
+        if not _is_user_key_unique_violation(exc):
+            raise
+        if row in db:
+            db.expunge(row)
+        raced = get_draft(db, user_id, key)
+        if raced is None:
+            raise
+        _apply_draft_fields(
+            raced,
+            step=step,
+            validated=validated,
+            now=now,
+            draft_key=key,
+            order_id=order_id,
+        )
+        db.flush()
+        return raced
+    return row
+
+
 def upsert_draft(
     db: Session,
     *,
@@ -105,7 +178,12 @@ def upsert_draft(
     if_match: str | None = None,
     order_id: int | None = None,
 ) -> OrderDraft:
-    """Create or update draft with optional optimistic concurrency (If-Match)."""
+    """Create or update draft with optional optimistic concurrency (If-Match).
+
+    Concurrent first-saves of the same key (iOS keepalive overlap, two web
+    workers) can miss the SELECT and both INSERT. UniqueViolation is absorbed
+    as an UPDATE of the winner row — last write wins, same as a later autosave.
+    """
     key = draft_key.strip()
     if not key:
         raise ValueError("draft_key required")
@@ -121,28 +199,26 @@ def upsert_draft(
             stored = existing.updated_at.replace(microsecond=0)
             if stored != expected.replace(microsecond=0):
                 raise OrderDraftConflictError(draft_to_api_dict(existing))
-        existing.step = step
-        existing.payload = validated
-        existing.schema_version = int(validated.get("schema_version") or 1)
-        existing.updated_at = now
-        existing.expires_at = _expires_at_for_key(key, now)
-        if order_id is not None:
-            existing.order_id = order_id
+        _apply_draft_fields(
+            existing,
+            step=step,
+            validated=validated,
+            now=now,
+            draft_key=key,
+            order_id=order_id,
+        )
         db.flush()
         return existing
 
-    row = OrderDraft(
+    return _insert_or_recover_draft(
+        db,
         user_id=user_id,
-        order_id=order_id,
-        draft_key=key,
+        key=key,
         step=step,
-        payload=validated,
-        schema_version=int(validated.get("schema_version") or 1),
-        expires_at=_expires_at_for_key(key, now),
+        validated=validated,
+        now=now,
+        order_id=order_id,
     )
-    db.add(row)
-    db.flush()
-    return row
 
 
 def delete_draft(db: Session, user_id: int, draft_key: str) -> bool:

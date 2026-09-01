@@ -28,6 +28,10 @@
     this._debounceTimer = null;
     this._idleTimer = null;
     this._pendingPayload = null;
+    this._saving = false;
+    this._flushPromise = null;
+    this._queuedFlush = false;
+    this._lastKeepaliveAt = 0;
     this._boundFlush = this.flush.bind(this);
   }
 
@@ -73,16 +77,33 @@
     };
   };
 
-  FomsDraftClient.prototype.flush = function () {
+  FomsDraftClient.prototype.flush = function (options) {
     var self = this;
+    var opts = options || {};
     if (!self.draftKey) {
       return Promise.resolve(false);
     }
+    if (self._saving) {
+      self._queuedFlush = true;
+      return self._flushPromise || Promise.resolve(false);
+    }
+    self._saving = true;
     var body = self._body();
     self._pendingPayload = null;
-    return fetch(API_BASE, {
+    function release(ok) {
+      self._saving = false;
+      var again = self._queuedFlush;
+      self._queuedFlush = false;
+      self._flushPromise = null;
+      if (again) {
+        return self.flush(opts);
+      }
+      return ok;
+    }
+    self._flushPromise = fetch(API_BASE, {
       method: "PUT",
       credentials: "same-origin",
+      keepalive: !!opts.keepalive,
       headers: self._headers(true),
       body: JSON.stringify(body),
     })
@@ -115,7 +136,13 @@
           });
         }
         return false;
+      })
+      .then(release, function (err) {
+        return release(false).then(function () {
+          throw err;
+        });
       });
+    return self._flushPromise;
   };
 
   FomsDraftClient.prototype.scheduleSave = function () {
@@ -168,6 +195,11 @@
     // iOS Safari 는 앱 전환·홈버튼 이탈에서 beforeunload 를 신뢰성 있게 쏘지 않는다.
     // pagehide + visibilitychange(hidden) 를 함께 걸어 디바운스 대기 중인 입력을 지킨다.
     function keepaliveSave() {
+      var now = Date.now();
+      if (self._lastKeepaliveAt && now - self._lastKeepaliveAt < 250) {
+        return;
+      }
+      self._lastKeepaliveAt = now;
       if (!self.draftKey) {
         return;
       }
@@ -186,11 +218,17 @@
         window.fomsOfflineEnqueueRequest(API_BASE, req);
         return;
       }
-      try {
-        fetch(API_BASE, Object.assign({ keepalive: true }, req));
-      } catch (_e) {
-        /* keepalive optional */
+      if (self._saving) {
+        // In-flight PUT may be aborted on iOS hide — one extra keepalive.
+        // Server UniqueViolation path absorbs the overlap.
+        try {
+          fetch(API_BASE, Object.assign({ keepalive: true }, req));
+        } catch (_e) {
+          /* keepalive optional */
+        }
+        return;
       }
+      self.flush({ keepalive: true });
     }
     window.addEventListener("beforeunload", keepaliveSave);
     window.addEventListener("pagehide", keepaliveSave);
