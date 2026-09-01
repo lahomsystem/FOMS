@@ -19,7 +19,10 @@
    식(발행일 YYYYMMDD + '_' + 연락처 숫자)으로 동결 스냅샷 값에서 그대로 재현한다.
    두 재료가 다 없으면 줄 자체를 생략한다(가짜 번호를 만들지 않는다). #}
 {% set phone_digits = (snap.get('customer_phone') or '') | select('in', '0123456789') | join('') %}
-{% set contract_no = (issued_date | replace('-', '')) ~ ('_' ~ phone_digits if phone_digits else '') %}
+{# 계약번호는 **발급 시점**에 고정한다 — 내용이 라이브로 갱신돼도 고객이 들고 있는
+   번호가 날마다 달라지면 안 된다(contract_no_date 가 없으면 발행일로 폴백). #}
+{% set contract_no_date = snap.get('contract_no_date') or issued_date %}
+{% set contract_no = (contract_no_date | replace('-', '')) ~ ('_' ~ phone_digits if phone_digits else '') %}
 
 <div class="foms-share-contract" data-share-contract>
 

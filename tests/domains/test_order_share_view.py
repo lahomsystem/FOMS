@@ -263,8 +263,13 @@ _EST_SD = {
 }
 
 
-def test_view_estimate_renders_snapshot_only(client, db, r2):
-    """스냅샷만 렌더 — 발급 후 주문 수정은 열람에 반영되지 않는다(D6)."""
+def test_view_estimate_reflects_live_order_changes(client, db, r2):
+    """발급 후 금액을 고치면 **같은 링크가 최신 계약 내용을 보여준다**(2026-09-01).
+
+    2026-09-01 이전에는 발급 시점 스냅샷을 얼려 두어(D6) 금액을 고쳐도 최초 계약서가
+    그대로 떴다. 사용자 결정으로 라이브 반영으로 뒤집혔다 — 유출 차단은 스냅샷
+    화이트리스트를 **열람할 때마다 다시 태우는** 방식으로 유지한다.
+    """
     import copy as _copy
     order = _mk_order(structured_data=_copy.deepcopy(_EST_SD))
     _, token = _mk_estimate_share(order)
@@ -284,8 +289,9 @@ def test_view_estimate_renders_snapshot_only(client, db, r2):
     # 페이지 제목보다 문서 본문의 섹션 제목이 더 강한 계약이라 그쪽으로 옮긴다.
     assert '계약 내용' in body
     assert '임다슬' in body
-    assert '1,000,000' in body      # 동결 시점 품목합
-    assert '9,999,999' not in body  # 수정분 미반영
+    # 수량 2 × 9,999,999 = 19,999,998 — 고친 값이 그대로 계산돼 나온다.
+    assert '19,999,998' in body
+    assert '1,000,000' not in body  # 옛 동결값은 더 이상 나오지 않는다
     assert '461-082990-04-011' in body  # 하우드 기본 계좌
     assert resp.headers['X-Robots-Tag'] == 'noindex, nofollow'
 
@@ -356,12 +362,14 @@ def test_view_estimate_factory2_uses_lahom_logo_and_stamp(client, db, r2):
     """2공장(라홈시스템) 스냅샷이면 로고·인감이 라홈 자산으로 갈린다."""
     import copy as _copy
     order = _mk_order(structured_data=_copy.deepcopy(_EST_SD))
-    row, token = _mk_estimate_share(order)
-    # 스냅샷 상호를 2공장으로 바꾼다(발주사 판정은 상호 문자열이 SSOT).
-    snap = _copy.deepcopy(row.snapshot)
-    snap['company_info']['name'] = '라홈시스템'
-    row.snapshot = snap
+    # 라이브 렌더라 판정 SSOT 는 저장 스냅샷이 아니라 **주문 structured_data** 다.
+    from sqlalchemy.orm.attributes import flag_modified
+    sd = _copy.deepcopy(order.structured_data)
+    sd.setdefault('flags', {})['factory2'] = True
+    order.structured_data = sd
+    flag_modified(order, 'structured_data')
     db.commit()
+    row, token = _mk_estimate_share(order)
 
     body = client.get(f'/s/{token}').get_data(as_text=True)
     assert 'lahom-company-stamp.png' in body
@@ -397,8 +405,8 @@ def test_view_bundle_renders_drawing_and_estimate_together(client, db, r2):
     assert resp.headers['X-Robots-Tag'] == 'noindex, nofollow'
 
 
-def test_view_bundle_estimate_side_is_frozen(client, db, r2):
-    """계약서 쪽 동결 규칙은 단독 링크와 같다 — 발급 후 수정은 반영되지 않는다(D6)."""
+def test_view_bundle_estimate_side_is_live(client, db, r2):
+    """계약서 쪽 규칙은 단독 링크와 같다 — 발급 후 수정이 반영된다(2026-09-01)."""
     import copy as _copy
     from sqlalchemy.orm.attributes import flag_modified
 
@@ -413,7 +421,7 @@ def test_view_bundle_estimate_side_is_frozen(client, db, r2):
     db.commit()
 
     body = client.get(f'/s/{token}').get_data(as_text=True)
-    assert '1,000,000' in body and '9,999,999' not in body
+    assert '19,999,998' in body and '1,000,000' not in body
 
 
 def test_view_bundle_without_drawing_still_shows_estimate(client, db, r2):
@@ -444,21 +452,65 @@ def test_view_bundle_uses_same_contract_partial(client, db, r2):
     assert 'window.print()' not in body
 
 
-def test_view_bundle_missing_snapshot_503(client, db, r2):
-    """스냅샷 없는 bundle 링크는 존재하면 안 되는 상태 — 조용히 도면만 보여주지 않는다."""
-    order = _mk_order()
+def test_view_bundle_without_stored_snapshot_still_renders_live(client, db, r2):
+    """저장 스냅샷이 없어도 계약서를 라이브로 만들어 붙인다(2026-09-01 이전엔 503)."""
+    import copy as _copy
+    order = _mk_order(structured_data=_copy.deepcopy(_EST_SD))
     _add_drawing_attachment(order, 'plan-nosnap.png')
     row, token = osvc.create_share_token(db_session, order.id, 'bundle')
     db_session.commit()
 
+    resp = client.get(f'/s/{token}')
+    assert resp.status_code == 200
+    assert '계약 내용' in resp.get_data(as_text=True)
+
+
+def test_view_bundle_503_when_contract_data_unavailable(client, db, r2, monkeypatch):
+    """계약서 데이터를 못 만들면 조용히 도면만 보여주지 않는다 — 503."""
+    order = _mk_order()
+    _add_drawing_attachment(order, 'plan-nosnap.png')
+    row, token = osvc.create_share_token(db_session, order.id, 'bundle')
+    db_session.commit()
+    monkeypatch.setattr(share_routes.share_service, 'build_estimate_snapshot',
+                        lambda _order: {})
+
     assert client.get(f'/s/{token}').status_code == 503
 
 
-def test_view_estimate_missing_snapshot_503(client, db, r2):
+def test_view_estimate_without_stored_snapshot_still_renders_live(client, db, r2):
+    """저장 스냅샷이 없어도 라이브 재구성으로 뜬다(2026-09-01 이전엔 503 이었다)."""
+    import copy as _copy
+    order = _mk_order(structured_data=_copy.deepcopy(_EST_SD))
+    row, token = osvc.create_share_token(db_session, order.id, 'estimate')
+    db_session.commit()
+    resp = client.get(f'/s/{token}')
+    assert resp.status_code == 200
+    assert '계약 내용' in resp.get_data(as_text=True)
+
+
+def test_view_estimate_503_when_live_and_stored_both_unavailable(client, db, r2, monkeypatch):
+    """라이브도 저장본도 없으면 빈 계약서 대신 503 — 조용한 실패 금지."""
     order = _mk_order()
     row, token = osvc.create_share_token(db_session, order.id, 'estimate')
     db_session.commit()
+    monkeypatch.setattr(share_routes.share_service, 'build_estimate_snapshot',
+                        lambda _order: {})
     assert client.get(f'/s/{token}').status_code == 503
+
+
+def test_view_estimate_falls_back_to_stored_when_live_too_large(client, db, r2, monkeypatch):
+    """라이브 재구성이 항목 과다로 실패하면 발급본을 보여준다 — 빈 화면보다 낫다."""
+    import copy as _copy
+    order = _mk_order(structured_data=_copy.deepcopy(_EST_SD))
+    row, token = _mk_estimate_share(order)
+
+    def _boom(_order):
+        raise osvc.SnapshotTooLargeError(osvc.SNAPSHOT_TOO_LARGE_MSG)
+
+    monkeypatch.setattr(share_routes.share_service, 'build_estimate_snapshot', _boom)
+    resp = client.get(f'/s/{token}')
+    assert resp.status_code == 200
+    assert '1,000,000' in resp.get_data(as_text=True)  # 발급 시점 값
 
 
 def test_view_estimate_revoked_410(client, db, r2):
@@ -1347,3 +1399,35 @@ def test_sheet_pixel_budget_matches_ios_ceiling():
     js = (root / 'static/js/orders/share-contract.js').read_text(encoding='utf-8')
     canvas_ceiling = int(re.search(r'MAX_CANVAS_PIXELS = (\d+)', js).group(1))
     assert share_routes._SHEET_MAX_PIXELS <= canvas_ceiling
+
+
+def test_contract_number_stays_fixed_while_content_goes_live(client, db, r2):
+    """내용은 최신으로 바뀌어도 **계약번호는 발급 시점에 고정**된다.
+
+    번호가 날마다 달라지면 고객이 들고 있는 계약번호와 우리 화면이 어긋난다.
+    """
+    import copy as _copy
+    import re
+    from sqlalchemy.orm.attributes import flag_modified
+
+    order = _mk_order(structured_data=_copy.deepcopy(_EST_SD))
+    row, token = _mk_estimate_share(order)
+    issued = (row.snapshot or {}).get('issued_date') or ''
+    assert issued, '발급 시점 스냅샷에 발행일이 있어야 이 계약이 성립한다'
+
+    before = client.get(f'/s/{token}').get_data(as_text=True)
+    nums = re.findall(r'erp-est-num-value">([^<]+)<', before)
+    assert nums, '계약번호 자리를 못 찾았다'
+    fixed = nums[0].strip()
+    assert fixed.startswith(issued.replace('-', ''))
+
+    # 주문을 고쳐도(= 내용은 라이브로 바뀐다) 번호는 그대로여야 한다.
+    sd = _copy.deepcopy(order.structured_data)
+    sd['items'][0]['price'] = 7_777_777
+    order.structured_data = sd
+    flag_modified(order, 'structured_data')
+    db.commit()
+
+    after = client.get(f'/s/{token}').get_data(as_text=True)
+    assert '15,555,554' in after, '내용은 최신이어야 한다(수량 2)'
+    assert re.findall(r'erp-est-num-value">([^<]+)<', after)[0].strip() == fixed

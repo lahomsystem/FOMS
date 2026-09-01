@@ -29,7 +29,8 @@ from foms.services import kakao_alimtalk as ka
 from foms.services import order_share as share_service
 from foms.services.audit_message_display import describe_order_action
 from foms.services.audit_writer import record_file_access
-from foms.services.datetime_kst import now_utc_naive
+from foms.services.datetime_kst import (format_datetime_kst, get_today_kst,
+                                        now_utc_naive)
 from foms.services.erp_shipment_settings import load_erp_shipment_settings
 from foms.services.orders.audit_order_context import order_audit_context
 from foms.services.orders.drawing_transfer import _is_drawing_key
@@ -303,6 +304,48 @@ def _is_kakao_inapp(user_agent: Optional[str]) -> bool:
     return 'KAKAOTALK' in (user_agent or '').upper()
 
 
+def _live_estimate_snapshot(row, order) -> Optional[dict]:
+    """계약서 렌더 데이터를 **열람 시점에 다시 만든다**(라이브 반영).
+
+    발급 시점 동결(D6)에서 바뀐 지점이다. 금액·품목을 고친 뒤 새 링크를 다시 보내야
+    했던 것이 사용자 결정으로 뒤집혔다 — 같은 링크가 늘 최신 계약 내용을 보여준다.
+
+    **유출 차단은 그대로다.** 라이브 값을 직접 템플릿에 넘기지 않고
+    :func:`order_share.build_estimate_snapshot` 화이트리스트를 매번 다시 태운다 —
+    타 브랜드 계좌·내부 플래그는 여전히 키 자체가 만들어지지 않는다.
+
+    재구성이 실패하면(항목 과다 등) 발급 시점 스냅샷으로 내려간다. 고객에게 빈 화면을
+    주는 것보다 조금 낡은 계약서가 낫다.
+
+    Args:
+        row: 공유 토큰 행(발급 시점 스냅샷 보유).
+        order: 대상 주문(활성 검증 완료).
+
+    Returns:
+        렌더용 dict. 라이브 재구성도 저장본도 없으면 ``None``(호출자가 503).
+    """
+    stored = row.snapshot if isinstance(row.snapshot, dict) and row.snapshot else None
+    try:
+        live = share_service.build_estimate_snapshot(order)
+    except share_service.SnapshotTooLargeError:
+        logger.warning('공유 계약서 라이브 재구성 실패(항목 과다) — 발급본 사용: share_id=%s',
+                       row.id)
+        return stored
+    if not isinstance(live, dict) or not live:
+        return stored
+    # 날짜 두 개를 가른다.
+    #  * issued_date — 이 내용이 **언제 기준인지**. 주문이 마지막으로 바뀐 날을 쓴다.
+    #    오늘 날짜를 박으면 아무것도 안 바뀐 계약서의 날짜가 매일 굴러간다.
+    #  * contract_no_date — **계약번호**의 재료. 발급 시점에 고정한다. 여기까지 라이브로
+    #    두면 고객이 들고 있는 계약번호가 날마다 달라진다.
+    changed = format_datetime_kst(getattr(order, 'structured_updated_at', None),
+                                  '%Y-%m-%d')
+    live['issued_date'] = changed or get_today_kst().strftime('%Y-%m-%d')
+    live['contract_no_date'] = ((stored or {}).get('issued_date')
+                                or live['issued_date'])
+    return live
+
+
 @share_view_bp.get('/s/<token>')
 def view_shared_order(token: str):
     """비로그인 공유 열람 — 검증 체인(해시→회수→만료→주문 활성) 후 도면 렌더.
@@ -318,11 +361,11 @@ def view_shared_order(token: str):
         return failure
 
     if row.kind == 'estimate':
-        # D6: 스냅샷만 렌더 — 라이브 재조회 없음(발급 이후 주문 수정은 반영되지 않는다).
-        snap = row.snapshot
+        # 라이브 반영 — 열람할 때마다 화이트리스트를 다시 태운다(사용자 결정 2026-09-01).
+        snap = _live_estimate_snapshot(row, order)
         if not isinstance(snap, dict) or not snap:
-            # 스냅샷 없는 estimate 링크는 존재하면 안 되는 상태(생성 시 강제) — 명시 503.
-            logger.error('estimate 공유 스냅샷 부재: share_id=%s', row.id)
+            # 라이브도 저장본도 없다 — 빈 계약서를 보여주지 않는다.
+            logger.error('estimate 공유 렌더 데이터 부재: share_id=%s', row.id)
             return _error_page(_MSG_UNAVAILABLE, 503)
         share_service.record_view(row)
         db_session.commit()
@@ -338,10 +381,10 @@ def view_shared_order(token: str):
 
     snapshot = None
     if row.kind == 'bundle':
-        # 계약서 쪽은 estimate 와 같은 동결 규칙 — 스냅샷 없는 링크는 존재하면 안 된다.
-        snapshot = row.snapshot
+        # 계약서 쪽은 estimate 와 같은 규칙 — 라이브 재구성.
+        snapshot = _live_estimate_snapshot(row, order)
         if not isinstance(snapshot, dict) or not snapshot:
-            logger.error('bundle 공유 스냅샷 부재: share_id=%s', row.id)
+            logger.error('bundle 공유 렌더 데이터 부재: share_id=%s', row.id)
             return _error_page(_MSG_UNAVAILABLE, 503)
 
     storage = get_storage()
