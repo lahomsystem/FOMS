@@ -778,6 +778,20 @@
             }, 1200);
             return;
         }
+        // 체크박스(15px)가 너무 작아 손가락으로 누르기 어렵다 — 행 아무 데나 누르면
+        // 체크가 되게 한다. 안에 있는 조작 요소(복사 버튼·귀속 select·체크박스 자신)는
+        // 제 동작을 그대로 하고, 글자를 끌어 선택하는 중이면 토글하지 않는다.
+        var dockRow = event.target.closest('[data-naver-dock-row]');
+        if (dockRow && !event.target.closest('input, select, button, a, label, textarea')) {
+            var selection = window.getSelection && window.getSelection();
+            if (selection && String(selection) !== '') return;
+            var box = dockRow.querySelector('[data-naver-dock-check]');
+            if (box) {
+                box.checked = !box.checked;
+                box.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+            return;
+        }
         if (event.target.closest('#erpNaverDockFab')) { openDrawer(); return; }
         if (event.target.closest('[data-naver-dock-close]')) { closeDrawer(); return; }
         var done = event.target.closest('[data-naver-dock-done]');

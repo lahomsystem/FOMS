@@ -367,6 +367,12 @@
   gap: 9px;
   padding: 9px 14px;
   border-bottom: 1px solid #e2e8f0;
+  /* 행 전체가 체크 버튼이다 — 작은 체크박스만 노리지 않아도 된다. */
+  cursor: pointer;
+}
+
+.naver-dock-row:hover {
+  background: #f8fafc;
 }
 
 .naver-dock-row:last-child {
