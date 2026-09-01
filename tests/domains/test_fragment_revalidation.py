@@ -152,6 +152,59 @@ def test_key_changes_with_cohort():
     assert v2 != v3
 
 
+def test_key_changes_with_session(stable_cohort):
+    """세션(CSRF 토큰)이 다르면 키가 다르다.
+
+    2026-09-01 스테이징 그림자 관측이 잡은 축이다. 프래그먼트 본문에 세션마다 다른
+    ``csrf_token`` 이 박히므로, 키에 세션이 없으면 재로그인 후 렌더 전 304 가
+    **옛 세션의 토큰이 박힌 폼**을 되살려 저장이 403 으로 실패한다.
+    """
+    with patch.object(fr, "_session_material", return_value="sessAAAAAAAA"):
+        a = _key({"q": "kim"})
+    with patch.object(fr, "_session_material", return_value="sessBBBBBBBB"):
+        b = _key({"q": "kim"})
+    assert a != b
+
+
+def test_session_material_uses_digest_not_the_token(app):
+    """세션 재료는 토큰 자체가 아니라 digest 다(키 재료에 비밀값을 두지 않는다)."""
+    from flask import session
+
+    with app.test_request_context("/erp/history/"):
+        session["csrf_token"] = "raw-secret-token-value"
+        material = fr._session_material()
+    assert material != "raw-secret-token-value"
+    assert "raw-secret" not in material
+    assert len(material) == 12
+
+
+def test_key_changes_with_release(stable_cohort):
+    """릴리스가 다르면 키가 다르다.
+
+    본문에 자산 ``?v=`` 핀이 26개 박혀 있어, 핀을 올리는 배포는 카운터·사용자·날짜를
+    전혀 건드리지 않고 마크업만 바꾼다. 릴리스 축이 없으면 그 순간 렌더 전 304 가
+    옛 마크업을 계속 돌려준다.
+    """
+    with patch.object(fr, "RELEASE_ID", "releaseAAAA"):
+        a = _key({"q": "kim"})
+    with patch.object(fr, "RELEASE_ID", "releaseBBBB"):
+        b = _key({"q": "kim"})
+    assert a != b
+
+
+def test_release_id_is_stable_within_a_process():
+    """릴리스 식별자는 프로세스 안에서 안정적이다(요청마다 흔들리면 304 가 안 걸린다)."""
+    assert fr.RELEASE_ID
+    assert fr.RELEASE_ID == fr.RELEASE_ID
+    assert fr._compute_release_id() == fr._compute_release_id()
+
+
+def test_release_id_prefers_explicit_env(monkeypatch):
+    """운영이 심어준 식별자가 최우선이다(워커 간에 같은 값이 나와야 304 가 걸린다)."""
+    monkeypatch.setenv("FOMS_RELEASE_ID", "deadbeefcafe0001")
+    assert fr._compute_release_id() == "deadbeefcafe0001"
+
+
 def test_view_param_is_allowed_but_not_key_material(stable_cohort):
     """``view`` 는 언제나 허용하되 키 재료에서는 뺀다(tier 헤더가 담당)."""
     assert _key({"q": "kim", "view": "fragment"}) == _key({"q": "kim"})

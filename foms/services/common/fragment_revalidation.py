@@ -35,12 +35,15 @@ import hashlib
 import json
 import logging
 import os
+import uuid
+from pathlib import Path
 from typing import Any, Final, Iterable, Sequence
 
 logger = logging.getLogger(__name__)
 
 __all__ = [
     "KEY_VERSION",
+    "RELEASE_ID",
     "SHADOW_KEY_PREFIX",
     "SHADOW_MISMATCH_COUNTER_KEY",
     "SHADOW_HEADER",
@@ -185,6 +188,70 @@ def _json_safe(value: Any) -> bool:
     return value is None or isinstance(value, (bool, int, float, str))
 
 
+def _session_material() -> str:
+    """세션 축 — 프래그먼트에 박히는 CSRF 토큰이 세션마다 다르다.
+
+    2026-09-01 스테이징 그림자 관측이 잡은 축이다. `/erp/history/` 프래그먼트는
+    ``<input name="csrf_token" value="...">`` 를 본문에 담는데 그 값은 세션마다
+    다르다. 키에 세션이 없으면 같은 사용자가 로그아웃 후 재로그인했을 때 키가
+    그대로라, 렌더 전 304 가 **옛 세션의 토큰이 박힌 폼**을 되살린다 → 저장이 403.
+
+    토큰 자체를 재료로 쓰지 않고 짧은 digest 만 쓴다(키 재료 blob 에 비밀값을 두지 않는다).
+
+    Returns:
+        세션 CSRF 원시 토큰의 12자 digest. 세션이 없으면 ``"-"``.
+    """
+    try:
+        from flask import has_request_context, session
+
+        if not has_request_context():
+            return "-"
+        raw = session.get("csrf_token")
+        if not raw:
+            return "-"
+        return hashlib.sha256(str(raw).encode("utf-8")).hexdigest()[:12]
+    except Exception:
+        logger.warning("[FragVer] session material unavailable", exc_info=True)
+        return "unavailable"
+
+
+def _compute_release_id() -> str:
+    """릴리스 축 — 배포로 마크업이 바뀌어도 테이블 카운터는 안 움직인다.
+
+    같은 그림자 관측에서 함께 드러났다. 프래그먼트 본문에는 자산 ``?v=`` 핀이 26개
+    박혀 있어서, 핀을 올리는 배포가 나가면 카운터·사용자·날짜가 전부 그대로인데
+    본문만 바뀐다. 키에 릴리스가 없으면 그 순간 렌더 전 304 가 **옛 마크업**을
+    계속 돌려준다.
+
+    우선순위: 운영이 심어준 식별자 → Railway 가 주는 식별자 → 템플릿 트리 digest
+    (이미지 안에서는 파일 mtime/size 가 빌드마다 고정이라 워커 간에도 같은 값이 나온다)
+    → 프로세스 uuid(최후 수단: 정확하지만 워커마다 달라 304 적중률이 떨어진다).
+
+    Returns:
+        16자 이하의 릴리스 식별 문자열.
+    """
+    for name in ("FOMS_RELEASE_ID", "RAILWAY_GIT_COMMIT_SHA", "RAILWAY_DEPLOYMENT_ID"):
+        value = (os.environ.get(name) or "").strip()
+        if value:
+            return value[:16]
+    try:
+        root = Path(__file__).resolve().parents[3] / "templates"
+        if root.is_dir():
+            digest = hashlib.sha256()
+            for path in sorted(root.rglob("*.html")):
+                stat = path.stat()
+                digest.update(str(path.relative_to(root)).encode("utf-8"))
+                digest.update(f"{stat.st_size}:{int(stat.st_mtime)}".encode("utf-8"))
+            return digest.hexdigest()[:16]
+    except Exception:
+        logger.warning("[FragVer] template digest unavailable", exc_info=True)
+    return uuid.uuid4().hex[:16]
+
+
+#: 프로세스 기동 시 1회 계산. 배포하면 프로세스가 새로 뜨므로 값이 바뀐다.
+RELEASE_ID: Final[str] = _compute_release_id()
+
+
 def build_fragment_version_key(
     *,
     route_id: str,
@@ -230,6 +297,8 @@ def build_fragment_version_key(
         "team": getattr(user, "team", None) if user else None,
         "mine": bool(mine_only),
         "cohort": _cohort_material(),
+        "session": _session_material(),
+        "release": RELEASE_ID,
         "today": get_today_kst().isoformat(),
         "tables": dict(sorted(versions.items())),
     }
