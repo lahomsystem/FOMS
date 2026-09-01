@@ -43,6 +43,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from db import Base
+from foms.services.common.table_version_counter import mark_tables_dirty
 from foms.services.datetime_kst import now_utc_naive
 from foms.services.security.ops_approval import consume_same_db
 
@@ -397,6 +398,14 @@ def _hard_delete(session: Session, order_ids: list[int], *, batch_size: int, pla
     :raises DeleteRetentionError: 실제 삭제 수가 대상 수와 다름(동시 변경 감지).
     """
     nullable, delete_children, _ = _classify_referrers()
+    # HB-S1: raw DML 은 ORM 세션 훅이 못 본다. 지워지는 테이블을 커밋 시점 카운터
+    # 증가 대상으로 직접 등재한다(등재만 — 커밋이 실패하면 카운터도 안 오른다).
+    mark_tables_dirty(
+        session,
+        "orders",
+        *(table for table, _column in delete_children),
+        *(table for table, _column in nullable),
+    )
     deleted = 0
     for chunk in _chunks(order_ids, max(1, batch_size)):
         for table, column in delete_children:

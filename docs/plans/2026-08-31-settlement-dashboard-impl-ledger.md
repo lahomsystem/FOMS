@@ -1446,3 +1446,101 @@ raw `DELETE FROM orders`(`delete_retention.py:412`), id 재번호(`trash.py:118-
 `.mutation_version =` 두 신호만 본다. `Order(...)` 생성·`setattr` flat 대입·raw UPDATE/DELETE·
 `db.delete` 는 **스캔 밖**이라 이번 61건과 격차가 난다. S1 게이트는 이 스캐너를 확장하거나
 별도 스캐너로 만들어야 한다.
+
+---
+
+## P8 — 하트비트 S1 구현 완료 (2026-09-01, 카운터 배선 · 읽는 쪽 없음)
+
+신설: `foms/services/common/table_version_counter.py`.
+게이트: `tools/harness/orm_bypass_write_scan.py` + `docs/harness/foms_orm_bypass_write_{allowlist,inventory}.json`.
+계약: `tests/domains/test_table_version_counter.py` (21 케이스).
+
+### S1-1 신호원 — `after_flush` 수집 → `after_commit` INCR
+
+키는 `foms:tabver:v1:<table>`. 추적 대상은 S0 이 지목한 6개 테이블
+(`orders`·`order_schedule_dates`·`order_attachments`·`users`·`system_settings`·`order_assignments`).
+그 밖 테이블은 카운터를 만들지 않는다 — `access_logs` 처럼 요청마다 늘어나는 감사 테이블까지
+세면 Redis 왕복만 늘고 화면 신선도에는 기여가 0이다.
+
+**`before_flush` 가 아니라 `after_flush` 를 쓴다.** `before_flush` 리스너는 서로의 결과를
+못 본다. 일정 행의 유일한 생산자(`order_date_sync.py:271` 의 `OrderScheduleDate(...)`)가 바로
+`before_flush` 훅이라, 우리 리스너가 먼저 등록되면 그 신규 행을 통째로 놓친다. `after_flush`
+는 모든 `before_flush` 가 끝난 뒤 돌면서 `session.new/dirty/deleted` 는 아직 flush 이전
+상태로 남아 있다(SQLAlchemy 계약).
+
+### S1-2 워커 프로세스 증명 — **훅은 등록돼 있지 않았다**
+
+원장이 요구한 증명의 답은 "아니오"다. 근거 3단:
+
+- `Procfile` / `railway-worker.toml` 의 워커 기동 명령은 `rq worker default --url $REDIS_URL`.
+- 그 경로는 `app.py` 를 import 하지 않는다 → `app.py:74-75` 의 `run_auto_init(app)` 가 안 돈다.
+- 저장소의 세션 리스너는 **전부** `register_*()` 함수 안에 있고(`grep listens_for` 로 확인:
+  `models.py:3540` 의 `Order before_insert` 하나만 모듈 최상위), 그 함수를 부르는 곳은
+  `app_init.run_auto_init` 뿐이다.
+
+→ 즉 워커는 지금까지 날짜 동기화·대시보드 무효화 훅도 **하나도 없이** 돌고 있었다
+(이번 작업과 무관한 기존 사실. 여기서 고치지 않는다 — 동작 변경이라 별개 결정이다).
+
+수정: 워커 진입 모듈 `foms/services/jobs/tasks.py` 가 import 시점에
+`_register_worker_session_wiring()` 으로 **카운터 훅 하나만** 등록한다. 계약 테스트가
+그 모듈 최상위 호출의 존재를 AST 로 고정한다. → 썸네일(`order_attachments`)·지오코딩
+(`orders`)·네이버 동기화 축이 S2 대상에서 빠지지 않는다.
+
+### S1-3 ORM 우회 쓰기 — 스캐너가 S0 수기 집계보다 **2배 이상**을 찾았다
+
+스캐너 결과 **45곳**(S0 수기 집계는 약 20곳). S0 이 놓쳤고 이번에 잡힌 **추적 테이블** 쓰기:
+
+| 위치 | 테이블 | 성격 |
+|---|---|---|
+| `foms/api/drawing/erp_orders_drawing.py` `perform_drawing_transfer` | order_attachments | **운영 라우트** |
+| `foms/services/files/legacy_attachment_backfill.py` `apply_manual_mappings` | order_attachments | 백필 |
+| `foms/services/user_deletion.py` `_nullify_references` | order_assignments | 계정 삭제 |
+| `scripts/migrations/migrate_local_uploads_to_r2.py` `main` | orders | 1회성 마이그레이션 |
+| `scripts/ops/erp_build_step_runner.py` `step_5_url_normalize_view`·`step_7_backfill_workflow` | orders | 빌드 스텝 |
+
+전부 `mark_tables_dirty(session, ...)` 로 등재했다(등재만 — 커밋 실패 시 카운터도 안 오른다).
+`migrate_local_uploads_to_r2.py` 만 `engine.begin()` Connection 이라 세션이 없어
+`bump_table_versions("orders")` 를 커밋 후 직접 부른다.
+
+최종: **MARKED 21 / UNTRACKED_TABLE 24 / UNSIGNALED 0.**
+남은 24곳은 전부 추적 밖 테이블(notifications·chat·feature_cutover·wdc_link_runtime_state·
+sidefx outbox·system_build_steps)이고 allowlist 에 사유와 함께 등재했다.
+
+### S1-4 게이트 등재 (사각지대 방지)
+
+- `.github/workflows/ci.yml` 문서 전용 서브셋 — 새 테스트가 인벤토리 JSON 을 읽으므로
+  CI-DOCSCOPE-01 계약 대상이다(등재 안 하면 문서만 바뀐 커밋에서 조용히 빠진다).
+- `scripts/ops/pre_push_smoke.ps1` repo-state sync 게이트 블록.
+- `tests/contracts/runtime/test_ptc_physical_exactness.py` — `foms/services/common/` 은
+  정확일치 allowlist라 신규 모듈 등재 필수.
+- `tests/domains/test_app_init.py` — startup 배선 순서 계약에 카운터 훅 추가.
+
+### S1-5 검증
+
+| 항목 | 결과 |
+|---|---|
+| `pytest -q --ignore=tests/visual -p no:playwright` | **7870 passed**, 585 skipped |
+| `pytest tests/visual/test_alimtalk_ui_contract.py tests/visual/test_p1_mockup_structure.py` | 74 passed |
+| `scripts/ops/pre_push_smoke.ps1` | **exit 0** (377 passed) |
+| `python tools/harness/orm_bypass_write_scan.py --check` | unsignaled **0** |
+
+부수: 내 편집으로 줄이 밀려 `foms_failopen_inventory.json`(+ 신규 fail-open 4건, 전부
+`has_logging: true`)·`foms_state_writer_inventory.json`·`foms_order_mutation_writer_inventory.json`
+이 재생성됐다. 함께 커밋한다.
+
+### S1 남은 천장(정직하게 기록)
+
+1. `MARKED` 판정은 **함수 단위**다. 한 함수가 우회 쓰기 둘을 하고 하나만 등재해도 둘 다
+   MARKED 로 보인다(기존 `order_mutation_writer_scan.py` 의 파일 단위 천장보다는 좁다).
+2. `mark_tables_dirty` 만 부르고 DB 작업이 하나도 없으면 트랜잭션이 시작되지 않아
+   `after_soft_rollback` 이 안 난다 → 등재분이 다음 커밋까지 남는다. **과다 증가**라
+   안전한 방향이고, 계약 테스트가 이 조건을 명시한다.
+3. `session.dirty` 는 "UPDATE 가 날 수도 있는" 후보라 실제 변경이 없어도 센다. 역시 과다 증가.
+4. 워커에 등록한 것은 **카운터 훅 하나뿐**이다. 날짜 동기화·대시보드 무효화는 여전히 web 전용.
+
+### S2 착수 조건 (승인 대기)
+
+파일럿은 계획대로 `/erp/history/`. S1 이 답한 것: 워커 축은 이제 신호를 남긴다(S1-2),
+우회 쓰기 신호 누락 0(S1-3). **아직 안 정한 것**: 스펙 §5-5 의 Flask-Compress ETag 접미사
+(`"abc:br"`) 대조 규칙 — 렌더 전 304 를 내면 압축 경로 재평가가 개입하지 않으므로 S2 착수
+전에 먼저 정해야 한다.

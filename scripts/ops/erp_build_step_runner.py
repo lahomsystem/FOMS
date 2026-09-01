@@ -14,6 +14,7 @@ from flask import Flask
 # app.py의 Flask app과 db 헬퍼를 재사용
 from app import app  # noqa
 from db import get_db
+from foms.services.common.table_version_counter import mark_tables_dirty
 
 
 STEP_SCHEMA = "ERP_ORDER_STEP_1_SCHEMA"
@@ -280,6 +281,9 @@ def step_5_url_normalize_view(db):
     started_at = datetime.datetime.now()
     _upsert_step(db, STEP_URL_NORMALIZE, "RUNNING", message="Normalizing stored URLs to /api/files/view/<key>", started_at=started_at)
     try:
+        # HB-S1: raw UPDATE 는 세션 훅 밖이다. 아래에서 orders 를 갱신하므로 커밋 시점
+        # 테이블 버전 카운터 증가 대상으로 등재한다(chat_attachments 는 추적 밖).
+        mark_tables_dirty(db, "orders")
         # chat_attachments: storage_url / thumbnail_url이 /static/uploads/* 인 경우 key 추출 후 view로 변환
         db.execute(text("""
         UPDATE chat_attachments
@@ -379,6 +383,8 @@ def step_7_backfill_workflow(db):
     started_at = datetime.datetime.now()
     _upsert_step(db, STEP_BACKFILL_WORKFLOW, "RUNNING", message="Backfilling structured_data.workflow defaults", started_at=started_at)
     try:
+        # HB-S1: raw UPDATE 는 세션 훅 밖이다 — 커밋 시점 카운터 증가 대상 등재.
+        mark_tables_dirty(db, "orders")
         # workflow 키가 없거나 stage가 없는 경우에만 채운다.
         db.execute(text("""
         UPDATE orders

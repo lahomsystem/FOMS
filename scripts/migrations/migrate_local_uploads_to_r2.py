@@ -36,6 +36,8 @@ from typing import Optional, Tuple
 
 from sqlalchemy import create_engine, text
 
+from foms.services.common.table_version_counter import bump_table_versions
+
 
 def normalize_postgres_url(url: str) -> str:
     if url and url.startswith("postgres://"):
@@ -330,6 +332,12 @@ def main():
                     {"u": new_url, "id": oid},
                 )
                 stats["orders_db_updated"] += 1
+
+    # HB-S1: 이 스크립트는 Session 이 아니라 Connection(engine.begin) 으로 raw UPDATE 를
+    # 낸다. 세션 훅이 볼 수 없으므로, 트랜잭션이 성공적으로 닫힌 뒤 orders 카운터를
+    # 직접 올린다(mark_tables_dirty 는 Session 전용이라 여기서는 못 쓴다).
+    if stats["orders_db_updated"]:
+        bump_table_versions("orders")
 
     print()
     print("=" * 70)

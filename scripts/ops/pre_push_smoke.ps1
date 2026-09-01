@@ -225,6 +225,7 @@ if ($Full) {
         "tests/domains/test_audit_coverage_inventory.py",
         "tests/domains/test_rev_99.py",
         "tests/domains/test_state_guard.py",
+        "tests/domains/test_table_version_counter.py",
         "tests/domains/test_write_guard.py",
         # CI-VISUAL-01: tests/visual 은 본 스위트 밖이라 ci.yml 등재 목록이 낡으면
         # red 가 조용히 산다(2주 반 사례). 레지스트리 드리프트는 여기서 초 단위로 잡는다.

@@ -172,6 +172,10 @@ def run_auto_init(app) -> None:
     * ``register_attachment_visibility_listener`` — pure SQLAlchemy listener
       wiring (no DB write) that excludes tombstoned ``OrderAttachment`` rows
       from every ORM SELECT (ATTACH-LIFE-01 global default filter).
+    * ``register_table_version_listener`` — pure SQLAlchemy listener wiring (no
+      DB write) that bumps per-table Redis write counters after commit (HB-S1).
+      The worker process registers the same hook from
+      :mod:`foms.services.jobs.tasks` because ``rq worker`` never imports ``app``.
 
     Excluded on purpose: schema DDL (STARTUP-SCHEMA-01 → Alembic/predeploy),
     flat-column backfill (STARTUP-BACKFILL-01 → operator CLI), and admin
@@ -204,6 +208,12 @@ def run_auto_init(app) -> None:
             )
 
             register_attachment_visibility_listener()
+
+            from foms.services.common.table_version_counter import (
+                register_table_version_listener,
+            )
+
+            register_table_version_listener()
     except StartupReadinessError:
         raise
     except Exception as e:

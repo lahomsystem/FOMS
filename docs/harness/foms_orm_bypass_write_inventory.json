@@ -1,0 +1,382 @@
+{
+  "packet": "HB-S1",
+  "summary": "ORM-bypass write inventory for foms/ and scripts/. The table version counter's signal source is a global SQLAlchemy session hook, which only sees writes that go through ORM entity state. Query-level update()/delete(), bulk_*_mappings and raw execute(text(DML)) bypass it. Every such site is classified MARKED (its enclosing function calls mark_tables_dirty / bump_table_versions), UNTRACKED_TABLE / TEMP_TABLE (writes a table outside VERSIONED_TABLES — allowlisted with a reason), or UNSIGNALED. Gate target: UNSIGNALED == 0. A new bypass write with no signal turns the gate red.",
+  "scope": "foms/**.py, scripts/**.py",
+  "baselines": {
+    "total": 45,
+    "unsignaled": 0
+  },
+  "signal_counts": {
+    "MARKED": 21,
+    "UNTRACKED_TABLE": 24
+  },
+  "kind_counts": {
+    "bulk_mappings": 1,
+    "query_bulk_delete": 10,
+    "query_bulk_update": 11,
+    "raw_dml": 23
+  },
+  "unsignaled_sites": [],
+  "sites": [
+    {
+      "path": "foms/api/drawing/erp_orders_drawing.py",
+      "lineno": 183,
+      "kind": "query_bulk_update",
+      "func": "perform_drawing_transfer",
+      "signal": "MARKED",
+      "reason": ""
+    },
+    {
+      "path": "foms/api/notifications/__init__.py",
+      "lineno": 463,
+      "kind": "query_bulk_update",
+      "func": "api_notifications_mark_all_read",
+      "signal": "UNTRACKED_TABLE",
+      "reason": "notification_user_states.read_at only."
+    },
+    {
+      "path": "foms/api/notifications/__init__.py",
+      "lineno": 542,
+      "kind": "query_bulk_update",
+      "func": "api_notifications_archive_all",
+      "signal": "UNTRACKED_TABLE",
+      "reason": "notification_user_states.archived_at only."
+    },
+    {
+      "path": "foms/api/notifications/__init__.py",
+      "lineno": 614,
+      "kind": "query_bulk_delete",
+      "func": "api_notifications_delete_all",
+      "signal": "UNTRACKED_TABLE",
+      "reason": "notifications hard delete (admin); no versioned table touched."
+    },
+    {
+      "path": "foms/services/files/legacy_attachment_backfill.py",
+      "lineno": 224,
+      "kind": "query_bulk_update",
+      "func": "apply_safe_backfill",
+      "signal": "MARKED",
+      "reason": ""
+    },
+    {
+      "path": "foms/services/files/legacy_attachment_backfill.py",
+      "lineno": 357,
+      "kind": "query_bulk_update",
+      "func": "apply_manual_mappings",
+      "signal": "MARKED",
+      "reason": ""
+    },
+    {
+      "path": "foms/services/orders/backfill_order_item_identities.py",
+      "lineno": 84,
+      "kind": "query_bulk_update",
+      "func": "apply_safe_backfill",
+      "signal": "MARKED",
+      "reason": ""
+    },
+    {
+      "path": "foms/services/orders/backfill_order_item_identities.py",
+      "lineno": 93,
+      "kind": "query_bulk_update",
+      "func": "apply_safe_backfill",
+      "signal": "MARKED",
+      "reason": ""
+    },
+    {
+      "path": "foms/services/orders/delete_retention.py",
+      "lineno": 412,
+      "kind": "raw_dml",
+      "func": "_hard_delete",
+      "signal": "MARKED",
+      "reason": ""
+    },
+    {
+      "path": "foms/services/orders/delete_retention.py",
+      "lineno": 416,
+      "kind": "raw_dml",
+      "func": "_hard_delete",
+      "signal": "MARKED",
+      "reason": ""
+    },
+    {
+      "path": "foms/services/orders/delete_retention.py",
+      "lineno": 420,
+      "kind": "raw_dml",
+      "func": "_hard_delete",
+      "signal": "MARKED",
+      "reason": ""
+    },
+    {
+      "path": "foms/services/security/channel_order/create_flag.py",
+      "lineno": 102,
+      "kind": "query_bulk_update",
+      "func": "enable",
+      "signal": "UNTRACKED_TABLE",
+      "reason": "channel_inbound_event_logs.receipt_state only."
+    },
+    {
+      "path": "foms/services/security/channel_order/create_flag.py",
+      "lineno": 131,
+      "kind": "query_bulk_update",
+      "func": "disable",
+      "signal": "UNTRACKED_TABLE",
+      "reason": "channel_inbound_event_logs.receipt_state only."
+    },
+    {
+      "path": "foms/services/security/cutover/mark_ops.py",
+      "lineno": 85,
+      "kind": "raw_dml",
+      "func": "begin_drain",
+      "signal": "UNTRACKED_TABLE",
+      "reason": "feature_cutover_fences only."
+    },
+    {
+      "path": "foms/services/security/cutover/mark_ops.py",
+      "lineno": 114,
+      "kind": "raw_dml",
+      "func": "abort_drain",
+      "signal": "UNTRACKED_TABLE",
+      "reason": "feature_cutover_fences only."
+    },
+    {
+      "path": "foms/services/security/cutover/mark_ops.py",
+      "lineno": 157,
+      "kind": "raw_dml",
+      "func": "mark_cutover",
+      "signal": "UNTRACKED_TABLE",
+      "reason": "feature_cutover_markers + feature_cutover_fences only."
+    },
+    {
+      "path": "foms/services/security/cutover/mark_ops.py",
+      "lineno": 172,
+      "kind": "raw_dml",
+      "func": "mark_cutover",
+      "signal": "UNTRACKED_TABLE",
+      "reason": "feature_cutover_markers + feature_cutover_fences only."
+    },
+    {
+      "path": "foms/services/security/cutover/wdc_link_fence.py",
+      "lineno": 184,
+      "kind": "raw_dml",
+      "func": "seed_wdc_link_runtime_state",
+      "signal": "UNTRACKED_TABLE",
+      "reason": "wdc_link_runtime_state singleton row only."
+    },
+    {
+      "path": "foms/services/security/cutover/wdc_link_fence.py",
+      "lineno": 235,
+      "kind": "raw_dml",
+      "func": "freeze_wdc_link",
+      "signal": "UNTRACKED_TABLE",
+      "reason": "wdc_link_runtime_state singleton row only."
+    },
+    {
+      "path": "foms/services/security/cutover/wdc_link_fence.py",
+      "lineno": 276,
+      "kind": "raw_dml",
+      "func": "canonicalize_wdc_link",
+      "signal": "UNTRACKED_TABLE",
+      "reason": "wdc_link_runtime_state singleton row only."
+    },
+    {
+      "path": "foms/services/security/cutover/wdc_link_fence.py",
+      "lineno": 325,
+      "kind": "raw_dml",
+      "func": "abort_wdc_link",
+      "signal": "UNTRACKED_TABLE",
+      "reason": "wdc_link_runtime_state singleton row only."
+    },
+    {
+      "path": "foms/services/sidefx_outbox.py",
+      "lineno": 127,
+      "kind": "query_bulk_delete",
+      "func": "_delete_batch",
+      "signal": "UNTRACKED_TABLE",
+      "reason": "domain_side_effect_outbox retention purge only."
+    },
+    {
+      "path": "foms/services/user_deletion.py",
+      "lineno": 206,
+      "kind": "query_bulk_update",
+      "func": "_detach_notification_user_states",
+      "signal": "UNTRACKED_TABLE",
+      "reason": "notification_events + notification_user_states only."
+    },
+    {
+      "path": "foms/services/user_deletion.py",
+      "lineno": 211,
+      "kind": "query_bulk_delete",
+      "func": "_detach_notification_user_states",
+      "signal": "UNTRACKED_TABLE",
+      "reason": "notification_events + notification_user_states only."
+    },
+    {
+      "path": "foms/services/user_deletion.py",
+      "lineno": 233,
+      "kind": "query_bulk_delete",
+      "func": "_purge_owned_chat_rooms",
+      "signal": "UNTRACKED_TABLE",
+      "reason": "chat_messages + chat_room_members only."
+    },
+    {
+      "path": "foms/services/user_deletion.py",
+      "lineno": 238,
+      "kind": "query_bulk_delete",
+      "func": "_purge_owned_chat_rooms",
+      "signal": "UNTRACKED_TABLE",
+      "reason": "chat_messages + chat_room_members only."
+    },
+    {
+      "path": "foms/services/user_deletion.py",
+      "lineno": 263,
+      "kind": "query_bulk_update",
+      "func": "_nullify_references",
+      "signal": "MARKED",
+      "reason": ""
+    },
+    {
+      "path": "foms/services/user_deletion.py",
+      "lineno": 288,
+      "kind": "query_bulk_delete",
+      "func": "_delete_references",
+      "signal": "MARKED",
+      "reason": ""
+    },
+    {
+      "path": "foms/web/orders/trash.py",
+      "lineno": 113,
+      "kind": "raw_dml",
+      "func": "reset_order_ids",
+      "signal": "MARKED",
+      "reason": ""
+    },
+    {
+      "path": "foms/web/orders/trash.py",
+      "lineno": 124,
+      "kind": "raw_dml",
+      "func": "reset_order_ids",
+      "signal": "MARKED",
+      "reason": ""
+    },
+    {
+      "path": "scripts/maintenance/naver_claim_drill.py",
+      "lineno": 234,
+      "kind": "query_bulk_delete",
+      "func": "_delete_notifications",
+      "signal": "UNTRACKED_TABLE",
+      "reason": "notification_events + notification_user_states + notifications only."
+    },
+    {
+      "path": "scripts/maintenance/naver_claim_drill.py",
+      "lineno": 237,
+      "kind": "query_bulk_delete",
+      "func": "_delete_notifications",
+      "signal": "UNTRACKED_TABLE",
+      "reason": "notification_events + notification_user_states + notifications only."
+    },
+    {
+      "path": "scripts/maintenance/naver_claim_drill.py",
+      "lineno": 241,
+      "kind": "query_bulk_delete",
+      "func": "_delete_notifications",
+      "signal": "UNTRACKED_TABLE",
+      "reason": "notification_events + notification_user_states + notifications only."
+    },
+    {
+      "path": "scripts/maintenance/restore_order_schedule_dates.py",
+      "lineno": 67,
+      "kind": "query_bulk_delete",
+      "func": "main",
+      "signal": "MARKED",
+      "reason": ""
+    },
+    {
+      "path": "scripts/maintenance/restore_order_schedule_dates.py",
+      "lineno": 68,
+      "kind": "bulk_mappings",
+      "func": "main",
+      "signal": "MARKED",
+      "reason": ""
+    },
+    {
+      "path": "scripts/migrations/migrate_local_uploads_to_r2.py",
+      "lineno": 230,
+      "kind": "raw_dml",
+      "func": "main",
+      "signal": "MARKED",
+      "reason": ""
+    },
+    {
+      "path": "scripts/migrations/migrate_local_uploads_to_r2.py",
+      "lineno": 278,
+      "kind": "raw_dml",
+      "func": "main",
+      "signal": "MARKED",
+      "reason": ""
+    },
+    {
+      "path": "scripts/migrations/migrate_local_uploads_to_r2.py",
+      "lineno": 330,
+      "kind": "raw_dml",
+      "func": "main",
+      "signal": "MARKED",
+      "reason": ""
+    },
+    {
+      "path": "scripts/ops/erp_build_step_runner.py",
+      "lineno": 57,
+      "kind": "raw_dml",
+      "func": "_migrate_legacy_step_keys",
+      "signal": "UNTRACKED_TABLE",
+      "reason": "system_build_steps only (build-step bookkeeping)."
+    },
+    {
+      "path": "scripts/ops/erp_build_step_runner.py",
+      "lineno": 70,
+      "kind": "raw_dml",
+      "func": "_migrate_legacy_step_keys",
+      "signal": "UNTRACKED_TABLE",
+      "reason": "system_build_steps only (build-step bookkeeping)."
+    },
+    {
+      "path": "scripts/ops/erp_build_step_runner.py",
+      "lineno": 89,
+      "kind": "raw_dml",
+      "func": "_upsert_step",
+      "signal": "UNTRACKED_TABLE",
+      "reason": "system_build_steps only (build-step bookkeeping)."
+    },
+    {
+      "path": "scripts/ops/erp_build_step_runner.py",
+      "lineno": 288,
+      "kind": "raw_dml",
+      "func": "step_5_url_normalize_view",
+      "signal": "MARKED",
+      "reason": ""
+    },
+    {
+      "path": "scripts/ops/erp_build_step_runner.py",
+      "lineno": 295,
+      "kind": "raw_dml",
+      "func": "step_5_url_normalize_view",
+      "signal": "MARKED",
+      "reason": ""
+    },
+    {
+      "path": "scripts/ops/erp_build_step_runner.py",
+      "lineno": 302,
+      "kind": "raw_dml",
+      "func": "step_5_url_normalize_view",
+      "signal": "MARKED",
+      "reason": ""
+    },
+    {
+      "path": "scripts/ops/erp_build_step_runner.py",
+      "lineno": 389,
+      "kind": "raw_dml",
+      "func": "step_7_backfill_workflow",
+      "signal": "MARKED",
+      "reason": ""
+    }
+  ]
+}

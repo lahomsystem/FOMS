@@ -16,6 +16,7 @@ from db import get_db
 from models import Order, OrderAttachment, Notification, OrderEvent
 from foms.web.auth import login_required, get_user_by_id, log_access
 from foms.services.audit_message_display import describe_order_action
+from foms.services.common.table_version_counter import mark_tables_dirty
 from foms.services.orders.audit_order_context import order_audit_context
 from foms.services.datetime_kst import now_utc_naive
 from foms.api.notifications import (
@@ -176,6 +177,9 @@ def perform_drawing_transfer(
         new_keys = [((f or {}).get('key') or '').strip() for f in new_files]
         new_keys = [k for k in new_keys if k]
         if new_keys:
+            # HB-S1: query-level update() 는 ORM 세션 훅이 못 본다 — 커밋 시점
+            # 테이블 버전 카운터 증가 대상으로 직접 등재한다.
+            mark_tables_dirty(db, 'order_attachments')
             db.query(OrderAttachment).filter(
                 OrderAttachment.order_id == order_id,
                 OrderAttachment.storage_key.in_(new_keys)
