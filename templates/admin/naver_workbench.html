@@ -19,7 +19,7 @@
 {% block title %}네이버 수집{% endblock %}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260901c">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260901d">
 {% endblock %}
 
 {% block content %}
@@ -329,6 +329,39 @@
                     <a href="{{ url_for('order_edit.edit_order', order_id=row.order_id, open='erp-order') }}"
                        target="_blank" rel="noopener">#{{ row.order_id }} {{ row.customer }}</a>
                     <span class="wb-ghost__dim">{{ row.reason }}</span>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+        {#
+          여기서는 못 보내는 건 — 실측 대시보드 띠와 **같은 값**(build_preview)을 쓴다.
+          두 화면이 각자 세면 한쪽만 고쳐지는 날 다른 말을 한다.
+        #}
+        {% if bulk_dispatch.foreign %}
+        <div class="wb-bulkdispatch__linkline">
+            여기서는 못 보내는 건 {{ bulk_dispatch.foreign|length }}건 — 네이버 수집분이 없습니다.
+            <span class="wb-ghost__dim">{{ bulk_dispatch.coverage_from }}부터는 네이버 주문을 다 받아 왔습니다 — 그 뒤 접수인데 원본이 없으면 네이버 주문이 아닙니다.</span>
+            <ul class="wb-bulkdispatch__linklist">
+                {% for row in bulk_dispatch.foreign %}
+                <li>
+                    <a href="{{ url_for('order_edit.edit_order', order_id=row.order_id, open='erp-order') }}"
+                       target="_blank" rel="noopener">#{{ row.order_id }} {{ row.customer }}</a>
+                    <span class="wb-ghost__dim">{{ row.received_date }} 접수</span>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+        {% if bulk_dispatch.unknown %}
+        <div class="wb-bulkdispatch__linkline">
+            확인이 필요한 건 {{ bulk_dispatch.unknown|length }}건 — 수집 범위 밖이라 네이버 건인지 알 수 없습니다.
+            <ul class="wb-bulkdispatch__linklist">
+                {% for row in bulk_dispatch.unknown %}
+                <li>
+                    <a href="{{ url_for('order_edit.edit_order', order_id=row.order_id, open='erp-order') }}"
+                       target="_blank" rel="noopener">#{{ row.order_id }} {{ row.customer }}</a>
+                    <span class="wb-ghost__dim">{{ row.received_date }} 접수</span>
                 </li>
                 {% endfor %}
             </ul>
@@ -1188,5 +1221,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260901c" defer></script>
+<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260901d" defer></script>
 {% endblock %}

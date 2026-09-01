@@ -165,7 +165,7 @@ def test_workbench_has_backfill_form_and_progress_line():
 def test_workbench_asset_pins_move_together():
     """CSS·JS 를 고쳤으면 ``?v`` 핀이 함께 움직인다(SW staticCacheFirst)."""
     markup = _read(_TEMPLATE)
-    assert markup.count("?v=20260901c") == 2
+    assert markup.count("?v=20260901d") == 2
 
 
 def test_backfill_script_polls_progress_and_never_calls_naver():
@@ -186,3 +186,13 @@ def test_backfill_defaults_end_yesterday_and_span_within_limit(auth_client):
     start = datetime.fromisoformat(defaults["start"]).date()
     assert end == today - timedelta(days=1)
     assert (end - start) < bf.MAX_RANGE
+
+
+def test_strip_templates_speak_about_unsendable_orders():
+    """두 띠 모두 '여기서는 못 보낸다'를 말한다 — 침묵하면 사람은 빠진 줄도 모른다."""
+    for path in ("templates/admin/naver_workbench.html",
+                 "templates/measurement/partials/naver_dispatch_strip.html"):
+        markup = _read(path)
+        assert "bulk_dispatch.foreign" in markup, path
+        assert "bulk_dispatch.unknown" in markup, path
+        assert "네이버 수집분이 없습니다" in markup, path
