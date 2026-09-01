@@ -382,6 +382,22 @@ def test_maybe_send_meta_draft_noop(db, solapi_env, auto_on, stub_solapi_never):
     assert _outbox() == [] and _events(order.id) == []
 
 
+def test_maybe_send_soft_deleted_order_noop(db, solapi_env, auto_on, stub_solapi_never):
+    """휴지통(soft delete) 주문은 자동 발송 대상이 아니다 — 수동 API 의 404 와 같은 기준."""
+    order = _mk_order()
+    order.deleted_at = datetime.datetime(2026, 7, 4, 1, 2, 3)
+    db_session.commit()
+    ka.maybe_send_measure_alimtalk(order.id)
+    assert _outbox() == [] and _events(order.id) == []
+
+
+def test_maybe_send_status_deleted_order_noop(db, solapi_env, auto_on, stub_solapi_never):
+    """status='DELETED' 로 덮인 주문(legacy 일괄 삭제 경로)도 발송하지 않는다."""
+    order = _mk_order(status="DELETED")
+    ka.maybe_send_measure_alimtalk(order.id)
+    assert _outbox() == [] and _events(order.id) == []
+
+
 def test_maybe_send_without_measure_date_noop(db, solapi_env, auto_on, stub_solapi_never):
     order = _mk_order(_sd(schedule={"measurement": {"date": "", "time": ""}}))
     ka.maybe_send_measure_alimtalk(order.id)

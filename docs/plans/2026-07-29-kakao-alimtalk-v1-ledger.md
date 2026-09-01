@@ -61,7 +61,12 @@
 `order_not_found` 를 돌려준다 — `_load_order` 가 `Order.active_filter()` 를 쓰기 때문이다.
 `kakao_alimtalk._ineligible_reason` 은 draft 만 보고 삭제 축을 보지 않는다.
 영향: 삭제된 주문을 저장하는 경로(API 직접 호출, 삭제 직전 저장 레이스)에서 손님에게 안내가 나갈 수 있다.
-수정 후보: `_ineligible_reason` 에 `deleted_at is not None` → 미자격(슬롯 미소진 스킵) 추가.
+**수정 완료 (2026-09-01, 사용자 승인)**: `_is_deleted_order` 를 추가하고 `_ineligible_reason`
+판정 맨 앞(주문 존재 확인 바로 뒤)에 넣었다. 판정은 `Order.not_deleted_filter` 와 동치
+(`status=='DELETED'` 또는 `deleted_at` 채워짐). 사유 코드는 수동 API 와 같은
+`order_not_found` — 화면 3곳의 사유 문구 맵에 이미 있는 코드라 UI 변경이 없고,
+`_RECORDED_SKIP_REASONS` 에 없으므로 이력도 남기지 않고 멱등 슬롯도 쓰지 않는다.
+회귀 테스트 2개(soft delete·`status='DELETED'`)를 먼저 red 로 만든 뒤 고쳤다.
 
 ## 운영 상태 (2026-09-01 승격 후) — 정본
 
