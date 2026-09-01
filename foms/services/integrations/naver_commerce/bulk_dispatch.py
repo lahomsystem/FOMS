@@ -548,6 +548,108 @@ def select_targets(session: Session, *, on_date: str) -> list[BulkDispatchTarget
             if target.pending_link_ids]
 
 
+#: 안 붙은 수집분을 얼마나 뒤로 훑을지(일). 이보다 오래된 미연결분은 오늘 실측 건의
+#: 짝일 가능성이 낮고, 훑는 값이 커지면 대시보드 렌더가 그만큼 느려진다.
+UNLINKED_WINDOW_DAYS = 60
+
+#: 한 번에 훑을 미연결 수집분 상한. **닿으면 로그로 말한다** — 조용히 자르면 화면이
+#: "붙일 게 없다"고 거짓말한다.
+UNLINKED_SCAN_CAP = 300
+
+
+def find_unlinked_matches(session: Session, *, on_date: str) -> list[dict[str, Any]]:
+    """오늘 실측 주문에 **아직 안 붙은** 네이버 수집분을 전화로 짚어 준다 — 읽기 전용.
+
+    2026-09-01 운영에서 실제로 밟은 자리다: 주문 #5054(천화진)는 오늘 실측인데 발송 대상에
+    없었다. 수집은 08-28 에 끝나 있었고(링크 5행) **주문에 붙지 않았을 뿐**이다. 발송 대상
+    판정의 유일한 축이 "링크가 그 주문에 붙어 있는가" 라서, 안 붙은 집은 화면 어디에도
+    나타나지 않는다 — 사람은 그 집이 빠진 줄도 모른다.
+
+    **자동으로 붙이지 않는다.** 붙이기는 사람이 워크벤치에서 후보를 보고 고르는 일이고
+    (:func:`order_candidates.find_order_candidates`), 이 함수는 그 자리로 가라고 말할 뿐이다.
+    같은 이유로 판정 축은 **전화 한 가지**만 쓴다 — 이름만 같은 동명이인을 "붙이면 대상"
+    이라고 말하면 사람이 남의 주문을 붙인다.
+
+    Args:
+        session: DB 세션.
+        on_date: ``YYYY-MM-DD``.
+
+    Returns:
+        집 단위 dict 목록 — ``{"order_no", "link_id", "links", "order_id", "customer"}``.
+        짚을 게 없으면 빈 목록.
+    """
+    from datetime import timedelta
+
+    from foms.services.datetime_kst import now_utc_naive
+    from foms.services.phone_search import normalize_phone_digits
+
+    # 키 뽑기는 붙이기 후보 화면과 **같은 함수**를 쓴다. 정규화 규칙을 두 벌 두면 한쪽만
+    # 고쳐지는 날 두 화면이 다른 집을 짚는다.
+    from .order_candidates import _snapshot_keys
+
+    order_ids = _measurement_order_ids(session, on_date=on_date)
+    if not order_ids:
+        return []
+    linked = {
+        row[0] for row in session.query(ExternalOrderLink.order_id)
+        .filter(ExternalOrderLink.channel == CHANNEL,
+                ExternalOrderLink.order_id.in_(order_ids))  # perf-ok: 당일 실측분 batch
+        .distinct().all()
+    }
+    waiting = [oid for oid in order_ids if oid not in linked]
+    if not waiting:
+        return []
+
+    rows = (
+        session.query(Order.id, Order.customer_name, Order.erp_phone_digits, Order.phone)
+        .filter(Order.id.in_(waiting))  # perf-ok: 당일 실측분 batch
+        .all()
+    )
+    by_digits: dict[str, tuple[int, str]] = {}
+    for oid, name, erp_digits, phone in rows:
+        for value in (erp_digits, normalize_phone_digits(phone)):
+            if value:
+                by_digits.setdefault(str(value), (int(oid), str(name or "")))
+    if not by_digits:
+        return []
+
+    since = now_utc_naive() - timedelta(days=UNLINKED_WINDOW_DAYS)
+    loose = (
+        session.query(ExternalOrderLink)
+        .filter(ExternalOrderLink.channel == CHANNEL,
+                ExternalOrderLink.order_id.is_(None),
+                ExternalOrderLink.created_at >= since)
+        .order_by(ExternalOrderLink.id.desc())
+        .limit(UNLINKED_SCAN_CAP)
+        .all()
+    )
+    if len(loose) >= UNLINKED_SCAN_CAP:
+        logger.warning("[NAVER] 안 붙은 수집분이 상한 %d행에 닿았다 — 더 오래된 건 못 봤다 (%s)",
+                       UNLINKED_SCAN_CAP, on_date)
+
+    found: dict[str, dict[str, Any]] = {}
+    for link in loose:
+        keys = _snapshot_keys(link.raw_snapshot)
+        hit = None
+        for axis in ("recipient_phone", "orderer_phone"):
+            hit = by_digits.get(str(keys.get(axis) or ""))
+            if hit:
+                break
+        if not hit:
+            continue
+        order_no = (link.external_order_no or "").strip()
+        row = found.setdefault(order_no, {"order_no": order_no, "link_id": link.id,
+                                          "links": 0, "order_id": hit[0],
+                                          "customer": hit[1]})
+        row["links"] += 1
+        row["link_id"] = min(row["link_id"], link.id)
+    out = sorted(found.values(), key=lambda row: row["link_id"])
+    if out:
+        logger.info("[NAVER] %s 실측분 중 안 붙은 수집분 %d집 — 붙이면 발송 대상이 된다",
+                    on_date, len(out))
+    return out
+
+
 def _row_of(target: BulkDispatchTarget) -> dict[str, Any]:
     """집 1개를 템플릿이 읽는 평평한 dict 로 편다.
 
@@ -605,13 +707,20 @@ def build_preview(session: Session, *, on_date: str) -> dict[str, Any]:
     empty: dict[str, Any] = {"date": on_date, "count": 0, "eligible": 0, "blocked": 0,
                              "rows": [], "day_total": 0, "sent": 0, "failed": 0,
                              "last_sent_at": "", "last_sent_time": "", "state": "none",
-                             "day_rows": [], "show": False}
+                             "day_rows": [], "show": False, "unlinked": 0,
+                             "unlinked_rows": []}
     try:
         targets = build_day_summary(session, on_date=on_date)
+        # 안 붙은 수집분은 **대상이 0인 날에도** 말해야 한다 — 오늘 네이버 집이 하나도
+        # 안 잡히는 이유가 바로 그것일 수 있다(2026-09-01 천화진 건이 그랬다).
+        unlinked = find_unlinked_matches(session, on_date=on_date)
     except SQLAlchemyError as exc:  # 보조 정보라 화면을 막지 않는다(failopen — 로그로 남긴다)
         logger.warning("[NAVER] 발송 대상 미리보기 조회 실패(띠 생략): %s", exc, exc_info=True)
         return empty
     if not targets:
+        if unlinked:
+            return {**empty, "show": True, "unlinked": len(unlinked),
+                    "unlinked_rows": unlinked}
         return empty
 
     day_rows = [_row_of(target) for target in targets]
@@ -634,7 +743,8 @@ def build_preview(session: Session, *, on_date: str) -> dict[str, Any]:
             # 머리말은 "오늘"을 말하고 있으니 시:분만 쓴다. 날짜를 붙여 자르는 일을
             # 템플릿에 시키면 두 화면이 각자 자르다 한쪽이 어긋난다.
             "last_sent_time": last_sent_at[11:] if len(last_sent_at) >= 16 else "",
-            "state": state, "day_rows": day_rows, "show": True}
+            "state": state, "day_rows": day_rows, "show": True,
+            "unlinked": len(unlinked), "unlinked_rows": unlinked}
 
 
 def select_sendable(session: Session, *, on_date: str,
