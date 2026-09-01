@@ -61,4 +61,43 @@
 `order_not_found` 를 돌려준다 — `_load_order` 가 `Order.active_filter()` 를 쓰기 때문이다.
 `kakao_alimtalk._ineligible_reason` 은 draft 만 보고 삭제 축을 보지 않는다.
 영향: 삭제된 주문을 저장하는 경로(API 직접 호출, 삭제 직전 저장 레이스)에서 손님에게 안내가 나갈 수 있다.
-수정 후보: `_ineligible_reason` 에 `deleted_at is not None` → 미자격(슬롯 미소진 스킵) 추가.
+**수정 완료 (2026-09-01, 사용자 승인)**: `_is_deleted_order` 를 추가하고 `_ineligible_reason`
+판정 맨 앞(주문 존재 확인 바로 뒤)에 넣었다. 판정은 `Order.not_deleted_filter` 와 동치
+(`status=='DELETED'` 또는 `deleted_at` 채워짐). 사유 코드는 수동 API 와 같은
+`order_not_found` — 화면 3곳의 사유 문구 맵에 이미 있는 코드라 UI 변경이 없고,
+`_RECORDED_SKIP_REASONS` 에 없으므로 이력도 남기지 않고 멱등 슬롯도 쓰지 않는다.
+회귀 테스트 2개(soft delete·`status='DELETED'`)를 먼저 red 로 만든 뒤 고쳤다.
+
+## 운영 상태 (2026-09-01 승격 후) — 정본
+
+승격: PR #236 병합, production `4423afe36`. 자기 커밋 5개 cherry-pick(충돌 0), 승격 트리에서
+`import app` APP_OK · 알림톡 46 passed · pre_push_smoke exit 0 · CI 본 스위트 7522 passed.
+PR 검사 4종(test·pg-lane·harness·perf-gate) 전부 SUCCESS. 배포 후 web·WORKER·SIDEFX SUCCESS,
+`GET /login` 200.
+
+**운영 자동 발송은 켜지 않았다(사용자 결정: "자동은 필요없다, 예약 안내 발송을 눌렀을 때만").**
+
+| 발송 경로 | 지금 누가 보내나 | 근거 |
+|---|---|---|
+| 실측 예약 안내 **자동** | (꺼짐) 켜면 SIDEFX `ALIMTALK_SEND` handler | `foms/services/alimtalk_delivery_handler.py:71` |
+| 실측 예약 안내 **수동 버튼** | web 동기 | `foms/api/kakao/__init__.py:119` |
+| 공유 링크 **알림톡** | web 동기 (`sync_only`, 이관 불가) | `foms/api/share.py:1444`·`:1433` |
+| 공유 링크 **문자(SMS 폴백)** | web 동기 | `foms/api/share.py:1017` |
+| 발송 후 채널 확정 조회 | web 동기 | `foms/services/kakao_alimtalk.py:827` |
+
+즉 **지금 운영에서 실제로 나가는 알림톡·문자는 전부 web 이 보낸다.** SIDEFX 알림톡 handler 는
+코드만 올라가 대기 상태다. 운영 SIDEFX 에 `SOLAPI_*` 는 복사하지 않았다(불필요).
+
+### 자동 경로를 web 으로 되돌리지 않은 이유 (2026-09-01 재확인)
+자동이 꺼진 상태에서 되돌리기의 이득은 0이다 — 그 코드는 실행되지 않는다. 반면 비용은
+실재한다: T2b 한 건에 커밋 3개(본 작업 + writer 인벤토리 줄번호 + 순환 import 수리)가 들었고,
+나중에 자동을 켤 때 다시 SIDEFX 로 옮겨야 한다(동기 폴백과 handler 는 동시에 둘 수 없다 —
+같은 예약을 둘이 소비해 두 통이 나간다). 사용자 확인: **"나중에 쓸 수도 있다"** → 구조 유지.
+자동을 영원히 안 쓰기로 바뀌면, 그때의 정리는 '동기 복원'이 아니라 자동 경로(트리거 3곳 +
+handler + outbox 예약) 전면 제거이며 별도 계획·승인 대상이다.
+
+### 자동을 켤 때의 선결 (순서 고정)
+1. 운영 SIDEFX 에 `SOLAPI_*` 복사 → 2. SIDEFX 재배포 + handler 등록 확인 →
+3. 그 다음에야 web `FOMS_ALIMTALK_AUTO_ENABLED=1`.
+추가로 닫아야 할 구멍: `_solapi_send` 가 outbox 의 `provider_idempotency_key` 를 벤더로 안
+싣는다 — 워커가 발송 성공 직후·커밋 전에 죽으면 lease 만료 회수로 두 통이 나갈 수 있다.
