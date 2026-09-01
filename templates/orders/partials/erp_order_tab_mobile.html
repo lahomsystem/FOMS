@@ -356,7 +356,12 @@ ERP Order mobile-v2 tab pane.
                         <div class="field-grid-2">
                             <div class="field erp-mobile-inline">
                                 <label class="field__label" for="erp-manager">담당자</label>
-                                <textarea class="foms-textarea erp-autosize-textarea erp-flex-textarea" id="erp-manager" rows="1" data-erp-min-height="40" autocomplete="off" lang="ko"></textarea>
+                                <input type="text" class="foms-input" id="erp-manager" list="manager_name_options_mobile" autocomplete="off" lang="ko" placeholder="고르거나 직접 입력">
+                                <datalist id="manager_name_options_mobile">
+                                    {% for name in foms_manager_name_options() %}
+                                    <option value="{{ name }}"></option>
+                                    {% endfor %}
+                                </datalist>
                             </div>
                             <div class="field erp-mobile-inline">
                                 <label class="field__label" for="erp-construction-workers">시공 담당자</label>
