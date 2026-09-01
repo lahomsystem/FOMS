@@ -25,7 +25,7 @@
 | T1b | 승인 배선 — 큐·태스크·라우트 payload `approve` + 감사 라벨 분리 | 라우트가 `approve` 전달 · 문자열 `"false"` 방어 · `NAVER_INGEST_RETURN_APPROVE_ENQUEUE` 등재 | **DONE** |
 | T1c | 승인 화면 — 체크박스(기본 꺼짐)·빨간 띠 한 줄·중간 상태 띠·자산 핀 범프 | 모달 문구 계약 갱신 · `?v=` 핀 2곳 + 계약 2곳 함께 범프 | **DONE** |
 | T2 | 후보 0건일 때 주문 찾아서 붙이기 (검색 → 붙이기) | 검색 라우트 계약 · 후보 0건 화면에 진입점 노출 · 붙인 뒤 기존 흐름과 동일 | **DONE** |
-| T4 | 반품 **거부** (T8-S3) — 규격 확보 후 완성 | 선로 요청이 문서 그대로(`rejectReturnReason` 단일 필드) · 계약 37종 · `COLLECTING` 편입 + `COLLECT_DONE` 대조군 | **DONE (게이트 OFF)** |
+| T4 | 반품 **거부** (T8-S3) — 규격 확보 후 완성 | 선로 요청이 문서 그대로(`rejectReturnReason` 단일 필드) · 계약 37종 · `COLLECTING` 편입 + `COLLECT_DONE` 대조군 | **DONE — 운영 반영(PR #229 · `7976fb2c`), 게이트 OFF** |
 
 ### T4 규격 해소 (2026-09-01) — **막힌 곳이 열렸다**
 
@@ -52,6 +52,33 @@
 
 덤: 승인 문서가 "본문이 필요 없고"라고 적어 **T1 의 body 없는 승인 구현이 독립 재확인**됐다
 (`approvalData` 폐기 판단이 옳았다).
+
+### T4 운영 승격 (2026-09-01, PR #229 · production `7976fb2c`)
+
+**단독 승격이 불가능했다.** 이 세션 커밋은 2개(`e8f18f1f`·`731af6bf`)뿐인데 **T4 본체가
+운영에 아예 없었다** — `test_naver_return_reject.py`·`reject_templates.py`·설계서 전부
+`origin/production` 에 부재. 한 줄을 채우는 보수만 떼어 올릴 수 없어 T4 체인 8개를 통째로
+cherry-pick 했다(deploy HEAD merge 는 안 했다. 전 커밋이 T4 한 기능이다).
+
+체인: `944fdeac` `81b495d9` `156769ec`(설계서) → `5fd47b96`(본체) → `5f36d3be`(상용구)
+→ `eb2875ee`(원장) → `2e5c243c`(규격 확정) → `cf240f6a`(게이트 설명) → `63bf524e`(인벤토리).
+
+충돌 3건과 처리:
+
+* `foms_failopen_inventory.json`·`foms_audit_coverage_inventory.json` — **생성물이라 손으로
+  병합하지 않고 승격 트리(production 기준)에서 스캐너 재실행.** 558 catches / 0 unclassified ·
+  203 routes / unaudited 0 / 100.0%. 별도 커밋으로 분리해 무엇이 재생성인지 보이게 했다.
+* `docs/AI_STATUS.md` — 계보가 갈렸다. **production 쪽 유지**(승격 diff 에 AI_STATUS 없음).
+  운영 트리의 상태 문서를 deploy 계보로 덮으면 남의 기록이 사라진다.
+
+검증은 **승격 트리에서 직접** 돌렸다(승격 PR 이 본 스위트를 안 도는 구멍 때문):
+`tests/services/integrations` + `tests/domains` **7119 passed / 5 skipped** · `pre_push_smoke`
+exit 0 · `APP_OK`. PR 검사 4종(harness·perf-gate·pg-lane·test) 전부 pass.
+
+**머지해도 화면은 그대로다** — 게이트가 꺼진 채 올라갔다. `promote_completeness` 는
+incomplete 85건을 냈지만 대부분 `AI_STATUS`·failopen 인벤토리 공유 파일 잡음이었고,
+진짜 의존은 **운영 소스 grep**(`reject_return_product_order`·`RETURN_REJECTABLE_STATUSES`·
+`reject_templates.py` 부재)으로 판정했다.
 
 **남은 것은 게이트뿐.** 설계서 §6-2 순서: Railway 변수 `FOMS_NAVER_RETURN_REJECT_ENABLED=1`
 → **재배포해야 실행 중 프로세스가 든다**(변수만 넣으면 옛 env) → worker 1 대라 재배포 전
