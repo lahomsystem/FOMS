@@ -364,3 +364,77 @@ def test_send_alimtalk_audit_masked_no_token(client, db, ata_stub, clock):
     assert '01024736730' not in detail
     assert logs[0].detail['sent'] is True
     assert logs[0].detail['sender_source'] == 'brand'
+
+
+# --- 발송 흔적 칩(공유) ----------------------------------------------------------
+#
+# 사용자 요청 2026-09-01: 도면+계약서 묶음을 보냈으면 주문 화면 칩 자리에 '보냈다'가
+# 남아야 한다. 예약 안내 흔적(alimtalk_measurement)과 대칭이되 별개 레코드다.
+
+
+def test_bundle_send_records_share_trace(client, db, ata_stub, clock):
+    """묶음 발송이 sd['alimtalk_share'] 를 남기고 응답에도 실어 준다."""
+    order_id = _mk_order().id
+    uid = _login(client, 'trace1')
+    share_id, token = _mk_share(order_id, kind='bundle')
+
+    resp = _send(client, share_id, token)
+
+    assert resp.status_code == 200
+    last = resp.get_json()['data']['last_share']
+    assert last['kind'] == 'bundle' and last['channel'] == 'alimtalk'
+    assert last['error'] is None and last['sent_at']
+    assert last['sent_by'] == uid and last['sent_by_name'] == 'trace1'
+
+    record = (db_session.get(Order, order_id).structured_data or {}).get('alimtalk_share')
+    assert record == last
+
+
+def test_drawing_send_leaves_no_share_trace(client, db, ata_stub, clock):
+    """음성 대조군: 추적 대상이 아닌 종류(도면 단독)는 아무것도 안 남긴다."""
+    order_id = _mk_order().id
+    _login(client, 'trace2')
+    share_id, token = _mk_share(order_id, kind='drawing')
+
+    resp = _send(client, share_id, token)
+
+    assert resp.status_code == 200 and resp.get_json()['data']['last_share'] is None
+    assert 'alimtalk_share' not in (db_session.get(Order, order_id).structured_data or {})
+
+
+def test_failed_bundle_send_records_reason(client, db, ata_stub, clock, monkeypatch):
+    """벤더 실패도 흔적을 남긴다 — 실패를 숨기면 칩이 '안 보냄'과 구별되지 않는다."""
+    def _boom(**kwargs):
+        raise RuntimeError('vendor down')
+
+    monkeypatch.setattr(ka, '_solapi_send', _boom)
+    order_id = _mk_order().id
+    _login(client, 'trace3')
+    share_id, token = _mk_share(order_id, kind='bundle')
+
+    resp = _send(client, share_id, token)
+
+    last = resp.get_json()['data']['last_share']
+    assert last['sent_at'] is None and last['error']
+    record = (db_session.get(Order, order_id).structured_data or {}).get('alimtalk_share')
+    assert record['error'] == last['error']
+
+
+def test_share_trace_does_not_touch_measurement_record(client, db, ata_stub, clock):
+    """예약 안내 흔적을 덮지 않는다 — 두 레코드는 독립이다."""
+    order = _mk_order()
+    sd = dict(order.structured_data or {})
+    sd['alimtalk_measurement'] = {'sent_at': '2026-08-01T00:00:00', 'error': None}
+    order.structured_data = sd
+    from sqlalchemy.orm.attributes import flag_modified as _fm
+    _fm(order, 'structured_data')
+    db_session.commit()
+    order_id = order.id
+
+    _login(client, 'trace4')
+    share_id, token = _mk_share(order_id, kind='bundle')
+    _send(client, share_id, token)
+
+    fresh = (db_session.get(Order, order_id).structured_data or {})
+    assert fresh['alimtalk_measurement']['sent_at'] == '2026-08-01T00:00:00'
+    assert fresh['alimtalk_share']['kind'] == 'bundle'

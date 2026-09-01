@@ -341,3 +341,51 @@ def test_bundle_share_offered_on_both_alimtalk_surfaces() -> None:
     # 발송 흐름은 kind 를 그대로 서버에 넘긴다 — 종류별 분기를 JS 에 두지 않는다.
     js = _read("static/js/orders/erp-share.js")
     assert "bundle: '도면·계약서'" in js
+
+
+# --- 공유 링크 발송 흔적 칩 (2026-09-01) -----------------------------------------
+
+
+def test_share_trace_chip_rendered_from_structured_data() -> None:
+    """공유 칩도 예약 안내 칩과 같은 원리 — sd 만 읽고 서버 왕복 0."""
+    js = _read("static/js/orders/" + TRACE_JS.split("/")[-1])
+    assert "sd.alimtalk_share" in js
+    assert "function _buildShareChip(" in js
+    assert "slot.appendChild(shareChip)" in js
+
+
+def test_share_trace_chip_hidden_when_never_sent() -> None:
+    """공유 링크는 모든 주문에 보내지 않는다 — 미발송이면 칩 자체를 만들지 않는다."""
+    js = _read("static/js/orders/" + TRACE_JS.split("/")[-1])
+    assert "if (!record || (!record.sent_at && !record.error)) return null;" in js
+    # 'none' 변형을 쓰지 않는다는 사실을 CSS 쪽에서도 못박는다.
+    css = _read("static/css/orders/erp-alimtalk-trace.css")
+    assert ".erp-alimtalk-trace--share {" in css
+
+
+def test_share_send_publishes_trace_without_extra_fetch() -> None:
+    """세 발송 경로(원클릭·모달 알림톡·모달 문자)가 모두 응답의 last_share 를 흘려보낸다."""
+    js = _read("static/js/orders/erp-share.js")
+    assert js.count("_publishShareTrace(body.data.last_share)") == 3
+    assert "foms:share-trace-update" in js
+    trace = _read("static/js/orders/" + TRACE_JS.split("/")[-1])
+    assert "foms:share-trace-update" in trace
+
+
+def test_share_trace_assets_pinned_together() -> None:
+    """SW staticCacheFirst — 바뀐 자산은 핀을 함께 올려야 옛 코드가 안 산다."""
+    pin = "?v=20260901a"
+
+    def _pinned(body: str, asset: str) -> bool:
+        """자산 이름 바로 뒤에 이 핀이 붙어 있는지. 개수로 세면 같은 날짜를 쓰는
+        남의 자산이 하나 늘 때마다 이 테스트가 깨진다(실제로 CI 에서 깨졌다)."""
+        return "filename='" + asset + "') }}" + pin in body
+
+    layout = _read("templates/partials/shared/layout_scripts.html")
+    assert _pinned(layout, "js/orders/erp-alimtalk-trace.js")
+    order_js = _read("templates/orders/partials/erp_order_js.html")
+    assert _pinned(order_js, "css/orders/erp-alimtalk-trace.css")
+    assert _pinned(order_js, "js/orders/erp-share.js")
+    for surface in ("templates/measurement/dashboard.html",
+                    "templates/measurement/partials/dashboard_fragment.html"):
+        assert _pinned(_read(surface), "css/orders/erp-alimtalk-trace.css"), surface

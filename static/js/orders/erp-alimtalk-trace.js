@@ -62,6 +62,30 @@
         return record && typeof record === 'object' ? record : null;
     }
 
+    /** @returns {Object|null} 화면이 이미 들고 있는 마지막 공유 링크 발송 이력. */
+    function _shareRecord() {
+        const sd = window.__erpLastStructuredData;
+        if (!sd || typeof sd !== 'object') return null;
+        const record = sd.alimtalk_share;
+        return record && typeof record === 'object' ? record : null;
+    }
+
+    /**
+     * 공유 링크 이력 사본을 전역 구조화 데이터에 되꽂는다.
+     *
+     * @param {Object|null} record 발송 이력(없으면 null → 지운다).
+     */
+    function _storeShareRecord(record) {
+        if (!window.__erpLastStructuredData || typeof window.__erpLastStructuredData !== 'object') {
+            window.__erpLastStructuredData = {};
+        }
+        if (record && typeof record === 'object') {
+            window.__erpLastStructuredData.alimtalk_share = record;
+        } else {
+            delete window.__erpLastStructuredData.alimtalk_share;
+        }
+    }
+
     /**
      * 이력 사본을 화면 전역 구조화 데이터에 되꽂는다(다음 렌더의 입력).
      *
@@ -210,6 +234,51 @@
         return chip;
     }
 
+    //: 공유 종류 표기 — 서버 record.kind 와 같은 값.
+    const SHARE_KIND_LABELS = { drawing: '도면', estimate: '계약서', bundle: '도면·계약서' };
+
+    /**
+     * 공유 링크 발송 칩. **보낸 적이 없으면 아무것도 만들지 않는다** — 공유 링크는 모든
+     * 주문에 보내는 게 아니라서, 미발송 점선 칩을 늘 띄우면 정상 상태가 경고처럼 보인다.
+     *
+     * @param {Object|null} record 공유 발송 이력.
+     * @param {boolean} compact 좁은 폭 — 보낸 사람을 떨어뜨린다.
+     * @returns {HTMLElement|null} 칩(이력이 없으면 null).
+     */
+    function _buildShareChip(record, compact) {
+        if (!record || (!record.sent_at && !record.error)) return null;
+        const failed = !!record.error;
+        const chip = document.createElement('span');
+        chip.className = 'erp-alimtalk-trace erp-alimtalk-trace--'
+            + (failed ? 'failed' : 'share');
+        chip.setAttribute('data-foms-no-autodismiss', '1');
+        chip.setAttribute('data-erp-share-trace', '1');
+
+        const dot = document.createElement('span');
+        dot.className = 'erp-alimtalk-trace__dot';
+        dot.setAttribute('aria-hidden', 'true');
+        dot.textContent = failed ? '!' : '✓';
+        chip.appendChild(dot);
+
+        const kindLabel = SHARE_KIND_LABELS[record.kind] || '링크';
+        const via = record.channel === 'sms' ? '문자' : '알림톡';
+        _appendPart(chip, failed ? kindLabel + ' 발송 실패' : kindLabel + ' ' + via + ' 보냄',
+                    'erp-alimtalk-trace__label');
+
+        if (failed) {
+            _appendPart(chip, _reasonLabel(record.error), 'erp-alimtalk-trace__reason');
+        } else {
+            _appendPart(chip, _formatWhen(record.sent_at), 'erp-alimtalk-trace__when');
+            if (!compact) {
+                _appendPart(chip, record.sent_by_name || '', 'erp-alimtalk-trace__who');
+            }
+        }
+        chip.title = failed
+            ? '고객에게 공유 링크를 보내지 못했습니다.'
+            : '고객에게 공유 링크를 보낸 기록입니다.';
+        return chip;
+    }
+
     /** 모든 칩 자리를 현재 이력으로 다시 그린다. */
     function erpAlimtalkTraceRender() {
         const slots = document.querySelectorAll('[data-erp-alimtalk-trace]');
@@ -220,6 +289,8 @@
             const compact = slot.getAttribute('data-erp-alimtalk-trace') === 'compact';
             slot.textContent = '';
             slot.appendChild(_buildChip(record, compact));
+            const shareChip = _buildShareChip(_shareRecord(), compact);
+            if (shareChip) slot.appendChild(shareChip);
         }
     }
 
@@ -383,6 +454,13 @@
         _storeRecord(ev && ev.detail ? ev.detail.record : null);
         erpAlimtalkTraceRender();
         erpAlimtalkTraceScheduleProbe();
+    });
+
+    // 공유 발송 모듈이 방금 기록된 이력을 실어 보낸다(추가 조회 없음). 빈 값 게시는
+    // 예약 안내 칩과 같은 규칙으로 공유 칩을 지운다.
+    document.addEventListener('foms:share-trace-update', function (ev) {
+        _storeShareRecord(ev && ev.detail ? ev.detail.record : null);
+        erpAlimtalkTraceRender();
     });
 
     // 구조화 데이터가 늦게 도착하는 화면(주문 상세)은 로드 완료 신호를 받아 다시 그린다.
