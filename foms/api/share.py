@@ -19,6 +19,7 @@ import zipfile
 from typing import Any, Iterator, Optional
 
 from flask import Blueprint, Response, jsonify, render_template, request, session, url_for
+from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm.attributes import flag_modified
 
@@ -28,6 +29,7 @@ from foms.services import order_share as share_service
 from foms.services.audit_message_display import describe_order_action
 from foms.services.audit_writer import record_file_access
 from foms.services.datetime_kst import now_utc_naive
+from foms.services.erp_shipment_settings import load_erp_shipment_settings
 from foms.services.orders.audit_order_context import order_audit_context
 from foms.services.orders.drawing_transfer import _is_drawing_key
 from foms.services.sidefx_outbox import enqueue_side_effect
@@ -630,13 +632,49 @@ def _manager_sender_phone(order: Order) -> Optional[str]:
         return None
     matched = (
         db_session.query(User)
-        .filter(User.name == manager, User.is_active.is_(True),
+        .filter(func.trim(User.name) == manager, User.is_active.is_(True),
                 User.sender_phone.isnot(None))
         .order_by(User.id.asc())
         .first()
     )
     phone = ((matched.sender_phone if matched else None) or '').strip()
     return phone or None
+
+
+def _settings_manager_phone(order: Order) -> Optional[str]:
+    """출고설정 실측담당자 목록(``measurement_manager``)에서 담당자 전화번호를 찾는다.
+
+    ``users.sender_phone`` 은 솔라피에 등록된 **발신** 번호라 등록 절차를 거친 사람만
+    갖는다. 반면 이 목록은 실무가 이미 이름·전화로 관리하고 있어 표시용 연락처의
+    현실적인 정본이다 — 그래서 **표시 전용**이고 발신번호로는 쓰지 않는다
+    (미등록 번호를 from 으로 쓰면 발송 자체가 실패한다).
+
+    이름 비교는 양쪽 모두 공백을 걷어낸 뒤 한다 — 설정 입력과 주문 입력이 서로 다른
+    화면이라 공백 하나로 조용히 어긋나는 걸 막는다.
+
+    Args:
+        order: 대상 주문.
+
+    Returns:
+        등록된 전화번호(표시 형식 그대로) 또는 ``None``.
+    """
+    manager = (order.manager_name or '').strip()
+    if not manager:
+        return None
+    try:
+        settings = load_erp_shipment_settings() or {}
+    except Exception:  # pragma: no cover - 설정 조회 실패가 발송을 막지는 않는다
+        logger.warning('출고설정 담당자 연락처 조회 실패', exc_info=True)
+        return None
+    for entry in settings.get('measurement_manager') or []:
+        if not isinstance(entry, dict):
+            continue
+        if str(entry.get('name') or '').strip() != manager:
+            continue
+        phone = str(entry.get('phone') or '').strip()
+        if phone:
+            return phone
+    return None
 
 
 def _resolve_sender(order: Order, brand: str) -> tuple[Optional[str], Optional[str]]:
@@ -924,7 +962,9 @@ def _share_contact_phone(order: Order, brand: str) -> str:
 
     지방 주문은 협력사가 시공하지만 도면 컨펌은 본사 CS 가 받는다. 현장 담당자 번호를
     안내하면 컨펌 문의가 CS 를 건너뛰므로, 지방 주문에는 본사 대표번호를 넣는다
-    (사용자 결정 2026-08-25). 그 외에는 담당자 등록번호 → 브랜드 대표 → 구 폴백 순.
+    (사용자 결정 2026-08-25). 그 외에는 담당자 등록번호(``users.sender_phone``) →
+    출고설정 실측담당자 목록의 전화번호 → 브랜드 대표 → 구 폴백 순이다.
+    **발신번호와 달리** 표시용은 솔라피 등록 여부와 무관하므로 설정 목록을 함께 본다.
 
     Args:
         order: 대상 주문.
@@ -937,6 +977,7 @@ def _share_contact_phone(order: Order, brand: str) -> str:
         return _regional_contact_phone(brand)
     return (
         _manager_sender_phone(order)
+        or _settings_manager_phone(order)
         or ka._env(f'SOLAPI_SENDER_PHONE_{brand}')
         or ka._env('SOLAPI_SENDER_PHONE')
         or '고객센터'

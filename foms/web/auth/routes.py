@@ -647,7 +647,7 @@ def add_user():
     if request.method == 'POST':
         username = request.form.get('username')
         password = request.form.get('password')
-        name = request.form.get('name', '사용자')
+        name = (request.form.get('name') or '').strip() or '사용자'
         role = request.form.get('role')
         team = request.form.get('team')
         
@@ -726,7 +726,7 @@ def edit_user(user_id):
     if request.method == 'POST':
         # 어떤 필드도 아직 건드리기 전에 스냅샷 — username 은 아래에서 먼저 바뀐다.
         audit_before = _user_audit_snapshot(user)
-        name = request.form.get('name', '사용자')
+        name = (request.form.get('name') or '').strip() or '사용자'
         role = request.form.get('role')
         team = request.form.get('team')
         is_active = request.form.get('is_active') == 'on'
