@@ -1755,7 +1755,9 @@ def _bulk_dispatch_view(db) -> dict[str, Any]:
     from foms.services.datetime_kst import get_today_kst
     from foms.services.integrations.naver_commerce.bulk_dispatch import build_preview
 
-    return build_preview(db, on_date=get_today_kst().strftime("%Y-%m-%d"))
+    # 워크벤치는 언제나 오늘만 본다 — 실행 버튼이 열려도 되는 날이라는 뜻이다.
+    return {**build_preview(db, on_date=get_today_kst().strftime("%Y-%m-%d")),
+            "is_today": True}
 
 
 def _refresh_all_view(db) -> dict[str, Any]:

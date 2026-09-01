@@ -88,10 +88,16 @@ def _measurement_user_visibility_fingerprint(current_user) -> dict:
 
 
 def _naver_dispatch_preview(selected_date: str, today_date: str) -> dict:
-    """오늘 실측한 네이버 건 미리보기 값 — **오늘을 볼 때만** 채운다.
+    """그 날짜의 네이버 발송 상황 — **보는 날짜 그대로** 채운다.
 
-    다른 날짜를 보는 중에 "오늘 실측한 네이버 건"을 띄우면 화면이 거짓말을 한다. 실행
-    버튼이 붙는 날에는 더 나쁘다 — 옆에 다른 날짜 목록을 두고 오늘 것을 보내게 된다.
+    처음에는 오늘만 채웠다. 다른 날짜를 보는 중에 "오늘 실측한 네이버 건"을 띄우면 화면이
+    거짓말을 하고, 실행 버튼이 붙으면 더 나쁘다 — 옆에 다른 날짜 목록을 두고 오늘 것을
+    보내게 된다. 그런데 그 규율이 **지난 날 빠진 건을 통째로 감췄다**: 수집분이 주문에 안
+    붙으면 그 날 발송 대상에 아예 안 잡히는데(2026-09-01 천화진), 지난 날짜를 열어도
+    화면이 아무 말을 안 했다. 운영 잔량 21묶음 중 대부분이 **실측일이 이미 지난** 건이다.
+
+    그래서 값은 보는 날짜로 채우고, **불가역 조작만 오늘로 잠근다**(``is_today``).
+    거짓말을 막던 것은 날짜 자체가 아니라 그 버튼이었다.
 
     값 조립은 :func:`bulk_dispatch.build_preview` 가 한다(워크벤치와 **같은 함수**).
 
@@ -100,16 +106,14 @@ def _naver_dispatch_preview(selected_date: str, today_date: str) -> dict:
         today_date: 오늘(KST) 날짜 문자열.
 
     Returns:
-        띠 렌더 값. 오늘이 아니면 ``count`` 가 0이라 띠가 렌더되지 않는다.
+        띠 렌더 값 + ``is_today``. 그 날 볼 것이 없으면 ``show`` 가 거짓이라 안 뜬다.
     """
-    empty = {"date": today_date, "count": 0, "eligible": 0, "blocked": 0, "rows": []}
-    if selected_date != today_date:
-        return empty
     from foms.services.integrations.naver_commerce.bulk_dispatch import build_preview
 
-    from foms.services.integrations.naver_commerce.bulk_dispatch import build_preview
-
-    return build_preview(get_db(), on_date=today_date)
+    on_date = selected_date or today_date
+    preview = build_preview(get_db(), on_date=on_date)
+    preview["is_today"] = on_date == today_date
+    return preview
 
 
 @erp_measurement_dashboard_bp.route('/measurement')

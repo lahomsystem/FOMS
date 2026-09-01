@@ -110,16 +110,55 @@ def test_strip_absent_without_naver_link(client, today):
     assert "data-naver-dispatch-count=" not in _body(client)
 
 
-def test_strip_hidden_when_viewing_another_day(client, today):
-    """**다른 날짜를 보는 중에는 띠가 안 뜬다** — 화면이 거짓말하지 않게.
+def test_strip_does_not_show_todays_list_on_another_day(client, today):
+    """**다른 날짜에는 오늘 목록이 안 뜬다** — 화면이 거짓말하지 않게.
 
-    띠는 '오늘 실측한' 건을 말한다. 과거 날짜를 보는 중에 그대로 떠 있으면 사람이 그 목록이
-    지금 화면의 날짜라고 읽는다.
+    처음에는 날짜가 다르면 띠를 통째로 감췄다. 그 규율이 **지난 날 빠진 건까지 감춰서**
+    (2026-09-01 천화진) 지금은 보는 날짜로 값을 채운다. 감춰야 할 것은 날짜가 아니라
+    **오늘 것을 다른 날 화면에 얹는 일**이다 — 그 날 건이 없으면 여전히 안 뜬다.
     """
     _login(client)
     _naver_measured_today(today)
     assert 'data-naver-dispatch-count="1"' in _body(client)
     assert "data-naver-dispatch-count=" not in _body(client, "?date=2026-01-02")
+
+
+def test_past_day_shows_that_day_and_never_the_send_button(client, today):
+    """**지난 날짜도 그 날 것을 보여준다 — 다만 보내기 버튼은 없다.**
+
+    수집분이 주문에 안 붙으면 그 날 대상에 아예 안 잡히는데, 예전에는 지난 날짜를 열어도
+    화면이 아무 말을 안 했다(운영 잔량 21묶음 중 대부분이 실측일이 지난 건이다).
+
+    버튼만은 오늘로 잠근다 — 실행 라우트는 **오늘 대상을 서버가 다시 계산**하므로, 지난
+    날짜 목록 옆에 버튼이 있으면 다른 날을 보며 오늘 것을 보내게 된다.
+    """
+    _login(client, role="ADMIN")
+    past = "2026-08-20"
+    order = Order(received_date=past, customer_name="지난날고객",
+                  phone="010-4444-5555", address="서울 강남구 테헤란로 2",
+                  product="붙박이장", status="MEASURE", is_erp_order=True,
+                  measurement_completed=True, measurement_date=past,
+                  erp_measurement_date=past,
+                  structured_data={"schedule": {"measurement": {"date": past}}})
+    db_session.add(order)
+    db_session.commit()
+    db_session.add(OrderScheduleDate(order_id=int(order.id), kind="measurement",
+                                     date=past, source="beta_schedule"))
+    db_session.commit()
+    link = _collected(order_no=f"N-PAST-{_uid()}", product="붙박이장", amount=1_000_000)
+    row = db_session.get(ExternalOrderLink, int(link.id))
+    row.order_id = int(order.id)
+    row.sync_status = "LINKED"
+    db_session.commit()
+
+    body = _body(client, f"?date={past}")
+
+    assert 'data-naver-dispatch-count="1"' in body, "지난 날짜에도 그 날 것을 보여준다"
+    assert past in body, "어느 날짜 이야기인지 화면이 말해야 한다"
+    assert "지난 날짜입니다" in body
+    assert "data-naver-bulk-dispatch-run" not in body, (
+        "지난 날짜에 보내기 버튼이 있으면 다른 날을 보며 오늘 것을 보내게 된다"
+    )
 
 
 def test_strip_matches_workbench_count(client, today):
