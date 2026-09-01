@@ -57,6 +57,12 @@ __all__ = [
     "RETURN_REJECT_REASON_MAX",
     "RETURN_REJECTABLE_STATUSES",
     "RETURN_REJECT_FILLS",
+    "RETURN_APPROVABLE_STATUSES",
+    "CANCEL_APPROVABLE_STATUSES",
+    "approve_cancel",
+    "approve_return",
+    "is_cancel_approvable",
+    "is_return_approvable",
     "HEALTHY_SYNC_STATUSES",
     "CLOSE_NOW_RELATIONS",
 ]
@@ -1363,3 +1369,273 @@ def reject_return(session: Session, client: Any, *, link_id: int, reason: str,
     logger.info("[NAVER] 반품 거부 link=%s 성공=%d 실패=%d", link_id, len(ok_ids),
                 len(failures))
     return {"rejected": ok_ids, "skipped": [pid for pid in failures]}
+
+
+# --------------------------------------------------------------------------- #
+# 클레임 승인 — 취소 승인 신설 + 반품 승인 독립 경로 (T9)
+#
+# 두 승인 모두 **환불이 확정되고 되돌리는 엔드포인트가 없다.** 그래서 규율이 거부와 같다:
+# 술어를 화면과 한 벌로 두고, 보류가 걸린 건은 우리가 풀지 않으며, 대상이 0건이면 조용히
+# 성공하지 않고 :class:`FulfillmentError` 를 올린다.
+# --------------------------------------------------------------------------- #
+
+#: ``triage_state`` 안 **취소 축** 키. ``fulfillment`` 축의 ``canceled_at``("우리가 취소를
+#: 냈다")과 의미가 다른 값이라 같은 칸에 섞지 않는다. 반품 축(``return``)과 대칭이다.
+CANCEL_STATE_KEY = "cancel"
+
+#: 취소 **승인**을 걸 수 있는 클레임 상태 (2026-09-01 공식 흐름도 규정 문장).
+#:
+#: 분기 C 가 ``CANCEL_REQUEST``(발주확인 후 취소요청)에서 ``approveCancelApplication`` →
+#: 환불처리 → ``CANCEL_DONE`` 을 적고, 분기 B 가 환불처리 불가로 ``CANCELING`` 에 머문
+#: 건도 같은 호출로 재판정한다고 적는다. ``CANCEL_DONE``·``CANCEL_REJECT`` 는 계약
+#: 테스트의 **음성 대조군**이다 — 관측된 값이라고 승인 대상에 넣지 않는다.
+CANCEL_APPROVABLE_STATUSES = ("CANCEL_REQUEST", "CANCEL_REQUESTED", "CANCELING")
+
+
+def _cancel_axis_state(link: ExternalOrderLink) -> dict[str, Any]:
+    """``triage_state['cancel']`` 을 준다(없으면 빈 dict) — T9 자기표식.
+
+    Args:
+        link: 읽을 링크.
+
+    Returns:
+        취소 축 상태 dict(읽기용 참조).
+    """
+    state = link.triage_state or {}
+    value = state.get(CANCEL_STATE_KEY)
+    return value if isinstance(value, dict) else {}
+
+
+def _write_cancel_axis_state(link: ExternalOrderLink, patch: dict[str, Any]) -> None:
+    """``triage_state['cancel']`` 에 patch 를 병합한다 (JSONB 수정 규약).
+
+    Args:
+        link: 쓸 링크.
+        patch: 병합할 키/값.
+    """
+    state = copy.deepcopy(link.triage_state or {})
+    bucket = state.get(CANCEL_STATE_KEY)
+    if not isinstance(bucket, dict):
+        bucket = {}
+    bucket.update(patch)
+    state[CANCEL_STATE_KEY] = bucket
+    link.triage_state = state
+    flag_modified(link, "triage_state")
+
+
+def is_cancel_approvable(link: ExternalOrderLink) -> bool:
+    """이 상품주문에 **취소 승인을 보낼 것인가** — 화면과 서버의 공통 술어 (T9-G1).
+
+    :func:`approve_cancel` 이 실제로 보낼 대상을 고르는 조건 그대로다.
+    :func:`is_return_rejectable` 과 같은 세 조건이고, 한 벌만 두는 이유도 같다 —
+    화면이 집 전체 수로 재진술하면 "3건 승인합니다"로 읽히는데 서버는 요청이 걸린 1건만
+    보낸다. **불가역 경로에서 그 과대 진술이 곧 사고다.**
+
+    1. 클레임 상태가 :data:`CANCEL_APPROVABLE_STATUSES` 안이다.
+    2. **보류가 걸려 있지 않다.** 걸렸으면 우리가 풀지 않는다(승인·거부와 같은 규율).
+    3. 아직 우리가 승인하지 않았다. 멱등은 **우리 표식**으로만 판정한다 — 네이버가 주는
+       ``cancelApprovalDate``(:func:`mapping.extract_claim` 의 ``cancel_approved_at``)는
+       판매자센터 수동분과 API 분을 갈라 주지 않는 **읽기** 값이다.
+
+    Args:
+        link: 수집 링크.
+
+    Returns:
+        취소 승인을 보낼 건이면 True.
+    """
+    from foms.services.integrations.naver_commerce.mapping import (
+        extract_claim,
+        extract_claim_holdback,
+    )
+
+    snapshot = link.raw_snapshot or {}
+    status = str(extract_claim(snapshot).get("status") or "")
+    if status not in CANCEL_APPROVABLE_STATUSES:
+        return False
+    if extract_claim_holdback(snapshot).get("holdback_status"):
+        return False
+    return not _cancel_axis_state(link).get("approved_at")
+
+
+def is_return_approvable(link: ExternalOrderLink) -> bool:
+    """이 상품주문에 **반품 승인을 보낼 것인가** — 화면과 서버의 공통 술어 (T9-G2).
+
+    독립 승인 경로가 생기면서 필요해졌다. 접수 경로(:func:`request_return` → 내부
+    ``_approve_returns``)는 "방금 접수에 성공한 건"이라는 전제로 대상을 골랐는데,
+    **고객이 먼저 낸 반품은 우리 ``requested_at`` 이 없다.** 그 전제를 그대로 쓰면
+    독립 버튼이 주 대상을 통째로 놓친다.
+
+    조건은 :func:`is_return_rejectable` 과 같은 모양이고 상태 목록만 다르다 —
+    :data:`RETURN_APPROVABLE_STATUSES` 를 **넓히지도 좁히지도 않고** 그대로 쓴다
+    (수거중·수거완료가 들어 있는 근거는 그 상수의 주석 참조).
+
+    Args:
+        link: 수집 링크.
+
+    Returns:
+        반품 승인을 보낼 건이면 True.
+    """
+    from foms.services.integrations.naver_commerce.mapping import (
+        extract_claim,
+        extract_claim_holdback,
+    )
+
+    snapshot = link.raw_snapshot or {}
+    status = str(extract_claim(snapshot).get("status") or "")
+    if status not in RETURN_APPROVABLE_STATUSES:
+        return False
+    if extract_claim_holdback(snapshot).get("holdback_status"):
+        return False
+    state = _return_state(link)
+    return not (state.get("approved_at") or state.get("rejected_at"))
+
+
+def approve_cancel(session: Session, client: Any, *, link_id: int,
+                   actor_user_id: Optional[int] = None,
+                   now: Optional[datetime] = None) -> dict[str, Any]:
+    """구매자가 낸 **취소 요청을 승인**한다 (WORKER 실행, T9-G1).
+
+    거부·접수와 같은 모양이다 — 네이버 취소 승인은 상품주문 1건씩이라 집을 돌며 부르고,
+    한 건이 실패해도 나머지는 계속 부른다. 반쪽만 처리된 채 사람이 사유를 못 보는 상태가
+    제일 나쁘다.
+
+    **되돌릴 수 없다.** 승인 시점에 결제 환불이 자동 처리된다. 취소를 **거절**하는 API 는
+    존재하지 않는다(철회는 구매자만 한다) — 잘못 눌러도 되돌릴 곳이 없다.
+
+    **FOMS 주문은 건드리지 않는다**(접수·취소·거부와 같은 규율). 주문 이력 표식은
+    라우트의 일이다 — 여기서 하면 워커 실패 때 이력만 남는다. ERP 주문을 접는 것도
+    이 함수의 일이 아니다(유령 폐기 버튼이 계속 담당한다).
+
+    Args:
+        session: DB 세션(호출자가 commit 을 소유한다).
+        client: 커머스API 클라이언트.
+        link_id: 기준 링크 id(같은 집 전체가 함께 처리된다).
+        actor_user_id: 누른 사람(기록용).
+        now: 시각 주입(테스트).
+
+    Returns:
+        ``{"approved": [...], "skipped": [...]}``.
+
+    Raises:
+        FulfillmentError: 승인할 건이 하나도 없거나, 네이버 호출이 전부 실패했을 때.
+    """
+    stamp = now or now_utc_naive()
+    links = _links_of_group(session, link_id)
+    if not links:
+        raise FulfillmentError(f"수집 기록을 찾을 수 없습니다 (link {link_id}).")
+
+    # 술어는 화면과 **한 벌**이다. 여기서 다시 구현하면 재진술 건수와 처리 건수가 갈린다.
+    todo = [row for row in links if is_cancel_approvable(row)]
+    if not todo:
+        raise FulfillmentError(
+            "승인할 취소 요청이 없습니다 — 이미 승인됐거나, 네이버가 보류를 걸어 둔 "
+            "건입니다(보류는 판매자센터에서 처리하세요).")
+
+    ok_ids: list[str] = []
+    failures: dict[str, str] = {}
+    by_id = {str(row.external_id): row for row in todo}
+    for pid, row in by_id.items():
+        try:
+            response = client.approve_cancel_product_order(pid)
+        except Exception as exc:  # noqa: BLE001 - 사유를 사람에게 그대로 보여준다
+            failures[pid] = str(exc)[:500]
+            logger.error("[NAVER] 취소 승인 실패 link=%s pid=%s: %s", link_id, pid, exc,
+                         exc_info=True)
+            continue
+        ok, fails = _split_result(response, [pid])
+        ok_ids.extend(ok)
+        failures.update(fails)
+
+    for pid in ok_ids:
+        _write_cancel_axis_state(by_id[pid], {
+            "approved_at": stamp.isoformat(),
+            "approved_by": actor_user_id,
+            "approve_skipped_reason": "",
+        })
+    if failures:
+        for pid, why in failures.items():
+            _write_cancel_axis_state(by_id[pid],
+                                     {"approve_skipped_reason": f"승인 실패: {why}"[:500]})
+        # fulfillment 축에도 남긴다 — 화면의 실패 띠(last_error)가 이 축만 읽는다.
+        _mark_failures(by_id, failures, action="cancel-approve", stamp=stamp)
+    session.flush()
+
+    if failures and not ok_ids:
+        detail_text = "; ".join(f"{pid}: {why}" for pid, why in failures.items())
+        raise FulfillmentError(f"취소 승인이 실패했습니다 — {detail_text}")
+    logger.info("[NAVER] 취소 승인 link=%s 성공=%d 실패=%d", link_id, len(ok_ids),
+                len(failures))
+    return {"approved": ok_ids, "skipped": [pid for pid in failures]}
+
+
+def approve_return(session: Session, client: Any, *, link_id: int,
+                   actor_user_id: Optional[int] = None,
+                   now: Optional[datetime] = None) -> dict[str, Any]:
+    """고객이 낸 **반품 요청을 승인**한다 — 접수와 분리된 독립 경로 (WORKER 실행, T9-G2).
+
+    **환불이 확정된다. 되돌리는 엔드포인트가 없다.**
+
+    기존 ``_approve_returns`` 를 **그대로 감싼다** — 시그니처도 부작용도 손대지 않는다.
+    접수 경로(:func:`request_return`)가 같은 함수를 쓰고 있어서, 여기서 그 함수를 고치면
+    이미 운영에 나간 접수+승인 체크박스가 함께 흔들린다. 래퍼가 하는 일은 셋뿐이다:
+
+    * 대상 선별을 :func:`is_return_approvable` 로 새로 한다(접수 성공분 전제가 없다).
+    * ``_approve_returns`` 가 요구하는 ``by_id``(pid→링크 **전수**)를 만들어 넘긴다 —
+      그 함수가 실패 pid 를 ``by_id[failed_pid]`` 로 직접 인덱싱한다.
+    * 실패를 fulfillment 축(``last_error``)에도 남기고 flush 한다.
+
+    :func:`_claim_guard` 는 **부르지 않는다** — 반품 요청 자체가 불가역 조작을 막는
+    클레임(``blocks_irreversible``)이라 전건 거절된다. 승인은 그 클레임을 **끝내는**
+    조작이지 그 위에 얹는 조작이 아니다.
+
+    Args:
+        session: DB 세션(호출자가 commit 을 소유한다).
+        client: 커머스API 클라이언트.
+        link_id: 기준 링크 id(같은 집 전체가 함께 처리된다).
+        actor_user_id: 누른 사람(기록용).
+        now: 시각 주입(테스트).
+
+    Returns:
+        ``{"approved": [...], "skipped": [...]}``.
+
+    Raises:
+        FulfillmentError: 승인할 건이 하나도 없거나, 한 건도 승인되지 않았을 때.
+    """
+    stamp = now or now_utc_naive()
+    links = _links_of_group(session, link_id)
+    if not links:
+        raise FulfillmentError(f"수집 기록을 찾을 수 없습니다 (link {link_id}).")
+
+    todo = [row for row in links if is_return_approvable(row)]
+    if not todo:
+        raise FulfillmentError(
+            "승인할 반품 요청이 없습니다 — 이미 승인·거부됐거나, 네이버가 보류를 걸어 둔 "
+            "건입니다(보류는 판매자센터에서 처리하세요).")
+
+    by_id = {str(row.external_id): row for row in links}
+    pids = [str(row.external_id) for row in todo]
+    approved = _approve_returns(client, by_id, pids, stamp=stamp,
+                                actor_user_id=actor_user_id, link_id=link_id)
+
+    skipped = [pid for pid in pids if pid not in set(approved)]
+    if skipped:
+        # _approve_returns 는 반품 축에만 사유를 남긴다. 화면 실패 띠는 fulfillment
+        # 축을 읽으므로 여기서 옮겨 적는다 — 안 그러면 400 이 어디에도 안 보인다.
+        failures = {
+            pid: str(_return_state(by_id[pid]).get("approve_skipped_reason")
+                     or "승인되지 않았습니다.")[:500]
+            for pid in skipped
+        }
+        _mark_failures(by_id, failures, action="return-approve", stamp=stamp)
+    session.flush()
+
+    if not approved:
+        detail_text = "; ".join(
+            "{0}: {1}".format(
+                pid,
+                _return_state(by_id[pid]).get("approve_skipped_reason") or "사유 없음")
+            for pid in skipped)
+        raise FulfillmentError(f"반품 승인이 실패했습니다 — {detail_text}")
+    logger.info("[NAVER] 반품 승인(독립) link=%s 성공=%d 실패=%d", link_id, len(approved),
+                len(skipped))
+    return {"approved": approved, "skipped": skipped}

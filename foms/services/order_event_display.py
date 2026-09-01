@@ -187,6 +187,10 @@ def translate_event_type_to_korean(event_type: str | None) -> str:
         # 반품 거부(T8-S3). 워크벤치를 안 여는 담당자가 나중에 맥락을 읽는 자리다 —
         # 왜 이 주문의 반품이 안 받아들여졌는지는 주문 이력에만 남는다.
         "NAVER_RETURN_REJECTED": "네이버 반품 거부",
+        # 승인 2종(T9). 거부만 이력에 남고 **환불은 안 남는 장부**가 되지 않게 함께 등재한다
+        # — 돈이 나간 사실이 워크벤치 밖에서 읽히지 않으면 나중에 아무도 설명을 못 한다.
+        "NAVER_CANCEL_APPROVED": "네이버 취소 승인",
+        "NAVER_RETURN_APPROVED": "네이버 반품 승인",
         "manager_changed": "담당자 변경",
         "order_updated": "주문 수정",
     }
@@ -356,6 +360,34 @@ def _describe_naver_return_reject(payload: dict[str, Any]) -> str:
     return f"{head} — 보낸 문장: “{reason}”" if reason else head
 
 
+def _describe_naver_claim_approve(event_type: str, payload: dict[str, Any]) -> str:
+    """취소·반품 **승인**을 "몇 건에 얼마가 환불됐나" 문장으로 만든다 (T9).
+
+    거부(:func:`_describe_naver_return_reject`)와 짝이다. 거부는 보낸 **문장**이 핵심이고
+    승인은 **돈이 나갔다**는 사실이 핵심이라, 싣는 값이 다르다 — 승인에는 구매자에게 가는
+    문장 자체가 없다(네이버 규격이 본문을 받지 않는다).
+
+    Args:
+        event_type: ``NAVER_CANCEL_APPROVED`` 또는 ``NAVER_RETURN_APPROVED``.
+        payload: 이벤트 payload(``external_order_no``·``product_order_count``).
+
+    Returns:
+        사람이 읽는 한 문장.
+    """
+    kind = "취소" if event_type == "NAVER_CANCEL_APPROVED" else "반품"
+    order_no = str(payload.get("external_order_no") or "").strip()
+    try:
+        count = int(payload.get("product_order_count") or 0)
+    except (TypeError, ValueError):
+        count = 0
+    head = f"네이버 {kind} 요청을 승인했습니다"
+    if order_no:
+        head = f"네이버 주문 {order_no} 의 {kind} 요청을 승인했습니다"
+    if count:
+        head = f"{head} ({count}건)"
+    return f"{head} — 환불이 확정됩니다"
+
+
 def generate_change_description(
     event_type: str,
     target_kr: str,
@@ -444,6 +476,9 @@ def generate_change_description(
 
     if event_type == "NAVER_RETURN_REJECTED":
         return _describe_naver_return_reject(payload)
+
+    if event_type in ("NAVER_CANCEL_APPROVED", "NAVER_RETURN_APPROVED"):
+        return _describe_naver_claim_approve(event_type, payload)
 
     if event_type == "CHANGE_REVERTED":
         return f"이전 변경사항을 되돌렸습니다 ({translate_target_to_korean(payload.get('target', ''))})"
