@@ -7,6 +7,7 @@ import datetime
 import hashlib
 import json
 import logging
+import re
 import time
 import uuid
 from typing import Any, List, Mapping, Optional, Tuple
@@ -829,6 +830,37 @@ def _emit_order_created_event(order: Order) -> None:
     ))
 
 
+def _is_placeholder_phone(phone: str) -> bool:
+    """실제 연락처가 아닌 자리표시자 전화인가.
+
+    ``000-0000-0000`` 한 값만 막던 시절의 구멍: 운영 주문 #4648 의 정본에
+    ``000000000`` 이 들어가 있다(사람이 편집 중 남긴 값). 문자열 비교 한 줄로는 그 변형을
+    못 걸러서, 정본을 따라가는 flat 동기가 **진짜 번호를 자리표시자로 덮는다.**
+
+    판정은 숫자만 남긴 뒤에 한다 — 하이픈 유무·자릿수 변형이 전부 같은 값으로 접힌다.
+
+    Args:
+        phone: 정본에 들어 있는 전화 문자열.
+
+    Returns:
+        자리표시자(전부 0이거나 숫자가 모자람)면 True.
+
+    >>> _is_placeholder_phone('000-0000-0000')
+    True
+    >>> _is_placeholder_phone('000000000')
+    True
+    >>> _is_placeholder_phone('010-3468-7933')
+    False
+    """
+    digits = re.sub(r'[^0-9]', '', phone or '')
+    if not digits:
+        return True
+    if set(digits) == {'0'}:
+        return True
+    # 시내번호(02-xxx-xxxx)까지 살리려면 9자리가 하한이다.
+    return len(digits) < 9
+
+
 def _sync_identity_flat_columns(order: Order, structured_data: dict) -> None:
     """고객 신원 flat 컬럼(``customer_name``·``phone``)을 structured_data 에 맞춘다.
 
@@ -862,7 +894,7 @@ def _sync_identity_flat_columns(order: Order, structured_data: dict) -> None:
     # draft 가 심어둔 플레이스홀더는 실제 값을 덮지 않는다.
     if cust_name and cust_name not in _CUSTOMER_PLACEHOLDERS:
         order.customer_name = cust_name
-    if cust_phone and cust_phone != '000-0000-0000':
+    if cust_phone and not _is_placeholder_phone(cust_phone):
         order.phone = cust_phone
 
 
