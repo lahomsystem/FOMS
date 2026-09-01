@@ -27,6 +27,7 @@ from sqlalchemy.orm.attributes import flag_modified
 from db import db_session
 from foms.services import kakao_alimtalk as ka
 from foms.services import order_share as share_service
+from foms.services import order_share_history as share_history
 from foms.services.audit_message_display import describe_order_action
 from foms.services.audit_writer import record_file_access
 from foms.services.datetime_kst import (format_datetime_kst, get_today_kst,
@@ -37,7 +38,8 @@ from foms.services.orders.drawing_transfer import _is_drawing_key
 from foms.services.sidefx_outbox import enqueue_side_effect
 from foms.services.storage import get_storage
 from foms.web.auth import log_access, login_required, role_required
-from models import Order, OrderAttachment, OrderEvent, OrderShareToken, User
+from models import (Order, OrderAttachment, OrderEvent, OrderShareSnapshot,
+                    OrderShareToken, User)
 
 # 합본 사진(drawings-sheet.png) 합성용. storage.py 와 같은 가드 방식 — Pillow 가 없는
 # 런타임에서도 앱 import 는 살아 있어야 하고, 합본 라우트만 fail-closed(503) 로 죽는다.
@@ -304,7 +306,7 @@ def _is_kakao_inapp(user_agent: Optional[str]) -> bool:
     return 'KAKAOTALK' in (user_agent or '').upper()
 
 
-def _live_estimate_snapshot(row, order) -> Optional[dict]:
+def _live_estimate_snapshot(row, order) -> tuple[Optional[dict], str]:
     """계약서 렌더 데이터를 **열람 시점에 다시 만든다**(라이브 반영).
 
     발급 시점 동결(D6)에서 바뀐 지점이다. 금액·품목을 고친 뒤 새 링크를 다시 보내야
@@ -322,7 +324,9 @@ def _live_estimate_snapshot(row, order) -> Optional[dict]:
         order: 대상 주문(활성 검증 완료).
 
     Returns:
-        렌더용 dict. 라이브 재구성도 저장본도 없으면 ``None``(호출자가 503).
+        ``(렌더용 dict, 출처)`` 튜플. 출처는 ``live``/``stored`` — 열람 이력 원장
+        (SHARE-HIST-00)이 "왜 옛 금액이 떴나"를 답하려면 이 구별이 필요하다.
+        라이브 재구성도 저장본도 없으면 dict 자리가 ``None``(호출자가 503).
     """
     stored = row.snapshot if isinstance(row.snapshot, dict) and row.snapshot else None
     try:
@@ -330,9 +334,9 @@ def _live_estimate_snapshot(row, order) -> Optional[dict]:
     except share_service.SnapshotTooLargeError:
         logger.warning('공유 계약서 라이브 재구성 실패(항목 과다) — 발급본 사용: share_id=%s',
                        row.id)
-        return stored
+        return stored, share_history.SOURCE_STORED
     if not isinstance(live, dict) or not live:
-        return stored
+        return stored, share_history.SOURCE_STORED
     # 날짜 두 개를 가른다.
     #  * issued_date — 이 내용이 **언제 기준인지**. 주문이 마지막으로 바뀐 날을 쓴다.
     #    오늘 날짜를 박으면 아무것도 안 바뀐 계약서의 날짜가 매일 굴러간다.
@@ -343,7 +347,30 @@ def _live_estimate_snapshot(row, order) -> Optional[dict]:
     live['issued_date'] = changed or get_today_kst().strftime('%Y-%m-%d')
     live['contract_no_date'] = ((stored or {}).get('issued_date')
                                 or live['issued_date'])
-    return live
+    return live, share_history.SOURCE_LIVE
+
+
+def _record_view_history(row, snapshot: dict, source: str) -> None:
+    """고객이 지금 본 계약서를 열람 원장에 남긴다 (SHARE-HIST-00).
+
+    라이브 반영으로 바뀐 뒤 "고객이 어제 본 금액"이 어디에도 없다는 공백을 메운다.
+    내용이 바뀐 순간에만 새 행이 쌓인다(같은 내용 재열람은 횟수만 증가).
+
+    **적재 실패가 고객 화면을 죽이면 안 된다** — 계약서를 못 보는 것이 이력이 한 건
+    비는 것보다 나쁘다. 다만 조용히 넘기지 않고 ``logger.error`` 로 남긴다. 호출 순서도
+    중요하다: 이 함수가 먼저 실행돼야 실패 시 rollback 이 ``record_view`` 증가분까지
+    되돌리지 않는다(호출자가 이 뒤에 ``record_view`` → ``commit`` 한다).
+
+    Args:
+        row: 공유 토큰 행.
+        snapshot: 화면에 렌더된 계약서 dict.
+        source: ``live`` 또는 ``stored``.
+    """
+    try:
+        share_history.record_snapshot_view(db_session, row, snapshot, source=source)
+    except Exception:  # noqa: BLE001 - 증거 적재 실패로 고객 열람을 막지 않는다
+        db_session.rollback()
+        logger.error('공유 계약서 열람 이력 적재 실패: share_id=%s', row.id, exc_info=True)
 
 
 @share_view_bp.get('/s/<token>')
@@ -362,11 +389,12 @@ def view_shared_order(token: str):
 
     if row.kind == 'estimate':
         # 라이브 반영 — 열람할 때마다 화이트리스트를 다시 태운다(사용자 결정 2026-09-01).
-        snap = _live_estimate_snapshot(row, order)
+        snap, snap_source = _live_estimate_snapshot(row, order)
         if not isinstance(snap, dict) or not snap:
             # 라이브도 저장본도 없다 — 빈 계약서를 보여주지 않는다.
             logger.error('estimate 공유 렌더 데이터 부재: share_id=%s', row.id)
             return _error_page(_MSG_UNAVAILABLE, 503)
+        _record_view_history(row, snap, snap_source)
         share_service.record_view(row)
         db_session.commit()
         record_file_access(
@@ -382,7 +410,7 @@ def view_shared_order(token: str):
     snapshot = None
     if row.kind == 'bundle':
         # 계약서 쪽은 estimate 와 같은 규칙 — 라이브 재구성.
-        snapshot = _live_estimate_snapshot(row, order)
+        snapshot, snapshot_source = _live_estimate_snapshot(row, order)
         if not isinstance(snapshot, dict) or not snapshot:
             logger.error('bundle 공유 렌더 데이터 부재: share_id=%s', row.id)
             return _error_page(_MSG_UNAVAILABLE, 503)
@@ -420,6 +448,8 @@ def view_shared_order(token: str):
         logger.error('공유 열람 presign 전멸: share_id=%s (%d건)', row.id, presign_failures)
         return _error_page(_MSG_UNAVAILABLE, 503)
 
+    if row.kind == 'bundle' and isinstance(snapshot, dict):
+        _record_view_history(row, snapshot, snapshot_source)
     share_service.record_view(row)
     db_session.commit()
     # 열람 감사(비로그인 user_id=None, PII 무). storage_key 는 공유 식별자로 기록 —
@@ -875,6 +905,89 @@ def api_share_list(order_id: int):
             'last_viewed_at': row.last_viewed_at.isoformat() if row.last_viewed_at else None,
         })
     return _envelope({'items': items}, None)
+
+
+@share_api_bp.route('/history/<int:share_id>', methods=['GET'])
+@login_required
+@role_required(_SHARE_ROLES)
+def api_share_history(share_id: int):
+    """공유 계약서 링크의 **고객 열람 이력** 목록 (SHARE-HIST-00).
+
+    계약서가 라이브 반영이라 같은 링크가 시점마다 다른 금액을 보여준다. 이 목록이
+    "고객이 언제 얼마짜리 계약서를 봤나"를 답한다. 내용이 바뀐 순간마다 1행이며,
+    같은 내용 재열람은 ``view_count`` 로 접힌다.
+
+    **스냅샷 원문은 싣지 않는다** — 목록 응답이 행마다 64KB 까지 부풀 수 있다.
+    원문은 ``/history/<snapshot_id>/page`` 가 그 시점 화면 그대로 렌더한다.
+
+    Args:
+        share_id: 공유 토큰 id (URL).
+
+    Returns:
+        ``data = {'items': [{snapshot_id, content_hash, source, first_viewed_at,
+        last_viewed_at, view_count, summary}]}`` 최신순 50건.
+    """
+    rows = share_history.list_rows(db_session, share_id)
+    items = [{
+        'snapshot_id': int(row.id),
+        'content_hash': row.content_hash,
+        'source': row.source,
+        'first_viewed_at': row.first_viewed_at.isoformat() if row.first_viewed_at else None,
+        'last_viewed_at': row.last_viewed_at.isoformat() if row.last_viewed_at else None,
+        'view_count': row.view_count or 0,
+        'summary': share_history.summarize(row.snapshot),
+    } for row in rows]
+    return _envelope({'items': items}, None)
+
+
+@share_api_bp.route('/history/<int:snapshot_id>/page', methods=['GET'])
+@login_required
+@role_required(_SHARE_ROLES)
+def api_share_history_page(snapshot_id: int):
+    """저장된 시점의 계약서를 **고객이 본 그 화면 그대로** 렌더한다 (SHARE-HIST-00).
+
+    증거로 쓰려면 같은 파셜·같은 CSS 여야 하므로 사본을 만들지 않고 고객 템플릿
+    (``share_estimate_view.html``)을 재사용한다. ERP 는 이 주소를 **새 탭**으로 연다 —
+    ERP 셸에 공유 전용 CSS 를 끌어들이지 않아 스타일 오염이 0 이다.
+
+    ``/api`` 접두어 아래 HTML 페이지가 되는 어색함은 감수한 것이다: 새 블루프린트·새
+    디렉토리는 네임스페이스 닫힌집합 게이트를 건드리는데, 이 페이지는 공유 열람 기능의
+    부속이라 그만한 값이 없다(스펙 §6).
+
+    Args:
+        snapshot_id: 열람 원장 행 id (URL).
+
+    Returns:
+        200 계약서 페이지, 404 없음.
+    """
+    row = (
+        db_session.query(OrderShareSnapshot)
+        .filter(OrderShareSnapshot.id == snapshot_id)
+        .one_or_none()
+    )
+    if row is None or not isinstance(row.snapshot, dict) or not row.snapshot:
+        return _error_page('요청하신 기록을 찾을 수 없습니다.', 404)
+
+    viewed_at = format_datetime_kst(row.first_viewed_at, '%Y-%m-%d %H:%M') or ''
+    log_access(
+        f'고객 열람 계약서 기록 조회 (주문 {row.order_id}, {viewed_at})',
+        session.get('user_id'),
+        action='SHARE_HISTORY_VIEWED', target_type='order', target_id=int(row.order_id),
+        detail={'snapshot_id': int(row.id), 'share_id': int(row.share_token_id),
+                'kind': row.kind, 'source': row.source, 'viewed_at': viewed_at},
+    )
+    return render_template(
+        'orders/share_estimate_view.html',
+        snap=row.snapshot,
+        # 고객 경로는 이 변수를 넘기지 않는다 — 템플릿이 정의 여부로 분기한다.
+        history_meta={
+            'viewed_at': viewed_at,
+            'last_viewed_at': format_datetime_kst(row.last_viewed_at, '%Y-%m-%d %H:%M') or '',
+            'view_count': row.view_count or 0,
+            'source': row.source,
+            'order_id': int(row.order_id),
+        },
+    )
 
 
 #: send-sms 멱등 시간버킷(초) — 같은 버킷 내 재요청은 outbox UNIQUE 가 DB 로 차단(플랜 §1).

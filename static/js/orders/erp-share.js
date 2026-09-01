@@ -107,12 +107,76 @@
             ? '<button type="button" class="btn btn-outline-danger btn-sm text-nowrap" data-share-revoke="'
               + item.share_id + '">회수</button>'
             : '';
-        return '<li class="list-group-item d-flex justify-content-between align-items-center gap-2">'
+        // 계약 내용이 있는 종류만 열람 기록이 쌓인다(도면 링크는 대상 아님 — SHARE-HIST-00).
+        var histBtn = (item.kind === 'estimate' || item.kind === 'bundle')
+            ? '<button type="button" class="btn btn-outline-secondary btn-sm text-nowrap" data-share-history="'
+              + item.share_id + '">고객이 본 내용</button>'
+            : '';
+        // 버튼이 셋(기록·회수·상태뱃지)까지 늘어 좁은 모달에서 한 줄에 안 들어간다 —
+        // 라벨을 자르는 대신 오른쪽 묶음이 아래로 접히게 한다(flex-wrap).
+        return '<li class="list-group-item d-flex justify-content-between align-items-center gap-2 flex-wrap">'
             + '<span class="small">' + (KIND_LABELS[item.kind] || item.kind) + ' · ' + created
             + ' · ' + views + '</span>'
             + '<span class="d-flex align-items-center gap-2 flex-shrink-0">'
-            + '<span class="badge text-nowrap ' + badgeTone + '">' + status + '</span>' + revokeBtn
+            + '<span class="badge text-nowrap ' + badgeTone + '">' + status + '</span>'
+            + histBtn + revokeBtn
             + '</span></li>';
+    }
+
+    /** 금액을 천단위 구분 문자열로. @returns {string} */
+    function _won(value) {
+        return (Number(value) || 0).toLocaleString('ko-KR') + '원';
+    }
+
+    /** 열람 기록 한 건을 li 로 렌더. @returns {string} */
+    function _historyItemHtml(row) {
+        var seen = String(row.first_viewed_at || '').replace('T', ' ').slice(0, 16);
+        var sum = row.summary || {};
+        var repeat = (row.view_count || 0) > 1 ? ' · ' + row.view_count + '회' : '';
+        var stored = row.source === 'stored' ? ' · 발급 저장본' : '';
+        return '<li class="list-group-item d-flex justify-content-between align-items-center gap-2">'
+            + '<span class="small">' + seen + repeat + stored
+            + '<br><span class="text-muted">잔금 ' + _won(sum.balance_amount)
+            + ' · 예약금 ' + _won(sum.deposit_amount)
+            + ' · 품목 ' + (sum.items_count || 0) + '개</span></span>'
+            + '<button type="button" class="btn btn-outline-primary btn-sm text-nowrap flex-shrink-0"'
+            + ' data-share-history-open="' + row.snapshot_id + '">그때 화면 보기</button>'
+            + '</li>';
+    }
+
+    /**
+     * 그 링크로 고객이 본 계약서 이력을 불러와 목록 아래에 편다.
+     *
+     * 계약서는 라이브 반영이라 같은 링크가 시점마다 다른 금액을 보여준다 — 이 목록이
+     * "고객이 언제 얼마짜리를 봤나"를 답한다. 내용이 바뀐 순간에만 한 줄이다.
+     *
+     * @param {string} shareId 공유 토큰 id.
+     */
+    function _openHistory(shareId) {
+        var box = document.getElementById('erp-share-history');
+        if (!box) return;
+        box.innerHTML = '<div class="small text-muted">불러오는 중…</div>';
+        fetch('/api/share/history/' + shareId, { credentials: 'same-origin' })
+            .then(function (res) { return res.json(); })
+            .then(function (body) {
+                if (!body || !body.success || !body.data) {
+                    box.innerHTML = '<div class="small text-danger">기록을 불러오지 못했습니다.</div>';
+                    return;
+                }
+                var items = body.data.items || [];
+                if (!items.length) {
+                    box.innerHTML = '<div class="small text-muted">아직 고객이 열람한 기록이 없습니다.</div>';
+                    return;
+                }
+                box.innerHTML = '<div class="small fw-semibold mb-1">고객이 본 계약서 기록 ('
+                    + items.length + '건)</div>'
+                    + '<ul class="list-group list-group-flush">'
+                    + items.map(_historyItemHtml).join('') + '</ul>';
+            })
+            .catch(function () {
+                box.innerHTML = '<div class="small text-danger">기록을 불러오지 못했습니다 — '
+                    + _label('network') + '</div>';
+            });
     }
 
     /** 발급 이력 목록을 다시 그린다. */
@@ -125,6 +189,9 @@
         }
         box.innerHTML = '<ul class="list-group list-group-flush">'
             + items.map(_itemHtml).join('') + '</ul>';
+        // 목록이 새로 그려지면 열려 있던 이력 패널은 어떤 링크의 것인지 알 수 없다 — 비운다.
+        var hist = document.getElementById('erp-share-history');
+        if (hist) hist.innerHTML = '';
     }
 
     /** GET list — 메타만 온다(URL·토큰 없음). */
@@ -576,6 +643,20 @@
         if (quickBtn) {
             ev.preventDefault();
             _quickAlimtalk(quickBtn);
+            return;
+        }
+        var histBtn = target.closest('[data-share-history]');
+        if (histBtn) {
+            ev.preventDefault();
+            _openHistory(histBtn.getAttribute('data-share-history'));
+            return;
+        }
+        var histOpen = target.closest('[data-share-history-open]');
+        if (histOpen) {
+            ev.preventDefault();
+            // 새 탭 — ERP 셸에 공유 전용 CSS 를 끌어들이지 않는다(스타일 오염 0).
+            window.open('/api/share/history/'
+                + histOpen.getAttribute('data-share-history-open') + '/page', '_blank');
             return;
         }
         var revokeBtn = target.closest('[data-share-revoke]');

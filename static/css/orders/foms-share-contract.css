@@ -769,3 +769,41 @@
     display: none;
   }
 }
+
+/* 직원용 열람 기록 배너 (SHARE-HIST-00, 2026-09-01) ─────────────────────────
+   `/api/share/history/<id>/page` 로 과거 시점 계약서를 열었을 때만 렌더된다.
+   고객 페이지는 `history_meta` 를 넘기지 않아 이 마크업 자체가 존재하지 않는다.
+   계약서 문서 본문과 섞이면 증거로 오독될 수 있어 문서 밖 상단에 띄우고,
+   저장용 클론에는 따라 들어가지 않게 한다. */
+.foms-share-hist {
+  box-sizing: border-box;
+  display: block;
+  max-width: 700px;
+  margin: 12px auto 0;
+  padding: 10px 14px;
+  border: 1px solid #d4b106;
+  border-radius: 6px;
+  background: #fffbe6;
+  color: #4b4b4b;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.foms-share-hist__title {
+  display: block;
+  color: #7c5c00;
+  font-size: 14px;
+}
+
+.foms-share-hist__meta,
+.foms-share-hist__note {
+  display: block;
+}
+
+.foms-share-hist__note {
+  color: #6b7280;
+}
+
+.foms-share-contract__export-clone .foms-share-hist {
+  display: none !important;
+}
