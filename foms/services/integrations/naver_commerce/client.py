@@ -41,6 +41,14 @@ MAX_WINDOW = timedelta(hours=23, minutes=59)
 #: 상세 조회 1회 배치 크기. 네이버 문서 상한(300)보다 보수적으로 잡아 타임아웃 위험을 줄인다.
 DETAIL_BATCH_SIZE = 100
 
+#: 변경분 조회 1회 응답 상한. 문서(2026-09-01)상 기본·상한 모두 300 이고, 300 을 넘겨 보내도
+#: 300 으로 캡된다. 명시해서 보내는 이유는 기본값이 바뀌어도 우리 페이징 계산이 안 흔들리게.
+LAST_CHANGED_LIMIT = 300
+
+#: 한 시간창에서 이어받기(more)를 돌 최대 쪽수. 300 * 50 = 15,000건/창 — 하루치로 넉넉하다.
+#: 상한이 필요한 이유는 서버가 진척 없는 ``more`` 를 계속 돌려줄 때 무한 루프가 되지 않게.
+LAST_CHANGED_MAX_PAGES = 50
+
 #: 만료 이 시간 전이면 토큰을 새로 받는다(경계에서 401 맞지 않게).
 TOKEN_REFRESH_MARGIN_SECONDS = 300
 
@@ -369,7 +377,13 @@ class NaverCommerceClient:
     def get_last_changed_statuses(self, start: datetime, end: datetime) -> list[dict]:
         """한 구간의 상태 변경 이벤트를 그대로 돌려준다(필터 없음).
 
-        구간이 API 상한을 넘으면 :func:`iter_time_windows` 로 잘라 순회한 뒤 이어 붙인다.
+        구간이 API 상한을 넘으면 :func:`iter_time_windows` 로 잘라 순회하고, 한 창의
+        응답이 상한(300건)을 넘어 ``data.more`` 가 오면 그 창 안에서 **이어받는다**.
+
+        이어받기를 하지 않으면 300건을 넘는 창에서 나머지가 **조용히 사라진다** — 5분 주기
+        정상 스윕에서는 드물지만 하루 창을 훑는 백필에서는 확실히 걸린다. 문서(2026-09-01)
+        규정: ``more.moreFrom`` 을 다음 요청의 시작 일시로, ``more.moreSequence`` 를 같은
+        일시 안의 구분자로 보낸다.
 
         Args:
             start: 구간 시작(naive면 KST로 간주).
@@ -380,18 +394,55 @@ class NaverCommerceClient:
         """
         collected: list[dict] = []
         for window_start, window_end in iter_time_windows(start, end):
+            collected.extend(self._changed_window(window_start, window_end))
+        return collected
+
+    def _changed_window(self, window_start: datetime, window_end: datetime) -> list[dict]:
+        """한 시간창을 ``more`` 이어받기까지 포함해 끝까지 읽는다.
+
+        Args:
+            window_start: 창 시작.
+            window_end: 창 끝(이어받는 동안 고정된다 — 끝을 옮기면 범위가 새로 열린다).
+
+        Returns:
+            그 창의 변경 이벤트 전부(쪽수 상한에 걸리면 거기까지 + 경고 로그).
+        """
+        rows: list[dict] = []
+        params: dict[str, Any] = {
+            "lastChangedFrom": _format_ts(window_start),
+            "lastChangedTo": _format_ts(window_end),
+            "limitCount": LAST_CHANGED_LIMIT,
+        }
+        for page in range(1, LAST_CHANGED_MAX_PAGES + 1):
             payload = self._request(
                 "GET", "/v1/pay-order/seller/product-orders/last-changed-statuses",
-                params={
-                    "lastChangedFrom": _format_ts(window_start),
-                    "lastChangedTo": _format_ts(window_end),
-                },
+                params=params,
             )
-            chunk = ((payload.get("data") or {}).get("lastChangeStatuses")) or []
-            logger.info("[NAVER] 변경분 %s ~ %s: %d건",
-                        _format_ts(window_start), _format_ts(window_end), len(chunk))
-            collected.extend(chunk)
-        return collected
+            data = payload.get("data") or {}
+            chunk = data.get("lastChangeStatuses") or []
+            rows.extend(chunk)
+            logger.info("[NAVER] 변경분 %s ~ %s (%d쪽): %d건",
+                        _format_ts(window_start), _format_ts(window_end), page, len(chunk))
+            more = data.get("more") or {}
+            more_from = (more or {}).get("moreFrom")
+            if not more_from:
+                break
+            if not chunk:
+                # 진척 없는 이어받기 — 같은 요청을 무한히 반복하지 않는다.
+                logger.warning("[NAVER] more 가 왔는데 항목이 0건이라 이어받기를 멈춘다(%s)", more_from)
+                break
+            params = dict(params)
+            params["lastChangedFrom"] = str(more_from)
+            more_sequence = (more or {}).get("moreSequence")
+            if more_sequence is not None:
+                params["moreSequence"] = str(more_sequence)
+            else:
+                params.pop("moreSequence", None)
+        else:
+            # for-else: 상한까지 돌고도 more 가 남았다. 잘렸다는 사실을 조용히 넘기지 않는다.
+            logger.warning("[NAVER] 변경분 이어받기 쪽수 상한(%d) 도달 — %s ~ %s 구간 일부만 읽었다",
+                           LAST_CHANGED_MAX_PAGES, _format_ts(window_start), _format_ts(window_end))
+        return rows
 
     def get_product_orders(self, product_order_ids: Sequence[str]) -> list[dict]:
         """상품주문 상세를 배치로 조회한다(배치 크기 초과분은 나눠 호출).
@@ -773,6 +824,8 @@ __all__ = [
     "KST",
     "MAX_WINDOW",
     "DETAIL_BATCH_SIZE",
+    "LAST_CHANGED_LIMIT",
+    "LAST_CHANGED_MAX_PAGES",
     "NaverCommerceClient",
     "NaverCommerceError",
     "NaverCommerceConfigError",

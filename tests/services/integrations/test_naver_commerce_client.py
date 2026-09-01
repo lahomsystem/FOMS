@@ -16,6 +16,7 @@ import pytest
 from foms.services.integrations.naver_commerce.client import (
     DETAIL_BATCH_SIZE,
     KST,
+    LAST_CHANGED_MAX_PAGES,
     MemoryTokenCache,
     NaverCommerceAuthError,
     NaverCommerceClient,
@@ -459,3 +460,85 @@ def test_no_rate_limit_headers_logs_nothing(caplog):
                          logger="foms.services.integrations.naver_commerce.client"):
         client.get_product_orders(["1"])
     assert not [r for r in caplog.records if "호출 한도" in r.getMessage()]
+
+
+# --------------------------------------------------------------------------- #
+# 변경분 이어받기(more) — NAVER-INGEST-BACKFILL T1
+# --------------------------------------------------------------------------- #
+
+def test_last_changed_follows_more_within_one_window():
+    """한 창의 응답이 상한을 넘으면 more 로 이어받아 전부 모은다."""
+    routes = {
+        TOKEN_PATH: [token_response()],
+        CHANGED_PATH: [
+            FakeResponse(200, {"data": {
+                "lastChangeStatuses": [{"productOrderId": "A"}],
+                "more": {"moreFrom": "2026-08-10T05:00:00.000+09:00", "moreSequence": "7"},
+            }}),
+            FakeResponse(200, {"data": {"lastChangeStatuses": [{"productOrderId": "B"}]}}),
+        ],
+    }
+    client, transport, _ = make_client(routes)
+    start = datetime(2026, 8, 10, 0, 0, tzinfo=KST)
+    result = client.get_last_changed_statuses(start, start + timedelta(hours=6))
+    assert [row["productOrderId"] for row in result] == ["A", "B"]
+    calls = transport.calls_to(CHANGED_PATH)
+    assert len(calls) == 2
+    first, second = calls[0][2]["params"], calls[1][2]["params"]
+    assert first["limitCount"] == 300
+    assert "moreSequence" not in first
+    # 이어받기는 moreFrom 을 그대로 시작 일시로 쓰고 moreSequence 를 함께 보낸다.
+    assert second["lastChangedFrom"] == "2026-08-10T05:00:00.000+09:00"
+    assert second["moreSequence"] == "7"
+    # 창 끝은 고정이다 — 옮기면 범위가 새로 열린다.
+    assert second["lastChangedTo"] == first["lastChangedTo"]
+
+
+def test_last_changed_more_without_sequence_omits_param():
+    """moreSequence 가 없으면 파라미터를 보내지 않는다(임의값 금지 — 문서 경고)."""
+    routes = {
+        TOKEN_PATH: [token_response()],
+        CHANGED_PATH: [
+            FakeResponse(200, {"data": {
+                "lastChangeStatuses": [{"productOrderId": "A"}],
+                "more": {"moreFrom": "2026-08-10T05:00:00.000+09:00"},
+            }}),
+            FakeResponse(200, {"data": {"lastChangeStatuses": []}}),
+        ],
+    }
+    client, transport, _ = make_client(routes)
+    start = datetime(2026, 8, 10, 0, 0, tzinfo=KST)
+    client.get_last_changed_statuses(start, start + timedelta(hours=6))
+    second = transport.calls_to(CHANGED_PATH)[1][2]["params"]
+    assert "moreSequence" not in second
+
+
+def test_last_changed_more_page_limit_stops_loop():
+    """서버가 more 를 끝없이 돌려줘도 쪽수 상한에서 멈춘다(무한 루프 금지)."""
+    routes = {
+        TOKEN_PATH: [token_response()],
+        CHANGED_PATH: [FakeResponse(200, {"data": {
+            "lastChangeStatuses": [{"productOrderId": "A"}],
+            "more": {"moreFrom": "2026-08-10T05:00:00.000+09:00", "moreSequence": "1"},
+        }})],
+    }
+    client, transport, _ = make_client(routes)
+    start = datetime(2026, 8, 10, 0, 0, tzinfo=KST)
+    result = client.get_last_changed_statuses(start, start + timedelta(hours=6))
+    assert len(transport.calls_to(CHANGED_PATH)) == LAST_CHANGED_MAX_PAGES
+    assert len(result) == LAST_CHANGED_MAX_PAGES
+
+
+def test_last_changed_more_without_rows_stops_loop():
+    """항목 0건인데 more 만 오면 진척이 없다 — 같은 요청을 반복하지 않는다."""
+    routes = {
+        TOKEN_PATH: [token_response()],
+        CHANGED_PATH: [FakeResponse(200, {"data": {
+            "lastChangeStatuses": [],
+            "more": {"moreFrom": "2026-08-10T05:00:00.000+09:00"},
+        }})],
+    }
+    client, transport, _ = make_client(routes)
+    start = datetime(2026, 8, 10, 0, 0, tzinfo=KST)
+    assert client.get_last_changed_statuses(start, start + timedelta(hours=6)) == []
+    assert len(transport.calls_to(CHANGED_PATH)) == 1
