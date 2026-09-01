@@ -475,13 +475,37 @@ def _is_draft_order(order: Order, sd: dict) -> bool:
     return bool(_node(sd, "meta").get("draft"))
 
 
+def _is_deleted_order(order: Order) -> bool:
+    """휴지통(soft delete) 주문 여부 — ``Order.not_deleted_filter`` 와 같은 판정.
+
+    수동 API 는 ``Order.active_filter()`` 로 삭제 주문을 이미 404 로 막는다
+    (``foms/api/kakao/__init__.py`` ``_load_order``). 자동 경로에는 그 축이 없어서
+    휴지통 주문을 저장해도 안내가 나갔다 — 두 경로의 판정을 같게 맞춘다.
+
+    Args:
+        order: 판정할 주문.
+
+    Returns:
+        ``status == 'DELETED'`` 이거나 ``deleted_at`` 이 채워져 있으면 True.
+    """
+    if str(getattr(order, "status", "") or "").upper() == "DELETED":
+        return True
+    return getattr(order, "deleted_at", None) is not None
+
+
 def _ineligible_reason(order: Order | None, sd: dict) -> str | None:
     """발송 미자격 사유 코드를 반환한다(자격이면 ``None``).
 
-    판정 순서 = 설정 → draft → 일정 → 전화 → 브랜드 프로필. diff 비교는 쓰지 않는다
-    (draft autosave 가 이전 sd 를 선점하는 함정 회피 — 스펙 §6.2).
+    판정 순서 = 존재·삭제 → 설정 → draft → 일정 → 전화 → 브랜드 프로필. diff 비교는 쓰지
+    않는다 (draft autosave 가 이전 sd 를 선점하는 함정 회피 — 스펙 §6.2).
+
+    삭제 주문은 수동 API 와 같은 코드(``order_not_found``)를 돌려준다 — 사용자에게는 "발송
+    대상이 아니다"로 같은 뜻이고, 화면 3곳의 사유 문구 맵에 이미 있는 코드다. 이 코드는
+    :data:`_RECORDED_SKIP_REASONS` 에 없으므로 이력도 남기지 않고 슬롯도 쓰지 않는다.
     """
     if order is None:
+        return "order_not_found"
+    if _is_deleted_order(order):
         return "order_not_found"
     if not is_configured(resolve_brand(sd)):
         return "not_configured"
