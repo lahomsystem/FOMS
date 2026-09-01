@@ -164,3 +164,49 @@ iOS·Android 인앱 브라우저 다운로드 제약 정리.
 ### 대표 결정 필요
 
 - 품목 `option_detail`(상세옵션)은 스냅샷에 있으나 화면에 없다. **ERP 계약서 폼도 안 그린다** — "ERP 폼 그대로" 결정과는 일치하지만, "세부내용"이 이걸 뜻했다면 미충족.
+
+### 후속 5 — 계약서 열람 이력 보존 (SHARE-HIST-00, 2026-09-01)
+
+후속 4 가 남긴 "의도된 부작용"(고객이 어제 본 금액이 안 남는다)을 메운다.
+설계·결정: `docs/specs/2026-09-01-share-contract-view-history-design.md`.
+브랜치 `session/sharehist`(워크트리 `c:\tmp\foms-s-sharehist`, base `origin/deploy`).
+
+**사용자 결정**: 새 원장 테이블 / 고객이 **열람할 때만** 기록 / 주문 볼 수 있는 직원 전부 열람 / 영구 보존.
+
+- `order_field_changes` 로 대신하지 않은 이유: 그쪽은 **주문 값**의 변경 이력이다. 계약서 표면에는
+  회사정보·계좌(발주사 판정 1벌)·화이트리스트 버전·발급 시점 고정 계약번호가 함께 들어가 재생(replay)
+  결과가 당시 화면과 달라진다. 그래서 **열람 시점 렌더 dict 그대로** 남긴다.
+- 신설 `order_share_snapshots`(마이그레이션 `sharehist_00`, down_revision `naverdisp_00`).
+  **FK 없음**(감사 원장 규약 — 주문 hard purge 가 증거를 지우면 안 된다).
+  **UNIQUE 없음** — `(share_token_id, content_hash)` 를 묶으면 금액 A→B→A 되돌림의 세 번째 상태가
+  첫 행에 흡수돼 시간축이 무너진다. 중복 판정은 **그 토큰의 최신 행과만** 한다(계약 테스트로 3행 고정).
+- 적재는 `foms/services/order_share_history.py`, 호출은 열람 경로 2곳(estimate·bundle).
+  **호출 순서 규칙**: 이력 적재 → 실패 시 `rollback`+`logger.error` → `record_view` → `commit`.
+  반대로 두면 적재 실패의 rollback 이 열람 횟수 증가까지 되돌린다.
+- `_live_estimate_snapshot` 반환형을 `(dict, source)` 로 넓혔다 — 폴백으로 발급본이 뜬 화면도
+  고객이 본 화면이므로 남기되 `source='stored'` 로 구별한다("왜 옛 금액이 떴나"의 답).
+- 직원 조회 2개(GET, `_SHARE_ROLES`): `/api/share/history/<share_id>`(요약만 — 스냅샷 원문은 목록에
+  안 싣는다) + `/api/share/history/<snapshot_id>/page`(고객 템플릿 그대로 렌더, ERP 는 **새 탭**으로 연다
+  → ERP 셸에 공유 전용 CSS 를 안 끌어들인다). `/api` 아래 HTML 페이지가 되는 어색함은 감수했다 —
+  새 블루프린트·디렉토리는 네임스페이스 닫힌집합 게이트를 건드린다.
+- 감사 `SHARE_HISTORY_VIEWED` + `audit_message_display` 라벨 등재(미등재 시 CI red — 기존 함정).
+- 고객 경로 무변경: 배너는 `history_meta is defined` 분기 안에만 있고 음성 대조군 테스트가 고정한다.
+- **핀 함정**: `erp-share.js` 를 고치면 `test_share_trace_assets_pinned_together` 가 alimtalk trace
+  자산과 **같은 핀**을 요구한다 — `erp-alimtalk-trace.js/.css` 까지 `20260901a`→`20260901b` 동반 범프.
+  계약서 CSS 는 배너 규칙이 추가돼 `20260831c`→`20260901a`(estimate·bundle 두 템플릿).
+- 모달 목록 행에 버튼이 셋(기록·회수·상태)이 되어 좁은 폭에서 넘친다 → 라벨을 자르는 대신 `flex-wrap`.
+
+**검증(직접 실행)**
+- `python -c "import app; print('APP_OK')"` → `APP_OK` / `python -m alembic heads` → `sharehist_00` 단일 head
+- 신규 `tests/domains/test_order_share_history.py` **16 passed**(A→B→A 3행·폴백 source·적재 실패 200·
+  drawing 0행 음성 대조군·목록에 스냅샷 원문 부재·권한 2종·감사 1행·고객 화면 배너 부재)
+- 공유 계열 + UI 계약 **261 passed**, 게이트(contracts·failopen·write_guard·audit coverage·auth·state) **174 passed**
+- `python tools/harness/failopen_scan.py` 재생성(574 broad / 0 unclassified)
+- **PG 레인 전수 735 passed**(PG17 신규 클러스터 5441 — 기존 `c:\tmp\foms-pglane` 는 데이터 파일 손상으로
+  `CREATE DATABASE` 가 `base/1/4171` 없음으로 죽는다. `initdb` 로 새로 만들어야 한다).
+  `test_migration_chain` 통과 = models↔마이그레이션 지문 일치
+- `pre_push_smoke.ps1` exit 0
+- 실브라우저(gstack browse, 로컬 렌더): 390px 배너 358×121·가로 넘침 0 / 1280px 배너 700 문서 720,
+  계약서 본문·계좌 복사·저장 버튼 무변경. 검증용 임시 주문 2914 는 삭제했다.
+
+**남은 일**: 운영 승격(PR) — 승격 시 마이그레이션 1건이 함께 간다.

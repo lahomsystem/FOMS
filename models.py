@@ -861,6 +861,57 @@ class OrderShareToken(Base):
     created_by = relationship('User', foreign_keys=[created_by_user_id])
 
 
+class OrderShareSnapshot(Base):
+    """고객이 **실제로 본** 계약서 내용 원장 (SHARE-HIST-00).
+
+    공유 계약서를 라이브 반영으로 바꾸면서(``foms.api.share._live_estimate_snapshot``)
+    같은 링크가 늘 최신 주문 값을 보여준다. 그 대가로 "고객이 그날 본 금액" 이 어디에도
+    남지 않는데, 계약서에는 법적 효력 문구가 들어가므로 분쟁 시 제시할 근거가 필요하다.
+
+    ``order_field_changes`` 로는 대신할 수 없다. 그쪽은 **주문 값의 변경 이력**이고, 계약서
+    표면에는 회사정보·계좌(발주사 판정에 따른 1벌)와 스냅샷 화이트리스트 버전, 발급 시점
+    고정 계약번호가 함께 들어간다 — 재생(replay)하면 당시 화면과 달라진다. 그래서 **열람
+    시점에 렌더된 dict 그대로** 남긴다.
+
+    * **FK 없음** — ``OrderFieldChange``·``OrderChangeReason``·``OrderEvent`` 와 같은 이유
+      (AUDIT-LOG T9 / ``auditlife_00``): 증거 원장이 감사 대상과 생명주기를 공유하면 주문
+      hard purge 가 증거까지 지운다.
+    * **UNIQUE 를 두지 않는다** — ``(share_token_id, content_hash)`` 를 unique 로 묶으면
+      금액이 A→B→A 로 되돌아갔을 때 세 번째 상태가 첫 행에 흡수돼 시간축이 무너진다.
+      중복 판정은 **그 토큰의 최신 행과만** 한다(``order_share_history.record_snapshot_view``).
+    * ``source`` — 라이브 재구성본(``live``)인지 발급 시점 폴백본(``stored``)인지. 폴백으로
+      뜬 화면도 고객이 본 화면이므로 똑같이 남기되 구별은 해 둔다.
+
+    ``__table_args__`` 의 인덱스 이름·컬럼 순서는 마이그레이션 ``sharehist_00`` 과 **완전히**
+    같아야 한다(create_all 부트스트랩 레인과 alembic 레인의 스키마 정합 — PG 왕복 테스트가 강제).
+    """
+
+    __tablename__ = 'order_share_snapshots'
+    __table_args__ = (
+        # "이 링크가 고객에게 보여 온 내용들" — 이력 목록의 1순위 질의이자 중복 판정용
+        # 최신 행 조회 경로. 선행 컬럼이 share_token_id 여야 한다.
+        Index('ix_order_share_snapshots_token_id', 'share_token_id', 'id'),
+        # "이 주문이 고객에게 보여진 이력 전부" — 링크를 여러 번 재발급한 주문용.
+        Index('ix_order_share_snapshots_order_time', 'order_id', 'first_viewed_at'),
+    )
+
+    # 원장 계열 공통(OrderFieldChange 와 같은 variant — SQLite 자동증가 보존).
+    id = Column(BigInteger().with_variant(Integer, 'sqlite'), primary_key=True)
+    # FK 없음(위 docstring) — 인덱스만 있는 증거 원장 컬럼.
+    share_token_id = Column(Integer, nullable=False)
+    order_id = Column(Integer, nullable=False)
+    kind = Column(String(20), nullable=False)  # 'estimate' | 'bundle'
+    content_hash = Column(String(64), nullable=False)  # canonical JSON 의 sha256 hex
+    # 렌더된 dict 그대로. 크기는 build_estimate_snapshot 의 64KB 캡이 이미 강제한다.
+    snapshot = Column(JSONColumn, nullable=False)
+    source = Column(String(16), nullable=False)  # 'live' | 'stored'
+    # naive DB timestamp = UTC 규약(datetime_kst).
+    first_viewed_at = Column(DateTime, default=now_utc_naive, nullable=False)
+    last_viewed_at = Column(DateTime, default=now_utc_naive, nullable=False)
+    # 같은 내용을 다시 열어 본 횟수(내용이 바뀌면 새 행이라 행마다 독립).
+    view_count = Column(Integer, nullable=False, default=1)
+
+
 class OrderFieldChange(Base):
     """주문 필드 변경 원장 — 저장 1회가 바꾼 값들을 **질의 가능한 행**으로 편다 (ORDER-DIFF-01).
 

@@ -75,10 +75,10 @@ def _assert_shared_form_script_contract(body: str) -> None:
     assert "js/orders/erp-alimtalk-send.js?v=20260824b" in body
     # T15 발송 흔적: 칩 자리·이력 패널이 실제 렌더에 붙어 있어야 한다(템플릿 계약만으로는
     # 코호트 게이트가 한쪽 표면을 통째로 지워도 초록이다).
-    assert "js/orders/erp-alimtalk-trace.js?v=20260901a" in body
+    assert "js/orders/erp-alimtalk-trace.js?v=20260901b" in body
     assert "data-erp-alimtalk-trace" in body
     assert 'id="erpAlimtalkTraceModal"' in body
-    assert "js/orders/erp-share.js?v=20260901a" in body
+    assert "js/orders/erp-share.js?v=20260901b" in body
     assert "css/orders/erp-share.css?v=20260821a" in body
     assert "js/orders/erp-stage-override.js?v=20260825a" in body
     assert "erp_stage_override_modal.html" not in body  # include renders modal markup, not path

@@ -251,6 +251,7 @@ ACTION_LABELS: dict[str, str] = {
     "SHARE_LINK_REVOKED": "고객 공유 링크 회수",
     "SHARE_SMS_SENT": "고객 공유 링크 문자 발송",
     "SHARE_ALIMTALK_SENT": "고객 공유 링크 알림톡 발송",
+    "SHARE_HISTORY_VIEWED": "고객 열람 계약서 기록 조회",
     "BLUEPRINT_DELETED": "도면 삭제",
     "DRAWING_WIZARD_SAVED": "도면 마법사 저장",
     "DRAWING_WIZARD_ASSET_ADDED": "도면 마법사 자산 추가",

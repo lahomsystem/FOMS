@@ -374,7 +374,7 @@ def test_share_send_publishes_trace_without_extra_fetch() -> None:
 
 def test_share_trace_assets_pinned_together() -> None:
     """SW staticCacheFirst — 바뀐 자산은 핀을 함께 올려야 옛 코드가 안 산다."""
-    pin = "?v=20260901a"
+    pin = "?v=20260901b"
 
     def _pinned(body: str, asset: str) -> bool:
         """자산 이름 바로 뒤에 이 핀이 붙어 있는지. 개수로 세면 같은 날짜를 쓰는

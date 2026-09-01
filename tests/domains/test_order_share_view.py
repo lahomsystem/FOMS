@@ -344,7 +344,7 @@ def test_view_estimate_has_copy_and_png_and_amount_and_asset_pins(client, db, r2
     assert 'erp-est-col--amount' in body
     assert '금액 <span class="erp-est-th-vat">(VAT 포함)</span>' in body
     # (d) 신규 자산 ?v 핀(캐시 무효화 — 핀 없이 배포하면 옛 스타일이 남는다).
-    assert 'css/orders/foms-share-contract.css?v=20260831c' in body
+    assert 'css/orders/foms-share-contract.css?v=20260901a' in body
     assert 'js/orders/share-contract.js?v=20260831c' in body
 
 
@@ -447,7 +447,7 @@ def test_view_bundle_uses_same_contract_partial(client, db, r2):
     assert 'data-share-copy-value="461-082990-04-011"' in body
     assert 'data-share-contract-save' in body
     assert 'erp-est-col--amount' in body
-    assert 'css/orders/foms-share-contract.css?v=20260831c' in body
+    assert 'css/orders/foms-share-contract.css?v=20260901a' in body
     assert 'js/orders/share-contract.js?v=20260831c' in body
     assert 'window.print()' not in body
 
