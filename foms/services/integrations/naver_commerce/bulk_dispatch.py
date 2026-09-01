@@ -701,6 +701,101 @@ def find_unlinked_matches(session: Session, *, on_date: str) -> list[dict[str, A
     return out
 
 
+#: 수집 커버리지 시작에 두는 안전 여유(일). ERP 접수일은 네이버 주문일보다 **뒤**일 수
+#: 있어(며칠 뒤 입력), 접수일이 커버리지 안이어도 원본은 커버리지 밖일 수 있다. 경계
+#: 근처는 "네이버 주문이 아니다"로 단정하지 않고 모른다고 말한다.
+COVERAGE_MARGIN_DAYS = 14
+
+
+def coverage_start(session: Session) -> Optional[str]:
+    """수집이 실제로 훑은 구간의 시작(``YYYY-MM-DD``) — 모르면 None.
+
+    소급 수집(백필)을 돌렸으면 그 요청 시작이 커버리지 시작이다. 안 돌렸으면 워터마크
+    이후만 있으므로 **모른다**고 답한다 — 모름을 아는 척하면 화면이 "네이버 주문이 아니다"를
+    틀리게 단정하고, 진짜 네이버 건을 판매자센터로 떠넘기게 된다.
+
+    Args:
+        session: DB 세션.
+
+    Returns:
+        ``YYYY-MM-DD`` 또는 None.
+    """
+    from foms.services.integrations.naver_commerce import backfill as bf
+
+    raw = bf.read_window_start(session)
+    return raw[:10] or None
+
+
+def classify_unsendable(session: Session, *, on_date: str,
+                        matched_order_ids: Optional[set[int]] = None) -> dict[str, Any]:
+    """그날 실측인데 **여기서는 보낼 수 없는** 주문을 갈래로 나눈다 — 읽기 전용.
+
+    화면은 "네이버 원본이 없는 건"과 "네이버 주문이 아닌 건"을 구별하지 못했다 — 둘 다
+    링크가 없을 뿐이다. ``structured_data['source']`` 는 오염분이 있어 축이 못 된다.
+
+    소급 수집을 돌린 뒤에는 **가를 수 있다**: 접수일이 수집이 훑은 구간 안인데 두 축
+    (전화·수령인명) 모두 원본에 없으면 이 스토어 네이버 주문이 아니다(운영 실측
+    2026-09-01: 오늘 실측 13건 중 링크 없는 11건이 정확히 그랬다 — 이름·전화 모두 0행).
+    구간 밖이면 여전히 **모른다**.
+
+    Args:
+        session: DB 세션.
+        on_date: ``YYYY-MM-DD``.
+        matched_order_ids: :func:`find_unlinked_matches` 가 이미 짚은 주문 id(제외한다 —
+            두 줄이 같은 집을 두고 다른 말을 하면 사람이 어느 쪽을 믿을지 모른다).
+
+    Returns:
+        ``{"foreign": [...], "unknown": [...], "coverage_from": "YYYY-MM-DD"|""}``.
+        각 행은 ``{"order_id", "customer", "received_date"}``.
+    """
+    from datetime import date, timedelta
+
+    start = coverage_start(session)
+    blank = {"foreign": [], "unknown": [], "coverage_from": start or ""}
+    matched = set(matched_order_ids or set())
+    order_ids = [oid for oid in _measurement_order_ids(session, on_date=on_date)
+                 if oid not in matched]
+    if not order_ids:
+        return blank
+    linked = {
+        row[0] for row in session.query(ExternalOrderLink.order_id)
+        .filter(ExternalOrderLink.channel == CHANNEL,
+                ExternalOrderLink.order_id.in_(order_ids))  # perf-ok: 당일 실측분 batch
+        .all() if row[0]
+    }
+    waiting = [oid for oid in order_ids if oid not in linked]
+    if not waiting:
+        return blank
+
+    boundary = ""
+    if start:
+        try:
+            boundary = (date.fromisoformat(start)
+                        + timedelta(days=COVERAGE_MARGIN_DAYS)).isoformat()
+        except ValueError:  # 저장된 값이 깨졌으면 모른다고 답한다(추측 금지)
+            logger.warning("[NAVER] 커버리지 시작 파싱 실패(무시): %r", start)
+            boundary = ""
+
+    rows = (
+        session.query(Order.id, Order.customer_name, Order.received_date)
+        .filter(Order.id.in_(waiting))  # perf-ok: 당일 실측분 batch
+        .all()
+    )
+    foreign: list[dict[str, Any]] = []
+    unknown: list[dict[str, Any]] = []
+    for oid, name, received in rows:
+        row = {"order_id": int(oid), "customer": str(name or ""),
+               "received_date": str(received or "")}
+        # 접수일이 커버리지(+여유) 안이면 원본이 있어야 한다 — 없으니 네이버 건이 아니다.
+        if boundary and row["received_date"] and row["received_date"] >= boundary:
+            foreign.append(row)
+        else:
+            unknown.append(row)
+    logger.info("[NAVER] %s 실측분 중 여기서 못 보내는 건 — 네이버 아님 %d · 모름 %d",
+                on_date, len(foreign), len(unknown))
+    return {"foreign": foreign, "unknown": unknown, "coverage_from": start or ""}
+
+
 def _row_of(target: BulkDispatchTarget) -> dict[str, Any]:
     """집 1개를 템플릿이 읽는 평평한 dict 로 편다.
 
@@ -759,20 +854,33 @@ def build_preview(session: Session, *, on_date: str) -> dict[str, Any]:
                              "rows": [], "day_total": 0, "sent": 0, "failed": 0,
                              "last_sent_at": "", "last_sent_time": "", "state": "none",
                              "day_rows": [], "show": False, "unlinked": 0,
-                             "unlinked_rows": []}
+                             "unlinked_rows": [], "foreign": [], "unknown": [],
+                             "coverage_from": ""}
     try:
         targets = build_day_summary(session, on_date=on_date)
         # 안 붙은 수집분은 **대상이 0인 날에도** 말해야 한다 — 오늘 네이버 집이 하나도
         # 안 잡히는 이유가 바로 그것일 수 있다(2026-09-01 천화진 건이 그랬다).
         unlinked = find_unlinked_matches(session, on_date=on_date)
+        # 붙일 짝조차 없는 건은 **왜 없는지**를 말해야 한다. 침묵하면 사람은 빠진 줄도
+        # 모르고, "붙이면 된다"로 오해하면 없는 수집분을 찾아 헤맨다.
+        unsendable = classify_unsendable(
+            session, on_date=on_date,
+            matched_order_ids={int(row["order_id"]) for row in unlinked},
+        )
     except SQLAlchemyError as exc:  # 보조 정보라 화면을 막지 않는다(failopen — 로그로 남긴다)
         logger.warning("[NAVER] 발송 대상 미리보기 조회 실패(띠 생략): %s", exc, exc_info=True)
         return empty
+    extra = {"foreign": unsendable["foreign"], "unknown": unsendable["unknown"],
+             "coverage_from": unsendable["coverage_from"]}
+    # 띄우는 조건은 **종전 그대로**다(대상이 있거나, 붙일 짝이 있을 때). "못 보내는 건"은
+    # 곁들이는 정보라, 그것만으로 띠를 띄우면 네이버와 무관한 날에도 화면이 떠든다 —
+    # 매일 뜨는 안내는 읽히지 않고, 읽히지 않는 안내는 없는 것과 같다.
     if not targets:
         if unlinked:
-            return {**empty, "show": True, "unlinked": len(unlinked),
+            return {**empty, **extra, "show": True, "unlinked": len(unlinked),
                     "unlinked_rows": unlinked}
-        return empty
+        # 값은 싣되 띄우지 않는다 — 값이 비면 읽는 쪽이 "센 적 없다"와 "0건"을 못 가른다.
+        return {**empty, **extra}
 
     day_rows = [_row_of(target) for target in targets]
     rows = [row for row in day_rows if row["state"] != "sent"]
@@ -795,7 +903,7 @@ def build_preview(session: Session, *, on_date: str) -> dict[str, Any]:
             # 템플릿에 시키면 두 화면이 각자 자르다 한쪽이 어긋난다.
             "last_sent_time": last_sent_at[11:] if len(last_sent_at) >= 16 else "",
             "state": state, "day_rows": day_rows, "show": True,
-            "unlinked": len(unlinked), "unlinked_rows": unlinked}
+            "unlinked": len(unlinked), "unlinked_rows": unlinked, **extra}
 
 
 def select_sendable(session: Session, *, on_date: str,

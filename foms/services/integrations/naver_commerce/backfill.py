@@ -100,6 +100,22 @@ class BackfillRangeError(ValueError):
     """요청 구간이 규칙에 맞지 않는다(빈 구간·미래·상한 초과)."""
 
 
+def read_window_start(session: Session) -> str:
+    """마지막 소급 수집이 **어디서부터** 훑었는지(``ISO`` 문자열, 없으면 빈 문자열).
+
+    이 접근자가 따로 있는 이유: 발송 선별 모듈(``bulk_dispatch``)은 화면 필터 상속 금지
+    계약 때문에 소스에 ``request`` 라는 글자를 담을 수 없다(계약 테스트가 소스를 훑는다).
+    키 문자열은 상태를 소유한 이 모듈에 둔다.
+
+    Args:
+        session: DB 세션.
+
+    Returns:
+        구간 시작 ISO 문자열 또는 빈 문자열.
+    """
+    return str((read_state(session) or {}).get("requested_from") or "")
+
+
 def read_state(session: Session) -> dict[str, Any]:
     """저장된 백필 상태를 준다(없으면 빈 dict).
 
@@ -294,6 +310,7 @@ __all__ = [
     "SETTING_KEY",
     "BackfillRangeError",
     "BackfillResult",
+    "read_window_start",
     "read_state",
     "run_backfill",
     "validate_range",
