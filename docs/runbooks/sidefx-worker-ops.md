@@ -16,8 +16,9 @@ SIDEFX-00 소관이며 이 packet 은 consumer mechanics 만 소유한다.
 ## 배포 (오케스트레이터)
 
 1. Railway 대시보드 > 새 service > Settings > Config Path `railway-domain-sidefx.toml`.
-2. env: 이 service 에 `DATABASE_URL` 를 web 과 동일 인스턴스로 연결. 다른 secret 불필요
-   (delivery handler 가 요구하는 provider secret 은 handler 배포 packet 소관).
+2. env: 이 service 에 `DATABASE_URL` 를 web 과 동일 인스턴스로 연결.
+   `STORAGE_DELETE` 는 `R2_*`, `ALIMTALK_SEND` 는 web 과 같은 `SOLAPI_*`(발신번호·브랜드
+   프로필 포함)가 필요하다. 키가 없으면 알림톡 행은 재시도 후 DEAD 가 된다.
 3. start command(자동, toml 정본):
    ```
    python tools/ops/run_domain_side_effect_outbox.py --loop --interval 5 --expiry-scan-interval 300 --retention-scan-interval 86400

@@ -6,9 +6,10 @@
 
 | Task | 내용 | 완료 기준 | 상태 | 커밋 SHA | 비고 |
 |---|---|---|---|---|---|
-| T0 | 선결 확인 (sidefx worker·solapi 의존) | `SOLAPI_OK` + T0.decision 기록 | DONE | 57ee6e5e | T0.decision: **WORKER_OFF** (2026-08-11 railway status — 서비스 web·WORKER·FOMS-cron·Postgres·Redis뿐, sidefx 미가동 → 동기 폴백 경로). SOLAPI_OK 확인. 키는 로컬 .env(gitignore) 저장 |
+| T0 | 선결 확인 (sidefx worker·solapi 의존) | `SOLAPI_OK` + T0.decision 기록 | DONE | 57ee6e5e | 2026-08-11 **WORKER_OFF**. 2026-09-01 운영 SIDEFX SUCCESS → **WORKER_ON** 승격(자동 발송=handler, 수동=동기 유지). 사용자 확인: Solapi 설정 완료 |
 | T1 | 변수 빌더·자격 판정 | `pytest tests/domains/test_kakao_alimtalk_service.py -q` PASS + APP_OK | DONE | 02195c63 | 24 passed 오케스트레이터 재검증. 멱등키=`alimtalk:measure:` 포맷으로 스펙 정정. 전화=첫 유효 토큰. 길이 가드 2단(축약+절단) |
-| T2 | Solapi 발송·이력 기록 | `pytest tests/domains/test_kakao_alimtalk_send.py -q` PASS + APP_OK | DONE | 3a97bbfb | 47 passed+회귀 208 재검증. WORKER_OFF 동기 경로, D3 브랜드 분기, 앵커 이벤트 승격 패턴, 슬롯 미소진 스킵(원인 해소 후 자동 재개) |
+| T2 | Solapi 발송·이력 기록 | `pytest tests/domains/test_kakao_alimtalk_send.py -q` PASS + APP_OK | DONE | 3a97bbfb | 47 passed+회귀 208 재검증. D3 브랜드 분기, 앵커 이벤트 승격, 슬롯 미소진 스킵. 2026-09-01 자동 동기 폴백 제거 → T2b |
+| T2b | 자동 발송을 SIDEFX handler 로 | `pytest tests/domains/test_kakao_alimtalk_send.py tests/domains/test_alimtalk_delivery_handler.py -q` PASS + APP_OK | DONE | 42668632b | 저장=예약만, 워커=Solapi. 수동은 동기 유지. SIDEFX 에 SOLAPI_* 복사 필요. 사용자 확인: Solapi 설정 완료 |
 | T3 | 자동 트리거 3경로 배선 | `pytest tests/domains/test_kakao_alimtalk_trigger.py tests/domains/test_erp_orders_structured*.py -q` PASS | DONE | 529da0b7 | 배선 3곳(PUT :1159·PATCH :849·field_update :597 measurement_date 가드)+MEASUREMENT_TIME_CHANGED 이벤트. 재검증 74 passed. red 확인 완료 |
 | T4 | 수동 API + manifest 등재 | `pytest tests/domains/test_kakao_alimtalk_api.py tests/domains/test_write_guard.py -q` PASS | DONE | cb58edb6 | 45 passed 재검증. preview GET+send-manual POST, manifest 2종 등재, body 전면 무시. 후속 후보: _ineligible_reason public 승격 |
 | T5 | UI 3표면 | 계약 테스트 PASS + gstack browse 3뷰포트 스모크 | DONE | baa0fee8 | 117 passed 재검증(게이트 포함). 태블릿=자체 흐름(선례 준수), 상태 한 줄+모달. browse 스모크는 T6에 통합 실행 예정 |
@@ -18,7 +19,7 @@
 | T3 | 자동 트리거 3경로 배선 | `pytest tests/domains/test_kakao_alimtalk_trigger.py tests/domains/test_erp_orders_structured*.py -q` PASS | DONE | 377934fa | 배선 3곳(PUT :1159·PATCH :849·field_update :597 measurement_date 가드)+MEASUREMENT_TIME_CHANGED 이벤트. 재검증 74 passed. red 확인 완료 |
 | T4 | 수동 API + manifest 등재 | `pytest tests/domains/test_kakao_alimtalk_api.py tests/domains/test_write_guard.py -q` PASS | DONE | e50e4366 | 45 passed 재검증. preview GET+send-manual POST, manifest 2종 등재, body 전면 무시. 후속 후보: _ineligible_reason public 승격 |
 | T5 | UI 3표면 | 계약 테스트 PASS + gstack browse 3뷰포트 스모크 | DONE | (T5 커밋) | 117 passed 재검증(게이트 포함). 태블릿=자체 흐름(선례 준수), 상태 한 줄+모달. browse 스모크는 T6에 통합 실행 예정 |
-| T6 | 통합 검증·스테이징 | pre_push_smoke exit 0 + CI green + E2E 기록 | PENDING | | env 등록은 Solapi 키 발급 후 |
+| T6 | 통합 검증·스테이징 | pre_push_smoke exit 0 + CI green + E2E 기록 | DONE | (기록 커밋) | 2026-09-01 스테이징 E2E 완주 — 자동 2통·수동 1통 실제 도착 확인(사용자). 아래 §T6 E2E 증거 |
 
 ## 외부 준비 (사용자 액션 — 코드와 병행, 스펙 §4)
 - [ ] 채널: 홈 공개 ON + 고객센터 정보 입력 (pfId 발급 전제)
@@ -32,3 +33,32 @@
 ## 결정 기록
 - D0 접근안 A / D1 HOLD SCOPE / D2 수동=확인 후 허용 / 버튼=WL 문의하기(pf.kakao.com chat)
 - 3-agent 교차검수 반영: 신규 테이블·RQ task 폐기, diff 트리거 폐기, failover 전제 정정
+
+## T6 스테이징 E2E 증거 (2026-09-01)
+
+환경: FOMS-DEV(lahom-dev.up.railway.app), 계정 `claude_master`, 대상 주문 **id 4716** `CLAUDE-TEST-공유흔적`, 수신 **010-****-7282**(직원 본인 번호).
+
+사전 확인
+- FOMS-DEV SIDEFX 서비스 SUCCESS, 로그 `[sidefx-worker] started owner=774ab9a3b83d interval=5s expiry=300s retention=86400s` — 크래시 없음.
+- SIDEFX 에 `SOLAPI_*` 16키 + `DATABASE_URL` 존재(웹과 동일 이름). 값 미열람.
+- 웹 `FOMS_ALIMTALK_AUTO_ENABLED=1`.
+
+결과
+| 항목 | 결과 |
+|---|---|
+| (a~c) 워커 생존·열쇠·자동 플래그 | PASS |
+| (d~e) 실측일 `2026-09-05` 저장 → 자동 발송 | outbox **id 119** PENDING → **DONE ≤5초**, attempts=1, last_error 없음. `alimtalk_measurement.error=null`, `sent_at=2026-09-01T06:53:32`, `message_id=G4V20260901155332G1PF4YAFWVDTZLA`. 폰 도착 확인(사용자) |
+| (f) 같은 일정 재저장 | **재발송 없음** — outbox 행 1개 유지, message_id·sent_at 불변(UNIQUE 멱등 작동) |
+| (g) 실측일 `2026-09-06` 변경 | 새 dedupe 키로 **outbox id 121** 생성 → DONE ≤5초, `message_id=G4V20260901155839QE0AXBHRTP1KSBN`. 두 번째 통 도착 |
+| (h) 수동 버튼 `POST /api/kakao/alimtalk/send-manual/4716` | **200, 1.05초 동기 응답**, `sent=true`, `error=null`, `message_id=G4V20260901155952SZ22GBTOKQDJSHV`. outbox 행 증가 없음 = 수동은 워커를 안 탄다(설계대로) |
+
+정리: 검증 후 주문 4716 을 앱 경로로 다시 휴지통 이동(`deleted_at=2026-09-01 06:59:53`).
+
+### T6 에서 발견한 결함 (별도 승인 대상 — 이번 범위 밖)
+**자동 발송 자격 판정에 soft-delete 검사가 없다.** 주문 4716 은 검증 시작 시점에 이미
+`deleted_at=2026-09-01 00:47:38` 로 휴지통에 있었는데, `POST /api/update_order_field` 로 실측일을
+저장하자 자동 알림톡이 **정상적으로 두 통 나갔다**. 반면 수동 API 는 같은 주문에 404
+`order_not_found` 를 돌려준다 — `_load_order` 가 `Order.active_filter()` 를 쓰기 때문이다.
+`kakao_alimtalk._ineligible_reason` 은 draft 만 보고 삭제 축을 보지 않는다.
+영향: 삭제된 주문을 저장하는 경로(API 직접 호출, 삭제 직전 저장 레이스)에서 손님에게 안내가 나갈 수 있다.
+수정 후보: `_ineligible_reason` 에 `deleted_at is not None` → 미자격(슬롯 미소진 스킵) 추가.

@@ -19,6 +19,8 @@ SIDEFX-00 outbox 를 소비하는 delivery/expiry/retention worker 다. 세 loop
   (WIZ-DELETE-01, 공용·source_domain 분기).
 * ``GEOCODE`` — :func:`foms.services.geocode_delivery_handler.handle_geocode`
   (DATA-MEASUREMENT-01 소비단. 주소 변경 tx 가 예약한 행을 소비해 Order 좌표를 채운다).
+* ``ALIMTALK_SEND`` — :func:`foms.services.alimtalk_delivery_handler.handle_alimtalk_send`
+  (실측 예약 알림톡 자동 발송. 수동 발송은 요청 스레드 동기).
 
 그 밖의 effect_type(NOTIFICATION·CACHE_INVALIDATE 등)은 아직 handler 가 없다 — 그 종류의
 행이 쌓이는 도메인을 켜기 전에 handler 를 먼저 배포해야 한다.
@@ -65,6 +67,7 @@ from foms.services.sidefx_worker import (  # noqa: E402
     run_retention_once,
     upsert_heartbeat,
 )
+from foms.services.alimtalk_delivery_handler import handle_alimtalk_send  # noqa: E402
 from foms.services.geocode_delivery_handler import handle_geocode  # noqa: E402
 from foms.services.storage_delete_handler import handle_storage_delete  # noqa: E402
 from foms.services.upload_cleanup import run_upload_expiry_scan_once  # noqa: E402
@@ -203,6 +206,8 @@ def main(argv: Optional[list[str]] = None) -> int:
     # DATA-MEASUREMENT-01: 주소 변경이 예약한 GEOCODE 행을 소비한다. 이게 없으면 운영에 쌓인
     # GEOCODE PENDING 이 NoHandler 로 10회 재시도 후 전부 DEAD 가 된다(readiness fail-closed).
     register_handler("GEOCODE", handle_geocode, replace=True)
+    # 실측 알림톡 자동 발송. 이게 없으면 ALIMTALK_SEND 행이 NoHandler → DEAD.
+    register_handler("ALIMTALK_SEND", handle_alimtalk_send, replace=True)
     # UPLOAD-02: 만료 ticket/draft cleanup 을 300s expiry scan 에 배선(별도 scheduler 없음).
     # replace=True 로 재시작·재-import 시 중복 등록을 idempotent 하게 처리한다.
     register_expiry_scan_provider("upload_expiry", run_upload_expiry_scan_once, replace=True)

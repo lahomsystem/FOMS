@@ -328,23 +328,24 @@ def test_send_not_configured_skips(db, monkeypatch, stub_solapi_never):
 
 
 def test_maybe_send_dedupe_second_call_noop(db, solapi_env, auto_on, stub_solapi_ok):
+    """저장 경로는 선점만 한다. Solapi 호출은 handler 몫이라 0회, 두 번째 저장도 행 1개."""
     order = _mk_order()
     ka.maybe_send_measure_alimtalk(order.id)
     ka.maybe_send_measure_alimtalk(order.id)
 
-    assert len(stub_solapi_ok) == 1
+    assert stub_solapi_ok == []
     rows = _outbox()
     assert len(rows) == 1
     assert rows[0].effect_type == "ALIMTALK_SEND"
     assert rows[0].dedupe_key == f"alimtalk:measure:{order.id}:2026-08-14:3시 30분"
-    assert rows[0].status == "DONE" and rows[0].completed_at is not None
+    assert rows[0].status == "PENDING"
     assert rows[0].source_domain == "ORDER_EVENT" and rows[0].order_event_id
-    # 앵커 이벤트가 최종 이벤트로 승격 — 주문당 이벤트 1건.
-    assert [e.event_type for e in _events(order.id)] == ["ALIMTALK_SENT"]
+    assert [e.event_type for e in _events(order.id)] == ["ALIMTALK_FAILED"]
+    assert _events(order.id)[0].payload.get("error") == "in_flight"
 
 
 def test_maybe_send_new_schedule_sends_again(db, solapi_env, auto_on, stub_solapi_ok):
-    """일정 변경 = 새 멱등키 → 재발송."""
+    """일정 변경 = 새 멱등키 → outbox 행 하나 더(발송은 handler)."""
     order = _mk_order()
     ka.maybe_send_measure_alimtalk(order.id)
 
@@ -355,8 +356,9 @@ def test_maybe_send_new_schedule_sends_again(db, solapi_env, auto_on, stub_solap
     db_session.commit()
     ka.maybe_send_measure_alimtalk(order.id)
 
-    assert len(stub_solapi_ok) == 2
+    assert stub_solapi_ok == []
     assert len(_outbox()) == 2
+    assert {row.status for row in _outbox()} == {"PENDING"}
 
 
 def test_maybe_send_flag_off_noop(db, solapi_env, monkeypatch, stub_solapi_never):
@@ -404,11 +406,14 @@ def test_maybe_send_brand_missing_keeps_slot_open(
     monkeypatch.setenv("SOLAPI_TEMPLATE_MEASURE_ID_HAUD", "TPL-HAUD")
     ka.maybe_send_measure_alimtalk(order.id)
 
-    assert len(stub_solapi_ok) == 1 and stub_solapi_ok[0]["pf_id"] == "PF-HAUD"
+    assert stub_solapi_ok == []
     rows = _outbox()
-    assert len(rows) == 1 and rows[0].status == "DONE"
-    assert _history(order.id)["error"] is None
-    assert [e.event_type for e in _events(order.id)] == ["ALIMTALK_FAILED", "ALIMTALK_SENT"]
+    assert len(rows) == 1 and rows[0].status == "PENDING"
+    # 선점은 이력을 덮지 않는다. 스킵 이벤트 + in_flight 앵커가 나란히 남는다.
+    assert _history(order.id)["error"] == "brand_profile_missing"
+    events = _events(order.id)
+    assert [e.event_type for e in events] == ["ALIMTALK_FAILED", "ALIMTALK_FAILED"]
+    assert [e.payload.get("error") for e in events] == ["brand_profile_missing", "in_flight"]
 
 
 def test_maybe_send_invalid_phone_keeps_slot_open(db, solapi_env, auto_on, stub_solapi_ok):
@@ -428,10 +433,10 @@ def test_maybe_send_invalid_phone_keeps_slot_open(db, solapi_env, auto_on, stub_
     db_session.commit()
     ka.maybe_send_measure_alimtalk(order.id)
 
-    assert len(stub_solapi_ok) == 1
+    assert stub_solapi_ok == []
     rows = _outbox()
-    assert len(rows) == 1 and rows[0].status == "DONE"
-    assert _history(order.id)["error"] is None
+    assert len(rows) == 1 and rows[0].status == "PENDING"
+    assert _history(order.id)["error"] == "no_valid_phone"
 
 
 def test_maybe_send_never_raises(db, solapi_env, auto_on, monkeypatch, stub_solapi_never):
@@ -444,7 +449,7 @@ def test_maybe_send_never_raises(db, solapi_env, auto_on, monkeypatch, stub_sola
 
 
 def test_maybe_send_failure_keeps_outbox_pending(db, solapi_env, auto_on, monkeypatch):
-    """발송 실패면 DONE 마킹하지 않는다(worker 승격 시 재시도 여지)."""
+    """저장 경로는 Solapi 를 부르지 않는다. 실패 재시도는 handler+워커 몫."""
     def _boom(**kwargs):
         raise ConnectionError("timeout")
 
@@ -455,4 +460,4 @@ def test_maybe_send_failure_keeps_outbox_pending(db, solapi_env, auto_on, monkey
     rows = _outbox()
     assert len(rows) == 1 and rows[0].status == "PENDING"
     assert [e.event_type for e in _events(order.id)] == ["ALIMTALK_FAILED"]
-    assert _history(order.id)["error"] == "network"
+    assert _events(order.id)[0].payload.get("error") == "in_flight"
