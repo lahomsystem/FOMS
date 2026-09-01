@@ -1686,3 +1686,62 @@ deploy `419f03c5f`(CI 4/4 green) 배포 후, 관측 창을 새로 열고(그림�
    함께 무효화된다 — **정확성이 아니라 이득**의 문제다. `/erp/history/` 가 정말
    `users` 를 읽는지 좁히면 회복되지만, 좁히는 근거는 소스 독해가 아니라 관측이어야 한다.
 3. 위 둘 다 **트래픽이 있는 환경에서만** 답이 나온다.
+
+---
+
+## P10 — S1+S2a 운영 승격 + 운영 관측 개시 (2026-09-01)
+
+승격 PR **#233** 병합(production `623162682`). 검사 4종 전부 통과 —
+test 2m58s · pg-lane 1m54s · harness 1m15s · **perf-gate 1m13s(승격 PR 이라 블로킹 모드)**.
+승격 트리에서 직접 돌린 전체 스위트 **7487 passed / 585 skipped**, `APP_OK`.
+
+### P10-1 승격하며 손댄 두 곳 (근거 포함)
+
+- **원장 문서 충돌**: production 판이 뒤처져 충돌했다. deploy 판이 production 판의
+  **완전한 상위집합**임을 확인하고(앞 1179줄 md5 동일, production 에만 있는 줄 **0건**)
+  그대로 취했다. 추측이 아니라 대조로 판정했다.
+- **`.github/workflows/ci.yml`**: 내가 넣었던 docs 전용 서브셋 한 줄을 **뺐다**.
+  production ci.yml 에는 그 docs-only 빠른 경로 스텝 **자체가 없고**(그 CI 인프라는
+  deploy 에만 있다 — 끌어오면 남의 미승격 작업을 몰래 태우는 셈), production 은
+  `pytest -q --ignore=tests/visual --ignore=tests/harness` 로 전체 스위트를 돌아
+  이번 테스트를 전부 포함한다 → **커버리지 손실 0**.
+- 인벤토리는 승격 트리 기준 재생성(선례 `63bf524e` 와 동일 처리).
+
+### P10-2 운영 관측 — **스테이징이 못 닫은 쓰기 축이 닫혔다**
+
+운영 Redis 카운터, 실트래픽 6분:
+
+| 시각 | orders | order_attachments | order_schedule_dates | system_settings |
+|---|---|---|---|---|
+| t0 | – | – | – | 1 |
+| +1분 | 2 | 3 | – | 1 |
+| +3분 | 3 | 3 | – | 1 |
+| +4분 | **4** | 3 | **1** | 1 |
+
+**실제 주문 쓰기가 카운터를 올린다.** 스테이징에서는 관측 창 내내 이 키들이 생기지도
+않았다(주문 쓰기 0건) — 이 축은 트래픽이 있어야만 검증되고, 이제 검증됐다.
+
+덤: 실서버 계정 해제→재잠금(`users.is_active` 2회 쓰기)이 `users` 카운터를 정확히
+**2** 로 만들었다. ORM 대입 경로가 훅을 탄다는 직접 증거다.
+
+### P10-3 운영 그림자 관측 배선 확인
+
+`FOMS_FRAGMENT_SHADOW_REVALIDATION_ENABLED=1` 을 운영 `web` 에만 설정 후 재배포.
+`claude_master` 로 읽기 전용 GET 3회(정책대로 해제→측정→재잠금, `is_active` True→False 확인):
+
+```
+#1 status=200 fragver=new   fragment=1 bytes=28863 enc=zstd
+#2 status=200 fragver=match fragment=1 bytes=28863 enc=zstd
+#3 status=200 fragver=match fragment=1 bytes=28863 enc=zstd
+```
+
+운영에서도 압축은 `zstd`. `foms:fragver:v1:mismatch` = **0**.
+
+### P10-4 남은 것 — S2b 착수 전 판정 재료
+
+1. **mismatch 누적 관측**: 하루 이상 두고 `foms:fragver:v1:mismatch` 가 0 을 유지하는지.
+   0 이 아니면 로그의 route/key 로 빠진 축을 찾는다(세션·릴리스 때와 같은 방법).
+2. **적중률**: `users` 가 로그인마다 오르는데 `/erp/history/` 키가 그 테이블을 포함한다.
+   출근 시간대에 적중률이 얼마나 깎이는지 재고, 필요하면 `/erp/history/` 가 정말
+   `users` 를 읽는지 **관측으로** 좁힌다(소스 독해로 좁히면 낡은 304 쪽으로 틀린다).
+3. 위 둘이 정리되면 S2b(렌더 전 304)를 **별도 승인** 후 착수.
