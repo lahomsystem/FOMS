@@ -9,6 +9,8 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
+- [2026-09-01] **네이버 반품 거부(T8-S3) — 규격 한 줄만 남았다(BLOCKED)** — 화면·권한(실행 ADMIN·MANAGER / 문장 편집 ADMIN)·기록(주문 이력+감사)·상용구 전역 저장·계약 30종까지 deploy 완료(`2b83b41d`·`5ad8485b`, CI 4/4). **게이트 `FOMS_NAVER_RETURN_REJECT_ENABLED` 꺼짐** — `client.reject_return_product_order` 가 `NotImplementedError` 로 막혀 있다(추측 body 금지). 커머스API 상세 문서 대기(경로·스코프는 확인됨). 원장 `2026-08-31-naver-approve-attach-refresh-ledger.md` T4
+- [2026-09-01] **네이버 T1·T2·T3 운영 승격 완료(PR #213 · `c462bdb9`)** — 반품 승인(체크박스 기본 꺼짐·환불 확정) · 후보 0건일 때 주문 찾아서 붙이기 · 조작 4종 뒤 자동 다시읽기. 승격 함정: `promote_completeness` incomplete 30건 중 네이버 23건은 **이미 운영에 있었다**(옛 cherry-pick 로 patch-id 만 달라짐) — 제목 대조+운영 소스 grep 으로 확인 후 5건만 승격. 인벤토리 충돌은 `failopen_scan.py` 재생성으로 해결
 - [2026-09-01] **다음 작업: 엑셀 내보내기·동선 전면 삭제** — v3 미사용 확인으로 route 엔드포인트도 삭제 가능. 카운트다운·지도 동선 포함. **범위·함정 전부 원장 §17.**
 - [2026-09-01] **네이버 일괄 발송처리 결과 UI 운영 반영(PR #219 · `376362c3`)** — 스위치 ON, 1회차 **6집 26건 전부 성공**. 띠가 안 사라지고 **완료/일부/실패/대기 4상태**, 수동 발송분도 '발송됨', 버튼 직후 폴링, 실패 줄마다 재시도. **잔여=실브라우저 확인**. 원장 `2026-08-31-naver-bulk-dispatch-result-ui-ledger.md`
 - [2026-08-31] **엑셀 업로드·동선 추천 제거 + 동선 API 5초 수리 production 완료(`eda377ce`)** — 원장 §12·§14·§15
