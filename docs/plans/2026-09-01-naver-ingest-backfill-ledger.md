@@ -14,7 +14,8 @@
 | T4 워크벤치 화면 + 자산 핀 | DONE | 템플릿 계약 green·핀 전수 일치 |
 | T5 스테이징 1회 백필 검증 | DONE | 보존 기간 실측·링크 증가·후보 노출·중복 0·429 0 |
 | T6 게이트·푸시 | DONE(CI 4/4 green) | pre_push_smoke exit 0 + CI 전 워크플로 green |
-| T7 원본 없는 건 안내(곁가지) | PENDING | 잔여 있을 때만 |
+| T7 매칭 축 사본 컬럼(캡 함정 해소) | DONE(CI 대기) |
+| T8 원본 없는 건 안내(곁가지) | PENDING | 잔여 있을 때만 |
 
 ## 문서 근거 — 조회 가능 기간 (2026-09-01)
 
@@ -104,3 +105,21 @@
 축이 `raw_snapshot` 안의 전화·수령인명이라 SQL 로 좁힐 수 없는 것이 원인이다. 정공법은
 매칭 축 사본 컬럼(수령인명·전화 뒷자리)을 링크에 두고 SQL 로 좁히는 것 — 마이그레이션 1개 +
 기존 행 채움 + 매칭 함수 재작성.
+
+## T7 — 매칭 축 사본 컬럼 (사용자 결정: 지금 제대로 고친다)
+
+- 마이그레이션 `naverbf_00`: `external_order_links` 에 `recipient_name`·
+  `recipient_phone_digits`·`orderer_phone_digits` + **미연결 전용 부분 인덱스** 3개
+  (`WHERE order_id IS NULL` — 붙고 나면 매칭 대상이 아니라 인덱스가 이력 전체로 안 자란다).
+  `group_key` 와 같은 규약의 사본이다(정본은 `raw_snapshot`).
+- 수집·보류 기록 양쪽에서 사본을 채운다(`ingest._match_key_values` — 값 추출은 후보 화면과
+  **같은 함수** `_snapshot_keys` 재사용).
+- `find_unlinked_matches` 재작성: 사본 있는 행은 SQL 이 직접 좁히고(IN + 부분 인덱스),
+  사본 없는 옛 행만 종전 300행 스캔으로 폴백. 두 갈래를 링크 id 로 합친다.
+- 기존 행 채움: `tools/ops/backfill_link_match_keys.py`(배치·dry-run). 값이 안 나오는 행은
+  빈 문자열로 표시해 같은 배치가 무한히 다시 걸리지 않게 한다.
+- 회귀 테스트: 매칭 대상보다 **더 최신인 미연결 320행**을 쌓아도 그 집을 짚는다
+  (예전 코드로는 캡에 걸려 못 짚는다 — red-check 확인).
+- PG 레인 계약: 마이그레이션 왕복 2회 + 인덱스 술어가 `WHERE (order_id IS NULL)` 인지.
+  로컬은 PG 없음으로 skip — CI PostgreSQL Lane 이 판정한다.
+- 로컬 전수(visual·postgres 제외) 7,789 passed · pre_push_smoke exit 0.
