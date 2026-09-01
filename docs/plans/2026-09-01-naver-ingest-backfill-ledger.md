@@ -9,7 +9,7 @@
 | task | 상태 | 완료 기준 |
 |---|---|---|
 | T1 클라이언트 `more` 이어받기 | DONE | 2쪽 이어붙임·`moreSequence` 전달·루프 상한 테스트 green |
-| T2 `backfill.py` 서비스 | PENDING | 워터마크 불변·중복 skip·창 분할·재개·알림 0·범위 상한 테스트 green |
+| T2 `backfill.py` 서비스 | DONE | 워터마크 불변·중복 skip·창 분할·재개·알림 0·범위 상한 테스트 green |
 | T3 큐·태스크·라우트 + 등재 6종 | PENDING | 등재 계약 green + smoke 사각 3종 직접 실행 |
 | T4 워크벤치 화면 + 자산 핀 | PENDING | 템플릿 계약 green·핀 전수 일치 |
 | T5 스테이징 1회 백필 검증 | PENDING | 보존 기간 실측·링크 증가·후보 노출·중복 0·429 0 |
@@ -42,3 +42,10 @@
   `limitCount=300` 명시, 쪽수 상한 50(초과 시 경고 로그), 항목 0건 + more 만 오면 정지.
   창 끝(`lastChangedTo`)은 이어받는 동안 고정한다. 신규 4개 포함 client 테스트 32 passed.
   red-check: `more` 읽기를 끄면 3개가 빨개진다(확인함).
+- T2 DONE: `backfill.py` 신설 — 하루 창 순회(`iter_time_windows`)·창마다 커밋·별도 상태키
+  `naver_backfill_state`(워터마크 불변)·구간 규칙(빈 구간/미래/90일 초과는 **호출 0회**로 거절)·
+  창 사이 0.5초 간격·한 창 실패해도 앞 창 성과 보존 + 사유 기록.
+  수집 본체는 `sync_naver_orders` 를 그대로 쓴다(집 묶기·매핑·멱등 한 코드).
+  알림 억제는 `refresh_claims(notify=False)` → `sync_naver_orders(notify_claims=False)` 로 배선.
+  신규 13개 + 기존 3파일 = 94 passed. red-check: `notify_claims=True` 로 되돌리면 알림 억제
+  테스트가 빨개진다(ADMIN 수신자를 만들어 두고 잰다 — 받을 사람이 없으면 반증이 안 된다).
