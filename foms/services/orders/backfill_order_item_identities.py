@@ -20,6 +20,7 @@ from dataclasses import dataclass
 
 from sqlalchemy.orm import Session
 
+from foms.services.common.table_version_counter import mark_tables_dirty
 from foms.services.orders.audit_order_item_identities import (
     ItemIdentityAudit,
     audit_item_identities,
@@ -97,6 +98,11 @@ def apply_safe_backfill(
             )
             .update({OrderScheduleDate.item_id: identity.id}, synchronize_session=False)
         )
+
+    # HB-S1: query-level update() 는 ORM 엔티티 상태를 안 거쳐 세션 훅이 못 본다.
+    # 커밋 시점 카운터 증가 대상으로 직접 등재한다(커밋 주체는 이 함수의 호출부).
+    if att_linked or sch_linked:
+        mark_tables_dirty(session, "order_attachments", "order_schedule_dates")
 
     session.flush()
     return BackfillResult(

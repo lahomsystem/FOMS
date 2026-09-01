@@ -35,6 +35,7 @@ from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
 from sqlalchemy.orm import Session
 
 from foms.api.files.common import ATTACHMENT_CATEGORIES, normalize_attachment_category
+from foms.services.common.table_version_counter import mark_tables_dirty
 from foms.services.files.legacy_attachment_audit import (
     LegacyAttachmentAudit,
     audit_legacy_attachments,
@@ -227,6 +228,9 @@ def apply_safe_backfill(
                 )
                 .update({OrderAttachment.category: purpose}, synchronize_session=False)
             )
+    # HB-S1: query-level update() 는 세션 훅이 못 본다 — 커밋 시점 카운터 증가 대상 등재.
+    if normalized:
+        mark_tables_dirty(session, "order_attachments")
     session.flush()
     return SafeBackfillResult(
         total_safe=total_safe,
@@ -348,6 +352,8 @@ def apply_manual_mappings(
             continue
         applied += 1
         if apply:
+            # HB-S1: query-level update() 는 세션 훅이 못 본다 — 커밋 시점 카운터 증가 대상 등재.
+            mark_tables_dirty(session, "order_attachments")
             session.query(OrderAttachment).filter(OrderAttachment.id == mapping.attachment_id).update(
                 {
                     OrderAttachment.order_id: mapping.order_id,

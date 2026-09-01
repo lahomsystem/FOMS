@@ -103,6 +103,8 @@ _PTC_FOMS_SERVICES_COMMON_ALLOWLIST: frozenset[str] = frozenset(
         "geocode_config.py",
         "html_whitespace.py",
         "map_generator.py",
+        # HB-S1: 테이블 단위 쓰기 버전 카운터(세션 훅 신호원, 읽는 쪽은 S2)
+        "table_version_counter.py",
     }
 )
 

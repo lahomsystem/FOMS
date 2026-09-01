@@ -13,6 +13,7 @@ prepare_database_url_env()
 
 from app import app
 from db import get_db
+from foms.services.common.table_version_counter import mark_tables_dirty
 from models import OrderScheduleDate
 
 
@@ -60,6 +61,9 @@ def main():
             raise SystemExit("Refusing to apply without --confirm-replace RESTORE")
 
         try:
+            # HB-S1: 전역 삭제 + bulk insert 는 ORM 엔티티 상태를 안 거쳐 세션 훅이
+            # 못 본다 — 커밋 시점 카운터 증가 대상으로 직접 등재한다.
+            mark_tables_dirty(db, "order_schedule_dates")
             db.query(OrderScheduleDate).delete(synchronize_session=False)
             db.bulk_insert_mappings(
                 OrderScheduleDate,
