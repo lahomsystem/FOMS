@@ -333,9 +333,7 @@ def _completion_query_params() -> dict:
     }
 
 
-def _completion_working_and_filtered(
-    user, params: dict, *, with_orders: bool = False
-):
+def _completion_working_and_filtered(user, params: dict) -> tuple[list[dict], list[dict]]:
     """완료 큐 로드 → 행 빌드 → AS 토글 → 기간/정산 필터(대시보드·CSV 공용 SSOT).
 
     로드는 사진 리뷰 리스트와 동일 SSOT 로더(_load_completion_orders)로 뽑아 검색·focus·
@@ -345,14 +343,9 @@ def _completion_working_and_filtered(
     Args:
         user: 로그인 사용자(mine 필터·로더용).
         params: _completion_query_params() 결과.
-        with_orders: True 면 로드한 Order 목록도 함께 돌려준다. 같은 페이지가 사진 리뷰
-            목록을 위해 **같은 모집단을 API 로 한 번 더** 읽는 것을 없애려면(부트스트랩)
-            렌더가 이미 읽은 원본이 필요하다.
 
     Returns:
-        with_orders=False: ``(working_set, filtered)``.
-        with_orders=True: ``(working_set, filtered, orders)``.
-        working_set = AS 토글 후·기간/정산 필터 전.
+        (working_set, filtered). working_set = AS 토글 후·기간/정산 필터 전.
     """
     from foms.api.cs.dashboard import _load_completion_orders
     erp_mine_only = erp_mine_only_for_construction(request, user)
@@ -370,36 +363,21 @@ def _completion_working_and_filtered(
     filtered = _filter_completion_rows(
         rows, period=params["period"], settlement=params["settlement"]
     )
-    if with_orders:
-        return rows, filtered, orders
     return rows, filtered
 
 
-def _build_completion_cohort_context(user, search_q: str) -> tuple[list[dict], dict, dict]:
-    """모바일 코호트(v2∪v3) 태블릿 완료 그리드 컨텍스트(행 + 메타 + 사진 리뷰 부트스트랩).
-
-    **부트스트랩을 함께 내는 이유**: 이 코호트에서는 같은 페이지 로드가 모집단을 두 번
-    읽었다 — 서버가 태블릿 그리드를 렌더하며 한 번, 같은 페이지의 사진 리뷰 스크립트가
-    `/api/orders/completion` 으로 또 한 번(2026-09-01 실측: 스테이징 서버 렌더 49ms +
-    API 62ms). 이미 읽은 주문을 그대로 직렬화해 페이지에 실으면 두 번째 읽기가 사라진다.
-
-    부트스트랩에는 **어떤 필터로 만든 목록인지**를 함께 넣는다. 화면이 자기 파라미터와
-    비교해 다르면 쓰지 않고 평소대로 API 를 부른다 — 조건이 어긋난 목록을 조용히
-    보여주는 것이 제일 나쁘다.
+def _build_completion_cohort_context(user, search_q: str) -> tuple[list[dict], dict]:
+    """모바일 코호트(v2∪v3) 태블릿 완료 그리드 컨텍스트(행 + 메타) 구성.
 
     Args:
         user: 로그인 사용자.
         search_q: 검색어(메타 표시·export_url 보존용).
 
     Returns:
-        (tablet_completion_rows, tablet_completion_meta, completion_bootstrap).
+        (tablet_completion_rows, tablet_completion_meta).
     """
-    from foms.api.cs.dashboard import _serialize_completion_orders
-
     params = _completion_query_params()
-    working_set, filtered, orders = _completion_working_and_filtered(
-        user, params, with_orders=True
-    )
+    working_set, filtered = _completion_working_and_filtered(user, params)
     kpis = _compute_completion_kpis(working_set, get_today_kst())
     period_options = _build_completion_period_options(working_set)
     page_rows, page_meta = _paginate(filtered, params["page"])
@@ -423,17 +401,7 @@ def _build_completion_cohort_context(user, search_q: str) -> tuple[list[dict], d
         "page": {**page_meta, "period_label": _completion_period_label(params["period"])},
         "export_url": export_url,
     }
-    focus_order_id = request.args.get("focus_order", type=int)
-    bootstrap = {
-        # 화면이 자기 요청 파라미터와 대조할 값들 — 하나라도 다르면 부트스트랩을 버린다.
-        "filters": {
-            "q": search_q or "",
-            "focus_order": str(focus_order_id) if focus_order_id else "",
-            "mine": "1" if erp_mine_only_for_construction(request, user) else "",
-        },
-        "orders": _serialize_completion_orders(get_db(), orders),
-    }
-    return page_rows, meta, bootstrap
+    return page_rows, meta
 
 
 def _completion_construction_photos(db, order_id: int) -> list[dict]:
@@ -582,17 +550,11 @@ def erp_completion_dashboard():
 
     tablet_completion_rows = None
     tablet_completion_meta = None
-    completion_bootstrap = None
     shell_variant = resolve_shell_variant_cached(user.id if user else None, request)
     if is_mobile_v2_shell(shell_variant):
-        # 이 분기에서만 서버가 모집단을 읽는다. 읽은 김에 사진 리뷰 목록도 함께 실어
-        # 보내 같은 페이지가 API 로 다시 읽지 않게 한다(PC/legacy 는 서버 쿼리 없음 —
-        # 거기서 부트스트랩을 만들면 첫 페인트를 막는 쿼리를 새로 넣는 셈이라 안 만든다).
-        (
-            tablet_completion_rows,
-            tablet_completion_meta,
-            completion_bootstrap,
-        ) = _build_completion_cohort_context(user, search_q)
+        tablet_completion_rows, tablet_completion_meta = _build_completion_cohort_context(
+            user, search_q
+        )
 
     template_name = (
         'cs/partials/completion_dashboard_fragment.html'
@@ -609,7 +571,6 @@ def erp_completion_dashboard():
             focus_order_id=focus_order_id,
             tablet_completion_rows=tablet_completion_rows,
             tablet_completion_meta=tablet_completion_meta,
-            completion_bootstrap=completion_bootstrap,
         )
     )
     apply_erp_shell_fragment_headers(response, request)
