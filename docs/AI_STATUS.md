@@ -16,8 +16,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 - [2026-09-01] **엑셀 내보내기·동선 전면 삭제 deploy(`8f0f2a1d`, 커밋 2개)** — 엑셀: `download_excel`·수납장 `export_excel`·pandas/openpyxl. 동선: `/api/erp/measurement/route`·`route-eta`·`measurement_route.py`·`foms-route-strip.js`·지도 오버레이·"동선 지도" 링크 2곳. ROUTE-01 패킷 123→122(하드코딩 **5곳**), `?v=` 핀 5곳 범프. 보존: `/api/calculate_route`·`measurement_time.py`·핀 지도·히어로. **운영 반영 완료(PR #223 · `68f1100d`)** — perf-gate 막힘의 정체는 회귀가 아니라 예산 파일 계보(측정=스테이징 vs 기준=PR 브랜치)였고, 정산 세션의 completion 예산 재시드 한 항목만 반입해 검사 4종 통과. 원장 §18
 - [2026-09-01] **네이버 일괄 발송처리 결과 UI·안 붙은 수집분 운영 반영(PR #219·#227)** — 띠가 **완료/일부/실패/대기 4상태**, 버튼 직후 폴링, 실패 줄마다 재시도, **안 붙은 수집분을 전화·수령인명으로 짚는다**. **잔여=운영 자산 핀 범프·실브라우저 확인·미연결 21묶음 붙이기**. 원장 `2026-08-31-naver-bulk-dispatch-result-ui-ledger.md`
 - [2026-08-31] **지오코딩 사전변환 복원 production 완료(`365b1280`)** — 스윕 가동, 좌표 미달 121→0. 원장 §12
-- [2026-09-01] **계약서 열람 이력 원장 운영 반영(PR #237 · production `b1ed7bff`)** — 라이브 반영으로 사라졌던 "고객이 그날 본 금액"을 열람 시점에 남긴다. `order_share_snapshots`(마이그레이션 `sharehist_00`, 운영 DB 적용 확인). 내용이 바뀐 순간에만 1행·**UNIQUE 없음**(A→B→A 되돌림 시간축 보존)·적재 실패는 로그만 남기고 고객 화면은 산다. 직원은 주문 상세 공유 모달 "고객이 본 내용"→그 시점 화면(새 탭). 설계 `docs/specs/2026-09-01-share-contract-view-history-design.md`
-- [2026-09-01] **공유 링크 — 계약서 라이브 반영 + 모바일 합본 사진(PR #235)** — 계약서 발급 동결(D6)→라이브(화이트리스트 매 열람 재구성·계약번호는 발급 고정), 모바일 도면 일괄은 ZIP 대신 사진 1장. 잔여=실기기 확인·발급 이력 미구현
+- [2026-09-01] **계약서 열람 이력 원장 운영 반영(PR #237 · production `b1ed7bff`)** — 라이브 반영으로 사라졌던 "고객이 그날 본 금액"을 열람 시점에 남긴다. `order_share_snapshots`(`sharehist_00`, 운영 DB 확인). 내용이 바뀐 순간에만 1행, 적재 실패는 로그만 남기고 고객 화면은 산다. 설계 `docs/specs/2026-09-01-share-contract-view-history-design.md`
 - [2026-08-31] **운영 승격 PR 11분 → 3분(PR #210)** — CI 단축 5건이 deploy 에만 있어 승격 관문이 옛 속도로 돌던 구멍. production 반영 완료(전체 스위트 로컬 106초)
 - [2026-08-30] **네이버 이력 탭 상태 칸 재설계 deploy(`9d19da0b`)** — 재결제·추가결제·발송처리 축 신설, 축별 3줄. 부분 인덱스 2벌(`naverdisp_00`). 취소 확정 날짜는 축을 따로 판다(반품 축에 `cancel` 금지 — 08-27 누출). **운영 승격·실화면 대조 완료**(PR #200 · 08-31 운영 50행 실측). 원장 `2026-08-30-naver-history-status-column-ledger.md`(계약서 §15 정본)
 - ⚠️ [2026-08-23] **로컬 dev DB 행 소실(로컬 한정)** — pytest 파일이 conftest 보다 먼저 `db` import → 로컬 PG 에 `drop_all`. 스테이징·운영 무관. 근본 수정: `assert_engine_not_postgresql`(env 문자열 아닌 엔진 판정)
@@ -50,6 +49,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 
 
 ## 최근 완료 (최대 5개)
+- [2026-09-01] 공유 링크 — 계약서 라이브 반영 + 모바일 합본 사진(PR #235). 발급 동결(D6)→라이브, 모바일 도면 일괄은 ZIP 대신 사진 1장. **잔여=실기기(카톡 인앱) 확인 5건.** 원장 `docs/plans/2026-08-31-share-contract-drawing-ux-ledger.md`
 - [2026-08-31] **SIDEFX 워커 서비스 등록·가동(T5 해소)** — heartbeat 3행 최초 생성, GEOCODE·STORAGE_DELETE 소진 중. ⚠ **Railway 가 Config as Code(railway*.toml) 폐기** → 저장소 toml 은 사문, startCommand 직접 지정으로 배선. **기존 서비스도 toml 이 아니라 API 설정으로 도는지 확인 필요.** 원장 §16
 - [2026-08-31] **엑셀 업로드·동선 추천 제거 + 동선 API 5초 수리 production 완료(`eda377ce`)** — 원장 §12·§14·§15
 - [2026-09-01] **공유 링크 발송 흔적 칩 — 운영 승격 완료** (PR #225 merge `2ce97e2a`, 검사 4/4 green; deploy `fd04014d`). 도면+계약서 알림톡·문자를 보내면 `sd['alimtalk_share']` 에 흔적을 남기고 주문 화면 칩 자리에 예약 안내 칩과 **나란히** 그린다(별개 레코드 — 합치면 '아직 안 보냄'이 모호해진다). 대상=묶음(bundle)만, 미발송이면 칩 없음(사용자 결정). sd 쓰기는 `share.py` 가 아니라 정본 모듈 `kakao_alimtalk.py` 안에서 한다 — REV-99 writer 분류가 파일 단위라 라우트에서 직접 쓰면 EXTERNAL 이 새로 생긴다. 같은 이유로 그 모듈의 structured_data 쓰기 지점을 `_write_structured` 하나로 모았다(EXTERNAL 24 불변). 스테이징 실발송·실화면 확인 완료(칩 렌더 + DB 레코드 + 테스트 주문 정리). 미해결=PR #225 머지 대기. 별건 기존 red: `test_erp_order_edit_mobile_form::test_edit_erp_order_ships_responsive_form_mounts_for_cohort` 가 운영 HEAD 에서 이미 실패한다.
