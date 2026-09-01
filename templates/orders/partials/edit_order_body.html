@@ -310,7 +310,13 @@
                             <div class="mb-3">
                                 <label for="manager_name" class="form-label">담당자</label>
                                 <input type="text" class="form-control" id="manager_name" name="manager_name"
-                                    value="{{ order.manager_name }}" autocomplete="off">
+                                    value="{{ order.manager_name }}" list="manager_name_options"
+                                    autocomplete="off" placeholder="목록에서 고르거나 직접 입력">
+                                <datalist id="manager_name_options">
+                                    {% for name in foms_manager_name_options() %}
+                                    <option value="{{ name }}"></option>
+                                    {% endfor %}
+                                </datalist>
                             </div>
 
                             <!-- 지방 주문 설정 -->
