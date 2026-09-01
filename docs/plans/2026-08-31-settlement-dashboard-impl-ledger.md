@@ -1375,3 +1375,30 @@ perf-gate 2차 red 는 TTFB 였다. 같은 경로를 여러 런에 걸쳐 분포
 ### 남은 조사
 
 `orders` 테이블 쓰기 전량 / `users`·`system_settings`·`order_assignments` 쓰기 — 조사 중.
+
+### S0-2 결론(users·system_settings·배정): 패밀리 밖 축이 실재한다
+
+**24경로 중 엔진 경유 3**(전부 다른 엔진 tx 에 편승한 형태), **미경유 21**,
+그중 수동 무효화로 보정되는 것 2 → **신호가 아예 없는 경로 19**.
+
+직접 확인한 것 3가지:
+- `foms/web/auth/routes.py` 전체에 `invalidate_` **0건**(grep). 사용자 이름·팀·역할·비활성
+  전환이 캐시에 아무 신호도 안 준다.
+- `foms/api/shipment/settings.py:171` 만 유일하게 `invalidate_dashboard_families(SHIPMENT, ORDERS)`
+  를 부른다 — `system_settings` 7개 키 중 1개만 보정된다.
+- `foms/services/orders/order_create.py` 에 `execute_order_mutation` **0건** — 신규 주문의
+  INITIAL_OWNER 배정이 신호 없이 들어간다(주문 대시보드 owner 필터가 읽는 축).
+
+가장 아픈 것: 담당자 **이름**이 `orders` 패밀리 캐시 슬라이스 안에 들어 있다
+(`dashboard_read_model.py:428` → `orders/dashboard.py:345`, TTL 300초). 그래서 이름 변경·
+탈퇴 익명화·비활성 전환이 최대 300초 동안 옛 값으로 남는다 — **지금도 그렇다**(이 설계와 무관한
+기존 결함). 렌더 전 304 를 붙이면 그 창이 TTL 이 아니라 **재검증 주기**로 늘어난다.
+
+### S0 중간 판정
+
+- 신호원을 세션 훅으로 바꾸면 `orders`·일정·첨부는 덮인다(ORM 통과).
+- 그러나 `users`·`system_settings` 는 **패밀리 개념 밖**이고, 워커 프로세스 쓰기
+  (썸네일·네이버 워터마크)는 web 프로세스의 after_commit 과 무관하다.
+  → 이 축들은 **키에 직접 넣거나**(예: users/settings 전용 카운터를 세션 훅에서 함께 올림)
+  아니면 그 축을 읽는 화면을 S2 대상에서 제외해야 한다.
+- 남은 조사: `orders` 테이블 쓰기 전량(진행 중).
