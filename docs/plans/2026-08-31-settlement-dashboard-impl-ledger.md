@@ -1282,3 +1282,16 @@ PC 경로에는 부트스트랩 부재 · 스크립트가 필터 대조 후에�
 
 단계: S0 전수조사 → S1 카운터 배선(읽는 쪽 없음) → S2 화면 1개 적용 후 스테이징 실측 →
 S3 확대. 승인 대기.
+
+### P4 부수 — CI red 1회와 그 사각지대 (2026-09-01)
+
+`erp-order-shared.js` 핀을 `20260901a` 로 올렸더니 FOMS CI 가 red 였다:
+`tests/visual/test_alimtalk_ui_contract.py::test_share_trace_assets_pinned_together` 가
+`erp_order_js.html` 안의 `?v=20260901a` 를 **정확히 2개**(트레이스 CSS + 공유 JS)로 세는데,
+같은 날 다른 세션이 그 값을 쓰고 있어서 3개가 됐다. 핀은 자산 단위이므로 내 자산만
+`20260901m` 으로 분리하고 계약 테스트를 함께 갱신했다(deploy `6740af20`, CI 4종 green).
+
+**사각지대 기록**: `pre_push_smoke` 서브셋과 내 로컬 전체 실행(`--ignore=tests/visual`)이
+이 테스트를 돌지 않아 로컬은 계속 초록이었다. **핀을 만졌으면 push 전에
+`pytest tests/visual/test_alimtalk_ui_contract.py` 를 따로 돌린다.**
+(같은 교훈을 메모리 `sw-stale-js-version-bump` 에도 추가.)
