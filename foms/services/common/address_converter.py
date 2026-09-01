@@ -406,13 +406,26 @@ class FOMSAddressConverter:
                     return lat, lng, final_status, region_info, None
                 saw_transient = saw_transient or kind == FAILURE_TRANSIENT
 
-        # 6단계: 주소 구성 요소 분석 후 재시도
+        # 6단계: 주소 구성 요소로 좁혀 마지막 한 번 더 시도.
+        #
+        # 이 단계는 **주소가 가리키는 지점이 아니라 그 동네의 중심 좌표**를 돌려준다. 그래서
+        # 두 가지를 지킨다(2026-09-02 운영 실측 근거).
+        #
+        # * **동까지 있을 때만** 시도한다. `시 + 구` 만으로 물어보면 구 중심 좌표(수 km 오차)가
+        #   `success` 로 저장돼 지도 핀이 엉뚱한 곳에 정확한 얼굴로 꽂힌다.
+        # * **일시 오류를 겪었으면 아예 시도하지 않는다.** 네트워크가 흔들려 앞 전략들이 죽은
+        #   상황에서 동 중심 좌표로 덮으면, 재시도됐어야 할 건이 성공으로 굳는다(운영 #2418 이
+        #   정확히 그 모양이었다 — 진짜 위치에서 2,214m).
+        if saw_transient:
+            self._cache_set(cache_key, None, None, "일시 오류로 변환 보류", None, FAILURE_TRANSIENT)
+            return None, None, "일시 오류로 변환 보류", None, FAILURE_TRANSIENT
+
         try:
             components = self.advanced_processor.extract_address_components(address)
-            if components['city'] and components['district']:
-                simplified_address = f"{components['city']} {components['district']}"
-                if components['dong']:
-                    simplified_address += f" {components['dong']}"
+            if components['city'] and components['district'] and components['dong']:
+                simplified_address = (
+                    f"{components['city']} {components['district']} {components['dong']}"
+                )
 
                 lat, lng, status, region_info, kind = self._try_address_api(simplified_address)
                 if lat is not None and lng is not None:

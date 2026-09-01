@@ -277,6 +277,24 @@ class FOMSAdvancedAddressProcessor:
         
         return suggestions[:5]  # 최대 5개만 반환
     
+    @staticmethod
+    def _extract_dong(processed: str) -> Optional[str]:
+        """정규화된 주소에서 법정동/행정동 이름을 뽑는다(없으면 None).
+
+        Args:
+            processed: :meth:`process_address` 를 거친 주소.
+
+        Returns:
+            `금호4가동` 처럼 동 이름 1개, 없으면 None. 구/시/군 이름의 일부(`성동`구)와
+            아파트 동 번호(`112동`)는 동 이름이 아니므로 돌려주지 않는다.
+        """
+        for match in re.finditer(r'(?<![가-힣])([가-힣0-9]+동)(?![가-힣])', processed):
+            token = match.group(1)
+            if token[:-1].isdigit():
+                continue  # `112동` — 아파트 동 번호
+            return token
+        return None
+
     def extract_address_components(self, address: str) -> Dict[str, Optional[str]]:
         """주소 구성 요소 추출"""
         processed = self.process_address(address)
@@ -304,10 +322,14 @@ class FOMSAdvancedAddressProcessor:
                     components['district'] = district
                     break
         
-        # 동 추출
-        dong_match = re.search(r'(\w+동)', processed)
-        if dong_match:
-            components['dong'] = dong_match.group(1)
+        # 동 추출.
+        #
+        # `(\w+동)` 만 쓰면 **구 이름에서 동을 만들어 낸다** — `성동구` 의 `성동` 이 먼저 잡혀
+        # 6단계 simplified 폴백이 `서울특별시 성동구 성동` 을 물어봤고, 운영 주문 #2418 은
+        # 진짜 위치(금호4가동)에서 **2,214m** 떨어진 좌표를 성공으로 저장했다(2026-09-02 실측).
+        # 그래서 (a) 뒤에 한글이 이어지면(=`동구`·`동로` 등의 일부) 건너뛰고,
+        # (b) `112동` 같은 아파트 동 번호는 동 이름이 아니므로 제외한다.
+        components['dong'] = self._extract_dong(processed)
         
         # 도로명 추출
         road_match = re.search(r'(\w+(?:대로|로|길))', processed)

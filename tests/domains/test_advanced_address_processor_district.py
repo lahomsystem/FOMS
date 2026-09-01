@@ -58,3 +58,38 @@ def test_no_double_suffix(processor) -> None:
     """음성 대조군: 이미 '구'가 붙은 이름에 다시 붙이지 않는다('강남구구')."""
     processed = processor.process_address("서울특별시 강남구 테헤란로 152")
     assert "강남구구" not in processed
+
+
+# --------------------------------------------------------------------------- #
+# 동 추출 — 구 이름에서 동을 만들어 내지 않는다 (GEO-COARSE-01)
+# --------------------------------------------------------------------------- #
+def test_dong_is_not_taken_from_the_district_name(processor) -> None:
+    """`성동구` 의 `성동` 은 동 이름이 아니다.
+
+    운영 #2418: 이 오추출이 6단계 폴백에 `서울특별시 성동구 성동` 을 물어보게 만들어,
+    진짜 위치(금호4가동)에서 **2,214m** 떨어진 좌표가 success 로 저장됐다(2026-09-02 실측).
+    """
+    components = processor.extract_address_components(
+        "서울시 성동구 금호4가동 1546-4, 힐스테이트서울숲리버 112동 1101호")
+    assert components["district"] == "성동구"
+    assert components["dong"] == "금호4가동"
+
+
+def test_apartment_building_number_is_not_a_dong(processor) -> None:
+    """`112동` 은 아파트 동 번호지 동 이름이 아니다."""
+    components = processor.extract_address_components("서울 강남구 테헤란로 152 112동 1101호")
+    assert components["dong"] is None
+
+
+@pytest.mark.parametrize(
+    "address, expected_dong",
+    [
+        ("서울 관악구 성현동, 관악센트씨엘 101동 405호", "성현동"),      # 정상 추출(양성)
+        ("경기도 오산시 궐동 432-4 세교파라곤 412동 1201호", "궐동"),    # 정상 추출(양성)
+        ("부산 해운대구 우동 1407 마린시티 101동 202호", "우동"),        # 두 글자 동(양성)
+        ("서울 강남구 테헤란로 152 5층", None),                          # 동 없음(음성)
+    ],
+)
+def test_dong_extraction_matrix(processor, address, expected_dong) -> None:
+    """양성·음성을 한 표로 고정한다(동을 아예 못 뽑는 퇴화 구현 차단)."""
+    assert processor.extract_address_components(address)["dong"] == expected_dong

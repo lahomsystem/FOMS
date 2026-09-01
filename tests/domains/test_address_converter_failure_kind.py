@@ -249,3 +249,79 @@ def test_legacy_return_shapes_unchanged(converter: FOMSAddressConverter,
     assert len(converter.convert_address("서울 강남구 테헤란로 1")) == 3
     FOMSAddressConverter.clear_geocode_cache()
     assert len(converter.analyze_address("서울 강남구 테헤란로 1")) == 4
+
+
+# --------------------------------------------------------------------------- #
+# 6단계 simplified 폴백 — 동네 중심 좌표를 언제 써도 되는가 (GEO-COARSE-01)
+# --------------------------------------------------------------------------- #
+class _Components:
+    """구성 요소를 지정한 값으로 돌려주는 고급처리기 대역."""
+
+    def __init__(self, city=None, district=None, dong=None):
+        self._c = {"city": city, "district": district, "dong": dong}
+
+    def process_address(self, address: str) -> str:
+        return address
+
+    def extract_address_components(self, address: str) -> dict:
+        return dict(self._c)
+
+
+def test_simplified_fallback_needs_a_dong(converter: FOMSAddressConverter,
+                                          monkeypatch: pytest.MonkeyPatch) -> None:
+    """`시 + 구` 만으로는 폴백하지 않는다 — 구 중심 좌표는 수 km 오차다."""
+    converter.advanced_processor = _Components(city="서울특별시", district="강남구")
+    queries: list[str] = []
+
+    def _handler(url: str, **kwargs: Any):
+        queries.append((kwargs.get("params") or {}).get("query", ""))
+        return _FakeResponse(200, {"documents": []})
+
+    _patch_get(monkeypatch, _handler)
+    _lat, _lng, _status, kind = converter.convert_address_with_reason("서울 강남구 어딘가")
+    assert kind == FAILURE_PERMANENT
+    assert "서울특별시 강남구" not in queries, "구 중심 좌표를 물어봤다"
+
+
+def test_simplified_fallback_runs_with_dong(converter: FOMSAddressConverter,
+                                            monkeypatch: pytest.MonkeyPatch) -> None:
+    """음성 대조군: 동까지 있으면 종전대로 동 중심 좌표를 쓴다(유일한 답인 경우)."""
+    converter.advanced_processor = _Components(
+        city="서울특별시", district="관악구", dong="성현동")
+    queries: list[str] = []
+
+    def _handler(url: str, **kwargs: Any):
+        q = (kwargs.get("params") or {}).get("query", "")
+        queries.append(q)
+        if q == "서울특별시 관악구 성현동":
+            return _FakeResponse(200, _documents())
+        return _FakeResponse(200, {"documents": []})
+
+    _patch_get(monkeypatch, _handler)
+    lat, lng, status, kind = converter.convert_address_with_reason("서울 관악구 성현동 어딘가")
+    assert (lat, lng) == (37.5, 127.0)
+    assert kind is None
+    assert "simplified" in status
+    assert "서울특별시 관악구 성현동" in queries
+
+
+def test_transient_failure_blocks_the_coarse_fallback(converter: FOMSAddressConverter,
+                                                      monkeypatch: pytest.MonkeyPatch) -> None:
+    """일시 오류를 겪었으면 동 중심 좌표로 덮지 않는다.
+
+    운영 #2418 이 이 모양이었다 — 앞 전략이 죽은 자리를 폴백이 메워 진짜 위치에서 2,214m
+    떨어진 좌표가 `success` 로 굳었다. 재시도됐어야 할 건이다.
+    """
+    converter.advanced_processor = _Components(
+        city="서울특별시", district="성동구", dong="금호4가동")
+
+    def _handler(url: str, **kwargs: Any):
+        q = (kwargs.get("params") or {}).get("query", "")
+        if q == "서울특별시 성동구 금호4가동":
+            return _FakeResponse(200, _documents())  # 폴백은 답을 줄 수 있다
+        return _FakeResponse(429)                     # 앞 전략은 전부 일시 오류
+
+    _patch_get(monkeypatch, _handler)
+    lat, lng, _status, kind = converter.convert_address_with_reason("서울시 성동구 금호4가동 1546-4")
+    assert (lat, lng) == (None, None), "일시 오류를 동네 중심 좌표로 덮었다"
+    assert kind == FAILURE_TRANSIENT
