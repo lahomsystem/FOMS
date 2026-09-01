@@ -7,6 +7,7 @@ from sqlalchemy import or_, and_, cast, String, func
 from foms.persistence.main.models import Order
 from foms.services.erp_display import normalize_manager_name
 from foms.services.geocode_helpers import extract_address_from_order
+from foms.services.geocode_retry import canonicalize_status
 from foms.services.erp_shipment_settings import load_erp_shipment_settings
 from foms.services.measurement_manager_colors import (
     build_measurement_manager_color_map,
@@ -458,8 +459,12 @@ def _extract_order_display_fields(order):
 
 
 def _canonicalize_geocode_status(order, lat, lng, has_address):
-    """DB geocode_status를 success|pending|failed 3상태로 정규화."""
-    raw = getattr(order, 'geocode_status', None)
+    """DB geocode_status를 success|pending|failed 3상태로 정규화.
+
+    ``address_error``(주소가 조회되지 않는 건, GEO-FAILKIND-01)는 ``failed`` 로 접는다 —
+    화면 배지·필터가 아는 값은 3개뿐이고, 사용자에게 필요한 안내도 같다("주소 오류").
+    """
+    raw = canonicalize_status(getattr(order, 'geocode_status', None))
     if raw in ('success', 'pending', 'failed'):
         return raw
     if lat is not None and lng is not None:

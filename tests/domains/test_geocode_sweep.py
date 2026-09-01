@@ -261,6 +261,42 @@ def test_batch_caps_round_and_enqueues_each_order_once(
 
 
 # ---------------------------------------------------------------------------
+# 2b. failed 백오프 재시도 / address_error 영구 제외 (GEO-FAILKIND-01)
+# ---------------------------------------------------------------------------
+
+
+def test_stale_failed_is_swept_but_fresh_failed_is_not(
+    app, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """사유 불명 ``failed`` 는 하루 뒤 다시 집는다(영구 제외였던 것이 이번 사고의 절반).
+
+    음성 대조군으로 방금 실패한 건을 같이 둔다 — 백오프를 무시하고 전부 집는 구현이면
+    이 대조군이 함께 큐에 들어가 실패한다.
+    """
+    stale = _make_order(customer_name="오래된 실패", geocode_status="failed",
+                        geocoded_at=NOW - datetime.timedelta(days=2))
+    _make_order(customer_name="방금 실패", geocode_status="failed",
+                geocoded_at=NOW - datetime.timedelta(minutes=5))
+    legacy = _make_order(customer_name="시각 없는 실패", geocode_status="failed",
+                         geocoded_at=None)
+
+    queued, _result = _run_sweep(monkeypatch)
+
+    assert set(queued) == {stale.id, legacy.id}
+
+
+def test_address_error_is_never_swept(app, monkeypatch: pytest.MonkeyPatch) -> None:
+    """``address_error`` 는 나이와 무관하게, ``--include-failed`` 로도 집지 않는다."""
+    _make_order(customer_name="주소 오류", geocode_status="address_error",
+                geocoded_at=NOW - datetime.timedelta(days=30))
+    untried = _make_order(customer_name="미시도 대조군")
+
+    queued, _result = _run_sweep(monkeypatch, include_failed=True)
+
+    assert queued == [untried.id]
+
+
+# ---------------------------------------------------------------------------
 # 3. 술어 SSOT 공유 (백필 CLI 회귀 방지)
 # ---------------------------------------------------------------------------
 

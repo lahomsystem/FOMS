@@ -12,9 +12,16 @@
 * **재시도 의미론**: 예외를 올리면 worker 가 attempts++/backoff/DEAD 로 처리한다. 반대로
   "더 할 일이 없는" 상황(주문 삭제됨·payload 에 order_id 없음·주소 빈 값·이미 좌표 있음)은
   **정상 반환**해 DONE 으로 끝낸다 — 재시도해도 결과가 바뀌지 않는 일을 DEAD 로 쌓지 않는다.
-* **변환 실패**: 카카오 변환기가 좌표를 못 찾는 경우는 예외가 아니라 데이터 문제다. RQ 경로와
-  똑같이 ``geocode_status='failed'`` 를 기록하고 성공 반환한다(같은 주소로 10회 재호출하면
-  카카오 쿼터만 태운다). 네트워크/DB 장애 같은 진짜 실패는 예외로 올라가 재시도된다.
+* **변환 실패**: 실패에는 종류가 둘 있고 처리도 반대다(GEO-FAILKIND-01).
+
+  * *주소 오류* — 카카오가 200 으로 "그런 주소 없음"을 답한 경우. 예외가 아니라 데이터
+    문제다. ``geocode_status='address_error'`` 를 기록하고 성공 반환한다(같은 주소로 10회
+    재호출하면 카카오 쿼터만 태운다).
+  * *일시 오류* — 키 부재·타임아웃·429·HTTP 비200. **재시도 경로로 보낸다**: 예외를 올려
+    worker 의 attempts++/backoff 를 태운다. 2026-09-01 사고 전에는 이것까지 "데이터 문제"로
+    묶어 ``failed`` 로 굳혔고, 그래서 멀쩡한 주소 11건이 "주소오류"로 남았다.
+
+  DB 장애 같은 진짜 실패는 종전대로 예외로 올라가 재시도된다.
 * **멱등**: 같은 행이 재전달돼도 ``address_hash`` + 좌표 일치면 외부 호출 없이 즉시 반환한다
   (판정은 :func:`foms.services.geocode_helpers.apply_geocode_to_order` SSOT).
 
@@ -32,6 +39,7 @@ from sqlalchemy.orm import Session
 from foms.services.geocode_helpers import (
     GEOCODE_OUTCOME_FAILED,
     GEOCODE_OUTCOME_NO_ADDRESS,
+    GEOCODE_OUTCOME_TRANSIENT,
     apply_geocode_to_order,
 )
 from models import DomainSideEffectOutbox, Order
@@ -44,6 +52,14 @@ GEOCODE_EFFECT_TYPE = "GEOCODE"
 
 class GeocodeDeliveryError(RuntimeError):
     """GEOCODE 배달을 진행할 수 없다(세션 미attach 등 방어 — worker 가 재시도/DEAD 처리)."""
+
+
+class GeocodeTransientError(GeocodeDeliveryError):
+    """일시 오류로 변환을 마치지 못했다 — worker 백오프로 다시 시도해야 한다.
+
+    주소 오류(``address_error``)와 달리 이 실패는 주문 데이터와 무관하다. 예외로 올려야
+    outbox 행이 PENDING 으로 남아 다음 배달에서 다시 시도된다.
+    """
 
 
 def _order_id(row: DomainSideEffectOutbox) -> Optional[int]:
@@ -67,6 +83,7 @@ def handle_geocode(row: DomainSideEffectOutbox) -> None:
 
     Raises:
         GeocodeDeliveryError: 행이 세션에 attach 되지 않음(방어적 fail-closed).
+        GeocodeTransientError: 일시 오류로 변환 보류 — worker 백오프 재시도 대상.
         Exception: 주소 변환기/DB 의 예기치 못한 실패는 그대로 전파(worker 가 재시도).
     """
     session = Session.object_session(row)
@@ -88,9 +105,17 @@ def handle_geocode(row: DomainSideEffectOutbox) -> None:
     outcome = apply_geocode_to_order(order)
     if outcome == GEOCODE_OUTCOME_NO_ADDRESS:
         _LOGGER.info(
-            "[geocode] order %s has no address (id=%s) — marked failed, no retry",
+            "[geocode] order %s has no address (id=%s) — marked address_error, no retry",
             order_id, row.id)
     elif outcome == GEOCODE_OUTCOME_FAILED:
         _LOGGER.warning(
-            "[geocode] order %s address conversion failed (id=%s) — marked failed, no retry",
+            "[geocode] order %s address not found (id=%s) — marked address_error, no retry",
             order_id, row.id)
+    elif outcome == GEOCODE_OUTCOME_TRANSIENT:
+        # 이 예외로 tx 가 롤백되므로 order 에 찍힌 pending/geocoded_at 도 함께 되돌아간다.
+        # 재시도 근거는 outbox 행(PENDING 유지)이 들고 있으니 그래도 된다.
+        _LOGGER.warning(
+            "[geocode] order %s transient conversion failure (id=%s) — retrying",
+            order_id, row.id)
+        raise GeocodeTransientError(
+            f"transient geocode failure for order {order_id} (outbox id={row.id})")
