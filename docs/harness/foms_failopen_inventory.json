@@ -5,14 +5,14 @@
   "overlap_api_error_01": "API-ERROR-01 owns response/stdout exposure (print_exc/str(e) -> log_handled_exception). This packet owns swallow classification. Sites that log via log_handled_exception are LOG_AND_CONTINUE here.",
   "marker_convention": "Silent-by-design catches carry an inline `# failopen: intentional: <reason>` (or `fail-closed`) marker; the scanner reads it as the justification. No bare allowlist, no lint-disable.",
   "baselines": {
-    "broad_total": 566,
+    "broad_total": 568,
     "unclassified": 0,
     "swallow_by_control_flow": 180
   },
   "disposition_counts": {
     "FAIL_CLOSED": 31,
     "INTENTIONAL": 17,
-    "LOG_AND_CONTINUE": 338,
+    "LOG_AND_CONTINUE": 340,
     "SWALLOW_BY_CONTROL_FLOW": 180
   },
   "owner_counts": {
@@ -24,7 +24,7 @@
     "persistence": 3,
     "platform": 5,
     "runtime": 3,
-    "services": 149,
+    "services": 151,
     "storage": 21,
     "telemetry": 30,
     "web": 39
@@ -3165,7 +3165,7 @@
     },
     {
       "path": "foms/services/common/fragment_revalidation.py",
-      "lineno": 178,
+      "lineno": 181,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3174,7 +3174,7 @@
     },
     {
       "path": "foms/services/common/fragment_revalidation.py",
-      "lineno": 271,
+      "lineno": 213,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3183,7 +3183,25 @@
     },
     {
       "path": "foms/services/common/fragment_revalidation.py",
-      "lineno": 280,
+      "lineno": 246,
+      "handler_type": "broad_exception",
+      "disposition": "LOG_AND_CONTINUE",
+      "owner": "services",
+      "has_logging": true,
+      "justification": "logs via logger/log_handled_exception"
+    },
+    {
+      "path": "foms/services/common/fragment_revalidation.py",
+      "lineno": 340,
+      "handler_type": "broad_exception",
+      "disposition": "LOG_AND_CONTINUE",
+      "owner": "services",
+      "has_logging": true,
+      "justification": "logs via logger/log_handled_exception"
+    },
+    {
+      "path": "foms/services/common/fragment_revalidation.py",
+      "lineno": 349,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -4668,7 +4686,7 @@
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
-      "lineno": 3583,
+      "lineno": 3585,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
@@ -4677,7 +4695,7 @@
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
-      "lineno": 3595,
+      "lineno": 3597,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
@@ -4686,7 +4704,7 @@
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
-      "lineno": 4087,
+      "lineno": 4089,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
@@ -4695,7 +4713,7 @@
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
-      "lineno": 4277,
+      "lineno": 4279,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
@@ -4704,7 +4722,7 @@
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
-      "lineno": 4545,
+      "lineno": 4547,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
@@ -4713,7 +4731,7 @@
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
-      "lineno": 4638,
+      "lineno": 4640,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
@@ -4722,7 +4740,7 @@
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
-      "lineno": 4701,
+      "lineno": 4703,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
@@ -4731,7 +4749,7 @@
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
-      "lineno": 4873,
+      "lineno": 4875,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
@@ -4938,7 +4956,7 @@
     },
     {
       "path": "foms/web/measurement/dashboard.py",
-      "lineno": 738,
+      "lineno": 742,
       "handler_type": "broad_exception",
       "disposition": "INTENTIONAL",
       "owner": "web",
@@ -4947,7 +4965,7 @@
     },
     {
       "path": "foms/web/measurement/dashboard.py",
-      "lineno": 751,
+      "lineno": 755,
       "handler_type": "broad_exception",
       "disposition": "INTENTIONAL",
       "owner": "web",
@@ -4956,7 +4974,7 @@
     },
     {
       "path": "foms/web/measurement/dashboard.py",
-      "lineno": 764,
+      "lineno": 768,
       "handler_type": "broad_exception",
       "disposition": "INTENTIONAL",
       "owner": "web",
@@ -4965,7 +4983,7 @@
     },
     {
       "path": "foms/web/measurement/dashboard.py",
-      "lineno": 777,
+      "lineno": 781,
       "handler_type": "broad_exception",
       "disposition": "INTENTIONAL",
       "owner": "web",
