@@ -10,7 +10,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
-- [2026-09-01] **네이버 클레임 승인 T9 로컬(커밋 대기)** — 취소 요청 승인 신설(`claim/cancel/approve`)+반품 승인 독립 경로(고객이 낸 반품). ADMIN·MANAGER, 게이트 2개(기본 꺼짐·web 전용), 승인도 OrderEvent. **취소 거부 API 는 네이버에 없다.** 원장: `docs/plans/2026-09-01-naver-claim-approve-ledger.md`
+- [2026-09-02] **네이버 클레임 승인 T9 운영 ON**(PR #249 · production `b0c81413` · web 재배포 23:23Z) — 취소 요청 승인 신설(`claim/cancel/approve`)+반품 승인 독립 경로. 게이트 2종 `FOMS_NAVER_{CANCEL,RETURN}_APPROVE_ENABLED=1`(web 전용). **취소 거부 API 는 네이버에 없다.** 후속: 유령 주문 단계 잠금 해제(사유 필수)는 deploy `549a801f`. 원장: `docs/plans/2026-09-01-naver-claim-approve-ledger.md`
 - [2026-09-01] **네이버 과거 주문 백필 deploy 반영** — 워크벤치 90일 1회 실행·워터마크 불변·소급분은 큐 밖·매칭 캡 해소(`naverbf_00`). **운영 실행 승인 대기**. 원장 `docs/plans/2026-09-01-naver-ingest-backfill-ledger.md`
 - [2026-09-02] **지오코딩 일시오류/주소오류 분리 운영 반영 완료(PR #243 · production `c8492b6b`)** — ①변환기가 실패 사유를 가른다(타임아웃·429·비200=transient) ②`geocode_status` 4상태화(`address_error` 신설·화면은 3상태 정규화) + 재시도 SSOT `geocode_retry.py`(pending 600초·failed 24h 백오프, `address_error` 제외) ③`번길` 절단 — 실호출 **426m 오차** ④구 이름 부분 치환 — 실호출 **3,968m 오차**. WORKER 신코드 확인(`failed_retry=86400s`), 운영 failed 20건은 24h 백오프 뒤 자동 재시도. 원장 `docs/plans/2026-09-01-geocode-transient-vs-data-error-plan.md`
 - [2026-09-01] **네이버 재결제 옛 주문을 띠에서 바로 취소·반품 + 발송 축 결함 수정 deploy** — 처리 탭 띠 줄에서 바로 쏜다(낡은 줄 차단·모달 4종 세트·결과 감시). **판매자센터 발송 집이 띠에선 '반품'인데 pane 은 취소를 열어 주던 결함** — `dispatched_any`·`cancel_order` 가 우리 표식만 봤다. 설계서 §7-E. **잔여=운영 승격**
