@@ -236,3 +236,12 @@ iOS·Android 인앱 브라우저 다운로드 제약 정리.
   계약서 본문·계좌 복사·저장 버튼 무변경. 검증용 임시 주문 2914 는 삭제했다.
 
 **남은 일**: 운영 승격(PR) — 승격 시 마이그레이션 1건이 함께 간다.
+
+**운영 반영 완료(2026-09-01)** — PR #237 머지, production `b1ed7bff`. 검사 4/4 pass.
+승격 시 충돌 2건은 이렇게 풀었다: `test_alimtalk_ui_contract.py` 는 **production 쪽 구현이 더
+엄격**(자산 이름 기준)이라 그대로 두고 핀 리터럴만 `20260901a`→`b`, failopen 인벤토리는 생성물이라
+승격 트리에서 재생성. 승격 트리에서 **전체 스위트 8038 passed** 직접 실행(승격 PR 은 본 스위트를
+안 도는 구멍이 있다). 운영 확인: `erp-share.js?v=20260901b` 실서빙 + 운영 DB `order_share_snapshots`
+존재·`alembic_version=sharehist_00`.
+무관 기존 red 1건 기록: `test_erp_order_edit_mobile_form.py::test_edit_erp_order_ships_responsive_form_mounts_for_cohort`
+는 **깨끗한 origin/production 체크아웃에서도 빨강**이다(이 작업이 만든 것이 아니다).
