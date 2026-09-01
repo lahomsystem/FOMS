@@ -14,7 +14,7 @@
 | T4 워크벤치 화면 + 자산 핀 | DONE | 템플릿 계약 green·핀 전수 일치 |
 | T5 스테이징 1회 백필 검증 | DONE | 보존 기간 실측·링크 증가·후보 노출·중복 0·429 0 |
 | T6 게이트·푸시 | DONE(CI 4/4 green) | pre_push_smoke exit 0 + CI 전 워크플로 green |
-| T7 매칭 축 사본 컬럼(캡 함정 해소) | DONE(CI 대기) |
+| T7 매칭 축 사본 컬럼(캡 함정 해소) | DONE |
 | T8 원본 없는 건 안내(곁가지) | PENDING | 잔여 있을 때만 |
 
 ## 문서 근거 — 조회 가능 기간 (2026-09-01)
@@ -123,3 +123,26 @@
 - PG 레인 계약: 마이그레이션 왕복 2회 + 인덱스 술어가 `WHERE (order_id IS NULL)` 인지.
   로컬은 PG 없음으로 skip — CI PostgreSQL Lane 이 판정한다.
 - 로컬 전수(visual·postgres 제외) 7,789 passed · pre_push_smoke exit 0.
+
+### T7 스테이징 실데이터 검증 (2026-09-01)
+
+- 마이그레이션이 스테이징에 반영된 뒤 `tools/ops/backfill_link_match_keys.py --batch 500`
+  실행 — 2,099행 전부 채움(사본 없음 0행).
+- 실데이터 시드로 확인: 미연결 링크 중 **가장 오래된 id=20**(김용오, 08-12 주문)의 수령인·
+  전화로 오늘 실측 주문을 하나 만들고 `GET /admin/naver-ingest/bulk-dispatch/state` 호출 →
+  `unlinked: 1`, 근거 `전화 일치`. 미연결이 2,000행인 상태라 **예전 코드였다면 id 내림차순
+  300행 캡 밖이라 못 짚었을 자리**다. 확인 후 시드 주문 삭제.
+- CI 전 워크플로 green(head `92e727f5`): FOMS CI · Harness CI · FOMS PostgreSQL Lane ·
+  perf-gate 4/4. PG 레인 통과 수 724 → 726 으로 늘어 신규 마이그레이션 계약 2개가 실제로
+  돌았음을 확인.
+- 도중 CI red 1회: 타 세션 리비전(`sharehist_00`)과 **alembic head 2개** 충돌 →
+  no-op 병합 리비전 `merge_naverbf_share` 로 해소.
+
+## 남은 일
+
+1. **운영 실행(사용자 승인 필요)** — 순서가 있다: ① 운영 배포 반영 확인 ②
+   `tools/ops/backfill_link_match_keys.py` 로 기존 링크 사본 채움 ③ 워크벤치에서 90일 백필
+   1회 ④ 오늘 실측 띠에 짚히는지 확인. 워커 재배포는 하지 않는다(큐 전면 정지 —
+   `tools/ops/check_worker_redeploy_safe.py`).
+2. **T8(곁가지)** — "네이버 원본이 없는 건"과 "네이버 주문이 아닌 건"을 화면이 구별하지
+   못한다. 운영 백필 뒤에도 남는 건이 있어야 판단할 수 있어 미착수.
