@@ -162,6 +162,11 @@ ACTION_LABELS: dict[str, str] = {
     # 고객에게 보냈나"에 답할 수 있다(문장 원문은 detail 에 남는다).
     "NAVER_INGEST_RETURN_REJECT_ENQUEUE": "네이버 판매자 반품 거부 요청",
     "NAVER_INGEST_REJECT_TEMPLATES_SAVE": "네이버 반품 거부 상용구 저장",
+    # 승인 2종(T9). **접수+승인과 또 가른다** — 위 ``..._RETURN_APPROVE_ENQUEUE`` 는
+    # "우리가 접수하면서 같이 승인한 것"이고, 아래는 "이미 있던 클레임을 승인한 것"이다.
+    # 같은 이름을 재사용하면 "누가 환불을 냈나"를 갈라 읽을 수 없다.
+    "NAVER_INGEST_CANCEL_APPROVE_ENQUEUE": "네이버 구매자 취소요청 승인",
+    "NAVER_INGEST_RETURN_APPROVE_ONLY_ENQUEUE": "네이버 반품 승인(접수 없이)",
     "NAVER_INGEST_FULFILLMENT_CLEAR": "네이버 발주확인·발송처리 실패 기록 지움",
     "NAVER_DOCK_STATE_SET": "네이버 도크 반영 상태 저장",
     # --- 결제 ---

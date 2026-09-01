@@ -122,7 +122,8 @@ def test_every_mutating_action_is_registered(app):
     하는 자리이고, 그래서 새 조작을 만든 사람이 여기 와서 한 번 더 생각하게 된다.
     """
     assert set(tasks_mod.REFRESH_AFTER_ACTIONS) == {
-        "confirm", "dispatch", "cancel", "return", "return-reject"}
+        "confirm", "dispatch", "cancel", "return", "return-reject",
+        "cancel-approve", "return-approve"}
 
 
 # --------------------------------------------------------------------------- #

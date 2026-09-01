@@ -3,7 +3,7 @@
   "policy_ssot": "foms/services/orders/order_mutation_policy.py",
   "description": "AUTH-01 URL-map inventory: 모든 cookie-auth state-changing route 의 policy_id. mode=guard 는 order_mutation_policy.evaluate_policy 로 §2.1 정책 enforce(before_request enforce_order_mutation_policy). mode=exempt 는 서명 검증 webhook/Function·anonymous RUM 처럼 쿠키 세션 미사용 자기 정책으로 우회. url_map 의 모든 POST/PUT/PATCH/DELETE endpoint 가 여기 등재되어야 하며 미분류=static gate fail(tests/domains/test_auth_enforcement.py).",
   "exempt_count": 5,
-  "guard_count": 198,
+  "guard_count": 201,
   "routes": {
     "admin.naver_ingest_attach_order": {
       "mode": "guard",
@@ -24,6 +24,11 @@
       "mode": "guard",
       "policy_id": "STAFF_MUTATION",
       "rule": "/admin/naver-ingest/<int:link_id>/cancel"
+    },
+    "admin.naver_ingest_cancel_approve": {
+      "mode": "guard",
+      "policy_id": "STAFF_MUTATION",
+      "rule": "/admin/naver-ingest/<int:link_id>/cancel-approve"
     },
     "admin.naver_ingest_create_order": {
       "mode": "guard",
@@ -85,20 +90,25 @@
       "policy_id": "STAFF_MUTATION",
       "rule": "/admin/naver-ingest/<int:link_id>/return"
     },
+    "admin.naver_ingest_return_approve": {
+      "mode": "guard",
+      "policy_id": "STAFF_MUTATION",
+      "rule": "/admin/naver-ingest/<int:link_id>/return-approve"
+    },
     "admin.naver_ingest_return_reject": {
       "mode": "guard",
       "policy_id": "STAFF_MUTATION",
       "rule": "/admin/naver-ingest/<int:link_id>/return-reject"
     },
-    "admin.naver_ingest_save_reject_templates": {
-      "mode": "guard",
-      "policy_id": "STAFF_MUTATION",
-      "rule": "/admin/naver-ingest/reject-templates"
-    },
     "admin.naver_ingest_run_now": {
       "mode": "guard",
       "policy_id": "ADMIN_OPS",
       "rule": "/admin/naver-ingest/run"
+    },
+    "admin.naver_ingest_save_reject_templates": {
+      "mode": "guard",
+      "policy_id": "STAFF_MUTATION",
+      "rule": "/admin/naver-ingest/reject-templates"
     },
     "admin.naver_ingest_set_app_expiry": {
       "mode": "guard",
