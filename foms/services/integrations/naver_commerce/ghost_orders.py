@@ -69,9 +69,15 @@ GHOST_CLAIM_KINDS = MONEY_BACK_CLAIM_KINDS
 #: 띠에서 펼쳐 보여줄 최대 건수. 더 많으면 사람이 못 훑는다(수는 배지가 말한다).
 GHOST_LIST_LIMIT = 20
 
-#: `취소 처리`(soft delete) 버튼을 열어 주는 진행 단계.
-#: 실측 이후 단계는 방문 기록·치수가 붙어 있어 접으면 그 이력이 화면에서 사라진다 —
-#: 그래서 **접수 단계에서만** 연다. 나머지는 승계(재결제로 정리)가 맞다.
+#: `취소 처리`(soft delete) 를 **사유 없이** 바로 열어 주는 진행 단계.
+#:
+#: 실측 이후 단계는 방문 기록·치수가 붙어 있어 접으면 그 이력이 화면에서 사라진다.
+#: 그래서 예전에는 이 목록 **밖이면 아예 못 접게** 막았는데, 그러면 결제가 확정 취소된
+#: 죽은 주문이 실측·도면 대시보드에 영원히 남는다(#5088 이 그 사례다). 재결제 짝이
+#: 없으면 승계할 곳도 없다.
+#:
+#: **사용자 결정 2026-09-02**: 단계 제한을 없애되, 이 목록 밖은 **관리자가 사유 문장을
+#: 적어야** 접힌다. 휴지통은 복구되므로 잃는 것은 없고, 남는 것은 "왜 접었나"다.
 DISCARDABLE_STATUSES = ("RECEIVED",)
 
 
@@ -109,7 +115,8 @@ def find_ghost_orders(session, *, limit: int = GHOST_LIST_LIMIT) -> dict[str, An
 
     Returns:
         ``{"count": 전체 건수, "rows": [...]}``. 각 행은 주문 요약 + 네이버 사실 +
-        ``can_discard``(취소 처리 버튼을 열지) + ``discard_block``(못 여는 이유).
+        ``can_discard``(취소 처리 버튼을 열지) + ``discard_block``(못 여는 이유) +
+        ``discard_needs_reason``(접으려면 관리자 사유 문장이 필요한지).
     """
     rows = (
         session.query(ExternalOrderLink.order_id, ExternalOrderLink.raw_snapshot,
@@ -176,11 +183,12 @@ def find_ghost_orders(session, *, limit: int = GHOST_LIST_LIMIT) -> dict[str, An
         else:
             claim_phase, claim_text = "pending", f"{kind} 요청 — 확정 전"
         # **확정된 취소에만** 폐기 버튼을 연다. 확정 전에 접으면 취소가 거부됐을 때
-        # 살아 있어야 할 주문이 휴지통에 있다.
-        can_discard = status in DISCARDABLE_STATUSES and claim_phase == "done"
-        if status not in DISCARDABLE_STATUSES:
-            discard_block = f"{status} 단계라 이력이 붙어 있습니다"
-        elif claim_phase != "done":
+        # 살아 있어야 할 주문이 휴지통에 있다. 이 조건은 돈의 문제라 바뀌지 않는다.
+        can_discard = claim_phase == "done"
+        # 접수 이후 단계는 접히긴 하되 **관리자가 사유를 적어야** 한다(2026-09-02).
+        # 실측 방문·치수 같은 이력이 붙은 주문을 조용히 지우지 않게 하는 관문이다.
+        needs_reason = status not in DISCARDABLE_STATUSES
+        if claim_phase != "done":
             discard_block = "네이버가 아직 취소를 확정하지 않았습니다 — 확정 후에 접으세요"
         else:
             discard_block = ""
@@ -194,6 +202,7 @@ def find_ghost_orders(session, *, limit: int = GHOST_LIST_LIMIT) -> dict[str, An
             "naver_order_nos": bucket["order_nos"],
             "naver_link_count": bucket["link_count"],
             "lead_link_id": bucket["lead_link_id"],
+            "discard_needs_reason": needs_reason,
             "naver_amount_total": bucket["amount_total"],
             "claim_kind": kind,
             # 단계와 **완성 문구**를 함께 낸다. 템플릿이 `" 완료"` 를 덧붙이던 시절에는
