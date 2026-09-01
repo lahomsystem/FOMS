@@ -357,10 +357,34 @@ def test_official_cancel_legend_excludes_etc():
     assert "ETC" not in OFFICIAL_CANCEL_REASONS
 
 
-def test_sold_out_label_says_what_it_does():
-    """`SOLD_OUT` 은 상품을 품절 처리하고 패널티 대상이다 — 고르기 전에 보여야 한다."""
-    assert "SOLD_OUT" in CANCEL_REASONS, "정당한 품절 취소 경로를 없애지 않는다"
-    assert "품절 처리" in CANCEL_REASONS["SOLD_OUT"]
+def test_sold_out_is_gone_from_the_send_list():
+    """`SOLD_OUT` 은 **목록에서 사라졌다** (사용자 지시 2026-09-01).
+
+    2026-08-28 에는 "정당한 품절 취소 경로를 없애지 않는다"며 라벨에 결과만 적었다. 그
+    판단이 뒤집혔다 — 우리 스토어는 시공 제품이라 품절 취소가 업무에 없고, 목록에 남겨
+    두는 것만으로 누가 한 번 고르면 상품이 네이버에서 내려가고 패널티가 붙는다(공식 #2823).
+
+    화면 문구가 아니라 **화이트리스트**로 막는다: 라우트와 서비스가 이 dict 로 검사한다.
+    """
+    from foms.services.integrations.naver_commerce.fulfillment import BANNED_CLAIM_REASONS
+
+    assert "SOLD_OUT" not in CANCEL_REASONS
+    assert "SOLD_OUT" in BANNED_CLAIM_REASONS, "지운 이유를 코드가 기억해야 한다"
+
+
+def test_screen_never_offers_a_banned_reason(client, workbench_on):
+    """화면 select 에도 금지 코드가 없어야 한다 — 목록이 서버와 한 벌이다."""
+    from foms.services.integrations.naver_commerce.fulfillment import BANNED_CLAIM_REASONS
+
+    _login(client)
+    order = _order(tel="010-9200-0044")
+    new = _link(order_no="N-ORG-44-NEW", tel="010-9200-0044", amount=1_400_000,
+                order_id=int(order.id), relation="REPAY")
+
+    body = _body(client, link_id=int(new.id))
+
+    for banned in BANNED_CLAIM_REASONS:
+        assert f'value="{banned}"' not in body, f"화면이 {banned} 를 고르게 한다"
 
 
 # --------------------------------------------------------------------------- #

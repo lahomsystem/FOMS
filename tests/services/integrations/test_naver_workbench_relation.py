@@ -323,8 +323,11 @@ def test_detail_has_a_cancel_button_and_reason_picker(client, workbench_on):
 
     assert 'id="wb-cancel"' in body
     assert 'id="wb-modal-cancel"' in body
-    assert 'value="SOLD_OUT"' in body, "네이버 사유 코드를 그대로 보낸다"
-    assert "상품 품절" in body, "사람이 읽는 라벨도 함께 보여준다"
+    assert 'value="INTENT_CHANGED"' in body, "네이버 사유 코드를 그대로 보낸다"
+    assert "구매 의사 취소" in body, "사람이 읽는 라벨도 함께 보여준다"
+    # `SOLD_OUT` 은 2026-09-01 사용자 지시로 목록에서 빠졌다 — 고르면 상품이 네이버에서
+    # 내려가고 판매관리 패널티가 붙는다. 화면에 되살아나면 여기서 빨개진다.
+    assert 'value="SOLD_OUT"' not in body
 
 
 def test_cancel_modal_restates_the_count_and_says_it_is_final(client, workbench_on):
