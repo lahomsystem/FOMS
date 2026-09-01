@@ -592,3 +592,31 @@ import 6개(os·datetime·send_file·flash·redirect·url_for)까지 정리했�
 | `tests/contracts` | 68 passed (harness 합산 457 passed) |
 | `tests/performance` | 89 passed |
 | 잔존 grep | `route_mode`·`routeMode`·`measurement_route`·`route=1`·`foms-route-strip.js`·`download_excel`·`excel_bp` **0건** |
+
+### 18.8 승격 현황 — PR #223 (perf-gate 가 남의 회귀에 막혔다)
+
+| 검사 | 결과 |
+|---|---|
+| test | PASS |
+| harness | PASS |
+| pg-lane | PASS |
+| perf-gate | **FAIL** — `/erp/completion?view=fragment` wire 26107 > 예산 18466 |
+
+**내 변경 때문이 아니다.** 근거 3가지:
+
+1. 실패 경로 `/erp/completion`(정산 보드)은 이번 작업이 건드리지 않았다. 내가 만진
+   `/erp/measurement?view=fragment` 은 wire 12825 / 예산 36916 으로 통과한다.
+2. **3분 먼저 올라간 타 세션 승격 브랜치**(`promote/own-1788222511-26868`)가 같은 경로에서
+   거의 같은 바이트(26109)로 똑같이 FAIL 했다. 내 커밋이 없는 브랜치다.
+3. perf-gate 는 **스테이징 실서버를 측정**한다. 지금 deploy 에는 정산 대시보드 작업이
+   연속 착지 중(`0347d749`·`7c09a312`·`2853f28a`·`846f8262`·`0784ea5e`·`6c89e26b`)이고,
+   그 화면의 프래그먼트가 예산을 넘겼다.
+
+deploy push 는 advisory 라 green 으로 통과했고(승격 PR 만 blocking) 이 구조 때문에
+**정산 세션이 페이로드를 줄이거나 예산을 갱신하기 전까지 모든 승격이 막힌다.**
+내 PR #223 은 열어둔 채 대기한다 — 남의 예산·페이로드를 대신 고치지 않는다.
+
+deploy 의 FOMS CI red 도 내 것이 아니었다: 타 세션이 `erp_order_js.html` 자산 핀
+3개를 같은 날짜 문자열로 올려 `order_js.count(pin) == 2` 계약이 깨진 것으로, 직전 커밋
+`fd04014d` 에서 이미 red 였고 그 세션이 `5d346401`·`6740af20` 로 자체 수정했다.
+
