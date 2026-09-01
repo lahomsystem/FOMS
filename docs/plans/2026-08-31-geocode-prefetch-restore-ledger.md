@@ -483,3 +483,112 @@ Use Infrastructure as Code (.railway/railway.ts) instead.
 ### 17.6 검증 기준
 
 `import app` APP_OK · `pre_push_smoke` exit 0 · `tests/domains`+`tests/contracts`+`tests/harness` 전량 green · 잔존 grep 0건 · 승격 트리에서 본 스위트 재실행 후 승격 PR.
+
+---
+
+## 18. 실행 — 엑셀 내보내기·동선 전면 삭제 (2026-09-01)
+
+작업 트리: `c:/tmp/rmroute` (브랜치 `rmroute-2026-09-01`, `origin/deploy` `118a38c6` 기준 클린).
+
+### 18.0 착수 전 조사로 확정한 판정
+
+| 항목 | 조사 결과 | 판정 |
+|---|---|---|
+| `pandas` / `openpyxl` 소비자 | 루트 저장소에서 `excel_import.py`(pandas+openpyxl) · `storage.py`(openpyxl) **2곳뿐**. `SCheduler/`는 자체 requirements 를 가진 별도 하위 프로젝트 | 둘 다 `requirements.txt` 에서 제거 (설치 메타데이터로 folium 등 전이 의존 없음 확인 후) |
+| 동선 지도 링크를 지우면 지도가 고아가 되나 | PC 툴바·모바일 칩 **양쪽에 별도 "지도"(핀) 진입점이 이미 있다** | "동선 지도" 링크·칩 삭제, 핀 지도는 그대로 |
+| `.foms-route-pin` / `.foms-route-c*` 팔레트 소비자 | `map-view-kakao.js` 의 route 모드 렌더 1곳 | 팔레트·핀 CSS 전부 삭제 가능. `map_view.html` 의 `foms-route-strip.css` 링크도 함께 제거 |
+| `.foms-visit-summary*` / `.foms-measure-done` | `mobile_list.html` 진행요약·완료배지 (동선 아님) | **보존** |
+| 히어로(`.foms-hero-*`) | 다음 방문 카드 = 스펙·내비·전화·상세. 판정은 `measurement_time.py` SSOT 이고 `measurement_route.py` 와 무관 | **보존**, 카운트다운(`.foms-visit-countdown` + `data-foms-visit-time`)만 제거하고 방문시각 텍스트는 평문으로 남긴다 |
+| `data-route-state="none"` (`map_generator.py:430`) | 항상 `"none"` 상수, `route_mode` 와 무관, JS 소비자 0, 계약 테스트가 고정 | **건드리지 않음** |
+| `OPS-ROUTE-01` 패킷 | `/debug-db` 봉쇄 패킷 — 이름만 비슷하고 동선과 무관 | **보존**. 지우는 것은 `ROUTE-01` 하나 |
+| `/api/calculate_route` · `.foms-kmap-routecalc*` · `measurement_time.py` | §17.4 금지 목록 | **무변경** |
+
+### 18.1 Task 표 (완료 기준 포함)
+
+| Task | 범위 | 완료 기준 |
+|---|---|---|
+| T1 엑셀 내보내기 제거 | `excel_import.py` 파일 삭제 + `foms/web/admin/__init__.py`·`foms/platform/blueprints.py` 등록 해제, `storage.py` `export_storage_dashboard_excel` 제거, 버튼 2곳(`orders/index.html`·`storage_dashboard.html`), `requirements.txt` 2줄, `foms_api_error_leak_inventory.json` 엔트리 | `import app` APP_OK · `excel`·`download_excel`·`export_excel` 잔존 grep 0 · 관련 테스트 green |
+| T2 동선 API·서비스 제거 | `/api/erp/measurement/route`·`/route-eta` 삭제, `foms/services/measurement_route.py` 파일 삭제, `dashboard.py` 인라인 스트립 블록·import·템플릿 인자 제거 | APP_OK · `measurement_route` import 0건 · 실측 대시보드 렌더 테스트 green |
+| T3 스트립·카운트다운 프론트 제거 | `foms-route-strip.js` 파일 삭제 + `measurement-entry.js` 로더, 마운트 2곳(`mobile_list.html`·`persona_home_sales.html`), 카운트다운 span 2곳, CSS 동선 규칙만 제거(파일 보존), `?v=` 핀 3곳 + fragment·map_view 링크 범프 | 핀 계약 테스트 green · `foms-route-strip.js` 참조 0 · `data-foms-visit-time` 0 |
+| T4 지도 동선 오버레이 제거 | `erp_map.py` route 파라미터, `measurement/map.py` `route_mode`·`route_skipped_count`, `map_generator.py` 헬퍼 4개+분기+범례, `map-view-kakao.js` `routeSortKey`/`sortForRoute`/`routeMode`, `map_view.html` 6구간, 동선 지도 링크·칩 2곳 | `route_mode`·`routeMode` 잔존 0 · 지도(핀) 렌더 테스트 green |
+| T5 하네스·계약·테스트 정리 | `ROUTE-01` 패킷 제거(줄 단위 국소 편집) + `EXPECTED_PACKETS` 123→122 · `REV99_DEPENDS_ON` · `check_foms_remediation_readiness.py:66`, 테스트 3종 삭제·3종 수정, 인벤토리 재생성 | `tests/domains`+`tests/contracts`+`tests/harness` 전량 green · `check_foms_remediation_readiness.py` 통과 |
+| T6 검증·푸시·승격 | pre_push_smoke → deploy push → `gh run list --commit` 4종 확인 → 자기 커밋만 cherry-pick 승격 트리 → 본 스위트 직접 실행 → PR | 4개 워크플로 SUCCESS · 승격 PR 검사 4종 SUCCESS |
+
+### 18.2 진행 상태
+
+| Task | 상태 |
+|---|---|
+| T1 엑셀 내보내기 제거 | DONE — deploy `9e62c452`→(리베이스)→`06173012` |
+| T2 동선 API·서비스 제거 | DONE |
+| T3 스트립·카운트다운 제거 | DONE |
+| T4 지도 동선 오버레이 제거 | DONE |
+| T5 하네스·계약·테스트 정리 | DONE (T2~T5 한 커밋: `8f0f2a1d`) |
+| T6 검증·푸시·승격 | 진행 중 — deploy 푸시 `8f0f2a1d`, CI 4종 확인 후 승격 |
+
+### 18.3 실제로 삭제한 것 (커밋 2개)
+
+`06173012` **엑셀 내보내기** — `excel_import.py` 파일·Blueprint·등록 3곳, 수납장
+`export_excel` 라우트, 버튼 2곳, `requirements.txt` 의 pandas·openpyxl,
+SYSTEM_DOCUMENTATION 의 엑셀 절·API·기술스택. storage.py 는 라우트 삭제로 죽은
+import 6개(os·datetime·send_file·flash·redirect·url_for)까지 정리했다.
+
+`8f0f2a1d` **동선 전면** — 엔드포인트 2개, `measurement_route.py`(380줄),
+`foms-route-strip.js`(431줄), 지도 오버레이(folium 순번 배지·폴리라인·범례 +
+카카오 routeMode·순번 핀·정렬), 마운트·링크·칩, 테스트 3종(507줄).
+합계 −1952줄 / +92줄.
+
+### 18.4 §17 지시에서 갈라진 판단 4건
+
+1. **`.foms-hero-*` 는 전부 보존**했다(§17.3 은 "카운트다운만 지울지 히어로 전체인지
+   판정" 이라 열어뒀다). 히어로 판정은 `measurement_time.py` SSOT 가 하고
+   `measurement_route.py` 를 쓰지 않아 동선과 독립이다. 카운트다운은 span 을 평문으로
+   바꿔 방문시각 텍스트는 남겼다 — 시각은 동선이 아니라 일정이다.
+2. **"동선 지도" 링크·칩은 대체 없이 삭제**했다. PC 툴바(`open_map=1`)와 모바일 칩
+   (`measurement_map_url`)에 핀 지도 진입점이 이미 따로 있어서 고아가 되지 않는다.
+3. **`data-route-state="none"`(`map_generator.py`)은 건드리지 않았다.** 이름만 route 일
+   뿐 `/api/calculate_route`(2점 거리 측정, §17.4 보존 대상)의 마커 상태 속성이다.
+   `route_mode` 와 무관하고 계약 테스트가 고정하고 있다.
+4. **화면 라벨도 바꿨다**(사용자 승인): v3 앱바 `오늘 동선`→`오늘 실측`, 태블릿 큐
+   `오늘 동선 큐`→`오늘 실측 큐`. 없는 기능 이름이 화면에 남는 것을 피했다.
+   `foms-route-strip.css` **파일명은 유지**했다 — 자산 핀(?v=) 계약이 3곳에 물려 있어
+   개명 비용이 이득보다 크다.
+
+### 18.5 동반 작업에서 실제로 물린 것
+
+- **ROUTE-01 패킷**: manifest 123→122, `EXPECTED_PACKETS`·`len(manifest)`·
+  `toposort` 길이·`REV99_DEPENDS_ON`(110→109)·`check_foms_remediation_readiness.py`
+  **5곳**을 내렸다. §17.5 는 3곳이라 했는데 `test_graph_is_acyclic` 의 `len(order)`와
+  REV-99 개수 단언이 추가로 red 였다. JSON 은 §12.4 대로 줄 단위 국소 편집(−23줄).
+- **위치 고정 계약**: `test_undated_button_is_last_in_filter_actions` 의 기준점을
+  `&route=1` → `open_map=1` 로 옮겼다. 이 계약은 §15.1 에서 한 번, 이번에 또 한 번
+  삭제에 밀렸다 — 기준점이 사라질 수 있는 요소면 계약이 매번 따라 깨진다.
+- **`?v=` 핀**: `MEAS_JS_V`·`dashboard.html`·`dashboard_scripts.html`·
+  `dashboard_fragment.html`·`map_view.html`(map-view-kakao.js) **5곳**을 20260901a 로.
+  §17.5 의 3곳에 fragment 와 카카오 지도 JS 가 더 붙었다.
+- **인벤토리**: failopen(route-eta 의 broad catch 1건 감소)·audit coverage·order
+  mutation writer 3종 재생성. 리베이스로 남의 lineno 드리프트가 섞이지만 게이트가
+  lineno-무관이라 무해하다.
+- **죽은 배선 2건**: 실측 대시보드의 `kakao_js_key`(스트립이 유일 소비자였다 →
+  layout_head 의 지도 preconnect 가 무의미해져 함께 제거), measurement-entry 의
+  병렬 로더 기계(PARALLEL 배열이 route strip 하나뿐이었다).
+
+### 18.6 승격 경로에서 만난 것
+
+`origin/deploy` 가 작업 중 **네 번** 움직였다(타 세션 5커밋). 리베이스 충돌 2종:
+
+- **생성물**(failopen·audit coverage 인벤토리) — 손으로 병합하지 않고 upstream 을 취한 뒤
+  스캐너 재실행으로 재생성(§15.2 와 같은 처리).
+- **자산 핀 같은 줄**(`dashboard.html`·`dashboard_fragment.html`) — 타 세션이
+  `erp-alimtalk-trace.css` 를, 내가 `foms-route-strip.css` 를 같은 블록에서 올려
+  3줄이 겹쳤다. 정규식 keep-both 없이 두 줄을 명시로 다시 썼다(양쪽 20260901a).
+
+### 18.7 검증 기록
+
+| 항목 | 결과 |
+|---|---|
+| `import app` | APP_OK (리베이스마다 재확인) |
+| `pre_push_smoke` | exit 0 (4회) |
+| `tests/domains` + `tests/harness` | **6277 passed, 5 skipped** |
+| `tests/contracts` | 68 passed (harness 합산 457 passed) |
+| `tests/performance` | 89 passed |
+| 잔존 grep | `route_mode`·`routeMode`·`measurement_route`·`route=1`·`foms-route-strip.js`·`download_excel`·`excel_bp` **0건** |

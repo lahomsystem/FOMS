@@ -1,6 +1,6 @@
 # FOMS 현재 상태
 > 자동 업데이트: 2026-08-14
-> 최신: **네이버 일괄 발송처리 결과 UI 운영 반영(PR #219)** — 발송 뒤 띠가 사라져 성공/미대상을 구분 못 하던 결함 제거. 원장 `docs/plans/2026-08-31-naver-bulk-dispatch-result-ui-ledger.md`
+> 최신: **엑셀 내보내기·동선 전면 삭제 deploy(`8f0f2a1d`)** — 엑셀 다운로드 2곳·동선 API 2개·스트립·카운트다운·지도 route=1 오버레이 제거(−1952줄). 핀 지도·`/api/calculate_route`·방문시각 SSOT 는 보존. 원장 §18
 > 직전: **고객 공유 링크 UX 개편 — 계약서 폼 이식·도면 일괄 저장(ZIP)** — 카톡으로 보내는 계약서 링크가 ERP 계약서 폼 그대로 뜨고(계좌 복사·PNG 저장), 도면 링크에 일괄 저장 버튼. 무반응이던 `window.print()` 제거. 원장 `docs/plans/2026-08-31-share-contract-drawing-ux-ledger.md`
 > 이 파일 상단 40줄이 세션 시작 컨텍스트의 전부다(hygiene 계약 테스트로 강제). 상세 이력: "## 최근 완료"·"## 기록 보관", 과거 헤더 상세는 기록 보관에 이관.
 
@@ -12,7 +12,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 ## 진행 중
 - [2026-09-01] **네이버 반품 거부(T8-S3) BLOCKED — 규격 한 줄만 남았다** — 화면·권한·기록·상용구 전역 저장·계약 30종 deploy(`5ad8485b`, CI 4/4). 게이트 `FOMS_NAVER_RETURN_REJECT_ENABLED` 꺼짐 · `client.reject_return_product_order` 가 `NotImplementedError`(추측 body 금지). 커머스API 상세 문서 대기. 원장 T4
 - [2026-09-01] **네이버 T1·T2·T3 운영 승격(PR #213 · `c462bdb9`)** — 반품 승인(기본 꺼짐·환불 확정)·후보 0건 주문 찾아서 붙이기·조작 뒤 자동 다시읽기. 함정: `promote_completeness` incomplete 30건 중 23건은 **이미 운영에 있었다**(옛 cherry-pick patch-id 차이) — 소스 grep 확인 후 5건만
-- [2026-09-01] **다음 작업: 엑셀 내보내기·동선 전면 삭제** — v3 미사용 확인으로 route 엔드포인트도 삭제 가능. 카운트다운·지도 동선 포함. **범위·함정 전부 원장 §17.**
+- [2026-09-01] **엑셀 내보내기·동선 전면 삭제 deploy(`8f0f2a1d`, 커밋 2개)** — 엑셀: `download_excel`·수납장 `export_excel`·pandas/openpyxl. 동선: `/api/erp/measurement/route`·`route-eta`·`measurement_route.py`·`foms-route-strip.js`·지도 오버레이·"동선 지도" 링크 2곳. ROUTE-01 패킷 123→122(하드코딩 **5곳**), `?v=` 핀 5곳 범프. 보존: `/api/calculate_route`·`measurement_time.py`·핀 지도·히어로. **잔여=운영 승격.** 원장 §18
 - [2026-09-01] **네이버 일괄 발송처리 결과 UI 운영 반영(PR #219 · `376362c3`)** — 스위치 ON, 1회차 **6집 26건 전부 성공**. 띠가 안 사라지고 **완료/일부/실패/대기 4상태**, 수동 발송분도 '발송됨', 버튼 직후 폴링, 실패 줄마다 재시도. **잔여=실브라우저 확인**. 원장 `2026-08-31-naver-bulk-dispatch-result-ui-ledger.md`
 - [2026-08-31] **엑셀 업로드·동선 추천 제거 + 동선 API 5초 수리 production 완료(`eda377ce`)** — 원장 §12·§14·§15
 - [2026-08-31] **SIDEFX 워커 서비스 등록·가동(T5 해소)** — heartbeat 3행 최초 생성, GEOCODE·STORAGE_DELETE 소진 중. ⚠ **Railway 가 Config as Code(railway*.toml) 폐기** → 저장소 toml 은 사문, startCommand 직접 지정으로 배선. **기존 서비스도 toml 이 아니라 API 설정으로 도는지 확인 필요.** 원장 §16
