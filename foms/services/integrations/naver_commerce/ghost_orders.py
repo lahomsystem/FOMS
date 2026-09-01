@@ -113,17 +113,23 @@ def find_ghost_orders(session, *, limit: int = GHOST_LIST_LIMIT) -> dict[str, An
     """
     rows = (
         session.query(ExternalOrderLink.order_id, ExternalOrderLink.raw_snapshot,
-                      ExternalOrderLink.external_order_no)
+                      ExternalOrderLink.external_order_no, ExternalOrderLink.id)
         .filter(ExternalOrderLink.order_id.isnot(None))
         .all()
     )
     buckets: dict[int, dict[str, Any]] = {}
-    for order_id, snapshot, order_no in rows:
+    for order_id, snapshot, order_no, link_id in rows:
         bucket = buckets.setdefault(int(order_id), {
             "link_count": 0, "canceled": 0, "amount_total": 0,
             "order_nos": [], "claim_labels": set(), "phases": set(), "kinds": set(),
+            # 워크벤치 pane 으로 보낼 대표 링크. 띠에서 불가역 버튼을 누르게 하지
+            # 않는 대신(같은 행에 휴지통 버튼과 환불 버튼이 나란히 서면 사고
+            # 대기다), **판단 재료가 있는 자리로 보낸다**.
+            "lead_link_id": None,
         })
         bucket["link_count"] += 1
+        if bucket["lead_link_id"] is None:
+            bucket["lead_link_id"] = int(link_id)
         claim, phase, kind = _claim_of(snapshot)
         if phase in GHOST_CLAIM_PHASES and kind in GHOST_CLAIM_KINDS:
             bucket["canceled"] += 1
@@ -187,6 +193,7 @@ def find_ghost_orders(session, *, limit: int = GHOST_LIST_LIMIT) -> dict[str, An
             "payment_amount": order.payment_amount or 0,
             "naver_order_nos": bucket["order_nos"],
             "naver_link_count": bucket["link_count"],
+            "lead_link_id": bucket["lead_link_id"],
             "naver_amount_total": bucket["amount_total"],
             "claim_kind": kind,
             # 단계와 **완성 문구**를 함께 낸다. 템플릿이 `" 완료"` 를 덧붙이던 시절에는

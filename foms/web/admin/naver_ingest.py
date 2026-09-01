@@ -1944,7 +1944,11 @@ def _pane_context(db, link: Optional[ExternalOrderLink],
         ``selected``·``selected_group``·``selected_household_claimed``·``member_rows``·
         ``cancel_reasons``·``return_reasons``·``selected_offlist``.
     """
-    from foms.services.feature_flags import is_naver_return_reject_enabled
+    from foms.services.feature_flags import (
+        is_naver_cancel_approve_enabled,
+        is_naver_return_approve_enabled,
+        is_naver_return_reject_enabled,
+    )
     from foms.services.integrations.naver_commerce.fulfillment import (
         CANCEL_REASONS,
         RETURN_REASONS,
@@ -1979,6 +1983,14 @@ def _pane_context(db, link: Optional[ExternalOrderLink],
         # 안 채워져서(설계서 §2) 눌러도 나가지 않는다. 라우트도 같은 게이트로 닫혀 있다:
         # 한쪽만 열면 열린 버튼이 403 을 받는다.
         "return_reject_enabled": is_naver_return_reject_enabled(),
+        # 승인 게이트 2종(T9). **따로 판다** — 진짜 클레임 1건에서 취소 승인을 먼저 켜
+        # 성공을 확인한 뒤 반품 승인을 켠다. 하나로 묶으면 첫 실호출이 두 배선의 동시
+        # 검증이 되어, 실패했을 때 어느 쪽이 틀렸는지 안 갈린다.
+        "cancel_approve_enabled": is_naver_cancel_approve_enabled(),
+        "return_approve_enabled": is_naver_return_approve_enabled(),
+        # 승인은 ADMIN·MANAGER 만(사용자 결정 2026-09-01). 라우트도 같은 조건이다 —
+        # 한쪽만 좁히면 열린 버튼이 403 을 받는다.
+        "claim_approve_can_act": (session.get("role") or "") in ("ADMIN", "MANAGER"),
         # 자주 쓰는 거부 문장(채워 넣기 전용)과 우리 글자수 상한. 화면이 목록을 따로 들면
         # 서버 상한과 갈린다 — 잘려 나간 문장이 그대로 구매자에게 간다.
         # 목록은 **DB 가 정본**이다(전역 공유). 저장된 적이 없으면 코드 기본 5종이 온다.
@@ -2247,10 +2259,15 @@ def naver_ingest_fulfillment_progress():
                     "error": None})
 
 
-#: 불가역 작업 3종의 한글 라벨. 실패 띠와 폴링 응답이 **같은 표**를 쓴다 — 두 벌이면
+#: 불가역 작업의 한글 라벨. 실패 띠와 폴링 응답이 **같은 표**를 쓴다 — 두 벌이면
 #: 같은 실패가 화면 자리마다 다른 이름으로 불린다.
+#:
+#: **미등재 action 은 조용히 "발주확인"으로 읽힌다**(:func:`_fulfillment_state` 의 폴백).
+#: T8-S3 의 ``return-reject`` 가 그 구멍에 빠져 있었고, T9 에서 승인 2종과 함께 등재했다.
+#: 폴백 자체를 빈 문자열로 바꾸는 것은 화면 문구 회귀 범위가 넓어 별건으로 남긴다.
 FULFILLMENT_ACTION_LABELS = {"confirm": "발주확인", "dispatch": "발송처리", "cancel": "취소",
-                             "return": "반품 접수"}
+                             "return": "반품 접수", "return-reject": "반품 거부",
+                             "cancel-approve": "취소 승인", "return-approve": "반품 승인"}
 
 #: 통합 화면의 탭 — 두 URL 왕복을 없앤 자리(설계 결정 1). v3 에서 ``place``·``claim`` 은
 #: 탭이 아니라 **같은 목록의 필터 칩**으로 내려왔다(한 집 처리하려고 탭을 오가던 통증).
@@ -3140,6 +3157,28 @@ def _household_of_link(db, link: ExternalOrderLink
     return group, rows
 
 
+def _link_payment_amount(link: ExternalOrderLink) -> int:
+    """상품주문 1건의 **결제 금액**(원). 못 읽으면 0 (T9).
+
+    승인 모달이 "무엇에 얼마가 걸려 있나"를 줄로 재진술할 때 쓴다. 원본
+    ``totalPaymentAmount`` 는 **결제 시점 값**이라 환불 예정액과 정확히 같지 않다
+    (부분 환불·배송비) — 그래서 화면은 "환불액"이 아니라 **결제 금액**이라고 적는다.
+
+    Args:
+        link: 수집 링크.
+
+    Returns:
+        결제 금액(원). 값이 없거나 형식이 다르면 0.
+    """
+    from foms.services.integrations.naver_commerce.mapping import unwrap_detail
+
+    # ``unwrap_detail`` 은 dict 가 아니면 빈 tuple 을 준다 — 예외를 안 던지므로 넓은
+    # try 로 감싸지 않는다(로거 없는 broad catch 는 fail-open 인벤토리 게이트에 걸린다).
+    _, product_order, _ = unwrap_detail(link.raw_snapshot or {})
+    amount = (product_order or {}).get("totalPaymentAmount")
+    return int(amount) if isinstance(amount, int) else 0
+
+
 def _fulfillment_state(db, link: ExternalOrderLink) -> dict[str, Any]:
     """집의 **워커 처리 표식**만 요약한다 — 화면 판정은 하지 않는다.
 
@@ -3196,8 +3235,19 @@ def _fulfillment_state(db, link: ExternalOrderLink) -> dict[str, Any]:
         # 접수 버튼을 눌러도 지문이 안 바뀌어 화면이 영원히 "아직 안 끝났다"로 폴링한다.
         # 새 엔드포인트를 만들지 않는 이유이기도 하다(다시 읽기가 `claim_sync` 로 한 수법).
         at_return = str(((row.triage_state or {}).get("return") or {}).get("requested_at") or "")
+        # 승인·거부(T8-S2/S3·T9)도 **또 다른 축**이다. 승인은 접수 표식을 안 찍고,
+        # 거부는 반품 축의 다른 키에 찍는다 — 지문에 안 넣으면 버튼을 눌러도 화면이
+        # 타임아웃까지 "기다리는 중"으로 남는다. 자동 다시 읽기에 기대면 안 된다:
+        # 그 경로는 큐가 없으면 로그만 남기는 fail-open 이다.
+        return_axis = (row.triage_state or {}).get("return") or {}
+        cancel_axis = (row.triage_state or {}).get("cancel") or {}
+        at_claim = "{0}~{1}~{2}".format(
+            str(return_axis.get("approved_at") or ""),
+            str(return_axis.get("rejected_at") or ""),
+            str(cancel_axis.get("approved_at") or ""))
         marks.append(
-            f"{row.id}|{at_confirm}|{at_dispatch}|{at_cancel}|{at_error}|{at_sync}|{at_return}")
+            f"{row.id}|{at_confirm}|{at_dispatch}|{at_cancel}|{at_error}|{at_sync}"
+            f"|{at_return}|{at_claim}")
     action = last_error_action.strip().lower()
     action = action if action in FULFILLMENT_ACTION_LABELS else ""
     return {
@@ -3441,7 +3491,9 @@ def _group_queue(links: list[ExternalOrderLink], orders: dict,
     # 붙어 보이고 워커는 따로 처리하는 갈라짐이었다(리뷰 L-1). 폴백을 한 벌만 둔다.
     from foms.services.integrations.naver_commerce.fulfillment import (
         household_key,
+        is_cancel_approvable,
         is_place_pending,
+        is_return_approvable,
         is_return_pending,
         is_return_rejectable,
     )
@@ -3544,6 +3596,25 @@ def _group_queue(links: list[ExternalOrderLink], orders: dict,
             # (:func:`fulfillment.is_return_rejectable`)를 그대로 쓴다 — 보류 걸린 건과
             # 이미 처리한 건은 여기서 빠진다.
             "return_rejectable_count": sum(1 for row in members if is_return_rejectable(row)),
+            # 승인이 **실제로 나갈** 건수(T9). 거부와 같은 규율로 서버 술어를 그대로 쓴다.
+            # 반품 승인은 ``return_awaiting_approval`` 이 아니라 이 술어에 건다 — 그 목록은
+            # **우리가 접수한 건**만 담아서, 고객이 먼저 낸 반품(독립 승인의 주 대상)이
+            # 통째로 빠진다.
+            "cancel_approvable_count": sum(1 for row in members if is_cancel_approvable(row)),
+            "return_approvable_count": sum(1 for row in members if is_return_approvable(row)),
+            # 모달이 **건수가 아니라 목록**을 재진술한다(CEO 판정 2026-09-01). 집 하나에
+            # 상품주문이 여럿이고 이 프로젝트는 집 묶기에서 이미 데였다 — "3건"만 쓰면
+            # 살아 있어야 할 라인이 섞여도 사람이 못 본다. 금액은 결제 시점 값이라
+            # 환불 예정액과 정확히 같지는 않다(부분 환불·배송비) — 그래서 화면이
+            # "결제 금액"이라고 적는다.
+            "cancel_approve_targets": [
+                {"external_id": row.external_id,
+                 "amount": _link_payment_amount(row)}
+                for row in members if is_cancel_approvable(row)],
+            "return_approve_targets": [
+                {"external_id": row.external_id,
+                 "amount": _link_payment_amount(row)}
+                for row in members if is_return_approvable(row)],
             # 이미 우리가 접수한 건수 — 버튼을 닫고 "접수함"을 말하는 근거.
             "return_requested_count": sum(
                 1 for row in members
@@ -4429,6 +4500,136 @@ def naver_ingest_return_reject(link_id: int):
                     "error": None})
 
 
+def _enqueue_claim_approve(link_id: int, *, kind: str):
+    """취소·반품 **승인** 두 라우트의 공통 몸통 (T9).
+
+    두 승인은 게이트 이름·감사 action·이벤트 타입만 다르고 나머지가 같다. 한 벌로 두는
+    이유는 거부 라우트가 남긴 교훈과 같다 — 갈래를 복사하면 ``base_rev`` 를 enqueue 앞에서
+    뽑는 규율이나 큐 장애 503 같은 자리가 한쪽에서만 조용히 낡는다.
+
+    Args:
+        link_id: 기준 수집 링크 id(그 링크가 속한 집 전체가 함께 처리된다).
+        kind: ``"cancel"`` 또는 ``"return"``.
+
+    Returns:
+        Flask 응답 튜플.
+    """
+    from foms.services.feature_flags import (
+        is_naver_cancel_approve_enabled,
+        is_naver_return_approve_enabled,
+        is_naver_workbench_enabled,
+    )
+    from foms.services.jobs.queue import (
+        enqueue_naver_cancel_approve,
+        enqueue_naver_return_approve,
+    )
+
+    is_cancel = kind == "cancel"
+    label = "취소" if is_cancel else "반품"
+
+    # 게이트 둘. 워크벤치 게이트는 화면 자체의 롤백 경로이고, 승인 게이트는 **불가역
+    # 환불을 당장 끌 수 있는가**를 코드로 쥔다. 둘 중 하나라도 꺼져 있으면 닫는다.
+    # 버튼도 같은 조건으로 렌더한다 — 한쪽만 열면 열린 버튼이 403 을 받는다.
+    if not is_naver_workbench_enabled(session.get("user_id")):
+        return jsonify({"success": False, "data": None,
+                        "error": f"이 화면에서는 {label}을 승인할 수 없습니다."}), 403
+    enabled = is_naver_cancel_approve_enabled() if is_cancel else is_naver_return_approve_enabled()
+    if not enabled:
+        return jsonify({"success": False, "data": None,
+                        "error": f"{label} 승인 기능이 아직 켜져 있지 않습니다."}), 403
+
+    db = get_db()
+    link = _link_by_id(db, link_id)
+    if link is None:
+        return jsonify({"success": False, "data": None,
+                        "error": f"수집 기록을 찾을 수 없습니다 (link {link_id})."}), 400
+    # 기준 지문은 enqueue 앞에서(거부·접수와 같은 이유 — 워커가 뒤집기 전 값이어야 한다).
+    base_rev = _fulfillment_state(db, link)["rev"]
+    # 집 요약도 **보내기 전에** 뽑는다(붙이기와 같은 규율).
+    history = summarize_link_household(db, link_id=link_id)
+
+    enqueue = enqueue_naver_cancel_approve if is_cancel else enqueue_naver_return_approve
+    if not enqueue(link_id, session.get("user_id")):
+        return jsonify({"success": False, "data": None,
+                        "error": "작업 큐를 쓸 수 없습니다(REDIS_URL 미설정 또는 큐 장애). "
+                                 "지금은 판매자센터에서 처리하세요."}), 503
+
+    # 주문 이력에도 남긴다(거부와 같은 규율). 워크벤치를 안 여는 담당자가 나중에 "이 주문의
+    # 돈이 왜 나갔나"를 읽는 자리는 여기뿐이다. 붙어 있는 주문이 없으면 감사 로그만 남는다.
+    if link.order_id:
+        db.add(OrderEvent(
+            order_id=int(link.order_id),
+            event_type=(CANCEL_APPROVE_EVENT_TYPE if is_cancel
+                        else RETURN_APPROVE_EVENT_TYPE),
+            payload={
+                "link_id": int(link_id),
+                "external_order_no": history.get("external_order_no") or "",
+                "product_order_count": int(history.get("product_order_count") or 0),
+            },
+            created_by_user_id=session.get("user_id"),
+        ))
+        db.commit()
+
+    log_access(
+        f"네이버 {label} 승인 요청 (link {link_id})",
+        session.get("user_id"),
+        action=("NAVER_INGEST_CANCEL_APPROVE_ENQUEUE" if is_cancel
+                else "NAVER_INGEST_RETURN_APPROVE_ONLY_ENQUEUE"),
+        target_type=("order" if link.order_id else None),
+        target_id=(int(link.order_id) if link.order_id else None),
+        detail={"link_id": link_id,
+                "external_order_no": history.get("external_order_no") or ""},
+    )
+    return jsonify({"success": True,
+                    "data": {"link_id": link_id, "queued": True, "rev": base_rev},
+                    "error": None})
+
+
+@admin_bp.route("/admin/naver-ingest/<int:link_id>/cancel-approve", methods=["POST"])
+@login_required
+@role_required(["ADMIN", "MANAGER"])
+def naver_ingest_cancel_approve(link_id: int):
+    """구매자가 낸 **취소 요청을 승인**한다 (T9-G1).
+
+    지금까지 화면은 취소 요청을 **알아차리기만** 했다 — "네이버가 아직 취소를 확정하지
+    않았습니다"라고 적고, 확정시키는 방법은 판매자센터뿐이었다. 이 라우트가 그 자리를 연다.
+
+    **되돌릴 수 없다.** 승인 시점에 결제 환불이 자동 처리되고, 취소를 **거절**하는 API 는
+    존재하지 않는다(철회는 구매자만 한다).
+
+    **권한이 취소처리(``STAFF`` 포함)보다 좁다**(``ADMIN``·``MANAGER``, 사용자 결정
+    2026-09-01). 돈이 나가는 판단은 거부와 같은 층에 둔다.
+
+    **ERP 주문은 건드리지 않는다.** 승인은 네이버 축만 움직인다 — 유령 주문을 접는 것은
+    기존 폐기 버튼(``/ghost/<order_id>/discard``)이 계속 담당한다. 그쪽 잠금은 이 승인과
+    다른 축이다(접수 단계를 지난 주문은 여전히 잠긴다).
+
+    네이버 HTTP 는 WORKER 에서만 나간다(호출 IP 3슬롯 계약).
+    """
+    return _enqueue_claim_approve(link_id, kind="cancel")
+
+
+@admin_bp.route("/admin/naver-ingest/<int:link_id>/return-approve", methods=["POST"])
+@login_required
+@role_required(["ADMIN", "MANAGER"])
+def naver_ingest_return_approve(link_id: int):
+    """고객이 낸 **반품 요청을 승인**한다 — 접수와 분리된 독립 경로 (T9-G2).
+
+    접수 모달의 ``승인까지 한 번에`` 체크박스(T8-S2)는 *우리가 낸* 반품에만 걸린다.
+    **고객이 먼저 낸 반품**은 우리 접수 표식이 없어 그 경로로 못 간다. 그래서 화면이
+    고객 반품 앞에서 내주던 불가역 버튼이 ``반품 거부`` 하나뿐이었다 — 승인 버튼이 없어
+    담당자가 거부를 누르게 되는 구조였다.
+
+    **되돌릴 수 없다.** 승인 시점에 환불이 확정된다.
+
+    감사 action 을 접수+승인과 **일부러 갈라 둔다**(``..._APPROVE_ONLY_...``) — 원장에서
+    "접수하면서 승인한 것"과 "이미 있던 반품을 승인한 것"이 구분돼야 한다.
+
+    네이버 HTTP 는 WORKER 에서만 나간다(호출 IP 3슬롯 계약).
+    """
+    return _enqueue_claim_approve(link_id, kind="return")
+
+
 @admin_bp.route("/admin/naver-ingest/<int:link_id>/fulfillment-clear", methods=["POST"])
 @login_required
 @role_required(["ADMIN", "MANAGER", "STAFF"])
@@ -4469,6 +4670,11 @@ DETACH_EVENT_TYPE = "NAVER_ORDER_DETACHED"
 #: 반품 거부가 주문 변경 이력에 남기는 이벤트 타입 (T8-S3). 위와 **같은 규율** —
 #: 라벨 사전에 등재하지 않으면 화면이 "기타 변경"으로 조용히 뭉갠다.
 RETURN_REJECT_EVENT_TYPE = "NAVER_RETURN_REJECTED"
+
+#: 취소·반품 **승인**이 주문 변경 이력에 남기는 이벤트 타입 (T9). 거부만 이력에 남고
+#: 환불은 안 남으면 장부가 한쪽으로 기운다 — 돈이 나간 사실이 워크벤치 밖에서 읽혀야 한다.
+CANCEL_APPROVE_EVENT_TYPE = "NAVER_CANCEL_APPROVED"
+RETURN_APPROVE_EVENT_TYPE = "NAVER_RETURN_APPROVED"
 
 
 def _record_link_history(db: Session, *, order_id: int, link_id: int, event_type: str,

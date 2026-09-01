@@ -377,6 +377,56 @@ def is_naver_return_reject_enabled() -> bool:
     return env_bool("FOMS_NAVER_RETURN_REJECT_ENABLED")
 
 
+def is_naver_cancel_approve_enabled() -> bool:
+    """네이버 **취소 요청 승인**이 켜져 있나 (T9-G1).
+
+    **기본값은 꺼짐.** 켜려면 Railway ``web`` 에 ``FOMS_NAVER_CANCEL_APPROVE_ENABLED=1``.
+
+    **승인하면 환불이 확정되고 되돌리는 엔드포인트가 없다.** 취소를 **거절**하는 API 는
+    아예 존재하지 않는다(철회는 구매자만 한다) — 잘못 눌러도 되돌릴 곳이 없다. 그래서
+    반품 승인과 **게이트를 따로 판다**: 진짜 클레임 1건에서 이쪽을 먼저 켜 성공을 확인한
+    뒤에 반품 승인을 켠다. 하나로 묶으면 첫 실호출이 두 배선의 동시 검증이 되어, 실패했을
+    때 어느 쪽이 틀렸는지 안 갈린다.
+
+    **이 스위치는 web 전용이다.** 읽는 곳은 ``foms/web/admin/naver_ingest.py`` 두 곳
+    (pane 재진술·라우트 가드)뿐이고, 워커의 ``run_naver_fulfillment_task`` 는 게이트를 보지
+    않는다(큐에 들어온 일은 이미 라우트가 통과시킨 것이다). **``WORKER`` 에 변수를 넣거나
+    재배포하지 마라** — worker 는 1 대라 재배포가 큐를 전면 정지시킨다.
+
+    켤 때: 변수만 넣으면 **안 켜진다**. 실행 중 프로세스는 옛 env 를 들기 때문에, 재배포한
+    컨테이너의 부팅 시각이 변수 등록보다 뒤라는 것을 확인한 뒤에만 "켜졌다"고 말한다.
+
+    코호트를 쓰지 않는 이유는 반품 거부와 같다 — 이 스위치의 일은 "기능 자체를 당장 끌 수
+    있는가" 하나이고, 누가 누를 수 있는지는 **롤**(ADMIN·MANAGER)이 정한다.
+
+    Returns:
+        켜져 있으면 True.
+    """
+    return env_bool("FOMS_NAVER_CANCEL_APPROVE_ENABLED")
+
+
+def is_naver_return_approve_enabled() -> bool:
+    """네이버 **반품 승인 독립 버튼**이 켜져 있나 (T9-G2).
+
+    **기본값은 꺼짐.** 켜려면 Railway ``web`` 에 ``FOMS_NAVER_RETURN_APPROVE_ENABLED=1``.
+
+    **이 스위치는 독립 버튼만 연다.** 반품 접수 모달의 ``승인까지 한 번에`` 체크박스
+    (T8-S2, 운영 배포 완료)는 이 게이트와 **무관하게** 지금처럼 동작한다 — 이미 나가 있는
+    경로를 이 작업이 끄지 않는다.
+
+    독립 버튼이 필요한 이유는 비대칭이다: 고객이 먼저 낸 반품 앞에서 화면이 내주는 불가역
+    버튼이 ``반품 거부`` 하나뿐이었다. 승인 버튼이 없어서 담당자가 거부를 누르게 되는
+    구조를 방치할 수 없다.
+
+    web 전용·worker 무변경·부팅 시각 확인 규율은 :func:`is_naver_cancel_approve_enabled`
+    와 같다.
+
+    Returns:
+        켜져 있으면 True.
+    """
+    return env_bool("FOMS_NAVER_RETURN_APPROVE_ENABLED")
+
+
 def is_mobile_v2_shell(variant: str) -> bool:
     """shell variant가 v2 셸 계열(``v2``/``v3``)인지 판정한다.
 

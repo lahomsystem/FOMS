@@ -328,8 +328,12 @@ def _enqueue_naver_push_after_commit(db: Any, baseline: Optional[int]) -> dict:
 
 
 #: 끝난 뒤 그 집을 **다시 읽어야 하는** 조작. 전부 네이버 쪽 사실을 바꾼다.
-#: (사용자 결정 2026-08-31 — "네 가지 모두" · ``return-reject`` 는 T8-S3 에서 같은 규율로 추가)
-REFRESH_AFTER_ACTIONS = ("confirm", "dispatch", "cancel", "return", "return-reject")
+#: (사용자 결정 2026-08-31 — "네 가지 모두" · ``return-reject`` 는 T8-S3 에서 같은 규율로 추가
+#: · ``cancel-approve``·``return-approve`` 는 T9 에서 추가. 승인은 네이버 쪽 상태를
+#: ``CANCEL_DONE``/``RETURN_DONE`` 으로 **끝내는** 조작이라 다시 읽지 않으면 화면이
+#: 승인 전 사실을 계속 말한다.)
+REFRESH_AFTER_ACTIONS = ("confirm", "dispatch", "cancel", "return", "return-reject",
+                         "cancel-approve", "return-approve")
 
 
 def _enqueue_refresh_after(action: str, link_id: int, actor_user_id=None) -> bool:
@@ -376,7 +380,9 @@ def run_naver_fulfillment_task(link_id: int, action: str, actor_user_id=None,
     Args:
         link_id: 기준 수집 링크 id(같은 집 전체가 함께 처리된다).
         action: ``confirm``(발주확인) · ``dispatch``(발송처리) · ``cancel``(판매자 직접취소) ·
-            ``return``(판매자 반품 접수, T8-S1) · ``return-reject``(반품 거부, T8-S3).
+            ``return``(판매자 반품 접수, T8-S1) · ``return-reject``(반품 거부, T8-S3) ·
+            ``cancel-approve``(구매자 취소요청 승인, T9-G1) ·
+            ``return-approve``(반품 승인 독립 경로, T9-G2).
         actor_user_id: 화면에서 누른 사람(기록용).
         reason: 사유 코드(``cancel``·``return``) 또는 **거부 사유 문장**(``return-reject`` —
             코드가 아니라 구매자에게 그대로 가는 문장이다).
@@ -418,6 +424,17 @@ def run_naver_fulfillment_task(link_id: int, action: str, actor_user_id=None,
                 result = naver_fulfillment.reject_return(
                     db, client, link_id=int(link_id), reason=str(reason or ""),
                     actor_user_id=actor_user_id)
+            elif action == "cancel-approve":
+                # 구매자 취소요청 **승인**(T9-G1). 환불이 확정되고 되돌리는 API 가 없다.
+                # 사유를 보내지 않는다 — 네이버 규격이 path 파라미터만 받는다.
+                result = naver_fulfillment.approve_cancel(
+                    db, client, link_id=int(link_id), actor_user_id=actor_user_id)
+            elif action == "return-approve":
+                # 반품 **승인**(T9-G2, 접수와 분리된 독립 경로). 접수 경로의
+                # ``action="return"`` + ``approve=True`` 와 **일부러 갈라 둔다** —
+                # 감사 원장에서 두 갈래를 구분해 읽어야 한다.
+                result = naver_fulfillment.approve_return(
+                    db, client, link_id=int(link_id), actor_user_id=actor_user_id)
             else:
                 raise ValueError(f"알 수 없는 작업입니다: {action}")
             db.commit()

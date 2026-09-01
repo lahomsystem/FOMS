@@ -9,6 +9,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
+- [2026-09-01] **네이버 클레임 승인 T9 로컬(커밋 대기)** — 취소 요청 승인 신설(`claim/cancel/approve`)+반품 승인 독립 경로(고객이 낸 반품). ADMIN·MANAGER, 게이트 2개(기본 꺼짐·web 전용), 승인도 OrderEvent. **취소 거부 API 는 네이버에 없다.** 원장: `docs/plans/2026-09-01-naver-claim-approve-ledger.md`
 - [2026-09-01] **네이버 과거 주문 백필 deploy 반영** — 워크벤치 90일 1회 실행·워터마크 불변·소급분은 큐 밖·매칭 캡 해소(`naverbf_00`). **운영 실행 승인 대기**. 원장 `docs/plans/2026-09-01-naver-ingest-backfill-ledger.md`
 - [2026-08-31] **고객 공유 링크 UX** — 계약서 폼 이식·계좌 복사·PNG 저장(700px 클론)·도면 ZIP. 실기기(카톡 인앱) 확인 대기, 미검증 5건은 원장에
 - [2026-08-25] **네이버 수집 운영 개방·안정화** — 전량 승격(production `39fa919d`) 뒤 열쇠·플래그 투입(WORKER 수집 300초 · web 워크벤치 `COHORT=all`). 개방 직후 `주문 만들기` 가 `naver_ingest_bot` 부재로 막혀 있었다(설치 체크리스트 ① 미실행) → 운영 id 61·62 생성으로 해소. 워크벤치 머리줄이 전역 nav(z-index 1000) 밑에 깔리던 결함 · 도크 머리말↔링크 집 불일치 · 붙이기 중복 이력 수정 deploy(`6ed045c9`). 원장 `docs/plans/2026-08-25-naver-full-promotion-roadmap.md` §18
