@@ -115,3 +115,37 @@ def test_legacy_edit_form_offers_candidates(form_client, monkeypatch):
     assert '<option value="강민경"></option>' in body
     assert 'value="목록에 없는 사람"' in body
     assert body.count('id="manager_name_options"') == 1
+
+
+def test_mobile_erp_form_offers_candidates(form_client, monkeypatch):
+    """모바일 ERP 폼도 후보를 띄운다 — 담당자 칸은 input 이라야 `list` 가 먹는다.
+
+    모바일 코호트는 PC·모바일 두 표면을 함께 렌더하고 인라인 스크립트가 한쪽을 지운다.
+    그래서 후보 목록 id 는 표면마다 달라야 한다(지워지기 전까지 id 가 겹친다).
+    """
+    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
+    _stub_settings(monkeypatch, [{"name": "안중훈", "phone": "010-8888-8888",
+                                  "sort_order": 3}])
+    order = Order(
+        received_date="2026-09-01",
+        customer_name="모바일 후보",
+        phone="010-0000-0002",
+        address="Seoul",
+        product="가구",
+        status="RECEIVED",
+        is_erp_order=True,
+        structured_data={},
+    )
+    db_session.add(order)
+    db_session.commit()
+
+    user = db_session.query(User).filter_by(username="mgr_admin").first()
+    monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(user.id))
+
+    body = form_client.get(f"/edit/{order.id}").get_data(as_text=True)
+    assert 'id="erp-order-form-mobile"' in body
+    assert 'list="manager_name_options_mobile"' in body
+    assert body.count('id="manager_name_options_mobile"') == 1
+    assert body.count('id="manager_name_options"') == 1
+    # 담당자 칸은 input 이라야 후보가 뜬다. 시공 담당자는 여러 명을 줄로 적으므로 textarea 유지.
+    assert 'id="erp-construction-workers"' in body
