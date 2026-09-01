@@ -100,6 +100,8 @@ _PTC_FOMS_SERVICES_COMMON_ALLOWLIST: frozenset[str] = frozenset(
         "erp_mine_filter.py",
         "erp_navigation_contract.py",
         "erp_shell_http.py",
+        # HB-S2a: 프래그먼트 버전 키 + 그림자 관측(렌더 전 304 의 선행 검증)
+        "fragment_revalidation.py",
         "geocode_config.py",
         "html_whitespace.py",
         "map_generator.py",

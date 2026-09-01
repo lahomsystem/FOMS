@@ -21,6 +21,12 @@ from foms.services.common.dashboard_cache import (
 from foms.services.common.ept_b7_profile import apply_ept_b7_render_headers
 from foms.services.common.erp_mine_filter import erp_mine_only_for_construction
 from foms.services.common.erp_shell_http import apply_erp_shell_fragment_headers, wants_erp_shell_tab_body
+from foms.services.common.fragment_revalidation import (
+    SHADOW_HEADER,
+    build_fragment_version_key,
+    is_shadow_revalidation_enabled,
+    record_shadow_observation,
+)
 from foms.services.erp_permissions import (
     build_mine_sql_filter,
     can_edit_erp,
@@ -36,6 +42,21 @@ from foms.services.request_utils import get_search_query_arg
 erp_history_bp = Blueprint('erp_history', __name__, url_prefix='/erp/history')
 
 _QUEUE_BLANK = ("", "-", None)
+
+# --- HB-S2a 그림자 재검증 (동작 변경 0) ------------------------------------------
+# 이 라우트가 실제로 읽는 요청 인자 전량. 미등재 인자가 오면 키 생성을 포기한다
+# (새 필터가 키에 반영 안 되면 필터를 바꿔도 같은 키가 나와 낡은 본문이 재사용된다).
+_HISTORY_ROUTE_ID = "erp_history_dashboard"
+_HISTORY_KEY_ARGS = (
+    "q", "search", "stage", "date_from", "date_to",
+    "from_dashboard", "from_search", "page", "mine",
+)
+# 본문이 좌우되는 테이블. orders(목록) · order_attachments(build_product_items_for_orders)
+# · order_schedule_dates(큐 카드 일정) · users(담당자 표시·mine 판정).
+# 과다 포함의 대가는 재렌더 한 번, 과소 포함의 대가는 조용히 낡은 화면이다.
+_HISTORY_KEY_TABLES = (
+    "orders", "order_attachments", "order_schedule_dates", "users",
+)
 
 
 def _fill_queue_row_column_fallbacks(row: dict[str, Any], order: Order) -> dict[str, Any]:
@@ -86,6 +107,36 @@ def _build_history_queue_rows(db, orders: list[Order], user) -> dict[int, dict[s
         row = build_mobile_queue_order_row(db, order, user, batch_ctx=batch_ctx)
         out[int(order.id)] = _fill_queue_row_column_fallbacks(row, order)
     return out
+
+
+def _observe_fragment_version(response, user, mine_only: bool) -> None:
+    """HB-S2a: 렌더 전 304 용 키가 정말 본문을 결정하는지 관측만 한다.
+
+    응답을 바꾸지 않는다 — 진단 헤더 하나만 붙는다. 플래그가 꺼져 있거나(기본),
+    셸 프래그먼트 요청이 아니거나, 키를 못 만들면(미등재 인자·Redis 없음) 아무 일도
+    하지 않는다. mismatch 가 나면 그것이 "키에 빠진 축이 있다"는 증거이고,
+    S2b(렌더 전 304)는 그 값이 0 이라는 관측 후에만 켠다.
+
+    Args:
+        response: 렌더가 끝난 Flask 응답.
+        user: 현재 사용자.
+        mine_only: 이 요청에 적용된 mine 필터 판정값.
+    """
+    if not is_shadow_revalidation_enabled() or not wants_erp_shell_tab_body(request):
+        return
+    key = build_fragment_version_key(
+        route_id=_HISTORY_ROUTE_ID,
+        req=request,
+        user=user,
+        tables=_HISTORY_KEY_TABLES,
+        allowed_args=_HISTORY_KEY_ARGS,
+        mine_only=mine_only,
+    )
+    if key is None:
+        return
+    response.headers[SHADOW_HEADER] = record_shadow_observation(
+        key, response.get_data(), route_id=_HISTORY_ROUTE_ID
+    )
 
 
 @erp_history_bp.route('/')
@@ -265,6 +316,7 @@ def history_dashboard():
         route_id="erp_history_dashboard",
         render_ms=(time.perf_counter() - _t0) * 1000,
     )
+    _observe_fragment_version(response, user, mine_only)
     apply_erp_shell_fragment_headers(response, request)
     if wants_erp_shell_tab_body(request):
         canonical_args = request.args.to_dict(flat=True)
