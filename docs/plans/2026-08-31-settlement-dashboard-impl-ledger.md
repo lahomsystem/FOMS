@@ -1177,3 +1177,28 @@ sd `schedule.measurement.date` 64 · 레거시 `measurement_date` 컬럼 64 · �
 
 CI 전 워크플로 green(FOMS CI · PostgreSQL Lane · Harness CI · perf-gate), 스테이징 배포
 확인(`/healthz` commit == `6d584f1d`). **production 승격은 별도 승인 대기.**
+
+### P3 production 승격 + 운영 재측정 (2026-09-01)
+
+PR **#221 머지** — `origin/production` `70dc48f1`. 4커밋(정산 원장 docs 2 + 성능 1 + 원장 1).
+승격 트리(`c:\tmp\promo-mp`)에서 **cherry-pick 충돌 0건** — 사전검사가 타 세션 커밋 4건
+(`703e61e3`·`6d212ecb`·`f990db5f`·`be52d9c3`)을 같은 파일이라는 이유로 missing 으로 표시했지만
+실제 적용에는 의존이 없었다(파일 교집합은 의존의 상한이지 실체가 아니다).
+승격 트리 검증: `APP_OK` · 전체 스위트 **7,394 passed / 585 skipped** · `pre_push_smoke` exit 0.
+PR 체크 4종 전부 success, mergeStateStatus=CLEAN. 운영 배포 확인(`/healthz` == `70dc48f1`).
+
+**운영 재측정**(읽기 전용 GET, 해제→측정→재잠금):
+
+| 항목 | 값 |
+|---|---|
+| 서버 시간 | **28.7ms** (healthz base 105.4ms, min ttfb 134.1ms) |
+| 패널 | 15일 · **63건** (DB 대조 68주문과 정합 — 자가실측 4체크 완료분 제외) |
+| 응답 | 24,948B(운영은 케이스가 많아 스테이징 2,338B 보다 크다) |
+
+⚠️ **운영 '전' 값은 이 엔드포인트에 대해 측정된 적이 없다**(스테이징 전후만 있다:
+263.1ms → 18.1ms). 운영 수치는 '후'만 사실이고, 전후 배수를 운영 기준으로 말하지 않는다.
+
+**부수 기록 — `claude_master` production 비밀번호가 세션 도중 바뀌었다.**
+22:4x 측정 때는 로컬 secrets 파일 값이 실패하고 이전 세션 스크립트에 하드코딩된 값이 302 였는데,
+09:0x 재측정에서는 정반대였다(secrets 값이 302). 로그인 실패는 `security_logs` `LOGIN_FAIL`(user 57)로
+남는다. 측정 래퍼는 두 후보를 순서대로 시도하도록 고쳤다. **현재 정본은 secrets 파일 값**이다.
