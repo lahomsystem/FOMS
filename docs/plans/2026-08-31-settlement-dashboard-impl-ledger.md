@@ -1238,3 +1238,47 @@ PC 경로에는 부트스트랩 부재 · 스크립트가 필터 대조 후에�
 음성 대조군: 직렬화 대상을 비우면 파리티 테스트가 red(확인함).
 
 전체 스위트 **7,394 passed / 585 skipped**, `pre_push_smoke` exit 0.
+
+---
+
+## P5 — 계정 사고 원인 규명 + 정책 보강 (2026-09-01)
+
+세션 도중 `claude_master` production 비밀번호가 바뀐 건의 원인을 확인했다(직접 파일 확인).
+
+**원인**: 2026-08-31 21:58 다른 세션의 해제 스크립트
+(`…/a9dda555-…/scratchpad/prod_account.py:26-39`)가 `unlock()` **안에서**
+`set_strong_password(user, password)` 를 함께 불렀다 — 함수명·docstring 은 잠금 해제만
+표방하는데 **해제가 비밀번호를 조용히 교체**했다. `is_active`·`approval_status` 도 함께 바꾼다.
+그 뒤 2026-09-01 08:37 정식 로테이션(랜덤 20자 + `password_policy_version=1` + secrets 파일
+동기화 + 302 검증 + 재잠금)이 돌아 지금은 **secrets 파일 값이 정본**이다
+(secrets 파일 mtime 2026-09-01 08:37:27 — 직접 확인).
+
+절차 위반은 아니었다: 문서(`REAL_SERVER_TEST_ACCOUNT.md:29`)가 `password` 갱신을 허용 예외로
+두고 있었고, **"로테이션하면 기록하라"는 요구가 없었다**. 공백이 사고를 조용하게 만들었다.
+
+**보강(문서 개정)** — `docs/guides/REAL_SERVER_TEST_ACCOUNT.md` §"해제는 `is_active`만 바꾼다":
+해제/재잠금이 만지는 컬럼은 `is_active` 하나 · 비번 교체는 별도 로테이션 절차 ·
+로테이션은 원장에 시각·환경·secrets 동기화 여부를 남기되 **값은 절대 금지** ·
+측정 스크립트에 비밀번호 하드코딩 금지(secrets 파일에서 읽기).
+
+**정리**: `c:\tmp\prod_probe.py` 의 평문 비밀번호(이미 무효값)를 secrets 읽기로 교체,
+`c:\tmp\prod_run_probe.py` 는 CLI 인자 대신 secrets 전용으로 바꿨다(셸 기록에 평문이 남지 않게).
+
+---
+
+## P6 — 셸 하트비트 재검증 설계 (2026-09-01, 스펙만 · 착수 전)
+
+스펙: `docs/specs/2026-09-01-shell-heartbeat-cheap-revalidation_SPEC.md`.
+
+요지: 304 가 서버를 아끼지 못하는 이유는 ETag 를 **렌더 뒤**에 붙기 때문이다
+(`erp_shell_http.py:76-78`). 커밋 훅이 이미 무효화 intent 를 알고 있으므로
+(`dashboard_cache.py:655-690` ← `revision.py:177-204`) **패밀리별 정수 카운터**를 올려두고,
+라우트가 렌더 전에 `hash(경로·파라미터·사용자·코호트·오늘·카운터)` 로 조건부 응답을 끝내는 안.
+
+착수 전 반드시 답해야 할 것(스펙 §5): mutation 엔진을 **거치지 않는 쓰기 경로**가 남아 있으면
+낡은 304 가 나간다(지금 결함보다 나쁘다) → 5개 테이블 쓰기 경로 전수 조사가 S0.
+`users`·`system_settings` 는 패밀리 밖이라 별도 처리 필요. Flask-Compress 의 ETag 접미사
+재작성과의 대조 규칙도 먼저 정해야 한다. 기존 조건부 계약 테스트 2건은 **의미 유지한 채** 재작성.
+
+단계: S0 전수조사 → S1 카운터 배선(읽는 쪽 없음) → S2 화면 1개 적용 후 스테이징 실측 →
+S3 확대. 승인 대기.
