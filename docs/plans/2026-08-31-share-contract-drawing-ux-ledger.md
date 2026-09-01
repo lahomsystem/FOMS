@@ -245,3 +245,16 @@ iOS·Android 인앱 브라우저 다운로드 제약 정리.
 존재·`alembic_version=sharehist_00`.
 무관 기존 red 1건 기록: `test_erp_order_edit_mobile_form.py::test_edit_erp_order_ships_responsive_form_mounts_for_cohort`
 는 **깨끗한 origin/production 체크아웃에서도 빨강**이다(이 작업이 만든 것이 아니다).
+
+**실서버 확인(2026-09-01, claude_master)**
+
+- **스테이징 E2E(쓰기 포함)**: 가상 주문 `CLAUDE-TEST-share-hist`(더미 010-0000-0000) 생성 →
+  계약서 링크 발급 → 비로그인 열람(1,000,000) → 금액 변경 → 재열람(1,400,000) →
+  **이력 2행**(각 행이 자기 금액 보존) → 그 시점 화면 200(배너 표시·옛 금액 표시·**새 금액 누출 0**) →
+  주문 soft delete 정리. 함정: `/add` 의 ERP 경로는 `create_mode=ERP_ORDER` 이고 **ADMIN 은
+  `sales_owner_id`(활성 SALES) 지정이 필수**다(UI 에는 그 입력칸이 없어 폼 흉내로는 안 만들어진다).
+- **운영(읽기 전용, 계정 해제→확인→재잠금)**: 배포 직후 **실고객 열람 1건이 이미 원장에 쌓여 있었다**
+  (`order_share_snapshots` 1행, share 17, `source=live`). 직원 이력 목록 200(스냅샷 원문 미포함 확인),
+  그 시점 화면 200(배너·계약 내용), **열람 전 링크는 0행**(음성 대조군), 주문 편집 화면에
+  `erp-share-history`·"고객이 본 내용"·`erp-share.js?v=20260901b` 모두 실림.
+  운영 쓰기는 하지 않았다(감사 `SHARE_HISTORY_VIEWED` 1건은 허용 잔여물). 계정 재잠금 완료.
