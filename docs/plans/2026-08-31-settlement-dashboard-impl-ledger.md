@@ -1523,6 +1523,8 @@ sidefx outbox·system_build_steps)이고 allowlist 에 사유와 함께 등재�
 | `pytest tests/visual/test_alimtalk_ui_contract.py tests/visual/test_p1_mockup_structure.py` | 74 passed |
 | `scripts/ops/pre_push_smoke.ps1` | **exit 0** (377 passed) |
 | `python tools/harness/orm_bypass_write_scan.py --check` | unsignaled **0** |
+| deploy `0f6e86c2` CI | FOMS CI · PostgreSQL Lane · Harness CI **success** (perf-gate 는 뒤 푸시에 취소돼 아래로 재판정) |
+| perf-gate 수동 dispatch(= **블로킹** 모드, run 33461579236) | **PASS** — 12경로 전부, `/erp/history/` dTTFB 2ms(예산 99)·wire 7158(예산 10174) |
 
 부수: 내 편집으로 줄이 밀려 `foms_failopen_inventory.json`(+ 신규 fail-open 4건, 전부
 `has_logging: true`)·`foms_state_writer_inventory.json`·`foms_order_mutation_writer_inventory.json`
