@@ -13,12 +13,29 @@
   <meta name="robots" content="noindex, nofollow">
   <title>계약서 확인</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/orders/foms-share-view.css') }}?v=20260831d">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/orders/foms-share-contract.css') }}?v=20260831c">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/orders/foms-share-contract.css') }}?v=20260901a">
 </head>
 <body class="foms-share-view foms-share-est">
+  {# 직원용 열람 기록 재현(SHARE-HIST-00). 고객 경로는 history_meta 를 넘기지 않으므로
+     아래 두 분기 모두 고객 화면에서는 존재하지 않는다(파셜 단독 렌더 규약 유지). #}
+  {% if history_meta is defined and history_meta %}
+  <div class="foms-share-hist" role="note">
+    <strong class="foms-share-hist__title">고객이 본 계약서 기록</strong>
+    <span class="foms-share-hist__meta">
+      최초 열람 {{ history_meta.viewed_at }}
+      {%- if history_meta.view_count and history_meta.view_count > 1 %} · 같은 내용 {{ history_meta.view_count }}회 열람(마지막 {{ history_meta.last_viewed_at }}){% endif %}
+      {%- if history_meta.source == 'stored' %} · 발급 시점 저장본{% endif %}
+    </span>
+    <span class="foms-share-hist__note">이 화면은 그때 저장된 내용이며 지금 주문 값과 다를 수 있습니다.</span>
+  </div>
+  {% endif %}
   <header class="foms-share-view__header">
     <h1 class="foms-share-view__title">계약서</h1>
+    {% if history_meta is defined and history_meta %}
+    <p class="foms-share-view__hint">{{ snap.issued_date }} 기준으로 고객에게 표시된 계약 내용입니다.</p>
+    {% else %}
     <p class="foms-share-view__hint">{{ snap.issued_date }} 기준 계약 내용입니다. 변경되면 이 화면에도 반영됩니다.</p>
+    {% endif %}
   </header>
   <main class="foms-share-view__main">
     {% include 'orders/partials/share_estimate_body.html' %}
