@@ -596,41 +596,53 @@ class NaverCommerceClient:
         )
 
     def reject_return_product_order(self, product_order_id: str, *, reason: str) -> dict:
-        """판매자 반품 **거부** — 고객이 낸 반품 요청을 되돌려보낸다 (T8-S3).
+        """판매자 반품 **거부(철회)** — 고객이 낸 반품 요청을 되돌려보낸다 (T8-S3).
 
-        **아직 부르지 않는다.** 설계서
-        ``docs/specs/2026-08-31-naver-return-reject_SPEC.md`` §2 가 비어 있다 — 엔드포인트
-        경로·body 필드명(`rejectReturnReason` 인지)·필수 여부·글자수 제한·응답 형태를
-        공식 문서 원문에서 확인하기 전이다.
+        **규격 출처**: 커머스API센터 공개 문서(2026-09-01 원문 확인) —
+        ``apicenter.commerce.naver.com/llms/`` 의
+        ``post-v1-pay-order-seller-product-orders-productOrderId-claim-return-reject.md``.
+        로그인·JS 없이 열리는 ``llms.txt`` 갈래다. 화면이 막혔다고 규격을 지어내던
+        자리를 이 문서가 닫았다(``approvalData`` 사고와 같은 자리).
 
-        **추측으로 불가역 API 를 부르지 않는다.** 이 자리에서 정확히 한 번 데었다:
-        2026-08-27 원장이 승인에 ``approvalData`` 가 필요하다고 적었는데 그 근거가 출처에
-        없었고(그 문서는 취소 승인 얘기였다), 그대로 갔으면 **없는 필드를 환불 API 에**
-        보낼 뻔했다. 그래서 여기서는 body 를 지어내는 대신 **부르지 못하게 막는다.**
+        **body 는 ``rejectReturnReason`` 한 필드다**(string, **필수**). 문서의 요청 본문
+        표에 그 한 줄만 있고 curl 예시에 ``Content-Type: application/json`` 과 ``-d`` 가
+        있다. 승인(:meth:`approve_return_product_order`)이 "본문이 필요 없고"인 것과 갈린다.
 
-        인자 검사는 지금부터 한다 — 규격이 채워질 때 검사가 빠진 채로 열리지 않게.
+        **문장은 구매자에게 간다** — 문서가 "구매자 알림과 사후 분쟁 대응의 근거"라고
+        적는다. 그래서 호출자가 보낸 원문을 상태와 감사 로그 양쪽에 남긴다.
+
+        **되돌리는 엔드포인트는 없다.** 거부 뒤 클레임 상태는 ``RETURN_REJECT`` 가 되고
+        상품주문상태는 클레임 직전(``DELIVERING``/``DELIVERED``)으로 복귀한다. 환불은
+        발생하지 않으며 **구매자가 다시 반품을 신청할 수 있다**(이력은 ``completedClaims``
+        에 쌓인다).
+
+        **보류 건·반품완료 건은 처리되지 않는다** — 예외가 아니라
+        ``data.failProductOrderInfos`` 로 온다. 응답이 접수·승인과 **동형**이라 호출자가
+        ``_split_result`` 를 그대로 쓴다.
 
         Args:
             product_order_id: 거부할 ``productOrderId``.
             reason: 구매자에게 **그대로 전달되는** 거부 사유 문장.
 
         Returns:
-            (규격 확인 뒤) 응답 payload.
+            응답 payload(원본). 건별 성공/실패는 ``data.successProductOrderIds`` 와
+            ``data.failProductOrderInfos`` 로 온다.
 
         Raises:
-            ValueError: 상품주문번호나 사유 문장이 비었을 때.
-            NotImplementedError: 규격이 확인되기 전에 부른 경우. 화면은 기능 게이트
-                (``FOMS_NAVER_RETURN_REJECT_ENABLED``)로 이미 닫혀 있어 여기 닿지 않는다.
+            ValueError: 상품주문번호나 사유 문장이 비었을 때. 빈 요청으로 불가역 API 를
+                때리지 않는다 — 문서도 **사유 누락을 400** 으로 적는다.
         """
         pid = str(product_order_id or "").strip()
         if not pid:
             raise ValueError("거부할 상품주문번호가 없습니다.")
-        if not str(reason or "").strip():
+        text = str(reason or "").strip()
+        if not text:
             raise ValueError("거부 사유 문장이 없습니다.")
-        raise NotImplementedError(
-            "반품 거부 API 규격이 아직 확인되지 않았습니다 — "
-            "docs/specs/2026-08-31-naver-return-reject_SPEC.md §2 를 채운 뒤 "
-            "이 함수의 요청 한 줄을 채우세요.")
+        return self._request(
+            "POST", f"/v1/pay-order/seller/product-orders/{pid}/claim/return/reject",
+            json_body={"rejectReturnReason": text},
+            headers={"Content-Type": "application/json"},
+        )
 
     # -- HTTP ------------------------------------------------------------- #
 

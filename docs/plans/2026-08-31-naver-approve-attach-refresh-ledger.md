@@ -25,20 +25,37 @@
 | T1b | 승인 배선 — 큐·태스크·라우트 payload `approve` + 감사 라벨 분리 | 라우트가 `approve` 전달 · 문자열 `"false"` 방어 · `NAVER_INGEST_RETURN_APPROVE_ENQUEUE` 등재 | **DONE** |
 | T1c | 승인 화면 — 체크박스(기본 꺼짐)·빨간 띠 한 줄·중간 상태 띠·자산 핀 범프 | 모달 문구 계약 갱신 · `?v=` 핀 2곳 + 계약 2곳 함께 범프 | **DONE** |
 | T2 | 후보 0건일 때 주문 찾아서 붙이기 (검색 → 붙이기) | 검색 라우트 계약 · 후보 0건 화면에 진입점 노출 · 붙인 뒤 기존 흐름과 동일 | **DONE** |
-| T4 | 반품 **거부** (T8-S3) — 규격 한 줄 빼고 전부 | 게이트 OFF 로 화면·라우트 닫힘 · 계약 30종 · 상용구 전역 저장(ADMIN) | **BLOCKED — 규격 대기** |
+| T4 | 반품 **거부** (T8-S3) — 규격 확보 후 완성 | 선로 요청이 문서 그대로(`rejectReturnReason` 단일 필드) · 계약 37종 · `COLLECTING` 편입 + `COLLECT_DONE` 대조군 | **DONE (게이트 OFF)** |
 
-### T4 재개 지점 (다음 세션이 읽을 것)
+### T4 규격 해소 (2026-09-01) — **막힌 곳이 열렸다**
 
-- 설계서 `docs/specs/2026-08-31-naver-return-reject_SPEC.md` — §2 표의 **#2~#7 이 비어 있다**
-  (body 필드·글자수·노출 위치·응답 형태·거부 뒤 `claimStatus`·되돌리기 유무).
-  #1(경로·권한 스코프)은 2026-09-01 확인됨.
-- **막힌 것은 딱 한 곳**: `client.reject_return_product_order` 가 인자 검사 뒤
-  `NotImplementedError` 를 던진다. 문서가 오면 그 함수의 요청 한 줄만 채운다.
-- 그 다음 순서: `RETURN_REJECTABLE_STATUSES` 넓힐지 판단 → `RETURN_REJECT_REASON_MAX`
-  (지금 우리 상한 500) 조정 → 계약 테스트 갱신 → Railway
-  `FOMS_NAVER_RETURN_REJECT_ENABLED=1` → 관리자가 화면에서 상용구 문장 확정.
-- **사용자가 apicenter 상세 화면을 붙여 주기로 했다**(2026-09-01). 스스로 열 수 없다
-  (로그인·JS). 공개 자료에도 body 규격이 없다 — 검색 2회로 확인.
+**전제가 틀렸었다.** 원장이 "apicenter 는 로그인·JS 라 세션이 못 연다"고 적은 것은 **화면
+갈래** 얘기였고, 같은 도메인의 **문서 갈래는 로그인 없이 열려 있었다**. 사용자가 짚어 준
+`https://apicenter.commerce.naver.com/llms/llms.txt` 가 인덱스이고, endpoint 마다 `.md`
+상세가 200 으로 떨어진다. **다음에 네이버 규격이 필요하면 여기부터 본다** — 검색·화면 캡처
+전에.
+
+읽은 문서: `post-...-claim-return-reject.md` · `wiki-주문-주문-상태-변경-흐름도.md` ·
+`post-...-claim-return-approve.md`. 설계서 §2 표 #2~#7 을 전부 채웠다.
+
+바뀐 것 셋:
+
+1. **클라이언트가 열렸다** — body 는 `{"rejectReturnReason": 문장}` 하나, `Content-Type:
+   application/json`. `NotImplementedError` 제거. 문서에 **사유 코드 필드가 없다** —
+   지어내지 않았다.
+2. **`RETURN_REJECTABLE_STATUSES` 에 `COLLECTING` 추가.** 문서 규정 문장이 "반품요청·수거중
+   상태를 반품철회로 전이"라고 적고 흐름도 R-2 도 같다. **`COLLECT_DONE` 은 안 넣었다** —
+   서술이 "회수된 상품에 문제"를 들지만 규정 문장·흐름도 둘 다 출발점으로 안 적는다.
+   불가역 경로에서는 서술이 아니라 규정을 따른다.
+3. **`RETURN_REJECT_REASON_MAX` 는 500 유지** — 문서에 길이 제한이 **없음을 확인**했다
+   (못 찾은 것이 아니라 없다). 우리 상한으로 남긴다.
+
+덤: 승인 문서가 "본문이 필요 없고"라고 적어 **T1 의 body 없는 승인 구현이 독립 재확인**됐다
+(`approvalData` 폐기 판단이 옳았다).
+
+**남은 것은 게이트뿐.** 설계서 §6-2 순서: Railway 변수 `FOMS_NAVER_RETURN_REJECT_ENABLED=1`
+→ **재배포해야 실행 중 프로세스가 든다**(변수만 넣으면 옛 env) → worker 1 대라 재배포 전
+`tools/ops/check_worker_redeploy_safe.py` → 관리자가 화면에서 상용구 문장 확정.
 
 ## T4 반품 거부 — 만든 것 (2026-08-31 ~ 09-01, deploy `2b83b41d`·`5ad8485b`)
 

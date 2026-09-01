@@ -8,8 +8,9 @@
 
 그래서 이 파일이 무는 것은 넷이다.
 
-* **규격이 안 채워졌으면 나가지 않는다** — 클라이언트가 부르지 못하게 막혀 있고(§2),
-  게이트가 화면과 라우트를 함께 닫는다. 눌러도 안 나가는 버튼을 보여 주지 않는다.
+* **문서에 적힌 것만 나간다** — body 는 ``rejectReturnReason`` 한 필드다(커머스API 공개
+  문서 2026-09-01 원문). 없는 필드를 지어내 불가역 API 에 보내지 않는다. 게이트는 화면과
+  라우트를 함께 닫는다 — 눌러도 안 나가는 버튼을 보여 주지 않는다.
 * **빈 문장으로 불가역 API 를 때리지 않는다** — 화면·라우트·서비스 세 겹.
 * **보류 걸린 건은 우리가 건드리지 않는다** — 승인과 같은 규율(안심케어 보류해제 금지).
 * **보낸 문장이 남는다** — 상태·감사 로그·주문 이력. 분쟁에서 필요한 것은 요약이 아니다.
@@ -125,24 +126,107 @@ class _Client:
 
 
 # --------------------------------------------------------------------------- #
-# 1. 규격이 안 채워졌으면 나가지 않는다
+# 1. 문서에 적힌 요청만 나간다
 # --------------------------------------------------------------------------- #
 
-def test_client_refuses_to_call_before_the_spec_is_confirmed():
-    """진짜 클라이언트는 **부르지 못한다** — 규격 미확인(설계서 §2).
+class _Response:
+    """requests.Response 최소 계약만 흉내낸다."""
 
-    추측으로 만든 body 를 불가역 API 에 보내지 않는다. 승인 때 `approvalData` 가 정확히
-    이 자리에서 났다(근거가 출처에 없었다).
+    def __init__(self, payload: dict):
+        self.status_code = 200
+        self.text = ""
+        self.headers: dict = {}
+        self._payload = payload
+
+    def json(self):
+        return self._payload
+
+
+class _Transport:
+    """토큰과 거부 호출만 받는 최소 전송 — **네트워크를 타지 않는다**."""
+
+    def __init__(self):
+        self.calls: list[tuple[str, str, dict]] = []
+
+    def request(self, method, url, **kwargs):
+        self.calls.append((method, url, kwargs))
+        if url.endswith("/v1/oauth2/token"):
+            return _Response({"access_token": "tok", "expires_in": 10799})
+        return _Response({"timestamp": "2026-09-01T00:00:00.000+09:00",
+                          "traceId": "trace-1",
+                          "data": {"successProductOrderIds": ["PO-1"],
+                                   "failProductOrderInfos": []}})
+
+
+def _wire_client():
+    """전송을 주입한 진짜 클라이언트(서명·토큰은 돌지만 밖으로 안 나간다)."""
+    import bcrypt
+
+    from foms.services.integrations.naver_commerce.client import (
+        MemoryTokenCache,
+        NaverCommerceClient,
+    )
+
+    transport = _Transport()
+    client = NaverCommerceClient("test-client-id",
+                                 bcrypt.gensalt(rounds=4).decode("utf-8"),
+                                 transport=transport,
+                                 token_cache=MemoryTokenCache(),
+                                 sleep=lambda _seconds: None)
+    return client, transport
+
+
+def test_client_sends_exactly_the_documented_request():
+    """선로에 나가는 것이 **문서 그대로**여야 한다 (커머스API 공개 문서 2026-09-01 원문).
+
+    요청 본문 표에 ``rejectReturnReason``(string, 필수) 한 줄이고 curl 예시에
+    ``Content-Type: application/json`` 이 있다. 승인 때 `approvalData` 를 지어낼 뻔한
+    자리라 **문서에 없는 필드가 하나라도 붙으면 빨강**이다.
     """
+    client, transport = _wire_client()
+
+    out = client.reject_return_product_order("PO-1", reason="  반품이 어렵습니다.  ")
+
+    sent = [call for call in transport.calls if call[1].endswith("/claim/return/reject")]
+    assert len(sent) == 1, transport.calls
+    method, url, kwargs = sent[0]
+    assert method == "POST"
+    assert url.endswith(
+        "/v1/pay-order/seller/product-orders/PO-1/claim/return/reject"), url
+    # 필드는 정확히 하나 — 여분이 붙으면 그게 곧 지어낸 규격이다.
+    assert kwargs.get("json") == {"rejectReturnReason": "반품이 어렵습니다."}
+    assert kwargs.get("headers", {}).get("Content-Type") == "application/json"
+    assert kwargs.get("data") is None, "문서는 JSON 본문을 적는다(form 아님)"
+    # 응답은 접수·승인과 동형이라 호출자가 _split_result 를 그대로 쓴다.
+    assert out["data"]["successProductOrderIds"] == ["PO-1"]
+    assert "failProductOrderInfos" in out["data"]
+
+
+def test_client_invents_no_reason_code():
+    """사유는 **문장 하나**다 — 문서에 사유 *코드* 필드가 없다.
+
+    판정은 docstring 이 아니라 코드 본문으로 한다(승인 계약과 같은 규율). 네이버는
+    읽기 코드가 쓰기 코드보다 많아서, 관측값을 화이트리스트로 올리면 400 이 난다.
+    """
+    import ast
+    import inspect
+
     from foms.services.integrations.naver_commerce.client import NaverCommerceClient
 
-    client = NaverCommerceClient.__new__(NaverCommerceClient)
+    source = inspect.getsource(NaverCommerceClient.reject_return_product_order)
+    tree = ast.parse(source.lstrip())
 
-    with pytest.raises(NotImplementedError) as exc:
-        client.reject_return_product_order("PO-1", reason="반품이 어렵습니다.")
+    bodies = [node.value for node in ast.walk(tree)
+              if isinstance(node, ast.keyword) and node.arg == "json_body"]
+    assert len(bodies) == 1, "요청 본문은 한 자리에서만 만든다"
+    assert isinstance(bodies[0], ast.Dict), "리터럴이어야 계약이 읽을 수 있다"
+    assert {key.value for key in bodies[0].keys} == {"rejectReturnReason"}
 
-    assert "규격" in str(exc.value)
-    assert "2026-08-31-naver-return-reject_SPEC" in str(exc.value)
+    func = tree.body[0]
+    lines = [ast.unparse(node)
+             for node in (func.body[1:] if ast.get_docstring(func) else func.body)]
+    assert not any("NotImplementedError" in line for line in lines), (
+        "규격이 확인돼 막이 걷혔다")
 
 
 def test_client_rejects_empty_input_before_anything_else():
@@ -345,6 +429,42 @@ def test_service_rejects_only_the_rows_with_a_pending_request():
 
     assert result["rejected"] == [link.external_id]
     assert [pid for pid, _ in fake.calls] == [link.external_id]
+
+
+@pytest.mark.parametrize("claim", ["RETURN_REQUEST", "COLLECTING"])
+def test_document_opens_request_and_collecting(claim):
+    """문서가 연 상태는 둘이다 — "반품요청·수거중 상태를 반품철회로 전이"(2026-09-01 원문).
+
+    ``COLLECTING`` 은 규격 확인 전까지 닫아 뒀던 자리다. 흐름도의 R-2(거부) 분기도 1단계
+    ``RETURN_REQUEST``/``COLLECTING`` 에서만 갈라진다.
+    """
+    link = _link(claim=claim)
+
+    assert fulfillment.is_return_rejectable(link) is True
+
+
+@pytest.mark.parametrize("claim", ["COLLECT_DONE", "RETURN_DONE", "RETURN_REJECT"])
+def test_states_the_document_does_not_open_stay_closed(claim):
+    """수거 완료·반품 완료·이미 거부된 건은 **열지 않는다** (음성 대조군).
+
+    문서 서술이 거부 용례로 "회수된 상품에 문제"를 들지만, 상태 전이를 **규정한** 문장과
+    흐름도는 둘 다 수거완료를 거부 출발점으로 적지 않는다. 불가역 경로에서는 서술이 아니라
+    규정을 따른다 — 400 을 받아 보며 배우지 않는다. ``COLLECT_DONE`` 은 승인
+    (:data:`RETURN_APPROVABLE_STATUSES`)에는 열려 있어, 이 셋은 모집단 안의 대조군이다.
+    """
+    link = _link(claim=claim)
+
+    assert fulfillment.is_return_rejectable(link) is False
+
+
+def test_screen_and_server_share_the_widened_set(client, workbench_on):
+    """수거중 건도 **화면 버튼이 뜬다** — 술어가 한 벌이라 자동으로 따라와야 한다."""
+    _login(client)
+    link = _link(claim="COLLECTING")
+
+    body = client.get(f"/admin/naver-ingest/triage?tab=work&link_id={link.id}")         .get_data(as_text=True)
+
+    assert 'id="wb-return-reject"' in body
 
 
 def test_service_refuses_an_empty_sentence():
