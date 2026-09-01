@@ -226,7 +226,12 @@ def test_history_tab_does_not_show_the_strip(client, workbench_on):
 
 
 def test_strip_sends_people_to_the_old_household_pane(client, workbench_on):
-    """띠는 **불가역 버튼을 여기 두지 않는다** — 옛 집 pane 으로 보낸다."""
+    """띠는 옛 집 pane 으로 가는 길을 **계속 낸다**.
+
+    2026-09-01 에 띠에서 바로 쏘는 버튼이 생겼지만 pane 링크를 걷어내지 않았다 — 띠가
+    보여주는 것은 주문번호·건수·금액·발송여부까지고, 클레임 상태·보류·형제 건은 pane 에만
+    있다. 맥락을 더 보고 싶은 사람의 길을 없애지 않는다.
+    """
     _login(client)
     order = _order()
     origin = _link(order_no=f"N-ORIG-I-{_uid()}", order_id=int(order.id), relation="NEW")
@@ -235,6 +240,118 @@ def test_strip_sends_people_to_the_old_household_pane(client, workbench_on):
     body = client.get(TRIAGE_PATH, query_string={"tab": "work"}).get_data(as_text=True)
 
     assert f"link_id={origin.id}" in body
+
+
+# --------------------------------------------------------------------------- #
+# 띠에서 바로 쏘기 (2026-09-01 사용자 결정) — 불가역이라 조건을 못 박는다
+# --------------------------------------------------------------------------- #
+
+def test_strip_offers_cancel_before_dispatch(client, workbench_on):
+    """발송 전이면 띠 줄이 **취소** 버튼을 낸다 — 갈래는 ``dispatched`` 가 고른다."""
+    _login(client)
+    order = _order(name="띠취소")
+    origin = _link(order_no=f"N-ORIG-J-{_uid()}", order_id=int(order.id), relation="NEW")
+    _link(order_no=f"N-REPAY-J-{_uid()}", order_id=int(order.id), relation="REPAY")
+
+    body = client.get(TRIAGE_PATH, query_string={"tab": "work"}).get_data(as_text=True)
+
+    assert "wb-origin-act" in body
+    assert f'data-link-id="{origin.id}"' in body
+    assert 'data-kind="cancel"' in body
+
+
+def test_strip_offers_return_after_dispatch(client, workbench_on):
+    """발송 뒤에는 **반품 접수**다 — 취소를 보내면 네이버가 거절한다."""
+    _login(client)
+    order = _order(name="띠반품")
+    _link(order_no=f"N-ORIG-K-{_uid()}", order_id=int(order.id), relation="NEW",
+          send_date="2026-08-20T10:00:00.000+09:00")
+    _link(order_no=f"N-REPAY-K-{_uid()}", order_id=int(order.id), relation="REPAY")
+
+    body = client.get(TRIAGE_PATH, query_string={"tab": "work"}).get_data(as_text=True)
+
+    assert 'data-kind="return"' in body
+    assert "반품 접수" in body
+
+
+def test_stale_row_is_marked_so_the_screen_can_refuse(client, workbench_on):
+    """낡은 줄은 **표식이 붙는다** — 그 값 위에서 불가역을 쏘지 않는다.
+
+    ``stale`` 은 "새 결제를 받은 뒤로 이 옛 주문을 한 번도 안 읽었다"는 뜻이다. 그 사이
+    고객이 스스로 취소했을 수 있어, 화면은 모달을 열지 않고 다시 읽기부터 건다.
+    """
+    _login(client)
+    order = _order(name="띠낡음")
+    _link(order_no=f"N-ORIG-L-{_uid()}", order_id=int(order.id), relation="NEW",
+          refreshed_at="2026-08-01T00:00:00", collected_at="2026-08-01T00:00:00")
+    _link(order_no=f"N-REPAY-L-{_uid()}", order_id=int(order.id), relation="REPAY",
+          refreshed_at="2026-08-27T00:00:00", collected_at="2026-08-27T00:00:00")
+
+    body = client.get(TRIAGE_PATH, query_string={"tab": "work"}).get_data(as_text=True)
+
+    assert 'data-stale="1"' in body
+
+
+def test_strip_modals_carry_the_irreversible_four(client, workbench_on):
+    """띠 모달이 불가역 4종 세트를 진다 — pane 보다 보여주는 것이 적어서 더 그렇다."""
+    _login(client)
+    order = _order(name="띠모달")
+    _link(order_no=f"N-ORIG-M-{_uid()}", order_id=int(order.id), relation="NEW")
+    _link(order_no=f"N-REPAY-M-{_uid()}", order_id=int(order.id), relation="REPAY")
+
+    body = client.get(TRIAGE_PATH, query_string={"tab": "work"}).get_data(as_text=True)
+
+    assert 'id="wb-modal-origin-cancel"' in body
+    assert 'id="wb-modal-origin-return"' in body
+    assert "되돌릴 수 없습니다" in body
+    # 재진술 자리와 필요한 입력(사유). 값은 JS 가 눌린 줄에서 옮겨 적는다.
+    assert 'id="wb-origin-cancel-who"' in body
+    assert 'id="wb-origin-cancel-reason"' in body
+    assert 'id="wb-origin-return-reason"' in body
+    # 사유 목록은 **서버 화이트리스트가 정본**이다 — 화면이 따로 목록을 들면 둘이 갈리고,
+    # 목록 밖 코드는 네이버 400 이다(되돌릴 수 없는 경로라 받아 보고 배우지 않는다).
+    from foms.services.integrations.naver_commerce.fulfillment import (
+        CANCEL_REASONS,
+        RETURN_REASONS,
+    )
+
+    cancel_block = body.split('id="wb-origin-cancel-reason"')[1].split("</select>")[0]
+    for code in CANCEL_REASONS:
+        assert f'value="{code}"' in cancel_block, code
+    return_block = body.split('id="wb-origin-return-reason"')[1].split("</select>")[0]
+    assert {c for c in RETURN_REASONS} == {
+        part.split('"')[0] for part in return_block.split('value="')[1:] if part.split('"')[0]
+    }, "반품 사유는 취소와 다른 목록이다"
+
+
+def test_strip_return_modal_offers_approve_but_leaves_it_off(client, workbench_on):
+    """승인 체크는 있되 **기본은 꺼짐**이다 — 켜면 환불이 확정되고 무를 API 가 없다."""
+    _login(client)
+    order = _order(name="띠승인")
+    _link(order_no=f"N-ORIG-N-{_uid()}", order_id=int(order.id), relation="NEW",
+          send_date="2026-08-20T10:00:00.000+09:00")
+    _link(order_no=f"N-REPAY-N-{_uid()}", order_id=int(order.id), relation="REPAY")
+
+    body = client.get(TRIAGE_PATH, query_string={"tab": "work"}).get_data(as_text=True)
+
+    box = body.split('id="wb-origin-return-approve"')[1].split(">")[0]
+    assert "checked" not in box, "승인 체크가 기본으로 켜져 있다"
+    assert "환불이 확정됩니다" in body
+
+
+def test_strip_ids_do_not_collide_with_the_pane(client, workbench_on):
+    """띠 모달 id 는 pane 과 겹치지 않는다 — 겹치면 어느 입력을 읽는지 갈린다."""
+    _login(client)
+    order = _order(name="띠아이디")
+    _link(order_no=f"N-ORIG-O-{_uid()}", order_id=int(order.id), relation="NEW")
+    _link(order_no=f"N-REPAY-O-{_uid()}", order_id=int(order.id), relation="REPAY")
+
+    body = client.get(TRIAGE_PATH, query_string={"tab": "work"}).get_data(as_text=True)
+
+    for element_id in ("wb-origin-cancel-reason", "wb-origin-return-reason",
+                       "wb-origin-return-approve", "wb-modal-origin-cancel",
+                       "wb-modal-origin-return"):
+        assert body.count(f'id="{element_id}"') == 1, element_id
 
 
 # --------------------------------------------------------------------------- #
@@ -318,4 +435,4 @@ def test_template_pins_moved_together():
     """CSS·JS 를 고쳤으면 ``?v`` 핀이 함께 움직인다(SW staticCacheFirst)."""
     markup = TEMPLATE_PATH.read_text(encoding="utf-8")
 
-    assert markup.count("?v=20260901a") == 2
+    assert markup.count("?v=20260901b") == 2

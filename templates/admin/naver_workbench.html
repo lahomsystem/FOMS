@@ -19,7 +19,7 @@
 {% block title %}네이버 수집{% endblock %}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260901a">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260901b">
 {% endblock %}
 
 {% block content %}
@@ -233,7 +233,24 @@
                         <span class="wb-ghost__dim">{{ row.read_at[:16].replace('T', ' ') }}</span>
                         {% endif %}
                     </td>
-                    <td class="text-end">
+                    <td class="text-end wb-ghost__acts">
+                        {# 불가역을 **이 자리에서** 누른다(2026-09-01 사용자 결정 — 그전까지는
+                           옛 집 pane 으로만 보냈다). 방어선은 셋이다: ① 낡은 줄은 못 쏜다
+                           (아래 data-stale — 그 사이 고객이 스스로 취소했을 수 있다)
+                           ② 모달이 대상을 재진술한다 ③ 대상 집은 **서버가 link_id 로 다시
+                           계산한다** — 이 줄의 숫자를 믿지 않는다. #}
+                        <button type="button"
+                                class="btn btn-sm btn-outline-danger wb-origin-act"
+                                data-link-id="{{ row.link_id }}"
+                                data-kind="{{ 'return' if row.dispatched else 'cancel' }}"
+                                data-stale="{{ '1' if row.stale else '0' }}"
+                                data-order-no="{{ row.external_order_no }}"
+                                data-count="{{ row.product_order_count }}"
+                                data-amount="{{ '{:,}'.format(row.amount_total) }}"
+                                data-customer="{{ row.customer_name }}"
+                                data-order-id="{{ row.order_id }}">
+                            {{ '반품 접수' if row.dispatched else '취소' }}
+                        </button>
                         <a class="btn btn-sm btn-outline-primary"
                            href="{{ url_for('admin.naver_ingest_triage', tab='work', link_id=row.link_id) }}">옛 주문 열기 →</a>
                     </td>
@@ -1045,6 +1062,93 @@
 
     {# 이력 상세 모달. 본문은 비워 두고 JS 가 조각을 넣는다 — 조각에 id 가 없어야
        pane 의 id 와 겹치지 않는다(절대 규칙 1). 처리 버튼은 조각에도 여기에도 없다. #}
+    {#
+      재결제 옛 주문 정리 — **띠에서 바로 쏘는** 불가역 모달 2종 (2026-09-01).
+
+      pane 모달과 **다른 문서에 산다**. id 가 겹치면 pane 이 열린 상태에서 띠를 누를 때
+      어느 쪽 입력을 읽는지 갈린다(절대 규칙 1) — 그래서 전부 `wb-origin-` 접두어다.
+
+      띠는 pane 보다 **보여주는 것이 적다**(주문번호·건수·금액·발송여부까지). 그래서 모달이
+      불가역 4종 세트를 그대로 진다: 무엇이 일어나는가 · 되돌릴 수 없다 · 대상 재진술 ·
+      필요한 입력. 재진술 값은 JS 가 눌린 줄에서 그대로 옮겨 적는다.
+
+      **대상 집은 서버가 link_id 로 다시 계산한다** — 여기 적힌 건수는 사람이 읽는 재진술이지
+      처리 대상 지정이 아니다(일괄 발송처리와 같은 규율).
+    #}
+    <div class="modal fade" id="wb-modal-origin-cancel" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">옛 네이버 주문을 취소하기 전에 확인하세요</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-2">네이버 주문 <b id="wb-origin-cancel-who"></b> 를
+                        <b>판매자 직접취소</b> 합니다. 고객 결제가 취소됩니다.</p>
+                    <p class="text-danger mb-2"><b>되돌릴 수 없습니다.</b>
+                        취소를 무르는 API 는 없습니다.</p>
+                    <label class="form-label small fw-semibold mb-1" for="wb-origin-cancel-reason">취소 사유</label>
+                    <select class="form-select form-select-sm mb-2" id="wb-origin-cancel-reason">
+                        <option value="">고르세요</option>
+                        {% for code, label in cancel_reasons.items() %}
+                        <option value="{{ code }}">{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                    <label class="form-label small fw-semibold mb-1" for="wb-origin-cancel-detail">상세 사유(선택)</label>
+                    <textarea class="form-control form-control-sm" id="wb-origin-cancel-detail"
+                              rows="2" maxlength="500"></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">그만두기</button>
+                    <button type="button" class="btn btn-danger" id="wb-origin-cancel-confirm">취소 보내기</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="wb-modal-origin-return" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">옛 네이버 주문을 반품 접수하기 전에 확인하세요</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-2">네이버 주문 <b id="wb-origin-return-who"></b> 를
+                        <b>반품 접수</b> 합니다. 이미 발송 처리된 주문이라 취소가 아니라 반품입니다.</p>
+                    <p class="text-danger mb-2"><b>되돌릴 수 없습니다.</b></p>
+                    <label class="form-label small fw-semibold mb-1" for="wb-origin-return-reason">반품 사유</label>
+                    <select class="form-select form-select-sm mb-2" id="wb-origin-return-reason">
+                        <option value="">고르세요</option>
+                        {% for code, label in return_reasons.items() %}
+                        <option value="{{ code }}">{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                    {# 승인까지 한 번에 (2026-09-01 사용자 결정으로 띠에도 넣었다).
+                       **기본은 꺼짐** — 켜면 환불이 확정되고 되돌리는 엔드포인트가 없다.
+                       라우트가 문자열 "false" 를 불리언으로 정규화하므로 화면 값만으로
+                       켜지지 않는다. 경고는 켰을 때만 낸다 — 늘 띄우면 아무도 안 읽는다. #}
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="wb-origin-return-approve">
+                        <label class="form-check-label small" for="wb-origin-return-approve">
+                            접수하면서 <b>승인까지</b> 한 번에
+                        </label>
+                        <span class="d-block mt-1 text-danger small" id="wb-origin-return-approve-warn" hidden>
+                            <b>환불이 확정됩니다.</b> 승인을 무르는 API 는 없습니다.
+                        </span>
+                    </div>
+                    <label class="form-label small fw-semibold mb-1" for="wb-origin-return-detail">상세 사유(선택)</label>
+                    <textarea class="form-control form-control-sm" id="wb-origin-return-detail"
+                              rows="2" maxlength="500"></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">그만두기</button>
+                    <button type="button" class="btn btn-danger" id="wb-origin-return-confirm">반품 접수 보내기</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="modal fade" id="wb-modal-detail" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-lg modal-dialog-scrollable">
             <div class="modal-content">
@@ -1065,5 +1169,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260901a" defer></script>
+<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260901b" defer></script>
 {% endblock %}
