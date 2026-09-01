@@ -1097,3 +1097,91 @@ def test_pin_form_stage_to_server_unit():
     empty: dict = {}
     _pin_form_stage_to_server(old, empty)
     assert empty["workflow"]["stage"] == "DRAWING"
+
+
+# --------------------------------------------------------------------------- #
+# 신원 flat 컬럼 정합 (2026-09-02)
+#
+# 이 경로는 sync_erp_flat_columns 만 불렀는데 그 함수는 erp_phone_digits 만 쓴다.
+# flat phone 을 쓰는 유일한 구문이 draft 승격 분기 안에 있어 **기존 주문 저장에서는
+# 통째로 스킵**됐고, 전화를 바꾸면 digits 만 새 값이 되고 phone 컬럼은 옛 값으로 남았다
+# (운영 활성 주문 130건). 네이버 자동 매칭이 그 두 컬럼을 축으로 쓰다 사고가 났다 —
+# docs/incidents/2026-09-01-naver-triage-auto-match-miss.md
+# --------------------------------------------------------------------------- #
+def test_structured_put_syncs_flat_phone_column_for_existing_order(client):
+    """전화를 바꾸면 flat ``phone`` 컬럼도 함께 움직인다(승격 주문이 아니어도)."""
+    _login_as_admin(client, username="erp-flat-phone")
+    order = _create_order()
+    order_id = order.id
+
+    sd = copy.deepcopy(order.structured_data)
+    sd["parties"]["customer"]["phone"] = "010-9621-5670"
+    response = client.put(
+        f"/api/orders/{order_id}/structured",
+        json={"structured_data": sd, "structured_schema_version": 1},
+    )
+
+    assert response.status_code == 200, response.get_data(as_text=True)[:400]
+    db_session.expire_all()
+    saved = db_session.get(Order, order_id)
+    assert saved.phone == "010-9621-5670"
+    assert saved.erp_phone_digits == "01096215670"
+
+
+def test_structured_put_syncs_flat_customer_name_column(client):
+    """고객명도 같은 축이다 — 자동 매칭의 이름 축은 이 컬럼을 정확일치로 본다."""
+    _login_as_admin(client, username="erp-flat-name")
+    order = _create_order()
+    order_id = order.id
+
+    sd = copy.deepcopy(order.structured_data)
+    sd["parties"]["customer"]["name"] = "문기범"
+    response = client.put(
+        f"/api/orders/{order_id}/structured",
+        json={"structured_data": sd, "structured_schema_version": 1},
+    )
+
+    assert response.status_code == 200, response.get_data(as_text=True)[:400]
+    db_session.expire_all()
+    assert db_session.get(Order, order_id).customer_name == "문기범"
+
+
+def test_structured_put_rejects_empty_identity_and_leaves_flat_columns_intact(client):
+    """이름·전화를 빈 값으로 보내는 저장은 애초에 막힌다 — flat 도 그대로 남는다.
+
+    (flat 동기가 정본을 따라가게 됐으므로, 빈 값이 통과했다면 컬럼까지 지워졌을 것이다.
+    막는 자리는 저장 검증이고, 이 테스트는 그 순서를 못박는다.)
+    """
+    _login_as_admin(client, username="erp-flat-empty")
+    order = _create_order()
+    order_id = order.id
+
+    sd = copy.deepcopy(order.structured_data)
+    sd["parties"]["customer"]["phone"] = ""
+    sd["parties"]["customer"]["name"] = ""
+    response = client.put(
+        f"/api/orders/{order_id}/structured",
+        json={"structured_data": sd, "structured_schema_version": 1},
+    )
+
+    assert response.status_code == 400, response.get_data(as_text=True)[:400]
+    db_session.expire_all()
+    saved = db_session.get(Order, order_id)
+    assert saved.phone == "010-1234-5678"
+    assert saved.customer_name == "홍길동"
+
+
+def test_identity_flat_sync_helper_keeps_existing_value_when_structured_lacks_it():
+    """헬퍼 단위 계약: 정본에 값이 없으면 flat 을 **건드리지 않는다**."""
+    from foms.api.erp_orders_structured import _sync_identity_flat_columns
+
+    order = Order(customer_name="홍길동", phone="010-1234-5678")
+    _sync_identity_flat_columns(order, {"parties": {"customer": {}}})
+    assert (order.customer_name, order.phone) == ("홍길동", "010-1234-5678")
+
+    _sync_identity_flat_columns(order, {})
+    assert (order.customer_name, order.phone) == ("홍길동", "010-1234-5678")
+
+    # 더미 전화(가상 주문 규칙)는 실제 값을 덮지 않는다.
+    _sync_identity_flat_columns(order, {"parties": {"customer": {"phone": "000-0000-0000"}}})
+    assert order.phone == "010-1234-5678"

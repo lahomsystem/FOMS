@@ -406,3 +406,90 @@ def test_audit_header_message_is_preserved_on_unchanged_save(client):
     assert log is not None
     assert "변경내용 없음" in (log.message or "")
     assert (log.detail or {}).get("change_count") == 0
+
+
+# --------------------------------------------------------------------------- #
+# 6. 신원 컬럼(고객명·전화)의 정본 정합 — 2026-09-02
+#
+# 이 폼은 flat ``customer_name``·``phone`` 만 쓰고 sd ``parties`` 는 건드리지 않았다.
+# 결과 두 가지:
+#   * 전화 변경이 원장에 **아무 흔적도 남지 않았다**(_LEDGER_FLAT_PATHS 에도 없고,
+#     sd diff 가 싣는다는 전제였는데 sd 를 안 고쳤다).
+#   * flat 만 새 값이 되어 정본과 어긋났고, 그 어긋남은 방향을 알 수 없는 채 쌓였다
+#     (운영 48건). 네이버 자동 매칭이 이 두 컬럼을 축으로 쓰다가 사고가 났다.
+# --------------------------------------------------------------------------- #
+def test_phone_change_lands_on_structured_path(client):
+    """전화 변경은 ``parties.customer.phone`` 로 원장에 남는다."""
+    _login(client, _make_user())
+    order_id = _make_order()
+
+    resp = _post(client, order_id, {"phone": "010-9999-0000"})
+    assert resp.status_code in (200, 302), resp.get_data(as_text=True)[:400]
+
+    row = _row(order_id, "parties.customer.phone")
+    assert row is not None, f"원장 경로: {sorted(_paths(order_id))}"
+    assert (row.before_value, row.after_value) == (_PHONE, "010-9999-0000")
+
+
+def test_phone_change_keeps_flat_column_and_structured_together(client):
+    """저장 뒤 flat 컬럼과 정본(sd)이 같은 값이어야 한다."""
+    _login(client, _make_user())
+    order_id = _make_order()
+
+    _post(client, order_id, {"phone": "010-9999-0000"})
+
+    db_session.expire_all()
+    order = db_session.query(Order).get(order_id)
+    assert order.phone == "010-9999-0000"
+    assert order.structured_data["parties"]["customer"]["phone"] == "010-9999-0000"
+
+
+def test_customer_name_change_lands_on_structured_path(client):
+    """고객명 변경도 ``parties.customer.name`` 로 남고 두 자리가 같이 움직인다."""
+    _login(client, _make_user())
+    order_id = _make_order()
+
+    _post(client, order_id, {"customer_name": "바뀐 고객"})
+
+    row = _row(order_id, "parties.customer.name")
+    assert row is not None, f"원장 경로: {sorted(_paths(order_id))}"
+    assert (row.before_value, row.after_value) == ("원장 고객", "바뀐 고객")
+    db_session.expire_all()
+    order = db_session.query(Order).get(order_id)
+    assert order.customer_name == "바뀐 고객"
+    assert order.structured_data["parties"]["customer"]["name"] == "바뀐 고객"
+
+
+def test_partial_save_does_not_push_stale_flat_value_into_structured(client):
+    """폼이 안 보낸 칸의 기본값은 **정본** 이다 — 옛 flat 값이 정본을 덮으면 안 된다.
+
+    운영에 이미 어긋난 주문이 130건 있다(flat 이 옛 번호, sd 가 새 번호). 그 상태에서
+    다른 칸만 고치는 저장 한 번이 옛 번호를 정본으로 되돌려 쓰면, 알림톡 발송처럼 sd 를
+    보는 경로까지 옛 번호로 끌려간다.
+    """
+    _login(client, _make_user())
+    sd = _sd()
+    sd["parties"]["customer"]["phone"] = "010-7777-8888"  # 정본 = 새 번호
+    order_id = _make_order(phone="010-1111-2222", structured_data=sd)  # flat = 옛 번호
+
+    # 전화 칸을 아예 안 보내는 저장(접수시간만 고친다)
+    _post(client, order_id, {"received_time": "11:00"})
+
+    db_session.expire_all()
+    order = db_session.query(Order).get(order_id)
+    assert order.structured_data["parties"]["customer"]["phone"] == "010-7777-8888"
+    assert order.phone == "010-7777-8888"
+    assert _row(order_id, "parties.customer.phone") is None
+
+
+def test_edit_form_prefills_customer_from_structured_not_stale_column(client):
+    """편집 폼이 보여주는 값은 정본이어야 한다 — 옛 flat 값을 그대로 띄우면
+    담당자가 그걸 보고 저장해 어긋남이 정본 쪽으로 되돌아간다."""
+    _login(client, _make_user())
+    sd = _sd()
+    sd["parties"]["customer"]["phone"] = "010-7777-8888"
+    order_id = _make_order(phone="010-1111-2222", structured_data=sd)
+
+    html = client.get(f"/edit/{order_id}").get_data(as_text=True)
+    assert "010-7777-8888" in html
+    assert "010-1111-2222" not in html

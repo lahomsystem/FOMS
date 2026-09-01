@@ -144,3 +144,55 @@ C 는 **두 방향이 섞여 있고 구분이 안 된다.**
 2. 갈래 C 는 legacy 편집 폼이 sd 를 안 고치는 것(=원장에도 안 남는 것)을 먼저 막아야
    방향 판정이 가능해진다. 그 전에는 일괄 덮어쓰기 금지.
 3. 개별 건은 `order_field_changes` 기록이 있는 12건부터 사람이 확인해 고칠 수 있다.
+
+---
+
+# 부록 B. 후속 수정 (2026-09-02)
+
+부록 A 가 "먼저 막아야 방향 판정이 가능하다"고 적은 두 경로를 고쳤다.
+
+## B-1. 전체 저장(PUT)이 flat 신원 컬럼을 갱신한다
+
+`foms/api/erp_orders_structured.py` 에 `_sync_identity_flat_columns(order, sd)` 를 추가하고,
+PUT 저장 경로에서 `sync_erp_flat_columns` 다음에 부른다. `_sync_promoted_flat_columns` 도
+같은 헬퍼를 쓰도록 바꿔 가드(플레이스홀더·더미 전화 `000-0000-0000`)를 한 곳에 뒀다.
+
+대상은 `customer_name`·`phone` 두 컬럼뿐이다. 주소는 이 경로가 이미
+`reset_order_geocode_on_address_change` 로 동기하고, 제품은 매칭 축이 아니다.
+`customer_name` 을 함께 넣은 이유: 자동 매칭의 이름 축이 이 컬럼을 **정확일치**로 보는데
+운영 ERP 주문 279건이 sd 와 어긋나 있다 — 전화만 고치면 같은 결함이 이름 축에 남는다.
+
+**`DERIVED_COLUMNS` 에는 넣지 않았다.** 넣으면 부팅 백필이 기존 130건을 자동으로 덮는데,
+그중 36건은 어느 쪽이 최신인지 데이터에 근거가 없다(부록 A). 이 수정은 **앞으로 생길
+어긋남만 막고 과거분은 건드리지 않는다.**
+
+## B-2. legacy 편집 폼이 정본을 함께 고치고, 정본을 보여준다
+
+`foms/web/orders/edit.py`:
+
+* ERP 주문 저장 시 sd `parties.customer.name`·`phone` 도 함께 고친다. 그 폼의
+  `_LEDGER_FLAT_PATHS` 주석은 "sd 쌍둥이가 원장에 싣는다"고 적어 두었지만 실제로는 sd
+  `parties` 를 건드리지 않아 **전화 변경이 원장에 아무 흔적도 남기지 않았다.** 이제 sd diff
+  가 `parties.customer.phone` 로 싣는다.
+* 폼이 그 칸을 안 보냈을 때의 기본값을 **정본 우선**으로 바꿨다(`_erp_sd_customer`).
+  flat 을 기본값으로 두면, 이미 어긋난 주문에서 다른 칸만 고치는 저장 한 번이 옛 값을
+  정본 쪽으로 되돌려 쓴다.
+
+`foms/services/order_edit_view_context.py`: ERP 주문의 편집 폼 GET 에 표시 오버레이
+(`apply_erp_display_fields`)를 태운다. 이 폼은 flat 컬럼을 그대로 prefill 했기 때문에,
+어긋난 주문에서 담당자가 **옛 번호를 보고 그대로 저장**하면 어긋남이 정본 쪽으로 되돌아간다.
+
+## 회귀 테스트
+
+* `tests/domains/test_erp_orders_structured_put.py` — PUT 저장이 flat `phone`·
+  `customer_name` 을 정본에 맞춘다 / 빈 값 저장은 검증에서 막힌다 / 헬퍼 단위 계약
+  (정본에 값이 없으면 flat 을 안 건드린다, 더미 전화는 실제 값을 안 덮는다)
+* `tests/domains/test_audit_gap_edit_form.py` — 전화·고객명 변경이 sd 경로로 원장에 남는다 /
+  저장 뒤 flat 과 정본이 같다 / **부분 저장이 옛 flat 값을 정본에 밀어넣지 않는다** /
+  편집 폼이 정본 값을 prefill 한다
+
+## 남은 것
+
+* 130건 정리는 여전히 보류. B-2 가 배포되어 "기록 없는 변경"이 멈춘 뒤라야 48건의 방향을
+  가릴 수 있다.
+* `product` 컬럼은 여전히 승격 시점에만 동기된다(매칭 축이 아니라 이번 범위 밖).
