@@ -1,10 +1,10 @@
 {% from 'partials/shared/erp_mobile_queue_card_v2.html' import render_queue_card_v2 %}
 
-{# A5: 오늘 동선 히어로 — 기본 진입 시 mobile_queue_rows = 당일(today_date) 실측 큐.
-   '다음 방문' 판정은 뷰(dashboard.py)가 동선 스트립과 같은 정렬 SSOT
+{# A5: 다음 실측 히어로 — 기본 진입 시 mobile_queue_rows = 당일(today_date) 실측 큐.
+   '다음 방문' 판정은 뷰(dashboard.py)가 방문시각 정렬 SSOT
    (measurement_time_sort_key)로 계산해 mobile_hero_row 로 내려준다. 여기서 시간
-   문자열을 사전순 비교하면 "10시" < "4시" 처럼 뒤집혀 스트립 캡션과 다른 사람을
-   가리킨다(ROUTE-02). 뷰가 못 내려준 표면은 기존대로 첫 행 폴백. #}
+   문자열을 사전순 비교하면 "10시" < "4시" 처럼 뒤집혀 실제 다음 방문지와 다른
+   사람을 가리킨다(ROUTE-02). 뷰가 못 내려준 표면은 기존대로 첫 행 폴백. #}
 {% set _mrows = mobile_queue_rows or [] %}
 {% set _mdone_ns = namespace(n=0) %}
 {% for _o in _mrows %}
@@ -39,8 +39,8 @@
   {% else %}
     {% set _mh_nav = '' %}
   {% endif %}
-  <div class="foms-v2dh-hero" data-st="measure" aria-label="오늘 동선 다음 실측">
-    <div class="foms-v2dh-hero__eyebrow"><i class="fas fa-location-dot" aria-hidden="true"></i> 다음 방문{% if _mh_time %} · <span class="foms-visit-countdown" data-foms-visit-time="{{ mobile_hero_time_hm or _mh_time }}" data-foms-visit-label="{{ _mh_time }}">{{ _mh_time }} 방문</span>{% endif %}</div>
+  <div class="foms-v2dh-hero" data-st="measure" aria-label="다음 실측">
+    <div class="foms-v2dh-hero__eyebrow"><i class="fas fa-location-dot" aria-hidden="true"></i> 다음 방문{% if _mh_time %} · <span>{{ _mh_time }} 방문</span>{% endif %}</div>
     <div class="foms-v2dh-hero__title">{{ _mhero.customer_name or '-' }}</div>
     {% if _mh_pn or _mh_w or _mh_d or _mh_h or _mh_color %}
     <div class="foms-hero-spec" aria-label="제품 규격">
@@ -77,12 +77,6 @@
   </div>
 {% endif %}
 
-{% if _mrows %}
-{# data-route-inline: 뷰가 route API와 동일 빌더로 만든 points JSON(자동이스케이프가
-   따옴표를 엔티티 처리 → getAttribute 시 원복). JS는 try/catch 안전 파싱 후 즉시
-   렌더하고, 속성 부재/파싱 실패 시 기존 fetch 경로로 폴백한다. #}
-<div class="foms-route-strip" data-foms-route-strip data-route-date="{{ selected_date or today_date }}" data-mine="{{ '1' if erp_mine_only else '0' }}" data-kakao-js-key="{{ kakao_js_key }}"{% if route_strip_inline %} data-route-inline="{{ route_strip_inline }}"{% endif %} hidden aria-label="오늘 동선 지도"></div>
-{% endif %}
 
 <section class="erp-measurement-mobile-list foms-mobile-queue-section" aria-label="실측 모바일 일정">
   <div class="erp-measurement-mobile-list__summary foms-section-header section-header">

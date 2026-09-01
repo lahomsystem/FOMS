@@ -615,6 +615,9 @@ def test_draft_autosave_flushes_on_ios_hidden_events() -> None:
     assert 'addEventListener("pagehide", keepaliveSave)' in js
     assert 'visibilitychange' in js
     assert 'document.visibilityState === "hidden"' in js
+    assert "self._saving" in js
+    assert "self._lastKeepaliveAt" in js
+    assert "keepalive: true" in js
 
 
 def test_wizard_amount_caret_is_preserved_and_ios_reapplied() -> None:

@@ -5,18 +5,18 @@
   "overlap_api_error_01": "API-ERROR-01 owns response/stdout exposure (print_exc/str(e) -> log_handled_exception). This packet owns swallow classification. Sites that log via log_handled_exception are LOG_AND_CONTINUE here.",
   "marker_convention": "Silent-by-design catches carry an inline `# failopen: intentional: <reason>` (or `fail-closed`) marker; the scanner reads it as the justification. No bare allowlist, no lint-disable.",
   "baselines": {
-    "broad_total": 556,
+    "broad_total": 555,
     "unclassified": 0,
     "swallow_by_control_flow": 180
   },
   "disposition_counts": {
     "FAIL_CLOSED": 31,
     "INTENTIONAL": 17,
-    "LOG_AND_CONTINUE": 328,
+    "LOG_AND_CONTINUE": 327,
     "SWALLOW_BY_CONTROL_FLOW": 180
   },
   "owner_counts": {
-    "api": 235,
+    "api": 234,
     "audit": 2,
     "auth": 15,
     "cache": 28,
@@ -1050,7 +1050,7 @@
     },
     {
       "path": "foms/api/erp_map.py",
-      "lineno": 652,
+      "lineno": 650,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -1059,7 +1059,7 @@
     },
     {
       "path": "foms/api/erp_map.py",
-      "lineno": 673,
+      "lineno": 671,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "api",
@@ -1068,7 +1068,7 @@
     },
     {
       "path": "foms/api/erp_map.py",
-      "lineno": 688,
+      "lineno": 686,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "api",
@@ -1077,7 +1077,7 @@
     },
     {
       "path": "foms/api/erp_map.py",
-      "lineno": 740,
+      "lineno": 738,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -1086,7 +1086,7 @@
     },
     {
       "path": "foms/api/erp_map.py",
-      "lineno": 757,
+      "lineno": 755,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "api",
@@ -1095,7 +1095,7 @@
     },
     {
       "path": "foms/api/erp_map.py",
-      "lineno": 847,
+      "lineno": 845,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -1689,7 +1689,7 @@
     },
     {
       "path": "foms/api/measurement/routes.py",
-      "lineno": 351,
+      "lineno": 349,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "api",
@@ -1698,16 +1698,7 @@
     },
     {
       "path": "foms/api/measurement/routes.py",
-      "lineno": 518,
-      "handler_type": "broad_exception",
-      "disposition": "LOG_AND_CONTINUE",
-      "owner": "api",
-      "has_logging": true,
-      "justification": "logs via logger/log_handled_exception"
-    },
-    {
-      "path": "foms/api/measurement/routes.py",
-      "lineno": 595,
+      "lineno": 516,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -4686,7 +4677,7 @@
     },
     {
       "path": "foms/web/admin/storage.py",
-      "lineno": 394,
+      "lineno": 285,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "storage",
@@ -4848,7 +4839,7 @@
     },
     {
       "path": "foms/web/measurement/dashboard.py",
-      "lineno": 759,
+      "lineno": 738,
       "handler_type": "broad_exception",
       "disposition": "INTENTIONAL",
       "owner": "web",
@@ -4857,7 +4848,7 @@
     },
     {
       "path": "foms/web/measurement/dashboard.py",
-      "lineno": 772,
+      "lineno": 751,
       "handler_type": "broad_exception",
       "disposition": "INTENTIONAL",
       "owner": "web",
@@ -4866,7 +4857,7 @@
     },
     {
       "path": "foms/web/measurement/dashboard.py",
-      "lineno": 785,
+      "lineno": 764,
       "handler_type": "broad_exception",
       "disposition": "INTENTIONAL",
       "owner": "web",
@@ -4875,7 +4866,7 @@
     },
     {
       "path": "foms/web/measurement/dashboard.py",
-      "lineno": 798,
+      "lineno": 777,
       "handler_type": "broad_exception",
       "disposition": "INTENTIONAL",
       "owner": "web",

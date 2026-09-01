@@ -263,7 +263,12 @@
              data-wb-bulk-dispatch-sent="{{ bulk_dispatch.sent }}"
              data-wb-bulk-dispatch-date="{{ bulk_dispatch.date }}">
         <summary class="wb-ghost__head">
-            {% if bulk_dispatch.state == 'done' %}
+            {% if bulk_dispatch.state == 'none' %}
+            <span class="wb-ghost__badge">{{ bulk_dispatch.unlinked }}집</span>
+            <b>오늘 실측한 네이버 건 ({{ bulk_dispatch.date }})</b>
+            <span class="wb-ghost__sub">발송 대상은 없지만, 주문에 <b>안 붙은 수집분</b>이 있습니다 —
+                붙이면 대상이 됩니다.</span>
+            {% elif bulk_dispatch.state == 'done' %}
             <span class="wb-ghost__badge">완료</span>
             <b>오늘 실측한 네이버 건 ({{ bulk_dispatch.date }})</b>
             <span class="wb-ghost__sub">{{ bulk_dispatch.sent }}집 발송처리 완료{% if bulk_dispatch.last_sent_time %}
@@ -290,6 +295,27 @@
         {% if bulk_dispatch.failed %}
         <div class="wb-bulkdispatch__failline">발송처리 실패 {{ bulk_dispatch.failed }}집 —
             아래 사유를 해결한 뒤 다시 보내세요.</div>
+        {% endif %}
+        {#
+          안 붙은 수집분 — 발송 대상 판정의 유일한 축이 "링크가 그 주문에 붙어 있는가" 라서,
+          안 붙은 집은 화면 어디에도 안 나타난다. 사람은 그 집이 빠진 줄도 모른다
+          (2026-09-01 운영에서 실제로 밟았다). 붙이기는 사람이 워크벤치에서 고른다.
+        #}
+        {% if bulk_dispatch.unlinked %}
+        <div class="wb-bulkdispatch__linkline">
+            붙이면 대상이 되는 집 {{ bulk_dispatch.unlinked }}집 — 수집은 됐는데 주문에 안 붙었습니다.
+            <ul class="wb-bulkdispatch__linklist">
+                {% for row in bulk_dispatch.unlinked_rows %}
+                <li>
+                    <a href="{{ url_for('admin.naver_ingest_triage', tab='work', link_id=row.link_id) }}">{{ row.order_no }} · 상품주문 {{ row.links }}건</a>
+                    →
+                    <a href="{{ url_for('order_edit.edit_order', order_id=row.order_id, open='erp-order') }}"
+                       target="_blank" rel="noopener">#{{ row.order_id }} {{ row.customer }}</a>
+                    <span class="wb-ghost__dim">{{ row.reason }}</span>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
         {% endif %}
         {#
           진행 문구 자리와 배선은 **실행 버튼이 없어도** 실린다 — 실패한 집의 줄마다 붙는

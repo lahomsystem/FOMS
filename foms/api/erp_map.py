@@ -570,7 +570,6 @@ def api_generate_map():
         # measurement 모드: shared query builder 사용 (2026-03-15)
         if dashboard == 'measurement' and date_filter:
             from foms.api.measurement.map import measurement_generate_map_response
-            route_mode = (request.args.get('route') or '').strip() == '1'
             mine = (request.args.get('mine') or '').strip() == '1'
             return measurement_generate_map_response(
                 date_filter=date_filter,
@@ -579,7 +578,6 @@ def api_generate_map():
                 dashboard=dashboard,
                 limit=limit,
                 title=title,
-                route_mode=route_mode,
                 mine=mine,
                 current_user=getattr(g, 'current_user', None),
             )

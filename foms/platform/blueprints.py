@@ -80,7 +80,7 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
         settlement_api_bp,
     )
     from foms.api.personal_board import personal_board_bp
-    from foms.web.admin import excel_bp, storage_dashboard_bp
+    from foms.web.admin import storage_dashboard_bp
     from foms.api.wdcalculator import wdcalculator_bp
     from foms.web.admin import admin_bp, ops_ingest_bp
     from foms.api.attachments import attachments_bp
@@ -160,7 +160,6 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
     app.register_blueprint(order_pages_bp)
     app.register_blueprint(order_edit_bp)
     app.register_blueprint(order_trash_bp)
-    app.register_blueprint(excel_bp)
     # Channel: three modules, six registrations (channel_wam exports three blueprints)
     app.register_blueprint(channel_integration_bp)
     app.register_blueprint(channel_functions_bp)
