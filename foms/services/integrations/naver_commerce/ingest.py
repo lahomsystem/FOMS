@@ -257,6 +257,7 @@ def ingest_detail(
 def sync_naver_orders(
     session: Session, *, client: Any, start: datetime, end: datetime,
     dry_run: bool = False, now: Optional[datetime] = None,
+    notify_claims: bool = True,
 ) -> SyncResult:
     """한 구간을 수집한다(호출자가 commit 을 소유한다).
 
@@ -267,6 +268,8 @@ def sync_naver_orders(
         end: 구간 끝(보통 지금).
         dry_run: True 면 조회까지만 하고 링크를 만들지 않는다.
         now: 테스트용 시각 주입.
+        notify_claims: False 면 취소·반품 상태는 반영하되 **알림을 만들지 않는다**
+            (과거 구간 소급 수집 — 지난 클레임으로 알림을 대량 발송하지 않기 위해).
 
     Returns:
         :class:`SyncResult` 집계.
@@ -278,7 +281,8 @@ def sync_naver_orders(
     # 수집 **이후** 생긴 취소·반품 반영 (T14-F). 같은 변경 목록을 재사용하므로
     # 바뀐 게 없으면 추가 호출도 0회다. dry-run 은 읽기만 하는 모드라 건너뛴다.
     if not dry_run:
-        claim_stats = refresh_claims(session, client=client, changed=changed, now=now)
+        claim_stats = refresh_claims(session, client=client, changed=changed, now=now,
+                                     notify=notify_claims)
         result.claims_refreshed = claim_stats["refreshed"]
         result.claims_flagged = claim_stats["claimed"]
         result.claims_notified = claim_stats["notified"]

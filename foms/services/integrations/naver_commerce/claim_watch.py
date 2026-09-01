@@ -465,7 +465,7 @@ def _refresh_link(link: ExternalOrderLink, detail: dict, *, stamp: datetime,
 
 def refresh_claims(
     session: Session, *, client: Any, changed: list[dict],
-    now: Optional[datetime] = None,
+    now: Optional[datetime] = None, notify: bool = True,
 ) -> dict[str, int]:
     """변경 이벤트가 온 **기존 링크**의 상세를 다시 받아 취소·반품을 반영한다.
 
@@ -478,6 +478,9 @@ def refresh_claims(
         client: 네이버 클라이언트(상세 조회만 쓴다).
         changed: 이번 스윕의 변경 이벤트 목록(이미 받아 온 것을 재사용한다).
         now: 알림 생성 시각(테스트 주입).
+        notify: False 면 상태만 반영하고 **알림을 만들지 않는다**. 과거 구간 소급 수집
+            (백필)이 쓰는 자리다 — 이미 지난 취소·반품으로 알림을 대량 발송하면 사람이
+            읽을 수 없는 소음이 되고, 그 소음이 진짜 알림을 덮는다.
 
     Returns:
         ``{"refreshed", "claimed", "notified", "self_claimed"}`` 집계.
@@ -515,6 +518,10 @@ def refresh_claims(
 
     # 알림은 **집 단위**다 — 루프 안에서 링크마다 보내면 세부옵션 수만큼 알림이 간다.
     notified_status: dict[int, str] = {}
+    if not notify and pending:
+        # 상태는 위에서 이미 링크에 반영됐다. 여기서 막는 것은 **알림뿐**이다.
+        logger.info("[NAVER] 클레임 알림 억제(백필) — 대상 링크 %d건", len(pending))
+        pending = []
     for group_links, claim, holders, admins in _pending_groups(session, pending):
         sent = _notify(session, group_links, claim, holders, admins, now=stamp)
         if not sent:
