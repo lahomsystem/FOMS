@@ -3492,6 +3492,7 @@ def _group_queue(links: list[ExternalOrderLink], orders: dict,
     from foms.services.integrations.naver_commerce.fulfillment import (
         household_key,
         is_cancel_approvable,
+        is_dispatch_pending,
         is_place_pending,
         is_return_approvable,
         is_return_pending,
@@ -3580,6 +3581,13 @@ def _group_queue(links: list[ExternalOrderLink], orders: dict,
             # 갈래 판정은 **두 신호**다(우리 표식 + 네이버 원본) — `dispatched_count` 는
             # "우리가 눌러서 나간 수"라 뜻이 다르다. 섞으면 발송처리 모달 재진술이 흔들린다.
             "dispatched_any": _dispatched_any(members),
+            # 발송처리가 **실제로 나갈** 건수. 술어는 서버와 한 벌
+            # (:func:`fulfillment.is_dispatch_pending` — 우리 표식 + 네이버 원본 sendDate).
+            # `member_count - dispatched_count` 로 재진술하면 판매자센터에서 사람이 직접
+            # 보낸 형제를 안 빼서 "3건 보냅니다"라고 읽히는데 서버는 1건만 보낸다.
+            # 불가역 경로의 과대 진술이라 그 자체가 사고다(설계서 2026-08-29 §7-E).
+            "dispatch_pending_count": sum(1 for row in members
+                                          if is_dispatch_pending(row)),
             # 주문 만들기가 **실제로 옮길** 형제 수. 집 전체 수(count)로 재진술하면 이미
             # 주문이 붙은 형제까지 세어 "3건을 주문 1건으로" 라고 읽히는데 서버는 2건만
             # 옮긴다(리뷰 M-2). 술어는 promotion 모듈 한 벌을 그대로 쓴다.
