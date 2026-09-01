@@ -1516,6 +1516,8 @@ def test_namespaced_geocode_helpers_shim_preserves_canonical_contract() -> None:
         "GEOCODE_OUTCOME_SKIPPED",
         "GEOCODE_OUTCOME_SUCCESS",
         "GEOCODE_OUTCOME_FAILED",
+        # 일시 오류(GEO-FAILKIND-01) — 주소 오류와 갈라 재시도 경로로 보내는 결과값.
+        "GEOCODE_OUTCOME_TRANSIENT",
         "GEOCODE_OUTCOME_NO_ADDRESS",
     ]
 
