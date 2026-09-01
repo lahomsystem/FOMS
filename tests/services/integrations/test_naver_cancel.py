@@ -89,7 +89,7 @@ def test_cancel_covers_the_whole_household_one_call_each(app):
     _link("PO-C2", order_no="N-CXL-1")
     client = _StubClient()
 
-    result = cancel_order(db_session, client, link_id=first, reason="SOLD_OUT")
+    result = cancel_order(db_session, client, link_id=first, reason="INTENT_CHANGED")
     db_session.commit()
 
     assert sorted(c["productOrderId"] for c in client.cancel_calls) == ["PO-C1", "PO-C2"]
@@ -101,9 +101,9 @@ def test_cancel_twice_calls_naver_once(app):
     link_id = _link("PO-C-IDEM", order_no="N-CXL-IDEM")
     client = _StubClient()
 
-    cancel_order(db_session, client, link_id=link_id, reason="SOLD_OUT")
+    cancel_order(db_session, client, link_id=link_id, reason="INTENT_CHANGED")
     db_session.commit()
-    cancel_order(db_session, client, link_id=link_id, reason="SOLD_OUT")
+    cancel_order(db_session, client, link_id=link_id, reason="INTENT_CHANGED")
     db_session.commit()
 
     assert len(client.cancel_calls) == 1
@@ -137,7 +137,35 @@ def test_cancel_refuses_an_unknown_reason(app):
     with pytest.raises(FulfillmentError):
         cancel_order(db_session, client, link_id=link_id, reason="JUST_BECAUSE")
     assert client.cancel_calls == []
-    assert "SOLD_OUT" in CANCEL_REASONS
+
+
+def test_sold_out_can_never_be_sent(app):
+    """`SOLD_OUT` 은 **절대 보내지 않는다** (사용자 지시 2026-09-01).
+
+    공식 #2823: 이 사유로 취소하면 대상 상품·옵션 조합의 재고가 **품절 처리**되고 판매관리
+    프로그램 패널티가 붙는다. 우리 스토어는 시공 제품이라 품절 취소가 업무에 없다 —
+    얻는 것 없이 제재만 남는다.
+
+    화면에서 빼는 것으로는 부족하다: 라우트와 서비스가 화이트리스트로 검사하므로 **목록에서
+    지워야** 열린 탭·북마크·직접 호출로도 못 나간다. 2026-08-28 에는 "정당한 용례"라며
+    삭제를 기각했었고, 이 테스트가 그 되돌림을 막는다.
+    """
+    from foms.services.integrations.naver_commerce.fulfillment import (
+        BANNED_CLAIM_REASONS,
+        RETURN_REASONS,
+    )
+
+    assert "SOLD_OUT" in BANNED_CLAIM_REASONS
+    for banned in BANNED_CLAIM_REASONS:
+        assert banned not in CANCEL_REASONS, f"취소 사유에 {banned} 가 살아 있다"
+        assert banned not in RETURN_REASONS, f"반품 사유에 {banned} 가 살아 있다"
+
+    # 서비스가 실제로 거절하는지 — 상수만 보면 우회 경로를 못 잡는다.
+    link_id = _link("PO-C-SOLDOUT", order_no="N-CXL-SOLDOUT")
+    client = _StubClient()
+    with pytest.raises(FulfillmentError):
+        cancel_order(db_session, client, link_id=link_id, reason="SOLD_OUT")
+    assert client.cancel_calls == [], "금지 사유가 네이버로 나갔다"
 
 
 def test_cancel_refuses_a_dispatched_household(app):
@@ -148,7 +176,7 @@ def test_cancel_refuses_a_dispatched_household(app):
     db_session.commit()
 
     with pytest.raises(FulfillmentError):
-        cancel_order(db_session, client, link_id=link_id, reason="SOLD_OUT")
+        cancel_order(db_session, client, link_id=link_id, reason="INTENT_CHANGED")
     assert client.cancel_calls == []
     assert "발송처리" in _state(link_id)["last_error"]
 
@@ -159,7 +187,7 @@ def test_cancel_refuses_a_household_already_in_a_claim(app):
     client = _StubClient()
 
     with pytest.raises(FulfillmentError):
-        cancel_order(db_session, client, link_id=link_id, reason="SOLD_OUT")
+        cancel_order(db_session, client, link_id=link_id, reason="INTENT_CHANGED")
     assert client.cancel_calls == []
 
 
@@ -174,7 +202,7 @@ def test_cancel_partial_failure_keeps_the_failed_one_open(app):
     client = _StubClient(fail_ids={"PO-C-NG"})
 
     with pytest.raises(FulfillmentError):
-        cancel_order(db_session, client, link_id=first, reason="SOLD_OUT")
+        cancel_order(db_session, client, link_id=first, reason="INTENT_CHANGED")
     db_session.commit()
 
     assert _state(first)["canceled_at"]
@@ -192,7 +220,7 @@ def test_cancel_http_failure_records_the_reason(app):
             raise RuntimeError("HTTP 400 처리권한이 없는 상품주문번호")
 
     with pytest.raises(FulfillmentError):
-        cancel_order(db_session, _Boom(), link_id=link_id, reason="SOLD_OUT")
+        cancel_order(db_session, _Boom(), link_id=link_id, reason="INTENT_CHANGED")
     db_session.commit()
 
     assert "처리권한" in _state(link_id)["last_error"]
@@ -214,11 +242,12 @@ def test_route_enqueues_and_never_calls_naver_from_web(auth_client, monkeypatch,
     link_id = _link("PO-C-ROUTE", order_no="N-CXL-ROUTE")
 
     response = auth_client.post(f"/admin/naver-ingest/{link_id}/cancel",
-                                json={"reason": "SOLD_OUT", "detail": "재고 없음"})
+                                json={"reason": "INTENT_CHANGED", "detail": "고객과 통화로 재결제 합의"})
 
     assert response.status_code == 200
     assert response.get_json()["success"] is True
-    assert calls == [(link_id, "SOLD_OUT", "재고 없음", calls[0][3])]
+    assert calls == [(link_id, "INTENT_CHANGED", "고객과 통화로 재결제 합의",
+                  calls[0][3])]
 
 
 def test_route_rejects_an_unknown_reason(auth_client, workbench_on):
@@ -239,7 +268,7 @@ def test_route_reports_when_queue_is_unavailable(auth_client, monkeypatch, workb
     link_id = _link("PO-C-ROUTE-NOQ", order_no="N-CXL-ROUTE-NOQ")
 
     response = auth_client.post(f"/admin/naver-ingest/{link_id}/cancel",
-                                json={"reason": "SOLD_OUT"})
+                                json={"reason": "INTENT_CHANGED"})
 
     assert response.status_code == 503
     assert "판매자센터" in response.get_json()["error"]
@@ -253,7 +282,7 @@ def test_route_writes_an_audit_trail(auth_client, monkeypatch, workbench_on):
                         lambda *a, **k: True)
     link_id = _link("PO-C-AUDIT", order_no="N-CXL-AUDIT")
 
-    auth_client.post(f"/admin/naver-ingest/{link_id}/cancel", json={"reason": "SOLD_OUT"})
+    auth_client.post(f"/admin/naver-ingest/{link_id}/cancel", json={"reason": "INTENT_CHANGED"})
 
     db_session.expire_all()
     logged = (db_session.query(SecurityLog)
@@ -279,9 +308,11 @@ def test_worker_runs_cancel_with_the_reason(app, monkeypatch):
         lambda *a, **k: _StubClient())
     link_id = _link("PO-C-WORKER", order_no="N-CXL-WORKER")
 
-    tasks.run_naver_fulfillment_task(link_id, "cancel", 5, reason="SOLD_OUT", detail="품절")
+    tasks.run_naver_fulfillment_task(link_id, "cancel", 5, reason="INTENT_CHANGED",
+                                     detail="고객과 통화로 재결제 합의")
 
-    assert seen == {"link_id": link_id, "reason": "SOLD_OUT", "detail": "품절", "actor": 5}
+    assert seen == {"link_id": link_id, "reason": "INTENT_CHANGED",
+                    "detail": "고객과 통화로 재결제 합의", "actor": 5}
 
 
 # --------------------------------------------------------------------------- #
@@ -298,7 +329,7 @@ def test_dispatch_refuses_a_cancelled_household(app):
 
     link_id = _link("PO-C-THEN-DISP", order_no="N-CXL-THEN-DISP")
     client = _StubClient()
-    cancel_order(db_session, client, link_id=link_id, reason="SOLD_OUT")
+    cancel_order(db_session, client, link_id=link_id, reason="INTENT_CHANGED")
     db_session.commit()
 
     with pytest.raises(FulfillmentError):
@@ -313,7 +344,7 @@ def test_confirm_refuses_a_cancelled_household(app):
     link_id = _link("PO-C-THEN-CONF", order_no="N-CXL-THEN-CONF", place="NOT_YET")
     client = _StubClient()
     client.confirm_place_orders = lambda ids: {"data": {"successProductOrderIds": list(ids)}}
-    cancel_order(db_session, client, link_id=link_id, reason="SOLD_OUT")
+    cancel_order(db_session, client, link_id=link_id, reason="INTENT_CHANGED")
     db_session.commit()
 
     with pytest.raises(FulfillmentError):
@@ -328,7 +359,7 @@ def test_a_partly_cancelled_household_is_not_dispatched_either(app):
     second = _link("PO-C-HALF2", order_no="N-CXL-HALF")
     client = _StubClient(fail_ids={"PO-C-HALF2"})
     with pytest.raises(FulfillmentError):
-        cancel_order(db_session, client, link_id=first, reason="SOLD_OUT")
+        cancel_order(db_session, client, link_id=first, reason="INTENT_CHANGED")
     db_session.commit()
 
     with pytest.raises(FulfillmentError):
@@ -343,6 +374,6 @@ def test_cancel_route_is_closed_when_the_gate_is_off(auth_client, monkeypatch):
     link_id = _link("PO-C-GATEOFF", order_no="N-CXL-GATEOFF")
 
     response = auth_client.post(f"/admin/naver-ingest/{link_id}/cancel",
-                                json={"reason": "SOLD_OUT"})
+                                json={"reason": "INTENT_CHANGED"})
 
     assert response.status_code == 403

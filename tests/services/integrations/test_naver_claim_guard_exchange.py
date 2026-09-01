@@ -132,8 +132,10 @@ def test_cancel_refuses_a_household_in_exchange(app):
     link_id = _link(claim="EXCHANGE_REQUEST")
     client = _StubClient()
 
+    # 사유는 **유효한 코드**여야 이 테스트가 클레임 가드를 시험한다 — 목록 밖 코드를 쓰면
+    # 사유 검사에서 먼저 걸려 가드를 안 지나고도 초록이 된다(`SOLD_OUT` 삭제 2026-09-01).
     with pytest.raises(FulfillmentError):
-        cancel_order(db_session, client, link_id=link_id, reason="SOLD_OUT")
+        cancel_order(db_session, client, link_id=link_id, reason="INTENT_CHANGED")
     assert client.calls == []
 
 
