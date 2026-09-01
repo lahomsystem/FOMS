@@ -7,13 +7,19 @@
 오염분이 있어 못 쓴다), 안 붙은 집은 화면 어디에도 안 나타난다 — 사람은 그 집이 **빠진
 줄도 모른다.** 결과 UI 가 고친 결함("화면이 침묵한다")과 같은 결이다.
 
-그래서 이 파일이 재는 것은 ①안 붙은 짝을 찾아내는가 ②**전화가 다르면 안 짚는가**(동명이인
-오붙임 방지) ③대상이 0인 날에도 말하는가 이다.
+그래서 이 파일이 재는 것은 ①안 붙은 짝을 찾아내는가 ②**엉뚱한 집을 안 짚는가**
+③대상이 0인 날에도 말하는가 이다.
+
+판정 축은 둘 — **전화**와 **네이버 수령인명 == ERP 고객명**(운영 규칙, 사용자 확정
+2026-09-01). 주문자명은 축이 아니다: 운영 실데이터에 ``문기범/문유주``·``김유리/김병준``
+처럼 수령인과 주문자가 갈리는 집이 있고, ERP 에 들어간 이름은 **수령인명 쪽**이었다.
 """
 
 from __future__ import annotations
 
 import pytest
+
+from sqlalchemy.orm.attributes import flag_modified
 
 from db import db_session
 from foms.services.datetime_kst import get_today_kst
@@ -73,13 +79,16 @@ def _order_measured_today(today: str, *, customer: str = "천화진",
     return order
 
 
-def _loose(order_no: str, *, tel: str = PHONE, count: int = 1) -> ExternalOrderLink:
+def _loose(order_no: str, *, tel: str = PHONE, count: int = 1,
+           receiver: str = "이수취", orderer: str = "김주문") -> ExternalOrderLink:
     """주문에 **안 붙은** 수집분(``order_id`` 가 비어 있다).
 
     Args:
         order_no: 네이버 묶음 주문번호.
         tel: 수취인 전화.
         count: 상품주문 행 수.
+        receiver: 네이버 **수령인명**(운영 규칙상 ERP 고객명이 되는 자리).
+        orderer: 주문자명(축이 아니다 — 갈리는 집을 시험하려고 따로 준다).
 
     Returns:
         마지막으로 만든 링크 행.
@@ -87,6 +96,18 @@ def _loose(order_no: str, *, tel: str = PHONE, count: int = 1) -> ExternalOrderL
     link = None
     for _ in range(count):
         link = _collected(order_no=order_no, product="붙박이장", amount=1_000_000, tel=tel)
+        row = db_session.get(ExternalOrderLink, int(link.id))
+        snapshot = dict(row.raw_snapshot or {})
+        shipping = dict((snapshot.get("productOrder") or {}).get("shippingAddress") or {})
+        shipping["name"] = receiver
+        product_order = dict(snapshot.get("productOrder") or {})
+        product_order["shippingAddress"] = shipping
+        snapshot["productOrder"] = product_order
+        snapshot["order"] = {**(snapshot.get("order") or {}), "ordererName": orderer}
+        row.raw_snapshot = snapshot
+        flag_modified(row, "raw_snapshot")
+        db_session.commit()
+        link = row
     return link
 
 
@@ -107,17 +128,56 @@ def test_unlinked_collection_is_matched_by_phone(today):
     assert mine[0]["customer"] == "천화진"
 
 
-def test_different_phone_is_not_claimed_as_a_match(today):
-    """**전화가 다르면 안 짚는다** — 이름만 같은 동명이인을 붙이게 하면 안 된다.
+def test_receiver_name_matches_even_when_the_phone_differs(today):
+    """**전화가 달라도 수령인명이 같으면 짚는다** — 운영 규칙(사용자 확정 2026-09-01).
 
-    음성 대조군이다. 모집단 안(오늘 실측·링크 없음)에 있으면서 전화만 다른 표본이라,
-    통과하면 그 자체가 반증이다.
+    ERP 입력은 네이버 수령인명으로 한다. 전화만 축으로 쓰면 연락처를 다르게 적어 넣은
+    집이 통째로 안 보인다.
     """
-    _order_measured_today(today, customer="천화진")
+    order = _order_measured_today(today, customer="천화진")
     order_no = f"N-UL2-{_uid()}"
-    _loose(order_no, tel="010-0000-1111", count=2)
+    _loose(order_no, tel="010-0000-1111", count=2, receiver="천화진")
+    found = find_unlinked_matches(db_session, on_date=today)
+    mine = [row for row in found if row["order_no"] == order_no]
+    assert len(mine) == 1
+    assert mine[0]["order_id"] == int(order.id)
+    assert mine[0]["reason"] == "수령인명 일치", "어느 축으로 걸렸는지 말해야 한다"
+
+
+def test_orderer_name_alone_is_not_a_match(today):
+    """**주문자명만 같은 집은 안 짚는다** — 축은 수령인명이다.
+
+    운영 실데이터에 ``문기범/문유주``·``김유리/김병준`` 처럼 둘이 갈리는 집이 있고,
+    ERP 에 들어간 이름은 수령인명 쪽이었다. 주문자명을 축으로 쓰면 남의 주문을 짚는다.
+    """
+    _order_measured_today(today, customer="문유주", phone="010-7777-6666")
+    order_no = f"N-UL2B-{_uid()}"
+    _loose(order_no, tel="010-0000-2222", receiver="문기범", orderer="문유주")
     found = find_unlinked_matches(db_session, on_date=today)
     assert not [row for row in found if row["order_no"] == order_no]
+
+
+def test_nothing_matches_when_neither_phone_nor_receiver_name_agree(today):
+    """음성 대조군 — 전화도 수령인명도 다르면 안 짚는다.
+
+    모집단 안(오늘 실측·링크 없음)에 있으면서 두 축이 다 어긋난 표본이라, 짚히면 그
+    자체가 반증이다.
+    """
+    _order_measured_today(today, customer="천화진")
+    order_no = f"N-UL2C-{_uid()}"
+    _loose(order_no, tel="010-0000-1111", count=2, receiver="남의사람")
+    found = find_unlinked_matches(db_session, on_date=today)
+    assert not [row for row in found if row["order_no"] == order_no]
+
+
+def test_phone_beats_name_in_the_stated_reason(today):
+    """두 축이 다 맞으면 **더 강한 축**(전화)을 사유로 남긴다."""
+    _order_measured_today(today, customer="천화진")
+    order_no = f"N-UL2D-{_uid()}"
+    _loose(order_no, receiver="천화진")
+    found = find_unlinked_matches(db_session, on_date=today)
+    mine = [row for row in found if row["order_no"] == order_no]
+    assert mine and mine[0]["reason"] == "전화 일치"
 
 
 def test_already_linked_order_is_not_listed(today):

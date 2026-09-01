@@ -567,15 +567,25 @@ def find_unlinked_matches(session: Session, *, on_date: str) -> list[dict[str, A
 
     **자동으로 붙이지 않는다.** 붙이기는 사람이 워크벤치에서 후보를 보고 고르는 일이고
     (:func:`order_candidates.find_order_candidates`), 이 함수는 그 자리로 가라고 말할 뿐이다.
-    같은 이유로 판정 축은 **전화 한 가지**만 쓴다 — 이름만 같은 동명이인을 "붙이면 대상"
-    이라고 말하면 사람이 남의 주문을 붙인다.
+
+    판정 축은 둘이다:
+
+    1. **전화**(수취인 → 주문자 순).
+    2. **네이버 수령인명 == ERP 고객명** — 수집분을 ERP에 입력할 때 고객명을 네이버
+       **수령인명**으로 넣는 것이 운영 규칙이다(사용자 확정 2026-09-01). 주문자명은 축이
+       아니다: 운영 실데이터에 ``문기범/문유주``·``김유리/김병준`` 처럼 둘이 갈리는 집이
+       있고, ERP에 들어간 이름은 **수령인명 쪽**이었다.
+
+    어느 축으로 걸렸는지 ``reason`` 에 적어 함께 돌려준다. 사람이 붙이기 전에 근거를 보고
+    판단해야 하기 때문이다 — 이름 축은 동명이인을 만날 수 있다.
 
     Args:
         session: DB 세션.
         on_date: ``YYYY-MM-DD``.
 
     Returns:
-        집 단위 dict 목록 — ``{"order_no", "link_id", "links", "order_id", "customer"}``.
+        집 단위 dict 목록 —
+        ``{"order_no", "link_id", "links", "order_id", "customer", "reason"}``.
         짚을 게 없으면 빈 목록.
     """
     from datetime import timedelta
@@ -606,11 +616,15 @@ def find_unlinked_matches(session: Session, *, on_date: str) -> list[dict[str, A
         .all()
     )
     by_digits: dict[str, tuple[int, str]] = {}
+    by_name: dict[str, tuple[int, str]] = {}
     for oid, name, erp_digits, phone in rows:
         for value in (erp_digits, normalize_phone_digits(phone)):
             if value:
                 by_digits.setdefault(str(value), (int(oid), str(name or "")))
-    if not by_digits:
+        label = str(name or "").strip()
+        if label:
+            by_name.setdefault(label, (int(oid), label))
+    if not by_digits and not by_name:
         return []
 
     since = now_utc_naive() - timedelta(days=UNLINKED_WINDOW_DAYS)
@@ -630,19 +644,29 @@ def find_unlinked_matches(session: Session, *, on_date: str) -> list[dict[str, A
     found: dict[str, dict[str, Any]] = {}
     for link in loose:
         keys = _snapshot_keys(link.raw_snapshot)
-        hit = None
+        hit, why = None, ""
         for axis in ("recipient_phone", "orderer_phone"):
             hit = by_digits.get(str(keys.get(axis) or ""))
             if hit:
+                why = "전화 일치"
                 break
+        if not hit:
+            # 수령인명 축(운영 규칙). 주문자명은 안 본다 — 둘이 갈리는 집에서 ERP 에
+            # 들어간 이름은 수령인명 쪽이었다.
+            hit = by_name.get(str(keys.get("name") or "").strip())
+            why = "수령인명 일치" if hit else ""
         if not hit:
             continue
         order_no = (link.external_order_no or "").strip()
         row = found.setdefault(order_no, {"order_no": order_no, "link_id": link.id,
                                           "links": 0, "order_id": hit[0],
-                                          "customer": hit[1]})
+                                          "customer": hit[1], "reason": why})
         row["links"] += 1
         row["link_id"] = min(row["link_id"], link.id)
+        # 한 집 안에서 축이 갈리면 **더 강한 축**을 남긴다(전화가 이름을 이긴다).
+        if why == "전화 일치":
+            row["reason"] = why
+            row["order_id"], row["customer"] = hit[0], hit[1]
     out = sorted(found.values(), key=lambda row: row["link_id"])
     if out:
         logger.info("[NAVER] %s 실측분 중 안 붙은 수집분 %d집 — 붙이면 발송 대상이 된다",
