@@ -1351,3 +1351,18 @@ input.wb-pick:disabled,
     color: var(--wb-accent);
     font-weight: 600;
 }
+
+/* 안 붙은 수집분 줄 — 실패 줄과 같은 자리·다른 색(할 일이 다르다: 재시도가 아니라 붙이기). */
+.wb-bulkdispatch__linkline {
+    padding: 7px 12px;
+    background: var(--wb-warn-soft);
+    border-top: 1px solid var(--wb-warn-line);
+    color: var(--wb-warn);
+    font-weight: 600;
+}
+
+.wb-bulkdispatch__linklist {
+    margin: 4px 0 0;
+    padding-left: 18px;
+    font-weight: 400;
+}

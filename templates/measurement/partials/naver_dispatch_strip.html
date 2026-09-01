@@ -28,7 +28,13 @@
          data-naver-dispatch-sent="{{ bulk_dispatch.sent }}"
          data-naver-dispatch-date="{{ bulk_dispatch.date }}">
   <summary class="fw-semibold">
-    {% if bulk_dispatch.state == 'done' %}
+    {% if bulk_dispatch.state == 'none' %}
+    <i class="fas fa-link-slash text-warning"></i>
+    주문에 안 붙은 네이버 수집분 {{ bulk_dispatch.unlinked }}집
+    <div class="text-muted small fw-normal mt-1">
+      오늘 발송할 대상은 없습니다. 다만 아래 수집분을 주문에 붙이면 대상이 됩니다.
+    </div>
+    {% elif bulk_dispatch.state == 'done' %}
     <i class="fas fa-circle-check text-success"></i>
     오늘 {{ bulk_dispatch.sent }}집 네이버 발송처리 완료{% if bulk_dispatch.last_sent_time %}
     <span class="text-muted small ms-1">({{ bulk_dispatch.last_sent_time }})</span>{% endif %}
@@ -56,6 +62,24 @@
   {% if bulk_dispatch.failed %}
   <div class="alert alert-danger py-2 px-3 mt-2 mb-0" data-foms-no-autodismiss>
     발송처리 실패 {{ bulk_dispatch.failed }}집 — 아래 사유를 해결한 뒤 다시 보내세요.
+  </div>
+  {% endif %}
+  {#
+    안 붙은 수집분 — 링크가 안 붙으면 발송 대상 판정에 아예 안 잡힌다. 사람은 그 집이
+    빠진 줄도 모른다(2026-09-01 운영에서 실제로 밟았다). 붙이기는 워크벤치에서 사람이 한다.
+  #}
+  {% if bulk_dispatch.unlinked %}
+  <div class="alert alert-warning py-2 px-3 mt-2 mb-0" data-foms-no-autodismiss>
+    <div class="fw-semibold">붙이면 대상이 되는 집 {{ bulk_dispatch.unlinked }}집 — 수집은 됐는데 주문에 안 붙었습니다(전화 일치).</div>
+    <ul class="mb-0 mt-1 small">
+      {% for row in bulk_dispatch.unlinked_rows %}
+      <li>
+        {{ row.order_no }} · 상품주문 {{ row.links }}건 →
+        <a href="{{ url_for('order_edit.edit_order', order_id=row.order_id, open='erp-order') }}"
+           target="_blank" rel="noopener">#{{ row.order_id }} {{ row.customer }}</a>
+      </li>
+      {% endfor %}
+    </ul>
   </div>
   {% endif %}
   {% if can_run %}
