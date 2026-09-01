@@ -155,6 +155,22 @@ def _payment_summary(raw_snapshot: Any) -> dict[str, Any]:
             "discount": discount}
 
 
+def _backfill_defaults() -> dict[str, str]:
+    """소급 수집 날짜 칸의 기본값(시작·종료, ``YYYY-MM-DD``).
+
+    끝은 어제다 — 오늘 구간은 5분 주기 정상 스윕이 이미 맡는다. 시작은 상한
+    (:data:`~foms.services.integrations.naver_commerce.backfill.MAX_RANGE`)만큼 앞이다.
+
+    Returns:
+        ``{"start", "end"}``.
+    """
+    from foms.services.integrations.naver_commerce import backfill as bf
+
+    end = get_today_kst() - datetime.timedelta(days=1)
+    start = end - bf.MAX_RANGE + datetime.timedelta(days=1)
+    return {"start": start.isoformat(), "end": end.isoformat()}
+
+
 def _watermark_view(db) -> dict[str, Any]:
     """워터마크 상태를 화면 표시용으로 편다."""
     from foms.services.integrations.naver_commerce import watermark as wm
@@ -2040,6 +2056,9 @@ def _render_workbench(db) -> str:
         can_view_history=_can_view_history(),
         history=_history_view(db) if active_tab == "all" else {},
         ingest_status=ingest_status,
+        # 소급 수집 날짜 칸의 기본값. 기본 범위는 90일(사용자 결정 2026-09-01)이고
+        # 끝은 **어제**다 — 오늘 구간은 정상 5분 스윕이 이미 맡고 있다.
+        backfill_defaults=_backfill_defaults(),
         # 실패는 어느 탭에 있든 보여야 한다 — 탭을 옮겼다고 사고가 사라지지 않는다.
         failures=_failure_rows(db),
         # 유령 주문(R-2): 네이버 결제가 전부 취소됐는데 살아 있는 ERP 주문.

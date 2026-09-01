@@ -11,7 +11,7 @@
 | T1 클라이언트 `more` 이어받기 | DONE | 2쪽 이어붙임·`moreSequence` 전달·루프 상한 테스트 green |
 | T2 `backfill.py` 서비스 | DONE | 워터마크 불변·중복 skip·창 분할·재개·알림 0·범위 상한 테스트 green |
 | T3 큐·태스크·라우트 + 등재 6종 | DONE | 등재 계약 green + smoke 사각 3종 직접 실행 |
-| T4 워크벤치 화면 + 자산 핀 | PENDING | 템플릿 계약 green·핀 전수 일치 |
+| T4 워크벤치 화면 + 자산 핀 | DONE | 템플릿 계약 green·핀 전수 일치 |
 | T5 스테이징 1회 백필 검증 | PENDING | 보존 기간 실측·링크 증가·후보 노출·중복 0·429 0 |
 | T6 게이트·푸시 | PENDING | pre_push_smoke exit 0 + CI 전 워크플로 green |
 | T7 원본 없는 건 안내(곁가지) | PENDING | 잔여 있을 때만 |
@@ -57,3 +57,9 @@
   `NAVER_INGEST_BACKFILL_ENQUEUE` · audit coverage 인벤토리 재생성(204/0 unaudited) ·
   `log_access` 행위자 인자 · 네임스페이스 계약(tasks `__all__`) · web 금지 심볼에 `run_backfill` 추가.
   신규 라우트 테스트 9 passed, 등재 게이트 51 + write guard 41 passed.
+- T4 DONE: 워크벤치 수집 상태 카드에 '과거 주문 소급 수집' 칸(시작·종료 날짜 + 버튼 +
+  진행 문구). 기본값은 **어제까지 90일**(오늘 구간은 정상 5분 스윕 몫). 진행은
+  `backfill-state` 를 5초 간격 폴링해 '어디까지 마쳤다'를 말하고, 끝나면 화면을 다시 받는다
+  (끝을 안 말하면 사람이 다시 누른다 — 전체 다시 읽기에서 겪은 함정).
+  진행 문구는 `data-foms-no-autodismiss`(.alert 5초 자동닫힘 함정).
+  자산 핀 `?v=20260901b`(CSS·JS 동반 + 계약 2곳 함께 범프). integrations 1294 passed.

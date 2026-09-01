@@ -135,3 +135,54 @@ def test_state_route_reflects_worker_progress(auth_client):
     assert data["rev"] == "7"
     assert data["done_through"].startswith("2026-06-10")
     assert data["last_summary"]["collected"] == 12
+
+
+# --------------------------------------------------------------------------- #
+# 화면 — 운영자가 1회 실행하는 자리
+# --------------------------------------------------------------------------- #
+
+_TEMPLATE = "templates/admin/naver_workbench.html"
+_SCRIPT = "static/js/admin/naver-workbench.js"
+
+
+def _read(path: str) -> str:
+    from pathlib import Path
+
+    return (Path(__file__).resolve().parents[3] / path).read_text(encoding="utf-8")
+
+
+def test_workbench_has_backfill_form_and_progress_line():
+    """소급 수집은 날짜 두 칸·버튼·진행 문구가 한 자리에 있어야 실행할 수 있다."""
+    markup = _read(_TEMPLATE)
+    assert 'id="wb-backfill-from"' in markup
+    assert 'id="wb-backfill-to"' in markup
+    assert 'id="wb-backfill-run"' in markup
+    # 진행 문구는 상시 안내라 .alert 자동닫힘에 지워지면 안 된다.
+    assert 'id="wb-backfill-note"' in markup
+    assert markup.count("data-foms-no-autodismiss") >= 3
+
+
+def test_workbench_asset_pins_move_together():
+    """CSS·JS 를 고쳤으면 ``?v`` 핀이 함께 움직인다(SW staticCacheFirst)."""
+    markup = _read(_TEMPLATE)
+    assert markup.count("?v=20260901b") == 2
+
+
+def test_backfill_script_polls_progress_and_never_calls_naver():
+    """화면은 진행 상태를 폴링한다 — 끝을 안 말하면 사람이 다시 누른다."""
+    script = _read(_SCRIPT)
+    assert "/admin/naver-ingest/backfill-state" in script
+    assert "submitBackfill" in script
+    assert "api.commerce.naver.com" not in script
+
+
+def test_backfill_defaults_end_yesterday_and_span_within_limit(auth_client):
+    """기본값은 어제까지·상한 안이다(오늘 구간은 정상 스윕이 맡는다)."""
+    from foms.web.admin.naver_ingest import _backfill_defaults
+
+    defaults = _backfill_defaults()
+    today = now_kst().date()
+    end = datetime.fromisoformat(defaults["end"]).date()
+    start = datetime.fromisoformat(defaults["start"]).date()
+    assert end == today - timedelta(days=1)
+    assert (end - start) < bf.MAX_RANGE
