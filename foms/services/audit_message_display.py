@@ -139,6 +139,7 @@ _CHECKLIST_FIELDS = frozenset({
 ACTION_LABELS: dict[str, str] = {
     # --- 네이버 스마트스토어 수집 (NAVER-INGEST-01) ---
     "NAVER_INGEST_RUN_NOW": "네이버 수집 수동 실행",
+    "NAVER_INGEST_BACKFILL_ENQUEUE": "네이버 과거 주문 소급 수집 요청",
     "NAVER_INGEST_SNAPSHOT_VIEW": "네이버 수집 원본 열람",
     "NAVER_INGEST_MARK_REVIEWED": "네이버 수집 확인 완료",
     "NAVER_INGEST_SET_APP_EXPIRY": "네이버 커머스API 인증 만료일 등록",

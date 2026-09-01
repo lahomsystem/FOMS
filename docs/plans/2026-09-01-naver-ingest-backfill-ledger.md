@@ -10,7 +10,7 @@
 |---|---|---|
 | T1 클라이언트 `more` 이어받기 | DONE | 2쪽 이어붙임·`moreSequence` 전달·루프 상한 테스트 green |
 | T2 `backfill.py` 서비스 | DONE | 워터마크 불변·중복 skip·창 분할·재개·알림 0·범위 상한 테스트 green |
-| T3 큐·태스크·라우트 + 등재 6종 | PENDING | 등재 계약 green + smoke 사각 3종 직접 실행 |
+| T3 큐·태스크·라우트 + 등재 6종 | DONE | 등재 계약 green + smoke 사각 3종 직접 실행 |
 | T4 워크벤치 화면 + 자산 핀 | PENDING | 템플릿 계약 green·핀 전수 일치 |
 | T5 스테이징 1회 백필 검증 | PENDING | 보존 기간 실측·링크 증가·후보 노출·중복 0·429 0 |
 | T6 게이트·푸시 | PENDING | pre_push_smoke exit 0 + CI 전 워크플로 green |
@@ -49,3 +49,11 @@
   알림 억제는 `refresh_claims(notify=False)` → `sync_naver_orders(notify_claims=False)` 로 배선.
   신규 13개 + 기존 3파일 = 94 passed. red-check: `notify_claims=True` 로 되돌리면 알림 억제
   테스트가 빨개진다(ADMIN 수신자를 만들어 두고 잰다 — 받을 사람이 없으면 반증이 안 된다).
+- T3 DONE: `enqueue_naver_backfill`(job timeout 2h) + `run_naver_backfill_task`(WORKER 전용,
+  웹푸시 없음 — 백필은 알림을 안 만든다) + 라우트 2종
+  (`POST /admin/naver-ingest/backfill`·`GET /admin/naver-ingest/backfill-state`, 둘 다 ADMIN).
+  구간 검사는 **큐에 넣기 전에** 서비스와 같은 `validate_range` 로 한다. 종료일은 그날 끝까지.
+  등재: write guard manifest · policy manifest(ADMIN_OPS) · ACTION_LABELS
+  `NAVER_INGEST_BACKFILL_ENQUEUE` · audit coverage 인벤토리 재생성(204/0 unaudited) ·
+  `log_access` 행위자 인자 · 네임스페이스 계약(tasks `__all__`) · web 금지 심볼에 `run_backfill` 추가.
+  신규 라우트 테스트 9 passed, 등재 게이트 51 + write guard 41 passed.

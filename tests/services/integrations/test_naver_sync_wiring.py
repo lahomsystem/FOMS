@@ -37,6 +37,8 @@ _WEB_FORBIDDEN = (
     "NaverCommerceClient",
     "run_sweep",
     "sync_naver_orders",
+    # NAVER-INGEST-BACKFILL: 소급 수집도 WORKER 몫이다(web 은 enqueue 만).
+    "run_backfill",
 )
 
 
