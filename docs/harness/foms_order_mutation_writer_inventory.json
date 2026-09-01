@@ -121,13 +121,13 @@
     },
     {
       "path": "foms/services/kakao_alimtalk.py",
-      "lineno": 556,
+      "lineno": 562,
       "kind": "flag_modified_structured_data",
       "owner": "UNASSIGNED"
     },
     {
       "path": "foms/services/kakao_alimtalk.py",
-      "lineno": 841,
+      "lineno": 891,
       "kind": "flag_modified_structured_data",
       "owner": "UNASSIGNED"
     },
@@ -508,14 +508,14 @@
     },
     {
       "path": "foms/services/kakao_alimtalk.py",
-      "lineno": 556,
+      "lineno": 562,
       "kind": "flag_modified_structured_data",
       "classification": "EXTERNAL",
       "owner": "UNASSIGNED"
     },
     {
       "path": "foms/services/kakao_alimtalk.py",
-      "lineno": 841,
+      "lineno": 891,
       "kind": "flag_modified_structured_data",
       "classification": "EXTERNAL",
       "owner": "UNASSIGNED"
