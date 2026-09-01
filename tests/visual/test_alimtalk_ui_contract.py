@@ -373,11 +373,20 @@ def test_share_send_publishes_trace_without_extra_fetch() -> None:
 
 
 def test_share_trace_assets_pinned_together() -> None:
-    """SW staticCacheFirst — 바뀐 자산은 핀을 함께 올려야 옛 코드가 안 산다."""
+    """SW staticCacheFirst — 바뀐 자산은 핀을 함께 올려야 옛 코드가 안 산다.
+
+    **세는 게 아니라 자산을 이름으로 짚는다.** 등장 횟수로 재면 같은 파일의 **다른** 자산이
+    같은 날짜 핀을 쓰는 순간 빨개진다 — 날짜 핀은 여러 세션이 같은 날 같은 값을 고르므로
+    필연이다(2026-09-01: `erp-order-shared.js` 가 같은 핀을 달자 계약이 3 != 2 로 터졌고,
+    고친 쪽과 무관한 커밋까지 함께 빨개졌다).
+    """
     pin = "?v=20260901a"
     assert pin in _read("templates/partials/shared/layout_scripts.html")
     order_js = _read("templates/orders/partials/erp_order_js.html")
-    assert order_js.count(pin) == 2  # trace css + share js
+    for asset in ("css/orders/erp-alimtalk-trace.css", "js/orders/erp-share.js"):
+        line = next((row for row in order_js.splitlines() if asset in row), "")
+        assert line, f"{asset} 선언이 사라졌다"
+        assert pin in line, f"{asset} 핀이 함께 안 올라갔다"
     for surface in ("templates/measurement/dashboard.html",
                     "templates/measurement/partials/dashboard_fragment.html"):
         assert pin in _read(surface), surface
