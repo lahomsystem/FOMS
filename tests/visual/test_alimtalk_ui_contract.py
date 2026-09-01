@@ -375,9 +375,17 @@ def test_share_send_publishes_trace_without_extra_fetch() -> None:
 def test_share_trace_assets_pinned_together() -> None:
     """SW staticCacheFirst — 바뀐 자산은 핀을 함께 올려야 옛 코드가 안 산다."""
     pin = "?v=20260901a"
-    assert pin in _read("templates/partials/shared/layout_scripts.html")
+
+    def _pinned(body: str, asset: str) -> bool:
+        """자산 이름 바로 뒤에 이 핀이 붙어 있는지. 개수로 세면 같은 날짜를 쓰는
+        남의 자산이 하나 늘 때마다 이 테스트가 깨진다(실제로 CI 에서 깨졌다)."""
+        return "filename='" + asset + "') }}" + pin in body
+
+    layout = _read("templates/partials/shared/layout_scripts.html")
+    assert _pinned(layout, "js/orders/erp-alimtalk-trace.js")
     order_js = _read("templates/orders/partials/erp_order_js.html")
-    assert order_js.count(pin) == 2  # trace css + share js
+    assert _pinned(order_js, "css/orders/erp-alimtalk-trace.css")
+    assert _pinned(order_js, "js/orders/erp-share.js")
     for surface in ("templates/measurement/dashboard.html",
                     "templates/measurement/partials/dashboard_fragment.html"):
-        assert pin in _read(surface), surface
+        assert _pinned(_read(surface), "css/orders/erp-alimtalk-trace.css"), surface
