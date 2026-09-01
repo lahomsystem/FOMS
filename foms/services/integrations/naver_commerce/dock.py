@@ -123,6 +123,11 @@ SIZE_OPTION_KEYS = ("사이즈", "싸이즈", "규격", "폭", "size")
 #: `150`·`180`·`330`). 네 자리 이상은 mm 표기로 본다 — cm 로 읽으면 30m 가 나온다.
 _UNITLESS_CM_MAX = 1000
 
+#: 한 옵션 그룹 안에서 키와 값을 짝짓는 구분자(**전각** 슬래시). 네이버는 그룹은 반각 `/`,
+#: 그룹 안의 짝은 전각 `／` 로 낸다 — 실사례 `사이즈 ／ 색상: 180cm ／ 클린 화이트`. 반각으로만
+#: 자르면 키가 '색상' 으로 읽혀 사이즈를 못 찾는다(운영 총폭 1,500mm 오출력).
+_PAIR_SEPARATOR = "／"
+
 #: 사이즈 값 맨 앞의 단위 없는 수. 뒤에 한글이 붙은 값(`1단(소)`)은 길이가 아니므로 뺀다.
 _SIZE_NUMBER_RE = re.compile(r"^(\d+(?:\.\d+)?)(?![\d.가-힣])")
 
@@ -142,6 +147,31 @@ def parse_length_mm(text: str) -> Optional[int]:
     return int(round(float(value) * _LENGTH_UNIT_MM[unit]))
 
 
+def _size_value_mm(value: str) -> Optional[int]:
+    """사이즈 값 하나를 mm 로 읽는다(못 읽으면 None).
+
+    단위가 적혀 있으면 그대로(`1800mm 이하` → 1800), 없으면 cm 로 본다(`330` → 3,300).
+    단 네 자리 이상 단위 없는 값은 mm 표기로 본다 — cm 로 읽으면 30m 가 나온다.
+
+    Args:
+        value: 사이즈 키의 값 부분.
+
+    Returns:
+        mm 정수 또는 None.
+    """
+    value = value.strip()
+    explicit = parse_length_mm(value)
+    if explicit:
+        return explicit
+    match = _SIZE_NUMBER_RE.match(value)
+    if not match:
+        return None
+    number = float(match.group(1))
+    if number <= 0:
+        return None
+    return int(round(number * (10.0 if number < _UNITLESS_CM_MAX else 1.0)))
+
+
 def size_option_mm(option_text: str) -> Optional[int]:
     """옵션 원문의 **사이즈 키** 값에서 폭(mm)을 읽는다(없으면 None).
 
@@ -149,8 +179,10 @@ def size_option_mm(option_text: str) -> Optional[int]:
     박혀 있다(`라홈 루나 3000 … 슬라이딩 240cm` 상품에 `사이즈: 330` 주문). 상품명을
     읽으면 총폭이 2,400mm 로 나오지만 실제 주문은 3,300mm 다.
 
-    단위 해석: 값에 단위가 적혀 있으면 그대로(`1800mm 이하` → 1800), 없으면 cm 로 본다
-    (`330` → 3,300). 단 네 자리 이상 단위 없는 값은 mm 표기로 본다.
+    원문 모양은 두 가지다. 하나는 키마다 그룹이 나뉜 `사이즈: 180（몰딩） / 색상: 화이트`,
+    다른 하나는 키와 값을 **자리로** 짝지은 `사이즈 ／ 색상: 180cm ／ 클린 화이트`
+    (그룹은 반각 `/`, 짝은 전각 `／`). 둘 다 같은 자리 규칙으로 읽는다 — 짝이 모자라면
+    그 값은 쓰지 않는다(엉뚱한 값을 폭으로 읽느니 상품명 폴백이 낫다).
 
     Args:
         option_text: 네이버 ``productOption`` 원문.
@@ -161,20 +193,15 @@ def size_option_mm(option_text: str) -> Optional[int]:
     for segment in _text(option_text).split("/"):
         if ":" not in segment:
             continue
-        key, raw_value = segment.split(":", 1)
-        if key.strip().lower() not in SIZE_OPTION_KEYS:
-            continue
-        value = raw_value.strip()
-        explicit = parse_length_mm(value)
-        if explicit:
-            return explicit
-        match = _SIZE_NUMBER_RE.match(value)
-        if not match:
-            continue
-        number = float(match.group(1))
-        if number <= 0:
-            continue
-        return int(round(number * (10.0 if number < _UNITLESS_CM_MAX else 1.0)))
+        key_part, value_part = segment.split(":", 1)
+        keys = [key.strip().lower() for key in key_part.split(_PAIR_SEPARATOR)]
+        values = [value.strip() for value in value_part.split(_PAIR_SEPARATOR)]
+        for index, key in enumerate(keys):
+            if key not in SIZE_OPTION_KEYS or index >= len(values):
+                continue
+            millimetres = _size_value_mm(values[index])
+            if millimetres:
+                return millimetres
     return None
 
 
