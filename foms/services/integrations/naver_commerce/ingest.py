@@ -119,8 +119,13 @@ def existing_external_ids(session: Session, external_ids: list[str]) -> set[str]
 
 
 def _record_pending(session: Session, *, external_id: str, detail: dict, reason: str) -> None:
-    """매핑 실패 건을 주문 없이 보류 링크로 남긴다(원본 보존)."""
+    """매핑 실패 건을 주문 없이 보류 링크로 남긴다(원본 보존).
+
+    보류분도 매칭 축 사본을 채운다 — 보류라고 해서 "안 붙은 집" 짚기에서 빠지면,
+    사람이 손볼 건일수록 화면이 조용해진다.
+    """
     _order, product_order, _shipping = _safe_unwrap(detail)
+    match_keys = _match_key_values(detail)
     session.add(
         ExternalOrderLink(
             channel=CHANNEL,
@@ -131,6 +136,9 @@ def _record_pending(session: Session, *, external_id: str, detail: dict, reason:
             sync_status="PENDING_REVIEW",
             place_order_status=_place_status_value(detail),
             group_key=_group_key_value(detail),
+            recipient_name=match_keys["recipient_name"],
+            recipient_phone_digits=match_keys["recipient_phone_digits"],
+            orderer_phone_digits=match_keys["orderer_phone_digits"],
             failure_reason=reason[:2000],
         )
     )
@@ -157,6 +165,36 @@ def _place_status_value(detail: dict) -> Optional[str]:
         logger.warning("[NAVER] 발주 상태 추출 실패(무시): %s", exc)
         return None
     return status[:20] or None
+
+
+def _match_key_values(detail: dict) -> dict[str, Optional[str]]:
+    """원본에서 매칭 축 사본(수령인명·수취인 전화·주문자 전화)을 뽑는다.
+
+    ``_group_key_value`` 와 같은 규약이다 — 정본은 ``raw_snapshot`` 이고 이 값들은 SQL 이
+    "오늘 실측인데 안 붙은 집"을 좁힐 수 있게 두는 필터 전용 사본이다. 추출이 실패해도
+    수집은 막지 않는다(못 받은 주문은 되돌릴 수 없다).
+
+    Args:
+        detail: 상품주문 상세 1건.
+
+    Returns:
+        ``{"recipient_name", "recipient_phone_digits", "orderer_phone_digits"}``.
+        못 뽑으면 값은 None(읽는 쪽이 옛 스캔 경로로 폴백한다).
+    """
+    empty = {"recipient_name": None, "recipient_phone_digits": None,
+             "orderer_phone_digits": None}
+    try:
+        from foms.services.integrations.naver_commerce.order_candidates import _snapshot_keys
+
+        keys = _snapshot_keys(detail)
+    except (ValueError, TypeError, AttributeError, KeyError, ImportError) as exc:
+        logger.warning("[NAVER] 매칭 축 사본 추출 실패(무시): %s", exc)
+        return empty
+    return {
+        "recipient_name": (keys.get("name") or "")[:80] or None,
+        "recipient_phone_digits": (keys.get("recipient_phone") or "")[:20] or None,
+        "orderer_phone_digits": (keys.get("orderer_phone") or "")[:20] or None,
+    }
 
 
 def _group_key_value(detail: dict) -> Optional[str]:
@@ -235,6 +273,7 @@ def ingest_detail(
     order_no = str((_safe_unwrap(detail)[0] or {}).get("orderId") or "") or None
     # 백필 표식은 **두 벌**이다: 큐를 비우는 ``reviewed_at`` 과, 나중에 "이건 소급분"임을
     # 되짚을 ``triage_state.backfill``. 시각만 남기면 사람이 확인한 것과 구분되지 않는다.
+    match_keys = _match_key_values(detail)
     stamp = now_utc_naive() if reviewed else None
     state = {"backfill": {"at": stamp.isoformat()}} if reviewed else None
     savepoint = session.begin_nested()
@@ -251,6 +290,10 @@ def ingest_detail(
                 place_order_status=_place_status_value(detail),
                 # 묶음키 사본 — 이력 표가 확인 큐와 같은 정의로 집을 셀 수 있게 한다.
                 group_key=_group_key_value(detail),
+                # 매칭 축 사본 — 없으면 "안 붙은 집" 매칭이 300행 캡 스캔으로 떨어진다.
+                recipient_name=match_keys["recipient_name"],
+                recipient_phone_digits=match_keys["recipient_phone_digits"],
+                orderer_phone_digits=match_keys["orderer_phone_digits"],
                 reviewed_at=stamp,
                 triage_state=state,
             )

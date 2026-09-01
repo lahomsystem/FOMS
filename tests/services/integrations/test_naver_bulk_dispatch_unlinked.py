@@ -272,3 +272,41 @@ def test_matching_reuses_the_candidate_key_extractor():
     source = inspect.getsource(bulk_dispatch.find_unlinked_matches)
     assert "_snapshot_keys" in source
     assert "normalize_phone_digits" in source
+
+
+# --------------------------------------------------------------------------- #
+# 캡 함정 — 소급 수집분이 300칸을 다 차지해도 짚어야 한다 (NAVER-INGEST-BACKFILL)
+# --------------------------------------------------------------------------- #
+
+def test_match_survives_hundreds_of_newer_unlinked_links(today):
+    """매칭 대상보다 **더 최신인** 미연결 수집분이 300행을 넘어도 그 집을 짚는다.
+
+    예전에는 미연결 링크를 id 내림차순 300행만 훑었다. 과거 소급 수집으로 미연결이
+    1,500행대가 되면 그 300칸을 소급분이 다 차지해 띠가 조용히 잘렸다 — 잘린 자리는
+    "짚을 게 없다"와 구분되지 않는다.
+    """
+    from foms.services.integrations.naver_commerce.bulk_dispatch import UNLINKED_SCAN_CAP
+    from foms.services.integrations.naver_commerce.ingest import _match_key_values
+
+    order = _order_measured_today(today)
+    order_no = f"N-CAP-{_uid()}"
+    target = _loose(order_no, count=1)
+    keys = _match_key_values(target.raw_snapshot)
+    target.recipient_name = keys["recipient_name"]
+    target.recipient_phone_digits = keys["recipient_phone_digits"]
+    target.orderer_phone_digits = keys["orderer_phone_digits"]
+    db_session.commit()
+
+    # 그 뒤에 소급분(더 큰 id)을 캡보다 많이 쌓는다 — 전부 매칭 축이 다르다.
+    for index in range(UNLINKED_SCAN_CAP + 20):
+        db_session.add(ExternalOrderLink(
+            channel="NAVER", external_id=f"PO-CAPOLD-{_uid()}-{index}",
+            external_order_no=f"ORD-CAPOLD-{index}", sync_status="COLLECTED",
+            raw_snapshot={"productOrder": {"productOrderId": f"PO-CAPOLD-{index}"}},
+            recipient_name=f"옛손님{index}", recipient_phone_digits="01000000001",
+            orderer_phone_digits="01000000001",
+        ))
+    db_session.commit()
+
+    rows = find_unlinked_matches(db_session, on_date=today)
+    assert [row["order_no"] for row in rows] == [order_no]
