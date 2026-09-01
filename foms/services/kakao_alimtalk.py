@@ -36,6 +36,9 @@ from models import DomainSideEffectOutbox, Order, OrderEvent, User
 
 __all__ = [
     "ALIMTALK_TEMPLATE_MEASURE",
+    "SHARE_HISTORY_KEY",
+    "SHARE_TRACKED_KINDS",
+    "record_share_history",
     "ALIMTALK_MAX_BODY_LEN",
     "ALIMTALK_EFFECT_TYPE",
     "normalize_measure_schedule",
@@ -538,6 +541,79 @@ def _resolve_sender_name(session: Session, sent_by: int | None) -> str | None:
     return str(name) if name else None
 
 
+def _write_structured(order: Order, sd: dict[str, Any]) -> None:
+    """이 모듈의 **유일한** ``Order.structured_data`` 쓰기 지점.
+
+    REV-99 writer 게이트는 ``flag_modified(<recv>, "structured_data")`` 자리를 파일 단위로
+    센다. 이력 종류가 늘 때마다 쓰기 지점을 새로 만들면 그때마다 EXTERNAL 이 하나씩 늘어
+    검토 기록이 흐려진다 — 이력 조립은 각자 하고, 굳히는 곳은 여기 하나로 모은다.
+
+    Args:
+        order: 대상 주문.
+        sd: 되쓸 structured_data 전체(호출자가 deepcopy 로 만든 사본).
+    """
+    order.structured_data = sd
+    flag_modified(order, "structured_data")
+
+
+SHARE_HISTORY_KEY = "alimtalk_share"
+
+#: 흔적을 남기는 공유 종류. 도면 단독·견적서 단독은 아직 대상이 아니다(사용자 결정 2026-09-01).
+SHARE_TRACKED_KINDS = ("bundle",)
+
+
+def record_share_history(
+    session: Session,
+    order: Order,
+    *,
+    kind: str,
+    channel: str,
+    share_id: int | None,
+    error: str | None,
+    sent_by: int | None,
+) -> dict[str, Any] | None:
+    """공유 링크 발송 흔적을 ``sd['alimtalk_share']`` 에 남긴다(커밋은 호출자 몫).
+
+    실측 예약 안내 흔적(:data:`alimtalk_measurement`)과 **대칭이되 별개 레코드**다. 두
+    메시지는 서로 다른 안내라, 한 칸에 합치면 "아직 안 보냄"이 무엇을 안 보냈다는 뜻인지
+    화면에서 갈리지 않는다.
+
+    ``Order.structured_data`` 를 통째로 되쓰므로 **쓰기 직전 재조회**한다 — 벤더 왕복
+    사이에 다른 요청이 저장한 내용을 덮지 않기 위해서다(T15 에서 같은 구조로 밟은 함정).
+
+    Args:
+        session: 기록 트랜잭션의 세션.
+        order: 대상 주문.
+        kind: 공유 종류(``drawing``/``estimate``/``bundle``).
+        channel: 발송 경로(``alimtalk``/``sms``).
+        share_id: 공유 row id(추적용, 없으면 ``None``).
+        error: 실패 사유 코드(성공이면 ``None``).
+        sent_by: 발송자 user id.
+
+    Returns:
+        화면이 그대로 그릴 수 있는 이력 dict. 추적 대상 종류가 아니면 ``None``
+        (아무것도 쓰지 않는다).
+    """
+    if kind not in SHARE_TRACKED_KINDS:
+        return None
+
+    session.refresh(order)
+    now = now_utc_naive()
+    record: dict[str, Any] = {
+        "sent_at": now.isoformat() if error is None else None,
+        "kind": kind,
+        "channel": channel,
+        "share_id": int(share_id) if share_id is not None else None,
+        "error": error,
+        "sent_by": sent_by,
+        "sent_by_name": _resolve_sender_name(session, sent_by),
+    }
+    sd = copy.deepcopy(order.structured_data or {})
+    sd[SHARE_HISTORY_KEY] = record
+    _write_structured(order, sd)
+    return record
+
+
 def _record_history(
     session: Session,
     order: Order,
@@ -567,8 +643,7 @@ def _record_history(
         "channel": None,
         "channel_checked_at": None,
     }
-    order.structured_data = sd
-    flag_modified(order, "structured_data")
+    _write_structured(order, sd)
 
     event = session.get(OrderEvent, event_id) if event_id else None
     if event is None:
