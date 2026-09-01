@@ -213,6 +213,63 @@ def test_send_alimtalk_manager_variables_and_sender(client, db, ata_stub, clock)
     assert call['variables']['#{담당자연락처}'] == '01055556666'
 
 
+def test_send_alimtalk_contact_from_shipment_settings(client, db, ata_stub, clock,
+                                                     monkeypatch):
+    """담당자가 개인 발신번호를 등록하지 않아도 출고설정 목록의 전화번호로 안내한다.
+
+    발신번호(``from_``)는 솔라피 등록분이어야 하므로 브랜드 대표번호로 남는다 —
+    표시용 연락처만 설정 목록에서 온다.
+    """
+    monkeypatch.setattr(
+        share_routes, 'load_erp_shipment_settings',
+        lambda: {'measurement_manager': [
+            {'name': '한용희', 'phone': '010-6425-9873', 'sort_order': 7},
+        ]})
+    order_id = _mk_order(manager_name='한용희').id
+    _login(client, 'ata-settings')
+    share_id, token = _mk_share(order_id)
+    _send(client, share_id, token)
+    call = ata_stub[0]
+    assert call['variables']['#{담당자연락처}'] == '010-6425-9873'
+    assert call['variables']['#{담당자}'] == '한용희'
+    assert call['from_'] == '15660703'          # 발신은 솔라피 등록 대표번호 그대로
+
+
+def test_send_alimtalk_user_sender_phone_beats_settings(client, db, ata_stub, clock,
+                                                        monkeypatch):
+    """계정 발신번호가 있으면 설정 목록보다 우선한다(사용자 결정 2026-09-01)."""
+    monkeypatch.setattr(
+        share_routes, 'load_erp_shipment_settings',
+        lambda: {'measurement_manager': [
+            {'name': '한용희', 'phone': '010-6425-9873', 'sort_order': 7},
+        ]})
+    manager = User(username='atadup', password=generate_password_hash('pw'),
+                   role='STAFF', team='CS', name='한용희', is_active=True,
+                   sender_phone='01055558888')
+    db_session.add(manager)
+    db_session.commit()
+    order_id = _mk_order(manager_name='한용희').id
+    _login(client, 'ata-settings2')
+    share_id, token = _mk_share(order_id)
+    _send(client, share_id, token)
+    assert ata_stub[0]['variables']['#{담당자연락처}'] == '01055558888'
+
+
+def test_send_alimtalk_manager_name_whitespace_still_matches(client, db, ata_stub,
+                                                             clock):
+    """계정 이름에 공백이 섞여도 담당자 매칭이 깨지지 않는다(운영에 실재하던 데이터)."""
+    manager = User(username='ataws', password=generate_password_hash('pw'),
+                   role='STAFF', team='CS', name=' 채수민', is_active=True,
+                   sender_phone='01055559999')
+    db_session.add(manager)
+    db_session.commit()
+    order_id = _mk_order(manager_name='채수민').id
+    _login(client, 'ata-ws')
+    share_id, token = _mk_share(order_id)
+    _send(client, share_id, token)
+    assert ata_stub[0]['variables']['#{담당자연락처}'] == '01055559999'
+
+
 def test_send_alimtalk_regional_shows_head_office_contact(client, db, ata_stub, clock):
     """지방 주문은 도면 컨펌을 본사 CS 가 받는다 — 안내 연락처가 본사 대표번호다."""
     manager = User(username='atargn', password=generate_password_hash('pw'),
