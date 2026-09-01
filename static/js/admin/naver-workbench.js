@@ -118,6 +118,8 @@
         'wb-expiry-edit': toggleExpiryEdit,
         'wb-ghost-discard': submitGhostDiscard,
         'wb-origin-refresh-all': submitOriginRefreshAll,
+        'wb-origin-cancel-confirm': submitOriginCancel,
+        'wb-origin-return-confirm': submitOriginReturn,
         'wb-refresh-all': submitRefreshAll,
         'wb-seek-run': submitSeek
     };
@@ -592,6 +594,11 @@
                 openOrigin(btn);
                 return;
             }
+            // 띠에서 바로 쏘는 불가역(2026-09-01). 줄마다 나오므로 클래스로 문다.
+            if (btn.classList.contains('wb-origin-act')) {
+                openOriginAct(btn);
+                return;
+            }
             // 나머지 버튼(모달 열기·닫기)은 Bootstrap 이 맡는다.
         }
 
@@ -630,6 +637,15 @@
             var warn = document.getElementById('wb-return-approve-warn');
             if (warn) {
                 warn.hidden = !target.checked;
+            }
+            return;
+        }
+        // 띠 모달의 같은 체크. pane 과 id 를 나눠 둔 이유는 두 모달이 한 문서에 함께
+        // 살아서다 — 같은 id 면 어느 쪽 경고를 켜는지 갈린다.
+        if (target.id === 'wb-origin-return-approve') {
+            var originWarn = document.getElementById('wb-origin-return-approve-warn');
+            if (originWarn) {
+                originWarn.hidden = !target.checked;
             }
             return;
         }
@@ -1573,6 +1589,232 @@
                          + '\n옛 주문 화면은 그대로 엽니다 — 화면이 말하는 조회 시각을 보세요.');
         }
         window.location.href = url;
+    }
+
+    /**
+     * 재결제 옛 주문 — 띠에서 바로 쏘기 전 단계 (2026-09-01 사용자 결정).
+     *
+     * **낡은 줄은 모달을 열지 않는다.** `stale` 은 "새 결제를 받은 뒤로 이 옛 주문을 한
+     * 번도 안 읽었다"는 뜻이라, 그 사이 고객이 스스로 취소했을 수 있다. 낡은 값 위에서
+     * 되돌릴 수 없는 호출을 쏘는 것이 이 띠가 원래 막던 사고다 — 대신 다시 읽기를 큐에
+     * 넣고 무엇을 기다리는지 말한다(즉시 반영이 아니라 워커가 읽는다).
+     *
+     * 모달 문장은 **눌린 줄에서 그대로 옮겨 적는다**. 재진술이지 대상 지정이 아니다 —
+     * 처리할 집은 서버가 `link_id` 로 다시 계산한다.
+     *
+     * @param {HTMLElement} btn 눌린 줄의 실행 버튼.
+     * @returns {Promise<void>}
+     */
+    async function openOriginAct(btn) {
+        var id = safeId(btn.dataset.linkId);
+        if (!id) {
+            return;
+        }
+        var isReturn = btn.dataset.kind === 'return';
+        if (btn.dataset.stale === '1') {
+            btn.disabled = true;
+            const refreshed = await postJson(BASE + id + '/refresh', {});
+            btn.textContent = refreshed.ok
+                ? '다시 읽는 중 — 끝나면 새로고침하고 누르세요'
+                : '다시 읽기 실패 — ' + refreshed.error;
+            return;
+        }
+        var who = (btn.dataset.orderNo || '')
+            + ' · 상품주문 ' + (btn.dataset.count || '0') + '건'
+            + ' · ' + (btn.dataset.amount || '0') + '원';
+        if (btn.dataset.customer) {
+            who += ' (' + btn.dataset.customer + ')';
+        }
+        var whoBox = document.getElementById(isReturn
+            ? 'wb-origin-return-who' : 'wb-origin-cancel-who');
+        if (whoBox) {
+            whoBox.textContent = who;
+        }
+        var confirmBtn = document.getElementById(isReturn
+            ? 'wb-origin-return-confirm' : 'wb-origin-cancel-confirm');
+        if (confirmBtn) {
+            confirmBtn.dataset.linkId = String(id);
+            confirmBtn.disabled = false;
+        }
+        // **입력을 비운다.** 모달 하나를 여러 줄이 돌려 쓰므로, 안 비우면 앞 줄에서 고른
+        // 사유가 다음 줄에 그대로 실린다 — 되돌릴 수 없는 호출에 남의 사유가 붙는다.
+        resetOriginActForm(isReturn);
+        var modal = document.getElementById(isReturn
+            ? 'wb-modal-origin-return' : 'wb-modal-origin-cancel');
+        var instance = modalInstance(modal, true);
+        if (instance) {
+            instance.show();
+        }
+    }
+
+    /**
+     * 띠 모달의 입력을 처음 상태로 되돌린다.
+     *
+     * 모달은 문서에 하나뿐인데 띠 줄은 여럿이다 — 비우지 않으면 앞 줄에서 고른 사유·상세·
+     * 승인 체크가 다음 줄로 따라간다. 승인 체크가 따라가는 것이 특히 나쁘다(환불이 확정되고
+     * 무를 API 가 없다). 그래서 **열 때마다** 비운다.
+     *
+     * @param {boolean} isReturn 반품 모달이면 참.
+     */
+    function resetOriginActForm(isReturn) {
+        var reason = document.getElementById(isReturn
+            ? 'wb-origin-return-reason' : 'wb-origin-cancel-reason');
+        if (reason) {
+            reason.value = '';
+        }
+        var detail = document.getElementById(isReturn
+            ? 'wb-origin-return-detail' : 'wb-origin-cancel-detail');
+        if (detail) {
+            detail.value = '';
+        }
+        if (!isReturn) {
+            return;
+        }
+        var approve = document.getElementById('wb-origin-return-approve');
+        if (approve) {
+            approve.checked = false;
+        }
+        var warn = document.getElementById('wb-origin-return-approve-warn');
+        if (warn) {
+            warn.hidden = true;
+        }
+    }
+
+    /**
+     * 띠에서 옛 주문 **취소**를 큐에 넣는다.
+     *
+     * pane 의 `submitCancel` 과 같은 라우트·같은 payload 다. 다른 것은 결과를 말하는
+     * 자리뿐이다 — 띠에는 pane 이 없어 `watchFulfillment` 를 걸 자리가 없다. 그래서
+     * 무엇을 기다리는지 버튼이 직접 말하고, 확인은 새로고침으로 한다
+     * (`전부 다시 읽기` 와 같은 규율).
+     *
+     * @param {HTMLElement} btn 모달의 확인 버튼.
+     * @returns {Promise<void>}
+     */
+    async function submitOriginCancel(btn) {
+        var id = safeId(btn.dataset.linkId);
+        if (!id) {
+            return;
+        }
+        var reasonEl = document.getElementById('wb-origin-cancel-reason');
+        if (!reasonEl || !reasonEl.value) {
+            window.alert('취소 사유를 고르세요.');
+            return;
+        }
+        var detailEl = document.getElementById('wb-origin-cancel-detail');
+        btn.disabled = true;
+        const result = await postJson(BASE + id + '/cancel', {
+            reason: reasonEl.value,
+            detail: detailEl ? detailEl.value : ''
+        });
+        if (!result.ok) {
+            window.alert(result.error);
+            btn.disabled = false;
+            return;
+        }
+        await hideModal(document.getElementById('wb-modal-origin-cancel'));
+        markOriginActQueued(id, '취소');
+        watchOriginAct(id, result.data && result.data.rev, '취소');
+    }
+
+    /**
+     * 띠에서 옛 주문 **반품 접수**를 큐에 넣는다. 승인 체크는 pane 과 같은 뜻이다 —
+     * 켜면 환불이 확정되고 되돌리는 엔드포인트가 없다. 화면 값을 믿지 않는 것은 라우트
+     * 몫이고(문자열 "false" 정규화), 여기서는 불리언으로만 보낸다.
+     *
+     * @param {HTMLElement} btn 모달의 확인 버튼.
+     * @returns {Promise<void>}
+     */
+    async function submitOriginReturn(btn) {
+        var id = safeId(btn.dataset.linkId);
+        if (!id) {
+            return;
+        }
+        var reasonEl = document.getElementById('wb-origin-return-reason');
+        if (!reasonEl || !reasonEl.value) {
+            window.alert('반품 사유를 고르세요.');
+            return;
+        }
+        var detailEl = document.getElementById('wb-origin-return-detail');
+        var approveEl = document.getElementById('wb-origin-return-approve');
+        var approve = !!(approveEl && approveEl.checked);
+        btn.disabled = true;
+        const result = await postJson(BASE + id + '/return', {
+            reason: reasonEl.value,
+            detail: detailEl ? detailEl.value : '',
+            approve: approve
+        });
+        if (!result.ok) {
+            window.alert(result.error);
+            btn.disabled = false;
+            return;
+        }
+        await hideModal(document.getElementById('wb-modal-origin-return'));
+        var label = approve ? '반품 접수+승인' : '반품 접수';
+        markOriginActQueued(id, label);
+        watchOriginAct(id, result.data && result.data.rev, label);
+    }
+
+    /**
+     * 띠에서 쏜 불가역의 **결과**를 그 줄이 말하게 한다 (2026-09-01).
+     *
+     * pane 의 :func:`watchFulfillment` 를 재사용하지 않는다 — 그것은 pane 에 묶여 있어
+     * (`lockPaneActions`·`setPaneAck`·`softRefresh`) 띠에서 부르면 **지금 열려 있는 다른
+     * 집**의 화면을 잠그고 남의 자리에 결과를 쓴다.
+     *
+     * 이게 없으면 워커가 거절해도 줄은 "보냄"으로 남는다 — 안 나간 것을 나갔다고 말하는
+     * 자리다. 지문(`rev`)이 바뀌면 실패 여부를 그 자리에서 말하고, 오래 걸리면 무한히
+     * 돌지 않고 접으면서 **새로고침으로 확인하라**고 말한다(거짓 완료를 만들지 않는다).
+     *
+     * @param {number} linkId 처리한 링크 id.
+     * @param {string} baseRev enqueue 직전 지문(라우트가 준 값).
+     * @param {string} label 사람이 읽는 동작 이름.
+     */
+    function watchOriginAct(linkId, baseRev, label) {
+        var id = safeId(linkId);
+        if (!id) {
+            return;
+        }
+        var deadline = Date.now() + POLL_TIMEOUT_MS;
+        window.setTimeout(tick, POLL_INTERVAL_MS);
+
+        async function tick() {
+            var btn = document.querySelector('.wb-origin-act[data-link-id="' + id + '"]');
+            if (!btn) {
+                return;
+            }
+            const state = await readFulfillmentState(id);
+            if (state && state.rev && state.rev !== baseRev) {
+                btn.textContent = state.last_error
+                    ? label + ' 실패 — ' + state.last_error
+                    : label + ' 완료 — 새로고침하면 이 줄이 사라집니다';
+                btn.classList.toggle('wb-origin-act--err', !!state.last_error);
+                return;
+            }
+            if (Date.now() >= deadline) {
+                btn.textContent = label + ' 결과가 아직 안 왔습니다 — 새로고침해서 확인하세요';
+                return;
+            }
+            window.setTimeout(tick, POLL_INTERVAL_MS);
+        }
+    }
+
+    /**
+     * 큐에 넣은 줄이 그 사실을 말하게 한다 — 두 번 누르는 자리를 막는다.
+     *
+     * 띠 자체를 다시 그리지 않는 이유는 `전부 다시 읽기` 와 같다: 워커가 읽기 전에는
+     * 아직 옛 값이라, 지금 새로 그리면 화면이 "아직 살아 있다"고 다시 말한다.
+     *
+     * @param {number} linkId 처리한 링크 id.
+     * @param {string} label 사람이 읽는 동작 이름.
+     */
+    function markOriginActQueued(linkId, label) {
+        var btn = document.querySelector('.wb-origin-act[data-link-id="' + linkId + '"]');
+        if (!btn) {
+            return;
+        }
+        btn.disabled = true;
+        btn.textContent = label + ' 보냄 — 끝나면 새로고침';
     }
 
     /**
