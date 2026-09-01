@@ -120,3 +120,75 @@ ETag 는 **렌더가 끝난 뒤** 붙는다(`foms/services/common/erp_shell_http
   섞인 HTML 을 캐시하면 유출 위험). 기각.
 - **`mutation_version` 최대값을 키로**: 인덱스가 없고(`models.py:96`) orders 외 테이블 변경을
   못 잡는다. 단독으로는 부족.
+
+---
+
+## 8. S2 설계 (2026-09-01 작성 · **S2a 승인됨** — 사용자 선택, 2026-09-01)
+
+S1 이 신호원을 만들었다. S2 는 그 신호로 **렌더 전에** 조건부 응답을 끝낸다. 대상은 화면
+1개(`/erp/history/`).
+
+### 8.1 선결과제 2건 — 실측으로 답했다
+
+**(a) Flask-Compress ETag 접미사 대조 규칙(§5-5).**
+`flask_compress.py:229-237` 은 `status_code >= 300` 이면 **압축도 ETag 재작성도 하지 않고
+조기 반환**한다. 재작성은 `:263-268`(`"K"` → `"K:br"`), 조건부 재평가는 `:270-276`.
+
+→ 규칙: **받은 `If-None-Match` 에서 `:<algo>` 접미사를 벗기고 비교한다.** 304 응답에는
+클라가 보낸 검증자를 **그대로 에코**한다(오늘 압축 경로 304 의 동작과 동일한 와이어 모양).
+200 은 지금처럼 Compress 가 접미사를 붙인다.
+
+**(b) 키 축이 소스 독해로 안 닫힌다.**
+`/erp/history/` 프래그먼트는 전역 컨텍스트 프로세서를 그대로 받는다 —
+`inject_foms_flags`(shell_variant·코호트 플래그 12종)·`inject_foms_nav_badges`(주문 건수).
+템플릿이 그중 무엇을 실제로 렌더에 쓰는지 읽어서 세는 것은 검증이 아니다. 하나라도
+빠뜨리면 **낡은 304**(§5-1: 지금 결함보다 나쁘다)가 나간다.
+
+→ 그래서 S2 는 **두 단계**로 쪼갠다. 위험을 감수한 뒤 증거를 모으는 게 아니라, 증거를
+먼저 모은 뒤 위험을 감수한다.
+
+### 8.2 S2a — 키 빌더 + **그림자 모드** (동작 변경 0)
+
+신설 `foms/services/common/fragment_revalidation.py`:
+
+- `build_fragment_version_key(route_id, req, user, tables) -> str | None`
+  재료 = route_id · **정규화된 요청 파라미터**(그 라우트가 읽는 인자 이름 allowlist —
+  **미등재 인자가 하나라도 오면 `None`**) · user id/role/team/mine · shell_variant +
+  코호트 플래그 · KST 오늘 · `get_table_versions(tables)`.
+  `get_table_versions` 가 `None`(Redis 없음)이면 **`None`** → 지금 동작 그대로(fail-safe).
+- `record_shadow_observation(key, body)` — Redis 에 `sha256(body)[:16]` 을 짧은 TTL 로
+  적어두고 **다음에 같은 키로 온 요청의 본문 해시와 대조**한다. 어긋나면 mismatch
+  카운터 INCR + 경고 로그. 진단 헤더 `X-FOMS-FRAGVER: new|match|MISMATCH`.
+
+`/erp/history/` 에만 배선한다. 렌더 경로·응답 바이트·ETag 는 **전부 그대로**.
+
+**완료 기준**: 스테이징 하루 관측에서 **mismatch 0**. 하나라도 나오면 그 요청의 축을
+찾아 키에 추가한다 — 즉 "키가 불완전하다"는 증거를 **렌더 전 304 를 켜기 전에** 얻는다.
+
+### 8.3 S2b — 렌더 전 304 (env 플래그 뒤, S2a 증거 확보 후)
+
+`FOMS_FRAGMENT_PRERENDER_304_ENABLED`(기본 off).
+
+1. 라우트 진입 직후 키를 만든다. `None` 이면 지금 경로 그대로.
+2. `If-None-Match` 를 접미사 벗겨 대조 → 일치면 **렌더 없이 304**
+   (클라 검증자 에코 + `X-FOMS-ERP-FRAGMENT`·`X-FOMS-ERP-FRAGMENT-TIER` 헤더 유지).
+3. 불일치면 평소대로 렌더하되 ETag 를 **본문 해시가 아니라 키**로 발급한다
+   (그래야 다음 요청이 렌더 전에 끝난다).
+
+**기존 계약 2건은 의미를 유지한 채 재작성**(§5-4):
+`test_fragment_etag_byte_stable_across_renders` → "같은 내용 → 같은 키",
+`test_fragment_new_etag_after_data_change` → **강화**(Order insert 가 `orders` 카운터를
+올리므로 키가 바뀐다 — 렌더 전 304 경로에서도 반드시 200).
+
+**perf-gate**: `etag_required`·`conditional_304_required` 둘 다 그대로 성립한다.
+
+**측정**: `/erp/history/` 200 vs 304 서버시간 델타(healthz 델타, 여러 런 분포).
+현재는 둘이 같다(§1). 304 가 유의하게 낮아지는 것이 성공 판정이다.
+
+### 8.4 이 설계가 P4 의 교훈을 어기지 않는 이유
+
+P4 는 "총 바이트가 같다"는 근거로 첫 페인트 경로에 일을 옮겼다가 되돌렸다. S2 는 첫
+페인트 경로에 **일을 더하지 않는다** — 키 계산(해시 1회 + Redis MGET 1회)만 앞에 붙고,
+그 대가로 **렌더 전체**(orders 쿼리 + 템플릿)를 건너뛴다. 다만 S2a 그림자 모드는 관측
+비용(본문 해시 + Redis 왕복)을 **일시적으로** 첫 페인트 경로에 얹으므로, S2a 는 스테이징
+전용으로 돌리고 운영에는 켜지 않는다.
