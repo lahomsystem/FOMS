@@ -304,3 +304,35 @@ def test_normal_sweep_still_filters_by_payed(app):
     db_session.commit()
     assert result.candidates == 0
     assert result.collected == 0
+
+
+# --------------------------------------------------------------------------- #
+# 처리 큐 보호 — 백필은 "지금 할 일"이 아니다
+# --------------------------------------------------------------------------- #
+
+def test_backfilled_links_are_marked_reviewed_and_stay_out_of_the_queue(app):
+    """백필 링크는 확인 완료로 들어온다 — 안 그러면 90일치가 처리 탭을 덮는다.
+
+    스테이징 실측(2026-09-01): 표식 없이 돌린 백필이 링크 1,560건 = 798집을 큐에 밀어넣었다.
+    """
+    external_id = f"PO-BF-{_uid()}"
+    _run(WindowClient([[_changed(external_id)]], [_detail(external_id)]), days=1)
+    link = (db_session.query(ExternalOrderLink)
+            .filter(ExternalOrderLink.external_id == external_id).one())
+    assert link.reviewed_at is not None
+    # 시각만 남기면 사람이 확인한 것과 구분이 안 된다 — 소급분 표식을 함께 남긴다.
+    assert (link.triage_state or {}).get("backfill")
+
+
+def test_normal_sweep_links_still_enter_the_queue(app):
+    """정상 스윕은 그대로다 — 새 주문은 사람이 봐야 한다."""
+    from foms.services.integrations.naver_commerce.ingest import sync_naver_orders
+
+    external_id = f"PO-BF-{_uid()}"
+    client = WindowClient([[_changed(external_id)]], [_detail(external_id)])
+    sync_naver_orders(db_session, client=client, start=NOW - timedelta(hours=6),
+                      end=NOW, now=NOW)
+    db_session.commit()
+    link = (db_session.query(ExternalOrderLink)
+            .filter(ExternalOrderLink.external_id == external_id).one())
+    assert link.reviewed_at is None

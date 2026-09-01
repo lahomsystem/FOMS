@@ -22,6 +22,10 @@
    이벤트 당시가 아니라 현재 상태다 — 스테이징 실측(2026-09-01) 06-04~08-16 구간은 변경
    이벤트 1,300건에 PAYED 가 **0건**이었다(정상 스윕 필터로는 과거를 한 건도 못 긁는다).
    판정은 상세 조회 결과(정본)에 맡긴다.
+6. **처리 큐에 밀어 넣지 않는다**(``mark_reviewed=True``). 백필은 과거 원본을 확보하는
+   일이지 지금 처리할 일이 아니다. 표시하지 않으면 90일치가 통째로 처리 탭에 쌓인다
+   (스테이징 실측 2026-09-01: 링크 1,560건 = **798집**). 붙이기는 오늘 실측 매칭 띠와
+   후보 검색이 맡는다.
 
 **WORKER 프로세스 전용**이다 — 네이버 HTTP 는 등록된 IP 가 WORKER 것뿐이다. web 은 enqueue 만 한다.
 
@@ -206,7 +210,7 @@ def run_backfill(
             window_result = sync_naver_orders(
                 session, client=api, start=window_start, end=window_end,
                 dry_run=dry_run, now=current, notify_claims=False,
-                collect_all=True,
+                collect_all=True, mark_reviewed=True,
             )
         except Exception as exc:  # noqa: BLE001 - 한 창의 실패가 앞 창의 성과를 지우지 않게
             session.rollback()
