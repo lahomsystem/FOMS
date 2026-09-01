@@ -19,6 +19,21 @@ SIDEFX-00 소관이며 이 packet 은 consumer mechanics 만 소유한다.
 2. env: 이 service 에 `DATABASE_URL` 를 web 과 동일 인스턴스로 연결.
    `STORAGE_DELETE` 는 `R2_*`, `ALIMTALK_SEND` 는 web 과 같은 `SOLAPI_*`(발신번호·브랜드
    프로필 포함)가 필요하다. 키가 없으면 알림톡 행은 재시도 후 DEAD 가 된다.
+
+   > **운영 현황 (2026-09-01 기준 — 사용자 결정)**: 운영 web 에
+   > `FOMS_ALIMTALK_AUTO_ENABLED` 를 **설정하지 않았다(=off)**. 따라서 운영에서 나가는
+   > 알림톡·문자는 **전부 web 요청 스레드가 동기로** 보낸다 — 실측 수동 버튼
+   > (`POST /api/kakao/alimtalk/send-manual/<id>`), 공유 링크 알림톡·문자
+   > (`foms/api/share.py`, payload 가 `sync_only: True` 라 워커로 옮길 수 없다).
+   > `ALIMTALK_SEND` outbox 행은 **한 건도 생기지 않는다**(생산자 게이트가 web 에 있다 —
+   > `kakao_alimtalk.maybe_send_measure_alimtalk`). 그래서 운영 SIDEFX 에 `SOLAPI_*` 를
+   > 복사하지 않았고, 지금은 없어도 무해하다.
+   >
+   > 자동 발송을 켤 때의 **선결 순서**(어기면 그 일정의 멱등 슬롯이 소각된다):
+   > ① 운영 SIDEFX 에 `SOLAPI_*` 복사 → ② SIDEFX 재배포 후 handler 등록 확인
+   > (`register_handler("ALIMTALK_SEND", ...)`) → ③ 그 다음에야 web 에
+   > `FOMS_ALIMTALK_AUTO_ENABLED=1`. 웹을 먼저 켜면 handler 없는 행이 약 43분 뒤 DEAD 가
+   > 되고, DEAD 도 `(effect_type, dedupe_key)` UNIQUE 를 180일간 점유한다.
 3. start command(자동, toml 정본):
    ```
    python tools/ops/run_domain_side_effect_outbox.py --loop --interval 5 --expiry-scan-interval 300 --retention-scan-interval 86400
