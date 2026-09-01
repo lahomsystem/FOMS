@@ -392,3 +392,37 @@ def test_send_audit_masked_phone_no_token(client, db, sms_stub, clock):
     assert '01024736730' not in detail  # 원문 수신번호 미격납(마스킹)
     assert logs[0].detail['sent'] is True
     assert logs[0].detail['sender_source'] == 'legacy'  # T8.1 최종 시도 출처 기록
+
+
+# --- 발송 흔적 칩(공유) ----------------------------------------------------------
+#
+# 알림톡과 문자는 같은 '고객에게 링크를 보냈다'는 사실이라 같은 레코드에 채널만 달리 남긴다
+# (사용자 결정 2026-09-01: 문자 발송까지 포함).
+
+
+def test_bundle_sms_records_share_trace(client, db, sms_stub, clock):
+    order_id = _mk_order().id
+    uid = _login(client, 'smstrace1')
+    share_id, token = _mk_share(order_id, kind='bundle')
+
+    resp = _send(client, share_id, token)
+
+    assert resp.status_code == 200
+    last = resp.get_json()['data']['last_share']
+    assert last['kind'] == 'bundle' and last['channel'] == 'sms'
+    assert last['error'] is None and last['sent_by'] == uid
+
+    record = (db_session.get(Order, order_id).structured_data or {}).get('alimtalk_share')
+    assert record == last
+
+
+def test_drawing_sms_leaves_no_share_trace(client, db, sms_stub, clock):
+    """음성 대조군 — 도면 단독 문자는 흔적을 남기지 않는다."""
+    order_id = _mk_order().id
+    _login(client, 'smstrace2')
+    share_id, token = _mk_share(order_id, kind='drawing')
+
+    resp = _send(client, share_id, token)
+
+    assert resp.status_code == 200 and resp.get_json()['data']['last_share'] is None
+    assert 'alimtalk_share' not in (db_session.get(Order, order_id).structured_data or {})

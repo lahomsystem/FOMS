@@ -824,6 +824,10 @@ def api_share_send_sms(share_id: int):
     flag_modified(event, 'payload')
     outbox_row.status = 'DONE'
     outbox_row.completed_at = now_utc_naive()
+    # 발송 흔적(화면 칩) — 알림톡 경로와 같은 레코드를 채널만 달리해 남긴다.
+    last_share = ka.record_share_history(
+        db_session, order, kind=row.kind, channel='sms',
+        share_id=row.id, error=error, sent_by=actor_user_id)
     db_session.commit()
 
     context = order_audit_context(order)
@@ -836,7 +840,7 @@ def api_share_send_sms(share_id: int):
                 'error': error, 'to': ka._mask_phone(to_phone),
                 'sender_source': attempts[-1]['source'] if attempts else None, **context},
     )
-    return _envelope({'sent': error is None, 'error': error}, error)
+    return _envelope({'sent': error is None, 'error': error, 'last_share': last_share}, error)
 
 
 def share_link_message(order: Order, *, kind: str, url: str, brand: str) -> str:
@@ -1139,6 +1143,10 @@ def api_share_send_alimtalk(share_id: int):
     flag_modified(event, 'payload')
     outbox_row.status = 'DONE'
     outbox_row.completed_at = now_utc_naive()
+    # 발송 흔적(화면 칩) — sd 쓰기는 정본 소유 모듈이 한다(REV-99 writer 분류는 파일 단위).
+    last_share = ka.record_share_history(
+        db_session, order, kind=row.kind, channel='alimtalk',
+        share_id=row.id, error=error, sent_by=actor_user_id)
     db_session.commit()
 
     context = order_audit_context(order)
@@ -1152,7 +1160,7 @@ def api_share_send_alimtalk(share_id: int):
                 'template': 'share_both' if use_both else 'share',
                 'sender_source': sender_source, **pair_ids, **context},
     )
-    return _envelope({'sent': error is None, 'error': error}, error)
+    return _envelope({'sent': error is None, 'error': error, 'last_share': last_share}, error)
 
 
 @share_api_bp.route('/revoke/<int:share_id>', methods=['POST'])

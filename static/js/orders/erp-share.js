@@ -315,6 +315,7 @@
             .then(function (res) { return res.json(); })
             .then(function (body) {
                 var sent = !!(body && body.success && body.data && body.data.sent);
+                if (body && body.data) _publishShareTrace(body.data.last_share);
                 if (sent) {
                     _setNotice('');
                     _flashSmsSent();
@@ -400,6 +401,21 @@
         return 'sms:' + phone + sep + 'body=' + encodeURIComponent(text);
     }
 
+    /**
+     * 방금 남은 공유 발송 흔적을 화면 칩에 흘려보낸다(추가 조회 없음).
+     *
+     * 서버가 ``data.last_share`` 로 돌려준 레코드를 그대로 싣는다. 추적 대상이 아닌
+     * 종류(도면 단독 등)는 서버가 ``null`` 을 주므로 칩이 생기지 않는다.
+     *
+     * @param {Object|null} record 서버가 돌려준 발송 이력.
+     */
+    function _publishShareTrace(record) {
+        if (!record) return;
+        document.dispatchEvent(new CustomEvent('foms:share-trace-update', {
+            detail: { record: record },
+        }));
+    }
+
     /** 원클릭 알림톡 — 모달 없이 링크 자동 발급 후 즉시 알림톡 발송(도면/견적서). */
     async function _quickAlimtalk(btn) {
         if (_busy || (btn && btn.disabled)) return;
@@ -433,6 +449,7 @@
             })
             .then(function (body) {
                 var sent = !!(body && body.success && body.data && body.data.sent);
+                if (body && body.data) _publishShareTrace(body.data.last_share);
                 if (sent) {
                     if (btn) {
                         var original = btn.innerHTML;
@@ -468,6 +485,7 @@
             .then(function (res) { return res.json(); })
             .then(function (body) {
                 var sent = !!(body && body.success && body.data && body.data.sent);
+                if (body && body.data) _publishShareTrace(body.data.last_share);
                 if (sent) {
                     _setNotice('');
                     _flashSent('erp-share-alimtalk-btn');
