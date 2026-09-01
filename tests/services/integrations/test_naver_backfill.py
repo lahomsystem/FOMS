@@ -269,3 +269,38 @@ def test_calls_are_spaced_between_windows(app):
     run_backfill(db_session, client=WindowClient([], []), start=end - timedelta(days=3),
                  end=end, now=NOW, sleep=slept.append)
     assert slept and all(value == backfill_mod.CALL_INTERVAL_SECONDS for value in slept)
+
+
+# --------------------------------------------------------------------------- #
+# 상태 필터 — 과거는 결제완료로 안 걸린다
+# --------------------------------------------------------------------------- #
+
+def test_backfill_collects_orders_that_are_no_longer_payed(app):
+    """오래된 주문은 이미 배송완료·구매확정이다 — 결제완료 필터로 거르면 0건이 된다.
+
+    스테이징 실측(2026-09-01): 06-04~08-16 변경 이벤트 1,300건 중 PAYED 0건.
+    변경 피드의 ``productOrderStatus`` 가 이벤트 당시가 아니라 현재 상태이기 때문이다.
+    """
+    external_id = f"PO-BF-{_uid()}"
+    detail = _detail(external_id)
+    detail["productOrder"]["productOrderStatus"] = "DELIVERED"
+    client = WindowClient([[_changed(external_id, "DELIVERED")]], [detail])
+    payload = _run(client, days=1)
+    assert payload["collected"] == 1
+    assert (db_session.query(ExternalOrderLink)
+            .filter(ExternalOrderLink.external_id == external_id).count()) == 1
+
+
+def test_normal_sweep_still_filters_by_payed(app):
+    """정상 스윕은 그대로다 — 결제완료가 아닌 변경은 신규 후보가 아니다."""
+    from foms.services.integrations.naver_commerce.ingest import sync_naver_orders
+
+    external_id = f"PO-BF-{_uid()}"
+    detail = _detail(external_id)
+    detail["productOrder"]["productOrderStatus"] = "DELIVERED"
+    client = WindowClient([[_changed(external_id, "DELIVERED")]], [detail])
+    result = sync_naver_orders(db_session, client=client, start=NOW - timedelta(hours=6),
+                               end=NOW, now=NOW)
+    db_session.commit()
+    assert result.candidates == 0
+    assert result.collected == 0

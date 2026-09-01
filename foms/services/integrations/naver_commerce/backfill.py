@@ -18,6 +18,10 @@
 3. **알림은 끈다.** 과거 취소·반품 상태는 반영하되 알림을 만들지 않는다(지난 건으로 대량
    발송하면 진짜 알림이 소음에 덮인다). 사용자 결정 2026-09-01.
 4. **창마다 커밋한다.** 중간에 끊겨도 진척(``done_through``)이 남아 이어서 돌릴 수 있다.
+5. **상태로 거르지 않는다**(``collect_all=True``). 변경 피드의 ``productOrderStatus`` 는
+   이벤트 당시가 아니라 현재 상태다 — 스테이징 실측(2026-09-01) 06-04~08-16 구간은 변경
+   이벤트 1,300건에 PAYED 가 **0건**이었다(정상 스윕 필터로는 과거를 한 건도 못 긁는다).
+   판정은 상세 조회 결과(정본)에 맡긴다.
 
 **WORKER 프로세스 전용**이다 — 네이버 HTTP 는 등록된 IP 가 WORKER 것뿐이다. web 은 enqueue 만 한다.
 
@@ -202,6 +206,7 @@ def run_backfill(
             window_result = sync_naver_orders(
                 session, client=api, start=window_start, end=window_end,
                 dry_run=dry_run, now=current, notify_claims=False,
+                collect_all=True,
             )
         except Exception as exc:  # noqa: BLE001 - 한 창의 실패가 앞 창의 성과를 지우지 않게
             session.rollback()

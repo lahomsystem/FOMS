@@ -257,7 +257,7 @@ def ingest_detail(
 def sync_naver_orders(
     session: Session, *, client: Any, start: datetime, end: datetime,
     dry_run: bool = False, now: Optional[datetime] = None,
-    notify_claims: bool = True,
+    notify_claims: bool = True, collect_all: bool = False,
 ) -> SyncResult:
     """한 구간을 수집한다(호출자가 commit 을 소유한다).
 
@@ -270,6 +270,13 @@ def sync_naver_orders(
         now: 테스트용 시각 주입.
         notify_claims: False 면 취소·반품 상태는 반영하되 **알림을 만들지 않는다**
             (과거 구간 소급 수집 — 지난 클레임으로 알림을 대량 발송하지 않기 위해).
+        collect_all: True 면 **상태로 거르지 않고** 변경 목록에 뜬 상품주문을 전부 후보로
+            삼는다. 과거 구간 소급 수집 전용이다 — 변경 피드의 ``productOrderStatus`` 는
+            이벤트 당시가 아니라 **현재 상태**라서(스테이징 실측 2026-09-01: 06-04~08-16
+            이벤트 1,300건 중 PAYED 0건), 오래된 주문은 이미 배송완료·구매확정으로 넘어가
+            결제완료 필터에 하나도 안 걸린다. 결과가 "긁었는데 0건"이라 조용히 실패한다.
+            ``lastChangedType`` 으로 이벤트 축을 좁히는 길도 있으나 그 enum 값이 공개
+            문서에 없어(지어내지 않는다) 상세 조회 결과를 정본으로 삼는다.
 
     Returns:
         :class:`SyncResult` 집계.
@@ -290,7 +297,7 @@ def sync_naver_orders(
     candidate_ids: list[str] = []
     seen: set[str] = set()
     for entry in changed:
-        if not is_collectible(entry):
+        if not collect_all and not is_collectible(entry):
             continue
         external_id = str((entry or {}).get("productOrderId") or "")
         if external_id and external_id not in seen:
