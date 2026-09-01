@@ -1338,3 +1338,40 @@ perf-gate 2차 red 는 TTFB 였다. 같은 경로를 여러 런에 걸쳐 분포
   `dashboard_cache.py` 인프라 재사용)이 남은 후보다. 바이트도 첫 페인트도 그대로 둔다.
 - 방법론 교훈: **"총 바이트가 같다"는 근거만으로 경로를 옮기면 안 된다.** 게이트는 경로별이고,
   첫 페인트 경로는 총량이 아니라 그 경로의 비용으로 평가받는다.
+
+---
+
+## P7 — 하트비트 S0 전수조사 (2026-09-01, 진행 중 · 1/3 도착)
+
+### S0-1 결론(일정·첨부): **엔진 intent 는 신호원으로 못 쓴다**
+
+`order_schedule_dates`·`order_attachments` 쓰기 **29경로 중 `execute_order_mutation` 경유는 2건**
+(`blueprint_projection.py:177` via `erp_orders_blueprint.py:218`, `as_upload_anchor.py:205` via
+`as_cycle_service.py:353`). 나머지 27경로는 신호가 없다.
+
+직접 확인한 것 2가지:
+- `OrderScheduleDate(` 생성자는 저장소 런타임 코드에 **정확히 1곳** — `order_date_sync.py:271`
+  (`grep` 전수 1/1). 그 경로는 **ORM `before_flush` 훅**이라 엔진 밖이다.
+- `upload_ticket.py:296` 은 `order.mutation_version` 을 손으로 +1 하지만
+  `upload_ticket_routes.py` 에는 무효화 호출이 **하나도 없다**(직접 grep 0건).
+
+또 하나 드러난 사실: **무효화 경로가 이미 두 갈래**다. 엔진 intent
+(`dashboard_cache.py:670`)와, 그와 무관한 `order_date_sync.py:543-562` 의 자체 `after_commit`
+(`invalidate_all_dashboard_slice_caches()`). 즉 "intent 하나가 SSOT" 라는 스펙 §4 의 전제가 틀렸다.
+
+### 스펙 수정 방향(§4 교체) — 신호원을 **세션 훅**으로
+
+저장소가 이미 답을 적어두고 있다: `order_date_sync.py:519-521` 주석 —
+"이 훅은 **모든 쓰기가 통과하는 유일 지점**이라 … 라우트/서비스별 emit 은 두지 않는다
+(경로가 늘어날 때마다 구멍이 생기고 중복 기록이 난다)."
+
+→ 버전 카운터는 `execute_order_mutation` 이 아니라 **전역 `before_flush`/`after_commit`
+세션 훅**에서 올린다. 그러면 라우트 수와 무관하게 ORM 을 통과하는 모든 쓰기가 덮인다.
+남는 구멍은 ORM 을 우회하는 것뿐이고, 그 수는 작다(직접 센 값: `.update({` **16곳**,
+`execute(text(` 중 UPDATE/DELETE/INSERT **4곳**, query-level `.delete()` **0곳**).
+그중 실제로 화면 데이터를 바꾸는 것(예: `restore_order_schedule_dates.py` 전역 삭제·재삽입,
+`delete_retention.py:412` CASCADE)은 **명시적으로 카운터를 올리도록** 목록화해야 한다.
+
+### 남은 조사
+
+`orders` 테이블 쓰기 전량 / `users`·`system_settings`·`order_assignments` 쓰기 — 조사 중.
