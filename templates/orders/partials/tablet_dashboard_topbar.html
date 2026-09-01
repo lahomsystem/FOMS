@@ -23,7 +23,7 @@
       {% include 'partials/shared/foms_density_toggle.html' %}
       {# 목업 01 pcbar 액션 = [밀도][지도 생성][주문 생성]. 지도는 기존 기능 라우트
          재사용(신규 API 없음): erp_map.map_view(주문 위치 지도 페이지).
-         엑셀 가져오기 버튼은 해당 기능 폐지로 제거됐다(내보내기는 유지). #}
+         엑셀 가져오기·내보내기 버튼은 해당 기능 폐지로 제거됐다. #}
       <a class="foms-tdash-pcbar__btn" href="{{ url_for('erp_map.map_view') }}">
         <i class="fas fa-map-marked-alt" aria-hidden="true"></i><span>지도 생성</span>
       </a>

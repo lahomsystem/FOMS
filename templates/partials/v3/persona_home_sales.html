@@ -79,7 +79,7 @@
   <div class="fos-hero" data-order-id="{{ _hero.id }}">
     <div class="fos-hero__top">
       <span class="fos-hero__label">
-        <i class="fas fa-location-dot" aria-hidden="true"></i> 다음 방문{% if _hero_time %} · <span class="foms-visit-countdown" data-foms-visit-time="{{ _hero_time }}">{{ _hero_time }} 방문</span>{% endif %}
+        <i class="fas fa-location-dot" aria-hidden="true"></i> 다음 방문{% if _hero_time %} · <span>{{ _hero_time }} 방문</span>{% endif %}
       </span>
       <span class="fos-tl-btn" role="button" data-fos-timeline data-order-id="{{ _hero.id }}" aria-label="주문 진행 타임라인 보기"><i class="fas fa-timeline" aria-hidden="true"></i></span>
     </div>
@@ -116,10 +116,6 @@
       </a>
     </div>
   </div>
-  {% endif %}
-
-  {% if _rows %}
-  <div class="foms-route-strip" data-foms-route-strip data-route-date="{{ selected_date or today_date }}" data-kakao-js-key="{{ kakao_js_key }}" hidden aria-label="오늘 동선 지도"></div>
   {% endif %}
 
   <div class="fos-sec">

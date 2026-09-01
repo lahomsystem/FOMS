@@ -863,7 +863,7 @@ def build_mobile_queue_order_row(db, order, current_user=None, *, batch_ctx=None
 
     return {
         "id": order.id,
-        # 오늘 동선 히어로/스트립용 파생(N+1 없음 — flat 컬럼 직접 읽기).
+        # 다음 실측 히어로용 파생(N+1 없음 — flat 컬럼 직접 읽기).
         "measurement_completed": bool(getattr(order, "measurement_completed", False)),
         "lat": getattr(order, "lat", None),
         "lng": getattr(order, "lng", None),

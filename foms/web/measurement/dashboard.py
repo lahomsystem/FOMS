@@ -7,14 +7,11 @@ from db import get_db
 from models import Order, OrderScheduleDate
 from foms.web.auth import login_required
 import datetime
-import json
 import logging
 from datetime import date, timedelta
 from sqlalchemy import String, cast, or_, and_, func
 
 from foms.services.common.erp_mine_filter import erp_mine_only_from_request
-from foms.services.common.geocode_config import KAKAO_JS_API_KEY
-from foms.services.measurement_route import build_inline_route_strip_payload
 from foms.services.measurement_time import (
     format_minutes_hm,
     measurement_time_minutes_of,
@@ -401,9 +398,9 @@ def erp_measurement_dashboard():
                 _row['manager_name'] = _mgr
             mobile_queue_rows.append(_row)
 
-    # '다음 방문' 히어로: 동선 스트립과 같은 정렬 SSOT(measurement_time_sort_key)로
-    # 첫 미완료 건을 고른다. 템플릿이 자유 텍스트를 사전순 비교하던 예전 방식은
-    # "10시" < "4시" 같은 오판을 내 스트립 풋 캡션과 다른 사람을 가리켰다(ROUTE-02).
+    # '다음 방문' 히어로: 방문시각 정렬 SSOT(measurement_time_sort_key)로 첫 미완료
+    # 건을 고른다. 템플릿이 자유 텍스트를 사전순 비교하던 예전 방식은 "10시" < "4시"
+    # 같은 오판을 내 실제 다음 방문지와 다른 사람을 가리켰다(ROUTE-02).
     mobile_hero_row = None
     mobile_hero_time_hm = None
     if mobile_queue_rows:
@@ -417,22 +414,6 @@ def erp_measurement_dashboard():
         )
         mobile_hero_row = _hero_pair[1]
         mobile_hero_time_hm = format_minutes_hm(measurement_time_minutes_of(_hero_pair[0]))
-
-    # 동선 스트립 서버 인라인: HTML 렌더 hot path 에서는 저장 좌표만 사용한다.
-    # 좌표 없는 주문의 주소 변환/외부 지오코딩은 API·백그라운드 계보가 담당한다.
-    # 스트립 마운트가 존재하는 조건(모바일 v2 코호트 + 오늘 큐 존재)에서만 계산.
-    route_strip_inline = None
-    if mobile_v2_active and mobile_queue_rows:
-        _inline_payload = build_inline_route_strip_payload(
-            db,
-            date_filter=(selected_date or today_date),
-            current_user=current_user,
-            mine_active=bool(mine_filter_active),
-        )
-        if _inline_payload:
-            route_strip_inline = json.dumps(
-                _inline_payload, ensure_ascii=False, separators=(",", ":")
-            )
 
     # 태블릿 가로 코호트 좌측 큐(W12): 스테이지 색배지 + 날짜버킷(오늘/주간/미확정) + 완료 dim.
     # 이미 로드된 rows만 재사용(신규 쿼리 0). split 표시 게이트(erp_mobile_v2_enabled +
@@ -505,8 +486,6 @@ def erp_measurement_dashboard():
             today_date=today_date,
             can_edit_erp=can_edit_erp(current_user),
             erp_mine_only=mine_filter_active,
-            kakao_js_key=KAKAO_JS_API_KEY,
-            route_strip_inline=route_strip_inline,
             bulk_dispatch=_naver_dispatch_preview(selected_date, today_date),
             naver_bulk_dispatch_enabled=is_naver_bulk_dispatch_enabled(),
         )

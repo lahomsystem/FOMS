@@ -1,12 +1,10 @@
 /*
  * FOMS 지도 보기(map_view) — 카카오 지도 JS SDK 클라이언트 렌더.
  * folium(서버 생성 HTML) 경로의 클라이언트 대체: /api/map_data points JSON으로
- * 마커 pill·팝업·동선(route=1) 오버레이를 그린다. SDK 로드 실패 시
+ * 마커 pill·팝업을 그린다. SDK 로드 실패 시
  * 호출부(map_view.html inline)가 기존 folium 경로로 자동 폴백한다.
  *
  * 색 SSOT:
- *  - 동선 순번 핀·연결선: foms-route-strip.css의 .foms-route-c0~c7 / --foms-route-line
- *    (동선 카드와 동일 팔레트 — map_view.html이 해당 CSS를 링크).
  *  - 상태색·중첩색: 서버 folium 정본(foms/services/common/map_generator.py의
  *    _get_status_color / OVERLAP_MARKER_COLOR)을 포팅. 변경 시 양쪽 동기 필수.
  *  - 실측 담당자색: 서버 페이로드(manager_bg_color 등)가 소유 — JS 하드코딩 없음.
@@ -34,7 +32,6 @@
   var NAME_MAX_LEN = 8;
   // 서버 정본 포팅: geocode_config.DEFAULT_CENTER (마커 0건일 때 중심)
   var DEFAULT_CENTER = { lat: 37.5665, lng: 126.9780 };
-  var ROUTE_LINE_FALLBACK = '#6366f1'; // --foms-route-line 미해석 시(콜드 CSS) 동일값 폴백
   // 줌 임계 그룹 접기/펼치기 — folium 파리티: duplicateMarkerZoomThreshold=14
   // (Leaflet, getZoom()>=14 = 펼침). 카카오 level은 작을수록 확대이고
   // level 3 ≈ Leaflet z16(≈100m 축척) 앵커 → Leaflet z14 ≈ 카카오 level 5.
@@ -52,9 +49,8 @@
   var state = {
     map: null,
     mapEl: null,
-    overlays: [],    // CustomOverlay + Polyline 정리 목록
+    overlays: [],    // CustomOverlay 정리 목록
     markerItems: [], // {overlay, pill, marker} — 줌 임계 그룹 레이아웃 대상
-    routeMode: false,
     popup: null,
     active: false,
     everRendered: false, // 세션 내 카카오 성공 렌더 이력 — folium 강등 금지 가드
@@ -242,28 +238,6 @@
     markers.forEach(function (m) {
       if (!m.__dupSize) { m.__dupSize = 1; m.__dupIndex = 1; }
     });
-  }
-
-  // ---------- 동선 정렬 (서버 _route_sort_key 포팅: 시간 오름차순→id) ----------
-  function routeSortKey(m) {
-    var t = String(m.measurement_time || '').trim();
-    return [t ? 0 : 1, t, Number(m.id) || 0];
-  }
-
-  function sortForRoute(markers) {
-    return markers.slice().sort(function (a, b) {
-      var ka = routeSortKey(a), kb = routeSortKey(b);
-      for (var i = 0; i < 3; i++) {
-        if (ka[i] < kb[i]) return -1;
-        if (ka[i] > kb[i]) return 1;
-      }
-      return 0;
-    });
-  }
-
-  function isRouteCompleted(status) {
-    var s = String(status || '').toUpperCase();
-    return s === 'COMPLETED' || s === 'AS_COMPLETED';
   }
 
   // ---------- 주문↔주문 경로 계산 (folium 파리티: 2건 선택 → 거리·시간·통행료) ----------
@@ -641,9 +615,8 @@
 
       if (!expanded) {
         items.forEach(function (item, position) {
-          var forceVisible = state.routeMode;
           var isRepresentative = position === 0;
-          if (isRepresentative || forceVisible) {
+          if (isRepresentative) {
             item.overlay.setZIndex(300 + items.length - position);
           } else {
             item.overlay.setMap(null);
@@ -720,7 +693,7 @@
   function applyScreenClusters() {
     resetScreenClusters();
     if (!state.map || !state.markerItems.length) return;
-    if (state.routeMode || isExpandedView()) return;
+    if (isExpandedView()) return;
     var projection;
     try { projection = state.map.getProjection(); } catch (e) { return; }
     if (!projection || typeof projection.containerPointFromCoords !== 'function') return;
@@ -816,24 +789,18 @@
 
   function buildPill(m, opts) {
     var theme = markerTheme(m);
-    var completedRoute = opts.routeMode && isRouteCompleted(m.status);
     var name = String(m.customer_name || '정보없음');
     var display = name.length > NAME_MAX_LEN ? name.slice(0, NAME_MAX_LEN) + '…' : name;
 
     var pill = document.createElement('div');
-    pill.className = 'foms-kmap-pill' + (completedRoute ? ' foms-kmap-pill--done' : '');
+    pill.className = 'foms-kmap-pill';
     // 색은 데이터 주도(담당자색=서버·상태색=STATUS_COLORS) — 동적 스타일 불가피.
-    pill.style.background = completedRoute ? '#adb5bd' : theme.bg;
-    pill.style.borderColor = completedRoute ? '#ffffff' : theme.border;
-    pill.style.color = completedRoute ? '#ffffff' : theme.text;
+    pill.style.background = theme.bg;
+    pill.style.borderColor = theme.border;
+    pill.style.color = theme.text;
     pill.title = name + (m.__dupSize > 1 ? ' · 중복 위치 x' + m.__dupSize : '') + ' · ' + String(m.status || '');
 
     var htmlParts = '';
-    if (opts.routeMode && m.__routeSeq) {
-      // 동선 카드와 동일 팔레트 SSOT(foms-route-strip.css .foms-route-pin/.foms-route-c*)
-      htmlParts += '<span class="foms-route-pin foms-route-c' + ((m.__routeSeq - 1) % 8) +
-        (completedRoute ? ' foms-route-pin--done' : '') + '">' + m.__routeSeq + '</span>';
-    }
     htmlParts += '<span class="foms-kmap-pill__name">' + escapeHtml(display) + '</span>';
     // AS 지도: 주말 가능 건 표식(필터 안 켜도 훑어보며 인지) — 데이터 있을 때만
     if (m.as_availability && m.as_availability.days === 'weekend') {
@@ -855,7 +822,7 @@
       var pos = new window.kakao.maps.LatLng(m.latitude, m.longitude);
       // 스크린 클러스터 대표: 주변 건 목록 팝업(펼치면 클러스터 bounds로 줌인).
       var cluster = findScreenCluster(m);
-      if (cluster && !state.routeMode) {
+      if (cluster) {
         openGroupPopup(cluster.markers, pos, {
           title: '주변 ' + cluster.markers.length + '건',
           fitBounds: true
@@ -863,8 +830,8 @@
         return;
       }
       var group = groupMarkersOf(m);
-      // 접힌 대표 마커: 그룹 내 주문 목록 팝업. 펼침/route 모드: 개별 팝업.
-      if (group.length > 1 && !isExpandedView() && !state.routeMode) {
+      // 접힌 대표 마커: 그룹 내 주문 목록 팝업. 펼침: 개별 팝업.
+      if (group.length > 1 && !isExpandedView()) {
         openGroupPopup(group, pos);
       } else {
         openPopup(m, pos);
@@ -877,21 +844,12 @@
     var maps = window.kakao.maps;
     clearOverlays();
 
-    var routeMarkers = markers;
-    if (opts.routeMode) {
-      routeMarkers = sortForRoute(markers);
-      routeMarkers.forEach(function (m, i) { m.__routeSeq = i + 1; });
-    }
-
-    annotateDuplicates(routeMarkers);
-    state.routeMode = !!opts.routeMode;
+    annotateDuplicates(markers);
 
     var bounds = new maps.LatLngBounds();
-    var routePath = [];
-    routeMarkers.forEach(function (m) {
+    markers.forEach(function (m) {
       var pos = new maps.LatLng(m.latitude, m.longitude);
       bounds.extend(pos);
-      if (opts.routeMode) routePath.push(pos);
       var pill = buildPill(m, opts);
       var overlay = new maps.CustomOverlay({
         map: state.map, position: pos, content: pill,
@@ -907,29 +865,14 @@
     // 경로 계산 선택 보존: 재렌더 후 대상 주문이 사라졌으면 해제, 남았으면 강조 재적용.
     if (state.routeCalc.start) {
       var liveIds = {};
-      routeMarkers.forEach(function (m) { liveIds[String(m.id)] = true; });
+      markers.forEach(function (m) { liveIds[String(m.id)] = true; });
       var startGone = !liveIds[String(state.routeCalc.start.id)];
       var endGone = state.routeCalc.end && !liveIds[String(state.routeCalc.end.id)];
       if (startGone || endGone) resetRouteCalc();
       else applyRouteCalcHighlight();
     }
 
-    // 동선 폴리라인(점선) — 색 SSOT: --foms-route-line (동선 카드와 공유).
-    if (opts.routeMode && routePath.length >= 2) {
-      var lineColor = '';
-      try {
-        lineColor = getComputedStyle(state.mapEl.parentNode)
-          .getPropertyValue('--foms-route-line').trim();
-      } catch (e) { /* 미지원 무해 */ }
-      var line = new maps.Polyline({
-        map: state.map, path: routePath, strokeWeight: 4,
-        strokeColor: lineColor || ROUTE_LINE_FALLBACK,
-        strokeOpacity: 0.85, strokeStyle: 'dash'
-      });
-      state.overlays.push(line);
-    }
-
-    return { bounds: bounds, count: routeMarkers.length };
+    return { bounds: bounds, count: markers.length };
   }
 
   // 컨테이너 크기 변화(초기 표시 전환·창 resize·모바일 회전) 시 relayout+재fit.
@@ -1026,7 +969,7 @@
     },
     /**
      * 최초/필터 변경 렌더. resolve(false)면 호출부가 folium 폴백.
-     * opts: { routeMode, onOpenDetail }
+     * opts: { onOpenDetail }
      */
     render: function (container, markers, opts) {
       return new Promise(function (resolve) {

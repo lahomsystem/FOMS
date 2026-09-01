@@ -53,7 +53,7 @@ PERSONA_ROUTE_MARKERS = [
 # the page-based wiring every route rendered the team title "콜·AS 큐" (defect A).
 PERSONA_APPBAR_TITLES = [
     ("/erp/dashboard", "콜·접수 큐"),
-    ("/erp/measurement", "오늘 동선"),
+    ("/erp/measurement", "오늘 실측"),
     ("/erp/drawing-workbench", "워크벤치"),
     ("/erp/production/dashboard", "생산 큐"),
     ("/erp/construction/dashboard", "오늘 시공"),
