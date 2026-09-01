@@ -211,6 +211,29 @@ def redirect_legacy_erp_order_detail(order_id):
     return redirect(url_for('order_edit.edit_order', order_id=order_id, **params))
 
 
+def _erp_sd_customer(order) -> dict:
+    """ERP 주문의 ``structured_data.parties.customer`` (없으면 빈 dict).
+
+    비ERP 주문은 sd 자체가 없으므로 늘 빈 dict 다 — 호출부가 flat 컬럼으로 떨어진다.
+
+    Args:
+        order: 주문 ORM 인스턴스.
+
+    Returns:
+        고객 dict. 모양이 어긋나면 빈 dict.
+    """
+    if not is_erp_order_record(order):
+        return {}
+    sd = getattr(order, 'structured_data', None)
+    if not isinstance(sd, dict):
+        return {}
+    parties = sd.get('parties')
+    if not isinstance(parties, dict):
+        return {}
+    customer = parties.get('customer')
+    return customer if isinstance(customer, dict) else {}
+
+
 @order_edit_bp.route('/edit/<int:order_id>', methods=['GET', 'POST'])
 @login_required
 @role_required(['ADMIN', 'MANAGER', 'STAFF'])
@@ -280,8 +303,18 @@ def edit_order(order_id):
             _o = order  # local ref for getattr defaults
             received_date = request.form.get('received_date', getattr(_o, 'received_date', None) or '')
             received_time = request.form.get('received_time', getattr(_o, 'received_time', None) or '')
-            customer_name = request.form.get('customer_name', getattr(_o, 'customer_name', None) or '')
-            phone = request.form.get('phone', getattr(_o, 'phone', None) or '')
+            # 폼이 그 칸을 안 보냈을 때의 기본값은 **정본(sd)** 이 먼저다. flat 컬럼을
+            # 기본값으로 쓰면, 어긋나 있는 주문(운영 130건)에서 부분 저장 한 번이 옛 값을
+            # 정본 쪽으로 되돌려 쓴다 — 화면에 보이지도 않은 값이 정본을 덮는 셈이다.
+            _sd_customer = _erp_sd_customer(_o)
+            customer_name = request.form.get(
+                'customer_name',
+                (_sd_customer.get('name') or '').strip() or (getattr(_o, 'customer_name', None) or ''),
+            )
+            phone = request.form.get(
+                'phone',
+                (_sd_customer.get('phone') or '').strip() or (getattr(_o, 'phone', None) or ''),
+            )
             address = request.form.get('address', getattr(_o, 'address', None) or '')
             product = request.form.get('product', getattr(_o, 'product', None) or '')
             notes = request.form.get('notes', getattr(_o, 'notes', None) or '')
@@ -430,6 +463,27 @@ def edit_order(order_id):
                     if getattr(order, 'status', None) not in ('AS_RECEIVED', 'AS_COMPLETED'):
                         construction = schedule.setdefault('construction', {})
                         construction['date'] = scheduled_date or ''
+                    # AUDIT-GAP-01(갈래 2, 2026-09-02): 고객명·전화도 sd 쌍둥이를 함께
+                    # 고친다. 위 _LEDGER_FLAT_PATHS 주석은 이 두 값이 "sd diff 로 이미
+                    # 원장에 실린다"고 적어 두었지만, 실제로는 이 폼이 sd ``parties`` 를
+                    # 건드리지 않아 **전화 변경이 원장에 아무 흔적도 남기지 않았다**.
+                    # 게다가 flat 만 새 값이 되어 정본(sd)과 어긋나고, 그 어긋남은 방향을
+                    # 알 수 없는 채로 쌓인다(운영 48건이 그 상태다 —
+                    # docs/incidents/2026-09-01-naver-triage-auto-match-miss.md 부록 A).
+                    parties = sd.setdefault('parties', {})
+                    if not isinstance(parties, dict):
+                        parties = {}
+                        sd['parties'] = parties
+                    customer_sd = parties.setdefault('customer', {})
+                    if not isinstance(customer_sd, dict):
+                        customer_sd = {}
+                        parties['customer'] = customer_sd
+                    # 빈 칸으로 정본을 지우지 않는다 — 값이 들어왔을 때만 고친다.
+                    if customer_name:
+                        customer_sd['name'] = customer_name
+                    if phone:
+                        customer_sd['phone'] = phone
+
                     flat_addr = (getattr(order, 'address', None) or '').strip()
                     site_address_jsonb_changed = apply_erp_order_site_address_to_sd(sd, flat_addr)
                     setattr(order, 'structured_data', copy.deepcopy(sd))
