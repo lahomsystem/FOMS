@@ -8,7 +8,9 @@
 여기서 못박는 것 셋:
 
 1. **전부 취소만** 유령이다(부분 취소는 정상 진행 중일 수 있다).
-2. **접수 단계에서만** 취소 처리 버튼이 열린다 — 실측 이후는 방문 기록·치수가 붙어 있다.
+2. **네이버가 취소를 확정한 건만** 접힌다 — 확정 전에 접으면 취소가 거부됐을 때 살아
+   있어야 할 주문이 휴지통에 있다. 단계는 더 이상 잠금 축이 아니고, 접수 이후 단계는
+   **관리자가 사유를 적어야** 접힌다(사용자 결정 2026-09-02).
 3. 취소 처리는 **soft delete** 다(휴지통 복구). hard delete 가 아니다.
 """
 import pytest
@@ -118,8 +120,13 @@ def test_returned_order_reads_as_return_not_cancel(app):
     assert row["claim_kind"] == "반품"
 
 
-def test_measure_stage_locks_the_discard_button(app):
-    """실측 이후 단계는 취소 처리가 잠긴다 — 방문 기록·치수가 붙어 있다."""
+def test_measure_stage_opens_the_button_but_demands_a_reason(app):
+    """실측 이후 단계도 접힌다 — 단 사유를 적어야 한다 (사용자 결정 2026-09-02).
+
+    예전에는 접수 단계만 열어 뒀는데, 그러면 결제가 확정 취소된 죽은 주문이 실측·도면
+    대시보드에 영원히 남는다. 휴지통은 복구되므로 잃는 것은 없고, 남겨야 할 것은
+    **왜 접었나**다.
+    """
     order = _order(status="MEASURE", tel="010-7000-0004")
     _link(order_no="N-GH-4", amount=579_200, claim="CANCEL_DONE", order_id=int(order.id),
           tel="010-7000-0004")
@@ -127,8 +134,38 @@ def test_measure_stage_locks_the_discard_button(app):
     row = next(row for row in find_ghost_orders(db_session)["rows"]
                if row["order_id"] == int(order.id))
 
+    assert row["can_discard"] is True
+    assert row["discard_needs_reason"] is True
+    assert row["discard_block"] == ""
+
+
+def test_received_stage_needs_no_reason(app):
+    """접수 단계는 그대로다 — 붙은 이력이 없어 사유를 묻지 않는다(음성 대조군)."""
+    order = _order(tel="010-7000-0014")
+    _link(order_no="N-GH-14", amount=100_000, claim="CANCEL_DONE", order_id=int(order.id),
+          tel="010-7000-0014")
+
+    row = next(row for row in find_ghost_orders(db_session)["rows"]
+               if row["order_id"] == int(order.id))
+
+    assert row["can_discard"] is True
+    assert row["discard_needs_reason"] is False
+
+
+def test_unconfirmed_cancel_still_locks_every_stage(app):
+    """확정 전 취소는 단계와 무관하게 잠긴다 — 이 조건은 돈의 문제라 안 바뀐다.
+
+    취소가 거부되면 살아 있어야 할 주문이 휴지통에 있게 된다.
+    """
+    order = _order(status="MEASURE", tel="010-7000-0015")
+    _link(order_no="N-GH-15", amount=100_000, claim="CANCEL_REQUEST", order_id=int(order.id),
+          tel="010-7000-0015")
+
+    row = next(row for row in find_ghost_orders(db_session)["rows"]
+               if row["order_id"] == int(order.id))
+
     assert row["can_discard"] is False
-    assert "MEASURE" in row["discard_block"]
+    assert "확정" in row["discard_block"]
 
 
 def test_discard_soft_deletes_and_keeps_the_row(app, client, workbench_on):
@@ -149,8 +186,11 @@ def test_discard_soft_deletes_and_keeps_the_row(app, client, workbench_on):
     assert refreshed.deleted_at, "deleted_at 이 안 찍혔다"
 
 
-def test_discard_refuses_a_measured_order(app, client, workbench_on):
-    """잠긴 갈래는 서버도 거절한다 — 화면만 막으면 주소를 아는 사람이 그대로 지운다."""
+def test_discard_refuses_a_measured_order_without_a_reason(app, client, workbench_on):
+    """사유 없이 접수 이후 단계를 접으려 하면 서버가 거절한다.
+
+    화면만 막으면 주소를 아는 사람이 그대로 지운다 — 서버가 같은 조건을 든다.
+    """
     _login(client)
     order = _order(status="MEASURE", tel="010-7000-0006")
     order_id = int(order.id)
@@ -162,6 +202,46 @@ def test_discard_refuses_a_measured_order(app, client, workbench_on):
     assert response.status_code == 400
     db_session.expire_all()
     assert not db_session.get(Order, order_id).deleted_at
+
+
+def test_discard_refuses_a_measured_order_from_a_manager(app, client, workbench_on):
+    """접수 이후 단계는 **관리자만** 접는다 — 사유를 적어도 MANAGER 는 못 접는다."""
+    _login(client, role="MANAGER")
+    order = _order(status="DRAWING", tel="010-7000-0016")
+    order_id = int(order.id)
+    _link(order_no="N-GH-16", amount=100_000, claim="CANCEL_DONE", order_id=order_id,
+          tel="010-7000-0016")
+
+    response = client.post(f"/admin/naver-ingest/ghost/{order_id}/discard",
+                           json={"reason": "고객이 재주문 안 함"})
+
+    assert response.status_code == 403
+    db_session.expire_all()
+    assert not db_session.get(Order, order_id).deleted_at
+
+
+def test_discard_accepts_a_measured_order_with_a_reason(app, client, workbench_on):
+    """관리자가 사유를 적으면 접수 이후 단계도 접힌다 — 사유는 감사 원장에 원문으로 남는다."""
+    from models import SecurityLog
+
+    _login(client)
+    order = _order(status="MEASURE", tel="010-7000-0017")
+    order_id = int(order.id)
+    _link(order_no="N-GH-17", amount=100_000, claim="CANCEL_DONE", order_id=order_id,
+          tel="010-7000-0017")
+
+    response = client.post(f"/admin/naver-ingest/ghost/{order_id}/discard",
+                           json={"reason": "실측만 하고 결제 취소 — 재결제 계획 없음"})
+
+    assert response.status_code == 200
+    db_session.expire_all()
+    assert db_session.get(Order, order_id).deleted_at, "사유를 적었는데 안 접혔다"
+    logged = [row for row in db_session.query(SecurityLog).all()
+              if (row.action or "") == "NAVER_INGEST_GHOST_DISCARD"]
+    assert logged, "감사 기록이 없다"
+    detail = str(logged[-1].detail or "")
+    assert "실측만 하고 결제 취소" in detail, "사유 원문이 원장에 없다"
+    assert "MEASURE" in detail, "어느 단계를 접었는지가 원장에 없다"
 
 
 def test_discard_refuses_an_order_that_is_not_a_ghost(app, client, workbench_on):
@@ -208,4 +288,7 @@ def test_band_renders_with_count_and_buttons(app, client, workbench_on):
     assert "네이버 결제가 전부 취소된 주문" in body
     assert f'data-ghost-order-id="{open_id}"' in body
     assert f'data-order-id="{open_id}"' in body, "접수 단계인데 버튼이 없다"
-    assert f'data-order-id="{locked_id}"' not in body, "실측 단계인데 버튼이 떴다"
+    # 실측 단계도 버튼은 뜬다 — 대신 사유 표식이 붙는다(2026-09-02).
+    assert f'data-order-id="{locked_id}"' in body, "실측 단계인데 버튼이 없다"
+    assert 'data-needs-reason="1"' in body, "사유 표식이 없다 — JS 가 확인창만 띄운다"
+    assert "관리자가 사유를 적어야 접힙니다" in body
