@@ -111,3 +111,107 @@ def query_variants(query: str) -> list[str]:
     add(re.sub(r"\s+", "", stripped))
 
     return variants
+
+
+#: 시/도 접두 — 긴 표기부터 본다(``서울특별시`` 를 ``서울`` 로 먼저 자르면 ``특별시`` 가 남는다).
+#: 사람이 ERP 에 입력한 주소는 시/도를 통째로 생략하는 일이 흔하고(운영 180일 주문 2289건 중
+#: 646건), 네이버는 ``baseAddress`` 에 늘 공식 전체 표기를 준다. 두 계보를 견주려면
+#: 이 층을 양쪽에서 걷어내야 한다.
+_SIDO_PREFIXES: tuple[str, ...] = (
+    "서울특별시", "서울시", "서울",
+    "부산광역시", "부산시", "부산",
+    "대구광역시", "대구시", "대구",
+    "인천광역시", "인천시", "인천",
+    "광주광역시", "광주시", "광주",
+    "대전광역시", "대전시", "대전",
+    "울산광역시", "울산시", "울산",
+    "세종특별자치시", "세종시", "세종",
+    "경기도", "경기",
+    "강원특별자치도", "강원도", "강원",
+    "충청북도", "충북", "충청남도", "충남",
+    "전북특별자치도", "전라북도", "전북", "전라남도", "전남",
+    "경상북도", "경북", "경상남도", "경남",
+    "제주특별자치도", "제주도", "제주",
+)
+
+#: 공백 없이 붙여 쓴 주소에서도 잘라도 되는 **공식 전체 표기** 꼬리. ``서울시`` 는 여기
+#: 없다 — ``서울시청로`` 처럼 낱말 한가운데를 자를 수 있어 공백이 있을 때만 자른다.
+_SIDO_FULL_SUFFIXES: tuple[str, ...] = ("특별시", "광역시", "특별자치시", "특별자치도", "도")
+
+#: 괄호부(``(석관동, 두산아파트)``) — 네이버 도로명 주소가 법정동·건물명을 여기에 담는다.
+#: 안에 쉼표가 들어 있어 ``strip_detail`` 의 쉼표 절단보다 **먼저** 걷어내야 한다.
+_PAREN_RE = re.compile(r"\([^)]*\)")
+
+#: 닫히지 않은 괄호 꼬리(수집 원문이 잘려 온 경우).
+_OPEN_PAREN_TAIL_RE = re.compile(r"\(.*$")
+
+#: 매칭 키에 남길 문자 — 한글·영숫자만. 공백·쉼표·하이픈 표기 차이를 흡수한다.
+_KEY_NOISE_RE = re.compile(r"[^0-9A-Za-z가-힣]")
+
+#: 매칭 키 최소 길이. 이보다 짧으면 ``성북구`` 같은 행정구역 한 층이라 사람을 특정하지 못한다.
+MATCH_KEY_MIN_LEN = 6
+
+
+def strip_sido(address: str) -> str:
+    """주소 앞의 시/도 표기를 걷어낸다(없으면 입력 그대로).
+
+    :param address: 주소 문자열.
+    :return: 시/도 접두가 제거된 문자열.
+
+    >>> strip_sido("서울특별시 성북구 화랑로48길 16")
+    '성북구 화랑로48길 16'
+    >>> strip_sido("성북구 화랑로48길 16")
+    '성북구 화랑로48길 16'
+    """
+    text = (address or "").strip()
+    for sido in _SIDO_PREFIXES:
+        if not text.startswith(sido):
+            continue
+        tail = text[len(sido):]
+        # 공백이 뒤따르면 확실한 시/도 층이다. 공백이 없으면 ``서울시청로`` 처럼 낱말
+        # 한가운데를 자를 수 있으므로, 접두가 **공식 전체 표기**(``서울특별시``·``경기도``)
+        # 일 때만 붙여쓴 주소로 보고 자른다.
+        if tail[:1].isspace():
+            return tail.lstrip()
+        if tail and sido.endswith(_SIDO_FULL_SUFFIXES):
+            return tail
+    return text
+
+
+def match_key(address: str) -> str:
+    """두 계보의 주소를 견줄 수 있게 **매칭 키** 하나로 접는다 (NAVER-MATCH-01).
+
+    네이버가 주는 공식 전체 주소(``서울특별시 성북구 화랑로48길 16 (석관동, 두산아파트)
+    110동 2403호``)와 사람이 ERP 에 친 축약형(``성북구 화랑로48길 16, 두산아파트 110동
+    2403호``)은 **같은 집인데 글자가 다르다**. 앞부분 몇 글자를 그대로 견주면
+    (구 구현: 앞 10자 ``startswith``) 시/도 한 층 차이로 통째로 어긋난다 — 운영 링크
+    243건 대조에서 수령인명이 정확히 맞는 224건 중 119건만 통과했다.
+
+    접는 순서: 괄호부 제거 → 시/도 제거 → :func:`strip_detail`(쉼표 뒤·도로명+건물번호
+    ·동호수) → 한글/영숫자만 남기기.
+
+    :param address: 주소 문자열(네이버 원문이든 ERP 입력이든).
+    :return: 매칭 키. 키가 :data:`MATCH_KEY_MIN_LEN` 미만이거나 숫자(건물번호·지번)가
+        없으면 **빈 문자열** — 행정구역 한 층만 남은 키로 견주면 남남이 같은 집이 된다.
+
+    >>> match_key("서울특별시 성북구 화랑로48길 16 (석관동, 두산아파트) 110동 2403호")
+    '성북구화랑로48길16'
+    >>> match_key("성북구 화랑로48길 16, 두산아파트 110동 2403호")
+    '성북구화랑로48길16'
+    >>> match_key("서울 성북구")
+    ''
+    """
+    text = (address or "").strip()
+    if not text:
+        return ""
+    text = _PAREN_RE.sub(" ", text)
+    text = _OPEN_PAREN_TAIL_RE.sub(" ", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    text = strip_sido(text)
+    text = strip_detail(text)
+    key = _KEY_NOISE_RE.sub("", text)
+    if len(key) < MATCH_KEY_MIN_LEN:
+        return ""
+    if not any(ch.isdigit() for ch in key):
+        return ""
+    return key
