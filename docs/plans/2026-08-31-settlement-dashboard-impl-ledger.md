@@ -1546,3 +1546,64 @@ sidefx outbox·system_build_steps)이고 allowlist 에 사유와 함께 등재�
 우회 쓰기 신호 누락 0(S1-3). **아직 안 정한 것**: 스펙 §5-5 의 Flask-Compress ETag 접미사
 (`"abc:br"`) 대조 규칙 — 렌더 전 304 를 내면 압축 경로 재평가가 개입하지 않으므로 S2 착수
 전에 먼저 정해야 한다.
+
+---
+
+## P9 — 하트비트 S2a 구현 (2026-09-01, 그림자 모드 · 동작 변경 0)
+
+신설: `foms/services/common/fragment_revalidation.py`, `tests/domains/test_fragment_revalidation.py`(19 케이스).
+배선: `/erp/history/` 한 곳(`foms/web/orders/history.py::_observe_fragment_version`).
+플래그: `FOMS_FRAGMENT_SHADOW_REVALIDATION_ENABLED`(기본 off, **스테이징 전용**).
+
+### S2a-1 선결과제 (a) — Flask-Compress 접미사 대조 규칙 확정
+
+`flask_compress.py:229-237` 이 `status_code >= 300` 이면 **압축도 ETag 재작성도 하지 않고
+조기 반환**한다. 재작성은 `:263-268`, 조건부 재평가는 `:270-276`.
+
+→ **304 에는 `:br` 이 안 붙는다.** 규칙 = 받은 검증자에서 `:<algo>` 를 벗기고 비교
+(`strip_content_encoding_suffix`). 모르는 접미사는 안 벗긴다(키에 콜론이 들어가도 안전).
+S2a 는 이 함수를 아직 쓰지 않지만 규칙을 계약 테스트로 먼저 고정했다.
+
+### S2a-2 선결과제 (b) — 키 축은 소스 독해로 안 닫힌다
+
+`/erp/history/` 프래그먼트는 전역 컨텍스트 프로세서를 그대로 받는다:
+`inject_foms_flags`(코호트 플래그 12종 + shell_variant)·`inject_foms_nav_badges`(주문 건수).
+템플릿이 그중 무엇을 실제로 쓰는지 읽어서 세는 것은 검증이 아니다.
+
+→ 대응 2가지:
+- **코호트는 골라내지 않고 통째로 넣는다** (`_cohort_material` = `inject_foms_flags()` 전량).
+  과다 포함의 대가는 재렌더 한 번, 과소 포함의 대가는 조용히 낡은 화면이다.
+- **모르는 요청 인자가 오면 키를 포기한다**(`None`). 새 필터가 `allowed_args` 에 없으면
+  그 필터를 바꿔도 같은 키가 나온다 — 그럴 바엔 단축을 안 한다.
+
+### S2a-3 그림자 관측이 하는 일
+
+키를 만들고 렌더는 **지금 그대로** 한 뒤, Redis 에 `키 → sha256(본문)[:16]` 을 1시간 TTL 로
+적어둔다. 다음에 같은 키가 오면 그때 본문 해시와 대조해 `new` / `match` / `MISMATCH` 를
+진단 헤더 `X-FOMS-FRAGVER` 로 노출하고, MISMATCH 면 경고 로그 + `foms:fragver:v1:mismatch`
+카운터를 올린다. **응답 본문·상태코드·ETag 는 전부 불변**(계약 테스트가 고정).
+
+MISMATCH = "키에 빠진 축이 있다"는 증거다. 계약 테스트가 그 상황을 실제로 만든다
+(카운터를 고정한 채 새 주문을 넣어 본문만 바꾸면 MISMATCH 가 뜬다) — 렌더 전 304 였다면
+**낡은 본문이 나갔을** 상황이다.
+
+키 재료: 라우트 · 정규화 인자 · uid/role/team/mine · 코호트 전량 · KST 오늘 ·
+4개 테이블 카운터(orders·order_attachments·order_schedule_dates·users).
+`get_table_versions` 가 `None`(Redis 없음)이면 키도 `None` → 지금 동작 그대로(fail-safe).
+
+### S2a-4 검증
+
+| 항목 | 결과 |
+|---|---|
+| `tests/domains/test_fragment_revalidation.py` | 19 passed |
+| 전체 스위트 | 7888 passed, 585 skipped |
+| `pre_push_smoke` | exit 0 |
+| 기존 조건부 계약(`test_erp_shell_fragment_conditional.py`) | 그대로 통과(ETag 경로 무변경) |
+
+부수: fail-open 3건 추가(전부 `has_logging: true`) → `foms_failopen_inventory.json` 재생성.
+
+### S2a 남은 일 — **스테이징 관측**
+
+`FOMS_FRAGMENT_SHADOW_REVALIDATION_ENABLED=1` 을 스테이징 web 에만 켜고 하루 둔다.
+판정: `foms:fragver:v1:mismatch` 카운터 **0**. 0 이 아니면 로그의 route/key 로 빠진 축을
+찾아 키에 추가한다. 0 이 확인된 뒤에만 S2b(렌더 전 304)를 승인받아 착수한다.
