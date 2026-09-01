@@ -10,7 +10,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
-- [2026-09-01] **네이버 반품 거부(T8-S3) 운영 반영(PR #229 · `7976fb2c`, 게이트 OFF)** — 규격은 공개 문서 `apicenter.commerce.naver.com/llms/`(로그인 불필요, **네이버 규격은 여기부터**)로 확정: body 는 `rejectReturnReason` 하나. `COLLECTING` 편입. 본체가 운영에 없어 체인 8개 통째. **잔여=게이트 ON+재배포.** 원장 T4
+- [2026-09-01] **네이버 반품 거부(T8-S3) 운영 ON**(PR #229 · `7976fb2c` · web 재배포 `09aeca29`) — 규격은 공개 문서 `apicenter.commerce.naver.com/llms/`(**네이버 규격은 여기부터**): body 는 `rejectReturnReason` 하나. **게이트는 web 전용**(WORKER 재배포 금지 — 큐 정지). **잔여=상용구 문장 확정.** 원장 T4
 - [2026-09-01] **네이버 T1·T2·T3 운영 승격(PR #213 · `c462bdb9`)** — 반품 승인(기본 꺼짐·환불 확정)·후보 0건 주문 찾아서 붙이기·조작 뒤 자동 다시읽기. 함정: `promote_completeness` incomplete 30건 중 23건은 **이미 운영에 있었다**(옛 cherry-pick patch-id 차이) — 소스 grep 확인 후 5건만
 - [2026-09-01] **엑셀 내보내기·동선 전면 삭제 deploy(`8f0f2a1d`, 커밋 2개)** — 엑셀: `download_excel`·수납장 `export_excel`·pandas/openpyxl. 동선: `/api/erp/measurement/route`·`route-eta`·`measurement_route.py`·`foms-route-strip.js`·지도 오버레이·"동선 지도" 링크 2곳. ROUTE-01 패킷 123→122(하드코딩 **5곳**), `?v=` 핀 5곳 범프. 보존: `/api/calculate_route`·`measurement_time.py`·핀 지도·히어로. **운영 반영 완료(PR #223 · `68f1100d`)** — perf-gate 막힘의 정체는 회귀가 아니라 예산 파일 계보(측정=스테이징 vs 기준=PR 브랜치)였고, 정산 세션의 completion 예산 재시드 한 항목만 반입해 검사 4종 통과. 원장 §18
 - [2026-09-01] **네이버 일괄 발송처리 결과 UI·안 붙은 수집분 운영 반영(PR #219·#227)** — 띠가 **완료/일부/실패/대기 4상태**, 버튼 직후 폴링, 실패 줄마다 재시도, **안 붙은 수집분을 전화·수령인명으로 짚는다**. **잔여=운영 자산 핀 범프·실브라우저 확인·미연결 21묶음 붙이기**. 원장 `2026-08-31-naver-bulk-dispatch-result-ui-ledger.md`

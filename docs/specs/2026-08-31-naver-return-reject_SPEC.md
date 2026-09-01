@@ -228,16 +228,28 @@ T3 규율 그대로 — 성공·실패와 무관하게 그 집을 다시 읽는�
 | 화면 | pane 버튼 + 모달(4종 세트 + 자유 입력 + 상용구 채우기 + 보낼 문장 되읽기) | 완료 |
 | 계약 테스트 | `tests/services/integrations/test_naver_return_reject.py` **37종**(선로 요청·사유코드 부재·상태 집합 3종 추가) | 완료 |
 
-## 6-2. 켜는 순서 — 남은 것은 ③④뿐
+## 6-2. 켠 기록 (2026-09-01) — **운영 ON**
 
-① ~~§2 표를 문서 원문으로 채운다~~ **완료 2026-09-01**
-② ~~`reject_return_product_order` 의 요청 한 줄~~ **완료 2026-09-01**
-③ Railway 스테이징 web·worker 에 `FOMS_NAVER_RETURN_REJECT_ENABLED=1` — **변수만 넣으면
-   실행 중 프로세스는 옛 env 를 든다. 재배포(새 부팅) 뒤에야 켜진 것이다.**
-   worker 는 1 대라 재배포가 큐를 전면 정지시킨다 —
-   `python tools/ops/check_worker_redeploy_safe.py`(0 안전) 먼저.
-④ 관리자가 화면에서 상용구 문장을 확정한다(코드 5종은 그때까지의 기본값일 뿐이다).
-⑤ 운영 승격은 별건 — 사용자 명시 요청이 있을 때만.
+① ~~§2 표를 문서 원문으로 채운다~~ **완료**
+② ~~`reject_return_product_order` 의 요청 한 줄~~ **완료**
+③ ~~운영 승격~~ **완료** — PR #229, production `7976fb2c`
+④ ~~게이트~~ **완료** — 운영 `web` 에 `FOMS_NAVER_RETURN_REJECT_ENABLED=1` + 재배포
+   `09aeca29`(02:41:59Z, 변수 등록 이후 부팅). healthz commit `7976fb2c`.
+⑤ **남음**: 관리자가 화면에서 상용구 문장을 확정한다(코드 5종은 아직 기본값이다).
+
+### 게이트는 **web 전용이다** — worker 를 재배포하지 마라
+
+`is_naver_return_reject_enabled()` 를 읽는 곳은 `foms/web/admin/naver_ingest.py` **두 곳뿐**
+(pane 재진술 · 라우트 가드)이다. 워커의 `run_naver_fulfillment_task` 는 게이트를 보지 않고
+`fulfillment.reject_return` 을 바로 부른다 — 큐에 들어온 일은 이미 라우트가 게이트를 통과시킨
+것이라서다.
+
+**그래서 `WORKER` 에는 변수를 넣지도, 재배포하지도 않았다.** worker 는 1 대라 재배포가 큐를
+전면 정지시킨다(2026-08-31 실사례: 실사용자 요청 14분 지연). 얻는 것 없이 그 값을 치르지 않는다.
+이 설계서의 이전 판이 "web·worker" 라고 적었던 것은 **확인 없이 쓴 것이고, 소스로 반증됐다.**
+
+**변수만 넣으면 안 켜진다** — 실행 중 프로세스는 옛 env 를 든다. 재배포한 컨테이너의 부팅
+시각이 변수 등록보다 뒤라는 것을 확인한 뒤에만 "켜졌다"고 말한다.
 
 **규격이 채워지며 같이 정리된 것**: `RETURN_REJECTABLE_STATUSES` 에 `COLLECTING` 추가
 (§2-1) · `RETURN_REJECT_REASON_MAX` 는 500 유지(문서에 상한이 **없음**을 확인, §2 #3).

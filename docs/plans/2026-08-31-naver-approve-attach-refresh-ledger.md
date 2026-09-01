@@ -25,7 +25,7 @@
 | T1b | 승인 배선 — 큐·태스크·라우트 payload `approve` + 감사 라벨 분리 | 라우트가 `approve` 전달 · 문자열 `"false"` 방어 · `NAVER_INGEST_RETURN_APPROVE_ENQUEUE` 등재 | **DONE** |
 | T1c | 승인 화면 — 체크박스(기본 꺼짐)·빨간 띠 한 줄·중간 상태 띠·자산 핀 범프 | 모달 문구 계약 갱신 · `?v=` 핀 2곳 + 계약 2곳 함께 범프 | **DONE** |
 | T2 | 후보 0건일 때 주문 찾아서 붙이기 (검색 → 붙이기) | 검색 라우트 계약 · 후보 0건 화면에 진입점 노출 · 붙인 뒤 기존 흐름과 동일 | **DONE** |
-| T4 | 반품 **거부** (T8-S3) — 규격 확보 후 완성 | 선로 요청이 문서 그대로(`rejectReturnReason` 단일 필드) · 계약 37종 · `COLLECTING` 편입 + `COLLECT_DONE` 대조군 | **DONE — 운영 반영(PR #229 · `7976fb2c`), 게이트 OFF** |
+| T4 | 반품 **거부** (T8-S3) — 규격 확보 후 완성 | 선로 요청이 문서 그대로(`rejectReturnReason` 단일 필드) · 계약 37종 · `COLLECTING` 편입 + `COLLECT_DONE` 대조군 | **DONE — 운영 반영(PR #229 · `7976fb2c`) + 게이트 ON** |
 
 ### T4 규격 해소 (2026-09-01) — **막힌 곳이 열렸다**
 
@@ -80,9 +80,25 @@ incomplete 85건을 냈지만 대부분 `AI_STATUS`·failopen 인벤토리 공�
 진짜 의존은 **운영 소스 grep**(`reject_return_product_order`·`RETURN_REJECTABLE_STATUSES`·
 `reject_templates.py` 부재)으로 판정했다.
 
-**남은 것은 게이트뿐.** 설계서 §6-2 순서: Railway 변수 `FOMS_NAVER_RETURN_REJECT_ENABLED=1`
-→ **재배포해야 실행 중 프로세스가 든다**(변수만 넣으면 옛 env) → worker 1 대라 재배포 전
-`tools/ops/check_worker_redeploy_safe.py` → 관리자가 화면에서 상용구 문장 확정.
+### T4 게이트 ON (2026-09-01, 운영 web `09aeca29`)
+
+`FOMS_NAVER_RETURN_REJECT_ENABLED=1` 을 운영 **`web` 에만** 넣고 재배포했다. 재배포
+`09aeca29`(reason=redeploy, 02:41:59Z)가 변수 등록보다 **뒤에** 부팅했고 healthz 가
+`7976fb2c` 를 서빙한다 — 변수만 넣고 "켜졌다"고 말하지 않는다는 규율 그대로다.
+
+**`WORKER` 는 건드리지 않았다.** 소스로 확인했다: `is_naver_return_reject_enabled()` 를 읽는
+곳은 `foms/web/admin/naver_ingest.py` 두 곳(pane 재진술·라우트 가드)뿐이고, 워커의
+`run_naver_fulfillment_task` 는 게이트를 보지 않고 `fulfillment.reject_return` 을 바로 부른다.
+설계서 이전 판이 "web·worker" 라고 적었던 것은 확인 없이 쓴 것이고 소스로 반증됐다 —
+그대로 따랐으면 **얻는 것 없이 큐를 전면 정지**시킬 뻔했다(worker 1대, 08-31 실사례 14분 지연).
+
+확인하지 **못한** 것: 화면에 버튼이 실제로 뜨는지는 눈으로 못 봤다. pane 은 로그인이 필요하고
+운영 측정 계정은 기본 잠금(요청 1건당 1회)이다. 배포 인과와 healthz 까지가 이 세션의 근거다.
+
+**남은 것은 상용구 문장 확정뿐** — 코드 5종은 기본값이고 **법률 검토를 거친 문안이 아니다**.
+주문제작품 청약철회 제한은 조건이 걸리는 영역이라 관리자가 화면에서 확정해야 한다.
+
+**남은 것은 상용구 문장 확정뿐**(게이트는 위에서 켰다).
 
 ## T4 반품 거부 — 만든 것 (2026-08-31 ~ 09-01, deploy `2b83b41d`·`5ad8485b`)
 
