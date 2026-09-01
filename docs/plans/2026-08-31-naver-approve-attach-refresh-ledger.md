@@ -25,6 +25,37 @@
 | T1b | 승인 배선 — 큐·태스크·라우트 payload `approve` + 감사 라벨 분리 | 라우트가 `approve` 전달 · 문자열 `"false"` 방어 · `NAVER_INGEST_RETURN_APPROVE_ENQUEUE` 등재 | **DONE** |
 | T1c | 승인 화면 — 체크박스(기본 꺼짐)·빨간 띠 한 줄·중간 상태 띠·자산 핀 범프 | 모달 문구 계약 갱신 · `?v=` 핀 2곳 + 계약 2곳 함께 범프 | **DONE** |
 | T2 | 후보 0건일 때 주문 찾아서 붙이기 (검색 → 붙이기) | 검색 라우트 계약 · 후보 0건 화면에 진입점 노출 · 붙인 뒤 기존 흐름과 동일 | **DONE** |
+| T4 | 반품 **거부** (T8-S3) — 규격 한 줄 빼고 전부 | 게이트 OFF 로 화면·라우트 닫힘 · 계약 30종 · 상용구 전역 저장(ADMIN) | **BLOCKED — 규격 대기** |
+
+### T4 재개 지점 (다음 세션이 읽을 것)
+
+- 설계서 `docs/specs/2026-08-31-naver-return-reject_SPEC.md` — §2 표의 **#2~#7 이 비어 있다**
+  (body 필드·글자수·노출 위치·응답 형태·거부 뒤 `claimStatus`·되돌리기 유무).
+  #1(경로·권한 스코프)은 2026-09-01 확인됨.
+- **막힌 것은 딱 한 곳**: `client.reject_return_product_order` 가 인자 검사 뒤
+  `NotImplementedError` 를 던진다. 문서가 오면 그 함수의 요청 한 줄만 채운다.
+- 그 다음 순서: `RETURN_REJECTABLE_STATUSES` 넓힐지 판단 → `RETURN_REJECT_REASON_MAX`
+  (지금 우리 상한 500) 조정 → 계약 테스트 갱신 → Railway
+  `FOMS_NAVER_RETURN_REJECT_ENABLED=1` → 관리자가 화면에서 상용구 문장 확정.
+- **사용자가 apicenter 상세 화면을 붙여 주기로 했다**(2026-09-01). 스스로 열 수 없다
+  (로그인·JS). 공개 자료에도 body 규격이 없다 — 검색 2회로 확인.
+
+## T4 반품 거부 — 만든 것 (2026-08-31 ~ 09-01, deploy `2b83b41d`·`5ad8485b`)
+
+접수·승인과 **대상이 다르다**: 접수는 우리가 반품을 내는 것, 거부는 **고객이 낸 요청**을
+되돌려보내는 것. 그래서 접수 모달의 체크박스가 아니라 별도 라우트·별도 모달이다.
+
+- 서비스 `fulfillment.reject_return`·`is_return_rejectable`(요청 걸린 행만 · 보류 건 제외 ·
+  멱등 · 보낸 문장 원문 기록) · 큐/워커 `return-reject` + 자동 다시읽기 편입.
+- 라우트 `POST .../return-reject` — **ADMIN·MANAGER**(접수·승인보다 좁다). 빈 문장은
+  화면·라우트·서비스 3겹 차단. 주문 이력에 `NAVER_RETURN_REJECTED` + 보낸 문장.
+- 상용구: **회사 전체 공유 · ADMIN 만 편집**(`SystemSetting` 키 하나, 새 표 없음).
+  저장 전에는 코드 기본 5종. 목록 통째 덮어쓰기 + `version` 낙관적 잠금(409).
+  저장 상한 = 보낼 때 상한.
+- 계약: manifest 2 × 라우트 2 · audit coverage · 감사 라벨 2종 · 주문 이벤트 라벨 ·
+  자산 핀 `20260901a`. 테스트 `test_naver_return_reject.py` **30종**.
+- **게이트 `FOMS_NAVER_RETURN_REJECT_ENABLED` 기본 꺼짐** — 규격이 안 채워져서다.
+  눌러도 안 나가는 버튼을 보여 주면 담당자는 처리됐다고 믿는다.
 
 ## 배포 상태 (2026-08-31)
 
