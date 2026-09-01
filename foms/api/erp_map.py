@@ -23,6 +23,8 @@ from foms.services.erp_display import _normalize_for_search
 from foms.services.common.address_converter import FOMSAddressConverter
 from foms.services.common.geocode_config import KAKAO_JS_API_KEY
 from foms.services.common.map_generator import FOMSMapGenerator
+from foms.services.datetime_kst import now_utc_naive
+from foms.services.geocode_retry import canonicalize_status, should_retry_geocode
 from foms.services.jobs.queue import enqueue_geocode_order_address
 from foms.services.order_geocode import reset_order_geocode_on_address_change
 from foms.services.order_geocode_outbox import enqueue_order_address_geocode
@@ -255,6 +257,8 @@ def _build_map_payload(orders, *, manager_filter='', search_query='', enqueue_mi
     orders_list = []
     skipped_no_coords = 0
     to_geocode = []
+    # 재큐 백오프 기준 시각(naive UTC — geocoded_at 저장 규약과 같은 축).
+    geocode_now = now_utc_naive()
 
     for order in orders:
         display = _extract_map_order_display(order)
@@ -279,17 +283,21 @@ def _build_map_payload(orders, *, manager_filter='', search_query='', enqueue_mi
         else:
             skipped_no_coords += 1
             address_for_geocode = extract_address_from_order(order)
+            # 재시도 판정은 foms.services.geocode_retry SSOT. 예전에는
+            # ``not stored_geocode_status`` 라 한 번이라도 실패한 주문을 **영구 제외**했고,
+            # 그래서 일시적 네트워크 사고로 failed 가 된 건이 영원히 좌표를 못 받았다.
             if (
                 enqueue_missing
                 and address_for_geocode
                 and address_for_geocode.strip()
                 and address_for_geocode.strip() != '-'
-                and not stored_geocode_status
+                and should_retry_geocode(order, now=geocode_now)
             ):
                 geocode_status = 'pending'
                 to_geocode.append(order)
             else:
-                geocode_status = stored_geocode_status or 'failed'
+                # address_error 는 화면이 아는 3상태(success/pending/failed)로 접어 내보낸다.
+                geocode_status = canonicalize_status(stored_geocode_status) or 'failed'
 
         orders_list.append({
             'id': order.id,
@@ -391,6 +399,9 @@ def _resolve_pending_geocodes(
         queued = enqueue_geocode_order_address(order.id)
         if queued:
             order.geocode_status = 'pending'
+            # 시도 표식 — 이게 없으면 pending 의 나이가 갱신되지 않아 백오프가 지난 건이
+            # 지도를 열 때마다 다시 큐에 들어간다(재큐가 failed 까지 넓어져 생긴 요구).
+            order.geocoded_at = now_utc_naive()
             queued_orders.append(order)
         else:
             from foms.services.jobs.tasks import geocode_order_address

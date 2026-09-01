@@ -17,8 +17,11 @@
     * ``geocode_status='pending'`` 이면서 마지막 시도가 :data:`PENDING_RETRY_SECONDS`
       보다 오래된 건(시각 불명=NULL 포함) — 주소 수정 경로가 ``pending`` 만 찍고 죽은
       outbox 에 예약해 영구 고착된 계열의 유일한 구제책.
-    * ``geocode_status='failed'`` 는 기본 제외(``--include-failed`` 로만). 주소 자체가
-      틀린 건이 대부분이라 반복 호출은 카카오 쿼터만 태운다.
+    * ``geocode_status='failed'`` 이면서 마지막 시도가 :data:`FAILED_RETRY_SECONDS`
+      보다 오래된 건 — 사유 불명 실패(레거시 포함)를 하루 1회 다시 시도한다.
+      ``--include-failed`` 를 주면 나이 제한 없이 전부 집는다(운영자 수동 실행용).
+    * ``geocode_status='address_error'`` 는 **어떤 경우에도 제외**. 카카오가 "그런 주소
+      없음"이라고 답한 건이라 반복 호출은 쿼터만 태운다(GEO-FAILKIND-01).
 
 사용 예 (PowerShell 5.x / bash 동일)::
 
@@ -49,6 +52,7 @@ from sqlalchemy.orm import sessionmaker  # noqa: E402
 from db import engine  # noqa: E402
 from foms.services.datetime_kst import now_utc_naive  # noqa: E402
 from foms.services.geocode_candidates import build_missing_geocode_query  # noqa: E402
+from foms.services import geocode_retry  # noqa: E402
 from foms.services.geocode_helpers import extract_address_from_order  # noqa: E402
 from models import Order  # noqa: E402
 
@@ -70,7 +74,14 @@ MIN_INTERVAL_SECONDS = 15
 # 찍고(=시도 표식), 그보다 최근에 찍힌 건은 이번 라운드에서 건너뛴다.
 # 600초 = 최악 소진 시간(50건 x 2.9초 ~= 145초)의 약 4배 여유. 워커가 밀려도 중복
 # enqueue 없이 조용히 기다렸다가, 정말 처리되지 않은 건만 다시 집는다.
-PENDING_RETRY_SECONDS = 600
+PENDING_RETRY_SECONDS = int(geocode_retry.PENDING_RETRY_INTERVAL.total_seconds())
+
+# ``failed`` 재시도 임계값(초) — 정본은 :mod:`foms.services.geocode_retry`.
+#
+# 2026-09-01 조사: 일시 오류가 전부 ``failed`` 로 굳는데 스윕·범용 지도 어느 쪽도 그 건을
+# 다시 시도하지 않아, 주소가 멀쩡한 11건이 사람 손을 탈 때까지 좌표 없이 남았다. 이제
+# 진짜 주소 오류는 ``address_error`` 로 갈라지므로 남은 ``failed`` 는 하루 1회 재시도한다.
+FAILED_RETRY_SECONDS = int(geocode_retry.FAILED_RETRY_INTERVAL.total_seconds())
 
 _LOG_PREFIX = "[geocode-sweep]"
 
@@ -134,7 +145,9 @@ def _parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser.add_argument('--batch', type=int, default=DEFAULT_BATCH,
                         help=f"1회 라운드 최대 건수 (기본 {DEFAULT_BATCH}).")
     parser.add_argument('--include-failed', action='store_true',
-                        help="geocode_status='failed' 건도 재시도 대상에 포함.")
+                        help="geocode_status='failed' 건을 나이 제한 없이 전부 포함"
+                             f" (기본은 {FAILED_RETRY_SECONDS}초 백오프). "
+                             "address_error 는 이 옵션으로도 포함되지 않는다.")
     parser.add_argument('--json', action='store_true',
                         help="라운드마다 구조화 로그(JSON) 1줄 출력.")
     return parser.parse_args(argv)
@@ -167,6 +180,7 @@ def sweep_once(
     batch: int = DEFAULT_BATCH,
     include_failed: bool = False,
     pending_retry_seconds: int = PENDING_RETRY_SECONDS,
+    failed_retry_seconds: int = FAILED_RETRY_SECONDS,
     now: Optional[datetime.datetime] = None,
 ) -> dict[str, int]:
     """스윕 1라운드: 후보를 골라 시도 표식을 커밋한 뒤 RQ 에 enqueue 한다.
@@ -178,8 +192,9 @@ def sweep_once(
     Args:
         session: SQLAlchemy 세션(호출자 소유 — 이 함수는 close 하지 않는다).
         batch: 이번 라운드에서 다룰 최대 건수.
-        include_failed: ``geocode_status='failed'`` 건도 대상에 포함할지 여부.
+        include_failed: True 면 ``failed`` 를 나이 제한 없이 전부 포함(수동 실행용).
         pending_retry_seconds: ``pending`` 을 다시 집기까지의 최소 경과 시간(초).
+        failed_retry_seconds: ``failed`` 를 다시 집기까지의 최소 경과 시간(초).
         now: 기준 시각(테스트 주입용). None 이면 :func:`_attempt_stamp`.
 
     Returns:
@@ -190,11 +205,13 @@ def sweep_once(
     """
     stamp = now or _attempt_stamp()
     cutoff = stamp - datetime.timedelta(seconds=max(0, int(pending_retry_seconds)))
+    failed_cutoff = stamp - datetime.timedelta(seconds=max(0, int(failed_retry_seconds)))
 
     query = build_missing_geocode_query(
         session,
         include_failed=include_failed,
         pending_retry_before=cutoff,
+        failed_retry_before=failed_cutoff,
     )
     rows = query.order_by(Order.id.desc()).limit(max(1, int(batch))).all()
 
@@ -323,7 +340,8 @@ def _run_loop(*, interval: int, batch: int, include_failed: bool, as_json: bool)
     interval = max(MIN_INTERVAL_SECONDS, int(interval))
     _log(
         f"started (interval={interval}s batch={batch} "
-        f"include_failed={include_failed} pending_retry={PENDING_RETRY_SECONDS}s)"
+        f"include_failed={include_failed} pending_retry={PENDING_RETRY_SECONDS}s "
+        f"failed_retry={FAILED_RETRY_SECONDS}s)"
     )
     while not _shutdown.is_set():
         try:
