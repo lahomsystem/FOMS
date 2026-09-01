@@ -10,6 +10,7 @@ flat 모듈이다 — namespace 닫힌집합 게이트는 디렉토리만 검사
 """
 from __future__ import annotations
 
+import io
 import logging
 import re
 import tempfile
@@ -28,7 +29,8 @@ from foms.services import kakao_alimtalk as ka
 from foms.services import order_share as share_service
 from foms.services.audit_message_display import describe_order_action
 from foms.services.audit_writer import record_file_access
-from foms.services.datetime_kst import now_utc_naive
+from foms.services.datetime_kst import (format_datetime_kst, get_today_kst,
+                                        now_utc_naive)
 from foms.services.erp_shipment_settings import load_erp_shipment_settings
 from foms.services.orders.audit_order_context import order_audit_context
 from foms.services.orders.drawing_transfer import _is_drawing_key
@@ -36,6 +38,17 @@ from foms.services.sidefx_outbox import enqueue_side_effect
 from foms.services.storage import get_storage
 from foms.web.auth import log_access, login_required, role_required
 from models import Order, OrderAttachment, OrderEvent, OrderShareToken, User
+
+# 합본 사진(drawings-sheet.png) 합성용. storage.py 와 같은 가드 방식 — Pillow 가 없는
+# 런타임에서도 앱 import 는 살아 있어야 하고, 합본 라우트만 fail-closed(503) 로 죽는다.
+try:
+    from PIL import Image, UnidentifiedImageError
+
+    _PILLOW_AVAILABLE = True
+except ImportError:  # pragma: no cover - Pillow 는 requirements 고정
+    Image = None  # type: ignore[assignment]
+    UnidentifiedImageError = OSError  # type: ignore[misc,assignment]
+    _PILLOW_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +84,35 @@ _MSG_ZIP_TOO_LARGE = ('도면 용량이 너무 커서 한 번에 저장할 수 �
 #: 일부만 담긴 zip 을 내보내지 않는다 — 고객이 전부 받았다고 오해한다.
 _MSG_ZIP_PARTIAL = ('일부 도면을 불러오지 못해 한 번에 저장할 수 없습니다. '
                     '이전 화면에서 하나씩 저장해 주세요.')
+
+#: 합본 사진(drawings-sheet.png) 폭 상한. 카톡 인앱에서 길게 눌러 저장하는 용도라
+#: 폰 화면(≤430pt) 기준 2~3배면 충분하고, 그 위는 파일만 커진다.
+_SHEET_MAX_WIDTH = 1400
+
+#: 합본에서 장과 장 사이 흰 여백(px) — 도면 경계가 붙어 한 장으로 읽히지 않게.
+_SHEET_GAP = 16
+
+#: 합본 결과의 총 픽셀 상한. 넘으면 **거절하지 않고** 전체를 비율대로 줄여 맞춘다
+#: (고객에게는 이 길 하나뿐이라 거절은 곧 저장 불가다). 줄여도 못 맞추면 503.
+#:
+#: 값은 iOS 웹뷰 기준이다. 이 사진은 폰에서 화면에 띄워 길게 눌러 저장하는 것이 본 경로라
+#: 아이폰이 디코딩할 수 있어야 의미가 있다 — 40MP 는 RGB 로 펼치면 약 120MB 라 인앱
+#: 웹뷰에서 통째로 실패할 수 있다. 저장소가 이미 쓰는 iOS 상한과 같은 값으로 맞춘다
+#: (static/js/orders/share-contract.js 의 MAX_CANVAS_PIXELS).
+_SHEET_MAX_PIXELS = 16_000_000
+
+#: Pillow 가 던지는 좁은 예외 묶음. broad ``except Exception`` 은 failopen 인벤토리
+#: 게이트가 잡으므로 쓰지 않는다(UnidentifiedImageError 는 OSError 하위지만 명시한다).
+_SHEET_IMAGE_ERRORS: tuple[type[BaseException], ...] = (OSError, ValueError,
+                                                        UnidentifiedImageError)
+if _PILLOW_AVAILABLE:  # DecompressionBombError 는 Exception 직계라 따로 넣어야 한다
+    _SHEET_IMAGE_ERRORS = _SHEET_IMAGE_ERRORS + (Image.DecompressionBombError,)
+
+#: ZIP 과 같은 규칙(일부만 담긴 결과물 금지)을 '사진' 표현으로.
+_MSG_SHEET_PARTIAL = ('일부 도면을 불러오지 못해 사진 한 장으로 만들 수 없습니다. '
+                      '이전 화면에서 하나씩 저장해 주세요.')
+_MSG_SHEET_TOO_LARGE = ('도면이 너무 커서 사진 한 장으로 만들 수 없습니다. '
+                        '이전 화면에서 하나씩 저장해 주세요.')
 
 
 @share_view_bp.after_request
@@ -262,6 +304,48 @@ def _is_kakao_inapp(user_agent: Optional[str]) -> bool:
     return 'KAKAOTALK' in (user_agent or '').upper()
 
 
+def _live_estimate_snapshot(row, order) -> Optional[dict]:
+    """계약서 렌더 데이터를 **열람 시점에 다시 만든다**(라이브 반영).
+
+    발급 시점 동결(D6)에서 바뀐 지점이다. 금액·품목을 고친 뒤 새 링크를 다시 보내야
+    했던 것이 사용자 결정으로 뒤집혔다 — 같은 링크가 늘 최신 계약 내용을 보여준다.
+
+    **유출 차단은 그대로다.** 라이브 값을 직접 템플릿에 넘기지 않고
+    :func:`order_share.build_estimate_snapshot` 화이트리스트를 매번 다시 태운다 —
+    타 브랜드 계좌·내부 플래그는 여전히 키 자체가 만들어지지 않는다.
+
+    재구성이 실패하면(항목 과다 등) 발급 시점 스냅샷으로 내려간다. 고객에게 빈 화면을
+    주는 것보다 조금 낡은 계약서가 낫다.
+
+    Args:
+        row: 공유 토큰 행(발급 시점 스냅샷 보유).
+        order: 대상 주문(활성 검증 완료).
+
+    Returns:
+        렌더용 dict. 라이브 재구성도 저장본도 없으면 ``None``(호출자가 503).
+    """
+    stored = row.snapshot if isinstance(row.snapshot, dict) and row.snapshot else None
+    try:
+        live = share_service.build_estimate_snapshot(order)
+    except share_service.SnapshotTooLargeError:
+        logger.warning('공유 계약서 라이브 재구성 실패(항목 과다) — 발급본 사용: share_id=%s',
+                       row.id)
+        return stored
+    if not isinstance(live, dict) or not live:
+        return stored
+    # 날짜 두 개를 가른다.
+    #  * issued_date — 이 내용이 **언제 기준인지**. 주문이 마지막으로 바뀐 날을 쓴다.
+    #    오늘 날짜를 박으면 아무것도 안 바뀐 계약서의 날짜가 매일 굴러간다.
+    #  * contract_no_date — **계약번호**의 재료. 발급 시점에 고정한다. 여기까지 라이브로
+    #    두면 고객이 들고 있는 계약번호가 날마다 달라진다.
+    changed = format_datetime_kst(getattr(order, 'structured_updated_at', None),
+                                  '%Y-%m-%d')
+    live['issued_date'] = changed or get_today_kst().strftime('%Y-%m-%d')
+    live['contract_no_date'] = ((stored or {}).get('issued_date')
+                                or live['issued_date'])
+    return live
+
+
 @share_view_bp.get('/s/<token>')
 def view_shared_order(token: str):
     """비로그인 공유 열람 — 검증 체인(해시→회수→만료→주문 활성) 후 도면 렌더.
@@ -277,11 +361,11 @@ def view_shared_order(token: str):
         return failure
 
     if row.kind == 'estimate':
-        # D6: 스냅샷만 렌더 — 라이브 재조회 없음(발급 이후 주문 수정은 반영되지 않는다).
-        snap = row.snapshot
+        # 라이브 반영 — 열람할 때마다 화이트리스트를 다시 태운다(사용자 결정 2026-09-01).
+        snap = _live_estimate_snapshot(row, order)
         if not isinstance(snap, dict) or not snap:
-            # 스냅샷 없는 estimate 링크는 존재하면 안 되는 상태(생성 시 강제) — 명시 503.
-            logger.error('estimate 공유 스냅샷 부재: share_id=%s', row.id)
+            # 라이브도 저장본도 없다 — 빈 계약서를 보여주지 않는다.
+            logger.error('estimate 공유 렌더 데이터 부재: share_id=%s', row.id)
             return _error_page(_MSG_UNAVAILABLE, 503)
         share_service.record_view(row)
         db_session.commit()
@@ -297,10 +381,10 @@ def view_shared_order(token: str):
 
     snapshot = None
     if row.kind == 'bundle':
-        # 계약서 쪽은 estimate 와 같은 동결 규칙 — 스냅샷 없는 링크는 존재하면 안 된다.
-        snapshot = row.snapshot
+        # 계약서 쪽은 estimate 와 같은 규칙 — 라이브 재구성.
+        snapshot = _live_estimate_snapshot(row, order)
         if not isinstance(snapshot, dict) or not snapshot:
-            logger.error('bundle 공유 스냅샷 부재: share_id=%s', row.id)
+            logger.error('bundle 공유 렌더 데이터 부재: share_id=%s', row.id)
             return _error_page(_MSG_UNAVAILABLE, 503)
 
     storage = get_storage()
@@ -321,12 +405,14 @@ def view_shared_order(token: str):
             presign_failures += 1
             logger.warning('공유 열람 presign 실패: share_id=%s key=%s', row.id, entry['key'])
             continue
-        item = {'url': url, 'label': entry['filename']}
-        (cards if _is_image(entry['filename']) else extra_files).append(item)
         # 고객 다운로드용 attachment presign — 열람 URL 과 별개(브라우저 저장 강제).
         dl_url = storage.get_download_url(
             entry['key'], expires_in=_PRESIGN_SECONDS,
             response_content_disposition=_attachment_disposition(entry['filename']))
+        # 카드 저장 아이콘은 이 값을 그대로 쓴다 — 인덱스 짝짓기 대신 카드에 실어
+        # 내려야 presign 실패로 목록 길이가 어긋나도 엉뚱한 파일을 가리키지 않는다.
+        item = {'url': url, 'label': entry['filename'], 'download_url': dl_url or ''}
+        (cards if _is_image(entry['filename']) else extra_files).append(item)
         if dl_url:
             download_files.append({'url': dl_url, 'label': entry['filename']})
     if collected and not cards and not extra_files:
@@ -358,7 +444,10 @@ def view_shared_order(token: str):
         share_download_files=download_files,
         # 일괄 저장 버튼은 presign 성공 여부와 무관하다 — ZIP 라우트가 바이트를 직접 읽는다.
         share_drawing_count=len(collected),
+        # 합본 사진은 이미지만 합친다(PDF 는 범위 밖) — 라벨·노출 판정은 이 수로 한다.
+        share_image_count=sum(1 for e in collected if _is_image(e['filename'])),
         share_zip_url=url_for('share_view.download_shared_drawings_zip', token=token),
+        share_sheet_url=url_for('share_view.download_shared_drawings_sheet', token=token),
         share_is_kakao_inapp=_is_kakao_inapp(request.headers.get('User-Agent')),
     )
 
@@ -469,6 +558,186 @@ def download_shared_drawings_zip(token: str):
     response = Response(_stream(), mimetype='application/zip')
     response.headers['Content-Disposition'] = _attachment_disposition(filename)
     response.headers['Content-Length'] = str(zip_size)
+    response.headers['Cache-Control'] = 'no-store'
+    return response
+
+
+def _flatten_image(blob: bytes):
+    """원본 바이트를 흰 배경 위 RGB 이미지로 편다(합본 캔버스에 붙일 수 있는 형태).
+
+    투명 PNG 를 그냥 ``convert('RGB')`` 하면 투명한 부분이 **검게** 나온다 — 도면은
+    배경이 투명한 경우가 흔해서 그대로 두면 새까만 장이 섞인다.
+
+    Args:
+        blob: 이미지 원본 바이트.
+
+    Returns:
+        RGB 모드 :class:`PIL.Image.Image` (호출자가 close 책임).
+    """
+    with Image.open(io.BytesIO(blob)) as im:
+        im.load()
+        if im.mode in ('RGBA', 'LA') or (im.mode == 'P' and 'transparency' in im.info):
+            rgba = im.convert('RGBA')
+            flat = Image.new('RGB', rgba.size, (255, 255, 255))
+            flat.paste(rgba, mask=rgba.split()[-1])
+            rgba.close()
+            return flat
+        return im.convert('RGB')
+
+
+def _sheet_layout(sources: list, width: int, gaps: int) -> tuple[list[int], int]:
+    """주어진 통일 폭에서 각 장의 높이와 합본 전체 높이를 계산한다.
+
+    Args:
+        sources: 원본 이미지 목록.
+        width: 통일할 폭(px).
+        gaps: 장 사이 여백의 총합(px).
+
+    Returns:
+        ``(장별 높이 목록, 합본 전체 높이)``.
+    """
+    heights = [max(1, round(im.height * width / im.width)) for im in sources]
+    return heights, sum(heights) + gaps
+
+
+def _compose_drawing_sheet(blobs: list[bytes], *,
+                           share_id: int) -> tuple[Optional[bytes], Optional[str]]:
+    """도면 이미지들을 세로로 이어 붙인 합본 PNG 를 만든다.
+
+    카카오톡 인앱 웹뷰는 ``<a download>`` 를 무시하고 ``window.print()`` 도 없다.
+    남는 길은 **이미지를 길게 눌러 사진첩에 저장**뿐이라, 여러 장을 한 장으로 합쳐
+    한 번의 롱프레스로 전부 가져가게 한다(ZIP 은 폰에서 풀 수단이 없다).
+
+    폭은 가장 넓은 장 기준으로 통일하되 :data:`_SHEET_MAX_WIDTH` 를 상한으로 둔다.
+    총 픽셀이 :data:`_SHEET_MAX_PIXELS` 를 넘으면 **거절하지 않고** 비율대로 줄여
+    맞춘다 — 여기서 거절하면 고객이 도면을 받을 길이 아예 없어진다.
+
+    Args:
+        blobs: 이미지 원본 바이트 목록(순서 = 화면 카드 순서).
+        share_id: 로그 식별자(토큰 원문은 남기지 않는다).
+
+    Returns:
+        성공이면 ``(png 바이트, None)``. 실패면 ``(None, 고객 안내 문구)``.
+    """
+    if not _PILLOW_AVAILABLE:
+        logger.error('공유 합본 사진 fail-closed: Pillow 미설치 (share_id=%s)', share_id)
+        return None, _MSG_UNAVAILABLE
+
+    sources: list = []
+    try:
+        for blob in blobs:
+            sources.append(_flatten_image(blob))
+
+        width = min(max(im.width for im in sources), _SHEET_MAX_WIDTH)
+        gaps = _SHEET_GAP * (len(sources) - 1)
+        heights, total = _sheet_layout(sources, width, gaps)
+        # 반올림·여백 때문에 한 번에 딱 안 맞을 수 있어 몇 번 더 조인다.
+        for _ in range(4):
+            if width * total <= _SHEET_MAX_PIXELS or width <= 1:
+                break
+            shrink = (_SHEET_MAX_PIXELS / (width * total)) ** 0.5
+            width = max(1, int(width * shrink))
+            heights, total = _sheet_layout(sources, width, gaps)
+        if width * total > _SHEET_MAX_PIXELS:
+            logger.error('공유 합본 사진 축소 실패: share_id=%s px=%s limit=%s files=%s',
+                         share_id, width * total, _SHEET_MAX_PIXELS, len(sources))
+            return None, _MSG_SHEET_TOO_LARGE
+
+        sheet = Image.new('RGB', (width, total), (255, 255, 255))
+        offset = 0
+        for source, height in zip(sources, heights):
+            resized = source.resize((width, height), Image.Resampling.LANCZOS)
+            sheet.paste(resized, (0, offset))
+            resized.close()
+            offset += height + _SHEET_GAP
+        buffer = io.BytesIO()
+        sheet.save(buffer, format='PNG')
+        sheet.close()
+        return buffer.getvalue(), None
+    except _SHEET_IMAGE_ERRORS:
+        # broad catch 금지(failopen 인벤토리) — Pillow 가 실제로 던지는 타입만 잡는다.
+        logger.error('공유 합본 사진 합성 실패: share_id=%s files=%d',
+                     share_id, len(blobs), exc_info=True)
+        return None, _MSG_SHEET_PARTIAL
+    finally:
+        for source in sources:
+            source.close()
+
+
+@share_view_bp.get('/s/<token>/drawings-sheet.png')
+def download_shared_drawings_sheet(token: str):
+    """도면 이미지 전체를 **세로로 이어 붙인 사진 1장**으로 내려준다(비로그인).
+
+    ZIP 은 폰에서 풀 수단이 없어 카톡으로 링크를 받은 고객에게는 죽은 버튼이다.
+    이 라우트는 같은 도면을 PNG 한 장으로 합쳐 **inline** 으로 내보낸다 — 화면에
+    떠 있어야 길게 눌러 사진첩에 저장할 수 있다. ``?download=1`` 이면 attachment.
+
+    검증 체인·주문 격리·fail-closed 규약은 :func:`download_shared_drawings_zip` 와
+    같다. 파일 수집도 :func:`_collect_drawing_files` 재사용이라 allow-list 를
+    그대로 물려받는다. PDF 등 비이미지는 합치지 않고 무시한다(개별 저장 목록 몫).
+
+    Args:
+        token: URL 경로의 토큰 원문.
+
+    Returns:
+        200 ``image/png``, 404(없는 토큰·estimate·이미지 도면 0장),
+        410(회수·만료), 503(fail-closed·한 장이라도 읽기/디코드 실패·축소 불가).
+    """
+    row, order, failure = _resolve_share_target(token)
+    if failure is not None:
+        return failure
+
+    if row.kind not in _ZIP_KINDS:
+        # estimate 링크에는 도면이 없다 — 존재 자체를 숨긴다(404, 405 아님).
+        return _error_page(_MSG_NOT_FOUND, 404)
+
+    storage = get_storage()
+    if storage.storage_type not in ('r2', 's3'):
+        # fail-closed(스펙 §3.2): 로컬 경로 노출 금지 — 열람·ZIP 과 같은 규약.
+        logger.error('공유 합본 사진 fail-closed: storage_type=%s (r2/s3 아님, share_id=%s)',
+                     storage.storage_type, row.id)
+        return _error_page(_MSG_UNAVAILABLE, 503)
+
+    images = [entry for entry in _collect_drawing_files(order)
+              if _is_image(entry['filename'])]
+    if not images:
+        return _error_page(_MSG_NOT_FOUND, 404)
+
+    blobs: list[bytes] = []
+    for entry in images:
+        blob = storage.read_file_bytes(entry['key'])
+        if blob is None:
+            # ZIP 과 같은 규칙 — 일부만 담긴 결과물을 내보내지 않는다. 고객은 버튼
+            # 라벨("전체 저장 N장")을 믿고 다 받았다고 생각한다.
+            logger.error('공유 합본 사진 원본 읽기 실패: share_id=%s key=%s',
+                         row.id, entry['key'])
+            return _error_page(_MSG_SHEET_PARTIAL, 503)
+        blobs.append(blob)
+
+    png, message = _compose_drawing_sheet(blobs, share_id=row.id)
+    if png is None:
+        return _error_page(message or _MSG_UNAVAILABLE, 503)
+
+    # ZIP 라우트와 같은 감사 1건(액션은 라벨 맵에 이미 있는 FILE_DOWNLOAD 재사용).
+    # record_view 는 부르지 않는다 — 저장은 열람이 아니다(view_count 부풀림 방지).
+    record_file_access(
+        'FILE_DOWNLOAD',
+        storage_key=f'share/{row.id}',
+        user_id=None,
+        ip=request.remote_addr,
+        user_agent=request.headers.get('User-Agent'),
+        order_id=order.id,
+    )
+
+    filename = f'도면_{_safe_name_part(order.customer_name, "고객")}_{order.id}.png'
+    response = Response(png, mimetype='image/png')
+    if request.args.get('download') == '1':
+        response.headers['Content-Disposition'] = _attachment_disposition(filename)
+    else:
+        # 기본은 inline — 길게 눌러 저장하려면 화면에 떠 있어야 한다.
+        quoted = urllib.parse.quote(filename, safe='')
+        response.headers['Content-Disposition'] = f"inline; filename*=UTF-8''{quoted}"
+    response.headers['Content-Length'] = str(len(png))
     response.headers['Cache-Control'] = 'no-store'
     return response
 

@@ -256,3 +256,154 @@
 .foms-share-dl {
   padding: 14px;
 }
+
+/* ── 모바일 = 합본 사진 · PC = ZIP (2026-08-31) ─────────────────────────────
+   폰(카톡 인앱)에는 ZIP 을 풀 수단이 없다 — 눌러도 아무 일이 안 일어나는 버튼이라
+   감춘다. 반대로 PC 는 파일 관리자가 있어 ZIP 이 낫고 합본 사진은 군더더기다.
+   둘 다 마크업에 두고 breakpoint 로만 갈라 낸다(UA 스니핑 금지).
+
+   `--zip` 수식어는 합본 버튼이 실제로 있을 때만 붙는다(템플릿) — PDF 뿐이라
+   합본이 없는 주문에서 ZIP 까지 감추면 폰에 일괄 저장 수단이 하나도 안 남는다. */
+@media (max-width: 599.98px) {
+  .foms-share-view .foms-share-dl__primary--zip {
+    display: none;
+  }
+}
+
+@media (min-width: 600px) {
+  .foms-share-view .foms-share-dl__primary--sheet {
+    display: none;
+  }
+
+  .foms-share-view .foms-share-sheet {
+    display: none;
+  }
+}
+
+.foms-share-dl__status--error {
+  color: #b91c1c;
+}
+
+/* 합본 결과 — 길게 눌러 저장해야 하므로 화면에 그대로 떠 있어야 한다.
+   높이를 자르지 않는다(잘린 부분은 저장물에도 없다고 오해한다). */
+.foms-share-sheet {
+  margin: 12px 0 0;
+}
+
+.foms-share-sheet[hidden] {
+  display: none;
+}
+
+.foms-share-sheet__img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.foms-share-sheet__note {
+  margin: 8px 0 0;
+  font-size: 0.85rem;
+  color: #4b5563;
+  text-align: center;
+}
+
+/* ── 카드마다 저장 아이콘 (2026-08-31) ──────────────────────────────────────
+   카드는 <button>(lightbox) 이라 그 안에 <a> 를 넣을 수 없다 — 아이콘은 카드의
+   형제고, 이 래퍼가 위치 기준이다. 공유 페이지에서만 렌더되는 마크업이지만
+   규칙도 `.foms-share-view` 스코프에 가둔다(공용 갤러리 CSS 무변경). */
+.foms-share-view .foms-share-card-wrap {
+  position: relative;
+  min-width: 0;
+}
+
+.foms-share-view .foms-share-card-wrap > .foms-drawing-card {
+  width: 100%;
+}
+
+/* 1장뿐일 때 규칙은 래퍼 기준으로도 성립해야 한다 — 카드가 더 이상 그리드의
+   직계 자식이 아니라서 위쪽 `> .foms-drawing-card:only-child` 가 안 걸린다. */
+.foms-share-view .foms-drawing-card-grid > .foms-share-card-wrap:only-child {
+  width: fit-content;
+  max-width: 100%;
+  margin-inline: auto;
+}
+
+.foms-share-view .foms-drawing-card-grid > .foms-share-card-wrap:only-child
+  > .foms-drawing-card {
+  aspect-ratio: auto;
+  width: fit-content;
+  min-width: 160px;
+  min-height: 160px;
+  max-width: 100%;
+  max-height: 72vh;
+  margin-inline: auto;
+}
+
+.foms-share-view .foms-drawing-card-grid > .foms-share-card-wrap:only-child
+  .foms-drawing-card__img {
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 72vh;
+  margin-inline: auto;
+}
+
+.foms-share-view .foms-share-card-save {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 32px;
+  height: 32px;
+  border: 1px solid rgba(17, 24, 39, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #374151;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 터치 타깃 44px — 겉모양(32px 알약)은 그대로 두고 히트 영역만 넓힌다
+   (foms-share-contract.css 의 복사 버튼과 같은 기법). */
+.foms-share-view .foms-share-card-save::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 44px;
+  height: 44px;
+  transform: translate(-50%, -50%);
+}
+
+.foms-share-view .foms-share-card-save:active {
+  background: #f3f4f6;
+}
+
+.foms-share-view .foms-share-card-save:focus-visible {
+  outline: 2px solid #1d4ed8;
+  outline-offset: 2px;
+}
+
+.foms-share-view .foms-share-card-save__icon {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+@media print {
+  .foms-share-view .foms-share-card-save,
+  .foms-share-view .foms-share-sheet {
+    display: none;
+  }
+}

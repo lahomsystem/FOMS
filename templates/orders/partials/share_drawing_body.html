@@ -4,6 +4,11 @@
 {% set dl_files = share_download_files or [] %}
 {% set zip_url = share_zip_url or '' %}
 {% set drawing_count = share_drawing_count or (dl_files | length) %}
+{% set sheet_url = share_sheet_url or '' %}
+{% set image_count = share_image_count or 0 %}
+{# 합본 사진은 이미지 2장 이상일 때만 뜻이 있다. 1장이면 그 카드를 길게 누르면 되고,
+   0장(PDF 만)이면 합칠 게 없다 — 그 경우 ZIP 이 폰에서도 유일한 일괄 수단이라 감추면 안 된다. #}
+{% set has_sheet = sheet_url and image_count > 1 %}
     {% if drawing_preview_cards or share_extra_files %}
       {% with share_mode = True %}{% include 'drawing/partials/drawing_mobile_v2_gallery.html' %}{% endwith %}
       {% if share_extra_files %}
@@ -25,13 +30,37 @@
                rel="noreferrer" download data-share-download-single>
               도면 저장 (1개)
             </a>
-          {% elif zip_url %}
-            <a class="foms-share-dl__primary" href="{{ zip_url }}" data-share-zip>
-              도면 전체 저장 ({{ drawing_count }}개 · ZIP)
-            </a>
-            <p class="foms-share-dl__status" data-share-zip-status hidden role="status">
-              도면을 모으는 중입니다. 잠시만 기다려 주세요…
-            </p>
+          {% else %}
+            {# 폰 = 합본 사진, PC = ZIP. 분기는 CSS breakpoint(599.98px) 로만 한다 —
+               UA 스니핑은 인앱 웹뷰 문자열이 바뀔 때마다 조용히 틀린다. #}
+            {% if has_sheet %}
+              <a class="foms-share-dl__primary foms-share-dl__primary--sheet"
+                 href="{{ sheet_url }}" data-share-sheet>
+                도면 전체 저장 ({{ image_count }}장 · 사진 1장)
+              </a>
+              <p class="foms-share-dl__status" data-share-sheet-status hidden role="status">
+                사진 한 장으로 만드는 중입니다. 잠시만 기다려 주세요…
+              </p>
+              <p class="foms-share-dl__status foms-share-dl__status--error"
+                 data-share-sheet-error hidden role="status">
+                사진을 만들지 못했습니다. 아래 목록에서 하나씩 저장해 주세요.
+              </p>
+              <figure class="foms-share-sheet" data-share-sheet-result hidden>
+                <img class="foms-share-sheet__img" alt="도면 전체 합본" data-share-sheet-img>
+                <figcaption class="foms-share-sheet__note">
+                  이미지를 길게 눌러 사진첩에 저장하세요.
+                </figcaption>
+              </figure>
+            {% endif %}
+            {% if zip_url %}
+              <a class="foms-share-dl__primary{% if has_sheet %} foms-share-dl__primary--zip{% endif %}"
+                 href="{{ zip_url }}" data-share-zip>
+                도면 전체 저장 ({{ drawing_count }}개 · ZIP)
+              </a>
+              <p class="foms-share-dl__status" data-share-zip-status hidden role="status">
+                도면을 모으는 중입니다. 잠시만 기다려 주세요…
+              </p>
+            {% endif %}
           {% endif %}
           {% if share_is_kakao_inapp %}
             <p class="foms-share-dl__inapp" data-share-inapp-note>

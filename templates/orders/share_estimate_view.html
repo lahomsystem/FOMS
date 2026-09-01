@@ -12,13 +12,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex, nofollow">
   <title>계약서 확인</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/orders/foms-share-view.css') }}?v=20260831c">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/orders/foms-share-view.css') }}?v=20260831d">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/orders/foms-share-contract.css') }}?v=20260831c">
 </head>
 <body class="foms-share-view foms-share-est">
   <header class="foms-share-view__header">
     <h1 class="foms-share-view__title">계약서</h1>
-    <p class="foms-share-view__hint">{{ snap.issued_date }} 기준으로 발행된 내용입니다.</p>
+    <p class="foms-share-view__hint">{{ snap.issued_date }} 기준 계약 내용입니다. 변경되면 이 화면에도 반영됩니다.</p>
   </header>
   <main class="foms-share-view__main">
     {% include 'orders/partials/share_estimate_body.html' %}
