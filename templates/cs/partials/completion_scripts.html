@@ -161,13 +161,38 @@
     var apiQuery = apiParams.toString();
     if (apiQuery) completionApiUrl += '?' + apiQuery;
 
-    fetch(completionApiUrl, { credentials: 'same-origin' })
-      .then(function (response) {
-        if (!response.ok) {
-          throw new Error('completion list HTTP ' + response.status);
-        }
-        return response.json();
-      })
+    // 서버가 태블릿 그리드를 렌더하며 **이미 읽은** 목록이 페이지에 실려 있으면 그것을 쓴다.
+    // 없거나 필터가 하나라도 다르면 평소대로 API 를 부른다 — 조건이 어긋난 목록을 조용히
+    // 보여주는 것이 제일 나쁘다. 1회 소비 후 노드를 지우므로 이후 갱신은 항상 서버 조회다.
+    function consumeCompletionBootstrap() {
+      var node = document.getElementById('erp-completion-bootstrap');
+      if (!node) return null;
+      var raw = node.textContent || '';
+      if (node.parentNode) node.parentNode.removeChild(node);
+      var payload = null;
+      try {
+        payload = JSON.parse(raw);
+      } catch (parseError) {
+        return null;
+      }
+      if (!payload || !payload.filters || !Array.isArray(payload.orders)) return null;
+      if (String(payload.filters.q || '') !== (searchQ || '')) return null;
+      if (String(payload.filters.focus_order || '') !== (focusOrderParam || '')) return null;
+      if (String(payload.filters.mine || '') !== (mineParam || '')) return null;
+      return { success: true, orders: payload.orders };
+    }
+
+    var completionBootstrap = consumeCompletionBootstrap();
+    (completionBootstrap
+      ? Promise.resolve(completionBootstrap)
+      : fetch(completionApiUrl, { credentials: 'same-origin' })
+          .then(function (response) {
+            if (!response.ok) {
+              throw new Error('completion list HTTP ' + response.status);
+            }
+            return response.json();
+          })
+    )
       .then(function (data) {
         if (!data.success || !Array.isArray(data.orders)) {
           listEl.innerHTML = '<div class="alert alert-warning">목록을 불러올 수 없습니다.</div>';
