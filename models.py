@@ -3554,6 +3554,14 @@ class ExternalOrderLink(Base):
     # nullable 인 이유: 이 컬럼이 생기기 전 행이 있다. 읽는 쪽이 external_order_no 로
     # 폴백하므로 backfill 전에도 예전과 같은 동작으로 떨어질 뿐 화면은 죽지 않는다.
     group_key = Column(String(200), nullable=True)
+    # 매칭 축 사본 — ``order_candidates._snapshot_keys`` 결과의 사본이다(NAVER-INGEST-BACKFILL).
+    # ``group_key`` 와 같은 이유로 컬럼이다: 축이 raw_snapshot(JSONB) 안에 있어 SQL 이 못
+    # 좁히면, "오늘 실측인데 안 붙은 집" 매칭이 **최신 300행만 훑는 캡**에 갇힌다. 과거
+    # 소급 수집(백필)으로 미연결이 1,500행대가 되면 그 캡이 즉시 걸려 띠가 조용히 잘린다.
+    # 정본은 여전히 raw_snapshot 이고, 값이 없으면 읽는 쪽이 옛 스캔 경로로 폴백한다.
+    recipient_name = Column(String(80), nullable=True)
+    recipient_phone_digits = Column(String(20), nullable=True)
+    orderer_phone_digits = Column(String(20), nullable=True)
     # 도크(주문 편집 옆 네이버 원본 패널) 반영 상태 — T14-B.
     # {checked, checked_by, checked_at, assigned_main, assigned_by, assigned_at}.
     # reviewed_at 과 다른 축: 저건 큐 이탈(첫 확인 시각 불변), 이건 토글 가능한 표시용.
@@ -3581,6 +3589,14 @@ class ExternalOrderLink(Base):
               postgresql_where=text('reviewed_at IS NULL')),
         # 주문 상세에서 "이 주문이 어느 채널 수집분인가" 역조회.
         Index('ix_external_order_link_order', 'order_id'),
+        # 안 붙은 수집분 매칭 경로(전화·이름). **미연결 행만** 담는 부분 인덱스다 —
+        # 붙고 나면 매칭 대상이 아니므로 인덱스가 이력 전체로 커지지 않는다.
+        Index('ix_external_order_link_match_recipient_phone', 'channel',
+              'recipient_phone_digits', postgresql_where=text('order_id IS NULL')),
+        Index('ix_external_order_link_match_orderer_phone', 'channel',
+              'orderer_phone_digits', postgresql_where=text('order_id IS NULL')),
+        Index('ix_external_order_link_match_name', 'channel', 'recipient_name',
+              postgresql_where=text('order_id IS NULL')),
         # '발주확인 전' 목록 필터 경로(채널 + 발주상태 + 최신순).
         Index('ix_external_order_link_place', 'channel', 'place_order_status', 'created_at'),
         # 이력 표의 묶음 단위 집계·페이징 경로(집 수 COUNT DISTINCT, 페이지 키 조회).

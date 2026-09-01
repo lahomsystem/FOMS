@@ -23,7 +23,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
-from sqlalchemy import and_, func
+from sqlalchemy import and_, false, func, or_
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -628,18 +628,45 @@ def find_unlinked_matches(session: Session, *, on_date: str) -> list[dict[str, A
         return []
 
     since = now_utc_naive() - timedelta(days=UNLINKED_WINDOW_DAYS)
-    loose = (
+    base = (
         session.query(ExternalOrderLink)
         .filter(ExternalOrderLink.channel == CHANNEL,
                 ExternalOrderLink.order_id.is_(None),
                 ExternalOrderLink.created_at >= since)
+    )
+    # 축 사본이 있는 행은 **SQL 이 직접 좁힌다**(부분 인덱스). 예전에는 미연결 링크를 최신
+    # 300행만 훑었는데, 과거 소급 수집으로 미연결이 1,500행대가 되면 그 300칸을 소급분이
+    # 다 차지해 띠가 조용히 잘렸다 — 잘린 자리는 "짚을 게 없다"와 구분되지 않는다.
+    digits = [value for value in by_digits if value]
+    names = [value for value in by_name if value]
+    narrowed = (
+        base.filter(or_(
+            ExternalOrderLink.recipient_phone_digits.in_(digits) if digits else false(),
+            ExternalOrderLink.orderer_phone_digits.in_(digits) if digits else false(),
+            ExternalOrderLink.recipient_name.in_(names) if names else false(),
+        )).all()  # perf-ok: 오늘 실측 미연결 주문 수만큼의 IN 목록 + 부분 인덱스
+        if (digits or names) else []
+    )
+    # 사본이 없는 옛 행(컬럼이 생기기 전 수집분)은 종전 스캔으로 폴백한다. 채움 스크립트
+    # (``tools/ops/backfill_link_match_keys.py``)가 돌고 나면 이 갈래는 비어 간다.
+    legacy = (
+        base.filter(ExternalOrderLink.recipient_name.is_(None),
+                    ExternalOrderLink.recipient_phone_digits.is_(None),
+                    ExternalOrderLink.orderer_phone_digits.is_(None))
         .order_by(ExternalOrderLink.id.desc())
         .limit(UNLINKED_SCAN_CAP)
         .all()
     )
-    if len(loose) >= UNLINKED_SCAN_CAP:
-        logger.warning("[NAVER] 안 붙은 수집분이 상한 %d행에 닿았다 — 더 오래된 건 못 봤다 (%s)",
-                       UNLINKED_SCAN_CAP, on_date)
+    if len(legacy) >= UNLINKED_SCAN_CAP:
+        logger.warning("[NAVER] 사본 없는 옛 수집분이 상한 %d행에 닿았다 — 채움 스크립트를 "
+                       "돌려야 한다 (%s)", UNLINKED_SCAN_CAP, on_date)
+    seen_link_ids: set[int] = set()
+    loose = []
+    for link in list(narrowed) + list(legacy):
+        if int(link.id) in seen_link_ids:
+            continue
+        seen_link_ids.add(int(link.id))
+        loose.append(link)
 
     found: dict[str, dict[str, Any]] = {}
     for link in loose:

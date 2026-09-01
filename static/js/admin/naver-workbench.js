@@ -50,6 +50,13 @@
     var REFRESH_POLL_INTERVAL_MS = 3000;
     var REFRESH_POLL_TIMEOUT_MS = 300000;
 
+    /** 소급 수집(백필) 실행·진행 경로. 실행은 큐에 넣기만 한다(HTTP 는 WORKER). */
+    var BACKFILL_URL = '/admin/naver-ingest/backfill';
+    var BACKFILL_STATE_URL = '/admin/naver-ingest/backfill-state';
+    /** 백필은 하루 창을 순서대로 훑는다 — 90일이면 몇 분이라 창을 아주 넓게 잡는다. */
+    var BACKFILL_POLL_INTERVAL_MS = 5000;
+    var BACKFILL_POLL_TIMEOUT_MS = 900000;
+
     /** 수집 워터마크만 묻는 읽기 전용 경로('지금 수집' 결과 폴링 대상). */
     var RUN_STATE_URL = '/admin/naver-ingest/run-state';
     /** 수집 한 바퀴는 집 조작 하나보다 오래 걸린다(네이버 여러 페이지) — 창을 넓게 잡는다. */
@@ -115,6 +122,7 @@
         'wb-bulk-clear': clearPicks,
         'wb-retry-failed': submitRetry,
         'wb-run-now': submitRunNow,
+        'wb-backfill-run': submitBackfill,
         'wb-expiry-edit': toggleExpiryEdit,
         'wb-ghost-discard': submitGhostDiscard,
         'wb-origin-refresh-all': submitOriginRefreshAll,
@@ -2560,6 +2568,111 @@
             return;
         }
         watchRun(rev);
+    }
+
+    /**
+     * 과거 주문 소급 수집(백필) — 구간을 보내고 **끝날 때까지 지켜본다**.
+     *
+     * 워터마크는 앞으로만 가므로 첫 수집 이전 주문은 원본이 아예 없다. 이 버튼이 그
+     * 구멍을 메우는 유일한 길이다. 실행은 큐에 넣기만 하고 네이버 HTTP 는 WORKER 가 낸다.
+     *
+     * 끝을 말하지 않으면 사람은 멈춘 줄 알고 다시 누른다(전체 다시 읽기에서 이미 겪었다).
+     * 그래서 진행 상태를 폴링해 창 진척을 그대로 보여준다.
+     *
+     * @param {HTMLElement} btn 눌린 버튼.
+     */
+    async function submitBackfill(btn) {
+        var from = document.getElementById('wb-backfill-from');
+        var to = document.getElementById('wb-backfill-to');
+        var fromValue = from ? String(from.value || '') : '';
+        var toValue = to ? String(to.value || '') : '';
+        if (!fromValue || !toValue) {
+            setBackfillNote('시작일과 종료일을 모두 골라 주세요.');
+            return;
+        }
+        btn.disabled = true;
+        setBackfillNote('작업 큐에 넣는 중…');
+        const result = await postJson(BACKFILL_URL, { from: fromValue, to: toValue });
+        if (!result.ok) {
+            // 구간 오류·워커 없음·큐 장애 — 넣지 못했으니 기다릴 결과가 없다.
+            setBackfillNote(result.error);
+            enableBackfill();
+            return;
+        }
+        watchBackfill(String((result.data && result.data.rev) || ''));
+    }
+
+    /**
+     * 소급 수집 진행을 지켜본다. 끝나면 화면을 다시 받는다.
+     *
+     * @param {string} baseRev 큐에 넣기 직전 상태 지문(바뀌면 워커가 손댔다는 뜻).
+     */
+    function watchBackfill(baseRev) {
+        var deadline = Date.now() + BACKFILL_POLL_TIMEOUT_MS;
+        setBackfillNote('과거 구간을 긁는 중입니다. 하루씩 훑기 때문에 몇 분 걸립니다…');
+        window.setTimeout(tick, BACKFILL_POLL_INTERVAL_MS);
+
+        async function tick() {
+            const state = await readBackfillState();
+            if (state && !state.running && String(state.rev || '') !== baseRev) {
+                var summary = state.last_summary || {};
+                // 갱신을 **먼저** 한다 — softRefresh 가 문구 칸을 서버가 준 빈 칸으로 간다.
+                await softRefresh();
+                if (state.last_error) {
+                    setBackfillNote('소급 수집이 중간에 멈췄습니다: ' + state.last_error
+                        + ' (' + (state.done_through || '시작 지점') + ' 까지는 남아 있습니다)');
+                } else {
+                    setBackfillNote('소급 수집 완료 — 새로 받은 주문 '
+                        + (summary.collected || 0) + '건 · 이미 있던 것 '
+                        + (summary.skipped || 0) + '건 · 보류 '
+                        + (summary.pending_review || 0) + '건. '
+                        + '붙이기는 처리 탭 후보 화면에서 사람이 고릅니다.');
+                }
+                enableBackfill();
+                return;
+            }
+            if (state && state.running) {
+                setBackfillNote('과거 구간을 긁는 중입니다 — '
+                    + (state.done_through ? state.done_through.slice(0, 10) + ' 까지 마쳤습니다.'
+                        : '첫 구간을 훑는 중입니다.'));
+            }
+            if (Date.now() >= deadline) {
+                setBackfillNote('아직 돌고 있습니다 — 잠시 뒤 새로고침해서 결과를 확인하세요.');
+                enableBackfill();
+                return;
+            }
+            window.setTimeout(tick, BACKFILL_POLL_INTERVAL_MS);
+        }
+    }
+
+    /** 소급 수집 진행 상태를 읽는다(실패하면 null — 폴링이 죽지 않게). */
+    async function readBackfillState() {
+        try {
+            const response = await fetch(BACKFILL_STATE_URL, {
+                credentials: 'same-origin',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            if (!response.ok) {
+                return null;
+            }
+            const data = await response.json();
+            return data && data.success ? data.data : null;
+        } catch (error) {
+            return null;
+        }
+    }
+
+    /** 소급 수집 안내 문구. */
+    function setBackfillNote(message) {
+        setText('wb-backfill-note', message || '');
+    }
+
+    /** 소급 수집 버튼을 다시 연다(갱신을 거치지 않은 끝맺음에서 필요). */
+    function enableBackfill() {
+        var btn = document.getElementById('wb-backfill-run');
+        if (btn) {
+            btn.disabled = false;
+        }
     }
 
     /**

@@ -50,6 +50,7 @@ __all__ = [
     "send_push_for_notification_task",
     "run_notification_escalation_task",
     "run_naver_order_sync_task",
+    "run_naver_backfill_task",
 ]
 
 
@@ -495,6 +496,47 @@ def run_naver_refresh_task(link_id: int, actor_user_id: Optional[int] = None) ->
             db_session.remove()
     except Exception as e:
         logger.error(f"[RQ] run_naver_refresh_task error: {e}", exc_info=True)
+        raise
+
+
+def run_naver_backfill_task(start_iso: str, end_iso: str, dry_run: bool = False) -> dict:
+    """네이버 과거 주문 소급 수집(백필) 1회 실행 (NAVER-INGEST-BACKFILL, WORKER 전용).
+
+    워크벤치의 "과거 주문 소급 수집" 이 이 job 을 enqueue 한다. **web 프로세스에서 직접
+    호출하면 안 된다** — 등록된 호출 IP 는 WORKER 것뿐이다.
+
+    정상 스윕(:func:`run_naver_order_sync_task`)과 달리 **웹푸시를 걸지 않는다**. 백필은
+    알림 자체를 만들지 않으므로(과거 클레임 알림 억제 — 사용자 결정 2026-09-01) 보낼
+    알림이 없다.
+
+    Args:
+        start_iso: 구간 시작(ISO-8601, KST).
+        end_iso: 구간 끝(ISO-8601, KST).
+        dry_run: True 면 조회까지만 하고 아무것도 만들지 않는다.
+
+    Returns:
+        :func:`backfill.run_backfill` 집계 dict.
+    """
+    try:
+        from datetime import datetime
+
+        from db import db_session
+        from foms.services.integrations.naver_commerce.backfill import run_backfill
+
+        start = datetime.fromisoformat(str(start_iso))
+        end = datetime.fromisoformat(str(end_iso))
+        db = db_session()
+        try:
+            # run_backfill 이 창마다 커밋한다(중간에 죽어도 받은 원본은 남는다).
+            return run_backfill(db, start=start, end=end, dry_run=bool(dry_run))
+        except Exception:
+            db.rollback()
+            raise
+        finally:
+            db.close()
+            db_session.remove()
+    except Exception as e:
+        logger.error(f"[RQ] run_naver_backfill_task error: {e}", exc_info=True)
         raise
 
 

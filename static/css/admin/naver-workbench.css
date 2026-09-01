@@ -882,6 +882,18 @@ input.wb-pick:disabled,
     background: var(--wb-surface);
     color: inherit;
 }
+/* 소급 수집(백필) 날짜 두 칸. 상태 카드 한 칸 안이라 좁다 — 좁아지면 줄바꿈한다. */
+.wb-backfill__range { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; margin-top: 4px; }
+.wb-backfill__tilde { color: var(--wb-muted, #6b7280); font-size: calc(12px * var(--wb-fs, 1)); }
+.wb-backfill__input {
+    font-size: calc(12px * var(--wb-fs, 1));
+    padding: 2px 6px;
+    border: 1px solid var(--wb-line);
+    border-radius: 6px;
+    background: var(--wb-surface);
+    color: inherit;
+}
+
 @media (max-width: 1100px) { .wb-ingest { grid-template-columns: repeat(2, 1fr); } }
 .wb-note { margin: 8px 12px 0; padding: 7px 10px; border-radius: 6px;
            background: rgba(217, 119, 6, .08); border: 1px solid rgba(217, 119, 6, .28);

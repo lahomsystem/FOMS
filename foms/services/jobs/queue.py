@@ -28,6 +28,7 @@ __all__ = [
     "enqueue_geocode_order_address",
     "enqueue_channeltalk_inbound",
     "enqueue_naver_order_sync",
+    "enqueue_naver_backfill",
 ]
 
 
@@ -352,6 +353,36 @@ def enqueue_naver_return_reject(link_id: int, reason: str,
         return True
     except Exception as e:
         logger.error(f"[RQ] enqueue_naver_return_reject error: {e}", exc_info=True)
+        return False
+
+
+def enqueue_naver_backfill(start_iso: str, end_iso: str, dry_run: bool = False):
+    """네이버 과거 주문 소급 수집(백필) job enqueue (NAVER-INGEST-BACKFILL).
+
+    "지금 수집" 과 같은 이유로 web 은 **enqueue 만** 한다 — 네이버 HTTP 는 등록된 IP 가
+    WORKER 것뿐이다. 백필은 창 수만큼 호출이 이어지므로 job timeout 을 넉넉히 잡는다
+    (90일 = 창 90개 + 창마다 0.5초 간격 + 상세 조회).
+
+    Args:
+        start_iso: 구간 시작(ISO-8601, KST).
+        end_iso: 구간 끝(ISO-8601, KST).
+        dry_run: True 면 조회까지만.
+
+    Returns:
+        enqueue 성공 여부.
+    """
+    q = get_rq_queue()
+    if not q:
+        return False
+    try:
+        q.enqueue(
+            f"{_TASK_PATH_PREFIX}.run_naver_backfill_task",
+            str(start_iso), str(end_iso), bool(dry_run),
+            job_timeout="2h",
+        )
+        return True
+    except Exception as e:
+        logger.error(f"[RQ] enqueue_naver_backfill error: {e}", exc_info=True)
         return False
 
 

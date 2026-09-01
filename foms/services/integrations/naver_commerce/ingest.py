@@ -119,8 +119,13 @@ def existing_external_ids(session: Session, external_ids: list[str]) -> set[str]
 
 
 def _record_pending(session: Session, *, external_id: str, detail: dict, reason: str) -> None:
-    """매핑 실패 건을 주문 없이 보류 링크로 남긴다(원본 보존)."""
+    """매핑 실패 건을 주문 없이 보류 링크로 남긴다(원본 보존).
+
+    보류분도 매칭 축 사본을 채운다 — 보류라고 해서 "안 붙은 집" 짚기에서 빠지면,
+    사람이 손볼 건일수록 화면이 조용해진다.
+    """
     _order, product_order, _shipping = _safe_unwrap(detail)
+    match_keys = _match_key_values(detail)
     session.add(
         ExternalOrderLink(
             channel=CHANNEL,
@@ -131,6 +136,9 @@ def _record_pending(session: Session, *, external_id: str, detail: dict, reason:
             sync_status="PENDING_REVIEW",
             place_order_status=_place_status_value(detail),
             group_key=_group_key_value(detail),
+            recipient_name=match_keys["recipient_name"],
+            recipient_phone_digits=match_keys["recipient_phone_digits"],
+            orderer_phone_digits=match_keys["orderer_phone_digits"],
             failure_reason=reason[:2000],
         )
     )
@@ -157,6 +165,36 @@ def _place_status_value(detail: dict) -> Optional[str]:
         logger.warning("[NAVER] 발주 상태 추출 실패(무시): %s", exc)
         return None
     return status[:20] or None
+
+
+def _match_key_values(detail: dict) -> dict[str, Optional[str]]:
+    """원본에서 매칭 축 사본(수령인명·수취인 전화·주문자 전화)을 뽑는다.
+
+    ``_group_key_value`` 와 같은 규약이다 — 정본은 ``raw_snapshot`` 이고 이 값들은 SQL 이
+    "오늘 실측인데 안 붙은 집"을 좁힐 수 있게 두는 필터 전용 사본이다. 추출이 실패해도
+    수집은 막지 않는다(못 받은 주문은 되돌릴 수 없다).
+
+    Args:
+        detail: 상품주문 상세 1건.
+
+    Returns:
+        ``{"recipient_name", "recipient_phone_digits", "orderer_phone_digits"}``.
+        못 뽑으면 값은 None(읽는 쪽이 옛 스캔 경로로 폴백한다).
+    """
+    empty = {"recipient_name": None, "recipient_phone_digits": None,
+             "orderer_phone_digits": None}
+    try:
+        from foms.services.integrations.naver_commerce.order_candidates import _snapshot_keys
+
+        keys = _snapshot_keys(detail)
+    except (ValueError, TypeError, AttributeError, KeyError, ImportError) as exc:
+        logger.warning("[NAVER] 매칭 축 사본 추출 실패(무시): %s", exc)
+        return empty
+    return {
+        "recipient_name": (keys.get("name") or "")[:80] or None,
+        "recipient_phone_digits": (keys.get("recipient_phone") or "")[:20] or None,
+        "orderer_phone_digits": (keys.get("orderer_phone") or "")[:20] or None,
+    }
 
 
 def _group_key_value(detail: dict) -> Optional[str]:
@@ -194,6 +232,7 @@ def _safe_unwrap(detail: dict) -> tuple[dict, dict, dict]:
 
 def ingest_detail(
     session: Session, detail: dict, *, today: str, now: Optional[datetime] = None,
+    reviewed: bool = False,
 ) -> str:
     """상세 1건을 **링크로만** 보관한다(주문은 만들지 않는다). 결과 코드를 돌려준다.
 
@@ -212,6 +251,10 @@ def ingest_detail(
         detail: 상품주문 상세 1건.
         today: 접수일 대체값(매핑 검증용).
         now: 테스트용 시각 주입.
+        reviewed: True 면 만든 링크를 **확인 완료로 표시**해 처리 큐에 넣지 않는다.
+            과거 구간 소급 수집 전용이다 — 백필은 "과거 원본을 확보"하는 일이지 "지금
+            처리할 일"이 아니다. 표시하지 않으면 90일치 전 주문이 통째로 처리 탭에 쌓인다
+            (스테이징 실측 2026-09-01: 링크 1,560건 = 798집이 큐에 밀려들었다).
 
     Returns:
         ``"collected"`` / ``"skipped"`` / ``"pending_review"``.
@@ -228,6 +271,11 @@ def ingest_detail(
         return "pending_review"
 
     order_no = str((_safe_unwrap(detail)[0] or {}).get("orderId") or "") or None
+    # 백필 표식은 **두 벌**이다: 큐를 비우는 ``reviewed_at`` 과, 나중에 "이건 소급분"임을
+    # 되짚을 ``triage_state.backfill``. 시각만 남기면 사람이 확인한 것과 구분되지 않는다.
+    match_keys = _match_key_values(detail)
+    stamp = now_utc_naive() if reviewed else None
+    state = {"backfill": {"at": stamp.isoformat()}} if reviewed else None
     savepoint = session.begin_nested()
     try:
         session.add(
@@ -242,6 +290,12 @@ def ingest_detail(
                 place_order_status=_place_status_value(detail),
                 # 묶음키 사본 — 이력 표가 확인 큐와 같은 정의로 집을 셀 수 있게 한다.
                 group_key=_group_key_value(detail),
+                # 매칭 축 사본 — 없으면 "안 붙은 집" 매칭이 300행 캡 스캔으로 떨어진다.
+                recipient_name=match_keys["recipient_name"],
+                recipient_phone_digits=match_keys["recipient_phone_digits"],
+                orderer_phone_digits=match_keys["orderer_phone_digits"],
+                reviewed_at=stamp,
+                triage_state=state,
             )
         )
         session.flush()
@@ -257,6 +311,8 @@ def ingest_detail(
 def sync_naver_orders(
     session: Session, *, client: Any, start: datetime, end: datetime,
     dry_run: bool = False, now: Optional[datetime] = None,
+    notify_claims: bool = True, collect_all: bool = False,
+    mark_reviewed: bool = False,
 ) -> SyncResult:
     """한 구간을 수집한다(호출자가 commit 을 소유한다).
 
@@ -267,6 +323,17 @@ def sync_naver_orders(
         end: 구간 끝(보통 지금).
         dry_run: True 면 조회까지만 하고 링크를 만들지 않는다.
         now: 테스트용 시각 주입.
+        notify_claims: False 면 취소·반품 상태는 반영하되 **알림을 만들지 않는다**
+            (과거 구간 소급 수집 — 지난 클레임으로 알림을 대량 발송하지 않기 위해).
+        collect_all: True 면 **상태로 거르지 않고** 변경 목록에 뜬 상품주문을 전부 후보로
+            삼는다. 과거 구간 소급 수집 전용이다 — 변경 피드의 ``productOrderStatus`` 는
+            이벤트 당시가 아니라 **현재 상태**라서(스테이징 실측 2026-09-01: 06-04~08-16
+            이벤트 1,300건 중 PAYED 0건), 오래된 주문은 이미 배송완료·구매확정으로 넘어가
+            결제완료 필터에 하나도 안 걸린다. 결과가 "긁었는데 0건"이라 조용히 실패한다.
+            ``lastChangedType`` 으로 이벤트 축을 좁히는 길도 있으나 그 enum 값이 공개
+            문서에 없어(지어내지 않는다) 상세 조회 결과를 정본으로 삼는다.
+        mark_reviewed: True 면 만든 링크를 확인 완료로 표시해 처리 큐에 넣지 않는다
+            (:func:`ingest_detail` 의 ``reviewed``).
 
     Returns:
         :class:`SyncResult` 집계.
@@ -278,7 +345,8 @@ def sync_naver_orders(
     # 수집 **이후** 생긴 취소·반품 반영 (T14-F). 같은 변경 목록을 재사용하므로
     # 바뀐 게 없으면 추가 호출도 0회다. dry-run 은 읽기만 하는 모드라 건너뛴다.
     if not dry_run:
-        claim_stats = refresh_claims(session, client=client, changed=changed, now=now)
+        claim_stats = refresh_claims(session, client=client, changed=changed, now=now,
+                                     notify=notify_claims)
         result.claims_refreshed = claim_stats["refreshed"]
         result.claims_flagged = claim_stats["claimed"]
         result.claims_notified = claim_stats["notified"]
@@ -286,7 +354,7 @@ def sync_naver_orders(
     candidate_ids: list[str] = []
     seen: set[str] = set()
     for entry in changed:
-        if not is_collectible(entry):
+        if not collect_all and not is_collectible(entry):
             continue
         external_id = str((entry or {}).get("productOrderId") or "")
         if external_id and external_id not in seen:
@@ -311,7 +379,8 @@ def sync_naver_orders(
     today = get_today_kst().strftime("%Y-%m-%d")
     for detail in details:
         try:
-            outcome = ingest_detail(session, detail, today=today, now=now)
+            outcome = ingest_detail(session, detail, today=today, now=now,
+                                    reviewed=mark_reviewed)
         except NaverMappingError as exc:
             result.errors.append(str(exc))
             continue
