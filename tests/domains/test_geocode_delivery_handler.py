@@ -96,8 +96,11 @@ def test_apply_skips_when_hash_matches_and_coords_present():
     assert order.geocoded_at == _NOW  # 아무것도 다시 쓰지 않는다
 
 
-def test_apply_records_failed_when_conversion_returns_no_coords():
-    """변환 실패 → 좌표 비우고 failed + 시도 시각 기록(예외 아님 = 재시도 대상 아님)."""
+def test_apply_records_address_error_when_conversion_returns_no_coords():
+    """주소 오류 → 좌표 비우고 address_error + 시도 시각 기록(예외 아님 = 재시도 대상 아님).
+
+    사유를 안 돌려주는 구형 변환기 대역은 실패를 permanent 로 본다(GEO-FAILKIND-01 폴백).
+    """
     order = _stub_order(lat=1.0, lng=2.0)
     conv = _Converter(lat=None, lng=None)
 
@@ -105,13 +108,13 @@ def test_apply_records_failed_when_conversion_returns_no_coords():
 
     assert outcome == GEOCODE_OUTCOME_FAILED
     assert order.lat is None and order.lng is None
-    assert order.geocode_status == "failed"
+    assert order.geocode_status == "address_error"
     assert order.geocoded_at == _NOW
     assert order.address_hash == compute_address_hash(_ADDRESS)
 
 
-def test_apply_marks_empty_address_failed_without_calling_converter():
-    """주소가 비면 변환기를 부르지 않고 failed 로 종료한다."""
+def test_apply_marks_empty_address_error_without_calling_converter():
+    """주소가 비면 변환기를 부르지 않고 address_error 로 종료한다."""
     order = _stub_order(address="")
     conv = _Converter()
 
@@ -119,7 +122,7 @@ def test_apply_marks_empty_address_failed_without_calling_converter():
 
     assert outcome == GEOCODE_OUTCOME_NO_ADDRESS
     assert conv.calls == []
-    assert order.geocode_status == "failed"
+    assert order.geocode_status == "address_error"
     assert order.geocoded_at == _NOW
 
 
@@ -202,8 +205,8 @@ def test_handler_skips_payload_without_order_id(app, converter):
     assert converter.calls == []
 
 
-def test_handler_marks_failed_when_conversion_fails(app, monkeypatch):
-    """변환 실패는 예외가 아니라 failed 기록(같은 주소 10회 재호출 방지)."""
+def test_handler_marks_address_error_when_address_not_found(app, monkeypatch):
+    """주소 오류는 예외가 아니라 address_error 기록(같은 주소 10회 재호출 방지)."""
     fake = _Converter(lat=None, lng=None)
     monkeypatch.setattr(
         "foms.services.common.address_converter.FOMSAddressConverter",
@@ -216,7 +219,7 @@ def test_handler_marks_failed_when_conversion_fails(app, monkeypatch):
     db_session.commit()
 
     assert fake.calls == [_ADDRESS]
-    assert db_session.get(Order, order.id).geocode_status == "failed"
+    assert db_session.get(Order, order.id).geocode_status == "address_error"
 
 
 def test_handler_fails_closed_when_row_detached(app, converter):
