@@ -19,6 +19,17 @@ def build_order_edit_get_context(order: Order, user: Any | None = None) -> dict[
     Returns:
         Dict passed to ``render_template`` for edit surfaces.
     """
+    # AUDIT-GAP-01 후속(2026-09-02): 이 폼은 flat 컬럼을 그대로 prefill 한다
+    # (``value="{{ order.customer_name }}"``·``order.phone``). ERP 주문의 정본은
+    # ``structured_data`` 인데 두 컬럼은 저장 경로에 따라 옛 값이 남아 있을 수 있어
+    # (운영 활성 주문 130건), 그대로 두면 담당자가 **옛 번호를 보고 그대로 저장**해
+    # 어긋남이 정본 쪽으로 되돌아간다. 대시보드 읽기 경로들이 이미 쓰는 표시 오버레이를
+    # 여기서도 태워 **화면이 말하는 값 = 정본** 으로 맞춘다.
+    if is_erp_order_record(order):
+        from foms.services.erp_display import apply_erp_display_fields
+
+        apply_erp_display_fields(order)
+
     option_type = "online"
     online_options = ""
     direct_options = {

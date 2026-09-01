@@ -829,6 +829,43 @@ def _emit_order_created_event(order: Order) -> None:
     ))
 
 
+def _sync_identity_flat_columns(order: Order, structured_data: dict) -> None:
+    """고객 신원 flat 컬럼(``customer_name``·``phone``)을 structured_data 에 맞춘다.
+
+    **왜 저장 경로마다 부르는가.** ``structured_data`` 가 정본이고 flat 컬럼은 SQL 이
+    물을 수 있게 편 사본이다. 그런데 이 두 컬럼은 승격 시점에만 동기됐고, 승격 뒤 고객이
+    전화를 바꾸면 :func:`sync_erp_flat_columns` 는 ``erp_phone_digits`` 만 새 값으로
+    갱신하고 ``phone`` 컬럼은 옛 값 그대로 남았다. 표시 경로가
+    :func:`~foms.services.erp_display.apply_erp_display_fields` 로 덮어 그려서 화면은 늘
+    옳고 **SQL 만 틀린** 무증상 상태가 됐다(운영 활성 주문 130건이 신호 없이 쌓였다).
+
+    그 어긋남이 실제로 낸 사고: 네이버 수집 자동 매칭이 ``erp_phone_digits`` 로 사람을
+    찾는데 그 값만 새 번호로 바뀌어, 옛 번호로 결제된 수집분이 같은 고객의 주문을 못 찾았다
+    (2026-09-01, ``docs/incidents/2026-09-01-naver-triage-auto-match-miss.md``).
+    ``customer_name`` 도 같은 구멍이다 — 자동 매칭의 이름 축은 이 컬럼을 **정확일치**로
+    본다.
+
+    **주소·제품은 여기서 다루지 않는다.** 주소는 저장 경로가 이미
+    :func:`~foms.services.order_geocode.reset_order_geocode_on_address_change` 로 동기하고,
+    제품은 매칭 축이 아니다 — 축이 아닌 컬럼까지 끌어들이면 이 함수의 계약이 흐려진다.
+
+    Args:
+        order: 저장 중인 주문.
+        structured_data: 저장되는 structured payload.
+
+    Returns:
+        None.
+    """
+    customer = ((structured_data.get('parties') or {}).get('customer') or {})
+    cust_name = (customer.get('name') or '').strip()
+    cust_phone = (customer.get('phone') or '').strip()
+    # draft 가 심어둔 플레이스홀더는 실제 값을 덮지 않는다.
+    if cust_name and cust_name not in _CUSTOMER_PLACEHOLDERS:
+        order.customer_name = cust_name
+    if cust_phone and cust_phone != '000-0000-0000':
+        order.phone = cust_phone
+
+
 def _sync_promoted_flat_columns(order: Order, structured_data: dict) -> None:
     """승격 시 structured_data 의 실제 고객/제품 정보를 flat 컬럼에 반영한다.
 
@@ -842,9 +879,6 @@ def _sync_promoted_flat_columns(order: Order, structured_data: dict) -> None:
     Returns:
         None.
     """
-    customer = ((structured_data.get('parties') or {}).get('customer') or {})
-    cust_name = (customer.get('name') or '').strip()
-    cust_phone = (customer.get('phone') or '').strip()
     site = (structured_data.get('site') or {})
     addr = (site.get('address_full') or site.get('address_main') or '').strip()
     items = structured_data.get('items') or []
@@ -852,10 +886,7 @@ def _sync_promoted_flat_columns(order: Order, structured_data: dict) -> None:
     if items and isinstance(items, list) and len(items) > 0:
         first_product = (items[0].get('product_name') or '').strip()
 
-    if cust_name and cust_name not in _CUSTOMER_PLACEHOLDERS:
-        order.customer_name = cust_name
-    if cust_phone and cust_phone != '000-0000-0000':
-        order.phone = cust_phone
+    _sync_identity_flat_columns(order, structured_data)
     if addr and addr != '-':
         order.address = addr
     if first_product and first_product not in _PRODUCT_PLACEHOLDERS:
@@ -1511,6 +1542,9 @@ def api_put_order_structured(order_id):
                 o.structured_data = copy.deepcopy(structured_data)
                 flag_modified(o, 'structured_data')
                 sync_erp_flat_columns(o, structured_data)
+                # 신원 컬럼(customer_name·phone)은 sync_erp_flat_columns 의 계약 밖이라
+                # 여기서 따로 맞춘다. 안 맞추면 이 경로의 저장만 flat 을 옛 값으로 남긴다.
+                _sync_identity_flat_columns(o, structured_data)
 
                 # 수집 주문 담당자 자동 배정: 보류함이 owner 인 채로 주문담당자만 적히면
                 # 취소 알림이 담당자에게 안 간다(claim_watch 는 SALES owner 로 보낸다).
