@@ -105,7 +105,7 @@ class Order(Base):
     erp_drawing_updated_at = Column(DateTime, nullable=True)               # workflow.stage_updated_at (DRAWING/CONFIRM용)
     erp_stage_updated_at = Column(DateTime, nullable=True, index=True)     # workflow.stage_updated_at (stage transition truth)
     erp_owner_team_code = Column(String(20), nullable=True, index=True)    # assignments.owner_team
-    erp_phone_digits = Column(String(20), nullable=True, index=True)       # customer phone digits-only (P1-02 search)
+    erp_phone_digits = Column(String(64), nullable=True, index=True)       # customer phone digits-only (P1-02 search, 다전화 주문 22~23자)
     # AS-AXIS-01: AS 축(as_lifecycle) 의 SQL 조회용 플랫 투영. NULL = AS 이력 없음.
     # 값 도메인은 state_axes.AS_VALUES 와 같다(RECEIVED/IN_PROGRESS/COMPLETED).
     # status 컬럼은 overlay projection 이라 외부 write 로 덮이면 AS 목록이 증발했다(2026-08-14 사고).
