@@ -495,6 +495,19 @@ input.wb-pick:disabled,
 /* 금액은 자릿수가 많다(1,178,100). 마지막 열만 한 치수 넓게. */
 .wb-cmp th.wb-cmp__num:last-child,
 .wb-cmp td.wb-cmp__num:last-child { width: calc(128px * var(--wb-fs, 1)); }
+/* ── 상품주문 대조표 폭 ────────────────────────────────────────────────
+   좁은 화면에서 **열을 짜내지 않는다**(이력 표 `.wb-hist` 와 같은 규칙). 열을 줄이면
+   제품명이 한 글자씩 세로로 서고 `우리 접수 2026-09-01 23:33` 이 시각 한가운데서 접힌다.
+   지금까지는 클레임 칸의 `text-nowrap` 이 하한을 **유도**했는데, 유도는 계약이 아니다 —
+   그 유틸리티 클래스를 한 번 떼면 하한이 조용히 사라진다. 표가 제 폭을 지키고 넘치는
+   만큼은 `.table-responsive` 의 가로 스크롤이 받는다.
+   `.wb-cmp` 골격 전체가 아니라 이 표에만 건다 — 같은 골격을 쓰는 후보 카드
+   (`.wb-cmp--cand`)는 좁은 칸에 들어가므로 하한을 주면 거기서 가로 스크롤이 생긴다. */
+.wb-cmp--members { min-width: calc(680px * var(--wb-fs, 1)); }
+/* 제품 열 하한. 앞뒤 고정폭(상품주문번호 104 · 수량 92 · 금액 128)과 클레임 칸이
+   이 열을 굶기면 `3연동 슬라이딩 도어` 가 세로로 선다(이력 표에서 실측한 함정). */
+.wb-cmp--members th:nth-child(2),
+.wb-cmp--members td:nth-child(2) { min-width: calc(150px * var(--wb-fs, 1)); }
 .wb-cmp th,
 .wb-cmp td { padding: 7px 8px; border-bottom: 1px solid var(--wb-line-soft); vertical-align: top; }
 .wb-cmp thead th { font-size: calc(11.5px * var(--wb-fs, 1)); color: var(--wb-muted); text-align: left; background: var(--wb-surface-soft); }

@@ -478,6 +478,31 @@ def test_place_tab_shows_shipping_due_so_urgency_is_visible(client, workbench_on
     assert "2026-09-08" not in row, "목록 배지에 연도가 남았다"
 
 
+def test_household_due_is_the_earliest_one_not_the_first_member(client, workbench_on):
+    """집의 발송기한은 멤버 중 **가장 이른 값**이다 — 이력 탭과 같은 규칙(계약 §2.2).
+
+    멤버 순서는 대표(최고금액) 우선이라 기한과 아무 상관이 없다. 첫 값을 그대로 쓰면
+    같은 집이 처리 탭과 이력 탭에서 다른 날짜를 말하고, `임박순` 정렬이 이 값을 키로
+    쓰므로 **더 급한 집이 아래로 내려간다**. 기한을 넘기면 네이버가 자동 취소하는 축이라
+    그 어긋남이 그대로 손실이다.
+    """
+    _login(client)
+    order_no = "N-PL-DUEMIN"
+    lead = _collected(order_no=order_no, product="본품", amount=100000, place_status="")
+    late = _collected(order_no=order_no, product="구성", amount=1000, place_status="")
+    for link, due in ((lead, "2026-09-20"), (late, "2026-09-08")):
+        snapshot = dict(link.raw_snapshot)
+        snapshot["productOrder"] = dict(snapshot["productOrder"], shippingDueDate=due)
+        link.raw_snapshot = snapshot
+    db_session.commit()
+
+    body = client.get(f"{TRIAGE_PATH}?tab=place").get_data(as_text=True)
+    row = _row_of(body, "본품")
+
+    assert "발송기한 09-08" in row, f"가장 이른 기한이 아니다: {row}"
+    assert "09-20" not in row, "대표 멤버의 늦은 기한이 집을 대표했다"
+
+
 def test_place_tab_excludes_claimed_households(client, workbench_on):
     """취소·반품 집은 발주확인 대상이 아니다 — 목록에 두면 잘못 눌린다."""
     _login(client)
