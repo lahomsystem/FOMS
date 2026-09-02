@@ -24,6 +24,7 @@ from foms.services.common.erp_shell_http import (
     wants_erp_shell_tab_body,
 )
 from foms.services.orders.order_mutation_policy import user_can
+from foms.services.settlement_channel_access import can_view_channel_settlement
 # 실무 탭 [정산 청구] 폼의 귀속 부서는 **서버 상수가 SSOT** 다. 화면에 코드를 적으면
 # 5종 집합이 갈려 400 이 나는 부서가 생긴다(쓰기 API 가 이 집합으로 검증한다).
 # 최상단 import 가 안전한 이유: 앱 부팅 시 `completion_dashboard` 가 이미
@@ -104,6 +105,10 @@ def erp_settlement_dashboard():
             template_name,
             erp_sub_nav_active='settlement',
             department_options=SETTLEMENT_DEPARTMENT_OPTIONS,
+            # 채널(네이버) 정산 탭은 ADMIN·회계팀만 본다(NAVER-SETTLE-01 §1). 서버에서
+            # 마크업째 빼는 이유: 클라이언트 숨김은 개발자 도구로 그대로 보인다.
+            # 두 렌더 분기(프래그먼트·전체 문서)가 같은 render_template 을 타므로 여기 1곳이다.
+            can_view_channel_settlement=can_view_channel_settlement(user),
         )
     )
     apply_erp_shell_fragment_headers(response, request)

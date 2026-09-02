@@ -19,6 +19,7 @@
    재렌더 책임은 `dashboard.js` 의 `activateTab()` 에 있다(실측 수치까지 그쪽 주석에 있다). #}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/settlement/settlement-dashboard.css') }}?v=20260902b">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/settlement/settlement-operations.css') }}?v=20260902b">
+{% if can_view_channel_settlement %}<link rel="stylesheet" href="{{ url_for('static', filename='css/settlement/settlement-channel.css') }}?v=20260902c">{% endif %}
 <div class="container-fluid erp-dashboard erp-pro erp-settlement">
   <header class="erp-pro-header">
     <h1 class="erp-pro-header__title">
@@ -76,6 +77,16 @@
         aria-controls="foms-settle-pane-analytics" aria-selected="false" tabindex="-1">
         <span class="s-tab-name">분석</span>
       </button>
+      {# 탭 4 · 채널(네이버) 정산 — ADMIN·회계팀만 본다(NAVER-SETTLE-01 §1). 서버가 마크업째
+         빼므로 그 밖의 사용자에겐 버튼도 pane 도 존재하지 않는다(클라 숨김 금지 원칙).
+         힌트 "정산 예정일 기준" 은 네이버 settleExpectDate 축을 말하는 도메인 문구다 —
+         목업 잔재 "예정" 배지와 무관하다(계약 테스트가 채널 표면을 따로 본다). #}
+      {% if can_view_channel_settlement %}<button type="button" class="s-tab" role="tab"
+        id="foms-settle-tab-channel" data-settlement-tab="channel"
+        aria-controls="foms-settle-pane-channel" aria-selected="false" tabindex="-1">
+        <span class="s-tab-name">네이버 정산</span>
+        <span class="s-tab-hint">정산 예정일 기준</span>
+      </button>{% endif %}
       {# 집중 모드 토글 — role=tab 이 아니고 data-settlement-tab 도 없다(탭 순회·activateTab 대상 아님).
          720px 이하에서는 CSS 가 감춘다(모바일 셸은 접을 크롬이 다르다). #}
       <button type="button" class="s-tab s-tab--focus" data-settlement-focus aria-pressed="false"
@@ -381,9 +392,17 @@
       </div>
     </div>
 
+    {# 탭 4 pane · 채널(네이버) 정산. 내용물은 별도 파셜이 소유한다(실무 탭과 같은 관례).
+       pane 의 role/aria-*/hidden 배선은 셸 소유라 파셜이 건드리지 않는다. #}
+    {% if can_view_channel_settlement %}<div class="s-pane" role="tabpanel" id="foms-settle-pane-channel"
+      data-settlement-pane="channel" aria-labelledby="foms-settle-tab-channel" tabindex="0" hidden>
+      {% include 'cs/partials/settlement_channel_body.html' %}
+    </div>{% endif %}
+
     {# 툴팁은 pane 밖 루트 직속이다 — `position: fixed` 라 어느 탭에서든 같은 노드를 쓴다. #}
     <div class="s-tt" id="foms-settle-tooltip" role="tooltip"></div>
   </div>
 </div>
 <script src="{{ url_for('static', filename='js/settlement/dashboard.js') }}?v=20260902b" defer></script>
 <script src="{{ url_for('static', filename='js/settlement/operations.js') }}?v=20260902b" defer></script>
+{% if can_view_channel_settlement %}<script src="{{ url_for('static', filename='js/settlement/channel.js') }}?v=20260902c" defer></script>{% endif %}
