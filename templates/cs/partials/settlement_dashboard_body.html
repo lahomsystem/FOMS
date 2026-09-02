@@ -17,9 +17,9 @@
    탭으로 가른다. 새 메뉴도 새 URL 도 만들지 않는다. 탭 1 은 기존 화면을 **그대로** 옮긴 것이다.
    숨은 pane 은 `clientWidth === 0` 이라 그 사이에 그린 차트는 폴백 폭(400px)으로 눌린다 —
    재렌더 책임은 `dashboard.js` 의 `activateTab()` 에 있다(실측 수치까지 그쪽 주석에 있다). #}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/settlement/settlement-dashboard.css') }}?v=20260903a">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/settlement/settlement-operations.css') }}?v=20260903a">
-{% if can_view_channel_settlement %}<link rel="stylesheet" href="{{ url_for('static', filename='css/settlement/settlement-channel.css') }}?v=20260902f">{% endif %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/settlement/settlement-dashboard.css') }}?v=20260903c">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/settlement/settlement-operations.css') }}?v=20260903c">
+{% if can_view_channel_settlement %}<link rel="stylesheet" href="{{ url_for('static', filename='css/settlement/settlement-channel.css') }}?v=20260903c">{% endif %}
 <div class="container-fluid erp-dashboard erp-pro erp-settlement">
   <header class="erp-pro-header">
     <h1 class="erp-pro-header__title">
@@ -93,6 +93,16 @@
         title="상단 메뉴를 접고 화면 전체를 씁니다 (Esc 로 복귀)">
         <span class="s-tab-name">⤢ 집중 모드</span>
       </button>
+      {# 글자 크기 조절 — 브라우저를 80% 로 축소해 쓰면 11~12px 가 9~10px 로 보인다. 브라우저 확대는
+         화면 전체를 키워 KPI 5열이 잘리므로 이 화면 글자만 단계로 키운다(배율은 루트 CSS 변수 --s-fs,
+         정산 CSS 3파일의 모든 font-size 가 그 변수를 문다). 선택은 localStorage 에 남는다.
+         id 대신 data-settlement-* 훅 — 프래그먼트 스왑 뒤 문서에 id 가 두 벌 생기지 않는다.
+         role=tab 이 아니라 탭 순회·activateTab 대상이 아니다. 720px 이하에서도 보인다. #}
+      <span class="s-fs" role="group" aria-label="글자 크기" data-settlement-fs>
+        <button type="button" class="s-fs__btn" data-settlement-fs-step="-1" aria-label="글자 작게" title="글자 작게">−</button>
+        <span class="s-fs__now" data-settlement-fs-now aria-live="polite">100%</span>
+        <button type="button" class="s-fs__btn" data-settlement-fs-step="1" aria-label="글자 크게" title="글자 크게">+</button>
+      </span>
       {# 권한 부제는 실제 허용 집합이다(SPEC §5 = FINANCE_MUTATION 과 같은 집합).
          목업의 "ADMIN·MANAGER 전용" 은 CS/영업 담당을 빠뜨린 문구라 교정했다.
          2026-09-02: 별도 `.s-strip` 한 줄(40px)을 없애고 탭줄 오른쪽 메타로 합쳤다 — 크롬이 본문
@@ -404,6 +414,6 @@
     <div class="s-tt" id="foms-settle-tooltip" role="tooltip"></div>
   </div>
 </div>
-<script src="{{ url_for('static', filename='js/settlement/dashboard.js') }}?v=20260903a" defer></script>
-<script src="{{ url_for('static', filename='js/settlement/operations.js') }}?v=20260903a" defer></script>
-{% if can_view_channel_settlement %}<script src="{{ url_for('static', filename='js/settlement/channel.js') }}?v=20260902f" defer></script>{% endif %}
+<script src="{{ url_for('static', filename='js/settlement/dashboard.js') }}?v=20260903c" defer></script>
+<script src="{{ url_for('static', filename='js/settlement/operations.js') }}?v=20260903c" defer></script>
+{% if can_view_channel_settlement %}<script src="{{ url_for('static', filename='js/settlement/channel.js') }}?v=20260903c" defer></script>{% endif %}

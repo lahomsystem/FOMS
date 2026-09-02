@@ -265,8 +265,10 @@ def test_strip_issues_fewer_queries_than_the_full_tab(app):
     _, full_queries = _count_queries(lambda: _full(today))
 
     assert strip_queries < full_queries, (strip_queries, full_queries)
-    # 계약 §2.2 의 목표: 일별 1 + 건별 group-by 1 + 미매칭 1 + 최근 run 1 + 워터마크 1.
-    assert strip_queries <= 5, strip_queries
+    # 계약 §2.2 의 목표: 일별 1 + 건별 group-by 1 + 미매칭 2 + 최근 run 1 + 워터마크 1.
+    # 미매칭이 2 인 이유(v1.2 F1): 링크 있음/없음 두 갈래를 각각 상한까지 따로 읽는다 —
+    # 둘 다 부분 인덱스 ix_nsc_unmatched 를 타는 짧은 질의라 예산 1 을 더 준다.
+    assert strip_queries <= 6, strip_queries
 
 
 # --------------------------------------------------------------------------

@@ -295,6 +295,56 @@
     syncFocusButtons();
   }
 
+  /* ── 글자 크기 (F6, 2026-09-03) ──────────────────────────────────────
+     경리는 브라우저를 80% 로 축소해 쓴다 — 11~12px 가 9~10px 로 보인다. 브라우저 확대는
+     화면 전체를 키워 KPI 5열이 잘리므로 **이 화면 글자만** 단계로 키운다. 배율은 루트의
+     CSS 변수 `--s-fs` 하나로 흐른다(정산 CSS 3파일의 모든 font-size 가 calc 로 그 변수를 문다).
+     사람마다 축소율이 달라 선택은 localStorage 에 남긴다(집중 모드와 같은 try/catch 규율).
+     상수는 mount() 가 도는 지점보다 위에 둔다 — var 는 선언만 끌어올려지고 대입은 안 따라온다
+     (naver-workbench.js 가 2026-08-24 실제로 여기서 막혔다). */
+  var FONT_STEPS = [1, 1.15, 1.3, 1.5];
+  var FONT_KEY = 'foms.settlement.fontScale';
+  function readFontScale() {
+    try {
+      var saved = parseFloat(window.localStorage.getItem(FONT_KEY));
+      // 단계 목록에 없는 값(옛 값·손댄 값)은 기본으로 되돌린다.
+      return FONT_STEPS.indexOf(saved) >= 0 ? saved : FONT_STEPS[0];
+    } catch (err) { return FONT_STEPS[0]; }   // 저장소 접근 거부 — 기억만 못 할 뿐 기능은 산다
+  }
+  /** 지금 적용된 배율. 루트 변수에서 읽는다 — 저장소가 막힌 환경에서도 두 번째 누름이 이어진다. */
+  function currentFontScale(root) {
+    var cur = parseFloat(root.style.getPropertyValue('--s-fs'));
+    return FONT_STEPS.indexOf(cur) >= 0 ? cur : readFontScale();
+  }
+  /** 루트 --s-fs·백분율 라벨·끝 단계 잠금을 한 번에 맞춘다(mount 복원과 클릭이 같은 경로). */
+  function applyFontScale(root, scale) {
+    root.style.setProperty('--s-fs', String(scale));   // 커스텀 프로퍼티만 — 인라인 스타일 금지 규칙 안(--s-fam 과 같은 패턴)
+    var now = root.querySelector('[data-settlement-fs-now]');
+    if (now) now.textContent = Math.round(scale * 100) + '%';
+    var idx = FONT_STEPS.indexOf(scale);
+    var buttons = Array.prototype.slice.call(root.querySelectorAll('[data-settlement-fs-step]'));
+    // 끝에 닿으면 잠근다 — 눌러도 안 변하는 버튼은 고장으로 읽힌다. 방금 누른 버튼이 잠기면
+    // 포커스가 body 로 떨어져 다음 Tab 이 문서 처음부터 시작하므로(리뷰 R3) 형제 버튼에 넘긴다.
+    buttons.forEach(function (btn) {
+      var dir = parseInt(btn.getAttribute('data-settlement-fs-step'), 10);
+      var lock = dir < 0 ? idx <= 0 : idx >= FONT_STEPS.length - 1;
+      if (lock && document.activeElement === btn) {
+        var sibling = buttons.filter(function (other) { return other !== btn; })[0];
+        if (sibling) sibling.focus();
+      }
+      btn.disabled = lock;
+    });
+  }
+  /** 현재 단계에서 dir 만큼 이동, 범위 밖이면 무시. 저장 실패는 이번 화면 적용을 막지 않는다. */
+  function stepFontScale(root, dir) {
+    var idx = FONT_STEPS.indexOf(currentFontScale(root)) + dir;
+    if (idx < 0 || idx >= FONT_STEPS.length) return;
+    var next = FONT_STEPS[idx];
+    try { window.localStorage.setItem(FONT_KEY, String(next)); }
+    catch (err) { /* 저장만 못 한다 — 이번 화면에서는 그대로 적용된다 */ }
+    applyFontScale(root, next);
+  }
+
   /**
    * 라인 차트: crosshair 스냅 + 전 시리즈 툴팁 + 키보드(←→).
    * 목업 대비 유일한 변경: 시리즈 길이가 서로 달라도 된다(전월이 30일, 당월이 31일).
@@ -1834,6 +1884,11 @@
         setFocusMode(!isFocusMode());
         return;
       }
+      var fsBtn = e.target.closest('[data-settlement-fs-step]');
+      if (fsBtn && ctx.root.contains(fsBtn)) {
+        stepFontScale(ctx.root, parseInt(fsBtn.getAttribute('data-settlement-fs-step'), 10));
+        return;
+      }
       if (e.target.closest('[data-settlement-focus-exit]')) {
         setFocusMode(false);
       }
@@ -1949,6 +2004,8 @@
     bindControls(ctx);
     // 집중 모드 기억 복원 — 스왑 후 재마운트도 같은 경로라 버튼 aria-pressed 가 body 상태와 다시 맞는다.
     if (readFocusPreference()) setFocusMode(true); else syncFocusButtons();
+    // 글자 배율 복원 — 스왑 후 재마운트도 같은 경로라 새 루트에 변수·라벨·잠금이 다시 붙는다.
+    applyFontScale(root, readFontScale());
     load(ctx);
   }
 

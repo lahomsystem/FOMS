@@ -59,13 +59,13 @@
   background: var(--s-surface); border: 1px solid var(--s-line);
   border-radius: var(--s-radius); padding: 10px 14px;
 }
-.foms-settle .s-ops-kpi-k { font-size: 11.5px; color: var(--s-muted); font-weight: 600; }
+.foms-settle .s-ops-kpi-k { font-size: calc(11.5px * var(--s-fs, 1)); color: var(--s-muted); font-weight: 600; }
 .foms-settle .s-ops-kpi-v {
-  font-size: 21px; font-weight: 700; margin-top: 2px; letter-spacing: -0.2px;
+  font-size: calc(21px * var(--s-fs, 1)); font-weight: 700; margin-top: 2px; letter-spacing: -0.2px;
   font-variant-numeric: tabular-nums;
 }
-.foms-settle .s-ops-kpi-v i { font-style: normal; font-size: 13px; font-weight: 600; color: var(--s-muted); }
-.foms-settle .s-ops-kpi-sub { font-size: 11.5px; color: var(--s-faint); margin-top: 2px; }
+.foms-settle .s-ops-kpi-v i { font-style: normal; font-size: calc(13px * var(--s-fs, 1)); font-weight: 600; color: var(--s-muted); }
+.foms-settle .s-ops-kpi-sub { font-size: calc(11.5px * var(--s-fs, 1)); color: var(--s-faint); margin-top: 2px; }
 .foms-settle .s-ops-kpi--warn .s-ops-kpi-v { color: var(--s-bad); }
 
 /* ── 패널 ──────────────────────────────────────────────────────── */
@@ -78,16 +78,16 @@
   border-bottom: 1px solid var(--s-line-soft); flex-wrap: wrap;
 }
 .foms-settle .s-ops-title { font-weight: 700; }
-.foms-settle .s-ops-sub { font-weight: 500; color: var(--s-muted); font-size: 11.5px; }
+.foms-settle .s-ops-sub { font-weight: 500; color: var(--s-muted); font-size: calc(11.5px * var(--s-fs, 1)); }
 .foms-settle .s-ops-spacer { flex: 1; }
 .foms-settle .s-ops-body { padding: 12px; }
-.foms-settle .s-ops-note { font-size: 11.5px; color: var(--s-faint); padding: 6px 4px 0; }
-.foms-settle .s-ops-legalnote { color: var(--s-faint); font-size: 11px; line-height: 1.6; padding: 0 2px 6px; }
+.foms-settle .s-ops-note { font-size: calc(11.5px * var(--s-fs, 1)); color: var(--s-faint); padding: 6px 4px 0; }
+.foms-settle .s-ops-legalnote { color: var(--s-faint); font-size: calc(11px * var(--s-fs, 1)); line-height: 1.6; padding: 0 2px 6px; }
 
 /* ── 버튼 (Bootstrap `.btn` 을 피해 이름을 갈랐다) ─────────────── */
 .foms-settle .s-ops-btn {
   border: 1px solid var(--s-line); background: var(--s-surface); color: var(--s-text);
-  padding: 5px 11px; border-radius: 7px; font-size: 12px; cursor: pointer; font-weight: 600;
+  padding: 5px 11px; border-radius: 7px; font-size: calc(12px * var(--s-fs, 1)); cursor: pointer; font-weight: 600;
   font-family: inherit; line-height: 1.35;
 }
 .foms-settle .s-ops-btn:hover { background: var(--s-surface-soft); }
@@ -96,7 +96,7 @@
 .foms-settle .s-ops-btn--primary { background: var(--s-ops-blue); border-color: var(--s-ops-blue); color: #fff; }
 .foms-settle .s-ops-btn--primary:hover { background: #1d4fd8; }
 .foms-settle .s-ops-btn--ghost { border-color: transparent; background: transparent; color: var(--s-muted); }
-.foms-settle .s-ops-btn--xs { padding: 2.5px 8px; font-size: 11px; border-radius: 6px; }
+.foms-settle .s-ops-btn--xs { padding: 2.5px 8px; font-size: calc(11px * var(--s-fs, 1)); border-radius: 6px; }
 
 /* ── 미수금 aging (퍼센트 폭 HTML 막대 — 숨은 pane 폭 0 함정이 없다) ── */
 .foms-settle .s-ops-aging-row {
@@ -107,13 +107,13 @@
 .foms-settle .s-ops-aging-row:hover { background: var(--s-surface-soft); }
 .foms-settle .s-ops-aging-row:focus-visible { outline: 2px solid var(--s-accent); outline-offset: -2px; }
 .foms-settle .s-ops-aging-row[aria-pressed="true"] { background: var(--s-ops-blue-soft); border-color: #c7dbff; }
-.foms-settle .s-ops-aging-lbl { font-size: 12px; color: var(--s-muted); font-weight: 600; text-align: right; }
+.foms-settle .s-ops-aging-lbl { font-size: calc(12px * var(--s-fs, 1)); color: var(--s-muted); font-weight: 600; text-align: right; }
 .foms-settle .s-ops-aging-track { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .foms-settle .s-ops-aging-bar {
   height: 18px; border-radius: 0 4px 4px 0; min-width: 3px;
   width: var(--s-ops-bar-pct, 0%); background: var(--s-ops-bar-color, var(--s-ops-ramp-2));
 }
-.foms-settle .s-ops-aging-val { font-size: 11.5px; color: var(--s-text); font-weight: 600; white-space: nowrap; }
+.foms-settle .s-ops-aging-val { font-size: calc(11.5px * var(--s-fs, 1)); color: var(--s-text); font-weight: 600; white-space: nowrap; }
 .foms-settle .s-ops-aging-val small { color: var(--s-faint); font-weight: 500; }
 .foms-settle .s-ops-aging--has-sel .s-ops-aging-row:not([aria-pressed="true"]) .s-ops-aging-bar { opacity: .3; }
 
@@ -123,16 +123,16 @@
   border-bottom: 1px solid var(--s-line-soft);
 }
 .foms-settle .s-ops-grp { display: flex; gap: 4px; align-items: center; }
-.foms-settle .s-ops-grp-lbl { font-size: 11px; color: var(--s-faint); font-weight: 600; margin: 0 2px 0 6px; }
+.foms-settle .s-ops-grp-lbl { font-size: calc(11px * var(--s-fs, 1)); color: var(--s-faint); font-weight: 600; margin: 0 2px 0 6px; }
 .foms-settle .s-ops-chip {
   border: 1px solid var(--s-line); background: var(--s-surface); border-radius: 999px;
-  padding: 3px 10px; font-size: 11.5px; color: var(--s-muted); cursor: pointer; font-family: inherit;
+  padding: 3px 10px; font-size: calc(11.5px * var(--s-fs, 1)); color: var(--s-muted); cursor: pointer; font-family: inherit;
 }
 .foms-settle .s-ops-chip:focus-visible { outline: 2px solid var(--s-accent); outline-offset: 1px; }
 .foms-settle .s-ops-chip[aria-pressed="true"] { background: #111827; border-color: #111827; color: #fff; font-weight: 600; }
 .foms-settle .s-ops-chip--clear {
   border: none; background: var(--s-ops-blue-soft); color: var(--s-ops-blue); font-weight: 600;
-  border-radius: 999px; padding: 3px 10px; font-size: 11.5px; cursor: pointer; font-family: inherit;
+  border-radius: 999px; padding: 3px 10px; font-size: calc(11.5px * var(--s-fs, 1)); cursor: pointer; font-family: inherit;
 }
 
 /* ── 그리드 ────────────────────────────────────────────────────── */
@@ -142,10 +142,10 @@
 .foms-settle .s-ops-grid td { padding: 6px 9px; border-bottom: 1px solid var(--s-line-soft); white-space: nowrap; }
 .foms-settle .s-ops-grid thead th {
   position: sticky; top: 0; z-index: 2; background: var(--s-surface-soft);
-  font-size: 11px; color: var(--s-muted); text-align: left; font-weight: 700;
+  font-size: calc(11px * var(--s-fs, 1)); color: var(--s-muted); text-align: left; font-weight: 700;
   border-bottom: 1px solid var(--s-line);
 }
-.foms-settle .s-ops-grid td { font-size: 12.5px; vertical-align: middle; }
+.foms-settle .s-ops-grid td { font-size: calc(12.5px * var(--s-fs, 1)); vertical-align: middle; }
 .foms-settle .s-ops-grid .s-ops-num { text-align: right; font-variant-numeric: tabular-nums; }
 .foms-settle .s-ops-grid tbody tr:hover { background: var(--s-surface-soft); }
 .foms-settle .s-ops-grid tr.s-ops-row--overdue { background: #fff7f7; }
@@ -155,15 +155,15 @@
 /* 과입금은 "받을 돈"이 아니라 "돌려줄 돈"이라 잔금과 색을 분리한다. */
 .foms-settle .s-ops-grid td.s-ops-over { color: var(--s-ops-orange); font-weight: 700; }
 .foms-settle .s-ops-cust-nm { font-weight: 700; }
-.foms-settle .s-ops-cust-no { color: var(--s-faint); font-size: 11px; margin-left: 5px; font-variant-numeric: tabular-nums; }
-.foms-settle .s-ops-subline { font-size: 10.5px; margin-top: 1px; }
+.foms-settle .s-ops-cust-no { color: var(--s-faint); font-size: calc(11px * var(--s-fs, 1)); margin-left: 5px; font-variant-numeric: tabular-nums; }
+.foms-settle .s-ops-subline { font-size: calc(10.5px * var(--s-fs, 1)); margin-top: 1px; }
 .foms-settle .s-ops-subline--ok { color: var(--s-ops-green); font-weight: 600; }
 .foms-settle .s-ops-subline--warn { color: var(--s-amber); font-weight: 600; }
 .foms-settle .s-ops-dash { color: var(--s-faint); }
 
 /* 배지 — 색만으로 말하지 않는다(글자가 같은 사실을 반복한다). */
 .foms-settle .s-ops-b {
-  display: inline-block; font-size: 11px; font-weight: 700; border-radius: 5px;
+  display: inline-block; font-size: calc(11px * var(--s-fs, 1)); font-weight: 700; border-radius: 5px;
   padding: 1.5px 7px; white-space: nowrap;
 }
 .foms-settle .s-ops-b--ch-normal { background: var(--s-ops-neutral-soft); color: var(--s-ops-neutral); }
@@ -181,7 +181,7 @@
 .foms-settle .s-ops-actions { display: flex; gap: 5px; align-items: center; }
 .foms-settle .s-ops-foot {
   display: flex; gap: 14px; align-items: center; padding: 8px 12px;
-  color: var(--s-muted); font-size: 11.5px; border-top: 1px solid var(--s-line-soft); flex-wrap: wrap;
+  color: var(--s-muted); font-size: calc(11.5px * var(--s-fs, 1)); border-top: 1px solid var(--s-line-soft); flex-wrap: wrap;
 }
 .foms-settle .s-ops-foot b { color: var(--s-text); }
 
@@ -192,7 +192,7 @@
 }
 .foms-settle .s-ops-page {
   border: 1px solid var(--s-line); background: var(--s-surface); color: var(--s-muted);
-  min-width: 28px; padding: 3px 8px; border-radius: 6px; font-size: 11.5px;
+  min-width: 28px; padding: 3px 8px; border-radius: 6px; font-size: calc(11.5px * var(--s-fs, 1));
   cursor: pointer; font-family: inherit; font-variant-numeric: tabular-nums;
 }
 .foms-settle .s-ops-page:hover { background: var(--s-surface-soft); }
@@ -201,7 +201,7 @@
   background: var(--s-accent); border-color: var(--s-accent); color: #fff; font-weight: 700;
 }
 .foms-settle .s-ops-page[disabled] { opacity: .4; cursor: default; }
-.foms-settle .s-ops-page-gap { color: var(--s-faint); padding: 0 2px; font-size: 11.5px; }
+.foms-settle .s-ops-page-gap { color: var(--s-faint); padding: 0 2px; font-size: calc(11.5px * var(--s-fs, 1)); }
 
 /* ── 정산 청구 폼 ──────────────────────────────────────────────── */
 .foms-settle .s-ops-form {
@@ -209,21 +209,21 @@
   border-radius: var(--s-radius); background: var(--s-surface-soft);
 }
 .foms-settle .s-ops-form-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.foms-settle .s-ops-form-title { font-weight: 700; font-size: 12.5px; }
-.foms-settle .s-ops-form-target { color: var(--s-muted); font-size: 11.5px; }
+.foms-settle .s-ops-form-title { font-weight: 700; font-size: calc(12.5px * var(--s-fs, 1)); }
+.foms-settle .s-ops-form-target { color: var(--s-muted); font-size: calc(11.5px * var(--s-fs, 1)); }
 .foms-settle .s-ops-form-grid {
   display: grid; grid-template-columns: 150px 150px 1fr auto; gap: 8px; align-items: end; margin-top: 8px;
 }
 .foms-settle .s-ops-field { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .foms-settle .s-ops-field--action { justify-content: end; }
-.foms-settle .s-ops-field-lbl { font-size: 11px; color: var(--s-muted); font-weight: 600; }
+.foms-settle .s-ops-field-lbl { font-size: calc(11px * var(--s-fs, 1)); color: var(--s-muted); font-weight: 600; }
 .foms-settle .s-ops-input {
   border: 1px solid var(--s-line); border-radius: 7px; padding: 5px 8px;
-  font-size: 12px; font-family: inherit; background: var(--s-surface); color: var(--s-text);
+  font-size: calc(12px * var(--s-fs, 1)); font-family: inherit; background: var(--s-surface); color: var(--s-text);
   min-width: 0; width: 100%;
 }
 .foms-settle .s-ops-input:focus-visible { outline: 2px solid var(--s-accent); outline-offset: -1px; }
-.foms-settle .s-ops-form-note { font-size: 11px; color: var(--s-faint); margin-top: 6px; }
+.foms-settle .s-ops-form-note { font-size: calc(11px * var(--s-fs, 1)); color: var(--s-faint); margin-top: 6px; }
 
 /* ── 반응형: 목업과 같은 980px 브레이크포인트 ─────────────────── */
 @media (max-width: 980px) {
