@@ -483,12 +483,17 @@
            잠긴 집은 위 문구가 이미 이유를 말하므로 겹쳐 쓰지 않는다(리뷰 M-4). #}
         {% if dispatched_any and not dispatched and not locked %}
         <div class="wb-acts__why small">
-            상품주문 {{ member_count }}건 중 <b>{{ dispatched_count }}건 발송 완료</b> —
+            {# 나간 건수도 **두 신호**로 센다(2026-09-02). `dispatched_count` 는 우리가 보낸
+               수라, 형제가 판매자센터에서 나간 집에서 "2건 중 0건 발송 완료" 라는 거짓 문장이
+               나왔다. 집 전체가 나간 집은 이 가지에 오지 않는다(`dispatched` 도 두 신호). #}
+            상품주문 {{ member_count }}건 중 <b>{{ member_count - dispatch_pending_count }}건 발송 완료</b> —
             {# 발주확인이 남아 있으면 발송처리 버튼은 잠겨 있다. 그때 "남은 건만 나갑니다"는
                화면이 없는 동작을 약속하는 말이 된다(CEO 검수 중).
                네이버 기록으로 잠긴 집도 같은 함정이다 — 사유가 발주확인이 아닌데 "발주확인이
                먼저라"고 말하면 사람이 발주확인 탭으로 간다(2026-08-26 T5). #}
-            {% if can_dispatch %}남은 건만 나갑니다.{% elif naver_sent_at %}네이버에 이미 발송 기록이 있어 지금은 보낼 수 없습니다.{% else %}발주확인이 먼저라 지금은 보낼 수 없습니다.{% endif %}
+            {# 남은 것이 0이면 "왜 못 보내는지"를 말할 자리가 아니다 — 보낼 것이 없다.
+               우리 표식은 일부뿐인데 나머지가 판매자센터에서 나간 집이 여기 온다. #}
+            {% if not dispatch_pending_count %}더 보낼 상품주문이 없습니다.{% elif can_dispatch %}남은 건만 나갑니다.{% elif naver_sent_at %}네이버에 이미 발송 기록이 있어 지금은 보낼 수 없습니다.{% else %}발주확인이 먼저라 지금은 보낼 수 없습니다.{% endif %}
             {# T8-S1 전까지 이 자리는 "판매자센터에서" 라고 말했다 — 버튼이 생긴 뒤에도
                그대로 두면 화면이 자기 자신과 모순된다. 나간 건만 접수된다는 사실을 함께 적는다. #}
             나간 물건을 되돌리려면 <b>반품 접수</b>를 쓰세요{% if return_pending_count %} — 발송된 {{ return_pending_count }}건만 나갑니다{% endif %}.
