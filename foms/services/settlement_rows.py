@@ -11,6 +11,12 @@
 새로 만들지 않는다. 완료 대시보드와 집계 커널이 쓰는 **같은 헬퍼**를 그대로 부른다.
 같은 주문의 잔금이 화면마다 갈리는 것을 막는 유일한 방법이다.
 
+**네이버 정산 상태(v1.1 T13)**: ``include_naver_settlement=True`` 로 부를 때만 행에
+``naver_settlement`` **키가 생긴다**. 이 표면은 정산 대시보드 권한(CS·영업 포함)으로
+열려 있으므로, 회계 전용 정보를 내려보내고 화면에서 감추면 개발자 도구로 그대로 보인다
+— 그래서 **서버가 키 자체를 만들지 않는다**. 상태는 코드(``SETTLED``/``PENDING``/
+``UNMATCHED``)로만 내고 화면 문구는 프론트가 정한다.
+
 **캡 없음(§13.3-2)**: 모집단 전량(운영 ERP 1,978건)을 읽고 파이썬에서 좁힌다. 완료
 대시보드처럼 캡으로 먼저 자른 뒤 좁히면 특정 구간이 통째로 빈다. 규모가 커지면 캡이
 아니라 모집단 술어를 SQL 로 내려야 한다.
@@ -23,7 +29,9 @@ from __future__ import annotations
 
 import datetime
 import math
-from typing import Any
+from typing import Any, Sequence
+
+from sqlalchemy import func
 
 from foms.services.orders.erp_policy_constants import (
     ORDER_SETTLEMENT_ALERT_TARGET_STATUSES,
@@ -47,10 +55,13 @@ from foms.web.cs.completion_dashboard import (
     _cash_receipt_issued,
     _cash_receipt_state,
 )
-from models import ExternalOrderLink, Order
+from models import ExternalOrderLink, NaverSettleCase, Order
 
 __all__ = [
     "CHANNEL_LABELS",
+    "NAVER_SETTLE_PENDING",
+    "NAVER_SETTLE_SETTLED",
+    "NAVER_SETTLE_UNMATCHED",
     "PERIOD_FILTERS",
     "PER_PAGE",
     "SETTLEMENT_FILTERS",
@@ -59,6 +70,14 @@ __all__ = [
 
 PER_PAGE = 60           # 완료 대시보드 태블릿 그리드 `_paginate` 와 같은 크기.
 _DEFAULT_CHANNEL = "일반"
+
+#: 네이버 채널 코드. `ExternalOrderLink.channel` 과 `NaverSettleCase.channel` 이 같은 값을 쓴다.
+_NAVER_CHANNEL = "NAVER"
+
+#: 네이버 정산 칸의 상태 코드. **코드만 낸다** — 화면 문구는 프론트가 정한다(§4.2 어휘 제약).
+NAVER_SETTLE_SETTLED = "SETTLED"
+NAVER_SETTLE_PENDING = "PENDING"
+NAVER_SETTLE_UNMATCHED = "UNMATCHED"
 
 # 채널 코드 → 화면 라벨. `ExternalOrderLink.channel` 은 대문자 코드("NAVER")를 담는다 —
 # 코드를 그대로 화면에 내면 "NAVER" 로 뜬다(v1 요약 탭의 기존 결함과 같은 원인).
@@ -111,6 +130,106 @@ def _channel_map(db: Any) -> dict[int, str]:
     return mapping
 
 
+def _iso_or_none(value: Any) -> str | None:
+    """`Date` 컬럼 값을 ISO 문자열로. 값이 없으면 None.
+
+    Args:
+        value: `datetime.date` 또는 None(드라이버에 따라 문자열이 올 수도 있다).
+
+    Returns:
+        "YYYY-MM-DD" 또는 None.
+    """
+    if value is None:
+        return None
+    if isinstance(value, datetime.date):
+        return value.isoformat()
+    return str(value)
+
+
+def _naver_settle_map(db: Any, order_ids: Sequence[int]) -> dict[int, dict]:
+    """주문별 네이버 정산 상태(**쿼리 1회** group by, N+1 없음).
+
+    **판정 우선순위(SSOT)** — 한 주문에 정산 행이 여럿 붙는다(상품주문 단위 + 취소·환급
+    행). 그래서 행 하나가 아니라 묶음으로 판정한다:
+
+    1. 완료일(``settle_complete_date``)이 있는 행이 **하나라도** 있으면 ``SETTLED``.
+       표시 날짜는 그 중 **가장 최근 완료일**(``max``) — 분할 정산에서 마지막으로 돈이
+       들어온 날이 실무자가 찾는 값이다.
+    2. 완료일이 전부 없으면 ``PENDING``. 표시 날짜는 **가장 이른 예정일**(``min``) —
+       다음에 들어올 돈이 언제인지가 회수 판단의 기준이다. 예정일도 전부 없으면 None
+       (상태는 그대로 ``PENDING``: "행은 붙었는데 날짜를 아직 못 받았다"가 사실이다).
+    3. 이 map 에 **키가 없다** = 붙은 정산 행 0건. 미매칭/해당없음 판정은 채널을 아는
+       :func:`_naver_settlement_cell` 이 한다(이 함수는 채널을 모른다).
+
+    ``amount`` 는 ``settle_expect_amount`` 의 **원값 합**이다. 부호를 그대로 더할 뿐
+    재계산하지 않는다(v1 워터폴 부호 사고 재발 금지) — 취소·환급 행이 음수로 들어와
+    상계된 결과가 곧 그 주문의 정산 총액이다. 컬럼은 ``NUMERIC(16,2)`` 지만 원 단위에
+    소수가 없어 ``int`` 로 낸다(다른 금액 필드와 같은 직렬화 규약).
+
+    Args:
+        db: SQLAlchemy Session.
+        order_ids: 모집단 주문 id. 빈 시퀀스면 **쿼리를 아예 걸지 않는다**.
+
+    Returns:
+        {order_id: {"status", "settle_expect_date", "settle_complete_date", "amount"}}.
+        정산 행이 없는 주문은 키 자체가 없다.
+    """
+    ids = [int(order_id) for order_id in order_ids]
+    if not ids:
+        return {}
+
+    rows = (
+        db.query(
+            NaverSettleCase.foms_order_id,
+            func.max(NaverSettleCase.settle_complete_date),
+            func.min(NaverSettleCase.settle_expect_date),
+            func.sum(NaverSettleCase.settle_expect_amount),
+        )
+        .filter(
+            NaverSettleCase.channel == _NAVER_CHANNEL,
+            NaverSettleCase.foms_order_id.in_(ids),
+        )
+        .group_by(NaverSettleCase.foms_order_id)
+        .all()
+    )
+
+    mapping: dict[int, dict] = {}
+    for order_id, complete_date, expect_date, amount in rows:
+        if order_id is None:
+            continue
+        settled = complete_date is not None
+        mapping[int(order_id)] = {
+            "status": NAVER_SETTLE_SETTLED if settled else NAVER_SETTLE_PENDING,
+            "settle_expect_date": _iso_or_none(expect_date),
+            "settle_complete_date": _iso_or_none(complete_date),
+            "amount": None if amount is None else int(amount),
+        }
+    return mapping
+
+
+def _naver_settlement_cell(channel: str, entry: dict | None) -> dict | None:
+    """행의 "네이버 정산" 칸 값(신규 쿼리 없음).
+
+    Args:
+        channel: 행의 채널 코드.
+        entry: :func:`_naver_settle_map` 에서 이 주문에 걸린 값(없으면 None).
+
+    Returns:
+        네이버 주문이 아니면 **None**(화면은 '—'). 네이버인데 붙은 정산 행이 0건이면
+        ``UNMATCHED``. 그 밖에는 map 이 판정한 dict 그대로.
+    """
+    if channel != _NAVER_CHANNEL:
+        return None
+    if entry is None:
+        return {
+            "status": NAVER_SETTLE_UNMATCHED,
+            "settle_expect_date": None,
+            "settle_complete_date": None,
+            "amount": None,
+        }
+    return entry
+
+
 def _customer_name(sd: dict, order: Any) -> str:
     """표시용 고객명 — 완료 대시보드 `_completion_row` 와 같은 우선순위.
 
@@ -152,13 +271,24 @@ def _elapsed_days(day_key: str, today: datetime.date) -> int | None:
     return (today - completed).days
 
 
-def _settlement_row(order: Any, channel: str, today: datetime.date) -> dict:
+def _settlement_row(
+    order: Any,
+    channel: str,
+    today: datetime.date,
+    *,
+    include_naver_settlement: bool = False,
+    naver_settle: dict | None = None,
+) -> dict:
     """모집단 1행 → 화면 행 dict(신규 쿼리 없음).
 
     Args:
         order: id/status/customer_name/structured_data 가 실린 결과 행.
         channel: 채널 코드 또는 "일반".
         today: 기준일(KST).
+        include_naver_settlement: True 일 때만 ``naver_settlement`` **키를 만든다**.
+            False 면 키 자체가 없다 — 회계 권한이 없는 actor 에게는 값을 내려보내고
+            감추는 것이 아니라 아예 만들지 않는다(클라 숨김 금지 원칙).
+        naver_settle: :func:`_naver_settle_map` 에서 이 주문에 걸린 값(없으면 None).
 
     Returns:
         노출 계약을 지킨 행 dict. 연락처·주소·현금영수증 원문은 키 자체가 없다.
@@ -192,7 +322,7 @@ def _settlement_row(order: Any, channel: str, today: datetime.date) -> dict:
     receivable = (not paid) and isinstance(balance, int) and balance > 0
     aging_code = aging_bucket(elapsed) if (receivable and elapsed is not None) else ""
 
-    return {
+    row = {
         "order_id": int(order.id),
         "customer_name": _customer_name(sd, order),
         "status": order.status,
@@ -215,14 +345,26 @@ def _settlement_row(order: Any, channel: str, today: datetime.date) -> dict:
             isinstance(settlement, dict) and settlement.get("deductions")
         ),
     }
+    if include_naver_settlement:
+        row["naver_settlement"] = _naver_settlement_cell(channel, naver_settle)
+    return row
 
 
-def _load_rows(db: Any, today: datetime.date) -> list[dict]:
+def _load_rows(
+    db: Any,
+    today: datetime.date,
+    *,
+    include_naver_settlement: bool = False,
+) -> list[dict]:
     """모집단 전량을 화면 행으로 읽는다(날짜 술어 없음, 캡 없음).
+
+    쿼리 수는 **2회**(채널 링크 + 주문)이고, ``include_naver_settlement`` 가 True 일 때만
+    정산 역조회 **1회**가 더해진다(총 3회). 루프 안에서는 어떤 조회도 하지 않는다.
 
     Args:
         db: SQLAlchemy Session.
         today: 기준일(KST).
+        include_naver_settlement: True 면 행마다 ``naver_settlement`` 키를 만든다.
 
     Returns:
         행 dict 리스트.
@@ -233,8 +375,17 @@ def _load_rows(db: Any, today: datetime.date) -> list[dict]:
         .filter(*_population_filters())
         .all()
     )
+    settle_map: dict[int, dict] = {}
+    if include_naver_settlement:
+        settle_map = _naver_settle_map(db, [int(order.id) for order in orders])
     return [
-        _settlement_row(order, channels.get(int(order.id), _DEFAULT_CHANNEL), today)
+        _settlement_row(
+            order,
+            channels.get(int(order.id), _DEFAULT_CHANNEL),
+            today,
+            include_naver_settlement=include_naver_settlement,
+            naver_settle=settle_map.get(int(order.id)),
+        )
         for order in orders
     ]
 
@@ -367,6 +518,7 @@ def list_settlement_rows(
     aging: str = "",
     page: int = 1,
     per_page: int = PER_PAGE,
+    include_naver_settlement: bool = False,
 ) -> dict:
     """정산 실무 탭의 주문 행 목록(필터·정렬·페이지네이션 적용).
 
@@ -378,6 +530,11 @@ def list_settlement_rows(
         aging: aging 버킷 코드("D91_PLUS" 등) 또는 "".
         page: 1부터.
         per_page: 페이지 크기(상한 PER_PAGE).
+        include_naver_settlement: 채널 정산 열람 권한자에게만 True 로 준다. True 일 때만
+            행에 ``naver_settlement`` 키가 **생긴다**(기본 False = 키 부재). 판정은 이
+            모듈이 하지 않는다 — 라우트가
+            :func:`foms.services.settlement_channel_access.can_view_channel_settlement`
+            으로 판정해 넘긴다.
 
     Returns:
         rows/page/per_page/total_count/total_pages/totals/filters/aging_options/
@@ -397,7 +554,7 @@ def list_settlement_rows(
         raise ValueError(f"aging 은 {'|'.join(_AGING_CODES)} 중 하나여야 합니다: {aging!r}")
 
     today = get_today_kst()
-    all_rows = _load_rows(db, today)
+    all_rows = _load_rows(db, today, include_naver_settlement=include_naver_settlement)
     # 2단으로 좁힌다: 스코프(기간·정산상태·채널)까지가 aging 막대의 모집단이고, 거기서
     # 고른 구간을 더 좁힌 것이 목록이다. 한 번 읽은 모집단으로 둘 다 낸다.
     scoped = [
