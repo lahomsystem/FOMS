@@ -61,7 +61,7 @@ _STATIC_ASSETS = (CSS_ASSET, JS_ASSET)
 #: 이 화면 자산의 캐시 핀. **저장소 전역에서 이 값 하나**여야 한다. CSS/JS 를 고치면
 #: 셸 템플릿의 두 링크와 이 상수를 **함께** 옮긴다 — 값이 조용히 갈리면 실기기가 옛 자산을
 #: 계속 실행한다(서비스워커 staticCacheFirst).
-_CHANNEL_PIN = "20260902f"
+_CHANNEL_PIN = "20260903c"
 
 _CHANNEL_TAB_ID = "foms-settle-tab-channel"
 _CHANNEL_PANE_ID = "foms-settle-pane-channel"
@@ -724,3 +724,56 @@ def test_export_url_carries_the_current_filter_bar():
 
     for param in ("kind=", "channel=", "from=", "to=", "basis="):
         assert param in section, f"내려받기 URL 에 {param} 가 없다"
+
+
+# ==========================================================================
+# 계약 v1.2 — F1 미연결 2갈래 배지 · F2 보류·한도 펼침 상세
+# ==========================================================================
+def test_exception_badge_knows_both_unmatched_kinds():
+    """예외 배지가 `UNMATCHED`(워크벤치 대기)와 `UNLINKED`(수집 전 주문)를 **다른 색**으로 낸다.
+
+    두 갈래는 조치하는 사람과 화면이 다르다(워크벤치 vs 수집 운영). 한 색이면 표에서
+    갈래가 있다는 사실이 사라진다. 색 클래스는 CSS 에도 있어야 한다(없으면 조용히 회색).
+    """
+    source = _read_code(f"static/{JS_ASSET}")
+    at = source.find("function excKindClass")
+    assert at >= 0, "excKindClass 가 없다"
+    body = source[at:source.find("\n  }", at)]
+    css = _read_code(f"static/{CSS_ASSET}")
+
+    assert "'UNMATCHED'" in body and "'UNLINKED'" in body
+    assert "return 'info'" in body, "UNLINKED 에 별도 색 클래스가 없다"
+    assert ".s-ch-badge--info" in css, "CSS 에 info 배지 색이 없다"
+
+
+def test_holdback_kpi_tile_toggles_a_detail_panel_without_a_document_listener():
+    """"보류·한도" 타일이 버튼(role/aria-expanded)이고 `[data-settlement-ch-holdback-detail]` 패널을 펼친다.
+
+    리스너는 타일 자신에만 붙는다 — 전역 리스너 수 계약(`_DOCUMENT_LISTENERS`)은 별도
+    테스트가 잠근다. 키보드(Enter/Space)로도 열려야 한다(마우스 전용 펼침 금지).
+    """
+    source = _read_code(f"static/{JS_ASSET}")
+    at = source.find("function bindKpiToggle")
+    assert at >= 0, "bindKpiToggle 이 없다"
+    body = source[at:source.find("\n  }", at)]
+
+    assert "'role', 'button'" in body and "'aria-expanded'" in body and "'tabindex', '0'" in body
+    assert "e.key === 'Enter'" in body and "e.key === ' '" in body
+    assert "function renderHoldbackDetail" in source
+    assert "data-settlement-ch-holdback-detail" in source
+    assert "holdbackOpen" in source, "펼침 상태가 ctx.state 에 없다(재렌더마다 닫힌다)"
+
+
+def test_holdback_detail_table_shows_both_naver_columns_and_a_total_row():
+    """상세 표가 payHoldbackAmount·settlementLimitAmount 두 열과 합계(tfoot)를 낸다.
+
+    -1.2억 의 원인 추적이 이 표의 목적이다 — 두 열을 합쳐 하나로 내면 어느 축의 보류인지
+    다시 못 가른다. 합계는 서버 `total` 을 그리기만 한다(화면 재계산 금지).
+    """
+    source = _read_code(f"static/{JS_ASSET}")
+    at = source.find("function renderHoldbackDetail")
+    body = source[at:source.find("\n  }", at)]
+
+    assert "'pay_holdback'" in body and "'settlement_limit'" in body
+    assert "el('tfoot')" in body and "block.total" in body
+    assert "'정산 예정일'" in body

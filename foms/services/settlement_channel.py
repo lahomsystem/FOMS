@@ -110,6 +110,9 @@ STRIP_TAB_KEY = "channel"
 
 #: 예외 큐가 한 종류에서 담아 오는 최대 행수. 넘치면 화면이 스크롤 괴물이 된다.
 _EXCEPTION_CAP = 50
+#: 미연결 예외의 조치 링크 — 같은 출처 상대 경로만(프론트 ``actionCell`` 이 외부 URL 을 안 건다).
+_WORKBENCH_URL = "/admin/naver-ingest/triage"
+_INGEST_URL = "/admin/naver-ingest"
 
 #: 원장 행 직렬화 타입 태그.
 _DATE, _MONEY, _TEXT, _INT = "date", "money", "text", "int"
@@ -533,6 +536,48 @@ def _daily_totals(rows: list[Any]) -> dict[str, Decimal]:
     return totals
 
 
+def _build_holdback(rows: list[Any]) -> dict:
+    """지급 보류·한도 보류의 일자별 상세 — KPI "보류·한도" 타일이 펼친다(v1.2 F2).
+
+    두 컬럼(``pay_holdback_amount``·``settlement_limit_amount``) 중 하나라도 0 이 아닌 일별
+    행만 싣는다(0 행을 채우면 "그날도 보류가 있었다"로 읽힌다). 부호는 네이버 원본 그대로다 —
+    운영 실측(2026-09-03)에서 같은 금액이 음수로 잡혔다가 뒤에 양수로 다시 나타난다(보류와
+    해제의 짝). 합계는 더하기뿐이며 KPI 타일(:func:`_holdback_of`)과 같은 정의다.
+
+    Args:
+        rows: :func:`_daily_rows` 결과(정산 예정일 오름차순).
+
+    Returns:
+        ``rows``(정산 예정일 내림차순)·``count``·``total`` dict.
+    """
+    found: list[dict] = []
+    total_hold, total_limit = _ZERO, _ZERO
+    ordered = sorted(rows, key=lambda item: (item.settle_expect_date, item.id), reverse=True)
+    for row in ordered:
+        hold, limit = _dec(row.pay_holdback_amount), _dec(row.settlement_limit_amount)
+        if hold == 0 and limit == 0:
+            continue
+        total_hold += hold
+        total_limit += limit
+        method = str(row.settle_method_type or "").upper()
+        found.append({
+            "date": _day(row.settle_expect_date),
+            "settle_method_type": row.settle_method_type,
+            "settle_method_label": label(SETTLE_METHOD_TYPES, method) if method else "미정",
+            "pay_holdback": _money(hold, default=0),
+            "settlement_limit": _money(limit, default=0),
+            "amount": _money(hold + limit, default=0),
+            "completed": row.settle_complete_date is not None,
+        })
+    return {
+        "rows": found,
+        "count": len(found),
+        "total": {"pay_holdback": _money(total_hold, default=0),
+                  "settlement_limit": _money(total_limit, default=0),
+                  "amount": _money(total_hold + total_limit, default=0)},
+    }
+
+
 # ---------------------------------------------------------------------------
 # 건별(case) 축 — 매칭률·대사
 # ---------------------------------------------------------------------------
@@ -562,22 +607,29 @@ def _build_case_stats(session: Any, channel: str, date_from: datetime.date,
         date_to: 종료일(포함).
 
     Returns:
-        ``case_count``·``unmatched``·``matched``·``prod_orders``·``pay_settle`` dict.
+        ``case_count``·``unmatched``·``matched``·``prod_orders``·``unmatched_pending``
+        (링크 있음·주문 없음)·``unmatched_unlinked``(링크 없음)·``pay_settle`` dict.
     """
     scope = _case_scope(channel, date_from, date_to)
-    rows = (session.query(NaverSettleCase.match_status,
+    # 미매칭을 링크 유무로 한 번 더 가른다(v1.2 F1) — 워크벤치 대기(링크 있음·주문 없음)와
+    # 수집 전 주문(링크 없음)은 조치하는 사람과 화면이 다르다.
+    has_link = NaverSettleCase.link_id.isnot(None)
+    rows = (session.query(NaverSettleCase.match_status, has_link,
                           func.count(NaverSettleCase.id),
                           func.sum(NaverSettleCase.pay_settle_amount))
-            .filter(*scope).group_by(NaverSettleCase.match_status).all())
+            .filter(*scope).group_by(NaverSettleCase.match_status, has_link).all())
     stats = {"case_count": 0, "unmatched": 0, "matched": 0, "prod_orders": 0,
-             "pay_settle": _ZERO}
-    for status, count, total in rows:
+             "unmatched_pending": 0, "unmatched_unlinked": 0, "pay_settle": _ZERO}
+    for status, linked, count, total in rows:
         code = str(status or "NA").upper()
-        stats["case_count"] += int(count or 0)
+        count = int(count or 0)
+        stats["case_count"] += count
         stats["pay_settle"] += _dec(total)
         if code in ("MATCHED", "UNMATCHED"):
-            stats["prod_orders"] += int(count or 0)
-            stats["matched" if code == "MATCHED" else "unmatched"] += int(count or 0)
+            stats["prod_orders"] += count
+            stats["matched" if code == "MATCHED" else "unmatched"] += count
+        if code == "UNMATCHED":
+            stats["unmatched_pending" if linked else "unmatched_unlinked"] += count
     return stats
 
 
@@ -611,6 +663,8 @@ def _kpi_block(totals: dict[str, Decimal], case_stats: dict[str, Any]) -> dict:
         "match_rate": (None if not case_stats["prod_orders"]
                        else case_stats["matched"] / case_stats["prod_orders"]),
         "unmatched_count": case_stats["unmatched"],
+        "unmatched_pending_count": case_stats["unmatched_pending"],
+        "unmatched_unlinked_count": case_stats["unmatched_unlinked"],
         "case_count": case_stats["case_count"],
     }
 
@@ -832,24 +886,48 @@ def _daily_exceptions(rows: list[Any], today: datetime.date) -> list[dict]:
     return found[:_EXCEPTION_CAP]
 
 
-def _unmatched_exceptions(session: Any, channel: str, date_from: datetime.date,
-                          date_to: datetime.date, today: datetime.date) -> list[dict]:
-    """FOMS 주문에 붙지 않은 상품주문 행(UNMATCHED). 배송비·기타비용 행은 대상이 아니다."""
-    rows = (session.query(NaverSettleCase)
+def _unmatched_rows(session: Any, channel: str, date_from: datetime.date,
+                    date_to: datetime.date, *, linked: bool) -> list[Any]:
+    """UNMATCHED 상품주문 행 한 갈래(링크 있음/없음), 최신 정산 예정일부터 상한까지."""
+    predicate = (NaverSettleCase.link_id.isnot(None) if linked
+                 else NaverSettleCase.link_id.is_(None))
+    return (session.query(NaverSettleCase)
             .filter(*_case_scope(channel, date_from, date_to),
-                    NaverSettleCase.match_status == "UNMATCHED")
+                    NaverSettleCase.match_status == "UNMATCHED", predicate)
             .order_by(NaverSettleCase.settle_expect_date.desc(),
                       NaverSettleCase.id.desc())
             .limit(_EXCEPTION_CAP).all())
-    return [
-        _exception("UNMATCHED", "FOMS 주문 미연결",
-                   row.settle_expect_date or row.search_date, row.settle_expect_amount,
-                   today,
-                   {"order_id": row.order_id, "product_order_id": row.product_order_id,
-                    "product_name": row.product_name},
-                   "/admin/naver-ingest")
-        for row in rows
-    ]
+
+
+def _unmatched_exception(row: Any, today: datetime.date, *, linked: bool) -> dict:
+    """미연결 예외 1행. 링크가 있으면 워크벤치의 그 집을, 없으면 수집 운영 화면을 가리킨다."""
+    link_id = int(row.link_id) if row.link_id is not None else None
+    ref = {"order_id": row.order_id, "product_order_id": row.product_order_id,
+           "product_name": row.product_name, "link_id": link_id}
+    day = row.settle_expect_date or row.search_date
+    if linked:
+        return _exception("UNMATCHED", "워크벤치 대기(주문 미생성)", day,
+                          row.settle_expect_amount, today, ref,
+                          f"{_WORKBENCH_URL}?link_id={link_id}")
+    return _exception("UNLINKED", "수집 전 주문(링크 없음)", day,
+                      row.settle_expect_amount, today, ref, _INGEST_URL)
+
+
+def _unmatched_exceptions(session: Any, channel: str, date_from: datetime.date,
+                          date_to: datetime.date, today: datetime.date) -> list[dict]:
+    """FOMS 주문에 붙지 않은 상품주문 행 두 갈래(v1.2 F1). 배송비·기타비용(NA) 행은 대상이 아니다.
+
+    - ``UNMATCHED``: 링크는 있는데 주문이 아직 없다(워크벤치에서 주문 생성 대기) → 그 집을 연다.
+    - ``UNLINKED``: 링크 자체가 없다(수집이 닿기 전 주문) → 수집 운영 화면.
+
+    갈래마다 상한을 따로 둔다 — 한 상한을 나누면 많은 쪽(운영 실측 2026-09-03: 1,321 vs 32)이
+    적은 쪽을 표에서 밀어내 그 갈래가 있다는 사실 자체가 안 보인다. 전체 건수는 KPI
+    (``unmatched_pending_count``·``unmatched_unlinked_count``)가 말한다.
+    """
+    pending = _unmatched_rows(session, channel, date_from, date_to, linked=True)
+    unlinked = _unmatched_rows(session, channel, date_from, date_to, linked=False)
+    return ([_unmatched_exception(row, today, linked=True) for row in pending]
+            + [_unmatched_exception(row, today, linked=False) for row in unlinked])
 
 
 def _run_exceptions(run: Any, reconcile: dict, today: datetime.date) -> list[dict]:
@@ -1093,6 +1171,7 @@ def build_channel_dashboard(session: Any, *, date_from: datetime.date,
         "waterfall": _build_waterfall(totals),
         "deposit_channels": _build_deposit_channels(rows),
         "reconcile": reconcile,
+        "holdback": _build_holdback(rows),
         "commission": _build_commission(session, channel, date_from, date_to),
         "vat": _build_vat(session, channel, date_from, date_to, today),
         "exceptions": _build_exceptions(session, channel, date_from, date_to,
@@ -1116,8 +1195,8 @@ def build_channel_strip(session: Any, *, channel: str = "NAVER",
     :func:`_daily_totals` → :func:`_build_case_stats` → :func:`_kpi_block`)를 그대로
     통과시킨다. 숫자를 여기서 다시 정의하면 요약 스트립과 채널 탭이 조용히 갈린다.
 
-    전기 구간·원장·수수료·부가세는 조회하지 않는다(질의 5개: 일별 1 + 건별 group-by 1 +
-    미매칭 1 + 최근 run 1 + 워터마크 1).
+    전기 구간·원장·수수료·부가세는 조회하지 않는다(질의 6개: 일별 1 + 건별 group-by 1 +
+    미매칭 2(링크 있음/없음) + 최근 run 1 + 워터마크 1).
 
     Args:
         session: SQLAlchemy Session.

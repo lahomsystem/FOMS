@@ -35,6 +35,7 @@ from foms.services.audit_message_display import ACTION_LABELS
 from foms.services.datetime_kst import get_today_kst, now_utc_naive
 from foms.services.settlement_channel import mask_account_no
 from models import (
+    ExternalOrderLink,
     NaverSettleCase,
     NaverSettleCommission,
     NaverSettleDaily,
@@ -60,7 +61,7 @@ _DENIED_ACTORS = [("MANAGER", "CS"), ("STAFF", "CS"), ("STAFF", "SALES"),
 _DATA_KEYS = {
     "channel", "basis", "basis_label", "range", "granularity", "sync", "kpi",
     "daily", "daily_prev", "waterfall", "deposit_channels", "reconcile",
-    "commission", "vat", "exceptions", "ledger",
+    "commission", "vat", "exceptions", "ledger", "holdback",
 }
 
 _SYNC_KEYS = {
@@ -72,6 +73,7 @@ _KPI_SCALARS = {
     "settled_amount", "expected_amount", "expected_account_amount",
     "expected_charge_amount", "commission_total", "commission_rate",
     "holdback_amount", "match_rate", "unmatched_count", "case_count",
+    "unmatched_pending_count", "unmatched_unlinked_count",
 }
 
 #: 워터폴은 **순서가 계약**이다(부동 막대가 누적되는 순서 그 자체).
@@ -593,3 +595,126 @@ def test_per_page_is_capped(client, app):
     _seed_basic(get_today_kst())
     _login(client, _make_user(role="ADMIN"))
     assert _data(_get(client, per_page=5000))["ledger"]["pagination"]["per_page"] == 200
+
+
+# --------------------------------------------------------------------------
+# 11. v1.2 — F1 미연결 2갈래 · F2 보류·한도 일자별 상세
+# --------------------------------------------------------------------------
+def _link(external_id: str) -> int:
+    """주문이 아직 안 만들어진(``order_id`` NULL) 네이버 링크 1행 — 워크벤치 대기 상태.
+
+    id 만 돌려준다 — 요청이 끝나면 세션이 닫혀 인스턴스가 detach 되고, 그 뒤 ``link.id`` 는
+    DetachedInstanceError 다.
+    """
+    link = ExternalOrderLink(channel="NAVER", external_id=external_id, order_id=None,
+                             sync_status="COLLECTED", raw_snapshot={})
+    db_session.add(link)
+    db_session.flush()
+    return int(link.id)
+
+
+def test_unmatched_exceptions_split_by_link_presence(client, app):
+    """미연결이 두 갈래로 나온다: 링크 있음·주문 없음 = UNMATCHED(워크벤치), 링크 없음 = UNLINKED(수집 전).
+
+    조치 링크가 갈래마다 다르다 — 워크벤치 대기는 **그 집**(`link_id`)으로, 수집 전 주문은
+    수집 운영 화면으로. KPI 도 두 갈래 건수를 따로 말하고 합은 기존 ``unmatched_count`` 와 같다.
+    MATCHED·NA 행은 어느 갈래에도 안 나온다(음성 대조군).
+    """
+    today = get_today_kst()
+    day = _seed_basic(today)  # MATCHED 2행
+    link_id = _link("2026090100031")
+    _case(day, product_order_id="2026090100031", match_status="UNMATCHED", link_id=link_id)
+    _case(day, product_order_id="2026090100032", match_status="UNMATCHED")
+    _case(day, product_order_id="2026090100033", product_order_type="DELIVERY",
+          match_status="NA", settle_expect_amount=Decimal("3000"))
+    db_session.commit()
+    _login(client, _make_user(role="ADMIN"))
+    data = _data(_get(client))
+
+    by_po = {item["ref"]["product_order_id"]: item for item in data["exceptions"]
+             if item["kind"] in ("UNMATCHED", "UNLINKED")}
+    assert set(by_po) == {"2026090100031", "2026090100032"}
+    pending, unlinked = by_po["2026090100031"], by_po["2026090100032"]
+    assert pending["kind"] == "UNMATCHED"
+    assert pending["label"] == "워크벤치 대기(주문 미생성)"
+    assert pending["action_url"] == f"/admin/naver-ingest/triage?link_id={link_id}"
+    assert pending["ref"]["link_id"] == link_id
+    assert unlinked["kind"] == "UNLINKED"
+    assert unlinked["label"] == "수집 전 주문(링크 없음)"
+    assert unlinked["action_url"] == "/admin/naver-ingest"
+    assert unlinked["ref"]["link_id"] is None
+    # 갈래 순서: 조치 가능한 워크벤치 대기가 앞.
+    kinds = [item["kind"] for item in data["exceptions"] if item["kind"] in ("UNMATCHED", "UNLINKED")]
+    assert kinds == ["UNMATCHED", "UNLINKED"]
+
+    kpi = data["kpi"]
+    assert kpi["unmatched_count"] == 2
+    assert kpi["unmatched_pending_count"] == 1
+    assert kpi["unmatched_unlinked_count"] == 1
+    assert kpi["match_rate"] == 0.5          # MATCHED 2 / PROD_ORDER 4 (NA 는 분모 밖)
+    assert kpi["case_count"] == 5
+    assert kpi["prev"]["unmatched_pending_count"] == 0
+    assert kpi["prev"]["unmatched_unlinked_count"] == 0
+
+
+def test_unmatched_kinds_are_absent_when_every_row_is_matched(client, app):
+    """전부 MATCHED 면 두 갈래 다 0 이고 예외에도 없다(갈래 분리가 유령 행을 만들지 않는다)."""
+    _seed_basic(get_today_kst())
+    _login(client, _make_user(role="ADMIN"))
+    data = _data(_get(client))
+
+    assert not [item for item in data["exceptions"] if item["kind"] in ("UNMATCHED", "UNLINKED")]
+    assert data["kpi"]["unmatched_pending_count"] == 0
+    assert data["kpi"]["unmatched_unlinked_count"] == 0
+    assert data["kpi"]["match_rate"] == 1.0
+
+
+def test_holdback_block_lists_only_days_with_hold_or_limit_and_keeps_sign(client, app):
+    """``holdback`` 블록: 두 컬럼 중 하나라도 0 이 아닌 일별 행만, 예정일 내림차순, 부호 원본, 합계는 KPI 와 같다.
+
+    운영 실측(2026-09-03)의 모양을 그대로 시드한다 — 보류가 음수로 잡혔다가 뒤에 같은
+    금액이 양수로 온다(해제). 절대값으로 바꾸거나 상계해 버리면 -1.2억 의 원인을 못 쫓는다.
+    """
+    today = get_today_kst()
+    day = _seed_basic(today)                       # 보류 0 인 두 행 → 표에 없어야 한다
+    d_hold = day - datetime.timedelta(days=1)
+    d_both = day - datetime.timedelta(days=2)
+    _daily(d_hold, pay_holdback_amount=Decimal("-10053445"), settle_complete_date=d_hold)
+    _daily(d_both, settlement_limit_amount=Decimal("-500000"))
+    _daily(d_both, pay_holdback_amount=Decimal("2410000"), settle_method_type="CHARGE_AMT",
+           bank_type=None, account_no=None, depositor_name=None)
+    db_session.commit()
+    _login(client, _make_user(role="ADMIN"))
+    data = _data(_get(client))
+
+    block = data["holdback"]
+    assert set(block) == {"rows", "count", "total"}
+    assert block["count"] == 3 == len(block["rows"])
+    assert [row["date"] for row in block["rows"]] == [d_hold.isoformat(), d_both.isoformat(),
+                                                      d_both.isoformat()]
+    assert set(block["rows"][0]) == {"date", "settle_method_type", "settle_method_label",
+                                     "pay_holdback", "settlement_limit", "amount", "completed"}
+    first = block["rows"][0]
+    assert first["pay_holdback"] == -10053445 and first["settlement_limit"] == 0
+    assert first["amount"] == -10053445 and first["completed"] is True
+    assert first["settle_method_type"] == "ACCOUNT"
+    limit_row = next(row for row in block["rows"] if row["settlement_limit"] != 0)
+    assert limit_row["settlement_limit"] == -500000 and limit_row["completed"] is False
+    release = next(row for row in block["rows"] if row["pay_holdback"] == 2410000)
+    assert release["settle_method_type"] == "CHARGE_AMT"
+    # 합계는 더하기뿐(-10,053,445 + 2,410,000 / -500,000). 절대값 합(12,963,445)이면 red.
+    assert block["total"] == {"pay_holdback": -7643445, "settlement_limit": -500000,
+                              "amount": -8143445}
+    assert data["kpi"]["holdback_amount"] == block["total"]["amount"]
+    # 계좌번호는 이 블록에도 실리지 않는다.
+    assert _ACCOUNT_NO not in str(block)
+
+
+def test_holdback_block_is_empty_without_any_hold(client, app):
+    """보류·한도가 전부 0 이면 빈 목록 + 합계 0(0 행을 채워 "보류가 있었다"로 읽히게 하지 않는다)."""
+    _seed_basic(get_today_kst())
+    _login(client, _make_user(role="ADMIN"))
+    data = _data(_get(client))
+
+    assert data["holdback"] == {"rows": [], "count": 0,
+                                "total": {"pay_holdback": 0, "settlement_limit": 0, "amount": 0}}
