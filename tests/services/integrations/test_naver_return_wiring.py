@@ -421,12 +421,27 @@ def test_modal_restates_the_count_the_server_will_actually_send(app, client, wor
     assert "이미 접수한 1건 제외" in body
 
 
-def test_return_button_is_absent_while_a_claim_is_in_flight(app, client, workbench_on):
-    """클레임이 도는 집은 서버가 거절한다 — 화면도 버튼을 내지 않는다."""
+def test_return_button_is_shown_disabled_while_a_claim_is_in_flight(app, client,
+                                                                    workbench_on):
+    """클레임이 도는 집은 서버가 거절한다 — 화면은 버튼을 **잠그되 보여 준다**.
+
+    **이 단언은 2026-09-02 에 뒤집혔다(NVCLAIM-ORDER-01).** 예전 계약은
+    ``'id="wb-return"' not in body`` 였는데, 그 "버튼을 아예 안 낸다"가 바로 그날 사고의
+    복구를 막은 자리다: 황민철 집(ERP 5026)에서 추가상품 3건만 반품 성공하자 집이
+    ``locked`` 가 됐고, 실패한 본품을 끝낼 버튼이 **렌더조차 되지 않아** 담당자에게
+    판매자센터 수작업 말고는 길이 없었다.
+
+    없는 버튼과 잠긴 버튼은 다른 것을 말한다 — 없는 버튼은 "여긴 그런 일이 없다"로 읽히고,
+    잠긴 버튼은 "여기서 하는 일인데 지금은 이 이유로 못 한다"로 읽힌다. 불가역 경로에서
+    **눌러도 안 나가는 버튼**을 활성으로 두는 것은 여전히 금지다(pane 주석) — 그래서
+    ``disabled`` + 사유 ``title`` 이 정답이고, 판정 술어는 서버와 한 벌인
+    :func:`fulfillment.return_sendable` 이다.
+    """
     _login(client)
     _link(dispatched_ours=True, claim_status="RETURN_REQUEST")
     body = client.get(TRIAGE_PATH).get_data(as_text=True)
-    assert 'id="wb-return"' not in body
+    assert 'id="wb-return"' in body, "없는 버튼이 사고 복구를 막았다"
+    assert 'id="wb-return" disabled' in body, "클레임이 도는데 버튼이 활성이다"
 
 
 def test_screen_no_longer_tells_people_to_use_the_seller_center_for_returns(app, client,

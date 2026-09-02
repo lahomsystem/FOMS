@@ -38,6 +38,10 @@ __all__ = [
     "FulfillmentError",
     "household_key",
     "links_of_group",
+    "claim_call_order",
+    "dispatch_call_order",
+    "return_sendable",
+    "household_exchange_in_flight",
     "STATE_KEY",
     "DIRECT_DELIVERY",
     "clear_failure",
@@ -333,9 +337,127 @@ def links_of_group(session: Session, link_id: int) -> list[ExternalOrderLink]:
     return _links_of_group(session, link_id)
 
 
+def _is_addon_link(link: ExternalOrderLink) -> bool:
+    """이 링크가 **추가구성상품**인가 (NVCLAIM-ORDER-01, 2026-09-02).
+
+    판정은 읽기 쪽과 **한 벌**이다(:func:`mapping.is_addon_detail`) — ``productClass`` 가
+    ``추가구성상품`` 인가만 본다. ``productClass`` 의 **전체 범례는 미공개**라(커머스API
+    Discussion #2588) 본품 값 화이트리스트를 만들지 않는다. 부정 판정만 안전하다.
+
+    Args:
+        link: 수집 링크(상품주문 1건).
+
+    Returns:
+        추가구성상품이면 True. 값이 없는 옛 원본은 **본품**으로 본다(모르면 뒤로 보낸다 =
+        클레임에서는 나중에, 발송에서는 먼저 — 둘 다 현행 순서와 같은 안전측).
+    """
+    from foms.services.integrations.naver_commerce.mapping import is_addon_detail
+
+    return is_addon_detail(link.raw_snapshot or {})
+
+
+def claim_call_order(links: list[ExternalOrderLink]) -> list[ExternalOrderLink]:
+    """클레임 **요청·승인** 호출 순서 — 추가구성상품 먼저, 본품 나중 (NVCLAIM-ORDER-01).
+
+    근거(네이버 공식 FAQ, GitHub Discussion #1321, author ``commerce-api-naver``,
+    https://github.com/commerce-api-naver/commerce-api/discussions/1321 — 원문):
+
+        발송 처리(취소 철회)는 "본상품 → 추가구성상품" 순서로, 클레임 요청/승인은
+        "추가구성상품 → 본상품" 순서로 호출해야 합니다.
+
+        **클레임 요청/승인** — 조건: 모두 취소 요청, 취소 요청 승인, 반품 요청, 반품 승인,
+        교환 재배송 처리를 진행하려는 경우. 처리 순서: 1. 추가상품 상품주문번호
+        2. 본상품 상품주문번호
+
+    2026-09-01 사고: 황민철 집(ERP 5026)에서 본품이 먼저 나가 네이버가
+    ``추가상품 반품진행 후, 본 상품 반품진행을 할 수 있습니다.`` 로 거절했고, 추가상품 3건만
+    환불 확정된 채 본품이 남았다. 순서는 **호출자 책임**이다 — 커머스API 는 1회 호출에
+    상품주문 1건만 받는다(Discussion #1410).
+
+    **왜 집 전체를 한 줄로 세워도 되는가(초집합 증명).** 규격이 요구하는 것은 "각 본품보다
+    그 본품의 추가상품이 먼저"라는 **본품별** 선행조건이다. ``[추가상품 전부…, 본품 전부…]``
+    라는 평평한 순서는 어떤 본품을 골라도 그 본품의 추가상품이 **전부 앞부분(prefix)** 에
+    들어가므로, 본품별 선행조건을 하나도 빠짐없이 만족한다. 즉 본품별 끼워넣기(interleaving)
+    없이도 규격의 초집합이다.
+
+    **본품별 끼워넣기로 "개선"하지 말 것.** 어느 추가상품이 어느 본품의 것인지는
+    :mod:`...attribution` 의 **추정**이다 — 갈리면
+    :data:`attribution.REASON_UNRESOLVED` ("본품 사양이 갈린다 — 선택 필요")를 돌려주고,
+    :func:`mapping.split_main_groups` 는 그 미정 옵션을 ``fallback_index`` 의 **아무 본품에나**
+    붙인다. 끼워넣기를 도입하면 **되돌릴 수 없는 호출 순서**가 그 추정에 묶인다. 추정이 틀린
+    집에서는 본품이 자기 추가상품보다 먼저 나가고, 그건 바로 위 사고의 재현이다.
+    평평한 순서는 추정이 틀려도 절대 그렇게 되지 않는다.
+
+    Args:
+        links: 한 집(또는 그 부분집합)의 링크들 — 호출자가 보낼 순서로 준 목록.
+
+    Returns:
+        추가구성상품이 앞, 본품이 뒤인 새 목록. **안정정렬**이라 같은 부류 안에서는
+        받은 순서(수집 순서 ``id asc``)가 그대로 보존된다.
+    """
+    return sorted(links, key=lambda row: 0 if _is_addon_link(row) else 1)
+
+
+def dispatch_call_order(links: list[ExternalOrderLink]) -> list[ExternalOrderLink]:
+    """**발주확인·발송처리** 호출 순서 — 본품 먼저, 추가구성상품 나중 (NVCLAIM-ORDER-01).
+
+    :func:`claim_call_order` 와 **반대 방향**이고, 근거는 같은 문서다(Discussion #1321):
+
+        발송 처리 (취소 철회(거부)) — 처리 순서: 1. 본상품 상품주문번호
+        2. 추가상품 상품주문번호
+
+    **이건 무해한 정리가 아니라 잠재 결함을 막는 것이다.** 지금 본품이 먼저 나가는 것은
+    :func:`_links_of_group` 의 ``ORDER BY id ASC`` (:file:`fulfillment.py` 의 ``id.asc()``)가
+    수집 순서와 우연히 일치해서일 뿐, 어디에도 규격으로 적혀 있지 않다. 변경 피드 재수집으로
+    추가상품 행이 본품보다 **낮은 id** 를 받는 집이 만들어지면 발송처리가 그 순간 규격을
+    위반하고, 발송처리는 되돌릴 수 없다(구매자에게 '배송 시작'이 뜨고 정산 시계가 돈다).
+
+    Args:
+        links: 한 집(또는 그 부분집합)의 링크들 — 호출자가 보낼 순서로 준 목록.
+
+    Returns:
+        본품이 앞, 추가구성상품이 뒤인 새 목록(안정정렬 — 부류 안 순서는 보존).
+    """
+    return sorted(links, key=lambda row: 1 if _is_addon_link(row) else 0)
+
+
+def household_exchange_in_flight(links: list[ExternalOrderLink]) -> bool:
+    """집 안에 **진행 중인 교환**이 있는가 (NVCLAIM-ORDER-01 T4).
+
+    가드를 라인 스코프로 좁히면서 **집 단위로 남겨 둬야 하는 유일한 축**이다. 교환은
+    본품과 추가구성상품이 한 덩어리로 재배송되는 흐름이라, 형제 한 건에 교환이 돌면 그 집의
+    다른 라인에 반품을 거는 것 자체가 어긋난다(#1321 도 교환 재배송을 클레임 순서 조건에
+    함께 적는다).
+
+    판정은 :func:`mapping.extract_claim` 의 **단계(phase)** + **종류(kind)** 로 한다.
+    :data:`mapping.BLOCKING_CLAIM_STATUSES` 를 재사용하지 **않는다** — 그 집합에는
+    ``EXCHANGE_*`` 가 아예 없고(:func:`_claim_guard` 도스트링이 R-4, 2026-08-28 로 기록),
+    축도 다르다("주문을 만들면 안 되는가").
+
+    Args:
+        links: 한 집의 링크 전부.
+
+    Returns:
+        요청됨(``requested``)·처리중(``in_progress``) 단계의 교환이 하나라도 있으면 True.
+        완료·거부된 교환은 진행 중이 아니다.
+    """
+    from foms.services.integrations.naver_commerce.mapping import (
+        CLAIM_PHASE_PROGRESS, CLAIM_PHASE_REQUESTED, claim_kind, extract_claim,
+    )
+
+    for row in links:
+        claim = extract_claim(row.raw_snapshot or {})
+        if claim_kind(claim) != "EXCHANGE":
+            continue
+        if (claim.get("phase") or "") in (CLAIM_PHASE_REQUESTED, CLAIM_PHASE_PROGRESS):
+            return True
+    return False
+
+
 def _claim_guard(session: Session, links: list[ExternalOrderLink], *,
-                 action: str, stamp: datetime) -> None:
-    """집 안에 진행 중인 클레임이 하나라도 있으면 네이버를 부르지 않는다.
+                 action: str, stamp: datetime,
+                 scope: Optional[list[ExternalOrderLink]] = None) -> None:
+    """진행 중인 클레임이 걸린 상품주문에는 네이버를 부르지 않는다.
 
     화면은 클레임 집을 잠그지만(집 단위), 화면만 믿으면 링크 id 를 아는 요청이 그대로
     통과한다. 발송처리는 구매자에게 "배송 시작"으로 보이고 되돌릴 수 없다 — 마지막 문을
@@ -349,27 +471,42 @@ def _claim_guard(session: Session, links: list[ExternalOrderLink], *,
     **거절 사유를 상태에 남긴다.** web 은 enqueue 만 하고 즉시 "요청했습니다"로 답하므로,
     워커가 조용히 거절하면 사람은 보냈다고 믿는다 — 실패 띠가 유일한 통로다.
 
+    **스코프(2026-09-02, NVCLAIM-ORDER-01 T4).** 기본은 예전 그대로 **집 단위**다
+    (``scope=None`` → ``links`` 전부를 보고 전부에 사유를 찍는다). ``scope`` 를 주면 그
+    목록만 보고 그 목록에만 사유를 찍는다 — 반품 접수가 그렇게 쓴다. 축이 다르기 때문이다:
+    발주확인·발송처리·취소는 집을 통째로 닫는 조작이라 형제 한 건의 클레임이 집 전체를 막는
+    것이 맞지만, 반품 접수는 **행 단위로 보낼 것을 고르는** 조작이라(``is_return_pending``)
+    이미 반품이 끝난 형제가 남은 본품을 영영 잠그면 안 된다(RC3, 황민철 집 사고).
+
+    **덤으로 고쳐지는 것: 무고한 형제의 빨간 띠.** 예전에는 거절할 때 집 **전부**에
+    ``_mark_failures`` 를 찍어, 아무 잘못 없는 형제까지 화면에서 빨갛게 떴다. 라인 스코프
+    에서는 실제로 막힌 라인에만 찍힌다 — **되돌리지 말 것**(집 단위 호출은 지금도 예전
+    동작 그대로다).
+
     Args:
         session: DB 세션.
-        links: 한 집의 링크들.
-        action: ``confirm`` / ``dispatch`` (화면 재시도가 이 값을 본다).
+        links: 한 집의 링크들(스코프를 안 주면 이 목록이 곧 판정 대상이다).
+        action: ``confirm`` / ``dispatch`` / ``cancel`` / ``return``
+            (화면 재시도가 이 값을 본다).
         stamp: 기록 시각.
+        scope: 판정·기록 대상을 좁힐 목록(기본 None = 집 전체).
 
     Raises:
-        FulfillmentError: 클레임이 걸린 상품주문이 있을 때.
+        FulfillmentError: 클레임이 걸린 상품주문이 대상 안에 있을 때.
     """
     from foms.services.integrations.naver_commerce.mapping import (
         blocks_irreversible, extract_claim,
     )
 
-    for row in links:
+    targets = links if scope is None else scope
+    for row in targets:
         claim = extract_claim(row.raw_snapshot or {})
         if not blocks_irreversible(claim):
             continue
         reason = (f"취소·반품·교환이 걸린 주문입니다({claim.get('label') or '클레임'}) — "
                   "판매자센터에서 처리하세요.")
-        _mark_failures({str(r.external_id): r for r in links},
-                       {str(r.external_id): reason for r in links},
+        _mark_failures({str(r.external_id): r for r in targets},
+                       {str(r.external_id): reason for r in targets},
                        action=action, stamp=stamp)
         session.flush()
         raise FulfillmentError(reason)
@@ -579,7 +716,10 @@ def confirm_place_order(session: Session, client: Any, *, link_id: int,
     # 컬럼(place_order_status)도 함께 본다 — 판매자센터에서 손으로 발주확인한 형제를
     # 다시 보내면 네이버가 그 건을 실패로 돌려주고, 정상인데 빨간 띠가 남는다.
     # (발송처리 쪽 not_confirmed 판정은 이미 둘을 함께 본다.)
-    todo = [row for row in links if is_place_pending(row)]
+    #
+    # 순서는 **본품 먼저**다(:func:`dispatch_call_order`, #1321). 아래 ``ids`` 가 이 목록
+    # 순서 그대로 나가므로 호출 순서가 결정되는 자리는 여기다.
+    todo = dispatch_call_order([row for row in links if is_place_pending(row)])
     # 이미 발주확인이 끝난 건에 낡은 실패 사유가 남아 있으면 지운다. 판매자센터에서 손으로
     # 처리한 집은 우리 재전송이 성공할 일이 없어, 안 지우면 빨간 띠가 영구히 남는다
     # (예전에는 재전송 성공이 지워 주던 자가치유 경로다).
@@ -762,7 +902,10 @@ def dispatch_order(session: Session, client: Any, *, link_id: int,
     ours_done = [row for row in links if _state(row).get("dispatched_at")]
     naver_done = [row for row in links
                   if row not in ours_done and _naver_dispatched_at(row)]
-    todo = [row for row in links if row not in ours_done and row not in naver_done]
+    # 순서는 **본품 먼저**다(:func:`dispatch_call_order`, #1321) — 아래 ``payload`` 가 이
+    # 목록 순서 그대로 나간다.
+    todo = dispatch_call_order(
+        [row for row in links if row not in ours_done and row not in naver_done])
     if not todo:
         if naver_done:
             # **조용히 성공으로 돌려주지 않는다.** web 은 enqueue 만 하고 이미
@@ -912,7 +1055,10 @@ def cancel_order(session: Session, client: Any, *, link_id: int, reason: str,
         session.flush()
         raise FulfillmentError(reason_text)
 
-    todo = [row for row in links if not _state(row).get("canceled_at")]
+    # 클레임 **요청**이라 순서는 추가구성상품 먼저다(:func:`claim_call_order`, #1321).
+    # 아래 ``by_id`` 의 삽입 순서가 곧 호출 순서라, 정렬은 ``by_id`` 를 만들기 **전에**
+    # 해야 한다.
+    todo = claim_call_order([row for row in links if not _state(row).get("canceled_at")])
     if not todo:
         return {"canceled": [], "skipped": [row.external_id for row in links]}
 
@@ -1010,6 +1156,42 @@ def is_return_pending(link: ExternalOrderLink) -> bool:
     dispatched = bool(_state(link).get("dispatched_at") or _naver_dispatched_at(link))
     return dispatched and not _return_state(link).get("requested_at")
 
+
+def return_sendable(link: ExternalOrderLink) -> bool:
+    """이 상품주문에 반품 접수를 **실제로 보낼 수 있는가** (NVCLAIM-ORDER-01 T4).
+
+    :func:`is_return_pending`("보낼 것인가")에 **서버 가드가 통과시킬 것인가**를 더한 술어다.
+    화면이 이 술어로 버튼을 열면, 형제가 반품 완료라는 이유로 남은 본품 버튼까지 닫히던
+    집 단위 잠금(RC3)이 풀린다 — 그러면서도 이미 클레임이 걸린 라인에는 버튼이 안 열린다.
+    :func:`_claim_guard` 와 **같은 판정**(:func:`mapping.blocks_irreversible`)을 쓰는 것이
+    핵심이다. 술어가 갈리면 화면이 연 버튼을 서버가 거절한다.
+
+    **좁히되 조용히 좁히지 않는다.** :func:`request_return` 은 ``is_return_pending`` 으로
+    대상을 고른 뒤 이 술어로 막힌 라인을 빼는데, 뺀 라인마다 사유를 남기고 그 라인을
+    **실패로 세어** 마지막에 예외를 올린다. 두 규율을 같이 지켜야 하기 때문이다:
+
+    * 막힌 형제 하나 때문에 **멀쩡한 라인까지 못 보내면** RC3(집 단위 all-or-nothing)이
+      한 단계 아래에서 되살아난다 — 담당자는 같은 막다른 길에 다시 선다.
+    * 그렇다고 **말없이** 빼면 막힌 집이 ``{"returned": []}`` 로 성공처럼 돌아오고,
+      그건 T3 가 없애는 바로 그 결함이다.
+
+    화면 재진술도 이 술어로 한다 — 서버가 보내는 수와 모달이 말하는 수가 갈리면
+    불가역 경로의 과대 진술이 된다(계약 §0-2, 2026-08-27 CEO).
+
+    Args:
+        link: 수집 링크(상품주문 1건).
+
+    Returns:
+        반품 접수를 보낼 대상이고 클레임 가드에도 안 걸리면 True.
+    """
+    from foms.services.integrations.naver_commerce.mapping import (
+        blocks_irreversible, extract_claim,
+    )
+
+    return (is_return_pending(link)
+            and not blocks_irreversible(extract_claim(link.raw_snapshot or {})))
+
+
 #: 반품 **승인**을 걸 수 있는 클레임 상태. 이 밖이면 부르지 않는다.
 #:
 #: 접수 직후에는 네이버 쪽 상태가 아직 안 넘어와 있을 수 있다. 그때 승인을 부르면
@@ -1067,6 +1249,11 @@ def _approve_returns(client: Any, by_id: dict[str, ExternalOrderLink],
 
     by_pid = {extract_external_id(d): d for d in (details or []) if isinstance(d, dict)}
     approved: list[str] = []
+    # 승인도 **클레임 승인**이라 추가구성상품 먼저다(:func:`claim_call_order`, #1321).
+    # 정렬을 이 함수 **안**에서 하는 이유: 부르는 곳이 둘이라(``request_return(approve=True)``
+    # 와 :func:`approve_return`) 한 자리에서 못 박아야 둘 다 고쳐진다. 안정정렬이라 이미
+    # 정렬된 목록을 다시 정렬해도 결과가 같다(멱등).
+    pids = [str(row.external_id) for row in claim_call_order([by_id[pid] for pid in pids])]
     for pid in pids:
         row = by_id[pid]
         detail = by_pid.get(pid)
@@ -1156,8 +1343,10 @@ def request_return(session: Session, client: Any, *, link_id: int, reason: str,
         raise FulfillmentError(f"반품 사유 코드가 올바르지 않습니다 ({reason}).")
 
     links = _links_of_group(session, link_id)
-    # 이미 클레임(취소·반품·교환)이 도는 집에 반품을 또 걸지 않는다.
-    _claim_guard(session, links, action="return", stamp=stamp)
+    # **클레임 가드는 아래 ``todo`` 를 고른 뒤에 부른다**(2026-09-02, NVCLAIM-ORDER-01 T4).
+    # 라인 스코프로 좁히려면 대상이 먼저 정해져 있어야 해서다. 그 대가로 **사용자가 처음
+    # 보는 에러가 바뀐다** — 바로 아래 "발송 전이면 취소다" 가드가 먼저 걸린다. 그게 더
+    # 정확하다: 발송조차 안 된 집은 클레임 유무와 무관하게 반품 대상이 아니다.
 
     # **발송 전이면 반품이 아니라 취소다** — `cancel_order` 의 거울상 가드.
     # 안 나간 물건을 반품으로 접수하면 구매자에게 없는 배송이 되돌아오는 것으로 보인다.
@@ -1180,12 +1369,56 @@ def request_return(session: Session, client: Any, *, link_id: int, reason: str,
     #
     # 멱등은 우리 표식으로만 판정한다 — 네이버 `requestChannel` 은 API 접수분과
     # 판매자센터 수동분을 갈라 주지 않는다(문서가 보증하지 않는 값에 불가역 경로를 걸지 않는다).
-    todo = [row for row in links if is_return_pending(row)]
+    #
+    # 순서는 **추가구성상품 먼저**다(:func:`claim_call_order`, #1321). 아래 ``by_id`` 의
+    # 삽입 순서가 곧 호출 순서라, 정렬은 ``by_id`` 를 만들기 **전에** 해야 한다.
+    todo = claim_call_order([row for row in links if is_return_pending(row)])
     if not todo:
         return {"returned": [], "skipped": [row.external_id for row in links]}
 
+    # 집 단위로 **남겨 두는** 유일한 축: 진행 중인 교환. 교환은 본품·추가구성상품이 한
+    # 덩어리로 재배송되는 흐름이라, 형제 한 건이 교환 중이면 이 집에 반품을 거는 것 자체가
+    # 어긋난다(R-4, 2026-08-28 의 약속을 라인 스코프로 좁히면서도 지키는 자리).
+    if household_exchange_in_flight(links):
+        reason_text = ("같은 주문에 진행 중인 교환이 있습니다 — 반품 접수를 보내지 "
+                       "않았습니다. 판매자센터에서 처리하세요.")
+        _mark_failures({str(row.external_id): row for row in todo},
+                       {str(row.external_id): reason_text for row in todo},
+                       action="return", stamp=stamp)
+        session.flush()
+        raise FulfillmentError(reason_text)
+
+    # 이미 클레임이 걸린 **그 라인**은 대상에서 뺀다 — 집 전체가 아니라 라인 단위다.
+    # 반품이 끝난 형제가 남은 본품을 영영 잠그던 자리가 RC3 인데, 그 잠금을 한 단계
+    # 아래에서 되살리지 않으려면 여기서도 라인으로 갈라야 한다: 형제 한 건에 고객
+    # 클레임이 걸렸다는 이유로 **멀쩡한 라인까지 못 보내면** 담당자는 같은 막다른 길에
+    # 다시 선다(화면은 :func:`return_sendable` 로 버튼을 열어 두므로 모순까지 난다).
+    #
+    # **조용히 빼는 것이 아니다.** 뺀 라인마다 사유를 남기고, 아래 ``if failures:`` 가
+    # 그것까지 세어 예외를 올린다 — 실패 띠가 어느 상품주문이 왜 빠졌는지 말한다.
+    # 조용한 축소는 빈 ``todo`` 를 ``{"returned": []}`` 성공으로 만들고, 그것이 이번
+    # 사고의 결함 그 자체다.
+    blocked = [row for row in todo if not return_sendable(row)]
+    blocked_failures: dict[str, str] = {}
+    if blocked:
+        todo = [row for row in todo if return_sendable(row)]
+        blocked_reason = ("이미 취소·반품·교환이 걸린 상품주문입니다 — 반품 접수를 보내지 "
+                          "않았습니다. 판매자센터에서 상태를 확인하세요.")
+        blocked_failures = {str(row.external_id): blocked_reason for row in blocked}
+        _mark_failures({str(row.external_id): row for row in blocked}, blocked_failures,
+                       action="return", stamp=stamp)
+        session.flush()
+        if not todo:
+            raise FulfillmentError(blocked_reason)
+
+    # 마지막 문은 그대로 둔다(방어 깊이). 위에서 이미 걸러 통과가 정상이지만, 판정이
+    # 한 벌이라 갈릴 일이 없고 비용도 없다.
+    _claim_guard(session, links, action="return", stamp=stamp, scope=todo)
+
     ok_ids: list[str] = []
-    failures: dict[str, str] = {}
+    # 위에서 대상에서 뺀 라인도 **실패로 센다** — 아래 ``if failures:`` 가 그것까지 보고
+    # 예외를 올려야 담당자가 "그 상품주문은 왜 안 나갔나"를 실패 띠에서 읽는다.
+    failures: dict[str, str] = dict(blocked_failures)
     by_id = {str(row.external_id): row for row in todo}
     for pid, row in by_id.items():
         try:
@@ -1218,7 +1451,13 @@ def request_return(session: Session, client: Any, *, link_id: int, reason: str,
                                     actor_user_id=actor_user_id, link_id=link_id)
         session.flush()
 
-    if failures and not ok_ids:
+    # **부분 실패는 실패다**(2026-09-02, NVCLAIM-ORDER-01 T3). 예전에는 성공이 한 건이라도
+    # 있으면 조용히 성공으로 끝내서, 황민철 집의 본품 1건 실패가 화면 어디에도 안 떴다.
+    # 올려도 안전하다: :func:`foms.services.jobs.tasks` 의 ``except FulfillmentError`` 는
+    # rollback 이 아니라 **commit 한 뒤 re-raise** 하므로 성공분 표식과 실패 사유가 둘 다
+    # 남고, :mod:`foms.services.jobs.queue` 에는 ``Retry``/``retry=`` 가 하나도 없어
+    # 불가역 호출이 자동으로 다시 나가지 않는다.
+    if failures:
         detail_text = "; ".join(f"{pid}: {why}" for pid, why in failures.items())
         raise FulfillmentError(f"반품 접수가 실패했습니다 — {detail_text}")
     logger.info("[NAVER] 반품 접수 link=%s 성공=%d 실패=%d 승인=%d", link_id, len(ok_ids),
@@ -1349,6 +1588,10 @@ def reject_return(session: Session, client: Any, *, link_id: int, reason: str,
         raise FulfillmentError(f"수집 기록을 찾을 수 없습니다 (link {link_id}).")
 
     # 술어는 화면과 **한 벌**이다. 여기서 다시 구현하면 재진술 건수와 처리 건수가 갈린다.
+    # **순서를 바꾸지 않는다(의도적 누락, NVCLAIM-ORDER-01).** 반품 **거부**의 호출 순서는
+    # 문서에 없다(NOT IN DOCS) — 취소 철회와 대칭이라 본품 먼저로 추정되고, 지금 코드가
+    # 이미 그 순서다(``_links_of_group`` 의 ``id.asc()``). 문서 없는 불가역 경로를 추정으로
+    # 뒤집지 않는다.
     todo = [row for row in links if is_return_rejectable(row)]
     if not todo:
         raise FulfillmentError(
@@ -1381,7 +1624,8 @@ def reject_return(session: Session, client: Any, *, link_id: int, reason: str,
         _mark_failures(by_id, failures, action="return-reject", stamp=stamp)
     session.flush()
 
-    if failures and not ok_ids:
+    # 부분 실패는 실패다(T3, 접수·승인과 같은 규율).
+    if failures:
         detail_text = "; ".join(f"{pid}: {why}" for pid, why in failures.items())
         raise FulfillmentError(f"반품 거부가 실패했습니다 — {detail_text}")
     logger.info("[NAVER] 반품 거부 link=%s 성공=%d 실패=%d", link_id, len(ok_ids),
@@ -1543,7 +1787,9 @@ def approve_cancel(session: Session, client: Any, *, link_id: int,
         raise FulfillmentError(f"수집 기록을 찾을 수 없습니다 (link {link_id}).")
 
     # 술어는 화면과 **한 벌**이다. 여기서 다시 구현하면 재진술 건수와 처리 건수가 갈린다.
-    todo = [row for row in links if is_cancel_approvable(row)]
+    # 순서는 **추가구성상품 먼저**다(:func:`claim_call_order`, #1321 — "취소 요청 승인"이
+    # 조건에 그대로 적혀 있다). 아래 ``by_id`` 삽입 순서가 곧 호출 순서다.
+    todo = claim_call_order([row for row in links if is_cancel_approvable(row)])
     if not todo:
         raise FulfillmentError(
             "승인할 취소 요청이 없습니다 — 이미 승인됐거나, 네이버가 보류를 걸어 둔 "
@@ -1578,7 +1824,8 @@ def approve_cancel(session: Session, client: Any, *, link_id: int,
         _mark_failures(by_id, failures, action="cancel-approve", stamp=stamp)
     session.flush()
 
-    if failures and not ok_ids:
+    # 부분 실패는 실패다(T3). 성공분 표식은 워커가 commit 한 뒤 이 예외를 다시 올린다.
+    if failures:
         detail_text = "; ".join(f"{pid}: {why}" for pid, why in failures.items())
         raise FulfillmentError(f"취소 승인이 실패했습니다 — {detail_text}")
     logger.info("[NAVER] 취소 승인 link=%s 성공=%d 실패=%d", link_id, len(ok_ids),
@@ -1624,7 +1871,10 @@ def approve_return(session: Session, client: Any, *, link_id: int,
     if not links:
         raise FulfillmentError(f"수집 기록을 찾을 수 없습니다 (link {link_id}).")
 
-    todo = [row for row in links if is_return_approvable(row)]
+    # 순서는 **추가구성상품 먼저**다(:func:`claim_call_order`, #1321 — "반품 승인").
+    # ``_approve_returns`` 도 안에서 같은 정렬을 하지만(안정정렬이라 멱등), 이 함수가
+    # ``pids`` 를 만드는 자리이기도 해서 여기서도 순서를 못 박는다.
+    todo = claim_call_order([row for row in links if is_return_approvable(row)])
     if not todo:
         raise FulfillmentError(
             "승인할 반품 요청이 없습니다 — 이미 승인·거부됐거나, 네이버가 보류를 걸어 둔 "
@@ -1647,7 +1897,9 @@ def approve_return(session: Session, client: Any, *, link_id: int,
         _mark_failures(by_id, failures, action="return-approve", stamp=stamp)
     session.flush()
 
-    if not approved:
+    # 부분 실패는 실패다(T3). 예전에는 한 건이라도 승인되면 조용히 성공으로 끝나서,
+    # 승인되지 않은 형제가 화면 어디에도 안 떴다 — 승인은 환불 확정이라 되돌릴 수 없다.
+    if skipped:
         detail_text = "; ".join(
             "{0}: {1}".format(
                 pid,

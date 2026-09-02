@@ -115,11 +115,23 @@
    호출을 열지 않는다. #}
 {% set return_pending_count = grp.return_pending_count if grp else 0 %}
 {% set return_requested_count = grp.return_requested_count if grp else 0 %}
+{# 접수가 **정말 나갈** 건수(NVCLAIM-ORDER-01 T6). 위 `return_pending_count` 와 다르다 —
+   그쪽은 멱등을 **우리 표식으로만** 보는 값이라, 형제가 이미 클레임에 걸려 서버 라인
+   가드가 거절할 건까지 센다. **버튼을 열까**는 이 값에 걸고, **몇 건을 보낼까**는 아래
+   모달처럼 `return_pending_count` 로 말한다 — 서버가 고르는 대상이 그쪽 술어이고 막힌 건은
+   가드가 조용히 빼지 않고 예외로 거절한다(`fulfillment.return_sendable` — 서버와 한 벌). #}
+{% set return_sendable_count = grp.return_sendable_count if grp else 0 %}
+{# 진행 중인 교환이 있는 집은 반품을 안 보낸다(서버와 같은 안전측 판정). #}
+{% set exchange_in_flight = grp.exchange_in_flight if grp else False %}
 {# 접수는 됐는데 **승인이 안 된** 건(T8-S2). 아무도 말 안 하면 환불이 안 나간 채 잊힌다. #}
 {% set return_awaiting = grp.return_awaiting_approval if grp else [] %}
-{# 클레임이 이미 도는 집은 서버 `_claim_guard` 가 거절한다 — 버튼도 같이 닫는다.
-   우리가 접수한 뒤에는 네이버 클레임이 붙어 locked 로 닫힌다(멱등은 서버가 또 본다). #}
-{% set can_return = not locked and return_pending_count > 0 %}
+{# 반품 술어는 **`locked` 를 안 본다**(2026-09-02 개정 — NVCLAIM-ORDER-01 RC3).
+   집 안 형제 3건이 반품에 성공하면 그 클레임이 `household_claimed` 를 세워 집이 통째로
+   잠겼고, **네이버에서 실패한 본품 1건을 FOMS 에서 끝낼 길이 아예 없었다**(황민철 사고).
+   `household_claimed` 는 `claim.blocking`(=`BLOCKING_CLAIM_STATUSES`, mapping.py:429)
+   기반이라 `EXCHANGE_*` 를 담지 않아 서버 `blocks_irreversible` 보다 **느슨하다** — 그것을
+   재사용하면 화면과 서버가 갈린다. 그래서 서버 술어를 그대로 실어 온 두 값만 본다. #}
+{% set can_return = return_sendable_count > 0 and not exchange_in_flight %}
 {# 반품 **거부**(T8-S3). 접수와 정반대 자리다 — 고객이 낸 요청이 걸려 있어야 하고,
    그 상태의 집은 정의상 `locked` 다. 그래서 `not locked` 를 조건에 넣으면 버튼이
    영원히 안 뜬다. 술어는 서버와 한 벌(`fulfillment.is_return_rejectable`)이고,
@@ -339,10 +351,17 @@
                집에서도 안 나간 형제에는 호출이 가지 않는다.
                잠긴 집(클레임 진행 중·취소 완료)은 버튼 자체를 내지 않는다 — 그 상태에서
                할 일은 판매자센터를 따르는 것이고, 위 잠금 안내가 그렇게 말한다. #}
-            {% if dispatched_any and not locked %}
+            {# 2026-09-02 개정: `not locked` 를 뺐다. 형제 3건이 반품에 성공해 집이 잠기면
+               버튼이 **렌더 자체가 안 됐고**, 네이버에서 실패한 본품 1건을 FOMS 에서 끝낼
+               길이 사라졌다(RC3 — 황민철, 본품 미환불로 운영에 남았다).
+               위 취소 버튼과 같은 규율로 **보이되 잠근다**: 눌러도 안 나가는 버튼이 위험한
+               만큼(:341 주석) **없는 버튼도 위험하다** — 담당자는 할 일이 없다고 읽는다. #}
+            {% if dispatched_any %}
             <button type="button"
                     class="btn btn-sm {{ 'btn-outline-danger' if can_return else 'btn-outline-secondary' }}"
-                    id="wb-return" {% if can_return %}data-bs-toggle="modal" data-bs-target="#wb-modal-return"{% else %}disabled title="반품 접수를 보낼 상품주문이 없습니다(이미 접수했거나 아직 발송 전입니다)"{% endif %}>
+                    {# title 순서가 곧 우선순위다: 교환 진행(우리가 못 푼다) → 남은 건이
+                       클레임에 걸림(판매자센터) → 보낼 게 없음(정상 종료). #}
+                    id="wb-return" {% if can_return %}data-bs-toggle="modal" data-bs-target="#wb-modal-return"{% else %}disabled title="{% if exchange_in_flight %}교환이 진행 중입니다 — 판매자센터에서 교환을 끝낸 뒤 반품을 접수하세요{% elif return_pending_count %}남은 상품주문에 이미 클레임이 걸려 있어 보낼 수 없습니다 — 판매자센터에서 상태를 확인하세요{% else %}반품 접수를 보낼 상품주문이 없습니다(이미 접수했거나 아직 발송 전입니다){% endif %}"{% endif %}>
                 반품 접수
             </button>
             {% endif %}
@@ -1284,12 +1303,20 @@
                 {# ① 건수 재진술 — **서버가 실제로 보낼 건수**다(계약 §0-2).
                       집 전체 수를 쓰면 부분 발송 집에서 과대 진술이 된다. #}
                 <p class="fw-semibold mb-2">
-                    {{ selected.naver.recipient_name }}님의 상품주문 <b>{{ return_pending_count }}건</b>을
+                    {{ selected.naver.recipient_name }}님의 상품주문 <b>{{ return_sendable_count }}건</b>을
                     네이버에 <b>판매자 반품 접수</b> 합니다.
-                    {% if return_pending_count != member_count %}
+                    {# 재진술 술어는 **`return_sendable_count`** 다(2026-09-02 개정).
+                       서버는 `is_return_pending` 으로 대상을 고른 뒤 이미 클레임이 걸린
+                       라인을 **사유를 남기고** 뺀다 — 조용히 빼는 게 아니라 실패로 세어
+                       예외를 올린다. 그러니 "몇 건이 나가나"의 정답은 뺀 뒤의 수다.
+                       여기에 `return_pending_count` 를 쓰면 형제가 클레임에 걸린 집에서
+                       "3건 접수합니다"라고 읽히는데 실제로는 1건만 나간다 — 불가역 경로의
+                       과대 진술은 그대로 사고다(계약 §0-2, 2026-08-27 CEO). #}
+                    {% if return_sendable_count != member_count %}
                     <span class="d-block small text-muted fw-normal">
-                        이 집은 상품주문 {{ member_count }}건인데 <b>발송된 {{ return_pending_count }}건만</b> 나갑니다
-                        {%- if return_requested_count %}(이미 접수한 {{ return_requested_count }}건 제외){% endif %} —
+                        이 집은 상품주문 {{ member_count }}건인데 <b>발송된 {{ return_sendable_count }}건만</b> 나갑니다
+                        {%- if return_requested_count %}(이미 접수한 {{ return_requested_count }}건 제외){% endif %}
+                        {%- if return_pending_count > return_sendable_count %}(이미 클레임이 걸린 {{ return_pending_count - return_sendable_count }}건 제외){% endif %} —
                         아직 안 나간 물건은 반품이 아니라 취소입니다.
                     </span>
                     {% endif %}
