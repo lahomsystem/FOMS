@@ -27,7 +27,7 @@
 | B2 | settlement_channel.py 커널 + /api/settlement/channel + sync POST(manifest·감사) + API 테스트 | agent | test_settlement_channel_api.py + auth enforcement green | DONE (138 passed; 워터폴 차감 3단계 표시 방향 -1 — 스테이징 실측으로 부호 확인 필요) |
 | C1 | 통합: 정산 5스위트+신규+계약 전수, ci.yml 등재, smoke, 커밋 | 총괄 | 전부 green | DONE — domains 6300 passed·services/perf/contracts 1745·smoke exit 0; 인벤토리 2종(failopen·ORM 우회) 재생성 커밋 |
 | C2 | T0 재프로브(토큰 만료 후) → 403 지속 시 사용자 확인 | 총괄 | 5종 200 | DONE — 사용자가 앱에 [정산] 그룹 추가 후 19:11 재프로브 5종 전부 200(daily 7행·case 12·commission 27·vat daily 28·vat case 10). 부호 실측: commissionSettleAmount -950081·payHoldbackAmount -10053445(음수), 취소 행 수수료 + |
-| C3 | deploy push → CI 전 워크플로 green → 스테이징 백필 90일 → 화면 QA | 총괄 | 숫자 3개 대조 | RUNNING — push 37666b7c2, CI 4/4 green(18:50), 스테이징 web 배포·마이그레이션 naversettle_00 적용 확인, 화면 QA 1차 통과(탭 렌더·API 200·콘솔 0), 스테이징 users 41/54 → ACCOUNTING 완료. 잔여: T0 재프로브·백필 90일·실데이터 QA |
+| C3 | deploy push → CI 전 워크플로 green → 스테이징 백필 90일 → 화면 QA | 총괄 | 숫자 3개 대조 | DONE — 백필 90일 OK(호출 220·행 5,593), 30일 창 대조 API=DB(daily 22행·정산 48,121,617·결제 180,945,500)=case 합, 화면 실데이터 QA 2회 통과(부호·입금채널 수정 반영). 잔여: production 승격 — push 37666b7c2, CI 4/4 green(18:50), 스테이징 web 배포·마이그레이션 naversettle_00 적용 확인, 화면 QA 1차 통과(탭 렌더·API 200·콘솔 0), 스테이징 users 41/54 → ACCOUNTING 완료. 잔여: T0 재프로브·백필 90일·실데이터 QA |
 | v1.1 | 요약 스트립·실무 컬럼·CSV 4종 | — | 별도 승인 | PENDING |
 
 ## 결정 기록
@@ -36,3 +36,4 @@
 - 2026-09-02 사용자 지시: 고애희(id 41)·강은미(id 54)를 회계팀(ACCOUNTING)으로 배정. 실측: 운영 role MANAGER·team CS, 스테이징 STAFF·CS. 배정은 코드 배포 뒤(스테이징 → 운영 승격 시). team 변경은 principal-version 트리거로 세션 무효화(재로그인). 게이트 = ADMIN 또는 team=ACCOUNTING 인 MANAGER/STAFF.
 - 2026-09-02 19:01 T0 재검증: 새 토큰으로도 정산 5종 403 → 앱 권한 문제 확정(토큰 캐시 문제 아님). 대사 배너 수정 b01f5b9a5 deploy push 완료.
 - 2026-09-02 19:11 T0 통과. 부호 규약 실측 반영 fb69eb20d(워터폴 방향 -1 제거·수수료율 abs). 백필 90일(2026-06-04~) 스테이징 워커에서 실행.
+- 2026-09-02 19:20 실측: settle/daily 기간 조회 1개월 이내 제한(400 LocalDatePeriod) → 28일 창 분할(DAILY_RANGE_MAX_DAYS). 스테이징 매칭률 0.6%는 스테이징 링크의 order_id 가 대부분 NULL(2074/2123)이라서 — 운영은 워크벤치 연결 비율에 따름.

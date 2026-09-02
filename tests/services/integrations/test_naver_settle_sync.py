@@ -554,10 +554,40 @@ def test_backfill_is_split_into_thirty_day_windows(app):
     client = FakeClient()
     _run(client, backfill_from=date(2026, 6, 4), trigger="BACKFILL")
     daily_windows = [call[1] for call in client.calls if call[0] == "settle/daily"]
-    assert daily_windows[0] == "2026-06-04~2026-07-03"
+    assert daily_windows[0].startswith("2026-06-04~")
     assert daily_windows[-1].endswith("~2026-09-16")
-    assert len(daily_windows) == len(
-        settle_sync.split_windows(date(2026, 6, 4), date(2026, 9, 16)))
+    # settle/daily 는 1개월 이내만 받으므로(실측) 백필 창 안에서 다시 28일로 쪼개진다.
+    assert all(_span_days(win) <= settle_sync.DAILY_RANGE_MAX_DAYS for win in daily_windows)
+    assert _covered_days(daily_windows) == set(
+        settle_sync.iter_days(date(2026, 6, 4), date(2026, 9, 16)))
+
+
+def _span_days(window: str) -> int:
+    """``'YYYY-MM-DD~YYYY-MM-DD'`` 창의 길이(일, 끝 포함)."""
+    start, end = (date.fromisoformat(part) for part in window.split("~"))
+    return (end - start).days + 1
+
+
+def _covered_days(windows: list[str]) -> set:
+    """창 목록이 덮는 날짜 집합."""
+    covered: set = set()
+    for window in windows:
+        start, end = (date.fromisoformat(part) for part in window.split("~"))
+        covered.update(settle_sync.iter_days(start, end))
+    return covered
+
+
+def test_rolling_daily_range_never_exceeds_one_month(app):
+    """기본 롤링 창(-30~+14 = 45일)도 settle/daily 는 28일 이하 조각으로만 부른다.
+
+    스테이징 실측(2026-09-02): 44일 창 한 번 요청 → 400 "시작일과 종료일은 1 달 이내여야 합니다".
+    이 테스트가 없으면 매일 05:30 배치가 첫 호출에서 죽는다.
+    """
+    client = FakeClient()
+    _run(client)
+    daily_windows = [call[1] for call in client.calls if call[0] == "settle/daily"]
+    assert len(daily_windows) >= 2
+    assert all(_span_days(win) <= settle_sync.DAILY_RANGE_MAX_DAYS for win in daily_windows)
 
 
 def test_unknown_trigger_is_rejected_without_any_call(app, narrow_range):

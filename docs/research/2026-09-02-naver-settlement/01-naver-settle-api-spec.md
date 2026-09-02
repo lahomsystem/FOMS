@@ -29,6 +29,9 @@
 
 ---
 
+
+> **실측 추가(2026-09-02 19:20, 스테이징 워커)**: `settle/daily` 의 `startDate`~`endDate` 는 **1개월 이내**여야 한다. 44일 창 요청 시 400 `BAD_REQUEST` `"시작일과 종료일은 1 달 이내여야 합니다."` (`type: LocalDatePeriod`). 문서에는 없는 제약(NOT IN DOCS → 실측 확정). `vat/daily`·`vat/case` 도 같은 제약일 가능성이 높으니 월 단위로 호출한다.
+
 ## 1. GET /v1/pay-settle/settle/case — 건별 정산 내역 조회
 출처: https://apicenter.commerce.naver.com/llms/get-v1-pay-settle-settle-case.md
 

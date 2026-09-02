@@ -76,6 +76,10 @@ FINALIZED_AFTER_DAYS = 30
 
 #: 백필을 쪼개는 창 길이(일). 한 job 안에서 순차로 돈다.
 BACKFILL_WINDOW_DAYS = 30
+#: ``settle/daily`` 한 번의 ``startDate``~``endDate`` 폭 상한. 네이버는 **1개월 이내**만 받는다
+#: (실측 2026-09-02: 44일 창 → 400 ``LocalDatePeriod`` "시작일과 종료일은 1 달 이내여야 합니다",
+#: 문서 미기재). 28일이면 2월 포함 어느 달에도 안전하다.
+DAILY_RANGE_MAX_DAYS = 28
 
 #: 부가세 확정본을 당길 수 있는 날(익월 이 날 이후). 네이버는 확정 여부를 알려주지
 #: 않으므로 우리가 규칙을 정한다(설계 결정, 문서 근거 없음).
@@ -628,9 +632,11 @@ def _sync_settle_daily(ctx: _SyncContext, start: date, end: date) -> None:
 
     응답에 없는 날짜도 **비운다** — 행이 통째로 사라진 소급 변경을 놓치지 않기 위해서다.
     """
-    elements = _fetch_pages(
-        ctx, "settle/daily",
-        lambda page: ctx.client.get_settle_daily(start, end, page=page))
+    elements: list[dict] = []
+    for win_start, win_end in split_windows(start, end, DAILY_RANGE_MAX_DAYS):
+        elements.extend(_fetch_pages(
+            ctx, "settle/daily",
+            lambda page, a=win_start, b=win_end: ctx.client.get_settle_daily(a, b, page=page)))
     grouped: dict[date, list[dict]] = {}
     for element in elements:
         row = build_row(element, DAILY_FIELDS)
@@ -883,6 +889,7 @@ def _write_watermark(ctx: _SyncContext, *, status: str, scope: dict,
 
 __all__ = [
     "BACKFILL_WINDOW_DAYS",
+    "DAILY_RANGE_MAX_DAYS",
     "CALL_INTERVAL_SECONDS",
     "DEFAULT_FUTURE_DAYS",
     "DEFAULT_ROLLING_DAYS",
