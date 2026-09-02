@@ -49,6 +49,7 @@
 | T8 | 운영 승격(사용자 승인 후) | **DONE** PR #243 · production `c8492b6b` | 검사 4종 pass · WORKER 신코드 확인 |
 | T9 | 남긴 것 — 동네 중심 좌표를 성공으로 반환하던 폴백 | **DONE** PR #251 · production `17bc0027` | 아래 §T9 |
 | T10 | **미규명 트리거 규명** — SIDEFX 카카오 키 부재 | **DONE** | 아래 §T10 |
+| T11 | 곁가지 — 배달할 일 없는 outbox 행이 DEAD 로 쌓이던 것 | **DONE**(deploy 대기) | 아래 §T11 |
 
 ---
 
@@ -349,3 +350,54 @@ T8 승격 뒤 운영 DB 를 다시 읽다가 **배포 이후에도 새 `failed` 
 
 SIDEFX 는 `CHANNEL_PUSH_RECORDED` 핸들러가 등록돼 있지 않아 그 effect_type 을 계속
 `NoHandlerError` 로 재시도한다(로그 다수). 별도 판단 필요.
+
+
+---
+
+## T11 — 배달할 일이 없는 outbox 행 1,188개가 DEAD 로 쌓이고 있었다 (2026-09-02)
+
+T10 에서 SIDEFX 로그를 읽다 발견한 별개 결함. 사용자 지시로 범위에 넣었다.
+
+### 실측 (운영 outbox 전수)
+
+| effect_type | status | 건수 | 최초 ~ 최종 |
+|---|---|---|---|
+| `CHANNEL_PUSH_RECORDED` | DEAD | **1,188** | 08-03 ~ 09-01 |
+| `CHANNEL_PUSH_RECORDED` | PENDING | 2 | 09-01 |
+| `STAGE_NOTIFICATION` | DEAD | 118 | 08-03 ~ 09-01 |
+| `GEOCODE` | DONE | 101 | 08-06 ~ 09-01 |
+| `STORAGE_DELETE` | DONE / PENDING | 325 / 124 | 08-11 ~ 09-01 |
+
+`CHANNELTALK_PUSH` OrderEvent 는 같은 기간 **1,190건** — DEAD 1,188 + PENDING 2 와 맞는다.
+즉 **푸시 기록 행은 하나도 빠짐없이 죽었다.**
+
+### 기능 손실은 없었다 (그래서 더 위험했다)
+
+채널톡 전송은 이 outbox 와 무관하게 이미 끝났고(전송이 먼저·기록이 나중), 이력
+(`structured_data.channeltalk_push*` — 584주문)과 OrderEvent 는 같은 트랜잭션에서 쓰인다.
+이 행의 유일한 역할은 **같은 send 를 두 번 기록하지 않게 막는 dedupe** 다.
+
+문제는 그 1,188행이 worker 로그와 DEAD 목록을 채워 **진짜 배달 실패를 덮는다**는 것이다.
+T10 에서 GEOCODE 실패를 찾을 때 실제로 이 로그를 헤집고 지나가야 했다.
+
+### 수정
+
+`foms/services/record_only_effects.py` 신설 — "배달할 일이 없음"을 **명시적으로 등록**한다.
+등록을 빼먹어서 죽는 것과, 할 일이 없어서 바로 끝나는 것은 다른 상태여야 한다.
+러너(`tools/ops/run_domain_side_effect_outbox.py`)가 `CHANNEL_PUSH_RECORDED` 를 이 handler 로
+등록한다.
+
+계약 3건(`tests/domains/test_sidefx_record_only_effects.py`):
+등록 결과 확인(주석만 남기고 호출을 지우는 회귀 차단)·부수효과 0·**음성 대조군**으로
+미등록 타입은 종전대로 `NoHandlerError`(모르는 타입을 조용히 통과시키는 퇴화 차단).
+
+검증: 본 스위트 **7755 passed**, PG 레인 sidefx 26 passed, `pre_push_smoke` exit 0.
+
+### 남은 판단 (사용자 몫)
+
+* **`STAGE_NOTIFICATION` 118행**: 이쪽은 *기록 전용이 아니라 소비자 미구현*이다.
+  운영 `notifications` 전수 조회 결과 단계 전이 알림 유형은 **한 번도 존재한 적이 없다**
+  (있는 유형: DRAWING_TRANSFERRED·SHIPMENT_ORDER_CHANGED·ERP_ORDER_CHANGED·
+  NAVER_ORDER_CLAIMED·PRODUCTION_ORDER_CHANGED 등). 즉 회귀가 아니라 미구현이다.
+  "단계 전이 알림을 낼 것인가"는 제품 결정이라 손대지 않았다.
+* 이미 쌓인 DEAD 1,188행은 되살리지 않는다 — 배달할 것이 없다(retention 이 정리한다).
