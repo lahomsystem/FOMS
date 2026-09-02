@@ -1279,6 +1279,18 @@
     clearNode(host);
     var recon = ctx.state.data.reconcile || {};
     var diff = isNum(recon.diff) ? recon.diff : null;
+    var sync = ctx.state.data.sync || {};
+    // 동기화 전이거나 두 합계가 모두 0 이면 "일치"가 아니라 "대사 대상 없음"이다 —
+    // 0 = 0 을 초록 배지로 보여 주면 빈 적재를 온전한 적재로 오독한다.
+    var nothing = !!sync.never || (!recon.daily_total && !recon.case_total);
+    if (nothing) {
+      var empty = el('div', 's-ch-recon s-ch-recon--empty');
+      empty.appendChild(el('div', 's-ch-recon-line', sync.never
+        ? '대사 대상 없음 · 아직 동기화되지 않았습니다'
+        : '대사 대상 없음 · 이 기간에 일별·건별 정산 행이 없습니다'));
+      host.appendChild(empty);
+      return;
+    }
     var ok = diff === 0;
     var box = el('div', 's-ch-recon ' + (ok ? 's-ch-recon--ok' : 's-ch-recon--warn'));
     var line = el('div', 's-ch-recon-line');
