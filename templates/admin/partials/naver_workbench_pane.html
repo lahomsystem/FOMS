@@ -106,8 +106,16 @@
 {% set can_confirm = place_pending and not locked %}
 {# `not naver_sent_at`: 네이버가 이미 발송을 말하는 집에 두 번째 호출을 내보내지 않는다.
    서버 `dispatch_order` 도 같은 신호(원본 `delivery.sendDate`)로 한 겹 더 막는다. #}
+{# `dispatch_pending_count > 0`: 보낼 것이 하나도 없으면 버튼을 열지 않는다 — `can_create`
+   가 옮길 형제 0건에 버튼을 안 여는 것과 같은 규율이다. 열어 두면 모달이 "0건을 네이버에
+   발송처리로 보냅니다" 라고 말하고, 눌러도 서버가 `FulfillmentError` 로 되돌린다. 안내줄은
+   이미 "더 보낼 상품주문이 없습니다" 라고 적는데 그 옆 버튼이 열려 있으면 화면이 자기
+   자신과 모순된다. 집 전체가 **판매자센터에서** 나갔고 pane 이 연 상품주문만 우리 표식을
+   가진 집이 그 자리다 — `naver_sent_at` 은 연 1건만 봐서 못 막고, `dispatched` 는 우리가
+   보낸 수로만 판정해 못 막는다(둘 다 그대로 두는 것이 옳다: 2026-09-02 상류 판단). #}
 {% set can_dispatch = not locked and not dispatched and not naver_sent_at
-                      and (not place_pending or close_now) %}
+                      and (not place_pending or close_now)
+                      and dispatch_pending_count > 0 %}
 {# 취소는 **하나라도** 나갔으면 닫는다 — 서버 `cancel_order` 가 형제 중 발송된 건이
    있으면 집 전체를 거절한다(반품 흐름). 링크 기준으로 두면 안 나간 형제로 열었을 때
    버튼이 열려 있다가 서버에서 실패한다. #}
