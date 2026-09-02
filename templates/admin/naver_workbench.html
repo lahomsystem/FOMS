@@ -19,7 +19,7 @@
 {% block title %}네이버 수집{% endblock %}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260902c">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260902f">
 {% endblock %}
 
 {% block content %}
@@ -37,7 +37,7 @@
                탭만 숨기고 주소를 열어 두면 URL 을 아는 사람이 그대로 본다. 서버도 같이 막는다. #}
             {% if can_view_history %}
             <a class="wb-tab" role="tab" data-tab="all" aria-selected="{{ 'true' if active_tab == 'all' else 'false' }}"
-               href="{{ url_for('admin.naver_ingest_triage', tab='all') }}">이력{% if history and history.total is defined %}<span class="wb-tab__n">{{ history.total }}주문</span>{% endif %}</a>
+               href="{{ url_for('admin.naver_ingest_triage', tab='all') }}">이력{% if history and history.total is defined and not history.find %}<span class="wb-tab__n">{{ history.total }}주문</span>{% endif %}</a>
             {% endif %}
         </nav>
         {# 결정 3: 숫자 이중 표기(집 · 상품주문)는 화면에서 여기 한 곳만 한다.
@@ -908,11 +908,12 @@
             {% set h_place = 'PENDING' if history.place_pending else None %}
             {% set h_dispatch = 'PENDING' if history.dispatch_pending else None %}
             {% set h_rel = 'ADDON_REPAY' if history.relation_filter else None %}
-            {% set h_any = h_status or h_place or h_dispatch or h_rel %}
+            {% set h_q = history.find or None %}
+            {% set h_any = h_status or h_place or h_dispatch or h_rel or h_q %}
             <a class="wb-chip" aria-pressed="{{ 'false' if h_any else 'true' }}"
                {# 필터가 걸리면 history.total 은 '걸러진 총계'다 — 그걸 "전체" 라고 말하면
                   거짓말이 된다(옛 이력 화면도 같은 가드를 쓴다). #}
-               href="{{ url_for('admin.naver_ingest_triage', tab='all') }}">전체 {{ (history.total ~ '주문') if not h_any else '' }}</a>
+               href="{{ url_for('admin.naver_ingest_triage', tab='all', q=h_q) }}">전체 {{ (history.total ~ '주문') if not h_any else '' }}</a>
             {# 칩 라벨은 행 배지 낱말로 **시작**하고 뒤에 모집단 꼬리만 붙는다 — 칩이 '생성됨',
                배지가 '주문 만듦' 이면 한 화면에서 같은 것을 두 이름으로 부르게 된다.
                라벨에 `주문` 을 쓰지 않는다: 뒤에 붙는 `N주문`(세는 단위)과 두 뜻이 인접해
@@ -920,14 +921,14 @@
             {% for key, label in history.status_chips %}
             <a class="wb-chip" aria-pressed="{{ 'true' if history.status == key else 'false' }}"
                href="{{ url_for('admin.naver_ingest_triage', tab='all', status=key,
-                                place=h_place, dispatch=h_dispatch, rel=h_rel) }}">
+                                place=h_place, dispatch=h_dispatch, rel=h_rel, q=h_q) }}">
                 {{ label }} {{ history.counts.get(key, 0) }}주문
             </a>
             {% endfor %}
             <a class="wb-chip" aria-pressed="{{ 'true' if history.place_pending else 'false' }}"
                href="{{ url_for('admin.naver_ingest_triage', tab='all', status=h_status,
                                 place=None if history.place_pending else 'PENDING',
-                                dispatch=h_dispatch, rel=h_rel) }}">
+                                dispatch=h_dispatch, rel=h_rel, q=h_q) }}">
                 {# 처리 탭의 '발주확인 할 차례' 칩은 **작업 대상**(취소·반품 제외)이고 이 칩은 이력
                    표를 거르는 술어라 취소 집도 포함한다. 같은 라벨을 쓰면 같은 화면에서 두
                    숫자가 어긋나 보인다 — 모집단을 라벨에 적는다. #}
@@ -935,31 +936,48 @@
             </a>
             <a class="wb-chip" aria-pressed="{{ 'true' if history.dispatch_pending else 'false' }}"
                href="{{ url_for('admin.naver_ingest_triage', tab='all', status=h_status, place=h_place,
-                                dispatch=None if history.dispatch_pending else 'PENDING', rel=h_rel) }}">
+                                dispatch=None if history.dispatch_pending else 'PENDING', rel=h_rel, q=h_q) }}">
                 {# 술어가 컬럼·JSONB 경로만 보므로 취소 집을 뺄 수 없다 — 옆 칩과 같은 이유로
                    같은 꼬리를 단다(꼬리를 떼면 성질이 같은 두 칩이 다른 말을 하게 된다). #}
                 발송처리 남음 · 취소 포함 {{ history.dispatch_pending_count }}주문
             </a>
             <a class="wb-chip" aria-pressed="{{ 'true' if history.relation_filter else 'false' }}"
                href="{{ url_for('admin.naver_ingest_triage', tab='all', status=h_status, place=h_place,
-                                dispatch=h_dispatch, rel=None if history.relation_filter else 'ADDON_REPAY') }}">
+                                dispatch=h_dispatch, rel=None if history.relation_filter else 'ADDON_REPAY',
+                                q=h_q) }}">
                 {# 가운뎃점 표기는 처리 탭 칩('추가결제·재결제')과 맞춘다 — 같은 화면에서
                    같은 것을 두 표기로 쓰지 않는다. #}
                 추가결제·재결제 {{ history.relation_count }}주문
             </a>
-            {# 찾기는 **화면**이 한다 — 이 표는 서버가 쪽수로 잘라 보내므로 칸이 닿는
-               범위는 지금 페이지뿐이다. 그 사실은 좁혀진 순간에만 note 가 말한다
-               (placeholder 는 글자를 치면 사라져서 정작 오해가 나는 때에 화면에 없다).
-               서버 검색으로 만들지 않는다: 고객명·제품은 raw_snapshot 파생값이라
-               쪽을 먼저 자른 뒤에 생긴다 — 파이썬으로 거르면 total·pages 가 거짓말이 된다.
+            {# 찾기는 **서버**가 한다(2026-09-02). 화면 필터로 두면 칸이 닿는 범위가 지금
+               페이지뿐이라, 16쪽짜리 이력에서 이름을 쳐도 "0주문"이 나왔다(사용자 보고).
+               좁힌 결과가 total·쪽수와 같은 술어에서 나오도록 쿼리스트링 `q` 로 보낸다.
+               제품명은 못 찾는다 — raw_snapshot 파생값이라 SQL 이 닿지 못한다. 그래서
+               placeholder 가 제품을 약속하지 않는다(칸이 못 하는 일을 적으면 또 오해가 난다).
+               `<div>` 로 감싸지 않는다: 자리 계약 테스트가 첫 `</div>` 까지를 칩 줄로 본다.
                칩과 같은 줄에 둔다: 새 밴드를 만들면 글자를 덜어낸 자리에 줄이 하나 는다. #}
-            <label class="wb-find">
-                <span class="wb-find__label">찾기</span>
-                <input type="search" id="wb-find" class="wb-find__input" autocomplete="off"
-                       placeholder="이 목록에서 · 고객명 · 주문번호 · 제품"
-                       aria-label="이 목록에서 찾기">
-            </label>
-            <span class="wb-find__note" id="wb-find-note" role="status" aria-live="polite"></span>
+            <form class="wb-find" method="get" role="search"
+                  action="{{ url_for('admin.naver_ingest_triage') }}">
+                {# 필터 넷은 찾을 때도 유지된다 — 빠지면 낱말을 치는 순간 필터가 조용히 풀린다.
+                   `page` 는 일부러 안 싣는다: 새로 좁힌 목록의 3쪽은 아무 데도 아니다. #}
+                <input type="hidden" name="tab" value="all">
+                {% if h_status %}<input type="hidden" name="status" value="{{ h_status }}">{% endif %}
+                {% if h_place %}<input type="hidden" name="place" value="{{ h_place }}">{% endif %}
+                {% if h_dispatch %}<input type="hidden" name="dispatch" value="{{ h_dispatch }}">{% endif %}
+                {% if h_rel %}<input type="hidden" name="rel" value="{{ h_rel }}">{% endif %}
+                <label class="wb-find__label" for="wb-find">찾기</label>
+                <input type="search" id="wb-find" name="q" class="wb-find__input" autocomplete="off"
+                       value="{{ history.find }}"
+                       placeholder="이력 전체에서 · 고객명 · 주문번호 · 전화"
+                       aria-label="이력 전체에서 찾기">
+            </form>
+            {# 서버가 좁힌 결과를 말한다 — 빈 결과일 때 "다른 쪽에 있을 수 있다"는 이제
+               거짓이다(찾기가 전체를 본다). 0이면 그냥 없다. #}
+            <span class="wb-find__note" id="wb-find-note" role="status" aria-live="polite">
+                {%- if history.find -%}
+                {{ '찾은 주문 없음' if not history.total else (history.total ~ '주문 — 이력 전체에서 찾음') }}
+                {%- endif -%}
+            </span>
         </div>
 
         <div class="table-responsive">
@@ -1130,15 +1148,17 @@
         {% set p_place = 'PENDING' if history.place_pending else None %}
         {% set p_dispatch = 'PENDING' if history.dispatch_pending else None %}
         {% set p_rel = 'ADDON_REPAY' if history.relation_filter else None %}
+        {# 찾기 낱말도 같은 규약이다 — 빠지면 2쪽으로 넘긴 순간 800주문 전체로 돌아간다. #}
+        {% set p_q = history.find or None %}
         <div class="wb-pager">
             {% if history.page > 1 %}
             <a href="{{ url_for('admin.naver_ingest_triage', tab='all', status=p_status, place=p_place,
-                                dispatch=p_dispatch, rel=p_rel, page=history.page - 1) }}">이전</a>
+                                dispatch=p_dispatch, rel=p_rel, q=p_q, page=history.page - 1) }}">이전</a>
             {% endif %}
             <span class="wb-pager__cur">{{ history.page }} / {{ history.pages }}</span>
             {% if history.page < history.pages %}
             <a href="{{ url_for('admin.naver_ingest_triage', tab='all', status=p_status, place=p_place,
-                                dispatch=p_dispatch, rel=p_rel, page=history.page + 1) }}">다음</a>
+                                dispatch=p_dispatch, rel=p_rel, q=p_q, page=history.page + 1) }}">다음</a>
             {% endif %}
             <span class="small text-muted">지금 걸린 필터는 페이지를 넘겨도 유지된다.</span>
         </div>
@@ -1255,5 +1275,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260902c" defer></script>
+<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260902f" defer></script>
 {% endblock %}
