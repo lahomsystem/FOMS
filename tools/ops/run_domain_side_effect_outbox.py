@@ -68,7 +68,11 @@ from foms.services.sidefx_worker import (  # noqa: E402
     upsert_heartbeat,
 )
 from foms.services.alimtalk_delivery_handler import handle_alimtalk_send  # noqa: E402
-from foms.services.geocode_delivery_handler import handle_geocode  # noqa: E402
+from foms.services.geocode_delivery_handler import handle_geocode
+from foms.services.record_only_effects import (
+    CHANNEL_PUSH_RECORDED_EFFECT_TYPE,
+    handle_record_only,
+)  # noqa: E402
 from foms.services.storage_delete_handler import handle_storage_delete  # noqa: E402
 from foms.services.upload_cleanup import run_upload_expiry_scan_once  # noqa: E402
 from sqlalchemy.engine import Engine  # noqa: E402
@@ -208,6 +212,9 @@ def main(argv: Optional[list[str]] = None) -> int:
     register_handler("GEOCODE", handle_geocode, replace=True)
     # 실측 알림톡 자동 발송. 이게 없으면 ALIMTALK_SEND 행이 NoHandler → DEAD.
     register_handler("ALIMTALK_SEND", handle_alimtalk_send, replace=True)
+    # SIDEFX-RECORDONLY-01: 배달할 일이 없는 기록 전용 effect. 등록하지 않으면 NoHandler 로
+    # 10회 재시도 후 DEAD 로 쌓여 **진짜 실패를 덮는다**(운영 실측 1,188행, 2026-09-02).
+    register_handler(CHANNEL_PUSH_RECORDED_EFFECT_TYPE, handle_record_only, replace=True)
     # UPLOAD-02: 만료 ticket/draft cleanup 을 300s expiry scan 에 배선(별도 scheduler 없음).
     # replace=True 로 재시작·재-import 시 중복 등록을 idempotent 하게 처리한다.
     register_expiry_scan_provider("upload_expiry", run_upload_expiry_scan_once, replace=True)
