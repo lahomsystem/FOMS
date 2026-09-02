@@ -330,6 +330,32 @@ def test_charge_amt_and_account_are_split(client, app):
     assert methods["CHARGE_AMT"]["account_no_masked"] == ""
 
 
+def test_deposit_channels_skip_zero_days_and_label_undecided_method(client, app):
+    """정산액 0 인 날은 입금 채널에 안 세고, 방식이 비어 오는 예정 행은 '미정(정산 예정)' 이다.
+
+    스테이징 실측(2026-09-02): 은행 정보가 빈 0원 행 16개가 "계좌 이체 · *" 로, 예정일이 안 온
+    행이 "방식 미상" 으로 보였다. 둘 다 입금 사실이 아니라 데이터 모양이다.
+    """
+    today = get_today_kst()
+    day = today - datetime.timedelta(days=1)
+    _daily(day)
+    _daily(day, settle_amount=Decimal("0"), pay_settle_amount=Decimal("0"),
+           commission_settle_amount=Decimal("0"), normal_settle_amount=Decimal("0"),
+           bank_type=None, account_no=None, depositor_name=None)
+    _daily(today + datetime.timedelta(days=3), settle_method_type=None, bank_type=None,
+           account_no=None, depositor_name=None, settle_complete_date=None,
+           settle_amount=Decimal("500000"), pay_settle_amount=Decimal("550000"),
+           commission_settle_amount=Decimal("-50000"), normal_settle_amount=Decimal("500000"))
+    db_session.commit()
+    _login(client, _make_user(role="ADMIN"))
+    rows = _data(_get(client))["deposit_channels"]
+
+    labels = {row["method_label"]: row for row in rows}
+    assert "미정(정산 예정)" in labels and labels["미정(정산 예정)"]["amount"] == 500000
+    account = [row for row in rows if row["method"] == "ACCOUNT"]
+    assert len(account) == 1 and account[0]["count"] == 1  # 0원 행은 세지 않는다
+
+
 def test_completed_rows_land_in_settled_not_expected(client, app):
     """정산 완료일이 찍힌 행은 '완료액'이고 '예정액'에 섞이지 않는다(계약 D-6)."""
     today = get_today_kst()
