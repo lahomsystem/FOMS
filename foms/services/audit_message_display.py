@@ -172,6 +172,7 @@ ACTION_LABELS: dict[str, str] = {
     "NAVER_DOCK_STATE_SET": "네이버 도크 반영 상태 저장",
     # --- 네이버 채널 정산 (SETTLE-CHANNEL-01) ---
     "NAVER_SETTLE_SYNC_REQUEST": "네이버 정산 동기화 요청",
+    "NAVER_SETTLE_EXPORT_CSV": "네이버 정산 CSV 내보내기",
     # --- 결제 ---
     "PAYMENT_CONFIRMED": "결제 확인",
     "PAYMENT_CONFIRM_CLEARED": "결제 확인 해제",
