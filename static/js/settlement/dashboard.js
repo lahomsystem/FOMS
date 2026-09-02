@@ -259,6 +259,42 @@
 
   /* ═══════════════ 3. 차트 렌더러 (데이터 배열 → SVG, 좌표 하드코딩 없음) ═══════════════ */
 
+  /* ── 차트 높이 (2026-09-02 폭·높이 개편) ─────────────────────────────
+     1440 캡을 풀어 폭이 1.5배가 됐는데 높이가 268 그대로면 차트가 납작해진다. 추이 차트는
+     뷰포트 세로의 38% 를 320~460 사이로 쓴다(1080 화면 ≈ 410, 노트북 768 ≈ 320). aging 은
+     막대 5개 + 값 캡이라 300 고정. 리사이즈는 이미 renderMountedRoots 가 되그린다. */
+  var AGING_CHART_HEIGHT = 300;
+  function trendChartHeight() {
+    return Math.max(320, Math.min(460, Math.round(window.innerHeight * 0.38)));
+  }
+
+  /* ── 집중 모드 ────────────────────────────────────────────────────────
+     body 클래스 하나로 공용 크롬(글로벌 헤더·nav·ERP 헤더·서브탭)을 접는다. 실제 숨김은 CSS 가
+     `body.foms-settle-focus:has(.foms-settlement-root)` 로 스코프하므로, 셸 스왑으로 정산 루트가
+     사라지면 클래스가 남아도 다른 화면 메뉴는 멀쩡하다. 선택은 localStorage 에 기억한다 —
+     경리는 이 화면에 몇 시간 붙어 있어 매번 다시 누르게 하면 안 쓴다. */
+  var FOCUS_CLASS = 'foms-settle-focus';
+  var FOCUS_STORAGE_KEY = 'foms.settlement.focus';
+  function isFocusMode() { return document.body.classList.contains(FOCUS_CLASS); }
+  function readFocusPreference() {
+    try { return window.localStorage.getItem(FOCUS_STORAGE_KEY) === '1'; }
+    catch (err) { return false; }   // 프라이빗 모드 등 저장소 접근 거부 — 기억만 못 할 뿐 기능은 산다
+  }
+  function syncFocusButtons() {
+    var on = isFocusMode();
+    document.querySelectorAll('[data-settlement-focus]').forEach(function (btn) {
+      btn.setAttribute('aria-pressed', String(on));
+    });
+  }
+  function setFocusMode(on) {
+    document.body.classList.toggle(FOCUS_CLASS, !!on);
+    try {
+      if (on) window.localStorage.setItem(FOCUS_STORAGE_KEY, '1');
+      else window.localStorage.removeItem(FOCUS_STORAGE_KEY);
+    } catch (err) { /* 저장소 거부 — 위 readFocusPreference 와 같은 이유로 무시 */ }
+    syncFocusButtons();
+  }
+
   /**
    * 라인 차트: crosshair 스냅 + 전 시리즈 툴팁 + 키보드(←→).
    * 목업 대비 유일한 변경: 시리즈 길이가 서로 달라도 된다(전월이 30일, 당월이 31일).
@@ -734,7 +770,7 @@
       if (cmp) lineSeries.push({ color: CTX, values: prevCum });
       lineSeries.push({ color: ACCENT, values: curCum, endDot: true, area: true });
       lineChart(ctx, host, {
-        height: 268, tickCount: 5,
+        height: trendChartHeight(), tickCount: 5,
         aria: '누적 출고가 매출' + (cmp ? ' — 이전 구간과 비교' : ''),
         series: lineSeries,
         xLabel: xLabelOf,
@@ -779,7 +815,7 @@
       };
     });
     columnChart(ctx, host, {
-      height: 268, caps: !dense, tickCount: 4, zeroFloor: true,
+      height: trendChartHeight(), caps: !dense, tickCount: 4, zeroFloor: true,
       aria: '출고가 매출 ' + granWord + (cmp ? ' — 막대는 이번 구간, 라인은 이전 구간' : ''),
       groups: groups,
       line: cmp ? { color: CTX, values: series.prev } : null,
@@ -830,7 +866,7 @@
       // 실데이터는 91일+ 한 버킷에 압도적으로 쏠린다. 최대값 스케일이면 나머지가 실선처럼 보이므로
       // (a) 모든 막대에 값 캡을 달고 (b) 0 아닌 막대에 3px 하한을 둔다(columnChart 주석 참고).
       columnChart(ctx, host, {
-        height: 208, caps: true, twoLineX: true, tickCount: 3,
+        height: AGING_CHART_HEIGHT, caps: true, twoLineX: true, tickCount: 3,
         aria: '미수금 aging 5구간 — 경과일이 길수록 진한 주황',
         groups: groups,
         tipTitle: function (gi) { return '경과 ' + rows[gi].label; },
@@ -1792,6 +1828,14 @@
       }
       if (e.target.closest('[data-settlement-retry]')) {
         load(ctx);
+        return;
+      }
+      if (e.target.closest('[data-settlement-focus]')) {
+        setFocusMode(!isFocusMode());
+        return;
+      }
+      if (e.target.closest('[data-settlement-focus-exit]')) {
+        setFocusMode(false);
       }
     });
     ctx.root.addEventListener('keydown', function (e) { onTabKeydown(ctx, e); });
@@ -1903,6 +1947,8 @@
     // 프래그먼트 스왑은 루트를 통째로 갈아끼우므로 여기가 스왑 후 재배선 지점이기도 하다.
     activateTab(ctx, DEFAULT_TAB, false);
     bindControls(ctx);
+    // 집중 모드 기억 복원 — 스왑 후 재마운트도 같은 경로라 버튼 aria-pressed 가 body 상태와 다시 맞는다.
+    if (readFocusPreference()) setFocusMode(true); else syncFocusButtons();
     load(ctx);
   }
 
@@ -1932,6 +1978,10 @@
     document.addEventListener('foms:erp-shell-fragment-swapped', mountAll);
     document.addEventListener('DOMContentLoaded', mountAll);
     window.addEventListener('resize', onResize);
+    // Esc 는 window 에 1회(싱글톤 가드 안) — 루트 위임으로는 포커스가 차트 밖에 있을 때 못 받는다.
+    window.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && isFocusMode()) setFocusMode(false);
+    });
   }
 
   // defer 로 실린 첫 로드와, 셸이 <script src> 를 재실행하는 스왑 경로를 **둘 다** 덮는다.
