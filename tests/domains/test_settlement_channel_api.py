@@ -88,7 +88,7 @@ def _daily(expect: datetime.date, **kwargs) -> NaverSettleDaily:
     """일별 정산 1행. 금액은 전부 명시(기본값이 조용히 0 이 되지 않게)."""
     values = {
         "settle_amount": Decimal("1000000"), "pay_settle_amount": Decimal("1100000"),
-        "commission_settle_amount": Decimal("100000"),
+        "commission_settle_amount": Decimal("-100000"),  # 네이버는 수수료를 음수로 준다(실측 2026-09-02)
         "benefit_settle_amount": Decimal("0"),
         "deduction_restore_settle_amount": Decimal("0"),
         "pay_holdback_amount": Decimal("0"), "minus_charge_amount": Decimal("0"),
@@ -111,7 +111,7 @@ def _case(expect: datetime.date, **kwargs) -> NaverSettleCase:
         "product_order_id": "2026090100001", "order_id": "2026090100000",
         "product_order_type": "PROD_ORDER", "settle_type": "NORMAL_SETTLE_ORIGINAL",
         "product_name": "루나 3000", "pay_settle_amount": Decimal("1100000"),
-        "total_pay_commission_amount": Decimal("100000"),
+        "total_pay_commission_amount": Decimal("-100000"),
         "selling_interlock_commission_amount": Decimal("0"),
         "settle_expect_amount": Decimal("1000000"), "match_status": "MATCHED",
     }
@@ -136,12 +136,12 @@ def _seed_basic(today: datetime.date) -> datetime.date:
     _daily(day, settle_method_type="CHARGE_AMT", bank_type=None, account_no=None,
            depositor_name=None, settle_amount=Decimal("300000"),
            pay_settle_amount=Decimal("330000"),
-           commission_settle_amount=Decimal("30000"),
+           commission_settle_amount=Decimal("-30000"),
            normal_settle_amount=Decimal("300000"))
     _case(day)
     _case(day, product_order_id="2026090100002", pay_settle_amount=Decimal("330000"),
           settle_expect_amount=Decimal("300000"),
-          total_pay_commission_amount=Decimal("30000"))
+          total_pay_commission_amount=Decimal("-30000"))
     db_session.commit()
     return day
 
@@ -355,13 +355,13 @@ def test_negative_cancel_row_keeps_its_sign(client, app):
     _daily(day)
     _daily(day, settle_amount=Decimal("-250000"),
            pay_settle_amount=Decimal("-275000"),
-           commission_settle_amount=Decimal("-25000"),
+           commission_settle_amount=Decimal("25000"),  # 취소 행은 수수료가 되돌아와 +
            normal_settle_amount=Decimal("-250000"))
     _case(day)
     _case(day, product_order_id="2026090100003",
           settle_type="NORMAL_SETTLE_AFTER_CANCEL",
           pay_settle_amount=Decimal("-275000"),
-          total_pay_commission_amount=Decimal("-25000"),
+          total_pay_commission_amount=Decimal("25000"),
           settle_expect_amount=Decimal("-250000"))
     db_session.commit()
     _login(client, _make_user(role="ADMIN"))
@@ -369,7 +369,8 @@ def test_negative_cancel_row_keeps_its_sign(client, app):
 
     # 1,000,000 + (-250,000) — 절대값 합(1,250,000)이면 red.
     assert data["kpi"]["expected_amount"] == 750000
-    assert data["kpi"]["commission_total"] == 75000
+    # -100,000 + 25,000 — 부호를 지우면(125,000) red.
+    assert data["kpi"]["commission_total"] == -75000
     assert data["reconcile"]["case_total"] == 825000
     negatives = [row for row in data["ledger"]["rows"]
                  if row["settle_type"] == "NORMAL_SETTLE_AFTER_CANCEL"]
@@ -379,13 +380,13 @@ def test_negative_cancel_row_keeps_its_sign(client, app):
 
 
 def test_waterfall_deduction_steps_point_down(client, app):
-    """차감 단계는 아래로 향한다(방향 선언). 크기는 네이버 값 그대로다."""
+    """차감 단계는 네이버 원본 부호(음수) 그대로 아래로 향한다 — 방향을 곱하지 않는다."""
     _seed_basic(get_today_kst())
     _login(client, _make_user(role="ADMIN"))
     steps = {step["key"]: step["amount"] for step in _data(_get(client))["waterfall"]}
 
     assert steps["pay_settle"] == 1430000
-    assert steps["commission"] == -130000        # 저장값 130,000 의 방향 선언
+    assert steps["commission"] == -130000        # 저장값 -100,000 + -30,000 그대로
     assert steps["settle_amount"] == 1300000
 
 

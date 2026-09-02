@@ -142,15 +142,17 @@ _VAT_AMOUNTS: tuple[tuple[str, str], ...] = (
     ("other", "other_amount"),
 )
 
-#: 워터폴 7단계 — (key, label, 합계 키, 방향). 방향은 **표시 방향 선언**이지 재계산이 아니다.
-#: 마지막 ``settle_amount`` 는 0 에서 그리는 합계 막대라 방향이 없다(+1).
+#: 워터폴 7단계 — (key, label, 합계 키, 방향). **네이버가 부호를 이미 준다**(스테이징 실측
+#: 2026-09-02: ``commissionSettleAmount`` -950081, ``payHoldbackAmount`` -10053445, 취소 행의
+#: 수수료는 +). 그래서 방향은 전부 +1 이고 값을 그대로 그린다 — 차감 단계에 -1 을 곱하면
+#: 음수가 양수로 뒤집혀 워터폴이 거꾸로 선다(재계산 금지 계약 D-4 위반).
 _WATERFALL_STEPS: tuple[tuple[str, str, str, int], ...] = (
     ("pay_settle", "결제 정산액", "pay_settle", 1),
-    ("commission", "수수료", "commission", -1),
+    ("commission", "수수료", "commission", 1),
     ("benefit", "혜택 정산", "benefit", 1),
     ("deduction_restore", "공제 환급", "deduction_restore", 1),
-    ("holdback", "지급 보류·한도", "holdback", -1),
-    ("minus_charge", "충전금 상계", "minus_charge", -1),
+    ("holdback", "지급 보류·한도", "holdback", 1),
+    ("minus_charge", "충전금 상계", "minus_charge", 1),
     ("settle_amount", "정산 금액", "settle_amount", 1),
 )
 
@@ -597,7 +599,8 @@ def _kpi_block(totals: dict[str, Decimal], case_stats: dict[str, Any]) -> dict:
         "expected_account_amount": _money(totals["expected_account"], default=0),
         "expected_charge_amount": _money(totals["expected_charge"], default=0),
         "commission_total": _money(totals["commission"], default=0),
-        "commission_rate": _ratio(totals["commission"], totals["pay_settle"]),
+        # 수수료는 음수로 오므로 비율은 크기(abs)로 낸다 — 파생값이라 부호를 정의할 수 있다.
+        "commission_rate": _ratio(abs(totals["commission"]), totals["pay_settle"]),
         "holdback_amount": _money(totals["holdback"], default=0),
         "match_rate": (None if not case_stats["prod_orders"]
                        else case_stats["matched"] / case_stats["prod_orders"]),
@@ -607,7 +610,7 @@ def _kpi_block(totals: dict[str, Decimal], case_stats: dict[str, Any]) -> dict:
 
 
 def _build_waterfall(totals: dict[str, Decimal]) -> list[dict]:
-    """정산 구성 워터폴 7단계. 차감 단계는 방향(-1)을 곱해 아래로 향한다(크기는 원본 그대로).
+    """정산 구성 워터폴 7단계. 네이버 원본 부호를 그대로 그린다(차감은 이미 음수로 온다).
 
     Args:
         totals: :func:`_daily_totals` 결과.
