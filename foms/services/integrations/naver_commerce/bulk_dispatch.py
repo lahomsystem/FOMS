@@ -1023,6 +1023,23 @@ def _row_of(target: BulkDispatchTarget) -> dict[str, Any]:
     }
 
 
+def auto_dispatch_notice() -> dict[str, Any]:
+    """자동 발송이 켜져 있나 · 몇 시에 도나 — 화면 한 줄용 (NAVER-AUTODISPATCH-01).
+
+    두 띠가 **같은 값**을 읽게 하려고 미리보기에 실어 보낸다. 화면마다 env 를 따로 읽으면
+    한쪽만 고쳐지는 날 두 화면이 다른 시각을 말한다.
+
+    Returns:
+        ``{"enabled": bool, "at": "HH:MM"}``. 꺼져 있으면 화면은 아무 말도 하지 않는다.
+    """
+    import os
+
+    from foms.services.integrations.naver_commerce.auto_dispatch import is_enabled
+
+    return {"enabled": bool(is_enabled()),
+            "at": str(os.environ.get("FOMS_NAVER_AUTO_DISPATCH_AT") or "16:50")}
+
+
 def build_preview(session: Session, *, on_date: str) -> dict[str, Any]:
     """띠가 그대로 렌더할 값 — **화면 두 곳이 이 함수 하나를 쓴다**.
 
@@ -1063,7 +1080,7 @@ def build_preview(session: Session, *, on_date: str) -> dict[str, Any]:
                              "day_rows": [], "show": False, "unlinked": 0,
                              "unlinked_rows": [], "unlinked_excluded": 0,
                              "foreign": [], "unknown": [],
-                             "coverage_from": ""}
+                             "coverage_from": "", "auto": auto_dispatch_notice()}
     try:
         targets = build_day_summary(session, on_date=on_date)
         # 안 붙은 수집분은 **대상이 0인 날에도** 말해야 한다 — 오늘 네이버 집이 하나도
@@ -1118,7 +1135,8 @@ def build_preview(session: Session, *, on_date: str) -> dict[str, Any]:
             # 템플릿에 시키면 두 화면이 각자 자르다 한쪽이 어긋난다.
             "last_sent_time": last_sent_at[11:] if len(last_sent_at) >= 16 else "",
             "state": state, "day_rows": day_rows, "show": True,
-            "unlinked": len(unlinked), "unlinked_rows": list(unlinked), **extra}
+            "unlinked": len(unlinked), "unlinked_rows": list(unlinked),
+            "auto": auto_dispatch_notice(), **extra}
 
 
 def select_sendable(session: Session, *, on_date: str,
