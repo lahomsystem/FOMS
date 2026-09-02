@@ -33,7 +33,32 @@
 | T13 | 실무 탭 네이버 정산 컬럼 + 정산상태→차감청구 + naversettle_01 인덱스(W1-C → W2-B) | agent | 계약서 §8.1 ①~⑦ | W1-C DONE 476768ef3(naver_settlement{status,settle_expect_date,settle_complete_date,amount}, amount 는 화면 미렌더) · W2-B DONE · 스테이징 확인: 12칸(…|차감청구|네이버 정산|액션), 핀 20260903a (착수 HEAD 0a54b25b5) |
 | T14 | CSV 내보내기 5종 + 감사 라벨(W1-B 커널 → W2-A UI) | agent | 계약서 §8.1 ①~⑤ | W1-B DONE df734cc46(110칸, FILTER_FIELDS daily 계열은 type/q 불가) · W2-A DONE · 스테이징 확인: 드롭다운 5링크, settle_case CSV 200 attachment 497줄, vat_daily 29줄 (착수 HEAD 0a54b25b5) |
 
+## Phase F — 후속 v1.2 (2026-09-03, 워크트리 `c:/tmp/foms-s-settle-followup` · 브랜치 `session/settle-followup` · base origin/deploy f86ce07ae)
+계약(v1.2 — 별도 계약서 없음, 이 표가 정본):
+- F1 미연결 2갈래: 예외 kind `UNMATCHED` = 링크 있음·`order_id` NULL(**워크벤치 대기**, 라벨 "워크벤치 대기(주문 미생성)", action `/admin/naver-ingest/triage?link_id=N`, `ref.link_id`) / kind `UNLINKED` = 링크 없음(**수집 전 주문**, 라벨 "수집 전 주문(링크 없음)", action `/admin/naver-ingest`). 갈래마다 `_EXCEPTION_CAP` 따로(한 상한을 나누면 많은 쪽이 적은 쪽을 표에서 밀어낸다). `kpi` 에 `unmatched_pending_count`·`unmatched_unlinked_count` 추가(합 = `unmatched_count`). 매칭률·스트립 정의 불변.
+- F2 지급 보류 상세: `data.holdback` = `{rows[{date, settle_method_type, settle_method_label, pay_holdback, settlement_limit, amount, completed}], count, total{pay_holdback, settlement_limit, amount}}`. 두 컬럼 중 하나라도 0 이 아닌 일별 행만, 정산 예정일 내림차순. 재계산 없음(합계만, 부호 원본). KPI 타일 "보류·한도" 가 `role=button`·`aria-expanded` 토글 → `[data-settlement-ch-holdback-detail]` 패널(표 + tfoot 합계). 전역 리스너 추가 없음.
+- 핀: 채널 2줄 20260902f → 20260903b(셸 4줄 20260903a 불변).
+
+| ID | 내용 | 완료 기준 | 상태 |
+|---|---|---|---|
+| F1 | 예외 큐 미연결 2갈래(커널·JS·CSS·테스트) | test_settlement_channel_api.py 2갈래 green + 스테이징 예외 큐 문구 확인 | 구현 완료(총괄 직접) — 채널 스위트 325 passed, 스트립 질의 예산 5→6(갈래 2 질의). 잔여: 스테이징 문구 확인 |
+| F2 | 지급 보류 일자별 상세 표(커널·JS·CSS·테스트) | 렌더 계약 green + 스테이징 표 확인 | 구현 완료(총괄 직접) — API 4·렌더 3 테스트 신규 green. 잔여: 스테이징 표 확인 |
+| F3 | 운영 매칭률 관찰(읽기 전용 1회) | 원장에 숫자 기록 | DONE — 2026-09-03 07:56 KST 운영 DB(readonly): `naver_settle_case` NAVER 1,353행 **전부 UNMATCHED**(MATCHED 0·NA 0). 링크 없음 32행(32 상품주문, 6/4~9/3) · 링크 있음·order_id NULL 1,321행(1,314 상품주문, 6/5~9/3, 링크 측 order_id 도 전부 NULL). 보류: `settlement_limit_amount` 전 행 0, `pay_holdback_amount` 24행(6/19~8/27, 최대 -27,965,819 on 8/5; 양수 4행 = 앞선 보류와 같은 금액의 해제 짝: 6/19 -2,410,000↔8/27 +2,410,000, 6/30 -3,769,400↔7/16 +3,769,400) |
+| F4 | 잔재 `c:/tmp/foms-s-settle-naver` 삭제 | 디렉토리 없음 | DONE — `rm -rf` 성공(잠금 해제됨) |
+| F6 | **정산 화면 글자 크기 조절**(사용자 추가 요청 2026-09-03, 네이버 워크벤치 `.wb-fs` 패턴 이식) — 셸 탭줄 조절기(`data-settlement-fs*`, 단계 [1,1.15,1.3,1.5], localStorage `foms.settlement.fontScale`), 루트 CSS 변수 `--s-fs` 로 정산 3 CSS 의 font-size 137곳이 calc 로 흐름(조절기 2규칙만 고정), 기존 위임 클릭·mount 복원 재사용, 핀 셸 4줄+채널 2줄 → 20260903c. **사용자 지시로 CEO 워크플로(`settlement-v12-ceo`)가 수행**: CEO 설계 → W1 셸·JS / W2 CSS / W3 테스트 병렬 → 통합 검증 → 2판정 리뷰 → CEO 판정. 브리프 `docs/plans/2026-09-03-settlement-followup-brief.md` | `tests/domains/test_settlement_font_scale.py`(16) + 정산 렌더 3종 green + 스테이징 실화면(130%·새로고침 유지·150% 가로 스크롤 없음) | DONE(로컬) — **CEO 판정 ship**(차단 0, minor 7). 통합 검증 all_green(JS_OK·APP_OK·font 16·렌더 607·namespace+contracts 250·-k settlement 842·워크벤치 3·perf guard 5), CEO 독립 재실행 261. 총괄 직접: 게이트 881 passed·smoke PASSED, minor 5건(R1·R2·R3·R5·R7) 직접 반영 후 font+렌더 3종 399 passed. 잔여: push·CI·스테이징 실화면 |
+| F6 후속(minor, 비차단) | R4 `role=group` 이 `role=tablist` 직계(집중 모드 버튼의 기존 결함과 동일) → tablist 를 탭 4개만 감싸는 안쪽 래퍼로 · R6 함수 시그니처·localStorage 리터럴 단정은 CEO 계약 §5③ 대로 유지(리팩터 시 완화) · 수용 리스크: 150% 에서 SVG 축 라벨 좌표가 JS 고정이라 겹칠 수 있음(스테이징 실화면에서 확인) | — | PENDING(후속) |
+| F5 | 게이트 전수 → push_own → CI 4/4 → 스테이징 QA → 원장·AI_STATUS | 전부 green | PENDING |
+
 ## 결정 기록
+- 2026-09-03 CEO 워크플로(F6) 리뷰 findings 전량(스펙 2·품질 5, 전부 minor, 두 리뷰 pass):
+  - R1 test_settlement_font_scale.py:409 — 핀 "정확히 1개" 단정이 `_pins_for`(set) 라 값 종류만 잠근다 → findall 출현 횟수로 세기. **수정 예정(총괄)**
+  - R2 test_settlement_font_scale.py:102 — `_SCALED_FONT_SIZE_MIN_TOTAL = 130` 수치 하한은 계약 밖 단정(정당한 CSS 정리에 거짓 red) → 파일별 ≥1 구조 검사로. **수정 예정(총괄)**
+  - R3 dashboard.js:327 — 끝 단계에서 방금 누른 버튼이 disabled 되며 키보드 포커스가 body 로 떨어진다(워크벤치 원형과 같은 결함) → disabled 직전 형제 버튼으로 focus 이동. **수정 예정(총괄)**
+  - R4 settlement_dashboard_body.html:101 — `role=group` 이 `role=tablist` 직계 자식(집중 모드 버튼이 이미 같은 위반) → tablist 를 tab 4개만 감싸는 안쪽 래퍼로 내리기. **후속 범위(기존 구조 손질)**
+  - R5 test_settlement_font_scale.py:297 — 조절기 고정 px 정규식 `\d+px` 가 소수 px 를 못 본다 → `_FIXED_FONT_SIZE_RE` 공용. **수정 예정(총괄)**
+  - R6 test_settlement_font_scale.py:322 — 함수 시그니처·localStorage 호출 리터럴 단정(구현 세부) → 이름 수준으로 완화. CEO 계약 §5③ 이 명시한 항목이라 **유지**(계약 소유자=총괄 판단: 이번 릴리스 유지, 리팩터 시 완화)
+  - R7 dashboard.js:319 — `applyFontScale`·`stepFontScale` 한 줄 설명 부재 → 추가. **수정 예정(총괄)**
+- 2026-09-03 통합 검증(워크플로): all_green, 수정 0 — JS_OK·APP_OK·font 16·렌더 607·namespace+contracts 250·-k settlement 842·워크벤치 3·perf guard 5. 총괄 직접 재실행: 게이트 881 passed·pre_push_smoke PASSED(377).
 - 2026-09-02 T0 실측: 스테이징 워커 정산 5종 403 GW.AUTHN(주문 API는 OK). 토큰 잔여 약 18:58 KST 만료 후 재검증 필요. 앱 client_id 앞 4자 4RYv.
 - 2026-09-02 계약 결정: _MOCKUP_LEFTOVERS "예정" 렌더 스캔은 기존 3 pane으로 한정(채널 탭은 "정산 예정일"이 정본 용어).
 - 2026-09-02 사용자 지시: 고애희(id 41)·강은미(id 54)를 회계팀(ACCOUNTING)으로 배정. 실측: 운영 role MANAGER·team CS, 스테이징 STAFF·CS. 배정은 코드 배포 뒤(스테이징 → 운영 승격 시). team 변경은 principal-version 트리거로 세션 무효화(재로그인). 게이트 = ADMIN 또는 team=ACCOUNTING 인 MANAGER/STAFF.

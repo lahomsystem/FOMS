@@ -10,7 +10,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
-- [2026-09-02] **네이버 정산 탭 v1+v1.1 운영 반영 완료(PR #278·#279, NAVER-SETTLE-01)** — 4번째 탭(ADMIN+회계팀)·요약 스트립·실무 12칸(차감청구 개명)·CSV 5종, 05:30 자동 동기화. 잔여: 지급 보류 -1.2억 사유 확인(회계팀). 원장 `docs/plans/2026-09-02-naver-settlement-ledger.md`
+- [2026-09-03] **네이버 정산 v1.2 deploy(미연결 2갈래·지급 보류 일자별 상세·정산 화면 글자 크기 조절)** — v1+v1.1 은 운영 반영 완료(PR #278·#279). v1.2: 예외 큐 UNMATCHED(워크벤치 대기→그 집)/UNLINKED(수집 전→수집 화면), KPI 보류·한도 타일 펼침 표, 탭줄 글자 크기 −/+(--s-fs, 워크벤치 패턴). 운영 실측: case 1,353행 전부 미연결(링크 없음 32·워크벤치 대기 1,321), 보류는 payHoldback 24행. F6 는 CEO 워크플로(8 에이전트) 수행. 잔여: 스테이징 실화면·운영 승격(사용자 확인). 원장 `docs/plans/2026-09-02-naver-settlement-ledger.md` Phase F
 - [2026-09-02] **네이버 발송처리 평일 16:50 자동 실행 ON**(PR #270 · `51c366e9`) — 대상은 수동과 같은 함수·주말/공휴일 제외·하루 1회. 끄기=`FOMS_NAVER_AUTO_DISPATCH_ENABLED=0`+워커 재배포. 원장 `docs/plans/2026-09-02-naver-auto-dispatch-ledger.md`
 - [2026-09-02] **둘째 전화번호 검색 복구 운영 반영**(PR #258) — 폭 64·`phonewide_01`, 절단 83건 복구. `erp-phone-digits-widen-ledger`
 - [2026-09-02] **하트비트 S1+S2a 운영 반영(PR #233) · 관측 중** — 쓰기 카운터 + 렌더 전 304 키의 그림자 관측. **화면 동작 무변경**. 운영 mismatch 0. **미해결**: 스테이징 mismatch 13 · 적중률 미측정 → S2b 는 그 뒤. 원장 §P8~§P11
