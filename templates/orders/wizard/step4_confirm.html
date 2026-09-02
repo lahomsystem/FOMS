@@ -45,4 +45,50 @@
       </div>
     </dl>
   </div>
+
+  {# 등록 전 발송 액션(WIZ-SEND-01). 본문은 서버가 초안 payload 로 조립하므로
+     클릭 → 초안 강제 flush → 미리보기 → 확인 시트 순서로만 동작한다. #}
+  <div class="foms-wizard__send" id="foms-wizard-send">
+    <div class="foms-wizard__send-actions">
+      <button
+        type="button"
+        class="foms-btn foms-btn--secondary foms-wizard__send-btn"
+        id="foms-wizard-push-btn"
+        data-wizard-send="channel"
+      ><span class="foms-wizard__send-btn-label">실측 PUSH</span></button>
+      <button
+        type="button"
+        class="foms-btn foms-btn--secondary foms-wizard__send-btn"
+        id="foms-wizard-alimtalk-btn"
+        data-wizard-send="alimtalk"
+      ><span class="foms-wizard__send-btn-label">알림톡 · 예약 내역</span></button>
+    </div>
+    <p class="foms-wizard__send-status" id="foms-wizard-send-status" role="status" aria-live="polite"></p>
+    <p class="foms-wizard__send-trace" id="foms-wizard-send-trace-channel" data-wizard-send-trace="channel" hidden></p>
+    <p class="foms-wizard__send-trace" id="foms-wizard-send-trace-alimtalk" data-wizard-send-trace="alimtalk" hidden></p>
+  </div>
+
+  <div
+    class="foms-wizard__sheet"
+    id="foms-wizard-send-sheet"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="foms-wizard-send-sheet-title"
+  >
+    <div class="foms-wizard__sheet-backdrop" data-wizard-send-close></div>
+    <div class="foms-wizard__sheet-panel">
+      <h3 class="foms-wizard__sheet-title" id="foms-wizard-send-sheet-title">발송 확인</h3>
+      <p class="foms-wizard__sheet-notice" id="foms-wizard-send-sheet-notice" hidden></p>
+      <pre class="foms-wizard__sheet-preview" id="foms-wizard-send-sheet-preview" tabindex="0"></pre>
+      <p class="foms-wizard__sheet-meta" id="foms-wizard-send-sheet-meta" hidden></p>
+      <label class="foms-wizard__sheet-note" id="foms-wizard-send-sheet-note-wrap" hidden>
+        <span class="foms-wizard__sheet-note-label">변경 사유(재전송)</span>
+        <input type="text" class="foms-input" id="foms-wizard-send-sheet-note" maxlength="200" autocomplete="off">
+      </label>
+      <div class="foms-wizard__sheet-actions">
+        <button type="button" class="foms-btn foms-btn--secondary" id="foms-wizard-send-cancel" data-wizard-send-close>취소</button>
+        <button type="button" class="foms-btn foms-btn--primary" id="foms-wizard-send-confirm">발송</button>
+      </div>
+    </div>
+  </div>
 </section>

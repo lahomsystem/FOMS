@@ -135,6 +135,7 @@ jobs:
           tests/domains/test_state_guard.py \
           tests/domains/test_stored_xss_sinks.py \
           tests/domains/test_table_version_counter.py \
+          tests/domains/test_wizard_draft_send_routes.py \
           tests/performance/test_perf_regression_guard.py \
           tests/services/integrations/test_naver_origin_cleanup.py \
           tests/services/integrations/test_naver_refresh_all.py \
@@ -175,4 +176,5 @@ jobs:
           tests/visual/test_p1_mockup_visual_gate.py \
           tests/visual/test_share_ui_contract.py \
           tests/visual/test_staging_mobile_v2_assets.py \
+          tests/visual/test_wizard_send_ui_contract.py \
           -p no:playwright

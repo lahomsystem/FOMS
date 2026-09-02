@@ -969,6 +969,7 @@
       },
     });
 
+    window.fomsWizardDraftClient = draftClient; // 4단계 발송(wizard-send.js) 강제 flush 진입점
     draftClient.bindAutosave();
     setStep(root, currentStep);
 
