@@ -487,3 +487,144 @@
   .foms-settle .s-ch-recon-line { font-size: 12px; }
   .foms-settle .s-ch-ledger-switch { overflow-x: auto; flex-wrap: nowrap; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   v1.1 — 이 파일이 **채널 pane 밖**까지 칠하는 두 자리
+   ═══════════════════════════════════════════════════════════════════
+   아래 세 블록(실무 탭 배지 · 요약 탭 스트립 · CSV 드롭다운)만 예외적으로 `.s-ch` 루트
+   **바깥**의 노드를 대상으로 한다. 이 파일이 ADMIN·회계팀에게만 로드되고, 그 두 노드도
+   같은 게이트(`{% if can_view_channel_settlement %}`)로만 렌더되기 때문에 **로드 조건과
+   렌더 조건이 정확히 같다** — 그래서 `settlement-operations.css`·`settlement-dashboard.css`
+   를 열지 않아도 된다(그 파일들의 목업 스캔·핀 사슬을 타지 않는다).
+
+   **토큰 주의**: `--s-ch-*` 는 `.foms-settle .s-ch` 에 선언돼 있어 여기서는 **쓸 수 없다**.
+   이 세 블록은 `.foms-settle` 이 선언한 `--s-*` 만 소비하고, 이 표면에만 필요한 색은
+   각 블록 첫머리에서 지역 토큰으로 한 번만 선언한다. */
+
+/* ── T13 · 실무 탭 "네이버 정산" 배지 (W2-B 가 붙인다) ─────────────
+   상태는 3종(정산완료 `done` · 정산대기 `wait` · 미매칭 `none`)이고 "해당없음"(비네이버)은
+   배지가 아니라 대시(`—`)라 클래스가 없다. **두 표기(`--done` / `-done`)를 모두 받는다** —
+   계약서 초안과 Wave 2 브리프가 서로 다른 이름을 적었고, 어느 쪽을 골라도 배지가 무스타일로
+   떨어지지 않게 하는 값이 그 중복보다 크다. 금액은 넣지 않는다(상태 + 날짜만 — §6 노출 최소화). */
+.foms-settle .s-ch-ops-nv {
+  --s-ch-nv-fg: var(--s-muted);
+  --s-ch-nv-bg: #f1f3f7;
+  --s-ch-nv-line: var(--s-line);
+  display: inline-flex; align-items: baseline; gap: 5px;
+  padding: 2px 7px; border-radius: 6px; white-space: nowrap;
+  border: 1px solid var(--s-ch-nv-line);
+  background: var(--s-ch-nv-bg); color: var(--s-ch-nv-fg);
+  font-size: 11.5px; font-weight: 700; line-height: 1.5;
+}
+/* 날짜 보조(최근 완료일 · 가장 이른 정산 예정일)는 낱말 없이 `MM-DD` 만 온다 — 상태보다
+   한 단계 여린 색으로 눌러 배지의 주어가 상태임을 유지한다. */
+.foms-settle .s-ch-ops-nv-date { color: var(--s-faint); font-weight: 600; font-variant-numeric: tabular-nums; }
+.foms-settle .s-ch-ops-nv--done,
+.foms-settle .s-ch-ops-nv-done {
+  --s-ch-nv-fg: var(--s-good); --s-ch-nv-bg: #e7f6ec; --s-ch-nv-line: #c3e4cd;
+}
+.foms-settle .s-ch-ops-nv--wait,
+.foms-settle .s-ch-ops-nv-wait {
+  --s-ch-nv-fg: var(--s-amber); --s-ch-nv-bg: var(--s-amber-soft); --s-ch-nv-line: #e3d5ac;
+}
+/* 미매칭은 **경고색을 쓰지 않는다** — 아직 정산 자료가 안 붙었다는 사실일 뿐, 그 자체로
+   잘못된 상태가 아니다(색으로 사람을 재촉하지 않는다). */
+.foms-settle .s-ch-ops-nv--none,
+.foms-settle .s-ch-ops-nv-none {
+  --s-ch-nv-fg: var(--s-faint); --s-ch-nv-bg: var(--s-surface-soft); --s-ch-nv-line: var(--s-line-soft);
+  font-weight: 600;
+}
+
+/* ── T12 · 요약 탭 크로스 스트립(S11) ──────────────────────────────
+   요약 탭 5타일은 **완료일** 축이고 이 줄은 **정산 예정일** 축이다. 그래서 KPI 줄 안에
+   섞지 않고 그 아래 한 칸을 따로 차지해 시각적으로 가른다. 값·문구는 전부 `channel.js`
+   소유다(서버 렌더 텍스트 0 — 요약 탭 목업 스캔이 "예정"을 금지한다). */
+/* 셸 앵커는 `data-settlement-ch-strip` 속성만 확실히 갖는다(클래스는 총괄 hunk 판본에
+   따라 있을 수도, 없을 수도 있다). 그래서 **클래스는 `channel.js` 가 마운트 때 붙이고**
+   여기서는 그 클래스를 CSS 훅으로 쓴다 — 스타일과 값이 같은 시점에 붙는다. */
+.foms-settle .s-ch-strip { grid-column: 1 / -1; grid-row: 2; }
+/* `hidden` 으로 시작해서 데이터를 받은 뒤에만 열린다. `display` 를 무조건 주면 UA 의
+   `[hidden]` 규칙을 이겨 값 없는 빈 줄이 먼저 보인다 — `:not([hidden])` 이 그 가드다. */
+.foms-settle .s-ch-strip:not([hidden]) {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 4px 14px;
+  padding: 8px 13px; border-radius: var(--s-radius);
+  background: var(--s-surface); border: 1px solid var(--s-line);
+  border-left: 3px solid var(--s-accent);
+  font-size: 12.5px; color: var(--s-muted);
+}
+.foms-settle .s-ch-strip-lead { color: var(--s-accent); font-weight: 800; flex: none; }
+.foms-settle .s-ch-strip-axis { font-weight: 700; color: var(--s-text); }
+.foms-settle .s-ch-strip-item { display: inline-flex; align-items: baseline; gap: 6px; }
+.foms-settle .s-ch-strip-lbl { color: var(--s-faint); }
+.foms-settle .s-ch-strip-val { color: var(--s-text); font-weight: 800; font-variant-numeric: tabular-nums; }
+.foms-settle .s-ch-strip-val.s-ch-neg { color: var(--s-bad); }
+/* "언제 기준인가"를 값 옆에서 한 번 더 말한다(오래된 값을 지금 값처럼 읽지 않게). */
+.foms-settle .s-ch-strip-badge {
+  font-size: 11px; font-weight: 700; color: var(--s-amber);
+  background: var(--s-amber-soft); border: 1px solid #e3d5ac;
+  border-radius: 999px; padding: 1px 7px;
+}
+.foms-settle .s-ch-strip-msg { color: var(--s-faint); }
+/* 탭 열기 = 링크가 아니라 버튼이다. 새 URL 이 없고, 하는 일이 "이 화면의 탭 전환"이다. */
+.foms-settle .s-ch-strip-open {
+  margin-left: auto; flex: none;
+  border: 1px solid var(--s-accent); background: transparent; color: var(--s-accent);
+  font: inherit; font-size: 12px; font-weight: 700; line-height: 1.4;
+  padding: 3px 11px; border-radius: 7px; cursor: pointer;
+}
+.foms-settle .s-ch-strip-open:hover { background: var(--s-accent-soft); }
+.foms-settle .s-ch-strip-open:focus-visible { outline: 2px solid var(--s-accent); outline-offset: 1px; }
+
+/* 요약 그리드 행 재배치 — 앵커가 **있을 때만** 카드 5장을 한 칸씩 내린다.
+   `.s-grid` 는 12칸 grid 이고 카드 5장이 명시 행 좌표를 갖는다(`settlement-dashboard.css`).
+   새 자식에 좌표를 안 주면 자동배치가 맨 아래로 밀어 DOM 순서와 시각 순서가 어긋난다.
+   그 파일을 열지 않으므로 여기서 `:has()` 특이도로 뒤집는다(이 파일이 나중에 로드된다).
+   앵커는 ADMIN·회계팀 렌더에만 있으므로 그 밖의 사용자 화면 좌표는 그대로다.
+   **`:not([hidden])` 이 붙은 이유**: 앵커는 `hidden` 으로 시작하고 조회에 실패하면 끝까지
+   닫힌 채로 남는다. 그때도 행을 밀면 `display:none` 인 노드 때문에 2행이 통째로 빈 줄이
+   된다 — 스트립이 실제로 보일 때만 카드가 내려간다(실패해도 요약 배치는 v1 과 동등). */
+.foms-settle .s-grid:has(> .s-ch-strip:not([hidden])) > .s-card--main { grid-row: 3 / 5; }
+.foms-settle .s-grid:has(> .s-ch-strip:not([hidden])) > .s-side { grid-row: 3; }
+.foms-settle .s-grid:has(> .s-ch-strip:not([hidden])) > .s-card--channel { grid-row: 4; }
+.foms-settle .s-grid:has(> .s-ch-strip:not([hidden])) > .s-card--aging,
+.foms-settle .s-grid:has(> .s-ch-strip:not([hidden])) > .s-card--stages { grid-row: 5; }
+
+/* 좁은 폭에서는 원본이 명시 행 좌표를 `auto` 로 **푼다**(settlement-dashboard.css 의 1120px
+   블록). 위 `:has()` 규칙은 특이도가 더 높아 그 해제를 이겨 버리므로 **같은 폭에서 되풀어
+   준다** — 안 풀면 2·3행 지정이 남아 좁은 화면에 빈 줄이 생긴다(원본 주석이 경고하는 증상). */
+@media (max-width: 1120px) {
+  .foms-settle .s-grid:has(> .s-ch-strip:not([hidden])) > .s-card--main,
+  .foms-settle .s-grid:has(> .s-ch-strip:not([hidden])) > .s-side,
+  .foms-settle .s-grid:has(> .s-ch-strip:not([hidden])) > .s-card--channel,
+  .foms-settle .s-grid:has(> .s-ch-strip:not([hidden])) > .s-card--aging,
+  .foms-settle .s-grid:has(> .s-ch-strip:not([hidden])) > .s-card--stages { grid-row: auto; }
+  .foms-settle .s-ch-strip { grid-row: auto; }
+}
+@media (max-width: 720px) {
+  .foms-settle .s-ch-strip-open { margin-left: 0; }
+}
+
+/* ── T14 · CSV 내보내기 드롭다운 ───────────────────────────────────
+   S0 동기화 헤더 안(`[지금 동기화]` 뒤)에 산다. 메뉴 항목은 `channel.js` 가 그리고,
+   각 항목은 지금 화면의 조건을 그대로 실은 **링크**다(blob 다운로드 금지 — 인앱 웹뷰에서
+   `blob:` 저장이 막힌다). */
+.foms-settle .s-ch-export { position: relative; flex: none; }
+.foms-settle .s-ch-export-menu {
+  position: absolute; right: 0; top: calc(100% + 5px); z-index: 20;
+  min-width: 234px; padding: 5px; display: grid; gap: 1px;
+  background: var(--s-surface); border: 1px solid var(--s-line);
+  border-radius: 9px; box-shadow: 0 8px 22px rgba(17, 24, 39, .13);
+}
+.foms-settle .s-ch-export-item {
+  display: block; padding: 6px 9px; border-radius: 6px;
+  color: var(--s-text); font-size: 12.5px; font-weight: 700; text-decoration: none;
+}
+.foms-settle .s-ch-export-item:hover { background: var(--s-accent-soft); color: var(--s-accent); }
+.foms-settle .s-ch-export-item:focus-visible { outline: 2px solid var(--s-accent); outline-offset: -2px; }
+.foms-settle .s-ch-export-sub { display: block; color: var(--s-faint); font-size: 11px; font-weight: 600; margin-top: 1px; }
+/* 상시 안내(자동 닫힘 없는 일반 텍스트). 파일이 화면보다 많은 열을 담는다는 사실과 여는
+   법을 늘 말한다 — 주문번호 16자리를 표 계산 프로그램이 지수표기로 여는 자리다. */
+.foms-settle .s-ch-export-note {
+  border-top: 1px solid var(--s-line-soft); margin-top: 4px; padding: 6px 9px 2px;
+  color: var(--s-faint); font-size: 11px; line-height: 1.6; white-space: normal;
+}
