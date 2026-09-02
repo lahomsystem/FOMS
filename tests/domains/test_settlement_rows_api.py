@@ -17,6 +17,10 @@
 4. **파생 파리티 이탈** — 잔금·과입금이 완료 대시보드/집계 커널과 다른 식을 쓰는 것.
 5. **과입금 소실** — 잔금 클램프가 삼킨 금액을 안 내면 "돌려줄 돈이 있다"는 사실이
    화면에서 사라진다(CEO L-1). 목업에 칸이 없어도 응답에는 반드시 있어야 한다.
+6. **채널 정산 누출**(v1.1 T13) — 이 표면의 게이트는 CS·영업까지 열려 있는데 네이버
+   정산 상태는 회계 전용이다. `naver_settlement` 는 **키 자체가 권한**이라, 값이
+   None 으로라도 실려 오면 red. 판정·부호·날짜 매트릭스 전량은
+   `test_settlement_ops_channel_column.py` 가 맡고 여기서는 표면 계약만 본다.
 
 테스트 데이터 규율은 `test_settlement_dashboard_api` 와 같다 — 실제 Order 를 만들어 쓴다.
 """
@@ -44,6 +48,13 @@ from tests.domains.test_settlement_aggregation import _money, _seed_order  # noq
 from tests.domains.test_settlement_dashboard_api import (  # noqa: E402
     _CONSTRUCTION_PAGE_REDIRECT_ACTOR,
 )
+# 네이버 정산 칸 시드·쿼리 계수기는 전용 파일이 SSOT 다(복제하면 한쪽만 갱신된다).
+from tests.domains.test_settlement_ops_channel_column import (  # noqa: E402
+    _cell_by_order as _naver_cell,
+    _count_queries,
+    _seed_case,
+    _seed_naver_order,
+)
 
 ROWS_URL = "/api/settlement/rows"
 
@@ -69,6 +80,18 @@ _ROW_KEYS = {
     "cash_receipt_state",
     "settlement_issued",
 }
+
+#: 채널 정산 열람 권한자(ADMIN·회계팀)에게만 **키가 하나 더 생긴다**(v1.1 T13 §6).
+#: 두 갈래를 따로 못 박는 이유: 값 검사만 하면 "권한이 없는데 값이 None 으로 실려 온다"를
+#: 통과시킨다. 키 부재와 값 None 은 노출면에서 전혀 다른 사실이다.
+_NAVER_SETTLE_KEY = "naver_settlement"
+_ROW_KEYS_WITH_CHANNEL = _ROW_KEYS | {_NAVER_SETTLE_KEY}
+
+#: 채널 정산 게이트를 통과하는 actor(`can_view_channel_settlement` SSOT 와 같은 집합).
+_CHANNEL_ALLOWED_ACTOR = ("ADMIN", None)
+#: 행 API 는 열리지만 채널 정산은 못 보는 actor. **STAFF+CS 가 핵심**이다 —
+#: `_ALLOWED_ACTORS` 에 들어 있어 200 을 받는데 회계 정보는 보면 안 된다.
+_CHANNEL_DENIED_ACTOR = ("STAFF", "CS")
 
 #: 행에 절대 실리면 안 되는 필드 이름들.
 _FORBIDDEN_ROW_KEYS = {
@@ -138,17 +161,59 @@ def test_rows_api_denies_construction_team_on_api_surface(client, app):
 # ==========================================================================
 # 2. 노출 계약 — 성명·주문번호까지, 연락처·주소·원문은 금지
 # ==========================================================================
-def test_row_shape_is_exactly_the_agreed_field_set(client, app):
-    """행 키 집합이 계약과 정확히 일치한다(추가·누락 모두 red)."""
+def test_row_shape_for_channel_settlement_actor_adds_exactly_one_key(client, app):
+    """회계 권한자의 행 키 집합 = 기본 계약 ∪ {naver_settlement}(정확 일치).
+
+    키가 **하나만** 늘어야 한다 — 네이버 정산을 붙이면서 금액·연락처가 슬쩍 함께 딸려
+    오는 것을 여기서 잡는다.
+    """
     _seed_order(completion="2026-08-10", sd=_money(items_total=3_000_000, deposit=500_000))
-    _login(client, _make_user(role="ADMIN"))
+    role, team = _CHANNEL_ALLOWED_ACTOR
+    _login(client, _make_user(role=role, team=team))
 
     rows = _get(client).get_json()["data"]["rows"]
+
+    assert rows, "시드한 주문이 행 목록에 없다"
+    assert set(rows[0]) == _ROW_KEYS_WITH_CHANNEL, (
+        f"행 키가 계약과 다르다: 추가={set(rows[0]) - _ROW_KEYS_WITH_CHANNEL} "
+        f"누락={_ROW_KEYS_WITH_CHANNEL - set(rows[0])}"
+    )
+
+
+def test_row_shape_for_non_channel_actor_is_exactly_the_base_field_set(client, app):
+    """채널 정산을 못 보는 actor 의 행에는 `naver_settlement` **키가 아예 없다**.
+
+    값을 None 으로 실어 보내고 화면에서 감추면 개발자 도구로 그대로 보인다(클라 숨김
+    금지). 그래서 "값이 비었다"가 아니라 **키 부재**를 계약으로 못 박는다.
+    """
+    _seed_order(completion="2026-08-10", sd=_money(items_total=3_000_000, deposit=500_000))
+    role, team = _CHANNEL_DENIED_ACTOR
+    _login(client, _make_user(role=role, team=team))
+
+    body = _get(client).get_json()
+    rows = body["data"]["rows"]
 
     assert rows, "시드한 주문이 행 목록에 없다"
     assert set(rows[0]) == _ROW_KEYS, (
         f"행 키가 계약과 다르다: 추가={set(rows[0]) - _ROW_KEYS} 누락={_ROW_KEYS - set(rows[0])}"
     )
+    assert body["data"]["channel_settlement_visible"] is False
+
+
+def test_channel_settlement_visible_flag_matches_the_gate(client, app):
+    """`channel_settlement_visible` 은 키 존재 여부와 **같은 신호**다.
+
+    플래그와 실제 키가 갈리면 화면이 `<th>` 는 그렸는데 `<td>` 가 없는(또는 그 반대)
+    표를 만든다 — 칸 수가 어긋난 표는 모든 열이 한 칸씩 밀린다.
+    """
+    _seed_order(completion="2026-08-10", sd=_money(items_total=1_000_000, deposit=0))
+
+    for role, team in (_CHANNEL_ALLOWED_ACTOR, _CHANNEL_DENIED_ACTOR):
+        _login(client, _make_user(role=role, team=team))
+        data = _get(client).get_json()["data"]
+        visible = data["channel_settlement_visible"]
+        has_key = all(_NAVER_SETTLE_KEY in row for row in data["rows"])
+        assert visible is has_key, f"{role}+{team}: 플래그={visible} 키존재={has_key}"
 
 
 def test_rows_carry_customer_name_by_design(client, app):
@@ -500,3 +565,97 @@ def test_aging_summary_excludes_paid_and_unknown_completion_rows(client, app):
     )
     assert data["totals"]["unknown_completion_count"] >= 1, "미상 시드가 모집단에 없다"
     assert bucket_total == receivable_with_date, "막대 합과 미수(완료일 있음) 건수가 어긋난다"
+
+
+# ==========================================================================
+# 9. 네이버 정산 칸 (v1.1 T13) — 판정 우선순위와 쿼리 비용
+#
+# 판정·부호·날짜 매트릭스 전량은 `test_settlement_ops_channel_column.py` 가 맡는다.
+# 여기서는 **행 API 표면**에서 그 값이 그대로 나오는지와, 컬럼을 붙인 대가가
+# 쿼리 +1 을 넘지 않는지를 못 박는다(§8.1 T13 완료기준 ⑥).
+# ==========================================================================
+def test_naver_settlement_precedence_settled_beats_pending(client, app):
+    """완료일이 있는 행이 하나라도 있으면 **정산완료**가 대기를 이긴다.
+
+    한 주문에 상품주문 단위 정산 행이 여럿 붙는다. 마지막 행만 보거나 첫 행만 보면
+    이미 돈이 들어온 건이 대기로 뜬다 — 실무자가 없는 미수를 쫓는다.
+    """
+    order_id = _seed_naver_order().id
+    _seed_case(order_id, expect=datetime.date(2026, 9, 5))
+    _seed_case(order_id, expect=datetime.date(2026, 9, 6),
+               complete=datetime.date(2026, 9, 7))
+    role, team = _CHANNEL_ALLOWED_ACTOR
+    _login(client, _make_user(role=role, team=team))
+
+    cell = _naver_cell(_get(client).get_json()["data"]["rows"], order_id)
+
+    assert cell["status"] == "SETTLED"
+    assert cell["settle_complete_date"] == "2026-09-07", "최근 완료일이 아니다"
+
+
+def test_naver_settlement_precedence_pending_when_only_expect_dates(client, app):
+    """완료일이 전부 없으면 대기이고, 날짜는 **가장 이른 예정일**이다."""
+    order_id = _seed_naver_order().id
+    _seed_case(order_id, expect=datetime.date(2026, 9, 20))
+    _seed_case(order_id, expect=datetime.date(2026, 9, 4))
+    role, team = _CHANNEL_ALLOWED_ACTOR
+    _login(client, _make_user(role=role, team=team))
+
+    cell = _naver_cell(_get(client).get_json()["data"]["rows"], order_id)
+
+    assert cell["status"] == "PENDING"
+    assert cell["settle_expect_date"] == "2026-09-04"
+
+
+def test_naver_settlement_precedence_unmatched_and_not_applicable_differ(client, app):
+    """네이버인데 정산 행 0건 = 미매칭 / 비네이버 = None. **둘을 섞지 않는다**.
+
+    미매칭은 회계가 찾아야 하는 행이고, 비네이버는 애초에 대상이 아니다. 하나로 뭉개면
+    "네이버 건인데 정산이 안 잡혔다"는 사실이 화면에서 사라진다.
+    """
+    naver_id = _seed_naver_order().id
+    plain_id = _seed_order(completion="2026-08-10",
+                           sd=_money(items_total=1_000_000, deposit=0)).id
+    role, team = _CHANNEL_ALLOWED_ACTOR
+    _login(client, _make_user(role=role, team=team))
+
+    rows = _get(client).get_json()["data"]["rows"]
+
+    assert _naver_cell(rows, naver_id)["status"] == "UNMATCHED"
+    assert _naver_cell(rows, plain_id) is None
+
+
+def test_rows_api_costs_at_most_one_extra_query_for_the_column(client, app):
+    """컬럼이 붙어도 행 API 의 쿼리 수는 **+1 이하**로 늘어난다.
+
+    실무 탭은 모집단 전량을 도는 hot path 다. 행마다 정산을 다시 묻는 구현이면 시드
+    3건에서도 여기서 red 가 된다 — 운영 1,978건에서 처음 발견하면 이미 늦다.
+    """
+    for _ in range(3):
+        _seed_case(_seed_naver_order().id, expect=datetime.date(2026, 9, 5))
+
+    denied_role, denied_team = _CHANNEL_DENIED_ACTOR
+    _login(client, _make_user(role=denied_role, team=denied_team))
+    _, without = _count_queries(lambda: _get(client))
+
+    allowed_role, allowed_team = _CHANNEL_ALLOWED_ACTOR
+    _login(client, _make_user(role=allowed_role, team=allowed_team))
+    _, with_column = _count_queries(lambda: _get(client))
+
+    assert with_column - without <= 1, (
+        f"컬럼 때문에 쿼리가 {with_column - without}회 늘었다"
+        f" (없을 때 {without} → 있을 때 {with_column}) — N+1 이다"
+    )
+
+
+def test_service_defaults_to_omitting_the_naver_settlement_key(app):
+    """서비스 기본값은 **키를 만들지 않는 것**이다.
+
+    새 호출자가 인자를 안 넘겨도 회계 정보가 새지 않는다 — 안전한 쪽이 기본이어야 한다.
+    """
+    _seed_case(_seed_naver_order().id, complete=datetime.date(2026, 9, 3))
+
+    rows = list_settlement_rows(db_session())["rows"]
+
+    assert rows, "행이 없다"
+    assert all("naver_settlement" not in row for row in rows)

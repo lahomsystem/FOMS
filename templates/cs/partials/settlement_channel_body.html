@@ -33,6 +33,16 @@
   <div class="s-ch-sync" id="foms-settle-ch-sync">
     <div class="s-ch-sync-state" data-settlement-ch-sync-state></div>
     <button type="button" class="s-ch-btn" data-settlement-ch-sync-btn>지금 동기화</button>
+    {# CSV 내보내기(v1.1 T14) — 항목 5종과 상시 안내는 `channel.js` 가 그린다. 지금 화면의
+       채널·기간·기준일·조건을 그대로 실은 **링크**로 서버 파일 엔드포인트에 간다
+       (`blob:` 다운로드는 인앱 웹뷰에서 막힌다). 파일에는 화면(41필드)보다 많은 적재 원본
+       전량이 실리고 구매자 성명도 들어가므로 다운로드 1회가 감사 1행으로 남는다. #}
+    <div class="s-ch-export" id="foms-settle-ch-export"
+      data-settlement-ch-export
+      data-settlement-ch-export-api="/api/settlement/channel/export.csv">
+      <button type="button" class="s-ch-swbtn" data-settlement-ch-export-btn
+        aria-haspopup="true" aria-expanded="false">CSV 내보내기 ▾</button>
+    </div>
   </div>
 
   {# ── 기간·기준일 바 ──────────────────────────────────────────────────────────

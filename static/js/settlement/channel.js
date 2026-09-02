@@ -47,6 +47,22 @@
   var API_FALLBACK = '/api/settlement/channel';
   var SYNC_API_FALLBACK = '/api/settlement/channel/sync';
 
+  /* v1.1 — 이 파일이 채널 pane 밖에서 맡는 한 자리(T12)와 pane 안의 새 도구 하나(T14).
+     스트립 호스트는 **요약 탭 안**에 있어 채널 루트의 자손이 아니다. 그래서 마운트 축을
+     둘로 나누되 새 document 리스너는 만들지 않는다 — 기존 mountAll() 이 둘 다 돈다. */
+  var STRIP_SELECTOR = '[data-settlement-ch-strip]';
+  var EXPORT_API_FALLBACK = '/api/settlement/channel/export.csv';
+
+  /** CSV 5종. `filters` 가 false 인 표는 유형·검색 조건을 받지 않는다(서버가 400 으로 거절
+      하므로 화면이 애초에 안 싣는다 — 일자 단위 표라 그 조건에 걸 열이 없다). */
+  var EXPORT_KINDS = [
+    { kind: 'settle_case', label: '건별 정산', sub: '상품주문 단위 · 매칭 상태 포함', filters: true },
+    { kind: 'commission', label: '수수료', sub: '결제·판매·채널 수수료 내역', filters: true },
+    { kind: 'vat_daily', label: '부가세 일별', sub: '일자 단위 과세·면세 집계', filters: false },
+    { kind: 'vat_case', label: '부가세 건별', sub: '상품주문 단위 과세 내역', filters: true },
+    { kind: 'settle_daily', label: '일별 정산', sub: '통장 입금 대사용 · 계좌는 마스킹', filters: false },
+  ];
+
   var DEFAULT_BACK_DAYS = 30;      // 기본 조회 시작 = 오늘 − 30
   var DEFAULT_FORWARD_DAYS = 14;   // 기본 조회 끝 = 오늘 + 14 (정산 예정일은 미래를 본다)
   var PER_PAGE = 60;               // 원장 페이지 크기(계약 §7)
@@ -981,6 +997,80 @@
     }
   }
 
+  /* ── CSV 내보내기 드롭다운(T14) ────────────────────────────────────────
+     S0 동기화 헤더 안, [지금 동기화] 뒤에 산다. 항목은 **링크**다 — `blob:` 다운로드는
+     인앱 웹뷰에서 막히기 때문에(프로젝트 함정) 서버 파일 엔드포인트로 그냥 이동한다.
+     조건(채널·기간·기준일·검색어)은 지금 화면 그대로 싣는다. 다만 **유형 필터는 그 필터를
+     고른 원장과 같은 종류의 파일에만** 싣는다 — 수수료 원장에서 고른 유형 코드를 건별
+     정산 파일에 실으면 조건이 아무 행에도 안 맞아 "0행짜리 정상 파일"이 내려간다. */
+
+  /** 서버 원장 종류 → CSV 종류. 유형 필터를 실을 수 있는 짝인지 판정하는 데만 쓴다. */
+  function exportKindOfLedger(kind) {
+    return kind === 'commission' ? 'commission' : (kind === 'vat_case' ? 'vat_case' : 'settle_case');
+  }
+
+  /** 지금 화면 조건을 실은 내려받기 URL 하나. */
+  function exportUrl(ctx, spec) {
+    var host = ctx.els.exportHost;
+    var base = (host && host.getAttribute('data-settlement-ch-export-api')) || EXPORT_API_FALLBACK;
+    var params = [
+      'kind=' + encodeURIComponent(spec.kind),
+      'channel=' + encodeURIComponent(ctx.state.channel),
+      'from=' + encodeURIComponent(ctx.state.from),
+      'to=' + encodeURIComponent(ctx.state.to),
+      'basis=' + encodeURIComponent(ctx.state.basis),
+    ];
+    if (spec.filters && ctx.state.q) params.push('q=' + encodeURIComponent(ctx.state.q));
+    if (spec.filters && ctx.state.type &&
+        exportKindOfLedger(ctx.state.typeKind) === spec.kind) {
+      params.push('type=' + encodeURIComponent(ctx.state.type));
+    }
+    return base + (base.indexOf('?') === -1 ? '?' : '&') + params.join('&');
+  }
+
+  /** 메뉴를 지금 조건으로 다시 그린다(열 때마다 — 조건은 그 사이에 바뀌어 있다). */
+  function renderExportMenu(ctx) {
+    var menu = ctx.els.exportMenu;
+    if (!menu) return;
+    clearNode(menu);
+    EXPORT_KINDS.forEach(function (spec) {
+      var item = el('a', 's-ch-export-item');
+      item.href = exportUrl(ctx, spec);
+      item.setAttribute('role', 'menuitem');
+      item.setAttribute('data-settlement-ch-export-kind', spec.kind);
+      item.appendChild(document.createTextNode(spec.label));
+      item.appendChild(el('span', 's-ch-export-sub', spec.sub));
+      menu.appendChild(item);
+    });
+    // 상시 안내(자동 닫힘 없는 일반 텍스트). 파일이 화면보다 많은 열을 담는다는 사실과
+    // 여는 법을 늘 말한다 — 16자리 주문번호를 표 계산 프로그램이 지수표기로 여는 자리다.
+    menu.appendChild(el('p', 's-ch-export-note',
+      '화면보다 많은 원본 필드가 들어 있습니다 · 엑셀은 [데이터 → 텍스트/CSV 가져오기]로 ' +
+      "열고 주문번호 열을 '텍스트'로 지정하세요"));
+  }
+
+  /** 메뉴를 열거나 닫는다. 상태는 버튼의 `aria-expanded` 하나로만 말한다. */
+  function toggleExport(ctx, open) {
+    var host = ctx.els.exportHost;
+    var btn = ctx.els.exportBtn;
+    if (!host || !btn) return;
+    if (open && !ctx.els.exportMenu) {
+      var menu = el('div', 's-ch-export-menu');
+      menu.setAttribute('data-settlement-ch-export-menu', '');
+      menu.setAttribute('role', 'menu');
+      host.appendChild(menu);
+      ctx.els.exportMenu = menu;
+    }
+    if (open) renderExportMenu(ctx);
+    btn.setAttribute('aria-expanded', String(!!open));
+    setHidden(ctx.els.exportMenu, !open);
+  }
+
+  /** 지금 열려 있는가. 두 번째 상태 변수를 만들지 않으려고 DOM 을 정본으로 읽는다. */
+  function exportOpen(ctx) {
+    return !!(ctx.els.exportBtn && ctx.els.exportBtn.getAttribute('aria-expanded') === 'true');
+  }
+
   /* ═══════════════ 6. 렌더 — S-bar · S1 KPI ═══════════════ */
 
   /** 필터바의 컨트롤 값을 서버가 확정한 상태로 되맞춘다(값의 권위는 서버다). */
@@ -1911,6 +2001,14 @@
     ctx.root.addEventListener('click', function (e) {
       var target = e.target;
       if (!target || !target.closest) return;
+      // CSV 드롭다운: 바깥을 누르면 닫는다. **document 리스너를 새로 만들지 않으려고**
+      // 이미 있는 루트 위임 하나에 얹는다(전역 리스너 3개 계약 유지).
+      if (!target.closest('[data-settlement-ch-export]') && exportOpen(ctx)) toggleExport(ctx, false);
+      if (target.closest('[data-settlement-ch-export-btn]')) {
+        toggleExport(ctx, !exportOpen(ctx));
+        return;
+      }
+      if (target.closest('[data-settlement-ch-export-kind]')) { toggleExport(ctx, false); return; }
       if (target.closest('[data-settlement-ch-sync-btn]')) { requestSync(ctx); return; }
       if (target.closest('[data-settlement-ch-retry]')) { reload(ctx, false); return; }
       var ledgerBtn = target.closest('[data-settlement-ch-ledger]');
@@ -1952,6 +2050,11 @@
     });
 
     ctx.root.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && exportOpen(ctx)) {
+        toggleExport(ctx, false);
+        if (ctx.els.exportBtn) ctx.els.exportBtn.focus();
+        return;
+      }
       if (e.key !== 'Enter') return;
       var target = e.target;
       if (!target || !target.matches || !target.matches('[data-settlement-ch-q]')) return;
@@ -1960,6 +2063,101 @@
       ctx.state.q = target.value.trim();
       reload(ctx, true);
     });
+  }
+
+  /* ═══════════════ 12-B. 요약 탭 크로스 스트립(S11 · T12) ═══════════════
+     이 한 줄만 **채널 pane 밖**(요약 탭 그리드)에 산다. 요약 탭의 5타일은 완료일 축이고
+     이 줄은 정산 예정일 축이라 숫자가 원래 다르다 — 그래서 KPI 줄에 섞지 않고 아래 한 칸을
+     따로 쓴다. 서버는 빈 앵커만 내고(요약 탭 목업 스캔이 "예정"을 금지한다) 문구는 전부
+     여기 소유다.
+
+     **"매출" 이라는 낱말을 쓰지 않는다.** 이 줄이 말하는 것은 전부 정산이고, 매출 인식은
+     완료일 축의 요약 타일이 이미 말하고 있다. 두 낱말을 한 화면에서 섞으면 어느 쪽이
+     매출인지 사람이 다시 헷갈린다. */
+
+  /** 스트립 금액 축약 — 한 줄에 값 셋이 들어가야 하므로 만원 단위로 접는다(표시 계층 전용). */
+  function stripMoney(value) {
+    return isNum(value) ? '₩' + fmtMan(toMan(value)) : '—';
+  }
+
+  /** 값 한 칸(라벨 + 금액·건수). 음수 금액은 색으로 한 번 더 말한다(부호는 지우지 않는다). */
+  function stripItem(label, text, negative) {
+    var item = el('span', 's-ch-strip-item');
+    item.appendChild(el('span', 's-ch-strip-lbl', label));
+    item.appendChild(el('span', 's-ch-strip-val' + (negative ? ' s-ch-neg' : ''), text));
+    return item;
+  }
+
+  /**
+   * 탭 버튼을 눌러 채널 탭을 연다. **새 탭 API 를 만들지 않는다** — 셸의 탭 버튼을 그대로
+   * 누르면 활성화·`aria`·pane 토글이 전부 기존 경로를 탄다(`dashboard.js` 무수정 유지).
+   */
+  function openChannelTab(host, tabKey) {
+    var scope = host.closest('[data-settlement-active-tab]') || document;
+    var btn = scope.querySelector('[data-settlement-tab="' + tabKey + '"]');
+    if (btn) btn.click();
+  }
+
+  /** 스트립 한 줄을 그린다. 데이터를 받은 뒤에만 불린다(값 없이 자리만 차지하지 않는다). */
+  function renderStrip(host, data) {
+    var strip = data.strip || {};
+    var sync = data.sync || {};
+    clearNode(host);
+    host.appendChild(el('span', 's-ch-strip-lead', '▸'));
+    host.appendChild(el('span', 's-ch-strip-axis',
+      (data.basis_label || '정산 예정일 기준') + ' · ' +
+      (data.channel === 'NAVER' ? '네이버' : String(data.channel || ''))));
+
+    if (sync.never) {
+      // 0원과 미동기화는 다른 사실이다. 한 번도 안 맞춰 봤으면 숫자를 아예 내지 않는다.
+      host.appendChild(el('span', 's-ch-strip-msg', '아직 한 번도 동기화되지 않았습니다'));
+    } else {
+      host.appendChild(stripItem('정산 완료', stripMoney(strip.settled_amount),
+        strip.settled_amount < 0));
+      host.appendChild(stripItem('정산 예정', stripMoney(strip.expected_amount),
+        strip.expected_amount < 0));
+      host.appendChild(stripItem('예외', fmtCount(strip.exception_count) + '건', false));
+      // 오래된 값이면 "언제 기준인가"를 값 옆에서 한 번 더 말한다. 표기는 S0 헤더와 같은
+      // 헬퍼를 쓴다 — 두 자리가 같은 시각을 다른 문장으로 말하면 사람이 둘을 대조한다.
+      var ago = sync.stale ? agoText(sync.last_ok_at || sync.last_run_at) : '';
+      if (ago) host.appendChild(el('span', 's-ch-strip-badge', '(' + ago + ' 기준)'));
+    }
+
+    var open = el('button', 's-ch-strip-open', '네이버 정산 열기 →');
+    open.type = 'button';
+    open.setAttribute('data-settlement-ch-strip-open', '');
+    open.addEventListener('click', function () {
+      openChannelTab(host, strip.tab_key ||
+        host.getAttribute('data-settlement-ch-strip-tab') || CHANNEL_TAB);
+    });
+    host.appendChild(open);
+    setHidden(host, false);
+  }
+
+  /**
+   * 스트립 마운트 — 호스트당 1회. **탭 활성화를 기다리지 않는다**(요약 탭이 첫 화면이다).
+   *
+   * 실패는 **조용히 삼킨다**. 이 파일의 다른 모든 실패는 상태 노드로 말하지만 여기만
+   * 예외인 이유: 이 줄이 통째로 없어도 요약 탭의 어떤 숫자도 틀리지 않고(다른 축의 보조
+   * 정보다), 진짜 상태는 채널 탭이 자기 상태 노드로 말한다. 요약 탭 한복판에 빨간 배너를
+   * 띄우면 "요약이 고장났다"는 잘못된 신호가 된다. 실패하면 `hidden` 을 유지한다 —
+   * **0 을 그리지 않는다**(결측을 0 으로 말하지 않는 계약 D-10).
+   */
+  function mountStrip(host) {
+    if (!host || host.dataset.settlementChStripMounted === '1') return;
+    host.dataset.settlementChStripMounted = '1';
+    // 셸 앵커가 클래스를 갖고 오지 않을 수 있다(총괄 hunk 판본). CSS 훅은 클래스 쪽이므로
+    // 여기서 붙인다 — 이미 있으면 무해하고, 없으면 스트립이 무스타일로 떨어지는 것을 막는다.
+    host.classList.add('s-ch-strip');
+    var range = initialRange(host);
+    var base = host.getAttribute('data-settlement-ch-strip-api') || API_FALLBACK;
+    var url = base + (base.indexOf('?') === -1 ? '?' : '&') +
+      'view=strip&channel=' +
+      encodeURIComponent(host.getAttribute('data-settlement-ch-strip-channel') || 'NAVER') +
+      '&from=' + encodeURIComponent(range.from) + '&to=' + encodeURIComponent(range.to);
+    getJson(url).then(function (data) {
+      if (host.isConnected && data && data.strip) renderStrip(host, data);
+    }).catch(function () { /* 무음: 위 docstring 참조 */ });
   }
 
   /* ═══════════════ 13. 마운트 ═══════════════ */
@@ -1988,6 +2186,9 @@
       deposit: pick(root, 'data-settlement-ch-deposit', 'foms-settle-ch-deposit'),
       reconcile: pick(root, 'data-settlement-ch-reconcile', 'foms-settle-ch-reconcile'),
       ledgerSwitch: pick(root, 'data-settlement-ch-ledger-switch', 'foms-settle-ch-ledger-switch'),
+      exportHost: pick(root, 'data-settlement-ch-export', 'foms-settle-ch-export'),
+      exportBtn: root.querySelector('[data-settlement-ch-export-btn]'),
+      exportMenu: root.querySelector('[data-settlement-ch-export-menu]'),
       ledger: pick(root, 'data-settlement-ch-ledger-body-host', 'foms-settle-ch-ledger'),
       loading: root.querySelector('[data-settlement-ch-loading]'),
       error: root.querySelector('[data-settlement-ch-error]'),
@@ -2090,6 +2291,12 @@
     syncControls(ctx);
     renderSwitch(ctx);
     bindControls(ctx);
+    // 포커스가 드롭다운 밖으로 나가면 닫는다(키보드 사용자에게 열린 채로 남지 않게).
+    if (ctx.els.exportHost) {
+      ctx.els.exportHost.addEventListener('focusout', function (e) {
+        if (!ctx.els.exportHost.contains(e.relatedTarget)) toggleExport(ctx, false);
+      });
+    }
     watchTabActivation(ctx);
     watchResize(ctx);
   }
@@ -2106,6 +2313,9 @@
       return false;
     });
     document.querySelectorAll(ROOT_SELECTOR).forEach(mount);
+    // 두 번째 마운트 축(T12). 스트립 호스트는 요약 탭 안이라 채널 루트의 자손이 아니다 —
+    // 그래도 **같은 mountAll()** 이 돌므로 프래그먼트 스왑 경로가 그대로 덮인다.
+    document.querySelectorAll(STRIP_SELECTOR).forEach(mountStrip);
   }
 
   // 전역(document) 리스너는 싱글톤 뒤에서 1회만 — 프래그먼트 재실행 때 중복 누적 금지(perf G4).

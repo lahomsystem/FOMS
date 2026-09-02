@@ -3776,6 +3776,13 @@ class NaverSettleCase(Base):
         # SQLite 테스트 레인은 ``postgresql_where`` 를 무시하고 일반 인덱스로 만든다.
         Index('ix_nsc_unmatched', 'channel', 'search_date',
               postgresql_where=text("match_status = 'UNMATCHED'")),
+        # 정산 실무 탭의 주문별 역조회(`settlement_rows._naver_settle_map`) hot path.
+        # 그 화면은 모집단 전량(운영 1,978건)을 한 번에 훑으며 주문 id 로 group by 하므로
+        # 인덱스가 없으면 이 표를 통째로 Seq Scan 한다. ``foms_order_id`` 가 있는 행만 담는
+        # 부분 인덱스인 이유는 배송비·기타비용 행처럼 붙을 주문이 아예 없는 행이 다수이기
+        # 때문이다 — 그 행들은 이 경로에서 영원히 조회되지 않는다.
+        Index('ix_nsc_foms_order', 'channel', 'foms_order_id',
+              postgresql_where=text('foms_order_id IS NOT NULL')),
     )
 
 

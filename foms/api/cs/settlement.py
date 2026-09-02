@@ -12,6 +12,12 @@
 연락처·주소·현금영수증 요청 자유텍스트 원문은 ``rows`` 에서도 내지 않는다
 (§13.3-1). 두 계약은 각자 전용 테스트로 고정돼 있다 — 한쪽을 다른 쪽 근거로 완화하지 마라.
 
+``rows`` 안에는 **게이트가 하나 더** 있다(v1.1 T13). 네이버 정산 상태
+(``row.naver_settlement``)는 회계 전용이라
+:func:`foms.services.settlement_channel_access.can_view_channel_settlement` 를 통과한
+actor 의 응답에만 **키가 생긴다**. 응답 최상위 ``channel_settlement_visible`` 이 그 판정의
+사본이다 — 화면이 컬럼을 그릴지 말지 같은 신호로 정하게 한다.
+
 **권한(§5)**: GET 은 ``enforce_order_mutation_policy`` 의 ``_WRITE_METHODS`` 밖이라
 before_request 가드에 도달하지 않는다. 그래서 이 핸들러가 페이지와 **같은 policy_id
 상수**(:data:`foms.web.cs.settlement_dashboard.SETTLEMENT_DASHBOARD_POLICY_ID`)로 직접
@@ -27,6 +33,7 @@ from flask import Blueprint, g, jsonify, request
 from db import get_db
 from foms.services.datetime_kst import get_today_kst
 from foms.services.settlement_aggregation import aggregate_settlement
+from foms.services.settlement_channel_access import can_view_channel_settlement
 from foms.services.settlement_rows import PER_PAGE, list_settlement_rows
 from foms.web.auth import login_required
 from foms.web.cs.settlement_dashboard import (
@@ -137,10 +144,17 @@ def api_settlement_rows():
 
     Returns:
         200 ``{'success': True, 'data': <list_settlement_rows 반환값>, 'error': None}``.
-        권한 거부 403, 필터 값 오류 400 — 모두 같은 형식이다.
+        ``data.channel_settlement_visible`` 이 True 인 응답의 행에만
+        ``naver_settlement`` 키가 있다. 권한 거부 403, 필터 값 오류 400 — 모두 같은 형식이다.
     """
-    if not can_view_settlement_dashboard(getattr(g, "current_user", None)):
+    user = getattr(g, "current_user", None)
+    if not can_view_settlement_dashboard(user):
         return _error("정산 대시보드 열람 권한이 없습니다.", 403)
+
+    # 이 표면의 게이트(정산 대시보드)는 CS·영업까지 열려 있고, 네이버 정산 상태는 **회계
+    # 전용**이라 게이트가 하나 더 있다. 서버가 키 자체를 만들지 않는다 — 내려보내고
+    # 화면에서 감추면 개발자 도구로 그대로 보인다(클라 숨김 금지).
+    include_naver_settlement = can_view_channel_settlement(user)
 
     try:
         data = list_settlement_rows(
@@ -151,8 +165,11 @@ def api_settlement_rows():
             aging=(request.args.get("aging") or "").strip(),
             page=request.args.get("page", type=int) or 1,
             per_page=PER_PAGE,
+            include_naver_settlement=include_naver_settlement,
         )
     except ValueError as exc:
         return _error(str(exc), 400)
 
+    # 화면이 "칸이 없는 것"과 "값이 비어 있는 것"을 구분하려면 권한 판정 자체가 필요하다.
+    data["channel_settlement_visible"] = include_naver_settlement
     return jsonify({"success": True, "data": data, "error": None})
