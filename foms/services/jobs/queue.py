@@ -29,6 +29,7 @@ __all__ = [
     "enqueue_channeltalk_inbound",
     "enqueue_naver_order_sync",
     "enqueue_naver_backfill",
+    "enqueue_naver_settle_sync",
 ]
 
 
@@ -471,4 +472,78 @@ def enqueue_naver_order_sync(dry_run: bool = False):
         return True
     except Exception as e:
         logger.error(f"[RQ] enqueue_naver_order_sync error: {e}", exc_info=True)
+        return False
+
+
+#: 정산 동기화 job 의 고정 id. 같은 id 가 큐에 살아 있으면 새로 넣지 않는다 —
+#: 화면의 "지금 동기화" 를 연타해도 워커(동시성 1)가 같은 구간을 여러 번 훑지 않게 한다.
+_SETTLE_SYNC_JOB_ID = "naver_settle_sync"
+
+#: 아직 끝나지 않은 것으로 보는 job 상태. 끝난 job 의 해시는 result_ttl 동안 남으므로
+#: "존재하는가" 로 판정하면 성공 직후 몇 분간 다시 못 돌린다.
+_SETTLE_SYNC_ACTIVE_STATUSES = frozenset({"queued", "started", "deferred", "scheduled"})
+
+
+def _settle_sync_in_flight(q) -> bool:
+    """정산 동기화 job 이 이미 큐에 살아 있는지.
+
+    판정하지 못하면 **False**(넣는다)로 기울인다 — 중복 실행은 파티션 통째 교체라
+    멱등이지만, 안 넣는 쪽으로 기울면 사람이 누른 동기화가 조용히 사라진다.
+
+    Args:
+        q: RQ 큐.
+
+    Returns:
+        아직 실행 중이거나 대기 중이면 True.
+    """
+    try:
+        from rq.exceptions import NoSuchJobError
+        from rq.job import Job
+
+        job = Job.fetch(_SETTLE_SYNC_JOB_ID, connection=q.connection)
+        return str(job.get_status(refresh=True) or "") in _SETTLE_SYNC_ACTIVE_STATUSES
+    except NoSuchJobError:
+        return False
+    except Exception as e:
+        logger.warning(f"[RQ] settle sync dedupe check failed: {e}", exc_info=True)
+        return False
+
+
+def enqueue_naver_settle_sync(actor_user_id: Optional[int] = None, *,
+                              backfill_from: Optional[str] = None,
+                              dry_run: bool = False) -> bool:
+    """네이버 정산 동기화 job enqueue (SETTLE-CHANNEL-01 §4).
+
+    "지금 수집" 과 같은 이유로 web 은 **enqueue 만** 한다 — 커머스API 에 등록된 호출 IP 가
+    WORKER 것뿐이다. **동기 폴백은 없다**: 여기서 직접 부르면 차단된 IP 로 나가 조용히
+    실패한다. 큐가 없으면 False 를 돌려주고 화면이 "지금은 동기화할 수 없다"를 그대로 말한다.
+
+    백필(90일)은 창을 순차로 돌아 호출이 수백 회가 되므로 timeout 을 넉넉히 잡는다.
+
+    Args:
+        actor_user_id: 화면에서 누른 사람(기록용).
+        backfill_from: 소급 적재 시작일(``YYYY-MM-DD``). 없으면 기본 구간.
+        dry_run: True 면 조회까지만 하고 아무것도 쓰지 않는다.
+
+    Returns:
+        큐에 넣었으면 True. 큐가 없거나·이미 같은 job 이 돌고 있거나·실패하면 False.
+    """
+    q = get_rq_queue()
+    if not q:
+        return False
+    try:
+        if _settle_sync_in_flight(q):
+            logger.info("[RQ] 정산 동기화가 이미 큐에 있다 — 중복 enqueue 하지 않는다")
+            return False
+        q.enqueue(
+            f"{_TASK_PATH_PREFIX}.run_naver_settle_sync_task",
+            actor_user_id,
+            str(backfill_from) if backfill_from else None,
+            bool(dry_run),
+            job_id=_SETTLE_SYNC_JOB_ID,
+            job_timeout="2h",
+        )
+        return True
+    except Exception as e:
+        logger.error(f"[RQ] enqueue_naver_settle_sync error: {e}", exc_info=True)
         return False
