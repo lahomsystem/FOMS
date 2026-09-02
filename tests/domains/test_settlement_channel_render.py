@@ -61,7 +61,7 @@ _STATIC_ASSETS = (CSS_ASSET, JS_ASSET)
 #: 이 화면 자산의 캐시 핀. **저장소 전역에서 이 값 하나**여야 한다. CSS/JS 를 고치면
 #: 셸 템플릿의 두 링크와 이 상수를 **함께** 옮긴다 — 값이 조용히 갈리면 실기기가 옛 자산을
 #: 계속 실행한다(서비스워커 staticCacheFirst).
-_CHANNEL_PIN = "20260902e"
+_CHANNEL_PIN = "20260902f"
 
 _CHANNEL_TAB_ID = "foms-settle-tab-channel"
 _CHANNEL_PANE_ID = "foms-settle-pane-channel"
@@ -94,7 +94,28 @@ _REQUIRED_ANCHORS = {
     "로딩 표시": "data-settlement-ch-loading",
     "실패 표시": "data-settlement-ch-error",
     "빈 상태 표시": "data-settlement-ch-empty",
+    # v1.1 T14 — CSV 내보내기 드롭다운. 앵커만 서버가 내고 항목·안내는 `channel.js` 가 그린다.
+    "CSV 내보내기": 'id="foms-settle-ch-export"',
 }
+
+#: v1.1 T12 — 요약 탭 크로스 스트립 앵커. **이 파셜이 아니라 셸 템플릿**에 산다(요약 pane
+#: 안이라서). 그래서 파셜 렌더 계약(`_REQUIRED_ANCHORS`)이 아니라 셸 소스 계약으로 본다.
+_STRIP_ANCHOR_ID = 'id="foms-settle-ch-strip"'
+_STRIP_HOOK = "data-settlement-ch-strip"
+
+#: `channel.js` 안에서 스트립이 사는 구간의 배너 표식(사이를 잘라 문구 계약을 본다).
+_STRIP_SECTION_START = "12-B. 요약 탭 크로스 스트립"
+_STRIP_SECTION_END = "13. 마운트"
+#: CSV 내보내기 구간의 배너 표식.
+_EXPORT_SECTION_START = "CSV 내보내기 드롭다운(T14)"
+_EXPORT_SECTION_END = "6. 렌더 — S-bar · S1 KPI"
+
+#: 이 파일이 등록해도 되는 전역(document) 리스너 수. 프래그먼트 스왑마다 스크립트가 다시
+#: 실행되므로 싱글톤 뒤 3개(swap 2종 + DOMContentLoaded)가 계약이다 — v1.1 이 두 번째 마운트
+#: 축(스트립)을 만들면서 네 번째를 붙이면 스왑마다 리스너가 누적된다(perf G4).
+_DOCUMENT_LISTENERS = 3
+
+_HANGUL_RE = re.compile(r"[가-힣]")
 
 #: 원장 스위처 버튼 값 4종. 하나라도 빠지면 사용자가 그 원장을 화면에서 열 수 없다.
 _LEDGER_VALUES = ("case", "commission", "vat", "exceptions")
@@ -378,6 +399,10 @@ _CHANNEL_MARKUP_NEEDLES = (
     _CHANNEL_PANE_ID,
     'id="foms-settle-channel-root"',
     "data-settlement-ch-root",
+    # v1.1 T12 — 스트립 앵커는 **요약 pane 안**에 있어 채널 pane 을 통째로 빼도 남을 수
+    # 있는 자리다. 여기 등재해 두면 게이트 밖 사용자에게 앵커가 0 이라는 사실을 권한
+    # 테스트가 자동으로 못 박는다(회계 축의 존재 자체가 새어 나가지 않는다).
+    _STRIP_HOOK,
     CSS_ASSET,
     JS_ASSET,
 )
@@ -523,3 +548,179 @@ def test_template_adds_no_script_block_of_its_own():
     source = _read_code(BODY_TEMPLATE)
 
     assert "<script" not in source.lower(), "파셜 안에 <script> 가 있다"
+
+
+# ==========================================================================
+# 계약 6 — v1.1 T12: 요약 탭 크로스 스트립 앵커(셸 소유)
+# ==========================================================================
+def _shell_strip_gate() -> tuple[str, str]:
+    """셸 템플릿에서 스트립 앵커를 감싼 권한 게이트 블록을 잘라 돌려준다.
+
+    Returns:
+        ``(주석 제거한 셸 전문, 게이트 블록 본문)``. 앵커가 없으면 사람이 읽는 red.
+    """
+    shell = _strip_comments(_read(_SHELL_TEMPLATE))
+    at = shell.find(_STRIP_ANCHOR_ID)
+    assert at >= 0, (
+        "셸 템플릿에 크로스 스트립 앵커가 없다 — 총괄이 넣을 hunk 다: "
+        f"{_STRIP_ANCHOR_ID}"
+    )
+    gate_at = shell.rfind("{% if can_view_channel_settlement %}", 0, at)
+    endif_at = shell.find("{% endif %}", at)
+    assert gate_at >= 0 and endif_at > at, "스트립 앵커가 권한 게이트 밖에 있다"
+    assert "{% endif %}" not in shell[gate_at:at], "스트립 앵커가 권한 게이트 밖에 있다"
+    return shell, shell[gate_at:endif_at]
+
+
+def test_shell_carries_the_strip_anchor_behind_the_gate():
+    """스트립 앵커가 셸에 **한 번**, 권한 `{% if %}` 안에 있다.
+
+    스트립은 요약 pane 안(`.s-grid`)에 살기 때문에 채널 파셜이 아니라 셸이 소유한다.
+    게이트 밖에 두면 회계 축의 존재 자체가 CS·영업 담당 화면에 노출된다 —
+    이 저장소의 클라 숨김 금지 원칙에 따라 마크업째 없어야 한다.
+    """
+    shell, _block = _shell_strip_gate()
+
+    assert shell.count(_STRIP_ANCHOR_ID) == 1, "스트립 앵커가 없거나 중복이다"
+    assert shell.count(_STRIP_HOOK) >= 1, "스트립 훅 속성이 없다"
+
+
+def test_shell_strip_anchor_carries_no_korean_text():
+    """스트립 앵커 블록에 **한글 문구가 0건**이다 — 이건 계약이다.
+
+    요약 탭 목업 스캔(`test_settlement_dashboard_render.py` `_MOCKUP_LEFTOVERS`)은
+    "예정" 을 금지하고, 채널 표면을 덜어내는 `_without_channel_surface()` 는 **채널 탭
+    버튼과 채널 pane 만** 덜어낸다. 스트립은 요약 pane 안이라 그 면제를 못 받는다 —
+    서버 렌더로 "정산 예정"이 박히는 순간 그 스캔이 즉시 red 다.
+    그래서 값·문구는 전부 `channel.js`(스캔 대상 밖) 소유이고 서버는 빈 앵커만 낸다.
+    """
+    _shell, block = _shell_strip_gate()
+
+    found = _HANGUL_RE.findall(block)
+    assert not found, f"스트립 앵커 블록에 한글 문구가 있다: {''.join(found)[:40]}"
+
+
+def test_shell_strip_anchor_starts_hidden():
+    """앵커는 `hidden` 으로 시작한다 — 값을 받기 전에 빈 줄이 자리를 차지하지 않는다."""
+    _shell, block = _shell_strip_gate()
+
+    assert re.search(r"\shidden(\s|/?>)", block), block[:200]
+
+
+# ==========================================================================
+# 계약 7 — v1.1: `channel.js` 소스 계약 (§5.1-⑥)
+# ==========================================================================
+def _js_section(start: str, end: str) -> str:
+    """`channel.js` 에서 배너 표식 사이 구간을 잘라 **주석을 걷어낸** 본문을 돌려준다.
+
+    Args:
+        start: 시작 배너에 들어 있는 문자열.
+        end: 다음 배너에 들어 있는 문자열.
+
+    Returns:
+        그 구간의 코드(주석 제거).
+    """
+    source = _read(f"static/{JS_ASSET}")
+    start_at = source.find(start)
+    assert start_at >= 0, f"channel.js 에 '{start}' 구간 배너가 없다"
+    end_at = source.find(end, start_at)
+    assert end_at > start_at, f"channel.js 에 '{end}' 구간 배너가 없다"
+    # 두 표식은 배너 **주석 안**에 있다. 여는 `/*` 까지 되감아야 `_strip_comments()` 가 그
+    # 배너를 주석으로 알아보고 걷어낸다 — 안 되감으면 규칙을 설명하는 주석 문장이 그 규칙
+    # 위반으로 잡히는 거짓 red 가 난다.
+    at = source.rfind("/*", 0, start_at)
+    to = source.rfind("/*", start_at, end_at)
+    return _strip_comments(source[at if at >= 0 else start_at:to if to > start_at else end_at])
+
+
+def test_channel_js_registers_no_new_document_listener():
+    """전역(document) 리스너는 **3개 그대로**다(swap 2종 + DOMContentLoaded).
+
+    v1.1 은 두 번째 마운트 축(스트립)을 만들지만 새 전역 리스너를 붙이지 않는다 —
+    프래그먼트 스왑마다 `<script src>` 가 재실행되므로 네 번째를 붙이면 스왑 횟수만큼
+    리스너가 누적된다(perf G4). 스트립도 기존 `mountAll()` 을 그대로 탄다.
+    """
+    source = _read_code(f"static/{JS_ASSET}")
+
+    assert source.count("document.addEventListener") == _DOCUMENT_LISTENERS, source.count(
+        "document.addEventListener")
+
+
+def test_strip_is_mounted_from_the_existing_mount_all():
+    """스트립 마운트가 `mountAll()` **안**에 있다(별도 부트스트랩을 만들지 않는다)."""
+    source = _read_code(f"static/{JS_ASSET}")
+    at = source.find("function mountAll()")
+    assert at >= 0, "mountAll() 이 없다"
+    body = source[at:source.find("\n  }", at)]
+
+    assert "STRIP_SELECTOR" in body, "mountAll() 이 스트립 호스트를 돌지 않는다"
+    assert "mountStrip" in body, "mountAll() 이 mountStrip 을 부르지 않는다"
+
+
+def test_strip_copy_never_says_sales():
+    """스트립 문구에 **"매출" 이 0건**이다(ceo-2 §B-3 지시 — 전부 "정산").
+
+    요약 탭 5타일은 완료일 축의 **매출 인식**을 말하고 이 줄은 정산 예정일 축의 **정산**을
+    말한다. 한 화면에서 두 낱말을 섞으면 어느 쪽이 매출인지 사람이 다시 헷갈린다.
+    """
+    assert "매출" not in _js_section(_STRIP_SECTION_START, _STRIP_SECTION_END)
+
+
+def test_strip_opens_the_channel_tab_through_the_existing_tab_button():
+    """스트립 버튼은 **기존 탭 버튼을 누른다** — 새 탭 API 를 만들지 않는다.
+
+    `dashboard.js` 를 한 글자도 고치지 않는다는 것이 T12 의 완료 기준이다.
+    """
+    section = _js_section(_STRIP_SECTION_START, _STRIP_SECTION_END)
+
+    assert 'data-settlement-tab="' in section, "탭 버튼 선택자가 없다"
+    assert ".click()" in section, "탭 버튼을 누르지 않는다"
+
+
+def test_strip_failure_is_silent_and_stays_hidden():
+    """스트립 fetch 실패는 요약 탭에 배너를 띄우지 않는다(보조 정보이므로 무음이 옳다).
+
+    실패했을 때 `showState(...,'error')` 를 부르면 **채널 탭의** 상태 노드가 숨은 pane
+    안에서 켜져 사용자는 아무것도 못 본 채 화면만 반쯤 죽는다. 대신 아무것도 안 그린다 —
+    0 을 그리지 않는 것이 핵심이다(결측을 0 으로 말하지 않는 계약 D-10).
+    """
+    section = _js_section(_STRIP_SECTION_START, _STRIP_SECTION_END)
+
+    assert "showState" not in section, "스트립이 채널 탭 상태 노드를 만진다"
+    assert ".catch(" in section, "실패 경로가 없다"
+
+
+# ==========================================================================
+# 계약 8 — v1.1 T14: CSV 내보내기 드롭다운 소스 계약
+# ==========================================================================
+def test_export_menu_navigates_instead_of_building_a_blob():
+    """항목은 **링크**다 — `blob:` 다운로드는 인앱 웹뷰에서 막힌다(프로젝트 함정).
+
+    `operations.js` 의 현재-페이지 CSV 는 blob 을 쓰지만 그 코드가 스스로 "서버에 파일
+    엔드포인트가 생기기 전에는 정직하지 않다"고 적어 두었다. 이 드롭다운이 그 엔드포인트다.
+    """
+    section = _js_section(_EXPORT_SECTION_START, _EXPORT_SECTION_END)
+
+    assert "createObjectURL" not in section, "blob 다운로드를 만들고 있다"
+    assert "item.href" in section, "항목이 링크가 아니다"
+
+
+def test_export_menu_offers_every_kind_from_the_kernel():
+    """드롭다운이 커널의 CSV 5종을 전부 낸다(화면에서만 감춘 종류가 없다)."""
+    from foms.services.settlement_channel_export import EXPORT_KINDS
+
+    source = _read_code(f"static/{JS_ASSET}")
+
+    for kind in EXPORT_KINDS:
+        assert f"'{kind}'" in source, f"드롭다운에 {kind} 항목이 없다"
+
+
+def test_export_url_carries_the_current_filter_bar():
+    """내려받기 URL 이 지금 화면의 채널·기간·기준일을 그대로 싣는다.
+
+    화면에서 좁혀 놓고 내려받은 파일이 전체 기간이면 그 파일은 다른 질문의 답이다.
+    """
+    section = _js_section(_EXPORT_SECTION_START, _EXPORT_SECTION_END)
+
+    for param in ("kind=", "channel=", "from=", "to=", "basis="):
+        assert param in section, f"내려받기 URL 에 {param} 가 없다"
