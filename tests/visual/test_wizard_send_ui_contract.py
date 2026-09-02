@@ -130,13 +130,32 @@ def test_css_defines_send_and_sheet_blocks() -> None:
     assert ".foms-wizard__sheet-preview" in css
     block = css[css.index(".foms-wizard__send-btn-label") :]
     assert "white-space: nowrap" in block[:400], "좁은 폭에서 글자가 세로로 깨진다"
-    # 새 색상 하드코딩 금지 — 신규 블록은 토큰(var(--foms-*)) 만 쓴다.
+    # 새 색상 하드코딩 금지 — 신규 블록의 색은 토큰(var(--foms-*)) 으로만 쓴다.
+    #
+    # 예외는 브랜드 고정색 정의 한 곳뿐이다. 카카오 노랑·채널톡 블루는 우리 팔레트가
+    # 아니라 외부 서비스가 정한 값이라 테마를 따라 변하면 안 된다. 대신 `--foms-brand-*`
+    # 선언 한 곳에만 리터럴을 두고 사용처는 var() 로 강제한다 — 값이 두 벌로 갈리는 것을
+    # 막는 것이 이 계약의 목적이기 때문이다.
     new_block = css[css.index("/* ── Step 4: 등록 전 발송 액션") :]
-    hardcoded = [
-        hit
-        for hit in re.findall(r"#[0-9a-fA-F]{3,6}\b", new_block)
-        if hit  # fallback 은 var(--x, #hex) 형태만 허용
-    ]
-    for hit in hardcoded:
-        idx = new_block.index(hit)
-        assert "var(--foms" in new_block[max(0, idx - 60) : idx], f"토큰 밖 색상: {hit}"
+    brand_decl = re.compile(r"--foms-brand-[\w-]+:\s*$")
+    for match in re.finditer(r"#[0-9a-fA-F]{3,6}\b", new_block):
+        before = new_block[max(0, match.start() - 60) : match.start()]
+        if "var(--foms" in before:
+            continue  # var(--x, #hex) fallback
+        assert brand_decl.search(before), f"토큰 밖 색상: {match.group(0)}"
+
+    # 브랜드 토큰은 선언만으로 끝나면 안 된다 — 두 버튼이 실제로 그 색을 입어야 한다.
+    for token in ("--foms-brand-kakao-bg", "--foms-brand-channel-bg"):
+        assert new_block.count(f"var({token})") >= 1, f"{token} 미사용"
+
+
+def test_send_buttons_carry_channel_icons() -> None:
+    """두 버튼은 색만이 아니라 아이콘으로도 채널을 구분한다.
+
+    색만으로 구분하면 색각 이상 사용자에게는 같은 버튼 두 개다. 카카오 아이콘은
+    FA6 free 에 없어 인라인 SVG 로 넣으므로, 링크가 아니라 마크업 자체를 못 박는다.
+    """
+    html = _read(STEP4)
+    assert "fa-paper-plane" in html, "실측 PUSH 아이콘 없음"
+    assert "<svg" in html and "foms-wizard__send-btn-icon" in html, "카카오 아이콘 없음"
+    assert html.count('aria-hidden="true"') >= 2, "장식 아이콘은 스크린리더에서 숨긴다"
