@@ -411,7 +411,7 @@
                     </td>
                     <td>
                         {{ row.order_no or '-' }}
-                        <div class="wb-ghost__dim">{% if row.state == 'sent' %}발송 상품주문 {{ row.sent_orders }}건{% else %}보낼 상품주문 {{ row.product_orders }}건{% endif %}</div>
+                        <div class="wb-ghost__dim">{% if row.state == 'sent' %}발송 상품주문 {{ row.sent_orders }}건{% elif row.state == 'superseded' %}취소된 결제 · 상품주문 {{ row.product_orders }}건{% else %}보낼 상품주문 {{ row.product_orders }}건{% endif %}</div>
                     </td>
                     <td>
                         {% if row.measurement_done %}
@@ -425,6 +425,11 @@
                         {% if row.state == 'sent' %}
                         <span class="wb-bulkdispatch__sent">발송됨</span>
                         <div class="wb-ghost__dim">{{ row.sent_at }}{% if row.sent_by_naver %} · 판매자센터에서 보낸 건입니다{% endif %}</div>
+                        {% elif row.state == 'superseded' %}
+                        {# 취소 확정 뒤 재결제 집으로 나간 집(2026-09-02). 목록에서 빼지 않고
+                           **어느 집으로 나갔는지**를 말한다 — 빼면 사람이 확인할 자리가 없다. #}
+                        <span class="wb-bulkdispatch__sent">발송됨</span>
+                        <div class="wb-ghost__dim">재결제 건으로 나갔습니다 — {{ row.superseded_by }}{% if row.superseded_at %} · {{ row.superseded_at }}{% endif %}</div>
                         {% elif row.state == 'failed' %}
                         <span class="wb-ghost__claim">실패</span>
                         <div class="wb-ghost__dim">{{ row.failure_reason }}</div>
