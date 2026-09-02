@@ -177,3 +177,66 @@ def test_unified_search_finds_order_by_second_phone_number(app) -> None:
 
         by_first = search_unified(db_session, "89350264")
         assert order.id in {row["order_id"] for row in by_first["customer"]}
+
+
+def test_phonewide_01_sqlite_repair_uses_structured_data_first() -> None:
+    """SQLite 분기도 structured_data 전화 원문을 먼저 보고 절단을 푼다."""
+    import importlib.util
+    import json
+    from pathlib import Path
+
+    from sqlalchemy import create_engine, text
+
+    path = (
+        Path(__file__).resolve().parents[2]
+        / "migrations"
+        / "versions"
+        / "phonewide_01_repair_from_structured_phone.py"
+    )
+    spec = importlib.util.spec_from_file_location("phonewide_01_mig_unit", path)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+
+    engine = create_engine("sqlite://")
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "CREATE TABLE orders (id INTEGER PRIMARY KEY, phone TEXT, "
+                "structured_data TEXT, erp_phone_digits TEXT)"
+            )
+        )
+        rows = [
+            # sd 에만 정본이 있는 절단 행.
+            (1, "000-0000-0000", "010-3501-5810 / 010-6411-0925", "01035015810010641109"),
+            # phone 컬럼만 있는 절단 행(phonewide_00 이 이미 잡는 모양).
+            (2, "010-8935-0264, 010-5875-1125", None, "01089350264010587511"),
+            # 음성 대조군 — 20자지만 소스 전체가 20자를 넘지 않는다.
+            (3, "010-2690-2242", "010-2690-2242", "01026902242"),
+            # 음성 대조군 — 20자인데 소스의 앞 20자와 다르다(정본 불일치).
+            (4, "010-1111-2222, 010-3333-4444", None, "99999999999999999999"),
+        ]
+        for order_id, phone, sd_phone, digits in rows:
+            sd = (
+                json.dumps({"parties": {"customer": {"phone": sd_phone}}})
+                if sd_phone is not None
+                else None
+            )
+            conn.execute(
+                text(
+                    "INSERT INTO orders (id, phone, structured_data, erp_phone_digits) "
+                    "VALUES (:i, :p, :sd, :d)"
+                ),
+                {"i": order_id, "p": phone, "sd": sd, "d": digits},
+            )
+
+        repaired = module._repair_truncated_sqlite(conn)
+        stored = dict(
+            conn.execute(text("SELECT id, erp_phone_digits FROM orders")).fetchall()
+        )
+
+    assert repaired == 2
+    assert stored[1] == "0103501581001064110925"
+    assert stored[2] == "0108935026401058751125"
+    assert stored[3] == "01026902242"
+    assert stored[4] == "99999999999999999999"

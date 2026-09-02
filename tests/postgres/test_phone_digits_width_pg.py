@@ -12,6 +12,7 @@ SQLite 는 ``VARCHAR`` 길이를 강제하지 않아 절단이 로컬에서 재�
 from __future__ import annotations
 
 import importlib.util
+import json
 import time
 from pathlib import Path
 
@@ -23,6 +24,9 @@ from models import Order
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _MIGRATION_PATH = _REPO_ROOT / "migrations" / "versions" / "phonewide_00_widen_erp_phone_digits.py"
+_MIGRATION_01_PATH = (
+    _REPO_ROOT / "migrations" / "versions" / "phonewide_01_repair_from_structured_phone.py"
+)
 
 _WIDE_DDL = "ALTER TABLE orders ALTER COLUMN erp_phone_digits TYPE VARCHAR(64)"
 _NARROW_DDL = "ALTER TABLE orders ALTER COLUMN erp_phone_digits TYPE VARCHAR(20)"
@@ -32,13 +36,22 @@ _DOWNGRADE_TRIM = (
 )
 
 
-def _load_migration():
-    """Import the phonewide_00 migration module by file path."""
-    spec = importlib.util.spec_from_file_location("phonewide_00_mig", _MIGRATION_PATH)
+def _load_module(name: str, path):
+    spec = importlib.util.spec_from_file_location(name, path)
     module = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
     spec.loader.exec_module(module)
     return module
+
+
+def _load_migration():
+    """Import the phonewide_00 migration module by file path."""
+    return _load_module("phonewide_00_mig", _MIGRATION_PATH)
+
+
+def _load_migration_01():
+    """Import the phonewide_01 migration module by file path."""
+    return _load_module("phonewide_01_mig", _MIGRATION_01_PATH)
 
 
 def _column_width(conn) -> int:
@@ -48,14 +61,25 @@ def _column_width(conn) -> int:
     ).scalar()
 
 
-def _insert_order(conn, *, phone: str, digits: str) -> int:
+def _insert_order(conn, *, phone: str, digits: str, sd_phone: str | None = None) -> int:
     """검사용 주문 1건을 직접 INSERT 하고 id 를 돌려준다."""
+    structured = (
+        json.dumps({"parties": {"customer": {"phone": sd_phone}}}, ensure_ascii=False)
+        if sd_phone is not None
+        else None
+    )
     return conn.exec_driver_sql(
         "INSERT INTO orders (received_date, customer_name, phone, address, product, "
-        "status, is_erp_order, structured_schema_version, erp_phone_digits) "
-        "VALUES ('2026-09-02', %(name)s, %(phone)s, '서울', '거실장', 'RECEIVED', true, 1, %(d)s) "
+        "status, is_erp_order, structured_schema_version, structured_data, erp_phone_digits) "
+        "VALUES ('2026-09-02', %(name)s, %(phone)s, '서울', '거실장', 'RECEIVED', true, 1, "
+        "CAST(%(sd)s AS jsonb), %(d)s) "
         "RETURNING id",
-        {"name": f"폭검사_{int(time.time() * 1000) % 1000000}", "phone": phone, "d": digits},
+        {
+            "name": f"폭검사_{int(time.time() * 1000) % 1000000}",
+            "phone": phone,
+            "sd": structured,
+            "d": digits,
+        },
     ).scalar()
 
 
@@ -202,3 +226,68 @@ def test_downgrade_narrows_column_after_trimming(pg_engine) -> None:
         ac.exec_driver_sql(_WIDE_DDL)
         assert _column_width(ac) == 64
         ac.exec_driver_sql("DELETE FROM orders WHERE id = %(i)s", {"i": wide_id})
+
+
+def test_phonewide_01_repairs_rows_whose_source_is_structured_data(pg_engine) -> None:
+    """phone 컬럼이 자리표시자여도 structured_data 전화 원문으로 절단을 푼다.
+
+    스테이징 실측(2026-09-02): phonewide_00 적용 뒤 남은 20자 4건이 모두 이 모양이었다
+    (phone='000-0000-0000' 또는 두 번호 중 하나만, 정본은 sd 쪽).
+    """
+    mig00 = _load_migration()
+    mig01 = _load_migration_01()
+
+    with pg_engine.connect() as conn:
+        ac = conn.execution_options(isolation_level="AUTOCOMMIT")
+        ac.exec_driver_sql(_WIDE_DDL)
+
+        # sd 에만 정본이 있는 절단 행 — phone 은 자리표시자.
+        sd_only_id = _insert_order(
+            ac,
+            phone="000-0000-0000",
+            sd_phone="010-3501-5810 / 010-6411-0925",
+            digits="01035015810010641109",
+        )
+        # phone 이 두 번호 중 하나만 담은 절단 행.
+        partial_phone_id = _insert_order(
+            ac,
+            phone="010-5217-7125",
+            sd_phone="010-6899-7125(실측) / 010-5217-7125(상담)",
+            digits="01068997125010521771",
+        )
+        # 음성 대조군 — sd 도 phone 도 20자를 넘지 않는다.
+        control_id = _insert_order(
+            ac, phone="010-2690-2242", sd_phone="010-2690-2242", digits="01026902242"
+        )
+
+        def _digits_of(order_id: int) -> str:
+            return ac.exec_driver_sql(
+                "SELECT erp_phone_digits FROM orders WHERE id = %(i)s", {"i": order_id}
+            ).scalar()
+
+        # phonewide_00 은 phone 컬럼만 보므로 이 행들을 못 고친다(간극 재현).
+        ac.exec_driver_sql(mig00._PG_REPAIR_SQL)
+        assert _digits_of(sd_only_id) == "01035015810010641109"
+        assert _digits_of(partial_phone_id) == "01068997125010521771"
+
+        ac.exec_driver_sql(mig01._PG_REPAIR_SQL)
+        assert _digits_of(sd_only_id) == "0103501581001064110925"
+        assert _digits_of(partial_phone_id) == "0106899712501052177125"
+        assert _digits_of(control_id) == "01026902242"
+
+        # 멱등: 다시 돌려도 값이 변하지 않는다.
+        ac.exec_driver_sql(mig01._PG_REPAIR_SQL)
+        assert _digits_of(sd_only_id) == "0103501581001064110925"
+
+        for order_id in (sd_only_id, partial_phone_id, control_id):
+            ac.exec_driver_sql("DELETE FROM orders WHERE id = %(i)s", {"i": order_id})
+
+
+def test_phonewide_01_revises_phonewide_00_and_freezes_constants() -> None:
+    """후속 마이그레이션은 phonewide_00 위에 얹히고 models 를 import 하지 않는다."""
+    module = _load_migration_01()
+    assert module.revision == "phonewide_01"
+    assert module.down_revision == "phonewide_00"
+    file_text = _MIGRATION_01_PATH.read_text(encoding="utf-8")
+    assert "import models" not in file_text
+    assert "from models" not in file_text
