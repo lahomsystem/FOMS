@@ -308,8 +308,13 @@
             {% if bulk_dispatch.state == 'none' %}
             <span class="wb-ghost__badge">{{ bulk_dispatch.unlinked }}집</span>
             <b>오늘 실측한 네이버 건 ({{ bulk_dispatch.date }})</b>
+            {% if bulk_dispatch.unlinked %}
             <span class="wb-ghost__sub">발송 대상은 없지만, 주문에 <b>안 붙은 수집분</b>이 있습니다 —
                 붙이면 대상이 됩니다.</span>
+            {% else %}
+            <span class="wb-ghost__sub">발송 대상도, 붙일 수집분도 없습니다 —
+                <b>취소·반품 확정</b>이라 뺀 집만 있습니다.</span>
+            {% endif %}
             {% elif bulk_dispatch.state == 'done' %}
             <span class="wb-ghost__badge">완료</span>
             <b>오늘 실측한 네이버 건 ({{ bulk_dispatch.date }})</b>
@@ -357,6 +362,17 @@
                 </li>
                 {% endfor %}
             </ul>
+        </div>
+        {% endif %}
+        {#
+          뺀 집은 **말한다** — 조용히 줄이면 "짚을 게 없다"와 구분되지 않는다. 취소·반품이
+          확정된 집을 살아 있는 주문에 붙이면 그 주문이 유령으로 분류되고 폐기 버튼이 열린다
+          (2026-09-02 운영에서 실제로 권유가 떴다).
+        #}
+        {% if bulk_dispatch.unlinked_excluded %}
+        <div class="wb-bulkdispatch__linkline">
+            취소·반품 확정 {{ bulk_dispatch.unlinked_excluded }}집은 제외했습니다 —
+            붙이면 살아 있는 주문이 취소된 집으로 읽힙니다.
         </div>
         {% endif %}
         {#

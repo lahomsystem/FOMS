@@ -534,6 +534,33 @@ def _mark_repay_superseded(targets: list[BulkDispatchTarget]) -> None:
             break
 
 
+def all_money_back_settled(snapshots: list[Any]) -> bool:
+    """이 집이 **전부 취소·반품 확정**인가 — 집 단위 클레임 판정의 SSOT.
+
+    판정 축은 :func:`mapping.extract_claim` 이 뽑은 ``phase`` 가
+    :data:`mapping.CLAIM_PHASE_DONE` 이고 :func:`mapping.is_money_back_claim` 인 것 —
+    돈이 되돌아간 클레임이 **확정**된 상태다. 이웃 모듈
+    :data:`ghost_orders.GHOST_CLAIM_PHASES` 는 요청·진행 단계까지 담는데, 그쪽은 "유령
+    후보로 볼 것인가"라 안전측으로 넓힌 축이다. 여기서 그 축을 쓰면 거부되면 되살아날
+    **확정 전** 클레임 집까지 화면에서 지워 버린다 — 그래서 확정만 본다.
+
+    ``all`` 이다: 형제 상품주문 하나라도 살아 있으면 그 집은 아직 살아 있다(부분 취소).
+
+    Args:
+        snapshots: 그 집 링크들의 ``raw_snapshot`` 목록.
+
+    Returns:
+        bool: 비어 있지 않고 전부 확정 취소·반품이면 True(``all([])`` 은 참이라 빈 집은
+        False 로 답한다 — 근거 없이 "취소된 집"이라 말하지 않는다).
+    """
+    claims = [mapping.extract_claim(snapshot or {}) for snapshot in snapshots]
+    return bool(claims) and all(
+        (claim.get("phase") or "") == mapping.CLAIM_PHASE_DONE
+        and mapping.is_money_back_claim(claim)
+        for claim in claims
+    )
+
+
 def _build_target(key: tuple[str, str, str], links: list[ExternalOrderLink],
                   day_link_ids: list[int],
                   display: dict[int, tuple[str, bool]]) -> BulkDispatchTarget:
@@ -580,12 +607,7 @@ def _build_target(key: tuple[str, str, str], links: list[ExternalOrderLink],
         state = "pending"
     # 집 전체가 취소·반품 **확정**인가 — 재결제 짝 판정의 재료(2026-09-02).
     # 확정 전 클레임은 아직 살아 있을 수 있어 여기 넣지 않는다.
-    claims = [mapping.extract_claim(row.raw_snapshot or {}) for row in links]
-    all_canceled = bool(claims) and all(
-        (claim.get("phase") or "") == mapping.CLAIM_PHASE_DONE
-        and mapping.is_money_back_claim(claim)
-        for claim in claims
-    )
+    all_canceled = all_money_back_settled([row.raw_snapshot for row in links])
     return BulkDispatchTarget(
         link_id=links[0].id,
         household=key,
@@ -633,7 +655,53 @@ UNLINKED_WINDOW_DAYS = 60
 UNLINKED_SCAN_CAP = 300
 
 
-def find_unlinked_matches(session: Session, *, on_date: str) -> list[dict[str, Any]]:
+class UnlinkedMatchList(list):
+    """짚은 집 목록 + **뺀 집 수**를 함께 나르는 목록.
+
+    목록 계약(``list[dict]``)은 종전 그대로다 — 읽는 쪽을 깨지 않으려고 목록을 물려받는다.
+    거기에 ``excluded_claims`` 하나를 얹어, 취소·반품 확정이라 뺀 집이 **몇 집인지 화면이
+    말할 수 있게** 한다. 조용히 줄이면 "짚을 게 없다"와 "빼서 없다"가 구분되지 않고,
+    그 구분이 안 되는 것이 이 저장소가 이미 밟은 실패 모양이다
+    (:data:`UNLINKED_SCAN_CAP` 주석 참고).
+
+    슬라이스·복사하면 이 값은 따라가지 않는다(파이썬 목록 규칙). 세는 쪽은
+    :func:`build_preview` 하나뿐이고 받은 자리에서 바로 읽는다.
+    """
+
+    #: 취소·반품 확정이라 후보에서 뺀 집 수.
+    excluded_claims: int = 0
+
+
+def _settled_claim_order_nos(session: Session, order_nos: set[str]) -> set[str]:
+    """그 주문번호들 중 **집 전체가 취소·반품 확정**인 것만 골라낸다.
+
+    판정 재료는 그 집의 **모든** 링크다 — 매칭에 걸린 링크만 보면 형제가 살아 있는 부분
+    취소 집을 통째로 취소된 집으로 오독한다.
+
+    Args:
+        session: DB 세션.
+        order_nos: 네이버 묶음 주문번호 집합.
+
+    Returns:
+        전부 확정 취소·반품인 주문번호 집합.
+    """
+    if not order_nos:
+        return set()
+    rows = (
+        session.query(ExternalOrderLink.external_order_no,
+                      ExternalOrderLink.raw_snapshot)
+        .filter(ExternalOrderLink.channel == CHANNEL,
+                ExternalOrderLink.external_order_no.in_(sorted(order_nos)))  # perf-ok: 후보 집 수만큼
+        .all()
+    )
+    by_no: dict[str, list[Any]] = {}
+    for order_no, snapshot in rows:
+        by_no.setdefault(str(order_no or "").strip(), []).append(snapshot)
+    return {order_no for order_no, snapshots in by_no.items()
+            if all_money_back_settled(snapshots)}
+
+
+def find_unlinked_matches(session: Session, *, on_date: str) -> UnlinkedMatchList:
     """오늘 실측 주문에 **아직 안 붙은** 네이버 수집분을 전화로 짚어 준다 — 읽기 전용.
 
     2026-09-01 운영에서 실제로 밟은 자리다: 주문 #5054(천화진)는 오늘 실측인데 발송 대상에
@@ -655,14 +723,21 @@ def find_unlinked_matches(session: Session, *, on_date: str) -> list[dict[str, A
     어느 축으로 걸렸는지 ``reason`` 에 적어 함께 돌려준다. 사람이 붙이기 전에 근거를 보고
     판단해야 하기 때문이다 — 이름 축은 동명이인을 만날 수 있다.
 
+    **취소·반품이 확정된 집은 짚지 않는다**(2026-09-02). 축은 전화·이름 둘뿐이라 같은
+    고객의 옛 취소 집이 살아 있는 주문의 짝으로 권해졌다 — 붙이면 그 주문은 링크가 전부
+    취소가 되어 유령으로 분류되고 **폐기(soft delete) 버튼이 열린다**. 판정은
+    :func:`all_money_back_settled` 를 그대로 쓴다(집 요약 ``all_canceled`` 와 같은 축).
+    뺀 집은 :attr:`UnlinkedMatchList.excluded_claims` 로 세어 화면이 말한다 — 조용히
+    줄이면 사람은 뺀 줄도 모른다.
+
     Args:
         session: DB 세션.
         on_date: ``YYYY-MM-DD``.
 
     Returns:
-        집 단위 dict 목록 —
+        집 단위 dict 목록(:class:`UnlinkedMatchList`) —
         ``{"order_no", "link_id", "links", "order_id", "customer", "reason"}``.
-        짚을 게 없으면 빈 목록.
+        짚을 게 없으면 빈 목록. ``excluded_claims`` 에 취소·반품 확정이라 뺀 집 수.
     """
     from datetime import timedelta
 
@@ -675,7 +750,7 @@ def find_unlinked_matches(session: Session, *, on_date: str) -> list[dict[str, A
 
     order_ids = _measurement_order_ids(session, on_date=on_date)
     if not order_ids:
-        return []
+        return UnlinkedMatchList()
     linked = {
         row[0] for row in session.query(ExternalOrderLink.order_id)
         .filter(ExternalOrderLink.channel == CHANNEL,
@@ -684,7 +759,7 @@ def find_unlinked_matches(session: Session, *, on_date: str) -> list[dict[str, A
     }
     waiting = [oid for oid in order_ids if oid not in linked]
     if not waiting:
-        return []
+        return UnlinkedMatchList()
 
     rows = (
         session.query(Order.id, Order.customer_name, Order.erp_phone_digits, Order.phone)
@@ -701,7 +776,7 @@ def find_unlinked_matches(session: Session, *, on_date: str) -> list[dict[str, A
         if label:
             by_name.setdefault(label, (int(oid), label))
     if not by_digits and not by_name:
-        return []
+        return UnlinkedMatchList()
 
     since = now_utc_naive() - timedelta(days=UNLINKED_WINDOW_DAYS)
     base = (
@@ -770,7 +845,17 @@ def find_unlinked_matches(session: Session, *, on_date: str) -> list[dict[str, A
         if why == "전화 일치":
             row["reason"] = why
             row["order_id"], row["customer"] = hit[0], hit[1]
-    out = sorted(found.values(), key=lambda row: row["link_id"])
+    # 취소·반품이 **확정**된 집은 붙일 짝이 아니다 — 붙이면 살아 있는 주문이 유령으로
+    # 분류되고 폐기 버튼이 열린다(2026-09-02 운영에서 실제로 권유가 떴다). 판정은
+    # :func:`all_money_back_settled` 하나로 한다(집 요약의 ``all_canceled`` 와 같은 축).
+    settled = _settled_claim_order_nos(session, set(found))
+    out = UnlinkedMatchList(sorted((row for order_no, row in found.items()
+                                    if order_no not in settled),
+                                   key=lambda row: row["link_id"]))
+    out.excluded_claims = len(settled)
+    if settled:
+        logger.info("[NAVER] %s 안 붙은 수집분 중 취소·반품 확정 %d집은 후보에서 뺐다 (%s)",
+                    on_date, len(settled), ", ".join(sorted(settled)))
     if out:
         logger.info("[NAVER] %s 실측분 중 안 붙은 수집분 %d집 — 붙이면 발송 대상이 된다",
                     on_date, len(out))
@@ -958,7 +1043,7 @@ def build_preview(session: Session, *, on_date: str) -> dict[str, Any]:
 
     Returns:
         ``{"date", "count", "eligible", "blocked", "rows", "day_total", "sent",
-        "failed", "last_sent_at", "state", "day_rows", "show"}``.
+        "failed", "last_sent_at", "state", "day_rows", "show", "unlinked_excluded"}``.
 
         * ``count``/``rows``: **보낼 게 남은** 집(막힌 집 포함 · 재결제 집으로 이미
           나간 집은 제외).
@@ -966,14 +1051,18 @@ def build_preview(session: Session, *, on_date: str) -> dict[str, Any]:
         * ``day_total``/``day_rows``: 오늘 네이버 집 **전체**(이미 나간 집 포함).
         * ``state``: ``"none"``(오늘 대상 자체가 없음 — 띠를 띄우지 않는다) ·
           ``"done"``(전부 나감) · ``"partial"``(일부 나감) · ``"pending"``(아직 안 나감).
+        * ``unlinked_excluded``: 취소·반품 확정이라 "붙이면 대상" 후보에서 뺀 집 수.
+          **0집이어도 실린다** — 화면이 "짚을 게 없다"와 "빼서 없다"를 갈라 말해야 한다.
         * ``show``: 띠를 띄울지. **"다 나갔다"와 "대상이 없었다"를 가르는 값이다.**
+          뺀 집만 있는 날에도 띄운다 — 뺐다는 사실을 말할 자리가 이 띠뿐이다.
     """
     empty: dict[str, Any] = {"date": on_date, "count": 0, "eligible": 0, "blocked": 0,
                              "rows": [], "day_total": 0, "sent": 0, "failed": 0,
                              "last_sent_at": "", "last_sent_time": "", "state": "none",
                              "superseded": 0,
                              "day_rows": [], "show": False, "unlinked": 0,
-                             "unlinked_rows": [], "foreign": [], "unknown": [],
+                             "unlinked_rows": [], "unlinked_excluded": 0,
+                             "foreign": [], "unknown": [],
                              "coverage_from": ""}
     try:
         targets = build_day_summary(session, on_date=on_date)
@@ -989,15 +1078,19 @@ def build_preview(session: Session, *, on_date: str) -> dict[str, Any]:
     except SQLAlchemyError as exc:  # 보조 정보라 화면을 막지 않는다(failopen — 로그로 남긴다)
         logger.warning("[NAVER] 발송 대상 미리보기 조회 실패(띠 생략): %s", exc, exc_info=True)
         return empty
+    # 뺀 집 수는 **줄이 0집이어도** 실어 보낸다 — 화면이 "짚을 게 없다"와 "취소 확정이라
+    # 뺐다"를 구분해 말할 수 있어야 한다.
+    excluded = int(getattr(unlinked, "excluded_claims", 0))
     extra = {"foreign": unsendable["foreign"], "unknown": unsendable["unknown"],
-             "coverage_from": unsendable["coverage_from"]}
+             "coverage_from": unsendable["coverage_from"],
+             "unlinked_excluded": excluded}
     # 띄우는 조건은 **종전 그대로**다(대상이 있거나, 붙일 짝이 있을 때). "못 보내는 건"은
     # 곁들이는 정보라, 그것만으로 띠를 띄우면 네이버와 무관한 날에도 화면이 떠든다 —
     # 매일 뜨는 안내는 읽히지 않고, 읽히지 않는 안내는 없는 것과 같다.
     if not targets:
-        if unlinked:
+        if unlinked or excluded:
             return {**empty, **extra, "show": True, "unlinked": len(unlinked),
-                    "unlinked_rows": unlinked}
+                    "unlinked_rows": list(unlinked)}
         # 값은 싣되 띄우지 않는다 — 값이 비면 읽는 쪽이 "센 적 없다"와 "0건"을 못 가른다.
         return {**empty, **extra}
 
@@ -1025,7 +1118,7 @@ def build_preview(session: Session, *, on_date: str) -> dict[str, Any]:
             # 템플릿에 시키면 두 화면이 각자 자르다 한쪽이 어긋난다.
             "last_sent_time": last_sent_at[11:] if len(last_sent_at) >= 16 else "",
             "state": state, "day_rows": day_rows, "show": True,
-            "unlinked": len(unlinked), "unlinked_rows": unlinked, **extra}
+            "unlinked": len(unlinked), "unlinked_rows": list(unlinked), **extra}
 
 
 def select_sendable(session: Session, *, on_date: str,

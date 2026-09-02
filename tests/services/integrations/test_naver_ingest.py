@@ -32,7 +32,14 @@ from foms.services.integrations.naver_commerce.mapping import (
     map_group,
     parse_order_datetime,
 )
-from models import DomainSideEffectOutbox, ExternalOrderLink, Order, OrderAssignment, User
+from models import (
+    DomainSideEffectOutbox,
+    ExternalOrderLink,
+    Notification,
+    Order,
+    OrderAssignment,
+    User,
+)
 
 _SEQ = [0]
 
@@ -384,12 +391,102 @@ def test_unique_constraint_backstops_concurrent_duplicate(app):
     assert result.collected == 0
 
 
-def test_non_payed_changes_are_ignored(app):
-    """결제완료가 아닌 상태 변경은 후보가 아니다."""
+def test_known_non_payed_change_is_not_fetched_again(app):
+    """이미 아는 상품주문의 비결제완료 이벤트는 상세를 다시 부르지 않는다(호출량 불변)."""
     _accounts()
+    db_session.add(ExternalOrderLink(channel="NAVER", external_id="PO-1",
+                                     sync_status="COLLECTED", raw_snapshot=_detail()))
+    db_session.commit()
     result = _run(FakeClient([_changed_entry(status="DELIVERED")], [_detail()]))
-    assert (result.candidates, result.collected) == (0, 0)
+    assert (result.candidates, result.collected, result.fetched) == (0, 0, 0)
+    assert db_session.query(ExternalOrderLink).count() == 1
     assert db_session.query(Order).count() == 0
+
+
+def test_unknown_non_payed_is_collected_outside_the_queue(app):
+    """처음 보는 상품주문은 상태와 무관하게 수집하되 처리 큐 밖에 둔다(D1).
+
+    결제가 스윕 시작보다 앞서고 그 뒤 상태 변경만 있는 주문은 결제완료 이벤트를 다시
+    주지 않는다 — 상태로 거르면 어느 경로에도 안 걸린다(운영 실측 2026-09-02).
+    """
+    _accounts()
+    result = _run(FakeClient([_changed_entry(status="DELIVERING")], [_detail()]))
+
+    assert (result.candidates, result.collected, result.quiet_collected) == (1, 1, 1)
+    link = db_session.query(ExternalOrderLink).one()
+    assert link.sync_status == "COLLECTED"
+    assert link.reviewed_at is not None, "처리 큐에 들어가면 처리 탭이 옛 주문으로 찬다"
+    assert "sweep_unknown" in (link.triage_state or {}), "소급 유래를 되짚을 표식이 필요하다"
+    assert db_session.query(Order).count() == 0
+
+
+def test_payed_still_lands_inside_the_queue(app):
+    """현행 무변경: 결제완료는 확인 대기(처리 큐 안)로 들어온다."""
+    _accounts()
+    result = _run(FakeClient([_changed_entry(status="PAYED")], [_detail()]))
+    link = db_session.query(ExternalOrderLink).one()
+    assert result.quiet_collected == 0
+    assert link.reviewed_at is None
+    assert link.triage_state in (None, {})
+
+
+def test_dropped_events_are_counted_by_status(app):
+    """버린 이벤트는 상태별로 센다 — 무음으로 버리면 사후 규명이 불가능하다(D3)."""
+    _accounts()
+    for external_id in ("PO-1", "PO-2", "PO-3"):
+        db_session.add(ExternalOrderLink(channel="NAVER", external_id=external_id,
+                                         sync_status="COLLECTED",
+                                         raw_snapshot=_detail(external_id)))
+    db_session.commit()
+    changed = [_changed_entry("PO-1", status="DELIVERING"),
+               _changed_entry("PO-2", status="DELIVERING"),
+               _changed_entry("PO-3", status="PURCHASE_DECIDED")]
+    result = _run(FakeClient(changed, [_detail("PO-1"), _detail("PO-2"), _detail("PO-3")]))
+
+    assert result.dropped_by_status == {"DELIVERING": 2, "PURCHASE_DECIDED": 1}
+    assert result.as_dict()["dropped_by_status"] == {"DELIVERING": 2, "PURCHASE_DECIDED": 1}
+
+
+def _canceled_detail(external_id: str = "PO-CANCEL") -> dict:
+    """취소 확정 상세 fixture(판정 정본은 ``claimStatus`` — claim_watch 계약과 동일)."""
+    detail = _detail(external_id, productOrderStatus="CANCELED", claimStatus="CANCEL_DONE")
+    detail["cancel"] = {"cancelReason": "SIMPLE_INTENT_CHANGED"}
+    return detail
+
+
+def _claim_admin() -> User:
+    """클레임 알림 수신자(ADMIN). 없으면 알림 0건이 '억제'인지 '수신자 없음'인지 못 가린다."""
+    user = User(username=f"ingest_admin_{_uid()}", password="pw-not-committed",
+                name="관리자", role="ADMIN", team="CS", is_active=True)
+    db_session.add(user)
+    db_session.commit()
+    return user
+
+
+def test_first_seen_canceled_order_sends_no_claim_notification(app):
+    """처음 본 취소 건으로 알림이 나가면 안 된다 — 과거 취소가 담당자에게 쏟아진다."""
+    _accounts()
+    _claim_admin()
+    canceled = _canceled_detail()
+    result = _run(FakeClient([_changed_entry("PO-CANCEL", status="CANCELED")], [canceled]))
+
+    assert result.collected == 1 and result.quiet_collected == 1
+    assert result.claims_notified == 0
+    assert db_session.query(Notification).count() == 0
+
+
+def test_known_canceled_order_still_notifies(app):
+    """양성 대조군: 이미 아는 링크의 취소는 종전대로 알림이 나간다(억제가 과하지 않다)."""
+    _accounts()
+    _claim_admin()
+    db_session.add(ExternalOrderLink(channel="NAVER", external_id="PO-CANCEL",
+                                     sync_status="COLLECTED", raw_snapshot=_detail("PO-CANCEL")))
+    db_session.commit()
+    result = _run(FakeClient([_changed_entry("PO-CANCEL", status="CANCELED")],
+                             [_canceled_detail()]))
+
+    assert result.claims_notified >= 1
+    assert db_session.query(Notification).count() >= 1
 
 
 def test_mapping_failure_records_pending_review_without_order(app):

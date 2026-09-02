@@ -43,9 +43,9 @@ from foms.services.integrations.naver_commerce.constants import (
 )
 from foms.services.integrations.naver_commerce.claim_watch import refresh_claims
 from foms.services.integrations.naver_commerce.mapping import (
+    COLLECTIBLE_STATUS,
     NaverMappingError,
     extract_external_id,
-    is_collectible,
     map_detail,
 )
 from models import ExternalOrderLink
@@ -72,6 +72,8 @@ class SyncResult:
     claims_refreshed: int = 0   # 수집 후 변경분 재조회로 원본을 갱신한 건 (T14-F)
     claims_flagged: int = 0     # 그중 취소·반품 상태인 건
     claims_notified: int = 0    # 그로 인해 보낸 알림 건수
+    quiet_collected: int = 0    # 처음 본 비결제완료 건(큐 밖으로 수집 — D1)
+    dropped_by_status: dict[str, int] = field(default_factory=dict)  # 상태별 버린 건수(D3)
     link_ids: list[int] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
 
@@ -92,6 +94,8 @@ class SyncResult:
             "claims_refreshed": self.claims_refreshed,
             "claims_flagged": self.claims_flagged,
             "claims_notified": self.claims_notified,
+            "quiet_collected": self.quiet_collected,
+            "dropped_by_status": dict(self.dropped_by_status),
             "link_ids": list(self.link_ids),
             "errors": list(self.errors),
         }
@@ -230,9 +234,78 @@ def _safe_unwrap(detail: dict) -> tuple[dict, dict, dict]:
         return ({}, {}, {})
 
 
+#: 상태 문자열이 아예 없는 변경 이벤트를 셀 때 쓰는 자리표시 키(D3 카운터용).
+UNKNOWN_STATUS = "UNKNOWN"
+
+
+def _feed_status_map(changed: list[dict]) -> dict[str, str]:
+    """변경 이벤트 목록을 ``{상품주문번호: 대표 상태}`` 로 접는다.
+
+    같은 상품주문에 이벤트가 여러 개 실려 오면 ``PAYED`` 를 우선한다 — 결제완료 이벤트가
+    하나라도 있으면 그 건은 지금까지와 똑같이 처리 큐 안으로 들어가야 한다.
+
+    Args:
+        changed: ``last-changed-statuses`` 응답 항목 목록.
+
+    Returns:
+        상품주문번호 → 상태(대문자) 사전. 번호가 없는 항목은 버린다.
+    """
+    folded: dict[str, str] = {}
+    for entry in changed or []:
+        if not isinstance(entry, dict):
+            continue
+        external_id = str(entry.get("productOrderId") or "")
+        if not external_id:
+            continue
+        if folded.get(external_id) == COLLECTIBLE_STATUS:
+            continue
+        folded[external_id] = str(entry.get("productOrderStatus") or "").upper() or UNKNOWN_STATUS
+    return folded
+
+
+def _partition_feed(
+    folded: dict[str, str], known: set[str], *, collect_all: bool,
+) -> tuple[list[str], set[str], dict[str, int]]:
+    """변경 피드를 후보/조용한 후보/버린 것으로 가른다 (D1·D3).
+
+    규칙 세 줄이 전부다:
+
+    * ``PAYED`` 는 지금까지와 똑같이 후보다(처리 큐 안).
+    * **우리가 모르는** 상품주문번호는 상태와 무관하게 후보로 삼되 '조용한' 쪽에 넣는다.
+      결제가 스윕 시작보다 앞서고 그 뒤 상태 변경만 있는 주문은 결제완료 이벤트를 영영
+      다시 주지 않아, 상태로 거르면 어느 경로에도 안 걸린다(운영 실측 2026-09-02).
+      수집 대상 상태를 열거하는 방식은 쓰지 않는다 — 관측하지 못한 상태에서 같은 누락이
+      되풀이된다.
+    * 이미 아는 번호의 비결제완료 이벤트는 지금처럼 상세를 조회하지 않는다(호출량 불변).
+      대신 상태별로 세어 남긴다 — 무음으로 버리면 사후 규명이 불가능하다.
+
+    Args:
+        folded: :func:`_feed_status_map` 결과.
+        known: 이미 링크가 있는 상품주문번호 집합.
+        collect_all: True 면 상태로 거르지 않는다(과거 구간 소급 수집).
+
+    Returns:
+        ``(후보 번호 목록, 조용히 넣을 번호 집합, 상태별 버린 건수)``.
+    """
+    if collect_all:
+        return (list(folded.keys()), set(), {})
+    candidates: list[str] = []
+    quiet: set[str] = set()
+    dropped: dict[str, int] = {}
+    for external_id, status in folded.items():
+        if status == COLLECTIBLE_STATUS:
+            candidates.append(external_id)
+        elif external_id in known:
+            dropped[status] = dropped.get(status, 0) + 1
+        else:
+            candidates.append(external_id)
+            quiet.add(external_id)
+    return (candidates, quiet, dropped)
+
+
 def ingest_detail(
     session: Session, detail: dict, *, today: str, now: Optional[datetime] = None,
-    reviewed: bool = False,
+    reviewed: bool = False, reviewed_reason: str = "backfill",
 ) -> str:
     """상세 1건을 **링크로만** 보관한다(주문은 만들지 않는다). 결과 코드를 돌려준다.
 
@@ -252,9 +325,12 @@ def ingest_detail(
         today: 접수일 대체값(매핑 검증용).
         now: 테스트용 시각 주입.
         reviewed: True 면 만든 링크를 **확인 완료로 표시**해 처리 큐에 넣지 않는다.
-            과거 구간 소급 수집 전용이다 — 백필은 "과거 원본을 확보"하는 일이지 "지금
+            과거 구간 소급 수집이 쓰는 자리다 — 백필은 "과거 원본을 확보"하는 일이지 "지금
             처리할 일"이 아니다. 표시하지 않으면 90일치 전 주문이 통째로 처리 탭에 쌓인다
             (스테이징 실측 2026-09-01: 링크 1,560건 = 798집이 큐에 밀려들었다).
+            정기 스윕이 뒤늦게 처음 본 비결제완료 건도 같은 규율로 넣는다.
+        reviewed_reason: ``reviewed`` 표식을 남길 때 쓸 ``triage_state`` 키
+            (``"backfill"`` = 과거 긁어오기, ``"sweep_unknown"`` = 스윕이 처음 본 건).
 
     Returns:
         ``"collected"`` / ``"skipped"`` / ``"pending_review"``.
@@ -275,7 +351,7 @@ def ingest_detail(
     # 되짚을 ``triage_state.backfill``. 시각만 남기면 사람이 확인한 것과 구분되지 않는다.
     match_keys = _match_key_values(detail)
     stamp = now_utc_naive() if reviewed else None
-    state = {"backfill": {"at": stamp.isoformat()}} if reviewed else None
+    state = {reviewed_reason: {"at": stamp.isoformat()}} if reviewed else None
     savepoint = session.begin_nested()
     try:
         session.add(
@@ -335,6 +411,10 @@ def sync_naver_orders(
         mark_reviewed: True 면 만든 링크를 확인 완료로 표시해 처리 큐에 넣지 않는다
             (:func:`ingest_detail` 의 ``reviewed``).
 
+    수집 술어는 :func:`_partition_feed` 가 정본이다. ``PAYED`` 는 종전대로 처리 큐 안으로
+    가고, **처음 보는** 상품주문번호는 상태와 무관하게 큐 밖(확인 완료 표시)으로 받는다.
+    이미 아는 번호의 비결제완료 이벤트는 상세를 조회하지 않고 상태별로 세기만 한다.
+
     Returns:
         :class:`SyncResult` 집계.
     """
@@ -351,18 +431,13 @@ def sync_naver_orders(
         result.claims_flagged = claim_stats["claimed"]
         result.claims_notified = claim_stats["notified"]
 
-    candidate_ids: list[str] = []
-    seen: set[str] = set()
-    for entry in changed:
-        if not collect_all and not is_collectible(entry):
-            continue
-        external_id = str((entry or {}).get("productOrderId") or "")
-        if external_id and external_id not in seen:
-            seen.add(external_id)
-            candidate_ids.append(external_id)
+    folded = _feed_status_map(changed)
+    known = existing_external_ids(session, list(folded.keys()))
+    candidate_ids, quiet_ids, dropped = _partition_feed(folded, known, collect_all=collect_all)
     result.candidates = len(candidate_ids)
+    result.dropped_by_status = dropped
 
-    already = existing_external_ids(session, candidate_ids)
+    already = {oid for oid in candidate_ids if oid in known}
     result.skipped += len(already)
     fresh_ids = [oid for oid in candidate_ids if oid not in already]
     if not fresh_ids:
@@ -378,14 +453,18 @@ def sync_naver_orders(
     # 멈추면 안 된다 — 못 받은 주문은 되돌릴 수 없고, 계정 문제는 나중에 고칠 수 있다.
     today = get_today_kst().strftime("%Y-%m-%d")
     for detail in details:
+        quiet = extract_external_id(detail) in quiet_ids
         try:
             outcome = ingest_detail(session, detail, today=today, now=now,
-                                    reviewed=mark_reviewed)
+                                    reviewed=mark_reviewed or quiet,
+                                    reviewed_reason="sweep_unknown" if quiet else "backfill")
         except NaverMappingError as exc:
             result.errors.append(str(exc))
             continue
         if outcome == "collected":
             result.collected += 1
+            if quiet:
+                result.quiet_collected += 1
             link = (
                 session.query(ExternalOrderLink)
                 .filter(ExternalOrderLink.channel == CHANNEL,

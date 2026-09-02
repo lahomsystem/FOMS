@@ -82,7 +82,8 @@ def _order_measured_today(today: str, *, customer: str = "천화진",
 
 
 def _loose(order_no: str, *, tel: str = PHONE, count: int = 1,
-           receiver: str = "이수취", orderer: str = "김주문") -> ExternalOrderLink:
+           receiver: str = "이수취", orderer: str = "김주문",
+           claim_status: str = "") -> ExternalOrderLink:
     """주문에 **안 붙은** 수집분(``order_id`` 가 비어 있다).
 
     Args:
@@ -91,13 +92,16 @@ def _loose(order_no: str, *, tel: str = PHONE, count: int = 1,
         count: 상품주문 행 수.
         receiver: 네이버 **수령인명**(운영 규칙상 ERP 고객명이 되는 자리).
         orderer: 주문자명(축이 아니다 — 갈리는 집을 시험하려고 따로 준다).
+        claim_status: 네이버 ``claimStatus``(예: ``CANCEL_DONE``). 수집 파이프라인과 같이
+            **원본 안에만** 산다 — 링크 테이블에 클레임 사본 컬럼은 없다.
 
     Returns:
         마지막으로 만든 링크 행.
     """
     link = None
     for _ in range(count):
-        link = _collected(order_no=order_no, product="붙박이장", amount=1_000_000, tel=tel)
+        link = _collected(order_no=order_no, product="붙박이장", amount=1_000_000, tel=tel,
+                          claim_status=claim_status)
         row = db_session.get(ExternalOrderLink, int(link.id))
         snapshot = dict(row.raw_snapshot or {})
         shipping = dict((snapshot.get("productOrder") or {}).get("shippingAddress") or {})
@@ -208,6 +212,98 @@ def test_order_measured_on_another_day_is_not_matched(today):
     db_session.commit()
     _loose(f"N-UL4-{_uid()}")
     assert find_unlinked_matches(db_session, on_date=today) == []
+
+
+# --------------------------------------------------------------------------- #
+# 취소·반품 확정 집은 짚지 않는다 (D2, 2026-09-02)
+# --------------------------------------------------------------------------- #
+
+def test_fully_canceled_household_is_not_recommended(today):
+    """상품주문이 **전부 취소 확정**인 집은 후보에서 뺀다.
+
+    2026-09-02 운영에서 실제로 밟았다. 고객 황인영의 옛 집(취소완료)이 살아 있는 주문
+    #4704 의 짝으로 권해졌다 — 붙이면 그 주문은 링크가 6/6 취소가 되어 유령으로 분류되고
+    **폐기(soft delete) 버튼이 열린다.**
+    """
+    _order_measured_today(today, customer="황인영", phone="010-4321-8765")
+    order_no = f"N-CLM1-{_uid()}"
+    _loose(order_no, tel="010-4321-8765", count=3, claim_status="CANCEL_DONE")
+    found = find_unlinked_matches(db_session, on_date=today)
+    assert not [row for row in found if row["order_no"] == order_no]
+
+
+def test_partially_canceled_household_is_still_recommended(today):
+    """**음성 대조군** — 일부만 취소된 집은 그대로 남는다.
+
+    살아 있는 형제 상품주문이 있으므로 붙일 값이 있다. ``all`` 이 아니라 "하나라도"로
+    판정하면 이 집이 통째로 화면에서 사라진다 — 조용한 축소는 이 저장소가 이미 밟은
+    실패 모양이다.
+    """
+    order = _order_measured_today(today, customer="반만취소", phone="010-4321-8766")
+    order_no = f"N-CLM2-{_uid()}"
+    _loose(order_no, tel="010-4321-8766", count=1, claim_status="CANCEL_DONE")
+    _loose(order_no, tel="010-4321-8766", count=1)
+    found = find_unlinked_matches(db_session, on_date=today)
+    mine = [row for row in found if row["order_no"] == order_no]
+    assert len(mine) == 1, "살아 있는 형제가 있으면 후보로 남아야 한다"
+    assert mine[0]["order_id"] == int(order.id)
+    assert mine[0]["links"] == 2
+
+
+def test_returned_household_is_excluded_but_pending_claim_is_not(today):
+    """반품 **확정**은 빼고, **확정 전** 취소요청 집은 남긴다.
+
+    거부되면 되살아나는 클레임까지 지우면 정보를 죽인다 — 판정 축은 확정(``done``)이다.
+    """
+    _order_measured_today(today, customer="반품확정", phone="010-4321-8767")
+    _order_measured_today(today, customer="요청중", phone="010-4321-8768")
+    returned = f"N-CLM3-{_uid()}"
+    requested = f"N-CLM4-{_uid()}"
+    _loose(returned, tel="010-4321-8767", count=2, claim_status="RETURN_DONE")
+    _loose(requested, tel="010-4321-8768", count=2, claim_status="CANCEL_REQUEST")
+    found = find_unlinked_matches(db_session, on_date=today)
+    order_nos = [row["order_no"] for row in found]
+    assert returned not in order_nos
+    assert requested in order_nos, "확정 전 클레임은 아직 살아 있을 수 있다"
+
+
+def test_exclusion_is_said_out_loud_not_silently_dropped(today):
+    """뺐으면 **뺐다고 말한다** — 반환값과 화면 값 둘 다에 실린다."""
+    _order_measured_today(today, customer="황인영", phone="010-4321-8769")
+    _loose(f"N-CLM5-{_uid()}", tel="010-4321-8769", count=2, claim_status="CANCEL_DONE")
+    found = find_unlinked_matches(db_session, on_date=today)
+    assert found.excluded_claims == 1, "조용히 줄이면 '짚을 게 없다'와 구분되지 않는다"
+    preview = build_preview(db_session, on_date=today)
+    assert preview["unlinked"] == 0
+    assert preview["unlinked_excluded"] == 1
+    assert preview["show"] is True, "말할 자리가 이 띠뿐이다"
+
+
+def test_excluded_household_order_comes_back_as_unsendable(today):
+    """제외된 집의 주문은 '못 보내는 건' 목록에 **다시 나타난다**.
+
+    :func:`classify_unsendable` 은 띠가 짚은 주문을 제외한다. 취소 집을 짚은 채로 두면
+    그 주문이 두 갈래 어디에도 없어, 진짜 수집 누락을 알릴 유일한 줄이 침묵한다.
+    """
+    _set_coverage("2026-01-01")
+    order = _order_measured_today(today, customer="황인영", phone="010-4321-8770")
+    order.received_date = "2026-08-01"
+    db_session.commit()
+    _loose(f"N-CLM6-{_uid()}", tel="010-4321-8770", count=2, claim_status="CANCEL_DONE")
+
+    preview = build_preview(db_session, on_date=today)
+    listed = {row["order_id"] for row in preview["foreign"] + preview["unknown"]}
+    assert int(order.id) in listed
+    assert preview["unlinked_excluded"] == 1
+
+
+def test_workbench_strip_says_what_it_excluded(client, workbench_on, today):
+    """워크벤치 띠가 뺀 집 수를 문장으로 말한다."""
+    _login(client)
+    _order_measured_today(today, customer="황인영", phone="010-4321-8771")
+    _loose(f"N-CLM7-{_uid()}", tel="010-4321-8771", count=2, claim_status="CANCEL_DONE")
+    body = client.get(f"{TRIAGE_PATH}?tab=work").get_data(as_text=True)
+    assert "취소·반품 확정 1집은 제외했습니다" in body
 
 
 # --------------------------------------------------------------------------- #
