@@ -305,32 +305,35 @@ def test_soft_refresh_keeps_the_find_word_and_the_scroll_place(): # noqa: E501
         "값만 옮기고 다시 좁히지 않으면 칸에는 낱말이 남았는데 전체 목록이 보인다")
 
 
-def test_find_narrows_the_history_rows_with_the_same_rule():
-    """찾기는 이력 표의 행도 좁힌다 — 이력 전용 분기를 새로 만들지 않는다 (2026-08-27).
+def test_history_find_is_left_to_the_server(client, workbench_on):
+    """이력 탭 찾기는 **화면이 좁히지 않는다** (2026-09-02).
 
-    두 탭은 배타 렌더라 셀렉터 합집합이면 언제나 한쪽 모집단만 잡힌다. 이력용 분기를 따로
-    만들면 같은 규칙이 두 벌이 되어, 한쪽만 고쳐졌을 때 조용히 어긋난다(v3 리뷰 H1 과
-    같은 부류의 실수다).
+    원래는 두 탭이 같은 화면 필터를 썼다. 이력 표는 서버가 50집씩 잘라 주므로 그 필터가
+    닿는 데는 지금 쪽뿐이었고, 800주문·16쪽짜리 운영 화면에서 고객명을 쳤을 때
+    "0주문 / 이 페이지 50주문" 이 나왔다(사용자 실화면 보고).
 
-    범위 고지는 note 가 진다: 이력은 서버가 페이지 단위로 잘라 주므로 화면 찾기가 닿는
-    곳은 **지금 페이지뿐**이다. placeholder 에 적는 안은 폐기됐다 — placeholder 는
-    타이핑하는 순간 사라져, 정작 오해가 나는 시점(좁혀진 뒤)에 화면에 없다.
+    화면 필터를 남긴 채 서버 검색을 얹으면 더 나쁘다 — 서버가 준 결과 위에 한 겹이 더
+    얹혀, note 가 말하는 숫자와 보이는 줄이 갈린다. 그래서 ``onInput`` 이 이력 탭을
+    **먼저 걸러낸다**. 처리 탭 필터는 그대로다(목록이 한 번에 다 와 있다).
     """
+    _login(client)
     source = JS_PATH.read_text(encoding="utf-8")
     body = source.split("function applyFind")[1].split("    function ")[0]
 
     assert "#wb-queue a.wb-row" in body, "처리 탭 모집단을 잃으면 안 된다"
-    assert "tbody tr[data-find]" in body, "이력 행도 같은 모집단으로 들어온다"
     assert "wb-find-note" in body, "좁힌 결과를 말할 자리에 써야 한다"
 
-    # 문구 자체는 `applyFind` 가 직접 쓰든 바로 옆 헬퍼가 쓰든 상관없다 — 자리를 못 박으면
-    # 테스트가 "헬퍼로 빼지 말라"는 구조 지시가 된다. 찾기 기계(onInput~captureFind
-    # 사이) 안에 있기만 하면 된다.
-    machinery = source.split("function onInput")[1].split("function captureFind")[0]
-    assert "이 페이지" in machinery, "닿는 범위는 좁혀진 뒤에 말해야 한다"
+    machinery = source.split("function onInput")[1].split("function applyFind")[0]
+    assert "isHistoryTab()" in machinery, "이력 탭에서 화면 필터가 먼저 빠져나가야 한다"
+    assert "이 페이지" not in source, (
+        "'이 페이지' 범위 고지는 서버가 전체를 찾는 지금 거짓말이다")
+
+    # 서버가 좁힌 결과를 서버가 말한다 — 화면이 비워 두면 무엇을 찾았는지 알 길이 없다.
+    body_html = client.get("/admin/naver-ingest/triage?tab=all&q=zzz없음").get_data(as_text=True)
+    assert "찾은 주문 없음" in body_html, "0건 고지가 서버 렌더에 없다"
 
     # 이력에서도 `지금 수집` → watchRun → softRefresh 로 화면 루트가 통째로 갈린다.
-    # 복원 경로가 끊기면 이력에서 조작 한 번에 찾기 낱말이 날아간다.
+    # 처리 탭 복원 경로는 그대로 살아 있어야 한다.
     restore = source.split("function restoreFind")[1].split("    function ")[0]
     assert "applyFind(" in restore, "복원이 다시 좁히지 않으면 칸에 낱말만 남는다"
 
@@ -403,7 +406,7 @@ def test_bulk_note_exists_and_asset_pin_moved():
 
     assert 'id="wb-bulk-note"' in markup
     assert 'id="wb-retry-note"' in markup
-    assert markup.count("?v=20260902e") == 2, "CSS·JS 핀을 함께 올린다"
+    assert markup.count("?v=20260902f") == 2, "CSS·JS 핀을 함께 올린다"
 
 
 # --------------------------------------------------------------------------- #
