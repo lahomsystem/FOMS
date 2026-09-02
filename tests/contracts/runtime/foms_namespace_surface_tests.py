@@ -657,6 +657,8 @@ def test_namespaced_jobs_queue_shim_preserves_canonical_contract() -> None:
         "enqueue_naver_order_sync",
         # NAVER-INGEST-BACKFILL: 과거 구간 소급 수집도 같은 규율(enqueue 만).
         "enqueue_naver_backfill",
+        # SETTLE-CHANNEL-01 §4: 정산 동기화도 WORKER 단일 출구(중복 방지 키로 enqueue).
+        "enqueue_naver_settle_sync",
     ]
 
     assert namespaced_jobs_queue.__all__ == expected_public_names
@@ -676,6 +678,8 @@ def test_namespaced_jobs_tasks_shim_preserves_canonical_contract() -> None:
         "run_naver_order_sync_task",
         # NAVER-INGEST-BACKFILL: 과거 구간 소급 수집도 같은 이유로 WORKER job 이다.
         "run_naver_backfill_task",
+        # SETTLE-CHANNEL-01 §4: 정산 동기화도 같은 이유로 WORKER job 이다.
+        "run_naver_settle_sync_task",
     ]
 
     assert namespaced_jobs_tasks.__all__ == expected_public_names

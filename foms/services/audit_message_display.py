@@ -170,6 +170,8 @@ ACTION_LABELS: dict[str, str] = {
     "NAVER_INGEST_RETURN_APPROVE_ONLY_ENQUEUE": "네이버 반품 승인(접수 없이)",
     "NAVER_INGEST_FULFILLMENT_CLEAR": "네이버 발주확인·발송처리 실패 기록 지움",
     "NAVER_DOCK_STATE_SET": "네이버 도크 반영 상태 저장",
+    # --- 네이버 채널 정산 (SETTLE-CHANNEL-01) ---
+    "NAVER_SETTLE_SYNC_REQUEST": "네이버 정산 동기화 요청",
     # --- 결제 ---
     "PAYMENT_CONFIRMED": "결제 확인",
     "PAYMENT_CONFIRM_CLEARED": "결제 확인 해제",
