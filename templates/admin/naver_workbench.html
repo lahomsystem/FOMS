@@ -477,10 +477,21 @@
                 <td class="wb-result__at small">{{ row.at }}</td>
                 {# 판매자센터에서 손으로 해결한 건은 성공한 재시도가 없다 — 사람이 닫는다.
                    네이버에는 아무 영향이 없어 모달을 두지 않는다(불가역이 아니다). #}
+                {# `확인함` 은 이 집 전체의 `last_error` 를 지운다(`fulfillment.clear_failure`).
+                   그런데 **반품 접수에 실패한 라인에는 `return` 축 기록이 아예 없다** —
+                   기록은 성공분만 받는다. 그래서 한 번 누르면 "본품이 반품되지 않았다"는
+                   유일한 DB 흔적이 사라진다(NVCLAIM-ORDER-01 RC5, 황민철 사고).
+                   1차 배는 **보낼 반품이 남은 집에서 버튼을 잠그는 것**으로 버틴다
+                   (`clear_failure` 라인 단위화는 2차 배). 남은 게 없으면 평소대로 열어 둔다 —
+                   안 그러면 실패 띠를 영영 못 지운다. #}
                 <td class="wb-result__ack">
                     <button type="button" class="btn btn-outline-secondary btn-sm wb-ack"
                             data-link-id="{{ row.link_id }}"
-                            title="판매자센터에서 해결한 건을 목록에서 지웁니다(네이버에는 영향 없음)">확인함</button>
+                            {% if row.return_sendable_count %}disabled
+                            title="아직 보내지 않은 반품 접수 {{ row.return_sendable_count }}건이 남아 있습니다 — 이 실패 사유가 그 사실의 유일한 기록이라 지금은 지울 수 없습니다. 집을 열어 반품을 접수한 뒤 눌러 주세요."
+                            {% else %}
+                            title="판매자센터에서 해결한 건을 목록에서 지웁니다(네이버에는 영향 없음)"
+                            {% endif %}>확인함</button>
                 </td>
             </tr>
             {% endfor %}

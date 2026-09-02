@@ -274,6 +274,106 @@ CLAIM_CODE_LABELS = {
     "all_mixed": "전부 취소 — 확정 전 포함",
 }
 
+#: 같은 코드의 **반품 어휘**. 위 표는 취소 낱말이라 반품 집에 그대로 쓰면 `전부 취소 완료`
+#: 가 된다. **코드는 공유하고 낱말만 종류별로 가른다** — 코드가 판정 축이라, 낱말이 갈려도
+#: 분기는 한 벌로 남는다(NVCLAIM-ORDER-01 T5).
+#:
+#: ``all_done`` 이 `전부 반품 완료` 가 아니라 `반품 완료` 인 이유: 집 전체가 같은 단계면
+#: 라인 라벨(:data:`mapping.CLAIM_STATUS_LABELS`)이 이미 그 낱말이고, 두 화면이 같은 집을
+#: 다른 말로 부르면 사람이 다른 사건으로 읽는다.
+RETURN_CLAIM_CODE_LABELS = {
+    "alive": "살아 있음",
+    "partial": "일부 반품",
+    "all_done": "반품 완료",
+    "all_pending": "전부 반품 요청 — 확정 전",
+    "all_mixed": "전부 반품 — 확정 전 포함",
+}
+
+#: 클레임 종류 → 낱말표. 집계는 **돈이 되돌아가는** 종류(:data:`mapping.MONEY_BACK_CLAIM_KINDS`)
+#: 만 세므로 여기 오는 종류는 사실상 둘뿐이다 — 모르는 종류는 취소 어휘로 떨어진다.
+CLAIM_CODE_LABEL_SETS = {
+    "CANCEL": CLAIM_CODE_LABELS,
+    "RETURN": RETURN_CLAIM_CODE_LABELS,
+}
+
+
+def claim_aggregate_code(*, done: int, pending: int, alive: int) -> str:
+    """집 안 상품주문 수를 **부분/전부 코드** 하나로 접는다.
+
+    이 다섯 줄이 취소 띠(:func:`candidate_claim_facts`)와 트리아지 집 배지
+    (:func:`foms.web.admin.naver_ingest._household_claim`)의 **공통 판정**이다. 두 벌로
+    두면 같은 집을 한 화면은 `일부 반품`, 다른 화면은 `반품 완료` 로 부른다 — 실제로
+    그렇게 갈려서 본품 1건이 미환불로 남은 채 집이 닫혔다(2026-09-01 황민철 사고).
+
+    Args:
+        done: 네이버가 **확정한** 취소·반품 상품주문 수.
+        pending: 요청·처리중(확정 전) 상품주문 수.
+        alive: 클레임이 없거나 거부·철회된, **살아 있는** 상품주문 수.
+
+    Returns:
+        :data:`CLAIM_CODE_LABELS` 의 키 하나
+        (``alive``·``partial``·``all_done``·``all_pending``·``all_mixed``).
+    """
+    if alive and (done or pending):
+        return "partial"
+    if not done and not pending:
+        return "alive"
+    if done and pending:
+        return "all_mixed"
+    if pending:
+        return "all_pending"
+    return "all_done"
+
+
+def aggregate_claim(claims: list[dict[str, Any]]) -> dict[str, str]:
+    """집(묶음) 안 클레임들을 **한 줄로 집계**한다 (NVCLAIM-ORDER-01 T5).
+
+    첫 라벨 채택(first-non-empty-wins)을 대신하는 자리다. 4건 중 3건만 반품된 집에서
+    그 방식은 `반품 완료` 를 내놓고 담당자가 집을 끝난 것으로 읽었다 — 본품은 아직
+    ``DELIVERING`` 이었다.
+
+    세는 규칙은 취소 띠와 같다: **돈이 되돌아가는 종류**(취소·반품)의 요청·처리중·완료만
+    세고, 교환·거부·클레임 없음은 `살아 있는` 쪽이다. 교환을 취소로 세면 대체품을 기다리는
+    주문이 `전부 취소 완료` 가 된다(R-2, 2026-08-28).
+
+    Args:
+        claims: :func:`mapping.extract_claim` 결과 목록(집 멤버 **표시 순서 그대로**).
+            ``{"phase": ..., "type": ...}`` 만 읽으므로, 이미 풀린 종류를 ``type`` 에
+            그대로 넣어도 :func:`mapping.claim_kind` 가 같은 값을 낸다.
+
+    Returns:
+        ``{"claim_code", "claim_kind", "claim_label"}``. ``claim_kind`` 는 집계에 **실제로
+        센 것들**의 종류다(섞이면 ``RETURN`` — 반품은 발송 뒤에만 생기므로 그 집은
+        이미 반품 흐름에 있다). 셀 것이 없으면 종류는 빈 문자열이고 코드는 ``alive`` 다.
+    """
+    from foms.services.integrations.naver_commerce.mapping import (
+        CLAIM_PHASE_DONE,
+        CLAIM_PHASE_PROGRESS,
+        CLAIM_PHASE_REQUESTED,
+        MONEY_BACK_CLAIM_KINDS,
+        claim_kind,
+    )
+
+    done = pending = alive = 0
+    kinds: set[str] = set()
+    for claim in claims:
+        phase = (claim or {}).get("phase") or ""
+        kind = claim_kind(claim or {})
+        counted = (phase in (CLAIM_PHASE_DONE, CLAIM_PHASE_REQUESTED, CLAIM_PHASE_PROGRESS)
+                   and kind in MONEY_BACK_CLAIM_KINDS)
+        if not counted:
+            alive += 1
+            continue
+        kinds.add(kind)
+        if phase == CLAIM_PHASE_DONE:
+            done += 1
+        else:
+            pending += 1
+    code = claim_aggregate_code(done=done, pending=pending, alive=alive)
+    kind = "" if not kinds else ("RETURN" if "RETURN" in kinds else sorted(kinds)[0])
+    labels = CLAIM_CODE_LABEL_SETS.get(kind, CLAIM_CODE_LABELS)
+    return {"claim_code": code, "claim_kind": kind, "claim_label": labels[code]}
+
 
 def _claim_facts(raw_snapshot: Any) -> dict[str, str]:
     """스냅샷 1건에서 **클레임 단계와 사유 원문**을 꺼낸다.
@@ -458,16 +558,10 @@ def _naver_facts(session, order_ids: list[int], *,
         if not bucket["link_count"]:
             continue
         done, pending, alive = bucket["canceled"], bucket["pending"], bucket["alive"]
-        if alive and (done or pending):
-            code = "partial"
-        elif not done and not pending:
-            code = "alive"
-        elif done and pending:
-            code = "all_mixed"
-        elif pending:
-            code = "all_pending"
-        else:
-            code = "all_done"
+        # 판정은 :func:`claim_aggregate_code` 한 곳이다 — 트리아지 집 배지가 같은 함수를
+        # 쓴다(NVCLAIM-ORDER-01 T5). 여기 다섯 줄을 손으로 다시 적으면 두 화면이 같은
+        # 집을 다르게 부른다.
+        code = claim_aggregate_code(done=done, pending=pending, alive=alive)
         bucket["claim_code"] = code
         bucket["claim_label"] = CLAIM_CODE_LABELS[code]
     return facts
