@@ -12,8 +12,8 @@
 | T4 | alembic 마이그레이션| DONE | 단일 head, upgrade/downgrade 왕복 | `alembic heads` = `phonewide_00` 1개; 실 PG 왕복: downgrade→폭20, upgrade→폭64 + 절단행 22자 복구, `len20 remaining: 0` |
 | T5 | PG 레인| DONE | `tests/postgres` green, 컬럼 폭 64 실측 | `743 passed in 268.87s` (5441 레인), 신규 `test_phone_digits_width_pg.py` 5건 포함 |
 | T6 | 전체 게이트| DONE | `pre_push_smoke` exit 0 | `=== PRE-PUSH SMOKE PASSED ===` EXIT=0 (377 passed) |
-| T7 | 커밋 + deploy push + CI | DONE | 자기 커밋만, 전 워크플로 green | deploy `5d2bfb95a`(코드 `006200509`+AI_STATUS). cherry-pick 충돌은 AI_STATUS 1줄뿐 — 상류 판본 위에 내 줄만 재적용 |
-| T8 | 스테이징 반영 확인 | 진행 중 | 절단 행 0 | 스테이징 1차: 폭 64·head `phonewide_00`·절단 56건 복구, **잔여 4건은 sd 소스라 미복구** → `phonewide_01` 로 후속 |
+| T7 | 커밋 + deploy push + CI | DONE | 자기 커밋만, 전 워크플로 green | deploy `5d2bfb95a`·`66975c550`(4/4 workflow success 2회)(코드 `006200509`+AI_STATUS). cherry-pick 충돌은 AI_STATUS 1줄뿐 — 상류 판본 위에 내 줄만 재적용 |
+| T8 | 스테이징 반영 확인 | DONE | 절단 행 0 | 스테이징 2차(`phonewide_01`): head `phonewide_01`·폭 64·`length=20` **0건**·20자 초과 60건(최대 22자), #3246 뒷 4자리 `0925` 로 자기 행 조회 1건 |
 
 ## 기록
 
@@ -48,5 +48,9 @@
 
 ## BLOCKED / 미해결
 
-* 로컬 PG 레인(5441)에 마이그레이션 왕복 검증용 스크래치 DB `foms_test_phonewide_mig` 가
-  남아 있다 — `DROP DATABASE` 는 guard 훅이 막는다. 정리는 수동.
+* `phonewide_00`/`phonewide_01` 은 deploy(스테이징)까지만 반영. **production 승격 미실행**
+  (사용자 지시 대기). 운영 81건은 승격 시 두 마이그레이션이 순서대로 복구한다.
+* 이어 붙인 숫자열이라 `contains` 검색이 번호 경계를 모르는 한계는 남는다(브리프 선택지 2
+  = 번호 목록 정규화는 별도 배치).
+* 로컬 PG 레인(5441)에 왕복 검증용 스크래치 DB `foms_test_phonewide_mig` 잔존 —
+  `DROP DATABASE` 는 guard 훅이 막아 수동 정리 필요.
