@@ -52,16 +52,16 @@
     <div class="foms-wizard__send-actions">
       <button
         type="button"
-        class="foms-btn foms-btn--secondary foms-wizard__send-btn"
+        class="foms-btn foms-wizard__send-btn foms-wizard__send-btn--push"
         id="foms-wizard-push-btn"
         data-wizard-send="channel"
-      ><span class="foms-wizard__send-btn-label">실측 PUSH</span></button>
+      ><i class="fas fa-paper-plane foms-wizard__send-btn-icon" aria-hidden="true"></i><span class="foms-wizard__send-btn-label">실측 PUSH</span></button>
       <button
         type="button"
-        class="foms-btn foms-btn--secondary foms-wizard__send-btn"
+        class="foms-btn foms-wizard__send-btn foms-wizard__send-btn--alimtalk"
         id="foms-wizard-alimtalk-btn"
         data-wizard-send="alimtalk"
-      ><span class="foms-wizard__send-btn-label">알림톡 · 예약 내역</span></button>
+      >{# 카카오 말풍선 마크. FA6 free 에는 카카오 아이콘이 없어 인라인 SVG 로 넣는다. #}<svg class="foms-wizard__send-btn-icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false"><path fill="currentColor" d="M12 3C6.9 3 2.75 6.29 2.75 10.35c0 2.6 1.72 4.88 4.32 6.19l-1.09 4.02a.35.35 0 0 0 .53.38l4.7-3.1c.26.02.52.03.79.03 5.1 0 9.25-3.29 9.25-7.52S17.1 3 12 3Z"/></svg><span class="foms-wizard__send-btn-label">알림톡 · 예약 내역</span></button>
     </div>
     <p class="foms-wizard__send-status" id="foms-wizard-send-status" role="status" aria-live="polite"></p>
     <p class="foms-wizard__send-trace" id="foms-wizard-send-trace-channel" data-wizard-send-trace="channel" hidden></p>
