@@ -54,7 +54,7 @@ PC 의 "미저장이면 먼저 저장(승격) 후 발송" 패턴은 마법사에
 (`_already_sent` 는 dedupe_key 동일성으로만 판정).
 
 **결정 D5 — 채널톡 본문의 "주문 상세 보기" 링크는 초안 발송에서 생략**한다(가리킬 주문이 없다).
-대신 머리말 한 줄 `※ 등록 전 초안 실측 공유` 를 붙여 수신자가 상태를 오해하지 않게 한다.
+머리말은 붙이지 않는다 — **D5 철회(사용자 결정 2026-09-02): 본문은 ERP 주문 실측 PUSH 와 완전히 같아야 한다.** 실측방이 받는 글의 모양이 보낸 화면에 따라 갈리면 읽는 쪽이 두 벌을 익혀야 한다.
 
 ## 4. API 계약 (task 간 인터페이스 — 이 시그니처로 고정)
 
@@ -73,7 +73,7 @@ def send_alimtalk_for_sd(sd: dict, *, sent_by: int | None, dedupe_key: str) -> d
 
 ```python
 # foms/services/channel_measure_message.py (신규)
-def build_measure_push_text(sd: dict, *, draft_notice: bool = False) -> str:
+def build_measure_push_text(sd: dict) -> str:
     """실측방 PUSH 본문을 sd 로 조립한다(PC erpGenerateConversionText 서버 미러)."""
 ```
 

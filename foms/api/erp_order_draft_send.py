@@ -328,7 +328,7 @@ def api_draft_channel_push_preview() -> tuple[Any, int]:
         return _envelope(None, "draft_not_found", 404)
 
     return _envelope({
-        "text": build_measure_push_text(_draft_structured(row), draft_notice=True),
+        "text": build_measure_push_text(_draft_structured(row)),
         "files_count": len(collect_draft_measure_files(row.payload)),
         "last": _last_entry(row, SEND_KIND_CHANNEL_MEASURE),
         "configured": channel_is_configured(),

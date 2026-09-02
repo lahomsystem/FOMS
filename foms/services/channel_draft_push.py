@@ -212,7 +212,7 @@ def push_measure_room_for_draft(
         return {"sent": False, "error": group_error, "files_count": 0,
                 "message_id": None, "group_id": None}
 
-    text = build_measure_push_text(sd, draft_notice=True)
+    text = build_measure_push_text(sd)
     lines = _manual_push_body_lines(text, (change_note or "").strip() or None)
     dto_files = _draft_dto_files(files)
 

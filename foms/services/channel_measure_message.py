@@ -48,11 +48,7 @@ from foms.services.erp_display import (
     erp_shipping_price_from_structured,
 )
 
-__all__ = ["build_measure_push_text", "DRAFT_NOTICE_LINE"]
-
-#: 초안(주문 등록 전) 발송 머리말. 주문이 없어 "주문 상세 보기" 링크를 붙일 수 없으므로
-#: 수신자가 상태를 오해하지 않도록 이 한 줄을 대신 붙인다(설계 D5).
-DRAFT_NOTICE_LINE = "※ 등록 전 초안 실측 공유"
+__all__ = ["build_measure_push_text"]
 
 _DEFAULT_ORDERER = "라홈"
 _NO_CONSTRUCTION_DATE = "상담"
@@ -445,13 +441,15 @@ def _free_input_text(sd: dict) -> str:
 # ---------------------------------------------------------------------------
 
 
-def build_measure_push_text(sd: dict, *, draft_notice: bool = False) -> str:
+def build_measure_push_text(sd: dict) -> str:
     """실측방 채널톡 PUSH 본문을 sd 로 조립한다(PC ``erpGenerateConversionText`` 서버 미러).
+
+    초안(주문 등록 전) 발송도 **본문이 PC 와 완전히 같아야 한다**(사용자 결정 2026-09-02).
+    초안임을 알리는 머리말은 붙이지 않는다 — 실측방이 받는 글의 모양이 어디서 보냈느냐에
+    따라 달라지면 읽는 쪽이 두 벌을 익혀야 한다.
 
     Args:
         sd: 주문 structured_data(초안이면 ``_draft_payload_to_structured`` 결과).
-        draft_notice: 참이면 맨 앞에 :data:`DRAFT_NOTICE_LINE` 머리말과 빈 줄을 붙인다
-            (주문 등록 전 초안 발송 — 설계 D5).
 
     Returns:
         전송 본문. 빈 sd 라도 기본값 두 줄(``발주사 : 라홈``·``시공일 : 상담``)은 남는다 —
@@ -462,5 +460,4 @@ def build_measure_push_text(sd: dict, *, draft_notice: bool = False) -> str:
     text = _header_block(data)
     text = _items_block(text, data)
     text = _footer_block(text, data)
-    text = _TRAILING_NEWLINES_RE.sub("", text)
-    return f"{DRAFT_NOTICE_LINE}\n\n{text}" if draft_notice else text
+    return _TRAILING_NEWLINES_RE.sub("", text)
