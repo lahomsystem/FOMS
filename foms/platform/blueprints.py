@@ -78,6 +78,7 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
         erp_orders_confirm_bp,
         erp_orders_cs_bp,
         settlement_api_bp,
+        settlement_channel_api_bp,
     )
     from foms.api.personal_board import personal_board_bp
     from foms.web.admin import storage_dashboard_bp
@@ -183,6 +184,9 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
     # 재배열하지 않고 **뒤에만** 덧붙인다(경로가 고유해 shadowing 없음).
     app.register_blueprint(erp_settlement_page_bp)
     app.register_blueprint(settlement_api_bp)
+    # SETTLE-CHANNEL-01: 채널(네이버) 정산 탭 API. 위와 경로가 겹치지 않는다
+    # (/api/settlement/channel* 은 aggregates·rows 와 다른 prefix).
+    app.register_blueprint(settlement_channel_api_bp)
     # OPS-ROUTE-01: debug_bp 미등록 → deployed 앱에 /debug-db 라우트 0.
 
     # --- Lane: Infra liveness (Railway healthcheck / keep-warm 프로브) ---

@@ -51,6 +51,7 @@ __all__ = [
     "run_notification_escalation_task",
     "run_naver_order_sync_task",
     "run_naver_backfill_task",
+    "run_naver_settle_sync_task",
 ]
 
 
@@ -593,4 +594,54 @@ def run_naver_order_sync_task(dry_run: bool = False) -> dict:
             db_session.remove()
     except Exception as e:
         logger.error(f"[RQ] run_naver_order_sync_task error: {e}", exc_info=True)
+        raise
+
+
+def run_naver_settle_sync_task(actor_user_id=None, backfill_from=None,
+                               dry_run: bool = False) -> dict:
+    """네이버 정산 동기화 1회 실행 (SETTLE-CHANNEL-01 §4, WORKER 전용).
+
+    화면의 "지금 동기화" 버튼과 새벽 러너(``scripts/maintenance/run_naver_settle_sync.py``)가
+    같은 job 을 쓴다. **web 프로세스에서 직접 호출하면 안 된다** — 커머스API센터에 등록된
+    호출 IP 는 WORKER 것뿐이라 web 에서 나가면 차단된다.
+
+    정산 경로는 **알림을 만들지 않는다**(수집 스윕과 다른 점). 그래서 웹푸시 enqueue 배선도
+    없다 — 걸 알림이 없다.
+
+    실패는 :func:`run_settle_sync` 안에서 이력 행(``FAILED``)과 상태에 기록되고 반환 dict 의
+    ``ok=False`` 로 온다. 여기서 예외를 다시 올리지 않는 이유는 RQ 재시도가 같은 구간을
+    다시 훑어 봐야 쿼터만 태우기 때문이다(다음 스케줄이 어차피 같은 구간을 다시 본다).
+
+    Args:
+        actor_user_id: 화면에서 누른 사람(기록용).
+        backfill_from: 소급 적재 시작일(``YYYY-MM-DD``) 또는 None.
+        dry_run: True 면 조회까지만 하고 DB 에 아무것도 쓰지 않는다.
+
+    Returns:
+        :func:`~foms.services.integrations.naver_commerce.settle_sync.run_settle_sync` 결과 dict.
+    """
+    try:
+        from datetime import date as _date
+
+        from db import db_session
+        from foms.services.datetime_kst import get_today_kst
+        from foms.services.integrations.naver_commerce.client import NaverCommerceClient
+        from foms.services.integrations.naver_commerce.settle_sync import run_settle_sync
+
+        since = _date.fromisoformat(str(backfill_from)) if backfill_from else None
+        db = db_session()
+        try:
+            # run_settle_sync 가 창마다 커밋한다(중간에 멈춰도 받은 파티션은 남는다).
+            return run_settle_sync(
+                db, NaverCommerceClient(), today=get_today_kst(),
+                trigger="BACKFILL" if since else "MANUAL",
+                actor_user_id=actor_user_id, backfill_from=since, dry_run=bool(dry_run))
+        except Exception:
+            db.rollback()
+            raise
+        finally:
+            db.close()
+            db_session.remove()
+    except Exception as e:
+        logger.error(f"[RQ] run_naver_settle_sync_task error: {e}", exc_info=True)
         raise

@@ -1,0 +1,101 @@
+{# 채널(네이버) 정산 탭 body (NAVER-SETTLE-01 §6).
+
+   정산 대시보드 셸(`settlement_dashboard_body.html`)의 4번째 pane 안쪽만 채운다 —
+   pane 자체와 `role`/`aria-*`/`hidden` 배선은 셸 소유라 여기서 건드리지 않는다.
+   셸은 이 include 를 `{% if can_view_channel_settlement %}` 로 감싼다(ADMIN·회계팀 전용,
+   판정 SSOT 는 `foms/services/settlement_channel_access.py`). 서버에서 마크업째 빼는
+   이유는 이 저장소의 클라 숨김 금지 원칙이다 — 감추기만 하면 개발자 도구로 그대로 보인다.
+
+   **이 파일은 빈 컨테이너 + 상태 노드만 낸다.** 값은 전부 `data-settlement-ch-api` 의
+   조회 API 를 fetch 로 읽어 채운다(초기 페이로드를 마크업에 심는 방식은 금지).
+   앵커가 서버 렌더 시점부터 있어야 fetch 가 실패해도 "빈 카드"가 아니라 "무엇이 비었는지"가
+   보인다 — 요약·실무 탭과 같은 규율이다.
+
+   **이름 접두어(§0)**: 상태/훅 속성 `data-settlement-ch-*`, CSS 클래스 `.s-ch-*`, id
+   `foms-settle-ch-*`. 세 탭이 **한 루트(`#foms-settlement-root`) 안**에 살고 요약 탭 JS 의
+   `collectEls()` 가 루트 전체를 `querySelector` 로 훑기 때문에, 접두어가 겹치면 서로의
+   노드를 잡는다(특히 상태 노드 — 숨은 pane 안에서 로딩/실패가 켜져 아무것도 안 보인다).
+
+   **"예정" 이라는 낱말에 대하여**: 여기 쓰인 "정산 예정일" 은 네이버 정산 API 의
+   `settleExpectDate` 축을 가리키는 도메인 용어다. 요약/실무 탭이 금지하는 목업 잔재
+   "예정"(근거 데이터 없는 미구현 배지)과는 다른 것이라, 채널 표면만 별도 계약으로 본다
+   (`tests/domains/test_settlement_channel_render.py`). #}
+<section class="s-ch" id="foms-settle-channel-root"
+  data-settlement-ch-root
+  data-settlement-ch-api="/api/settlement/channel"
+  data-settlement-ch-sync-api="/api/settlement/channel/sync"
+  data-settlement-ch-channel="NAVER">
+
+  {# ── S0 · 동기화 헤더 ────────────────────────────────────────────────────────
+     네이버 API 는 워커 프로세스에서만 부를 수 있다. 이 줄은 "언제 받아온 값인가"와
+     [지금 동기화](enqueue)만 담당한다 — 버튼이 곧바로 수집하지 않는다는 사실은 JS 가
+     결과 문구로 말한다. #}
+  <div class="s-ch-sync" id="foms-settle-ch-sync">
+    <div class="s-ch-sync-state" data-settlement-ch-sync-state></div>
+    <button type="button" class="s-ch-btn" data-settlement-ch-sync-btn>지금 동기화</button>
+  </div>
+
+  {# ── 기간·기준일 바 ──────────────────────────────────────────────────────────
+     요약/분석 탭의 `.s-filterbar` 는 이 탭에서 CSS 로 감춘다(기간 축이 다르다).
+     여기 셀렉트가 그대로 조회 API 파라미터(basis/from/to/granularity)가 된다. #}
+  <div class="s-ch-bar" id="foms-settle-ch-bar">
+    <label class="s-ch-field">
+      <span class="s-ch-field-name">기준일</span>
+      <select class="s-ch-select" data-settlement-ch-basis aria-label="정산 기준일 축">
+        <option value="expect" selected>정산 예정일</option>
+        <option value="complete">정산 완료일</option>
+        <option value="basis">정산 기준일</option>
+        <option value="pay">결제일</option>
+      </select>
+    </label>
+    <label class="s-ch-field">
+      <span class="s-ch-field-name">시작</span>
+      <input type="date" class="s-ch-input" data-settlement-ch-from aria-label="조회 시작일">
+    </label>
+    <label class="s-ch-field">
+      <span class="s-ch-field-name">종료</span>
+      <input type="date" class="s-ch-input" data-settlement-ch-to aria-label="조회 종료일">
+    </label>
+    <label class="s-ch-field">
+      <span class="s-ch-field-name">단위</span>
+      <select class="s-ch-select" data-settlement-ch-granularity aria-label="집계 단위">
+        <option value="day" selected>일</option>
+        <option value="week">주</option>
+        <option value="month">월</option>
+      </select>
+    </label>
+    {# 상시 라벨(자동 닫힘 없는 일반 텍스트다 — `.alert` 를 쓰면 5초 뒤 사라진다).
+       이 화면의 축이 정산 예정일이라는 사실을 늘 말한다: 요약/분석 탭의 매출 인식
+       기준(완료일)과 **다른 축**이라 두 화면의 합계는 원래 일치하지 않는다. #}
+    <p class="s-ch-axisnote" data-settlement-ch-axis-note>정산 예정일 기준 · 매출 인식(완료일)과 다릅니다</p>
+  </div>
+
+  {# ── 상태 3종 ────────────────────────────────────────────────────────────────
+     로딩·실패·빈 상태는 **서로 다른 노드**다. 하나로 합치면 "느린 것"과 "죽은 것"과
+     "0건인 것"이 같은 화면이 되어 사용자가 원인을 못 가른다. 셋 다 서버 렌더 시점엔
+     닫혀 있고(`hidden`) JS 만 연다. #}
+  <div class="s-ch-state s-ch-state--loading" data-settlement-ch-loading hidden>정산 자료를 불러오는 중입니다…</div>
+  <div class="s-ch-state s-ch-state--error" data-settlement-ch-error hidden>
+    <span class="s-ch-state-msg" data-settlement-ch-error-detail>정산 자료를 불러오지 못했습니다.</span>
+  </div>
+  <div class="s-ch-state s-ch-state--empty" data-settlement-ch-empty hidden>이 기간에 해당하는 정산 자료가 없습니다.</div>
+
+  {# ── 본문 앵커들 (전부 빈 컨테이너 — JS 가 채운다) ────────────────────────── #}
+  <div class="s-ch-kpi" id="foms-settle-ch-kpi"></div>
+  <div class="s-ch-card s-ch-daily" id="foms-settle-ch-daily"></div>
+  <div class="s-ch-card s-ch-waterfall" id="foms-settle-ch-waterfall"></div>
+  <div class="s-ch-card s-ch-deposit" id="foms-settle-ch-deposit"></div>
+  <div class="s-ch-card s-ch-reconcile" id="foms-settle-ch-reconcile"></div>
+
+  {# ── 원장 스위처 ─────────────────────────────────────────────────────────────
+     한 화면 안에서 원장 4종을 갈아 끼운다(새 URL 을 만들지 않는다). 선택 상태는
+     `aria-pressed` 로 말한다 — 색만으로 말하면 스크린리더·고대비 모드에서 사라진다. #}
+  <div class="s-ch-ledger-switch" id="foms-settle-ch-ledger-switch" role="group" aria-label="정산 원장 선택">
+    <button type="button" class="s-ch-swbtn" data-settlement-ch-ledger="case" aria-pressed="true">건별 정산</button>
+    <button type="button" class="s-ch-swbtn" data-settlement-ch-ledger="commission" aria-pressed="false">수수료</button>
+    <button type="button" class="s-ch-swbtn" data-settlement-ch-ledger="vat" aria-pressed="false">부가세</button>
+    <button type="button" class="s-ch-swbtn" data-settlement-ch-ledger="exceptions" aria-pressed="false">예외</button>
+  </div>
+  <div class="s-ch-ledger" id="foms-settle-ch-ledger"></div>
+
+</section>

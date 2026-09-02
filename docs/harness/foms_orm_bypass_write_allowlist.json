@@ -113,6 +113,12 @@
       "func": "_upsert_step",
       "signal": "UNTRACKED_TABLE",
       "reason": "system_build_steps only (build-step bookkeeping)."
+    },
+    {
+      "path": "foms/services/integrations/naver_commerce/settle_sync.py",
+      "func": "replace_partition",
+      "signal": "UNTRACKED_TABLE",
+      "reason": "naver_settle_daily/case/commission, naver_vat_daily/case only (NAVER-SETTLE-01 partition replace) — VERSIONED_TABLES 밖이고 읽기 API(/api/settlement/channel)는 캐시가 없다."
     }
   ]
 }

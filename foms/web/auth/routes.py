@@ -63,7 +63,10 @@ TEAMS = {
     'DRAWING': '도면팀',
     'PRODUCTION': '생산팀',
     'CONSTRUCTION': '시공팀',
-    'SHIPMENT': '출고팀'
+    'SHIPMENT': '출고팀',
+    # 2026-09-02 신설(NAVER-SETTLE-01). 채널(네이버) 정산 탭 열람 대상 팀 —
+    # 정본 판정은 foms/services/settlement_channel_access.py 의 게이트 함수다.
+    'ACCOUNTING': '회계팀'
 }
 
 def log_access(action_message, user_id=None, additional_data=None, auto_commit=True,

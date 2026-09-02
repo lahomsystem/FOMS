@@ -317,7 +317,10 @@ def test_settlement_policy_fields_match_finance():
     settle = POLICY_REGISTRY[SETTLEMENT_POLICY_ID]
     finance = POLICY_REGISTRY[FINANCE_POLICY_ID]
 
-    assert tuple(settle.teams) == tuple(finance.teams) == ("CS", "SALES")
+    # 2026-09-02(NAVER-SETTLE-01): 회계팀(ACCOUNTING) 신설 — 회계팀 STAFF 도 정산 대시보드
+    # 페이지·수금 확인을 써야 네이버 정산 탭에 닿는다. **의도된 확장**이고, 두 정책이
+    # 계속 같은 집합이라는 계약(이 파일의 존재 이유)은 그대로다.
+    assert tuple(settle.teams) == tuple(finance.teams) == ("CS", "SALES", "ACCOUNTING")
     assert settle.viewer is finance.viewer is False, "VIEWER 하드 deny"
     assert settle.manager_ok is finance.manager_ok is True
     assert settle.anonymous is finance.anonymous is False

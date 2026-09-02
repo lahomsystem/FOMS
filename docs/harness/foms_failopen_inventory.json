@@ -5,14 +5,14 @@
   "overlap_api_error_01": "API-ERROR-01 owns response/stdout exposure (print_exc/str(e) -> log_handled_exception). This packet owns swallow classification. Sites that log via log_handled_exception are LOG_AND_CONTINUE here.",
   "marker_convention": "Silent-by-design catches carry an inline `# failopen: intentional: <reason>` (or `fail-closed`) marker; the scanner reads it as the justification. No bare allowlist, no lint-disable.",
   "baselines": {
-    "broad_total": 580,
+    "broad_total": 586,
     "unclassified": 0,
     "swallow_by_control_flow": 180
   },
   "disposition_counts": {
-    "FAIL_CLOSED": 33,
+    "FAIL_CLOSED": 35,
     "INTENTIONAL": 17,
-    "LOG_AND_CONTINUE": 350,
+    "LOG_AND_CONTINUE": 354,
     "SWALLOW_BY_CONTROL_FLOW": 180
   },
   "owner_counts": {
@@ -24,7 +24,7 @@
     "persistence": 3,
     "platform": 5,
     "runtime": 3,
-    "services": 161,
+    "services": 167,
     "storage": 21,
     "telemetry": 31,
     "web": 39
@@ -53,25 +53,27 @@
     "foms/services/channel_client.py:309",
     "foms/services/channel_dispatch.py:56",
     "foms/services/common/business_calendar.py:39",
-    "foms/services/integrations/naver_commerce/client.py:821",
-    "foms/services/integrations/naver_commerce/client.py:895",
+    "foms/services/integrations/naver_commerce/client.py:1147",
+    "foms/services/integrations/naver_commerce/client.py:1223",
     "foms/services/integrations/naver_commerce/fulfillment.py:831",
     "foms/services/integrations/naver_commerce/fulfillment.py:1098",
     "foms/services/integrations/naver_commerce/ingest.py:520",
-    "foms/services/jobs/tasks.py:86",
-    "foms/services/jobs/tasks.py:120",
-    "foms/services/jobs/tasks.py:174",
-    "foms/services/jobs/tasks.py:191",
-    "foms/services/jobs/tasks.py:222",
-    "foms/services/jobs/tasks.py:228",
-    "foms/services/jobs/tasks.py:454",
-    "foms/services/jobs/tasks.py:472",
-    "foms/services/jobs/tasks.py:507",
-    "foms/services/jobs/tasks.py:514",
-    "foms/services/jobs/tasks.py:549",
-    "foms/services/jobs/tasks.py:555",
-    "foms/services/jobs/tasks.py:588",
-    "foms/services/jobs/tasks.py:594",
+    "foms/services/jobs/tasks.py:87",
+    "foms/services/jobs/tasks.py:121",
+    "foms/services/jobs/tasks.py:175",
+    "foms/services/jobs/tasks.py:192",
+    "foms/services/jobs/tasks.py:223",
+    "foms/services/jobs/tasks.py:229",
+    "foms/services/jobs/tasks.py:455",
+    "foms/services/jobs/tasks.py:473",
+    "foms/services/jobs/tasks.py:508",
+    "foms/services/jobs/tasks.py:515",
+    "foms/services/jobs/tasks.py:550",
+    "foms/services/jobs/tasks.py:556",
+    "foms/services/jobs/tasks.py:589",
+    "foms/services/jobs/tasks.py:595",
+    "foms/services/jobs/tasks.py:639",
+    "foms/services/jobs/tasks.py:645",
     "foms/services/notifications/push_sender.py:377",
     "foms/web/orders/trash.py:147",
     "wdcalculator_db.py:179"
@@ -3590,7 +3592,7 @@
     },
     {
       "path": "foms/services/integrations/naver_commerce/client.py",
-      "lineno": 150,
+      "lineno": 169,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3599,7 +3601,7 @@
     },
     {
       "path": "foms/services/integrations/naver_commerce/client.py",
-      "lineno": 161,
+      "lineno": 180,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3608,7 +3610,7 @@
     },
     {
       "path": "foms/services/integrations/naver_commerce/client.py",
-      "lineno": 174,
+      "lineno": 193,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3617,7 +3619,7 @@
     },
     {
       "path": "foms/services/integrations/naver_commerce/client.py",
-      "lineno": 821,
+      "lineno": 1147,
       "handler_type": "broad_exception",
       "disposition": "FAIL_CLOSED",
       "owner": "services",
@@ -3626,7 +3628,7 @@
     },
     {
       "path": "foms/services/integrations/naver_commerce/client.py",
-      "lineno": 869,
+      "lineno": 1197,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3635,7 +3637,7 @@
     },
     {
       "path": "foms/services/integrations/naver_commerce/client.py",
-      "lineno": 895,
+      "lineno": 1223,
       "handler_type": "broad_exception",
       "disposition": "FAIL_CLOSED",
       "owner": "services",
@@ -3644,7 +3646,7 @@
     },
     {
       "path": "foms/services/integrations/naver_commerce/client.py",
-      "lineno": 906,
+      "lineno": 1234,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3760,6 +3762,24 @@
       "justification": "logs via logger/log_handled_exception"
     },
     {
+      "path": "foms/services/integrations/naver_commerce/settle_sync.py",
+      "lineno": 799,
+      "handler_type": "broad_exception",
+      "disposition": "LOG_AND_CONTINUE",
+      "owner": "services",
+      "has_logging": true,
+      "justification": "logs via logger/log_handled_exception"
+    },
+    {
+      "path": "foms/services/integrations/naver_commerce/settle_sync.py",
+      "lineno": 846,
+      "handler_type": "broad_exception",
+      "disposition": "LOG_AND_CONTINUE",
+      "owner": "services",
+      "has_logging": true,
+      "justification": "logs via logger/log_handled_exception"
+    },
+    {
       "path": "foms/services/integrations/naver_commerce/triage_count.py",
       "lineno": 140,
       "handler_type": "broad_exception",
@@ -3770,7 +3790,7 @@
     },
     {
       "path": "foms/services/jobs/queue.py",
-      "lineno": 55,
+      "lineno": 56,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3779,7 +3799,7 @@
     },
     {
       "path": "foms/services/jobs/queue.py",
-      "lineno": 84,
+      "lineno": 85,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3788,7 +3808,7 @@
     },
     {
       "path": "foms/services/jobs/queue.py",
-      "lineno": 92,
+      "lineno": 93,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3797,7 +3817,7 @@
     },
     {
       "path": "foms/services/jobs/queue.py",
-      "lineno": 133,
+      "lineno": 134,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3806,7 +3826,7 @@
     },
     {
       "path": "foms/services/jobs/queue.py",
-      "lineno": 165,
+      "lineno": 166,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3815,7 +3835,7 @@
     },
     {
       "path": "foms/services/jobs/queue.py",
-      "lineno": 185,
+      "lineno": 186,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3824,7 +3844,7 @@
     },
     {
       "path": "foms/services/jobs/queue.py",
-      "lineno": 204,
+      "lineno": 205,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3833,7 +3853,7 @@
     },
     {
       "path": "foms/services/jobs/queue.py",
-      "lineno": 225,
+      "lineno": 226,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3842,7 +3862,7 @@
     },
     {
       "path": "foms/services/jobs/queue.py",
-      "lineno": 254,
+      "lineno": 255,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3851,7 +3871,7 @@
     },
     {
       "path": "foms/services/jobs/queue.py",
-      "lineno": 277,
+      "lineno": 278,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3860,7 +3880,7 @@
     },
     {
       "path": "foms/services/jobs/queue.py",
-      "lineno": 317,
+      "lineno": 318,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3869,7 +3889,7 @@
     },
     {
       "path": "foms/services/jobs/queue.py",
-      "lineno": 354,
+      "lineno": 355,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3878,7 +3898,7 @@
     },
     {
       "path": "foms/services/jobs/queue.py",
-      "lineno": 391,
+      "lineno": 392,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3887,7 +3907,7 @@
     },
     {
       "path": "foms/services/jobs/queue.py",
-      "lineno": 421,
+      "lineno": 422,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3896,7 +3916,7 @@
     },
     {
       "path": "foms/services/jobs/queue.py",
-      "lineno": 451,
+      "lineno": 452,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3905,7 +3925,7 @@
     },
     {
       "path": "foms/services/jobs/queue.py",
-      "lineno": 472,
+      "lineno": 473,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3913,143 +3933,26 @@
       "justification": "logs via logger/log_handled_exception"
     },
     {
-      "path": "foms/services/jobs/tasks.py",
-      "lineno": 86,
-      "handler_type": "broad_exception",
-      "disposition": "FAIL_CLOSED",
-      "owner": "services",
-      "has_logging": true,
-      "justification": "re-raises"
-    },
-    {
-      "path": "foms/services/jobs/tasks.py",
-      "lineno": 120,
-      "handler_type": "broad_exception",
-      "disposition": "FAIL_CLOSED",
-      "owner": "services",
-      "has_logging": true,
-      "justification": "re-raises"
-    },
-    {
-      "path": "foms/services/jobs/tasks.py",
-      "lineno": 154,
-      "handler_type": "broad_exception",
-      "disposition": "LOG_AND_CONTINUE",
-      "owner": "services",
-      "has_logging": true,
-      "justification": "logs via logger/log_handled_exception"
-    },
-    {
-      "path": "foms/services/jobs/tasks.py",
-      "lineno": 174,
-      "handler_type": "broad_exception",
-      "disposition": "FAIL_CLOSED",
-      "owner": "services",
-      "has_logging": true,
-      "justification": "re-raises"
-    },
-    {
-      "path": "foms/services/jobs/tasks.py",
-      "lineno": 191,
-      "handler_type": "broad_exception",
-      "disposition": "FAIL_CLOSED",
-      "owner": "services",
-      "has_logging": true,
-      "justification": "re-raises"
-    },
-    {
-      "path": "foms/services/jobs/tasks.py",
-      "lineno": 222,
-      "handler_type": "broad_exception",
-      "disposition": "FAIL_CLOSED",
-      "owner": "services",
-      "has_logging": false,
-      "justification": "re-raises"
-    },
-    {
-      "path": "foms/services/jobs/tasks.py",
-      "lineno": 228,
-      "handler_type": "broad_exception",
-      "disposition": "FAIL_CLOSED",
-      "owner": "services",
-      "has_logging": true,
-      "justification": "re-raises"
-    },
-    {
-      "path": "foms/services/jobs/tasks.py",
-      "lineno": 259,
-      "handler_type": "broad_exception",
-      "disposition": "LOG_AND_CONTINUE",
-      "owner": "services",
-      "has_logging": true,
-      "justification": "logs via logger/log_handled_exception"
-    },
-    {
-      "path": "foms/services/jobs/tasks.py",
-      "lineno": 304,
-      "handler_type": "broad_exception",
-      "disposition": "LOG_AND_CONTINUE",
-      "owner": "services",
-      "has_logging": true,
-      "justification": "logs via logger/log_handled_exception"
-    },
-    {
-      "path": "foms/services/jobs/tasks.py",
-      "lineno": 313,
-      "handler_type": "broad_exception",
-      "disposition": "LOG_AND_CONTINUE",
-      "owner": "services",
-      "has_logging": true,
-      "justification": "logs via logger/log_handled_exception"
-    },
-    {
-      "path": "foms/services/jobs/tasks.py",
-      "lineno": 363,
-      "handler_type": "broad_exception",
-      "disposition": "LOG_AND_CONTINUE",
-      "owner": "services",
-      "has_logging": true,
-      "justification": "logs via logger/log_handled_exception"
-    },
-    {
-      "path": "foms/services/jobs/tasks.py",
-      "lineno": 454,
-      "handler_type": "broad_exception",
-      "disposition": "FAIL_CLOSED",
-      "owner": "services",
-      "has_logging": true,
-      "justification": "re-raises"
-    },
-    {
-      "path": "foms/services/jobs/tasks.py",
-      "lineno": 465,
-      "handler_type": "broad_exception",
-      "disposition": "LOG_AND_CONTINUE",
-      "owner": "services",
-      "has_logging": true,
-      "justification": "logs via logger/log_handled_exception"
-    },
-    {
-      "path": "foms/services/jobs/tasks.py",
-      "lineno": 472,
-      "handler_type": "broad_exception",
-      "disposition": "FAIL_CLOSED",
-      "owner": "services",
-      "has_logging": true,
-      "justification": "re-raises"
-    },
-    {
-      "path": "foms/services/jobs/tasks.py",
+      "path": "foms/services/jobs/queue.py",
       "lineno": 507,
       "handler_type": "broad_exception",
-      "disposition": "FAIL_CLOSED",
+      "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
-      "has_logging": false,
-      "justification": "re-raises"
+      "has_logging": true,
+      "justification": "logs via logger/log_handled_exception"
+    },
+    {
+      "path": "foms/services/jobs/queue.py",
+      "lineno": 547,
+      "handler_type": "broad_exception",
+      "disposition": "LOG_AND_CONTINUE",
+      "owner": "services",
+      "has_logging": true,
+      "justification": "logs via logger/log_handled_exception"
     },
     {
       "path": "foms/services/jobs/tasks.py",
-      "lineno": 514,
+      "lineno": 87,
       "handler_type": "broad_exception",
       "disposition": "FAIL_CLOSED",
       "owner": "services",
@@ -4058,16 +3961,7 @@
     },
     {
       "path": "foms/services/jobs/tasks.py",
-      "lineno": 549,
-      "handler_type": "broad_exception",
-      "disposition": "FAIL_CLOSED",
-      "owner": "services",
-      "has_logging": false,
-      "justification": "re-raises"
-    },
-    {
-      "path": "foms/services/jobs/tasks.py",
-      "lineno": 555,
+      "lineno": 121,
       "handler_type": "broad_exception",
       "disposition": "FAIL_CLOSED",
       "owner": "services",
@@ -4076,7 +3970,34 @@
     },
     {
       "path": "foms/services/jobs/tasks.py",
-      "lineno": 588,
+      "lineno": 155,
+      "handler_type": "broad_exception",
+      "disposition": "LOG_AND_CONTINUE",
+      "owner": "services",
+      "has_logging": true,
+      "justification": "logs via logger/log_handled_exception"
+    },
+    {
+      "path": "foms/services/jobs/tasks.py",
+      "lineno": 175,
+      "handler_type": "broad_exception",
+      "disposition": "FAIL_CLOSED",
+      "owner": "services",
+      "has_logging": true,
+      "justification": "re-raises"
+    },
+    {
+      "path": "foms/services/jobs/tasks.py",
+      "lineno": 192,
+      "handler_type": "broad_exception",
+      "disposition": "FAIL_CLOSED",
+      "owner": "services",
+      "has_logging": true,
+      "justification": "re-raises"
+    },
+    {
+      "path": "foms/services/jobs/tasks.py",
+      "lineno": 223,
       "handler_type": "broad_exception",
       "disposition": "FAIL_CLOSED",
       "owner": "services",
@@ -4085,7 +4006,142 @@
     },
     {
       "path": "foms/services/jobs/tasks.py",
-      "lineno": 594,
+      "lineno": 229,
+      "handler_type": "broad_exception",
+      "disposition": "FAIL_CLOSED",
+      "owner": "services",
+      "has_logging": true,
+      "justification": "re-raises"
+    },
+    {
+      "path": "foms/services/jobs/tasks.py",
+      "lineno": 260,
+      "handler_type": "broad_exception",
+      "disposition": "LOG_AND_CONTINUE",
+      "owner": "services",
+      "has_logging": true,
+      "justification": "logs via logger/log_handled_exception"
+    },
+    {
+      "path": "foms/services/jobs/tasks.py",
+      "lineno": 305,
+      "handler_type": "broad_exception",
+      "disposition": "LOG_AND_CONTINUE",
+      "owner": "services",
+      "has_logging": true,
+      "justification": "logs via logger/log_handled_exception"
+    },
+    {
+      "path": "foms/services/jobs/tasks.py",
+      "lineno": 314,
+      "handler_type": "broad_exception",
+      "disposition": "LOG_AND_CONTINUE",
+      "owner": "services",
+      "has_logging": true,
+      "justification": "logs via logger/log_handled_exception"
+    },
+    {
+      "path": "foms/services/jobs/tasks.py",
+      "lineno": 364,
+      "handler_type": "broad_exception",
+      "disposition": "LOG_AND_CONTINUE",
+      "owner": "services",
+      "has_logging": true,
+      "justification": "logs via logger/log_handled_exception"
+    },
+    {
+      "path": "foms/services/jobs/tasks.py",
+      "lineno": 455,
+      "handler_type": "broad_exception",
+      "disposition": "FAIL_CLOSED",
+      "owner": "services",
+      "has_logging": true,
+      "justification": "re-raises"
+    },
+    {
+      "path": "foms/services/jobs/tasks.py",
+      "lineno": 466,
+      "handler_type": "broad_exception",
+      "disposition": "LOG_AND_CONTINUE",
+      "owner": "services",
+      "has_logging": true,
+      "justification": "logs via logger/log_handled_exception"
+    },
+    {
+      "path": "foms/services/jobs/tasks.py",
+      "lineno": 473,
+      "handler_type": "broad_exception",
+      "disposition": "FAIL_CLOSED",
+      "owner": "services",
+      "has_logging": true,
+      "justification": "re-raises"
+    },
+    {
+      "path": "foms/services/jobs/tasks.py",
+      "lineno": 508,
+      "handler_type": "broad_exception",
+      "disposition": "FAIL_CLOSED",
+      "owner": "services",
+      "has_logging": false,
+      "justification": "re-raises"
+    },
+    {
+      "path": "foms/services/jobs/tasks.py",
+      "lineno": 515,
+      "handler_type": "broad_exception",
+      "disposition": "FAIL_CLOSED",
+      "owner": "services",
+      "has_logging": true,
+      "justification": "re-raises"
+    },
+    {
+      "path": "foms/services/jobs/tasks.py",
+      "lineno": 550,
+      "handler_type": "broad_exception",
+      "disposition": "FAIL_CLOSED",
+      "owner": "services",
+      "has_logging": false,
+      "justification": "re-raises"
+    },
+    {
+      "path": "foms/services/jobs/tasks.py",
+      "lineno": 556,
+      "handler_type": "broad_exception",
+      "disposition": "FAIL_CLOSED",
+      "owner": "services",
+      "has_logging": true,
+      "justification": "re-raises"
+    },
+    {
+      "path": "foms/services/jobs/tasks.py",
+      "lineno": 589,
+      "handler_type": "broad_exception",
+      "disposition": "FAIL_CLOSED",
+      "owner": "services",
+      "has_logging": false,
+      "justification": "re-raises"
+    },
+    {
+      "path": "foms/services/jobs/tasks.py",
+      "lineno": 595,
+      "handler_type": "broad_exception",
+      "disposition": "FAIL_CLOSED",
+      "owner": "services",
+      "has_logging": true,
+      "justification": "re-raises"
+    },
+    {
+      "path": "foms/services/jobs/tasks.py",
+      "lineno": 639,
+      "handler_type": "broad_exception",
+      "disposition": "FAIL_CLOSED",
+      "owner": "services",
+      "has_logging": false,
+      "justification": "re-raises"
+    },
+    {
+      "path": "foms/services/jobs/tasks.py",
+      "lineno": 645,
       "handler_type": "broad_exception",
       "disposition": "FAIL_CLOSED",
       "owner": "services",
@@ -4796,7 +4852,7 @@
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
-      "lineno": 4019,
+      "lineno": 4062,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
@@ -4805,7 +4861,7 @@
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
-      "lineno": 4031,
+      "lineno": 4074,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
@@ -4814,7 +4870,7 @@
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
-      "lineno": 4546,
+      "lineno": 4589,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
@@ -4823,7 +4879,7 @@
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
-      "lineno": 4739,
+      "lineno": 4782,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
@@ -4832,7 +4888,7 @@
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
-      "lineno": 5151,
+      "lineno": 5194,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
@@ -4841,7 +4897,7 @@
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
-      "lineno": 5244,
+      "lineno": 5287,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
@@ -4850,7 +4906,7 @@
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
-      "lineno": 5307,
+      "lineno": 5350,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
@@ -4859,7 +4915,7 @@
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
-      "lineno": 5479,
+      "lineno": 5522,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
@@ -4913,7 +4969,7 @@
     },
     {
       "path": "foms/web/auth/routes.py",
-      "lineno": 107,
+      "lineno": 110,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "auth",
@@ -4922,7 +4978,7 @@
     },
     {
       "path": "foms/web/auth/routes.py",
-      "lineno": 112,
+      "lineno": 115,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "auth",
@@ -4931,7 +4987,7 @@
     },
     {
       "path": "foms/web/auth/routes.py",
-      "lineno": 227,
+      "lineno": 230,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "auth",
@@ -4940,7 +4996,7 @@
     },
     {
       "path": "foms/web/auth/routes.py",
-      "lineno": 235,
+      "lineno": 238,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "auth",
@@ -4949,7 +5005,7 @@
     },
     {
       "path": "foms/web/auth/routes.py",
-      "lineno": 296,
+      "lineno": 299,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "auth",
@@ -4958,7 +5014,7 @@
     },
     {
       "path": "foms/web/auth/routes.py",
-      "lineno": 548,
+      "lineno": 551,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "auth",
@@ -4967,7 +5023,7 @@
     },
     {
       "path": "foms/web/auth/routes.py",
-      "lineno": 582,
+      "lineno": 585,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "auth",
@@ -4976,7 +5032,7 @@
     },
     {
       "path": "foms/web/auth/routes.py",
-      "lineno": 698,
+      "lineno": 701,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "auth",
@@ -4985,7 +5041,7 @@
     },
     {
       "path": "foms/web/auth/routes.py",
-      "lineno": 821,
+      "lineno": 824,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "auth",
@@ -4994,7 +5050,7 @@
     },
     {
       "path": "foms/web/auth/routes.py",
-      "lineno": 897,
+      "lineno": 900,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "auth",
@@ -5003,7 +5059,7 @@
     },
     {
       "path": "foms/web/auth/routes.py",
-      "lineno": 951,
+      "lineno": 954,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "auth",
@@ -5012,7 +5068,7 @@
     },
     {
       "path": "foms/web/auth/routes.py",
-      "lineno": 987,
+      "lineno": 990,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "auth",
@@ -5021,7 +5077,7 @@
     },
     {
       "path": "foms/web/auth/routes.py",
-      "lineno": 1036,
+      "lineno": 1039,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "auth",
@@ -5030,7 +5086,7 @@
     },
     {
       "path": "foms/web/auth/routes.py",
-      "lineno": 1093,
+      "lineno": 1096,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "auth",

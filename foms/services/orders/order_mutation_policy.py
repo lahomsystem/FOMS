@@ -111,12 +111,22 @@ POLICY_REGISTRY: dict[str, Policy] = {
                     description="ops approval review / admin menu — ADMIN 전용."),
 
     # --- 금융 (§2.1 line 153, P0-3) -----------------------------------------
-    "FINANCE_MUTATION": _p("FINANCE_MUTATION", teams=("CS", "SALES"),
-                           description="settlement/cash/payment-confirm — ADMIN/MANAGER 또는 STAFF+CS/SALES. VIEWER deny(P0-3)."),
+    "FINANCE_MUTATION": _p("FINANCE_MUTATION", teams=("CS", "SALES", "ACCOUNTING"),
+                           description="settlement/cash/payment-confirm — ADMIN/MANAGER 또는 STAFF+CS/SALES/ACCOUNTING. VIEWER deny(P0-3)."),
     # read-only 지만 전사 매출·미수 총액을 노출하므로 금융 집합과 같은 게이트를 쓴다
     # (SETTLE-DASH-01 §5). GET 은 before_request 가드를 안 타므로 집행은 핸들러 내부다.
-    "SETTLEMENT_DASHBOARD_READ": _p("SETTLEMENT_DASHBOARD_READ", teams=("CS", "SALES"),
+    # 2026-09-02(NAVER-SETTLE-01): 회계팀 STAFF 도 정산 대시보드 페이지·수금 확인을 써야
+    # 네이버 정산 탭에 닿는다 → 두 정책의 teams 를 함께 확장한다(집합 동일 계약 유지).
+    "SETTLEMENT_DASHBOARD_READ": _p("SETTLEMENT_DASHBOARD_READ", teams=("CS", "SALES", "ACCOUNTING"),
                                     description="정산 대시보드 열람(read-only) — FINANCE_MUTATION 과 동일 집합. VIEWER deny."),
+    # 채널(네이버) 정산 탭은 위 집합보다 **더 좁다**. MANAGER 는 엔진에서 팀보다 먼저
+    # 통과하므로 "ADMIN + 회계팀"을 manager_ok 로는 표현할 수 없다 — 정본 판정은
+    # settlement_channel_access.can_view_channel_settlement 이고 여기 등재는
+    # manifest·가드 pre-filter 전용이다.
+    "SETTLEMENT_CHANNEL_READ": _p("SETTLEMENT_CHANNEL_READ", teams=("ACCOUNTING",),
+                                  description="채널(네이버) 정산 탭·API 열람 — 정본 판정은 settlement_channel_access.can_view_channel_settlement (ADMIN, 또는 team=ACCOUNTING 인 MANAGER/STAFF). 엔진 등록은 manifest·가드 전용."),
+    "SETTLEMENT_CHANNEL_SYNC": _p("SETTLEMENT_CHANNEL_SYNC", teams=("ACCOUNTING",),
+                                  description="채널 정산 '지금 동기화' enqueue — READ 와 같은 판정, 핸들러가 게이트 함수로 재검사."),
 
     # --- 주문 form/estimate/일반 (CS/SALES team-wide) -----------------------
     "ERP_EDIT": _p("ERP_EDIT", teams=("CS", "SALES"),

@@ -24,10 +24,16 @@ import json
 import logging
 import os
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Any, Iterator, Optional, Protocol, Sequence
 
 import bcrypt
+
+from foms.services.integrations.naver_commerce.settle_enums import (
+    PERIOD_TYPES,
+    SETTLE_DECISION_TYPES,
+    SETTLE_TYPES,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +74,19 @@ RATE_LIMIT_BURST_HEADER = "GNCP-GW-RateLimit-Burst-Capacity"
 
 #: 남은 호출이 이 값 이하로 떨어지면 경고로 올린다(0 = 다음 호출이 429).
 RATE_LIMIT_WARN_REMAINING = 1
+
+#: 시간당 호출 할당(Quota) 응답 헤더. 자사 스토어 앱은 원칙적으로 Quota 미적용이지만,
+#: 토큰 발급 규격을 어기면 **벌칙성 제한**이 걸리면서 이 헤더와 429 ``GW.QUOTA_LIMIT`` 가
+#: 같이 온다(커머스API Discussions #3709/#3751 실증, 2026-09-02 조사).
+#: 정산 순회처럼 호출이 길게 이어지는 경로는 이 헤더가 보이면 그 자리에서 멈춰야 한다 —
+#: 벌칙 구간을 끝까지 태우면 다음 정상 주기까지 통째로 막힌다.
+QUOTA_LIMIT_HEADER = "gncp-gw-quota-limit"
+
+#: 정산 조회 페이지 크기 상한(문서 5종 공통: "페이지 크기(1000 이하)").
+SETTLE_MAX_PAGE_SIZE = 1000
+
+#: 건별 정산·수수료 상세 조회의 기본 기간 기준 — 정산 예정일.
+DEFAULT_SETTLE_PERIOD_TYPE = "SETTLE_CASEBYCASE_SETTLE_SCHEDULE_DATE"
 
 DEFAULT_TIMEOUT_SECONDS = 30
 DEFAULT_MAX_RETRIES = 3
@@ -239,11 +258,11 @@ def _format_ts(value: datetime) -> str:
     return aware.astimezone(KST).isoformat(timespec="milliseconds")
 
 
-def _header_int(response: Any, name: str) -> Optional[int]:
-    """응답 헤더 하나를 정수로 읽는다 — 없거나 숫자가 아니면 ``None``.
+def _header_text(response: Any, name: str) -> Optional[str]:
+    """응답 헤더 하나를 문자열로 읽는다 — 없으면 ``None``.
 
     대소문자를 가리지 않는다. ``requests`` 의 헤더는 대소문자 무시 매핑이지만 주입 전송
-    (테스트·다른 구현)은 보통 그냥 dict 라, 정확한 철자에만 걸리면 이 로그가 조용히
+    (테스트·다른 구현)은 보통 그냥 dict 라, 정확한 철자에만 걸리면 이 조회가 조용히
     빈 값이 된다.
 
     Args:
@@ -251,7 +270,7 @@ def _header_int(response: Any, name: str) -> Optional[int]:
         name: 헤더 이름.
 
     Returns:
-        정수 값 또는 ``None``.
+        헤더 값 문자열(앞뒤 공백 제거) 또는 ``None``.
     """
     headers = getattr(response, "headers", None)
     if not headers:
@@ -270,8 +289,24 @@ def _header_int(response: Any, name: str) -> Optional[int]:
                     break
     if value is None:
         return None
+    return str(value).strip()
+
+
+def _header_int(response: Any, name: str) -> Optional[int]:
+    """응답 헤더 하나를 정수로 읽는다 — 없거나 숫자가 아니면 ``None``.
+
+    Args:
+        response: 전송 계층 응답 객체.
+        name: 헤더 이름.
+
+    Returns:
+        정수 값 또는 ``None``.
+    """
+    value = _header_text(response, name)
+    if value is None:
+        return None
     try:
-        return int(str(value).strip())
+        return int(value)
     except (TypeError, ValueError):
         return None
 
@@ -318,6 +353,10 @@ class NaverCommerceClient:
         self._timeout = timeout
         self._max_retries = max_retries
         self._sleep = sleep
+        #: 마지막 응답의 시간당 할당 헤더(``gncp-gw-quota-limit``). **관측 전용**이다 —
+        #: 값이 있으면 벌칙성 제한이 걸린 것이라 순회 호출자(정산 동기화)가 그 자리에서
+        #: 멈추고 워터마크를 전진시키지 않는다. 헤더가 없는 응답이면 ``None`` 으로 돌아간다.
+        self.last_quota_limit_header: Optional[str] = None
 
     # -- 토큰 ------------------------------------------------------------- #
 
@@ -773,6 +812,293 @@ class NaverCommerceClient:
             retry=False,
         )
 
+    # -- 정산(pay-settle) --------------------------------------------------- #
+    #
+    # 정산 5종은 **읽기 전용 GET** 이고 :meth:`_request` 를 그대로 쓴다. 새 토큰 경로를
+    # 만들지 않는 이유: 토큰 발급 규격을 어긴 앱은 발급이 시간당 1회로 묶이고 그 벌칙이
+    # 정산 API 429 로 번진다(커머스API Discussions #3751/#3709). 이미 규격을 지키는 이
+    # 클라이언트에 얹는 것이 곧 대응책이다.
+    #
+    # 페이지 순회는 호출자(정산 동기화) 몫이다 — 한 쪽만 돌려주고 ``pagination`` 을 원본
+    # 그대로 넘긴다. 응답 금액도 손대지 않는다(재계산 금지).
+
+    def get_settle_daily(self, start_date: date, end_date: date, *, page: int = 1,
+                         page_size: int = SETTLE_MAX_PAGE_SIZE) -> dict:
+        """일별 정산 내역 한 쪽을 조회한다(``GET /v1/pay-settle/settle/daily``).
+
+        네 파라미터(startDate·endDate·pageNumber·pageSize)가 모두 필수인 엔드포인트다.
+
+        Args:
+            start_date: 조회 시작일.
+            end_date: 조회 종료일.
+            page: 페이지 번호(1부터).
+            page_size: 페이지 크기(1~1000).
+
+        Returns:
+            ``{"elements": [...], "pagination": {...}}`` 파싱 결과 원본.
+
+        Raises:
+            ValueError: 날짜 타입·페이지 범위가 규격을 벗어날 때.
+        """
+        params: dict[str, Any] = {
+            "startDate": self._settle_date(start_date, "start_date"),
+            "endDate": self._settle_date(end_date, "end_date"),
+        }
+        params.update(self._settle_page_params(page, page_size))
+        return self._request("GET", "/v1/pay-settle/settle/daily", params=params)
+
+    def get_settle_cases(self, search_date: date, *,
+                         period_type: str = DEFAULT_SETTLE_PERIOD_TYPE,
+                         settle_type: Optional[str] = None,
+                         settle_decision_type: Optional[str] = None,
+                         order_id: Optional[str] = None,
+                         product_order_id: Optional[str] = None,
+                         page: int = 1,
+                         page_size: int = SETTLE_MAX_PAGE_SIZE) -> dict:
+        """건별 정산 내역 한 쪽을 조회한다(``GET /v1/pay-settle/settle/case``).
+
+        **기간 조회를 지원하지 않는다** — 하루(``searchDate``)씩 호출한다(Discussion #3709).
+        ``settle_decision_type`` 은 ``period_type`` 이 결제일 기준일 때만 뜻이 있다.
+
+        Args:
+            search_date: 조회일(하루).
+            period_type: 기간 기준 enum. ``None`` 이면 파라미터를 보내지 않는다.
+            settle_type: 정산 구분 필터(선택).
+            settle_decision_type: 결제일 구분 필터(선택).
+            order_id: 주문 번호 필터(선택).
+            product_order_id: 상품 주문 번호 필터(선택).
+            page: 페이지 번호(1부터).
+            page_size: 페이지 크기(1~1000).
+
+        Returns:
+            ``{"elements": [...], "pagination": {...}}`` 파싱 결과 원본.
+
+        Raises:
+            ValueError: 날짜 타입·페이지 범위·enum 값이 규격을 벗어날 때.
+        """
+        params = self._settle_case_params(
+            search_date, period_type=period_type, settle_type=settle_type,
+            settle_decision_type=settle_decision_type, order_id=order_id,
+            product_order_id=product_order_id, page=page, page_size=page_size,
+        )
+        return self._request("GET", "/v1/pay-settle/settle/case", params=params)
+
+    def get_settle_commission_details(self, search_date: date, *,
+                                      period_type: str = DEFAULT_SETTLE_PERIOD_TYPE,
+                                      settle_type: Optional[str] = None,
+                                      settle_decision_type: Optional[str] = None,
+                                      order_id: Optional[str] = None,
+                                      product_order_id: Optional[str] = None,
+                                      page: int = 1,
+                                      page_size: int = SETTLE_MAX_PAGE_SIZE) -> dict:
+        """수수료 상세 내역 한 쪽을 조회한다(``GET /v1/pay-settle/settle/commission-details``).
+
+        파라미터는 건별 정산과 같다. 같은 상품 주문이 ``commissionType`` 별로 여러 줄로
+        쪼개져 오므로 분개 키는 ``(productOrderId, commissionType)`` 조합이다.
+
+        Args:
+            search_date: 조회일(하루).
+            period_type: 기간 기준 enum. ``None`` 이면 파라미터를 보내지 않는다.
+            settle_type: 정산 구분 필터(선택).
+            settle_decision_type: 결제일 구분 필터(선택).
+            order_id: 주문 번호 필터(선택).
+            product_order_id: 상품 주문 번호 필터(선택).
+            page: 페이지 번호(1부터).
+            page_size: 페이지 크기(1~1000).
+
+        Returns:
+            ``{"elements": [...], "pagination": {...}}`` 파싱 결과 원본.
+
+        Raises:
+            ValueError: 날짜 타입·페이지 범위·enum 값이 규격을 벗어날 때.
+        """
+        params = self._settle_case_params(
+            search_date, period_type=period_type, settle_type=settle_type,
+            settle_decision_type=settle_decision_type, order_id=order_id,
+            product_order_id=product_order_id, page=page, page_size=page_size,
+        )
+        return self._request("GET", "/v1/pay-settle/settle/commission-details", params=params)
+
+    def get_vat_daily(self, start_date: date, end_date: date, *, page: int = 1,
+                      page_size: int = SETTLE_MAX_PAGE_SIZE) -> dict:
+        """일별 부가세 내역 한 쪽을 조회한다(``GET /v1/pay-settle/vat/daily``).
+
+        **전월 말일까지만 조회된다** — 당월 구간을 넣으면 400 이다. 구간 판단은 호출자
+        (정산 동기화)가 하고 여기서는 받은 구간을 그대로 보낸다.
+
+        Args:
+            start_date: 조회 시작일.
+            end_date: 조회 종료일.
+            page: 페이지 번호(1부터).
+            page_size: 페이지 크기(1~1000).
+
+        Returns:
+            ``{"elements": [...], "pagination": {...}}`` 파싱 결과 원본.
+
+        Raises:
+            ValueError: 날짜 타입·페이지 범위가 규격을 벗어날 때.
+        """
+        params: dict[str, Any] = {
+            "startDate": self._settle_date(start_date, "start_date"),
+            "endDate": self._settle_date(end_date, "end_date"),
+        }
+        params.update(self._settle_page_params(page, page_size))
+        return self._request("GET", "/v1/pay-settle/vat/daily", params=params)
+
+    def get_vat_cases(self, start_date: date, end_date: date, *, page: int = 1,
+                      page_size: int = SETTLE_MAX_PAGE_SIZE) -> dict:
+        """건별 부가세 내역 한 쪽을 조회한다(``GET /v1/pay-settle/vat/case``).
+
+        일별 부가세와 같은 기간 제약(전월 말일까지)을 받는다.
+
+        Args:
+            start_date: 조회 시작일.
+            end_date: 조회 종료일.
+            page: 페이지 번호(1부터).
+            page_size: 페이지 크기(1~1000).
+
+        Returns:
+            ``{"elements": [...], "pagination": {...}}`` 파싱 결과 원본.
+
+        Raises:
+            ValueError: 날짜 타입·페이지 범위가 규격을 벗어날 때.
+        """
+        params: dict[str, Any] = {
+            "startDate": self._settle_date(start_date, "start_date"),
+            "endDate": self._settle_date(end_date, "end_date"),
+        }
+        params.update(self._settle_page_params(page, page_size))
+        return self._request("GET", "/v1/pay-settle/vat/case", params=params)
+
+    def _settle_case_params(self, search_date: date, *, period_type: Optional[str],
+                            settle_type: Optional[str], settle_decision_type: Optional[str],
+                            order_id: Optional[str], product_order_id: Optional[str],
+                            page: int, page_size: int) -> dict:
+        """건별 정산·수수료 상세 공용 파라미터를 만든다 — ``None`` 은 **보내지 않는다**.
+
+        빈 필터를 실어 보내면 400 이 나므로 값이 없는 파라미터는 키째로 뺀다.
+
+        Args:
+            search_date: 조회일.
+            period_type: 기간 기준 enum(``None`` 이면 생략).
+            settle_type: 정산 구분 enum(``None`` 이면 생략).
+            settle_decision_type: 결제일 구분 enum(``None`` 이면 생략).
+            order_id: 주문 번호(``None``·공백이면 생략).
+            product_order_id: 상품 주문 번호(``None``·공백이면 생략).
+            page: 페이지 번호.
+            page_size: 페이지 크기.
+
+        Returns:
+            쿼리 파라미터 dict.
+        """
+        optional = {
+            "periodType": self._settle_enum(period_type, PERIOD_TYPES, "period_type"),
+            "settleType": self._settle_enum(settle_type, SETTLE_TYPES, "settle_type"),
+            "settleDecisionType": self._settle_enum(
+                settle_decision_type, SETTLE_DECISION_TYPES, "settle_decision_type"),
+            "orderId": self._settle_text(order_id),
+            "productOrderId": self._settle_text(product_order_id),
+        }
+        params: dict[str, Any] = {"searchDate": self._settle_date(search_date, "search_date")}
+        params.update({key: value for key, value in optional.items() if value is not None})
+        params.update(self._settle_page_params(page, page_size))
+        return params
+
+    @staticmethod
+    def _settle_page_params(page: int, page_size: int) -> dict:
+        """페이지 파라미터를 검증해 만든다(문서 규격: 번호 1 이상, 크기 1~1000).
+
+        Args:
+            page: 페이지 번호.
+            page_size: 페이지 크기.
+
+        Returns:
+            ``{"pageNumber": ..., "pageSize": ...}``.
+
+        Raises:
+            ValueError: 규격 밖일 때 — 400 을 맞기 전에 여기서 멈춘다.
+        """
+        try:
+            page_no = int(page)
+            size = int(page_size)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"페이지 파라미터는 정수여야 합니다(page={page!r}, page_size={page_size!r})."
+            ) from exc
+        if page_no < 1:
+            raise ValueError(f"페이지 번호는 1 이상이어야 합니다(받은 값: {page_no}).")
+        if not 1 <= size <= SETTLE_MAX_PAGE_SIZE:
+            raise ValueError(
+                f"페이지 크기는 1~{SETTLE_MAX_PAGE_SIZE} 여야 합니다(받은 값: {size})."
+            )
+        return {"pageNumber": page_no, "pageSize": size}
+
+    @staticmethod
+    def _settle_enum(value: Optional[str], allowed: dict, field: str) -> Optional[str]:
+        """enum 파라미터를 허용 집합으로 검증한다 — ``None``·공백이면 ``None``(생략).
+
+        문서에 없는 값을 보내면 400 이다. 스냅샷에서 처음 본 코드를 그대로 요청에 싣지
+        않도록, 보내는 값은 공식 범례(``settle_enums``)로만 받는다.
+
+        Args:
+            value: 요청에 실을 코드.
+            allowed: 허용 코드 카탈로그(코드→라벨).
+            field: 오류 문구에 쓸 파라미터 이름.
+
+        Returns:
+            검증된 코드 또는 ``None``.
+
+        Raises:
+            ValueError: 허용 집합 밖의 코드일 때.
+        """
+        if value is None:
+            return None
+        code = str(value).strip()
+        if not code:
+            return None
+        if code not in allowed:
+            raise ValueError(
+                f"{field} 값이 규격 밖입니다: {code!r}. 허용값: {', '.join(sorted(allowed))}"
+            )
+        return code
+
+    @staticmethod
+    def _settle_date(value: date, field: str) -> str:
+        """조회 날짜를 ``yyyy-MM-dd`` 문자열로 만든다(KST 날짜 그대로).
+
+        Args:
+            value: ``datetime.date``(``datetime`` 이면 날짜 부분만 쓴다).
+            field: 오류 문구에 쓸 파라미터 이름.
+
+        Returns:
+            ISO 날짜 문자열.
+
+        Raises:
+            ValueError: date 가 아닐 때 — 문자열을 그대로 넘겨 조용히 400 을 맞지 않게.
+        """
+        if isinstance(value, datetime):
+            value = value.date()
+        if not isinstance(value, date):
+            raise ValueError(
+                f"{field} 는 datetime.date 여야 합니다(받은 값: {type(value).__name__})."
+            )
+        return value.isoformat()
+
+    @staticmethod
+    def _settle_text(value: Optional[str]) -> Optional[str]:
+        """선택 문자열 파라미터를 정리한다 — 공백뿐이면 ``None``(빈 필터를 안 보낸다).
+
+        Args:
+            value: 원본 값.
+
+        Returns:
+            공백 제거 문자열 또는 ``None``.
+        """
+        if value is None:
+            return None
+        text = str(value).strip()
+        return text or None
+
     # -- HTTP ------------------------------------------------------------- #
 
     def _session(self) -> Any:
@@ -827,6 +1153,8 @@ class NaverCommerceClient:
                 continue
 
             status = int(getattr(response, "status_code", 0))
+            # 관측 전용 1줄 — 재시도·백오프 동작은 바뀌지 않는다(성공·오류 응답 공통).
+            self.last_quota_limit_header = _header_text(response, QUOTA_LIMIT_HEADER)
             self._log_rate_limit(response, method=method, path=path, status=status)
             if 200 <= status < 300:
                 return self._parse_json(response, url)
@@ -912,6 +1240,9 @@ __all__ = [
     "BASE_URL",
     "KST",
     "MAX_WINDOW",
+    "QUOTA_LIMIT_HEADER",
+    "SETTLE_MAX_PAGE_SIZE",
+    "DEFAULT_SETTLE_PERIOD_TYPE",
     "DETAIL_BATCH_SIZE",
     "LAST_CHANGED_LIMIT",
     "LAST_CHANGED_MAX_PAGES",
