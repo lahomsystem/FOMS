@@ -90,4 +90,5 @@ jobs:
           tests/visual/test_p1_mockup_png_baseline.py \
           tests/visual/test_p1_mockup_chrome_parity.py \
           tests/visual/test_staging_mobile_v2_assets.py \
+          tests/visual/test_wizard_send_ui_contract.py \
           -p no:playwright

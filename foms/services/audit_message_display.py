@@ -253,6 +253,10 @@ ACTION_LABELS: dict[str, str] = {
     "CHANNEL_PUSH_SENT": "채널톡 발송",
     "ALIMTALK_MANUAL_SENT": "알림톡 수동 발송",
     "ALIMTALK_CHANNEL_CONFIRMED": "알림톡 발송 채널 확인",
+    # WIZ-SEND-01: 주문 등록 전 초안(마법사 4단계)에서 나간 발송. 대상은 주문이 아니라
+    # order_draft 라 위 두 코드와 분리한다 — 원장에서 "등록 전에 이미 나갔다"가 보여야 한다.
+    "ALIMTALK_DRAFT_SENT": "초안 알림톡 발송",
+    "CHANNEL_PUSH_DRAFT_SENT": "초안 실측 PUSH 발송",
     "SHARE_LINK_CREATED": "고객 공유 링크 발급",
     "SHARE_LINK_REVOKED": "고객 공유 링크 회수",
     "SHARE_SMS_SENT": "고객 공유 링크 문자 발송",

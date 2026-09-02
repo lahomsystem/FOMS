@@ -600,3 +600,143 @@
   font-size: var(--foms-font-size-xs, 12px);
   color: var(--foms-text-secondary, #4b5563);
 }
+
+/* ── Step 4: 등록 전 발송 액션(실측 PUSH · 알림톡) + 확인 시트 ── */
+.foms-wizard__send {
+  margin-top: var(--foms-space-4, 16px);
+}
+
+.foms-wizard__send-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--foms-space-2, 8px);
+}
+
+/* 좁은 폭(320px)에서도 글자가 세로로 깨지지 않게 한 줄로 고정한다. */
+.foms-wizard__send-btn {
+  min-width: 0;
+  padding: 0 var(--foms-space-2, 8px);
+  font-size: var(--foms-font-size-sm, 14px);
+  overflow: hidden;
+}
+
+.foms-wizard__send-btn-label {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.foms-wizard__send-status {
+  margin: var(--foms-space-2, 8px) 0 0;
+  font-size: var(--foms-font-size-xs, 12px);
+  color: var(--foms-text-secondary, #4b5563);
+  min-height: 1em;
+}
+
+.foms-wizard__send-status.is-error {
+  color: var(--foms-color-danger-600, #dc2626);
+}
+
+.foms-wizard__send-trace {
+  margin: 2px 0 0;
+  font-size: var(--foms-font-size-xs, 12px);
+  color: var(--foms-text-tertiary, #6b7280);
+}
+
+.foms-wizard__send-trace[hidden] {
+  display: none;
+}
+
+.foms-wizard__sheet {
+  position: fixed;
+  inset: 0;
+  display: none;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 100;
+}
+
+.foms-wizard__sheet.is-open {
+  display: flex;
+}
+
+.foms-wizard__sheet-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.foms-wizard__sheet-panel {
+  position: relative;
+  width: 100%;
+  max-width: 480px;
+  max-height: 85dvh;
+  overflow-y: auto;
+  display: grid;
+  gap: var(--foms-space-3, 12px);
+  padding: var(--foms-space-4, 16px);
+  padding-bottom: calc(var(--foms-space-4, 16px) + env(safe-area-inset-bottom, 0));
+  background: var(--foms-surface-base, #fff);
+  border-radius: var(--foms-radius-lg, 12px) var(--foms-radius-lg, 12px) 0 0;
+  box-shadow: 0 -4px 12px rgba(15, 17, 21, 0.06);
+}
+
+.foms-wizard__sheet-title {
+  margin: 0;
+  font-size: var(--foms-font-size-lg, 18px);
+  font-weight: 700;
+  color: var(--foms-text-primary, #111);
+}
+
+.foms-wizard__sheet-notice {
+  margin: 0;
+  font-size: var(--foms-font-size-sm, 14px);
+  color: var(--foms-color-danger-600, #dc2626);
+}
+
+.foms-wizard__sheet-notice[hidden],
+.foms-wizard__sheet-meta[hidden],
+.foms-wizard__sheet-note[hidden] {
+  display: none;
+}
+
+.foms-wizard__sheet-preview {
+  margin: 0;
+  max-height: 44dvh;
+  overflow: auto;
+  padding: var(--foms-space-3, 12px);
+  background: var(--foms-surface-raised, #f9fafb);
+  border: 1px solid var(--foms-border-subtle, #e5e7eb);
+  border-radius: var(--foms-radius-md, 8px);
+  font-family: var(--foms-font-sans);
+  font-size: var(--foms-font-size-sm, 14px);
+  line-height: 1.5;
+  color: var(--foms-text-primary, #111);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.foms-wizard__sheet-meta {
+  margin: 0;
+  font-size: var(--foms-font-size-xs, 12px);
+  color: var(--foms-text-tertiary, #6b7280);
+}
+
+.foms-wizard__sheet-note {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+}
+
+.foms-wizard__sheet-note-label {
+  font-size: var(--foms-font-size-xs, 12px);
+  color: var(--foms-text-tertiary, #6b7280);
+}
+
+.foms-wizard__sheet-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--foms-space-2, 8px);
+}
