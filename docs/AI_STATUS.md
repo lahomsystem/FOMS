@@ -1,7 +1,7 @@
 # FOMS 현재 상태
 > 자동 업데이트: 2026-08-14
-> 최신: **엑셀 내보내기·동선 전면 삭제 deploy(`8f0f2a1d`)** — 엑셀 다운로드 2곳·동선 API 2개·스트립·카운트다운·지도 route=1 오버레이 제거(−1952줄). 핀 지도·`/api/calculate_route`·방문시각 SSOT 는 보존. 원장 §18
-> 직전: **고객 공유 링크 UX 개편 — 계약서 폼 이식·도면 일괄 저장(ZIP)** — 카톡으로 보내는 계약서 링크가 ERP 계약서 폼 그대로 뜨고(계좌 복사·PNG 저장), 도면 링크에 일괄 저장 버튼. 무반응이던 `window.print()` 제거. 원장 `docs/plans/2026-08-31-share-contract-drawing-ux-ledger.md`
+> 최신: **네이버 클레임 호출 순서 근본 수정**(`555cfe8d7`, CI 4/4) — 본품 1건 실패가 성공으로 끝난 사고. 잔여=운영 복구·승격.
+> 직전: **엑셀 내보내기·동선 전면 삭제 deploy(`8f0f2a1d`)** — 엑셀 다운로드 2곳·동선 API 2개·스트립·카운트다운·지도 route=1 오버레이 제거(−1952줄). 핀 지도·`/api/calculate_route`·방문시각 SSOT 는 보존. 원장 §18
 > 이 파일 상단 40줄이 세션 시작 컨텍스트의 전부다(hygiene 계약 테스트로 강제). 상세 이력: "## 최근 완료"·"## 기록 보관", 과거 헤더 상세는 기록 보관에 이관.
 
 
@@ -10,6 +10,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
+- [2026-09-02] **네이버 클레임 호출 순서 NVCLAIM-ORDER-01 deploy(`555cfe8d7`·CI 4/4)** — 클레임=추가상품 먼저·발송=본품 먼저(공식 FAQ #1321). 잔여=운영 복구 1건·승격.
 - [2026-09-02] **트리아지 자동매칭 사고 반영 완료** — 잔여: 전화 어긋남 36건 재판정. `docs/incidents/2026-09-01-naver-triage-auto-match-miss.md`
 - [2026-09-02] **네이버 클레임 승인 T9 운영 ON**(PR #249 · production `b0c81413` · web 재배포 23:23Z) — 취소 요청 승인 신설(`claim/cancel/approve`)+반품 승인 독립 경로. 게이트 2종 `FOMS_NAVER_{CANCEL,RETURN}_APPROVE_ENABLED=1`(web 전용). **취소 거부 API 는 네이버에 없다.** 후속: 유령 주문 단계 잠금 해제(사유 필수)는 deploy `549a801f`. 원장: `docs/plans/2026-09-01-naver-claim-approve-ledger.md`
 - [2026-09-01] **네이버 과거 주문 백필 deploy 반영** — 워크벤치 90일 1회 실행·워터마크 불변·소급분은 큐 밖·매칭 캡 해소(`naverbf_00`). **운영 실행 승인 대기**. 원장 `docs/plans/2026-09-01-naver-ingest-backfill-ledger.md`
