@@ -602,6 +602,18 @@
 }
 
 /* ── Step 4: 등록 전 발송 액션(실측 PUSH · 알림톡) + 확인 시트 ── */
+
+/* 브랜드 고정색. 디자인 토큰(팔레트)이 아니라 외부 서비스가 정한 값이라 라이트/다크·
+   테마 변경에도 그대로 유지해야 한다. 값을 여기 한 번만 적고 아래는 var() 로만 쓴다. */
+:root {
+  --foms-brand-kakao-bg: #fee500;
+  --foms-brand-kakao-bg-hover: #f2d900;
+  --foms-brand-kakao-fg: #191600;
+  --foms-brand-channel-bg: #3c5bfa;
+  --foms-brand-channel-bg-hover: #2f49d8;
+  --foms-brand-channel-fg: #ffffff;
+}
+
 .foms-wizard__send {
   margin-top: var(--foms-space-4, 16px);
 }
@@ -612,12 +624,61 @@
   gap: var(--foms-space-2, 8px);
 }
 
-/* 좁은 폭(320px)에서도 글자가 세로로 깨지지 않게 한 줄로 고정한다. */
+/* 좁은 폭(320px)에서도 글자가 세로로 깨지지 않게 한 줄로 고정한다.
+   두 버튼은 요약 카드 위에서 바로 눈에 들어와야 하는 행동 유도 버튼이라
+   보조 버튼(회색)이 아니라 각 채널 색을 그대로 입힌다. */
 .foms-wizard__send-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   min-width: 0;
+  min-height: 46px;
   padding: 0 var(--foms-space-2, 8px);
+  border: 0;
+  border-radius: var(--foms-radius-md, 10px);
   font-size: var(--foms-font-size-sm, 14px);
+  font-weight: 700;
   overflow: hidden;
+}
+
+.foms-wizard__send-btn-icon {
+  flex: 0 0 auto;
+  font-size: 15px;
+  line-height: 1;
+}
+
+/* 채널톡 실측방 = 채널톡 브랜드 블루. */
+.foms-wizard__send-btn--push {
+  background: var(--foms-brand-channel-bg);
+  color: var(--foms-brand-channel-fg);
+  box-shadow: 0 2px 6px rgba(60, 91, 250, 0.28);
+}
+
+.foms-wizard__send-btn--push:hover:not(:disabled),
+.foms-wizard__send-btn--push:focus-visible {
+  background: var(--foms-brand-channel-bg-hover);
+  color: var(--foms-brand-channel-fg);
+}
+
+/* 알림톡 = 카카오 노랑 + 카카오 브라운 텍스트(카카오 브랜드 규약 조합). */
+.foms-wizard__send-btn--alimtalk {
+  background: var(--foms-brand-kakao-bg);
+  color: var(--foms-brand-kakao-fg);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+}
+
+.foms-wizard__send-btn--alimtalk:hover:not(:disabled),
+.foms-wizard__send-btn--alimtalk:focus-visible {
+  background: var(--foms-brand-kakao-bg-hover);
+  color: var(--foms-brand-kakao-fg);
+}
+
+/* 전송 중 잠금 상태에서도 어느 채널인지 읽혀야 하므로 색은 남기고 흐리게만 한다. */
+.foms-wizard__send-btn:disabled {
+  opacity: 0.5;
+  box-shadow: none;
+  cursor: not-allowed;
 }
 
 .foms-wizard__send-btn-label {
