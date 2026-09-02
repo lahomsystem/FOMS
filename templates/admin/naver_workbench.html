@@ -19,7 +19,7 @@
 {% block title %}네이버 수집{% endblock %}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260902c">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260902d">
 {% endblock %}
 
 {% block content %}
@@ -1214,7 +1214,9 @@
                         <label class="form-check-label small" for="wb-origin-return-approve">
                             접수하면서 <b>승인까지</b> 한 번에
                         </label>
-                        <span class="d-block mt-1 text-danger small" id="wb-origin-return-approve-warn" hidden>
+                        {# `d-block` 금지 — `!important` 가 `hidden` 을 이겨 경고가 늘 떠 있었다
+                           (2026-09-02 실화면 확인). 표시는 `wb-approve-warn` 규칙이 편다. #}
+                        <span class="wb-approve-warn mt-1 text-danger small" id="wb-origin-return-approve-warn" hidden>
                             <b>환불이 확정됩니다.</b> 승인을 무르는 API 는 없습니다.
                         </span>
                     </div>
@@ -1250,5 +1252,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260902c" defer></script>
+<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260902d" defer></script>
 {% endblock %}
