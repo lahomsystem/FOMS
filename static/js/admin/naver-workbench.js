@@ -434,13 +434,32 @@
             return;
         }
         var who = button.dataset.customer || '';
+        var stage = button.dataset.stage || '';
         var message = '주문 #' + orderId + (who ? ' (' + who + ')' : '')
             + ' 을 취소 처리합니다. 휴지통으로 가며 복구할 수 있습니다.';
-        if (!window.confirm(message)) {
+        var note = '';
+        if (button.dataset.needsReason) {
+            // 접수 이후 단계는 실측 방문·치수 같은 기록이 함께 화면에서 사라진다. 그래서
+            // 확인창이 아니라 **사유 입력**을 받는다 — 서버도 같은 조건으로 막는다(관리자 + 사유).
+            note = window.prompt([
+                message,
+                '',
+                (stage ? stage + ' 단계라 ' : '') + '실측·도면 기록도 함께 화면에서 사라집니다.',
+                '왜 접는지 한 줄 적어 주세요.'
+            ].join('\n'), '');
+            if (note === null) {
+                return;
+            }
+            note = String(note).trim();
+            if (!note) {
+                window.alert('사유를 적어야 접을 수 있습니다.');
+                return;
+            }
+        } else if (!window.confirm(message)) {
             return;
         }
         button.disabled = true;
-        postJson(BASE + 'ghost/' + orderId + '/discard', {}).then(function (result) {
+        postJson(BASE + 'ghost/' + orderId + '/discard', { reason: note }).then(function (result) {
             if (!result.ok) {
                 button.disabled = false;
                 window.alert(result.error);

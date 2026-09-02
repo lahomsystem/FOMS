@@ -4361,8 +4361,15 @@ def naver_ingest_ghost_discard(order_id: int):
     확인창 1회로 끝낸다(사용자 결정 D-3).
 
     **띠에 뜬 주문만 받는다.** 목록 밖 주문 id 를 받아 지우면 이 라우트가 범용 삭제
-    경로가 되는데, 그건 주문 화면의 일이고 권한 규칙도 다르다. 진행 단계가 접수 이후면
-    거절한다 — 실측 기록이 붙은 주문을 접으면 그 이력이 화면에서 사라진다.
+    경로가 되는데, 그건 주문 화면의 일이고 권한 규칙도 다르다.
+
+    **접수 이후 단계도 접을 수 있다 — 단 관리자가 사유를 적어야 한다**(사용자 결정
+    2026-09-02). 예전에는 접수 단계만 열어 뒀는데, 그러면 결제가 확정 취소된 죽은
+    주문이 실측·도면 대시보드에 영원히 남았다(#5088). 재결제 짝이 없으면 승계할 곳도
+    없다. 휴지통은 복구되므로 잃는 것은 없고, 남겨야 할 것은 **왜 접었나**다.
+
+    바뀌지 않는 조건은 하나다: **네이버가 취소를 확정한 건만** 접는다. 확정 전에 접으면
+    취소가 거부됐을 때 살아 있어야 할 주문이 휴지통에 있다.
     """
     from foms.services.feature_flags import is_naver_workbench_enabled
     from foms.services.integrations.naver_commerce.ghost_orders import find_ghost_orders
@@ -4389,10 +4396,26 @@ def naver_ingest_ghost_discard(order_id: int):
         return jsonify({"success": False, "data": None,
                         "error": f"{target['discard_block']} — 재결제로 정리하세요."}), 400
 
+    # 접수 이후 단계는 **관리자 + 사유 문장**이 있어야 접힌다. 화면도 같은 조건으로
+    # 사유 칸을 띄운다 — 한쪽만 좁히면 열린 버튼이 400 을 받는다.
+    note = str((request.get_json(silent=True) or {}).get("reason") or "").strip()[:500]
+    if target.get("discard_needs_reason"):
+        if (session.get("role") or "") != "ADMIN":
+            return jsonify({"success": False, "data": None,
+                            "error": f"{target['status']} 단계라 이력이 붙어 있습니다 — "
+                                     "관리자만 사유를 적고 접을 수 있습니다."}), 403
+        if not note:
+            return jsonify({"success": False, "data": None,
+                            "error": "왜 접는지 한 줄 적어 주세요 — 접수 이후 단계라 "
+                                     "실측·도면 기록이 함께 화면에서 사라집니다."}), 400
+
+    reason_text = "네이버 결제 전부 취소 — 워크벤치에서 정리"
+    if note:
+        reason_text = f"{reason_text} ({note})"
     try:
         soft_delete_order(db, order_id=int(order_id),
                           actor_user_id=int(session.get("user_id") or 0),
-                          reason="네이버 결제 전부 취소 — 워크벤치에서 정리")
+                          reason=reason_text)
         db.commit()
     except Exception as exc:  # noqa: BLE001 - 실패 사유를 사람에게 그대로 보여준다
         db.rollback()
@@ -4406,7 +4429,10 @@ def naver_ingest_ghost_discard(order_id: int):
         target_type="order", target_id=int(order_id),
         detail={"order_id": int(order_id),
                 "naver_order_nos": target["naver_order_nos"],
-                "naver_amount_total": target["naver_amount_total"]},
+                "naver_amount_total": target["naver_amount_total"],
+                # 접수 이후 단계를 접은 건은 **왜 접었나**가 유일한 방어선이다.
+                "stage": target["status"],
+                "discard_note": note},
     )
     return jsonify({"success": True,
                     "data": {"order_id": int(order_id), "discarded": True},
