@@ -2103,6 +2103,8 @@ def _pane_context(db, link: Optional[ExternalOrderLink],
         "member_rows": member_rows,
         # 집 단위 쿠폰 한 줄(2026-08-25) — 행 합계를 사람이 암산하지 않게 한다.
         "coupon_summary": _coupon_summary(member_rows),
+        # 금액 합계(2026-09-02) — 행 금액만 있고 총액이 없어 사람이 암산했다.
+        "amount_summary": _amount_summary(member_rows),
         # 취소 사유는 네이버 코드가 SSOT 다 — 화면이 따로 목록을 들면 둘이 갈린다.
         "cancel_reasons": CANCEL_REASONS,
         # 반품 사유는 **취소와 다른 목록**이다(T8-S1). 화이트리스트 밖 코드는 라우트가
@@ -2311,6 +2313,7 @@ def naver_ingest_triage_detail() -> str:
         detail=_triage_pane(db, link, with_candidates=False),
         member_rows=member_rows,
         coupon_summary=_coupon_summary(member_rows),
+        amount_summary=_amount_summary(member_rows),
     )
 
 
@@ -3680,6 +3683,46 @@ def _coupon_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "count": sum(int(row.get("coupon_count") or 0) for row in rows),
         "discount": sum(int(row.get("coupon_discount") or 0) for row in rows),
         "seller_burden": sum(int(row.get("coupon_seller_burden") or 0) for row in rows),
+    }
+
+
+def _amount_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """집 전체의 **금액 합계** — 상품주문 표 맨 아래에서 한 줄로 말하기 위한 값.
+
+    행마다 금액은 나오는데 합계가 없어서 담당자가 3~6줄을 암산했다(2026-09-02 요청).
+    합계는 표에 찍힌 ``금액`` 열(상품주문별 ``totalPaymentAmount``)을 그대로 더한 값이다
+    — 화면에 없는 축을 새로 만들지 않는다.
+
+    Args:
+        rows: :func:`_member_rows` 결과.
+
+    Returns:
+        ``known``(전 행의 금액을 읽었는가) · ``total`` · ``quantity_total``
+        · ``has_remain``(부분취소가 섞였는가) · ``remain_total``(그 경우의 잔여 합계).
+        한 행이라도 금액이 ``None`` 이면 ``known=False`` 다 — 부분 합계를 전체인 양
+        말하지 않는다(쿠폰 합계와 같은 규율).
+    """
+    if not rows:
+        return {"known": False, "total": 0, "quantity_total": 0,
+                "has_remain": False, "remain_total": 0}
+    known = all(row.get("amount") is not None for row in rows)
+    total = sum(int(row.get("amount") or 0) for row in rows)
+    quantity_total = sum(int(row.get("quantity") or 0) for row in rows)
+    has_remain = any((row.get("partial_cancel") or {}).get("amount_partial")
+                     for row in rows)
+    remain_total = 0
+    for row in rows:
+        partial = row.get("partial_cancel") or {}
+        if partial.get("amount_partial"):
+            remain_total += int(partial.get("remain_amount") or 0)
+        else:
+            remain_total += int(row.get("amount") or 0)
+    return {
+        "known": known,
+        "total": total,
+        "quantity_total": quantity_total,
+        "has_remain": has_remain,
+        "remain_total": remain_total,
     }
 
 

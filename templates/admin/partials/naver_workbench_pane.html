@@ -750,6 +750,28 @@
                 </tr>
                 {% endfor %}
             </tbody>
+            {# 합계(2026-09-02) — 행 금액만 있고 총액이 없어 담당자가 3~6줄을 암산했다.
+               표에 찍힌 `금액` 열을 그대로 더한 값이다. 한 행이라도 금액을 못 읽었으면
+               숫자를 내지 않는다 — 부분 합계를 전체인 양 말하면 결제 대조가 틀어진다. #}
+            <tfoot>
+                <tr class="wb-cmp__total">
+                    <td colspan="3">
+                        합계
+                        <span class="wb-cmp-title__sub">상품주문 {{ member_rows|length }}건</span>
+                    </td>
+                    <td class="wb-cmp__num">{{ amount_summary.quantity_total }}</td>
+                    <td class="wb-cmp__num">
+                        {% if amount_summary.known %}
+                        {{ '{:,}'.format(amount_summary.total) }}
+                        {% if amount_summary.has_remain %}
+                        <div class="wb-cmp__remain">남은 {{ '{:,}'.format(amount_summary.remain_total) }}</div>
+                        {% endif %}
+                        {% else %}
+                        <span class="wb-cmp__total-unknown">일부 금액을 읽지 못해 합계 없음</span>
+                        {% endif %}
+                    </td>
+                </tr>
+            </tfoot>
         </table>
         </div>
 
