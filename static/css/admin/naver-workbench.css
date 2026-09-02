@@ -640,6 +640,22 @@ input.wb-pick:disabled,
     font-variant-numeric: tabular-nums;
 }
 
+/* 합계 줄 (2026-09-02). 행 금액만 있고 총액이 없어 담당자가 3~6줄을 암산했다.
+   본문 행과 같은 표에 있되 **행이 아니라 결론**으로 읽혀야 하므로 윗선을 진하게 긋고
+   숫자만 굵게 한다 — 새 색은 쓰지 않는다(이 화면의 색은 판정에만 쓴다). */
+.wb-cmp__total > td {
+    border-top: 2px solid var(--wb-line);
+    border-bottom: none;
+    background: var(--wb-surface-soft);
+    font-weight: 700;
+}
+/* 한 행이라도 금액을 못 읽으면 숫자 대신 이 문구가 온다 — 굵게 두면 합계처럼 읽힌다. */
+.wb-cmp__total-unknown {
+    color: var(--wb-muted);
+    font-weight: 400;
+    font-size: calc(10.5px * var(--wb-fs, 1));
+}
+
 /* ── 후보 표 판정 근거 2열 (R-1 · 2026-08-25) ────────────────────────
    담당자가 네이버를 따로 열어 확인하던 두 가지를 표 안으로 들인다. 색은 이미 이 화면이
    쓰는 두 개만 쓴다: 빨강 = 되돌릴 수 없는 것(취소), 초록은 안 쓴다 — '살아 있음'은
