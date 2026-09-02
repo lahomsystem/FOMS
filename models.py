@@ -1,9 +1,9 @@
 import datetime
 import uuid
 from sqlalchemy import (
-    Column, Integer, BigInteger, String, Text, Boolean, DateTime, Float,
-    ForeignKey, func, JSON, UniqueConstraint, Index, CheckConstraint, DDL,
-    event, text,
+    Column, Integer, BigInteger, String, Text, Boolean, Date, DateTime, Float,
+    Numeric, ForeignKey, func, JSON, UniqueConstraint, Index, CheckConstraint,
+    DDL, event, text,
 )
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PG_UUID
@@ -3625,3 +3625,332 @@ def _fill_as_axis_status_on_insert(mapper, connection, target) -> None:
     from foms.services.orders.state_axes import derive_as_axis_status
 
     target.as_axis_status = derive_as_axis_status(target)
+
+
+# --------------------------------------------------------------------------- #
+# 채널(네이버) 정산 — SETTLE-CHANNEL-01 §3
+#
+# 네이버 커머스API ``/v1/pay-settle/*`` 응답을 **원본 그대로** 담는 5개 적재 테이블과
+# 동기화 실행 이력 1개다. 설계 원칙 셋:
+#
+# 1. **금액을 재계산하지 않는다.** 네이버가 준 값을 ``Numeric(16, 2)`` 로 그대로 저장한다.
+#    취소·환급 행은 음수로 오며 그 부호도 손대지 않는다. 우리가 다시 더하면 네이버 정산서와
+#    한 원이라도 어긋나는 순간 회계팀이 두 숫자 중 무엇을 믿어야 할지 알 수 없게 된다.
+# 2. **날짜는 ``Date``**(네이버가 주는 KST 달력일 그대로). ``DateTime`` 으로 승격하면 시각이
+#    없는 값에 00:00 이 붙고, naive=UTC 저장 규약과 섞여 하루씩 밀린다.
+# 3. **적재 단위는 "파티션 통째 교체"**(``channel`` + 축 날짜). 네이버 정산은 소급해서 바뀌므로
+#    upsert 로 행을 누적하면 사라진 행이 영원히 남는다. 그래서 이 테이블들에는 멱등 UNIQUE 키가
+#    없다 — 멱등성은 "그 날짜 파티션을 지우고 다시 넣는다"가 담보한다.
+#
+# ``raw_snapshot`` 은 응답 element 원본이다(NOT NULL). 컬럼은 SQL 이 좁혀야 하는 축만 복제한
+# 사본이며 정본은 언제나 이 JSONB 다 — ``ExternalOrderLink`` 와 같은 규율이다.
+# ``sync_run_id`` 는 ``naver_settle_sync_runs.id`` 를 가리키는 **소프트 참조**(FK 없음):
+# 실행 이력은 보존기간이 짧아 먼저 지워질 수 있는데, 그때 정산 행이 함께 지워지거나 이력 삭제가
+# 막히면 안 된다.
+# --------------------------------------------------------------------------- #
+NAVER_SETTLE_CHANNEL_DEFAULT = 'NAVER'
+# 매칭 축: MATCHED = FOMS 주문에 붙음, UNMATCHED = 상품주문인데 못 붙음(예외 목록 대상),
+# NA = 매칭 대상이 아님(배송비·기타비용 행).
+NAVER_SETTLE_MATCH_STATUSES = ('MATCHED', 'UNMATCHED', 'NA')
+NAVER_SETTLE_RUN_STATUSES = ('RUNNING', 'OK', 'FAILED', 'ABORTED_QUOTA')
+NAVER_SETTLE_RUN_TRIGGERS = ('SCHEDULE', 'MANUAL', 'BACKFILL')
+
+
+class NaverSettleDaily(Base):
+    """일자별 정산 내역 — ``GET /v1/pay-settle/settle/daily`` 의 element 1행.
+
+    파티션 축은 ``settle_expect_date``(정산 예정일)다. 대시보드의 기본 기준일이 예정일이고,
+    네이버가 소급 수정하는 단위도 예정일이기 때문이다. 완료일(``settle_complete_date``)은
+    돈이 실제로 들어온 날이라 **매출 인식 축과 다르다** — 화면이 둘을 섞지 않도록 둘 다 컬럼으로
+    둔다.
+
+    ``settle_method_type`` 이 ``CHARGE_AMT`` 인 행은 계좌로 들어오지 않고 충전금으로 상계된다.
+    통장 대사에서 이 행을 빼지 않으면 "입금이 비었다"는 오판이 난다.
+    """
+
+    __tablename__ = 'naver_settle_daily'
+
+    id = Column(Integer, primary_key=True)
+    channel = Column(String(20), nullable=False, server_default='NAVER')
+    # --- 축 ---
+    settle_basis_start_date = Column(Date, nullable=True)
+    settle_basis_end_date = Column(Date, nullable=True)
+    # 파티션 축. NOT NULL 인 유일한 날짜다(이 값이 없으면 어느 파티션인지 정할 수 없다).
+    settle_expect_date = Column(Date, nullable=False)
+    settle_complete_date = Column(Date, nullable=True)
+    # --- 금액(네이버 원본, 부호 포함 그대로) ---
+    settle_amount = Column(Numeric(16, 2), nullable=True)
+    pay_settle_amount = Column(Numeric(16, 2), nullable=True)
+    commission_settle_amount = Column(Numeric(16, 2), nullable=True)
+    benefit_settle_amount = Column(Numeric(16, 2), nullable=True)
+    deduction_restore_settle_amount = Column(Numeric(16, 2), nullable=True)
+    pay_holdback_amount = Column(Numeric(16, 2), nullable=True)
+    minus_charge_amount = Column(Numeric(16, 2), nullable=True)
+    difference_settle_amount = Column(Numeric(16, 2), nullable=True)
+    return_care_settle_amount = Column(Numeric(16, 2), nullable=True)
+    normal_settle_amount = Column(Numeric(16, 2), nullable=True)
+    quick_settle_amount = Column(Numeric(16, 2), nullable=True)
+    preferential_commission_amount = Column(Numeric(16, 2), nullable=True)
+    settlement_limit_amount = Column(Numeric(16, 2), nullable=True)
+    # --- 입금 채널 ---
+    settle_method_type = Column(String(20), nullable=True)
+    bank_type = Column(String(40), nullable=True)
+    depositor_name = Column(String(100), nullable=True)
+    # 계좌번호는 화면에 그대로 내보내지 않는다(뒤 4자리만). 마스킹은 조회 커널 책임.
+    account_no = Column(String(60), nullable=True)
+    merchant_id = Column(String(40), nullable=True)
+    merchant_name = Column(String(100), nullable=True)
+    # --- 공통 ---
+    raw_snapshot = Column(JSONColumn, nullable=False)
+    synced_at = Column(DateTime, nullable=False, default=now_utc_naive)
+    sync_run_id = Column(Integer, nullable=True)
+
+    __table_args__ = (
+        # 대시보드 기본 경로: 채널 + 정산 예정일 구간 스캔.
+        Index('ix_nsd_channel_expect', 'channel', 'settle_expect_date'),
+    )
+
+
+class NaverSettleCase(Base):
+    """건별 정산 내역 — ``GET /v1/pay-settle/settle/case`` 의 element 1행.
+
+    파티션 축이 ``settle_expect_date`` 가 아니라 **``search_date``(조회한 날짜)** 인 이유:
+    이 API 는 "어느 날짜로 조회했는가"(``period_type`` + 그 날짜)로 결과 집합이 정해진다.
+    응답 안의 예정일로 다시 파티션을 나누면 한 번의 조회 결과가 여러 파티션에 흩어져,
+    "이 조회를 통째로 다시 넣는다"는 멱등 규칙이 깨진다. ``period_type`` 을 함께 저장하는 것도
+    같은 이유다 — 기준이 바뀌면 같은 날짜라도 다른 집합이다.
+
+    ``foms_order_id`` / ``link_id`` 는 **FK 가 없는 소프트 참조**다. 주문이 지워져도 네이버가
+    정산한 사실은 남아야 하고, 정산 적재가 주문 삭제를 막아서도 안 된다.
+    ``match_status`` 는 ``product_order_type == 'PROD_ORDER'`` 인 행에만 MATCHED/UNMATCHED 를
+    쓰고, 배송비·기타비용 행은 'NA' 다 — 붙을 주문이 없는 행을 미매칭으로 세면 매칭률이
+    영원히 100% 에 못 닿는다.
+    """
+
+    __tablename__ = 'naver_settle_case'
+
+    id = Column(Integer, primary_key=True)
+    channel = Column(String(20), nullable=False, server_default='NAVER')
+    # --- 축 (조회 파라미터의 사본 — 파티션 정의 그 자체) ---
+    search_date = Column(Date, nullable=False)
+    period_type = Column(String(48), nullable=False)
+    # --- 네이버 원본 날짜 ---
+    settle_basis_date = Column(Date, nullable=True)
+    settle_expect_date = Column(Date, nullable=True)
+    settle_complete_date = Column(Date, nullable=True)
+    pay_date = Column(Date, nullable=True)
+    # --- 식별자 ---
+    order_id = Column(String(40), nullable=True)
+    product_order_id = Column(String(40), nullable=True)
+    product_order_type = Column(String(40), nullable=True)
+    settle_type = Column(String(40), nullable=True)
+    product_id = Column(String(40), nullable=True)
+    product_name = Column(String(300), nullable=True)
+    purchaser_name = Column(String(100), nullable=True)
+    # --- 금액(원본 그대로) ---
+    pay_settle_amount = Column(Numeric(16, 2), nullable=True)
+    total_pay_commission_amount = Column(Numeric(16, 2), nullable=True)
+    free_installment_commission_amount = Column(Numeric(16, 2), nullable=True)
+    selling_interlock_commission_amount = Column(Numeric(16, 2), nullable=True)
+    benefit_settle_amount = Column(Numeric(16, 2), nullable=True)
+    settle_expect_amount = Column(Numeric(16, 2), nullable=True)
+    merchant_id = Column(String(40), nullable=True)
+    merchant_name = Column(String(100), nullable=True)
+    contract_no = Column(String(60), nullable=True)
+    # --- FOMS 매칭(소프트 참조, FK 없음) ---
+    foms_order_id = Column(Integer, nullable=True)
+    link_id = Column(Integer, nullable=True)
+    match_status = Column(String(20), nullable=False, server_default='NA')
+    # --- 공통 ---
+    raw_snapshot = Column(JSONColumn, nullable=False)
+    synced_at = Column(DateTime, nullable=False, default=now_utc_naive)
+    sync_run_id = Column(Integer, nullable=True)
+
+    __table_args__ = (
+        # 원장 표의 기본 경로: 채널 + 조회일 구간.
+        Index('ix_nsc_channel_search', 'channel', 'search_date'),
+        # 주문 상세/워크벤치에서 "이 상품주문의 정산 행" 역조회.
+        Index('ix_nsc_product_order', 'product_order_id'),
+        # 예외 목록(미매칭)의 hot path. **미매칭 행만** 담는 부분 인덱스라 매칭이 끝난
+        # 대다수 행은 인덱스에서 빠진다 — 이력이 쌓여도 예외 조회가 함께 느려지지 않는다.
+        # SQLite 테스트 레인은 ``postgresql_where`` 를 무시하고 일반 인덱스로 만든다.
+        Index('ix_nsc_unmatched', 'channel', 'search_date',
+              postgresql_where=text("match_status = 'UNMATCHED'")),
+    )
+
+
+class NaverSettleCommission(Base):
+    """건별 수수료 상세 — ``GET /v1/pay-settle/settle/commission-details`` 의 element 1행.
+
+    ``naver_settle_case`` 와 파티션 규칙이 같다(``search_date`` + ``period_type``). 별도 테이블인
+    이유는 **행의 단위가 다르기 때문**이다: 건별 정산은 상품주문 1행이지만 수수료 상세는
+    (상품주문 x 수수료 타입) 1행이라, 한 상품주문이 판매수수료·연동수수료로 여러 행이 된다.
+    한 테이블에 섞으면 상품주문 수를 세는 모든 쿼리가 조용히 부풀어 오른다.
+
+    주문번호 필드 이름이 ``order_no`` 인 것은 오타가 아니라 네이버 원본이 그렇다
+    (건별 정산은 ``orderId``, 수수료 상세는 ``orderNo``).
+    """
+
+    __tablename__ = 'naver_settle_commission'
+
+    id = Column(Integer, primary_key=True)
+    channel = Column(String(20), nullable=False, server_default='NAVER')
+    # --- 축 ---
+    search_date = Column(Date, nullable=False)
+    period_type = Column(String(48), nullable=False)
+    # --- 식별자 ---
+    order_no = Column(String(40), nullable=True)
+    product_order_id = Column(String(40), nullable=True)
+    product_order_type = Column(String(40), nullable=True)
+    product_id = Column(String(40), nullable=True)
+    product_name = Column(String(300), nullable=True)
+    merchant_id = Column(String(40), nullable=True)
+    merchant_name = Column(String(100), nullable=True)
+    purchaser_name = Column(String(100), nullable=True)
+    settle_type = Column(String(40), nullable=True)
+    # --- 날짜 ---
+    settle_basis_date = Column(Date, nullable=True)
+    settle_expect_date = Column(Date, nullable=True)
+    settle_complete_date = Column(Date, nullable=True)
+    tax_return_date = Column(Date, nullable=True)
+    # --- 수수료 ---
+    commission_basis_amount = Column(Numeric(16, 2), nullable=True)
+    commission_type = Column(String(40), nullable=True)
+    pay_means_type = Column(String(40), nullable=True)
+    commission_amount = Column(Numeric(16, 2), nullable=True)
+    # 매출 연동 수수료의 최대 과금 금액(상한). 상한 소진율 미터의 분모다.
+    maximum_selling_interlock_commission_amount = Column(Numeric(16, 2), nullable=True)
+    # --- 공통 ---
+    raw_snapshot = Column(JSONColumn, nullable=False)
+    synced_at = Column(DateTime, nullable=False, default=now_utc_naive)
+    sync_run_id = Column(Integer, nullable=True)
+
+    __table_args__ = (
+        Index('ix_nscm_channel_search', 'channel', 'search_date'),
+        Index('ix_nscm_product_order', 'product_order_id'),
+    )
+
+
+class NaverVatDaily(Base):
+    """일자별 부가세 신고 내역 — ``GET /v1/pay-settle/vat/daily`` 의 element 1행.
+
+    파티션 축은 ``settle_basis_date``(정산 기준일)다. 부가세는 정산 예정일이 아니라 **매출이
+    일어난 기준일**로 신고하므로, 정산 테이블과 축을 맞추면 신고 금액이 달 경계에서 어긋난다.
+
+    ``is_final`` 은 "익월 10일 이후 확정본으로 다시 받아 덮었다"는 표식이다. 그 전에 받은 값은
+    잠정치라 화면이 확정처럼 보여주면 안 된다 — 회계팀이 신고에 그대로 쓴다.
+    """
+
+    __tablename__ = 'naver_vat_daily'
+
+    id = Column(Integer, primary_key=True)
+    channel = Column(String(20), nullable=False, server_default='NAVER')
+    settle_basis_date = Column(Date, nullable=False)
+    # --- 금액 8종(네이버 원본 순서 그대로) ---
+    total_sales_amount = Column(Numeric(16, 2), nullable=True)
+    taxation_sales_amount = Column(Numeric(16, 2), nullable=True)
+    tax_exemption_sales_amount = Column(Numeric(16, 2), nullable=True)
+    credit_card_amount = Column(Numeric(16, 2), nullable=True)
+    # 네이버 원본 필드명은 ``cashInComeDeductionAmount`` — 대소문자만 우리 규약으로 폈다.
+    cash_income_deduction_amount = Column(Numeric(16, 2), nullable=True)
+    # 원본 ``cashOutGoingEvidenceAmount``.
+    cash_outgoing_evidence_amount = Column(Numeric(16, 2), nullable=True)
+    cash_exclusion_issuance_amount = Column(Numeric(16, 2), nullable=True)
+    other_amount = Column(Numeric(16, 2), nullable=True)
+    merchant_id = Column(String(40), nullable=True)
+    merchant_name = Column(String(100), nullable=True)
+    # 익월 10일 이후 확정 재적재분이면 True. 기본은 잠정.
+    is_final = Column(Boolean, nullable=False, default=False, server_default='false')
+    # --- 공통 ---
+    raw_snapshot = Column(JSONColumn, nullable=False)
+    synced_at = Column(DateTime, nullable=False, default=now_utc_naive)
+    sync_run_id = Column(Integer, nullable=True)
+
+    __table_args__ = (
+        Index('ix_nvd_channel_basis', 'channel', 'settle_basis_date'),
+    )
+
+
+class NaverVatCase(Base):
+    """건별 부가세 신고 내역 — ``GET /v1/pay-settle/vat/case`` 의 element 1행.
+
+    금액 8종은 ``naver_vat_daily`` 와 같은 이름·같은 의미다(일자 합계의 구성 요소). 이름을 맞춰
+    두면 일자표와 건별표를 같은 코드로 렌더할 수 있고, 합이 안 맞을 때 어느 건이 원인인지
+    바로 짚을 수 있다.
+
+    ``detail_type``(결제대금 정산/혜택 정산/공제·환급)과 ``status``(원주문 매출/주문 취소/…)는
+    **다른 축**이다. 취소 행은 status 로 갈리며 금액이 음수로 온다 — 그 부호를 뒤집지 않는다.
+    """
+
+    __tablename__ = 'naver_vat_case'
+
+    id = Column(Integer, primary_key=True)
+    channel = Column(String(20), nullable=False, server_default='NAVER')
+    settle_basis_date = Column(Date, nullable=False)
+    order_id = Column(String(40), nullable=True)
+    product_order_id = Column(String(40), nullable=True)
+    product_order_type = Column(String(40), nullable=True)
+    detail_type = Column(String(50), nullable=True)
+    status = Column(String(40), nullable=True)
+    product_name = Column(String(300), nullable=True)
+    # --- 금액 8종(vat_daily 와 동일 이름) ---
+    total_sales_amount = Column(Numeric(16, 2), nullable=True)
+    taxation_sales_amount = Column(Numeric(16, 2), nullable=True)
+    tax_exemption_sales_amount = Column(Numeric(16, 2), nullable=True)
+    credit_card_amount = Column(Numeric(16, 2), nullable=True)
+    cash_income_deduction_amount = Column(Numeric(16, 2), nullable=True)
+    cash_outgoing_evidence_amount = Column(Numeric(16, 2), nullable=True)
+    cash_exclusion_issuance_amount = Column(Numeric(16, 2), nullable=True)
+    other_amount = Column(Numeric(16, 2), nullable=True)
+    merchant_id = Column(String(40), nullable=True)
+    merchant_name = Column(String(100), nullable=True)
+    # --- 공통 ---
+    raw_snapshot = Column(JSONColumn, nullable=False)
+    synced_at = Column(DateTime, nullable=False, default=now_utc_naive)
+    sync_run_id = Column(Integer, nullable=True)
+
+    __table_args__ = (
+        Index('ix_nvc_channel_basis', 'channel', 'settle_basis_date'),
+        Index('ix_nvc_product_order', 'product_order_id'),
+    )
+
+
+class NaverSettleSyncRun(Base):
+    """정산 동기화 1회 실행 이력 (SETTLE-CHANNEL-01 §4).
+
+    ``SystemSetting`` 워터마크(마지막 성공 구간)와 **역할이 다르다**: 워터마크는 "지금 어디까지
+    믿을 수 있는가" 한 줄이고, 이 표는 "무엇을 언제 몇 번 불렀고 무엇이 소급해서 바뀌었는가"의
+    이력이다. 화면 상단의 동기화 배너(마지막 실행·성공·stale 여부)와 예외 목록의 RETRO(소급
+    변경) 항목이 이 표를 읽는다.
+
+    ``status`` 에 ``ABORTED_QUOTA`` 가 따로 있는 이유: 네이버 호출 쿼터에 걸려 중간에 멈춘 것은
+    실패가 아니라 **정상적인 중단**이고, 이때는 워터마크를 전진시키면 안 된다. FAILED 와 섞으면
+    "고쳐야 할 오류"와 "내일 이어서 하면 되는 중단"을 구분할 수 없다.
+
+    ``actor_user_id`` 는 FK 가 없는 소프트 참조다(사용자가 지워져도 실행 이력은 남는다).
+    ``dry_run`` 실행은 DB 에 아무것도 쓰지 않으므로 현재 규약상 이 표에도 행을 남기지 않는다 —
+    컬럼을 둔 것은 나중에 "모의 실행도 기록하자"로 규약이 바뀔 자리를 비워두기 위함이다.
+    """
+
+    __tablename__ = 'naver_settle_sync_runs'
+
+    id = Column(Integer, primary_key=True)
+    channel = Column(String(20), nullable=False, server_default='NAVER')
+    started_at = Column(DateTime, nullable=False, default=now_utc_naive)
+    finished_at = Column(DateTime, nullable=True)
+    # RUNNING / OK / FAILED / ABORTED_QUOTA
+    status = Column(String(20), nullable=False)
+    # SCHEDULE / MANUAL / BACKFILL
+    trigger = Column(String(20), nullable=False)
+    actor_user_id = Column(Integer, nullable=True)
+    # 요청 구간 {from, to, backfill_from, ...} — 무엇을 달라고 했는지 그대로.
+    scope = Column(JSONColumn, nullable=False)
+    # 엔드포인트별 호출수·행수와 retro_changes 목록. 실행 중에는 비어 있을 수 있다.
+    stats = Column(JSONColumn, nullable=True)
+    error = Column(Text, nullable=True)
+    dry_run = Column(Boolean, nullable=False, default=False, server_default='false')
+
+    __table_args__ = (
+        # 배너·이력 화면: 최근 실행부터 훑는다.
+        Index('ix_nssr_started', 'started_at'),
+    )
