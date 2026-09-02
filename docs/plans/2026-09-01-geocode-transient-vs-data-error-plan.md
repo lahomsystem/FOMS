@@ -47,7 +47,9 @@
 | T6 | 전수 검증 + deploy push | **DONE** `f3d3f04f5` | 본 스위트 7645 green · smoke exit 0 |
 | T7 | 문서 반영(AI_STATUS·CHANGELOG·원장 마감) | **DONE** | — |
 | T8 | 운영 승격(사용자 승인 후) | **DONE** PR #243 · production `c8492b6b` | 검사 4종 pass · WORKER 신코드 확인 |
-| T9 | 남긴 것 — 동네 중심 좌표를 성공으로 반환하던 폴백 | **DONE** | 아래 §T9 |
+| T9 | 남긴 것 — 동네 중심 좌표를 성공으로 반환하던 폴백 | **DONE** PR #251 · production `17bc0027` | 아래 §T9 |
+| T10 | **미규명 트리거 규명** — SIDEFX 카카오 키 부재 | **DONE** | 아래 §T10 |
+| T11 | 곁가지 — 배달할 일 없는 outbox 행이 DEAD 로 쌓이던 것 | **DONE**(deploy 대기) | 아래 §T11 |
 
 ---
 
@@ -302,3 +304,100 @@ T1~T8 에서 "범위 밖"으로 남겼던 6단계 `simplified` 폴백을 실측�
 
 #905·#2690 는 `success` 라 자동 재변환 대상이 아니다(주소를 고치면 write 경로가 되돌린다).
 #2418 은 배포 후에도 저장값이 그대로다 — **좌표 정정은 운영 쓰기라 별도 승인 사항**으로 남긴다.
+
+
+---
+
+## T10 — 최초 트리거를 찾았다: `SIDEFX` 서비스에 카카오 키가 없다 (2026-09-02)
+
+T8 승격 뒤 운영 DB 를 다시 읽다가 **배포 이후에도 새 `failed` 가 계속 생기는 것**을 봤다.
+새 코드는 `failed` 를 쓰지 않는다(`success`/`pending`/`address_error` 뿐) — 그래서 옛 코드를
+도는 프로세스가 살아 있다는 뜻이었다.
+
+### 추적
+
+| 단계 | 관측 |
+|---|---|
+| 운영 DB | 배포(22:47 UTC) 이후 23:09·23:23·23:25·23:46 에 `failed` 4건 추가 |
+| 코드 | `origin/production` 트리에 `geocode_status='failed'` 를 쓰는 살아있는 경로 **0곳** |
+| 서비스 목록 | `Redis / web / **SIDEFX** / WORKER / FOMS-cron / Postgres` |
+| SIDEFX 로그 | `[geocode] order 5099 address conversion failed — marked failed, no retry` ← **옛 문구** |
+| SIDEFX 환경변수 | **`KAKAO_REST_API_KEY` 없음** (web·WORKER 는 있음) |
+| 그 주소들 | 같은 운영 키로 직접 변환 → **4/4 첫 전략(stripped)에서 성공** |
+
+**기전**: 키가 없으면 `kakao_rest_headers()` 가 `RuntimeError` → (수정 전) 변환기가
+`except Exception` 으로 삼켜 "AI 변환 실패" → 저장단이 `geocode_status='failed'`.
+조사 원장이 관측한 `attempts=1 · last_error=NULL · DONE`(사유 없이 "좌표 없음")이 이것이다.
+
+2026-09-01 조사가 이 서비스를 못 본 이유는 **운영 서비스를 3개(web·WORKER·FOMS-cron)만
+확인했기 때문**이다. SIDEFX 는 그 뒤 등록됐다.
+
+### 조치 (사용자 승인 후)
+
+1. `SIDEFX` 에 `KAKAO_REST_API_KEY` 설정(WORKER 와 같은 값) → 재배포(신코드 동반).
+   재기동 확인: `[sidefx-worker] started owner=8f41a57685de interval=5s`.
+2. 옛 코드가 오늘 잘못 찍은 5건(#5095~#5099) 재변환 — **5/5 success**.
+   대상 id 5개 고정·`failed`+좌표없음일 때만 진행·저장 SSOT(`apply_geocode_to_order`) 사용,
+   쓴 컬럼은 lat/lng/geocode_status/geocoded_at/address_hash 뿐(알림·이벤트 0).
+3. 운영 분포: `success 3789 · failed 19 · NULL 8`(재변환 전 3784/24/8).
+
+### 이 결함이 다시 나면
+
+근본 수정 ①이 배포된 지금은 키가 빠져도 **`transient`** 로 갈려 재시도 경로로 간다 —
+멀쩡한 주소가 "주소오류" 로 굳지 않는다. 즉 설정 사고가 데이터 오판으로 번지는 길이 끊겼다.
+
+### 곁가지 관측 (별개 결함, 이 원장 범위 밖)
+
+SIDEFX 는 `CHANNEL_PUSH_RECORDED` 핸들러가 등록돼 있지 않아 그 effect_type 을 계속
+`NoHandlerError` 로 재시도한다(로그 다수). 별도 판단 필요.
+
+
+---
+
+## T11 — 배달할 일이 없는 outbox 행 1,188개가 DEAD 로 쌓이고 있었다 (2026-09-02)
+
+T10 에서 SIDEFX 로그를 읽다 발견한 별개 결함. 사용자 지시로 범위에 넣었다.
+
+### 실측 (운영 outbox 전수)
+
+| effect_type | status | 건수 | 최초 ~ 최종 |
+|---|---|---|---|
+| `CHANNEL_PUSH_RECORDED` | DEAD | **1,188** | 08-03 ~ 09-01 |
+| `CHANNEL_PUSH_RECORDED` | PENDING | 2 | 09-01 |
+| `STAGE_NOTIFICATION` | DEAD | 118 | 08-03 ~ 09-01 |
+| `GEOCODE` | DONE | 101 | 08-06 ~ 09-01 |
+| `STORAGE_DELETE` | DONE / PENDING | 325 / 124 | 08-11 ~ 09-01 |
+
+`CHANNELTALK_PUSH` OrderEvent 는 같은 기간 **1,190건** — DEAD 1,188 + PENDING 2 와 맞는다.
+즉 **푸시 기록 행은 하나도 빠짐없이 죽었다.**
+
+### 기능 손실은 없었다 (그래서 더 위험했다)
+
+채널톡 전송은 이 outbox 와 무관하게 이미 끝났고(전송이 먼저·기록이 나중), 이력
+(`structured_data.channeltalk_push*` — 584주문)과 OrderEvent 는 같은 트랜잭션에서 쓰인다.
+이 행의 유일한 역할은 **같은 send 를 두 번 기록하지 않게 막는 dedupe** 다.
+
+문제는 그 1,188행이 worker 로그와 DEAD 목록을 채워 **진짜 배달 실패를 덮는다**는 것이다.
+T10 에서 GEOCODE 실패를 찾을 때 실제로 이 로그를 헤집고 지나가야 했다.
+
+### 수정
+
+`foms/services/record_only_effects.py` 신설 — "배달할 일이 없음"을 **명시적으로 등록**한다.
+등록을 빼먹어서 죽는 것과, 할 일이 없어서 바로 끝나는 것은 다른 상태여야 한다.
+러너(`tools/ops/run_domain_side_effect_outbox.py`)가 `CHANNEL_PUSH_RECORDED` 를 이 handler 로
+등록한다.
+
+계약 3건(`tests/domains/test_sidefx_record_only_effects.py`):
+등록 결과 확인(주석만 남기고 호출을 지우는 회귀 차단)·부수효과 0·**음성 대조군**으로
+미등록 타입은 종전대로 `NoHandlerError`(모르는 타입을 조용히 통과시키는 퇴화 차단).
+
+검증: 본 스위트 **7755 passed**, PG 레인 sidefx 26 passed, `pre_push_smoke` exit 0.
+
+### 남은 판단 (사용자 몫)
+
+* **`STAGE_NOTIFICATION` 118행**: 이쪽은 *기록 전용이 아니라 소비자 미구현*이다.
+  운영 `notifications` 전수 조회 결과 단계 전이 알림 유형은 **한 번도 존재한 적이 없다**
+  (있는 유형: DRAWING_TRANSFERRED·SHIPMENT_ORDER_CHANGED·ERP_ORDER_CHANGED·
+  NAVER_ORDER_CLAIMED·PRODUCTION_ORDER_CHANGED 등). 즉 회귀가 아니라 미구현이다.
+  "단계 전이 알림을 낼 것인가"는 제품 결정이라 손대지 않았다.
+* 이미 쌓인 DEAD 1,188행은 되살리지 않는다 — 배달할 것이 없다(retention 이 정리한다).
