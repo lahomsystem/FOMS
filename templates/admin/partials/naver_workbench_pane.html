@@ -53,6 +53,15 @@
 {% set dispatched_any = grp.dispatched_any if grp
                         else (selected.fulfillment.dispatched_at or selected.dispatch.naver_at) %}
 {% set dispatched_count = grp.dispatched_count if grp else (1 if selected.fulfillment.dispatched_at else 0) %}
+{# 발송처리가 **실제로 나갈** 건수 — 모달 재진술은 이 값 하나만 쓴다(계약 §0-2).
+   `member_count - dispatched_count` 로 세면 안 된다: `dispatched_count` 는 **우리 표식만**
+   센 값이라, 판매자센터에서 사람이 직접 보낸 형제가 빠지지 않는다 — 화면이 "3건 보냅니다"
+   라고 말하고 서버 `dispatch_order` 는 1건만 보낸다. 되돌릴 수 없는 경로의 과대 진술이다.
+   술어는 서버와 한 벌(`fulfillment.is_dispatch_pending`)이고, 집이 없을 때(큐 밖 단건)의
+   폴백도 **두 신호**를 본다 — 위 `dispatched_any` 와 같은 규율. #}
+{% set dispatch_pending_count = grp.dispatch_pending_count if grp
+                                else (0 if (selected.fulfillment.dispatched_at
+                                            or selected.dispatch.naver_at) else 1) %}
 {# 네이버가 **이미 발송을 말하고 있는** 집(2026-08-26 T5). 지금까지 발송처리 판정은
    우리 표식만 봤다 — 판매자센터에서 이미 나간 집에 버튼이 열렸고, 누르면 되돌릴 수 없는
    두 번째 호출이 나간다(구매자에게 '배송 시작'·구매확정·정산 시계).
@@ -97,8 +106,16 @@
 {% set can_confirm = place_pending and not locked %}
 {# `not naver_sent_at`: 네이버가 이미 발송을 말하는 집에 두 번째 호출을 내보내지 않는다.
    서버 `dispatch_order` 도 같은 신호(원본 `delivery.sendDate`)로 한 겹 더 막는다. #}
+{# `dispatch_pending_count > 0`: 보낼 것이 하나도 없으면 버튼을 열지 않는다 — `can_create`
+   가 옮길 형제 0건에 버튼을 안 여는 것과 같은 규율이다. 열어 두면 모달이 "0건을 네이버에
+   발송처리로 보냅니다" 라고 말하고, 눌러도 서버가 `FulfillmentError` 로 되돌린다. 안내줄은
+   이미 "더 보낼 상품주문이 없습니다" 라고 적는데 그 옆 버튼이 열려 있으면 화면이 자기
+   자신과 모순된다. 집 전체가 **판매자센터에서** 나갔고 pane 이 연 상품주문만 우리 표식을
+   가진 집이 그 자리다 — `naver_sent_at` 은 연 1건만 봐서 못 막고, `dispatched` 는 우리가
+   보낸 수로만 판정해 못 막는다(둘 다 그대로 두는 것이 옳다: 2026-09-02 상류 판단). #}
 {% set can_dispatch = not locked and not dispatched and not naver_sent_at
-                      and (not place_pending or close_now) %}
+                      and (not place_pending or close_now)
+                      and dispatch_pending_count > 0 %}
 {# 취소는 **하나라도** 나갔으면 닫는다 — 서버 `cancel_order` 가 형제 중 발송된 건이
    있으면 집 전체를 거절한다(반품 흐름). 링크 기준으로 두면 안 나간 형제로 열었을 때
    버튼이 열려 있다가 서버에서 실패한다. #}
@@ -493,12 +510,17 @@
            잠긴 집은 위 문구가 이미 이유를 말하므로 겹쳐 쓰지 않는다(리뷰 M-4). #}
         {% if dispatched_any and not dispatched and not locked %}
         <div class="wb-acts__why small">
-            상품주문 {{ member_count }}건 중 <b>{{ dispatched_count }}건 발송 완료</b> —
+            {# 나간 건수도 **두 신호**로 센다(2026-09-02). `dispatched_count` 는 우리가 보낸
+               수라, 형제가 판매자센터에서 나간 집에서 "2건 중 0건 발송 완료" 라는 거짓 문장이
+               나왔다. 집 전체가 나간 집은 이 가지에 오지 않는다(`dispatched` 도 두 신호). #}
+            상품주문 {{ member_count }}건 중 <b>{{ member_count - dispatch_pending_count }}건 발송 완료</b> —
             {# 발주확인이 남아 있으면 발송처리 버튼은 잠겨 있다. 그때 "남은 건만 나갑니다"는
                화면이 없는 동작을 약속하는 말이 된다(CEO 검수 중).
                네이버 기록으로 잠긴 집도 같은 함정이다 — 사유가 발주확인이 아닌데 "발주확인이
                먼저라"고 말하면 사람이 발주확인 탭으로 간다(2026-08-26 T5). #}
-            {% if can_dispatch %}남은 건만 나갑니다.{% elif naver_sent_at %}네이버에 이미 발송 기록이 있어 지금은 보낼 수 없습니다.{% else %}발주확인이 먼저라 지금은 보낼 수 없습니다.{% endif %}
+            {# 남은 것이 0이면 "왜 못 보내는지"를 말할 자리가 아니다 — 보낼 것이 없다.
+               우리 표식은 일부뿐인데 나머지가 판매자센터에서 나간 집이 여기 온다. #}
+            {% if not dispatch_pending_count %}더 보낼 상품주문이 없습니다.{% elif can_dispatch %}남은 건만 나갑니다.{% elif naver_sent_at %}네이버에 이미 발송 기록이 있어 지금은 보낼 수 없습니다.{% else %}발주확인이 먼저라 지금은 보낼 수 없습니다.{% endif %}
             {# T8-S1 전까지 이 자리는 "판매자센터에서" 라고 말했다 — 버튼이 생긴 뒤에도
                그대로 두면 화면이 자기 자신과 모순된다. 나간 건만 접수된다는 사실을 함께 적는다. #}
             나간 물건을 되돌리려면 <b>반품 접수</b>를 쓰세요{% if return_pending_count %} — 발송된 {{ return_pending_count }}건만 나갑니다{% endif %}.
@@ -1174,13 +1196,17 @@
                 {# ① 건수 재진술 #}
                 <p class="fw-semibold mb-2">
                     {{ selected.naver.recipient_name }}님의 상품주문
-                    {{ member_count - dispatched_count }}건을 네이버에 발송처리로 보냅니다.
+                    {{ dispatch_pending_count }}건을 네이버에 발송처리로 보냅니다.
                 </p>
-                {# 서버 dispatch_order 의 todo 는 이미 나간 형제를 뺀다 — 집 전체 수로
-                   재진술하면 "3건 보냅니다" 라고 읽히는데 1건만 나간다(계약 §0-2). #}
-                {% if dispatched_count %}
+                {# 서버 dispatch_order 의 todo 는 **이미 나간 형제를 두 신호로** 뺀다
+                   (우리 표식 + 네이버 sendDate). 집 전체 수나 우리 표식만으로 재진술하면
+                   "3건 보냅니다" 라고 읽히는데 1건만 나간다(계약 §0-2). #}
+                {% if member_count - dispatch_pending_count %}
                 <p class="small mb-2">
-                    이미 발송처리된 <b>{{ dispatched_count }}건</b>은 다시 보내지 않습니다.
+                    {# '이미 발송처리된' 이라는 낱말은 여기 말고도 화면이 "취소가 왜 없는지"를
+                       말하는 근거로 읽는다 — 문구를 바꾸려면 M-4 계약 테스트를 함께 본다.
+                       세는 건수는 **두 신호**다: 우리가 보낸 것과 판매자센터에서 나간 것. #}
+                    이미 발송처리된 <b>{{ member_count - dispatch_pending_count }}건</b>은 다시 보내지 않습니다.
                 </p>
                 {% endif %}
                 {# ② 되돌릴 수 없음 — 관계에 따라 사람이 물어야 할 질문이 다르다.
