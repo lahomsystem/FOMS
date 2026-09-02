@@ -47,7 +47,7 @@
 | F4 | 잔재 `c:/tmp/foms-s-settle-naver` 삭제 | 디렉토리 없음 | DONE — `rm -rf` 성공(잠금 해제됨) |
 | F6 | **정산 화면 글자 크기 조절**(사용자 추가 요청 2026-09-03, 네이버 워크벤치 `.wb-fs` 패턴 이식) — 셸 탭줄 조절기(`data-settlement-fs*`, 단계 [1,1.15,1.3,1.5], localStorage `foms.settlement.fontScale`), 루트 CSS 변수 `--s-fs` 로 정산 3 CSS 의 font-size 137곳이 calc 로 흐름(조절기 2규칙만 고정), 기존 위임 클릭·mount 복원 재사용, 핀 셸 4줄+채널 2줄 → 20260903c. **사용자 지시로 CEO 워크플로(`settlement-v12-ceo`)가 수행**: CEO 설계 → W1 셸·JS / W2 CSS / W3 테스트 병렬 → 통합 검증 → 2판정 리뷰 → CEO 판정. 브리프 `docs/plans/2026-09-03-settlement-followup-brief.md` | `tests/domains/test_settlement_font_scale.py`(16) + 정산 렌더 3종 green + 스테이징 실화면(130%·새로고침 유지·150% 가로 스크롤 없음) | DONE(로컬) — **CEO 판정 ship**(차단 0, minor 7). 통합 검증 all_green(JS_OK·APP_OK·font 16·렌더 607·namespace+contracts 250·-k settlement 842·워크벤치 3·perf guard 5), CEO 독립 재실행 261. 총괄 직접: 게이트 881 passed·smoke PASSED, minor 5건(R1·R2·R3·R5·R7) 직접 반영 후 font+렌더 3종 399 passed. 잔여: push·CI·스테이징 실화면 |
 | F6 후속(minor, 비차단) | R4 `role=group` 이 `role=tablist` 직계(집중 모드 버튼의 기존 결함과 동일) → tablist 를 탭 4개만 감싸는 안쪽 래퍼로 · R6 함수 시그니처·localStorage 리터럴 단정은 CEO 계약 §5③ 대로 유지(리팩터 시 완화) · 수용 리스크: 150% 에서 SVG 축 라벨 좌표가 JS 고정이라 겹칠 수 있음(스테이징 실화면에서 확인) | — | PENDING(후속) |
-| F5 | 게이트 전수 → push_own → CI 4/4 → 스테이징 QA → 원장·AI_STATUS | 전부 green | PENDING |
+| F5 | 게이트 전수 → push_own → CI 4/4 → 스테이징 QA → 원장·AI_STATUS | 전부 green | push 완료 — 세션 커밋 e432a3605(코드)·8fdc56a54(문서) → 원격 deploy `c7f5d7b4f`(cherry-pick 재작성), production 82d8b957d 불변. **스테이징 QA 11/13 PASS**(핀 20260903c 도달·조절기 1벌·+2회=130%·새로고침 유지·150% 잠금+가로 스크롤 없음·100% 복귀 잠금·보류 타일 role=button·상세 표 16행 합계 -118,463,095(= 사용자가 찾던 -1.2억, 전부 계좌 이체·한도 0)·예외 워크벤치 대기 50행(상한)+수집 전 0·[열기]→`/admin/naver-ingest/triage?link_id=229`). 실패 2건은 정산 무관 잡음: 새로고침 중 셸 프리페치 `ERR_ABORTED` 3건·`mobile-push.js` mobile-state fetch 중단 1건. CI: 아래 결정 기록 참조 |
 
 ## 결정 기록
 - 2026-09-03 CEO 워크플로(F6) 리뷰 findings 전량(스펙 2·품질 5, 전부 minor, 두 리뷰 pass):
@@ -58,6 +58,8 @@
   - R5 test_settlement_font_scale.py:297 — 조절기 고정 px 정규식 `\d+px` 가 소수 px 를 못 본다 → `_FIXED_FONT_SIZE_RE` 공용. **수정 예정(총괄)**
   - R6 test_settlement_font_scale.py:322 — 함수 시그니처·localStorage 호출 리터럴 단정(구현 세부) → 이름 수준으로 완화. CEO 계약 §5③ 이 명시한 항목이라 **유지**(계약 소유자=총괄 판단: 이번 릴리스 유지, 리팩터 시 완화)
   - R7 dashboard.js:319 — `applyFontScale`·`stepFontScale` 한 줄 설명 부재 → 추가. **수정 예정(총괄)**
+- 2026-09-03 deploy `c7f5d7b4f` CI **4/4 green**(FOMS CI 33696559878·Harness CI·PostgreSQL Lane·perf-gate staging). 잔여: 운영 승격(사용자 확인 후 `promote_own_to_production.py --shas`, 세션 커밋 e432a3605·8fdc56a54·문서 커밋), F6 후속 minor 2건(R4 tablist 구조·R6 계약 리터럴), 워크트리 `foms-s-settle-followup` 정리(승격 뒤).
+- 2026-09-03 스테이징 실화면(upperkill, 1440×900): 기본 창(08-04~09-17) 미연결 484 = 워크벤치 대기 484·수집 전 0(수집 전 32행은 6월분이라 창 밖), 보류 표 16행 합계 -118,463,095 — 회계팀이 물은 "-1.2억" 은 8/5 -27,965,819·8/24 -15,030,828·8/10 -14,444,118 등 8월 지급 보류의 누적이며 해제(양수)는 8/27 +2,410,000 하나뿐. 스크린샷 scratchpad qa_fs_130/qa_holdback_detail/qa_exceptions.png
 - 2026-09-03 통합 검증(워크플로): all_green, 수정 0 — JS_OK·APP_OK·font 16·렌더 607·namespace+contracts 250·-k settlement 842·워크벤치 3·perf guard 5. 총괄 직접 재실행: 게이트 881 passed·pre_push_smoke PASSED(377).
 - 2026-09-02 T0 실측: 스테이징 워커 정산 5종 403 GW.AUTHN(주문 API는 OK). 토큰 잔여 약 18:58 KST 만료 후 재검증 필요. 앱 client_id 앞 4자 4RYv.
 - 2026-09-02 계약 결정: _MOCKUP_LEFTOVERS "예정" 렌더 스캔은 기존 3 pane으로 한정(채널 탭은 "정산 예정일"이 정본 용어).
