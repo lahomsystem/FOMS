@@ -450,3 +450,145 @@ def test_an_addon_only_return_is_not_blocked_by_the_scope_rule(app):
     assert client.calls == ["PO-F2A-ADDON"], (
         f"추가구성상품만 반품하는 정상 경로가 막혔다: {client.calls}")
     assert out["returned"] == ["PO-F2A-ADDON"]
+
+
+# --------------------------------------------------- F7 거부 순서 (NOT IN DOCS)
+
+
+class _RejectClient:
+    """반품 거부 호출 **순서**를 기록하는 가짜 클라이언트.
+
+    거부는 보내기 직전 **지금 상태를 다시 묻는다**(감사 F10). 재조회는 배치 1회라
+    순서를 가르지 않는다 — 순서를 만드는 것은 그 뒤의 건별 호출이다.
+    """
+
+    def __init__(self):
+        self.calls: list[str] = []
+
+    def get_product_orders(self, product_order_ids):
+        return [{"productOrder": {"productOrderId": str(pid),
+                                  "claimStatus": "RETURN_REQUEST",
+                                  "claimType": "RETURN"}}
+                for pid in product_order_ids]
+
+    def reject_return_product_order(self, product_order_id, *, reason):
+        self.calls.append(str(product_order_id))
+        return {"data": {"successProductOrderIds": [product_order_id],
+                         "failProductOrderInfos": []}}
+
+
+def test_reject_calls_the_main_product_before_addons(app):
+    """반품 **거부**는 본품 먼저다 — 추가상품 id 가 더 작아도 (감사 F7).
+
+    거부의 호출 순서는 **문서에 없다**(NOT IN DOCS — #1321 은 취소 요청·취소 승인·
+    반품 요청·반품 승인·교환 재배송만 적는다). 그래서 판정을 바꾸지 않고 **지금 동작을
+    명시**한다: 거부는 클레임을 되돌리는 방향이라 발송처리(취소 철회)와 대칭으로 본다.
+
+    이 테스트가 무는 것은 추정 자체가 아니라 **우연 의존**이다. 지금까지 본품이 먼저
+    나간 것은 ``_links_of_group`` 의 ``id.asc()`` 가 수집 순서와 맞아떨어져서일 뿐이라,
+    재수집으로 추가상품 id 가 작아지면 조용히 뒤집혔다. 거부는 되돌릴 수 없다.
+    """
+    from foms.services.integrations.naver_commerce.fulfillment import reject_return
+
+    order_no = "N-ORD-REJECT"
+    addon = _link("PO-RJ-ADDON", order_no=order_no, addon=True, dispatched=True,
+                  claim="RETURN_REQUEST", claim_type="RETURN")
+    main = _link("PO-RJ-MAIN", order_no=order_no, addon=False, dispatched=True,
+                 claim="RETURN_REQUEST", claim_type="RETURN")
+    assert addon < main, "픽스처 전제가 깨졌다 — 추가상품 id 가 더 작아야 한다"
+
+    client = _RejectClient()
+    reject_return(db_session, client, link_id=main, reason="제작이 이미 시작됐습니다.")
+    db_session.commit()
+
+    assert client.calls[0] == "PO-RJ-MAIN", (
+        f"본품이 첫 번째가 아니다 — id 순서에 기댄 우연이 드러났다: {client.calls}")
+
+
+# --------------------------------------------------- F13 모양 미상 응답
+
+
+def test_an_unknown_response_shape_is_logged_when_it_covers_many_orders(app, caplog):
+    """성공/실패 목록이 없는 응답을 **여러 건**에 걸쳐 받으면 경고를 남긴다 (감사 F13).
+
+    판정은 그대로다 — 근거 없이 실패로 몰면 이미 나간 불가역 호출을 사람이 다시 보낸다.
+    다만 배치 호출에서 이 모양이 오면 그건 **응답 스키마가 바뀌었다**는 신호이고, 그때
+    전건 성공 도장은 조용한 미처리가 된다(멱등 규칙 때문에 다시는 안 나간다).
+    """
+    import logging
+
+    from foms.services.integrations.naver_commerce.fulfillment import _split_result
+
+    with caplog.at_level(logging.WARNING):
+        ok, fails = _split_result({"data": {"somethingElse": True}}, ["A", "B"])
+
+    assert ok == ["A", "B"] and fails == {}, "판정을 바꾸면 안 된다 — 관측만 늘린다"
+    assert any("모양 미상" in rec.message for rec in caplog.records), caplog.text
+
+
+def test_a_single_order_call_does_not_warn_on_the_documented_shape(app, caplog):
+    """**음성 대조군** — 단건 호출의 200 은 정상 경로다. 경고를 내면 로그가 소음이 된다."""
+    import logging
+
+    from foms.services.integrations.naver_commerce.fulfillment import _split_result
+
+    with caplog.at_level(logging.WARNING):
+        ok, fails = _split_result({"data": {}}, ["A"])
+
+    assert ok == ["A"] and fails == {}
+    assert not any("모양 미상" in rec.message for rec in caplog.records), caplog.text
+
+
+# --------------------------------------------------- F8 승인 상태의 근거 축
+
+
+def test_the_approvable_statuses_split_documented_from_observed(app):
+    """승인 가능 상태를 **문서 축과 관측 축으로 가른다** — 합집합은 그대로 (감사 F8).
+
+    한 상수에 섞여 있으면 *어느 값이 왜 거기 있는지*가 사라지고 다음 사람이 관측값을
+    규정처럼 넓힌다(F6 취소 사유 게이트에서 이미 한 번 겪은 자리다). 승인은 여는 쪽
+    확장이라 위험 방향이 나쁘다. 지금은 좁히지 않는다 — 좁히면 접수 직후 수거완료로
+    지나가는 실사용 건의 승인이 막힌다.
+    """
+    from foms.services.integrations.naver_commerce import fulfillment as f
+
+    assert (f.RETURN_APPROVABLE_STATUSES_DOCUMENTED
+            + f.RETURN_APPROVABLE_STATUSES_OBSERVED) == f.RETURN_APPROVABLE_STATUSES, (
+        "축을 가르면서 동작이 바뀌었다 — 합집합이 달라졌다")
+    assert "COLLECT_DONE" in f.RETURN_APPROVABLE_STATUSES_OBSERVED
+    assert "COLLECT_DONE" not in f.RETURN_APPROVABLE_STATUSES_DOCUMENTED, (
+        "관측값이 문서 축에 섞이면 다음 사람이 규정으로 읽는다")
+    # 거부 축은 문서 근거가 있는 값만 담는다 — 두 축의 규율이 같아야 한다.
+    assert "COLLECT_DONE" not in f.RETURN_REJECTABLE_STATUSES
+
+
+# --------------------------------------------------- F12 구성 판정 근거
+
+
+def test_a_row_without_product_class_is_marked_unknown_not_main(app):
+    """``productClass`` 가 없는 옛 수집분은 **미상**이다 — 본품이라는 사실이 아니다.
+
+    판정 자체는 바꾸지 않는다(모르는 값을 추가구성상품으로 단정하면 반대 방향으로
+    틀린다). 바꾸는 것은 **화면이 단정하지 못하게** 하는 것이다 — 그 집은 클레임 호출
+    순서가 사실상 수집 id 순이고 반품 범위 검사(:func:`addon_return_gap`)도
+    추가구성상품을 못 세므로, 사람이 그 사실을 알아야 판매자센터를 연다.
+    """
+    from foms.services.integrations.naver_commerce.fulfillment import (
+        _is_addon_link, product_class_known,
+    )
+
+    order_no = "N-ORD-F12"
+    known = _link("PO-F12-KNOWN", order_no=order_no, addon=False, dispatched=True)
+    row = db_session.get(ExternalOrderLink, known)
+    assert product_class_known(row) is True
+
+    snapshot = {"order": {"orderId": order_no},
+                "productOrder": {"productOrderId": "PO-F12-OLD"}}
+    old = ExternalOrderLink(channel="NAVER", external_id="PO-F12-OLD",
+                            external_order_no=order_no, sync_status="LINKED",
+                            place_order_status="OK", raw_snapshot=snapshot)
+    db_session.add(old)
+    db_session.commit()
+
+    assert product_class_known(old) is False, "근거가 없는데 있다고 말한다"
+    assert _is_addon_link(old) is False, "판정 기본값(본품)까지 바꾸면 안 된다"

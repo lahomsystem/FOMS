@@ -41,6 +41,7 @@ __all__ = [
     "claim_call_order",
     "dispatch_call_order",
     "return_sendable",
+    "product_class_known",
     "household_exchange_in_flight",
     "STATE_KEY",
     "DIRECT_DELIVERY",
@@ -66,6 +67,8 @@ __all__ = [
     "RETURN_REJECTABLE_STATUSES",
     "RETURN_REJECT_FILLS",
     "RETURN_APPROVABLE_STATUSES",
+    "RETURN_APPROVABLE_STATUSES_DOCUMENTED",
+    "RETURN_APPROVABLE_STATUSES_OBSERVED",
     "CANCEL_APPROVABLE_STATUSES",
     "approve_cancel",
     "approve_return",
@@ -408,6 +411,30 @@ def _is_addon_link(link: ExternalOrderLink) -> bool:
     return is_addon_detail(link.raw_snapshot or {})
 
 
+def product_class_known(link: ExternalOrderLink) -> bool:
+    """이 상품주문의 **본품/추가구성상품 판정에 근거가 있는가** (감사 F12).
+
+    :func:`_is_addon_link` 은 ``productClass`` 가 없으면 **본품으로 본다** — 모르면 뒤로
+    보낸다는 안전측 기본값이다(클레임에서는 나중, 발송에서는 먼저). 문제는 그 기본값이
+    화면에서 `본품` 이라는 **단정**으로 읽힌다는 것이다. 옛 수집분에는 이 필드가 없고,
+    그 집에서는 호출 순서가 사실상 ``id.asc`` 로 돌아가며 반품 범위 검사
+    (:func:`addon_return_gap`)도 추가구성상품을 세지 못해 **덜 막는** 쪽으로 샌다.
+
+    판정을 바꾸지는 않는다(모르는 값을 추가구성상품으로 단정하면 반대 방향으로 틀린다).
+    대신 **모른다는 사실을 값으로 만든다** — 화면이 `구성 미상` 이라고 말할 수 있게.
+
+    Args:
+        link: 수집 링크(상품주문 1건).
+
+    Returns:
+        ``productClass`` 원문이 있으면 True.
+    """
+    from foms.services.integrations.naver_commerce.mapping import unwrap_detail
+
+    _order, product_order, _shipping = unwrap_detail(link.raw_snapshot or {})
+    return bool(str(product_order.get("productClass") or "").strip())
+
+
 def claim_call_order(links: list[ExternalOrderLink]) -> list[ExternalOrderLink]:
     """클레임 **요청·승인** 호출 순서 — 추가구성상품 먼저, 본품 나중 (NVCLAIM-ORDER-01).
 
@@ -721,6 +748,16 @@ def _split_result(payload: Any, ids: list[str]) -> tuple[list[str], dict[str, st
                 failures[pid] = (f"네이버가 실패를 알렸으나 상품주문번호가 없습니다: {detail} "
                                  "— 다시 보내기 전에 판매자센터에서 처리 상태를 확인하세요.")
     elif not failures:
+        # **모양 미상**(성공 목록 키도 실패 목록 키도 없는 body). 단건 API 는 200 이 곧
+        # 성공이라 이 경로가 정상 동작이지만, 배치 API 의 응답 스키마가 바뀌면 같은
+        # 경로로 **조용한 미처리**가 된다 — 전건 성공 도장이 찍히고 멱등 규칙 때문에
+        # 다시는 안 나간다. 판정은 바꾸지 않고(근거 없이 실패로 몰면 이미 나간 호출을
+        # 사람이 다시 보낸다) **관측만 남긴다**: 여러 건을 한 번에 보낸 호출이 모양 미상
+        # 응답을 받으면 그건 스키마가 바뀌었다는 신호다(감사 F13).
+        if len(ids) > 1:
+            logger.warning("[NAVER] 응답 모양 미상 — 성공/실패 목록이 없어 %d건을 전건 "
+                           "성공으로 처리했다. 응답 키: %s", len(ids),
+                           sorted(data.keys())[:20])
         return list(ids), {}
 
     return [pid for pid in ids if pid not in failures], failures
@@ -1448,8 +1485,23 @@ def addon_return_gap(links: list[ExternalOrderLink],
 #: 수거중·수거완료가 함께 있는 이유: 실물이 없는 우리 반품은 접수 직후 네이버가
 #: `collectCompletedDate` 를 `returnCompletedDate` 와 같은 시각으로 찍고 지나간다
 #: (운영 25건 전수 관측). 그 순간을 통과하는 건을 상태만 보고 막으면 안 된다.
-RETURN_APPROVABLE_STATUSES = ("RETURN_REQUEST", "RETURN_REQUESTED",
-                              "COLLECTING", "COLLECT_DONE")
+#: 그중 **문서가 규정한** 상태. 반품 승인 endpoint 와 상태 흐름도가 승인 출발점으로
+#: 적는 값이다(거부 축 :data:`RETURN_REJECTABLE_STATUSES` 와 같은 출처).
+RETURN_APPROVABLE_STATUSES_DOCUMENTED = ("RETURN_REQUEST", "RETURN_REQUESTED")
+
+#: 그중 **관측으로만** 근거가 있는 상태(감사 F8). 실물이 없는 우리 반품은 접수 직후
+#: 네이버가 ``collectCompletedDate`` 를 ``returnCompletedDate`` 와 같은 시각으로 찍고
+#: 지나가서(운영 25건 전수 관측) 이 두 상태를 통과하는 건이 실재한다. **문서에는 없다.**
+#:
+#: 두 축을 가른 이유는 F6(취소 사유 게이트)에서 산 것과 같다: 관측값과 규정값을 한
+#: 상수에 섞으면 **어느 값이 왜 거기 있는지**가 사라지고, 다음 사람이 관측값을 규정처럼
+#: 넓힌다. 여는 쪽 확장이라 위험 방향이 나쁘다. 지금은 **좁히지 않는다** — 좁히면 그
+#: 순간을 지나는 실사용 건의 승인이 막힌다. 대신 관측 축으로 승인할 때마다 로그를 남겨
+#: 실측을 쌓는다(:func:`_approve_returns`).
+RETURN_APPROVABLE_STATUSES_OBSERVED = ("COLLECTING", "COLLECT_DONE")
+
+RETURN_APPROVABLE_STATUSES = (RETURN_APPROVABLE_STATUSES_DOCUMENTED
+                              + RETURN_APPROVABLE_STATUSES_OBSERVED)
 
 
 def _approve_returns(client: Any, by_id: dict[str, ExternalOrderLink],
@@ -1529,6 +1581,12 @@ def _approve_returns(client: Any, by_id: dict[str, ExternalOrderLink],
                     "잠시 뒤 다시 승인하세요."),
             })
             continue
+        if status in RETURN_APPROVABLE_STATUSES_OBSERVED:
+            # 문서가 규정하지 않은 상태에서 부르고 있다(감사 F8). 막지 않는다 — 막으면
+            # 접수 직후 수거완료로 지나가는 실사용 건이 승인되지 않는다. 대신 **실측을
+            # 쌓는다**: 이 로그가 쌓이면 다음 사람이 문서 없이도 근거를 갖는다.
+            logger.info("[NAVER] 관측 근거 상태에서 반품 승인 link=%s pid=%s status=%s",
+                        link_id, pid, status)
         try:
             response = client.approve_return_product_order(pid)
         except Exception as exc:  # noqa: BLE001 - 사유를 사람에게 그대로 보여준다
@@ -1770,6 +1828,85 @@ def request_return(session: Session, client: Any, *, link_id: int, reason: str,
             "skipped": [pid for pid in failures]}
 
 
+def fresh_claim_statuses(client: Any, pids: list[str]) -> tuple[dict[str, str], str]:
+    """네이버에 **지금 상태**를 다시 묻는다 — 불가역 호출 직전의 마지막 확인 (감사 F10).
+
+    ``link.raw_snapshot`` 은 **수집 시점**의 사실이다. 화면 술어
+    (:func:`is_cancel_approvable`·:func:`is_return_rejectable`)가 그 값으로 버튼을 여는 것은
+    옳지만, **되돌릴 수 없는 호출**까지 그 값으로 결정하면 그사이 구매자가 철회했거나
+    네이버가 상태를 넘긴 건에 환불 확정·거부 문장이 나간다. 반품 승인
+    (:func:`_approve_returns`)은 처음부터 재조회를 했는데 취소 승인·반품 거부는 안 했다 —
+    같은 불가역 등급인데 규율이 갈려 있던 자리다.
+
+    **못 읽으면 부르지 않는다.** 모르는 상태에서 되돌릴 수 없는 호출을 여는 것이 이 감사
+    항목의 핵심이라, 조회 실패는 "그대로 진행"이 아니라 사유가 있는 중단이다.
+
+    Args:
+        client: 커머스API 클라이언트.
+        pids: 확인할 ``productOrderId`` 목록.
+
+    Returns:
+        ``({pid: 지금 claimStatus}, 실패 사유)``. 성공하면 사유가 빈 문자열이고, 조회에
+        실패하면 dict 가 비고 사유가 채워진다. 응답에 없는 pid 는 dict 에 없다 —
+        호출자가 "모르는 건"으로 다뤄야 한다(빈 문자열로 채워 넣지 않는다).
+    """
+    from foms.services.integrations.naver_commerce.mapping import (
+        extract_claim, extract_external_id,
+    )
+
+    if not pids:
+        return {}, ""
+    try:
+        details = client.get_product_orders(pids)
+    except Exception as exc:  # noqa: BLE001 - 사유를 사람에게 그대로 보여준다
+        logger.error("[NAVER] 불가역 호출 전 재조회 실패 pids=%s: %s", pids, exc,
+                     exc_info=True)
+        return {}, f"네이버에서 지금 상태를 읽지 못했습니다: {exc}"[:500]
+
+    out: dict[str, str] = {}
+    for detail in (details or []):
+        if not isinstance(detail, dict):
+            continue
+        pid = str(extract_external_id(detail) or "")
+        if not pid:
+            continue
+        out[pid] = str(extract_claim(detail).get("status") or "").upper()
+    return out, ""
+
+
+def _stale_scope_guard(client: Any, by_id: dict[str, ExternalOrderLink],
+                       allowed: tuple[str, ...], *, what: str) -> dict[str, str]:
+    """재조회한 상태로 대상을 다시 거른다 — 통과 못 한 건의 사유를 준다 (감사 F10).
+
+    **조용히 빼지 않는다.** 호출자는 여기서 받은 사유를 실패로 세어 예외를 올린다 —
+    빈 대상을 성공으로 돌려주는 것이 NVCLAIM-ORDER-01 사고의 결함 그 자체였다.
+
+    Args:
+        client: 커머스API 클라이언트.
+        by_id: ``productOrderId`` → 링크(호출자가 고른 대상 전부).
+        allowed: 지금 상태가 이 안에 있어야 부른다.
+        what: 사람에게 보여줄 작업 이름("취소 승인" 등).
+
+    Returns:
+        ``{pid: 사유}`` — 대상에서 빼야 하는 건만. 전부 통과하면 빈 dict.
+        조회 자체가 실패하면 **전건**에 같은 사유가 담긴다(모르면 안 부른다).
+    """
+    fresh, error = fresh_claim_statuses(client, list(by_id))
+    if error:
+        return {pid: f"{what} 호출을 보내지 않았습니다 — {error}" for pid in by_id}
+    blocked: dict[str, str] = {}
+    for pid in by_id:
+        status = fresh.get(pid)
+        if status is None:
+            blocked[pid] = (f"{what} 호출을 보내지 않았습니다 — 네이버 응답에 이 "
+                            "상품주문이 없습니다. 판매자센터에서 상태를 확인하세요.")
+            continue
+        if status not in allowed:
+            blocked[pid] = (f"{what} 호출을 보낼 수 있는 상태가 아닙니다(지금 "
+                            f"{status or '알 수 없음'}) — 수집 이후 상태가 바뀌었습니다.")
+    return blocked
+
+
 #: 반품 **거부**를 걸 수 있는 클레임 상태 (T8-S3).
 #:
 #: **문서가 정한 값이다**(커머스API 공개 문서 2026-09-01 원문): 거부 endpoint 는
@@ -1892,19 +2029,37 @@ def reject_return(session: Session, client: Any, *, link_id: int, reason: str,
         raise FulfillmentError(f"수집 기록을 찾을 수 없습니다 (link {link_id}).")
 
     # 술어는 화면과 **한 벌**이다. 여기서 다시 구현하면 재진술 건수와 처리 건수가 갈린다.
-    # **순서를 바꾸지 않는다(의도적 누락, NVCLAIM-ORDER-01).** 반품 **거부**의 호출 순서는
-    # 문서에 없다(NOT IN DOCS) — 취소 철회와 대칭이라 본품 먼저로 추정되고, 지금 코드가
-    # 이미 그 순서다(``_links_of_group`` 의 ``id.asc()``). 문서 없는 불가역 경로를 추정으로
-    # 뒤집지 않는다.
-    todo = [row for row in links if is_return_rejectable(row)]
+    #
+    # 순서는 **본품 먼저**다(:func:`dispatch_call_order`). 반품 거부의 호출 순서는
+    # **문서에 없다**(NOT IN DOCS — #1321 은 취소 요청·취소 승인·반품 요청·반품 승인·
+    # 교환 재배송만 적고 거부·보류는 목록에 없다, 2026-09-02 원문 재확인). 그래서 판정을
+    # 바꾸지 않고 **지금 동작을 명시**한다: 거부는 클레임을 되돌리는 방향이라 취소 철회
+    # (발송처리)와 대칭으로 보는 것이 지금 코드의 추정이고, 그 순서는 지금까지
+    # ``_links_of_group`` 의 ``id.asc()`` 가 **우연히** 맞춰 주고 있었다. 우연은 계약이
+    # 아니다 — 변경 피드 재수집으로 추가상품이 더 낮은 id 를 받으면 조용히 뒤집히고,
+    # 거부는 되돌릴 수 없다(구매자에게 거부 문장이 그대로 간다). 발송처리에서 이미 한 번
+    # 잡은 잠재 결함과 같은 모양이라 같은 방식으로 못 박는다(감사 F7).
+    todo = dispatch_call_order([row for row in links if is_return_rejectable(row)])
     if not todo:
         raise FulfillmentError(
             "거부할 반품 요청이 없습니다 — 이미 처리됐거나, 네이버가 보류를 걸어 둔 "
             "건입니다(보류는 판매자센터에서 처리하세요).")
 
-    ok_ids: list[str] = []
-    failures: dict[str, str] = {}
     by_id = {str(row.external_id): row for row in todo}
+    # **낡은 스냅샷으로 불가역 호출을 결정하지 않는다**(감사 F10). 화면 술어는 수집 시점
+    # 값으로 버튼을 열지만, 거부 문장은 구매자에게 그대로 가고 되돌릴 수 없다 — 그사이
+    # 구매자가 반품을 철회했거나 네이버가 상태를 넘겼으면 부르면 안 된다.
+    stale = _stale_scope_guard(client, by_id, RETURN_REJECTABLE_STATUSES, what="반품 거부")
+    if stale:
+        # 조용히 빼지 않는다 — 뺀 라인마다 사유를 남기고 실패로 센다.
+        _mark_failures(by_id, stale, action="return-reject", stamp=stamp)
+        session.flush()
+        by_id = {pid: row for pid, row in by_id.items() if pid not in stale}
+        if not by_id:
+            raise FulfillmentError("; ".join(sorted(set(stale.values()))))
+
+    ok_ids: list[str] = []
+    failures: dict[str, str] = dict(stale)
     for pid, row in by_id.items():
         try:
             response = client.reject_return_product_order(pid, reason=text)
@@ -2099,9 +2254,22 @@ def approve_cancel(session: Session, client: Any, *, link_id: int,
             "승인할 취소 요청이 없습니다 — 이미 승인됐거나, 네이버가 보류를 걸어 둔 "
             "건입니다(보류는 판매자센터에서 처리하세요).")
 
-    ok_ids: list[str] = []
-    failures: dict[str, str] = {}
     by_id = {str(row.external_id): row for row in todo}
+    # **낡은 스냅샷으로 환불을 확정하지 않는다**(감사 F10). 반품 승인
+    # (:func:`_approve_returns`)은 처음부터 재조회를 했는데 이쪽만 안 했다 — 같은 불가역
+    # 등급인데 규율이 갈려 있던 자리다. 구매자가 취소를 철회한 뒤면 부르면 안 된다.
+    stale = _stale_scope_guard(client, by_id, CANCEL_APPROVABLE_STATUSES, what="취소 승인")
+    if stale:
+        for pid, why in stale.items():
+            _write_cancel_axis_state(by_id[pid], {"approve_skipped_reason": why[:500]})
+        _mark_failures(by_id, stale, action="cancel-approve", stamp=stamp)
+        session.flush()
+        by_id = {pid: row for pid, row in by_id.items() if pid not in stale}
+        if not by_id:
+            raise FulfillmentError("; ".join(sorted(set(stale.values()))))
+
+    ok_ids: list[str] = []
+    failures: dict[str, str] = dict(stale)
     for pid, row in by_id.items():
         try:
             response = client.approve_cancel_product_order(pid)
