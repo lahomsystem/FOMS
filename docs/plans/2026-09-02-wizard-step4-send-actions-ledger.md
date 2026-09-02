@@ -17,3 +17,15 @@
 | 스테이징 QA | PENDING | 사용자 | 실채널 발송 확인 | 채널톡 키가 로컬에 없어 실측 PUSH 실발송은 미검증 |
 | deploy 반영 | DONE | CEO | CI 4종 green | d774ff77d + 9317acd82, 전 워크플로 success |
 | production 승격 | DONE | CEO | PR 검사 green + 머지 | PR #273 머지, production HEAD e3f0ab1c2. 충돌 3건은 타 세션 의존이라 운영 쪽 유지 + 인벤토리 재생성으로 해소, 승격 트리 전체 스위트 8286 passed |
+
+## 후속 (2026-09-02, 사용자 요청)
+
+| 항목 | 상태 | 검증 |
+|---|---|---|
+| 실측 PUSH 머리말 제거(D5 철회) | DONE | `draft_notice` 인자·상수 삭제, 계약이 인자 목록 고정. 실화면 본문 확인 |
+| 유령 초안 부활 수정 | DONE | node fetch 카운트(제출 후 PUT 0회)+수정 전 대조군 1회, 실브라우저 초안 0건 |
+| deploy 반영 | DONE | `ef540c627`+`6f9c67090`, CI 4종 green |
+| production 승격 | DONE | PR #276 머지, production HEAD `bf2f0b77a`. 운영 코드 대조: DRAFT_NOTICE_LINE 0건·_markSubmitted 2건. 승격 트리 스위트 8314 passed(#275 기준 재베이스 후) |
+
+**본문이 ERP 와 아직 다른 점 1건**: 주문 상세 보기 링크. ERP 는 `channel_policy` 가
+`/erp/orders/{id}/mobile` 을 본문 끝에 붙이지만 초안은 가리킬 주문 id 가 없다.
