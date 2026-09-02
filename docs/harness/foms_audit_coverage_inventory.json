@@ -356,7 +356,7 @@
     {
       "path": "foms/api/cs/settlement_channel.py",
       "endpoint": "api_settlement_channel_sync",
-      "lineno": 197,
+      "lineno": 282,
       "methods": [
         "POST"
       ],
