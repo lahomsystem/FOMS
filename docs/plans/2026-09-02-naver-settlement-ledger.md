@@ -26,11 +26,12 @@
 | B1 | settle_sync.py + 워터마크 + 큐/태스크/스크립트/start.sh/플래그 + 테스트 7종 | agent | test_naver_settle_sync.py green | DONE (33 passed; 첫 적재는 retro 미집계, enqueue 중복=False) |
 | B2 | settlement_channel.py 커널 + /api/settlement/channel + sync POST(manifest·감사) + API 테스트 | agent | test_settlement_channel_api.py + auth enforcement green | DONE (138 passed; 워터폴 차감 3단계 표시 방향 -1 — 스테이징 실측으로 부호 확인 필요) |
 | C1 | 통합: 정산 5스위트+신규+계약 전수, ci.yml 등재, smoke, 커밋 | 총괄 | 전부 green | DONE — domains 6300 passed·services/perf/contracts 1745·smoke exit 0; 인벤토리 2종(failopen·ORM 우회) 재생성 커밋 |
-| C2 | T0 재프로브(토큰 만료 후) → 403 지속 시 사용자 확인 | 총괄 | 5종 200 | PENDING |
-| C3 | deploy push → CI 전 워크플로 green → 스테이징 백필 90일 → 화면 QA | 총괄 | 숫자 3개 대조 | PENDING |
+| C2 | T0 재프로브(토큰 만료 후) → 403 지속 시 사용자 확인 | 총괄 | 5종 200 | BLOCKED — 19:00 새 토큰(expires_in 10769) 발급 후에도 5종 403 GW.AUTHN, 주문 API 는 OK → FOMS 앱(client_id 4RYv…)에 [정산] API 그룹 미등록. 사용자 조치 대기 |
+| C3 | deploy push → CI 전 워크플로 green → 스테이징 백필 90일 → 화면 QA | 총괄 | 숫자 3개 대조 | RUNNING — push 37666b7c2, CI 4/4 green(18:50), 스테이징 web 배포·마이그레이션 naversettle_00 적용 확인, 화면 QA 1차 통과(탭 렌더·API 200·콘솔 0), 스테이징 users 41/54 → ACCOUNTING 완료. 잔여: T0 재프로브·백필 90일·실데이터 QA |
 | v1.1 | 요약 스트립·실무 컬럼·CSV 4종 | — | 별도 승인 | PENDING |
 
 ## 결정 기록
 - 2026-09-02 T0 실측: 스테이징 워커 정산 5종 403 GW.AUTHN(주문 API는 OK). 토큰 잔여 약 18:58 KST 만료 후 재검증 필요. 앱 client_id 앞 4자 4RYv.
 - 2026-09-02 계약 결정: _MOCKUP_LEFTOVERS "예정" 렌더 스캔은 기존 3 pane으로 한정(채널 탭은 "정산 예정일"이 정본 용어).
 - 2026-09-02 사용자 지시: 고애희(id 41)·강은미(id 54)를 회계팀(ACCOUNTING)으로 배정. 실측: 운영 role MANAGER·team CS, 스테이징 STAFF·CS. 배정은 코드 배포 뒤(스테이징 → 운영 승격 시). team 변경은 principal-version 트리거로 세션 무효화(재로그인). 게이트 = ADMIN 또는 team=ACCOUNTING 인 MANAGER/STAFF.
+- 2026-09-02 19:01 T0 재검증: 새 토큰으로도 정산 5종 403 → 앱 권한 문제 확정(토큰 캐시 문제 아님). 대사 배너 수정 b01f5b9a5 deploy push 완료.
