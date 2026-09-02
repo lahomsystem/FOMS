@@ -3746,6 +3746,7 @@ def _group_queue(links: list[ExternalOrderLink], orders: dict,
     # 비면 링크 단독으로 센다)이 화면에는 없었다 — 서로 다른 빈 원본이 화면에서만 한 집으로
     # 붙어 보이고 워커는 따로 처리하는 갈라짐이었다(리뷰 L-1). 폴백을 한 벌만 둔다.
     from foms.services.integrations.naver_commerce.fulfillment import (
+        addon_return_gap,
         household_exchange_in_flight,
         household_key,
         is_cancel_approvable,
@@ -3885,6 +3886,13 @@ def _group_queue(links: list[ExternalOrderLink], orders: dict,
             # ``claim_blocking`` 으로 대신하면 안 된다 — 그쪽은 ``BLOCKING_CLAIM_STATUSES``
             # 라 ``EXCHANGE_*`` 를 담지 않아 서버보다 느슨하다(mapping.py:429).
             "exchange_in_flight": household_exchange_in_flight(members),
+            # **범위 규격**(판매자센터 FAQ 3880, 감사 F2): 본품을 반품하려면 그 집의
+            # 추가구성상품이 전부 처리돼 있어야 한다. 서버는 이 조건이 깨지면 한 건도
+            # 안 보내고 거절하므로(:func:`fulfillment.addon_return_gap`), 화면도 같은
+            # 술어로 버튼을 닫는다 — 갈리면 열린 버튼이 예외를 받는다. 대상 범위는
+            # 서버가 고르는 것과 같은 술어(`return_sendable`)로 만든다.
+            "return_scope_gap": [row.external_id for row in addon_return_gap(
+                members, [row for row in members if return_sendable(row)])],
             # 거부가 **실제로 나갈** 건수(T8-S3). 접수와 같은 규율로 서버 술어
             # (:func:`fulfillment.is_return_rejectable`)를 그대로 쓴다 — 보류 걸린 건과
             # 이미 처리한 건은 여기서 빠진다.

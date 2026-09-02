@@ -3671,7 +3671,7 @@
     },
     {
       "path": "foms/services/integrations/naver_commerce/fulfillment.py",
-      "lineno": 1404,
+      "lineno": 1492,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3680,7 +3680,7 @@
     },
     {
       "path": "foms/services/integrations/naver_commerce/fulfillment.py",
-      "lineno": 1446,
+      "lineno": 1534,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3689,7 +3689,7 @@
     },
     {
       "path": "foms/services/integrations/naver_commerce/fulfillment.py",
-      "lineno": 1593,
+      "lineno": 1703,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3698,7 +3698,7 @@
     },
     {
       "path": "foms/services/integrations/naver_commerce/fulfillment.py",
-      "lineno": 1801,
+      "lineno": 1911,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3707,7 +3707,7 @@
     },
     {
       "path": "foms/services/integrations/naver_commerce/fulfillment.py",
-      "lineno": 1998,
+      "lineno": 2108,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -4778,7 +4778,7 @@
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
-      "lineno": 3904,
+      "lineno": 4004,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
@@ -4787,7 +4787,7 @@
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
-      "lineno": 3916,
+      "lineno": 4016,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
@@ -4796,7 +4796,7 @@
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
-      "lineno": 4431,
+      "lineno": 4531,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
@@ -4805,7 +4805,7 @@
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
-      "lineno": 4624,
+      "lineno": 4724,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
@@ -4814,7 +4814,7 @@
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
-      "lineno": 5036,
+      "lineno": 5136,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
@@ -4823,7 +4823,7 @@
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
-      "lineno": 5129,
+      "lineno": 5229,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
@@ -4832,7 +4832,7 @@
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
-      "lineno": 5192,
+      "lineno": 5292,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
@@ -4841,7 +4841,7 @@
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
-      "lineno": 5364,
+      "lineno": 5464,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",

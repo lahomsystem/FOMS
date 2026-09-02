@@ -357,3 +357,96 @@ def test_a_later_success_clears_the_failure_record(app):
     row = db_session.get(ExternalOrderLink, main)
     assert not return_failure(row)["failed_at"], "접수됐는데 화면이 계속 실패라고 말한다"
     assert ((row.triage_state or {}).get("return") or {}).get("requested_at")
+
+
+# --------------------------------------------------- F2 범위 규격 (FAQ 3880)
+
+
+def test_main_return_is_refused_while_an_addon_is_still_undispatched(app):
+    """본품만 반품 대상인데 **미발송 추가구성상품**이 남아 있으면 한 건도 안 보낸다.
+
+    규격 감사 F2. 판매자센터 FAQ 3880 은 본상품과 추가구성 상품을 **모두 접수하여**
+    처리하라고 적는다. 순서 규격(#1321)을 지켜도 이 범위 조건이 빠지면 사고가 그대로
+    재현된다 — 대상에 든 추가상품은 접수에 **성공한 뒤** 본품만 거절당하고, 접수는
+    되돌릴 수 없다.
+
+    분할발송 집이 이 모양을 만든다: 본품만 나가 있고 추가구성상품은 아직 미발송이라
+    반품 대상(:func:`is_return_pending`)에서 빠진다.
+    """
+    from foms.services.integrations.naver_commerce.fulfillment import return_failure
+
+    order_no = "N-ORD-F2GAP"
+    main = _link("PO-F2-MAIN", order_no=order_no, addon=False, dispatched=True)
+    _link("PO-F2-ADDON", order_no=order_no, addon=True, dispatched=False)
+
+    client = _ReturnClient()
+    with pytest.raises(FulfillmentError) as err:
+        request_return(db_session, client, link_id=main, reason="COLOR_AND_SIZE")
+    db_session.commit()
+    db_session.expire_all()
+
+    assert client.calls == [], (
+        f"추가구성상품이 빠졌는데 불가역 반품 접수가 나갔다: {client.calls}")
+    assert "추가구성상품" in str(err.value)
+    row = db_session.get(ExternalOrderLink, main)
+    assert "PO-F2-ADDON" in return_failure(row)["failed_reason"], (
+        "어느 상품주문 때문에 막혔는지가 기록에 없다")
+    assert not ((row.triage_state or {}).get("return") or {}).get("requested_at"), (
+        "안 보냈는데 접수 표식이 생겼다 — 다시 보낼 수 없게 된다")
+
+
+def test_a_rejected_addon_claim_does_not_count_as_covered(app):
+    """추가구성상품의 반품이 **거부**됐으면 선행조건이 아니다 — 그 상품은 살아 있다.
+
+    ``rejected`` 단계를 충족으로 읽으면 본품만 반품되고 추가구성상품이 고객에게 남는다.
+    모르는 상태(빈 단계)도 같은 이유로 충족이 아니다.
+    """
+    order_no = "N-ORD-F2REJECT"
+    main = _link("PO-F2R-MAIN", order_no=order_no, addon=False, dispatched=True)
+    _link("PO-F2R-ADDON", order_no=order_no, addon=True, dispatched=False,
+          claim="RETURN_REJECT", claim_type="RETURN")
+
+    client = _ReturnClient()
+    with pytest.raises(FulfillmentError):
+        request_return(db_session, client, link_id=main, reason="COLOR_AND_SIZE")
+    assert client.calls == [], "거부된 클레임을 선행조건 충족으로 읽었다"
+
+
+def test_an_addon_we_already_requested_counts_as_covered(app):
+    """**우리가 이미 접수한** 추가구성상품은 충족이다 — 스냅샷이 아직 비어 있어도.
+
+    네이버 스냅샷은 수집 시점 사실이라, 접수 직후 재수집 전에는 ``claimStatus`` 가
+    비어 있다. 우리 표식을 안 보면 그 창에서 멀쩡한 본품이 막힌다(F2 가드가
+    사고 복구 경로를 잡아먹는 모양).
+    """
+    order_no = "N-ORD-F2MARK"
+    main = _link("PO-F2M-MAIN", order_no=order_no, addon=False, dispatched=True)
+    _link("PO-F2M-ADDON", order_no=order_no, addon=True, dispatched=True, returned=True)
+
+    client = _ReturnClient()
+    out = request_return(db_session, client, link_id=main, reason="COLOR_AND_SIZE")
+    db_session.commit()
+
+    assert client.calls == ["PO-F2M-MAIN"], (
+        f"우리가 이미 접수한 형제 때문에 본품이 막혔다: {client.calls}")
+    assert out["returned"] == ["PO-F2M-MAIN"]
+
+
+def test_an_addon_only_return_is_not_blocked_by_the_scope_rule(app):
+    """**음성 대조군** — 대상에 본품이 없으면 범위 규격은 발동하지 않는다.
+
+    규격이 요구하는 것은 "본상품보다 그 추가구성상품이 먼저"다. 추가구성상품만 반품하는
+    것은 막지 않는다(사고가 그 반대 방향이었다). 여기까지 막으면 F2 가드가 정상 경로를
+    잡아먹는다.
+    """
+    order_no = "N-ORD-F2ADDONONLY"
+    _link("PO-F2A-MAIN", order_no=order_no, addon=False, dispatched=False)
+    addon = _link("PO-F2A-ADDON", order_no=order_no, addon=True, dispatched=True)
+
+    client = _ReturnClient()
+    out = request_return(db_session, client, link_id=addon, reason="COLOR_AND_SIZE")
+    db_session.commit()
+
+    assert client.calls == ["PO-F2A-ADDON"], (
+        f"추가구성상품만 반품하는 정상 경로가 막혔다: {client.calls}")
+    assert out["returned"] == ["PO-F2A-ADDON"]
