@@ -17,8 +17,8 @@
    탭으로 가른다. 새 메뉴도 새 URL 도 만들지 않는다. 탭 1 은 기존 화면을 **그대로** 옮긴 것이다.
    숨은 pane 은 `clientWidth === 0` 이라 그 사이에 그린 차트는 폴백 폭(400px)으로 눌린다 —
    재렌더 책임은 `dashboard.js` 의 `activateTab()` 에 있다(실측 수치까지 그쪽 주석에 있다). #}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/settlement/settlement-dashboard.css') }}?v=20260831g">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/settlement/settlement-operations.css') }}?v=20260831g">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/settlement/settlement-dashboard.css') }}?v=20260902a">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/settlement/settlement-operations.css') }}?v=20260902a">
 <div class="container-fluid erp-dashboard erp-pro erp-settlement">
   <header class="erp-pro-header">
     <h1 class="erp-pro-header__title">
@@ -49,6 +49,15 @@
        id/aria-controls 로 1:1 이고, 좌우 화살표 이동은 JS(onTabKeydown)가 담당한다.
        선택 상태의 SSOT 는 버튼의 `aria-selected` 와 루트의 `data-settlement-active-tab` 이다
        — CSS 는 후자만 보고 필터바 노출을 가른다(아래 필터바 주석). #}
+    {# 집중 모드 머리줄(2026-09-02 폭·높이 개편). 평소엔 display:none. 집중 모드에서 공용 크롬
+       (글로벌 헤더·nav·ERP 헤더·서브탭 ≈ 270px)이 접히면 이 한 줄이 화면 이름과 복귀 버튼을 댄다.
+       숨김·표시는 dashboard.js setFocusMode() 의 body 클래스 + CSS `:has()` 스코프가 담당한다. #}
+    <div class="s-focusbar" data-settlement-focusbar>
+      <b>정산 대시보드</b>
+      <span class="s-fb-hint">집중 모드 — 상단 메뉴를 접었습니다. Esc 또는 오른쪽 버튼으로 돌아갑니다.</span>
+      <button type="button" class="s-fb-exit" data-settlement-focus-exit>메뉴 펼치기 (Esc)</button>
+    </div>
+
     <div class="s-tabs" role="tablist" aria-label="정산 대시보드 화면">
       <button type="button" class="s-tab" role="tab"
         id="foms-settle-tab-summary" data-settlement-tab="summary"
@@ -67,14 +76,20 @@
         aria-controls="foms-settle-pane-analytics" aria-selected="false" tabindex="-1">
         <span class="s-tab-name">분석</span>
       </button>
-    </div>
-
-    {# 권한 부제는 실제 허용 집합이다(SPEC §5 = FINANCE_MUTATION 과 같은 집합).
-       목업의 "ADMIN·MANAGER 전용" 은 CS/영업 담당을 빠뜨린 문구라 교정했다. #}
-    <div class="s-strip">
-      <span class="s-who">ADMIN · MANAGER · CS/영업 담당 열람 · 매출 인식: 완료일 기준 (완료 · AS접수 · AS완료)</span>
-      <span class="s-spacer"></span>
-      <span class="s-stamp" data-settlement-stamp></span>
+      {# 집중 모드 토글 — role=tab 이 아니고 data-settlement-tab 도 없다(탭 순회·activateTab 대상 아님).
+         720px 이하에서는 CSS 가 감춘다(모바일 셸은 접을 크롬이 다르다). #}
+      <button type="button" class="s-tab s-tab--focus" data-settlement-focus aria-pressed="false"
+        title="상단 메뉴를 접고 화면 전체를 씁니다 (Esc 로 복귀)">
+        <span class="s-tab-name">⤢ 집중 모드</span>
+      </button>
+      {# 권한 부제는 실제 허용 집합이다(SPEC §5 = FINANCE_MUTATION 과 같은 집합).
+         목업의 "ADMIN·MANAGER 전용" 은 CS/영업 담당을 빠뜨린 문구라 교정했다.
+         2026-09-02: 별도 `.s-strip` 한 줄(40px)을 없애고 탭줄 오른쪽 메타로 합쳤다 — 크롬이 본문
+         시작을 400px 아래로 밀던 문제. 기준 시각 훅 `data-settlement-stamp` 은 그대로다. #}
+      <span class="s-tabs-meta">
+        <span class="s-who">ADMIN · MANAGER · CS/영업 담당 열람 · 매출 인식: 완료일 기준 (완료 · AS접수 · AS완료)</span>
+        <span class="s-stamp" data-settlement-stamp></span>
+      </span>
     </div>
 
     {# 필터바는 **한 벌만** 둔다(탭별 복제 금지). 기간 스코프는 요약·분석 두 탭이 공유하는
@@ -370,5 +385,5 @@
     <div class="s-tt" id="foms-settle-tooltip" role="tooltip"></div>
   </div>
 </div>
-<script src="{{ url_for('static', filename='js/settlement/dashboard.js') }}?v=20260831g" defer></script>
-<script src="{{ url_for('static', filename='js/settlement/operations.js') }}?v=20260831g" defer></script>
+<script src="{{ url_for('static', filename='js/settlement/dashboard.js') }}?v=20260902a" defer></script>
+<script src="{{ url_for('static', filename='js/settlement/operations.js') }}?v=20260902a" defer></script>

@@ -1114,15 +1114,46 @@ def test_every_tab_has_a_matching_tabpanel(client, app):
     assert controls == {_attr(tag, "id") for tag in panels}, controls
 
 
-def test_tab_bar_sits_above_the_strip_and_filter_bar(client, app):
-    """탭바가 스트립·필터바보다 위에 온다 — 탭이 상위 축이고 필터는 탭에 딸린다."""
+def test_tab_bar_sits_above_the_filter_bar_and_carries_the_meta(client, app):
+    """탭바가 필터바보다 위에 오고, 권한 부제·기준 시각은 탭줄 **안**(오른쪽 메타)에 산다.
+
+    2026-09-02 폭·높이 개편: 별도 `.s-strip` 한 줄(40px)을 없애고 탭줄 오른쪽으로 합쳤다 —
+    크롬이 본문 시작을 400px 아래로 밀던 문제. 스트립이 되살아나면 그 줄이 다시 생긴다.
+    기준 시각 훅(`data-settlement-stamp`)은 JS `collectEls()` 배선이라 이름을 못 바꾼다.
+    """
     _login_allowed(client)
 
     html = _fragment_html(client)
 
-    assert html.index('role="tablist"') < html.index('class="s-strip"') < html.index(
-        'class="s-filterbar"'
-    ), "탭바가 스트립/필터바 아래로 내려갔다"
+    tablist_at = html.index('role="tablist"')
+    filterbar_at = html.index('class="s-filterbar"')
+    assert tablist_at < filterbar_at, "탭바가 필터바 아래로 내려갔다"
+    assert 'class="s-strip"' not in html, "옛 스트립 줄이 되살아났다 — 탭줄 메타로 합쳐라"
+    meta_at = html.index('class="s-tabs-meta"')
+    stamp_at = html.index("data-settlement-stamp")
+    assert tablist_at < meta_at < stamp_at < filterbar_at, "권한 부제·기준 시각이 탭줄 메타 밖에 있다"
+
+
+def test_focus_mode_controls_are_wired_but_are_not_tabs(client, app):
+    """집중 모드 버튼·복귀 바가 있고, 둘 다 탭(role=tab / data-settlement-tab)이 아니다.
+
+    탭으로 잡히면 ←→ 순회와 activateTab 이 집중 모드 버튼을 4번째 탭으로 삼는다.
+    JS 쪽은 `[data-settlement-focus]`·`[data-settlement-focus-exit]` 를 클릭 위임으로 받고
+    Esc 는 전역 리스너 1회 배선이다(setFocusMode).
+    """
+    _login_allowed(client)
+
+    html = _fragment_html(client)
+    js = _read_code(f"static/{JS_ASSET}")
+
+    focus_tag = re.search(r"<button\b[^>]*data-settlement-focus\b[^>]*>", html)
+    assert focus_tag, "집중 모드 버튼이 없다"
+    assert 'role="tab"' not in focus_tag.group(0), focus_tag.group(0)
+    assert "data-settlement-tab" not in focus_tag.group(0), focus_tag.group(0)
+    assert "data-settlement-focus-exit" in html, "집중 모드 복귀 버튼이 없다"
+    assert html.index("data-settlement-focusbar") < html.index('role="tablist"'), "복귀 바는 탭줄 위에 온다"
+    for hook in ("data-settlement-focus", "data-settlement-focus-exit", "foms-settle-focus", "Escape"):
+        assert hook in js, f"JS 가 '{hook}' 를 배선하지 않는다"
 
 
 def test_summary_pane_owns_the_existing_screen(client, app):
