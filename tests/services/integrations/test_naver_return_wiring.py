@@ -489,6 +489,23 @@ def test_return_button_stays_open_when_every_addon_goes_together(app, client,
     assert "함께 반품해야 하는 추가구성상품" not in body
 
 
+def test_the_table_says_unknown_when_the_product_class_is_missing(app, client,
+                                                                  workbench_on):
+    """옛 수집분은 표가 `구성 미상` 이라고 말한다 — `본품` 이라 단정하지 않는다 (감사 F12)."""
+    _login(client)
+    link = _link(dispatched_ours=True)
+    snapshot = dict(link.raw_snapshot)
+    product_order = dict(snapshot["productOrder"])
+    product_order.pop("productClass", None)
+    snapshot["productOrder"] = product_order
+    link.raw_snapshot = snapshot
+    db_session.commit()
+
+    body = client.get(TRIAGE_PATH).get_data(as_text=True)
+
+    assert "구성 미상" in body, "근거 없는 판정을 사실처럼 적었다"
+
+
 def test_screen_no_longer_tells_people_to_use_the_seller_center_for_returns(app, client,
                                                                            workbench_on):
     """버튼이 생긴 뒤에도 "판매자센터에서 반품하세요"가 남으면 화면이 자기와 모순된다."""

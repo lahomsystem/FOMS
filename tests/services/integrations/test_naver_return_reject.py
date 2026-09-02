@@ -111,11 +111,27 @@ def _order() -> int:
 
 
 class _Client:
-    """거부 호출을 기록하는 가짜 클라이언트(규격이 채워지기 전의 대역)."""
+    """거부 호출을 기록하는 가짜 클라이언트(규격이 채워지기 전의 대역).
 
-    def __init__(self, *, fail: str = ""):
+    ``get_product_orders`` 도 답한다 — 거부는 **보내기 직전에 지금 상태를 다시 묻고**
+    (:func:`fulfillment.fresh_claim_statuses`, 감사 F10) 못 읽으면 아예 안 보낸다.
+    기본 답은 "요청이 걸린 그대로"라 재조회가 없던 시절과 같은 경로를 탄다.
+    ``fresh`` 로 네이버 쪽 상태를 바꿔 끼우면 낡은 스냅샷 사례를 만들 수 있다.
+    """
+
+    def __init__(self, *, fail: str = "", fresh: dict | None = None):
         self.calls: list[tuple[str, str]] = []
         self.fail = fail
+        self.fresh = fresh or {}
+        self.refetched: list[list[str]] = []
+
+    def get_product_orders(self, product_order_ids):
+        pids = [str(p) for p in product_order_ids]
+        self.refetched.append(pids)
+        return [{"productOrder": {"productOrderId": pid,
+                                  "claimStatus": self.fresh.get(pid, "RETURN_REQUEST"),
+                                  "claimType": "RETURN"}}
+                for pid in pids]
 
     def reject_return_product_order(self, product_order_id, *, reason):
         self.calls.append((product_order_id, reason))
@@ -658,3 +674,61 @@ def test_audit_log_keeps_what_the_list_became(client, workbench_on):
            .filter(SecurityLog.action == "NAVER_INGEST_REJECT_TEMPLATES_SAVE")
            .order_by(SecurityLog.id.desc()).first())
     assert log is not None and sentence in str(log.detail or "")
+
+
+# --------------------------------------------------------------------------- #
+# F10 — 낡은 스냅샷으로 거부 문장을 보내지 않는다
+# --------------------------------------------------------------------------- #
+
+def test_reject_refetches_the_state_before_calling():
+    """거부 직전에 네이버에 **지금 상태**를 다시 묻는다 (감사 F10).
+
+    거부 문장은 구매자에게 그대로 가고 되돌릴 수 없다. 화면 술어가 보는 스냅샷은 수집
+    시점 사실이라, 그사이 구매자가 반품을 철회했으면 우리는 없는 요청을 거부하게 된다.
+    """
+    link = _link()
+    client = _Client()
+
+    fulfillment.reject_return(db_session, client, link_id=int(link.id),
+                              reason="제작이 이미 시작됐습니다.")
+    db_session.commit()
+
+    assert client.refetched == [[link.external_id]], "보내기 전에 다시 묻지 않았다"
+    assert [pid for pid, _ in client.calls] == [link.external_id]
+
+
+def test_a_withdrawn_return_is_not_rejected_even_though_the_snapshot_says_so():
+    """스냅샷은 `RETURN_REQUEST` 인데 네이버는 이미 다른 상태 — **부르지 않는다**.
+
+    조용히 빼지 않는다: 사유를 실패로 남기고 예외를 올린다(빈 대상을 성공으로 돌려주는
+    것이 NVCLAIM-ORDER-01 사고의 결함 그 자체였다).
+    """
+    link = _link()
+    client = _Client(fresh={link.external_id: "RETURN_DONE"})
+
+    with pytest.raises(fulfillment.FulfillmentError) as err:
+        fulfillment.reject_return(db_session, client, link_id=int(link.id),
+                                  reason="제작이 이미 시작됐습니다.")
+    db_session.commit()
+
+    assert client.calls == [], "낡은 스냅샷으로 구매자에게 거부 문장을 보냈다"
+    assert "상태가 아닙니다" in str(err.value)
+    assert "RETURN_DONE" in str(err.value)
+
+
+def test_a_failed_refetch_stops_the_rejection():
+    """상태를 **못 읽으면 부르지 않는다** — 모르면 불가역 호출을 열지 않는다."""
+    link = _link()
+
+    class _ReadFails(_Client):
+        def get_product_orders(self, product_order_ids):
+            raise RuntimeError("HTTP 500 일시 오류")
+
+    client = _ReadFails()
+    with pytest.raises(fulfillment.FulfillmentError) as err:
+        fulfillment.reject_return(db_session, client, link_id=int(link.id),
+                                  reason="제작이 이미 시작됐습니다.")
+    db_session.commit()
+
+    assert client.calls == [], "상태를 모르는 채로 거부 문장을 보냈다"
+    assert "읽지 못했습니다" in str(err.value)

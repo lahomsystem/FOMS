@@ -3573,8 +3573,15 @@ def _member_claim_view(link: ExternalOrderLink) -> dict[str, Any]:
     snapshot = link.raw_snapshot or {}
     claim = extract_claim(snapshot)
     ours = (link.triage_state or {}).get("return") or {}
+    from foms.services.integrations.naver_commerce.fulfillment import product_class_known
+
     return {
         "is_addon": is_addon_detail(snapshot),
+        # 판정에 **근거가 있는가**(감사 F12). ``productClass`` 가 없는 옛 수집분은 코드가
+        # 본품으로 보는데(안전측 기본값), 화면이 그걸 `본품` 이라고 **단정**하면 담당자는
+        # 없는 사실을 읽는다. 그 집은 호출 순서가 사실상 `id.asc` 이고 반품 범위 검사도
+        # 추가구성상품을 못 세므로, 사람이 그 사실을 알아야 판매자센터를 볼 수 있다.
+        "product_class_known": product_class_known(link),
         "claim_code": str(claim["status"] or "").upper(),
         "claim_label": claim["label"],
         "claim_blocking": bool(claim["blocking"]),

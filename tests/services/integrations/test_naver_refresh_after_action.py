@@ -104,6 +104,13 @@ def test_return_reject_enqueues_refresh(app, monkeypatch, recorder):
     link_id = int(link.id)
 
     class _RejectStub:
+        # 거부는 보내기 직전에 **지금 상태를 다시 묻는다**(감사 F10) — 못 읽으면 안 보낸다.
+        def get_product_orders(self, product_order_ids):
+            return [{"productOrder": {"productOrderId": str(pid),
+                                      "claimStatus": "RETURN_REQUEST",
+                                      "claimType": "RETURN"}}
+                    for pid in product_order_ids]
+
         def reject_return_product_order(self, product_order_id, *, reason):
             return {"data": {"successProductOrderIds": [product_order_id],
                              "failProductOrderInfos": []}}
