@@ -65,7 +65,9 @@ __all__ = [
     "MAX_RANGE_DAYS",
     "SETTLE_SYNC_SETTING_KEY",
     "STALE_AFTER_HOURS",
+    "STRIP_TAB_KEY",
     "build_channel_dashboard",
+    "build_channel_strip",
     "mask_account_no",
 ]
 
@@ -101,6 +103,10 @@ MAX_RANGE_DAYS = 400
 #: 원장 페이지 크기 상한/기본(화면 기본은 60건 — `channel.js` 의 ``PER_PAGE``).
 MAX_PER_PAGE = 200
 DEFAULT_PER_PAGE = 60
+
+#: 요약 탭 크로스 스트립(S11)이 "네이버 정산 열기" 로 활성화할 탭 키. 서버가 내려 주므로
+#: 프론트가 문자열을 다시 적지 않는다(탭 버튼 ``data-settlement-tab="channel"`` 과 같은 값).
+STRIP_TAB_KEY = "channel"
 
 #: 예외 큐가 한 종류에서 담아 오는 최대 행수. 넘치면 화면이 스크롤 괴물이 된다.
 _EXCEPTION_CAP = 50
@@ -1093,4 +1099,61 @@ def build_channel_dashboard(session: Any, *, date_from: datetime.date,
                                         rows, reconcile, today),
         "ledger": _build_ledger(session, channel, ledger, basis, date_from, date_to,
                                 page, per_page, filters),
+    }
+
+
+# ---------------------------------------------------------------------------
+# 요약 탭 크로스 스트립(S11) — 같은 헬퍼에서 뽑은 스칼라 3개
+# ---------------------------------------------------------------------------
+
+
+def build_channel_strip(session: Any, *, channel: str = "NAVER",
+                        date_from: datetime.date, date_to: datetime.date,
+                        today: Optional[datetime.date] = None) -> dict:
+    """요약 탭 크로스 스트립 1줄이 필요한 최소 한 벌(읽기 전용).
+
+    :func:`build_channel_dashboard` 와 **같은 헬퍼**(:func:`_daily_rows` →
+    :func:`_daily_totals` → :func:`_build_case_stats` → :func:`_kpi_block`)를 그대로
+    통과시킨다. 숫자를 여기서 다시 정의하면 요약 스트립과 채널 탭이 조용히 갈린다.
+
+    전기 구간·원장·수수료·부가세는 조회하지 않는다(질의 5개: 일별 1 + 건별 group-by 1 +
+    미매칭 1 + 최근 run 1 + 워터마크 1).
+
+    Args:
+        session: SQLAlchemy Session.
+        channel: 채널 코드(현재 ``NAVER`` 만 적재된다).
+        date_from: 조회 시작일(포함).
+        date_to: 조회 종료일(포함).
+        today: KST 오늘(테스트가 고정할 수 있게 인자로 받는다).
+
+    Returns:
+        ``channel``·``basis``·``basis_label``·``range``·``sync``·``strip`` dict.
+        ``strip`` = ``settled_amount``·``expected_amount``·``exception_count``·
+        ``unmatched_count``·``tab_key``.
+
+    Raises:
+        ValueError: 시작일이 종료일보다 뒤이거나 구간 폭이 상한을 넘을 때.
+    """
+    # 축은 언제나 정산 예정일이다(스트립에는 축 셀렉터가 없다). 구간 폭·역전 검사만 재사용.
+    _validated(DEFAULT_BASIS, DEFAULT_GRANULARITY, DEFAULT_LEDGER, date_from, date_to)
+    today = today or datetime.date.today()
+    rows = _daily_rows(session, channel, date_from, date_to)
+    totals = _daily_totals(rows)
+    case_stats = _build_case_stats(session, channel, date_from, date_to)
+    kpi = _kpi_block(totals, case_stats)
+    exceptions = _build_exceptions(session, channel, date_from, date_to, rows,
+                                   _build_reconcile(totals, case_stats), today)
+    return {
+        "channel": channel,
+        "basis": DEFAULT_BASIS,
+        "basis_label": BASIS_LABELS[DEFAULT_BASIS],
+        "range": {"from": date_from.isoformat(), "to": date_to.isoformat()},
+        "sync": _build_sync(session, today),
+        "strip": {
+            "settled_amount": kpi["settled_amount"],
+            "expected_amount": kpi["expected_amount"],
+            "exception_count": len(exceptions),
+            "unmatched_count": kpi["unmatched_count"],
+            "tab_key": STRIP_TAB_KEY,
+        },
     }
