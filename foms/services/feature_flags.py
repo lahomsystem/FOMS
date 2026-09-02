@@ -16,6 +16,7 @@ __all__ = [
     "is_cohort_all",
     "is_enabled_for_user",
     "is_mobile_v2_shell",
+    "is_naver_settle_sync_enabled",
     "is_naver_workbench_enabled",
     "is_shell_v3_eligible",
     "prefers_mobile_wizard_client",
@@ -425,6 +426,29 @@ def is_naver_return_approve_enabled() -> bool:
         켜져 있으면 True.
     """
     return env_bool("FOMS_NAVER_RETURN_APPROVE_ENABLED")
+
+
+def is_naver_settle_sync_enabled() -> bool:
+    """네이버 **정산 동기화 새벽 루프**가 켜져 있나 (SETTLE-CHANNEL-01 §4).
+
+    **기본값은 꺼짐.** 켜려면 Railway ``WORKER`` 에 ``FOMS_NAVER_SETTLE_SYNC_ENABLED=1``.
+    이 스위치는 ``start.sh`` 의 WORKER 분기가 읽어 러너를 띄울지 정한다 — 화면의
+    "지금 동기화"(수동 enqueue)는 이 스위치와 **무관하게** 동작한다. 정기 실행만 끄고
+    수동 조회는 남길 수 있어야 하기 때문이다.
+
+    코호트를 쓰지 않는 이유는 일괄 발송처리와 같다 — 이 스위치의 일은 "정기 호출을 당장
+    멈출 수 있는가" 하나다. 정산 조회는 **읽기 전용**이라 되돌릴 것이 없지만, 하루 100회
+    안팎의 네이버 호출을 내므로 쿼터 사고가 났을 때 즉시 끌 손잡이가 필요하다.
+
+    **worker 전용 변수다.** worker 는 1 대라 재배포가 큐를 전면 정지시킨다 — 켜기 전에
+    ``tools/ops/check_worker_redeploy_safe.py`` 로 안전한지 확인한다. 변수만 넣으면 실행
+    중 프로세스는 옛 env 를 들므로, 재배포한 컨테이너의 부팅 시각이 변수 등록보다 뒤라는
+    것을 확인한 뒤에만 "켜졌다"고 말한다.
+
+    Returns:
+        켜져 있으면 True.
+    """
+    return env_bool("FOMS_NAVER_SETTLE_SYNC_ENABLED")
 
 
 def is_mobile_v2_shell(variant: str) -> bool:

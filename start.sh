@@ -49,6 +49,17 @@ if [ "$USE_RQ_WORKER" = "1" ]; then
   fi
 
 
+  # 네이버 정산 동기화 (SETTLE-CHANNEL-01 §4). 수집·자동 발송 루프와 같은 배선이고,
+  # 같은 이유로 **WORKER 에서만** 돈다(네이버 HTTP 단일 출구). 읽기 전용이지만 하루당
+  # 2회 x 45일 = 100회 안팎이라 사람이 화면을 쓰는 시간대와 겹치지 않게 새벽에 돈다.
+  # 파티션 통째 교체라 창 안에서 여러 번 깨어나도 결과가 같다(멱등). 기본은 off.
+  if [ "$FOMS_NAVER_SETTLE_SYNC_ENABLED" = "1" ]; then
+    python scripts/maintenance/run_naver_settle_sync.py --loop \
+      --at "${FOMS_NAVER_SETTLE_SYNC_AT:-05:30}" \
+      --window "${FOMS_NAVER_SETTLE_SYNC_WINDOW_MINUTES:-10}" --json &
+  fi
+
+
   # 좌표 스윕 (GEO-SWEEP-01): 좌표 없는 주문을 미리 지오코딩 큐에 넣어, 사용자가 지도를
   # 열 때까지 좌표가 비어 있는 문제를 없앤다 (주문 생성/주소 수정의 지오코딩 예약이 SIDEFX
   # outbox 로 가는데 그 워커가 운영에 배포된 적이 없어 소비되지 않는 상태의 안전망).
