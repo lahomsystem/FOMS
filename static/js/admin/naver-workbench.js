@@ -1659,6 +1659,20 @@
         if (whoBox) {
             whoBox.textContent = who;
         }
+        // 분할 발송 집은 **나간 건만** 나간다(서버 `is_return_pending`). 위 줄의 '상품주문
+        // N건' 만 두면 그 수가 그대로 약속으로 읽히는데, 서버는 그보다 적게 보낸다 —
+        // 되돌릴 수 없는 경로의 과대 진술이다. 전부 나간 집에서는 이 줄을 숨긴다.
+        if (isReturn) {
+            var scope = document.getElementById('wb-origin-return-scope');
+            if (scope) {
+                var total = parseInt(btn.dataset.count, 10) || 0;
+                var sendable = parseInt(btn.dataset.returnCount, 10) || 0;
+                scope.hidden = !(total && sendable < total);
+                scope.textContent = scope.hidden ? '' : ('이 집은 상품주문 ' + total
+                    + '건인데 발송된 ' + sendable + '건만 나갑니다 — 아직 안 나간 물건은 '
+                    + '반품이 아니라 취소입니다.');
+            }
+        }
         var confirmBtn = document.getElementById(isReturn
             ? 'wb-origin-return-confirm' : 'wb-origin-cancel-confirm');
         if (confirmBtn) {
