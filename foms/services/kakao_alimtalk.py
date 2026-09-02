@@ -22,6 +22,7 @@ import logging
 import os
 import re
 from typing import Any, Optional
+from uuid import uuid4
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
@@ -56,6 +57,11 @@ __all__ = [
     "is_alimtalk_retryable_error",
     "confirm_channel",
     "ALIMTALK_CHANNEL_PROBE_DELAY_SEC",
+    "draft_ineligible_reason",
+    "send_alimtalk_for_sd",
+    "build_draft_history_entry",
+    "build_draft_dedupe_key",
+    "build_draft_schedule_signature",
 ]
 
 logger = logging.getLogger(__name__)
@@ -166,6 +172,28 @@ def build_dedupe_key(order_id: int, sd: dict | None) -> str | None:
         return None
     dates, time = schedule
     return f"alimtalk:measure:{order_id}:{dates}:{time}"
+
+
+def build_draft_schedule_signature(sd: dict | None) -> str | None:
+    """초안 발송 이력에 굳힐 실측 일정 서명을 만든다(WIZ-SEND-01 D4').
+
+    주문 id 를 뺀 :func:`build_dedupe_key` 의 의미 부분이다 — 초안 발송 시점에는 주문
+    id 가 없으므로 "무엇을 안내했는가"만 남긴다. 이 값이 등록 후 새 주문 sd 의 서명과
+    같으면 자동 발송이 같은 안내를 한 번 더 보내는 것이므로 :func:`_already_sent` 가
+    막는다.
+
+    Args:
+        sd: 초안/주문 structured_data.
+
+    Returns:
+        ``f"{dates}:{time}"`` (dates 는 ``|`` 결합된 ``YYYY-MM-DD`` 목록).
+        유효 실측 일정이 없으면 ``None``.
+    """
+    schedule = normalize_measure_schedule(sd)
+    if schedule is None:
+        return None
+    dates, time = schedule
+    return f"{dates}:{time}"
 
 
 def extract_valid_phone(sd: dict | None) -> str | None:
@@ -493,6 +521,34 @@ def _is_deleted_order(order: Order) -> bool:
     return getattr(order, "deleted_at", None) is not None
 
 
+def _sd_ineligible_reason(sd: dict, *, order_draft: bool = False) -> str | None:
+    """order 행과 무관한 sd 축 자격 판정 — 주문 경로·초안 경로의 **공통 정본**.
+
+    판정 순서 = 설정 → (draft) → 일정 → 전화 → 브랜드 프로필. order 축(존재·삭제·draft)은
+    호출자가 판정해 ``order_draft`` 플래그로만 넘긴다 — 두 경로가 판정 로직을 두 벌로
+    갈라 갖지 않게 하기 위함이다. 일정 판정은 order_id 를 요구하지 않는
+    :func:`normalize_measure_schedule` 로 한다(``build_dedupe_key`` 와 같은 조건).
+
+    Args:
+        sd: 주문/초안 structured_data.
+        order_draft: 호출자가 판정한 'ERP 임시저장 주문' 여부(초안 경로는 항상 False).
+
+    Returns:
+        미자격 사유 코드. 자격이면 ``None``.
+    """
+    if not is_configured(resolve_brand(sd)):
+        return "not_configured"
+    if order_draft:
+        return "not_eligible"
+    if normalize_measure_schedule(sd) is None:
+        return "not_eligible"
+    if extract_valid_phone(sd) is None:
+        return "no_valid_phone"
+    if brand_config(resolve_brand(sd)) is None:
+        return "brand_profile_missing"
+    return None
+
+
 def _ineligible_reason(order: Order | None, sd: dict) -> str | None:
     """발송 미자격 사유 코드를 반환한다(자격이면 ``None``).
 
@@ -507,17 +563,24 @@ def _ineligible_reason(order: Order | None, sd: dict) -> str | None:
         return "order_not_found"
     if _is_deleted_order(order):
         return "order_not_found"
-    if not is_configured(resolve_brand(sd)):
-        return "not_configured"
-    if _is_draft_order(order, sd):
-        return "not_eligible"
-    if build_dedupe_key(int(order.id), sd) is None:
-        return "not_eligible"
-    if extract_valid_phone(sd) is None:
-        return "no_valid_phone"
-    if brand_config(resolve_brand(sd)) is None:
-        return "brand_profile_missing"
-    return None
+    return _sd_ineligible_reason(sd, order_draft=_is_draft_order(order, sd))
+
+
+def draft_ineligible_reason(sd: dict) -> str | None:
+    """order 행이 없는 초안(마법사) sd 의 발송 자격을 판정한다.
+
+    주문 경로와 **같은 정본**(:func:`_sd_ineligible_reason`)을 쓴다 — 초안 화면과 주문
+    화면이 같은 sd 에 대해 서로 다른 사유를 말하지 않게 하기 위함이다.
+    order 축(존재·삭제·draft·order_id 기반 멱등키)은 초안에 없으므로 판정하지 않는다.
+
+    Args:
+        sd: 초안 payload 를 변환한 structured_data.
+
+    Returns:
+        ``not_configured`` / ``not_eligible`` / ``no_valid_phone`` /
+        ``brand_profile_missing`` 중 하나. 자격이면 ``None``.
+    """
+    return _sd_ineligible_reason(sd)
 
 
 def _dispatch(sd: dict) -> tuple[str | None, str | None]:
@@ -717,18 +780,41 @@ def is_alimtalk_retryable_error(error: str | None) -> bool:
     return error in _RETRYABLE_SEND_ERRORS
 
 
-def _already_sent(order: Order, dedupe_key: Optional[str]) -> bool:
-    """같은 멱등키로 이미 성공 이력이 있으면 True(재전달 시 Solapi 0회)."""
-    if not dedupe_key:
-        return False
+def _already_sent(
+    order: Order, dedupe_key: Optional[str], *, manual: bool = False
+) -> bool:
+    """이미 같은 안내가 고객에게 도달했으면 True(재전달 시 Solapi 0회).
+
+    판정 축이 둘이다. 막으려는 것은 **같은 키의 재사용이 아니라 같은 실측 일정 안내의
+    중복 도달**이기 때문이다.
+
+    1. 멱등키 동일 — 같은 주문에서 같은 조건으로 다시 트리거된 자동 발송.
+    2. 일정 서명 동일 — 성공 이력의 ``draft_schedule`` 이 현재 sd 의
+       :func:`build_draft_schedule_signature` 와 같은 경우. 마법사 초안에서 등록 전에
+       보낸 안내를 승계한 이력이 여기 걸린다(WIZ-SEND-01 D4'). 초안 이력의 키는 주문
+       id 를 모르는 ``draft`` 네임스페이스라 1번으로는 절대 맞지 않는데, 안내 내용은
+       같으므로 그대로 두면 등록 직후 첫 저장의 **자동** 발송이 고객에게 두 번째
+       문자를 보낸다. 일정이 바뀌면 서명이 달라져 자동 재발송이 정상 동작한다.
+
+    Args:
+        order: 판정 대상 주문.
+        dedupe_key: 이번 발송의 멱등키.
+        manual: 사용자가 버튼으로 누른 발송이면 True. 이때는 2번 축을 쓰지 않는다 —
+            수동 발송은 누른 만큼 나가는 것이 계약이고(수동 라우트는 매번 새 uuid 키를
+            만들어 1번 축을 일부러 비껴간다), 여기서 서명으로 막으면 화면은 "발송됨"인데
+            고객에게는 아무것도 안 가는 무음 실패가 된다.
+    """
     hist = (order.structured_data or {}).get("alimtalk_measurement")
     if not isinstance(hist, dict):
         return False
-    return (
-        hist.get("dedupe_key") == dedupe_key
-        and hist.get("error") is None
-        and bool(hist.get("message_id"))
-    )
+    if hist.get("error") is not None or not hist.get("message_id"):
+        return False
+    if dedupe_key and hist.get("dedupe_key") == dedupe_key:
+        return True
+    if manual:
+        return False
+    signature = build_draft_schedule_signature(order.structured_data)
+    return signature is not None and hist.get("draft_schedule") == signature
 
 
 def send_alimtalk_in_session(
@@ -753,7 +839,7 @@ def send_alimtalk_in_session(
     """
     sd = order.structured_data or {}
     key = dedupe_key or build_dedupe_key(int(order.id), sd)
-    if _already_sent(order, key):
+    if _already_sent(order, key, manual=manual_by is not None):
         return {"sent": True, "error": None}
     error = _ineligible_reason(order, sd)
     message_id = None
@@ -987,3 +1073,99 @@ def maybe_send_measure_alimtalk(order_id: int) -> None:
         _reserve_dedupe(order_id)
     except Exception:  # 주문 저장 경로 비차단 — 실패는 로그로만 남긴다
         logger.exception("알림톡 자동 발송 처리 실패 (order_id=%s)", order_id)
+
+
+# ---------------------------------------------------------------------------
+# 초안(마법사) 발송 계층 — Order 행 없이 sd 로 발송 (WIZ-SEND-01 T1)
+# ---------------------------------------------------------------------------
+
+
+def build_draft_dedupe_key(draft_key: str) -> str:
+    """초안 수동 발송용 멱등키를 만든다.
+
+    수동 발송은 사용자가 누른 만큼 나가야 하므로(스펙 D2) 매번 새 키다 — 주문 정본
+    이력으로 승계될 때 자동 발송의 ``build_dedupe_key`` 값과 충돌하지 않도록
+    ``draft`` 네임스페이스를 쓴다.
+
+    Args:
+        draft_key: ``OrderDraft.draft_key``.
+
+    Returns:
+        ``alimtalk:measure:draft:{draft_key}:manual:{uuid4hex}``.
+    """
+    return f"alimtalk:measure:draft:{draft_key}:manual:{uuid4().hex}"
+
+
+def build_draft_history_entry(
+    *,
+    dedupe_key: str | None,
+    message_id: str | None,
+    error: str | None,
+    sent_by: int | None,
+    sent_by_name: str | None,
+    draft_schedule: str | None,
+) -> dict[str, Any]:
+    """초안 발송 이력 1건을 **주문 정본 이력 키 + ``draft_schedule``** 로 조립한다.
+
+    제출 시 이 dict 를 새 주문 ``structured_data['alimtalk_measurement']`` 로 무변환
+    복사하므로 정본 키(:func:`_record_history`)를 모두 담아야 한다(칩 렌더러가 sd 만
+    읽어 그린다). 추가 키는 ``draft_schedule`` 하나뿐이며, 등록 후 자동 발송의
+    :func:`_already_sent` 가 "같은 실측 일정 안내를 이미 보냈다"를 판정하는 근거다
+    (WIZ-SEND-01 D4' — 주문 id 기반 멱등키 재작성을 대체한다).
+
+    Args:
+        dedupe_key: 이 발송의 멱등키.
+        message_id: 벤더 메시지 id(실패면 None).
+        error: 실패 사유 코드(성공이면 None).
+        sent_by: 발송자 user id.
+        sent_by_name: 발송 시점의 발송자 표시명(호출자가 조회해 넘긴다).
+        draft_schedule: :func:`build_draft_schedule_signature` 로 만든 일정 서명
+            (일정이 없으면 None).
+
+    Returns:
+        주문 정본 키를 모두 포함하고 ``draft_schedule`` 하나를 더 가진 이력 dict.
+    """
+    now = now_utc_naive()
+    return {
+        "draft_schedule": draft_schedule,
+        "sent_at": now.isoformat() if error is None else None,
+        "message_id": message_id,
+        "dedupe_key": dedupe_key,
+        "error": error,
+        "sent_by": sent_by,
+        "sent_by_name": sent_by_name,
+        # 주문 경로와 같다 — 발송 직후엔 실제 채널(ATA/문자 대체발송)을 알 수 없다.
+        "channel": None,
+        "channel_checked_at": None,
+    }
+
+
+def send_alimtalk_for_sd(sd: dict, *, sent_by: int | None, dedupe_key: str) -> dict:
+    """``Order`` 행 없이 초안 sd 로 실측 예약 안내를 발송한다.
+
+    **DB 를 전혀 만지지 않는다** — 이력 기록·OrderEvent·감사는 호출자 몫이다
+    (초안 이력은 ``OrderDraft.send_history`` 에 굳힌다).
+
+    Args:
+        sd: 초안 payload 를 변환한 structured_data.
+        sent_by: 수동 발송자 user id(추적용).
+        dedupe_key: 호출자가 만든 멱등키(:func:`build_draft_dedupe_key`) — 이력에 남길
+            값이며 이 함수는 저장하지 않고 로그에만 쓴다.
+
+    Returns:
+        ``{'sent': bool, 'error': str | None, 'message_id': str | None}``.
+        자격 미달이면 ``_dispatch`` 를 호출하지 않고 사유 코드를 error 로 돌려준다.
+    """
+    reason = draft_ineligible_reason(sd)
+    if reason is not None:
+        logger.info(
+            "알림톡 초안 발송 미자격 (sent_by=%s, dedupe_key=%s, reason=%s)",
+            sent_by, dedupe_key, reason,
+        )
+        return {"sent": False, "error": reason, "message_id": None}
+    message_id, error = _dispatch(sd)
+    logger.info(
+        "알림톡 초안 발송 결과 (sent_by=%s, dedupe_key=%s, error=%s)",
+        sent_by, dedupe_key, error,
+    )
+    return {"sent": error is None, "error": error, "message_id": message_id}

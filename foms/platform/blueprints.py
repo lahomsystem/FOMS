@@ -90,6 +90,7 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
     from foms.api.erp_orders_blueprint import erp_orders_blueprint_bp
     from foms.api.erp_orders_structured import erp_orders_structured_bp
     from foms.api.erp_order_draft import erp_order_draft_bp
+    from foms.api.erp_order_draft_send import erp_order_draft_send_bp
     from foms.api.channel import (
         channel_functions_bp,
         channel_integration_bp,
@@ -157,6 +158,8 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
     app.register_blueprint(erp_orders_blueprint_bp)
     app.register_blueprint(erp_orders_structured_bp)
     app.register_blueprint(erp_order_draft_bp)
+    # 마법사 초안 발송(알림톡·실측 PUSH) — 초안 API 바로 뒤(같은 /api/erp/order-draft 계열)
+    app.register_blueprint(erp_order_draft_send_bp)
     app.register_blueprint(order_pages_bp)
     app.register_blueprint(order_edit_bp)
     app.register_blueprint(order_trash_bp)

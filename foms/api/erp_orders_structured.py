@@ -249,6 +249,14 @@ _OPERATIONAL_TOP_LEVEL_KEYS = (
     'channeltalk_push_estimate',
     'channeltalk_push_as',
     'channeltalk_push_measure_room',
+    # 실측 예약 안내 알림톡 이력(서버 소유 — kakao_alimtalk._record_history 만 쓴다).
+    # 폼은 이 키를 렌더하지도 보내지도 않으므로 보존 목록에 없으면 **주문을 한 번 저장하는
+    # 것만으로 사라진다**. 그러면 저장 직후 돌아가는 maybe_send_measure_alimtalk 의
+    # _already_sent 가 이력을 못 찾아 False 가 되고, 같은 예약 안내가 고객에게 한 번 더
+    # 나간다(멱등 판정이 오직 이 dict 의 dedupe_key 동일성 위에 서 있다).
+    # WIZ-SEND-01 D4: 마법사 초안에서 등록 전 발송한 이력을 주문으로 승계하는 경로도
+    # 같은 보존에 기댄다.
+    'alimtalk_measurement',
     # 채널 수집 provenance + 채널이 기록한 결제. 폼은 이 셋을 렌더하지도 보내지도 않는다.
     # 보존 목록에 없으면 **주문을 한 번 열어 저장하는 것만으로 조용히 사라진다** —
     # allowlist(structured_form_projection.enforce_form_allowlist)는 들어온 dict 에서

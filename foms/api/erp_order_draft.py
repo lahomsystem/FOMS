@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 from foms.services.datetime_kst import now_utc_naive
+import copy
 import re
 from typing import Any
 
 from flask import Blueprint, jsonify, request, session
+from sqlalchemy.orm import Session
 
 from db import get_db
 from foms.services.feature_flags import env_bool, wizard_new_order_enabled
@@ -17,11 +19,14 @@ from foms.services.order_draft_attachments import (
     validate_draft_attachment_upload,
 )
 from foms.services.order_draft_service import (
+    SEND_KIND_ALIMTALK,
+    SEND_KIND_CHANNEL_MEASURE,
     OrderDraftConflictError,
     delete_draft,
     draft_to_api_dict,
     format_updated_at,
     get_draft,
+    get_draft_send_history,
     upsert_draft,
     validate_draft_payload,
 )
@@ -500,6 +505,45 @@ def api_upload_order_draft_attachment() -> tuple[Any, int]:
     )
 
 
+def _inherit_draft_send_history(
+    db: Session, *, draft_key: str, user_id: int, structured_data: dict[str, Any]
+) -> dict[str, Any]:
+    """초안 발송 이력을 **새 주문 sd 로 병합한 새 dict 를 돌려준다**(WIZ-SEND-01 D4').
+
+    초안 행은 제출 끝에서 삭제되므로 여기서 옮기지 않으면 "등록 전에 보낸 안내"의 흔적이
+    통째로 사라진다(화면 발송 흔적 칩·중복 발송 차단이 둘 다 이 키를 읽는다).
+
+    **ORM 을 만지지 않는다.** ``create_order`` 앞에서 순수 dict 병합으로 끝내는 이유는
+    두 가지다. (1) ``create_order`` 뒤에서 ``flag_modified(order, 'structured_data')`` 를
+    하면 새 EXTERNAL order-mutation writer 로 잡혀 REV-99 릴리스 게이트가 red 가 된다.
+    (2) ``_prepare_structured`` 는 sd 를 deepcopy 후 **가산만** 하므로 여기서 얹은 미지의
+    최상위 키가 그대로 보존된다(foms/services/orders/order_create.py).
+
+    이력은 성공·실패 구분 없이 **무변환 복사**한다. 멱등키를 새 주문 id 로 재작성하던
+    옛 D4 는 폐기됐다 — 중복 차단은 이제 이력의 ``draft_schedule`` 서명이 담당한다
+    (:func:`kakao_alimtalk._already_sent`).
+
+    Args:
+        db: 활성 세션(초안 이력 조회 전용 — 쓰기 없음).
+        draft_key: 제출된 초안 키.
+        user_id: 초안 소유자(= 제출자).
+        structured_data: ``create_order`` 에 넘길 새 주문 structured_data.
+
+    Returns:
+        승계 키가 얹힌 structured_data. 승계할 이력이 없으면 인자를 그대로 돌려준다.
+    """
+    history = get_draft_send_history(db, draft_key=draft_key, user_id=user_id)
+    if not history:
+        return structured_data
+
+    merged = copy.deepcopy(structured_data)
+    for kind in (SEND_KIND_ALIMTALK, SEND_KIND_CHANNEL_MEASURE):
+        entry = history.get(kind)
+        if isinstance(entry, dict):
+            merged[kind] = copy.deepcopy(entry)
+    return merged
+
+
 @erp_order_draft_bp.route("/order-draft/submit", methods=["POST"])
 @login_required
 @role_required(["ADMIN", "MANAGER", "STAFF"])
@@ -583,6 +627,12 @@ def api_submit_order_draft() -> tuple[Any, int]:
     # version=1·SALES owner 배정·ORDER_CREATED event·quest seed·item identity·server totals·
     # GEOCODE outbox 를 한 tx 에 원자 조립하고(호출자가 commit), postcommit 직접 지오코드는
     # 하지 않는다. self-service wizard 이므로 생성자(uid)가 owner 다.
+    # WIZ-SEND-01 D4': 등록 전 초안에서 나간 발송 흔적을 새 주문 sd 에 미리 얹는다.
+    # create_order 뒤 ORM 쓰기가 아니라 앞선 dict 병합이어야 REV-99 인벤토리가 안 흔들리고,
+    # 초안 행을 삭제(delete_draft)하기 전에 이력을 읽는 순서도 여기서 보장된다.
+    structured_data = _inherit_draft_send_history(
+        db, draft_key=draft_key, user_id=uid, structured_data=structured_data
+    )
     new_order = create_order(
         db,
         actor_user_id=uid,
