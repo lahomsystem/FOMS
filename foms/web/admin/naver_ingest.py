@@ -3525,6 +3525,12 @@ def _group_queue(links: list[ExternalOrderLink], orders: dict,
         ordered_summaries = [summarize_snapshot(row.raw_snapshot) for row in [lead, *rest]]
         member_summaries = ordered_summaries
         dispatched_n = _dispatched_count(members)
+        # 발송처리가 **실제로 나갈** 건수. 술어는 서버와 한 벌
+        # (:func:`fulfillment.is_dispatch_pending` — 우리 표식 + 네이버 원본 sendDate).
+        # `member_count - dispatched_count` 로 재진술하면 판매자센터에서 사람이 직접 보낸
+        # 형제를 안 빼서 "3건 보냅니다"라고 읽히는데 서버는 1건만 보낸다. 불가역 경로의
+        # 과대 진술이라 그 자체가 사고다(설계서 2026-08-29 §7-E).
+        dispatch_pending_n = sum(1 for row in members if is_dispatch_pending(row))
         queue.append({
             "id": lead.id,
             # 묶음키 그대로 — 호출자가 이 집에 다른 판정(형제까지 본 클레임 등)을 붙일 때 쓴다.
@@ -3577,17 +3583,18 @@ def _group_queue(links: list[ExternalOrderLink], orders: dict,
             #  · dispatched      = 집 전체가 나갔다(워커 dispatch_order 가 전부 skip 하는 상태)
             #  · dispatched_any  = 하나라도 나갔다(취소는 이 순간부터 반품 흐름 — 서버가 거절한다)
             "dispatched_count": dispatched_n,
+            # `dispatched` 는 **우리가 다 보냈나**로 남긴다(2026-09-02 재확인). 두 신호로
+            # 바꾸면 판매자센터가 보낸 집이 초록 '발송처리 완료' 배지로 덮이고, 잠금 사유
+            # (누가·언제 보냈나 + "판매자센터에서 확인하세요")를 말하던 자리가 사라진다 —
+            # 그 문장이 2026-08-26 T5 의 결과물이다. 네이버 신호는 `naver_sent_at`(잠금)과
+            # `dispatch_pending_count`(건수)가 각각 맡는다.
             "dispatched": dispatched_n == len(members) and bool(members),
             # 갈래 판정은 **두 신호**다(우리 표식 + 네이버 원본) — `dispatched_count` 는
             # "우리가 눌러서 나간 수"라 뜻이 다르다. 섞으면 발송처리 모달 재진술이 흔들린다.
             "dispatched_any": _dispatched_any(members),
-            # 발송처리가 **실제로 나갈** 건수. 술어는 서버와 한 벌
-            # (:func:`fulfillment.is_dispatch_pending` — 우리 표식 + 네이버 원본 sendDate).
-            # `member_count - dispatched_count` 로 재진술하면 판매자센터에서 사람이 직접
-            # 보낸 형제를 안 빼서 "3건 보냅니다"라고 읽히는데 서버는 1건만 보낸다.
-            # 불가역 경로의 과대 진술이라 그 자체가 사고다(설계서 2026-08-29 §7-E).
-            "dispatch_pending_count": sum(1 for row in members
-                                          if is_dispatch_pending(row)),
+            # 모달 재진술이 읽는 값(위 계산 자리의 주석 참조) — 화면이 약속하는 건수는
+            # 서버가 보낼 건수와 **같은 술어**에서 나온다.
+            "dispatch_pending_count": dispatch_pending_n,
             # 주문 만들기가 **실제로 옮길** 형제 수. 집 전체 수(count)로 재진술하면 이미
             # 주문이 붙은 형제까지 세어 "3건을 주문 1건으로" 라고 읽히는데 서버는 2건만
             # 옮긴다(리뷰 M-2). 술어는 promotion 모듈 한 벌을 그대로 쓴다.
