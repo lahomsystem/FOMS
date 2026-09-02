@@ -1554,8 +1554,14 @@ _THIN_COLUMNS = (
 #: "클레임 없음", 두꺼운 경로는 "반품"으로 갈린다(배지 수 ≠ 목록. 이 저장소가 두 번 겪었다).
 #: 목록은 :data:`mapping.CLAIM_BLOCK_KEYS`·:data:`mapping.RETURN_BLOCK_KEYS` 에서 만든다 —
 #: 손으로 적으면 블록 이름이 늘 때 또 갈린다(계약 테스트가 이 파생을 잠근다).
+#:
+#: 2026-09-02: ``beforeClaim`` 추가. 커머스API 공지 #3608 이 **2026-10-28** 부터 구
+#: 클레임 필드를 이 조회 API 응답에서 빼면서 대체 노드로 ``beforeClaim.exchange`` 를
+#: 든다. :func:`mapping._claim_holders` 가 그 그릇을 읽게 됐으니 **얇은 경로도 같이**
+#: 남겨야 한다 — 안 그러면 그날 이후 얇은 화면만 "클레임 없음"으로 갈린다(R-7 재발).
 SNAPSHOT_PROJECTION_BLOCK_KEYS = tuple(dict.fromkeys(
-    tuple(CLAIM_BLOCK_KEYS) + tuple(RETURN_BLOCK_KEYS) + ("currentClaim",)))
+    tuple(CLAIM_BLOCK_KEYS) + tuple(RETURN_BLOCK_KEYS)
+    + ("currentClaim", "beforeClaim")))
 
 #: 투영이 남기는 최상위 키 전체(블록 + 판정이 읽는 나머지).
 #: ``delivery`` 는 :func:`mapping.extract_delivery` 가 읽고 `is_return_pending` 이 그것을 본다 —

@@ -54,6 +54,7 @@ __all__ = [
     "BANNED_CLAIM_REASONS",
     "CANCEL_REASONS",
     "OFFICIAL_CANCEL_REASONS",
+    "READABLE_CLAIM_REASONS",
     "OFFICIAL_RETURN_REASONS",
     "RETURN_REASONS",
     "RETURN_COLLECT_METHOD",
@@ -108,7 +109,32 @@ CLOSE_NOW_RELATIONS = ("ADDON",)
 #:
 #: `ETC` 는 표에 있지만 **여기 넣지 않는다** — 취소 요청·반품 요청 API 호출 시 사유로
 #: 설정할 수 없다(#3335). 읽기로는 올 수 있어 매핑 쪽에서는 계속 다룬다.
+#:
+#: **2026-09-02 개정 — 게이트가 제 일을 안 하고 있었다.** 위 #1170 표는 "누가 배송비를
+#: 무는가"를 말하는 **읽기 축**이라 18종이고, 그중 `WRONG_DELAYED_DELIVERY` 는 반품에서
+#: 400 을 맞고 뺀 바로 그 코드다. 즉 이 목록을 부분집합 계약의 상위집합으로 쓰면,
+#: 그 코드를 취소 목록에 다시 넣어도 **테스트는 초록이고 운영에서 400 이다** —
+#: 막으라고 만든 사고를 그대로 통과시킨다.
+#:
+#: 그래서 상위집합을 **취소 요청 endpoint 문서의 ``cancelReason`` 범례 7종**으로 좁힌다
+#: (우리가 실제로 그 필드에 실어 보내는 값의 정본이다).
+#: 지금 :data:`CANCEL_REASONS` 6종은 전부 이 안에 있어 **동작은 안 바뀐다** — 바뀌는
+#: 것은 앞으로 무엇을 추가할 수 있는가다.
+#:
+#: **알려진 출처 충돌(정직하게 남긴다)**: 공식 답변 #949 는 판매자가 지정 가능한
+#: **반품** 사유로 15종을 든다(`WRONG_DELAYED_DELIVERY` 포함). 그런데 릴리즈 노트
+#: #705 는 그 코드가 "실제 사용이 불가능"하다고 적었고 우리 실측도 400 이었다.
+#: 두 공식 출처가 갈릴 때는 **불가역 경로라 좁은 쪽**을 택한다 — 잘못 좁히면 코드
+#: 리뷰에서 막히고, 잘못 넓히면 운영에서 터진다.
 OFFICIAL_CANCEL_REASONS = (
+    "INTENT_CHANGED", "COLOR_AND_SIZE", "WRONG_ORDER", "PRODUCT_UNSATISFIED",
+    "DELAYED_DELIVERY", "SOLD_OUT", "INCORRECT_INFO",
+)
+
+#: #1170 의 귀책 표 전체 — **읽기 축 전용**이다. 보내는 값의 상위집합으로 쓰지 말 것
+#: (그렇게 쓰던 것이 위 개정의 이유다). 주문 정보로 들어오는 사유 코드는 이보다도
+#: 넓을 수 있다(공식 #1137: 읽기 코드가 쓰기 코드보다 많다).
+READABLE_CLAIM_REASONS = (
     # 구매자 귀책
     "INTENT_CHANGED", "COLOR_AND_SIZE", "WRONG_ORDER", "SIMPLE_INTENT_CHANGED",
     "MISTAKE_ORDER", "DELAYED_DELIVERY_BY_PURCHASER", "PRODUCT_UNSATISFIED_BY_PURCHASER",
@@ -1553,6 +1579,9 @@ def request_return(session: Session, client: Any, *, link_id: int, reason: str,
     _claim_guard(session, links, action="return", stamp=stamp, scope=todo)
 
     ok_ids: list[str] = []
+    # 승인 실패는 접수 실패와 **다른 축**이다 — 그 라인은 접수가 됐으므로 반품 축의
+    # `failed_at` 을 찍으면 안 되고(다시 보낼 대상이 아니다), 사람에게 할 말도 다르다.
+    approve_failures: dict[str, str] = {}
     # 위에서 대상에서 뺀 라인도 **실패로 센다** — 아래 ``if failures:`` 가 그것까지 보고
     # 예외를 올려야 담당자가 "그 상품주문은 왜 안 나갔나"를 실패 띠에서 읽는다.
     failures: dict[str, str] = dict(blocked_failures)
@@ -1590,6 +1619,21 @@ def request_return(session: Session, client: Any, *, link_id: int, reason: str,
         # **접수에 성공한 건만** 승인한다. 실패한 건은 네이버에 반품 요청 자체가 없다.
         approved = _approve_returns(client, by_id, ok_ids, stamp=stamp,
                                     actor_user_id=actor_user_id, link_id=link_id)
+        # **승인 0건도 실패다**(2026-09-02). 여기가 "부분 실패는 실패다" 를 못 지킨
+        # 다섯 번째 자리였다 — 접수가 전건 성공하고 승인이 하나도 안 나가도 성공으로
+        # 끝났다. 같은 일을 하는 독립 경로 :func:`approve_return` 은 이미 예외를 올린다
+        # (``if skipped:``). 두 경로의 완료 판정이 갈리면 감사 원장이 거짓말을 한다.
+        #
+        # 화면이 `승인 남음` 으로 말해 주긴 하지만, 담당자가 받는 **즉시 응답은 성공**이고
+        # 실패 띠는 안 켜진다 — 환불이 안 나간 채 잊히는 자리가 정확히 거기다.
+        missing = [pid for pid in ok_ids if pid not in set(approved)]
+        if missing:
+            approve_failures = {
+                pid: str(_return_state(by_id[pid]).get("approve_skipped_reason")
+                         or "승인되지 않았습니다.")[:500]
+                for pid in missing
+            }
+            _mark_failures(by_id, approve_failures, action="return-approve", stamp=stamp)
         session.flush()
 
     # **부분 실패는 실패다**(2026-09-02, NVCLAIM-ORDER-01 T3). 예전에는 성공이 한 건이라도
@@ -1598,9 +1642,18 @@ def request_return(session: Session, client: Any, *, link_id: int, reason: str,
     # rollback 이 아니라 **commit 한 뒤 re-raise** 하므로 성공분 표식과 실패 사유가 둘 다
     # 남고, :mod:`foms.services.jobs.queue` 에는 ``Retry``/``retry=`` 가 하나도 없어
     # 불가역 호출이 자동으로 다시 나가지 않는다.
-    if failures:
-        detail_text = "; ".join(f"{pid}: {why}" for pid, why in failures.items())
-        raise FulfillmentError(f"반품 접수가 실패했습니다 — {detail_text}")
+    if failures or approve_failures:
+        # 접수 실패와 승인 실패는 **다음에 할 일이 다르다** — 접수는 다시 보내야 하고,
+        # 승인은 상태가 넘어오길 기다렸다 승인만 다시 누른다. 한 문장에 뭉뚱그리면
+        # 담당자가 이미 접수된 건을 또 보낸다.
+        parts: list[str] = []
+        if failures:
+            parts.append("접수 실패 — " + "; ".join(
+                f"{pid}: {why}" for pid, why in failures.items()))
+        if approve_failures:
+            parts.append("승인 안 됨 — " + "; ".join(
+                f"{pid}: {why}" for pid, why in approve_failures.items()))
+        raise FulfillmentError("반품 처리가 완료되지 않았습니다. " + " / ".join(parts))
     logger.info("[NAVER] 반품 접수 link=%s 성공=%d 실패=%d 승인=%d", link_id, len(ok_ids),
                 len(failures), len(approved))
     return {"returned": ok_ids, "approved": approved,

@@ -80,6 +80,22 @@ def _run(link_id: int, client, *, approve: bool):
                               reason="COLOR_AND_SIZE", actor_user_id=7, approve=approve)
 
 
+def _run_expecting_unapproved(link_id: int, client):
+    """승인이 하나도 안 나간 실행 — **예외가 오르는 것이 계약이다**(2026-09-02 개정).
+
+    예전에는 접수만 성공하면 승인 0건이어도 조용히 성공으로 끝났다. 그 자리가
+    "부분 실패는 실패다" 를 못 지킨 다섯 번째 지점이었고, 보류·상태 미도달처럼
+    **환불이 안 나간 채 잊히는** 갈래가 정확히 여기로 빠졌다. 독립 경로
+    ``approve_return`` 은 이미 예외를 올린다 — 두 경로의 완료 판정을 맞춘다.
+
+    사유 기록은 예외와 **함께** 남아야 한다(워커가 이 예외에서 commit 한다).
+    """
+    with pytest.raises(svc.FulfillmentError) as err:
+        _run(link_id, client, approve=True)
+    assert "승인 안 됨" in str(err.value), str(err.value)
+    return err.value
+
+
 # --------------------------------------------------------------------------- #
 # 1~2. 켠 사람만, 성공분만
 # --------------------------------------------------------------------------- #
@@ -122,10 +138,9 @@ def test_holdback_blocks_approval_and_we_do_not_release_it(app):
     client = _ApproveClient(detail_by_pid={
         "PO-APV-HOLD": {"claimStatus": "RETURN_REQUEST",
                         "holdbackStatus": "HOLDBACK_REQUEST"}})
-    out = _run(link_id, client, approve=True)
+    _run_expecting_unapproved(link_id, client)
 
     assert client.approved == [], "보류 건에 승인을 불렀다"
-    assert out["approved"] == []
     state = _return_state(link_id)
     assert "보류" in (state.get("approve_skipped_reason") or "")
     assert state.get("holdback_status") == "HOLDBACK_REQUEST"
@@ -156,10 +171,9 @@ def test_status_not_approvable_is_skipped_without_waiting(app):
     link_id = _link("PO-APV-EARLY", dispatched=True)
     client = _ApproveClient(detail_by_pid={
         "PO-APV-EARLY": {"claimStatus": "PAYED"}})
-    out = _run(link_id, client, approve=True)
+    _run_expecting_unapproved(link_id, client)
 
     assert client.approved == []
-    assert out["approved"] == []
     assert "상태가 아닙니다" in (_return_state(link_id).get("approve_skipped_reason") or "")
 
 
@@ -180,10 +194,9 @@ def test_detail_read_failure_skips_approval_with_reason(app):
     """상태를 못 읽으면 승인하지 않는다 — 모르면 안 건다."""
     link_id = _link("PO-APV-NOREAD", dispatched=True)
     client = _ApproveClient(detail_raises=RuntimeError("HTTP 500"))
-    out = _run(link_id, client, approve=True)
+    _run_expecting_unapproved(link_id, client)
 
     assert client.approved == []
-    assert out["approved"] == []
     assert "다시 읽지 못했습니다" in (_return_state(link_id).get("approve_skipped_reason") or "")
 
 
@@ -191,9 +204,8 @@ def test_approve_call_failure_leaves_reason(app):
     """승인 호출이 실패하면 사유가 남아 화면이 '승인 남음'을 말한다."""
     link_id = _link("PO-APV-FAIL", dispatched=True)
     client = _ApproveClient(approve_raises=RuntimeError("HTTP 400 상품 주문 상태 확인 필요"))
-    out = _run(link_id, client, approve=True)
+    _run_expecting_unapproved(link_id, client)
 
-    assert out["approved"] == []
     assert "승인 실패" in (_return_state(link_id).get("approve_skipped_reason") or "")
 
 
