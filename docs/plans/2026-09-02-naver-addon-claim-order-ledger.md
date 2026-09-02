@@ -212,3 +212,15 @@ NVCLAIM-ORDER-01 1차·2차·T3 전부 운영 반영, 규격 감사 5건 deploy 
 **기록 정정**: 앞 커밋(F2) 메시지의 `tests/services/integrations 1463 passed` 는 오기다.
 그 시점 실제 수는 1459(이 배 뒤 1460).
 
+## 운영 반영 (2026-09-02)
+
+F2 + 잔가지 3 을 PR #269 로 승격, production `7f640822` (검사 4/4 green).
+승격 트리에서 본 스위트를 직접 돌렸다 — 8023 passed, 5 skipped(승격 PR 은 본 스위트를
+돌지 않는 구멍이 있어 이 실행이 유일한 관문이다).
+
+승격 중 처리 2건:
+- `3629c054`(이력 탭 서버 검색)는 **이미 운영에 있었다**(PR #267) — cherry-pick 이 빈 커밋이라 skip.
+  그 과정에 남의 changelog 행(지오코딩, 이미 운영 반영분)이 딸려 오려 한 것은 가져오지 않았다.
+- `foms_failopen_inventory.json` 충돌은 생성물이라 `failopen_scan.py` 재생성으로 해소.
+
+**이제 남은 것**: 감사 F7·F8·F10·F12·F13.
