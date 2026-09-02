@@ -10,6 +10,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
+- [2026-09-02] **둘째 전화번호 검색 복구 운영 반영**(PR #258) — 폭 64·`phonewide_01`, 절단 83건 복구. `erp-phone-digits-widen-ledger`
 - [2026-09-02] **하트비트 S1+S2a 운영 반영(PR #233) · 관측 중** — 쓰기 카운터 + 렌더 전 304 키의 그림자 관측. **화면 동작 무변경**. 운영 mismatch 0. **미해결**: 스테이징 mismatch 13 · 적중률 미측정 → S2b 는 그 뒤. 원장 §P8~§P11
 - [2026-09-02] **트리아지 자동매칭 사고 반영 완료** — 잔여: 전화 어긋남 36건 재판정. `docs/incidents/2026-09-01-naver-triage-auto-match-miss.md`
 - [2026-09-02] **네이버 클레임 승인 T9 운영 ON**(PR #249 · production `b0c81413` · web 재배포 23:23Z) — 취소 요청 승인 신설(`claim/cancel/approve`)+반품 승인 독립 경로. 게이트 2종 `FOMS_NAVER_{CANCEL,RETURN}_APPROVE_ENABLED=1`(web 전용). **취소 거부 API 는 네이버에 없다.** 후속: 유령 주문 단계 잠금 해제(사유 필수)는 deploy `549a801f`. 원장: `docs/plans/2026-09-01-naver-claim-approve-ledger.md`
