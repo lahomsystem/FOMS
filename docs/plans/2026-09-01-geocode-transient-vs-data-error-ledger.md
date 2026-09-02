@@ -22,6 +22,26 @@
 현재 배포분(07:14)부터만 남아 있다. 변환기가 예외를 문자열로 삼켜 DB 에도 사유가 안 남는다 —
 이 "사유가 안 남는다"는 사실 자체가 아래 결함 1의 증상이다.
 
+> **[2026-09-02 추가 — 트리거 규명됨] `SIDEFX` 서비스에 `KAKAO_REST_API_KEY` 가 없다.**
+>
+> 위 조사는 운영 서비스를 `web`·`WORKER`·`FOMS-cron` **3개만** 확인했다. 그 뒤 등록된
+> **`SIDEFX` 서비스**(GEOCODE outbox 소비단)는 보지 않았고, 그 서비스에만 키가 없다.
+> 키가 없으면 `kakao_rest_headers()` 가 `RuntimeError` 를 던지고, (수정 전) 변환기가 그것을
+> `except Exception` 으로 삼켜 "AI 변환 실패" 로 강등한다 → `geocode_status='failed'`.
+>
+> 이것이 위에서 관측한 `attempts=1 · last_error=NULL · DONE`(예외 흔적 없이 "좌표 없음")의
+> 정체다. 2026-09-02 08:4x KST 실측: SIDEFX 로그가 새 주문 #5095~#5099 에 대해
+> `[geocode] order 5099 address conversion failed — marked failed, no retry` 를 계속 찍고
+> 있었고, **그 주소 4건을 같은 운영 키로 직접 변환하니 전부 첫 전략(stripped)에서 성공**했다.
+> 주소는 이번에도 무죄였다.
+>
+> 조치: SIDEFX 에 `KAKAO_REST_API_KEY` 설정 + 재배포(신코드 반영). 근본 수정 ①이 배포된
+> 뒤에는 같은 상황이 `transient` 로 갈려 재시도 경로로 가므로, 키가 빠지더라도 멀쩡한 주소가
+> "주소오류" 로 굳지 않는다.
+>
+> 곁가지 관측(별개 결함): SIDEFX 는 `CHANNEL_PUSH_RECORDED` 핸들러가 등록돼 있지 않아
+> 그 effect_type 을 계속 `NoHandlerError` 로 재시도하고 있다 — 이 원장 범위 밖.
+
 ## 당장 조치 (완료)
 
 `python tools/ops/backfill_geocode_missing.py --apply --mode sync --include-failed --limit 60`

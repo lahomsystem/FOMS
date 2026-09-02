@@ -47,7 +47,8 @@
 | T6 | 전수 검증 + deploy push | **DONE** `f3d3f04f5` | 본 스위트 7645 green · smoke exit 0 |
 | T7 | 문서 반영(AI_STATUS·CHANGELOG·원장 마감) | **DONE** | — |
 | T8 | 운영 승격(사용자 승인 후) | **DONE** PR #243 · production `c8492b6b` | 검사 4종 pass · WORKER 신코드 확인 |
-| T9 | 남긴 것 — 동네 중심 좌표를 성공으로 반환하던 폴백 | **DONE** | 아래 §T9 |
+| T9 | 남긴 것 — 동네 중심 좌표를 성공으로 반환하던 폴백 | **DONE** PR #251 · production `17bc0027` | 아래 §T9 |
+| T10 | **미규명 트리거 규명** — SIDEFX 카카오 키 부재 | **DONE** | 아래 §T10 |
 
 ---
 
@@ -302,3 +303,49 @@ T1~T8 에서 "범위 밖"으로 남겼던 6단계 `simplified` 폴백을 실측�
 
 #905·#2690 는 `success` 라 자동 재변환 대상이 아니다(주소를 고치면 write 경로가 되돌린다).
 #2418 은 배포 후에도 저장값이 그대로다 — **좌표 정정은 운영 쓰기라 별도 승인 사항**으로 남긴다.
+
+
+---
+
+## T10 — 최초 트리거를 찾았다: `SIDEFX` 서비스에 카카오 키가 없다 (2026-09-02)
+
+T8 승격 뒤 운영 DB 를 다시 읽다가 **배포 이후에도 새 `failed` 가 계속 생기는 것**을 봤다.
+새 코드는 `failed` 를 쓰지 않는다(`success`/`pending`/`address_error` 뿐) — 그래서 옛 코드를
+도는 프로세스가 살아 있다는 뜻이었다.
+
+### 추적
+
+| 단계 | 관측 |
+|---|---|
+| 운영 DB | 배포(22:47 UTC) 이후 23:09·23:23·23:25·23:46 에 `failed` 4건 추가 |
+| 코드 | `origin/production` 트리에 `geocode_status='failed'` 를 쓰는 살아있는 경로 **0곳** |
+| 서비스 목록 | `Redis / web / **SIDEFX** / WORKER / FOMS-cron / Postgres` |
+| SIDEFX 로그 | `[geocode] order 5099 address conversion failed — marked failed, no retry` ← **옛 문구** |
+| SIDEFX 환경변수 | **`KAKAO_REST_API_KEY` 없음** (web·WORKER 는 있음) |
+| 그 주소들 | 같은 운영 키로 직접 변환 → **4/4 첫 전략(stripped)에서 성공** |
+
+**기전**: 키가 없으면 `kakao_rest_headers()` 가 `RuntimeError` → (수정 전) 변환기가
+`except Exception` 으로 삼켜 "AI 변환 실패" → 저장단이 `geocode_status='failed'`.
+조사 원장이 관측한 `attempts=1 · last_error=NULL · DONE`(사유 없이 "좌표 없음")이 이것이다.
+
+2026-09-01 조사가 이 서비스를 못 본 이유는 **운영 서비스를 3개(web·WORKER·FOMS-cron)만
+확인했기 때문**이다. SIDEFX 는 그 뒤 등록됐다.
+
+### 조치 (사용자 승인 후)
+
+1. `SIDEFX` 에 `KAKAO_REST_API_KEY` 설정(WORKER 와 같은 값) → 재배포(신코드 동반).
+   재기동 확인: `[sidefx-worker] started owner=8f41a57685de interval=5s`.
+2. 옛 코드가 오늘 잘못 찍은 5건(#5095~#5099) 재변환 — **5/5 success**.
+   대상 id 5개 고정·`failed`+좌표없음일 때만 진행·저장 SSOT(`apply_geocode_to_order`) 사용,
+   쓴 컬럼은 lat/lng/geocode_status/geocoded_at/address_hash 뿐(알림·이벤트 0).
+3. 운영 분포: `success 3789 · failed 19 · NULL 8`(재변환 전 3784/24/8).
+
+### 이 결함이 다시 나면
+
+근본 수정 ①이 배포된 지금은 키가 빠져도 **`transient`** 로 갈려 재시도 경로로 간다 —
+멀쩡한 주소가 "주소오류" 로 굳지 않는다. 즉 설정 사고가 데이터 오판으로 번지는 길이 끊겼다.
+
+### 곁가지 관측 (별개 결함, 이 원장 범위 밖)
+
+SIDEFX 는 `CHANNEL_PUSH_RECORDED` 핸들러가 등록돼 있지 않아 그 effect_type 을 계속
+`NoHandlerError` 로 재시도한다(로그 다수). 별도 판단 필요.
