@@ -404,6 +404,38 @@ def test_strip_return_modal_has_the_scope_line_wired(client, workbench_on):
     assert "wb-origin-return-scope" in script, "JS 가 범위 문장을 채우지 않는다"
 
 
+def test_approve_warning_stays_hidden_until_it_is_checked(client, workbench_on):
+    """승인 경고는 **켜기 전에는 안 보인다** (2026-09-02 실화면 확인).
+
+    부트스트랩 `.d-block` 은 `display:block !important` 라 `hidden` 속성을 이긴다 —
+    "환불이 확정됩니다" 가 체크와 무관하게 늘 떠 있었고, 늘 뜨는 경고는 정작 켰을 때
+    아무 신호도 주지 못한다. 띠와 pane 두 모달이 같은 함정을 함께 밟고 있었다.
+    """
+    _login(client)
+    order = _order(name="띠경고")
+    _link(order_no=f"N-ORIG-WARN-{_uid()}", order_id=int(order.id), relation="NEW",
+          send_date="2026-08-20T10:00:00.000+09:00")
+    _link(order_no=f"N-REPAY-WARN-{_uid()}", order_id=int(order.id), relation="REPAY")
+
+    body = client.get(TRIAGE_PATH, query_string={"tab": "work"}).get_data(as_text=True)
+    css = (REPO_ROOT / "static" / "css" / "admin" / "naver-workbench.css").read_text(
+        encoding="utf-8")
+    # 판정은 **소스**에서 한다 — pane 은 링크를 골라야 렌더되고, 화면 한 벌만 보면 다른
+    # 모달이 같은 함정을 그대로 밟고 있어도 초록이 된다.
+    sources = {
+        "wb-origin-return-approve-warn": TEMPLATE_PATH.read_text(encoding="utf-8"),
+        "wb-return-approve-warn": (REPO_ROOT / "templates" / "admin" / "partials"
+                                   / "naver_workbench_pane.html").read_text(encoding="utf-8"),
+    }
+
+    assert 'id="wb-origin-return-approve-warn"' in body, "띠 모달에 경고 자리가 없다"
+    for element_id, source in sources.items():
+        tag = source.split(f'id="{element_id}"')[0].rsplit("<span", 1)[1]
+        assert "d-block" not in tag, f"{element_id}: d-block 이 hidden 을 이긴다"
+        assert "wb-approve-warn" in tag, f"{element_id}: 표시 규칙 클래스가 없다"
+    assert ".wb-approve-warn:not([hidden])" in css, "경고를 펴는 규칙이 CSS 에 없다"
+
+
 def test_strip_ids_do_not_collide_with_the_pane(client, workbench_on):
     """띠 모달 id 는 pane 과 겹치지 않는다 — 겹치면 어느 입력을 읽는지 갈린다."""
     _login(client)

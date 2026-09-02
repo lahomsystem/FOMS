@@ -1439,7 +1439,10 @@
                     <b>반품 진행이 보이고</b>, 커머스API 로는 수거 정보를 다시 바꿀 수 없습니다.
                     {# 승인 체크 시에만 보이는 줄 — JS 가 토글한다. 접수보다 한 단계 더
                        무겁다(돈이 나간다)는 것을 고르는 자리에서 말한다. #}
-                    <span class="d-block mt-1" id="wb-return-approve-warn" hidden>
+                    {# `d-block` 을 쓰면 안 된다 — 부트스트랩이 `!important` 라 `hidden` 을 이겨서
+                       경고가 **늘 떠 있었다**(2026-09-02 실화면 확인). 늘 뜨는 경고는 아무도 안
+                       읽는다. 표시는 `wb-approve-warn` 규칙이 편다. #}
+                    <span class="wb-approve-warn mt-1" id="wb-return-approve-warn" hidden>
                         <b>승인까지 켰습니다 — 환불이 즉시 확정됩니다.</b>
                         승인은 되돌리는 방법이 아예 없습니다.
                     </span>
