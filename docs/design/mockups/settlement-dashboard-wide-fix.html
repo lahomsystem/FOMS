@@ -1,0 +1,854 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>정산 대시보드 — 폭·높이 수정안 목업</title>
+<style>
+/* ── 운영 CSS 원본(origin/deploy static/css/settlement/settlement-dashboard.css) 그대로 ── */
+/*
+ * 정산 대시보드 (SETTLE-DASH-01 M3) — 목업 확정본 이식.
+ *
+ * 원본: docs/design/mockups/settlement-dashboard-v1-executive.html <style> :7-211.
+ * 값(색·크기·간격·반응형 브레이크포인트)은 **한 픽셀도 바꾸지 않았다.** 확정본이다.
+ *
+ * 이식하며 강제로 바꾼 것은 두 가지뿐이고, 둘 다 안 바꾸면 화면이 깨진다:
+ *
+ * 1) **클래스 네임스페이스** — 목업은 독립 문서라 `.card` / `.grid` / `.legend` / `.toggle`
+ *    같은 맨이름을 썼다. FOMS 문서에는 Bootstrap 5 와 `css/foundation/erp-pro.css` 가
+ *    **전역으로** 먼저 실려 있어서(`layout_head.html:239,248`) 같은 이름을 그대로 쓰면
+ *    Bootstrap `.card`(패딩·보더·radius)와 `.badge`(색·display)가 내 요소에 그대로 걸린다.
+ *    네임스페이스만으로는 못 막는다 — Bootstrap 의 `.card` 는 내 `.foms-settle` 안에서도
+ *    매칭되기 때문이다. 그래서 **클래스 이름 자체를 `s-` 접두어로 바꿨다.**
+ * 2) **토큰 스코프** — 목업의 `:root` 변수(`--accent` 등)를 전역에 풀면 FOMS 토큰
+ *    (`foundation/foms-tokens.css`)과 이름이 겹칠 수 있다. 전부 `--s-` 접두어로 바꾸고
+ *    `.foms-settle` 에만 선언한다. `body`/`*` 전역 선택자도 같은 이유로 스코프했다.
+ *
+ * 목업에서 **제거**한 것(스펙 §7 "X 제외/제거"):
+ *   - `.goalrow`/`.goal-pct`/`.goal-note`  → 월 매출 목표 미터(목표 데이터가 시스템에 없다)
+ *   - `.badge-soon`                        → 미출시 표시 배지(해당 카드를 통째로 뺐다)
+ *   - `.mockup-badge`                      → 목업 워터마크 배지
+ *   `.s-meter`/`.s-meter-fill` 은 남긴다 — 목표 미터가 아니라 '정산 처리 현황' 청구 비율이 쓴다.
+ *
+ * 목업에 **없어서 추가**한 것: 상태 3종(`.s-state--loading/--error/--denied`)과 카드별 빈 상태
+ * (`.s-empty`). 운영 실데이터에서 정산 처리 현황이 전부 0 이라, 빈 상태 표기가 없으면
+ * 실화면이 그냥 빈 카드로 보인다. Bootstrap `.alert` 는 쓰지 않는다 —
+ * `static/js/runtime/script.js:10` 이 5초 뒤 자동으로 닫아 상시 안내가 사라진다.
+ *
+ * 변경 시 `templates/cs/partials/settlement_dashboard_body.html` 의 `?v=` 핀을 반드시 범프한다
+ * (Service Worker staticCacheFirst 라 핀 없이는 배포가 반영되지 않는다).
+ */
+
+/* ── 토큰 (naver-ingest-workbench 톤 + dataviz 크롬) ─────────────── */
+.foms-settle {
+  color-scheme: light;
+  --s-bg: #eef2f7;
+  --s-surface: #fff;
+  --s-surface-soft: #f6f8fb;
+  --s-text: #111827;
+  --s-muted: #6b7280;
+  --s-faint: #9aa3af;
+  --s-line: #dbe1ea;
+  --s-line-soft: #edf1f6;
+  --s-grid: #edf1f6;
+  --s-axis: #d6dce6;
+  --s-accent: #2a78d6;        /* categorical slot 1 (dataviz 기본 팔레트) */
+  --s-accent-soft: #eaf2fc;
+  --s-series-2: #eb6834;      /* categorical slot 2 */
+  --s-ctx: #8a94a3;           /* 전월 비교 = 강조(emphasis)용 회색 — 시리즈 슬롯 아님 */
+  --s-zero-bar: #d9e0ea;      /* 완료 0건인 날의 baseline 스텁 — 시리즈 색이 아니다(매출 0을 파랑으로 칠하지 않는다) */
+  --s-meter-track: #cde2fb;   /* 미충족 트랙 = 같은 램프의 밝은 스텝 */
+  --s-good: #006300;
+  --s-bad: #b91c1c;
+  --s-amber: #b45309;
+  --s-amber-soft: #fdf3e3;
+  --s-critical: #d03b3b;
+  --s-radius: 10px;
+
+  background: var(--s-bg);
+  color: var(--s-text);
+  font-size: 13px;
+  font-family: Pretendard, -apple-system, BlinkMacSystemFont, "Segoe UI", "Malgun Gothic", sans-serif;
+}
+.foms-settle *,
+.foms-settle *::before,
+.foms-settle *::after { box-sizing: border-box; }
+.foms-settle svg text { font-family: inherit; }
+
+/* 상태 토글 전용 — 인라인 스타일 금지 규칙 때문에 JS 는 이 클래스만 붙였다 뗀다. */
+.foms-settle .s-hidden { display: none !important; }
+
+/* ── 상단 스트립: 권한 부제 + 기준 시각 ─────────────────────────── */
+.foms-settle .s-strip {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  background: var(--s-surface); border-bottom: 1px solid var(--s-line);
+  padding: 10px 18px;
+}
+.foms-settle .s-who { color: var(--s-muted); font-size: 12px; }
+.foms-settle .s-spacer { flex: 1; }
+.foms-settle .s-stamp { color: var(--s-faint); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+
+/* ── 탭바 3종 (요약 · 실무 · 분석) ────────────────────────────── */
+/*
+ * 이름이 전부 `s-` 접두어인 이유는 파일 상단 (1) 과 같다. 특히 여기서는 `.tab`/`.nav`/
+ * `.nav-link`/`.active` 가 위험하다 — Bootstrap 5 의 `.nav`·`.nav-link`·`.tab-pane` 은
+ * `.foms-settle` 안에서도 그대로 매칭돼서 패딩·색·display 를 덮어쓴다. `.s-tab*` 은
+ * Bootstrap 에도 erp-pro.css 에도 없는 이름이다.
+ *
+ * 버튼은 진짜 `<button>` 이라 Bootstrap reboot 의 button 기본값(테두리·배경·폰트)을
+ * 명시적으로 되돌린다. `.btn` 은 쓰지 않는다(전역 .btn 패딩이 탭 높이를 밀어버린다).
+ */
+.foms-settle .s-tabs {
+  display: flex; align-items: stretch; flex-wrap: wrap; gap: 2px;
+  background: var(--s-surface); border-bottom: 1px solid var(--s-line);
+  padding: 0 18px;
+}
+.foms-settle .s-tab {
+  display: inline-flex; align-items: baseline; gap: 6px;
+  border: none; border-bottom: 2px solid transparent; margin-bottom: -1px;
+  background: none; color: var(--s-muted); font: inherit; font-size: 13px; font-weight: 800;
+  padding: 11px 14px 9px; cursor: pointer;
+}
+.foms-settle .s-tab:hover { color: var(--s-text); }
+.foms-settle .s-tab[aria-selected="true"] { color: var(--s-accent); border-bottom-color: var(--s-accent); }
+.foms-settle .s-tab:focus-visible { outline: 2px solid var(--s-accent); outline-offset: -3px; }
+.foms-settle .s-tab-hint { font-size: 11px; font-weight: 600; color: var(--s-faint); }
+.foms-settle .s-tab[aria-selected="true"] .s-tab-hint { color: var(--s-accent); }
+
+/* 비활성 pane 은 `hidden` 속성으로만 감춘다(JS 가 붙였다 뗀다 — 인라인 스타일 금지).
+   Bootstrap reboot 에도 `[hidden]` 규칙이 있지만, 그쪽에 기대지 않고 여기서 한 번 더 못박는다.
+   **폭 0 함정**: 이 상태의 pane 안 차트 호스트는 `clientWidth === 0` 이고, 렌더러가
+   `clientWidth || 400` 으로 폴백해 **400px 짜리 눌린 차트**를 남긴다(빈 차트가 아니라서
+   눈에 덜 띈다) — 다시 보일 때 JS 가 되그린다(dashboard.js `activateTab()`). */
+.foms-settle .s-pane[hidden] { display: none; }
+
+/* 실무 탭은 기간 스코프 화면이 아니다 — 필터바를 복제하는 대신 한 벌을 감춘다.
+   선택자가 `s-hidden` 이 아니라 루트 속성인 이유는 body 템플릿의 필터바 주석 참조
+   (showState() 의 권한거부 분기와 클래스를 겹쳐 쓰지 않는다). */
+.foms-settle[data-settlement-active-tab="ops"] .s-filterbar { display: none; }
+
+/* 탭 2·3 자리표시. 내용이 붙기 전에도 "빈 화면"이 아니라 "아직 없음"으로 읽혀야 한다.
+   빈 상태(`.s-empty`)와 같은 점선 박스 어휘를 쓰되 카드 안이 아니라 pane 폭 전체다. */
+.foms-settle .s-pane-mount { max-width: 1440px; margin: 0 auto; padding: 16px 18px 34px; }
+.foms-settle .s-pane-placeholder {
+  margin: 0; padding: 28px 12px; border: 1px dashed var(--s-line);
+  border-radius: var(--s-radius); background: var(--s-surface-soft);
+  color: var(--s-muted); font-size: 12.5px; text-align: center;
+}
+
+/* ── 필터바 (V3 filterbar 룩의 라이트 번안) ──────────────────── */
+.foms-settle .s-filterbar {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  background: var(--s-surface); border-bottom: 1px solid var(--s-line);
+  padding: 8px 18px;
+}
+.foms-settle .s-seg {
+  display: inline-flex; background: var(--s-surface-soft);
+  border: 1px solid var(--s-line); border-radius: 8px; padding: 2px;
+}
+.foms-settle .s-seg button {
+  border: none; background: none; color: var(--s-muted); font: inherit; font-size: 12px; font-weight: 700;
+  padding: 5px 14px; border-radius: 6px; cursor: pointer;
+}
+.foms-settle .s-seg button[aria-pressed="true"] { background: var(--s-accent); color: #fff; }
+.foms-settle .s-seg button:not([aria-pressed="true"]):hover { color: var(--s-text); }
+.foms-settle .s-toggle {
+  display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
+  border: 1px solid var(--s-line); background: var(--s-surface); border-radius: 8px;
+  padding: 5px 12px; color: var(--s-muted); font: inherit; font-size: 12px; font-weight: 700;
+}
+.foms-settle .s-toggle .s-knob {
+  width: 26px; height: 15px; border-radius: 999px; background: #cbd5e1;
+  position: relative; transition: background .15s; flex: none;
+}
+.foms-settle .s-toggle .s-knob::after {
+  content: ""; position: absolute; top: 2px; left: 2px; width: 11px; height: 11px;
+  border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(16, 24, 40, .25); transition: left .15s;
+}
+.foms-settle .s-toggle[aria-pressed="true"] { color: var(--s-text); }
+.foms-settle .s-toggle[aria-pressed="true"] .s-knob { background: var(--s-accent); }
+.foms-settle .s-toggle[aria-pressed="true"] .s-knob::after { left: 13px; }
+.foms-settle .s-toggle[disabled] { opacity: .4; cursor: not-allowed; }
+.foms-settle .s-filterbar .s-scope { color: var(--s-muted); font-size: 12px; }
+.foms-settle .s-filterbar .s-note { color: var(--s-faint); font-size: 11.5px; margin-left: auto; }
+
+/* ── bento 그리드 ─────────────────────────────────────────────── */
+.foms-settle .s-grid {
+  display: grid; grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 14px; padding: 16px 18px 6px; max-width: 1440px; margin: 0 auto;
+}
+.foms-settle .s-card {
+  background: var(--s-surface); border: 1px solid var(--s-line);
+  border-radius: var(--s-radius); padding: 13px 16px 15px; min-width: 0;
+}
+.foms-settle .s-card-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.foms-settle .s-card-title { font-size: 13.5px; font-weight: 800; }
+.foms-settle .s-card-sub { font-size: 11.5px; color: var(--s-muted); font-weight: 500; }
+.foms-settle .s-card-head .s-head-right { margin-left: auto; display: flex; gap: 12px; align-items: center; }
+
+/* ── KPI 히어로 ──────────────────────────────────────────────── */
+.foms-settle .s-kpis {
+  grid-column: 1 / -1; display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px;
+}
+.foms-settle .s-kpi {
+  background: var(--s-surface); border: 1px solid var(--s-line);
+  border-radius: var(--s-radius); padding: 12px 15px 11px; min-width: 0;
+}
+/* 전략 D: 지표 가족 틴트 + 상단 액센트 바 (데이터 잉크가 아닌 서피스 층위) */
+.foms-settle .s-kpi.s-fam { border-top: 3px solid var(--s-fam, var(--s-line)); background: var(--s-fam-tint, var(--s-surface)); }
+.foms-settle .s-kpi-label { font-size: 11.5px; font-weight: 700; color: var(--s-muted); }
+.foms-settle .s-kpi-mid { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; margin-top: 5px; }
+.foms-settle .s-kpi-value { font-size: 23px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.1; white-space: nowrap; }
+.foms-settle .s-kpi-value i { font-style: normal; font-size: 12px; font-weight: 700; color: var(--s-muted); margin-left: 1px; }
+.foms-settle .s-kpi-spark { flex: none; line-height: 0; }
+.foms-settle .s-kpi-delta { margin-top: 6px; font-size: 12px; font-weight: 800; }
+.foms-settle .s-kpi-delta span { color: var(--s-faint); font-weight: 600; margin-left: 3px; }
+.foms-settle .s-kpi-delta.s-good { color: var(--s-good); }
+.foms-settle .s-kpi-delta.s-bad { color: var(--s-bad); }
+.foms-settle .s-kpi-delta.s-flat { color: var(--s-faint); font-weight: 600; }
+.foms-settle .s-kpi-sub { margin-top: 3px; font-size: 11px; color: var(--s-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ── 메인 차트 카드 ──────────────────────────────────────────── */
+.foms-settle .s-card--main { grid-column: span 8; }
+.foms-settle .s-side { grid-column: span 4; display: grid; gap: 14px; align-content: start; }
+.foms-settle .s-legend { display: flex; gap: 12px; font-size: 11.5px; color: var(--s-muted); font-weight: 600; flex-wrap: wrap; }
+.foms-settle .s-legend .s-lg { display: inline-flex; align-items: center; gap: 5px; }
+.foms-settle .s-lg-line { width: 14px; height: 3px; border-radius: 2px; display: inline-block; }
+.foms-settle .s-lg-rect { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+
+.foms-settle .s-meter { flex: 1; min-width: 90px; height: 8px; border-radius: 999px; background: var(--s-meter-track); overflow: hidden; }
+.foms-settle .s-meter-fill { height: 100%; background: var(--s-accent); border-radius: 999px; width: var(--s-meter-pct, 0%); }
+
+.foms-settle .s-chart-host { line-height: 0; min-height: 24px; }
+.foms-settle .s-axis-t { font-size: 10.5px; fill: var(--s-faint); font-variant-numeric: tabular-nums; }
+.foms-settle .s-axis-sub { font-size: 10px; fill: var(--s-faint); }
+.foms-settle .s-cap-t { font-size: 10.5px; font-weight: 700; fill: var(--s-muted); font-variant-numeric: tabular-nums; }
+/* 비교 라인이 축을 넘어간 구간 표식. 잘라놓고 말 안 하면 "그날은 축 상한이었다"로 읽힌다. */
+.foms-settle .s-clip-mark { pointer-events: none; }
+.foms-settle .s-cgrp path { transition: filter .12s; }
+.foms-settle .s-cgrp.s-on path { filter: brightness(1.12); }
+.foms-settle .s-hit:focus,
+.foms-settle .s-ghit:focus { outline: 1.5px solid var(--s-accent); outline-offset: -1.5px; }
+.foms-settle .s-hit,
+.foms-settle .s-ghit { cursor: crosshair; }
+
+.foms-settle .s-tblv { margin-top: 6px; }
+.foms-settle .s-tblv summary { font-size: 11.5px; color: var(--s-muted); cursor: pointer; font-weight: 600; }
+.foms-settle .s-tblwrap { max-height: 190px; overflow: auto; margin-top: 6px; border: 1px solid var(--s-line-soft); border-radius: 8px; }
+.foms-settle .s-dt { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+.foms-settle .s-dt th,
+.foms-settle .s-dt td { padding: 4px 10px; border-bottom: 1px solid var(--s-line-soft); text-align: right; font-variant-numeric: tabular-nums; }
+.foms-settle .s-dt th:first-child,
+.foms-settle .s-dt td:first-child { text-align: left; }
+.foms-settle .s-dt thead th { position: sticky; top: 0; background: var(--s-surface-soft); color: var(--s-muted); font-size: 10.5px; }
+
+/* ── 정산 처리 카드 ──────────────────────────────────────────── */
+.foms-settle .s-srow { display: flex; align-items: center; gap: 10px; margin-top: 12px; font-size: 12.5px; }
+.foms-settle .s-srow b { font-weight: 800; }
+.foms-settle .s-srow .s-pct { font-weight: 800; font-size: 13px; }
+.foms-settle .s-srow-sub { margin-top: 5px; font-size: 11.5px; color: var(--s-faint); }
+.foms-settle .s-fact { display: flex; align-items: baseline; gap: 7px; font-size: 12px; margin-top: 9px; color: var(--s-muted); }
+.foms-settle .s-fact b { color: var(--s-text); font-weight: 800; }
+.foms-settle .s-fdot { width: 7px; height: 7px; border-radius: 50%; flex: none; align-self: center; background: var(--s-dot, var(--s-faint)); }
+.foms-settle .s-fact .s-tail { color: var(--s-faint); font-size: 11px; }
+
+/* ── row B ───────────────────────────────────────────────────── */
+.foms-settle .s-card--aging { grid-column: span 4; }
+.foms-settle .s-card--stages { grid-column: span 5; }
+.foms-settle .s-card--channel { grid-column: span 3; }
+.foms-settle .s-aging-note { display: flex; align-items: center; gap: 7px; margin-top: 8px; font-size: 11.5px; color: var(--s-muted); }
+.foms-settle .s-aging-note .s-fdot { background: var(--s-critical); }
+.foms-settle .s-aging-note b { color: var(--s-text); }
+
+.foms-settle .s-stages { margin-top: 12px; display: grid; gap: 7px; }
+.foms-settle .s-stage-row { display: grid; grid-template-columns: 58px 1fr; align-items: center; gap: 8px; border-radius: 6px; padding: 1px 4px; }
+.foms-settle .s-stage-row:hover { background: var(--s-surface-soft); }
+.foms-settle .s-stage-lbl { font-size: 11.5px; font-weight: 700; color: var(--s-muted); }
+.foms-settle .s-stage-track { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.foms-settle .s-stage-bar { height: 15px; border-radius: 0 4px 4px 0; background: var(--s-accent); flex: none; width: var(--s-bar-pct, 0%); }
+.foms-settle .s-stage-val { font-size: 11px; font-weight: 700; color: var(--s-text); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.foms-settle .s-stage-val span { color: var(--s-faint); font-weight: 600; }
+
+.foms-settle .s-chbar { display: flex; gap: 2px; height: 30px; border-radius: 7px; overflow: hidden; margin-top: 12px; }
+.foms-settle .s-chseg {
+  display: flex; align-items: center; justify-content: center; color: #fff;
+  font-weight: 800; font-size: 12px; min-width: 0;
+  width: var(--s-seg-pct, 0%); background: var(--s-seg-color, var(--s-accent));
+}
+.foms-settle .s-chlegend { margin-top: 11px; display: grid; gap: 7px; }
+.foms-settle .s-chrow { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--s-muted); flex-wrap: wrap; }
+.foms-settle .s-chrow b { color: var(--s-text); font-weight: 800; }
+.foms-settle .s-chrow .s-sw { width: 10px; height: 10px; border-radius: 3px; flex: none; background: var(--s-sw-color, var(--s-accent)); }
+
+/* ── 각주 / 빈 상태 / 실패 상태 ──────────────────────────────── */
+.foms-settle .s-foot { max-width: 1440px; margin: 0 auto; padding: 6px 18px 34px; color: var(--s-faint); font-size: 11.5px; }
+.foms-settle .s-cardnote { margin-top: 9px; font-size: 11.5px; color: var(--s-muted); }
+.foms-settle .s-cardnote b { color: var(--s-text); font-weight: 800; }
+
+/* 빈 상태 = 오류가 아니다. 회색 점선 박스로 "데이터가 없다"만 말한다. */
+.foms-settle .s-empty {
+  margin-top: 12px; padding: 14px 12px; border: 1px dashed var(--s-line);
+  border-radius: 8px; background: var(--s-surface-soft);
+  color: var(--s-muted); font-size: 12px; line-height: 1.55; text-align: center;
+}
+.foms-settle .s-empty b { color: var(--s-text); font-weight: 800; }
+
+/* 상태 3종은 서로 **다르게** 생겨야 한다 — 무음 실패도, 오류와 권한거부의 혼동도 금지. */
+/* 상태 박스는 탭 pane **밖**(루트 직속)이다 — 그래서 pane 안 그리드와 형제가 아니고,
+   옛 `.s-state + .s-grid` 인접 규칙 대신 자기 위 여백으로 필터바와 떨어진다.
+   ready 가 아닐 때만 보이므로(showState) 그리드와 동시에 뜨는 일은 없다. */
+.foms-settle .s-state {
+  max-width: 1440px; margin: 14px auto 0; padding: 14px 16px;
+  border-radius: var(--s-radius); font-size: 12.5px; line-height: 1.6;
+  border: 1px solid var(--s-line); background: var(--s-surface); color: var(--s-text);
+}
+.foms-settle .s-state-title { font-weight: 800; font-size: 13px; margin-bottom: 4px; }
+.foms-settle .s-state-detail { color: var(--s-muted); font-size: 11.5px; }
+.foms-settle .s-state--loading { color: var(--s-muted); }
+.foms-settle .s-state--error { border-color: #f0c2c2; background: #fdf1f1; }
+.foms-settle .s-state--error .s-state-title { color: var(--s-bad); }
+.foms-settle .s-state--denied { border-color: #d9a44a; background: var(--s-amber-soft); }
+.foms-settle .s-state--denied .s-state-title { color: var(--s-amber); }
+.foms-settle .s-retry {
+  margin-top: 8px; border: 1px solid var(--s-line); background: var(--s-surface);
+  color: var(--s-text); font: inherit; font-size: 12px; font-weight: 700;
+  padding: 5px 14px; border-radius: 8px; cursor: pointer;
+}
+.foms-settle .s-retry:hover { background: var(--s-surface-soft); }
+
+/* ══ 탭 3 · 분석 ═══════════════════════════════════════════════
+ * 요약 탭의 어휘(`.s-card`/`.s-kpi`/`.s-empty`/`.s-legend`)를 그대로 쓰고, 분석에만 있는
+ * 것(가로 막대 리스트 · 2~3분할 상자 · 미터 줄)만 여기서 더한다.
+ *
+ * **폭 계약**: 분석 카드의 막대는 전부 CSS 퍼센트(`--s-bar-pct`)다. SVG 차트와 달리
+ * `clientWidth` 를 읽지 않으므로 숨은 pane 에서 그려도 폭이 틀어지지 않는다(폭 0 함정 밖).
+ * 그래도 렌더 진입점은 요약과 같은 `renderAll` 하나다 — 두 벌이 되면 한쪽만 고치게 된다.
+ */
+.foms-settle .s-agrid {
+  display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 14px;
+}
+.foms-settle .s-agrid > .s-span8 { grid-column: span 8; }
+.foms-settle .s-agrid > .s-span4 { grid-column: span 4; }
+.foms-settle .s-agrid > .s-kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.foms-settle .s-anote {
+  grid-column: 1 / -1; margin: 0; color: var(--s-muted); font-size: 11.5px; line-height: 1.6;
+}
+
+/* 가로 막대 리스트 — 담당자별 · 단계별 · 부서별 · aging 공용.
+   라벨 폭을 고정(84px)해 막대 시작선이 한 줄로 맞는다(길면 말줄임). */
+.foms-settle .s-blist { margin-top: 12px; display: grid; gap: 7px; }
+.foms-settle .s-brow {
+  display: grid; grid-template-columns: 84px 1fr auto; align-items: center; gap: 9px;
+  border-radius: 6px; padding: 1px 4px;
+}
+.foms-settle .s-brow:hover { background: var(--s-surface-soft); }
+.foms-settle .s-blab {
+  font-size: 11.5px; font-weight: 700; color: var(--s-muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.foms-settle .s-btrack { min-width: 0; height: 15px; }
+.foms-settle .s-bbar {
+  height: 15px; border-radius: 0 4px 4px 0;
+  width: var(--s-bar-pct, 0%); background: var(--s-bar-color, var(--s-accent));
+}
+.foms-settle .s-bval {
+  font-size: 11px; font-weight: 700; color: var(--s-text);
+  white-space: nowrap; font-variant-numeric: tabular-nums;
+}
+.foms-settle .s-bval span { color: var(--s-faint); font-weight: 600; }
+
+/* 2~3분할 스탯 상자 (수금 예약금/잔금 · AS 유상/무상/미확정) */
+.foms-settle .s-duo { margin-top: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.foms-settle .s-duo--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.foms-settle .s-dbox { background: var(--s-surface-soft); border-radius: 8px; padding: 9px 11px; min-width: 0; }
+.foms-settle .s-dbox--col { background: #eefaf5; border-left: 3px solid #1baf7a; }
+.foms-settle .s-dbox-label { color: var(--s-muted); font-size: 11px; font-weight: 700; }
+.foms-settle .s-dbox-val { font-size: 17px; font-weight: 800; margin-top: 2px; letter-spacing: -0.02em; white-space: nowrap; }
+.foms-settle .s-dbox-val i { font-style: normal; font-size: 11px; font-weight: 700; color: var(--s-muted); margin-left: 1px; }
+.foms-settle .s-dbox-sub { color: var(--s-faint); font-size: 11px; margin-top: 1px; }
+
+/* 미터 한 줄(라벨 + 퍼센트 + 트랙) */
+.foms-settle .s-mrow { margin-top: 12px; }
+.foms-settle .s-mlab {
+  display: flex; justify-content: space-between; gap: 8px;
+  color: var(--s-muted); font-size: 11.5px; margin-bottom: 5px;
+}
+.foms-settle .s-mlab b { color: var(--s-text); font-weight: 800; }
+.foms-settle .s-mrow .s-meter { flex: none; width: 100%; }
+
+/* 채널 비교 표 — 좁은 카드에서도 페이지를 가로로 밀지 않게 카드 안에서만 스크롤한다. */
+.foms-settle .s-atbl { max-height: none; overflow-x: auto; }
+
+/* 범례 스와치 색도 커스텀 프로퍼티로 넣는다(인라인 style 금지 규칙과 같은 결).
+   요약 탭 범례는 background 를 직접 넣어 이 기본값을 덮으므로 영향이 없다. */
+.foms-settle .s-lg-rect { background: var(--s-lg-color, var(--s-accent)); }
+
+/* ── 툴팁 ────────────────────────────────────────────────────── */
+/* 좌표는 JS 가 --s-tt-x/--s-tt-y 로 넣는다(인라인 스타일 금지 규칙). 여기서 소비하지
+   않으면 left/top 이 auto 로 남아 툴팁이 커서를 못 따라가고 문서 끝에 고정된다. */
+.foms-settle .s-tt,
+.foms-settle.s-tt {
+  position: fixed; z-index: 50; display: none; pointer-events: none;
+  left: var(--s-tt-x, 0px); top: var(--s-tt-y, 0px);
+  background: var(--s-surface); border: 1px solid var(--s-line); border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(16, 24, 40, .13); padding: 8px 11px; font-size: 12px; min-width: 120px;
+}
+.foms-settle .s-tt.s-on,
+.foms-settle.s-tt.s-on { display: block; }
+.foms-settle .s-tt-title { color: var(--s-muted); font-size: 11px; font-weight: 700; margin-bottom: 4px; white-space: nowrap; }
+.foms-settle .s-tt-row { display: flex; align-items: center; gap: 6px; margin-top: 3px; white-space: nowrap; }
+.foms-settle .s-tt-key { width: 12px; height: 3px; border-radius: 2px; flex: none; background: var(--s-key-color, transparent); }
+.foms-settle .s-tt-val { font-weight: 800; font-variant-numeric: tabular-nums; }
+.foms-settle .s-tt-lbl { color: var(--s-muted); }
+
+/* ── 반응형 ──────────────────────────────────────────────────── */
+@media (max-width: 1120px) {
+  .foms-settle .s-kpis { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+  .foms-settle .s-agrid > .s-kpis { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+  .foms-settle .s-agrid > .s-span8,
+  .foms-settle .s-agrid > .s-span4 { grid-column: span 6; }
+  .foms-settle .s-card--main { grid-column: 1 / -1; }
+  .foms-settle .s-side { grid-column: 1 / -1; grid-template-columns: 1fr 1fr; }
+  .foms-settle .s-card--aging,
+  .foms-settle .s-card--stages { grid-column: span 6; }
+  .foms-settle .s-card--channel { grid-column: 1 / -1; }
+}
+@media (max-width: 720px) {
+  .foms-settle .s-side { grid-template-columns: 1fr; }
+  .foms-settle .s-card--aging,
+  .foms-settle .s-card--stages { grid-column: 1 / -1; }
+  .foms-settle .s-filterbar .s-note { margin-left: 0; }
+  .foms-settle .s-agrid > .s-span8,
+  .foms-settle .s-agrid > .s-span4 { grid-column: 1 / -1; }
+  /* 좁은 폭에서는 고정 라벨칸(84px)이 1fr 막대를 굶긴다 — 라벨칸을 줄여 막대를 살린다. */
+  .foms-settle .s-brow { grid-template-columns: 72px 1fr auto; gap: 7px; }
+  .foms-settle .s-duo--3 { grid-template-columns: 1fr; }
+}
+
+
+/* ── 목업 전용: 페이지 골격 + 가짜 FOMS 크롬 ─────────────────────── */
+html, body { margin: 0; padding: 0; background: #eef2f7; }
+body { font-family: Pretendard, -apple-system, BlinkMacSystemFont, "Segoe UI", "Malgun Gothic", sans-serif; color: #111827; }
+.mock-chrome { background: #fff; border-bottom: 1px solid #dbe1ea; }
+.mc-row { display: flex; align-items: center; gap: 18px; padding: 0 22px; border-bottom: 1px solid #edf1f6; }
+.mc-top { height: 84px; font-size: 22px; font-weight: 600; }
+.mc-top .mc-right { margin-left: auto; font-size: 14px; font-weight: 700; border: 1px solid #dbe1ea; border-radius: 8px; padding: 8px 14px; }
+.mc-nav { height: 64px; font-size: 15px; color: #374151; }
+.mc-nav span { margin-right: 14px; }
+.mc-nav .mc-right { margin-left: auto; color: #374151; }
+.mc-erp { height: 70px; font-size: 16px; font-weight: 800; }
+.mc-erp .mc-right { margin-left: auto; display: flex; gap: 8px; }
+.mc-erp .mc-btn { font-size: 13px; font-weight: 700; border: 1px solid #dbe1ea; border-radius: 8px; padding: 8px 14px; }
+.mc-sub { height: 50px; font-size: 13px; color: #4b5563; font-weight: 600; }
+.mc-sub span { margin-right: 22px; }
+.mc-sub .on { color: #2a78d6; background: #eaf2fc; border-radius: 6px; padding: 5px 10px; }
+
+/* 집중 모드 바 (수정안에서만 등장) */
+.s-focusbar { display: none; align-items: center; gap: 14px; background: #fff; border-bottom: 1px solid #dbe1ea; padding: 8px 22px; }
+.s-focusbar b { font-size: 15px; font-weight: 800; }
+.s-focusbar .s-fb-hint { color: #6b7280; font-size: 12px; }
+.s-focusbar .s-fb-exit { margin-left: auto; border: 1px solid #dbe1ea; background: #fff; border-radius: 8px; font: inherit; font-size: 12px; font-weight: 700; padding: 6px 12px; cursor: pointer; }
+body.is-focus .mock-chrome { display: none; }
+body.is-focus .s-focusbar { display: flex; }
+
+/* ── 수정안(.is-fix): 캡 해제 + 높이 확대 + 글자 확대 ─────────────────
+   실제 패치 대상은 settlement-dashboard.css 의 이 선택자들이다. */
+.foms-settle.is-fix { font-size: 14px; }
+.foms-settle.is-fix .s-grid,
+.foms-settle.is-fix .s-foot,
+.foms-settle.is-fix .s-state { max-width: none; }
+.foms-settle.is-fix .s-grid { padding: 18px 24px 8px; gap: 16px; }
+.foms-settle.is-fix .s-kpis { gap: 16px; }
+.foms-settle.is-fix .s-kpi { padding: 15px 18px 14px; }
+.foms-settle.is-fix .s-kpi-label { font-size: 12.5px; }
+.foms-settle.is-fix .s-kpi-value { font-size: 30px; }
+.foms-settle.is-fix .s-kpi-value i { font-size: 13px; }
+.foms-settle.is-fix .s-kpi-delta { font-size: 13px; margin-top: 8px; }
+.foms-settle.is-fix .s-kpi-sub { font-size: 12px; }
+.foms-settle.is-fix .s-card { padding: 16px 20px 18px; }
+.foms-settle.is-fix .s-card-title { font-size: 15px; }
+.foms-settle.is-fix .s-card-sub { font-size: 12.5px; }
+.foms-settle.is-fix .s-legend { font-size: 12.5px; }
+.foms-settle.is-fix .s-axis-t { font-size: 12px; }
+.foms-settle.is-fix .s-axis-sub { font-size: 11px; }
+.foms-settle.is-fix .s-cap-t { font-size: 12px; }
+/* 수정안 배치: 메인 차트가 커지면 오른쪽 '정산 처리 현황' 아래가 비므로 채널 카드를 그 자리로 올린다.
+   결과: 2행 = 메인(9칸, 2줄) + 정산 처리 현황 / 채널 비중(3칸) · 3행 = aging(5칸) + 단계별(7칸) */
+.foms-settle.is-fix .s-card--main { grid-column: 1 / 10; grid-row: 2 / 4; }
+.foms-settle.is-fix .s-side { grid-column: 10 / 13; grid-row: 2; }
+.foms-settle.is-fix .s-card--channel { grid-column: 10 / 13; grid-row: 3; }
+.foms-settle.is-fix .s-card--aging { grid-column: 1 / 6; grid-row: 4; }
+.foms-settle.is-fix .s-card--stages { grid-column: 6 / 13; grid-row: 4; }
+.foms-settle .s-note--fix { display: none; }
+.foms-settle.is-fix .s-note--cur { display: none; }
+.foms-settle.is-fix .s-note--fix { display: inline; }
+.foms-settle.is-fix .s-srow,
+.foms-settle.is-fix .s-fact { font-size: 13px; }
+.foms-settle.is-fix .s-stage-row { grid-template-columns: 66px 1fr; }
+.foms-settle.is-fix .s-stage-lbl,
+.foms-settle.is-fix .s-stage-val,
+.foms-settle.is-fix .s-chrow,
+.foms-settle.is-fix .s-cardnote,
+.foms-settle.is-fix .s-aging-note { font-size: 12.5px; }
+.foms-settle.is-fix .s-stage-bar { height: 18px; }
+.foms-settle.is-fix .s-chbar { height: 34px; }
+.foms-settle.is-fix .s-strip { display: none; }          /* 권한 부제는 필터바 오른쪽 메모로 합친다 */
+.foms-settle.is-fix .s-filterbar { padding: 9px 24px; }
+.foms-settle.is-fix .s-tabs { padding: 0 24px; }
+.foms-settle.is-fix .s-tab { font-size: 14px; }
+@media (max-width: 1500px) {
+  .foms-settle.is-fix .s-card--main { grid-column: 1 / 9; }
+  .foms-settle.is-fix .s-side,
+  .foms-settle.is-fix .s-card--channel { grid-column: 9 / 13; }
+}
+@media (max-width: 1120px) {
+  .foms-settle.is-fix .s-card--main,
+  .foms-settle.is-fix .s-side,
+  .foms-settle.is-fix .s-card--channel,
+  .foms-settle.is-fix .s-card--aging,
+  .foms-settle.is-fix .s-card--stages { grid-column: 1 / -1; grid-row: auto; }
+}
+
+/* ── 목업 컨트롤(우상단 고정) ── */
+.mock-ctl {
+  position: fixed; right: 14px; bottom: 14px; z-index: 100; background: #111827; color: #fff;
+  border-radius: 12px; padding: 12px 14px; font-size: 12px; box-shadow: 0 10px 30px rgba(0,0,0,.28);
+  display: grid; gap: 8px; min-width: 250px;
+}
+.mock-ctl .mk-title { font-weight: 800; font-size: 12px; letter-spacing: .04em; color: #9aa3af; }
+.mock-ctl .mk-row { display: flex; align-items: center; gap: 8px; }
+.mock-ctl .mk-row > span:first-child { width: 68px; color: #cbd5e1; }
+.mock-ctl button { border: 1px solid #374151; background: #1f2937; color: #e5e7eb; font: inherit; font-size: 12px; font-weight: 700; padding: 5px 10px; border-radius: 7px; cursor: pointer; }
+.mock-ctl button[aria-pressed="true"] { background: #2a78d6; border-color: #2a78d6; color: #fff; }
+.mock-ctl .mk-meas { color: #9aa3af; font-variant-numeric: tabular-nums; line-height: 1.5; }
+.mock-ctl .mk-meas b { color: #fff; }
+.mock-badge { position: fixed; left: 12px; bottom: 12px; background: #111827; color: #fff; font-size: 10px; font-weight: 800; letter-spacing: .08em; padding: 4px 8px; border-radius: 6px; opacity: .7; z-index: 100; }
+</style>
+</head>
+<body>
+
+<div class="mock-chrome" aria-hidden="true">
+  <div class="mc-row mc-top">가구 주문 관리 시스템 <span class="mc-right">이시영 (관리자) ▾</span></div>
+  <div class="mc-row mc-nav"><span>전체 주문</span><span>접수</span><span>실측</span><span>네이버 수집</span><span>자가실측 대시보드</span><span>지방 주문 대시보드</span><span>휴지통</span><span>⚙ 관리자</span><span class="mc-right">ERP 대시보드 · WDCalculator · 채팅</span></div>
+  <div class="mc-row mc-erp">🪙 정산 대시보드 <span class="mc-right"><span class="mc-btn">시공 완료</span><span class="mc-btn">홈</span></span></div>
+  <div class="mc-row mc-sub"><span>대시보드</span><span>실측</span><span>도면작업실</span><span>생산</span><span>출고</span><span>AS</span><span>시공</span><span>시공 완료</span><span class="on">정산</span><span>과거 이력 검색</span></div>
+</div>
+
+<div class="foms-settle" id="root" data-settlement-active-tab="summary">
+  <div class="s-focusbar">
+    <b>정산 대시보드</b>
+    <span class="s-fb-hint">집중 모드 — 상단 메뉴를 접었습니다. Esc 또는 오른쪽 버튼으로 돌아갑니다.</span>
+    <button type="button" class="s-fb-exit" data-focus-exit>메뉴 펼치기 (Esc)</button>
+  </div>
+
+  <div class="s-tabs" role="tablist">
+    <button class="s-tab" role="tab" aria-selected="true">요약 <span class="s-tab-hint">경영진</span></button>
+    <button class="s-tab" role="tab" aria-selected="false">실무 <span class="s-tab-hint">경리·수금</span></button>
+    <button class="s-tab" role="tab" aria-selected="false">분석</button>
+    <button class="s-tab" role="tab" aria-selected="false" data-focus-enter title="상단 메뉴를 접고 화면 전체를 씁니다" style="margin-left:auto;color:#2a78d6">⤢ 집중 모드</button>
+  </div>
+  <div class="s-strip">
+    <span class="s-who">ADMIN · MANAGER · CS/영업 담당 열람 · 매출 인식: 완료일 기준 (완료 · AS접수 · AS완료)</span>
+    <span class="s-spacer"></span>
+    <span class="s-stamp">조회 2026-09-02 16:08 (KST)</span>
+  </div>
+  <div class="s-filterbar">
+    <div class="s-seg"><button aria-pressed="true">일별</button><button>주별</button><button>월별</button></div>
+    <button class="s-toggle" aria-pressed="true">전월 비교 <span class="s-knob"></span></button>
+    <button class="s-toggle" aria-pressed="false">누적 보기 <span class="s-knob"></span></button>
+    <span class="s-scope">2026년 9월 · 비교 대상 2026년 8월</span>
+    <span class="s-note s-note--cur">미수 aging 은 기간과 무관한 전체 집계 · 단계 카드는 현재 시점 스냅샷</span>
+    <span class="s-note s-note--fix">ADMIN · MANAGER · CS/영업 담당 열람 · 완료일 기준 · 조회 2026-09-02 16:08</span>
+  </div>
+
+  <div class="s-pane" role="tabpanel">
+  <div class="s-grid">
+
+    <div class="s-kpis">
+      <div class="s-kpi s-fam" style="--s-fam:#2a78d6;--s-fam-tint:#f1f6fd">
+        <div class="s-kpi-label">기간 매출</div>
+        <div class="s-kpi-mid"><span class="s-kpi-value">579만<i>원</i></span><span class="s-kpi-spark" data-spark="0.8,0,0,0,0,0,0,0,0,0,0.4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0" data-color="#2a78d6"></span></div>
+        <div class="s-kpi-delta s-bad">▼ −97.5%<span>vs 전월</span></div>
+        <div class="s-kpi-sub">완료일 기준 · 5건</div>
+      </div>
+      <div class="s-kpi s-fam" style="--s-fam:#eb6834;--s-fam-tint:#fdf3ed">
+        <div class="s-kpi-label">미수금 잔액</div>
+        <div class="s-kpi-mid"><span class="s-kpi-value">10억 8,592만<i>원</i></span></div>
+        <div class="s-kpi-delta s-flat">시점 잔액 — 기간 비교 없음</div>
+        <div class="s-kpi-sub">761건 · 잔금 입금 미확인 · 기간 무관 전체</div>
+      </div>
+      <div class="s-kpi s-fam" style="--s-fam:#6b7280;--s-fam-tint:#f4f6f8">
+        <div class="s-kpi-label">완료 건수</div>
+        <div class="s-kpi-mid"><span class="s-kpi-value">5<i>건</i></span><span class="s-kpi-spark" data-spark="0.8,0,0,0,0,0,0,0,0,0,0.2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0" data-color="#6b7280"></span></div>
+        <div class="s-kpi-delta s-bad">▼ −95.3%<span>vs 전월</span></div>
+        <div class="s-kpi-sub">완료 · AS접수 · AS완료</div>
+      </div>
+      <div class="s-kpi s-fam" style="--s-fam:#2a78d6;--s-fam-tint:#f1f6fd">
+        <div class="s-kpi-label">평균 출고가</div>
+        <div class="s-kpi-mid"><span class="s-kpi-value">116만<i>원</i></span></div>
+        <div class="s-kpi-delta s-bad">▼ −46.9%<span>vs 전월</span></div>
+        <div class="s-kpi-sub">출고가 = 품목합 + 배송 − 할인</div>
+      </div>
+      <div class="s-kpi s-fam" style="--s-fam:#1baf7a;--s-fam-tint:#eefaf5">
+        <div class="s-kpi-label">기간 수금(근사)</div>
+        <div class="s-kpi-mid"><span class="s-kpi-value">392만<i>원</i></span></div>
+        <div class="s-kpi-delta s-flat">입금 확인 토글 기반 근사 — 기간 비교 없음</div>
+        <div class="s-kpi-sub">예약금 + 잔금확인분</div>
+      </div>
+    </div>
+
+    <div class="s-card s-card--main">
+      <div class="s-card-head">
+        <span class="s-card-title">출고가 매출 추이</span>
+        <span class="s-card-sub">9월 일별(막대) vs 8월 동일자(라인) · 완료일 기준</span>
+        <span class="s-head-right"><span class="s-legend">
+          <span class="s-lg"><i class="s-lg-rect" style="background:#86b6ef"></i>~449만</span>
+          <span class="s-lg"><i class="s-lg-rect" style="background:#5598e7"></i>450~699만</span>
+          <span class="s-lg"><i class="s-lg-rect" style="background:#2a78d6"></i>700~899만</span>
+          <span class="s-lg"><i class="s-lg-rect" style="background:#104281"></i>900만~</span>
+          <span class="s-lg"><i class="s-lg-line" style="background:#8a94a3"></i>8월(전월)</span>
+        </span></span>
+      </div>
+      <div class="s-chart-host" id="main-chart"></div>
+      <p class="s-cardnote">완료일 미상 85건 · 4,411만원 — 완료일이 없어 어느 기간 버킷에도 들어가지 않습니다(위 매출 합계에서 제외).</p>
+      <details class="s-tblv"><summary>표로 보기</summary><div class="s-tblwrap"><table class="s-dt" id="main-table"><thead><tr><th>구간</th><th>매출 (만원)</th><th>건수</th><th>이전 구간 (만원)</th></tr></thead><tbody></tbody></table></div></details>
+    </div>
+
+    <div class="s-side">
+      <div class="s-card">
+        <div class="s-card-head"><span class="s-card-title">정산 처리 현황</span><span class="s-card-sub">기간 완료 5건 기준</span></div>
+        <div class="s-srow"><span>청구완료 <b>0건</b></span><div class="s-meter" role="img" aria-label="청구완료 0.0%"><div class="s-meter-fill" style="--s-meter-pct:0%"></div></div><span class="s-pct">0.0%</span></div>
+        <div class="s-srow-sub">청구 대기 5건</div>
+        <div class="s-fact"><i class="s-fdot" style="--s-dot:#fab219"></i><span>현금영수증 발행 대기 2건</span><span class="s-tail">발행 완료 0건</span></div>
+        <div class="s-fact"><i class="s-fdot" style="--s-dot:#2a78d6"></i><span>AS 유상 확정 0건 · 0원</span></div>
+        <div class="s-fact"><i class="s-fdot" style="--s-dot:#9aa3af"></i><span>부서 귀속 차감 계 0원</span><span class="s-tail">차감 기록 없음</span></div>
+      </div>
+    </div>
+
+    <div class="s-card s-card--aging">
+      <div class="s-card-head"><span class="s-card-title">미수금 aging</span><span class="s-card-sub">잔금 입금 미확인 761건 · 기간 무관 전체</span></div>
+      <div class="s-chart-host" id="aging-chart"></div>
+      <p class="s-aging-note"><i class="s-fdot"></i><span>91일 이상 장기 미수 498건 · 6억 823만원 — 우선 회수 대상</span></p>
+      <p class="s-cardnote">완료일 미상 미수 23건 · 3,184만원 — 경과일을 산출할 수 없어 위 버킷 밖에서 따로 셉니다.</p>
+    </div>
+
+    <div class="s-card s-card--stages">
+      <div class="s-card-head"><span class="s-card-title">진행 단계별 물린 금액</span><span class="s-card-sub">완료 전 주문의 출고가 합 · 현재 시점 스냅샷(기간 스코프 밖)</span></div>
+      <div class="s-stages">
+        <div class="s-stage-row"><span class="s-stage-lbl">주문접수</span><div class="s-stage-track"><div class="s-stage-bar" style="--s-bar-pct:0%"></div><span class="s-stage-val">0 <span>· 2건</span></span></div></div>
+        <div class="s-stage-row"><span class="s-stage-lbl">실측</span><div class="s-stage-track"><div class="s-stage-bar" style="--s-bar-pct:62%"></div><span class="s-stage-val">10억 783만 <span>· 690건</span></span></div></div>
+        <div class="s-stage-row"><span class="s-stage-lbl">도면</span><div class="s-stage-track"><div class="s-stage-bar" style="--s-bar-pct:5.37%"></div><span class="s-stage-val">8,733만 <span>· 44건</span></span></div></div>
+        <div class="s-stage-row"><span class="s-stage-lbl">시공</span><div class="s-stage-track"><div class="s-stage-bar" style="--s-bar-pct:0.08%"></div><span class="s-stage-val">137만 <span>· 2건</span></span></div></div>
+        <div class="s-stage-row"><span class="s-stage-lbl">AS접수</span><div class="s-stage-track"><div class="s-stage-bar" style="--s-bar-pct:9.07%"></div><span class="s-stage-val">1억 4,746만 <span>· 79건</span></span></div></div>
+      </div>
+    </div>
+
+    <div class="s-card s-card--channel">
+      <div class="s-card-head"><span class="s-card-title">채널별 매출 비중</span><span class="s-card-sub">기간 · 출고가 기준</span></div>
+      <div class="s-chbar"><div class="s-chseg" style="--s-seg-pct:100%;--s-seg-color:#2a78d6">100%</div></div>
+      <div class="s-chlegend"><div class="s-chrow"><i class="s-sw" style="--s-sw-color:#2a78d6"></i><b>일반</b>579만원 · 5건 · 100.0%</div></div>
+    </div>
+
+  </div>
+  <div class="s-foot">출고가 = 품목합 + 배송 − 할인 · 잔금 = 출고가 − 예약금 · 매출 인식: 완료일(시공 완료일) 기준 · 정산 대상 상태: 완료 · AS 접수 · AS 완료 · 수금은 입금 확인 토글 기반 근사치입니다.</div>
+  </div>
+
+  <div class="s-tt" id="tt"></div>
+</div>
+
+<div class="mock-ctl" role="group" aria-label="목업 컨트롤">
+  <div class="mk-title">MOCKUP 컨트롤</div>
+  <div class="mk-row"><span>레이아웃</span><button data-layout="cur" aria-pressed="false">현재 (1440 캡)</button><button data-layout="fix" aria-pressed="true">수정안 (전폭)</button></div>
+  <div class="mk-row"><span>집중 모드</span><button data-focus="off" aria-pressed="true">메뉴 보임</button><button data-focus="on" aria-pressed="false">메뉴 접음</button></div>
+  <div class="mk-meas" id="meas"></div>
+</div>
+<div class="mock-badge">MOCKUP · SETTLE WIDE FIX</div>
+
+<script>
+(function () {
+  'use strict';
+  // ── 데이터 (운영 2026-09-02 조회 DOM 에서 옮김, 단위 만원) ──────────────
+  var DAYS = 30;
+  var CUR = [382,0,0,0,0,0,0,0,0,0,197,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];
+  var CNT = [4,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];
+  var PREV = [543,0,248,530,3182,2675,1606,1399,0,585,351,537,578,727,973,0,156,1687,295,925,1739,380,0,364,727,190,1113,1202,241,0];
+  var AGING = [
+    { lbl: '7일 이하', v: 1541, n: 5, c: '#f19979' },
+    { lbl: '8~30일', v: 3182, n: 16, c: '#eb6834' },
+    { lbl: '31~60일', v: 14760, n: 57, c: '#c74b12' },
+    { lbl: '61~90일', v: 25100, n: 162, c: '#9f3701' },
+    { lbl: '91일 이상', v: 60823, n: 498, c: '#752600' }
+  ];
+  var RAMP = [[450,'#86b6ef'],[700,'#5598e7'],[900,'#2a78d6'],[Infinity,'#104281']];
+  var NS = 'http://www.w3.org/2000/svg';
+  var root = document.getElementById('root');
+  var tt = document.getElementById('tt');
+
+  function fmtMan(v) { return v >= 10000 ? (v / 10000).toFixed(1).replace(/\.0$/, '') + '억' : Math.round(v).toLocaleString('ko-KR') + '만'; }
+  function el(tag, attrs, text) {
+    var e = document.createElementNS(NS, tag);
+    for (var k in attrs) e.setAttribute(k, attrs[k]);
+    if (text != null) e.textContent = text;
+    return e;
+  }
+  function rampColor(v) { for (var i = 0; i < RAMP.length; i++) if (v < RAMP[i][0]) return RAMP[i][1]; return RAMP[3][1]; }
+  function isFix() { return root.classList.contains('is-fix'); }
+  function mainHeight() {
+    if (!isFix()) return 268;
+    // 수정안: 뷰포트 높이에 따라 320~460. 1080 화면에서 약 410.
+    return Math.max(320, Math.min(460, Math.round(window.innerHeight * 0.38)));
+  }
+  function agingHeight() { return isFix() ? 300 : 208; }
+
+  function showTT(evt, html) {
+    tt.innerHTML = html; tt.classList.add('s-on');
+    tt.style.setProperty('--s-tt-x', (evt.clientX + 14) + 'px');
+    tt.style.setProperty('--s-tt-y', (evt.clientY + 14) + 'px');
+  }
+  function hideTT() { tt.classList.remove('s-on'); }
+
+  // ── 메인: 일별 막대(이번 구간) + 라인(전월 동일자) ───────────────────
+  function drawMain() {
+    var host = document.getElementById('main-chart');
+    var w = host.clientWidth || 640, h = mainHeight();
+    var padL = 48, padR = 10, padT = 16, padB = 28;
+    var iw = w - padL - padR, ih = h - padT - padB, base = padT + ih;
+    var maxCur = Math.max.apply(null, CUR);
+    var step = 200, top = Math.max(step, Math.ceil(maxCur / step) * step + step); // 382 → 600
+    var y = function (v) { return base - Math.min(v, top) / top * ih; };
+    var slot = iw / DAYS, bw = Math.max(6, slot * 0.75);
+    var svg = el('svg', { width: w, height: h, role: 'img', 'aria-label': '출고가 매출 일별 — 막대는 이번 구간, 라인은 이전 구간' });
+    svg.appendChild(el('line', { x1: padL, x2: w - padR, y1: base, y2: base, stroke: 'var(--s-axis)', 'stroke-width': 1 }));
+    for (var t = step; t <= top; t += step) {
+      svg.appendChild(el('line', { x1: padL, x2: w - padR, y1: y(t), y2: y(t), stroke: 'var(--s-grid)', 'stroke-width': 1 }));
+      svg.appendChild(el('text', { 'class': 's-axis-t', x: padL - 6, y: y(t) + 3.5, 'text-anchor': 'end' }, t + '만'));
+    }
+    for (var i = 0; i < DAYS; i++) {
+      var cx = padL + slot * i + slot / 2, x0 = cx - bw / 2;
+      var g = el('g', { 'class': 's-cgrp' });
+      if (CUR[i] > 0) {
+        var yt = y(CUR[i]), r = 4;
+        g.appendChild(el('path', { d: 'M' + x0 + ',' + base + ' L' + x0 + ',' + (yt + r) + ' Q' + x0 + ',' + yt + ' ' + (x0 + r) + ',' + yt + ' L' + (x0 + bw - r) + ',' + yt + ' Q' + (x0 + bw) + ',' + yt + ' ' + (x0 + bw) + ',' + (yt + r) + ' L' + (x0 + bw) + ',' + base + ' Z', fill: rampColor(CUR[i]) }));
+      } else {
+        g.appendChild(el('rect', { x: x0, y: base - 1.5, width: bw, height: 1.5, fill: 'var(--s-zero-bar)' }));
+      }
+      if (i % 5 === 0 || i === DAYS - 1) g.appendChild(el('text', { 'class': 's-axis-t', x: cx, y: h - 8, 'text-anchor': 'middle' }, (i + 1) + '일'));
+      svg.appendChild(g);
+    }
+    var pts = PREV.map(function (v, i) { return (padL + slot * i + slot / 2).toFixed(1) + ',' + y(v).toFixed(1); }).join(' ');
+    svg.appendChild(el('polyline', { points: pts, fill: 'none', stroke: '#8a94a3', 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
+    PREV.forEach(function (v, i) {
+      if (v <= top) return;
+      var cx = padL + slot * i + slot / 2;
+      var m = el('path', { 'class': 's-clip-mark', d: 'M' + (cx - 4) + ',' + (padT + 5) + ' L' + cx + ',' + padT + ' L' + (cx + 4) + ',' + (padT + 5) + ' Z', fill: '#8a94a3' });
+      m.appendChild(el('title', {}, '축 위로 넘어간 구간입니다. 값은 툴팁에서 확인하세요.'));
+      svg.appendChild(m);
+    });
+    // 호버 히트 (막대보다 넓게)
+    for (var j = 0; j < DAYS; j++) (function (j) {
+      var hit = el('rect', { 'class': 's-ghit', x: padL + slot * j, y: padT, width: slot, height: ih, fill: 'transparent', tabindex: 0 });
+      hit.addEventListener('mousemove', function (e) {
+        showTT(e, '<div class="s-tt-title">9월 ' + (j + 1) + '일</div>' +
+          '<div class="s-tt-row"><i class="s-tt-key" style="--s-key-color:' + rampColor(CUR[j]) + '"></i><span class="s-tt-val">' + fmtMan(CUR[j]) + '원</span><span class="s-tt-lbl">· ' + CNT[j] + '건</span></div>' +
+          '<div class="s-tt-row"><i class="s-tt-key" style="--s-key-color:#8a94a3"></i><span class="s-tt-val">' + fmtMan(PREV[j]) + '원</span><span class="s-tt-lbl">8월 ' + (j + 1) + '일</span></div>');
+      });
+      hit.addEventListener('mouseleave', hideTT);
+      svg.appendChild(hit);
+    })(j);
+    host.innerHTML = ''; host.appendChild(svg);
+  }
+
+  // ── aging 5구간 ───────────────────────────────────────────────────
+  function drawAging() {
+    var host = document.getElementById('aging-chart');
+    var w = host.clientWidth || 400, h = agingHeight();
+    var padL = 48, padR = 10, padT = 26, padB = 40;
+    var iw = w - padL - padR, ih = h - padT - padB, base = padT + ih;
+    var top = 75000; // 7.5억
+    var y = function (v) { return base - v / top * ih; };
+    var slot = iw / AGING.length, bw = Math.min(36, Math.max(18, slot * 0.34));
+    var svg = el('svg', { width: w, height: h, role: 'img', 'aria-label': '미수금 aging 5구간 — 경과일이 길수록 진한 주황' });
+    svg.appendChild(el('line', { x1: padL, x2: w - padR, y1: base, y2: base, stroke: 'var(--s-axis)', 'stroke-width': 1 }));
+    [25000, 50000, 75000].forEach(function (t) {
+      svg.appendChild(el('line', { x1: padL, x2: w - padR, y1: y(t), y2: y(t), stroke: 'var(--s-grid)', 'stroke-width': 1 }));
+      svg.appendChild(el('text', { 'class': 's-axis-t', x: padL - 6, y: y(t) + 3.5, 'text-anchor': 'end' }, fmtMan(t)));
+    });
+    AGING.forEach(function (b, i) {
+      var cx = padL + slot * i + slot / 2, x0 = cx - bw / 2, yt = y(b.v), r = Math.min(4, base - yt);
+      var g = el('g', { 'class': 's-cgrp' });
+      g.appendChild(el('path', { d: 'M' + x0 + ',' + base + ' L' + x0 + ',' + (yt + r) + ' Q' + x0 + ',' + yt + ' ' + (x0 + r) + ',' + yt + ' L' + (x0 + bw - r) + ',' + yt + ' Q' + (x0 + bw) + ',' + yt + ' ' + (x0 + bw) + ',' + (yt + r) + ' L' + (x0 + bw) + ',' + base + ' Z', fill: b.c }));
+      g.appendChild(el('text', { 'class': 's-cap-t', x: cx, y: yt - 6, 'text-anchor': 'middle' }, fmtMan(b.v)));
+      g.appendChild(el('text', { 'class': 's-axis-t', x: cx, y: base + 20, 'text-anchor': 'middle' }, b.lbl));
+      g.appendChild(el('text', { 'class': 's-axis-sub', x: cx, y: base + 33, 'text-anchor': 'middle' }, b.n + '건'));
+      svg.appendChild(g);
+      var hit = el('rect', { 'class': 's-ghit', x: padL + slot * i, y: padT, width: slot, height: ih, fill: 'transparent', tabindex: 0 });
+      hit.addEventListener('mousemove', function (e) { showTT(e, '<div class="s-tt-title">' + b.lbl + '</div><div class="s-tt-row"><i class="s-tt-key" style="--s-key-color:' + b.c + '"></i><span class="s-tt-val">' + fmtMan(b.v) + '원</span><span class="s-tt-lbl">· ' + b.n + '건</span></div>'); });
+      hit.addEventListener('mouseleave', hideTT);
+      svg.appendChild(hit);
+    });
+    host.innerHTML = ''; host.appendChild(svg);
+  }
+
+  // ── KPI 스파크라인 ────────────────────────────────────────────────
+  function drawSparks() {
+    Array.prototype.forEach.call(document.querySelectorAll('[data-spark]'), function (host) {
+      var vals = host.getAttribute('data-spark').split(',').map(Number), c = host.getAttribute('data-color');
+      var w = isFix() ? 110 : 92, h = isFix() ? 34 : 30, n = vals.length;
+      var pts = vals.map(function (v, i) { return (3 + i * (w - 6) / (n - 1)).toFixed(1) + ',' + (h - 3 - v * (h - 6)).toFixed(1); });
+      var svg = el('svg', { width: w, height: h, 'aria-hidden': 'true' });
+      svg.appendChild(el('polyline', { points: pts.join(' '), fill: 'none', stroke: '#c3cad4', 'stroke-width': 1.5, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
+      svg.appendChild(el('polyline', { points: pts.slice(-2).join(' '), fill: 'none', stroke: c, 'stroke-width': 2, 'stroke-linecap': 'round' }));
+      var last = pts[n - 1].split(',');
+      svg.appendChild(el('circle', { cx: last[0], cy: last[1], r: 3, fill: c, stroke: '#fff', 'stroke-width': 1.5 }));
+      host.innerHTML = ''; host.appendChild(svg);
+    });
+  }
+
+  function fillTable() {
+    var tb = document.querySelector('#main-table tbody'), html = '';
+    for (var i = 0; i < DAYS; i++) html += '<tr><td>9/' + (i + 1) + '</td><td>' + CUR[i].toLocaleString() + '</td><td>' + CNT[i] + '</td><td>' + PREV[i].toLocaleString() + '</td></tr>';
+    tb.innerHTML = html;
+  }
+
+  function measure() {
+    var grid = document.querySelector('.s-grid').getBoundingClientRect();
+    var mc = document.getElementById('main-chart').getBoundingClientRect();
+    var chromeH = Math.round(grid.top + window.scrollY);
+    document.getElementById('meas').innerHTML =
+      '뷰포트 <b>' + window.innerWidth + '×' + window.innerHeight + '</b><br>' +
+      '본문 폭 <b>' + Math.round(grid.width) + 'px</b> · 양옆 빈 곳 ' + Math.round(grid.left) + '+' + Math.round(window.innerWidth - grid.right) + 'px<br>' +
+      '메인 차트 <b>' + Math.round(mc.width) + '×' + Math.round(mc.height) + '</b><br>' +
+      '본문 시작 위치 <b>' + chromeH + 'px</b> (위 크롬 높이)';
+  }
+
+  function renderAll() { drawMain(); drawAging(); drawSparks(); measure(); }
+
+  // ── 컨트롤 ──────────────────────────────────────────────────────
+  function setLayout(mode) {
+    root.classList.toggle('is-fix', mode === 'fix');
+    Array.prototype.forEach.call(document.querySelectorAll('[data-layout]'), function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-layout') === mode)); });
+    renderAll();
+  }
+  function setFocus(on) {
+    document.body.classList.toggle('is-focus', on);
+    Array.prototype.forEach.call(document.querySelectorAll('[data-focus]'), function (b) { b.setAttribute('aria-pressed', String((b.getAttribute('data-focus') === 'on') === on)); });
+    renderAll();
+  }
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-layout]'); if (b) return setLayout(b.getAttribute('data-layout'));
+    var f = e.target.closest('[data-focus]'); if (f) return setFocus(f.getAttribute('data-focus') === 'on');
+    if (e.target.closest('[data-focus-enter]')) return setFocus(true);
+    if (e.target.closest('[data-focus-exit]')) return setFocus(false);
+  });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') setFocus(false); });
+  var rt = null;
+  window.addEventListener('resize', function () { clearTimeout(rt); rt = setTimeout(renderAll, 120); });
+  window.addEventListener('scroll', measure, { passive: true });
+
+  fillTable();
+  setLayout('fix');
+})();
+</script>
+</body>
+</html>
