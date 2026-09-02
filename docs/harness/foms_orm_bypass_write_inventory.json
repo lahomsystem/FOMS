@@ -3,16 +3,16 @@
   "summary": "ORM-bypass write inventory for foms/ and scripts/. The table version counter's signal source is a global SQLAlchemy session hook, which only sees writes that go through ORM entity state. Query-level update()/delete(), bulk_*_mappings and raw execute(text(DML)) bypass it. Every such site is classified MARKED (its enclosing function calls mark_tables_dirty / bump_table_versions), UNTRACKED_TABLE / TEMP_TABLE (writes a table outside VERSIONED_TABLES — allowlisted with a reason), or UNSIGNALED. Gate target: UNSIGNALED == 0. A new bypass write with no signal turns the gate red.",
   "scope": "foms/**.py, scripts/**.py",
   "baselines": {
-    "total": 45,
+    "total": 46,
     "unsignaled": 0
   },
   "signal_counts": {
     "MARKED": 21,
-    "UNTRACKED_TABLE": 24
+    "UNTRACKED_TABLE": 25
   },
   "kind_counts": {
     "bulk_mappings": 1,
-    "query_bulk_delete": 10,
+    "query_bulk_delete": 11,
     "query_bulk_update": 11,
     "raw_dml": 23
   },
@@ -65,6 +65,14 @@
       "func": "apply_manual_mappings",
       "signal": "MARKED",
       "reason": ""
+    },
+    {
+      "path": "foms/services/integrations/naver_commerce/settle_sync.py",
+      "lineno": 370,
+      "kind": "query_bulk_delete",
+      "func": "replace_partition",
+      "signal": "UNTRACKED_TABLE",
+      "reason": "naver_settle_daily/case/commission, naver_vat_daily/case only (NAVER-SETTLE-01 partition replace) — VERSIONED_TABLES 밖이고 읽기 API(/api/settlement/channel)는 캐시가 없다."
     },
     {
       "path": "foms/services/orders/backfill_order_item_identities.py",
