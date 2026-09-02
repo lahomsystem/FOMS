@@ -14,4 +14,6 @@
 | T3 라우트+manifest+감사라벨 | DONE | agent | write_guard/audit/contracts green | CEO 재검증: 158 passed(계약 게이트 포함) |
 | 통합 검증 | DONE | CEO | APP_OK + pre_push_smoke exit 0 | pre_push_smoke PASSED. 전체 스위트 red 2건(ci.yml 레지스트리 2종 미등재) 직접 수정 후 재실행 |
 | 로컬 실브라우저 QA | DONE | CEO | 미저장 초안 발송 확인 | 헤드리스 실브라우저: 미리보기 2종 라이브 반영·미자격 차단·실발송(자격 미달 아님, 벤더 auth 오류)·초안 이력 기록·감사행·주문 승계 전부 확인 |
-| 스테이징 QA | PENDING | 사용자 | 실채널 발송 확인 | 채널톡 키가 로컬에 없어 실측 PUSH 실발송은 스테이징 전용 |
+| 스테이징 QA | PENDING | 사용자 | 실채널 발송 확인 | 채널톡 키가 로컬에 없어 실측 PUSH 실발송은 미검증 |
+| deploy 반영 | DONE | CEO | CI 4종 green | d774ff77d + 9317acd82, 전 워크플로 success |
+| production 승격 | DONE | CEO | PR 검사 green + 머지 | PR #273 머지, production HEAD e3f0ab1c2. 충돌 3건은 타 세션 의존이라 운영 쪽 유지 + 인벤토리 재생성으로 해소, 승격 트리 전체 스위트 8286 passed |
