@@ -19,13 +19,13 @@
 계약서: `docs/plans/2026-09-02-naver-settlement-contracts.md`
 | ID | 내용 | 담당 | 완료 기준 | 상태 |
 |---|---|---|---|---|
-| A1 | 모델 6개 + 마이그레이션 naversettle_00 | agent | 왕복 upgrade/downgrade + 단일 head + import app | PENDING |
-| A2 | client.py 정산 5메서드 + settle_enums.py + quota 속성 + 단위 테스트 | agent | tests/services/integrations/test_naver_settle_client.py green | PENDING |
-| A3 | 팀 ACCOUNTING + 정책 2종 + 게이트 + 탭 등록 4 hunk + 파셜 + 렌더 계약(기존 갱신·신규) | agent | 정산 렌더 스위트 3종 green | PENDING |
-| A4 | channel.js + settlement-channel.css | agent | node --check + 렌더 계약 자산 검사 | PENDING |
-| B1 | settle_sync.py + 워터마크 + 큐/태스크/스크립트/start.sh/플래그 + 테스트 7종 | agent | test_naver_settle_sync.py green | PENDING |
-| B2 | settlement_channel.py 커널 + /api/settlement/channel + sync POST(manifest·감사) + API 테스트 | agent | test_settlement_channel_api.py + auth enforcement green | PENDING |
-| C1 | 통합: 정산 5스위트+신규+계약 전수, ci.yml 등재, smoke, 커밋 | 총괄 | 전부 green | PENDING |
+| A1 | 모델 6개 + 마이그레이션 naversettle_00 | agent | 왕복 upgrade/downgrade + 단일 head + import app | DONE (PG 745 passed, 왕복 드리프트 0) |
+| A2 | client.py 정산 5메서드 + settle_enums.py + quota 속성 + 단위 테스트 | agent | tests/services/integrations/test_naver_settle_client.py green | DONE (79 passed) |
+| A3 | 팀 ACCOUNTING + 정책 2종 + 게이트 + 탭 등록 4 hunk + 파셜 + 렌더 계약(기존 갱신·신규) | agent | 정산 렌더 스위트 3종 green | DONE (502 passed, 계약 갱신 3건: api teams 튜플·예정 스캔 채널 제외·분석 블록 경계) |
+| A4 | channel.js + settlement-channel.css | agent | node --check + 렌더 계약 자산 검사 | DONE (360 passed, DOM 셰임 스모크 26/26; 비율 단위 B2 대조 필요) |
+| B1 | settle_sync.py + 워터마크 + 큐/태스크/스크립트/start.sh/플래그 + 테스트 7종 | agent | test_naver_settle_sync.py green | DONE (33 passed; 첫 적재는 retro 미집계, enqueue 중복=False) |
+| B2 | settlement_channel.py 커널 + /api/settlement/channel + sync POST(manifest·감사) + API 테스트 | agent | test_settlement_channel_api.py + auth enforcement green | DONE (138 passed; 워터폴 차감 3단계 표시 방향 -1 — 스테이징 실측으로 부호 확인 필요) |
+| C1 | 통합: 정산 5스위트+신규+계약 전수, ci.yml 등재, smoke, 커밋 | 총괄 | 전부 green | DONE — domains 6300 passed·services/perf/contracts 1745·smoke exit 0; 인벤토리 2종(failopen·ORM 우회) 재생성 커밋 |
 | C2 | T0 재프로브(토큰 만료 후) → 403 지속 시 사용자 확인 | 총괄 | 5종 200 | PENDING |
 | C3 | deploy push → CI 전 워크플로 green → 스테이징 백필 90일 → 화면 QA | 총괄 | 숫자 3개 대조 | PENDING |
 | v1.1 | 요약 스트립·실무 컬럼·CSV 4종 | — | 별도 승인 | PENDING |
