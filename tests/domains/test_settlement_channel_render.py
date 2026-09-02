@@ -61,7 +61,7 @@ _STATIC_ASSETS = (CSS_ASSET, JS_ASSET)
 #: 이 화면 자산의 캐시 핀. **저장소 전역에서 이 값 하나**여야 한다. CSS/JS 를 고치면
 #: 셸 템플릿의 두 링크와 이 상수를 **함께** 옮긴다 — 값이 조용히 갈리면 실기기가 옛 자산을
 #: 계속 실행한다(서비스워커 staticCacheFirst).
-_CHANNEL_PIN = "20260902c"
+_CHANNEL_PIN = "20260902d"
 
 _CHANNEL_TAB_ID = "foms-settle-tab-channel"
 _CHANNEL_PANE_ID = "foms-settle-pane-channel"

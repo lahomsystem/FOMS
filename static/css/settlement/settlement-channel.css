@@ -260,6 +260,7 @@
 .foms-settle .s-ch-recon { display: grid; gap: 4px; border-left: 4px solid var(--s-line); padding-left: 10px; }
 .foms-settle .s-ch-recon--ok { border-left-color: var(--s-ch-ok); }
 .foms-settle .s-ch-recon--warn { border-left-color: var(--s-ch-warn); }
+.foms-settle .s-ch-recon--empty { border-left-color: var(--s-border, #d6dbe3); color: var(--s-muted, #6b7280); }
 .foms-settle .s-ch-recon-line {
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
   font-size: 12.5px; font-variant-numeric: tabular-nums;
