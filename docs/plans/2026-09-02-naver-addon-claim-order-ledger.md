@@ -142,3 +142,25 @@ T3(실패 라인 `return` 축 기록)이 배포되기 전까지 잠금이 마지
 - F7 `reject_return` 순서(**NOT IN DOCS**) · F8 승인 가능 상태 3종이 관측 기반 ·
   F10 승인·거부가 낡은 스냅샷으로 판정(반품 승인만 재조회) · F12 `productClass` 없는 행 ·
   F13 모양 모르는 200 을 전건 성공으로.
+
+## 사고 종결 + F3 실측 (2026-09-02 10:20 KST)
+
+**본품 `2026082754601551` 반품 완료.** 운영 DB readonly 확인:
+`productOrderStatus=RETURNED` · `claimStatus=RETURN_DONE` · `triage_state.return.requested_at`
+= `approved_at` = `2026-09-02T01:20:10`(UTC). 접수+승인 원클릭이 통과했다 —
+추가상품 3건이 이미 완료라 네이버 선행조건이 충족돼 있었다는 진단대로다.
+`failed_reason`·`last_error` 가 **둘 다 비었다** → 재시도 성공 시 실패 기록을 지우는
+T3 동작도 실호출로 확인됐다.
+
+**F3 는 실측으로 반증됐다(표본 1).** `claim_sync.history` 원문:
+`holdback_status=null` · `holdback_block=null` · `fee_pay_method=null`,
+`raw_snapshot` 에 `claimDeliveryFee*` 필드 자체가 없음, 접수 3초 뒤 `RETURN_DONE`.
+→ 구매자 귀책 사유(`COLOR_AND_SIZE`)로 API 접수해도 **우리 조건에서는 자동 반품보류가
+발동하지 않는다**(발송처리된 시공 가구 · `RETURN_INDIVIDUAL` · 추가상품 선행완료).
+표본 1건이라 "항상 안 걸린다"로 읽으면 안 되지만, **접수+승인 원클릭을 막을 근거는
+없어졌다.** 보류 가드(`_approve_returns`)는 그대로 둔다 — 주 경로가 아니라 가드다.
+
+### 원장 종결
+NVCLAIM-ORDER-01 1차·2차·T3 전부 운영 반영, 규격 감사 5건 deploy 반영(CI 4/4 green).
+남은 것은 F2(본품만 반품 금지 규격 미검사)와 감사 F7/F8/F10/F12/F13, 그리고 이번 사고와
+무관한 잔가지 3개다.
