@@ -230,3 +230,109 @@ def test_force_runs_outside_business_day(app, queue_calls):
     result = _run(SATURDAY, force=True)
     assert result["outcome"] == "sent"
     assert len(queue_calls) == 1
+
+
+# --------------------------------------------------------------------------- #
+# 러너 — 시각 창 판정만 여기서 잰다(실행은 서비스 계약이 지킨다)
+# --------------------------------------------------------------------------- #
+
+def _runner():
+    """러너 모듈을 파일 경로로 읽어 온다(scripts/ 는 패키지가 아니다)."""
+    import importlib.util
+    import pathlib
+
+    path = (pathlib.Path(__file__).resolve().parents[3]
+            / "scripts" / "maintenance" / "run_naver_auto_dispatch.py")
+    spec = importlib.util.spec_from_file_location("run_naver_auto_dispatch", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_window_opens_at_the_hour_and_closes_after(app):
+    """정각부터 창 길이만큼만 연다 — 그 앞뒤로는 안 돈다."""
+    runner = _runner()
+    at = runner.parse_at("16:50")
+    assert runner.in_window(datetime(2026, 9, 2, 16, 50, tzinfo=KST), at, 10)
+    assert runner.in_window(datetime(2026, 9, 2, 16, 59, tzinfo=KST), at, 10)
+    assert not runner.in_window(datetime(2026, 9, 2, 16, 49, tzinfo=KST), at, 10)
+    assert not runner.in_window(datetime(2026, 9, 2, 17, 0, tzinfo=KST), at, 10)
+
+
+def test_bad_time_string_raises_instead_of_falling_back(app):
+    """시각 문자열이 틀리면 조용히 기본값으로 떨어지지 않는다."""
+    runner = _runner()
+    for bad in ("16시50", "25:00", "", "16:70"):
+        with pytest.raises(ValueError):
+            runner.parse_at(bad)
+
+
+# --------------------------------------------------------------------------- #
+# start.sh 배선 — WORKER 분기 안, 기본 꺼짐
+# --------------------------------------------------------------------------- #
+
+def _repo_file(relative: str) -> str:
+    import pathlib
+
+    return (pathlib.Path(__file__).resolve().parents[3] / relative).read_text(encoding="utf-8")
+
+
+def test_start_sh_gate_is_off_by_default_and_inside_worker_branch():
+    """자동 발송 루프는 WORKER 분기 안에서, 게이트가 1일 때만 뜬다."""
+    text = _repo_file("start.sh")
+    assert 'if [ "$FOMS_NAVER_AUTO_DISPATCH_ENABLED" = "1" ]; then' in text
+
+    marker = 'if [ "$USE_RQ_WORKER" = "1" ]; then'
+    separator = chr(10) + "else" + chr(10)
+    worker_branch = text.split(marker, 1)[1].split(separator, 1)[0]
+    assert "run_naver_auto_dispatch.py" in worker_branch
+    # web(gunicorn) 분기에는 없어야 한다 — 네이버 호출 IP 단일 출구 계약.
+    web_branch = text.split(separator, 1)[1]
+    assert "run_naver_auto_dispatch.py" not in web_branch
+
+
+def test_start_sh_loop_runs_in_background_with_time_defaults():
+    """백그라운드(&)로 띄우고, 시각·창 기본값을 env 로 바꿀 수 있어야 한다."""
+    text = _repo_file("start.sh")
+    block = text.split("run_naver_auto_dispatch.py", 1)[1].split("fi", 1)[0]
+    assert "--loop" in block and block.rstrip().endswith("&")
+    assert "${FOMS_NAVER_AUTO_DISPATCH_AT:-16:50}" in block
+    assert "${FOMS_NAVER_AUTO_DISPATCH_WINDOW_MINUTES:-10}" in block
+
+
+def test_runner_exposes_expected_cli_flags():
+    """수동 점검(--once/--force/--json)과 배선(--loop/--at/--window)이 모두 있어야 한다."""
+    source = _repo_file("scripts/maintenance/run_naver_auto_dispatch.py")
+    for flag in ("--once", "--force", "--json", "--loop", "--at", "--window"):
+        assert f'"{flag}"' in source, f"러너에 {flag} 가 없다"
+
+
+# --------------------------------------------------------------------------- #
+# 화면 안내 — 켜져 있을 때만, 두 띠가 같은 값
+# --------------------------------------------------------------------------- #
+
+def test_preview_carries_the_auto_notice(app, monkeypatch):
+    """미리보기가 자동 여부·시각을 싣는다(화면마다 env 를 따로 읽지 않게)."""
+    from foms.services.integrations.naver_commerce.bulk_dispatch import build_preview
+
+    monkeypatch.setenv("FOMS_NAVER_AUTO_DISPATCH_AT", "16:50")
+    notice = build_preview(db_session, on_date="2026-09-02")["auto"]
+    assert notice == {"enabled": True, "at": "16:50"}
+
+
+def test_auto_notice_is_off_when_switch_is_off(app, monkeypatch):
+    """꺼져 있으면 화면은 아무 말도 하지 않는다."""
+    from foms.services.integrations.naver_commerce.bulk_dispatch import build_preview
+
+    monkeypatch.setenv("FOMS_NAVER_AUTO_DISPATCH_ENABLED", "0")
+    assert build_preview(db_session, on_date="2026-09-02")["auto"]["enabled"] is False
+
+
+def test_both_strips_speak_about_the_schedule():
+    """두 띠 모두 자동 발송 시각을 말한다 — 사람이 자동인 줄 알아야 연타하지 않는다."""
+    for path in ("templates/admin/naver_workbench.html",
+                 "templates/measurement/partials/naver_dispatch_strip.html"):
+        markup = _repo_file(path)
+        assert "bulk_dispatch.auto.enabled" in markup, path
+        assert "bulk_dispatch.auto.at" in markup, path
+        assert "자동으로 발송처리됩니다" in markup, path

@@ -151,6 +151,7 @@ ACTION_LABELS: dict[str, str] = {
     "NAVER_INGEST_DETACH_ORDER": "네이버 수집분 연결 되돌림",
     "NAVER_INGEST_FULFILLMENT_ENQUEUE": "네이버 발주확인·발송처리 요청",
     "NAVER_INGEST_BULK_DISPATCH_ENQUEUE": "네이버 일괄 발송처리 요청(오늘 실측분)",
+    "NAVER_INGEST_BULK_DISPATCH_AUTO": "네이버 자동 발송처리(평일 정시)",
     "NAVER_INGEST_REFRESH_ENQUEUE": "네이버 다시 읽기 요청",
     "NAVER_ORIGIN_CLEANUP_REFRESH_ENQUEUE": "네이버 옛 주문 일괄 다시 읽기",
     "NAVER_INGEST_REFRESH_ALL_ENQUEUE": "네이버 전체 다시 읽기",
