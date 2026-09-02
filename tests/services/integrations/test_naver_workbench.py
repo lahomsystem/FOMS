@@ -15,7 +15,7 @@ from werkzeug.security import generate_password_hash
 from db import db_session
 from foms.services.integrations.naver_commerce.constants import CHANNEL
 from foms.services.integrations.naver_commerce.mapping import group_key_text
-from models import ExternalOrderLink, User
+from models import ExternalOrderLink, Order, User
 from tests.services.integrations._markup import is_disabled, open_tag
 
 TRIAGE_PATH = "/admin/naver-ingest/triage"
@@ -66,9 +66,18 @@ def _collected(*, order_no: str, product: str, amount: int, option: str = "",
                                 "baseAddress": address, "detailedAddress": "101호"},
         },
     }
+    # 매칭 축 사본 — 수집 파이프라인이 채우는 컬럼이다(`ingest._match_key_values`).
+    # 이력 탭 서버 찾기가 이 컬럼을 보므로, 픽스처가 비워 두면 테스트만 실제와 다르게
+    # 동작한다(주문이 아직 없는 수집분은 이름으로 찾을 길이 이 컬럼뿐이다).
+    from foms.services.integrations.naver_commerce.ingest import _match_key_values
+
+    match_keys = _match_key_values(snapshot)
     link = ExternalOrderLink(channel=CHANNEL, external_id=external_id,
                              sync_status="COLLECTED", external_order_no=order_no,
                              raw_snapshot=snapshot, group_key=group_key_text(snapshot),
+                             recipient_name=match_keys["recipient_name"],
+                             recipient_phone_digits=match_keys["recipient_phone_digits"],
+                             orderer_phone_digits=match_keys["orderer_phone_digits"],
                              # 수집 파이프라인은 발주 상태도 컬럼에 복사한다(목록 필터가
                              # JSONB 를 스캔하지 않게 하려고). 픽스처도 같은 모양이어야
                              # '발주확인 전' 탭 모집단 테스트가 실제와 같은 것을 잰다.
@@ -1493,8 +1502,10 @@ def test_history_tab_has_a_find_box_over_its_own_rows(client, workbench_on):
     처리 탭이 이미 "칩 + 찾기 한 줄" 이라 자리를 그대로 맞춘다. 표 위에 새 도구줄을 만들면
     밴드 1줄·경계선 1개가 늘어, 문구를 빼서 조용하게 만든 이번 변경과 정면으로 어긋난다.
 
-    placeholder 는 사용자가 준 원문 그대로다 — 임의로 다듬으면 '이 목록에서' 라는 범위
-    고지가 사라지고, 사용자는 이 칸이 수집분 **전체**를 뒤진다고 읽게 된다.
+    이 칸은 **서버로 나간다**(2026-09-02). 화면 필터였을 때는 닿는 범위가 지금 쪽
+    50집뿐이라, 16쪽짜리 이력에서 이름을 쳐도 "0주문"이 나왔다(사용자 실화면 보고).
+    그래서 placeholder 도 '이 목록에서' 가 아니라 '이력 전체에서' 라고 말한다 —
+    범위를 좁게 약속해 놓고 넓게 찾으면 그 반대만큼이나 오해가 난다.
     """
     _login(client)
     _collected(order_no="N-FINDBOX", product="붙박이장", amount=100000)
@@ -1504,7 +1515,9 @@ def test_history_tab_has_a_find_box_over_its_own_rows(client, workbench_on):
     assert 'id="wb-find"' in body, "이력 탭에 찾기 칸이 없다"
     assert 'class="wb-find__input"' in body, "처리 탭과 같은 부품을 써야 생김새가 갈리지 않는다"
     assert 'id="wb-find-note"' in body, "좁힌 뒤 몇 주문이 남았는지 말할 자리가 있어야 한다"
-    assert "이 목록에서 · 고객명 · 주문번호 · 제품" in body, "placeholder 는 원문 그대로"
+    assert "이력 전체에서 · 고객명 · 주문번호 · 전화" in body, "범위를 말하는 placeholder"
+    assert 'name="q"' in body, "찾기 낱말은 쿼리스트링 q 로 서버에 나가야 한다"
+    assert 'method="get"' in body, "찾기는 읽기다 — GET 이어야 뒤로가기·주소 공유가 산다"
 
     # 자리 계약: `.wb-filters` 가 닫히기 **전**에 있어야 한다(칩 줄 오른쪽 끝).
     # 이 슬라이스는 `.wb-filters` 안에 `<div>` 가 없다는 전제로 첫 `</div>` 까지 자른다 —
@@ -1543,3 +1556,137 @@ def test_history_rows_carry_the_same_find_text_as_work_rows(client, workbench_on
 
     assert "wb-empty" in empty_tbody, empty_tbody
     assert "data-find" not in empty_tbody, "빈 안내 행이 분모에 섞이면 0건 화면이 '1주문' 이 된다"
+
+
+# --------------------------------------------------------------------------- #
+# 이력 탭 찾기 = 서버가 한다 (2026-09-02)
+#
+# 이 칸은 원래 화면 필터였다. 이력 표는 서버가 50집씩 잘라 보내므로 칸이 닿는 데가
+# **지금 쪽**뿐이었고, 800주문·16쪽짜리 운영 화면에서 사람이 고객명을 쳤을 때
+# "0주문 / 이 페이지 50주문" 이 나왔다(2026-09-02 사용자 보고). 아래 테스트는 그
+# 실패를 모집단으로 재현한다 — 찾는 집이 **1쪽에 없을 때** 찾히는가.
+# --------------------------------------------------------------------------- #
+
+def _page_of_noise(count: int) -> None:
+    """1쪽을 채울 딴 집들 — 찾는 집을 뒤쪽 쪽으로 밀어낸다."""
+    for index in range(count):
+        _collected(order_no=f"N-NOISE-{index}", product="딴 제품", amount=1000,
+                   tel=f"010-9{index:03d}-0000")
+
+
+def _history_rows(client, query: str) -> str:
+    """이력 표 tbody 만 잘라 돌려준다(칩·헤더 글자가 단언에 섞이지 않게)."""
+    body = client.get(f"{TRIAGE_PATH}?tab=all&{query}").get_data(as_text=True)
+    return body.split('class="wb-cmp wb-hist"')[1].split("<tbody>")[1].split("</tbody>")[0]
+
+
+def test_history_find_reaches_rows_that_are_not_on_the_first_page(client, workbench_on):
+    """찾는 집이 **1쪽에 없어도** 찾힌다 — 이 결함의 본체다.
+
+    모집단을 PAGE_SIZE 보다 크게 만들고(1쪽 = 50집), 찾을 집을 가장 오래된 쪽으로
+    민다. 화면 필터였다면 여기서 0줄이 나온다(그게 사용자가 본 화면이다).
+    """
+    from foms.web.admin.naver_ingest import PAGE_SIZE
+
+    _login(client)
+    # 가장 먼저 만든 집이 가장 오래된 집 — 정렬이 최신순이라 뒤쪽 쪽으로 간다.
+    target = _collected(order_no="N-FIND-DEEP", product="깊은 붙박이장",
+                        amount=100000, tel="010-7777-8888")
+    _page_of_noise(PAGE_SIZE + 5)
+
+    first_page = _history_rows(client, "")
+    assert "N-FIND-DEEP".lower() not in first_page.lower(), \
+        "찾을 집이 1쪽에 있으면 이 테스트는 아무것도 재현하지 못한다(음성 대조군)"
+
+    found = _history_rows(client, "q=N-FIND-DEEP")
+
+    assert "깊은 붙박이장" in found, "1쪽 밖의 집을 주문번호로 못 찾았다"
+    assert "딴 제품" not in found, "찾기가 안 걸리고 전체 목록이 그대로 왔다"
+    assert target.id  # 픽스처가 살아 있음을 명시
+
+
+def test_history_find_matches_customer_name_of_a_linked_order(client, workbench_on):
+    """붙은 FOMS 주문의 **고객명**으로도 찾힌다(사용자가 실제로 친 낱말).
+
+    이력 표 고객 칸은 주문이 있으면 ``orders.customer_name`` 을 보여 준다 —
+    화면에 보이는 그 글자로 찾아지지 않으면 사람은 "검색이 고장났다" 고 읽는다.
+    """
+    _login(client)
+    order = Order(received_date="2026-08-01", customer_name="김유리",
+                  phone="010-5555-6666", address="서울 강남구 2 202호",
+                  product="붙박이장", status="RECEIVED")
+    db_session.add(order)
+    db_session.commit()
+    link = _collected(order_no="N-FIND-NAME", product="이름 붙박이장", amount=100000)
+    row = db_session.get(ExternalOrderLink, int(link.id))
+    row.order_id = int(order.id)
+    row.sync_status = "LINKED"
+    db_session.commit()
+    _page_of_noise(3)
+
+    found = _history_rows(client, "q=김유리")
+
+    # 제품 칸은 붙은 주문 값을 보여 준다(`order.product`) — 그래서 스냅샷 제품명이 아니라
+    # 고객명과 주문번호로 잰다.
+    assert "김유리" in found, "고객명으로 못 찾았다"
+    assert "n-find-name" in found.lower(), "찾힌 줄이 그 집이 아니다"
+    assert "딴 제품" not in found, "찾기가 안 걸렸다"
+
+
+def test_history_find_matches_recipient_name_when_no_order_exists_yet(client, workbench_on):
+    """주문이 아직 없는 수집분은 **수취인 이름 컬럼**으로 찾힌다.
+
+    그 집의 이름은 ``raw_snapshot`` 안에만 있고 SQL 이 닿지 못한다 — 그래서 수집
+    파이프라인이 복사해 두는 ``recipient_name`` 컬럼을 본다. 이 컬럼이 비면
+    (옛 행) 이름으로는 못 찾는다는 사실 자체가 이 테스트가 지키는 계약이다.
+    """
+    _login(client)
+    _collected(order_no="N-FIND-RECIP", product="수취인 붙박이장", amount=100000)
+    _page_of_noise(3)
+
+    found = _history_rows(client, "q=이수취")
+
+    assert "수취인 붙박이장" in found, "수취인 이름으로 못 찾았다"
+
+
+def test_history_find_narrows_total_and_pages_and_chip_counts(client, workbench_on):
+    """좁힌 뒤에는 총계·쪽수·칩 숫자가 **같은 모집단**을 말한다.
+
+    목록만 좁히고 총계가 800주문이면, 사람은 화면에 없는 797주문을 찾아 헤맨다
+    (캡 뒤 파이썬 분류 함정과 같은 실패 모양 — 숫자가 목록과 다른 말을 한다).
+    """
+    from foms.web.admin.naver_ingest import PAGE_SIZE
+
+    _login(client)
+    _collected(order_no="N-FIND-COUNT", product="계수 붙박이장", amount=100000,
+               tel="010-4444-5555")
+    _page_of_noise(PAGE_SIZE + 5)
+
+    body = client.get(f"{TRIAGE_PATH}?tab=all&q=N-FIND-COUNT").get_data(as_text=True)
+
+    assert "1주문 — 이력 전체에서 찾음" in body, "좁힌 결과를 말하지 않는다"
+    assert "다른 쪽에 있을 수 있습니다" not in body, \
+        "전체를 찾는 칸이 '다른 쪽에 있을 수 있다' 고 말하면 거짓말이다"
+    assert 'class="wb-pager"' not in body, "1집으로 좁혔는데 쪽수가 남아 있다"
+
+
+def test_history_find_says_nothing_found_instead_of_an_empty_screen(client, workbench_on):
+    """못 찾으면 **못 찾았다고 말한다** — 빈 표만 남기면 "사라졌다" 가 된다."""
+    _login(client)
+    _collected(order_no="N-FIND-NONE", product="붙박이장", amount=100000)
+
+    body = client.get(f"{TRIAGE_PATH}?tab=all&q=없는이름zzz").get_data(as_text=True)
+
+    assert "찾은 주문 없음" in body, body[:0] or "0건 고지가 없다"
+
+
+def test_history_find_survives_chips_and_pager(client, workbench_on):
+    """칩·페이저 링크가 찾기 낱말을 들고 간다 — 빠지면 누른 순간 조용히 풀린다."""
+    _login(client)
+    _collected(order_no="N-FIND-KEEP", product="붙박이장", amount=100000)
+
+    body = client.get(f"{TRIAGE_PATH}?tab=all&q=N-FIND-KEEP").get_data(as_text=True)
+    chips = body.split('class="wb-filters"')[1].split("</div>")[0]
+
+    assert chips.count("q=N-FIND-KEEP") >= 7, \
+        f"칩 8개가 전부 찾기 낱말을 들고 가야 한다: {chips.count('q=N-FIND-KEEP')}"

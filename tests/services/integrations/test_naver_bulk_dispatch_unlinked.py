@@ -108,6 +108,9 @@ def _loose(order_no: str, *, tel: str = PHONE, count: int = 1,
         snapshot["order"] = {**(snapshot.get("order") or {}), "ordererName": orderer}
         row.raw_snapshot = snapshot
         flag_modified(row, "raw_snapshot")
+        # 매칭 축 사본도 함께 고친다 — 수집 파이프라인이 원본과 컬럼을 **같이** 쓰므로,
+        # 원본만 바꾸면 실제로는 존재하지 않는 상태(이름이 서로 다른 행)를 시험하게 된다.
+        row.recipient_name = receiver or None
         db_session.commit()
         link = row
     return link

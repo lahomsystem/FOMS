@@ -342,7 +342,8 @@
     font-weight: 600;
 }
 
-.wb-find { display: inline-flex; align-items: center; gap: 6px; }
+/* 이력 탭에서는 이 부품이 <form> 이다(서버 찾기) — 브라우저 기본 여백을 지운다. */
+.wb-find { display: inline-flex; align-items: center; gap: 6px; margin: 0; }
 .wb-find__label { color: var(--wb-muted); }
 
 .wb-find__input {

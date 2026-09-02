@@ -72,6 +72,10 @@ WORK_GROUP_LIMIT = 500
 #: 상태 필터 닫힌집합. 임의 문자열이 그대로 쿼리에 들어가지 않게 한다.
 VALID_STATUSES = ("COLLECTED", "LINKED", "PENDING_REVIEW", "FAILED")
 
+#: 이력 탭 찾기 낱말의 최대 길이. 사람이 치는 칸이라 짧다 — 상한을 두는 이유는 길이가
+#: 아니라 **의도치 않은 긴 문자열이 ILIKE 패턴으로 들어가는 것**을 막기 위해서다.
+HISTORY_FIND_MAX = 50
+
 #: 발주확인이 끝난 것으로 보는 컬럼 값(mapping.CONFIRMED_PLACE_STATUSES 와 같은 집합).
 #: 이 값이 아니면 전부 "아직"이다 — NULL(모름)도 아직으로 본다(놓치는 쪽보다 낫다).
 CONFIRMED_PLACE_VALUES = ("OK",)
@@ -275,7 +279,7 @@ def _group_key_col():
     return group_key_expression()
 
 
-def _status_group_counts(db) -> dict[str, int]:
+def _status_group_counts(db, *, find: str = "") -> dict[str, int]:
     """상태별 **묶음 수**를 센다 — 필터 버튼 숫자를 표 총계와 같은 단위로 맞춘다.
 
     링크 행으로 세면 "전체 36 · 수집됨(주문 전) 102" 처럼 부분이 전체보다 커 보인다
@@ -285,17 +289,22 @@ def _status_group_counts(db) -> dict[str, int]:
 
     Args:
         db: 요청 스코프 DB 세션.
+        find: 이력 탭 찾기 낱말(:func:`_history_find_clause`). 목록을 좁히면 칩 숫자도
+            함께 좁혀야 한다 — 3주문만 보이는 화면에서 칩이 743주문이라고 말하면
+            사람은 나머지 740을 찾아 헤맨다(칩 단위 불일치와 같은 실패 모양).
 
     Returns:
         ``{상태: 그 상태 링크를 하나 이상 가진 묶음 수}`` (VALID_STATUSES 전 키 포함).
     """
     key_col = _group_key_col()
-    pairs = (
+    query = (
         db.query(key_col, ExternalOrderLink.sync_status)
         .filter(ExternalOrderLink.channel == "NAVER")
-        .group_by(key_col, ExternalOrderLink.sync_status)
-        .all()
     )
+    find_clause = _history_find_clause(find)
+    if find_clause is not None:
+        query = query.filter(find_clause)
+    pairs = query.group_by(key_col, ExternalOrderLink.sync_status).all()
     counts = {name: 0 for name in VALID_STATUSES}
     for _key, link_status in pairs:
         if link_status in counts:
@@ -315,7 +324,7 @@ def _place_pending_clause():
                ExternalOrderLink.place_order_status.notin_(CONFIRMED_PLACE_VALUES))
 
 
-def _place_pending_group_count(db) -> int:
+def _place_pending_group_count(db, *, find: str = "") -> int:
     """'발주확인 전' 묶음 수 — 필터 버튼 숫자(다른 버튼과 같은 집 단위).
 
     Args:
@@ -325,12 +334,14 @@ def _place_pending_group_count(db) -> int:
         발주확인이 아직인 링크를 하나 이상 가진 묶음 수.
     """
     key_col = _group_key_col()
-    return (
+    query = (
         db.query(key_col)
         .filter(ExternalOrderLink.channel == "NAVER", _place_pending_clause())
-        .group_by(key_col)
-        .count()
     )
+    find_clause = _history_find_clause(find)
+    if find_clause is not None:
+        query = query.filter(find_clause)
+    return query.group_by(key_col).count()
 
 
 def _dispatch_pending_clause() -> ColumnElement[bool]:
@@ -355,7 +366,7 @@ def _dispatch_pending_clause() -> ColumnElement[bool]:
     return dispatch_pending_clause()
 
 
-def _dispatch_pending_group_count(db) -> int:
+def _dispatch_pending_group_count(db, *, find: str = "") -> int:
     """'발송처리 전' 묶음 수 — 칩 숫자(다른 칩과 **같은 집 단위**).
 
     링크 행으로 세면 부분이 전체보다 커 보인다(2026-08-19 스테이징 실화면). 필터는
@@ -369,12 +380,14 @@ def _dispatch_pending_group_count(db) -> int:
         발송 기록이 아직 없는 링크를 하나 이상 가진 묶음 수.
     """
     key_col = _group_key_col()
-    return (
+    query = (
         db.query(key_col)
         .filter(ExternalOrderLink.channel == "NAVER", _dispatch_pending_clause())
-        .group_by(key_col)
-        .count()
     )
+    find_clause = _history_find_clause(find)
+    if find_clause is not None:
+        query = query.filter(find_clause)
+    return query.group_by(key_col).count()
 
 
 def _relation_clause() -> ColumnElement[bool]:
@@ -388,7 +401,7 @@ def _relation_clause() -> ColumnElement[bool]:
     return ExternalOrderLink.relation.in_(("ADDON", "REPAY"))
 
 
-def _relation_group_count(db) -> int:
+def _relation_group_count(db, *, find: str = "") -> int:
     """추가결제·재결제 묶음 수 — 칩 숫자(다른 칩과 같은 집 단위).
 
     Args:
@@ -398,12 +411,14 @@ def _relation_group_count(db) -> int:
         ``relation`` 이 ADDON·REPAY 인 링크를 하나 이상 가진 묶음 수.
     """
     key_col = _group_key_col()
-    return (
+    query = (
         db.query(key_col)
         .filter(ExternalOrderLink.channel == "NAVER", _relation_clause())
-        .group_by(key_col)
-        .count()
     )
+    find_clause = _history_find_clause(find)
+    if find_clause is not None:
+        query = query.filter(find_clause)
+    return query.group_by(key_col).count()
 
 
 #: 클레임이 없는 링크가 쓰는 반품 축 자리값 — :func:`_return_axis_view` 를 **부르지
@@ -1094,9 +1109,69 @@ def _history_group_row(group: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def _history_find_term(raw: Optional[str]) -> str:
+    """이력 탭 찾기 낱말을 정리한다 — 빈 값이면 빈 문자열(필터 없음).
+
+    Args:
+        raw: 쿼리스트링에서 온 원문.
+
+    Returns:
+        앞뒤 공백을 떼고 :data:`HISTORY_FIND_MAX` 로 자른 낱말.
+    """
+    return (raw or "").strip()[:HISTORY_FIND_MAX]
+
+
+def _history_find_clause(term: str) -> Optional[ColumnElement]:
+    """이력 탭 찾기 술어 — **SQL 로** 좁힌다(집 선정 단계에서 쓴다).
+
+    파이썬으로 거르지 않는 이유: 쪽을 먼저 자른 뒤에 걸러내면 ``total``·``pages`` 가
+    거짓말이 되고(캡 뒤 파이썬 분류 함정), 무엇보다 찾기가 **지금 쪽 50집**에만 닿는다 —
+    16쪽짜리 이력에서 사람이 이름을 쳐도 0주문이 나온 그 결함이다(2026-09-02 사용자 보고).
+
+    보는 자리(모두 컬럼이다 — JSONB 스캔 금지):
+      * ``external_order_no`` — 네이버 주문번호(행 어디에도 글자로 없어 여기서만 찾힌다).
+      * ``recipient_name`` — 스냅샷 수취인 이름의 컬럼 사본(주문이 아직 없는 수집분).
+      * ``group_key`` — 집 키(주문번호·수취인 전화·주소를 이은 값).
+      * 붙은 FOMS 주문의 ``customer_name``·``phone`` — ``orders`` 는 이 두 칸에 인덱스가
+        있다(``ix_orders_customer_name_trgm`` · ``phone`` b-tree).
+      * 숫자만 친 경우: 수취인·주문자 전화 숫자, 그리고 FOMS 주문번호 정확일치.
+
+    ``product`` 는 못 본다 — 제품명은 ``raw_snapshot`` 파생값이라 SQL 이 닿지 못한다.
+    그래서 placeholder 도 제품을 약속하지 않는다(칸이 못 하는 일을 적으면 또 오해가 난다).
+
+    Args:
+        term: :func:`_history_find_term` 이 정리한 낱말(빈 문자열이면 ``None`` 을 준다).
+
+    Returns:
+        ``or_`` 술어 또는 ``None``.
+    """
+    if not term:
+        return None
+    from sqlalchemy import or_, select
+
+    pattern = f"%{term}%"
+    digits = "".join(ch for ch in term if ch.isdigit())
+    order_match = select(Order.id).where(
+        or_(Order.customer_name.ilike(pattern), Order.phone.ilike(pattern)))
+    clauses = [
+        ExternalOrderLink.external_order_no.ilike(pattern),
+        ExternalOrderLink.recipient_name.ilike(pattern),
+        ExternalOrderLink.group_key.ilike(pattern),
+        ExternalOrderLink.order_id.in_(order_match),  # perf-ok: orders 는 trgm 인덱스
+    ]
+    if digits:
+        clauses.append(ExternalOrderLink.recipient_phone_digits.ilike(f"%{digits}%"))
+        clauses.append(ExternalOrderLink.orderer_phone_digits.ilike(f"%{digits}%"))
+        if len(digits) <= 9:
+            # 화면이 FOMS 주문을 `#5053` 으로 보여준다 — 그 숫자를 그대로 쳐도 찾혀야 한다.
+            clauses.append(ExternalOrderLink.order_id == int(digits))
+    return or_(*clauses)
+
+
 def _link_rows(db, *, status: Optional[str], page: int,
                place_pending: bool = False, dispatch_pending: bool = False,
-               relation_filter: bool = False) -> tuple[list[dict], int]:
+               relation_filter: bool = False,
+               find: str = "") -> tuple[list[dict], int]:
     """수집 이력을 **한 집 = 한 줄**로 묶어 돌려준다(T14-H).
 
     페이지는 묶음(네이버 주문번호) 단위로 센다 — 상품주문 단위로 자르면 페이지 끝에서 한
@@ -1115,6 +1190,9 @@ def _link_rows(db, *, status: Optional[str], page: int,
         place_pending: '발주확인 남음' 칩.
         dispatch_pending: '발송처리 남음' 칩(:func:`_dispatch_pending_clause`).
         relation_filter: '추가결제·재결제' 칩(:func:`_relation_clause`).
+        find: 찾기 낱말(:func:`_history_find_clause`). 다른 필터와 **같은 규약**이다 —
+            해당 링크가 하나라도 있는 집을 고르고, 뽑힌 집의 상품주문은 전부 싣는다.
+            ``total`` 도 좁혀진 총계라 쪽수·"N주문" 이 찾은 결과와 어긋나지 않는다.
 
     Returns:
         ``(묶음 목록, 묶음 총 개수)``.
@@ -1137,6 +1215,9 @@ def _link_rows(db, *, status: Optional[str], page: int,
         key_query = key_query.filter(_dispatch_pending_clause())
     if relation_filter:
         key_query = key_query.filter(_relation_clause())
+    find_clause = _history_find_clause(find)
+    if find_clause is not None:
+        key_query = key_query.filter(find_clause)
     key_query = key_query.group_by(key_col)
 
     total = key_query.count()
@@ -2674,8 +2755,13 @@ def _history_view(db) -> dict[str, Any]:
     SQL 로 못 거르고, 쪽을 자른 뒤 파이썬으로 세면 ``total``·``pages`` 가 거짓말이 된다
     (캡 뒤 파이썬 분류 함정). **행 배지로만** 둔다.
 
+    찾기(``q``)는 **서버가** 한다(2026-09-02). 화면 필터로 두면 칸이 닿는 데가 지금 쪽
+    50집뿐이라, 16쪽짜리 이력에서 이름을 쳐도 "0주문"이 나온다 — 사용자가 이 결함을
+    실화면으로 보고했다. 좁힌 뒤의 ``total``·``pages``·칩 옆 숫자가 전부 같은 술어에서
+    나오도록 :func:`_link_rows` 안에서 건다.
+
     Returns:
-        ``rows``·``total``·``page``·``page_size``·``status``·``place_pending``·
+        ``rows``·``total``·``page``·``page_size``·``status``·``find``·``place_pending``·
         ``dispatch_pending``·``relation_filter``·``counts``·``status_chips`` 와
         칩 숫자 3종을 담은 dict.
     """
@@ -2690,10 +2776,13 @@ def _history_view(db) -> dict[str, Any]:
     except (TypeError, ValueError):
         page = 1
 
+    find = _history_find_term(request.args.get("q"))
+
     rows, total = _link_rows(db, status=status or None, page=page,
                              place_pending=place_pending,
                              dispatch_pending=dispatch_pending,
-                             relation_filter=relation_filter)
+                             relation_filter=relation_filter,
+                             find=find)
     return {
         "rows": rows,
         "total": total,
@@ -2701,16 +2790,19 @@ def _history_view(db) -> dict[str, Any]:
         "page_size": PAGE_SIZE,
         "pages": ((total - 1) // PAGE_SIZE) + 1 if total else 1,
         "status": status,
+        "find": find,
         "place_pending": place_pending,
         "dispatch_pending": dispatch_pending,
         "relation_filter": relation_filter,
-        "counts": _status_group_counts(db),
+        # 칩 숫자도 **같은 낱말**로 좁힌다 — 목록만 좁히고 칩은 전체를 말하면
+        # 한 화면이 두 모집단을 동시에 주장한다.
+        "counts": _status_group_counts(db, find=find),
         # 칩 낱말의 **단일 출처**. 템플릿이 두 벌째 적으면 칩만 `받아옴 · 주문 전`,
         # 배지만 `받아옴` 으로 조용히 갈린다(상수 주석이 경고한 그 실패 모양).
         "status_chips": HISTORY_STATUS_CHIPS,
-        "place_pending_count": _place_pending_group_count(db),
-        "dispatch_pending_count": _dispatch_pending_group_count(db),
-        "relation_count": _relation_group_count(db),
+        "place_pending_count": _place_pending_group_count(db, find=find),
+        "dispatch_pending_count": _dispatch_pending_group_count(db, find=find),
+        "relation_count": _relation_group_count(db, find=find),
     }
 
 

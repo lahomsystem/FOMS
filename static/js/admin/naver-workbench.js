@@ -691,11 +691,15 @@
     }
 
     /**
-     * 목록 안 찾기 — 지금 화면에 있는 줄만 즉시 좁힌다.
+     * 목록 안 찾기 — **처리 탭 전용**이다. 지금 화면에 있는 줄만 즉시 좁힌다.
      *
-     * 서버로 보내지 않는 이유: 이 화면의 목록은 이미 한 번에 다 와 있고(캡 500집),
+     * 서버로 보내지 않는 이유: 처리 탭 목록은 이미 한 번에 다 와 있고(캡 500집),
      * 왕복을 넣으면 한 글자마다 조회가 나간다. 대신 **범위를 화면에 못 박는다** —
      * 확인 완료로 큐에서 빠진 집은 목록에 없으므로 여기서도 안 나온다.
+     *
+     * 이력 탭은 반대다(2026-09-02): 서버가 쪽수로 자른 목록이라 화면 필터가 닿는 데가
+     * 지금 쪽 50집뿐이었고, 16쪽짜리 이력에서 이름을 쳐도 0주문이 나왔다. 그래서 그 탭의
+     * 찾기 칸은 GET 폼이고 서버가 좁힌다 — 여기서는 손대지 않는다.
      *
      * 정렬은 반대로 서버가 한다: 캡보다 먼저 돌아야 캡이 자를 집이 달라진다.
      */
@@ -710,6 +714,11 @@
             return;
         }
         if (event.target.id !== 'wb-find') {
+            return;
+        }
+        if (isHistoryTab()) {
+            // 이력 탭 찾기는 서버가 한다(폼 제출). 여기서 행을 숨기면 서버가 준 결과 위에
+            // 화면 필터가 한 겹 더 얹혀, 서버 note 가 말하는 숫자와 보이는 줄이 갈린다.
             return;
         }
         applyFind(event.target.value);
@@ -732,35 +741,18 @@
         }
     }
 
-    /**
-     * 좁힌 결과를 말로 옮긴다.
-     *
-     * 이력 탭은 서버가 쪽수로 자른 목록이라 이 찾기가 닿는 데는 **지금 페이지뿐**이다.
-     * 그 사실을 placeholder 로 말하면 글자를 치는 순간 사라져, 정작 오해가 나는 때
-     * (좁혀진 뒤)에 화면에 없다 — 그래서 여기서, 그 순간에만 말한다. 0줄이고 다음
-     * 쪽이 있으면 "없다" 가 아니라 "다른 쪽에 있을 수 있다" 다.
-     * 처리 탭은 목록이 한 번에 다 와 있어 범위 고지가 필요 없다(문구 불변).
-     * @param {number} shown 좁히고 남은 줄 수.
-     * @param {number} total 좁히기 전 줄 수.
-     * @returns {string}
-     */
-    function findNote(shown, total) {
+    /** 지금 열린 탭이 이력인가 — 찾기 주체가 갈리는 유일한 분기다. */
+    function isHistoryTab() {
         var root = document.querySelector('.naver-workbench');
-        if (!root || root.dataset.activeTab !== 'all') {
-            return shown + '주문 / ' + total + '주문';
-        }
-        var text = shown + '주문 / 이 페이지 ' + total + '주문';
-        if (shown === 0 && document.querySelector('.wb-pager')) {
-            text += ' — 다른 쪽에 있을 수 있습니다';
-        }
-        return text;
+        return !!root && root.dataset.activeTab === 'all';
     }
 
     /**
      * 찾기 낱말로 행을 숨기고 결과 수를 고지한다.
      *
-     * 모집단은 **두 탭 합집합**이다 — 처리 탭의 집 줄과 이력 탭의 표 행. 두 탭은 배타
-     * 렌더라 한 화면에는 언제나 한쪽만 있고, 그래서 분기를 따로 두지 않는다.
+     * 모집단은 처리 탭의 집 줄이다. 셀렉터에 이력 표 행이 남아 있는 이유는 서버 렌더가
+     * 실패해 이력 탭에 옛 마크업이 오더라도 같은 규칙으로 동작하게 두기 위해서다 —
+     * 정상 경로에서는 :func:`onInput` 이 이력 탭을 먼저 걸러 여기까지 오지 않는다.
      * @param {string} raw 사용자가 친 문자열.
      */
     function applyFind(raw) {
@@ -780,7 +772,7 @@
         var note = document.getElementById('wb-find-note');
         if (note) {
             // 조용히 좁히면 "집이 사라졌다"가 된다. 찾는 중일 때만 말한다.
-            note.textContent = needle ? findNote(shown, rows.length) : '';
+            note.textContent = needle ? (shown + '주문 / ' + rows.length + '주문') : '';
         }
         // 숨은 줄이 선택에 남아 있으면 벌크가 화면에 없는 집으로 나간다(계약 §0-5).
         clearHiddenPicks();
