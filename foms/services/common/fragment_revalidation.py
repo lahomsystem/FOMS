@@ -46,7 +46,10 @@ __all__ = [
     "RELEASE_ID",
     "SHADOW_KEY_PREFIX",
     "SHADOW_MISMATCH_COUNTER_KEY",
+    "SHADOW_STATE_COUNTER_PREFIX",
+    "SHADOW_MISMATCH_LOG_KEY",
     "SHADOW_HEADER",
+    "SHADOW_RELEASE_HEADER",
     "SHADOW_STATE_NEW",
     "SHADOW_STATE_MATCH",
     "SHADOW_STATE_MISMATCH",
@@ -59,9 +62,19 @@ __all__ = [
 KEY_VERSION: Final[str] = "v1"
 SHADOW_KEY_PREFIX: Final[str] = f"foms:fragver:{KEY_VERSION}"
 SHADOW_MISMATCH_COUNTER_KEY: Final[str] = f"{SHADOW_KEY_PREFIX}:mismatch"
+#: 상태별 관측 수 — 적중률(match / (new+match))을 사후에 계산할 수 있게 한다.
+#: 카운터가 mismatch 하나뿐이면 "틀리지는 않았다"만 알 뿐 "이득이 있나"를 못 잰다.
+SHADOW_STATE_COUNTER_PREFIX: Final[str] = f"{SHADOW_KEY_PREFIX}:count"
+#: 최근 mismatch 상세(가장 최근 것이 앞). 카운터만 있으면 밤사이 난 mismatch 의
+#: 원인을 배포 로그 발굴로만 쫓아야 한다(2026-09-02 실제로 그 벽에 부딪혔다).
+SHADOW_MISMATCH_LOG_KEY: Final[str] = f"{SHADOW_KEY_PREFIX}:mismatch_log"
+_MISMATCH_LOG_MAX: Final[int] = 50
 
 #: 진단 헤더. 값은 아래 세 상태 중 하나(업무 데이터 없음 — EPT-B7 render_ms 와 같은 성격).
 SHADOW_HEADER: Final[str] = "X-FOMS-FRAGVER"
+#: 릴리스 진단 헤더 — 배포가 나도 이 값이 그대로면 릴리스 축이 마크업 변화를 못 잡는
+#: 것이다(templates digest 는 파이썬-only 배포를 놓칠 수 있다). 값은 16자 식별자뿐.
+SHADOW_RELEASE_HEADER: Final[str] = "X-FOMS-FRAGVER-RELEASE"
 SHADOW_STATE_NEW: Final[str] = "new"
 SHADOW_STATE_MATCH: Final[str] = "match"
 SHADOW_STATE_MISMATCH: Final[str] = "MISMATCH"
@@ -332,28 +345,91 @@ def record_shadow_observation(key: str, body: bytes, *, route_id: str) -> str:
     redis_key = f"{SHADOW_KEY_PREFIX}:{route_id}:{key}"
     try:
         # GET + SETEX 를 파이프라인으로 묶어 왕복 1회로 끝낸다. 관측은 첫 페인트
-        # 경로에 얹히므로 왕복 수가 그대로 응답 시간이다(P4 교훈).
+        # 경로에 얹히므로 왕복 수가 그대로 응답 시간이다(P4 교훈). 본문 해시 옆에
+        # 그때의 릴리스도 함께 적어, mismatch 가 배포 경계에서 났는지 사후에 가린다.
         pipe = client.pipeline()
         pipe.get(redis_key)
-        pipe.setex(redis_key, _SHADOW_TTL_S, digest)
+        pipe.setex(redis_key, _SHADOW_TTL_S, f"{digest}|{RELEASE_ID}")
         previous = (pipe.execute() or [None])[0]
     except Exception:
         logger.warning("[FragVer] shadow observation failed (non-fatal)", exc_info=True)
         return SHADOW_STATE_NEW
-    if previous is None:
-        return SHADOW_STATE_NEW
-    if str(previous) == digest:
-        return SHADOW_STATE_MATCH
+
+    state = SHADOW_STATE_NEW
+    prev_digest = prev_release = ""
+    if previous is not None:
+        prev_digest, _, prev_release = str(previous).partition("|")
+        state = SHADOW_STATE_MATCH if prev_digest == digest else SHADOW_STATE_MISMATCH
+
+    _bump_state_counter(client, state)
+    if state is not SHADOW_STATE_MISMATCH:
+        return state
+
+    _record_mismatch(
+        client,
+        route_id=route_id,
+        key=key,
+        prev_digest=prev_digest,
+        prev_release=prev_release,
+        digest=digest,
+    )
+    return SHADOW_STATE_MISMATCH
+
+
+def _bump_state_counter(client: Any, state: str) -> None:
+    """상태별 관측 수를 센다(적중률 계산용). 실패는 무시한다."""
     try:
-        client.incr(SHADOW_MISMATCH_COUNTER_KEY)
+        client.incr(f"{SHADOW_STATE_COUNTER_PREFIX}:{state}")
     except Exception:
-        logger.warning("[FragVer] mismatch counter failed (non-fatal)", exc_info=True)
+        logger.warning("[FragVer] state counter failed (non-fatal)", exc_info=True)
+
+
+def _record_mismatch(
+    client: Any,
+    *,
+    route_id: str,
+    key: str,
+    prev_digest: str,
+    prev_release: str,
+    digest: str,
+) -> None:
+    """mismatch 를 카운터 + **상세 목록**으로 남긴다.
+
+    카운터만 있으면 밤사이 난 mismatch 를 배포 로그 발굴로만 쫓아야 하는데, 배포가
+    교체되면 그 로그가 통째로 사라진다(2026-09-02 스테이징 13건이 그렇게 추적 불가가
+    됐다). 그래서 원인 판정에 필요한 것 — 특히 **릴리스가 그 사이 바뀌었는지** — 를
+    Redis 목록에 함께 적는다. 목록은 최근 50건만 유지한다.
+    """
+    from foms.services.datetime_kst import now_utc_naive
+
+    same_release = prev_release == RELEASE_ID
+    entry = json.dumps(
+        {
+            "at": now_utc_naive().isoformat(),
+            "route": route_id,
+            "key": key,
+            "prev": prev_digest,
+            "now": digest,
+            "prev_release": prev_release,
+            "release": RELEASE_ID,
+            "same_release": same_release,
+        },
+        ensure_ascii=False,
+    )
+    try:
+        pipe = client.pipeline()
+        pipe.incr(SHADOW_MISMATCH_COUNTER_KEY)
+        pipe.lpush(SHADOW_MISMATCH_LOG_KEY, entry)
+        pipe.ltrim(SHADOW_MISMATCH_LOG_KEY, 0, _MISMATCH_LOG_MAX - 1)
+        pipe.execute()
+    except Exception:
+        logger.warning("[FragVer] mismatch record failed (non-fatal)", exc_info=True)
     logger.warning(
-        "[FragVer] MISMATCH route=%s key=%s prev=%s now=%s — "
+        "[FragVer] MISMATCH route=%s key=%s prev=%s now=%s same_release=%s — "
         "키에 빠진 축이 있다(렌더 전 304 를 켜면 낡은 본문이 나간다)",
         route_id,
         key,
-        previous,
+        prev_digest,
         digest,
+        same_release,
     )
-    return SHADOW_STATE_MISMATCH

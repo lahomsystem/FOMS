@@ -5,14 +5,14 @@
   "overlap_api_error_01": "API-ERROR-01 owns response/stdout exposure (print_exc/str(e) -> log_handled_exception). This packet owns swallow classification. Sites that log via log_handled_exception are LOG_AND_CONTINUE here.",
   "marker_convention": "Silent-by-design catches carry an inline `# failopen: intentional: <reason>` (or `fail-closed`) marker; the scanner reads it as the justification. No bare allowlist, no lint-disable.",
   "baselines": {
-    "broad_total": 577,
+    "broad_total": 578,
     "unclassified": 0,
     "swallow_by_control_flow": 180
   },
   "disposition_counts": {
     "FAIL_CLOSED": 33,
     "INTENTIONAL": 17,
-    "LOG_AND_CONTINUE": 347,
+    "LOG_AND_CONTINUE": 348,
     "SWALLOW_BY_CONTROL_FLOW": 180
   },
   "owner_counts": {
@@ -24,7 +24,7 @@
     "persistence": 3,
     "platform": 5,
     "runtime": 3,
-    "services": 159,
+    "services": 160,
     "storage": 21,
     "telemetry": 30,
     "web": 39
@@ -3176,7 +3176,7 @@
     },
     {
       "path": "foms/services/common/fragment_revalidation.py",
-      "lineno": 181,
+      "lineno": 194,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3185,7 +3185,7 @@
     },
     {
       "path": "foms/services/common/fragment_revalidation.py",
-      "lineno": 213,
+      "lineno": 226,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3194,7 +3194,7 @@
     },
     {
       "path": "foms/services/common/fragment_revalidation.py",
-      "lineno": 246,
+      "lineno": 259,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3203,7 +3203,7 @@
     },
     {
       "path": "foms/services/common/fragment_revalidation.py",
-      "lineno": 340,
+      "lineno": 354,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3212,7 +3212,16 @@
     },
     {
       "path": "foms/services/common/fragment_revalidation.py",
-      "lineno": 349,
+      "lineno": 383,
+      "handler_type": "broad_exception",
+      "disposition": "LOG_AND_CONTINUE",
+      "owner": "services",
+      "has_logging": true,
+      "justification": "logs via logger/log_handled_exception"
+    },
+    {
+      "path": "foms/services/common/fragment_revalidation.py",
+      "lineno": 425,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
