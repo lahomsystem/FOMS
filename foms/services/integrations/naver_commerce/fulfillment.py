@@ -46,6 +46,7 @@ __all__ = [
     "DIRECT_DELIVERY",
     "clear_failure",
     "failure_action",
+    "return_failure",
     "confirm_place_order",
     "dispatch_order",
     "cancel_order",
@@ -1216,6 +1217,55 @@ def _write_return_state(link: ExternalOrderLink, patch: dict[str, Any]) -> None:
 
 
 
+def _mark_return_failures(rows: dict[str, ExternalOrderLink], failures: dict[str, str],
+                          *, stamp: datetime) -> None:
+    """반품 접수에 실패한 라인에 **반품 축 기록**을 남긴다 (NVCLAIM-ORDER-01 T3).
+
+    :func:`_mark_failures` 와 **다른 축**이다. 그쪽은 ``fulfillment.last_error`` 로,
+    실패 띠가 읽고 ``clear_failure`` 가 지우는 **닫을 수 있는 통지**다. 이쪽은 반품 축의
+    **지워지지 않는 사실**이다 — 사람이 띠를 닫아도 "이 상품주문은 반품 접수가 실패한
+    채다"가 DB 에 남는다.
+
+    이 기록이 없던 것이 RC5 였다: 성공분만 ``return`` 축을 받아서, 실패한 라인은 축이
+    비어 **"아직 안 보냄"과 구분되지 않았고**, ``확인함`` 한 번이면 유일한 흔적이던
+    ``last_error`` 마저 사라졌다(황민철 집, ERP 5026). 그 때문에 임시로 걸어 둔
+    ``확인함`` 잠금을 이 기록이 대체한다.
+
+    ``requested_at`` 은 건드리지 않는다 — 실패는 접수가 아니고,
+    :func:`is_return_pending` 은 그 키로 멱등을 판정한다. 실패한 라인은 다시 보낼
+    대상으로 남아야 한다.
+
+    Args:
+        rows: ``productOrderId`` → 링크 행.
+        failures: ``productOrderId`` → 실패 사유.
+        stamp: 이번 작업 시각.
+
+    Returns:
+        None.
+    """
+    for pid, reason in failures.items():
+        row = rows.get(pid)
+        if row is None:
+            continue
+        _write_return_state(row, {"failed_at": stamp.isoformat(),
+                                  "failed_reason": str(reason)[:500]})
+
+
+def return_failure(link: ExternalOrderLink) -> dict[str, str]:
+    """이 상품주문의 **반품 접수 실패 기록**(없으면 빈 값) — 화면과 서버의 공통 술어.
+
+    Args:
+        link: 수집 링크(상품주문 1건).
+
+    Returns:
+        ``{"failed_at", "failed_reason"}``. 접수에 성공했거나 한 번도 안 보냈으면
+        두 값 모두 빈 문자열이다.
+    """
+    state = _return_state(link)
+    return {"failed_at": str(state.get("failed_at") or ""),
+            "failed_reason": str(state.get("failed_reason") or "")}
+
+
 def is_return_pending(link: ExternalOrderLink) -> bool:
     """이 상품주문에 **반품 접수를 보낼 것인가** — 화면 재진술과 서버 처리의 공통 술어.
 
@@ -1492,6 +1542,8 @@ def request_return(session: Session, client: Any, *, link_id: int, reason: str,
         blocked_failures = {str(row.external_id): blocked_reason for row in blocked}
         _mark_failures({str(row.external_id): row for row in blocked}, blocked_failures,
                        action="return", stamp=stamp)
+        _mark_return_failures({str(row.external_id): row for row in blocked},
+                              blocked_failures, stamp=stamp)
         session.flush()
         if not todo:
             raise FulfillmentError(blocked_reason)
@@ -1524,7 +1576,11 @@ def request_return(session: Session, client: Any, *, link_id: int, reason: str,
             "requested_by": actor_user_id,
             "reason": code,
             "collect_method": RETURN_COLLECT_METHOD,
+            # 성공하면 옛 실패 기록을 지운다 — 남겨 두면 접수된 건이 화면에서 영원히
+            # "접수 실패"로 읽힌다.
+            "failed_at": "", "failed_reason": "",
         })
+    _mark_return_failures(by_id, failures, stamp=stamp)
     if failures:
         _mark_failures(by_id, failures, action="return", stamp=stamp)
     session.flush()

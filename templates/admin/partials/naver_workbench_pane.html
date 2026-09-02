@@ -691,6 +691,17 @@
                         {% endif %}
                         {% if row.return_requested_at %}
                         <div class="small text-muted">우리 접수 {{ row.return_requested_at }}</div>
+                        {# 접수 **실패** 기록(T3). `last_error` 실패 띠와 다른 축이다 —
+                           띠는 사람이 `확인함` 으로 닫는 통지고, 이 줄은 닫아도 남는 사실이다.
+                           이게 없던 동안 실패한 라인은 반품 축이 비어 **"아직 안 보냄"과
+                           구분되지 않았고**, 띠를 닫는 순간 유일한 흔적이 사라졌다(RC5). #}
+                        {% elif row.return_failed_at %}
+                        <div class="small text-danger fw-semibold">우리 접수 실패 {{ row.return_failed_at }}</div>
+                        {% if row.return_failed_reason %}
+                        {# 사유는 문장이라 접혀야 한다 — 칸의 `text-nowrap` 을 여기서만 푼다
+                           (새 CSS 없이 부트스트랩 유틸리티로). #}
+                        <div class="small text-muted text-wrap mw-100">{{ row.return_failed_reason }}</div>
+                        {% endif %}
                         {% else %}
                         <div class="small text-muted">우리 접수 없음</div>
                         {% endif %}

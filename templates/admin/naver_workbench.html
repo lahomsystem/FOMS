@@ -481,19 +481,16 @@
                    (`fulfillment.clear_failure`, NVCLAIM-ORDER-01 RC5 2차). 이 줄은 집당
                    하나인데 작업 하나만 말하므로, 집 전체를 지우던 시절에는 사람이 본 적도
                    없는 반품 실패가 함께 사라졌다.
-                   **잠금은 그대로 둔다.** 좁히기가 막는 것은 '안 본 형제의 실패'고, 반품
-                   실패 줄에서 누를 때 사라지는 것은 **사람이 실제로 보고 누른 그 줄**이다 —
-                   반품 접수에 실패한 라인에는 `return` 축 기록이 아예 없어(기록은 성공분만
-                   받는다) 그 사유가 "본품이 반품되지 않았다"의 유일한 흔적이다(황민철 사고).
-                   남은 게 없으면 평소대로 열어 둔다 — 안 그러면 실패 띠를 영영 못 지운다. #}
+                   **임시 잠금은 걷었다(T3, 2026-09-02).** 잠금은 "반품 실패의 유일한 흔적이
+                   `last_error` 뿐"이라서 걸어 둔 것이었다. 이제 실패한 라인이 반품 축에
+                   `failed_at`·`failed_reason` 을 받고(`fulfillment._mark_return_failures`),
+                   그 값은 `확인함` 이 지우지 않으며 상품주문 표가 `우리 접수 실패` 로
+                   말한다. 근거가 사라졌으므로 잠금도 사라진다 — 남겨 두면 실패 띠를 못 닫는
+                   불편만 남는다. #}
                 <td class="wb-result__ack">
                     <button type="button" class="btn btn-outline-secondary btn-sm wb-ack"
                             data-link-id="{{ row.link_id }}"
-                            {% if row.return_sendable_count %}disabled
-                            title="아직 보내지 않은 반품 접수 {{ row.return_sendable_count }}건이 남아 있습니다 — 이 실패 사유가 그 사실의 유일한 기록이라 지금은 지울 수 없습니다. 집을 열어 반품을 접수한 뒤 눌러 주세요."
-                            {% else %}
-                            title="판매자센터에서 해결한 건을 목록에서 지웁니다(네이버에는 영향 없음)"
-                            {% endif %}>확인함</button>
+                            title="이 줄이 말하는 작업의 실패만 목록에서 지웁니다(네이버에는 영향 없음). 반품 접수 실패는 상품주문 표에 그대로 남습니다.">확인함</button>
                 </td>
             </tr>
             {% endfor %}

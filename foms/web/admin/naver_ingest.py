@@ -3484,6 +3484,11 @@ def _member_claim_view(link: ExternalOrderLink) -> dict[str, Any]:
         # 같은 색으로 칠하면 환불 전 건이 끝난 것으로 읽힌다(2026-08-28 유령 사고).
         "claim_pending": claim["phase"] in (CLAIM_PHASE_REQUESTED, CLAIM_PHASE_PROGRESS),
         "return_requested_at": _dispatch_time_text(ours.get("requested_at")),
+        # 접수 **실패** 기록(T3). `last_error` 와 다른 축이다 — 그쪽은 사람이 `확인함`
+        # 으로 닫는 통지고, 이쪽은 닫아도 남는 사실이다. 이 칸이 없으면 띠를 닫은 뒤
+        # "이 본품은 반품 접수가 실패한 채다"를 말하는 화면이 다시 0곳이 된다.
+        "return_failed_at": _dispatch_time_text(ours.get("failed_at")),
+        "return_failed_reason": str(ours.get("failed_reason") or ""),
     }
 
 
