@@ -1759,6 +1759,11 @@ class OrderDraft(Base):
     created_at = Column(DateTime, default=datetime.datetime.now)
     updated_at = Column(DateTime, default=datetime.datetime.now, onupdate=datetime.datetime.now)
     expires_at = Column(DateTime, nullable=False, index=True)
+    # WIZ-SEND-01 D3: 초안 단계 발송 이력({kind: entry}). **서버만 쓴다** —
+    # payload 는 매 autosave 마다 클라이언트가 통째로 덮으므로 발송 흔적을 거기 두면
+    # 다음 자동저장 한 번에 사라진다. 이 컬럼은 클라이언트 PUT payload 가 닿지 못하는
+    # 자리이고, 주문 등록 시 새 주문 structured_data 의 정본 키로 승계된다.
+    send_history = Column(JSONColumn, nullable=True)
 
     __table_args__ = (
         UniqueConstraint('user_id', 'draft_key', name='uq_order_drafts_user_key'),
