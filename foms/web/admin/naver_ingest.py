@@ -3746,6 +3746,7 @@ def _group_queue(links: list[ExternalOrderLink], orders: dict,
     # 비면 링크 단독으로 센다)이 화면에는 없었다 — 서로 다른 빈 원본이 화면에서만 한 집으로
     # 붙어 보이고 워커는 따로 처리하는 갈라짐이었다(리뷰 L-1). 폴백을 한 벌만 둔다.
     from foms.services.integrations.naver_commerce.fulfillment import (
+        addon_return_gap,
         household_exchange_in_flight,
         household_key,
         is_cancel_approvable,
@@ -3885,6 +3886,13 @@ def _group_queue(links: list[ExternalOrderLink], orders: dict,
             # ``claim_blocking`` 으로 대신하면 안 된다 — 그쪽은 ``BLOCKING_CLAIM_STATUSES``
             # 라 ``EXCHANGE_*`` 를 담지 않아 서버보다 느슨하다(mapping.py:429).
             "exchange_in_flight": household_exchange_in_flight(members),
+            # **범위 규격**(판매자센터 FAQ 3880, 감사 F2): 본품을 반품하려면 그 집의
+            # 추가구성상품이 전부 처리돼 있어야 한다. 서버는 이 조건이 깨지면 한 건도
+            # 안 보내고 거절하므로(:func:`fulfillment.addon_return_gap`), 화면도 같은
+            # 술어로 버튼을 닫는다 — 갈리면 열린 버튼이 예외를 받는다. 대상 범위는
+            # 서버가 고르는 것과 같은 술어(`return_sendable`)로 만든다.
+            "return_scope_gap": [row.external_id for row in addon_return_gap(
+                members, [row for row in members if return_sendable(row)])],
             # 거부가 **실제로 나갈** 건수(T8-S3). 접수와 같은 규율로 서버 술어
             # (:func:`fulfillment.is_return_rejectable`)를 그대로 쓴다 — 보류 걸린 건과
             # 이미 처리한 건은 여기서 빠진다.
@@ -3938,7 +3946,15 @@ def _group_queue(links: list[ExternalOrderLink], orders: dict,
                      if is_promotable(row)),
                     key=lambda pair: (pair[1]["amount"] or 0, -pair[0].id), reverse=True)),
                 None),
-            "shipping_due": next((s["shipping_due"] for s in member_summaries if s["shipping_due"]), ""),
+            # 집의 발송기한은 멤버 중 **가장 이른 값**이다 — 이력 탭
+            # (:func:`_history_shipping_due`, 계약 §2.2)과 같은 규칙. 예전에는 첫 값을
+            # 그대로 썼는데(first-wins), 멤버 순서는 대표(최고금액) 우선이라 기한과 아무
+            # 상관이 없다. 그래서 같은 집이 두 화면에서 다른 날짜를 말할 수 있었고,
+            # `임박순` 정렬(:func:`_sort_groups`)이 이 값을 키로 쓰므로 **더 급한 집이
+            # 아래로 내려간다** — 기한을 넘기면 네이버가 자동 취소하는 축이라 그 어긋남이
+            # 그대로 손실이다. 값은 ISO 날짜 문자열이라 사전순 최소 = 가장 이른 날짜다.
+            "shipping_due": min((s["shipping_due"] for s in member_summaries
+                                 if s["shipping_due"]), default=""),
             # CS 가 다음에 할 일을 목록에서 바로 알아보게 한다.
             "next_step": ("주문 만들기" if not lead.order_id
                           else ("규격 입력" if not order_has_spec_rows(order) else "")),

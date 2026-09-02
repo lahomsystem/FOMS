@@ -1353,6 +1353,94 @@ def return_sendable(link: ExternalOrderLink) -> bool:
             and not blocks_irreversible(extract_claim(link.raw_snapshot or {})))
 
 
+def addon_return_covered(link: ExternalOrderLink,
+                         scope_ids: frozenset[str]) -> bool:
+    """이 **추가구성상품**이 본품 반품의 선행조건을 이미 채웠는가 (규격 감사 F2).
+
+    판매자센터 FAQ 3880 은 본상품을 반품하려면 그 본상품의 추가구성 상품을 **모두
+    접수하여** 처리하라고 적는다. 커머스API 도 같은 말을 오류로 돌려준다 —
+    ``추가상품 반품진행 후, 본 상품 반품진행을 할 수 있습니다.`` (2026-09-01 사고 원문).
+
+    "채웠다"로 인정하는 축은 셋이고, 각각 다른 사실이라 합칠 수 없다:
+
+    * **이번에 함께 나간다** — 지금 만드는 대상 목록(``scope_ids``) 안에 있다.
+    * **우리가 이미 보냈다** — 반품 축 ``requested_at`` 또는 취소 축 ``canceled_at``.
+      네이버 스냅샷은 수집 시점 사실이라, 접수 직후 재수집 전에는 클레임 상태가 아직
+      비어 있다. 우리 표식을 안 보면 그 창에서 멀쩡한 본품이 막힌다.
+    * **네이버에 돈이 되돌아가는 클레임이 걸려 있다** — 취소·반품이 요청·처리중·완료
+      중 하나. 교환은 대체품이 다시 나가므로 인정하지 않는다(추가구성상품이 살아 있다).
+      거부(``rejected``)와 **모르는 상태**(빈 단계)도 인정하지 않는다 — 불가역 경로에서
+      모르는 값은 충족으로 읽지 않는다.
+
+    Args:
+        link: 추가구성상품 링크 1건.
+        scope_ids: 이번에 반품 접수를 보낼 ``productOrderId`` 집합.
+
+    Returns:
+        선행조건을 채웠으면 True.
+    """
+    from foms.services.integrations.naver_commerce.mapping import (
+        CLAIM_PHASE_DONE, CLAIM_PHASE_PROGRESS, CLAIM_PHASE_REQUESTED,
+        MONEY_BACK_CLAIM_KINDS, claim_kind, extract_claim,
+    )
+
+    if str(link.external_id) in scope_ids:
+        return True
+    if _return_state(link).get("requested_at") or _state(link).get("canceled_at"):
+        return True
+    claim = extract_claim(link.raw_snapshot or {})
+    if (claim.get("phase") or "") not in (CLAIM_PHASE_REQUESTED, CLAIM_PHASE_PROGRESS,
+                                          CLAIM_PHASE_DONE):
+        return False
+    return claim_kind(claim) in MONEY_BACK_CLAIM_KINDS
+
+
+def addon_return_gap(links: list[ExternalOrderLink],
+                     scope: list[ExternalOrderLink]) -> list[ExternalOrderLink]:
+    """본품을 반품하는데 **함께 가지 않는 추가구성상품**을 준다 (규격 감사 F2).
+
+    :func:`claim_call_order` 는 순서만 세운다 — 대상에 든 것들 사이의 순서다. 규격은
+    그 위에 **범위** 조건을 하나 더 건다: 본상품을 반품하려면 그 본상품의 추가구성
+    상품이 전부 처리돼 있어야 한다(판매자센터 FAQ 3880). 그 검사가 없던 자리가
+    감사 F2 다.
+
+    **왜 미리 막는가.** 네이버가 어차피 거절할 텐데 왜 우리가 먼저 막느냐 — 거절이
+    본품에만 오기 때문이다. 대상에 든 추가구성상품은 그사이 **접수에 성공**하고, 그건
+    되돌릴 수 없다. 그 결과가 2026-09-01 사고의 모양 그대로다: 추가상품만 환불되고
+    본품이 남는다. 그래서 이 검사에 걸리면 **한 건도 보내지 않는다** — 부분 전송이
+    바로 그 사고다.
+
+    **집 전체 all-or-nothing(RC3)의 부활이 아니다.** 축이 다르다. RC3 는 "형제가 이미
+    끝났으니 남은 본품도 못 보낸다"였고 여기는 "함께 보내야 할 것이 빠졌다"다. 이미
+    끝난 형제는 :func:`addon_return_covered` 가 충족으로 읽으므로, 사고 복구 경로
+    (추가상품 3건 ``RETURN_DONE`` + 본품 하나 남음)는 그대로 열려 있다.
+
+    **본품별로 나누지 않는다.** 어느 추가구성상품이 어느 본품의 것인지는
+    :mod:`...attribution` 의 **추정**이라, 불가역 경로의 판정을 거기 묶지 않는다
+    (:func:`claim_call_order` 의 같은 규율). 집 전체를 보는 것은 그 상위집합이다 —
+    추정이 틀려도 규격 위반을 놓치지 않는다. 대신 **더 자주 막는다**: 반품과 무관한
+    다른 본품의 추가구성상품이 미발송이어도 걸린다. 불가역 경로에서는 그쪽이 안전측이고,
+    막힌 집은 판매자센터에서 처리한다.
+
+    **취소 축은 검사하지 않는다** — FAQ 3880 은 반품 문서다. 취소도 같은 규칙일
+    개연성이 크지만 문서에 없다(**NOT IN DOCS**). 순서(:func:`claim_call_order`)는
+    #1321 이 취소까지 함께 적으므로 이미 지켜진다.
+
+    Args:
+        links: 집 전체 링크.
+        scope: 이번에 반품 접수를 보낼 링크 목록.
+
+    Returns:
+        선행조건을 못 채운 추가구성상품 목록(수집 순서). 대상에 본품이 없으면 빈 목록 —
+        추가구성상품만 반품하는 것은 규격이 막지 않는다(사고가 그 반대 방향이었다).
+    """
+    if not any(not _is_addon_link(row) for row in scope):
+        return []
+    scope_ids = frozenset(str(row.external_id) for row in scope)
+    return [row for row in links
+            if _is_addon_link(row) and not addon_return_covered(row, scope_ids)]
+
+
 #: 반품 **승인**을 걸 수 있는 클레임 상태. 이 밖이면 부르지 않는다.
 #:
 #: 접수 직후에는 네이버 쪽 상태가 아직 안 넘어와 있을 수 있다. 그때 승인을 부르면
@@ -1495,7 +1583,9 @@ def request_return(session: Session, client: Any, *, link_id: int, reason: str,
 
     Raises:
         FulfillmentError: 링크가 없거나, 사유 코드가 목록 밖이거나, **아직 발송처리가
-            안 된 집**이거나, 클레임이 이미 도는 집이거나, 네이버 호출이 실패했을 때.
+            안 된 집**이거나, 클레임이 이미 도는 집이거나, **함께 반품해야 하는
+            추가구성상품이 대상에서 빠졌거나**(:func:`addon_return_gap`), 네이버 호출이
+            실패했을 때.
     """
     stamp = now or now_utc_naive()
     code = str(reason or "").strip().upper()
@@ -1573,6 +1663,26 @@ def request_return(session: Session, client: Any, *, link_id: int, reason: str,
         session.flush()
         if not todo:
             raise FulfillmentError(blocked_reason)
+
+    # **범위 규격**(판매자센터 FAQ 3880, 감사 F2): 본품을 반품하려면 그 집의 추가구성
+    # 상품이 전부 처리돼 있어야 한다. 순서 규격(#1321)과 다른 축이고, 순서를 지켜도
+    # 범위가 빠지면 사고가 그대로 재현된다 — 대상에 든 추가상품은 **접수에 성공한 뒤**
+    # 본품만 거절당하기 때문이다(불가역). 그래서 걸리면 한 건도 안 보낸다.
+    gap = addon_return_gap(links, todo)
+    if gap:
+        gap_ids = ", ".join(str(row.external_id) for row in gap)
+        reason_text = ("함께 반품해야 하는 추가구성상품 "
+                       f"{len(gap)}건이 대상에서 빠졌습니다({gap_ids}) — 네이버는 본상품보다 "
+                       "그 추가구성상품을 먼저 처리하라고 요구합니다. 반품 접수를 보내지 "
+                       "않았습니다. 판매자센터에서 처리하세요.")
+        _mark_failures({str(row.external_id): row for row in todo},
+                       {str(row.external_id): reason_text for row in todo},
+                       action="return", stamp=stamp)
+        _mark_return_failures({str(row.external_id): row for row in todo},
+                              {str(row.external_id): reason_text for row in todo},
+                              stamp=stamp)
+        session.flush()
+        raise FulfillmentError(reason_text)
 
     # 마지막 문은 그대로 둔다(방어 깊이). 위에서 이미 걸러 통과가 정상이지만, 판정이
     # 한 벌이라 갈릴 일이 없고 비용도 없다.

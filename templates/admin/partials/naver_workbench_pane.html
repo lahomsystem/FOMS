@@ -148,7 +148,13 @@
    `household_claimed` 는 `claim.blocking`(=`BLOCKING_CLAIM_STATUSES`, mapping.py:429)
    기반이라 `EXCHANGE_*` 를 담지 않아 서버 `blocks_irreversible` 보다 **느슨하다** — 그것을
    재사용하면 화면과 서버가 갈린다. 그래서 서버 술어를 그대로 실어 온 두 값만 본다. #}
-{% set can_return = return_sendable_count > 0 and not exchange_in_flight %}
+{# 범위 규격(FAQ 3880, 감사 F2): 본품을 반품하려면 그 집의 추가구성상품이 전부 처리돼
+   있어야 한다. 서버는 이 조건이 깨지면 **한 건도 안 보내고** 거절한다 — 대상에 든
+   추가상품만 접수에 성공하고 본품이 거절당하는 것이 2026-09-01 사고의 모양이라서다.
+   화면도 같은 술어로 닫는다(`fulfillment.addon_return_gap` — 서버와 한 벌). #}
+{% set return_scope_gap = grp.return_scope_gap if grp else [] %}
+{% set can_return = return_sendable_count > 0 and not exchange_in_flight
+                    and not return_scope_gap %}
 {# 반품 **거부**(T8-S3). 접수와 정반대 자리다 — 고객이 낸 요청이 걸려 있어야 하고,
    그 상태의 집은 정의상 `locked` 다. 그래서 `not locked` 를 조건에 넣으면 버튼이
    영원히 안 뜬다. 술어는 서버와 한 벌(`fulfillment.is_return_rejectable`)이고,
@@ -378,7 +384,7 @@
                     class="btn btn-sm {{ 'btn-outline-danger' if can_return else 'btn-outline-secondary' }}"
                     {# title 순서가 곧 우선순위다: 교환 진행(우리가 못 푼다) → 남은 건이
                        클레임에 걸림(판매자센터) → 보낼 게 없음(정상 종료). #}
-                    id="wb-return" {% if can_return %}data-bs-toggle="modal" data-bs-target="#wb-modal-return"{% else %}disabled title="{% if exchange_in_flight %}교환이 진행 중입니다 — 판매자센터에서 교환을 끝낸 뒤 반품을 접수하세요{% elif return_pending_count %}남은 상품주문에 이미 클레임이 걸려 있어 보낼 수 없습니다 — 판매자센터에서 상태를 확인하세요{% else %}반품 접수를 보낼 상품주문이 없습니다(이미 접수했거나 아직 발송 전입니다){% endif %}"{% endif %}>
+                    id="wb-return" {% if can_return %}data-bs-toggle="modal" data-bs-target="#wb-modal-return"{% else %}disabled title="{% if exchange_in_flight %}교환이 진행 중입니다 — 판매자센터에서 교환을 끝낸 뒤 반품을 접수하세요{% elif return_scope_gap %}함께 반품해야 하는 추가구성상품 {{ return_scope_gap|length }}건이 아직 처리되지 않았습니다({{ return_scope_gap|join(', ') }}) — 네이버는 본상품보다 그 추가구성상품을 먼저 처리하라고 요구합니다{% elif return_pending_count %}남은 상품주문에 이미 클레임이 걸려 있어 보낼 수 없습니다 — 판매자센터에서 상태를 확인하세요{% else %}반품 접수를 보낼 상품주문이 없습니다(이미 접수했거나 아직 발송 전입니다){% endif %}"{% endif %}>
                 반품 접수
             </button>
             {% endif %}
@@ -647,7 +653,7 @@
            넘치는 만큼은 부트스트랩 `.table-responsive` 의 가로 스크롤이 받는다(이력 표와
            같은 규칙). 페이지 자체가 옆으로 밀리면 안 된다. #}
         <div class="table-responsive">
-        <table class="wb-cmp">
+        <table class="wb-cmp wb-cmp--members">
             <thead>
                 <tr>
                     <th>상품주문번호</th><th>제품 · 옵션 원문</th>
