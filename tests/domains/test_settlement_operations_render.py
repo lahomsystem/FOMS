@@ -108,9 +108,23 @@ _FILTER_GROUPS = {
 
 #: 그리드 컬럼 머리글(순서 포함). 과입금이 7번째라는 것까지 계약이다 — 목업에 없던 칸이라
 #: "있긴 한데 맨 끝에 밀린" 형태로 흐려지는 것을 막는다.
-_GRID_HEADERS = (
+#:
+#: **11번째 칸이 "정산상태"가 아니라 "차감청구"다**(v1.1 T13 개명). 이 칸은 **내부 차감청구**
+#: (부서 귀속 차감) 발행 여부이고, 12번째로 들어오는 "네이버 정산"은 **외부 채널의 정산**이다.
+#: 둘 다 "정산"이라 불리면 경리가 남의 축을 보고 판단한다. 화면 문자열만 바꾸고 계약 키
+#: (`data-settlement-ops-filter="settlement"` · 칩 값 `all/pending/issued` · 배지 라벨
+#: "청구완료"/"대기" · 버튼 "정산 청구")는 그대로다 — 그쪽은 API 파라미터다.
+_GRID_HEADERS_BASE = (
     "고객", "채널", "완료일", "출고가", "예약금", "잔금", "과입금",
-    "경과일", "현금영수증", "정산상태", "액션",
+    "경과일", "현금영수증", "차감청구", "액션",
+)
+
+#: 채널 정산 열람 권한자에게만 나오는 12칸. "네이버 정산"은 "차감청구" **바로 뒤**,
+#: "액션" **바로 앞**이다 — 내부/외부 두 정산 축을 나란히 읽게 붙이되, "액션은 언제나 마지막
+#: 칸"이라는 기존 성질은 지킨다.
+_GRID_HEADERS_WITH_CHANNEL = (
+    "고객", "채널", "완료일", "출고가", "예약금", "잔금", "과입금",
+    "경과일", "현금영수증", "차감청구", "네이버 정산", "액션",
 )
 
 #: 요약 탭(dashboard.js `collectEls`)이 루트 전체에서 `querySelector` 로 찾는 이름들.
@@ -334,14 +348,48 @@ def test_grid_has_the_overpaid_column(app):
 
 
 def test_grid_headers_are_complete_and_in_contract_order(app):
-    """머리글 11칸이 계약 순서대로 있다(과입금이 잔금 바로 옆이다).
+    """게이트 없는 렌더의 머리글 11칸이 계약 순서대로 있다(과입금이 잔금 바로 옆이다).
 
     과입금을 맨 끝으로 밀면 "잔금 옆의 짝"이라는 의미가 사라져 스캔에서 놓친다.
+
+    파셜을 단독으로 렌더하면 `can_view_channel_settlement` 는 Undefined = falsy 다.
+    그 성질을 그대로 "권한 없는 사용자" 케이스의 계약으로 쓴다(§5.2).
     """
     html = _render(app, department_options=_SENTINEL_DEPARTMENTS)
 
     headers = re.findall(r"<th\b[^>]*>\s*([^<]+?)\s*</th>", html)
-    assert headers == list(_GRID_HEADERS), headers
+    assert headers == list(_GRID_HEADERS_BASE), headers
+
+
+def test_grid_gains_the_channel_column_only_for_gated_actors(app):
+    """회계 게이트를 통과한 렌더에만 12번째 칸 "네이버 정산"이 생긴다.
+
+    위치까지 계약이다 — "액션" 뒤로 밀리면 "액션은 마지막 칸"이라는 기존 성질이 깨지고,
+    "차감청구" 에서 떨어지면 내부/외부 두 정산 축을 나란히 읽는다는 배치 근거가 사라진다.
+    """
+    html = _render(app, department_options=_SENTINEL_DEPARTMENTS,
+                   can_view_channel_settlement=True)
+
+    headers = re.findall(r"<th\b[^>]*>\s*([^<]+?)\s*</th>", html)
+    assert headers == list(_GRID_HEADERS_WITH_CHANNEL), headers
+
+
+def test_channel_column_markup_is_absent_for_denied_actors(app):
+    """권한이 없으면 `<th>` 도 서버 표식도 **마크업 자체가 없다**(§6).
+
+    클라에서 감추는 방식은 쓰지 않는다 — 실무 탭 행 API 는 CS·영업에게도 200 이라
+    "감춤"은 개발자 도구 한 번이면 뚫린다. 없는 것이 유일한 방어다.
+    """
+    denied = _render(app, department_options=_SENTINEL_DEPARTMENTS,
+                     can_view_channel_settlement=False)
+    allowed = _render(app, department_options=_SENTINEL_DEPARTMENTS,
+                      can_view_channel_settlement=True)
+
+    assert "네이버 정산" not in denied
+    assert "data-settlement-ops-channel-col" not in denied
+    assert "네이버 정산" in allowed
+    assert "data-settlement-ops-channel-col" in allowed
+
 
 
 def test_js_renders_overpaid_only_when_non_zero():

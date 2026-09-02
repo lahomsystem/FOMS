@@ -19,11 +19,12 @@
    금칙어("예정"·"수수료")가 API 응답을 타고 화면에 들어온다.
 
 --------------------------------------------------------------------------
-W2-B(프론트) 가 이 파일에 **덧붙일** 계약 — 아직 없다
+W2-B(프론트) 가 덧붙인 계약 — **§7 이후**(이 파일 끝)
 --------------------------------------------------------------------------
-아래는 `static/js/settlement/operations.js` 와
+`static/js/settlement/operations.js` 와
 `templates/cs/partials/settlement_operations_body.html` 를 소유한 W2-B 의 몫이다.
-백엔드 담당(W1-C)은 그 두 파일을 열지 않았으므로 여기서도 쓰지 않았다:
+백엔드 담당(W1-C)은 그 두 파일을 열지 않았으므로 여기서 쓰지 않았고, 아래 §7~§9 가 그 자리를
+채운다(머리글 순서·게이트별 렌더 대조는 `test_settlement_operations_render.py` 소유):
 
 * ``operations.js`` 소스 계약 — 12번째 칸 렌더가 ``ctx.showChannelCol`` 게이트 뒤에 있고,
   그 값이 **행 데이터가 아니라** 서버 렌더 표식(``data-settlement-ops-channel-col``)에서
@@ -31,8 +32,11 @@ W2-B(프론트) 가 이 파일에 **덧붙일** 계약 — 아직 없다
 * ``csvHeaders(ctx)`` 와 ``csvRow(ctx, row)`` 의 칸 수가 같은 조건에서 같다.
 * 개명 계약 — ``templates/`` + ``static/js/settlement/`` 전역에 "정산상태" 문자열 0건.
 * 금칙어 — 컬럼 문구·CSV 헤더에 "예정"·"수수료" 0건(기존 목업 스캔이 자동으로 잡는다).
-* 배지 3클래스(``.s-ch-ops-nv-done``/``-wait``/``-none``)가 ``settlement-channel.css``
-  에서 온다(W2-A 선행 커밋).
+* 배지 클래스(``.s-ch-ops-nv`` + ``--done``/``--wait``/``--none``)가
+  ``settlement-channel.css`` 에서 온다(W2-A 선행 커밋 — 착수 시점에 아직 없어 §9 는
+  `settlement-operations.css` 배선 테스트와 같은 "걸리면 옳아야 한다" 형태다).
+  *계약서 §4.3 의 표기(``.s-ch-ops-nv-done`` 단일 하이픈 3종)와 다르다* — Wave 2 착수 시
+  W2-A 가 정한 BEM 형(base + `--` modifier, 4종)을 정본으로 쓴다.
 
 테스트 데이터 규율은 `test_settlement_rows_api` 와 같다 — 실제 Order·링크·정산 행을 만든다.
 """
@@ -41,8 +45,11 @@ from __future__ import annotations
 
 import datetime
 import json
+import re
 from decimal import Decimal
+from pathlib import Path
 
+import pytest
 from sqlalchemy import event
 
 from db import db_session, engine
@@ -456,3 +463,320 @@ def test_cell_shape_is_exactly_the_agreed_field_set(app):
     assert set(cell) == {
         "status", "settle_expect_date", "settle_complete_date", "amount",
     }, f"칸 키가 계약과 다르다: {sorted(cell)}"
+
+
+# ==========================================================================
+# 7. (W2-B) 프론트 소스 계약 — 컬럼 게이트는 **서버 렌더 표식** 하나다
+#
+# 여기부터는 DB 를 쓰지 않는 소스 리터럴 검사다(`tests/domains` 관례). JS 는 서버 렌더에
+# 나오지 않아 이쪽으로만 잡을 수 있고, 이 파일이 백엔드 계약과 **같은 자리**에 있어야
+# "서버가 키를 만드는 조건"과 "화면이 칸을 그리는 조건"이 갈렸을 때 한눈에 보인다.
+# ==========================================================================
+_REPO = Path(__file__).resolve().parents[2]
+
+_OPS_JS = "static/js/settlement/operations.js"
+_OPS_TEMPLATE = "templates/cs/partials/settlement_operations_body.html"
+#: 배지 클래스 소유 파일. W2-A(채널 표면) 소유라 W2-B 는 읽기만 한다.
+_CHANNEL_CSS = "static/css/settlement/settlement-channel.css"
+
+#: 서버가 렌더에 심는 표식. `<th>`(템플릿)와 `<td>`(JS)가 **이 하나**를 함께 본다.
+_CHANNEL_COL_ATTR = "data-settlement-ops-channel-col"
+
+#: 이 컬럼이 쓰는 클래스 전량(배지 base + 상태 3종 + 날짜 보조). 계약서 §4.3 의 단일 하이픈
+#: 표기가 아니라 W2-A 가 실제로 쓰는 BEM 형이 정본이다(파일 머리말 참조). 날짜는 배지 **안쪽**
+#: 자식이라 `.s-ch-ops-nv` 의 inline-flex + gap 을 그대로 탄다.
+_BADGE_CLASSES = (
+    "s-ch-ops-nv",
+    "s-ch-ops-nv--done",
+    "s-ch-ops-nv--wait",
+    "s-ch-ops-nv--none",
+    "s-ch-ops-nv-date",
+)
+
+#: 실무 탭 금칙어. 목업 잔재 스캔(`test_settlement_operations_render.py`)과 같은 낱말이지만,
+#: 여기서는 **이번에 새로 들어온 표면**(컬럼 문구·CSV 헤더)만 좁혀 다시 못 박는다.
+_FORBIDDEN_WORDS = ("예정", "수수료")
+
+_JS_BLOCK_COMMENT_RE = re.compile(r"/\*.*?\*/", re.S)
+_JS_LINE_COMMENT_RE = re.compile(r"(?m)^\s*//.*$")
+_JINJA_COMMENT_RE = re.compile(r"\{#.*?#\}", re.S)
+
+
+def _source(rel: str) -> str:
+    """저장소 상대 경로 파일 원문. 없으면 사람이 읽는 red 로 죽인다.
+
+    Args:
+        rel: 저장소 루트 기준 상대 경로.
+
+    Returns:
+        파일 내용.
+    """
+    path = _REPO / rel
+    assert path.exists(), f"산출물이 없다: {rel}"
+    return path.read_text(encoding="utf-8", errors="ignore")
+
+
+def _code(rel: str) -> str:
+    """주석을 걷어낸 본문(규칙을 **설명하는 주석**이 위반으로 잡히는 거짓 red 방지).
+
+    Args:
+        rel: 저장소 루트 기준 상대 경로.
+
+    Returns:
+        Jinja/JS 주석이 제거된 본문.
+    """
+    text = _JINJA_COMMENT_RE.sub(" ", _source(rel))
+    text = _JS_BLOCK_COMMENT_RE.sub(" ", text)
+    return _JS_LINE_COMMENT_RE.sub(" ", text)
+
+
+def _array_literal(js: str, anchor: str) -> str:
+    """`anchor` 뒤 첫 `[` 부터 짝이 맞는 `]` 까지의 원문.
+
+    Args:
+        js: 검사 대상 소스.
+        anchor: 배열 앞에 오는 고정 문자열(예: ``"var CSV_HEADERS ="``).
+
+    Returns:
+        대괄호를 포함한 배열 리터럴 원문.
+    """
+    start = js.index("[", js.index(anchor))
+    depth = 0
+    for idx in range(start, len(js)):
+        char = js[idx]
+        if char == "[":
+            depth += 1
+        elif char == "]":
+            depth -= 1
+            if depth == 0:
+                return js[start:idx + 1]
+    raise AssertionError(f"{anchor}: 배열 리터럴이 닫히지 않았다")
+
+
+def _top_level_items(literal: str) -> int:
+    """대괄호 리터럴의 **최상위** 원소 수(중첩 괄호·따옴표 안의 콤마는 세지 않는다).
+
+    Args:
+        literal: `[` 로 시작해 `]` 로 끝나는 배열 원문.
+
+    Returns:
+        최상위 원소 개수.
+    """
+    body = literal.strip()[1:-1]
+    depth = 0
+    quote = ""
+    items = 1 if body.strip() else 0
+    for char in body:
+        if quote:
+            if char == quote:
+                quote = ""
+            continue
+        if char in "'\"":
+            quote = char
+        elif char in "([{":
+            depth += 1
+        elif char in ")]}":
+            depth -= 1
+        elif char == "," and depth == 0:
+            items += 1
+    return items - 1 if body.rstrip().endswith(",") else items
+
+
+def test_column_render_sits_behind_the_server_rendered_flag():
+    """12번째 `<td>` 는 `ctx.showChannelCol` 게이트 뒤에서만 그려진다.
+
+    게이트가 없으면 권한 없는 사용자의 표에 `<th>` 없는 `<td>` 가 하나 더 붙어 모든 칸이
+    한 칸씩 밀린다(응답에 키가 없어도 `undefined` 칸이 그려진다).
+    """
+    js = _code(_OPS_JS)
+
+    assert re.search(
+        r"if\s*\(\s*ctx\.showChannelCol\s*\)\s*tr\.appendChild\(\s*naverSettleCell\(",
+        js,
+    ), "12번째 칸 렌더가 ctx.showChannelCol 게이트 뒤에 있지 않다"
+
+
+def test_the_flag_comes_from_the_server_marker_not_from_row_data():
+    """`showChannelCol` 은 **서버 렌더 표식**에서만 온다(행 데이터 판정 금지).
+
+    행 데이터(`row.naver_settlement` 유무)로 판정하면 권한자여도 네이버 행이 0건인
+    페이지에서 `<td>` 수가 `<th>` 수보다 적어져 표가 통째로 밀린다.
+    """
+    js = _code(_OPS_JS)
+
+    assert re.search(
+        r"showChannelCol\s*:\s*root\.hasAttribute\(\s*CHANNEL_COL_ATTR\s*\)", js
+    ), "showChannelCol 을 루트 속성으로 판정하지 않는다"
+    assert re.search(
+        r"CHANNEL_COL_ATTR\s*=\s*'" + re.escape(_CHANNEL_COL_ATTR) + r"'", js
+    ), f"표식 이름이 {_CHANNEL_COL_ATTR} 가 아니다"
+    assert _CHANNEL_COL_ATTR in _code(_OPS_TEMPLATE), (
+        "템플릿이 같은 표식을 내지 않는다 — <th> 와 <td> 가 다른 신호를 본다"
+    )
+
+
+def test_the_template_marker_and_the_header_share_one_jinja_gate():
+    """표식과 `<th>` 가 **같은 서버 판정** 뒤에 있다(§6 권한 SSOT).
+
+    두 hunk 가 다른 변수를 보면 표식만 있고 머리글이 없는(또는 그 반대) 렌더가 나온다.
+    """
+    template = _code(_OPS_TEMPLATE)
+
+    gates = re.findall(
+        r"\{%\s*if\s+([a-z_]+)\s*%\}[^\n]*(?:"
+        + re.escape(_CHANNEL_COL_ATTR)
+        + r"|네이버 정산)",
+        template,
+    )
+    assert gates == ["can_view_channel_settlement"] * 2, f"게이트가 하나가 아니다: {gates}"
+
+
+def test_the_column_never_renders_the_amount():
+    """칸 렌더가 `amount` 를 읽지 않는다 — 상태와 날짜만 낸다(§4.2 · 노출 최소화).
+
+    서버는 `amount` 를 함께 내려주지만 그것은 다른 표면(채널 탭)의 값이다. 실무 탭에
+    금액이 뜨면 CS·영업이 옆에서 보는 화면에 채널 정산액이 상시 노출된다.
+    """
+    js = _code(_OPS_JS)
+
+    body = re.search(r"function naverSettleCell\(row\)\s*\{(.*?)\n  \}", js, re.S)
+    assert body, "naverSettleCell 을 찾지 못했다"
+    assert "amount" not in body.group(1), f"칸이 금액을 그린다: {body.group(1)}"
+
+
+def test_the_column_uses_only_the_channel_owned_badge_classes():
+    """배지 클래스가 W2-A 소유 4종뿐이다(실무 탭 CSS 를 열지 않는다는 설계의 증거).
+
+    `s-ops-b--*` 를 새로 만들면 `settlement-operations.css` 를 열어야 하고, 그 파일은
+    목업 스캔·핀 사슬이 걸려 있어 T13 의 변경 범위가 통째로 넓어진다.
+    """
+    js = _code(_OPS_JS)
+
+    used = set(re.findall(r"s-ch-ops-nv(?:-{1,2}[a-z]+)?", js))
+    assert used == set(_BADGE_CLASSES), f"배지 클래스가 계약과 다르다: {sorted(used)}"
+
+
+def test_the_column_labels_are_exactly_the_agreed_vocabulary():
+    """상태 문구 3종이 계약 어휘 그대로다(금칙어 우회 문구가 끼어들지 않는다)."""
+    js = _code(_OPS_JS)
+
+    literal = re.search(r"var NAVER_SETTLE_TEXT = \{(.*?)\};", js, re.S)
+    assert literal, "상태 문구 표를 찾지 못했다"
+    assert dict(re.findall(r"(\w+):\s*'([^']+)'", literal.group(1))) == {
+        NAVER_SETTLE_SETTLED: "정산완료",
+        NAVER_SETTLE_PENDING: "정산대기",
+        NAVER_SETTLE_UNMATCHED: "미매칭",
+    }, literal.group(1)
+
+
+# ==========================================================================
+# 8. (W2-B) CSV — 헤더와 데이터가 **같은 조건**으로 늘어난다
+# ==========================================================================
+def test_csv_headers_and_rows_grow_under_the_same_condition():
+    """`csvHeaders(ctx)` 와 `csvRow(ctx,row)` 가 같은 게이트로 정확히 1칸씩 는다.
+
+    한쪽만 늘면 회계 프로그램이 열 매핑을 통째로 어긋나게 읽는다 — 파일은 화면과 달리
+    "이상하다"가 눈에 안 띄고 그대로 장부에 들어간다.
+    """
+    js = _code(_OPS_JS)
+
+    headers = re.search(r"function csvHeaders\(ctx\)\s*\{(.*?)\n  \}", js, re.S)
+    row = re.search(r"function csvRow\(ctx, row\)\s*\{(.*?)\n  \}", js, re.S)
+    assert headers and row, "csvHeaders / csvRow 를 찾지 못했다"
+    assert headers.group(1).count("ctx.showChannelCol") == 1
+    assert row.group(1).count("ctx.showChannelCol") == 1
+    assert len(re.findall(r"\.concat\(\[", headers.group(1))) == 1, (
+        "헤더가 한 번에 한 칸만 늘지 않는다"
+    )
+    assert len(re.findall(r"cells\.push\(", row.group(1))) == 1, (
+        "데이터가 한 번에 한 칸만 늘지 않는다"
+    )
+
+
+def test_csv_base_column_count_matches_between_headers_and_rows():
+    """게이트가 꺼진 상태의 기본 칸 수가 헤더와 데이터에서 같다."""
+    js = _code(_OPS_JS)
+
+    headers = _top_level_items(_array_literal(js, "var CSV_HEADERS ="))
+    cells = _top_level_items(_array_literal(js, "var cells ="))
+
+    assert headers == cells, f"헤더 {headers}칸 vs 데이터 {cells}칸"
+
+
+def test_csv_exports_the_status_word_only():
+    """CSV 의 네이버 정산 칸은 **화면과 같은 상태 문구**뿐이다(날짜·금액 없음).
+
+    파일이 화면보다 많이 말하지 않는다 — 조건 전체를 담는 서버 CSV(T14)가 회계 전용
+    게이트 + 감사 뒤에 따로 있고, 이 blob CSV 는 "현재 페이지"라고 스스로 못 박고 있다.
+    """
+    js = _code(_OPS_JS)
+
+    row = re.search(r"function csvRow\(ctx, row\)\s*\{(.*?)\n  \}", js, re.S)
+    assert row, "csvRow 를 찾지 못했다"
+    pushed = re.search(r"cells\.push\((.*?)\);", row.group(1), re.S)
+    assert pushed, "네이버 정산 칸을 넣는 자리를 찾지 못했다"
+    assert "NAVER_SETTLE_TEXT" in pushed.group(1), "상태 문구 표를 쓰지 않는다"
+    for field in ("settle_expect_date", "settle_complete_date", "amount"):
+        assert field not in pushed.group(1), f"CSV 에 {field} 가 실린다"
+
+
+# ==========================================================================
+# 9. (W2-B) 개명·금칙어·배지 CSS 소유
+# ==========================================================================
+def test_the_old_column_name_is_gone_repo_wide():
+    """옛 이름이 `templates/` · `static/js/` 어디에도 없다(§8.1 T13 완료기준 ④).
+
+    한 표에 뜻이 다른 "정산"이 둘이면 경리가 남의 축을 보고 판단한다. 주석까지 포함해
+    지우는 이유: 다음 사람이 주석의 옛 이름을 보고 화면을 되돌린다.
+    """
+    old_name = "정산상태"
+    hits = [
+        str(path.relative_to(_REPO))
+        for root in ("templates", "static/js")
+        for path in (_REPO / root).rglob("*")
+        if path.is_file()
+        and path.suffix in {".html", ".js"}
+        and old_name in path.read_text(encoding="utf-8", errors="ignore")
+    ]
+
+    assert hits == [], f"옛 이름이 남아 있다: {hits}"
+
+
+def test_the_new_column_name_is_in_both_the_header_and_the_csv():
+    """개명이 화면 머리글·필터 라벨·CSV 헤더 **세 곳 모두**에 반영됐다."""
+    template = _code(_OPS_TEMPLATE)
+    js = _code(_OPS_JS)
+
+    assert template.count("차감청구") == 2, "머리글 또는 필터 라벨 중 하나가 안 바뀌었다"
+    assert "'차감청구'" in js, "CSV 헤더가 안 바뀌었다"
+
+
+@pytest.mark.parametrize("word", _FORBIDDEN_WORDS)
+def test_forbidden_words_never_reach_the_ops_surface(word):
+    """금칙어가 실무 탭 템플릿·JS 에 **주석까지 포함해** 0건이다.
+
+    기존 목업 스캔은 주석을 걷어낸 뒤 보므로 주석에 남은 낱말을 놓친다. 다음 사람이 그
+    주석을 보고 라벨을 되돌리면 CI 가 그때서야 red 가 된다 — 여기서 미리 막는다.
+    """
+    for rel in (_OPS_TEMPLATE, _OPS_JS):
+        assert word not in _source(rel), f"{rel}: 금칙어 '{word}'"
+
+
+@pytest.mark.skipif(
+    "s-ch-ops-nv"
+    not in (_REPO / _CHANNEL_CSS).read_text(encoding="utf-8", errors="ignore"),
+    reason="배지 CSS 는 W2-A(채널 표면) 가 건다 — 걸린 뒤부터 게이트로 작동한다",
+)
+@pytest.mark.parametrize("cls", _BADGE_CLASSES)
+def test_badge_classes_are_defined_in_the_channel_stylesheet(cls):
+    """배지 클래스 4종이 `settlement-channel.css` 에 실재한다.
+
+    이 파일은 회계 게이트 뒤에서만 로드된다 — 컬럼이 그려지는 조건과 **정확히 같아서**
+    실무 탭 CSS 를 열지 않아도 된다는 것이 T13 설계의 전제다. 한 클래스라도 빠지면
+    배지가 스타일 없는 맨 글자로 뜬다(권한자만 보는 화면이라 회귀를 늦게 발견한다).
+    """
+    css = _source(_CHANNEL_CSS)
+
+    assert re.search(r"\." + re.escape(cls) + r"(?![\w-])", css), (
+        f"{_CHANNEL_CSS} 에 .{cls} 규칙이 없다"
+    )
