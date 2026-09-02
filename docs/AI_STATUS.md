@@ -10,7 +10,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
-- [2026-09-02] **네이버 정산 탭 v1 deploy 진행(NAVER-SETTLE-01)** — 4번째 탭(ADMIN+회계팀만)·워커 일 배치 적재. 잔여: 정산 API 403(앱 [정산] 그룹), 백필 90일, 회계팀 배정, 승격 승인. 원장 `docs/plans/2026-09-02-naver-settlement-ledger.md`
+- [2026-09-02] **네이버 정산 탭 v1 deploy 완료·운영 승격 PR #278 검사 중(NAVER-SETTLE-01)** — 4번째 탭(ADMIN+회계팀)·워커 일 배치·스테이징 백필 90일 OK·API=DB 대조 일치. 잔여: PR 머지 → 운영 워커 플래그·백필·회계팀 배정(users 41·54), v1.1(요약 스트립·CSV 4종·실무 탭 컬럼). 원장 `docs/plans/2026-09-02-naver-settlement-ledger.md`
 - [2026-09-02] **네이버 발송처리 평일 16:50 자동 실행 ON**(PR #270 · `51c366e9`) — 대상은 수동과 같은 함수·주말/공휴일 제외·하루 1회. 끄기=`FOMS_NAVER_AUTO_DISPATCH_ENABLED=0`+워커 재배포. 원장 `docs/plans/2026-09-02-naver-auto-dispatch-ledger.md`
 - [2026-09-02] **둘째 전화번호 검색 복구 운영 반영**(PR #258) — 폭 64·`phonewide_01`, 절단 83건 복구. `erp-phone-digits-widen-ledger`
 - [2026-09-02] **하트비트 S1+S2a 운영 반영(PR #233) · 관측 중** — 쓰기 카운터 + 렌더 전 304 키의 그림자 관측. **화면 동작 무변경**. 운영 mismatch 0. **미해결**: 스테이징 mismatch 13 · 적중률 미측정 → S2b 는 그 뒤. 원장 §P8~§P11
