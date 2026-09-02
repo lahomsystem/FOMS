@@ -59,7 +59,11 @@
       <button type="button" class="s-fb-exit" data-settlement-focus-exit>메뉴 펼치기 (Esc)</button>
     </div>
 
-    <div class="s-tabs" role="tablist" aria-label="정산 대시보드 화면">
+    {# 접근성(2026-09-03 리뷰 R4): `role=tablist` 는 `role=tab` 만 자식으로 가져야 한다. 집중 모드
+       버튼·글자 크기 조절기·권한 메타는 같은 탭줄에 살지만 tablist **밖**이라, 안쪽 래퍼가 탭만 감싼다
+       (보조기기가 탭 개수·순회 문맥을 제대로 센다). 겉 `.s-tabs` 는 줄 배치만 맡는다. #}
+    <div class="s-tabs">
+      <div class="s-tabs-list" role="tablist" aria-label="정산 대시보드 화면">
       <button type="button" class="s-tab" role="tab"
         id="foms-settle-tab-summary" data-settlement-tab="summary"
         aria-controls="foms-settle-pane-summary" aria-selected="true" tabindex="0">
@@ -87,6 +91,7 @@
         <span class="s-tab-name">네이버 정산</span>
         <span class="s-tab-hint">정산 예정일 기준</span>
       </button>{% endif %}
+      </div>
       {# 집중 모드 토글 — role=tab 이 아니고 data-settlement-tab 도 없다(탭 순회·activateTab 대상 아님).
          720px 이하에서는 CSS 가 감춘다(모바일 셸은 접을 크롬이 다르다). #}
       <button type="button" class="s-tab s-tab--focus" data-settlement-focus aria-pressed="false"

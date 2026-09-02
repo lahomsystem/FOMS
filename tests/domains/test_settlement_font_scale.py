@@ -308,6 +308,9 @@ def test_control_keeps_fixed_px_for_itself():
 def test_font_scale_constants_and_functions_exist():
     """단계·저장 키·함수 4개·CSS 변수·라벨 훅이 **코드**(주석 아님)에 있고, 상수는 `mount` 위다.
 
+    함수는 **이름 수준**만 단정한다(리뷰 R6) — 매개변수 이름을 바꾸거나 저장소 접근을 헬퍼로 빼는
+    동작 무변경 리팩터에 계약이 red 가 되면 안 된다. 저장 키는 선언 외에 읽기·쓰기 자리에서도 쓰여야 한다.
+
     `var` 는 선언만 끌어올려지고 대입은 안 따라온다 — defer 스크립트라 `mountAll()` 이 곧바로
     돌므로 상수가 아래에 있으면 첫 복원이 `undefined` 를 읽는다(워크벤치에서 실제로 막혔다).
     """
@@ -317,15 +320,14 @@ def test_font_scale_constants_and_functions_exist():
         FONT_STEPS_LITERAL,
         FONT_KEY_LITERAL,
         "function readFontScale(",
-        "function currentFontScale(root)",
-        "function applyFontScale(root, scale)",
-        "function stepFontScale(root, dir)",
+        "function currentFontScale(",
+        "function applyFontScale(",
+        "function stepFontScale(",
         f"'{CSS_VAR}'",
         f"[{FS_NOW}]",
-        "localStorage.getItem(FONT_KEY)",
-        "localStorage.setItem(FONT_KEY",
     ):
         assert needle in js, f"dashboard.js 에 '{needle}' 가 없다"
+    assert js.count("FONT_KEY") >= 3, "FONT_KEY 가 선언 외 읽기·쓰기 자리에 안 쓰인다"
 
     assert _at(js, "var FONT_STEPS", "단계 상수") < _at(js, "function mount(root)", "mount"), (
         "FONT_STEPS 는 mount(root) 보다 위에 있어야 한다(var 호이스팅 함정)")
