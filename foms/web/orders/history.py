@@ -22,7 +22,9 @@ from foms.services.common.ept_b7_profile import apply_ept_b7_render_headers
 from foms.services.common.erp_mine_filter import erp_mine_only_for_construction
 from foms.services.common.erp_shell_http import apply_erp_shell_fragment_headers, wants_erp_shell_tab_body
 from foms.services.common.fragment_revalidation import (
+    RELEASE_ID,
     SHADOW_HEADER,
+    SHADOW_RELEASE_HEADER,
     build_fragment_version_key,
     is_shadow_revalidation_enabled,
     record_shadow_observation,
@@ -137,6 +139,7 @@ def _observe_fragment_version(response, user, mine_only: bool) -> None:
     response.headers[SHADOW_HEADER] = record_shadow_observation(
         key, response.get_data(), route_id=_HISTORY_ROUTE_ID
     )
+    response.headers[SHADOW_RELEASE_HEADER] = RELEASE_ID
 
 
 @erp_history_bp.route('/')

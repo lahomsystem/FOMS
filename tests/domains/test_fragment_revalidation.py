@@ -245,13 +245,30 @@ class _FakePipeline:
     def setex(self, k, ttl, v):
         self._ops.append(("setex", k, v))
 
+    def incr(self, k):
+        self._ops.append(("incr", k))
+
+    def lpush(self, k, v):
+        self._ops.append(("lpush", k, v))
+
+    def ltrim(self, k, a, b):
+        self._ops.append(("ltrim", k))
+
     def execute(self):
         out = []
         for op in self._ops:
-            if op[0] == "get":
+            kind = op[0]
+            if kind == "get":
                 out.append(self._redis.store.get(op[1]))
-            else:
+            elif kind == "setex":
                 self._redis.store[op[1]] = op[2]
+                out.append(True)
+            elif kind == "incr":
+                out.append(self._redis.incr(op[1]))
+            elif kind == "lpush":
+                self._redis.lists.setdefault(op[1], []).insert(0, op[2])
+                out.append(len(self._redis.lists[op[1]]))
+            else:
                 out.append(True)
         return out
 
@@ -260,6 +277,7 @@ class _FakeRedis:
     def __init__(self) -> None:
         self.store: dict[str, str] = {}
         self.counters: dict[str, int] = {}
+        self.lists: dict[str, list] = {}
 
     def pipeline(self):
         return _FakePipeline(self)
@@ -284,7 +302,10 @@ def test_shadow_observation_new_then_match():
     with patch.object(dc, "get_dashboard_redis", return_value=fake):
         assert fr.record_shadow_observation("k1", b"<html>a</html>", route_id="r") == fr.SHADOW_STATE_NEW
         assert fr.record_shadow_observation("k1", b"<html>a</html>", route_id="r") == fr.SHADOW_STATE_MATCH
-    assert fake.counters == {}, "정상 관측은 mismatch 카운터를 올리지 않는다"
+    assert fr.SHADOW_MISMATCH_COUNTER_KEY not in fake.counters, "정상 관측은 mismatch 를 올리지 않는다"
+    # 적중률을 사후에 재려면 상태별 수가 필요하다(mismatch 만 세면 "이득이 있나"를 못 잰다).
+    assert fake.counters[f"{fr.SHADOW_STATE_COUNTER_PREFIX}:new"] == 1
+    assert fake.counters[f"{fr.SHADOW_STATE_COUNTER_PREFIX}:match"] == 1
 
 
 def test_shadow_observation_detects_mismatch():
@@ -301,6 +322,16 @@ def test_shadow_observation_detects_mismatch():
         state = fr.record_shadow_observation("k1", b"<html>DIFFERENT</html>", route_id="r")
     assert state == fr.SHADOW_STATE_MISMATCH
     assert fake.counters.get(fr.SHADOW_MISMATCH_COUNTER_KEY) == 1
+    # 카운터만으로는 밤사이 난 mismatch 의 원인을 못 쫓는다(배포가 교체되면 로그가
+    # 사라진다). 상세를 남기고, 특히 릴리스가 그 사이 바뀌었는지를 기록한다.
+    import json as _json
+
+    entries = fake.lists.get(fr.SHADOW_MISMATCH_LOG_KEY) or []
+    assert len(entries) == 1
+    rec = _json.loads(entries[0])
+    assert rec["route"] == "r" and rec["key"] == "k1"
+    assert rec["prev"] and rec["now"] and rec["prev"] != rec["now"]
+    assert rec["same_release"] is True, "같은 프로세스 안이면 릴리스는 그대로여야 한다"
 
 
 def test_shadow_observation_harmless_without_redis():
