@@ -84,3 +84,23 @@ T3(실패 라인 `return` 축 기록)이 배포되기 전까지 잠금이 마지
 - `_group_queue` 의 `shipping_due` first-wins (이력 쪽은 `min()` — 두 화면이 갈릴 수 있다).
 - `.wb-cmp { min-width: … }` — 좁은 화면에서 표가 제 폭을 지키게(지금은 `text-nowrap` 으로 유도).
 - `test_naver_fulfillment.py:611 test_clear_failure_wipes_the_whole_household` 이름이 이제 과장이다(동작은 green).
+
+## T3 완료 (2026-09-02) — 임시 잠금 회수
+
+- `_mark_return_failures` 신설: 반품 접수에 **실패한 라인**도 반품 축에
+  `failed_at`/`failed_reason` 을 받는다. `requested_at` 은 건드리지 않는다 —
+  실패는 접수가 아니고 `is_return_pending` 이 그 키로 멱등을 판정하므로, 실패한 라인은
+  **다시 보낼 대상으로 남아야** 한다. 다시 보내 성공하면 기록을 지운다.
+- `return_failure(link)` 공통 술어 신설. 상품주문 표가 `우리 접수 실패 <시각> + 사유` 로 말한다.
+- **`확인함` 임시 잠금 회수.** 잠금의 근거는 "실패의 유일한 흔적이 `last_error` 뿐"이었고,
+  T3 기록은 `clear_failure` 가 지우지 않는다. 근거가 사라졌으니 잠금도 사라진다 —
+  남겨 두면 실패 띠를 못 닫는 불편만 남는다.
+  계약 테스트를 뒤집었다: `..._stays_locked_...` → `..._is_no_longer_locked_once_the_failure_is_recorded`.
+  **잠금을 되살리려는 다음 사람은 T3 기록이 살아 있는지부터 확인해야 한다**고 도스트링에 적었다.
+- 음성 대조군: `_mark_return_failures` 두 호출만 끄면 기록 계약 2건이 red, 되돌리면 10/10 green.
+  (`다시 보내 성공하면 기록 삭제`는 기록이 없으면 지울 것도 없어 양쪽 green — 회귀 방지용.)
+
+### 이제 남은 것
+- `_group_queue` 의 `shipping_due` first-wins (이력은 `min()` — 두 화면이 갈릴 수 있다).
+- `.wb-cmp { min-width: … }` (지금은 `text-nowrap` 으로 유도).
+- `test_naver_fulfillment.py:611` 이름이 과장(`..._wipes_the_whole_household`, 동작은 green).

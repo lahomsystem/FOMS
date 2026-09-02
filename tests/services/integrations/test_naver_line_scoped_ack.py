@@ -234,13 +234,19 @@ def test_ack_route_reports_what_it_kept(app, client, workbench_on):
     assert _error(kept_id) == "반품 접수 실패"
 
 
-def test_the_ack_button_stays_locked_while_a_return_is_still_sendable(app, client,
-                                                                      workbench_on):
-    """좁히기를 했다고 잠금을 풀지 않는다 (1차 배 T7 회귀).
+def test_the_ack_button_is_no_longer_locked_once_the_failure_is_recorded(app, client,
+                                                                         workbench_on):
+    """T3 가 들어오면 임시 잠금은 걷는다 — 근거가 사라졌기 때문이다.
 
-    좁히기가 막는 것은 '안 본 형제의 실패'고, 반품 실패 줄에서 누를 때 사라지는 것은
-    **사람이 실제로 보고 누른 그 줄**이다 — 실패 라인에 ``return`` 축 기록을 남기는 일이
-    아직 배포되지 않은 한 잠금이 마지막 문이다.
+    **이 단언은 2026-09-02 에 뒤집혔다.** 1차 배는 ``확인함`` 을 잠갔는데, 그 이유는
+    반품 접수에 실패한 라인에 ``return`` 축 기록이 아예 없어서(기록은 성공분만 받았다)
+    ``last_error`` 가 "이 본품은 환불되지 않았다"의 **유일한 흔적**이었기 때문이다
+    (황민철 집, ERP 5026).
+
+    T3 로 실패 라인이 ``failed_at``/``failed_reason`` 을 받고 그 값은 ``확인함`` 이
+    지우지 않는다. 근거가 사라졌으니 잠금도 사라진다 — 남겨 두면 실패 띠를 못 닫는
+    불편만 남는다. 잠금을 되살리려는 다음 사람은 **그 전에 T3 기록이 살아 있는지**부터
+    확인해야 한다.
     """
     _login(client)
     order_no = f"N-ACK-LOCK-{_uid()}"
@@ -252,8 +258,8 @@ def test_the_ack_button_stays_locked_while_a_return_is_still_sendable(app, clien
     strip = body.split('id="wb-result"')[1].split("</section>")[0]
 
     assert "wb-ack" in strip
-    assert "disabled" in strip, strip[:800]
-    assert "아직 보내지 않은 반품 접수" in strip
+    assert "disabled" not in strip, strip[:800]
+    assert "아직 보내지 않은 반품 접수" not in strip
 
 
 # ─────────────────────────────── T2 상품주문 표가 라인별로 말한다
