@@ -32,6 +32,11 @@
     this._flushPromise = null;
     this._queuedFlush = false;
     this._lastKeepaliveAt = 0;
+    // 제출 성공 뒤에는 서버에서 초안 행이 지워진다. 그런데 이탈 시점 keepalive 저장은
+    // 리스너로 계속 걸려 있어서, 등록 직후 페이지 이동의 pagehide 가 PUT 을 한 번 더
+    // 쏘고 upsert 가 그 초안을 되살린다(등록될 때마다 유령 초안 1건). 제출 성공을
+    // 표시해 이후 저장 경로를 전부 닫는다.
+    this._submitted = false;
     this._boundFlush = this.flush.bind(this);
   }
 
@@ -80,7 +85,7 @@
   FomsDraftClient.prototype.flush = function (options) {
     var self = this;
     var opts = options || {};
-    if (!self.draftKey) {
+    if (!self.draftKey || self._submitted) {
       return Promise.resolve(false);
     }
     if (self._saving) {
@@ -147,6 +152,9 @@
 
   FomsDraftClient.prototype.scheduleSave = function () {
     var self = this;
+    if (self._submitted) {
+      return;
+    }
     self._pendingPayload = self._body();
     if (self._debounceTimer) {
       clearTimeout(self._debounceTimer);
@@ -200,7 +208,7 @@
         return;
       }
       self._lastKeepaliveAt = now;
-      if (!self.draftKey) {
+      if (!self.draftKey || self._submitted) {
         return;
       }
       if (self._debounceTimer) {
@@ -258,7 +266,23 @@
       });
   };
 
+  /** 제출 성공 뒤 남은 저장 예약을 끄고 이후 저장 경로를 닫는다(유령 초안 방지). */
+  FomsDraftClient.prototype._markSubmitted = function () {
+    this._submitted = true;
+    if (this._debounceTimer) {
+      clearTimeout(this._debounceTimer);
+      this._debounceTimer = null;
+    }
+    if (this._idleTimer) {
+      clearTimeout(this._idleTimer);
+      this._idleTimer = null;
+    }
+    this._pendingPayload = null;
+    this._queuedFlush = false;
+  };
+
   FomsDraftClient.prototype.submitOrder = function () {
+    var self = this;
     return fetch(API_BASE + "/submit", {
       method: "POST",
       credentials: "same-origin",
@@ -267,6 +291,11 @@
     })
       .then(function (res) {
         return res.json().then(function (data) {
+          // 성공하면 서버가 초안 행을 지운 상태다. 여기서 저장을 끄지 않으면 이어지는
+          // 페이지 이동의 pagehide keepalive 가 같은 키로 PUT 을 쏴 초안을 되살린다.
+          if (res.ok && data && data.success) {
+            self._markSubmitted();
+          }
           return { status: res.status, data: data };
         });
       });
