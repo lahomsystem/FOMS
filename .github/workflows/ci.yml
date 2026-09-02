@@ -69,6 +69,40 @@ jobs:
         # fixture 가 워커 경계에서 갈리지 않는다).
         python -m pytest -q --ignore=tests/visual --ignore=tests/harness -p no:playwright -n auto --dist loadfile
 
+    # 문서 전용 커밋에도 "문서를 런타임에 읽는" 계약은 반드시 돈다. 목록이 낡으면
+    # 문서 드리프트가 조용히 새므로, tests/domains/test_docs_facing_registry.py 가
+    # 이 목록과 실제 스캔 결과가 같은지 못 박는다.
+    - name: Run docs-facing contracts (docs-only change)
+      if: steps.scope.outputs.docs_only == 'true'
+      env:
+        DATABASE_URL: "sqlite:///:memory:"
+        SECRET_KEY: "ci-secret-key"
+        FLASK_ENV: "testing"
+      run: |
+        python -m pytest -q -p no:playwright \
+          tests/contracts/runtime/test_ptc_physical_exactness.py \
+          tests/domains/test_api_error_containment.py \
+          tests/domains/test_as_dashboard_schedule_link_render.py \
+          tests/domains/test_audit_coverage_inventory.py \
+          tests/domains/test_docs_facing_registry.py \
+          tests/domains/test_failopen_inventory.py \
+          tests/domains/test_foms_namespace_imports.py \
+          tests/domains/test_order_detail_drift_banner.py \
+          tests/domains/test_order_detail_two_phase_contract.py \
+          tests/domains/test_release_gate.py \
+          tests/domains/test_rev_99.py \
+          tests/domains/test_settlement_channel_render.py \
+          tests/domains/test_settlement_dashboard_render.py \
+          tests/domains/test_settlement_operations_render.py \
+          tests/domains/test_state_guard.py \
+          tests/domains/test_stored_xss_sinks.py \
+          tests/domains/test_table_version_counter.py \
+          tests/domains/test_wizard_draft_send_routes.py \
+          tests/performance/test_perf_regression_guard.py \
+          tests/services/integrations/test_naver_origin_cleanup.py \
+          tests/services/integrations/test_naver_refresh_all.py \
+          tests/services/integrations/test_naver_return_wiring.py
+
     - name: Run Redis lane (RQ positive path / rq API drift)
       env:
         # 이 lane 에서만 켜지는 opt-in 변수. 미설정이면 해당 테스트는 skip 된다.

@@ -159,8 +159,16 @@ _TABS = (
     ("summary", "foms-settle-tab-summary", "foms-settle-pane-summary", "요약"),
     ("ops", "foms-settle-tab-ops", "foms-settle-pane-ops", "실무"),
     ("analytics", "foms-settle-tab-analytics", "foms-settle-pane-analytics", "분석"),
+    ("channel", "foms-settle-tab-channel", "foms-settle-pane-channel", "네이버 정산"),
 )
 _DEFAULT_TAB = "summary"
+
+#: 탭 4(채널·네이버 정산)는 **ADMIN·회계팀만** 본다(NAVER-SETTLE-01 §1). 서버가 마크업째
+#: 빼므로 그 밖의 허용 사용자에게는 탭이 3개다. 두 수를 따로 못박아, 게이트가 조용히
+#: 열리거나(전원 4탭) 조용히 닫히는(ADMIN 도 3탭) 회귀를 양쪽에서 잡는다.
+_TABS_WITHOUT_CHANNEL = tuple(t for t in _TABS if t[0] != "channel")
+_CHANNEL_TAB_ID = "foms-settle-tab-channel"
+_CHANNEL_PANE_ID = "foms-settle-pane-channel"
 
 #: 탭 2·3 을 채울 작업이 **안쪽만** 건드려야 하는 자리. 셸이 소유한 pane 의 `role`/`aria-*`/
 #: `hidden` 배선과 내용물의 경계를 여기서 못박는다.
@@ -219,6 +227,68 @@ def _read_code(rel: str) -> str:
 def _login_allowed(client, role: str = "ADMIN", team: str | None = None):
     """정산 열람이 허용된 사용자로 로그인한다(기본 ADMIN)."""
     _login(client, _make_user(role=role, team=team))
+
+
+def _cut_balanced_div(text: str, needle: str) -> str:
+    """`needle` 을 담은 `<div>` 요소를 **짝이 맞는 닫는 태그까지** 통째로 걷어낸다.
+
+    비탐욕 정규식으로는 첫 `</div>` 에서 끊겨 안쪽 자식이 남는다 — 그러면 "제외했다"고
+    믿는 검사가 사실은 절반만 제외한 채 통과한다.
+
+    Args:
+        text: 대상 HTML/템플릿 원문.
+        needle: 대상 요소의 여는 태그 안에 있는 문자열(보통 `id="..."`).
+
+    Returns:
+        해당 요소가 제거된 사본. `needle` 이 없으면 원문 그대로.
+    """
+    at = text.find(needle)
+    if at < 0:
+        return text
+    start = text.rfind("<div", 0, at)
+    if start < 0:
+        return text
+    depth = 0
+    i = start
+    while i < len(text):
+        if text.startswith("<div", i):
+            depth += 1
+            i += 4
+            continue
+        if text.startswith("</div>", i):
+            depth -= 1
+            i += 6
+            if depth == 0:
+                return text[:start] + " " + text[i:]
+            continue
+        i += 1
+    return text[:start]
+
+
+def _without_channel_surface(text: str) -> str:
+    """탭 4(채널·네이버 정산)가 소유한 마크업을 걷어낸 사본을 돌려준다.
+
+    채널 표면에는 "정산 **예정**일" 이 정당하게 나온다 — 네이버 정산 API 의
+    ``settleExpectDate`` 축을 가리키는 도메인 용어이지 목업이 미구현 카드에 달아 둔
+    "예정" 배지가 아니다. 목업 잔재 검사를 채널 표면에까지 적용하면 **맞는 화면을 틀렸다고
+    말하는** 계약이 되므로 이 표면만 덜어내고 본다. 대신 채널 표면 안에서 "예정" 이
+    "정산 예정일" 이외의 자리에 쓰이지 않는다는 것은
+    ``tests/domains/test_settlement_channel_render.py`` 가 따로 못박는다 — 검사를 없앤 게
+    아니라 소유를 옮긴 것이다.
+
+    Args:
+        text: 렌더 HTML 또는 템플릿 원문.
+
+    Returns:
+        채널 탭 버튼과 채널 pane 이 제거된 사본.
+    """
+    out = re.sub(
+        r'<button\s[^>]*\sid="%s".*?</button>' % re.escape(_CHANNEL_TAB_ID),
+        " ",
+        text,
+        flags=re.S,
+    )
+    return _cut_balanced_div(out, f'id="{_CHANNEL_PANE_ID}"')
 
 
 def _fragment_html(client) -> str:
@@ -595,10 +665,13 @@ def test_rendered_fragment_has_no_mockup_leftovers(client, app, phrase):
 
     프래그먼트만 보는 이유는 모듈 docstring 참조(전체 문서에는 공용 layout_scripts 의
     "예정된 일정이 없습니다" 가 섞인다).
+
+    채널(네이버 정산) 탭 표면은 덜어내고 본다 — 사유는 `_without_channel_surface` 참조
+    (그 표면의 "정산 예정일" 은 네이버 API 축 이름이지 목업 배지가 아니다).
     """
     _login_allowed(client)
 
-    html = _strip_comments(_fragment_html(client))
+    html = _without_channel_surface(_strip_comments(_fragment_html(client)))
 
     assert phrase not in html, f"목업 잔재 '{phrase}' 가 렌더에 남아 있다"
 
@@ -611,7 +684,9 @@ def test_settlement_sources_have_no_mockup_leftovers(phrase):
     템플릿·JS 소스 자체에서 리터럴을 없앤다.
     """
     for rel in (*_TEMPLATE_SOURCES, f"static/{JS_ASSET}"):
-        assert phrase not in _read_code(rel), f"{rel}: 목업 잔재 '{phrase}'"
+        assert phrase not in _without_channel_surface(_read_code(rel)), (
+            f"{rel}: 목업 잔재 '{phrase}'"
+        )
 
 
 # ==========================================================================
@@ -1050,11 +1125,12 @@ def test_dashboard_js_reinitializes_on_fragment_swap():
 # 갈린다. 새 메뉴도 새 URL 도 만들지 않는 것이 전제라, 셸이 무너지면 세 화면이 통째로
 # 사라진다. 여기서 잠그는 것은 **접근성 배선**(role/aria 짝)과 **폭 0 함정**(숨은 pane 에서
 # 그린 차트는 빈 SVG 가 된다) 두 축이다.
-def test_tab_bar_renders_three_tabs_with_expected_wiring(client, app):
-    """탭이 정확히 3개이고, 각 버튼이 진짜 `<button role="tab">` 로 aria 배선을 갖췄다.
+def test_tab_bar_renders_four_tabs_with_expected_wiring(client, app):
+    """ADMIN 에게 탭이 정확히 4개이고, 각 버튼이 진짜 `<button role="tab">` 로 aria 배선을 갖췄다.
 
     `<div>` 에 클릭 핸들러를 다는 방식은 키보드·스크린리더에서 통째로 사라진다.
-    버튼 순서·id·라벨까지 고정하는 이유는 `_TABS` 주석 참조.
+    버튼 순서·id·라벨까지 고정하는 이유는 `_TABS` 주석 참조. 4번째(채널·네이버 정산)는
+    ADMIN·회계팀 전용이라 기본 로그인(ADMIN)에서만 이 수가 나온다.
     """
     _login_allowed(client)
 
@@ -1062,13 +1138,34 @@ def test_tab_bar_renders_three_tabs_with_expected_wiring(client, app):
 
     assert 'role="tablist"' in html, "tablist 컨테이너가 없다"
     tabs = _tab_buttons(html)
-    assert len(tabs) == 3, [tag for tag, _ in tabs]
+    assert len(tabs) == 4, [tag for tag, _ in tabs]
     for (key, tab_id, pane_id, label), (tag, inner) in zip(_TABS, tabs):
         assert _attr(tag, "id") == tab_id, tag
         assert _attr(tag, "data-settlement-tab") == key, tag
         assert _attr(tag, "aria-controls") == pane_id, tag
         assert _attr(tag, "aria-selected") in ("true", "false"), tag
         assert label in inner, (label, inner)
+
+
+def test_channel_tab_is_absent_for_allowed_users_outside_accounting(client, app):
+    """정산 화면을 볼 수 있어도 회계팀이 아니면 채널 탭이 **마크업에 아예 없다**.
+
+    STAFF+CS 는 정산 대시보드 자체는 본다(FINANCE_MUTATION 집합). 채널 탭만 더 좁은
+    게이트라, 여기서 3탭이 아니라 4탭이 나오면 회계 전용 자료가 CS 전원에게 열린 것이다.
+    감추기(`hidden`/CSS)가 아니라 **서버가 빼는 것**까지 계약이다 — 감추기만 하면
+    개발자 도구로 그대로 보인다.
+    """
+    _login_allowed(client, role="STAFF", team="CS")
+
+    html = _fragment_html(client)
+
+    tabs = _tab_buttons(html)
+    assert len(tabs) == 3, [tag for tag, _ in tabs]
+    assert [_attr(tag, "data-settlement-tab") for tag, _ in tabs] == [
+        key for key, _t, _p, _l in _TABS_WITHOUT_CHANNEL
+    ]
+    for needle in (_CHANNEL_TAB_ID, _CHANNEL_PANE_ID, "settlement-channel.css", "settlement/channel.js"):
+        assert needle not in html, f"채널 마크업/자산이 회계팀 밖으로 샜다: {needle}"
 
 
 def test_summary_tab_is_the_default_selected_tab(client, app):
@@ -1105,7 +1202,7 @@ def test_every_tab_has_a_matching_tabpanel(client, app):
     html = _fragment_html(client)
 
     panels = _tab_panels(html)
-    assert len(panels) == 3, panels
+    assert len(panels) == 4, panels
     for (key, tab_id, pane_id, _label), tag in zip(_TABS, panels):
         assert _attr(tag, "id") == pane_id, tag
         assert _attr(tag, "data-settlement-pane") == key, tag
@@ -1377,9 +1474,20 @@ def test_allowed_actors_receive_every_anchor(client, app, role, team):
 #   (c) 라벨 SSOT(단계·부서 이름을 화면이 들고 있으면 안 된다),
 #   (d) 집계 막대 램프가 **단건 출고가 램프와 다른 축**인가.
 def _analytics_block(html: str) -> str:
-    """분석 마운트 안쪽 마크업만 잘라낸다(툴팁 앞까지)."""
+    """분석 마운트 안쪽 마크업만 잘라낸다(다음 pane 또는 툴팁 앞까지).
+
+    끝을 툴팁 하나로만 잡으면 분석 pane **뒤에 붙는 새 pane** 까지 "분석 탭 마크업"으로
+    삼는다 — 실제로 탭 4(채널·네이버 정산)를 붙이자 그 pane 의 원장 버튼("수수료")이
+    분석 탭 제외 계약을 red 로 만들었다. 경계는 분석 pane 이 끝나는 자리다.
+    """
     start = html.index('id="foms-settle-analytics-mount"')
-    return html[start:html.index('id="foms-settle-tooltip"')]
+    ends = [
+        at
+        for at in (html.find(f'id="{_CHANNEL_PANE_ID}"'), html.find('id="foms-settle-tooltip"'))
+        if at > start
+    ]
+    assert ends, "분석 블록의 끝을 찾지 못했다"
+    return html[start:min(ends)]
 
 
 #: 분석 탭 카드가 서버 렌더로 갖고 있어야 하는 앵커. 카드가 통째로 빠지는 회귀를 잡는다.
