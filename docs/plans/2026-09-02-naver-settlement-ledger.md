@@ -28,7 +28,10 @@
 | C1 | 통합: 정산 5스위트+신규+계약 전수, ci.yml 등재, smoke, 커밋 | 총괄 | 전부 green | DONE — domains 6300 passed·services/perf/contracts 1745·smoke exit 0; 인벤토리 2종(failopen·ORM 우회) 재생성 커밋 |
 | C2 | T0 재프로브(토큰 만료 후) → 403 지속 시 사용자 확인 | 총괄 | 5종 200 | DONE — 사용자가 앱에 [정산] 그룹 추가 후 19:11 재프로브 5종 전부 200(daily 7행·case 12·commission 27·vat daily 28·vat case 10). 부호 실측: commissionSettleAmount -950081·payHoldbackAmount -10053445(음수), 취소 행 수수료 + |
 | C3 | deploy push → CI 전 워크플로 green → 스테이징 백필 90일 → 화면 QA | 총괄 | 숫자 3개 대조 | DONE — 백필 90일 OK(호출 220·행 5,593), 30일 창 대조 API=DB(daily 22행·정산 48,121,617·결제 180,945,500)=case 합, 화면 실데이터 QA 2회 통과(부호·입금채널 수정 반영). 잔여: production 승격 — push 37666b7c2, CI 4/4 green(18:50), 스테이징 web 배포·마이그레이션 naversettle_00 적용 확인, 화면 QA 1차 통과(탭 렌더·API 200·콘솔 0), 스테이징 users 41/54 → ACCOUNTING 완료. 잔여: T0 재프로브·백필 90일·실데이터 QA |
-| v1.1 | 요약 스트립·실무 컬럼·CSV 4종 | — | 별도 승인 | PENDING |
+| v1.1 | 사용자 승인 2026-09-02(세 항목 전부). 계약서 `docs/plans/2026-09-02-naver-settlement-v1.1-contracts.md`, CSV 는 **5종**(settle_daily 포함) 결정 | — | — | RUNNING |
+| T12 | 요약 탭 크로스 스트립(W1-A 커널 → W2-A 프론트 → 셸 앵커) | agent | 계약서 §8.1 ①~⑤ | Wave1 RUNNING (착수 HEAD 0a54b25b5) |
+| T13 | 실무 탭 네이버 정산 컬럼 + 정산상태→차감청구 + naversettle_01 인덱스(W1-C → W2-B) | agent | 계약서 §8.1 ①~⑦ | Wave1 RUNNING (착수 HEAD 0a54b25b5) |
+| T14 | CSV 내보내기 5종 + 감사 라벨(W1-B 커널 → W2-A UI) | agent | 계약서 §8.1 ①~⑤ | Wave1 RUNNING (착수 HEAD 0a54b25b5) |
 
 ## 결정 기록
 - 2026-09-02 T0 실측: 스테이징 워커 정산 5종 403 GW.AUTHN(주문 API는 OK). 토큰 잔여 약 18:58 KST 만료 후 재검증 필요. 앱 client_id 앞 4자 4RYv.
@@ -39,3 +42,5 @@
 - 2026-09-02 19:20 실측: settle/daily 기간 조회 1개월 이내 제한(400 LocalDatePeriod) → 28일 창 분할(DAILY_RANGE_MAX_DAYS). 스테이징 매칭률 0.6%는 스테이징 링크의 order_id 가 대부분 NULL(2074/2123)이라서 — 운영은 워크벤치 연결 비율에 따름.
 - 2026-09-02 19:33 운영 승격 PR #278 생성(세션 커밋 16개 cherry-pick + 승격 트리 인벤토리 재생성). 충돌 2건 해소: ci.yml(운영에 docs-facing 단계 없음 → deploy 블록 수용), AI_STATUS·감사 인벤토리(운영 기준 ours). 승격 트리 게이트: APP_OK·단일 head·1037 passed·smoke 0. 잔여: PR 검사 → 머지 → 운영 worker 플래그·백필·users 41/54 회계팀.
 - 2026-09-02 19:40 승격 트리 전체 스위트 green(PG 마이그레이션 체인 1 passed·domains 6294 passed). PR #278 MERGEABLE, 검사 4종(test·pg-lane·harness·perf-gate) 진행 중. **재개 절차(컴팩트 후)**: ① `gh pr view 278 --json mergeStateStatus,statusCheckRollup` 전부 SUCCESS 확인 ② `gh pr merge 278 --merge` ③ 운영 배포 확인(FOMS-PRODUCTION web/worker SUCCESS, alembic naversettle_00) ④ 운영 worker `railway variables --service worker --set FOMS_NAVER_SETTLE_SYNC_ENABLED=1 --skip-deploys`(prodlink 폴더) ⑤ `railway ssh -s worker -- python scripts/maintenance/run_naver_settle_sync.py --once --backfill-from 2026-06-04 --json` ⑥ 운영 DB users 41·54 team→ACCOUNTING(TESTCLR 0건 지문 확인 후) ⑦ 원장·AI_STATUS 갱신·docs push. v1.1 계약서는 P-v11-plan 에이전트가 `docs/plans/2026-09-02-naver-settlement-v1.1-contracts.md` 작성 중.
+- 2026-09-02 19:41 **운영 반영**: PR #278 머지(2fb051171) → web·WORKER 배포 SUCCESS, alembic naversettle_00, 테이블 6종 확인. WORKER `FOMS_NAVER_SETTLE_SYNC_ENABLED=1`(--skip-deploys; 컨테이너 env 반영 여부 확인 중). 운영 users 41·54 team CS→ACCOUNTING(MANAGER 유지, security_logs USER_UPDATE 2행). 운영 백필 90일 실행 중.
+- 2026-09-02 19:46 운영 백필 90일 OK(호출 223·행 5,593·run_id 1). 운영 화면 1회 측정(claude_master 해제→확인→재잠금): 4탭·동기화 OK·KPI 완료 40,137,790/예정 7,983,827/수수료 -11,112,166/보류 -121,711,717·대사 일치. **운영 매칭 0/495**: settle case 의 상품주문(7~8월 결제)이 external_order_links 에 있어도 order_id 가 NULL(COLLECTED 1882·LINKED 207, LINKED 는 9월 신규분) — 워크벤치로 연결된 주문이 정산되기 시작하면 자연 증가. WORKER 컨테이너에 FOMS_NAVER_SETTLE_SYNC_ENABLED 미반영 → 안전 확인(큐 비어 있음) 후 재배포 진행. ⚠️ 측정 1차 시도에서 eval 인용 실수로 운영 비밀번호 일부가 셸 출력에 노출(로컬 세션 한정) — 로테이션 권고.
