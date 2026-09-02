@@ -10,12 +10,11 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
+- [2026-09-02] **네이버 발송처리 평일 16:50 자동 실행 ON**(PR #270 · `51c366e9`) — 대상은 수동과 같은 함수·주말/공휴일 제외·하루 1회. 끄기=`FOMS_NAVER_AUTO_DISPATCH_ENABLED=0`+워커 재배포. 원장 `docs/plans/2026-09-02-naver-auto-dispatch-ledger.md`
 - [2026-09-02] **둘째 전화번호 검색 복구 운영 반영**(PR #258) — 폭 64·`phonewide_01`, 절단 83건 복구. `erp-phone-digits-widen-ledger`
 - [2026-09-02] **하트비트 S1+S2a 운영 반영(PR #233) · 관측 중** — 쓰기 카운터 + 렌더 전 304 키의 그림자 관측. **화면 동작 무변경**. 운영 mismatch 0. **미해결**: 스테이징 mismatch 13 · 적중률 미측정 → S2b 는 그 뒤. 원장 §P8~§P11
 - [2026-09-02] **트리아지 자동매칭 사고 반영 완료** — 잔여: 전화 어긋남 36건 재판정. `docs/incidents/2026-09-01-naver-triage-auto-match-miss.md`
 - [2026-09-02] **네이버 클레임 승인 T9 운영 ON**(PR #249 · production `b0c81413` · web 재배포 23:23Z) — 취소 요청 승인 신설(`claim/cancel/approve`)+반품 승인 독립 경로. 게이트 2종 `FOMS_NAVER_{CANCEL,RETURN}_APPROVE_ENABLED=1`(web 전용). **취소 거부 API 는 네이버에 없다.** 후속: 유령 주문 단계 잠금 해제(사유 필수)는 deploy `549a801f`. 원장: `docs/plans/2026-09-01-naver-claim-approve-ledger.md`
-- [2026-09-01] **네이버 과거 주문 백필 deploy 반영** — 워크벤치 90일 1회 실행·워터마크 불변·소급분은 큐 밖·매칭 캡 해소(`naverbf_00`). **운영 실행 승인 대기**. 원장 `docs/plans/2026-09-01-naver-ingest-backfill-ledger.md`
-- [2026-09-01] **네이버 재결제 옛 주문을 띠에서 바로 취소·반품 + 발송 축 결함 수정 deploy** — 처리 탭 띠 줄에서 바로 쏜다(낡은 줄 차단·모달 4종 세트·결과 감시). **판매자센터 발송 집이 띠에선 '반품'인데 pane 은 취소를 열어 주던 결함** — `dispatched_any`·`cancel_order` 가 우리 표식만 봤다. 설계서 §7-E. **운영 승격 완료(PR #255 · production `95f4267d`)** — 발송처리 재진술 두 신호·0건 집 버튼 가드 동반
 - [2026-09-01] **네이버 반품 거부(T8-S3) 운영 ON**(PR #229 · `7976fb2c` · web 재배포 `09aeca29`) — 규격은 공개 문서 `apicenter.commerce.naver.com/llms/`(**네이버 규격은 여기부터**): body 는 `rejectReturnReason` 하나. **게이트는 web 전용**(WORKER 재배포 금지 — 큐 정지). **잔여=상용구 문장 확정**(편집 UI 가 거부 모달 안이라 운영 반품 0건이면 화면에서 못 고친다 → 코드 기본값 교체로 반영). 원장 T4·`2026-09-02-naver-workbench-followup-ledger.md`
 - [2026-09-01] **엑셀 내보내기·동선 전면 삭제 deploy(`8f0f2a1d`, 커밋 2개)** — 상단 예산 확보로 상세는 "기록 보관 — 2026-08-31 정리"로 이관.
 - [2026-09-01] **네이버 일괄 발송처리 결과 UI·안 붙은 수집분 운영 반영(PR #219·#227)** — 띠가 **완료/일부/실패/대기 4상태**, 버튼 직후 폴링, 실패 줄마다 재시도, **안 붙은 수집분을 전화·수령인명으로 짚는다**. **잔여=운영 자산 핀 범프·실브라우저 확인·미연결 21묶음 붙이기**. 원장 `2026-08-31-naver-bulk-dispatch-result-ui-ledger.md`
@@ -128,6 +127,8 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 - [2026-04-15] **Strict final canonical tree `SFC-B11B` slice 2 (`dashboards`, §6.16):** 구현을 `foms/web/dashboards/routes.py`로 이전; `foms/web/dashboards/__init__.py`는 `routes`만 import; `apps/dashboards.py`는 `foms.web.dashboards` 재노출 shim. 검증: `APP_OK`, `verify_result.py --json`, `pytest tests` **586 passed**. 근거: batch11b **§Slice B11B-2**.
 
 ## 기록 보관 (strict canonical / 이전 배치 요약)
+- [2026-09-01] **네이버 재결제 옛 주문을 띠에서 바로 취소·반품 + 발송 축 결함 수정 deploy** — 처리 탭 띠 줄에서 바로 쏜다(낡은 줄 차단·모달 4종 세트·결과 감시). **판매자센터 발송 집이 띠에선 '반품'인데 pane 은 취소를 열어 주던 결함** — `dispatched_any`·`cancel_order` 가 우리 표식만 봤다. 설계서 §7-E. **운영 승격 완료(PR #255 · production `95f4267d`)** — 발송처리 재진술 두 신호·0건 집 버튼 가드 동반
+- [2026-09-01] **네이버 과거 주문 백필 deploy 반영** — 워크벤치 90일 1회 실행·워터마크 불변·소급분은 큐 밖·매칭 캡 해소(`naverbf_00`). **운영 실행 승인 대기**. 원장 `docs/plans/2026-09-01-naver-ingest-backfill-ledger.md`
 - [2026-09-01] **네이버 T1·T2·T3 운영 승격(PR #213 · `c462bdb9`)** — 반품 승인(기본 꺼짐·환불 확정)·후보 0건 주문 찾아서 붙이기·조작 뒤 자동 다시읽기. 함정: `promote_completeness` incomplete 30건 중 23건은 **이미 운영에 있었다**(옛 cherry-pick patch-id 차이) — 소스 grep 확인 후 5건만
 
 - [2026-08-31] **엑셀 업로드(가져오기) 제거 deploy(`d61dccd8`)** — 운영 15개월 미사용(아티팩트 0행, 마지막 2025-05-28). **엑셀 다운로드는 유지**(2026-07-03까지 실사용) — `excel_import.py` 는 같은 Blueprint 라 통째 삭제 금지. DB 표는 남겼다(빈 표). 감사 원장 패킷 124→123. 잔여=production 승격. 원장 §12
