@@ -26,7 +26,13 @@
    행 렌더는 `static/js/settlement/operations.js` 가 한다. 서버는 **마운트 지점과 상태 자리**만
    낸다 — fetch 가 실패해도 "빈 카드"가 아니라 "무엇이 비었는지"가 보여야 하기 때문이다. #}
 {% set ops_departments = department_options | default([], true) %}
+{# `data-settlement-ops-channel-col` = 12번째 칸("네이버 정산")을 그려도 되는지의 **서버 표식**.
+   판정 SSOT 는 `settlement_channel_access.can_view_channel_settlement` 하나뿐이고, 같은 판정이
+   행 API 에서 `naver_settlement` 키의 존재 여부를 정한다. `operations.js` 가 이 속성으로만
+   컬럼을 켜는 이유: `<th>`(여기) 와 `<td>`(JS) 가 **같은 신호**를 따라야 두 벌이 안 갈린다.
+   행 데이터로 판정하면 권한자여도 네이버 행이 한 건도 없는 페이지에서 표가 한 칸씩 밀린다. #}
 <div class="s-ops" id="foms-settle-ops" data-foms-settlement-ops="1"
+  {% if can_view_channel_settlement %}data-settlement-ops-channel-col{% endif %}
   data-rows-url="{{ url_for('settlement_api.api_settlement_rows') }}">
 
   {# ── KPI 스트립 — 전부 rows 응답의 `totals` 파생. 현재 필터가 적용된 값이다. ── #}
@@ -72,7 +78,12 @@
         <button type="button" class="s-ops-chip" data-settlement-ops-value="30" aria-pressed="false">30일 이내</button>
         <button type="button" class="s-ops-chip" data-settlement-ops-value="31" aria-pressed="false">31일 이상</button>
       </div>
-      <span class="s-ops-grp-lbl" id="foms-settle-ops-lbl-settlement">정산상태</span>
+      {# 라벨만 "차감청구"로 개명한다(v1.1 T13) — id·aria-labelledby·필터 이름
+         `settlement`·칩 값 `all/pending/issued` 는 그대로 API 파라미터라 손대지 않는다.
+         이 칩은 **내부 차감청구(부서 귀속 차감) 발행 여부**이고, 아래 표에 새로 붙는
+         "네이버 정산"은 외부 채널의 정산이다 — 한 화면에 뜻이 다른 "정산"이 둘이면
+         경리가 남의 축을 보고 판단한다. #}
+      <span class="s-ops-grp-lbl" id="foms-settle-ops-lbl-settlement">차감청구</span>
       <div class="s-ops-grp" role="group" aria-labelledby="foms-settle-ops-lbl-settlement"
         data-settlement-ops-filter="settlement">
         <button type="button" class="s-ops-chip" data-settlement-ops-value="all" aria-pressed="true">전체</button>
@@ -179,7 +190,11 @@
             <th scope="col" class="s-ops-num">과입금</th>
             <th scope="col">경과일</th>
             <th scope="col">현금영수증</th>
-            <th scope="col">정산상태</th>
+            <th scope="col">차감청구</th>
+            {# 12번째 칸은 회계 게이트 뒤에서만 존재한다(§6). 클라에서 감추는 방식은 쓰지
+               않는다 — 응답과 마크업 양쪽에서 아예 없어야 개발자 도구로도 안 보인다.
+               "액션"은 언제나 마지막 칸이라는 성질을 지키려고 그 **바로 앞**에 둔다. #}
+            {% if can_view_channel_settlement %}<th scope="col">네이버 정산</th>{% endif %}
             <th scope="col">액션</th>
           </tr>
         </thead>

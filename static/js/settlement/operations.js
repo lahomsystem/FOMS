@@ -66,6 +66,30 @@
   var ELAPSED_WORST = 's-ops-b--e3';
   var PAGER_WINDOW = 2;   // 현재 페이지 좌우로 보여줄 번호 수
 
+  /* 서버 렌더 표식. 이 속성이 루트에 있을 때만 12번째 칸("네이버 정산")을 그린다 —
+     `<th>` 를 내는 조건(템플릿 `{% if can_view_channel_settlement %}`)과 **같은 신호**다.
+     행 데이터(`row.naver_settlement` 유무)로 판정하면 권한자여도 네이버 행이 0건인 페이지에서
+     `<td>` 수가 `<th>` 수보다 적어져 표가 통째로 한 칸씩 밀린다. */
+  var CHANNEL_COL_ATTR = 'data-settlement-ops-channel-col';
+
+  /* 네이버 정산 상태 코드 → 화면 문구. 서버는 코드(`SETTLED`/`PENDING`/`UNMATCHED`)와 날짜만
+     내고 한글은 여기서 정한다(백엔드가 라벨을 만들면 이 화면의 금칙어가 API 를 타고 들어온다).
+     **어휘 제약**: 이 표의 어떤 문구에도 금칙어를 쓰지 않는다. 대기 상태의 보조 정보는
+     낱말 없이 `MM-DD` 날짜만 붙인다. */
+  var NAVER_SETTLE_TEXT = {
+    SETTLED: '정산완료',
+    PENDING: '정산대기',
+    UNMATCHED: '미매칭',
+  };
+
+  /* 배지 클래스는 `settlement-channel.css`(회계 게이트 뒤에서만 로드) 소유다 —
+     컬럼이 그려지는 조건과 정확히 같아서 `settlement-operations.css` 를 열 필요가 없다. */
+  var NAVER_SETTLE_CLASS = {
+    SETTLED: 's-ch-ops-nv--done',
+    PENDING: 's-ch-ops-nv--wait',
+    UNMATCHED: 's-ch-ops-nv--none',
+  };
+
   /* ═══════════════ 1. 헬퍼 ═══════════════ */
 
   function toggle(el, hidden) {
@@ -115,6 +139,18 @@
   function fmtDay(dayKey) {
     var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(dayKey || ''));
     return m ? parseInt(m[2], 10) + '/' + parseInt(m[3], 10) : '—';
+  }
+
+  /**
+   * "2026-09-05" → "09-05". 네이버 정산 칸 전용 표기다.
+   *
+   * 완료일 칸의 `fmtDay`("9/5")와 **일부러 다르다**: 이 칸의 날짜는 정산 사이클(월 2회)을
+   * 세로로 훑어 같은 날짜끼리 묶어 보는 용도라 자릿수가 고정돼야 눈이 미끄러지지 않는다.
+   * 값이 없으면 빈 문자열 — 호출부가 "아무것도 안 붙인다"로 처리한다.
+   */
+  function fmtMd(dayKey) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(dayKey || ''));
+    return m ? m[2] + '-' + m[3] : '';
   }
 
   function elapsedClass(days) {
@@ -292,7 +328,7 @@
    * 모집단 전량 스캔이라 스코프를 한 번 바꿀 때마다 같은 스캔이 6번 돌았다
    * (2026-08-31 운영 실측: 막대가 다 차기까지 2.9초, 그중 서버 1.26초).
    *
-   * 서버가 내는 `aging_summary` 는 **선택된 구간과 무관한 스코프(기간·정산상태·채널) 기준**
+   * 서버가 내는 `aging_summary` 는 **선택된 구간과 무관한 스코프(기간·차감청구·채널) 기준**
    * 이라 막대를 눌러 목록만 좁혀도 값이 무너지지 않는다 — 옛 직렬 호출이 `aging` 파라미터를
    * 구간 코드로 덮어써서 지키던 성질을 서버가 대신 보장한다.
    */
@@ -424,6 +460,40 @@
     return td;
   }
 
+  /**
+   * 12번째 칸 "네이버 정산" — 외부 채널(네이버)이 이 주문의 돈을 언제 줬는지/줄 것인지.
+   *
+   * 값은 서버가 판정해 내려준 `row.naver_settlement` 그대로다(상태 코드 + 날짜 2종).
+   * **금액은 그리지 않는다** — 노출 최소화 원칙이고, 서버도 화면에 쓰라고 준 값이 아니다.
+   *
+   * 네 갈래를 문구로 구분한다(색만으로 말하지 않는다):
+   *   값 없음(비네이버 주문) → "—" · 미매칭 → "미매칭" ·
+   *   완료 → "정산완료" + 가장 최근 완료일 · 대기 → "정산대기" + 서버가 고른 가장 이른 날짜.
+   * 대기 쪽 날짜는 **낱말 없이 날짜만** 붙인다(이 화면의 어휘 제약).
+   */
+  function naverSettleCell(row) {
+    var td = el('td');
+    var cell = row && row.naver_settlement;
+    var text = cell && NAVER_SETTLE_TEXT[cell.status];
+    if (!text) {
+      // 비네이버 주문(값 None)과, 서버가 모르는 코드를 보낸 경우 둘 다 "—" 다.
+      // 모르는 코드를 배지로 그리면 화면이 없는 상태를 지어내는 셈이라 하지 않는다.
+      td.appendChild(dash());
+      return td;
+    }
+    var chip = el('span', 's-ch-ops-nv ' + NAVER_SETTLE_CLASS[cell.status], text);
+    // 날짜는 배지 **안쪽** 자식이다 — `.s-ch-ops-nv` 가 inline-flex + gap 이라 바깥에 두면
+    // 간격도 색 단계도 설계와 어긋난다(스타일 SSOT 는 settlement-channel.css).
+    var iso = cell.status === 'SETTLED' ? cell.settle_complete_date : cell.settle_expect_date;
+    var day = fmtMd(iso);
+    if (day) {
+      chip.appendChild(el('span', 's-ch-ops-nv-date', day));
+      td.title = iso;
+    }
+    td.appendChild(chip);
+    return td;
+  }
+
   function actionCell(ctx, row) {
     var td = el('td');
     var cell = el('div', 's-ops-actions');
@@ -467,6 +537,8 @@
       tr.appendChild(elapsedCell(row));
       tr.appendChild(cashCell(row));
       tr.appendChild(settlementCell(row));
+      // 서버가 `<th>` 를 낸 렌더에서만 `<td>` 를 낸다(같은 신호 · CHANNEL_COL_ATTR 주석 참고).
+      if (ctx.showChannelCol) tr.appendChild(naverSettleCell(row));
       tr.appendChild(actionCell(ctx, row));
       body.appendChild(tr);
     });
@@ -681,16 +753,35 @@
 
   var CSV_HEADERS = [
     '주문번호', '고객명', '채널', '완료일', '출고가', '예약금', '예약금확인',
-    '잔금', '과입금', '잔금확인', '경과일', '현금영수증', '정산상태',
+    '잔금', '과입금', '잔금확인', '경과일', '현금영수증', '차감청구',
   ];
+
+  /**
+   * 머리글 목록. 12번째 칸이 화면에 있을 때만 CSV 에도 한 칸이 는다 —
+   * `csvRow` 와 **같은 조건**을 봐야 헤더와 데이터가 안 어긋난다.
+   *
+   * @param {object} ctx 마운트 컨텍스트(`showChannelCol` 을 읽는다).
+   * @returns {string[]} 헤더 문자열 배열.
+   */
+  function csvHeaders(ctx) {
+    return ctx.showChannelCol ? CSV_HEADERS.concat(['네이버 정산']) : CSV_HEADERS.slice();
+  }
 
   function csvCell(value) {
     var text = value == null ? '' : String(value);
     return /[",\r\n]/.test(text) ? '"' + text.replace(/"/g, '""') + '"' : text;
   }
 
-  function csvRow(row) {
-    return [
+  /**
+   * 한 줄. 네이버 정산 칸은 **상태 문구만** 넣는다 — 화면과 같은 낱말이라 사람이 대조할 수
+   * 있고, 날짜·금액은 넣지 않는다(파일이 화면보다 많이 말하지 않는다).
+   *
+   * @param {object} ctx 마운트 컨텍스트.
+   * @param {object} row 행 데이터.
+   * @returns {string} CSV 한 줄.
+   */
+  function csvRow(ctx, row) {
+    var cells = [
       row.order_id, row.customer_name, row.channel_label, row.completion_date,
       row.shipping_price == null ? '' : row.shipping_price,
       row.deposit == null ? '' : row.deposit,
@@ -701,7 +792,12 @@
       row.elapsed_days == null ? '' : row.elapsed_days,
       row.cash_receipt_state,
       row.settlement_issued ? '청구완료' : '대기',
-    ].map(csvCell).join(',');
+    ];
+    if (ctx.showChannelCol) {
+      var cell = row.naver_settlement;
+      cells.push((cell && NAVER_SETTLE_TEXT[cell.status]) || '');
+    }
+    return cells.map(csvCell).join(',');
   }
 
   /**
@@ -715,7 +811,9 @@
       notice(ctx, 'error', '내보낼 행이 없습니다.', '조건에 맞는 주문이 없습니다.');
       return;
     }
-    var lines = [CSV_HEADERS.join(',')].concat(data.rows.map(csvRow));
+    var lines = [csvHeaders(ctx).join(',')].concat(data.rows.map(function (row) {
+      return csvRow(ctx, row);
+    }));
     // BOM 을 붙여야 Excel 이 UTF-8 로 연다(없으면 한글이 깨진 채 열린다).
     var blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
     var url = URL.createObjectURL(blob);
@@ -881,6 +979,8 @@
     var ctx = {
       root: root,
       els: collectEls(root),
+      // 마운트 시점 1회 판정. 서버 렌더 표식이라 응답마다 흔들리지 않는다.
+      showChannelCol: root.hasAttribute(CHANNEL_COL_ATTR),
       state: {
         period: 'all', settlement: 'all', channel: 'all', bucket: '',
         page: 1, data: null, seq: 0, loaded: false, busy: false,
