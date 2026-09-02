@@ -669,7 +669,17 @@
                         {# 본품/추가구성상품은 장식이 아니다 — 클레임 호출 순서를 가르는 축이고
                            (추가상품 먼저, `fulfillment.claim_call_order`), 이 집이 왜 순서에
                            민감한지 사람이 표에서 바로 읽어야 한다. #}
+                        {# 판정 근거가 없으면 `본품` 이라고 단정하지 않는다(감사 F12) —
+                           `productClass` 가 없는 옛 수집분은 코드가 본품으로 보지만
+                           그건 안전측 기본값이지 사실이 아니다. 그 집은 클레임 호출
+                           순서가 사실상 수집 id 순이고 반품 범위 검사도 추가구성상품을
+                           못 센다 — 사람이 그걸 알아야 판매자센터를 연다. #}
+                        {% if row.product_class_known %}
                         <div class="small text-muted">{{ '추가구성상품' if row.is_addon else '본품' }}</div>
+                        {% else %}
+                        <div class="small text-warning fw-semibold">구성 미상</div>
+                        <div class="small text-muted">옛 수집분이라 본품/추가구성상품 표식이 없습니다</div>
+                        {% endif %}
                     </td>
                     <td>
                         <div class="fw-semibold">{{ row.product }}</div>

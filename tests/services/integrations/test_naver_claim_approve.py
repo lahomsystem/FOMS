@@ -136,12 +136,32 @@ def _order() -> int:
 
 
 class _CancelClient:
-    """취소 승인 호출만 기록한다."""
+    """취소 승인 호출을 기록한다 — **보내기 직전 재조회**까지 흉내낸다.
 
-    def __init__(self, *, fail: str = "", fail_row: str = ""):
+    승인은 환불 확정이라 되돌릴 수 없다. 그래서 대상 판정을 수집 시점 스냅샷이 아니라
+    **지금 상태**로 다시 한다(:func:`fulfillment.fresh_claim_statuses`, 감사 F10).
+    기본 답은 "취소 요청 그대로"라 재조회가 없던 시절과 같은 경로를 탄다. ``fresh`` 로
+    네이버 쪽 상태를 바꿔 끼우면 낡은 스냅샷 사례를 만들 수 있다.
+    """
+
+    def __init__(self, *, fail: str = "", fail_row: str = "",
+                 fresh: dict | None = None, read_error: str = ""):
         self.calls: list[str] = []
         self.fail = fail
         self.fail_row = fail_row
+        self.fresh = fresh or {}
+        self.read_error = read_error
+        self.reads: list[list[str]] = []
+
+    def get_product_orders(self, product_order_ids):
+        pids = [str(p) for p in product_order_ids]
+        self.reads.append(pids)
+        if self.read_error:
+            raise RuntimeError(self.read_error)
+        return [{"productOrder": {"productOrderId": pid,
+                                  "claimStatus": self.fresh.get(pid, "CANCEL_REQUEST"),
+                                  "claimType": "CANCEL"}}
+                for pid in pids]
 
     def approve_cancel_product_order(self, product_order_id):
         self.calls.append(product_order_id)
@@ -835,3 +855,55 @@ def test_both_approvals_are_followed_by_a_refresh():
 
     assert "cancel-approve" in REFRESH_AFTER_ACTIONS
     assert "return-approve" in REFRESH_AFTER_ACTIONS
+
+
+# --------------------------------------------------------------------------- #
+# F10 — 낡은 스냅샷으로 환불을 확정하지 않는다
+# --------------------------------------------------------------------------- #
+
+def test_cancel_approval_refetches_the_state_before_calling(app):
+    """승인 직전에 네이버에 **지금 상태**를 다시 묻는다 (감사 F10).
+
+    화면 술어는 수집 시점 스냅샷으로 버튼을 연다 — 그건 옳다. 그러나 승인은 환불 확정이고
+    되돌리는 엔드포인트가 없다. 반품 승인(`_approve_returns`)은 처음부터 재조회를 했는데
+    취소 승인만 안 했다 — 같은 불가역 등급인데 규율이 갈려 있던 자리다.
+    """
+    link = _link(claim="CANCEL_REQUEST")
+    client = _CancelClient()
+
+    fulfillment.approve_cancel(db_session, client, link_id=int(link.id), actor_user_id=1)
+    db_session.commit()
+
+    assert client.reads == [[link.external_id]], "보내기 전에 다시 묻지 않았다"
+    assert client.calls == [link.external_id]
+
+
+def test_a_withdrawn_cancel_is_not_approved_even_though_the_snapshot_says_so(app):
+    """스냅샷은 `CANCEL_REQUEST` 인데 네이버는 이미 다른 상태 — **부르지 않는다**.
+
+    구매자가 취소를 철회한 뒤 우리가 옛 사실로 승인을 부르면 환불이 확정될 수 있고,
+    되돌릴 방법이 없다. 조용히 빼지 않는다 — 사유를 남기고 예외를 올린다.
+    """
+    link = _link(claim="CANCEL_REQUEST")
+    client = _CancelClient(fresh={link.external_id: "CANCEL_REJECT"})
+
+    with pytest.raises(fulfillment.FulfillmentError) as err:
+        fulfillment.approve_cancel(db_session, client, link_id=int(link.id))
+    db_session.commit()
+
+    assert client.calls == [], "낡은 스냅샷으로 환불을 확정했다"
+    assert "상태가 아닙니다" in str(err.value)
+    assert "CANCEL_REJECT" in _state(link.id, "cancel").get("approve_skipped_reason", "")
+
+
+def test_a_failed_refetch_stops_the_cancel_approval(app):
+    """상태를 **못 읽으면 부르지 않는다** — 모르면 불가역 호출을 열지 않는다."""
+    link = _link(claim="CANCEL_REQUEST")
+    client = _CancelClient(read_error="HTTP 500 일시 오류")
+
+    with pytest.raises(fulfillment.FulfillmentError) as err:
+        fulfillment.approve_cancel(db_session, client, link_id=int(link.id))
+    db_session.commit()
+
+    assert client.calls == [], "상태를 모르는 채로 환불을 확정했다"
+    assert "읽지 못했습니다" in str(err.value)
