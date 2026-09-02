@@ -560,6 +560,10 @@ class NaverCommerceClient:
             "POST", f"/v1/pay-order/seller/product-orders/{pid}/claim/cancel/request",
             json_body=body,
             headers={"Content-Type": "application/json"},
+            # **불가역 클레임 호출은 재시도하지 않는다**(2026-09-02). 커머스API 문서가
+            # 재호출 전 상태 재확인을 요구하는데 우리는 다시 읽지 않는다 — 맹목 재전송은
+            # 중복 클레임이고, 타임아웃은 "안 나갔다"가 아니다.
+            retry=False,
         )
 
     def approve_cancel_product_order(self, product_order_id: str) -> dict:
@@ -583,8 +587,21 @@ class NaverCommerceClient:
         환불처리 불가로 ``CANCELING`` 에 머문 건도 같은 호출로 재판정한다고 적는다.
         그 밖의 상태는 400 이다 — 상태를 먼저 읽고 건다.
 
-        **취소 거부 API 는 존재하지 않는다.** 취소 철회는 구매자만 한다(흐름도 분기 C
-        "구매자 취소철회" → ``CANCEL_REJECT``). 판매자가 거절하는 경로를 만들지 않는다.
+        **취소 거부 전용 endpoint 는 없다 — 그러나 거부 경로 자체는 있다**(2026-09-02
+        정정). 옛 도스트링은 "취소 철회는 구매자만 한다"고 적었는데 **사실이 아니다.**
+        공식 FAQ 원문(Discussion #2823, author ``commerce-api-naver``):
+
+            취소 요청 거부는 단독으로 진행할 수 없으며 요청된 주문건(상품주문번호)을
+            **발송 처리함으로서 취소 요청을 거부하는 방법만 가능**합니다.
+
+        같은 취지가 #923 에도 있다 — "발송 처리 API 로 호출하게 될 경우 구매자 취소 요청
+        거부 + 발송 처리가 동시에 진행됩니다". #1321 이 "발송 처리(**취소 철회**)"를 한
+        묶음으로 적는 이유가 이것이다.
+
+        **우리는 그 경로를 열지 않는다.** 물건이 이미 나간 건에만 성립하는데,
+        :func:`fulfillment._claim_guard` 가 ``CANCEL_REQUEST`` 집의 발송처리를 막기
+        때문이다(불가역 오발송 차단이 우선). 즉 **없어서 안 하는 게 아니라 막아서 안
+        한다** — 담당자는 판매자센터로 간다. 열려면 그 가드부터 설계해야 한다.
 
         **이미 승인된 건·취소 요청이 없는 건은 처리되지 않는다** — 예외가 아니라
         ``data.failProductOrderInfos`` 로 온다. 응답이 접수·반품 승인과 **동형**이라
@@ -605,6 +622,10 @@ class NaverCommerceClient:
             raise ValueError("승인할 상품주문번호가 없습니다.")
         return self._request(
             "POST", f"/v1/pay-order/seller/product-orders/{pid}/claim/cancel/approve",
+            # **불가역 클레임 호출은 재시도하지 않는다**(2026-09-02). 커머스API 문서가
+            # 재호출 전 상태 재확인을 요구하는데 우리는 다시 읽지 않는다 — 맹목 재전송은
+            # 중복 클레임이고, 타임아웃은 "안 나갔다"가 아니다.
+            retry=False,
         )
 
     def request_return_product_order(self, product_order_id: str, *, reason: str,
@@ -659,6 +680,10 @@ class NaverCommerceClient:
             "POST", f"/v1/pay-order/seller/product-orders/{pid}/claim/return/request",
             json_body=body,
             headers={"Content-Type": "application/json"},
+            # **불가역 클레임 호출은 재시도하지 않는다**(2026-09-02). 커머스API 문서가
+            # 재호출 전 상태 재확인을 요구하는데 우리는 다시 읽지 않는다 — 맹목 재전송은
+            # 중복 클레임이고, 타임아웃은 "안 나갔다"가 아니다.
+            retry=False,
         )
 
     def approve_return_product_order(self, product_order_id: str) -> dict:
@@ -689,6 +714,10 @@ class NaverCommerceClient:
             raise ValueError("승인할 상품주문번호가 없습니다.")
         return self._request(
             "POST", f"/v1/pay-order/seller/product-orders/{pid}/claim/return/approve",
+            # **불가역 클레임 호출은 재시도하지 않는다**(2026-09-02). 커머스API 문서가
+            # 재호출 전 상태 재확인을 요구하는데 우리는 다시 읽지 않는다 — 맹목 재전송은
+            # 중복 클레임이고, 타임아웃은 "안 나갔다"가 아니다.
+            retry=False,
         )
 
     def reject_return_product_order(self, product_order_id: str, *, reason: str) -> dict:
@@ -738,6 +767,10 @@ class NaverCommerceClient:
             "POST", f"/v1/pay-order/seller/product-orders/{pid}/claim/return/reject",
             json_body={"rejectReturnReason": text},
             headers={"Content-Type": "application/json"},
+            # **불가역 클레임 호출은 재시도하지 않는다**(2026-09-02). 커머스API 문서가
+            # 재호출 전 상태 재확인을 요구하는데 우리는 다시 읽지 않는다 — 맹목 재전송은
+            # 중복 클레임이고, 타임아웃은 "안 나갔다"가 아니다.
+            retry=False,
         )
 
     # -- HTTP ------------------------------------------------------------- #
@@ -752,11 +785,21 @@ class NaverCommerceClient:
 
     def _request(self, method: str, path: str, *, params: Optional[dict] = None,
                  data: Optional[dict] = None, json_body: Optional[dict] = None,
-                 headers: Optional[dict] = None, authenticated: bool = True) -> dict:
+                 headers: Optional[dict] = None, authenticated: bool = True,
+                 retry: bool = True) -> dict:
         """재시도·토큰 갱신을 포함한 단일 API 호출. 파싱된 JSON dict를 돌려준다.
 
         429/5xx·네트워크 오류는 지수 백오프로 재시도하고, 401은 토큰을 강제 재발급해
         **한 번만** 다시 시도한다(무한 재발급 루프 방지).
+
+        ``retry=False`` 는 **불가역 클레임 호출** 전용이다(2026-09-02). 커머스API
+        문서가 재호출 전에 상태 재확인을 요구한다 — 취소 요청 문서 원문:
+        "500은 일시 장애로 보고 traceId 기반 재시도와 **동일 사유 재호출 시 중복
+        클레임 방지를 위해 상품 주문 상세 조회로 현재 클레임 상태를 먼저 확인**합니다."
+        그런데 우리는 상태를 다시 읽지 않으므로, 맹목 재전송은 **중복 클레임**을 만든다.
+        더 나쁜 갈래는 타임아웃이다 — 네이버가 이미 처리했는데 응답만 못 받은 경우다.
+        401 토큰 재발급 1회는 재시도가 아니라 **같은 호출의 인증 복구**라 그대로 둔다
+        (요청이 서버에 닿지 않았다).
 
         Raises:
             NaverCommerceHTTPError: 재시도 소진 또는 재시도 대상이 아닌 오류 응답.
@@ -776,7 +819,8 @@ class NaverCommerceClient:
                     headers=request_headers, timeout=self._timeout,
                 )
             except Exception as exc:  # noqa: BLE001 - 네트워크 계층 예외는 재시도 대상
-                if attempt >= self._max_retries:
+                # 불가역 호출은 여기서 멈춘다 — 타임아웃은 "안 나갔다"가 아니다.
+                if not retry or attempt >= self._max_retries:
                     raise NaverCommerceError(f"{method} {url} 네트워크 실패: {exc}") from exc
                 attempt += 1
                 self._backoff(attempt, reason=str(exc))
@@ -793,7 +837,7 @@ class NaverCommerceClient:
                 logger.info("[NAVER] 401 — 토큰 강제 재발급 후 1회 재시도")
                 self.get_access_token(force_refresh=True)
                 continue
-            if status in RETRYABLE_STATUS and attempt < self._max_retries:
+            if retry and status in RETRYABLE_STATUS and attempt < self._max_retries:
                 attempt += 1
                 self._backoff(attempt, reason=f"HTTP {status}")
                 continue
