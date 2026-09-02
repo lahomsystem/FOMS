@@ -9,10 +9,7 @@ DB 픽스처가 필요 없는 순수 함수 테스트다.
 """
 import copy
 
-from foms.services.channel_measure_message import (
-    DRAFT_NOTICE_LINE,
-    build_measure_push_text,
-)
+from foms.services.channel_measure_message import build_measure_push_text
 
 # 마법사 초안 sd(= _draft_payload_to_structured 결과)와 같은 모양의 대표 표본.
 _SINGLE_SD = {
@@ -223,20 +220,24 @@ def test_missing_construction_date_falls_back_to_consult():
     assert "시공시간" not in text
 
 
-def test_draft_notice_prefix():
-    """``draft_notice=True`` 면 머리말 한 줄 + 빈 줄이 본문 앞에 붙는다(설계 D5)."""
-    text = build_measure_push_text(_sd(_SINGLE_SD), draft_notice=True)
-    assert text == f"{DRAFT_NOTICE_LINE}\n\n{_SINGLE_GOLDEN}"
-    # 기본값은 머리말 없음 — 저장된 주문 발송 경로가 초안 문구를 물려받지 않는다.
-    assert not build_measure_push_text(_sd(_SINGLE_SD)).startswith(DRAFT_NOTICE_LINE)
+def test_draft_body_is_identical_to_saved_order_body():
+    """초안 발송이라고 머리말이 붙지 않는다 — 실측방이 받는 글은 한 벌이어야 한다.
+
+    D5(초안 머리말 ``※ 등록 전 초안 실측 공유``)는 사용자 결정으로 철회됐다(2026-09-02).
+    조립기가 발송 경로를 구분하지 않는다는 것을 인자 목록으로 못 박는다 — 경로별 분기
+    인자가 되살아나면 본문이 다시 두 벌이 된다.
+    """
+    import inspect
+
+    text = build_measure_push_text(_sd(_SINGLE_SD))
+    assert text == _SINGLE_GOLDEN
+    assert not text.lstrip().startswith("※")
+    assert list(inspect.signature(build_measure_push_text).parameters) == ["sd"]
 
 
 def test_empty_sd_keeps_only_default_lines():
     """빈 sd 는 기본값 두 줄만 남는다(PC 가 빈 폼에서 내는 결과와 같다)."""
     assert build_measure_push_text({}) == "발주사 : 라홈\n시공일 : 상담"
-    assert build_measure_push_text({}, draft_notice=True) == (
-        f"{DRAFT_NOTICE_LINE}\n\n발주사 : 라홈\n시공일 : 상담"
-    )
 
 
 def test_empty_values_are_omitted_entirely():
