@@ -195,5 +195,6 @@ def test_population_matches_across_modes_with_the_real_projection(pg_session):
     for left, right in zip(rich, thin):
         for field in ("place_pending", "claim_blocking", "canceled", "locked",
                       "can_pick", "count", "household_count", "household_place_pending",
-                      "place_pending_count", "dispatched_count", "in_queue"):
+                      "place_pending_count", "dispatched_count",
+                      "dispatch_pending_count", "in_queue"):
             assert left[field] == right[field], f"{field} 가 모드에 따라 갈렸다"

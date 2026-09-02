@@ -233,15 +233,19 @@ def _is_dispatched(link: ExternalOrderLink) -> bool:
     ①우리 표식(``triage_state.fulfillment.dispatched_at``) ②네이버 원본(``delivery.sendDate``).
     ②를 빼면 판매자센터에서 사람이 보낸 집이 영원히 "남음"으로 뜬다.
 
+    판정은 워커가 쓰는 술어 :func:`fulfillment.is_dispatch_pending` 를 그대로 뒤집는다 —
+    선별과 워커가 다른 식을 쓰면 "보낼 수 있다"고 고른 집을 워커가 ``FulfillmentError``
+    로 되돌려보낸다(일괄에서는 대량 실패 띠가 된다).
+
     Args:
         link: 링크 1건.
 
     Returns:
         둘 중 하나라도 있으면 참.
     """
-    if str(_fulfillment_state(link).get("dispatched_at") or "").strip():
-        return True
-    return bool(_naver_send_date(link))
+    from .fulfillment import is_dispatch_pending
+
+    return not is_dispatch_pending(link)
 
 
 def _sent_stamp(link: ExternalOrderLink) -> tuple[str, bool]:
