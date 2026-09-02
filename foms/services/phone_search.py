@@ -11,7 +11,9 @@ __all__ = [
 ]
 
 _DIGIT_RE = re.compile(r"[^0-9]")
-_MAX_PHONE_DIGITS = 20
+# 전화번호를 여러 개 적은 주문(숫자 22~23자)이 잘리지 않을 폭.
+# orders.erp_phone_digits VARCHAR(64) 와 같은 값이어야 한다.
+_MAX_PHONE_DIGITS = 64
 
 
 def normalize_phone_digits(phone: str | None) -> str | None:
