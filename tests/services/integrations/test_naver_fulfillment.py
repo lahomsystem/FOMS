@@ -608,8 +608,15 @@ def test_failure_records_which_action_failed(app):
 # 사람이 "확인했다"고 말할 수 있어야 한다. 성공 표식은 건드리지 않는다.
 # --------------------------------------------------------------------------- #
 
-def test_clear_failure_wipes_the_whole_household(app):
-    """한 집의 실패 기록을 통째로 지운다 — 형제 한 건이 남으면 띠가 다시 뜬다."""
+def test_clear_failure_clears_every_sibling_that_failed_the_same_action(app):
+    """**같은 작업으로 실패한** 형제를 함께 지운다 — 하나만 남으면 띠가 다시 뜬다.
+
+    이름이 한때 ``..._wipes_the_whole_household`` 였는데 그건 과장이다(2026-09-02).
+    ``clear_failure`` 의 범위는 집 전체가 아니라 **기준 링크와 같은 작업으로 실패한
+    형제들**이다(NVCLAIM-ORDER-01 RC5 2차) — 다른 작업의 실패는 남는다. 여기서 둘 다
+    지워지는 것은 둘이 **같은 발주확인**에서 실패했기 때문이지 집이라서가 아니다.
+    아래 ``kept`` 단언이 그 축을 붙든다.
+    """
     first = _link("PO-CLR-1", order_no="N-CLR", place="NOT_YET")
     second = _link("PO-CLR-2", order_no="N-CLR", place="NOT_YET")
     with pytest.raises(FulfillmentError):
@@ -620,6 +627,8 @@ def test_clear_failure_wipes_the_whole_household(app):
     db_session.commit()
 
     assert result["cleared"] == 2
+    assert result["kept"] == 0, "같은 작업으로 실패했으므로 남길 것이 없다"
+    assert result["action"] == "confirm", "무슨 작업을 지웠는지가 범위의 축이다"
     assert not _state(first).get("last_error")
     assert not _state(second).get("last_error")
     assert _state(first)["failure_cleared_by"] == 7

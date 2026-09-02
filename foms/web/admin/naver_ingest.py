@@ -3946,7 +3946,15 @@ def _group_queue(links: list[ExternalOrderLink], orders: dict,
                      if is_promotable(row)),
                     key=lambda pair: (pair[1]["amount"] or 0, -pair[0].id), reverse=True)),
                 None),
-            "shipping_due": next((s["shipping_due"] for s in member_summaries if s["shipping_due"]), ""),
+            # 집의 발송기한은 멤버 중 **가장 이른 값**이다 — 이력 탭
+            # (:func:`_history_shipping_due`, 계약 §2.2)과 같은 규칙. 예전에는 첫 값을
+            # 그대로 썼는데(first-wins), 멤버 순서는 대표(최고금액) 우선이라 기한과 아무
+            # 상관이 없다. 그래서 같은 집이 두 화면에서 다른 날짜를 말할 수 있었고,
+            # `임박순` 정렬(:func:`_sort_groups`)이 이 값을 키로 쓰므로 **더 급한 집이
+            # 아래로 내려간다** — 기한을 넘기면 네이버가 자동 취소하는 축이라 그 어긋남이
+            # 그대로 손실이다. 값은 ISO 날짜 문자열이라 사전순 최소 = 가장 이른 날짜다.
+            "shipping_due": min((s["shipping_due"] for s in member_summaries
+                                 if s["shipping_due"]), default=""),
             # CS 가 다음에 할 일을 목록에서 바로 알아보게 한다.
             "next_step": ("주문 만들기" if not lead.order_id
                           else ("규격 입력" if not order_has_spec_rows(order) else "")),

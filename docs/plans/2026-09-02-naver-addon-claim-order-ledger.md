@@ -200,3 +200,15 @@ NVCLAIM-ORDER-01 1차·2차·T3 전부 운영 반영, 규격 감사 5건 deploy 
 - `_group_queue` 의 `shipping_due` first-wins (이력은 `min()` — 두 화면이 갈릴 수 있다).
 - `.wb-cmp { min-width: … }` (지금은 `text-nowrap` 으로 유도).
 - `test_naver_fulfillment.py:611` 이름이 과장(`..._wipes_the_whole_household`, 동작은 green).
+
+## 잔가지 3 정리 (2026-09-02)
+
+| 항목 | 결과 |
+|---|---|
+| `_group_queue` 의 `shipping_due` first-wins | `min()` 으로. 멤버 순서는 **대표(최고금액) 우선**이라 기한과 무관했다 — 같은 집이 처리 탭과 이력 탭에서 다른 날짜를 말했고, `임박순` 정렬이 이 값을 키로 쓰므로 **더 급한 집이 아래로 내려갔다**. 기한을 넘기면 네이버가 자동 취소하는 축이라 어긋남이 그대로 손실이다. 계약 테스트 1종(음성 대조군: `next()` 로 되돌리면 red). |
+| `.wb-cmp` 폭 | 표에 `wb-cmp--members` 수식 클래스를 주고 `min-width: 680px * --wb-fs` + 제품 열 하한 150px. 지금까지 하한을 **유도**하던 것은 클레임 칸의 `text-nowrap` 인데, 유도는 계약이 아니다(유틸리티 클래스를 한 번 떼면 조용히 사라진다). `.wb-cmp` 골격 전체가 아니라 이 표에만 건다 — 후보 카드(`.wb-cmp--cand`)는 좁은 칸에 들어가 하한을 주면 거기서 가로 스크롤이 생긴다. 자산 핀 `?v=20260902f → g`(CSS·JS 함께, 계약 테스트 3곳). |
+| `test_clear_failure_wipes_the_whole_household` 이름 | `..._clears_every_sibling_that_failed_the_same_action` 로. 범위 축은 집이 아니라 **같은 작업**이다(RC5 2차). 이름만 바꾸지 않고 `kept == 0` · `action == "confirm"` 단언을 더해 그 축을 코드로 붙들었다 — 이름이 참이 되려면 축이 테스트 안에 있어야 한다. |
+
+**기록 정정**: 앞 커밋(F2) 메시지의 `tests/services/integrations 1463 passed` 는 오기다.
+그 시점 실제 수는 1459(이 배 뒤 1460).
+
