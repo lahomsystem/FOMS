@@ -716,6 +716,29 @@
         }
     }
 
+    /**
+     * 체크 상태만 화면에 반영한다 — 패널을 다시 그리지 않는다.
+     *
+     * 예전에는 체크 저장이 성공하면 `render()` 가 마운트를 통째로 비우고 새로 만들었다.
+     * 스크롤 컨테이너(`.naver-dock-bd`)가 그 안에 있어 새 노드의 `scrollTop` 이 0이 되고,
+     * 목록이 매번 맨 위로 튀었다(누르던 체크박스의 포커스도 사라졌다). 체크값이 바꾸는
+     * 것은 행의 `is-checked` 클래스와 체크박스 상태뿐이고, 머리말·진행바·완료 버튼은
+     * `syncStatus()` 가 이미 담당한다 — 그래서 다시 그릴 이유가 없다.
+     *
+     * 도크는 넓은 셸(pane)과 좁은 셸(drawer) 두 곳에 같은 행을 그린다 → 둘 다 갱신한다.
+     * @param {(string|number)} linkId 행 식별자.
+     * @param {boolean} checked 반영 여부.
+     * @returns {void}
+     */
+    function applyRowChecked(linkId, checked) {
+        var selector = '[data-naver-dock-row="' + String(linkId) + '"]';
+        Array.prototype.forEach.call(document.querySelectorAll(selector), function (node) {
+            node.classList.toggle('is-checked', checked);
+            var box = node.querySelector('[data-naver-dock-check]');
+            if (box && box.checked !== checked) box.checked = checked;
+        });
+    }
+
     function findRow(linkId) {
         return state.rows.filter(function (row) { return String(row.link_id) === String(linkId); })[0];
     }
@@ -831,9 +854,11 @@
             postDockState(row.link_id, { checked: next }).then(function (data) {
                 if (!data || !data.success) throw new Error((data && data.error) || 'save failed');
                 row.checked = next;
-                render();
+                applyRowChecked(row.link_id, next);
+                syncStatus();
             }).catch(function () {
-                check.checked = !next; // 저장 실패 — 화면을 서버 상태로 되돌린다.
+                // 저장 실패 — 화면을 서버 상태로 되돌린다(양쪽 마운트 모두).
+                applyRowChecked(row.link_id, !!row.checked);
                 syncStatus();
             });
             return;
