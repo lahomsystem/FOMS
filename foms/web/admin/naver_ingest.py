@@ -641,6 +641,40 @@ def _history_foms_state(lead: dict[str, Any], statuses: list[str]) -> str:
     return "linked"
 
 
+def _household_claim(claims: list[dict[str, Any]], *, fallback_label: str) -> dict[str, str]:
+    """집의 취소·반품 배지 — **첫 라벨이 아니라 집계**다 (NVCLAIM-ORDER-01 T5).
+
+    ``next((s["claim_label"] for s in members if s["claim_label"]), "")`` 는 4건 중 3건만
+    반품된 집에서 `반품 완료` 를 내놓는다. 담당자는 그 배지를 보고 집을 끝난 것으로 읽었고,
+    본품 1건은 ``DELIVERING`` 인 채 환불되지 않았다(2026-09-01 황민철, ERP 주문 5026).
+    **화면 문구가 아니라 사고의 직접 원인이라 배지를 집계로 바꾼다.**
+
+    집계 규칙과 낱말표는 취소 띠와 **같은 모듈 한 벌**을 쓴다
+    (:func:`order_candidates.aggregate_claim`) — 두 벌로 두면 같은 집을 두 화면이 다르게
+    부른다.
+
+    라벨을 **``partial`` 에서만** 집계 낱말로 바꾸는 이유: 집 전체가 같은 단계인 집은
+    라인 라벨이 더 정확하다(`수거 중`·`환불 대기`처럼 단계까지 말한다). 첫 라벨이 거짓말을
+    하는 것은 **부분 상태 하나뿐**이라, 고치는 것도 거기 하나다. 판정 축은 라벨이 아니라
+    ``claim_code`` 다 — 낱말이 바뀌어도 분기가 안 죽는다(order_candidates.py:235).
+
+    Args:
+        claims: 집 멤버의 :func:`mapping.extract_claim` 결과 목록(**표시 순서 그대로**).
+        fallback_label: 부분 상태가 아닐 때 쓸 라인 라벨(기존 first-non-empty 값).
+
+    Returns:
+        ``{"claim_code", "claim_kind", "claim_label"}``.
+    """
+    from foms.services.integrations.naver_commerce.order_candidates import aggregate_claim
+
+    agg = aggregate_claim(claims)
+    return {
+        "claim_code": agg["claim_code"],
+        "claim_kind": agg["claim_kind"],
+        "claim_label": agg["claim_label"] if agg["claim_code"] == "partial" else fallback_label,
+    }
+
+
 def _history_claim(members: list[dict[str, Any]]) -> dict[str, Any]:
     """집의 취소·반품 축 — **라벨을 준 그 멤버**의 단계·종류·사유를 함께 가져온다.
 
@@ -660,11 +694,19 @@ def _history_claim(members: list[dict[str, Any]]) -> dict[str, Any]:
     """
     row = next((row for row in members if row["claim_label"]), None)
     if row is None:
-        return {"label": "", "phase": "", "kind": "", "reason": "",
+        return {"label": "", "code": "alive", "phase": "", "kind": "", "reason": "",
                 "done_text": "", "refund_expected_text": "", "collect_done_text": "",
                 "refund_done": False}
+    # 배지 낱말만 집계로 바꾼다(T5) — 단계·사유·날짜는 **그 멤버의 사실**이라 그대로 둔다.
+    # ``claim_kind`` 는 이미 풀린 종류라 ``type`` 자리에 그대로 넣는다
+    # (:func:`mapping.claim_kind` 가 ``type`` 을 먼저 본다).
+    aggregate = _household_claim(
+        [{"phase": member["claim_phase"], "type": member["claim_kind"]} for member in members],
+        fallback_label=row["claim_label"])
     return {
-        "label": row["claim_label"],
+        "label": aggregate["claim_label"],
+        # 코드가 판정 축이다 — 화면이 한국어 낱말을 ``==`` 로 비교하지 않게 함께 싣는다.
+        "code": aggregate["claim_code"],
         "phase": row["claim_phase"],
         "kind": row["claim_kind"],
         "reason": row["claim_reason"],
@@ -990,6 +1032,8 @@ def _history_group_axes(group: list[dict[str, Any]], *, lead: dict[str, Any],
         # 화면이 읽는 것은 아래 넷뿐이다. 원재료(사유 코드·시각 3종)를 행에 또 실으면
         # 아무도 안 읽는 값이 되고, 다음 사람이 "화면에 이미 있다"고 오독한다.
         "claim_label": claim["label"],
+        # 부분/전부 집계 코드(T5). 라벨은 표시 축이라 낱말이 바뀌고, 분기는 이쪽에 건다.
+        "claim_code": claim["code"],
         "claim_phase": claim["phase"],
         "claim_badge_text": claim_badge_text,
         "claim_tail_text": claim_tail_text,
@@ -2542,7 +2586,58 @@ def _failure_rows(db) -> list[dict[str, Any]]:
             # 같은 칸의 발송 시각(KST)과 9시간 어긋나고 ② 못 읽는 값도 잘라 낸다.
             "at": _dispatch_time_text(state.get("last_error_at")),
         })
+    _mark_return_sendable(db, rows)
     return rows
+
+
+def _mark_return_sendable(db, rows: list[dict[str, Any]]) -> None:
+    """실패 행마다 **아직 안 보낸 반품 접수 건수**를 달아 준다 (NVCLAIM-ORDER-01 T7).
+
+    `확인함` 은 집 전체의 ``last_error`` 를 지운다(``fulfillment.clear_failure``). 그런데
+    반품 접수에 실패한 라인에는 ``return`` 축 기록이 **아예 없다** — 성공분만 기록을 받는다.
+    그래서 한 번 누르면 "본품이 반품되지 않았다"는 유일한 DB 흔적이 사라진다(RC5).
+    라인 단위 ``clear_failure`` 는 2차 배로 미뤘고, 1차는 **보낼 반품이 남은 집에서
+    버튼을 잠그는 것**으로 버틴다.
+
+    술어는 :func:`fulfillment.return_sendable` 이다. ``is_return_pending`` 으로 세면
+    판매자센터에서 사람이 손으로 끝낸 집까지 영원히 잠긴다 — 그쪽은 **우리 표식으로만**
+    멱등을 판정하기 때문이다.
+
+    조회는 실패 행이 있을 때만 1회다(집 형제는 실패 표식이 없어 위 조회에 안 잡힌다).
+
+    Args:
+        db: 요청 스코프 DB 세션.
+        rows: :func:`_failure_rows` 가 만든 행 목록(**제자리에서** 필드를 올린다).
+
+    Returns:
+        None.
+    """
+    from foms.services.integrations.naver_commerce.fulfillment import (
+        household_key,
+        return_sendable,
+    )
+
+    for row in rows:
+        row["return_sendable_count"] = 0
+    order_nos = sorted({row["external_order_no"] for row in rows if row["external_order_no"]})
+    if not order_nos:
+        return
+    siblings = (
+        db.query(ExternalOrderLink)
+        .filter(ExternalOrderLink.channel == "NAVER",
+                ExternalOrderLink.external_order_no.in_(order_nos))
+        .all()
+    )
+    counts: dict[str, int] = {}
+    for sibling in siblings:
+        if not return_sendable(sibling):
+            continue
+        # 접는 키는 :func:`_failure_rows` 와 **글자 그대로 같아야** 한다 — 다르면 카운트가
+        # 엉뚱한 줄에 붙어 잠글 집을 안 잠근다.
+        key = f"{(sibling.external_order_no or '').strip()}|{household_key(sibling)}"
+        counts[key] = counts.get(key, 0) + 1
+    for row in rows:
+        row["return_sendable_count"] = counts.get(row["_key"], 0)
 
 
 def _history_view(db) -> dict[str, Any]:
@@ -3490,6 +3585,7 @@ def _group_queue(links: list[ExternalOrderLink], orders: dict,
     # 비면 링크 단독으로 센다)이 화면에는 없었다 — 서로 다른 빈 원본이 화면에서만 한 집으로
     # 붙어 보이고 워커는 따로 처리하는 갈라짐이었다(리뷰 L-1). 폴백을 한 벌만 둔다.
     from foms.services.integrations.naver_commerce.fulfillment import (
+        household_exchange_in_flight,
         household_key,
         is_cancel_approvable,
         is_dispatch_pending,
@@ -3497,7 +3593,9 @@ def _group_queue(links: list[ExternalOrderLink], orders: dict,
         is_return_approvable,
         is_return_pending,
         is_return_rejectable,
+        return_sendable,
     )
+    from foms.services.integrations.naver_commerce.mapping import extract_claim
 
     groups: dict[tuple, list[ExternalOrderLink]] = {}
     order_of_key: list[tuple] = []
@@ -3524,6 +3622,12 @@ def _group_queue(links: list[ExternalOrderLink], orders: dict,
         # 아래 표식(클레임·발주)들이 같은 결과를 나눠 쓴다.
         ordered_summaries = [summarize_snapshot(row.raw_snapshot) for row in [lead, *rest]]
         member_summaries = ordered_summaries
+        # 집 배지는 **집계**다(T5). 재료는 표시 순서(대표 먼저) 그대로 — 부분 상태가 아닐 때
+        # 되돌아갈 라인 라벨이 예전 first-non-empty 값과 같아야 한다.
+        household_claim = _household_claim(
+            [extract_claim(row.raw_snapshot or {}) for row in [lead, *rest]],
+            fallback_label=next((s["claim_label"] for s in member_summaries
+                                 if s["claim_label"]), ""))
         dispatched_n = _dispatched_count(members)
         # 발송처리가 **실제로 나갈** 건수. 술어는 서버와 한 벌
         # (:func:`fulfillment.is_dispatch_pending` — 우리 표식 + 네이버 원본 sendDate).
@@ -3553,8 +3657,12 @@ def _group_queue(links: list[ExternalOrderLink], orders: dict,
             "sync_status": lead.sync_status,
             "count": len(members),
             "extra_count": len(rest),
-            # 묶음 안 어느 한 건이라도 취소·반품이면 줄 전체에 표식을 단다.
-            "claim_label": next((s["claim_label"] for s in member_summaries if s["claim_label"]), ""),
+            # 집 배지는 **집계**다(T5, NVCLAIM-ORDER-01). 예전에는 첫 라벨을 그대로 썼고,
+            # 4건 중 3건만 반품된 집이 `반품 완료` 로 떠서 담당자가 집을 끝난 것으로 읽었다
+            # (2026-09-01 황민철 — 본품 1건 미환불). 판정은 ``claim_code`` 로 한다.
+            "claim_label": household_claim["claim_label"],
+            "claim_code": household_claim["claim_code"],
+            "claim_kind": household_claim["claim_kind"],
             "claim_blocking": any(s["claim_blocking"] for s in member_summaries),
             # 발주확인은 상품주문 단위다 — 하나라도 남아 있으면 그 집은 "발주확인 전"이다(T16-A).
             "place_pending": any(not _place_view(row)["confirmed"] for row in members),
@@ -3607,6 +3715,15 @@ def _group_queue(links: list[ExternalOrderLink], orders: dict,
             # 재진술하면 "3건 반품 접수합니다"라고 읽히는데 서버는 나간 1건만 보낸다.
             # **불가역 경로라 그 과대 진술이 그대로 사고다**(2026-08-27 CEO 지적).
             "return_pending_count": sum(1 for row in members if is_return_pending(row)),
+            # 반품 접수가 **정말 나갈** 건수(T6). ``return_pending_count`` 와 다르다 —
+            # 그쪽은 우리 표식만 보는 멱등 판정이라, 형제가 이미 클레임에 걸려 서버
+            # 라인 가드가 거절할 건까지 센다. 버튼·모달은 **이 값**에 건다
+            # (:func:`fulfillment.return_sendable` — 서버와 한 벌).
+            "return_sendable_count": sum(1 for row in members if return_sendable(row)),
+            # 진행 중인 교환이 있는 집은 반품을 보내지 않는다(안전측). 화면 술어를
+            # ``claim_blocking`` 으로 대신하면 안 된다 — 그쪽은 ``BLOCKING_CLAIM_STATUSES``
+            # 라 ``EXCHANGE_*`` 를 담지 않아 서버보다 느슨하다(mapping.py:429).
+            "exchange_in_flight": household_exchange_in_flight(members),
             # 거부가 **실제로 나갈** 건수(T8-S3). 접수와 같은 규율로 서버 술어
             # (:func:`fulfillment.is_return_rejectable`)를 그대로 쓴다 — 보류 걸린 건과
             # 이미 처리한 건은 여기서 빠진다.
