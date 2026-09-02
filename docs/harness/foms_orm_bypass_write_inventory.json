@@ -68,7 +68,7 @@
     },
     {
       "path": "foms/services/integrations/naver_commerce/settle_sync.py",
-      "lineno": 370,
+      "lineno": 374,
       "kind": "query_bulk_delete",
       "func": "replace_partition",
       "signal": "UNTRACKED_TABLE",

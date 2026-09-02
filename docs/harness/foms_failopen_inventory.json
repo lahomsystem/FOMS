@@ -3763,7 +3763,7 @@
     },
     {
       "path": "foms/services/integrations/naver_commerce/settle_sync.py",
-      "lineno": 793,
+      "lineno": 799,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3772,7 +3772,7 @@
     },
     {
       "path": "foms/services/integrations/naver_commerce/settle_sync.py",
-      "lineno": 840,
+      "lineno": 846,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -4852,7 +4852,7 @@
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
-      "lineno": 4019,
+      "lineno": 4062,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
@@ -4861,7 +4861,7 @@
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
-      "lineno": 4031,
+      "lineno": 4074,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
@@ -4870,7 +4870,7 @@
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
-      "lineno": 4546,
+      "lineno": 4589,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
@@ -4879,7 +4879,7 @@
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
-      "lineno": 4739,
+      "lineno": 4782,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
@@ -4888,7 +4888,7 @@
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
-      "lineno": 5151,
+      "lineno": 5194,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
@@ -4897,7 +4897,7 @@
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
-      "lineno": 5244,
+      "lineno": 5287,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
@@ -4906,7 +4906,7 @@
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
-      "lineno": 5307,
+      "lineno": 5350,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
@@ -4915,7 +4915,7 @@
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
-      "lineno": 5479,
+      "lineno": 5522,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
