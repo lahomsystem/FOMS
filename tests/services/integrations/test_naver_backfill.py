@@ -291,19 +291,27 @@ def test_backfill_collects_orders_that_are_no_longer_payed(app):
             .filter(ExternalOrderLink.external_id == external_id).count()) == 1
 
 
-def test_normal_sweep_still_filters_by_payed(app):
-    """정상 스윕은 그대로다 — 결제완료가 아닌 변경은 신규 후보가 아니다."""
+def test_normal_sweep_filters_known_non_payed(app):
+    """정상 스윕은 **이미 아는** 상품주문의 비결제완료 변경을 후보로 삼지 않는다.
+
+    2026-09-02 이후 처음 보는 번호는 상태와 무관하게 받는다(D1) — 그래서 대조군은
+    링크가 이미 있는 건이어야 한다. 백필과 스윕의 차이는 이 축뿐이다.
+    """
     from foms.services.integrations.naver_commerce.ingest import sync_naver_orders
 
     external_id = f"PO-BF-{_uid()}"
     detail = _detail(external_id)
     detail["productOrder"]["productOrderStatus"] = "DELIVERED"
+    db_session.add(ExternalOrderLink(channel="NAVER", external_id=external_id,
+                                     sync_status="COLLECTED", raw_snapshot=detail))
+    db_session.commit()
     client = WindowClient([[_changed(external_id, "DELIVERED")]], [detail])
     result = sync_naver_orders(db_session, client=client, start=NOW - timedelta(hours=6),
                                end=NOW, now=NOW)
     db_session.commit()
     assert result.candidates == 0
     assert result.collected == 0
+    assert result.dropped_by_status == {"DELIVERED": 1}
 
 
 # --------------------------------------------------------------------------- #

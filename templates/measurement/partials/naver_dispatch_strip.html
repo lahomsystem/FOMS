@@ -32,7 +32,8 @@
     <i class="fas fa-link-slash text-warning"></i>
     주문에 안 붙은 네이버 수집분 {{ bulk_dispatch.unlinked }}집
     <div class="text-muted small fw-normal mt-1">
-      오늘 발송할 대상은 없습니다. 다만 아래 수집분을 주문에 붙이면 대상이 됩니다.
+      {% if bulk_dispatch.unlinked %}오늘 발송할 대상은 없습니다. 다만 아래 수집분을 주문에 붙이면 대상이 됩니다.
+      {% else %}오늘 발송할 대상도, 붙일 수집분도 없습니다 — 취소·반품 확정이라 뺀 집만 있습니다.{% endif %}
     </div>
     {% elif bulk_dispatch.state == 'done' %}
     <i class="fas fa-circle-check text-success"></i>
@@ -81,6 +82,16 @@
       </li>
       {% endfor %}
     </ul>
+  </div>
+  {% endif %}
+  {#
+    뺀 집은 **말한다** — 취소·반품이 확정된 집을 살아 있는 주문에 붙이면 그 주문이 유령으로
+    분류되고 폐기 버튼이 열린다(2026-09-02). 조용히 줄이면 사람은 뺀 줄도 모른다.
+  #}
+  {% if bulk_dispatch.unlinked_excluded %}
+  <div class="alert alert-secondary py-2 px-3 mt-2 mb-0" data-foms-no-autodismiss>
+    <div class="fw-semibold">취소·반품 확정 {{ bulk_dispatch.unlinked_excluded }}집은 제외했습니다 —
+      붙이면 살아 있는 주문이 취소된 집으로 읽힙니다.</div>
   </div>
   {% endif %}
   {#
