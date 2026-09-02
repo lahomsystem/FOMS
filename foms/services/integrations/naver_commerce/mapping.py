@@ -283,6 +283,43 @@ CLAIM_BLOCK_KEYS = ("cancel", "returnInfo", "return", "exchange")
 RETURN_BLOCK_KEYS = ("returnInfo", "return", "exchange")
 
 
+def _claim_holders(detail: Any) -> tuple[dict, ...]:
+    """클레임 블록이 실려 올 수 있는 **바깥 그릇**들을 우선순위 순으로 준다.
+
+    ``(detail, currentClaim, beforeClaim)`` 순이다. 앞선 그릇이 이긴다 — 지금 도는
+    클레임(``currentClaim``)이 지나간 클레임(``beforeClaim``)보다 먼저다.
+
+    **``beforeClaim`` 은 2026-09-02 에 넣은 안전장치다.** 커머스API 공지
+    "구.클레임 필드 지원 종료 예정 안내 (10/28)"(Discussion #3608)는 **2026년 10월 28일**
+    부터 우리가 쓰는 바로 그 조회 API(``POST /v1/pay-order/seller/product-orders/query``)
+    응답에서 ``data[n].cancel``·``return``·``exchange`` 를 **반환하지 않는다**고 적고,
+    대체 노드로 ``currentClaim.*`` 과 **``beforeClaim.exchange``** 를 든다.
+
+    우리는 이미 ``detail`` 과 ``currentClaim`` 을 함께 읽어 취소·반품은 그날을 넘긴다.
+    문제는 ``beforeClaim`` 을 **한 번도 읽지 않던 것**이었다 — 거기 실려 오는 클레임을
+    "클레임 없음"으로 읽으면 :func:`blocks_irreversible` 이 열리고, 이미 환불된 집에
+    발송처리가 나간다(불가역·오발송).
+
+    공지 표가 ``beforeClaim`` 을 **교환에만** 적었다는 점은 그대로 남긴다 — 취소·반품도
+    그리로 가는지는 **문서에 없다**. 그래서 추정으로 판정을 바꾸지 않고, **읽는 그릇만**
+    늘렸다. 거기 아무것도 안 오면 지금과 똑같이 동작하고, 오면 안 놓친다.
+
+    Args:
+        detail: 상품주문 상세 1건.
+
+    Returns:
+        비어 있지 않은 dict 그릇들(우선순위 순).
+    """
+    if not isinstance(detail, dict):
+        return ()
+    holders: list[dict] = [detail]
+    for key in ("currentClaim", "beforeClaim"):
+        block = detail.get(key)
+        if isinstance(block, dict) and block:
+            holders.append(block)
+    return tuple(holders)
+
+
 def _claim_blocks(detail: Any) -> list[dict]:
     """클레임 상세가 들어 있을 수 있는 블록들을 **우선순위 순**으로 모은다.
 
@@ -297,15 +334,18 @@ def _claim_blocks(detail: Any) -> list[dict]:
     """
     if not isinstance(detail, dict):
         return []
-    current = detail.get("currentClaim") if isinstance(detail.get("currentClaim"), dict) else {}
+    holders = _claim_holders(detail)
     blocks: list[dict] = []
-    for holder in (detail, current):
+    for holder in holders:
         for key in CLAIM_BLOCK_KEYS:
             block = holder.get(key)
             if isinstance(block, dict) and block:
                 blocks.append(block)
-    if current:
-        blocks.append(current)
+    # 그릇 자체가 **평평한 클레임**으로 오는 모양도 있다(실데이터로 확인된
+    # ``currentClaim`` 이 그렇다). ``detail`` 은 제외한다 — 그건 상세 전체지
+    # 클레임이 아니다. 2026-09-02: ``beforeClaim`` 도 같은 대접을 받는다,
+    # 안 그러면 평평하게 실려 온 지나간 클레임을 통째로 놓친다(#3608 안전장치).
+    blocks.extend(holders[1:])
     return blocks
 
 
@@ -331,7 +371,7 @@ def _cancel_blocks(detail: Any) -> list[dict]:
         return []
     current = detail.get("currentClaim") if isinstance(detail.get("currentClaim"), dict) else {}
     blocks: list[dict] = []
-    for holder in (detail, current):
+    for holder in _claim_holders(detail):
         for key in CANCEL_BLOCK_KEYS:
             block = holder.get(key)
             if isinstance(block, dict) and block:
@@ -397,7 +437,7 @@ def _return_blocks(detail: Any) -> list[dict]:
         return []
     current = detail.get("currentClaim") if isinstance(detail.get("currentClaim"), dict) else {}
     blocks: list[dict] = []
-    for holder in (detail, current):
+    for holder in _claim_holders(detail):
         for key in RETURN_BLOCK_KEYS:
             block = holder.get(key)
             if isinstance(block, dict) and block:
