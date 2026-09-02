@@ -403,3 +403,40 @@ T10 에서 GEOCODE 실패를 찾을 때 실제로 이 로그를 헤집고 지나
   NAVER_ORDER_CLAIMED·PRODUCTION_ORDER_CHANGED 등). 즉 회귀가 아니라 미구현이다.
   "단계 전이 알림을 낼 것인가"는 제품 결정이라 손대지 않았다.
 * 이미 쌓인 DEAD 1,188행은 되살리지 않는다 — 배달할 것이 없다(retention 이 정리한다).
+
+
+---
+
+## T12 — 배포 함정: `railway redeploy` 는 **같은 커밋**을 다시 돌린다 (2026-09-02)
+
+T11 을 운영에 머지한 뒤 web 은 `bbd75e08` 로 바뀌었는데 SIDEFX 로그에는 여전히
+`NoHandlerError CHANNEL_PUSH_RECORDED` 가 찍혔다. 배포 이력을 보고서야 이유를 알았다.
+
+```
+SIDEFX deployments (production)
+  SUCCESS  2026-09-02T00:42:39Z  branch=production sha=17bc00271   <- railway redeploy 결과
+  REMOVED  2026-09-01T23:56:29Z  branch=production sha=17bc00271
+  REMOVED  2026-08-31T13:17:00Z  branch=production sha=eda377ce3
+```
+
+`railway redeploy --service X` 는 **직전 배포와 같은 커밋을 다시 실행**한다. 최신 커밋을
+가져오지 않는다. 그래서 "재배포했다"는 사실이 "새 코드가 올라갔다"를 뜻하지 않는다.
+
+정정 방법(GraphQL, CLI 에 해당 명령이 없다)::
+
+    mutation { serviceInstanceDeploy(serviceId:"…", environmentId:"…", latestCommit:true) }
+
+**판정은 로그 문구나 재기동 여부가 아니라 배포의 `meta.commitHash` 로 한다.** 컨테이너
+owner 해시가 그대로면 프로세스가 안 바뀐 것이고, 바뀌었더라도 커밋이 같으면 옛 코드다.
+
+이 함정은 T10 과 한 쌍이다 — T10 은 "서비스를 열거하지 않아서" 키 부재를 놓쳤고,
+T12 는 "배포됐는지를 커밋으로 확인하지 않아서" 옛 코드가 도는 것을 놓칠 뻔했다.
+
+### 운영 반영 확인 (2026-09-02 00:45 UTC)
+
+| 축 | 결과 |
+|---|---|
+| SIDEFX 배포 | `latestCommit:true` 로 새 배포 → 컨테이너 owner `8f41a576` → **`9ba6258b`** |
+| 로그 | `NoHandlerError CHANNEL_PUSH_RECORDED` **0건**(직전 로그창에는 14건) |
+| outbox | `CHANNEL_PUSH_RECORDED` **DONE 1건 신규**(00:42) — 핸들러가 실제로 행을 끝냈다 |
+| 기존 DEAD | 1,190행 그대로(배달할 것이 없다 — retention 이 정리) |
