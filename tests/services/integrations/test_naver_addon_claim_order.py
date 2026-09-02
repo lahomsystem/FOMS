@@ -268,3 +268,92 @@ def test_exchange_in_flight_still_blocks_the_whole_household(app):
     with pytest.raises(FulfillmentError):
         request_return(db_session, client, link_id=addon, reason="COLOR_AND_SIZE")
     assert client.calls == [], "교환이 도는 집에 불가역 반품 접수가 나갔다"
+
+
+# --------------------------------------------------- T3 실패 라인의 반품 축 기록
+
+
+def test_a_failed_return_line_gets_its_own_record(app):
+    """실패한 라인에도 **반품 축 기록**이 남는다 (NVCLAIM-ORDER-01 T3).
+
+    이 기록이 없던 것이 RC5 였다: 성공분만 ``return`` 축을 받아서 실패한 라인은 축이
+    비어 **"아직 안 보냄"과 구분되지 않았고**, 실패 띠를 ``확인함`` 으로 닫는 순간
+    유일한 흔적이던 ``last_error`` 마저 사라졌다(황민철 집, ERP 5026).
+
+    ``requested_at`` 은 안 생겨야 한다 — 실패는 접수가 아니고,
+    :func:`is_return_pending` 이 그 키로 멱등을 판정한다. 실패한 라인은 **다시 보낼
+    대상으로 남아야** 한다.
+    """
+    from foms.services.integrations.naver_commerce.fulfillment import (
+        is_return_pending, return_failure,
+    )
+
+    order_no = "N-ORD-T3"
+    main = _link("PO-T3-MAIN", order_no=order_no, addon=False, dispatched=True)
+    _link("PO-T3-A1", order_no=order_no, addon=True, dispatched=True)
+
+    reason_text = "추가상품 반품진행 후, 본 상품 반품진행을 할 수 있습니다."
+    client = _ReturnClient(fail={"PO-T3-MAIN": reason_text})
+    with pytest.raises(FulfillmentError):
+        request_return(db_session, client, link_id=main, reason="COLOR_AND_SIZE")
+    db_session.commit()
+    db_session.expire_all()
+
+    row = db_session.get(ExternalOrderLink, main)
+    axis = (row.triage_state or {}).get("return") or {}
+    assert axis.get("failed_at"), "실패 라인에 반품 축 기록이 없다 — 띠를 닫으면 흔적이 사라진다"
+    assert reason_text in axis.get("failed_reason", "")
+    assert not axis.get("requested_at"), "실패를 접수로 기록하면 다시 보낼 수 없게 된다"
+    assert is_return_pending(row), "실패한 라인은 다시 보낼 대상으로 남아야 한다"
+    assert return_failure(row)["failed_reason"], "공통 술어가 기록을 못 읽는다"
+
+
+def test_the_failure_record_survives_clearing_the_banner(app):
+    """``확인함`` 은 통지를 닫을 뿐 **사실을 지우지 않는다** — 잠금을 걷은 근거.
+
+    ``clear_failure`` 는 ``fulfillment.last_error`` 축만 만진다. 반품 축의
+    ``failed_at``/``failed_reason`` 이 남아야 담당자가 띠를 닫은 뒤에도 상품주문 표에서
+    "이 본품은 접수가 실패한 채다"를 읽는다.
+    """
+    from foms.services.integrations.naver_commerce.fulfillment import (
+        clear_failure, return_failure,
+    )
+
+    order_no = "N-ORD-T3CLEAR"
+    main = _link("PO-T3C-MAIN", order_no=order_no, addon=False, dispatched=True)
+    _link("PO-T3C-A1", order_no=order_no, addon=True, dispatched=True)
+
+    client = _ReturnClient(fail={"PO-T3C-MAIN": "네이버가 거절했습니다"})
+    with pytest.raises(FulfillmentError):
+        request_return(db_session, client, link_id=main, reason="COLOR_AND_SIZE")
+    db_session.commit()
+
+    clear_failure(db_session, link_id=main)
+    db_session.commit()
+    db_session.expire_all()
+
+    row = db_session.get(ExternalOrderLink, main)
+    state = (row.triage_state or {}).get("fulfillment") or {}
+    assert not state.get("last_error"), "띠가 안 닫혔다"
+    assert return_failure(row)["failed_at"], "띠를 닫자 실패 사실까지 사라졌다 — RC5 재발"
+
+
+def test_a_later_success_clears_the_failure_record(app):
+    """다시 보내 성공하면 실패 기록을 지운다 — 안 지우면 영원히 '접수 실패'로 읽힌다."""
+    from foms.services.integrations.naver_commerce.fulfillment import return_failure
+
+    order_no = "N-ORD-T3RETRY"
+    main = _link("PO-T3R-MAIN", order_no=order_no, addon=False, dispatched=True)
+
+    with pytest.raises(FulfillmentError):
+        request_return(db_session, _ReturnClient(fail={"PO-T3R-MAIN": "일시 오류"}),
+                       link_id=main, reason="COLOR_AND_SIZE")
+    db_session.commit()
+
+    request_return(db_session, _ReturnClient(), link_id=main, reason="COLOR_AND_SIZE")
+    db_session.commit()
+    db_session.expire_all()
+
+    row = db_session.get(ExternalOrderLink, main)
+    assert not return_failure(row)["failed_at"], "접수됐는데 화면이 계속 실패라고 말한다"
+    assert ((row.triage_state or {}).get("return") or {}).get("requested_at")
