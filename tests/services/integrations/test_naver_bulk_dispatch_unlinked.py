@@ -55,13 +55,14 @@ def today() -> str:
 
 
 def _order_measured_today(today: str, *, customer: str = "천화진",
-                          phone: str = PHONE) -> Order:
+                          phone: str = PHONE, orderer: str = "라홈") -> Order:
     """오늘 실측 일정이 잡힌 ERP 주문 1건(네이버 링크는 안 붙인다).
 
     Args:
         today: 오늘 날짜 문자열.
         customer: 고객명.
         phone: 연락처.
+        orderer: 발주사명(``parties.orderer.name``). 기본은 네이버 수집분과 같은 '라홈'.
 
     Returns:
         커밋된 주문 행.
@@ -70,7 +71,8 @@ def _order_measured_today(today: str, *, customer: str = "천화진",
                   address="경기 남양주시 와부읍 덕소로 97번길 101", product="붙박이장",
                   status="MEASURE", is_erp_order=True, measurement_completed=True,
                   measurement_date=today, erp_measurement_date=today,
-                  structured_data={"schedule": {"measurement": {"date": today}}})
+                  structured_data={"schedule": {"measurement": {"date": today}},
+                                   "parties": {"orderer": {"name": orderer}}})
     db_session.add(order)
     db_session.commit()
     db_session.add(OrderScheduleDate(order_id=int(order.id), kind="measurement",
@@ -386,3 +388,53 @@ def test_without_backfill_nothing_is_called_foreign(today):
     preview = build_preview(db_session, on_date=today)
     assert preview["foreign"] == []
     assert int(order.id) in [row["order_id"] for row in preview["unknown"]]
+
+
+def test_non_lahom_orderer_is_not_listed_as_unsendable(today):
+    """발주사가 라홈이 아니면 '못 보내는 건' 어느 갈래에도 안 올린다.
+
+    네이버 스마트스토어가 라홈 스토어라 하우드 발주 건은 이 스토어 주문이 될 수 없다.
+    여기서 보낼 이유가 없는 건까지 세우면 매일 뜨는 목록이 길어져 읽히지 않는다.
+    """
+    from foms.services.integrations.naver_commerce.bulk_dispatch import (
+        COVERAGE_MARGIN_DAYS, build_preview,
+    )
+    from datetime import date, timedelta
+
+    _set_coverage("2026-01-01")
+    inside = (date.fromisoformat("2026-01-01")
+              + timedelta(days=COVERAGE_MARGIN_DAYS + 1)).isoformat()
+    haud = _order_measured_today(today, customer="하우드건", phone="010-9999-0011",
+                                 orderer="하우드")
+    haud.received_date = inside
+    blank = _order_measured_today(today, customer="발주사없음", phone="010-9999-0012",
+                                  orderer="")
+    blank.received_date = inside
+    # 음성 대조군이 아니라 **양성 대조군** — 같은 조건에서 라홈 건은 그대로 잡혀야 한다.
+    lahom = _order_measured_today(today, customer="라홈건", phone="010-9999-0013")
+    lahom.received_date = inside
+    db_session.commit()
+
+    preview = build_preview(db_session, on_date=today)
+    listed = {row["order_id"] for row in preview["foreign"] + preview["unknown"]}
+    assert int(haud.id) not in listed
+    assert int(blank.id) not in listed
+    assert int(lahom.id) in listed
+
+
+def test_non_lahom_orderer_is_not_listed_as_unknown(today):
+    """커버리지 밖(모름) 갈래에서도 라홈이 아닌 발주사는 빠진다."""
+    from foms.services.integrations.naver_commerce.bulk_dispatch import build_preview
+
+    _set_coverage("2026-08-01")
+    haud = _order_measured_today(today, customer="하우드범위밖", phone="010-9999-0021",
+                                 orderer="하우드")
+    haud.received_date = "2026-07-01"
+    lahom = _order_measured_today(today, customer="라홈범위밖", phone="010-9999-0022")
+    lahom.received_date = "2026-07-01"
+    db_session.commit()
+
+    preview = build_preview(db_session, on_date=today)
+    unknown_ids = {row["order_id"] for row in preview["unknown"]}
+    assert int(haud.id) not in unknown_ids
+    assert int(lahom.id) in unknown_ids

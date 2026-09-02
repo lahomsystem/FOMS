@@ -730,6 +730,30 @@ def coverage_start(session: Session) -> Optional[str]:
     return raw[:10] or None
 
 
+def _is_lahom_orderer(sd: Any) -> bool:
+    """발주사가 라홈인가 — ``parties.orderer.name`` 에 '라홈' 포함 여부.
+
+    판정 규칙은 브랜드 판정(:func:`foms.services.kakao_alimtalk.resolve_brand`)·도면 로고
+    (``drawing_wizard_defaults._resolve_logo``)와 같다. 발주사가 비어 있으면 라홈이 아니다 —
+    네이버 수집분은 발주사를 항상 채워서 만든다(:data:`DEFAULT_ORDERER_NAME`).
+
+    Args:
+        sd: 주문 ``structured_data``.
+
+    Returns:
+        라홈이면 True.
+    """
+    if not isinstance(sd, dict):
+        return False
+    parties = sd.get("parties")
+    if not isinstance(parties, dict):
+        return False
+    orderer = parties.get("orderer")
+    if not isinstance(orderer, dict):
+        return False
+    return "라홈" in str(orderer.get("name") or "")
+
+
 def classify_unsendable(session: Session, *, on_date: str,
                         matched_order_ids: Optional[set[int]] = None) -> dict[str, Any]:
     """그날 실측인데 **여기서는 보낼 수 없는** 주문을 갈래로 나눈다 — 읽기 전용.
@@ -741,6 +765,10 @@ def classify_unsendable(session: Session, *, on_date: str,
     (전화·수령인명) 모두 원본에 없으면 이 스토어 네이버 주문이 아니다(운영 실측
     2026-09-01: 오늘 실측 13건 중 링크 없는 11건이 정확히 그랬다 — 이름·전화 모두 0행).
     구간 밖이면 여전히 **모른다**.
+
+    **발주사가 라홈이 아닌 주문은 두 갈래 어디에도 넣지 않는다** — 네이버 스마트스토어가
+    라홈 스토어라 이 스토어 주문이 될 수 없다. 여기서 보낼 이유가 없는 건을 세우면 매일
+    뜨는 목록이 길어지고, 길어진 목록은 읽히지 않는다.
 
     Args:
         session: DB 세션.
@@ -781,13 +809,22 @@ def classify_unsendable(session: Session, *, on_date: str,
             boundary = ""
 
     rows = (
-        session.query(Order.id, Order.customer_name, Order.received_date)
+        session.query(Order.id, Order.customer_name, Order.received_date,
+                      Order.structured_data)
         .filter(Order.id.in_(waiting))  # perf-ok: 당일 실측분 batch
         .all()
     )
     foreign: list[dict[str, Any]] = []
     unknown: list[dict[str, Any]] = []
-    for oid, name, received in rows:
+    skipped = 0
+    for oid, name, received, sd in rows:
+        # 발주사가 라홈이 아니면 애초에 이 스토어 주문일 수 없다 — 네이버 스마트스토어가
+        # 라홈 스토어라 수집분 발주사는 항상 라홈이다(:data:`DEFAULT_ORDERER_NAME`).
+        # 하우드 등 다른 발주사 건까지 "못 보내는 건"에 세우면, 여기서 보낼 이유가 없는
+        # 주문을 매일 읽히는 목록에 올려 진짜 확인할 건을 묻어 버린다.
+        if not _is_lahom_orderer(sd):
+            skipped += 1
+            continue
         row = {"order_id": int(oid), "customer": str(name or ""),
                "received_date": str(received or "")}
         # 접수일이 커버리지(+여유) 안이면 원본이 있어야 한다 — 없으니 네이버 건이 아니다.
@@ -795,8 +832,9 @@ def classify_unsendable(session: Session, *, on_date: str,
             foreign.append(row)
         else:
             unknown.append(row)
-    logger.info("[NAVER] %s 실측분 중 여기서 못 보내는 건 — 네이버 아님 %d · 모름 %d",
-                on_date, len(foreign), len(unknown))
+    logger.info("[NAVER] %s 실측분 중 여기서 못 보내는 건 — 네이버 아님 %d · 모름 %d "
+                "(발주사 라홈 아님 %d집 제외)",
+                on_date, len(foreign), len(unknown), skipped)
     return {"foreign": foreign, "unknown": unknown, "coverage_from": start or ""}
 
 
