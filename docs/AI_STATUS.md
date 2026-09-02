@@ -10,6 +10,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
+- [2026-09-02] **둘째 전화번호 검색 복구(deploy)** — `erp_phone_digits` 폭 64·`phonewide_00`. 원장 `erp-phone-digits-widen-ledger`
 - [2026-09-02] **네이버 클레임 호출 순서 NVCLAIM-ORDER-01 deploy(`555cfe8d7`·CI 4/4)** — 클레임=추가상품 먼저·발송=본품 먼저(공식 FAQ #1321). 잔여=운영 복구 1건·승격.
 - [2026-09-02] **트리아지 자동매칭 사고 반영 완료** — 잔여: 전화 어긋남 36건 재판정. `docs/incidents/2026-09-01-naver-triage-auto-match-miss.md`
 - [2026-09-02] **네이버 클레임 승인 T9 운영 ON**(PR #249 · production `b0c81413` · web 재배포 23:23Z) — 취소 요청 승인 신설(`claim/cancel/approve`)+반품 승인 독립 경로. 게이트 2종 `FOMS_NAVER_{CANCEL,RETURN}_APPROVE_ENABLED=1`(web 전용). **취소 거부 API 는 네이버에 없다.** 후속: 유령 주문 단계 잠금 해제(사유 필수)는 deploy `549a801f`. 원장: `docs/plans/2026-09-01-naver-claim-approve-ledger.md`
@@ -17,7 +18,6 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 - [2026-09-02] **지오코딩 사고 종결 — 운영 반영 완료(production `bbd75e08`)** — ①실패 사유 분리 ②4상태화+재시도 SSOT ③`번길` 절단(426m) ④구 이름 치환(3,968m) ⑤동네 중심 좌표 폴백 차단 ⑥SIDEFX 기록 전용 effect 등록(DEAD 1,188행 소음 제거). **트리거 = `SIDEFX` 에 `KAKAO_REST_API_KEY` 부재**(조사가 서비스 3개만 봤다) — 키 설정+재배포, 오탐 5건 재변환(5/5), #2418 좌표 2,214m 정정. PR #243·#251·#253. 잔여 없음(`STAGE_NOTIFICATION` 118행은 소비자 미구현 — 사용자 판단으로 보류). 원장 `docs/plans/2026-09-01-geocode-transient-vs-data-error-plan.md`
 - [2026-09-01] **네이버 재결제 옛 주문을 띠에서 바로 취소·반품 + 발송 축 결함 수정 deploy** — 처리 탭 띠 줄에서 바로 쏜다(낡은 줄 차단·모달 4종 세트·결과 감시). **판매자센터 발송 집이 띠에선 '반품'인데 pane 은 취소를 열어 주던 결함** — `dispatched_any`·`cancel_order` 가 우리 표식만 봤다. 설계서 §7-E. **잔여=운영 승격**
 - [2026-09-01] **네이버 반품 거부(T8-S3) 운영 ON**(PR #229 · `7976fb2c` · web 재배포 `09aeca29`) — 규격은 공개 문서 `apicenter.commerce.naver.com/llms/`(**네이버 규격은 여기부터**): body 는 `rejectReturnReason` 하나. **게이트는 web 전용**(WORKER 재배포 금지 — 큐 정지). **잔여=상용구 문장 확정.** 원장 T4
-- [2026-09-01] **엑셀 내보내기·동선 전면 삭제 deploy(`8f0f2a1d`, 커밋 2개)** — 상단 예산 확보로 상세는 "기록 보관 — 2026-08-31 정리"로 이관.
 - [2026-09-01] **네이버 일괄 발송처리 결과 UI·안 붙은 수집분 운영 반영(PR #219·#227)** — 띠가 **완료/일부/실패/대기 4상태**, 버튼 직후 폴링, 실패 줄마다 재시도, **안 붙은 수집분을 전화·수령인명으로 짚는다**. **잔여=운영 자산 핀 범프·실브라우저 확인·미연결 21묶음 붙이기**. 원장 `2026-08-31-naver-bulk-dispatch-result-ui-ledger.md`
 - [2026-09-01] **계약서 열람 이력 원장 운영 반영(PR #237 · production `b1ed7bff`)** — 라이브 반영으로 사라졌던 "고객이 그날 본 금액"을 열람 시점에 남긴다. `order_share_snapshots`(`sharehist_00`, 운영 DB 확인). 내용이 바뀐 순간에만 1행, 적재 실패는 로그만 남기고 고객 화면은 산다. 설계 `docs/specs/2026-09-01-share-contract-view-history-design.md`
 - ⚠️ [2026-08-23] **로컬 dev DB 행 소실(로컬 한정)** — pytest 파일이 conftest 보다 먼저 `db` import → 로컬 PG 에 `drop_all`. 스테이징·운영 무관. 근본 수정: `assert_engine_not_postgresql`(env 문자열 아닌 엔진 판정)
