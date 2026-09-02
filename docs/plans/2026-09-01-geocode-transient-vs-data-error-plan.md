@@ -49,7 +49,7 @@
 | T8 | 운영 승격(사용자 승인 후) | **DONE** PR #243 · production `c8492b6b` | 검사 4종 pass · WORKER 신코드 확인 |
 | T9 | 남긴 것 — 동네 중심 좌표를 성공으로 반환하던 폴백 | **DONE** PR #251 · production `17bc0027` | 아래 §T9 |
 | T10 | **미규명 트리거 규명** — SIDEFX 카카오 키 부재 | **DONE** | 아래 §T10 |
-| T11 | 곁가지 — 배달할 일 없는 outbox 행이 DEAD 로 쌓이던 것 | **DONE**(deploy 대기) | 아래 §T11 |
+| T11 | 곁가지 — 배달할 일 없는 outbox 행이 DEAD 로 쌓이던 것 | **DONE** PR #253 · production `bbd75e08` | 아래 §T11 |
 
 ---
 
@@ -392,6 +392,8 @@ T10 에서 GEOCODE 실패를 찾을 때 실제로 이 로그를 헤집고 지나
 미등록 타입은 종전대로 `NoHandlerError`(모르는 타입을 조용히 통과시키는 퇴화 차단).
 
 검증: 본 스위트 **7755 passed**, PG 레인 sidefx 26 passed, `pre_push_smoke` exit 0.
+운영 승격: PR #253(검사 4/4 pass · CLEAN) → production `bbd75e08`. 승격 트리 직접 검증
+본 스위트 7734 · PG 레인 738 · smoke exit 0. 충돌은 원장 문서 1건뿐(코드 파일은 production 과 동일).
 
 ### 남은 판단 (사용자 몫)
 
