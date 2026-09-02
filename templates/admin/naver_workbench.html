@@ -402,6 +402,12 @@
             </ul>
         </div>
         {% endif %}
+        {% if bulk_dispatch.auto and bulk_dispatch.auto.enabled %}
+        <div class="wb-ghost__dim">
+            평일 {{ bulk_dispatch.auto.at }}에 자동으로 발송처리됩니다(주말·공휴일 제외).
+            이미 보낸 집은 자동에서 빠집니다.
+        </div>
+        {% endif %}
         {#
           진행 문구 자리와 배선은 **실행 버튼이 없어도** 실린다 — 실패한 집의 줄마다 붙는
           재시도 버튼이 같은 배선을 쓴다. 보낼 집이 0이라고 배선을 빼면 그 버튼이 보이는데

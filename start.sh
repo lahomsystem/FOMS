@@ -37,6 +37,18 @@ if [ "$USE_RQ_WORKER" = "1" ]; then
   fi
 
 
+  # 네이버 발송처리 자동 실행 (NAVER-AUTODISPATCH-01). 사람이 매일 화면에서 누르던
+  # 일괄 발송처리를 평일 정해진 시각(기본 16:50 KST)에 대신한다. 수집 루프와 같은 배선이고,
+  # 같은 이유로 **WORKER 에서만** 돈다(네이버 HTTP 단일 출구).
+  # 되돌릴 수 없는 조작이라 기본은 off 이고, 하루 1회 계약은 서비스가 DB 로 지킨다 —
+  # 루프가 창 안에서 여러 번 깨어나도 두 번 나가지 않는다.
+  if [ "$FOMS_NAVER_AUTO_DISPATCH_ENABLED" = "1" ]; then
+    python scripts/maintenance/run_naver_auto_dispatch.py --loop \
+      --at "${FOMS_NAVER_AUTO_DISPATCH_AT:-16:50}" \
+      --window "${FOMS_NAVER_AUTO_DISPATCH_WINDOW_MINUTES:-10}" --json &
+  fi
+
+
   # 좌표 스윕 (GEO-SWEEP-01): 좌표 없는 주문을 미리 지오코딩 큐에 넣어, 사용자가 지도를
   # 열 때까지 좌표가 비어 있는 문제를 없앤다 (주문 생성/주소 수정의 지오코딩 예약이 SIDEFX
   # outbox 로 가는데 그 워커가 운영에 배포된 적이 없어 소비되지 않는 상태의 안전망).
