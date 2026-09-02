@@ -63,14 +63,20 @@ def _login(client) -> User:
 
 def _link(*, order_no: str = "", dispatched_ours: bool = False,
           dispatched_naver: bool = False, returned: bool = False,
-          claim_status: str = "") -> ExternalOrderLink:
-    """상품주문 1건. 발송 표식은 **우리 것**과 **네이버 원본** 둘 다 만들 수 있다."""
+          claim_status: str = "", addon: bool = False) -> ExternalOrderLink:
+    """상품주문 1건. 발송 표식은 **우리 것**과 **네이버 원본** 둘 다 만들 수 있다.
+
+    ``addon`` 은 ``productClass`` 를 가른다 — 본품/추가구성상품 판별의 정본이다.
+    """
+    from foms.services.integrations.naver_commerce.constants import ADDON_PRODUCT_CLASS
+
     external_id = f"PO-RW-{_uid()}"
     order_no = order_no or f"N-RW-{_uid()}"
     product_order = {
         "productOrderId": external_id, "productName": "붙박이장",
         "totalPaymentAmount": 594000, "placeOrderStatus": "OK",
         "claimStatus": claim_status or None,
+        "productClass": ADDON_PRODUCT_CLASS if addon else "조합형옵션상품",
         "shippingAddress": {"name": "이수취", "tel1": "010-3333-4444",
                             "baseAddress": "서울 강남구 1", "detailedAddress": "101호"},
     }
@@ -442,6 +448,45 @@ def test_return_button_is_shown_disabled_while_a_claim_is_in_flight(app, client,
     body = client.get(TRIAGE_PATH).get_data(as_text=True)
     assert 'id="wb-return"' in body, "없는 버튼이 사고 복구를 막았다"
     assert 'id="wb-return" disabled' in body, "클레임이 도는데 버튼이 활성이다"
+
+
+def test_return_button_is_locked_when_an_addon_is_left_out_of_scope(app, client,
+                                                                   workbench_on):
+    """**범위 규격**(FAQ 3880, 감사 F2) — 함께 갈 추가구성상품이 빠지면 버튼을 잠근다.
+
+    서버는 이 조건이 깨지면 한 건도 안 보내고 거절한다
+    (:func:`fulfillment.addon_return_gap`). 화면이 버튼을 열어 두면 담당자는 불가역
+    호출인 줄 알고 누르고 예외만 받는다 — 술어를 서버와 한 벌로 둔다.
+
+    잠그되 **보여 준다**. 없는 버튼은 "여긴 그런 일이 없다"로 읽힌다(RC3 의 교훈).
+    """
+    _login(client)
+    order_no = f"N-RW-F2-{_uid()}"
+    _link(order_no=order_no, dispatched_ours=True)
+    _link(order_no=order_no, dispatched_ours=False, addon=True)
+
+    body = client.get(TRIAGE_PATH).get_data(as_text=True)
+
+    assert 'id="wb-return"' in body, "없는 버튼이 사고 복구를 막았다"
+    assert 'id="wb-return" disabled' in body, "추가구성상품이 빠졌는데 버튼이 활성이다"
+    assert "함께 반품해야 하는 추가구성상품" in body, "왜 막혔는지가 화면에 없다"
+
+
+def test_return_button_stays_open_when_every_addon_goes_together(app, client,
+                                                                 workbench_on):
+    """**음성 대조군** — 추가구성상품이 함께 나가는 집은 그대로 열려 있어야 한다.
+
+    범위 가드가 정상 경로까지 잡아먹으면 F2 수정이 새 RC3 가 된다.
+    """
+    _login(client)
+    order_no = f"N-RW-F2OK-{_uid()}"
+    _link(order_no=order_no, dispatched_ours=True)
+    _link(order_no=order_no, dispatched_ours=True, addon=True)
+
+    body = client.get(TRIAGE_PATH).get_data(as_text=True)
+
+    assert 'id="wb-return" disabled' not in body, "정상 집의 반품 버튼이 잠겼다"
+    assert "함께 반품해야 하는 추가구성상품" not in body
 
 
 def test_screen_no_longer_tells_people_to_use_the_seller_center_for_returns(app, client,
