@@ -1,0 +1,146 @@
+[
+  {
+    "action_id": "A-2026-08-31-bcaaae95",
+    "priority": "P1",
+    "track": "ai_coding",
+    "title": "LLM-Augmented Causal Discovery: Probabilistic Fusion of Edge Existence and Orientation",
+    "rationale": "arXiv cs.AI RSS source, score=100, confidence=High, track=ai_coding, focus=0",
+    "proposed_change": "Run controlled pilot for 'LLM-Augmented Causal Discovery: Probabilistic Fusion of Edge Existence and Orientation' in one workflow, compare dev-time and defect metrics.",
+    "owner": "evolution-architect",
+    "source_links": [
+      "https://arxiv.org/abs/2608.27472"
+    ]
+  },
+  {
+    "action_id": "A-2026-08-31-909c1890",
+    "priority": "P1",
+    "track": "integration",
+    "title": "0.151.0",
+    "rationale": "openai/codex Releases source, score=100, confidence=High, track=integration, focus=0",
+    "proposed_change": "Review cross-stack impact of '0.151.0', then split work into backend/frontend/devops tasks.",
+    "owner": "evolution-architect",
+    "source_links": [
+      "https://github.com/openai/codex/releases/tag/rust-v0.151.0"
+    ]
+  },
+  {
+    "action_id": "A-2026-08-31-13c4689a",
+    "priority": "P0",
+    "track": "ai_coding",
+    "title": "v2.1.251",
+    "rationale": "anthropics/claude-code Releases source, score=100, confidence=High, track=ai_coding, focus=4, focus_hits=breaking",
+    "proposed_change": "Run controlled pilot for 'v2.1.251' in one workflow, compare dev-time and defect metrics.",
+    "owner": "evolution-architect",
+    "source_links": [
+      "https://github.com/anthropics/claude-code/releases/tag/v2.1.251"
+    ]
+  },
+  {
+    "action_id": "A-2026-08-31-b5775e95",
+    "priority": "P0",
+    "track": "ai_coding",
+    "title": "langchain==1.4.0a1",
+    "rationale": "langchain-ai/langchain Releases source, score=100, confidence=High, track=ai_coding, focus=14, focus_hits=cve,deprecate,python",
+    "proposed_change": "Run controlled pilot for 'langchain==1.4.0a1' in one workflow, compare dev-time and defect metrics.",
+    "owner": "evolution-architect",
+    "source_links": [
+      "https://github.com/langchain-ai/langchain/releases/tag/langchain%3D%3D1.4.0a1"
+    ]
+  },
+  {
+    "action_id": "A-2026-08-31-29e37d8f",
+    "priority": "P0",
+    "track": "ai_coding",
+    "title": "v2.1.248",
+    "rationale": "anthropics/claude-code Releases source, score=100, confidence=High, track=ai_coding, focus=4, focus_hits=security",
+    "proposed_change": "Run controlled pilot for 'v2.1.248' in one workflow, compare dev-time and defect metrics.",
+    "owner": "evolution-architect",
+    "source_links": [
+      "https://github.com/anthropics/claude-code/releases/tag/v2.1.248"
+    ]
+  },
+  {
+    "action_id": "A-2026-08-31-4dbff254",
+    "priority": "P0",
+    "track": "backend",
+    "title": "v3.4.0",
+    "rationale": "openai/openai-python Releases source, score=100, confidence=High, track=backend, focus=2, focus_hits=python",
+    "proposed_change": "Create spike branch to validate backend impact of 'v3.4.0', then run API smoke tests.",
+    "owner": "evolution-architect",
+    "source_links": [
+      "https://github.com/openai/openai-python/releases/tag/v3.4.0"
+    ]
+  },
+  {
+    "action_id": "A-2026-08-31-294ca186",
+    "priority": "P0",
+    "track": "tech_stack",
+    "title": "Release: v5.16.0",
+    "rationale": "huggingface/transformers Releases source, score=100, confidence=High, track=tech_stack, focus=8, focus_hits=breaking,jinja,pytest",
+    "proposed_change": "Build compatibility matrix for 'Release: v5.16.0' and execute dependency upgrade rehearsal.",
+    "owner": "evolution-architect",
+    "source_links": [
+      "https://github.com/huggingface/transformers/releases/tag/v5.16.0"
+    ]
+  },
+  {
+    "action_id": "A-2026-08-31-33ffe9f4",
+    "priority": "P0",
+    "track": "ai_coding",
+    "title": "Release v5.16.1",
+    "rationale": "huggingface/transformers Releases source, score=100, confidence=High, track=ai_coding, focus=4, focus_hits=security",
+    "proposed_change": "Run controlled pilot for 'Release v5.16.1' in one workflow, compare dev-time and defect metrics.",
+    "owner": "evolution-architect",
+    "source_links": [
+      "https://github.com/huggingface/transformers/releases/tag/v5.16.1"
+    ]
+  },
+  {
+    "action_id": "A-2026-08-31-0941b8ce",
+    "priority": "P0",
+    "track": "tech_stack",
+    "title": "v0.28.0",
+    "rationale": "vllm-project/vllm Releases source, score=100, confidence=High, track=tech_stack, focus=22, focus_hits=security,breaking,deprecate",
+    "proposed_change": "Build compatibility matrix for 'v0.28.0' and execute dependency upgrade rehearsal.",
+    "owner": "evolution-architect",
+    "source_links": [
+      "https://github.com/vllm-project/vllm/releases/tag/v0.28.0"
+    ]
+  },
+  {
+    "action_id": "A-2026-08-31-d1554d93",
+    "priority": "P1",
+    "track": "integration",
+    "title": "v2.1.246",
+    "rationale": "anthropics/claude-code Releases source, score=100, confidence=High, track=integration, focus=2, focus_hits=opentelemetry",
+    "proposed_change": "Review cross-stack impact of 'v2.1.246', then split work into backend/frontend/devops tasks.",
+    "owner": "evolution-architect",
+    "source_links": [
+      "https://github.com/anthropics/claude-code/releases/tag/v2.1.246"
+    ]
+  },
+  {
+    "action_id": "A-2026-08-31-c1c9c4ac",
+    "priority": "P1",
+    "track": "backend",
+    "title": "pg_statviz 1.2 released with PostgreSQL 19 support and new features",
+    "rationale": "PostgreSQL News source, score=100, confidence=High, track=backend, focus=4, focus_hits=postgresql,postgres",
+    "proposed_change": "Create spike branch to validate backend impact of 'pg_statviz 1.2 released with PostgreSQL 19 support and new features', then run API smoke tests.",
+    "owner": "evolution-architect",
+    "source_links": [
+      "https://www.postgresql.org/about/news/pg_statviz-12-released-with-postgresql-19-support-and-new-features-3369/"
+    ]
+  },
+  {
+    "action_id": "A-2026-08-31-3c68b074",
+    "priority": "P0",
+    "track": "ai_coding",
+    "title": "v2.1.0",
+    "rationale": "modelcontextprotocol/python-sdk Releases source, score=100, confidence=High, track=ai_coding, focus=8, focus_hits=breaking,python,pydantic",
+    "proposed_change": "Run controlled pilot for 'v2.1.0' in one workflow, compare dev-time and defect metrics.",
+    "owner": "evolution-architect",
+    "source_links": [
+      "https://github.com/modelcontextprotocol/python-sdk/releases/tag/v2.1.0"
+    ]
+  }
+]
