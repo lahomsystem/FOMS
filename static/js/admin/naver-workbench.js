@@ -436,7 +436,7 @@
         var who = button.dataset.customer || '';
         var stage = button.dataset.stage || '';
         var message = '주문 #' + orderId + (who ? ' (' + who + ')' : '')
-            + ' 을 취소 처리합니다. 휴지통으로 가며 복구할 수 있습니다.';
+            + ' 을 휴지통으로 보냅니다. 복구할 수 있습니다.';
         var note = '';
         if (button.dataset.needsReason) {
             // 접수 이후 단계는 실측 방문·치수 같은 기록이 함께 화면에서 사라진다. 그래서
