@@ -130,7 +130,9 @@
 body.foms-settle-focus:has(.foms-settlement-root) header.bg-light,
 body.foms-settle-focus:has(.foms-settlement-root) nav.layout-global-nav,
 body.foms-settle-focus:has(.foms-settlement-root) .erp-settlement > .erp-pro-header,
-body.foms-settle-focus:has(.foms-settlement-root) .erp-settlement > .erp-pro-nav { display: none; }
+body.foms-settle-focus:has(.foms-settlement-root) .erp-settlement > .erp-pro-nav { display: none !important; }
+/* `!important` 인 이유: 글로벌 헤더가 Bootstrap 유틸 `.d-flex`(display:flex !important) 를 달고 있어
+   일반 규칙으로는 안 접힌다(스테이징 실측 2026-09-02 — ERP 헤더·서브탭만 접히고 위 두 줄이 남았다). */
 body.foms-settle-focus:has(.foms-settlement-root) .s-focusbar { display: flex; }
 .foms-settle .s-tab[aria-selected="true"] .s-tab-hint { color: var(--s-accent); }
 
