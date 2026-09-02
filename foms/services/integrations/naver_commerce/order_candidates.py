@@ -179,9 +179,34 @@ def _merge_read_at(current: str, incoming: str) -> str:
     return min(current, incoming)
 
 
+def _return_pending(raw_snapshot: Any, triage_state: Any) -> bool:
+    """이 상품주문에 **반품 접수가 실제로 나갈** 것인가 — 서버 술어를 그대로 부른다.
+
+    띠는 ORM 인스턴스가 아니라 투영 행(스냅샷·상태 두 칸)만 들고 있다. 그렇다고 조건을
+    여기 손으로 다시 적으면 `request_return` 과 갈린다 — 갈리는 순간 띠 모달이
+    "상품주문 2건을 반품 접수합니다"라고 말하고 서버는 1건만 보낸다(불가역 경로의 과대
+    진술). 술어는 :func:`fulfillment.is_return_pending` 한 벌이고, 그 함수가 읽는 것은
+    ``raw_snapshot``·``triage_state`` 두 속성뿐이라 얇은 대역 객체로 그대로 통과한다
+    (`naver_ingest._ThinLink` 와 같은 수법).
+
+    Args:
+        raw_snapshot: ``ExternalOrderLink.raw_snapshot``.
+        triage_state: ``ExternalOrderLink.triage_state``.
+
+    Returns:
+        반품 접수 대상이면 True.
+    """
+    from types import SimpleNamespace
+
+    from .fulfillment import is_return_pending
+
+    return is_return_pending(SimpleNamespace(raw_snapshot=raw_snapshot,
+                                             triage_state=triage_state))
+
+
 def _add_alive_row(rows: list[dict[str, Any]], *, link_id: int, external_order_no: Any,
                    external_id: Any, amount: int, dispatched: bool,
-                   read_at: str) -> None:
+                   return_pending: bool, read_at: str) -> None:
     """살아 있는 옛 집 하나를 주문번호로 묶어 넣는다(같은 집이면 금액만 더한다).
 
     **식별자를 함께 싣는다**(2026-08-28 NVREPAY-01). 예전에는 주문번호·금액·건수만 남기고
@@ -203,6 +228,9 @@ def _add_alive_row(rows: list[dict[str, Any]], *, link_id: int, external_order_n
         external_id: 네이버 상품주문번호(productOrderId).
         amount: 이 상품주문 결제 금액.
         dispatched: 이 상품주문이 발송 처리됐는가.
+        return_pending: 이 상품주문에 **반품 접수가 실제로 나갈** 것인가
+            (:func:`fulfillment.is_return_pending` — 나갔고 아직 우리가 접수 안 한 건).
+            띠 모달이 "몇 건이 나가는가"를 이 수로만 말한다.
         read_at: 이 링크를 네이버에서 **마지막으로 읽은** 시각(ISO, naive UTC).
 
     Returns:
@@ -219,6 +247,7 @@ def _add_alive_row(rows: list[dict[str, Any]], *, link_id: int, external_order_n
             if product_order_id and product_order_id not in row["product_order_ids"]:
                 row["product_order_ids"].append(product_order_id)
             row["dispatched"] = row["dispatched"] or bool(dispatched)
+            row["return_pending_count"] += 1 if return_pending else 0
             row["read_at"] = _merge_read_at(row["read_at"], read_at)
             return
     rows.append({
@@ -228,6 +257,8 @@ def _add_alive_row(rows: list[dict[str, Any]], *, link_id: int, external_order_n
         "amount_total": int(amount or 0),
         "product_order_count": 1,
         "dispatched": bool(dispatched),
+        # 집 전체 수와 **다른 축**이다 — 분할 발송 집에서 반품이 나갈 수는 이쪽뿐이다.
+        "return_pending_count": 1 if return_pending else 0,
         "read_at": read_at,
     })
 
@@ -521,6 +552,7 @@ def _naver_facts(session, order_ids: list[int], *,
                            external_order_no=external_order_no, external_id=external_id,
                            amount=amount if isinstance(amount, int) else 0,
                            dispatched=dispatch["dispatched"],
+                           return_pending=_return_pending(snapshot, triage_state),
                            read_at=dispatch["read_at"])
     for bucket in facts.values():
         if not bucket["link_count"]:
@@ -616,7 +648,8 @@ def pending_origin_cleanup(session, *, limit: int = ORIGIN_CLEANUP_LIMIT) -> dic
     Returns:
         ``{"count", "rows", "truncated"}``. ``count`` 는 **자르기 전 전체 수**이고
         ``rows`` 는 ``{order_id, customer_name, status, link_id, external_order_no,
-        amount_total, product_order_count, dispatched, read_at, stale}`` 목록이다.
+        amount_total, product_order_count, return_pending_count, dispatched, read_at,
+        stale}`` 목록이다.
         재결제가 붙은 주문이 없거나 옛 주문이 전부 정리됐으면 ``count == 0``.
     """
     repay_rows = (session.query(ExternalOrderLink.order_id, ExternalOrderLink.created_at)
@@ -661,6 +694,9 @@ def pending_origin_cleanup(session, *, limit: int = ORIGIN_CLEANUP_LIMIT) -> dic
             "external_order_no": row.get("external_order_no"),
             "amount_total": int(row.get("amount_total") or 0),
             "product_order_count": int(row.get("product_order_count") or 0),
+            # 반품이 **실제로 나갈** 건수(2026-09-02). 집 전체 수로 모달을 쓰면 분할 발송
+            # 집에서 과대 진술이 된다 — 술어는 서버와 한 벌(`is_return_pending`).
+            "return_pending_count": int(row.get("return_pending_count") or 0),
             "dispatched": bool(row.get("dispatched")),
             "read_at": row.get("read_at") or "",
             "stale": bool(row.get("stale")),

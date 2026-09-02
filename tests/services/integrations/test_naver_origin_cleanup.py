@@ -339,6 +339,71 @@ def test_strip_return_modal_offers_approve_but_leaves_it_off(client, workbench_o
     assert "환불이 확정됩니다" in body
 
 
+def test_strip_return_counts_only_the_dispatched_lines(client, workbench_on):
+    """띠 반품 줄은 **발송된 상품주문 수**를 함께 들고 있다 (2026-09-02).
+
+    옛 집이 분할 발송이면 `request_return` 은 나간 건만 보낸다(`is_return_pending`).
+    줄이 집 전체 수 하나만 들고 있으면 모달이 "상품주문 2건을 반품 접수합니다"라고 읽히는데
+    서버는 1건만 보낸다 — pane 모달이 이미 같은 이유로 발송분만 세고 있다.
+    """
+    _login(client)
+    order = _order(name="띠부분발송")
+    origin_no = f"N-ORIG-MIX-{_uid()}"
+    _link(order_no=origin_no, order_id=int(order.id), relation="NEW",
+          send_date="2026-08-20T10:00:00.000+09:00")   # 나간 상품주문
+    _link(order_no=origin_no, order_id=int(order.id), relation="NEW")  # 아직 안 나간 상품주문
+    _link(order_no=f"N-REPAY-MIX-{_uid()}", order_id=int(order.id), relation="REPAY")
+
+    body = client.get(TRIAGE_PATH, query_string={"tab": "work"}).get_data(as_text=True)
+    row = body.split("wb-origin-act")[1].split("</button>")[0]
+
+    assert 'data-count="2"' in row, row
+    assert 'data-return-count="1"' in row, f"발송된 건수를 줄이 말하지 않는다: {row}"
+
+
+def test_strip_return_scope_line_matches_what_the_server_sends(app):
+    """줄이 말한 발송 건수 == 서버 `request_return` 이 실제로 보낼 건수."""
+    from foms.services.integrations.naver_commerce.fulfillment import is_return_pending
+
+    order = _order(name="띠대조")
+    origin_no = f"N-ORIG-CMP-{_uid()}"
+    sent = _link(order_no=origin_no, order_id=int(order.id), relation="NEW",
+                 send_date="2026-08-20T10:00:00.000+09:00")
+    _link(order_no=origin_no, order_id=int(order.id), relation="NEW")
+    _link(order_no=f"N-REPAY-CMP-{_uid()}", order_id=int(order.id), relation="REPAY")
+
+    rows = pending_origin_cleanup(db_session)["rows"]
+    row = next(r for r in rows if r["external_order_no"] == origin_no)
+    server_targets = [link for link in db_session.query(ExternalOrderLink)
+                      .filter(ExternalOrderLink.external_order_no == origin_no).all()
+                      if is_return_pending(link)]
+
+    assert row["product_order_count"] == 2
+    assert row["return_pending_count"] == len(server_targets) == 1
+    assert [link.id for link in server_targets] == [sent.id]
+
+
+def test_strip_return_modal_has_the_scope_line_wired(client, workbench_on):
+    """모달에 범위 문장 자리가 있고 **JS 가 그 값을 읽는다**.
+
+    속성만 실리고 아무도 안 읽으면 화면은 예전 그대로 말한다 — 조용히 되돌아가는 자리라
+    마크업과 배선을 함께 문다.
+    """
+    _login(client)
+    order = _order(name="띠범위")
+    _link(order_no=f"N-ORIG-SCOPE-{_uid()}", order_id=int(order.id), relation="NEW",
+          send_date="2026-08-20T10:00:00.000+09:00")
+    _link(order_no=f"N-REPAY-SCOPE-{_uid()}", order_id=int(order.id), relation="REPAY")
+
+    body = client.get(TRIAGE_PATH, query_string={"tab": "work"}).get_data(as_text=True)
+    script = (REPO_ROOT / "static" / "js" / "admin" / "naver-workbench.js").read_text(
+        encoding="utf-8")
+
+    assert body.count('id="wb-origin-return-scope"') == 1, "범위 문장 자리가 없다"
+    assert "dataset.returnCount" in script, "JS 가 발송된 건수를 읽지 않는다"
+    assert "wb-origin-return-scope" in script, "JS 가 범위 문장을 채우지 않는다"
+
+
 def test_strip_ids_do_not_collide_with_the_pane(client, workbench_on):
     """띠 모달 id 는 pane 과 겹치지 않는다 — 겹치면 어느 입력을 읽는지 갈린다."""
     _login(client)
