@@ -159,7 +159,7 @@
           </td>
           <td>
             {{ row.order_no or '-' }}
-            <div class="text-muted small">{% if row.state == 'sent' %}발송 상품주문 {{ row.sent_orders }}건{% else %}보낼 상품주문 {{ row.product_orders }}건{% endif %}</div>
+            <div class="text-muted small">{% if row.state == 'sent' %}발송 상품주문 {{ row.sent_orders }}건{% elif row.state == 'superseded' %}취소된 결제 · 상품주문 {{ row.product_orders }}건{% else %}보낼 상품주문 {{ row.product_orders }}건{% endif %}</div>
           </td>
           <td>
             {% if row.measurement_done %}
@@ -172,6 +172,9 @@
             {% if row.state == 'sent' %}
             <span class="text-success small fw-semibold">발송됨</span>
             <div class="text-muted small">{{ row.sent_at }}{% if row.sent_by_naver %} · 판매자센터에서 보낸 건입니다{% endif %}</div>
+            {% elif row.state == 'superseded' %}
+            <span class="text-success small fw-semibold">발송됨</span>
+            <div class="text-muted small">재결제 건으로 나갔습니다 — {{ row.superseded_by }}{% if row.superseded_at %} · {{ row.superseded_at }}{% endif %}</div>
             {% elif row.state == 'failed' %}
             <span class="badge bg-danger">실패</span>
             <div class="text-muted small">{{ row.failure_reason }}</div>

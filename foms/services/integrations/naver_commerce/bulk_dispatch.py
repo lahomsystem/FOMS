@@ -118,8 +118,13 @@ class BulkDispatchTarget:
         failure_reason: 마지막 발송처리 실패 사유. **아직 보낼 게 남은 집에만** 채운다 —
             전부 나간 집의 옛 실패 기록은 지금 사실이 아니고, 그걸 빨갛게 띄우면 화면이
             "발송됐는데 실패"라고 말한다.
-        state: ``"sent"``(다 나감) · ``"failed"``(남았고 실패 기록 있음) ·
-            ``"blocked"``(남았고 지금 못 보냄) · ``"pending"``(남았고 보낼 수 있음).
+        state: ``"sent"``(다 나감) · ``"superseded"``(취소 확정 뒤 재결제 집으로 나감) ·
+            ``"failed"``(남았고 실패 기록 있음) · ``"blocked"``(남았고 지금 못 보냄) ·
+            ``"pending"``(남았고 보낼 수 있음).
+        all_canceled: 집의 상품주문이 **전부** 취소·반품 확정인가. 재결제 짝 판정의 재료다.
+        superseded_by: 이 집을 대신해 실제로 나간 **재결제 집**의 네이버 주문번호.
+            비어 있으면 그런 집이 없다.
+        superseded_at: 그 재결제 집이 나간 시각(KST ``YYYY-MM-DD HH:MM``).
         order_ids: 이 집이 붙은 FOMS 주문 id(0개일 수 있다 — 주문 미생성 수집분).
         customer_names: 붙은 주문의 고객명(화면이 집을 알아보게 — 표시 전용).
         measurement_done: 붙은 주문이 **모두** 실측완료로 찍혀 있는가. **표시 전용이고
@@ -144,6 +149,9 @@ class BulkDispatchTarget:
     sent_by_naver: bool = False
     failure_reason: str = ""
     state: str = "pending"
+    all_canceled: bool = False
+    superseded_by: str = ""
+    superseded_at: str = ""
 
 
 def _measurement_order_ids(session: Session, *, on_date: str) -> list[int]:
@@ -461,14 +469,69 @@ def build_day_summary(session: Session, *, on_date: str) -> list[BulkDispatchTar
         {row.order_id for _, links, _ in kept for row in links if row.order_id},
     )
     targets = [_build_target(key, links, mine, display) for key, links, mine in kept]
+    _mark_repay_superseded(targets)
     targets.sort(key=lambda target: target.link_id)
     logger.info(
-        "[NAVER] 일괄 발송처리 %s: 오늘 네이버 집 %d(보낼 수 있음 %d · 이미 나감 %d)",
+        "[NAVER] 일괄 발송처리 %s: 오늘 네이버 집 %d(보낼 수 있음 %d · 이미 나감 %d "
+        "· 재결제로 나감 %d)",
         on_date, len(targets),
         sum(1 for t in targets if t.eligible),
         sum(1 for t in targets if t.state == "sent"),
+        sum(1 for t in targets if t.state == "superseded"),
     )
     return targets
+
+
+def _mark_repay_superseded(targets: list[BulkDispatchTarget]) -> None:
+    """취소 확정 뒤 **재결제 집으로 이미 나간** 집을 `superseded` 로 바꾼다 (2026-09-02).
+
+    고객이 취소하고 다시 결제하면 같은 ERP 주문에 집이 둘 붙는다. 발송은 재결제 집으로
+    나가는데, 옛 집은 보낼 게 남은 채 취소가 걸려 있어 `보낼 수 없음` 빨간 줄로 **매일**
+    남는다(운영 #5087 문영미 — 옛 집 ``2026090197104651`` 취소 확정 5건, 재결제 집
+    ``2026090230890571`` 이 2026-09-02 발송 완료). 사람이 매일 같은 줄을 다시 판단한다.
+
+    조건 셋을 **모두** 만족할 때만 내린다:
+
+    * 옛 집의 상품주문이 **전부 취소·반품 확정**이고(확정 전은 아직 살아 있을 수 있다),
+    * 아직 보낼 게 남아 있고(이미 나간 집은 그냥 ``sent`` 다),
+    * **같은 ERP 주문**에 붙은 **다른 집**이 이미 전부 나갔다.
+
+    목록에서 빼지 않는다 — 조용히 빼면 화면이 "대상 N집"이라 말하면서 다른 수를 센다.
+    어느 집으로 나갔는지를 함께 싣는 이유도 같다: 사람이 그 사실을 화면에서 확인할 수
+    있어야 한다.
+
+    Args:
+        targets: 같은 날의 집 전체(제자리에서 고친다).
+
+    Returns:
+        None.
+    """
+    sent_by_order: dict[int, tuple[str, str]] = {}
+    for target in targets:
+        if target.state != "sent":
+            continue
+        for order_id in target.order_ids:
+            # 여러 집이 나갔으면 **가장 최근에** 나간 집을 말한다.
+            prev = sent_by_order.get(order_id)
+            if prev is None or (target.sent_at or "") >= prev[1]:
+                sent_by_order[order_id] = (target.external_order_no, target.sent_at or "")
+    if not sent_by_order:
+        return
+    for target in targets:
+        if target.state == "sent" or not target.all_canceled or not target.pending_link_ids:
+            continue
+        for order_id in target.order_ids:
+            pair = sent_by_order.get(order_id)
+            # 자기 자신은 짝이 아니다(같은 주문번호면 같은 집이다).
+            if not pair or pair[0] == target.external_order_no:
+                continue
+            target.state = "superseded"
+            target.eligible = False
+            target.superseded_by, target.superseded_at = pair
+            # 사유 칸은 비운다 — 이제 이 줄은 막힌 줄이 아니라 끝난 줄이다.
+            target.reason = ""
+            target.failure_reason = ""
+            break
 
 
 def _build_target(key: tuple[str, str, str], links: list[ExternalOrderLink],
@@ -515,6 +578,14 @@ def _build_target(key: tuple[str, str, str], links: list[ExternalOrderLink],
         state = "failed"
     else:
         state = "pending"
+    # 집 전체가 취소·반품 **확정**인가 — 재결제 짝 판정의 재료(2026-09-02).
+    # 확정 전 클레임은 아직 살아 있을 수 있어 여기 넣지 않는다.
+    claims = [mapping.extract_claim(row.raw_snapshot or {}) for row in links]
+    all_canceled = bool(claims) and all(
+        (claim.get("phase") or "") == mapping.CLAIM_PHASE_DONE
+        and mapping.is_money_back_claim(claim)
+        for claim in claims
+    )
     return BulkDispatchTarget(
         link_id=links[0].id,
         household=key,
@@ -532,6 +603,7 @@ def _build_target(key: tuple[str, str, str], links: list[ExternalOrderLink],
         sent_by_naver=bool(stamps) and all(is_naver for _text, is_naver in stamps),
         failure_reason=failure,
         state=state,
+        all_canceled=all_canceled,
     )
 
 
@@ -861,6 +933,8 @@ def _row_of(target: BulkDispatchTarget) -> dict[str, Any]:
         "sent_at": target.sent_at,
         "sent_by_naver": target.sent_by_naver,
         "failure_reason": target.failure_reason,
+        "superseded_by": target.superseded_by,
+        "superseded_at": target.superseded_at,
     }
 
 
@@ -886,7 +960,9 @@ def build_preview(session: Session, *, on_date: str) -> dict[str, Any]:
         ``{"date", "count", "eligible", "blocked", "rows", "day_total", "sent",
         "failed", "last_sent_at", "state", "day_rows", "show"}``.
 
-        * ``count``/``rows``: **보낼 게 남은** 집(막힌 집 포함).
+        * ``count``/``rows``: **보낼 게 남은** 집(막힌 집 포함 · 재결제 집으로 이미
+          나간 집은 제외).
+        * ``superseded``: 취소 확정 뒤 재결제 집으로 나간 집 수.
         * ``day_total``/``day_rows``: 오늘 네이버 집 **전체**(이미 나간 집 포함).
         * ``state``: ``"none"``(오늘 대상 자체가 없음 — 띠를 띄우지 않는다) ·
           ``"done"``(전부 나감) · ``"partial"``(일부 나감) · ``"pending"``(아직 안 나감).
@@ -895,6 +971,7 @@ def build_preview(session: Session, *, on_date: str) -> dict[str, Any]:
     empty: dict[str, Any] = {"date": on_date, "count": 0, "eligible": 0, "blocked": 0,
                              "rows": [], "day_total": 0, "sent": 0, "failed": 0,
                              "last_sent_at": "", "last_sent_time": "", "state": "none",
+                             "superseded": 0,
                              "day_rows": [], "show": False, "unlinked": 0,
                              "unlinked_rows": [], "foreign": [], "unknown": [],
                              "coverage_from": ""}
@@ -925,20 +1002,23 @@ def build_preview(session: Session, *, on_date: str) -> dict[str, Any]:
         return {**empty, **extra}
 
     day_rows = [_row_of(target) for target in targets]
-    rows = [row for row in day_rows if row["state"] != "sent"]
+    # `superseded` 도 뺀다 — 재결제 집으로 이미 나간 집이라 오늘 보낼 대상이 아니다.
+    # 여기 남기면 "보낼 대상 N집"이 매일 그 집을 세고, 띠 상태가 영영 `partial` 이다.
+    rows = [row for row in day_rows if row["state"] not in ("sent", "superseded")]
     eligible = sum(1 for row in rows if row["eligible"])
     sent_times = sorted(row["sent_at"] for row in day_rows if row["sent_at"])
     sent = sum(1 for row in day_rows if row["state"] == "sent")
+    superseded = sum(1 for row in day_rows if row["state"] == "superseded")
     if not rows:
         state = "done"
-    elif sent:
+    elif sent or superseded:
         state = "partial"
     else:
         state = "pending"
     last_sent_at = sent_times[-1] if sent_times else ""
     return {"date": on_date, "count": len(rows), "eligible": eligible,
             "blocked": len(rows) - eligible, "rows": rows,
-            "day_total": len(day_rows), "sent": sent,
+            "day_total": len(day_rows), "sent": sent, "superseded": superseded,
             "failed": sum(1 for row in day_rows if row["state"] == "failed"),
             "last_sent_at": last_sent_at,
             # 머리말은 "오늘"을 말하고 있으니 시:분만 쓴다. 날짜를 붙여 자르는 일을
