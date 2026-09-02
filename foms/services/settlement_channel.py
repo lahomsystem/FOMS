@@ -639,13 +639,17 @@ def _build_deposit_channels(rows: list[Any]) -> list[dict]:
     """
     buckets: dict[tuple, dict] = {}
     for row in rows:
+        if _dec(row.settle_amount) == 0:
+            continue  # 정산액 0 인 날은 입금이 없다 — 은행 정보도 비어 "계좌 이체 · *" 로 오독된다(실측 16행)
         key = (str(row.settle_method_type or ""), str(row.bank_type or ""),
                str(row.depositor_name or ""), mask_account_no(row.account_no))
         item = buckets.setdefault(key, {"amount": _ZERO, "count": 0})
         item["amount"] += _dec(row.settle_amount)
         item["count"] += 1
     channels = [
-        {"method": method or None, "method_label": label(SETTLE_METHOD_TYPES, method),
+        {"method": method or None,
+         # 정산 예정일이 아직 안 온 행은 네이버가 방식을 비워 보낸다(실측) — "미상"이 아니라 "미정".
+         "method_label": label(SETTLE_METHOD_TYPES, method) if method else "미정(정산 예정)",
          "bank_type": bank or None, "bank_label": label(BANK_TYPES, bank),
          "depositor_name": depositor or None, "account_no_masked": masked,
          "amount": _money(item["amount"], default=0), "count": item["count"]}

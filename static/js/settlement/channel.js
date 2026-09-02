@@ -1255,7 +1255,7 @@
       var head = el('div', 's-ch-dep-head');
       head.appendChild(el('b', null, row.method_label || row.method || '방식 미상'));
       head.appendChild(el('span', 's-ch-badge ' + (isCharge ? 's-ch-badge--charge' : 's-ch-badge--account'),
-        isCharge ? '통장 미기록' : '통장 입금'));
+        isCharge ? '통장 미기록' : (row.method ? '통장 입금' : '입금 방식 미정')));
       item.appendChild(head);
       var meta = [];
       if (row.bank_label || row.bank_type) meta.push(row.bank_label || row.bank_type);
