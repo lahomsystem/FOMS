@@ -314,7 +314,7 @@ def test_dock_asset_pin_moved_for_household_split():
     사람 화면은 그대로다.
     """
     tpl = _ORDER_JS_TPL.read_text(encoding="utf-8")
-    assert "js/orders/erp-naver-dock.js') }}?v=20260902a" in tpl
+    assert "js/orders/erp-naver-dock.js') }}?v=20260902b" in tpl
     assert "css/orders/erp-naver-dock.css') }}?v=20260902a" in tpl
 
 
