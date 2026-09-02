@@ -100,6 +100,9 @@
   background: var(--s-surface); border-bottom: 1px solid var(--s-line);
   padding: 0 24px;
 }
+/* 탭 4개만 감싸는 tablist(접근성 R4). 겉 `.s-tabs` 와 같은 flex 규칙이라 탭 밑줄·높이는 그대로고,
+   좁은 폭에서는 안에서 다시 줄바꿈한다(래퍼가 한 덩어리로 넘치지 않게). */
+.foms-settle .s-tabs-list { display: flex; align-items: stretch; flex-wrap: wrap; gap: 2px; min-width: 0; }
 .foms-settle .s-tab {
   display: inline-flex; align-items: baseline; gap: 6px;
   border: none; border-bottom: 2px solid transparent; margin-bottom: -1px;
