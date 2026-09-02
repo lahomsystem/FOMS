@@ -63,6 +63,7 @@
 - **스택**: Flask 2.3 + SQLAlchemy 2.0 + PostgreSQL + Jinja2 + Bootstrap 5 + Vanilla JS
 - **운영 환경**: Windows 11 — **저장소 문서·예시 명령의 기본 셸은 PowerShell 5.x**(`.cursor/rules/50-win11-shell.mdc` 참고). bash/`&&` 등은 **Claude Code 전용**으로 문서에 명시된 때만 적용한다.
 - **Git 커밋**: 한글, 무엇을 왜 수정했는지 명확히 기록
+- **한글 출력 인코딩 (절대 규칙, 계약 `PS-ENC-01`)**: 한국어 로케일 Windows는 콘솔·프로세스 기본이 cp949다. ① 한글(비-ASCII)을 담은 `.ps1`은 **UTF-8 BOM 필수** — BOM이 없으면 PowerShell 5.1이 소스를 cp949로 디코드해 문자열이 깨지고 파싱 에러까지 난다. ② 같은 스크립트는 상단(`param` 블록 뒤)에서 콘솔 출력을 UTF-8로 강제한다: `$OutputEncoding = New-Object System.Text.UTF8Encoding $false` + `[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false`. ③ python은 `PYTHONIOENCODING=utf-8`·`PYTHONUTF8=1` 전제(Claude Code는 `.claude/settings.json` env에 등재) — 미설정 시 한글 출력이 mojibake가 되고 em-dash(`—`) 같은 비-cp949 문자는 `UnicodeEncodeError`로 스크립트가 죽는다. ④ 파일 입출력은 항상 `encoding="utf-8"` 명시. 강제: `tests/harness/test_powershell_encoding_contract.py` (pre_push_smoke 서브셋 포함).
 - **실서버 측정 계정 `claude_master` (전 에이전트 공통 구속)**: 기본 테스트=staging(전 활동 허용), production=사용자 명시 요청 1건당 1회·관측만·기본 잠금(`is_active=false`)·실데이터 불가침(가상 주문 `CLAUDE-TEST-`+더미 연락처, 부하 테스트 금지). 정본: [`docs/guides/REAL_SERVER_TEST_ACCOUNT.md`](docs/guides/REAL_SERVER_TEST_ACCOUNT.md).
 
 ## 푸시 전 로컬 검증 (deploy/main)

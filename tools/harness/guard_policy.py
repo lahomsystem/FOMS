@@ -469,16 +469,36 @@ def _classify_db_sql(segment_lower: str) -> tuple[str, str]:
     return "allow", ""
 
 
+#: pip install 중 확인이 필요한 플래그 — 대체 레지스트리·신뢰 우회(공급망 벡터).
+_PIP_RISKY_FLAGS: frozenset[str] = frozenset(
+    {"-i", "--index-url", "--extra-index-url", "-f", "--find-links", "--trusted-host"}
+)
+
+#: 공개 인덱스 밖 원격 소스 설치를 나타내는 대상 프리픽스.
+_PIP_REMOTE_PREFIXES: tuple[str, ...] = ("http://", "https://", "git+", "hg+", "svn+", "bzr+")
+
+
 def _classify_pip(tokens: list[str]) -> tuple[str, str]:
-    """`pip install` (requirements 파일 외) = ask."""
+    """`pip install` 판정 — 기본 PyPI 설치는 allow, 공급망 위험 형태만 ask.
+
+    ask 대상: 대체 인덱스(`--index-url`/`--extra-index-url`/`--find-links`),
+    신뢰 우회(`--trusted-host`), 원격 URL·VCS 직접 설치(`https://`/`git+` 등).
+    일반 이름 설치의 오타(typosquat) 위험은 이 판정으로 막히지 않으므로,
+    설치 전 패키지명을 사용자에게 알리는 운영 규율로 보완한다.
+
+    파라미터:
+        tokens: 따옴표가 제거된 argv 토큰 리스트.
+    반환: (decision, label) — allow 는 label 이 빈 문자열.
+    """
     lowered = [t.lower() for t in tokens]
     if "install" not in lowered:
         return "allow", ""
-    if _has_flag(tokens, "-r", "--requirement") or any(
-        t.lower().startswith("--requirement=") for t in tokens
-    ):
-        return "allow", ""
-    return "ask", "pip install(requirements 외)"
+    for tok in lowered[1:]:
+        if tok.split("=", 1)[0] in _PIP_RISKY_FLAGS:
+            return "ask", "pip install(대체 인덱스/신뢰 우회)"
+        if tok.startswith(_PIP_REMOTE_PREFIXES):
+            return "ask", "pip install(원격 URL/VCS 직접 설치)"
+    return "allow", ""
 
 
 def _classify_npm(tokens: list[str]) -> tuple[str, str]:
