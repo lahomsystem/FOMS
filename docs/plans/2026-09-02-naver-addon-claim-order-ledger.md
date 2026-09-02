@@ -66,3 +66,21 @@ def household_exchange_in_flight(links: list[ExternalOrderLink]) -> bool: ...
 - T0 운영 복구(본품 `2026082754601551` 반품 접수+승인) — **사용자 승인 대기**.
 - 2차 배: `clear_failure` 라인 단위화 · `dock.py:833` first-wins · `_member_rows` 라인별 클레임 칸 ·
   `_group_queue` 의 `shipping_due` first-wins(이력은 `min()` — 두 화면이 갈릴 수 있다).
+
+## 2차 배 (2026-09-02 같은 날 이어서 완료)
+
+| 항목 | 결과 |
+|---|---|
+| `clear_failure` 라인 단위화 | 완료 — 범위 축 = **사람이 본 그 줄의 작업**(`failure_action` SSOT 신설). 지운 사유는 `last_error_cleared` 로 **강등 보존**한다. 앵커 실패가 이미 사라졌으면 아무것도 안 지운다(다른 탭 레이스). |
+| 상품주문 표 라인별 클레임·반품 칸 | 완료 — `_member_claim_view` 신설(추가 쿼리 0). 네이버 사실과 **우리 접수 여부**를 나란히 낸다(둘이 다른 사실이고 사고는 그 틈이었다). 본품/추가구성상품도 표기(호출 순서를 가르는 축). 표는 `.table-responsive` 로 감쌌다. |
+| `dock.py` first-wins | 완료 — `aggregate_claim` 재사용, `claim_code` 를 payload 에 신설. 집계 모집단은 **주문의 링크 전부**(`superseded` 를 빼면 REPAY 가 붙은 이 사고 모양에서 반품이 모집단 밖으로 나간다). `claim_money_back` 을 라벨과 짝으로 바꿨다. |
+
+**버튼 잠금(1차 T7)은 유지한다.** 좁히기와 잠금이 막는 손실이 다르다 — 좁히기는 *형제의 안 본 실패*를 막고,
+잠금은 *사람이 보고 누른 바로 그 줄*을 막는다. 황민철 집은 실패가 하나뿐이라 좁히기만으로는 아무것도 못 막는다.
+T3(실패 라인 `return` 축 기록)이 배포되기 전까지 잠금이 마지막 문이다.
+
+### 아직 남은 것
+- T3 실패 라인 `return` 축 기록 — 이게 들어가야 T7 버튼 잠금을 뗄 수 있다.
+- `_group_queue` 의 `shipping_due` first-wins (이력 쪽은 `min()` — 두 화면이 갈릴 수 있다).
+- `.wb-cmp { min-width: … }` — 좁은 화면에서 표가 제 폭을 지키게(지금은 `text-nowrap` 으로 유도).
+- `test_naver_fulfillment.py:611 test_clear_failure_wipes_the_whole_household` 이름이 이제 과장이다(동작은 green).

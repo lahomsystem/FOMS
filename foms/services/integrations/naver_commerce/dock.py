@@ -305,6 +305,7 @@ def _row_source(link: Any) -> dict[str, Any]:
     from foms.services.integrations.naver_commerce.mapping import (
         NaverMappingError,
         build_payment_info,
+        claim_kind,
         extract_claim,
         extract_shipping_memo,
         is_money_back_claim,
@@ -315,6 +316,7 @@ def _row_source(link: Any) -> dict[str, Any]:
              "amount": None, "product_class": "", "seller_product_code": "",
              "recipient_name": "", "orderer_name": "", "shipping_memo": "",
              "claim_label": "", "claim_money_back": False,
+             "claim_phase": "", "claim_kind": "",
              "recipient_tel2": "", "paid_at": "", "pay_means": "",
              "discount": 0}
     snapshot = link.raw_snapshot
@@ -349,6 +351,11 @@ def _row_source(link: Any) -> dict[str, Any]:
         # 그 클레임 때문에 **돈이 되돌아가는가**. 라벨 존재만 보면 `반품 거부`(환불이 영영
         # 없는 건)가 진행 중 클레임으로 세어진다(R-8).
         "claim_money_back": is_money_back_claim(claim),
+        # 집계(:func:`_household_claim`)의 입력. 라벨은 사람이 읽는 낱말이라 셀 수 없다 —
+        # 세는 축은 단계와 종류다. 원본이 깨진 행은 위 ``empty`` 로 빈 값이 오고, 빈 단계는
+        # 아무것도 세지 않는다(= 살아 있는 쪽) — 모르는 것을 완료로 우기지 않는다.
+        "claim_phase": claim["phase"],
+        "claim_kind": claim_kind(claim),
         # 연락·정산 확인용(T14-F). 폼에 자동 기입하지 않는다 — 복사 버튼까지다.
         "recipient_tel2": _text((shipping or {}).get("tel2")),
         "paid_at": payment["paid_at"][:16],
@@ -788,6 +795,53 @@ def _workbench_order_no(links: list[Any], rows: list[dict[str, Any]]) -> Optiona
     return None
 
 
+def _household_claim(claims: list[dict[str, str]], *, fallback_label: str,
+                     fallback_money_back: bool) -> dict[str, Any]:
+    """도크 머리말의 취소·반품 낱말 — **첫 라벨이 아니라 집계**다 (NVCLAIM-ORDER-01 A-7).
+
+    첫 라벨 채택(first-non-empty-wins)은 4건 중 3건만 반품된 집에서 `반품 완료` 를 내놓는다.
+    담당자는 그 낱말을 보고 집을 끝난 것으로 읽었고, 본품 ``2026082754601551`` 은
+    ``DELIVERING`` 인 채 환불되지 않았다(2026-09-01 황민철, ERP 주문 5026). 트리아지 집
+    배지는 555cfe8d7 에서 고쳤고 **도크는 그 배에서 이월된 같은 결함**이다.
+
+    집계 규칙과 낱말표는 트리아지 배지(:func:`naver_ingest._household_claim`)와 **같은
+    모듈 한 벌**을 쓴다(:func:`order_candidates.aggregate_claim`) — 두 벌로 두면 같은 집을
+    두 화면이 다르게 부른다. 세는 것은 **돈이 되돌아가는 종류**뿐이라, 대체품을 기다리는
+    교환 집이 `전부 취소 완료` 가 되지 않는다(R-2, 2026-08-28).
+
+    라벨을 **``partial`` 에서만** 집계 낱말로 바꾸는 이유는 트리아지 배지와 같다: 집 전체가
+    같은 단계인 집은 라인 라벨이 더 정확하다(`수거 중`·`환불 대기`처럼 단계까지 말한다).
+    첫 라벨이 거짓말을 하는 것은 **부분 상태 하나뿐**이라, 고치는 것도 거기 하나다.
+
+    세는 모집단은 이 ERP 주문의 **링크 전부**다 — 첫 라벨이 보던 집합과 같다. 대체된 옛 집
+    (``superseded``)을 빼면, 재결제로 새 집이 붙은 바로 그 사고 모양에서 반품이 통째로
+    모집단 밖으로 나가 결함이 그대로 남는다.
+
+    Args:
+        claims: 링크별 ``{"phase", "type"}`` 목록(``_row_source`` 의 ``claim_phase`` ·
+            ``claim_kind``). ``type`` 에는 이미 풀린 종류를 넣는다 —
+            :func:`mapping.claim_kind` 가 ``type`` 을 먼저 본다.
+        fallback_label: 부분 상태가 아닐 때 쓸 라인 라벨(기존 first-non-empty 값).
+        fallback_money_back: 그 라벨과 **짝인** 환불 판정.
+
+    Returns:
+        ``{"claim_code", "claim_label", "claim_money_back"}``. 판정 축은 ``claim_code`` 다 —
+        화면이 한국어 낱말을 ``==`` 로 비교하다 데인 적이 있다(order_candidates.py:235).
+    """
+    from foms.services.integrations.naver_commerce.order_candidates import aggregate_claim
+
+    aggregate = aggregate_claim(claims)
+    partial = aggregate["claim_code"] == "partial"
+    return {
+        "claim_code": aggregate["claim_code"],
+        "claim_label": aggregate["claim_label"] if partial else fallback_label,
+        # 라벨과 판정은 **짝으로** 바뀐다. ``partial`` 은 돈이 되돌아가는 종류만 세어 나온
+        # 코드라 환불이 반드시 하나 이상 있다 — 첫 라벨이 `반품 거부`(환불 없음)인 집에서
+        # 짝을 안 맞추면 화면이 `일부 반품` 이라 적으면서 ⚠ 를 떼는 모순이 난다.
+        "claim_money_back": True if partial else fallback_money_back,
+    }
+
+
 def build_dock_payload(db: Any, order: Any, *,
                        viewer: Any = None) -> Optional[dict[str, Any]]:
     """주문의 네이버 수집 링크들을 도크 표시용 payload 로 만든다.
@@ -825,6 +879,8 @@ def build_dock_payload(db: Any, order: Any, *,
     pay_means = ""
     discount = 0
     memos: list[str] = []
+    # 집계용 클레임 축(A-7). 라벨 한 개가 아니라 **전부** 모은다.
+    claims: list[dict[str, str]] = []
     for link in links:
         source = _row_source(link)
         recipient_name = recipient_name or source["recipient_name"]
@@ -833,6 +889,7 @@ def build_dock_payload(db: Any, order: Any, *,
         if not claim_label and source["claim_label"]:
             claim_label = source["claim_label"]
             claim_money_back = source["claim_money_back"]
+        claims.append({"phase": source["claim_phase"], "type": source["claim_kind"]})
         recipient_tel2 = recipient_tel2 or source["recipient_tel2"]
         paid_at = paid_at or source["paid_at"]
         pay_means = pay_means or source["pay_means"]
@@ -872,6 +929,13 @@ def build_dock_payload(db: Any, order: Any, *,
             "coupon_discount": source["coupon_discount"],
             "coupon_seller_burden": source["coupon_seller_burden"],
         })
+
+    # 머리말 낱말은 첫 라벨이 아니라 집계다(A-7) — 위에서 모은 첫 라벨은 부분 상태가
+    # 아닐 때의 폴백으로만 남는다. 3/4 만 반품된 집이 `반품 완료` 라 읽히던 자리다.
+    household_claim = _household_claim(claims, fallback_label=claim_label,
+                                       fallback_money_back=claim_money_back)
+    claim_label = household_claim["claim_label"]
+    claim_money_back = household_claim["claim_money_back"]
 
     mains = [row for row in rows if row["role"] == "main"]
     if not mains and rows:
@@ -966,6 +1030,9 @@ def build_dock_payload(db: Any, order: Any, *,
                                 and recipient_name != orderer_name),
         "shipping_memo": "\n".join(memos),
         "claim_label": claim_label,
+        # **판정 축**. 낱말은 표시용이라 분기에 쓰면 문구 한 글자에 로직이 죽는다 —
+        # 화면·후속 코드는 이 코드로 가른다(order_candidates.CLAIM_CODE_LABELS 의 키).
+        "claim_code": household_claim["claim_code"],
         # 화면이 ⚠ 경고를 붙일지 가르는 값. 라벨 존재만 보면 거부 건에도 경고가 붙는다(R-8).
         "claim_money_back": claim_money_back,
         # 로드 시점 총폭(하위호환 폴백). 지금 화면의 총폭은 행마다 실린 `width_unit_mm`·

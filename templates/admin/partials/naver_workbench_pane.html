@@ -643,21 +643,56 @@
             <span class="wb-coupon__none">쿠폰 사용 안 함</span>
             {% endif %}
         </div>
+        {# 열이 하나 늘었다 — 좁은 화면에서 열을 짜내면 제품명이 한 글자씩 세로로 선다.
+           넘치는 만큼은 부트스트랩 `.table-responsive` 의 가로 스크롤이 받는다(이력 표와
+           같은 규칙). 페이지 자체가 옆으로 밀리면 안 된다. #}
+        <div class="table-responsive">
         <table class="wb-cmp">
             <thead>
                 <tr>
                     <th>상품주문번호</th><th>제품 · 옵션 원문</th>
+                    <th>클레임 · 반품</th>
                     <th class="wb-cmp__num">수량</th><th class="wb-cmp__num">금액</th>
                 </tr>
             </thead>
             <tbody>
                 {% for row in member_rows %}
                 <tr>
-                    <td class="wb-cmp__k">{{ row.external_id }}</td>
+                    <td class="wb-cmp__k">
+                        {{ row.external_id }}
+                        {# 본품/추가구성상품은 장식이 아니다 — 클레임 호출 순서를 가르는 축이고
+                           (추가상품 먼저, `fulfillment.claim_call_order`), 이 집이 왜 순서에
+                           민감한지 사람이 표에서 바로 읽어야 한다. #}
+                        <div class="small text-muted">{{ '추가구성상품' if row.is_addon else '본품' }}</div>
+                    </td>
                     <td>
                         <div class="fw-semibold">{{ row.product }}</div>
                         {% if row.options %}
                         <div class="wb-cmp__option">{{ row.options }}</div>
+                        {% endif %}
+                    </td>
+                    {# 라인별 클레임·반품(NVCLAIM-ORDER-01 2차). 이 칸이 없어서 추가상품 3건만
+                       환불된 집이 화면에서 `반품 완료` 로 읽혔다(황민철 사고, ERP 5026).
+                       **분기는 전부 불리언**이다 — 한국어 라벨을 `==` 로 비교하면 낱말 한 번
+                       손보는 순간 분기가 조용히 죽는다(`order_candidates.py` 코드-라벨 규율).
+                       네이버가 말하는 상태와 **우리가 보낸 접수**는 다른 사실이라 두 줄로
+                       나란히 둔다 — 이번 사고가 정확히 그 둘의 틈이었다.
+                       `text-nowrap`: 이 칸을 짜내면 `우리 접수 2026-09-01 23:33` 이 시각
+                       한가운데서 접힌다. 좁은 화면에서는 열을 줄이는 대신 표가 제 폭을 지키고
+                       위 `.table-responsive` 가 가로 스크롤을 받는다(이력 표와 같은 규칙). #}
+                    <td class="text-nowrap">
+                        {% if row.claim_label %}
+                        <span class="badge bg-{{ 'danger' if row.claim_blocking else 'secondary' }}">{{ row.claim_label }}</span>
+                        {% if row.claim_pending %}
+                        <div class="small text-muted">네이버 확정 전</div>
+                        {% endif %}
+                        {% else %}
+                        <span class="small text-muted">클레임 없음</span>
+                        {% endif %}
+                        {% if row.return_requested_at %}
+                        <div class="small text-muted">우리 접수 {{ row.return_requested_at }}</div>
+                        {% else %}
+                        <div class="small text-muted">우리 접수 없음</div>
                         {% endif %}
                     </td>
                     {# 부분취소 잔여(F-3). 여기 뜨는 수량은 네이버 `productOrder.quantity` 라
@@ -689,6 +724,7 @@
                 {% endfor %}
             </tbody>
         </table>
+        </div>
 
         {#
           결정 D3 — 관계 축. 수집 판정은 결제완료 하나뿐이라 재결제·차액 결제도 새 집으로

@@ -2539,7 +2539,10 @@ def _failure_rows(db) -> list[dict[str, Any]]:
         .limit(QUEUE_LINK_FETCH_LIMIT)
         .all()
     )
-    from foms.services.integrations.naver_commerce.fulfillment import household_key
+    from foms.services.integrations.naver_commerce.fulfillment import (
+        failure_action,
+        household_key,
+    )
 
     rows: list[dict[str, Any]] = []
     seen: set[str] = set()
@@ -2567,8 +2570,10 @@ def _failure_rows(db) -> list[dict[str, Any]]:
         summary = summarize_snapshot(link.raw_snapshot)
         # 어느 작업이 실패했는지 워커가 함께 적는다. 없으면(옛 기록) 발주확인으로 본다 —
         # 재시도를 항상 발주확인으로 보내면 발송처리 실패는 멱등 규칙에 걸려 조용히
-        # 넘어가고 실패 띠만 영원히 남는다.
-        action = str(state.get("last_error_action") or "confirm").strip().lower()
+        # 넘어가고 실패 띠만 영원히 남는다. 읽는 규칙은 :func:`fulfillment.failure_action`
+        # 한 벌이다 — `확인함` 의 범위가 이 값으로 정해지므로(RC5 2차), 여기서 따로 읽으면
+        # 띠에 보이는 줄과 지워지는 줄이 갈린다.
+        action = failure_action(link)
         action = action if action in FULFILLMENT_ACTION_LABELS else "confirm"
         rows.append({
             "_key": key,
@@ -2593,11 +2598,14 @@ def _failure_rows(db) -> list[dict[str, Any]]:
 def _mark_return_sendable(db, rows: list[dict[str, Any]]) -> None:
     """실패 행마다 **아직 안 보낸 반품 접수 건수**를 달아 준다 (NVCLAIM-ORDER-01 T7).
 
-    `확인함` 은 집 전체의 ``last_error`` 를 지운다(``fulfillment.clear_failure``). 그런데
     반품 접수에 실패한 라인에는 ``return`` 축 기록이 **아예 없다** — 성공분만 기록을 받는다.
-    그래서 한 번 누르면 "본품이 반품되지 않았다"는 유일한 DB 흔적이 사라진다(RC5).
-    라인 단위 ``clear_failure`` 는 2차 배로 미뤘고, 1차는 **보낼 반품이 남은 집에서
-    버튼을 잠그는 것**으로 버틴다.
+    그래서 그 라인의 ``last_error`` 가 "본품이 반품되지 않았다"는 유일한 DB 흔적이다(RC5).
+
+    2차 배에서 ``fulfillment.clear_failure`` 를 작업 단위로 좁혔지만 **이 잠금은 남긴다.**
+    좁히기가 막는 것은 "안 본 형제의 실패까지 함께 지우는 것"이고, 여기서 잃는 것은
+    **사람이 실제로 보고 누른 그 줄**이다 — 반품 실패 줄에서 `확인함` 을 누르면 여전히
+    그 유일한 흔적이 (강등되긴 해도) 화면에서 사라진다. 실패 라인에 ``return`` 축
+    실패 기록을 남기는 일(설계서 T3)이 아직 배포되지 않은 한, 잠금이 마지막 문이다.
 
     술어는 :func:`fulfillment.return_sendable` 이다. ``is_return_pending`` 으로 세면
     판매자센터에서 사람이 손으로 끝낸 집까지 영원히 잠긴다 — 그쪽은 **우리 표식으로만**
@@ -3430,6 +3438,53 @@ def _fulfillment_progress(db, link_ids: list[int]) -> dict[str, Any]:
     }
 
 
+def _member_claim_view(link: ExternalOrderLink) -> dict[str, Any]:
+    """상품주문 **1건**의 클레임·반품 상태 — 라인 표의 칸이 읽는 값 (NVCLAIM-ORDER-01 2차).
+
+    이 칸이 없던 시절 어느 화면도 "이 집 4건 중 무엇이 반품됐고 무엇이 안 됐나"를 답하지
+    못했다. 집 배지는 집계 하나였고 pane 의 반품 축(:func:`_return_axis_view`)은 **펼친
+    링크 1건**만 봤다 — 황민철 집(ERP 5026)이 추가상품 3건만 환불된 채로 `반품 완료` 로
+    읽힌 자리다.
+
+    **코드가 판정 축이고 라벨은 표시 축이다**(``order_candidates.py`` CLAIM_CODE_LABELS
+    주석, 2026-08-28). 그래서 화면이 분기할 값은 전부 여기서 **불리언으로** 굳혀 내보낸다 —
+    템플릿이 ``claim_label`` 같은 한국어 문자열을 ``==`` 로 비교하면 낱말 한 번 손보는
+    순간 분기가 조용히 죽는다.
+
+    ``return_requested_at`` 은 **우리가 보낸 접수**다. 네이버가 말하는 상태
+    (``claim_*``)와 **다른 사실**이라 한 칸에 합치지 않는다 — 이번 사고는 정확히 그 둘의
+    틈이었다(우리는 4건 다 보냈다고 믿었고 네이버는 3건만 받았다).
+
+    Args:
+        link: 그 상품주문의 링크(**추가 조회 없음** — 이미 읽어 둔 원본만 판다).
+
+    Returns:
+        ``is_addon``(:func:`mapping.is_addon_detail` — 클레임 호출 순서를 가르는 축) ·
+        ``claim_code``(네이버 원문 대문자, 없으면 빈 문자열) · ``claim_label`` ·
+        ``claim_blocking`` · ``claim_pending``(확정 전) · ``return_requested_at``(KST).
+    """
+    from foms.services.integrations.naver_commerce.mapping import (
+        CLAIM_PHASE_PROGRESS,
+        CLAIM_PHASE_REQUESTED,
+        extract_claim,
+        is_addon_detail,
+    )
+
+    snapshot = link.raw_snapshot or {}
+    claim = extract_claim(snapshot)
+    ours = (link.triage_state or {}).get("return") or {}
+    return {
+        "is_addon": is_addon_detail(snapshot),
+        "claim_code": str(claim["status"] or "").upper(),
+        "claim_label": claim["label"],
+        "claim_blocking": bool(claim["blocking"]),
+        # 요청·처리중 = 네이버가 아직 확정하지 않았다. `반품 요청` 과 `반품 완료` 를
+        # 같은 색으로 칠하면 환불 전 건이 끝난 것으로 읽힌다(2026-08-28 유령 사고).
+        "claim_pending": claim["phase"] in (CLAIM_PHASE_REQUESTED, CLAIM_PHASE_PROGRESS),
+        "return_requested_at": _dispatch_time_text(ours.get("requested_at")),
+    }
+
+
 def _member_rows(db, selected_group: Optional[dict]) -> list[dict[str, Any]]:
     """선택한 집의 **상품주문 행 단위** 목록 (설계 결정 5·7).
 
@@ -3486,6 +3541,9 @@ def _member_rows(db, selected_group: Optional[dict]) -> list[dict[str, Any]]:
             # 를 화면이 말하지 못했다. **초기값과 잔여값이 실제로 다른 행에서만** 낸다
             # (281/281 이 이 필드를 갖고 있어 존재 여부로 판정하면 전부 부분취소로 보인다).
             "partial_cancel": extract_partial_cancel(link.raw_snapshot or {}),
+            # 라인별 클레임·반품 칸(NVCLAIM-ORDER-01 2차). 집 배지·집 반품 축과 **단위가
+            # 다르다** — 이 표만이 "4건 중 어느 것이 안 됐나"를 말할 수 있다.
+            **_member_claim_view(link),
         })
     return rows
 
@@ -4766,11 +4824,17 @@ def naver_ingest_return_approve(link_id: int):
 @login_required
 @role_required(["ADMIN", "MANAGER", "STAFF"])
 def naver_ingest_fulfillment_clear(link_id: int):
-    """발주확인·발송처리 **실패 기록을 지운다** (네이버 호출 없음).
+    """실패 기록을 **사람이 확인한 그 작업만** 지운다 (네이버 호출 없음).
 
     실패 사유는 성공한 재시도가 지운다. 판매자센터에서 손으로 해결한 건은 그 경로가
-    없어 빨간 띠가 영원히 남는다 — 사람이 "확인했다"고 닫는 자리다. 집 전체를 지운다
-    (형제 한 건이 남으면 띠가 다시 뜬다). 성공 표식은 건드리지 않는다.
+    없어 빨간 띠가 영원히 남는다 — 사람이 "확인했다"고 닫는 자리다.
+
+    범위는 ``link_id`` 와 **같은 작업으로 실패한 형제들**이다(NVCLAIM-ORDER-01 RC5 2차,
+    :func:`fulfillment.clear_failure`). 실패 띠는 집당 한 줄이고 그 줄은 작업 하나만
+    말하므로, 집 전체를 지우면 사람이 본 적 없는 반품 실패까지 함께 사라진다 —
+    반품 실패 라인에는 ``return`` 축 기록이 없어 그 사유가 유일한 증거다.
+
+    성공 표식은 건드리지 않는다. 다른 작업의 실패가 남았으면 감사에 ``kept`` 로 적는다.
     """
     from foms.services.integrations.naver_commerce.fulfillment import (
         FulfillmentError,
@@ -4787,7 +4851,10 @@ def naver_ingest_fulfillment_clear(link_id: int):
         f"네이버 발주확인·발송처리 실패 기록 지움 (link {link_id})",
         session.get("user_id"),
         action="NAVER_INGEST_FULFILLMENT_CLEAR",
-        detail={"link_id": link_id, "cleared": result["cleared"]},
+        # `kept` 가 0이 아니면 **이 집에 확인 안 된 실패가 남아 있다**는 뜻이다. 원장에
+        # 남겨야 나중에 "왜 띠가 다시 떴나"를 화면 밖에서 답할 수 있다.
+        detail={"link_id": link_id, "cleared": result["cleared"],
+                "kept": result["kept"], "cleared_action": result["action"]},
     )
     return jsonify({"success": True, "data": result, "error": None})
 

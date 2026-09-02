@@ -45,6 +45,7 @@ __all__ = [
     "STATE_KEY",
     "DIRECT_DELIVERY",
     "clear_failure",
+    "failure_action",
     "confirm_place_order",
     "dispatch_order",
     "cancel_order",
@@ -790,43 +791,99 @@ def confirm_place_order(session: Session, client: Any, *, link_id: int,
     return {"confirmed": ok_ids, "skipped": [row.external_id for row in links if row not in todo]}
 
 
+#: ``last_error_action`` 이 없는 옛 실패 기록이 읽히는 이름. 화면
+#: (:func:`naver_ingest._failure_rows`)이 쓰는 기본값과 **글자 그대로 같아야 한다** —
+#: 두 곳이 갈리면 띠에 보이는 줄과 `확인함` 이 지우는 줄이 어긋난다.
+_DEFAULT_FAILURE_ACTION = "confirm"
+
+
+def failure_action(link: ExternalOrderLink) -> str:
+    """이 상품주문이 **어느 작업**에서 실패했나 (실패 기록이 없으면 빈 문자열).
+
+    실패는 작업별로 뜻이 다르다 — 발주확인 실패와 반품 접수 실패는 대응도, 다음에
+    눌러야 할 버튼도 다르다. 실패 띠가 집당 한 줄이면서 그 한 줄이 **작업 하나**를
+    말하는 이유이고(:func:`naver_ingest._failure_rows`), `확인함` 의 범위를 정하는
+    축도 이것이다(NVCLAIM-ORDER-01 RC5 2차).
+
+    Args:
+        link: 판정할 링크(상품주문 1건).
+
+    Returns:
+        소문자 작업 이름(``confirm``·``dispatch``·``cancel``·``return`` …).
+        실패 사유가 비어 있으면 빈 문자열. 사유는 있는데 작업 이름이 없는 옛 기록은
+        :data:`_DEFAULT_FAILURE_ACTION` 으로 읽는다(화면과 같은 규칙).
+    """
+    state = _state(link)
+    if not str(state.get("last_error") or "").strip():
+        return ""
+    return str(state.get("last_error_action") or _DEFAULT_FAILURE_ACTION).strip().lower()
+
+
 def clear_failure(session: Session, *, link_id: int,
                   actor_user_id: Optional[int] = None,
                   now: Optional[datetime] = None) -> dict[str, Any]:
-    """한 집의 **실패 사유만** 지운다 (네이버를 부르지 않는다 — web 에서 돌아도 된다).
+    """사람이 **확인한 그 실패만** 지운다 (네이버를 부르지 않는다 — web 에서 돌아도 된다).
 
     실패 사유는 성공한 재시도가 지운다. 그런데 사람이 판매자센터에서 손으로 해결하거나
     네이버가 "이미 처리됨"으로 답하면 우리 쪽 기록은 영원히 남아, 화면 위 빨간 띠가
     모든 탭·모든 사용자에게 고정된다. 그 띠를 사람이 닫는 자리가 여기다.
+
+    **범위는 집 전체가 아니라 ``link_id`` 와 같은 작업으로 실패한 형제들이다**
+    (NVCLAIM-ORDER-01 RC5 2차). 예전에는 집 전체 ``last_error`` 를 지웠다 — 실패 띠는
+    집당 한 줄이고 그 줄은 **작업 하나**만 말하므로(취소·반품 실패는 다른 실패를 가리고
+    맨 위로 온다), 사람은 발주확인 실패 한 줄을 확인하면서 **본 적도 없는 반품 실패**를
+    함께 지우고 있었다. 반품 접수에 실패한 라인에는 ``return`` 축 기록이 아예 없어서
+    (기록은 성공분만 받는다) 그 ``last_error`` 가 "이 본품은 환불되지 않았다"는 유일한
+    DB 흔적이다 — 황민철 집(ERP 5026)이 그 모양이었다.
+
+    지운 사유는 버리지 않고 ``last_error_cleared`` 로 **강등해서** 남긴다. 띠는 닫히되
+    나중에 "무엇을 확인하고 닫았나"를 DB 가 답할 수 있어야 한다.
 
     **성공 표식(``place_confirmed_at``·``dispatched_at``)은 건드리지 않는다** — 지우면
     멱등이 깨져 네이버를 두 번 부르게 된다. 누가 언제 닫았는지는 상태에 남긴다.
 
     Args:
         session: DB 세션(호출자가 commit 을 소유한다).
-        link_id: 기준 링크 id(같은 집 전체가 함께 지워진다 — 형제가 남으면 띠가 다시 뜬다).
+        link_id: 사람이 띠에서 확인한 그 줄의 링크 id(범위의 기준점).
         actor_user_id: 닫은 사람(기록용).
         now: 시각 주입(테스트).
 
     Returns:
-        ``{"cleared": 지운 상품주문 수, "link_ids": [...]}``.
+        ``{"cleared": 지운 수, "kept": 남긴 다른 작업의 실패 수, "action": 지운 작업,
+        "link_ids": 실제로 지운 링크 id}``. 기준 링크의 실패가 이미 다른 탭에서 지워졌으면
+        ``action`` 이 빈 문자열이고 아무것도 지우지 않는다 — 안 본 실패를 대신 지우느니
+        띠를 한 번 더 띄운다.
 
     Raises:
         FulfillmentError: 링크를 찾을 수 없을 때.
     """
     stamp = now or now_utc_naive()
     links = _links_of_group(session, link_id)
-    cleared = 0
+    anchor = next((row for row in links if int(row.id) == int(link_id)), None)
+    target = failure_action(anchor) if anchor is not None else ""
+    cleared: list[int] = []
+    kept = 0
     for row in links:
-        if not str(_state(row).get("last_error") or "").strip():
+        action = failure_action(row)
+        if not action:
             continue
+        if not target or action != target:
+            kept += 1
+            continue
+        # 사유 원문을 **쓰기 전에** 집어 둔다 — 아래 patch 안에서 다시 읽으면 읽는 순서에
+        # 기대는 코드가 된다.
+        reason = str(_state(row).get("last_error") or "")
         _write_state(row, {"last_error": "", "last_error_at": "", "last_error_action": "",
+                           # 증거는 지우는 게 아니라 내린다(RC5).
+                           "last_error_cleared": reason,
+                           "last_error_cleared_action": action,
                            "failure_cleared_at": stamp.isoformat(),
                            "failure_cleared_by": actor_user_id})
-        cleared += 1
+        cleared.append(int(row.id))
     session.flush()
-    logger.info("[NAVER] 실패 기록 지움 link=%s 건수=%d", link_id, cleared)
-    return {"cleared": cleared, "link_ids": [row.id for row in links]}
+    logger.info("[NAVER] 실패 기록 지움 link=%s 작업=%s 건수=%d 남김=%d",
+                link_id, target or "-", len(cleared), kept)
+    return {"cleared": len(cleared), "kept": kept, "action": target, "link_ids": cleared}
 
 
 def _naver_dispatched_at(link: ExternalOrderLink) -> str:
