@@ -1031,6 +1031,14 @@
     return kind === 'commission' ? 'commission' : (kind === 'vat_case' ? 'vat_case' : 'settle_case');
   }
 
+  /** 지금 화면에서 좁힌 조건(유형·검색)을 이 표에 실을 수 있는 짝인가.
+      `type` 과 `q` 는 **같은 원장에서 좁힌 한 쌍**이라 판정도 하나여야 한다. 원장이 바뀌면
+      `switchLedger` 가 둘 다 비우므로, 지금 실린 원장 하나만 보면 충분하다. */
+  function exportCarriesFilters(ctx, spec) {
+    return !!(spec.filters &&
+      exportKindOfLedger(currentLedgerParam(ctx)) === (spec.typeOf || spec.kind));
+  }
+
   /** 지금 화면 조건을 실은 내려받기 URL 하나. */
   function exportUrl(ctx, spec) {
     var host = ctx.els.exportHost;
@@ -1042,11 +1050,9 @@
       'to=' + encodeURIComponent(ctx.state.to),
       'basis=' + encodeURIComponent(ctx.state.basis),
     ];
-    if (spec.filters && ctx.state.q) params.push('q=' + encodeURIComponent(ctx.state.q));
-    if (spec.filters && ctx.state.type &&
-        exportKindOfLedger(ctx.state.typeKind) === (spec.typeOf || spec.kind)) {
-      params.push('type=' + encodeURIComponent(ctx.state.type));
-    }
+    var carries = exportCarriesFilters(ctx, spec);
+    if (carries && ctx.state.q) params.push('q=' + encodeURIComponent(ctx.state.q));
+    if (carries && ctx.state.type) params.push('type=' + encodeURIComponent(ctx.state.type));
     return base + (base.indexOf('?') === -1 ? '?' : '&') + params.join('&');
   }
 
@@ -1062,6 +1068,12 @@
       item.setAttribute('data-settlement-ch-export-kind', spec.kind);
       item.appendChild(document.createTextNode(spec.label));
       item.appendChild(el('span', 's-ch-export-sub', spec.sub));
+      // 조건을 받는 표인데 원장이 달라 못 싣는 경우에만 말한다 — 일자 단위 표(filters:false)는
+      // 애초에 검색어를 받지 않으니 '원장이 다르다'는 사유가 거짓이 된다(F10 리뷰 MINOR-1).
+      if (ctx.state.q && spec.filters && !exportCarriesFilters(ctx, spec)) {
+        item.appendChild(el('span', 's-ch-export-sub',
+          '지금 검색어는 이 표에 안 실립니다(원장이 다릅니다)'));
+      }
       menu.appendChild(item);
     });
     // 상시 안내(자동 닫힘 없는 일반 텍스트). 파일이 화면보다 많은 열을 담는다는 사실과

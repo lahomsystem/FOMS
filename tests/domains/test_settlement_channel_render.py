@@ -66,7 +66,8 @@ _STATIC_ASSETS = (CSS_ASSET, JS_ASSET)
 #: 계속 실행한다(서비스워커 staticCacheFirst).
 #: 2026-09-03 F9 — R1(축 셀렉트를 원장 줄로 이동)·C1(전환 뒤 셀렉트 되맞춤)·C2(창 밖으로
 #: 밀린 행 수 문구)로 채널 CSS·JS 를 함께 고쳤다(핀 사슬 동반 이동: f → g).
-_CHANNEL_PIN = "20260903g"
+#: 2026-09-03 F10 T1 — 검색어 `q` 를 원장 짝 판정 안으로 넣느라 채널 JS 를 고쳤다(g → h).
+_CHANNEL_PIN = "20260903h"
 
 _CHANNEL_TAB_ID = "foms-settle-tab-channel"
 _CHANNEL_PANE_ID = "foms-settle-pane-channel"
@@ -1034,3 +1035,48 @@ def test_export_menu_offers_the_settlement_sheet():
     assert "(spec.typeOf || spec.kind)" in section, "exportUrl 이 typeOf 를 안 본다"
     lowered = _read(f"static/{JS_ASSET}").lower()
     assert "xlsx" not in lowered and "excel" not in lowered
+
+
+# ==========================================================================
+# 계약 v1.3 — F10 T1: 검색어도 원장 짝 판정을 받는다
+# ==========================================================================
+def test_export_url_pairs_the_search_term_with_the_ledger():
+    """검색어 `q` 가 유형 필터와 **같은 짝 판정**을 받는다(F10 T1-a).
+
+    수수료 원장에서 주문번호로 좁혀 둔 채 건별 파일을 받으면 그 문자열이 건별 3필드에
+    걸려 화면과 다른 행 집합이 내려갔다. 판정 기준은 `ctx.state.typeKind`(유형을 고른
+    시점의 원장)가 아니라 **지금 실린 원장**(`currentLedgerParam`)이다 — `switchLedger`
+    가 원장 전환 때 `type` 과 `q` 를 함께 비우므로 그 하나면 충분하다.
+
+    양성: `exportUrl` 이 한 판정(`carries`)으로 두 조건을 싣는다.
+    음성 대조군: 옛 무조건 분기와 옛 판정 기준(`typeKind`)이 그 함수에 남아 있으면 red.
+    """
+    export_url = _js_function("exportUrl")
+    helper = _js_function("exportCarriesFilters")
+
+    assert "carries && ctx.state.q" in export_url, "검색어가 짝 판정을 안 받는다"
+    assert "carries && ctx.state.type" in export_url, "유형 필터가 짝 판정을 안 받는다"
+    assert "if (spec.filters && ctx.state.q)" not in export_url, "옛 무조건 분기가 남아 있다"
+    assert "typeKind" not in export_url, "옛 판정 기준(typeKind)이 남아 있다"
+    assert "currentLedgerParam(ctx)" in helper, "판정이 지금 실린 원장을 안 본다"
+    assert "(spec.typeOf || spec.kind)" in helper, "판정이 항목 종류를 안 본다"
+
+
+def test_export_menu_says_when_the_search_term_is_dropped():
+    """검색어가 이 항목에 안 실릴 때 메뉴가 **그 사실을 말한다**(F10 T1-b).
+
+    조용히 빼면 사용자는 좁혀 놓은 조건이 그대로 실린 줄 안다. 문구는 기존 부제
+    클래스를 재사용해 붙인다(새 CSS 클래스 0). 검색어 값 자체는 되쓰지 않는다 — 긴
+    입력이 메뉴를 밀어낸다.
+
+    음성 대조군: 같은 본문에 `innerHTML` 이나 `createObjectURL` 이 있으면 red(문구를
+    붙이려다 마크업 주입이나 blob 내려받기로 새지 않았는가).
+    """
+    body = _js_function("renderExportMenu")
+
+    assert "'지금 검색어는 이 표에 안 실립니다(원장이 다릅니다)'" in body, "안내 문구가 없다"
+    assert "ctx.state.q && spec.filters && !exportCarriesFilters(ctx, spec)" in body, "안내 게이트가 없다"
+    # 음성 대조군: 조건을 안 받는 일자 단위 표(filters:false)에는 '원장이 다르다' 사유가 거짓이라 안 붙어야 한다.
+    assert "ctx.state.q && !exportCarriesFilters(ctx, spec)" not in body, "일자 단위 표에도 안내가 붙는다"
+    assert "innerHTML" not in body, "마크업을 주입하고 있다"
+    assert "createObjectURL" not in body, "blob 내려받기를 만들고 있다"
