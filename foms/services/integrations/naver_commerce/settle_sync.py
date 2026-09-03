@@ -875,8 +875,13 @@ def _write_watermark(ctx: _SyncContext, *, status: str, scope: dict,
     state.setdefault("vat_final_month", None)
     if status == "OK":
         state["last_ok_at"] = ctx.now.isoformat()
-        state["coverage_from"] = scope["from"]
-        state["coverage_to"] = scope["to"]
+        # 적재 범위는 실행 창의 **합집합**이다. 롤링 실행(오늘-30)이 앞선 백필(1월~)의 범위를
+        # 덮어 "적재 구간 08-04~" 로 과소 표시하던 결함(2026-09-03). 파티션 교체는 창 안에서만
+        # 일어나 창 밖 과거 행은 그대로 남으므로 표시도 그 사실을 따른다(ISO 날짜라 문자열 비교 = 날짜 비교).
+        froms = [value for value in (state.get("coverage_from"), scope["from"]) if value]
+        tos = [value for value in (state.get("coverage_to"), scope["to"]) if value]
+        state["coverage_from"] = min(froms)
+        state["coverage_to"] = max(tos)
         covered = ctx.stats.get("last_dates") or {}
         state["per_endpoint"] = {
             name: {"last_ok_date": covered.get(name) or scope["to"], "calls": int(count)}

@@ -69,6 +69,8 @@
   var PAGER_WINDOW = 2;            // 현재 페이지 좌우로 보여줄 번호 수
   var POLL_INTERVAL_MS = 10000;    // 동기화 반영 확인 주기
   var POLL_MAX_TRIES = 6;          // 10초 × 6 = 60초까지만 기다린다
+  var POLL_MAX_TRIES_BACKFILL = 60; // 소급 적재는 창을 여러 개 돌아 오래 걸린다(90일 ≈ 2분, 250일 ≈ 6분) — 10분
+  var BACKFILL_MINUTES_PER_DAY = 0.025; // 실측(2026-09-03): 하루치 ≈ 1.5초 — 배너의 예상 시간용
   var SEARCH_DEBOUNCE_MS = 350;
   var RESIZE_DEBOUNCE_MS = 140;
   var LINE_HEADROOM = 1.5;         // 비교선이 축을 끌고 올라갈 수 있는 한도(막대가 주 마크다)
@@ -2008,6 +2010,7 @@
     if (!ctx.state.data) return;
     syncControls(ctx);
     renderSync(ctx);
+    renderBackfillBanner(ctx);
     renderKpis(ctx);
     renderDaily(ctx);
     renderWaterfall(ctx);
@@ -2032,19 +2035,27 @@
   }
 
   /** [지금 동기화] — enqueue 만 한다. 워커가 실제로 돌기까지 걸리므로 `rev` 로 반영을 확인한다. */
-  async function requestSync(ctx) {
+  /**
+   * 동기화 요청. `backfillFrom`(YYYY-MM-DD) 이 있으면 그 날짜부터 소급 적재를 큐에 넣는다 —
+   * 워커가 네이버 제약대로 창을 쪼개 받아오므로(30일 창·daily 28일·case 하루) 화면은 부탁만 한다.
+   */
+  async function requestSync(ctx, backfillFrom) {
     if (ctx.state.syncing) return;
     var url = ctx.root.getAttribute('data-settlement-ch-sync-api') || SYNC_API_FALLBACK;
     ctx.state.syncing = true;
+    ctx.state.backfilling = !!backfillFrom;
     if (ctx.els.syncBtn) ctx.els.syncBtn.disabled = true;
-    notice(ctx, '동기화를 요청하는 중입니다…');
+    renderBackfillBanner(ctx);
+    notice(ctx, backfillFrom ? backfillFrom + ' 부터 받아오기를 요청하는 중입니다…' : '동기화를 요청하는 중입니다…');
     try {
-      var body = await postJson(url, {});
+      var body = await postJson(url, backfillFrom ? { backfill_from: backfillFrom } : {});
       var queued = !!(body.data && body.data.queued);
+      var minutes = backfillFrom ? Math.max(1, Math.round(daysBetween(backfillFrom, ctx.state.today) * BACKFILL_MINUTES_PER_DAY)) : 1;
       notice(ctx, queued
-        ? '동기화를 요청했습니다. 워커가 처리하는 동안 최대 1분간 반영을 확인합니다.'
+        ? (backfillFrom ? '받아오기를 요청했습니다. 워커가 받아오는 동안 최대 10분간 반영을 확인합니다(예상 약 ' + minutes + '분).'
+                        : '동기화를 요청했습니다. 워커가 처리하는 동안 최대 1분간 반영을 확인합니다.')
         : '이미 대기 중인 동기화가 있습니다. 반영을 확인합니다.');
-      startRevPoll(ctx);
+      startRevPoll(ctx, backfillFrom ? POLL_MAX_TRIES_BACKFILL : POLL_MAX_TRIES);
     } catch (err) {
       notice(ctx, err && err.handled ? err.message : '동기화 요청에 실패했습니다. 잠시 후 다시 시도하세요.', true);
       ctx.state.syncing = false;
@@ -2056,14 +2067,55 @@
     if (ctx.pollTimer) window.clearTimeout(ctx.pollTimer);
     ctx.pollTimer = null;
     ctx.state.syncing = false;
+    ctx.state.backfilling = false;
     if (ctx.els.syncBtn) ctx.els.syncBtn.disabled = false;
+    renderBackfillBanner(ctx);
+  }
+
+  function daysBetween(fromIso, toIso) {
+    var a = new Date(fromIso + 'T00:00:00Z'), b = new Date(toIso + 'T00:00:00Z');
+    return Math.max(0, Math.round((b - a) / 86400000));
+  }
+
+  /**
+   * 기간 바 아래 배너: 요청 시작일이 적재 시작일보다 앞이면 "그 앞쪽은 아직 안 받아왔다" 고 말하고
+   * [이 구간 받아오기] 로 소급 적재를 큐에 넣는다. 버튼 없이 자동으로 받지 않는다 — 넓은 구간을 잘못
+   * 고르면 매번 수백 호출이 나간다. 적재 이력이 없으면(never) [지금 동기화] 가 그 역할이라 숨긴다.
+   */
+  function renderBackfillBanner(ctx) {
+    var host = ensureSlot(ctx.els.bar, 'backfill', 'div', 's-ch-backfill', true);
+    if (!host) return;
+    host.setAttribute('data-settlement-ch-backfill', '');
+    clearNode(host);
+    var data = ctx.state.data;
+    var sync = (data && data.sync) || {};
+    var from = ctx.state.from;
+    var missing = !!(data && !sync.never && sync.coverage_from && from && from < sync.coverage_from);
+    setHidden(host, !missing && !ctx.state.backfilling);
+    if (host.hidden) return;
+    if (ctx.state.backfilling) {
+      host.appendChild(el('span', 's-ch-backfill-text', '받아오는 중입니다… 워커가 창을 나눠 순서대로 받아옵니다. 반영되면 화면을 다시 읽습니다.'));
+      return;
+    }
+    var lastMissing = addDays(sync.coverage_from, -1);
+    // 워커는 시작일부터 오늘+14 까지 **전부** 다시 받는다(빠진 구간만이 아니다) — 예상 시간도 그 폭으로 센다.
+    var minutes = Math.max(1, Math.round(daysBetween(from, ctx.state.today) * BACKFILL_MINUTES_PER_DAY));
+    host.appendChild(el('span', 's-ch-backfill-text',
+      '이 구간 앞쪽 ' + from + ' ~ ' + lastMissing + ' 은 아직 받아오지 않았습니다(적재 구간 ' +
+      sync.coverage_from + ' ~ ' + (sync.coverage_to || '—') + '). 받아오면 약 ' + minutes + '분 걸립니다.'));
+    var btn = el('button', 's-ch-btn', '이 구간 받아오기');
+    btn.type = 'button';
+    btn.setAttribute('data-settlement-ch-backfill-btn', '');
+    btn.setAttribute('data-from', from);
+    host.appendChild(btn);
   }
 
   /**
    * `sync.rev` 를 10초 간격으로 최대 6번 확인하고, 바뀌면 화면을 다시 읽는다.
    * 6번 안에 안 바뀌면 **조용히 포기하지 않고** 그 사실을 문구로 남긴다.
    */
-  function startRevPoll(ctx) {
+  function startRevPoll(ctx, maxTries) {
+    var limit = maxTries || POLL_MAX_TRIES;
     var before = ctx.state.rev;
     var tries = 0;
     var tick = async function () {
@@ -2085,8 +2137,8 @@
         stopRevPoll(ctx);
         return;
       }
-      if (tries >= POLL_MAX_TRIES) {
-        notice(ctx, '1분 안에 반영되지 않았습니다. 워커가 밀렸을 수 있으니 잠시 뒤 새로고침하세요.', true);
+      if (tries >= limit) {
+        notice(ctx, Math.round(limit * POLL_INTERVAL_MS / 60000) + '분 안에 반영되지 않았습니다. 워커가 밀렸을 수 있으니 잠시 뒤 새로고침하세요.', true);
         stopRevPoll(ctx);
         return;
       }
@@ -2142,6 +2194,8 @@
       }
       if (target.closest('[data-settlement-ch-export-kind]')) { toggleExport(ctx, false); return; }
       if (target.closest('[data-settlement-ch-sync-btn]')) { requestSync(ctx); return; }
+      var backfillBtn = target.closest('[data-settlement-ch-backfill-btn]');
+      if (backfillBtn) { requestSync(ctx, backfillBtn.getAttribute('data-from') || ctx.state.from); return; }
       if (target.closest('[data-settlement-ch-retry]')) { reload(ctx, false); return; }
       var ledgerBtn = target.closest('[data-settlement-ch-ledger]');
       if (ledgerBtn && ctx.root.contains(ledgerBtn)) {
@@ -2414,6 +2468,7 @@
         seq: 0,
         loaded: false,
         syncing: false,
+        backfilling: false,
         holdbackOpen: false,
       },
     };
