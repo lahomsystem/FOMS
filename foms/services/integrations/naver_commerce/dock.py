@@ -615,13 +615,56 @@ def _deposit_target(households: list[dict[str, Any]]) -> tuple[int, int]:
             sum(int(fact.get("amount_unknown") or 0) for fact in live))
 
 
+def _deposit_base(order: Any, households: list[dict[str, Any]], *,
+                  current: int, live_total: int) -> int:
+    """예약금 중 **네이버가 아닌 돈** — 네이버 결제액 위에 깔린 바닥값 (2026-09-03).
+
+    ERP 에서 직접 만든 주문에 추가결제를 붙이면 예약금 정답은 `바닥값 + 네이버 결제액`
+    이다. 지금까지 도크는 바닥값을 0 으로 놓아 "지금 값 100,000원에 1,007,560원을 더해
+    1,107,560원으로" 라고 말했는데, 워크벤치 정리 계획은 같은 주문을 두고 1,207,560원을
+    말했다 — 원래 받은 100,000원이 도크 쪽에서만 증발했다(주문 #5112 실사례).
+
+    판정 순서:
+
+    1. 이 주문으로 **만들어진** 집(``NEW``)이 있으면 바닥값은 0 이다 — 예약금 자체가
+       네이버 돈에서 나왔다.
+    2. 붙일 때 새긴 값(:data:`promotion.NAVER_DEPOSIT_BASE_KEY`)이 있으면 그 값이다.
+    3. 둘 다 없는 **옛 붙이기**는 새긴 값이 없다. 그 경우에만 지금 예약금으로 되짚는다 —
+       네이버 결제액보다 적으면 아직 반영 전이라 지금 값이 곧 바닥값이고, 그보다 크거나
+       같으면 이미 반영한 뒤라 그만큼 빼면 바닥값이 남는다. 추정이므로 **저장하지 않는다**
+       (설계서 §7.3 — 추정을 데이터로 굳히지 않는다).
+
+    Args:
+        order: 도크가 실린 주문.
+        households: 관계·금액이 병합된 집 사실 목록.
+        current: 지금 예약금(원).
+        live_total: 살아 있는 집들의 네이버 결제액 합계(원).
+
+    Returns:
+        바닥값(원). 음수는 만들지 않는다.
+    """
+    from foms.services.integrations.naver_commerce.promotion import NAVER_DEPOSIT_BASE_KEY
+
+    if any(_text(fact.get("relation")) == "NEW" for fact in households):
+        return 0
+    pricing = (getattr(order, "structured_data", None) or {}).get("pricing")
+    if isinstance(pricing, dict) and isinstance(pricing.get(NAVER_DEPOSIT_BASE_KEY), int):
+        return max(0, int(pricing[NAVER_DEPOSIT_BASE_KEY]))
+    if current < live_total:
+        return max(0, current)
+    return max(0, current - live_total)
+
+
 def _deposit_hint(order: Any, households: list[dict[str, Any]], *,
                   claim_label: str = "", claim_money_back: bool = False) -> dict[str, Any]:
     """예약금(선금)에 넣을 금액을 **문장으로** 말한다 — 넣지는 않는다 (D3).
 
     도크는 붙인 뒤 **며칠 뒤** 화면이라 재결제 카드의 상대값(``current + amount``)을 쓰면
-    사람이 이미 고쳐 놓은 값에 한 번 더 더하게 된다. 그래서 **절대 target**(살아 있는 집들의
-    결제액 합)을 먼저 정하고 문장만 :func:`repay_reconcile.deposit_guidance` 에 위임한다.
+    사람이 이미 고쳐 놓은 값에 한 번 더 더하게 된다. 그래서 **절대 target** 을 먼저 정하고
+    문장만 :func:`repay_reconcile.deposit_guidance` 에 위임한다. 그 절대값은 살아 있는 집들의
+    결제액 합에 **바닥값**(:func:`_deposit_base` — 네이버 아닌 돈)을 더한 값이다: ERP 에서
+    직접 만든 주문은 붙이기 전부터 받아 둔 예약금이 있고, 그걸 0 으로 놓으면 도크가 그 돈을
+    안내에서 지운다(2026-09-03 주문 #5112: 워크벤치는 1,207,560원, 도크는 1,107,560원).
     ``over`` 에서 "낮추라"고 말하지 않는 이유: 네이버 밖 입금이 정당할 수 있고 그 지시가
     ``잔금 = 출고가 − 예약금`` 을 타고 고객 청구로 나간다.
 
@@ -633,7 +676,7 @@ def _deposit_hint(order: Any, households: list[dict[str, Any]], *,
 
     Returns:
         ``{"state", "current", "target", "target_display", "diff", "sentence",
-        "copy_value", "unknown_count", "note"}``. ``copy_value`` 는 쉼표·단위 없는 정수
+        "copy_value", "unknown_count", "note", "base", "live_total"}``. ``copy_value`` 는 쉼표·단위 없는 정수
         문자열이고 ``over``·``unknown`` 에서는 빈 문자열이다(복사할 정답이 없다).
         ``target_display`` 는 사람이 읽는 표기(``"872,200원"``) — 화면이 돈을 다시
         포맷하지 않게 서버가 문장과 **같은 자리에서** 만든다.
@@ -644,10 +687,15 @@ def _deposit_hint(order: Any, households: list[dict[str, Any]], *,
     current = int(erp_deposit_amount_from_structured(
         getattr(order, "structured_data", None) or {}) or 0)
     superseded = any(fact.get("superseded") for fact in households)
-    target, unknown = _deposit_target(households)
+    live_total, unknown = _deposit_target(households)
+    base = _deposit_base(order, households, current=current, live_total=live_total)
+    target = base + live_total
     hint: dict[str, Any] = {
         "state": "unknown", "current": current, "target": None, "diff": None,
         "target_display": "", "sentence": "", "copy_value": "", "unknown_count": unknown,
+        # 바닥값과 네이버 합계를 따로 싣는다 — 목표액 하나만 주면 화면도 사람도 그 숫자가
+        # 어디서 왔는지 되짚을 수 없다(바닥값이 있는 주문은 셈이 두 단계다).
+        "base": base, "live_total": live_total,
         "note": _deposit_note(has_superseded=superseded, claim_label=claim_label,
                               claim_money_back=claim_money_back)}
     if unknown:
@@ -657,12 +705,16 @@ def _deposit_hint(order: Any, households: list[dict[str, Any]], *,
     diff = target - current
     hint.update({"target": target, "diff": diff, "copy_value": str(target),
                  "target_display": f"{target:,}원"})
+    # 바닥값(네이버 아닌 돈)이 있으면 목표액은 네이버 결제액이 **아니다**. 그 사실을 말하지
+    # 않고 숫자만 바꾸면, 화면이 "네이버 결제액"이라 부르는 값과 실제 합계가 갈린다.
+    basis = (f"원래 예약금 {base:,}원 + 네이버 결제액 {live_total:,}원"
+             if base else f"네이버 결제액 {live_total:,}원")
     if diff == 0:
         hint["state"] = "match"
-        hint["sentence"] = f"예약금(선금) {current:,}원 — 네이버 결제액과 같습니다."
+        hint["sentence"] = f"예약금(선금) {current:,}원 — {basis}과 같습니다."
     elif diff < 0:
         hint.update({"state": "over", "copy_value": ""})
-        hint["sentence"] = (f"예약금(선금) {current:,}원이 네이버 결제액 {target:,}원보다"
+        hint["sentence"] = (f"예약금(선금) {current:,}원이 {basis} = {target:,}원보다"
                             f" {-diff:,}원 많습니다 — 네이버 밖 입금이면 그대로 두세요.")
     else:
         hint["state"] = "differs"
