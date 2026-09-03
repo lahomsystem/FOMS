@@ -88,6 +88,8 @@
   var COLOR_TOTAL = '#104281';
   var CATEGORICAL = ['#2a78d6', '#eb6834', '#1baf7a', '#7b4bd6', '#b45309', '#0f8a8a'];
   var CATEGORICAL_REST = '#8a94a3';
+  /** v1.2 F2 — "보류·한도" 상세 패널 id(타일의 aria-controls 가 가리킨다). */
+  var HOLDBACK_DETAIL_ID = 'foms-settle-ch-holdback-detail';
 
   /** 원장 스위처 4종. `param` 이 null 인 뷰는 서버 재조회 없이 이미 받은 배열을 그린다. */
   var LEDGER_VIEWS = [
@@ -1115,7 +1117,26 @@
     if (spec.delta) delta.appendChild(el('span', null, ' 전기 대비'));
     tile.appendChild(delta);
     tile.appendChild(el('div', 's-ch-kpi-sub', spec.sub));
+    if (spec.toggle) bindKpiToggle(tile, spec.toggle);
     wrap.appendChild(tile);
+    return tile;
+  }
+
+  /**
+   * 타일을 펼침 버튼으로 만든다(v1.2 F2 — "보류·한도" 상세). 리스너는 **타일 자신**에만 붙는다 —
+   * document 전역 리스너는 3개 그대로다(프래그먼트 스왑마다 재실행되는 파일이라 누적된다).
+   */
+  function bindKpiToggle(tile, toggle) {
+    tile.setAttribute('role', 'button');
+    tile.setAttribute('tabindex', '0');
+    tile.setAttribute('aria-expanded', toggle.open ? 'true' : 'false');
+    tile.setAttribute('aria-controls', toggle.controls);
+    tile.classList.add('s-ch-kpi-tile--toggle');
+    var flip = function () { toggle.onToggle(tile); };
+    tile.addEventListener('click', flip);
+    tile.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); flip(); }
+    });
   }
 
   /** S1 — KPI 6타일. "정산 예정"과 "정산 완료"는 **절대 합산하지 않는다**(계약 D-6). */
@@ -1162,19 +1183,81 @@
       noDelta: kpi.commission_rate == null ? '분모(결제 정산액)가 0 입니다' : '비율 — 기간 비교 없음',
       sub: '분자 ' + moneyText(kpi.commission_total) + ' / 분모 ' + moneyText(paySettleTotal) + '(결제 정산액)',
     });
+    var holdback = data.holdback || { rows: [], count: 0, total: {} };
     appendKpi(wrap, {
       key: 'holdback', label: '보류·한도', color: CATEGORICAL[4],
       value: moneyText(kpi.holdback_amount), negative: kpi.holdback_amount < 0,
       delta: deltaOf(kpi.holdback_amount, prev.holdback_amount), noDelta: '전기 비교 기준 없음',
-      sub: '지급 보류 + 정산 한도 초과분 · 충전금 상계는 워터폴에서 따로 봅니다',
+      sub: '지급 보류 + 정산 한도 초과분 · ' + (holdback.count
+        ? '일자별 ' + fmtCount(holdback.count) + '행 — 눌러서 펼치기'
+        : '이 기간에 보류·한도 행이 없습니다'),
       spark: daily.map(function (d) { return d.holdback || 0; }),
+      toggle: {
+        open: !!ctx.state.holdbackOpen,
+        controls: HOLDBACK_DETAIL_ID,
+        onToggle: function (tile) {
+          ctx.state.holdbackOpen = !ctx.state.holdbackOpen;
+          tile.setAttribute('aria-expanded', ctx.state.holdbackOpen ? 'true' : 'false');
+          setHidden(host.querySelector('[data-settlement-ch-holdback-detail]'), !ctx.state.holdbackOpen);
+        },
+      },
     });
     appendKpi(wrap, {
       key: 'match', label: '주문 매칭률', color: CATEGORICAL[2],
       value: fmtRatio(kpi.match_rate), delta: null,
       noDelta: kpi.match_rate == null ? '이 기간에 상품주문 행이 없습니다' : '비율 — 기간 비교 없음',
-      sub: 'FOMS 미연결 ' + fmtCount(kpi.unmatched_count) + '건 · 정산 건수 ' + fmtCount(kpi.case_count) + '건',
+      sub: 'FOMS 미연결 ' + fmtCount(kpi.unmatched_count) + '건(워크벤치 대기 ' +
+        fmtCount(kpi.unmatched_pending_count) + ' · 수집 전 ' + fmtCount(kpi.unmatched_unlinked_count) +
+        ') · 정산 건수 ' + fmtCount(kpi.case_count) + '건',
     });
+    renderHoldbackDetail(ctx, host, !!ctx.state.holdbackOpen);
+  }
+
+  /**
+   * S1 보조 — "보류·한도" 타일이 펼치는 일자별 상세(v1.2 F2). 값은 서버 `data.holdback` 그대로
+   * (payHoldbackAmount·settlementLimitAmount 를 더하기만 한다). 6열 그리드 **바깥**, KPI 앵커 안에
+   * 둔다 — 컨테이너 쿼리가 폭을 재는 앵커는 그대로고 그리드는 타일만 담는다.
+   */
+  function renderHoldbackDetail(ctx, host, open) {
+    var block = (ctx.state.data && ctx.state.data.holdback) || { rows: [], count: 0, total: {} };
+    var panel = el('div', 's-ch-card s-ch-kpi-detail');
+    panel.id = HOLDBACK_DETAIL_ID;
+    panel.setAttribute('data-settlement-ch-holdback-detail', '');
+    setHidden(panel, !open);
+    panel.appendChild(cardHead('지급 보류·한도 일자별 상세',
+      '일별 정산 행 기준 · 부호는 네이버 원본 그대로 — 같은 금액이 음수 뒤 양수로 다시 오면 보류와 해제의 짝입니다'));
+    if (!block.rows.length) {
+      panel.appendChild(emptyBox(ctx, '이 기간에 지급 보류·한도 보류 행이 없습니다.'));
+      host.appendChild(panel);
+      return;
+    }
+    var columns = [
+      { key: 'date', label: '정산 예정일', type: 'text' },
+      { key: 'settle_method_label', label: '입금 방식', type: 'text' },
+      { key: 'pay_holdback', label: '지급 보류', type: 'money' },
+      { key: 'settlement_limit', label: '정산 한도', type: 'money' },
+      { key: 'amount', label: '합계', type: 'money' },
+    ];
+    var built = tableFor(columns, ['정산 완료']);
+    block.rows.forEach(function (row) {
+      var tr = el('tr');
+      columns.forEach(function (col) { tr.appendChild(valueCell(row, col)); });
+      tr.appendChild(el('td', null, row.completed ? '완료' : '미완료'));
+      addRow(built, tr);
+    });
+    var total = block.total || {};
+    var tfoot = el('tfoot');
+    var foot = el('tr');
+    foot.appendChild(el('th', null, '합계'));
+    foot.appendChild(el('th', null, fmtCount(block.count) + '행'));
+    ['pay_holdback', 'settlement_limit', 'amount'].forEach(function (key) {
+      foot.appendChild(el('th', 's-ch-num' + (total[key] < 0 ? ' s-ch-neg' : ''), moneyText(total[key])));
+    });
+    foot.appendChild(el('th', null, ''));
+    tfoot.appendChild(foot);
+    built.table.appendChild(tfoot);
+    panel.appendChild(built.wrap);
+    host.appendChild(panel);
   }
 
   /* ═══════════════ 7. 렌더 — S2 일별 · S3 워터폴 ═══════════════ */
@@ -1828,6 +1911,14 @@
       host.appendChild(box);
       return;
     }
+    var kpi = data.kpi || {};
+    if (kpi.unmatched_count) {
+      host.appendChild(el('div', 's-ch-note',
+        'FOMS 미연결 ' + fmtCount(kpi.unmatched_count) + '건 = 워크벤치 대기 ' +
+        fmtCount(kpi.unmatched_pending_count) + '건(링크 있음·주문 미생성 — [열기]가 그 집으로 갑니다) + 수집 전 주문 ' +
+        fmtCount(kpi.unmatched_unlinked_count) + '건(링크 없음 — [열기]가 수집 운영 화면으로 갑니다). ' +
+        '표에는 갈래마다 최근 것부터 상한까지만 실립니다.'));
+    }
     var built = tableFor([
       { key: 'label', label: '사유', type: 'text' },
       { key: 'date', label: '일자', type: 'text' },
@@ -1852,6 +1943,7 @@
   function excKindClass(kind) {
     var code = String(kind || '').toUpperCase();
     if (code === 'UNMATCHED' || code === 'COUNT_MISMATCH') return 'warn';
+    if (code === 'UNLINKED') return 'info';
     if (code === 'NEGATIVE' || code === 'RETRO') return 'muted';
     return 'hold';
   }
@@ -2282,6 +2374,7 @@
         seq: 0,
         loaded: false,
         syncing: false,
+        holdbackOpen: false,
       },
     };
     // 서버가 셀렉트 기본값을 렌더했다면 그 값이 시작값이다(이 파일에 옵션을 적지 않는다).

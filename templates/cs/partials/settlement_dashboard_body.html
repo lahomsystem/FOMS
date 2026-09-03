@@ -17,9 +17,9 @@
    탭으로 가른다. 새 메뉴도 새 URL 도 만들지 않는다. 탭 1 은 기존 화면을 **그대로** 옮긴 것이다.
    숨은 pane 은 `clientWidth === 0` 이라 그 사이에 그린 차트는 폴백 폭(400px)으로 눌린다 —
    재렌더 책임은 `dashboard.js` 의 `activateTab()` 에 있다(실측 수치까지 그쪽 주석에 있다). #}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/settlement/settlement-dashboard.css') }}?v=20260903a">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/settlement/settlement-operations.css') }}?v=20260903a">
-{% if can_view_channel_settlement %}<link rel="stylesheet" href="{{ url_for('static', filename='css/settlement/settlement-channel.css') }}?v=20260902f">{% endif %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/settlement/settlement-dashboard.css') }}?v=20260903d">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/settlement/settlement-operations.css') }}?v=20260903d">
+{% if can_view_channel_settlement %}<link rel="stylesheet" href="{{ url_for('static', filename='css/settlement/settlement-channel.css') }}?v=20260903c">{% endif %}
 <div class="container-fluid erp-dashboard erp-pro erp-settlement">
   <header class="erp-pro-header">
     <h1 class="erp-pro-header__title">
@@ -59,7 +59,11 @@
       <button type="button" class="s-fb-exit" data-settlement-focus-exit>메뉴 펼치기 (Esc)</button>
     </div>
 
-    <div class="s-tabs" role="tablist" aria-label="정산 대시보드 화면">
+    {# 접근성(2026-09-03 리뷰 R4): `role=tablist` 는 `role=tab` 만 자식으로 가져야 한다. 집중 모드
+       버튼·글자 크기 조절기·권한 메타는 같은 탭줄에 살지만 tablist **밖**이라, 안쪽 래퍼가 탭만 감싼다
+       (보조기기가 탭 개수·순회 문맥을 제대로 센다). 겉 `.s-tabs` 는 줄 배치만 맡는다. #}
+    <div class="s-tabs">
+      <div class="s-tabs-list" role="tablist" aria-label="정산 대시보드 화면">
       <button type="button" class="s-tab" role="tab"
         id="foms-settle-tab-summary" data-settlement-tab="summary"
         aria-controls="foms-settle-pane-summary" aria-selected="true" tabindex="0">
@@ -87,12 +91,23 @@
         <span class="s-tab-name">네이버 정산</span>
         <span class="s-tab-hint">정산 예정일 기준</span>
       </button>{% endif %}
+      </div>
       {# 집중 모드 토글 — role=tab 이 아니고 data-settlement-tab 도 없다(탭 순회·activateTab 대상 아님).
          720px 이하에서는 CSS 가 감춘다(모바일 셸은 접을 크롬이 다르다). #}
       <button type="button" class="s-tab s-tab--focus" data-settlement-focus aria-pressed="false"
         title="상단 메뉴를 접고 화면 전체를 씁니다 (Esc 로 복귀)">
         <span class="s-tab-name">⤢ 집중 모드</span>
       </button>
+      {# 글자 크기 조절 — 브라우저를 80% 로 축소해 쓰면 11~12px 가 9~10px 로 보인다. 브라우저 확대는
+         화면 전체를 키워 KPI 5열이 잘리므로 이 화면 글자만 단계로 키운다(배율은 루트 CSS 변수 --s-fs,
+         정산 CSS 3파일의 모든 font-size 가 그 변수를 문다). 선택은 localStorage 에 남는다.
+         id 대신 data-settlement-* 훅 — 프래그먼트 스왑 뒤 문서에 id 가 두 벌 생기지 않는다.
+         role=tab 이 아니라 탭 순회·activateTab 대상이 아니다. 720px 이하에서도 보인다. #}
+      <span class="s-fs" role="group" aria-label="글자 크기" data-settlement-fs>
+        <button type="button" class="s-fs__btn" data-settlement-fs-step="-1" aria-label="글자 작게" title="글자 작게">−</button>
+        <span class="s-fs__now" data-settlement-fs-now aria-live="polite">100%</span>
+        <button type="button" class="s-fs__btn" data-settlement-fs-step="1" aria-label="글자 크게" title="글자 크게">+</button>
+      </span>
       {# 권한 부제는 실제 허용 집합이다(SPEC §5 = FINANCE_MUTATION 과 같은 집합).
          목업의 "ADMIN·MANAGER 전용" 은 CS/영업 담당을 빠뜨린 문구라 교정했다.
          2026-09-02: 별도 `.s-strip` 한 줄(40px)을 없애고 탭줄 오른쪽 메타로 합쳤다 — 크롬이 본문
@@ -404,6 +419,6 @@
     <div class="s-tt" id="foms-settle-tooltip" role="tooltip"></div>
   </div>
 </div>
-<script src="{{ url_for('static', filename='js/settlement/dashboard.js') }}?v=20260903a" defer></script>
-<script src="{{ url_for('static', filename='js/settlement/operations.js') }}?v=20260903a" defer></script>
-{% if can_view_channel_settlement %}<script src="{{ url_for('static', filename='js/settlement/channel.js') }}?v=20260902f" defer></script>{% endif %}
+<script src="{{ url_for('static', filename='js/settlement/dashboard.js') }}?v=20260903d" defer></script>
+<script src="{{ url_for('static', filename='js/settlement/operations.js') }}?v=20260903d" defer></script>
+{% if can_view_channel_settlement %}<script src="{{ url_for('static', filename='js/settlement/channel.js') }}?v=20260903c" defer></script>{% endif %}

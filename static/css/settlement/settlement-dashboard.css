@@ -56,10 +56,15 @@
   --s-amber-soft: #fdf3e3;
   --s-critical: #d03b3b;
   --s-radius: 10px;
+  /* 글자 크기 배율. 정산 CSS 3파일(dashboard·operations·channel)의 모든 font-size 는
+     `calc(Npx * var(--s-fs, 1))` 다 — 브라우저를 80% 로 축소해 쓰는 경리에게 11~12px 는
+     9~10px 로 보인다(워크벤치 --wb-fs 와 같은 구조). 값은 탭줄의 글자 크기 버튼이 JS 로
+     루트에 넣고 localStorage 에 남긴다. 조절기 자신(.s-fs__*)만 고정 px 다. */
+  --s-fs: 1;
 
   background: var(--s-bg);
   color: var(--s-text);
-  font-size: 14px;
+  font-size: calc(14px * var(--s-fs, 1));
   font-family: Pretendard, -apple-system, BlinkMacSystemFont, "Segoe UI", "Malgun Gothic", sans-serif;
 }
 .foms-settle *,
@@ -76,9 +81,9 @@
   background: var(--s-surface); border-bottom: 1px solid var(--s-line);
   padding: 10px 18px;
 }
-.foms-settle .s-who { color: var(--s-muted); font-size: 12px; }
+.foms-settle .s-who { color: var(--s-muted); font-size: calc(12px * var(--s-fs, 1)); }
 .foms-settle .s-spacer { flex: 1; }
-.foms-settle .s-stamp { color: var(--s-faint); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.foms-settle .s-stamp { color: var(--s-faint); font-size: calc(11.5px * var(--s-fs, 1)); font-variant-numeric: tabular-nums; }
 
 /* ── 탭바 3종 (요약 · 실무 · 분석) ────────────────────────────── */
 /*
@@ -95,32 +100,51 @@
   background: var(--s-surface); border-bottom: 1px solid var(--s-line);
   padding: 0 24px;
 }
+/* 탭 4개만 감싸는 tablist(접근성 R4). 겉 `.s-tabs` 와 같은 flex 규칙이라 탭 밑줄·높이는 그대로고,
+   좁은 폭에서는 안에서 다시 줄바꿈한다(래퍼가 한 덩어리로 넘치지 않게). */
+.foms-settle .s-tabs-list { display: flex; align-items: stretch; flex-wrap: wrap; gap: 2px; min-width: 0; }
 .foms-settle .s-tab {
   display: inline-flex; align-items: baseline; gap: 6px;
   border: none; border-bottom: 2px solid transparent; margin-bottom: -1px;
-  background: none; color: var(--s-muted); font: inherit; font-size: 14px; font-weight: 800;
+  background: none; color: var(--s-muted); font: inherit; font-size: calc(14px * var(--s-fs, 1)); font-weight: 800;
   padding: 11px 14px 9px; cursor: pointer;
 }
 .foms-settle .s-tab:hover { color: var(--s-text); }
 .foms-settle .s-tab[aria-selected="true"] { color: var(--s-accent); border-bottom-color: var(--s-accent); }
 .foms-settle .s-tab:focus-visible { outline: 2px solid var(--s-accent); outline-offset: -3px; }
-.foms-settle .s-tab-hint { font-size: 11px; font-weight: 600; color: var(--s-faint); }
+.foms-settle .s-tab-hint { font-size: calc(11px * var(--s-fs, 1)); font-weight: 600; color: var(--s-faint); }
 /* 탭줄 오른쪽 메타(권한 부제 + 기준 시각). 옛 `.s-strip` 한 줄을 탭줄에 합쳐 세로 40px 를 되찾았다
    (2026-09-02 폭·높이 개편). 좁은 폭에서는 flex-wrap 으로 다음 줄에 내려간다. */
 .foms-settle .s-tabs-meta { margin-left: auto; display: flex; align-items: center; gap: 12px; padding-left: 12px; min-width: 0; }
 /* 집중 모드 버튼 — tablist 밖의 일반 버튼이다(role=tab 아님, JS 탭 순회 대상도 아님). */
-.foms-settle .s-tab--focus { color: var(--s-accent); font-weight: 700; font-size: 13px; }
+.foms-settle .s-tab--focus { color: var(--s-accent); font-weight: 700; font-size: calc(13px * var(--s-fs, 1)); }
 .foms-settle .s-tab--focus[aria-pressed="true"] { border-bottom-color: transparent; background: var(--s-accent-soft); border-radius: 6px 6px 0 0; }
+/* -- 글자 크기 조절기(탭줄, 집중 모드 버튼 오른쪽) -----------------------
+   배율은 루트 --s-fs 로 흐르고 이 조절기 자신만 고정 px 다 -- 같이 커지면 손이 따라간다.
+   .btn 은 쓰지 않는다(전역 .btn 패딩이 22px 칸에서 글자를 세로로 쪼갠다). 탭줄이
+   align-items: stretch 라 align-self 로 가운데 맞춘다. 720px 이하에서도 보인다
+   (집중 모드 버튼과 달리 접을 크롬과 무관하다). */
+.foms-settle .s-fs { display: inline-flex; align-items: center; align-self: center; gap: 2px; margin-left: 6px; }
+.foms-settle .s-fs__btn {
+  width: 22px; height: 22px; line-height: 1; padding: 0;
+  border: 1px solid var(--s-line); border-radius: 5px;
+  background: var(--s-surface); color: var(--s-muted);
+  font: inherit; font-size: 13px; cursor: pointer;
+}
+.foms-settle .s-fs__btn:hover:not(:disabled) { background: var(--s-surface-soft); color: var(--s-text); }
+.foms-settle .s-fs__btn:focus-visible { outline: 2px solid var(--s-accent); outline-offset: 1px; }
+.foms-settle .s-fs__btn:disabled { opacity: .35; cursor: default; }
+.foms-settle .s-fs__now { min-width: 34px; text-align: center; font-size: 11px; color: var(--s-muted); font-variant-numeric: tabular-nums; }
 /* 집중 모드 바 — 크롬이 접혔을 때만 보이는 얇은 머리줄(화면 이름 + 복귀 버튼). */
 .foms-settle .s-focusbar {
   display: none; align-items: center; gap: 14px; flex-wrap: wrap;
   background: var(--s-surface); border-bottom: 1px solid var(--s-line); padding: 8px 24px;
 }
-.foms-settle .s-focusbar b { font-size: 15px; font-weight: 800; }
-.foms-settle .s-focusbar .s-fb-hint { color: var(--s-muted); font-size: 12px; }
+.foms-settle .s-focusbar b { font-size: calc(15px * var(--s-fs, 1)); font-weight: 800; }
+.foms-settle .s-focusbar .s-fb-hint { color: var(--s-muted); font-size: calc(12px * var(--s-fs, 1)); }
 .foms-settle .s-focusbar .s-fb-exit {
   margin-left: auto; border: 1px solid var(--s-line); background: var(--s-surface); color: var(--s-text);
-  border-radius: 8px; font: inherit; font-size: 12px; font-weight: 700; padding: 6px 12px; cursor: pointer;
+  border-radius: 8px; font: inherit; font-size: calc(12px * var(--s-fs, 1)); font-weight: 700; padding: 6px 12px; cursor: pointer;
 }
 .foms-settle .s-focusbar .s-fb-exit:hover { background: var(--s-surface-soft); }
 /* 집중 모드: 정산 루트가 문서에 있는 동안만 공용 크롬(글로벌 헤더·nav·ERP 헤더·ERP 서브탭)을 접는다.
@@ -154,7 +178,7 @@ body.foms-settle-focus:has(.foms-settlement-root) .s-focusbar { display: flex; }
 .foms-settle .s-pane-placeholder {
   margin: 0; padding: 28px 12px; border: 1px dashed var(--s-line);
   border-radius: var(--s-radius); background: var(--s-surface-soft);
-  color: var(--s-muted); font-size: 12.5px; text-align: center;
+  color: var(--s-muted); font-size: calc(12.5px * var(--s-fs, 1)); text-align: center;
 }
 
 /* ── 필터바 (V3 filterbar 룩의 라이트 번안) ──────────────────── */
@@ -168,7 +192,7 @@ body.foms-settle-focus:has(.foms-settlement-root) .s-focusbar { display: flex; }
   border: 1px solid var(--s-line); border-radius: 8px; padding: 2px;
 }
 .foms-settle .s-seg button {
-  border: none; background: none; color: var(--s-muted); font: inherit; font-size: 12px; font-weight: 700;
+  border: none; background: none; color: var(--s-muted); font: inherit; font-size: calc(12px * var(--s-fs, 1)); font-weight: 700;
   padding: 5px 14px; border-radius: 6px; cursor: pointer;
 }
 .foms-settle .s-seg button[aria-pressed="true"] { background: var(--s-accent); color: #fff; }
@@ -176,7 +200,7 @@ body.foms-settle-focus:has(.foms-settlement-root) .s-focusbar { display: flex; }
 .foms-settle .s-toggle {
   display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
   border: 1px solid var(--s-line); background: var(--s-surface); border-radius: 8px;
-  padding: 5px 12px; color: var(--s-muted); font: inherit; font-size: 12px; font-weight: 700;
+  padding: 5px 12px; color: var(--s-muted); font: inherit; font-size: calc(12px * var(--s-fs, 1)); font-weight: 700;
 }
 .foms-settle .s-toggle .s-knob {
   width: 26px; height: 15px; border-radius: 999px; background: #cbd5e1;
@@ -190,8 +214,8 @@ body.foms-settle-focus:has(.foms-settlement-root) .s-focusbar { display: flex; }
 .foms-settle .s-toggle[aria-pressed="true"] .s-knob { background: var(--s-accent); }
 .foms-settle .s-toggle[aria-pressed="true"] .s-knob::after { left: 13px; }
 .foms-settle .s-toggle[disabled] { opacity: .4; cursor: not-allowed; }
-.foms-settle .s-filterbar .s-scope { color: var(--s-muted); font-size: 12px; }
-.foms-settle .s-filterbar .s-note { color: var(--s-faint); font-size: 11.5px; margin-left: auto; }
+.foms-settle .s-filterbar .s-scope { color: var(--s-muted); font-size: calc(12px * var(--s-fs, 1)); }
+.foms-settle .s-filterbar .s-note { color: var(--s-faint); font-size: calc(11.5px * var(--s-fs, 1)); margin-left: auto; }
 
 /* ── bento 그리드 ─────────────────────────────────────────────── */
 .foms-settle .s-grid {
@@ -203,8 +227,8 @@ body.foms-settle-focus:has(.foms-settlement-root) .s-focusbar { display: flex; }
   border-radius: var(--s-radius); padding: 16px 20px 18px; min-width: 0;
 }
 .foms-settle .s-card-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
-.foms-settle .s-card-title { font-size: 15px; font-weight: 800; }
-.foms-settle .s-card-sub { font-size: 12.5px; color: var(--s-muted); font-weight: 500; }
+.foms-settle .s-card-title { font-size: calc(15px * var(--s-fs, 1)); font-weight: 800; }
+.foms-settle .s-card-sub { font-size: calc(12.5px * var(--s-fs, 1)); color: var(--s-muted); font-weight: 500; }
 .foms-settle .s-card-head .s-head-right { margin-left: auto; display: flex; gap: 12px; align-items: center; }
 
 /* ── KPI 히어로 ──────────────────────────────────────────────── */
@@ -218,17 +242,17 @@ body.foms-settle-focus:has(.foms-settlement-root) .s-focusbar { display: flex; }
 }
 /* 전략 D: 지표 가족 틴트 + 상단 액센트 바 (데이터 잉크가 아닌 서피스 층위) */
 .foms-settle .s-kpi.s-fam { border-top: 3px solid var(--s-fam, var(--s-line)); background: var(--s-fam-tint, var(--s-surface)); }
-.foms-settle .s-kpi-label { font-size: 12.5px; font-weight: 700; color: var(--s-muted); }
+.foms-settle .s-kpi-label { font-size: calc(12.5px * var(--s-fs, 1)); font-weight: 700; color: var(--s-muted); }
 .foms-settle .s-kpi-mid { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; margin-top: 5px; }
-.foms-settle .s-kpi-value { font-size: 30px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.1; white-space: nowrap; }
-.foms-settle .s-kpi-value i { font-style: normal; font-size: 13px; font-weight: 700; color: var(--s-muted); margin-left: 1px; }
+.foms-settle .s-kpi-value { font-size: calc(30px * var(--s-fs, 1)); font-weight: 800; letter-spacing: -0.02em; line-height: 1.1; white-space: nowrap; }
+.foms-settle .s-kpi-value i { font-style: normal; font-size: calc(13px * var(--s-fs, 1)); font-weight: 700; color: var(--s-muted); margin-left: 1px; }
 .foms-settle .s-kpi-spark { flex: none; line-height: 0; }
-.foms-settle .s-kpi-delta { margin-top: 8px; font-size: 13px; font-weight: 800; }
+.foms-settle .s-kpi-delta { margin-top: 8px; font-size: calc(13px * var(--s-fs, 1)); font-weight: 800; }
 .foms-settle .s-kpi-delta span { color: var(--s-faint); font-weight: 600; margin-left: 3px; }
 .foms-settle .s-kpi-delta.s-good { color: var(--s-good); }
 .foms-settle .s-kpi-delta.s-bad { color: var(--s-bad); }
 .foms-settle .s-kpi-delta.s-flat { color: var(--s-faint); font-weight: 600; }
-.foms-settle .s-kpi-sub { margin-top: 3px; font-size: 12px; color: var(--s-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.foms-settle .s-kpi-sub { margin-top: 3px; font-size: calc(12px * var(--s-fs, 1)); color: var(--s-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* ── 메인 차트 카드 ──────────────────────────────────────────── */
 /* 요약 배치(2026-09-02 폭·높이 개편): 1440 캡을 풀고 메인 추이 차트를 키우면 오른쪽 '정산 처리 현황'
@@ -236,7 +260,7 @@ body.foms-settle-focus:has(.foms-settlement-root) .s-focusbar { display: flex; }
    채널 비중(3칸) · 4행 = aging(5칸) + 단계별(7칸). 행 번호는 KPI 줄이 1행이라는 전제다. */
 .foms-settle .s-card--main { grid-column: 1 / 10; grid-row: 2 / 4; }
 .foms-settle .s-side { grid-column: 10 / 13; grid-row: 2; display: grid; gap: 16px; align-content: start; }
-.foms-settle .s-legend { display: flex; gap: 12px; font-size: 12.5px; color: var(--s-muted); font-weight: 600; flex-wrap: wrap; }
+.foms-settle .s-legend { display: flex; gap: 12px; font-size: calc(12.5px * var(--s-fs, 1)); color: var(--s-muted); font-weight: 600; flex-wrap: wrap; }
 .foms-settle .s-legend .s-lg { display: inline-flex; align-items: center; gap: 5px; }
 .foms-settle .s-lg-line { width: 14px; height: 3px; border-radius: 2px; display: inline-block; }
 .foms-settle .s-lg-rect { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
@@ -245,9 +269,9 @@ body.foms-settle-focus:has(.foms-settlement-root) .s-focusbar { display: flex; }
 .foms-settle .s-meter-fill { height: 100%; background: var(--s-accent); border-radius: 999px; width: var(--s-meter-pct, 0%); }
 
 .foms-settle .s-chart-host { line-height: 0; min-height: 24px; }
-.foms-settle .s-axis-t { font-size: 12px; fill: var(--s-faint); font-variant-numeric: tabular-nums; }
-.foms-settle .s-axis-sub { font-size: 11px; fill: var(--s-faint); }
-.foms-settle .s-cap-t { font-size: 12px; font-weight: 700; fill: var(--s-muted); font-variant-numeric: tabular-nums; }
+.foms-settle .s-axis-t { font-size: calc(12px * var(--s-fs, 1)); fill: var(--s-faint); font-variant-numeric: tabular-nums; }
+.foms-settle .s-axis-sub { font-size: calc(11px * var(--s-fs, 1)); fill: var(--s-faint); }
+.foms-settle .s-cap-t { font-size: calc(12px * var(--s-fs, 1)); font-weight: 700; fill: var(--s-muted); font-variant-numeric: tabular-nums; }
 /* 비교 라인이 축을 넘어간 구간 표식. 잘라놓고 말 안 하면 "그날은 축 상한이었다"로 읽힌다. */
 .foms-settle .s-clip-mark { pointer-events: none; }
 .foms-settle .s-cgrp path { transition: filter .12s; }
@@ -258,63 +282,63 @@ body.foms-settle-focus:has(.foms-settlement-root) .s-focusbar { display: flex; }
 .foms-settle .s-ghit { cursor: crosshair; }
 
 .foms-settle .s-tblv { margin-top: 6px; }
-.foms-settle .s-tblv summary { font-size: 11.5px; color: var(--s-muted); cursor: pointer; font-weight: 600; }
+.foms-settle .s-tblv summary { font-size: calc(11.5px * var(--s-fs, 1)); color: var(--s-muted); cursor: pointer; font-weight: 600; }
 .foms-settle .s-tblwrap { max-height: 190px; overflow: auto; margin-top: 6px; border: 1px solid var(--s-line-soft); border-radius: 8px; }
-.foms-settle .s-dt { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+.foms-settle .s-dt { width: 100%; border-collapse: collapse; font-size: calc(11.5px * var(--s-fs, 1)); }
 .foms-settle .s-dt th,
 .foms-settle .s-dt td { padding: 4px 10px; border-bottom: 1px solid var(--s-line-soft); text-align: right; font-variant-numeric: tabular-nums; }
 .foms-settle .s-dt th:first-child,
 .foms-settle .s-dt td:first-child { text-align: left; }
-.foms-settle .s-dt thead th { position: sticky; top: 0; background: var(--s-surface-soft); color: var(--s-muted); font-size: 10.5px; }
+.foms-settle .s-dt thead th { position: sticky; top: 0; background: var(--s-surface-soft); color: var(--s-muted); font-size: calc(10.5px * var(--s-fs, 1)); }
 
 /* ── 정산 처리 카드 ──────────────────────────────────────────── */
-.foms-settle .s-srow { display: flex; align-items: center; gap: 10px; margin-top: 12px; font-size: 13px; }
+.foms-settle .s-srow { display: flex; align-items: center; gap: 10px; margin-top: 12px; font-size: calc(13px * var(--s-fs, 1)); }
 .foms-settle .s-srow b { font-weight: 800; }
-.foms-settle .s-srow .s-pct { font-weight: 800; font-size: 13px; }
-.foms-settle .s-srow-sub { margin-top: 5px; font-size: 11.5px; color: var(--s-faint); }
-.foms-settle .s-fact { display: flex; align-items: baseline; gap: 7px; font-size: 13px; margin-top: 9px; color: var(--s-muted); }
+.foms-settle .s-srow .s-pct { font-weight: 800; font-size: calc(13px * var(--s-fs, 1)); }
+.foms-settle .s-srow-sub { margin-top: 5px; font-size: calc(11.5px * var(--s-fs, 1)); color: var(--s-faint); }
+.foms-settle .s-fact { display: flex; align-items: baseline; gap: 7px; font-size: calc(13px * var(--s-fs, 1)); margin-top: 9px; color: var(--s-muted); }
 .foms-settle .s-fact b { color: var(--s-text); font-weight: 800; }
 .foms-settle .s-fdot { width: 7px; height: 7px; border-radius: 50%; flex: none; align-self: center; background: var(--s-dot, var(--s-faint)); }
-.foms-settle .s-fact .s-tail { color: var(--s-faint); font-size: 11px; }
+.foms-settle .s-fact .s-tail { color: var(--s-faint); font-size: calc(11px * var(--s-fs, 1)); }
 
 /* ── row B ───────────────────────────────────────────────────── */
 .foms-settle .s-card--aging { grid-column: 1 / 6; grid-row: 4; }
 .foms-settle .s-card--stages { grid-column: 6 / 13; grid-row: 4; }
 .foms-settle .s-card--channel { grid-column: 10 / 13; grid-row: 3; }
-.foms-settle .s-aging-note { display: flex; align-items: center; gap: 7px; margin-top: 8px; font-size: 12.5px; color: var(--s-muted); }
+.foms-settle .s-aging-note { display: flex; align-items: center; gap: 7px; margin-top: 8px; font-size: calc(12.5px * var(--s-fs, 1)); color: var(--s-muted); }
 .foms-settle .s-aging-note .s-fdot { background: var(--s-critical); }
 .foms-settle .s-aging-note b { color: var(--s-text); }
 
 .foms-settle .s-stages { margin-top: 12px; display: grid; gap: 7px; }
 .foms-settle .s-stage-row { display: grid; grid-template-columns: 66px 1fr; align-items: center; gap: 8px; border-radius: 6px; padding: 1px 4px; }
 .foms-settle .s-stage-row:hover { background: var(--s-surface-soft); }
-.foms-settle .s-stage-lbl { font-size: 12.5px; font-weight: 700; color: var(--s-muted); }
+.foms-settle .s-stage-lbl { font-size: calc(12.5px * var(--s-fs, 1)); font-weight: 700; color: var(--s-muted); }
 .foms-settle .s-stage-track { display: flex; align-items: center; gap: 7px; min-width: 0; }
 .foms-settle .s-stage-bar { height: 18px; border-radius: 0 4px 4px 0; background: var(--s-accent); flex: none; width: var(--s-bar-pct, 0%); }
-.foms-settle .s-stage-val { font-size: 12.5px; font-weight: 700; color: var(--s-text); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.foms-settle .s-stage-val { font-size: calc(12.5px * var(--s-fs, 1)); font-weight: 700; color: var(--s-text); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .foms-settle .s-stage-val span { color: var(--s-faint); font-weight: 600; }
 
 .foms-settle .s-chbar { display: flex; gap: 2px; height: 34px; border-radius: 7px; overflow: hidden; margin-top: 12px; }
 .foms-settle .s-chseg {
   display: flex; align-items: center; justify-content: center; color: #fff;
-  font-weight: 800; font-size: 12px; min-width: 0;
+  font-weight: 800; font-size: calc(12px * var(--s-fs, 1)); min-width: 0;
   width: var(--s-seg-pct, 0%); background: var(--s-seg-color, var(--s-accent));
 }
 .foms-settle .s-chlegend { margin-top: 11px; display: grid; gap: 7px; }
-.foms-settle .s-chrow { display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--s-muted); flex-wrap: wrap; }
+.foms-settle .s-chrow { display: flex; align-items: center; gap: 7px; font-size: calc(12.5px * var(--s-fs, 1)); color: var(--s-muted); flex-wrap: wrap; }
 .foms-settle .s-chrow b { color: var(--s-text); font-weight: 800; }
 .foms-settle .s-chrow .s-sw { width: 10px; height: 10px; border-radius: 3px; flex: none; background: var(--s-sw-color, var(--s-accent)); }
 
 /* ── 각주 / 빈 상태 / 실패 상태 ──────────────────────────────── */
-.foms-settle .s-foot { padding: 6px 24px 34px; color: var(--s-faint); font-size: 11.5px; }
-.foms-settle .s-cardnote { margin-top: 9px; font-size: 12.5px; color: var(--s-muted); }
+.foms-settle .s-foot { padding: 6px 24px 34px; color: var(--s-faint); font-size: calc(11.5px * var(--s-fs, 1)); }
+.foms-settle .s-cardnote { margin-top: 9px; font-size: calc(12.5px * var(--s-fs, 1)); color: var(--s-muted); }
 .foms-settle .s-cardnote b { color: var(--s-text); font-weight: 800; }
 
 /* 빈 상태 = 오류가 아니다. 회색 점선 박스로 "데이터가 없다"만 말한다. */
 .foms-settle .s-empty {
   margin-top: 12px; padding: 14px 12px; border: 1px dashed var(--s-line);
   border-radius: 8px; background: var(--s-surface-soft);
-  color: var(--s-muted); font-size: 12px; line-height: 1.55; text-align: center;
+  color: var(--s-muted); font-size: calc(12px * var(--s-fs, 1)); line-height: 1.55; text-align: center;
 }
 .foms-settle .s-empty b { color: var(--s-text); font-weight: 800; }
 
@@ -324,11 +348,11 @@ body.foms-settle-focus:has(.foms-settlement-root) .s-focusbar { display: flex; }
    ready 가 아닐 때만 보이므로(showState) 그리드와 동시에 뜨는 일은 없다. */
 .foms-settle .s-state {
   margin: 14px 24px 0; padding: 14px 16px;
-  border-radius: var(--s-radius); font-size: 12.5px; line-height: 1.6;
+  border-radius: var(--s-radius); font-size: calc(12.5px * var(--s-fs, 1)); line-height: 1.6;
   border: 1px solid var(--s-line); background: var(--s-surface); color: var(--s-text);
 }
-.foms-settle .s-state-title { font-weight: 800; font-size: 13px; margin-bottom: 4px; }
-.foms-settle .s-state-detail { color: var(--s-muted); font-size: 11.5px; }
+.foms-settle .s-state-title { font-weight: 800; font-size: calc(13px * var(--s-fs, 1)); margin-bottom: 4px; }
+.foms-settle .s-state-detail { color: var(--s-muted); font-size: calc(11.5px * var(--s-fs, 1)); }
 .foms-settle .s-state--loading { color: var(--s-muted); }
 .foms-settle .s-state--error { border-color: #f0c2c2; background: #fdf1f1; }
 .foms-settle .s-state--error .s-state-title { color: var(--s-bad); }
@@ -336,7 +360,7 @@ body.foms-settle-focus:has(.foms-settlement-root) .s-focusbar { display: flex; }
 .foms-settle .s-state--denied .s-state-title { color: var(--s-amber); }
 .foms-settle .s-retry {
   margin-top: 8px; border: 1px solid var(--s-line); background: var(--s-surface);
-  color: var(--s-text); font: inherit; font-size: 12px; font-weight: 700;
+  color: var(--s-text); font: inherit; font-size: calc(12px * var(--s-fs, 1)); font-weight: 700;
   padding: 5px 14px; border-radius: 8px; cursor: pointer;
 }
 .foms-settle .s-retry:hover { background: var(--s-surface-soft); }
@@ -356,7 +380,7 @@ body.foms-settle-focus:has(.foms-settlement-root) .s-focusbar { display: flex; }
 .foms-settle .s-agrid > .s-span4 { grid-column: span 4; }
 .foms-settle .s-agrid > .s-kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .foms-settle .s-anote {
-  grid-column: 1 / -1; margin: 0; color: var(--s-muted); font-size: 11.5px; line-height: 1.6;
+  grid-column: 1 / -1; margin: 0; color: var(--s-muted); font-size: calc(11.5px * var(--s-fs, 1)); line-height: 1.6;
 }
 
 /* 가로 막대 리스트 — 담당자별 · 단계별 · 부서별 · aging 공용.
@@ -368,7 +392,7 @@ body.foms-settle-focus:has(.foms-settlement-root) .s-focusbar { display: flex; }
 }
 .foms-settle .s-brow:hover { background: var(--s-surface-soft); }
 .foms-settle .s-blab {
-  font-size: 11.5px; font-weight: 700; color: var(--s-muted);
+  font-size: calc(11.5px * var(--s-fs, 1)); font-weight: 700; color: var(--s-muted);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .foms-settle .s-btrack { min-width: 0; height: 15px; }
@@ -377,7 +401,7 @@ body.foms-settle-focus:has(.foms-settlement-root) .s-focusbar { display: flex; }
   width: var(--s-bar-pct, 0%); background: var(--s-bar-color, var(--s-accent));
 }
 .foms-settle .s-bval {
-  font-size: 11px; font-weight: 700; color: var(--s-text);
+  font-size: calc(11px * var(--s-fs, 1)); font-weight: 700; color: var(--s-text);
   white-space: nowrap; font-variant-numeric: tabular-nums;
 }
 .foms-settle .s-bval span { color: var(--s-faint); font-weight: 600; }
@@ -387,16 +411,16 @@ body.foms-settle-focus:has(.foms-settlement-root) .s-focusbar { display: flex; }
 .foms-settle .s-duo--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .foms-settle .s-dbox { background: var(--s-surface-soft); border-radius: 8px; padding: 9px 11px; min-width: 0; }
 .foms-settle .s-dbox--col { background: #eefaf5; border-left: 3px solid #1baf7a; }
-.foms-settle .s-dbox-label { color: var(--s-muted); font-size: 11px; font-weight: 700; }
-.foms-settle .s-dbox-val { font-size: 17px; font-weight: 800; margin-top: 2px; letter-spacing: -0.02em; white-space: nowrap; }
-.foms-settle .s-dbox-val i { font-style: normal; font-size: 11px; font-weight: 700; color: var(--s-muted); margin-left: 1px; }
-.foms-settle .s-dbox-sub { color: var(--s-faint); font-size: 11px; margin-top: 1px; }
+.foms-settle .s-dbox-label { color: var(--s-muted); font-size: calc(11px * var(--s-fs, 1)); font-weight: 700; }
+.foms-settle .s-dbox-val { font-size: calc(17px * var(--s-fs, 1)); font-weight: 800; margin-top: 2px; letter-spacing: -0.02em; white-space: nowrap; }
+.foms-settle .s-dbox-val i { font-style: normal; font-size: calc(11px * var(--s-fs, 1)); font-weight: 700; color: var(--s-muted); margin-left: 1px; }
+.foms-settle .s-dbox-sub { color: var(--s-faint); font-size: calc(11px * var(--s-fs, 1)); margin-top: 1px; }
 
 /* 미터 한 줄(라벨 + 퍼센트 + 트랙) */
 .foms-settle .s-mrow { margin-top: 12px; }
 .foms-settle .s-mlab {
   display: flex; justify-content: space-between; gap: 8px;
-  color: var(--s-muted); font-size: 11.5px; margin-bottom: 5px;
+  color: var(--s-muted); font-size: calc(11.5px * var(--s-fs, 1)); margin-bottom: 5px;
 }
 .foms-settle .s-mlab b { color: var(--s-text); font-weight: 800; }
 .foms-settle .s-mrow .s-meter { flex: none; width: 100%; }
@@ -416,11 +440,11 @@ body.foms-settle-focus:has(.foms-settlement-root) .s-focusbar { display: flex; }
   position: fixed; z-index: 50; display: none; pointer-events: none;
   left: var(--s-tt-x, 0px); top: var(--s-tt-y, 0px);
   background: var(--s-surface); border: 1px solid var(--s-line); border-radius: 8px;
-  box-shadow: 0 6px 20px rgba(16, 24, 40, .13); padding: 8px 11px; font-size: 12px; min-width: 120px;
+  box-shadow: 0 6px 20px rgba(16, 24, 40, .13); padding: 8px 11px; font-size: calc(12px * var(--s-fs, 1)); min-width: 120px;
 }
 .foms-settle .s-tt.s-on,
 .foms-settle.s-tt.s-on { display: block; }
-.foms-settle .s-tt-title { color: var(--s-muted); font-size: 11px; font-weight: 700; margin-bottom: 4px; white-space: nowrap; }
+.foms-settle .s-tt-title { color: var(--s-muted); font-size: calc(11px * var(--s-fs, 1)); font-weight: 700; margin-bottom: 4px; white-space: nowrap; }
 .foms-settle .s-tt-row { display: flex; align-items: center; gap: 6px; margin-top: 3px; white-space: nowrap; }
 .foms-settle .s-tt-key { width: 12px; height: 3px; border-radius: 2px; flex: none; background: var(--s-key-color, transparent); }
 .foms-settle .s-tt-val { font-weight: 800; font-variant-numeric: tabular-nums; }
@@ -428,13 +452,14 @@ body.foms-settle-focus:has(.foms-settlement-root) .s-focusbar { display: flex; }
 
 /* ── 반응형 ──────────────────────────────────────────────────── */
 @media (max-width: 1500px) {
+  .foms-settle .s-kpis { grid-template-columns: repeat(auto-fit, minmax(calc(190px * var(--s-fs, 1)), 1fr)); }   /* 100%: 1120px 까지 5열 그대로(5×190+64 ≤ 컨테이너) -- 115% 부터 4+1 로 접힌다, 45px 숫자가 타일 밖으로 넘치지 않게 */
   .foms-settle .s-card--main { grid-column: 1 / 9; }
   .foms-settle .s-side,
   .foms-settle .s-card--channel { grid-column: 9 / 13; }
 }
 @media (max-width: 1120px) {
-  .foms-settle .s-kpis { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
-  .foms-settle .s-agrid > .s-kpis { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+  .foms-settle .s-kpis { grid-template-columns: repeat(auto-fit, minmax(calc(200px * var(--s-fs, 1)), 1fr)); }
+  .foms-settle .s-agrid > .s-kpis { grid-template-columns: repeat(auto-fit, minmax(calc(200px * var(--s-fs, 1)), 1fr)); }
   .foms-settle .s-agrid > .s-span8,
   .foms-settle .s-agrid > .s-span4 { grid-column: span 6; }
   /* 좁은 폭에서는 명시 행 배치를 풀고 문서 순서대로 흐르게 한다(grid-row: auto 필수 —
