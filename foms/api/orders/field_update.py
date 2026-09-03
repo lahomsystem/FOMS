@@ -18,6 +18,7 @@ from foms.services.orders.status_constants import STATUS
 from db import get_db
 from foms.services.as_content_safety import load_structured_data_dict_or_raise
 from foms.services.erp_order_flags import is_erp_order_record
+from foms.services.orders.state_axes import as_overlay_outranks_status_write
 from foms.services.erp_permissions import can_edit_erp
 from foms.services.erp_display import _normalize_date_to_yyyymmdd
 from foms.services.erp_sync_columns import sync_erp_flat_columns
@@ -496,6 +497,17 @@ def update_order_field_response(
     # AS 완료/취소는 상태축 전이라 generic 쓰기 경로로 내려보내지 않는다(STATE-AS-01).
     if field == "as_completed_date":
         return _bridge_as_completed_date(db, order, user, value, data)
+
+    # STATE-AS-01: 열린 AS 건이 있으면 물류 축 status 쓰기가 AS 투영을 못 덮는다.
+    # 지방 보드 체크리스트 자동 승격이 SCHEDULED/MEASURED 를 쏴서 AS 접수 건이 지방 AS
+    # 섹션과 ERP AS 뱃지에서 통째로 사라졌다(2026-09-03 운영 #4796·#4816).
+    # 403 이 아니라 무시다 — 실패 배너는 .alert 자동닫힘에 지워져 무음 실패가 되고,
+    # 체크리스트 저장 자체는 정상 업무다. 응답에는 실제 저장값(현재 status)을 싣는다.
+    if field == "status" and as_overlay_outranks_status_write(order, value):
+        return jsonify(_build_order_update_response(
+            order, "status", getattr(order, "status", None),
+            getattr(order, "structured_data", None) or {},
+        ))
 
     try:
         if field == "construction_type":

@@ -1370,6 +1370,17 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!row) return;
 
         const orderId = checkbox.dataset.orderId;
+
+        // AS 접수 건은 체크리스트 자동 승격 대상이 아니다. AS 행은 섹션마다 표식이
+        // 달라서(AS 전용 섹션 = as-order-row, 상차 예정 알림 = regional-as-shipping-row)
+        // 셋을 다 봐야 한다 — 운영 사고를 낸 쪽은 후자다(2026-09-03 #4796·#4816).
+        // 서버에도 같은 가드가 있고(STATE-AS-01), 여기는 무의미한 요청을 아예 안 보낸다.
+        if (row.classList.contains('as-order-row')
+            || row.classList.contains('regional-as-shipping-row')
+            || row.dataset.asShippingSchedule === 'true') {
+            return;
+        }
+
         const constructionType = row.dataset.constructionType;
         const allCheckboxes = row.querySelectorAll('.regional-checkbox');
         

@@ -32,6 +32,7 @@ from foms.services.orders.status_constants import (
     STATUS,
     is_logistics_board_status,
 )
+from foms.services.orders.state_axes import as_overlay_outranks_status_write
 from foms.services.orders.stage_override import (
     AS_OVERLAY_BLOCK_MESSAGE,
     AS_OVERLAY_STATUSES,
@@ -281,6 +282,16 @@ def update_order_status_response(
             return jsonify({"success": False, "message": "주문을 찾을 수 없습니다."}), 404
 
         old_status = getattr(order, "status", None) or ""
+
+        # STATE-AS-01: 열린 AS 건이면 물류 축 목표는 status 를 덮지 않는다
+        # (field_update 경로와 대칭 — 2026-09-03 운영 #4796·#4816).
+        if as_overlay_outranks_status_write(order, new_status):
+            return jsonify({
+                "success": True,
+                "old_status": old_status,
+                "new_status": old_status,
+                "message": "AS 접수 중인 주문이라 상태를 유지했습니다.",
+            })
         from_stage = current_stage_for_order(order)
         if is_erp_order_record(order) and requires_privileged_override(from_stage, new_status):
             return jsonify({"success": False, "message": OVERRIDE_BLOCK_MESSAGE}), 403
