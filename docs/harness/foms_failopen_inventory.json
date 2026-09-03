@@ -5,14 +5,14 @@
   "overlap_api_error_01": "API-ERROR-01 owns response/stdout exposure (print_exc/str(e) -> log_handled_exception). This packet owns swallow classification. Sites that log via log_handled_exception are LOG_AND_CONTINUE here.",
   "marker_convention": "Silent-by-design catches carry an inline `# failopen: intentional: <reason>` (or `fail-closed`) marker; the scanner reads it as the justification. No bare allowlist, no lint-disable.",
   "baselines": {
-    "broad_total": 586,
+    "broad_total": 588,
     "unclassified": 0,
     "swallow_by_control_flow": 180
   },
   "disposition_counts": {
     "FAIL_CLOSED": 35,
     "INTENTIONAL": 17,
-    "LOG_AND_CONTINUE": 354,
+    "LOG_AND_CONTINUE": 356,
     "SWALLOW_BY_CONTROL_FLOW": 180
   },
   "owner_counts": {
@@ -24,7 +24,7 @@
     "persistence": 3,
     "platform": 5,
     "runtime": 3,
-    "services": 167,
+    "services": 169,
     "storage": 21,
     "telemetry": 31,
     "web": 39
@@ -2152,7 +2152,7 @@
     },
     {
       "path": "foms/api/production/orders.py",
-      "lineno": 700,
+      "lineno": 704,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "api",
@@ -2161,7 +2161,7 @@
     },
     {
       "path": "foms/api/production/orders.py",
-      "lineno": 764,
+      "lineno": 768,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "api",
@@ -2170,7 +2170,7 @@
     },
     {
       "path": "foms/api/production/orders.py",
-      "lineno": 886,
+      "lineno": 890,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "api",
@@ -2179,7 +2179,7 @@
     },
     {
       "path": "foms/api/production/orders.py",
-      "lineno": 954,
+      "lineno": 958,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "api",
@@ -2188,7 +2188,7 @@
     },
     {
       "path": "foms/api/production/orders.py",
-      "lineno": 1013,
+      "lineno": 1017,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "api",
@@ -2197,7 +2197,7 @@
     },
     {
       "path": "foms/api/production/orders.py",
-      "lineno": 1080,
+      "lineno": 1084,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "api",
@@ -2206,7 +2206,7 @@
     },
     {
       "path": "foms/api/production/orders.py",
-      "lineno": 1204,
+      "lineno": 1208,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "api",
@@ -2215,7 +2215,7 @@
     },
     {
       "path": "foms/api/production/orders.py",
-      "lineno": 1296,
+      "lineno": 1300,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "api",
@@ -2224,7 +2224,7 @@
     },
     {
       "path": "foms/api/production/orders.py",
-      "lineno": 1411,
+      "lineno": 1415,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "api",
@@ -2233,7 +2233,7 @@
     },
     {
       "path": "foms/api/production/orders.py",
-      "lineno": 1470,
+      "lineno": 1474,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "api",
@@ -2359,7 +2359,7 @@
     },
     {
       "path": "foms/api/shipment/packing.py",
-      "lineno": 396,
+      "lineno": 400,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -3529,7 +3529,7 @@
     },
     {
       "path": "foms/services/erp_permissions.py",
-      "lineno": 48,
+      "lineno": 49,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "services",
@@ -3763,7 +3763,7 @@
     },
     {
       "path": "foms/services/integrations/naver_commerce/settle_sync.py",
-      "lineno": 793,
+      "lineno": 799,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3772,7 +3772,7 @@
     },
     {
       "path": "foms/services/integrations/naver_commerce/settle_sync.py",
-      "lineno": 840,
+      "lineno": 846,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -4849,6 +4849,24 @@
       "owner": "storage",
       "has_logging": false,
       "justification": "print only, no logger (API-ERROR-01 owns stdout->logger migration)"
+    },
+    {
+      "path": "foms/services/user_activity.py",
+      "lineno": 63,
+      "handler_type": "broad_exception",
+      "disposition": "LOG_AND_CONTINUE",
+      "owner": "services",
+      "has_logging": true,
+      "justification": "logs via logger/log_handled_exception"
+    },
+    {
+      "path": "foms/services/user_activity.py",
+      "lineno": 69,
+      "handler_type": "broad_exception",
+      "disposition": "LOG_AND_CONTINUE",
+      "owner": "services",
+      "has_logging": true,
+      "justification": "logs via logger/log_handled_exception"
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
