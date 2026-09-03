@@ -11,7 +11,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 
 ## 진행 중
 - [2026-09-03] **회계팀 권한 정리(deploy 대기)** — ACCOUNTING 을 CS 동등 권한으로(alias `team_has_capability`, 팀 게이트 8곳), 정산 화면·행 API·채널 탭은 **ADMIN+회계팀** 전용(SSOT `is_accounting_or_admin`, 정책 `gate=`). 입금확인은 CS/영업 유지
-- [2026-09-03] **네이버 정산 v1.2 운영 반영 완료(PR #280 · production `f0f52d2a2`)** — 예외 큐 미연결 2갈래(워크벤치 대기/수집 전)·KPI 보류·한도 펼침 표(-1.2억 = 8월 지급 보류 누적)·정산 화면 글자 크기 −/+(--s-fs). 운영 case 1,353행 전부 미연결(워크벤치 대기 1,321). F6 는 CEO 워크플로 수행. 후속: 기준일 셀렉트 결함 3건 수정 운영 반영(PR #283) · 1월부터 조회용 백필+"받아오기" 배너 운영 반영(F8, PR #285 · production `214c92470`). 기준일 셀렉트 4축 KPI 불변은 스펙대로(CEO 재판정, 원장 F9 후보: 셀렉트 위치 이동·C1~C3). 원장 `docs/plans/2026-09-02-naver-settlement-ledger.md` Phase F
+- [2026-09-03] **네이버 정산 v1.2 운영 반영 완료(PR #280 · production `f0f52d2a2`)** — 예외 큐 미연결 2갈래(워크벤치 대기/수집 전)·KPI 보류·한도 펼침 표(-1.2억 = 8월 지급 보류 누적)·정산 화면 글자 크기 −/+(--s-fs). 운영 case 1,353행 전부 미연결(워크벤치 대기 1,321). F6 는 CEO 워크플로 수행. 후속: 기준일 셀렉트 결함 3건 수정 운영 반영(PR #283) · 1월부터 조회용 백필+"받아오기" 배너 운영 반영(F8, PR #285 · production `214c92470`). 기준일 셀렉트 F9 deploy `b708d4d87`(운영 미승격): 셀렉트를 원장 줄로·C1~C3·구매자명 검색/열·7열 시트 CSV(xlsx 금지 계약), 정산 916 passed. 원장 `docs/plans/2026-09-02-naver-settlement-ledger.md` Phase F
 - [2026-09-02] **네이버 발송처리 평일 16:50 자동 실행 ON**(PR #270 · `51c366e9`) — 대상은 수동과 같은 함수·주말/공휴일 제외·하루 1회. 끄기=`FOMS_NAVER_AUTO_DISPATCH_ENABLED=0`+워커 재배포. 원장 `docs/plans/2026-09-02-naver-auto-dispatch-ledger.md`
 - [2026-09-03] **하트비트 S2b 기각 · S1 카운터는 남김** — 렌더 전 304 는 **이득 부재**로 접음(운영 적중률 21%). 정확성은 이틀 mismatch 0 으로 증명(위험 아님). 그림자 플래그 양쪽 off. 미해결=스테이징 mismatch 7건 원인. 원장 §P8~§P12
 - [2026-09-02] **트리아지 자동매칭 사고 반영 완료** — 잔여: 전화 어긋남 36건 재판정. `docs/incidents/2026-09-01-naver-triage-auto-match-miss.md`
