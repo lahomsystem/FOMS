@@ -10,7 +10,6 @@ from typing import Any, Callable
 
 from werkzeug.exceptions import HTTPException
 
-from db import get_db
 from foms.services.datetime_kst import get_today_kst
 from foms.services.error_logging import install_protected_logging
 from foms.services.user_activity import touch_last_seen
@@ -234,7 +233,7 @@ def register_http_bootstrap(
         user = getattr(g, "current_user", None)
         if user is None:
             return
-        touch_last_seen(get_db(), user)
+        touch_last_seen(user)
 
     @app.before_request
     def _erp_construction_team_restrict() -> Any | None:

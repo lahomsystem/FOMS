@@ -20,6 +20,7 @@ import time
 from typing import Any
 
 from flask import session
+from sqlalchemy import update
 
 from foms.services.datetime_kst import now_utc_naive
 from foms.services.error_logging import log_handled_exception
@@ -38,17 +39,22 @@ def touch_interval_seconds() -> int:
     return max(0, value)
 
 
-def touch_last_seen(db: Any, user: Any) -> bool:
+def touch_last_seen(user: Any) -> bool:
     """Record `user` as active now, at most once per throttle window.
 
+    The write runs on its own short-lived connection instead of the request's
+    ORM session. Committing the request session here would expire every object
+    already loaded in it, which detaches rows the caller still holds
+    (DetachedInstanceError) — the update must stay invisible to the request.
+
     Args:
-        db: SQLAlchemy session used to persist the update.
         user: The `User` row for the current request (may be ``None``).
 
     Returns:
         True when the timestamp was written, False when throttled or skipped.
     """
-    if user is None or db is None:
+    user_id = getattr(user, "id", None)
+    if not user_id:
         return False
 
     interval = touch_interval_seconds()
@@ -57,17 +63,18 @@ def touch_last_seen(db: Any, user: Any) -> bool:
     if isinstance(last_ts, (int, float)) and (now_ts - last_ts) < interval:
         return False
 
+    from db import engine
+    from models import User
+
     try:
-        user.last_login = now_utc_naive()
-        db.commit()
+        with engine.begin() as conn:
+            conn.execute(
+                update(User).where(User.id == user_id).values(last_login=now_utc_naive())
+            )
     except Exception:
         # A last-seen write must never break the request it rides on, but the
         # failure still has to be visible in the server log (fail-open policy).
         log_handled_exception("user_activity.touch_last_seen")
-        try:
-            db.rollback()
-        except Exception:
-            log_handled_exception("user_activity.touch_last_seen rollback")
         return False
 
     session[_SESSION_KEY] = now_ts
