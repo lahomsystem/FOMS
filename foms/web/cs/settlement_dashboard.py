@@ -23,7 +23,7 @@ from foms.services.common.erp_shell_http import (
     apply_erp_shell_fragment_headers,
     wants_erp_shell_tab_body,
 )
-from foms.services.orders.order_mutation_policy import user_can
+from foms.services.settlement_channel_access import is_accounting_or_admin
 from foms.services.settlement_channel_access import can_view_channel_settlement
 # 실무 탭 [정산 청구] 폼의 귀속 부서는 **서버 상수가 SSOT** 다. 화면에 코드를 적으면
 # 5종 집합이 갈려 400 이 나는 부서가 생긴다(쓰기 API 가 이 집합으로 검증한다).
@@ -47,8 +47,15 @@ erp_settlement_page_bp = Blueprint(
 def can_view_settlement_dashboard(user: Any) -> bool:
     """사용자가 정산 대시보드를 열람할 수 있는지(§5 정책 판정 단일 진입점).
 
-    허용 집합은 ``FINANCE_MUTATION`` 과 같다: ADMIN / MANAGER / STAFF+CS / STAFF+SALES.
-    VIEWER 와 그 밖의 STAFF 팀(PRODUCTION/DRAWING/CONSTRUCTION/SHIPMENT)은 거부다.
+    허용 집합은 **ADMIN**, 또는 team 이 ``ACCOUNTING``(회계팀)인 MANAGER/STAFF 다
+    (사용자 결정 2026-09-03 — 채널 정산 탭과 같은 집합으로 통일). 그 전에는
+    ``FINANCE_MUTATION`` 과 같은 집합(CS/SALES 포함)이었으나, 전사 매출·미수 총액을
+    회계팀과 관리자만 보도록 좁혔다. 주문 상세의 입금확인 같은 개별 금융 command 는
+    여전히 ``FINANCE_MUTATION``(CS/SALES 포함)이라 영업 업무는 그대로다.
+
+    판정 본체는 :func:`foms.services.settlement_channel_access.is_accounting_or_admin`
+    이며 정책 엔진(``SETTLEMENT_DASHBOARD_READ``)도 gate 로 같은 함수를 쓴다 — MANAGER 가
+    엔진에서 team 검사보다 먼저 통과하기 때문에 teams tuple 만으로는 표현할 수 없다.
 
     Args:
         user: 현재 사용자(``None`` 이면 미인증 — ``False``).
@@ -56,7 +63,7 @@ def can_view_settlement_dashboard(user: Any) -> bool:
     Returns:
         열람 가능하면 True.
     """
-    return user_can(SETTLEMENT_DASHBOARD_POLICY_ID, user)
+    return is_accounting_or_admin(user)
 
 
 def can_view_manager_breakdown(user: Any) -> bool:

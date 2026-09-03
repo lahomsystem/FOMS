@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from foms.services.orders.order_mutation_policy import normalize_team
+from foms.services.orders.order_mutation_policy import team_has_capability
 
 __all__ = [
     "ORDER_FLAG_ALLOWED_ROLES",
@@ -46,4 +46,4 @@ def can_toggle_order_flags(user: Any) -> bool:
         return False
     if role in ORDER_FLAG_ALLOWED_ROLES:
         return True
-    return normalize_team(getattr(user, "team", None)) in ORDER_FLAG_ALLOWED_TEAMS
+    return team_has_capability(getattr(user, "team", None), ORDER_FLAG_ALLOWED_TEAMS)

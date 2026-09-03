@@ -33,6 +33,7 @@ from typing import Iterable, List, Optional, Sequence
 from sqlalchemy.orm import Session
 
 from foms.services.datetime_kst import now_utc_naive
+from foms.services.orders.order_mutation_policy import team_has_capability
 from foms.services.orders.revision import MutationResult, execute_order_mutation
 from models import OrderAssignment, OrderEvent, User
 
@@ -508,9 +509,9 @@ def can_release_assignment(
     if assignment.domain == "DRAWING":
         return team == "DRAWING"
     if assignment.domain == "CONSTRUCTION":
-        return team in ("CS", "SALES", "CONSTRUCTION")
+        return team_has_capability(team, ("CS", "SALES", "CONSTRUCTION"))
     if assignment.domain == "SALES":
-        return team in ("CS", "SALES")
+        return team_has_capability(team, ("CS", "SALES"))
     return False
 
 

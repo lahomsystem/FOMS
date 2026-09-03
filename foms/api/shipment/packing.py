@@ -31,7 +31,11 @@ from sqlalchemy.orm.attributes import flag_modified
 
 from db import get_db
 from foms.api.shipment.settings import erp_shipment_bp
-from foms.services.orders.order_mutation_policy import POLICY_REGISTRY, evaluate_policy
+from foms.services.orders.order_mutation_policy import (
+    POLICY_REGISTRY,
+    evaluate_policy,
+    team_has_capability,
+)
 from foms.services.orders.revision import RevisionError, execute_order_mutation
 from foms.web.auth import get_user_by_id, log_access
 from foms.services.audit_message_display import describe_order_action
@@ -77,7 +81,7 @@ def _can_edit_packing(user: Any) -> bool:
         return False
     if (getattr(user, "role", None) or "").strip().upper() == "ADMIN":
         return True
-    return (getattr(user, "team", None) or "").strip().upper() in _PACKING_EDIT_ALLOWED_TEAMS
+    return team_has_capability(getattr(user, "team", None), _PACKING_EDIT_ALLOWED_TEAMS)
 
 
 def _packing_edit_required(f: Callable[..., Any]) -> Callable[..., Any]:

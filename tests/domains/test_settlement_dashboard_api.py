@@ -72,6 +72,26 @@ _GET_SURFACES = [
 ]
 _SURFACE_IDS = [name for name, _, _ in _GET_SURFACES]
 
+#: 정산 열람 actor 매트릭스(2026-09-03 사용자 결정). 전사 매출·미수 총액을 보는 화면이라
+#: **관리자(ADMIN) + 회계팀(ACCOUNTING)** 으로 좁혔다. 그 전에는 FINANCE_MUTATION 과 같은
+#: 집합(CS/SALES 포함)이었고, 그 시절 계약은 이 파일에 화석처럼 남기지 않는다 — 대신
+#: :func:`test_settlement_matrix_is_narrower_than_finance` 가 두 집합의 차이를 못박는다.
+_SETTLE_ALLOWED_ACTORS = [
+    ("ADMIN", None),
+    ("MANAGER", "ACCOUNTING"),
+    ("STAFF", "ACCOUNTING"),
+]
+_SETTLE_DENIED_ACTORS = [
+    ("VIEWER", None),
+    ("MANAGER", "CS"),
+    ("STAFF", "CS"),
+    ("STAFF", "SALES"),
+    ("STAFF", "PRODUCTION"),
+    ("STAFF", "DRAWING"),
+    ("STAFF", "CONSTRUCTION"),
+    ("STAFF", "SHIPMENT"),
+]
+
 #: 정산 열람 정책 id. 라우트·템플릿이 공유해야 하는 문자열(오타 = 조용한 전원 거부).
 SETTLEMENT_POLICY_ID = "SETTLEMENT_DASHBOARD_READ"
 
@@ -174,10 +194,10 @@ def _render_sub_nav(app, user) -> str:
 # 계약 1 — 권한 매트릭스 × 전 GET 라우트
 # ==========================================================================
 def test_actor_matrix_is_the_finance_matrix():
-    """이 파일이 쓰는 actor 목록이 AUTH-FINANCE-01 매트릭스 그대로인지 못박는다.
+    """import 로 재사용하는 **금융** 매트릭스가 조용히 축소되지 않았는지 못박는다.
 
-    import 로 재사용하고 있으니 자동으로 같지만, 원본이 조용히 축소되면 여기 커버리지도
-    같이 줄어든다. 구성을 명시로 고정해 그 축소를 red 로 만든다.
+    정산 화면 자체의 매트릭스는 2026-09-03 부터 이 집합이 아니다
+    (:data:`_SETTLE_ALLOWED_ACTORS`) — 여기서는 비교 기준이 되는 원본만 고정한다.
     """
     assert _ALLOWED_ACTORS == [
         ("ADMIN", None),
@@ -194,7 +214,19 @@ def test_actor_matrix_is_the_finance_matrix():
     ]
 
 
-@pytest.mark.parametrize("role,team", _ALLOWED_ACTORS)
+def test_settlement_matrix_is_narrower_than_finance(app):
+    """정산 열람은 금융 command 집합보다 **좁다**(2026-09-03 사용자 결정).
+
+    CS·영업은 주문 상세의 입금확인 같은 개별 금융 command 는 그대로 쓰지만(FINANCE_MUTATION),
+    전사 매출·미수 총액 화면은 못 본다. 두 집합이 다시 같아지는 회귀를 red 로 잡는다.
+    """
+    for actor in (("MANAGER", None), ("STAFF", "CS"), ("STAFF", "SALES")):
+        user = _make_user(role=actor[0], team=actor[1])
+        assert user_can(FINANCE_POLICY_ID, user) is True, actor
+        assert user_can(SETTLEMENT_POLICY_ID, user) is False, actor
+
+
+@pytest.mark.parametrize("role,team", _SETTLE_ALLOWED_ACTORS)
 @pytest.mark.parametrize("name,path,is_json", _GET_SURFACES, ids=_SURFACE_IDS)
 def test_settlement_get_allowed_actors(client, app, role, team, name, path, is_json):
     """ADMIN/MANAGER·STAFF+CS/SALES 는 정산 페이지·API 를 200 으로 연다."""
@@ -211,7 +243,7 @@ def test_settlement_get_allowed_actors(client, app, role, team, name, path, is_j
         assert isinstance(body["data"], dict)
 
 
-@pytest.mark.parametrize("role,team", _DENIED_ACTORS)
+@pytest.mark.parametrize("role,team", _SETTLE_DENIED_ACTORS)
 @pytest.mark.parametrize("name,path,is_json", _GET_SURFACES, ids=_SURFACE_IDS)
 def test_settlement_get_denied_actors(client, app, role, team, name, path, is_json):
     """VIEWER·비 CS/SALES STAFF 는 403 — redirect 로 얼버무리지 않는다.
@@ -244,7 +276,7 @@ def test_settlement_get_denied_actors(client, app, role, team, name, path, is_js
         assert body["error"], "거부 사유 문자열이 있어야 한다"
 
 
-@pytest.mark.parametrize("role,team", _DENIED_ACTORS)
+@pytest.mark.parametrize("role,team", _SETTLE_DENIED_ACTORS)
 def test_settlement_api_denied_leaks_no_aggregate(client, app, role, team):
     """거부 응답에는 집계 스키마 조각이 한 톨도 없어야 한다(부분 유출 차단)."""
     _seed_order(completion="2026-08-10", sd=_money(items_total=5_000_000, deposit=1_000_000))
@@ -312,39 +344,39 @@ def test_settlement_policy_is_registered():
     assert POLICY_REGISTRY[SETTLEMENT_POLICY_ID].policy_id == SETTLEMENT_POLICY_ID
 
 
-def test_settlement_policy_fields_match_finance():
-    """허용 집합 정의(teams·viewer·manager_ok·anonymous·assignment)가 금융과 동일하다."""
+def test_settlement_policy_fields_are_the_accounting_gate():
+    """정산 열람 정책이 회계팀 게이트로 선언돼 있다(2026-09-03).
+
+    MANAGER 는 엔진에서 team 검사보다 먼저 통과하므로 ``teams`` tuple 만으로는
+    "ADMIN + 회계팀"을 표현할 수 없다 — ``gate`` 가 비면 CS 팀 매니저가 다시 열린다.
+    """
     settle = POLICY_REGISTRY[SETTLEMENT_POLICY_ID]
     finance = POLICY_REGISTRY[FINANCE_POLICY_ID]
 
-    # 2026-09-02(NAVER-SETTLE-01): 회계팀(ACCOUNTING) 신설 — 회계팀 STAFF 도 정산 대시보드
-    # 페이지·수금 확인을 써야 네이버 정산 탭에 닿는다. **의도된 확장**이고, 두 정책이
-    # 계속 같은 집합이라는 계약(이 파일의 존재 이유)은 그대로다.
-    assert tuple(settle.teams) == tuple(finance.teams) == ("CS", "SALES", "ACCOUNTING")
-    assert settle.viewer is finance.viewer is False, "VIEWER 하드 deny"
-    assert settle.manager_ok is finance.manager_ok is True
-    assert settle.anonymous is finance.anonymous is False
-    assert settle.assignment == finance.assignment is None, "정산 열람은 배정과 무관"
+    assert tuple(settle.teams) == ("ACCOUNTING",)
+    assert settle.gate == "foms.services.settlement_channel_access:is_accounting_or_admin"
+    assert settle.viewer is False, "VIEWER 하드 deny"
+    assert settle.anonymous is False
+    assert settle.assignment is None, "정산 열람은 배정과 무관"
+    # 금융 command 집합은 그대로다(영업·CS 의 입금확인 업무 무회귀).
+    assert tuple(finance.teams) == ("CS", "SALES", "ACCOUNTING")
+    assert finance.gate is None
 
 
-@pytest.mark.parametrize("role,team", _ALLOWED_ACTORS + _DENIED_ACTORS)
-def test_settlement_policy_decision_matches_finance(app, role, team):
-    """9종 actor 전부에서 두 정책의 ``evaluate_policy`` 판정이 완전히 일치한다.
+@pytest.mark.parametrize("role,team", _SETTLE_ALLOWED_ACTORS + _SETTLE_DENIED_ACTORS)
+def test_settlement_policy_decision_matches_matrix(app, role, team):
+    """11종 actor 전부에서 ``evaluate_policy`` 판정이 정산 매트릭스와 정확히 일치한다.
 
     필드 비교만으로는 "필드는 같은데 평가가 갈리는" 미래 변경을 못 잡는다. 실제 판정
-    결과(allowed/status/code)를 actor 별로 대조하는 쪽이 강한 계약이다.
+    결과를 actor 별로 대조하고, UI 은닉용 ``user_can`` 도 같은 답을 내는지 본다.
     """
     user = _make_user(role=role, team=team)
     settle = evaluate_policy(POLICY_REGISTRY[SETTLEMENT_POLICY_ID], user)
-    finance = evaluate_policy(POLICY_REGISTRY[FINANCE_POLICY_ID], user)
 
-    assert (settle.allowed, settle.status, settle.code) == (
-        finance.allowed,
-        finance.status,
-        finance.code,
-    ), (role, team, settle, finance)
-    # 매트릭스 자체도 못박는다 — 둘이 나란히 틀리는 경우를 배제한다.
-    assert settle.allowed is ((role, team) in _ALLOWED_ACTORS), (role, team, settle)
+    expected = (role, team) in _SETTLE_ALLOWED_ACTORS
+    assert settle.allowed is expected, (role, team, settle)
+    if not expected:
+        assert (settle.status, settle.code) == (403, "FORBIDDEN"), (role, team, settle)
     assert user_can(SETTLEMENT_POLICY_ID, user) is settle.allowed
 
 
@@ -410,7 +442,7 @@ def test_api_success_envelope_and_m1_schema(client, app):
 # ==========================================================================
 # 담당자별 매출 = 직원 실적. 화면 열람 권한보다 한 단계 좁다(스펙 §13.6).
 # ==========================================================================
-@pytest.mark.parametrize("role,team", [("ADMIN", None), ("MANAGER", None)])
+@pytest.mark.parametrize("role,team", [("ADMIN", None), ("MANAGER", "ACCOUNTING")])
 def test_manager_breakdown_is_served_to_managers(client, app, role, team):
     """관리자급은 담당자별 매출을 받는다."""
     _seed_order(completion="2026-08-05", sd=_money(items_total=2_000_000, deposit=0))
@@ -421,7 +453,7 @@ def test_manager_breakdown_is_served_to_managers(client, app, role, team):
     assert _MANAGER_ONLY_DATA_KEYS <= set(data), "관리자급에게 담당자별 매출이 안 갔다"
 
 
-@pytest.mark.parametrize("team", ["CS", "SALES"])
+@pytest.mark.parametrize("team", ["ACCOUNTING"])
 def test_manager_breakdown_is_stripped_from_payload_for_staff(client, app, team):
     """STAFF 는 정산 화면은 보되 담당자별 매출은 **payload 에서부터** 못 받는다.
 
@@ -449,7 +481,7 @@ def test_manager_breakdown_is_stripped_from_payload_for_staff(client, app, team)
 
 def test_api_defaults_to_previous_and_current_month_day_granularity(client, app):
     """파라미터 없이 호출하면 전월~이번 달(KST) · granularity=day."""
-    _login(client, _make_user(role="STAFF", team="CS"))
+    _login(client, _make_user(role="STAFF", team="ACCOUNTING"))
 
     resp = client.get(API_URL)
 
@@ -490,7 +522,7 @@ def test_api_invalid_params_return_400(client, app, query, label):
 def test_api_accepts_all_supported_granularities(client, app, granularity):
     """지원 granularity 3종은 모두 200 이고 range 에 그대로 echo 된다."""
     _seed_order(completion="2026-08-10", sd=_money(items_total=900_000, deposit=100_000))
-    _login(client, _make_user(role="STAFF", team="SALES"))
+    _login(client, _make_user(role="STAFF", team="ACCOUNTING"))
 
     resp = client.get(f"{API_URL}?month_from=2026-08&month_to=2026-08&granularity={granularity}")
 
@@ -541,7 +573,7 @@ def test_settlement_routes_are_read_only(app):
 # ==========================================================================
 # 계약 5 — UI 은닉 (같은 policy_id 로 네비 진입 링크를 숨긴다)
 # ==========================================================================
-@pytest.mark.parametrize("role,team", _DENIED_ACTORS)
+@pytest.mark.parametrize("role,team", _SETTLE_DENIED_ACTORS)
 def test_nav_entry_hidden_for_denied(app, client, role, team):
     """권한 없는 사용자의 ERP 서브 내비에는 정산 대시보드 링크가 없다."""
     html = _render_sub_nav(app, _make_user(role=role, team=team))
@@ -549,7 +581,7 @@ def test_nav_entry_hidden_for_denied(app, client, role, team):
     assert PAGE_URL not in html, (role, team)
 
 
-@pytest.mark.parametrize("role,team", _ALLOWED_ACTORS)
+@pytest.mark.parametrize("role,team", _SETTLE_ALLOWED_ACTORS)
 def test_nav_entry_shown_for_allowed(app, client, role, team):
     """허용 사용자의 ERP 서브 내비에는 정산 대시보드 링크가 있다."""
     html = _render_sub_nav(app, _make_user(role=role, team=team))

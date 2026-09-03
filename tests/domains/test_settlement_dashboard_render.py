@@ -1147,25 +1147,27 @@ def test_tab_bar_renders_four_tabs_with_expected_wiring(client, app):
         assert label in inner, (label, inner)
 
 
-def test_channel_tab_is_absent_for_allowed_users_outside_accounting(client, app):
-    """정산 화면을 볼 수 있어도 회계팀이 아니면 채널 탭이 **마크업에 아예 없다**.
+def test_settlement_page_is_closed_outside_accounting(client, app):
+    """회계팀·관리자가 아니면 정산 화면 자체가 403 이다(사용자 결정 2026-09-03).
 
-    STAFF+CS 는 정산 대시보드 자체는 본다(FINANCE_MUTATION 집합). 채널 탭만 더 좁은
-    게이트라, 여기서 3탭이 아니라 4탭이 나오면 회계 전용 자료가 CS 전원에게 열린 것이다.
-    감추기(`hidden`/CSS)가 아니라 **서버가 빼는 것**까지 계약이다 — 감추기만 하면
-    개발자 도구로 그대로 보인다.
+    그 전에는 STAFF+CS 가 요약·실무·분석 3탭을 봤고 채널 탭만 더 좁았다. 지금은 화면
+    전체가 회계 축이라, 여기서 200 이 나오면 전사 매출·미수 총액이 다시 열린 것이다.
+    감추기(`hidden`/CSS)가 아니라 **서버가 안 그리는 것**까지 계약이다.
     """
     _login_allowed(client, role="STAFF", team="CS")
 
-    html = _fragment_html(client)
+    resp = client.get(_FRAGMENT_URL, headers=_SHELL_HEADERS)
 
-    tabs = _tab_buttons(html)
-    assert len(tabs) == 3, [tag for tag, _ in tabs]
-    assert [_attr(tag, "data-settlement-tab") for tag, _ in tabs] == [
-        key for key, _t, _p, _l in _TABS_WITHOUT_CHANNEL
-    ]
-    for needle in (_CHANNEL_TAB_ID, _CHANNEL_PANE_ID, "settlement-channel.css", "settlement/channel.js"):
-        assert needle not in html, f"채널 마크업/자산이 회계팀 밖으로 샜다: {needle}"
+    assert resp.status_code == 403, resp.status_code
+    html = resp.get_data(as_text=True)
+    for needle in (
+        _CHANNEL_TAB_ID,
+        _CHANNEL_PANE_ID,
+        "settlement-channel.css",
+        "settlement/channel.js",
+        'id="foms-settlement-root"',
+    ):
+        assert needle not in html, f"정산 마크업/자산이 회계팀 밖으로 샜다: {needle}"
 
 
 def test_summary_tab_is_the_default_selected_tab(client, app):
@@ -1448,9 +1450,11 @@ def test_tab_state_is_established_inside_the_per_root_mount():
 # ==========================================================================
 # 계약 11 — 허용 사용자 전원이 같은 화면을 받는다
 # ==========================================================================
-@pytest.mark.parametrize("role,team", _ALLOWED_ACTORS)
+@pytest.mark.parametrize(
+    "role,team", [("ADMIN", None), ("MANAGER", "ACCOUNTING"), ("STAFF", "ACCOUNTING")]
+)
 def test_allowed_actors_receive_every_anchor(client, app, role, team):
-    """허용 4종 actor 전원이 계약 앵커를 **전부** 갖춘 화면을 받는다.
+    """허용 3종 actor(관리자·회계팀) 전원이 계약 앵커를 **전부** 갖춘 화면을 받는다.
 
     403 매트릭스는 M2(`test_settlement_dashboard_api.py`)가 덮으므로 중복하지 않는다.
     여기서 잡는 것은 "권한은 통과했는데 화면 일부가 역할별로 빠지는" 회귀다 — 정산 화면은
@@ -1597,7 +1601,7 @@ def test_staff_payload_really_omits_the_manager_keys(client, app):
     """
     _seed_order(completion="2026-08-10", sd=_money(items_total=2_000_000, deposit=0))
 
-    _login(client, _make_user(role="STAFF", team="CS"))
+    _login(client, _make_user(role="STAFF", team="ACCOUNTING"))
     staff = client.get(f"{API_URL}?month_from=2026-08&month_to=2026-08").get_json()["data"]
     assert "managers" not in staff and "managers_total" not in staff, sorted(staff)
 

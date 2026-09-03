@@ -39,14 +39,14 @@ from foms.services.settlement_rows import PER_PAGE, list_settlement_rows
 
 # --- 권한 매트릭스 SSOT 재사용(복제 금지) ---------------------------------------
 from tests.domains.test_auth_finance import (  # noqa: E402
-    _ALLOWED_ACTORS,
-    _DENIED_ACTORS,
     _login,
     _make_user,
 )
 from tests.domains.test_settlement_aggregation import _money, _seed_order  # noqa: E402
 from tests.domains.test_settlement_dashboard_api import (  # noqa: E402
     _CONSTRUCTION_PAGE_REDIRECT_ACTOR,
+    _SETTLE_ALLOWED_ACTORS,
+    _SETTLE_DENIED_ACTORS,
 )
 # 네이버 정산 칸 시드·쿼리 계수기는 전용 파일이 SSOT 다(복제하면 한쪽만 갱신된다).
 from tests.domains.test_settlement_ops_channel_column import (  # noqa: E402
@@ -89,8 +89,9 @@ _ROW_KEYS_WITH_CHANNEL = _ROW_KEYS | {_NAVER_SETTLE_KEY}
 
 #: 채널 정산 게이트를 통과하는 actor(`can_view_channel_settlement` SSOT 와 같은 집합).
 _CHANNEL_ALLOWED_ACTOR = ("ADMIN", None)
-#: 행 API 는 열리지만 채널 정산은 못 보는 actor. **STAFF+CS 가 핵심**이다 —
-#: `_ALLOWED_ACTORS` 에 들어 있어 200 을 받는데 회계 정보는 보면 안 된다.
+#: 정산 표면 전체가 거부되는 actor. 2026-09-03 사용자 결정으로 정산 화면·행 API 게이트가
+#: 채널 게이트와 **같은 집합**(ADMIN + 회계팀)이 됐다 — 그 전처럼 "행은 보는데 회계 칸만
+#: 못 보는" 중간 지대는 더 이상 없다. 그래서 이 actor 는 200 이 아니라 403 을 받는다.
 _CHANNEL_DENIED_ACTOR = ("STAFF", "CS")
 
 #: 행에 절대 실리면 안 되는 필드 이름들.
@@ -121,8 +122,8 @@ def _json_text(body) -> str:
 # ==========================================================================
 # 1. 권한 매트릭스 — 집계 API 와 같은 집합
 # ==========================================================================
-@pytest.mark.parametrize("role,team", _ALLOWED_ACTORS)
-def test_rows_api_allows_finance_actors(client, app, role, team):
+@pytest.mark.parametrize("role,team", _SETTLE_ALLOWED_ACTORS)
+def test_rows_api_allows_settlement_actors(client, app, role, team):
     """정산 열람이 허용된 actor 는 행 API 도 200 이다."""
     _login(client, _make_user(role=role, team=team))
 
@@ -132,8 +133,8 @@ def test_rows_api_allows_finance_actors(client, app, role, team):
     assert response.get_json()["success"] is True
 
 
-@pytest.mark.parametrize("role,team", _DENIED_ACTORS)
-def test_rows_api_denies_non_finance_actors(client, app, role, team):
+@pytest.mark.parametrize("role,team", _SETTLE_DENIED_ACTORS)
+def test_rows_api_denies_non_settlement_actors(client, app, role, team):
     """정산 열람이 거부된 actor 는 행 API 도 403 이다.
 
     행이 실린다고 게이트가 느슨해지면 안 된다 — 집계와 **같은** policy_id 로 판정한다.
@@ -180,24 +181,22 @@ def test_row_shape_for_channel_settlement_actor_adds_exactly_one_key(client, app
     )
 
 
-def test_row_shape_for_non_channel_actor_is_exactly_the_base_field_set(client, app):
-    """채널 정산을 못 보는 actor 의 행에는 `naver_settlement` **키가 아예 없다**.
+def test_row_api_is_closed_for_actors_outside_accounting(client, app):
+    """정산 게이트 밖 actor(STAFF+CS)는 행 API 자체가 403 이고 회계 칸도 0 이다.
 
-    값을 None 으로 실어 보내고 화면에서 감추면 개발자 도구로 그대로 보인다(클라 숨김
-    금지). 그래서 "값이 비었다"가 아니라 **키 부재**를 계약으로 못 박는다.
+    2026-09-03 전에는 이 actor 가 200 을 받고 `naver_settlement` 키만 빠졌다. 지금은
+    표면 전체가 닫혔으니, 여기서 200 이 나오면 정산 실무 탭이 다시 전 팀에 열린 것이다.
     """
     _seed_order(completion="2026-08-10", sd=_money(items_total=3_000_000, deposit=500_000))
     role, team = _CHANNEL_DENIED_ACTOR
     _login(client, _make_user(role=role, team=team))
 
-    body = _get(client).get_json()
-    rows = body["data"]["rows"]
+    response = _get(client)
 
-    assert rows, "시드한 주문이 행 목록에 없다"
-    assert set(rows[0]) == _ROW_KEYS, (
-        f"행 키가 계약과 다르다: 추가={set(rows[0]) - _ROW_KEYS} 누락={_ROW_KEYS - set(rows[0])}"
-    )
-    assert body["data"]["channel_settlement_visible"] is False
+    assert response.status_code == 403, f"{role}+{team} 이 행 API 를 열었다"
+    body = response.get_json()
+    assert body["data"] is None
+    assert _NAVER_SETTLE_KEY not in _json_text(body)
 
 
 def test_channel_settlement_visible_flag_matches_the_gate(client, app):
@@ -208,12 +207,13 @@ def test_channel_settlement_visible_flag_matches_the_gate(client, app):
     """
     _seed_order(completion="2026-08-10", sd=_money(items_total=1_000_000, deposit=0))
 
-    for role, team in (_CHANNEL_ALLOWED_ACTOR, _CHANNEL_DENIED_ACTOR):
+    for role, team in _SETTLE_ALLOWED_ACTORS:
         _login(client, _make_user(role=role, team=team))
         data = _get(client).get_json()["data"]
         visible = data["channel_settlement_visible"]
         has_key = all(_NAVER_SETTLE_KEY in row for row in data["rows"])
         assert visible is has_key, f"{role}+{team}: 플래그={visible} 키존재={has_key}"
+        assert visible is True, f"{role}+{team}: 회계 권한자인데 칸이 없다"
 
 
 def test_rows_carry_customer_name_by_design(client, app):
@@ -634,13 +634,12 @@ def test_rows_api_costs_at_most_one_extra_query_for_the_column(client, app):
     for _ in range(3):
         _seed_case(_seed_naver_order().id, expect=datetime.date(2026, 9, 5))
 
-    denied_role, denied_team = _CHANNEL_DENIED_ACTOR
-    _login(client, _make_user(role=denied_role, team=denied_team))
-    _, without = _count_queries(lambda: _get(client))
-
-    allowed_role, allowed_team = _CHANNEL_ALLOWED_ACTOR
-    _login(client, _make_user(role=allowed_role, team=allowed_team))
-    _, with_column = _count_queries(lambda: _get(client))
+    # 라우트 두 벌로 비교할 수 없다 — 게이트 밖 actor 는 이제 403 이라 행을 아예 안 만든다.
+    # 그래서 같은 서비스 호출을 include 플래그만 바꿔 두 번 재는 쪽이 정확한 대조군이다.
+    _, without = _count_queries(lambda: list_settlement_rows(db_session()))
+    _, with_column = _count_queries(
+        lambda: list_settlement_rows(db_session(), include_naver_settlement=True)
+    )
 
     assert with_column - without <= 1, (
         f"컬럼 때문에 쿼리가 {with_column - without}회 늘었다"

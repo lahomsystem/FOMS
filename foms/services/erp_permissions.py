@@ -9,7 +9,7 @@ from typing import Any, Callable
 
 from flask import jsonify, session
 
-from foms.services.orders.order_mutation_policy import normalize_team
+from foms.services.orders.order_mutation_policy import normalize_team, team_has_capability
 from foms.web.auth import get_user_by_id
 
 ERP_EDIT_ALLOWED_TEAMS = ("CS", "SALES")
@@ -18,6 +18,7 @@ _MINE_SCOPE_BY_TEAM = {
     "SALES": "sales",
     "MEASURE": "sales",
     "CS": "sales",
+    "ACCOUNTING": "sales",  # 회계팀은 CS 와 같은 업무 범위(2026-09-03)
     "CONSTRUCTION": "construction",
 }
 
@@ -301,7 +302,7 @@ def can_edit_erp(user: Any) -> bool:
         return False
     if user.role == "ADMIN":
         return True
-    return normalize_team(getattr(user, "team", None)) in ERP_EDIT_ALLOWED_TEAMS
+    return team_has_capability(getattr(user, "team", None), ERP_EDIT_ALLOWED_TEAMS)
 
 
 def can_edit_erp_construction(user: Any) -> bool:
