@@ -38,7 +38,11 @@ from foms.services.orders.revision import (
     execute_order_mutation,
 )
 from foms.services.orders.state_axes import AXIS_MAIN, read_logistics
-from foms.services.orders.order_mutation_policy import POLICY_REGISTRY, evaluate_policy
+from foms.services.orders.order_mutation_policy import (
+    POLICY_REGISTRY,
+    evaluate_policy,
+    team_has_capability,
+)
 from foms.services.orders.erp_policy_quests import check_quest_approvals_complete
 
 erp_orders_production_bp = Blueprint("erp_orders_production", __name__, url_prefix="/api/orders")
@@ -75,7 +79,7 @@ def _can_edit_production_steps(user: Any) -> bool:
         return False
     if user.role == "ADMIN":
         return True
-    return (user.team or "").strip() in _PRODUCTION_STEPS_EDIT_TEAMS
+    return team_has_capability(getattr(user, "team", None), _PRODUCTION_STEPS_EDIT_TEAMS)
 
 
 def _production_steps_edit_required(f: Callable[..., Any]) -> Callable[..., Any]:

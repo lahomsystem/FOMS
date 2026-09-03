@@ -176,6 +176,14 @@ SSOT 가 이중화된다. "캡 우회"는 모집단 쿼리에서 달성하고, �
 
 ## 5. 권한 — 신규 read-only 정책 `SETTLEMENT_DASHBOARD_READ`
 
+> **개정 2026-09-03 (사용자 결정)**: 열람 집합이 **ADMIN + 회계팀(ACCOUNTING)** 으로 좁혀졌다.
+> 아래 원안(= `FINANCE_MUTATION` 과 동일 집합, CS/SALES 포함)은 2026-09-02 까지의 상태다.
+> 판정 SSOT 는 `foms/services/settlement_channel_access.py::is_accounting_or_admin` 이고,
+> 정책 등재는 `teams=("ACCOUNTING",)` + `gate=` 로 그 함수를 가리킨다(MANAGER 는 엔진에서
+> team 검사보다 먼저 통과하므로 teams tuple 만으로는 표현할 수 없다). 주문 상세의 입금확인·
+> 현금영수증 같은 개별 금융 command(`FINANCE_MUTATION`)는 CS/SALES 가 그대로 쓴다 —
+> 두 집합은 더 이상 같지 않다.
+
 `research_personas.md` §3 반영. 현황(코드로 확인):
 
 - `POLICY_REGISTRY`(`foms/services/orders/order_mutation_policy.py:102-191`)의 policy_id 는 전부 mutation 게이트용.

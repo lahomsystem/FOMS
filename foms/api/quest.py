@@ -17,7 +17,7 @@ from foms.services.audit_message_display import describe_order_action
 from foms.services.orders.audit_order_context import order_audit_context
 from foms.services.erp_sync_columns import sync_erp_flat_columns
 from foms.services.orders.erp_policy_constants import DEFAULT_OWNER_TEAM_BY_STAGE
-from foms.services.orders.order_mutation_policy import normalize_team
+from foms.services.orders.order_mutation_policy import normalize_team, team_has_capability
 from foms.services.erp_policy import (
     get_stage,
     STAGE_LABELS,
@@ -319,13 +319,13 @@ def _authorize_quest_approve(
                 return (True, 200, "")
             return (False, 403, "이 주문에 배정된 시공 담당자만 승인할 수 있습니다.")
         # 배정 0(backfill 미완) → 팀 capability 폴백(lock-out 방지).
-        if actor_team in ("CS", "SALES", "CONSTRUCTION"):
+        if team_has_capability(actor_team, ("CS", "SALES", "CONSTRUCTION")):
             return (True, 200, "")
         return (False, 403, "시공 승인 권한이 없는 팀입니다.")
 
     # 일반: actor team = 현 단계 필수 승인 팀(dynamic).
     required_teams = _required_teams_for_stage(current_quest, stage_code)
-    if required_teams and actor_team in required_teams:
+    if required_teams and team_has_capability(actor_team, required_teams):
         return (True, 200, "")
     return (False, 403, "현재 단계 승인 권한이 없는 팀입니다. (오버라이드가 필요합니다.)")
 

@@ -10,13 +10,12 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
+- [2026-09-03] **회계팀 권한 정리(deploy 대기)** — ACCOUNTING 을 CS 동등 권한으로(alias `team_has_capability`, 팀 게이트 8곳), 정산 화면·행 API·채널 탭은 **ADMIN+회계팀** 전용(SSOT `is_accounting_or_admin`, 정책 `gate=`). 입금확인은 CS/영업 유지
 - [2026-09-03] **네이버 정산 v1.2 deploy(미연결 2갈래·지급 보류 일자별 상세·정산 화면 글자 크기 조절)** — v1+v1.1 은 운영 반영 완료(PR #278·#279). v1.2: 예외 큐 UNMATCHED(워크벤치 대기→그 집)/UNLINKED(수집 전→수집 화면), KPI 보류·한도 타일 펼침 표, 탭줄 글자 크기 −/+(--s-fs, 워크벤치 패턴). 운영 실측: case 1,353행 전부 미연결(링크 없음 32·워크벤치 대기 1,321), 보류는 payHoldback 24행. F6 는 CEO 워크플로(8 에이전트) 수행. 잔여: 스테이징 실화면·운영 승격(사용자 확인). 원장 `docs/plans/2026-09-02-naver-settlement-ledger.md` Phase F
 - [2026-09-02] **네이버 발송처리 평일 16:50 자동 실행 ON**(PR #270 · `51c366e9`) — 대상은 수동과 같은 함수·주말/공휴일 제외·하루 1회. 끄기=`FOMS_NAVER_AUTO_DISPATCH_ENABLED=0`+워커 재배포. 원장 `docs/plans/2026-09-02-naver-auto-dispatch-ledger.md`
-- [2026-09-02] **둘째 전화번호 검색 복구 운영 반영**(PR #258) — 폭 64·`phonewide_01`, 절단 83건 복구. `erp-phone-digits-widen-ledger`
 - [2026-09-02] **하트비트 S1+S2a 운영 반영(PR #233) · 관측 중** — 쓰기 카운터 + 렌더 전 304 키의 그림자 관측. **화면 동작 무변경**. 운영 mismatch 0. **미해결**: 스테이징 mismatch 13 · 적중률 미측정 → S2b 는 그 뒤. 원장 §P8~§P11
 - [2026-09-02] **트리아지 자동매칭 사고 반영 완료** — 잔여: 전화 어긋남 36건 재판정. `docs/incidents/2026-09-01-naver-triage-auto-match-miss.md`
 - [2026-09-02] **네이버 클레임 승인 T9 운영 ON**(PR #249 · production `b0c81413` · web 재배포 23:23Z) — 취소 요청 승인 신설(`claim/cancel/approve`)+반품 승인 독립 경로. 게이트 2종 `FOMS_NAVER_{CANCEL,RETURN}_APPROVE_ENABLED=1`(web 전용). **취소 거부 API 는 네이버에 없다.** 후속: 유령 주문 단계 잠금 해제(사유 필수)는 deploy `549a801f`. 원장: `docs/plans/2026-09-01-naver-claim-approve-ledger.md`
-- [2026-09-01] **엑셀 내보내기·동선 전면 삭제 deploy(`8f0f2a1d`, 커밋 2개)** — 상단 예산 확보로 상세는 "기록 보관 — 2026-08-31 정리"로 이관.
 - [2026-09-01] **네이버 일괄 발송처리 결과 UI·안 붙은 수집분 운영 반영(PR #219·#227)** — 띠가 **완료/일부/실패/대기 4상태**, 버튼 직후 폴링, 실패 줄마다 재시도, **안 붙은 수집분을 전화·수령인명으로 짚는다**. **잔여=운영 자산 핀 범프·실브라우저 확인·미연결 21묶음 붙이기**. 원장 `2026-08-31-naver-bulk-dispatch-result-ui-ledger.md`
 - [2026-09-01] **계약서 열람 이력 원장 운영 반영(PR #237 · production `b1ed7bff`)** — 라이브 반영으로 사라졌던 "고객이 그날 본 금액"을 열람 시점에 남긴다. `order_share_snapshots`(`sharehist_00`, 운영 DB 확인). 내용이 바뀐 순간에만 1행, 적재 실패는 로그만 남기고 고객 화면은 산다. 설계 `docs/specs/2026-09-01-share-contract-view-history-design.md`
 - ⚠️ [2026-08-23] **로컬 dev DB 행 소실(로컬 한정)** — pytest 파일이 conftest 보다 먼저 `db` import → 로컬 PG 에 `drop_all`. 스테이징·운영 무관. 근본 수정: `assert_engine_not_postgresql`(env 문자열 아닌 엔진 판정)
@@ -49,6 +48,8 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 
 
 ## 최근 완료 (최대 5개)
+- [2026-09-02] **둘째 전화번호 검색 복구 운영 반영**(PR #258) — 폭 64·`phonewide_01`, 절단 83건 복구. `erp-phone-digits-widen-ledger`
+- [2026-09-01] **엑셀 내보내기·동선 전면 삭제 deploy(`8f0f2a1d`, 커밋 2개)** — 상단 예산 확보로 상세는 "기록 보관 — 2026-08-31 정리"로 이관.
 - [2026-09-01] **네이버 반품 거부(T8-S3) 운영 ON**(PR #229 · `7976fb2c` · web 재배포 `09aeca29`) — 규격은 공개 문서 `apicenter.commerce.naver.com/llms/`(**네이버 규격은 여기부터**): body 는 `rejectReturnReason` 하나. **게이트는 web 전용**(WORKER 재배포 금지 — 큐 정지). **잔여=상용구 문장 확정**(편집 UI 가 거부 모달 안이라 운영 반품 0건이면 화면에서 못 고친다 → 코드 기본값 교체로 반영). 원장 T4·`2026-09-02-naver-workbench-followup-ledger.md`
 - **네이버 수집 누락 창 폐쇄 + 취소 확정 집 오매칭 차단** — 변경 피드는 **마지막 변경 시각**으로 색인된다: 08-10 결제 건의 마지막 변경이 백필 종료(08-31) 하루 뒤라 백필 밖 + 스윕 PAYED 필터 탈락으로 영구 누락. 처음 보는 상품주문은 상태 무관 수집(큐 밖)·버린 이벤트 집계·확정 취소 집은 붙이기 후보 제외. 운영 `a0c10c173`(PR #268), 복구 8집 22행·잔여 0
 - [2026-09-02] **마법사 4단계 등록 전 발송 — 운영 반영 완료(PR #273·#276 · production `bf2f0b77a`)** — 마법사는 제출 전까지 `Order` 행이 없어 PC 의 "미저장이면 먼저 저장(승격) 후 발송" 패턴을 쓰지 않는다(버튼이 몰래 주문을 등록하면 '주문 등록' 버튼의 의미가 깨진다). `OrderDraft.send_history`(`wizsend_00`)에 이력을 굳히고 등록 시 새 주문 sd 로 승계, 중복 도달은 일정 서명(`draft_schedule`)으로 막는다(수동 발송 제외 — 사용자가 누른 발송이 무음 실패하면 안 된다). 초안 머리말은 사용자 결정으로 철회(본문이 ERP 와 동일). 승격 트리 본 스위트 8314 passed. 원장 `docs/plans/2026-09-02-wizard-step4-send-actions-ledger.md`

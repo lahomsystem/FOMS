@@ -46,6 +46,13 @@ from flask import Flask, g, jsonify, redirect, request, session
 #: capability 판정에서 SALES 로 정규화한다. team=MEASURE 를 무권한으로 방치하지 않는다.
 _TEAM_NORMALIZE = {"MEASURE": "SALES"}
 
+#: 회계팀(``ACCOUNTING``) capability 확장 (사용자 결정 2026-09-03): 회계팀은 **CS 팀과
+#: 같은 업무 권한**을 갖는다(주문 수정·생산/시공/출고 등 CS 가 하는 일 전부). 정규화
+#: (:func:`normalize_team`)로 CS 로 바꾸지 **않는** 이유는, team 값 자체가 ACCOUNTING 으로
+#: 남아야 정산 화면 게이트(:mod:`foms.services.settlement_channel_access`)가 회계팀을
+#: 구분할 수 있기 때문이다. 그래서 "값 치환"이 아니라 "capability 추가"로 표현한다.
+_TEAM_CAPABILITY_ALIASES: dict[str, tuple[str, ...]] = {"ACCOUNTING": ("CS",)}
+
 _WRITE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 
 #: §2.1 line 155: role hard deny 의 exact ancillary 예외 9종. VIEWER 도 자기
@@ -75,13 +82,19 @@ class Policy:
         policy_id: 정책 식별자(route manifest·UI 은닉이 공유).
         teams: STAFF 가 team capability 로 통과하는 팀 tuple. ``"*"`` 면 모든 STAFF 팀,
             빈 tuple 이면 **team 만으로는 STAFF 통과 불가**(master 등 role-only 정책).
-            비교 전 :data:`_TEAM_NORMALIZE` 로 MEASURE→SALES 정규화한다.
+            비교 전 :data:`_TEAM_NORMALIZE` 로 MEASURE→SALES 정규화하고,
+            :data:`_TEAM_CAPABILITY_ALIASES` 로 회계팀→CS capability 를 더한다.
         assignment: ``"DRAWING"|"CONSTRUCTION"|"SALES"`` 면 해당 domain 의 active
             assignment 를 요구한다(조건부: active row 가 있으면 assignee 만, 없으면
             team capability 로 폴백 — §2.1 line 249 backfill 미완 시 lock-out 방지).
         viewer: True 면 VIEWER 허용(ancillary/pure-calc/self). 기본 False = VIEWER hard deny.
         manager_ok: MANAGER 통과 여부. False 면 ADMIN 전용(account/ops 관리).
         anonymous: True 면 미인증도 통과(login/register — pre-auth).
+        gate: 엔진 순서로 표현할 수 없는 판정을 대신하는 함수 이름
+            (``"module:function"``). 지정하면 **인증 직후** 그 함수 하나가 허용 여부를
+            정한다 — role override(ADMIN/MANAGER 가 team 검사보다 먼저 통과)를 우회해야
+            하는 정산 화면류가 이 경로를 쓴다. 지정 시 ``teams``/``manager_ok`` 는
+            manifest·문서용 기술로만 남는다.
         description: 근거 메모.
     """
 
@@ -91,6 +104,7 @@ class Policy:
     viewer: bool = False
     manager_ok: bool = True
     anonymous: bool = False
+    gate: Optional[str] = None
     description: str = ""
 
 
@@ -113,24 +127,25 @@ POLICY_REGISTRY: dict[str, Policy] = {
     # --- 금융 (§2.1 line 153, P0-3) -----------------------------------------
     "FINANCE_MUTATION": _p("FINANCE_MUTATION", teams=("CS", "SALES", "ACCOUNTING"),
                            description="settlement/cash/payment-confirm — ADMIN/MANAGER 또는 STAFF+CS/SALES/ACCOUNTING. VIEWER deny(P0-3)."),
-    # read-only 지만 전사 매출·미수 총액을 노출하므로 금융 집합과 같은 게이트를 쓴다
-    # (SETTLE-DASH-01 §5). GET 은 before_request 가드를 안 타므로 집행은 핸들러 내부다.
-    # 2026-09-02(NAVER-SETTLE-01): 회계팀 STAFF 도 정산 대시보드 페이지·수금 확인을 써야
-    # 네이버 정산 탭에 닿는다 → 두 정책의 teams 를 함께 확장한다(집합 동일 계약 유지).
-    "SETTLEMENT_DASHBOARD_READ": _p("SETTLEMENT_DASHBOARD_READ", teams=("CS", "SALES", "ACCOUNTING"),
-                                    description="정산 대시보드 열람(read-only) — FINANCE_MUTATION 과 동일 집합. VIEWER deny."),
-    # 채널(네이버) 정산 탭은 위 집합보다 **더 좁다**. MANAGER 는 엔진에서 팀보다 먼저
-    # 통과하므로 "ADMIN + 회계팀"을 manager_ok 로는 표현할 수 없다 — 정본 판정은
-    # settlement_channel_access.can_view_channel_settlement 이고 여기 등재는
-    # manifest·가드 pre-filter 전용이다.
+    # read-only 지만 전사 매출·미수 총액을 노출한다. 2026-09-03 사용자 결정으로 열람
+    # 집합이 **회계팀 + ADMIN** 으로 좁혀졌다(FINANCE_MUTATION 과 더는 같은 집합이 아니다
+    # — 주문 상세의 입금확인·현금영수증 같은 일상 금융 command 는 CS/SALES 가 그대로 쓴다).
+    # MANAGER 는 엔진에서 team 검사보다 먼저 통과하므로 이 판정은 gate 함수가 한다.
+    "SETTLEMENT_DASHBOARD_READ": _p("SETTLEMENT_DASHBOARD_READ", teams=("ACCOUNTING",),
+                                    gate="foms.services.settlement_channel_access:is_accounting_or_admin",
+                                    description="정산 대시보드 열람(read-only) — ADMIN, 또는 team=ACCOUNTING 인 MANAGER/STAFF. CS/SALES·VIEWER deny(2026-09-03)."),
+    # 채널(네이버) 정산 탭도 같은 집합이다. 정본 판정 함수는 settlement_channel_access 이고
+    # 핸들러가 한 번 더 부른다(엔진 등재는 manifest·가드 pre-filter 겸용).
     "SETTLEMENT_CHANNEL_READ": _p("SETTLEMENT_CHANNEL_READ", teams=("ACCOUNTING",),
-                                  description="채널(네이버) 정산 탭·API 열람 — 정본 판정은 settlement_channel_access.can_view_channel_settlement (ADMIN, 또는 team=ACCOUNTING 인 MANAGER/STAFF). 엔진 등록은 manifest·가드 전용."),
+                                  gate="foms.services.settlement_channel_access:is_accounting_or_admin",
+                                  description="채널(네이버) 정산 탭·API 열람 — 정본 판정은 settlement_channel_access.can_view_channel_settlement (ADMIN, 또는 team=ACCOUNTING 인 MANAGER/STAFF)."),
     "SETTLEMENT_CHANNEL_SYNC": _p("SETTLEMENT_CHANNEL_SYNC", teams=("ACCOUNTING",),
-                                  description="채널 정산 '지금 동기화' enqueue — READ 와 같은 판정, 핸들러가 게이트 함수로 재검사."),
+                                  gate="foms.services.settlement_channel_access:is_accounting_or_admin",
+                                  description="채널 정산 '지금 동기화' enqueue — READ 와 같은 판정, 핸들러가 게이트로 재검사."),
 
     # --- 주문 form/estimate/일반 (CS/SALES team-wide) -----------------------
     "ERP_EDIT": _p("ERP_EDIT", teams=("CS", "SALES"),
-                   description="주문 form/finance-외 CS·SALES command(call-log/cs-complete/confirm/AS/estimate/measurement/address/gateway). MEASURE→SALES."),
+                   description="주문 form/finance-외 CS·SALES command(call-log/cs-complete/confirm/AS/estimate/measurement/address/gateway). MEASURE→SALES, ACCOUNTING→CS capability(2026-09-03)."),
 
     # --- 일반 STAFF 업무(전 팀 열람+쓰기, 현행 role_required STAFF) ----------
     "STAFF_MUTATION": _p("STAFF_MUTATION", teams="*",
@@ -227,6 +242,71 @@ def normalize_team(team: Optional[str]) -> str:
     return _TEAM_NORMALIZE.get(t, t)
 
 
+def team_capabilities(team: Optional[str]) -> tuple[str, ...]:
+    """team 이 갖는 capability 팀 코드 전부(자기 자신 + alias).
+
+    회계팀(``ACCOUNTING``)은 CS 업무 권한을 함께 갖는다 —
+    :data:`_TEAM_CAPABILITY_ALIASES` 참고. 팀 값 자체는 바뀌지 않으므로 정산 화면처럼
+    "회계팀만" 이어야 하는 게이트는 여전히 ACCOUNTING 을 구분할 수 있다.
+
+    Args:
+        team: 원본 team 문자열(``None`` 허용).
+
+    Returns:
+        정규화된 team 코드로 시작하는 capability tuple.
+    """
+    t = normalize_team(team)
+    return (t,) + _TEAM_CAPABILITY_ALIASES.get(t, ())
+
+
+def team_has_capability(team: Optional[str], allowed: Any) -> bool:
+    """team 이 ``allowed`` 팀 집합 중 하나의 권한을 갖는지(alias 포함) 판정한다.
+
+    팀 기반 권한 검사는 **전부 이 함수 하나**를 거쳐야 한다. 각 모듈이
+    ``team in ("CS", ...)`` 를 직접 쓰면 회계팀 같은 alias 팀이 그 표면에서만 조용히
+    403 을 맞는다(2026-09-03 회계팀 신설 때 실제로 ERP 수정이 그렇게 막혔다).
+
+    Args:
+        team: 사용자 team 문자열.
+        allowed: 허용 팀 코드 collection. ``"*"`` 면 팀 무관 통과.
+
+    Returns:
+        권한이 있으면 True.
+    """
+    if allowed == "*":
+        return True
+    if not allowed:
+        return False
+    allowed_set = {str(x).strip().upper() for x in allowed}
+    return any(cap in allowed_set for cap in team_capabilities(team))
+
+
+def _resolve_gate(spec: str) -> Any:
+    """``"module:function"`` gate 명세를 함수로 해석한다(지연 import, 캐시).
+
+    정책 SSOT 가 게이트 모듈을 최상단에서 import 하면 순환이 된다
+    (게이트 모듈이 :func:`normalize_team` 을 쓴다) — 그래서 문자열로 선언하고 첫 호출에
+    해석한다.
+
+    Args:
+        spec: ``"패키지.모듈:함수"`` 형식 문자열.
+
+    Returns:
+        판정 함수(``callable(user) -> bool``).
+    """
+    fn = _GATE_CACHE.get(spec)
+    if fn is None:
+        from importlib import import_module
+
+        module_name, _, attr = spec.partition(":")
+        fn = getattr(import_module(module_name), attr)
+        _GATE_CACHE[spec] = fn
+    return fn
+
+
+_GATE_CACHE: dict[str, Any] = {}
+
+
 def evaluate_policy(
     policy: Policy,
     user: Any,
@@ -253,6 +333,12 @@ def evaluate_policy(
 
     role = (getattr(user, "role", None) or "").strip().upper()
 
+    # 1-b. gate 함수(엔진 순서로 표현 불가한 판정) — 지정 정책은 이 함수가 단독 판정한다.
+    if policy.gate is not None:
+        if _resolve_gate(policy.gate)(user):
+            return _ALLOW
+        return Decision(False, 403, "FORBIDDEN", "이 화면/작업 권한이 없습니다.")
+
     # 2. role hard deny (VIEWER)
     if role == "VIEWER":
         if policy.viewer:
@@ -275,11 +361,7 @@ def evaluate_policy(
     if role != "STAFF":
         return Decision(False, 403, "FORBIDDEN", "권한이 없습니다.")
     team = normalize_team(getattr(user, "team", None))
-    if policy.teams == "*":
-        pass  # 모든 STAFF 팀 허용
-    elif not policy.teams:
-        return Decision(False, 403, "FORBIDDEN", "이 작업 권한이 없는 팀입니다.")
-    elif team not in policy.teams:
+    if not team_has_capability(team, policy.teams):
         return Decision(False, 403, "FORBIDDEN", "이 작업 권한이 없는 팀입니다.")
 
     # 5. order assignment/participation (ID-row 기반, JSONB 이름 미사용)
@@ -556,7 +638,8 @@ def _template_policy_can(policy_id: str) -> bool:
 
 __all__ = [
     "Policy", "Decision", "POLICY_REGISTRY", "ANCILLARY_ALLOWLIST",
-    "evaluate_policy", "normalize_team", "user_can", "user_can_read_order",
+    "evaluate_policy", "normalize_team", "team_capabilities", "team_has_capability",
+    "user_can", "user_can_read_order",
     "load_policy_manifest", "policy_id_for_endpoint",
     "enforce_order_mutation_policy", "register_order_mutation_policy",
 ]
