@@ -11,7 +11,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 
 ## 진행 중
 - [2026-09-03] **회계팀 권한 정리(deploy 대기)** — ACCOUNTING 을 CS 동등 권한으로(alias `team_has_capability`, 팀 게이트 8곳), 정산 화면·행 API·채널 탭은 **ADMIN+회계팀** 전용(SSOT `is_accounting_or_admin`, 정책 `gate=`). 입금확인은 CS/영업 유지
-- [2026-09-03] **네이버 정산 v1.2 deploy(미연결 2갈래·지급 보류 일자별 상세·정산 화면 글자 크기 조절)** — v1+v1.1 은 운영 반영 완료(PR #278·#279). v1.2: 예외 큐 UNMATCHED(워크벤치 대기→그 집)/UNLINKED(수집 전→수집 화면), KPI 보류·한도 타일 펼침 표, 탭줄 글자 크기 −/+(--s-fs, 워크벤치 패턴). 운영 실측: case 1,353행 전부 미연결(링크 없음 32·워크벤치 대기 1,321), 보류는 payHoldback 24행. F6 는 CEO 워크플로(8 에이전트) 수행. 스테이징 QA 14/15·CI 4/4 green. **운영 승격 PR #280 진행 중**(perf-gate 환경성 red 재실행 대기). 원장 `docs/plans/2026-09-02-naver-settlement-ledger.md` Phase F
+- [2026-09-03] **네이버 정산 v1.2 운영 반영 완료(PR #280 · production `f0f52d2a2`)** — 미연결 2갈래·지급 보류 일자별 상세·정산 화면 글자 크기 조절. v1.2: 예외 큐 UNMATCHED(워크벤치 대기→그 집)/UNLINKED(수집 전→수집 화면), KPI 보류·한도 타일 펼침 표, 탭줄 글자 크기 −/+(--s-fs, 워크벤치 패턴). 운영 실측: case 1,353행 전부 미연결(링크 없음 32·워크벤치 대기 1,321), 보류는 payHoldback 24행. F6 는 CEO 워크플로(8 에이전트) 수행. 스테이징 QA 14/15·CI 4/4·승격 PR 검사 4/4(perf-gate 는 재배포 연타 뒤 환경성 red → rerun PASS). 잔여 없음. 원장 `docs/plans/2026-09-02-naver-settlement-ledger.md` Phase F
 - [2026-09-02] **네이버 발송처리 평일 16:50 자동 실행 ON**(PR #270 · `51c366e9`) — 대상은 수동과 같은 함수·주말/공휴일 제외·하루 1회. 끄기=`FOMS_NAVER_AUTO_DISPATCH_ENABLED=0`+워커 재배포. 원장 `docs/plans/2026-09-02-naver-auto-dispatch-ledger.md`
 - [2026-09-02] **하트비트 S1+S2a 운영 반영(PR #233) · 관측 중** — 쓰기 카운터 + 렌더 전 304 키의 그림자 관측. **화면 동작 무변경**. 운영 mismatch 0. **미해결**: 스테이징 mismatch 13 · 적중률 미측정 → S2b 는 그 뒤. 원장 §P8~§P11
 - [2026-09-02] **트리아지 자동매칭 사고 반영 완료** — 잔여: 전화 어긋남 36건 재판정. `docs/incidents/2026-09-01-naver-triage-auto-match-miss.md`
