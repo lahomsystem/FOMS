@@ -26,7 +26,7 @@
         <div class="wb-detail__badges">
             <span class="badge bg-secondary">수집 {{ detail.created_at }}</span>
             {% if detail.claim.label %}
-            <span class="badge bg-{{ 'danger' if detail.claim.blocking else 'secondary' }}">{{ detail.claim.label }}</span>
+            <span class="badge bg-{{ 'danger' if detail.claim.money_back else 'secondary' }}">{{ detail.claim.label }}</span>
             {% endif %}
             {% if detail.place.confirmed %}
             <span class="badge bg-success">발주확인 완료</span>

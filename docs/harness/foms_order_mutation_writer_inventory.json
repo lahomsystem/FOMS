@@ -103,19 +103,19 @@
     },
     {
       "path": "foms/services/integrations/naver_commerce/promotion.py",
-      "lineno": 343,
+      "lineno": 344,
       "kind": "flag_modified_structured_data",
       "owner": "UNASSIGNED"
     },
     {
       "path": "foms/services/integrations/naver_commerce/promotion.py",
-      "lineno": 401,
+      "lineno": 402,
       "kind": "flag_modified_structured_data",
       "owner": "UNASSIGNED"
     },
     {
       "path": "foms/services/integrations/naver_commerce/promotion.py",
-      "lineno": 440,
+      "lineno": 441,
       "kind": "flag_modified_structured_data",
       "owner": "UNASSIGNED"
     },
@@ -403,56 +403,56 @@
     },
     {
       "path": "foms/api/production/orders.py",
-      "lineno": 511,
+      "lineno": 515,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "STATE-PROD-01"
     },
     {
       "path": "foms/api/production/orders.py",
-      "lineno": 536,
+      "lineno": 540,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "STATE-PROD-01"
     },
     {
       "path": "foms/api/production/orders.py",
-      "lineno": 573,
+      "lineno": 577,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "STATE-PROD-01"
     },
     {
       "path": "foms/api/production/orders.py",
-      "lineno": 607,
+      "lineno": 611,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "STATE-PROD-01"
     },
     {
       "path": "foms/api/production/orders.py",
-      "lineno": 863,
+      "lineno": 867,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "STATE-PROD-01"
     },
     {
       "path": "foms/api/production/orders.py",
-      "lineno": 1163,
+      "lineno": 1167,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "STATE-PROD-01"
     },
     {
       "path": "foms/api/production/orders.py",
-      "lineno": 1257,
+      "lineno": 1261,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "STATE-PROD-01"
     },
     {
       "path": "foms/api/production/orders.py",
-      "lineno": 1338,
+      "lineno": 1342,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "STATE-PROD-01"
@@ -466,7 +466,7 @@
     },
     {
       "path": "foms/api/shipment/packing.py",
-      "lineno": 349,
+      "lineno": 353,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "PACK-01"
@@ -487,21 +487,21 @@
     },
     {
       "path": "foms/services/integrations/naver_commerce/promotion.py",
-      "lineno": 343,
+      "lineno": 344,
       "kind": "flag_modified_structured_data",
       "classification": "EXTERNAL",
       "owner": "UNASSIGNED"
     },
     {
       "path": "foms/services/integrations/naver_commerce/promotion.py",
-      "lineno": 401,
+      "lineno": 402,
       "kind": "flag_modified_structured_data",
       "classification": "EXTERNAL",
       "owner": "UNASSIGNED"
     },
     {
       "path": "foms/services/integrations/naver_commerce/promotion.py",
-      "lineno": 440,
+      "lineno": 441,
       "kind": "flag_modified_structured_data",
       "classification": "EXTERNAL",
       "owner": "UNASSIGNED"

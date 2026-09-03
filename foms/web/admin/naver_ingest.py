@@ -34,6 +34,7 @@ from foms.services.integrations.naver_commerce.fulfillment import CLOSE_NOW_RELA
 from foms.services.integrations.naver_commerce.mapping import (
     CLAIM_BLOCK_KEYS,
     RETURN_BLOCK_KEYS,
+    is_money_back_claim,
 )
 from foms.services.integrations.naver_commerce.order_candidates import find_order_candidates
 from foms.services.integrations.naver_commerce.promotion import (
@@ -710,6 +711,7 @@ def _history_claim(members: list[dict[str, Any]]) -> dict[str, Any]:
     row = next((row for row in members if row["claim_label"]), None)
     if row is None:
         return {"label": "", "code": "alive", "phase": "", "kind": "", "reason": "",
+                "money_back": False,
                 "done_text": "", "refund_expected_text": "", "collect_done_text": "",
                 "refund_done": False}
     # 배지 낱말만 집계로 바꾼다(T5) — 단계·사유·날짜는 **그 멤버의 사실**이라 그대로 둔다.
@@ -724,6 +726,11 @@ def _history_claim(members: list[dict[str, Any]]) -> dict[str, Any]:
         "code": aggregate["claim_code"],
         "phase": row["claim_phase"],
         "kind": row["claim_kind"],
+        # 배지 색 축(2026-09-03) — 요청·처리중·완료는 빨강, 거부는 아니다(R-8).
+        # ``is_money_back_claim`` 은 ``type`` 자리에서 종류를 읽으므로 그 이름으로 넘긴다
+        # (:func:`_household_claim` 호출과 같은 규약).
+        "money_back": is_money_back_claim({"phase": row["claim_phase"],
+                                           "type": row["claim_kind"]}),
         "reason": row["claim_reason"],
         # `YYYY-MM-DD HH:MM` → `MM-DD`. 날짜로 못 읽으면 빈 문자열이라 화면이 줄을 안 낸다
         # (슬라이스로 자르면 원문 그대로 온 값이 잘려 거짓 날짜가 된다 — CEO 지적 7).
@@ -1050,6 +1057,8 @@ def _history_group_axes(group: list[dict[str, Any]], *, lead: dict[str, Any],
         # 부분/전부 집계 코드(T5). 라벨은 표시 축이라 낱말이 바뀌고, 분기는 이쪽에 건다.
         "claim_code": claim["code"],
         "claim_phase": claim["phase"],
+        # 상태 칸 배지 색(2026-09-03). 단계가 아니라 **돈의 축**으로 칠한다.
+        "claim_money_back": claim["money_back"],
         "claim_badge_text": claim_badge_text,
         "claim_tail_text": claim_tail_text,
         # 발송기한은 부속 문구(`pipe_note_*`)가 이미 담는다 — 행에 따로 싣지 않는다.
@@ -1090,6 +1099,8 @@ def _history_group_row(group: list[dict[str, Any]]) -> dict[str, Any]:
         # 승격은 집 단위다 — 한 건이라도 취소·반품이면 promote_link_to_order 가 막는다
         # (promotion.py). 화면도 같은 판정으로 버튼을 잠가야 헛클릭이 안 난다.
         "claim_blocking": any(row["claim_blocking"] for row in group),
+        # 배지 색 축(2026-09-03) — 돈이 되돌아가는 건이 하나라도 있으면 집도 빨강이다.
+        "claim_money_back": any(row["claim_money_back"] for row in group),
         # 발주확인은 상품주문 단위라 한 건만 남아도 그 집은 아직 끝난 게 아니다(T16-A).
         "place_pending": any(not row["place_confirmed"] for row in group),
         "failure_reason": next((row["failure_reason"] for row in group
@@ -1290,6 +1301,7 @@ def _link_rows(db, *, status: Optional[str], page: int,
             "payment": _payment_summary(link.raw_snapshot),
             "claim_label": summary["claim_label"],
             "claim_blocking": summary["claim_blocking"],
+            "claim_money_back": summary["claim_money_back"],
             "place_confirmed": _place_view(link)["confirmed"],
             "place_label": _place_view(link)["label"],
             # 상태 칸이 쓰는 축 원재료(관계·클레임 단계·발송·실패·발송기한).
@@ -1543,7 +1555,9 @@ def _triage_pane(db, link: ExternalOrderLink, *,
         "edit_url": (url_for("order_edit.edit_order", order_id=int(link.order_id),
                              open="erp-order") if link.order_id else ""),
         # 취소·반품은 productOrderStatus 로는 안 보인다 — 별도 축으로 싣는다.
-        "claim": extract_claim(link.raw_snapshot or {}),
+        # ``money_back`` 은 배지 색 축이다(2026-09-03): 끝난 취소도 빨강, 거부는 아니다(R-8).
+        "claim": {**extract_claim(link.raw_snapshot or {}),
+                  "money_back": is_money_back_claim(extract_claim(link.raw_snapshot or {}))},
         # 발송 결과(F-2) — 우리 기록과 네이버가 말하는 것을 나란히. 어긋나면 화면이 말한다.
         "dispatch": _dispatch_view(link),
         # 반품 진행(T8-S0) — 수거·환불·회수지. 배지가 말하지 않는 "그 다음"이 여기 있다.
@@ -3588,6 +3602,8 @@ def _member_claim_view(link: ExternalOrderLink) -> dict[str, Any]:
         "claim_code": str(claim["status"] or "").upper(),
         "claim_label": claim["label"],
         "claim_blocking": bool(claim["blocking"]),
+        # 배지 색 축 — 끝난 취소도 빨강, 거부는 빨강이 아니다(R-8).
+        "claim_money_back": is_money_back_claim(claim),
         # 요청·처리중 = 네이버가 아직 확정하지 않았다. `반품 요청` 과 `반품 완료` 를
         # 같은 색으로 칠하면 환불 전 건이 끝난 것으로 읽힌다(2026-08-28 유령 사고).
         "claim_pending": claim["phase"] in (CLAIM_PHASE_REQUESTED, CLAIM_PHASE_PROGRESS),
@@ -3878,6 +3894,7 @@ def _group_queue(links: list[ExternalOrderLink], orders: dict,
             "claim_code": household_claim["claim_code"],
             "claim_kind": household_claim["claim_kind"],
             "claim_blocking": any(s["claim_blocking"] for s in member_summaries),
+            "claim_money_back": any(s["claim_money_back"] for s in member_summaries),
             # 발주확인은 상품주문 단위다 — 하나라도 남아 있으면 그 집은 "발주확인 전"이다(T16-A).
             "place_pending": any(not _place_view(row)["confirmed"] for row in members),
             # 관계 축(추가결제·재결제) — 이 값은 **배지 라벨**이다. 붙이기는 집 전체를 함께
