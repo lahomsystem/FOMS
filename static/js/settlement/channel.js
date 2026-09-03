@@ -148,6 +148,15 @@
     basis: 'settle_basis_date',
     pay: 'pay_date',
   };
+  /** 원장마다 실제로 있는 축(서버 `_LEDGER_BASES` 와 같은 표). 없는 축은 셀렉트에서 잠근다 —
+      수수료 표엔 결제일이, 부가세 표엔 정산 기준일밖에 없다(2026-09-03 실측: 라벨만 바뀌던 결함). */
+  var LEDGER_BASES = {
+    case: ['expect', 'complete', 'basis', 'pay'],
+    commission: ['expect', 'complete', 'basis'],
+    vat_case: ['basis'],
+  };
+  /** 축이 비어 표에서 빠진 행을 말할 때 쓰는 낱말. */
+  var BASIS_NOUN = { complete: '완료일', basis: '정산 기준일', pay: '결제일' };
 
   /** VAT 기간표 8열. 키는 계약 §5 의 `vat.rows[]`·`vat.total` 과 정확히 같다. */
   var VAT_COLUMNS = [
@@ -1079,6 +1088,13 @@
   function syncControls(ctx) {
     var els = ctx.els;
     if (els.basis && els.basis.value !== ctx.state.basis) els.basis.value = ctx.state.basis;
+    if (els.basis) {
+      // 원장마다 있는 축이 다르다 — 없는 축은 잠근다. 이미 골라 둔 값이 잠기면 표 머리가 되돌림을 말한다.
+      var allowed = LEDGER_BASES[currentLedgerParam(ctx)] || LEDGER_BASES.case;
+      Array.prototype.forEach.call(els.basis.options, function (opt) {
+        opt.disabled = allowed.indexOf(opt.value) < 0;
+      });
+    }
     if (els.granularity && els.granularity.value !== ctx.state.granularity) {
       els.granularity.value = ctx.state.granularity;
     }
@@ -1086,13 +1102,13 @@
     if (els.to) els.to.value = ctx.state.to;
     var data = ctx.state.data;
     if (!data) return;
-    // 축 라벨은 파셜이 서버 렌더로 이미 갖고 있다(계약 테스트가 그 문구를 잠근다).
-    // 기준일을 바꾸면 그 문구도 **같이** 바뀌어야 한다 — 축이 바뀌었는데 라벨이 그대로면
-    // 화면이 자기 축을 잘못 말하게 된다. 조회 구간을 앞에 붙여 한 줄로 만든다.
+    // 축 라벨은 파셜이 서버 렌더로 이미 갖고 있다(계약 테스트가 그 문구를 잠근다). 여기에
+    // basis_label 을 찍지 않는다: 위쪽 KPI·차트·워터폴은 기준일 셀렉트와 무관하게 늘 정산 예정일이라,
+    // 찍으면 "완료일 기준 · 매출 인식(완료일)과 다릅니다" 같은 자기모순이 난다(2026-09-03 실측).
+    // 원장의 축은 원장 머리(renderLedgerAxisNote)가 따로 말한다. 조회 구간만 앞에 붙인다.
     var note = els.axisNote || ensureSlot(els.bar, 'basis-note', 'p', 's-ch-axisnote', true);
     if (note) {
-      note.textContent = ctx.state.from + ' ~ ' + ctx.state.to + ' · ' +
-        (data.basis_label || '정산 예정일 기준') + ' · 매출 인식(완료일)과 다릅니다';
+      note.textContent = ctx.state.from + ' ~ ' + ctx.state.to + ' · 정산 예정일 기준 · 매출 인식(완료일)과 다릅니다';
     }
   }
 
@@ -1283,8 +1299,8 @@
     var data = ctx.state.data;
     var daily = data.daily || [];
     var prevDaily = data.daily_prev || [];
-    host.appendChild(cardHead('일별 정산 흐름', (data.basis_label || '정산 예정일 기준') +
-      ' · 취소·환급은 0선 아래로 그립니다'));
+    // 일별 버킷은 늘 정산 예정일이다(서버 _build_daily) — 셀렉트 라벨을 여기 찍으면 차트가 거짓말을 한다.
+    host.appendChild(cardHead('일별 정산 흐름', '정산 예정일 기준 · 취소·환급은 0선 아래로 그립니다'));
     renderLegend(host, STACK_SERIES.map(function (series) {
       return { label: series.label, color: series.color };
     }).concat([{ label: '전기 비교(정산 금액)', color: COLOR_PREV, line: true }]));
@@ -1524,6 +1540,7 @@
     }
     renderTools(ctx, tools);
     clearNode(body);
+    if (ctx.state.view !== 'exceptions') renderLedgerAxisNote(ctx, body);
     if (ctx.state.view === 'exceptions') renderExceptions(ctx, body);
     else if (ctx.state.view === 'vat') renderVat(ctx, body);
     else if (ctx.state.view === 'commission') renderCommission(ctx, body);
@@ -1686,8 +1703,31 @@
 
   function rowDateOf(row, kind, basis) {
     if (kind === 'vat_case') return row.settle_basis_date || '';
-    var field = BASIS_DATE_FIELD[basis] || BASIS_DATE_FIELD.expect;
-    return row[field] || row.settle_expect_date || row.search_date || '';
+    if (basis === 'expect' || !BASIS_DATE_FIELD[basis]) return row.settle_expect_date || row.search_date || '';
+    // 완료일·기준일·결제일 축은 되돌리지 않는다(서버 _ledger_axis 와 같은 규칙 — 빈 행은 서버가 이미 뺐다).
+    return row[BASIS_DATE_FIELD[basis]] || '';
+  }
+
+  /** 표에 실제로 적용된 축(서버가 확정). 없는 축을 골랐으면 서버가 되돌린 축이 온다. */
+  function ledgerAxisBasis(ledger, ctx) {
+    return (ledger && ledger.axis && ledger.axis.basis) || ctx.state.basis;
+  }
+
+  /** 표 머리 한 줄: 이 표의 날짜 축·되돌림·빠진 행 수. 위쪽 집계는 늘 정산 예정일이라 따로 말한다. */
+  function renderLedgerAxisNote(ctx, host) {
+    var ledger = ctx.state.data.ledger || {};
+    var axis = ledger.axis || {};
+    var label = axis.label || '정산 예정일 기준';
+    var picked = ctx.els.basis && ctx.els.basis.selectedOptions && ctx.els.basis.selectedOptions[0]
+      ? ctx.els.basis.selectedOptions[0].textContent.trim() : String(ctx.state.basis || '');
+    var parts = ['표 날짜 축: ' + label];
+    if (axis.supported === false) parts.push('이 표에는 「' + picked + '」 축이 없어 ' + label + '으로 보여 줍니다');
+    if (axis.excluded) {
+      parts.push((BASIS_NOUN[axis.basis] || '축 날짜') + '이 없는 ' + fmtCount(axis.excluded) +
+        '건은 이 표에서 뺐습니다(정산 예정일 축에서 보세요)');
+    }
+    parts.push('위 KPI·차트는 늘 정산 예정일 기준');
+    host.appendChild(el('div', 's-ch-note s-ch-ledger-axis', parts.join(' · ')));
   }
 
   /**
@@ -1706,7 +1746,7 @@
     }
     var byDate = {};
     rows.forEach(function (row) {
-      var key = rowDateOf(row, kind, ctx.state.basis) || '날짜 미상';
+      var key = rowDateOf(row, kind, ledgerAxisBasis(ledger, ctx)) || '날짜 미상';
       (byDate[key] = byDate[key] || []).push(row);
     });
     var order = groups.length

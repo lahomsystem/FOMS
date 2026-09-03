@@ -64,7 +64,7 @@ _STATIC_ASSETS = (CSS_ASSET, JS_ASSET)
 #: 이 화면 자산의 캐시 핀. **저장소 전역에서 이 값 하나**여야 한다. CSS/JS 를 고치면
 #: 셸 템플릿의 두 링크와 이 상수를 **함께** 옮긴다 — 값이 조용히 갈리면 실기기가 옛 자산을
 #: 계속 실행한다(서비스워커 staticCacheFirst).
-_CHANNEL_PIN = "20260903c"
+_CHANNEL_PIN = "20260903e"
 
 _CHANNEL_TAB_ID = "foms-settle-tab-channel"
 _CHANNEL_PANE_ID = "foms-settle-pane-channel"
@@ -789,3 +789,38 @@ def test_holdback_detail_table_shows_both_naver_columns_and_a_total_row():
     assert "'pay_holdback'" in body and "'settlement_limit'" in body
     assert "el('tfoot')" in body and "block.total" in body
     assert "'정산 예정일'" in body
+
+
+# ==========================================================================
+# 계약 — 기준일 셀렉트(2026-09-03): 위쪽 축 라벨은 예정일 고정, 원장 축은 원장 머리가 말한다
+# ==========================================================================
+def test_axis_note_and_daily_head_never_follow_the_basis_select():
+    """축 안내문·일별 차트 제목에 `basis_label` 을 찍지 않는다.
+
+    KPI·일별 차트·워터폴은 셀렉트와 무관하게 늘 정산 예정일이다. 거기에 선택 라벨을 찍으면
+    "완료일 기준 · 매출 인식(완료일)과 다릅니다" 같은 자기모순이 난다(스테이징 실측).
+    """
+    source = _read_code(f"static/{JS_ASSET}")
+    at = source.find("function syncControls(")
+    body = source[at:source.find("\n  }", at)]
+    assert "basis_label" not in body, "축 안내문이 셀렉트 라벨을 따라간다"
+    assert "정산 예정일 기준 · 매출 인식(완료일)과 다릅니다" in body
+
+    at = source.find("function renderDaily(")
+    body = source[at:source.find("\n  }", at)]
+    assert "basis_label" not in body, "일별 차트 제목이 셀렉트 라벨을 따라간다"
+    assert "'정산 예정일 기준 · 취소·환급은 0선 아래로 그립니다'" in body
+
+
+def test_ledger_axis_is_locked_per_ledger_kind_and_announced():
+    """원장마다 있는 축만 고를 수 있고(옵션 disabled), 표 머리가 실제 적용 축·되돌림·제외 건수를 말한다."""
+    source = _read_code(f"static/{JS_ASSET}")
+
+    assert "var LEDGER_BASES" in source
+    for kind in ("case:", "commission:", "vat_case:"):
+        assert kind in source[source.find("var LEDGER_BASES"):source.find("var LEDGER_BASES") + 400]
+    assert "opt.disabled = allowed.indexOf(opt.value) < 0" in source
+    assert "function renderLedgerAxisNote(" in source
+    assert "axis.supported === false" in source and "axis.excluded" in source
+    # 행 그룹 축은 서버가 확정한 축(ledger.axis.basis)을 쓴다 — 선택값과 어긋나면 그룹이 빈다.
+    assert "rowDateOf(row, kind, ledgerAxisBasis(ledger, ctx))" in source
