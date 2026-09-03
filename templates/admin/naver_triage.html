@@ -64,7 +64,7 @@
                                     <span class="badge bg-warning text-dark" title="네이버 발주확인이 아직입니다">발주확인 전</span>
                                     {% endif %}
                                     {% if row.claim_label %}
-                                    <span class="badge bg-{{ 'danger' if row.claim_blocking else 'secondary' }}">{{ row.claim_label }}</span>
+                                    <span class="badge bg-{{ 'danger' if row.claim_money_back else 'secondary' }}">{{ row.claim_label }}</span>
                                     {% elif row.next_step %}
                                     <span class="badge bg-primary">{{ row.next_step }}</span>
                                     {% endif %}

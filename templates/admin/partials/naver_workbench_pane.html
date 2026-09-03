@@ -698,7 +698,8 @@
                        위 `.table-responsive` 가 가로 스크롤을 받는다(이력 표와 같은 규칙). #}
                     <td class="text-nowrap">
                         {% if row.claim_label %}
-                        <span class="badge bg-{{ 'danger' if row.claim_blocking else 'secondary' }}">{{ row.claim_label }}</span>
+                        {# 끝난 클레임도 빨강 — 회색은 "클레임 없음" 과 한 눈에 안 갈린다. #}
+                        <span class="badge bg-{{ 'danger' if row.claim_money_back else 'secondary' }}">{{ row.claim_label }}</span>
                         {% if row.claim_pending %}
                         <div class="small text-muted">네이버 확정 전</div>
                         {% endif %}
