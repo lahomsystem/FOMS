@@ -5,6 +5,11 @@
 재사용하지 않는 것은 게으름이 아니라 **의도적으로 다른 집합**이기 때문이다 — 두 표가 같은
 모델 컬럼 이름을 쓰는지는 계약 테스트가 대조한다.
 
+그 5종과 **별개로** 회계 제출용 큐레이션 표 :data:`SHEET_KINDS` 가 있다(2026-09-03). 원본
+소진이 목적이 아니라 회계팀이 손으로 만들던 7열 표를 그대로 내는 것이 목적이라 레지스트리를
+따로 둔다 — :data:`EXPORT_KINDS`/:data:`CSV_COLUMNS` 의 "적재 100% · CSV 100%" 소진 계약에
+발췌를 끼우면 그 계약을 약화시켜야 하기 때문이다.
+
 설계 제약(계약 §1.3, 전부 강제):
 
 * **새 의존성 0.** 표준 라이브러리 :mod:`csv`·:mod:`io` 만 쓴다. 2026-09-01 에 떼어낸
@@ -61,12 +66,16 @@ from models import (
 )
 
 __all__ = [
+    "ALL_EXPORT_KINDS",
     "CSV_COLUMNS",
     "CSV_KINDS",
     "EXPORT_KINDS",
     "FILTER_FIELDS",
+    "SHEET_COLUMNS",
+    "SHEET_KINDS",
     "build_export_rows",
     "csv_filename",
+    "effective_basis",
     "export_filename",
     "iter_csv_lines",
     "iter_settlement_csv",
@@ -80,19 +89,31 @@ EXPORT_KINDS: tuple[str, ...] = (
     "settle_daily", "settle_case", "commission", "vat_daily", "vat_case",
 )
 
+#: 회계팀 제출용 **큐레이션 표** 종류(2026-09-03). 5종과 **다른 성격**이라 :data:`EXPORT_KINDS`
+#: 에 넣지 않는다 — 그 튜플은 "적재 100% · CSV 100%" 소진 계약이고, 계약 테스트가 kind 마다
+#: 모델 컬럼 **정확 일치**를 요구한다. 7열짜리 발췌를 거기 끼우면 소진 계약을 약화시켜야 한다.
+SHEET_KINDS: tuple[str, ...] = ("settle_case_sheet",)
+
+#: 라우트·화면이 고를 수 있는 종류 전량(원본 5종 + 큐레이션 표).
+ALL_EXPORT_KINDS: tuple[str, ...] = EXPORT_KINDS + SHEET_KINDS
+
 #: 계약서 초안이 쓰던 짧은 이름. 라우트가 어느 쪽을 넘겨도 같은 파일이 나오게 편다.
-_KIND_ALIASES: dict[str, str] = {"case": "settle_case", "daily": "settle_daily"}
+_KIND_ALIASES: dict[str, str] = {
+    "case": "settle_case", "daily": "settle_daily",
+    "case_sheet": "settle_case_sheet", "sheet": "settle_case_sheet",
+}
 
 #: 파일명 조각(ASCII). ``settle_case`` 가 ``naver_settle_settle_case`` 가 되지 않게 따로 둔다.
 _FILENAME_SLUG: dict[str, str] = {
     "settle_daily": "daily", "settle_case": "case", "commission": "commission",
     "vat_daily": "vat_daily", "vat_case": "vat_case",
+    "settle_case_sheet": "sheet",
 }
 
 _MODELS: dict[str, Any] = {
     "settle_daily": NaverSettleDaily, "settle_case": NaverSettleCase,
     "commission": NaverSettleCommission, "vat_daily": NaverVatDaily,
-    "vat_case": NaverVatCase,
+    "vat_case": NaverVatCase, "settle_case_sheet": NaverSettleCase,
 }
 
 #: ``basis`` -> 날짜 컬럼 이름. **조회 커널의 같은 이름 표와 한 글자도 달라선 안 된다**
@@ -113,10 +134,12 @@ _AXIS_FALLBACK: dict[str, tuple[str, ...]] = {
     "commission": ("settle_expect_date", "search_date"),
     "vat_daily": ("settle_basis_date",),
     "vat_case": ("settle_basis_date",),
+    "settle_case_sheet": ("settle_expect_date", "search_date"),
 }
 
 #: ``basis`` 셀렉터가 뜻을 갖는 kind. 일자 단위 표는 축이 하나뿐이라 셀렉터를 무시한다.
-_BASIS_AWARE: frozenset[str] = frozenset({"settle_case", "commission"})
+_BASIS_AWARE: frozenset[str] = frozenset(
+    {"settle_case", "commission", "settle_case_sheet"})
 
 #: kind -> (유형 필터 필드, 검색 필드). 원장 커널의 ``_LEDGER_SPEC`` 과 같은 필드다.
 #: 빈 튜플인 kind 에 조건을 주면 :func:`build_export_rows` 가 거절한다 — 조건을 조용히
@@ -124,12 +147,14 @@ _BASIS_AWARE: frozenset[str] = frozenset({"settle_case", "commission"})
 FILTER_FIELDS: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
     "settle_daily": ((), ()),
     "settle_case": (("product_order_type", "settle_type"),
-                    ("order_id", "product_order_id")),
+                    ("order_id", "product_order_id", "purchaser_name")),
     "commission": (("commission_type", "pay_means_type"),
                    ("order_no", "product_order_id")),
     "vat_daily": ((), ()),
     "vat_case": (("detail_type", "status"), ("order_id", "product_order_id")),
 }
+#: 큐레이션 표는 건별 정산과 **같은 모집단·같은 조건**이다(화면 표에서 좁힌 그대로 받는다).
+FILTER_FIELDS["settle_case_sheet"] = FILTER_FIELDS["settle_case"]
 
 #: 컬럼 타입 태그.
 _DATE, _MONEY, _TEXT, _INT, _BOOL = "date", "money", "text", "int", "bool"
@@ -286,6 +311,25 @@ CSV_COLUMNS: dict[str, tuple[tuple[str, str, str], ...]] = {
 #: 계약서 초안이 쓰던 이름(별칭). 라우트가 어느 쪽을 import 해도 같은 값이다.
 CSV_KINDS: tuple[str, ...] = EXPORT_KINDS
 
+#: 회계팀이 손으로 만들던 제출용 7열 표(2026-09-03 사용자 확정). 헤더는 **사용자 회계 시트의
+#: 이름**이지 네이버 필드명이 아니다(의도적) — 값은 네이버 원본 컬럼 그대로 옮기기만 하고
+#: 합·차·부호를 손대지 않는다. :data:`CSV_COLUMNS` 와 **따로 두는 이유**는 저쪽이 모델 컬럼
+#: 소진 계약이고 이쪽은 발췌이기 때문이다(섞으면 소진 계약을 약화시켜야 한다).
+_SETTLE_CASE_SHEET_COLUMNS: tuple[tuple[str, str, str], ...] = (
+    ("구매자명", "purchaser_name", _TEXT),
+    ("결제일", "pay_date", _DATE),
+    ("정산완료일", "settle_complete_date", _DATE),
+    ("정산기준금액", "pay_settle_amount", _MONEY),
+    ("Npay 수수료", "total_pay_commission_amount", _MONEY),
+    ("매출 연동 수수료 합계", "selling_interlock_commission_amount", _MONEY),
+    ("정산예정금액", "settle_expect_amount", _MONEY),
+)
+
+#: kind -> 큐레이션 표의 열. **열 순서가 계약**이다(회계 프로그램 매핑이 순서를 기억한다).
+SHEET_COLUMNS: dict[str, tuple[tuple[str, str, str], ...]] = {
+    "settle_case_sheet": _SETTLE_CASE_SHEET_COLUMNS,
+}
+
 #: UTF-8 BOM 1회. 없으면 표 계산 프로그램이 한글을 깨서 연다.
 _BOM = "\ufeff"
 _CRLF = "\r\n"
@@ -378,16 +422,66 @@ def normalize_kind(kind: Any) -> str:
         kind: 요청이 준 종류 이름.
 
     Returns:
-        :data:`EXPORT_KINDS` 안의 정본 이름.
+        :data:`ALL_EXPORT_KINDS` 안의 정본 이름.
 
     Raises:
         ValueError: 허용 집합 밖(사람이 읽는 한글 사유).
     """
     text = str(kind or "").strip()
     resolved = _KIND_ALIASES.get(text, text)
-    if resolved not in EXPORT_KINDS:
-        raise ValueError(f"kind 는 {'|'.join(EXPORT_KINDS)} 중 하나여야 합니다: {kind!r}")
+    if resolved not in ALL_EXPORT_KINDS:
+        raise ValueError(
+            f"kind 는 {'|'.join(ALL_EXPORT_KINDS)} 중 하나여야 합니다: {kind!r}")
     return resolved
+
+
+def _columns_for(kind: str) -> tuple[tuple[str, str, str], ...]:
+    """정본 kind 의 열 정의 — 원본 5종은 :data:`CSV_COLUMNS`, 큐레이션 표는 :data:`SHEET_COLUMNS`.
+
+    두 레지스트리를 따로 두는 대신 **읽는 자리를 한 곳으로** 모은다(직접 접근이 흩어지면
+    새 종류를 더할 때 한 군데를 빠뜨린다).
+
+    Args:
+        kind: :func:`normalize_kind` 가 편 정본 이름.
+
+    Returns:
+        ``(헤더, 모델 컬럼명, 타입태그)`` 튜플의 순서 있는 목록.
+
+    Raises:
+        ValueError: 두 레지스트리 어디에도 없는 종류(``KeyError`` 로 새면 라우트가 500 을
+            낸다 — 리뷰 MINOR-3, 2026-09-03).
+    """
+    columns = CSV_COLUMNS.get(kind) or SHEET_COLUMNS.get(kind)
+    if columns is None:
+        raise ValueError(f"열 정의가 없는 종류입니다: {kind!r}")
+    return columns
+
+
+def effective_basis(kind: str, basis: str) -> str:
+    """이 kind 에 **실제로 적용되는** 축 이름 — :func:`_axis_expr` 과 같은 규칙을 이름으로.
+
+    파일명·감사 기록이 "사용자가 고른 축"이 아니라 "파일에 실제로 걸린 축"을 말해야 한다.
+    되돌림(수수료 표의 결제일 등)이 일어난 뒤에도 요청값을 그대로 적으면, 나중에 그 파일을
+    다시 만들려는 사람이 다른 행 집합을 받는다.
+
+    Args:
+        kind: CSV 종류(:data:`ALL_EXPORT_KINDS` 또는 별칭).
+        basis: 사용자가 고른 축.
+
+    Returns:
+        ``expect``|``complete``|``basis``|``pay`` 중 하나.
+
+    Raises:
+        ValueError: 허용 밖 종류.
+    """
+    resolved = normalize_kind(kind)
+    if resolved not in _BASIS_AWARE:
+        first = _AXIS_FALLBACK[resolved][0]
+        return "basis" if first == "settle_basis_date" else "expect"
+    column = _BASIS_COLUMN.get(basis, "")
+    if basis != "expect" and getattr(_MODELS[resolved], column, None) is not None:
+        return basis
+    return "expect"
 
 
 def _validate_range(date_from: datetime.date, date_to: datetime.date) -> None:
@@ -406,32 +500,38 @@ def _validate_range(date_from: datetime.date, date_to: datetime.date) -> None:
         raise ValueError(f"내보내기 구간은 최대 {MAX_RANGE_DAYS}일입니다.")
 
 
-def _axis_expr(model: Any, kind: str, basis: str) -> Any:
-    """날짜 축 식 — 원장 커널 ``_ledger_axis`` 와 **같은 규칙**(화면 표와 같은 행 집합이 파일에 간다).
+def _axis_expr(kind: str, basis: str) -> Any:
+    """날짜 축 식 — 축 **이름** 결정은 :func:`effective_basis` 한 곳이 정본이다.
+
+    옛 서명은 호출자가 준 ``model`` 을 봐서 이름(파일명·감사)과 식(행 집합)이 갈릴 수 있었다
+    — 지금 둘이 맞는 것은 계약이 아니라 호출자가 마침 ``_MODELS[kind]`` 를 넘기는 우연이었다
+    (리뷰 MINOR-4, 2026-09-03). 인자를 없애 어긋날 자리를 지웠다.
 
     예정일 축만 조회일로 되돌린다. 완료일·기준일·결제일 축은 그 컬럼 하나라, 그 날짜가 빈 행은
     파일에서도 빠진다 — 되돌리면 "완료일 기준" 파일이 예정일 파일과 같아진다(2026-09-03 실측).
     표에 없는 축(수수료의 결제일)은 그 표의 기본 축(예정일 되돌림)으로 간다.
 
     Args:
-        model: 대상 모델.
-        kind: CSV 종류(정본 이름).
+        kind: CSV 종류(:data:`ALL_EXPORT_KINDS` 또는 별칭).
         basis: 기준일 축. 일자 단위 표에는 뜻이 없다.
 
     Returns:
         SQLAlchemy 컬럼 식(후보가 둘 이상이면 ``coalesce``).
+
+    Raises:
+        ValueError: 허용 밖 종류.
     """
-    if kind in _BASIS_AWARE and basis != "expect":
-        picked = getattr(model, _BASIS_COLUMN.get(basis, ""), None)
-        if picked is not None:
-            return picked
-    names: tuple[str, ...] = _AXIS_FALLBACK[kind]
+    resolved = normalize_kind(kind)
+    model = _MODELS[resolved]
+    name = effective_basis(resolved, basis)
+    if name != "expect":
+        return getattr(model, _BASIS_COLUMN[name])
     columns: list[Any] = []
     seen: set[str] = set()
-    for name in names:
-        column = getattr(model, name, None)
-        if column is not None and name not in seen:
-            seen.add(name)
+    for column_name in _AXIS_FALLBACK[resolved]:
+        column = getattr(model, column_name, None)
+        if column is not None and column_name not in seen:
+            seen.add(column_name)
             columns.append(column)
     return columns[0] if len(columns) == 1 else func.coalesce(*columns)
 
@@ -476,15 +576,15 @@ def build_export_rows(session: Any, *, kind: str, date_from: datetime.date,
 
     Args:
         session: SQLAlchemy Session.
-        kind: CSV 종류(:data:`EXPORT_KINDS` 또는 별칭).
+        kind: CSV 종류(:data:`ALL_EXPORT_KINDS` 또는 별칭).
         date_from: 시작일(포함).
         date_to: 종료일(포함).
         channel: 채널 코드(현재 ``NAVER`` 만 적재된다).
-        basis: 기준일 축 — 건별 정산·수수료에만 뜻이 있다.
+        basis: 기준일 축 — 건별 정산·수수료·큐레이션 표에만 뜻이 있다.
         filters: ``{'type': 유형코드, 'q': 부분일치}``.
 
     Returns:
-        행마다 :data:`CSV_COLUMNS` 순서의 셀 문자열 목록을 내는 이터레이터.
+        행마다 :func:`_columns_for` 순서의 셀 문자열 목록을 내는 이터레이터.
 
     Raises:
         ValueError: 종류·구간·조건이 허용 밖일 때(**호출 시점에** 즉시).
@@ -492,12 +592,12 @@ def build_export_rows(session: Any, *, kind: str, date_from: datetime.date,
     resolved = normalize_kind(kind)
     _validate_range(date_from, date_to)
     model = _MODELS[resolved]
-    axis = _axis_expr(model, resolved, basis)
+    axis = _axis_expr(resolved, basis)
     clauses = [model.channel == channel, axis >= date_from, axis <= date_to]
     clauses += _filter_clauses(model, resolved, dict(filters or {}))
     query = (session.query(model).filter(*clauses)
              .order_by(axis.asc(), model.id.asc()))
-    return _stream_rows(query, CSV_COLUMNS[resolved])
+    return _stream_rows(query, _columns_for(resolved))
 
 
 def _stream_rows(query: Any, columns: tuple[tuple[str, str, str], ...]
@@ -506,7 +606,7 @@ def _stream_rows(query: Any, columns: tuple[tuple[str, str, str], ...]
 
     Args:
         query: 완성된 조회.
-        columns: :data:`CSV_COLUMNS` 의 한 항목.
+        columns: :func:`_columns_for` 가 돌려준 열 정의.
 
     Yields:
         셀 문자열 목록.
@@ -552,7 +652,7 @@ def _emit(kind: str, rows: Iterator[list[str]]) -> Iterator[str]:
     """
     buffer = io.StringIO()
     writer = csv.writer(buffer, lineterminator=_CRLF)
-    headers = [header for header, _column, _tag in CSV_COLUMNS[kind]]
+    headers = [header for header, _column, _tag in _columns_for(kind)]
     yield _BOM + _write_line(writer, buffer, headers)
     for cells in rows:
         yield _write_line(writer, buffer, cells)
@@ -566,7 +666,7 @@ def iter_csv_lines(session: Any, *, kind: str, date_from: datetime.date,
 
     Args:
         session: SQLAlchemy Session.
-        kind: CSV 종류(:data:`EXPORT_KINDS` 또는 별칭).
+        kind: CSV 종류(:data:`ALL_EXPORT_KINDS` 또는 별칭).
         date_from: 시작일(포함).
         date_to: 종료일(포함).
         channel: 채널 코드.
@@ -587,23 +687,48 @@ def iter_csv_lines(session: Any, *, kind: str, date_from: datetime.date,
     return _emit(resolved, rows)
 
 
+def _filename_axis_slug(kind: str, basis: str) -> str:
+    """파일명에 끼울 축 조각 — 기본 축(예정일)이면 빈 문자열.
+
+    같은 기간을 축만 바꿔 두 번 받으면 지금까지 **같은 이름**이 나와 덮어써졌다. 되돌림이
+    일어난 요청(수수료 표의 결제일)은 파일에 축이 안 걸린 것이므로 조각도 붙이지 않는다 —
+    이름이 없는 축을 말하면 그게 곧 거짓말이다.
+
+    Args:
+        kind: 정본 kind.
+        basis: 사용자가 고른 축.
+
+    Returns:
+        ``"_complete"`` 같은 조각, 또는 빈 문자열.
+    """
+    if kind not in _BASIS_AWARE:
+        return ""
+    axis = effective_basis(kind, basis)
+    return "" if axis == "expect" else f"_{axis}"
+
+
 def export_filename(kind: str, date_from: datetime.date,
-                    date_to: datetime.date) -> str:
+                    date_to: datetime.date, basis: str = DEFAULT_BASIS) -> str:
     """다운로드 파일명 — **ASCII 만** 쓴다(한글 파일명은 RFC 5987 함정에 걸린다).
 
     Args:
-        kind: CSV 종류(:data:`EXPORT_KINDS` 또는 별칭).
+        kind: CSV 종류(:data:`ALL_EXPORT_KINDS` 또는 별칭).
         date_from: 시작일.
         date_to: 종료일.
+        basis: 기준일 축. **실효 축**이 예정일이 아닐 때만 이름에 실린다(기본값이라
+            3인자 기존 호출은 예전과 똑같은 이름을 낸다).
 
     Returns:
-        예: ``naver_settle_case_20260803_20260902.csv``.
+        예: ``naver_settle_case_20260803_20260902.csv`` ·
+        ``naver_settle_case_complete_20260101_20260917.csv``.
 
     Raises:
         ValueError: 허용 밖 종류.
     """
-    slug = _FILENAME_SLUG[normalize_kind(kind)]
-    return (f"naver_settle_{slug}_{date_from.strftime('%Y%m%d')}"
+    resolved = normalize_kind(kind)
+    slug = _FILENAME_SLUG[resolved]
+    return (f"naver_settle_{slug}{_filename_axis_slug(resolved, basis)}"
+            f"_{date_from.strftime('%Y%m%d')}"
             f"_{date_to.strftime('%Y%m%d')}.csv")
 
 

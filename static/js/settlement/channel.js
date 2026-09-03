@@ -53,14 +53,18 @@
   var STRIP_SELECTOR = '[data-settlement-ch-strip]';
   var EXPORT_API_FALLBACK = '/api/settlement/channel/export.csv';
 
-  /** CSV 5종. `filters` 가 false 인 표는 유형·검색 조건을 받지 않는다(서버가 400 으로 거절
-      하므로 화면이 애초에 안 싣는다 — 일자 단위 표라 그 조건에 걸 열이 없다). */
+  /** 내려받기 항목. 앞 5종은 적재 원본을 그대로 쏟는 표고, 마지막 하나는 회계 제출용으로
+      열을 골라 담은 표다(서버 정본 이름 `settle_case_sheet`). `filters` 가 false 인 표는
+      유형·검색 조건을 받지 않는다(서버가 400 으로 거절하므로 화면이 애초에 안 싣는다 —
+      일자 단위 표라 그 조건에 걸 열이 없다). `typeOf` 는 "유형 필터를 실을 수 있는 짝"이
+      자기 kind 와 다른 표만 적는다(골라 담은 표는 건별 정산과 같은 유형 코드를 쓴다). */
   var EXPORT_KINDS = [
     { kind: 'settle_case', label: '건별 정산', sub: '상품주문 단위 · 매칭 상태 포함', filters: true },
     { kind: 'commission', label: '수수료', sub: '결제·판매·채널 수수료 내역', filters: true },
     { kind: 'vat_daily', label: '부가세 일별', sub: '일자 단위 과세·면세 집계', filters: false },
     { kind: 'vat_case', label: '부가세 건별', sub: '상품주문 단위 과세 내역', filters: true },
     { kind: 'settle_daily', label: '일별 정산', sub: '통장 입금 대사용 · 계좌는 마스킹', filters: false },
+    { kind: 'settle_case_sheet', label: '정산내역 시트', sub: '구매자명·결제일·수수료 7열(회계 제출용)', filters: true, typeOf: 'settle_case' },
   ];
 
   var DEFAULT_BACK_DAYS = 30;      // 기본 조회 시작 = 오늘 − 30
@@ -109,6 +113,7 @@
       { key: 'product_order_id', label: '상품주문번호', type: 'id' },
       { key: 'product_order_type', label: '유형', type: 'enum' },
       { key: 'settle_type', label: '구분', type: 'enum' },
+      { key: 'purchaser_name', label: '구매자명', type: 'text' },
       { key: 'product_name', label: '상품명', type: 'text' },
       { key: 'pay_settle_amount', label: '결제 정산', type: 'money' },
       { key: 'total_pay_commission_amount', label: '수수료', type: 'money' },
@@ -906,7 +911,11 @@
   function adoptServerState(ctx, data) {
     var state = ctx.state;
     state.data = data;
-    if (data.basis) state.basis = data.basis;
+    // 셀렉트는 **표에 실제로 걸린 축**을 보여야 한다. 최상위 `basis` 는 요청 echo 라 없는 축을
+    // 골랐을 때 되돌림 전 값이 온다 — 그걸 채택하면 셀렉트가 표와 다른 말을 한다(C1).
+    var axisBasis = data.ledger && data.ledger.axis && data.ledger.axis.basis;
+    if (axisBasis) state.basis = axisBasis;
+    else if (data.basis) state.basis = data.basis;
     if (data.granularity) state.granularity = data.granularity;
     if (data.range && data.range.from) state.from = data.range.from;
     if (data.range && data.range.to) state.to = data.range.to;
@@ -1022,6 +1031,14 @@
     return kind === 'commission' ? 'commission' : (kind === 'vat_case' ? 'vat_case' : 'settle_case');
   }
 
+  /** 지금 화면에서 좁힌 조건(유형·검색)을 이 표에 실을 수 있는 짝인가.
+      `type` 과 `q` 는 **같은 원장에서 좁힌 한 쌍**이라 판정도 하나여야 한다. 원장이 바뀌면
+      `switchLedger` 가 둘 다 비우므로, 지금 실린 원장 하나만 보면 충분하다. */
+  function exportCarriesFilters(ctx, spec) {
+    return !!(spec.filters &&
+      exportKindOfLedger(currentLedgerParam(ctx)) === (spec.typeOf || spec.kind));
+  }
+
   /** 지금 화면 조건을 실은 내려받기 URL 하나. */
   function exportUrl(ctx, spec) {
     var host = ctx.els.exportHost;
@@ -1033,11 +1050,9 @@
       'to=' + encodeURIComponent(ctx.state.to),
       'basis=' + encodeURIComponent(ctx.state.basis),
     ];
-    if (spec.filters && ctx.state.q) params.push('q=' + encodeURIComponent(ctx.state.q));
-    if (spec.filters && ctx.state.type &&
-        exportKindOfLedger(ctx.state.typeKind) === spec.kind) {
-      params.push('type=' + encodeURIComponent(ctx.state.type));
-    }
+    var carries = exportCarriesFilters(ctx, spec);
+    if (carries && ctx.state.q) params.push('q=' + encodeURIComponent(ctx.state.q));
+    if (carries && ctx.state.type) params.push('type=' + encodeURIComponent(ctx.state.type));
     return base + (base.indexOf('?') === -1 ? '?' : '&') + params.join('&');
   }
 
@@ -1053,6 +1068,12 @@
       item.setAttribute('data-settlement-ch-export-kind', spec.kind);
       item.appendChild(document.createTextNode(spec.label));
       item.appendChild(el('span', 's-ch-export-sub', spec.sub));
+      // 조건을 받는 표인데 원장이 달라 못 싣는 경우에만 말한다 — 일자 단위 표(filters:false)는
+      // 애초에 검색어를 받지 않으니 '원장이 다르다'는 사유가 거짓이 된다(F10 리뷰 MINOR-1).
+      if (ctx.state.q && spec.filters && !exportCarriesFilters(ctx, spec)) {
+        item.appendChild(el('span', 's-ch-export-sub',
+          '지금 검색어는 이 표에 안 실립니다(원장이 다릅니다)'));
+      }
       menu.appendChild(item);
     });
     // 상시 안내(자동 닫힘 없는 일반 텍스트). 파일이 화면보다 많은 열을 담는다는 사실과
@@ -1519,6 +1540,10 @@
       // 조회 전에는 건수를 적지 않는다 — "예외 0" 은 읽기 전에 할 수 있는 말이 아니다.
       slot.textContent = data ? ' ' + fmtCount((data.exceptions || []).length) : '';
     });
+    // 표 날짜 축 셀렉트는 이 줄의 마지막 자식이다. 예외 큐는 날짜 축이 없는 목록이라 감춘다 —
+    // 고를 수는 있는데 표가 안 바뀌면 고장으로 읽힌다.
+    var tools = host.querySelector('[data-settlement-ch-switch-tools]');
+    if (tools) setHidden(tools, ctx.state.view === 'exceptions');
   }
 
   /**
@@ -1573,8 +1598,8 @@
       search = el('input', 's-ch-input');
       search.type = 'search';
       search.setAttribute('data-settlement-ch-q', '');
-      search.setAttribute('aria-label', '주문번호·상품주문번호 검색');
-      search.placeholder = '주문번호 · 상품주문번호 검색';
+      search.setAttribute('aria-label', '주문번호·상품주문번호·구매자명 검색');
+      search.placeholder = '주문번호 · 상품주문번호 · 구매자명 검색';
       host.appendChild(search);
     }
     var note = ensureSlot(host, 'tools-note', 'span', 's-ch-note', true);
@@ -1720,13 +1745,23 @@
     var ledger = ctx.state.data.ledger || {};
     var axis = ledger.axis || {};
     var label = axis.label || '정산 예정일 기준';
-    var picked = ctx.els.basis && ctx.els.basis.selectedOptions && ctx.els.basis.selectedOptions[0]
-      ? ctx.els.basis.selectedOptions[0].textContent.trim() : String(ctx.state.basis || '');
+    // 되돌림 문장의 「X」 는 **요청한 축**이다(요청 echo `data.basis`). 셀렉트는 이제 실효 축을
+    // 보이므로 selectedOptions 를 읽으면 "「정산 예정일」 축이 없어 정산 예정일 기준으로"라는
+    // 자기모순이 난다(C1).
+    var requested = ctx.state.data.basis || '';
+    var option = ctx.els.basis ? ctx.els.basis.querySelector('option[value="' + requested + '"]') : null;
+    var picked = option ? option.textContent.trim() : String(requested);
     var parts = ['표 날짜 축: ' + label];
     if (axis.supported === false) parts.push('이 표에는 「' + picked + '」 축이 없어 ' + label + '으로 보여 줍니다');
     if (axis.excluded) {
       parts.push((BASIS_NOUN[axis.basis] || '축 날짜') + '이 없는 ' + fmtCount(axis.excluded) +
         '건은 이 표에서 뺐습니다(정산 예정일 축에서 보세요)');
+    }
+    // 축을 바꾸면 날짜가 있는 행도 조회 창 밖으로 밀려난다 — 빠진 행이 "없는 행"으로 읽히지
+    // 않게 수를 말한다(C2). `excluded`(축 날짜 NULL)와 서로소라 합쳐 세지 않는다.
+    if (axis.shifted_out) {
+      parts.push('이 축 날짜가 조회 기간 밖인 ' + fmtCount(axis.shifted_out) +
+        '건은 이 기간 표에 없습니다(정산 예정일 축에서 보세요)');
     }
     parts.push('위 KPI·차트는 늘 정산 예정일 기준');
     host.appendChild(el('div', 's-ch-note s-ch-ledger-axis', parts.join(' · ')));
@@ -2169,6 +2204,9 @@
     if (view !== 'exceptions') ctx.state.lastLedger = view;
     ctx.state.page = 1;
     if (needsFetch) {
+      // 축은 **여기서 되맞추지 않는다.** 되돌림 정본은 서버 `_ledger_axis` 하나다 — 클라가
+      // 요청 전에 고쳐 보내면 `supported=false` 가 영영 안 와서 "이 표에는 「결제일」 축이
+      // 없어 정산 예정일 기준으로 보여 줍니다" 안내가 사라진다(조용한 되돌림 재발).
       // 원장이 바뀌면 유형 코드 체계가 통째로 바뀐다. 옛 필터를 들고 가면 0건이 나온다.
       ctx.state.type = '';
       ctx.state.q = '';

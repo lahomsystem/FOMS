@@ -31,6 +31,7 @@ from __future__ import annotations
 import ast
 import csv
 import datetime
+import inspect
 import io
 import pathlib
 from decimal import Decimal
@@ -783,3 +784,193 @@ def test_module_hardcodes_no_enum_code():
 def test_audit_action_label_is_registered():
     """다운로드 감사 코드에 업무 라벨이 있다(없으면 감사 화면에 영문 코드가 뜬다)."""
     assert ACTION_LABELS[_AUDIT_ACTION] == "네이버 정산 CSV 내보내기"
+
+
+# ---------------------------------------------------------------------------
+# 9. 회계 제출용 큐레이션 표 ``settle_case_sheet`` (R5c, 2026-09-03)
+# ---------------------------------------------------------------------------
+#: 7열 계약 — 헤더는 **사용자 회계 시트의 이름**이지 네이버 필드명이 아니다(의도적).
+_SHEET_HEADERS = (
+    "구매자명", "결제일", "정산완료일", "정산기준금액",
+    "Npay 수수료", "매출 연동 수수료 합계", "정산예정금액",
+)
+_SHEET_COLUMN_NAMES = (
+    "purchaser_name", "pay_date", "settle_complete_date", "pay_settle_amount",
+    "total_pay_commission_amount", "selling_interlock_commission_amount",
+    "settle_expect_amount",
+)
+
+
+def test_sheet_kind_is_not_one_of_the_five_source_kinds():
+    """큐레이션 표는 원본 5종 **밖**이다 — "적재 100% · CSV 100%" 소진 계약을 흔들지 않는다.
+
+    7열 발췌를 :data:`EXPORT_KINDS` 에 끼우면 모델 컬럼 정확 일치 계약
+    (``test_every_model_column_is_exported``)을 약화시켜야 한다. 그래서 레지스트리를 따로 둔다.
+    """
+    assert "settle_case_sheet" not in export.EXPORT_KINDS
+    assert export.SHEET_KINDS == ("settle_case_sheet",)
+    assert export.ALL_EXPORT_KINDS == export.EXPORT_KINDS + export.SHEET_KINDS
+    # 소진 계약 무흔들림 증거: CSV_COLUMNS 는 여전히 5종 그대로다.
+    assert set(export.CSV_COLUMNS) == set(export.EXPORT_KINDS)
+    assert set(export.SHEET_COLUMNS) == set(export.SHEET_KINDS)
+
+
+def test_sheet_columns_are_pinned_in_contract_order():
+    """7열의 **순서가 계약**이다(회계 프로그램 import 매핑이 순서를 기억한다)."""
+    columns = export.SHEET_COLUMNS["settle_case_sheet"]
+    assert tuple(header for header, _c, _t in columns) == _SHEET_HEADERS
+    assert tuple(column for _h, column, _t in columns) == _SHEET_COLUMN_NAMES
+    # 금액 4열은 money, 날짜 2열은 date, 이름 1열은 text 다.
+    assert [tag for _h, _c, tag in columns] == \
+        ["text", "date", "date", "money", "money", "money", "money"]
+    # 값은 네이버 원본 컬럼 그대로다 — 모델에 없는 이름을 지어내지 않았다.
+    model_columns = set(NaverSettleCase.__table__.columns.keys())
+    assert set(_SHEET_COLUMN_NAMES) <= model_columns
+
+
+def test_sheet_reuses_the_case_axis_and_filters():
+    """행 집합·축·조건은 건별 표와 **같은 규칙**이다(화면에서 좁힌 그대로 파일에 걸린다)."""
+    assert export._MODELS["settle_case_sheet"] is export._MODELS["settle_case"]
+    assert export._AXIS_FALLBACK["settle_case_sheet"] == \
+        export._AXIS_FALLBACK["settle_case"]
+    assert export.FILTER_FIELDS["settle_case_sheet"] == \
+        export.FILTER_FIELDS["settle_case"]
+    assert "settle_case_sheet" in export._BASIS_AWARE
+    assert export._FILENAME_SLUG["settle_case_sheet"] == "sheet"
+    assert export.normalize_kind("sheet") == "settle_case_sheet"
+    assert export.normalize_kind("case_sheet") == "settle_case_sheet"
+
+
+def test_sheet_emits_bom_once_header_once_and_crlf(app):
+    """BOM 1회 · 헤더 정확히 1줄 · CRLF — 기존 ``_emit`` 규칙 그대로다(제목 줄 없음)."""
+    _seed_case()
+    _seed_case(order_id="2026090100010", product_order_id="2026090100011")
+    lines = _lines("settle_case_sheet")
+
+    assert lines[0].startswith("﻿") and lines[0].count("﻿") == 1
+    assert "".join(lines).count("﻿") == 1
+    assert lines[0].rstrip("\r\n") == "﻿" + ",".join(_SHEET_HEADERS)
+    assert all(line.endswith("\r\n") for line in lines), lines
+    rows = _parsed("settle_case_sheet")
+    assert rows[0] == list(_SHEET_HEADERS)
+    assert len(rows) == 3, "제목 줄이 끼었거나 헤더가 두 줄이다"
+
+
+def test_sheet_amount_keeps_its_sign(app):
+    """취소 행의 음수는 ``-389000`` 그대로다(괄호·콤마·절대값 금지 — 재계산도 없다)."""
+    _seed_case()
+    row = _row_map("settle_case_sheet")
+
+    assert row["정산기준금액"] == "-389000"
+    assert row["Npay 수수료"] == "-10000"
+    assert row["구매자명"] == "홍길동"
+    assert row["결제일"] == _DAY.isoformat()
+    assert "(" not in row["정산기준금액"] and "," not in row["정산기준금액"]
+
+
+def test_sheet_leaves_an_empty_cell_empty(app):
+    """빈 값은 빈 칸이다 — 0 으로 채워 "0원이었다"는 없는 사실을 만들지 않는다."""
+    _seed_case(settle_complete_date=None, purchaser_name=None)
+    row = _row_map("settle_case_sheet")
+
+    assert row["정산완료일"] == "" and row["구매자명"] == ""
+
+
+def test_sheet_filters_narrow_the_rows_like_the_screen(app):
+    """``q``·``type`` 이 건별 표와 같은 술어로 걸린다(구매자명 검색 포함)."""
+    _seed_case(purchaser_name="김라홈")
+    _seed_case(order_id="9999", product_order_id="9998", purchaser_name="이가구")
+
+    assert len(_parsed("settle_case_sheet", filters={"q": "김라홈"})) == 2
+    assert len(_parsed("settle_case_sheet", filters={"q": "9998"})) == 2
+    # 음성 대조군: 없는 이름은 헤더만 남는다(조건이 조용히 버려지면 3줄이 나온다).
+    assert len(_parsed("settle_case_sheet", filters={"q": "박없음"})) == 1
+
+
+# ---------------------------------------------------------------------------
+# 10. 파일명 축 슬러그 · 실효 축 (R4, 2026-09-03)
+# ---------------------------------------------------------------------------
+_D1, _D2 = datetime.date(2026, 1, 1), datetime.date(2026, 9, 17)
+
+
+def test_export_filename_carries_the_axis_when_it_is_not_expect():
+    """실효 축이 예정일이 아니면 파일명이 축을 말한다(축만 바꿔 받아도 안 덮어쓴다)."""
+    assert export.export_filename("settle_case", _D1, _D2, basis="complete") == \
+        "naver_settle_case_complete_20260101_20260917.csv"
+    assert export.export_filename("settle_case_sheet", _D1, _D2, basis="pay") == \
+        "naver_settle_sheet_pay_20260101_20260917.csv"
+    assert export.export_filename("settle_case", _D1, _D2, basis="basis") == \
+        "naver_settle_case_basis_20260101_20260917.csv"
+
+
+def test_export_filename_has_no_axis_slug_when_the_axis_was_rolled_back():
+    """음성 대조군 — 축이 안 걸린 파일은 축을 말하지 않는다.
+
+    표본은 전부 **모집단 안**이다: 셋 다 ``basis`` 인자를 실제로 받았고, 그런데도 파일에 걸린
+    축은 예정일이다(기본값 / 수수료 표엔 결제일 컬럼이 없어 되돌림 / 부가세는 축 선택 무의미).
+    이름 없는 축을 파일명이 말하면 그게 곧 거짓말이다.
+    """
+    assert export.export_filename("settle_case", _D1, _D2) == \
+        "naver_settle_case_20260101_20260917.csv"
+    assert export.export_filename("settle_case", _D1, _D2, basis="expect") == \
+        "naver_settle_case_20260101_20260917.csv"
+    assert export.export_filename("commission", _D1, _D2, basis="pay") == \
+        "naver_settle_commission_20260101_20260917.csv"
+    assert export.export_filename("vat_case", _D1, _D2, basis="complete") == \
+        "naver_settle_vat_case_20260101_20260917.csv"
+
+
+@pytest.mark.parametrize("kind", list(export.ALL_EXPORT_KINDS))
+@pytest.mark.parametrize("basis", ["expect", "complete", "basis", "pay"])
+def test_effective_basis_matches_the_axis_expression(kind, basis):
+    """``effective_basis`` 가 고른 이름 = ``_axis_expr`` 이 고른 컬럼(4축 × 6종 매트릭스).
+
+    두 곳이 갈리면 파일명·감사 기록이 파일 내용과 다른 축을 말한다.
+
+    F10 T3(2026-09-03)으로 ``_axis_expr`` 의 ``model`` 인자가 사라져 **호출 서명만** 갱신했다.
+    판정 규칙(이름 = 컬럼)은 그대로다 — 이제 이름은 ``effective_basis`` 한 곳에서만 나온다.
+    """
+    model = export._MODELS[kind]
+    name = export.effective_basis(kind, basis)
+    expression = export._axis_expr(kind, basis)
+
+    if name == "expect" and kind not in ("vat_daily", "vat_case"):
+        # 되돌림이 일어났다는 뜻이다 — 예정일을 **직접** 고른 요청과 같은 식이어야 한다
+        # (예정일 축만 조회일로 되돌리므로 단일 컬럼이 아니라 coalesce 식일 수 있다).
+        expected = export._axis_expr(kind, "expect")
+    else:
+        # 되돌림이 없었다는 뜻이다 — 이름이 가리키는 그 컬럼 하나가 곧 축이다.
+        expected = getattr(model, export._BASIS_COLUMN[name])
+    assert str(expression) == str(expected), (kind, basis, name)
+    assert name in ("expect", "complete", "basis", "pay")
+
+
+def test_axis_expr_has_no_model_parameter():
+    """축 이름의 정본이 하나임을 서명으로 못 박는다(F10 T3).
+
+    양성: ``_axis_expr`` 은 ``kind``·``basis`` 만 받고 모델은 스스로 :data:`_MODELS` 에서
+    고른다 — 이름 결정이 :func:`effective_basis` 한 곳뿐이라는 뜻이다.
+    음성 대조군: 어긋난 모델을 넘길 **자리 자체가 없다**. 옛 서명은 호출자가 다른 모델을
+    주면 파일명이 말하는 축과 실제 행 집합이 조용히 갈렸다.
+    """
+    assert tuple(inspect.signature(export._axis_expr).parameters) == ("kind", "basis")
+
+
+def test_effective_basis_rolls_back_where_the_column_is_missing():
+    """되돌림 지점을 이름으로 못 박는다 — 수수료 표엔 결제일 컬럼이 없다."""
+    assert export.effective_basis("commission", "pay") == "expect"
+    assert export.effective_basis("commission", "complete") == "complete"
+    assert export.effective_basis("settle_case", "pay") == "pay"
+    assert export.effective_basis("settle_case_sheet", "complete") == "complete"
+    # 축 셀렉터가 뜻이 없는 표는 그 표의 고정 축을 돌려준다.
+    assert export.effective_basis("settle_daily", "complete") == "expect"
+    assert export.effective_basis("vat_case", "complete") == "basis"
+    assert export.effective_basis("vat_daily", "pay") == "basis"
+
+
+def test_case_search_fields_match_the_ledger_kernel():
+    """건별 검색 필드가 조회 커널과 **같은 3개**다 — 갈리면 화면에서 본 행이 파일에 없다."""
+    assert export.FILTER_FIELDS["settle_case"][1] == kernel._LEDGER_SPEC["case"][4]
+    assert export.FILTER_FIELDS["settle_case"][1] == \
+        ("order_id", "product_order_id", "purchaser_name")
+    assert export.FILTER_FIELDS["settle_case"][0] == kernel._LEDGER_SPEC["case"][3]

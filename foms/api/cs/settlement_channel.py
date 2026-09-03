@@ -39,6 +39,7 @@ from foms.services.settlement_channel import (
 )
 from foms.services.settlement_channel_access import can_view_channel_settlement
 from foms.services.settlement_channel_export import (
+    effective_basis,
     export_filename,
     iter_csv_lines,
     normalize_kind,
@@ -352,7 +353,8 @@ def _export_filters() -> dict:
 
 
 def _log_export(user: Any, kind: str, channel: str,
-                date_from: datetime.date, date_to: datetime.date) -> None:
+                date_from: datetime.date, date_to: datetime.date,
+                basis: str = DEFAULT_BASIS) -> None:
     """CSV 다운로드 1회를 감사 원장에 남긴다(계약 §1.3 C5).
 
     **응답을 만들기 전에** 기록한다. 스트리밍이 중간에 끊겨도 "받아 갔다"는 사실은 남아야
@@ -365,6 +367,8 @@ def _log_export(user: Any, kind: str, channel: str,
         channel: 채널 코드.
         date_from: 구간 시작일.
         date_to: 구간 종료일.
+        basis: 요청이 고른 기준일 축. 기록에는 **실효 축**(되돌림 뒤)을 남긴다 — 요청값을
+            적으면 나중에 그 기록으로 같은 파일을 다시 만들려는 사람이 다른 행 집합을 받는다.
     """
     log_access(
         "네이버 정산 CSV 내보내기",
@@ -372,7 +376,8 @@ def _log_export(user: Any, kind: str, channel: str,
         action=SETTLE_EXPORT_AUDIT_ACTION,
         target_type=_EXPORT_TARGET_TYPE,
         detail={"kind": kind, "channel": channel,
-                "from": date_from.isoformat(), "to": date_to.isoformat()},
+                "from": date_from.isoformat(), "to": date_to.isoformat(),
+                "basis": effective_basis(kind, basis)},
     )
 
 
@@ -386,10 +391,12 @@ def api_settlement_channel_export_csv():
 
     Query Args:
         kind: CSV 종류(필수) — ``settle_daily``|``settle_case``|``commission``|
-            ``vat_daily``|``vat_case``(짧은 별칭 ``daily``·``case`` 허용).
+            ``vat_daily``|``vat_case``(짧은 별칭 ``daily``·``case`` 허용) +
+            회계 제출용 7열 큐레이션 표 ``settle_case_sheet``(별칭 ``sheet``·``case_sheet``).
         channel: 채널 코드(기본 ``NAVER``).
         from, to: ``YYYY-MM-DD``(기본 오늘-30 ~ 오늘+14, 최대 폭 400일 — 탭과 같은 상한).
-        basis: 기준일 축(건별 정산·수수료에만 뜻이 있다).
+        basis: 기준일 축(건별 정산·수수료·큐레이션 표에만 뜻이 있다). 실효 축이 예정일이
+            아니면 파일명에 축 조각이 붙는다(같은 기간을 축만 바꿔 받아도 안 덮어쓴다).
         type, q: 유형·검색 조건. 조건을 받지 않는 종류에 주면 400 이다.
 
     Returns:
@@ -414,13 +421,14 @@ def api_settlement_channel_export_csv():
     except ValueError as exc:
         return _error(str(exc), 400)
 
-    _log_export(user, kind, channel, date_from, date_to)
+    _log_export(user, kind, channel, date_from, date_to, basis)
     return Response(
         stream_with_context(lines),
         mimetype="text/csv",
         headers={
             "Content-Disposition":
-                f'attachment; filename="{export_filename(kind, date_from, date_to)}"',
+                f'attachment; filename="'
+                f'{export_filename(kind, date_from, date_to, basis=basis)}"',
             "X-Content-Type-Options": "nosniff",
             "Cache-Control": "no-store",
         },

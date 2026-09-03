@@ -282,6 +282,10 @@
   background: var(--s-accent); border-color: var(--s-accent); color: var(--s-ch-on-accent);
 }
 .foms-settle .s-ch-switch-count { font-variant-numeric: tabular-nums; opacity: .85; }
+/* 표 날짜 축 셀렉트 자리 — 원장 버튼 뒤 오른쪽 끝에 붙는다(버튼들과 같은 줄, 다른 역할). */
+.foms-settle .s-ch-switch-tools {
+  display: inline-flex; align-items: center; gap: 8px; margin-left: auto; flex: none;
+}
 
 /* ── 원장 본문 ────────────────────────────────────────────────── */
 .foms-settle .s-ch-ledger {
@@ -488,6 +492,9 @@
   .foms-settle .s-ch-total td { position: static; }
   .foms-settle .s-ch-recon-line { font-size: calc(12px * var(--s-fs, 1)); }
   .foms-settle .s-ch-ledger-switch { overflow-x: auto; flex-wrap: nowrap; }
+  /* 가로 스크롤 줄에서 `margin-left: auto` 는 셀렉트를 스크롤 밖으로 밀어 안 보이게 만든다 —
+     좁은 폭에서는 마지막 버튼 바로 뒤에 붙여 같이 스크롤되게 한다. */
+  .foms-settle .s-ch-switch-tools { margin-left: 8px; }
 }
 
 /* ═══════════════════════════════════════════════════════════════════

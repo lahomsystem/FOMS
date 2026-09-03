@@ -30,7 +30,7 @@ import math
 from decimal import Decimal, InvalidOperation
 from typing import Any, Optional
 
-from sqlalchemy import func, or_
+from sqlalchemy import and_, case, func, or_
 
 from foms.services.datetime_kst import now_utc_naive
 from foms.services.integrations.naver_commerce.settle_enums import (
@@ -223,9 +223,12 @@ _VAT_CASE_FIELDS: tuple[tuple[str, str], ...] = (
 )
 
 #: 원장 종류 → (모델, 필드표, 합계 컬럼, 유형 필터 필드, 검색 필드).
+#: 건별 검색 필드는 내보내기 커널 ``FILTER_FIELDS["settle_case"]`` 와 **같은 3개**여야 한다
+#: (두 곳이 갈리면 화면에서 본 행이 파일에 없다 — 계약 테스트가 두 튜플을 정확 비교한다).
 _LEDGER_SPEC: dict[str, tuple] = {
     "case": (NaverSettleCase, _CASE_FIELDS, "settle_expect_amount",
-             ("product_order_type", "settle_type"), ("order_id", "product_order_id")),
+             ("product_order_type", "settle_type"),
+             ("order_id", "product_order_id", "purchaser_name")),
     "commission": (NaverSettleCommission, _COMMISSION_FIELDS, "commission_amount",
                    ("commission_type", "pay_means_type"), ("order_no", "product_order_id")),
     "vat_case": (NaverVatCase, _VAT_CASE_FIELDS, "total_sales_amount",
@@ -990,15 +993,55 @@ def _ledger_axis(model: Any, kind: str, basis: str) -> tuple[Any, str, bool]:
     return getattr(model, _BASIS_COLUMN[effective]), effective, supported
 
 
-def _excluded_by_axis(session: Any, model: Any, axis: Any, scope_filters: list,
-                      channel: str, date_from: datetime.date, date_to: datetime.date) -> int:
-    """예정일 창 안에 있지만 이 축의 날짜가 비어 표에서 빠진 행 수(화면이 "N건 제외"라고 말한다)."""
-    window = func.coalesce(model.settle_expect_date, model.search_date)
-    count = (session.query(func.count(model.id))
-             .filter(model.channel == channel, window >= date_from, window <= date_to,
-                     axis.is_(None), *scope_filters)
-             .scalar())
-    return int(count or 0)
+def _expect_window(model: Any) -> Any:
+    """예정일 창 식 — ``excluded``·``shifted_out`` 두 계수가 **같은 모집단**을 세게 하는 단일 정본.
+
+    두 계수가 각자 coalesce 를 적으면 한쪽만 고쳐졌을 때 표 머리의 두 문장이 서로 다른
+    집합을 말한다(리뷰 MINOR-2, 2026-09-03).
+
+    Args:
+        model: 원장 모델(``settle_expect_date``·``search_date`` 를 가진다).
+
+    Returns:
+        SQLAlchemy 식 ``coalesce(settle_expect_date, search_date)``.
+    """
+    return func.coalesce(model.settle_expect_date, model.search_date)
+
+
+def _axis_gap_counts(session: Any, model: Any, axis: Any, scope_filters: list,
+                     channel: str, date_from: datetime.date,
+                     date_to: datetime.date) -> tuple[int, int]:
+    """예정일 창 안인데 이 축 때문에 표에서 빠진 두 몫을 **한 번의 스캔**으로 센다.
+
+    축을 바꾸면 표가 조용히 줄어드는 것이 결함이었다 — 줄어든 몫이 "날짜가 없어서"(``excluded``)
+    인지 "다른 기간으로 옮겨 가서"(``shifted_out``)인지 화면이 말하지 못했다.
+
+    반환 두 값은 **서로소**다: 축 날짜가 ``NULL`` 인 행(``excluded``)과 ``NOT NULL`` 이면서
+    창 밖인 행(``shifted_out``)이라 한 행이 두 수에 겹쳐 세어지지 않는다(그래서 둘을 합쳐
+    세지 않는다). 술어(유형·검색)는 :func:`_ledger_filters` 가 만든 것을 그대로 받는다 —
+    화면 표와 같은 모집단이어야 두 수가 같은 질문의 답이다. 두 몫이 같은 창·같은 술어 위에서
+    나오도록 조건부 집계 한 쿼리로 묶었다(리뷰 MINOR-1, 2026-09-03).
+
+    Args:
+        session: SQLAlchemy Session.
+        model: 원장 모델.
+        axis: 이 표의 날짜 축 식.
+        scope_filters: 유형·검색 술어(``_ledger_filters`` 결과 그대로).
+        channel: 채널 코드.
+        date_from: 시작일(포함).
+        date_to: 종료일(포함).
+
+    Returns:
+        ``(excluded, shifted_out)`` — 축 날짜가 빈 행 수와 창 밖으로 밀려난 행 수.
+    """
+    window = _expect_window(model)
+    row = (session.query(
+        func.count(case((axis.is_(None), model.id))),
+        func.count(case((and_(axis.isnot(None),
+                              or_(axis < date_from, axis > date_to)), model.id))),
+    ).filter(model.channel == channel, window >= date_from, window <= date_to,
+             *scope_filters).one())
+    return int(row[0] or 0), int(row[1] or 0)
 
 
 def _ledger_filters(model: Any, spec: tuple, filters: dict) -> list:
@@ -1065,10 +1108,10 @@ def _build_ledger(session: Any, channel: str, kind: str, basis: str,
     extra_filters = _ledger_filters(model, spec, filters)
     scope = [model.channel == channel, axis >= date_from, axis <= date_to]
     scope.extend(extra_filters)
-    excluded = 0
+    excluded = shifted_out = 0
     if effective != "expect" and kind != "vat_case":
-        excluded = _excluded_by_axis(session, model, axis, extra_filters, channel,
-                                     date_from, date_to)
+        excluded, shifted_out = _axis_gap_counts(session, model, axis, extra_filters,
+                                                 channel, date_from, date_to)
     groups = (session.query(axis, func.count(model.id),
                             func.sum(getattr(model, amount_column)))
               .filter(*scope).group_by(axis).order_by(axis.desc()).all())
@@ -1088,7 +1131,8 @@ def _build_ledger(session: Any, channel: str, kind: str, basis: str,
                        "pages": pages},
         # 표에 실제로 적용된 축. 화면은 위쪽 집계(늘 예정일)와 이 표의 축을 따로 말한다.
         "axis": {"basis": effective, "label": BASIS_LABELS[effective],
-                 "supported": supported, "excluded": excluded},
+                 "supported": supported, "excluded": excluded,
+                 "shifted_out": shifted_out},
     }
 
 

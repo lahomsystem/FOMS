@@ -395,3 +395,90 @@ def test_every_kind_is_downloadable(client, app, kind):
 
     assert resp.status_code == 200, (kind, resp.get_data(as_text=True))
     assert resp.get_data().startswith(_BOM)
+
+
+# --------------------------------------------------------------------------
+# 8. 회계 제출용 큐레이션 표 · 파일명 축 · 감사 실효 축 (2026-09-03)
+# --------------------------------------------------------------------------
+#: 7열 계약(커널과 같은 문자열을 여기 다시 적는 이유: 라우트를 지나온 **본문**을 본다).
+_SHEET_HEADER = ("구매자명,결제일,정산완료일,정산기준금액,"
+                 "Npay 수수료,매출 연동 수수료 합계,정산예정금액")
+
+
+def test_settlement_sheet_kind_downloads_seven_columns(client, app):
+    """``settle_case_sheet`` 가 같은 라우트로 나간다 — 200 · BOM · 헤더 7열 · 시트 파일명."""
+    today = get_today_kst()
+    day = today - datetime.timedelta(days=1)
+    _case(day, product_order_id="2026090300101", purchaser_name="김라홈")
+    db_session.commit()
+    date_from, date_to = _seeded_window(today)
+    _login(client, _make_user(role="ADMIN"))
+
+    resp = client.get(_url(kind="settle_case_sheet",
+                           **{"from": date_from, "to": date_to}))
+
+    assert resp.status_code == 200, resp.get_data(as_text=True)
+    assert resp.mimetype == "text/csv"
+    assert resp.get_data().startswith(_BOM)
+    lines = _lines(resp)
+    assert lines[0] == "﻿" + _SHEET_HEADER
+    assert len(lines[0].split(",")) == 7
+    assert "김라홈" in lines[1], lines[1]
+    expected = "naver_settle_sheet_%s_%s.csv" % (date_from.replace("-", ""),
+                                                 date_to.replace("-", ""))
+    assert resp.headers["Content-Disposition"] == 'attachment; filename="%s"' % expected
+
+
+def test_sheet_short_alias_reaches_the_same_file(client, app):
+    """짧은 별칭 ``sheet``·``case_sheet`` 도 같은 파일을 낸다."""
+    _seed_basic(get_today_kst())
+    _login(client, _make_user(role="ADMIN"))
+
+    canonical = _lines(client.get(_url(kind="settle_case_sheet")))
+    assert _lines(client.get(_url(kind="sheet"))) == canonical
+    assert _lines(client.get(_url(kind="case_sheet"))) == canonical
+
+
+def test_download_filename_carries_the_axis(client, app):
+    """축을 바꿔 받으면 파일명이 축을 말한다 — 같은 기간을 두 번 받아도 안 덮어쓴다."""
+    today = get_today_kst()
+    _seed_basic(today)
+    date_from, date_to = _seeded_window(today)
+    stamp = "%s_%s" % (date_from.replace("-", ""), date_to.replace("-", ""))
+    _login(client, _make_user(role="ADMIN"))
+
+    def disposition(**params) -> str:
+        resp = client.get(_url(**{"from": date_from, "to": date_to}, **params))
+        assert resp.status_code == 200, resp.get_data(as_text=True)
+        return resp.headers["Content-Disposition"]
+
+    assert disposition(kind="settle_case", basis="complete") == \
+        'attachment; filename="naver_settle_case_complete_%s.csv"' % stamp
+    assert disposition(kind="settle_case_sheet", basis="pay") == \
+        'attachment; filename="naver_settle_sheet_pay_%s.csv"' % stamp
+    # 음성 대조군(모집단 안): basis 를 실제로 넘겼는데도 축이 안 걸린 두 경우는 조각이 없다.
+    assert disposition(kind="settle_case", basis="expect") == \
+        'attachment; filename="naver_settle_case_%s.csv"' % stamp
+    assert disposition(kind="commission", basis="pay") == \
+        'attachment; filename="naver_settle_commission_%s.csv"' % stamp
+
+
+def test_audit_row_records_the_effective_axis(client, app):
+    """감사 기록의 ``basis`` 는 요청값이 아니라 **파일에 실제로 걸린 축**이다.
+
+    요청값을 적으면 그 기록으로 같은 파일을 다시 만들려는 사람이 다른 행 집합을 받는다.
+    수수료 표엔 결제일 컬럼이 없어 되돌림이 일어나는데, 그때 ``pay`` 를 적으면 거짓말이다.
+    """
+    _seed_basic(get_today_kst())
+    _login(client, _make_user(role="ADMIN"))
+
+    _body(client.get(_url(kind="settle_case", basis="complete")))
+    assert _audit_rows()[-1].detail["basis"] == "complete"
+
+    # 음성 대조군: 되돌림이 일어난 요청은 요청값(pay)이 아니라 실효 축(expect)을 남긴다.
+    _body(client.get(_url(kind="commission", basis="pay")))
+    assert _audit_rows()[-1].detail["basis"] == "expect"
+
+    # 축을 안 고른 요청도 실효 축을 남긴다(키가 빠지지 않는다).
+    _body(client.get(_url(kind="vat_case")))
+    assert _audit_rows()[-1].detail["basis"] == "basis"
