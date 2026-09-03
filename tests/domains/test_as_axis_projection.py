@@ -204,3 +204,85 @@ def test_legacy_as_order_survives_bulk_complete_api(client):
 
     completed_after = client.get("/erp/as?tab=completed").get_data(as_text=True)
     assert "AXISLEGACY" in completed_after, "레거시 AS 주문이 일괄 완료로 목록에서 사라졌다"
+
+
+def _open_as_lifecycle(cycle_id: str = "n1") -> dict:
+    """LEGACY_BRIDGE 로 열린 AS cycle 1개(RECEIVED) — 운영 비ERP AS 주문의 실제 형태."""
+    return {
+        "current_cycle_id": cycle_id,
+        "cycles": [{
+            "cycle_id": cycle_id,
+            "origin": "LEGACY_BRIDGE",
+            "opened_at": "2026-08-05T00:00:00",
+            "transitions": [{
+                "seq": 1, "from": "NONE", "to": "RECEIVED",
+                "at": "2026-08-05T00:00:00", "command": "AS_LEGACY_BRIDGE",
+            }],
+        }],
+    }
+
+
+def test_sync_fills_projection_for_non_erp_order(client):
+    """**비ERP 드리프트 회귀** — is_erp_order=False 여도 AS 축 투영이 갱신된다.
+
+    운영 실측(2026-09-03): status='AS_COMPLETED' + 완료일 있음 + as_axis_status='RECEIVED'
+    인 주문 3건(#1315·#1119·#1706)이 모두 is_erp_order=False 였다.
+    ``sync_erp_flat_columns`` 의 ERP 게이트가 AS 축 갱신보다 앞에 있어, 완료 커맨드가
+    status 는 쓰고 축은 못 써서 미완료 탭에 남았다. AS 축은 ERP 여부와 직교한다.
+    """
+    lifecycle = _open_as_lifecycle("n_sync")
+    lifecycle["cycles"][0]["transitions"].append({
+        "seq": 2, "from": "RECEIVED", "to": "COMPLETED",
+        "at": "2026-08-24T00:00:00", "command": "AS_COMPLETE",
+    })
+    order = _order(is_erp_order=False, status="AS_COMPLETED",
+                   as_received_date="2026-08-05", as_completed_date="2026-08-24",
+                   as_axis_status="RECEIVED", structured_data={"as_lifecycle": lifecycle})
+
+    sync_erp_flat_columns(order, order.structured_data)
+
+    assert order.as_axis_status == "COMPLETED", "비ERP 주문의 AS 축이 stale 로 남으면 미완료 탭에 갇힌다"
+
+
+def test_sync_still_skips_erp_only_columns_for_non_erp_order(client):
+    """비ERP 주문에서 ERP 전용 플랫 컬럼은 여전히 안 건드린다(게이트 축소 범위 계약)."""
+    order = _order(is_erp_order=False, status="AS_RECEIVED", manager_name="원래담당",
+                   as_axis_status="RECEIVED",
+                   structured_data={"as_lifecycle": _open_as_lifecycle("n_scope"),
+                                    "parties": {"manager": {"name": "새담당"}},
+                                    "workflow": {"stage": "CS"}})
+
+    sync_erp_flat_columns(order, order.structured_data)
+
+    assert order.manager_name == "원래담당", "비ERP 주문에 ERP 전용 동기화가 새어들면 안 된다"
+    assert order.erp_stage_code is None
+    assert order.as_axis_status == "RECEIVED"
+
+
+def test_non_erp_as_complete_moves_out_of_incomplete_tab(client):
+    """**운영 사고 재현** — 비ERP AS 주문을 완료 처리하면 미완료 탭에서 빠진다.
+
+    경로는 운영과 동일하다: AS 대시보드 완료 버튼 → ``/api/update_order_field``
+    ``as_completed_date`` 브리지 → ``complete_as_cycle``(legacy_bridge). 이 경로가
+    status 만 쓰고 as_axis_status 를 못 쓰면 초록 'AS완료' 뱃지를 단 채 미완료 탭에 남는다.
+    """
+    _login(client, "axis_admin_nonerp")
+    order = _order(is_erp_order=False, status="AS_RECEIVED", customer_name="AXISNONERP 고객",
+                   as_received_date="2026-08-05", as_axis_status="RECEIVED",
+                   structured_data={"as_lifecycle": _open_as_lifecycle("n_e2e")})
+    order_id = order.id
+
+    assert "AXISNONERP" in client.get("/erp/as").get_data(as_text=True)
+
+    resp = client.post("/api/update_order_field", json={
+        "order_id": order_id, "field": "as_completed_date", "value": "2026-08-24"})
+    assert resp.status_code == 200, resp.get_data(as_text=True)
+
+    db_session.expire_all()
+    saved = db_session.get(Order, order_id)
+    assert saved.as_completed_date == "2026-08-24"
+    assert saved.as_axis_status == "COMPLETED", "축이 안 따라오면 탭 술어가 계속 미완료로 본다"
+
+    assert "AXISNONERP" not in client.get("/erp/as").get_data(as_text=True), \
+        "완료 처리했는데 미완료 탭에 남아 있다(운영 #1315·#1119·#1706)"
+    assert "AXISNONERP" in client.get("/erp/as?tab=completed").get_data(as_text=True)

@@ -217,6 +217,31 @@ def derive_as_axis_status(order: Any, structured_data: Optional[Dict[str, Any]] 
     return status if status != "NONE" else None
 
 
+def as_overlay_outranks_status_write(order: Any, target_status: Any) -> bool:
+    """열린 AS 건이 **물류 축 status 쓰기**를 이기는지 판정한다 (STATE-AS-01).
+
+    :func:`legacy_status_projection` 의 우선순위 ``DELETED > ON_HOLD > AS_* > logistics >
+    main`` 은 읽기에만 적용돼 있었다. 지방 보드 체크리스트 자동 승격이 ``SCHEDULED``/
+    ``MEASURED`` 를 ``order.status`` 에 직접 써서 AS 투영을 덮으면, 그 컬럼을 읽는 지방
+    AS 섹션과 ERP 주문 화면의 'AS: 접수' 뱃지가 통째로 사라진다(2026-09-03 운영 실측
+    #4796·#4816 — 지방 AS 활성 건 전부). 같은 우선순위를 쓰기 경로에도 적용한다.
+
+    **막는 대상은 물류 축 목표뿐이다.** 의도적인 본공정 전이·보류·삭제·AS 코드는 그대로
+    통과시킨다 — 사람이 고른 상태 변경까지 무음으로 삼키면 그게 더 나쁜 결함이 된다.
+
+    Args:
+        order: 대상 주문(ORM 또는 같은 속성을 가진 객체).
+        target_status: 쓰려는 legacy status 문자열.
+
+    Returns:
+        True 면 그 쓰기를 무시해야 한다(AS 투영 유지).
+    """
+    axis = LEGACY_STATUS_ALIAS.get(str(target_status or "").strip())
+    if not axis or axis[0] != AXIS_LOGISTICS:
+        return False
+    return read_as_status(order) in ("RECEIVED", "IN_PROGRESS")
+
+
 def read_as_status(order: Any) -> str:
     """AS 축 canonical 값. ``as_lifecycle`` 현재 cycle 우선, 없으면 legacy status."""
     sd = _structured(order)
@@ -422,6 +447,7 @@ __all__ = [
     "read_logistics",
     "read_hold",
     "read_as_status",
+    "as_overlay_outranks_status_write",
     "derive_as_axis_status",
     "read_deleted",
     "read_construction",
