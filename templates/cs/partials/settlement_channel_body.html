@@ -45,19 +45,13 @@
     </div>
   </div>
 
-  {# ── 기간·기준일 바 ──────────────────────────────────────────────────────────
+  {# ── 기간 바 ─────────────────────────────────────────────────────────────────
      요약/분석 탭의 `.s-filterbar` 는 이 탭에서 CSS 로 감춘다(기간 축이 다르다).
-     여기 셀렉트가 그대로 조회 API 파라미터(basis/from/to/granularity)가 된다. #}
+     여기 컨트롤이 그대로 조회 API 파라미터(from/to/granularity)가 된다.
+     **날짜 축 셀렉트(basis)는 이 줄에 없다** — 그 축은 아래 원장 표에만 걸리는데 이 줄에
+     두면 위쪽 KPI·차트·워터폴까지 바뀌는 것처럼 읽힌다(2026-09-03 실측). 원장 스위처 줄로
+     옮겼다. #}
   <div class="s-ch-bar" id="foms-settle-ch-bar">
-    <label class="s-ch-field">
-      <span class="s-ch-field-name">기준일</span>
-      <select class="s-ch-select" data-settlement-ch-basis aria-label="정산 기준일 축">
-        <option value="expect" selected>정산 예정일</option>
-        <option value="complete">정산 완료일</option>
-        <option value="basis">정산 기준일</option>
-        <option value="pay">결제일</option>
-      </select>
-    </label>
     <label class="s-ch-field">
       <span class="s-ch-field-name">시작</span>
       <input type="date" class="s-ch-input" data-settlement-ch-from aria-label="조회 시작일">
@@ -105,6 +99,21 @@
     <button type="button" class="s-ch-swbtn" data-settlement-ch-ledger="commission" aria-pressed="false">수수료</button>
     <button type="button" class="s-ch-swbtn" data-settlement-ch-ledger="vat" aria-pressed="false">부가세</button>
     <button type="button" class="s-ch-swbtn" data-settlement-ch-ledger="exceptions" aria-pressed="false">예외</button>
+    {# 표 날짜 축 — **원장 표에만** 걸리는 축이라 원장 줄에 산다(위쪽 집계는 늘 정산 예정일).
+       앵커는 서버 렌더 시점부터 있어야 한다(계약 `_REQUIRED_ANCHORS`) — JS 로 만들면 fetch 가
+       죽었을 때 이 줄이 통째로 사라진다. 예외 뷰에서는 `renderSwitch` 가 통째로 감춘다
+       (예외 큐는 축이 없는 목록이다). #}
+    <div class="s-ch-switch-tools" data-settlement-ch-switch-tools>
+      <label class="s-ch-field">
+        <span class="s-ch-field-name">표 날짜 축</span>
+        <select class="s-ch-select" data-settlement-ch-basis aria-label="원장 표 날짜 축">
+          <option value="expect" selected>정산 예정일</option>
+          <option value="complete">정산 완료일</option>
+          <option value="basis">정산 기준일</option>
+          <option value="pay">결제일</option>
+        </select>
+      </label>
+    </div>
   </div>
   <div class="s-ch-ledger" id="foms-settle-ch-ledger"></div>
 
