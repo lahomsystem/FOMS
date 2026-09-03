@@ -64,7 +64,9 @@ _STATIC_ASSETS = (CSS_ASSET, JS_ASSET)
 #: 이 화면 자산의 캐시 핀. **저장소 전역에서 이 값 하나**여야 한다. CSS/JS 를 고치면
 #: 셸 템플릿의 두 링크와 이 상수를 **함께** 옮긴다 — 값이 조용히 갈리면 실기기가 옛 자산을
 #: 계속 실행한다(서비스워커 staticCacheFirst).
-_CHANNEL_PIN = "20260903f"
+#: 2026-09-03 F9 — R1(축 셀렉트를 원장 줄로 이동)·C1(전환 뒤 셀렉트 되맞춤)·C2(창 밖으로
+#: 밀린 행 수 문구)로 채널 CSS·JS 를 함께 고쳤다(핀 사슬 동반 이동: f → g).
+_CHANNEL_PIN = "20260903g"
 
 _CHANNEL_TAB_ID = "foms-settle-tab-channel"
 _CHANNEL_PANE_ID = "foms-settle-pane-channel"
@@ -846,3 +848,189 @@ def test_backfill_banner_is_wired_through_the_existing_sync_path():
     assert "from < sync.coverage_from" in source, "배너 조건(요청 시작일 < 적재 시작일)이 없다"
     assert ".s-ch-backfill" in css and ".alert" not in css
     assert source.count("document.addEventListener") == _DOCUMENT_LISTENERS
+
+
+# ==========================================================================
+# 계약 — F9 (2026-09-03): 축 셀렉트 이동(R1) · 전환 뒤 되맞춤(C1) · 밀린 행 수(C2) ·
+#                          구매자명(R5) · 정산내역 시트 항목(R5c)
+# ==========================================================================
+def _element_block(html: str, anchor: str) -> str:
+    """렌더 결과에서 `anchor` 를 가진 최상위 `<div>` 블록만 잘라 돌려준다.
+
+    두 줄(기간 바 · 원장 스위처)이 **서로 무엇을 갖고 무엇을 안 갖는지**를 보려면 문서
+    전체가 아니라 블록 단위로 봐야 한다. 최상위 블록은 두 칸 들여쓰기로 닫힌다.
+
+    Args:
+        html: 파셜 렌더 결과.
+        anchor: 블록을 특정하는 속성 문자열(예: `id="foms-settle-ch-bar"`).
+
+    Returns:
+        여는 `<div` 부터 그 블록의 닫는 태그 직전까지.
+    """
+    at = html.find(anchor)
+    assert at >= 0, f"렌더에 {anchor} 가 없다"
+    start = html.rfind("<div", 0, at)
+    assert start >= 0, f"{anchor} 를 감싼 <div> 를 찾지 못했다"
+    end = html.find("\n  </div>", start)
+    assert end > start, f"{anchor} 블록의 끝을 찾지 못했다"
+    return html[start:end]
+
+
+def _js_function(name: str) -> str:
+    """`channel.js` 함수 하나의 본문(주석 제거)을 돌려준다.
+
+    닫는 중괄호가 두 칸 들여쓰기(`\\n  }`)라는 이 파일의 관례를 이용한다 — 이 파일의
+    기존 계약 테스트들이 쓰던 슬라이스와 같은 규칙이다. 주석을 걷어내는 이유는
+    **음성 대조군**(옛 코드가 남았는가) 검사가 그 코드를 설명하는 주석에 걸리지 않게
+    하기 위해서다.
+
+    Args:
+        name: 함수 이름.
+
+    Returns:
+        `function <name>(` 부터 함수가 닫히기 직전까지의 코드.
+    """
+    source = _read_code(f"static/{JS_ASSET}")
+    at = source.find(f"function {name}(")
+    assert at >= 0, f"channel.js 에 {name} 가 없다"
+    end = source.find("\n  }", at)
+    assert end > at, f"channel.js 의 {name} 끝을 찾지 못했다"
+    return source[at:end]
+
+
+def test_basis_select_moved_into_the_ledger_switch_row(app):
+    """축 셀렉트가 **원장 스위처 줄**에 있고 기간 바에는 없다(R1).
+
+    그 축은 아래 원장 표에만 걸린다 — 기간 바에 두면 위쪽 KPI·차트·워터폴까지 따라 바뀌는
+    것처럼 읽힌다(2026-09-03 실측). 앵커는 여전히 **서버 렌더 시점**에 있어야 한다
+    (`_REQUIRED_ANCHORS`) — JS 로 만들면 fetch 가 죽었을 때 줄이 통째로 사라진다.
+
+    음성 대조군: 옛 자리(기간 바)에 남아 있으면 red. 셀렉트가 둘이면 `collectEls()` 가
+    첫 번째만 잡아 사용자가 만지는 쪽과 코드가 읽는 쪽이 갈린다.
+    """
+    html = _render(app)
+
+    switch = _element_block(html, 'id="foms-settle-ch-ledger-switch"')
+    bar = _element_block(html, 'id="foms-settle-ch-bar"')
+
+    assert "data-settlement-ch-switch-tools" in switch, "축 셀렉트 자리가 원장 줄에 없다"
+    assert "data-settlement-ch-basis" in switch, "축 셀렉트가 원장 줄에 없다"
+    assert "표 날짜 축" in switch, "새 라벨이 없다"
+    assert "data-settlement-ch-basis" not in bar, "옛 자리(기간 바)에 축 셀렉트가 남아 있다"
+
+
+def test_switch_tools_hide_in_the_exceptions_view():
+    """예외 뷰에서는 축 셀렉트를 감춘다 — 예외 큐는 날짜 축이 없는 목록이다.
+
+    고를 수는 있는데 표가 안 바뀌면 사용자는 그것을 고장으로 읽는다.
+    """
+    body = _js_function("renderSwitch")
+
+    assert "data-settlement-ch-switch-tools" in body, "renderSwitch 가 축 셀렉트 자리를 모른다"
+    assert "'exceptions'" in body, "예외 뷰 조건이 없다"
+    assert "setHidden(tools" in body, "감추기 배선이 없다"
+
+
+def test_switch_ledger_leaves_the_axis_to_the_server():
+    """원장을 바꿀 때 축은 **건드리지 않는다** — 되돌림 정본은 서버 `_ledger_axis` 하나다.
+
+    클라가 요청 전에 되맞추면 `supported=false` 가 영영 안 와서 "이 표에는 「결제일」 축이
+    없어 정산 예정일 기준으로 보여 줍니다" 안내가 사라진다(F7 이 잡은 '조용한 되돌림' 재발).
+
+    음성 대조군: `switchLedger` 본문에 `ctx.state.basis` 가 **한 글자라도** 나오면 red.
+    유형·검색 초기화는 그대로 남아야 한다(원장이 바뀌면 코드 체계가 통째로 바뀐다).
+    """
+    body = _js_function("switchLedger")
+
+    assert "ctx.state.basis" not in body, "클라가 축을 미리 되맞추고 있다(서버 되돌림이 가려진다)"
+    assert "ctx.state.type = ''" in body, "유형 필터 초기화가 사라졌다"
+    assert "ctx.state.q = ''" in body, "검색어 초기화가 사라졌다"
+
+
+def test_select_adopts_the_server_effective_axis():
+    """셀렉트 값은 **서버가 표에 실제로 건 축**(`ledger.axis.basis`)을 채택한다(C1).
+
+    최상위 `data.basis` 는 요청 echo 라 되돌림 전 값이 온다 — 그걸 채택하면 셀렉트가 표와
+    다른 축을 가리킨 채로 남는다.
+    """
+    body = _js_function("adoptServerState")
+
+    assert "data.ledger.axis.basis" in body, "실효 축 채택이 없다"
+    assert "state.basis = axisBasis" in body, "채택 결과를 상태에 안 넣는다"
+
+
+def test_rollback_sentence_names_the_requested_axis():
+    """되돌림 문장의 「X」 는 셀렉트 현재값이 아니라 **요청한 축**이다(C1).
+
+    셀렉트가 이제 실효 축을 보이므로 `selectedOptions` 를 읽으면 "「정산 예정일」 축이 없어
+    정산 예정일 기준으로 보여 줍니다" 라는 자기모순이 난다.
+
+    음성 대조군: 옛 버그 소스(`selectedOptions`)가 이 함수에 남아 있으면 red.
+    """
+    body = _js_function("renderLedgerAxisNote")
+
+    assert 'option[value="' in body, "요청 축의 옵션 라벨을 찾지 않는다"
+    assert "ctx.state.data.basis" in body, "요청 echo 를 읽지 않는다"
+    assert "selectedOptions" not in body, "옛 버그 소스(selectedOptions)가 남아 있다"
+
+
+def test_axis_note_says_how_many_rows_left_the_window():
+    """축을 바꿔 조회 창 밖으로 밀려난 행 수를 표 머리가 말한다(C2).
+
+    `excluded`(축 날짜가 아예 없는 행)와는 **다른 수**다 — 둘은 서로소라 합쳐 세지 않는다.
+    서버가 키를 아직 안 주면(구버전 응답) 문장은 조용히 빠진다(falsy 판정).
+    """
+    body = _js_function("renderLedgerAxisNote")
+
+    assert "axis.shifted_out" in body, "밀린 행 수를 읽지 않는다"
+    assert "건은 이 기간 표에 없습니다" in body, "밀린 행 문구가 없다"
+    assert "axis.excluded" in body, "제외 행 문구가 사라졌다(두 수는 서로 다른 사실이다)"
+
+
+def test_case_columns_put_the_purchaser_before_the_product_name():
+    """건별 표에 `구매자명` 열이 있고 `상품명` **왼쪽**에 온다(R5b).
+
+    열 순서는 회계 담당자가 눈으로 훑는 순서다 — 사람 이름이 상품명 뒤로 밀리면 못 찾는다.
+    """
+    source = _read_code(f"static/{JS_ASSET}")
+    at = source.find("var COLUMNS = {")
+    assert at >= 0, "COLUMNS 가 없다"
+    end = source.find("commission: [", at)
+    assert end > at, "COLUMNS.case 블록의 끝을 찾지 못했다"
+    block = source[at:end]
+
+    assert "{ key: 'purchaser_name', label: '구매자명', type: 'text' }" in block
+    assert block.index("'purchaser_name'") < block.index("'product_name'"), "구매자명이 상품명 뒤에 있다"
+
+
+def test_search_placeholder_names_the_purchaser():
+    """검색창이 구매자명도 본다고 말한다(R5a) — 서버 검색 필드와 화면 안내가 갈리면 안 된다.
+
+    음성 대조군: 옛 문구(`주문번호 · 상품주문번호 검색`)가 남아 있으면 red. 남으면 사용자는
+    이름으로 찾을 수 있다는 사실을 영영 모른다.
+    """
+    source = _read_code(f"static/{JS_ASSET}")
+
+    assert "'주문번호 · 상품주문번호 · 구매자명 검색'" in source, "새 placeholder 가 없다"
+    assert "'주문번호·상품주문번호·구매자명 검색'" in source, "새 aria-label 이 없다"
+    assert "'주문번호 · 상품주문번호 검색'" not in source, "옛 placeholder 가 남아 있다"
+    assert "'주문번호·상품주문번호 검색'" not in source, "옛 aria-label 이 남아 있다"
+
+
+def test_export_menu_offers_the_settlement_sheet():
+    """내려받기 메뉴에 회계 제출용 `settle_case_sheet` 항목이 있고 유형 필터가 실린다(R5c).
+
+    `typeOf` 없이 두면 `exportUrl` 의 짝 판정(`exportKindOfLedger(...) === spec.kind`)이 영영
+    안 맞아 건별 원장에서 고른 유형 필터가 이 파일에는 실리지 않는다.
+
+    표 계산 프로그램 이름(영문 낱말)은 코드·주석 어디에도 쓰지 않는다 — 이 저장소는 그
+    낱말을 `foms/` 전역에서 금지하고, 화면 자산도 같은 규율을 따른다.
+    """
+    source = _read_code(f"static/{JS_ASSET}")
+    section = _js_section(_EXPORT_SECTION_START, _EXPORT_SECTION_END)
+
+    assert "kind: 'settle_case_sheet'" in source, "시트 항목이 없다"
+    assert "typeOf: 'settle_case'" in source, "유형 필터 짝이 없다"
+    assert "(spec.typeOf || spec.kind)" in section, "exportUrl 이 typeOf 를 안 본다"
+    lowered = _read(f"static/{JS_ASSET}").lower()
+    assert "xlsx" not in lowered and "excel" not in lowered

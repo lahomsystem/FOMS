@@ -39,6 +39,7 @@ from models import (
     NaverSettleCase,
     NaverSettleCommission,
     NaverSettleDaily,
+    NaverVatCase,
     NaverVatDaily,
     SecurityLog,
     SystemSetting,
@@ -202,7 +203,12 @@ def test_denied_actors_sync_403(client, app, role, team):
 # 2. 응답 스키마
 # --------------------------------------------------------------------------
 def test_data_schema_keys_exact(client, app):
-    """최상위·sync·kpi·pagination 키 집합 정확 일치 + 워터폴 순서 고정."""
+    """최상위·sync·kpi·pagination 키 집합 정확 일치 + 워터폴 순서 고정.
+
+    ``ledger.axis`` 에 ``shifted_out`` 이 늘어난 것은 **C2(2026-09-03) 의 의도된 계약 변경**이다 —
+    축 전환으로 조회 창 밖으로 밀린 행 수를 화면이 말하게 됐다. 그전에는 표가 조용히 줄어들 때
+    "날짜가 없어서"(``excluded``)인지 "다른 기간으로 옮겨 가서"인지 아무도 말하지 않았다.
+    """
     _seed_basic(get_today_kst())
     _login(client, _make_user(role="ADMIN"))
     data = _data(_get(client))
@@ -215,7 +221,8 @@ def test_data_schema_keys_exact(client, app):
     assert [step["key"] for step in data["waterfall"]] == _WATERFALL_ORDER
     assert all(set(step) == {"key", "label", "amount"} for step in data["waterfall"])
     assert set(data["ledger"]) == {"kind", "groups", "rows", "pagination", "axis"}
-    assert set(data["ledger"]["axis"]) == {"basis", "label", "supported", "excluded"}
+    assert set(data["ledger"]["axis"]) == {"basis", "label", "supported", "excluded",
+                                           "shifted_out"}
     assert set(data["ledger"]["pagination"]) == {"page", "per_page", "total", "pages"}
     assert set(data["reconcile"]) == {"daily_total", "case_total", "diff"}
     assert set(data["commission"]) == {"by_type", "total", "max_interlock"}
@@ -738,8 +745,10 @@ def test_complete_axis_lists_only_completed_rows_and_counts_the_rest(client, app
     _login(client, _make_user(role="ADMIN"))
 
     ledger = _data(_get(client, basis="complete"))["ledger"]
+    # ``shifted_out`` 은 C2(2026-09-03)로 늘어난 키다. 여기 완료일은 창 **안**이라 0 이다
+    # (밀려난 행을 세는 축은 아래 전용 테스트가 따로 못 박는다).
     assert ledger["axis"] == {"basis": "complete", "label": "정산 완료일 기준",
-                              "supported": True, "excluded": 2}
+                              "supported": True, "excluded": 2, "shifted_out": 0}
     assert [group["date"] for group in ledger["groups"]] == [done_day.isoformat()]
     assert ledger["pagination"]["total"] == 1
     assert ledger["rows"][0]["settle_complete_date"] == done_day.isoformat()
@@ -747,7 +756,7 @@ def test_complete_axis_lists_only_completed_rows_and_counts_the_rest(client, app
     base = _data(_get(client))["ledger"]
     assert base["pagination"]["total"] == 3
     assert base["axis"] == {"basis": "expect", "label": "정산 예정일 기준",
-                            "supported": True, "excluded": 0}
+                            "supported": True, "excluded": 0, "shifted_out": 0}
 
 
 def test_unsupported_axis_falls_back_to_the_table_default_and_says_so(client, app):
@@ -762,14 +771,154 @@ def test_unsupported_axis_falls_back_to_the_table_default_and_says_so(client, ap
     data = _data(_get(client, ledger="commission", basis="pay"))
     assert data["basis"] == "pay" and data["basis_label"] == "결제일 기준"
     assert data["ledger"]["axis"] == {"basis": "expect", "label": "정산 예정일 기준",
-                                      "supported": False, "excluded": 0}
+                                      "supported": False, "excluded": 0,
+                                      "shifted_out": 0}
 
     vat = _data(_get(client, ledger="vat_case", basis="complete"))["ledger"]
     assert vat["axis"] == {"basis": "basis", "label": "정산 기준일 기준",
-                           "supported": False, "excluded": 0}
+                           "supported": False, "excluded": 0, "shifted_out": 0}
     # 부가세 표에서 정산 기준일을 고르면 그게 곧 이 표의 축이다.
     vat_ok = _data(_get(client, ledger="vat_case", basis="basis"))["ledger"]
     assert vat_ok["axis"]["supported"] is True and vat_ok["axis"]["basis"] == "basis"
+
+
+# --------------------------------------------------------------------------
+# 13. C2 — 축 전환으로 조회 창 **밖으로 밀려난** 행 수 (2026-09-03)
+# --------------------------------------------------------------------------
+def _seed_pay_axis(today: datetime.date) -> datetime.date:
+    """건별 3행 — 결제일이 창 안(A) / 창 밖(B) / 비어 있음(C). 예정일은 셋 다 창 안이다.
+
+    이 시드가 **모집단 그 자체**다: 예정일 창(오늘-30~오늘+14) 안에 3행이 있고, 결제일 축으로
+    바꾸면 A 만 남는다. 밀린 몫(B)과 빈 몫(C)이 실제로 존재해야 음성 대조군이 반증이 된다.
+
+    Args:
+        today: KST 오늘.
+
+    Returns:
+        시드한 정산 예정일.
+    """
+    day = today - datetime.timedelta(days=1)
+    _case(day, product_order_id="2026090300001", pay_date=day)
+    _case(day, product_order_id="2026090300002",
+          pay_date=day - datetime.timedelta(days=90))
+    _case(day, product_order_id="2026090300003", pay_date=None)
+    db_session.commit()
+    return day
+
+
+def test_pay_axis_counts_rows_that_moved_out_of_the_window(client, app):
+    """결제일 축: 표에서 사라진 3행 중 1행은 "날짜가 없어서", 1행은 "기간 밖으로 옮겨 가서"다.
+
+    축을 바꾸면 표가 조용히 줄어드는 것이 C2 결함이었다. ``excluded``(축 날짜 NULL)와
+    ``shifted_out``(축 날짜가 창 밖)은 **서로소**이므로 두 수와 표에 남은 수를 더하면 모집단이
+    정확히 복원된다 — 겹쳐 세면 이 등식이 깨진다.
+    """
+    _seed_pay_axis(get_today_kst())
+    _login(client, _make_user(role="ADMIN"))
+
+    ledger = _data(_get(client, basis="pay"))["ledger"]
+
+    assert ledger["axis"]["basis"] == "pay" and ledger["axis"]["supported"] is True
+    assert ledger["axis"]["shifted_out"] == 1        # B: 결제일이 90일 전
+    assert ledger["axis"]["excluded"] == 1           # C: 결제일 없음
+    assert ledger["pagination"]["total"] == 1        # A 만 남는다
+    # 서로소 증명: 남은 수 + 빈 몫 + 밀린 몫 = 예정일 창 안의 모집단 3행.
+    assert (ledger["pagination"]["total"] + ledger["axis"]["excluded"]
+            + ledger["axis"]["shifted_out"]) == 3
+
+
+def test_expect_and_vat_axes_never_report_shifted_out(client, app):
+    """음성 대조군 — **밀릴 행이 실제로 있는** 같은 시드에서 예정일·부가세 축은 0 이다.
+
+    예정일 축은 창 정의식과 축 식이 같은 식이라 구조적으로 0 이고(밀릴 자리가 없다),
+    부가세 건별은 애초에 예정일 창이라는 것이 없는 표다. 모집단 밖 표본으로 0 을 확인하면
+    그건 반증이 아니라 빈 그릇을 센 것이다 — 그래서 B(밀린 행)가 있는 시드를 그대로 쓴다.
+    """
+    _seed_pay_axis(get_today_kst())
+    _login(client, _make_user(role="ADMIN"))
+    # 부가세 건별에도 행을 둔다(빈 표에서 0 을 보면 반증이 아니다).
+    day = get_today_kst() - datetime.timedelta(days=1)
+    for offset, order_id in ((0, "2026090300011"), (90, "2026090300012")):
+        db_session.add(NaverVatCase(
+            channel="NAVER", order_id=order_id, product_order_id=order_id,
+            settle_basis_date=day - datetime.timedelta(days=offset),
+            raw_snapshot={"orderId": order_id},
+            synced_at=datetime.datetime(2026, 9, 1, 0, 0)))
+    db_session.commit()
+
+    # 밀린 행 B 가 결제일 축에서는 실제로 세어진다(대조군이 모집단 안이라는 증거).
+    assert _data(_get(client, basis="pay"))["ledger"]["axis"]["shifted_out"] == 1
+
+    expect = _data(_get(client, basis="expect"))["ledger"]
+    assert expect["axis"]["shifted_out"] == 0
+    assert expect["pagination"]["total"] == 3, "예정일 축은 셋 다 싣는다"
+
+    vat = _data(_get(client, ledger="vat_case", basis="basis"))["ledger"]
+    assert vat["axis"]["shifted_out"] == 0
+    assert vat["pagination"]["total"] >= 1, "빈 표에서 잰 0 은 반증이 아니다"
+
+
+def test_shifted_out_respects_the_type_and_search_filters(client, app):
+    """밀린 행도 **화면과 같은 술어 안에서만** 센다 — 좁혀 놓고 전체 기준 수를 말하지 않는다.
+
+    두 수가 다른 모집단을 세면 "3건이 빠졌다"는 안내가 화면에 보이는 표와 무관한 숫자가 된다.
+    """
+    _seed_pay_axis(get_today_kst())
+    _login(client, _make_user(role="ADMIN"))
+
+    # 검색으로 밀린 행(B) 하나만 남기면 밀린 수는 1, 표는 비고 빈 몫은 0 이다.
+    only_b = _data(_get(client, basis="pay", q="2026090300002"))["ledger"]
+    assert only_b["axis"]["shifted_out"] == 1
+    assert only_b["axis"]["excluded"] == 0
+    assert only_b["pagination"]["total"] == 0
+
+    # 음성 대조군: 창 안 행(A)만 남기면 밀린 수가 0 이다(술어를 무시하면 1 이 나온다).
+    only_a = _data(_get(client, basis="pay", q="2026090300001"))["ledger"]
+    assert only_a["axis"]["shifted_out"] == 0
+    assert only_a["pagination"]["total"] == 1
+
+    # 유형 필터가 아무도 안 남기면 세 수가 모두 0 이다.
+    none_left = _data(_get(client, basis="pay", type="NOTHING"))["ledger"]
+    assert none_left["axis"]["shifted_out"] == 0
+    assert none_left["axis"]["excluded"] == 0
+    assert none_left["pagination"]["total"] == 0
+
+
+# --------------------------------------------------------------------------
+# 14. 건별 검색이 구매자명도 본다 (R5a, 2026-09-03)
+# --------------------------------------------------------------------------
+def test_case_search_matches_purchaser_name(client, app):
+    """``q`` 가 주문번호·상품주문번호에 더해 **구매자명**도 본다(회계팀이 이름으로 찾는다)."""
+    today = get_today_kst()
+    day = today - datetime.timedelta(days=1)
+    _case(day, product_order_id="2026090300021", purchaser_name="김라홈")
+    _case(day, product_order_id="2026090300022", purchaser_name="이가구")
+    db_session.commit()
+    _login(client, _make_user(role="ADMIN"))
+
+    found = _data(_get(client, q="김라홈"))["ledger"]
+    assert found["pagination"]["total"] == 1
+    assert found["rows"][0]["purchaser_name"] == "김라홈"
+    # 부분 일치도 같은 규칙이다(ilike '%..%').
+    assert _data(_get(client, q="라홈"))["ledger"]["pagination"]["total"] == 1
+
+
+def test_case_search_by_purchaser_name_has_a_negative_control(client, app):
+    """음성 대조군 — 없는 이름은 0건이고, 기존 주문번호 검색은 그대로 동작한다.
+
+    검색 필드를 늘리다 술어를 ``or_`` 로 헐겁게 만들면 아무 이름이나 전량을 돌려준다.
+    """
+    today = get_today_kst()
+    day = today - datetime.timedelta(days=1)
+    _case(day, product_order_id="2026090300031", purchaser_name="김라홈")
+    _case(day, product_order_id="2026090300032", purchaser_name="이가구")
+    db_session.commit()
+    _login(client, _make_user(role="ADMIN"))
+
+    assert _data(_get(client, q="박없음"))["ledger"]["pagination"]["total"] == 0
+    by_order = _data(_get(client, q="2026090300032"))["ledger"]
+    assert by_order["pagination"]["total"] == 1
+    assert by_order["rows"][0]["purchaser_name"] == "이가구"
 
 
 def test_export_complete_axis_matches_the_screen_row_set(client, app):
