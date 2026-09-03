@@ -238,8 +238,17 @@ def api_settlement_channel():
     return jsonify({"success": True, "data": data, "error": None})
 
 
-def _backfill_arg(payload: dict) -> Optional[str]:
-    """``backfill_from`` (선택). 형식 검증만 하고 문자열 그대로 큐에 넘긴다.
+#: 소급 적재 하한(오늘 기준 일수). 조회 화면 상한(``MAX_RANGE_DAYS``)과 같은 폭 — 화면에서 고를 수 있는
+#: 구간보다 더 옛날을 받아오라는 요청은 오타이거나 오선택이라 워커 호출(하루 60건)을 태우기 전에 막는다.
+_BACKFILL_MAX_DAYS_BACK = 400
+
+
+def _backfill_arg(payload: dict, today: datetime.date) -> Optional[str]:
+    """``backfill_from`` (선택). 형식과 하한(오늘-400일)·상한(오늘)을 검사하고 문자열로 큐에 넘긴다.
+
+    Args:
+        payload: 요청 JSON dict.
+        today: KST 오늘.
 
     Args:
         payload: 요청 JSON dict.
@@ -253,7 +262,14 @@ def _backfill_arg(payload: dict) -> Optional[str]:
     raw = str(payload.get("backfill_from") or "").strip()
     if not raw:
         return None
-    return _parse_day(raw, "backfill_from").isoformat()
+    day = _parse_day(raw, "backfill_from")
+    floor = today - datetime.timedelta(days=_BACKFILL_MAX_DAYS_BACK)
+    if day < floor:
+        raise ValueError(
+            f"backfill_from 은 {floor.isoformat()} 이후여야 합니다(최대 {_BACKFILL_MAX_DAYS_BACK}일 소급).")
+    if day > today:
+        raise ValueError("backfill_from 은 오늘 이전이어야 합니다.")
+    return day.isoformat()
 
 
 def _enqueue(actor_user_id: int, backfill_from: Optional[str]) -> Any:
@@ -297,7 +313,7 @@ def api_settlement_channel_sync():
     payload = request.get_json(silent=True)
     payload = payload if isinstance(payload, dict) else {}
     try:
-        backfill_from = _backfill_arg(payload)
+        backfill_from = _backfill_arg(payload, get_today_kst())
     except ValueError as exc:
         return _error(str(exc), 400)
 

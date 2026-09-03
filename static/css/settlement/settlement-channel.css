@@ -641,3 +641,12 @@
   box-shadow: inset 0 -3px 0 var(--s-ch-fam, var(--s-accent));
 }
 .foms-settle .s-ch-kpi-detail { margin-top: 10px; }
+
+/* ── F8 · 적재 안 된 구간 받아오기 배너(기간 바 아래) ───────────────────────
+   `.alert` 가 아니다(5초 뒤 자동으로 닫힌다) — 이 안내는 구간을 바꿀 때까지 남아야 한다. */
+.foms-settle .s-ch-backfill {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin-top: 8px; padding: 8px 12px; border: 1px dashed var(--s-ch-warn); border-radius: 8px;
+  background: var(--s-ch-warn-soft); color: var(--s-text);
+}
+.foms-settle .s-ch-backfill-text { font-size: calc(12px * var(--s-fs, 1)); line-height: 1.5; }
