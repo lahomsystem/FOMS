@@ -1498,7 +1498,7 @@ def test_namespaced_erp_utils_shim_preserves_canonical_contract() -> None:
 
 def test_namespaced_erp_sync_columns_shim_preserves_canonical_contract() -> None:
     """The legacy services path should re-export the canonical ERP sync helper."""
-    expected_public_names = ["sync_erp_flat_columns"]
+    expected_public_names = ["sync_as_axis_column", "sync_erp_flat_columns"]
 
     assert namespaced_erp_sync_columns.__all__ == expected_public_names
     assert namespaced_erp_sync_columns.__all__ == expected_public_names
