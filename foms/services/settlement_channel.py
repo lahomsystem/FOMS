@@ -139,6 +139,15 @@ _BASIS_COLUMN: dict[str, str] = {
     "pay": "pay_date",
 }
 
+#: 원장 종류별로 **실제로 있는** 날짜 축(첫 값이 그 표의 기본 축). 없는 축을 고르면 기본 축으로
+#: 되돌리되 응답 ``ledger.axis.supported`` 가 그 사실을 말한다 — 수수료 표엔 결제일이 없고,
+#: 부가세 건별은 정산 기준일 하나뿐이라 "결제일 기준" 라벨만 바뀌던 결함(2026-09-03 실측)을 막는다.
+_LEDGER_BASES: dict[str, tuple[str, ...]] = {
+    "case": ("expect", "complete", "basis", "pay"),
+    "commission": ("expect", "complete", "basis"),
+    "vat_case": ("basis",),
+}
+
 #: 부가세 8금액 — (응답 키, 컬럼명). 일자표·합계·건별이 같은 이름을 쓴다.
 _VAT_AMOUNTS: tuple[tuple[str, str], ...] = (
     ("total_sales", "total_sales_amount"),
@@ -956,19 +965,40 @@ def _run_exceptions(run: Any, reconcile: dict, today: datetime.date) -> list[dic
 # ---------------------------------------------------------------------------
 
 
-def _ledger_date_expr(model: Any, kind: str, basis: str):
-    """원장 행의 날짜 축 식 — 프론트의 ``rowDateOf`` 와 **같은 되돌림 순서**다.
+def _ledger_axis(model: Any, kind: str, basis: str) -> tuple[Any, str, bool]:
+    """원장의 날짜 축 식 + 실제 적용된 basis + 지원 여부 — 프론트 ``rowDateOf`` 와 같은 규칙.
 
-    (기준일 컬럼 → 정산 예정일 → 조회일). 두 곳이 다른 날짜를 고르면 서버가 만든 날짜
-    그룹에 그 행이 안 들어가 "이 날짜의 행은 다른 페이지에 있습니다"만 남고 표가 빈다.
+    - 예정일 축만 조회일로 되돌린다(예정일이 아직 안 잡힌 미확정 건이 조용히 빠지지 않게).
+    - 완료일·기준일·결제일 축은 **되돌리지 않는다.** 완료일이 없는 미완료 행을 예정일에 얹으면
+      "완료일 기준" 표가 예정일 표와 같아져 셀렉트가 죽은 것처럼 보였다(2026-09-03 스테이징 실측:
+      21그룹·487건 동일). 빠진 행은 :func:`_build_ledger` 가 세어 ``axis.excluded`` 로 낸다.
+    - 표에 없는 축은 그 표의 기본 축으로 가되 ``supported=False`` 를 돌려 화면이 되돌림을 말하게 한다.
+
+    Args:
+        model: 원장 모델. kind: case|commission|vat_case. basis: 사용자가 고른 축.
+
+    Returns:
+        (SQL 축 식, 적용된 basis, 지원 여부).
     """
+    allowed = _LEDGER_BASES[kind]
+    supported = basis in allowed
+    effective = basis if supported else allowed[0]
     if kind == "vat_case":
-        return model.settle_basis_date
-    candidates = [getattr(model, _BASIS_COLUMN.get(basis, ""), None),
-                  getattr(model, "settle_expect_date", None),
-                  getattr(model, "search_date", None)]
-    columns = [column for column in candidates if column is not None]
-    return columns[0] if len(columns) == 1 else func.coalesce(*columns)
+        return model.settle_basis_date, effective, supported
+    if effective == "expect":
+        return func.coalesce(model.settle_expect_date, model.search_date), effective, supported
+    return getattr(model, _BASIS_COLUMN[effective]), effective, supported
+
+
+def _excluded_by_axis(session: Any, model: Any, axis: Any, scope_filters: list,
+                      channel: str, date_from: datetime.date, date_to: datetime.date) -> int:
+    """예정일 창 안에 있지만 이 축의 날짜가 비어 표에서 빠진 행 수(화면이 "N건 제외"라고 말한다)."""
+    window = func.coalesce(model.settle_expect_date, model.search_date)
+    count = (session.query(func.count(model.id))
+             .filter(model.channel == channel, window >= date_from, window <= date_to,
+                     axis.is_(None), *scope_filters)
+             .scalar())
+    return int(count or 0)
 
 
 def _ledger_filters(model: Any, spec: tuple, filters: dict) -> list:
@@ -1031,9 +1061,14 @@ def _build_ledger(session: Any, channel: str, kind: str, basis: str,
     """
     spec = _LEDGER_SPEC[kind]
     model, fields, amount_column = spec[0], spec[1], spec[2]
-    axis = _ledger_date_expr(model, kind, basis)
+    axis, effective, supported = _ledger_axis(model, kind, basis)
+    extra_filters = _ledger_filters(model, spec, filters)
     scope = [model.channel == channel, axis >= date_from, axis <= date_to]
-    scope.extend(_ledger_filters(model, spec, filters))
+    scope.extend(extra_filters)
+    excluded = 0
+    if effective != "expect" and kind != "vat_case":
+        excluded = _excluded_by_axis(session, model, axis, extra_filters, channel,
+                                     date_from, date_to)
     groups = (session.query(axis, func.count(model.id),
                             func.sum(getattr(model, amount_column)))
               .filter(*scope).group_by(axis).order_by(axis.desc()).all())
@@ -1051,6 +1086,9 @@ def _build_ledger(session: Any, channel: str, kind: str, basis: str,
         "rows": [_serialize_ledger_row(row, fields) for row in rows],
         "pagination": {"page": page, "per_page": per_page, "total": total,
                        "pages": pages},
+        # 표에 실제로 적용된 축. 화면은 위쪽 집계(늘 예정일)와 이 표의 축을 따로 말한다.
+        "axis": {"basis": effective, "label": BASIS_LABELS[effective],
+                 "supported": supported, "excluded": excluded},
     }
 
 

@@ -214,7 +214,8 @@ def test_data_schema_keys_exact(client, app):
     assert set(data["range"]) == {"from", "to"}
     assert [step["key"] for step in data["waterfall"]] == _WATERFALL_ORDER
     assert all(set(step) == {"key", "label", "amount"} for step in data["waterfall"])
-    assert set(data["ledger"]) == {"kind", "groups", "rows", "pagination"}
+    assert set(data["ledger"]) == {"kind", "groups", "rows", "pagination", "axis"}
+    assert set(data["ledger"]["axis"]) == {"basis", "label", "supported", "excluded"}
     assert set(data["ledger"]["pagination"]) == {"page", "per_page", "total", "pages"}
     assert set(data["reconcile"]) == {"daily_total", "case_total", "diff"}
     assert set(data["commission"]) == {"by_type", "total", "max_interlock"}
@@ -718,3 +719,74 @@ def test_holdback_block_is_empty_without_any_hold(client, app):
 
     assert data["holdback"] == {"rows": [], "count": 0,
                                 "total": {"pay_holdback": 0, "settlement_limit": 0, "amount": 0}}
+
+
+# --------------------------------------------------------------------------
+# 12. 기준일 셀렉트 — 완료일 축은 되돌리지 않고, 없는 축은 되돌림을 말한다 (2026-09-03)
+# --------------------------------------------------------------------------
+def test_complete_axis_lists_only_completed_rows_and_counts_the_rest(client, app):
+    """완료일 축: 완료일 있는 행만 완료일로 묶고, 완료일 없는 행은 ``axis.excluded`` 로 센다.
+
+    되돌림(coalesce) 을 두면 미완료 행이 예정일에 얹혀 "완료일 기준" 표가 예정일 표와 같아진다 —
+    스테이징 실측(2026-09-03)에서 셀렉트가 죽은 것처럼 보이던 원인이다.
+    """
+    today = get_today_kst()
+    day = _seed_basic(today)                       # 완료일 없는 2행
+    done_day = day - datetime.timedelta(days=2)
+    _case(day, product_order_id="2026090100041", settle_complete_date=done_day)
+    db_session.commit()
+    _login(client, _make_user(role="ADMIN"))
+
+    ledger = _data(_get(client, basis="complete"))["ledger"]
+    assert ledger["axis"] == {"basis": "complete", "label": "정산 완료일 기준",
+                              "supported": True, "excluded": 2}
+    assert [group["date"] for group in ledger["groups"]] == [done_day.isoformat()]
+    assert ledger["pagination"]["total"] == 1
+    assert ledger["rows"][0]["settle_complete_date"] == done_day.isoformat()
+    # 음성 대조군: 예정일 축은 셋 다 싣고 제외가 0 이다.
+    base = _data(_get(client))["ledger"]
+    assert base["pagination"]["total"] == 3
+    assert base["axis"] == {"basis": "expect", "label": "정산 예정일 기준",
+                            "supported": True, "excluded": 0}
+
+
+def test_unsupported_axis_falls_back_to_the_table_default_and_says_so(client, app):
+    """수수료 표엔 결제일이, 부가세 표엔 정산 기준일밖에 없다 — 되돌리되 ``supported=False``.
+
+    라벨만 바뀌고 표는 그대로인 조용한 되돌림이 결함이었다. 최상위 ``basis``/``basis_label`` 은
+    사용자가 고른 값 그대로 남는다(셀렉트 상태의 권위).
+    """
+    _seed_basic(get_today_kst())
+    _login(client, _make_user(role="ADMIN"))
+
+    data = _data(_get(client, ledger="commission", basis="pay"))
+    assert data["basis"] == "pay" and data["basis_label"] == "결제일 기준"
+    assert data["ledger"]["axis"] == {"basis": "expect", "label": "정산 예정일 기준",
+                                      "supported": False, "excluded": 0}
+
+    vat = _data(_get(client, ledger="vat_case", basis="complete"))["ledger"]
+    assert vat["axis"] == {"basis": "basis", "label": "정산 기준일 기준",
+                           "supported": False, "excluded": 0}
+    # 부가세 표에서 정산 기준일을 고르면 그게 곧 이 표의 축이다.
+    vat_ok = _data(_get(client, ledger="vat_case", basis="basis"))["ledger"]
+    assert vat_ok["axis"]["supported"] is True and vat_ok["axis"]["basis"] == "basis"
+
+
+def test_export_complete_axis_matches_the_screen_row_set(client, app):
+    """CSV 도 화면 표와 같은 축 규칙: 완료일 축 파일엔 완료일 있는 행만 실린다(예정일 축은 전부)."""
+    today = get_today_kst()
+    day = _seed_basic(today)
+    done_day = day - datetime.timedelta(days=2)
+    _case(day, product_order_id="2026090100042", settle_complete_date=done_day)
+    db_session.commit()
+    _login(client, _make_user(role="ADMIN"))
+    window = f"from={(day - datetime.timedelta(days=5)).isoformat()}&to={today.isoformat()}"
+
+    def lines(basis: str) -> int:
+        resp = client.get(f"/api/settlement/channel/export.csv?kind=settle_case&{window}&basis={basis}")
+        assert resp.status_code == 200, resp.get_data(as_text=True)[:200]
+        text = resp.get_data(as_text=True).lstrip("﻿")
+        return len([row for row in text.splitlines() if row.strip()]) - 1   # 머리줄 제외
+
+    assert lines("expect") == 3
+    assert lines("complete") == 1

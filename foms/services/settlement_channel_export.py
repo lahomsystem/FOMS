@@ -105,8 +105,8 @@ _BASIS_COLUMN: dict[str, str] = {
     "pay": "pay_date",
 }
 
-#: kind -> 날짜 축 되돌림 순서(기준일 컬럼 뒤에 붙는다). 원장 커널 ``_ledger_date_expr`` 과
-#: 같은 순서다.
+#: kind -> 예정일 축의 되돌림 순서. 원장 커널 ``_ledger_axis`` 의 예정일 분기와 같다
+#: (완료일·기준일·결제일 축은 되돌리지 않는다 — :func:`_axis_expr`).
 _AXIS_FALLBACK: dict[str, tuple[str, ...]] = {
     "settle_daily": ("settle_expect_date",),
     "settle_case": ("settle_expect_date", "search_date"),
@@ -407,7 +407,11 @@ def _validate_range(date_from: datetime.date, date_to: datetime.date) -> None:
 
 
 def _axis_expr(model: Any, kind: str, basis: str) -> Any:
-    """날짜 축 식 — 원장 커널 ``_ledger_date_expr`` 과 **같은 되돌림 순서**다.
+    """날짜 축 식 — 원장 커널 ``_ledger_axis`` 와 **같은 규칙**(화면 표와 같은 행 집합이 파일에 간다).
+
+    예정일 축만 조회일로 되돌린다. 완료일·기준일·결제일 축은 그 컬럼 하나라, 그 날짜가 빈 행은
+    파일에서도 빠진다 — 되돌리면 "완료일 기준" 파일이 예정일 파일과 같아진다(2026-09-03 실측).
+    표에 없는 축(수수료의 결제일)은 그 표의 기본 축(예정일 되돌림)으로 간다.
 
     Args:
         model: 대상 모델.
@@ -417,9 +421,11 @@ def _axis_expr(model: Any, kind: str, basis: str) -> Any:
     Returns:
         SQLAlchemy 컬럼 식(후보가 둘 이상이면 ``coalesce``).
     """
+    if kind in _BASIS_AWARE and basis != "expect":
+        picked = getattr(model, _BASIS_COLUMN.get(basis, ""), None)
+        if picked is not None:
+            return picked
     names: tuple[str, ...] = _AXIS_FALLBACK[kind]
-    if kind in _BASIS_AWARE:
-        names = (_BASIS_COLUMN.get(basis, ""),) + names
     columns: list[Any] = []
     seen: set[str] = set()
     for name in names:
