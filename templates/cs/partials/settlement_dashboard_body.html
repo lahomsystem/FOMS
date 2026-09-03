@@ -108,12 +108,13 @@
         <span class="s-fs__now" data-settlement-fs-now aria-live="polite">100%</span>
         <button type="button" class="s-fs__btn" data-settlement-fs-step="1" aria-label="글자 크게" title="글자 크게">+</button>
       </span>
-      {# 권한 부제는 실제 허용 집합이다(SPEC §5 = FINANCE_MUTATION 과 같은 집합).
-         목업의 "ADMIN·MANAGER 전용" 은 CS/영업 담당을 빠뜨린 문구라 교정했다.
+      {# 권한 부제는 실제 허용 집합이다. 2026-09-03 사용자 결정으로 열람 집합이
+         **관리자(ADMIN) + 회계팀**으로 좁혀졌다(판정 SSOT: settlement_channel_access
+         .is_accounting_or_admin). 문구를 집합보다 넓게 적으면 화면이 거짓말을 한다.
          2026-09-02: 별도 `.s-strip` 한 줄(40px)을 없애고 탭줄 오른쪽 메타로 합쳤다 — 크롬이 본문
          시작을 400px 아래로 밀던 문제. 기준 시각 훅 `data-settlement-stamp` 은 그대로다. #}
       <span class="s-tabs-meta">
-        <span class="s-who">ADMIN · MANAGER · CS/영업 담당 열람 · 매출 인식: 완료일 기준 (완료 · AS접수 · AS완료)</span>
+        <span class="s-who">관리자 · 회계팀 열람 · 매출 인식: 완료일 기준 (완료 · AS접수 · AS완료)</span>
         <span class="s-stamp" data-settlement-stamp></span>
       </span>
     </div>

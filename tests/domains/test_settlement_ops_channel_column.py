@@ -373,11 +373,12 @@ def test_case_rows_of_other_orders_never_leak_into_a_row(app):
 # ==========================================================================
 # 5. 권한 — 키 부재가 계약이다(§6)
 # ==========================================================================
-def test_denied_actor_gets_no_key_even_when_settlement_rows_exist(client, app):
-    """STAFF+CS 응답 행에는 `naver_settlement` 키가 **없고** 플래그가 False 다.
+def test_denied_actor_gets_no_key_because_the_surface_is_closed(client, app):
+    """STAFF+CS 는 행 API 가 403 이라 `naver_settlement` 키도 금액도 못 받는다.
 
-    이 actor 는 행 API 자체는 200 이다(정산 대시보드 권한 보유). 그래서 "403 이니까
-    안전하다"가 성립하지 않는다 — 응답 본문에서 키를 빼는 것이 유일한 방어다.
+    2026-09-03 전에는 이 actor 가 200 을 받았고, 응답 본문에서 키를 빼는 것이 유일한
+    방어였다. 지금은 정산 표면 전체가 회계팀·관리자 전용이라 게이트가 앞에서 닫힌다 —
+    금액이 응답에 있는지까지 계속 확인해 회귀(200 복귀)를 두 겹으로 잡는다.
     """
     order = _seed_naver_order()
     _seed_case(order.id, complete=datetime.date(2026, 9, 3), amount=1_234_000)
@@ -387,11 +388,9 @@ def test_denied_actor_gets_no_key_even_when_settlement_rows_exist(client, app):
     response = client.get(ROWS_URL)
     body = response.get_json()
 
-    assert response.status_code == 200
-    assert body["data"]["channel_settlement_visible"] is False
-    assert all("naver_settlement" not in row for row in body["data"]["rows"]), (
-        "채널 정산 권한이 없는 actor 의 행에 네이버 정산 키가 실렸다"
-    )
+    assert response.status_code == 403
+    assert body["data"] is None
+    assert "naver_settlement" not in json.dumps(body, ensure_ascii=False)
     assert "1234000" not in json.dumps(body, ensure_ascii=False), "금액이 응답에 샜다"
 
 

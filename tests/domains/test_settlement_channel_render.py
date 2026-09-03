@@ -41,6 +41,9 @@ from flask import render_template
 # 프래그먼트 요청 의미론을 그대로 쓰기 위해 요약 탭 계약 테스트의 헬퍼를 재사용한다
 # (복제하면 헤더 계약이 갈려 "전체 페이지가 와서 검사가 통째로 어긋나는" 함정을 탄다).
 from tests.domains.test_settlement_dashboard_render import (  # noqa: E402
+    PAGE_URL,
+    _FRAGMENT_URL,
+    _SHELL_HEADERS,
     _fragment_html,
     _login_allowed,
 )
@@ -418,25 +421,34 @@ def test_allowed_actors_receive_the_channel_surface(client, app, role, team, nee
 
 
 @pytest.mark.parametrize("needle", _CHANNEL_MARKUP_NEEDLES)
-def test_denied_actor_receives_no_channel_markup_at_all(client, app, needle):
-    """STAFF+CS(정산 화면 자체는 보는 사용자) 렌더에는 채널 마크업이 **0** 이다.
+def test_denied_actor_gets_no_channel_markup_because_page_is_closed(client, app, needle):
+    """STAFF+CS 는 2026-09-03 부터 정산 화면 자체가 403 이라 채널 마크업도 **0** 이다.
 
-    감추기가 아니라 서버가 빼는 것까지가 계약이다 — 감추기만 하면 개발자 도구로 그대로 보이고,
-    자산 링크가 남으면 회계 전용 화면의 구조가 그대로 노출된다.
+    감추기가 아니라 서버가 아예 안 그리는 것까지가 계약이다 — 감추기만 하면 개발자
+    도구로 그대로 보이고, 자산 링크가 남으면 회계 전용 화면의 구조가 노출된다.
     """
     _login_allowed(client, role="STAFF", team="CS")
 
-    assert needle not in _fragment_html(client), needle
+    resp = client.get(_FRAGMENT_URL, headers=_SHELL_HEADERS)
+
+    assert resp.status_code == 403, resp.status_code
+    assert needle not in resp.get_data(as_text=True), needle
 
 
-def test_denied_actor_still_sees_the_settlement_dashboard(client, app):
-    """게이트가 채널 탭만 닫는다 — 정산 대시보드 자체는 그대로 열린다(과잉 차단 방지)."""
+def test_non_accounting_staff_cannot_open_the_settlement_dashboard(client, app):
+    """정산 대시보드는 회계팀·관리자 전용이다(사용자 결정 2026-09-03).
+
+    그 전에는 CS/영업도 요약 탭을 봤다. 이 테스트가 red 로 잡는 것은 그 시절 권한으로
+    되돌아가는 회귀다 — 전사 매출·미수 총액이 다시 전 팀에 열린다.
+    """
     _login_allowed(client, role="STAFF", team="CS")
 
-    html = _fragment_html(client)
+    fragment = client.get(_FRAGMENT_URL, headers=_SHELL_HEADERS)
+    page = client.get(PAGE_URL)
 
-    assert 'id="foms-settlement-root"' in html
-    assert 'id="foms-settle-pane-summary"' in html
+    assert fragment.status_code == 403, fragment.status_code
+    assert page.status_code == 403, page.status_code
+    assert 'id="foms-settlement-root"' not in page.get_data(as_text=True)
 
 
 # ==========================================================================

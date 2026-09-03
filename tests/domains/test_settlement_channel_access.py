@@ -9,9 +9,9 @@
 
 여기서 잠그는 것 셋:
 1. **매트릭스 8행** — 통과 3 / 거부 5. 특히 `MANAGER+CS` 거부가 이 게이트의 존재 이유다.
-2. **엔진과 갈라진다는 사실** — 같은 actor 에서 ``user_can(SETTLEMENT_CHANNEL_READ, ...)``
-   와 게이트 함수의 답이 다를 수 있음을 명시로 남긴다. "정책 등재됐으니 엔진을 쓰면 되겠지"
-   로 되돌아가는 회귀를 잡는다.
+2. **엔진과 같은 답을 낸다는 사실** — 2026-09-03 부터 정책 등재가 ``gate`` 로 이 함수를
+   가리키므로 ``user_can(SETTLEMENT_CHANNEL_READ, ...)`` 도 같은 답을 낸다. gate 를 떼면
+   MANAGER role override 가 되살아나 CS 팀 매니저가 열린다 — 그 회귀를 잡는다.
 3. **정책 등재 자체** — 미등재 policy_id 는 ``user_can`` 이 조용히 False 를 준다.
    manifest·가드 pre-filter 가 이 id 를 참조하므로 등재 누락은 무음 장애가 된다.
 """
@@ -80,16 +80,17 @@ def test_channel_settlement_gate_matrix(app, role, team, is_active, expected):
     assert can_view_channel_settlement(user) is expected, (role, team, is_active)
 
 
-def test_manager_outside_accounting_is_denied_even_though_the_engine_allows_it(app):
-    """`MANAGER+CS` 는 게이트에서 거부된다 — **정책 엔진은 허용하는데도** 그렇다.
+def test_manager_outside_accounting_is_denied_by_gate_and_engine(app):
+    """`MANAGER+CS` 는 게이트에서도, 정책 엔진에서도 거부된다.
 
-    이 한 줄이 게이트 함수가 따로 있는 이유 전부다. 엔진의 role override 를 그대로 쓰면
-    회계 자료가 CS 팀 매니저 전원에게 열린다(운영 실측 2026-09-02: 회계 담당 예정자 2명이
-    지금 그 조합이다). 엔진 판정이 바뀌어 우연히 같아지더라도 게이트는 계속 거부여야 한다.
+    게이트 함수가 따로 있는 이유는 엔진의 role override 다 — MANAGER 는 team 검사보다
+    먼저 통과하므로 ``teams=("ACCOUNTING",)`` 만으로는 CS 팀 매니저가 열린다(운영 실측
+    2026-09-02). 2026-09-03 부터는 정책 등재에 ``gate`` 를 달아 엔진도 같은 함수로
+    판정하므로 둘 다 거부여야 한다. 어느 한쪽이라도 True 면 회계 자료가 새는 것이다.
     """
     user = _make_user(role="MANAGER", team="CS")
 
-    assert user_can(SETTLEMENT_CHANNEL_POLICY_ID, user) is True, "엔진 전제가 바뀌었다"
+    assert user_can(SETTLEMENT_CHANNEL_POLICY_ID, user) is False, "엔진이 CS 매니저를 열었다"
     assert can_view_channel_settlement(user) is False
 
 

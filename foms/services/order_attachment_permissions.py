@@ -7,7 +7,7 @@ from typing import Any
 from sqlalchemy import func, or_
 
 from foms.services.erp_permissions import is_order_related_to_user
-from foms.services.orders.order_mutation_policy import normalize_team
+from foms.services.orders.order_mutation_policy import normalize_team, team_has_capability
 
 __all__ = [
     "can_delete_order_attachment",
@@ -166,7 +166,7 @@ def can_reorder_order_attachments(user: Any, order: Any) -> bool:
         return False
     if role in _REORDER_LIKE_ADMIN_ROLES:
         return True
-    if normalize_team(getattr(user, "team", None)) in _REORDER_LIKE_ADMIN_TEAMS:
+    if team_has_capability(getattr(user, "team", None), _REORDER_LIKE_ADMIN_TEAMS):
         return True
     return can_manage_order_attachments(user, order)
 

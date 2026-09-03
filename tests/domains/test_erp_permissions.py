@@ -39,6 +39,38 @@ def test_can_edit_erp_normalizes_team_like_the_policy_gate() -> None:
     assert not erp_permissions.can_edit_erp(SimpleNamespace(role="USER", team=None))
 
 
+def test_accounting_team_has_the_same_capabilities_as_cs() -> None:
+    """회계팀(ACCOUNTING)은 CS 와 같은 업무 권한을 갖는다(사용자 결정 2026-09-03).
+
+    2026-09-02 회계팀 신설 때 실제로 벌어진 일: team 을 CS 에서 ACCOUNTING 으로 옮긴
+    사용자가 ERP 주문 수정에서 403 을 맞았다(``can_edit_erp`` 가 팀 문자열만 봤다).
+    capability alias 가 빠지면 이 테스트가 red 다.
+    """
+    from foms.services.orders.order_mutation_policy import (
+        POLICY_REGISTRY,
+        evaluate_policy,
+        team_capabilities,
+    )
+
+    assert team_capabilities("ACCOUNTING") == ("ACCOUNTING", "CS")
+    assert erp_permissions.can_edit_erp(SimpleNamespace(role="STAFF", team="ACCOUNTING"))
+    assert erp_permissions.can_edit_erp(SimpleNamespace(role="STAFF", team=" accounting "))
+    assert erp_permissions.resolve_mine_scope_for_user(
+        SimpleNamespace(role="STAFF", team="ACCOUNTING")
+    ) == "sales"
+
+    accounting_staff = SimpleNamespace(id=1, role="STAFF", team="ACCOUNTING")
+    for policy_id in ("ERP_EDIT", "PRODUCTION_EDIT", "CONSTRUCTION_EDIT", "SHIPMENT_EDIT",
+                      "PACKING_WRITE", "WDC_ESTIMATE", "FINANCE_MUTATION"):
+        assert evaluate_policy(POLICY_REGISTRY[policy_id], accounting_staff).allowed, policy_id
+
+    # 반대 방향으로는 안 흐른다 — CS 는 회계 전용(정산) 권한을 얻지 않는다.
+    cs_staff = SimpleNamespace(id=2, role="STAFF", team="CS")
+    assert not evaluate_policy(
+        POLICY_REGISTRY["SETTLEMENT_DASHBOARD_READ"], cs_staff
+    ).allowed
+
+
 def test_build_mine_sql_filter_escapes_like_pattern_and_adds_all_condition_groups() -> None:
     user = SimpleNamespace(id=7, name="홍%_길", username="hong")
 

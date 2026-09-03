@@ -32,11 +32,14 @@ ACCOUNTING_TEAM = "ACCOUNTING"
 _TEAM_CAPABLE_ROLES = ("MANAGER", "STAFF")
 
 
-def can_view_channel_settlement(user: Any) -> bool:
-    """채널(네이버) 정산 탭·API 를 열람할 수 있는 사용자인지 판정한다.
+def is_accounting_or_admin(user: Any) -> bool:
+    """정산 표면(요약·실무·분석·채널 탭) 공통 열람 판정 — **정산 게이트 SSOT**.
 
     허용 집합은 **ADMIN**, 또는 role 이 MANAGER/STAFF 이면서 team 이 ``ACCOUNTING`` 인
     사용자다. VIEWER·미인증(None)·그 밖의 팀·비활성 계정은 전부 거부한다.
+
+    2026-09-03 사용자 결정으로 정산 대시보드 전체가 채널 탭과 같은 이 집합을 쓴다
+    (그 전에는 CS/SALES 도 열람했다).
 
     Args:
         user: 현재 사용자 객체(``None`` 이면 미인증). ``role``/``team``/``is_active`` 를 읽는다.
@@ -55,3 +58,18 @@ def can_view_channel_settlement(user: Any) -> bool:
     if role not in _TEAM_CAPABLE_ROLES:
         return False
     return normalize_team(getattr(user, "team", None)) == ACCOUNTING_TEAM
+
+
+def can_view_channel_settlement(user: Any) -> bool:
+    """채널(네이버) 정산 탭·API 를 열람할 수 있는 사용자인지 판정한다.
+
+    허용 집합은 **ADMIN**, 또는 role 이 MANAGER/STAFF 이면서 team 이 ``ACCOUNTING`` 인
+    사용자다. VIEWER·미인증(None)·그 밖의 팀·비활성 계정은 전부 거부한다.
+
+    Args:
+        user: 현재 사용자 객체(``None`` 이면 미인증). ``role``/``team``/``is_active`` 를 읽는다.
+
+    Returns:
+        열람 가능하면 True.
+    """
+    return is_accounting_or_admin(user)

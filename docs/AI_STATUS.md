@@ -9,6 +9,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
+- [2026-09-03] **회계팀 권한 정리** — ACCOUNTING 을 CS 동등 권한으로(alias `team_has_capability`, 팀 게이트 8곳), 정산 화면·행 API·채널 탭은 **ADMIN+회계팀** 전용. 입금확인은 CS/영업 유지
 - [2026-09-01] **네이버 클레임 승인 T9 로컬(커밋 대기)** — 취소 요청 승인 신설(`claim/cancel/approve`)+반품 승인 독립 경로(고객이 낸 반품). ADMIN·MANAGER, 게이트 2개(기본 꺼짐·web 전용), 승인도 OrderEvent. **취소 거부 API 는 네이버에 없다.** 원장: `docs/plans/2026-09-01-naver-claim-approve-ledger.md`
 - [2026-09-01] **네이버 과거 주문 백필 deploy 반영** — 워크벤치 90일 1회 실행·워터마크 불변·소급분은 큐 밖·매칭 캡 해소(`naverbf_00`). **운영 실행 승인 대기**. 원장 `docs/plans/2026-09-01-naver-ingest-backfill-ledger.md`
 - [2026-08-31] **고객 공유 링크 UX** — 계약서 폼 이식·계좌 복사·PNG 저장(700px 클론)·도면 ZIP. 실기기(카톡 인앱) 확인 대기, 미검증 5건은 원장에
