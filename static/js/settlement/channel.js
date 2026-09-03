@@ -2098,7 +2098,8 @@
       return;
     }
     var lastMissing = addDays(sync.coverage_from, -1);
-    var minutes = Math.max(1, Math.round(daysBetween(from, sync.coverage_from) * BACKFILL_MINUTES_PER_DAY));
+    // 워커는 시작일부터 오늘+14 까지 **전부** 다시 받는다(빠진 구간만이 아니다) — 예상 시간도 그 폭으로 센다.
+    var minutes = Math.max(1, Math.round(daysBetween(from, ctx.state.today) * BACKFILL_MINUTES_PER_DAY));
     host.appendChild(el('span', 's-ch-backfill-text',
       '이 구간 앞쪽 ' + from + ' ~ ' + lastMissing + ' 은 아직 받아오지 않았습니다(적재 구간 ' +
       sync.coverage_from + ' ~ ' + (sync.coverage_to || '—') + '). 받아오면 약 ' + minutes + '분 걸립니다.'));
