@@ -245,6 +245,12 @@ ATTACHABLE_RELATIONS = ("ADDON", "REPAY")
 EXTRA_PAYMENTS_KEY = "extra_payments"
 
 
+#: 붙이기 **전에** 이 주문에 있던 예약금 — 네이버가 아닌 돈의 자리 (2026-09-03).
+#: ERP 에 직접 등록한 주문에 추가결제를 붙이면 예약금은 `이 값 + 네이버 결제액` 이다.
+#: 이 값이 없으면 도크가 네이버 결제액만 정답이라 말해, 원래 받았던 돈이 안내에서 증발한다.
+NAVER_DEPOSIT_BASE_KEY = "naver_deposit_base"
+
+
 def _extra_payment_entry(link: ExternalOrderLink, *, relation: str,
                          actor_user_id: Optional[int], now: datetime) -> dict[str, Any]:
     """링크 1건을 추가결제 기록 항목으로 만든다.
@@ -273,7 +279,8 @@ def _extra_payment_entry(link: ExternalOrderLink, *, relation: str,
 
 
 def _apply_extra_payments(order: Order, links: list[ExternalOrderLink], *, relation: str,
-                          actor_user_id: Optional[int], now: datetime) -> int:
+                          actor_user_id: Optional[int], now: datetime,
+                          stamp_base: bool = False) -> int:
     """붙인 상품주문들의 결제 금액을 주문에 **기록**한다 (T16-F).
 
     **출고가·잔금·계약금을 자동으로 바꾸지 않는다.** 출고가는 규격 W·시공비와 얽혀 있어
@@ -288,6 +295,12 @@ def _apply_extra_payments(order: Order, links: list[ExternalOrderLink], *, relat
         relation: 관계값.
         actor_user_id: 누른 사람.
         now: 기록 시각.
+        stamp_base: 네이버 돈이 이 주문에 **처음** 붙는가. 그러면 지금 예약금은 전부
+            네이버 아닌 돈이므로 :data:`NAVER_DEPOSIT_BASE_KEY` 에 그 값을 새긴다 —
+            도크가 "네이버 결제액 = 예약금 정답" 이라 말해 원래 받아 둔 돈을 안내에서
+            지우던 자리다(2026-09-03 주문 #5112: 100,000원 증발). **처음 한 번만** 쓴다:
+            두 번째 붙이기에서 다시 쓰면 사람이 이미 반영해 올려 둔 값이 바닥값으로
+            둔갑해 안내가 그만큼 부풀어 오른다.
 
     Returns:
         새로 기록한 항목 수.
@@ -305,6 +318,14 @@ def _apply_extra_payments(order: Order, links: list[ExternalOrderLink], *, relat
         existing = []
     known = {str(row.get("external_id")) for row in existing if isinstance(row, dict)}
 
+    based = False
+    if stamp_base and not isinstance(pricing.get(NAVER_DEPOSIT_BASE_KEY), int):
+        from foms.services.erp_display import erp_deposit_amount_from_structured
+
+        pricing[NAVER_DEPOSIT_BASE_KEY] = int(
+            erp_deposit_amount_from_structured(order.structured_data or {}) or 0)
+        based = True
+
     added = 0
     for link in links:
         if str(link.external_id) in known:
@@ -313,7 +334,7 @@ def _apply_extra_payments(order: Order, links: list[ExternalOrderLink], *, relat
                                              actor_user_id=actor_user_id, now=now))
         known.add(str(link.external_id))
         added += 1
-    if not added:
+    if not (added or based):
         return 0
 
     pricing[EXTRA_PAYMENTS_KEY] = existing
@@ -430,7 +451,8 @@ def _mutation_hashes(*parts: Any) -> str:
 
 def _record_extra_payments(session: Session, *, order_id: int,
                            links: list[ExternalOrderLink], relation: str,
-                           actor_user_id: Optional[int], now: datetime) -> int:
+                           actor_user_id: Optional[int], now: datetime,
+                           stamp_base: bool = False) -> int:
     """추가결제 기록을 REV-00 mutation 계약(row lock·version bump·receipt)으로 남긴다.
 
     주문 JSONB 를 직접 쓰면 REV-99 writer 게이트에 걸린다 — 동시 편집과 부딪히면 남의 저장을
@@ -443,6 +465,8 @@ def _record_extra_payments(session: Session, *, order_id: int,
         relation: ``ADDON``/``REPAY``.
         actor_user_id: 누른 사람(없으면 기록만 남기고 actor 는 0).
         now: 기록 시각.
+        stamp_base: 네이버 돈이 이 주문에 **처음** 붙는가 — 그때의 예약금을 바닥값으로
+            함께 새긴다(:data:`NAVER_DEPOSIT_BASE_KEY`).
 
     Returns:
         새로 기록한 항목 수.
@@ -455,7 +479,8 @@ def _record_extra_payments(session: Session, *, order_id: int,
         nonlocal recorded
         target = orders[0]
         recorded = _apply_extra_payments(target, links, relation=relation,
-                                         actor_user_id=actor_user_id, now=now)
+                                         actor_user_id=actor_user_id, now=now,
+                                         stamp_base=stamp_base)
         sess.flush()
         return {target.id: [f"ORDER_DETAIL:{target.id}", "ORDERS_INDEX"]}
 
@@ -557,6 +582,16 @@ def attach_link_to_order(session: Session, *, link_id: int, order_id: int,
         raise PromotionError(f"붙일 주문을 찾을 수 없습니다 (order {order_id}).")
 
     siblings = _group_siblings_for_attach(session, link)
+    # 네이버 돈이 **처음** 붙는 주문이면, 지금 예약금은 전부 네이버 아닌 돈이다. 그 값을
+    # 새겨 두지 않으면 도크가 "네이버 결제액 = 예약금 정답"이라 말해, ERP 에서 직접 받은
+    # 예약금이 안내에서 통째로 사라진다(2026-09-03 주문 #5112 실사례: 100,000원 증발).
+    first_naver_money = (
+        session.query(ExternalOrderLink)
+        .filter(ExternalOrderLink.order_id == int(order_id),
+                ExternalOrderLink.channel == CHANNEL)
+        .first()
+        is None
+    )
     # 취소·반품 건은 추가결제로 붙이지 않는다 — 재결제(REPAY)는 원 주문이 취소된 경우라 허용.
     if relation == "ADDON":
         blocked = [row for row in siblings if extract_claim(row.raw_snapshot or {})["blocking"]]
@@ -592,7 +627,8 @@ def attach_link_to_order(session: Session, *, link_id: int, order_id: int,
     # 기록 자체는 REV-00 mutation 계약(row lock·version bump·receipt)을 탄다.
     recorded = _record_extra_payments(session, order_id=int(order_id), links=siblings,
                                       relation=relation, actor_user_id=actor_user_id,
-                                      now=now or now_utc_naive())
+                                      now=now or now_utc_naive(),
+                                      stamp_base=first_naver_money)
     logger.info("[NAVER] 수집분 기존 주문 연결 link=%s(+%d) order=%s relation=%s 결제기록 %d건",
                 link_id, attached - 1, order_id, relation, recorded)
     # 도크 게이트 켜기·금액 기록도 '바뀜'이다 — 링크 행이 그대로여도 주문 쪽이 움직였으면
@@ -866,4 +902,4 @@ def _coupon_facts(raw_snapshot: Any) -> dict[str, Any]:
 # 이미 옮겨진 주문에 다시 부르면 안 되는데, __all__ 에 있으면 "쓰라고 만든 것" 으로 읽힌다.
 __all__ = ["PromotionError", "promote_link_to_order", "summarize_snapshot",
            "attach_link_to_order", "detach_link_from_order", "ATTACHABLE_RELATIONS",
-           "EXTRA_PAYMENTS_KEY", "ITEM_PAID_AMOUNT_KEY"]
+           "EXTRA_PAYMENTS_KEY", "ITEM_PAID_AMOUNT_KEY", "NAVER_DEPOSIT_BASE_KEY"]
