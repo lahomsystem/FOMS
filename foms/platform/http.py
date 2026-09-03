@@ -10,8 +10,10 @@ from typing import Any, Callable
 
 from werkzeug.exceptions import HTTPException
 
+from db import get_db
 from foms.services.datetime_kst import get_today_kst
 from foms.services.error_logging import install_protected_logging
+from foms.services.user_activity import touch_last_seen
 
 from flask import Flask, current_app, g, jsonify, redirect, request, session, url_for
 
@@ -217,6 +219,22 @@ def register_http_bootstrap(
         if user_id:
             session.permanent = True
             g.current_user = get_user_by_id(user_id)
+
+    @app.before_request
+    def _touch_last_seen() -> None:
+        """Keep `User.last_login` following the user's real activity (LAST-SEEN-01).
+
+        Sessions are permanent and refresh on every request, so the login route
+        alone leaves the admin user list months stale. Writes are throttled per
+        session, and static assets never trigger one.
+        """
+        path = request.path or ""
+        if path.startswith("/static/") or request.method == "OPTIONS":
+            return
+        user = getattr(g, "current_user", None)
+        if user is None:
+            return
+        touch_last_seen(get_db(), user)
 
     @app.before_request
     def _erp_construction_team_restrict() -> Any | None:
