@@ -790,3 +790,23 @@ def test_export_complete_axis_matches_the_screen_row_set(client, app):
 
     assert lines("expect") == 3
     assert lines("complete") == 1
+
+
+def test_sync_rejects_backfill_older_than_the_floor_and_future(client, app, monkeypatch):
+    """백필 시작일은 오늘-400일 ~ 오늘 사이여야 한다 — 그 밖은 400 으로 막고 큐에 넣지 않는다."""
+    calls: list = []
+    import foms.api.cs.settlement_channel as api_mod
+    monkeypatch.setattr(api_mod, "_enqueue", lambda actor_user_id, backfill_from: calls.append(backfill_from) or True)
+    _login(client, _make_user(role="ADMIN"))
+    today = get_today_kst()
+    too_old = (today - datetime.timedelta(days=401)).isoformat()
+    edge = (today - datetime.timedelta(days=400)).isoformat()
+    future = (today + datetime.timedelta(days=1)).isoformat()
+
+    resp = client.post(API_URL + "/sync", json={"backfill_from": too_old})
+    assert resp.status_code == 400 and "400일" in (resp.get_json()["error"] or "")
+    resp = client.post(API_URL + "/sync", json={"backfill_from": future})
+    assert resp.status_code == 400
+    resp = client.post(API_URL + "/sync", json={"backfill_from": edge})
+    assert resp.status_code == 200 and resp.get_json()["data"]["queued"] is True
+    assert calls == [edge]

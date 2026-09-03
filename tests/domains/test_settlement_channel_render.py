@@ -64,7 +64,7 @@ _STATIC_ASSETS = (CSS_ASSET, JS_ASSET)
 #: 이 화면 자산의 캐시 핀. **저장소 전역에서 이 값 하나**여야 한다. CSS/JS 를 고치면
 #: 셸 템플릿의 두 링크와 이 상수를 **함께** 옮긴다 — 값이 조용히 갈리면 실기기가 옛 자산을
 #: 계속 실행한다(서비스워커 staticCacheFirst).
-_CHANNEL_PIN = "20260903e"
+_CHANNEL_PIN = "20260903f"
 
 _CHANNEL_TAB_ID = "foms-settle-tab-channel"
 _CHANNEL_PANE_ID = "foms-settle-pane-channel"
@@ -824,3 +824,25 @@ def test_ledger_axis_is_locked_per_ledger_kind_and_announced():
     assert "axis.supported === false" in source and "axis.excluded" in source
     # 행 그룹 축은 서버가 확정한 축(ledger.axis.basis)을 쓴다 — 선택값과 어긋나면 그룹이 빈다.
     assert "rowDateOf(row, kind, ledgerAxisBasis(ledger, ctx))" in source
+
+
+# ==========================================================================
+# 계약 — F8 적재 안 된 구간 받아오기 (2026-09-03)
+# ==========================================================================
+def test_backfill_banner_is_wired_through_the_existing_sync_path():
+    """배너·버튼 훅이 있고, 버튼은 기존 `requestSync` 에 시작일을 넘기며, 폴링만 길어진다(10분).
+
+    새 전역 리스너·새 fetch 경로를 만들지 않는다 — 소급 적재는 워커가 창을 쪼개 받아오므로 화면은
+    큐에 부탁하고 rev 를 기다리기만 한다. 버튼 없는 자동 적재는 계약 밖(넓은 구간 오선택 = 수백 호출).
+    """
+    source = _read_code(f"static/{JS_ASSET}")
+    css = _read_code(f"static/{CSS_ASSET}")
+
+    assert "function renderBackfillBanner(" in source
+    assert "'data-settlement-ch-backfill'" in source and "'data-settlement-ch-backfill-btn'" in source
+    assert "requestSync(ctx, backfillBtn.getAttribute('data-from')" in source
+    assert "var POLL_MAX_TRIES_BACKFILL = 60" in source
+    assert "startRevPoll(ctx, backfillFrom ? POLL_MAX_TRIES_BACKFILL : POLL_MAX_TRIES)" in source
+    assert "from < sync.coverage_from" in source, "배너 조건(요청 시작일 < 적재 시작일)이 없다"
+    assert ".s-ch-backfill" in css and ".alert" not in css
+    assert source.count("document.addEventListener") == _DOCUMENT_LISTENERS

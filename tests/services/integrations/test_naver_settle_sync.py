@@ -781,3 +781,19 @@ def test_fixtures_use_the_documented_field_names():
     assert commission_keys <= set(_commission("PO-X"))
     assert copy.deepcopy(_vat_case("2026-08-03", "PO-1")).keys() >= {
         name for name, _column, _kind in settle_sync.VAT_CASE_FIELDS}
+
+
+def test_rolling_run_keeps_the_earlier_backfill_coverage(app, narrow_range):
+    """백필 뒤 롤링 실행이 와도 적재 시작일은 백필 시작일로 남는다(범위는 합집합).
+
+    마지막 창으로 덮으면 화면의 "적재 구간" 이 실제보다 좁게 보이고, 그 값을 기준으로 뜨는
+    "받아오기" 배너가 이미 받아 둔 구간을 다시 받자고 한다(2026-09-03 결함).
+    """
+    client = FakeClient(daily=[_daily(D1)])
+    _run(client, backfill_from=date(2026, 8, 1), trigger="BACKFILL")
+    first = read_settle_state(db_session)
+    assert first["coverage_from"] == "2026-08-01"
+    _run(client)                                     # 롤링(오늘-30 ~)
+    state = read_settle_state(db_session)
+    assert state["coverage_from"] == "2026-08-01", state
+    assert state["coverage_to"] >= first["coverage_to"]
