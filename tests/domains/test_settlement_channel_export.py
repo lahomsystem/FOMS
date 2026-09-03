@@ -31,6 +31,7 @@ from __future__ import annotations
 import ast
 import csv
 import datetime
+import inspect
 import io
 import pathlib
 from decimal import Decimal
@@ -925,20 +926,34 @@ def test_effective_basis_matches_the_axis_expression(kind, basis):
     """``effective_basis`` 가 고른 이름 = ``_axis_expr`` 이 고른 컬럼(4축 × 6종 매트릭스).
 
     두 곳이 갈리면 파일명·감사 기록이 파일 내용과 다른 축을 말한다.
+
+    F10 T3(2026-09-03)으로 ``_axis_expr`` 의 ``model`` 인자가 사라져 **호출 서명만** 갱신했다.
+    판정 규칙(이름 = 컬럼)은 그대로다 — 이제 이름은 ``effective_basis`` 한 곳에서만 나온다.
     """
     model = export._MODELS[kind]
     name = export.effective_basis(kind, basis)
-    expression = export._axis_expr(model, kind, basis)
+    expression = export._axis_expr(kind, basis)
 
     if name == "expect" and kind not in ("vat_daily", "vat_case"):
         # 되돌림이 일어났다는 뜻이다 — 예정일을 **직접** 고른 요청과 같은 식이어야 한다
         # (예정일 축만 조회일로 되돌리므로 단일 컬럼이 아니라 coalesce 식일 수 있다).
-        expected = export._axis_expr(model, kind, "expect")
+        expected = export._axis_expr(kind, "expect")
     else:
         # 되돌림이 없었다는 뜻이다 — 이름이 가리키는 그 컬럼 하나가 곧 축이다.
         expected = getattr(model, export._BASIS_COLUMN[name])
     assert str(expression) == str(expected), (kind, basis, name)
     assert name in ("expect", "complete", "basis", "pay")
+
+
+def test_axis_expr_has_no_model_parameter():
+    """축 이름의 정본이 하나임을 서명으로 못 박는다(F10 T3).
+
+    양성: ``_axis_expr`` 은 ``kind``·``basis`` 만 받고 모델은 스스로 :data:`_MODELS` 에서
+    고른다 — 이름 결정이 :func:`effective_basis` 한 곳뿐이라는 뜻이다.
+    음성 대조군: 어긋난 모델을 넘길 **자리 자체가 없다**. 옛 서명은 호출자가 다른 모델을
+    주면 파일명이 말하는 축과 실제 행 집합이 조용히 갈렸다.
+    """
+    assert tuple(inspect.signature(export._axis_expr).parameters) == ("kind", "basis")
 
 
 def test_effective_basis_rolls_back_where_the_column_is_missing():

@@ -30,7 +30,7 @@ import math
 from decimal import Decimal, InvalidOperation
 from typing import Any, Optional
 
-from sqlalchemy import func, or_
+from sqlalchemy import and_, case, func, or_
 
 from foms.services.datetime_kst import now_utc_naive
 from foms.services.integrations.naver_commerce.settle_enums import (
@@ -996,7 +996,7 @@ def _ledger_axis(model: Any, kind: str, basis: str) -> tuple[Any, str, bool]:
 def _expect_window(model: Any) -> Any:
     """예정일 창 식 — ``excluded``·``shifted_out`` 두 계수가 **같은 모집단**을 세게 하는 단일 정본.
 
-    두 헬퍼가 각자 coalesce 를 적으면 한쪽만 고쳐졌을 때 표 머리의 두 문장이 서로 다른
+    두 계수가 각자 coalesce 를 적으면 한쪽만 고쳐졌을 때 표 머리의 두 문장이 서로 다른
     집합을 말한다(리뷰 MINOR-2, 2026-09-03).
 
     Args:
@@ -1008,29 +1008,19 @@ def _expect_window(model: Any) -> Any:
     return func.coalesce(model.settle_expect_date, model.search_date)
 
 
-def _excluded_by_axis(session: Any, model: Any, axis: Any, scope_filters: list,
-                      channel: str, date_from: datetime.date, date_to: datetime.date) -> int:
-    """예정일 창 안에 있지만 이 축의 날짜가 비어 표에서 빠진 행 수(화면이 "N건 제외"라고 말한다)."""
-    window = _expect_window(model)
-    count = (session.query(func.count(model.id))
-             .filter(model.channel == channel, window >= date_from, window <= date_to,
-                     axis.is_(None), *scope_filters)
-             .scalar())
-    return int(count or 0)
-
-
-def _shifted_out_by_axis(session: Any, model: Any, axis: Any, scope_filters: list,
-                         channel: str, date_from: datetime.date,
-                         date_to: datetime.date) -> int:
-    """예정일 창 안이지만 **이 축의 날짜가 창 밖**이라 표에서 밀려난 행 수(C2, 2026-09-03).
+def _axis_gap_counts(session: Any, model: Any, axis: Any, scope_filters: list,
+                     channel: str, date_from: datetime.date,
+                     date_to: datetime.date) -> tuple[int, int]:
+    """예정일 창 안인데 이 축 때문에 표에서 빠진 두 몫을 **한 번의 스캔**으로 센다.
 
     축을 바꾸면 표가 조용히 줄어드는 것이 결함이었다 — 줄어든 몫이 "날짜가 없어서"(``excluded``)
-    인지 "다른 기간으로 옮겨 가서"인지 화면이 말하지 못했다. 이 수가 그 두 번째 몫이다.
+    인지 "다른 기간으로 옮겨 가서"(``shifted_out``)인지 화면이 말하지 못했다.
 
-    ``excluded`` 와 **서로소**다: 저쪽은 축 날짜가 ``NULL`` 인 행, 이쪽은 ``NOT NULL`` 이면서
-    창 밖인 행이라 한 행이 두 수에 겹쳐 세어지지 않는다(그래서 둘을 합쳐 세지 않는다).
-    술어(유형·검색)는 :func:`_ledger_filters` 가 만든 것을 그대로 받는다 — 화면 표와 같은
-    모집단이어야 두 수가 같은 질문의 답이다.
+    반환 두 값은 **서로소**다: 축 날짜가 ``NULL`` 인 행(``excluded``)과 ``NOT NULL`` 이면서
+    창 밖인 행(``shifted_out``)이라 한 행이 두 수에 겹쳐 세어지지 않는다(그래서 둘을 합쳐
+    세지 않는다). 술어(유형·검색)는 :func:`_ledger_filters` 가 만든 것을 그대로 받는다 —
+    화면 표와 같은 모집단이어야 두 수가 같은 질문의 답이다. 두 몫이 같은 창·같은 술어 위에서
+    나오도록 조건부 집계 한 쿼리로 묶었다(리뷰 MINOR-1, 2026-09-03).
 
     Args:
         session: SQLAlchemy Session.
@@ -1042,15 +1032,16 @@ def _shifted_out_by_axis(session: Any, model: Any, axis: Any, scope_filters: lis
         date_to: 종료일(포함).
 
     Returns:
-        밀려난 행 수.
+        ``(excluded, shifted_out)`` — 축 날짜가 빈 행 수와 창 밖으로 밀려난 행 수.
     """
     window = _expect_window(model)
-    count = (session.query(func.count(model.id))
-             .filter(model.channel == channel, window >= date_from, window <= date_to,
-                     axis.isnot(None), or_(axis < date_from, axis > date_to),
-                     *scope_filters)
-             .scalar())
-    return int(count or 0)
+    row = (session.query(
+        func.count(case((axis.is_(None), model.id))),
+        func.count(case((and_(axis.isnot(None),
+                              or_(axis < date_from, axis > date_to)), model.id))),
+    ).filter(model.channel == channel, window >= date_from, window <= date_to,
+             *scope_filters).one())
+    return int(row[0] or 0), int(row[1] or 0)
 
 
 def _ledger_filters(model: Any, spec: tuple, filters: dict) -> list:
@@ -1119,10 +1110,8 @@ def _build_ledger(session: Any, channel: str, kind: str, basis: str,
     scope.extend(extra_filters)
     excluded = shifted_out = 0
     if effective != "expect" and kind != "vat_case":
-        excluded = _excluded_by_axis(session, model, axis, extra_filters, channel,
-                                     date_from, date_to)
-        shifted_out = _shifted_out_by_axis(session, model, axis, extra_filters,
-                                           channel, date_from, date_to)
+        excluded, shifted_out = _axis_gap_counts(session, model, axis, extra_filters,
+                                                 channel, date_from, date_to)
     groups = (session.query(axis, func.count(model.id),
                             func.sum(getattr(model, amount_column)))
               .filter(*scope).group_by(axis).order_by(axis.desc()).all())

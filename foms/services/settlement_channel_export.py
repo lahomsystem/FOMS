@@ -500,32 +500,38 @@ def _validate_range(date_from: datetime.date, date_to: datetime.date) -> None:
         raise ValueError(f"내보내기 구간은 최대 {MAX_RANGE_DAYS}일입니다.")
 
 
-def _axis_expr(model: Any, kind: str, basis: str) -> Any:
-    """날짜 축 식 — 원장 커널 ``_ledger_axis`` 와 **같은 규칙**(화면 표와 같은 행 집합이 파일에 간다).
+def _axis_expr(kind: str, basis: str) -> Any:
+    """날짜 축 식 — 축 **이름** 결정은 :func:`effective_basis` 한 곳이 정본이다.
+
+    옛 서명은 호출자가 준 ``model`` 을 봐서 이름(파일명·감사)과 식(행 집합)이 갈릴 수 있었다
+    — 지금 둘이 맞는 것은 계약이 아니라 호출자가 마침 ``_MODELS[kind]`` 를 넘기는 우연이었다
+    (리뷰 MINOR-4, 2026-09-03). 인자를 없애 어긋날 자리를 지웠다.
 
     예정일 축만 조회일로 되돌린다. 완료일·기준일·결제일 축은 그 컬럼 하나라, 그 날짜가 빈 행은
     파일에서도 빠진다 — 되돌리면 "완료일 기준" 파일이 예정일 파일과 같아진다(2026-09-03 실측).
     표에 없는 축(수수료의 결제일)은 그 표의 기본 축(예정일 되돌림)으로 간다.
 
     Args:
-        model: 대상 모델.
-        kind: CSV 종류(정본 이름).
+        kind: CSV 종류(:data:`ALL_EXPORT_KINDS` 또는 별칭).
         basis: 기준일 축. 일자 단위 표에는 뜻이 없다.
 
     Returns:
         SQLAlchemy 컬럼 식(후보가 둘 이상이면 ``coalesce``).
+
+    Raises:
+        ValueError: 허용 밖 종류.
     """
-    if kind in _BASIS_AWARE and basis != "expect":
-        picked = getattr(model, _BASIS_COLUMN.get(basis, ""), None)
-        if picked is not None:
-            return picked
-    names: tuple[str, ...] = _AXIS_FALLBACK[kind]
+    resolved = normalize_kind(kind)
+    model = _MODELS[resolved]
+    name = effective_basis(resolved, basis)
+    if name != "expect":
+        return getattr(model, _BASIS_COLUMN[name])
     columns: list[Any] = []
     seen: set[str] = set()
-    for name in names:
-        column = getattr(model, name, None)
-        if column is not None and name not in seen:
-            seen.add(name)
+    for column_name in _AXIS_FALLBACK[resolved]:
+        column = getattr(model, column_name, None)
+        if column is not None and column_name not in seen:
+            seen.add(column_name)
             columns.append(column)
     return columns[0] if len(columns) == 1 else func.coalesce(*columns)
 
@@ -586,7 +592,7 @@ def build_export_rows(session: Any, *, kind: str, date_from: datetime.date,
     resolved = normalize_kind(kind)
     _validate_range(date_from, date_to)
     model = _MODELS[resolved]
-    axis = _axis_expr(model, resolved, basis)
+    axis = _axis_expr(resolved, basis)
     clauses = [model.channel == channel, axis >= date_from, axis <= date_to]
     clauses += _filter_clauses(model, resolved, dict(filters or {}))
     query = (session.query(model).filter(*clauses)

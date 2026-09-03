@@ -33,6 +33,7 @@ import pytest
 from db import db_session
 from foms.services.audit_message_display import ACTION_LABELS
 from foms.services.datetime_kst import get_today_kst, now_utc_naive
+from foms.services import settlement_channel as kernel
 from foms.services.settlement_channel import mask_account_no
 from models import (
     ExternalOrderLink,
@@ -882,6 +883,54 @@ def test_shifted_out_respects_the_type_and_search_filters(client, app):
     assert none_left["axis"]["shifted_out"] == 0
     assert none_left["axis"]["excluded"] == 0
     assert none_left["pagination"]["total"] == 0
+
+
+def test_axis_gap_counts_answer_both_halves_in_one_call(client, app):
+    """빠진 두 몫을 한 호출이 함께 답한다 — 같은 창·같은 술어라는 것이 이 계약이다(F10 T2).
+
+    양성: 같은 시드에서 빈 몫(결제일 없음)과 밀린 몫(결제일이 창 밖)이 **동시에** 0 이 아니다.
+    두 수가 따로 조회되면 한쪽만 창 정의가 바뀌어도 계약이 조용히 통과한다.
+    """
+    day = _seed_pay_axis(get_today_kst())
+
+    counts = kernel._axis_gap_counts(db_session, NaverSettleCase,
+                                     NaverSettleCase.pay_date, [], "NAVER", day, day)
+
+    assert counts == (1, 1), "빈 몫(C) 1행 · 밀린 몫(B) 1행"
+
+
+def test_axis_gap_counts_narrow_with_the_screen_predicate(client, app):
+    """음성 대조군 — 화면 술어로 좁히면 두 수가 함께 0 이 된다(모집단 안의 표본).
+
+    표본은 모집단 밖이 아니다: 같은 시드에서 빈 술어로 ``(1, 1)`` 을 먼저 확인하고, 창 안에
+    있는 행(A)만 남기는 검색어를 주면 같은 호출이 ``(0, 0)`` 을 답한다. 술어를 무시하는
+    구현이라면 좁힌 뒤에도 ``(1, 1)`` 이 나온다.
+    """
+    day = _seed_pay_axis(get_today_kst())
+    axis = NaverSettleCase.pay_date
+
+    wide = kernel._axis_gap_counts(db_session, NaverSettleCase, axis, [],
+                                   "NAVER", day, day)
+    scope = kernel._ledger_filters(NaverSettleCase, kernel._LEDGER_SPEC["case"],
+                                   {"q": "2026090300001"})
+    narrow = kernel._axis_gap_counts(db_session, NaverSettleCase, axis, scope,
+                                     "NAVER", day, day)
+
+    assert wide == (1, 1), "좁히기 전에는 두 몫이 실제로 있다"
+    assert narrow == (0, 0), "창 안 행(A)만 남으면 빠진 몫이 없다"
+
+
+def test_axis_gap_counts_replaced_the_two_count_helpers():
+    """두 count 헬퍼가 조건부 집계 하나로 합쳐졌다 — 되살아나면 red(F10 T2).
+
+    빈 몫과 밀린 몫을 따로 세던 옛 ``*_by_axis`` 두 함수가 남아 있으면 창 정의가 다시 두 곳으로
+    갈라진다. 옛 이름을 리터럴로 적지 않고 접미사로 훑는 이유: 통합 게이트가 소스에서 그 두
+    이름 **0건**을 세는데(설계 §3 ④) 이 테스트가 스스로 그 grep 에 잡히기 때문이다. 판정
+    범위는 설계가 요구한 두 이름보다 넓다(그 접미사를 쓰는 축 계수 헬퍼 전부).
+    """
+    assert hasattr(kernel, "_axis_gap_counts")
+    survivors = sorted(name for name in vars(kernel) if name.endswith("_by_axis"))
+    assert survivors == [], f"옛 축 계수 헬퍼가 남아 있다: {survivors}"
 
 
 # --------------------------------------------------------------------------
