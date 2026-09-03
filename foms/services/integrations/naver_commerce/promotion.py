@@ -29,6 +29,7 @@ from foms.services.integrations.naver_commerce.mapping import (
     extract_claim,
     extract_place_status,
     group_key,
+    is_money_back_claim,
     map_group,
 )
 from foms.services.orders.order_create import create_order
@@ -813,7 +814,7 @@ def summarize_snapshot(raw_snapshot: Any) -> dict[str, Any]:
     """
     empty = {"customer_name": "", "product": "", "options": "",
              "quantity": None, "amount": None, "order_date": "",
-             "claim_label": "", "claim_blocking": False,
+             "claim_label": "", "claim_blocking": False, "claim_money_back": False,
              # 원본이 없거나 깨졌으면 "발주확인 여부를 모른다" — 완료로 읽지 않는다.
              "place_status": "", "place_label": "", "place_confirmed": False,
              "shipping_due": "",
@@ -847,6 +848,10 @@ def summarize_snapshot(raw_snapshot: Any) -> dict[str, Any]:
         # 목록에서도 취소 건을 알아볼 수 있어야 한다(빈 문자열이면 정상 주문).
         "claim_label": claim["label"],
         "claim_blocking": claim["blocking"],
+        # 배지를 빨강으로 칠할 축(2026-09-03). "진행 중인가"(blocking)가 아니라 **돈이
+        # 되돌아가는가**로 칠한다 — 끝난 취소도 빨강이고(회색으로 식히면 목록에서 평범한
+        # 집과 안 갈린다), 거부는 빨강이 아니다(주문·결제가 살아 있다 — R-8).
+        "claim_money_back": is_money_back_claim(claim),
         # 발주확인 여부는 수집 시점 원본에 이미 들어온다 — 네이버 호출 0회로 표시한다(T16-A).
         "place_status": place["status"],
         "place_label": place["label"],

@@ -723,8 +723,10 @@
                             {% if group.next_step and not row_locked and row_kind != 'spec' %}
                             <span class="badge bg-primary">{{ group.next_step }}</span>
                             {% endif %}
+                            {# 취소·반품은 끝난 건도 빨강이다 — 회색으로 식히면 목록에서
+                               평범한 집과 구별이 안 된다(2026-09-03 사용자 지시). #}
                             {% if group.claim_label %}
-                            <span class="badge bg-{{ 'danger' if group.claim_blocking else 'secondary' }}">{{ group.claim_label }}</span>
+                            <span class="badge bg-{{ 'danger' if group.claim_money_back else 'secondary' }}">{{ group.claim_label }}</span>
                             {% endif %}
                             {# 같은 줄 오른쪽 끝의 `.wb-can` 이 이미 "발주확인 먼저" 라고 말한다 —
                                row_kind == 'wait' 이면 같은 사실을 한 줄에서 두 번 쓰는 셈이고,
@@ -1048,8 +1050,13 @@
                                같은 부품이 처리 탭·도크에 실릴 때 판정이 두 벌이 된다. #}
                             {% set foms_tone = {'collected': 'blue', 'linked': 'green', 'closed': 'slate',
                                                 'review': 'amber', 'failed': 'red'}.get(row.foms_state, 'slate') %}
-                            {% set claim_tone = {'requested': 'red', 'in_progress': 'red', 'done': 'slate',
-                                                 'rejected': 'ghost', 'other': 'amber'}.get(row.claim_phase, 'slate') %}
+                            {# 취소·반품은 **끝난 건도 빨강**이다(2026-09-03 사용자 지시). 예전에는
+                               `취소 완료 09-02` 를 회색으로 식혔는데, 그 회색이 "이 집은 평범하다"로
+                               읽혀 담당자가 목록에서 취소 건을 그냥 지나쳤다. 색 축은 단계가 아니라
+                               **돈이 되돌아가는가**(`claim_money_back`)다 — 그래야 요청·처리중·완료가
+                               한 색으로 묶이고, `거부`만 빠진다(주문도 결제도 살아 있다 — R-8,
+                               계약 `test_naver_claim_reject_display`). #}
+                            {% set claim_tone = 'red' if row.claim_money_back else {'rejected': 'ghost'}.get(row.claim_phase, 'amber') %}
                             {# 컨테이너는 **안쪽 블록 래퍼**다 — `td` 는 display:table-cell 이라
                                inline-size containment 를 무시한다(목업에서 실측). #}
                             <div class="wb-st-wrap">
