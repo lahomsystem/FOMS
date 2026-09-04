@@ -123,10 +123,29 @@ def _link(*, order_no: str, amount: int, tel: str, order_id: Optional[int] = Non
 
 
 def _reconcile(client, link_id: int, *, order_id: int, relation: str = "REPAY",
-               fork: str = "SUCCEED"):
+               fork: str = "SUCCEED", reason: str = ""):
     """정리 라우트 호출 한 줄."""
     return client.post(f"/admin/naver-ingest/{link_id}/reconcile",
-                       json={"order_id": order_id, "relation": relation, "fork": fork})
+                       json={"order_id": order_id, "relation": relation, "fork": fork,
+                             "reason": reason})
+
+
+def _login_as(client, *, role: str):
+    """지정 역할로 세션을 바꾼다 — 관리자 전용 관문을 반대편에서 두드리기 위해."""
+    from werkzeug.security import generate_password_hash
+
+    from models import User
+
+    user = User(username=f"rc_{role.lower()}_{_uid()}",
+                password=generate_password_hash("pw"), role=role, team="CS",
+                name=f"{role} 사용자", is_active=True)
+    db_session.add(user)
+    db_session.commit()
+    with client.session_transaction() as sess:
+        sess["user_id"] = user.id
+        sess["username"] = user.username
+        sess["role"] = user.role
+    return user
 
 
 def _fresh_order(order_id: int) -> Order:
@@ -237,11 +256,12 @@ def test_reconcile_refuses_an_order_outside_the_candidates(auth_client, workbenc
     assert _fresh_order(stranger_id).deleted_at is None, "후보도 아닌 주문이 지워졌다"
 
 
-def test_discard_refuses_a_locked_stage(auth_client, workbench_on):
-    """실측 이후 단계는 **서버가** 거절한다 — 화면만 막으면 소용이 없다.
+def test_discard_after_measure_needs_a_reason(auth_client, workbench_on):
+    """접수 이후 단계는 **사유 없이는** 거절한다 — 잠그지 않고 이유를 받는다.
 
-    ``MEASURE`` 부터는 방문 기록·치수가 붙어 있어 접으면 그 이력이 화면에서 사라진다.
-    판정 기준은 유령 주문 띠(R-2)와 같은 상수(``DISCARDABLE_STATUSES``)다.
+    2026-09-04 정책 동기화: 예전에는 ``MEASURE`` 부터 완전 잠금이었다. 그래서 유령 주문
+    띠는 사유를 적으면 접히는데 이 화면은 아예 못 접어, 같은 상수가 두 화면에서 다른 뜻으로
+    읽혔다(`ghost_orders.DISCARDABLE_STATUSES`).
     """
     tel = "010-7100-0005"
     order_id = _order(tel=tel, status="MEASURE")
@@ -250,9 +270,40 @@ def test_discard_refuses_a_locked_stage(auth_client, workbench_on):
     response = _reconcile(auth_client, link_id, order_id=order_id, fork="DISCARD")
 
     assert response.status_code == 400, response.get_data(as_text=True)
-    assert "MEASURE" in response.get_json()["error"]
-    assert _fresh_order(order_id).deleted_at is None, "잠긴 단계인데 지워졌다"
-    assert _fresh_link(link_id).order_id is None
+    assert "사유" in response.get_json()["error"] or "적어" in response.get_json()["error"]
+    assert not _fresh_order(order_id).deleted_at, "사유 없이 접혔다"
+
+
+def test_discard_after_measure_succeeds_with_a_reason(auth_client, workbench_on):
+    """관리자가 사유를 적으면 접힌다 — 사유는 감사 원장에 원문으로 남는다."""
+    tel = "010-7100-0015"
+    order_id = _order(tel=tel, status="MEASURE")
+    link_id = _link(order_no="N-RC-15", amount=100_000, tel=tel)
+
+    response = _reconcile(auth_client, link_id, order_id=order_id, fork="DISCARD",
+                          reason="고객이 같은 건을 새로 결제해 옛 주문을 접음")
+
+    assert response.status_code == 200, response.get_data(as_text=True)
+    assert _fresh_order(order_id).deleted_at is not None
+    row = (db_session.query(SecurityLog)
+           .filter(SecurityLog.action == RECONCILE_ACTION)
+           .order_by(SecurityLog.id.desc()).first())
+    assert "새로 결제" in (row.detail or {}).get("discard_reason", "")
+
+
+def test_discard_after_measure_refuses_a_manager(client, workbench_on):
+    """접수 이후 단계는 **관리자만** 접는다 — 사유를 적어도 MANAGER 는 못 접는다."""
+    _login_as(client, role="MANAGER")
+    tel = "010-7100-0016"
+    order_id = _order(tel=tel, status="DRAWING")
+    link_id = _link(order_no="N-RC-16", amount=100_000, tel=tel)
+
+    response = _reconcile(client, link_id, order_id=order_id, fork="DISCARD",
+                          reason="고객이 재주문 안 함")
+
+    assert response.status_code == 400, response.get_data(as_text=True)
+    assert "관리자" in response.get_json()["error"]
+    assert not _fresh_order(order_id).deleted_at
 
 
 def test_reconcile_is_closed_when_the_gate_is_off(auth_client):

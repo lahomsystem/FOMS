@@ -33,12 +33,15 @@ from models import Order
 logger = logging.getLogger(__name__)
 
 __all__ = [
+    "DISCARDABLE_CLAIM_CODES",
     "RECONCILE_FORKS",
+    "UNSETTLED_CLAIM_CODES",
     "ReconcileError",
     "attach_reconcile_plans",
     "build_reconcile_plan",
     "deposit_guidance",
-    "discard_gate",
+    "discard_policy",
+    "run_gate",
     "run_reconcile",
 ]
 
@@ -84,25 +87,72 @@ def deposit_guidance(order: Order, *, new_amount: int, relation: str) -> dict[st
             "sentence": sentence, "new_amount": amount}
 
 
-def discard_gate(status: str) -> tuple[bool, str]:
-    """취소 처리(soft delete) 갈래를 열지 판정한다 (스펙 근거 ④).
+#: 취소 처리를 열어도 되는 **옛 결제 상태**. 유령 주문 띠와 같은 규칙이다 —
+#: 붙은 네이버 집이 아예 없거나(수기 접수 주문), 네이버가 취소를 **확정**했을 때만 연다.
+#: 확정 전에 접으면 취소가 거부됐을 때 살아 있어야 할 주문이 휴지통에 있다.
+DISCARDABLE_CLAIM_CODES = ("", "all_done")
 
-    실측 이후 단계는 방문 기록·치수가 붙어 있어 접으면 그 이력이 화면에서 사라진다.
-    판정 기준은 유령 주문 띠(R-2)와 **같은 상수**를 쓴다 — 두 화면이 서로 다른 단계를
-    열어 주면 담당자가 어느 쪽을 믿어야 할지 알 수 없다.
+#: 정리 실행 **자체**를 막는 옛 결제 상태 — 네이버가 아직 확정하지 않았다.
+#: 화면 i 칸이 예전부터 "확정된 뒤에 정리하세요"라고 적어 놓고도 버튼은 눌렸다
+#: (2026-09-04 사용자 결정: 경고만 두지 말고 막는다).
+UNSETTLED_CLAIM_CODES = ("all_pending", "all_mixed")
+
+
+def run_gate(claim_code: str) -> tuple[bool, str]:
+    """정리 실행을 지금 해도 되는지 — 갈래와 무관한 **공통 관문**.
+
+    옛 결제가 확정 전이면 승계든 취소 처리든 아직 이르다. 승계도 막는 이유: 확정 전에
+    붙여 두면 취소가 거부됐을 때 살아 있는 옛 결제와 새 결제가 같은 주문에 묶인 채
+    남는다 — 그 상태를 푸는 경로는 되돌리기뿐이다.
+
+    Args:
+        claim_code: :func:`order_candidates.claim_aggregate_code` 가 낸 집 단위 코드.
+
+    Returns:
+        ``(실행해도 되는가, 안 되는 이유)``. 되면 이유는 빈 문자열.
+    """
+    if str(claim_code or "") in UNSETTLED_CLAIM_CODES:
+        return False, "네이버가 아직 취소를 확정하지 않았습니다 — 확정된 뒤에 정리하세요"
+    return True, ""
+
+
+def discard_policy(status: str, *, claim_code: str = "") -> dict[str, Any]:
+    """취소 처리(soft delete) 갈래 판정 — **유령 주문 띠와 같은 규칙**.
+
+    2026-09-02 사용자 결정(`549a801fb`)은 단계 제한을 없애되 목록 밖은 **관리자가 사유를
+    적어야** 접히게 바꿨다. 그 결정이 유령 주문 띠(:mod:`ghost_orders`)에만 반영되고 이
+    모듈에는 오지 않아, 같은 상수 :data:`ghost_orders.DISCARDABLE_STATUSES` 가 두 화면에서
+    다른 뜻으로 읽혔다 — 이 함수 docstring 이 "두 화면이 서로 다른 단계를 열어 주면
+    담당자가 어느 쪽을 믿어야 할지 알 수 없다"고 선언해 놓고 정작 그 선언을 깨고 있었다.
+    2026-09-04 사용자 결정으로 규칙을 하나로 맞춘다.
+
+    판정 두 축을 **분리**한다:
+
+    * **열리는가** — 옛 네이버 결제가 확정 취소됐거나 붙은 집이 아예 없을 때만 연다(돈 축).
+    * **사유가 필요한가** — 접수 이후 단계는 실측 방문·치수 이력이 붙어 있어 관리자가
+      왜 접는지 적어야 한다(이력 축). 잠그지는 않는다.
 
     Args:
         status: ``Order.status``.
+        claim_code: 후보의 집 단위 클레임 코드(``naver_claim_code``).
 
     Returns:
-        ``(열 수 있는가, 못 여는 이유)``. 열 수 있으면 이유는 빈 문자열.
+        ``{"can_discard", "needs_reason", "block"}``. 열리면 ``block`` 은 빈 문자열.
     """
     from foms.services.integrations.naver_commerce.ghost_orders import DISCARDABLE_STATUSES
 
+    code = str(claim_code or "")
     text = str(status or "")
-    if text in DISCARDABLE_STATUSES:
-        return True, ""
-    return False, f"{text} 단계라 실측·도면 이력이 붙어 있습니다"
+    needs_reason = text not in DISCARDABLE_STATUSES
+    if code in DISCARDABLE_CLAIM_CODES:
+        return {"can_discard": True, "needs_reason": needs_reason, "block": ""}
+    if code in UNSETTLED_CLAIM_CODES:
+        block = "네이버가 아직 취소를 확정하지 않았습니다"
+    elif code == "partial":
+        block = "옛 결제가 일부만 취소됐습니다"
+    else:
+        block = "옛 결제가 아직 살아 있습니다"
+    return {"can_discard": False, "needs_reason": needs_reason, "block": block}
 
 
 def _alive_rows(candidate: dict[str, Any]) -> list[dict[str, Any]]:
@@ -128,16 +178,24 @@ def build_reconcile_plan(order: Order, candidate: dict[str, Any], *,
         relation: ``REPAY`` 또는 ``ADDON``.
 
     Returns:
-        ``{"relation", "deposit", "can_discard", "discard_block", "naver_alive_rows",
-        "naver_claim_code", "naver_claim_label"}``.
+        ``{"relation", "deposit", "can_discard", "discard_needs_reason", "discard_block",
+        "can_run", "run_block", "naver_alive_rows", "naver_claim_code",
+        "naver_claim_label"}``.
     """
-    can_discard, block = discard_gate(candidate.get("status") or "")
+    claim_code = candidate.get("naver_claim_code") or ""
+    policy = discard_policy(candidate.get("status") or "", claim_code=claim_code)
+    can_run, run_block = run_gate(claim_code)
     return {
         "relation": relation,
         "deposit": deposit_guidance(order, new_amount=candidate.get("new_amount_total") or 0,
                                     relation=relation),
-        "can_discard": can_discard,
-        "discard_block": block,
+        "can_discard": policy["can_discard"],
+        # 접수 이후 단계는 잠그지 않는다 — 관리자가 **왜 접는지** 적으면 접힌다.
+        "discard_needs_reason": policy["needs_reason"],
+        "discard_block": policy["block"],
+        # 갈래와 무관한 공통 관문 — 확정 전에는 승계도 실행하지 않는다.
+        "can_run": can_run,
+        "run_block": run_block,
         # i 단계 — 우리가 손대지 않는다. 살아 있으면 판매자센터로 안내만 한다.
         "naver_alive_rows": _alive_rows(candidate),
         # 코드·라벨을 **함께** 싣는다 — 빠뜨리면 이 화면만 옛 축(한국어 문자열 비교)을 본다.
@@ -179,7 +237,8 @@ def attach_reconcile_plans(session, candidates: list[dict[str, Any]]) -> None:
 
 
 def run_reconcile(session, *, link_id: int, order_id: int, relation: str, fork: str,
-                  actor_user_id: Optional[int] = None) -> dict[str, Any]:
+                  actor_user_id: Optional[int] = None, claim_code: str = "",
+                  discard_reason: str = "", actor_is_admin: bool = False) -> dict[str, Any]:
     """정리를 **한 트랜잭션 안에서** 실행한다 — 커밋은 호출자가 소유한다.
 
     갈래별로 무엇을 쓰는지:
@@ -196,13 +255,17 @@ def run_reconcile(session, *, link_id: int, order_id: int, relation: str, fork: 
         relation: ``REPAY`` 또는 ``ADDON``.
         fork: ``SUCCEED`` 또는 ``DISCARD``.
         actor_user_id: 실행자.
+        claim_code: 후보의 집 단위 클레임 코드. 확정 전이면 갈래와 무관하게 거절한다.
+        discard_reason: 취소 처리 사유(접수 이후 단계에서 필수). 빈 문자열이면 없음.
+        actor_is_admin: 실행자가 관리자인가. 접수 이후 단계를 접을 때만 본다.
 
     Returns:
-        ``{"fork", "relation", "order_id", "attached", "changed", "discarded"}`` —
-        감사 기록과 화면 문구가 함께 읽는 결과.
+        ``{"fork", "relation", "order_id", "attached", "changed", "discarded",
+        "discard_reason"}`` — 감사 기록과 화면 문구가 함께 읽는 결과.
 
     Raises:
-        ReconcileError: 갈래·관계값이 잘못됐거나 취소 처리가 잠긴 단계일 때.
+        ReconcileError: 갈래·관계값이 잘못됐거나, 옛 결제가 확정 전이거나, 취소 처리에
+            필요한 관리자 권한·사유가 없을 때.
         PromotionError: 붙이기가 거절될 때(이미 다른 주문에 붙어 있는 경우 등).
     """
     from foms.services.integrations.naver_commerce.promotion import (
@@ -220,17 +283,38 @@ def run_reconcile(session, *, link_id: int, order_id: int, relation: str, fork: 
     if order is None or order.deleted_at is not None:
         raise ReconcileError(f"정리할 주문을 찾을 수 없습니다 (order {order_id}).")
 
+    # 갈래와 무관한 공통 관문 — 화면 i 칸이 말하던 것을 서버가 실제로 막는다.
+    can_run, run_block = run_gate(claim_code)
+    if not can_run:
+        raise ReconcileError(f"{run_block}.")
+
     if fork == "DISCARD":
-        # 화면만 막으면 주소를 아는 사람이 그대로 지운다 — 서버도 같은 상수로 거절한다.
-        can_discard, block = discard_gate(order.status or "")
-        if not can_discard:
-            raise ReconcileError(f"{block} — 승계로 정리하세요.")
+        # 화면만 막으면 주소를 아는 사람이 그대로 지운다 — 서버도 같은 판정으로 거절한다.
+        policy = discard_policy(order.status or "", claim_code=claim_code)
+        if not policy["can_discard"]:
+            raise ReconcileError(f"{policy['block']} — 승계로 정리하세요.")
+        note = str(discard_reason or "").strip()[:500]
+        if policy["needs_reason"]:
+            # 유령 주문 띠와 같은 관문이다(2026-09-02 결정 · 2026-09-04 이 화면에 이식).
+            if not actor_is_admin:
+                raise ReconcileError(
+                    f"{order.status} 단계라 실측·도면 이력이 붙어 있습니다 — "
+                    "관리자만 사유를 적고 접을 수 있습니다.")
+            if not note:
+                raise ReconcileError(
+                    "왜 접는지 한 줄 적어 주세요 — 접수 이후 단계라 실측·도면 기록이 "
+                    "함께 화면에서 사라집니다.")
+        reason_text = "재결제 정리 — 기존 주문 취소 처리"
+        if note:
+            reason_text = f"{reason_text} ({note})"
         soft_delete_order(session, order_id=int(order_id),
                           actor_user_id=int(actor_user_id or 0),
-                          reason="재결제 정리 — 기존 주문 취소 처리")
-        logger.info("[NAVER] 재결제 정리 취소 처리 order=%s link=%s", order_id, link_id)
+                          reason=reason_text)
+        logger.info("[NAVER] 재결제 정리 취소 처리 order=%s link=%s reason=%s",
+                    order_id, link_id, note or "-")
         return {"fork": fork, "relation": relation, "order_id": int(order_id),
-                "attached": 0, "changed": False, "discarded": True}
+                "attached": 0, "changed": False, "discarded": True,
+                "discard_reason": note}
 
     attached, target_order_id, changed = attach_link_to_order(
         session, link_id=int(link_id), order_id=int(order_id), relation=relation,
@@ -238,4 +322,5 @@ def run_reconcile(session, *, link_id: int, order_id: int, relation: str, fork: 
     logger.info("[NAVER] 재결제 정리 승계 order=%s link=%s relation=%s (+%d)",
                 target_order_id, link_id, relation, attached)
     return {"fork": fork, "relation": relation, "order_id": int(target_order_id),
-            "attached": int(attached), "changed": bool(changed), "discarded": False}
+            "attached": int(attached), "changed": bool(changed), "discarded": False,
+            "discard_reason": ""}

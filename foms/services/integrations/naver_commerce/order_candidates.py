@@ -53,9 +53,9 @@ from models import ExternalOrderLink, Order
 logger = logging.getLogger(__name__)
 
 __all__ = ["find_order_candidates", "household_amount", "origin_facts",
-           "pending_origin_cleanup", "search_orders_for_attach",
+           "pending_origin_cleanup", "recommended_relation", "search_orders_for_attach",
            "CANDIDATE_WINDOW_DAYS", "CANDIDATE_LIMIT", "ORIGIN_CLEANUP_LIMIT",
-           "SEARCH_LIMIT", "SEARCH_MIN_LEN"]
+           "RELATION_BY_CLAIM_CODE", "SEARCH_LIMIT", "SEARCH_MIN_LEN"]
 
 #: 후보를 찾는 기간(일). 가구는 실측·제작·시공까지 몇 달이 걸려 차액 결제가 늦게 온다.
 CANDIDATE_WINDOW_DAYS = 180
@@ -295,6 +295,34 @@ CLAIM_CODE_LABEL_SETS = {
     "CANCEL": CLAIM_CODE_LABELS,
     "RETURN": RETURN_CLAIM_CODE_LABELS,
 }
+
+#: ``claim_code`` → **권장 관계**. 후보 표는 예전부터 `재결제 신호`/`추가결제 신호` 라는
+#: 말을 화면에 적었지만, 그 판정이 템플릿 안에만 있어서 정작 **버튼의 순서와 강조색은
+#: 그 말과 반대**였다(추가결제가 먼저·강조색). 눈이 가는 쪽이 권고와 어긋나면 관계를
+#: 잘못 고르고, 그 어긋남은 :func:`repay_reconcile.deposit_guidance` 에서 '바꾸기' 와
+#: '더하기' 로 갈려 **고객 청구액**까지 흘러간다(2026-09-04).
+#:
+#: 여기 없는 코드(``partial``·``all_pending``·``all_mixed``)는 **권하지 않는다** — 일부만
+#: 취소됐거나 네이버가 아직 확정하지 않은 집이라 사람이 봐야 한다. 빈 문자열이 그 뜻이다.
+RELATION_BY_CLAIM_CODE = {
+    "all_done": "REPAY",
+    "alive": "ADDON",
+}
+
+
+def recommended_relation(claim_code: str) -> str:
+    """후보 1건에 **권할 관계**(``REPAY``/``ADDON``). 권할 수 없으면 빈 문자열.
+
+    화면의 신호 문구와 버튼 강조가 **같은 함수**를 읽게 하려고 둔다. 두 벌로 두면
+    한쪽만 손봤을 때 화면이 자기 자신과 어긋난다.
+
+    Args:
+        claim_code: :func:`claim_aggregate_code` 가 낸 집 단위 코드.
+
+    Returns:
+        ``"REPAY"`` · ``"ADDON"`` · ``""``(권하지 않음).
+    """
+    return RELATION_BY_CLAIM_CODE.get(str(claim_code or ""), "")
 
 
 def claim_aggregate_code(*, done: int, pending: int, alive: int) -> str:
@@ -728,6 +756,8 @@ def _order_view(order: Order, *, score: int, reason: str,
         # **코드가 판정 축이고 라벨은 표시 축이다** — 템플릿은 코드로만 분기한다.
         "naver_claim_code": facts.get("claim_code") or "",
         "naver_claim_label": facts.get("claim_label") or "",
+        # 신호 문구와 **버튼 강조**가 같은 판정을 읽게 한다(2026-09-04).
+        "recommended_relation": recommended_relation(facts.get("claim_code") or ""),
         "naver_canceled_count": int(facts.get("canceled") or 0),
         # 네이버가 아직 확정하지 않은 클레임(취소 요청·처리중) 건수.
         "naver_pending_count": int(facts.get("pending") or 0),
