@@ -19,7 +19,7 @@
 {% block title %}네이버 수집{% endblock %}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260902i">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260904a">
 {% endblock %}
 
 {% block content %}
@@ -551,10 +551,15 @@
             <span class="wb-result__note small" id="wb-retry-note" role="status" aria-live="polite"></span>
             {% endif %}
             {% if failures|length > retryable|length %}
+            {# 2026-09-04: 승인 기능(T9) 이전 문장이 남아 "판매자센터로 가라"고만 말했다.
+               고객이 먼저 취소를 요청해 우리 취소가 밀린 건은 **같은 화면의 승인 버튼**이
+               할 일이다 — 판매자센터로 보내면 사람이 화면을 두 번 옮겨 다닌다. #}
             <div class="small mt-1">
                 취소 실패 {{ failures|length - retryable|length }}주문은 여기서 되보낼 수 없습니다 —
-                그 주문을 열어 <b>사유를 다시 고른 뒤</b> 취소처리를 보내세요. 취소·반품이 이미 도는
-                주문이라 취소처리 버튼이 없으면 <b>판매자센터</b>에서 처리한 뒤 <b>확인함</b>으로 닫으세요.
+                그 주문을 열어 <b>사유를 다시 고른 뒤</b> 취소처리를 보내세요.
+                <b>고객이 먼저 취소를 요청한 주문</b>이면 취소처리 대신 그 주문의
+                <b>네이버 취소 승인 — 환불 확정</b>을 누르세요. 취소·반품이 이미 도는 주문이라
+                두 버튼이 다 없으면 <b>판매자센터</b>에서 처리한 뒤 <b>확인함</b>으로 닫으세요.
             </div>
             {% endif %}
         </div>
@@ -1329,5 +1334,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260902i" defer></script>
+<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260904a" defer></script>
 {% endblock %}

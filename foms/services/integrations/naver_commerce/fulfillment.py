@@ -69,7 +69,9 @@ __all__ = [
     "RETURN_APPROVABLE_STATUSES",
     "RETURN_APPROVABLE_STATUSES_DOCUMENTED",
     "RETURN_APPROVABLE_STATUSES_OBSERVED",
+    "BUYER_CLAIM_SUPERSEDES",
     "CANCEL_APPROVABLE_STATUSES",
+    "CLAIM_SETTLED_CLEARS",
     "approve_cancel",
     "approve_return",
     "is_cancel_approvable",
@@ -883,6 +885,76 @@ def failure_action(link: ExternalOrderLink) -> str:
     return str(state.get("last_error_action") or _DEFAULT_FAILURE_ACTION).strip().lower()
 
 
+#: 클레임이 확정되면 **같은 축의** 실패만 내린다 (2026-09-04). 축을 넘어 지우면
+#: 발주확인·반품 실패가 조용히 사라진다 — 반품 축 ``last_error`` 는 "이 본품은 환불되지
+#: 않았다"는 유일한 DB 흔적이다(황민철 집 ERP 5026). 반품 **거부**는 넣지 않는다:
+#: 거부는 클레임을 끝내지만 우리 접수 실패를 무효로 만들지 않는다.
+CLAIM_SETTLED_CLEARS: dict[str, tuple[str, ...]] = {
+    "cancel-approve": ("cancel", "cancel-approve"),
+    "return-approve": ("return", "return-approve"),
+}
+
+
+def _demote_failure(row: ExternalOrderLink, *, action: str, stamp: datetime,
+                    reason: str, actor_user_id: Optional[int] = None) -> None:
+    """실패 사유를 지우지 않고 **내린다** — 규칙 한 벌 (RC5 · 2026-09-04 공유화).
+
+    사람이 ``확인함`` 으로 닫는 자리와, 클레임 확정이 같은 축을 닫는 자리가 **같은 모양**을
+    써야 나중에 "무엇을 무엇이 닫았나"를 DB 하나로 답할 수 있다.
+
+    Args:
+        row: 대상 링크.
+        action: 내리는 실패의 작업 축(``cancel``·``confirm`` …).
+        stamp: 시각.
+        reason: 누가 닫았나 — ``human-ack``(사람) · ``cancel-approved``/``return-approved``
+            (클레임 확정이 닫음).
+        actor_user_id: 사람이 닫았으면 그 사람, 시스템이면 None.
+    """
+    text = str(_state(row).get("last_error") or "")
+    _write_state(row, {"last_error": "", "last_error_at": "", "last_error_action": "",
+                       # 증거는 지우는 게 아니라 내린다(RC5).
+                       "last_error_cleared": text,
+                       "last_error_cleared_action": action,
+                       "failure_cleared_at": stamp.isoformat(),
+                       "failure_cleared_reason": reason,
+                       "failure_cleared_by": actor_user_id})
+
+
+def _clear_settled_failures(rows: list[ExternalOrderLink], *, approve_action: str,
+                            stamp: datetime) -> list[int]:
+    """클레임 승인이 성공한 상품주문의 **같은 축** 실패를 내린다 (2026-09-04).
+
+    성공이 실패를 안 지워서, 취소 승인으로 환불까지 끝난 집에 "취소 실패" 빨간 띠가 그대로
+    남았다(운영 실측 2026-09-04 10:05 실패 → 10:12 승인 성공, 띠는 그대로). 범위는 **성공한
+    상품주문 그 자체 · 축 2개**로 최소한이다 — 집 전체·전 축을 지우던 옛 동작이 RC5 에서
+    되돌려진 그 경로다.
+
+    Args:
+        rows: 승인이 성공한 링크들.
+        approve_action: ``cancel-approve`` 또는 ``return-approve``.
+        stamp: 시각.
+
+    Returns:
+        실제로 내린 링크 id 목록.
+    """
+    axes = CLAIM_SETTLED_CLEARS.get(approve_action, ())
+    if not axes:
+        return []
+    cleared: list[int] = []
+    for row in rows:
+        action = failure_action(row)
+        if not action or action not in axes:
+            continue
+        _demote_failure(row, action=action, stamp=stamp,
+                        reason=f"{approve_action}d" if approve_action.endswith("e")
+                        else approve_action)
+        cleared.append(int(row.id))
+    if cleared:
+        logger.info("[NAVER] 클레임 확정으로 %s 축 실패 %d건을 내렸다 link_ids=%s",
+                    approve_action, len(cleared), cleared)
+    return cleared
+
+
 def clear_failure(session: Session, *, link_id: int,
                   actor_user_id: Optional[int] = None,
                   now: Optional[datetime] = None) -> dict[str, Any]:
@@ -936,13 +1008,8 @@ def clear_failure(session: Session, *, link_id: int,
             continue
         # 사유 원문을 **쓰기 전에** 집어 둔다 — 아래 patch 안에서 다시 읽으면 읽는 순서에
         # 기대는 코드가 된다.
-        reason = str(_state(row).get("last_error") or "")
-        _write_state(row, {"last_error": "", "last_error_at": "", "last_error_action": "",
-                           # 증거는 지우는 게 아니라 내린다(RC5).
-                           "last_error_cleared": reason,
-                           "last_error_cleared_action": action,
-                           "failure_cleared_at": stamp.isoformat(),
-                           "failure_cleared_by": actor_user_id})
+        _demote_failure(row, action=action, stamp=stamp, reason="human-ack",
+                        actor_user_id=actor_user_id)
         cleared.append(int(row.id))
     session.flush()
     logger.info("[NAVER] 실패 기록 지움 link=%s 작업=%s 건수=%d 남김=%d",
@@ -1233,8 +1300,27 @@ def cancel_order(session: Session, client: Any, *, link_id: int, reason: str,
                                   "cancel_detail": (detail or "")[:500],
                                   "last_error": "", "last_error_at": "",
                                   "last_error_action": ""})
+    # 실패로 적기 **전에** 한 번 확인한다(2026-09-04). 고객이 우리보다 먼저 취소를 요청하면
+    # 네이버는 판매자 취소를 "취소 불가능 주문상태"로 거절하는데, 그건 우리가 원한 방향으로
+    # 이미 가 있다는 뜻이지 사람이 판매자센터로 달려갈 일이 아니다(운영 실측 2026-09-04:
+    # 고객 요청이 우리 클릭보다 32.6초 빨랐다). 읽기 1회를 **실패가 있을 때만** 더 쓴다.
+    superseded_notes = dict(failures)
+    superseded = _buyer_claim_superseded(client, failures) if failures else {}
+    for pid, status in superseded.items():
+        failures.pop(pid, None)
+        # 취소 축에만 적는다 — `last_error` 에 적으면 빨간 실패 띠가 뜬다. 성공 도장
+        # (`canceled_at`)도 찍지 않는다: 우리가 취소한 게 아니다(승인이 남아 있다).
+        _write_cancel_axis_state(by_id[pid], {
+            "superseded_at": stamp.isoformat(),
+            "superseded_status": status,
+            "superseded_note": str(superseded_notes.get(pid, ""))[:500],
+            "superseded_our_reason": code,
+        })
     _mark_failures(by_id, failures, action="cancel", stamp=stamp)
     session.flush()
+    if superseded:
+        logger.info("[NAVER] 취소 호출이 고객 클레임에 밀렸다 link=%s 건수=%d (승인이 남았다)",
+                    link_id, len(superseded))
     if failures:
         logger.warning("[NAVER] 취소 부분 실패 link=%s 실패=%d", link_id, len(failures))
         detail_text = "; ".join(f"{pid}: {why}" for pid, why in failures.items())
@@ -1828,6 +1914,41 @@ def request_return(session: Session, client: Any, *, link_id: int, reason: str,
             "skipped": [pid for pid in failures]}
 
 
+#: 우리 취소 호출을 **밀어낸** 고객 클레임 상태 (2026-09-04). 취소 축만 본다 —
+#: 반품·교환까지 넣으면 "취소가 안 됐는데 됐다고 읽는" 다른 결함이 된다.
+BUYER_CLAIM_SUPERSEDES: tuple[str, ...] = ("CANCEL_REQUEST", "CANCEL_REQUESTED",
+                                           "CANCELING", "CANCEL_DONE")
+
+
+def _buyer_claim_superseded(client: Any, failures: dict[str, str]) -> dict[str, str]:
+    """실패한 상품주문 중 **고객 취소 클레임이 이미 열려 있어** 밀린 건을 가려낸다.
+
+    네이버는 이미 취소 요청이 걸린 상품주문에 판매자 취소를 부르면 "주문상태 확인
+    필요(취소 불가능 주문상태)"로 거절한다. 그 문장을 빨간 실패로 옮기면 화면이 거짓을
+    말한다 — 주문은 우리가 원한 방향(취소)으로 가 있고, 남은 일은 **승인 한 번**이며 그
+    버튼은 같은 화면에 이미 열려 있다.
+
+    **모르면 실패로 남긴다.** 재조회가 실패하면 빈 dict 를 돌려준다 — 모르는 상태에서
+    실패 통지를 지우면 사람이 해야 할 일이 조용히 사라진다
+    (:func:`fresh_claim_statuses` 가 정한 규율과 같은 방향).
+
+    Args:
+        client: 커머스API 클라이언트.
+        failures: ``{productOrderId: 네이버가 준 사유}``.
+
+    Returns:
+        ``{productOrderId: 지금 클레임 상태}`` — 밀린 건만. 없으면 빈 dict.
+    """
+    if not failures:
+        return {}
+    fresh, err = fresh_claim_statuses(client, sorted(failures))
+    if err:
+        logger.warning("[NAVER] 취소 실패 재분류용 재조회 실패(전건 실패로 남긴다): %s", err)
+        return {}
+    return {pid: fresh[pid] for pid in failures
+            if fresh.get(pid) in BUYER_CLAIM_SUPERSEDES}
+
+
 def fresh_claim_statuses(client: Any, pids: list[str]) -> tuple[dict[str, str], str]:
     """네이버에 **지금 상태**를 다시 묻는다 — 불가역 호출 직전의 마지막 확인 (감사 F10).
 
@@ -2288,6 +2409,10 @@ def approve_cancel(session: Session, client: Any, *, link_id: int,
             "approved_by": actor_user_id,
             "approve_skipped_reason": "",
         })
+    # 승인이 성공했으면 **같은 축의** 옛 실패는 더 이상 사람이 할 일이 아니다(2026-09-04).
+    # 축 밖(발주확인·반품)은 손대지 않는다 — 넓게 지우면 진짜 실패가 조용히 사라진다.
+    cleared_link_ids = _clear_settled_failures([by_id[pid] for pid in ok_ids],
+                                               approve_action="cancel-approve", stamp=stamp)
     if failures:
         for pid, why in failures.items():
             _write_cancel_axis_state(by_id[pid],
@@ -2302,7 +2427,8 @@ def approve_cancel(session: Session, client: Any, *, link_id: int,
         raise FulfillmentError(f"취소 승인이 실패했습니다 — {detail_text}")
     logger.info("[NAVER] 취소 승인 link=%s 성공=%d 실패=%d", link_id, len(ok_ids),
                 len(failures))
-    return {"approved": ok_ids, "skipped": [pid for pid in failures]}
+    return {"approved": ok_ids, "skipped": [pid for pid in failures],
+            "cleared_link_ids": cleared_link_ids}
 
 
 def approve_return(session: Session, client: Any, *, link_id: int,
@@ -2357,6 +2483,9 @@ def approve_return(session: Session, client: Any, *, link_id: int,
     approved = _approve_returns(client, by_id, pids, stamp=stamp,
                                 actor_user_id=actor_user_id, link_id=link_id)
 
+    cleared_link_ids = _clear_settled_failures(
+        [by_id[pid] for pid in approved if pid in by_id],
+        approve_action="return-approve", stamp=stamp)
     skipped = [pid for pid in pids if pid not in set(approved)]
     if skipped:
         # _approve_returns 는 반품 축에만 사유를 남긴다. 화면 실패 띠는 fulfillment
@@ -2380,4 +2509,5 @@ def approve_return(session: Session, client: Any, *, link_id: int,
         raise FulfillmentError(f"반품 승인이 실패했습니다 — {detail_text}")
     logger.info("[NAVER] 반품 승인(독립) link=%s 성공=%d 실패=%d", link_id, len(approved),
                 len(skipped))
-    return {"approved": approved, "skipped": skipped}
+    return {"approved": approved, "skipped": skipped,
+            "cleared_link_ids": cleared_link_ids}
