@@ -507,7 +507,7 @@
                 <b>재결제 후보가 있습니다</b> — 같은 고객의 새 결제
                 {% for cand in ghost_discard.repay_candidates[:2] %}
                 <b>{{ cand.external_order_no }}</b>({{ '{:,}'.format(cand.amount) }}원){% if not loop.last %},{% endif %}
-                {% endfor %}
+                {%- endfor -%}
                 이 큐에 있습니다.
             </div>
             {% endif %}
