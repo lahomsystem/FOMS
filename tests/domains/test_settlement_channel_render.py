@@ -67,7 +67,9 @@ _STATIC_ASSETS = (CSS_ASSET, JS_ASSET)
 #: 2026-09-03 F9 — R1(축 셀렉트를 원장 줄로 이동)·C1(전환 뒤 셀렉트 되맞춤)·C2(창 밖으로
 #: 밀린 행 수 문구)로 채널 CSS·JS 를 함께 고쳤다(핀 사슬 동반 이동: f → g).
 #: 2026-09-03 F10 T1 — 검색어 `q` 를 원장 짝 판정 안으로 넣느라 채널 JS 를 고쳤다(g → h).
-_CHANNEL_PIN = "20260903h"
+#: 2026-09-04 F10 MINOR-2 — 안내 줄이 설명 부제와 같은 모양이던 것을 경고 수식자로 갈랐다
+#: (JS 클래스 + CSS 규칙 1개, h → i).
+_CHANNEL_PIN = "20260903i"
 
 _CHANNEL_TAB_ID = "foms-settle-tab-channel"
 _CHANNEL_PANE_ID = "foms-settle-pane-channel"
@@ -1065,16 +1067,25 @@ def test_export_url_pairs_the_search_term_with_the_ledger():
 def test_export_menu_says_when_the_search_term_is_dropped():
     """검색어가 이 항목에 안 실릴 때 메뉴가 **그 사실을 말한다**(F10 T1-b).
 
-    조용히 빼면 사용자는 좁혀 놓은 조건이 그대로 실린 줄 안다. 문구는 기존 부제
-    클래스를 재사용해 붙인다(새 CSS 클래스 0). 검색어 값 자체는 되쓰지 않는다 — 긴
+    조용히 빼면 사용자는 좁혀 놓은 조건이 그대로 실린 줄 안다. 문구는 부제 클래스에
+    경고 수식자(`s-ch-export-sub--warn`)를 더해 붙인다 — 설명 부제와 같은 모양이면
+    사람이 둘을 못 가려낸다(F10 리뷰 MINOR-2). 검색어 값 자체는 되쓰지 않는다 — 긴
     입력이 메뉴를 밀어낸다.
 
-    음성 대조군: 같은 본문에 `innerHTML` 이나 `createObjectURL` 이 있으면 red(문구를
-    붙이려다 마크업 주입이나 blob 내려받기로 새지 않았는가).
+    음성 대조군: 안내 줄이 수식자 없는 맨 부제 클래스로 붙어 있으면 red(색 구분이
+    사라진 옛 모양). 같은 본문에 `innerHTML` 이나 `createObjectURL` 이 있어도 red
+    (문구를 붙이려다 마크업 주입이나 blob 내려받기로 새지 않았는가).
     """
     body = _js_function("renderExportMenu")
+    css = _read(f"static/{CSS_ASSET}")
 
     assert "'지금 검색어는 이 표에 안 실립니다(원장이 다릅니다)'" in body, "안내 문구가 없다"
+    assert "'s-ch-export-sub s-ch-export-sub--warn'" in body, "안내 줄에 경고 수식자가 없다"
+    # 음성 대조군: 수식자 없는 맨 부제 클래스로 안내를 붙이면 설명 줄과 구분이 안 된다.
+    assert not re.search(r"'s-ch-export-sub',\s*'지금 검색어는", body), (
+        "안내 줄이 설명 부제와 같은 모양이다"
+    )
+    assert ".s-ch-export-sub--warn {" in css, "경고 수식자 CSS 규칙이 없다"
     assert "ctx.state.q && spec.filters && !exportCarriesFilters(ctx, spec)" in body, "안내 게이트가 없다"
     # 음성 대조군: 조건을 안 받는 일자 단위 표(filters:false)에는 '원장이 다르다' 사유가 거짓이라 안 붙어야 한다.
     assert "ctx.state.q && !exportCarriesFilters(ctx, spec)" not in body, "일자 단위 표에도 안내가 붙는다"

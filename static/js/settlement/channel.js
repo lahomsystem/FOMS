@@ -1071,7 +1071,7 @@
       // 조건을 받는 표인데 원장이 달라 못 싣는 경우에만 말한다 — 일자 단위 표(filters:false)는
       // 애초에 검색어를 받지 않으니 '원장이 다르다'는 사유가 거짓이 된다(F10 리뷰 MINOR-1).
       if (ctx.state.q && spec.filters && !exportCarriesFilters(ctx, spec)) {
-        item.appendChild(el('span', 's-ch-export-sub',
+        item.appendChild(el('span', 's-ch-export-sub s-ch-export-sub--warn',
           '지금 검색어는 이 표에 안 실립니다(원장이 다릅니다)'));
       }
       menu.appendChild(item);
