@@ -1,7 +1,7 @@
 # FOMS 현재 상태
 > 자동 업데이트: 2026-09-04
-> 최신: **네이버 워크벤치·클레임 5건 운영 반영(2026-09-04)** — 상품주문 표 금액 합계(`d5d9173a9`) · 도크 예약금 바닥값=원래 예약금+네이버 결제액(`19e9ac0a6`) · 취소·반품 배지 끝난 건까지 빨강, 거부만 회색(`bb815f2e0`) · '붙이면 대상' 띠가 끝난 집을 권하던 결함(`b828595d8`) · 고객 선요청 취소를 '취소 실패'로 부르던 결함+승인 뒤 띠 잔류(`b130c17df`). 잔여: 옛 빨간 띠는 소급 안 지움 — 화면 '확인함' 1회(운영 JSONB 백필 금지)
-> 직전: **정산 대시보드 폭·높이 개편 운영 반영**(PR #277 · production `2768204f7`) — 1440px 캡 해제·추이 차트 268→410·집중 모드. 함정: 글로벌 헤더 `.d-flex !important` · 정산 자산 핀 4개 공통 계약(하나만 올리면 CI red). 잔여: 실무 탭 표 헤더 고정·aging 카드 접기(미착수)
+> 최신: **정리 계획 카드 정직화 + 취소 처리 정책 동기화 운영 반영(PR #294 · `29a6e72bd`)** — 워크벤치 정리 계획 카드가 고를 수 없는 갈래를 '선택 필요'로 요구하던 것. 근본 원인은 문구가 아니라 공용 상수 뜻이 갈린 드리프트. 잠금 축을 단계에서 옛 결제 확정 여부로 옮기고 단계는 관리자+사유 축으로 분리. **문서 계보 157건 해소**(PR #295 · `fc521573e`) — 승격 시 AI_STATUS·AI_CHANGELOG 충돌이 끝났다
+> 직전: **네이버 워크벤치·클레임 5건 운영 반영(2026-09-04)** — 상품주문 표 금액 합계(`d5d9173a9`) · 도크 예약금 바닥값(`19e9ac0a6`) · 취소·반품 배지 끝난 건까지 빨강(`bb815f2e0`) · '붙이면 대상' 띠가 끝난 집을 권하던 결함(`b828595d8`) · 고객 선요청 취소 재분류(`b130c17df`)
 > 이 파일 상단 40줄이 세션 시작 컨텍스트의 전부다(hygiene 계약으로 강제). 상세 이력은 "## 최근 완료"·"## 기록 보관".
 
 
@@ -10,8 +10,8 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
-- [2026-09-04] **정리 계획 카드 정직화 + 취소 처리 정책 동기화(deploy 대기)** — 제보 "고를 옵션이 없는데 '선택 필요'". 근본 원인은 문구가 아니라 드리프트(2026-09-02 `549a801fb` 가 `ghost_orders` 에만 반영). 잠금 축을 **단계 → 옛 결제 확정 여부**로(`discard_policy`), 단계는 `needs_reason`(관리자+사유)로 분리. `run_gate` 로 확정 전 실행 차단. 후보 버튼 강조를 `recommended_relation` 연동. 핀 `20260904b`. 원장 `docs/plans/2026-09-04-naver-reconcile-card-ledger.md`
-- [2026-09-04] **네이버 워크벤치·클레임 5건 운영 반영** — 회귀 4: ① `find_unlinked_matches` 는 집 형제 전원이 `claim_watch.TERMINAL_ORDER_STATUSES` 면 제외(모르는 값=종결 아님, 카운터 `unlinked_excluded_closed` 는 별도 축) ② `cancel_order` 는 실패 기록 전 재조회 1회로 재분류(`_buyer_claim_superseded` → `cancel.superseded_*`, 재조회 실패=모름=빨강) ③ `approve_cancel/approve_return` 성공은 같은 축 실패만 강등(`CLAIM_SETTLED_CLEARS`) ④ `watchFulfillment` 7곳 전부 `err_at`, JS/CSS 수정 시 워크벤치 `?v` 핀 2개 동반
+- [2026-09-04] **정리 계획 카드 정직화 + 취소 처리 정책 동기화 운영 반영(PR #294 · production `29a6e72bd`)** — 제보 "고를 옵션이 없는데 '선택 필요'". 근본 원인은 문구가 아니라 드리프트(2026-09-02 `549a801fb` 가 `ghost_orders` 에만 반영). 잠금 축을 **단계 → 옛 결제 확정 여부**로(`discard_policy`), 단계는 `needs_reason`(관리자+사유)로 분리. `run_gate` 로 확정 전 실행 차단. 후보 버튼 강조를 `recommended_relation` 연동. 핀 `20260904b`. **문서 계보 157건도 해소**(PR #295 · `fc521573e`) — 이제 승격 때 AI_STATUS·AI_CHANGELOG 가 충돌하지 않는다. 원장 `docs/plans/2026-09-04-naver-reconcile-card-ledger.md`
+- [2026-09-04] **네이버 워크벤치·클레임 5건 회귀 규칙** — ① `find_unlinked_matches` 는 집 형제 전원이 `claim_watch.TERMINAL_ORDER_STATUSES` 면 제외(모르는 값=종결 아님) ② `cancel_order` 는 실패 기록 전 재조회 1회로 재분류(`cancel.superseded_*`, 재조회 실패=모름=빨강) ③ `approve_cancel/approve_return` 성공은 같은 축 실패만 강등(`CLAIM_SETTLED_CLEARS`) ④ `watchFulfillment` 7곳 전부 `err_at`, JS/CSS 수정 시 워크벤치 `?v` 핀 2개 동반
 - [2026-09-04] **ERP 본공정 드롭다운 AS 표시 운영 반영(PR #292 · `5eb72ce40`)** — 드롭다운에 AS 가 안 보이던 3겹을 표시 옵션(`AS 접수 중`)으로 풀고, status 경로 2곳이 stage 를 AS_* 로 덮던 구멍을 `AS_OVERLAY_PRESERVE_WORKFLOW_STAGE` 로 봉합. 강제 변경은 `as_overlay_cleared` 로 드러냄. **잔여=레거시 stage 오염 477건(큐 이탈 62건), 근거 확실한 1건만 정정**
 - [2026-09-03] **AS 상태 증발 2건 운영 반영(PR #288 · `ac23a6c16`)** — AS 축 투영 ERP 게이트 이탈(`sync_as_axis_column`) + 열린 AS 건 status 봉인(`as_overlay_outranks_status_write`). 회귀 없음(잠복). 운영 5건 복구
 - [2026-09-03] **회계팀 권한 정리(deploy)** — ACCOUNTING 을 CS 동등 권한으로(alias `team_has_capability`, 팀 게이트 8곳), 정산 화면·행 API·채널 탭은 **ADMIN+회계팀** 전용(SSOT `is_accounting_or_admin`). 입금확인은 CS/영업 유지

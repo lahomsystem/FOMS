@@ -68,3 +68,23 @@
 CEO 는 "SUCCEED 단독이면 `window.confirm` 을 없애고 버튼 라벨을 동사화" 하라고 했다.
 **따르지 않았다** — 그 확인창이 저장 직전에 **관계(재결제/추가결제)를 다시 말하는 유일한
 자리**다. 관계 오선택이 이 화면의 P1 위험이므로, 없애는 대신 확인창 첫 줄을 관계로 바꿨다.
+
+## 마감 (2026-09-04)
+
+- deploy `dfe84501f` — CI 4개 워크플로 전부 green (FOMS CI · PG Lane · Harness CI · perf-gate).
+- **운영 반영 완료**: PR #294 → production `29a6e72bd`. 승격 트리에서 직접 1784 passed · APP_OK
+  (승격 PR 이 본 스위트를 안 도는 함정 대비 — 이번엔 검사 4개가 정상으로 붙었다).
+- 승격 충돌은 `AI_STATUS`·`AI_CHANGELOG` 두 문서뿐이었고 코드 충돌은 0. 문서는 production
+  쪽을 그대로 두고 코드만 올렸다.
+- **문서 계보 해소**: PR #295 → production `fc521573e`. 그동안 코드만 승격해 온 탓에
+  두 문서가 deploy 보다 157 커밋 뒤처져 매 승격마다 충돌하던 것을, deploy 정본으로 통째
+  맞춰 끝냈다(AI_CHANGELOG 는 production 고유 줄 0건, AI_STATUS 고유 12줄은 전부 옛 판).
+  훅 단위 병합은 내용 소실 전례가 있어 쓰지 않았다.
+- 함께 승격: 임시폴더 하위 `Remove-Item` 재귀 가드 완화(`dfe84501f`) — 백업 가지
+  `backup/deploy-local-20260902` 에만 남아 있던 것을 회수했다.
+
+### 남은 것
+- 실브라우저 확인 미실시(사용자 결정: 스테이징 건너뜀). 워크벤치는 QA 계정 코호트 게이트에
+  막혀 옛 화면이 뜨므로, 확인이 필요하면 사용자 계정이나 로컬 렌더로 해야 한다.
+- 이전 세션이 남긴 미추적 `tests/visual/test_tmp_as_sort_smoke.py` 는 세션 scratchpad 로
+  옮겨 뒀다(삭제 아님). visual 등재 계약에 걸려 pre_push_smoke 를 빨갛게 만들던 것이다.
