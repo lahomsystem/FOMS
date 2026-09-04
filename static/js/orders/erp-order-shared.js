@@ -533,15 +533,19 @@ function erpApplyAsStageDisplay(force) {
     var active = force === true || (stageEl.dataset.erpAsActive || '') === '1';
     if (!active) return;
     var asLabel = (stageEl.dataset.erpAsLabel || '').trim() || '접수';
-    var current = stageEl.options[stageEl.selectedIndex];
+    var current = stageEl.selectedIndex >= 0 ? stageEl.options[stageEl.selectedIndex] : null;
     var mainLabel = current ? (current.textContent || '').replace(/^[A-H]\.\s*/, '').trim() : '';
+    if (mainLabel === '-') mainLabel = '';  // 빈 선택 placeholder 는 본공정이 아니다
     var opt = document.createElement('option');
     opt.value = '';
     opt.disabled = true;
     opt.setAttribute('data-erp-as-display', '1');
-    opt.textContent = mainLabel
-        ? ('AS ' + asLabel + ' 중 · 본공정: ' + mainLabel)
-        : ('AS ' + asLabel + ' 중');
+    // '접수'/'처리' 는 진행 중이라 '중' 을 붙이고, '완료' 는 끝난 상태라 안 붙인다
+    // ('AS 완료 중' 은 뜻이 어긋난다).
+    var asPhrase = asLabel === '완료' ? 'AS 완료' : ('AS ' + asLabel + ' 중');
+    // 레거시로 stage 가 AS_* 인 주문은 그 값이 옵션 목록에 없어 선택이 비어 있다.
+    // 없는 본공정을 지어내지 않는다 - 그때는 AS 상태만 말한다.
+    opt.textContent = mainLabel ? (asPhrase + ' · 본공정: ' + mainLabel) : asPhrase;
     stageEl.insertBefore(opt, stageEl.firstChild);
     stageEl.selectedIndex = 0;
 }
