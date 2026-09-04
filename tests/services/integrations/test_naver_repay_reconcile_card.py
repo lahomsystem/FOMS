@@ -135,8 +135,13 @@ def test_plan_card_carries_both_deposit_sentences(client, workbench_on):
     assert "시스템이 넣지 않는다" in card, "자동 반영하지 않는다는 사실을 말해야 한다"
 
 
-def test_plan_card_locks_discard_after_measure(client, workbench_on):
-    """실측 이후 후보는 취소 처리 갈래가 잠긴다 — 서버도 같은 판정으로 거절한다."""
+def test_plan_card_asks_a_reason_after_measure(client, workbench_on):
+    """실측 이후 후보는 잠기지 않고 **사유 칸**을 연다(2026-09-04 정책 동기화).
+
+    예전에는 여기서 라디오가 ``disabled`` 라, 고를 수 있는 것이 승계 하나뿐인데도 화면은
+    `선택 필요` 라고 적었다. 잠금 축은 단계가 아니라 **옛 결제 확정 여부**로 옮겼다 —
+    유령 주문 띠(`ghost_orders`)와 같은 규칙이다.
+    """
     _login(client)
     order = _order(tel="010-9100-0003", status="MEASURE")
     link = _link(order_no="N-PLAN-3", tel="010-9100-0003", amount=300_000)
@@ -144,8 +149,52 @@ def test_plan_card_locks_discard_after_measure(client, workbench_on):
     card = _card(_body(client, link_id=int(link.id)), int(order.id))
     discard_input = card[card.find('value="DISCARD"'):][:200]
 
-    assert "disabled" in discard_input, "잠긴 갈래인데 라디오가 열려 있다"
-    assert "MEASURE" in card, "왜 잠겼는지를 화면이 말해야 한다"
+    assert "disabled" not in discard_input, "단계가 아직도 잠금 축이다"
+    assert "wb-plan-reason" in card, "사유 칸이 없다 — 사유가 유일한 방어선이다"
+    assert "MEASURE" in card, "어느 단계라 사유가 필요한지 화면이 말해야 한다"
+    assert "관리자만" in card, "누가 접을 수 있는지 화면이 말해야 한다"
+
+
+def test_plan_card_says_there_is_nothing_to_choose_when_the_fork_is_one(client, workbench_on):
+    """갈래가 하나로 굳으면 `선택 필요` 라고 말하지 않는다.
+
+    사용자 제보(2026-09-04): "어차피 선택할 수 있는 옵션이 없는데 이 안내가 의미가 있나."
+    옛 결제가 아직 살아 있으면 취소 처리는 열리지 않으므로 남는 갈래는 승계뿐이다.
+    """
+    _login(client)
+    order = _order(tel="010-9100-0006")
+    _link(order_no="N-PLAN-6-OLD", tel="010-9100-0006", amount=500_000,
+          order_id=int(order.id))
+    link = _link(order_no="N-PLAN-6-NEW", tel="010-9100-0006", amount=800_000)
+
+    card = _card(_body(client, link_id=int(link.id)), int(order.id))
+    discard_input = card[card.find('value="DISCARD"'):][:200]
+
+    assert "disabled" in discard_input, "옛 결제가 살아 있는데 취소 처리가 열렸다"
+    assert "선택 필요" not in card, "고를 것이 없는데 고르라고 한다"
+    assert "자동 결정" in card, "갈래가 하나라는 사실을 화면이 말해야 한다"
+
+
+def test_attach_buttons_follow_the_signal_the_table_prints(client, workbench_on):
+    """후보 표가 `재결제 신호` 라고 적으면 **재결제 버튼이 먼저·강조색**이다.
+
+    예전에는 추가결제가 먼저·`btn-outline-primary` 라 눈이 가는 쪽이 권고와 반대였다.
+    관계를 잘못 고르면 예약금 안내가 '바꾸기'/'더하기' 로 갈려 고객 청구액이 틀어진다.
+    """
+    _login(client)
+    order = _order(tel="010-9100-0007")
+    _link(order_no="N-PLAN-7-OLD", tel="010-9100-0007", amount=500_000,
+          order_id=int(order.id), claim="CANCEL_DONE")
+    link = _link(order_no="N-PLAN-7-NEW", tel="010-9100-0007", amount=800_000)
+
+    body = _body(client, link_id=int(link.id))
+    repay_at = body.find('data-relation="REPAY"')
+    addon_at = body.find('data-relation="ADDON"')
+
+    assert repay_at > 0 and addon_at > 0, "관계 버튼이 없다"
+    assert repay_at < addon_at, "재결제 신호인데 추가결제 버튼이 먼저 나온다"
+    repay_btn = body[body.rfind("<button", 0, repay_at):repay_at]
+    assert "btn-outline-primary" in repay_btn, "권장 관계가 강조색이 아니다"
 
 
 def test_plan_card_points_to_seller_center_when_the_old_payment_lives(client, workbench_on):
