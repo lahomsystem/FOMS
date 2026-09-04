@@ -33,6 +33,7 @@ from foms.services.orders.status_constants import (
     is_logistics_board_status,
 )
 from foms.services.orders.state_axes import as_overlay_outranks_status_write
+from foms.services.orders.status_constants import AS_OVERLAY_PRESERVE_WORKFLOW_STAGE
 from foms.services.orders.stage_override import (
     AS_OVERLAY_BLOCK_MESSAGE,
     AS_OVERLAY_STATUSES,
@@ -238,7 +239,11 @@ def _sync_erp_stage(order: Order, new_status: str, user_id: Any, db: Any, *, bul
         return
     workflow = structured_data.get("workflow") or {}
     old_stage = (workflow.get("stage") or "").strip()
-    if new_status in STATUS:
+    # AS overlay 는 본공정 stage 를 덮지 않는다(STATE-AS-01). AS 완료 전이가 stage 를
+    # 되돌리지 않아 한 번 덮이면 고착하고, 그 주문이 도면·생산·시공 큐에서 빠진다
+    # (2026-09-04 운영 실측 62건). 이벤트는 그대로 남기되 write 만 건너뛴다.
+    stage_write_skipped = new_status in AS_OVERLAY_PRESERVE_WORKFLOW_STAGE
+    if new_status in STATUS and not stage_write_skipped:
         workflow = dict(workflow)
         workflow["stage"] = new_status
         workflow["stage_updated_at"] = now_utc_naive().isoformat()
@@ -255,6 +260,7 @@ def _sync_erp_stage(order: Order, new_status: str, user_id: Any, db: Any, *, bul
                 "to": new_status,
                 "manual": True,
                 "bulk": bulk,
+                "stage_write_skipped": stage_write_skipped,
             },
             created_by_user_id=user_id,
         )

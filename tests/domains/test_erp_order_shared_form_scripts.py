@@ -70,7 +70,7 @@ def _assert_shared_form_script_contract(body: str) -> None:
     assert "html2canvas.min.js" not in body
     assert "js/orders/erp-channel-push-confirm.js?v=20260821a" in body
     assert "js/cs/as-push-confirm.js?v=20260820a" in body
-    assert "js/orders/erp-order-shared.js?v=20260901a" in body
+    assert "js/orders/erp-order-shared.js?v=20260904c" in body
     assert "js/cs/as-attachment-order.js?v=20260819a" in body
     assert "js/orders/erp-alimtalk-send.js?v=20260824b" in body
     # T15 발송 흔적: 칩 자리·이력 패널이 실제 렌더에 붙어 있어야 한다(템플릿 계약만으로는
