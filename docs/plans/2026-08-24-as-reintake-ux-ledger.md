@@ -116,3 +116,21 @@ B7 완료일 clear 의도 플래그 기본 reopen(S4)
 
 `as_round_chart.html` = AS 대시보드 + 지도 카드 **공유 부품**. 계약 테스트 20여종(`test_as_round_chart` 는 소스 리터럴 핀).
 JS/CSS 변경 시 `?v=` 범프 필수. 신규 mutation 이면 manifest 2종 + `audit_message_display` 라벨.
+
+## 스테이징 배포 완료 (2026-08-25)
+
+**푸시 `77fc7cb4..a84c31a5`, CI 4종 전부 green**(Harness·FOMS CI·PostgreSQL Lane·perf-gate).
+
+로컬 `deploy` 가 원격보다 **1068 커밋 뒤처져** 있어(세션 시작부터의 상태) 원격 tip 기준 워크트리
+`c:/tmp/asmerge` 에서 cherry-pick + 의미 병합 후 푸시했다. 충돌 5파일:
+- `as_round_chart.html` · `as_dashboard_body.html` — 원격이 `data-order-id` 를 행 컨테이너로 일원화 →
+  우리 신규 마크업 3곳에서 속성 제거 + `as-dashboard.js` 를 원격 헬퍼 `orderIdOf()` 로 전환.
+  **미조치 시 재접수 팝업 무동작 + `test_as_row_order_id_scope` CI red**였다.
+- `as_dashboard_display.py` — 원격 구간 계측(`record_phase`)과 우리 행 투영을 같은 루프에 공존.
+- `erp_order_js.html`·`test_erp_order_shared_form_scripts.py` — 원격 최신 핀 전량 유지 + 우리가 고친
+  `erp-order-shared.js` 만 `20260824b` 전진 범프.
+- 인벤토리 2종은 라인시프트 정합만(external 24 불변, 신규 external writer 0).
+
+푸시된 커밋: a78ad0ad(저장) · d0988dfd(차트) · 2a94ffd7(화면) · 14b10e16(문서) · a84c31a5(인벤토리)
+
+> 위 절은 백업 가지 `backup/deploy-local-20260902` 에만 남아 있던 것을 2026-09-04 에 회수했다. 그 가지를 지우기 전 전수 대조(76건)에서 상류에 없는 유일한 내용이었다. 기능·코드는 전부 상류에 있었고 잃을 뻔한 것은 이 병합 절차 기록뿐이다.
