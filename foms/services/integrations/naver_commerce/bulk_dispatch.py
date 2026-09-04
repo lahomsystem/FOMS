@@ -671,22 +671,70 @@ class UnlinkedMatchList(list):
     #: 취소·반품 확정이라 후보에서 뺀 집 수.
     excluded_claims: int = 0
 
+    #: 네이버에서 **이미 끝난** 집(구매확정 등)이라 뺀 집 수 (2026-09-04).
+    #: ``excluded_claims`` 와 **합치지 않는다** — 합치면 화면이 구매확정 집을 두고
+    #: "취소·반품 확정"이라고 거짓 라벨을 말한다. 카운터도 문구도 따로 간다.
+    excluded_closed: int = 0
 
-def _settled_claim_order_nos(session: Session, order_nos: set[str]) -> set[str]:
-    """그 주문번호들 중 **집 전체가 취소·반품 확정**인 것만 골라낸다.
+    #: 종결이라 뺀 집이 짚고 있던 ERP 주문 id 들. "못 보내는 건" 갈래가 이 주문들을
+    #: ``네이버 주문이 아닙니다``(foreign)로 부르지 않게 하는 재료다 — 축(전화·이름)은
+    #: 실제로 맞았고 원본도 있다. 없는 사실을 말하지 않으려면 **모른다**로 보내야 한다.
+    closed_order_ids: frozenset = frozenset()
+
+
+def _is_closed_snapshot(snapshot: Any) -> bool:
+    """이 상품주문이 네이버에서 **이미 끝났는가** — 구매확정·취소·반품 완료 (2026-09-04).
+
+    판정 상수는 :data:`claim_watch.TERMINAL_ORDER_STATUSES` 를 그대로 쓴다. 같은 질문
+    ("이 상품주문이 더 변하지 않는 자리에 있는가")에 답하는 SSOT 가 이미 있는데 여기서
+    새로 정의하면, 한쪽만 고쳐지는 날 두 화면이 다른 집을 짚는다.
+
+    **모르는 값은 종결이 아니다.** 키가 없거나 빈 값이거나 처음 보는 코드는 전부 "살아
+    있다"로 기운다 — 헛짚기는 사람이 한 번 안 붙이면 끝이고, 잘못 빼면 집이 화면에서
+    통째로 사라진다(그 침묵은 "짚을 게 없다"와 구분되지 않는다).
+
+    Args:
+        snapshot: ``ExternalOrderLink.raw_snapshot``. 중첩(``productOrder`` 아래)·평평
+            두 모양을 다 받는다 — 옛 수집분이 평평하게 들어와 있다.
+
+    Returns:
+        종결이면 True.
+    """
+    from foms.services.integrations.naver_commerce.claim_watch import (
+        TERMINAL_ORDER_STATUSES,
+    )
+
+    if not isinstance(snapshot, dict):
+        return False
+    product_order = snapshot.get("productOrder")
+    status = ""
+    if isinstance(product_order, dict):
+        status = str(product_order.get("productOrderStatus") or "")
+    if not status:
+        status = str(snapshot.get("productOrderStatus") or "")
+    return status.strip().upper() in TERMINAL_ORDER_STATUSES
+
+
+def _finished_order_nos(session: Session,
+                        order_nos: set[str]) -> tuple[set[str], set[str]]:
+    """그 주문번호들 중 **집 전체가 끝난** 것을 두 갈래로 골라낸다.
 
     판정 재료는 그 집의 **모든** 링크다 — 매칭에 걸린 링크만 보면 형제가 살아 있는 부분
     취소 집을 통째로 취소된 집으로 오독한다.
+
+    두 갈래를 한 번의 조회로 함께 낸다. 종결 축을 따로 조회하면 대시보드 렌더에 같은
+    스냅샷을 두 번 읽는 쿼리가 붙는다.
 
     Args:
         session: DB 세션.
         order_nos: 네이버 묶음 주문번호 집합.
 
     Returns:
-        전부 확정 취소·반품인 주문번호 집합.
+        ``(취소·반품 확정 집, 그 밖에 이미 끝난 집)``. 두 집합은 **겹치지 않는다** —
+        취소·반품 확정은 종결이기도 하므로, 겹치면 화면이 같은 집을 두 줄로 센다.
     """
     if not order_nos:
-        return set()
+        return (set(), set())
     rows = (
         session.query(ExternalOrderLink.external_order_no,
                       ExternalOrderLink.raw_snapshot)
@@ -697,8 +745,12 @@ def _settled_claim_order_nos(session: Session, order_nos: set[str]) -> set[str]:
     by_no: dict[str, list[Any]] = {}
     for order_no, snapshot in rows:
         by_no.setdefault(str(order_no or "").strip(), []).append(snapshot)
-    return {order_no for order_no, snapshots in by_no.items()
-            if all_money_back_settled(snapshots)}
+    settled = {order_no for order_no, snapshots in by_no.items()
+               if all_money_back_settled(snapshots)}
+    closed = {order_no for order_no, snapshots in by_no.items()
+              if order_no not in settled
+              and all(_is_closed_snapshot(snapshot) for snapshot in snapshots)}
+    return (settled, closed)
 
 
 def find_unlinked_matches(session: Session, *, on_date: str) -> UnlinkedMatchList:
@@ -722,6 +774,13 @@ def find_unlinked_matches(session: Session, *, on_date: str) -> UnlinkedMatchLis
 
     어느 축으로 걸렸는지 ``reason`` 에 적어 함께 돌려준다. 사람이 붙이기 전에 근거를 보고
     판단해야 하기 때문이다 — 이름 축은 동명이인을 만날 수 있다.
+
+    **이미 끝난 집은 짚지 않는다**(2026-09-04). 네이버가 구매확정(:data:`claim_watch.
+    TERMINAL_ORDER_STATUSES`)이라고 말하는 집은 붙일 짝이 아니다 — 옛 주문이 소급 백필로
+    들어오면 ``created_at`` 창 안에 통째로 들어오고(운영 실측 2026-09-04: 60일 창 미연결
+    구매확정 556집), 그중 이름이 겹치는 집이 오늘 실측 주문에 권해졌다(집
+    ``2026053135109771`` — 6월에 배송이 끝난 동명이인 건). 뺀 수는
+    :attr:`UnlinkedMatchList.excluded_closed` 로 세어 **취소·반품과 다른 문장**으로 말한다.
 
     **취소·반품이 확정된 집은 짚지 않는다**(2026-09-02). 축은 전화·이름 둘뿐이라 같은
     고객의 옛 취소 집이 살아 있는 주문의 짝으로 권해졌다 — 붙이면 그 주문은 링크가 전부
@@ -848,14 +907,21 @@ def find_unlinked_matches(session: Session, *, on_date: str) -> UnlinkedMatchLis
     # 취소·반품이 **확정**된 집은 붙일 짝이 아니다 — 붙이면 살아 있는 주문이 유령으로
     # 분류되고 폐기 버튼이 열린다(2026-09-02 운영에서 실제로 권유가 떴다). 판정은
     # :func:`all_money_back_settled` 하나로 한다(집 요약의 ``all_canceled`` 와 같은 축).
-    settled = _settled_claim_order_nos(session, set(found))
+    settled, closed = _finished_order_nos(session, set(found))
+    dropped = settled | closed
     out = UnlinkedMatchList(sorted((row for order_no, row in found.items()
-                                    if order_no not in settled),
+                                    if order_no not in dropped),
                                    key=lambda row: row["link_id"]))
     out.excluded_claims = len(settled)
+    out.excluded_closed = len(closed)
+    out.closed_order_ids = frozenset(int(row["order_id"]) for order_no, row in found.items()
+                                     if order_no in closed)
     if settled:
         logger.info("[NAVER] %s 안 붙은 수집분 중 취소·반품 확정 %d집은 후보에서 뺐다 (%s)",
                     on_date, len(settled), ", ".join(sorted(settled)))
+    if closed:
+        logger.info("[NAVER] %s 안 붙은 수집분 중 이미 끝난 집 %d집은 후보에서 뺐다 (%s)",
+                    on_date, len(closed), ", ".join(sorted(closed)))
     if out:
         logger.info("[NAVER] %s 실측분 중 안 붙은 수집분 %d집 — 붙이면 발송 대상이 된다",
                     on_date, len(out))
@@ -912,7 +978,8 @@ def _is_lahom_orderer(sd: Any) -> bool:
 
 
 def classify_unsendable(session: Session, *, on_date: str,
-                        matched_order_ids: Optional[set[int]] = None) -> dict[str, Any]:
+                        matched_order_ids: Optional[set[int]] = None,
+                        closed_order_ids: Optional[set[int]] = None) -> dict[str, Any]:
     """그날 실측인데 **여기서는 보낼 수 없는** 주문을 갈래로 나눈다 — 읽기 전용.
 
     화면은 "네이버 원본이 없는 건"과 "네이버 주문이 아닌 건"을 구별하지 못했다 — 둘 다
@@ -932,6 +999,9 @@ def classify_unsendable(session: Session, *, on_date: str,
         on_date: ``YYYY-MM-DD``.
         matched_order_ids: :func:`find_unlinked_matches` 가 이미 짚은 주문 id(제외한다 —
             두 줄이 같은 집을 두고 다른 말을 하면 사람이 어느 쪽을 믿을지 모른다).
+        closed_order_ids: 종결이라 후보에서 **뺀** 집이 짚던 주문 id. 이 주문들은 커버리지
+            안이어도 ``foreign`` 으로 부르지 않는다 — 두 축 중 하나가 실제로 맞았고 원본도
+            있으니, "네이버 주문이 아닙니다"는 거짓이다. **모른다** 쪽으로 보낸다.
 
     Returns:
         ``{"foreign": [...], "unknown": [...], "coverage_from": "YYYY-MM-DD"|""}``.
@@ -942,6 +1012,7 @@ def classify_unsendable(session: Session, *, on_date: str,
     start = coverage_start(session)
     blank = {"foreign": [], "unknown": [], "coverage_from": start or ""}
     matched = set(matched_order_ids or set())
+    closed = {int(oid) for oid in (closed_order_ids or set())}
     order_ids = [oid for oid in _measurement_order_ids(session, on_date=on_date)
                  if oid not in matched]
     if not order_ids:
@@ -984,6 +1055,11 @@ def classify_unsendable(session: Session, *, on_date: str,
             continue
         row = {"order_id": int(oid), "customer": str(name or ""),
                "received_date": str(received or "")}
+        # 종결이라 뺀 집이 짚던 주문은 원본이 **있다**(축이 맞았다). 커버리지 안이어도
+        # "네이버 주문이 아닙니다"라고 부르면 화면이 없는 사실을 말한다.
+        if int(oid) in closed:
+            unknown.append(row)
+            continue
         # 접수일이 커버리지(+여유) 안이면 원본이 있어야 한다 — 없으니 네이버 건이 아니다.
         if boundary and row["received_date"] and row["received_date"] >= boundary:
             foreign.append(row)
@@ -1069,6 +1145,8 @@ def build_preview(session: Session, *, on_date: str) -> dict[str, Any]:
         * ``state``: ``"none"``(오늘 대상 자체가 없음 — 띠를 띄우지 않는다) ·
           ``"done"``(전부 나감) · ``"partial"``(일부 나감) · ``"pending"``(아직 안 나감).
         * ``unlinked_excluded``: 취소·반품 확정이라 "붙이면 대상" 후보에서 뺀 집 수.
+        * ``unlinked_excluded_closed``: 네이버에서 이미 끝난(구매확정) 집이라 뺀 집 수.
+          위 값과 **합치지 않는다** — 합치면 화면이 거짓 라벨을 말한다(2026-09-04).
           **0집이어도 실린다** — 화면이 "짚을 게 없다"와 "빼서 없다"를 갈라 말해야 한다.
         * ``show``: 띠를 띄울지. **"다 나갔다"와 "대상이 없었다"를 가르는 값이다.**
           뺀 집만 있는 날에도 띄운다 — 뺐다는 사실을 말할 자리가 이 띠뿐이다.
@@ -1079,6 +1157,7 @@ def build_preview(session: Session, *, on_date: str) -> dict[str, Any]:
                              "superseded": 0,
                              "day_rows": [], "show": False, "unlinked": 0,
                              "unlinked_rows": [], "unlinked_excluded": 0,
+                             "unlinked_excluded_closed": 0,
                              "foreign": [], "unknown": [],
                              "coverage_from": "", "auto": auto_dispatch_notice()}
     try:
@@ -1091,6 +1170,7 @@ def build_preview(session: Session, *, on_date: str) -> dict[str, Any]:
         unsendable = classify_unsendable(
             session, on_date=on_date,
             matched_order_ids={int(row["order_id"]) for row in unlinked},
+            closed_order_ids=set(getattr(unlinked, "closed_order_ids", frozenset())),
         )
     except SQLAlchemyError as exc:  # 보조 정보라 화면을 막지 않는다(failopen — 로그로 남긴다)
         logger.warning("[NAVER] 발송 대상 미리보기 조회 실패(띠 생략): %s", exc, exc_info=True)
@@ -1098,14 +1178,16 @@ def build_preview(session: Session, *, on_date: str) -> dict[str, Any]:
     # 뺀 집 수는 **줄이 0집이어도** 실어 보낸다 — 화면이 "짚을 게 없다"와 "취소 확정이라
     # 뺐다"를 구분해 말할 수 있어야 한다.
     excluded = int(getattr(unlinked, "excluded_claims", 0))
+    excluded_closed = int(getattr(unlinked, "excluded_closed", 0))
     extra = {"foreign": unsendable["foreign"], "unknown": unsendable["unknown"],
              "coverage_from": unsendable["coverage_from"],
-             "unlinked_excluded": excluded}
+             "unlinked_excluded": excluded,
+             "unlinked_excluded_closed": excluded_closed}
     # 띄우는 조건은 **종전 그대로**다(대상이 있거나, 붙일 짝이 있을 때). "못 보내는 건"은
     # 곁들이는 정보라, 그것만으로 띠를 띄우면 네이버와 무관한 날에도 화면이 떠든다 —
     # 매일 뜨는 안내는 읽히지 않고, 읽히지 않는 안내는 없는 것과 같다.
     if not targets:
-        if unlinked or excluded:
+        if unlinked or excluded or excluded_closed:
             return {**empty, **extra, "show": True, "unlinked": len(unlinked),
                     "unlinked_rows": list(unlinked)}
         # 값은 싣되 띄우지 않는다 — 값이 비면 읽는 쪽이 "센 적 없다"와 "0건"을 못 가른다.
