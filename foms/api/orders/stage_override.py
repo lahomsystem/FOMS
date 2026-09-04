@@ -165,9 +165,14 @@ def stage_override_response(order_id: int):
 
         payload = captured["payload"]
         resources = outcome.body.get("resources") or [{}]
+        # AS overlay 를 덮었으면 그 사실을 문장으로 남긴다. 감리#3 에 따라 AS→메인 복귀는
+        # 허용이지만(오접수 정정 경로), order.status 의 AS 표시가 사라지면 출고 보드 AS
+        # 필터·관제탑·정산 알림에서 그 건이 빠진다 — 조용하면 안 된다.
+        overlay_cleared = str(payload.get("as_overlay_cleared") or "").strip()
         log_access(
             f"주문 #{order_id} 단계 강제 변경({payload['mode']}): "
-            f"{payload['from']} → {payload['to']} ({payload['reason']})",
+            f"{payload['from']} → {payload['to']} ({payload['reason']})"
+            + (f" · AS 표시 해제({overlay_cleared})" if overlay_cleared else ""),
             user_id,
         )
         resp = jsonify(
@@ -182,6 +187,7 @@ def stage_override_response(order_id: int):
                     "status": captured["status"],
                     "mutation_version": resources[0].get("resulting_version"),
                     "mutation_receipt": outcome.read_receipt_id,
+                    "as_overlay_cleared": overlay_cleared or None,
                 },
             }
         )

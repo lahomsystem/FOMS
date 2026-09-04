@@ -515,6 +515,38 @@ var syncWorkflowStageByOrderer =
     };
 window.syncWorkflowStageByOrderer = syncWorkflowStageByOrderer;
 
+/**
+ * AS 가 진행 중이면 '본공정 단계' select 맨 앞에 저장되지 않는 표시 옵션을 끼운다.
+ *
+ * AS 축(as_lifecycle)과 본공정 stage 는 직교한다(STATE-AS-01). 그래서 AS 접수해도
+ * 드롭다운은 계속 '실측'을 보여줬고, 사용자는 저장이 안 된 것으로 읽었다. 값을 실제로
+ * AS_RECEIVED 로 바꾸면 AS 종료 후 되돌릴 근거가 없어 도면·생산·시공 큐에서 주문이
+ * 영구 이탈한다(2026-09-04 운영 실측 62건). 그래서 표시만 바꾸고 저장값은 본공정 그대로 둔다.
+ *
+ * @param {boolean} [force] AS 접수 직후처럼 data 속성 갱신 전에도 켜야 할 때 true.
+ */
+function erpApplyAsStageDisplay(force) {
+    var stageEl = document.getElementById('erp-workflow-stage');
+    if (!stageEl) return;
+    var existing = stageEl.querySelector('option[data-erp-as-display]');
+    if (existing) existing.remove();
+    var active = force === true || (stageEl.dataset.erpAsActive || '') === '1';
+    if (!active) return;
+    var asLabel = (stageEl.dataset.erpAsLabel || '').trim() || '접수';
+    var current = stageEl.options[stageEl.selectedIndex];
+    var mainLabel = current ? (current.textContent || '').replace(/^[A-H]\.\s*/, '').trim() : '';
+    var opt = document.createElement('option');
+    opt.value = '';
+    opt.disabled = true;
+    opt.setAttribute('data-erp-as-display', '1');
+    opt.textContent = mainLabel
+        ? ('AS ' + asLabel + ' 중 · 본공정: ' + mainLabel)
+        : ('AS ' + asLabel + ' 중');
+    stageEl.insertBefore(opt, stageEl.firstChild);
+    stageEl.selectedIndex = 0;
+}
+window.erpApplyAsStageDisplay = erpApplyAsStageDisplay;
+
 var syncWorkflowStageByMeasurementDate =
     window.syncWorkflowStageByMeasurementDate ||
     function syncWorkflowStageByMeasurementDate() {
@@ -1903,6 +1935,7 @@ async function erpLoadStructured(bootstrapData, options) {
         erpConstructionWorkersEl.value = erpFormatConstructionWorkers(sd?.shipment?.construction_workers || []);
     }
     document.getElementById('erp-workflow-stage').value = sd?.workflow?.stage || '';
+    erpApplyAsStageDisplay();
     // 단계 강제 변경 가드의 base = **서버에 저장된** 단계. 아래 발주사/실측일 동기화가
     // select 를 미리 앞당겨 놓아도 override 요청은 저장값 기준으로 나가야 한다.
     if (window.FOMS_STAGE_OVERRIDE &&
@@ -3437,7 +3470,9 @@ ${escapeHtml(sub)}</div>` : ''}`;
                     if (!window.__erpLastStructuredData.workflow || typeof window.__erpLastStructuredData.workflow !== 'object') {
                         window.__erpLastStructuredData.workflow = {};
                     }
-                    window.__erpLastStructuredData.workflow.stage = 'AS_RECEIVED';
+                    // workflow.stage 는 건드리지 않는다 - AS 축은 본공정 stage 와
+                    // 직교하고(STATE-AS-01), 서버 _pin_form_stage_to_server 가 폐기한다.
+                    erpApplyAsStageDisplay(true);
                     if (!window.__erpLastStructuredData.shipment || typeof window.__erpLastStructuredData.shipment !== 'object') {
                         window.__erpLastStructuredData.shipment = {};
                     }

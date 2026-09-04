@@ -77,6 +77,22 @@ LOGISTICS_STATUS_PRESERVE_WORKFLOW_STAGE = frozenset(
 )
 
 
+# AS overlay 상태: order.status 만 바꾸고 workflow.stage 는 보존한다(STATE-AS-01).
+#
+# AS 축의 SSOT 는 ``structured_data['as_lifecycle']`` 이고 본공정 stage 는 직교한 축이다.
+# 그런데 status 쓰기 경로 2곳(update_order_status·update_order_field)이 이 집합에 없다는
+# 이유로 stage 를 AS_* 로 덮어 왔다 — 운영 실측(2026-09-04) ``STAGE_CHANGED{to:AS_*}``
+# 61건(from 은 RECEIVED·MEASURE·CONSTRUCTION 등 깨끗한 본공정), stage 가 AS_* 인 미완료
+# 주문 477건. AS 완료 전이는 stage 를 되돌리지 않으므로 한 번 덮이면 고착한다 —
+# status=AS_COMPLETED 인데 stage=AS_RECEIVED 로 굳은 62건이 도면·생산·시공 큐에서
+# 통째로 빠져 있었다.
+#
+# ``LOGISTICS_STATUS_PRESERVE_WORKFLOW_STAGE`` 를 늘리지 않고 별도 상수를 두는 이유:
+# 그 상수는 ``state_axes_audit._is_normal_overlay_divergence`` 감사 분류에도 쓰여
+# 값을 늘리면 불일치 집계가 함께 움직인다(두 관심사를 한 집합에 얹지 않는다).
+AS_OVERLAY_PRESERVE_WORKFLOW_STAGE = frozenset({'AS_RECEIVED', 'AS_COMPLETED', 'AS'})
+
+
 def is_logistics_board_status(code: object) -> bool:
     """물류 보드 상태 코드 여부."""
     return str(code or '').strip() in LOGISTICS_BOARD_CODES
@@ -88,6 +104,8 @@ def should_sync_workflow_stage_on_status(code: object) -> bool:
     if not text:
         return False
     if text in LOGISTICS_STATUS_PRESERVE_WORKFLOW_STAGE:
+        return False
+    if text in AS_OVERLAY_PRESERVE_WORKFLOW_STAGE:
         return False
     return True
 
