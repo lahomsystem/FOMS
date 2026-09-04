@@ -32,11 +32,17 @@
 - 푸시 직전 origin/deploy 가 타 세션 커밋 2개(정산 내보내기 안내 줄)로 앞서 있어 rebase 후
   smoke 재실행(PASSED). AI_STATUS 는 서로 다른 줄이라 충돌 없음 — 상대 문장 잔존 확인.
 - deploy `1fd113d55` push. CI 4/4 success(FOMS CI · PG Lane · Harness · perf-gate).
-- **운영 승격 보류(사용자 결정 2026-09-04)**. 시도했다가 멈춘 이유: production 은 워크벤치 핀이
+- 운영 승격 1차 시도 보류. 멈춘 이유: production 은 워크벤치 핀이
   `20260904b` 이고 `afb0b4396`(조작 뒤 버튼 수정 · 이전 세션)이 아직 없다. production 기반 임시
   워크트리에서 내 커밋만 cherry-pick 하니 충돌 6곳 — 핀 2곳·핀 계약 테스트 4곳, 그중
   `test_naver_post_action_refresh.py` 는 **production 에 파일 자체가 없다**(afb0b4396 이 만든 파일).
   `cherry-pick 충돌 = 타 세션 의존 신호 → 임의 해결 금지` 규칙에 따라 워크트리를 되돌려 지웠다.
+- **운영 반영 완료(PR #297 · production `a5b2697ff`)** — 사용자 결정으로 선행 `afb0b4396` 을
+  함께 승격. `be049fd54`(설계 기록 docs)는 skip 했다: 그 문장을 뒤 커밋이 통째로 교체해
+  최종본에 남을 내용이 0이다. `docs/AI_STATUS.md` 충돌은 deploy 최종본 채택으로 풀고
+  production 고유 줄이 사라지지 않는지 diff 로 확인했다(더 최신 문장으로 대체된 줄만 바뀜).
+  승격 트리 직접 검증: `APP_OK` · 8318 passed, 5 skipped · pre_push_smoke PASSED.
+  PR 검사 4/4 pass(test · pg-lane · harness · perf-gate), MERGEABLE/CLEAN 확인 후 머지.
 
 ## 스테이징 실화면 확인 (2026-09-04 · upperkill 전환)
 
