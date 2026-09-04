@@ -19,7 +19,7 @@
 {% block title %}네이버 수집{% endblock %}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260904b">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260904d">
 {% endblock %}
 
 {% block content %}
@@ -153,7 +153,9 @@
                         <div class="wb-ghost__dim">{{ row.naver_link_count }}건 전부</div>
                     </td>
                     <td>
-                        {{ row.status }}
+                        {# 단계는 **한글**로 낸다 — 담당자에게 `MEASURE` 는 코드지 단계가
+                           아니다(사용자 결정 2026-09-04). 정본은 STAGE_LABELS. #}
+                        {{ row.status_label }}
                         {% if not row.can_discard %}
                         <div class="wb-ghost__dim">{{ row.discard_block }}</div>
                         {% endif %}
@@ -176,10 +178,10 @@
                         <button type="button" class="btn btn-sm btn-outline-danger" id="wb-ghost-discard"
                                 data-order-id="{{ row.order_id }}"
                                 data-customer="{{ row.customer_name }}"
-                                data-stage="{{ row.status }}"
+                                data-stage="{{ row.status_label }}"
                                 {% if row.discard_needs_reason %}data-needs-reason="1"{% endif %}>휴지통으로 보내기</button>
                         {% if row.discard_needs_reason %}
-                        <div class="wb-ghost__dim">{{ row.status }} 단계 — 관리자가 사유를 적어야 접힙니다</div>
+                        <div class="wb-ghost__dim">{{ row.status_label }} 단계 — 관리자가 사유를 적어야 접힙니다</div>
                         {% else %}
                         <div class="wb-ghost__dim">휴지통으로 — 복구 가능</div>
                         {% endif %}
@@ -1334,5 +1336,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260904b" defer></script>
+<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260904d" defer></script>
 {% endblock %}

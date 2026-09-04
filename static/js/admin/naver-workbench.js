@@ -36,6 +36,9 @@
     /** 폴링 주기·마감. **끝이 있어야 한다** — 무한 폴링 금지(nav 뱃지 부하와 겹친다). */
     var POLL_INTERVAL_MS = 2000;
     var POLL_TIMEOUT_MS = 25000;
+    // 조작이 끝난 뒤 **자동 다시 읽기**(jobs.tasks._enqueue_refresh_after)를 더 기다리는 창.
+    // 워커가 1대라 재읽기 잡이 다른 잡 뒤에 설 수 있어 조작 창과 따로 준다.
+    var POST_REFRESH_TIMEOUT_MS = 20000;
     /** 재시도는 폴링하지 않는다(집 수만큼 곱해진다) — 한 번만 늦게 갱신한다. */
     var BULK_REFRESH_MS = 15000;
     /** 벌크 진행 조회(집 수와 무관하게 서버 조회 2회). */
@@ -127,6 +130,7 @@
         'wb-backfill-run': submitBackfill,
         'wb-expiry-edit': toggleExpiryEdit,
         'wb-ghost-discard': submitGhostDiscard,
+        'wb-pane-ghost-discard': submitPaneGhostDiscard,
         'wb-origin-refresh-all': submitOriginRefreshAll,
         'wb-origin-cancel-confirm': submitOriginCancel,
         'wb-origin-return-confirm': submitOriginReturn,
@@ -471,6 +475,55 @@
                 row.parentNode.removeChild(row);
             }
         });
+    }
+
+    /**
+     * 집 pane 의 **이 ERP 주문을 휴지통으로** (2026-09-04).
+     *
+     * 유령 주문 띠와 **같은 라우트**를 부른다 — 라우트가 호출마다 `find_ghost_orders`
+     * 로 다시 판정하므로 link_id·집과 무관하다. 새 라우트를 만들지 않는 이유이기도 하다.
+     *
+     * 띠와 다른 점은 둘뿐이다: 사유를 확인창(prompt)이 아니라 **화면의 칸**에서 읽고,
+     * 성공 뒤에 지울 행이 없어 `softRefresh()` 로 화면을 다시 읽는다(pane 에는
+     * `data-ghost-order-id` 행이 없다).
+     *
+     * @param {HTMLElement} button 눌린 버튼.
+     * @returns {Promise<void>}
+     */
+    async function submitPaneGhostDiscard(button) {
+        var orderId = safeId(button.dataset.orderId);
+        if (!orderId) {
+            return;
+        }
+        var who = button.dataset.customer || '';
+        var note = '';
+        if (button.dataset.needsReason) {
+            var field = document.getElementById('wb-pane-discard-reason');
+            note = field ? String(field.value || '').trim() : '';
+            if (!note) {
+                // 서버도 같은 조건으로 막는다(관리자 + 사유). 한쪽만 좁히면 열린 버튼이 400 을 받는다.
+                window.alert('왜 접는지 한 줄 적어 주세요 — 접수 이후 단계라 실측·도면 기록이 '
+                    + '함께 화면에서 사라집니다.');
+                if (field) {
+                    field.focus();
+                }
+                return;
+            }
+        }
+        // 휴지통이라 되돌릴 수 있다 — 4종 세트 모달 대신 확인창 1회다(D-3 선례).
+        // 다만 **주문번호와 고객명을 재진술**한다: pane 은 집 화면이고 접히는 것은 주문이다.
+        if (!window.confirm('주문 #' + orderId + (who ? ' (' + who + ')' : '')
+                + ' 을 휴지통으로 보냅니다. 복구할 수 있습니다.')) {
+            return;
+        }
+        button.disabled = true;
+        const result = await postJson(BASE + 'ghost/' + orderId + '/discard', { reason: note });
+        if (!result.ok) {
+            button.disabled = false;
+            window.alert(result.error);
+            return;
+        }
+        await softRefresh();
     }
 
     /* ── 위쪽 고정줄 오프셋 (2026-08-25) ─────────────────────────────────
@@ -1260,7 +1313,7 @@
      * @param {string} baseRev POST 응답이 준 **enqueue 직전** 지문.
      * @param {string} label 사람이 읽는 작업 이름(발주확인·발송처리·취소).
      */
-    function watchFulfillment(linkId, baseRev, label, baseErrorAt) {
+    function watchFulfillment(linkId, baseRev, label, baseErrorAt, baseSyncAt) {
         var id = safeId(linkId);
         if (!id) {
             return;
@@ -1270,9 +1323,22 @@
         // 시작 시점의 pane 을 기억한다 — 사용자가 다른 집을 열면 이 폴링은 남의 일이 된다.
         var paneAt = paneToken;
         var deadline = Date.now() + POLL_TIMEOUT_MS;
+        // 2026-09-04: 조작 표식이 뒤집힌 것만 보고 손을 떼면 **한 박자 이르다**.
+        // 조작 뒤 자동 다시 읽기(jobs.tasks._enqueue_refresh_after)가 **별도 잡**이라,
+        // 그 잡이 raw_snapshot 을 갈아 끼우기 전 화면에서 폴링이 끝났다. 그래서 반품
+        // 접수 직후 pane 에 `반품 승인` 버튼이 안 떴다(승인 술어 is_return_approvable 은
+        // 우리 표식이 아니라 스냅샷의 클레임 상태를 본다) — 사람이 새로고침해야 나타났다.
+        // 이제 조작 표식(rev)을 본 뒤 **다시 읽기 시각(sync_at)까지** 한 박자 더 본다.
+        var baseSync = baseSyncAt || '';
+        var sawAction = false;
         lockPaneActions();
         setPaneAck(label + ' 요청을 보냈습니다. 네이버 응답을 기다리는 중…');
         pollTimer = window.setTimeout(tick, POLL_INTERVAL_MS);
+
+        /** 지금 상태가 조작 뒤 자동 다시 읽기까지 끝냈는가. */
+        function synced(state) {
+            return !!(state && state.sync_at && state.sync_at !== baseSync);
+        }
 
         async function tick() {
             if (mine !== pollToken || paneAt !== paneToken) {
@@ -1282,8 +1348,8 @@
             if (mine !== pollToken || paneAt !== paneToken) {
                 return;
             }
-            if (state && state.rev && state.rev !== baseRev) {
-                stopWatch();
+            if (!sawAction && state && state.rev && state.rev !== baseRev) {
+                sawAction = true;
                 await softRefresh();
                 // 옛 실패가 남아 있는 주문에서 이번 동작을 실패로 말하지 않는다.
                 // **모든 호출이 누르기 직전의 실패 시각을 넘긴다**(2026-09-04). 예전에는
@@ -1293,11 +1359,26 @@
                 var freshError = state.last_error
                     && state.last_error_at !== (baseErrorAt || '');
                 if (freshError) {
+                    // 실패한 조작에는 이어질 상태 변화가 없다 — 여기서 접는다.
+                    stopWatch();
                     setPaneAck('네이버 ' + (state.action_label || label) + ' 실패: '
                         + state.last_error, true);
-                } else {
-                    setPaneAck('네이버 ' + label + ' 완료.');
+                    return;
                 }
+                if (synced(state)) {
+                    // `다시 읽기` 처럼 조작 자체가 스냅샷을 갈아 끼우는 갈래다 — 끝.
+                    stopWatch();
+                    setPaneAck('네이버 ' + label + ' 완료.');
+                    return;
+                }
+                // 조작은 끝났다. 화면은 이미 그렸고 버튼도 풀렸다 — 남은 것은 네이버
+                // 상태를 다시 읽어 오는 잡뿐이라 **잠그지 않고** 안내만 남긴다.
+                setPaneAck('네이버 ' + label + ' 완료 — 최신 상태를 받아오는 중…');
+                deadline = Date.now() + POST_REFRESH_TIMEOUT_MS;
+            } else if (sawAction && synced(state)) {
+                stopWatch();
+                await softRefresh();
+                setPaneAck('네이버 ' + label + ' 완료.');
                 return;
             }
             if (Date.now() >= deadline) {
@@ -1305,8 +1386,15 @@
                 // 다시 열려도 두 번 나가지 않는다(워커 서비스가 멱등을 지킨다).
                 stopWatch();
                 await softRefresh();
-                setPaneAck(label + ' 결과가 아직 안 왔습니다(네이버 응답 지연). '
-                    + '잠시 뒤 목록에서 다시 확인하세요.');
+                if (sawAction) {
+                    // 조작은 성공했다. 못 받은 것은 **최신 스냅샷**뿐이라 그렇게 말한다 —
+                    // "결과가 안 왔다"고 하면 나간 조작을 안 나간 것처럼 읽는다.
+                    setPaneAck('네이버 ' + label + ' 완료. 최신 상태 반영이 늦어지고 있습니다 — '
+                        + '잠시 뒤 다시 읽기를 누르거나 목록을 새로 고치세요.');
+                } else {
+                    setPaneAck(label + ' 결과가 아직 안 왔습니다(네이버 응답 지연). '
+                        + '잠시 뒤 목록에서 다시 확인하세요.');
+                }
                 return;
             }
             pollTimer = window.setTimeout(tick, POLL_INTERVAL_MS);
@@ -1556,7 +1644,8 @@
         // 기다렸다가 그린다. **모달을 닫기 전에** 시작한다: 닫는 애니메이션(최대 0.6초)
         // 동안 pane 의 불가역 버튼이 열려 있으면 그 틈에 한 번 더 눌린다.
         watchFulfillment(id, result.data && result.data.rev, '발주확인',
-                         result.data && result.data.err_at);
+                         result.data && result.data.err_at,
+                         result.data && result.data.sync_at);
         await hideModal(document.getElementById('wb-modal-confirm'));
     }
 
@@ -1583,7 +1672,8 @@
             return;
         }
         watchFulfillment(id, result.data && result.data.rev, '다시 읽기',
-                         result.data && result.data.err_at);
+                         result.data && result.data.err_at,
+                         result.data && result.data.sync_at);
     }
 
     /**
@@ -1887,7 +1977,8 @@
             return;
         }
         watchFulfillment(id, result.data && result.data.rev, '발송처리',
-                         result.data && result.data.err_at);
+                         result.data && result.data.err_at,
+                         result.data && result.data.sync_at);
         await hideModal(document.getElementById('wb-modal-dispatch'));
     }
 
@@ -1916,7 +2007,8 @@
             return;
         }
         watchFulfillment(id, result.data && result.data.rev, '취소',
-                         result.data && result.data.err_at);
+                         result.data && result.data.err_at,
+                         result.data && result.data.sync_at);
         await hideModal(document.getElementById('wb-modal-cancel'));
     }
 
@@ -1952,7 +2044,8 @@
         }
         watchFulfillment(id, result.data && result.data.rev,
                          approve ? '반품 접수+승인' : '반품 접수',
-                         result.data && result.data.err_at);
+                         result.data && result.data.err_at,
+                         result.data && result.data.sync_at);
         await hideModal(document.getElementById('wb-modal-return'));
     }
 
@@ -2385,7 +2478,8 @@
             return;
         }
         watchFulfillment(id, result.data && result.data.rev, '반품 거부',
-                         result.data && result.data.err_at);
+                         result.data && result.data.err_at,
+                         result.data && result.data.sync_at);
         await hideModal(document.getElementById('wb-modal-return-reject'));
     }
 
@@ -2439,7 +2533,8 @@
             return;
         }
         watchFulfillment(id, result.data && result.data.rev, label,
-                         result.data && result.data.err_at);
+                         result.data && result.data.err_at,
+                         result.data && result.data.sync_at);
         await hideModal(document.getElementById(modalId));
     }
 
