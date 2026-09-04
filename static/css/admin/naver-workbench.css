@@ -1153,7 +1153,10 @@ input.wb-pick:disabled,
 .wb-plan__d { color: var(--wb-muted); line-height: 1.55; margin-top: 3px; }
 .wb-plan__d--warn { color: #b45309; }
 
-.wb-plan__tag {
+/* `.wb-discard__tag` 가 같은 규칙을 탄다 — 되돌릴 수 있음/지금은 안 됨 딱지는
+   정리 계획 카드와 pane 휴지통 줄에서 **같은 모양**이어야 한다(같은 뜻이다). */
+.wb-plan__tag,
+.wb-discard__tag {
     margin-left: 6px;
     padding: 1px 7px;
     border-radius: 999px;
@@ -1169,6 +1172,22 @@ input.wb-pick:disabled,
     border-color: #fed7aa;
     color: #b45309;
 }
+
+/* 취소·반품이 끝난 ERP 주문을 접는 줄(2026-09-04). 클레임 버튼 줄과 선으로 가른다 —
+   같은 줄에 서면 환불 확정 버튼과 휴지통 버튼이 나란히 놓인다(사고 대기). */
+.wb-discard {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--wb-line);
+}
+
+.wb-discard > .alert,
+.wb-discard > .wb-acts__why,
+.wb-discard > .wb-fork__reason { width: 100%; margin-top: 0; }
 
 /* 갈래 라디오. 통째로 누를 수 있어야 한다 — 점만 노리게 만들면 손이 빗나간다. */
 .wb-fork {

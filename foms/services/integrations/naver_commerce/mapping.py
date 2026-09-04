@@ -739,6 +739,12 @@ CLAIM_KIND_LABELS = {
     "EXCHANGE": "교환",
 }
 
+#: 관계 축 낱말 — ``ExternalOrderLink.relation`` 의 세 값. 이력 표(웹 계층)가 들고 있던
+#: 목록을 여기로 올린다: 서비스 계층(:mod:`ghost_orders`)도 같은 낱말을 써야 하는데,
+#: 서비스가 웹을 import 하는 방향은 없다. 목록이 두 벌이 되면 같은 집이 화면마다 다른
+#: 이름으로 불린다.
+RELATION_LABELS = {"NEW": "신규 결제", "ADDON": "추가결제", "REPAY": "재결제"}
+
 #: **돈이 되돌아가는** 클레임 종류. 교환은 아니다 — 고객이 대체품을 받고 우리 주문은
 #: 살아서 생산·배송을 기다린다.
 #:
@@ -1445,6 +1451,7 @@ __all__ = [
     "CLAIM_REASON_LABELS",
     "COLLECT_METHOD_LABELS",
     "CLAIM_KIND_LABELS",
+    "RELATION_LABELS",
     "MONEY_BACK_CLAIM_KINDS",
     "RETURN_AXIS_PHASE_WORDS",
     "REFUND_DONE_STANDBY_STATUSES",

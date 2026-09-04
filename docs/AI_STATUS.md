@@ -1,6 +1,6 @@
 # FOMS 현재 상태
 > 자동 업데이트: 2026-09-04
-> 최신: **취소·반품 끝난 주문 휴지통 UI 설계 완료(구현 전)** — 판정 축은 주문(집 아님), 기존 `/ghost/<order_id>/discard` 재사용이라 신규 manifest 없음. 화면 6종 캔버스 승인. 직전 수정 2건은 운영 반영 완료(PR #294 `29a6e72bd` 정리 계획 카드 · PR #295 `fc521573e` 문서 계보 157건)
+> 최신: **취소·반품 끝난 주문 휴지통 UI 구현 완료(deploy)** — 집 pane 클레임 버튼 줄 아래에 조건부 버튼 6상태. 판정 축은 주문(`judge_order_discard` 가 `find_ghost_orders` 셈법 재사용), 기존 `/ghost/<order_id>/discard` 재사용이라 신규 manifest 없음. 단계 이름 한글화(STAGE_LABELS) 동반. 핀 `20260904d`
 > 직전: **조작 뒤 버튼이 새로고침해야 바뀌던 것**(deploy `afb0b4396`) — 워커가 조작 표식과 자동 다시 읽기를 별도 잡으로 나누는데 화면이 1차 변경만 보고 손을 뗐다. 상태 API `sync_at` + 2단계 폴링으로 일곱 갈래 전부 수정
 > 이 파일 상단 40줄이 세션 시작 컨텍스트의 전부다(hygiene 계약으로 강제). 상세 이력은 "## 최근 완료"·"## 기록 보관".
 
@@ -10,7 +10,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
-- [2026-09-04] **취소·반품 끝난 주문 휴지통 UI(설계 완료·구현 전)** — 집 pane 클레임 버튼 줄 아래에 조건부 버튼+경고 띠. **판정 축은 주문**(`find_ghost_orders` 가 `order_id` 로 묶고 `canceled == link_count`, 살아 있는 ADDON 집이 있으면 모집단에서 빠진다) — pane 이 자체 판정식을 만들면 그 안전이 사라진다. 기존 라우트 `/ghost/<order_id>/discard` 재사용이라 **신규 manifest·감사 라벨 없음**. 확인창 1회(가역, D-3 선례). 사용자 결정: 진행 중 주문도 사유 적으면 접기 · 재결제 짝은 경고만 · 단계 이름은 `STAGE_LABELS` 한글(유령 띠 포함) · 비관리자는 사유 칸 없이 닫힘. 화면 6종 캔버스 승인됨. 별건 보류 2건: 유령 띠 20건 잘림 무고지 · 주문 목록 휴지통 버튼 관문 0
+- [2026-09-04] **취소·반품 끝난 주문 휴지통 UI deploy 반영** — 집 pane 클레임 버튼 줄 아래 조건부 버튼 6상태. **판정 축은 주문**(`judge_order_discard` 가 `find_ghost_orders` 셈법 재사용 — 살아 있는 ADDON 집이 있으면 모집단에서 빠진다). 기존 라우트 `/ghost/<order_id>/discard` 재사용이라 **신규 manifest·감사 라벨 없음**. 단계 이름 한글화(STAGE_LABELS·유령 띠 포함). 핀 `20260904d`. 원장·별건 3건: `docs/plans/2026-09-04-ghost-discard-pane-ledger.md`
 - [2026-09-04] **조작 뒤 버튼이 새로고침해야 바뀌던 것 수정(deploy `afb0b4396`, CI 4/4)** — 워커가 조작 표식과 자동 다시 읽기를 **별도 잡**으로 나눠 처리하는데 화면이 1차 변경만 보고 손을 뗐다. 상태 API 에 `sync_at` 을 내고 `watchFulfillment` 를 2단계로(POST_REFRESH_TIMEOUT_MS). 일곱 갈래 전부 해당. 핀 `20260904c`
 - [2026-09-04] **정리 계획 카드 정직화 + 취소 처리 정책 동기화 운영 반영(PR #294 · `29a6e72bd`)** — 잠금 축을 단계에서 옛 결제 확정 여부로(`discard_policy`), 단계는 `needs_reason`(관리자+사유). `run_gate` 로 확정 전 실행 차단. 후보 버튼 강조 `recommended_relation` 연동. 원장 `docs/plans/2026-09-04-naver-reconcile-card-ledger.md`
 - [2026-09-04] **ERP 본공정 드롭다운 AS 표시 운영 반영(PR #292 · `5eb72ce40`)** — 드롭다운 AS 미표시 3겹 해소 + status 경로 2곳이 stage 를 덮던 구멍을 `AS_OVERLAY_PRESERVE_WORKFLOW_STAGE` 로 봉합. **잔여=레거시 stage 오염 477건(큐 이탈 62건)**

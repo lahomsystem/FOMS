@@ -33,6 +33,7 @@ from foms.services.integrations.naver_commerce.constants import SELLER_CENTER_UR
 from foms.services.integrations.naver_commerce.fulfillment import CLOSE_NOW_RELATIONS
 from foms.services.integrations.naver_commerce.mapping import (
     CLAIM_BLOCK_KEYS,
+    RELATION_LABELS,
     RETURN_BLOCK_KEYS,
     is_money_back_claim,
 )
@@ -112,7 +113,8 @@ HISTORY_STATUS_CHIPS = tuple(
 #: 관계 축 낱말. 이력 집의 ``relation`` 은 **항상 세 값 중 하나**다(신규는 ``NEW``) —
 #: 처리 탭 집(:func:`_group_queue`)이 신규를 빈 문자열로 주는 것과 규약이 다르다.
 #: 화면이 `신규 결제` 배지를 찍어야 하기 때문이다. 두 규약을 서로 옮기지 마라.
-HISTORY_RELATION_LABELS = {"NEW": "신규 결제", "ADDON": "추가결제", "REPAY": "재결제"}
+#: 목록 정본은 :data:`mapping.RELATION_LABELS` 다(서비스 계층도 같은 낱말을 쓴다).
+HISTORY_RELATION_LABELS = RELATION_LABELS
 
 
 def order_has_spec_rows(order: Any) -> bool:
@@ -2071,6 +2073,41 @@ def _origin_view(db, link: Optional[ExternalOrderLink],
     return facts
 
 
+def _ghost_discard_view(db, link: Optional[ExternalOrderLink]) -> dict[str, Any]:
+    """pane 휴지통 블록 컨텍스트 — **판정은 서비스가, 권한은 여기가**.
+
+    판정식을 이 파일에 두지 않는 이유는 하나다: pane 은 집 화면인데 휴지통은 주문을
+    접는다. 집 단위로 다시 세면 :func:`ghost_orders.find_ghost_orders` 가 지키던 안전
+    (살아 있는 추가결제 집이 붙은 주문은 모집단에서 빠진다)이 사라진다.
+
+    권한만 여기서 겹친다 — 사유가 필요한 단계인데 관리자가 아니면 **버튼을 닫고 이유를
+    말한다**(사용자 결정: 비관리자에게는 사유 칸을 아예 띄우지 않는다). 라우트도 같은
+    조건으로 403 을 낸다 — 한쪽만 좁히면 열린 버튼이 403 을 받는다.
+
+    Args:
+        db: 요청 스코프 DB 세션.
+        link: pane 에 띄운 링크(None 이거나 주문이 없으면 블록을 그리지 않는다).
+
+    Returns:
+        :func:`ghost_orders.judge_order_discard` 의 결과 + 권한 반영.
+    """
+    from foms.services.integrations.naver_commerce.ghost_orders import judge_order_discard
+
+    if link is None or not link.order_id:
+        return {"applicable": False, "can_discard": False,
+                "discard_needs_reason": False, "discard_block": "",
+                "repay_candidates": []}
+    view = judge_order_discard(db, int(link.order_id),
+                               group_key=_history_group_key(link))
+    if (view["can_discard"] and view["discard_needs_reason"]
+            and (session.get("role") or "") != "ADMIN"):
+        view["can_discard"] = False
+        view["discard_block"] = (
+            f"{view['status_label']} 단계라 실측·도면 이력이 붙어 있습니다 — "
+            "관리자만 사유를 적고 접을 수 있습니다")
+    return view
+
+
 def _pane_context(db, link: Optional[ExternalOrderLink],
                   *, visible: Optional[list[dict[str, Any]]] = None) -> dict[str, Any]:
     """상세 pane 컨텍스트 — 전체 렌더와 프래그먼트 응답이 **이 함수 하나**를 쓴다.
@@ -2128,6 +2165,9 @@ def _pane_context(db, link: Optional[ExternalOrderLink],
         "selected_offlist": _selected_offlist(link, household, visible),
         # 붙어 있는 주문의 **옛 네이버 주문** — 재결제 뒤 정리 대상(NVREPAY-01).
         "selected_origin": _origin_view(db, link, household),
+        # 취소·반품이 끝난 ERP 주문을 접는 자리(2026-09-04). 전체 렌더와 조각 렌더가
+        # 이 함수 하나를 쓰므로 두 경로의 버튼 조건이 자동으로 같다.
+        "ghost_discard": _ghost_discard_view(db, link),
         # 반품 거부(T8-S3) 게이트. **꺼져 있으면 버튼 자체를 안 낸다** — 규격이 아직
         # 안 채워져서(설계서 §2) 눌러도 나가지 않는다. 라우트도 같은 게이트로 닫혀 있다:
         # 한쪽만 열면 열린 버튼이 403 을 받는다.
@@ -4625,7 +4665,7 @@ def naver_ingest_ghost_discard(order_id: int):
     if target.get("discard_needs_reason"):
         if (session.get("role") or "") != "ADMIN":
             return jsonify({"success": False, "data": None,
-                            "error": f"{target['status']} 단계라 이력이 붙어 있습니다 — "
+                            "error": f"{target['status_label']} 단계라 이력이 붙어 있습니다 — "
                                      "관리자만 사유를 적고 접을 수 있습니다."}), 403
         if not note:
             return jsonify({"success": False, "data": None,

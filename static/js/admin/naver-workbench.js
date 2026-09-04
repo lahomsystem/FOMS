@@ -130,6 +130,7 @@
         'wb-backfill-run': submitBackfill,
         'wb-expiry-edit': toggleExpiryEdit,
         'wb-ghost-discard': submitGhostDiscard,
+        'wb-pane-ghost-discard': submitPaneGhostDiscard,
         'wb-origin-refresh-all': submitOriginRefreshAll,
         'wb-origin-cancel-confirm': submitOriginCancel,
         'wb-origin-return-confirm': submitOriginReturn,
@@ -474,6 +475,55 @@
                 row.parentNode.removeChild(row);
             }
         });
+    }
+
+    /**
+     * 집 pane 의 **이 ERP 주문을 휴지통으로** (2026-09-04).
+     *
+     * 유령 주문 띠와 **같은 라우트**를 부른다 — 라우트가 호출마다 `find_ghost_orders`
+     * 로 다시 판정하므로 link_id·집과 무관하다. 새 라우트를 만들지 않는 이유이기도 하다.
+     *
+     * 띠와 다른 점은 둘뿐이다: 사유를 확인창(prompt)이 아니라 **화면의 칸**에서 읽고,
+     * 성공 뒤에 지울 행이 없어 `softRefresh()` 로 화면을 다시 읽는다(pane 에는
+     * `data-ghost-order-id` 행이 없다).
+     *
+     * @param {HTMLElement} button 눌린 버튼.
+     * @returns {Promise<void>}
+     */
+    async function submitPaneGhostDiscard(button) {
+        var orderId = safeId(button.dataset.orderId);
+        if (!orderId) {
+            return;
+        }
+        var who = button.dataset.customer || '';
+        var note = '';
+        if (button.dataset.needsReason) {
+            var field = document.getElementById('wb-pane-discard-reason');
+            note = field ? String(field.value || '').trim() : '';
+            if (!note) {
+                // 서버도 같은 조건으로 막는다(관리자 + 사유). 한쪽만 좁히면 열린 버튼이 400 을 받는다.
+                window.alert('왜 접는지 한 줄 적어 주세요 — 접수 이후 단계라 실측·도면 기록이 '
+                    + '함께 화면에서 사라집니다.');
+                if (field) {
+                    field.focus();
+                }
+                return;
+            }
+        }
+        // 휴지통이라 되돌릴 수 있다 — 4종 세트 모달 대신 확인창 1회다(D-3 선례).
+        // 다만 **주문번호와 고객명을 재진술**한다: pane 은 집 화면이고 접히는 것은 주문이다.
+        if (!window.confirm('주문 #' + orderId + (who ? ' (' + who + ')' : '')
+                + ' 을 휴지통으로 보냅니다. 복구할 수 있습니다.')) {
+            return;
+        }
+        button.disabled = true;
+        const result = await postJson(BASE + 'ghost/' + orderId + '/discard', { reason: note });
+        if (!result.ok) {
+            button.disabled = false;
+            window.alert(result.error);
+            return;
+        }
+        await softRefresh();
     }
 
     /* ── 위쪽 고정줄 오프셋 (2026-08-25) ─────────────────────────────────

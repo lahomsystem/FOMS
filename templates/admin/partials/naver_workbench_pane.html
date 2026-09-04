@@ -479,6 +479,84 @@
             </button>
         </div>
 
+        {#
+          취소·반품이 **끝난** ERP 주문을 접는 자리(2026-09-04). 클레임 버튼 줄과 선으로
+          가른다 — 같은 줄에 서면 환불 확정 버튼과 휴지통 버튼이 나란히 놓인다.
+
+          **판정 축은 주문이다.** 여기서 집 단위로 다시 세지 않는다 —
+          `ghost_discard` 는 `ghost_orders.judge_order_discard` 가 그 주문에 붙은 링크
+          전부를 보고 낸 값이고, 살아 있는 추가결제 집이 하나라도 있으면 그 주문은
+          모집단에서 빠진다. 그 안전이 이 블록이 기대는 전부다.
+
+          닫힌 상태에서도 **버튼을 숨기지 않는다**: 숨기면 담당자가 주문 목록 휴지통으로
+          가는데 그쪽은 클레임·단계 검사가 0이다. 회색으로 두고 왜 못 접는지 말한다.
+        #}
+        {% if ghost_discard.applicable %}
+        <div class="wb-discard">
+            {% if ghost_discard.can_discard and ghost_discard.discard_needs_reason %}
+            <div class="alert alert-warning py-2 mb-0 w-100 small" data-foms-no-autodismiss>
+                <b>이 주문은 {{ ghost_discard.status_label }} 단계입니다.</b>
+                접으면 실측·도면 기록도 함께 화면에서 사라집니다.
+            </div>
+            {% endif %}
+
+            {# 재결제 짝이 있어도 **잠그지 않는다**(사용자 결정) — 대신 경고를 버튼
+               **위**에 둔다. 아래 두면 누른 뒤에 읽힌다. #}
+            {% if ghost_discard.can_discard and ghost_discard.repay_candidates %}
+            <div class="alert alert-warning py-2 mb-0 w-100 small" data-foms-no-autodismiss>
+                <b>재결제 후보가 있습니다</b> — 같은 고객의 새 결제
+                {% for cand in ghost_discard.repay_candidates[:2] %}
+                <b>{{ cand.external_order_no }}</b>({{ '{:,}'.format(cand.amount) }}원){% if not loop.last %},{% endif %}
+                {% endfor %}
+                이 큐에 있습니다.
+            </div>
+            {% endif %}
+
+            {# 사유 칸은 **관리자에게만** 뜬다. 비관리자는 위에서 버튼이 닫히고 이유가
+               붙는다 — 못 쓸 칸을 띄우면 적고 나서 거절당한다. #}
+            {% if ghost_discard.can_discard and ghost_discard.discard_needs_reason %}
+            <div class="wb-fork__reason">
+                <span>왜 삭제하나요?</span>
+                <input type="text" class="form-control form-control-sm"
+                       id="wb-pane-discard-reason" maxlength="200"
+                       placeholder="예: 고객이 전액 환불받고 재주문 계획 없음">
+            </div>
+            {% endif %}
+
+            <button type="button"
+                    class="btn btn-sm {{ 'btn-outline-danger' if ghost_discard.can_discard else 'btn-outline-secondary' }}"
+                    id="wb-pane-ghost-discard"
+                    data-order-id="{{ ghost_discard.order_id }}"
+                    data-customer="{{ ghost_discard.customer_name }}"
+                    {% if ghost_discard.discard_needs_reason %}data-needs-reason="1"{% endif %}
+                    {% if not ghost_discard.can_discard %}disabled title="{{ ghost_discard.discard_block }}"{% endif %}>
+                이 ERP 주문을 휴지통으로
+                <span class="wb-discard__tag">{{ '되돌릴 수 있음' if ghost_discard.can_discard else '지금은 안 됨' }}</span>
+            </button>
+
+            {% if ghost_discard.can_discard and ghost_discard.repay_candidates %}
+            {# 접지 않고 정리하는 길. 후보 집을 열면 그 자리에 정리 계획 카드가 있다. #}
+            <a class="btn btn-sm btn-outline-secondary"
+               href="{{ url_for('admin.naver_ingest_triage', tab='work', link_id=ghost_discard.repay_candidates[0].link_id) }}">
+                정리 계획 열기
+            </a>
+            {% endif %}
+
+            {% if not ghost_discard.can_discard %}
+            {# 잠긴 이유를 title 에만 두지 않는다 — 마우스가 없는 기기에서는 영영 못 읽는다. #}
+            <div class="alert alert-warning py-2 mb-0 w-100 small" data-foms-no-autodismiss>
+                {{ ghost_discard.discard_block }}.
+            </div>
+            {% elif not ghost_discard.discard_needs_reason and not ghost_discard.repay_candidates %}
+            <div class="wb-acts__why small">
+                <b>주문 #{{ ghost_discard.order_id }} · {{ ghost_discard.customer_name }}</b> —
+                네이버 결제 {{ ghost_discard.link_count }}건이
+                <b>전부 {{ ghost_discard.claim_kind }} 확정</b>됐습니다.
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
         {# 안내 문구 — 계약 §3.3(목업 문장 그대로). 왜 잠겼는지 / 무엇이 먼저인지 한 줄. #}
         {% if locked %}
         <div class="wb-acts__why wb-acts__why--locked small">
