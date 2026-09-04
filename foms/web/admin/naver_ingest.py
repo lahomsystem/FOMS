@@ -4005,6 +4005,20 @@ def _group_queue(links: list[ExternalOrderLink], orders: dict,
                     and (((row.triage_state or {}).get("return") or {})
                          .get("approve_skipped_reason")))
             ],
+            # 우리 취소 호출이 **고객 클레임에 밀린** 상품주문 (2026-09-04). 빨간 실패가
+            # 아니라 "다음 할 일은 승인"이라는 안내다 — 승인 전까지 환불은 안 나가고,
+            # 접수된 사유도 우리가 고른 값이 아니라 고객이 고른 값이라 삼키면 안 된다.
+            # 승인이 끝난 상품주문은 목록에서 빠진다(할 일이 없으면 말하지 않는다).
+            "cancel_superseded": [
+                {"external_id": row.external_id,
+                 "status": str((((row.triage_state or {}).get("cancel") or {})
+                                .get("superseded_status")) or ""),
+                 "note": str((((row.triage_state or {}).get("cancel") or {})
+                              .get("superseded_note")) or "")}
+                for row in members
+                if ((((row.triage_state or {}).get("cancel") or {}).get("superseded_at"))
+                    and not ((row.triage_state or {}).get("cancel") or {}).get("approved_at"))
+            ],
             # 주문 만들기 POST 가 나갈 링크. 대표(최고금액)가 **이미 주문을 가진** 집에서
             # 대표 id 로 보내면 promote_link_to_order 가 그 주문을 멱등 반환만 하고
             # 형제는 하나도 안 옮긴다 — 화면은 "N건을 옮깁니다" 라고 말한 뒤 0건이 움직인다
@@ -4420,7 +4434,9 @@ def naver_ingest_fulfillment(link_id: int):
     # 그 사이 레이스가 생기고 왕복도 는다 — 레이스가 없는 유일한 지점이 여기다.
     db = get_db()
     link = _link_by_id(db, link_id)
-    base_rev = _fulfillment_state(db, link)["rev"] if link is not None else ""
+    base_state = _fulfillment_state(db, link) if link is not None else {}
+    base_rev = base_state.get("rev", "")
+    base_err_at = base_state.get("last_error_at", "")
 
     queued = enqueue_naver_fulfillment(link_id, action, session.get("user_id"))
     if not queued:
@@ -4437,8 +4453,11 @@ def naver_ingest_fulfillment(link_id: int):
     )
     return jsonify({"success": True,
                     # rev: 화면이 이 값이 바뀔 때까지 폴링한다(naver_ingest_fulfillment_state).
+                    # `err_at` 은 **누르기 직전의 실패 시각**이다. 화면이 이 값과 비교하지
+                    # 않으면 이 조작이 성공해도 옛 실패를 "이번 실패"라고 다시 말한다
+                    # (2026-09-04 사용자 2차 신고: 취소 승인 성공 직후 '취소 실패' 재진술).
                     "data": {"link_id": link_id, "action": action, "queued": True,
-                             "rev": base_rev},
+                             "rev": base_rev, "err_at": base_err_at},
                     "error": None})
 
 
@@ -4659,7 +4678,9 @@ def naver_ingest_cancel(link_id: int):
     # 기준 지문은 enqueue 앞에서(발주확인·발송처리와 같은 이유).
     db = get_db()
     link = _link_by_id(db, link_id)
-    base_rev = _fulfillment_state(db, link)["rev"] if link is not None else ""
+    base_state = _fulfillment_state(db, link) if link is not None else {}
+    base_rev = base_state.get("rev", "")
+    base_err_at = base_state.get("last_error_at", "")
 
     queued = enqueue_naver_cancel(link_id, reason, detail or None, session.get("user_id"))
     if not queued:
@@ -4675,7 +4696,7 @@ def naver_ingest_cancel(link_id: int):
     )
     return jsonify({"success": True,
                     "data": {"link_id": link_id, "reason": reason, "queued": True,
-                             "rev": base_rev},
+                             "rev": base_rev, "err_at": base_err_at},
                     "error": None})
 
 
@@ -4724,7 +4745,9 @@ def naver_ingest_return(link_id: int):
     # 기준 지문은 enqueue 앞에서(취소와 같은 이유 — 워커가 뒤집기 전 값이어야 한다).
     db = get_db()
     link = _link_by_id(db, link_id)
-    base_rev = _fulfillment_state(db, link)["rev"] if link is not None else ""
+    base_state = _fulfillment_state(db, link) if link is not None else {}
+    base_rev = base_state.get("rev", "")
+    base_err_at = base_state.get("last_error_at", "")
 
     queued = enqueue_naver_return(link_id, reason, detail or None, session.get("user_id"),
                                   approve=approve)
@@ -4748,7 +4771,8 @@ def naver_ingest_return(link_id: int):
     )
     return jsonify({"success": True,
                     "data": {"link_id": link_id, "reason": reason, "queued": True,
-                             "approve": approve, "rev": base_rev},
+                             "approve": approve, "rev": base_rev,
+                             "err_at": base_err_at},
                     "error": None})
 
 @admin_bp.route("/admin/naver-ingest/reject-templates", methods=["POST"])
@@ -4862,7 +4886,9 @@ def naver_ingest_return_reject(link_id: int):
         return jsonify({"success": False, "data": None,
                         "error": f"수집 기록을 찾을 수 없습니다 (link {link_id})."}), 400
     # 기준 지문은 enqueue 앞에서(접수·취소와 같은 이유 — 워커가 뒤집기 전 값이어야 한다).
-    base_rev = _fulfillment_state(db, link)["rev"]
+    base_state = _fulfillment_state(db, link)
+    base_rev = base_state["rev"]
+    base_err_at = base_state.get("last_error_at", "")
     # 집 요약도 **보내기 전에** 뽑는다(붙이기와 같은 규율).
     history = summarize_link_household(db, link_id=link_id)
 
@@ -4900,6 +4926,7 @@ def naver_ingest_return_reject(link_id: int):
     )
     return jsonify({"success": True,
                     "data": {"link_id": link_id, "queued": True, "rev": base_rev,
+                             "err_at": base_err_at,
                              "reason": reason},
                     "error": None})
 
@@ -4948,7 +4975,9 @@ def _enqueue_claim_approve(link_id: int, *, kind: str):
         return jsonify({"success": False, "data": None,
                         "error": f"수집 기록을 찾을 수 없습니다 (link {link_id})."}), 400
     # 기준 지문은 enqueue 앞에서(거부·접수와 같은 이유 — 워커가 뒤집기 전 값이어야 한다).
-    base_rev = _fulfillment_state(db, link)["rev"]
+    base_state = _fulfillment_state(db, link)
+    base_rev = base_state["rev"]
+    base_err_at = base_state.get("last_error_at", "")
     # 집 요약도 **보내기 전에** 뽑는다(붙이기와 같은 규율).
     history = summarize_link_household(db, link_id=link_id)
 
@@ -4985,7 +5014,8 @@ def _enqueue_claim_approve(link_id: int, *, kind: str):
                 "external_order_no": history.get("external_order_no") or ""},
     )
     return jsonify({"success": True,
-                    "data": {"link_id": link_id, "queued": True, "rev": base_rev},
+                    "data": {"link_id": link_id, "queued": True, "rev": base_rev,
+                             "err_at": base_err_at},
                     "error": None})
 
 

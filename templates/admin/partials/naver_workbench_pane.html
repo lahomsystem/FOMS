@@ -142,6 +142,8 @@
 {% set exchange_in_flight = grp.exchange_in_flight if grp else False %}
 {# 접수는 됐는데 **승인이 안 된** 건(T8-S2). 아무도 말 안 하면 환불이 안 나간 채 잊힌다. #}
 {% set return_awaiting = grp.return_awaiting_approval if grp else [] %}
+{# 우리 취소가 고객 취소 요청에 밀린 건(2026-09-04). 승인이 끝나면 목록에서 빠진다. #}
+{% set cancel_superseded = grp.cancel_superseded if grp else [] %}
 {# 반품 술어는 **`locked` 를 안 본다**(2026-09-02 개정 — NVCLAIM-ORDER-01 RC3).
    집 안 형제 3건이 반품에 성공하면 그 클레임이 `household_claimed` 를 세워 집이 통째로
    잠겼고, **네이버에서 실패한 본품 1건을 FOMS 에서 끝낼 길이 아예 없었다**(황민철 사고).
@@ -427,6 +429,22 @@
             {# 접수는 나갔는데 **승인이 남은** 건 (T8-S2). 승인은 환불이라 남아 있으면
                고객 돈이 안 돌아간 상태다 — 조용히 두면 아무도 모른다. 사유까지 낸다:
                보류 걸린 건은 우리가 못 풀고(판매자센터), 상태 미도달은 다시 누르면 된다. #}
+            {# 우리 취소가 **고객 취소 요청에 밀린** 건(2026-09-04). 빨간 실패가 아니다 —
+               주문은 우리가 원한 방향으로 가 있고 남은 일은 승인 한 번이다. 다만 조용히
+               넘기지도 않는다: 승인 전까지 환불이 안 나가고, 접수된 사유는 우리가 고른
+               값이 아니라 고객이 고른 값이다(네이버는 귀책·제재를 사유에 건다). #}
+            {% if cancel_superseded %}
+            <div class="alert alert-warning py-2 mb-0 w-100 small" data-foms-no-autodismiss>
+                <b>취소처리는 나가지 않았습니다 — 고객이 먼저 취소를 요청했습니다
+                    {{ cancel_superseded|length }}건.</b>
+                우리가 보낸 사유는 반영되지 않았고, 환불은 아직 나가지 않았습니다 —
+                아래 <b>네이버 취소 승인 — 환불 확정</b>을 누르세요.
+                {% for row in cancel_superseded %}
+                <span class="d-block">{{ row.external_id }}: {{ row.status }}{% if row.note %} — {{ row.note }}{% endif %}</span>
+                {% endfor %}
+            </div>
+            {% endif %}
+
             {% if return_awaiting %}
             <div class="alert alert-warning py-2 mb-0 w-100 small" data-foms-no-autodismiss>
                 <b>반품 접수됨 — 승인 남음 {{ return_awaiting|length }}건.</b>
