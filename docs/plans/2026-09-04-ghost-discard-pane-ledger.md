@@ -18,7 +18,7 @@
 | T5 | CSS 최소 신설(기존 `.alert`·`.wb-fork__reason` 재사용) | 신규 규칙 5줄 이하 | DONE |
 | T6 | 자산 핀 `20260904c` → `20260904d` + count==2 계약 5곳 | grep 전수 0건 잔여 | DONE |
 | T7 | 유령 띠·라우트 단계 이름 한글화(STAGE_LABELS) | 띠·라우트 문구에 enum 미노출, 감사 원장은 enum 유지 | DONE |
-| T8 | 게이트·푸시 | APP_OK · pytest · pre_push_smoke · CI 전 워크플로 green | PENDING |
+| T8 | 게이트·푸시 | APP_OK · pytest · pre_push_smoke · CI 전 워크플로 green | DONE |
 
 ## 기록
 
@@ -29,6 +29,9 @@
   "폐기 버튼 없음"을 `data-order-id` 부재로 재던 것 — 이제 pane 에도 같은 판정의 버튼이
   서므로 두 자리가 안 갈린다. 띠는 버튼 id 부재로, pane 은 `disabled` 로 각각 잰다.
 - `scripts/ops/pre_push_smoke.ps1` → **PRE-PUSH SMOKE PASSED**.
+- 푸시 직전 origin/deploy 가 타 세션 커밋 2개(정산 내보내기 안내 줄)로 앞서 있어 rebase 후
+  smoke 재실행(PASSED). AI_STATUS 는 서로 다른 줄이라 충돌 없음 — 상대 문장 잔존 확인.
+- deploy `1fd113d55` push. CI 4/4 success(FOMS CI · PG Lane · Harness · perf-gate).
 
 ## 이번에 하지 않은 것(별건)
 
