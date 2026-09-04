@@ -631,6 +631,9 @@
 .foms-settle .s-ch-export-item:hover { background: var(--s-accent-soft); color: var(--s-accent); }
 .foms-settle .s-ch-export-item:focus-visible { outline: 2px solid var(--s-accent); outline-offset: -2px; }
 .foms-settle .s-ch-export-sub { display: block; color: var(--s-faint); font-size: calc(11px * var(--s-fs, 1)); font-weight: 600; margin-top: 1px; }
+/* 검색어가 이 항목에 안 실린다는 안내. 설명 부제와 같은 모양이면 사람이 둘을 못 가려내
+   므로 경고 색과 굵기로 한 번 더 말한다 — 색만으로 말하지 않도록 문구가 사유까지 담는다. */
+.foms-settle .s-ch-export-sub--warn { color: var(--s-ch-warn); font-weight: 700; }
 /* 상시 안내(자동 닫힘 없는 일반 텍스트). 파일이 화면보다 많은 열을 담는다는 사실과 여는
    법을 늘 말한다 — 주문번호 16자리를 표 계산 프로그램이 지수표기로 여는 자리다. */
 .foms-settle .s-ch-export-note {
