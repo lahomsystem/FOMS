@@ -1286,10 +1286,12 @@
                 stopWatch();
                 await softRefresh();
                 // 옛 실패가 남아 있는 주문에서 이번 동작을 실패로 말하지 않는다.
-                // `baseErrorAt` 를 넘긴 호출(다시 읽기)만 이 비교를 쓴다 —
-                // 안 넘긴 기존 호출은 예전과 똑같이 동작한다(2026-08-26 CEO 리뷰 B3).
+                // **모든 호출이 누르기 직전의 실패 시각을 넘긴다**(2026-09-04). 예전에는
+                // `다시 읽기` 하나만 넘기고 나머지 여섯 갈래는 폴백으로 옛 동작을 남겼는데,
+                // 그 유예 때문에 취소 승인이 **성공한** 직후 화면이 옛 취소 실패를
+                // "네이버 취소 실패"라고 다시 말했다(사용자 2차 신고).
                 var freshError = state.last_error
-                    && (baseErrorAt === undefined || state.last_error_at !== baseErrorAt);
+                    && state.last_error_at !== (baseErrorAt || '');
                 if (freshError) {
                     setPaneAck('네이버 ' + (state.action_label || label) + ' 실패: '
                         + state.last_error, true);
@@ -1553,7 +1555,8 @@
         // 갱신을 여기서 바로 하면 아직 워커 전이라 화면이 그대로다 — 결과가 나올 때까지
         // 기다렸다가 그린다. **모달을 닫기 전에** 시작한다: 닫는 애니메이션(최대 0.6초)
         // 동안 pane 의 불가역 버튼이 열려 있으면 그 틈에 한 번 더 눌린다.
-        watchFulfillment(id, result.data && result.data.rev, '발주확인');
+        watchFulfillment(id, result.data && result.data.rev, '발주확인',
+                         result.data && result.data.err_at);
         await hideModal(document.getElementById('wb-modal-confirm'));
     }
 
@@ -1883,7 +1886,8 @@
             btn.disabled = false;
             return;
         }
-        watchFulfillment(id, result.data && result.data.rev, '발송처리');
+        watchFulfillment(id, result.data && result.data.rev, '발송처리',
+                         result.data && result.data.err_at);
         await hideModal(document.getElementById('wb-modal-dispatch'));
     }
 
@@ -1911,7 +1915,8 @@
             btn.disabled = false;
             return;
         }
-        watchFulfillment(id, result.data && result.data.rev, '취소');
+        watchFulfillment(id, result.data && result.data.rev, '취소',
+                         result.data && result.data.err_at);
         await hideModal(document.getElementById('wb-modal-cancel'));
     }
 
@@ -1946,7 +1951,8 @@
             return;
         }
         watchFulfillment(id, result.data && result.data.rev,
-                         approve ? '반품 접수+승인' : '반품 접수');
+                         approve ? '반품 접수+승인' : '반품 접수',
+                         result.data && result.data.err_at);
         await hideModal(document.getElementById('wb-modal-return'));
     }
 
@@ -2365,7 +2371,8 @@
             btn.disabled = false;
             return;
         }
-        watchFulfillment(id, result.data && result.data.rev, '반품 거부');
+        watchFulfillment(id, result.data && result.data.rev, '반품 거부',
+                         result.data && result.data.err_at);
         await hideModal(document.getElementById('wb-modal-return-reject'));
     }
 
@@ -2418,7 +2425,8 @@
             btn.disabled = false;
             return;
         }
-        watchFulfillment(id, result.data && result.data.rev, label);
+        watchFulfillment(id, result.data && result.data.rev, label,
+                         result.data && result.data.err_at);
         await hideModal(document.getElementById(modalId));
     }
 

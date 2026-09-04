@@ -269,7 +269,10 @@ def test_single_actions_wait_for_the_worker():
     for name, label in (("submitConfirm", "발주확인"), ("submitDispatch", "발송처리"),
                         ("submitCancel", "취소")):
         body = source.split(f"async function {name}")[1].split("async function")[0]
-        assert f"watchFulfillment(id, result.data && result.data.rev, '{label}')" in body
+        # 2026-09-04: 여섯 갈래 전부 `err_at`(누르기 직전 실패 시각)을 함께 넘긴다 —
+        # 안 넘기면 이 조작이 성공해도 화면이 옛 실패를 '이번 실패'로 다시 말한다.
+        assert f"watchFulfillment(id, result.data && result.data.rev, '{label}'," in body
+        assert "result.data && result.data.err_at" in body, f"{name} 이 err_at 를 안 넘긴다"
         assert "window.location.reload()" not in body, (
             f"{name} 이 즉시 새로고침하면 워커 전 화면을 다시 그린다")
 
@@ -406,7 +409,7 @@ def test_bulk_note_exists_and_asset_pin_moved():
 
     assert 'id="wb-bulk-note"' in markup
     assert 'id="wb-retry-note"' in markup
-    assert markup.count("?v=20260902i") == 2, "CSS·JS 핀을 함께 올린다"
+    assert markup.count("?v=20260904a") == 2, "CSS·JS 핀을 함께 올린다"
 
 
 # --------------------------------------------------------------------------- #
