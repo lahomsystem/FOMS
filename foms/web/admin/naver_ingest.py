@@ -3416,7 +3416,13 @@ def _fulfillment_state(db, link: ExternalOrderLink) -> dict[str, Any]:
 
     Returns:
         ``link_id``·``total``·``confirmed``·``dispatched``·``canceled``·``returned``·
-        ``last_error``·``last_error_at``·``last_error_action``·``action_label``·``rev``.
+        ``last_error``·``last_error_at``·``last_error_action``·``action_label``·
+        ``sync_at``·``rev``.
+        ``sync_at`` 은 집 안 **가장 최근 다시 읽기 시각**이다. 지금까지 이 값은 ``rev``
+        해시 안에만 섞여 있어 화면이 밖에서 못 읽었다 — 조작 뒤 자동 다시 읽기
+        (:func:`jobs.tasks._enqueue_refresh_after`)가 **별도 잡**이라, 화면이 조작
+        표식만 보고 손을 떼면 스냅샷 갱신 전 화면에서 멈춘다(2026-09-04 사용자 제보:
+        반품 접수 뒤 승인 버튼이 새로고침해야 나타났다).
         ``rev`` 는 표식 지문이다 — 성공이든 실패든 표식이 바뀌면 값이 바뀐다(워커는 성공
         시 ``last_error*`` 를 지우므로 그것도 변화다). ``hash()`` 는 쓰지 않는다
         (PYTHONHASHSEED 로 프로세스마다 달라져 워커·웹 사이에서 못 쓴다).
@@ -3429,6 +3435,7 @@ def _fulfillment_state(db, link: ExternalOrderLink) -> dict[str, Any]:
     marks: list[str] = []
     confirmed = dispatched = canceled = returned = 0
     last_error = last_error_at = last_error_action = ""
+    sync_at = ""
     for row in members:
         state = (row.triage_state or {}).get("fulfillment") or {}
         at_confirm = str(state.get("place_confirmed_at") or "")
@@ -3449,6 +3456,10 @@ def _fulfillment_state(db, link: ExternalOrderLink) -> dict[str, Any]:
         # 시각을 지문에 함께 넣어야 화면이 "다시 읽기가 끝났다"를 볼 수 있다. 안 넣으면
         # 눌러도 화면이 영원히 안 바뀐다(사용자에게는 "아무 일도 안 일어남"으로 보인다).
         at_sync = str(((row.triage_state or {}).get("claim_sync") or {}).get("refreshed_at") or "")
+        # 집 안 **최댓값**을 밖으로 낸다 — 화면이 "다시 읽기까지 끝났나"를 지문이 아니라
+        # 이 값으로 판정한다(지문은 어느 축이 바뀌었는지 구분하지 못한다).
+        if at_sync > sync_at:
+            sync_at = at_sync
         # 반품 접수(T8-S1)는 **다른 축**(`triage_state['return']`)에 찍힌다 — 여기 안 넣으면
         # 접수 버튼을 눌러도 지문이 안 바뀌어 화면이 영원히 "아직 안 끝났다"로 폴링한다.
         # 새 엔드포인트를 만들지 않는 이유이기도 하다(다시 읽기가 `claim_sync` 로 한 수법).
@@ -3480,6 +3491,8 @@ def _fulfillment_state(db, link: ExternalOrderLink) -> dict[str, Any]:
         "last_error_at": last_error_at,
         "last_error_action": action,
         "action_label": FULFILLMENT_ACTION_LABELS.get(action, ""),
+        # 조작 뒤 자동 다시 읽기가 끝났는지 화면이 보는 축(2026-09-04).
+        "sync_at": sync_at,
         "rev": hashlib.sha1(";".join(marks).encode("utf-8")).hexdigest()[:16],
     }
 
@@ -4176,7 +4189,8 @@ def naver_ingest_refresh(link_id: int):
                     # (2026-08-26 CEO 리뷰 B3).
                     "data": {"link_id": link_id, "queued": True,
                              "rev": base_state["rev"],
-                             "err_at": base_state["last_error_at"]},
+                             "err_at": base_state["last_error_at"],
+                             "sync_at": base_state.get("sync_at", "")},
                     "error": None})
 
 
@@ -4435,6 +4449,7 @@ def naver_ingest_fulfillment(link_id: int):
     base_state = _fulfillment_state(db, link) if link is not None else {}
     base_rev = base_state.get("rev", "")
     base_err_at = base_state.get("last_error_at", "")
+    base_sync_at = base_state.get("sync_at", "")
 
     queued = enqueue_naver_fulfillment(link_id, action, session.get("user_id"))
     if not queued:
@@ -4455,7 +4470,8 @@ def naver_ingest_fulfillment(link_id: int):
                     # 않으면 이 조작이 성공해도 옛 실패를 "이번 실패"라고 다시 말한다
                     # (2026-09-04 사용자 2차 신고: 취소 승인 성공 직후 '취소 실패' 재진술).
                     "data": {"link_id": link_id, "action": action, "queued": True,
-                             "rev": base_rev, "err_at": base_err_at},
+                             "rev": base_rev, "err_at": base_err_at,
+                             "sync_at": base_sync_at},
                     "error": None})
 
 
@@ -4679,6 +4695,7 @@ def naver_ingest_cancel(link_id: int):
     base_state = _fulfillment_state(db, link) if link is not None else {}
     base_rev = base_state.get("rev", "")
     base_err_at = base_state.get("last_error_at", "")
+    base_sync_at = base_state.get("sync_at", "")
 
     queued = enqueue_naver_cancel(link_id, reason, detail or None, session.get("user_id"))
     if not queued:
@@ -4694,7 +4711,8 @@ def naver_ingest_cancel(link_id: int):
     )
     return jsonify({"success": True,
                     "data": {"link_id": link_id, "reason": reason, "queued": True,
-                             "rev": base_rev, "err_at": base_err_at},
+                             "rev": base_rev, "err_at": base_err_at,
+                             "sync_at": base_sync_at},
                     "error": None})
 
 
@@ -4746,6 +4764,7 @@ def naver_ingest_return(link_id: int):
     base_state = _fulfillment_state(db, link) if link is not None else {}
     base_rev = base_state.get("rev", "")
     base_err_at = base_state.get("last_error_at", "")
+    base_sync_at = base_state.get("sync_at", "")
 
     queued = enqueue_naver_return(link_id, reason, detail or None, session.get("user_id"),
                                   approve=approve)
@@ -4770,7 +4789,7 @@ def naver_ingest_return(link_id: int):
     return jsonify({"success": True,
                     "data": {"link_id": link_id, "reason": reason, "queued": True,
                              "approve": approve, "rev": base_rev,
-                             "err_at": base_err_at},
+                             "err_at": base_err_at, "sync_at": base_sync_at},
                     "error": None})
 
 @admin_bp.route("/admin/naver-ingest/reject-templates", methods=["POST"])
@@ -4887,6 +4906,7 @@ def naver_ingest_return_reject(link_id: int):
     base_state = _fulfillment_state(db, link)
     base_rev = base_state["rev"]
     base_err_at = base_state.get("last_error_at", "")
+    base_sync_at = base_state.get("sync_at", "")
     # 집 요약도 **보내기 전에** 뽑는다(붙이기와 같은 규율).
     history = summarize_link_household(db, link_id=link_id)
 
@@ -4924,7 +4944,7 @@ def naver_ingest_return_reject(link_id: int):
     )
     return jsonify({"success": True,
                     "data": {"link_id": link_id, "queued": True, "rev": base_rev,
-                             "err_at": base_err_at,
+                             "err_at": base_err_at, "sync_at": base_sync_at,
                              "reason": reason},
                     "error": None})
 
@@ -4976,6 +4996,7 @@ def _enqueue_claim_approve(link_id: int, *, kind: str):
     base_state = _fulfillment_state(db, link)
     base_rev = base_state["rev"]
     base_err_at = base_state.get("last_error_at", "")
+    base_sync_at = base_state.get("sync_at", "")
     # 집 요약도 **보내기 전에** 뽑는다(붙이기와 같은 규율).
     history = summarize_link_household(db, link_id=link_id)
 
@@ -5013,7 +5034,7 @@ def _enqueue_claim_approve(link_id: int, *, kind: str):
     )
     return jsonify({"success": True,
                     "data": {"link_id": link_id, "queued": True, "rev": base_rev,
-                             "err_at": base_err_at},
+                             "err_at": base_err_at, "sync_at": base_sync_at},
                     "error": None})
 
 

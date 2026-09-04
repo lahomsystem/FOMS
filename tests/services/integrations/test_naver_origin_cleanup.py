@@ -532,4 +532,4 @@ def test_template_pins_moved_together():
     """CSS·JS 를 고쳤으면 ``?v`` 핀이 함께 움직인다(SW staticCacheFirst)."""
     markup = TEMPLATE_PATH.read_text(encoding="utf-8")
 
-    assert markup.count("?v=20260904b") == 2
+    assert markup.count("?v=20260904c") == 2
