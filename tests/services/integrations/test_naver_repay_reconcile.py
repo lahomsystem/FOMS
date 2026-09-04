@@ -39,7 +39,8 @@ from foms.services.integrations.naver_commerce.repay_reconcile import (
     ReconcileError,
     attach_reconcile_plans,
     deposit_guidance,
-    discard_gate,
+    discard_policy,
+    run_gate,
     run_reconcile,
 )
 from models import ExternalOrderLink, Order, User
@@ -164,24 +165,71 @@ def test_deposit_guidance_reads_zero_when_the_order_has_none(app):
 
 
 # --------------------------------------------------------------------------------------
-# ② 취소 처리 갈래 — 접수 단계에서만 열린다
+# ② 취소 처리 갈래 — 유령 주문 띠와 **같은 규칙**(2026-09-04 정책 동기화)
 # --------------------------------------------------------------------------------------
 
-def test_discard_gate_opens_at_received(app):
-    """접수 단계는 붙은 이력이 없다 — 취소 처리를 열어 준다."""
-    can_discard, block = discard_gate("RECEIVED")
+def test_discard_opens_when_no_naver_household_is_linked(app):
+    """붙은 네이버 집이 아예 없으면 연다 — 수기 접수 주문을 재결제로 갈아탈 때다."""
+    policy = discard_policy("RECEIVED", claim_code="")
 
-    assert can_discard is True
-    assert block == ""
+    assert policy["can_discard"] is True
+    assert policy["needs_reason"] is False
+    assert policy["block"] == ""
+
+
+def test_discard_opens_when_naver_cancel_is_settled(app):
+    """네이버가 취소를 확정했으면 연다."""
+    policy = discard_policy("RECEIVED", claim_code="all_done")
+
+    assert policy["can_discard"] is True
+    assert policy["block"] == ""
+
+
+@pytest.mark.parametrize("code", ["all_pending", "all_mixed", "partial", "alive"])
+def test_discard_closes_until_the_old_payment_is_settled(app, code):
+    """옛 결제가 확정 취소되기 전에는 잠근다 — **돈이 걸린 축**이라 단계보다 위다.
+
+    확정 전에 접으면 취소가 거부됐을 때 살아 있어야 할 주문이 휴지통에 있다.
+    """
+    policy = discard_policy("RECEIVED", claim_code=code)
+
+    assert policy["can_discard"] is False
+    assert policy["block"], "왜 못 접는지 화면이 말할 문장이 없다"
 
 
 @pytest.mark.parametrize("status", ["MEASURE", "DRAWING", "PRODUCTION", "COMPLETED"])
-def test_discard_gate_closes_after_received(app, status):
-    """실측 이후 단계는 잠긴다 — 사유에 **그 단계 이름**이 들어가야 사람이 납득한다."""
-    can_discard, block = discard_gate(status)
+def test_stage_no_longer_locks_but_demands_a_reason(app, status):
+    """접수 이후 단계는 **잠기지 않고 사유를 요구한다**(2026-09-02 결정을 이 화면에 이식).
 
-    assert can_discard is False
-    assert status in block, f"사유에 단계 이름이 없다: {block!r}"
+    예전에는 이 단계들이 완전 잠금이었다. 그 결과 유령 주문 띠는 사유를 적으면 접히는데
+    정리 계획 카드는 아예 못 접어, 같은 상수가 두 화면에서 다른 뜻으로 읽혔다.
+    """
+    policy = discard_policy(status, claim_code="all_done")
+
+    assert policy["can_discard"] is True, "단계가 아직도 잠금 축이다"
+    assert policy["needs_reason"] is True, "이력이 붙은 단계인데 사유를 안 받는다"
+
+
+# --------------------------------------------------------------------------------------
+# ②' 정리 실행 공통 관문 — 확정 전에는 승계도 막는다
+# --------------------------------------------------------------------------------------
+
+@pytest.mark.parametrize("code", ["all_pending", "all_mixed"])
+def test_run_gate_blocks_until_naver_settles(app, code):
+    """확정 전에는 갈래와 무관하게 막는다 — 화면 i 칸이 하던 말을 서버가 지킨다."""
+    can_run, block = run_gate(code)
+
+    assert can_run is False
+    assert "확정" in block
+
+
+@pytest.mark.parametrize("code", ["", "alive", "partial", "all_done"])
+def test_run_gate_allows_the_rest(app, code):
+    """확정 전이 아닌 상태는 실행을 막지 않는다 — 승계는 되돌릴 수 있다."""
+    can_run, block = run_gate(code)
+
+    assert can_run is True
+    assert block == ""
 
 
 # --------------------------------------------------------------------------------------
@@ -229,8 +277,11 @@ def test_the_two_plans_do_not_collapse_into_one_number(app):
             != plans["ADDON"]["deposit"]["target"]), "관계 구분이 사라졌다"
 
 
-def test_reconcile_plans_lock_the_discard_button_after_measure(app):
-    """실측 단계 후보는 계획에서도 취소 처리가 잠긴 채로 실린다(화면 재진술의 근거)."""
+def test_reconcile_plans_ask_for_a_reason_after_measure(app):
+    """실측 단계 후보는 계획에 **사유 요구 표식**을 달고 실린다(화면 재진술의 근거).
+
+    잠기지는 않는다 — 2026-09-04 정책 동기화로 단계는 잠금 축에서 빠졌다.
+    """
     order = _order(tel="010-7310-0012", status="MEASURE", deposit=200_000)
     fresh = _link(order_no="N-RC-LOCK", amount=400_000, tel="010-7310-0012")
 
@@ -239,8 +290,9 @@ def test_reconcile_plans_lock_the_discard_button_after_measure(app):
 
     plan = next(item for item in candidates
                 if item["order_id"] == int(order.id))["reconcile"]["REPAY"]
-    assert plan["can_discard"] is False
-    assert "MEASURE" in plan["discard_block"]
+    assert plan["can_discard"] is True, "단계가 아직도 잠금 축이다"
+    assert plan["discard_needs_reason"] is True
+    assert plan["can_run"] is True, "붙은 집이 없는데 실행이 막혔다"
 
 
 # --------------------------------------------------------------------------------------

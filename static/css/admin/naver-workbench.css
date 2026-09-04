@@ -1186,8 +1186,20 @@ input.wb-pick:disabled,
     background: var(--wb-accent-soft);
 }
 
-/* 잠긴 갈래(실측 이후)는 눌리지 않는다 — 서버도 같은 판정으로 거절한다. */
+/* 잠긴 갈래(옛 결제가 확정 취소되지 않음)는 눌리지 않는다 — 서버도 같은 판정으로
+   거절한다(repay_reconcile.discard_policy). 단계는 더 이상 잠금 축이 아니다 —
+   접수 이후 단계는 **관리자 + 사유**로 열린다(2026-09-04). */
 .wb-fork--off { opacity: .6; cursor: not-allowed; }
+
+/* 취소 처리 사유 칸. 접수 이후 단계를 접을 때만 나온다 — 그 한 줄이 실측·도면 기록이
+   화면에서 사라진 **이유**의 유일한 방어선이다. */
+.wb-fork__reason { display: block; margin-top: 8px; }
+.wb-fork__reason > span {
+    display: block;
+    margin-bottom: 4px;
+    font-weight: 600;
+    font-size: calc(12px * var(--wb-fs, 1));
+}
 
 .wb-fork__pick { flex: none; margin-top: 3px; }
 .wb-fork__body { display: block; }

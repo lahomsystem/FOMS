@@ -5284,6 +5284,7 @@ def naver_ingest_repay_reconcile(link_id: int):
     from foms.services.integrations.naver_commerce.repay_reconcile import (
         ReconcileError,
         deposit_guidance,
+        run_gate,
         run_reconcile,
     )
 
@@ -5299,6 +5300,8 @@ def naver_ingest_repay_reconcile(link_id: int):
         order_id = 0
     relation = str(payload.get("relation") or "").strip().upper()
     fork = str(payload.get("fork") or "").strip().upper()
+    # 접수 이후 단계를 접는 건은 **왜 접었나**가 유일한 방어선이다(유령 띠와 같은 규칙).
+    discard_reason = str(payload.get("reason") or "").strip()[:500]
     if order_id <= 0:
         return jsonify({"success": False, "data": None, "error": "정리할 주문을 지정하세요."}), 400
 
@@ -5315,11 +5318,21 @@ def naver_ingest_repay_reconcile(link_id: int):
                         "error": "이 건의 기존 주문 후보가 아닙니다. 화면을 새로 고친 뒤 "
                                  "다시 고르세요."}), 400
 
+    # 옛 결제가 확정 전이면 **되돌리기 어려운 동작**이라 여기서 한 번 더 잠근다 —
+    # 후보 계산이 나중에 바뀌어도 조용히 열리지 않게 한다(유령 띠 라우트와 같은 규율).
+    claim_code = str(candidate.get("naver_claim_code") or "")
+    can_run, run_block = run_gate(claim_code)
+    if not can_run:
+        return jsonify({"success": False, "data": None, "error": f"{run_block}."}), 400
+    is_admin = (session.get("role") or "") == "ADMIN"
+
     try:
         # 집 요약은 **변경 전에** 뽑는다 — 붙인 뒤에는 대상 집합·관계값이 이미 바뀌어 있다.
         history = summarize_link_household(db, link_id=link_id)
         result = run_reconcile(db, link_id=link_id, order_id=order_id, relation=relation,
-                               fork=fork, actor_user_id=session.get("user_id"))
+                               fork=fork, actor_user_id=session.get("user_id"),
+                               claim_code=claim_code, discard_reason=discard_reason,
+                               actor_is_admin=is_admin)
         # 붙이기가 실제로 무언가를 바꿨을 때만 주문 변경 이력에 줄을 남긴다
         # (같은 버튼 두 번 = 이력 한 줄 — 2026-08-25 정책). 감사 축은 아래 log_access.
         if result["fork"] == "SUCCEED" and result["changed"]:
@@ -5351,6 +5364,9 @@ def naver_ingest_repay_reconcile(link_id: int):
         detail={"link_id": link_id, "order_id": int(order_id), "relation": relation,
                 "fork": result["fork"], "attached": result["attached"],
                 "discarded": result["discarded"],
+                # 접수 이후 단계를 접은 건은 사유가 유일한 방어선이라 감사에 남긴다.
+                "discard_reason": result.get("discard_reason") or "",
+                "naver_claim_code": claim_code,
                 "external_order_no": history.get("external_order_no") or "",
                 "amount_total": history.get("amount_total") or 0},
     )

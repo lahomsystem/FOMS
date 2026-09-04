@@ -2098,11 +2098,23 @@
         var relation = card.dataset.relation === 'ADDON' ? 'ADDON' : 'REPAY';
         var fork = planFork(card);
         var label = relation === 'ADDON' ? '추가결제' : '재결제';
+        // 접수 이후 단계를 접을 때만 나오는 칸이다(서버도 같은 조건으로 요구한다).
+        var reasonInput = card.querySelector('.wb-plan-reason');
+        var reason = reasonInput ? String(reasonInput.value || '').trim() : '';
+        if (fork === 'DISCARD' && reasonInput && !reason) {
+            window.alert('왜 접는지 한 줄 적어 주세요 — 접수 이후 단계라 실측·도면 기록이 '
+                + '함께 화면에서 사라집니다.');
+            reasonInput.focus();
+            return;
+        }
+        // 관계를 잘못 고르면 예약금 안내가 '바꾸기'/'더하기' 로 갈려 고객 청구액이
+        // 틀어진다 — 저장 직전에 **어느 관계인지**를 가장 먼저 다시 말한다(2026-09-04).
         var head = fork === 'DISCARD'
-            ? '주문 #' + orderId + ' 을 취소 처리합니다(휴지통 — 복구할 수 있습니다).'
-                + '\n새 주문은 붙이지 않습니다 — 큐에 남습니다.'
-            : '새 주문을 주문 #' + orderId + ' 에 ' + label + ' 로 붙입니다.'
-                + '\n주문은 그대로 두고 예약금은 안내만 합니다.';
+            ? '주문 #' + orderId + ' 을 휴지통으로 보냅니다(복구할 수 있습니다).'
+                + '\n새 주문은 붙이지 않습니다 — 큐에 그대로 남습니다.'
+            : '이 건을 [' + label + '] 로 정리합니다.'
+                + '\n새 결제를 주문 #' + orderId + ' 에 붙이고, 주문은 그대로 둡니다.'
+                + '\n예약금은 안내만 합니다 — 정리한 뒤 주문 화면에서 직접 적어야 합니다.';
         if (!window.confirm(head + '\n\n두 동작은 한 번에 저장됩니다 — 하나만 되는 일은 없습니다.')) {
             return;
         }
@@ -2110,7 +2122,8 @@
         const result = await postJson(BASE + linkId + '/reconcile', {
             order_id: Number(orderId),
             relation: relation,
-            fork: fork
+            fork: fork,
+            reason: reason
         });
         if (!result.ok) {
             // 한 트랜잭션이라 실패는 곧 '아무것도 안 바뀜' 이다 — 그 사실까지 말한다.

@@ -989,14 +989,21 @@
                                반쪽 상태(실데이터에 4건 남아 있던 그 모양)가 안 생긴다.
                                취소·반품 집의 추가결제는 서버가 막는다(재결제는 허용) —
                                화면은 사유를 그대로 받아 보여준다. #}
-                            <button type="button" class="btn btn-sm btn-outline-primary wb-attach"
+                            {# 2026-09-04: 버튼 순서·강조를 **왼쪽 신호 문구와 같은 판정**으로 묶는다.
+                               예전에는 표가 `재결제 신호` 라고 적어 놓고 버튼은 추가결제가
+                               먼저·강조색이라, 눈이 가는 쪽이 권고와 반대였다. 관계를 잘못
+                               고르면 예약금 안내가 `바꾸기`/`더하기` 로 갈려 고객 청구액까지
+                               흘러간다. 판정 정본 = order_candidates.recommended_relation.
+                               권장이 없으면(일부 취소·확정 전) 둘 다 같은 무게로 둔다 —
+                               화면이 아무 쪽도 권하지 않는다는 뜻이다. #}
+                            {% set rec = cand.recommended_relation %}
+                            {% for rel in (['REPAY', 'ADDON'] if rec == 'REPAY' else ['ADDON', 'REPAY']) %}
+                            <button type="button"
+                                    class="btn btn-sm {{ 'btn-outline-primary' if rel == rec else 'btn-outline-secondary' }} wb-attach"
                                     data-link-id="{{ selected.link_id }}"
                                     data-order-id="{{ cand.order_id }}"
-                                    data-relation="ADDON">추가결제로 정리</button>
-                            <button type="button" class="btn btn-sm btn-outline-secondary wb-attach"
-                                    data-link-id="{{ selected.link_id }}"
-                                    data-order-id="{{ cand.order_id }}"
-                                    data-relation="REPAY">재결제로 정리</button>
+                                    data-relation="{{ rel }}">{{ '재결제로 정리' if rel == 'REPAY' else '추가결제로 정리' }}</button>
+                            {% endfor %}
                         </td>
                     </tr>
                     {% endfor %}
@@ -1052,9 +1059,17 @@
                 <div class="wb-plan__row">
                     <div class="wb-plan__n">2</div>
                     <div class="wb-plan__body">
+                        {# 2026-09-04: 태그와 제목이 **실제 갈래 수**를 따라간다. 예전에는
+                           고를 수 있는 것이 승계 하나뿐인 화면에도 `선택 필요` 가 붙어,
+                           담당자가 없는 선택을 찾느라 시간을 태웠다. #}
                         <div class="wb-plan__h">
-                            ERP 기존 주문을 어떻게 할까
-                            <span class="wb-plan__tag wb-plan__tag--ask">선택 필요</span>
+                            {% if cand.reconcile.REPAY.can_discard %}
+                            기존 주문 #{{ cand.order_id }} 를 어떻게 할까요
+                            <span class="wb-plan__tag wb-plan__tag--ask">골라 주세요</span>
+                            {% else %}
+                            기존 주문 #{{ cand.order_id }} 는 그대로 둡니다
+                            <span class="wb-plan__tag">자동 결정</span>
+                            {% endif %}
                         </div>
                         <label class="wb-fork">
                             <input type="radio" class="wb-fork__pick"
@@ -1072,10 +1087,16 @@
                                 </span>
                                 {% endfor %}
                                 <span class="wb-fork__d"><b>시스템이 넣지 않는다</b> —
-                                    사람이 주문 화면에서 입력한다. 출고가·품목도 안 건드린다.
-                                    예약금을 고치면 잔금은 <code>출고가 − 예약금</code> 으로 따라온다.</span>
+                                    이 금액은 자동으로 안 들어갑니다. 정리한 뒤 주문 화면에서
+                                    예약금 칸에 직접 적어 주세요. 출고가·품목은 바뀌지 않습니다.
+                                    예약금을 고치면 잔금은 <code>출고가 − 예약금</code> 으로 따라옵니다.</span>
                             </span>
                         </label>
+                        {# 2026-09-04: 잠금 축이 **단계**에서 **옛 결제 확정 여부**로 바뀌었다
+                           (유령 주문 띠와 같은 규칙 — repay_reconcile.discard_policy).
+                           접수 이후 단계는 잠그지 않고 **관리자 + 사유**를 요구한다.
+                           비활성 갈래를 통째로 숨기지 않는 이유: 왜 못 접는지 모르면
+                           담당자가 다른 화면에서 임의 삭제를 시도한다. #}
                         <label class="wb-fork {% if not cand.reconcile.REPAY.can_discard %}wb-fork--off{% endif %}">
                             <input type="radio" class="wb-fork__pick"
                                    name="wb-fork-{{ cand.order_id }}" value="DISCARD"
@@ -1083,14 +1104,29 @@
                             <span class="wb-fork__body">
                                 <b>취소 처리 — ERP 주문을 접는다</b>
                                 <span class="wb-fork__d">주문 #{{ cand.order_id }} 를
-                                    <b>휴지통으로</b> 보낸다(soft delete). 복구할 수 있다.</span>
+                                    <b>휴지통으로</b> 보냅니다. 복구할 수 있습니다.</span>
                                 {% if not cand.reconcile.REPAY.can_discard %}
                                 <span class="wb-fork__d wb-plan__d--warn">
-                                    {{ cand.reconcile.REPAY.discard_block }} — 승계로 정리하세요.
+                                    {{ cand.reconcile.REPAY.discard_block }} — 지금은 접을 수 없습니다.
+                                    그대로 두고 새 결제만 붙입니다.
+                                </span>
+                                {% elif cand.reconcile.REPAY.discard_needs_reason %}
+                                <span class="wb-fork__d wb-plan__d--warn" data-plan-when="DISCARD">
+                                    이 주문은 <b>{{ cand.status }}</b> 단계라 실측 방문·치수 기록이
+                                    함께 화면에서 사라집니다. <b>관리자만</b> 사유를 적고 접을 수 있습니다.
                                 </span>
                                 {% endif %}
                             </span>
                         </label>
+                        {% if cand.reconcile.REPAY.can_discard and cand.reconcile.REPAY.discard_needs_reason %}
+                        {# 사유 칸은 갈래 라벨 **밖**에 둔다 — 라벨 안에 넣으면 label 이
+                           중첩되고, 칸을 누르는 것이 라디오를 누르는 것이 된다. #}
+                        <div class="wb-fork__reason" data-plan-when="DISCARD">
+                            <span>왜 접나요? (한 줄)</span>
+                            <input type="text" class="form-control form-control-sm wb-plan-reason"
+                                   maxlength="200" placeholder="예: 고객이 같은 건을 새로 결제해 옛 주문을 접음">
+                        </div>
+                        {% endif %}
                     </div>
                 </div>
 
@@ -1137,13 +1173,21 @@
                     </div>
                 </div>
 
+                {# 2026-09-04: 확정 전에는 버튼을 **비활성**으로 둔다. 예전에는 i 칸이
+                   "확정된 뒤에 정리하세요"라고 적어 놓고도 버튼이 눌렸다 — 화면이 자기
+                   말을 지키지 않는 상태였다. 서버도 같은 판정으로 거절한다(run_gate). #}
                 <div class="wb-plan__acts">
                     <button type="button" class="btn btn-primary btn-sm wb-plan-run"
                             data-link-id="{{ selected.link_id }}"
-                            data-order-id="{{ cand.order_id }}">정리 실행</button>
+                            data-order-id="{{ cand.order_id }}"
+                            {% if not cand.reconcile.REPAY.can_run %}disabled{% endif %}>정리 실행</button>
                     <button type="button" class="btn btn-outline-secondary btn-sm wb-plan-close">그만두기</button>
-                    <span class="wb-plan__why">네이버로 나가는 요청은 없습니다.
+                    {% if not cand.reconcile.REPAY.can_run %}
+                    <span class="wb-plan__why wb-plan__d--warn">{{ cand.reconcile.REPAY.run_block }}.</span>
+                    {% else %}
+                    <span class="wb-plan__why">네이버 쪽에는 아무것도 보내지 않습니다.
                         두 동작은 <b>한 번에</b> 저장됩니다 — 하나만 되는 일은 없습니다.</span>
+                    {% endif %}
                 </div>
 
                 {# 실행 결과. 한 트랜잭션이라 '진행 중' 이 없다 — 되거나, 안 되고 아무것도
