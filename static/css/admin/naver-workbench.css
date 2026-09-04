@@ -1449,3 +1449,10 @@ input.wb-pick:disabled,
     padding-left: 18px;
     font-weight: 400;
 }
+
+/* 승인 경고 — **켰을 때만** 보인다.
+   부트스트랩 `.d-block` 은 `display:block !important` 라 `hidden` 속성을 이긴다. 그래서
+   "환불이 확정됩니다" 가 체크를 안 켜도 늘 떠 있었고(2026-09-02 실화면 확인), 늘 뜨는
+   경고는 정작 켰을 때 아무 신호도 주지 못한다. 규칙으로 편다 — 토글은 JS 의 `hidden`. */
+.wb-approve-warn { display: none; }
+.wb-approve-warn:not([hidden]) { display: block; }
