@@ -530,6 +530,7 @@ function erpApplyAsStageDisplay(force) {
     if (!stageEl) return;
     var existing = stageEl.querySelector('option[data-erp-as-display]');
     if (existing) existing.remove();
+    stageEl.removeAttribute('title');
     var active = force === true || (stageEl.dataset.erpAsActive || '') === '1';
     if (!active) return;
     var asLabel = (stageEl.dataset.erpAsLabel || '').trim() || '접수';
@@ -543,9 +544,14 @@ function erpApplyAsStageDisplay(force) {
     // '접수'/'처리' 는 진행 중이라 '중' 을 붙이고, '완료' 는 끝난 상태라 안 붙인다
     // ('AS 완료 중' 은 뜻이 어긋난다).
     var asPhrase = asLabel === '완료' ? 'AS 완료' : ('AS ' + asLabel + ' 중');
-    // 레거시로 stage 가 AS_* 인 주문은 그 값이 옵션 목록에 없어 선택이 비어 있다.
-    // 없는 본공정을 지어내지 않는다 - 그때는 AS 상태만 말한다.
-    opt.textContent = mainLabel ? (asPhrase + ' · 본공정: ' + mainLabel) : asPhrase;
+    // select 실측 폭이 163px(가용 129px)라 '본공정: X' 를 붙이면 195px 로 잘린다
+    // (2026-09-04 스테이징 실측). 보이는 글자는 짧게 두고 본공정은 title 로 넘긴다.
+    // 레거시로 stage 가 AS_* 인 주문은 그 값이 옵션 목록에 없어 선택이 비어 있다 -
+    // 없는 본공정을 지어내지 않는다.
+    opt.textContent = asPhrase;
+    var tip = mainLabel ? (asPhrase + ' · 본공정: ' + mainLabel) : asPhrase;
+    opt.title = tip;
+    stageEl.title = tip;
     stageEl.insertBefore(opt, stageEl.firstChild);
     stageEl.selectedIndex = 0;
 }
