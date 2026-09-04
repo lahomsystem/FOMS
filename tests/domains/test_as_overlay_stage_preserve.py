@@ -120,7 +120,13 @@ def test_erp_stage_select_has_no_as_options():
     """
     from pathlib import Path
 
-    source = Path("templates/orders/partials/erp_order_tab.html").read_text(encoding="utf-8")
+    for tpl in ("templates/orders/partials/erp_order_tab.html",
+                "templates/orders/partials/erp_order_tab_mobile.html"):
+        _assert_stage_select_has_no_as_options(Path(tpl).read_text(encoding="utf-8"))
+
+
+def _assert_stage_select_has_no_as_options(source: str) -> None:
+    """본공정 select 블록에 AS 코드 옵션이 없어야 한다(PC·모바일 공통)."""
     start = source.index('id="erp-workflow-stage"')
     block = source[start:source.index("</select>", start)]
 
