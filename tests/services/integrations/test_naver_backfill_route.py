@@ -165,7 +165,7 @@ def test_workbench_has_backfill_form_and_progress_line():
 def test_workbench_asset_pins_move_together():
     """CSS·JS 를 고쳤으면 ``?v`` 핀이 함께 움직인다(SW staticCacheFirst)."""
     markup = _read(_TEMPLATE)
-    assert markup.count("?v=20260904c") == 2
+    assert markup.count("?v=20260904d") == 2
 
 
 def test_backfill_script_polls_progress_and_never_calls_naver():
