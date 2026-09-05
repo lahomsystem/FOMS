@@ -1,3 +1,0 @@
-baseline=erp_v2_768_dark.png
-ratio=0.053605
-threshold=0.001
