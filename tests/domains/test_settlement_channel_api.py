@@ -64,6 +64,8 @@ _DATA_KEYS = {
     "channel", "basis", "basis_label", "range", "granularity", "sync", "kpi",
     "daily", "daily_prev", "waterfall", "deposit_channels", "reconcile",
     "commission", "vat", "exceptions", "ledger", "holdback",
+    # CFO 후속(2026-09-05) D-02: 상한 전 모집단(kind 별 + total)과 갈래별 상한.
+    "exception_totals", "exception_cap",
 }
 
 _SYNC_KEYS = {
@@ -76,7 +78,18 @@ _KPI_SCALARS = {
     "expected_charge_amount", "commission_total", "commission_rate",
     "holdback_amount", "match_rate", "unmatched_count", "case_count",
     "unmatched_pending_count", "unmatched_unlinked_count",
+    # CFO 후속(2026-09-05) D-01·A-03: 미매칭 금액·완료분·경과 5구간(dict)·입금 방식 미정 몫.
+    # 이 집합은 "kpi 키 집합"이라 dict 인 unmatched_aging 도 여기 등재한다.
+    "unmatched_amount", "unmatched_settled_amount", "unmatched_aging",
+    "expected_unassigned_amount",
 }
+
+#: ``exception_totals`` 의 고정 7종(커널 ``_EXCEPTION_KINDS`` 와 같은 값 — 갈리면 화면이 kind 를 놓친다).
+_EXCEPTION_KINDS = ("UNMATCHED", "UNLINKED", "HOLDBACK", "LIMIT", "NEGATIVE", "RETRO",
+                    "COUNT_MISMATCH")
+
+#: ``kpi.unmatched_aging`` 의 고정 5구간.
+_AGING_KEYS = {"lt30", "d30_59", "d60_89", "d90_plus", "future"}
 
 #: 워터폴은 **순서가 계약**이다(부동 막대가 누적되는 순서 그 자체).
 _WATERFALL_ORDER = ["pay_settle", "commission", "benefit", "deduction_restore",
@@ -218,10 +231,14 @@ def test_data_schema_keys_exact(client, app):
     assert set(data["sync"]) == _SYNC_KEYS
     assert set(data["kpi"]) == _KPI_SCALARS | {"prev"}
     assert set(data["kpi"]["prev"]) == _KPI_SCALARS
-    assert set(data["range"]) == {"from", "to"}
+    assert set(data["range"]) == {"from", "to", "prev"}
+    assert set(data["range"]["prev"]) == {"from", "to"}
     assert [step["key"] for step in data["waterfall"]] == _WATERFALL_ORDER
     assert all(set(step) == {"key", "label", "amount"} for step in data["waterfall"])
-    assert set(data["ledger"]) == {"kind", "groups", "rows", "pagination", "axis"}
+    assert set(data["ledger"]) == {"kind", "groups", "rows", "pagination", "axis", "totals"}
+    assert set(data["ledger"]["totals"]) == {"count", "amount", "amount_column", "amount_label"}
+    assert set(data["exception_totals"]) == set(_EXCEPTION_KINDS) | {"total"}
+    assert isinstance(data["exception_cap"], int)
     assert set(data["ledger"]["axis"]) == {"basis", "label", "supported", "excluded",
                                            "shifted_out"}
     assert set(data["ledger"]["pagination"]) == {"page", "per_page", "total", "pages"}
@@ -1008,3 +1025,208 @@ def test_sync_rejects_backfill_older_than_the_floor_and_future(client, app, monk
     resp = client.post(API_URL + "/sync", json={"backfill_from": edge})
     assert resp.status_code == 200 and resp.get_json()["data"]["queued"] is True
     assert calls == [edge]
+
+
+# --------------------------------------------------------------------------
+# 15. CFO 감사 후속(2026-09-05) — D-02 예외 모집단 · D-01 미매칭 금액/경과 · A-03 방식 미정 ·
+#     C-02 원장 합계 · C-01 전기 구간
+# --------------------------------------------------------------------------
+def test_exception_totals_keep_every_kind_key_and_sum_to_total(client, app):
+    """``exception_totals`` 는 7종 키가 항상 있고(0 포함) ``total`` 은 그 합이며, 상한 미만이면 kind 별
+    목록 건수와 같다. ``exception_cap`` 은 갈래별 상한 50.
+
+    보류·한도·음수·미연결(링크 없음)을 한 건씩 심는다. 음수 행의 결제 정산액이 건별 합과 어긋나므로
+    COUNT_MISMATCH 도 1행 나온다(검출기가 실제로 발동하는 양성 대조군).
+    """
+    today = get_today_kst()
+    day = _seed_basic(today)
+    _daily(day, pay_holdback_amount=Decimal("50000"))
+    _daily(day, settlement_limit_amount=Decimal("-70000"))
+    _daily(day, settle_amount=Decimal("-250000"), pay_settle_amount=Decimal("-275000"),
+           commission_settle_amount=Decimal("25000"), normal_settle_amount=Decimal("-250000"))
+    _case(day, product_order_id="2026090100009", match_status="UNMATCHED")
+    db_session.commit()
+    _login(client, _make_user(role="ADMIN"))
+    data = _data(_get(client))
+
+    totals = data["exception_totals"]
+    assert set(totals) == set(_EXCEPTION_KINDS) | {"total"}
+    assert all(isinstance(totals[key], int) for key in totals)
+    assert totals["total"] == sum(totals[kind] for kind in _EXCEPTION_KINDS)
+    assert data["exception_cap"] == 50
+    listed = {kind: sum(1 for item in data["exceptions"] if item["kind"] == kind)
+              for kind in _EXCEPTION_KINDS}
+    assert {kind: totals[kind] for kind in _EXCEPTION_KINDS} == listed
+    assert totals["UNLINKED"] == 1 and totals["UNMATCHED"] == 0
+    assert totals["HOLDBACK"] == 1 and totals["LIMIT"] == 1 and totals["NEGATIVE"] == 1
+    assert totals["COUNT_MISMATCH"] == 1 and totals["RETRO"] == 0
+    assert totals["total"] == 5 == len(data["exceptions"])
+
+
+def test_exception_totals_are_all_zero_on_empty_data(client, app):
+    """음성 대조군 — 행이 없으면 7종 전부 0 이고 total 0, 목록도 빈다(키는 그대로 있다)."""
+    _login(client, _make_user(role="ADMIN"))
+    data = _data(_get(client))
+
+    assert data["exception_totals"] == {kind: 0 for kind in _EXCEPTION_KINDS} | {"total": 0}
+    assert data["exceptions"] == []
+
+
+def test_unmatched_amount_and_aging_split_settled_rows_and_keep_cancel_sign(client, app):
+    """미매칭 정산액 = ``settle_expect_amount`` **원값 부호합**, 완료분 따로, 경과 구간은 예정일 기준 오늘 대비.
+
+    A: 100일 전 예정·완료(1,000,000) → ``d90_plus`` / B: 10일 전 예정·미완료·취소(−50,000) →
+    ``lt30``. 절대값으로 합치면 1,050,000 이라 red. MATCHED 2행은 어느 합에도 안 들어간다.
+    """
+    today = get_today_kst()
+    _seed_basic(today)                                     # MATCHED 2행 — 대조군
+    old = today - datetime.timedelta(days=100)
+    _case(old, product_order_id="2026090100051", match_status="UNMATCHED",
+          settle_complete_date=old, settle_expect_amount=Decimal("1000000"))
+    recent = today - datetime.timedelta(days=10)
+    _case(recent, product_order_id="2026090100052", match_status="UNMATCHED",
+          settle_type="NORMAL_SETTLE_AFTER_CANCEL", settle_expect_amount=Decimal("-50000"),
+          pay_settle_amount=Decimal("-55000"))
+    db_session.commit()
+    _login(client, _make_user(role="ADMIN"))
+    window = {"from": (today - datetime.timedelta(days=120)).isoformat()}
+    kpi = _data(_get(client, **window))["kpi"]
+
+    assert kpi["unmatched_count"] == 2
+    assert kpi["unmatched_amount"] == 950000                # 절대값 합(1,050,000)이면 red
+    assert kpi["unmatched_settled_amount"] == 1000000
+    aging = kpi["unmatched_aging"]
+    assert set(aging) == _AGING_KEYS
+    assert aging["d90_plus"] == {"count": 1, "amount": 1000000}
+    assert aging["lt30"] == {"count": 1, "amount": -50000}
+    for key in ("d30_59", "d60_89", "future"):
+        assert aging[key] == {"count": 0, "amount": 0}, key
+    prev = kpi["prev"]
+    assert prev["unmatched_amount"] == 0 and prev["unmatched_settled_amount"] == 0
+    assert prev["unmatched_aging"] == {key: {"count": 0, "amount": 0} for key in _AGING_KEYS}
+
+
+def test_unmatched_aging_buckets_follow_the_case_order_at_the_edges(client, app):
+    """구간 경계: 경과 0일=lt30, 29일=lt30, 30일=d30_59, 59=d30_59, 60=d60_89, 89=d60_89, 90=d90_plus,
+    미래(−1일)=future. SQL CASE 의 ``>`` 경계가 파이썬 뺄셈 정의(0≤age<30 …)와 같아야 한다."""
+    today = get_today_kst()
+    expected = {0: "lt30", 29: "lt30", 30: "d30_59", 59: "d30_59", 60: "d60_89",
+                89: "d60_89", 90: "d90_plus", -1: "future"}
+    for index, age in enumerate(expected):
+        _case(today - datetime.timedelta(days=age), product_order_id=f"20260901006{index:02d}",
+              match_status="UNMATCHED", settle_expect_amount=Decimal(str(1000 * (index + 1))))
+    db_session.commit()
+    _login(client, _make_user(role="ADMIN"))
+    window = {"from": (today - datetime.timedelta(days=100)).isoformat()}
+    aging = _data(_get(client, **window))["kpi"]["unmatched_aging"]
+
+    counts = {key: aging[key]["count"] for key in _AGING_KEYS}
+    assert counts == {"lt30": 2, "d30_59": 2, "d60_89": 2, "d90_plus": 1, "future": 1}
+    assert sum(aging[key]["amount"] for key in _AGING_KEYS) == sum(1000 * (i + 1) for i in range(8))
+
+
+def test_expected_unassigned_amount_sums_unsettled_rows_without_a_method(client, app):
+    """입금 방식이 빈 **미완료** 일별 행의 ``settle_amount`` 합. ACCOUNT 행은 제외.
+
+    음성: 방식이 비어도 완료 행이면 0 — 그 행은 완료액이지 예정액이 아니다(창을 그 날로 좁혀 본다).
+    """
+    today = get_today_kst()
+    day = today - datetime.timedelta(days=1)
+    _daily(day)                                                        # ACCOUNT 미완료 — 제외
+    _daily(day, settle_method_type=None, bank_type=None, account_no=None, depositor_name=None,
+           settle_amount=Decimal("500000"), pay_settle_amount=Decimal("550000"),
+           commission_settle_amount=Decimal("-50000"), normal_settle_amount=Decimal("500000"))
+    done_day = day - datetime.timedelta(days=5)
+    _daily(done_day, settle_method_type=None, settle_complete_date=done_day,
+           settle_amount=Decimal("700000"))
+    db_session.commit()
+    _login(client, _make_user(role="ADMIN"))
+
+    kpi = _data(_get(client))["kpi"]
+    assert kpi["expected_unassigned_amount"] == 500000
+    assert kpi["expected_account_amount"] == 1000000
+    assert kpi["expected_amount"] == 1500000
+    assert kpi["settled_amount"] == 700000
+    assert kpi["prev"]["expected_unassigned_amount"] == 0
+
+    narrow = _data(_get(client, **{"from": done_day.isoformat(), "to": done_day.isoformat()}))["kpi"]
+    assert narrow["expected_unassigned_amount"] == 0
+    assert narrow["settled_amount"] == 700000 and narrow["expected_amount"] == 0
+
+
+def test_ledger_totals_follow_the_same_filter_as_the_groups(client, app):
+    """``ledger.totals`` = 같은 유형·검색 술어의 건수·금액 합(그룹 합의 파이썬 덧셈), 종류별 금액 컬럼·라벨."""
+    _seed_basic(get_today_kst())
+    _login(client, _make_user(role="ADMIN"))
+
+    ledger = _data(_get(client))["ledger"]
+    assert ledger["totals"] == {"count": 2, "amount": 1300000,
+                                "amount_column": "settle_expect_amount",
+                                "amount_label": "정산 예정 금액"}
+    assert ledger["totals"]["count"] == ledger["pagination"]["total"]
+    assert ledger["totals"]["amount"] == sum(group["amount"] for group in ledger["groups"])
+    typed = _data(_get(client, type="PROD_ORDER"))["ledger"]["totals"]
+    assert typed["count"] == 2 and typed["amount"] == 1300000
+    searched = _data(_get(client, q="2026090100002"))["ledger"]["totals"]
+    assert searched["count"] == 1 and searched["amount"] == 300000
+    empty = _data(_get(client, type="DELIVERY"))["ledger"]["totals"]
+    assert empty == {"count": 0, "amount": 0, "amount_column": "settle_expect_amount",
+                     "amount_label": "정산 예정 금액"}
+    commission = _data(_get(client, ledger="commission"))["ledger"]["totals"]
+    assert commission["amount_column"] == "commission_amount"
+    assert commission["amount_label"] == "수수료 금액"
+    vat = _data(_get(client, ledger="vat_case"))["ledger"]["totals"]
+    assert vat["amount_column"] == "total_sales_amount" and vat["amount_label"] == "총매출 금액"
+
+
+@pytest.mark.parametrize("granularity,date_from,date_to,expected", [
+    ("month", "2026-02-01", "2026-02-28", ("2026-01-01", "2026-01-31")),
+    ("month", "2026-03-01", "2026-03-31", ("2026-02-01", "2026-02-28")),
+    ("month", "2026-07-01", "2026-08-31", ("2026-05-01", "2026-06-30")),
+    ("month", "2026-01-01", "2026-01-31", ("2025-12-01", "2025-12-31")),   # 해 넘김
+    ("month", "2026-08-06", "2026-09-19", ("2026-06-22", "2026-08-05")),   # 부분 월 — 같은 일수 규칙
+    ("day", "2026-02-01", "2026-02-28", ("2026-01-04", "2026-01-31")),     # 불변
+    ("week", "2026-02-01", "2026-02-28", ("2026-01-04", "2026-01-31")),    # 불변
+])
+def test_previous_range_uses_calendar_months_only_for_full_month_queries(
+        granularity, date_from, date_to, expected):
+    """전기 = ``month`` + 꽉 찬 달력 월이면 직전 같은 개월수의 달력 월, 그 밖은 같은 일수 직전 구간(감사 C-01)."""
+    prev = kernel._previous_range(datetime.date.fromisoformat(date_from),
+                                  datetime.date.fromisoformat(date_to), granularity)
+    assert tuple(day.isoformat() for day in prev) == expected
+
+
+def test_range_prev_is_echoed_and_matches_the_daily_prev_window(client, app):
+    """``range.prev`` 가 응답에 실리고 ``kpi.prev``·``daily_prev`` 가 정확히 그 구간을 본다.
+
+    1월 2일 행은 달력 전월(01-01~)에는 들어가고 같은 일수 전기(01-04~)에는 빠진다 — 두 규칙이
+    다른 숫자를 내야 이 계약이 무의미하지 않다.
+    """
+    _daily(datetime.date(2026, 1, 2), settle_amount=Decimal("700000"))
+    _daily(datetime.date(2026, 1, 20), settle_amount=Decimal("300000"))
+    db_session.commit()
+    _login(client, _make_user(role="ADMIN"))
+    window = {"from": "2026-02-01", "to": "2026-02-28"}
+
+    month = _data(_get(client, granularity="month", **window))
+    assert month["range"] == {"from": "2026-02-01", "to": "2026-02-28",
+                              "prev": {"from": "2026-01-01", "to": "2026-01-31"}}
+    assert [bucket["date"] for bucket in month["daily_prev"]] == ["2026-01-01"]
+    assert month["daily_prev"][0]["settle_amount"] == 1000000
+    assert month["kpi"]["prev"]["expected_amount"] == 1000000
+
+    day = _data(_get(client, granularity="day", **window))
+    assert day["range"]["prev"] == {"from": "2026-01-04", "to": "2026-01-31"}
+    assert day["daily_prev"][0]["date"] == "2026-01-04"
+    assert day["daily_prev"][-1]["date"] == "2026-01-31"
+    assert sum(bucket["settle_amount"] for bucket in day["daily_prev"]) == 300000
+    assert day["kpi"]["prev"]["expected_amount"] == 300000
+
+def test_ledger_amount_labels_cover_every_ledger_kind():
+    """원장 종류마다 합계 라벨이 있다 — 종류를 하나 더 붙이고 라벨을 빠뜨리면 원장 조회가 KeyError 500 이 된다.
+
+    `_build_ledger` 가 `_LEDGER_AMOUNT_LABELS[kind]` 를 그대로 읽으므로 두 표의 키 집합이 같아야 한다.
+    """
+    from foms.services.settlement_channel import _LEDGER_AMOUNT_LABELS, _LEDGER_SPEC
+
+    assert set(_LEDGER_AMOUNT_LABELS) == set(_LEDGER_SPEC)

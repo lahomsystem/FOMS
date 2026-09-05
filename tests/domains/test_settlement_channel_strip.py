@@ -201,7 +201,7 @@ def test_strip_numbers_equal_the_tab_numbers(app):
     assert strip["settled_amount"] == full["kpi"]["settled_amount"]
     assert strip["expected_amount"] == full["kpi"]["expected_amount"]
     assert strip["unmatched_count"] == full["kpi"]["unmatched_count"]
-    assert strip["exception_count"] == len(full["exceptions"])
+    assert strip["exception_count"] == full["exception_totals"]["total"]
 
 
 def test_strip_numbers_equal_the_tab_numbers_with_exceptions(app):
@@ -212,10 +212,42 @@ def test_strip_numbers_equal_the_tab_numbers_with_exceptions(app):
     strip = _strip(today)["strip"]
     full = _full(today)
 
-    assert strip["exception_count"] == len(full["exceptions"]) > 0
+    assert strip["exception_count"] == full["exception_totals"]["total"] > 0
     assert strip["unmatched_count"] == full["kpi"]["unmatched_count"] == 1
     assert strip["settled_amount"] == full["kpi"]["settled_amount"]
     assert strip["expected_amount"] == full["kpi"]["expected_amount"]
+
+
+def test_strip_exception_count_is_the_population_when_a_branch_exceeds_the_cap(app):
+    """예외 건수는 갈래별 상한(50) **전** 모집단이다 — 목록 길이를 세면 8~34배가 가려졌다(감사 D-02).
+
+    UNLINKED 55행: 목록엔 50행만 실리지만 스트립·``exception_totals`` 는 55 를 말한다.
+    """
+    today = get_today_kst()
+    day = _seed_basic(today)
+    for index in range(100, 155):
+        _case(day, product_order_id=f"20260901{index:05d}", match_status="UNMATCHED")
+    db_session.commit()
+
+    strip = _strip(today)["strip"]
+    full = _full(today)
+    totals = full["exception_totals"]
+
+    assert strip["exception_count"] == totals["total"] > len(full["exceptions"])
+    assert totals["UNLINKED"] == 55 == strip["unmatched_count"]
+    assert sum(1 for item in full["exceptions"] if item["kind"] == "UNLINKED") == 50
+    assert full["exception_cap"] == 50
+
+
+def test_strip_exception_count_equals_listed_rows_below_the_cap(app):
+    """음성 대조군 — 상한에 안 걸리면 모집단 = 목록 길이(정의를 바꿨다고 숫자가 부풀지 않는다)."""
+    today = get_today_kst()
+    _seed_exceptional(today)
+
+    strip = _strip(today)["strip"]
+    full = _full(today)
+
+    assert strip["exception_count"] == len(full["exceptions"]) == full["exception_totals"]["total"]
 
 
 def test_strip_keeps_negative_settlement_signs(app):
@@ -322,7 +354,7 @@ def test_view_strip_matches_the_full_view_over_http(client, app):
     assert strip["settled_amount"] == full["kpi"]["settled_amount"]
     assert strip["expected_amount"] == full["kpi"]["expected_amount"]
     assert strip["unmatched_count"] == full["kpi"]["unmatched_count"]
-    assert strip["exception_count"] == len(full["exceptions"])
+    assert strip["exception_count"] == full["exception_totals"]["total"]
 
 
 @_ROUTE_PENDING
