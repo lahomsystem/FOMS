@@ -41,6 +41,7 @@ from sqlalchemy import or_
 
 from foms.services.common.address_query import match_key as address_match_key
 from foms.services.datetime_kst import now_utc_naive
+from foms.services.integrations.naver_commerce.ghost_orders import stage_label
 from foms.services.integrations.naver_commerce.mapping import (
     CLAIM_PHASE_DONE,
     CLAIM_PHASE_PROGRESS,
@@ -718,6 +719,8 @@ def pending_origin_cleanup(session, *, limit: int = ORIGIN_CLEANUP_LIMIT) -> dic
             "order_id": order_id,
             "customer_name": getattr(order, "customer_name", "") or "",
             "status": getattr(order, "status", "") or "",
+            # 표시는 한글, 판정은 코드. 화면이 `MEASURE` 를 그대로 찍던 자리다(2026-09-04).
+            "status_label": stage_label(getattr(order, "status", "")),
             "link_id": row.get("link_id"),
             "external_order_no": row.get("external_order_no"),
             "amount_total": int(row.get("amount_total") or 0),
@@ -746,6 +749,8 @@ def _order_view(order: Order, *, score: int, reason: str,
         "product": order.product,
         "received_date": order.received_date,
         "status": order.status,
+        # 표시는 한글, 판정은 코드(`status`). 템플릿은 코드로만 분기한다.
+        "status_label": stage_label(order.status),
         "payment_amount": order.payment_amount,
         "score": score,
         "reason": reason,

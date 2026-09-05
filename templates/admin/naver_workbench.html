@@ -235,7 +235,7 @@
                         <a href="{{ url_for('order_edit.edit_order', order_id=row.order_id, open='erp-order') }}"
                            target="_blank" rel="noopener">#{{ row.order_id }}</a>
                         {{ row.customer_name }}
-                        <div class="wb-ghost__dim">{{ row.status }}</div>
+                        <div class="wb-ghost__dim">{{ row.status_label }}</div>
                     </td>
                     <td>
                         {{ row.external_order_no }}
