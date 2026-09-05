@@ -292,6 +292,17 @@
     };
   }
 
+  /**
+   * 전기 구간 라벨 — "전기(07-01~07-31)". 서버 `range.prev` 가 없으면(구버전 응답) 그냥 '전기'.
+   * 구간은 서버가 정한다(꽉 찬 달력 월이면 직전 달력 월, 아니면 같은 일수) — 화면이 다시
+   * 계산하면 KPI 델타가 가리키는 구간과 라벨이 갈린다(CFO 감사 C-01).
+   */
+  function prevRangeLabel(range) {
+    var prev = range && range.prev;
+    if (!prev || !isDay(prev.from) || !isDay(prev.to)) return '전기';
+    return '전기(' + String(prev.from).slice(5) + '~' + String(prev.to).slice(5) + ')';
+  }
+
   function niceScale(maxV, tickCount) {
     tickCount = tickCount || 5;
     if (!(maxV > 0)) return { top: 0, ticks: [0] };
@@ -1153,7 +1164,7 @@
     tile.appendChild(mid);
     var delta = el('div', 's-ch-kpi-delta ' + (spec.delta ? spec.delta.cls : 's-ch-flat'));
     delta.textContent = spec.delta ? spec.delta.arrow + ' ' + spec.delta.text : spec.noDelta;
-    if (spec.delta) delta.appendChild(el('span', null, ' 전기 대비'));
+    if (spec.delta) delta.appendChild(el('span', null, ' ' + (spec.prevLabel || '전기') + ' 대비'));
     tile.appendChild(delta);
     tile.appendChild(el('div', 's-ch-kpi-sub', spec.sub));
     if (spec.toggle) bindKpiToggle(tile, spec.toggle);
@@ -1192,27 +1203,36 @@
     var prev = kpi.prev || {};
     var daily = data.daily || [];
     var paySettleTotal = sumBy(daily, function (d) { return d.pay_settle; });
+    var prevLabel = prevRangeLabel(data.range);
+    var aging = kpi.unmatched_aging || {};
 
     appendKpi(wrap, {
       key: 'settled', label: '정산 완료액', color: STACK_SERIES[1].color,
       value: moneyText(kpi.settled_amount), negative: kpi.settled_amount < 0,
       delta: deltaOf(kpi.settled_amount, prev.settled_amount), noDelta: '전기 비교 기준 없음',
-      sub: '통장 입금 완료분 · 정산 완료일 기준',
+      prevLabel: prevLabel,
+      sub: '정산 예정일 창 안 · 완료 처리된 행의 정산 금액(계좌+충전금)',
       spark: daily.map(function (d) { return d.completed ? (d.settle_amount || 0) : 0; }),
     });
+    // "미입금 정산액" = 일별 축 미완료 행의 정산 금액. 건별 「정산 예정 금액」(수수료 차감 후·보류 전)과
+    // 다른 수라 라벨을 "예정"으로 두면 회계팀이 둘을 같은 수로 읽는다(CFO 감사 G-03·A-03).
+    // 입금 방식 미정분은 계좌·충전금 어느 쪽에도 안 실려 셋을 더해도 타일 값이 안 나온다 — 그래서 말한다.
     appendKpi(wrap, {
-      key: 'expected', label: '정산 예정액', color: STACK_SERIES[2].color,
+      key: 'expected', label: '미입금 정산액', color: STACK_SERIES[2].color,
       value: moneyText(kpi.expected_amount), negative: kpi.expected_amount < 0,
       delta: deltaOf(kpi.expected_amount, prev.expected_amount), noDelta: '전기 비교 기준 없음',
-      sub: '아직 은행 미입금 · 계좌 ' + moneyText(kpi.expected_account_amount) +
-        ' · 충전금 상계 ' + moneyText(kpi.expected_charge_amount),
+      prevLabel: prevLabel,
+      sub: '일별 정산 금액 중 미완료분 · 건별 「정산 예정 금액」과 다름' +
+        ' · 계좌 ' + moneyText(kpi.expected_account_amount) +
+        ' · 충전금 상계 ' + moneyText(kpi.expected_charge_amount) +
+        ' · 입금 방식 미정 ' + moneyText(kpi.expected_unassigned_amount),
       spark: daily.map(function (d) { return d.completed ? 0 : (d.settle_amount || 0); }),
     });
     appendKpi(wrap, {
       key: 'commission', label: '수수료 합계', color: COLOR_DOWN,
       value: moneyText(kpi.commission_total), negative: kpi.commission_total < 0,
       delta: deltaOf(Math.abs(kpi.commission_total), Math.abs(prev.commission_total)),
-      noDelta: '전기 비교 기준 없음',
+      noDelta: '전기 비교 기준 없음', prevLabel: prevLabel,
       sub: '결제·판매·채널 수수료 합 · 네이버가 차감한 금액',
       spark: daily.map(function (d) { return d.commission || 0; }),
     });
@@ -1227,6 +1247,7 @@
       key: 'holdback', label: '보류·한도', color: CATEGORICAL[4],
       value: moneyText(kpi.holdback_amount), negative: kpi.holdback_amount < 0,
       delta: deltaOf(kpi.holdback_amount, prev.holdback_amount), noDelta: '전기 비교 기준 없음',
+      prevLabel: prevLabel,
       sub: '지급 보류 + 정산 한도 초과분 · ' + (holdback.count
         ? '일자별 ' + fmtCount(holdback.count) + '행 — 눌러서 펼치기'
         : '이 기간에 보류·한도 행이 없습니다'),
@@ -1245,9 +1266,12 @@
       key: 'match', label: '주문 매칭률', color: CATEGORICAL[2],
       value: fmtRatio(kpi.match_rate), delta: null,
       noDelta: kpi.match_rate == null ? '이 기간에 상품주문 행이 없습니다' : '비율 — 기간 비교 없음',
-      sub: 'FOMS 미연결 ' + fmtCount(kpi.unmatched_count) + '건(워크벤치 대기 ' +
-        fmtCount(kpi.unmatched_pending_count) + ' · 수집 전 ' + fmtCount(kpi.unmatched_unlinked_count) +
-        ') · 정산 건수 ' + fmtCount(kpi.case_count) + '건',
+      // 미연결 금액은 서버가 저장값(settle_expect_amount)을 부호 그대로 더한 수다(D-01).
+      sub: 'FOMS 미연결 ' + fmtCount(kpi.unmatched_count) + '건 · ' + moneyText(kpi.unmatched_amount) +
+        '(90일+ ' + moneyText((aging.d90_plus || {}).amount) + ')' +
+        ' · 워크벤치 대기 ' + fmtCount(kpi.unmatched_pending_count) +
+        ' · 수집 전 ' + fmtCount(kpi.unmatched_unlinked_count) +
+        ' · 정산 건수 ' + fmtCount(kpi.case_count) + '건',
     });
     renderHoldbackDetail(ctx, host, !!ctx.state.holdbackOpen);
   }
@@ -1326,7 +1350,7 @@
     host.appendChild(cardHead('일별 정산 흐름', '정산 예정일 기준 · 취소·환급은 0선 아래로 그립니다'));
     renderLegend(host, STACK_SERIES.map(function (series) {
       return { label: series.label, color: series.color };
-    }).concat([{ label: '전기 비교(정산 금액)', color: COLOR_PREV, line: true }]));
+    }).concat([{ label: prevRangeLabel(data.range) + ' 비교(정산 금액)', color: COLOR_PREV, line: true }]));
     if (!daily.length) {
       host.appendChild(emptyBox(ctx, '이 기간에 적재된 정산 일자가 없습니다.'));
       return;
@@ -1408,6 +1432,9 @@
       list.appendChild(row);
     });
     host.appendChild(list);
+    // 마지막 단계 "정산 금액"은 완료액 타일과 다른 수다 — 완료분과 미입금분을 합친 값이라는
+    // 사실을 목록 바로 아래에서 말한다(CFO 감사 A-01). 낱말은 타일 라벨과 같게 둔다.
+    host.appendChild(el('div', 's-ch-note', '정산 금액 = 정산 완료액 + 미입금 정산액'));
     host.appendChild(el('div', 's-ch-note',
       '혜택 정산의 항목별 상세는 네이버 API 가 제공하지 않습니다(스마트스토어센터 엑셀에서만 확인).'));
   }
@@ -1506,6 +1533,9 @@
     var ok = diff === 0;
     var box = el('div', 's-ch-recon ' + (ok ? 's-ch-recon--ok' : 's-ch-recon--warn'));
     var line = el('div', 's-ch-recon-line');
+    // 대사 대상은 결제 정산 금액(paySettleAmount) 하나다 — 필드명을 안 적으면 "대사 일치"가
+    // 입금액 대사로 읽힌다(CFO 감사 G-04).
+    line.appendChild(el('span', null, '결제 정산 금액(paySettleAmount) 기준'));
     line.appendChild(el('span', null, '일별 합계 ' + moneyText(recon.daily_total)));
     line.appendChild(el('span', 's-ch-recon-vs', 'vs'));
     line.appendChild(el('span', null, '건별 합계 ' + moneyText(recon.case_total)));
@@ -1538,7 +1568,9 @@
         btn.appendChild(slot);
       }
       // 조회 전에는 건수를 적지 않는다 — "예외 0" 은 읽기 전에 할 수 있는 말이 아니다.
-      slot.textContent = data ? ' ' + fmtCount((data.exceptions || []).length) : '';
+      // 배지는 상한 적용 **전** 모집단(`exception_totals.total`)이다 — 표에 실린 행을 세면
+      // 갈래별 상한(50)에 잘린 수가 "예외 전량"으로 읽힌다(CFO 감사 D-02).
+      slot.textContent = data ? ' ' + fmtCount((data.exception_totals || {}).total) : '';
     });
     // 표 날짜 축 셀렉트는 이 줄의 마지막 자식이다. 예외 큐는 날짜 축이 없는 목록이라 감춘다 —
     // 고를 수는 있는데 표가 안 바뀌면 고장으로 읽힌다.
@@ -1765,6 +1797,14 @@
     }
     parts.push('위 KPI·차트는 늘 정산 예정일 기준');
     host.appendChild(el('div', 's-ch-note s-ch-ledger-axis', parts.join(' · ')));
+    // 합계는 서버 `ledger.totals`(같은 필터의 SUM/COUNT)를 그리기만 한다 — 이 페이지의 행을
+    // 더하면 "이 기간 합계"가 아니라 "이 페이지 합계"가 된다(재계산 금지 D-4). 구버전 응답에는
+    // 키가 없으니 줄을 조용히 뺀다. 라벨도 서버 것이다(수수료·부가세 표에서 거짓말하지 않게).
+    var totals = ledger.totals;
+    if (!totals) return;
+    var sums = ['이 축·이 기간 합계 ' + fmtCount(totals.count) + '건 · Σ' + totals.amount_label + ' ' + moneyText(totals.amount)];
+    if (ledger.kind === 'case') sums.push('원장 금액 = 정산 예정 금액(수수료 차감 후·보류 전), KPI 정산 완료액 = 보류 반영 후 실입금');
+    host.appendChild(el('div', 's-ch-note s-ch-ledger-totals', sums.join(' · ')));
   }
 
   /**
@@ -1989,32 +2029,55 @@
       return;
     }
     var kpi = data.kpi || {};
-    if (kpi.unmatched_count) {
+    var totals = data.exception_totals;
+    var aging = kpi.unmatched_aging || {};
+    // 첫 줄은 늘 "모집단 중 표시 수"다 — 표 행 수만 보이면 갈래별 상한(50)에 잘린 수를
+    // 예외 전량으로 읽는다(CFO 감사 D-02). 두 수는 서버가 같은 응답에서 준다. 키가 없는
+    // 응답(웹 2대 롤링 배포 창의 옛 API)이면 줄을 빼는 편이 "0건 중 5건"보다 정직하다.
+    if (totals) {
       host.appendChild(el('div', 's-ch-note',
-        'FOMS 미연결 ' + fmtCount(kpi.unmatched_count) + '건 = 워크벤치 대기 ' +
-        fmtCount(kpi.unmatched_pending_count) + '건(링크 있음·주문 미생성 — [열기]가 그 집으로 갑니다) + 수집 전 주문 ' +
-        fmtCount(kpi.unmatched_unlinked_count) + '건(링크 없음 — [열기]가 수집 운영 화면으로 갑니다). ' +
-        '표에는 갈래마다 최근 것부터 상한까지만 실립니다.'));
+        '예외 ' + fmtCount(totals.total) + '건 중 ' + fmtCount(rows.length) + '건 표시(갈래별 상한 ' +
+        fmtCount(data.exception_cap) + ')'));
+    }
+    if (kpi.unmatched_count) {
+      // 미연결 금액·완료분·aging 은 전부 서버가 저장값을 더한 수다(D-01). 화면은 그리기만 한다.
+      host.appendChild(el('div', 's-ch-note',
+        'FOMS 미연결 ' + fmtCount(kpi.unmatched_count) + '건 · ' + moneyText(kpi.unmatched_amount) +
+        '(정산 완료 ' + moneyText(kpi.unmatched_settled_amount) + ' · 90일+ ' + moneyText((aging.d90_plus || {}).amount) +
+        ') = 워크벤치 대기 ' + fmtCount(kpi.unmatched_pending_count) + '건(링크 있음·주문 미생성 — [열기]가 그 집으로 갑니다) + 수집 전 주문 ' +
+        fmtCount(kpi.unmatched_unlinked_count) + '건(링크 없음 — [열기]가 수집 운영 화면으로 갑니다).'));
+      host.appendChild(el('div', 's-ch-note',
+        '정산 예정일 경과 · 30일 미만 ' + agingText(aging.lt30) + ' · 30~59일 ' + agingText(aging.d30_59) +
+        ' · 60~89일 ' + agingText(aging.d60_89) + ' · 90일+ ' + agingText(aging.d90_plus) +
+        ' · 미래 ' + agingText(aging.future)));
     }
     var built = tableFor([
       { key: 'label', label: '사유', type: 'text' },
       { key: 'date', label: '일자', type: 'text' },
       { key: 'amount', label: '금액', type: 'money' },
     ], ['경과', '조치']);
-    rows.forEach(function (row) {
-      var tr = el('tr');
-      var reason = el('td');
-      reason.appendChild(el('span', 's-ch-badge s-ch-badge--' + excKindClass(row.kind), row.label || row.kind || '사유 미상'));
-      tr.appendChild(reason);
-      tr.appendChild(el('td', null, row.date || '—'));
-      tr.appendChild(el('td', 's-ch-num' + (row.amount < 0 ? ' s-ch-neg' : ''), moneyText(row.amount)));
-      tr.appendChild(el('td', null, isNum(row.age_days) ? row.age_days + '일' : '—'));
-      tr.appendChild(actionCell(row));
-      addRow(built, tr);
-    });
+    rows.forEach(function (row) { addRow(built, exceptionRow(row)); });
     host.appendChild(built.wrap);
     host.appendChild(el('div', 's-ch-note',
       '예외는 조회 구간 전체를 대상으로 계산됩니다. 소급 변경은 값을 덮어쓰지 않고 여기에 남깁니다.'));
+  }
+
+  /** 예외 표 한 행 — 사유 배지 · 일자 · 금액 · 경과 · 조치. */
+  function exceptionRow(row) {
+    var tr = el('tr');
+    var reason = el('td');
+    reason.appendChild(el('span', 's-ch-badge s-ch-badge--' + excKindClass(row.kind), row.label || row.kind || '사유 미상'));
+    tr.appendChild(reason);
+    tr.appendChild(el('td', null, row.date || '—'));
+    tr.appendChild(el('td', 's-ch-num' + (row.amount < 0 ? ' s-ch-neg' : ''), moneyText(row.amount)));
+    tr.appendChild(el('td', null, isNum(row.age_days) ? row.age_days + '일' : '—'));
+    tr.appendChild(actionCell(row));
+    return tr;
+  }
+
+  /** aging 구간 한 조각 — "12건 ₩1,234,000". 서버가 그 구간을 안 주면(구버전 응답) '—'. */
+  function agingText(bucket) {
+    return bucket ? fmtCount(bucket.count) + '건 ' + moneyText(bucket.amount) : '—';
   }
 
   function excKindClass(kind) {

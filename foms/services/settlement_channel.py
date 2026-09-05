@@ -108,8 +108,14 @@ DEFAULT_PER_PAGE = 60
 #: 프론트가 문자열을 다시 적지 않는다(탭 버튼 ``data-settlement-tab="channel"`` 과 같은 값).
 STRIP_TAB_KEY = "channel"
 
-#: 예외 큐가 한 종류에서 담아 오는 최대 행수. 넘치면 화면이 스크롤 괴물이 된다.
+#: 예외 큐가 한 갈래에서 담아 오는 최대 행수. 넘치면 화면이 스크롤 괴물이 된다.
+#: 상한은 **목록**에만 걸린다 — 응답 ``exception_totals`` 는 상한 전 모집단이다(감사 D-02).
 _EXCEPTION_CAP = 50
+#: 예외 종류 7종 — 응답 ``exception_totals`` 의 고정 키(0건이어도 키가 있어야 화면이 "없다"를 말한다).
+_EXCEPTION_KINDS: tuple[str, ...] = ("UNMATCHED", "UNLINKED", "HOLDBACK", "LIMIT",
+                                     "NEGATIVE", "RETRO", "COUNT_MISMATCH")
+#: 미매칭 정산 예정일 경과 구간 — 응답 ``kpi.unmatched_aging`` 의 고정 키(이 순서).
+_AGING_BUCKETS: tuple[str, ...] = ("lt30", "d30_59", "d60_89", "d90_plus", "future")
 #: 미연결 예외의 조치 링크 — 같은 출처 상대 경로만(프론트 ``actionCell`` 이 외부 URL 을 안 건다).
 _WORKBENCH_URL = "/admin/naver-ingest/triage"
 _INGEST_URL = "/admin/naver-ingest"
@@ -235,6 +241,14 @@ _LEDGER_SPEC: dict[str, tuple] = {
                  ("detail_type", "status"), ("order_id", "product_order_id")),
 }
 
+#: 원장 종류별 합계 금액 컬럼(``_LEDGER_SPEC[kind][2]``)의 한글 이름 — 응답 ``ledger.totals.amount_label``.
+#: 수수료·부가세 표에서 "정산 예정 금액"이라고 거짓말하지 않게 서버가 라벨을 내린다(감사 C-02).
+_LEDGER_AMOUNT_LABELS: dict[str, str] = {
+    "case": "정산 예정 금액",
+    "commission": "수수료 금액",
+    "vat_case": "총매출 금액",
+}
+
 _ZERO = Decimal("0")
 
 
@@ -319,17 +333,43 @@ def mask_account_no(value: Any) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _previous_range(date_from: datetime.date,
-                    date_to: datetime.date) -> tuple[datetime.date, datetime.date]:
-    """같은 길이의 **직전** 구간. (from-길이, from-1일).
+def _is_full_calendar_months(date_from: datetime.date, date_to: datetime.date) -> bool:
+    """from 이 1일이고 to 가 그 달 말일인가(여러 달 연속도 참).
+
+    Args:
+        date_from: 구간 시작.
+        date_to: 구간 끝(포함).
+
+    Returns:
+        꽉 찬 달력 월(들)이면 True.
+    """
+    return date_from.day == 1 and (date_to + datetime.timedelta(days=1)).day == 1
+
+
+def _previous_range(date_from: datetime.date, date_to: datetime.date,
+                    granularity: str = DEFAULT_GRANULARITY) -> tuple[datetime.date, datetime.date]:
+    """직전 비교 구간.
+
+    ``granularity == "month"`` 이고 조회가 **꽉 찬 달력 월**(1일~말일, 여러 달 가능)이면 직전
+    같은 개월수의 달력 월 — 집계 탭 ``_previous_month_range`` 와 같은 뜻이다. 같은 일수 규칙만
+    있으면 2월 조회의 전기가 01-04~01-31 이라 "전월 대비"의 분모가 달마다 다르게 틀렸다(감사
+    C-01). 그 밖(부분 월·day·week)은 기존처럼 같은 길이의 직전 구간 (from-길이, from-1일).
 
     Args:
         date_from: 현재 구간 시작.
         date_to: 현재 구간 끝(포함).
+        granularity: day|week|month.
 
     Returns:
         (직전 시작, 직전 끝).
     """
+    if granularity == "month" and _is_full_calendar_months(date_from, date_to):
+        months = (date_to.year - date_from.year) * 12 + date_to.month - date_from.month + 1
+        prev_to = date_from - datetime.timedelta(days=1)
+        # 연·월을 12진 색인 하나로 접어 (months-1) 개월 되감는다 — 해 넘김(01월 → 전년 12월)을
+        # 분기 없이 처리한다(테스트 `2026-01 → 2025-12`).
+        index = prev_to.year * 12 + prev_to.month - 1 - (months - 1)
+        return datetime.date(index // 12, index % 12 + 1, 1), prev_to
     span = (date_to - date_from).days + 1
     prev_to = date_from - datetime.timedelta(days=1)
     return prev_to - datetime.timedelta(days=span - 1), prev_to
@@ -530,7 +570,8 @@ def _daily_totals(rows: list[Any]) -> dict[str, Decimal]:
     """구간 합계(Decimal 그대로). KPI·워터폴·대사가 이 한 벌을 나눠 쓴다."""
     totals: dict[str, Decimal] = {name: _ZERO for name, _col in _DAILY_SUMS}
     totals.update({"holdback": _ZERO, "settled": _ZERO, "expected": _ZERO,
-                   "expected_account": _ZERO, "expected_charge": _ZERO})
+                   "expected_account": _ZERO, "expected_charge": _ZERO,
+                   "expected_unassigned": _ZERO})
     for row in rows:
         for name, column in _DAILY_SUMS:
             totals[name] += _dec(getattr(row, column))
@@ -545,6 +586,11 @@ def _daily_totals(rows: list[Any]) -> dict[str, Decimal]:
             totals["expected_account"] += amount
         elif method == "CHARGE_AMT":
             totals["expected_charge"] += amount
+        else:
+            # 예정일이 아직 안 온 행은 네이버가 방식을 비워 보낸다(실측은 빈 값뿐). 계좌·충전금이
+            # 아닌 나머지(빈 값·낯선 코드)를 전부 "미정" 몫으로 세야 타일 세부(계좌+충전금+미정)가
+            # 어떤 코드가 와도 예정액과 맞는다(감사 A-03).
+            totals["expected_unassigned"] += amount
     return totals
 
 
@@ -606,42 +652,101 @@ def _case_scope(channel: str, date_from: datetime.date, date_to: datetime.date) 
     return (NaverSettleCase.channel == channel, axis >= date_from, axis <= date_to)
 
 
-def _build_case_stats(session: Any, channel: str, date_from: datetime.date,
-                      date_to: datetime.date) -> dict[str, Any]:
-    """건별 축 통계 — 건수·미매칭·매칭률 분모·결제 정산액 합(대사용).
+def _case_group_columns(today: datetime.date) -> tuple[Any, Any, Any, Any]:
+    """group-by 축 4개: match_status · 링크 유무 · 완료 여부 · 정산 예정일 경과 구간.
 
-    한 번의 group-by 로 끝낸다(행을 파이썬으로 끌어오지 않는다 — 원장은 페이지 단위다).
+    경과 구간은 날짜 뺄셈이 아니라 **기준일과의 비교**로 쓴다 — PG·SQLite 양쪽에서 같은 SQL 이
+    돈다(SQLite 는 날짜 산술이 없다). 축은 :func:`_case_scope` 와 같은 coalesce 식이다.
+    미매칭을 링크 유무로 가르는 이유(v1.2 F1): 워크벤치 대기(링크 있음·주문 없음)와 수집 전
+    주문(링크 없음)은 조치하는 사람과 화면이 다르다.
+
+    Args:
+        today: KST 오늘(경과 구간 기준일).
+
+    Returns:
+        ``(match_status, 링크 있음, 완료됨, 경과 구간)`` SQL 식 4개.
+    """
+    axis = func.coalesce(NaverSettleCase.settle_expect_date, NaverSettleCase.search_date)
+    day = datetime.timedelta(days=1)
+    aging = case(
+        (axis > today, "future"),
+        (axis > today - 30 * day, "lt30"),
+        (axis > today - 60 * day, "d30_59"),
+        (axis > today - 90 * day, "d60_89"),
+        else_="d90_plus",
+    )
+    return (NaverSettleCase.match_status, NaverSettleCase.link_id.isnot(None),
+            NaverSettleCase.settle_complete_date.isnot(None), aging)
+
+
+def _empty_case_stats() -> dict[str, Any]:
+    """건별 통계의 출발값 — 행이 없어도 모든 키와 5구간이 있어야 화면이 "없다"를 말한다."""
+    return {"case_count": 0, "unmatched": 0, "matched": 0, "prod_orders": 0,
+            "unmatched_pending": 0, "unmatched_unlinked": 0, "pay_settle": _ZERO,
+            "unmatched_amount": _ZERO, "unmatched_settled_amount": _ZERO,
+            "unmatched_aging": {key: {"count": 0, "amount": _ZERO} for key in _AGING_BUCKETS}}
+
+
+def _fold_case_group(stats: dict[str, Any], row: tuple) -> None:
+    """group-by 1행을 통계에 접는다(:func:`_case_group_columns` 순서 + count·pay 합·expect 합).
+
+    미매칭 금액은 ``settle_expect_amount`` **원값 부호합**이다 — 취소 행의 음수를 그대로 더한다
+    (계약 D-1). 완료 여부·경과 구간은 미매칭 행에서만 의미가 있다(감사 D-01).
+
+    Args:
+        stats: :func:`_empty_case_stats` 로 시작한 누적 dict(제자리 갱신).
+        row: ``(status, linked, settled, bucket, count, pay_total, expect_total)``.
+    """
+    status, linked, settled, bucket, count, pay_total, expect_total = row
+    code = str(status or "NA").upper()
+    count = int(count or 0)
+    stats["case_count"] += count
+    stats["pay_settle"] += _dec(pay_total)
+    if code in ("MATCHED", "UNMATCHED"):
+        stats["prod_orders"] += count
+        stats["matched" if code == "MATCHED" else "unmatched"] += count
+    if code != "UNMATCHED":
+        return
+    stats["unmatched_pending" if linked else "unmatched_unlinked"] += count
+    amount = _dec(expect_total)
+    stats["unmatched_amount"] += amount
+    if settled:
+        stats["unmatched_settled_amount"] += amount
+    slot = stats["unmatched_aging"][str(bucket)]
+    slot["count"] += count
+    slot["amount"] += amount
+
+
+def _build_case_stats(session: Any, channel: str, date_from: datetime.date,
+                      date_to: datetime.date, today: datetime.date) -> dict[str, Any]:
+    """건별 축 통계 — 건수·미매칭(건수·금액·완료분·경과 구간)·매칭률 분모·결제 정산액 합(대사용).
+
+    한 번의 group-by 로 끝낸다(행을 파이썬으로 끌어오지 않는다 — 원장은 페이지 단위다). 축이
+    4개(상태 3 × 링크 2 × 완료 2 × 구간 5)라 그룹은 최대 60행이고 질의는 여전히 **1개**다 —
+    스트립 질의 예산(6)이 이 수에 걸려 있다.
 
     Args:
         session: SQLAlchemy Session.
         channel: 채널 코드.
         date_from: 시작일.
         date_to: 종료일(포함).
+        today: KST 오늘(경과 구간 기준일).
 
     Returns:
         ``case_count``·``unmatched``·``matched``·``prod_orders``·``unmatched_pending``
-        (링크 있음·주문 없음)·``unmatched_unlinked``(링크 없음)·``pay_settle`` dict.
+        (링크 있음·주문 없음)·``unmatched_unlinked``(링크 없음)·``pay_settle``·
+        ``unmatched_amount``·``unmatched_settled_amount``·``unmatched_aging`` dict.
     """
-    scope = _case_scope(channel, date_from, date_to)
-    # 미매칭을 링크 유무로 한 번 더 가른다(v1.2 F1) — 워크벤치 대기(링크 있음·주문 없음)와
-    # 수집 전 주문(링크 없음)은 조치하는 사람과 화면이 다르다.
-    has_link = NaverSettleCase.link_id.isnot(None)
-    rows = (session.query(NaverSettleCase.match_status, has_link,
+    status_col, has_link, is_settled, aging = _case_group_columns(today)
+    rows = (session.query(status_col, has_link, is_settled, aging,
                           func.count(NaverSettleCase.id),
-                          func.sum(NaverSettleCase.pay_settle_amount))
-            .filter(*scope).group_by(NaverSettleCase.match_status, has_link).all())
-    stats = {"case_count": 0, "unmatched": 0, "matched": 0, "prod_orders": 0,
-             "unmatched_pending": 0, "unmatched_unlinked": 0, "pay_settle": _ZERO}
-    for status, linked, count, total in rows:
-        code = str(status or "NA").upper()
-        count = int(count or 0)
-        stats["case_count"] += count
-        stats["pay_settle"] += _dec(total)
-        if code in ("MATCHED", "UNMATCHED"):
-            stats["prod_orders"] += count
-            stats["matched" if code == "MATCHED" else "unmatched"] += count
-        if code == "UNMATCHED":
-            stats["unmatched_pending" if linked else "unmatched_unlinked"] += count
+                          func.sum(NaverSettleCase.pay_settle_amount),
+                          func.sum(NaverSettleCase.settle_expect_amount))
+            .filter(*_case_scope(channel, date_from, date_to))
+            .group_by(status_col, has_link, is_settled, aging).all())
+    stats = _empty_case_stats()
+    for row in rows:
+        _fold_case_group(stats, row)
     return stats
 
 
@@ -677,6 +782,15 @@ def _kpi_block(totals: dict[str, Decimal], case_stats: dict[str, Any]) -> dict:
         "unmatched_count": case_stats["unmatched"],
         "unmatched_pending_count": case_stats["unmatched_pending"],
         "unmatched_unlinked_count": case_stats["unmatched_unlinked"],
+        # 미매칭 채권(감사 D-01): 원값 부호합·완료분·예정일 경과 5구간. 전부 저장값의 SUM/COUNT 다.
+        "unmatched_amount": _money(case_stats["unmatched_amount"], default=0),
+        "unmatched_settled_amount": _money(case_stats["unmatched_settled_amount"], default=0),
+        "unmatched_aging": {
+            key: {"count": slot["count"], "amount": _money(slot["amount"], default=0)}
+            for key, slot in case_stats["unmatched_aging"].items()
+        },
+        # 입금 방식이 빈 미완료 몫(감사 A-03) — 계좌+충전금+미정 = 예정액.
+        "expected_unassigned_amount": _money(totals["expected_unassigned"], default=0),
         "case_count": case_stats["case_count"],
     }
 
@@ -881,7 +995,10 @@ def _exception(kind: str, text: str, day: Any, amount: Any, today: datetime.date
 
 
 def _daily_exceptions(rows: list[Any], today: datetime.date) -> list[dict]:
-    """지급 보류(HOLDBACK)·한도 보류(LIMIT)·음수 정산(NEGATIVE) — 일별 행에서 나온다."""
+    """지급 보류(HOLDBACK)·한도 보류(LIMIT)·음수 정산(NEGATIVE) — 일별 행에서 **전부** 나온다.
+
+    상한은 :func:`_build_exceptions` 가 건다 — 여기서 자르면 모집단 건수를 셀 수 없다(감사 D-02).
+    """
     found: list[dict] = []
     for row in rows:
         ref = {"settle_expect_date": _day(row.settle_expect_date),
@@ -895,7 +1012,7 @@ def _daily_exceptions(rows: list[Any], today: datetime.date) -> list[dict]:
         if _dec(row.settle_amount) < 0:
             found.append(_exception("NEGATIVE", "음수 정산(취소·환급)",
                                     row.settle_expect_date, row.settle_amount, today, ref))
-    return found[:_EXCEPTION_CAP]
+    return found
 
 
 def _unmatched_rows(session: Any, channel: str, date_from: datetime.date,
@@ -942,25 +1059,45 @@ def _unmatched_exceptions(session: Any, channel: str, date_from: datetime.date,
             + [_unmatched_exception(row, today, linked=False) for row in unlinked])
 
 
-def _run_exceptions(run: Any, reconcile: dict, today: datetime.date) -> list[dict]:
-    """마지막 실행이 남긴 소급 변경(RETRO)과 일별↔건별 합 불일치(COUNT_MISMATCH).
+def _retro_exceptions(run: Any, today: datetime.date) -> list[dict]:
+    """마지막 실행이 남긴 소급 변경(RETRO) **전부** — 상한은 :func:`_build_exceptions` 가 건다.
 
     소급 변경 금액은 **우리가 적재한 두 스냅샷의 차**다(네이버 값을 다시 계산한 것이 아니다).
+    dict 가 아닌 항목(옛 형식)은 건너뛴다.
+
+    Args:
+        run: :func:`_latest_run` 결과(None 가능).
+        today: KST 오늘(경과일 계산 기준).
+
+    Returns:
+        RETRO 예외 목록(상한 없음).
     """
     found: list[dict] = []
     stats = getattr(run, "stats", None) if run is not None else None
-    for change in (stats or {}).get("retro_changes", [])[:_EXCEPTION_CAP]:
+    for change in (stats or {}).get("retro_changes") or []:
         if not isinstance(change, dict):
             continue
         delta = _dec(change.get("new_total")) - _dec(change.get("old_total"))
         found.append(_exception("RETRO", "소급 변경(확정 후 값 변동)", change.get("date"),
                                 delta, today, dict(change)))
-    if reconcile["diff"]:
-        found.append(_exception("COUNT_MISMATCH", "일별↔건별 합계 불일치", None,
-                                reconcile["diff"], today,
-                                {"daily_total": reconcile["daily_total"],
-                                 "case_total": reconcile["case_total"]}))
     return found
+
+
+def _mismatch_exceptions(reconcile: dict, today: datetime.date) -> list[dict]:
+    """일별↔건별 합 불일치(COUNT_MISMATCH) 0/1행 — 차이를 감추지 않는다(적재 누락·소급 변경 신호).
+
+    Args:
+        reconcile: :func:`_build_reconcile` 결과.
+        today: KST 오늘.
+
+    Returns:
+        불일치가 있으면 예외 1행, 없으면 빈 목록.
+    """
+    if not reconcile["diff"]:
+        return []
+    return [_exception("COUNT_MISMATCH", "일별↔건별 합계 불일치", None, reconcile["diff"],
+                       today, {"daily_total": reconcile["daily_total"],
+                               "case_total": reconcile["case_total"]})]
 
 
 # ---------------------------------------------------------------------------
@@ -1123,17 +1260,42 @@ def _build_ledger(session: Any, channel: str, kind: str, basis: str,
             .limit(per_page).offset((page - 1) * per_page).all())
     return {
         "kind": kind,
-        "groups": [{"date": _day(day_value), "count": int(count or 0),
-                    "amount": _money(total_amount, default=0)}
-                   for day_value, count, total_amount in groups],
+        "groups": _ledger_groups(groups),
         "rows": [_serialize_ledger_row(row, fields) for row in rows],
         "pagination": {"page": page, "per_page": per_page, "total": total,
                        "pages": pages},
+        "totals": _ledger_totals(groups, total, kind, amount_column),
         # 표에 실제로 적용된 축. 화면은 위쪽 집계(늘 예정일)와 이 표의 축을 따로 말한다.
         "axis": {"basis": effective, "label": BASIS_LABELS[effective],
                  "supported": supported, "excluded": excluded,
                  "shifted_out": shifted_out},
     }
+
+
+def _ledger_groups(groups: list[tuple]) -> list[dict]:
+    """날짜 그룹 ``(축 날짜, 건수, 금액 합)`` → 계약 §5 ``ledger.groups``(기간 전체)."""
+    return [{"date": _day(day_value), "count": int(count or 0),
+             "amount": _money(total_amount, default=0)}
+            for day_value, count, total_amount in groups]
+
+
+def _ledger_totals(groups: list[tuple], total: int, kind: str, amount_column: str) -> dict:
+    """같은 술어(유형·검색·축·기간)의 합계 — 이미 뽑은 그룹 합을 더할 뿐 질의를 더하지 않는다.
+
+    화면이 날짜 그룹을 손으로 더하던 결함(감사 C-02)을 서버 숫자 한 줄로 대신한다.
+
+    Args:
+        groups: :func:`_build_ledger` 의 날짜 그룹 질의 결과.
+        total: 그룹 건수 합(페이지네이션과 같은 수).
+        kind: case|commission|vat_case.
+        amount_column: 합산한 금액 컬럼 이름.
+
+    Returns:
+        ``count``·``amount``·``amount_column``·``amount_label``.
+    """
+    amount_total = sum((_dec(total_amount) for _day_value, _count, total_amount in groups), _ZERO)
+    return {"count": total, "amount": _money(amount_total, default=0),
+            "amount_column": amount_column, "amount_label": _LEDGER_AMOUNT_LABELS[kind]}
 
 
 # ---------------------------------------------------------------------------
@@ -1158,12 +1320,38 @@ def _validated(basis: str, granularity: str, ledger: str,
     return basis, granularity, ledger
 
 
-def _build_exceptions(session: Any, channel: str, date_from: datetime.date,
-                      date_to: datetime.date, rows: list[Any], reconcile: dict,
-                      today: datetime.date) -> list[dict]:
-    """예외 큐 — 미매칭·보류·한도·음수·소급 변경·합계 불일치를 한 목록으로 잇는다.
+def _exception_totals(case_stats: dict[str, Any], uncapped: list[dict]) -> dict[str, int]:
+    """예외 kind 별 **모집단**(상한 전) + ``total``. 7키 고정, 없으면 0.
 
-    순서가 곧 조치 우선순위다(사람이 붙일 것 → 돈이 묶인 것 → 값이 바뀐 것).
+    미연결 두 갈래는 목록이 아니라 group-by 통계에서 센다(목록은 갈래당 상한까지만 읽는다).
+    나머지 다섯 kind 는 상한을 자르기 전 목록을 센다 — 추가 질의 0(감사 D-02).
+
+    Args:
+        case_stats: :func:`_build_case_stats` 결과.
+        uncapped: 일별 3종·RETRO·COUNT_MISMATCH 의 상한 전 목록.
+
+    Returns:
+        ``{kind: 건수, ..., "total": 합}``.
+    """
+    totals = {kind: 0 for kind in _EXCEPTION_KINDS}
+    totals["UNMATCHED"] = int(case_stats["unmatched_pending"])
+    totals["UNLINKED"] = int(case_stats["unmatched_unlinked"])
+    for item in uncapped:
+        kind = str(item.get("kind") or "")
+        if kind in totals:
+            totals[kind] += 1
+    totals["total"] = sum(totals[kind] for kind in _EXCEPTION_KINDS)
+    return totals
+
+
+def _build_exceptions(session: Any, channel: str, date_from: datetime.date,
+                      date_to: datetime.date, rows: list[Any], case_stats: dict[str, Any],
+                      reconcile: dict, today: datetime.date) -> tuple[list[dict], dict[str, int]]:
+    """예외 큐 — 미매칭·보류·한도·음수·소급 변경·합계 불일치를 한 목록으로 잇고 모집단을 함께 낸다.
+
+    순서가 곧 조치 우선순위다(사람이 붙일 것 → 돈이 묶인 것 → 값이 바뀐 것). 목록은 갈래
+    (미연결 2갈래·일별 3종 합·RETRO)마다 :data:`_EXCEPTION_CAP` 까지만 싣고, 상한 전 건수는
+    두 번째 반환값이 말한다 — 스트립·배지가 목록 길이를 세면 모집단이 8~34배 가려졌다(감사 D-02).
 
     Args:
         session: SQLAlchemy Session.
@@ -1171,21 +1359,57 @@ def _build_exceptions(session: Any, channel: str, date_from: datetime.date,
         date_from: 시작일.
         date_to: 종료일(포함).
         rows: :func:`_daily_rows` 결과(다시 조회하지 않는다).
+        case_stats: :func:`_build_case_stats` 결과(미연결 모집단).
         reconcile: :func:`_build_reconcile` 결과.
         today: KST 오늘(경과일 계산 기준).
 
     Returns:
-        계약 §5 의 ``exceptions`` 목록.
+        ``(계약 §5 의 exceptions 목록, kind 별 모집단 + total)``.
     """
-    return (_unmatched_exceptions(session, channel, date_from, date_to, today)
-            + _daily_exceptions(rows, today)
-            + _run_exceptions(_latest_run(session, channel), reconcile, today))
+    unmatched = _unmatched_exceptions(session, channel, date_from, date_to, today)
+    daily_all, retro_all, mismatch = _uncapped_exception_pool(session, channel, rows,
+                                                              reconcile, today)
+    listed = unmatched + daily_all[:_EXCEPTION_CAP] + retro_all[:_EXCEPTION_CAP] + mismatch
+    return listed, _exception_totals(case_stats, daily_all + retro_all + mismatch)
+
+
+def _uncapped_exception_pool(session: Any, channel: str, rows: list[Any], reconcile: dict,
+                             today: datetime.date) -> tuple[list[dict], list[dict], list[dict]]:
+    """상한 전 예외 세 갈래 — 일별 3종·RETRO·COUNT_MISMATCH(미연결은 목록이 아니라 통계로 센다).
+
+    스트립은 여기까지만 쓴다: 미연결 목록 질의 2개(갈래별 50행)는 탭 화면에만 필요하고 모집단은
+    ``case_stats`` 가 이미 갖고 있다 — 요약 탭마다 도는 경로라 질의를 아낀다.
+
+    Args:
+        session: SQLAlchemy Session.
+        channel: 채널 코드.
+        rows: :func:`_daily_rows` 결과.
+        reconcile: :func:`_build_reconcile` 결과.
+        today: KST 오늘(경과일 계산 기준).
+
+    Returns:
+        ``(일별 3종 전부, RETRO 전부, COUNT_MISMATCH 0/1행)``.
+    """
+    return (_daily_exceptions(rows, today),
+            _retro_exceptions(_latest_run(session, channel), today),
+            _mismatch_exceptions(reconcile, today))
+
+
+def _range_block(date_from: datetime.date, date_to: datetime.date,
+                 prev_from: datetime.date, prev_to: datetime.date) -> dict:
+    """응답 ``range`` — 현재 구간과, ``kpi.prev``·``daily_prev`` 가 실제로 본 직전 구간.
+
+    직전 구간을 응답에 싣는 이유: 화면이 "전기(MM-DD~MM-DD) 대비"라고 구간을 찍어야
+    같은 일수 규칙과 달력 월 규칙이 섞인 것을 회계팀이 알아본다(감사 C-01).
+    """
+    return {"from": date_from.isoformat(), "to": date_to.isoformat(),
+            "prev": {"from": prev_from.isoformat(), "to": prev_to.isoformat()}}
 
 
 def _core(session: Any, channel: str, date_from: datetime.date,
           date_to: datetime.date, prev_from: datetime.date,
-          prev_to: datetime.date) -> tuple:
-    """현재·직전 구간을 한 번씩만 읽어 KPI·대사가 나눠 쓸 한 벌을 만든다.
+          prev_to: datetime.date, today: datetime.date) -> tuple:
+    """현재·직전 구간을 한 번씩만 읽어 KPI·대사·예외 큐가 나눠 쓸 한 벌을 만든다.
 
     같은 행을 블록마다 다시 조회하지 않기 위한 지점이다(일별 2회 + 건별 집계 2회로 끝난다).
 
@@ -1196,18 +1420,19 @@ def _core(session: Any, channel: str, date_from: datetime.date,
         date_to: 현재 구간 끝(포함).
         prev_from: 직전 구간 시작.
         prev_to: 직전 구간 끝(포함).
+        today: KST 오늘(미매칭 경과 구간 기준일 — 전기 블록도 같은 오늘로 잰다).
 
     Returns:
-        ``(현재 일별 행, 직전 일별 행, 현재 합계, kpi(prev 포함), reconcile)``.
+        ``(현재 일별 행, 직전 일별 행, 현재 합계, kpi(prev 포함), 현재 건별 통계, reconcile)``.
     """
     rows = _daily_rows(session, channel, date_from, date_to)
     prev_rows = _daily_rows(session, channel, prev_from, prev_to)
     totals, prev_totals = _daily_totals(rows), _daily_totals(prev_rows)
-    case_stats = _build_case_stats(session, channel, date_from, date_to)
+    case_stats = _build_case_stats(session, channel, date_from, date_to, today)
     kpi = _kpi_block(totals, case_stats)
     kpi["prev"] = _kpi_block(prev_totals,
-                             _build_case_stats(session, channel, prev_from, prev_to))
-    return rows, prev_rows, totals, kpi, _build_reconcile(totals, case_stats)
+                             _build_case_stats(session, channel, prev_from, prev_to, today))
+    return rows, prev_rows, totals, kpi, case_stats, _build_reconcile(totals, case_stats)
 
 
 def build_channel_dashboard(session: Any, *, date_from: datetime.date,
@@ -1238,13 +1463,16 @@ def build_channel_dashboard(session: Any, *, date_from: datetime.date,
     today = today or datetime.date.today()
     per_page = max(1, min(int(per_page or DEFAULT_PER_PAGE), MAX_PER_PAGE))
     filters = dict(filters or {})
-    prev_from, prev_to = _previous_range(date_from, date_to)
-    rows, prev_rows, totals, kpi, reconcile = _core(
-        session, channel, date_from, date_to, prev_from, prev_to)
+    # kpi.prev 와 daily_prev 가 **같은 구간**을 본다 — 월 단위 꽉 찬 달은 달력 전월(감사 C-01).
+    prev_from, prev_to = _previous_range(date_from, date_to, granularity)
+    rows, prev_rows, totals, kpi, case_stats, reconcile = _core(
+        session, channel, date_from, date_to, prev_from, prev_to, today)
+    exceptions, exception_totals = _build_exceptions(
+        session, channel, date_from, date_to, rows, case_stats, reconcile, today)
     return {
         "channel": channel, "basis": basis,
         "basis_label": BASIS_LABELS[basis],
-        "range": {"from": date_from.isoformat(), "to": date_to.isoformat()},
+        "range": _range_block(date_from, date_to, prev_from, prev_to),
         "granularity": granularity,
         "sync": _build_sync(session, today),
         "kpi": kpi,
@@ -1256,8 +1484,10 @@ def build_channel_dashboard(session: Any, *, date_from: datetime.date,
         "holdback": _build_holdback(rows),
         "commission": _build_commission(session, channel, date_from, date_to),
         "vat": _build_vat(session, channel, date_from, date_to, today),
-        "exceptions": _build_exceptions(session, channel, date_from, date_to,
-                                        rows, reconcile, today),
+        "exceptions": exceptions,
+        # 상한 전 모집단(kind 별 + total)과 갈래별 상한 — 화면이 "N건 중 M건 표시"를 말한다.
+        "exception_totals": exception_totals,
+        "exception_cap": _EXCEPTION_CAP,
         "ledger": _build_ledger(session, channel, ledger, basis, date_from, date_to,
                                 page, per_page, filters),
     }
@@ -1277,8 +1507,8 @@ def build_channel_strip(session: Any, *, channel: str = "NAVER",
     :func:`_daily_totals` → :func:`_build_case_stats` → :func:`_kpi_block`)를 그대로
     통과시킨다. 숫자를 여기서 다시 정의하면 요약 스트립과 채널 탭이 조용히 갈린다.
 
-    전기 구간·원장·수수료·부가세는 조회하지 않는다(질의 6개: 일별 1 + 건별 group-by 1 +
-    미매칭 2(링크 있음/없음) + 최근 run 1 + 워터마크 1).
+    전기 구간·원장·수수료·부가세·미연결 **목록**은 조회하지 않는다(질의 4개: 일별 1 +
+    건별 group-by 1 + 최근 run 1 + 워터마크 1). 미연결 모집단은 group-by 통계가 이미 갖고 있다.
 
     Args:
         session: SQLAlchemy Session.
@@ -1289,8 +1519,8 @@ def build_channel_strip(session: Any, *, channel: str = "NAVER",
 
     Returns:
         ``channel``·``basis``·``basis_label``·``range``·``sync``·``strip`` dict.
-        ``strip`` = ``settled_amount``·``expected_amount``·``exception_count``·
-        ``unmatched_count``·``tab_key``.
+        ``strip`` = ``settled_amount``·``expected_amount``·``exception_count``(상한 **전**
+        모집단 = 탭의 ``exception_totals.total``)·``unmatched_count``·``tab_key``.
 
     Raises:
         ValueError: 시작일이 종료일보다 뒤이거나 구간 폭이 상한을 넘을 때.
@@ -1300,10 +1530,11 @@ def build_channel_strip(session: Any, *, channel: str = "NAVER",
     today = today or datetime.date.today()
     rows = _daily_rows(session, channel, date_from, date_to)
     totals = _daily_totals(rows)
-    case_stats = _build_case_stats(session, channel, date_from, date_to)
+    case_stats = _build_case_stats(session, channel, date_from, date_to, today)
     kpi = _kpi_block(totals, case_stats)
-    exceptions = _build_exceptions(session, channel, date_from, date_to, rows,
-                                   _build_reconcile(totals, case_stats), today)
+    daily_all, retro_all, mismatch = _uncapped_exception_pool(
+        session, channel, rows, _build_reconcile(totals, case_stats), today)
+    exception_totals = _exception_totals(case_stats, daily_all + retro_all + mismatch)
     return {
         "channel": channel,
         "basis": DEFAULT_BASIS,
@@ -1313,7 +1544,7 @@ def build_channel_strip(session: Any, *, channel: str = "NAVER",
         "strip": {
             "settled_amount": kpi["settled_amount"],
             "expected_amount": kpi["expected_amount"],
-            "exception_count": len(exceptions),
+            "exception_count": exception_totals["total"],
             "unmatched_count": kpi["unmatched_count"],
             "tab_key": STRIP_TAB_KEY,
         },
