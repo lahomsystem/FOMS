@@ -161,3 +161,7 @@ Add In Program/FOMSBrainDesigner/node_modules/
 
 # app AUTO-INIT 생성 KR 공휴일 데이터(런타임 생성물, 커밋 대상 아님)
 data/holidays_kr_*.json
+
+# 페르소나 감사 러너가 만드는 임시 DB(생성물). visual_ci.sqlite 는 워크플로가
+# DATABASE_URL 로 참조하므로 추적을 유지한다 — 이 파일만 무시한다.
+tests/visual/persona_audit_current_*.sqlite
