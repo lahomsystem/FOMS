@@ -59,9 +59,9 @@ def _login(client, *, role: str = "ADMIN") -> User:
     return user
 
 
-def _order(*, name: str = "정리대상") -> Order:
+def _order(*, name: str = "정리대상", status: str = "RECEIVED") -> Order:
     order = Order(received_date="2026-08-01", customer_name=name, phone="010-3333-4444",
-                  address="서울 강남구 1 101호", product="붙박이장", status="RECEIVED")
+                  address="서울 강남구 1 101호", product="붙박이장", status=status)
     db_session.add(order)
     db_session.commit()
     return order
@@ -211,6 +211,22 @@ def test_workbench_strip_shows_pending_origin(client, workbench_on):
     assert "재결제 뒤 정리 안 된 옛 네이버 주문" in body
     assert 'id="wb-origin-refresh-all"' in body
     assert "data-wb-origin-cleanup=" in body
+
+
+def test_strip_names_the_stage_in_korean(client, workbench_on):
+    """띠도 단계를 한글로 말한다 — 담당자에게 `MEASURE` 는 코드지 단계가 아니다(2026-09-04)."""
+    _login(client)
+    order = _order(name="단계한글", status="MEASURE")
+    _link(order_no=f"N-ORIG-K-{_uid()}", order_id=int(order.id), relation="NEW")
+    _link(order_no=f"N-REPAY-K-{_uid()}", order_id=int(order.id), relation="REPAY")
+
+    body = client.get(TRIAGE_PATH, query_string={"tab": "work"}).get_data(as_text=True)
+
+    assert "재결제 뒤 정리 안 된 옛 네이버 주문" in body
+    strip = body[body.find("재결제 뒤 정리 안 된 옛 네이버 주문"):]
+    strip = strip[:strip.find("</details>")]
+    assert "실측" in strip, "띠가 단계를 말하지 않는다"
+    assert "MEASURE" not in strip, "단계 enum 이 화면으로 샜다"
 
 
 def test_history_tab_does_not_show_the_strip(client, workbench_on):

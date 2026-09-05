@@ -467,7 +467,9 @@ def test_discard_is_refused_after_measure(app):
         run_reconcile(db_session, link_id=int(link.id), order_id=order_id,
                       relation="REPAY", fork="DISCARD", actor_user_id=actor)
 
-    assert "MEASURE" in str(caught.value)
+    # 사람이 읽는 문장이라 단계는 한글이다(2026-09-04) — 판정 축은 여전히 `status` 코드다.
+    assert "실측" in str(caught.value)
+    assert "MEASURE" not in str(caught.value), "단계 enum 이 사람 문장으로 샜다"
     assert not db_session.get(Order, order_id).deleted_at
 
 
