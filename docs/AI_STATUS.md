@@ -1,7 +1,7 @@
 # FOMS 현재 상태
 > 자동 업데이트: 2026-09-05
-> 최신: **네이버 정산 탭 CFO 감사 + 후속 5건 deploy(2026-09-05, `6d1b45edd`)** — 틀린 숫자 0, WARN 25. 고침: 예외 배지=모집단(D-02) · 미매칭 정산액·aging(D-01) · 워커 05:30 하루 1회(F-07) · 라벨 6종 · 전기=달력 월(C-01). 보고서 `docs/plans/2026-09-05-settlement-cfo-review-report.md`. **즉시 조치: 운영 claude_master 비번 로테이션(E-05)**
-> 직전: **취소·반품 끝난 주문 휴지통 UI 운영 반영(PR #297 · production `a5b2697ff`)** — 상세는 "## 진행 중" 둘째 항목
+> 최신: **단계 한글화 마무리 + 공휴일 캐시 경합 수정 운영 반영(PR #299 · production `7de57c03d`)** — 화면·문장에서 `MEASURE` 제거(`status_label`, 판정 축 불변). CI 간헐 `JSONDecodeError` 의 진짜 원인은 **공휴일 캐시 파일 경합** — 원자 교체로 수정. 테스트 산출물 31건 추적 해제 동반
+> 직전: **취소·반품 끝난 주문 휴지통 UI 운영 반영(PR #297 · production `a5b2697ff`)** — 집 pane 조건부 버튼 6상태, 판정 축은 주문(`judge_order_discard`), 기존 라우트 재사용이라 신규 manifest 없음
 > 이 파일 상단 40줄이 세션 시작 컨텍스트의 전부다(hygiene 계약으로 강제). 상세 이력은 "## 최근 완료"·"## 기록 보관".
 
 
@@ -11,8 +11,8 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 
 ## 진행 중
 - [2026-09-05] **정산 탭 CFO 후속 5건 deploy(`6d1b45edd`, 핀 20260905a)** — 원장 `docs/plans/2026-09-05-settlement-cfo-fixes-ledger.md`. 잔여: 스테이징 QA → 승격(사용자 확인) · 백로그 6~14 · E-05 비번 로테이션
-- [2026-09-04] **취소·반품 끝난 주문 휴지통 UI 운영 반영(PR #297 · `a5b2697ff`)** — 집 pane 조건부 버튼 6상태. **판정 축은 주문**(`judge_order_discard` 가 `find_ghost_orders` 셈법 재사용 — 살아 있는 ADDON 집이 있으면 모집단에서 빠진다). 기존 라우트 재사용이라 **신규 manifest·감사 라벨 없음**. 단계 이름 한글화(STAGE_LABELS·유령 띠 포함). 핀 `20260904d`. 선행 `afb0b4396` 동반 승격(핀·계약 테스트 파일 의존). 원장·별건 3건: `docs/plans/2026-09-04-ghost-discard-pane-ledger.md`
-- [2026-09-04] **조작 뒤 버튼이 새로고침해야 바뀌던 것 수정(운영 반영 · PR #297 동반 승격)** — 워커가 조작 표식과 자동 다시 읽기를 **별도 잡**으로 나눠 처리하는데 화면이 1차 변경만 보고 손을 뗐다. 상태 API 에 `sync_at` 을 내고 `watchFulfillment` 를 2단계로(POST_REFRESH_TIMEOUT_MS). 일곱 갈래 전부 해당. 핀 `20260904c`
+- [2026-09-06] **네이버 워크벤치 휴지통 UI + 단계 한글화 운영 반영(PR #297 `a5b2697ff` · #299 `7de57c03d`)** — 집 pane 조건부 버튼 6상태. **판정 축은 주문**(`judge_order_discard` 가 `find_ghost_orders` 셈법 재사용 — 살아 있는 ADDON 집이 있으면 빠진다). 기존 라우트 재사용이라 **신규 manifest 없음**. 단계는 `status_label` 로 전 화면 한글(판정 축·감사 원장은 enum 불변). 선행 `afb0b4396` 동반 승격. 원장 `docs/plans/2026-09-04-ghost-discard-pane-ledger.md`
+- [2026-09-06] **CI 간헐 `JSONDecodeError` 는 flaky 가 아니라 파일 경합이었다(운영 반영)** — `data/holidays_kr_<year>.json` 이 저장소에 없어(`.gitignore:164`) xdist 워커 셋이 `2099` 파일을 동시에 만들고 `open("w")` 가 비운 창을 읽었다. 임시 파일+fsync+`os.replace` 원자 교체 + 읽기 재시도(삼키지 않음), 회귀 계약 5건. 테스트 산출물 31건 추적 해제 동반
 - [2026-09-04] **정리 계획 카드 정직화 + 취소 처리 정책 동기화 운영 반영(PR #294 · `29a6e72bd`)** — 잠금 축을 단계에서 옛 결제 확정 여부로(`discard_policy`), 단계는 `needs_reason`(관리자+사유). `run_gate` 로 확정 전 실행 차단. 후보 버튼 강조 `recommended_relation` 연동. 원장 `docs/plans/2026-09-04-naver-reconcile-card-ledger.md`
 - [2026-09-04] **ERP 본공정 드롭다운 AS 표시 운영 반영(PR #292 · `5eb72ce40`)** — 드롭다운 AS 미표시 3겹 해소 + status 경로 2곳이 stage 를 덮던 구멍을 `AS_OVERLAY_PRESERVE_WORKFLOW_STAGE` 로 봉합. **잔여=레거시 stage 오염 477건(큐 이탈 62건)**
 - [2026-09-03] **AS 상태 증발 2건 운영 반영(PR #288 · `ac23a6c16`)** — AS 축 투영 ERP 게이트 이탈(`sync_as_axis_column`) + 열린 AS 건 status 봉인(`as_overlay_outranks_status_write`). 회귀 없음(잠복). 운영 5건 복구

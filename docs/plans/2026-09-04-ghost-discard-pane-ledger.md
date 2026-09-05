@@ -71,8 +71,14 @@ QA 중 발견해 고침: 재결제 경고에서 `(25,000원) 이 큐에` 처럼 
   정리 띠·`run_reconcile` 거절 문장 넷을 `stage_label` 로 옮기고, 후보 행과 정리 대기 행에
   `status_label` 을 냈다. `status`(판정 축)는 그대로. 계약 3곳에 `"MEASURE" not in` 반증축을
   붙였다 — 문구만 바꾸고 소스를 안 고치면 통과하던 자리다.
-- **새로 관측: `tests/domains/test_production_kpi_slim_projection.py::test_production_kpi_slim_equals_full`
-  이 flaky 하다.** `0c66f6d61` CI 에서 `JSONDecodeError: Expecting value: line 1 column 1` 로
+- ~~새로 관측: 생산 KPI 테스트가 flaky~~ → **해소**(PR #299 · production `7de57c03d`).
+  flaky 가 아니라 **공휴일 캐시 파일 경합**이었다. `data/holidays_kr_<year>.json` 은 저장소에
+  없고(`.gitignore:164`) 미래 날짜 `2099-01-01` 을 쓰는 테스트 파일이 셋이라, xdist 워커들이
+  같은 파일을 동시에 만들며 `open("w")` 가 비운 창을 다른 워커가 읽었다. 임시 파일 + fsync +
+  `os.replace` 원자 교체로 고치고, Windows 전용 `os.replace` 잠금은 읽기 재시도로 흡수했다
+  (끝내 못 읽으면 raise — 조용히 공휴일 0건으로 영업일을 세지 않는다). 회귀 계약 5건 신설.
+  아래는 당시 관측 기록이다.
+- (관측 원문) `test_production_kpi_slim_equals_full` `0c66f6d61` CI 에서 `JSONDecodeError: Expecting value: line 1 column 1` 로
   1회 실패, 같은 커밋 rerun 은 success. 로컬 `tests/domains/` 단독은 통과. 이 작업과 무관한
   코드(생산 KPI)이고 그 파일들은 이번에 손대지 않았다 — 실행 순서·DB 상태 의존으로 보인다.
   `compute_production_kpis_and_badges` 의 `sd_json['flags']` 투영이 NULL 을 만나면
