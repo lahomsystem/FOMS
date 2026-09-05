@@ -289,6 +289,8 @@ def run_reconcile(session, *, link_id: int, order_id: int, relation: str, fork: 
         raise ReconcileError(f"{run_block}.")
 
     if fork == "DISCARD":
+        from foms.services.integrations.naver_commerce.ghost_orders import stage_label
+
         # 화면만 막으면 주소를 아는 사람이 그대로 지운다 — 서버도 같은 판정으로 거절한다.
         policy = discard_policy(order.status or "", claim_code=claim_code)
         if not policy["can_discard"]:
@@ -298,7 +300,7 @@ def run_reconcile(session, *, link_id: int, order_id: int, relation: str, fork: 
             # 유령 주문 띠와 같은 관문이다(2026-09-02 결정 · 2026-09-04 이 화면에 이식).
             if not actor_is_admin:
                 raise ReconcileError(
-                    f"{order.status} 단계라 실측·도면 이력이 붙어 있습니다 — "
+                    f"{stage_label(order.status)} 단계라 실측·도면 이력이 붙어 있습니다 — "
                     "관리자만 사유를 적고 접을 수 있습니다.")
             if not note:
                 raise ReconcileError(

@@ -151,7 +151,9 @@ def test_plan_card_asks_a_reason_after_measure(client, workbench_on):
 
     assert "disabled" not in discard_input, "단계가 아직도 잠금 축이다"
     assert "wb-plan-reason" in card, "사유 칸이 없다 — 사유가 유일한 방어선이다"
-    assert "MEASURE" in card, "어느 단계라 사유가 필요한지 화면이 말해야 한다"
+    # 단계는 **한글**로 말한다 — 담당자에게 `MEASURE` 는 코드지 단계가 아니다(2026-09-04).
+    assert "실측" in card, "어느 단계라 사유가 필요한지 화면이 말해야 한다"
+    assert "MEASURE" not in card, "단계 enum 이 화면으로 샜다"
     assert "관리자만" in card, "누가 접을 수 있는지 화면이 말해야 한다"
 
 
