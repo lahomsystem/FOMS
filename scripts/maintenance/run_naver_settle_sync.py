@@ -13,7 +13,9 @@ WORKER 한 곳에서만 나가야 한다. web 에서 실행하면 등록되지 �
 사람이 화면을 쓰는 시간대와 겹치면 "지금 동기화" 를 눌러도 쿼터를 나눠 쓰게 된다.
 
 시각 창을 쓰는 이유: 워커가 재시작하거나 루프가 밀리면 정확히 그 분에 못 깨어날 수 있다.
-창(기본 10분) 안이면 실행한다. 파티션 통째 교체라 **여러 번 돌아도 결과가 같다**(멱등).
+창(기본 10분) 안이면 실행하되 **하루 1회만**(:func:`should_run`) — 창 안 매 tick 실행은 run 을
+5행 쌓아 예외 큐의 소급 변경을 지웠다(감사 F-07). 파티션 통째 교체라 재시작 뒤 창 안에서 한 번
+더 돌아도 결과가 같다(멱등).
 
 사용 예 (PowerShell 5.x)::
 
@@ -116,6 +118,45 @@ def in_window(now: datetime, at: tuple[int, int], window_minutes: int) -> bool:
     return target <= now < target + timedelta(minutes=max(1, window_minutes))
 
 
+def should_run(now: datetime, at: tuple[int, int], window_minutes: int,
+               last_run_day: Optional[date]) -> bool:
+    """이번 tick 에 동기화를 돌릴지 — 창 안이고 **오늘 아직 안 돌았을 때**만.
+
+    창(10분) 안에서 매 tick(60초) 실행하면 같은 동기화가 5번 돌아 run 이 5행 쌓이고, 예외 큐는
+    최신 run 만 읽어 첫 run 의 소급 변경이 화면에서 사라진다(감사 F-07, 운영 run 19~23 실측).
+    하루 1회 계약을 DB 가 아니라 프로세스 메모리로 지키는 이유: 러너는 워커 1대에서 하나만 돌고,
+    재시작하면 창 안에서 한 번 더 도는 것이 멱등이라 무해하기 때문이다.
+
+    Args:
+        now: 현재 시각(KST).
+        at: ``(시, 분)``.
+        window_minutes: 창 길이(분).
+        last_run_day: 마지막으로 동기화가 **반환된** KST 날짜(아직 없으면 None).
+
+    Returns:
+        창 안이고 ``last_run_day`` 가 오늘이 아니면 True.
+    """
+    return in_window(now, at, window_minutes) and last_run_day != now.date()
+
+
+def records_day(result: dict) -> bool:
+    """이번 반환 결과로 "오늘 돌았다" 를 기록할지.
+
+    ``run_settle_sync`` 는 실패를 예외가 아니라 ``{"status": "FAILED"}`` 로 **반환**하므로
+    반환됐다는 사실만으로 오늘 몫을 닫으면 05:31 일시 장애 한 번이 그날 동기화를 통째로 지운다
+    (브리프 T3: 성공 시 기록, 실패 시 다음 tick 재시도). ``ABORTED_QUOTA`` 는 쿼터가 바닥난 것이라
+    창 안 재시도가 헛돌고 쿼터만 더 깎으니 기록한다. FAILED 는 coverage 를 안 밀어 F-07(OK 뒤 OK)을
+    되살리지 않고, 재시도 상한은 창 길이(창/tick 회)다.
+
+    Args:
+        result: ``run_settle_sync`` 반환 dict.
+
+    Returns:
+        ``status`` 가 ``FAILED`` 가 아니면 True.
+    """
+    return result.get("status") != "FAILED"
+
+
 def parse_backfill_from(value: Optional[str]) -> Optional[date]:
     """``--backfill-from`` 문자열을 날짜로(빈 값이면 None).
 
@@ -163,22 +204,29 @@ def _print_result(result: dict, as_json: bool) -> None:
 
 
 def _run_loop(args: argparse.Namespace) -> int:
-    """앱 1회 부팅 후 tick 간격으로 깨어나 시각 창에서만 실행한다.
+    """앱 1회 부팅 후 tick 간격으로 깨어나 시각 창에서만, 하루 1회만 실행한다.
 
     실행 1회 실패가 루프를 죽이면 정산 동기화가 통째로 조용히 꺼진다 — 그래서 예외를
-    삼키고 계속 돈다(사고는 로그로 남는다). 창 안에서 여러 번 깨어나도 파티션 통째 교체라
-    결과가 같다.
+    삼키고 계속 돈다(사고는 로그로 남는다). 창 안에서는 하루 1회만 돈다(:func:`should_run`) —
+    매 tick 돌면 run 이 5행 쌓이고, 최신 run 만 읽는 예외 큐에서 첫 run 의 소급 변경이
+    사라진다(감사 F-07). 실패(FAILED) 로 돌아온 tick 은 오늘로 세지 않는다(:func:`records_day`).
     """
     at = parse_at(args.at)
     backfill_from = parse_backfill_from(args.backfill_from)
     tick = max(5, int(args.tick))
+    last_run_day: Optional[date] = None
     print(f"[naver-settle-sync] started (at={args.at} window={args.window}m tick={tick}s)",
           flush=True)
     while True:
         try:
-            if in_window(now_kst(), at, args.window):
+            now = now_kst()
+            if should_run(now, at, args.window, last_run_day):
                 with app.app_context():
                     result = _sync_once(args.dry_run, backfill_from)
+                # OK·ABORTED_QUOTA 로 반환되면 오늘 몫은 끝(같은 창에서 되풀이하면 쿼터·run 행이
+                # 배로 는다). FAILED 로 반환되면 기록하지 않아 다음 tick 이 다시 시도한다(:func:`records_day`).
+                if records_day(result):
+                    last_run_day = now.date()
                 _print_result(result, args.json)
         except Exception:
             print("[naver-settle-sync] run failed:", flush=True)

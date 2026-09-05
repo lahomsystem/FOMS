@@ -69,7 +69,9 @@ _STATIC_ASSETS = (CSS_ASSET, JS_ASSET)
 #: 2026-09-03 F10 T1 — 검색어 `q` 를 원장 짝 판정 안으로 넣느라 채널 JS 를 고쳤다(g → h).
 #: 2026-09-04 F10 MINOR-2 — 안내 줄이 설명 부제와 같은 모양이던 것을 경고 수식자로 갈랐다
 #: (JS 클래스 + CSS 규칙 1개, h → i).
-_CHANNEL_PIN = "20260903i"
+#: 2026-09-05 CFO 후속 — 라벨 6개·예외 머리(모집단 중 표시 수)·미매칭 금액/aging·전기 구간 라벨
+#: (JS 만, i → 20260905a).
+_CHANNEL_PIN = "20260905a"
 
 _CHANNEL_TAB_ID = "foms-settle-tab-channel"
 _CHANNEL_PANE_ID = "foms-settle-pane-channel"
@@ -1091,3 +1093,162 @@ def test_export_menu_says_when_the_search_term_is_dropped():
     assert "ctx.state.q && !exportCarriesFilters(ctx, spec)" not in body, "일자 단위 표에도 안내가 붙는다"
     assert "innerHTML" not in body, "마크업을 주입하고 있다"
     assert "createObjectURL" not in body, "blob 내려받기를 만들고 있다"
+
+# ==========================================================================
+# 계약 — CFO 후속(2026-09-05): 라벨 6개 · 예외 머리 모집단 · 미매칭 금액/aging · 전기 구간 라벨
+# ==========================================================================
+def test_waterfall_says_the_total_is_settled_plus_unpaid():
+    """워터폴 단계 목록 아래에 "정산 금액 = 정산 완료액 + 미입금 정산액" 한 줄(A-01).
+
+    마지막 단계 "정산 금액"은 완료액 타일과 **다른 수**다(완료분 + 미입금분). 낱말은 타일
+    라벨(`미입금 정산액`)과 같아야 한다 — 화면에 없는 라벨을 가리키면 G-03 류 결함이 다시 생긴다.
+    """
+    body = _js_function("renderWaterfall")
+
+    assert "'정산 금액 = 정산 완료액 + 미입금 정산액'" in body, "워터폴 정의 줄이 없다"
+
+
+def test_unpaid_tile_says_the_unassigned_method_amount():
+    """미입금 타일 부제가 "입금 방식 미정 X" 를 말한다(A-03).
+
+    계좌·충전금 어느 쪽에도 안 실리는 행(`settle_method_type` 빈 값)이 있으면 두 조각을 더해도
+    타일 값이 안 나온다 — 그 차액을 화면이 말해야 회계팀이 손으로 뺄 필요가 없다. 값은 서버
+    `kpi.expected_unassigned_amount`(저장값 합) 그대로다.
+    """
+    body = _js_function("renderKpis")
+
+    assert "입금 방식 미정 " in body, "입금 방식 미정 문구가 없다"
+    assert "kpi.expected_unassigned_amount" in body, "서버 값(expected_unassigned_amount)을 안 읽는다"
+
+
+def test_settled_tile_subtitle_matches_the_kernel_definition():
+    """완료액 타일 부제가 커널 정의(정산 예정일 창 안 · 완료 처리된 행의 정산 금액)를 말한다(G-01).
+
+    음성 대조군: 옛 부제 `통장 입금 완료분 · 정산 완료일 기준` 은 축(완료일)과 범위(통장)를
+    둘 다 틀리게 말했다 — 소스에서 사라져야 한다.
+    """
+    body = _js_function("renderKpis")
+
+    assert "'정산 예정일 창 안 · 완료 처리된 행의 정산 금액(계좌+충전금)'" in body, "새 부제가 없다"
+    assert "'통장 입금 완료분 · 정산 완료일 기준'" not in body, "옛 부제가 남아 있다"
+
+
+def test_unpaid_tile_is_labelled_unpaid_not_expected():
+    """"정산 예정액" 타일이 "미입금 정산액"으로 불리고, 건별 「정산 예정 금액」과 다르다고 말한다(G-03).
+
+    일별 축 미완료 행의 `settle_amount` 합인데 "예정"이라 부르면 건별 `settle_expect_amount`
+    (수수료 차감 후·보류 전)와 같은 수로 읽힌다. 상태 훅 `key: 'expected'` 는 CSS·상태가 쓰므로
+    **유지**한다(라벨만 바뀐다).
+
+    음성 대조군: 옛 라벨 `label: '정산 예정액'` 이 남아 있으면 red.
+    """
+    body = _js_function("renderKpis")
+
+    assert "label: '미입금 정산액'" in body, "새 라벨이 없다"
+    assert "'일별 정산 금액 중 미완료분 · 건별 「정산 예정 금액」과 다름'" in body, "부제 앞부분이 없다"
+    assert "label: '정산 예정액'" not in body, "옛 라벨이 남아 있다"
+    assert "key: 'expected'" in body, "상태 훅 key 가 바뀌었다(CSS·상태가 깨진다)"
+
+
+def test_reconcile_banner_names_the_compared_field():
+    """대사 배너가 어떤 금액을 대사했는지(결제 정산 금액 paySettleAmount) 말한다(G-04).
+
+    필드명이 없으면 "대사 일치"를 입금액 대사로 읽는다 — 실제로는 적재 검증이다. 문구는
+    대사 줄(`s-ch-recon-line`) 안에 있어야 하고, "대사 대상 없음" 분기에는 넣지 않는다.
+    """
+    body = _js_function("renderReconcile")
+
+    assert "'결제 정산 금액(paySettleAmount) 기준'" in body, "대사 필드명 문구가 없다"
+    line_at = body.find("var line = el('div', 's-ch-recon-line')")
+    assert line_at >= 0, "대사 줄이 없다"
+    assert body.find("'결제 정산 금액(paySettleAmount) 기준'") > line_at, "문구가 대사 줄 밖에 있다"
+    empty_block = body[: body.find("var ok = diff === 0")]
+    assert "paySettleAmount" not in empty_block, "대사 대상 없음 분기에 필드명이 붙었다"
+
+
+def test_ledger_head_carries_server_totals_and_the_amount_definition():
+    """원장 머리가 서버 `ledger.totals`(같은 필터의 SUM/COUNT)를 한 줄로 말하고, 건별 표에는
+    원장 금액과 KPI 완료액이 왜 다른지 한 문장을 붙인다(C-02).
+
+    합계 라벨은 서버 `totals.amount_label` 이다 — 수수료·부가세 표에서 "정산 예정 금액"이라고
+    거짓말하지 않게. 음성 대조군: `sumBy(` 로 이 페이지의 행을 더해 만들면 red(재계산 금지 D-4,
+    "이 기간 합계"가 아니라 "이 페이지 합계"가 된다).
+    """
+    body = _js_function("renderLedgerAxisNote")
+
+    assert "'이 축·이 기간 합계 '" in body, "합계 줄이 없다"
+    assert "'건 · Σ'" in body, "합계 줄의 금액 조각이 없다"
+    assert "totals.amount_label" in body, "합계 라벨을 서버 값으로 안 쓴다"
+    assert "'원장 금액 = 정산 예정 금액(수수료 차감 후·보류 전), KPI 정산 완료액 = 보류 반영 후 실입금'" in body, (
+        "원장 금액 정의 문장이 없다"
+    )
+    assert "ledger.totals" in body, "서버 totals 를 안 읽는다"
+    assert "sumBy(" not in body, "화면이 합계를 다시 계산한다"
+
+
+def test_exception_head_says_shown_of_total_and_badge_reads_the_population():
+    """예외 표 첫 줄이 "예외 N건 중 M건 표시(갈래별 상한 50)" 이고, 원장 스위처 배지는
+    상한 적용 **전** 모집단(`exception_totals.total`)을 읽는다(D-02).
+
+    음성 대조군: 배지가 `(data.exceptions || []).length` 를 세면 갈래별 상한에 잘린 수가
+    "예외 전량"으로 읽힌다(실측 65 vs 526). 옛 문장 `표에는 갈래마다 최근 것부터 상한까지만
+    실립니다` 는 첫 줄이 대신 말하므로 소스에서 사라져야 한다.
+    """
+    exceptions = _js_function("renderExceptions")
+    switch = _js_function("renderSwitch")
+    source = _read_code(f"static/{JS_ASSET}")
+
+    assert "'건 중 '" in exceptions, "N건 중 문구가 없다"
+    assert "'건 표시(갈래별 상한 '" in exceptions, "상한 문구가 없다"
+    assert "data.exception_totals" in exceptions, "모집단(exception_totals)을 안 읽는다"
+    assert "data.exception_cap" in exceptions, "상한 값(exception_cap)을 안 읽는다"
+    assert "exception_totals" in switch, "배지가 모집단을 안 읽는다"
+    assert ".length" not in switch, "배지가 표시 행 수를 세고 있다"
+    assert "상한까지만 실립니다" not in source, "옛 문장이 남아 있다"
+
+
+def test_match_tile_and_exception_head_carry_unmatched_amount_and_aging():
+    """매칭률 타일 부제와 예외 표 머리가 미연결 **금액**과 예정일 경과 구간을 말한다(D-01).
+
+    건수 3개만으로는 "붙지 않은 돈이 얼마이고 얼마나 오래됐나"를 알 수 없다(운영 실측 14.8억,
+    90일+ 9.8억). 값은 전부 서버 `kpi.unmatched_amount`·`unmatched_settled_amount`·
+    `unmatched_aging`(저장값 부호합) 그대로이고, 구간 조각은 `agingText` 한 헬퍼로 찍는다.
+    """
+    kpis = _js_function("renderKpis")
+    exceptions = _js_function("renderExceptions")
+    source = _read_code(f"static/{JS_ASSET}")
+
+    assert "'(90일+ '" in kpis, "타일 부제에 90일+ 조각이 없다"
+    assert "kpi.unmatched_amount" in kpis, "타일 부제가 미연결 금액을 안 읽는다"
+    assert "'정산 예정일 경과 · 30일 미만 '" in exceptions, "aging 줄이 없다"
+    assert "kpi.unmatched_aging" in exceptions, "aging 구간을 안 읽는다"
+    assert "kpi.unmatched_settled_amount" in exceptions, "완료분을 안 읽는다"
+    assert "function agingText(" in source, "agingText 헬퍼가 없다"
+    for bucket in ("lt30", "d30_59", "d60_89", "d90_plus", "future"):
+        assert f"agingText(aging.{bucket})" in exceptions, f"구간 {bucket} 이 빠졌다"
+
+
+def test_delta_label_names_the_previous_range():
+    """KPI 델타 라벨과 일별 차트 범례가 전기 **구간**(MM-DD~MM-DD)을 말한다(C-01).
+
+    "전기"가 달력 전월인지 같은 일수 직전 구간인지는 서버가 정한다(`range.prev`). 라벨이
+    구간을 안 적으면 월 보고에 다른 구간의 델타가 실린다. 구간은 화면이 다시 계산하지 않고
+    `prevRangeLabel(data.range)` 한 헬퍼가 서버 값을 읽는다(구버전 응답이면 그냥 '전기').
+
+    음성 대조군: 옛 고정 리터럴 `' 전기 대비'`·`'전기 비교(정산 금액)'` 이 남아 있으면 red.
+    """
+    source = _read_code(f"static/{JS_ASSET}")
+    helper = _js_function("prevRangeLabel")
+    kpis = _js_function("renderKpis")
+    daily = _js_function("renderDaily")
+    tile = _js_function("appendKpi")
+
+    assert "function prevRangeLabel(" in source, "prevRangeLabel 헬퍼가 없다"
+    assert "'전기('" in helper, "헬퍼가 구간 라벨을 안 만든다"
+    assert "range.prev" in helper, "헬퍼가 서버 range.prev 를 안 읽는다"
+    assert "prevRangeLabel(data.range)" in kpis, "KPI 가 구간 라벨을 안 만든다"
+    assert "prevRangeLabel(data.range)" in daily, "범례가 구간 라벨을 안 만든다"
+    assert "' 대비'" in tile, "델타 라벨 접미가 없다"
+    assert "spec.prevLabel" in tile, "타일이 구간 라벨을 안 받는다"
+    assert "' 전기 대비'" not in tile, "옛 고정 라벨이 남아 있다"
+    assert "'전기 비교(정산 금액)'" not in daily, "옛 범례 리터럴이 남아 있다"
