@@ -1,7 +1,7 @@
 # FOMS 현재 상태
-> 자동 업데이트: 2026-09-04
-> 최신: **취소·반품 끝난 주문 휴지통 UI 운영 반영(PR #297 · production `a5b2697ff`)** — 집 pane 클레임 버튼 줄 아래 조건부 버튼 6상태. 판정 축은 주문(`judge_order_discard` 가 `find_ghost_orders` 셈법 재사용), 기존 `/ghost/<order_id>/discard` 재사용이라 신규 manifest 없음. 단계 이름 한글화(STAGE_LABELS) 동반. 선행 `afb0b4396`(조작 뒤 버튼 폴링) 함께 승격. 핀 `20260904d`
-> 직전: **조작 뒤 버튼이 새로고침해야 바뀌던 것**(deploy `afb0b4396`) — 워커가 조작 표식과 자동 다시 읽기를 별도 잡으로 나누는데 화면이 1차 변경만 보고 손을 뗐다. 상태 API `sync_at` + 2단계 폴링으로 일곱 갈래 전부 수정
+> 자동 업데이트: 2026-09-05
+> 최신: **네이버 정산 탭 CFO 감사 + 후속 5건 deploy(2026-09-05, `6d1b45edd`)** — 틀린 숫자 0, WARN 25. 고침: 예외 배지=모집단(D-02) · 미매칭 정산액·aging(D-01) · 워커 05:30 하루 1회(F-07) · 라벨 6종 · 전기=달력 월(C-01). 보고서 `docs/plans/2026-09-05-settlement-cfo-review-report.md`. **즉시 조치: 운영 claude_master 비번 로테이션(E-05)**
+> 직전: **취소·반품 끝난 주문 휴지통 UI 운영 반영(PR #297 · production `a5b2697ff`)** — 상세는 "## 진행 중" 둘째 항목
 > 이 파일 상단 40줄이 세션 시작 컨텍스트의 전부다(hygiene 계약으로 강제). 상세 이력은 "## 최근 완료"·"## 기록 보관".
 
 
@@ -10,6 +10,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
+- [2026-09-05] **정산 탭 CFO 후속 5건 deploy(`6d1b45edd`, 핀 20260905a)** — 원장 `docs/plans/2026-09-05-settlement-cfo-fixes-ledger.md`. 잔여: 스테이징 QA → 승격(사용자 확인) · 백로그 6~14 · E-05 비번 로테이션
 - [2026-09-04] **취소·반품 끝난 주문 휴지통 UI 운영 반영(PR #297 · `a5b2697ff`)** — 집 pane 조건부 버튼 6상태. **판정 축은 주문**(`judge_order_discard` 가 `find_ghost_orders` 셈법 재사용 — 살아 있는 ADDON 집이 있으면 모집단에서 빠진다). 기존 라우트 재사용이라 **신규 manifest·감사 라벨 없음**. 단계 이름 한글화(STAGE_LABELS·유령 띠 포함). 핀 `20260904d`. 선행 `afb0b4396` 동반 승격(핀·계약 테스트 파일 의존). 원장·별건 3건: `docs/plans/2026-09-04-ghost-discard-pane-ledger.md`
 - [2026-09-04] **조작 뒤 버튼이 새로고침해야 바뀌던 것 수정(운영 반영 · PR #297 동반 승격)** — 워커가 조작 표식과 자동 다시 읽기를 **별도 잡**으로 나눠 처리하는데 화면이 1차 변경만 보고 손을 뗐다. 상태 API 에 `sync_at` 을 내고 `watchFulfillment` 를 2단계로(POST_REFRESH_TIMEOUT_MS). 일곱 갈래 전부 해당. 핀 `20260904c`
 - [2026-09-04] **정리 계획 카드 정직화 + 취소 처리 정책 동기화 운영 반영(PR #294 · `29a6e72bd`)** — 잠금 축을 단계에서 옛 결제 확정 여부로(`discard_policy`), 단계는 `needs_reason`(관리자+사유). `run_gate` 로 확정 전 실행 차단. 후보 버튼 강조 `recommended_relation` 연동. 원장 `docs/plans/2026-09-04-naver-reconcile-card-ledger.md`
