@@ -61,5 +61,14 @@ QA 중 발견해 고침: 재결제 경고에서 `(25,000원) 이 큐에` 처럼 
 
 - 유령 주문 띠가 20건에서 잘리는데 잘렸다고 말하지 않는 것
 - 주문 목록(`templates/orders/index.html:857`) 휴지통 버튼에 관문이 없는 것
-- 정리 계획 카드(`repay_reconcile.py:301·305`, pane `:1115`)의 단계 enum 노출 — 브리프 범위 밖
-  (`test_naver_repay_reconcile_card.py:154` 가 `"MEASURE"` 를 고정한다)
+- ~~정리 계획 카드의 단계 enum 노출~~ → **해소**(deploy `0c66f6d61`). 정리 계획 카드·옛 주문
+  정리 띠·`run_reconcile` 거절 문장 넷을 `stage_label` 로 옮기고, 후보 행과 정리 대기 행에
+  `status_label` 을 냈다. `status`(판정 축)는 그대로. 계약 3곳에 `"MEASURE" not in` 반증축을
+  붙였다 — 문구만 바꾸고 소스를 안 고치면 통과하던 자리다.
+- **새로 관측: `tests/domains/test_production_kpi_slim_projection.py::test_production_kpi_slim_equals_full`
+  이 flaky 하다.** `0c66f6d61` CI 에서 `JSONDecodeError: Expecting value: line 1 column 1` 로
+  1회 실패, 같은 커밋 rerun 은 success. 로컬 `tests/domains/` 단독은 통과. 이 작업과 무관한
+  코드(생산 KPI)이고 그 파일들은 이번에 손대지 않았다 — 실행 순서·DB 상태 의존으로 보인다.
+  `compute_production_kpis_and_badges` 의 `sd_json['flags']` 투영이 NULL 을 만나면
+  SQLAlchemy JSON 역직렬화가 빈 문자열을 파싱하는 자리가 후보다(`_ensure_dict` 는 예외를
+  삼키므로 그 앞 단계다). 별건.
