@@ -368,6 +368,20 @@
     return granularity === 'week' ? short + '주' : short;
   }
 
+  /**
+   * 버킷 상태 접미. 완료·미완료 행이 섞인 버킷(월/주, 또는 하루 2행)에 "정산 예정"을 찍으면
+   * 거짓이라, 서버 `settled_amount`·`expected_amount`(저장값 합)로 일부 완료를 말한다(CFO 감사 N-02).
+   * 화면은 두 값을 더하거나 나누지 않는다.
+   */
+  function bucketStateText(row) {
+    if (row.completed) return ' (정산 완료)';
+    // 미입금이 ₩0 이어도(그날 정산이 통째로 보류된 미완료 행이 섞인 달) 완료분을 "예정"으로 읽게 두지 않는다.
+    if (!row.completed && isNum(row.settled_amount) && row.settled_amount !== 0) {
+      return ' (일부 완료 — 완료 ' + moneyText(row.settled_amount) + ' · 미입금 ' + moneyText(row.expected_amount) + ')';
+    }
+    return ' (정산 예정)';
+  }
+
   /** ISO 시각 → "09-02 04:23". 값이 없으면 빈 문자열(호출부가 문구를 갈라 쓴다). */
   function fmtStamp(iso) {
     var text = String(iso || '');
@@ -391,6 +405,15 @@
     if (hours < 1) return '방금 전';
     if (hours < 48) return Math.floor(hours) + '시간 전';
     return Math.floor(hours / 24) + '일 전';
+  }
+
+  /**
+   * stale 부제. 임계값은 서버 `sync.stale_after_hours` 를 읽는다 — 화면이 숫자를 다시 적으면 서버
+   * 상수가 바뀔 때 둘이 갈린다. "예정 실행(매일 05:30)" 을 말해야 N시간이 왜 비정상인지 읽힌다(CFO 감사 F-01).
+   */
+  function staleSentence(sync) {
+    return (isNum(sync.stale_after_hours) ? sync.stale_after_hours + '시간 넘게 ' : '') +
+      '갱신되지 않았습니다 — 예정 실행(매일 05:30)을 넘겼습니다. 아래 숫자는 그 시점의 값입니다.';
   }
 
   /* ═══════════════ 2. 툴팁 (이 탭이 자기 것을 소유한다) ═══════════════ */
@@ -619,12 +642,13 @@
    *
    * @param {object} ctx 마운트 컨텍스트.
    * @param {Element} host SVG 를 담을 컨테이너.
-   * @param {object} cfg {items:[{key,label,short,amount,total,note}], height, aria}.
+   * @param {object} cfg {items:[{key,label,amount,total,note}], height, aria}.
    */
   function waterfallChart(ctx, host, cfg) {
     var w = host.clientWidth || 420;
     var h = cfg.height;
-    var pad = { t: 24, r: 10, b: 44, l: 56 };
+    // 아래 여백 56 = X축 라벨 2줄 자리(라벨은 절단하지 않고 `splitStepLabel` 로 줄을 나눈다).
+    var pad = { t: 24, r: 10, b: 56, l: 56 };
     var pw = w - pad.l - pad.r;
     var ph = h - pad.t - pad.b;
     var items = cfg.items || [];
@@ -676,8 +700,16 @@
         '" text-anchor="middle">' +
         esc((step.item.total ? '' : (step.amount > 0 ? '+' : step.amount < 0 ? '-' : '')) +
           fmtTick(Math.abs(toMan(step.amount)))) + '</text>';
-      s += '<text class="s-ch-axis-t" x="' + centerX(i).toFixed(1) + '" y="' + (h - 12) +
-        '" text-anchor="middle">' + esc(step.item.short || step.item.label) + '</text>';
+      // X축 라벨 1~2줄. 6자 절단은 "지급 보류·한도"를 "지급보류·한"으로 만들어 이웃과 겹쳤다(CFO 감사 G-07).
+      var lines = splitStepLabel(step.item.label);
+      var cx = centerX(i).toFixed(1);
+      // 마지막 줄 밑선을 h-12 에 고정하고 첫 줄을 글꼴 높이(em)만큼 위로 올린다 — px 로 올리면 150% 배율에서
+      // 둘째 줄이 SVG 아래 경계까지 내려가 잘린다(CFO 감사 G-08).
+      s += '<text class="s-ch-axis-t" x="' + cx + '" y="' + (h - 12) + '" text-anchor="middle">' +
+        lines.map(function (line, k) {
+          var dy = lines.length > 1 ? (k ? '1.15em' : '-1.15em') : '0';
+          return '<tspan x="' + cx + '" dy="' + dy + '">' + esc(line) + '</tspan>';
+        }).join('') + '</text>';
     });
     steps.forEach(function (step, i) {
       s += '<rect class="s-ch-ghit" x="' + (pad.l + i * band).toFixed(1) + '" y="' + pad.t +
@@ -977,8 +1009,24 @@
   }
 
   /**
-   * S0 — 동기화 헤더. "아직 한 번도"(never)와 "오래됐다"(stale)와 "정상"을 **다른 문구**로
-   * 구분한다(계약 D-10: 결측·지연을 0 으로 그리지 않는다).
+   * S0 보조 — 적재·확정·부가세 구간 줄. 값이 없으면 '—'/'미상' 으로 결측을 말한다(0 으로 그리지 않는다).
+   */
+  function syncLines(sync) {
+    var lines = el('div', 's-ch-sync-lines');
+    lines.appendChild(el('span', null, '적재 구간 ' +
+      (sync.coverage_from || '—') + ' ~ ' + (sync.coverage_to || '—') +
+      (isNum(sync.rolling_days) ? ' · 롤링 재조회 ' + sync.rolling_days + '일' : '')));
+    if (sync.final_before) lines.appendChild(el('span', null, '확정 구간 ~' + sync.final_before));
+    lines.appendChild(el('span', null, sync.vat_available_to
+      ? '부가세 자료는 ' + sync.vat_available_to + '까지 제공(당월분은 익월 마감 후)'
+      : '부가세 자료 제공 구간 미상'));
+    return lines;
+  }
+
+  /**
+   * S0 — 동기화 헤더. "아직 한 번도"(never)·"최신 실행이 실패"(failed)·"오래됐다"(stale)·"정상"을
+   * **다른 문구**로 구분한다(계약 D-10: 결측·지연을 0 으로 그리지 않는다). failed 는 stale 보다
+   * 앞이다 — 성공이 없는 채로 실패만 쌓이면 stale 문구가 실패를 덮는다(CFO 감사 F-08).
    */
   function renderSync(ctx) {
     var host = ctx.els.sync;
@@ -999,30 +1047,28 @@
     var sync = ctx.state.data.sync || {};
 
     var head = el('div', 's-ch-sync-head');
-    var mode = sync.never ? 'never' : (sync.stale ? 'stale' : 'ok');
+    // 우선순위 never > failed > stale > ok — 실패를 stale 문구가 덮지 못한다(CFO 감사 F-08).
+    var mode = sync.never ? 'never' : (sync.failed ? 'failed' : (sync.stale ? 'stale' : 'ok'));
     head.appendChild(el('i', 's-ch-dot s-ch-dot--' + mode));
     if (mode === 'never') {
       head.appendChild(el('b', null, '아직 한 번도 동기화되지 않았습니다'));
       head.appendChild(el('span', 's-ch-sync-sub', '[지금 동기화]를 눌러 첫 적재를 시작하세요. 아래 숫자는 모두 비어 있는 상태입니다.'));
+    } else if (mode === 'failed') {
+      head.appendChild(el('b', null, '동기화 실패 — ' + (agoText(sync.last_run_at) || '시각 미상') +
+        ' · 오류: ' + (sync.last_error || '사유 미상')));
+      head.appendChild(el('span', 's-ch-sync-sub', sync.last_ok_at
+        ? '마지막 성공 ' + fmtStamp(sync.last_ok_at) + (sync.stale ? ' — ' + staleSentence(sync) : ' 기준 값입니다.')
+        : '성공한 실행이 아직 없습니다 — 아래 숫자는 비어 있거나 부분 적재일 수 있습니다.'));
     } else {
       var stamp = fmtStamp(sync.last_ok_at || sync.last_run_at);
       var ago = agoText(sync.last_ok_at || sync.last_run_at);
       head.appendChild(el('b', null, '최종 동기화 ' + (stamp || '시각 미상') + (ago ? ' (' + ago + ')' : '')));
       head.appendChild(el('span', 's-ch-sync-sub', mode === 'stale'
-        ? '36시간 넘게 갱신되지 않았습니다 — 아래 숫자는 그 시점의 값입니다.'
+        ? staleSentence(sync)
         : (sync.status ? '상태 ' + sync.status : '정상')));
     }
     slot.appendChild(head);
-
-    var lines = el('div', 's-ch-sync-lines');
-    lines.appendChild(el('span', null, '적재 구간 ' +
-      (sync.coverage_from || '—') + ' ~ ' + (sync.coverage_to || '—') +
-      (isNum(sync.rolling_days) ? ' · 롤링 재조회 ' + sync.rolling_days + '일' : '')));
-    if (sync.final_before) lines.appendChild(el('span', null, '확정 구간 ~' + sync.final_before));
-    lines.appendChild(el('span', null, sync.vat_available_to
-      ? '부가세 자료는 ' + sync.vat_available_to + '까지 제공(당월분은 익월 마감 후)'
-      : '부가세 자료 제공 구간 미상'));
-    slot.appendChild(lines);
+    slot.appendChild(syncLines(sync));
 
     var notice = ctx.state.notice;
     if (notice) {
@@ -1243,12 +1289,17 @@
       sub: '분자 ' + moneyText(kpi.commission_total) + ' / 분모 ' + moneyText(paySettleTotal) + '(결제 정산액)',
     });
     var holdback = data.holdback || { rows: [], count: 0, total: {} };
+    // 타일 값은 창 안 순증감(보류 음수 + 해제 양수 상계)이라 발생액도 잔액도 아니다 — 부제가 두 부호 합을
+    // 따로 말한다(CFO 감사 B-02). 값은 서버 `holdback.window`(저장값 부호별 합) 그대로. 이름이 `window` 면
+    // 전역을 가린다. 구버전 응답(키 없음)이면 moneyText 가 '—' 를 낸다.
+    var hbWindow = holdback.window || { held: {}, released: {}, net: {} };
     appendKpi(wrap, {
       key: 'holdback', label: '보류·한도', color: CATEGORICAL[4],
       value: moneyText(kpi.holdback_amount), negative: kpi.holdback_amount < 0,
       delta: deltaOf(kpi.holdback_amount, prev.holdback_amount), noDelta: '전기 비교 기준 없음',
       prevLabel: prevLabel,
-      sub: '지급 보류 + 정산 한도 초과분 · ' + (holdback.count
+      sub: '지급 보류 + 정산 한도 초과분 · 창 안 보류 ' + moneyText(hbWindow.held.amount) +
+        ' · 해제 ' + signedMoney(hbWindow.released.amount) + ' · ' + (holdback.count
         ? '일자별 ' + fmtCount(holdback.count) + '행 — 눌러서 펼치기'
         : '이 기간에 보류·한도 행이 없습니다'),
       spark: daily.map(function (d) { return d.holdback || 0; }),
@@ -1283,12 +1334,21 @@
    */
   function renderHoldbackDetail(ctx, host, open) {
     var block = (ctx.state.data && ctx.state.data.holdback) || { rows: [], count: 0, total: {} };
+    var hbWindow = block.window || { held: {}, released: {}, net: {} };
     var panel = el('div', 's-ch-card s-ch-kpi-detail');
     panel.id = HOLDBACK_DETAIL_ID;
     panel.setAttribute('data-settlement-ch-holdback-detail', '');
     setHidden(panel, !open);
     panel.appendChild(cardHead('지급 보류·한도 일자별 상세',
       '일별 정산 행 기준 · 부호는 네이버 원본 그대로 — 같은 금액이 음수 뒤 양수로 다시 오면 보류와 해제의 짝입니다'));
+    // 누적 잔액은 조회 창과 무관한 전 기간 합(서버 `holdback.balance`)이라 빈 목록 검사보다 **앞**에 둔다 —
+    // 창 밖 해제가 잔액에만 반영되는 것이 B-02 의 핵심이다. 구버전 응답(키 없음)이면 줄을 만들지 않는다.
+    var balance = block.balance;
+    if (balance) {
+      panel.appendChild(el('div', 's-ch-note', '적재 구간 전체 누적 잔액 ' + moneyText(balance.net.amount) +
+        '(보류 ' + moneyText(balance.held.amount) + ' · 해제 ' + signedMoney(balance.released.amount) +
+        ', ' + (balance.since || '—') + '~' + (balance.until || '—') + ')'));
+    }
     if (!block.rows.length) {
       panel.appendChild(emptyBox(ctx, '이 기간에 지급 보류·한도 보류 행이 없습니다.'));
       host.appendChild(panel);
@@ -1308,19 +1368,27 @@
       tr.appendChild(el('td', null, row.completed ? '완료' : '미완료'));
       addRow(built, tr);
     });
-    var total = block.total || {};
+    // 합계 뒤 부호별 두 줄 — 값은 서버 `window.held`/`window.released`(창 안 저장값 부호별 합)만 그린다.
+    // 보류↔해제 짝 표시는 추론이라 하지 않는다(D-4 경계).
     var tfoot = el('tfoot');
-    var foot = el('tr');
-    foot.appendChild(el('th', null, '합계'));
-    foot.appendChild(el('th', null, fmtCount(block.count) + '행'));
-    ['pay_holdback', 'settlement_limit', 'amount'].forEach(function (key) {
-      foot.appendChild(el('th', 's-ch-num' + (total[key] < 0 ? ' s-ch-neg' : ''), moneyText(total[key])));
-    });
-    foot.appendChild(el('th', null, ''));
-    tfoot.appendChild(foot);
+    tfoot.appendChild(holdbackFootRow('합계', fmtCount(block.count) + '행', block.total || {}));
+    tfoot.appendChild(holdbackFootRow('보류(음수) 합', '—', hbWindow.held || {}));
+    tfoot.appendChild(holdbackFootRow('해제(양수) 합', '—', hbWindow.released || {}));
     built.table.appendChild(tfoot);
     panel.appendChild(built.wrap);
     host.appendChild(panel);
+  }
+
+  /** 상세 tfoot 한 줄. 세 금액 열은 서버 합(`total`·`window.held`·`window.released`)을 그리기만 한다(화면 합산 금지). */
+  function holdbackFootRow(label, countText, sums) {
+    var tr = el('tr');
+    tr.appendChild(el('th', null, label));
+    tr.appendChild(el('th', null, countText));
+    ['pay_holdback', 'settlement_limit', 'amount'].forEach(function (key) {
+      tr.appendChild(el('th', 's-ch-num' + (sums[key] < 0 ? ' s-ch-neg' : ''), moneyText(sums[key])));
+    });
+    tr.appendChild(el('th', null, ''));
+    return tr;
   }
 
   /* ═══════════════ 7. 렌더 — S2 일별 · S3 워터폴 ═══════════════ */
@@ -1378,7 +1446,7 @@
         };
       }),
       line: { color: COLOR_PREV, values: prevDaily.map(function (row) { return row.settle_amount || 0; }) },
-      tipTitle: function (i) { return String(daily[i].date) + (daily[i].completed ? ' (정산 완료)' : ' (정산 예정)'); },
+      tipTitle: function (i) { return String(daily[i].date) + bucketStateText(daily[i]); },
       tipRows: function (i) {
         var row = daily[i];
         var rows = STACK_SERIES.map(function (series) {
@@ -1414,7 +1482,6 @@
         return {
           key: step.key,
           label: step.label,
-          short: shortStepLabel(step.label),
           amount: step.amount,
           total: i === last,
           note: step.key === 'benefit'
@@ -1439,10 +1506,17 @@
       '혜택 정산의 항목별 상세는 네이버 API 가 제공하지 않습니다(스마트스토어센터 엑셀에서만 확인).'));
   }
 
-  /** 축 라벨용 짧은 이름. 서버 라벨의 공백·중점을 걷어내 6자 안쪽으로 줄인다. */
-  function shortStepLabel(label) {
-    var text = String(label || '').replace(/\s+/g, '');
-    return text.length > 6 ? text.slice(0, 6) : text;
+  /**
+   * 워터폴 X축 라벨을 1~2줄로 가른다. '·' 가 있으면 첫 '·' 에서, 없으면 첫 공백에서 나누고 그 밖은 한 줄.
+   * 예: "지급 보류·한도" → ["지급 보류", "한도"], "결제 정산액" → ["결제", "정산액"], "수수료" → ["수수료"].
+   * 절단은 하지 않는다 — 툴팁 제목은 전체 라벨 그대로다(CFO 감사 G-07).
+   */
+  function splitStepLabel(label) {
+    var text = String(label == null ? '' : label).trim();
+    var at = text.indexOf('·');
+    if (at < 0) at = text.indexOf(' ');
+    if (at <= 0 || at >= text.length - 1) return [text];
+    return [text.slice(0, at).trim(), text.slice(at + 1).trim()];
   }
 
   function cardHead(title, sub) {
@@ -2082,6 +2156,8 @@
 
   function excKindClass(kind) {
     var code = String(kind || '').toUpperCase();
+    // 동기화 실패는 "화면 전체가 옛 값"이라는 신호라 조치 1순위 — 보류(hold)색과 갈라 낸다(CFO 감사 F-04).
+    if (code === 'SYNC_FAILED') return 'danger';
     if (code === 'UNMATCHED' || code === 'COUNT_MISMATCH') return 'warn';
     if (code === 'UNLINKED') return 'info';
     if (code === 'NEGATIVE' || code === 'RETRO') return 'muted';

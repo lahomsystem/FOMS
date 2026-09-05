@@ -974,3 +974,49 @@ def test_case_search_fields_match_the_ledger_kernel():
     assert export.FILTER_FIELDS["settle_case"][1] == \
         ("order_id", "product_order_id", "purchaser_name")
     assert export.FILTER_FIELDS["settle_case"][0] == kernel._LEDGER_SPEC["case"][3]
+
+
+# ---------------------------------------------------------------------------
+# 10. CFO 후속 2차(2026-09-06) G-06 — 조건이 파일명에 남고, 카탈로그 밖 type 은 거절된다
+# ---------------------------------------------------------------------------
+def test_filename_carries_type_and_search_slugs():
+    """조건을 건 파일은 조건 없는 파일과 **다른 이름**이다: ``_type-<코드소문자>`` · ``_q``.
+
+    검색어 본문은 파일명에 넣지 않는다 — 구매자명(PII)·비ASCII 가 다운로드 폴더에 남고 RFC 5987
+    함정에 걸린다. 셋 다 ASCII 다. 음성: 조건이 없으면 예전 이름 그대로.
+    """
+    typed = export.export_filename("settle_case", _DAY, _DAY,
+                                   type_code="NORMAL_SETTLE_AFTER_CANCEL")
+    searched = export.export_filename("settle_case", _DAY, _DAY, q="홍길동")
+    both = export.export_filename("settle_case", _DAY, _DAY, basis="complete",
+                                  type_code="PROD_ORDER", q="x")
+
+    assert typed == "naver_settle_case_type-normal_settle_after_cancel_20260901_20260901.csv"
+    assert searched == "naver_settle_case_q_20260901_20260901.csv"
+    assert "홍길동" not in searched
+    assert both == "naver_settle_case_complete_type-prod_order_q_20260901_20260901.csv"
+    assert all(name.isascii() for name in (typed, searched, both))
+    assert export.export_filename("settle_case", _DAY, _DAY) == \
+        "naver_settle_case_20260901_20260901.csv"
+
+
+def test_filter_rejects_a_type_outside_the_catalogue(app):
+    """``type`` 은 그 kind 의 유형 필드들이 받는 enum 코드 합집합 밖이면 :class:`ValueError`(한글 사유 + 값).
+
+    전에는 ``==`` 로 그대로 흘려 헤더만 있는 200 파일이 내려갔다(오타 type 이 "이 달 정산 없음"으로
+    읽힘). 음성(모집단 안): 두 유형 필드의 카탈로그 코드는 둘 다 통과한다. 다른 kind 의 코드는
+    그 kind 의 필드가 아니라 거절된다.
+    """
+    with pytest.raises(ValueError) as excinfo:
+        export.iter_csv_lines(db_session, kind="settle_case", date_from=_DAY, date_to=_DAY,
+                              filters={"type": "NOPE"})
+    message = str(excinfo.value)
+    assert "'NOPE'" in message and "settle_case" in message
+    assert any("가" <= ch <= "힣" for ch in message), f"한글 사유가 아니다: {message}"
+
+    for code in ("PROD_ORDER", "NORMAL_SETTLE_AFTER_CANCEL"):     # product_order_type · settle_type
+        assert export.iter_csv_lines(db_session, kind="settle_case", date_from=_DAY,
+                                     date_to=_DAY, filters={"type": code}) is not None
+    with pytest.raises(ValueError):
+        export.iter_csv_lines(db_session, kind="commission", date_from=_DAY, date_to=_DAY,
+                              filters={"type": "NORMAL_SETTLE_AFTER_CANCEL"})

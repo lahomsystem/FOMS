@@ -233,6 +233,9 @@ if ($Full) {
         # 호출부 명단 계약: 새 호출 지점이 명단에 없으면 CI red. smoke 사각이라
         # 2026-08-20 에 4커밋 연속 red 를 냈다(as_upload_anchor 의 append_client_log).
         "tests/domains/test_as_timeline_contract.py::test_as_log_write_call_sites_are_the_known_set",
+        # 정산 핀 사슬(셸 4줄·채널 2줄·_CHANNEL_PIN)은 테스트가 잡지만 smoke 서브셋에 없었다(CFO 감사 H-02).
+        "tests/domains/test_settlement_channel_render.py",
+        "tests/domains/test_settlement_operations_render.py",
         "tests/harness/test_hook_log_hygiene.py::test_ai_status_head_budget",
         "tests/harness/test_powershell_encoding_contract.py",
         "tests/visual/test_staging_mobile_v2_assets.py",

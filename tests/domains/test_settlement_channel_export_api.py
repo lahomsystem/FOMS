@@ -482,3 +482,86 @@ def test_audit_row_records_the_effective_axis(client, app):
     # 축을 안 고른 요청도 실효 축을 남긴다(키가 빠지지 않는다).
     _body(client.get(_url(kind="vat_case")))
     assert _audit_rows()[-1].detail["basis"] == "basis"
+
+
+# --------------------------------------------------------------------------
+# 9. CFO 후속 2차(2026-09-06) G-06·E-06 — type 검증 400 · 조건 파일명 · 감사 detail type/q/filename
+# --------------------------------------------------------------------------
+def test_unknown_type_is_400_json_and_an_allowed_type_is_a_file(client, app):
+    """카탈로그 밖 ``type`` 은 **스트림 전에** 400 JSON(감사 행 0) — 허용 코드는 200 CSV 이고 파일명이
+    조건을 말한다. 전에는 오타 type 이 헤더만 있는 200 파일로 내려갔다."""
+    today = get_today_kst()
+    _seed_basic(today)
+    date_from, date_to = _seeded_window(today)
+    _login(client, _make_user(role="ADMIN"))
+    before = len(_audit_rows())
+
+    resp = client.get(_url(kind="settle_case", type="X", **{"from": date_from, "to": date_to}))
+    assert resp.status_code == 400, resp.get_data(as_text=True)
+    assert resp.mimetype == "application/json"
+    body = resp.get_json()
+    assert body["success"] is False and body["data"] is None and "type" in body["error"]
+    assert len(_audit_rows()) == before, "400 은 받아 가지 않은 파일이라 감사 행이 없다"
+
+    resp = client.get(_url(kind="settle_case", type="PROD_ORDER",
+                           **{"from": date_from, "to": date_to}))
+    assert resp.status_code == 200 and resp.mimetype == "text/csv"
+    assert "_type-prod_order" in resp.headers["Content-Disposition"]
+    assert len(_lines(resp)) == 3                     # 헤더 1 + 시드 2행(둘 다 PROD_ORDER)
+    assert len(_audit_rows()) == before + 1
+
+
+def test_download_filename_carries_type_and_q_slugs(client, app):
+    """조건을 건 다운로드의 파일명은 ``_type-<코드소문자>``·``_q`` 조각을 갖는다 — 검색어 본문은 없다.
+
+    음성(모집단 안): 조건 없는 요청은 예전 이름 그대로다.
+    """
+    today = get_today_kst()
+    _seed_basic(today)
+    date_from, date_to = _seeded_window(today)
+    stamp = "%s_%s" % (date_from.replace("-", ""), date_to.replace("-", ""))
+    _login(client, _make_user(role="ADMIN"))
+
+    def disposition(**params) -> str:
+        resp = client.get(_url(**{"from": date_from, "to": date_to}, **params))
+        assert resp.status_code == 200, resp.get_data(as_text=True)
+        resp.get_data()          # 스트림을 소진해 다음 요청과 요청 컨텍스트가 겹치지 않게 한다
+        return resp.headers["Content-Disposition"]
+
+    both = disposition(kind="settle_case", type="PROD_ORDER", q="2026090100002")
+    assert both == 'attachment; filename="naver_settle_case_type-prod_order_q_%s.csv"' % stamp
+    assert "2026090100002" not in both
+    assert disposition(kind="settle_case", q="2026090100002") == \
+        'attachment; filename="naver_settle_case_q_%s.csv"' % stamp
+    assert disposition(kind="settle_case") == \
+        'attachment; filename="naver_settle_case_%s.csv"' % stamp
+
+
+def test_audit_row_records_type_q_and_the_filename(client, app):
+    """감사 detail 에 ``type``·``q``·``filename`` 이 남고, 파일명은 ``Content-Disposition`` 과 **같은 문자열**이다.
+
+    조건이 없으면 ``type``·``q`` 는 **None 으로 키가 남는다**(키를 빼면 "조건 없이 받았다"와 "옛 형식
+    기록"을 구분할 수 없다). 행수는 여전히 적지 않는다.
+    """
+    today = get_today_kst()
+    _seed_basic(today)
+    date_from, date_to = _seeded_window(today)
+    stamp = "%s_%s" % (date_from.replace("-", ""), date_to.replace("-", ""))
+    _login(client, _make_user(role="ADMIN"))
+
+    resp = client.get(_url(kind="settle_case", type="PROD_ORDER", q="2026090100002",
+                           **{"from": date_from, "to": date_to}))
+    assert len(_lines(resp)) == 2, "PROD_ORDER + 상품주문번호 검색 → 시드 1행"   # 본문 소진 포함
+    detail = _audit_rows()[-1].detail
+    assert detail["type"] == "PROD_ORDER" and detail["q"] == "2026090100002"
+    assert resp.headers["Content-Disposition"] == 'attachment; filename="%s"' % detail["filename"]
+    assert detail["filename"] == "naver_settle_case_type-prod_order_q_%s.csv" % stamp
+
+    resp = client.get(_url(kind="settle_case", **{"from": date_from, "to": date_to}))
+    assert len(_lines(resp)) == 3, "조건 없음 → 시드 2행"
+    detail = _audit_rows()[-1].detail
+    assert "type" in detail and detail["type"] is None
+    assert "q" in detail and detail["q"] is None
+    assert detail["filename"] == "naver_settle_case_%s.csv" % stamp
+    assert resp.headers["Content-Disposition"] == 'attachment; filename="%s"' % detail["filename"]
+    assert "rows" not in detail
