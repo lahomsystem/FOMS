@@ -40,6 +40,7 @@ from models import (
     NaverSettleCase,
     NaverSettleCommission,
     NaverSettleDaily,
+    NaverSettleSyncRun,
     NaverVatCase,
     NaverVatDaily,
     SecurityLog,
@@ -71,6 +72,8 @@ _DATA_KEYS = {
 _SYNC_KEYS = {
     "last_run_at", "last_ok_at", "status", "coverage_from", "coverage_to",
     "rolling_days", "final_before", "vat_available_to", "rev", "stale", "never",
+    # CFO 후속 2차(2026-09-06) F-01·F-08: 임계값을 서버가 내리고, 실패를 stale 과 다른 사실로 낸다.
+    "stale_after_hours", "last_error", "failed",
 }
 
 _KPI_SCALARS = {
@@ -84,9 +87,15 @@ _KPI_SCALARS = {
     "expected_unassigned_amount",
 }
 
-#: ``exception_totals`` 의 고정 7종(커널 ``_EXCEPTION_KINDS`` 와 같은 값 — 갈리면 화면이 kind 를 놓친다).
+#: ``exception_totals`` 의 고정 8종(커널 ``_EXCEPTION_KINDS`` 와 같은 값 — 갈리면 화면이 kind 를 놓친다).
+#: ``SYNC_FAILED`` 는 CFO 후속 2차(2026-09-06) F-04 — 최신 동기화 실행이 FAILED 면 1행.
 _EXCEPTION_KINDS = ("UNMATCHED", "UNLINKED", "HOLDBACK", "LIMIT", "NEGATIVE", "RETRO",
-                    "COUNT_MISMATCH")
+                    "COUNT_MISMATCH", "SYNC_FAILED")
+
+#: ``holdback`` 블록 키(CFO 후속 2차 B-02: 창 안 부호별 합 ``window`` + 적재 전 기간 누적 잔액 ``balance``).
+_HOLDBACK_KEYS = {"rows", "count", "total", "window", "balance"}
+#: 보류 금액 3키 모양 — ``total``·``window.*``·``balance.*`` 가 전부 같은 모양이다.
+_HOLDBACK_SIDE_KEYS = {"pay_holdback", "settlement_limit", "amount"}
 
 #: ``kpi.unmatched_aging`` 의 고정 5구간.
 _AGING_KEYS = {"lt30", "d30_59", "d60_89", "d90_plus", "future"}
@@ -161,6 +170,32 @@ def _seed_basic(today: datetime.date) -> datetime.date:
           total_pay_commission_amount=Decimal("-30000"))
     db_session.commit()
     return day
+
+
+def _sync_run(status: str, *, started_at: datetime.datetime | None = None,
+              error: str | None = None, stats: dict | None = None,
+              trigger: str = "SCHEDULE") -> int:
+    """동기화 실행 이력 1행을 심고 id 를 돌려준다(요청 뒤엔 인스턴스가 detach 되므로 id 만).
+
+    ``scope`` 는 NOT NULL JSON 이라 dict 를 넣는다(PG 레인에서 None 은 거절된다).
+    """
+    started = started_at or now_utc_naive()
+    run = NaverSettleSyncRun(
+        channel="NAVER", started_at=started, finished_at=started, status=status,
+        trigger=trigger, actor_user_id=None,
+        scope={"from": "2026-08-01", "to": "2026-09-15", "backfill_from": None,
+               "trigger": trigger, "channel": "NAVER"},
+        stats=stats if stats is not None else {"retro_changes": []},
+        error=error, dry_run=False)
+    db_session.add(run)
+    db_session.commit()
+    return int(run.id)
+
+
+def _sync_state(**value) -> None:
+    """워터마크(``SystemSetting`` 한 행)를 심는다."""
+    db_session.add(SystemSetting(setting_key="naver_settle_sync_state", setting_value=value))
+    db_session.commit()
 
 
 def _get(client, **params):
@@ -239,6 +274,17 @@ def test_data_schema_keys_exact(client, app):
     assert set(data["ledger"]["totals"]) == {"count", "amount", "amount_column", "amount_label"}
     assert set(data["exception_totals"]) == set(_EXCEPTION_KINDS) | {"total"}
     assert isinstance(data["exception_cap"], int)
+    # CFO 후속 2차 B-02·N-02: 보류 블록 5키(창 안 부호별 합·누적 잔액)와 버킷의 완료/예정 몫.
+    assert set(data["holdback"]) == _HOLDBACK_KEYS
+    assert set(data["holdback"]["total"]) == _HOLDBACK_SIDE_KEYS
+    assert set(data["holdback"]["window"]) == {"held", "released", "net"}
+    assert set(data["holdback"]["balance"]) == {"held", "released", "net", "since", "until"}
+    for side in ("held", "released", "net"):
+        assert set(data["holdback"]["window"][side]) == _HOLDBACK_SIDE_KEYS, side
+        assert set(data["holdback"]["balance"][side]) == _HOLDBACK_SIDE_KEYS, side
+    assert data["daily"], "기본 시드가 기본 구간 안이라 일별 버킷이 비면 안 된다"
+    assert {"date", "completed", "settle_amount", "settled_amount",
+            "expected_amount"} <= set(data["daily"][0])
     assert set(data["ledger"]["axis"]) == {"basis", "label", "supported", "excluded",
                                            "shifted_out"}
     assert set(data["ledger"]["pagination"]) == {"page", "per_page", "total", "pages"}
@@ -458,7 +504,7 @@ def test_sync_never_true_without_state(client, app):
 
 
 def test_sync_stale_when_last_success_is_old(client, app):
-    """36시간 넘게 성공하지 못했으면 ``stale`` 이 True 이고 ``never`` 는 False 다."""
+    """28시간 넘게 성공하지 못했으면 ``stale`` 이 True 이고 ``never`` 는 False 다."""
     old = (now_utc_naive() - datetime.timedelta(hours=40)).isoformat()
     db_session.add(SystemSetting(
         setting_key="naver_settle_sync_state",
@@ -533,7 +579,11 @@ def test_commission_by_type_shares_and_labels(client, app):
 # 7. 동기화 요청(POST)
 # --------------------------------------------------------------------------
 def test_sync_enqueues_and_writes_audit(client, app, monkeypatch):
-    """허용 actor 의 동기화 요청은 큐에 들어가고 감사 1행을 남긴다."""
+    """허용 actor 의 동기화 요청은 큐에 들어가고 감사 1행을 남긴다.
+
+    감사 detail 은 6키다(CFO 후속 2차 E-02): 큐가 실제로 쓴 job id 와 요청 시점에 계산된 실행 창
+    ``from``·``to`` 가 있어야 그 행이 rq 큐·실행 이력(scope) 양쪽과 대조된다.
+    """
     from foms.services.jobs import queue as queue_module
 
     seen: dict = {}
@@ -561,7 +611,45 @@ def test_sync_enqueues_and_writes_audit(client, app, monkeypatch):
         SecurityLog.action == "NAVER_SETTLE_SYNC_REQUEST").all()
     assert len(logs) == before + 1
     assert logs[-1].user_id == user_id
-    assert logs[-1].detail["backfill_from"] == "2026-06-01"
+    detail = logs[-1].detail
+    assert set(detail) == {"queued", "backfill_from", "channel", "job_id", "from", "to"}
+    assert detail["queued"] is True and detail["channel"] == "NAVER"
+    assert detail["backfill_from"] == "2026-06-01" == detail["from"]
+    assert detail["job_id"] == "naver_settle_sync" == queue_module._SETTLE_SYNC_JOB_ID
+    assert detail["to"] == (get_today_kst() + datetime.timedelta(days=14)).isoformat()
+
+
+def test_sync_audit_window_defaults_to_rolling_thirty_days(client, app, monkeypatch):
+    """백필 없는 요청의 감사 창은 워커 기본(오늘-30 ~ 오늘+14)이고, 큐에 안 들어갔으면 ``job_id`` 는 None.
+
+    큐에 들어가지 않은 요청에 job id 를 적으면 "그 job 을 보라"는 거짓 단서가 된다.
+    """
+    from foms.services.jobs import queue as queue_module
+
+    today = get_today_kst()
+    _login(client, _make_user(role="ADMIN"))
+
+    def latest_detail() -> dict:
+        return (db_session.query(SecurityLog)
+                .filter(SecurityLog.action == "NAVER_SETTLE_SYNC_REQUEST")
+                .order_by(SecurityLog.id.desc()).first().detail)
+
+    monkeypatch.setattr(queue_module, "enqueue_naver_settle_sync",
+                        lambda actor_user_id=None, **_kwargs: True)
+    assert client.post(SYNC_URL, json={}).get_json()["data"] == {"queued": True}
+    detail = latest_detail()
+    assert detail["backfill_from"] is None
+    assert detail["from"] == (today - datetime.timedelta(days=30)).isoformat()
+    assert detail["to"] == (today + datetime.timedelta(days=14)).isoformat()
+    assert detail["job_id"] == "naver_settle_sync"
+
+    # 음성: 이미 대기 중(queued False)이면 job_id 는 None — 창은 그래도 적는다.
+    monkeypatch.setattr(queue_module, "enqueue_naver_settle_sync",
+                        lambda actor_user_id=None, **_kwargs: False)
+    assert client.post(SYNC_URL, json={}).get_json()["data"] == {"queued": False}
+    detail = latest_detail()
+    assert detail["queued"] is False and detail["job_id"] is None
+    assert detail["from"] == (today - datetime.timedelta(days=30)).isoformat()
 
 
 def test_sync_reports_already_queued_without_lying(client, app, monkeypatch):
@@ -714,7 +802,7 @@ def test_holdback_block_lists_only_days_with_hold_or_limit_and_keeps_sign(client
     data = _data(_get(client))
 
     block = data["holdback"]
-    assert set(block) == {"rows", "count", "total"}
+    assert set(block) == _HOLDBACK_KEYS
     assert block["count"] == 3 == len(block["rows"])
     assert [row["date"] for row in block["rows"]] == [d_hold.isoformat(), d_both.isoformat(),
                                                       d_both.isoformat()]
@@ -737,13 +825,22 @@ def test_holdback_block_lists_only_days_with_hold_or_limit_and_keeps_sign(client
 
 
 def test_holdback_block_is_empty_without_any_hold(client, app):
-    """보류·한도가 전부 0 이면 빈 목록 + 합계 0(0 행을 채워 "보류가 있었다"로 읽히게 하지 않는다)."""
-    _seed_basic(get_today_kst())
+    """보류·한도가 전부 0 이면 빈 목록 + 합계 0(0 행을 채워 "보류가 있었다"로 읽히게 하지 않는다).
+
+    창 안 부호별 합(``window``)·누적 잔액(``balance``)도 전부 0 이되 **키는 있다**(None 금지). 잔액의
+    ``since``/``until`` 은 보류 행이 아니라 채널 전체 일별 행의 최소·최대 예정일이라 시드일이다.
+    """
+    day = _seed_basic(get_today_kst())
     _login(client, _make_user(role="ADMIN"))
     data = _data(_get(client))
 
-    assert data["holdback"] == {"rows": [], "count": 0,
-                                "total": {"pay_holdback": 0, "settlement_limit": 0, "amount": 0}}
+    zero = {"pay_holdback": 0, "settlement_limit": 0, "amount": 0}
+    assert data["holdback"] == {
+        "rows": [], "count": 0, "total": zero,
+        "window": {"held": zero, "released": zero, "net": zero},
+        "balance": {"held": zero, "released": zero, "net": zero,
+                    "since": day.isoformat(), "until": day.isoformat()},
+    }
 
 
 # --------------------------------------------------------------------------
@@ -1011,7 +1108,10 @@ def test_sync_rejects_backfill_older_than_the_floor_and_future(client, app, monk
     """백필 시작일은 오늘-400일 ~ 오늘 사이여야 한다 — 그 밖은 400 으로 막고 큐에 넣지 않는다."""
     calls: list = []
     import foms.api.cs.settlement_channel as api_mod
-    monkeypatch.setattr(api_mod, "_enqueue", lambda actor_user_id, backfill_from: calls.append(backfill_from) or True)
+    # ``_enqueue`` 는 ``(queued, job_id)`` 를 돌려준다(CFO 후속 2차 E-02).
+    monkeypatch.setattr(api_mod, "_enqueue",
+                        lambda actor_user_id, backfill_from:
+                        calls.append(backfill_from) or (True, "naver_settle_sync"))
     _login(client, _make_user(role="ADMIN"))
     today = get_today_kst()
     too_old = (today - datetime.timedelta(days=401)).isoformat()
@@ -1230,3 +1330,269 @@ def test_ledger_amount_labels_cover_every_ledger_kind():
     from foms.services.settlement_channel import _LEDGER_AMOUNT_LABELS, _LEDGER_SPEC
 
     assert set(_LEDGER_AMOUNT_LABELS) == set(_LEDGER_SPEC)
+
+
+# --------------------------------------------------------------------------
+# 16. CFO 감사 후속 2차(2026-09-06) — B-02 보류 부호별 합·누적 잔액 · CRIT-A-01 RETRO/COUNT_MISMATCH
+#     검출기 계약 · F-04 SYNC_FAILED · F-01 stale 28h · F-08 failed 모드 · N-02 버킷 부분 완료 ·
+#     F-06 no-store
+# --------------------------------------------------------------------------
+def test_holdback_window_splits_signs_and_balance_spans_all_loaded_rows(client, app):
+    """``window`` 는 조회 창 안 보류(음수)·해제(양수)를 **컬럼별 부호**로 갈라 더한 합, ``balance`` 는
+    적재된 전 기간의 같은 합이다(조회 창 무관).
+
+    창 안 보류 2행(−10,000,000·−5,000,000)·해제 1행(+2,000,000), 창 밖(오늘−100일) 해제 1행
+    (+3,000,000). 창 밖 해제는 ``balance`` 에만 들어간다 — 음성: ``window.released.amount`` 는
+    2,000,000 그대로다. 항등식 ``window.net == total == kpi.holdback_amount``.
+    """
+    today = get_today_kst()
+    day = _seed_basic(today)                       # 보류 0 인 두 행 — 어느 부호 합에도 안 들어간다
+    far = today - datetime.timedelta(days=100)     # 기본 창(오늘-30 ~ 오늘+14) 밖
+    _daily(day, pay_holdback_amount=Decimal("-10000000"))
+    _daily(day - datetime.timedelta(days=1), pay_holdback_amount=Decimal("-5000000"))
+    _daily(day, pay_holdback_amount=Decimal("2000000"))
+    _daily(far, pay_holdback_amount=Decimal("3000000"))
+    db_session.commit()
+    _login(client, _make_user(role="ADMIN"))
+    data = _data(_get(client))
+
+    block = data["holdback"]
+    window, balance = block["window"], block["balance"]
+    assert block["count"] == 3, "창 밖 해제 행은 상세 목록에 없다"
+    assert window["held"]["pay_holdback"] == -15000000
+    assert window["released"]["pay_holdback"] == 2000000
+    assert window["released"]["amount"] == 2000000          # 음성: 창 밖 +3,000,000 은 여기 없다
+    assert window["held"]["settlement_limit"] == 0 == window["released"]["settlement_limit"]
+    assert (window["net"]["amount"] == -13000000 == block["total"]["amount"]
+            == data["kpi"]["holdback_amount"])
+    assert window["net"]["pay_holdback"] == (window["held"]["pay_holdback"]
+                                            + window["released"]["pay_holdback"])
+    assert balance["held"]["pay_holdback"] == -15000000
+    assert balance["released"]["pay_holdback"] == 5000000
+    assert balance["net"]["amount"] == -10000000
+    assert balance["since"] == far.isoformat()
+    assert balance["until"] == day.isoformat()
+    # 전기 KPI 블록은 불변 — window/balance 가 kpi.prev 로 새지 않는다.
+    assert "window" not in data["kpi"]["prev"] and "balance" not in data["kpi"]["prev"]
+
+
+@pytest.mark.parametrize("daily_pay,case_pay,diff", [
+    ("1100000", "1000000", 100000),      # 일별 > 건별 → 양수
+    ("1000000", "1100000", -100000),     # 건별 > 일별 → 음수(부호를 뒤집지 않는다)
+])
+def test_count_mismatch_exception_carries_the_signed_diff(client, app, daily_pay, case_pay, diff):
+    """일별↔건별 결제 정산액이 어긋나면 COUNT_MISMATCH **정확히 1행** — 금액은 ``daily - case`` 부호
+    그대로이고 ``ref`` 가 두 합을 든다(CRIT-A-01: 이 검출기에 계약이 0건이었다)."""
+    today = get_today_kst()
+    day = today - datetime.timedelta(days=1)
+    _daily(day, pay_settle_amount=Decimal(daily_pay))
+    _case(day, pay_settle_amount=Decimal(case_pay))
+    db_session.commit()
+    _login(client, _make_user(role="ADMIN"))
+    data = _data(_get(client))
+
+    rows = [item for item in data["exceptions"] if item["kind"] == "COUNT_MISMATCH"]
+    assert len(rows) == 1, data["exceptions"]
+    row = rows[0]
+    assert row["amount"] == diff == data["reconcile"]["diff"]
+    assert row["ref"] == {"daily_total": int(daily_pay), "case_total": int(case_pay)}
+    assert row["label"] == "일별↔건별 합계 불일치"
+    assert row["date"] is None and row["age_days"] is None   # 구간 합의 차라 날짜가 없다
+    assert data["exception_totals"]["COUNT_MISMATCH"] == 1
+
+
+def _retro_change(day: datetime.date, old_total: str, new_total: str) -> dict:
+    """``run.stats.retro_changes`` 항목 1개 — ``settle_sync.replace_partition`` 이 남기는 모양 그대로."""
+    return {"table": "naver_settle_daily", "date": day.isoformat(), "old_total": old_total,
+            "new_total": new_total, "old_count": 1, "new_count": 1}
+
+
+def test_retro_exceptions_come_from_the_latest_run_and_are_capped_at_fifty(client, app):
+    """RETRO 는 **최신** run 의 ``stats.retro_changes`` 에서만 나오고, 목록은 50건 상한·모집단은 전부(CRIT-A-01).
+
+    1) 1건짜리 run → RETRO 1행, 금액은 ``new_total - old_total``(부호 포함).
+    2) 그 뒤 51건짜리 run → 목록 50행·``exception_totals.RETRO == 51``, 옛 run 의 1건은 사라진다.
+    """
+    today = get_today_kst()
+    _seed_basic(today)
+    _login(client, _make_user(role="ADMIN"))
+    older = _retro_change(today - datetime.timedelta(days=9), "1000000.00", "900000.00")
+    _sync_run("OK", started_at=now_utc_naive() - datetime.timedelta(days=1),
+              stats={"retro_changes": [older]})
+
+    data = _data(_get(client))
+    retro = [item for item in data["exceptions"] if item["kind"] == "RETRO"]
+    assert len(retro) == 1 and data["exception_totals"]["RETRO"] == 1
+    assert retro[0]["amount"] == -100000                       # 900,000 − 1,000,000
+    assert retro[0]["label"] == "소급 변경(확정 후 값 변동)"
+    assert retro[0]["date"] == older["date"] and retro[0]["age_days"] == 9
+    assert retro[0]["ref"] == older
+
+    changes = [_retro_change(today - datetime.timedelta(days=index + 1), "1000000.00",
+                             f"{1000000 + 1000 * (index + 1)}.00") for index in range(51)]
+    _sync_run("OK", stats={"retro_changes": changes})
+    data = _data(_get(client))
+    retro = [item for item in data["exceptions"] if item["kind"] == "RETRO"]
+    assert len(retro) == 50 == data["exception_cap"]
+    assert data["exception_totals"]["RETRO"] == 51
+    assert retro[0]["amount"] == 1000 and retro[0]["ref"] == changes[0]
+    assert older not in [item["ref"] for item in retro], "옛 run 의 변경이 섞여 나왔다"
+
+
+def test_retro_and_mismatch_are_absent_when_data_agrees(client, app):
+    """음성 대조군 — 일별·건별이 일치하고 최신 run 의 ``retro_changes`` 가 비면 두 kind 는 0행·0건."""
+    today = get_today_kst()
+    _seed_basic(today)                       # 일별 pay 1,430,000 == 건별 pay 1,430,000
+    _sync_run("OK", stats={"retro_changes": []})
+    _login(client, _make_user(role="ADMIN"))
+    data = _data(_get(client))
+
+    assert data["reconcile"]["diff"] == 0
+    assert not [item for item in data["exceptions"]
+                if item["kind"] in ("RETRO", "COUNT_MISMATCH")]
+    assert data["exception_totals"]["RETRO"] == 0 == data["exception_totals"]["COUNT_MISMATCH"]
+
+
+def test_sync_failed_exception_when_the_latest_run_failed(client, app):
+    """최신 run 이 FAILED 면 SYNC_FAILED **정확히 1행**이 목록 맨 앞에 — 화면 전체가 옛 값이라는 신호(F-04).
+
+    금액은 없다(``amount`` None — 돈이 아니라 적재 상태). 라벨은 오류를 공백 정리해 80자로 자른 요약.
+    """
+    today = get_today_kst()
+    day = _seed_basic(today)
+    _daily(day, pay_holdback_amount=Decimal("-50000"))     # 다른 예외(HOLDBACK)보다 앞에 서야 한다
+    db_session.commit()
+    started = now_utc_naive() - datetime.timedelta(hours=2)
+    error = "네이버 500   Internal\nServer Error " + "x" * 120
+    run_id = _sync_run("FAILED", started_at=started, error=error, trigger="MANUAL")
+    _login(client, _make_user(role="ADMIN"))
+    data = _data(_get(client))
+
+    failed = [item for item in data["exceptions"] if item["kind"] == "SYNC_FAILED"]
+    assert len(failed) == 1 and data["exceptions"][0] == failed[0]
+    row = failed[0]
+    assert row["label"].startswith("동기화 실패: ") and "네이버 500" in row["label"]
+    assert "\n" not in row["label"] and "   " not in row["label"]
+    assert len(row["label"]) == len("동기화 실패: ") + 80
+    assert row["amount"] is None and row["action_url"] is None
+    assert row["date"] == started.date().isoformat()
+    assert row["ref"]["run_id"] == run_id and row["ref"]["status"] == "FAILED"
+    assert row["ref"]["trigger"] == "MANUAL" and row["ref"]["started_at"] == started.isoformat()
+    assert row["ref"]["error"] == error
+    assert data["exception_totals"]["SYNC_FAILED"] == 1
+    assert data["exception_totals"]["HOLDBACK"] == 1 and data["exceptions"][1]["kind"] == "HOLDBACK"
+
+
+@pytest.mark.parametrize("status", ["OK", "ABORTED_QUOTA"])
+def test_ok_run_leaves_no_sync_failed_exception(client, app, status):
+    """음성 — 최신 run 이 OK·ABORTED_QUOTA 면 SYNC_FAILED 0행(쿼터 중단은 실패가 아니라 정상 중단이다).
+
+    옛 FAILED run 이 뒤에 있어도 **최신** run 만 본다.
+    """
+    _seed_basic(get_today_kst())
+    _sync_run("FAILED", started_at=now_utc_naive() - datetime.timedelta(days=1), error="옛 실패")
+    _sync_run(status, error="쿼터 제한" if status != "OK" else None)
+    _login(client, _make_user(role="ADMIN"))
+    data = _data(_get(client))
+
+    assert not [item for item in data["exceptions"] if item["kind"] == "SYNC_FAILED"]
+    assert data["exception_totals"]["SYNC_FAILED"] == 0
+
+
+def test_retro_and_sync_failed_coexist_for_a_failed_run_with_committed_changes(client, app):
+    """최신 run 이 FAILED 여도 ``stats.retro_changes`` 에 남은(앞 창에서 **커밋된**) 소급 변경은 RETRO 로 나온다.
+
+    SYNC_FAILED 1행(맨 앞) + RETRO 1행 공존 — 되돌림은 미커밋 꼬리만 빼기 때문이다(F-04·리뷰 A-1/Q-01).
+    음성: 되돌린 몫(``retro_changes_rolled_back``)은 RETRO 재료가 아니다.
+    """
+    today = get_today_kst()
+    _seed_basic(today)
+    committed = _retro_change(today - datetime.timedelta(days=12), "1000000.00", "1200000.00")
+    rolled = _retro_change(today - datetime.timedelta(days=1), "500000.00", "700000.00")
+    run_id = _sync_run("FAILED", error="창 2 에서 네이버 500",
+                       stats={"retro_changes": [committed], "retro_changes_rolled_back": [rolled]})
+    _login(client, _make_user(role="ADMIN"))
+    data = _data(_get(client))
+
+    kinds = [item["kind"] for item in data["exceptions"]]
+    assert kinds[0] == "SYNC_FAILED" and kinds.count("SYNC_FAILED") == 1
+    assert data["exceptions"][0]["ref"]["run_id"] == run_id
+    retro = [item for item in data["exceptions"] if item["kind"] == "RETRO"]
+    assert len(retro) == 1 and retro[0]["ref"] == committed
+    assert retro[0]["amount"] == 200000                        # 1,200,000 − 1,000,000
+    assert rolled not in [item["ref"] for item in retro], "되돌린 변경이 RETRO 로 나왔다"
+    assert data["exception_totals"]["RETRO"] == 1 and data["exception_totals"]["SYNC_FAILED"] == 1
+
+
+@pytest.mark.parametrize("hours,stale", [(27.9, False), (28.1, True)])
+def test_stale_threshold_is_28_hours_at_the_boundary(client, app, hours, stale):
+    """stale 임계값은 28시간(일 1회 05:30 스케줄 + 여유 4h)이고 서버가 ``stale_after_hours`` 로 내린다(F-01)."""
+    stamp = (now_utc_naive() - datetime.timedelta(hours=hours)).isoformat()
+    _sync_state(rev=1, last_run_at=stamp, last_ok_at=stamp, last_status="OK")
+    _login(client, _make_user(role="ADMIN"))
+    sync = _data(_get(client))["sync"]
+
+    assert sync["stale"] is stale, (hours, sync)
+    assert sync["stale_after_hours"] == 28 == kernel.STALE_AFTER_HOURS
+    assert sync["failed"] is False and sync["last_error"] is None and sync["never"] is False
+
+
+@pytest.mark.parametrize("last_ok_hours,stale", [(None, False), (40, True)])
+def test_failed_without_any_ok_is_failed_not_stale(client, app, last_ok_hours, stale):
+    """성공이 한 번도 없는 FAILED 는 ``failed=True``·``stale=False`` — stale 문구가 방금 난 실패를 덮지
+    않는다(F-08). 대조: 성공이 있었고 그게 40시간 전이면 ``failed``·``stale`` 둘 다 True(둘 다 사실)."""
+    now = now_utc_naive()
+    state = {"last_run_at": (now - datetime.timedelta(hours=2)).isoformat(),
+             "last_status": "FAILED", "last_error": "token expired", "rev": 3}
+    if last_ok_hours is not None:
+        state["last_ok_at"] = (now - datetime.timedelta(hours=last_ok_hours)).isoformat()
+    _sync_state(**state)
+    _login(client, _make_user(role="ADMIN"))
+    sync = _data(_get(client))["sync"]
+
+    assert sync["status"] == "FAILED" and sync["failed"] is True
+    assert sync["stale"] is stale and sync["never"] is False
+    assert sync["last_error"] == "token expired"
+
+
+def test_daily_buckets_split_settled_and_expected_amounts(client, app):
+    """월 버킷에 완료·미완료 행이 섞이면 ``completed`` 는 False 인 채로 ``settled_amount``·``expected_amount``
+    가 각각의 몫을 말한다(N-02). 항등식 ``settled + expected == settle_amount``. 일 세밀도도 같은 키·규칙."""
+    _daily(datetime.date(2026, 2, 3), settle_amount=Decimal("700000"),
+           settle_complete_date=datetime.date(2026, 2, 3))
+    _daily(datetime.date(2026, 2, 20), settle_amount=Decimal("300000"))
+    db_session.commit()
+    _login(client, _make_user(role="ADMIN"))
+    window = {"from": "2026-02-01", "to": "2026-02-28"}
+
+    month = _data(_get(client, granularity="month", **window))["daily"]
+    assert [bucket["date"] for bucket in month] == ["2026-02-01"]
+    assert month[0]["completed"] is False
+    assert month[0]["settled_amount"] == 700000 and month[0]["expected_amount"] == 300000
+    assert month[0]["settle_amount"] == 1000000 == (month[0]["settled_amount"]
+                                                    + month[0]["expected_amount"])
+
+    days = {bucket["date"]: bucket
+            for bucket in _data(_get(client, granularity="day", **window))["daily"]}
+    assert days["2026-02-03"]["completed"] is True
+    assert days["2026-02-03"]["settled_amount"] == 700000
+    assert days["2026-02-03"]["expected_amount"] == 0
+    assert days["2026-02-20"]["completed"] is False
+    assert days["2026-02-20"]["settled_amount"] == 0
+    assert days["2026-02-20"]["expected_amount"] == 300000
+    empty = days["2026-02-10"]                        # 빈 날: 둘 다 0, completed False(불변)
+    assert empty["completed"] is False and empty["settled_amount"] == 0 == empty["expected_amount"]
+    assert all(bucket["settled_amount"] + bucket["expected_amount"] == bucket["settle_amount"]
+               for bucket in days.values())
+
+
+def test_json_api_is_no_store(client, app):
+    """탭 한 벌(full)·스트립 응답 둘 다 ``Cache-Control: no-store`` — 구매자명이 실리는 응답을 SW PII
+    게이트가 이 헤더로 판정한다(F-06)."""
+    _login(client, _make_user(role="ADMIN"))
+
+    full = _get(client)
+    strip = _get(client, view="strip")
+
+    assert full.status_code == 200 and full.headers["Cache-Control"] == "no-store"
+    assert strip.status_code == 200 and strip.headers["Cache-Control"] == "no-store"

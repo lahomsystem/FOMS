@@ -35,6 +35,7 @@ from __future__ import annotations
 import csv
 import datetime
 import io
+import re
 from decimal import Decimal, InvalidOperation
 from typing import Any, Iterator, Mapping, Optional
 
@@ -536,6 +537,25 @@ def _axis_expr(kind: str, basis: str) -> Any:
     return columns[0] if len(columns) == 1 else func.coalesce(*columns)
 
 
+def _allowed_type_codes(kind: str) -> frozenset[str]:
+    """그 kind 의 유형 필드들이 받는 enum 코드 **합집합**(``_ENUM_MAPS`` 카탈로그가 SSOT).
+
+    허용 밖 type 을 그대로 ``==`` 로 흘리면 헤더만 있는 200 파일이 내려가 "이 달 정산 없음"으로
+    읽힌다(감사 G-06). 코드 목록을 여기 적지 않는다 — 카탈로그가 바뀌면 같이 바뀌어야 한다.
+
+    Args:
+        kind: CSV 종류(정본 이름).
+
+    Returns:
+        허용 코드 집합(유형 필드가 없는 kind 는 빈 집합).
+    """
+    type_fields, _search_fields = FILTER_FIELDS[kind]
+    codes: set[str] = set()
+    for field in type_fields:
+        codes.update(_ENUM_MAPS[field])
+    return frozenset(codes)
+
+
 def _filter_clauses(model: Any, kind: str, filters: dict) -> list:
     """유형 필터·검색어 술어. 파라미터 바인딩만 쓴다(문자열 조립 금지).
 
@@ -548,8 +568,8 @@ def _filter_clauses(model: Any, kind: str, filters: dict) -> list:
         ``where`` 절 목록.
 
     Raises:
-        ValueError: 그 kind 가 받지 않는 조건을 줬을 때. 조용히 버리면 화면과 다른
-            파일이 나간다.
+        ValueError: 그 kind 가 받지 않는 조건을 줬을 때, 또는 ``type`` 이 그 kind 의 유형
+            카탈로그 밖일 때. 조용히 버리면 화면과 다른 파일이 나간다.
     """
     type_fields, search_fields = FILTER_FIELDS[kind]
     clauses: list = []
@@ -560,6 +580,9 @@ def _filter_clauses(model: Any, kind: str, filters: dict) -> list:
         if not fields:
             raise ValueError(f"{kind} 내보내기는 {key} 조건을 받지 않습니다.")
         if key == "type":
+            if wanted not in _allowed_type_codes(kind):
+                raise ValueError(
+                    f"type 은 {kind} 내보내기가 받는 유형 코드가 아닙니다: {wanted!r}")
             clauses.append(or_(*[getattr(model, name) == wanted for name in fields]))
         else:
             pattern = f"%{wanted}%"
@@ -707,8 +730,32 @@ def _filename_axis_slug(kind: str, basis: str) -> str:
     return "" if axis == "expect" else f"_{axis}"
 
 
+def _filename_filter_slug(type_code: Optional[str], q: Optional[str]) -> str:
+    """파일명에 끼울 조건 조각 — ``_type-<코드소문자>`` · ``_q``(값이 있을 때만).
+
+    조건을 건 파일이 조건 없는 파일과 **같은 이름**으로 내려와 폴더에서 덮어썼다(감사 G-06).
+    검색어 본문은 넣지 않는다 — 구매자명(PII)·비ASCII 가 파일명에 실리면 RFC 5987 함정에
+    걸리고 다운로드 폴더에 성명이 남는다. "검색이 걸렸다"는 표식(``_q``)만 남긴다.
+
+    Args:
+        type_code: 유형 코드(검증은 :func:`_filter_clauses` 가 이미 했다).
+        q: 검색어.
+
+    Returns:
+        ``"_type-prod_order_q"`` 같은 조각, 또는 빈 문자열.
+    """
+    parts: list[str] = []
+    code = str(type_code or "").strip().lower()
+    if code:
+        parts.append("_type-" + re.sub(r"[^a-z0-9_]+", "-", code))
+    if str(q or "").strip():
+        parts.append("_q")
+    return "".join(parts)
+
+
 def export_filename(kind: str, date_from: datetime.date,
-                    date_to: datetime.date, basis: str = DEFAULT_BASIS) -> str:
+                    date_to: datetime.date, basis: str = DEFAULT_BASIS,
+                    type_code: Optional[str] = None, q: Optional[str] = None) -> str:
     """다운로드 파일명 — **ASCII 만** 쓴다(한글 파일명은 RFC 5987 함정에 걸린다).
 
     Args:
@@ -717,10 +764,13 @@ def export_filename(kind: str, date_from: datetime.date,
         date_to: 종료일.
         basis: 기준일 축. **실효 축**이 예정일이 아닐 때만 이름에 실린다(기본값이라
             3인자 기존 호출은 예전과 똑같은 이름을 낸다).
+        type_code: 유형 조건. 있으면 ``_type-<코드소문자>`` 조각이 붙는다.
+        q: 검색 조건. 있으면 ``_q`` 조각만 붙는다(검색어 본문은 넣지 않는다).
 
     Returns:
         예: ``naver_settle_case_20260803_20260902.csv`` ·
-        ``naver_settle_case_complete_20260101_20260917.csv``.
+        ``naver_settle_case_complete_20260101_20260917.csv`` ·
+        ``naver_settle_case_type-prod_order_q_20260901_20260901.csv``.
 
     Raises:
         ValueError: 허용 밖 종류.
@@ -728,6 +778,7 @@ def export_filename(kind: str, date_from: datetime.date,
     resolved = normalize_kind(kind)
     slug = _FILENAME_SLUG[resolved]
     return (f"naver_settle_{slug}{_filename_axis_slug(resolved, basis)}"
+            f"{_filename_filter_slug(type_code, q)}"
             f"_{date_from.strftime('%Y%m%d')}"
             f"_{date_to.strftime('%Y%m%d')}.csv")
 

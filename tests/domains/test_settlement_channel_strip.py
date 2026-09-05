@@ -34,12 +34,13 @@ from sqlalchemy import event
 
 import foms.api.cs.settlement_channel as api_module
 from db import db_session, engine
-from foms.services.datetime_kst import get_today_kst
+from foms.services.datetime_kst import get_today_kst, now_utc_naive
 from foms.services.settlement_channel import (
     STRIP_TAB_KEY,
     build_channel_dashboard,
     build_channel_strip,
 )
+from models import NaverSettleSyncRun
 
 # 권한 매트릭스·시드 SSOT 재사용(복제 금지).
 from tests.domains.test_auth_finance import _login, _make_user
@@ -404,3 +405,29 @@ def test_unknown_view_is_400_with_a_korean_reason(client, app, view):
     body = resp.get_json()
     assert body["success"] is False and body["data"] is None
     assert "view" in body["error"]
+
+
+# --------------------------------------------------------------------------
+# 6. CFO 후속 2차(2026-09-06) F-04 — 실패한 실행도 예외 1건이다
+# --------------------------------------------------------------------------
+def test_strip_counts_a_failed_run_as_an_exception(app):
+    """최신 run 이 FAILED 면 스트립 ``exception_count`` 에도 SYNC_FAILED 1건이 들어간다(탭 모집단과 같은 수).
+
+    스트립은 ``_build_holdback``(누적 잔액 질의)을 부르지 않으므로 질의 예산(≤6)과 키 집합은 그대로다.
+    """
+    today = get_today_kst()
+    _seed_basic(today)                                   # 그 밖의 예외 0
+    db_session.add(NaverSettleSyncRun(
+        channel="NAVER", started_at=now_utc_naive(), finished_at=now_utc_naive(),
+        status="FAILED", trigger="SCHEDULE",
+        scope={"from": "2026-08-01", "to": "2026-09-15", "channel": "NAVER"},
+        stats={"retro_changes": []}, error="네이버 500", dry_run=False))
+    db_session.commit()
+
+    strip, strip_queries = _count_queries(lambda: _strip(today))
+    full = _full(today)
+
+    assert full["exception_totals"]["SYNC_FAILED"] == 1
+    assert strip["strip"]["exception_count"] == full["exception_totals"]["total"] == 1
+    assert set(strip["strip"]) == _STRIP_KEYS
+    assert strip_queries <= 6, strip_queries

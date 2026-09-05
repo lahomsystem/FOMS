@@ -411,6 +411,9 @@ class _SyncContext:
     now: datetime
     run_id: Optional[int] = None
     calls: int = 0
+    #: 마지막 창 커밋 시점의 ``retro_changes`` 길이. 창마다 커밋되므로 실패 때 되돌릴 수 있는
+    #: 소급 변경은 이 표식 뒤의 꼬리만이다(앞 창의 것은 DB 에 이미 새 값).
+    committed_retro: int = 0
     stats: dict[str, Any] = field(default_factory=lambda: {
         "calls": {}, "rows": {}, "retro_changes": [], "partitions": 0,
         "skipped_no_axis": 0, "last_dates": {},
@@ -739,6 +742,24 @@ def _sync_vat_month(ctx: _SyncContext, month_start: date, month_end: date) -> No
 # 진입점
 # --------------------------------------------------------------------------- #
 
+def default_sync_window(today: date, backfill_from: Optional[date]) -> tuple[date, date]:
+    """이번 실행이 훑을 구간 ``(start, end)`` — ``backfill_from`` 또는 오늘-30, 그리고 오늘+14.
+
+    :func:`run_settle_sync` 와 화면의 동기화 요청 감사 행(``foms/api/cs/settlement_channel.py``)이
+    **같은 함수**를 부른다 — 식을 두 곳에 베끼면 한쪽에 클램프·보정이 붙는 날 감사 행이 조용히
+    거짓이 된다(CFO 감사 E-02).
+
+    Args:
+        today: 오늘(KST 날짜).
+        backfill_from: 소급 적재 시작일(없으면 기본 롤링 구간).
+
+    Returns:
+        ``(구간 시작, 구간 끝)`` — 끝 포함.
+    """
+    start = backfill_from or (today - timedelta(days=DEFAULT_ROLLING_DAYS))
+    return start, today + timedelta(days=DEFAULT_FUTURE_DAYS)
+
+
 def run_settle_sync(session: Session, client: Any, *, today: date, trigger: str,
                     actor_user_id: Optional[int] = None,
                     backfill_from: Optional[date] = None, dry_run: bool = False,
@@ -768,8 +789,7 @@ def run_settle_sync(session: Session, client: Any, *, today: date, trigger: str,
     """
     if trigger not in NAVER_SETTLE_RUN_TRIGGERS:
         raise ValueError(f"알 수 없는 실행 유형입니다: {trigger!r}")
-    start = backfill_from or (today - timedelta(days=DEFAULT_ROLLING_DAYS))
-    end = today + timedelta(days=DEFAULT_FUTURE_DAYS)
+    start, end = default_sync_window(today, backfill_from)
     scope = {"from": start.isoformat(), "to": end.isoformat(),
              "backfill_from": backfill_from.isoformat() if backfill_from else None,
              "trigger": trigger, "channel": channel}
@@ -813,6 +833,8 @@ def _sync_window(ctx: _SyncContext, window_start: date, window_end: date) -> Non
     if not ctx.dry_run:
         # 창마다 커밋한다 — 중간에 멈춰도 여기까지 받은 것은 남는다.
         ctx.session.commit()
+        # 여기까지의 소급 변경은 커밋됐다 — 뒤 창이 실패해도 되돌림 대상이 아니다.
+        ctx.committed_retro = len(ctx.stats["retro_changes"])
 
 
 def _open_run(ctx: _SyncContext, *, scope: dict, actor_user_id: Optional[int]) -> None:
@@ -827,13 +849,39 @@ def _open_run(ctx: _SyncContext, *, scope: dict, actor_user_id: Optional[int]) -
     ctx.run_id = int(run.id)
 
 
+def _discard_failed_window(ctx: _SyncContext) -> None:
+    """실패한 창의 부분 교체를 버린다 — 창 단위 원자성(CFO 감사 F-04).
+
+    일별은 창 전체를 먼저 교체하고 건별·수수료는 하루씩 교체하므로, 창 도중 예외가 나면
+    세션에 **반쯤 교체된 파티션**이 남는다. 그것을 커밋하면 다음 OK 까지 일별↔건별이 어긋난
+    채로 화면에 실린다(재현: 2일째 예외 → DAILY 는 새 run, CASE 는 하루만 새 run). 앞선 창들은
+    :func:`_sync_window` 가 이미 커밋해 그대로 남는다.
+
+    되돌린 소급 변경은 관측으로만 남기고(``retro_changes_rolled_back``) RETRO 예외 재료
+    (``retro_changes``)에서는 **미커밋 몫만** 뺀다 — 앞 창에서 커밋된 소급 변경은 DB 가 이미 새 값이라
+    다음 OK 실행이 다시 감지하지 못하므로 여기서 빼면 화면 RETRO 가 그 변화를 영구히 놓친다. 그래서
+    실패 실행에서는 RETRO 와 ``SYNC_FAILED`` 가 공존한다(기본 05:30 실행도 창 2개다).
+
+    Args:
+        ctx: 실행 컨텍스트(세션·집계).
+    """
+    ctx.session.rollback()
+    retro = list(ctx.stats.get("retro_changes") or [])
+    ctx.stats["retro_changes_rolled_back"] = retro[ctx.committed_retro:]
+    ctx.stats["retro_changes"] = retro[:ctx.committed_retro]
+
+
 def _finish(ctx: _SyncContext, *, status: str, scope: dict,
             error: Optional[str]) -> dict[str, Any]:
     """이력 행과 워터마크를 마무리하고 반환 dict 을 만든다.
 
     ``OK`` 일 때만 성공 구간(coverage)과 ``last_ok_at`` 이 전진한다 — 쿼터 중단·실패는
-    다음 실행이 같은 구간을 다시 훑도록 제자리에 둔다.
+    다음 실행이 같은 구간을 다시 훑도록 제자리에 둔다. 그 두 경우는 실패 창의 부분 교체를
+    **먼저 되돌린 뒤**(:func:`_discard_failed_window`) 이력 행만 닫는다 — 이력 행은 별도
+    커밋이라 화면이 실패를 본다. 반환 ``stats`` 는 되돌림 뒤의 것이다(run.stats 와 같다).
     """
+    if not ctx.dry_run and status != "OK":
+        _discard_failed_window(ctx)
     payload = {"ok": status == "OK", "status": status, "run_id": ctx.run_id,
                "dry_run": ctx.dry_run, "scope": dict(scope), "stats": dict(ctx.stats),
                "error": error}
@@ -906,6 +954,7 @@ __all__ = [
     "SettleSyncQuotaAborted",
     "apply_matching",
     "build_row",
+    "default_sync_window",
     "is_finalized",
     "iter_days",
     "last_month_bounds",
