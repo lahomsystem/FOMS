@@ -13,10 +13,10 @@
 | T1 | 의존 방향 래칫 계약 테스트 | DONE | 2026-09-07 |
 | T2 | 파일 크기 래칫 + 정본 경로 정정 | DONE | 2026-09-07 |
 | T5 | 사고 원장·결정 기록 선등재 | DONE | 2026-09-07 |
-| T3 | 드리프트 감사 배선 + 09-01 원인 줄 제거 | IN_PROGRESS (갈래 제거 DONE · 감사 배선 진행) | 2026-09-07 |
-| T4 | 루프 하트비트 + 워커 Sentry 배선 | PENDING | - |
-| T6 | 로그인 한도·잠금 + 레이트리미터 폴백 로그 | PENDING | - |
-| T7 | 두 번째 개발자 부팅 경로 | PENDING | - |
+| T3 | 드리프트 감사 배선 + 09-01 원인 줄 제거 | DONE(부분) — 코드 완료, 스테이징·2주 검증 대기 | 2026-09-07 |
+| T4 | 루프 하트비트 + 워커 Sentry 배선 | DONE(부분) — 코드 완료, 스테이징 검증 대기 | 2026-09-07 |
+| T6 | 로그인 한도·잠금 + 레이트리미터 폴백 로그 | DONE(부분) — 코드 완료, 스테이징 검증 대기 | 2026-09-07 |
+| T7 | 두 번째 개발자 부팅 경로 | DONE (검증 기준 1건 병기) | 2026-09-07 |
 | T8 | 게이트·push·CI·스테이징 QA | PENDING | - |
 
 상태 값: PENDING / IN_PROGRESS / DONE / DONE(부분) / BLOCKED.
@@ -265,7 +265,7 @@ $ grep -c 'AS-AXIS' docs/harness/policy/DECISIONS.md
 
 ## T3. 드리프트 감사 배선 + 09-01 원인 줄 제거
 
-- 상태: IN_PROGRESS — 갈래 제거·계약 테스트 DONE(총괄 재검증 완료), 감사 배선 진행 중
+- 상태: DONE(부분) — 코드 전량 완료·커밋 `125ad8cc9`. 스테이징 검증과 "2주 연속" 은 push 후/시간 필요
 - 완료 기준(보고서 원문): 두 감사가 2주 연속 0건(워크플로 아티팩트), 스테이징에서 전화 변경 1회 뒤
   트리아지 자동 매칭이 같은 고객을 찾음(09-01 재현 시나리오).
 - 이 세션에서 닫히는 부분: `workflow_dispatch` 1회 green + 로컬 감사 2종 출력 + 매칭 계약 테스트
@@ -300,23 +300,190 @@ $ grep -c 'Order.phone ==' foms/services/integrations/naver_commerce/order_candi
 - 워커 회귀 확인(단일 파일 실행): naver 계열 6파일 216 passed · `tests/domains --collect-only`
   6748 collected 오류 0.
 - `or_` import 는 남겼다 — 같은 파일 `search_orders_for_attach`(1025행)가 여전히 쓴다(미사용 아님).
-- 리뷰 findings: (감사 배선분 진행 중)
+### 감사 배선 (2026-09-07)
+
+산출물 5개:
+- `foms/api/ops_drift.py` — `GET /api/foms/ops/drift-audit`(admin 전용, 미인증 401 · 비ADMIN 403,
+  읽기 후 `session.rollback()`)
+- `foms/services/orders/audit_as_axis_drift.py` — AS 축 집계 정본(신규, 아래 §역방향 참조)
+- `tools/ops/audit_as_axis_drift.py` — 집계를 서비스에서 import 하는 CLI 껍데기로 축소
+  (`--dsn`·`--json`·exit code 무변경)
+- `tools/ops/drift_report_http.py` — requests 만, 크리덴셜 env only, step summary,
+  exit 0=0건 · 1=드리프트(또는 `truncated`) · 2=크리덴셜 부재 · 3=조회/네트워크 실패
+- `.github/workflows/drift-audit-daily.yml` — 18:20 UTC(03:20 KST), `workflow_dispatch` 동반,
+  `timeout-minutes: 15`, `permissions: contents: read`
+
+**드리프트로 세는 값**(모듈 docstring 이 정본):
+
+| 감사 | 세는 값 | 안 세는 값 · 이유 |
+|---|---|---|
+| AS 축 | `mismatch` | `missing_projection`·`legacy_only` 는 둘 다 `mismatch` 의 **부분집합** — 더하면 같은 행을 두세 번 센다 |
+| ERP flat | `SAFE + AMBIGUOUS` | 비-ERP·`structured_data is None` 은 `classify_order` 가 None 을 돌려 분모에서 빠진다. `AMBIGUOUS` 는 "자동으로 못 고친다"이지 "안 어긋났다"가 아니라 **센다** — 빼면 사람이 봐야 할 건이 매일 초록으로 덮인다 |
+
+**상한 없음.** 매일 도는 게이트에서 조용한 절단이 가장 나쁜 실패라 상한을 두지 않았다. 대신
+응답이 `truncated` 를 **항상** 싣고 조회 도구가 그 값을 명시 확인해 `True` 면 exit 1 로 실패한다.
+서버 gunicorn `--timeout 120` 을 넘으면 도구가 exit 3 으로 시끄럽게 죽는다 — 거짓 초록 경로 없음.
+
+### 총괄이 직접 고친 것 2건 (워커 산출물 수용 전)
+
+1. **app → tools 역방향 의존 제거.** 워커가 `foms/api/ops_drift.py` 에서
+   `tools.ops.audit_as_axis_drift.audit_session` 을 지연 import 했다(소유권 밖이라 옮기지 못하고
+   자진 신고). 웹 런타임이 개발·운영 도구 트리에 묶이는 구조는 **보고서 R8 이 지적한 바로 그
+   패턴**(개발 하네스 산출물이 운영 런타임의 부팅 의존성)이라 새로 만들지 않는다. 집계를
+   `foms/services/orders/audit_as_axis_drift.py`(기존 `audit_*.py` 관례) 로 옮기고 CLI·엔드포인트가
+   둘 다 그쪽을 향하게 했다. `grep -rn "from tools" foms/` → 0건.
+2. **이관 중 내가 떨어뜨린 `drift` 키 복구.** 옮기면서 `_as_axis_summary` 가 `drift` 를 안 싣게
+   돼 엔드포인트가 500(`KeyError: 'drift'`)이 났다. 워커 결함이 아니라 내 편집 결함이다.
+   `{**summary, "drift": summary["mismatch"]}` 로 고치고 왜 `mismatch` 하나인지 docstring 에 적었다.
+
+### 래칫이 이 커밋에서 잡은 것 (설계대로 작동)
+
+```
+E       AssertionError: 함수 안 지연 foms import 가 새로 늘었다.
+E         새 위반 1건:
+E           - foms/platform/blueprints.py::foms.api.ops_drift
+```
+
+`foms/platform/blueprints.py` 는 블루프린트 44개를 **전부** 함수 안에서 지연 import 한다
+(`grep -c "    from foms"` → 44). 관례를 따른 **의도된 추가**라 기준선에 등재했다. 무조건
+재생성하지 않고 diff 를 직접 읽었다:
+
+```
+edges  추가: []          edges  제거: []
+lazy   추가: ['foms/platform/blueprints.py::foms.api.ops_drift']
+lazy   제거: []
+(79, 324)
+```
+
+### 검증 출력 (감사 배선분, 총괄 직접 실행)
+
+```
+$ cd /c/tmp/foms-s-now0907 && pwd && PYTHONIOENCODING=utf-8 python -m pytest \
+    tests/contracts/runtime/test_layer_dependency_ratchet.py tests/harness/test_file_size_ratchet.py \
+    tests/harness/test_canonical_doc_paths.py tests/domains/test_ops_drift_endpoint.py \
+    tests/domains/test_naver_candidate_phone_axis.py tests/domains/test_foms_namespace_imports.py -q
+/c/tmp/foms-s-now0907
+198 passed in 3.50s
+
+$ PYTHONIOENCODING=utf-8 python tools/ops/audit_as_axis_drift.py --help
+usage: audit_as_axis_drift.py [-h] --dsn DSN [--json]
+AS 축 투영 드리프트 감사(읽기 전용)
+
+$ PYTHONIOENCODING=utf-8 python -c "import app; print('APP_OK')"
+APP_OK
+
+$ url_map
+/api/foms/ops/drift-audit ops_drift.drift_audit ['GET']
+```
+
+워커가 확인한 엔드투엔드(로컬 앱 + 실제 drift 주문 1건 → HTTP 200 → step summary 왕복):
+
+```
+**판정: 🔴 드리프트 발견** (총 2건 / 소요 3ms / 절단 False)
+| 감사 | 검사 대상 | 드리프트 | 상세 |
+| AS 축 투영(as_axis_status) | 1 | 1 | 투영 누락 0 · legacy 전용 0 |
+| ERP flat 컬럼 | 1 | 1 | SAFE 1 · AMBIGUOUS 0 · CLEAN 0 |
+```
+
+### ci.yml 등재
+**불필요.** `ci.yml:109` 가 `tests/` 전체를 돌려 신규 테스트가 자동 수집되고, `docs/` 를 읽지
+않아 CI-DOCSCOPE-01 서브셋 등재 의무도 없다(`test_docs_facing_registry` green 으로 확인).
+
+### 남은 검증 (push 후 / 시간 필요)
+- `workflow_dispatch` 1회 green — deploy push 뒤 T8 에서
+- 스테이징 09-01 재현 시나리오(전화 변경 1회 뒤 트리아지 자동 매칭) — deploy push 뒤 T8 에서
+- **"두 감사 2주 연속 0건"** — 후속 F-2, 재확인 예정일 2026-09-21
+
+### 총괄이 사용자에게 알릴 사항
+조회 대상 기본값이 **production** 이다(`DEFAULT_BASE = https://lahom-production.up.railway.app`).
+rum-daily 와 같은 전례이고 `FOMS_DRIFT_BASE_URL` 로 override 할 수 있다. 스테이징 크리덴셜
+계정이 production 에서 ADMIN 이어야 200 이 난다(rum-daily 가 이미 그 전제로 돈다).
 
 ---
 
 ## T4. 루프 하트비트 + 워커 Sentry 배선
 
-- 상태: PENDING
+- 상태: DONE(부분) — 코드 완료·커밋 `41df23606`. 스테이징 검증은 push 후(T8)
 - 완료 기준(보고서 원문): 스테이징에서 루프가 도는 동안 하트비트 표
   `side_effect_worker_heartbeats`(`models.py:2677`)의 `NAVER_AUTO_DISPATCH` 행 `last_heartbeat_at` 이
   tick 마다 갱신되고, 루프 프로세스를 kill 하면 60초 넘게 갱신이 멈춘다(도구 무관 직접 질의);
   워커 실패잡 1건이 Sentry 에 environment=staging 이벤트로 잡힘.
-- 산출물:
-- 검증 출력:
+- 산출물: `scripts/maintenance/run_naver_auto_dispatch.py`(하트비트) ·
+  `foms/services/jobs/tasks.py`(워커 Sentry) · `tests/domains/test_worker_loop_heartbeat.py`(신규 9건)
+
+### 설계 결정과 근거
+
+1. **창 밖 tick 도 하트비트를 갱신한다.** 안 그러면 하루 23시간 50분 동안 하트비트가 낡아 보여
+   "루프가 죽었다" 와 "지금은 일할 시각이 아니다" 가 구분되지 않는다 — 그 구분이 이 배선의 목적이다.
+2. **하트비트 실패는 본 작업을 막지 않되 삼키지도 않는다.** 되돌릴 수 없는 발송이 관측 배선 때문에
+   멈추는 것은 더 나쁜 실패다. `logging.warning(exc_info=True)` + Sentry 로 남기고 tick 은 계속한다.
+   `except Exception: pass` 아님. 두 성질을 각각 계약 테스트가 잡는다.
+3. **metadata 는 고정 키 5개만**(`in_window`·`outcome`·`queued`·`blocked`·`total`). 결과 dict 가
+   나중에 커져도 고객 정보(이름·전화·주소)가 새지 않고, 그 계약을 테스트가 봉인한다.
+4. **워커 Sentry 판정 순서**: DSN 없으면 즉시 반환(어떤 모듈도 import 안 함) → 이미 클라이언트가
+   붙었으면 반환(web 도 `foms/api/erp_map.py:407` 에서 이 모듈을 지연 import 하므로 이중
+   `sentry_sdk.init` 은 앞 클라이언트를 교체해 전송 대기 이벤트를 유실시킨다) → `init_sentry()`.
+
+### 지연 import 근거 — 총괄 직접 재실측
+
+워커가 `foms.platform.sentry_setup` import 를 함수 안으로 미룬 근거를 총괄이 다시 쟀다:
 
 ```
-(미실행)
+# 최상단 import 였다면
+$ python -c "from foms.platform.sentry_setup import init_sentry; ..."
+modules 1414 app_factory True
+
+# 지금(지연 import)
+$ python -c "import foms.services.jobs.tasks; ..."   # SENTRY_DSN 없음
+modules 1135 app_factory False sentry_sdk False
 ```
+
+`foms/platform/__init__.py` 가 app_factory·blueprints 를 통째로 끌어와, DSN 없는 워커까지 web
+import 그래프를 지고 뜬다. **의도된 구조 선택**이다. 값 드리프트는 계약 테스트가
+`sentry_setup.SENTRY_DSN_ENV` 와 묶어 막는다.
+
+### 래칫이 잡은 것 (설계대로 작동, 2번째)
+
+```
+E         새 위반 1건:
+E           - foms/services/jobs/tasks.py::foms.platform.sentry_setup
+```
+
+재생성 diff 를 직접 읽어 정확히 그 1건뿐임을 확인하고 등재했다(`lazy` 324 → 325, `edges` 변화 0).
+워커는 소유권 밖이라 편집하지 않고 **추가할 문자열만 보고**했다 — 규율대로다.
+
+### 검증 출력(총괄 직접 실행)
+
+```
+$ cd /c/tmp/foms-s-now0907 && pwd && PYTHONIOENCODING=utf-8 python -m pytest tests/domains/test_worker_loop_heartbeat.py -q
+/c/tmp/foms-s-now0907
+9 passed, 1 warning in 10.06s
+
+$ PYTHONIOENCODING=utf-8 python -m pytest tests/contracts/runtime/test_layer_dependency_ratchet.py \
+    tests/harness/test_file_size_ratchet.py tests/harness/test_canonical_doc_paths.py \
+    tests/domains/test_worker_loop_heartbeat.py tests/domains/test_ops_drift_endpoint.py \
+    tests/domains/test_naver_candidate_phone_axis.py tests/domains/test_foms_namespace_imports.py \
+    tests/domains/test_sentry_setup.py tests/domains/test_failopen_inventory.py -q
+233 passed, 1 warning in 16.94s
+
+$ PYTHONIOENCODING=utf-8 python -c "import app; print('APP_OK')"
+APP_OK
+```
+
+워커의 변이 검증(테스트에 이빨이 있는지): `_emit_heartbeat` 호출 제거 → 4건 red · 경고 로그를
+`pass` 로 교체 → 1건 red · `_init_worker_sentry()` 호출 제거 → 1건 red. 세 파일 sha256 복구 확인.
+
+### 사실 확인 — Sentry `environment` 가 갈리는 축
+
+`RAILWAY_ENVIRONMENT` 가 **아니라** `RAILWAY_PROJECT_NAME` 이다(`resolve_environment()`):
+`FOMS_ENV` 오버라이드 → `*-DEV`=staging / `*-PRODUCTION`=production → `RAILWAY_ENVIRONMENT` 원문
+→ `local`. FOMS-DEV 프로젝트의 Railway 환경 이름도 `production` 이라 `RAILWAY_ENVIRONMENT` 만으로는
+두 서버 이벤트가 한 태그로 섞이기 때문이다(그 함수 docstring 이 이유를 적어 뒀다).
+워커 실측: DSN 있음 + `app.py` 미경유 → `client_active=True environment=staging`.
+
+### 남은 검증 (push 후)
+스테이징에서 `side_effect_worker_heartbeats` 의 `NAVER_AUTO_DISPATCH` 행이 tick 마다 갱신되고
+루프 kill 시 60초 넘게 멈추는지, 워커 실패잡 1건이 Sentry 에 `environment=staging` 으로 잡히는지.
 
 - 리뷰 findings:
 
@@ -324,15 +491,112 @@ $ grep -c 'Order.phone ==' foms/services/integrations/naver_commerce/order_candi
 
 ## T6. 로그인 한도·잠금 + 레이트리미터 폴백 로그
 
-- 상태: PENDING
+- 상태: DONE(부분) — 코드 완료·커밋 `40d25bb1b`. 스테이징 11회 시나리오는 push 후(T8)
 - 완료 기준(보고서 원문): 스테이징 잘못된 비밀번호 11회 → 429 + security_logs 에 LOGIN_FAIL 10 ·
   LOGIN_LOCKED 1; REDIS_URL 을 도달 불가 주소로 둔 테스트에서 warning 레코드 1건이 caplog 에 잡힘.
-- 산출물:
-- 검증 출력:
+- 산출물: `foms/services/security/auth_rate/login_lockout.py`(신규 SSOT) ·
+  `foms/services/rate_limit.py`(한도 배선 + 폴백 관측) · `foms/web/auth/routes.py`(잠금 판정·감사) ·
+  `foms/services/audit_message_display.py`(`LOGIN_LOCKED` 라벨) ·
+  `tests/domains/test_login_rate_limit_lockout.py`(신규 8건)
+
+### 키 설계와 근거
+
+- 키 = **아이디+IP**(`foms-login:<sha256(아이디)[:16]>:<get_remote_address()>`).
+  아이디만 → 계정 DoS, IP 만 → 사무실 공용 회선 전원 잠김. 이 회사는 사무실 PC·현장 태블릿·
+  iOS 웹뷰가 같은 회선을 쓴다.
+- IP 는 ProxyFix 가 세운 `remote_addr` 만. 원시 XFF 파싱 없음(왼쪽 항목 위조 차단).
+- **기본 `rate_limit_key` 를 쓰지 않은 이유**: 그 키는 세션 쿠키 hash 를 우선하는데 로그인은
+  익명 엔드포인트라 쿠키가 클라이언트 임의 값이고, 쿠키를 갈아 끼우면 버킷이 무한히 회전한다.
+- 아이디는 **정규화하지 않는다**. 접으면 서로 다른 계정이 카운터를 공유해 계정 DoS 가 생기고,
+  안 접으면 인증에 성공할 수 없는 변형이 자기 카운터만 새로 쓸 뿐이라 공격자가 얻는 게 없다.
+- 한도 `FOMS_LOGIN_RATE_LIMIT` 기본 `"10 per minute;100 per hour"`.
+  임계 8회 / 창 15분 / 잠금 15분(`FOMS_LOGIN_LOCKOUT_*`). 셋 다 env 로 연다.
+
+### 실제 회귀가 알려 준 설계 1건 — 성공은 한도를 깎지 않는다
+
+한도를 그냥 걸었더니 `tests/services/integrations/test_naver_triage.py` 가 **20 failed** 로 터졌다.
+`tests/conftest.py::auth_client`(321회 사용)가 한 프로세스에서 같은 아이디·IP 로 로그인을
+반복하기 때문이다. **conftest 를 고치는 우회 대신 한도의 목적에 맞게 설계를 바로잡았다** —
+`deduct_when=_login_attempt_failed` 로 성공한 로그인(302)은 버킷을 깎지 않는다. 한도가 막으려는
+것은 무차별 대입이고 무차별 대입은 실패를 만든다. 자격증명을 이미 쥔 반복 로그인은 전역 기본
+한도가 잡는다. flask-limiter 는 검사를 `test()`(요청 전)·차감을 `hit()`(응답 뒤)로 하므로
+임계 초과 판정 시점은 그대로다.
+
+원인 확정 근거(워커 실측): `FOMS_LOGIN_RATE_LIMIT="100000 per hour"` 로 두면 같은 명령이
+`34 passed`.
+
+### 잠금 설계
+
+- **잠금 판정이 자격증명을 만지기 전에 온다** — 잠긴 쌍에는 비밀번호 해시 계산도, 계정 존재
+  여부도 내주지 않는다.
+- 세는 대상은 `unknown_username`·`inactive_account`·`bad_password` 3분기. `pending_approval` 은
+  비밀번호가 맞은 시도라 **세지 않고**, 그 시점에 카운터를 지운다.
+- `LOGIN_LOCKED` 감사는 replica 가 여럿이어도 **1건**이다 — 잠금 마커를 `storage.incr` 로 세우고
+  1 을 돌려받은 요청만 "처음 잠근" 요청으로 본다.
+- 저장소는 limiter 가 이미 쥔 것을 재사용(Redis 연결 풀 추가 0, 테스트는 `limiter.reset()` 하나로 격리).
+- **fail-open**: 저장소 장애면 `warning(exc_info=True)` 남기고 로그인을 막지 않는다. 잡는 예외는
+  저장소가 스스로 밝히는 `Storage.base_exceptions` 뿐이라 우리 쪽 프로그래밍 오류는 시끄럽게 죽는다.
+- 비밀번호는 detail 에 없다(T8 규약). detail = `{reason, username, threshold, lock_seconds}`.
+
+### 폴백 관측 — flask-limiter 에 콜백 API 가 없다
+
+설치본 `flask_limiter 4.1.1` 소스를 직접 읽은 결과 폴백 훅/콜백 API 는 **없고** 유일한 노출은
+`limiter.logger`(`_extension.py:215`)다. 거기에 핸들러를 단다.
+
+**알림을 1건으로 만든 방법**: 라이브러리가 warning 을 낸 **직후에** `_storage_dead = True` 로
+바꾸므로(`_extension.py:1158-1163`), 핸들러가 도는 시점에 그 값이 **아직 False** 인 레코드만이
+"이번에 새로 떨어졌다" 다. 상태 플래그를 우리가 따로 들지 않고, 복구 시 라이브러리가 False 로
+되돌리므로 **다음 장애에 자동 재무장**된다. 메시지 문자열은 대조하지 않는다(문구가 바뀌어도
+알림은 나간다). 로거 이름이 바뀌면 관측이 조용히 죽으므로 계약 테스트가 이름을 고정한다.
+저장소 URL 원문은 로그·Sentry 어디에도 안 싣고 scheme 만 싣는다.
+
+### 부수적으로 막은 구멍 1건
+
+`Limiter._check_request_limit` 은 `before_request` **0번**이고 본문 상한 강제는 **1번**이다(실측).
+key_func 에서 조건 없이 `request.form` 을 읽으면 `/login` 의 16 KiB pre-parse 상한을 건너뛰고
+전역 50 MiB 까지 파싱된다. 그래서 폼 인코딩 + 선언 Content-Length 가 그 라우트 상한 이내일
+때만 파싱하고, 그 밖(청크 전송·초과 선언·multipart)은 IP 전용 버킷으로 떨어진다.
+
+### 검증 출력(총괄 직접 실행)
 
 ```
-(미실행)
+$ cd /c/tmp/foms-s-now0907 && pwd && PYTHONIOENCODING=utf-8 python -m pytest tests/domains/test_login_rate_limit_lockout.py -q
+/c/tmp/foms-s-now0907
+8 passed, 1 warning in 6.88s
+
+$ PYTHONIOENCODING=utf-8 python -m pytest tests/services/integrations/test_naver_triage.py \
+    tests/domains/test_auth_enforcement.py tests/domains/test_auth_self_service.py \
+    tests/domains/test_security_log_structured.py tests/domains/test_rate_limit.py -q
+105 passed, 1 warning in 7.09s
+
+$ grep -n "except.*: pass" foms/web/auth/routes.py foms/services/rate_limit.py foms/services/security/auth_rate/login_lockout.py
+(docstring 1건 외 0건)
+
+$ PYTHONIOENCODING=utf-8 python -c "import app; print('APP_OK')"
+APP_OK
 ```
+
+**변이 검증(총괄 직접 — 테스트에 이빨이 있는가)**
+
+```
+[잠금 판정 무력화]              exit=1 3 failed, 5 passed
+[실패 카운터 등록 반전]         exit=1 5 failed, 3 passed
+[deduct_when 제거(성공도 차감)] exit=1 1 failed, 7 passed
+[복원 후]                       exit=0 8 passed
+```
+세 파일 모두 sha256 복구 확인.
+
+### 기준선 변화 없음
+새 import 3개가 전부 허용 방향 + 최상위라 래칫 항목이 생기지 않았다(web→services,
+services→services, services→platform). `test_failopen_inventory` 도 green — 새 `except` 가 전부
+구체 예외라 broad-catch 인벤토리를 건드리지 않는다.
+
+### 총괄 메모
+- 라우트 한도 배선이 `foms/platform/realtime.py`(기존 `auth.register` 등)와 `init_limiter`(이번)
+  두 곳으로 갈렸다. 워커 소유권 밖이라 그렇게 됐고 동작은 동일하다 — 나중에 한쪽으로 모으는
+  정리가 가능하다. 후속 F-10.
+- 앞으로 로그인 한도를 "성공까지 세는" 쪽으로 바꾸려는 변경이 오면 `tests/conftest.py` 에
+  limiter 리셋을 넣어야 한다.
 
 - 리뷰 findings:
 
@@ -340,16 +604,77 @@ $ grep -c 'Order.phone ==' foms/services/integrations/naver_commerce/order_candi
 
 ## T7. 두 번째 개발자 부팅 경로
 
-- 상태: PENDING (`.claude/skills` git add 는 사용자 승인 대기)
+- 상태: DONE — 커밋 `1d0a4eebd`. 검증 기준 중 파일 수만 보고서 값과 다르다(아래 병기).
 - 완료 기준(보고서 원문): 임시 디렉토리 clone 뒤 README 만 따라
   `PYTHONIOENCODING=utf-8 python -c "import app; print('APP_OK')"` 와
   `timeout 300 python -m pytest tests/harness -q` 통과, `git ls-files .claude/skills | wc -l` → 5.
-- 산출물:
-- 검증 출력:
+- `.claude/skills` git add 는 **사용자 승인 완료**(2026-09-07, "넣기 — 승인").
+- 산출물: `README.md`(전면 재작성) · `.env.example`(신규, 키 이름만 131줄) ·
+  `.claude/skills/{diagnosing-bugs,handoff,wayfinder,writing-great-skills}`(신규 10파일)
+
+### 고친 것
+
+기존 README 가 **없는 파일 3개**를 실행하라고 지시했다 — `migration.py` · `reset_db.py` ·
+`check_admin_account.py`(실측 전부 MISSING). 접속 정보도 코드가 안 읽는 `DB_USER`/`DB_PASS`/
+`DB_NAME`/`DB_HOST` 4종 분리 방식인데 실제 정본은 `DATABASE_URL` 하나다(`db.py:35`).
+여기에 GAE 레거시 절, `## test` 14줄, 관리자 기본 비밀번호 원문까지 있었다.
+
+빈 클론에서 실제로 도는 7단계로 다시 썼다. `.env.example` 은 코드가 실제로 읽는 키만 넣었고
+(os.environ 스캔 + 상수 정의 확인 — `SENTRY_DSN`·`FOMS_STARTUP_LOG_PATH` 는 상수 정의라
+스캔에 안 걸려 따로 확인), 값이 실린 줄이 0인지 기계로 확인했다.
+
+### 검증 출력(총괄 직접 실행 — 임시 클론 `/c/tmp/foms-clone-t7`)
 
 ```
-(미실행)
+$ git clone -q -b session/now0907 /c/tmp/foms-s-now0907 /c/tmp/foms-clone-t7
+$ cd /c/tmp/foms-clone-t7 && test -f .env && echo EXISTS || echo NONE
+NONE                      ← 클론에 .env 가 없다(진짜 새 개발자 조건)
+
+# README 3단계대로 환경변수를 준 뒤 5단계
+$ PYTHONIOENCODING=utf-8 python -c "import app; print('APP_OK')"
+[AUTO-INIT] ERP flat-column readiness verified.
+APP_OK
+
+# 7단계
+$ DATABASE_URL=sqlite:///:memory: PYTHONIOENCODING=utf-8 python -m pytest tests/harness -q
+469 passed in 312.17s (0:05:12)
 ```
+
+### 검증이 실제로 잡은 결함 1건 (README 재정정)
+
+처음 쓴 README 는 3단계에서 준 PostgreSQL `DATABASE_URL` 을 그대로 둔 채 7단계를 실행하라고
+적었다. **클론에서 그대로 따라가니 red 였다**:
+
+```
+Failed: pytest session (tests/conftest.py): PostgreSQL DATABASE_URL is blocked.
+Tests must not connect to, drop, truncate, or reset PostgreSQL.
+Unset DATABASE_URL or use sqlite (e.g. sqlite:///:memory: ...)
+```
+
+`tests/postgres_guard.py:42` 가 테스트 세션이 실 DB 에 붙는 것을 코드로 막는다. 7단계를
+`DATABASE_URL=sqlite:///:memory:` 로 고치고 왜 그런지(테스트가 운영/개발 DB 를 truncate 하는
+사고 차단)를 함께 적었다. CI 도 같은 값을 쓴다(`.github/workflows/harness-ci.yml:44`).
+**검증 기준이 문서 드리프트를 실제로 한 건 잡았다** — 이 task 의 목적 그대로다.
+
+### 보고서 검증 기준과 다른 값 1건 (병기)
+
+`git ls-files .claude/skills | wc -l` → **11**(보고서 기준값 5).
+
+보고서의 5 는 '스킬 1개 = SKILL.md 1개' 가정에서 나온 값이다. 실제로는 SKILL.md 들이 형제
+파일을 **직접 가리킨다** — `writing-great-skills/SKILL.md:9` 가 `GLOSSARY.md` 를,
+`diagnosing-bugs/SKILL.md:29`·`:58` 이 `scripts/hitl-loop.template.sh` 를 가리킨다. SKILL.md 만
+등재하면 '규칙이 가리키는 도구가 클론에 없다' 는 **같은 실패가 그대로 재발**하므로 형제
+파일까지 등재했다(overnight 1 + 신규 10 = 11). 기준값을 임의로 낮추지 않고 병기한다.
+
+커밋 전 10개 파일을 전부 읽어 자격증명·토큰이 없음을 확인했다(매치는 전부 문서 산문).
+
+### 이번 범위 밖으로 남긴 것
+
+- `alembic.ini:87` 에 로컬 개발용 DSN 이 비밀번호와 함께 하드코딩돼 있다. 이번 작업의 원인은
+  아니고 고치면 로컬 흐름이 깨질 수 있어 손대지 않았다 — 후속 F-4 로 등재.
+- README 4단계(`alembic upgrade head`)는 클론에서 **실행하지 않았다**. 로컬 개발 DB 가
+  `drawqueue_00 (branchpoint)` 에 있어 head 까지 올리는 것은 사용자 DB 를 바꾸는 작업이다.
+  alembic 이 클론에서 정상 기동해 리비전을 보고하는 것까지만 확인했다.
 
 ---
 
@@ -373,3 +698,10 @@ $ grep -c 'Order.phone ==' foms/services/integrations/naver_commerce/order_candi
 | F-1 | `DECISIONS.md` 항목 25개 vs 머리말 '최대 15개' | 머리말 4행 · 실측 25 | 가장 오래된 10건을 `docs/evolution/` 로 옮길지, 상한 문구를 개정할지 **사용자 결정** |
 | F-2 | T3 '두 감사 2주 연속 0건' | 보고서 ④ 지금 3 검증 칸 | 시간(워크플로 아티팩트 14일). 재확인 예정일 **2026-09-21** |
 | F-3 | 읽기 경로 14곳 중 13곳이 아직 `Order.phone` 축 | 보고서 R1 | 이번 T3 은 1건만. 나머지는 '이번 분기' 구간 |
+| F-4 | `alembic.ini:87` 에 로컬 DSN 이 비밀번호와 함께 하드코딩 | T7 검증 중 발견 | env 로 옮길지 사용자 결정(로컬 흐름 영향) |
+| F-5 | 나머지 루프 4개에 하트비트 0 | T4 조사 | escalation·수집·정산·지오코딩. 지오코딩 스윕은 `app` 미import 라 **Sentry init 자체가 없다** |
+| F-6 | `rq worker` 본체에 하트비트 0 | T4 조사 | 큐 소비가 멎어도 표에 안 나타난다 |
+| F-7 | `tools/ops/run_domain_side_effect_outbox.py` 에 `init_sentry()` 호출처 없음 | T4 조사 | 하트비트 3종은 있으나 SIDEFX 워커 예외는 아직 아무 데도 안 간다 |
+| F-8 | 워커 서비스에 `RAILWAY_PROJECT_NAME` 이 실제로 주입되는지 미확인 | T4 조사 | 안 되면 staging·production 이벤트가 한 태그로 섞인다. 실서버에서 1회 측정 필요 |
+| F-9 | `check_sidefx_readiness.py` 가 `WORKER_KINDS` 3종 고정 순회 | T4 조사 | 새 kind `NAVER_AUTO_DISPATCH` 를 쓰기만 하고 아무도 읽지 않는다. 일반화는 보고서 12~24개월 23번 |
+| F-10 | 라우트 한도 배선이 `realtime.py` 와 `init_limiter` 두 곳으로 갈림 | T6 | 동작 동일. 한쪽으로 모으는 정리 |
