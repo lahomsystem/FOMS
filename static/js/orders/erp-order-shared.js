@@ -3331,6 +3331,35 @@ ${escapeHtml(sub)}</div>` : ''}`;
             });
         }
 
+        // AS-INTAKE-01: ERP 주문 화면의 **첫 AS 접수** 입구.
+        //
+        // 원래 입구는 본공정 드롭다운의 'AS접수' 옵션이었고, 저장 시 nextStage ==='AS_RECEIVED'
+        // 를 보고 이 모달을 열었다(위 transitioningIntoAsReceived). 2026-09-04 `308366961` 이
+        // 그 옵션을 지웠다 — 값을 실제로 쓰면 workflow.stage 가 덮여 도면·생산·시공 큐에서
+        // 주문이 영구 이탈했기 때문이다(운영 실측 62건). 옳은 판단이었지만 **그 옵션에만
+        // 의존하던 트리거가 남아** 첫 AS 접수 경로가 통째로 사라졌다(시공 화면·AS 대시보드
+        // 재접수만 남았다). 그래서 stage 를 건드리지 않는 버튼으로 같은 모달을 연다.
+        document.querySelectorAll('[data-erp-as-receive-open]').forEach(function (button) {
+            if (button.dataset.erpAsReceiveBound === '1') return;
+            button.dataset.erpAsReceiveBound = '1';
+            button.addEventListener('click', function () {
+                if (!window.__erpStructuredLoadSucceeded) {
+                    alert('주문 정보를 불러온 뒤 다시 시도해주세요.');
+                    return;
+                }
+                const targetId = parseInt(button.dataset.orderId || '', 10)
+                    || erpResolveCurrentOrderId();
+                // 현재 본공정을 그대로 넘긴다 — 모달은 AS 종료 후 이 값으로 되돌린다.
+                const previousStage =
+                    (window.__erpLastStructuredData?.workflow?.stage || '').trim();
+                if (!erpOpenAsReceiveModal(targetId, previousStage)) {
+                    alert('AS 접수 화면을 열 수 없습니다.');
+                    return;
+                }
+                erpSetStatus('AS 접수 내용을 입력해주세요.');
+            });
+        });
+
         document.querySelectorAll('[data-erp-as-reregister-open]').forEach(function (button) {
             if (button.dataset.erpAsReregisterBound === '1') return;
             button.dataset.erpAsReregisterBound = '1';

@@ -9,6 +9,8 @@ ERP Order mobile-v2 tab pane.
 {% set erp_order_active = erp_order_active or false %}
 {% set erp_as_status_label = {'AS_RECEIVED': '접수', 'AS': '처리', 'AS_COMPLETED': '완료'}.get(order.status) if order is defined and order else none %}
 {% set erp_as_can_reregister = order is defined and order and order.status in ['AS_RECEIVED', 'AS'] %}
+{# AS-INTAKE-01: PC 와 같은 규칙 — AS 가 열려 있지 않은 저장된 주문에만 첫 접수 입구. #}
+{% set erp_as_can_receive = order is defined and order and order.id and not erp_as_can_reregister and order.status != 'AS_COMPLETED' %}
 {# 네이버 수집분 표식 — PC 탭(erp_order_tab.html)과 같은 조건·같은 문구를 유지한다. #}
 {% set erp_is_naver_intake = order is defined and order and (order.structured_data or {}).get('source') == 'NAVER_SMARTSTORE' %}
 <div class="tab-pane fade{% if erp_order_active %} show active{% endif %}" id="erp-order" role="tabpanel" lang="ko" data-erp-surface="1"{% if erp_order_active %} data-erp-ready="1"{% endif %}>
@@ -378,6 +380,9 @@ ERP Order mobile-v2 tab pane.
                                     {% if erp_as_can_reregister %}
                                     <button type="button" class="btn btn-sm btn-outline-info py-0"
                                         data-erp-as-reregister-open data-order-id="{{ order.id }}">접수 수정</button>
+                                    {% elif erp_as_can_receive %}
+                                    <button type="button" class="btn btn-sm btn-outline-info py-0"
+                                        data-erp-as-receive-open data-order-id="{{ order.id }}">AS 접수</button>
                                     {% endif %}
                                 </div>
                                 <div class="d-flex gap-1 align-items-stretch">
