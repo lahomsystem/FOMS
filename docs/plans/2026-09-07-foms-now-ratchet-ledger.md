@@ -13,11 +13,11 @@
 | T1 | 의존 방향 래칫 계약 테스트 | DONE | 2026-09-07 |
 | T2 | 파일 크기 래칫 + 정본 경로 정정 | DONE | 2026-09-07 |
 | T5 | 사고 원장·결정 기록 선등재 | DONE | 2026-09-07 |
-| T3 | 드리프트 감사 배선 + 09-01 원인 줄 제거 | DONE(부분) — 코드 완료, 스테이징·2주 검증 대기 | 2026-09-07 |
+| T3 | 드리프트 감사 배선 + 09-01 원인 줄 제거 | DONE(부분) — 코드·스테이징 왕복 완료, 2주 관측 대기 | 2026-09-07 |
 | T4 | 루프 하트비트 + 워커 Sentry 배선 | DONE(부분) — 코드 완료, 스테이징 검증 대기 | 2026-09-07 |
 | T6 | 로그인 한도·잠금 + 레이트리미터 폴백 로그 | DONE(부분) — 코드 완료, 스테이징 검증 대기 | 2026-09-07 |
 | T7 | 두 번째 개발자 부팅 경로 | DONE (검증 기준 1건 병기) | 2026-09-07 |
-| T8 | 게이트·push·CI·스테이징 QA | PENDING | - |
+| T8 | 게이트·push·CI·스테이징 QA | IN_PROGRESS — push 2회·스테이징 T4/T6 검증 완료 | 2026-09-07 |
 
 상태 값: PENDING / IN_PROGRESS / DONE / DONE(부분) / BLOCKED.
 
@@ -680,14 +680,218 @@ Unset DATABASE_URL or use sqlite (e.g. sqlite:///:memory: ...)
 
 ## T8. 게이트·push·CI·스테이징 QA
 
-- 상태: PENDING
+- 상태: IN_PROGRESS — push 2회 완료, 스테이징 T4·T6 검증 완료. T3 스테이징분 일부 잔여.
 - 완료 기준: `python -c "import app; print('APP_OK')"` → `scripts/ops/pre_push_smoke.ps1` exit 0 →
   `deploy` push(production 금지) → 전 워크플로 나열로 CI green 확인 → 스테이징 QA(T3·T4·T6).
-- 검증 출력:
+
+### push 1회차 — `da7d4ab9b..0e3029e7e`
 
 ```
-(미실행)
+$ powershell -File scripts/ops/pre_push_smoke.ps1
+=== PRE-PUSH SMOKE PASSED ===
+EXIT=0
+
+$ git push origin HEAD:deploy
+   da7d4ab9b..0e3029e7e  HEAD -> deploy
+
+$ git ls-remote origin deploy
+0e3029e7eaade4f1618dd48614e353d95a115cb3	refs/heads/deploy
+
+$ git rev-parse origin/production      # push 전후 동일 — production 불변
+2fce6197c2866d9b3298c1235030bf9b45a6332c
 ```
+
+범위는 **사용자 결정**(2026-09-07, "8개 전부"): 이번 세션 6건 + 검토 보고서·프롬프트 문서
+2건(`46abfa17c`·`cde5d555b`, 코드 변경 0). 로컬 `deploy` 에만 있던 문서라 worktree 로 cherry-pick 해
+왔고, 함께 올려야 플랜·원장이 가리키는 보고서가 원격에도 존재한다.
+
+### CI 1회차 — **FOMS CI red 1건**, 나머지 3개 green
+
+전 워크플로 나열로 판정한다(ci_watch 는 1개만 본다):
+
+```
+Harness CI           | completed | success
+FOMS PostgreSQL Lane | completed | success
+perf-gate (staging)  | completed | success
+FOMS CI              | completed | failure
+```
+
+실패 1건뿐, 나머지는 `1 failed, 8757 passed, 609 skipped in 98.03s`.
+
+```
+FAILED tests/contracts/runtime/test_ptc_physical_exactness.py::test_ptc_committed_root_allowlist_exact
+E       AssertionError: committed root allowlist drift (see 2026-04-07 §2.6.1):
+E           only_in_repo=['.env.example']
+E           missing_from_repo=[]
+```
+
+**근본 원인**: `_PTC_ROOT_ALLOWLIST` 는 저장소 루트 항목의 **닫힌집합**이라 새 루트 파일이
+하나라도 생기면 그 자체로 빨개진다. T7 의 `.env.example` 이 등재 없이 들어갔다.
+
+**왜 로컬에서 안 잡혔나**: `pre_push_smoke` 는 21타깃 서브셋이고 이 계약이 그 안에 없다.
+검토 보고서 **R5("'초록' 의 정의가 세 겹으로 갈려 있다")의 실사례**다 — 로컬 초록·CI 빨강이
+같은 커밋에서 동시에 성립했다. 후속 F-11 로 등재.
+
+수정: 커밋 `4fdee6abe`, 등재 1줄 + 사유 주석 2줄.
+
+### push 2회차 — `0e3029e7e..4fdee6abe`
+
+```
+$ powershell -File scripts/ops/pre_push_smoke.ps1
+EXIT=0
+$ git push origin HEAD:deploy
+   0e3029e7e..4fdee6abe  HEAD -> deploy
+$ git rev-parse origin/production
+2fce6197c2866d9b3298c1235030bf9b45a6332c      # 여전히 불변
+```
+
+### 스테이징 배포 확인
+
+```
+$ curl -s https://lahom-dev.up.railway.app/healthz
+{"commit":"0e3029e7eaade4f1618dd48614e353d95a115cb3","status":"ok"}
+
+$ 신규 라우트 존재 확인(404 아님)
+/api/foms/ops/drift-audit                    401
+/api/foms/ops/definitely-not-a-route-xyz     404
+```
+
+### 스테이징 T6 — **통과** (보고서 검증 칸)
+
+첫 시도(11회)는 잠기지 않았다. 원인은 **Railway 롤아웃 중 구/신 컨테이너 혼재**로 판단된다 —
+직후 재시도에서 임계가 정확히 맞았다. 추측을 남기지 않기 위해 시도 수를 늘려 재현했다:
+
+```
+첫 429 = 8번째 시도
+  flash: 로그인 시도가 너무 많아 잠시 잠겼습니다. 15분 뒤 다시 시도해주세요.
+상태코드: [200, 200, 200, 200, 200, 200, 200, 429]
+```
+
+임계 8·잠금 900초가 코드값과 일치한다. 감사 행(스테이징 DB 읽기 전용 조회):
+
+```
+=== security_logs 최근 30분 ===
+  LOGIN_FAIL     19
+  LOGIN_LOCKED   1
+  LOGIN_OK       3
+
+=== LOGIN_LOCKED 상세 ===
+2026-09-06 08:12:26 LOGIN_LOCKED | 로그인 잠금: 사용자 claude_master (연속 실패 8회)
+  | {'reason': 'lockout_threshold', 'username': 'claude_master', 'threshold': 8, 'lock_seconds': 900}
+```
+
+`LOGIN_FAIL` 19 = 롤아웃 중 11 + 재현 8. **`LOGIN_LOCKED` 는 1건**(중복 없음 — replica 안전장치가
+의도대로 작동). detail 에 비밀번호 없음. 계정은 실서버 측정 전용 `claude_master`(staging, 전 활동
+허용)이고 잠금은 15분 뒤 자동 해제된다.
+
+### 스테이징 T4 — **통과** (보고서 검증 칸)
+
+```
+=== side_effect_worker_heartbeats ===
+  DELIVERY              last=2026-09-06 08:14:53  age=8s   meta=None
+  EXPIRY_SCAN           last=2026-09-06 08:14:53  age=8s   meta=None
+  NAVER_AUTO_DISPATCH   last=2026-09-06 08:14:38  age=23s  meta={'total': 0, 'queued': 0,
+                                                              'blocked': 0, 'outcome': None,
+                                                              'in_window': False}
+  RETENTION             last=2026-09-06 08:14:53  age=8s   meta=None
+```
+
+tick 전진 확인(2회 표본):
+
+```
+sample1: 2026-09-06 08:17:38.930966
+sample2: 2026-09-06 08:19:00.290133
+전진했는가: True | 간격 81.4초
+```
+
+`in_window: False` 인데도 갱신된다 — **"창 밖 tick 도 갱신한다" 설계가 실서버에서 그대로
+확인됐다.** metadata 는 고정 키 5개뿐이고 고객 정보 없음.
+
+**못 닫은 절반**: "루프 프로세스를 kill 하면 60초 넘게 갱신이 멈춘다". 스테이징 worker 컨테이너를
+재시작해야 하는데 그 컨테이너가 `rq worker` 본체를 함께 들고 있어 큐가 멎는다(2026-08-31 재배포
+852초 정지 전례). 관측 배선을 확인하려고 운영 큐를 멈추는 것은 비용이 이득보다 크다고 판단해
+**하지 않았다**. 갱신 정지 판정은 위 `age` 값으로 사람이 읽을 수 있다.
+
+**Sentry 절반도 못 닫았다**: 스테이징 두 서비스 모두 `SENTRY_DSN` **unset** 이라 `init_sentry()` 가
+설계대로 no-op 이다. "워커 실패잡 1건이 Sentry 에 environment=staging 이벤트로 잡힘" 은 DSN 을
+넣기 전에는 확인할 수 없다 — **사용자 결정 사항**(후속 F-12).
+
+**F-8 해소**: `RAILWAY_PROJECT_NAME` 이 web·worker **양쪽 모두 `FOMS-DEV`** 로 실측됐다.
+`resolve_environment()` 분기(`*-DEV` → `staging`)가 워커에서도 성립한다.
+
+### 스테이징 T3 — 일부 잔여
+
+`workflow_dispatch` 는 **불가능하다**(예상된 제약, 워커가 옮겨 적은 rum-daily 주석 그대로):
+
+```
+$ gh workflow run drift-audit-daily.yml --ref deploy
+HTTP 404: workflow drift-audit-daily.yml not found on the default branch
+```
+
+GitHub 은 `workflow_dispatch` 대상 파일이 **기본 브랜치(production)** 에 있어야 인식한다. production
+승격은 이번 범위 밖이므로 이 검증은 승격 후로 넘긴다(후속 F-13). 대신 도구·엔드포인트 왕복을
+스테이징으로 직접 확인했다.
+
+### 스테이징 도구 왕복 — 통과, 그리고 게이트 설계 결함 1건 노출
+
+`FOMS_DRIFT_BASE_URL` 을 스테이징으로 두고 `tools/ops/drift_report_http.py` 를 그대로 돌렸다.
+로그인 → 엔드포인트 → step summary → exit code 가 전부 왕복했다(소요 681ms, 절단 False).
+
+그런데 결과가 **1,888건**이었다. 절대 0건 기준이면 이 게이트는 **첫날부터 매일 실패**한다.
+매일 오는 빨간불은 곧 아무도 안 본다 — 관측 배선이 죽는 가장 흔한 방식이다. 검증이 배선의
+설계 결함을 잡은 것이므로 덮지 않고 사용자에게 올렸다.
+
+### 운영 실측 (사용자 결정 "재보기", 2026-09-07)
+
+운영에는 아직 조회 엔드포인트가 없다(승격 전 `2fce6197c`). 그래서 **계정 잠금 해제 없이**
+같은 집계 함수를 읽기 전용 DB 직결로 돌렸다 — 정책 §4 "DB 직결은 읽기전용" 준수, 쓰기 0,
+HTTP 0, `claude_master` production 행은 잠긴 채 그대로다.
+
+```
+=== AS 축 투영 ===
+  검사 659 / 불일치 0 / 투영누락 0 / legacy전용 0
+=== ERP flat 컬럼 ===
+  total 3001 / CLEAN 1251 / SAFE 825 / AMBIGUOUS 925 => 드리프트 1750
+  AMBIGUOUS 사유: {'PAYMENT_AMOUNT_DRIFT': 925}
+  SAFE 드리프트 컬럼 상위: {'measurement_date': 770, 'scheduled_date': 475,
+    'erp_phone_digits': 93, 'erp_drawing_updated_at': 78, 'erp_stage_updated_at': 75,
+    'manager_name': 60, 'erp_stage_code': 54, 'erp_measurement_date': 21}
+```
+
+**AS 축은 운영에서 이미 0건**이다 — 보고서가 요구한 "2주 연속 0건" 의 출발점이 0 이다.
+ERP flat 1,750건은 보고서 R1("사본을 맞추는 주체가 트리거가 아니라 호출 규약")이 숫자로
+확인된 것이다.
+
+### 게이트를 기준선 래칫으로 전환 (사용자 결정)
+
+커밋 `9e51b2e73`. 판정을 절대 0건에서 `tools/ops/drift_baseline.json` 대비 **순증**으로 바꿨다.
+T1(의존 방향)·T2(파일 크기) 래칫과 같은 방식이다.
+
+- 기준선: AS 축 0(`must_stay_zero` — 이미 목표 상태라 1건도 허용 안 함) / ERP flat 1750.
+- **엔드포인트는 그대로 절대값을 돌려준다.** 래칫은 조회 도구에만 있고, 리포트는 절대값·
+  기준선·증감을 함께 보여준다 — 1,750이라는 숫자를 숨기지 않는다.
+- 기준선 부재·스키마 불일치는 **예외**다. 기본값 폴백 없음 — 0건으로 떨어지면 매일 빨간불,
+  무한대로 떨어지면 게이트가 죽는데 어느 쪽도 조용히 일어나면 안 된다.
+- 기준선은 **production 전용**이다(워크플로가 production 을 조회한다). 스테이징으로 돌리면
+  DB 가 달라 증감이 0 이 아닌 것이 정상이다.
+
+계약 테스트 9건이 판정을 잠근다 — 기준선과 같으면 통과 · 줄면 통과(음성 대조군) · 1건 늘면
+실패 · AS 축은 0에서 1건만 늘어도 실패 · 기준선 부재/스키마 불일치는 예외 · 리포트가 절대값과
+증감을 함께 낸다.
+
+```
+$ PYTHONIOENCODING=utf-8 python -m pytest tests/domains/test_drift_ratchet.py -q
+9 passed in 0.11s
+
+$ 계약 세트(엔드포인트·래칫·contracts/runtime·문서경로·크기·docs 레지스트리)
+39 passed in 3.47s
+
+$ 스테이징 왕복(래칫 적용 후)
+**판정: 🔴 기준선 대비 순증** (총 1888건 / 소요 711ms / 절단 False)
+| AS 축 투영 | 507  | 0    | 0    | 0       | 투영 누락 0 · legacy 전용 0 |
+| ERP flat  | 2313 | 1888 | 1750 | 🔴 +138 | SAFE 886 · AMBIGUOUS 1002 · CLEAN 425 |
+```
+
 
 ---
 
@@ -705,3 +909,8 @@ Unset DATABASE_URL or use sqlite (e.g. sqlite:///:memory: ...)
 | F-8 | 워커 서비스에 `RAILWAY_PROJECT_NAME` 이 실제로 주입되는지 미확인 | T4 조사 | 안 되면 staging·production 이벤트가 한 태그로 섞인다. 실서버에서 1회 측정 필요 |
 | F-9 | `check_sidefx_readiness.py` 가 `WORKER_KINDS` 3종 고정 순회 | T4 조사 | 새 kind `NAVER_AUTO_DISPATCH` 를 쓰기만 하고 아무도 읽지 않는다. 일반화는 보고서 12~24개월 23번 |
 | F-10 | 라우트 한도 배선이 `realtime.py` 와 `init_limiter` 두 곳으로 갈림 | T6 | 동작 동일. 한쪽으로 모으는 정리 |
+| F-11 | `pre_push_smoke` 21타깃 서브셋에 닫힌집합 계약이 없다 | T8 CI red 실사례 | 로컬 초록·CI 빨강이 같은 커밋에 성립. 보고서 R5 축 |
+| F-12 | 스테이징 `SENTRY_DSN` unset | T8 실측 | DSN 을 넣을지 **사용자 결정**. 넣기 전에는 워커 Sentry 배선을 실서버에서 확인할 수 없다 |
+| F-13 | `drift-audit-daily` cron·dispatch 는 production 승격 후에만 작동 | T8 실측(HTTP 404) | 승격 시 dispatch 1회로 `elapsed_ms` 실측 권장 |
+| F-14 | 운영 `erp_phone_digits` 드리프트 **93건** | 운영 실측 2026-09-07 | T3 이 전화축을 이 컬럼 단독으로 만들었다. 93건은 그 축이 낡은 상태다. `tools/ops/backfill_erp_flat_columns.py`(SAFE 대상 재동기)로 정리 가능 — **운영 쓰기라 사용자 승인 필요** |
+| F-15 | 운영 ERP flat 드리프트 1,750건 | 운영 실측 2026-09-07 | 래칫으로 악화는 멈췄다. 줄이는 것은 보고서 ④ '이번 분기'(생성 컬럼·트리거로 사본 규약 대체) 몫 |
