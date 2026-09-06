@@ -16,6 +16,26 @@
 
 범위 밖(사용자 결정 2026-09-05): B-02 보류 누적 잔액(M) · F-07 RETRO 누적(M) · D-03 AMOUNT_DIFF · H-01 인덱스 · E-05 비번 로테이션(별도 선택지) · 그 외 백로그 6~14.
 
+## 2차 백로그 10건 (2026-09-06, 브리프 `2026-09-06-settlement-cfo-backlog2-brief.md`, CEO 워크플로 `wf_37b339e4-fc2` 10 에이전트·80분·194만 토큰)
+
+| task | 상태 |
+|---|---|
+| B-02 보류 KPI 발생·해제 분리 + 적재 구간 누적 잔액(`holdback.window/balance`, 질의 +1 대시보드만) | DONE |
+| CRIT-A-01 RETRO·COUNT_MISMATCH 검출기 테스트 | DONE |
+| F-04 실패 창 rollback + `SYNC_FAILED`(8키) — 커밋된 앞 창의 소급 변경은 RETRO 재료로 유지(리뷰 Q-01 fix) | DONE |
+| F-01 stale 36h→28h + 스케줄 문구 · F-08 실패 모드 헤더(`sync.failed`·`last_error`·`stale_after_hours`) | DONE |
+| G-06 CSV 파일명 `_type-<코드>`·`_q` 슬러그 + 허용 밖 type 400 · E-06 export 감사 `type/q/filename` · E-02 sync 감사 `job_id/from/to`(`default_sync_window` 워커와 같은 함수) | DONE |
+| G-08a `.s-ch-group{min-width:0}` · G-07 워터폴 X축 2줄(6자 절단 제거) | DONE |
+| H-02 pre_push_smoke 서브셋 + 정산 render 핀 테스트 2개(smoke 377→662 테스트) | DONE |
+| N-02 월/주 버킷 `settled_amount/expected_amount` + "일부 완료" 문구(리뷰 Q-05 술어 보정) | DONE |
+| F-06 `/api/settlement/channel` `Cache-Control: no-store` | DONE |
+| G 총괄 게이트 | DONE — APP_OK · settlement **979**(기준선 948) · sync+loop 45 · contracts+ns+perf+hygiene 312 · node OK · CRLF · ps1 BOM `efbbbf` · smoke PASSED(662) |
+| P push → CI → 스테이징 QA → 운영 승격(사용자 사전 승인 "끝난 뒤 운영까지 한 번에") | IN PROGRESS — 코드 커밋 `d4e67fe22`, 채널 핀 `20260906a` |
+
+- 리뷰 결과: A(스펙) MINOR 2(user_visible 1) · B(품질) MINOR 9(user_visible 2) → CEO fix 1회(6건: Q-01 커밋된 창 RETRO 보존·Q-02/Q-04 `default_sync_window` 공유+지연 import·Q-09 docstring·Q-05 버킷 술어·Q-06 워터폴 dy·Q-07 테스트 리터럴) → 게이트 2차 green → **ship**. CEO 가 `_discard_failed_window` 슬라이스 돌연변이 검사로 신규 테스트가 회귀를 잡는지 직접 확인.
+- 총괄에 넘어온 몫: 보고서 §8 두 행(보류 잔액 위치·SYNC_FAILED) 갱신 완료 · Q-08 게이트 grep 의 여러 줄 Jinja 주석 사각 → 3차 브리프 게이트에 반영 예정 · Q-03 `_SETTLE_SYNC_JOB_ID` 사설 이름 import → 3차 F-02 와 묶음.
+- 잔여 MINOR(비가시): `renderKpis` 78줄·`waterfallChart` 76줄 등 JS 함수 4개 50줄 초과(HEAD 부터 초과) — 리팩터 후보.
+
 ## 기록
 - 2026-09-05 감사 완료(보고서 커밋 `8894e4c41` → rebase 후 `e715c560d`). 사용자 선택 "쉬운 수정 5개 바로 고치기".
 - 2026-09-05 CEO 워크플로 `wf_cb87c01e-9c4`(10 에이전트·48분·153만 토큰): 설계 → BE/FE 병렬 → 게이트 1차 green(947) → 리뷰 A BLOCK 1(T3 FAILED 기록)·MINOR 3 / 리뷰 B MINOR 10 → fix 루프 1회 → 게이트 2차 green → **ship**. 산출물 세션 scratchpad `cfo_fix/`(fix_design·gates·review_spec·review_quality·verdict_1·verdict_2).
