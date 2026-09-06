@@ -27,13 +27,12 @@ from __future__ import annotations
 
 import datetime
 from decimal import Decimal
-from typing import Any, Callable
+from typing import Any
 
 import pytest
-from sqlalchemy import event
 
 import foms.api.cs.settlement_channel as api_module
-from db import db_session, engine
+from db import db_session
 from foms.services.datetime_kst import get_today_kst, now_utc_naive
 from foms.services.settlement_channel import (
     STRIP_TAB_KEY,
@@ -43,12 +42,15 @@ from foms.services.settlement_channel import (
 from models import NaverSettleSyncRun
 
 # 권한 매트릭스·시드 SSOT 재사용(복제 금지).
+# 질의 계수 헬퍼(`_count_queries`)도 대시보드 테스트가 정본이다 — 세는 방식이 파일마다 갈리면
+# "예산 6" 이 서로 다른 뜻이 된다.
 from tests.domains.test_auth_finance import _login, _make_user
 from tests.domains.test_settlement_aggregation import _money, _seed_order
 from tests.domains.test_settlement_channel_api import (
     _ALLOWED_ACTORS,
     _DENIED_ACTORS,
     _case,
+    _count_queries,
     _daily,
     _seed_basic,
 )
@@ -108,29 +110,6 @@ def _full(today: datetime.date) -> dict:
     date_from, date_to = _default_range(today)
     return build_channel_dashboard(db_session, date_from=date_from, date_to=date_to,
                                    today=today)
-
-
-def _count_queries(fn: Callable[[], Any]) -> tuple[Any, int]:
-    """``fn()`` 이 도는 동안 실제로 나간 SQL 문 수를 센다.
-
-    Args:
-        fn: 인자 없는 호출 가능 객체.
-
-    Returns:
-        ``(반환값, 질의 수)``.
-    """
-    counter = {"n": 0}
-
-    def _before(conn, cursor, statement, params, context, executemany) -> None:
-        counter["n"] += 1
-
-    db_session.expire_all()  # 식별 맵 적중으로 질의가 사라지지 않게 출발선을 맞춘다.
-    event.listen(engine, "before_cursor_execute", _before)
-    try:
-        result = fn()
-    finally:
-        event.remove(engine, "before_cursor_execute", _before)
-    return result, counter["n"]
 
 
 def _data(resp: Any) -> dict:

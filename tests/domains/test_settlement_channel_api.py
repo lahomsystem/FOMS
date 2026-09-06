@@ -1709,13 +1709,24 @@ _AMOUNT_DIFF_REF_KEYS = {"order_id", "pay_settle_total", "shipping_price", "case
 
 
 def _count_queries(fn: Callable[[], Any]) -> tuple[Any, int]:
-    """``fn()`` 이 도는 동안 실제로 나간 SQL 문 수(스트립 테스트와 같은 event 패턴)."""
+    """``fn()`` 이 도는 동안 실제로 나간 SQL 문 수를 센다.
+
+    커널의 질의 예산 계약(대시보드·스트립)이 둘 다 이 함수 하나를 쓴다 —
+    ``tests/domains/test_settlement_channel_strip.py`` 가 여기서 import 한다.
+    세는 방식이 파일마다 갈리면 "예산 6" 같은 숫자가 서로 다른 뜻이 된다.
+
+    Args:
+        fn: 인자 없는 호출 가능 객체.
+
+    Returns:
+        ``(반환값, 질의 수)``.
+    """
     counter = {"n": 0}
 
     def _before(conn, cursor, statement, params, context, executemany) -> None:
         counter["n"] += 1
 
-    db_session.expire_all()
+    db_session.expire_all()  # 식별 맵 적중으로 질의가 사라지지 않게 출발선을 맞춘다.
     event.listen(engine, "before_cursor_execute", _before)
     try:
         result = fn()

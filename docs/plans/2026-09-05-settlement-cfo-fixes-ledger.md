@@ -60,4 +60,4 @@
 
 - 리뷰: A(스펙) MINOR 1(user_visible) · B(품질) MINOR 6(전부 비가시) → CEO fix 1회(7건) → 수정자 반영. **워크플로 마지막 2 에이전트(gate:2·verdict2)는 모델 사용 한도로 죽었다** — 게이트 2차와 최종 판정은 **총괄이 직접**(모델 전환 뒤) 수행: fix 7건 전량 소스로 대조 확인 + 게이트 전량 재실행 green → ship.
 - 반영된 fix: MINOR-1 `AMOUNT_DIFF` 행에 `action_url = /erp/orders/{order_id}`(형제 kind 관례, JS 무변경이라 핀 재범프 없음) · Q-01 `_enqueue` 죽은 분기 제거 · Q-02 API 리터럴↔큐 상수 동치 테스트 · Q-03 항상 거짓이던 skipif 제거 · Q-04 렌더 계약을 변수명 대신 정규식으로 · Q-05 `sorted(NEGATIVE_SETTLE_TYPES)` 이유 주석.
-- 보류(다음 차수): Q-06 질의 계수 헬퍼 `_count_queries` 중복을 한 곳으로 모으기.
+- Q-06 정리 완료(2026-09-06, 사용자 선택 "남은 작은 정리 1건"): 질의 계수 헬퍼 `_count_queries` 정본을 `tests/domains/test_settlement_channel_api.py` 한 곳으로 모으고 strip 테스트가 import(사본 23줄 제거, 따라 죽은 import 3종 `Callable`·`event`·`engine` 정리). 세는 방식이 갈리면 "예산 6" 이 서로 다른 뜻이 되는 것이 이유. 게이트: settlement 997 · contracts+ns 247 · smoke PASSED. **감사 후속 백로그는 이것으로 전부 소진**(잔여는 E-05 비번 로테이션뿐, 사용자 "나중에").
