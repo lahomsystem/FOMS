@@ -3783,6 +3783,12 @@ class NaverSettleCase(Base):
         # 때문이다 — 그 행들은 이 경로에서 영원히 조회되지 않는다.
         Index('ix_nsc_foms_order', 'channel', 'foms_order_id',
               postgresql_where=text('foms_order_id IS NOT NULL')),
+        # 대시보드·스트립 창 술어(커널 `_case_scope`) hot path — 감사 H-01(naversettle_02).
+        # 식은 커널의 coalesce(settle_expect_date, search_date) 와 **인자 순서까지 같아야**
+        # 플래너가 탄다(표현식 정확 일치). Column 객체로 적는다(문자열과 식을 섞지 않는다).
+        # SQLite 테스트 레인도 식 인덱스를 지원한다(create_all).
+        Index('ix_nsc_channel_expect_axis', channel,
+              func.coalesce(settle_expect_date, search_date)),
     )
 
 
@@ -3835,6 +3841,10 @@ class NaverSettleCommission(Base):
     __table_args__ = (
         Index('ix_nscm_channel_search', 'channel', 'search_date'),
         Index('ix_nscm_product_order', 'product_order_id'),
+        # 수수료 창 술어(커널 `_commission_scope`) hot path — 감사 H-01(naversettle_02).
+        # `ix_nsc_channel_expect_axis` 와 같은 식·같은 인자 순서(Column 객체).
+        Index('ix_nscm_channel_expect_axis', channel,
+              func.coalesce(settle_expect_date, search_date)),
     )
 
 

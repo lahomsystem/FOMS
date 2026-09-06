@@ -483,6 +483,16 @@ _SETTLE_SYNC_JOB_ID = "naver_settle_sync"
 #: "존재하는가" 로 판정하면 성공 직후 몇 분간 다시 못 돌린다.
 _SETTLE_SYNC_ACTIVE_STATUSES = frozenset({"queued", "started", "deferred", "scheduled"})
 
+#: ``enqueue_naver_settle_sync`` 의 3상태(CFO 감사 F-02). 다른 ``enqueue_*`` 는 그대로 bool 이다.
+#: 큐 부재·enqueue 실패·중복을 같은 False 로 접으면 화면이 Redis 장애를 "이미 대기 중"으로
+#: 말하고 감사 행도 그렇게 남아, 장애 뒤 무슨 일이 있었는지 복원할 수 없다.
+#: API·JSON·감사 detail 에 문자열 그대로 실리므로 Enum 이 아니라 리터럴 상수다.
+SETTLE_ENQUEUE_QUEUED = "queued"            # 큐에 새로 들어갔다
+SETTLE_ENQUEUE_DUPLICATE = "duplicate"      # 같은 job(_SETTLE_SYNC_JOB_ID)이 큐에 살아 있다
+SETTLE_ENQUEUE_UNAVAILABLE = "unavailable"  # 큐가 없다·Redis 장애·enqueue 예외 — 화면은 "지금은 동기화할 수 없습니다"
+SETTLE_ENQUEUE_STATES: tuple[str, ...] = (SETTLE_ENQUEUE_QUEUED, SETTLE_ENQUEUE_DUPLICATE,
+                                          SETTLE_ENQUEUE_UNAVAILABLE)
+
 
 def _settle_sync_in_flight(q) -> bool:
     """정산 동기화 job 이 이미 큐에 살아 있는지.
@@ -511,12 +521,14 @@ def _settle_sync_in_flight(q) -> bool:
 
 def enqueue_naver_settle_sync(actor_user_id: Optional[int] = None, *,
                               backfill_from: Optional[str] = None,
-                              dry_run: bool = False) -> bool:
-    """네이버 정산 동기화 job enqueue (SETTLE-CHANNEL-01 §4).
+                              dry_run: bool = False) -> str:
+    """네이버 정산 동기화 job enqueue (SETTLE-CHANNEL-01 §4) — 결과를 **3상태**로 말한다.
 
     "지금 수집" 과 같은 이유로 web 은 **enqueue 만** 한다 — 커머스API 에 등록된 호출 IP 가
     WORKER 것뿐이다. **동기 폴백은 없다**: 여기서 직접 부르면 차단된 IP 로 나가 조용히
-    실패한다. 큐가 없으면 False 를 돌려주고 화면이 "지금은 동기화할 수 없다"를 그대로 말한다.
+    실패한다. 큐가 없으면 ``unavailable`` 을 돌려주고 화면이 "지금은 동기화할 수 없습니다"를
+    그대로 말한다(CFO 감사 F-02 — 큐 부재와 중복을 같은 값으로 접으면 장애가 "이미 대기 중"
+    으로 보인다). 다른 ``enqueue_*`` 는 그대로 bool 이다.
 
     백필(90일)은 창을 순차로 돌아 호출이 수백 회가 되므로 timeout 을 넉넉히 잡는다.
 
@@ -526,15 +538,18 @@ def enqueue_naver_settle_sync(actor_user_id: Optional[int] = None, *,
         dry_run: True 면 조회까지만 하고 아무것도 쓰지 않는다.
 
     Returns:
-        큐에 넣었으면 True. 큐가 없거나·이미 같은 job 이 돌고 있거나·실패하면 False.
+        :data:`SETTLE_ENQUEUE_STATES` 중 하나 —
+        ``"queued"`` 큐에 넣었다 /
+        ``"duplicate"`` 같은 job 이 살아 있어 넣지 않았다 /
+        ``"unavailable"`` 큐 부재·Redis 장애·enqueue 실패 — 화면은 '지금은 동기화할 수 없습니다'.
     """
     q = get_rq_queue()
     if not q:
-        return False
+        return SETTLE_ENQUEUE_UNAVAILABLE
     try:
         if _settle_sync_in_flight(q):
             logger.info("[RQ] 정산 동기화가 이미 큐에 있다 — 중복 enqueue 하지 않는다")
-            return False
+            return SETTLE_ENQUEUE_DUPLICATE
         q.enqueue(
             f"{_TASK_PATH_PREFIX}.run_naver_settle_sync_task",
             actor_user_id,
@@ -543,7 +558,8 @@ def enqueue_naver_settle_sync(actor_user_id: Optional[int] = None, *,
             job_id=_SETTLE_SYNC_JOB_ID,
             job_timeout="2h",
         )
-        return True
+        return SETTLE_ENQUEUE_QUEUED
     except Exception as e:
+        # 무로그 삼킴 금지 — 실패는 ERROR 로 남기고 화면에는 "지금은 할 수 없다"로 간다.
         logger.error(f"[RQ] enqueue_naver_settle_sync error: {e}", exc_info=True)
-        return False
+        return SETTLE_ENQUEUE_UNAVAILABLE

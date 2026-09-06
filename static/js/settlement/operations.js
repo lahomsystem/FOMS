@@ -461,10 +461,34 @@
   }
 
   /**
+   * "정산 ₩X · 출고가 ₩Y" — 두 원값 병기. 정산 원값이 없으면(미매칭·NULL) 줄 자체를 안 그린다.
+   *
+   * `cell.pay_settle_amount`(Σ결제 정산 금액 원값, 서버가 합산)와 `row.shipping_price`(출고가)를
+   * 나란히 두고 **같지 않음만** 표시한다 — 차액을 계산하지도 저장하지도 않는다(D-4 재계산 금지).
+   * 출고가 미상(품목 미입력)은 "—" 로 내고 역시 불일치로 강조한다(대조가 불가능하다는 사실).
+   *
+   * @param {object} row 행 데이터(`shipping_price`).
+   * @param {object} cell `row.naver_settlement`.
+   * @returns {HTMLElement|null} 금액 줄, 정산 원값이 숫자가 아니면 null.
+   */
+  function naverAmountLine(row, cell) {
+    if (typeof cell.pay_settle_amount !== 'number') return null;
+    var shippingKnown = typeof row.shipping_price === 'number';
+    var diff = !shippingKnown || row.shipping_price !== cell.pay_settle_amount;
+    var line = el('div', 's-ch-ops-nv-amt' + (diff ? ' s-ops-naver--diff' : ''),
+      '정산 ₩' + money(cell.pay_settle_amount) + ' · 출고가 ' + (shippingKnown ? '₩' + money(row.shipping_price) : '—'));
+    if (diff) line.title = '정산액과 출고가가 다릅니다';
+    return line;
+  }
+
+  /**
    * 12번째 칸 "네이버 정산" — 외부 채널(네이버)이 이 주문의 돈을 언제 줬는지/줄 것인지.
    *
-   * 값은 서버가 판정해 내려준 `row.naver_settlement` 그대로다(상태 코드 + 날짜 2종).
-   * **금액은 그리지 않는다** — 노출 최소화 원칙이고, 서버도 화면에 쓰라고 준 값이 아니다.
+   * 값은 서버가 판정해 내려준 `row.naver_settlement` 그대로다(상태 코드 + 날짜 2종 + 결제 정산 금액 원값).
+   * **금액 두 원값을 병기한다** — 회계 대사 요구(2026-09-06 사용자 결정, 감사 D-03·§6-5).
+   * 정산(Σ결제 정산 금액 원값)과 출고가를 나란히 두고 **같지 않음만** 표시한다(차액을 계산하지
+   * 않는다, D-4). 옛 "금액은 그리지 않는다 — 노출 최소화" 결정은 이 날짜로 뒤집혔다(스테이징
+   * #4242 출고가 0 vs 2,830,000 이 어디에도 안 보였다).
    *
    * 네 갈래를 문구로 구분한다(색만으로 말하지 않는다):
    *   값 없음(비네이버 주문) → "—" · 미매칭 → "미매칭" ·
@@ -491,6 +515,8 @@
       td.title = iso;
     }
     td.appendChild(chip);
+    var amt = naverAmountLine(row, cell);
+    if (amt) td.appendChild(amt);
     return td;
   }
 
