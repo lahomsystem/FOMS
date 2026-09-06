@@ -1041,3 +1041,59 @@ exit = 0
 적용 후 할 일: 감사 재실행으로 줄어든 수치 확인 → `tools/ops/drift_baseline.json` 의
 `erp_flat.drift` 를 새 값으로 **낮춤** → deploy push.
 
+---
+
+## T10. 긴급 — ERP 주문 화면 '첫 AS 접수' 입구 복구 (사용자 제보, 계획 밖)
+
+- 상태: **코드 완료·커밋 `5175f4296`**, 스테이징 실화면 확인 대기.
+- 제보: "드롭다운 > AS 접수 메뉴가 사라졌어".
+
+### 원인 — 회귀가 아니라 미봉된 절반
+
+AS 접수 입구는 원래 본공정 드롭다운의 `AS_RECEIVED` 옵션이었고, 저장 시
+`erp-order-shared.js:2757` 이 `nextStage === 'AS_RECEIVED'` 를 보고 AS 접수 모달을 열었다.
+**2026-09-04 `308366961`** 이 그 옵션 3개(`AS_RECEIVED`·`AS`·`AS_COMPLETED`)를 지웠다 — 값을
+실제로 쓰면 `workflow.stage` 가 덮여 도면·생산·시공 큐에서 주문이 영구 이탈했기 때문이다
+(운영 실측 62건). 판단은 옳았다.
+
+그런데 **그 옵션에만 의존하던 트리거가 그대로 남았다.** 옵션이 없으니 `nextStage` 가
+`AS_RECEIVED` 가 될 수 없고, 모달은 영영 안 열린다. 남은 입구는 시공 화면
+(`openAsAcceptModal`)과 AS 대시보드 완료 탭 재접수 딥링크(`as_reintake=1`)뿐 — 사무실에서
+주문을 보며 AS 를 접수하던 동선이 사라졌다.
+
+### 데이터 축은 어긋나 있지 않다 (읽기 전용 실측)
+
+`erp_as_status_label` 은 레거시 `orders.status` 로 판정한다(보고서 R1 축). 그래서 먼저
+`as_axis_status` 는 있는데 `status` 가 AS 계열이 아닌 주문을 셌다:
+
+```
+staging   : AS 축 있는 주문 482 중 드롭다운에 AS 안 뜨는 것 0
+production: AS 축 있는 주문 641 중 드롭다운에 AS 안 뜨는 것 0
+```
+
+즉 이번 증상은 **데이터가 아니라 배선**이다. (표시 축이 파생 사본을 본다는 구조 문제는
+그대로 남아 있다 — 후속 F-17.)
+
+### 고친 방법
+
+옵션을 되돌리지 않는다(되돌리면 62건 사고로 회귀). `workflow.stage` 를 건드리지 않는
+버튼으로 같은 모달을 연다. 기존 `AS 접수 수정`(AS 열림) 버튼과 `elif` 로 갈라 **둘 중 하나만**
+뜬다. PC·모바일 양쪽. `?v` 핀 `20260904c → 20260907a`(SW staticCacheFirst).
+
+### 계약 10건
+
+버튼 존재(PC·모바일) · 재접수와 상호배타 · 저장된 주문 + AS 미개시일 때만 노출 · 버튼이 실제로
+모달을 연다 · 입구가 stage 를 건드리지 않는다 · **음성 대조군: 드롭다운에 AS 옵션이 되살아나지
+않았는지** · `?v` 핀 전진.
+
+```
+$ PYTHONIOENCODING=utf-8 python -m pytest tests/domains/test_erp_as_intake_entry.py -q
+10 passed in 0.04s
+
+$ 회귀(ERP·AS·JS 문법 스위트)
+82 passed
+```
+
+핀 리터럴을 못 박은 테스트 1곳(`test_erp_order_shared_form_scripts.py:73`)도 같이 갱신했다 —
+보고서 R4 가 지적한 "핀 리터럴 52파일 90곳" 세금의 실사례다.
+
