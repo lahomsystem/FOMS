@@ -77,7 +77,9 @@ __all__ = [
 SETTLE_SYNC_SETTING_KEY = "naver_settle_sync_state"
 
 #: 마지막 **성공** 시각이 이보다 오래되면 화면이 "오래됐다"고 말한다.
-STALE_AFTER_HOURS = 36
+#: 28 = 일 1회 05:30 스케줄 주기(24h) + 여유 4h(재배포·지연 흡수). 36 이었을 때는 05:30 실행이
+#: 빠진 다음 날 17:38 까지 "상태 OK" 로 보여 근무시간 내내 거짓 안심을 줬다(CFO 감사 F-01).
+STALE_AFTER_HOURS = 28
 
 #: 정산 예정일이 이보다 과거면 네이버가 더 이상 바꾸지 않는다(확정 구간 표시용).
 FINAL_BEFORE_DAYS = 30
@@ -111,9 +113,10 @@ STRIP_TAB_KEY = "channel"
 #: 예외 큐가 한 갈래에서 담아 오는 최대 행수. 넘치면 화면이 스크롤 괴물이 된다.
 #: 상한은 **목록**에만 걸린다 — 응답 ``exception_totals`` 는 상한 전 모집단이다(감사 D-02).
 _EXCEPTION_CAP = 50
-#: 예외 종류 7종 — 응답 ``exception_totals`` 의 고정 키(0건이어도 키가 있어야 화면이 "없다"를 말한다).
+#: 예외 종류 8종 — 응답 ``exception_totals`` 의 고정 키(0건이어도 키가 있어야 화면이 "없다"를 말한다).
+#: ``SYNC_FAILED`` 는 최신 동기화 실행이 FAILED 일 때 1행(화면 전체가 옛 값이라는 신호, 감사 F-04).
 _EXCEPTION_KINDS: tuple[str, ...] = ("UNMATCHED", "UNLINKED", "HOLDBACK", "LIMIT",
-                                     "NEGATIVE", "RETRO", "COUNT_MISMATCH")
+                                     "NEGATIVE", "RETRO", "COUNT_MISMATCH", "SYNC_FAILED")
 #: 미매칭 정산 예정일 경과 구간 — 응답 ``kpi.unmatched_aging`` 의 고정 키(이 순서).
 _AGING_BUCKETS: tuple[str, ...] = ("lt30", "d30_59", "d60_89", "d90_plus", "future")
 #: 미연결 예외의 조치 링크 — 같은 출처 상대 경로만(프론트 ``actionCell`` 이 외부 URL 을 안 건다).
@@ -460,23 +463,34 @@ def _build_sync(session: Any, today: datetime.date) -> dict[str, Any]:
         today: KST 오늘.
 
     Returns:
-        계약 §5 의 ``sync`` dict.
+        계약 §5 의 ``sync`` dict. ``failed``(최신 실행 FAILED)·``last_error``·``stale_after_hours``
+        (임계값, F-01)를 포함하고, 성공이 한 번도 없는 실패(failed_only)면 ``stale`` 을 내지 않는다(F-08).
     """
     state = read_sync_state(session)
     never = not state or not state.get("last_run_at")
+    status = state.get("last_status") or state.get("status")
+    failed = (not never) and status == "FAILED"
+    # 성공이 한 번도 없는 실패는 "오래됨"이 아니라 "실패"다 — stale 문구가 방금 난 실패를 덮지
+    # 않게 한다(감사 F-08). 성공이 있었고 그게 임계값보다 오래됐으면 failed·stale 둘 다 사실이다.
+    failed_only = failed and not state.get("last_ok_at")
     age = _hours_since(state.get("last_ok_at"))
     return {
         "last_run_at": state.get("last_run_at"),
         "last_ok_at": state.get("last_ok_at"),
-        "status": state.get("last_status") or state.get("status"),
+        "status": status,
         "coverage_from": state.get("coverage_from"),
         "coverage_to": state.get("coverage_to"),
         "rolling_days": state.get("rolling_days"),
         "final_before": (today - datetime.timedelta(days=FINAL_BEFORE_DAYS)).isoformat(),
         "vat_available_to": _previous_month_end(today).isoformat(),
         "rev": state.get("rev"),
-        "stale": (not never) and (age is None or age > STALE_AFTER_HOURS),
+        "stale": ((not never) and (not failed_only)
+                  and (age is None or age > STALE_AFTER_HOURS)),
         "never": never,
+        # 화면이 임계값 숫자를 다시 적지 않게 서버가 내린다(F-01).
+        "stale_after_hours": STALE_AFTER_HOURS,
+        "last_error": state.get("last_error") or None,
+        "failed": failed,
     }
 
 
@@ -542,6 +556,10 @@ def _build_daily(rows: list[Any], date_from: datetime.date, date_to: datetime.da
     }
     for key in keys:
         sums[key]["holdback"] = _ZERO
+        # 완료·미완료 몫을 따로 — KPI ``settled_amount``/``expected_amount`` 와 같은 컬럼·같은 술어.
+        # 월·주 버킷이 all(done) 하나로 "정산 예정"이라 말하면 완료분이 예정으로 읽힌다(감사 N-02).
+        sums[key]["settled_amount"] = _ZERO
+        sums[key]["expected_amount"] = _ZERO
     done: dict[str, list[bool]] = {key: [] for key in keys}
     for row in rows:
         expect = row.settle_expect_date
@@ -554,12 +572,18 @@ def _build_daily(rows: list[Any], date_from: datetime.date, date_to: datetime.da
         for name, column in _DAILY_SUMS:
             bucket[name] += _dec(getattr(row, column))
         bucket["holdback"] += _holdback_of(row)
-        done[key].append(row.settle_complete_date is not None)
+        settled = row.settle_complete_date is not None
+        bucket["settled_amount" if settled else "expected_amount"] += _dec(row.settle_amount)
+        done[key].append(settled)
     return [_daily_bucket(key, sums[key], done[key]) for key in keys]
 
 
 def _daily_bucket(key: str, sums: dict[str, Decimal], done: list[bool]) -> dict:
-    """버킷 1개를 응답 모양으로. ``completed`` 는 **그 버킷의 행이 전부 완료**일 때만 True."""
+    """버킷 1개를 응답 모양으로. ``completed`` 는 **그 버킷의 행이 전부 완료**일 때만 True.
+
+    ``sums`` 의 키를 그대로 돌리므로 ``settled_amount``(완료 행 합)·``expected_amount``(미완료 행
+    합)도 여기서 나온다 — 항등식 ``settled_amount + expected_amount == settle_amount``.
+    """
     bucket = {"date": key, "completed": bool(done) and all(done)}
     for name in list(sums):
         bucket[name] = _money(sums[name], default=0)
@@ -594,7 +618,84 @@ def _daily_totals(rows: list[Any]) -> dict[str, Decimal]:
     return totals
 
 
-def _build_holdback(rows: list[Any]) -> dict:
+def _holdback_shape(hold: Decimal, limit: Decimal) -> dict:
+    """보류 금액 3키 dict ``{pay_holdback, settlement_limit, amount}`` — 없어도 0(None 금지).
+
+    ``total``·``window``·``balance`` 가 전부 이 한 모양을 쓴다(화면이 세 곳을 같은 코드로 그린다).
+
+    Args:
+        hold: 지급 보류(``pay_holdback_amount``) 합.
+        limit: 정산 한도(``settlement_limit_amount``) 합.
+
+    Returns:
+        JSON 숫자 3개 dict(``amount`` = 두 컬럼 합).
+    """
+    return {"pay_holdback": _money(hold, default=0),
+            "settlement_limit": _money(limit, default=0),
+            "amount": _money(hold + limit, default=0)}
+
+
+def _holdback_window(rows: list[Any]) -> dict:
+    """조회 창 안 보류(음수)·해제(양수)·순증감 — 저장값을 **컬럼별 부호**로 갈라 더한다(감사 B-02).
+
+    보류와 해제가 상계된 순합 하나로는 발생액도 잔액도 알 수 없었다. 짝 판정(어느 보류가 어느
+    해제로 풀렸는가)은 하지 않는다 — 분할 해제가 실재해 짝은 추론이다(재계산 금지 D-4 경계).
+    새 질의 0(이미 메모리에 있는 행을 한 번 돈다).
+
+    Args:
+        rows: :func:`_daily_rows` 결과.
+
+    Returns:
+        ``{"held", "released", "net"}`` — 각각 :func:`_holdback_shape`. ``net == total``.
+    """
+    held_hold = held_limit = released_hold = released_limit = _ZERO
+    for row in rows:
+        hold, limit = _dec(row.pay_holdback_amount), _dec(row.settlement_limit_amount)
+        held_hold += min(hold, _ZERO)
+        released_hold += max(hold, _ZERO)
+        held_limit += min(limit, _ZERO)
+        released_limit += max(limit, _ZERO)
+    return {"held": _holdback_shape(held_hold, held_limit),
+            "released": _holdback_shape(released_hold, released_limit),
+            "net": _holdback_shape(held_hold + released_hold, held_limit + released_limit)}
+
+
+def _holdback_balance(session: Any, channel: str) -> dict:
+    """적재된 전 기간의 보류·한도 부호별 합(조회 창 무관) — 질의 1개, 대시보드 전용(스트립 X).
+
+    회계팀이 마감마다 손계산하던 **누적 잔액**(운영 실측 −129,757,200원, 감사 B-02)을 화면에
+    올린다. 조회 창은 발생·해제의 짝을 갈라놓으므로(해제가 창 안, 보류가 창 밖) 잔액은 채널
+    전체 일별 행에서 잰다. ``since``/``until`` 은 그 집합의 최소·최대 정산 예정일이다.
+
+    Args:
+        session: SQLAlchemy Session.
+        channel: 채널 코드.
+
+    Returns:
+        ``{"held", "released", "net", "since", "until"}`` — 행 0 이면 금액 0·날짜 None.
+    """
+    hold = NaverSettleDaily.pay_holdback_amount
+    limit = NaverSettleDaily.settlement_limit_amount
+
+    def _side(column: Any, negative: bool) -> Any:
+        """컬럼 한쪽 부호의 합 SQL 식 — NULL 은 보류가 아니라 CASE 가 else 0 으로 떨어져 합에서 빠진다."""
+        cond = column < 0 if negative else column > 0
+        return func.coalesce(func.sum(case((cond, column), else_=0)), 0)
+
+    row = (session.query(_side(hold, True), _side(hold, False),
+                         _side(limit, True), _side(limit, False),
+                         func.min(NaverSettleDaily.settle_expect_date),
+                         func.max(NaverSettleDaily.settle_expect_date))
+           .filter(NaverSettleDaily.channel == channel).one())
+    held_hold, released_hold = _dec(row[0]), _dec(row[1])
+    held_limit, released_limit = _dec(row[2]), _dec(row[3])
+    return {"held": _holdback_shape(held_hold, held_limit),
+            "released": _holdback_shape(released_hold, released_limit),
+            "net": _holdback_shape(held_hold + released_hold, held_limit + released_limit),
+            "since": _day(row[4]), "until": _day(row[5])}
+
+
+def _build_holdback(session: Any, channel: str, rows: list[Any]) -> dict:
     """지급 보류·한도 보류의 일자별 상세 — KPI "보류·한도" 타일이 펼친다(v1.2 F2).
 
     두 컬럼(``pay_holdback_amount``·``settlement_limit_amount``) 중 하나라도 0 이 아닌 일별
@@ -602,11 +703,16 @@ def _build_holdback(rows: list[Any]) -> dict:
     운영 실측(2026-09-03)에서 같은 금액이 음수로 잡혔다가 뒤에 양수로 다시 나타난다(보류와
     해제의 짝). 합계는 더하기뿐이며 KPI 타일(:func:`_holdback_of`)과 같은 정의다.
 
+    ``window``(창 안 부호별 합)·``balance``(적재 전 기간 누적 잔액)는 감사 B-02 후속이다 —
+    ``build_channel_dashboard`` 만 부른다(스트립 질의 예산 ≤6 을 지킨다).
+
     Args:
+        session: SQLAlchemy Session(누적 잔액 질의 1개에 쓴다).
+        channel: 채널 코드.
         rows: :func:`_daily_rows` 결과(정산 예정일 오름차순).
 
     Returns:
-        ``rows``(정산 예정일 내림차순)·``count``·``total`` dict.
+        ``rows``(정산 예정일 내림차순)·``count``·``total``·``window``·``balance`` dict.
     """
     found: list[dict] = []
     total_hold, total_limit = _ZERO, _ZERO
@@ -630,9 +736,9 @@ def _build_holdback(rows: list[Any]) -> dict:
     return {
         "rows": found,
         "count": len(found),
-        "total": {"pay_holdback": _money(total_hold, default=0),
-                  "settlement_limit": _money(total_limit, default=0),
-                  "amount": _money(total_hold + total_limit, default=0)},
+        "total": _holdback_shape(total_hold, total_limit),
+        "window": _holdback_window(rows),
+        "balance": _holdback_balance(session, channel),
     }
 
 
@@ -1083,6 +1189,31 @@ def _retro_exceptions(run: Any, today: datetime.date) -> list[dict]:
     return found
 
 
+def _failed_run_exceptions(run: Optional[Any], today: datetime.date) -> list[dict]:
+    """최신 동기화 실행이 FAILED 면 ``SYNC_FAILED`` 1행 — 화면 전체가 옛 값이라는 신호(감사 F-04).
+
+    ``ABORTED_QUOTA`` 는 예외가 아니다: 쿼터 중단은 정상적인 중단이고 헤더 ``상태`` 가 이미
+    말한다(실패도 부분 적재도 아니다). 금액은 없다(``amount`` None) — 돈이 아니라 적재 상태다.
+    실패 창의 **미커밋** 변경은 :mod:`settle_sync` 가 되돌려 RETRO 재료에서 빼지만, 앞 창에서
+    커밋된 소급 변경은 ``retro_changes`` 에 남아 RETRO 와 이 행이 공존한다(둘은 다른 사실이다).
+
+    Args:
+        run: :func:`_latest_run` 결과(None 가능).
+        today: KST 오늘(경과일 계산 기준).
+
+    Returns:
+        예외 0/1행. 라벨 접두 ``"동기화 실패: "`` 는 고정 리터럴이다(테스트가 startswith 로 본다).
+    """
+    if run is None or run.status != "FAILED":
+        return []
+    summary = " ".join(str(run.error or "").split())[:80] or "사유 미상"
+    started = run.started_at
+    ref = {"run_id": int(run.id), "status": "FAILED", "trigger": run.trigger,
+           "started_at": started.isoformat() if started is not None else None,
+           "error": run.error}
+    return [_exception("SYNC_FAILED", f"동기화 실패: {summary}", started, None, today, ref)]
+
+
 def _mismatch_exceptions(reconcile: dict, today: datetime.date) -> list[dict]:
     """일별↔건별 합 불일치(COUNT_MISMATCH) 0/1행 — 차이를 감추지 않는다(적재 누락·소급 변경 신호).
 
@@ -1321,14 +1452,14 @@ def _validated(basis: str, granularity: str, ledger: str,
 
 
 def _exception_totals(case_stats: dict[str, Any], uncapped: list[dict]) -> dict[str, int]:
-    """예외 kind 별 **모집단**(상한 전) + ``total``. 7키 고정, 없으면 0.
+    """예외 kind 별 **모집단**(상한 전) + ``total``. 8키 고정, 없으면 0.
 
     미연결 두 갈래는 목록이 아니라 group-by 통계에서 센다(목록은 갈래당 상한까지만 읽는다).
-    나머지 다섯 kind 는 상한을 자르기 전 목록을 센다 — 추가 질의 0(감사 D-02).
+    나머지 여섯 kind 는 상한을 자르기 전 목록을 센다 — 추가 질의 0(감사 D-02).
 
     Args:
         case_stats: :func:`_build_case_stats` 결과.
-        uncapped: 일별 3종·RETRO·COUNT_MISMATCH 의 상한 전 목록.
+        uncapped: 일별 3종·RETRO·COUNT_MISMATCH·SYNC_FAILED 의 상한 전 목록.
 
     Returns:
         ``{kind: 건수, ..., "total": 합}``.
@@ -1349,9 +1480,11 @@ def _build_exceptions(session: Any, channel: str, date_from: datetime.date,
                       reconcile: dict, today: datetime.date) -> tuple[list[dict], dict[str, int]]:
     """예외 큐 — 미매칭·보류·한도·음수·소급 변경·합계 불일치를 한 목록으로 잇고 모집단을 함께 낸다.
 
-    순서가 곧 조치 우선순위다(사람이 붙일 것 → 돈이 묶인 것 → 값이 바뀐 것). 목록은 갈래
-    (미연결 2갈래·일별 3종 합·RETRO)마다 :data:`_EXCEPTION_CAP` 까지만 싣고, 상한 전 건수는
-    두 번째 반환값이 말한다 — 스트립·배지가 목록 길이를 세면 모집단이 8~34배 가려졌다(감사 D-02).
+    순서가 곧 조치 우선순위다(적재 자체가 실패한 것 → 사람이 붙일 것 → 돈이 묶인 것 → 값이
+    바뀐 것). ``SYNC_FAILED`` 가 맨 앞인 이유: 화면 전체가 옛 값이라는 신호라 다른 예외를 조치하기
+    전에 알아야 한다(감사 F-04). 목록은 갈래(미연결 2갈래·일별 3종 합·RETRO)마다
+    :data:`_EXCEPTION_CAP` 까지만 싣고, 상한 전 건수는 두 번째 반환값이 말한다 — 스트립·배지가
+    목록 길이를 세면 모집단이 8~34배 가려졌다(감사 D-02).
 
     Args:
         session: SQLAlchemy Session.
@@ -1367,18 +1500,21 @@ def _build_exceptions(session: Any, channel: str, date_from: datetime.date,
         ``(계약 §5 의 exceptions 목록, kind 별 모집단 + total)``.
     """
     unmatched = _unmatched_exceptions(session, channel, date_from, date_to, today)
-    daily_all, retro_all, mismatch = _uncapped_exception_pool(session, channel, rows,
-                                                              reconcile, today)
-    listed = unmatched + daily_all[:_EXCEPTION_CAP] + retro_all[:_EXCEPTION_CAP] + mismatch
-    return listed, _exception_totals(case_stats, daily_all + retro_all + mismatch)
+    daily_all, retro_all, mismatch, failed = _uncapped_exception_pool(
+        session, channel, rows, reconcile, today)
+    listed = (failed + unmatched + daily_all[:_EXCEPTION_CAP] + retro_all[:_EXCEPTION_CAP]
+              + mismatch)
+    return listed, _exception_totals(case_stats, daily_all + retro_all + mismatch + failed)
 
 
 def _uncapped_exception_pool(session: Any, channel: str, rows: list[Any], reconcile: dict,
-                             today: datetime.date) -> tuple[list[dict], list[dict], list[dict]]:
-    """상한 전 예외 세 갈래 — 일별 3종·RETRO·COUNT_MISMATCH(미연결은 목록이 아니라 통계로 센다).
+                             today: datetime.date
+                             ) -> tuple[list[dict], list[dict], list[dict], list[dict]]:
+    """상한 전 예외 네 갈래 — 일별 3종·RETRO·COUNT_MISMATCH·SYNC_FAILED(미연결은 통계로 센다).
 
     스트립은 여기까지만 쓴다: 미연결 목록 질의 2개(갈래별 50행)는 탭 화면에만 필요하고 모집단은
-    ``case_stats`` 가 이미 갖고 있다 — 요약 탭마다 도는 경로라 질의를 아낀다.
+    ``case_stats`` 가 이미 갖고 있다 — 요약 탭마다 도는 경로라 질의를 아낀다. 최근 run 은 **한 번만**
+    읽어 RETRO 와 SYNC_FAILED 가 같은 행을 본다(질의 수 불변).
 
     Args:
         session: SQLAlchemy Session.
@@ -1388,11 +1524,13 @@ def _uncapped_exception_pool(session: Any, channel: str, rows: list[Any], reconc
         today: KST 오늘(경과일 계산 기준).
 
     Returns:
-        ``(일별 3종 전부, RETRO 전부, COUNT_MISMATCH 0/1행)``.
+        ``(일별 3종 전부, RETRO 전부, COUNT_MISMATCH 0/1행, SYNC_FAILED 0/1행)``.
     """
+    run = _latest_run(session, channel)
     return (_daily_exceptions(rows, today),
-            _retro_exceptions(_latest_run(session, channel), today),
-            _mismatch_exceptions(reconcile, today))
+            _retro_exceptions(run, today),
+            _mismatch_exceptions(reconcile, today),
+            _failed_run_exceptions(run, today))
 
 
 def _range_block(date_from: datetime.date, date_to: datetime.date,
@@ -1481,7 +1619,7 @@ def build_channel_dashboard(session: Any, *, date_from: datetime.date,
         "waterfall": _build_waterfall(totals),
         "deposit_channels": _build_deposit_channels(rows),
         "reconcile": reconcile,
-        "holdback": _build_holdback(rows),
+        "holdback": _build_holdback(session, channel, rows),
         "commission": _build_commission(session, channel, date_from, date_to),
         "vat": _build_vat(session, channel, date_from, date_to, today),
         "exceptions": exceptions,
@@ -1532,9 +1670,9 @@ def build_channel_strip(session: Any, *, channel: str = "NAVER",
     totals = _daily_totals(rows)
     case_stats = _build_case_stats(session, channel, date_from, date_to, today)
     kpi = _kpi_block(totals, case_stats)
-    daily_all, retro_all, mismatch = _uncapped_exception_pool(
+    daily_all, retro_all, mismatch, failed = _uncapped_exception_pool(
         session, channel, rows, _build_reconcile(totals, case_stats), today)
-    exception_totals = _exception_totals(case_stats, daily_all + retro_all + mismatch)
+    exception_totals = _exception_totals(case_stats, daily_all + retro_all + mismatch + failed)
     return {
         "channel": channel,
         "basis": DEFAULT_BASIS,

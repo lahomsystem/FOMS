@@ -236,7 +236,11 @@ def api_settlement_channel():
         # 커널·파서가 사람이 읽는 한글 사유를 담아 던진다(내부 스택 노출 없음).
         return _error(str(exc), 400)
 
-    return jsonify({"success": True, "data": data, "error": None})
+    resp = jsonify({"success": True, "data": data, "error": None})
+    # 응답에 구매자명이 실린다. 서비스 워커의 PII 게이트(``static/sw.js`` responseForbidsStore)는
+    # 이 헤더로만 판정하므로, 나중에 ``/api/`` 캐시 분기가 생겨도 이 응답은 캐시에 남지 않는다(F-06).
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
 
 
 #: 소급 적재 하한(오늘 기준 일수). 조회 화면 상한(``MAX_RANGE_DAYS``)과 같은 폭 — 화면에서 고를 수 있는
@@ -273,8 +277,9 @@ def _backfill_arg(payload: dict, today: datetime.date) -> Optional[str]:
     return day.isoformat()
 
 
-def _enqueue(actor_user_id: int, backfill_from: Optional[str]) -> Any:
-    """정산 동기화 job 을 큐에 넣는다. 큐 모듈이 아직 없으면 ``None``.
+def _enqueue(actor_user_id: int,
+             backfill_from: Optional[str]) -> tuple[Optional[bool], Optional[str]]:
+    """정산 동기화 job 을 큐에 넣고 ``(queued, job_id)`` 를 돌려준다. 큐 모듈이 없으면 ``(None, None)``.
 
     **지연 import 인 이유**: 큐 헬퍼는 rq/redis 를 끌고 온다. 조회 화면이 그 import 에
     묶이면 안 되고, 배포 순서상 이 라우트가 먼저 올라가는 창도 있다.
@@ -284,14 +289,44 @@ def _enqueue(actor_user_id: int, backfill_from: Optional[str]) -> Any:
         backfill_from: 소급 적재 시작일 또는 None.
 
     Returns:
-        ``True``/``False``(enqueue 결과) 또는 큐 헬퍼 부재 시 ``None``.
+        ``(True|False, job_id)`` — ``job_id`` 는 실제로 큐에 들어갔을 때만 값이 있고 그 밖은
+        None. 큐 헬퍼 부재 시 ``(None, None)``.
     """
     try:
-        from foms.services.jobs.queue import enqueue_naver_settle_sync
+        # 큐가 실제로 쓴 dedupe id 를 감사 행에 적어야 그 행이 rq 큐(job 해시)와 대조된다(감사 E-02).
+        from foms.services.jobs.queue import _SETTLE_SYNC_JOB_ID, enqueue_naver_settle_sync
     except ImportError:
-        return None
-    return enqueue_naver_settle_sync(actor_user_id=actor_user_id,
-                                     backfill_from=backfill_from)
+        return None, None
+    queued = enqueue_naver_settle_sync(actor_user_id=actor_user_id,
+                                       backfill_from=backfill_from)
+    return queued, (_SETTLE_SYNC_JOB_ID if queued else None)
+
+
+def _sync_window(today: datetime.date, backfill_from: Optional[str]) -> tuple[str, str]:
+    """요청 시점에 계산된 실행 창 ``(from, to)`` — 워커 ``default_sync_window`` 와 **같은 함수**.
+
+    감사 행이 "무엇을 받아오라고 했는가"를 말하려면 기본 창을 그 자리에서 적어야 한다 — 워커
+    식이 나중에 바뀌면 옛 감사 행을 되짚을 수 없다(감사 E-02). 식을 베끼지 않고 워커 함수를 부르는
+    이유: 상수가 같아도 식(클램프·보정)이 갈리는 날 감사 행이 조용히 거짓이 된다. 아래
+    ``_DEFAULT_BACK_DAYS``/``_DEFAULT_FORWARD_DAYS`` 는 조회 기본 창이라 값이 같아도 뜻이 다르다.
+
+    **지연 import 인 이유**: ``settle_sync`` 는 네이버 클라이언트(requests·bcrypt)를 끌고 온다.
+    조회 커널이 적재 모듈에 의존하지 않는 방향(``foms/services/settlement_channel.py`` 모듈
+    docstring)을 이 API 모듈도 지킨다 — ``_enqueue`` 와 같은 사유다.
+
+    Args:
+        today: KST 오늘.
+        backfill_from: 소급 적재 시작일(``YYYY-MM-DD``) 또는 None.
+
+    Returns:
+        ISO 날짜 문자열 두 개: ``backfill_from`` 또는 오늘-``DEFAULT_ROLLING_DAYS``, 그리고
+        오늘+``DEFAULT_FUTURE_DAYS``.
+    """
+    from foms.services.integrations.naver_commerce.settle_sync import default_sync_window
+
+    start, end = default_sync_window(
+        today, datetime.date.fromisoformat(backfill_from) if backfill_from else None)
+    return start.isoformat(), end.isoformat()
 
 
 @settlement_channel_api_bp.route("/sync", methods=["POST"])
@@ -313,22 +348,26 @@ def api_settlement_channel_sync():
 
     payload = request.get_json(silent=True)
     payload = payload if isinstance(payload, dict) else {}
+    today = get_today_kst()
     try:
-        backfill_from = _backfill_arg(payload, get_today_kst())
+        backfill_from = _backfill_arg(payload, today)
     except ValueError as exc:
         return _error(str(exc), 400)
 
-    queued = _enqueue(int(user.id), backfill_from)
+    queued, job_id = _enqueue(int(user.id), backfill_from)
     if queued is None:
         return _error("동기화 큐가 아직 준비되지 않았습니다.", 503)
 
+    window_from, window_to = _sync_window(today, backfill_from)
     log_access(
         "네이버 정산 동기화 요청" + ("" if queued else "(이미 대기 중)"),
         user.id,
         action=SETTLE_SYNC_AUDIT_ACTION,
         target_type="settlement_channel",
+        # job_id·from·to: 감사 행이 rq 큐와 실행 이력(scope) 양쪽에 닿게 한다(감사 E-02).
         detail={"queued": bool(queued), "backfill_from": backfill_from,
-                "channel": _ALLOWED_CHANNELS[0]},
+                "channel": _ALLOWED_CHANNELS[0], "job_id": job_id,
+                "from": window_from, "to": window_to},
     )
     return jsonify({"success": True, "data": {"queued": bool(queued)}, "error": None})
 
@@ -354,12 +393,14 @@ def _export_filters() -> dict:
 
 def _log_export(user: Any, kind: str, channel: str,
                 date_from: datetime.date, date_to: datetime.date,
-                basis: str = DEFAULT_BASIS) -> None:
+                basis: str = DEFAULT_BASIS, *, filters: dict, filename: str) -> None:
     """CSV 다운로드 1회를 감사 원장에 남긴다(계약 §1.3 C5).
 
     **응답을 만들기 전에** 기록한다. 스트리밍이 중간에 끊겨도 "받아 갔다"는 사실은 남아야
     하고, 반대로 응답 생성 뒤에 기록하면 제너레이터가 소진되기 전에는 아직 안 도는 코드가
     된다. 행수는 이 시점에 모르므로 ``detail`` 에 넣지 않는다(모르는 것을 적지 않는다).
+    조건과 파일명은 이 시점에 안다 — 없으면 **None 으로 키를 남긴다**(키를 빼면 "조건 없이
+    받았다"와 "기록이 옛 형식이다"를 구분할 수 없다, 감사 E-06).
 
     Args:
         user: 내려받는 사람.
@@ -369,6 +410,9 @@ def _log_export(user: Any, kind: str, channel: str,
         date_to: 구간 종료일.
         basis: 요청이 고른 기준일 축. 기록에는 **실효 축**(되돌림 뒤)을 남긴다 — 요청값을
             적으면 나중에 그 기록으로 같은 파일을 다시 만들려는 사람이 다른 행 집합을 받는다.
+        filters: 파일에 실제로 걸린 ``{'type', 'q'}`` (빈 값은 키 없음).
+        filename: ``Content-Disposition`` 에 실리는 파일명과 **같은 문자열** — 내려받은 파일과
+            감사 행이 서로를 찾을 수 있어야 한다(감사 G-06).
     """
     log_access(
         "네이버 정산 CSV 내보내기",
@@ -377,7 +421,9 @@ def _log_export(user: Any, kind: str, channel: str,
         target_type=_EXPORT_TARGET_TYPE,
         detail={"kind": kind, "channel": channel,
                 "from": date_from.isoformat(), "to": date_to.isoformat(),
-                "basis": effective_basis(kind, basis)},
+                "basis": effective_basis(kind, basis),
+                "type": filters.get("type") or None, "q": filters.get("q") or None,
+                "filename": filename},
     )
 
 
@@ -414,21 +460,24 @@ def api_settlement_channel_export_csv():
         channel = _channel_arg()
         basis = _basis_arg()
         date_from, date_to = _range_args(today)
+        filters = _export_filters()
         # 커널은 종류·구간·조건을 **호출 시점에** 검증한다. 스트림이 시작된 뒤에 터지면
         # 반쪽 파일이 200 으로 내려가 사람이 그걸 정상 파일로 읽는다.
         lines = iter_csv_lines(get_db(), kind=kind, date_from=date_from, date_to=date_to,
-                               channel=channel, basis=basis, filters=_export_filters())
+                               channel=channel, basis=basis, filters=filters)
     except ValueError as exc:
         return _error(str(exc), 400)
 
-    _log_export(user, kind, channel, date_from, date_to, basis)
+    # 파일명은 한 번만 만들어 감사 행과 응답 헤더가 **같은 문자열**을 쓴다(감사 G-06·E-06).
+    filename = export_filename(kind, date_from, date_to, basis=basis,
+                               type_code=filters.get("type"), q=filters.get("q"))
+    _log_export(user, kind, channel, date_from, date_to, basis,
+                filters=filters, filename=filename)
     return Response(
         stream_with_context(lines),
         mimetype="text/csv",
         headers={
-            "Content-Disposition":
-                f'attachment; filename="'
-                f'{export_filename(kind, date_from, date_to, basis=basis)}"',
+            "Content-Disposition": f'attachment; filename="{filename}"',
             "X-Content-Type-Options": "nosniff",
             "Cache-Control": "no-store",
         },

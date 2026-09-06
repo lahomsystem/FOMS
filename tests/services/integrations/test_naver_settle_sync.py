@@ -468,6 +468,116 @@ def test_failure_is_recorded_and_returned_not_raised(app, narrow_range):
     assert state.get("coverage_to") is None and state["last_error"]
 
 
+def test_failed_run_rolls_back_the_half_replaced_window(app, narrow_range):
+    """창 도중 실패하면 그 창의 **반쯤 교체된 파티션을 되돌리고** 이력 행만 FAILED 로 닫는다(CFO 감사 F-04).
+
+    일별은 창 전체를 먼저 교체하고 건별은 하루씩 교체하므로, 2일째 건별에서 예외가 나면 세션에는
+    "일별 전부 + 건별 1일째 = 새 run, 건별 2일째 = 옛 run" 이 남는다. 그대로 커밋하면 다음 OK 까지
+    일별↔건별이 어긋난다. run1(OK) 뒤 run2(2일째 건별 예외) → 모든 행이 run1 그대로여야 한다.
+    """
+
+    class BoomOnSecondCaseDay(FakeClient):
+        def get_settle_cases(self, search_date, *, page=1, page_size=1000, **kwargs):
+            if search_date.isoformat() == D2:
+                raise RuntimeError("네이버 500")
+            return super().get_settle_cases(search_date, page=page, page_size=page_size,
+                                            **kwargs)
+
+    cases = {D1: [_case("PO-1")], D2: [_case("PO-2")]}
+    run1 = _run(FakeClient(daily=[_daily(D1, "1000000"), _daily(D2)], cases=cases))
+    assert run1["status"] == "OK"
+    after_run1 = _counts()
+    assert after_run1["naver_settle_daily"] == 2 and after_run1["naver_settle_case"] == 2
+
+    run2 = _run(BoomOnSecondCaseDay(daily=[_daily(D1, "2000000"), _daily(D2)], cases=cases))
+
+    assert run2["ok"] is False and run2["status"] == "FAILED"
+    assert "네이버 500" in (run2["error"] or "")
+    assert _counts() == after_run1
+    daily = {row.settle_expect_date.isoformat(): row
+             for row in db_session.query(NaverSettleDaily).all()}
+    assert Decimal(str(daily[D1].settle_amount)) == Decimal("1000000"), "D1 이 run2 값으로 남았다"
+    assert {row.sync_run_id for row in daily.values()} == {run1["run_id"]}
+    case_rows = db_session.query(NaverSettleCase).all()
+    assert {row.search_date.isoformat() for row in case_rows} == {D1, D2}
+    # D1 건별은 run2 가 교체했다가 되돌린 것 — 이 단정이 rollback 이 없을 때 red 다.
+    assert {row.sync_run_id for row in case_rows} == {run1["run_id"]}
+
+    run = db_session.get(NaverSettleSyncRun, run2["run_id"])
+    assert run.status == "FAILED" and "네이버 500" in (run.error or "")
+    assert run.stats["retro_changes"] == [] == run2["stats"]["retro_changes"]
+    rolled = run.stats["retro_changes_rolled_back"]
+    assert len(rolled) == 1 and rolled == run2["stats"]["retro_changes_rolled_back"]
+    assert rolled[0]["table"] == "naver_settle_daily" and rolled[0]["date"] == D1
+    assert Decimal(rolled[0]["old_total"]) == Decimal("1000000")
+    assert Decimal(rolled[0]["new_total"]) == Decimal("2000000")
+    state = read_settle_state(db_session)
+    assert state["last_status"] == "FAILED" and "네이버 500" in state["last_error"]
+    assert state["coverage_to"] == "2026-09-03", "실패는 성공 구간을 움직이지 않는다"
+
+
+def test_failed_second_window_keeps_the_first_windows_committed_retro(app, narrow_range):
+    """창 2 에서 실패해도 창 1 이 **커밋한** 소급 변경은 RETRO 재료(``retro_changes``)에 남는다.
+
+    창마다 커밋하므로 되돌릴 수 있는 것은 마지막 커밋 뒤 꼬리만이다. 창 1 의 변경까지 되돌린
+    것으로 옮기면 DB 는 이미 새 값이라 다음 OK 실행이 다시 감지하지 못하고, 화면 RETRO 가 그 변화를
+    영구히 놓친다(리뷰 A-1/Q-01). 기본 05:30 실행(오늘-30~오늘+14)도 30일 창 2개로 갈린다.
+    """
+    W1 = "2026-08-15"                       # 창 1(08-02~08-31) 안 날짜
+    backfill = date(2026, 8, 2)             # 오늘-31 → 창 2개
+    assert settle_sync.split_windows(backfill, date(2026, 9, 3)) == [
+        (date(2026, 8, 2), date(2026, 8, 31)), (date(2026, 9, 1), date(2026, 9, 3))]
+
+    class WindowedClient(FakeClient):
+        """실제 API 처럼 일별은 요청 창 안 행만 돌려주고, 지정한 날의 건별 조회에서 죽는다."""
+
+        def __init__(self, *, boom_on: str | None = None, **kwargs) -> None:
+            super().__init__(**kwargs)
+            self.boom_on = boom_on
+
+        def get_settle_daily(self, start_date, end_date, *, page=1, page_size=1000):
+            inside = [element for element in self.daily
+                      if start_date.isoformat() <= element["settleExpectDate"] <= end_date.isoformat()]
+            return self._page("settle/daily", f"{start_date}~{end_date}", inside)
+
+        def get_settle_cases(self, search_date, *, page=1, page_size=1000, **kwargs):
+            if search_date.isoformat() == self.boom_on:
+                raise RuntimeError("네이버 500")
+            return super().get_settle_cases(search_date, page=page, page_size=page_size,
+                                            **kwargs)
+
+    cases = {D1: [_case("PO-1")]}
+    run1 = _run(WindowedClient(daily=[_daily(W1, "1000000"), _daily(D1, "1000000")], cases=cases),
+                backfill_from=backfill, trigger="BACKFILL")
+    assert run1["status"] == "OK"
+
+    # 창 1 의 W1 금액과 창 2 의 D1 금액이 함께 바뀌고, 창 2 첫 건별 날(D1)에서 죽는다.
+    run2 = _run(WindowedClient(boom_on=D1, daily=[_daily(W1, "2000000"), _daily(D1, "3000000")],
+                               cases=cases),
+                backfill_from=backfill, trigger="BACKFILL")
+
+    assert run2["ok"] is False and run2["status"] == "FAILED"
+    run = db_session.get(NaverSettleSyncRun, run2["run_id"])
+    assert run.status == "FAILED"
+    retro = run.stats["retro_changes"]
+    assert retro == run2["stats"]["retro_changes"]
+    assert [change["date"] for change in retro] == [W1], "창 1 의 커밋된 소급 변경이 RETRO 재료에서 빠졌다"
+    assert Decimal(retro[0]["old_total"]) == Decimal("1000000")
+    assert Decimal(retro[0]["new_total"]) == Decimal("2000000")
+    rolled = run.stats["retro_changes_rolled_back"]
+    assert [change["date"] for change in rolled] == [D1], "되돌린 몫은 창 2 의 것만이어야 한다"
+    assert W1 not in {change["date"] for change in rolled}
+
+    daily = {row.settle_expect_date.isoformat(): row
+             for row in db_session.query(NaverSettleDaily).all()}
+    assert Decimal(str(daily[W1].settle_amount)) == Decimal("2000000"), "창 1 은 커밋됐어야 한다"
+    assert daily[W1].sync_run_id == run2["run_id"]
+    assert Decimal(str(daily[D1].settle_amount)) == Decimal("1000000"), "창 2 는 되돌아가야 한다"
+    assert daily[D1].sync_run_id == run1["run_id"]
+    assert {row.sync_run_id for row in db_session.query(NaverSettleCase).all()} == {run1["run_id"]}
+    assert read_settle_state(db_session)["last_status"] == "FAILED"
+
+
 # --------------------------------------------------------------------------- #
 # ⑥ dry_run 무기록
 # --------------------------------------------------------------------------- #

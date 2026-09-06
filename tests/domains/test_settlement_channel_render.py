@@ -71,7 +71,10 @@ _STATIC_ASSETS = (CSS_ASSET, JS_ASSET)
 #: (JS 클래스 + CSS 규칙 1개, h → i).
 #: 2026-09-05 CFO 후속 — 라벨 6개·예외 머리(모집단 중 표시 수)·미매칭 금액/aging·전기 구간 라벨
 #: (JS 만, i → 20260905a).
-_CHANNEL_PIN = "20260905a"
+#: 2026-09-06 CFO 백로그 2차 — 보류 창 안 부호별 합·누적 잔액(B-02)·stale 문구/FAILED 헤더(F-01·F-08)·
+#: SYNC_FAILED 배지(F-04)·버킷 일부 완료(N-02)·워터폴 2줄 라벨(G-07)·그룹 min-width(G-08a)
+#: (JS + CSS, 직전 핀 → 20260906a).
+_CHANNEL_PIN = "20260906a"
 
 _CHANNEL_TAB_ID = "foms-settle-tab-channel"
 _CHANNEL_PANE_ID = "foms-settle-pane-channel"
@@ -1252,3 +1255,160 @@ def test_delta_label_names_the_previous_range():
     assert "spec.prevLabel" in tile, "타일이 구간 라벨을 안 받는다"
     assert "' 전기 대비'" not in tile, "옛 고정 라벨이 남아 있다"
     assert "'전기 비교(정산 금액)'" not in daily, "옛 범례 리터럴이 남아 있다"
+
+
+# ==========================================================================
+# 계약 — CFO 백로그 2차(2026-09-06): 보류 부호별 합·누적 잔액 · stale/FAILED 헤더 · SYNC_FAILED 배지 ·
+#        워터폴 2줄 라벨 · 그룹 min-width · 버킷 일부 완료
+# 문구는 **소스 리터럴**로 본다(서버 응답 키 이름은 설계 정본 §1 — API 계약은 BE 테스트가 잠근다).
+# ==========================================================================
+def test_holdback_tile_says_window_held_and_released():
+    """"보류·한도" 타일 부제가 창 안 보류(음수) 합과 해제(양수) 합을 따로 말한다(B-02).
+
+    타일 값은 두 부호가 상계된 순증감이라 발생액도 잔액도 아니다. 값은 서버 `holdback.window`
+    (저장값 부호별 합) 그대로이고, 변수 이름은 전역을 가리는 `window` 가 아니다.
+    """
+    kpis = _js_function("renderKpis")
+
+    assert "'지급 보류 + 정산 한도 초과분 · 창 안 보류 '" in kpis, "창 안 보류 조각이 없다"
+    assert "' · 해제 '" in kpis, "해제 조각이 없다"
+    assert "holdback.window" in kpis, "서버 window 블록을 안 읽는다"
+    assert ".held.amount" in kpis and ".released.amount" in kpis, "서버 held/released 금액을 안 읽는다"
+    assert "var window" not in kpis, "전역 window 를 가리는 변수명이다"
+
+
+def test_holdback_detail_head_says_the_cumulative_balance_and_sign_rows():
+    """상세 패널 머리에 적재 구간 전체 누적 잔액 한 줄, tfoot 에 부호별 합 두 줄(B-02).
+
+    누적 잔액은 조회 창과 무관한 서버 `holdback.balance`(전 기간 부호별 합 + since/until)라
+    **빈 목록 검사보다 앞**에 있어야 한다 — 창 밖 해제가 잔액에만 반영되는 것이 이 항목의 핵심이다.
+    tfoot 두 줄의 값 원천은 서버 `window.held`/`window.released` 만이다(화면 합산 금지).
+    """
+    body = _js_function("renderHoldbackDetail")
+
+    assert "'적재 구간 전체 누적 잔액 '" in body, "누적 잔액 줄이 없다"
+    assert "'(보류 '" in body, "누적 잔액의 보류 조각이 없다"
+    assert "'보류(음수) 합'" in body and "'해제(양수) 합'" in body, "부호별 합 줄이 없다"
+    assert "block.balance" in body, "서버 balance 를 안 읽는다"
+    assert ".since" in body and ".until" in body, "적재 구간(since~until)을 안 찍는다"
+    assert body.find("block.balance") < body.find("block.rows.length"), "누적 잔액 줄이 빈 목록 검사 뒤에 있다"
+    assert "block.window" in body, "부호별 합의 원천이 서버 window 가 아니다"
+    assert ".held" in body and ".released" in body, "서버 held/released 를 안 읽는다"
+    assert "el('tfoot')" in body and "block.total" in body, "기존 합계 줄 계약이 깨졌다"
+
+
+def test_stale_sentence_names_the_schedule_and_reads_the_server_threshold():
+    """stale 문장이 "예정 실행(매일 05:30)을 넘겼습니다" 를 말하고 임계값은 서버 값을 읽는다(F-01).
+
+    "N시간 넘게" 만으로는 N 이 왜 비정상인지 읽히지 않는다. 숫자는 `sync.stale_after_hours` 에서
+    오므로 서버 상수(28)가 바뀌어도 화면이 갈리지 않는다. 음성 대조군: 옛 고정 문장 "36시간 넘게
+    갱신되지 않았습니다" 는 소스 어디에도 없다.
+    """
+    helper = _js_function("staleSentence")
+    sync = _js_function("renderSync")
+    source = _read_code(f"static/{JS_ASSET}")
+
+    assert "'갱신되지 않았습니다 — 예정 실행(매일 05:30)을 넘겼습니다. 아래 숫자는 그 시점의 값입니다.'" in helper
+    assert "sync.stale_after_hours" in helper, "임계값을 서버에서 안 읽는다"
+    assert "'시간 넘게 '" in helper, "N시간 조각이 없다"
+    assert "staleSentence(sync)" in sync, "헤더가 stale 문장 헬퍼를 안 쓴다"
+    assert "36시간 넘게 갱신되지 않았습니다" not in source, "옛 고정 문장이 남아 있다"
+
+
+def test_sync_header_has_a_failed_mode_that_stale_cannot_hide():
+    """동기화 헤더에 FAILED 모드가 있고 우선순위는 never > failed > stale > ok 다(F-08).
+
+    성공이 한 번도 없이 실패만 쌓이면 옛 코드는 stale 문구로 실패를 덮었다. FAILED 머리는
+    마지막 실행 시각과 서버 `sync.last_error` 를 말하고, 성공이 없으면 "성공한 실행이 아직 없습니다"
+    로 아래 숫자가 비었거나 부분 적재일 수 있음을 말한다. 점 색은 CSS 에도 있어야 한다.
+    """
+    body = _js_function("renderSync")
+    css = _read_code(f"static/{CSS_ASSET}")
+
+    assert "sync.failed ? 'failed'" in body, "failed 모드가 없다"
+    assert body.find("sync.never ?") < body.find("sync.failed ?") < body.find("sync.stale ?"), "모드 우선순위가 다르다"
+    assert "'동기화 실패 — '" in body and "' · 오류: '" in body, "FAILED 머리 문구가 없다"
+    assert "sync.last_error" in body, "서버 오류 문구를 안 읽는다"
+    assert "'성공한 실행이 아직 없습니다 — 아래 숫자는 비어 있거나 부분 적재일 수 있습니다.'" in body
+    assert "'마지막 성공 '" in body, "성공이 있을 때의 부제가 없다"
+    assert ".s-ch-dot--failed" in css, "CSS 에 failed 점 색이 없다"
+
+
+def test_exception_badge_knows_sync_failed_as_danger():
+    """예외 배지가 `SYNC_FAILED` 를 **첫 분기**에서 danger 색으로 낸다(F-04).
+
+    동기화 실패는 "화면 전체가 옛 값"이라는 신호라 보류(hold)·경고(warn)와 갈려야 조치 순서가
+    읽힌다. 색 클래스는 CSS 에도 있어야 한다(없으면 조용히 회색).
+    """
+    body = _js_function("excKindClass")
+    css = _read_code(f"static/{CSS_ASSET}")
+
+    assert "'SYNC_FAILED'" in body and "return 'danger'" in body, "SYNC_FAILED 분기가 없다"
+    assert body.find("'SYNC_FAILED'") < body.find("'UNMATCHED'"), "SYNC_FAILED 가 첫 분기가 아니다"
+    assert ".s-ch-badge--danger" in css, "CSS 에 danger 배지 색이 없다"
+
+
+def test_waterfall_labels_wrap_into_two_tspans_instead_of_slicing():
+    """워터폴 X축 라벨이 6자 절단 대신 `<tspan>` 1~2줄로 그려진다(G-07·G-08).
+
+    "지급 보류·한도" 가 "지급보류·한" 으로 잘려 이웃 라벨과 겹쳤다. `splitStepLabel` 이 '·' 우선,
+    없으면 첫 공백에서 줄을 가르고 절단은 하지 않는다. 음성 대조군: `slice(0, 6)`·`shortStepLabel`·
+    `short:` 항목이 소스에 남아 있지 않다. SVG 문자열 조립에는 `esc()` 를 쓴다.
+    """
+    source = _read_code(f"static/{JS_ASSET}")
+    chart = _js_function("waterfallChart")
+    waterfall = _js_function("renderWaterfall")
+    helper = _js_function("splitStepLabel")
+
+    assert "function splitStepLabel(" in source, "splitStepLabel 헬퍼가 없다"
+    assert "'<tspan x=\"'" in chart, "축 라벨이 tspan 으로 안 그려진다"
+    assert "splitStepLabel(step.item.label)" in chart, "차트가 줄 나눔 헬퍼를 안 쓴다"
+    assert "esc(line)" in chart, "tspan 본문을 이스케이프하지 않는다"
+    assert "'·'" in helper, "'·' 에서 줄을 가르지 않는다"
+    assert "slice(0, 6)" not in source, "6자 절단이 남아 있다"
+    assert "function shortStepLabel" not in source, "shortStepLabel 이 남아 있다"
+    assert "short:" not in waterfall, "renderWaterfall 이 short 항목을 만든다"
+
+
+def test_ledger_group_has_min_width_zero_so_the_grid_cannot_overflow():
+    """`.foms-settle .s-ch-group` 에 `min-width: 0` 이 있다(G-08a).
+
+    grid 아이템 기본 `min-width: auto` 가 min-content(150% 배율에서 1650px)로 부풀어
+    `.s-ch-ledger-body` 격자를 뚫고 본문 가로 스크롤을 만들었다. 표는 이미 `.s-ch-tablewrap`
+    (overflow-x: auto) 안이라 그룹이 줄어들 수만 있으면 스크롤이 표 안에 머문다.
+    """
+    css = _read_code(f"static/{CSS_ASSET}")
+
+    assert re.search(r"\.foms-settle \.s-ch-group\s*\{[^}]*min-width:\s*0", css), "s-ch-group 에 min-width: 0 이 없다"
+
+
+def test_bucket_tooltip_says_partly_settled_when_mixed():
+    """일별 차트 툴팁 제목이 완료·미완료가 섞인 버킷을 "일부 완료(완료 X · 미입금 Y)" 로 말한다(N-02).
+
+    월/주 버킷(또는 하루 2행)에 "정산 예정" 을 찍으면 거짓이다. 두 금액은 서버 버킷의
+    `settled_amount`·`expected_amount`(저장값 합) 그대로이고, 화면은 더하거나 나누지 않는다.
+    음성 대조군: `renderDaily` 안에 옛 `completed ? ' (정산 완료)' : ' (정산 예정)'` 삼항이 없다.
+    """
+    helper = _js_function("bucketStateText")
+    daily = _js_function("renderDaily")
+
+    assert "' (일부 완료 — 완료 '" in helper and "' · 미입금 '" in helper, "일부 완료 문구가 없다"
+    assert "row.settled_amount" in helper and "row.expected_amount" in helper, "서버 두 금액을 안 읽는다"
+    assert "' (정산 완료)'" in helper and "' (정산 예정)'" in helper, "완료/예정 접미가 헬퍼에 없다"
+    assert "bucketStateText(daily[i])" in daily, "툴팁 제목이 헬퍼를 안 쓴다"
+    assert "' (정산 예정)'" not in daily, "renderDaily 에 옛 삼항이 남아 있다"
+
+
+def test_bucket_mixed_predicate_only_needs_a_settled_share():
+    """섞임 판정은 **완료분이 있는가**만 본다 — 미입금이 ₩0 이어도 "일부 완료" 다(리뷰 Q-05).
+
+    완료 행들 + `settle_amount` 0 인 미완료 행(그날 정산이 통째로 보류된 날)이 섞인 달은
+    `completed=False`·`expected_amount=0` 이라, 옛 술어 `settled && expected` 는 그 달을 "(정산 예정)" 으로
+    찍었다 — 전부 이미 입금된 돈인데도. 미입금 ₩0 은 사실이므로 그대로 찍는다.
+    음성 대조군: 옛 술어(두 금액 모두 0 아님)가 헬퍼에 남아 있지 않다.
+    """
+    helper = _js_function("bucketStateText")
+
+    assert "row.settled_amount !== 0" in helper, "섞임 술어가 완료분 유무를 안 본다"
+    assert "isNum(row.settled_amount)" in helper, "완료분 결측(null)과 0 을 가르지 않는다"
+    assert "row.settled_amount && row.expected_amount" not in helper, "옛 섞임 술어(둘 다 0 아님)가 남아 있다"

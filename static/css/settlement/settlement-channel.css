@@ -121,6 +121,8 @@
 .foms-settle .s-ch-dot--ok { background: var(--s-ch-ok); }
 .foms-settle .s-ch-dot--stale { background: var(--s-ch-warn); }
 .foms-settle .s-ch-dot--never { background: var(--s-ch-neg-color); }
+/* 최신 실행이 FAILED — stale(주의색)이 실패를 덮지 못하게 따로 둔다(CFO 감사 F-08). */
+.foms-settle .s-ch-dot--failed { background: var(--s-ch-neg-color); }
 /* 안내는 Bootstrap `.alert` 를 쓰지 않는다 — 전역 스크립트가 5초 뒤 자동으로 닫는다. */
 .foms-settle .s-ch-notice {
   border: 1px solid var(--s-line); background: var(--s-surface-soft);
@@ -256,6 +258,8 @@
 .foms-settle .s-ch-badge--charge { background: var(--s-ch-hold-soft); color: var(--s-ch-hold); }
 /* v1.2 F1 — 수집 전 주문(UNLINKED). 워크벤치 대기(warn)와 색이 갈려야 두 갈래가 한눈에 갈린다. */
 .foms-settle .s-ch-badge--info { background: var(--s-accent-soft); color: var(--s-accent); }
+/* SYNC_FAILED — 화면 전체가 옛 값이라는 신호. 보류(hold)·경고(warn)와 갈려야 조치 순서가 읽힌다(CFO 감사 F-04). */
+.foms-settle .s-ch-badge--danger { background: var(--s-ch-error-soft); color: var(--s-ch-neg-color); }
 
 /* ── S9 대사 배너 (호스트가 이미 `.s-ch-card` 라 테두리를 겹치지 않는다) ── */
 .foms-settle .s-ch-reconcile { min-width: 0; }
@@ -302,7 +306,10 @@
 .foms-settle .s-ch-ledger-body { padding: 10px 12px 4px; display: grid; gap: 10px; min-width: 0; }
 
 /* 날짜 그룹 — 기본 접힘, 이 페이지에 행이 있는 첫 그룹만 열림(JS 가 `open` 을 준다) */
-.foms-settle .s-ch-group { border: 1px solid var(--s-line-soft); border-radius: 8px; }
+/* min-width: 0 — grid 아이템 기본 `min-width: auto` 가 min-content(150% 배율에서 1650px)로 부풀어
+   `.s-ch-ledger-body` 격자를 뚫고 본문 가로 스크롤을 만든다. 표 자체는 이미 `.s-ch-tablewrap`
+   (overflow-x: auto) 안이라 그룹이 줄어들 수 있어야 스크롤이 표 안에 머문다(CFO 감사 G-08a). */
+.foms-settle .s-ch-group { border: 1px solid var(--s-line-soft); border-radius: 8px; min-width: 0; }
 .foms-settle .s-ch-group[open] { border-color: var(--s-line); }
 .foms-settle .s-ch-group-sum {
   display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
