@@ -1,0 +1,33 @@
+{
+  "schema": "canonical-doc-paths/1",
+  "documents": [
+    "CLAUDE.md",
+    "AGENTS.md",
+    "README.md",
+    "foms/README.md",
+    ".cursor/rules/00-project-context.mdc"
+  ],
+  "removed_top_level_paths": [
+    "apps/",
+    "services/",
+    "constants.py"
+  ],
+  "known_missing": [
+    {
+      "document": "AGENTS.md",
+      "path": "docs/harness/runtime/session_commit_ledger.json"
+    },
+    {
+      "document": "AGENTS.md",
+      "path": "origin/production"
+    },
+    {
+      "document": "AGENTS.md",
+      "path": "perf-audit/"
+    },
+    {
+      "document": "CLAUDE.md",
+      "path": "docs/harness/runtime/COMPACT_CHECKPOINT.md"
+    }
+  ]
+}

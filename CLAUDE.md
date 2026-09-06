@@ -45,9 +45,9 @@
 - **디자인 작업**: gstack-design-review 주력(실브라우저 검증 루프). 인라인 스타일 금지·erp-pro.css 체계가 항상 우선.
 
 ## 디렉토리 구조
-- `app.py`: Flask 앱 초기화 (최소화, 라우트 추가 금지) / 새 API는 `apps/api/` Blueprint로
-- `services/`: 비즈니스 로직·정책 엔진, `templates/`: Jinja2, `static/`: JS·CSS
-- `models.py`: DB 모델, `constants.py`: 상수
+- `app.py`: Flask 앱 초기화 (최소화, 라우트 추가 금지) / 새 라우트는 `foms/api/`(JSON·API·webhook)·`foms/web/`(HTML 페이지) Blueprint로, 등록 정본은 `foms/platform/blueprints.py`
+- `foms/services/`: 비즈니스 로직·정책 엔진, `templates/`: Jinja2, `static/`: JS·CSS
+- `models.py`: DB 모델 / 상수는 도메인 모듈 옆에 둔다(예 `foms/services/orders/erp_policy_constants.py`) — 루트 단일 상수 모듈은 2026-04 strict canonical tree 작업으로 사라졌다
 
 ## 코딩 규칙
 
