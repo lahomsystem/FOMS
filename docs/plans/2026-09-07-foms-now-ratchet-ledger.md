@@ -13,11 +13,11 @@
 | T1 | 의존 방향 래칫 계약 테스트 | DONE | 2026-09-07 |
 | T2 | 파일 크기 래칫 + 정본 경로 정정 | DONE | 2026-09-07 |
 | T5 | 사고 원장·결정 기록 선등재 | DONE | 2026-09-07 |
-| T3 | 드리프트 감사 배선 + 09-01 원인 줄 제거 | DONE(부분) — 코드·스테이징 왕복 완료, 2주 관측 대기 | 2026-09-07 |
+| T3 | 드리프트 감사 배선 + 09-01 원인 줄 제거 | DONE(부분) — 코드·스테이징 전량 통과, 2주 관측만 대기 | 2026-09-07 |
 | T4 | 루프 하트비트 + 워커 Sentry 배선 | DONE(부분) — 코드 완료, 스테이징 검증 대기 | 2026-09-07 |
 | T6 | 로그인 한도·잠금 + 레이트리미터 폴백 로그 | DONE(부분) — 코드 완료, 스테이징 검증 대기 | 2026-09-07 |
 | T7 | 두 번째 개발자 부팅 경로 | DONE (검증 기준 1건 병기) | 2026-09-07 |
-| T8 | 게이트·push·CI·스테이징 QA | IN_PROGRESS — push 2회·스테이징 T4/T6 검증 완료 | 2026-09-07 |
+| T8 | 게이트·push·CI·스테이징 QA | DONE — push 3회·전 워크플로 green·스테이징 QA 완료 | 2026-09-07 |
 
 상태 값: PENDING / IN_PROGRESS / DONE / DONE(부분) / BLOCKED.
 
@@ -680,7 +680,7 @@ Unset DATABASE_URL or use sqlite (e.g. sqlite:///:memory: ...)
 
 ## T8. 게이트·push·CI·스테이징 QA
 
-- 상태: IN_PROGRESS — push 2회 완료, 스테이징 T4·T6 검증 완료. T3 스테이징분 일부 잔여.
+- 상태: DONE — push 3회(`0e3029e7e`·`4fdee6abe`·`963f369dd`), 전 워크플로 green, 스테이징 QA 완료.
 - 완료 기준: `python -c "import app; print('APP_OK')"` → `scripts/ops/pre_push_smoke.ps1` exit 0 →
   `deploy` push(production 금지) → 전 워크플로 나열로 CI green 확인 → 스테이징 QA(T3·T4·T6).
 
@@ -892,6 +892,46 @@ $ 스테이징 왕복(래칫 적용 후)
 | ERP flat  | 2313 | 1888 | 1750 | 🔴 +138 | SAFE 886 · AMBIGUOUS 1002 · CLEAN 425 |
 ```
 
+### 스테이징 09-01 재현 시나리오 — **통과**
+
+보고서 검증 칸: "스테이징에서 전화 변경 1회 뒤 트리아지 자동 매칭이 같은 고객을 찾음".
+
+09-01 사고의 근본 원인은 **읽기 쪽**이었다 — 매칭이 sync 규약 밖 컬럼(`orders.phone`)을 함께
+봐서 낡은 값에 걸렸다. 그래서 앱이 실제로 쓰는 두 함수를 그대로 태웠다:
+`sync_erp_flat_columns`(쓰기 규약) → `find_order_candidates`(읽기 축).
+
+가상 주문은 `CLAUDE-TEST-` 접두어 + 더미 연락처(`010-0000-000x`)로 만들고 끝나면 지웠다.
+
+```
+[준비] 주문 #4727 생성 · phone=010-0000-0001 erp_phone_digits=01000000001
+[변경] 새 전화 010-0000-0002 · orders.phone=010-0000-0001 erp_phone_digits=01000000002
+       (orders.phone 은 sync 규약 밖이라 낡은 값이 남는다: True)
+[매칭] 새 번호로 조회 -> [4727, 4387] / 대상 포함: True
+[음성 대조군·이름 다름] 옛 번호로 조회 -> [4386] / 대상 포함: False
+[정리] 주문 #4727 삭제 · 잔존: False
+```
+
+**기전이 그대로 보인다** — 전화를 한 번 바꾸면 `erp_phone_digits` 는 새 번호로 따라오지만
+`orders.phone` 은 낡은 값에 멈춘다(sync 규약 밖). 매칭이 인덱스 컬럼 단독을 보므로 새 번호로
+같은 고객을 찾는다.
+
+**음성 대조군 설계 주의**: 처음에는 옛 번호로도 대상이 나왔다. 매칭이 전화 말고 **이름 축**도
+점수화하기 때문이지 전화 폴백이 남아서가 아니다. 이름을 다르게 준 두 번째 대조군에서 옛
+번호로는 대상이 **안 나온다**. 양성만 보고 통과라 했으면 축을 잘못 짚을 뻔했다.
+
+정리 확인: `SELECT ... WHERE customer_name LIKE 'CLAUDE-%'` 에 이번 세션 주문은 없다.
+남아 있는 24건은 2026-08-13~09-01 타 세션 잔여이고 그중 4건은 `deleted_at IS NULL` 이다 —
+내 몫이 아니라 손대지 않았다(후속 F-16).
+
+### 최종 CI — 전 워크플로 green (`963f369dd`)
+
+```
+Harness CI           | completed | success
+FOMS PostgreSQL Lane | completed | success
+FOMS CI              | completed | success
+perf-gate (staging)  | completed | success
+```
+
 
 ---
 
@@ -914,3 +954,4 @@ $ 스테이징 왕복(래칫 적용 후)
 | F-13 | `drift-audit-daily` cron·dispatch 는 production 승격 후에만 작동 | T8 실측(HTTP 404) | 승격 시 dispatch 1회로 `elapsed_ms` 실측 권장 |
 | F-14 | 운영 `erp_phone_digits` 드리프트 **93건** | 운영 실측 2026-09-07 | T3 이 전화축을 이 컬럼 단독으로 만들었다. 93건은 그 축이 낡은 상태다. `tools/ops/backfill_erp_flat_columns.py`(SAFE 대상 재동기)로 정리 가능 — **운영 쓰기라 사용자 승인 필요** |
 | F-15 | 운영 ERP flat 드리프트 1,750건 | 운영 실측 2026-09-07 | 래칫으로 악화는 멈췄다. 줄이는 것은 보고서 ④ '이번 분기'(생성 컬럼·트리거로 사본 규약 대체) 몫 |
+| F-16 | 스테이징 `CLAUDE-TEST-` 잔여 24건(그중 4건 `deleted_at IS NULL`) | T3 재현 중 확인 | 2026-08-13~09-01 타 세션 잔여. 내 몫이 아니라 손대지 않았다 |
