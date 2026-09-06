@@ -110,6 +110,7 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
     from foms.api.foms_search import foms_search_bp
     from foms.api.fragment import foms_fragment_bp
     from foms.api.foms_offline import foms_offline_bp
+    from foms.api.ops_drift import ops_drift_bp
     # OPS-ROUTE-01: foms.api.debug.debug_bp 는 의도적으로 미등록(무인증 /debug-db 봉쇄).
 
     # --- Registration sequence (frozen): ERP page blueprints ---
@@ -187,6 +188,9 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
     # SETTLE-CHANNEL-01: 채널(네이버) 정산 탭 API. 위와 경로가 겹치지 않는다
     # (/api/settlement/channel* 은 aggregates·rows 와 다른 prefix).
     app.register_blueprint(settlement_channel_api_bp)
+    # OPS-DRIFT-01: 드리프트 감사 2종의 admin 전용 조회로(GET 1개). 위 시퀀스와 경로가
+    # 겹치지 않아(/api/foms/ops/*) shadowing 이 없고, 규약대로 **뒤에만** 덧붙인다.
+    app.register_blueprint(ops_drift_bp)
     # OPS-ROUTE-01: debug_bp 미등록 → deployed 앱에 /debug-db 라우트 0.
 
     # --- Lane: Infra liveness (Railway healthcheck / keep-warm 프로브) ---
