@@ -44,3 +44,20 @@
 - 2026-09-06 **운영 승격 완료 — PR #298 → production `b51acf6d0`**. 사용자 선택(09-05) "운영에 올리기 + 다음 백로그 계속". cherry-pick 4커밋(코드 `c97ac2128` + 보고서·브리프·§8 문서 3건; 원장·AI_STATUS 커밋은 문서 계보 충돌 회피로 deploy 에만). `promote_completeness` 가 missing 5 를 냈지만 전부 이미 승격된 커밋의 cherry-pick 재작성분(운영 vs deploy base 정산 파일 diff **0**)이라 `--allow-incomplete`. 승격 트리(`c:/tmp/foms-promo298`, 헬퍼가 임시 트리를 지워 PR head `3f33645b7` 로 재생성) 게이트: APP_OK · settlement 948 · sync+contracts+ns+perf 292 · smoke PASSED. PR 검사 4종(test·pg-lane·harness·perf-gate) 전부 SUCCESS → `gh pr merge --merge`. 운영 `channel.js?v=20260905a` 에 `exception_totals` 도달 확인(정적 자산, 로그인 없음 — 운영 화면 조작은 하지 않았다).
 - 잔여: E-05 운영 측정 계정 비번 로테이션(사용자 미선택) · 백로그 2차는 `docs/plans/2026-09-06-settlement-cfo-backlog2-brief.md`(B-02 등 10건, F-02·H-01·D-03·자동 백필은 승인 대기로 제외).
 - 함수 길이(docstring 포함): `_build_ledger` 52·`build_channel_dashboard` 56·`build_channel_strip` 51(기준선 53·51·50, 실행 줄은 각 30 안팎). 진입점 docstring 이 17~24줄이라 총줄 기준 50 은 기준선부터 넘어 있었다 — F9 원장과 같은 기준(실행 줄)으로 판정.
+
+## 3차 백로그 승인분 4건 (2026-09-06, 브리프 `2026-09-06-settlement-cfo-backlog3-brief.md`, CEO 워크플로 `wf_992ad1db-43b` 11 에이전트·65분·176만 토큰)
+
+사용자 승인(2026-09-06): "동기화 버튼 정직하게 · 검색 보조 사전 추가 · 정산금≠주문금액 경고 · 월초 자동 다시받기" 넷 다.
+
+| task | 상태 |
+|---|---|
+| F-02 큐 3상태(`queued`/`duplicate`/`unavailable`) + 503 · 감사 `reason` · JS 상태줄 문구 | DONE — `enqueue_naver_settle_sync` 만 3상태(다른 `enqueue_*` 계약 불변) |
+| H-01 창 술어 COALESCE 식 인덱스 2종 + 마이그레이션 `naversettle_02` + models `__table_args__` | DONE — 인자 순서까지 커널 술어와 일치, `downgrade` 인덱스만 제거(가역), 마이그레이션에 models import 0 |
+| D-03 `AMOUNT_DIFF` 예외(9키) + 실무 탭 두 원값 병기 | DONE — 대시보드 전용(스트립 예산 6 불변), 질의 +2(그룹 1 + `Order.id.in_(ids)` 1), 차액 저장 없음(D-4) |
+| B-01 월초 자동 백필 + 확정 구간 부제 + 계약 문서 절 | DONE — `monthly_backfill_from`(1일만), 스위치 `FOMS_NAVER_SETTLE_MONTHLY_BACKFILL` 기본 1, 하루 1회 계약 유지 |
+| G 총괄 게이트 | DONE — APP_OK · alembic heads `['naversettle_02']` 단일 · settlement **997**(기준선 979) · sync+loop 52 · contracts+ns+perf+hygiene+신규 353 · **로컬 PG17 레인 `tests/postgres` 745 passed(4분 55초, 마이그레이션 왕복)** · node ×2 · CRLF·BOM · 핀 6줄 `20260906b` · smoke PASSED |
+| P push → CI → 스테이징 QA(+EXPLAIN 인덱스 채택) → 운영 승격 | IN PROGRESS — 코드 커밋 `826022874` |
+
+- 리뷰: A(스펙) MINOR 1(user_visible) · B(품질) MINOR 6(전부 비가시) → CEO fix 1회(7건) → 수정자 반영. **워크플로 마지막 2 에이전트(gate:2·verdict2)는 모델 사용 한도로 죽었다** — 게이트 2차와 최종 판정은 **총괄이 직접**(모델 전환 뒤) 수행: fix 7건 전량 소스로 대조 확인 + 게이트 전량 재실행 green → ship.
+- 반영된 fix: MINOR-1 `AMOUNT_DIFF` 행에 `action_url = /erp/orders/{order_id}`(형제 kind 관례, JS 무변경이라 핀 재범프 없음) · Q-01 `_enqueue` 죽은 분기 제거 · Q-02 API 리터럴↔큐 상수 동치 테스트 · Q-03 항상 거짓이던 skipif 제거 · Q-04 렌더 계약을 변수명 대신 정규식으로 · Q-05 `sorted(NEGATIVE_SETTLE_TYPES)` 이유 주석.
+- 보류(다음 차수): Q-06 질의 계수 헬퍼 `_count_queries` 중복을 한 곳으로 모으기.

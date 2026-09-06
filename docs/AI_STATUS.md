@@ -1,7 +1,7 @@
 # FOMS 현재 상태
 > 자동 업데이트: 2026-09-06
-> 최신: **정산 탭 CFO 후속 2차 10건 deploy(`7b20ebc62`, 2026-09-06)** — 보류 누적 잔액·실패 실행 rollback+SYNC_FAILED·stale 28h·CSV 파일명·감사 detail·150% 레이아웃·부분 완료 버킷. 1차 5건은 운영(PR #298)
-> 직전: **단계 한글화 마무리 + 공휴일 캐시 경합 수정 운영 반영(PR #299 · production `7de57c03d`)** — 화면·문장에서 `MEASURE` 제거(`status_label`, 판정 축 불변). CI 간헐 `JSONDecodeErro…
+> 최신: **정산 탭 CFO 후속 3차 4건 deploy(`826022874`, 2026-09-06)** — 동기화 버튼 3상태·503(F-02) · 창 술어 COALESCE 식 인덱스 `naversettle_02`(H-01) · 정산액≠출고가 경고 AMOUNT_DIFF + 실무 탭 두 원값 병기(D-03) · 매월 1일 자동 백필(B-01). 1·2차 15건은 운영 반영 완료(PR #298·#300)
+> 직전: **정산 탭 CFO 후속 2차 10건 deploy(`7b20ebc62`, 2026-09-06)** — 보류 누적 잔액·실패 실행 rollback+SYNC_FAILED·stale 28h·CSV 파일명·감사 detail·150% 레이아웃…
 > 이 파일 상단 40줄이 세션 시작 컨텍스트의 전부다(hygiene 계약으로 강제). 상세 이력은 "## 최근 완료"·"## 기록 보관".
 
 
@@ -10,7 +10,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
-- [2026-09-06] **정산 탭 CFO 후속 2차 10건 deploy(`7b20ebc62`, 핀 20260906a)** — 원장 `docs/plans/2026-09-05-settlement-cfo-fixes-ledger.md`. 잔여: 스테이징 QA → 운영 승격 · 3차 4건(브리프 `2026-09-06-settlement-cfo-backlog3-brief.md`) · E-05
+- [2026-09-06] **정산 탭 CFO 후속 3차 4건 deploy(`826022874`, 핀 20260906b)** — 1·2차 15건 운영 반영 완료. 원장 `docs/plans/2026-09-05-settlement-cfo-fixes-ledger.md`. 잔여: CI·스테이징 QA(EXPLAIN 인덱스 채택) → 운영 승격 · E-05 운영 측정 계정 비번 로테이션
 - [2026-09-06] **네이버 워크벤치 휴지통 UI + 단계 한글화 운영 반영(PR #297 `a5b2697ff` · #299 `7de57c03d`)** — 집 pane 조건부 버튼 6상태. **판정 축은 주문**(`judge_order_discard` 가 `find_ghost_orders` 셈법 재사용 — 살아 있는 ADDON 집이 있으면 빠진다). 기존 라우트 재사용이라 **신규 manifest 없음**. 단계는 `status_label` 로 전 화면 한글(판정 축·감사 원장은 enum 불변). 선행 `afb0b4396` 동반 승격. 원장 `docs/plans/2026-09-04-ghost-discard-pane-ledger.md`
 - [2026-09-06] **CI 간헐 `JSONDecodeError` 는 flaky 가 아니라 파일 경합이었다(운영 반영)** — `data/holidays_kr_<year>.json` 이 저장소에 없어(`.gitignore:164`) xdist 워커 셋이 `2099` 파일을 동시에 만들고 `open("w")` 가 비운 창을 읽었다. 임시 파일+fsync+`os.replace` 원자 교체 + 읽기 재시도(삼키지 않음), 회귀 계약 5건. 테스트 산출물 31건 추적 해제 동반
 - [2026-09-04] **정리 계획 카드 정직화 + 취소 처리 정책 동기화 운영 반영(PR #294 · `29a6e72bd`)** — 잠금 축을 단계에서 옛 결제 확정 여부로(`discard_policy`), 단계는 `needs_reason`(관리자+사유). `run_gate` 로 확정 전 실행 차단. 후보 버튼 강조 `recommended_relation` 연동. 원장 `docs/plans/2026-09-04-naver-reconcile-card-ledger.md`
