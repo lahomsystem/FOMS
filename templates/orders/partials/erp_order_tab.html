@@ -10,6 +10,8 @@ ERP Order Tab Pane (shared between add_order and edit_order)
 {% set erp_order_active = erp_order_active or false %}
 {% set erp_as_status_label = {'AS_RECEIVED': '접수', 'AS': '처리', 'AS_COMPLETED': '완료'}.get(order.status) if order is defined and order else none %}
 {% set erp_as_can_reregister = order is defined and order and order.status in ['AS_RECEIVED', 'AS'] %}
+{# AS-INTAKE-01: AS 가 열려 있지 않은 저장된 주문에만 '첫 AS 접수' 입구를 낸다. 드롭다운 옵션(2026-09-04 제거)과 달리 workflow.stage 를 건드리지 않는다. #}
+{% set erp_as_can_receive = order is defined and order and order.id and not erp_as_can_reregister and order.status != 'AS_COMPLETED' %}
 {# 네이버 스마트스토어 표식(naver_commerce.constants.SOURCE_MARKER) — 읽기 전용 표시.
 
    **"자동 수집된 주문"이라고 단정하지 않는다**(2026-08-30). 2026-08-28 에 도크 게이트를
@@ -206,6 +208,9 @@ ERP Order Tab Pane (shared between add_order and edit_order)
                                 {% if erp_as_can_reregister %}
                                 <button type="button" class="btn btn-sm btn-outline-info py-0"
                                     data-erp-as-reregister-open data-order-id="{{ order.id }}">AS 접수 수정</button>
+                                {% elif erp_as_can_receive %}
+                                <button type="button" class="btn btn-sm btn-outline-info py-0"
+                                    data-erp-as-receive-open data-order-id="{{ order.id }}">AS 접수</button>
                                 {% endif %}
                             </div>
                             <div class="d-flex gap-1 align-items-start">
