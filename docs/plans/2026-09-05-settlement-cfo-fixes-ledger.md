@@ -30,7 +30,7 @@
 | N-02 월/주 버킷 `settled_amount/expected_amount` + "일부 완료" 문구(리뷰 Q-05 술어 보정) | DONE |
 | F-06 `/api/settlement/channel` `Cache-Control: no-store` | DONE |
 | G 총괄 게이트 | DONE — APP_OK · settlement **979**(기준선 948) · sync+loop 45 · contracts+ns+perf+hygiene 312 · node OK · CRLF · ps1 BOM `efbbbf` · smoke PASSED(662) |
-| P push → CI → 스테이징 QA → 운영 승격(사용자 사전 승인 "끝난 뒤 운영까지 한 번에") | IN PROGRESS — 코드 커밋 `d4e67fe22`, 채널 핀 `20260906a` |
+| P push → CI → 스테이징 QA → 운영 승격(사용자 사전 승인 "끝난 뒤 운영까지 한 번에") | IN PROGRESS — origin/deploy 3커밋 앞서 rebase 뒤 push_own 4커밋 → 원격 deploy `cdc372876`(코드 `1e120d516`). **CI 4/4 green**. 스테이징 QA: API 17/17 PASS(`scratchpad/qa_v14_api_result.json` — no-store 양쪽 · holdback.window net −88,773,929 = KPI · balance since 2025-10-01 net −129,757,200(보류 −137,882,500 · 해제 +8,125,300) · exception_totals 8키 total 436 = strip · stale_after_hours 28 · 버킷 settled+expected=settle · 9월 버킷 섞임(15,115,906 / 13,400,189) · CSV `_type-normal_settle_after_cancel` 슬러그 · NOPE_X 400) + 실화면(핀 20260906a, "창 안 보류 … · 해제 …"·"적재 구간 전체 누적 잔액"·배지 "예외 436", 워터폴 라벨 2줄 tspan, 콘솔 0·네트워크 실패 0). "일부 완료" 문구는 hover 툴팁이라 헤드리스 텍스트로 못 봄 — 렌더 계약 테스트 + API 값으로 판정. 승격 PR **#300**(코드 커밋 1개, 문서는 deploy 에만) |
 
 - 리뷰 결과: A(스펙) MINOR 2(user_visible 1) · B(품질) MINOR 9(user_visible 2) → CEO fix 1회(6건: Q-01 커밋된 창 RETRO 보존·Q-02/Q-04 `default_sync_window` 공유+지연 import·Q-09 docstring·Q-05 버킷 술어·Q-06 워터폴 dy·Q-07 테스트 리터럴) → 게이트 2차 green → **ship**. CEO 가 `_discard_failed_window` 슬라이스 돌연변이 검사로 신규 테스트가 회귀를 잡는지 직접 확인.
 - 총괄에 넘어온 몫: 보고서 §8 두 행(보류 잔액 위치·SYNC_FAILED) 갱신 완료 · Q-08 게이트 grep 의 여러 줄 Jinja 주석 사각 → 3차 브리프 게이트에 반영 예정 · Q-03 `_SETTLE_SYNC_JOB_ID` 사설 이름 import → 3차 F-02 와 묶음.
