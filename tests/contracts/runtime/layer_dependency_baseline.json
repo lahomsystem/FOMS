@@ -303,6 +303,7 @@
     "foms/services/integrations/naver_commerce/repay_reconcile.py::foms.services.orders.soft_delete",
     "foms/services/integrations/naver_commerce/triage_count.py::foms.services.integrations.naver_commerce.grouping",
     "foms/services/integrations/naver_commerce/triage_count.py::foms.web.admin.naver_ingest",
+    "foms/services/jobs/tasks.py::foms.platform.sentry_setup",
     "foms/services/jobs/tasks.py::foms.services.channel_delivery",
     "foms/services/jobs/tasks.py::foms.services.channel_inbound",
     "foms/services/jobs/tasks.py::foms.services.common.table_version_counter",
