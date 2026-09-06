@@ -99,19 +99,29 @@ def _windows_acl_ok(root: Path) -> bool:
 
     inheritance 가 켜져 있으면 상속된 broad principal(예: BUILTIN\\Users)이 나타나므로
     그 존재를 곧 실패 신호로 쓴다. icacls 미가용/오류는 fail-closed(False).
+
+    **바이트로 받아 관대하게 디코드한다.** ``text=True`` 로 받으면 한국어 Windows 에서
+    icacls 가 꼬리에 붙이는 요약 줄("N개 파일을 처리했습니다")이 cp949 라, 프로세스 기본
+    인코딩이 UTF-8 인 환경에서 reader 스레드가 ``UnicodeDecodeError`` 로 죽고 ``stdout`` 이
+    ``None`` 이 된다. 그러면 이 함수는 fail-closed(False) 가 아니라 ``TypeError`` 로 터졌다
+    (2026-09-07 실측: 운영 백필 dry-run 이 이 지점에서 멈췄다). 판정에 쓰는 principal 이름은
+    전부 ASCII 라 ``errors="replace"`` 로 깨져도 검사에는 영향이 없다.
     """
     try:
         out = subprocess.run(
             ["icacls", str(root)],
             capture_output=True,
-            text=True,
             timeout=10,
         )
     except (OSError, subprocess.SubprocessError):
         return False
     if out.returncode != 0:
         return False
-    listing = out.stdout
+    listing = (out.stdout or b"").decode("utf-8", errors="replace")
+    if not listing.strip():
+        # 목록이 비면 "broad principal 이 없다" 가 아니라 "판정할 근거가 없다" 다.
+        # 빈 문자열을 통과로 읽으면 가드가 fail-open 이 된다.
+        return False
     for principal in _BROAD_ACL_PRINCIPALS:
         if principal in listing:
             return False
@@ -132,9 +142,13 @@ def harden_control_root(root: Path) -> None:
     grants = ["icacls", str(root), "/inheritance:r", "/grant:r", "SYSTEM:(OI)(CI)F"]
     if user:
         grants += ["/grant:r", f"{user}:(OI)(CI)F"]
-    result = subprocess.run(grants, capture_output=True, text=True, timeout=15)
+    # :func:`_windows_acl_ok` 와 같은 이유로 바이트를 받는다 — 한국어 Windows 의 icacls
+    # 요약 줄이 cp949 라 ``text=True`` 면 reader 스레드가 UnicodeDecodeError 로 죽고,
+    # 실패 사유(stderr)가 None 이 되어 예외 메시지가 비어 버린다.
+    result = subprocess.run(grants, capture_output=True, timeout=15)
     if result.returncode != 0:
-        raise OpsControlRootError(f"failed to harden control root ACL: {result.stderr.strip()}")
+        detail = (result.stderr or b"").decode("utf-8", errors="replace").strip()
+        raise OpsControlRootError(f"failed to harden control root ACL: {detail}")
 
 
 def resolve_control_root(require_acl: bool = True) -> Path:
