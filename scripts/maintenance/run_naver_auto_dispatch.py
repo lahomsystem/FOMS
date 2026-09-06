@@ -11,6 +11,11 @@
 창(기본 10분) 안이면 실행하고, 하루 1회 계약은 서비스가 DB 상태로 지킨다 — 러너가 두 번
 불러도 두 번 나가지 않는다.
 
+관측(OPS-HEARTBEAT-01): tick 마다 ``side_effect_worker_heartbeats`` 의
+``NAVER_AUTO_DISPATCH`` 행을 갱신한다. **창 밖이라 아무것도 안 한 tick 도 갱신한다** —
+그래야 "루프가 죽었다" 와 "지금은 일할 시각이 아니다" 가 갈린다. Sentry 는 아래
+``from app import app`` 이 이미 초기화하므로 여기서 다시 부르지 않는다.
+
 사용 예 (PowerShell 5.x)::
 
     python scripts/maintenance/run_naver_auto_dispatch.py --once --json
@@ -19,22 +24,32 @@
 """
 import argparse
 import json
+import logging
 import os
 import sys
 import time
 import traceback
 from datetime import datetime, timedelta
+from typing import Optional
 
 sys.path.append(
     os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 )
 
+# ``app`` import 는 ``app.py`` -> ``build_app`` -> ``init_sentry`` 를 이미 태운다
+# (foms/platform/app_factory.py). 그래서 이 러너는 Sentry 를 다시 초기화하지 않는다 —
+# ``sentry_sdk.init`` 을 두 번 부르면 클라이언트가 갈리고 앞 클라이언트의 전송 스레드가
+# 남는다. 이 프로세스에 없던 것은 init 이 아니라 **잡은 예외를 올려 보내는 배선**이라,
+# 그 자리를 :func:`_capture_to_sentry` 로 채운다.
 from app import app  # noqa: E402
-from db import get_db  # noqa: E402
+from db import engine, get_db  # noqa: E402
 from foms.services.datetime_kst import now_kst  # noqa: E402
 from foms.services.integrations.naver_commerce.auto_dispatch import (  # noqa: E402
     run_auto_dispatch,
 )
+from foms.services.sidefx_worker import upsert_heartbeat  # noqa: E402
+
+_LOGGER = logging.getLogger("naver_auto_dispatch")
 
 #: --loop 이 깨어나는 간격(초). 시각 창 판정만 하므로 짧아도 비용이 없다.
 DEFAULT_TICK_SECONDS = 60
@@ -44,6 +59,9 @@ DEFAULT_WINDOW_MINUTES = 10
 
 #: 기본 실행 시각(KST). 사용자 결정 2026-09-02.
 DEFAULT_AT = "16:50"
+
+#: 이 루프의 heartbeat PK 값(``side_effect_worker_heartbeats.worker_kind``).
+HEARTBEAT_WORKER_KIND = "NAVER_AUTO_DISPATCH"
 
 
 def _parse_args() -> argparse.Namespace:
@@ -121,12 +139,112 @@ def _print_result(result: dict, as_json: bool) -> None:
           f"blocked={result.get('blocked')} total={result.get('total')}", flush=True)
 
 
+def _capture_to_sentry() -> None:
+    """지금 처리 중인 예외를 Sentry 로 올린다(``except`` 블록 안에서만 부른다).
+
+    Sentry 초기화는 ``app`` import 가 이미 했다. 문제는 이 러너가 예외를 잡아 stdout 으로만
+    찍는다는 것이었다 — 잡힌 예외는 SDK 가 스스로 못 본다. 그래서 여기서 명시로 올린다.
+
+    Returns:
+        None. ``SENTRY_DSN`` 이 없으면 클라이언트가 안 붙어 있어 no-op 이고,
+        ``sentry-sdk`` 미설치 환경에서는 조용히 지나간다(관측 배선이 본 작업을 막으면
+        안 된다 — 실패 사실 자체는 호출측이 이미 stdout/로그에 남겼다).
+    """
+    try:
+        import sentry_sdk
+    except ImportError:
+        return
+    sentry_sdk.capture_exception()
+
+
+def _heartbeat_metadata(*, in_window_now: bool, result: Optional[dict]) -> dict:
+    """하트비트에 실을 집계값을 만든다.
+
+    Args:
+        in_window_now: 이번 tick 이 실행 창 안이었는가.
+        result: 실행했으면 :func:`run_auto_dispatch` 결과, 아니면 ``None``.
+
+    Returns:
+        ``{"in_window", "outcome", "queued", "blocked", "total"}``. **고객 정보(이름·전화·
+        주소)는 절대 넣지 않는다** — 이 표는 운영 감시용이고 집계 수치면 충분하다.
+    """
+    payload = result or {}
+    return {
+        "in_window": bool(in_window_now),
+        "outcome": payload.get("outcome") or None,
+        "queued": int(payload.get("queued") or 0),
+        "blocked": int(payload.get("blocked") or 0),
+        "total": int(payload.get("total") or 0),
+    }
+
+
+def _emit_heartbeat(*, in_window_now: bool, result: Optional[dict]) -> None:
+    """이번 tick 의 생존 신호를 ``side_effect_worker_heartbeats`` 에 남긴다.
+
+    **일을 안 한 tick 에서도 갱신한다.** 창 밖 tick 이 건너뛰면 하루 23시간 50분 동안
+    하트비트가 낡아 보여 감시가 무의미해진다 — "루프가 죽었다" 와 "지금은 일할 시각이
+    아니다" 를 가르는 것이 이 배선의 목적이다(2026-02 워커 offline, 2026-08-31 SIDEFX
+    미배포를 둘 다 사람이 화면에서 먼저 발견했다).
+
+    하트비트 실패는 **본 작업을 막지 않는다**: 되돌릴 수 없는 자동 발송이 관측 배선 때문에
+    멈추는 것이 더 나쁜 실패다. 대신 삼키지도 않는다 — 경고 로그 + Sentry 이벤트로 남긴다.
+
+    Args:
+        in_window_now: 이번 tick 이 실행 창 안이었는가.
+        result: 실행했으면 :func:`run_auto_dispatch` 결과, 아니면 ``None``.
+
+    Returns:
+        None.
+    """
+    try:
+        upsert_heartbeat(
+            engine, HEARTBEAT_WORKER_KIND,
+            metadata=_heartbeat_metadata(in_window_now=in_window_now, result=result),
+        )
+    except Exception:
+        _LOGGER.warning("heartbeat upsert failed worker_kind=%s",
+                        HEARTBEAT_WORKER_KIND, exc_info=True)
+        _capture_to_sentry()
+
+
+def _run_tick(args: argparse.Namespace, at: tuple[int, int]) -> None:
+    """루프 1회분 — 창 안이면 발송하고, 창 밖이어도 하트비트를 남긴다.
+
+    Args:
+        args: CLI 인자(``force``·``window``·``json`` 을 읽는다).
+        at: ``(시, 분)`` 실행 시각.
+
+    Returns:
+        None. 발송 실패는 로그·Sentry 로 남기고 삼킨다 — 1회 실패가 루프를 죽이면 자동
+        발송이 통째로 조용히 꺼진다. 실패한 tick 도 하트비트는 남긴다(루프는 살아 있다).
+    """
+    in_window_now = False
+    result: Optional[dict] = None
+    try:
+        in_window_now = in_window(now_kst(), at, args.window)
+        if in_window_now:
+            with app.app_context():
+                result = _dispatch_once(args.force)
+            # 창 안에서 매 tick 마다 "already_ran" 을 찍으면 로그가 그걸로 덮인다.
+            if result.get("outcome") != "already_ran":
+                _print_result(result, args.json)
+    except Exception:
+        print("[naver-auto-dispatch] run failed:", flush=True)
+        traceback.print_exc()
+        _capture_to_sentry()
+    _emit_heartbeat(in_window_now=in_window_now, result=result)
+
+
 def _run_loop(args: argparse.Namespace) -> int:
     """앱 1회 부팅 후 tick 간격으로 깨어나 시각 창에서만 실행한다.
 
     실행 1회 실패가 루프를 죽이면 자동 발송이 통째로 조용히 꺼진다 — 그래서 예외를 삼키고
     계속 돈다(사고는 로그로 남는다). 하루 1회 계약은 서비스가 DB 로 지키므로 창 안에서
     여러 번 깨어나도 두 번 나가지 않는다.
+
+    :func:`_run_tick` 이 이미 자기 실패를 삼키지만 여기서 한 겹 더 막는다. 이 루프의 계약은
+    "무슨 일이 있어도 죽지 않는다" 이고, 그 계약을 tick 구현에 떠맡기면 tick 을 고칠 때
+    조용히 깨진다. ``time.sleep`` 은 이 방어 밖에 둔다 — 인터럽트로 루프를 끝낼 수 있어야 한다.
     """
     at = parse_at(args.at)
     tick = max(5, int(args.tick))
@@ -134,15 +252,11 @@ def _run_loop(args: argparse.Namespace) -> int:
           flush=True)
     while True:
         try:
-            if in_window(now_kst(), at, args.window):
-                with app.app_context():
-                    result = _dispatch_once(args.force)
-                # 창 안에서 매 tick 마다 "already_ran" 을 찍으면 로그가 그걸로 덮인다.
-                if result.get("outcome") != "already_ran":
-                    _print_result(result, args.json)
+            _run_tick(args, at)
         except Exception:
-            print("[naver-auto-dispatch] run failed:", flush=True)
+            print("[naver-auto-dispatch] tick failed:", flush=True)
             traceback.print_exc()
+            _capture_to_sentry()
         time.sleep(tick)
 
 
