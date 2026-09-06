@@ -290,6 +290,7 @@ ACTION_LABELS: dict[str, str] = {
     # --- 계정·인증 ---
     "LOGIN_OK": "로그인 성공",
     "LOGIN_FAIL": "로그인 실패",
+    "LOGIN_LOCKED": "로그인 잠금",
     "IMPERSONATE": "계정 전환(대리 로그인)",
     "USER_UPDATE": "사용자 정보 변경",
     "USER_APPROVE": "가입 승인",

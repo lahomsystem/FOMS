@@ -35,6 +35,13 @@ from foms.services.post_auth_navigation import (
     resolve_post_login_redirect,
 )
 from foms.services.error_logging import log_handled_exception
+from foms.services.security.auth_rate.login_lockout import (
+    clear_login_failures,
+    is_login_locked,
+    login_lockout_seconds,
+    login_lockout_threshold,
+    register_login_failure,
+)
 from foms.services.security.password_policy import (
     WeakPasswordError,
     active_legacy_count,
@@ -290,6 +297,45 @@ def role_required(roles):
         return decorated_function
     return decorator
 
+
+def _login_locked_response(next_url: str) -> tuple[str, int]:
+    """잠긴 (아이디, IP) 쌍의 로그인 시도를 429 로 되돌린다.
+
+    429 를 쓰는 이유: 브라우저·역방향 프록시·모니터링이 모두 "너무 잦은 시도" 로 읽는
+    표준 코드다. 200 으로 내보내면 무차별 대입기가 잠금과 단순 실패를 구분하지 못해
+    계속 두드리고, 운영자는 그래프에서 잠금 구간을 볼 수 없다.
+
+    :param next_url: 로그인 후 돌아갈 내부 경로(폼에 그대로 실어 준다).
+    :return: (렌더된 로그인 화면, 429) 튜플.
+    """
+    flash(
+        f'로그인 시도가 너무 많아 잠시 잠겼습니다. {login_lockout_seconds() // 60}분 뒤 다시 시도해주세요.',
+        'error',
+    )
+    return render_template('auth/login.html', next_url=next_url), 429
+
+
+def _note_login_failure(username: str, user_id: int | None) -> bool:
+    """실패 1건을 카운터에 반영하고, 이번 실패로 새로 잠겼으면 ``LOGIN_LOCKED`` 를 남긴다.
+
+    T8 규약을 그대로 따른다 — 로그인 감사는 대상(target)이 없고, **비밀번호는 원문·해시
+    어떤 형태로도 detail 에 넣지 않는다**. 카운터가 fail-open 이라 저장소 장애 시에는
+    항상 ``False`` 가 돌아오고 감사도 남지 않는다(그 사실은 카운터 쪽이 warning 으로 남긴다).
+
+    :param username: 시도에 쓰인 아이디 원문(계정 존재 여부와 무관).
+    :param user_id: 존재하는 계정이면 그 id, 계정이 없으면 ``None``.
+    :return: 이번 실패로 새로 잠겼으면 ``True``.
+    """
+    if not register_login_failure(username):
+        return False
+    threshold = login_lockout_threshold()
+    log_access(f"로그인 잠금: 사용자 {username} (연속 실패 {threshold}회)", user_id,
+               action='LOGIN_LOCKED',
+               detail={'reason': 'lockout_threshold', 'username': username,
+                       'threshold': threshold, 'lock_seconds': login_lockout_seconds()})
+    return True
+
+
 @auth_bp.route('/login', methods=['GET', 'POST'])
 def login():
     session_user_id = session.get('user_id')
@@ -314,6 +360,12 @@ def login():
         if not username or not password:
             flash('아이디와 비밀번호를 모두 입력해주세요.', 'error')
             return render_template('auth/login.html', next_url=next_url)
+
+        # AUTH-LOGIN-LOCK-01: 잠금 판정은 자격증명을 만지기 **전**에 온다 — 잠긴 쌍에는
+        # 비밀번호 해시 계산도, 계정 존재 여부도 내주지 않는다. 판정 자체가 fail-open 이라
+        # 저장소가 죽으면 잠기지 않은 것으로 보고 로그인은 그대로 진행된다.
+        if is_login_locked(username):
+            return _login_locked_response(next_url)
         
         user = get_user_by_username(username)
         
@@ -323,6 +375,8 @@ def login():
             log_access(f"로그인 실패: 사용자 {username} (계정 없음)",
                        action='LOGIN_FAIL',
                        detail={'reason': 'unknown_username', 'username': username})
+            if _note_login_failure(username, None):
+                return _login_locked_response(next_url)
             flash('아이디 또는 비밀번호가 일치하지 않습니다.', 'error')
             return render_template('auth/login.html', next_url=next_url)
 
@@ -330,6 +384,8 @@ def login():
             log_access(f"로그인 실패: 비활성화된 계정 {username} (ID: {user.id})", user.id,
                        action='LOGIN_FAIL',
                        detail={'reason': 'inactive_account', 'username': username})
+            if _note_login_failure(username, user.id):
+                return _login_locked_response(next_url)
             flash('비활성화된 계정입니다. 관리자에게 문의하세요.', 'error')
             return render_template('auth/login.html', next_url=next_url)
 
@@ -337,8 +393,15 @@ def login():
             log_access(f"로그인 실패: 사용자 {username} (ID: {user.id}) (비밀번호 오류)", user.id,
                        action='LOGIN_FAIL',
                        detail={'reason': 'bad_password', 'username': username})
+            if _note_login_failure(username, user.id):
+                return _login_locked_response(next_url)
             flash('아이디 또는 비밀번호가 일치하지 않습니다.', 'error')
             return render_template('auth/login.html', next_url=next_url)
+
+        # 비밀번호 대조를 통과한 시점이 "이 행위자가 자격증명을 쥐고 있다" 는 증거다.
+        # 승인 대기(PENDING)로 뒤에서 막히더라도 그때까지의 실패는 더 이상 공격의 증거가
+        # 아니므로 여기서 지운다(근거: clear_login_failures docstring).
+        clear_login_failures(username)
 
         # ACCOUNT-SELF-01: 승인 대기 계정 로그인 차단. 비밀번호 검증 **후**에만 상태를
         # 노출해 계정 소유자에게만 대기 사실을 알린다(타인 열거 방지).
