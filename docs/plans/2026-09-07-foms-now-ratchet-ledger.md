@@ -955,3 +955,89 @@ perf-gate (staging)  | completed | success
 | F-14 | 운영 `erp_phone_digits` 드리프트 **93건** | 운영 실측 2026-09-07 | T3 이 전화축을 이 컬럼 단독으로 만들었다. 93건은 그 축이 낡은 상태다. `tools/ops/backfill_erp_flat_columns.py`(SAFE 대상 재동기)로 정리 가능 — **운영 쓰기라 사용자 승인 필요** |
 | F-15 | 운영 ERP flat 드리프트 1,750건 | 운영 실측 2026-09-07 | 래칫으로 악화는 멈췄다. 줄이는 것은 보고서 ④ '이번 분기'(생성 컬럼·트리거로 사본 규약 대체) 몫 |
 | F-16 | 스테이징 `CLAUDE-TEST-` 잔여 24건(그중 4건 `deleted_at IS NULL`) | T3 재현 중 확인 | 2026-08-13~09-01 타 세션 잔여. 내 몫이 아니라 손대지 않았다 |
+
+---
+
+## T9. 운영 ERP flat 백필 (후속 F-14 실행 — 사용자 승인)
+
+- 상태: **IN_PROGRESS** — dry-run 완료·apply 승인 받음. `--approval-token-file` 발급 경로 조사 중.
+- 승인 이력(2026-09-07): "정리하기" → "먼저 뭐가 바뀌는지 보기"(표본 제시) → **"적용하기"**.
+- 작업 위치: worktree `/c/tmp/foms-s-now0907`, 브랜치 `session/now0907`.
+
+### 준비물 (이미 만들어 둠)
+
+- 보호 artifact root: `C:\tmp\foms-remediation` (ACL 잠금 확인 `_windows_acl_ok` → True)
+- 감사 artifact: `C:\tmp\foms-remediation\startup-flat`
+  `manifest_sha256=77f605c029a57b6b69a1239cc5eec79a61009037d4fd044c47d0477268941be9`
+  `mapping_sha256=7a2d910263071f2a832a6abd4af5f4833d0ceab8c0e9ac943083864a71574c35`
+  counts `{total: 3002, safe: 825, ambiguous: 925, clean: 1252}`
+  **운영 감사 자료(암호화)라 작업이 끝나면 지운다.**
+- 운영 DSN: `<scratchpad>/prod_dsn.txt` (railway FOMS-PRODUCTION Postgres `DATABASE_PUBLIC_URL`)
+
+### dry-run 결과 (데이터 변경 0)
+
+```
+$ python tools/ops/audit_erp_flat_columns.py --output-dir <root>/startup-flat --db-instance-id foms-production
+{"counts": {"total": 3002, "safe": 825, "ambiguous": 925, "clean": 1252}, ...}
+exit = 0
+
+$ python tools/ops/backfill_erp_flat_columns.py --artifact-dir <root>/startup-flat \
+    --phase STARTUP_FLAT --db-instance-id foms-production --dry-run --batch-size 500
+{"phase": "STARTUP_FLAT", "safe_targets": 825, "drift_before": 825, "mode": "dry-run"}
+[DRY-RUN] no rows written; approval + --apply required to resync.
+exit = 0
+```
+
+### 무엇이 바뀌는지 — 유형별 전수 분류 (읽기 전용 실측)
+
+| 컬럼 | 유형 | 건수 |
+|---|---|---:|
+| measurement_date | NULL → 값 | 480 |
+| scheduled_date | NULL → 값 | 323 |
+| measurement_date | NULL → `''` | 290 |
+| scheduled_date | NULL → `''` | 150 |
+| erp_phone_digits | 값 → 값 | 93 |
+| erp_stage_updated_at | NULL → 값 | 75 |
+| erp_stage_code | NULL → 값 | 54 |
+| manager_name | NULL → `''` | 46 |
+| erp_drawing_updated_at | NULL → 값 / 값 → 값 | 41 / 37 |
+| erp_measurement_date | NULL → 값 | 21 |
+| erp_construction_date | NULL → 값 | 19 |
+| manager_name | NULL → 값 | 14 |
+| scheduled_date | 값 → 값 | 2 |
+| erp_owner_team_code | NULL → 값 | 1 |
+
+실제 값이 바뀌는 것 **1,253개**, `NULL → ''` **486개**. `AMBIGUOUS` 925건(전부
+`PAYMENT_AMOUNT_DRIFT`)은 도구가 안 건드린다.
+
+### `NULL → ''` 486건의 안전성 — 읽는 자리 전수 확인
+
+날짜 칸에서 NULL 과 빈 문자열은 쿼리가 다르게 본다. 해당 컬럼을 NULL 로 판정하는 자리를
+`foms/`·`tools/`·`scripts/` 전수로 찾았다:
+
+- `measurement_date` 4곳(`foms/web/measurement/dashboard.py:788·798·811·816`) — **전부**
+  `!= None` 과 `!= ""` 를 같이 본다
+- `scheduled_date` 3곳(`foms/web/measurement/dashboard.py:800·833`,
+  `foms/web/shipment/dashboard.py:90`) — **전부** 둘 다 본다
+- `manager_name` — NULL 로 거르는 자리 **0곳**
+
+→ 486건은 화면 동작을 바꾸지 않는다.
+
+### 적용 시 눈에 보이는 변화 (사용자에게 미리 알린 내용)
+
+측정일이 비어 있던 480건·시공 예정일이 비어 있던 323건이 날짜를 갖게 되므로 **그 날짜로
+거르는 화면에 지금까지 안 보이던 주문이 올라온다**(측정 대시보드 큐·출고/설치 알림·건수 KPI).
+잘못 느는 것이 아니라 빠져 있던 것이 돌아오는 것이지만 아침 큐 숫자가 어제와 달라진다.
+전화 93건은 네이버 트리아지에서 다시 전화로 찾힌다(T3 이 전화축을 이 칸 단독으로 바꿨다).
+
+### 다음 한 걸음 (여기서 멈춰 있다)
+
+`--apply` 는 `BACKFILL_APPLY` **OPS approval 토큰 파일**을 요구한다. 토큰 없는 `--apply` 는
+거부되고 아무것도 안 쓴다(exit 2). 발급·소비 경로 조사 지점:
+`foms/services/security/backfill/runs.py:317-420`(approval 소비),
+`foms/services/security/backfill/manifest.py:25·144`(`BACKFILL_APPLY_OPERATION_ID`).
+발급 자체가 또 하나의 승인 단계일 수 있다 — 확인 후 사용자에게 보고.
+
+적용 후 할 일: 감사 재실행으로 줄어든 수치 확인 → `tools/ops/drift_baseline.json` 의
+`erp_flat.drift` 를 새 값으로 **낮춤** → deploy push.
+
