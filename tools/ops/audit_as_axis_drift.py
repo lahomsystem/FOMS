@@ -12,6 +12,11 @@ AS-AXIS-01 롤아웃 2단(술어 스위치) 전에 **0건**이어야 한다. 이
 사용:
     python tools/ops/audit_as_axis_drift.py --dsn "$DSN"
     python tools/ops/audit_as_axis_drift.py --dsn "$DSN" --json
+
+집계 로직의 정본은 :func:`foms.services.orders.audit_as_axis_drift.audit_session`
+**하나뿐**이다. 이 CLI 는 DSN 으로 엔진을 여는 얇은 껍데기이고, admin 조회 엔드포인트
+(:mod:`foms.api.ops_drift`)는 앱 세션을 그대로 넘긴다 — 어느 쪽도 집계를 복제하지 않는다.
+집계가 이 파일에 살면 웹 런타임이 ``tools/`` 트리에 묶이므로 서비스 계층에 둔다.
 """
 
 from __future__ import annotations
@@ -20,60 +25,34 @@ import argparse
 import json
 import os
 import sys
+from typing import Any
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
-from sqlalchemy import create_engine, select  # noqa: E402
+from sqlalchemy import create_engine  # noqa: E402
 from sqlalchemy.orm import Session  # noqa: E402
 
-from foms.services.orders.state_axes import derive_as_axis_status  # noqa: E402
-from models import Order  # noqa: E402
+from foms.services.orders.audit_as_axis_drift import (  # noqa: E402
+    AS_LEGACY_STATUSES,
+    SAMPLE_LIMIT,
+    audit_session,
+)
 
-AS_LEGACY_STATUSES = ("AS", "AS_RECEIVED", "AS_COMPLETED")
+__all__ = ["AS_LEGACY_STATUSES", "SAMPLE_LIMIT", "audit", "audit_session", "main"]
 
 
-def audit(dsn: str) -> dict:
-    """드리프트를 집계한다(쓰기 없음).
+def audit(dsn: str) -> dict[str, Any]:
+    """DSN 으로 엔진을 열어 :func:`audit_session` 을 돌린다(CLI 껍데기, 쓰기 없음).
 
     Args:
         dsn: PostgreSQL 접속 문자열.
 
     Returns:
-        {'checked', 'mismatch', 'missing_projection', 'legacy_only', 'samples'} 요약.
+        :func:`audit_session` 과 동일한 요약 dict.
     """
     engine = create_engine(dsn, future=True)
-    query = select(Order).where(
-        (Order.as_axis_status.isnot(None))
-        | (Order.status.in_(AS_LEGACY_STATUSES))
-        | ((Order.as_received_date.isnot(None)) & (Order.as_received_date != ""))
-        | ((Order.as_completed_date.isnot(None)) & (Order.as_completed_date != ""))
-    )
-    checked = 0
-    mismatch: list[dict] = []
-    missing: list[int] = []
-    legacy_only: list[int] = []
     with Session(engine) as session:
-        for order in session.scalars(query).all():
-            if order.deleted_at is not None:
-                continue
-            checked += 1
-            derived = derive_as_axis_status(order)
-            if derived != order.as_axis_status:
-                mismatch.append({
-                    "order_id": int(order.id), "column": order.as_axis_status,
-                    "derived": derived, "status": order.status,
-                })
-            if derived is not None and order.as_axis_status is None:
-                missing.append(int(order.id))
-            if order.status in AS_LEGACY_STATUSES and order.as_axis_status is None:
-                legacy_only.append(int(order.id))
-    return {
-        "checked": checked,
-        "mismatch": len(mismatch),
-        "missing_projection": len(missing),
-        "legacy_only": len(legacy_only),
-        "samples": mismatch[:20],
-    }
+        return audit_session(session)
 
 
 def main(argv: list[str] | None = None) -> int:
