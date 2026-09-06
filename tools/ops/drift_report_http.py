@@ -2,16 +2,23 @@
 """production 드리프트 감사 HTTP 조회 — 로그인 → ``/api/foms/ops/drift-audit`` GET.
 
 drift-audit-daily 워크플로 전용. 운영 DB DSN 은 GitHub 에 두지 않기로 했으므로(등록된
-비밀은 스테이징 로그인 2개뿐) admin 엔드포인트가 **유일한 외부 조회로**다. 드리프트가
-1건이라도 있으면 exit 1(job fail = GitHub 알림). GitHub step summary
-($GITHUB_STEP_SUMMARY)에 감사별 건수·표본 표를 마크다운으로 append 한다.
+비밀은 스테이징 로그인 2개뿐) admin 엔드포인트가 **유일한 외부 조회로**다. GitHub step
+summary($GITHUB_STEP_SUMMARY)에 감사별 건수·기준선 대비·표본 표를 마크다운으로 append 한다.
+
+**판정은 기준선 래칫이다.** 절대 0건이 아니라 ``drift_baseline.json`` 대비 **순증**만
+실패로 본다. 2026-09-07 운영 실측이 ERP flat 1,750건이라 절대 0건 기준으로 두면 게이트가
+첫날부터 매일 빨간불이고, 매일 오는 빨간불은 곧 아무도 안 본다 — 관측 배선이 죽는 흔한
+방식이다. 기준선을 얼려 두면 내일부터 쓸모 있는 신호가 되고, 줄어드는 숫자가 사본 규약을
+기계로 바꾸는 작업(검토 보고서 ④ 이번 분기)의 진척 척도가 된다.
+
+AS 축은 예외로 ``must_stay_zero`` 다 — 운영 659건 검사에서 이미 0이라 1건이라도 늘면 실패다.
 
 크리덴셜은 env 로만 읽는다(argv 금지 — 셸 히스토리 유출 방지):
   FOMS_STAGING_USERNAME / FOMS_STAGING_PASSWORD (계정 재사용; ADMIN 이어야 200).
 
 exit code:
-  0 = 드리프트 0건,
-  1 = 드리프트 있음(또는 응답이 ``truncated`` 라 "0건" 을 신뢰할 수 없음),
+  0 = 기준선 이하(순증 없음),
+  1 = 순증(또는 응답이 ``truncated`` 라 판정을 신뢰할 수 없음),
   2 = 크리덴셜 부재,
   3 = 조회/네트워크 실패(요청 타임아웃 포함 — 거짓 초록 대신 시끄럽게 실패한다).
 
@@ -37,6 +44,8 @@ from tools.harness.ept_b8_staging_session_from_login import fetch_session_cookie
 
 DEFAULT_BASE = "https://lahom-production.up.railway.app"
 REPORT_PATH = "/api/foms/ops/drift-audit"
+#: 기준선 래칫 정본. 이 파일과 나란히 산다(워크플로는 requests 만 설치하므로 json 만 읽는다).
+BASELINE_PATH = Path(__file__).resolve().parent / "drift_baseline.json"
 # 전 주문 스캔이라 응답이 길다. gunicorn --timeout 120 보다 넉넉히 잡아, 서버가 죽기 전에
 # 클라이언트가 먼저 포기해 원인을 흐리는 일을 막는다.
 REQUEST_TIMEOUT = 180
@@ -92,32 +101,103 @@ def _sample_lines(report: dict[str, Any]) -> list[str]:
     return lines
 
 
-def render_summary(report: dict[str, Any]) -> str:
-    """GitHub step summary 용 마크다운(감사 | 검사수 | 드리프트 | 상세 + 표본).
+def load_baseline(path: Path | None = None) -> dict[str, Any]:
+    """기준선 JSON 을 읽는다.
+
+    Args:
+        path: 기준선 파일 경로(기본 :data:`BASELINE_PATH`).
+
+    Returns:
+        기준선 dict.
+
+    Raises:
+        RuntimeError: 파일이 없거나 스키마가 다를 때. **기본값으로 폴백하지 않는다** —
+            기준선이 사라졌는데 조용히 "0건 기준" 으로 돌면 게이트가 매일 빨간불이 되고,
+            반대로 무한대로 폴백하면 게이트가 죽는다. 어느 쪽도 조용히 하면 안 된다.
+    """
+    target = path or BASELINE_PATH
+    try:
+        data = json.loads(target.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise RuntimeError(f"기준선을 읽지 못했다({target}): {exc}") from exc
+    if data.get("schema") != "drift-ratchet/1":
+        raise RuntimeError(f"기준선 스키마가 다르다: {data.get('schema')!r}")
+    return data
+
+
+def compare_to_baseline(report: dict[str, Any], baseline: dict[str, Any]) -> dict[str, Any]:
+    """감사별 현재값을 기준선과 견준다(순증만 회귀).
 
     Args:
         report: :func:`fetch_report` 가 돌려준 ``data``.
+        baseline: :func:`load_baseline` 결과.
+
+    Returns:
+        ``{'rows': [{key, label, current, baseline, delta, regressed}], 'regressed': bool}``.
+        AS 축은 ``must_stay_zero`` 라 1건이라도 있으면 회귀다.
+    """
+    rows: list[dict[str, Any]] = []
+    for key, label in (("as_axis", "AS 축 투영(as_axis_status)"), ("erp_flat", "ERP flat 컬럼")):
+        current = int(report[key]["drift"])
+        base_entry = baseline.get(key, {})
+        base = int(base_entry.get("drift", 0))
+        if base_entry.get("must_stay_zero"):
+            regressed = current > 0
+        else:
+            regressed = current > base
+        rows.append({
+            "key": key, "label": label, "current": current, "baseline": base,
+            "delta": current - base, "regressed": regressed,
+        })
+    return {
+        "rows": rows,
+        "regressed": any(r["regressed"] for r in rows),
+        "measured_at": baseline.get("measured_at", "미상"),
+    }
+
+
+def render_summary(report: dict[str, Any], comparison: dict[str, Any]) -> str:
+    """GitHub step summary 용 마크다운(감사 | 검사수 | 드리프트 | 기준선 | 증감 + 표본).
+
+    Args:
+        report: :func:`fetch_report` 가 돌려준 ``data``.
+        comparison: :func:`compare_to_baseline` 결과.
 
     Returns:
         append 할 마크다운 문자열(마지막 개행 포함).
     """
     total = report["drift_total"]
-    verdict = "🔴 드리프트 발견" if total else "🟢 드리프트 0건"
+    regressed = comparison["regressed"]
+    verdict = "🔴 기준선 대비 순증" if regressed else "🟢 순증 없음"
     if report.get("truncated"):
-        verdict = "🔴 응답 절단 — 0건 판정 신뢰 불가"
+        verdict = "🔴 응답 절단 — 판정 신뢰 불가"
     as_axis, flat = report["as_axis"], report["erp_flat"]
+    by_key = {row["key"]: row for row in comparison["rows"]}
+
+    def _delta(key: str) -> str:
+        row = by_key[key]
+        mark = "🔴 " if row["regressed"] else ""
+        sign = "+" if row["delta"] > 0 else ""
+        return f"{mark}{sign}{row['delta']}"
+
     lines = [
         "## 드리프트 감사 일일 리포트",
         "",
         f"**판정: {verdict}** (총 {total}건 / 소요 {report.get('elapsed_ms', 0)}ms / "
         f"절단 {report.get('truncated')})",
         "",
-        "| 감사 | 검사 대상 | 드리프트 | 상세 |",
-        "| --- | ---: | ---: | --- |",
+        "| 감사 | 검사 대상 | 드리프트 | 기준선 | 증감 | 상세 |",
+        "| --- | ---: | ---: | ---: | ---: | --- |",
         f"| AS 축 투영(as_axis_status) | {as_axis['checked']} | {as_axis['drift']} | "
+        f"{by_key['as_axis']['baseline']} | {_delta('as_axis')} | "
         f"투영 누락 {as_axis['missing_projection']} · legacy 전용 {as_axis['legacy_only']} |",
         f"| ERP flat 컬럼 | {flat['total']} | {flat['drift']} | "
+        f"{by_key['erp_flat']['baseline']} | {_delta('erp_flat')} | "
         f"SAFE {flat['safe']} · AMBIGUOUS {flat['ambiguous']} · CLEAN {flat['clean']} |",
+        "",
+        f"기준선 정본 `tools/ops/drift_baseline.json` "
+        f"(측정 {comparison.get('measured_at', '미상')}). "
+        "숫자를 줄인 뒤에는 기준선도 같이 낮춘다 — 올리는 방향은 래칫을 푸는 것이라 사유가 필요하다.",
     ]
     reasons = flat.get("ambiguous_reasons") or {}
     if reasons:
@@ -172,20 +252,31 @@ def main() -> int:
 
     try:
         report = fetch_report(args.base, user, password)
-        summary = render_summary(report)
-        drift_total = int(report["drift_total"])
+        baseline = load_baseline()
+        comparison = compare_to_baseline(report, baseline)
+        summary = render_summary(report, comparison)
         truncated = bool(report.get("truncated"))
     except (requests.RequestException, RuntimeError, ValueError, TypeError, KeyError) as exc:
         print(f"ERROR: 드리프트 감사 조회 실패 — {exc}", file=sys.stderr)
         return 3
 
-    print(json.dumps(report, ensure_ascii=False, indent=2) if args.json else summary)
+    payload = {"report": report, "comparison": comparison}
+    print(json.dumps(payload, ensure_ascii=False, indent=2) if args.json else summary)
     _append_summary(args.summary_file, summary)
 
     if truncated:
-        print("ERROR: 응답이 절단됐다 — 0건 판정을 신뢰할 수 없다.", file=sys.stderr)
+        print("ERROR: 응답이 절단됐다 — 판정을 신뢰할 수 없다.", file=sys.stderr)
         return 1
-    return 1 if drift_total else 0
+    if comparison["regressed"]:
+        for row in comparison["rows"]:
+            if row["regressed"]:
+                print(
+                    f"ERROR: {row['label']} 드리프트가 기준선을 넘었다 — "
+                    f"{row['baseline']} → {row['current']} (+{row['delta']}).",
+                    file=sys.stderr,
+                )
+        return 1
+    return 0
 
 
 if __name__ == "__main__":
