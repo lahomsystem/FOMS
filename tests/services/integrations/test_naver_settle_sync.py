@@ -838,16 +838,23 @@ def test_feature_flag_defaults_to_off(monkeypatch: pytest.MonkeyPatch):
 # 큐 · 태스크 배선
 # --------------------------------------------------------------------------- #
 
-def test_enqueue_returns_false_without_a_queue(monkeypatch: pytest.MonkeyPatch):
-    """큐가 없으면 조용히 성공한 척하지 않는다 — 동기 폴백도 없다(호출 IP 계약)."""
+def test_enqueue_reports_unavailable_without_a_queue(monkeypatch: pytest.MonkeyPatch):
+    """큐가 없으면 조용히 성공한 척하지 않는다 — 동기 폴백도 없다(호출 IP 계약).
+
+    CFO 감사 F-02: 큐 부재는 ``"unavailable"`` 이다 — 중복(``"duplicate"``)과 같은 값으로 접으면
+    Redis 장애 때 화면이 "이미 대기 중"이라고 거짓말한다.
+    """
     from foms.services.jobs import queue as queue_mod
 
     monkeypatch.setattr(queue_mod, "get_rq_queue", lambda: None)
-    assert queue_mod.enqueue_naver_settle_sync(actor_user_id=1) is False
+    assert queue_mod.enqueue_naver_settle_sync(actor_user_id=1) == "unavailable"
 
 
 def test_enqueue_uses_the_dedupe_job_id(monkeypatch: pytest.MonkeyPatch):
-    """중복 enqueue 방지 키로 넣는다 — 연타해도 워커가 같은 구간을 여러 번 훑지 않는다."""
+    """중복 enqueue 방지 키로 넣는다 — 연타해도 워커가 같은 구간을 여러 번 훑지 않는다.
+
+    넣었으면 ``"queued"``, 같은 job 이 살아 있으면 ``"duplicate"``(F-02 3상태).
+    """
     from foms.services.jobs import queue as queue_mod
 
     captured: dict = {}
@@ -862,13 +869,54 @@ def test_enqueue_uses_the_dedupe_job_id(monkeypatch: pytest.MonkeyPatch):
 
     monkeypatch.setattr(queue_mod, "get_rq_queue", lambda: FakeQueue())
     monkeypatch.setattr(queue_mod, "_settle_sync_in_flight", lambda _q: False)
-    assert queue_mod.enqueue_naver_settle_sync(7, backfill_from="2026-06-04") is True
+    assert queue_mod.enqueue_naver_settle_sync(7, backfill_from="2026-06-04") == "queued"
     assert captured["path"].endswith("run_naver_settle_sync_task")
     assert captured["args"] == (7, "2026-06-04", False)
     assert captured["kwargs"]["job_id"] == queue_mod._SETTLE_SYNC_JOB_ID
 
     monkeypatch.setattr(queue_mod, "_settle_sync_in_flight", lambda _q: True)
-    assert queue_mod.enqueue_naver_settle_sync(7) is False
+    assert queue_mod.enqueue_naver_settle_sync(7) == "duplicate"
+
+
+def test_enqueue_reports_unavailable_when_enqueue_raises_and_logs_error(
+        monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture):
+    """Redis 가 enqueue 도중 끊기면 ``"unavailable"`` 이고 ERROR 로그가 남는다(무로그 삼킴 금지).
+
+    ``test_jobs_queue_failopen.py`` 의 (c) 계약과 같은 모양 — 실패를 화면에는 "지금은 할 수
+    없다"로, 로그에는 원인 그대로 남긴다. 옛 코드는 이 경로도 False(=중복과 같은 값)였다.
+    """
+    from redis.exceptions import ConnectionError as RedisConnectionError
+
+    from foms.services.jobs import queue as queue_mod
+
+    class BrokenQueue:
+        connection = object()
+
+        def enqueue(self, *_args, **_kwargs):
+            raise RedisConnectionError("Error 111 connecting to redis:6379")
+
+    monkeypatch.setattr(queue_mod, "get_rq_queue", lambda: BrokenQueue())
+    monkeypatch.setattr(queue_mod, "_settle_sync_in_flight", lambda _q: False)
+    with caplog.at_level("ERROR", logger="foms.services.jobs.queue"):
+        state = queue_mod.enqueue_naver_settle_sync(7)
+
+    assert state == "unavailable"
+    errors = [record for record in caplog.records
+              if record.name == "foms.services.jobs.queue" and record.levelname == "ERROR"]
+    assert errors, "enqueue 실패가 로그 없이 삼켜졌다"
+    assert "enqueue_naver_settle_sync" in errors[-1].getMessage()
+
+
+def test_enqueue_states_are_the_three_agreed_literals():
+    """3상태 리터럴은 API·JSON·감사 detail 에 그대로 실린다 — 값과 순서가 계약이다."""
+    from foms.services.jobs import queue as queue_mod
+
+    assert queue_mod.SETTLE_ENQUEUE_STATES == ("queued", "duplicate", "unavailable")
+    assert queue_mod.SETTLE_ENQUEUE_QUEUED == "queued"
+    assert queue_mod.SETTLE_ENQUEUE_DUPLICATE == "duplicate"
+    assert queue_mod.SETTLE_ENQUEUE_UNAVAILABLE == "unavailable"
+    # 네임스페이스 표면 계약: ``__all__`` 에는 올리지 않는다(API 는 이름으로 직접 import 한다).
+    assert "SETTLE_ENQUEUE_STATES" not in queue_mod.__all__
 
 
 def test_task_is_exported_for_the_worker():

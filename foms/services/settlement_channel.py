@@ -30,12 +30,16 @@ import math
 from decimal import Decimal, InvalidOperation
 from typing import Any, Optional
 
-from sqlalchemy import and_, case, func, or_
+from sqlalchemy import and_, case, func, or_, select
 
 from foms.services.datetime_kst import now_utc_naive
+# 출고가는 실무 탭(`settlement_rows`)·완료 대시보드와 **같은 함수**로 만든다(파생 SSOT 재사용, D-03).
+# models 뒤에 두어도 순환이 없음을 2026-09-06 새 인터프리터로 확인했다.
+from foms.services.erp_display import _ensure_dict, erp_shipping_price_from_structured
 from foms.services.integrations.naver_commerce.settle_enums import (
     BANK_TYPES,
     COMMISSION_TYPES,
+    NEGATIVE_SETTLE_TYPES,
     PAY_MEANS_TYPES,
     PERIOD_TYPES,
     PRODUCT_ORDER_TYPES,
@@ -52,6 +56,7 @@ from models import (
     NaverSettleSyncRun,
     NaverVatCase,
     NaverVatDaily,
+    Order,
     SystemSetting,
 )
 
@@ -113,15 +118,20 @@ STRIP_TAB_KEY = "channel"
 #: 예외 큐가 한 갈래에서 담아 오는 최대 행수. 넘치면 화면이 스크롤 괴물이 된다.
 #: 상한은 **목록**에만 걸린다 — 응답 ``exception_totals`` 는 상한 전 모집단이다(감사 D-02).
 _EXCEPTION_CAP = 50
-#: 예외 종류 8종 — 응답 ``exception_totals`` 의 고정 키(0건이어도 키가 있어야 화면이 "없다"를 말한다).
+#: 예외 종류 9종 — 응답 ``exception_totals`` 의 고정 키(0건이어도 키가 있어야 화면이 "없다"를 말한다).
 #: ``SYNC_FAILED`` 는 최신 동기화 실행이 FAILED 일 때 1행(화면 전체가 옛 값이라는 신호, 감사 F-04).
+#: ``AMOUNT_DIFF`` 는 매칭 주문의 Σpay_settle_amount 와 출고가가 다를 때 주문당 1행(감사 D-03·§6-5,
+#: **대시보드만** — 스트립은 세지 않아 0). 두 원값을 나란히 둘 뿐 차액을 만들지 않는다(D-4).
 _EXCEPTION_KINDS: tuple[str, ...] = ("UNMATCHED", "UNLINKED", "HOLDBACK", "LIMIT",
-                                     "NEGATIVE", "RETRO", "COUNT_MISMATCH", "SYNC_FAILED")
+                                     "NEGATIVE", "RETRO", "COUNT_MISMATCH", "SYNC_FAILED",
+                                     "AMOUNT_DIFF")
 #: 미매칭 정산 예정일 경과 구간 — 응답 ``kpi.unmatched_aging`` 의 고정 키(이 순서).
 _AGING_BUCKETS: tuple[str, ...] = ("lt30", "d30_59", "d60_89", "d90_plus", "future")
 #: 미연결 예외의 조치 링크 — 같은 출처 상대 경로만(프론트 ``actionCell`` 이 외부 URL 을 안 건다).
 _WORKBENCH_URL = "/admin/naver-ingest/triage"
 _INGEST_URL = "/admin/naver-ingest"
+#: AMOUNT_DIFF 조치 링크 = 주문 편집 화면(라우트 ``foms/web/orders/edit.py`` ``/erp/orders/<int:order_id>`` 실재).
+_ORDER_URL = "/erp/orders/{order_id}"
 
 #: 원장 행 직렬화 타입 태그.
 _DATE, _MONEY, _TEXT, _INT = "date", "money", "text", "int"
@@ -1231,6 +1241,102 @@ def _mismatch_exceptions(reconcile: dict, today: datetime.date) -> list[dict]:
                                "case_total": reconcile["case_total"]})]
 
 
+def _matched_amount_groups(session: Any, channel: str, date_from: datetime.date,
+                           date_to: datetime.date) -> list[tuple]:
+    """창 안에 MATCHED 행이 하나라도 있는 FOMS 주문별로 **그 주문에 붙은 정산 행 전부**를 묶는다(질의 1개).
+
+    Σ의 범위가 창이 아니라 주문 전체인 이유: 한 주문의 상품주문·취소 행은 예정일이 달라 창을
+    걸친다 — 창 안 부분합을 출고가와 견주면 거짓 불일치가 난다. 실무 탭 ``_naver_settle_map``
+    (``settlement_rows.py``, ``channel == 'NAVER' AND foms_order_id IN (...)`` 전량 합)과 같은
+    정의라 대시보드 예외와 실무 탭 셀이 같은 숫자를 말한다(테스트가 두 표면을 대조한다).
+
+    ``in_`` 에는 ``select()`` 를 **그대로** 넘긴다(``.subquery()`` 를 넘기면 SAWarning). 안쪽은
+    ``ix_nsc_channel_expect_axis``(H-01), 바깥은 ``ix_nsc_foms_order`` 를 탄다.
+
+    Args:
+        session: SQLAlchemy Session.
+        channel: 채널 코드.
+        date_from: 시작일.
+        date_to: 종료일(포함).
+
+    Returns:
+        ``(foms_order_id, Σpay_settle_amount, 행수, 취소 계열 행수, 최대 축일)`` 튜플 목록.
+    """
+    in_window = select(NaverSettleCase.foms_order_id).where(
+        *_case_scope(channel, date_from, date_to),
+        NaverSettleCase.match_status == "MATCHED",
+        NaverSettleCase.foms_order_id.isnot(None))
+    axis = func.coalesce(NaverSettleCase.settle_expect_date, NaverSettleCase.search_date)
+    # sorted: frozenset 순회 순서가 프로세스마다 달라 SQL 문자열(문 캐시 키)이 흔들리지 않게 고정한다.
+    cancel = case((NaverSettleCase.settle_type.in_(sorted(NEGATIVE_SETTLE_TYPES)), 1), else_=0)
+    return (session.query(NaverSettleCase.foms_order_id,
+                          func.sum(NaverSettleCase.pay_settle_amount),
+                          func.count(NaverSettleCase.id), func.sum(cancel), func.max(axis))
+            .filter(NaverSettleCase.channel == channel,
+                    NaverSettleCase.foms_order_id.in_(in_window))
+            .group_by(NaverSettleCase.foms_order_id).all())
+
+
+def _order_shipping_prices(session: Any, order_ids: list[int]) -> dict[int, Optional[int]]:
+    """주문별 출고가 — ``in_`` 배치 **질의 1개**(빈 목록이면 0개, ``_naver_settle_map`` 관례). N+1 없음.
+
+    출고가는 실무 탭·완료 대시보드와 **같은 함수** :func:`erp_shipping_price_from_structured`
+    로 만든다(파생 SSOT 재사용). 삭제 여부는 보지 않는다(id 로만) — 없는 주문은 키 부재 = None.
+
+    Args:
+        session: SQLAlchemy Session.
+        order_ids: 매칭 주문 id 목록.
+
+    Returns:
+        ``{order_id: 출고가(원) | None}`` — None 은 품목 미입력(출고가를 만들 수 없음).
+    """
+    if not order_ids:
+        return {}
+    rows = (session.query(Order.id, Order.structured_data)
+            .filter(Order.id.in_(order_ids)).all())
+    return {int(order_id): erp_shipping_price_from_structured(_ensure_dict(sd))
+            for order_id, sd in rows}
+
+
+def _amount_diff_exceptions(session: Any, channel: str, date_from: datetime.date,
+                            date_to: datetime.date, today: datetime.date) -> list[dict]:
+    """매칭 주문의 Σ결제 정산 금액 ≠ 출고가 → ``AMOUNT_DIFF`` 주문당 1행(CFO 감사 D-03·§6-5, **대시보드만**).
+
+    두 **원값**을 나란히 둘 뿐 차액을 만들지 않는다(재계산 금지 D-4). 불일치 = 출고가 None(품목
+    미입력·주문 부재) 이거나 Σ가 NULL 이거나 두 값이 같지 않을 때. ``amount`` 는 Σpay_settle_amount
+    원값이다(차액이 아니다). 정렬 ``(date desc, order_id desc)`` — 결정적. 상한은
+    :func:`_build_exceptions` 가 건다. 질의는 2개(그룹 1 + 주문 1, 매칭 주문이 없으면 1).
+
+    Args:
+        session: SQLAlchemy Session.
+        channel: 채널 코드.
+        date_from: 시작일.
+        date_to: 종료일(포함).
+        today: KST 오늘(경과일 계산 기준).
+
+    Returns:
+        AMOUNT_DIFF 예외 목록(상한 없음). ``ref`` 는 정확히 5키
+        ``{order_id, pay_settle_total, shipping_price, case_count, has_cancel_row}``.
+        ``action_url`` 은 그 주문의 편집 화면(:data:`_ORDER_URL`) — 행이 어느 주문인지 가리킨다.
+    """
+    groups = _matched_amount_groups(session, channel, date_from, date_to)
+    prices = _order_shipping_prices(session, [int(row[0]) for row in groups])
+    found: list[dict] = []
+    for order_id, pay_sum, count, cancel_rows, max_axis in groups:
+        order_id = int(order_id)
+        shipping = prices.get(order_id)
+        pay_total = None if pay_sum is None else _dec(pay_sum)
+        if shipping is not None and pay_total is not None and _dec(shipping) == pay_total:
+            continue
+        ref = {"order_id": order_id, "pay_settle_total": _money(pay_sum),
+               "shipping_price": shipping, "case_count": int(count or 0),
+               "has_cancel_row": bool(int(cancel_rows or 0))}
+        found.append(_exception("AMOUNT_DIFF", "정산액≠출고가", max_axis, pay_sum, today, ref,
+                                _ORDER_URL.format(order_id=order_id)))
+    found.sort(key=lambda item: (item["date"] or "", item["ref"]["order_id"]), reverse=True)
+    return found
+
+
 # ---------------------------------------------------------------------------
 # 원장
 # ---------------------------------------------------------------------------
@@ -1452,14 +1558,15 @@ def _validated(basis: str, granularity: str, ledger: str,
 
 
 def _exception_totals(case_stats: dict[str, Any], uncapped: list[dict]) -> dict[str, int]:
-    """예외 kind 별 **모집단**(상한 전) + ``total``. 8키 고정, 없으면 0.
+    """예외 kind 별 **모집단**(상한 전) + ``total``. 9키 고정(``AMOUNT_DIFF`` 는 대시보드만), 없으면 0.
 
     미연결 두 갈래는 목록이 아니라 group-by 통계에서 센다(목록은 갈래당 상한까지만 읽는다).
-    나머지 여섯 kind 는 상한을 자르기 전 목록을 센다 — 추가 질의 0(감사 D-02).
+    나머지 일곱 kind 는 상한을 자르기 전 목록을 센다 — 추가 질의 0(감사 D-02). 스트립은
+    ``AMOUNT_DIFF`` 목록을 넘기지 않으므로 그 키가 0 으로 고정된다(§3.2-5 계약).
 
     Args:
         case_stats: :func:`_build_case_stats` 결과.
-        uncapped: 일별 3종·RETRO·COUNT_MISMATCH·SYNC_FAILED 의 상한 전 목록.
+        uncapped: 일별 3종·RETRO·COUNT_MISMATCH·SYNC_FAILED(·대시보드는 AMOUNT_DIFF) 의 상한 전 목록.
 
     Returns:
         ``{kind: 건수, ..., "total": 합}``.
@@ -1478,13 +1585,16 @@ def _exception_totals(case_stats: dict[str, Any], uncapped: list[dict]) -> dict[
 def _build_exceptions(session: Any, channel: str, date_from: datetime.date,
                       date_to: datetime.date, rows: list[Any], case_stats: dict[str, Any],
                       reconcile: dict, today: datetime.date) -> tuple[list[dict], dict[str, int]]:
-    """예외 큐 — 미매칭·보류·한도·음수·소급 변경·합계 불일치를 한 목록으로 잇고 모집단을 함께 낸다.
+    """예외 큐 — 미매칭·보류·한도·음수·소급 변경·합계 불일치·주문별 금액 대조를 한 목록으로 잇고 모집단을 함께 낸다.
 
     순서가 곧 조치 우선순위다(적재 자체가 실패한 것 → 사람이 붙일 것 → 돈이 묶인 것 → 값이
-    바뀐 것). ``SYNC_FAILED`` 가 맨 앞인 이유: 화면 전체가 옛 값이라는 신호라 다른 예외를 조치하기
-    전에 알아야 한다(감사 F-04). 목록은 갈래(미연결 2갈래·일별 3종 합·RETRO)마다
-    :data:`_EXCEPTION_CAP` 까지만 싣고, 상한 전 건수는 두 번째 반환값이 말한다 — 스트립·배지가
-    목록 길이를 세면 모집단이 8~34배 가려졌다(감사 D-02).
+    바뀐 것 → 합계 불일치 → 주문별 금액 대조). ``SYNC_FAILED`` 가 맨 앞인 이유: 화면 전체가 옛
+    값이라는 신호라 다른 예외를 조치하기 전에 알아야 한다(감사 F-04). ``AMOUNT_DIFF`` 가 맨 뒤인
+    이유: 정산 오류가 아니라 주문 입력 공백(품목 미입력)일 때가 많아 사람이 대조할 뒷순위다(D-03).
+    목록은 갈래(미연결 2갈래·일별 3종 합·RETRO·AMOUNT_DIFF)마다 :data:`_EXCEPTION_CAP` 까지만
+    싣고, 상한 전 건수는 두 번째 반환값이 말한다 — 스트립·배지가 목록 길이를 세면 모집단이
+    8~34배 가려졌다(감사 D-02). AMOUNT_DIFF 는 **여기(대시보드)에서만** 만든다 — 스트립은
+    :func:`_uncapped_exception_pool` 만 쓰므로 주문 조회 2질의를 요약 탭마다 내지 않는다.
 
     Args:
         session: SQLAlchemy Session.
@@ -1502,9 +1612,11 @@ def _build_exceptions(session: Any, channel: str, date_from: datetime.date,
     unmatched = _unmatched_exceptions(session, channel, date_from, date_to, today)
     daily_all, retro_all, mismatch, failed = _uncapped_exception_pool(
         session, channel, rows, reconcile, today)
+    amount_all = _amount_diff_exceptions(session, channel, date_from, date_to, today)
     listed = (failed + unmatched + daily_all[:_EXCEPTION_CAP] + retro_all[:_EXCEPTION_CAP]
-              + mismatch)
-    return listed, _exception_totals(case_stats, daily_all + retro_all + mismatch + failed)
+              + mismatch + amount_all[:_EXCEPTION_CAP])
+    return listed, _exception_totals(case_stats,
+                                     daily_all + retro_all + mismatch + failed + amount_all)
 
 
 def _uncapped_exception_pool(session: Any, channel: str, rows: list[Any], reconcile: dict,
@@ -1658,7 +1770,11 @@ def build_channel_strip(session: Any, *, channel: str = "NAVER",
     Returns:
         ``channel``·``basis``·``basis_label``·``range``·``sync``·``strip`` dict.
         ``strip`` = ``settled_amount``·``expected_amount``·``exception_count``(상한 **전**
-        모집단 = 탭의 ``exception_totals.total``)·``unmatched_count``·``tab_key``.
+        모집단 = 탭의 ``exception_totals.total`` − 탭의 ``AMOUNT_DIFF``)·``unmatched_count``·
+        ``tab_key``. ``exception_count`` 는 ``AMOUNT_DIFF`` 를 **세지 않는다**(D-03·§3.2-5) —
+        주문 조회 2질의를 요약 탭마다 내지 않기 위해 :func:`_uncapped_exception_pool` 만 쓰므로
+        여기 ``exception_totals["AMOUNT_DIFF"]`` 는 0 으로 고정이고, 9키 전부는 대시보드
+        ``exception_totals`` 만 말한다. 질의 예산 6 은 그대로다.
 
     Raises:
         ValueError: 시작일이 종료일보다 뒤이거나 구간 폭이 상한을 넘을 때.

@@ -166,13 +166,19 @@ def _naver_settle_map(db: Any, order_ids: Sequence[int]) -> dict[int, dict]:
     상계된 결과가 곧 그 주문의 정산 총액이다. 컬럼은 ``NUMERIC(16,2)`` 지만 원 단위에
     소수가 없어 ``int`` 로 낸다(다른 금액 필드와 같은 직렬화 규약).
 
+    ``pay_settle_amount`` 는 **결제 정산 금액 원값 합**(``pay_settle_amount`` 부호합) — 실무 탭
+    셀이 출고가와 **나란히** 두는 값이다(CFO 감사 D-03·2026-09-06 사용자 결정). 정산 예정 금액
+    (``amount``)은 수수료가 빠져 출고가와 같을 수 없으므로 뜻을 바꾸지 않고 키를 하나 더 낸다.
+    재계산·차액 저장 없음(D-4). Σ의 범위는 그 주문에 붙은 행 **전부**(채널 고정, 창 무관) —
+    대시보드 ``AMOUNT_DIFF`` 와 같은 정의라 두 표면이 같은 숫자를 말한다.
+
     Args:
         db: SQLAlchemy Session.
         order_ids: 모집단 주문 id. 빈 시퀀스면 **쿼리를 아예 걸지 않는다**.
 
     Returns:
-        {order_id: {"status", "settle_expect_date", "settle_complete_date", "amount"}}.
-        정산 행이 없는 주문은 키 자체가 없다.
+        {order_id: {"status", "settle_expect_date", "settle_complete_date", "amount",
+        "pay_settle_amount"}}. 정산 행이 없는 주문은 키 자체가 없다.
     """
     ids = [int(order_id) for order_id in order_ids]
     if not ids:
@@ -184,6 +190,7 @@ def _naver_settle_map(db: Any, order_ids: Sequence[int]) -> dict[int, dict]:
             func.max(NaverSettleCase.settle_complete_date),
             func.min(NaverSettleCase.settle_expect_date),
             func.sum(NaverSettleCase.settle_expect_amount),
+            func.sum(NaverSettleCase.pay_settle_amount),
         )
         .filter(
             NaverSettleCase.channel == _NAVER_CHANNEL,
@@ -194,7 +201,7 @@ def _naver_settle_map(db: Any, order_ids: Sequence[int]) -> dict[int, dict]:
     )
 
     mapping: dict[int, dict] = {}
-    for order_id, complete_date, expect_date, amount in rows:
+    for order_id, complete_date, expect_date, amount, pay in rows:
         if order_id is None:
             continue
         settled = complete_date is not None
@@ -203,6 +210,7 @@ def _naver_settle_map(db: Any, order_ids: Sequence[int]) -> dict[int, dict]:
             "settle_expect_date": _iso_or_none(expect_date),
             "settle_complete_date": _iso_or_none(complete_date),
             "amount": None if amount is None else int(amount),
+            "pay_settle_amount": None if pay is None else int(pay),
         }
     return mapping
 
@@ -216,7 +224,8 @@ def _naver_settlement_cell(channel: str, entry: dict | None) -> dict | None:
 
     Returns:
         네이버 주문이 아니면 **None**(화면은 '—'). 네이버인데 붙은 정산 행이 0건이면
-        ``UNMATCHED``. 그 밖에는 map 이 판정한 dict 그대로.
+        ``UNMATCHED``. 그 밖에는 map 이 판정한 dict 그대로. 셀 키는 **5개 정확 일치**
+        ``{status, settle_expect_date, settle_complete_date, amount, pay_settle_amount}``.
     """
     if channel != _NAVER_CHANNEL:
         return None
@@ -226,6 +235,7 @@ def _naver_settlement_cell(channel: str, entry: dict | None) -> dict | None:
             "settle_expect_date": None,
             "settle_complete_date": None,
             "amount": None,
+            "pay_settle_amount": None,
         }
     return entry
 
