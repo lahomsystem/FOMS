@@ -75,6 +75,10 @@
   var POLL_MAX_TRIES = 6;          // 10초 × 6 = 60초까지만 기다린다
   var POLL_MAX_TRIES_BACKFILL = 60; // 소급 적재는 창을 여러 개 돌아 오래 걸린다(90일 ≈ 2분, 250일 ≈ 6분) — 10분
   var BACKFILL_MINUTES_PER_DAY = 0.025; // 실측(2026-09-03): 하루치 ≈ 1.5초 — 배너의 예상 시간용
+  // 동기화 POST 가 503 이면 큐 부재·Redis 장애(서버 3상태의 unavailable, 감사 F-02) — 큐 docstring·API 503 본문과 같은 뜻.
+  var SYNC_UNAVAILABLE_TEXT = '지금은 동기화할 수 없습니다(큐 연결 불가)';
+  // "확정 구간" 부제(감사 B-01) — 확정은 FOMS 의 30일 가정이라 그 이전 정정은 백필로만 들어온다.
+  var FINAL_BEFORE_NOTE = '(이 날짜 이전 정정은 [이 구간 받아오기]로만 반영 · 매월 1일 자동 백필)';
   var SEARCH_DEBOUNCE_MS = 350;
   var RESIZE_DEBOUNCE_MS = 140;
   var LINE_HEADROOM = 1.5;         // 비교선이 축을 끌고 올라갈 수 있는 한도(막대가 주 마크다)
@@ -925,6 +929,7 @@
     if (!res.ok || !body || body.success !== true) {
       var err = new Error(failureReason(res, body));
       err.handled = true;
+      err.status = res ? res.status : 0; // 호출부가 503(큐 연결 불가)을 다른 실패와 가른다(F-02)
       throw err;
     }
     return body;
@@ -1016,7 +1021,10 @@
     lines.appendChild(el('span', null, '적재 구간 ' +
       (sync.coverage_from || '—') + ' ~ ' + (sync.coverage_to || '—') +
       (isNum(sync.rolling_days) ? ' · 롤링 재조회 ' + sync.rolling_days + '일' : '')));
-    if (sync.final_before) lines.appendChild(el('span', null, '확정 구간 ~' + sync.final_before));
+    if (sync.final_before) {
+      lines.appendChild(el('span', null, '확정 구간 ~' + sync.final_before));
+      lines.appendChild(el('span', 's-ch-sync-note', FINAL_BEFORE_NOTE));
+    }
     lines.appendChild(el('span', null, sync.vat_available_to
       ? '부가세 자료는 ' + sync.vat_available_to + '까지 제공(당월분은 익월 마감 후)'
       : '부가세 자료 제공 구간 미상'));
@@ -2159,6 +2167,8 @@
     // 동기화 실패는 "화면 전체가 옛 값"이라는 신호라 조치 1순위 — 보류(hold)색과 갈라 낸다(CFO 감사 F-04).
     if (code === 'SYNC_FAILED') return 'danger';
     if (code === 'UNMATCHED' || code === 'COUNT_MISMATCH') return 'warn';
+    // 정산액≠출고가(D-03)는 합계 불일치와 같은 "사람이 대조할 것" — 같은 warn 색.
+    if (code === 'AMOUNT_DIFF') return 'warn';
     if (code === 'UNLINKED') return 'info';
     if (code === 'NEGATIVE' || code === 'RETRO') return 'muted';
     return 'hold';
@@ -2231,7 +2241,10 @@
         : '이미 대기 중인 동기화가 있습니다. 반영을 확인합니다.');
       startRevPoll(ctx, backfillFrom ? POLL_MAX_TRIES_BACKFILL : POLL_MAX_TRIES);
     } catch (err) {
-      notice(ctx, err && err.handled ? err.message : '동기화 요청에 실패했습니다. 잠시 후 다시 시도하세요.', true);
+      // 503 = 큐 부재·Redis 장애(서버 3상태의 unavailable, 감사 F-02) — "이미 대기 중" 과 갈라 말한다.
+      var unavailable = !!(err && err.status === 503);
+      notice(ctx, unavailable ? SYNC_UNAVAILABLE_TEXT
+        : (err && err.handled ? err.message : '동기화 요청에 실패했습니다. 잠시 후 다시 시도하세요.'), true);
       ctx.state.syncing = false;
       if (ctx.els.syncBtn) ctx.els.syncBtn.disabled = false;
     }

@@ -27,10 +27,12 @@ from __future__ import annotations
 
 import datetime
 from decimal import Decimal
+from typing import Any, Callable
 
 import pytest
+from sqlalchemy import event
 
-from db import db_session
+from db import db_session, engine
 from foms.services.audit_message_display import ACTION_LABELS
 from foms.services.datetime_kst import get_today_kst, now_utc_naive
 from foms.services import settlement_channel as kernel
@@ -49,6 +51,8 @@ from models import (
 
 # 권한 매트릭스 SSOT 재사용(복제 금지 — 두 파일이 각자 하드코딩하면 한쪽만 갱신된다).
 from tests.domains.test_auth_finance import _login, _make_user  # noqa: E402
+# D-03 매칭 주문 시드 — 실제 Order 행을 만든다(없는 FK id 금지 규율, rows API 테스트와 같은 헬퍼).
+from tests.domains.test_settlement_aggregation import _money, _seed_order  # noqa: E402
 
 API_URL = "/api/settlement/channel"
 SYNC_URL = "/api/settlement/channel/sync"
@@ -87,10 +91,12 @@ _KPI_SCALARS = {
     "expected_unassigned_amount",
 }
 
-#: ``exception_totals`` 의 고정 8종(커널 ``_EXCEPTION_KINDS`` 와 같은 값 — 갈리면 화면이 kind 를 놓친다).
+#: ``exception_totals`` 의 고정 9종(커널 ``_EXCEPTION_KINDS`` 와 같은 값 — 갈리면 화면이 kind 를 놓친다).
 #: ``SYNC_FAILED`` 는 CFO 후속 2차(2026-09-06) F-04 — 최신 동기화 실행이 FAILED 면 1행.
+#: ``AMOUNT_DIFF`` 는 CFO 후속 3차(2026-09-06) D-03 — 매칭 주문의 Σpay_settle_amount ≠ 출고가면 주문당 1행
+#: (대시보드만 — 스트립은 세지 않는다). ``_case`` 시드는 ``foms_order_id`` 가 None 이라 이 kind 를 만들지 않는다.
 _EXCEPTION_KINDS = ("UNMATCHED", "UNLINKED", "HOLDBACK", "LIMIT", "NEGATIVE", "RETRO",
-                    "COUNT_MISMATCH", "SYNC_FAILED")
+                    "COUNT_MISMATCH", "SYNC_FAILED", "AMOUNT_DIFF")
 
 #: ``holdback`` 블록 키(CFO 후속 2차 B-02: 창 안 부호별 합 ``window`` + 적재 전 기간 누적 잔액 ``balance``).
 _HOLDBACK_KEYS = {"rows", "count", "total", "window", "balance"}
@@ -578,11 +584,45 @@ def test_commission_by_type_shares_and_labels(client, app):
 # --------------------------------------------------------------------------
 # 7. 동기화 요청(POST)
 # --------------------------------------------------------------------------
+#: 동기화 감사 행 detail 의 고정 7키(CFO 후속 2차 E-02 6키 + 3차 F-02 ``reason``).
+_SYNC_DETAIL_KEYS = {"queued", "reason", "backfill_from", "channel", "job_id", "from", "to"}
+
+#: F-02 503 본문 — API 상수·큐 docstring·JS 헤더 문구와 같은 뜻의 고정 리터럴.
+_SYNC_UNAVAILABLE_MESSAGE = "지금은 동기화할 수 없습니다. 잠시 뒤 다시 시도하세요."
+
+
+def _latest_sync_log() -> SecurityLog:
+    """가장 최근 동기화 요청 감사 행(메시지·detail 을 함께 본다)."""
+    return (db_session.query(SecurityLog)
+            .filter(SecurityLog.action == "NAVER_SETTLE_SYNC_REQUEST")
+            .order_by(SecurityLog.id.desc()).first())
+
+
+def test_api_state_literals_equal_the_queue_constants():
+    """API 가 다시 적은 3상태 리터럴은 큐 상수 ``SETTLE_ENQUEUE_*`` 와 **같은 값**이다(F-02).
+
+    API 모듈은 rq/redis 를 조회 화면에 끌어오지 않으려고 문자열을 한 번 더 적는다. 아래 ``test_sync_*``
+    는 ``enqueue_naver_settle_sync`` 를 monkeypatch 로 리터럴을 돌려주게 하므로 실제 큐 상수를 통과하지
+    않는다 — 값이 갈리면 ``_SYNC_AUDIT_SUFFIX[state]`` KeyError(500·감사 행 유실)인데 그 이유를 말하는
+    테스트가 이것이다(테스트 안 지역 import 라 API 모듈에 큐 의존이 생기지 않는다).
+    """
+    import foms.api.cs.settlement_channel as api_module
+    from foms.services.jobs import queue as queue_module
+
+    assert api_module._STATE_QUEUED == queue_module.SETTLE_ENQUEUE_QUEUED
+    assert api_module._STATE_DUPLICATE == queue_module.SETTLE_ENQUEUE_DUPLICATE
+    assert api_module._STATE_UNAVAILABLE == queue_module.SETTLE_ENQUEUE_UNAVAILABLE
+    assert set(api_module._SYNC_AUDIT_SUFFIX) == {
+        queue_module.SETTLE_ENQUEUE_QUEUED, queue_module.SETTLE_ENQUEUE_DUPLICATE,
+        queue_module.SETTLE_ENQUEUE_UNAVAILABLE}
+
+
 def test_sync_enqueues_and_writes_audit(client, app, monkeypatch):
     """허용 actor 의 동기화 요청은 큐에 들어가고 감사 1행을 남긴다.
 
-    감사 detail 은 6키다(CFO 후속 2차 E-02): 큐가 실제로 쓴 job id 와 요청 시점에 계산된 실행 창
-    ``from``·``to`` 가 있어야 그 행이 rq 큐·실행 이력(scope) 양쪽과 대조된다.
+    감사 detail 은 7키다(CFO 후속 2차 E-02 + 3차 F-02 ``reason``): 큐가 실제로 쓴 job id 와 요청
+    시점에 계산된 실행 창 ``from``·``to`` 가 있어야 그 행이 rq 큐·실행 이력(scope) 양쪽과 대조되고,
+    ``reason`` 이 있어야 큐 부재와 중복이 감사에서 구분된다.
     """
     from foms.services.jobs import queue as queue_module
 
@@ -590,7 +630,7 @@ def test_sync_enqueues_and_writes_audit(client, app, monkeypatch):
 
     def _fake(actor_user_id=None, *, backfill_from=None, dry_run=False):
         seen.update({"actor": actor_user_id, "backfill_from": backfill_from})
-        return True
+        return "queued"
 
     monkeypatch.setattr(queue_module, "enqueue_naver_settle_sync", _fake)
     user = _make_user(role="STAFF", team="ACCOUNTING")
@@ -604,7 +644,8 @@ def test_sync_enqueues_and_writes_audit(client, app, monkeypatch):
 
     assert resp.status_code == 200, resp.get_data(as_text=True)
     body = resp.get_json()
-    assert body["success"] is True and body["data"] == {"queued": True}
+    assert body["success"] is True
+    assert body["data"] == {"queued": True, "reason": "queued", "job_id": "naver_settle_sync"}
     assert seen == {"actor": user_id, "backfill_from": "2026-06-01"}
 
     logs = db_session.query(SecurityLog).filter(
@@ -612,8 +653,9 @@ def test_sync_enqueues_and_writes_audit(client, app, monkeypatch):
     assert len(logs) == before + 1
     assert logs[-1].user_id == user_id
     detail = logs[-1].detail
-    assert set(detail) == {"queued", "backfill_from", "channel", "job_id", "from", "to"}
-    assert detail["queued"] is True and detail["channel"] == "NAVER"
+    assert set(detail) == _SYNC_DETAIL_KEYS
+    assert detail["queued"] is True and detail["reason"] == "queued"
+    assert detail["channel"] == "NAVER"
     assert detail["backfill_from"] == "2026-06-01" == detail["from"]
     assert detail["job_id"] == "naver_settle_sync" == queue_module._SETTLE_SYNC_JOB_ID
     assert detail["to"] == (get_today_kst() + datetime.timedelta(days=14)).isoformat()
@@ -629,39 +671,97 @@ def test_sync_audit_window_defaults_to_rolling_thirty_days(client, app, monkeypa
     today = get_today_kst()
     _login(client, _make_user(role="ADMIN"))
 
-    def latest_detail() -> dict:
-        return (db_session.query(SecurityLog)
-                .filter(SecurityLog.action == "NAVER_SETTLE_SYNC_REQUEST")
-                .order_by(SecurityLog.id.desc()).first().detail)
-
     monkeypatch.setattr(queue_module, "enqueue_naver_settle_sync",
-                        lambda actor_user_id=None, **_kwargs: True)
-    assert client.post(SYNC_URL, json={}).get_json()["data"] == {"queued": True}
-    detail = latest_detail()
+                        lambda actor_user_id=None, **_kwargs: "queued")
+    assert client.post(SYNC_URL, json={}).get_json()["data"] == {
+        "queued": True, "reason": "queued", "job_id": "naver_settle_sync"}
+    detail = _latest_sync_log().detail
     assert detail["backfill_from"] is None
     assert detail["from"] == (today - datetime.timedelta(days=30)).isoformat()
     assert detail["to"] == (today + datetime.timedelta(days=14)).isoformat()
     assert detail["job_id"] == "naver_settle_sync"
 
-    # 음성: 이미 대기 중(queued False)이면 job_id 는 None — 창은 그래도 적는다.
+    # 음성: 이미 대기 중(duplicate)이면 job_id 는 None — 창은 그래도 적는다.
     monkeypatch.setattr(queue_module, "enqueue_naver_settle_sync",
-                        lambda actor_user_id=None, **_kwargs: False)
-    assert client.post(SYNC_URL, json={}).get_json()["data"] == {"queued": False}
-    detail = latest_detail()
-    assert detail["queued"] is False and detail["job_id"] is None
+                        lambda actor_user_id=None, **_kwargs: "duplicate")
+    assert client.post(SYNC_URL, json={}).get_json()["data"] == {
+        "queued": False, "reason": "duplicate", "job_id": None}
+    detail = _latest_sync_log().detail
+    assert detail["queued"] is False and detail["reason"] == "duplicate"
+    assert detail["job_id"] is None
     assert detail["from"] == (today - datetime.timedelta(days=30)).isoformat()
 
 
 def test_sync_reports_already_queued_without_lying(client, app, monkeypatch):
-    """이미 대기 중이면 ``queued: False`` 다 — 성공한 척도, 실패한 척도 하지 않는다."""
+    """이미 대기 중이면 200 ``queued: False``·``reason: duplicate`` 다 — 성공한 척도, 실패한 척도 하지 않는다.
+
+    감사 메시지 꼬리 "(이미 대기 중)"은 **이 상태에만** 붙는다(F-02 — 옛 코드는 큐 부재에도 붙였다).
+    """
     from foms.services.jobs import queue as queue_module
 
     monkeypatch.setattr(queue_module, "enqueue_naver_settle_sync",
-                        lambda actor_user_id=None, **_kwargs: False)
+                        lambda actor_user_id=None, **_kwargs: "duplicate")
     _login(client, _make_user(role="ADMIN"))
-    body = client.post(SYNC_URL, json={}).get_json()
+    resp = client.post(SYNC_URL, json={})
+    body = resp.get_json()
 
-    assert body["success"] is True and body["data"] == {"queued": False}
+    assert resp.status_code == 200
+    assert body["success"] is True
+    assert body["data"] == {"queued": False, "reason": "duplicate", "job_id": None}
+    log = _latest_sync_log()
+    assert log.detail["reason"] == "duplicate" and log.detail["queued"] is False
+    assert str(log.message).endswith("(이미 대기 중)")
+
+
+def test_sync_unavailable_is_503_with_the_fixed_message_and_audited(client, app, monkeypatch):
+    """큐 부재·Redis 장애·enqueue 실패(``unavailable``)는 **503** + 고정 문구이고, 감사 행은 그래도 남는다.
+
+    F-02 의 요지: 옛 코드는 이 경로를 200 ``queued: False`` 로 내려 화면이 "이미 대기 중인 동기화가
+    있습니다"라고 말했고 감사 행에도 "(이미 대기 중)"이 붙어, 장애 뒤 감사로 복원할 수 없었다.
+    음성 대조: 메시지에 "(이미 대기 중)" 이 없어야 한다.
+    """
+    from foms.services.jobs import queue as queue_module
+
+    monkeypatch.setattr(queue_module, "enqueue_naver_settle_sync",
+                        lambda actor_user_id=None, **_kwargs: "unavailable")
+    _login(client, _make_user(role="ADMIN"))
+    before = db_session.query(SecurityLog).filter(
+        SecurityLog.action == "NAVER_SETTLE_SYNC_REQUEST").count()
+
+    resp = client.post(SYNC_URL, json={})
+
+    assert resp.status_code == 503, resp.get_data(as_text=True)
+    assert resp.get_json() == {"success": False, "data": None,
+                               "error": _SYNC_UNAVAILABLE_MESSAGE}
+    after = db_session.query(SecurityLog).filter(
+        SecurityLog.action == "NAVER_SETTLE_SYNC_REQUEST").count()
+    assert after == before + 1, "503 인데 감사 행이 남지 않았다"
+    log = _latest_sync_log()
+    assert set(log.detail) == _SYNC_DETAIL_KEYS
+    assert log.detail["reason"] == "unavailable"
+    assert log.detail["queued"] is False and log.detail["job_id"] is None
+    assert str(log.message).endswith("(큐 연결 불가)")
+    assert "(이미 대기 중)" not in str(log.message)
+
+
+def test_sync_queue_module_import_error_is_the_same_503(client, app, monkeypatch):
+    """큐 모듈 부재(ImportError 경로)도 같은 503·같은 문구다 — 같은 사실은 같은 말로 한다.
+
+    옛 "동기화 큐가 아직 준비되지 않았습니다" 는 소스에서 사라져야 한다(문구 분기 재발 방지).
+    """
+    import inspect
+
+    import foms.api.cs.settlement_channel as api_module
+
+    monkeypatch.setattr(api_module, "_enqueue", lambda *_a, **_k: ("unavailable", None))
+    _login(client, _make_user(role="ADMIN"))
+    resp = client.post(SYNC_URL, json={})
+
+    assert resp.status_code == 503
+    assert resp.get_json()["error"] == _SYNC_UNAVAILABLE_MESSAGE
+    assert api_module.SYNC_UNAVAILABLE_MESSAGE == _SYNC_UNAVAILABLE_MESSAGE
+    assert "아직 준비되지 않았습니다" not in inspect.getsource(api_module)
+    assert _latest_sync_log().detail["reason"] == "unavailable"
 
 
 def test_sync_rejects_bad_backfill_date(client, app):
@@ -1108,10 +1208,10 @@ def test_sync_rejects_backfill_older_than_the_floor_and_future(client, app, monk
     """백필 시작일은 오늘-400일 ~ 오늘 사이여야 한다 — 그 밖은 400 으로 막고 큐에 넣지 않는다."""
     calls: list = []
     import foms.api.cs.settlement_channel as api_mod
-    # ``_enqueue`` 는 ``(queued, job_id)`` 를 돌려준다(CFO 후속 2차 E-02).
+    # ``_enqueue`` 는 ``(state, job_id)`` 를 돌려준다(CFO 후속 2차 E-02 · 3차 F-02 3상태).
     monkeypatch.setattr(api_mod, "_enqueue",
                         lambda actor_user_id, backfill_from:
-                        calls.append(backfill_from) or (True, "naver_settle_sync"))
+                        calls.append(backfill_from) or ("queued", "naver_settle_sync"))
     _login(client, _make_user(role="ADMIN"))
     today = get_today_kst()
     too_old = (today - datetime.timedelta(days=401)).isoformat()
@@ -1596,3 +1696,162 @@ def test_json_api_is_no_store(client, app):
 
     assert full.status_code == 200 and full.headers["Cache-Control"] == "no-store"
     assert strip.status_code == 200 and strip.headers["Cache-Control"] == "no-store"
+
+
+# --------------------------------------------------------------------------
+# 17. CFO 후속 3차(2026-09-06) D-03 — 매칭 주문의 Σ결제 정산 금액 ≠ 출고가 (AMOUNT_DIFF)
+#
+# 두 **원값**을 나란히 두고 "같지 않음"만 판정한다(재계산 금지 D-4 — 차액을 만들지 않는다).
+# 시드는 실제 Order 행(``_seed_order``)에 ``foms_order_id`` 로 붙인다.
+# --------------------------------------------------------------------------
+_AMOUNT_DIFF_REF_KEYS = {"order_id", "pay_settle_total", "shipping_price", "case_count",
+                         "has_cancel_row"}
+
+
+def _count_queries(fn: Callable[[], Any]) -> tuple[Any, int]:
+    """``fn()`` 이 도는 동안 실제로 나간 SQL 문 수(스트립 테스트와 같은 event 패턴)."""
+    counter = {"n": 0}
+
+    def _before(conn, cursor, statement, params, context, executemany) -> None:
+        counter["n"] += 1
+
+    db_session.expire_all()
+    event.listen(engine, "before_cursor_execute", _before)
+    try:
+        result = fn()
+    finally:
+        event.remove(engine, "before_cursor_execute", _before)
+    return result, counter["n"]
+
+
+def _matched_order(day: datetime.date, items_total: int | None, pay: str,
+                   product_order_id: str) -> int:
+    """출고가 ``items_total``(None 이면 품목 미입력) 주문 1건 + 그 주문에 붙은 MATCHED 정산 1행."""
+    sd = _money(items_total=items_total, deposit=0) if items_total is not None else {}
+    order = _seed_order(completion="2026-08-10", sd=sd)
+    _case(day, product_order_id=product_order_id, foms_order_id=order.id,
+          pay_settle_amount=Decimal(pay), settle_expect_amount=Decimal(pay) - 100000)
+    return int(order.id)
+
+
+def _amount_diff_rows(data: dict) -> list[dict]:
+    """응답 예외 목록에서 AMOUNT_DIFF 만."""
+    return [item for item in data["exceptions"] if item["kind"] == "AMOUNT_DIFF"]
+
+
+def test_amount_diff_flags_mismatch_and_missing_shipping_but_not_equal(client, app):
+    """일치 주문은 예외가 아니고, 불일치 주문과 출고가 None(품목 미입력) 주문만 ``AMOUNT_DIFF`` 1행씩.
+
+    라벨 ``정산액≠출고가``, ``amount`` 는 Σpay 원값(차액이 아니다), ref 는 5키 정확 일치, 출고가 None 은
+    ``ref.shipping_price`` null 로 그대로 말한다(0 으로 그리지 않는다).
+    """
+    today = get_today_kst()
+    day = today - datetime.timedelta(days=2)
+    equal_id = _matched_order(day, 1_100_000, "1100000", "2026090100031")
+    diff_id = _matched_order(day, 900_000, "1100000", "2026090100032")
+    none_id = _matched_order(day, None, "1100000", "2026090100033")
+    db_session.commit()
+    _login(client, _make_user(role="ADMIN"))
+    data = _data(_get(client))
+
+    rows = _amount_diff_rows(data)
+    assert data["exception_totals"]["AMOUNT_DIFF"] == 2 == len(rows)
+    by_order = {row["ref"]["order_id"]: row for row in rows}
+    assert set(by_order) == {diff_id, none_id}, "일치 주문이 예외로 나왔거나 불일치 주문이 빠졌다"
+    for row in rows:
+        assert row["label"] == "정산액≠출고가"
+        assert row["action_url"] == f"/erp/orders/{row['ref']['order_id']}", (
+            "조치 링크가 그 주문의 편집 화면을 가리키지 않는다(행이 어느 주문인지 말해야 한다)")
+        assert set(row["ref"]) == _AMOUNT_DIFF_REF_KEYS
+        assert row["amount"] == 1100000 == row["ref"]["pay_settle_total"], "차액을 만들었다(D-4 위반)"
+        assert row["ref"]["case_count"] == 1 and row["ref"]["has_cancel_row"] is False
+        assert row["date"] == day.isoformat() and row["age_days"] == 2
+    assert by_order[diff_id]["ref"]["shipping_price"] == 900_000
+    assert by_order[none_id]["ref"]["shipping_price"] is None
+    assert equal_id not in by_order
+
+
+def test_amount_diff_is_zero_when_every_matched_order_equals_its_shipping_price(client, app):
+    """음성 대조군 — 매칭 주문 전부 Σpay == 출고가면 AMOUNT_DIFF 0행·0건(키는 그대로 있다)."""
+    today = get_today_kst()
+    day = today - datetime.timedelta(days=2)
+    _matched_order(day, 1_100_000, "1100000", "2026090100041")
+    _matched_order(day, 330_000, "330000", "2026090100042")
+    db_session.commit()
+    _login(client, _make_user(role="ADMIN"))
+    data = _data(_get(client))
+
+    assert data["exception_totals"]["AMOUNT_DIFF"] == 0
+    assert _amount_diff_rows(data) == []
+    assert "AMOUNT_DIFF" in data["exception_totals"]
+
+
+def test_amount_diff_sums_every_row_of_the_order_not_only_the_window(client, app):
+    """Σ의 범위는 **그 주문에 붙은 행 전부**(창 무관) — 창 밖 취소 행도 합에 들어간다.
+
+    창 안 부분합(1,100,000)만 보면 출고가 1,100,000 과 같아 예외가 아니지만, 창 밖(40일 전) 취소 행
+    −100,000 을 더한 실제 Σ 1,000,000 은 다르다 → 예외 1행, ``case_count`` 2, ``has_cancel_row`` True.
+    실무 탭 ``_naver_settle_map`` 과 같은 정의다.
+    """
+    today = get_today_kst()
+    day = today - datetime.timedelta(days=2)
+    order_id = _matched_order(day, 1_100_000, "1100000", "2026090100051")
+    _case(today - datetime.timedelta(days=40), product_order_id="2026090100052",
+          foms_order_id=order_id, settle_type="NORMAL_SETTLE_AFTER_CANCEL",
+          pay_settle_amount=Decimal("-100000"), settle_expect_amount=Decimal("-90000"))
+    db_session.commit()
+    _login(client, _make_user(role="ADMIN"))
+    data = _data(_get(client))
+
+    rows = _amount_diff_rows(data)
+    assert len(rows) == 1 and data["exception_totals"]["AMOUNT_DIFF"] == 1
+    row = rows[0]
+    assert row["ref"]["order_id"] == order_id
+    assert row["amount"] == 1_000_000 == row["ref"]["pay_settle_total"], "창 안 부분합만 더했다"
+    assert row["ref"]["case_count"] == 2 and row["ref"]["has_cancel_row"] is True
+    assert row["date"] == day.isoformat(), "주문 행의 최대 축일이 아니다"
+
+
+def test_amount_diff_rows_come_last_and_respect_the_cap(client, app):
+    """AMOUNT_DIFF 는 목록 **맨 뒤** 갈래이고 상한 50 이 걸린다 — 모집단은 ``exception_totals`` 가 말한다.
+
+    51주문 불일치 + HOLDBACK 1행: 목록은 HOLDBACK 뒤 AMOUNT_DIFF 50행, totals 는 51.
+    갈래 안 정렬은 (date desc, order_id desc) 로 결정적이다.
+    """
+    today = get_today_kst()
+    day = _seed_basic(today)
+    _daily(day, pay_holdback_amount=Decimal("50000"))
+    order_ids = [_matched_order(day, 900_000, "1100000", f"20260901{index:05d}")
+                 for index in range(200, 251)]
+    db_session.commit()
+    _login(client, _make_user(role="ADMIN"))
+    data = _data(_get(client))
+
+    kinds = [item["kind"] for item in data["exceptions"]]
+    assert kinds[-1] == "AMOUNT_DIFF" and kinds.count("AMOUNT_DIFF") == 50
+    first_amount = kinds.index("AMOUNT_DIFF")
+    assert set(kinds[first_amount:]) == {"AMOUNT_DIFF"}, "AMOUNT_DIFF 뒤에 다른 kind 가 있다"
+    assert "HOLDBACK" in kinds[:first_amount]
+    assert data["exception_totals"]["AMOUNT_DIFF"] == 51
+    listed_ids = [item["ref"]["order_id"] for item in _amount_diff_rows(data)]
+    assert listed_ids == sorted(order_ids, reverse=True)[:50]
+
+
+def test_dashboard_adds_at_most_two_queries_for_amount_diff(client, app):
+    """AMOUNT_DIFF 의 대가는 질의 **+2 이하**(그룹 1 + 주문 ``in_`` 배치 1) — 매칭 주문이 없으면 +1."""
+    today = get_today_kst()
+    day = _seed_basic(today)
+    date_from, date_to = today - datetime.timedelta(days=30), today + datetime.timedelta(days=14)
+
+    def _full() -> dict:
+        return kernel.build_channel_dashboard(db_session, date_from=date_from, date_to=date_to,
+                                              today=today)
+
+    _, without = _count_queries(_full)
+    _matched_order(day, 900_000, "1100000", "2026090100061")
+    _matched_order(day, 1_100_000, "1100000", "2026090100062")
+    db_session.commit()
+    data, with_orders = _count_queries(_full)
+
+    assert data["exception_totals"]["AMOUNT_DIFF"] == 1
+    assert 0 <= with_orders - without <= 2, (without, with_orders)

@@ -44,6 +44,7 @@ from models import NaverSettleSyncRun
 
 # 권한 매트릭스·시드 SSOT 재사용(복제 금지).
 from tests.domains.test_auth_finance import _login, _make_user
+from tests.domains.test_settlement_aggregation import _money, _seed_order
 from tests.domains.test_settlement_channel_api import (
     _ALLOWED_ACTORS,
     _DENIED_ACTORS,
@@ -192,7 +193,7 @@ def test_strip_amounts_are_numbers_not_strings(app):
 # 2. 동일성 계약 — 스트립과 탭이 갈라지면 red (§5.1-③)
 # --------------------------------------------------------------------------
 def test_strip_numbers_equal_the_tab_numbers(app):
-    """같은 구간·같은 세션이면 스트립 스칼라가 탭과 **완전히 같다**."""
+    """같은 구간·같은 세션이면 스트립 스칼라가 탭과 **완전히 같다**(AMOUNT_DIFF 는 스트립 밖 — §3.2-5)."""
     today = get_today_kst()
     _seed_basic(today)
 
@@ -206,7 +207,10 @@ def test_strip_numbers_equal_the_tab_numbers(app):
 
 
 def test_strip_numbers_equal_the_tab_numbers_with_exceptions(app):
-    """보류·음수 정산·미매칭이 섞인 구간에서도 동일하다(예외가 0이면 무의미한 계약이다)."""
+    """보류·음수 정산·미매칭이 섞인 구간에서도 동일하다(예외가 0이면 무의미한 계약이다).
+
+    시드에 ``foms_order_id`` 가 없어 AMOUNT_DIFF 는 0 이다(AMOUNT_DIFF 는 스트립 밖 — §3.2-5).
+    """
     today = get_today_kst()
     _seed_exceptional(today)
 
@@ -344,7 +348,7 @@ def test_view_strip_response_keys_exact(client, app):
 
 @_ROUTE_PENDING
 def test_view_strip_matches_the_full_view_over_http(client, app):
-    """같은 파라미터로 부른 ``view=strip`` 과 기본(full)이 같은 숫자를 말한다."""
+    """같은 파라미터로 부른 ``view=strip`` 과 기본(full)이 같은 숫자를 말한다(AMOUNT_DIFF 는 스트립 밖 — §3.2-5)."""
     today = get_today_kst()
     _seed_exceptional(today)
     _login(client, _make_user(role="ADMIN"))
@@ -430,4 +434,32 @@ def test_strip_counts_a_failed_run_as_an_exception(app):
     assert full["exception_totals"]["SYNC_FAILED"] == 1
     assert strip["strip"]["exception_count"] == full["exception_totals"]["total"] == 1
     assert set(strip["strip"]) == _STRIP_KEYS
+    assert strip_queries <= 6, strip_queries
+
+
+# --------------------------------------------------------------------------
+# 7. CFO 후속 3차(2026-09-06) D-03 — AMOUNT_DIFF 는 스트립이 세지 않는다(명시 계약 §3.2-5)
+# --------------------------------------------------------------------------
+def test_strip_does_not_count_amount_diff_by_contract(app):
+    """스트립 ``exception_count`` 는 ``AMOUNT_DIFF`` 를 **세지 않는다** — 질의 예산 6 을 지키는 대가.
+
+    불일치 주문 1건(출고가 900,000 vs Σpay 1,100,000): 탭은 ``AMOUNT_DIFF`` 1 을 말하고 스트립은
+    탭 total − 1 이다. 주문 조회 2질의를 요약 탭마다 내지 않기 위한 명시적 계약이고, 9키 전부는
+    대시보드 ``exception_totals`` 만 말한다. 스트립의 ``AMOUNT_DIFF`` 키는 0 으로 고정이다.
+    (덧붙인 건별 행 때문에 COUNT_MISMATCH 도 1 이 나지만 그 kind 는 양쪽이 같이 센다.)
+    """
+    today = get_today_kst()
+    day = _seed_basic(today)
+    order = _seed_order(completion="2026-08-10", sd=_money(items_total=900_000, deposit=0))
+    _case(day, product_order_id="2026090100077", foms_order_id=order.id,
+          pay_settle_amount=Decimal("1100000"))
+    db_session.commit()
+
+    strip, strip_queries = _count_queries(lambda: _strip(today))
+    full = _full(today)
+
+    assert full["exception_totals"]["AMOUNT_DIFF"] == 1
+    assert full["exception_totals"]["COUNT_MISMATCH"] == 1
+    assert strip["strip"]["exception_count"] == full["exception_totals"]["total"] - 1
+    assert strip["strip"]["exception_count"] == full["exception_totals"]["COUNT_MISMATCH"]
     assert strip_queries <= 6, strip_queries

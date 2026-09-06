@@ -114,6 +114,8 @@
 .foms-settle .s-ch-sync-lines {
   display: flex; gap: 14px; flex-wrap: wrap; color: var(--s-faint); font-size: calc(11.5px * var(--s-fs, 1));
 }
+/* "확정 구간" 부제(감사 B-01) — flex-wrap 컨테이너에서 한 줄을 통째로 차지해 다음 줄로 내려간다. */
+.foms-settle .s-ch-sync-note { color: var(--s-faint); flex-basis: 100%; }
 .foms-settle .s-ch-dot {
   width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex: none;
   background: var(--s-faint); align-self: center;
@@ -521,7 +523,8 @@
    상태는 3종(정산완료 `done` · 정산대기 `wait` · 미매칭 `none`)이고 "해당없음"(비네이버)은
    배지가 아니라 대시(`—`)라 클래스가 없다. **두 표기(`--done` / `-done`)를 모두 받는다** —
    계약서 초안과 Wave 2 브리프가 서로 다른 이름을 적었고, 어느 쪽을 골라도 배지가 무스타일로
-   떨어지지 않게 하는 값이 그 중복보다 크다. 금액은 넣지 않는다(상태 + 날짜만 — §6 노출 최소화). */
+   떨어지지 않게 하는 값이 그 중복보다 크다. 금액은 두 원값 병기(D-03, 2026-09-06 사용자 결정 —
+   `.s-ch-ops-nv-amt`, 아래). */
 .foms-settle .s-ch-ops-nv {
   --s-ch-nv-fg: var(--s-muted);
   --s-ch-nv-bg: #f1f3f7;
@@ -550,6 +553,13 @@
   --s-ch-nv-fg: var(--s-faint); --s-ch-nv-bg: var(--s-surface-soft); --s-ch-nv-line: var(--s-line-soft);
   font-weight: 600;
 }
+/* D-03(2026-09-06 사용자 결정): 정산(Σ결제 정산 금액 원값)과 출고가를 나란히 둔다. 다르면 `.s-ops-naver--diff`.
+   색은 `.foms-settle` 토큰(`--s-bad`)이다 — `--s-ch-neg-color` 는 `.s-ch` 안에서만 살아 이 칸(실무 탭)에 닿지 않는다. */
+.foms-settle .s-ch-ops-nv-amt {
+  display: block; margin-top: 2px; color: var(--s-muted);
+  font-size: calc(11px * var(--s-fs, 1)); font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.foms-settle .s-ops-naver--diff { color: var(--s-bad); font-weight: 700; }
 
 /* ── T12 · 요약 탭 크로스 스트립(S11) ──────────────────────────────
    요약 탭 5타일은 **완료일** 축이고 이 줄은 **정산 예정일** 축이다. 그래서 KPI 줄 안에

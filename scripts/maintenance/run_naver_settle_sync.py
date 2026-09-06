@@ -17,6 +17,12 @@ WORKER 한 곳에서만 나가야 한다. web 에서 실행하면 등록되지 �
 5행 쌓아 예외 큐의 소급 변경을 지웠다(감사 F-07). 파티션 통째 교체라 재시작 뒤 창 안에서 한 번
 더 돌아도 결과가 같다(멱등).
 
+매월 1일 자동 백필(감사 B-01): 확정 구간(예정일+30일) 밖 날짜는 SCHEDULE 실행이 다시 읽지
+않아 네이버 측 정정이 백필 없이는 영원히 안 들어온다. 그래서 ``--loop`` 는 KST 매월 1일 첫
+실행을 **전월 1일부터** 백필(``trigger=BACKFILL``, ``scope.backfill_from``)로 돈다
+(:func:`monthly_backfill_from`). 스위치 ``FOMS_NAVER_SETTLE_MONTHLY_BACKFILL``(기본 ``1``,
+``0`` 이면 끔). 명시 ``--backfill-from`` 이 있으면 그 값이 우선한다.
+
 사용 예 (PowerShell 5.x)::
 
     python scripts/maintenance/run_naver_settle_sync.py --once --dry-run --json
@@ -40,6 +46,7 @@ sys.path.append(
 from app import app  # noqa: E402
 from db import get_db  # noqa: E402
 from foms.services.datetime_kst import get_today_kst, now_kst  # noqa: E402
+from foms.services.feature_flags import env_bool  # noqa: E402
 from foms.services.integrations.naver_commerce.client import (  # noqa: E402
     NaverCommerceClient,
 )
@@ -175,6 +182,38 @@ def parse_backfill_from(value: Optional[str]) -> Optional[date]:
     return date.fromisoformat(text)
 
 
+#: 매월 1일 첫 실행을 전월 1일부터 백필로 돌리는 스위치(감사 B-01). 기본 켜짐, ``0`` 이면 끔.
+MONTHLY_BACKFILL_ENV = "FOMS_NAVER_SETTLE_MONTHLY_BACKFILL"
+
+
+def monthly_backfill_enabled() -> bool:
+    """월초 자동 백필 스위치 — ``env_bool(MONTHLY_BACKFILL_ENV, default=True)`` (feature_flags 관례).
+
+    Returns:
+        환경변수가 없거나 truthy(1/true/yes/on) 면 True, ``0``/``false`` 류면 False.
+    """
+    return env_bool(MONTHLY_BACKFILL_ENV, default=True)
+
+
+def monthly_backfill_from(today: date, *, enabled: bool = True) -> Optional[date]:
+    """KST 오늘이 1일이면 **전월 1일**, 아니면(또는 스위치가 꺼졌으면) None.
+
+    확정 구간(예정일+30일) 밖 정정은 백필 없이는 영원히 안 들어온다(감사 B-01) — 월 마감 전
+    전월 전체를 한 번 다시 읽는 운영 절차를 사람 기억에서 코드로 옮긴 것이다. 하루 1회 계약
+    (:func:`should_run`·:func:`records_day`)은 그대로라 월초 백필도 그날 한 번만 돈다.
+
+    Args:
+        today: KST 오늘.
+        enabled: 스위치 값(:func:`monthly_backfill_enabled`).
+
+    Returns:
+        전월 1일 또는 None.
+    """
+    if not enabled or today.day != 1:
+        return None
+    return (today.replace(day=1) - timedelta(days=1)).replace(day=1)
+
+
 def _sync_once(dry_run: bool, backfill_from: Optional[date]) -> dict:
     """단일 실행(호출측이 app_context 보유). 커밋은 서비스가 소유한다."""
     db = get_db()
@@ -210,19 +249,24 @@ def _run_loop(args: argparse.Namespace) -> int:
     삼키고 계속 돈다(사고는 로그로 남는다). 창 안에서는 하루 1회만 돈다(:func:`should_run`) —
     매 tick 돌면 run 이 5행 쌓이고, 최신 run 만 읽는 예외 큐에서 첫 run 의 소급 변경이
     사라진다(감사 F-07). 실패(FAILED) 로 돌아온 tick 은 오늘로 세지 않는다(:func:`records_day`).
+    매월 1일 첫 실행은 전월 1일부터 백필로 돈다(:func:`monthly_backfill_from`, 감사 B-01) —
+    명시 ``--backfill-from`` 이 있으면 그 값이 우선한다.
     """
     at = parse_at(args.at)
     backfill_from = parse_backfill_from(args.backfill_from)
     tick = max(5, int(args.tick))
     last_run_day: Optional[date] = None
-    print(f"[naver-settle-sync] started (at={args.at} window={args.window}m tick={tick}s)",
+    print(f"[naver-settle-sync] started (at={args.at} window={args.window}m tick={tick}s "
+          f"monthly_backfill={'on' if monthly_backfill_enabled() else 'off'})",
           flush=True)
     while True:
         try:
             now = now_kst()
             if should_run(now, at, args.window, last_run_day):
+                # 매월 1일 첫 실행은 전월 1일부터 백필(감사 B-01). 명시 --backfill-from 이 우선.
+                monthly = monthly_backfill_from(now.date(), enabled=monthly_backfill_enabled())
                 with app.app_context():
-                    result = _sync_once(args.dry_run, backfill_from)
+                    result = _sync_once(args.dry_run, backfill_from or monthly)
                 # OK·ABORTED_QUOTA 로 반환되면 오늘 몫은 끝(같은 창에서 되풀이하면 쿼터·run 행이
                 # 배로 는다). FAILED 로 반환되면 기록하지 않아 다음 tick 이 다시 시도한다(:func:`records_day`).
                 if records_day(result):

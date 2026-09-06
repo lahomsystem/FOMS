@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import datetime
 import json
+from decimal import Decimal
 
 import pytest
 
@@ -658,3 +659,86 @@ def test_service_defaults_to_omitting_the_naver_settlement_key(app):
 
     assert rows, "행이 없다"
     assert all("naver_settlement" not in row for row in rows)
+
+
+# ==========================================================================
+# 10. CFO 후속 3차(2026-09-06) D-03 — 결제 정산 금액 원값 합을 출고가와 **나란히**
+#
+# 사용자 결정으로 "금액은 그리지 않는다" 를 뒤집었다. 서버는 두 원값을 낼 뿐 차액을 만들지
+# 않는다(D-4). 기존 ``amount``(Σsettle_expect_amount, 수수료 차감 후) 는 뜻 그대로 남고
+# ``pay_settle_amount``(Σpay_settle_amount 원값) 가 하나 더 붙는다 — 정산 예정 금액을
+# 출고가와 견주면 항상 다르기 때문이다.
+# ==========================================================================
+_NAVER_CELL_KEYS = {"status", "settle_expect_date", "settle_complete_date", "amount",
+                    "pay_settle_amount"}
+
+
+def test_naver_settlement_carries_pay_settle_amount_as_the_raw_sum(client, app):
+    """``pay_settle_amount`` 는 결제 정산 금액의 **원값 부호합**이다(취소 행 음수 그대로) — 재계산·차액 없음.
+
+    실무 탭 셀이 출고가와 나란히 두는 값이다(사용자 결정 2026-09-06·감사 D-03). 기존 ``amount``
+    는 그대로 Σsettle_expect_amount 여야 한다 — 뜻을 바꾸면 채널 탭 T13 계약이 조용히 갈린다.
+    """
+    order_id = _seed_naver_order().id
+    _seed_case(order_id, expect=datetime.date(2026, 9, 5), amount=1_000_000,
+               pay_settle_amount=Decimal("1100000"))
+    _seed_case(order_id, expect=datetime.date(2026, 9, 6), amount=-90_000,
+               settle_type="NORMAL_SETTLE_AFTER_CANCEL", pay_settle_amount=Decimal("-100000"))
+    role, team = _CHANNEL_ALLOWED_ACTOR
+    _login(client, _make_user(role=role, team=team))
+
+    cell = _naver_cell(_get(client).get_json()["data"]["rows"], order_id)
+
+    assert cell["pay_settle_amount"] == 1_000_000, "절대값 합(1,200,000)이면 부호를 뒤집은 것"
+    assert isinstance(cell["pay_settle_amount"], int)
+    assert cell["amount"] == 910_000, "기존 amount(Σsettle_expect_amount)의 뜻이 바뀌었다"
+    assert set(cell) == _NAVER_CELL_KEYS, f"칸 키가 계약과 다르다: {sorted(cell)}"
+
+
+def test_pay_settle_amount_is_none_for_unmatched_and_when_channel_sent_none(client, app):
+    """미매칭(행 0건)과 채널이 금액을 안 준 행(NULL)은 둘 다 None — 0 으로 그리지 않는다(결측≠0).
+
+    미매칭 셀에도 **키는 있어야** 한다(키 부재는 "옛 형식"과 구분되지 않는다).
+    """
+    unmatched_id = _seed_naver_order().id
+    null_id = _seed_naver_order().id
+    _seed_case(null_id, expect=datetime.date(2026, 9, 5))        # pay_settle_amount 미지정 = NULL
+    role, team = _CHANNEL_ALLOWED_ACTOR
+    _login(client, _make_user(role=role, team=team))
+
+    rows = _get(client).get_json()["data"]["rows"]
+
+    unmatched = _naver_cell(rows, unmatched_id)
+    assert unmatched["status"] == "UNMATCHED"
+    assert set(unmatched) == _NAVER_CELL_KEYS and unmatched["pay_settle_amount"] is None
+    pending = _naver_cell(rows, null_id)
+    assert pending["status"] == "PENDING" and pending["pay_settle_amount"] is None
+
+
+def test_rows_and_dashboard_agree_on_the_pay_settle_sum(client, app):
+    """실무 탭 셀 ``pay_settle_amount`` == 대시보드 ``AMOUNT_DIFF`` ``ref.pay_settle_total`` — 두 표면이 같은 Σ 정의.
+
+    Σ의 범위는 "그 주문에 붙은 정산 행 전부"(창 무관)다 — 창 밖(40일 전) 취소 행도 두 표면 모두
+    합에 넣는다. 같은 주문에 대해 두 표면이 다른 숫자를 말하면 회계팀이 어느 쪽이 맞는지 알 수 없다(§3.1).
+    """
+    from foms.services.settlement_channel import build_channel_dashboard
+
+    today = get_today_kst()
+    order_id = _seed_naver_order().id                      # 출고가 1,000,000
+    _seed_case(order_id, expect=today - datetime.timedelta(days=1),
+               pay_settle_amount=Decimal("1100000"))
+    _seed_case(order_id, expect=today - datetime.timedelta(days=40),   # 조회 창(오늘-30) 밖 취소 행
+               settle_type="NORMAL_SETTLE_AFTER_CANCEL", pay_settle_amount=Decimal("-50000"))
+    role, team = _CHANNEL_ALLOWED_ACTOR
+    _login(client, _make_user(role=role, team=team))
+
+    cell = _naver_cell(_get(client).get_json()["data"]["rows"], order_id)
+    data = build_channel_dashboard(db_session, date_from=today - datetime.timedelta(days=30),
+                                   date_to=today + datetime.timedelta(days=14), today=today)
+    diff = [item for item in data["exceptions"]
+            if item["kind"] == "AMOUNT_DIFF" and item["ref"]["order_id"] == order_id]
+
+    assert len(diff) == 1
+    assert cell["pay_settle_amount"] == 1_050_000 == diff[0]["ref"]["pay_settle_total"]
+    assert diff[0]["ref"]["shipping_price"] == 1_000_000
+    assert diff[0]["ref"]["case_count"] == 2 and diff[0]["ref"]["has_cancel_row"] is True

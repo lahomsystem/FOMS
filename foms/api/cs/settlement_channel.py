@@ -56,6 +56,21 @@ _ALLOWED_CHANNELS = ("NAVER",)
 #: 권한 거부 문구 — 기존 정산 API(``foms/api/cs/settlement.py``)의 관례와 같은 톤.
 _DENIED_MESSAGE = "정산 대시보드 열람 권한이 없습니다."
 
+#: 큐 부재·장애 시 503 본문(CFO 감사 F-02). 큐 docstring·JS 헤더 문구와 같은 뜻이다 —
+#: 큐 모듈 부재(ImportError)에만 붙던 옛 별도 문구는 같은 사실을 다른 말로 하던 것이라 뺐다.
+SYNC_UNAVAILABLE_MESSAGE = "지금은 동기화할 수 없습니다. 잠시 뒤 다시 시도하세요."
+
+#: ``enqueue_naver_settle_sync`` 3상태 리터럴(``foms.services.jobs.queue.SETTLE_ENQUEUE_*`` 와 같은 값).
+#: 이 모듈 상단에서 큐 모듈을 import 하지 않기 위해(rq/redis 를 조회 화면에 끌어오지 않는 기존 결정)
+#: 문자열을 한 번 더 적는다 — 값이 갈리면 ``test_api_state_literals_equal_the_queue_constants`` 가 잡는다.
+_STATE_QUEUED = "queued"
+_STATE_DUPLICATE = "duplicate"
+_STATE_UNAVAILABLE = "unavailable"
+
+#: 감사 메시지 꼬리 — reason 별. 큐 부재에 "(이미 대기 중)"이 붙던 결함이 F-02 다.
+_SYNC_AUDIT_SUFFIX = {_STATE_QUEUED: "", _STATE_DUPLICATE: "(이미 대기 중)",
+                      _STATE_UNAVAILABLE: "(큐 연결 불가)"}
+
 #: 감사 행위 코드. 라벨은 ``foms/services/audit_message_display.py`` ACTION_LABELS 에 등재.
 SETTLE_SYNC_AUDIT_ACTION = "NAVER_SETTLE_SYNC_REQUEST"
 
@@ -278,28 +293,33 @@ def _backfill_arg(payload: dict, today: datetime.date) -> Optional[str]:
 
 
 def _enqueue(actor_user_id: int,
-             backfill_from: Optional[str]) -> tuple[Optional[bool], Optional[str]]:
-    """정산 동기화 job 을 큐에 넣고 ``(queued, job_id)`` 를 돌려준다. 큐 모듈이 없으면 ``(None, None)``.
+             backfill_from: Optional[str]) -> tuple[str, Optional[str]]:
+    """정산 동기화 job 을 큐에 넣고 ``(state, job_id)`` 를 돌려준다(F-02 3상태).
 
     **지연 import 인 이유**: 큐 헬퍼는 rq/redis 를 끌고 온다. 조회 화면이 그 import 에
-    묶이면 안 되고, 배포 순서상 이 라우트가 먼저 올라가는 창도 있다.
+    묶이면 안 되고, 배포 순서상 이 라우트가 먼저 올라가는 창도 있다. 그 창(큐 모듈 부재)도
+    "큐를 쓸 수 없다"는 같은 사실이라 ``unavailable`` 로 접는다 — 별도 문구를 두지 않는다.
 
     Args:
         actor_user_id: 누른 사람 id(기록용).
         backfill_from: 소급 적재 시작일 또는 None.
 
     Returns:
-        ``(True|False, job_id)`` — ``job_id`` 는 실제로 큐에 들어갔을 때만 값이 있고 그 밖은
-        None. 큐 헬퍼 부재 시 ``(None, None)``.
+        ``("queued"|"duplicate"|"unavailable", job_id)`` — ``job_id`` 는 실제로 큐에 들어갔을
+        때만 값이 있고 그 밖은 None.
     """
     try:
         # 큐가 실제로 쓴 dedupe id 를 감사 행에 적어야 그 행이 rq 큐(job 해시)와 대조된다(감사 E-02).
-        from foms.services.jobs.queue import _SETTLE_SYNC_JOB_ID, enqueue_naver_settle_sync
+        from foms.services.jobs.queue import (
+            SETTLE_ENQUEUE_QUEUED,
+            _SETTLE_SYNC_JOB_ID,
+            enqueue_naver_settle_sync,
+        )
     except ImportError:
-        return None, None
-    queued = enqueue_naver_settle_sync(actor_user_id=actor_user_id,
-                                       backfill_from=backfill_from)
-    return queued, (_SETTLE_SYNC_JOB_ID if queued else None)
+        return _STATE_UNAVAILABLE, None
+    state = enqueue_naver_settle_sync(actor_user_id=actor_user_id,
+                                      backfill_from=backfill_from)
+    return state, (_SETTLE_SYNC_JOB_ID if state == SETTLE_ENQUEUE_QUEUED else None)
 
 
 def _sync_window(today: datetime.date, backfill_from: Optional[str]) -> tuple[str, str]:
@@ -338,9 +358,15 @@ def api_settlement_channel_sync():
         backfill_from: ``YYYY-MM-DD``. 주면 그 날짜부터 소급 적재한다.
 
     Returns:
-        200 ``{'success': True, 'data': {'queued': bool}, 'error': None}``.
-        ``queued`` 가 False 면 **이미 같은 job 이 큐에 있다**는 뜻이다(중복 enqueue 방지).
-        권한 거부 403, 날짜 형식 오류 400, 큐 모듈 부재 503.
+        큐 결과 3상태(F-02) 그대로 —
+        ``queued`` → 200 ``{'success': True, 'data': {'queued': True, 'reason': 'queued',
+        'job_id': 'naver_settle_sync'}, 'error': None}`` /
+        ``duplicate``(이미 같은 job 이 큐에 있다) → 200 ``data={'queued': False,
+        'reason': 'duplicate', 'job_id': None}`` /
+        ``unavailable``(큐 부재·Redis 장애·enqueue 실패) → **503**
+        ``{'success': False, 'data': None, 'error': SYNC_UNAVAILABLE_MESSAGE}``.
+        세 경우 모두 감사 행 1건(``detail.reason``)을 먼저 남긴다 — 장애 뒤 "누가 눌렀는데 왜
+        안 돌았나"를 감사로 되짚을 수 있어야 한다. 권한 거부 403, 날짜 형식 오류 400.
     """
     user = getattr(g, "current_user", None)
     if not can_view_channel_settlement(user):
@@ -354,22 +380,24 @@ def api_settlement_channel_sync():
     except ValueError as exc:
         return _error(str(exc), 400)
 
-    queued, job_id = _enqueue(int(user.id), backfill_from)
-    if queued is None:
-        return _error("동기화 큐가 아직 준비되지 않았습니다.", 503)
-
+    state, job_id = _enqueue(int(user.id), backfill_from)
     window_from, window_to = _sync_window(today, backfill_from)
     log_access(
-        "네이버 정산 동기화 요청" + ("" if queued else "(이미 대기 중)"),
+        "네이버 정산 동기화 요청" + _SYNC_AUDIT_SUFFIX[state],
         user.id,
         action=SETTLE_SYNC_AUDIT_ACTION,
         target_type="settlement_channel",
         # job_id·from·to: 감사 행이 rq 큐와 실행 이력(scope) 양쪽에 닿게 한다(감사 E-02).
-        detail={"queued": bool(queued), "backfill_from": backfill_from,
-                "channel": _ALLOWED_CHANNELS[0], "job_id": job_id,
-                "from": window_from, "to": window_to},
+        # reason: 큐 부재와 중복을 감사에서 구분한다(F-02) — 7키 정확 일치가 계약이다.
+        detail={"queued": state == _STATE_QUEUED, "reason": state,
+                "backfill_from": backfill_from, "channel": _ALLOWED_CHANNELS[0],
+                "job_id": job_id, "from": window_from, "to": window_to},
     )
-    return jsonify({"success": True, "data": {"queued": bool(queued)}, "error": None})
+    if state == _STATE_UNAVAILABLE:
+        return _error(SYNC_UNAVAILABLE_MESSAGE, 503)
+    return jsonify({"success": True, "error": None,
+                    "data": {"queued": state == _STATE_QUEUED, "reason": state,
+                             "job_id": job_id}})
 
 
 def _export_filters() -> dict:

@@ -112,3 +112,11 @@ def get_vat_cases(self, start_date: date, end_date: date, *, page: int = 1, page
 
 ## 8. 통합·검증 (총괄)
 정산 5스위트 + 신규 3파일 + `tests/contracts` 네임스페이스·인벤토리·auth enforcement + `pre_push_smoke` + ci.yml docs-facing 등재(신규 렌더 테스트) + `import app` + T0 재프로브 → 커밋(task 단위) → deploy push → CI 전 워크플로 → 스테이징 백필 90일(야간) → 화면 QA.
+
+## 9. 확정 구간(예정일+30일)과 정정 반영 — 운영 절차 (2026-09-06 B-01)
+- **확정 구간은 FOMS 가정이다.** `settle_sync.py` 의 `FINALIZED_AFTER_DAYS = 30`·`is_finalized(day, today)` 가 "정산 예정일 + 30일이 지난 날짜" 를 확정으로 본다. 네이버는 완결 시점 API 를 주지 않고 롤링 재조회를 권한다(Discussion #3674) — 정산일이 뒤에 움직인 실사례도 있다(#3123). 화면 "확정 구간 ~YYYY-MM-DD" 는 이 **가정의 경계**이지 네이버가 확정해 준 날짜가 아니다.
+- **확정 구간 안 날짜는 SCHEDULE/MANUAL 실행이 다시 읽지 않는다**(`skip_day`). 따라서 네이버 측 정정(금액 변경·행 삭제·지급 보류 해제의 소급)은 **백필 없이는 반영되지 않는다.** 백필로 정정이 들어오면 예외 큐에 RETRO(소급 변경)로 남는다 — 그 신호가 회계팀이 소급을 아는 유일한 경로다.
+- **운영 절차(월 마감 전 1회)**: 채널 탭 [이 구간 받아오기]를 **전월 1일부터** 실행하고, 다음 05:30 창 전에 예외 큐 RETRO 와 대사 배너를 확인한다(05:30 이후엔 최신 run 이 바뀌어 RETRO 가 화면에서 밀린다 — F-07 창당 1회 가드가 있어도 다음 날 run 이 새 최신이다).
+- **자동화(B-01)**: 워커 `--loop`(`scripts/maintenance/run_naver_settle_sync.py`) 는 KST **매월 1일** 첫 실행을 전월 1일부터 백필로 돈다 — `monthly_backfill_from(today)` 순수 함수, `trigger=BACKFILL`·`scope.backfill_from='YYYY-MM-01'` 로 일반 실행과 구분된다(`NAVER_SETTLE_RUN_TRIGGERS` 불변). 스위치 `FOMS_NAVER_SETTLE_MONTHLY_BACKFILL`(기본 `1`, `0` 이면 끔) — started 로그의 `monthly_backfill=on|off` 로 확인한다. 명시 `--backfill-from` 이 있으면 그 값이 우선한다. coverage 는 기존 합집합 규칙(`coverage_from` 은 더 이른 쪽) 그대로.
+- 화면 부제 `(이 날짜 이전 정정은 [이 구간 받아오기]로만 반영 · 매월 1일 자동 백필)` 은 스위치 기본값(켜짐)을 전제한다 — 서버 `sync` 블록이 스위치 상태를 내지 않으므로, 끄는 운영을 하려면 `sync.monthly_backfill` 키를 다음 차수에 붙인다(알려진 한계).
+- 이 절을 읽는 테스트는 만들지 않는다(문서 읽는 테스트는 `ci.yml` docs-scope 등재 의무 — CI-DOCSCOPE-01).

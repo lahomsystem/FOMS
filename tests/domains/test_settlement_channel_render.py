@@ -74,7 +74,9 @@ _STATIC_ASSETS = (CSS_ASSET, JS_ASSET)
 #: 2026-09-06 CFO 백로그 2차 — 보류 창 안 부호별 합·누적 잔액(B-02)·stale 문구/FAILED 헤더(F-01·F-08)·
 #: SYNC_FAILED 배지(F-04)·버킷 일부 완료(N-02)·워터폴 2줄 라벨(G-07)·그룹 min-width(G-08a)
 #: (JS + CSS, 직전 핀 → 20260906a).
-_CHANNEL_PIN = "20260906a"
+#: 2026-09-06 CFO 백로그 3차 — 503 문구(F-02)·확정 구간 부제(B-01)·AMOUNT_DIFF 배지(D-03)·실무 탭 금액
+#: 두 원값 병기 CSS(D-03)(JS + CSS, 20260906a → 20260906b; 셸 4줄도 operations.js 변경으로 20260906b).
+_CHANNEL_PIN = "20260906b"
 
 _CHANNEL_TAB_ID = "foms-settle-tab-channel"
 _CHANNEL_PANE_ID = "foms-settle-pane-channel"
@@ -1412,3 +1414,82 @@ def test_bucket_mixed_predicate_only_needs_a_settled_share():
     assert "row.settled_amount !== 0" in helper, "섞임 술어가 완료분 유무를 안 본다"
     assert "isNum(row.settled_amount)" in helper, "완료분 결측(null)과 0 을 가르지 않는다"
     assert "row.settled_amount && row.expected_amount" not in helper, "옛 섞임 술어(둘 다 0 아님)가 남아 있다"
+
+
+# ==========================================================================
+# 계약 — CFO 백로그 3차 (2026-09-06): 503 문구(F-02) · AMOUNT_DIFF 배지(D-03) · 확정 구간 부제(B-01)
+# ==========================================================================
+def test_sync_unavailable_503_goes_to_the_state_line_with_the_fixed_wording():
+    """동기화 POST 가 503 이면 헤더 상태줄에 고정 문구 "지금은 동기화할 수 없습니다(큐 연결 불가)" 를 낸다(F-02).
+
+    큐 부재·Redis 장애를 옛 코드는 200 `queued=False` 로 받아 "이미 대기 중" 이라고 말했다.
+    이제 서버가 3상태(queued/duplicate/unavailable)를 503 으로 가르므로 화면은 `err.status` 로
+    그 갈래를 읽는다. 문구는 `.alert` 가 아니라 `notice()` → `renderSync()` 의 상태줄
+    (`[data-settlement-ch-sync-state]`)로 간다 — `.alert` 는 5초 뒤 자동으로 닫힌다.
+    """
+    sync = _js_function("requestSync")
+    post = _js_function("postJson")
+    note = _js_function("notice")
+    source = _read_code(f"static/{JS_ASSET}")
+
+    assert "err.status = res" in post, "postJson 이 실패 err 에 HTTP 상태를 안 싣는다"
+    assert "err.status === 503" in sync and "SYNC_UNAVAILABLE_TEXT" in sync, "503 갈래가 없다"
+    assert sync.find("} catch") < sync.find("err.status === 503"), "503 판정이 catch 블록 밖이다"
+    assert re.search(r"notice\(ctx,\s*\w+\s*\?\s*SYNC_UNAVAILABLE_TEXT", sync), "503 문구가 상태줄(notice)로 가지 않는다"
+    assert "var SYNC_UNAVAILABLE_TEXT = '지금은 동기화할 수 없습니다(큐 연결 불가)';" in source
+    assert "renderSync(ctx)" in note, "notice 가 헤더 상태줄을 안 그린다"
+    assert "동기화 큐가 아직 준비되지 않았습니다" not in source, "옛 별도 503 문구가 JS 에 있다"
+
+
+def test_duplicate_wording_only_follows_queued_false():
+    """"이미 대기 중인 동기화가 있습니다" 는 소스에 **한 번**, `requestSync` 의 try 블록(200 `queued=false`) 안에만 있다(F-02).
+
+    503 은 `postJson` 이 던지므로 catch 로 가고 이 분기에 닿지 않는다 — 그 구조가 곧
+    "duplicate 에만" 계약이다. 문구가 catch 나 다른 함수로 새면 큐 장애가 다시 "누가 이미
+    돌리고 있다" 로 읽힌다.
+    """
+    needle = "이미 대기 중인 동기화가 있습니다"
+    source = _read_code(f"static/{JS_ASSET}")
+    body = _js_function("requestSync")
+
+    assert source.count(needle) == 1, f"문구가 {source.count(needle)}회 있다"
+    at = body.find(needle)
+    assert at > 0, "문구가 requestSync 안에 없다"
+    assert body.find("try {") < body.find("var queued =") < at < body.find("} catch"), (
+        "문구가 try 블록(queued 판정 뒤) 안이 아니다")
+
+
+def test_exception_badge_knows_amount_diff():
+    """예외 배지가 `AMOUNT_DIFF`(정산액≠출고가, D-03)를 합계 불일치와 같은 warn 색으로 낸다.
+
+    둘 다 "사람이 대조할 것" 이라 같은 색이 맞다 — 보류(hold) 기본색으로 떨어지면 조치 대상이
+    묶인 돈 사이에 섞여 안 보인다. 색 클래스는 CSS 에도 있어야 한다.
+    """
+    body = _js_function("excKindClass")
+    css = _read_code(f"static/{CSS_ASSET}")
+
+    line = next((ln for ln in body.splitlines() if "'AMOUNT_DIFF'" in ln), None)
+    assert line, "AMOUNT_DIFF 분기가 없다"
+    assert "return 'warn'" in line, f"AMOUNT_DIFF 가 warn 이 아니다: {line.strip()}"
+    assert ".s-ch-badge--warn" in css, "CSS 에 warn 배지 색이 없다"
+
+
+def test_final_before_line_carries_the_correction_note():
+    """"확정 구간 ~YYYY-MM-DD" 줄 바로 뒤에 부제 "(이 날짜 이전 정정은 [이 구간 받아오기]로만 반영 · 매월 1일 자동 백필)" 이 붙는다(B-01).
+
+    확정 구간은 네이버가 준 것이 아니라 FOMS 의 30일 가정이다 — 그 이전 날짜의 네이버 정정은
+    일반 동기화가 다시 읽지 않아 백필 없이는 영원히 안 들어온다. 부제는 그 리스크와 해법(수동
+    [이 구간 받아오기] · 워커의 매월 1일 자동 백필)을 같은 줄에서 말한다. 알려진 한계: 서버 `sync`
+    블록이 스위치 상태를 내지 않아 부제는 기본값(켜짐)을 전제한다.
+    """
+    body = _js_function("syncLines")
+    source = _read_code(f"static/{JS_ASSET}")
+    css = _read_code(f"static/{CSS_ASSET}")
+
+    assert "'확정 구간 ~'" in body and "FINAL_BEFORE_NOTE" in body, "확정 구간 줄 또는 부제가 없다"
+    assert body.find("'확정 구간 ~'") < body.find("FINAL_BEFORE_NOTE"), "부제가 확정 구간 줄 앞에 있다"
+    assert re.search(r"el\('span',\s*'s-ch-sync-note',\s*FINAL_BEFORE_NOTE\)", body), "부제가 s-ch-sync-note 클래스로 안 그려진다"
+    assert ("var FINAL_BEFORE_NOTE = '(이 날짜 이전 정정은 [이 구간 받아오기]로만 반영 · 매월 1일 자동 백필)';"
+            in source), "부제 리터럴이 계약과 다르다"
+    assert re.search(r"\.foms-settle \.s-ch-sync-note\s*\{[^}]*flex-basis:\s*100%", css), (
+        "CSS 에 s-ch-sync-note 가 없거나 줄바꿈 규칙이 없다")

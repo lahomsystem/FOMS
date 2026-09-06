@@ -453,14 +453,18 @@ def test_dates_are_iso_strings_not_date_objects(app):
 
 
 def test_cell_shape_is_exactly_the_agreed_field_set(app):
-    """칸 dict 의 키 집합이 계약과 정확히 일치한다(추가·누락 모두 red)."""
+    """칸 dict 의 키 집합이 계약과 정확히 일치한다(추가·누락 모두 red).
+
+    `pay_settle_amount`(Σ결제 정산 금액 원값, D-03 · 2026-09-06 사용자 결정)는 실무 탭 셀이
+    출고가와 **나란히** 두는 값이다 — 기존 `amount`(Σ정산 예정 금액, 채널 탭 T13)와 뜻이 다르다.
+    """
     order = _seed_naver_order()
     _seed_case(order.id, expect=datetime.date(2026, 9, 5))
 
     cell = _cell_by_order(_rows(), order.id)
 
     assert set(cell) == {
-        "status", "settle_expect_date", "settle_complete_date", "amount",
+        "status", "settle_expect_date", "settle_complete_date", "amount", "pay_settle_amount",
     }, f"칸 키가 계약과 다르다: {sorted(cell)}"
 
 
@@ -481,16 +485,20 @@ _CHANNEL_CSS = "static/css/settlement/settlement-channel.css"
 #: 서버가 렌더에 심는 표식. `<th>`(템플릿)와 `<td>`(JS)가 **이 하나**를 함께 본다.
 _CHANNEL_COL_ATTR = "data-settlement-ops-channel-col"
 
-#: 이 컬럼이 쓰는 클래스 전량(배지 base + 상태 3종 + 날짜 보조). 계약서 §4.3 의 단일 하이픈
+#: 이 컬럼이 쓰는 클래스 전량(배지 base + 상태 3종 + 날짜 보조 + 금액 줄). 계약서 §4.3 의 단일 하이픈
 #: 표기가 아니라 W2-A 가 실제로 쓰는 BEM 형이 정본이다(파일 머리말 참조). 날짜는 배지 **안쪽**
-#: 자식이라 `.s-ch-ops-nv` 의 inline-flex + gap 을 그대로 탄다.
+#: 자식이라 `.s-ch-ops-nv` 의 inline-flex + gap 을 그대로 탄다. 금액 줄(`-amt`)은 배지 **아래**
+#: 블록이다(D-03 · 2026-09-06) — 불일치 수식자 `s-ops-naver--diff` 는 접두가 달라 전용 테스트가 본다.
 _BADGE_CLASSES = (
     "s-ch-ops-nv",
     "s-ch-ops-nv--done",
     "s-ch-ops-nv--wait",
     "s-ch-ops-nv--none",
     "s-ch-ops-nv-date",
+    "s-ch-ops-nv-amt",
 )
+#: 불일치 강조 수식자(브리프 리터럴). 채널 CSS 가 정의하고 실무 탭 JS 가 붙인다.
+_DIFF_CLASS = "s-ops-naver--diff"
 
 #: 실무 탭 금칙어. 목업 잔재 스캔(`test_settlement_operations_render.py`)과 같은 낱말이지만,
 #: 여기서는 **이번에 새로 들어온 표면**(컬럼 문구·CSV 헤더)만 좁혀 다시 못 박는다.
@@ -630,21 +638,34 @@ def test_the_template_marker_and_the_header_share_one_jinja_gate():
     assert gates == ["can_view_channel_settlement"] * 2, f"게이트가 하나가 아니다: {gates}"
 
 
-def test_the_column_never_renders_the_amount():
-    """칸 렌더가 `amount` 를 읽지 않는다 — 상태와 날짜만 낸다(§4.2 · 노출 최소화).
+def test_the_column_renders_pay_settle_amount_beside_shipping_price():
+    """칸이 `pay_settle_amount`(Σ결제 정산 금액 원값)와 출고가를 **나란히** 그린다 — 회계 대사 요구(D-03 · 2026-09-06 사용자 결정).
 
-    서버는 `amount` 를 함께 내려주지만 그것은 다른 표면(채널 탭)의 값이다. 실무 탭에
-    금액이 뜨면 CS·영업이 옆에서 보는 화면에 채널 정산액이 상시 노출된다.
+    옛 계약 "금액은 그리지 않는다(노출 최소화)" 는 이 날짜로 뒤집혔다(감사 §6-5: 스테이징 #4242
+    출고가 0 vs 2,830,000 이 어디에도 안 보였다). 문구 리터럴은 `'정산 ₩'`·`' · 출고가 '`·미상 `'—'`,
+    다르면(또는 출고가 미상이면) `s-ops-naver--diff`. `cell.amount`(Σ정산 예정 금액 = 수수료 차감 후)는
+    **읽지 않는다** — 그 값을 출고가와 견주면 항상 다르다. 차액은 계산하지 않는다(D-4).
     """
     js = _code(_OPS_JS)
 
-    body = re.search(r"function naverSettleCell\(row\)\s*\{(.*?)\n  \}", js, re.S)
-    assert body, "naverSettleCell 을 찾지 못했다"
-    assert "amount" not in body.group(1), f"칸이 금액을 그린다: {body.group(1)}"
+    cell = re.search(r"function naverSettleCell\(row\)\s*\{(.*?)\n  \}", js, re.S)
+    line = re.search(r"function naverAmountLine\(row, cell\)\s*\{(.*?)\n  \}", js, re.S)
+    assert cell, "naverSettleCell 을 찾지 못했다"
+    assert line, "naverAmountLine 을 찾지 못했다"
+    body = line.group(1)
+    assert "naverAmountLine(row, cell)" in cell.group(1), "칸이 금액 줄 헬퍼를 안 부른다"
+    assert "cell.pay_settle_amount" in body and "row.shipping_price" in body, "두 원값을 안 읽는다"
+    assert "'정산 ₩'" in body and "' · 출고가 '" in body and "'—'" in body, "병기 문구 리터럴이 계약과 다르다"
+    assert _DIFF_CLASS in body, "불일치 강조 클래스가 없다"
+    assert "!==" in body, "같지 않음 판정이 없다"
+    for scope in (body, cell.group(1)):
+        assert not re.search(r"cell\.amount\b", scope), "정산 예정 금액(cell.amount)을 출고가와 견주고 있다"
+        assert not re.search(r"[-+*/]\s*(?:row\.shipping_price|cell\.pay_settle_amount)\b", scope), (
+            "차액을 계산한다(D-4 재계산 금지)")
 
 
 def test_the_column_uses_only_the_channel_owned_badge_classes():
-    """배지 클래스가 W2-A 소유 4종뿐이다(실무 탭 CSS 를 열지 않는다는 설계의 증거).
+    """배지 클래스가 W2-A 소유 목록(`_BADGE_CLASSES`)뿐이다(실무 탭 CSS 를 열지 않는다는 설계의 증거).
 
     `s-ops-b--*` 를 새로 만들면 `settlement-operations.css` 를 열어야 하고, 그 파일은
     목업 스캔·핀 사슬이 걸려 있어 T13 의 변경 범위가 통째로 넓어진다.
@@ -715,7 +736,7 @@ def test_csv_exports_the_status_word_only():
     pushed = re.search(r"cells\.push\((.*?)\);", row.group(1), re.S)
     assert pushed, "네이버 정산 칸을 넣는 자리를 찾지 못했다"
     assert "NAVER_SETTLE_TEXT" in pushed.group(1), "상태 문구 표를 쓰지 않는다"
-    for field in ("settle_expect_date", "settle_complete_date", "amount"):
+    for field in ("settle_expect_date", "settle_complete_date", "amount", "pay_settle_amount"):
         assert field not in pushed.group(1), f"CSV 에 {field} 가 실린다"
 
 
@@ -768,7 +789,7 @@ def test_forbidden_words_never_reach_the_ops_surface(word):
 )
 @pytest.mark.parametrize("cls", _BADGE_CLASSES)
 def test_badge_classes_are_defined_in_the_channel_stylesheet(cls):
-    """배지 클래스 4종이 `settlement-channel.css` 에 실재한다.
+    """배지 클래스(금액 줄 포함)가 `settlement-channel.css` 에 실재한다.
 
     이 파일은 회계 게이트 뒤에서만 로드된다 — 컬럼이 그려지는 조건과 **정확히 같아서**
     실무 탭 CSS 를 열지 않아도 된다는 것이 T13 설계의 전제다. 한 클래스라도 빠지면
@@ -779,3 +800,19 @@ def test_badge_classes_are_defined_in_the_channel_stylesheet(cls):
     assert re.search(r"\." + re.escape(cls) + r"(?![\w-])", css), (
         f"{_CHANNEL_CSS} 에 .{cls} 규칙이 없다"
     )
+
+
+def test_diff_modifier_is_defined_in_the_channel_stylesheet():
+    """불일치 수식자 `.s-ops-naver--diff` 가 `settlement-channel.css` 에 실재하고 강조(굵게)한다(D-03).
+
+    접두가 `s-ops-` 라 `_BADGE_CLASSES` 의 `s-ch-ops-nv*` 정규식에 잡히지 않으므로 따로 본다.
+    색은 `.foms-settle` 토큰(`--s-bad`)이어야 한다 — `--s-ch-neg-color` 는 `.s-ch` 안에서만 살아
+    실무 탭 칸에는 닿지 않는다(그 토큰을 쓰면 불일치가 회색으로 조용히 떨어진다).
+    """
+    css = _source(_CHANNEL_CSS)
+
+    rule = re.search(r"\.foms-settle \." + re.escape(_DIFF_CLASS) + r"\s*\{([^}]*)\}", css)
+    assert rule, f"{_CHANNEL_CSS} 에 .{_DIFF_CLASS} 규칙이 없다"
+    assert "font-weight: 700" in rule.group(1), "불일치 강조가 굵지 않다"
+    assert "var(--s-bad)" in rule.group(1), "색이 .foms-settle 토큰(--s-bad)이 아니다"
+    assert "--s-ch-neg-color" not in rule.group(1), "`.s-ch` 스코프 토큰을 실무 탭 칸에서 쓴다"
