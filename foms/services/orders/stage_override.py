@@ -163,6 +163,49 @@ def current_stage_for_order(order: Order) -> str:
     return status
 
 
+def structured_measurement_date(sd: Any) -> str:
+    """``schedule.measurement.date`` 원문을 공백 제거해 반환한다(없으면 빈 문자열).
+
+    Args:
+        sd: 대상 structured_data(딕셔너리가 아니면 빈 문자열).
+
+    Returns:
+        실측일 문자열, 없으면 ``''``.
+    """
+    if not isinstance(sd, dict):
+        return ""
+    schedule = sd.get("schedule")
+    measurement = schedule.get("measurement") if isinstance(schedule, dict) else None
+    if not isinstance(measurement, dict):
+        return ""
+    return str(measurement.get("date") or "").strip()
+
+
+def override_pins_stage(sd: Any, stage: str) -> bool:
+    """명시적 override 가 지금 단계를 고정하고 있는지 판정한다.
+
+    ``apply_stage_override`` 가 남긴 ``workflow.stage_override`` 표식이
+    (1) 지금 단계와 같은 단계를 가리키고 (2) 그때의 실측일 상황이 지금과 같을 때만 참이다.
+    단계가 그 뒤로 움직였거나 실측일이 바뀌었으면 표식은 무효다(자동 동기화 재개).
+
+    Args:
+        sd: 대상 structured_data.
+        stage: 지금 단계 코드(정규화된 메인 파이프라인 코드).
+
+    Returns:
+        자동 단계 동기화를 건너뛰어야 하면 True.
+    """
+    if not isinstance(sd, dict):
+        return False
+    workflow = sd.get("workflow")
+    marker = workflow.get("stage_override") if isinstance(workflow, dict) else None
+    if not isinstance(marker, dict):
+        return False
+    if normalize_main_stage(marker.get("stage")) != normalize_main_stage(stage):
+        return False
+    return str(marker.get("measurement_date") or "").strip() == structured_measurement_date(sd)
+
+
 def apply_stage_override(
     *,
     order: Order,
@@ -210,8 +253,17 @@ def apply_stage_override(
             sd = dict(sd)
         wf_raw = sd.get("workflow")
         workflow = dict(wf_raw) if isinstance(wf_raw, dict) else {}
+        stage_changed_at = now_utc_naive().isoformat()
         workflow["stage"] = to_code
-        workflow["stage_updated_at"] = now_utc_naive().isoformat()
+        workflow["stage_updated_at"] = stage_changed_at
+        # 명시적 override 는 이후 폼 저장의 실측일 자동 전진(RECEIVED→MEASURE)이 되돌리지
+        # 못하게 표식을 남긴다. 자동 전진은 "실측일이 있으면"이라는 상태 조건이라 저장할
+        # 때마다 다시 성립해, 표식이 없으면 사용자가 건 역행이 매 저장마다 취소됐다.
+        workflow["stage_override"] = {
+            "at": stage_changed_at,
+            "stage": to_code,
+            "measurement_date": structured_measurement_date(sd),
+        }
         sd["workflow"] = workflow
         order.structured_data = sd
         flag_modified(order, "structured_data")
@@ -244,6 +296,8 @@ __all__ = [
     "MAIN_PIPELINE_CODES",
     "OVERRIDE_ALLOWED_ROLES",
     "OVERRIDE_BLOCK_MESSAGE",
+    "override_pins_stage",
+    "structured_measurement_date",
     "STAGE_FORWARD_RANK",
     "apply_stage_override",
     "as_overlay_status",
