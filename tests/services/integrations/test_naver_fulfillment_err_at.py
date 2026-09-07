@@ -74,8 +74,11 @@ def test_the_plan_approve_done_text_does_not_promise_an_open_gate():
     재조회(`_enqueue_refresh_after` → 집계 `all_done` → `run_gate`)다. 그 사이를
     "열립니다"로 단정하면 새로고침한 사람이 여전히 잠긴 버튼을 본다.
     """
-    assert "승인이 네이버에 반영되면 정리 실행이 열립니다" in JS
+    # 2026-09-07: 완료 뒤 화면이 스스로 다시 그리게 되면서 문장이 바뀌었다.
+    # **단정 금지 규칙은 그대로다** — 여전히 "이미 열렸다"고 말하지 않는다.
+    assert "승인 보냄 — 네이버 확정이 돌아오면 정리 실행이 열립니다" in JS
     assert "완료 — 새로고침하면 정리 실행이 열립니다" not in JS
+    assert "정리 실행이 열렸습니다" not in JS
 
 
 def test_the_undefined_fallback_is_gone():
@@ -99,4 +102,4 @@ def test_the_cancel_failure_note_points_at_the_approve_button():
 
 def test_the_asset_pin_moved():
     """JS 를 고쳤으면 핀을 올린다 — 서비스워커 캐시가 옛 파일을 준다."""
-    assert WORKBENCH.count("?v=20260907a") == 2, "CSS·JS 핀을 함께 올린다"
+    assert WORKBENCH.count("?v=20260907c") == 2, "CSS·JS 핀을 함께 올린다"

@@ -35,6 +35,10 @@
 * ``rejected`` — 거부·철회는 **주문이 살아 있다는 뜻**이라 클레임으로 세지 않는다.
 
 **자동으로 지우지 않는다.** 목록과 근거를 내놓고 사람이 고른다.
+
+2026-09-07: 행과 pane 이 ``measure`` 키(``orders.measure_progress.judge_measure_progress``)를
+함께 낸다 — 실측 전 취소와 실측 후 취소는 회수·정산·응대가 다르다. **표시 축일 뿐이라
+모집단·``can_discard`` 판정은 이 값을 한 글자도 보지 않는다.**
 """
 
 from __future__ import annotations
@@ -42,6 +46,9 @@ from __future__ import annotations
 import logging
 from typing import Any, Optional
 
+from sqlalchemy.orm import selectinload
+
+from foms.services.datetime_kst import format_datetime_kst
 from foms.services.integrations.naver_commerce.grouping import resolve_group_key
 from foms.services.integrations.naver_commerce.mapping import (
     CLAIM_KIND_LABELS,
@@ -54,11 +61,13 @@ from foms.services.integrations.naver_commerce.mapping import (
     extract_claim,
 )
 from foms.services.orders.erp_policy_constants import STAGE_LABELS
+from foms.services.orders.measure_progress import judge_measure_progress
+from foms.services.orders.state_axes import read_deleted
 from models import ExternalOrderLink, Order
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["find_ghost_orders", "judge_order_discard", "stage_label",
+__all__ = ["find_ghost_orders", "judge_order_discard", "read_order_trash", "stage_label",
            "GHOST_LIST_LIMIT", "DISCARDABLE_STATUSES", "GHOST_CLAIM_KINDS"]
 
 #: 유령 모집단에 넣는 단계. ``rejected``(거부·철회)는 주문이 살아 있다는 뜻이라 뺀다.
@@ -123,6 +132,53 @@ def stage_label(status: Any) -> str:
     """
     text = str(status or "")
     return STAGE_LABELS.get(text, text)
+
+
+def read_order_trash(order: Any) -> dict[str, Any]:
+    """휴지통 사실 3종 — **표기 전용**(판정 축이 아니다).
+
+    왜 필요한가: 담당자가 pane 에서 주문을 휴지통으로 보내면 주문은 실제로 접히는데
+    화면에는 그 사실이 한 글자도 남지 않았다(사용자 보고 2026-09-07). 화면이 사실을
+    말하려면 "휴지통인가·언제·왜" 를 서비스가 내줘야 한다.
+
+    **판정 축을 한 글자도 바꾸지 않았다** — :func:`_discard_verdict` 도 유령 모집단
+    (:func:`find_ghost_orders` 의 ``Order.not_deleted_filter()``)도 이 값을 읽지 않는다.
+    휴지통 여부는 :func:`orders.state_axes.read_deleted` 를 SSOT 로 삼는다 — 후보 표
+    (``order_candidates.py:1046``)와 **같은 사실을 같은 낱말로** 말하자는 뜻이다. 다만
+    아직 한 벌은 아니다: 후보 표는 여전히 제 식(``deleted_at is not None or status ==
+    'DELETED'``)으로 따로 세고 시각도 기본 형식(``%Y-%m-%d %H:%M:%S``)이라, 같은 사실이
+    두 문자열로 뜬다. 술어를 한 벌로 모으는 일은 이 함수 밖의 별건이다.
+
+    Args:
+        order: ERP ``Order``. ``None`` 허용(주문을 못 찾은 경로).
+
+    Returns:
+        ``trashed``(bool) · ``trashed_at_text``(KST ``MM-DD HH:MM``, 모르면 빈 문자열) ·
+        ``trashed_note``(접은 사유, 없으면 빈 문자열).
+    """
+    blank = {"trashed": False, "trashed_at_text": "", "trashed_note": ""}
+    if order is None:
+        return blank
+    # 휴지통이 아니면 시각·사유를 **아예 읽지 않는다**. legacy 복원 분기
+    # (``foms/web/orders/trash.py:318``)는 컬럼과 status 만 되돌리고
+    # ``structured_data['delete']`` 를 pop 하지 않는다 — projection 을 무조건 읽으면
+    # 되살아난 주문 화면에 삭제 시각이 찍힌다. 갈래를 나누는 것이 근본 수정이다.
+    # (판정 축은 그대로다 — 여기서 만드는 값은 전부 표기 전용이다.)
+    if read_deleted(order) != "DELETED":
+        return blank
+    meta = getattr(order, "structured_data", None)
+    delete_meta = meta.get("delete") if isinstance(meta, dict) else None
+    if not isinstance(delete_meta, dict):
+        delete_meta = {}
+    # 컬럼(``Order.deleted_at`` 은 고정폭 **문자열**이다)이 비어도 projection 에 시각이
+    # 남아 있을 수 있다(legacy ``status='DELETED'`` 축). 둘 다 없으면 **지어내지 않고**
+    # 빈 문자열이다 — 그때 화면은 시각 줄 자체를 그리지 않는다.
+    stamp = getattr(order, "deleted_at", None) or delete_meta.get("deleted_at")
+    return {
+        "trashed": True,
+        "trashed_at_text": format_datetime_kst(stamp, "%m-%d %H:%M") or "",
+        "trashed_note": str(delete_meta.get("reason") or "").strip(),
+    }
 
 
 def _new_bucket() -> dict[str, Any]:
@@ -250,7 +306,8 @@ def find_ghost_orders(session, *, limit: int = GHOST_LIST_LIMIT) -> dict[str, An
     Returns:
         ``{"count": 전체 건수, "rows": [...]}``. 각 행은 주문 요약 + 네이버 사실 +
         ``can_discard``(취소 처리 버튼을 열지) + ``discard_block``(못 여는 이유) +
-        ``discard_needs_reason``(접으려면 관리자 사유 문장이 필요한지).
+        ``discard_needs_reason``(접으려면 관리자 사유 문장이 필요한지) +
+        ``measure``(실측 전/후 표시 축 — 판정에는 안 쓴다).
     """
     rows = (
         session.query(ExternalOrderLink.order_id, ExternalOrderLink.raw_snapshot,
@@ -272,6 +329,9 @@ def find_ghost_orders(session, *, limit: int = GHOST_LIST_LIMIT) -> dict[str, An
     orders = (
         session.query(Order)
         .filter(Order.id.in_(ghost_ids), Order.not_deleted_filter())  # perf-ok: id batch
+        # 실측 축(judge_measure_progress)이 schedule_dates 관계를 읽는다 — N+1 방지 필수.
+        # 같은 이유·같은 패턴이 foms/services/measurement_undated.py 에 있다.
+        .options(selectinload(Order.schedule_dates))
         .all()
     )
     if not orders:
@@ -292,6 +352,8 @@ def find_ghost_orders(session, *, limit: int = GHOST_LIST_LIMIT) -> dict[str, An
             "naver_link_count": bucket["link_count"],
             "lead_link_id": bucket["lead_link_id"],
             "naver_amount_total": bucket["amount_total"],
+            # 표시 축만 추가한다 — 폐기 판정(_discard_verdict)은 이 값을 안 본다.
+            "measure": judge_measure_progress(order),
             **_discard_verdict(bucket, status),
         })
 
@@ -426,6 +488,47 @@ def _pair_amounts(session, order_nos: list[str]) -> dict[str, int]:
     return totals
 
 
+def _partial_discard_text(*, alive: dict[str, dict[str, Any]], house_keys: set[str],
+                          group_key: str, bucket: dict[str, Any]) -> str:
+    """부분 취소 주문의 **닫힌 사유 문장** — 세 갈래.
+
+    왜 세 갈래인가: 한 주문에 옛 결제(취소된 집)와 재결제(살아 있는 집)가 함께 붙는다.
+    예전에는 링크 축 한 줄로만 말해서 ``14건 중 9건만 취소됐습니다`` 가 나왔는데 사실은
+    9건이 옛 집이고 5건이 지금 받은 새 결제였다. **링크 수와 집 수를 한 문장에 섞지
+    않는다** — 집 축으로 말할 사실이 있을 때만 집 축으로 말한다. 죽은 집이 0집이면
+    집 축은 ``3집 중 0집이 취소됐고`` 라는 헛소리가 되므로 링크 축으로 떨어뜨린다.
+
+    문장 전용이라 **판정(``can_discard``)은 보지도 않는다** — 판정 축을 한 글자도
+    바꾸지 않았다.
+
+    Args:
+        alive: 살아 있는 링크가 1건 이상인 집(묶음키 → 집 요약).
+        house_keys: 이 주문에 붙은 **모든** 집의 묶음키(취소된 집 포함).
+        group_key: pane 이 지금 열고 있는 집의 묶음키(없을 수 있다).
+        bucket: :func:`_fold_link` 로 접은 버킷(링크 축 사실).
+
+    Returns:
+        화면에 그대로 찍히는 한 문장.
+    """
+    house_total = len(house_keys)
+    alive_house_count = len(alive)
+    dead_house_count = house_total - alive_house_count
+    link_axis = ("이 주문에는 아직 살아 있는 결제가 있습니다 — 상품주문 "
+                 f"{bucket['link_count']}건 중 {bucket['canceled']}건만 취소됐습니다. "
+                 "전부 취소된 뒤에 접습니다")
+    if not group_key or group_key not in house_keys:
+        # 이 주문에 없는 집이면 집 축으로 말할 사실이 없다.
+        return link_axis
+    if group_key not in alive:
+        return ("이 주문에는 살아 있는 결제가 함께 붙어 있습니다 — 이 집만 취소됐고, "
+                f"{_alive_house_text(list(alive.values()))}은 살아 있습니다")
+    if dead_house_count >= 1:
+        return ("지금 보고 있는 이 집은 살아 있는 결제입니다 — 이 주문에 붙은 "
+                f"{house_total}집 중 {dead_house_count}집이 취소됐고, 이 집을 포함한 "
+                f"{alive_house_count}집이 살아 있습니다. 살아 있는 집을 정리한 뒤에 접습니다")
+    return link_axis
+
+
 def judge_order_discard(session, order_id: int, *, group_key: str = "") -> dict[str, Any]:
     """**주문 하나**만 판정한다 — 워크벤치 집 pane 의 휴지통 버튼용.
 
@@ -448,7 +551,7 @@ def judge_order_discard(session, order_id: int, *, group_key: str = "") -> dict[
         ``applicable``(이 주문에 클레임이 하나라도 있어 이 블록을 그릴지) ·
         ``can_discard`` · ``discard_needs_reason`` · ``discard_block`` 과
         화면이 재진술할 사실(``status_label``·``link_count``·``canceled_count``·
-        ``claim_kind``·``repay_candidates``).
+        ``claim_kind``·``repay_candidates``·``measure``).
     """
     rows = (
         session.query(ExternalOrderLink.id, ExternalOrderLink.raw_snapshot,
@@ -457,21 +560,31 @@ def judge_order_discard(session, order_id: int, *, group_key: str = "") -> dict[
         .filter(ExternalOrderLink.order_id == int(order_id))  # perf-ok: 주문 1건
         .all()
     )
+    # 블록을 안 그리는 경로라 휴지통 3종도 고정값이다. "이 주문이 휴지통인가" 의 화면
+    # 정본은 pane 머리줄의 독립 키(``order_trashed``)이고, 여기 값은 **블록이 그려질 때만**
+    # 사실을 말한다.
     blank = {"applicable": False, "can_discard": False, "discard_needs_reason": False,
-             "discard_block": "", "repay_candidates": []}
+             "discard_block": "", "repay_candidates": [],
+             "trashed": False, "trashed_at_text": "", "trashed_note": ""}
     if not rows:
         return blank
 
     bucket = _new_bucket()
     alive: dict[str, dict[str, Any]] = {}
+    # 취소된 링크의 집 키까지 **전부** 모은다 — 문장이 "몇 집 중 몇 집" 을 말하려면 죽은
+    # 집도 세야 하기 때문이다. 이 집합은 **문장 전용**이고, 모집단 판정
+    # (``canceled == link_count``)은 여전히 링크 축이라 판정 축은 그대로다.
+    house_keys: set[str] = set()
     for link in rows:
         _, phase, kind = _fold_link(bucket, snapshot=link.raw_snapshot,
                                     order_no=link.external_order_no, link_id=link.id)
+        house_key = resolve_group_key(link)
+        house_keys.add(house_key)
         if phase in GHOST_CLAIM_PHASES and kind in GHOST_CLAIM_KINDS:
             continue
         # 살아 있는 링크(클레임이 없거나 거부·철회)는 **집 단위로** 모은다. 문장이
         # 상품주문마다 한 줄씩 나오면 사람이 몇 집인지 못 읽는다.
-        house = alive.setdefault(resolve_group_key(link), {
+        house = alive.setdefault(house_key, {
             "external_order_no": str(link.external_order_no or ""),
             "relation": str(link.relation or "NEW"),
             "amount": 0,
@@ -483,25 +596,28 @@ def judge_order_discard(session, order_id: int, *, group_key: str = "") -> dict[
             house["amount"] += amount
 
     order = session.get(Order, int(order_id))
-    if order is None or order.deleted_at is not None or not bucket["canceled"]:
+    # 휴지통 조건을 여기서 뺐다(2026-09-07). 접힌 순간 블록이 통째로 사라져 화면이
+    # "휴지통으로 보냈다" 는 사실을 아무 데서도 말하지 않았다 — 모집단·판정식은 그대로다.
+    if order is None or not bucket["canceled"]:
         # 클레임이 하나도 없는 주문에는 이 블록을 그리지 않는다 — pane 마다
         # `지금은 안 됨` 버튼이 상시로 서 있으면 그 자리는 아무도 안 읽는다.
         return blank
 
     status = str(order.status or "")
     verdict = _discard_verdict(bucket, status)
+    trash = read_order_trash(order)
     whole = bucket["canceled"] == bucket["link_count"]
     if not whole:
         # 여기서만 문장을 사실로 다시 쓴다. **판정은 바꾸지 않는다.**
-        here = [key for key in alive if key == group_key]
-        if group_key and not here:
-            verdict["discard_block"] = (
-                "이 주문에는 살아 있는 결제가 함께 붙어 있습니다 — 이 집만 취소됐고, "
-                f"{_alive_house_text(list(alive.values()))}은 살아 있습니다")
-        else:
-            verdict["discard_block"] = (
-                f"이 주문에는 아직 살아 있는 결제가 있습니다 — {bucket['link_count']}건 중 "
-                f"{bucket['canceled']}건만 취소됐습니다. 전부 취소된 뒤에 접습니다")
+        verdict["discard_block"] = _partial_discard_text(
+            alive=alive, house_keys=house_keys, group_key=group_key, bucket=bucket)
+    if trash["trashed"]:
+        # 휴지통 사실이 가장 먼저 읽혀야 한다. 이 덮어쓰기는 **좁히기만** 한다(True→False):
+        # 라우트(``naver_ingest_ghost_discard``)는 이미 휴지통을 뺀 모집단으로 막고 있었고,
+        # 이제 화면이 라우트와 같은 말을 한다. ``can_discard=False`` 라 아래 재결제 짝
+        # 조회도 돌지 않는다.
+        verdict["can_discard"] = False
+        verdict["discard_block"] = "이미 휴지통에 있습니다 — 주문 목록 휴지통에서 되돌립니다"
 
     # 재결제 짝은 **열린 버튼에만** 경고로 붙인다(사용자 결정: 잠그지 않는다).
     # 닫힌 상태에서는 그릴 자리가 없으므로 조회도 하지 않는다.
@@ -523,5 +639,9 @@ def judge_order_discard(session, order_id: int, *, group_key: str = "") -> dict[
         "link_count": bucket["link_count"],
         "canceled_count": bucket["canceled"],
         "repay_candidates": candidates,
+        # 띠와 **같은 함수·같은 문구**. pane 용으로 다시 만들지 않는다.
+        "measure": judge_measure_progress(order),
+        # 표기 전용 사실을 먼저 깔고 **판정 키를 마지막에** 싣는다(기존 모양 유지).
+        **trash,
         **verdict,
     }

@@ -678,7 +678,8 @@ _REPAY_FACT_LINE = (
     "facts.push(['재결제', "
     "state.extraPaymentRepay.count + '건 · ' + "
     "state.extraPaymentRepay.total.toLocaleString('ko-KR') + "
-    "'원 — 원 주문 취소분 재결제입니다. 출고가·잔금에 더하지 마세요', "
+    "'원 — 지금 받은 결제입니다. 옛 결제는 환불됐으니 출고가·잔금은 이 금액 "
+    "기준으로 보세요(더하지 마세요)', "
     "false, 'naver-dock-fact-warn']);"
 )
 
@@ -786,7 +787,7 @@ def test_dock_js_says_repay_separately_and_asset_pin_moved():
     tpl = _ORDER_JS_TPL.read_text(encoding="utf-8")
     # 핀은 R2(워크벤치 링크)에서 다시 움직였다 — 값은
     # ``test_dock_js_renders_workbench_anchor_and_asset_pin_moved`` 가 못박는다.
-    assert "js/orders/erp-naver-dock.js') }}?v=20260902b" in tpl
+    assert "js/orders/erp-naver-dock.js') }}?v=20260907b" in tpl
     assert "css/orders/erp-naver-dock.css') }}?v=20260902a" in tpl
 
 
@@ -968,5 +969,5 @@ def test_dock_js_renders_workbench_anchor_and_asset_pin_moved():
     assert "workbenchUrl: payload.workbench_url || ''," in source
 
     tpl = _ORDER_JS_TPL.read_text(encoding="utf-8")
-    assert "js/orders/erp-naver-dock.js') }}?v=20260902b" in tpl
+    assert "js/orders/erp-naver-dock.js') }}?v=20260907b" in tpl
     assert "css/orders/erp-naver-dock.css') }}?v=20260902a" in tpl

@@ -2095,9 +2095,14 @@ def _ghost_discard_view(db, link: Optional[ExternalOrderLink]) -> dict[str, Any]
     from foms.services.integrations.naver_commerce.ghost_orders import judge_order_discard
 
     if link is None or not link.order_id:
+        # blank 는 :func:`ghost_orders.judge_order_discard` 의 blank 와 **같은 모양**이어야
+        # 한다. 휴지통 3키가 빠지면 템플릿이 `applicable` 게이트에 우연히 가려 살아날 뿐,
+        # 계약으로는 보호되지 않는다(키 하나만 읽는 자리가 생기면 그때 터진다).
+        # 표기 키만 더한 것이라 판정 축은 그대로다.
         return {"applicable": False, "can_discard": False,
                 "discard_needs_reason": False, "discard_block": "",
-                "repay_candidates": []}
+                "repay_candidates": [],
+                "trashed": False, "trashed_at_text": "", "trashed_note": ""}
     view = judge_order_discard(db, int(link.order_id),
                                group_key=_history_group_key(link))
     if (view["can_discard"] and view["discard_needs_reason"]
@@ -2107,6 +2112,40 @@ def _ghost_discard_view(db, link: Optional[ExternalOrderLink]) -> dict[str, Any]
             f"{view['status_label']} 단계라 실측·도면 이력이 붙어 있습니다 — "
             "관리자만 사유를 적고 접을 수 있습니다")
     return view
+
+
+def _order_trash_view(db, link: Optional[ExternalOrderLink]) -> dict[str, Any]:
+    """pane 머리줄용 휴지통 사실 — **클레임과 무관한 독립 축**.
+
+    폐기 블록(``ghost_discard``)은 클레임이 1건이라도 있어야 그려진다. 그런데 "이 주문을
+    휴지통에 넣었다"는 사실은 클레임 유무와 아무 상관이 없다 — 그 블록에 얹으면 클레임
+    0건 집에서는 접힌 주문이 살아 있는 것처럼 보인다(2026-09-07 담당자 보고: 버튼을
+    눌렀는데 화면에 한 글자도 안 남았다). 그래서 머리줄은 **독립 키**로 받는다.
+
+    사실 판정은 :func:`ghost_orders.read_order_trash` 한 벌만 쓴다. 여기서 다시 세면
+    후보 표·검색 표·머리줄이 서로를 반박한다.
+
+    ``perf-ok``: 같은 세션에서 :func:`_ghost_discard_view` 가 이미 같은 ``Order`` 를
+    잡아 두면 identity map 이 돌려주므로 대개 SQL 0회다. 클레임 0건 pane 에서만 PK
+    조회가 1회 더 난다. 휴지통 주문도 ``Session.get`` 으로 잡힌다 — soft delete 필터는
+    목록 쪽에만 있다.
+
+    **판정 축을 바꾸지 않았다**: 이 두 키는 버튼 조건 어디서도 읽지 않는다.
+
+    Args:
+        db: 요청 스코프 DB 세션.
+        link: pane 에 띄운 링크(None 이거나 주문이 안 붙었으면 사실이 없다).
+
+    Returns:
+        ``order_trashed``(bool) · ``order_trashed_at_text``(``MM-DD HH:MM``, 모르면 빈 문자열).
+    """
+    from foms.services.integrations.naver_commerce.ghost_orders import read_order_trash
+
+    if link is None or not link.order_id:
+        return {"order_trashed": False, "order_trashed_at_text": ""}
+    trash = read_order_trash(db.get(Order, int(link.order_id)))
+    return {"order_trashed": bool(trash["trashed"]),
+            "order_trashed_at_text": trash["trashed_at_text"]}
 
 
 def _pane_context(db, link: Optional[ExternalOrderLink],
@@ -2169,6 +2208,10 @@ def _pane_context(db, link: Optional[ExternalOrderLink],
         # 취소·반품이 끝난 ERP 주문을 접는 자리(2026-09-04). 전체 렌더와 조각 렌더가
         # 이 함수 하나를 쓰므로 두 경로의 버튼 조건이 자동으로 같다.
         "ghost_discard": _ghost_discard_view(db, link),
+        # 머리줄 휴지통 배지(2026-09-07). 위 폐기 블록과 **다른 축**이라 따로 낸다 —
+        # 그쪽은 클레임이 있어야 그려지는데 "휴지통에 넣었다"는 사실은 클레임과 무관하다.
+        # 판정 축은 그대로다: 이 두 키를 읽는 버튼 조건은 하나도 없다.
+        **_order_trash_view(db, link),
         # 반품 거부(T8-S3) 게이트. **꺼져 있으면 버튼 자체를 안 낸다** — 규격이 아직
         # 안 채워져서(설계서 §2) 눌러도 나가지 않는다. 라우트도 같은 게이트로 닫혀 있다:
         # 한쪽만 열면 열린 버튼이 403 을 받는다.
