@@ -54,14 +54,22 @@
                 <div class="wb-relation__reason">네이버 수집 {{ row.naver_link_count }}건</div>
                 {% endif %}
             </td>
-            {# 후보 표와 **같은 분기**다. 코드로 가른다 — 한국어 라벨을 `==` 로 비교하면
-               라벨 한 낱말만 바꿔도 분기가 조용히 죽는다(2026-08-28). #}
+            {# 후보 표(`wb-cmp--cand`)와 **같은 두 층**이다 — 위층 = 칩·건수(후보 주문이
+               붙들고 있는 집의 사실), 아래층 = 신호(지금 집 × 후보 집 **쌍**의 판정).
+               2026-09-07 운영 사고: 전부 취소된 집을 놓고 고르는데 화면이 후보 집만
+               보고 `살아 있음 · 추가결제 신호` 라고 적었다 — 지금 집이 옛 결제이므로
+               실제 관계는 재결제였다. 칩과 신호를 한 낱말로 뭉개면 검색 경로가 같은
+               오판을 그대로 재현한다.
+               분기는 **코드**로 가른다 — 한국어 라벨을 `==` 로 비교하면 라벨 한 낱말만
+               바꿔도 분기가 조용히 죽는다(2026-08-28). #}
             <td>
                 {% if not row.naver_link_count %}
                 <span class="wb-relation__reason">네이버 수집분 없음</span>
-                {% elif row.naver_claim_code == 'all_done' %}
+                {% else %}
+                {# 위층(칩·건수) — 후보 집의 사실. #}
+                {% if row.naver_claim_code == 'all_done' %}
                 <span class="wb-cand__claim wb-cand__claim--dead">{{ row.naver_claim_label }}</span>
-                <div class="wb-relation__reason">{{ row.naver_canceled_count }}건 전부 · <b>재결제 신호</b></div>
+                <div class="wb-relation__reason">{{ row.naver_canceled_count }}건 전부</div>
                 {% elif row.naver_claim_code in ('all_pending', 'all_mixed') %}
                 <span class="wb-cand__claim wb-cand__claim--pending">{{ row.naver_claim_label }}</span>
                 <div class="wb-relation__reason"><b>네이버가 아직 확정하지 않았습니다</b></div>
@@ -70,11 +78,27 @@
                 <div class="wb-relation__reason">취소 {{ row.naver_canceled_count }} · 살아있음 {{ row.naver_alive_count }}</div>
                 {% else %}
                 <span class="wb-cand__claim wb-cand__claim--alive">살아 있음</span>
-                <div class="wb-relation__reason">{{ row.naver_alive_count }}건 · <b>추가결제 신호</b></div>
+                <div class="wb-relation__reason">{{ row.naver_alive_count }}건</div>
                 {% endif %}
+                {# 사유 원문은 **후보 주문에 붙은 수집분이 있을 때만** 존재한다 —
+                   그래서 칩 층과 같은 `link_count > 0` 블록 안에 둔다(2026-09-07에 위
+                   `네이버 수집분 없음` 분기를 가르면서 이 안으로 들어왔다. 동작은 예전과
+                   같고, diff 만 보면 부수효과처럼 읽혀 한 줄로 밝혀 둔다). #}
                 {% for reason in row.naver_cancel_reasons %}
                 <div class="wb-cand__reason">“{{ reason }}”</div>
                 {% endfor %}
+                {# 아래층(신호) — 축은 `row.recommended_relation` **하나뿐**이다(쌍 판정,
+                   정본 = order_candidates.recommended_relation). 문구 층과 오른쪽 버튼
+                   층이 **같은 키**를 읽는다 — 이름을 둘 두면 한쪽만 고치는 경로가
+                   열린다(2026-09-07 정리). 후보 쪽 코드로 신호를 가르면 위 사고가 그대로
+                   재발한다. 권고가 없으면 줄을 아예 내지 않는다 — 사람이 본다는 뜻이고,
+                   오른쪽 버튼도 강조가 빠진다. #}
+                {% if row.recommended_relation == 'REPAY' %}
+                <div class="wb-relation__reason">{% if row.current_claim_code == 'all_done' %}지금 집이 옛 결제 —{% else %}후보의 옛 결제가 취소됨 —{% endif %} <b>재결제 신호</b></div>
+                {% elif row.recommended_relation == 'ADDON' %}
+                <div class="wb-relation__reason">둘 다 살아 있음 · <b>추가결제 신호</b></div>
+                {% endif %}
+                {% endif %}
             </td>
             <td class="wb-cmp__num">
                 {% if row.naver_amount_total %}
@@ -90,19 +114,26 @@
             <td class="text-end">
                 {# 붙이기는 기존 라우트 그대로다. 예약금 안내 문장을 버튼이 들고 다닌다 —
                    붙인 뒤 그 숫자를 사람이 주문 화면에 옮겨 적어야 하는데(D-1), 검색
-                   경로에는 그 말을 해 주는 정리 계획 카드가 없다. #}
-                <button type="button" class="btn btn-sm btn-outline-primary wb-seek-attach"
+                   경로에는 그 말을 해 주는 정리 계획 카드가 없다.
+
+                   2026-09-07: 순서·강조를 **왼쪽 신호 문구와 같은 판정**으로 묶는다.
+                   pane 은 2026-09-04 에 이미 고쳤는데 검색 경로만 추가결제가 먼저·
+                   강조색으로 남아 있었다 — 표는 `재결제 신호` 라고 적는데 눈이 가는
+                   버튼은 추가결제였다. 관계를 잘못 고르면 예약금 안내가 `바꾸기`/
+                   `더하기` 로 갈려 **고객 청구액**까지 흘러간다. 판정 정본 =
+                   order_candidates.recommended_relation(지금 집 × 후보 집 쌍 판정).
+                   권장이 없으면 둘 다 같은 무게로 둔다 — 아무 쪽도 권하지 않는다는 뜻.
+                   클래스 `wb-seek-attach` 는 JS 가 무는 자리라 그대로 둔다(id 금지). #}
+                {% set rec = row.recommended_relation %}
+                {% for rel in (['REPAY', 'ADDON'] if rec == 'REPAY' else ['ADDON', 'REPAY']) %}
+                <button type="button"
+                        class="btn btn-sm {{ 'btn-outline-primary' if rel == rec else 'btn-outline-secondary' }} wb-seek-attach"
                         data-link-id="{{ seek_link_id }}"
                         data-order-id="{{ row.order_id }}"
                         data-customer="{{ row.customer_name }}"
-                        data-deposit="{{ row.deposit.ADDON.sentence }}"
-                        data-relation="ADDON">추가결제로 붙이기</button>
-                <button type="button" class="btn btn-sm btn-outline-secondary wb-seek-attach"
-                        data-link-id="{{ seek_link_id }}"
-                        data-order-id="{{ row.order_id }}"
-                        data-customer="{{ row.customer_name }}"
-                        data-deposit="{{ row.deposit.REPAY.sentence }}"
-                        data-relation="REPAY">재결제로 붙이기</button>
+                        data-deposit="{{ row.deposit[rel].sentence }}"
+                        data-relation="{{ rel }}">{{ '재결제로 붙이기' if rel == 'REPAY' else '추가결제로 붙이기' }}</button>
+                {% endfor %}
             </td>
         </tr>
         {% endfor %}
