@@ -1931,7 +1931,7 @@
         var selector = (options.selector || '.wb-origin-act')
                        + '[data-link-id="' + id + '"]';
         var doneText = options.doneText
-                       || (label + ' 완료 — 새로고침하면 이 줄이 사라집니다');
+                       || (label + ' 완료 — 화면을 새 상태로 다시 그렸습니다');
         var baseErrAt = options.errAt || '';
         var deadline = Date.now() + POLL_TIMEOUT_MS;
         window.setTimeout(tick, POLL_INTERVAL_MS);
@@ -1950,6 +1950,16 @@
                     ? label + ' 실패 — ' + state.last_error
                     : doneText;
                 btn.classList.toggle('wb-origin-act--err', !!freshError);
+                // 성공이면 **화면이 스스로 최신 상태를 받아온다**(2026-09-07 사용자 요구).
+                // 예전에는 여기서 멈추고 사람에게 "새로고침해서 확인하세요"라고 했다.
+                // 그런데 담당자가 보고 싶은 것은 버튼 글자가 아니라 **취소·반품이 지금
+                // 어디까지 갔는가**다 — 그 사실은 카드·띠·집계가 들고 있다.
+                // 워커가 조작 뒤 다시 읽기까지 끝낸 시점이라(rev 가 움직였다) 지금 다시
+                // 그리면 옛 값이 아니라 새 값이 온다. 실패했을 때는 다시 그리지 않는다 —
+                // 실패 문장이 화면에 남아 있어야 사람이 무엇이 안 됐는지 읽는다.
+                if (!freshError) {
+                    softRefresh();
+                }
                 return;
             }
             if (Date.now() >= deadline) {
@@ -1973,7 +1983,7 @@
      * @param {number} linkId 처리한 링크 id.
      * @param {string} label 사람이 읽는 동작 이름.
      * @param {string} [selector] 글자를 바꿀 버튼의 선택자 앞부분(기본 `.wb-origin-act`).
-     * @param {string} [queuedText] 버튼에 쓸 문장(기본 `label + ' 보냄 — 끝나면 새로고침'`).
+     * @param {string} [queuedText] 버튼에 쓸 문장(기본 `label + ' 보냄 — 끝나면 화면이 스스로 갱신됩니다'`).
      */
     function markOriginActQueued(linkId, label, selector, queuedText) {
         var btn = document.querySelector(
@@ -1982,7 +1992,7 @@
             return;
         }
         btn.disabled = true;
-        btn.textContent = queuedText || (label + ' 보냄 — 끝나면 새로고침');
+        btn.textContent = queuedText || (label + ' 보냄 — 끝나면 화면이 스스로 갱신됩니다');
     }
 
     /**
@@ -2618,7 +2628,7 @@
         }
         await hideModal(btn.closest('.modal'));
         markOriginActQueued(id, label, selector,
-                            label + ' 보냄 — 워커가 처리합니다. 끝나면 새로고침');
+                            label + ' 보냄 — 워커가 처리합니다(끝나면 화면이 스스로 갱신됩니다)');
         // 완료 문장은 **사실 그대로**다(CEO FIX 2026-09-07). 여기서 폴링이 보는 것은
         // 승인 표식(`cancel.approved_at`)이 뒤집힌 순간이고, `정리 실행` 을 여는 것은 그
         // 뒤에 따라오는 **스냅샷 재조회**다(`_enqueue_refresh_after` → 집계가 `all_done`
@@ -2627,7 +2637,7 @@
         watchOriginAct(id, result.data && result.data.rev, label, {
             selector: selector,
             errAt: result.data && result.data.err_at,
-            doneText: '승인이 네이버에 반영되면 정리 실행이 열립니다 — 잠시 뒤 새로고침하세요'
+            doneText: '승인 보냄 — 네이버 확정이 돌아오면 정리 실행이 열립니다'
         });
     }
 
