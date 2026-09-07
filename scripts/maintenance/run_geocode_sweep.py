@@ -91,6 +91,66 @@ _shutdown = threading.Event()
 _Session = sessionmaker(bind=engine)
 
 
+HEARTBEAT_WORKER_KIND = "GEOCODE_SWEEP"
+
+
+def _init_sentry_once() -> None:
+    """워커 프로세스에 Sentry 를 붙인다(DSN 없으면 아무것도 import 하지 않는다).
+
+    이 스크립트는 ``app.py`` 를 거치지 않는다 — 유일한 ``init_sentry`` 호출처가 web 이라
+    여기서 터진 예외는 지금까지 **아무 데도 가지 않았다**. 2026-02 워커 offline 사고 때
+    사용자가 지도에서 발견한 것이 이 축이다.
+    """
+    if not (os.environ.get("SENTRY_DSN") or "").strip():
+        return
+    try:
+        import sentry_sdk
+
+        if sentry_sdk.get_client().is_active():
+            return
+        from foms.platform.sentry_setup import init_sentry
+
+        init_sentry()
+    except ImportError:
+        _log_error("sentry_sdk 미설치 — 관측 없이 계속한다")
+
+
+def _capture(message: str) -> None:
+    """처리 중인 예외를 Sentry 로 올린다(붙어 있을 때만). 흐름은 막지 않는다."""
+    try:
+        import sentry_sdk
+
+        if sentry_sdk.get_client().is_active():
+            sentry_sdk.capture_exception()
+    except ImportError:
+        pass  # sentry 미설치는 관측 부재일 뿐 — 위에서 이미 로그로 남겼다
+
+
+def _emit_heartbeat(result: Optional[dict]) -> None:
+    """라운드 끝에 하트비트를 남긴다(루프가 살아 있다는 유일한 신호).
+
+    실패해도 스윕을 막지 않는다 — 관측 배선 때문에 좌표 보충이 멈추면 더 나쁘다. 다만
+    삼키지도 않는다: warning + Sentry 로 남기고 계속한다.
+
+    Args:
+        result: 이번 라운드 요약(없으면 라운드가 터진 경우).
+    """
+    from foms.services.sidefx_worker import upsert_heartbeat
+
+    metadata = {
+        "outcome": "ok" if result is not None else "round_failed",
+        "enqueued": int((result or {}).get("enqueued") or 0),
+        "failed": int((result or {}).get("failed") or 0),
+        "scanned": int((result or {}).get("scanned") or 0),
+    }
+    try:
+        upsert_heartbeat(engine, HEARTBEAT_WORKER_KIND, metadata=metadata)
+    except (SQLAlchemyError, OSError, RuntimeError, ValueError):
+        _log_error("heartbeat 기록 실패(스윕은 계속한다):")
+        traceback.print_exc()
+        _capture("geocode sweep heartbeat failed")
+
+
 def _attempt_stamp() -> datetime.datetime:
     """``Order.geocoded_at`` 에 기록할 "마지막 지오코딩 시도" 시각.
 
@@ -343,7 +403,9 @@ def _run_loop(*, interval: int, batch: int, include_failed: bool, as_json: bool)
         f"include_failed={include_failed} pending_retry={PENDING_RETRY_SECONDS}s "
         f"failed_retry={FAILED_RETRY_SECONDS}s)"
     )
+    _init_sentry_once()
     while not _shutdown.is_set():
+        result = None
         try:
             result = _run_round(batch=batch, include_failed=include_failed)
             print_result(result, as_json)
@@ -352,6 +414,9 @@ def _run_loop(*, interval: int, batch: int, include_failed: bool, as_json: bool)
         except (SQLAlchemyError, OSError, ValueError, RuntimeError):
             _log_error("round failed:")
             traceback.print_exc()
+            _capture("geocode sweep round failed")
+        # 라운드가 터져도 하트비트는 남긴다 — "죽었다" 와 "이번 라운드만 실패" 를 가른다.
+        _emit_heartbeat(result)
         _shutdown.wait(interval)
     _log("stopped")
     return 0
