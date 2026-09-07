@@ -5463,7 +5463,8 @@ def naver_ingest_repay_reconcile(link_id: int):
     order = db.get(Order, int(order_id))
     # 예약금 안내는 **승계일 때만** 뜻이 있다(취소 처리는 주문이 휴지통으로 간다).
     deposit = (deposit_guidance(order, new_amount=candidate.get("new_amount_total") or 0,
-                                relation=relation)
+                                relation=relation,
+                                current_claim_code=candidate.get("current_claim_code") or "")
                if order is not None and result["fork"] == "SUCCEED" else None)
 
     # 감사 detail 은 **호출 밖에서** 만든다. 칸이 여덟이라 인자 안에 두면 이 파일에서

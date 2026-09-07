@@ -718,9 +718,13 @@ def _deposit_hint(order: Any, households: list[dict[str, Any]], *,
                             f" {-diff:,}원 많습니다 — 네이버 밖 입금이면 그대로 두세요.")
     else:
         hint["state"] = "differs"
+        # 지금 집 축이 없다 — 여기 ``new_amount`` 는 **살아 있는 집들의 합계**라
+        # (:func:`_deposit_target`) 환불된 돈이 애초에 안 섞인다. 빈 문자열은 "방향을
+        # 가를 재료가 없다"는 뜻이고, 그러면 예전 문장 그대로다(2026-09-07).
         hint["sentence"] = deposit_guidance(
             order, new_amount=target if superseded else diff,
-            relation="REPAY" if superseded else "ADDON")["sentence"]
+            relation="REPAY" if superseded else "ADDON",
+            current_claim_code="")["sentence"]
     return hint
 
 

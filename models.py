@@ -149,19 +149,40 @@ class Order(Base):
         )
 
     @classmethod
+    def erp_draft_predicate(cls):
+        """ERP draft row 술어 **하나**. 승격 전 draft 행을 가리키는 조건이다.
+
+        :meth:`active_filter` 와 :meth:`active_including_trashed_filter` 가 같은 술어를
+        읽게 하려고 뽑았다 — 두 벌로 적으면 한쪽만 고쳐졌을 때 초안이 한 화면에서만
+        되살아난다(2026-08 유령 주문 사고의 재료).
+        """
+        from sqlalchemy import and_, or_
+        return and_(
+            cls.is_erp_order.is_(True),
+            or_(
+                cls.status == 'DRAFT',
+                cls.structured_data[("meta", "draft")].as_boolean().is_(True),
+            ),
+        )
+
+    @classmethod
     def active_filter(cls):
         """Phase C-0: 운영 화면용 active 주문 필터. soft-delete와 ERP draft row는 제외한다."""
-        from sqlalchemy import and_, not_, or_
-        return and_(
-            cls.not_deleted_filter(),
-            not_(and_(
-                cls.is_erp_order.is_(True),
-                or_(
-                    cls.status == 'DRAFT',
-                    cls.structured_data[("meta", "draft")].as_boolean().is_(True),
-                ),
-            )),
-        )
+        from sqlalchemy import and_, not_
+        return and_(cls.not_deleted_filter(), not_(cls.erp_draft_predicate()))
+
+    @classmethod
+    def active_including_trashed_filter(cls):
+        """휴지통 주문까지 **보여 주는** 화면용 — 초안만 제외한다.
+
+        :meth:`active_filter` 에서 soft-delete 제외만 뺀 것이다. 쓰는 곳은 "이 주문이
+        존재했다는 사실 자체가 근거인" 자리다(네이버 붙이기 후보 — 2026-09-07). 붙이기
+        같은 **쓰기**는 여전히 막힌다: ``promotion.attach_link_to_order`` 가 삭제된 주문을
+        거절한다. 초안을 계속 빼는 이유는 그대로다 — 승격 전 draft 행에 무언가를 묶으면
+        주문 화면이 그 행을 되살리는 레이스에 걸린다.
+        """
+        from sqlalchemy import not_
+        return not_(cls.erp_draft_predicate())
 
     @classmethod
     def dashboard_active_filter(cls, days=60):

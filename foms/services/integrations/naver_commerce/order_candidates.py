@@ -40,7 +40,7 @@ from typing import Any, Optional
 from sqlalchemy import or_
 
 from foms.services.common.address_query import match_key as address_match_key
-from foms.services.datetime_kst import now_utc_naive
+from foms.services.datetime_kst import format_datetime_kst, now_utc_naive
 from foms.services.integrations.naver_commerce.ghost_orders import stage_label
 from foms.services.integrations.naver_commerce.mapping import (
     CLAIM_PHASE_DONE,
@@ -851,6 +851,12 @@ def _order_view(order: Order, *, score: int, reason: str,
         "status": order.status,
         # 표시는 한글, 판정은 코드(`status`). 템플릿은 코드로만 분기한다.
         "status_label": stage_label(order.status),
+        # 휴지통에 있는 주문인가(2026-09-07). 모집단에 넣되 **숨기지 않고 말한다** —
+        # 붙이기는 서버가 거절하므로 화면도 같은 조건에서 버튼을 닫는다(한쪽만 열면
+        # 눌린 버튼이 "붙일 주문을 찾을 수 없습니다"라는 엉뚱한 말을 받는다).
+        # 두 축을 함께 본다: soft-delete 시각과 `DELETED` 단계는 각각 따로 찍힌다.
+        "trashed": bool(order.deleted_at is not None or order.status == "DELETED"),
+        "trashed_at": format_datetime_kst(order.deleted_at) if order.deleted_at else "",
         "payment_amount": order.payment_amount,
         "score": score,
         "reason": reason,
@@ -909,8 +915,15 @@ def find_order_candidates(session, link: ExternalOrderLink, *,
         return []
 
     since = (now_utc_naive() - timedelta(days=window_days))
+    # **휴지통 주문도 모집단에 넣는다**(2026-09-07). 전에는 `not_deleted_filter()` 로
+    # 빼서, 취소돼 접힌 옛 주문이 후보 표에서 통째로 사라졌다 — 운영 실사고(이광헌)에서
+    # 이번 집의 진짜 짝이던 #5163 이 휴지통이라 화면에는 새 주문 #5168 하나만 남았고,
+    # 담당자는 "이 고객의 기존 주문 1건"이 그게 전부인 줄 읽었다. 존재했다는 사실 자체가
+    # 판단 근거인 자리라 숨기면 안 된다. 붙이기(쓰기)는 여전히 막힌다 —
+    # :func:`promotion.attach_link_to_order` 가 삭제된 주문을 거절하고, 화면도 버튼을
+    # 닫고 이유를 말한다.
     base = session.query(Order).filter(
-        Order.not_deleted_filter(),
+        Order.active_including_trashed_filter(),
         Order.created_at >= since,
     )
     if link.order_id:
@@ -990,7 +1003,11 @@ def find_order_candidates(session, link: ExternalOrderLink, *,
         for order_id, (score, reason) in scored.items()
         if order_id in orders
     ]
-    views.sort(key=lambda row: (-row["score"], -row["order_id"]))
+    # 점수가 같으면 **살아 있는 주문이 먼저**다(2026-09-07). 휴지통 주문을 모집단에
+    # 넣었으므로, 같은 근거로 걸린 두 주문 중 지금 쓸 수 있는 쪽이 위에 와야 한다.
+    # 점수 자체는 건드리지 않는다 — 전화 일치 휴지통 주문이 이름만 일치하는 살아
+    # 있는 주문보다 근거가 강한 것은 그대로 사실이다.
+    views.sort(key=lambda row: (-row["score"], row["trashed"], -row["order_id"]))
     return views[:limit]
 
 
@@ -1096,7 +1113,8 @@ def _search_views(session, link: ExternalOrderLink, orders: list[Order], *,
         # 후보 표는 정리 계획 카드가 이 숫자를 말해 주는데, 검색으로 붙이면 그 카드를
         # 안 거친다 — 안 실으면 검색 경로만 그 숫자를 잃는다. DB 조회는 없다(순수 계산).
         view["deposit"] = {
-            relation: deposit_guidance(order, new_amount=new_amount, relation=relation)
+            relation: deposit_guidance(order, new_amount=new_amount, relation=relation,
+                                       current_claim_code=current["claim_code"])
             for relation in ("REPAY", "ADDON")
         }
         views.append(view)
@@ -1136,9 +1154,12 @@ def search_orders_for_attach(session, link: ExternalOrderLink, *, query: str,
         return empty
 
     # **초안은 후보가 아니다.** 승격 전 draft 행에 집을 묶으면 주문 화면이 그 행을
-    # 되살리는 레이스에 걸린다(2026-08 유령 주문 사고). 자동 후보(not_deleted)보다 좁은
-    # 필터를 쓰는 이유가 이것이다 — 사람이 검색으로 부르면 draft 도 이름으로 걸린다.
-    base = session.query(Order).filter(Order.active_filter(), or_(*clauses))
+    # 되살리는 레이스에 걸린다(2026-08 유령 주문 사고). 사람이 검색으로 부르면 draft 도
+    # 이름으로 걸리므로 여기서 뺀다.
+    # 휴지통 주문은 **뺀 채로 두지 않는다**(2026-09-07) — 자동 후보와 같은 모집단이다.
+    # `#5163` 을 손으로 쳤는데 아무것도 안 나오면, 담당자는 그 주문이 없다고 읽는다.
+    base = session.query(Order).filter(Order.active_including_trashed_filter(),
+                                       or_(*clauses))
     if link.order_id:
         # 이미 이 링크가 붙은 주문은 붙일 대상이 아니다(자기 자신).
         base = base.filter(Order.id != int(link.order_id))

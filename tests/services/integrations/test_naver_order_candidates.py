@@ -89,12 +89,77 @@ def test_unrelated_orders_are_not_pulled_in(app):
     assert find_order_candidates(db_session, _link(external_id="PO-NONE")) == []
 
 
-def test_soft_deleted_orders_are_excluded(app):
-    """휴지통 주문은 후보가 아니다."""
+def test_soft_deleted_orders_are_listed_and_flagged(app):
+    """휴지통 주문도 후보 목록에 **나온다** — 대신 휴지통이라고 말한다(2026-09-07).
+
+    예전에는 뺐다. 그래서 취소돼 접힌 옛 주문이 표에서 통째로 사라졌고, 운영 실사고
+    (이광헌)에서 이번 집의 진짜 짝이던 #5163 이 휴지통이라 화면에는 새 주문 하나만
+    남았다 — 담당자는 "이 고객의 기존 주문은 이게 전부"로 읽었다. 존재했다는 사실
+    자체가 판단 근거인 자리다.
+
+    붙이기(쓰기)는 여전히 막힌다: :func:`promotion.attach_link_to_order` 가 삭제된
+    주문을 거절하고, 화면도 같은 조건에서 버튼 대신 이유를 낸다.
+    """
     order = _order()
     order.deleted_at = "2026-08-10"
     db_session.commit()
-    assert find_order_candidates(db_session, _link(external_id="PO-DEL")) == []
+
+    got = find_order_candidates(db_session, _link(external_id="PO-DEL"))
+
+    assert [row["order_id"] for row in got] == [order.id]
+    assert got[0]["trashed"] is True
+    assert got[0]["trashed_at"], "언제 삭제됐는지 말해야 한다"
+
+
+def test_status_deleted_orders_are_flagged_too(app):
+    """soft-delete 시각이 아니라 단계가 ``DELETED`` 인 주문도 휴지통이다(축이 둘이다)."""
+    order = _order()
+    order.status = "DELETED"
+    db_session.commit()
+
+    got = find_order_candidates(db_session, _link(external_id="PO-DELST"))
+
+    assert [row["order_id"] for row in got] == [order.id]
+    assert got[0]["trashed"] is True
+
+
+def test_live_orders_are_flagged_not_trashed(app):
+    """음성 대조군 — 살아 있는 주문은 휴지통이 아니다(칩이 늘 켜져 있으면 뜻이 없다)."""
+    order = _order()
+
+    got = find_order_candidates(db_session, _link(external_id="PO-LIVE"))
+
+    assert [row["order_id"] for row in got] == [order.id]
+    assert got[0]["trashed"] is False
+    assert got[0]["trashed_at"] == ""
+
+
+def test_live_order_sorts_before_trashed_at_the_same_score(app):
+    """같은 근거로 걸린 둘 중 **지금 쓸 수 있는 쪽**이 위다 — 점수는 안 건드린다."""
+    trashed = _order()
+    trashed.deleted_at = "2026-08-10"
+    live = _order()
+    db_session.commit()
+
+    got = find_order_candidates(db_session, _link(external_id="PO-ORDER"))
+
+    assert [row["order_id"] for row in got] == [live.id, trashed.id]
+    assert [row["score"] for row in got] == [got[0]["score"], got[0]["score"]], (
+        "점수를 깎아서 순서를 만들면 근거의 뜻이 갈린다")
+
+
+def test_erp_draft_rows_stay_out(app):
+    """초안은 여전히 후보가 아니다 — 휴지통을 열었다고 draft 까지 열린 것은 아니다.
+
+    승격 전 draft 행에 집을 묶으면 주문 화면이 그 행을 되살리는 레이스에 걸린다
+    (2026-08 유령 주문 사고).
+    """
+    order = _order()
+    order.is_erp_order = True
+    order.status = "DRAFT"
+    db_session.commit()
+
+    assert find_order_candidates(db_session, _link(external_id="PO-DRAFT")) == []
 
 
 def test_orders_outside_window_are_excluded(app):
