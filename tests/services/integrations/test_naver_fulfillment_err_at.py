@@ -102,4 +102,4 @@ def test_the_cancel_failure_note_points_at_the_approve_button():
 
 def test_the_asset_pin_moved():
     """JS 를 고쳤으면 핀을 올린다 — 서비스워커 캐시가 옛 파일을 준다."""
-    assert WORKBENCH.count("?v=20260907b") == 2, "CSS·JS 핀을 함께 올린다"
+    assert WORKBENCH.count("?v=20260907c") == 2, "CSS·JS 핀을 함께 올린다"
