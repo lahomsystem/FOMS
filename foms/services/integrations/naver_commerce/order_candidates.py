@@ -230,6 +230,150 @@ def _return_pending(raw_snapshot: Any, triage_state: Any) -> bool:
                                              triage_state=triage_state))
 
 
+def _approve_group_key(link_id: Any, raw_snapshot: Any) -> tuple[str, str, str]:
+    """이 상품주문이 속한 **집 키** — 승인 버튼을 접는 단위 (2026-09-07).
+
+    승인은 집 단위다. 주문번호만으로 접으면 분할배송(같은 주문번호·다른 주소)에서 서로
+    다른 두 집이 한 버튼에 합쳐진다 — 모달은 두 집을 전부 재진술하고 서버는 그중 한 집
+    몫만 보낸다. 그래서 서버가 쓰는 :func:`fulfillment.household_key` 를 **그대로** 부른다.
+
+    **여기서 승인 대상 여부는 판정하지 않는다.** 이 루프의 모집단은 *이 후보 주문에 붙은*
+    링크뿐인데, 서버(:func:`fulfillment._links_of_group`)는 같은 집을 주문번호로 다시
+    모으므로 **다른 FOMS 주문에 붙은 형제**와 **아직 아무 데도 안 붙은 형제**까지 포함한다.
+    여기서 대상을 고르면 화면은 2건이라 적고 서버는 3건을 보낸다 — 불가역 경로의 과대
+    진술이 곧 사고다. 대상 선별은 :func:`_approve_groups_view` 가 **서버와 같은 모집단**
+    위에서 한 번만 한다.
+
+    :func:`fulfillment.household_key` 는 ``raw_snapshot`` 과, 원본이 깨졌을 때의 폴백으로
+    ``id`` 하나를 읽는다. 그래서 두 칸짜리 얇은 대역 객체로 그대로 통과한다
+    (``naver_ingest._ThinLink`` 와 같은 수법). ``id`` 를 빼면 폴백 갈래에서만
+    ``AttributeError`` 가 나는데, 그 갈래는 원본이 깨진 링크에서만 밟히므로 평시 테스트로는
+    안 잡힌다 — 그래서 처음부터 싣는다.
+
+    Args:
+        link_id: 이 상품주문의 링크 id(집 키 폴백에만 쓰인다).
+        raw_snapshot: ``ExternalOrderLink.raw_snapshot``.
+
+    Returns:
+        같은 값이면 같은 집.
+    """
+    from types import SimpleNamespace
+
+    from .fulfillment import household_key
+
+    return household_key(SimpleNamespace(id=link_id, raw_snapshot=raw_snapshot))
+
+
+def _add_approve_group(groups: dict[Any, dict[str, Any]], *, key: Any, link_id: int,
+                       external_order_no: Any) -> None:
+    """상품주문 1건이 가리키는 **옛 집**을 한 칸으로 접는다(대상은 아직 안 고른다).
+
+    이 함수가 만드는 것은 집의 **주소**뿐이다 — 어느 집이고(``external_order_no``), 그 집을
+    서버에서 다시 모을 때 넘길 기준 링크가 무엇인가(``link_id``). 대상 목록과 건수는
+    :func:`_approve_groups_view` 가 서버와 같은 모집단 위에서 만든다.
+
+    ``link_id`` 는 그 집의 **대표 1건**이자 승인 라우트가 받는 주소다. 조회에 ``ORDER BY``
+    가 없어 순서에 흔들리지 않도록 **집 안 최소 링크 id** 로 결정론적으로 고른다 — 라우트가
+    받은 링크의 형제를 다시 모으므로 어느 형제를 넘겨도 결과는 같지만, 화면 모달 id 가 이
+    값으로 만들어져서 값이 흔들리면 같은 집이 렌더마다 다른 모달을 연다.
+
+    Args:
+        groups: 이 후보 주문의 누적 집 표(제자리 수정). 키는 집 키.
+        key: 집 키(:func:`_approve_group_key` 가 낸 값).
+        link_id: 이 상품주문의 링크 id.
+        external_order_no: 네이버 주문번호(모달이 "어느 집인가"를 말하는 자리).
+
+    Returns:
+        None.
+    """
+    group = groups.get(key)
+    if group is None:
+        groups[key] = {"link_id": int(link_id),
+                       "external_order_no": str(external_order_no or "").strip()}
+        return
+    group["link_id"] = min(group["link_id"], int(link_id))
+
+
+def _approve_amount(raw_snapshot: Any) -> int:
+    """이 상품주문의 **결제 금액** — 승인 모달 줄이 읽는 값.
+
+    ``naver_ingest._link_payment_amount`` 와 **같은 리더**다(:func:`mapping.unwrap_detail`
+    로 푼 ``productOrder.totalPaymentAmount``). 지금 집 승인 모달은 그 함수로 줄을 만드는데,
+    여기서 ``raw_snapshot["productOrder"]`` 를 직접 읽으면 **평평하게 들어온 원본**에서만
+    두 모달의 금액이 갈린다(:func:`mapping.unwrap_detail` 이 양쪽 모양을 다 받아 주는 이유가
+    그것이다). 같은 집을 놓고 화면 두 곳이 다른 돈을 말하면 사람은 어느 쪽이 맞는지 알 수 없다.
+
+    Args:
+        raw_snapshot: ``ExternalOrderLink.raw_snapshot``.
+
+    Returns:
+        결제 금액(원). 값이 없거나 형식이 다르면 0.
+    """
+    from .mapping import unwrap_detail
+
+    _order, product_order, _shipping = unwrap_detail(raw_snapshot or {})
+    amount = (product_order or {}).get("totalPaymentAmount")
+    return int(amount) if isinstance(amount, int) else 0
+
+
+def _approve_groups_view(session, groups: dict[Any, dict[str, Any]],
+                         axis: str) -> list[dict[str, Any]]:
+    """집 표를 한 축(취소/반품)의 **화면용 목록**으로 편다 — 대상은 서버 모집단에서 고른다.
+
+    **모집단부터 서버와 같게 만든다.** 집마다 :func:`fulfillment.links_of_group` 을 한 번
+    부르고, 그 ORM 행에 서버 술어(:func:`fulfillment.is_cancel_approvable` /
+    :func:`~fulfillment.is_return_approvable`)를 그대로 건다. 승인 라우트
+    (``naver_ingest._enqueue_claim_approve`` → :func:`fulfillment.approve_cancel`)가 하는
+    일이 정확히 이것이라, 화면 대상과 서버 대상은 이제 **정의상** 같다 — 같은 함수·같은 술어.
+
+    앞 루프의 모집단(이 후보 주문에 붙은 링크)으로 세면 실제로 갈렸다: 같은 집 형제가
+    **다른 FOMS 주문에 붙어 있거나** **아직 아무 데도 안 붙어 있으면** 그 형제가 화면에서
+    통째로 빠진다. 화면은 2건이라 적고 서버는 3건을 보낸다 — 되돌릴 수 없는 환불에서
+    사람이 모르는 1건이 나가는 자리다.
+
+    조회는 이 함수에서만 는다(집마다 :func:`fulfillment._links_of_group` 의 2회). 그래서
+    :func:`_naver_facts` 는 ``with_approve`` 가 켜졌을 때만 여기까지 온다 — 승인 버튼을
+    안 내는 자리(관계 블록·워크벤치 목록)는 이 비용을 내지 않는다.
+
+    **빈 집은 싣지 않는다.** 버튼 조건이 '대상 1건 이상'이라 어차피 안 열리는데, 빈 칸을
+    실으면 템플릿이 같은 조건을 두 벌로 적게 되고 그 두 벌이 언젠가 갈린다.
+
+    집도 대상도 링크 id 로 정렬한다 — 조회에 ``ORDER BY`` 가 없어서, 정렬하지 않으면
+    같은 데이터가 렌더마다 다른 순서로 나온다.
+
+    Args:
+        session: DB 세션(읽기만 한다).
+        groups: :func:`_add_approve_group` 이 누적한 집 표.
+        axis: ``"cancel"`` 또는 ``"return"``.
+
+    Returns:
+        ``[{"link_id", "external_order_no", "product_order_count", "targets"}]``.
+        ``targets`` 는 ``{"link_id", "external_id", "amount"}`` 목록이고, 건수는 언제나
+        이 목록의 길이로 센다 — 따로 센 수를 함께 실으면 두 수가 갈린다.
+    """
+    from .fulfillment import is_cancel_approvable, is_return_approvable, links_of_group
+
+    approvable = is_cancel_approvable if axis == "cancel" else is_return_approvable
+    rows: list[dict[str, Any]] = []
+    for group in sorted(groups.values(), key=lambda item: item["link_id"]):
+        household = links_of_group(session, group["link_id"])
+        targets = [{"link_id": int(row.id),
+                    "external_id": str(row.external_id or "").strip(),
+                    "amount": _approve_amount(row.raw_snapshot)}
+                   for row in household if approvable(row)]
+        if not targets:
+            continue
+        rows.append({
+            "link_id": group["link_id"],
+            "external_order_no": group["external_order_no"],
+            # 집 **전체** 링크 수 — 승인 대상 수와 **다른 축**이라, 모달이 '나머지 N건은
+            # 이번에 안 나갑니다'를 이 수로만 말할 수 있다. 서버가 세는 집과 같은 집이다.
+            "product_order_count": len(household),
+            "targets": sorted(targets, key=lambda item: item["link_id"]),
+        })
+    return rows
+
+
 def _add_alive_row(rows: list[dict[str, Any]], *, link_id: int, external_order_no: Any,
                    external_id: Any, amount: int, dispatched: bool,
                    return_pending: bool, read_at: str) -> None:
@@ -576,7 +720,8 @@ def _dispatch_facts(raw_snapshot: Any, triage_state: Any, created_at: Any) -> di
 
 def _naver_facts(session, order_ids: list[int], *,
                  exclude_link_ids: Optional[set[int]] = None,
-                 relations: Optional[tuple[str, ...]] = None) -> dict[int, dict[str, Any]]:
+                 relations: Optional[tuple[str, ...]] = None,
+                 with_approve: bool = False) -> dict[int, dict[str, Any]]:
     """후보 주문마다 **붙어 있는 네이버 집의 사실**을 모은다 (2026-08-25 R-1).
 
     지금까지 화면은 링크 **개수**만 냈다. 그런데 재결제·추가결제를 가르는 결정적 신호는
@@ -598,6 +743,12 @@ def _naver_facts(session, order_ids: list[int], *,
             있어서, 빼지 않으면 "옛 주문이 살아 있다"가 자기 자신을 가리킨다.
         relations: 셈에 넣을 ``relation`` 값. 주면 그 값만 본다(:func:`origin_facts` 가
             ``NEW`` 만 쓴다). 후보 표는 관계를 가리지 않으므로 기본은 None 이다.
+        with_approve: 옛 집 **승인 재료**까지 낼 것인가. **기본은 끔**이다 — 켜면 집마다
+            :func:`fulfillment.links_of_group` 조회가 붙는다(집당 2회). 켜는 곳은 승인
+            버튼을 실제로 내는 **두 곳뿐**이다: 후보 표(:func:`find_order_candidates`)와
+            검색(:func:`_search_views`). 특히 :func:`pending_origin_cleanup` 은 재결제가
+            붙은 주문 **전체**를 워크벤치 목록을 그릴 때마다 돌면서 ``alive_rows`` 만
+            읽으므로, 여기서 켜면 그 조회가 '재결제 붙은 주문 수'에 비례해 붙는다.
 
     Returns:
         ``{order_id: {link_count, canceled, alive, amount_total, claim_label, alive_rows,
@@ -609,10 +760,21 @@ def _naver_facts(session, order_ids: list[int], *,
         **가리키고**(``link_id``), **취소냐 반품이냐를 가르고**(``dispatched``),
         **언제 읽은 값인지 말하기**(``read_at``) 위해서다(2026-08-28 NVREPAY-01).
         ``cancel_reasons`` 는 중복을 뺀 사유 원문 목록이다(본품·옵션이 같은 문장을 들고 온다).
+
+        ``naver_cancel_approve_groups``·``naver_return_approve_groups`` 는 **옛 집을 이
+        화면에서 승인**하기 위한 재료다(2026-09-07). 각 칸은
+        ``{link_id, external_order_no, product_order_count, targets}`` 이고, ``targets`` 는
+        **서버와 같은 모집단**(:func:`fulfillment.links_of_group`) 위에서 서버 술어
+        (:func:`fulfillment.is_cancel_approvable` /
+        :func:`~fulfillment.is_return_approvable`)가 고른 건만 담는다
+        (:func:`_approve_groups_view`). ``with_approve`` 가 꺼져 있으면 두 키는 **빈
+        목록**이다 — 계약 모양만 유지하고 조회는 내지 않는다.
     """
     facts: dict[int, dict[str, Any]] = {}
     if not order_ids:
         return facts
+    #: 후보 주문 id → 집 키 → 누적 집 칸. 승인은 **집 단위**라 행을 접어 둔다.
+    approve_groups: dict[int, dict[Any, dict[str, Any]]] = {}
     query = (session.query(ExternalOrderLink.order_id, ExternalOrderLink.raw_snapshot,
                            ExternalOrderLink.external_order_no, ExternalOrderLink.id,
                            ExternalOrderLink.external_id, ExternalOrderLink.triage_state,
@@ -629,8 +791,23 @@ def _naver_facts(session, order_ids: list[int], *,
         bucket = facts.setdefault(int(order_id), {
             "link_count": 0, "canceled": 0, "pending": 0, "alive": 0, "amount_total": 0,
             "claim_label": "", "claim_code": "", "alive_rows": [], "cancel_reasons": [],
+            "naver_cancel_approve_groups": [], "naver_return_approve_groups": [],
         })
         bucket["link_count"] += 1
+        # --- 옛 집 승인 재료(2026-09-07) ---
+        # **``productOrder`` 래퍼 가드보다 위**다. 승인 축은 래퍼 유무와 무관하고
+        # (:func:`mapping.unwrap_detail` 이 평평한 원본도 받아 준다), 서버 술어는
+        # ``raw_snapshot`` 을 그 함수로 풀어 읽는다. 가드 아래에 두면 **평평하게 들어온
+        # 링크가 통째로 빠져** 화면 대상이 서버 대상보다 적어진다 — 되돌릴 수 없는 환불에서
+        # 사람이 모르는 1건이 나가는 자리다.
+        #
+        # 여기서 고르는 것은 **집뿐**이다. 대상 선별은 :func:`_approve_groups_view` 가
+        # 서버와 같은 모집단(:func:`fulfillment.links_of_group`) 위에서 한 번만 한다.
+        if with_approve:
+            _add_approve_group(
+                approve_groups.setdefault(int(order_id), {}),
+                key=_approve_group_key(link_id, snapshot),
+                link_id=int(link_id), external_order_no=external_order_no)
         product_order = snapshot.get("productOrder") if isinstance(snapshot, dict) else None
         if not isinstance(product_order, dict):
             continue
@@ -667,7 +844,18 @@ def _naver_facts(session, order_ids: list[int], *,
                            dispatched=dispatch["dispatched"],
                            return_pending=_return_pending(snapshot, triage_state),
                            read_at=dispatch["read_at"])
-    for bucket in facts.values():
+    for order_id, bucket in facts.items():
+        # 승인 재료는 집계 코드보다 **먼저** 싣는다. 버튼 조건은 코드(``all_pending`` 이든
+        # ``all_done`` 이든)와 무관하게 '대상 1건 이상' 하나뿐이라, 코드 계산 갈래 안에
+        # 두면 언젠가 코드 규칙을 고치는 사람이 승인 재료까지 함께 끊는다.
+        #
+        # ``with_approve`` 가 꺼져 있으면 ``approve_groups`` 가 비어 있어 두 키는 빈 목록
+        # 그대로다 — 계약 모양은 유지하고 조회만 안 낸다.
+        order_groups = approve_groups.get(order_id) or {}
+        bucket["naver_cancel_approve_groups"] = _approve_groups_view(session, order_groups,
+                                                                    "cancel")
+        bucket["naver_return_approve_groups"] = _approve_groups_view(session, order_groups,
+                                                                    "return")
         if not bucket["link_count"]:
             continue
         done, pending, alive = bucket["canceled"], bucket["pending"], bucket["alive"]
@@ -885,6 +1073,23 @@ def _order_view(order: Order, *, score: int, reason: str,
         # 살아 있는 옛 집 — 재결제로 붙인 뒤 **네이버에서 정리해야 할 대상**이다.
         # 행마다 ``link_id`` 를 실어 화면이 그 집 pane 으로 보낼 수 있게 한다(NVREPAY-01).
         "naver_alive_rows": list(facts.get("alive_rows") or []),
+        # 옛 집을 **이 화면에서 승인**하기 위한 재료(2026-09-07). 집마다 한 칸이고
+        # ``targets`` 는 서버 술어가 고른 건만 담는다.
+        #
+        # ``link_id`` 는 반드시 **옛 집의 링크**다. 승인 라우트
+        # (``naver_ingest._enqueue_claim_approve``)는 받은 링크가 속한 집을 워커에서 다시
+        # 모아 보내므로, 지금 집(붙이려는 새 결제) 링크를 넘기면 **엉뚱한 집**이 승인돼
+        # 살아 있는 결제의 환불이 나간다. 되돌릴 수 없다 — 취소 승인에는 거절 API 가 없다.
+        #
+        # 승인 건수는 오직 ``targets`` 목록 길이로 센다. 따로 센 수를 같이 실으면 두 수가
+        # 갈리고, 그 과대 진술이 불가역 경로에서 곧 사고다(집 전체 수는 다른 축인
+        # ``product_order_count`` 로만 말한다).
+        #
+        # ``amount`` 는 카드 합계(``naver_amount_total``)와 **같은 리더**
+        # (``productOrder.totalPaymentAmount``)를 쓴다 — 리더가 갈리면 모달 줄 금액의 합과
+        # 카드에 적힌 합계가 서로 다른 수가 된다.
+        "naver_cancel_approve_groups": list(facts.get("naver_cancel_approve_groups") or []),
+        "naver_return_approve_groups": list(facts.get("naver_return_approve_groups") or []),
         # 고객이 쓴 사유 원문 — 라벨이 못 말하는 **왜** 를 말한다(2026-08-26).
         "naver_cancel_reasons": list(facts.get("cancel_reasons") or []),
         # ③ 금액 관계 — 집 전체끼리 견준다(대표 1건끼리 견주면 항상 작게 나온다).
@@ -990,7 +1195,9 @@ def find_order_candidates(session, link: ExternalOrderLink, *,
     }
     # 링크 개수만 세던 조회를 **사실 수집**으로 바꾼다(R-1) — 같은 1회 조회로 개수·취소
     # 여부·금액을 함께 얻는다. 후보는 최대 5건이라 스냅샷을 읽어도 부하가 늘지 않는다.
-    facts = _naver_facts(session, list(scored.keys()))
+    # ``with_approve`` 를 켜는 두 자리 중 하나 — 이 표가 옛 결제 승인 버튼을 낸다.
+    # 집마다 조회가 붙으므로(집당 2회) 후보 상한(5건) 안에서만 켠다.
+    facts = _naver_facts(session, list(scored.keys()), with_approve=True)
     # 지금 집의 금액과 클레임 집계를 **같은 1회 조회**로 얻는다 — 권고가 쌍 판정이 되면서
     # '지금 집이 전부 취소인가' 가 판정 입력이 됐다(2026-09-07). 조회 수는 늘지 않는다.
     current = household_facts(session, link)
@@ -1097,7 +1304,9 @@ def _search_views(session, link: ExternalOrderLink, orders: list[Order], *,
     """
     from foms.services.integrations.naver_commerce.repay_reconcile import deposit_guidance
 
-    facts = _naver_facts(session, [int(order.id) for order in orders])  # perf-ok: 화면 상한만큼
+    # 검색 경로도 같은 카드를 그리므로 승인 재료를 켠다(후보 표와 한 벌).
+    facts = _naver_facts(session, [int(order.id) for order in orders],  # perf-ok: 화면 상한만큼
+                         with_approve=True)
     # 검색 경로도 **같은 쌍 판정**을 쓴다 — 신호가 재결제인데 강조 버튼이 추가결제면
     # 2026-09-04 에 후보 표에서 고친 그 결함을 검색 경로가 그대로 재현한다(2026-09-07).
     current = household_facts(session, link)

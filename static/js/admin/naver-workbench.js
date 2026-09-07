@@ -650,6 +650,13 @@
                 submitReconcile(btn);
                 return;
             }
+            // 정리 계획 카드에서 쏘는 **옛 결제 승인**(2026-09-07). 후보·집 수만큼
+            // 나오므로 id 가 아니라 클래스로 문다(절대 규칙 1). 모달을 **여는** 쪽
+            // (`wb-plan-approve`)은 가로채지 않는다 — 그건 Bootstrap 이 맡는다.
+            if (btn.classList.contains('wb-plan-approve-confirm')) {
+                submitPlanClaimApprove(btn);
+                return;
+            }
             // 찾은 주문에 붙이는 버튼(T2). 결과 줄 수만큼 나오므로 id 가 아니라
             // 클래스로 문다(절대 규칙 1).
             if (btn.classList.contains('wb-seek-attach')) {
@@ -1842,7 +1849,8 @@
         }
         await hideModal(document.getElementById('wb-modal-origin-cancel'));
         markOriginActQueued(id, '취소');
-        watchOriginAct(id, result.data && result.data.rev, '취소');
+        watchOriginAct(id, result.data && result.data.rev, '취소',
+                       { errAt: result.data && result.data.err_at });
     }
 
     /**
@@ -1880,7 +1888,8 @@
         await hideModal(document.getElementById('wb-modal-origin-return'));
         var label = approve ? '반품 접수+승인' : '반품 접수';
         markOriginActQueued(id, label);
-        watchOriginAct(id, result.data && result.data.rev, label);
+        watchOriginAct(id, result.data && result.data.rev, label,
+                       { errAt: result.data && result.data.err_at });
     }
 
     /**
@@ -1894,29 +1903,53 @@
      * 자리다. 지문(`rev`)이 바뀌면 실패 여부를 그 자리에서 말하고, 오래 걸리면 무한히
      * 돌지 않고 접으면서 **새로고침으로 확인하라**고 말한다(거짓 완료를 만들지 않는다).
      *
+     * 2026-09-07: 정리 계획 카드의 **옛 결제 승인** 버튼도 같은 방식으로 말해야 해서
+     * 선택자와 완료 문장을 받도록 넓혔다. 복사본을 하나 더 두면 지문 비교나 시한 처리가
+     * 한쪽에서만 조용히 낡는다.
+     *
+     * **누르기 직전의 실패 시각(`errAt`)을 반드시 넘긴다** (CEO FIX 2026-09-07).
+     * `_clear_settled_failures` 는 **같은 축의** 실패만 지운다(`fulfillment.py`) — 그래서
+     * 발송처리 같은 **다른 축**의 옛 실패가 `last_error` 에 남아 있으면, 이번 승인이
+     * **성공했는데도** 이 줄이 "취소 승인 실패"라고 말한다. pane 쪽
+     * :func:`watchFulfillment` 가 2026-09-04 에 같은 결함으로 고쳐진 자리이고, 여기만
+     * 남아 있었다. 값을 안 넘기면 옛 동작(실패 시각을 안 보는 판정)으로 돌아가므로
+     * 호출부 셋 모두가 라우트의 `err_at` 을 그대로 옮긴다.
+     *
      * @param {number} linkId 처리한 링크 id.
      * @param {string} baseRev enqueue 직전 지문(라우트가 준 값).
      * @param {string} label 사람이 읽는 동작 이름.
+     * @param {Object} [opts] 선택 — `selector`(글자를 바꿀 버튼의 선택자 앞부분,
+     *     기본 `.wb-origin-act`) · `doneText`(완료 문장) ·
+     *     `errAt`(enqueue 직전 실패 시각, 라우트의 `err_at`).
      */
-    function watchOriginAct(linkId, baseRev, label) {
+    function watchOriginAct(linkId, baseRev, label, opts) {
         var id = safeId(linkId);
         if (!id) {
             return;
         }
+        var options = opts || {};
+        var selector = (options.selector || '.wb-origin-act')
+                       + '[data-link-id="' + id + '"]';
+        var doneText = options.doneText
+                       || (label + ' 완료 — 새로고침하면 이 줄이 사라집니다');
+        var baseErrAt = options.errAt || '';
         var deadline = Date.now() + POLL_TIMEOUT_MS;
         window.setTimeout(tick, POLL_INTERVAL_MS);
 
         async function tick() {
-            var btn = document.querySelector('.wb-origin-act[data-link-id="' + id + '"]');
+            var btn = document.querySelector(selector);
             if (!btn) {
                 return;
             }
             const state = await readFulfillmentState(id);
             if (state && state.rev && state.rev !== baseRev) {
-                btn.textContent = state.last_error
+                // 이번 동작의 실패만 실패라고 말한다 — 축 밖의 옛 실패는 그대로 남아 있다.
+                var freshError = state.last_error
+                    && state.last_error_at !== baseErrAt;
+                btn.textContent = freshError
                     ? label + ' 실패 — ' + state.last_error
-                    : label + ' 완료 — 새로고침하면 이 줄이 사라집니다';
-                btn.classList.toggle('wb-origin-act--err', !!state.last_error);
+                    : doneText;
+                btn.classList.toggle('wb-origin-act--err', !!freshError);
                 return;
             }
             if (Date.now() >= deadline) {
@@ -1933,16 +1966,23 @@
      * 띠 자체를 다시 그리지 않는 이유는 `전부 다시 읽기` 와 같다: 워커가 읽기 전에는
      * 아직 옛 값이라, 지금 새로 그리면 화면이 "아직 살아 있다"고 다시 말한다.
      *
+     * 2026-09-07: 정리 계획 카드의 승인 버튼도 같은 말을 해야 해서 선택자와 문장을
+     * 받도록 넓혔다(:func:`watchOriginAct` 와 한 벌). 기본값이 그대로라 기존 두 호출부는
+     * 인자를 안 넘기고 같은 동작을 한다.
+     *
      * @param {number} linkId 처리한 링크 id.
      * @param {string} label 사람이 읽는 동작 이름.
+     * @param {string} [selector] 글자를 바꿀 버튼의 선택자 앞부분(기본 `.wb-origin-act`).
+     * @param {string} [queuedText] 버튼에 쓸 문장(기본 `label + ' 보냄 — 끝나면 새로고침'`).
      */
-    function markOriginActQueued(linkId, label) {
-        var btn = document.querySelector('.wb-origin-act[data-link-id="' + linkId + '"]');
+    function markOriginActQueued(linkId, label, selector, queuedText) {
+        var btn = document.querySelector(
+            (selector || '.wb-origin-act') + '[data-link-id="' + linkId + '"]');
         if (!btn) {
             return;
         }
         btn.disabled = true;
-        btn.textContent = label + ' 보냄 — 끝나면 새로고침';
+        btn.textContent = queuedText || (label + ' 보냄 — 끝나면 새로고침');
     }
 
     /**
@@ -2536,6 +2576,59 @@
                          result.data && result.data.err_at,
                          result.data && result.data.sync_at);
         await hideModal(document.getElementById(modalId));
+    }
+
+    /**
+     * 정리 계획 카드에서 **옛 결제**의 취소·반품을 승인한다 (2026-09-07).
+     *
+     * 지금 집 승인(:func:`submitClaimApprove`)과 몸통을 합치지 않는다 — 그쪽은
+     * `watchFulfillment` 로 **pane 을 잠그고**(`lockPaneActions`·`setPaneAck`·`softRefresh`)
+     * 결과를 pane 에 쓴다. 여기서 그걸 부르면 지금 열려 있는 **새 결제**의 화면이 잠기고
+     * 남의 자리에 결과가 찍힌다(:func:`watchOriginAct` 가 같은 이유를 이미 적어 뒀다).
+     * 그래서 결과는 **버튼 자신**이 말한다.
+     *
+     * 보낼 본문이 없다 — 네이버 규격이 path 파라미터만 받는다. 대상은 서버가 그 집에서
+     * 다시 고른다(`_links_of_group`) — 화면은 서버가 준 `data-link-id` 를 옮기기만 하고
+     * 목록을 다시 세거나 고르지 않는다.
+     *
+     * **되돌릴 수 없다.** 승인 시점에 환불이 확정된다. 다만 **즉시** 확정되는 것은
+     * 아니다(워커가 네이버로 보낸다) — 그래서 `정리 실행` 의 잠금은 여기서 풀지 않는다.
+     * 확정된 뒤 서버가 새로 렌더할 때 열린다.
+     *
+     * @param {HTMLElement} btn 확인 버튼(`data-link-id`·`data-kind`).
+     */
+    async function submitPlanClaimApprove(btn) {
+        var id = safeId(btn.dataset.linkId);
+        if (!id) {
+            return;
+        }
+        var kind = btn.dataset.kind === 'return' ? 'return' : 'cancel';
+        var isCancel = kind === 'cancel';
+        var path = isCancel ? '/cancel-approve' : '/return-approve';
+        var label = isCancel ? '취소 승인' : '반품 승인';
+        // 결과를 말하는 자리는 **모달이 아니라** 카드의 그 버튼이다. 모달은 닫히고,
+        // 같은 집에 취소·반품 버튼이 나란히 설 수 있어 `data-kind` 까지 물어야 한다.
+        var selector = '.wb-plan-approve[data-kind="' + kind + '"]';
+        btn.disabled = true;
+        const result = await postJson(BASE + id + path, {});
+        if (!result.ok) {
+            window.alert(result.error);
+            btn.disabled = false;
+            return;
+        }
+        await hideModal(btn.closest('.modal'));
+        markOriginActQueued(id, label, selector,
+                            label + ' 보냄 — 워커가 처리합니다. 끝나면 새로고침');
+        // 완료 문장은 **사실 그대로**다(CEO FIX 2026-09-07). 여기서 폴링이 보는 것은
+        // 승인 표식(`cancel.approved_at`)이 뒤집힌 순간이고, `정리 실행` 을 여는 것은 그
+        // 뒤에 따라오는 **스냅샷 재조회**다(`_enqueue_refresh_after` → 집계가 `all_done`
+        // → `run_gate`). 그 사이에 "열립니다"라고 단정하면 새로고침한 사람이 여전히
+        // 잠긴 버튼을 보고 화면이 거짓말했다고 읽는다.
+        watchOriginAct(id, result.data && result.data.rev, label, {
+            selector: selector,
+            errAt: result.data && result.data.err_at,
+            doneText: '승인이 네이버에 반영되면 정리 실행이 열립니다 — 잠시 뒤 새로고침하세요'
+        });
     }
 
     /* ── 주문 찾아서 붙이기 (T2) ─────────────────────────────────────── */

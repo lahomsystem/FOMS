@@ -194,6 +194,29 @@ def _alive_rows(candidate: dict[str, Any]) -> list[dict[str, Any]]:
     return rows if isinstance(rows, list) else []
 
 
+def _approve_groups(candidate: dict[str, Any], key: str) -> list[dict[str, Any]]:
+    """후보 주문에 붙은 **옛 네이버 집** 중 승인 대상이 있는 집 목록(표시용).
+
+    :func:`_alive_rows` 와 같은 모양의 얇은 접근자다. 두 축(취소·반품)을 각각 손으로
+    꺼내면 한쪽만 낡는다 — 방어(list 가 아니면 빈 목록)를 한 자리에 둔다.
+
+    대상 선별은 **후보 행을 만든 쪽**(:func:`order_candidates._naver_facts`)이 서버
+    술어(:func:`fulfillment.is_cancel_approvable` / :func:`~fulfillment.is_return_approvable`)
+    로 이미 끝냈다. 여기서 다시 고르지 않는다 — 불가역 경로에서 화면이 자기 술어로
+    재진술하면 "9건 승인합니다"라고 적어 놓고 서버는 1건만 보내는 과대 진술이 된다.
+
+    Args:
+        candidate: 후보 dict.
+        key: ``naver_cancel_approve_groups`` 또는 ``naver_return_approve_groups``.
+
+    Returns:
+        집 목록(없으면 빈 목록). 집 한 칸은
+        ``{"link_id", "external_order_no", "product_order_count", "targets"}``.
+    """
+    groups = candidate.get(key)
+    return groups if isinstance(groups, list) else []
+
+
 def build_reconcile_plan(order: Order, candidate: dict[str, Any], *,
                          relation: str) -> dict[str, Any]:
     """후보 1건 · 관계 1개에 대한 **정리 계획**(화면이 그대로 읽는 사실 묶음).
@@ -206,7 +229,8 @@ def build_reconcile_plan(order: Order, candidate: dict[str, Any], *,
     Returns:
         ``{"relation", "deposit", "can_discard", "discard_needs_reason", "discard_block",
         "can_run", "run_block", "naver_alive_rows", "naver_claim_code",
-        "naver_claim_label"}``.
+        "naver_claim_label", "naver_cancel_approve_groups",
+        "naver_return_approve_groups"}``.
     """
     claim_code = candidate.get("naver_claim_code") or ""
     policy = discard_policy(candidate.get("status") or "", claim_code=claim_code)
@@ -230,6 +254,23 @@ def build_reconcile_plan(order: Order, candidate: dict[str, Any], *,
         # 코드·라벨을 **함께** 싣는다 — 빠뜨리면 이 화면만 옛 축(한국어 문자열 비교)을 본다.
         "naver_claim_code": candidate.get("naver_claim_code") or "",
         "naver_claim_label": candidate.get("naver_claim_label") or "",
+        # 옛 결제의 **취소·반품 승인 대상**(2026-09-07). 화면이 읽는 길을 계획 하나로
+        # 모은다 — 같은 값에 읽는 길이 둘이면(후보 행 직독 + 계획) 한쪽만 고치는 경로가
+        # 열린다. 값은 그대로 옮기고 여기서 변형하지 않는다.
+        #
+        # 이 값은 **관계(REPAY/ADDON)와 무관하다** — 승인은 옛 결제 상태만 보고 우리가
+        # 어떤 관계로 정리할지와 아무 상관이 없다. 그래서 두 계획에 같은 값이 실린다
+        # (``naver_alive_rows``·``naver_claim_code`` 와 같은 규율). 관계별로 다르게
+        # 만들지 마라 — 화면이 관계 버튼을 바꿀 때마다 승인 대상이 달라 보인다.
+        #
+        # 승인은 :func:`run_gate` 를 **바꾸지 않는다**. 눌러도 즉시 확정이 아니라 큐에
+        # 들어가고 워커가 네이버로 보낸다 — 그 확정이 돌아와 집계 코드가 ``all_done``
+        # 이 되면 기존 규칙이 저절로 열어 준다(``can_run``). 화면이 그 흐름을 앞당겨
+        # 정리 실행을 미리 열면, 확정되지 않은 옛 결제 위에 붙이기가 실행된다.
+        "naver_cancel_approve_groups": _approve_groups(
+            candidate, "naver_cancel_approve_groups"),
+        "naver_return_approve_groups": _approve_groups(
+            candidate, "naver_return_approve_groups"),
     }
 
 

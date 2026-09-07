@@ -10,6 +10,9 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
+- [2026-09-07] **이력 탭 권한 확대 + 후보 쌍 판정 운영 반영(PR #304)** — `docs/plans/2026-09-07-naver-candidate-repay-signal-brief.md`
+- [2026-09-07] **휴지통 옛 주문 후보 노출 + 예약금 방향(deploy `19d4ef876`)** — 잔여: 운영 승격
+- [2026-09-07] **진행 중: 옛 결제 취소·반품 승인** — `docs/plans/2026-09-07-naver-old-payment-approve-in-place-brief.md`
 - [2026-09-06] **정산 탭 CFO 감사 후속 19건 운영 반영 완료(PR #298·#300·#301, production `2fce6197c`)** — 원장 `docs/plans/2026-09-05-settlement-cfo-fixes-ledger.md`. 잔여: E-05 비번 로테이션(사용자 "나중에")
 - [2026-09-06] **네이버 워크벤치 휴지통 UI + 단계 한글화 운영 반영(PR #297 `a5b2697ff` · #299 `7de57c03d`)** — 집 pane 조건부 버튼 6상태. **판정 축은 주문**(`judge_order_discard` 가 `find_ghost_orders` 셈법 재사용 — 살아 있는 ADDON 집이 있으면 빠진다). 기존 라우트 재사용이라 **신규 manifest 없음**. 단계는 `status_label` 로 전 화면 한글(판정 축·감사 원장은 enum 불변). 선행 `afb0b4396` 동반 승격. 원장 `docs/plans/2026-09-04-ghost-discard-pane-ledger.md`
 - [2026-09-06] **CI 간헐 `JSONDecodeError` 는 flaky 가 아니라 파일 경합이었다(운영 반영)** — `data/holidays_kr_<year>.json` 이 저장소에 없어(`.gitignore:164`) xdist 워커 셋이 `2099` 파일을 동시에 만들고 `open("w")` 가 비운 창을 읽었다. 임시 파일+fsync+`os.replace` 원자 교체 + 읽기 재시도(삼키지 않음), 회귀 계약 5건. 테스트 산출물 31건 추적 해제 동반
