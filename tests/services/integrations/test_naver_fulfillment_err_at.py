@@ -25,6 +25,13 @@ WORKBENCH = pathlib.Path("templates/admin/naver_workbench.html").read_text(encod
 WATCH_CALLERS = ("submitConfirm", "submitDispatch", "submitCancel", "submitReturn",
                  "submitReturnReject", "submitClaimApprove", "submitRefresh")
 
+#: pane 밖(띠·정리 계획 카드)에서 쏘는 세 갈래 — :func:`watchOriginAct` 를 쓴다.
+#: pane 갈래와 **같은 결함이 그대로 남아 있었다**(CEO FIX 2026-09-07): 축이 다른 옛
+#: 실패(발송처리 등)가 `last_error` 에 남아 있으면 — `_clear_settled_failures` 는
+#: **같은 축만** 지운다 — 환불이 **성공했는데** 버튼이 "취소 승인 실패"라고 말했다.
+ORIGIN_WATCH_CALLERS = ("submitOriginCancel", "submitOriginReturn",
+                        "submitPlanClaimApprove")
+
 
 def test_every_watch_caller_passes_the_base_error_time():
     """여섯 갈래 전부 `err_at` 을 넘긴다 — 한 갈래만 고치면 나머지가 거짓말한다."""
@@ -36,6 +43,39 @@ def test_every_watch_caller_passes_the_base_error_time():
         body = JS.split(needle)[1].split("async function")[0]
         assert "watchFulfillment(" in body, name
         assert "result.data && result.data.err_at" in body, f"{name} 이 err_at 를 안 넘긴다"
+
+
+def test_every_origin_watch_caller_passes_the_base_error_time():
+    """띠·정리 계획 카드의 세 갈래도 `err_at` 을 넘긴다 — pane 갈래와 같은 규칙이다.
+
+    한 갈래만 고치면 나머지가 거짓말한다는 것은 2026-09-04 에 이미 청구서를 받은 교훈인데,
+    `watchOriginAct` 쪽은 그때 함께 고쳐지지 않았다.
+    """
+    for name in ORIGIN_WATCH_CALLERS:
+        needle = f"async function {name}("
+        assert needle in JS, f"{name} 이 사라졌다(이름이 바뀌었나)"
+        body = JS.split(needle)[1].split("async function")[0]
+        assert "watchOriginAct(" in body, name
+        assert "errAt: result.data && result.data.err_at" in body,             f"{name} 이 err_at 기준선을 안 넘긴다 — 옛 실패를 이번 실패로 말한다"
+
+
+def test_origin_watch_compares_against_the_base_error_time():
+    """`watchOriginAct` 는 실패 **시각**을 견준다 — "실패가 있다"만 보고 말하지 않는다."""
+    assert "state.last_error_at !== baseErrAt" in JS
+    # 실패 표시(글자·빨간 표식)가 둘 다 그 판정을 쓴다 — 한쪽만 고치면 글자는 성공인데
+    # 버튼만 빨갛게 남는다.
+    assert "btn.classList.toggle('wb-origin-act--err', !!freshError)" in JS
+
+
+def test_the_plan_approve_done_text_does_not_promise_an_open_gate():
+    """승인 완료 문장이 `정리 실행` 이 **이미 열렸다**고 단정하지 않는다.
+
+    폴링이 보는 것은 승인 표식이 뒤집힌 순간이고, 잠금을 여는 것은 그 뒤의 스냅샷
+    재조회(`_enqueue_refresh_after` → 집계 `all_done` → `run_gate`)다. 그 사이를
+    "열립니다"로 단정하면 새로고침한 사람이 여전히 잠긴 버튼을 본다.
+    """
+    assert "승인이 네이버에 반영되면 정리 실행이 열립니다" in JS
+    assert "완료 — 새로고침하면 정리 실행이 열립니다" not in JS
 
 
 def test_the_undefined_fallback_is_gone():
@@ -59,4 +99,4 @@ def test_the_cancel_failure_note_points_at_the_approve_button():
 
 def test_the_asset_pin_moved():
     """JS 를 고쳤으면 핀을 올린다 — 서비스워커 캐시가 옛 파일을 준다."""
-    assert WORKBENCH.count("?v=20260904d") == 2, "CSS·JS 핀을 함께 올린다"
+    assert WORKBENCH.count("?v=20260907a") == 2, "CSS·JS 핀을 함께 올린다"

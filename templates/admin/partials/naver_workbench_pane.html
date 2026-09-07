@@ -1290,6 +1290,59 @@
                         {% else %}
                         <div class="wb-plan__d">이 주문에 붙은 네이버 수집분이 없습니다.</div>
                         {% endif %}
+                        {# ── 옛 결제 승인 2종(2026-09-07) ────────────────────────
+                           바로 위 문장("네이버가 아직 확정하지 않았습니다 — 확정된 뒤에
+                           정리하세요")은 **확정시킬 방법**을 이 화면에 두지 않았다. 담당자는
+                           판매자센터로 나가야 했다. 그 문장을 지우지 않고 그 아래에 버튼을
+                           붙인다 — 그 문장이 곧 이 버튼이 필요한 이유다.
+
+                           조건은 라우트와 **같은 셋**이다: 승인 게이트 ON + 권한(ADMIN·MANAGER)
+                           + 대상 1건 이상. 한쪽만 열면 눌린 버튼이 403 을 받는다(워크벤치
+                           게이트는 이 pane 자체가 그 안에서만 렌더되므로 이미 만족한다).
+
+                           대상은 **서버 술어**(`fulfillment.is_cancel_approvable` /
+                           `is_return_approvable`)가 이미 골라 뒀다. 화면은 다시 고르지도
+                           세지도 않고 `targets|length` 만 되읽는다 — 불가역 경로에서 화면이
+                           자기 방식으로 세면 "9건 승인합니다"라고 적어 놓고 서버는 1건만
+                           보내는 과대 진술이 되고, 그게 곧 사고다.
+
+                           읽는 길은 **정리 계획 하나뿐**이다(`cand.reconcile.REPAY.…`).
+                           `cand` 에서 직접 읽으면 같은 값에 길이 둘이 되어 한쪽만 고치는
+                           경로가 열린다. 관계(REPAY/ADDON)와 무관한 값이라 REPAY 를 읽는다. #}
+                        {% if cancel_approve_enabled and claim_approve_can_act %}
+                        {% for g in cand.reconcile.REPAY.naver_cancel_approve_groups %}
+                        {% if g.targets %}
+                        <div class="mt-2">
+                            <button type="button" class="btn btn-sm btn-danger wb-plan-approve"
+                                    data-kind="cancel" data-link-id="{{ g.link_id }}"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#wb-modal-plan-cancel-approve-{{ g.link_id }}">
+                                네이버 취소 승인 — 환불 확정 {{ g.targets|length }}건
+                            </button>
+                            {# 이 한 줄은 **늘 보인다**. 지금 열려 있는 집과 승인 대상이 다른
+                               자리라, 무엇에 돈이 나가는지를 누르기 전에 말한다. #}
+                            <div class="wb-plan__d">이 버튼은 옛 결제({{ g.external_order_no }})만
+                                승인합니다 — 지금 보고 있는 새 결제는 건드리지 않습니다.</div>
+                        </div>
+                        {% endif %}
+                        {% endfor %}
+                        {% endif %}
+                        {% if return_approve_enabled and claim_approve_can_act %}
+                        {% for g in cand.reconcile.REPAY.naver_return_approve_groups %}
+                        {% if g.targets %}
+                        <div class="mt-2">
+                            <button type="button" class="btn btn-sm btn-danger wb-plan-approve"
+                                    data-kind="return" data-link-id="{{ g.link_id }}"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#wb-modal-plan-return-approve-{{ g.link_id }}">
+                                네이버 반품 승인 — 환불 확정 {{ g.targets|length }}건
+                            </button>
+                            <div class="wb-plan__d">이 버튼은 옛 결제({{ g.external_order_no }})만
+                                승인합니다 — 지금 보고 있는 새 결제는 건드리지 않습니다.</div>
+                        </div>
+                        {% endif %}
+                        {% endfor %}
+                        {% endif %}
                     </div>
                 </div>
 
@@ -1874,6 +1927,163 @@
         </div>
     </div>
 </div>
+{% endif %}
+
+{# ── 정리 계획 카드의 **옛 결제 승인** 모달 2종(2026-09-07) ──────────────────
+   자리를 여기 두는 이유: `.wb-plan` 은 `hidden` 컨테이너라 그 안에 모달을 넣으면
+   백드롭만 깔리고 내용이 안 뜬다. 그래서 기존 모달 블록 옆으로 낸다.
+
+   id 는 **집 대표 링크 id** 로 유일하게 만든다(한 링크는 한 주문에만 붙으므로 문서
+   전체에서 유일하다 — 절대 규칙 1). 지금 집 전용 id(`#wb-modal-cancel-approve`)를
+   재사용하지 않는다: 대상이 후보마다 달라서, 재사용하면 눌린 버튼이 **남의 집** 목록을
+   열고 그 목록대로 환불이 나간다.
+
+   루프 조건은 버튼 조건과 **글자 그대로 같다** — 갈리면 열린 버튼이 빈 모달을 연다
+   (v2 에서 실제로 났던 결함). #}
+{% if selected.candidates %}
+{% for cand in selected.candidates %}
+{% if cand.reconcile %}
+{% if cancel_approve_enabled and claim_approve_can_act %}
+{% for g in cand.reconcile.REPAY.naver_cancel_approve_groups %}
+{% if g.targets %}
+<div class="modal fade" id="wb-modal-plan-cancel-approve-{{ g.link_id }}"
+     tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">옛 결제의 취소를 승인하기 전에 확인하세요</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
+            </div>
+            <div class="modal-body">
+                {# ① 어느 집인가 — 지금 열려 있는 **새 결제가 아니다**. 승인 대상이 다른
+                   자리라 집을 먼저 말하지 않으면 사람이 화면의 집으로 읽는다.
+
+                   이 목록은 **서버가 실제로 보낼 건 그대로**다(CEO FIX 2026-09-07).
+                   후보 행을 만드는 쪽(`order_candidates._approve_groups_view`)이 집마다
+                   `fulfillment.links_of_group` 을 불러 **서버와 같은 모집단**을 세우고 그
+                   ORM 행에 서버 술어를 걸었다 — 다른 FOMS 주문에 붙은 형제도, 아직 아무
+                   데도 안 붙은 형제도 함께 들어 있다. 그전에는 *이 주문에 붙은* 링크만 봐서
+                   화면이 2건이라 적고 서버가 3건을 보내는 자리였다.
+
+                   그래도 문장은 건수로 단정하지 않고 **아래 상품주문**이라고 적는다 —
+                   목록 자체가 대상의 정본이고, 건수는 카드 버튼이 같은 목록 길이로 말한다. #}
+                <p class="fw-semibold mb-2">
+                    주문 #{{ cand.order_id }} {{ cand.customer_name }} ·
+                    네이버 주문번호 <b>{{ g.external_order_no }}</b> 의
+                    <b>아래 상품주문</b>의 취소를 승인합니다.
+                </p>
+                {# ② 건수가 아니라 **목록**을 재진술한다(CEO 판정 2026-09-01) — 집 하나에
+                   상품주문이 여럿이고, 이 프로젝트는 집 묶기에서 이미 데였다.
+                   금액 리더는 카드 합계와 **같은 값**(productOrder.totalPaymentAmount)이다. #}
+                <ul class="small mb-2 ps-3">
+                    {% for t in g.targets %}
+                    <li>상품주문 {{ t.external_id }} · 결제 {{ '{:,}'.format(t.amount or 0) }}원</li>
+                    {% endfor %}
+                </ul>
+                {% if g.product_order_count > (g.targets|length) %}
+                <p class="small mb-2">
+                    나머지 <b>{{ g.product_order_count - (g.targets|length) }}건</b>은 취소 요청이 없거나 이미 승인됐거나
+                    네이버가 보류를 걸어 둔 건이라 <b>이번에 보내지 않습니다</b>.
+                </p>
+                {% endif %}
+                {# ③ 되돌릴 수 없음. `.alert` 는 5초 뒤 자동으로 닫히므로 표식이 필수다. #}
+                <div class="alert alert-danger py-2 mb-2" data-foms-no-autodismiss>
+                    승인하면 <b>환불이 확정되고 되돌릴 수 없습니다.</b>
+                    네이버에는 판매자가 취소를 <b>거절하는 방법이 없습니다</b> —
+                    철회는 구매자만 할 수 있습니다.
+                </div>
+                {# ④ 사후 경로 — **비동기**다. 네이버 HTTP 는 워커에서만 나간다. #}
+                <p class="small text-muted mb-0">
+                    보내면 큐에 들어가고 워커가 네이버로 보냅니다 — <b>즉시 확정되지 않습니다.</b>
+                    확정된 뒤 새로고침하면 이 카드의 <b>정리 실행</b>이 열립니다.
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">그만두기</button>
+                {# 후보·집 수만큼 나오는 버튼이라 id 를 달지 않는다(절대 규칙 1) —
+                   JS 는 클래스로 물고 `data-link-id`·`data-kind` 만 옮긴다. #}
+                <button type="button" class="btn btn-danger wb-plan-approve-confirm"
+                        data-kind="cancel" data-link-id="{{ g.link_id }}">
+                    네이버로 취소 승인 보내기
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endfor %}
+{% endif %}
+{% if return_approve_enabled and claim_approve_can_act %}
+{% for g in cand.reconcile.REPAY.naver_return_approve_groups %}
+{% if g.targets %}
+<div class="modal fade" id="wb-modal-plan-return-approve-{{ g.link_id }}"
+     tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">옛 결제의 반품을 승인하기 전에 확인하세요</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
+            </div>
+            <div class="modal-body">
+                {# ① 어느 집인가 — 지금 열려 있는 **새 결제가 아니다**. 승인 대상이 다른
+                   자리라 집을 먼저 말하지 않으면 사람이 화면의 집으로 읽는다.
+
+                   이 목록은 **서버가 실제로 보낼 건 그대로**다(CEO FIX 2026-09-07).
+                   후보 행을 만드는 쪽(`order_candidates._approve_groups_view`)이 집마다
+                   `fulfillment.links_of_group` 을 불러 **서버와 같은 모집단**을 세우고 그
+                   ORM 행에 서버 술어를 걸었다 — 다른 FOMS 주문에 붙은 형제도, 아직 아무
+                   데도 안 붙은 형제도 함께 들어 있다. 그전에는 *이 주문에 붙은* 링크만 봐서
+                   화면이 2건이라 적고 서버가 3건을 보내는 자리였다.
+
+                   그래도 문장은 건수로 단정하지 않고 **아래 상품주문**이라고 적는다 —
+                   목록 자체가 대상의 정본이고, 건수는 카드 버튼이 같은 목록 길이로 말한다. #}
+                <p class="fw-semibold mb-2">
+                    주문 #{{ cand.order_id }} {{ cand.customer_name }} ·
+                    네이버 주문번호 <b>{{ g.external_order_no }}</b> 의
+                    <b>아래 상품주문</b>의 반품을 승인합니다.
+                </p>
+                {# ② 건수가 아니라 **목록**을 재진술한다(CEO 판정 2026-09-01) — 집 하나에
+                   상품주문이 여럿이고, 이 프로젝트는 집 묶기에서 이미 데였다.
+                   금액 리더는 카드 합계와 **같은 값**(productOrder.totalPaymentAmount)이다. #}
+                <ul class="small mb-2 ps-3">
+                    {% for t in g.targets %}
+                    <li>상품주문 {{ t.external_id }} · 결제 {{ '{:,}'.format(t.amount or 0) }}원</li>
+                    {% endfor %}
+                </ul>
+                {% if g.product_order_count > (g.targets|length) %}
+                <p class="small mb-2">
+                    나머지 <b>{{ g.product_order_count - (g.targets|length) }}건</b>은 반품 요청이 없거나 이미 승인·거부됐거나
+                    네이버가 보류를 걸어 둔 건이라 <b>이번에 보내지 않습니다</b>.
+                </p>
+                {% endif %}
+                {# ③ 되돌릴 수 없음. `.alert` 는 5초 뒤 자동으로 닫히므로 표식이 필수다. #}
+                <div class="alert alert-danger py-2 mb-2" data-foms-no-autodismiss>
+                    승인하면 <b>환불이 확정되고 되돌릴 수 없습니다.</b>
+                    거부할 생각이라면 이 버튼이 아니라 <b>반품 거부</b>를 쓰세요.
+                </div>
+                {# ④ 사후 경로 — **비동기**다. 네이버 HTTP 는 워커에서만 나간다. #}
+                <p class="small text-muted mb-0">
+                    보내면 큐에 들어가고 워커가 네이버로 보냅니다 — <b>즉시 확정되지 않습니다.</b>
+                    확정된 뒤 새로고침하면 이 카드의 <b>정리 실행</b>이 열립니다.
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">그만두기</button>
+                {# 후보·집 수만큼 나오는 버튼이라 id 를 달지 않는다(절대 규칙 1) —
+                   JS 는 클래스로 물고 `data-link-id`·`data-kind` 만 옮긴다. #}
+                <button type="button" class="btn btn-danger wb-plan-approve-confirm"
+                        data-kind="return" data-link-id="{{ g.link_id }}">
+                    네이버로 반품 승인 보내기
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endfor %}
+{% endif %}
+{% endif %}
+{% endfor %}
 {% endif %}
 
 {% else %}
