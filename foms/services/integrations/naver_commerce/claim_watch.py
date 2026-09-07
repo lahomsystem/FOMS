@@ -39,6 +39,7 @@ from foms.services.integrations.naver_commerce.mapping import (
     group_key_text,
     unwrap_detail,
 )
+from foms.services.orders.measure_progress import judge_measure_progress
 from models import (
     ExternalOrderLink,
     Notification,
@@ -173,6 +174,16 @@ def _compose(session: Session, links: list[ExternalOrderLink],
     같은 취소가 알림 4건이 된다(2026-08-25 운영 실사례: 상품주문번호 …391/401/411/421).
     번호는 대표 1개 + "외 N건"으로 적어 사람이 집 하나로 읽게 한다.
 
+    문안에는 **실측 전/후 축**도 함께 나간다(2026-09-07 사용자 요구). 실측을 나가면
+    사람·차·시간이 이미 나간 것이라 실측 전 취소와 실측 후 취소는 회수·정산·응대가
+    전부 다르고, 담당자가 폰에서 한 줄로 그 차이를 읽어야 한다.
+
+    다만 **알림 단위는 집이고 실측은 ERP 주문 1건의 사실**이다. 그래서 이 집이 붙은
+    FOMS 주문이 있을 때만 붙인다 — 아직 주문으로 만들지 않은 수집분에는 실측을 말할
+    근거가 없으므로 제목·본문 어디에도 넣지 않는다. 판정·문구는
+    :func:`foms.services.orders.measure_progress.judge_measure_progress` 한 곳에서만
+    나온다(유령 목록·집 pane 과 같은 함수·같은 낱말).
+
     Args:
         session: DB 세션(고객명 조회에만 쓴다).
         links: 같은 집에서 같은 상태로 바뀐 링크들(최소 1건, 입력 순서 보존).
@@ -184,8 +195,15 @@ def _compose(session: Session, links: list[ExternalOrderLink],
     head = links[0]
     order_id = next((int(row.order_id) for row in links if row.order_id), None)
     order = session.get(Order, order_id) if order_id else None
+    # 집 1건당 **한 번만** 잰다. 링크 루프 안에서 부르면 세부옵션 수만큼 실측일
+    # 조회(``order.schedule_dates``)가 늘어 5분 스윕이 그만큼 무거워진다.
+    progress = judge_measure_progress(order) if order is not None else None
     who = getattr(order, "customer_name", None) or _snapshot_customer(head)
     title = f"네이버 {claim['label']} — {who}".strip(" —")
+    if progress is not None:
+        # code 가 ``none`` 이어도 붙인다 — 폰에서 표식이 아예 없으면 '주문이 없어서'인지
+        # '실측 여부를 모르는 건지' 구별이 안 된다. 모른다는 것도 사실이다.
+        title = f"{title} · {progress.label}"
     reason = claim_reason_text(claim["reason"])
     detail = f" · 사유 {reason}" if reason else ""
     where = (f"FOMS 주문 #{order_id}" if order_id
@@ -199,8 +217,11 @@ def _compose(session: Session, links: list[ExternalOrderLink],
     if product:
         parts.append(product)
     parts.append(f"상품주문번호 {head.external_id}{extra}")
+    # 주문이 없으면 빈 문자열 — 변경 전 문안과 한 글자도 달라지지 않는다.
+    notice = f"{progress.notice} " if progress is not None else ""
     message = (
         f"네이버에서 {claim['label']} 상태로 바뀐 주문이 있습니다{detail}. "
+        f"{notice}"
         f"({' · '.join(parts)}) "
         "일정·생산이 잡혀 있으면 진행을 멈추고 네이버 판매자센터에서 확인하세요."
     )

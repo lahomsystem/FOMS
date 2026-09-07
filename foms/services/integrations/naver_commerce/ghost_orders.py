@@ -35,12 +35,18 @@
 * ``rejected`` — 거부·철회는 **주문이 살아 있다는 뜻**이라 클레임으로 세지 않는다.
 
 **자동으로 지우지 않는다.** 목록과 근거를 내놓고 사람이 고른다.
+
+2026-09-07: 행과 pane 이 ``measure`` 키(``orders.measure_progress.judge_measure_progress``)를
+함께 낸다 — 실측 전 취소와 실측 후 취소는 회수·정산·응대가 다르다. **표시 축일 뿐이라
+모집단·``can_discard`` 판정은 이 값을 한 글자도 보지 않는다.**
 """
 
 from __future__ import annotations
 
 import logging
 from typing import Any, Optional
+
+from sqlalchemy.orm import selectinload
 
 from foms.services.integrations.naver_commerce.grouping import resolve_group_key
 from foms.services.integrations.naver_commerce.mapping import (
@@ -54,6 +60,7 @@ from foms.services.integrations.naver_commerce.mapping import (
     extract_claim,
 )
 from foms.services.orders.erp_policy_constants import STAGE_LABELS
+from foms.services.orders.measure_progress import judge_measure_progress
 from models import ExternalOrderLink, Order
 
 logger = logging.getLogger(__name__)
@@ -250,7 +257,8 @@ def find_ghost_orders(session, *, limit: int = GHOST_LIST_LIMIT) -> dict[str, An
     Returns:
         ``{"count": 전체 건수, "rows": [...]}``. 각 행은 주문 요약 + 네이버 사실 +
         ``can_discard``(취소 처리 버튼을 열지) + ``discard_block``(못 여는 이유) +
-        ``discard_needs_reason``(접으려면 관리자 사유 문장이 필요한지).
+        ``discard_needs_reason``(접으려면 관리자 사유 문장이 필요한지) +
+        ``measure``(실측 전/후 표시 축 — 판정에는 안 쓴다).
     """
     rows = (
         session.query(ExternalOrderLink.order_id, ExternalOrderLink.raw_snapshot,
@@ -272,6 +280,9 @@ def find_ghost_orders(session, *, limit: int = GHOST_LIST_LIMIT) -> dict[str, An
     orders = (
         session.query(Order)
         .filter(Order.id.in_(ghost_ids), Order.not_deleted_filter())  # perf-ok: id batch
+        # 실측 축(judge_measure_progress)이 schedule_dates 관계를 읽는다 — N+1 방지 필수.
+        # 같은 이유·같은 패턴이 foms/services/measurement_undated.py 에 있다.
+        .options(selectinload(Order.schedule_dates))
         .all()
     )
     if not orders:
@@ -292,6 +303,8 @@ def find_ghost_orders(session, *, limit: int = GHOST_LIST_LIMIT) -> dict[str, An
             "naver_link_count": bucket["link_count"],
             "lead_link_id": bucket["lead_link_id"],
             "naver_amount_total": bucket["amount_total"],
+            # 표시 축만 추가한다 — 폐기 판정(_discard_verdict)은 이 값을 안 본다.
+            "measure": judge_measure_progress(order),
             **_discard_verdict(bucket, status),
         })
 
@@ -448,7 +461,7 @@ def judge_order_discard(session, order_id: int, *, group_key: str = "") -> dict[
         ``applicable``(이 주문에 클레임이 하나라도 있어 이 블록을 그릴지) ·
         ``can_discard`` · ``discard_needs_reason`` · ``discard_block`` 과
         화면이 재진술할 사실(``status_label``·``link_count``·``canceled_count``·
-        ``claim_kind``·``repay_candidates``).
+        ``claim_kind``·``repay_candidates``·``measure``).
     """
     rows = (
         session.query(ExternalOrderLink.id, ExternalOrderLink.raw_snapshot,
@@ -523,5 +536,7 @@ def judge_order_discard(session, order_id: int, *, group_key: str = "") -> dict[
         "link_count": bucket["link_count"],
         "canceled_count": bucket["canceled"],
         "repay_candidates": candidates,
+        # 띠와 **같은 함수·같은 문구**. pane 용으로 다시 만들지 않는다.
+        "measure": judge_measure_progress(order),
         **verdict,
     }

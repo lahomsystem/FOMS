@@ -807,6 +807,14 @@ input.wb-pick:disabled,
 /* 확정 전 = 폐기 버튼이 잠긴 행. 색이 잠금 이유를 미리 말한다. */
 .wb-ghost__claim--pending { color: var(--wb-warn); }
 
+/* 실측 축(2026-09-07) — 실측 전 취소와 실측 후 취소는 회수·정산·응대가 다르다.
+   after 를 가장 세게 말한다 — 사람·차가 이미 나간 비용이라 눈에 들어와야 한다.
+   none 도 흐리게 두지 않는다 — `모른다`는 것도 사실이다. */
+.wb-ghost__meas { font-size: calc(11px * var(--wb-fs, 1)); }
+.wb-ghost__meas--after { color: var(--wb-danger, #b42318); font-weight: 700; }
+.wb-ghost__meas--before { color: var(--wb-muted); }
+.wb-ghost__meas--none { color: var(--wb-warn); }
+
 .wb-ghost__list { width: 100%; border-collapse: collapse; }
 .wb-ghost__list th, .wb-ghost__list td {
     text-align: left;

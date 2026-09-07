@@ -19,7 +19,7 @@
 {% block title %}네이버 수집{% endblock %}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260907b">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260907c">
 {% endblock %}
 
 {% block content %}
@@ -158,6 +158,12 @@
                         {# 단계는 **한글**로 낸다 — 담당자에게 `MEASURE` 는 코드지 단계가
                            아니다(사용자 결정 2026-09-04). 정본은 STAGE_LABELS. #}
                         {{ row.status_label }}
+                        {# 실측 전 취소인지 실측 후 취소인지 — 회수·정산·응대가 다르다.
+                           문구는 서버(`judge_measure_progress`) 한 곳에서만 만든다. #}
+                        <div class="wb-ghost__meas wb-ghost__meas--{{ row.measure.code }}">{{ row.measure.text }}</div>
+                        {% if row.measure.basis_text %}
+                        <div class="wb-ghost__dim">{{ row.measure.basis_text }}</div>
+                        {% endif %}
                         {% if not row.can_discard %}
                         <div class="wb-ghost__dim">{{ row.discard_block }}</div>
                         {% endif %}
