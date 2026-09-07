@@ -13,24 +13,13 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 - [2026-09-07] **옛 결제 승인 버튼 운영 반영(PR #307 · production `90e82cf7b`)** — 정리 계획 카드 ⓘ 행에서 옛 집 취소·반품 승인. 대상은 `fulfillment.links_of_group` + 서버 술어로 뽑아 **화면 대상 == 서버 대상**(리뷰 P0: 후보 주문 링크만 세면 과소 진술 → 화면 2건·서버 3건 환불). 비용 가드 `_naver_facts(with_approve=False)` 기본
 - [2026-09-07] **조작 뒤 제자리 갱신 + 도크 재결제 문구(deploy 대기 `c3c4c7abc`)** — 조작 완료(rev 이동) 시 `softRefresh`, 실패 시엔 안 그린다. 도크 재결제 줄 = `지금 받은 결제입니다 …`(옛 문구는 지금 결제를 취소 잔재로 읽게 했다). 핀 `?v=20260907b` 3줄
 - [2026-09-07] **확인: 취소 확정 주문 자동 폐기는 존재하지 않는다(설계상 잘라낸 범위)** — `soft_delete_order` 호출부 4곳 전부 사람이 누르는 라우트. 사용자 결정: **지금처럼 수동 유지**. 자동화 시 함정 11종은 조사 결과 참조(재결제 짝·확정 전 취소·교환·워커 행위자 부재·모집단 술어 불일치)
-- [2026-09-07] **취소·반품에 실측 전/후 맥락(deploy 대기)** — 판정 SSOT `foms/services/orders/measure_progress.py`(measurement_completed 진행 단계 실측일 순, 하나라도 오늘 이하면 `실측 후`). 클레임 알림 제목·본문 + 유령 목록 행 + 집 pane 이 **같은 함수·같은 낱말**. 표시 축이라 판정·모집단은 안 본다
-- [2026-09-07] **휴지통 표기 + 유령 문장 사실화(deploy 대기)** — 접은 순간 폐기 블록이 통째로 사라져 "휴지통으로 보냈다"를 화면이 한 글자도 말하지 않았다(사용자 보고). `read_order_trash` 신설(표기 전용) + pane 머리줄 독립 배지 + 블록에 `MM-DD HH:MM 삭제 · 사유`. 문장은 세 갈래로 갈라 **집 수와 상품주문 수를 한 문장에 섞지 않는다**(옛 `14건 중 9건만 취소`). 브리프 `docs/plans/2026-09-07-naver-trash-trace-and-ghost-sentence-brief.md`
+- [2026-09-07] **취소·반품에 실측 전/후 맥락(deploy 대기)** — 판정 SSOT `foms/services/orders/measure_progress.py`. 클레임 알림·유령 목록·집 pane 이 같은 함수·같은 낱말. 표시 축이라 판정·모집단은 안 본다
+- [2026-09-07] **휴지통 표기 + 유령 문장 사실화(deploy 대기)** — 접은 순간 폐기 블록이 사라져 화면이 아무 말도 안 했다(사용자 보고). `read_order_trash`(표기 전용) + 머리줄 독립 배지 + `MM-DD HH:MM 삭제 · 사유`. 문장은 세 갈래로 갈라 집 수와 상품주문 수를 안 섞는다(옛 `14건 중 9건만 취소`). 브리프 `docs/plans/2026-09-07-naver-trash-trace-and-ghost-sentence-brief.md`
 - [2026-09-07] **이력 탭 권한 확대 + 후보 쌍 판정 운영 반영(PR #304)** — `docs/plans/2026-09-07-naver-candidate-repay-signal-brief.md`
 - [2026-09-07] **휴지통 옛 주문 후보 노출 + 예약금 방향(deploy `19d4ef876`)** — 잔여: 운영 승격
 - [2026-09-07] **진행 중: 옛 결제 취소·반품 승인** — `docs/plans/2026-09-07-naver-old-payment-approve-in-place-brief.md`
 - [2026-09-06] **정산 탭 CFO 감사 후속 19건 운영 반영 완료(PR #298·#300·#301, production `2fce6197c`)** — 원장 `docs/plans/2026-09-05-settlement-cfo-fixes-ledger.md`. 잔여: E-05 비번 로테이션(사용자 "나중에")
-- [2026-09-06] **네이버 워크벤치 휴지통 UI + 단계 한글화 운영 반영(PR #297 `a5b2697ff` · #299 `7de57c03d`)** — 집 pane 조건부 버튼 6상태. **판정 축은 주문**(`judge_order_discard` 가 `find_ghost_orders` 셈법 재사용 — 살아 있는 ADDON 집이 있으면 빠진다). 기존 라우트 재사용이라 **신규 manifest 없음**. 단계는 `status_label` 로 전 화면 한글(판정 축·감사 원장은 enum 불변). 선행 `afb0b4396` 동반 승격. 원장 `docs/plans/2026-09-04-ghost-discard-pane-ledger.md`
 - [2026-09-06] **CI 간헐 `JSONDecodeError` 는 flaky 가 아니라 파일 경합이었다(운영 반영)** — `data/holidays_kr_<year>.json` 이 저장소에 없어(`.gitignore:164`) xdist 워커 셋이 `2099` 파일을 동시에 만들고 `open("w")` 가 비운 창을 읽었다. 임시 파일+fsync+`os.replace` 원자 교체 + 읽기 재시도(삼키지 않음), 회귀 계약 5건. 테스트 산출물 31건 추적 해제 동반
-- [2026-09-04] **정리 계획 카드 정직화 + 취소 처리 정책 동기화 운영 반영(PR #294 · `29a6e72bd`)** — 잠금 축을 단계에서 옛 결제 확정 여부로(`discard_policy`), 단계는 `needs_reason`(관리자+사유). `run_gate` 로 확정 전 실행 차단. 후보 버튼 강조 `recommended_relation` 연동. 원장 `docs/plans/2026-09-04-naver-reconcile-card-ledger.md`
-- [2026-09-04] **ERP 본공정 드롭다운 AS 표시 운영 반영(PR #292 · `5eb72ce40`)** — 드롭다운 AS 미표시 3겹 해소 + status 경로 2곳이 stage 를 덮던 구멍을 `AS_OVERLAY_PRESERVE_WORKFLOW_STAGE` 로 봉합. **잔여=레거시 stage 오염 477건(큐 이탈 62건)**
-- [2026-09-03] **AS 상태 증발 2건 운영 반영(PR #288 · `ac23a6c16`)** — AS 축 투영 ERP 게이트 이탈(`sync_as_axis_column`) + 열린 AS 건 status 봉인(`as_overlay_outranks_status_write`). 회귀 없음(잠복). 운영 5건 복구
-- [2026-09-03] **회계팀 권한 정리(deploy)** — ACCOUNTING 을 CS 동등 권한으로(alias `team_has_capability`, 팀 게이트 8곳), 정산 화면·행 API·채널 탭은 **ADMIN+회계팀** 전용(SSOT `is_accounting_or_admin`). 입금확인은 CS/영업 유지
-- [2026-09-02] **네이버 발송처리 평일 16:50 자동 실행 ON**(PR #270 · `51c366e9`) — 대상은 수동과 같은 함수·주말/공휴일 제외·하루 1회. 끄기=`FOMS_NAVER_AUTO_DISPATCH_ENABLED=0`+워커 재배포
-- [2026-09-03] **하트비트 S2b 기각 · S1 카운터는 남김** — 렌더 전 304 는 이득 부재로 접음(적중률 21%). 그림자 플래그 양쪽 off. 원장 §P8~§P12
-- [2026-09-02] **트리아지 자동매칭 사고 반영 완료** — 잔여: 전화 어긋남 36건 재판정
-- [2026-09-02] **네이버 클레임 승인 T9 운영 ON**(PR #249 · `b0c81413`) — 취소 요청 승인 신설+반품 승인 독립 경로. 게이트 `FOMS_NAVER_{CANCEL,RETURN}_APPROVE_ENABLED=1`(web 전용). **취소 거부 API 는 네이버에 없다.**
-- [2026-09-01] **네이버 일괄 발송처리 결과 UI·안 붙은 수집분 운영 반영(PR #219·#227)** — 띠가 완료/일부/실패/대기 4상태, 실패 줄마다 재시도, 안 붙은 수집분을 전화·수령인명으로 짚는다. 잔여=자산 핀 범프·실브라우저 확인·미연결 21묶음
-- ⚠️ [2026-08-23] **로컬 dev DB 행 소실(로컬 한정)** — pytest 가 conftest 보다 먼저 `db` import → 로컬 PG `drop_all`. 운영 무관, 수정 완료
 
 ## 알려진 이슈
 - 차단 이슈 없음. 남은 구조 부채는 `WR-B1`/`WR-J1`/`WR-H1` 처럼 explicit future-batch 조건으로만 존재한다. `wdcalculator_scripts_config.html` Jinja 변수 주입 구간의 JS lint false-positive 는 기존과 동일.
@@ -60,6 +49,17 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 
 
 ## 최근 완료 (최대 5개)
+- [2026-09-06] **네이버 워크벤치 휴지통 UI + 단계 한글화 운영 반영(PR #297 `a5b2697ff` · #299 `7de57c03d`)** — 집 pane 조건부 버튼 6상태. **판정 축은 주문**(`judge_order_discard` 가 `find_ghost_orders` 셈법 재사용 — 살아 있는 ADDON 집이 있으면 빠진다). 기존 라우트 재사용이라 **신규 manifest 없음**. 단계는 `status_label` 로 전 화면 한글(판정 축·감사 원장은 enum 불변). 선행 `afb0b4396` 동반 승격. 원장 `docs/plans/2026-09-04-ghost-discard-pane-ledger.md`
+- [2026-09-04] **정리 계획 카드 정직화 + 취소 처리 정책 동기화 운영 반영(PR #294 · `29a6e72bd`)** — 잠금 축을 단계에서 옛 결제 확정 여부로(`discard_policy`), 단계는 `needs_reason`(관리자+사유). `run_gate` 로 확정 전 실행 차단. 후보 버튼 강조 `recommended_relation` 연동. 원장 `docs/plans/2026-09-04-naver-reconcile-card-ledger.md`
+- [2026-09-04] **ERP 본공정 드롭다운 AS 표시 운영 반영(PR #292 · `5eb72ce40`)** — 드롭다운 AS 미표시 3겹 해소 + status 경로 2곳이 stage 를 덮던 구멍을 `AS_OVERLAY_PRESERVE_WORKFLOW_STAGE` 로 봉합. **잔여=레거시 stage 오염 477건(큐 이탈 62건)**
+- [2026-09-03] **AS 상태 증발 2건 운영 반영(PR #288 · `ac23a6c16`)** — AS 축 투영 ERP 게이트 이탈(`sync_as_axis_column`) + 열린 AS 건 status 봉인(`as_overlay_outranks_status_write`). 회귀 없음(잠복). 운영 5건 복구
+- [2026-09-03] **회계팀 권한 정리(deploy)** — ACCOUNTING 을 CS 동등 권한으로(alias `team_has_capability`, 팀 게이트 8곳), 정산 화면·행 API·채널 탭은 **ADMIN+회계팀** 전용(SSOT `is_accounting_or_admin`). 입금확인은 CS/영업 유지
+- [2026-09-02] **네이버 발송처리 평일 16:50 자동 실행 ON**(PR #270 · `51c366e9`) — 대상은 수동과 같은 함수·주말/공휴일 제외·하루 1회. 끄기=`FOMS_NAVER_AUTO_DISPATCH_ENABLED=0`+워커 재배포
+- [2026-09-03] **하트비트 S2b 기각 · S1 카운터는 남김** — 렌더 전 304 는 이득 부재로 접음(적중률 21%). 그림자 플래그 양쪽 off. 원장 §P8~§P12
+- [2026-09-02] **트리아지 자동매칭 사고 반영 완료** — 잔여: 전화 어긋남 36건 재판정
+- [2026-09-02] **네이버 클레임 승인 T9 운영 ON**(PR #249 · `b0c81413`) — 취소 요청 승인 신설+반품 승인 독립 경로. 게이트 `FOMS_NAVER_{CANCEL,RETURN}_APPROVE_ENABLED=1`(web 전용). **취소 거부 API 는 네이버에 없다.**
+- [2026-09-01] **네이버 일괄 발송처리 결과 UI·안 붙은 수집분 운영 반영(PR #219·#227)** — 띠가 완료/일부/실패/대기 4상태, 실패 줄마다 재시도, 안 붙은 수집분을 전화·수령인명으로 짚는다. 잔여=자산 핀 범프·실브라우저 확인·미연결 21묶음
+- ⚠️ [2026-08-23] **로컬 dev DB 행 소실(로컬 한정)** — pytest 가 conftest 보다 먼저 `db` import → 로컬 PG `drop_all`. 운영 무관, 수정 완료
 - [2026-09-07] **검토 보고서 4-지금 7항목 deploy 반영(`017153194`) + 운영 반영 2건(PR #302 AS 접수 입구 · PR #303 매일 드리프트 감사+기준선 래칫, production `f33f1170b`) + 운영 flat 백필 825건** — 악화를 멈추는 래칫 3종(의존 방향 79/325 · 파일 크기 py177/js92 · 드리프트 AS0/flat1750)과 사고 원장 7건 선등재. 09-01 원인 줄(`Order.phone` 갈래) 제거, 자동 발송 루프 하트비트 `NAVER_AUTO_DISPATCH`, 워커 Sentry, 로그인 한도·잠금(임계 8·15분)·레이트리미터 폴백 관측, README 실절차 재작성. **드리프트 게이트는 절대 0건이 아니라 기준선 순증**(운영 실측 1,750건 — 매일 오는 빨간불은 아무도 안 본다). 스테이징 검증: 잠금 8번째 429·`LOGIN_LOCKED` 1건, 하트비트 tick 전진. 잔여는 production 승격 후(cron·dispatch)와 `SENTRY_DSN` 미설정. 원장 `docs/plans/2026-09-07-foms-now-ratchet-ledger.md`(후속 15건)
 - [2026-09-03] **네이버 정산 v1.2 운영 반영 완료(PR #280 · production `f0f52d2a2`)** — 미연결 2갈래·보류 상세·글자 크기 조절. 후속도 운영 반영 완료: 기준일 셀렉트 결함 3건(PR #283) · 백필+받아오기 배너(PR #285 · `214c92470`) · F9+F10(PR #287 · `f6b9c0f01`). 내보내기 메뉴의 '검색어가 안 실린다' 안내 줄이 설명 부제와 같은 모양이던 것도 경고 색으로 갈랐다(PR #296 · production `8dacdfde2`, 핸 `20260903i`). 원장 `docs/plans/2026-09-02-naver-settlement-ledger.md` Phase F
 - [2026-09-01] **계약서 열람 이력 원장 운영 반영(PR #237 · `b1ed7bff`)** — 라이브 반영으로 사라졌던 "고객이 그날 본 금액"을 열람 시점에 남긴다(`order_share_snapshots`). 내용이 바뀐 순간에만 1행
