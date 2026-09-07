@@ -36,9 +36,9 @@ def workbench_on(monkeypatch):
     yield
 
 
-def _login(client, *, role: str = "ADMIN") -> User:
+def _login(client, *, role: str = "ADMIN", team: str = "CS") -> User:
     user = User(username=f"wb_{role.lower()}_{_uid()}", password=generate_password_hash("pw"),
-                role=role, team="CS", name=f"{role} 사용자", is_active=True)
+                role=role, team=team, name=f"{role} 사용자", is_active=True)
     db_session.add(user)
     db_session.commit()
     with client.session_transaction() as sess:
@@ -913,15 +913,19 @@ def test_redirect_carries_the_history_filter_over(client, workbench_on):
 
 
 # --------------------------------------------------------------------------- #
-# 전체 이력 탭의 권한 경계 (리뷰 지적 P1)
+# 전체 이력 탭의 권한 경계 (리뷰 지적 P1 · 2026-09-07 개정)
 #
 # `naver_ingest_dashboard`(수집 이력·상태 집계·실패 사유)는 ADMIN 전용인데,
 # 워크벤치는 STAFF 도 여는 라우트 안에 그 데이터를 다시 냈다. 회귀가 아니라 **신규 노출**이다.
+#
+# 2026-09-07 사용자 결정으로 열람 집합이 **ADMIN + 회계팀·영업팀**으로 넓어졌다.
+# 넓어진 것은 열람뿐이다 — 수집 상태 카드·지금 수집·소급 수집·전체 다시 읽기는
+# 라우트가 ADMIN 전용이라 화면에서도 ADMIN 에게만 나온다.
 # --------------------------------------------------------------------------- #
 
-def test_history_tab_is_admin_only(client, workbench_on):
-    """STAFF 가 ?tab=all 을 열어도 수집 이력이 나오면 안 된다 — 작업 탭으로 떨어진다."""
-    _login(client, role="STAFF")
+def test_history_tab_blocked_for_other_teams(client, workbench_on):
+    """CS STAFF 가 ?tab=all 을 열어도 수집 이력이 나오면 안 된다 — 작업 탭으로 떨어진다."""
+    _login(client, role="STAFF", team="CS")
     link = _collected(order_no="N-PERM-HIST", product="권한 붙박이장", amount=100000)
     link.sync_status = "FAILED"
     link.failure_reason = "커머스API 인증 만료"
@@ -949,15 +953,61 @@ def test_history_tab_stays_open_for_admin(client, workbench_on):
     assert "전체 이력" in body
 
 
-def test_manager_also_cannot_open_history_tab(client, workbench_on):
-    """MANAGER 도 마찬가지다 — 기준은 기존 수집 관리 화면(`ADMIN` 전용)과 같아야 한다."""
-    _login(client, role="MANAGER")
+def test_manager_of_other_team_cannot_open_history_tab(client, workbench_on):
+    """팀이 다르면 MANAGER 도 못 연다 — role 만으로 통과하는 문을 만들지 않는다."""
+    _login(client, role="MANAGER", team="CS")
     _collected(order_no="N-PERM-MGR", product="매니저 붙박이장", amount=100000)
 
     body = client.get(f"{TRIAGE_PATH}?tab=all").get_data(as_text=True)
 
     assert 'data-active-tab="work"' in body
     assert "전체 이력" not in body
+
+
+@pytest.mark.parametrize("role,team", [("STAFF", "ACCOUNTING"), ("MANAGER", "ACCOUNTING"),
+                                       ("STAFF", "SALES"), ("MANAGER", "SALES"),
+                                       ("STAFF", "MEASURE")])
+def test_history_tab_open_for_accounting_and_sales(client, workbench_on, role, team):
+    """회계팀·영업팀은 이력 탭을 연다(2026-09-07). 레거시 team=MEASURE 는 SALES 로 본다."""
+    _login(client, role=role, team=team)
+    link = _collected(order_no=f"N-PERM-{team}", product="팀 붙박이장", amount=100000)
+    link.sync_status = "FAILED"
+    link.failure_reason = "커머스API 인증 만료"
+    db_session.commit()
+
+    body = client.get(f"{TRIAGE_PATH}?tab=all").get_data(as_text=True)
+
+    assert 'data-active-tab="all"' in body, f"{team} {role} 이 이력 탭을 못 열었다"
+    assert "전체 이력" in body
+    assert "커머스API 인증 만료" in body, "이력의 실패 사유까지가 열람 범위다"
+
+
+@pytest.mark.parametrize("team", ["ACCOUNTING", "SALES"])
+def test_history_tab_keeps_ingest_controls_admin_only(client, workbench_on, team):
+    """열린 것은 **열람뿐**이다 — 수집 상태 카드·전체 다시 읽기는 ADMIN 손잡이로 남는다.
+
+    라우트(`/admin/naver-ingest/backfill`·`refresh-all`·`sync-now`)가 ADMIN 전용이라,
+    버튼만 새 나가면 눌러서 403 을 받는다.
+    """
+    _login(client, role="MANAGER", team=team)
+    _collected(order_no=f"N-PERM-CTRL-{team}", product="손잡이 붙박이장", amount=100000)
+
+    body = client.get(f"{TRIAGE_PATH}?tab=all").get_data(as_text=True)
+
+    assert 'data-active-tab="all"' in body
+    assert 'id="wb-ingest-status"' not in body, "수집 상태 카드는 ADMIN 전용이다"
+    assert 'id="wb-run-now"' not in body, "'지금 수집'은 ADMIN 전용이다"
+    assert 'id="wb-backfill-run"' not in body, "소급 수집은 ADMIN 전용이다"
+    assert 'id="wb-refresh-all"' not in body, "전체 다시 읽기는 ADMIN 전용이다"
+
+
+def test_viewer_role_cannot_reach_history_even_in_allowed_team(client, workbench_on):
+    """VIEWER 는 팀이 맞아도 안 된다 — 라우트 role 게이트가 먼저 막는다."""
+    _login(client, role="VIEWER", team="ACCOUNTING")
+
+    response = client.get(f"{TRIAGE_PATH}?tab=all")
+
+    assert response.status_code == 302, response.status_code
 
 
 # --------------------------------------------------------------------------- #

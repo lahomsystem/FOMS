@@ -33,8 +33,10 @@
         <nav class="wb-tabs" role="tablist">
             <a class="wb-tab" role="tab" data-tab="work" aria-selected="{{ 'true' if active_tab == 'work' else 'false' }}"
                href="{{ url_for('admin.naver_ingest_triage', tab='work') }}">처리<span class="wb-tab__n">{{ actionable_count }}주문</span></a>
-            {# 이력은 ADMIN 전용이다(수집 관리 화면과 같은 기준) — 열 수 없는 탭은 아예 안 보인다.
-               탭만 숨기고 주소를 열어 두면 URL 을 아는 사람이 그대로 본다. 서버도 같이 막는다. #}
+            {# 이력은 ADMIN + 회계팀·영업팀이 본다(2026-09-07 사용자 결정, 판정 SSOT =
+               `_can_view_history`) — 열 수 없는 탭은 아예 안 보인다. 탭만 숨기고 주소를
+               열어 두면 URL 을 아는 사람이 그대로 본다. 서버도 같이 막는다.
+               탭 안의 수집 상태 카드(지금 수집·소급 수집·만료일)는 여전히 ADMIN 전용이다. #}
             {% if can_view_history %}
             <a class="wb-tab" role="tab" data-tab="all" aria-selected="{{ 'true' if active_tab == 'all' else 'false' }}"
                href="{{ url_for('admin.naver_ingest_triage', tab='all') }}">이력{% if history and history.total is defined and not history.find %}<span class="wb-tab__n">{{ history.total }}주문</span>{% endif %}</a>
@@ -858,7 +860,8 @@
        숫자는 모두 집 단위다. 상품주문 건수는 맨 위 스트립에서만 본다(결정 3). #}
     {#
       수집 상태 — 옛 수집 화면(ADMIN 전용)에만 있던 값이다. 게이트가 켜지면 그 화면은
-      리다이렉트로 닫히므로 여기 없으면 도달할 방법이 사라진다:
+      리다이렉트로 닫히므로 여기 없으면 도달할 방법이 사라진다.
+      **이력을 여는 회계팀·영업팀에게는 이 카드를 안 싣는다**(`_is_ingest_admin`):
       ① 마지막 성공 구간(워터마크)·마지막 실행 ② 실행 결과·실패 사유 ③ 인증 만료일
       ④ "지금 수집"(큐에 넣기만 한다 — 네이버 HTTP 는 WORKER 에서만 나간다).
     #}

@@ -19,7 +19,7 @@ from foms.services.integrations.naver_commerce.constants import CHANNEL
 from foms.services.integrations.naver_commerce.mapping import group_key_text
 from foms.services.integrations.naver_commerce.order_candidates import (
     find_order_candidates,
-    household_amount,
+    household_facts,
 )
 
 
@@ -68,12 +68,17 @@ def _order(session, *, name: str = "김후보", tel: str = "010-5555-1234") -> O
 
 
 def test_household_amount_sums_the_whole_household(app):
-    """금액은 집 전체 합이다 — 대표 1건만 보면 항상 작다."""
+    """금액은 집 전체 합이다 — 대표 1건만 보면 항상 작다.
+
+    셈은 :func:`household_facts` 한 곳이다(금액만 내던 얇은 겉껍질은 소비처가 0이라
+    2026-09-07 에 지웠다 — 아무도 안 부르는 이름이 남아 있으면 다음 사람이 그걸로 또
+    한 벌을 만든다).
+    """
     lead = _link(db_session, order_no="N-CAND-A", amount=1_022_900)
     _link(db_session, order_no="N-CAND-A", amount=400_000, external_id="PO-A-2")
     _link(db_session, order_no="N-CAND-A", amount=187_880, external_id="PO-A-3")
 
-    assert household_amount(db_session, lead) == 1_610_780
+    assert household_facts(db_session, lead)["amount_total"] == 1_610_780
 
 
 def test_all_canceled_old_payment_reads_as_repay_signal(app):
@@ -170,7 +175,10 @@ def test_pane_template_renders_both_evidence_columns():
 
     assert "네이버 옛 결제" in markup
     assert "금액 견주기" in markup
-    assert "재결제 신호" in markup and "추가결제 신호" in markup
+    # 신호 문구 두 낱말(`재결제 신호`·`추가결제 신호`)은 여기서 세지 않는다 — 이 파일은
+    # **파일 텍스트**를 보므로 그 낱말을 인용한 템플릿 **주석**만으로도 충족됐고, 정작
+    # 렌더하는 두 줄을 통째로 지워도 green 이었다(2026-09-07 실측). 같은 계약은 렌더
+    # 결과로 보는 ``test_naver_candidate_pair_signal.py`` 가 이미 지킨다.
     assert "cand.amount_delta" in markup
 
 
