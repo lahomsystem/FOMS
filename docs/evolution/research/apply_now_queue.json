@@ -1,0 +1,146 @@
+[
+  {
+    "action_id": "A-2026-09-07-947882fc",
+    "priority": "P0",
+    "track": "data_layer",
+    "title": "PGConf India 2027 - Dates Announced and CFP Open",
+    "rationale": "PostgreSQL News source, score=100, confidence=High, track=data_layer, focus=10, focus_hits=security,performance,postgres",
+    "proposed_change": "Assess schema/query/index impact of 'PGConf India 2027 - Dates Announced and CFP Open' and verify migration safety with backup/restore test.",
+    "owner": "evolution-architect",
+    "source_links": [
+      "https://www.postgresql.org/about/news/pgconf-india-2027-dates-announced-and-cfp-open-3370/"
+    ]
+  },
+  {
+    "action_id": "A-2026-09-07-bc979b08",
+    "priority": "P0",
+    "track": "ai_coding",
+    "title": "sdk: v0.124.0",
+    "rationale": "anthropics/anthropic-sdk-typescript Releases source, score=100, confidence=High, track=ai_coding, focus=4, focus_hits=breaking",
+    "proposed_change": "Run controlled pilot for 'sdk: v0.124.0' in one workflow, compare dev-time and defect metrics.",
+    "owner": "evolution-architect",
+    "source_links": [
+      "https://github.com/anthropics/anthropic-sdk-typescript/releases/tag/sdk-v0.124.0"
+    ]
+  },
+  {
+    "action_id": "A-2026-09-07-c6d852b1",
+    "priority": "P0",
+    "track": "backend",
+    "title": "v1.4.0",
+    "rationale": "anthropics/anthropic-sdk-python Releases source, score=100, confidence=High, track=backend, focus=4, focus_hits=breaking",
+    "proposed_change": "Create spike branch to validate backend impact of 'v1.4.0', then run API smoke tests.",
+    "owner": "evolution-architect",
+    "source_links": [
+      "https://github.com/anthropics/anthropic-sdk-python/releases/tag/v1.4.0"
+    ]
+  },
+  {
+    "action_id": "A-2026-09-07-cc62f863",
+    "priority": "P1",
+    "track": "ai_coding",
+    "title": "v2.1.261",
+    "rationale": "anthropics/claude-code Releases source, score=100, confidence=High, track=ai_coding, focus=6, focus_hits=performance,opentelemetry",
+    "proposed_change": "Run controlled pilot for 'v2.1.261' in one workflow, compare dev-time and defect metrics.",
+    "owner": "evolution-architect",
+    "source_links": [
+      "https://github.com/anthropics/claude-code/releases/tag/v2.1.261"
+    ]
+  },
+  {
+    "action_id": "A-2026-09-07-c00f850d",
+    "priority": "P0",
+    "track": "ai_coding",
+    "title": "v2.1.260",
+    "rationale": "anthropics/claude-code Releases source, score=100, confidence=High, track=ai_coding, focus=4, focus_hits=security",
+    "proposed_change": "Run controlled pilot for 'v2.1.260' in one workflow, compare dev-time and defect metrics.",
+    "owner": "evolution-architect",
+    "source_links": [
+      "https://github.com/anthropics/claude-code/releases/tag/v2.1.260"
+    ]
+  },
+  {
+    "action_id": "A-2026-09-07-ca5d54ad",
+    "priority": "P1",
+    "track": "ai_coding",
+    "title": "0.153.0",
+    "rationale": "openai/codex Releases source, score=100, confidence=High, track=ai_coding, focus=6, focus_hits=rollback,python",
+    "proposed_change": "Run controlled pilot for '0.153.0' in one workflow, compare dev-time and defect metrics.",
+    "owner": "evolution-architect",
+    "source_links": [
+      "https://github.com/openai/codex/releases/tag/rust-v0.153.0"
+    ]
+  },
+  {
+    "action_id": "A-2026-09-07-cb8586c8",
+    "priority": "P1",
+    "track": "ai_coding",
+    "title": "v2.1.259",
+    "rationale": "anthropics/claude-code Releases source, score=100, confidence=High, track=ai_coding, focus=6, focus_hits=performance,opentelemetry",
+    "proposed_change": "Run controlled pilot for 'v2.1.259' in one workflow, compare dev-time and defect metrics.",
+    "owner": "evolution-architect",
+    "source_links": [
+      "https://github.com/anthropics/claude-code/releases/tag/v2.1.259"
+    ]
+  },
+  {
+    "action_id": "A-2026-09-07-9b046c90",
+    "priority": "P0",
+    "track": "ai_coding",
+    "title": "langchain==1.4.0a4",
+    "rationale": "langchain-ai/langchain Releases source, score=100, confidence=High, track=ai_coding, focus=14, focus_hits=cve,deprecate,python",
+    "proposed_change": "Run controlled pilot for 'langchain==1.4.0a4' in one workflow, compare dev-time and defect metrics.",
+    "owner": "evolution-architect",
+    "source_links": [
+      "https://github.com/langchain-ai/langchain/releases/tag/langchain%3D%3D1.4.0a4"
+    ]
+  },
+  {
+    "action_id": "A-2026-09-07-0f4496c6",
+    "priority": "P0",
+    "track": "integration",
+    "title": "v2.1.257",
+    "rationale": "anthropics/claude-code Releases source, score=100, confidence=High, track=integration, focus=4, focus_hits=performance",
+    "proposed_change": "Review cross-stack impact of 'v2.1.257', then split work into backend/frontend/devops tasks.",
+    "owner": "evolution-architect",
+    "source_links": [
+      "https://github.com/anthropics/claude-code/releases/tag/v2.1.257"
+    ]
+  },
+  {
+    "action_id": "A-2026-09-07-96decef1",
+    "priority": "P0",
+    "track": "backend",
+    "title": "2.1.0rc1",
+    "rationale": "sqlalchemy/sqlalchemy Releases source, score=100, confidence=High, track=backend, focus=22, focus_hits=security,deprecate,performance",
+    "proposed_change": "Create spike branch to validate backend impact of '2.1.0rc1', then run API smoke tests.",
+    "owner": "evolution-architect",
+    "source_links": [
+      "https://github.com/sqlalchemy/sqlalchemy/releases/tag/rel_2_1_0rc1"
+    ]
+  },
+  {
+    "action_id": "A-2026-09-07-ca23c2eb",
+    "priority": "P1",
+    "track": "ai_coding",
+    "title": "MaxKernel: Agentic Kernel Generation for TPUs",
+    "rationale": "arXiv cs.AI RSS source, score=99, confidence=High, track=ai_coding, focus=4, focus_hits=performance",
+    "proposed_change": "Run controlled pilot for 'MaxKernel: Agentic Kernel Generation for TPUs' in one workflow, compare dev-time and defect metrics.",
+    "owner": "evolution-architect",
+    "source_links": [
+      "https://arxiv.org/abs/2609.04523"
+    ]
+  },
+  {
+    "action_id": "A-2026-09-07-2c2663ce",
+    "priority": "P1",
+    "track": "integration",
+    "title": "SH-PDOPS: AI-Driven Cloud Native Enterprise Reliability Framework for Predictive Analytics and Intelligent DevOps Automation",
+    "rationale": "arXiv cs.SE RSS source, score=99, confidence=High, track=integration, focus=4, focus_hits=observability",
+    "proposed_change": "Review cross-stack impact of 'SH-PDOPS: AI-Driven Cloud Native Enterprise Reliability Framework for Predictive Analytics and Intelligent DevOps Automation', then split work into backend/frontend/devops tasks.",
+    "owner": "evolution-architect",
+    "source_links": [
+      "https://arxiv.org/abs/2609.04210"
+    ]
+  }
+]
