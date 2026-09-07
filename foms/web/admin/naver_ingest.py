@@ -5464,19 +5464,35 @@ def naver_ingest_repay_reconcile(link_id: int):
                                 relation=relation)
                if order is not None and result["fork"] == "SUCCEED" else None)
 
+    # 감사 detail 은 **호출 밖에서** 만든다. 칸이 여덟이라 인자 안에 두면 이 파일에서
+    # 가장 긴 ``log_access`` 가 되고(1,100자 남짓), 어느 칸이 무엇인지 설명하는 주석이
+    # 인자 목록 한가운데 끼어 호출의 뼈대(무엇을·누가·어떤 action)가 안 보인다.
+    # 값도 인자 순서도 그대로고, 행위자(``session.get("user_id")``)도 여전히 인자다 —
+    # 행위자 게이트(``tests/.../test_naver_refresh_all.py``)가 검사하는 계약은 그대로
+    # 강제된다.
+    audit_detail = {
+        "link_id": link_id, "order_id": int(order_id), "relation": relation,
+        "fork": result["fork"], "attached": result["attached"],
+        "discarded": result["discarded"],
+        # 접수 이후 단계를 접은 건은 사유가 유일한 방어선이라 감사에 남긴다.
+        "discard_reason": result.get("discard_reason") or "",
+        # ① 후보 집의 코드 — 실행 차단(:func:`run_gate`)이 읽는 바로 그 축이다.
+        "naver_claim_code": claim_code,
+        # ② 지금 집(붙이려는 수집분)의 코드. 관계(REPAY/ADDON)는 **두 집의 쌍**이
+        # 정하므로 — 지금 집이 전부 취소된 옛 결제면 후보가 살아 있어도 재결제다
+        # (2026-09-07 계약) — 한 쪽만 남기면 관계를 왜 그렇게 골랐는지 사후에
+        # 되짚을 수 없다. 이번 오판이 그렇게 묻혔다 — 판정에 쓴 두 축을 모두 남긴다.
+        # action 이름·라벨은 그대로다(새 감사 행위가 아니라 칸만 늘었다).
+        "current_claim_code": str(candidate.get("current_claim_code") or ""),
+        "external_order_no": history.get("external_order_no") or "",
+        "amount_total": history.get("amount_total") or 0,
+    }
     log_access(
         f"네이버 재결제 정리 (link {link_id} → order {order_id}, {relation}/{fork})",
         session.get("user_id"),
         action="NAVER_INGEST_REPAY_RECONCILE",
         target_type="order", target_id=int(order_id),
-        detail={"link_id": link_id, "order_id": int(order_id), "relation": relation,
-                "fork": result["fork"], "attached": result["attached"],
-                "discarded": result["discarded"],
-                # 접수 이후 단계를 접은 건은 사유가 유일한 방어선이라 감사에 남긴다.
-                "discard_reason": result.get("discard_reason") or "",
-                "naver_claim_code": claim_code,
-                "external_order_no": history.get("external_order_no") or "",
-                "amount_total": history.get("amount_total") or 0},
+        detail=audit_detail,
     )
     return jsonify({"success": True,
                     "data": {"link_id": link_id, "order_id": int(order_id),

@@ -53,10 +53,11 @@ from models import ExternalOrderLink, Order
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["find_order_candidates", "household_amount", "origin_facts",
-           "pending_origin_cleanup", "recommended_relation", "search_orders_for_attach",
+__all__ = ["find_order_candidates", "household_facts",
+           "origin_facts", "pending_origin_cleanup", "recommended_relation",
+           "search_orders_for_attach",
            "CANDIDATE_WINDOW_DAYS", "CANDIDATE_LIMIT", "ORIGIN_CLEANUP_LIMIT",
-           "RELATION_BY_CLAIM_CODE", "SEARCH_LIMIT", "SEARCH_MIN_LEN"]
+           "RELATION_BY_CLAIM_PAIR", "SEARCH_LIMIT", "SEARCH_MIN_LEN"]
 
 #: 후보를 찾는 기간(일). 가구는 실측·제작·시공까지 몇 달이 걸려 차액 결제가 늦게 온다.
 CANDIDATE_WINDOW_DAYS = 180
@@ -126,28 +127,52 @@ def _snapshot_keys(raw_snapshot: Any) -> dict[str, str]:
     }
 
 
-def household_amount(session, link: ExternalOrderLink) -> int:
-    """이 집(같은 ``group_key``)의 상품주문 금액 합 — 후보와 견줄 **새 금액**.
+def household_facts(session, link: ExternalOrderLink) -> dict[str, Any]:
+    """**지금 집**(같은 ``group_key``)의 금액 합과 클레임 집계를 **같은 1회 조회**로 낸다.
 
-    네이버는 본품과 옵션을 각각 다른 상품주문으로 주므로 링크 한 건의 금액으로 견주면
-    항상 작게 나온다(실데이터: 재결제 집 6건 중 대표 1건만 보면 1,022,900 vs 실제 1,610,780).
+    금액만 세던 자리다. 2026-09-07 운영 사고로 클레임 집계가
+    같이 필요해졌다: 후보 표의 권고가 **후보 쪽 하나**만 보고 나와서, 지금 붙이려는 집이
+    `전부 취소 완료` 인데도 `살아 있음 · 추가결제 신호` 라고 적었다(고객 이광헌, 집
+    ``2026090658033751`` 6건 전부 ``CANCEL_DONE``). 판정 축에 지금 집이 없었던 것이다.
+    조회를 하나 더 붙이지 않고 **읽던 스냅샷에서 함께** 뽑는다 — 이 함수는 이미 집 전체를
+    한 번 읽고 있었다.
+
+    집의 범위는 금액을 세던 규칙 그대로다(``channel`` + ``group_key`` 있으면 ``group_key``,
+    없으면 ``external_order_no``). 클레임을 세는 식은 손으로 다시 적지 않고
+    :func:`aggregate_claim` (SSOT)에 넘긴다 — 두 벌로 두면 돈이 되돌아가는 종류·확정 여부
+    판정이 갈려서 같은 집을 화면마다 다르게 부른다(2026-09-01 황민철 사고와 같은 모양).
+
+    읽을 수 없는 스냅샷은 클레임 없음(살아 있음)으로 센다. 집을 한 행도 못 읽으면
+    :func:`aggregate_claim` 이 ``alive`` 를 낸다 — **못 읽었다고 재결제를 권하지 않는다**
+    (옛 동작과 같아진다). 재결제 권고는 :func:`repay_reconcile.deposit_guidance` 의
+    '바꾸기'로 흘러 **고객 청구액**까지 가므로, 모르는 쪽은 권하지 않는 것이 맞다.
 
     Args:
         session: DB 세션.
-        link: 기준 수집 링크.
+        link: 기준 수집 링크(이 링크가 속한 집을 본다).
 
     Returns:
-        집 전체 금액 합(원). 원본이 없으면 0.
+        ``{"amount_total": 집 전체 금액 합(원), "claim_code": 집계 코드,
+        "claim_kind": 집계에 실제로 센 클레임 종류, "claim_label": 표시용 낱말}``.
+        ``claim_label`` 은 **표시 전용**이다 — 판정은 언제나 ``claim_code`` 로 한다
+        (한국어 낱말을 ``==`` 로 비교하던 시절의 회귀, 2026-08-28).
     """
     key = link.group_key or link.external_order_no
     if not key:
-        return 0
+        # 집 키가 없으면 형제를 모을 수 없다. 금액 0 · 클레임은 빈 목록 집계(``alive``).
+        return {"amount_total": 0, **aggregate_claim([])}
     column = ExternalOrderLink.group_key if link.group_key else ExternalOrderLink.external_order_no
     rows = (session.query(ExternalOrderLink.raw_snapshot)
             .filter(ExternalOrderLink.channel == link.channel, column == key)
             .all())
     total = 0
+    claims: list[dict[str, Any]] = []
     for (snapshot,) in rows:
+        # 집 멤버는 상품주문 1건이 1개다 — 금액을 못 읽는 행도 클레임 집계에는 **센다**.
+        # 추출은 :func:`_claim_facts` 한 곳이고, 거기서 이미 종류까지 풀린 값이 나오므로
+        # ``type`` 에 그대로 실어 넘긴다(:func:`mapping.claim_kind` 가 같은 값을 낸다).
+        claim = _claim_facts(snapshot)
+        claims.append({"phase": claim["phase"], "type": claim["kind"]})
         if not isinstance(snapshot, dict):
             continue
         product_order = snapshot.get("productOrder")
@@ -156,7 +181,7 @@ def household_amount(session, link: ExternalOrderLink) -> int:
         amount = product_order.get("totalPaymentAmount")
         if isinstance(amount, int):
             total += amount
-    return total
+    return {"amount_total": total, **aggregate_claim(claims)}
 
 
 def _merge_read_at(current: str, incoming: str) -> str:
@@ -297,33 +322,92 @@ CLAIM_CODE_LABEL_SETS = {
     "RETURN": RETURN_CLAIM_CODE_LABELS,
 }
 
-#: ``claim_code`` → **권장 관계**. 후보 표는 예전부터 `재결제 신호`/`추가결제 신호` 라는
-#: 말을 화면에 적었지만, 그 판정이 템플릿 안에만 있어서 정작 **버튼의 순서와 강조색은
-#: 그 말과 반대**였다(추가결제가 먼저·강조색). 눈이 가는 쪽이 권고와 어긋나면 관계를
-#: 잘못 고르고, 그 어긋남은 :func:`repay_reconcile.deposit_guidance` 에서 '바꾸기' 와
-#: '더하기' 로 갈려 **고객 청구액**까지 흘러간다(2026-09-04).
+#: ``(지금 집 코드, 후보 주문 코드)`` → **권장 관계**. 후보 표는 예전부터 `재결제 신호`/
+#: `추가결제 신호` 라는 말을 화면에 적었지만, 그 판정이 템플릿 안에만 있어서 정작 **버튼의
+#: 순서와 강조색은 그 말과 반대**였다(추가결제가 먼저·강조색). 눈이 가는 쪽이 권고와
+#: 어긋나면 관계를 잘못 고르고, 그 어긋남은 :func:`repay_reconcile.deposit_guidance` 에서
+#: '바꾸기' 와 '더하기' 로 갈려 **고객 청구액**까지 흘러간다(2026-09-04).
 #:
-#: 여기 없는 코드(``partial``·``all_pending``·``all_mixed``)는 **권하지 않는다** — 일부만
-#: 취소됐거나 네이버가 아직 확정하지 않은 집이라 사람이 봐야 한다. 빈 문자열이 그 뜻이다.
-RELATION_BY_CLAIM_CODE = {
-    "all_done": "REPAY",
-    "alive": "ADDON",
+#: **키가 쌍인 이유**(2026-09-07 운영 사고). 예전 표는 입력이 후보 쪽 코드 하나였다.
+#: 그래서 지금 붙이려는 집이 전부 취소 확정인데도 후보 쪽이 살아 있기만 하면 `살아 있음 ·
+#: 추가결제 신호` 라고 적었다 — 고객 이광헌, 지금 집 ``2026090658033751``(6건 전부
+#: ``CANCEL_DONE``) × 후보 주문 #5168(붙은 링크 전부 ``PAYED``). 그 집은 **옛 결제**이므로
+#: 실제 관계는 재결제다. 판정 축에 '지금 집'이 없었던 것이 근본 원인이다.
+#:
+#: **두 축은 세는 단위가 다르다** — 이름을 믿고 표를 읽으면 오독한다. 지금 집 쪽
+#: (:func:`household_facts`)은 ``channel`` + ``group_key`` 로 접은 **진짜 집** 하나다.
+#: 후보 쪽(:func:`_naver_facts`)은 ``ExternalOrderLink.order_id.in_(order_ids)`` 로 접어
+#: ``group_key`` 축이 아예 없다 — **후보 주문에 붙은 네이버 링크 전체의 집계**다. 그래서
+#: 재결제가 이미 한 번 붙은 주문은 옛 집(전부 취소)과 새 집(살아 있음)이 한 주문에 같이
+#: 매달려 주문 단위로는 ``partial`` 로 나온다.
+#:
+#: 여기 없는 쌍은 **권하지 않는다**(빈 문자열). 어느 쪽이든 ``partial``·``all_pending``·
+#: ``all_mixed`` 면 일부만 취소됐거나 네이버가 아직 확정하지 않은 상태라 사람이 봐야 한다.
+#: 후보에 네이버 링크가 아예 없을 때(코드 ``""``)도 마찬가지다 — 네이버 수집분이 없는 ERP
+#: 수기 주문에 재결제를 권하면 ``deposit_guidance`` 가 '바꾸기'로 갈려 **고객 청구액**을
+#: 건드린다.
+RELATION_BY_CLAIM_PAIR = {
+    # 지금 집이 전부 취소 확정 = 지금 집이 **옛 결제**다. 그래도 후보 쪽이 확정 전
+    # (``all_pending``·``all_mixed``)이거나 일부 취소(``partial``)면 **권하지 않는다** —
+    # 권고 축과 실행 축이 같은 칸에서 서로 어긋나면 안 되기 때문이다.
+    #   · 실행은 :func:`repay_reconcile.run_gate` 가
+    #     :data:`repay_reconcile.UNSETTLED_CLAIM_CODES` 로 막는다. 권고만 ``REPAY`` 로 두면
+    #     pane ②열 **한 칸 안에서** 칩 층은 `네이버가 아직 확정하지 않았습니다` 라고 적고
+    #     신호 층은 `재결제 신호` 라고 적는다. 게다가 그 강조 버튼이 여는 정리 계획의
+    #     `정리 실행`(``naver_workbench_pane.html`` 의 ``wb-plan-run``)은 같은 값으로
+    #     애초에 ``disabled`` 다 — 화면이 자기 말을 안 지킨다.
+    #   · 더 나쁜 쪽: 검색 경로의 붙이기 라우트(``foms/web/admin/naver_ingest.py``
+    #     :func:`naver_ingest_attach_order`)에는 ``run_gate`` 가 없다 — 화면이 권한
+    #     ``REPAY`` 가 아무것도 안 막힌 채 그대로 실행된다.
+    ("all_done", "alive"): "REPAY",
+    ("all_done", "all_done"): "REPAY",
+    # 지금 집은 살아 있고 후보의 옛 결제가 취소됐다 — 예전부터의 재결제 신호(무변경).
+    ("alive", "all_done"): "REPAY",
+    # 둘 다 살아 있으면 차액(추가) 결제다(무변경).
+    ("alive", "alive"): "ADDON",
 }
 
 
-def recommended_relation(claim_code: str) -> str:
+def recommended_relation(*, current_claim_code: str, candidate_claim_code: str) -> str:
     """후보 1건에 **권할 관계**(``REPAY``/``ADDON``). 권할 수 없으면 빈 문자열.
+
+    판정은 **쌍**이다 — 지금 붙이려는 집과 후보 주문에 붙은 네이버 링크 전체를 함께
+    본다(2026-09-07):
+
+    ===================== ============================== =========================
+    지금 집               후보 주문                      권고
+    ===================== ============================== =========================
+    ``all_done``          ``alive``/``all_done``         ``REPAY`` (지금 집이 옛 결제)
+    ``alive``             ``all_done``                   ``REPAY`` (후보의 옛 결제가 취소됨)
+    ``alive``             ``alive``                      ``ADDON`` (둘 다 살아 있음)
+    그 밖                 어느 쪽이든 ``partial``·       ``""`` (사람이 본다)
+                          ``all_pending``·``all_mixed``
+    ===================== ============================== =========================
+
+    지금 집이 ``all_done`` 이어도 후보 쪽이 ``partial``·``all_pending``·``all_mixed`` 면
+    권하지 않는다 — 실행 축(:func:`repay_reconcile.run_gate`)이 막는 칸을 권고 축이
+    권하면 화면이 자기 자신과 어긋난다(사유는 :data:`RELATION_BY_CLAIM_PAIR` 주석).
 
     화면의 신호 문구와 버튼 강조가 **같은 함수**를 읽게 하려고 둔다. 두 벌로 두면
     한쪽만 손봤을 때 화면이 자기 자신과 어긋난다.
 
+    두 인자를 **키워드 전용·기본값 없음**으로 둔다. 옛 1인자 호출이 어딘가 남아 있으면
+    ``TypeError`` 로 즉시 터지게 하려는 것이다 — 기본값을 주면 낡은 호출이 조용히 살아남아
+    후보 집만 보고 판정하던 그 사고가 그대로 재발한다.
+
     Args:
-        claim_code: :func:`claim_aggregate_code` 가 낸 집 단위 코드.
+        current_claim_code: **지금 집**(붙이려는 수집분, ``channel`` + ``group_key`` 로 접은
+            진짜 집)의 :func:`claim_aggregate_code` 코드.
+        candidate_claim_code: **후보 주문에 붙은 네이버 링크 전체**의 같은 코드. 집이 아니라
+            **주문 단위** 집계다(:func:`_naver_facts` 에 ``group_key`` 축이 없다) — 재결제가
+            이미 붙은 주문은 옛 집과 새 집이 섞여 ``partial`` 로 나온다. 붙은 링크가 하나도
+            없으면 빈 문자열.
 
     Returns:
         ``"REPAY"`` · ``"ADDON"`` · ``""``(권하지 않음).
     """
-    return RELATION_BY_CLAIM_CODE.get(str(claim_code or ""), "")
+    return RELATION_BY_CLAIM_PAIR.get(
+        (str(current_claim_code or ""), str(candidate_claim_code or "")), "")
 
 
 def claim_aggregate_code(*, done: int, pending: int, alive: int) -> str:
@@ -737,8 +821,24 @@ def pending_origin_cleanup(session, *, limit: int = ORIGIN_CLEANUP_LIMIT) -> dic
 
 def _order_view(order: Order, *, score: int, reason: str,
                 link_count: int, facts: Optional[dict[str, Any]] = None,
-                new_amount: int = 0) -> dict[str, Any]:
-    """후보 1건을 화면용 dict 로 편다."""
+                new_amount: int = 0, current_claim_code: str) -> dict[str, Any]:
+    """후보 1건을 화면용 dict 로 편다.
+
+    Args:
+        order: 후보 주문.
+        score: 매칭 점수(검색 경로는 0 — 점수 축이 없다).
+        reason: 무엇으로 걸렸는지 한 낱말.
+        link_count: 이 주문에 붙어 있는 네이버 링크 수.
+        facts: :func:`_naver_facts` 가 낸 **후보 주문에 붙은 네이버 링크 전체의 사실**.
+            없으면 빈 dict.
+        new_amount: 지금 집(붙이려는 수집분) 금액 합.
+        current_claim_code: 지금 집의 클레임 집계 코드(:func:`household_facts`).
+            **필수 키워드**다 — 빠뜨린 호출이 조용히 옛(후보 단독) 판정으로 떨어지면
+            2026-09-07 사고가 그대로 재발한다.
+
+    Returns:
+        후보 표 1행 dict.
+    """
     facts = facts or {}
     old_amount = int(facts.get("amount_total") or 0)
     return {
@@ -757,12 +857,21 @@ def _order_view(order: Order, *, score: int, reason: str,
         # 이미 네이버 수집분이 붙어 있는 주문인지(재결제·추가결제 판단에 쓰인다).
         "naver_link_count": link_count,
         # --- R-1(2026-08-25): 판정 근거 2열 ---
-        # ② 이 주문에 붙은 네이버 집이 취소됐는가 — 재결제/추가결제를 가르는 결정 신호.
+        # ② 이 주문에 붙은 네이버 수집분이 취소됐는가 — 재결제/추가결제를 가르는 결정 신호.
         # **코드가 판정 축이고 라벨은 표시 축이다** — 템플릿은 코드로만 분기한다.
         "naver_claim_code": facts.get("claim_code") or "",
         "naver_claim_label": facts.get("claim_label") or "",
-        # 신호 문구와 **버튼 강조**가 같은 판정을 읽게 한다(2026-09-04).
-        "recommended_relation": recommended_relation(facts.get("claim_code") or ""),
+        # **지금 집**(붙이려는 수집분)의 집계 — 표 한 화면 안의 모든 행이 같은 값이다
+        # (집은 하나뿐이므로). 템플릿이 '왜 재결제인지' 를 이 코드로 가른다.
+        # 라벨은 싣지 않는다: 아무도 안 읽는 한국어 낱말을 payload 에 남기면 다음 사람이
+        # 그걸로 분기한다 — 2026-08-28 회귀의 재료다(표시는 코드로 다시 만든다).
+        "current_claim_code": str(current_claim_code or ""),
+        # 신호 문구와 **버튼 강조**가 같은 판정을 읽게 한다(2026-09-04). 키는 **하나**다 —
+        # 같은 값에 이름을 둘 붙이면 한쪽만 고치는 경로가 열리고, 그러면 화면이 `재결제
+        # 신호` 라고 적어 놓고 추가결제 버튼을 강조하던 그 결함이 그대로 돌아온다.
+        "recommended_relation": recommended_relation(
+            current_claim_code=current_claim_code,
+            candidate_claim_code=facts.get("claim_code") or ""),
         "naver_canceled_count": int(facts.get("canceled") or 0),
         # 네이버가 아직 확정하지 않은 클레임(취소 요청·처리중) 건수.
         "naver_pending_count": int(facts.get("pending") or 0),
@@ -866,12 +975,15 @@ def find_order_candidates(session, link: ExternalOrderLink, *,
     # 링크 개수만 세던 조회를 **사실 수집**으로 바꾼다(R-1) — 같은 1회 조회로 개수·취소
     # 여부·금액을 함께 얻는다. 후보는 최대 5건이라 스냅샷을 읽어도 부하가 늘지 않는다.
     facts = _naver_facts(session, list(scored.keys()))
-    new_amount = household_amount(session, link)
+    # 지금 집의 금액과 클레임 집계를 **같은 1회 조회**로 얻는다 — 권고가 쌍 판정이 되면서
+    # '지금 집이 전부 취소인가' 가 판정 입력이 됐다(2026-09-07). 조회 수는 늘지 않는다.
+    current = household_facts(session, link)
 
     views = [
         _order_view(orders[order_id], score=score, reason=reason,
                     link_count=int(facts.get(order_id, {}).get("link_count") or 0),
-                    facts=facts.get(order_id), new_amount=new_amount)
+                    facts=facts.get(order_id), new_amount=current["amount_total"],
+                    current_claim_code=current["claim_code"])
         for order_id, (score, reason) in scored.items()
         if order_id in orders
     ]
@@ -966,13 +1078,17 @@ def _search_views(session, link: ExternalOrderLink, orders: list[Order], *,
     from foms.services.integrations.naver_commerce.repay_reconcile import deposit_guidance
 
     facts = _naver_facts(session, [int(order.id) for order in orders])  # perf-ok: 화면 상한만큼
-    new_amount = household_amount(session, link)
+    # 검색 경로도 **같은 쌍 판정**을 쓴다 — 신호가 재결제인데 강조 버튼이 추가결제면
+    # 2026-09-04 에 후보 표에서 고친 그 결함을 검색 경로가 그대로 재현한다(2026-09-07).
+    current = household_facts(session, link)
+    new_amount = current["amount_total"]
     views = []
     for order in orders:
         view = _order_view(order, score=0,
                            reason=_search_reason(order, text=text, digits=digits),
                            link_count=int(facts.get(int(order.id), {}).get("link_count") or 0),
-                           facts=facts.get(int(order.id)), new_amount=new_amount)
+                           facts=facts.get(int(order.id)), new_amount=new_amount,
+                           current_claim_code=current["claim_code"])
         # 예약금 안내를 **여기서도** 싣는다(D-1: 시스템이 넣지 않고 사람이 옮겨 적는다).
         # 후보 표는 정리 계획 카드가 이 숫자를 말해 주는데, 검색으로 붙이면 그 카드를
         # 안 거친다 — 안 실으면 검색 경로만 그 숫자를 잃는다. DB 조회는 없다(순수 계산).

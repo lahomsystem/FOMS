@@ -449,27 +449,32 @@ def test_every_naver_audit_call_records_the_actor():
 
     되돌아가는 것을 막는 게이트다 — 새 라우트를 붙일 때 빠뜨리면 여기서 빨개진다.
     """
-    import re
+    import ast
 
     source = (REPO_ROOT / "foms" / "web" / "admin" / "naver_ingest.py").read_text(
         encoding="utf-8")
+    # 호출을 **구문 트리**로 센다. 손으로 괄호를 세던 시절에는 길이 상한(900자)이 있었고,
+    # 2026-09-07 에 감사 detail 에 칸 하나를 더한 것만으로 그 선을 넘어 행위자를 제대로
+    # 넘기는 호출이 빨개졌다. 상한을 없애도 손 스캐너에는 함정이 남는다 — 문자열 리터럴
+    # 안의 괄호와 주석 속 괄호가 짝으로 잡힌다. ``ast`` 는 파서가 그 셋(길이·문자열·주석)
+    # 을 이미 걷어낸 트리를 주므로 판정에 들어오지 않는다. '못 읽음'(unparsed) 갈래도
+    # 사라진다 — 파일이 안 파싱되면 여기서 SyntaxError 로 즉시 터진다.
     missing = []
-    for match in re.finditer(r"log_access\(", source):
-        depth = 0
-        for offset, char in enumerate(source[match.start():match.start() + 900]):
-            if char == "(":
-                depth += 1
-            elif char == ")":
-                depth -= 1
-                if depth == 0:
-                    call = source[match.start():match.start() + offset]
-                    break
-        else:  # pragma: no cover - 900자 안에 닫히지 않는 호출은 없다
-            call = ""
-        if 'session.get("user_id")' not in call:
-            missing.append(source[:match.start()].count("\n") + 1)
+    for node in ast.walk(ast.parse(source)):
+        if not isinstance(node, ast.Call):
+            continue
+        func = node.func
+        name = func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", "")
+        if name != "log_access":
+            continue
+        # 행위자를 위치 인자로 넘기든 키워드로 넘기든 넘기기만 하면 된다.
+        parts = [ast.unparse(arg) for arg in node.args]
+        parts += [ast.unparse(kw.value) for kw in node.keywords]
+        if not any("session.get('user_id')" in part or 'session.get("user_id")' in part
+                   for part in parts):
+            missing.append(node.lineno)
 
-    assert not missing, f"행위자 없는 log_access 라인: {missing}"
+    assert not missing, f"행위자 없는 log_access 라인: {sorted(missing)}"
 
 
 def test_audit_row_actually_carries_the_actor(client, workbench_on, monkeypatch):
