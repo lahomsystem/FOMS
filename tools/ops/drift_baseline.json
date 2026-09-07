@@ -10,8 +10,8 @@
     "note": "AS-AXIS-01 롤아웃 이후 운영 659건 검사에서 0. 이 축은 이미 목표 상태라 1건이라도 늘면 실패다."
   },
   "erp_flat": {
-    "drift": 1750,
-    "note": "운영 실측 2026-09-07: total 3001 / CLEAN 1251 / SAFE 825 / AMBIGUOUS 925(전부 PAYMENT_AMOUNT_DRIFT). SAFE 드리프트 컬럼 상위: measurement_date 770 · scheduled_date 475 · erp_phone_digits 93 · erp_drawing_updated_at 78 · erp_stage_updated_at 75 · manager_name 60 · erp_stage_code 54 · erp_measurement_date 21."
+    "drift": 924,
+    "note": "운영 실측 2026-09-07(백필 후): total 3007 / CLEAN 2083 / SAFE 0 / AMBIGUOUS 924(전부 PAYMENT_AMOUNT_DRIFT). 같은 날 백필로 SAFE 825건을 정본 값으로 맞춰 1750 → 924 로 내렸다. 남은 924는 결제금액 어긋남이라 자동으로 못 고친다 — 사람이 봐야 줄어든다."
   },
   "scope": "이 기준선은 **production 전용**이다. 워크플로가 production 을 조회하기 때문이다. 같은 도구를 스테이징(lahom-dev)으로 돌리면 DB 가 달라 증감이 0 이 아니게 나오는 것이 정상이다(2026-09-07 스테이징 실측 1888 = 기준선 대비 +138)."
 }
