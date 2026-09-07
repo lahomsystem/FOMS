@@ -580,7 +580,10 @@ def bulk_action():
                 order = orders_by_id.get(int(order_id))
                 if order:
                     original_status = getattr(order, 'status', None)
-                    deleted_at = now_kst().strftime('%Y-%m-%d %H:%M:%S')
+                    # deleted_at 컬럼은 naive UTC 고정폭 규약(soft_delete._DELETED_AT_FORMAT)이다.
+                    # 읽는 쪽(format_datetime_kst assume_utc_if_naive=True)이 다시 +9 하므로
+                    # 여기에 KST 를 넣으면 화면이 9시간 미래를 말한다.
+                    deleted_at = now_utc_naive().strftime('%Y-%m-%d %H:%M:%S')
                     setattr(order, 'status', 'DELETED')
                     setattr(order, 'original_status', original_status)
                     setattr(order, 'deleted_at', deleted_at)
