@@ -40,7 +40,7 @@ from typing import Any, Optional
 from sqlalchemy import or_
 
 from foms.services.common.address_query import match_key as address_match_key
-from foms.services.datetime_kst import format_datetime_kst, now_utc_naive
+from foms.services.datetime_kst import now_utc_naive
 from foms.services.integrations.naver_commerce.ghost_orders import stage_label
 from foms.services.integrations.naver_commerce.mapping import (
     CLAIM_PHASE_DONE,
@@ -48,6 +48,7 @@ from foms.services.integrations.naver_commerce.mapping import (
     CLAIM_PHASE_REQUESTED,
     MONEY_BACK_CLAIM_KINDS,
 )
+from foms.services.orders.soft_delete import read_order_trash
 from foms.services.phone_search import normalize_phone_digits
 from models import ExternalOrderLink, Order
 
@@ -1028,6 +1029,7 @@ def _order_view(order: Order, *, score: int, reason: str,
         후보 표 1행 dict.
     """
     facts = facts or {}
+    trash = read_order_trash(order)
     old_amount = int(facts.get("amount_total") or 0)
     return {
         "order_id": int(order.id),
@@ -1042,9 +1044,10 @@ def _order_view(order: Order, *, score: int, reason: str,
         # 휴지통에 있는 주문인가(2026-09-07). 모집단에 넣되 **숨기지 않고 말한다** —
         # 붙이기는 서버가 거절하므로 화면도 같은 조건에서 버튼을 닫는다(한쪽만 열면
         # 눌린 버튼이 "붙일 주문을 찾을 수 없습니다"라는 엉뚱한 말을 받는다).
-        # 두 축을 함께 본다: soft-delete 시각과 `DELETED` 단계는 각각 따로 찍힌다.
-        "trashed": bool(order.deleted_at is not None or order.status == "DELETED"),
-        "trashed_at": format_datetime_kst(order.deleted_at) if order.deleted_at else "",
+        # 판정·형식 모두 `read_order_trash` 한 벌을 쓴다(2026-09-07) — pane 머리줄·유령
+        # 폐기 블록과 **같은 문자열**이 나와야 담당자가 두 화면을 견줄 수 있다.
+        "trashed": trash["trashed"],
+        "trashed_at": trash["trashed_at_text"],
         "payment_amount": order.payment_amount,
         "score": score,
         "reason": reason,

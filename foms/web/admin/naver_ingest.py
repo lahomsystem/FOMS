@@ -2124,7 +2124,7 @@ def _order_trash_view(db, link: Optional[ExternalOrderLink]) -> dict[str, Any]:
     0건 집에서는 접힌 주문이 살아 있는 것처럼 보인다(2026-09-07 담당자 보고: 버튼을
     눌렀는데 화면에 한 글자도 안 남았다). 그래서 머리줄은 **독립 키**로 받는다.
 
-    사실 판정은 :func:`ghost_orders.read_order_trash` 한 벌만 쓴다. 여기서 다시 세면
+    사실 판정은 :func:`orders.soft_delete.read_order_trash` 한 벌만 쓴다. 여기서 다시 세면
     후보 표·검색 표·머리줄이 서로를 반박한다.
 
     ``perf-ok``: 같은 세션에서 :func:`_ghost_discard_view` 가 이미 같은 ``Order`` 를
@@ -2141,7 +2141,7 @@ def _order_trash_view(db, link: Optional[ExternalOrderLink]) -> dict[str, Any]:
     Returns:
         ``order_trashed``(bool) · ``order_trashed_at_text``(``MM-DD HH:MM``, 모르면 빈 문자열).
     """
-    from foms.services.integrations.naver_commerce.ghost_orders import read_order_trash
+    from foms.services.orders.soft_delete import read_order_trash
 
     if link is None or not link.order_id:
         return {"order_trashed": False, "order_trashed_at_text": ""}
