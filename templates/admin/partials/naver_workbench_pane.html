@@ -1004,6 +1004,16 @@
                         <td class="wb-cmp__k">
                             <a href="{{ url_for('order_edit.edit_order', order_id=cand.order_id, open='erp-order') }}"
                                target="_blank" rel="noopener">#{{ cand.order_id }}</a>
+                            {# 휴지통 주문도 목록에 낸다(2026-09-07) — 취소돼 접힌 옛 주문이
+                               통째로 사라지면 담당자가 "이 고객의 기존 주문은 이게 전부"로
+                               읽는다(이광헌 사고: 진짜 짝 #5163 이 휴지통이라 안 보였다).
+                               숨기지 않는 대신 **무엇인지 말한다**. #}
+                            {% if cand.trashed %}
+                            <span class="wb-cand__claim wb-cand__claim--dead">휴지통</span>
+                            {% if cand.trashed_at %}
+                            <div class="wb-relation__reason">{{ cand.trashed_at }} 삭제</div>
+                            {% endif %}
+                            {% endif %}
                             <div class="wb-relation__reason">{{ cand.reason }}</div>
                         </td>
                         <td>
@@ -1098,6 +1108,13 @@
                                흘러간다. 판정 정본 = order_candidates.recommended_relation.
                                권장이 없으면(일부 취소·확정 전) 둘 다 같은 무게로 둔다 —
                                화면이 아무 쪽도 권하지 않는다는 뜻이다. #}
+                            {# 휴지통 주문에는 붙이지 않는다. 서버가 이미 거절하므로
+                               (`promotion.attach_link_to_order`) 버튼만 열어 두면 눌린
+                               버튼이 엉뚱한 말을 받는다 — 화면이 먼저 이유를 말한다. #}
+                            {% if cand.trashed %}
+                            <div class="wb-relation__reason">휴지통에 있는 주문입니다 —
+                                되살린 뒤에 붙이세요.</div>
+                            {% else %}
                             {% set rec = cand.recommended_relation %}
                             {% for rel in (['REPAY', 'ADDON'] if rec == 'REPAY' else ['ADDON', 'REPAY']) %}
                             <button type="button"
@@ -1106,6 +1123,7 @@
                                     data-order-id="{{ cand.order_id }}"
                                     data-relation="{{ rel }}">{{ '재결제로 정리' if rel == 'REPAY' else '추가결제로 정리' }}</button>
                             {% endfor %}
+                            {% endif %}
                         </td>
                     </tr>
                     {% endfor %}

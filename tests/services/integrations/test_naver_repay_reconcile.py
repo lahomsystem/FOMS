@@ -130,7 +130,8 @@ def test_repay_replaces_the_current_deposit(app):
     """재결제는 **바꾸기**다 — 옛 돈은 환불됐으니 더하면 이중 계상이다."""
     order = _order(tel="010-7310-0001", deposit=500_000)
 
-    guide = deposit_guidance(order, new_amount=1_610_780, relation="REPAY")
+    guide = deposit_guidance(order, new_amount=1_610_780, relation="REPAY",
+                             current_claim_code="alive")
 
     assert guide["current"] == 500_000
     assert guide["target"] == 1_610_780, "재결제인데 옛 예약금이 더해졌다(이중 계상)"
@@ -143,7 +144,8 @@ def test_addon_adds_on_top_of_the_current_deposit(app):
     """추가결제는 **더하기**다 — 옛 결제는 살아 있고 그 위에 더 낸 돈이다."""
     order = _order(tel="010-7310-0002", deposit=500_000)
 
-    guide = deposit_guidance(order, new_amount=120_000, relation="ADDON")
+    guide = deposit_guidance(order, new_amount=120_000, relation="ADDON",
+                             current_claim_code="alive")
 
     assert guide["current"] == 500_000
     assert guide["target"] == 620_000, "추가결제인데 새 금액으로 덮어썼다(옛 결제 증발)"
@@ -155,13 +157,55 @@ def test_deposit_guidance_reads_zero_when_the_order_has_none(app):
     """예약금이 아직 없는 주문은 현재값 0 이다 — 안내 문장이 ``None`` 으로 깨지면 안 된다."""
     order = _order(tel="010-7310-0003")  # structured_data = {}
 
-    repay = deposit_guidance(order, new_amount=300_000, relation="REPAY")
-    addon = deposit_guidance(order, new_amount=300_000, relation="ADDON")
+    repay = deposit_guidance(order, new_amount=300_000, relation="REPAY",
+                             current_claim_code="alive")
+    addon = deposit_guidance(order, new_amount=300_000, relation="ADDON",
+                             current_claim_code="alive")
 
     assert repay["current"] == 0 and addon["current"] == 0
     assert repay["target"] == 300_000
     assert addon["target"] == 300_000
     assert repay["verb"] == "바꾸기" and addon["verb"] == "더하기"
+
+
+def test_repay_does_not_move_refunded_money_into_the_deposit(app):
+    """지금 집이 **전부 취소 확정**이면 그 금액은 이미 환불된 돈이다 — 권하지 않는다.
+
+    2026-09-07 운영 사고(이광헌)의 하류: 관계는 재결제가 맞지만, 옛 결제는 **지금 집**
+    쪽이다. 그런데 안내는 방향을 안 가르고 "환불된 금액으로 바꾸세요"라고 적었다.
+    담당자가 그대로 옮기면 ``잔금 = 출고가 − 예약금`` 이 그만큼 어긋난다.
+    """
+    order = _order(tel="010-7310-0004", deposit=500_000)
+
+    guide = deposit_guidance(order, new_amount=1_093_100, relation="REPAY",
+                             current_claim_code="all_done")
+
+    assert guide["verb"] == "그대로"
+    assert guide["target"] == 500_000, "환불된 돈을 예약금 목표액으로 삼았다"
+    assert "1,093,100" not in guide["sentence"], "환불된 금액을 옮겨 적으라고 말한다"
+    assert "그대로" in guide["sentence"]
+
+
+def test_addon_is_untouched_by_the_current_household_code(app):
+    """음성 대조군 — 방향 판정은 **재결제에만** 붙는다. 추가결제는 그대로 더한다."""
+    order = _order(tel="010-7310-0005", deposit=500_000)
+
+    guide = deposit_guidance(order, new_amount=120_000, relation="ADDON",
+                             current_claim_code="all_done")
+
+    assert guide["verb"] == "더하기"
+    assert guide["target"] == 620_000
+
+
+def test_repay_keeps_the_old_sentence_when_the_current_code_is_unknown(app):
+    """음성 대조군 — 지금 집 축이 없는 호출자(도크)는 예전 문장 그대로다."""
+    order = _order(tel="010-7310-0006", deposit=500_000)
+
+    guide = deposit_guidance(order, new_amount=300_000, relation="REPAY",
+                             current_claim_code="")
+
+    assert guide["verb"] == "바꾸기"
+    assert guide["target"] == 300_000
 
 
 # --------------------------------------------------------------------------------------

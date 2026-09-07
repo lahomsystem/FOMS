@@ -53,27 +53,49 @@ class ReconcileError(ValueError):
     """정리를 진행할 수 없는 상태 — 사유를 사람에게 그대로 보여준다."""
 
 
-def deposit_guidance(order: Order, *, new_amount: int, relation: str) -> dict[str, Any]:
+def deposit_guidance(order: Order, *, new_amount: int, relation: str,
+                    current_claim_code: str) -> dict[str, Any]:
     """예약금(선금)에 **넣을 금액** — 안내만 한다 (D-1 확정).
 
     시스템이 넣지 않는 이유: 재결제·추가결제·부분환불이 섞이면 자동 셈이 틀리는 경우가
     생기고, 그 틀림은 ``잔금 = 출고가 − 예약금`` 공식을 타고 고객 청구로 흘러간다.
     출고가·품목은 어느 쪽이든 건드리지 않는다.
 
+    **재결제에는 방향이 둘이다**(2026-09-07). ``REPAY`` 는 "둘 중 하나가 환불된 옛 결제"
+    라는 뜻일 뿐, 어느 쪽이 옛 결제인지는 말하지 않는다.
+
+    * 지금 집이 살아 있고 후보의 옛 결제가 환불됐다 → 지금 집 금액으로 **바꾸기**.
+    * 지금 집이 **전부 취소 확정**이면 옛 결제는 지금 집이다 → 그 금액은 이미 환불된
+      돈이라 예약금으로 옮기면 안 된다. 살아 있는 돈은 후보 주문에 이미 붙어 있다.
+
+    두 방향을 가르지 않던 시절에는 뒤 경우에도 "환불된 금액으로 바꾸세요"라고 적었다 —
+    담당자가 그대로 옮기면 ``잔금 = 출고가 − 예약금`` 이 그만큼 어긋난다.
+
     Args:
         order: 후보(기존) 주문.
         new_amount: 새 집 전체 금액(원).
         relation: ``REPAY``(재결제) 또는 ``ADDON``(추가결제).
+        current_claim_code: **지금 집**의 클레임 집계 코드
+            (:func:`order_candidates.household_facts`). 지금 집 축이 없는 호출자
+            (도크의 살아 있는 집 합계 안내)는 빈 문자열을 넘긴다 — 그러면 방향을
+            가르지 않고 예전 문장 그대로다. **필수 키워드**다: 기본값을 주면 새 호출이
+            조용히 옛 문장으로 떨어지고, 그 틀림은 고객 청구액까지 간다.
 
     Returns:
         ``{"current", "target", "verb", "sentence", "new_amount"}``.
-        ``verb`` 는 ``바꾸기``/``더하기``.
+        ``verb`` 는 ``바꾸기``/``더하기``/``그대로``.
     """
     from foms.services.erp_display import erp_deposit_amount_from_structured
 
     current = erp_deposit_amount_from_structured(order.structured_data or {}) or 0
     amount = int(new_amount or 0)
-    if relation == "REPAY":
+    if relation == "REPAY" and str(current_claim_code or "") == REFUNDED_HOUSEHOLD_CODE:
+        # 지금 집이 옛 결제다 — 그 돈은 이미 고객에게 돌아갔다. 숫자를 권하지 않는다.
+        target, verb = int(current), "그대로"
+        sentence = (f"이 수집분은 전부 취소·환불된 옛 결제입니다 —"
+                    f" 예약금(선금) {current:,}원은 그대로 두세요"
+                    " (살아 있는 돈은 이 주문에 이미 붙어 있는 결제입니다).")
+    elif relation == "REPAY":
         # 옛 결제는 환불됐다 — 더하면 이중 계상이다.
         target, verb = amount, "바꾸기"
         sentence = (f"지금 값 {current:,}원 대신 {target:,}원으로 바꾸세요"
@@ -86,6 +108,10 @@ def deposit_guidance(order: Order, *, new_amount: int, relation: str) -> dict[st
     return {"current": int(current), "target": int(target), "verb": verb,
             "sentence": sentence, "new_amount": amount}
 
+
+#: 지금 집이 **환불이 끝난 옛 결제**임을 뜻하는 집계 코드. 예약금 안내의 방향을 가르는
+#: 값이라 문자열을 여러 곳에 적지 않는다(오타 하나가 고객 청구액으로 간다).
+REFUNDED_HOUSEHOLD_CODE = "all_done"
 
 #: 취소 처리를 열어도 되는 **옛 결제 상태**. 유령 주문 띠와 같은 규칙이다 —
 #: 붙은 네이버 집이 아예 없거나(수기 접수 주문), 네이버가 취소를 **확정**했을 때만 연다.
@@ -187,8 +213,11 @@ def build_reconcile_plan(order: Order, candidate: dict[str, Any], *,
     can_run, run_block = run_gate(claim_code)
     return {
         "relation": relation,
+        # 지금 집 축을 함께 넘긴다 — 지금 집이 전부 환불된 옛 결제면 예약금을 그 금액으로
+        # 바꾸라고 권하면 안 된다(2026-09-07).
         "deposit": deposit_guidance(order, new_amount=candidate.get("new_amount_total") or 0,
-                                    relation=relation),
+                                    relation=relation,
+                                    current_claim_code=candidate.get("current_claim_code") or ""),
         "can_discard": policy["can_discard"],
         # 접수 이후 단계는 잠그지 않는다 — 관리자가 **왜 접는지** 적으면 접힌다.
         "discard_needs_reason": policy["needs_reason"],
@@ -229,6 +258,12 @@ def attach_reconcile_plans(session, candidates: list[dict[str, Any]]) -> None:
     for row in candidates:
         order = orders.get(int(row.get("order_id") or 0))
         if order is None:
+            continue
+        if row.get("trashed"):
+            # 휴지통 주문에는 정리 계획을 만들지 않는다(2026-09-07). 후보 표는 휴지통
+            # 주문도 **보여 주지만**(존재했다는 사실이 판단 근거다) 붙이기는 서버가
+            # 거절한다 — 계획 카드를 그리면 그 카드의 '정리 실행'이 곧바로 그 거절을
+            # 받는다. 계획이 없으면 템플릿의 ``{% if cand.reconcile %}`` 가 카드째 접는다.
             continue
         row["reconcile"] = {
             relation: build_reconcile_plan(order, row, relation=relation)

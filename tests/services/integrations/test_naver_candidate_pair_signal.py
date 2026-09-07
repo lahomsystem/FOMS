@@ -48,6 +48,7 @@ import pytest
 from werkzeug.security import generate_password_hash
 
 from db import db_session
+from foms.services.datetime_kst import now_utc_naive
 from foms.services.integrations.naver_commerce.constants import CHANNEL
 from foms.services.integrations.naver_commerce.mapping import group_key_text
 from foms.services.integrations.naver_commerce.order_candidates import (
@@ -558,3 +559,61 @@ def test_all_done_current_never_recommends_an_unsettled_candidate(
     seek_buttons = _seek_buttons(seek_body)
     assert [_button_relation(btn) for btn in seek_buttons] == ["ADDON", "REPAY"],         "권고가 없으면 버튼 순서는 기본값 그대로다"
     assert not [btn for btn in seek_buttons if "btn-outline-primary" in btn],         "권고가 없는데 검색 경로가 한쪽을 강조한다"
+
+# --------------------------------------------------------------------------- #
+# 6. 휴지통 주문 (2026-09-07) — 목록에는 내고, 붙이기는 닫는다
+#
+# 이광헌 사고에서 이번 집의 진짜 짝(#5163)은 휴지통이라 후보 표에서 통째로 빠졌다.
+# 담당자 화면에는 새 주문 하나만 남았고, 그게 "기존 주문 전부"로 읽혔다.
+# --------------------------------------------------------------------------- #
+
+def test_pane_shows_trashed_candidate_and_closes_its_attach_buttons(client, workbench_on):
+    """휴지통 주문은 표에 나오되 `휴지통` 이라 말하고, 붙이기 버튼은 없다.
+
+    버튼을 열어 두면 서버(:func:`promotion.attach_link_to_order`)가 거절하면서
+    "붙일 주문을 찾을 수 없습니다"라는 엉뚱한 말을 돌려준다 — 화면이 먼저 이유를 말한다.
+    """
+    _login(client)
+    tel = "010-7788-0001"
+    trashed_id = _order(tel=tel, name="휴지통고객")
+    trashed = db_session.get(Order, trashed_id)
+    trashed.deleted_at = now_utc_naive()
+    db_session.commit()
+    current = _link(order_no="N-TRASH-CUR", tel=tel, amount=1_093_100,
+                    claim="CANCEL_DONE", name="휴지통고객")
+
+    body = _pane(client, link_id=current.id)
+
+    assert f"#{trashed_id}" in body, "휴지통 주문이 후보 표에서 통째로 빠졌다"
+    assert "휴지통" in body
+    assert f'data-order-id="{trashed_id}"' not in body, "휴지통 주문에 붙이기 버튼이 열렸다"
+    assert "되살린 뒤에 붙이세요" in body
+
+
+def test_live_candidate_still_gets_its_attach_buttons(client, workbench_on):
+    """음성 대조군 — 살아 있는 후보는 버튼이 그대로 있다(전부 닫아 버리면 안 된다)."""
+    _login(client)
+    tel = "010-7788-0002"
+    live_id = _order(tel=tel, name="살아있는고객")
+    current = _link(order_no="N-TRASH-LIVE", tel=tel, amount=500_000, name="살아있는고객")
+
+    body = _pane(client, link_id=current.id)
+
+    assert f'data-order-id="{live_id}"' in body
+    assert "되살린 뒤에 붙이세요" not in body
+
+
+def test_trashed_candidate_deposit_hint_does_not_move_refunded_money(client, workbench_on):
+    """전부 취소된 집을 재결제로 정리해도 **환불된 금액**을 예약금으로 권하지 않는다."""
+    _login(client)
+    tel = "010-7788-0003"
+    order_id = _order(tel=tel, name="환불안내고객")
+    _link(order_no="N-DEP-OLD", tel=tel, amount=900_000, order_id=order_id,
+          name="환불안내고객")
+    current = _link(order_no="N-DEP-CUR", tel=tel, amount=1_093_100,
+                    claim="CANCEL_DONE", name="환불안내고객")
+
+    plans = _reconcile_plans(current, order_id)
+
+    assert plans["REPAY"]["deposit"]["verb"] == "그대로"
+    assert "1,093,100" not in plans["REPAY"]["deposit"]["sentence"]
