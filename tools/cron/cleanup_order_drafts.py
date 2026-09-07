@@ -148,12 +148,19 @@ def run_erp_draft_orders(
 
         deleted = 0
         if execute and scanned > 0:
+            # 선별 기준(now/threshold)과 기준축이 다르다 — deleted_at 은
+            # naive UTC 고정폭 규약(soft_delete._DELETED_AT_FORMAT)을 따라야
+            # 읽는 쪽(format_datetime_kst)과 문자열 desc 정렬이 맞는다.
+            # 이 파일은 저장소 루트가 sys.path 에 없는 채 스크립트로 돌아
+            # foms.* 를 물면 ModuleNotFoundError 로 죽는다 — stdlib 로 같은 값을 만든다
+            # (now_utc_naive() == datetime.now(timezone.utc).replace(tzinfo=None) == utcnow()).
+            deleted_stamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
             result = session.execute(
                 text(
                     f"UPDATE orders SET status='DELETED', original_status='DRAFT', "
-                    f"deleted_at=:now_iso WHERE {where}"
+                    f"deleted_at=:deleted_stamp WHERE {where}"
                 ),
-                {"threshold": threshold, "now_iso": now.isoformat()},
+                {"threshold": threshold, "deleted_stamp": deleted_stamp},
             )
             deleted = result.rowcount
             session.commit()
