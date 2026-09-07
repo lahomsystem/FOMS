@@ -1127,3 +1127,66 @@ $ 회귀(ERP·AS·JS 문법 스위트)
 되살릴 일이 생기면 그 설계가 출발점이고, 옵션 값을 **실제로 저장하는** 옛 방식으로는 돌아가면
 안 된다(62건 큐 이탈).
 
+---
+
+## T11. 매일 드리프트 검사 운영 반영 + 첫 실측 (사용자 지시 "올려서 돌리기")
+
+- 상태: **DONE**. PR #303 머지 → production. 수동 dispatch 1회로 실측 확보.
+
+### 승격 중 충돌 1건 — 사용자 확인 후 처리
+
+`tests/contracts/runtime/layer_dependency_baseline.json` 이 `DU`(운영엔 없는데 이 커밋이 수정)로
+충돌했다. 그 파일은 production 에 올리지 않은 T1 래칫 커밋이 만든 것이고 **그것을 읽는 테스트도
+production 에 없다**. 사용자 결정("그 파일만 빼기")대로 그 변경만 제외했다 — 임의 병합이 아니다.
+승격 worktree 에서 직접 확인: `APP_OK` · 관련 계약 **207 passed** · 래칫 테스트 부재 확인.
+
+### 운영 첫 실행 (run 34072367845)
+
+첫 dispatch 는 **404 로 실패**했다 — 머지 직후라 운영에 엔드포인트가 아직 없었다. 도구가 거짓
+초록 대신 `exit 3` 으로 죽은 것은 설계대로다(무음 실패 없음). 배포 확인(엔드포인트 401) 후 재실행:
+
+```
+판정: 🟢 순증 없음 (총 924건 / 소요 1072ms / 절단 False)
+| AS 축 투영(as_axis_status) |  659 |   0 |    0 |    0 | 투영 누락 0 · legacy 전용 0 |
+| ERP flat 컬럼             | 3007 | 924 | 1750 | -826 | SAFE 0 · AMBIGUOUS 924 · CLEAN 2083 |
+```
+
+**SAFE 825 → 0.** 같은 날 백필이 고친 것이 게이트 숫자로 확인됐다. 소요 1072ms 라 gunicorn
+`--timeout 120` 대비 여유가 크다(F-13 의 elapsed_ms 실측 완료).
+
+기준선을 규칙대로 **1750 → 924** 로 낮췄다(커밋 `93f5ed40c` 계열). 안 낮추면 래칫이 826건만큼
+헐거워진 채 남는다. 남은 924는 전부 `PAYMENT_AMOUNT_DRIFT` — 자동으로 못 고친다.
+
+## T12. 좌표 스윕 루프 하트비트·Sentry (후속 F-5 첫 건)
+
+- 상태: **DONE(deploy)**. `run_geocode_sweep.py` + 계약 5건.
+- 이 스크립트가 2026-02 워커 offline 사고의 그 스크립트다. `app.py` 를 안 거쳐 `init_sentry`
+  호출처가 없었고(예외가 아무 데도 안 감), 하트비트도 없어 멎어도 표에 안 나타났다.
+- 라운드가 터져도 하트비트를 남긴다(`outcome` 을 ok/round_failed 로 갈라 "죽었다" 와 "이번
+  라운드만 실패" 를 구분). 하트비트 실패는 스윕을 안 막되 warning + Sentry 로 남긴다.
+- **변이 검증이 내 테스트의 허점을 잡았다**: 경고 로그를 지우는 변이가 통과했는데, Sentry
+  메시지에도 'heartbeat' 가 들어 있어 단언 하나가 두 신호를 같이 세고 있었다. 둘을 갈라
+  다시 재니 변이 2종 다 red.
+
+```
+[heartbeat call removed] exit=1  3 failed, 2 passed
+[warning silenced]       exit=1  1 failed, 4 passed
+restore ok: True
+```
+
+## 세션 마감 상태 (2026-09-07)
+
+| | |
+|---|---|
+| production | `f33f1170b` — AS 접수 입구(PR #302) · 드리프트 감사+래칫(PR #303) |
+| deploy | `017153194` — CI 전 워크플로 green |
+| 운영 데이터 | flat 백필 825건, 게이트 실측 `SAFE 0` |
+| 매일 검사 | 03:20 KST cron 작동, 기준선 924 순증 시에만 실패 |
+
+**타 세션과 4회 경합**했다(deploy 가 5커밋 전진). 매번 내 커밋만 rebase 하고 `APP_OK`+계약
+재확인 후 push 했다. 남의 커밋은 건드리지 않았다.
+
+**남은 후속 16건** — 큰 것: 운영 AMBIGUOUS 924건(결제금액, 사람이 봐야 함) · 스테이징
+`SENTRY_DSN` 미설정 · 나머지 루프 3개 + `rq worker` 본체 하트비트 · 로그인 잠금 승격 판단 ·
+`check_sidefx_readiness` 가 새 kind 2종(`NAVER_AUTO_DISPATCH`·`GEOCODE_SWEEP`)을 못 읽음.
+
