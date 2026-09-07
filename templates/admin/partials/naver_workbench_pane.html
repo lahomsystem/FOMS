@@ -199,6 +199,22 @@
             {% if selected.order_id %}
             <span class="badge bg-primary">주문 #{{ selected.order_id }}</span>
             {% endif %}
+            {# 담당자가 `이 ERP 주문을 휴지통으로` 를 눌렀는데 화면에 한 글자도 안 남았다
+               (2026-09-07 보고) — 접힌 주문이 살아 있는 것처럼 보였다. 낱말은 아래 후보 표·
+               검색 표와 **같은 벌**을 쓴다(`휴지통` / `… 삭제`).
+               시각은 **있을 때만** 낸다 — 모르면 줄 자체를 안 낸다(빈 칸이나 `-` 로 채우면
+               화면이 거짓말을 한다). 새 CSS 없이 부트스트랩 유틸리티만 쓴다 → `?v=` 핀 범프 없음.
+               `text-white` 를 같이 주는 이유는 이 파일의 다른 배지와 같다 — 바탕만 주면
+               테마에 따라 어두운 글자가 어두운 바탕에 얹힌다.
+               **판정 축이 아니다**: 이 두 키는 버튼 조건 어디서도 읽지 않는다. 폐기 블록
+               (`ghost_discard`)은 클레임이 있어야 그려지는데 "휴지통에 넣었다"는 사실은
+               클레임 유무와 무관해서 **독립 키**로 받는다. #}
+            {% if order_trashed %}
+            <span class="badge bg-dark text-white">휴지통</span>
+            {% if order_trashed_at_text %}
+            <span class="small text-muted">{{ order_trashed_at_text }} 삭제</span>
+            {% endif %}
+            {% endif %}
             {# 발주확인이 끝난 사실은 지금까지 **잠긴 버튼의 title 에만** 있었다. 마우스가 없는
                기기에서는 그 글자를 영영 못 읽는다 — 왜 못 누르는지가 화면에 없다는 뜻이다
                (2026-08-23 CEO 검수 하). 발송처리 완료 표시와 같은 자리에 사실로 남긴다. #}
@@ -551,7 +567,10 @@
                     {% if ghost_discard.discard_needs_reason %}data-needs-reason="1"{% endif %}
                     {% if not ghost_discard.can_discard %}disabled title="{{ ghost_discard.discard_block }}"{% endif %}>
                 이 ERP 주문을 휴지통으로
-                <span class="wb-discard__tag">{{ '되돌릴 수 있음' if ghost_discard.can_discard else '지금은 안 됨' }}</span>
+                {# 이미 휴지통에 들어간 주문에 `지금은 안 됨` 은 이상한 말이다 — 못 하는 게
+                   아니라 **이미 되어 있다**. 꼬리표 낱말만 사실로 바꾼다.
+                   버튼 자체·`disabled` 조건·`title` 은 손대지 않는다(판정 축 불변). #}
+                <span class="wb-discard__tag">{{ '되돌릴 수 있음' if ghost_discard.can_discard else ('휴지통에 있음' if ghost_discard.trashed else '지금은 안 됨') }}</span>
             </button>
 
             {% if ghost_discard.can_discard and ghost_discard.repay_candidates %}
@@ -566,6 +585,11 @@
             {# 잠긴 이유를 title 에만 두지 않는다 — 마우스가 없는 기기에서는 영영 못 읽는다. #}
             <div class="alert alert-warning py-2 mb-0 w-100 small" data-foms-no-autodismiss>
                 {{ ghost_discard.discard_block }}.
+                {# 언제·왜 접었는지는 되돌릴 사람이 가장 먼저 묻는 것이다. 시각을 모르면
+                   줄 자체를 안 낸다 — 사유만 있는 경우까지 억지로 그리면 빈 칸이 남는다.
+                   `trashed` 를 함께 보는 이유: 복원된 주문에 삭제 projection 이 잔존할 수
+                   있어 서비스와 화면 **두 겹**으로 막는다. 판정 축·버튼 조건은 불변. #}
+                {% if ghost_discard.trashed and ghost_discard.trashed_at_text %}<div class="wb-ghost__dim">{{ ghost_discard.trashed_at_text }} 삭제{% if ghost_discard.trashed_note %} · {{ ghost_discard.trashed_note }}{% endif %}</div>{% endif %}
             </div>
             {% elif not ghost_discard.discard_needs_reason and not ghost_discard.repay_candidates %}
             <div class="wb-acts__why small">

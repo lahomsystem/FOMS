@@ -13,7 +13,8 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 - [2026-09-07] **옛 결제 승인 버튼 운영 반영(PR #307 · production `90e82cf7b`)** — 정리 계획 카드 ⓘ 행에서 옛 집 취소·반품 승인. 대상은 `fulfillment.links_of_group` + 서버 술어로 뽑아 **화면 대상 == 서버 대상**(리뷰 P0: 후보 주문 링크만 세면 과소 진술 → 화면 2건·서버 3건 환불). 비용 가드 `_naver_facts(with_approve=False)` 기본
 - [2026-09-07] **조작 뒤 제자리 갱신 + 도크 재결제 문구(deploy 대기 `c3c4c7abc`)** — 조작 완료(rev 이동) 시 `softRefresh`, 실패 시엔 안 그린다. 도크 재결제 줄 = `지금 받은 결제입니다 …`(옛 문구는 지금 결제를 취소 잔재로 읽게 했다). 핀 `?v=20260907b` 3줄
 - [2026-09-07] **확인: 취소 확정 주문 자동 폐기는 존재하지 않는다(설계상 잘라낸 범위)** — `soft_delete_order` 호출부 4곳 전부 사람이 누르는 라우트. 사용자 결정: **지금처럼 수동 유지**. 자동화 시 함정 11종은 조사 결과 참조(재결제 짝·확정 전 취소·교환·워커 행위자 부재·모집단 술어 불일치)
-- [2026-09-07] **진행 중: 취소·반품에 실측 전/후 맥락** — 브리프 `docs/plans/2026-09-07-naver-claim-measure-context-brief.md`. 잔여: 유령 문구가 재결제 집과 옛 집을 한 통에 세는 것(`14건 중 9건`) 수정
+- [2026-09-07] **취소·반품에 실측 전/후 맥락(deploy 대기)** — 판정 SSOT `foms/services/orders/measure_progress.py`(measurement_completed 진행 단계 실측일 순, 하나라도 오늘 이하면 `실측 후`). 클레임 알림 제목·본문 + 유령 목록 행 + 집 pane 이 **같은 함수·같은 낱말**. 표시 축이라 판정·모집단은 안 본다
+- [2026-09-07] **휴지통 표기 + 유령 문장 사실화(deploy 대기)** — 접은 순간 폐기 블록이 통째로 사라져 "휴지통으로 보냈다"를 화면이 한 글자도 말하지 않았다(사용자 보고). `read_order_trash` 신설(표기 전용) + pane 머리줄 독립 배지 + 블록에 `MM-DD HH:MM 삭제 · 사유`. 문장은 세 갈래로 갈라 **집 수와 상품주문 수를 한 문장에 섞지 않는다**(옛 `14건 중 9건만 취소`). 브리프 `docs/plans/2026-09-07-naver-trash-trace-and-ghost-sentence-brief.md`
 - [2026-09-07] **이력 탭 권한 확대 + 후보 쌍 판정 운영 반영(PR #304)** — `docs/plans/2026-09-07-naver-candidate-repay-signal-brief.md`
 - [2026-09-07] **휴지통 옛 주문 후보 노출 + 예약금 방향(deploy `19d4ef876`)** — 잔여: 운영 승격
 - [2026-09-07] **진행 중: 옛 결제 취소·반품 승인** — `docs/plans/2026-09-07-naver-old-payment-approve-in-place-brief.md`
