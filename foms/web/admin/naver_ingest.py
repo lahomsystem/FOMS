@@ -1816,6 +1816,9 @@ def naver_ingest_triage():
     T14-A: 규격을 실제로 입력하는 사람이 CS 접수 담당이라 전 직원(STAFF 이상)에게
     개방한다. 수집 운영 화면(``naver_ingest_dashboard``)·"지금 수집"·raw 스냅샷은
     관리자 전용으로 남는다.
+
+    2026-09-07: 전체 이력 탭은 ADMIN 외에 **회계팀·영업팀**도 연다
+    (:func:`_can_view_history`). 운영 손잡이는 :func:`_is_ingest_admin` 이 계속 묶는다.
     """
     db = get_db()
     from foms.services.feature_flags import is_naver_workbench_enabled
@@ -2234,9 +2237,10 @@ def _render_workbench(db) -> str:
     visible = [group for group in groups if _group_matches_filter(group, active_filter)]
     # 수집 상태(워터마크·인증 만료일)는 이력 탭에 함께 싣는다. 게이트가 켜지면 옛 수집
     # 화면이 리다이렉트로 닫히는데, 그 화면에만 있던 값이라 여기 없으면 수집이 조용히
-    # 멈춰도 아무도 모른다. ADMIN 전용은 그대로다.
+    # 멈춰도 아무도 모른다. **ADMIN 전용은 그대로다** — 이력 열람이 회계팀·영업팀까지
+    # 열린 뒤에도 이 카드(지금 수집·소급 수집·만료일 등록)는 ADMIN 손잡이다.
     ingest_status = ({"watermark": _watermark_view(db), "expiry": _expiry_view(db)}
-                     if active_tab == "all" and _can_view_history() else {})
+                     if active_tab == "all" and _is_ingest_admin() else {})
     return render_template(
         "admin/naver_workbench.html",
         active_tab=active_tab,
@@ -2276,11 +2280,12 @@ def _render_workbench(db) -> str:
         # 라우트가 403 이 되어 진입점 두 곳 중 하나가 조용히 죽는다.
         naver_bulk_dispatch_enabled=is_naver_bulk_dispatch_enabled(),
         # 전체 다시 읽기(NVREPAY-03) — 탭과 무관한 수집 전체 조작이라 두 탭 모두에서 낸다.
-        # ADMIN 이 아니면 세지도 않는다(버튼이 없으므로 쿼리도 필요 없다).
-        refresh_all=(_refresh_all_view(db) if _can_view_history() else {"count": 0}),
+        # ADMIN 이 아니면 세지도 않는다(버튼이 없으므로 쿼리도 필요 없다). 이력을 보는
+        # 회계팀·영업팀도 여기서는 빠진다 — 실행 라우트가 ADMIN 전용이다.
+        refresh_all=(_refresh_all_view(db) if _is_ingest_admin() else {"count": 0}),
         # 남이 눌러 놓은 다시 읽기(NVREPAY-05 T1) — 돌고 있으면 버튼 대신 진행을 그린다.
         # 버튼과 같은 자리·같은 권한이라 같은 조건에서만 센다.
-        refresh_running=(_refresh_running_view(db) if _can_view_history()
+        refresh_running=(_refresh_running_view(db) if _is_ingest_admin()
                          else {"running": False}),
         **_pane_context(db, _selected_link(db, visible), visible=visible),
     )
@@ -2468,18 +2473,60 @@ WORKBENCH_FILTERS = ("all", "place", "rel", "claim")
 LEGACY_TAB_FILTERS = {"place": "place", "claim": "claim"}
 
 
-def _can_view_history() -> bool:
-    """전체 이력 탭을 볼 수 있는가 — 기준은 수집 관리 화면과 **같다**(ADMIN 전용).
+#: 전체 이력 탭을 **팀 자격**으로 여는 팀(사용자 결정 2026-09-07). 회계팀은 정산 대조,
+#: 영업팀은 자기 주문의 수집 이력을 확인하려고 연다. ADMIN 은 팀과 무관하게 통과한다.
+#: 팀 코드는 ``foms/web/auth/routes.py`` ``TEAMS`` SSOT 와 같은 값이다.
+HISTORY_VIEW_TEAMS = ("ACCOUNTING", "SALES")
 
-    트리아지는 규격을 입력하는 CS 담당(STAFF 이상)에게 열려 있지만, 수집 이력·상태
-    집계·실패 사유는 ``naver_ingest_dashboard`` 가 ADMIN 으로 묶어 둔 자료다. 같은 자료를
-    STAFF 도 여는 라우트 안에서 다시 내면 **회귀가 아니라 신규 노출**이 된다.
+#: 팀 자격으로 통과할 수 있는 role. VIEWER 는 라우트 자체가 막고, 여기서도 하드 deny 다.
+_HISTORY_TEAM_CAPABLE_ROLES = ("MANAGER", "STAFF")
+
+
+def _is_ingest_admin() -> bool:
+    """수집 **운영** 손잡이(수집 상태·지금 수집·소급 수집·전체 다시 읽기) 자격.
+
+    이력 **열람**(:func:`_can_view_history`)과 갈라 둔다. 열람은 회계팀·영업팀까지
+    열렸지만 이 손잡이들의 라우트는 여전히 ``role_required(["ADMIN"])`` 다 —
+    한쪽만 넓히면 열린 버튼이 403 을 받는다.
 
     Returns:
         현재 사용자가 ADMIN 이면 True.
     """
     user = getattr(g, "current_user", None)
     return bool(user) and str(getattr(user, "role", "") or "").upper() == "ADMIN"
+
+
+def _can_view_history() -> bool:
+    """전체 이력 탭을 볼 수 있는가 — ADMIN + 회계팀·영업팀(2026-09-07 사용자 결정).
+
+    처음에는 수집 관리 화면과 같은 기준(ADMIN 전용)이었다. 수집 이력·상태 집계·실패
+    사유가 ``naver_ingest_dashboard`` 의 ADMIN 자료였기 때문이다. 그런데 그 탭이 "네이버
+    주문이 지금 어떤 상태인가"를 되짚는 **유일한 자리**라, 정산을 대조하는 회계팀과 자기
+    주문을 좇는 영업팀이 관리자를 거쳐야만 볼 수 있었다.
+
+    넓힌 것은 **열람뿐**이다. 수집 상태 카드·지금 수집·소급 수집·전체 다시 읽기는
+    :func:`_is_ingest_admin` 이 그대로 ADMIN 으로 묶는다(그 라우트들이 ADMIN 전용이다).
+
+    판정 모양은 정산 게이트(:func:`foms.services.settlement_channel_access.
+    is_accounting_or_admin`)와 같다 — ADMIN 통과, MANAGER/STAFF 는 team 으로, VIEWER·
+    비활성은 거부. team 은 ``MEASURE``→``SALES`` 정규화를 거친다(레거시 실측 팀 값).
+
+    Returns:
+        이력 탭을 열 수 있으면 True.
+    """
+    from foms.services.orders.order_mutation_policy import normalize_team
+
+    user = getattr(g, "current_user", None)
+    if user is None:
+        return False
+    if not getattr(user, "is_active", True):
+        return False
+    role = str(getattr(user, "role", "") or "").strip().upper()
+    if role == "ADMIN":
+        return True
+    if role not in _HISTORY_TEAM_CAPABLE_ROLES:
+        return False
+    return normalize_team(getattr(user, "team", None)) in HISTORY_VIEW_TEAMS
 
 
 def _active_tab() -> str:
