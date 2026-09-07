@@ -817,10 +817,13 @@ def find_order_candidates(session, link: ExternalOrderLink, *,
         phone_terms.append((keys["orderer_phone"], SCORE_ORDERER_PHONE, "주문자 전화 일치"))
 
     for digits, score, reason in phone_terms:
-        # erp_phone_digits 는 인덱스 컬럼(P1-02). phone 원문은 형식이 제각각이라 보조로만 본다.
+        # 전화축은 인덱스 컬럼 erp_phone_digits **단독**이다(P1-02).
+        # 레거시 orders.phone 은 sync_erp_flat_columns 규약 밖이라 전화가 바뀌면 낡은
+        # 값만 남고, 형식도 제각각이라 대개 안 물리는 죽은 갈래로 "축이 둘"이라는 착시만
+        # 준다(2026-09-01 트리아지 자동 매칭 미스). 낡은 사본에 판정을 얹지 않는다
+        # — tests/domains/test_naver_candidate_phone_axis.py 가 이 계약을 잠근다.
         rows = (
-            base.filter(or_(Order.erp_phone_digits == digits,
-                            Order.phone == digits))
+            base.filter(Order.erp_phone_digits == digits)
             .order_by(Order.created_at.desc())
             .limit(limit * 2)
             .all()
