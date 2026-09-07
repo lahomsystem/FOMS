@@ -28,7 +28,7 @@ from foms.services.orders.estimate_defaults import (
 )
 from foms.services.orders.as_cycle_view import as_cycle_detail_payload
 from foms.services.orders.construction_type import normalize_regional_construction_type
-from foms.services.orders.stage_override import normalize_main_stage
+from foms.services.orders.stage_override import normalize_main_stage, override_pins_stage
 from foms.services.orders.status_constants import STATUS
 from foms.web.auth import log_access, login_required, role_required
 from foms.services.audit_message_display import describe_order_action, summarize_changes
@@ -324,10 +324,17 @@ def _pin_form_stage_to_server(old_sd: dict, structured_data: dict) -> None:
     if not old_stage:
         return
     wf = structured_data.setdefault("workflow", {})
-    if isinstance(wf, dict):
-        wf["stage"] = old_stage
+    if not isinstance(wf, dict):
+        wf = {}
+        structured_data["workflow"] = wf
+    wf["stage"] = old_stage
+    # stage_override 표식도 서버 소유다. 폼은 workflow 를 페이지 로드 스냅샷에서 통째로
+    # 복사해 보내므로, 표식을 그대로 받으면 오래된 탭이 방금 건 override 표식을 되돌린다.
+    old_marker = old_wf.get("stage_override")
+    if isinstance(old_marker, dict):
+        wf["stage_override"] = copy.deepcopy(old_marker)
     else:
-        structured_data["workflow"] = {"stage": old_stage}
+        wf.pop("stage_override", None)
 
 
 #: 실측일이 잡히면 자동 전진하는 출발 단계(전진 1칸만 — RECEIVED → MEASURE).
@@ -398,10 +405,14 @@ def _should_auto_advance_to_measure(order: Order, requested_stage: str = '') -> 
         return False
     sd = order.structured_data if isinstance(order.structured_data, dict) else {}
     workflow = sd.get('workflow') if isinstance(sd.get('workflow'), dict) else {}
-    if str(workflow.get('stage') or '').strip() not in _AUTO_MEASURE_FROM_STAGES:
+    stage_now = str(workflow.get('stage') or '').strip()
+    if stage_now not in _AUTO_MEASURE_FROM_STAGES:
         return False
     if _structured_measurement_date(sd):
-        return True
+        # 명시적 stage-override 가 방금 접수로 되돌린 건은 자동 전진 대상이 아니다.
+        # 자동 전진 조건은 "실측일이 있으면"이라는 **상태** 조건이라 저장할 때마다 다시
+        # 성립한다 — 표식을 안 보면 사용자가 건 역행이 폼 저장 한 번마다 취소된다.
+        return not override_pins_stage(sd, stage_now)
     if normalize_main_stage(requested_stage) != 'MEASURE':
         return False
     return bool(getattr(order, 'is_regional', False) or getattr(order, 'is_self_measurement', False))
