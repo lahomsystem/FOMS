@@ -1377,3 +1377,23 @@ $ python -m pytest tests/contracts/runtime/test_layer_dependency_ratchet.py \
 $ PYTHONIOENCODING=utf-8 python -c "import app; print('APP_OK')"
 APP_OK
 ```
+
+## 후속 세션 2 마감 상태 (2026-09-08)
+
+| | |
+|---|---|
+| deploy | `7d28a2892` — 전 워크플로 green (Harness CI · FOMS PostgreSQL Lane · perf-gate · FOMS CI) |
+| production | `d2e1d263a` — 이번 세션에서 건드리지 않았다 |
+| 처리한 후속 | F-9 · F-5 · F-6 · F-7 (+ F-11 실사례 대응: 스모크 서브셋에 계약 2종 등재) |
+| 계약 | readiness 14건 + 배선 25건, 변이 16종 전부 red 확인 |
+
+커밋 4개: `328055bf0`(F-9) · `50107e891`(F-5/F-6) · `7d28a2892`(F-7·래칫·스모크) 및 인벤토리
+재생성. `50107e891` 은 계층 래칫 위반으로 FOMS CI 가 한 번 빨갰고 다음 커밋에서 고쳤다.
+
+### 사용자 판단이 필요한 것 (그대로 남아 있다)
+
+1. **`start.sh` exec 줄이 바뀌었다** — 운영 워커 기동 경로다. 스테이징에서 워커가 실제로
+   뜨고 `RQ_WORKER` 하트비트 행이 생기는지 확인하기 전에는 production 승격 금지.
+2. `SENTRY_DSN` 미설정(F-12) — 이번에 붙인 Sentry 배선이 스테이징·운영에서 전부 no-op 이다.
+3. 하트비트 자동 조회 경로 없음(F-17) — 사람이 `--kinds` 로 불러야만 읽힌다.
+4. 로그인 한도·잠금(T6) production 승격 · 운영 AMBIGUOUS 924건 · F-1 · F-4 — 미결 그대로.
