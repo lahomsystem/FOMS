@@ -319,6 +319,37 @@ html, body {
 }
 .dws-menu-item:hover { background: rgba(0, 0, 0, 0.05); }
 
+/* ---- 내보내기 메뉴: 기억된 저장 폴더 줄 ------------------------------- */
+.dws-export-dir {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 10px 6px 10px;
+  font-size: 12px;
+  color: #6e6e73;
+  white-space: nowrap;
+}
+.dws-export-dir-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #1d1d1f;
+  font-weight: 500;
+}
+.dws-export-dir-change {
+  flex: 0 0 auto;
+  border: 1px solid rgba(0, 0, 0, 0.14);
+  background: #fff;
+  color: #1d1d1f;
+  font-family: inherit;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.dws-export-dir-change:hover { background: rgba(0, 0, 0, 0.05); }
+
 /* 메뉴 구분선(내보내기 그룹 ↔ 버전 이력) */
 .dws-menu-sep { height: 1px; background: rgba(0, 0, 0, 0.08); margin: 5px 2px; }
 
