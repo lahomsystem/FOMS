@@ -10,6 +10,8 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
+- [2026-09-07] **삭제 축 통일(deploy 대기)** — 휴지통 낱말 한 벌: `read_order_trash` 를 `orders/soft_delete.py` 로 옮겨 pane 머리줄·유령 블록·후보 표·검색 표가 한 함수를 읽는다(후보 표 시각 `09-07 08:41` 형식, 템플릿 무변경). 저장 규약 한 벌: 일괄 삭제(KST)·드래프트 폐기(ISO)·cron 초안 정리 3자리를 naive UTC 고정폭으로. 인벤토리 게이트로 회귀 차단
+- [2026-09-07] **옛 삭제 시각 백필은 도구만(실행 대기)** — 운영 dry-run 실측 308행 중 262행 대상(legacy KST 234 · ISO 28). `tools/ops/backfill_deleted_at_utc.py` 기본 dry-run·JSONL 저널 되돌리기·표식 멱등. ISO 행은 형식만 고치고 시각은 안 옮긴다(컨테이너 TZ 미상). **사용자 승인 뒤 실행**
 - [2026-09-07] **취소·반품에 실측 전/후 맥락(deploy 대기)** — 판정 SSOT `foms/services/orders/measure_progress.py`. 클레임 알림·유령 목록·집 pane 이 같은 함수·같은 낱말. 표시 축이라 판정·모집단은 안 본다
 - [2026-09-07] **휴지통 표기 + 유령 문장 사실화(deploy 대기)** — 접은 순간 폐기 블록이 사라져 화면이 아무 말도 안 했다(사용자 보고). `read_order_trash`(표기 전용) + 머리줄 독립 배지 + `MM-DD HH:MM 삭제 · 사유`. 문장은 세 갈래로 갈라 집 수와 상품주문 수를 안 섞는다(옛 `14건 중 9건만 취소`). 브리프 `docs/plans/2026-09-07-naver-trash-trace-and-ghost-sentence-brief.md`
 - [2026-09-07] **옛 결제 승인 버튼 운영 반영(PR #307 · production `90e82cf7b`)** — 정리 계획 카드 ⓘ 행에서 옛 집 취소·반품 승인. 대상은 `fulfillment.links_of_group` + 서버 술어로 뽑아 **화면 대상 == 서버 대상**(리뷰 P0: 후보 주문 링크만 세면 과소 진술 → 화면 2건·서버 3건 환불). 비용 가드 `_naver_facts(with_approve=False)` 기본

@@ -48,7 +48,6 @@ from typing import Any, Optional
 
 from sqlalchemy.orm import selectinload
 
-from foms.services.datetime_kst import format_datetime_kst
 from foms.services.integrations.naver_commerce.grouping import resolve_group_key
 from foms.services.integrations.naver_commerce.mapping import (
     CLAIM_KIND_LABELS,
@@ -62,12 +61,12 @@ from foms.services.integrations.naver_commerce.mapping import (
 )
 from foms.services.orders.erp_policy_constants import STAGE_LABELS
 from foms.services.orders.measure_progress import judge_measure_progress
-from foms.services.orders.state_axes import read_deleted
+from foms.services.orders.soft_delete import read_order_trash
 from models import ExternalOrderLink, Order
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["find_ghost_orders", "judge_order_discard", "read_order_trash", "stage_label",
+__all__ = ["find_ghost_orders", "judge_order_discard", "stage_label",
            "GHOST_LIST_LIMIT", "DISCARDABLE_STATUSES", "GHOST_CLAIM_KINDS"]
 
 #: 유령 모집단에 넣는 단계. ``rejected``(거부·철회)는 주문이 살아 있다는 뜻이라 뺀다.
@@ -132,53 +131,6 @@ def stage_label(status: Any) -> str:
     """
     text = str(status or "")
     return STAGE_LABELS.get(text, text)
-
-
-def read_order_trash(order: Any) -> dict[str, Any]:
-    """휴지통 사실 3종 — **표기 전용**(판정 축이 아니다).
-
-    왜 필요한가: 담당자가 pane 에서 주문을 휴지통으로 보내면 주문은 실제로 접히는데
-    화면에는 그 사실이 한 글자도 남지 않았다(사용자 보고 2026-09-07). 화면이 사실을
-    말하려면 "휴지통인가·언제·왜" 를 서비스가 내줘야 한다.
-
-    **판정 축을 한 글자도 바꾸지 않았다** — :func:`_discard_verdict` 도 유령 모집단
-    (:func:`find_ghost_orders` 의 ``Order.not_deleted_filter()``)도 이 값을 읽지 않는다.
-    휴지통 여부는 :func:`orders.state_axes.read_deleted` 를 SSOT 로 삼는다 — 후보 표
-    (``order_candidates.py:1046``)와 **같은 사실을 같은 낱말로** 말하자는 뜻이다. 다만
-    아직 한 벌은 아니다: 후보 표는 여전히 제 식(``deleted_at is not None or status ==
-    'DELETED'``)으로 따로 세고 시각도 기본 형식(``%Y-%m-%d %H:%M:%S``)이라, 같은 사실이
-    두 문자열로 뜬다. 술어를 한 벌로 모으는 일은 이 함수 밖의 별건이다.
-
-    Args:
-        order: ERP ``Order``. ``None`` 허용(주문을 못 찾은 경로).
-
-    Returns:
-        ``trashed``(bool) · ``trashed_at_text``(KST ``MM-DD HH:MM``, 모르면 빈 문자열) ·
-        ``trashed_note``(접은 사유, 없으면 빈 문자열).
-    """
-    blank = {"trashed": False, "trashed_at_text": "", "trashed_note": ""}
-    if order is None:
-        return blank
-    # 휴지통이 아니면 시각·사유를 **아예 읽지 않는다**. legacy 복원 분기
-    # (``foms/web/orders/trash.py:318``)는 컬럼과 status 만 되돌리고
-    # ``structured_data['delete']`` 를 pop 하지 않는다 — projection 을 무조건 읽으면
-    # 되살아난 주문 화면에 삭제 시각이 찍힌다. 갈래를 나누는 것이 근본 수정이다.
-    # (판정 축은 그대로다 — 여기서 만드는 값은 전부 표기 전용이다.)
-    if read_deleted(order) != "DELETED":
-        return blank
-    meta = getattr(order, "structured_data", None)
-    delete_meta = meta.get("delete") if isinstance(meta, dict) else None
-    if not isinstance(delete_meta, dict):
-        delete_meta = {}
-    # 컬럼(``Order.deleted_at`` 은 고정폭 **문자열**이다)이 비어도 projection 에 시각이
-    # 남아 있을 수 있다(legacy ``status='DELETED'`` 축). 둘 다 없으면 **지어내지 않고**
-    # 빈 문자열이다 — 그때 화면은 시각 줄 자체를 그리지 않는다.
-    stamp = getattr(order, "deleted_at", None) or delete_meta.get("deleted_at")
-    return {
-        "trashed": True,
-        "trashed_at_text": format_datetime_kst(stamp, "%m-%d %H:%M") or "",
-        "trashed_note": str(delete_meta.get("reason") or "").strip(),
-    }
 
 
 def _new_bucket() -> dict[str, Any]:

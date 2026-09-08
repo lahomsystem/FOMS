@@ -42,7 +42,7 @@ from foms.services.orders.order_field_change_writer import record_field_changes
 from foms.services.orders.order_flag_permissions import can_toggle_order_flags
 from foms.services.orders.change_reason import is_reason_required
 from foms.services.orders.structured_diff import MAX_CHANGES, DiffResult, diff_structured
-from foms.services.datetime_kst import now_kst
+from foms.services.datetime_kst import now_kst, now_utc_naive
 from foms.services.erp_order_flags import (
     is_erp_draft_structured_data,
     is_erp_order_draft,
@@ -2375,7 +2375,9 @@ def api_erp_discard_draft():
         order = _resolve_session_draft(db, draft_token)
         if order is not None and is_erp_order_draft(order):
             order.status = 'DELETED'
-            order.deleted_at = datetime.datetime.now().isoformat()
+            # deleted_at 정본 규약 = naive UTC 고정폭(soft_delete._DELETED_AT_FORMAT).
+            # 이전 ISO(T 포함 컨테이너 로컬)는 문자열 desc 정렬과 읽는 쪽 해석을 둘 다 어긋냈다.
+            order.deleted_at = now_utc_naive().strftime('%Y-%m-%d %H:%M:%S')
             db.commit()
         session.pop('erp_draft_order_id', None)
         return jsonify({'success': True})
