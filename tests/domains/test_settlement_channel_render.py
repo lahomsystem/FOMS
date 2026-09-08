@@ -78,7 +78,10 @@ _STATIC_ASSETS = (CSS_ASSET, JS_ASSET)
 #: 두 원값 병기 CSS(D-03)(JS + CSS, 20260906a → 20260906b; 셸 4줄도 operations.js 변경으로 20260906b).
 #: 2026-09-08 동기화 진행 표시 — 워커가 남기는 진행을 2초마다 읽어 막대로 그린다
 #: (JS + CSS + 파셜 앵커, 20260906b → 20260908a; 셸 5줄 동반 이동).
-_CHANNEL_PIN = "20260908a"
+#: 2026-09-08 시각·대기창 수정 — 화면 시각이 UTC 로 9시간 어긋나던 것을 서울 시각으로,
+#: 60초 확인 창이 실측 62초를 못 담아 성공해도 실패 문구가 뜨던 것을 150초로
+#: (JS 만, 20260908a → 20260908c; 셸 6줄 동반 이동).
+_CHANNEL_PIN = "20260908c"
 
 _CHANNEL_TAB_ID = "foms-settle-tab-channel"
 _CHANNEL_PANE_ID = "foms-settle-pane-channel"
@@ -1552,3 +1555,41 @@ def test_progress_bar_is_indeterminate_when_the_denominator_is_unknown(app):
     node = _js_function("progressNode")
     assert "s-ch-prog--indeterminate" in node
     assert "'워커가 시작하기를 기다리는 중입니다'" in node
+
+
+def test_stamp_is_rendered_in_seoul_time_not_raw_utc(app):
+    """서버 값은 naive UTC 다 — 그대로 찍으면 화면 시각이 9시간 어긋난다.
+
+    2026-09-08 실측: 오후 3시 14분(KST)에 끝난 동기화가 `06:14` 로 떴다. 바로 아래
+    `hoursSince` 는 `Z` 를 붙여 UTC 로 정확히 세므로 `06:14 (방금 전)` 이라는 자기모순이
+    났고, 사용자는 화면이 멈춘 줄 알았다. 두 함수가 같은 규약을 읽어야 한다.
+    """
+    stamp = _js_function("fmtStamp")
+    assert "Asia/Seoul" in stamp, "서울 시각으로 안 바꾼다"
+    assert "+ 'Z'" in stamp, "naive 문자열을 UTC 로 안 읽는다 — 브라우저 로컬로 해석된다"
+    since = _js_function("hoursSince")
+    assert "+ 'Z'" in since, "상대시간과 절대시각이 다른 규약을 읽으면 또 어긋난다"
+
+
+def test_rev_poll_window_outlasts_the_measured_run(app):
+    """확인 창이 실제 소요보다 짧으면 성공해도 매번 실패 문구가 뜬다.
+
+    운영 실측 소요는 62초(호출 93회)인데 창이 60초였다 — 2~3초 차이로 항상 넘겼다.
+    그 문구는 사실이 아니라 창의 그림자였다.
+    """
+    source = _read_code(f"static/{JS_ASSET}")
+    match = re.search(r"var POLL_MAX_TRIES = (\d+);", source)
+    assert match, "폴링 한도 상수를 못 찾았다"
+    tries = int(match.group(1))
+    interval = int(re.search(r"var POLL_INTERVAL_MS = (\d+);", source).group(1))
+    assert tries * interval >= 120000, (
+        f"확인 창이 {tries * interval / 1000:.0f}초다 — 실측 62초짜리 실행을 담기에 빠듯하다"
+    )
+
+
+def test_success_closes_the_wait_without_waiting_for_rev(app):
+    """끝난 것을 아는 쪽(진행 폴링)이 마감한다 — rev 창이 닫히기를 기다리지 않는다."""
+    poll = _js_function("startProgressPoll")
+    assert "reloadAfterSync(ctx)" in poll, "성공으로 끝났는데 진행 폴링이 마감하지 않는다"
+    reload_fn = _js_function("reloadAfterSync")
+    assert "adoptServerState(ctx, data)" in reload_fn and "stopRevPoll(ctx)" in reload_fn
