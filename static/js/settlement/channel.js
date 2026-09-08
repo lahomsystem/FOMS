@@ -72,7 +72,10 @@
   var PER_PAGE = 60;               // 원장 페이지 크기(계약 §7)
   var PAGER_WINDOW = 2;            // 현재 페이지 좌우로 보여줄 번호 수
   var POLL_INTERVAL_MS = 10000;    // 동기화 반영 확인 주기
-  var POLL_MAX_TRIES = 6;          // 10초 × 6 = 60초까지만 기다린다
+  // 10초 × 15 = 150초. 6(=60초)이던 것을 2026-09-08 에 늘렸다 — 운영 실측 소요가
+  // **62초**(호출 93회)라 60초 창으로는 성공해도 매번 "1분 안에 반영되지 않았습니다"가
+  // 떴다. 창이 실제 소요보다 짧으면 그 문구는 사실이 아니라 창의 그림자다.
+  var POLL_MAX_TRIES = 15;
   var PROGRESS_API_FALLBACK = '/api/settlement/channel/sync/progress';
   var PROGRESS_INTERVAL_MS = 2000;  // 진행 상황 조회 주기 — 워커가 하루치를 1~2초에 훑는다
   var POLL_MAX_TRIES_BACKFILL = 60; // 소급 적재는 창을 여러 개 돌아 오래 걸린다(90일 ≈ 2분, 250일 ≈ 6분) — 10분
@@ -389,10 +392,39 @@
   }
 
   /** ISO 시각 → "09-02 04:23". 값이 없으면 빈 문자열(호출부가 문구를 갈라 쓴다). */
+  /**
+   * 서버 시각(naive UTC 규약)을 **서울 시각**으로 찍는다.
+   *
+   * 2026-09-08 실측 결함: 예전에는 문자열을 정규식으로 잘라 그대로 찍었다. 서버가 주는
+   * ``last_ok_at`` 은 naive UTC 라 화면에 **9시간 어긋난 시각**이 떴다 — 오후 3시 14분에
+   * 끝난 동기화가 `06:14` 로 보였다. 바로 아래 :func:`hoursSince` 는 `Z` 를 붙여 UTC 로
+   * 정확히 세므로 `06:14 (방금 전)` 이라는 자기모순이 났고, 그래서 사용자는 화면이
+   * 멈춘 줄 알았다. 두 함수가 **같은 규약**(값은 UTC)을 읽게 맞춘다.
+   */
   function fmtStamp(iso) {
     var text = String(iso || '');
-    var m = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/.exec(text);
-    return m ? m[2] + '-' + m[3] + ' ' + m[4] + ':' + m[5] : '';
+    if (!/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/.test(text)) return '';
+    var stamped = /[zZ]|[+-]\d{2}:\d{2}$/.test(text) ? text : text.replace(' ', 'T') + 'Z';
+    var at = new Date(stamped);
+    if (isNaN(at.getTime())) return '';
+    try {
+      var parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Seoul', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', hour12: false,
+      }).formatToParts(at).reduce(function (acc, part) {
+        acc[part.type] = part.value;
+        return acc;
+      }, {});
+      if (parts.month && parts.day && parts.hour && parts.minute) {
+        return parts.month + '-' + parts.day + ' ' + parts.hour + ':' + parts.minute;
+      }
+    } catch (err) { /* Intl 미지원/타임존 미탑재 — 아래 폴백 */ }
+    // 폴백: KST(UTC+9) 를 손으로 더한다. 서울은 서머타임이 없어 고정 오프셋이 안전하다.
+    var kst = new Date(at.getTime() + 9 * 3600000);
+    return String(kst.getUTCMonth() + 1).padStart(2, '0') + '-' +
+      String(kst.getUTCDate()).padStart(2, '0') + ' ' +
+      String(kst.getUTCHours()).padStart(2, '0') + ':' +
+      String(kst.getUTCMinutes()).padStart(2, '0');
   }
 
   /** 지금으로부터 몇 시간 전인지. 파싱 실패면 null — "N시간 전"을 지어내지 않는다. */
@@ -2241,7 +2273,7 @@
       var minutes = backfillFrom ? Math.max(1, Math.round(daysBetween(backfillFrom, ctx.state.today) * BACKFILL_MINUTES_PER_DAY)) : 1;
       notice(ctx, queued
         ? (backfillFrom ? '받아오기를 요청했습니다. 워커가 받아오는 동안 최대 10분간 반영을 확인합니다(예상 약 ' + minutes + '분).'
-                        : '동기화를 요청했습니다. 워커가 처리하는 동안 최대 1분간 반영을 확인합니다.')
+                        : '동기화를 요청했습니다. 보통 1분쯤 걸립니다 — 진행 상황을 아래에 표시합니다.')
         : '이미 대기 중인 동기화가 있습니다. 반영을 확인합니다.');
       startProgressPoll(ctx);
       startRevPoll(ctx, backfillFrom ? POLL_MAX_TRIES_BACKFILL : POLL_MAX_TRIES);
@@ -2291,11 +2323,29 @@
           stopRevPoll(ctx);
           return;
         }
-        renderSync(ctx);
+        // 성공으로 끝났다 — rev 창이 닫히기를 기다리지 않고 여기서 마감한다. 기다리면
+        // 실측 62초짜리 실행이 60초 창을 스쳐 지나가며 성공했는데도 "반영되지 않았습니다"가
+        // 뜬다(2026-09-08 실측). 끝난 것을 아는 쪽이 말하는 게 맞다.
+        await reloadAfterSync(ctx);
+        return;
       }
       ctx.progressTimer = window.setTimeout(tick, PROGRESS_INTERVAL_MS);
     };
     ctx.progressTimer = window.setTimeout(tick, PROGRESS_INTERVAL_MS);
+  }
+
+  /** 동기화가 끝난 뒤 화면을 서버 사실로 다시 맞춘다(rev 폴링 성공 경로와 같은 일). */
+  async function reloadAfterSync(ctx) {
+    try {
+      var data = await getJson(buildUrl(ctx));
+      adoptServerState(ctx, data);
+      showState(ctx, 'ready');
+      renderAll(ctx);
+      notice(ctx, '동기화가 끝나 화면을 다시 읽었습니다.');
+    } catch (err) {
+      notice(ctx, '동기화는 끝났지만 화면을 다시 읽지 못했습니다. 새로고침해 주세요.', true);
+    }
+    stopRevPoll(ctx);
   }
 
   function stopProgressPoll(ctx) {
