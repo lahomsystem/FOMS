@@ -103,6 +103,17 @@ def test_new_kind_uses_own_budget_not_outbox_flag():
     assert report.ready, report.failures
 
 
+def test_explicit_flag_overrides_every_selected_kind():
+    """운영자가 간격을 env 로 바꿨을 때의 탈출구 — 준 값이 대상 kind 전부에 적용된다."""
+    hb = dict(_obs()["heartbeats"])
+    hb[WORKER_KIND_GEOCODE_SWEEP] = {"age_seconds": 61, "oldest_lag_seconds": None}
+    report = evaluate_readiness(_obs(heartbeats=hb),
+                                ReadinessThresholds(max_heartbeat_age=30),
+                                kinds=[WORKER_KIND_GEOCODE_SWEEP])
+    assert not report.ready
+    assert report.failures[0]["limit"] == 30
+
+
 def test_new_kind_has_no_scan_lag_check():
     """scan 루프가 아닌 kind 에 scan lag 를 요구하면 영원히 not-ready 가 된다."""
     hb = dict(_obs()["heartbeats"])

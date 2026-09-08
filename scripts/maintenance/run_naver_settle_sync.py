@@ -32,6 +32,7 @@ WORKER 한 곳에서만 나가야 한다. web 에서 실행하면 등록되지 �
 """
 import argparse
 import json
+import logging
 import os
 import sys
 import time
@@ -44,7 +45,7 @@ sys.path.append(
 )
 
 from app import app  # noqa: E402
-from db import get_db  # noqa: E402
+from db import engine, get_db  # noqa: E402
 from foms.services.datetime_kst import get_today_kst, now_kst  # noqa: E402
 from foms.services.feature_flags import env_bool  # noqa: E402
 from foms.services.integrations.naver_commerce.client import (  # noqa: E402
@@ -53,6 +54,13 @@ from foms.services.integrations.naver_commerce.client import (  # noqa: E402
 from foms.services.integrations.naver_commerce.settle_sync import (  # noqa: E402
     run_settle_sync,
 )
+from foms.services.loop_heartbeat import capture_exception, emit_heartbeat  # noqa: E402
+from foms.services.sidefx_worker import WORKER_KIND_NAVER_SETTLE_SYNC  # noqa: E402
+
+_LOGGER = logging.getLogger("naver_settle_sync")
+
+#: 이 루프의 heartbeat PK 값. 정본은 sidefx_worker 의 WORKER_KIND_SPECS 등록부다.
+HEARTBEAT_WORKER_KIND = WORKER_KIND_NAVER_SETTLE_SYNC
 
 #: --loop 이 깨어나는 간격(초). 시각 창 판정만 하므로 짧아도 비용이 없다.
 DEFAULT_TICK_SECONDS = 60
@@ -242,6 +250,23 @@ def _print_result(result: dict, as_json: bool) -> None:
           f"dry_run={result.get('dry_run')} error={result.get('error')}", flush=True)
 
 
+def _heartbeat_metadata(*, ran_now: bool, result) -> dict:
+    """하트비트에 실을 집계값. 정산 금액·주문 식별자는 싣지 않는다(운영 감시용).
+
+    Args:
+        ran_now: 이번 tick 이 실제로 동기화를 돌렸는가(창 안 + 오늘 첫 실행).
+        result: 돌렸으면 :func:`_sync_once` 결과, 아니면 ``None``.
+    """
+    payload = result or {}
+    stats = payload.get("stats") or {}
+    return {
+        "ran": bool(ran_now),
+        "status": payload.get("status") or None,
+        "calls": int(stats.get("calls") or 0),
+        "rows": int(stats.get("rows") or 0),
+    }
+
+
 def _run_loop(args: argparse.Namespace) -> int:
     """앱 1회 부팅 후 tick 간격으로 깨어나 시각 창에서만, 하루 1회만 실행한다.
 
@@ -260,9 +285,12 @@ def _run_loop(args: argparse.Namespace) -> int:
           f"monthly_backfill={'on' if monthly_backfill_enabled() else 'off'})",
           flush=True)
     while True:
+        result = None
+        ran_now = False
         try:
             now = now_kst()
             if should_run(now, at, args.window, last_run_day):
+                ran_now = True
                 # 매월 1일 첫 실행은 전월 1일부터 백필(감사 B-01). 명시 --backfill-from 이 우선.
                 monthly = monthly_backfill_from(now.date(), enabled=monthly_backfill_enabled())
                 with app.app_context():
@@ -275,6 +303,12 @@ def _run_loop(args: argparse.Namespace) -> int:
         except Exception:
             print("[naver-settle-sync] run failed:", flush=True)
             traceback.print_exc()
+            capture_exception()
+        # 창 밖이라 아무것도 안 한 tick 도 하트비트를 남긴다 — 안 그러면 하루 23시간 넘게
+        # 낡아 보여 "죽었다" 와 구분되지 않는다.
+        emit_heartbeat(engine, HEARTBEAT_WORKER_KIND,
+                       metadata=_heartbeat_metadata(ran_now=ran_now, result=result),
+                       logger=_LOGGER)
         time.sleep(tick)
 
 

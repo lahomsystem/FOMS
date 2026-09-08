@@ -1273,3 +1273,68 @@ MUT10 빈 선택 방어 제거                       1 failed, 12 passed
 | # | 항목 | 필요한 것 |
 |---|---|---|
 | F-17 | 루프 하트비트 자동 조회 경로 없음 | `--kinds` 판정을 사람이 불러야만 돈다. 매일 자동으로 보려면 드리프트 감사처럼 admin HTTP 엔드포인트 + 워크플로가 필요하다(운영 DB 자격증명은 GitHub 에 두지 않기로 한 결정 때문) |
+
+## T14. F-5/F-6 — 남은 루프 3개 + 큐 소비 본체 하트비트
+
+- 상태: **DONE(로컬 검증)**
+- 근본 원인: `start.sh` 가 띄우는 루프 5개 중 2개만 하트비트가 있었고, 마지막 줄
+  `exec rq worker` 는 자기 생존을 FOMS 감시 표에 **한 줄도** 남기지 않았다(Redis 쪽 rq
+  하트비트는 rq 대시보드 전용이다). 큐 소비가 멎어도 표만 봐서는 알 수 없었다.
+- 고친 방법:
+  - 공통 헬퍼 `foms/services/loop_heartbeat.py` — `emit_heartbeat`(실패해도 본 작업을 안
+    막되 warning + Sentry) · `capture_exception`. 러너마다 같은 25줄을 베끼던 것을 한 곳으로.
+  - 루프 3개 배선: escalation · 네이버 수집 · 정산 동기화. **스윕이 터진 tick 도** 하트비트를
+    남긴다(`outcome=sweep_failed`) — "죽었다" 와 "이번 스윕만 실패" 를 가른다. 정산은 창 밖
+    tick 도 남긴다(안 그러면 하루 대부분이 죽은 것처럼 보인다).
+  - F-6: `tools/ops/run_rq_worker.py` 신설 — `rq.Worker.heartbeat()` 를 감싸 같은 자리에서
+    `RQ_WORKER` 행을 갱신한다. 별도 스레드를 안 쓴 이유: 스레드는 rq 루프가 멎어도 계속
+    뛰어 "살아 있다" 는 거짓 신호를 준다. `start.sh` exec 줄을 이 러너로 교체.
+    DB 쓰기는 60초로 조인다(rq 는 잡마다 heartbeat 를 부른다).
+  - 등록부에 kind 4종 추가: NOTIFICATION_ESCALATION(180초)·NAVER_ORDER_SYNC(900초, 간격
+    300초 x 3)·NAVER_SETTLE_SYNC(180초)·RQ_WORKER(900초, rq 유휴 주기 405초 x 2).
+  - `--max-heartbeat-age` 를 주면 대상 kind 전부에 적용(간격을 env 로 늘렸을 때의 탈출구).
+- 계약: `tests/domains/test_loop_heartbeat_wiring.py` 19건 + readiness 14건.
+  **핵심 방어**: `start.sh` 의 모든 `--loop` 러너가 등록부 상수로 kind 를 선언하는지 본다 —
+  하트비트 없는 새 루프를 배선하면 red(F-9 이 정확히 이 드리프트였다).
+- 실측 비용: 러너 import 1.87초(맨 rq CLI 0.32초). 워커는 어차피 첫 잡에서 tasks(2.02초)를
+  물기 때문에 배포당 1회의 +1.5초다.
+
+### 검증 출력
+
+```
+$ PYTHONIOENCODING=utf-8 python -c "import app; print('APP_OK')"
+APP_OK
+
+$ python -m pytest tests/domains/test_loop_heartbeat_wiring.py tests/domains/test_sidefx_readiness_kinds.py \
+    tests/domains/test_worker_loop_heartbeat.py tests/domains/test_geocode_sweep_heartbeat.py \
+    tests/domains/test_geocode_sweep.py tests/contracts/runtime/test_ptc_physical_exactness.py \
+    tests/contracts/runtime/test_dockerfile_deploy_contract.py -q
+72 passed, 1 warning in 17.64s
+
+$ python -m pytest tests/domains/test_table_version_counter.py tests/domains/test_jobs_queue_redis_lane.py -q
+21 passed, 5 skipped in 14.89s
+```
+
+### 변이 검증 11종 — 전부 red, 각각 자기만 죽는 테스트를 갖는다
+
+```
+MUT1  escalation 하트비트 제거              1 failed, 18 passed
+MUT2  수집 루프 하트비트 제거               1 failed, 18 passed
+MUT3  정산 루프가 창 안에서만 뛴다          1 failed, 18 passed
+MUT4  헬퍼가 실패를 조용히 삼킨다           1 failed, 18 passed
+MUT5  start.sh 가 맨 rq worker 로 되돌아감  1 failed, 18 passed
+MUT6  rq 하트비트 조임 제거                 1 failed, 18 passed
+MUT7  기록 실패해도 조임 시계 전진          1 failed, 18 passed
+MUT8  mixin 을 Worker 뒤로                  1 failed, 18 passed
+MUT9  escalation kind 등록부에서 빠짐       1 failed, 18 passed
+MUT10 metadata 에 고객 이름 추가            1 failed, 18 passed
+MUT11 명시 --max-heartbeat-age 무시         1 failed, 13 passed (readiness 쪽)
+복원 후: 19 passed / 14 passed
+```
+
+### 남은 것 (사용자 판단)
+
+- `start.sh` exec 줄이 바뀌었다 — **운영 워커 기동 경로 변경**이다. deploy(스테이징)에서
+  워커가 실제로 뜨는지 확인한 뒤에 승격 판단이 필요하다.
+- 하트비트는 여전히 **사람이 불러야 읽힌다**(F-17). SENTRY_DSN 미설정이라 Sentry 경로도
+  no-op 이다(F-12).

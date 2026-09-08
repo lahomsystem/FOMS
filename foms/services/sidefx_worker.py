@@ -49,6 +49,10 @@ WORKER_KINDS = (WORKER_KIND_DELIVERY, WORKER_KIND_EXPIRY_SCAN, WORKER_KIND_RETEN
 # 정확히 그렇게 생겼다(2026-09-07 F-9).
 WORKER_KIND_NAVER_AUTO_DISPATCH = "NAVER_AUTO_DISPATCH"
 WORKER_KIND_GEOCODE_SWEEP = "GEOCODE_SWEEP"
+WORKER_KIND_NOTIFICATION_ESCALATION = "NOTIFICATION_ESCALATION"
+WORKER_KIND_NAVER_ORDER_SYNC = "NAVER_ORDER_SYNC"
+WORKER_KIND_NAVER_SETTLE_SYNC = "NAVER_SETTLE_SYNC"
+WORKER_KIND_RQ_WORKER = "RQ_WORKER"
 
 
 @dataclass(frozen=True)
@@ -83,6 +87,17 @@ WORKER_KIND_SPECS: dict[str, "WorkerKindSpec"] = {
         WORKER_KIND_NAVER_AUTO_DISPATCH, max_heartbeat_age=180),
     WORKER_KIND_GEOCODE_SWEEP: WorkerKindSpec(
         WORKER_KIND_GEOCODE_SWEEP, max_heartbeat_age=180),
+    WORKER_KIND_NOTIFICATION_ESCALATION: WorkerKindSpec(
+        WORKER_KIND_NOTIFICATION_ESCALATION, max_heartbeat_age=180),
+    # 수집 루프는 기본 간격이 300초(네이버 HTTP 쿼터 때문에 더 못 줄인다) → 3틱.
+    WORKER_KIND_NAVER_ORDER_SYNC: WorkerKindSpec(
+        WORKER_KIND_NAVER_ORDER_SYNC, max_heartbeat_age=900),
+    WORKER_KIND_NAVER_SETTLE_SYNC: WorkerKindSpec(
+        WORKER_KIND_NAVER_SETTLE_SYNC, max_heartbeat_age=180),
+    # rq worker 는 놀 때 dequeue 블로킹이 405초(worker_ttl 420 - 15)라 그 주기로만
+    # 하트비트를 남긴다. 2주기 + 여유 = 900초.
+    WORKER_KIND_RQ_WORKER: WorkerKindSpec(
+        WORKER_KIND_RQ_WORKER, max_heartbeat_age=900),
 }
 
 DEFAULT_LEASE_SECONDS = 60
@@ -601,7 +616,7 @@ def dead_count(session: Session) -> int:
 class ReadinessThresholds:
     """readiness 판정 임계값(§8.2 check template 의 flag 와 1:1)."""
 
-    max_heartbeat_age: int = 30
+    max_heartbeat_age: Optional[int] = None
     max_oldest_pending_lag: int = 60
     max_expiry_scan_lag: int = 360
     max_retention_scan_lag: int = 90000
@@ -610,11 +625,13 @@ class ReadinessThresholds:
     def heartbeat_age_limit(self, kind: str) -> int:
         """kind 의 하트비트 신선도 예산(초).
 
-        CLI flag 는 outbox worker 3종을 기준으로 쓰인 값이다. 다른 loop 는 tick 이 달라
-        같은 예산을 씌우면 살아 있는 루프를 죽었다고 판정한다 — 그래서 등록부 값을 쓴다.
+        ``max_heartbeat_age`` 를 주면 그 값이 모든 대상 kind 에 적용되고(운영자가 간격을
+        env 로 바꿨을 때의 탈출구), 안 주면 등록부의 kind 별 예산을 쓴다. loop 마다 tick 이
+        달라서 한 값을 씌우면 살아 있는 루프를 죽었다고 판정한다.
         """
-        return (self.max_heartbeat_age if WORKER_KIND_SPECS[kind].outbox_scoped
-                else WORKER_KIND_SPECS[kind].max_heartbeat_age)
+        if self.max_heartbeat_age is not None:
+            return self.max_heartbeat_age
+        return WORKER_KIND_SPECS[kind].max_heartbeat_age
 
     def scan_lag_limit(self, kind: str) -> Optional[int]:
         """kind 의 ``oldest_lag_seconds`` 한도(초). ``None`` 이면 그 검사를 안 한다."""

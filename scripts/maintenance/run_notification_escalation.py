@@ -16,6 +16,7 @@
 """
 import argparse
 import json
+import logging
 import os
 import sys
 import time
@@ -27,11 +28,20 @@ sys.path.append(
 )
 
 from app import app  # noqa: E402
-from db import get_db  # noqa: E402
+from db import engine, get_db  # noqa: E402
+from foms.services.loop_heartbeat import capture_exception, emit_heartbeat  # noqa: E402
 from foms.services.notifications.escalation import (  # noqa: E402
     escalate_overdue_urgent,
     finalize_escalation_delivery,
 )
+from foms.services.sidefx_worker import (  # noqa: E402
+    WORKER_KIND_NOTIFICATION_ESCALATION,
+)
+
+_LOGGER = logging.getLogger("notification_escalation")
+
+#: 이 루프의 heartbeat PK 값. 정본은 sidefx_worker 의 WORKER_KIND_SPECS 등록부다.
+HEARTBEAT_WORKER_KIND = WORKER_KIND_NOTIFICATION_ESCALATION
 
 
 def _parse_args() -> argparse.Namespace:
@@ -95,11 +105,25 @@ def _print_result(result: dict, as_json: bool) -> None:
     )
 
 
+def _heartbeat_metadata(result) -> dict:
+    """하트비트에 실을 집계값. 알림 내용·수신자 식별자는 싣지 않는다(운영 감시용)."""
+    payload = result or {}
+    delivery = payload.get("delivery") or {}
+    return {
+        "outcome": "ok" if result is not None else "sweep_failed",
+        "checked": int(payload.get("checked") or 0),
+        "escalated": int(payload.get("escalated") or 0),
+        "operator_escalated": int(payload.get("operator_escalated") or 0),
+        "pushed": int(delivery.get("pushed") or 0),
+    }
+
+
 def _run_loop(interval: int, dry_run: bool, as_json: bool) -> int:
     """앱 1회 부팅 후 interval 간격으로 스윕 반복. 스윕 실패는 기록 후 계속."""
     interval = max(15, interval)
     print(f"[escalation-loop] started (interval={interval}s)", flush=True)
     while True:
+        result = None
         try:
             with app.app_context():
                 result = _sweep_once(dry_run)
@@ -109,6 +133,10 @@ def _run_loop(interval: int, dry_run: bool, as_json: bool) -> int:
             # 스윕 1회 실패가 루프를 죽이면 escalation이 통째로 꺼진다.
             print("[escalation-loop] sweep failed:", flush=True)
             traceback.print_exc()
+            capture_exception()
+        # 스윕이 터진 tick 도 하트비트를 남긴다 — "죽었다" 와 "이번 스윕만 실패" 를 가른다.
+        emit_heartbeat(engine, HEARTBEAT_WORKER_KIND,
+                       metadata=_heartbeat_metadata(result), logger=_LOGGER)
         time.sleep(interval)
 
 
