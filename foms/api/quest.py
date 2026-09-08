@@ -184,7 +184,17 @@ def api_order_quest_create(order_id):
 
 
 # DRAWING/CONFIRM 은 전용 command(도면 전달·고객 컨펌)로만 진행 — 단독 quest 승인 거부.
-_COMMAND_REQUIRED_STAGES = frozenset({"DRAWING", "CONFIRM"})
+# 전용 command 로만 진행하는 stage — 단독 quest 승인 거부(409).
+# DRAWING 은 전달·수령확정이 실제 전용 경로다.
+# CONFIRM 은 2026-07-26 가드가 들어올 때 짝이 될 ``CUSTOMER_CONFIRM`` command 가 끝내
+# 안 들어와 "승인도 못 하고 생산으로도 못 가는" 막다른 골목이 됐다(운영 #5193).
+# 이 라우트가 그 빠진 단계를 품는다: CONFIRM quest 종결 + ``blueprint.customer_confirmed``
+# 를 같은 tx 로 기록하되 **stage 전이는 하지 않는다**(CONFIRM→PRODUCTION 은
+# ``PRODUCTION_START`` 소관). 서비스 층의 전이 거부(quest_transition_service)는 그대로 둔다.
+_COMMAND_REQUIRED_STAGES = frozenset({"DRAWING"})
+
+#: 최종 승인이 나도 자동 전이를 시도하지 않는 stage(서비스가 전이를 거부하는 stage와 한 쌍).
+_NO_AUTO_ADVANCE_STAGES = frozenset({"CONFIRM"})
 
 #: 전이 receipt scope 구성용 command 식별자(라우트 단일 진입점 — 실제 stage command 는
 #: quest_transition_service 의 _STAGE_ADVANCE 가 고른다).
@@ -360,7 +370,7 @@ def api_order_quest_approve(order_id):
         if not current_stage_code:
             return jsonify({'success': False, 'message': '현재 단계가 없습니다.'}), 400
 
-        # DRAWING/CONFIRM 단독 승인은 전용 command(도면 전달·고객 컨펌)로만 — command-required 거부.
+        # DRAWING 단독 승인은 전용 경로(도면 전달·수령확정)로만 — command-required 거부.
         if current_stage_code in _COMMAND_REQUIRED_STAGES:
             return jsonify({
                 'success': False,
@@ -501,6 +511,17 @@ def api_order_quest_approve(order_id):
             current_quest["completed_at"] = now.isoformat()
             sd["quests"][quest_index] = current_quest
 
+        # 고객컨펌 최종 승인 = 고객 컨펌 완료 사실. quest 종결과 같은 tx 로 blueprint 에 남긴다
+        # (도면 revision 감사가 ``blueprint.customer_confirmed`` 를 고객확인 축으로 읽는다).
+        if is_complete and current_stage_code == 'CONFIRM':
+            blueprint = sd.get("blueprint")
+            if not isinstance(blueprint, dict):
+                blueprint = {}
+            blueprint["customer_confirmed"] = True
+            blueprint["confirmed_at"] = now.isoformat()
+            blueprint["confirmed_by"] = username
+            sd["blueprint"] = blueprint
+
         order.structured_data = sd
         flag_modified(order, "structured_data")
         order.updated_at = now
@@ -513,7 +534,7 @@ def api_order_quest_approve(order_id):
         # RECEIVED→MEASURE, MEASURE→DRAWING 만 advance 하고 그 밖의 stage 는 None(no-op).
         auto_transitioned = False
         transition_result = None
-        if is_complete:
+        if is_complete and current_stage_code not in _NO_AUTO_ADVANCE_STAGES:
             try:
                 transition_result = advance_stage_on_quest_completion(
                     db,
