@@ -35,6 +35,8 @@
 
   var API_BASE = '/api/orders/' + ORDER_ID;
   var HTML2CANVAS_SRC = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+  /* 이미지 에셋 1장 상한 — 백엔드 `_MAX_ASSET_BYTES`(10MB)와 본문 제한 가드 캡의 정합값. */
+  var MAX_ASSET_BYTES = 10 * 1024 * 1024;
   var STAGE_W = 1478;
   var STAGE_H = 1040;
   var ALLOWED_SIZES = [14, 17, 20, 24, 28];
@@ -81,6 +83,15 @@
    * @param {Object} [opts]
    * @returns {Promise<{status:number, data:Object}>}
    */
+  /** 서버 오류 문구 추출: 라우트 핸들러는 `message`, write guard 403 은 `error` 만 채운다.
+      한쪽만 읽으면 원인(예: CSRF 재로그인 안내)이 통째로 사라진다. */
+  function serverErrorText(r, fallback) {
+    var d = (r && r.data) || {};
+    var msg = d.message || d.error;
+    if (typeof msg === 'object' && msg) { msg = msg.message || ''; }
+    return msg || fallback;
+  }
+
   function jsonFetch(url, opts) {
     opts = opts || {};
     opts.credentials = 'same-origin';
@@ -2215,8 +2226,9 @@
 
   /** 업로드된 에셋 key 를 이미지 객체로 배치한다(원본 natural 비율·undo·dirty).
       pos(논리 좌표 {x,y}) 가 주어지면 이미지 중심이 그 지점에 오도록, 없으면 캔버스 중앙에 배치.
-      이미지 업로드(파일/붙여넣기/드롭)와 실측 사진 삽입(import-attachment)의 공용 삽입 파이프라인. */
-  function placeImageFromKey(key, pos) {
+      이미지 업로드(파일/붙여넣기/드롭)와 실측 사진 삽입(import-attachment)의 공용 삽입 파이프라인.
+      cascade(0부터의 순번)가 있으면 그만큼 24px 씩 어긋나게 놓아 여러 장이 완전히 겹치지 않는다. */
+  function placeImageFromKey(key, pos, cascade) {
     if (!canSave || !key || !currentSheet()) { return; }
     var img = new Image();
     img.onload = function () {
@@ -2226,15 +2238,17 @@
       var h = Math.round(w * nh / nw) || Math.round(w * 0.66);
       recordUndo();
       var x, y;
+      var off = Math.max(0, num(cascade, 0)) * 24;
       if (pos && isFinite(pos.x) && isFinite(pos.y)) {
         // 드롭 지점에 이미지 중심을 두고 스테이지 범위로 클램프(y 하한 70 = 헤더 영역 보호).
-        x = clamp(Math.round(pos.x - w / 2), 0, Math.max(0, STAGE_W - w));
-        y = clamp(Math.round(pos.y - h / 2), 70, Math.max(70, STAGE_H - h));
+        x = Math.round(pos.x - w / 2) + off;
+        y = Math.round(pos.y - h / 2) + off;
       } else {
-        x = Math.round((STAGE_W - w) / 2);
-        y = Math.round(70 + (730 - h) / 2);
-        if (y < 70) { y = 70; }
+        x = Math.round((STAGE_W - w) / 2) + off;
+        y = Math.round(70 + (730 - h) / 2) + off;
       }
+      x = clamp(x, 0, Math.max(0, STAGE_W - w));
+      y = clamp(y, 70, Math.max(70, STAGE_H - h));
       var o = {
         id: rid('o-'), type: 'image',
         x: x, y: y,
@@ -2249,16 +2263,38 @@
     img.src = viewUrl(key);
   }
 
-  function addImageFromFile(file, pos) {
+  function addImageFromFile(file, pos, cascade) {
     if (!canSave || !file) { return; }
     if (!currentSheet()) { toast('제품을 선택해 도면을 먼저 시작하세요.'); return; }
+    // 서버 캡(10MB)을 넘는 파일은 업로드 전에 막는다 — 초과분은 본문 제한 가드가
+    // 응답 본문 없이 연결을 끊어(413 + ERR_HTTP2_PROTOCOL_ERROR) 이유를 못 보여준다.
+    if (file.size && file.size > MAX_ASSET_BYTES) {
+      toast('이미지 용량이 너무 큽니다(최대 10MB): ' + (file.name || '이미지'));
+      return;
+    }
     uploadAsset(file).then(function (r) {
       if (r.status !== 200 || !r.data || !r.data.success || !r.data.data) {
-        toast((r.data && r.data.message) || '이미지 업로드 실패');
+        toast(serverErrorText(r, '이미지 업로드 실패'));
         return;
       }
-      placeImageFromKey(r.data.data.key, pos);
+      placeImageFromKey(r.data.data.key, pos, cascade);
     }).catch(function (err) { console.warn('[dws] asset upload', err); toast('이미지 업로드 오류'); });
+  }
+
+  /** 이미지 파일 여러 장을 한 번에 추가한다(파일 선택·붙여넣기·드롭 공용).
+      base(논리 좌표)가 있으면 그 지점 기준, 없으면 캔버스 중앙 기준으로 24px 씩 cascade.
+      이미지가 아닌 파일은 건너뛰고, 한 장도 못 넣었으면 안내 토스트. 반환=배치 시도한 장수. */
+  function addImagesFromFiles(files, base) {
+    var list = files || [];
+    var placed = 0, skipped = 0;
+    for (var i = 0; i < list.length; i++) {
+      var f = list[i];
+      if (!f || !f.type || f.type.indexOf('image/') !== 0) { skipped++; continue; }
+      addImageFromFile(f, base || null, placed);
+      placed++;
+    }
+    if (placed === 0 && skipped > 0) { toast('이미지 파일만 캔버스에 추가할 수 있습니다.'); }
+    return placed;
   }
 
   /** 드롭 화면좌표(clientX/Y)를 스테이지 논리좌표로 역산한다.
@@ -2311,17 +2347,7 @@
       depth = 0;
       show(false);
       var files = (e.dataTransfer && e.dataTransfer.files) ? e.dataTransfer.files : [];
-      var base = dropLogicalPos(e);   // null 이면 중앙 폴백
-      var placed = 0, skipped = 0;
-      for (var i = 0; i < files.length; i++) {
-        var f = files[i];
-        if (!f || !f.type || f.type.indexOf('image/') !== 0) { skipped++; continue; }
-        var pos = null;
-        if (base) { var off = placed * 24; pos = { x: base.x + off, y: base.y + off }; }
-        addImageFromFile(f, pos);
-        placed++;
-      }
-      if (placed === 0 && skipped > 0) { toast('이미지 파일만 캔버스에 추가할 수 있습니다.'); }
+      addImagesFromFiles(files, dropLogicalPos(e));   // base null 이면 중앙 폴백
     });
   }
 
@@ -2505,7 +2531,7 @@
     }).then(function (r) {
       cell.classList.remove('dws-photo-loading');
       if (r.status !== 200 || !r.data || !r.data.success || !r.data.data || !r.data.data.key) {
-        toast((r.data && r.data.message) || '실측 사진을 삽입하지 못했습니다.');
+        toast(serverErrorText(r, '실측 사진을 삽입하지 못했습니다.'));
         return;
       }
       placeImageFromKey(r.data.data.key);
@@ -2605,7 +2631,7 @@
         toast('저장된 도면을 삭제했습니다.');
         refreshPending();          // renderPending 재실행 → pendingSheetIds/버튼 가시성 갱신
       } else {
-        toast((r.data && r.data.message) || '삭제하지 못했습니다.');
+        toast(serverErrorText(r, '삭제하지 못했습니다.'));
       }
     }, function () { toast('삭제 중 오류가 발생했습니다.'); });
   }
@@ -2924,7 +2950,7 @@
           toast('다른 사용자가 먼저 프리셋을 수정했습니다. 목록을 새로고침했으니 다시 시도해주세요.');
           return;
         }
-        toast((r.data && r.data.message) || '프리셋 저장에 실패했습니다.');
+        toast(serverErrorText(r, '프리셋 저장에 실패했습니다.'));
         return;
       }
       userPresets = (r.data.data && r.data.data.presets) || [];
@@ -3180,7 +3206,7 @@
   function load() {
     jsonFetch(API_BASE + '/drawing-wizard', { headers: { 'Accept': 'application/json' } }).then(function (r) {
       if (r.status !== 200 || !r.data || !r.data.success || !r.data.data) {
-        toast((r.data && r.data.message) || '불러오기에 실패했습니다.');
+        toast(serverErrorText(r, '불러오기에 실패했습니다.'));
         return;
       }
       var d = r.data.data;
@@ -3309,7 +3335,7 @@
           handleConflict(r.data);
         }
       } else {
-        toast((r.data && r.data.message) || ('저장 실패 (' + r.status + ')'));
+        toast(serverErrorText(r, ('저장 실패 (' + r.status + ')')));
       }
       return false;
     }, function (err) {
@@ -3451,7 +3477,7 @@
       if (!(r.status === 200 && r.data && r.data.success)) {
         finishSaveAll();
         if (r.status === 409) { handleConflict(r.data); }
-        else { toast((r.data && r.data.message) || ('저장 실패 (' + r.status + ')')); }
+        else { toast(serverErrorText(r, ('저장 실패 (' + r.status + ')'))); }
         return;
       }
       baseUpdatedAt = (r.data.data && r.data.data.updated_at) || baseUpdatedAt;
@@ -3658,7 +3684,7 @@
     jsonFetch(API_BASE + '/drawing-wizard/versions', { headers: { 'Accept': 'application/json' } })
       .then(function (r) {
         if (r.status !== 200 || !r.data || !r.data.success || !r.data.data) {
-          renderVersionList([]); toast((r.data && r.data.message) || '버전 목록을 불러오지 못했습니다.'); return;
+          renderVersionList([]); toast(serverErrorText(r, '버전 목록을 불러오지 못했습니다.')); return;
         }
         renderVersionList(r.data.data.versions || []);
       }, function (err) { console.warn('[dws] versions', err); renderVersionList([]); toast('버전 목록 오류'); });
@@ -3726,7 +3752,7 @@
       { headers: { 'Accept': 'application/json' } })
       .then(function (r) {
         if (r.status !== 200 || !r.data || !r.data.success || !r.data.data || !r.data.data.sheet) {
-          toast((r.data && r.data.message) || '버전 내용을 불러오지 못했습니다.'); return;
+          toast(serverErrorText(r, '버전 내용을 불러오지 못했습니다.')); return;
         }
         if (state.sheets.length >= 10) { toast('시트는 최대 10장까지 만들 수 있습니다.'); return; }
         var norm = normalizeState({ v: 1, sheets: [r.data.data.sheet] });
@@ -3859,8 +3885,7 @@
 
     // 이미지 파일 선택
     els.fileInput.addEventListener('change', function () {
-      var file = els.fileInput.files && els.fileInput.files[0];
-      if (file) { addImageFromFile(file); }
+      addImagesFromFiles(els.fileInput.files);   // multiple — 고른 장수만큼 cascade 배치
       els.fileInput.value = '';
     });
 
@@ -3980,12 +4005,21 @@
         return;
       }
       var items = cd.items || [];
+      var blobs = [];
       for (var i = 0; i < items.length; i++) {
-        if (items[i].type && items[i].type.indexOf('image') === 0) {
+        if (items[i].kind === 'file' && items[i].type && items[i].type.indexOf('image') === 0) {
           var blob = items[i].getAsFile();
-          if (blob) { e.preventDefault(); addImageFromFile(blob); return; }
+          if (blob) { blobs.push(blob); }
         }
       }
+      /* 일부 브라우저는 items 대신 files 만 채운다(복사 원본에 따라) — 폴백. */
+      if (!blobs.length && cd.files && cd.files.length) {
+        for (var j = 0; j < cd.files.length; j++) {
+          var cf = cd.files[j];
+          if (cf && cf.type && cf.type.indexOf('image') === 0) { blobs.push(cf); }
+        }
+      }
+      if (blobs.length) { e.preventDefault(); addImagesFromFiles(blobs); }
     });
 
     // 키보드: 저장 / undo·redo / 삭제 / 화살표 이동 / Esc
