@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import copy
 from datetime import date
+from typing import Any
 from decimal import Decimal
 
 import pytest
@@ -955,3 +956,120 @@ def test_rolling_run_keeps_the_earlier_backfill_coverage(app, narrow_range):
     state = read_settle_state(db_session)
     assert state["coverage_from"] == "2026-08-01", state
     assert state["coverage_to"] >= first["coverage_to"]
+
+
+# --------------------------------------------------------------------------- #
+# ⑫ 진행 표시 (2026-09-08) — 화면이 "지금 어디까지 왔는지" 를 읽을 수 있어야 한다
+# --------------------------------------------------------------------------- #
+
+def test_progress_is_published_and_reaches_one_hundred(app, narrow_range, monkeypatch):
+    """실행 중 진행이 실행 행에 새겨지고, 끝에는 분모까지 다 찬다.
+
+    지금까지 화면은 요청을 넣고 나면 60초 동안 "확인하는 중" 한 줄만 냈다. 그래서 워커가
+    죽어 있어도 실행이 실패해도 사용자는 같은 버튼을 반복해서 눌렀다.
+    """
+    published: list[dict] = []
+    monkeypatch.setattr(settle_sync, "PROGRESS_MIN_INTERVAL_SECONDS", 0.0)
+
+    real = settle_sync._publish_progress
+
+    def _spy(ctx, **kwargs):
+        published.append(ctx.progress_payload())
+        return real(ctx, **kwargs)
+
+    monkeypatch.setattr(settle_sync, "_publish_progress", _spy)
+
+    client = FakeClient(daily=[_daily(D1), _daily(D2)],
+                        cases={D1: [_case("PO-1")]},
+                        commissions={D1: [_commission("PO-1")]})
+    result = _run(client)
+
+    assert result["status"] == "OK"
+    assert published, "진행이 한 번도 기록되지 않았다"
+    first, last = published[0], published[-1]
+    assert first["total_days"] > 0, "분모를 모르면 막대를 그릴 수 없다"
+    assert first["done_days"] == 0
+    assert last["done_days"] == last["total_days"], (
+        f"끝났는데 진행이 다 안 찼다: {last['done_days']}/{last['total_days']} — "
+        "건너뛴 날을 분모에서 빼거나 진행에서 세지 않으면 막대가 100% 에 못 닿는다"
+    )
+    assert last["percent"] == 100
+    assert all(0 <= p["percent"] <= 100 for p in published)
+    # 날짜가 뒤로 가면 안 된다(창을 나눠 훑어도 시간축은 단조).
+    dates = [p["current_date"] for p in published if p["current_date"]]
+    assert dates == sorted(dates), f"진행 날짜가 뒤로 갔다: {dates}"
+
+
+def test_progress_never_commits_the_running_window(app, narrow_range, monkeypatch):
+    """진행 기록은 **본 세션을 건드리지 않는다** — 창 원자성(CFO 감사 F-04)이 걸려 있다.
+
+    ``_sync_window`` 는 창을 다 받은 뒤에야 커밋하고, 실패하면 그 창의 부분 교체를 통째로
+    버린다(``_discard_failed_window``). 진행 표시를 본 세션으로 쓰면 그 커밋이 반쯤 교체된
+    파티션까지 같이 커밋해 일별↔건별이 어긋난 채 화면에 실린다.
+    """
+    monkeypatch.setattr(settle_sync, "PROGRESS_MIN_INTERVAL_SECONDS", 0.0)
+    touched: list[str] = []
+
+    real = settle_sync._publish_progress
+
+    def _spy(ctx, **kwargs):
+        before = ctx.session.new, ctx.session.dirty
+        out = real(ctx, **kwargs)
+        if (ctx.session.new, ctx.session.dirty) != before:
+            touched.append("session changed")
+        return out
+
+    monkeypatch.setattr(settle_sync, "_publish_progress", _spy)
+    client = FakeClient(daily=[_daily(D1)], cases={D1: [_case("PO-1")]},
+                        commissions={D1: [_commission("PO-1")]})
+    _run(client)
+    assert not touched, "진행 기록이 본 세션을 건드렸다 — 창 원자성이 깨진다"
+
+
+def test_progress_is_throttled(app, narrow_range, monkeypatch):
+    """하루치가 1~2초라 매 하루 쓰면 UPDATE 가 실행마다 수십 번 난다 — 조인다.
+
+    화면 갱신 주기(2초)보다 촘촘하게 쓸 이유가 없다. 조임이 풀리면 60초짜리 실행 하나가
+    45번의 UPDATE 를 내고, 그 연결은 본 적재와 같은 풀에서 나온다.
+    """
+    import db as db_module
+
+    writes: list[Any] = []
+
+    class _Conn:
+        def execute(self, *_a, **_k):
+            writes.append(1)
+
+    class _Begin:
+        def __enter__(self):
+            return _Conn()
+
+        def __exit__(self, *_a):
+            return False
+
+    class _FakeEngine:
+        def begin(self):
+            return _Begin()
+
+    monkeypatch.setattr(db_module, "engine", _FakeEngine())
+
+    def _make_client():
+        return FakeClient(daily=[_daily(D1), _daily(D2)],
+                          cases={D1: [_case("PO-1")]},
+                          commissions={D1: [_commission("PO-1")]})
+
+    # ① 조임이 켜져 있으면(1시간) 첫 기록 한 번만 나간다.
+    monkeypatch.setattr(settle_sync, "PROGRESS_MIN_INTERVAL_SECONDS", 3600.0)
+    _run(_make_client())
+    throttled = len(writes)
+
+    # ② 조임을 풀면 날짜 수만큼 더 나간다 — 조임이 실제로 막고 있었다는 음성 대조군.
+    writes.clear()
+    monkeypatch.setattr(settle_sync, "PROGRESS_MIN_INTERVAL_SECONDS", 0.0)
+    _run(_make_client())
+    unthrottled = len(writes)
+
+    assert throttled == 1, f"조임이 켜졌는데 {throttled}번 썼다"
+    assert unthrottled > throttled, (
+        f"조임을 풀어도 쓰기 수가 그대로다({unthrottled}) — 이 테스트가 조임을 안 보고 있다"
+    )

@@ -73,6 +73,8 @@
   var PAGER_WINDOW = 2;            // 현재 페이지 좌우로 보여줄 번호 수
   var POLL_INTERVAL_MS = 10000;    // 동기화 반영 확인 주기
   var POLL_MAX_TRIES = 6;          // 10초 × 6 = 60초까지만 기다린다
+  var PROGRESS_API_FALLBACK = '/api/settlement/channel/sync/progress';
+  var PROGRESS_INTERVAL_MS = 2000;  // 진행 상황 조회 주기 — 워커가 하루치를 1~2초에 훑는다
   var POLL_MAX_TRIES_BACKFILL = 60; // 소급 적재는 창을 여러 개 돌아 오래 걸린다(90일 ≈ 2분, 250일 ≈ 6분) — 10분
   var BACKFILL_MINUTES_PER_DAY = 0.025; // 실측(2026-09-03): 하루치 ≈ 1.5초 — 배너의 예상 시간용
   // 동기화 POST 가 503 이면 큐 부재·Redis 장애(서버 3상태의 unavailable, 감사 F-02) — 큐 docstring·API 503 본문과 같은 뜻.
@@ -1082,6 +1084,8 @@
     if (notice) {
       slot.appendChild(el('div', 's-ch-notice' + (notice.error ? ' s-ch-notice--error' : ''), notice.text));
     }
+    // 진행 막대는 안내문 아래 — "요청했습니다" 다음 줄에서 실제 진행이 이어진다.
+    if (ctx.state.syncing) slot.appendChild(progressNode(ctx.state.progress));
   }
 
   /* ── CSV 내보내기 드롭다운(T14) ────────────────────────────────────────
@@ -2239,6 +2243,7 @@
         ? (backfillFrom ? '받아오기를 요청했습니다. 워커가 받아오는 동안 최대 10분간 반영을 확인합니다(예상 약 ' + minutes + '분).'
                         : '동기화를 요청했습니다. 워커가 처리하는 동안 최대 1분간 반영을 확인합니다.')
         : '이미 대기 중인 동기화가 있습니다. 반영을 확인합니다.');
+      startProgressPoll(ctx);
       startRevPoll(ctx, backfillFrom ? POLL_MAX_TRIES_BACKFILL : POLL_MAX_TRIES);
     } catch (err) {
       // 503 = 큐 부재·Redis 장애(서버 3상태의 unavailable, 감사 F-02) — "이미 대기 중" 과 갈라 말한다.
@@ -2250,9 +2255,99 @@
     }
   }
 
+  /* ── 진행 상황(2026-09-08) ────────────────────────────────────────────────
+     지금까지 이 화면은 요청을 넣고 나면 `rev` 가 바뀔 때까지 "확인하는 중" 한 줄만 냈다.
+     그래서 워커가 죽어 있어도(2026-09-08 사고) 실행이 실패해도(운영 run 28·29) 사용자는
+     같은 버튼을 반복해서 눌렀다. 이제 워커가 실행 행에 남기는 진행을 그대로 읽어 그린다. */
+
+  /** 진행 상황 1회 조회. 실패는 조용히 넘긴다 — 관측이 본 흐름(rev 폴링)을 막으면 안 된다. */
+  async function fetchProgress(ctx) {
+    var url = ctx.root.getAttribute('data-settlement-ch-progress-api') || PROGRESS_API_FALLBACK;
+    try {
+      var body = await getJson(url);
+      return (body && body.success && body.data) ? body.data : null;
+    } catch (err) {
+      return null;
+    }
+  }
+
+  /** 진행 폴링 시작 — 요청을 넣은 직후부터 실행이 끝날 때까지 2초마다. */
+  function startProgressPoll(ctx) {
+    stopProgressPoll(ctx);
+    ctx.state.progressRunId = null;
+    var tick = async function () {
+      var data = await fetchProgress(ctx);
+      if (!ctx.state.syncing) return;   // 그 사이 끝났으면 그린 것을 덮지 않는다
+      if (data && data.status === 'RUNNING') {
+        ctx.state.progressRunId = data.run_id;
+        ctx.state.progress = data;
+        renderSync(ctx);
+      } else if (data && ctx.state.progressRunId && data.run_id === ctx.state.progressRunId) {
+        // 우리가 지켜보던 실행이 끝났다. 실패면 그 사유를 여기서 바로 말한다 —
+        // rev 는 실패해도 안 바뀌므로, 이 자리가 아니면 사용자는 이유를 못 본다.
+        ctx.state.progress = null;
+        if (data.status !== 'OK') {
+          notice(ctx, syncFailureText(data), true);
+          stopRevPoll(ctx);
+          return;
+        }
+        renderSync(ctx);
+      }
+      ctx.progressTimer = window.setTimeout(tick, PROGRESS_INTERVAL_MS);
+    };
+    ctx.progressTimer = window.setTimeout(tick, PROGRESS_INTERVAL_MS);
+  }
+
+  function stopProgressPoll(ctx) {
+    if (ctx.progressTimer) window.clearTimeout(ctx.progressTimer);
+    ctx.progressTimer = null;
+    ctx.state.progress = null;
+  }
+
+  /** 끝난 실행의 상태를 사람 문장으로. 쿼터 중단은 실패가 아니라 "내일 이어서" 다. */
+  function syncFailureText(data) {
+    if (data.status === 'ABORTED_QUOTA') {
+      return '네이버 호출 한도에 걸려 중간에 멈췄습니다. 받은 구간까지는 반영됐고, 나머지는 다음 실행이 이어서 받아옵니다.';
+    }
+    return '동기화가 실패했습니다 — ' + (data.error || '사유 미상');
+  }
+
+  /** 진행 막대. 분모를 아직 모르면(요청 직후·부가세 단계) 흐르는 줄무늬만 낸다. */
+  function progressNode(data) {
+    var p = (data && data.progress) || null;
+    var total = p ? Number(p.total_days || 0) : 0;
+    var done = p ? Number(p.done_days || 0) : 0;
+    var known = !!(p && total > 0 && p.phase !== 'vat');
+    var pct = known ? Math.max(0, Math.min(100, Number(p.percent || 0))) : 0;
+
+    var wrap = el('div', 's-ch-prog' + (known ? '' : ' s-ch-prog--indeterminate'));
+    wrap.setAttribute('data-settlement-ch-progress', '');
+    var head = el('div', 's-ch-prog-head');
+    if (known) {
+      head.appendChild(el('span', 's-ch-prog-pct', pct + '%'));
+      head.appendChild(el('span', null, done + ' / ' + total + '일'));
+      if (p.current_date) head.appendChild(el('span', 's-ch-prog-sub', p.current_date + ' 처리 중'));
+    } else if (p && p.phase === 'vat') {
+      head.appendChild(el('span', null, '부가세 구간을 받아오는 중입니다'));
+    } else {
+      head.appendChild(el('span', null, '워커가 시작하기를 기다리는 중입니다'));
+    }
+    var seconds = Number((data && data.elapsed_seconds) || 0);
+    if (seconds > 0) head.appendChild(el('span', 's-ch-prog-sub', seconds + '초 경과'));
+    wrap.appendChild(head);
+
+    var track = el('div', 's-ch-prog-track');
+    var fill = el('div', 's-ch-prog-fill');
+    if (known) track.style.setProperty('--s-ch-prog', String(pct));
+    track.appendChild(fill);
+    wrap.appendChild(track);
+    return wrap;
+  }
+
   function stopRevPoll(ctx) {
     if (ctx.pollTimer) window.clearTimeout(ctx.pollTimer);
     ctx.pollTimer = null;
+    stopProgressPoll(ctx);
     ctx.state.syncing = false;
     ctx.state.backfilling = false;
     if (ctx.els.syncBtn) ctx.els.syncBtn.disabled = false;
@@ -2637,6 +2732,7 @@
       resizeTimer: null,
       searchTimer: null,
       pollTimer: null,
+      progressTimer: null,
       state: {
         channel: root.getAttribute('data-settlement-ch-channel') || 'NAVER',
         basis: 'expect',
@@ -2660,6 +2756,8 @@
         syncing: false,
         backfilling: false,
         holdbackOpen: false,
+        progress: null,
+        progressRunId: null,
       },
     };
     // 서버가 셀렉트 기본값을 렌더했다면 그 값이 시작값이다(이 파일에 옵션을 적지 않는다).
@@ -2688,6 +2786,7 @@
       window.clearTimeout(ctx.resizeTimer);
       window.clearTimeout(ctx.searchTimer);
       window.clearTimeout(ctx.pollTimer);
+      window.clearTimeout(ctx.progressTimer);
       return false;
     });
     document.querySelectorAll(ROOT_SELECTOR).forEach(mount);
