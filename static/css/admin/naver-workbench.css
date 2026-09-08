@@ -1495,3 +1495,20 @@ input.wb-pick:disabled,
    경고는 정작 켰을 때 아무 신호도 주지 못한다. 규칙으로 편다 — 토글은 JS 의 `hidden`. */
 .wb-approve-warn { display: none; }
 .wb-approve-warn:not([hidden]) { display: block; }
+
+/* 전체 다시 읽기 진행 막대(2026-09-08) — 지금까지는 글자로만 "45주문 중 12주문 완료" 라
+   말했다. 같은 문장을 눈으로 재는 데 시간이 걸려 관리자가 끝났는지 아닌지 계속 되읽었다.
+   버튼 자체를 막대로 쓴다(마크업 추가 없음). 폭은 JS 가 --wb-prog(0~100)로 넘긴다. */
+#wb-refresh-all-running {
+  position: relative;
+  background-image: linear-gradient(
+    to right,
+    var(--wb-prog-fill, rgba(13, 110, 253, .18)) calc(var(--wb-prog, 0) * 1%),
+    transparent calc(var(--wb-prog, 0) * 1%)
+  );
+  background-repeat: no-repeat;
+  transition: background-image .3s ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  #wb-refresh-all-running { transition: none; }
+}

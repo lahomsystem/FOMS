@@ -288,6 +288,7 @@
                 if (button) {
                     button.textContent = '다시 읽는 중 — ' + progress.total + '주문 중 '
                         + progress.done + '주문 완료';
+                    paintRefreshProgress(button, progress.total, progress.done);
                 }
             }
             if (Date.now() >= deadline) {
@@ -314,9 +315,13 @@
      */
     function syncRefreshRunning() {
         stopRefreshRunningWatch();
-        if (!document.getElementById('wb-refresh-all-running')) {
+        var initialChip = document.getElementById('wb-refresh-all-running');
+        if (!initialChip) {
             return;
         }
+        // 서버가 이미 total·done 을 data 속성으로 실어 보냈다 — 첫 폴링(3초)을 기다리지 않고
+        // 그 값으로 막대를 먼저 그린다. 안 그리면 3초 동안 0% 로 보인다.
+        paintRefreshProgress(initialChip, initialChip.dataset.total, initialChip.dataset.done);
         var mine = refreshRunningToken;
         var deadline = Date.now() + REFRESH_POLL_TIMEOUT_MS;
         refreshRunningTimer = window.setTimeout(tick, REFRESH_POLL_INTERVAL_MS);
@@ -341,6 +346,7 @@
                 chip.appendChild(document.createTextNode(
                     '다시 읽는 중 — ' + state.total + '주문 중 ' + state.done + '주문 완료 · '
                     + (state.actor || '다른 관리자') + ' 시작'));
+                paintRefreshProgress(chip, state.total, state.done);
             }
             if (Date.now() >= deadline) {
                 // 무한 폴링 금지. 서버 창(5분)과 같은 마감이라 여기서 접어도 띠는 사라진다.
@@ -350,6 +356,22 @@
             }
             refreshRunningTimer = window.setTimeout(tick, REFRESH_POLL_INTERVAL_MS);
         }
+    }
+
+    /**
+     * 진행 칩을 막대로 만든다 — 폭은 CSS 커스텀 프로퍼티로 넘긴다(인라인 style 금지 규율).
+     *
+     * 글자만으로는 "45주문 중 12주문 완료" 를 눈으로 재야 한다. 같은 사실을 폭으로도
+     * 말하면 끝났는지 아닌지를 안 읽고 안다.
+     */
+    function paintRefreshProgress(chip, total, done) {
+        if (!chip) {
+            return;
+        }
+        var t = Number(total || 0);
+        var d = Number(done || 0);
+        var pct = t > 0 ? Math.max(0, Math.min(100, Math.round(d * 100 / t))) : 0;
+        chip.style.setProperty('--wb-prog', String(pct));
     }
 
     /** 남의 다시 읽기 진행을 읽는다(일시 오류는 다음 회차에 다시 묻는다). */
