@@ -60,6 +60,43 @@ python tools/ops/check_sidefx_readiness.py --max-heartbeat-age 30 \
 - 세 heartbeat(DELIVERY/EXPIRY_SCAN/RETENTION) 중 하나라도 없거나 stale 이면 not-ready
   (worker 미기동 신호).
 
+### outbox 밖 loop 도 같은 표로 본다 (2026-09-08)
+
+워커 컨테이너의 다른 백그라운드 루프도 같은 `side_effect_worker_heartbeats` 표에 tick 마다
+하트비트를 쓴다. 기본 판정에는 **안 들어간다**(release gate 의 뜻을 바꾸지 않으려고) —
+`--kinds` 로 골라서 본다.
+
+```
+python tools/ops/check_sidefx_readiness.py --kinds NAVER_AUTO_DISPATCH,GEOCODE_SWEEP,NOTIFICATION_ESCALATION,NAVER_ORDER_SYNC,NAVER_SETTLE_SYNC,RQ_WORKER
+```
+
+| worker_kind | 쓰는 곳 | 신선도 예산 | 멎으면 무슨 일이 안 일어나나 |
+|---|---|---|---|
+| `NAVER_AUTO_DISPATCH` | `run_naver_auto_dispatch.py --loop` (tick 60s) | 180초 | 평일 16:50 자동 발송처리가 조용히 안 나간다 |
+| `GEOCODE_SWEEP` | `run_geocode_sweep.py --loop` (interval 60s) | 180초 | 좌표 없는 주문이 지도에서 계속 빠진다 |
+| `NOTIFICATION_ESCALATION` | `run_notification_escalation.py --loop` (interval 60s) | 180초 | 늦어진 긴급 알림이 아무에게도 안 올라간다 |
+| `NAVER_ORDER_SYNC` | `run_naver_order_sync.py --loop` (interval 300s) | 900초 | 스마트스토어 신규 주문이 FOMS 에 안 들어온다 |
+| `NAVER_SETTLE_SYNC` | `run_naver_settle_sync.py --loop` (tick 60s, 05:30 창) | 180초 | 정산 데이터가 갱신되지 않는다 |
+| `RQ_WORKER` | `tools/ops/run_rq_worker.py` (start.sh exec) | 900초 | 큐 소비가 멎는다 — 썸네일·지오코딩·푸시·채널톡 전부 |
+
+- `RQ_WORKER` 예산이 큰 이유: 놀고 있는 rq 워커는 `worker_ttl - 15` = 405초마다만
+  하트비트를 부른다(rq 기본값). 2주기 + 여유로 900초를 잡았다.
+- **예산은 루프가 신고한 간격을 따른다.** 각 루프는 하트비트 metadata 에
+  `interval_seconds` 를 싣고, 판정은 `max(등록부 값, 신고 x 3)` 를 쓴다. 그래서 간격을 env 로
+  바꿔도(스테이징 수집 루프 실측 1800초) 판정이 따라온다. 위 표의 값은 신고가 없을 때의
+  바닥이다.
+- 그래도 손으로 덮어야 하면 `--max-heartbeat-age` 가 대상 kind 전부에 적용된다.
+
+- 예산이 outbox 3종(30초)과 다른 이유: 두 루프는 tick 이 60초라 30초 예산이면 살아 있는
+  루프를 죽었다고 판정한다. 3틱(180초) 동안 소식이 없으면 죽은 것으로 본다.
+- `--kinds` 에 outbox kind 를 하나도 안 넣으면 PENDING lag·DEAD 는 **안 센다**(그 루프와
+  무관한 이유로 not-ready 가 되지 않게).
+- 등록되지 않은 kind 이름이나 빈 목록은 exit 2 (fail-closed). 판정 대상 정본은
+  `foms/services/sidefx_worker.py` 의 `WORKER_KIND_SPECS` 다 — 새 루프에 하트비트를 붙이면
+  여기 등록해야 누가 읽는다.
+- 자동 조회는 아직 없다(운영 DB 자격증명이 GitHub 에 없다 — 드리프트 감사처럼 admin HTTP
+  경로가 생겨야 매일 자동으로 볼 수 있다).
+
 ## 장애 대응
 
 | 증상 | 원인 후보 | 조치 |

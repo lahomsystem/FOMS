@@ -25,7 +25,7 @@ import datetime
 import logging
 import os
 from dataclasses import dataclass, field
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Optional, Sequence
 
 from sqlalchemy import create_engine, func, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -43,6 +43,62 @@ WORKER_KIND_DELIVERY = "DELIVERY"
 WORKER_KIND_EXPIRY_SCAN = "EXPIRY_SCAN"
 WORKER_KIND_RETENTION = "RETENTION"
 WORKER_KINDS = (WORKER_KIND_DELIVERY, WORKER_KIND_EXPIRY_SCAN, WORKER_KIND_RETENTION)
+
+# outbox worker 밖에서 같은 표에 하트비트를 쓰는 loop kind 들(OPS-HEARTBEAT-01).
+# 이 표에 없으면 판정 대상이 될 수 없다 — 하트비트를 쓰기만 하고 아무도 안 읽는 상태가
+# 정확히 그렇게 생겼다(2026-09-07 F-9).
+WORKER_KIND_NAVER_AUTO_DISPATCH = "NAVER_AUTO_DISPATCH"
+WORKER_KIND_GEOCODE_SWEEP = "GEOCODE_SWEEP"
+WORKER_KIND_NOTIFICATION_ESCALATION = "NOTIFICATION_ESCALATION"
+WORKER_KIND_NAVER_ORDER_SYNC = "NAVER_ORDER_SYNC"
+WORKER_KIND_NAVER_SETTLE_SYNC = "NAVER_SETTLE_SYNC"
+WORKER_KIND_RQ_WORKER = "RQ_WORKER"
+
+
+@dataclass(frozen=True)
+class WorkerKindSpec:
+    """loop kind 하나의 readiness 판정 규약.
+
+    Attributes:
+        kind: ``side_effect_worker_heartbeats.worker_kind`` 값.
+        max_heartbeat_age: 하트비트 신선도 예산(초). 이 이상 묵으면 not-ready.
+        scan_lag_limit: ``oldest_lag_seconds`` 한도(초). ``None`` 이면 그 검사를 안 한다
+            (scan 루프가 아닌 kind — 하트비트 신선도만 본다).
+        outbox_scoped: outbox 표(PENDING lag·DEAD)를 함께 판정해야 하는 kind 인지.
+    """
+
+    kind: str
+    max_heartbeat_age: int
+    scan_lag_limit: Optional[int] = None
+    outbox_scoped: bool = False
+
+
+# kind 등록부. outbox 3종의 임계는 CLI flag 가 정본이라 여기 값은 그 기본값과 같게 둔다
+# (:class:`ReadinessThresholds` 가 kind 별로 다시 풀어 준다). 나머지 loop 는 자기 tick 을
+# 근거로 예산을 갖는다 — 두 루프 다 tick 60초라 3틱(180초)을 죽음의 기준으로 삼는다.
+WORKER_KIND_SPECS: dict[str, "WorkerKindSpec"] = {
+    WORKER_KIND_DELIVERY: WorkerKindSpec(
+        WORKER_KIND_DELIVERY, max_heartbeat_age=30, outbox_scoped=True),
+    WORKER_KIND_EXPIRY_SCAN: WorkerKindSpec(
+        WORKER_KIND_EXPIRY_SCAN, max_heartbeat_age=30, scan_lag_limit=360, outbox_scoped=True),
+    WORKER_KIND_RETENTION: WorkerKindSpec(
+        WORKER_KIND_RETENTION, max_heartbeat_age=30, scan_lag_limit=90000, outbox_scoped=True),
+    WORKER_KIND_NAVER_AUTO_DISPATCH: WorkerKindSpec(
+        WORKER_KIND_NAVER_AUTO_DISPATCH, max_heartbeat_age=180),
+    WORKER_KIND_GEOCODE_SWEEP: WorkerKindSpec(
+        WORKER_KIND_GEOCODE_SWEEP, max_heartbeat_age=180),
+    WORKER_KIND_NOTIFICATION_ESCALATION: WorkerKindSpec(
+        WORKER_KIND_NOTIFICATION_ESCALATION, max_heartbeat_age=180),
+    # 수집 루프는 기본 간격이 300초(네이버 HTTP 쿼터 때문에 더 못 줄인다) → 3틱.
+    WORKER_KIND_NAVER_ORDER_SYNC: WorkerKindSpec(
+        WORKER_KIND_NAVER_ORDER_SYNC, max_heartbeat_age=900),
+    WORKER_KIND_NAVER_SETTLE_SYNC: WorkerKindSpec(
+        WORKER_KIND_NAVER_SETTLE_SYNC, max_heartbeat_age=180),
+    # rq worker 는 놀 때 dequeue 블로킹이 405초(worker_ttl 420 - 15)라 그 주기로만
+    # 하트비트를 남긴다. 2주기 + 여유 = 900초.
+    WORKER_KIND_RQ_WORKER: WorkerKindSpec(
+        WORKER_KIND_RQ_WORKER, max_heartbeat_age=900),
+}
 
 DEFAULT_LEASE_SECONDS = 60
 DEFAULT_MAX_ATTEMPTS = 10
@@ -560,11 +616,37 @@ def dead_count(session: Session) -> int:
 class ReadinessThresholds:
     """readiness 판정 임계값(§8.2 check template 의 flag 와 1:1)."""
 
-    max_heartbeat_age: int = 30
+    max_heartbeat_age: Optional[int] = None
     max_oldest_pending_lag: int = 60
     max_expiry_scan_lag: int = 360
     max_retention_scan_lag: int = 90000
     max_dead: int = 0
+
+    def heartbeat_age_limit(self, kind: str,
+                            declared_interval: Optional[int] = None) -> int:
+        """kind 의 하트비트 신선도 예산(초).
+
+        우선순위: 명시 flag > 루프가 신고한 tick 간격 x 3 > 등록부 기본값. 가운데 항이
+        핵심이다 — 간격은 env 로 바뀐다(스테이징 수집 루프는 1800초, 기본값은 300초).
+        등록부 값만 믿으면 살아 있는 루프를 죽었다고 판정한다.
+
+        Args:
+            kind: worker_kind.
+            declared_interval: 하트비트가 신고한 tick 간격(초). 없으면 ``None``.
+        """
+        if self.max_heartbeat_age is not None:
+            return self.max_heartbeat_age
+        if declared_interval:
+            return max(WORKER_KIND_SPECS[kind].max_heartbeat_age, declared_interval * 3)
+        return WORKER_KIND_SPECS[kind].max_heartbeat_age
+
+    def scan_lag_limit(self, kind: str) -> Optional[int]:
+        """kind 의 ``oldest_lag_seconds`` 한도(초). ``None`` 이면 그 검사를 안 한다."""
+        if kind == WORKER_KIND_EXPIRY_SCAN:
+            return self.max_expiry_scan_lag
+        if kind == WORKER_KIND_RETENTION:
+            return self.max_retention_scan_lag
+        return WORKER_KIND_SPECS[kind].scan_lag_limit
 
 
 @dataclass
@@ -574,6 +656,25 @@ class ReadinessReport:
     ready: bool
     failures: list[dict] = field(default_factory=list)
     observations: dict = field(default_factory=dict)
+
+
+def _declared_interval(metadata: Optional[dict]) -> Optional[int]:
+    """하트비트 metadata 가 신고한 tick 간격(초). 없거나 말이 안 되면 ``None``.
+
+    Args:
+        metadata: ``side_effect_worker_heartbeats.metadata_json``.
+
+    Returns:
+        양의 정수 간격, 또는 신고가 없거나 해석 불가면 ``None``(등록부 기본값을 쓴다).
+    """
+    if not isinstance(metadata, dict):
+        return None
+    raw = metadata.get("interval_seconds")
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        return None
+    return value if value > 0 else None
 
 
 def collect_readiness_observations(
@@ -592,6 +693,9 @@ def collect_readiness_observations(
         heartbeats[hb.worker_kind] = {
             "age_seconds": max(0, int((now - hb.last_heartbeat_at).total_seconds())),
             "oldest_lag_seconds": hb.oldest_lag_seconds,
+            # 루프가 자기 tick 간격을 신고하면 그것으로 예산을 잡는다(env 로 간격을 바꿔도
+            # 판정이 따라온다). 신고가 없으면 등록부 기본값을 쓴다.
+            "interval_seconds": _declared_interval(hb.metadata_json),
         }
     return {
         "now": now.isoformat(),
@@ -602,39 +706,63 @@ def collect_readiness_observations(
 
 
 def evaluate_readiness(
-    observations: dict, thresholds: ReadinessThresholds
+    observations: dict,
+    thresholds: ReadinessThresholds,
+    kinds: Optional[Sequence[str]] = None,
 ) -> ReadinessReport:
     """관측치를 임계값과 대조해 fail-closed 판정한다(순수 함수 — DB 접근 없음).
 
-    fail 규칙: 세 worker_kind heartbeat 중 하나라도 누락/stale, EXPIRY_SCAN/RETENTION 의
-    scan lag 누락/초과, oldest PENDING lag 초과, DEAD count 가 max_dead 초과.
+    fail 규칙: 판정 대상 worker_kind heartbeat 중 하나라도 누락/stale, scan 한도가 있는
+    kind 의 scan lag 누락/초과, oldest PENDING lag 초과, DEAD count 가 max_dead 초과.
+
+    Args:
+        observations: :func:`collect_readiness_observations` 결과.
+        thresholds: 임계값 묶음.
+        kinds: 판정 대상 worker_kind. 생략하면 outbox worker 3종(:data:`WORKER_KINDS`) —
+            기존 release gate 의 뜻을 그대로 둔다. 등록부에 없는 kind 는 판정할 수 없다.
+
+    Raises:
+        ValueError: 선택이 비었거나(빈 판정 = fail-open), 등록부
+            (:data:`WORKER_KIND_SPECS`)에 없는 kind 를 지정한 경우.
     """
+    selected = tuple(kinds) if kinds is not None else WORKER_KINDS
+    if not selected:  # 빈 선택은 볼 게 없어 무조건 ready — fail-open 이라 거부한다
+        raise ValueError("no worker kind selected")
+    unknown = [k for k in selected if k not in WORKER_KIND_SPECS]
+    if unknown:
+        raise ValueError(f"unknown worker kind(s): {', '.join(unknown)}")
+
     failures: list[dict] = []
     heartbeats = observations.get("heartbeats", {})
 
-    for kind in WORKER_KINDS:
+    for kind in selected:
         hb = heartbeats.get(kind)
+        limit = thresholds.heartbeat_age_limit(
+            kind, (hb or {}).get("interval_seconds"))
         if hb is None:
             failures.append({"check": "heartbeat_present", "kind": kind,
                              "detail": "no heartbeat row (worker not running?)"})
             continue
-        if hb["age_seconds"] >= thresholds.max_heartbeat_age:
+        if hb["age_seconds"] >= limit:
             failures.append({"check": "heartbeat_fresh", "kind": kind,
-                             "detail": hb["age_seconds"], "limit": thresholds.max_heartbeat_age})
+                             "detail": hb["age_seconds"], "limit": limit})
 
-    _check_scan_lag(failures, heartbeats, WORKER_KIND_EXPIRY_SCAN,
-                    thresholds.max_expiry_scan_lag)
-    _check_scan_lag(failures, heartbeats, WORKER_KIND_RETENTION,
-                    thresholds.max_retention_scan_lag)
+    for kind in selected:
+        scan_limit = thresholds.scan_lag_limit(kind)
+        if scan_limit is not None:
+            _check_scan_lag(failures, heartbeats, kind, scan_limit)
 
-    pending_lag = observations.get("oldest_pending_lag")
-    if pending_lag is not None and pending_lag >= thresholds.max_oldest_pending_lag:
-        failures.append({"check": "oldest_pending_lag", "detail": pending_lag,
-                         "limit": thresholds.max_oldest_pending_lag})
+    # PENDING lag·DEAD 는 outbox 표의 상태다. outbox worker 를 하나도 안 고른 판정
+    # (예: --kinds GEOCODE_SWEEP)에서 이것까지 세면 무관한 이유로 not-ready 가 된다.
+    if any(WORKER_KIND_SPECS[k].outbox_scoped for k in selected):
+        pending_lag = observations.get("oldest_pending_lag")
+        if pending_lag is not None and pending_lag >= thresholds.max_oldest_pending_lag:
+            failures.append({"check": "oldest_pending_lag", "detail": pending_lag,
+                             "limit": thresholds.max_oldest_pending_lag})
 
-    dead = observations.get("dead_count", 0)
-    if dead > thresholds.max_dead:
-        failures.append({"check": "dead_count", "detail": dead, "limit": thresholds.max_dead})
+        dead = observations.get("dead_count", 0)
+        if dead > thresholds.max_dead:
+            failures.append({"check": "dead_count", "detail": dead, "limit": thresholds.max_dead})
 
     return ReadinessReport(ready=not failures, failures=failures, observations=observations)
 

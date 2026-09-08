@@ -39,7 +39,52 @@ def _register_worker_session_wiring() -> None:
     register_table_version_listener()
 
 
+#: ``foms.platform.sentry_setup.SENTRY_DSN_ENV`` 와 같은 값을 여기서 다시 적는다.
+#: 그 상수를 import 하려면 ``foms.platform`` 패키지를 열어야 하는데, 그 ``__init__`` 이
+#: app_factory·blueprints 를 통째로 끌어와 워커 콜드스타트에 444 모듈이 붙는다(실측).
+#: 두 값이 갈리면 tests/domains/test_worker_loop_heartbeat.py 가 빨강이 된다.
+_SENTRY_DSN_ENV = "SENTRY_DSN"
+
+
+def _init_worker_sentry() -> None:
+    """worker 프로세스에서도 Sentry 를 초기화한다(HB-S1 과 같은 종류의 사각).
+
+    :func:`foms.platform.sentry_setup.init_sentry` 호출처는
+    :func:`foms.platform.app_factory.build_app` 한 곳뿐인데 worker 는
+    ``rq worker default --url $REDIS_URL`` 로 떠서 ``app.py`` 를 import 하지 않는다
+    (Procfile). 즉 **이 프로세스에서 터진 예외는 아무 데도 가지 않았다** — 썸네일·지오코딩·
+    채널톡·푸시·네이버 수집/정산이 전부 여기서 도는데도 그랬다.
+
+    판정 순서가 이 함수의 전부다.
+
+    1. **DSN 부재면 즉시 반환.** ``sentry_sdk`` 도, ``foms.platform`` 도 import 하지 않는다.
+       후자가 중요하다 — ``foms/platform/__init__.py`` 는 app_factory·blueprints 를 통째로
+       끌어오므로, 여기서 무심코 import 하면 Sentry 를 안 쓰는 워커까지 web 그래프를 지고
+       뜬다(실측 971 → 1,415 모듈).
+    2. **이미 붙어 있으면 반환.** web 프로세스도 이 모듈을 지연 import 할 수 있어
+       (``foms/api/erp_map.py``) 두 번 초기화될 수 있는데, ``sentry_sdk.init`` 을 다시 부르면
+       앞 클라이언트가 통째로 교체돼 그 전송 스레드에 남아 있던 이벤트가 유실된다.
+    3. 그 밖에는 초기화한다. DSN 형식 오류·SDK 미설치는 ``init_sentry`` 가 이미 흡수한다
+       (관측 배선 실패가 워커 기동을 죽이면 안 된다).
+
+    Returns:
+        None.
+    """
+    if not (os.environ.get(_SENTRY_DSN_ENV) or "").strip():
+        return
+
+    import sentry_sdk
+
+    if sentry_sdk.get_client().is_active():
+        return
+
+    from foms.platform.sentry_setup import init_sentry
+
+    init_sentry()
+
+
 _register_worker_session_wiring()
+_init_worker_sentry()
 
 
 __all__ = [
