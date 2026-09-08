@@ -211,6 +211,10 @@ if ($Full) {
         "tests/performance/test_perf_regression_guard.py",
         "tests/performance/test_static_cache_headers.py",
         "tests/contracts/runtime/test_dockerfile_deploy_contract.py",
+        # 닫힌집합·계층 래칫: 둘 다 서브셋 밖이라 "로컬 초록 + CI 빨강" 이 같은 커밋에
+        # 성립했다(2026-09-08 실측 — loop_heartbeat 의 지연 import 가 CI 에서만 걸렸다).
+        "tests/contracts/runtime/test_ptc_physical_exactness.py",
+        "tests/contracts/runtime/test_layer_dependency_ratchet.py",
         "tests/domains/test_foms_namespace_imports.py",
         "tests/domains/test_foms_search_overlay.py::test_search_overlay_template_contract",
         "tests/domains/test_p2_htmx_fragment.py",

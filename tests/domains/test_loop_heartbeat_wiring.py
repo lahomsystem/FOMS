@@ -24,6 +24,7 @@ import re
 
 import pytest
 from sqlalchemy import select
+from types import SimpleNamespace
 
 from db import engine
 from foms.services import loop_heartbeat
@@ -133,7 +134,9 @@ def test_helper_swallows_failure_but_leaves_a_warning_and_a_sentry_event(monkeyp
         raise RuntimeError("side_effect_worker_heartbeats is unreachable")
 
     captured = []
-    monkeypatch.setattr(sidefx_worker, "upsert_heartbeat", _boom)
+    # 모듈 최상단 import 라 loop_heartbeat 쪽 이름을 갈아야 한다(지연 import 는 계층
+    # 래칫이 금지한다 — tests/contracts/runtime/test_layer_dependency_ratchet.py).
+    monkeypatch.setattr(loop_heartbeat, "upsert_heartbeat", _boom)
     monkeypatch.setattr(loop_heartbeat, "capture_exception",
                         lambda *a, **k: captured.append(True))
     logger = logging.getLogger("loop_heartbeat_ut")
@@ -280,3 +283,70 @@ def test_rq_worker_class_wraps_rq_heartbeat():
     runner = _load(_RQ_RUNNER)
     order = runner.HeartbeatWorker.__mro__
     assert order.index(runner.HeartbeatWorkerMixin) < order.index(runner.Worker)
+
+
+# --------------------------------------------------------------------------- #
+# 5. SIDEFX outbox 워커 — 잡은 예외가 Sentry 로 간다 (F-7)
+# --------------------------------------------------------------------------- #
+def _init_sentry_with(monkeypatch, *, dsn: str, client_active: bool) -> list:
+    """``init_sentry_once`` 를 주어진 상태에서 돌리고 init 호출 횟수를 돌려준다."""
+    import sentry_sdk
+    from foms.platform import sentry_setup
+
+    calls = []
+    if dsn:
+        monkeypatch.setenv(loop_heartbeat.SENTRY_DSN_ENV, dsn)
+    else:
+        monkeypatch.delenv(loop_heartbeat.SENTRY_DSN_ENV, raising=False)
+    monkeypatch.setattr(sentry_sdk, "get_client",
+                        lambda: SimpleNamespace(is_active=lambda: client_active))
+    monkeypatch.setattr(sentry_setup, "init_sentry", lambda: calls.append(True) or True)
+
+    loop_heartbeat.init_sentry_once()
+    return calls
+
+
+def test_worker_sentry_is_attached_when_a_dsn_is_set(monkeypatch):
+    """app.py 를 안 거치는 워커도 DSN 이 있으면 Sentry 를 붙인다."""
+    assert _init_sentry_with(monkeypatch, dsn="https://public@example.invalid/1",
+                             client_active=False) == [True]
+
+
+def test_worker_sentry_is_not_reinitialized(monkeypatch):
+    """음성 대조군 — 이미 붙어 있으면 다시 부르지 않는다(앞 클라이언트가 교체된다)."""
+    assert _init_sentry_with(monkeypatch, dsn="https://public@example.invalid/1",
+                             client_active=True) == []
+
+
+def test_worker_sentry_is_skipped_without_a_dsn(monkeypatch):
+    """DSN 이 없으면 아무것도 하지 않는다(foms.platform 을 열지 않기 위해서다)."""
+    assert _init_sentry_with(monkeypatch, dsn="", client_active=False) == []
+
+
+def test_sentry_env_name_matches_the_platform_constant():
+    """게이트가 보는 env 이름이 정본과 갈리면 워커가 조용히 Sentry 없이 뜬다."""
+    from foms.platform.sentry_setup import SENTRY_DSN_ENV
+
+    assert loop_heartbeat.SENTRY_DSN_ENV == SENTRY_DSN_ENV
+
+
+def test_outbox_worker_initializes_sentry_and_reports_step_failures(monkeypatch):
+    """SIDEFX 워커의 잡은 예외가 지금까지 아무 데도 안 갔다 — 이제 Sentry 로 간다."""
+    outbox = _load(_REPO_ROOT / "tools" / "ops" / "run_domain_side_effect_outbox.py")
+    captured = []
+    monkeypatch.setattr(outbox, "capture_exception", lambda *a, **k: captured.append(True))
+
+    def _boom():
+        raise RuntimeError("delivery step exploded")
+
+    assert outbox._safe(_boom, "delivery") is False
+    assert captured == [True], "잡은 예외가 Sentry 로 안 갔다"
+    assert outbox._safe(lambda: None, "delivery") is True
+    assert captured == [True], "성공한 step 까지 Sentry 로 보냈다"
+
+
+def test_outbox_worker_calls_the_sentry_gate_on_startup():
+    """호출처가 없으면 배선이 있어도 안 붙는다 — main 이 게이트를 부르는지 본다."""
+    source = (_REPO_ROOT / "tools" / "ops" / "run_domain_side_effect_outbox.py").read_text(
+        encoding="utf-8")
+    assert "init_sentry_once(" in source.split("def main(", 1)[1]

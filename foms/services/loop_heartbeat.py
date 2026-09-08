@@ -19,11 +19,54 @@
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any, Optional
 
 from sqlalchemy.engine import Engine
 
+from foms.services.sidefx_worker import upsert_heartbeat
+
 _FALLBACK_LOGGER = logging.getLogger("loop_heartbeat")
+
+#: ``foms.platform.sentry_setup.SENTRY_DSN_ENV`` 와 같은 값을 여기서 다시 적는다.
+#: 그 상수를 import 하려면 ``foms.platform`` 패키지를 열어야 하는데, 그 ``__init__`` 이
+#: app_factory·blueprints 를 통째로 끌어와 워커 콜드스타트가 크게 는다(실측).
+#: 두 값이 갈리면 tests/domains/test_loop_heartbeat_wiring.py 가 빨강이 된다.
+SENTRY_DSN_ENV = "SENTRY_DSN"
+
+
+def init_sentry_once(logger: Optional[logging.Logger] = None) -> bool:
+    """``app.py`` 를 안 거치는 워커 프로세스에 Sentry 를 붙인다.
+
+    판정 순서가 이 함수의 전부다.
+
+    1. **DSN 부재면 즉시 반환.** ``sentry_sdk`` 도 ``foms.platform`` 도 import 하지 않는다.
+       후자가 중요하다 — 그 ``__init__`` 은 app_factory·blueprints 를 통째로 끌어온다.
+    2. **이미 붙어 있으면 반환.** ``sentry_sdk.init`` 을 다시 부르면 앞 클라이언트가 교체돼
+       그 전송 스레드에 남아 있던 이벤트가 유실된다.
+    3. 그 밖에는 초기화한다.
+
+    Args:
+        logger: 미설치 경고를 남길 로거. 생략하면 이 모듈 로거.
+
+    Returns:
+        이번 호출에서 실제로 초기화했으면 True.
+    """
+    log = logger or _FALLBACK_LOGGER
+    if not (os.environ.get(SENTRY_DSN_ENV) or "").strip():
+        return False
+    try:
+        import sentry_sdk
+
+        if sentry_sdk.get_client().is_active():
+            return False
+        from foms.platform.sentry_setup import init_sentry
+
+        init_sentry()
+        return True
+    except ImportError:
+        log.warning("sentry_sdk 미설치 — 관측 없이 계속한다")
+        return False
 
 
 def capture_exception(message: Optional[str] = None) -> None:
@@ -74,8 +117,6 @@ def emit_heartbeat(
     Returns:
         기록에 성공했으면 True, 실패했으면 False(경고 로그 + Sentry 이벤트를 남긴 뒤).
     """
-    from foms.services.sidefx_worker import upsert_heartbeat
-
     log = logger or _FALLBACK_LOGGER
     try:
         upsert_heartbeat(engine, worker_kind, metadata=metadata,
