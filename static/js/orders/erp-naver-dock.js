@@ -1,9 +1,12 @@
 /**
  * 네이버 원본 도크 (T14-B) — 주문 편집 셸 우측 독립 패널.
  *
- * 폼 불가침 계약: 기존 폼 DOM(id·name)을 일절 참조하지 않는다. 값 전달은 사람이
- * 복사 버튼으로만 한다(WDCalculator additive 패턴). 데이터는 #erp-order-bootstrap
- * JSON 의 naver_origin(추가 fetch 0), 체크·귀속 상태는 체크 즉시 서버 저장(팀 공유).
+ * 폼 불가침 계약: 기존 폼 DOM 의 id·name 은 지금도 일절 참조하지 않는다 — 도크가 읽는
+ * 계약은 `data-erp` 속성뿐이다. 값 전달은 2026-09-08 부터 두 갈래다: 제품명·색상·
+ * 손잡이·총폭 네 칸은 사람이 칩(⤵)을 눌러 **넣고**(값이 있으면 확인창 1회), 그 밖의
+ * 값(돈·발송기한 등)은 오늘처럼 복사만 한다(WDCalculator additive 패턴).
+ * 데이터는 #erp-order-bootstrap JSON 의 naver_origin(추가 fetch 0), 체크·귀속 상태는
+ * 체크 즉시 서버 저장(팀 공유).
  *
  * fragment 재실행 대비: 문서 위임 + 싱글톤 가드 + 마운트 감시(MutationObserver).
  * 원본 문자열(상품명·옵션)은 전부 textContent 로만 주입한다 — innerHTML 금지(XSS).
@@ -231,11 +234,14 @@
         body.appendChild(el('div', 'naver-dock-src', srcText));
 
         var acts = el('div', 'naver-dock-acts');
-        (row.copies || []).forEach(function (value) {
-            var chip = el('button', 'naver-dock-copy', '📋 ' + value);
-            chip.type = 'button';
-            chip.setAttribute('data-naver-dock-copy', value);
-            acts.appendChild(chip);
+        // 글자가 하는 일을 말한다 — `⤵` 는 칸에 넣는 칩, `📋` 는 복사만 하는 칩이다.
+        dockChipsOf(row).forEach(function (chip) {
+            var button = el('button', 'naver-dock-copy',
+                (chip.target ? '⤵ ' : '📋 ') + chip.value);
+            button.type = 'button';
+            button.setAttribute('data-naver-dock-copy', chip.value);
+            if (chip.target) button.setAttribute('data-naver-dock-target', chip.target);
+            acts.appendChild(button);
         });
         if (row.role === 'addon') {
             var select = document.createElement('select');
@@ -427,8 +433,11 @@
             copy.type = 'button';
             copy.setAttribute('data-naver-dock-copy', hint.copy_value);
             acts.appendChild(copy);
-            // 자동 기입은 하지 않는다(폼 불가침 계약) — 그 사실을 화면이 직접 말한다.
-            // 잔금은 사람이 따로 고칠 필요가 없다는 것까지 말해야 한 번에 끝난다.
+            // 돈은 여전히 사람이 넣는다 — 이 칩에는 `data-naver-dock-target` 을 달지 않는다.
+            // 2026-09-08 자동 입력은 제품명·색상·손잡이·총폭 네 칸에만 열렸다. 금액을 잘못
+            // 넣으면 출고가·잔금이 통째로 틀리므로 예약금은 자동 기입 금지를 그대로 둔다.
+            // 그 사실을 화면이 직접 말한다 — 잔금은 사람이 따로 고칠 필요가 없다는 것까지
+            // 말해야 한 번에 끝난다.
             acts.appendChild(el('span', 'naver-dock-deposit-hint',
                 '시스템이 넣지 않습니다 — 예약금(선금) 칸에 직접 입력하세요. '
                 + '잔금은 출고가 − 예약금으로 따라옵니다.'));
@@ -518,7 +527,9 @@
 
     /**
      * 총폭 힌트 박스 — 본품 모듈 폭 × 수량 + 길이추가(1cm) × 수량.
-     * 규격 SSOT 를 지키기 위해 **값을 폼에 넣지 않는다**. 계산식과 복사 버튼까지다.
+     * 2026-09-08 부터 이 값은 **W(가로·총폭) 칸에 넣는다**(칩 ⤵ · 확인창 뒤). 규격 SSOT
+     * 는 그대로다 — 총폭을 세는 곳은 여전히 여기 한 곳이고, 넣는 값도 여기서 센 mm 정수
+     * 그대로다(쉼표 없음). 옵션의 `사이즈`(150·180cm)는 모듈 폭이라 W 칸 자격이 없다.
      * @param {Object} hint {total_mm, formula, mismatch} — 화면이 다시 센 값이거나(W1),
      *     조각이 없는 옛 응답이면 서버가 로드 시점에 계산한 값.
      * @returns {Element} 힌트 박스.
@@ -527,9 +538,11 @@
         var box = el('div', 'naver-dock-width');
         var head = el('div', 'naver-dock-width-hd');
         head.appendChild(el('span', null, '총폭 ' + hint.total_mm.toLocaleString('ko-KR') + 'mm'));
-        var copy = el('button', 'naver-dock-copy', '📋 ' + hint.total_mm);
+        var copy = el('button', 'naver-dock-copy', '⤵ ' + hint.total_mm);
         copy.type = 'button';
         copy.setAttribute('data-naver-dock-copy', String(hint.total_mm));
+        // W 칸에 들어갈 자격은 이 칩뿐이다 — 옵션의 `사이즈` 값은 모듈 폭이라 총폭이 아니다.
+        copy.setAttribute('data-naver-dock-target', 'spec_width');
         head.appendChild(copy);
         box.appendChild(head);
         box.appendChild(el('div', 'naver-dock-width-formula', hint.formula));
@@ -792,19 +805,269 @@
         if (fab) fab.setAttribute('aria-expanded', 'false');
     }
 
+    /* ── 칩 자동 입력(2026-09-08) ───────────────────────────────────────────
+     * 어느 **칸**에 들어갈 값인지는 서버가 칩에 실어 보내고(`copy_chips[].target`),
+     * 어느 **항목·어느 규격 행**에 넣을지는 화면이 정한다 — 서버는 DOM 을 모른다.
+     *
+     * 아래 도우미는 전부 순수 함수다: 모듈 변수도 전역 `document` 도 만지지 않고
+     * 필요한 것을 인자로 받는다. 계약 테스트가 이 선언을 통째로 뜯어 Node 에서 실제로
+     * 돌리기 때문이다(`test_naver_dock_width_live.py:_extract_function` 방식) — 모듈
+     * 변수를 참조하면 그 자리에서 죽는다.
+     * ─────────────────────────────────────────────────────────────────────── */
+
+    /**
+     * 행의 칩 목록 — 서버 신형 `copy_chips` 우선, 없으면 옛 `copies` 문자열을 감싼다.
+     *
+     * 옛 응답 호환이 필요한 이유: 서비스워커가 staticCacheFirst 라 배포 직후 **새 JS +
+     * 옛 payload** 창이 생긴다. 그때 이 감싸기가 없으면 칩이 통째로 사라진다.
+     * @param {Object} row 도크 행.
+     * @returns {Array<{value: string, target: string}>} 칩 목록(순서·길이 = copies).
+     */
+    function dockChipsOf(row) {
+        if (!row) return [];
+        if (Array.isArray(row.copy_chips)) {
+            return row.copy_chips.map(function (chip) {
+                var value = chip && chip.value !== undefined && chip.value !== null ? chip.value : '';
+                return { value: String(value), target: String((chip && chip.target) || '') };
+            });
+        }
+        return (row.copies || []).map(function (value) {
+            return { value: String(value), target: '' };
+        });
+    }
+
+    /**
+     * 칸 이름 — **화면 라벨과 같은 글자**를 쓴다(사람이 두 이름을 대조하지 않도록).
+     * @param {string} target 칸 키.
+     * @returns {string} 라벨(모르는 키면 빈 문자열).
+     */
+    function dockFieldLabel(target) {
+        if (target === 'spec_width') return 'W(가로·총폭)';
+        if (target === 'product_name') return '제품명';
+        if (target === 'color') return '색상';
+        if (target === 'handle') return '손잡이';
+        return '';
+    }
+
+    /**
+     * 빈 칸 판정 — `''` · 공백만 · `'상담'`.
+     *
+     * `'상담'` 을 빈 값으로 세는 이유: 신규 항목의 색상·손잡이 기본값이 `'상담'` 이라
+     * (`erp-order-shared.js:1370-1372 defaultConsult`) 이걸 값으로 세면 **언제나** 확인창이
+     * 뜬다. 확인창이 늘 뜨면 사람이 읽지 않고 누른다.
+     * @param {*} value 칸의 현재 값.
+     * @returns {boolean} 비어 있으면 true.
+     */
+    function dockIsBlankValue(value) {
+        var text = String(value === undefined || value === null ? '' : value).trim();
+        return text === '' || text === '상담';
+    }
+
+    /**
+     * 사람이 읽는 항목 이름 — `항목 2`. 인덱스는 0부터라 +1 해서 화면 번호로 만든다.
+     * @param {Element} itemRow 품목 행.
+     * @returns {string} `항목 N`(번호를 못 읽으면 `항목`).
+     */
+    function dockItemLabel(itemRow) {
+        var data = (itemRow && itemRow.dataset) || {};
+        var raw = data.itemIndex !== undefined ? data.itemIndex : data.itemIdx;
+        var text = String(raw === undefined || raw === null ? '' : raw).trim();
+        // 숫자 변환은 `Number` 로만 한다 — 도크 JS 에 원문 파서가 두 벌 생기지 않게
+        // 막는 가드(test_naver_dock_width_live)가 다른 변환 함수의 이름 자체를 금한다.
+        var index = text === '' ? NaN : Number(text);
+        if (!isFinite(index)) return '항목';
+        return '항목 ' + (Math.floor(index) + 1);
+    }
+
+    /**
+     * 어느 항목에 넣나 — 계약 §4.1 순서.
+     *
+     * 1. 마지막으로 사람이 만진 항목(아직 목록에 있고 + 숨겨지지 않았을 때만),
+     * 2. 지금 보이는 항목(마스터-디테일이 안 고른 행에 `erp-item-row--md-hidden` 을 단다),
+     * 3. 그중 펼쳐진 항목(`.is-open` — 모바일 아코디언은 한 번에 하나만 펼친다),
+     * 4. 그래도 못 고르면 첫 항목.
+     *
+     * 1번이 가시성까지 보는 이유: 마스터-디테일 레일 항목은 `role=option` 인 div 라
+     * 클릭해도 포커스가 옮겨 가지 않는다(`erp-items-master-detail.js` `selectItem` 에
+     * `focus()` 가 없다). 그래서 "항목 1 색상 칸에 타이핑 → 레일에서 항목 3 선택" 뒤에도
+     * 마지막 포커스는 항목 1 에 남는다. 그 행은 `erp-item-row--md-hidden` 이라
+     * `display:none` 이므로, 거기에 넣으면 값이 **화면에 보이지 않는 항목**으로 들어가고
+     * 스크롤·포커스도 아무 반응이 없다. 도크는 넓은 셸에서만 도킹해 이 경로가 주 경로다.
+     * @param {Array<Element>} rows 품목 행들.
+     * @param {?Element} lastRow 마지막으로 포커스된 행.
+     * @returns {?Element} 고른 행(항목이 없으면 null).
+     */
+    function dockPickItemRow(rows, lastRow) {
+        // 유사배열(NodeList)도 받는다 — 진짜 `querySelectorAll` 결과에는 filter 가 없다.
+        var list = Array.prototype.slice.call(rows || []);
+        if (!list.length) return null;
+        var hidden = function (row) {
+            return !!(row && row.classList && row.classList.contains('erp-item-row--md-hidden'));
+        };
+        if (lastRow && list.indexOf(lastRow) !== -1 && !hidden(lastRow)) return lastRow;
+        var visible = list.filter(function (row) {
+            return !hidden(row);
+        });
+        var opened = visible.filter(function (row) {
+            return row.classList && row.classList.contains('is-open');
+        });
+        if (opened.length) return opened[0];
+        if (visible.length) return visible[0];
+        return list[0];
+    }
+
+    /**
+     * 이 항목의 규격 행 수 — 2개 이상이면 어느 행인지가 사람의 판단이라 확인창을 띄운다.
+     * @param {Element} itemRow 품목 행.
+     * @returns {number} 규격 행 수.
+     */
+    function dockSpecRowCount(itemRow) {
+        if (!itemRow || !itemRow.querySelectorAll) return 0;
+        return itemRow.querySelectorAll('.erp-spec-row').length;
+    }
+
+    /**
+     * 값을 넣을 칸 — `data-erp` 계약만 읽는다(폼 id·name 무참조).
+     *
+     * 총폭은 **첫 규격 행의 W 칸**이다. 화면 요약·마스터 디테일 레일·규격 계산기가 이미
+     * 셋 다 첫 규격 행을 그 항목의 대표 W 로 읽는다 — 네 번째 정의를 만들지 않는다.
+     * @param {Element} itemRow 품목 행.
+     * @param {string} target 칸 키.
+     * @returns {?Element} 칸(없으면 null).
+     */
+    function dockFieldFor(itemRow, target) {
+        if (!itemRow || !itemRow.querySelector || !target) return null;
+        if (target === 'spec_width') {
+            return itemRow.querySelector('.erp-spec-row [data-erp="spec_width"][data-spec-row]');
+        }
+        return itemRow.querySelector('[data-erp="' + target + '"]');
+    }
+
+    /**
+     * 확인창 문구 — 지금 값과 넣을 값을 **글자로** 보여 준다.
+     *
+     * 되돌리기(undo)를 만들지 않기 때문에 이 문구가 유일한 게이트다. `field.value = ...`
+     * 대입은 브라우저 네이티브 undo 스택도 지운다 — 사람이 누르기 전에 읽을 수 있어야 한다.
+     * @param {string} itemLabel `항목 2`.
+     * @param {string} fieldLabel `색상`.
+     * @param {*} oldValue 칸의 지금 값.
+     * @param {string} newValue 넣을 값.
+     * @param {string} note 덧붙일 한 줄(없으면 빈 문자열).
+     * @returns {string} 확인창 본문.
+     */
+    function dockFillConfirmText(itemLabel, fieldLabel, oldValue, newValue, note) {
+        var old = String(oldValue === undefined || oldValue === null ? '' : oldValue).trim();
+        var lines = [
+            itemLabel + ' · ' + fieldLabel,
+            '지금 값: ' + (old ? old : '(비어 있음)'),
+            '넣을 값: ' + newValue
+        ];
+        if (note) lines.push(note);
+        lines.push('');
+        lines.push(old
+            ? '덮어쓸까요? (취소하면 그대로 둡니다)'
+            : '여기에 넣을까요? (취소하면 그대로 둡니다)');
+        return lines.join('\n');
+    }
+
+    /**
+     * 값을 칸에 넣고 **어디에 넣었는지 보여 준다**.
+     *
+     * `input` → `change` 를 반드시 쏜다: 자동저장이 `#erp-order` 에서 두 이벤트를 캡처로
+     * 듣고(`erp-order-autosave.js:413-417`), 폼도 값 주입 뒤 같은 방식으로 쏜다
+     * (`erp-order-shared.js:1585`·`1644`). 대입만 하면 자동저장·계산기가 모른다.
+     * @param {Element} field 값을 넣을 칸.
+     * @param {string} value 넣을 값.
+     * @returns {boolean} 넣었으면 true.
+     */
+    function dockApplyValue(field, value) {
+        if (!field) return false;
+        field.value = value;
+        ['input', 'change'].forEach(function (name) {
+            if (field.dispatchEvent) field.dispatchEvent(new Event(name, { bubbles: true }));
+        });
+        // 넣은 칸을 눈으로 확인하게 데려간다 — 포커스가 스크롤을 또 흔들지 않게 preventScroll.
+        if (field.scrollIntoView) field.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        if (field.focus) field.focus({ preventScroll: true });
+        return true;
+    }
+
+    /**
+     * 칩 하나로 값을 넣는 판단 전체 — 항목 고르기 · 칸 찾기 · 덮어쓰기 확인.
+     * @param {string} target 칸 키(빈 값이면 복사만 하는 오늘 경로).
+     * @param {string} value 넣을 값.
+     * @param {Array<Element>} rows 품목 행들.
+     * @param {?Element} lastRow 마지막으로 포커스된 행.
+     * @param {function(string): boolean} confirmFn 확인창.
+     * @returns {{ok: boolean, itemLabel: string, fieldLabel: string, reason: string}} 결과.
+     */
+    function dockFillFromChip(target, value, rows, lastRow, confirmFn) {
+        if (!target) return { ok: false, reason: '' };
+        var itemRow = dockPickItemRow(rows, lastRow);
+        if (!itemRow) return { ok: false, reason: '넣을 항목이 없습니다' };
+        var field = dockFieldFor(itemRow, target);
+        if (!field) return { ok: false, reason: '넣을 칸을 못 찾았습니다' };
+        var itemLabel = dockItemLabel(itemRow);
+        var fieldLabel = dockFieldLabel(target);
+        var specRows = target === 'spec_width' ? dockSpecRowCount(itemRow) : 0;
+        // 규격 행이 여럿이면 칸이 비어 있어도 묻는다 — 어느 행인지는 사람의 판단이다.
+        var note = specRows > 1 ? '규격 행이 ' + specRows + '개입니다 — 1행에 넣습니다.' : '';
+        if (!dockIsBlankValue(field.value) || note) {
+            var ask = confirmFn || function () { return false; };
+            if (!ask(dockFillConfirmText(itemLabel, fieldLabel, field.value, value, note))) {
+                return { ok: false, reason: '넣지 않았습니다' };
+            }
+        }
+        dockApplyValue(field, value);
+        return { ok: true, itemLabel: itemLabel, fieldLabel: fieldLabel };
+    }
+
+    /**
+     * 품목 행들 — 자동 입력 경로에서 폼 DOM 을 찾는 유일한 자리다.
+     *
+     * 폼 불가침의 남은 절반은 그대로다: 폼의 **id·name 은 읽지 않는다**. 도크가 보는 것은
+     * 클래스 `.erp-item-row` 와 `data-erp` 계약뿐이라 `#erp-items` 로 감싸지 않는다
+     * (그 id 를 읽는 순간 폼 id 무참조 가드를 깬다 — 품목 행은 그 컨테이너에만 산다).
+     * 기준 노드도 전역 `document` 가 아니라 **도크 자기 노드**에서 받아 온다.
+     * @param {Node} root 조회 기준(도크 칩의 `ownerDocument`).
+     * @returns {Array<Element>} 품목 행 배열.
+     */
+    function erpDockItemRows(root) {
+        if (!root || !root.querySelectorAll) return [];
+        return Array.prototype.slice.call(root.querySelectorAll('.erp-item-row'));
+    }
+
     /* ── 문서 위임(싱글톤) — fragment 재실행에도 리스너가 중복되지 않는다 ── */
+    // 사람이 마지막으로 만진 품목 행을 기억한다 — 칩은 "지금 보고 있는 항목"에 들어가야
+    // 한다. 마스터-디테일·아코디언 상태보다 포커스가 더 정확한 신호라 먼저 본다.
+    var lastItemRow = null;
+    document.addEventListener('focusin', function (event) {
+        var row = event.target.closest && event.target.closest('.erp-item-row');
+        if (row) lastItemRow = row;
+    });
+
     document.addEventListener('click', function (event) {
         var copy = event.target.closest('[data-naver-dock-copy]');
         if (copy) {
             var value = copy.getAttribute('data-naver-dock-copy');
+            // 복사는 넣기 성패와 **무관하게 항상 먼저** 한다 — 다른 칸에 또 붙일 수 있어야 한다.
             if (navigator.clipboard) navigator.clipboard.writeText(value).catch(function () {});
+            var filled = dockFillFromChip(copy.getAttribute('data-naver-dock-target') || '',
+                value, erpDockItemRows(copy.ownerDocument), lastItemRow,
+                // window.confirm 을 떼어 넘기지 않는다 — 호출 시 this 가 window 여야 한다.
+                function (text) { return window.confirm(text); });
+            // 원문은 글자를 바꾸기 **전에** 잡는다 — 바꾼 뒤 잡으면 되돌릴 원문이 사라진다.
             var original = copy.textContent;
-            copy.classList.add('is-copied');
-            copy.textContent = '✓ 복사됨';
+            var filledOk = !!(filled && filled.ok);
+            copy.classList.add(filledOk ? 'is-filled' : 'is-copied');
+            copy.textContent = filledOk
+                ? '✓ ' + filled.itemLabel + ' ' + filled.fieldLabel + '에 넣음'
+                : (filled && filled.reason ? '✓ 복사됨 — ' + filled.reason : '✓ 복사됨');
             setTimeout(function () {
                 copy.textContent = original;
                 copy.classList.remove('is-copied');
-            }, 1200);
+                copy.classList.remove('is-filled');
+            }, filledOk ? 1600 : 1200);
             return;
         }
         // 체크박스(15px)가 너무 작아 손가락으로 누르기 어렵다 — 행 아무 데나 누르면

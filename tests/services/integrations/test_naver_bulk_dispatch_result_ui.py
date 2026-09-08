@@ -195,7 +195,7 @@ def test_workbench_says_partial_with_both_numbers(client, workbench_on, today):
     _naver_measured_today(today, customer="이남음")
     body = _work(client)
     assert 'data-wb-bulk-dispatch-state="partial"' in body
-    assert "2집 중" in body and "1집 발송됨" in body and "1집 남음" in body
+    assert "2집 중" in body and "1집 발송됨" in body and 'wb-ghost__badge">1집' in body
 
 
 def test_workbench_shows_failure_line_with_reason(client, workbench_on, today):

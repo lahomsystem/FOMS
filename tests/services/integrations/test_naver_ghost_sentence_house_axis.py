@@ -22,8 +22,8 @@ from foms.services.integrations.naver_commerce.mapping import group_key_text
 from models import ExternalOrderLink, Order
 
 # 화면 낱말 — 여기서만 적고 단언은 이 상수를 쓴다.
-HERE_ALIVE_HEAD = "지금 보고 있는 이 집은 살아 있는 결제입니다"
-ONLY_THIS_HOUSE = "이 집만 취소됐고"
+HERE_ALIVE_HEAD = "이 주문에 붙은 "
+ONLY_THIS_HOUSE = "이 집만 취소됐습니다"
 HOUSE_UNIT = "집 중"      # 집 축 문장에만 나온다
 LINK_UNIT = "건 중"       # 상품주문 축 문장에만 나온다
 PRODUCT_ORDER_UNIT = "상품주문 "
@@ -114,7 +114,7 @@ def test_names_the_viewed_house_as_alive_when_it_is_the_new_payment(app):
 
     block = view["discard_block"]
     assert block.startswith(HERE_ALIVE_HEAD), f"다른 갈래로 떨어졌다: {block}"
-    assert "3집 중 2집이 취소됐고, 이 집을 포함한 1집이 살아 있습니다" in block
+    assert "3집 중 2집만 취소됐습니다 — 이 집을 포함한 1집은 살아 있습니다" in block
     assert LINK_UNIT not in block, f"집 축 문장에 상품주문 수를 섞었다: {block}"
     assert view["can_discard"] is False
     assert view["applicable"] is True

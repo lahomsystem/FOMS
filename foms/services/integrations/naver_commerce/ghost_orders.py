@@ -230,7 +230,9 @@ def _discard_verdict(bucket: dict[str, Any], status: str) -> dict[str, Any]:
         # 문장은 부르는 쪽이 사실(건수·살아 있는 집)로 다시 쓴다. 여기서는 축만 말한다.
         discard_block = "이 주문에는 아직 살아 있는 결제가 있습니다"
     elif claim_phase != "done":
-        discard_block = "네이버가 아직 취소를 확정하지 않았습니다 — 확정 후에 접으세요"
+        # 꼬리 훈수(`확정 후에 접으세요`)만 뗀다 — 잠금 사유는 앞 절이 온전히 든다.
+        # 마침표는 pane 587 이 붙인다(다른 갈래와 같은 규칙) — 여기서는 안 찍는다.
+        discard_block = "네이버가 아직 취소를 확정하지 않았습니다"
     else:
         discard_block = ""
     return {
@@ -465,19 +467,22 @@ def _partial_discard_text(*, alive: dict[str, dict[str, Any]], house_keys: set[s
     house_total = len(house_keys)
     alive_house_count = len(alive)
     dead_house_count = house_total - alive_house_count
-    link_axis = ("이 주문에는 아직 살아 있는 결제가 있습니다 — 상품주문 "
-                 f"{bucket['link_count']}건 중 {bucket['canceled']}건만 취소됐습니다. "
-                 "전부 취소된 뒤에 접습니다")
+    # 문장은 짧을수록 읽힌다(2026-09-08 담당자 지적) — 앞머리 설명과 맺음말을 걷어내고
+    # 사실만 남긴다. 무엇을 해야 하는지는 버튼과 꼬리표가 이미 말한다.
+    link_axis = ("부분 취소 건 — 상품주문 "
+                 f"{bucket['link_count']}건 중 {bucket['canceled']}건만 취소됐습니다")
     if not group_key or group_key not in house_keys:
         # 이 주문에 없는 집이면 집 축으로 말할 사실이 없다.
         return link_axis
     if group_key not in alive:
-        return ("이 주문에는 살아 있는 결제가 함께 붙어 있습니다 — 이 집만 취소됐고, "
+        # 앞머리는 뒤 절의 요약이라 뺐다 — 판정(이 집만 취소)을 먼저 놓는다(2026-09-08).
+        return ("이 집만 취소됐습니다 — "
                 f"{_alive_house_text(list(alive.values()))}은 살아 있습니다")
     if dead_house_count >= 1:
-        return ("지금 보고 있는 이 집은 살아 있는 결제입니다 — 이 주문에 붙은 "
-                f"{house_total}집 중 {dead_house_count}집이 취소됐고, 이 집을 포함한 "
-                f"{alive_house_count}집이 살아 있습니다. 살아 있는 집을 정리한 뒤에 접습니다")
+        # 맺음말은 `정리 계획 열기` 버튼이 같은 화면에서 이미 말한다 — 숫자만 남긴다.
+        return ("이 주문에 붙은 "
+                f"{house_total}집 중 {dead_house_count}집만 취소됐습니다 — 이 집을 포함한 "
+                f"{alive_house_count}집은 살아 있습니다")
     return link_axis
 
 

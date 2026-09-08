@@ -471,6 +471,18 @@
   color: #059669;
 }
 
+/* 넣기 성공 — 복사됨(테두리만 초록)과 눈으로 구분되어야 "넣었다"가 사실로 읽힌다. */
+.naver-dock-copy.is-filled {
+  border-color: #059669;
+  background: #059669;
+  color: #fff;
+}
+
+/* 넣을 수 있는 칩임을 누르기 전에 알린다(글자 `⤵` 와 같은 뜻의 약한 표식). */
+.naver-dock-copy[data-naver-dock-target] {
+  border-color: #059a54;
+}
+
 .naver-dock-guess {
   font-size: 12.5px;
   color: #94a3b8;
