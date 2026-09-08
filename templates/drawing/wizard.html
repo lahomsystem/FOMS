@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>도면 마법사 — 주문 #{{ order.id }}</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/wizard.css') }}?v=20260713a">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/wizard.css') }}?v=20260908a">
     {# WRITE-GUARD-01: 이 문서는 layout_head 를 상속하지 않는 standalone 이라 CSRF 배선을
        직접 include 해야 한다. 빠지면 마법사의 모든 mutation(저장·이미지 업로드·실측 사진
        삽입)이 403 invalid_csrf_token 이 된다. #}
@@ -122,6 +122,11 @@
           <div class="dws-menu dws-menu-right" id="dws-export-menu" hidden>
             <button type="button" class="dws-menu-item" id="dws-btn-export-png">PNG 다운로드</button>
             <button type="button" class="dws-menu-item" id="dws-btn-export-all">일괄 내보내기 (폴더 저장)</button>
+            <div class="dws-export-dir" id="dws-export-dir" hidden>
+              <span class="dws-export-dir-label">저장 폴더</span>
+              <span class="dws-export-dir-name" id="dws-export-dir-name">매번 물어봄</span>
+              <button type="button" class="dws-export-dir-change" id="dws-btn-export-dir-change">지정</button>
+            </div>
             <div class="dws-menu-sep"></div>
             <button type="button" class="dws-menu-item" id="dws-btn-version-history">버전 이력…</button>
           </div>
@@ -436,6 +441,6 @@
 
   <script id="drawing-wizard-config" type="application/json">{{ wizard_config|tojson }}</script>
   <script src="{{ url_for('static', filename='vendor/konva.min.js') }}?v=20260706b" defer></script>
-  <script src="{{ url_for('static', filename='js/drawing/wizard.js') }}?v=20260908a" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/wizard.js') }}?v=20260908b" defer></script>
 </body>
 </html>
