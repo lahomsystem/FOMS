@@ -174,8 +174,15 @@ def run_watchdog_once(session: Any, *, now: Optional[datetime.datetime] = None,
         notification_id = _notify(session, health, stalled=health["stalled"], now=now)
         logger.warning("[worker-watchdog] 상태 전이: stalled=%s kinds=%s",
                        health["stalled"], health["stale_kinds"])
-    if changed:
-        _write_state(session, {"stalled": health["stalled"],
-                               "stale_kinds": health["stale_kinds"],
-                               "changed_at": now.isoformat()})
+
+    # **매 회차 기록한다.** 전이 때만 쓰면 모든 게 정상인 동안 이 감시자가 도는지 아닌지
+    # 아무 흔적이 없다 — 게이트를 켰는지, 배포가 됐는지, 프로세스가 살았는지를 확인할
+    # 길이 사라진다(감시자가 자기 생존을 안 남기는 것은 감시 대상의 결함과 같은 결함이다).
+    # ``changed_at`` 은 전이 때만 움직인다 — "언제부터 이 상태인가" 를 잃지 않는다.
+    _write_state(session, {
+        "stalled": health["stalled"],
+        "stale_kinds": health["stale_kinds"],
+        "changed_at": now.isoformat() if changed else previous.get("changed_at"),
+        "checked_at": now.isoformat(),
+    })
     return {"health": health, "changed": changed, "notification_id": notification_id}

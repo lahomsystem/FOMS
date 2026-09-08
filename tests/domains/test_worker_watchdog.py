@@ -181,6 +181,40 @@ def test_state_row_is_written_so_the_next_tick_knows(app):
     assert row is not None and row.setting_value["stalled"] is True
 
 
+def test_watchdog_records_that_it_ran_even_when_everything_is_fine(app):
+    """정상일 때도 흔적을 남긴다 — 안 남기면 감시자가 도는지 확인할 길이 없다.
+
+    2026-09-08 운영에서 게이트를 켜고 나서 "정말 켜졌나" 를 물을 수단이 없었다.
+    감시자가 자기 생존을 안 남기는 것은 감시 대상의 결함과 같은 결함이다.
+    """
+    _beat(WORKER_KIND_RQ_WORKER, age_seconds=10)
+    out = worker_watchdog.run_watchdog_once(db_session, now=_NOW)
+    db_session.commit()
+    assert out["changed"] is False, "정상인데 전이로 셌다"
+    row = db_session.get(SystemSetting, worker_watchdog.SETTING_KEY)
+    assert row is not None, "정상일 때 아무 흔적도 안 남겼다"
+    assert row.setting_value["checked_at"] == _NOW.isoformat()
+    assert row.setting_value["stalled"] is False
+
+
+def test_changed_at_only_moves_on_a_transition(app):
+    """"언제부터 이 상태인가" 는 매 회차 기록에 덮이면 안 된다."""
+    _admin()
+    _beat(WORKER_KIND_RQ_WORKER, age_seconds=_BUDGET + 60)
+    worker_watchdog.run_watchdog_once(db_session, now=_NOW)
+    db_session.commit()
+    first = db_session.get(SystemSetting, worker_watchdog.SETTING_KEY).setting_value
+    assert first["changed_at"] == _NOW.isoformat()
+
+    later = _NOW + datetime.timedelta(minutes=5)
+    worker_watchdog.run_watchdog_once(db_session, now=later)
+    db_session.commit()
+    db_session.expire_all()
+    second = db_session.get(SystemSetting, worker_watchdog.SETTING_KEY).setting_value
+    assert second["changed_at"] == _NOW.isoformat(), "전이가 아닌데 changed_at 이 움직였다"
+    assert second["checked_at"] == later.isoformat(), "회차 시각이 안 갱신됐다"
+
+
 def test_notify_false_judges_without_making_noise(app):
     """점검용 판정은 알림을 만들지 않는다."""
     _admin()
