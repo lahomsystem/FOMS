@@ -133,6 +133,33 @@
   text-decoration: underline;
 }
 
+/* 네 칸을 한 번에 채우는 버튼(2026-09-08). 진행 표시(`margin-left:auto`) 바로 앞에 서므로
+   머리말 오른쪽 무리에 붙는다. 잠긴 상태(본품 2개 이상)는 흐리게 — 왜 잠겼는지는 title 과
+   눌렀을 때의 글자가 말한다. */
+.naver-dock-hd .naver-dock-fillall {
+  font-size: 12.5px;
+  font-weight: 700;
+  padding: 1px 8px;
+  white-space: nowrap;
+}
+
+.naver-dock-hd .naver-dock-fillall:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+}
+
+/* 결과 글자는 칩과 같은 규칙으로 읽힌다 — 넣었으면 채운 초록, 못 넣었으면 테두리만. */
+.naver-dock-hd .naver-dock-fillall.is-filled {
+  border-color: #059669;
+  background: #059669;
+  color: #fff;
+}
+
+.naver-dock-hd .naver-dock-fillall.is-copied {
+  border-color: #059669;
+  color: #059669;
+}
+
 .naver-dock-hd .naver-dock-prog {
   margin-left: auto;
   font-size: 13px;
