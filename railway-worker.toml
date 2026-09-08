@@ -4,4 +4,7 @@
 builder = "nixpacks"
 
 [deploy]
-startCommand = "rq worker default --url $REDIS_URL"
+# rq worker 를 직접 띄우지 않는다 — start.sh 의 감시 루프가 Redis 재시작 시 러너를
+# 다시 띄우고, 러너가 RQ_WORKER 하트비트를 남긴다(2026-09-08 운영 사고). 여기서 rq 를
+# 직접 부르면 그 보호와 하트비트가 둘 다 사라진다.
+startCommand = "sh start.sh"
