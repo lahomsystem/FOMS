@@ -229,6 +229,64 @@ def test_cancel_transfer_restores_and_enqueues_storage_delete(app, client):
     assert len(ev) == 1
 
 
+def test_cancel_second_transfer_restores_transferred_not_pending(app, client):
+    """2차 전달만 취소하면 1차 전달본이 살아있으므로 TRANSFERRED 로 복원한다.
+
+    운영 사고(2026-09-08 #5193): 잔여 최신 액션이 TRANSFER 인데도 PENDING 으로 되돌려
+    영업의 '수령 확정' 버튼(TRANSFERRED 전용 게이트)이 통째로 사라졌다.
+    """
+    admin = _make_user("sd_cancel2_admin", role="ADMIN")
+    _login(client, admin)
+
+    first_file = {"key": "PLACEHOLDER_V1", "filename": "v1.png"}
+    second_file = {"key": "PLACEHOLDER_V2", "filename": "v2.png"}
+    first_transfer = {
+        "action": "TRANSFER", "by_user_id": admin.id,
+        "transferred_at": "2026-09-08 07:27:32",
+        "files": [first_file], "previous_current_files": [], "mode": "APPEND",
+    }
+    order = _make_order(sd={
+        "workflow": {"stage": "DRAWING"},
+        "parties": {"customer": {"name": "홍"}, "manager": {"name": "영업 김"}},
+        "drawing_status": "TRANSFERRED",
+        "drawing_transferred": True,
+        "drawing_current_files": [second_file],
+        "drawing_transfer_history": [
+            first_transfer,
+            {
+                "action": "TRANSFER", "by_user_id": admin.id,
+                "transferred_at": "2026-09-08 07:32:02",
+                "files": [second_file], "previous_current_files": [first_file],
+                "mode": "REPLACE",
+            },
+        ],
+    })
+    oid = order.id
+    v1_key = f"orders/{oid}/drawing_wizard/exports/v1.png"
+    v2_key = f"orders/{oid}/drawing_wizard/exports/v2.png"
+    sd = copy.deepcopy(order.structured_data)
+    sd["drawing_current_files"][0]["key"] = v2_key
+    sd["drawing_transfer_history"][0]["files"][0]["key"] = v1_key
+    sd["drawing_transfer_history"][1]["files"][0]["key"] = v2_key
+    sd["drawing_transfer_history"][1]["previous_current_files"][0]["key"] = v1_key
+    order.structured_data = sd
+    flag_modified(order, "structured_data")
+    db_session.commit()
+
+    resp = client.post(f"/api/orders/{oid}/cancel-transfer")
+    assert resp.status_code == 200 and resp.get_json()["success"] is True
+
+    saved = db_session.get(Order, oid)
+    saved_sd = saved.structured_data
+    assert saved_sd["drawing_status"] == "TRANSFERRED"
+    assert saved_sd["drawing_transferred"] is True
+    assert [f.get("key") for f in saved_sd["drawing_current_files"]] == [v1_key]
+    # 살아남은 1차 전달이 last_drawing_transfer 로 복원돼야 화면 요약이 빈칸이 되지 않는다.
+    assert (saved_sd["last_drawing_transfer"] or {}).get("transferred_at") == "2026-09-08 07:27:32"
+    assert len([h for h in saved_sd["drawing_transfer_history"]
+                if h.get("action") == "TRANSFER"]) == 1
+
+
 # --- 도면 변경 ack: idempotency + 생산 미혼합 --------------------------------
 
 
