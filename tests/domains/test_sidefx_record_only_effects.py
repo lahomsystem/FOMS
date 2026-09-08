@@ -25,8 +25,10 @@ import pytest
 
 from foms.services.record_only_effects import (
     CHANNEL_PUSH_RECORDED_EFFECT_TYPE,
+    STAGE_NOTIFICATION_EFFECT_TYPE,
     handle_record_only,
 )
+from foms.services.record_only_effects import handle_unimplemented_consumer
 from foms.services.sidefx_worker import NoHandlerError, dispatch, register_handler
 
 _RUNNER_PATH = (
@@ -49,6 +51,34 @@ def test_record_only_handler_does_nothing_and_returns() -> None:
 
     assert handle_record_only(row) is None
     assert row.__dict__ == before, "기록 전용 handler 가 행을 건드렸다"
+
+
+def _registered_effect_types() -> dict:
+    """러너 main() 이 실제로 등록하는 effect_type→handler 를 뽑는다.
+
+    소스에 문자열이 있는지가 아니라 **등록 결과**를 본다 — 주석만 남기고 호출을 지우는
+    회귀를 잡기 위해서다. 엔진 생성 직전에 멈추므로 DB 는 건드리지 않는다.
+    """
+    spec = importlib.util.spec_from_file_location("sidefx_runner_ut", _RUNNER_PATH)
+    assert spec and spec.loader
+    runner = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(runner)
+
+    registered: dict[str, Any] = {}
+
+    def _fake_register(effect_type: str, fn: Any, replace: bool = False) -> None:
+        registered[effect_type] = fn
+
+    original_register = runner.register_handler
+    original_engine = runner.make_engine_from_env
+    runner.register_handler = _fake_register
+    runner.make_engine_from_env = lambda: (_ for _ in ()).throw(RuntimeError("stop here"))
+    try:
+        runner.main(["--once"])  # engine 생성에서 멈춘다 — 등록은 그 앞에서 끝난다
+    finally:
+        runner.register_handler = original_register
+        runner.make_engine_from_env = original_engine
+    return registered
 
 
 def test_runner_registers_channel_push_recorded() -> None:
@@ -82,6 +112,34 @@ def test_runner_registers_channel_push_recorded() -> None:
     # 기존 배선도 함께 살아 있어야 한다(등록부를 갈아엎는 회귀 방지).
     for effect_type in ("STORAGE_DELETE", "GEOCODE", "ALIMTALK_SEND"):
         assert effect_type in registered
+
+
+def test_unimplemented_consumer_handler_completes_without_delivering() -> None:
+    """소비자 미구현 행도 DEAD 로 안 쌓인다 — 정상 반환이라 worker 가 DONE 으로 전이한다."""
+    row = _row(STAGE_NOTIFICATION_EFFECT_TYPE)
+    assert handle_unimplemented_consumer(row) is None
+
+
+def test_record_only_and_unimplemented_are_not_the_same_handler() -> None:
+    """두 상태를 한 함수로 뭉치면 소비자를 구현할 사람이 차이를 못 본다.
+
+    "배달할 것이 원래 없다"(기록 전용)와 "받는 쪽을 아직 안 만들었다"(미구현)는 다르다.
+    """
+    assert handle_record_only is not handle_unimplemented_consumer
+
+
+def test_registered_handler_set_is_closed(monkeypatch) -> None:
+    """등록 목록 닫힌집합 — 진짜 소비자를 붙이면 여기서 빨개진다.
+
+    그때 `handle_unimplemented_consumer` 등록을 걷어내라는 신호다. 안 걷으면 진짜 배달이
+    그 자리에서 조용히 끝난다.
+    """
+    registered = _registered_effect_types()
+    assert set(registered) == {
+        "STORAGE_DELETE", "GEOCODE", "ALIMTALK_SEND",
+        CHANNEL_PUSH_RECORDED_EFFECT_TYPE, STAGE_NOTIFICATION_EFFECT_TYPE,
+    }
+    assert registered[STAGE_NOTIFICATION_EFFECT_TYPE].__name__ == "handle_unimplemented_consumer"
 
 
 def test_unregistered_effect_type_still_fails_closed() -> None:
