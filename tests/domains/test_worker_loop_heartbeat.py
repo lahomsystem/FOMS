@@ -214,7 +214,8 @@ def test_heartbeat_metadata_never_carries_customer_information(runner, monkeypat
     rows = _heartbeats()
     assert len(rows) == 1
     assert rows[0].metadata_json == {
-        "in_window": True, "outcome": "sent", "queued": 2, "blocked": 1, "total": 3,
+        "interval_seconds": 5, "in_window": True, "outcome": "sent",
+        "queued": 2, "blocked": 1, "total": 3,
     }
 
 

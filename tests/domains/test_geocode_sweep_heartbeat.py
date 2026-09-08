@@ -60,16 +60,21 @@ def _one_tick(module, monkeypatch, round_result, calls):
 def test_tick_writes_a_heartbeat_with_the_fixed_kind(sweep, monkeypatch) -> None:
     """1틱 뒤 GEOCODE_SWEEP 하트비트가 남는다."""
     seen = {}
-    monkeypatch.setattr(sweep, "_emit_heartbeat", lambda result: seen.update(result=result))
+    monkeypatch.setattr(sweep, "_emit_heartbeat",
+                        lambda result, interval=0: seen.update(result=result,
+                                                               interval=interval))
     _one_tick(sweep, monkeypatch, {"enqueued": 2, "failed": 0, "scanned": 5}, {})
     assert seen["result"] == {"enqueued": 2, "failed": 0, "scanned": 5}
     assert sweep.HEARTBEAT_WORKER_KIND == "GEOCODE_SWEEP"
+    # 판정 예산의 근거라 실제 라운드 간격이 그대로 넘어와야 한다(_one_tick 은 15초로 돈다).
+    assert seen["interval"] == 15
 
 
 def test_heartbeat_is_written_even_when_the_round_blows_up(sweep, monkeypatch) -> None:
     """라운드가 터져도 하트비트는 남는다 — '죽었다' 와 '이번 라운드만 실패' 를 가른다."""
     seen = {}
-    monkeypatch.setattr(sweep, "_emit_heartbeat", lambda result: seen.update(result=result))
+    monkeypatch.setattr(sweep, "_emit_heartbeat",
+                        lambda result, interval=0: seen.update(result=result))
     _one_tick(sweep, monkeypatch, RuntimeError("boom"), {})
     assert "result" in seen and seen["result"] is None
 
@@ -101,7 +106,7 @@ def test_heartbeat_failure_does_not_stop_the_sweep_and_is_logged(
 def test_sentry_init_is_called_once_before_the_loop(sweep, monkeypatch) -> None:
     """루프 진입 전에 Sentry 를 붙인다(이 프로세스는 app.py 를 안 거친다)."""
     hits = []
-    monkeypatch.setattr(sweep, "_emit_heartbeat", lambda result: None)
+    monkeypatch.setattr(sweep, "_emit_heartbeat", lambda result, interval=0: None)
     monkeypatch.setattr(sweep, "_run_round", lambda **k: {"enqueued": 0, "failed": 0, "scanned": 0})
     monkeypatch.setattr(sweep, "print_result", lambda *a, **k: None)
     monkeypatch.setattr(sweep, "_init_sentry_once", lambda: hits.append(1))

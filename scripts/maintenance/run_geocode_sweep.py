@@ -129,7 +129,7 @@ def _capture(message: str) -> None:
         pass  # sentry 미설치는 관측 부재일 뿐 — 위에서 이미 로그로 남겼다
 
 
-def _emit_heartbeat(result: Optional[dict]) -> None:
+def _emit_heartbeat(result: Optional[dict], interval: int = 0) -> None:
     """라운드 끝에 하트비트를 남긴다(루프가 살아 있다는 유일한 신호).
 
     실패해도 스윕을 막지 않는다 — 관측 배선 때문에 좌표 보충이 멈추면 더 나쁘다. 다만
@@ -141,6 +141,8 @@ def _emit_heartbeat(result: Optional[dict]) -> None:
     from foms.services.sidefx_worker import upsert_heartbeat
 
     metadata = {
+        # 판정부가 예산을 잡는 근거 — 간격이 env 로 바뀌어도 감시가 따라온다.
+        "interval_seconds": int(interval or 0),
         "outcome": "ok" if result is not None else "round_failed",
         "enqueued": int((result or {}).get("enqueued") or 0),
         "failed": int((result or {}).get("failed") or 0),
@@ -419,7 +421,7 @@ def _run_loop(*, interval: int, batch: int, include_failed: bool, as_json: bool)
             traceback.print_exc()
             _capture("geocode sweep round failed")
         # 라운드가 터져도 하트비트는 남긴다 — "죽었다" 와 "이번 라운드만 실패" 를 가른다.
-        _emit_heartbeat(result)
+        _emit_heartbeat(result, interval)
         _shutdown.wait(interval)
     _log("stopped")
     return 0

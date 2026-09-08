@@ -1461,3 +1461,62 @@ MUT21 rq 가 주기를 신고 안 함         1 failed, 48 passed
 ### 확인된 미결
 
 - 스테이징 `SENTRY_DSN` **미설정 재확인**(F-12) — 이번 Sentry 배선은 스테이징에서 no-op 이다.
+
+### 스테이징 실측 — 수정 전 예산이면 실제로 오판했다 (양성 + 음성)
+
+재배포 뒤 신고 값이 실제로 실린다:
+
+```
+DELIVERY                 age=     4s  신고간격=None
+EXPIRY_SCAN              age=     4s  신고간격=None
+RETENTION                age=     4s  신고간격=None
+NAVER_AUTO_DISPATCH      age=    49s  신고간격=None   (러너 미변경 — 등록부 180초)
+NAVER_ORDER_SYNC         age=   288s  신고간격=1800   → 예산 5400초
+NAVER_SETTLE_SYNC        age=    49s  신고간격=60     → 예산 180초
+NOTIFICATION_ESCALATION  age=    48s  신고간격=60     → 예산 180초
+RQ_WORKER                age=    69s  신고간격=405    → 예산 1215초
+```
+
+수집 루프 나이가 옛 고정 예산(900초)을 넘긴 시점에 같은 표를 두 번 판정했다:
+
+```
+== NAVER_ORDER_SYNC age=1003s (신고 1800초 x3 = 예산 5400초)
+-- 신고 기반 판정(기본):
+[sidefx-readiness] READY failures=0
+-- 옛 고정 예산(900초)을 강제했을 때:
+[sidefx-readiness] NOT-READY failures=1
+  - {'check': 'heartbeat_fresh', 'kind': 'NAVER_ORDER_SYNC', 'detail': 1006, 'limit': 900}
+```
+
+**음성 대조군이 실제로 빨갛다** — 고치기 전 예산이었다면 살아 있는 수집 루프를 죽었다고
+판정했을 것이 실측으로 증명됐다. 신고 축이 그 오판을 없앤다.
+
+미신고 2종(`NAVER_AUTO_DISPATCH`·`GEOCODE_SWEEP`)은 러너를 안 건드려 등록부 값(180초)으로
+판정된다. 둘 다 `start.sh` 가 tick/interval 을 60초로 고정해 넘겨 지금은 맞지만, 간격이
+env 로 열리면 같은 함정에 빠진다 → 후속 F-18.
+
+| # | 항목 | 필요한 것 |
+|---|---|---|
+| F-18 | `NAVER_AUTO_DISPATCH`·`GEOCODE_SWEEP` 는 tick 간격을 신고하지 않는다 | **처리 완료(아래 T17)** — 두 러너도 신고한다 |
+
+## T17. F-18 — 남은 러너 2종도 자기 간격을 신고한다
+
+- 상태: **DONE(로컬 검증)**
+- 남겨두면 같은 함정이 그대로다: 지금은 `start.sh` 가 60초로 고정해 넘겨 등록부 값과 맞지만,
+  간격을 env 로 여는 순간(수집 루프가 실제로 그랬다) 살아 있는 루프를 죽었다고 판정한다.
+- `run_naver_auto_dispatch.py` 는 `args.tick`, `run_geocode_sweep.py` 는 라운드 간격을 싣는다.
+  기존 계약(정확 집합 단언·스텁 시그니처)도 함께 갱신했다.
+- 변이 2종:
+
+```
+MUT22 좌표 스윕이 간격을 안 넘김    1 failed, 13 passed
+MUT23 자동 발송이 상수를 신고        1 failed, 13 passed
+복원 후: 14 passed
+```
+
+```
+$ python -m pytest tests/domains/test_geocode_sweep_heartbeat.py \
+    tests/domains/test_worker_loop_heartbeat.py tests/domains/test_loop_heartbeat_wiring.py \
+    tests/domains/test_sidefx_readiness_kinds.py -q
+63 passed, 1 warning in 8.97s
+```
