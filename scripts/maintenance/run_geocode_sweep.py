@@ -54,6 +54,7 @@ from foms.services.datetime_kst import now_utc_naive  # noqa: E402
 from foms.services.geocode_candidates import build_missing_geocode_query  # noqa: E402
 from foms.services import geocode_retry  # noqa: E402
 from foms.services.geocode_helpers import extract_address_from_order  # noqa: E402
+from foms.services.sidefx_worker import WORKER_KIND_GEOCODE_SWEEP  # noqa: E402
 from models import Order  # noqa: E402
 
 # 한 라운드에서 큐에 넣을 최대 건수. 카카오 쿼터·워커 적체를 함께 고려한 보수적 기본값.
@@ -91,7 +92,9 @@ _shutdown = threading.Event()
 _Session = sessionmaker(bind=engine)
 
 
-HEARTBEAT_WORKER_KIND = "GEOCODE_SWEEP"
+#: 이 루프의 heartbeat PK 값. 정본은 :data:`foms.services.sidefx_worker.WORKER_KIND_SPECS`
+#: 등록부다 — 쓰는 쪽과 읽는 쪽이 같은 이름을 보게 상수를 가져다 쓴다.
+HEARTBEAT_WORKER_KIND = WORKER_KIND_GEOCODE_SWEEP
 
 
 def _init_sentry_once() -> None:

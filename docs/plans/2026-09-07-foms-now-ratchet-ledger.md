@@ -1190,3 +1190,86 @@ restore ok: True
 `SENTRY_DSN` 미설정 · 나머지 루프 3개 + `rq worker` 본체 하트비트 · 로그인 잠금 승격 판단 ·
 `check_sidefx_readiness` 가 새 kind 2종(`NAVER_AUTO_DISPATCH`·`GEOCODE_SWEEP`)을 못 읽음.
 
+
+---
+
+# 후속 세션 2 (2026-09-08)
+
+시작 시 실측 — 지시 기준값과 어긋나 병기한다(둘 다 조상으로 포함, 되감김 아님):
+
+```
+$ git log --oneline -1 && git rev-parse origin/deploy origin/production
+d37853ae4 feat(naver): 취소·반품 알림과 유령 목록이 실측 전/후를 말한다
+b69afc31b16a04745e55f9d5ac264869019a9e34   (지시 기준 ba3f282f5 → 10커밋 전진)
+d2e1d263a4285bc42bdee1c155233facc6d1d1f8   (지시 기준 e3a181bf9 → 11커밋 전진)
+```
+
+- 직전 세션 worktree `/c/tmp/foms-s-now0907` 는 이미 없다. 새 worktree `/c/tmp/foms-s-f9kinds`
+  (`session/f9kinds`, base `origin/deploy b69afc31b`).
+- 메인 트리의 미추적 원장 사본(179줄·전부 PENDING)은 **낡은 초기본**이다. 정본은 커밋된
+  1192줄본(`ba3f282f5`). 이번 갱신은 정본에 이어 붙였다.
+
+## T13. F-9 — readiness 가 outbox 밖 loop kind 도 읽는다
+
+- 상태: **DONE(로컬 검증)**
+- 근본 원인: 판정부 `evaluate_readiness` 가 `WORKER_KINDS` 3종을 **고정 순회**했다
+  (`foms/services/sidefx_worker.py`). CLI 는 101줄 껍데기라 CLI 를 고쳐도 안 됐다 —
+  하트비트를 쓰는 kind 가 늘어도 읽는 쪽 목록은 코드에 못 박혀 있었다.
+- 고친 방법:
+  - kind 등록부 `WORKER_KIND_SPECS`(kind·신선도 예산·scan lag 한도·outbox 소속) 신설.
+    `NAVER_AUTO_DISPATCH`·`GEOCODE_SWEEP` 등재(예산 180초 = tick 60초 x 3틱).
+  - `evaluate_readiness(..., kinds=None)` — 기본은 outbox 3종 그대로(release gate 의미 불변),
+    고른 kind 만 판정. 미등록 kind·빈 선택은 `ValueError`(빈 판정은 무조건 ready = fail-open).
+  - PENDING lag·DEAD 는 outbox kind 를 하나라도 골랐을 때만 센다.
+  - CLI `--kinds` 추가(파싱 실패·미등록 kind = exit 2, fail-closed).
+  - 쓰는 쪽 2개 러너가 리터럴 대신 등록부 상수를 쓴다(이름 드리프트가 F-9 의 형태였다).
+- 계약: `tests/domains/test_sidefx_readiness_kinds.py` 13건(PG 불필요, 본 레인에서 돈다).
+- 남은 것: **자동 조회는 아직 없다.** 운영 DB 자격증명이 GitHub 에 없어(드리프트 감사가
+  admin HTTP 를 쓰는 이유) 매일 자동 판정은 admin 엔드포인트가 있어야 한다 → 후속 F-17.
+
+### 검증 출력
+
+```
+$ PYTHONIOENCODING=utf-8 python -c "import app; print('APP_OK')"
+[AUTO-INIT] ERP flat-column readiness verified.
+APP_OK
+
+$ python -m pytest tests/contracts/runtime/test_ptc_physical_exactness.py tests/domains/test_sidefx_readiness_kinds.py -q
+20 passed in 0.44s
+
+$ python -m pytest tests/postgres/test_sidefx_worker.py -q -k "readiness and not collect"   # 기존 판정 계약 불변
+3 passed, 8 deselected in 0.06s
+
+$ python tools/ops/check_sidefx_readiness.py --help | tail -4
+  --kinds KINDS         판정할 worker_kind 쉼표 목록(생략 시 outbox 3종
+                        DELIVERY,EXPIRY_SCAN,RETENTION). 등록된 kind: DELIVERY,EX
+                        PIRY_SCAN,GEOCODE_SWEEP,NAVER_AUTO_DISPATCH,RETENTION.
+```
+
+### 변이 검증 10종 — 방어를 하나씩 없애 red 확인
+
+```
+MUT1  kinds 인자 무시(3종 고정 복귀)          4 failed, 7 passed
+MUT2  kind별 예산 무시(전부 30초)             2 failed, 9 passed
+MUT3  outbox 범위 가드 제거                   1 failed, 10 passed
+MUT4  미등록 kind 거부 제거                   1 failed, 10 passed
+MUT5  비-scan kind 에도 scan lag 요구         4 failed, 7 passed
+MUT6  러너가 리터럴로 되돌아감                1 failed, 10 passed
+MUT7  PENDING lag·DEAD 검사 무력화            1 failed, 10 passed   (음성 대조군이 죽는다)
+MUT8  새 kind 등록부에서 제거                 5 failed, 6 passed
+MUT9  기본 판정에 새 kind 밀어넣기            1 failed, 10 passed
+MUT10 빈 선택 방어 제거                       1 failed, 12 passed
+복원 후: 13 passed
+```
+
+단언 겹침 점검: 모든 테스트가 **자기만 죽는 변이**를 하나씩 갖는다 —
+`test_new_kind_has_no_scan_lag_check`=MUT5, `test_..._missing_heartbeat`=MUT1,
+`test_non_outbox_selection_skips`=MUT3, `test_unknown_kind`=MUT4, `test_emitter_*`=MUT6,
+`test_outbox_selection_still_counts`=MUT7(음성 대조군), `test_default_selection`=MUT9,
+`test_empty_selection`=MUT10. 겹쳐서 한쪽을 지워도 통과하는 단언은 없다.
+
+## 후속 추가
+
+| # | 항목 | 필요한 것 |
+|---|---|---|
+| F-17 | 루프 하트비트 자동 조회 경로 없음 | `--kinds` 판정을 사람이 불러야만 돈다. 매일 자동으로 보려면 드리프트 감사처럼 admin HTTP 엔드포인트 + 워크플로가 필요하다(운영 DB 자격증명은 GitHub 에 두지 않기로 한 결정 때문) |
