@@ -622,15 +622,22 @@ class ReadinessThresholds:
     max_retention_scan_lag: int = 90000
     max_dead: int = 0
 
-    def heartbeat_age_limit(self, kind: str) -> int:
+    def heartbeat_age_limit(self, kind: str,
+                            declared_interval: Optional[int] = None) -> int:
         """kind 의 하트비트 신선도 예산(초).
 
-        ``max_heartbeat_age`` 를 주면 그 값이 모든 대상 kind 에 적용되고(운영자가 간격을
-        env 로 바꿨을 때의 탈출구), 안 주면 등록부의 kind 별 예산을 쓴다. loop 마다 tick 이
-        달라서 한 값을 씌우면 살아 있는 루프를 죽었다고 판정한다.
+        우선순위: 명시 flag > 루프가 신고한 tick 간격 x 3 > 등록부 기본값. 가운데 항이
+        핵심이다 — 간격은 env 로 바뀐다(스테이징 수집 루프는 1800초, 기본값은 300초).
+        등록부 값만 믿으면 살아 있는 루프를 죽었다고 판정한다.
+
+        Args:
+            kind: worker_kind.
+            declared_interval: 하트비트가 신고한 tick 간격(초). 없으면 ``None``.
         """
         if self.max_heartbeat_age is not None:
             return self.max_heartbeat_age
+        if declared_interval:
+            return max(WORKER_KIND_SPECS[kind].max_heartbeat_age, declared_interval * 3)
         return WORKER_KIND_SPECS[kind].max_heartbeat_age
 
     def scan_lag_limit(self, kind: str) -> Optional[int]:
@@ -651,6 +658,25 @@ class ReadinessReport:
     observations: dict = field(default_factory=dict)
 
 
+def _declared_interval(metadata: Optional[dict]) -> Optional[int]:
+    """하트비트 metadata 가 신고한 tick 간격(초). 없거나 말이 안 되면 ``None``.
+
+    Args:
+        metadata: ``side_effect_worker_heartbeats.metadata_json``.
+
+    Returns:
+        양의 정수 간격, 또는 신고가 없거나 해석 불가면 ``None``(등록부 기본값을 쓴다).
+    """
+    if not isinstance(metadata, dict):
+        return None
+    raw = metadata.get("interval_seconds")
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        return None
+    return value if value > 0 else None
+
+
 def collect_readiness_observations(
     session: Session, *, now: Optional[datetime.datetime] = None
 ) -> dict:
@@ -667,6 +693,9 @@ def collect_readiness_observations(
         heartbeats[hb.worker_kind] = {
             "age_seconds": max(0, int((now - hb.last_heartbeat_at).total_seconds())),
             "oldest_lag_seconds": hb.oldest_lag_seconds,
+            # 루프가 자기 tick 간격을 신고하면 그것으로 예산을 잡는다(env 로 간격을 바꿔도
+            # 판정이 따라온다). 신고가 없으면 등록부 기본값을 쓴다.
+            "interval_seconds": _declared_interval(hb.metadata_json),
         }
     return {
         "now": now.isoformat(),
@@ -707,8 +736,9 @@ def evaluate_readiness(
     heartbeats = observations.get("heartbeats", {})
 
     for kind in selected:
-        limit = thresholds.heartbeat_age_limit(kind)
         hb = heartbeats.get(kind)
+        limit = thresholds.heartbeat_age_limit(
+            kind, (hb or {}).get("interval_seconds"))
         if hb is None:
             failures.append({"check": "heartbeat_present", "kind": kind,
                              "detail": "no heartbeat row (worker not running?)"})

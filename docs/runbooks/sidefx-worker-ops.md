@@ -81,8 +81,11 @@ python tools/ops/check_sidefx_readiness.py --kinds NAVER_AUTO_DISPATCH,GEOCODE_S
 
 - `RQ_WORKER` 예산이 큰 이유: 놀고 있는 rq 워커는 `worker_ttl - 15` = 405초마다만
   하트비트를 부른다(rq 기본값). 2주기 + 여유로 900초를 잡았다.
-- 루프 간격을 env 로 늘렸다면 `--max-heartbeat-age` 로 예산을 함께 올린다(주면 대상 kind
-  전부에 적용된다).
+- **예산은 루프가 신고한 간격을 따른다.** 각 루프는 하트비트 metadata 에
+  `interval_seconds` 를 싣고, 판정은 `max(등록부 값, 신고 x 3)` 를 쓴다. 그래서 간격을 env 로
+  바꿔도(스테이징 수집 루프 실측 1800초) 판정이 따라온다. 위 표의 값은 신고가 없을 때의
+  바닥이다.
+- 그래도 손으로 덮어야 하면 `--max-heartbeat-age` 가 대상 kind 전부에 적용된다.
 
 - 예산이 outbox 3종(30초)과 다른 이유: 두 루프는 tick 이 60초라 30초 예산이면 살아 있는
   루프를 죽었다고 판정한다. 3틱(180초) 동안 소식이 없으면 죽은 것으로 본다.

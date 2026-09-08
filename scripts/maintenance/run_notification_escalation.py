@@ -105,11 +105,16 @@ def _print_result(result: dict, as_json: bool) -> None:
     )
 
 
-def _heartbeat_metadata(result) -> dict:
-    """하트비트에 실을 집계값. 알림 내용·수신자 식별자는 싣지 않는다(운영 감시용)."""
+def _heartbeat_metadata(result, interval: int = 0) -> dict:
+    """하트비트에 실을 집계값. 알림 내용·수신자 식별자는 싣지 않는다(운영 감시용).
+
+    ``interval_seconds`` 는 판정부가 예산을 잡는 근거다 — 간격을 env 로 바꿔도 감시가
+    따라온다(:meth:`ReadinessThresholds.heartbeat_age_limit`).
+    """
     payload = result or {}
     delivery = payload.get("delivery") or {}
     return {
+        "interval_seconds": int(interval or 0),
         "outcome": "ok" if result is not None else "sweep_failed",
         "checked": int(payload.get("checked") or 0),
         "escalated": int(payload.get("escalated") or 0),
@@ -136,7 +141,7 @@ def _run_loop(interval: int, dry_run: bool, as_json: bool) -> int:
             capture_exception()
         # 스윕이 터진 tick 도 하트비트를 남긴다 — "죽었다" 와 "이번 스윕만 실패" 를 가른다.
         emit_heartbeat(engine, HEARTBEAT_WORKER_KIND,
-                       metadata=_heartbeat_metadata(result), logger=_LOGGER)
+                       metadata=_heartbeat_metadata(result, interval), logger=_LOGGER)
         time.sleep(interval)
 
 

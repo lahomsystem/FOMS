@@ -38,10 +38,11 @@ _RQ_RUNNER = _REPO_ROOT / "tools" / "ops" / "run_rq_worker.py"
 
 #: metadata 에 허용된 키. 이름·전화·주소 같은 고객 축이 새로 들어오면 red.
 _ALLOWED_METADATA_KEYS = {
-    "run_notification_escalation": {"outcome", "checked", "escalated",
+    "run_notification_escalation": {"interval_seconds", "outcome", "checked", "escalated",
                                     "operator_escalated", "pushed"},
-    "run_naver_order_sync": {"outcome", "changed", "candidates", "created", "pending_review"},
-    "run_naver_settle_sync": {"ran", "status", "calls", "rows"},
+    "run_naver_order_sync": {"interval_seconds", "outcome", "changed", "candidates",
+                             "created", "pending_review"},
+    "run_naver_settle_sync": {"interval_seconds", "ran", "status", "calls", "rows"},
 }
 
 
@@ -212,6 +213,33 @@ def test_settle_sync_loop_beats_outside_its_window(app, monkeypatch):
     rows = _heartbeat_rows(kind)
     assert len(rows) == 1
     assert rows[0].metadata_json["ran"] is False
+
+
+def test_loops_declare_their_real_tick_interval(app, monkeypatch):
+    """신고 값이 실제 간격과 갈리면 판정 예산이 틀린다 — 루프가 받은 값을 그대로 싣는다."""
+    runner = _load(_REPO_ROOT / "scripts" / "maintenance" / "run_naver_order_sync.py")
+    kind = runner.HEARTBEAT_WORKER_KIND
+    assert _heartbeat_rows(kind) == []
+
+    monkeypatch.setattr(runner, "_sweep_once", lambda _dry: {"changed": 0})
+    _drive_one_tick(runner, monkeypatch, lambda: runner._run_loop(1800, False, True))
+
+    rows = _heartbeat_rows(kind)
+    assert len(rows) == 1
+    assert rows[0].metadata_json["interval_seconds"] == 1800
+
+
+def test_rq_worker_declares_its_dequeue_cadence():
+    """rq 는 놀 때 ``worker_ttl - 15`` 주기로만 heartbeat 를 부른다 — 그 값을 신고한다."""
+    runner = _load(_RQ_RUNNER)
+
+    class _Probe(runner.HeartbeatWorkerMixin):
+        dequeue_timeout = 405
+
+        def queue_names(self):
+            return ["default"]
+
+    assert _Probe().db_heartbeat_metadata()["interval_seconds"] == 405
 
 
 @pytest.mark.parametrize("runner_name", sorted(_ALLOWED_METADATA_KEYS))
