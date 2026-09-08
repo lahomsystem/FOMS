@@ -75,7 +75,54 @@ if [ "$USE_RQ_WORKER" = "1" ]; then
   # 자기 생존을 FOMS 감시 표(side_effect_worker_heartbeats)에 안 남겨서, 큐가 멎어도
   # 표만 봐서는 알 수 없었다(2026-02 워커 offline). 러너는 rq 하트비트 자리에서
   # RQ_WORKER 행을 함께 갱신할 뿐, 소비 동작은 rq 그대로다.
-  exec python tools/ops/run_rq_worker.py --url "$REDIS_URL" --queues default
+  #
+  # === 감시 루프 (2026-09-08 운영 사고 근본 수정) ===
+  # 러너를 `exec` 로 띄우면 그 프로세스가 PID 1 이라 **러너 종료 = 컨테이너 종료**다.
+  # 운행 중 Redis 가 재시작하면 rq 는 "Redis connection timeout, quitting..." 으로
+  # 스스로 끝나는데, Railway 재시작 정책(ON_FAILURE)은 그 정상 종료를 실패로 보지 않아
+  # 워커가 영구 정지했다 — 2026-09-08 13:36 KST, 승격 배포로 워커와 Redis 가 같이
+  # 재기동하다 Redis 가 뒤늦게 내려가 워커가 자멸했고 발주확인 6건이 큐에 11분 넘게
+  # 갇혔다(사람이 반응 없는 버튼을 반복해서 눌렀다). 부팅 레이스는 wait_for_redis 가
+  # 막지만 **운행 중 재시작은 못 막는다** — 그 구멍을 이 루프가 메운다.
+  # 이제 PID 1 은 이 루프가 잡고, 러너가 죽으면 Redis 복귀를 기다렸다 다시 띄운다.
+  RQ_PID=""
+  _rq_forward_term() {
+    if [ -n "$RQ_PID" ]; then
+      kill -TERM "$RQ_PID" 2>/dev/null || true
+      wait "$RQ_PID" 2>/dev/null || true
+    fi
+    exit 0
+  }
+  # Railway 정지·재배포(SIGTERM)는 러너에 그대로 넘겨 진행 중 잡을 정상 종료시킨다.
+  trap _rq_forward_term TERM INT
+
+  RQ_BACKOFF=5
+  while true; do
+    # 재기동 전 Redis PING 을 다시 기다린다(첫 바퀴는 위에서 이미 통과했으므로 즉시).
+    # 예산을 넘겨도 루프를 깨지 않는다 — 다음 바퀴에서 다시 기다린다.
+    python tools/ops/wait_for_redis.py --url "$REDIS_URL" --timeout "${FOMS_REDIS_WAIT_SECONDS:-300}" || true
+
+    RQ_STARTED_AT=$(date +%s)
+    python tools/ops/run_rq_worker.py --url "$REDIS_URL" --queues default &
+    RQ_PID=$!
+    RQ_RC=0
+    wait "$RQ_PID" || RQ_RC=$?
+    RQ_PID=""
+    RQ_RAN=$(( $(date +%s) - RQ_STARTED_AT ))
+
+    # 오래 살다 죽었으면 일시 장애로 보고 backoff 를 되돌린다. 즉사가 반복되면
+    # (설정 오류 등) 60초까지 늘려 로그 폭주와 무의미한 재시도를 막는다.
+    if [ "$RQ_RAN" -ge 60 ]; then
+      RQ_BACKOFF=5
+    else
+      RQ_BACKOFF=$(( RQ_BACKOFF * 2 ))
+      if [ "$RQ_BACKOFF" -gt 60 ]; then
+        RQ_BACKOFF=60
+      fi
+    fi
+    echo "[rq-supervisor] run_rq_worker exited rc=${RQ_RC} after ${RQ_RAN}s - restarting in ${RQ_BACKOFF}s"
+    sleep "$RQ_BACKOFF"
+  done
 else
   exec gunicorn -k gevent -w 2 --timeout 120 --graceful-timeout 30 --keep-alive 5 --access-logfile - --bind "0.0.0.0:${PORT:-8080}" app:app
 fi
