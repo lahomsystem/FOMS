@@ -10,18 +10,18 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
-- [2026-09-07] **삭제 축 통일(deploy 대기)** — 휴지통 낱말 한 벌: `read_order_trash` 를 `orders/soft_delete.py` 로 옮겨 pane 머리줄·유령 블록·후보 표·검색 표가 한 함수를 읽는다(후보 표 시각 `09-07 08:41` 형식으로 바뀜, 템플릿 무변경). 저장 규약 한 벌: 일괄 삭제(KST)·드래프트 폐기(ISO)·cron 초안 정리 3자리를 naive UTC 고정폭으로. 인벤토리 게이트로 회귀 차단
+- [2026-09-08] **진행 중: 네이버 수집탭 문구 정리** — 계획 `docs/plans/2026-09-08-naver-tab-copy-plan.md`(99자리 감사 → 고침 87·유지 12). 규칙: 앞머리·훈수·버튼이 이미 말하는 것은 줄이고, 돈·불가역 범위·"모른다"·숫자 단위·잠금 사유는 안 줄인다. 잠금 사유 5곳은 title → 본문 **승격**
+- [2026-09-08] **진행 중: 네이버 도크 자동 입력** — 브리프 `docs/plans/2026-09-08-naver-dock-autofill-brief.md`. 칩 4짝(총폭→`spec_width`·제품→`product_name`·컬러→`color`·손잡이→`handle`)만 칸에 넣는다. **예약금 등 돈 칸은 복사만 유지**(사용자 확정). `dock.py:84` 의 "자동 기입 금지" 결정을 이 4칸에 한해 뒤집는다
+- [2026-09-08] **추가결제 문구·부분 취소 문구 deploy(`dbfb2563f`, CI 4/4 초록)** — 추가결제 화면이 멀쩡한 원 주문을 취소하라고 말하던 것 수정. 잔여: 운영 승격
+- [2026-09-07] **삭제 축 통일 운영 반영(PR #309 · production `5f195e0ea`)** — 휴지통 낱말 한 벌: `read_order_trash` 를 `orders/soft_delete.py` 로 옮겨 pane 머리줄·유령 블록·후보 표·검색 표가 한 함수를 읽는다(후보 표 시각 `09-07 08:41` 형식으로 바뀜, 템플릿 무변경). 저장 규약 한 벌: 일괄 삭제(KST)·드래프트 폐기(ISO)·cron 초안 정리 3자리를 naive UTC 고정폭으로. 인벤토리 게이트로 회귀 차단
 - [2026-09-07] **옛 삭제 시각 백필은 도구만 만들었다(실행 대기)** — 운영 휴지통 308행 중 274행이 규약 밖(legacy KST 246 · ISO 28). `tools/ops/backfill_deleted_at_utc.py` 기본 dry-run·JSONL 저널 되돌리기·표식 멱등. ISO 행은 형식만 고치고 시각은 안 옮긴다(컨테이너 TZ 미상). **사용자 승인 뒤 실행**
 - [2026-09-07] **옛 결제 승인 버튼 운영 반영(PR #307 · production `90e82cf7b`)** — 정리 계획 카드 ⓘ 행에서 옛 집 취소·반품 승인. 대상은 `fulfillment.links_of_group` + 서버 술어로 뽑아 **화면 대상 == 서버 대상**(리뷰 P0: 후보 주문 링크만 세면 과소 진술 → 화면 2건·서버 3건 환불). 비용 가드 `_naver_facts(with_approve=False)` 기본
 - [2026-09-07] **조작 뒤 제자리 갱신 + 도크 재결제 문구(deploy 대기 `c3c4c7abc`)** — 조작 완료(rev 이동) 시 `softRefresh`, 실패 시엔 안 그린다. 도크 재결제 줄 = `지금 받은 결제입니다 …`(옛 문구는 지금 결제를 취소 잔재로 읽게 했다). 핀 `?v=20260907b` 3줄
 - [2026-09-07] **확인: 취소 확정 주문 자동 폐기는 존재하지 않는다(설계상 잘라낸 범위)** — `soft_delete_order` 호출부 4곳 전부 사람이 누르는 라우트. 사용자 결정: **지금처럼 수동 유지**. 자동화 시 함정 11종은 조사 결과 참조(재결제 짝·확정 전 취소·교환·워커 행위자 부재·모집단 술어 불일치)
-- [2026-09-07] **취소·반품에 실측 전/후 맥락(deploy 대기)** — 판정 SSOT `foms/services/orders/measure_progress.py`. 클레임 알림·유령 목록·집 pane 이 같은 함수·같은 낱말. 표시 축이라 판정·모집단은 안 본다
-- [2026-09-07] **휴지통 표기 + 유령 문장 사실화(deploy 대기)** — 접은 순간 폐기 블록이 사라져 화면이 아무 말도 안 했다(사용자 보고). `read_order_trash`(표기 전용) + 머리줄 독립 배지 + `MM-DD HH:MM 삭제 · 사유`. 문장은 세 갈래로 갈라 집 수와 상품주문 수를 안 섞는다(옛 `14건 중 9건만 취소`). 브리프 `docs/plans/2026-09-07-naver-trash-trace-and-ghost-sentence-brief.md`
+- [2026-09-07] **취소·반품에 실측 전/후 맥락(운영 반영 PR #308 · `d2e1d263a`)** — 판정 SSOT `foms/services/orders/measure_progress.py`. 클레임 알림·유령 목록·집 pane 이 같은 함수·같은 낱말. 표시 축이라 판정·모집단은 안 본다
+- [2026-09-07] **휴지통 표기 + 유령 문장 사실화(운영 반영 PR #308)** — 접은 순간 폐기 블록이 사라져 화면이 아무 말도 안 했다(사용자 보고). `read_order_trash`(표기 전용) + 머리줄 독립 배지 + `MM-DD HH:MM 삭제 · 사유`. 문장은 세 갈래로 갈라 집 수와 상품주문 수를 안 섞는다(옛 `14건 중 9건만 취소`). 브리프 `docs/plans/2026-09-07-naver-trash-trace-and-ghost-sentence-brief.md`
 - [2026-09-07] **이력 탭 권한 확대 + 후보 쌍 판정 운영 반영(PR #304)** — `docs/plans/2026-09-07-naver-candidate-repay-signal-brief.md`
 - [2026-09-07] **휴지통 옛 주문 후보 노출 + 예약금 방향(deploy `19d4ef876`)** — 잔여: 운영 승격
-- [2026-09-07] **진행 중: 옛 결제 취소·반품 승인** — `docs/plans/2026-09-07-naver-old-payment-approve-in-place-brief.md`
-- [2026-09-06] **정산 탭 CFO 감사 후속 19건 운영 반영 완료(PR #298·#300·#301, production `2fce6197c`)** — 원장 `docs/plans/2026-09-05-settlement-cfo-fixes-ledger.md`. 잔여: E-05 비번 로테이션(사용자 "나중에")
-- [2026-09-06] **CI 간헐 `JSONDecodeError` 는 flaky 가 아니라 파일 경합이었다(운영 반영)** — `data/holidays_kr_<year>.json` 이 저장소에 없어(`.gitignore:164`) xdist 워커 셋이 `2099` 파일을 동시에 만들고 `open("w")` 가 비운 창을 읽었다. 임시 파일+fsync+`os.replace` 원자 교체 + 읽기 재시도(삼키지 않음), 회귀 계약 5건. 테스트 산출물 31건 추적 해제 동반
 
 ## 알려진 이슈
 - 차단 이슈 없음. 남은 구조 부채는 `WR-B1`/`WR-J1`/`WR-H1` 처럼 explicit future-batch 조건으로만 존재한다. `wdcalculator_scripts_config.html` Jinja 변수 주입 구간의 JS lint false-positive 는 기존과 동일.
@@ -51,6 +51,9 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 
 
 ## 최근 완료 (최대 5개)
+- [2026-09-07] **진행 중: 옛 결제 취소·반품 승인** — `docs/plans/2026-09-07-naver-old-payment-approve-in-place-brief.md`
+- [2026-09-06] **정산 탭 CFO 감사 후속 19건 운영 반영 완료(PR #298·#300·#301, production `2fce6197c`)** — 원장 `docs/plans/2026-09-05-settlement-cfo-fixes-ledger.md`. 잔여: E-05 비번 로테이션(사용자 "나중에")
+- [2026-09-06] **CI 간헐 `JSONDecodeError` 는 flaky 가 아니라 파일 경합이었다(운영 반영)** — `data/holidays_kr_<year>.json` 이 저장소에 없어(`.gitignore:164`) xdist 워커 셋이 `2099` 파일을 동시에 만들고 `open("w")` 가 비운 창을 읽었다. 임시 파일+fsync+`os.replace` 원자 교체 + 읽기 재시도(삼키지 않음), 회귀 계약 5건. 테스트 산출물 31건 추적 해제 동반
 - [2026-09-06] **네이버 워크벤치 휴지통 UI + 단계 한글화 운영 반영(PR #297 `a5b2697ff` · #299 `7de57c03d`)** — 집 pane 조건부 버튼 6상태. **판정 축은 주문**(`judge_order_discard` 가 `find_ghost_orders` 셈법 재사용 — 살아 있는 ADDON 집이 있으면 빠진다). 기존 라우트 재사용이라 **신규 manifest 없음**. 단계는 `status_label` 로 전 화면 한글(판정 축·감사 원장은 enum 불변). 선행 `afb0b4396` 동반 승격. 원장 `docs/plans/2026-09-04-ghost-discard-pane-ledger.md`
 - [2026-09-04] **정리 계획 카드 정직화 + 취소 처리 정책 동기화 운영 반영(PR #294 · `29a6e72bd`)** — 잠금 축을 단계에서 옛 결제 확정 여부로(`discard_policy`), 단계는 `needs_reason`(관리자+사유). `run_gate` 로 확정 전 실행 차단. 후보 버튼 강조 `recommended_relation` 연동. 원장 `docs/plans/2026-09-04-naver-reconcile-card-ledger.md`
 - [2026-09-04] **ERP 본공정 드롭다운 AS 표시 운영 반영(PR #292 · `5eb72ce40`)** — 드롭다운 AS 미표시 3겹 해소 + status 경로 2곳이 stage 를 덮던 구멍을 `AS_OVERLAY_PRESERVE_WORKFLOW_STAGE` 로 봉합. **잔여=레거시 stage 오염 477건(큐 이탈 62건)**
