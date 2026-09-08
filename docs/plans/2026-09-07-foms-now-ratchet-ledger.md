@@ -1397,3 +1397,67 @@ APP_OK
 2. `SENTRY_DSN` 미설정(F-12) — 이번에 붙인 Sentry 배선이 스테이징·운영에서 전부 no-op 이다.
 3. 하트비트 자동 조회 경로 없음(F-17) — 사람이 `--kinds` 로 불러야만 읽힌다.
 4. 로그인 한도·잠금(T6) production 승격 · 운영 AMBIGUOUS 924건 · F-1 · F-4 — 미결 그대로.
+
+## T16. 스테이징 실측 — 그리고 예산 설계 결함 1건
+
+스테이징(FOMS-DEV worker) 실측으로 배선을 확인했고, 그 자리에서 설계 결함을 하나 찾았다.
+
+### 워커 기동 (railway logs, 2026-09-08)
+
+```
+[wait-redis] ready after 1 attempt(s)
+[run-rq-worker] started (queues=default heartbeat_interval=60s)
+01:16:32 Worker ...: started with PID 1, version 2.12.0
+01:16:32 *** Listening on default...
+[naver-auto-dispatch] started (at=16:50 window=10m tick=60s)
+[naver-sync-loop] started (interval=1800s)
+[escalation-loop] started (interval=60s)
+[naver-settle-sync] started (at=05:30 window=10m tick=60s monthly_backfill=on)
+```
+
+바뀐 `start.sh` 로 워커가 정상 기동한다. 운영 rq 는 2.12.0(로컬 2.5.0)인데 `heartbeat()`
+override 가 `*args/**kwargs` 라 그대로 물린다.
+
+### 하트비트 표 (스테이징 DB 직접 질의)
+
+```
+DELIVERY                 age=     5s
+EXPIRY_SCAN              age=     5s
+RETENTION                age=     5s
+NAVER_AUTO_DISPATCH      age=     3s  in_window=False
+NAVER_ORDER_SYNC         age=   362s  outcome=ok
+NAVER_SETTLE_SYNC        age=     3s  ran=False
+NOTIFICATION_ESCALATION  age=     3s  outcome=ok
+RQ_WORKER                age=   369s  state=STARTED queues=default
+총 8 행
+```
+
+`RQ_WORKER` age 369초는 rq 유휴 주기(405초)와 맞다 — F-6 이 실환경에서 작동한다.
+`GEOCODE_SWEEP` 이 없는 이유는 스테이징에 그 루프 스위치가 없어서다(정상).
+
+### 찾은 결함 — 등록부 고정 예산이 env 를 못 따라간다
+
+스테이징 `FOMS_NAVER_SYNC_INTERVAL_SECONDS=1800` 인데 등록부 예산은 900초였다. 지금은
+`READY` 로 나오지만 다음 tick 전에 반드시 900초를 넘겨 **살아 있는 루프를 죽었다고 판정**한다.
+`--max-heartbeat-age` 로 덮는 건 운영자가 매번 기억해야 하는 우회다.
+
+근본 수정: **루프가 자기 tick 간격을 하트비트에 신고**하고(`interval_seconds`), 판정은
+`max(등록부 값, 신고 x 3)` 을 쓴다. 신고가 없거나 말이 안 되면(0·음수·문자열) 등록부 값으로
+떨어진다 — 신고 축이 판정을 무력화하지 못한다. rq 는 자기 `dequeue_timeout`(405초)을 신고한다.
+
+- 계약 추가 6건(신고가 예산을 정한다 / 신고가 예산을 줄이지 못한다 / 신고 없으면 등록부 /
+  말 안 되는 신고 5종 / 루프가 실제 간격을 신고한다 / rq 가 주기를 신고한다).
+- 변이 MUT17~21 전부 red.
+
+```
+MUT17 신고 간격 무시                  1 failed, 48 passed
+MUT18 신고가 예산을 줄일 수 있게      1 failed, 48 passed
+MUT19 말 안 되는 신고 허용            2 failed, 47 passed
+MUT20 루프가 상수를 신고              1 failed, 48 passed
+MUT21 rq 가 주기를 신고 안 함         1 failed, 48 passed
+복원 후: 49 passed
+```
+
+### 확인된 미결
+
+- 스테이징 `SENTRY_DSN` **미설정 재확인**(F-12) — 이번 Sentry 배선은 스테이징에서 no-op 이다.

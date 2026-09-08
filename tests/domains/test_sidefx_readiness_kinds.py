@@ -24,6 +24,7 @@ from foms.services.sidefx_worker import (
     WORKER_KIND_EXPIRY_SCAN,
     WORKER_KIND_GEOCODE_SWEEP,
     WORKER_KIND_NAVER_AUTO_DISPATCH,
+    WORKER_KIND_NAVER_ORDER_SYNC,
     WORKER_KIND_RETENTION,
     WORKER_KIND_SPECS,
     WORKER_KINDS,
@@ -139,6 +140,44 @@ def test_outbox_selection_still_counts_pending_and_dead():
                                 ReadinessThresholds(), kinds=[WORKER_KIND_DELIVERY])
     assert not report.ready
     assert _checks(report) == {"oldest_pending_lag", "dead_count"}
+
+
+def test_declared_interval_sets_the_budget():
+    """루프가 신고한 tick 간격이 예산을 정한다 — 간격은 env 로 바뀐다(스테이징 1800초)."""
+    hb = dict(_obs()["heartbeats"])
+    hb[WORKER_KIND_NAVER_ORDER_SYNC] = {"age_seconds": 2000, "oldest_lag_seconds": None,
+                                        "interval_seconds": 1800}
+    report = evaluate_readiness(_obs(heartbeats=hb), ReadinessThresholds(),
+                                kinds=[WORKER_KIND_NAVER_ORDER_SYNC])
+    assert report.ready, report.failures
+
+
+def test_declared_interval_never_shrinks_the_budget():
+    """신고 간격이 짧아도 등록부 기본값 아래로는 안 내려간다(잡음으로 red 내지 않는다)."""
+    hb = dict(_obs()["heartbeats"])
+    hb[WORKER_KIND_GEOCODE_SWEEP] = {"age_seconds": 100, "oldest_lag_seconds": None,
+                                     "interval_seconds": 5}
+    report = evaluate_readiness(_obs(heartbeats=hb), ReadinessThresholds(),
+                                kinds=[WORKER_KIND_GEOCODE_SWEEP])
+    assert report.ready, report.failures
+
+
+def test_without_a_declaration_the_registry_budget_stands():
+    """음성 대조군 — 신고가 없으면 등록부 예산 그대로다(신고 축이 판정을 무력화하지 않는다)."""
+    hb = dict(_obs()["heartbeats"])
+    hb[WORKER_KIND_NAVER_ORDER_SYNC] = {"age_seconds": 2000, "oldest_lag_seconds": None}
+    report = evaluate_readiness(_obs(heartbeats=hb), ReadinessThresholds(),
+                                kinds=[WORKER_KIND_NAVER_ORDER_SYNC])
+    assert not report.ready
+    assert report.failures[0]["limit"] == 900
+
+
+@pytest.mark.parametrize("declared", [0, -5, "많이", None, {"a": 1}])
+def test_nonsense_declarations_fall_back_to_the_registry(declared):
+    """말이 안 되는 신고로 예산을 무한대로 늘릴 수 없다."""
+    from foms.services.sidefx_worker import _declared_interval
+
+    assert _declared_interval({"interval_seconds": declared}) is None
 
 
 def test_unknown_kind_is_rejected():

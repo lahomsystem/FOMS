@@ -66,11 +66,14 @@ class HeartbeatWorkerMixin:
         Returns:
             ``{"queues", "successful", "failed", "state"}``. 잡 인자·고객 정보는 넣지 않는다.
         """
+        state = getattr(self, "_state", "") or ""
         return {
+            # 판정부가 예산을 잡는 근거. rq 는 놀 때 이 주기로만 heartbeat 를 부른다.
+            "interval_seconds": int(getattr(self, "dequeue_timeout", 0) or 0),
             "queues": ",".join(getattr(self, "queue_names", lambda: [])()),
             "successful": int(getattr(self, "successful_job_count", 0) or 0),
             "failed": int(getattr(self, "failed_job_count", 0) or 0),
-            "state": str(getattr(self, "_state", "") or ""),
+            "state": str(getattr(state, "value", state)),
         }
 
     def maybe_emit_db_heartbeat(self, now: Optional[datetime.datetime] = None) -> bool:

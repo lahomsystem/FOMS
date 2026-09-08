@@ -250,7 +250,7 @@ def _print_result(result: dict, as_json: bool) -> None:
           f"dry_run={result.get('dry_run')} error={result.get('error')}", flush=True)
 
 
-def _heartbeat_metadata(*, ran_now: bool, result) -> dict:
+def _heartbeat_metadata(*, ran_now: bool, result, tick: int = 0) -> dict:
     """하트비트에 실을 집계값. 정산 금액·주문 식별자는 싣지 않는다(운영 감시용).
 
     Args:
@@ -260,6 +260,7 @@ def _heartbeat_metadata(*, ran_now: bool, result) -> dict:
     payload = result or {}
     stats = payload.get("stats") or {}
     return {
+        "interval_seconds": int(tick or 0),
         "ran": bool(ran_now),
         "status": payload.get("status") or None,
         "calls": int(stats.get("calls") or 0),
@@ -307,7 +308,7 @@ def _run_loop(args: argparse.Namespace) -> int:
         # 창 밖이라 아무것도 안 한 tick 도 하트비트를 남긴다 — 안 그러면 하루 23시간 넘게
         # 낡아 보여 "죽었다" 와 구분되지 않는다.
         emit_heartbeat(engine, HEARTBEAT_WORKER_KIND,
-                       metadata=_heartbeat_metadata(ran_now=ran_now, result=result),
+                       metadata=_heartbeat_metadata(ran_now=ran_now, result=result, tick=tick),
                        logger=_LOGGER)
         time.sleep(tick)
 

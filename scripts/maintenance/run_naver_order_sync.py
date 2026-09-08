@@ -83,10 +83,15 @@ def _print_result(result: dict, as_json: bool) -> None:
     )
 
 
-def _heartbeat_metadata(result) -> dict:
-    """하트비트에 실을 집계값. 주문 식별자·고객 정보는 싣지 않는다(운영 감시용)."""
+def _heartbeat_metadata(result, interval: int = 0) -> dict:
+    """하트비트에 실을 집계값. 주문 식별자·고객 정보는 싣지 않는다(운영 감시용).
+
+    ``interval_seconds`` 는 판정부가 예산을 잡는 근거다 — 이 루프의 간격은 env
+    (``FOMS_NAVER_SYNC_INTERVAL_SECONDS``)로 바뀐다(스테이징 실측 1800초).
+    """
     payload = result or {}
     return {
+        "interval_seconds": int(interval or 0),
         "outcome": "ok" if result is not None else "sweep_failed",
         "changed": int(payload.get("changed") or 0),
         "candidates": int(payload.get("candidates") or 0),
@@ -112,7 +117,7 @@ def _run_loop(interval: int, dry_run: bool, as_json: bool) -> int:
             capture_exception()
         # 스윕이 터진 tick 도 하트비트를 남긴다 — "죽었다" 와 "이번 스윕만 실패" 를 가른다.
         emit_heartbeat(engine, HEARTBEAT_WORKER_KIND,
-                       metadata=_heartbeat_metadata(result), logger=_LOGGER)
+                       metadata=_heartbeat_metadata(result, interval), logger=_LOGGER)
         time.sleep(interval)
 
 
