@@ -94,6 +94,12 @@ DEFAULT_MAX_RETRIES = 3
 BACKOFF_BASE_SECONDS = 1.0
 BACKOFF_CAP_SECONDS = 30.0
 
+#: 429 를 맞은 **불가역 클레임 호출**이 한 번 더 보내기 전에 쉬는 시간(초).
+#: 지수 백오프가 아니라 고정값인 이유: 게이트웨이 한도가 2 RPS 고정이라 창 하나가 1초다
+#: (:data:`RATE_LIMIT_RPS`). 그 창 하나를 통째로 비우면 되고, 그보다 길게 쉬면 담당자가
+#: 버튼 앞에서 기다린다.
+RATE_LIMIT_RETRY_DELAY_SECONDS = 1.0
+
 
 class NaverCommerceError(Exception):
     """네이버 커머스API 연동 실패의 최상위 예외."""
@@ -602,6 +608,8 @@ class NaverCommerceClient:
             # **불가역 클레임 호출은 재시도하지 않는다**(2026-09-02). 커머스API 문서가
             # 재호출 전 상태 재확인을 요구하는데 우리는 다시 읽지 않는다 — 맹목 재전송은
             # 중복 클레임이고, 타임아웃은 "안 나갔다"가 아니다.
+            # 429 만 예외로 1회 재전송한다(2026-09-08) — 게이트웨이가 본체에 넘기기 전에
+            # 끊은 것이라 클레임이 만들어졌을 리가 없다. 판단은 ``_request`` 안에 있다.
             retry=False,
         )
 
@@ -664,6 +672,8 @@ class NaverCommerceClient:
             # **불가역 클레임 호출은 재시도하지 않는다**(2026-09-02). 커머스API 문서가
             # 재호출 전 상태 재확인을 요구하는데 우리는 다시 읽지 않는다 — 맹목 재전송은
             # 중복 클레임이고, 타임아웃은 "안 나갔다"가 아니다.
+            # 429 만 예외로 1회 재전송한다(2026-09-08) — 게이트웨이가 본체에 넘기기 전에
+            # 끊은 것이라 클레임이 만들어졌을 리가 없다. 판단은 ``_request`` 안에 있다.
             retry=False,
         )
 
@@ -722,6 +732,8 @@ class NaverCommerceClient:
             # **불가역 클레임 호출은 재시도하지 않는다**(2026-09-02). 커머스API 문서가
             # 재호출 전 상태 재확인을 요구하는데 우리는 다시 읽지 않는다 — 맹목 재전송은
             # 중복 클레임이고, 타임아웃은 "안 나갔다"가 아니다.
+            # 429 만 예외로 1회 재전송한다(2026-09-08) — 게이트웨이가 본체에 넘기기 전에
+            # 끊은 것이라 클레임이 만들어졌을 리가 없다. 판단은 ``_request`` 안에 있다.
             retry=False,
         )
 
@@ -756,6 +768,8 @@ class NaverCommerceClient:
             # **불가역 클레임 호출은 재시도하지 않는다**(2026-09-02). 커머스API 문서가
             # 재호출 전 상태 재확인을 요구하는데 우리는 다시 읽지 않는다 — 맹목 재전송은
             # 중복 클레임이고, 타임아웃은 "안 나갔다"가 아니다.
+            # 429 만 예외로 1회 재전송한다(2026-09-08) — 게이트웨이가 본체에 넘기기 전에
+            # 끊은 것이라 클레임이 만들어졌을 리가 없다. 판단은 ``_request`` 안에 있다.
             retry=False,
         )
 
@@ -809,6 +823,8 @@ class NaverCommerceClient:
             # **불가역 클레임 호출은 재시도하지 않는다**(2026-09-02). 커머스API 문서가
             # 재호출 전 상태 재확인을 요구하는데 우리는 다시 읽지 않는다 — 맹목 재전송은
             # 중복 클레임이고, 타임아웃은 "안 나갔다"가 아니다.
+            # 429 만 예외로 1회 재전송한다(2026-09-08) — 게이트웨이가 본체에 넘기기 전에
+            # 끊은 것이라 클레임이 만들어졌을 리가 없다. 판단은 ``_request`` 안에 있다.
             retry=False,
         )
 
@@ -1127,6 +1143,13 @@ class NaverCommerceClient:
         401 토큰 재발급 1회는 재시도가 아니라 **같은 호출의 인증 복구**라 그대로 둔다
         (요청이 서버에 닿지 않았다).
 
+        **429 는 그 예외다**(2026-09-08 담당자 지시). 게이트웨이가 한도를 넘긴 요청을
+        **본체에 넘기기 전에** 끊은 것이라 클레임이 만들어졌을 리가 없다 — 위 문단이
+        걱정하는 "이미 처리됐는데 응답만 못 받았다" 갈래가 429 에는 **없다**. 그래서
+        ``retry=False`` 호출도 429 만은 :data:`RATE_LIMIT_RETRY_DELAY_SECONDS` 만큼
+        쉬고 **딱 한 번** 다시 보낸다. 두 번은 안 보낸다 — 두 번째까지 429 면 창이
+        비어 있지 않다는 뜻이고, 그때는 사람이 나중에 누르는 편이 맞다.
+
         Raises:
             NaverCommerceHTTPError: 재시도 소진 또는 재시도 대상이 아닌 오류 응답.
             NaverCommerceAuthError: 토큰 재발급 후에도 401.
@@ -1134,6 +1157,7 @@ class NaverCommerceClient:
         url = f"{self.base_url}{path}"
         request_headers = dict(headers or {})
         token_retried = False
+        rate_limit_retried = False
         attempt = 0
 
         while True:
@@ -1164,6 +1188,16 @@ class NaverCommerceClient:
                 token_retried = True
                 logger.info("[NAVER] 401 — 토큰 강제 재발급 후 1회 재시도")
                 self.get_access_token(force_refresh=True)
+                continue
+            # 불가역 호출의 429 한정 1회 재전송(위 docstring 계약). 게이트웨이가 본체에
+            # 넘기기 전에 끊었으므로 이 재전송은 중복 클레임을 만들 수 없다. ``attempt`` 는
+            # 올리지 않는다 — 이것은 백오프 재시도가 아니라 **같은 호출의 창 재확보**다.
+            if status == 429 and not retry and not rate_limit_retried:
+                rate_limit_retried = True
+                logger.warning(
+                    "[NAVER] 429 rate limit — %.1fs 쉬고 1회만 재전송 (%s %s)",
+                    RATE_LIMIT_RETRY_DELAY_SECONDS, method, path)
+                self._sleep(RATE_LIMIT_RETRY_DELAY_SECONDS)
                 continue
             if retry and status in RETRYABLE_STATUS and attempt < self._max_retries:
                 attempt += 1

@@ -370,7 +370,7 @@ def test_judge_names_the_living_addon_house(app):
     view = judge_order_discard(db_session, int(order.id), group_key=dead.group_key)
 
     assert view["can_discard"] is False, "살아 있는 추가결제 집이 있는데 열렸다"
-    assert "이 집만 취소됐습니다" in view["discard_block"]
+    assert "이전 주문 취소 됐습니다" in view["discard_block"]
     assert "추가결제 N-JD-4-ADD(1,082,140원)" in view["discard_block"]
 
 
