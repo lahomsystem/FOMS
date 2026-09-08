@@ -50,6 +50,7 @@ from typing import Optional
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from foms.services.datetime_kst import now_utc_naive  # noqa: E402
+from foms.services.loop_heartbeat import capture_exception, init_sentry_once  # noqa: E402
 from foms.services.sidefx_worker import (  # noqa: E402
     DEFAULT_BATCH_SIZE,
     DEFAULT_LEASE_SECONDS,
@@ -196,11 +197,15 @@ def _safe(fn, label: str) -> bool:
         return True
     except Exception:  # noqa: BLE001 — 로그로 기록(삼키지 않음), 다음 주기에 재시도
         _LOGGER.exception("[sidefx-worker] %s step failed", label)
+        # 로그만으로는 아무도 안 본다 — 이 프로세스는 app.py 를 안 거쳐서 지금까지
+        # 여기서 터진 예외가 Sentry 에 한 건도 가지 않았다(2026-09-07 F-7).
+        capture_exception()
         return False
 
 
 def main(argv: Optional[list[str]] = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(message)s")
+    init_sentry_once(_LOGGER)
     args = _parse_args(argv)
     owner = _owner_hash()
     # WIZ-DELETE-01(task #44): STORAGE_DELETE delivery handler 를 등록한다(공용·source_domain

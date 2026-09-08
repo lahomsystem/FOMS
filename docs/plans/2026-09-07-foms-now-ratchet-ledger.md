@@ -1338,3 +1338,42 @@ MUT11 명시 --max-heartbeat-age 무시         1 failed, 13 passed (readiness �
   워커가 실제로 뜨는지 확인한 뒤에 승격 판단이 필요하다.
 - 하트비트는 여전히 **사람이 불러야 읽힌다**(F-17). SENTRY_DSN 미설정이라 Sentry 경로도
   no-op 이다(F-12).
+
+## T15. F-7 — SIDEFX outbox 워커의 잡은 예외가 Sentry 로 간다
+
+- 상태: **DONE(로컬 검증)**
+- 근본 원인: `run_domain_side_effect_outbox.py` 는 `app.py` 를 안 거친다(별도 Railway
+  service). `init_sentry` 호출처가 web 한 곳뿐이라 이 프로세스의 예외는 `_safe` 가 로그로만
+  찍고 **아무 데도 가지 않았다**. 하트비트 3종은 있었지만 "왜 실패했는지" 는 없었다.
+- 고친 방법: 공통 헬퍼에 `init_sentry_once()` 추가(DSN 부재면 `sentry_sdk` 도 `foms.platform`
+  도 import 하지 않는다 — 그 `__init__` 이 app_factory 를 통째로 끌어온다). `main()` 이
+  부르고, `_safe` 는 로그 뒤 `capture_exception()` 을 부른다.
+- 계약 6건 + 변이 5종(MUT12~16) 전부 red.
+
+### 이번에 실제로 물린 함정 — 로컬 초록·CI 빨강 (F-11 의 실사례)
+
+`pre_push_smoke` 23타깃에 계층 래칫이 없어서 스모크는 초록인데 CI 가 빨갰다.
+
+```
+FAILED tests/contracts/runtime/test_layer_dependency_ratchet.py::test_no_new_lazy_foms_imports
+assert not ['foms/services/loop_heartbeat.py::foms.services.sidefx_worker']
+```
+
+- `emit_heartbeat` 안의 지연 import 는 **필요 없는 것**이라 최상단으로 올렸다(테스트도
+  `loop_heartbeat.upsert_heartbeat` 를 패치하도록 고쳤다).
+- `init_sentry_once` 안의 `foms.platform.sentry_setup` 지연 import 는 **방어 그 자체**라
+  기준선에 올렸다(`tasks.py` 의 같은 항목과 나란히). 재생성 결과 새 항목은 딱 1줄.
+- 재발 방지: `pre_push_smoke` 서브셋에 계층 래칫 + 닫힌집합(ptc) 2종을 등재했다.
+
+### 검증 출력
+
+```
+$ python -m pytest tests/contracts/runtime/test_layer_dependency_ratchet.py \
+    tests/contracts/runtime/test_ptc_physical_exactness.py \
+    tests/domains/test_loop_heartbeat_wiring.py tests/domains/test_sidefx_readiness_kinds.py \
+    tests/domains/test_worker_loop_heartbeat.py -q
+58 passed, 1 warning in 17.00s
+
+$ PYTHONIOENCODING=utf-8 python -c "import app; print('APP_OK')"
+APP_OK
+```
