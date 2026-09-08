@@ -186,8 +186,7 @@ def test_measure_axis_does_not_move_the_discard_verdict(app):
     assert pending_row["measure"].code == "before"
     assert pending_row["can_discard"] is False
     assert pending_row["discard_needs_reason"] is False
-    assert pending_row["discard_block"] == (
-        "네이버가 아직 취소를 확정하지 않았습니다 — 확정 후에 접으세요")
+    assert pending_row["discard_block"] == "네이버가 아직 취소를 확정하지 않았습니다"
 
 
 def test_ghost_strip_renders_the_measure_line(app, client, workbench_on):

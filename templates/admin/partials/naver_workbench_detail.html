@@ -51,7 +51,7 @@
     {% endif %}
 
     <div class="wb-cmp-title" data-cmp-section="household">
-        주문 단위 <span class="wb-cmp-title__sub">수취인·주소·발송 — 한 주문에 하나뿐인 값</span>
+        주문 단위 <span class="wb-cmp-title__sub">한 주문에 하나뿐인 값</span>
     </div>
     <table class="wb-cmp">
         <thead>
@@ -112,7 +112,7 @@
 
     <div class="wb-cmp-title" data-cmp-section="product-orders">
         상품주문 {{ member_rows|length }}건
-        <span class="wb-cmp-title__sub">네이버가 본품과 옵션을 각각 다른 상품주문으로 준다</span>
+        <span class="wb-cmp-title__sub">본품과 옵션이 각각 다른 상품주문</span>
     </div>
     <div class="wb-coupon" data-coupon-known="{{ 'yes' if coupon_summary.known else 'no' }}">
         {% if not coupon_summary.known %}

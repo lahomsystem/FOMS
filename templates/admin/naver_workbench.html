@@ -19,7 +19,7 @@
 {% block title %}네이버 수집{% endblock %}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260907c">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260908a">
 {% endblock %}
 
 {% block content %}
@@ -55,8 +55,9 @@
         {% if active_tab == 'work' %}
         <span class="wb-bar__fact">상품주문 <b>{{ pending_count }}</b>건</span>
         {% if locked_count %}
-        <span class="wb-bar__locked" title="취소·반품이라 어떤 액션도 되지 않는 주문입니다. 목록에는 남아 있습니다.">
-            손대지 않음 <b>{{ locked_count }}주문</b>
+        {# 잠금 사유·찾을 자리는 본문에 둔다 — title 만이면 터치 기기가 못 읽는다. #}
+        <span class="wb-bar__locked" title="취소·반품이라 어떤 액션도 되지 않습니다.">
+            손대지 않음 <b>{{ locked_count }}주문</b> · 목록에 있음
         </span>
         {% endif %}
         {% endif %}
@@ -74,7 +75,8 @@
         <button type="button" class="btn btn-outline-secondary btn-sm" id="wb-refresh-all-running"
                 disabled
                 data-total="{{ refresh_running.total }}" data-done="{{ refresh_running.done }}"
-                title="{{ refresh_running.actor or '다른 관리자' }}님이 시작한 전체 다시 읽기가 지금 돌고 있습니다(전체 {{ refresh_running.total }}주문 · {{ refresh_running.eta }} 걸립니다). 끝나면 이 화면이 스스로 새로 그려집니다. 지금 또 누르면 같은 조회를 두 번 하게 되므로 잠가 둡니다.">
+                {# 누가·몇 주문인지는 아래 라벨이 글자로 말한다 — title 은 남은 사실만. #}
+                title="{{ refresh_running.eta }} 걸립니다. 끝나면 이 화면이 스스로 새로 그려집니다.">
             다시 읽는 중 — {{ refresh_running.total }}주문 중 <b>{{ refresh_running.done }}주문</b> 완료 ·
             {{ refresh_running.actor or '다른 관리자' }} 시작
         </button>
@@ -85,7 +87,8 @@
         {% if refresh_all and not refresh_all.count and refresh_all.skipped_recent %}
         <button type="button" class="btn btn-outline-secondary btn-sm" id="wb-refresh-all-idle"
                 disabled
-                title="방금 다 읽어서 지금 다시 읽을 주문이 없습니다. 잠시 뒤에 다시 눌러 주세요.">
+                {# 맺음말 삭제: 버튼이 disabled 이고 라벨이 이미 `방금 다 읽었습니다`. #}
+                title="방금 다 읽어서 지금 다시 읽을 주문이 없습니다.">
             방금 다 읽었습니다
         </button>
         {% endif %}
@@ -94,7 +97,8 @@
            말해야 한다(세 자리가 따로 계산하면 같은 화면이 세 말을 한다). #}
         <button type="button" class="btn btn-outline-secondary btn-sm" id="wb-refresh-all"
                 data-count="{{ refresh_all.count }}" data-eta="{{ refresh_all.eta }}"
-                title="아직 변할 수 있는 {{ refresh_all.count }}개 주문을 네이버에서 다시 읽어 상태를 갱신합니다({{ refresh_all.eta }} 걸립니다). 취소·반품이 끝났거나 구매확정된 주문{% if refresh_all.skipped_done %} {{ refresh_all.skipped_done }}건{% endif %}은 다시 읽어도 값이 바뀌지 않아 대상에서 뺍니다. 네이버에는 아무것도 보내지 않습니다(조회만). 취소·반품이 처음 발견되면 담당자·관리자에게 알림이 갑니다.">
+                {# 이유 서술("값이 바뀌지 않아")만 뺀다. 단위는 `주문` 으로 통일. #}
+                title="아직 변할 수 있는 {{ refresh_all.count }}주문을 네이버에서 다시 읽습니다({{ refresh_all.eta }} 걸립니다) · 조회만 나갑니다. 취소·반품이 끝났거나 구매확정된 {% if refresh_all.skipped_done %}{{ refresh_all.skipped_done }}건{% else %}주문{% endif %}은 뺐습니다. 취소·반품이 처음 발견되면 담당자·관리자에게 알림이 갑니다.">
             다시 읽기 <b>{{ refresh_all.count }}주문</b>
         </button>
         {% endif %}
@@ -132,8 +136,8 @@
         <summary class="wb-ghost__head">
             <span class="wb-ghost__badge">{{ ghosts.count }}건</span>
             <b>네이버 결제가 전부 취소된 주문</b>
-            <span class="wb-ghost__sub">결제는 취소됐는데 ERP 주문이 살아 있습니다 — 재결제로 정리하거나 접으세요.
-                네이버가 아직 확정하지 않은 취소 요청도 함께 보이고, 그 행은 휴지통 보내기가 잠깁니다.</span>
+            {# 정의는 위 제목, 행동은 `재결제 짝` 칸·버튼, 잠금은 진행 칸이 든다 — 여기는 모집단만. #}
+            <span class="wb-ghost__sub">네이버가 아직 확정하지 않은 취소 요청도 함께 보입니다.</span>
         </summary>
         <table class="wb-ghost__list">
             <thead>
@@ -173,7 +177,8 @@
                         {% for cand in row.repay_candidates[:2] %}
                         <div><a href="{{ url_for('admin.naver_ingest_triage', tab='work', link_id=cand.link_id) }}">{{ cand.external_order_no }}</a></div>
                         {% endfor %}
-                        <div class="wb-ghost__dim">큐에 대기 — 열어서 붙이세요</div>
+                        {# 위 줄 주문번호가 그 pane 링크다 — 사용법을 다시 말하지 않는다. #}
+                        <div class="wb-ghost__dim">큐에 대기</div>
                         {% else %}
                         <span class="wb-ghost__dim">없음</span>
                         {% endif %}
@@ -191,7 +196,8 @@
                         {% if row.discard_needs_reason %}
                         <div class="wb-ghost__dim">{{ row.status_label }} 단계 — 관리자가 사유를 적어야 접힙니다</div>
                         {% else %}
-                        <div class="wb-ghost__dim">휴지통으로 — 복구 가능</div>
+                        {# 바로 위 버튼이 `휴지통으로 보내기` — 한 칸에서 같은 낱말을 두 번 쓰지 않는다. #}
+                        <div class="wb-ghost__dim">복구 가능</div>
                         {% endif %}
                         {% elif row.claim_phase != 'done' and row.lead_link_id %}
                         {# 네이버가 아직 확정 안 한 건은 **승인할 수 있다**(T9-G1). 다만 여기서
@@ -202,7 +208,7 @@
                            href="{{ url_for('admin.naver_ingest_triage', tab='work', link_id=row.lead_link_id) }}">
                             열어서 승인하기
                         </a>
-                        <div class="wb-ghost__dim">네이버 취소 승인은 그 집 화면에서</div>
+                        {# 버튼 라벨이 `열어서 승인하기` — 무엇을 승인하는지는 행의 진행 칸이 든다. #}
                         {% else %}
                         <span class="wb-ghost__dim">휴지통 잠김</span>
                         {% endif %}
@@ -226,8 +232,8 @@
         <summary class="wb-ghost__head">
             <span class="wb-ghost__badge">{{ origin_cleanup.count }}건</span>
             <b>재결제 뒤 정리 안 된 옛 네이버 주문</b>
-            <span class="wb-ghost__sub">새 결제는 받았는데 옛 주문이 네이버에서 아직 살아 있습니다 —
-                발송 전이면 취소, 발송 후면 반품으로 접으세요.
+            {# 발송 전/후 분기는 행 `할 일` 칸이 칩으로 든다 — 여기는 판정만. #}
+            <span class="wb-ghost__sub">새 결제는 받았는데 옛 주문이 네이버에서 아직 살아 있습니다.
                 {% if origin_cleanup.truncated %}많아서 일부만 보입니다.{% endif %}</span>
             <button type="button" class="btn btn-sm btn-outline-primary ms-auto"
                     id="wb-origin-refresh-all">전부 다시 읽기</button>
@@ -334,12 +340,16 @@
             {% else %}
             <span class="wb-ghost__badge">{{ bulk_dispatch.count }}집</span>
             <b>오늘 실측한 네이버 건 ({{ bulk_dispatch.date }})</b>
+            {# 숫자·경고·미리보기를 세 블록으로 쪼갠다 — 줄표로 붙이면 취소 불가 경고가 숫자 꼬리로 읽힌다.
+               `w-100` 은 `.wb-ghost__head` 가 flex 라 붙인다. 남은 집 수는 위 배지가 이미 말한다. #}
             <span class="wb-ghost__sub">{% if bulk_dispatch.sent %}오늘 {{ bulk_dispatch.day_total }}집 중
-                {{ bulk_dispatch.sent }}집 발송됨 · {{ bulk_dispatch.count }}집 남음 —
-                {% endif %}지금 보낼 수 있는 집 {{ bulk_dispatch.eligible }}집{% if bulk_dispatch.blocked %} ·
-                먼저 해결할 집 {{ bulk_dispatch.blocked }}집{% endif %} —
-                {% if not (naver_bulk_dispatch_enabled and bulk_dispatch.eligible) %}<b>미리보기입니다. 아직 아무것도 나가지 않습니다.</b>{% endif %}
-                발송처리하면 FOMS에서는 취소할 수 없습니다(반품으로만 처리).</span>
+                {{ bulk_dispatch.sent }}집 발송됨 ·
+                {% endif %}보낼 수 있는 집 {{ bulk_dispatch.eligible }}집{% if bulk_dispatch.blocked %} ·
+                먼저 해결할 집 {{ bulk_dispatch.blocked }}집{% endif %}</span>
+            <span class="wb-ghost__sub w-100">발송처리하면 FOMS에서는 취소할 수 없습니다(반품으로만 처리).</span>
+            {% if not (naver_bulk_dispatch_enabled and bulk_dispatch.eligible) %}
+            <span class="wb-ghost__sub w-100"><b>미리보기입니다. 아직 아무것도 나가지 않습니다.</b></span>
+            {% endif %}
             {% endif %}
             {% if naver_bulk_dispatch_enabled and bulk_dispatch.eligible %}
             <button type="button" class="btn btn-sm btn-primary ms-auto"
@@ -350,8 +360,8 @@
             {% endif %}
         </summary>
         {% if bulk_dispatch.failed %}
-        <div class="wb-bulkdispatch__failline">발송처리 실패 {{ bulk_dispatch.failed }}집 —
-            아래 사유를 해결한 뒤 다시 보내세요.</div>
+        {# 행마다 사유 칸과 `이 집 다시 보내기` 가 있다 — 훈수는 뺀다. #}
+        <div class="wb-bulkdispatch__failline">발송처리 실패 {{ bulk_dispatch.failed }}집</div>
         {% endif %}
         {#
           안 붙은 수집분 — 발송 대상 판정의 유일한 축이 "링크가 그 주문에 붙어 있는가" 라서,
@@ -405,7 +415,8 @@
         {% if bulk_dispatch.foreign %}
         <div class="wb-bulkdispatch__linkline">
             여기서는 못 보내는 건 {{ bulk_dispatch.foreign|length }}건 — 네이버 수집분이 없습니다.
-            <span class="wb-ghost__dim">{{ bulk_dispatch.coverage_from }}부터는 네이버 주문을 다 받아 왔습니다 — 그 뒤 접수인데 원본이 없으면 네이버 주문이 아닙니다.</span>
+            {# 추론 과정 해설을 접고 판정만 남긴다(근거 날짜는 유지). #}
+            <span class="wb-ghost__dim">{{ bulk_dispatch.coverage_from }} 이후 접수인데 원본이 없어 네이버 주문이 아닙니다.</span>
             <ul class="wb-bulkdispatch__linklist">
                 {% for row in bulk_dispatch.foreign %}
                 <li>
@@ -513,8 +524,7 @@
     <section class="wb-result alert alert-danger" id="wb-result" data-foms-no-autodismiss>
         <div class="wb-result__head">
             <span class="fw-semibold">네이버 처리 실패 {{ failures|length }}주문</span>
-            <span class="small">아래 사유를 먼저 해결한 뒤 실패한 주문만 다시 보내세요.</span>
-            <span class="small ms-auto">이 알림은 자동으로 사라지지 않습니다.</span>
+            {# 훈수는 같은 띠의 재시도 버튼·행별 사유 칸이 든다. 자동닫힘은 `data-foms-no-autodismiss` 가 보장한다. #}
         </div>
         <table class="wb-result__list">
             {% for row in failures %}
@@ -540,7 +550,8 @@
                 <td class="wb-result__ack">
                     <button type="button" class="btn btn-outline-secondary btn-sm wb-ack"
                             data-link-id="{{ row.link_id }}"
-                            title="이 줄이 말하는 작업의 실패만 목록에서 지웁니다(네이버에는 영향 없음). 반품 접수 실패는 상품주문 표에 그대로 남습니다.">확인함</button>
+                            {# 둘째 문장은 앞 규칙의 한 사례 — 상품주문 표가 자기 자리에서 말한다. #}
+                            title="이 줄의 실패만 목록에서 지웁니다(네이버에는 영향 없음).">확인함</button>
                 </td>
             </tr>
             {% endfor %}
@@ -565,11 +576,11 @@
                고객이 먼저 취소를 요청해 우리 취소가 밀린 건은 **같은 화면의 승인 버튼**이
                할 일이다 — 판매자센터로 보내면 사람이 화면을 두 번 옮겨 다닌다. #}
             <div class="small mt-1">
+                {# 셋째 문장은 같은 줄 `확인함` 버튼이 말한다. 둘째 문장은 돈 갈림길이라 한 줄로 남긴다. #}
                 취소 실패 {{ failures|length - retryable|length }}주문은 여기서 되보낼 수 없습니다 —
-                그 주문을 열어 <b>사유를 다시 고른 뒤</b> 취소처리를 보내세요.
-                <b>고객이 먼저 취소를 요청한 주문</b>이면 취소처리 대신 그 주문의
-                <b>네이버 취소 승인 — 환불 확정</b>을 누르세요. 취소·반품이 이미 도는 주문이라
-                두 버튼이 다 없으면 <b>판매자센터</b>에서 처리한 뒤 <b>확인함</b>으로 닫으세요.
+                그 주문을 열어 처리하세요.
+                <b>고객이 먼저 취소를 요청한 주문</b>은 취소처리가 아니라
+                <b>네이버 취소 승인 — 환불 확정</b>입니다.
             </div>
             {% endif %}
         </div>
@@ -644,7 +655,7 @@
            잠시 뒤 화면을 한 번 다시 받는다. 비어 있으면 자리를 차지하지 않는다. #}
         <span class="wb-bulk__note" id="wb-bulk-note" role="status" aria-live="polite"></span>
         <span class="wb-bulk__spacer"></span>
-        <span class="wb-bulk__why">여러 주문을 한 번에 보낼 때만 씁니다. 한 주문이면 오른쪽 상세에서 바로.</span>
+        {# 벌크 바는 고른 게 있을 때만 뜬다 — 이미 고른 사람에게 용도를 설명하지 않는다. #}
     </div>
 
     <div class="wb-split">
@@ -806,8 +817,9 @@
                 </a>
                 {% else %}
                 <div class="wb-empty">
+                    {# `전체` 칩이 숫자를 달고 바로 위에 있다 — 사용법은 말하지 않는다. #}
                     {% if active_filter == 'all' %}확인할 주문이 없습니다.
-                    {% else %}이 필터에 해당하는 주문이 없습니다 — 위 <b>전체</b> 칩을 눌러 보세요.{% endif %}
+                    {% else %}이 필터에 해당하는 주문이 없습니다.{% endif %}
                 </div>
                 {% endfor %}
             </div>
@@ -1224,7 +1236,7 @@
             <a href="{{ url_for('admin.naver_ingest_triage', tab='all', status=p_status, place=p_place,
                                 dispatch=p_dispatch, rel=p_rel, q=p_q, page=history.page + 1) }}">다음</a>
             {% endif %}
-            <span class="small text-muted">지금 걸린 필터는 페이지를 넘겨도 유지된다.</span>
+            {# 필터 유지는 페이저 쿼리스트링이 코드로 보장한다. #}
         </div>
         {% endif %}
     </section>
@@ -1345,5 +1357,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260907c" defer></script>
+<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260908a" defer></script>
 {% endblock %}
