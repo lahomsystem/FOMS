@@ -84,6 +84,7 @@ jobs:
           tests/domains/test_api_error_containment.py \
           tests/domains/test_as_dashboard_schedule_link_render.py \
           tests/domains/test_audit_coverage_inventory.py \
+          tests/domains/test_csrf_bootstrap_contract.py \
           tests/domains/test_docs_facing_registry.py \
           tests/domains/test_failopen_inventory.py \
           tests/domains/test_foms_namespace_imports.py \

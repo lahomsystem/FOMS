@@ -34,6 +34,21 @@ _CATEGORIES = [
     ("telemetry", "/channel/wam/api/telemetry", 2 * _KIB),
     ("login", "/login", 16 * _KIB),
     ("legacy", "/api/orders/1/attachments", 50 * _MIB + 256 * _KIB),
+    # 이미지 업로드 표면: 핸들러 자체 상한(10 MiB / 15 MiB)보다 커야 한다.
+    ("wizard_image", "/api/orders/1/drawing-wizard/asset", 10 * _MIB + 256 * _KIB),
+    ("wizard_image", "/api/orders/1/drawing-wizard/sheet-png", 10 * _MIB + 256 * _KIB),
+    ("estimate_image", "/api/channel/push-estimate", 15 * _MIB + 256 * _KIB),
+    ("legacy", "/api/erp/order-draft/attachments", 50 * _MIB + 256 * _KIB),
+    ("legacy", "/api/orders/1/drawing-gateway-upload", 50 * _MIB + 256 * _KIB),
+]
+
+#: 핸들러가 스스로 걸러야 하는 파일 크기 — 플랫폼 캡이 그보다 낮으면 핸들러의 친절한
+#: 안내(400 "최대 10MB") 대신 본문 잘린 413 이 나가고, 브라우저는 응답을 못 읽는다.
+#: (2026-09-08 사고: 도면 마법사 이미지 첨부가 1 MiB 기본 캡에 걸려 전부 실패)
+_HANDLER_FILE_CEILINGS = [
+    ("/api/orders/1/drawing-wizard/asset", 10 * _MIB),
+    ("/api/orders/1/drawing-wizard/sheet-png", 10 * _MIB),
+    ("/api/channel/push-estimate", 15 * _MIB),
 ]
 
 
@@ -276,3 +291,20 @@ def test_streamed_under_cap_passes(app):
     status, payload = _drive_chunked(app, "/api/__limit_read", b"x" * (500 * _KIB))
     assert status == 200
     assert payload == b"ok"
+
+
+@pytest.mark.parametrize("path,file_ceiling", _HANDLER_FILE_CEILINGS)
+def test_platform_cap_above_handler_file_ceiling(path, file_ceiling):
+    """플랫폼 본문 캡은 그 라우트 핸들러의 파일 상한보다 반드시 크다.
+
+    작으면 사용자는 핸들러의 400 안내 대신 413(응답 본문이 브라우저에 도달하지도
+    않는 조기 차단)을 맞는다 — 2026-09-08 도면 마법사 이미지 첨부 사고의 근본 원인.
+    """
+    from foms.platform.request_limits import resolve_body_cap
+
+    cap = resolve_body_cap(path)
+    assert cap is not None, f"{path} 가 캡 해석에서 제외됐다"
+    assert cap.max_body_bytes > file_ceiling, (
+        f"{path}: 플랫폼 캡 {cap.max_body_bytes} <= 핸들러 상한 {file_ceiling} — "
+        "정상 업로드가 413 으로 막힌다"
+    )

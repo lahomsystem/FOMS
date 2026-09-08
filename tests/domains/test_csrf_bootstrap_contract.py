@@ -10,6 +10,7 @@
 """
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 
@@ -25,6 +26,18 @@ _MUTATION_RE = re.compile(
     r"""method\s*:\s*['"`](?:POST|PUT|PATCH|DELETE)['"`]""",
     re.IGNORECASE,
 )
+
+#: standalone 문서가 싣는 로컬 정적 스크립트 경로(``url_for('static', filename='...')``).
+_STATIC_SRC_RE = re.compile(
+    r"""url_for\(\s*['"]static['"]\s*,\s*filename\s*=\s*['"]([^'"]+\.js)['"]"""
+)
+
+#: CSRF 배선 없이도 되는 standalone 문서 — mutation 이 write-guard manifest 의
+#: exempt endpoint 뿐인 경우만. (값 = 사유. 새 항목 추가는 manifest exempt 근거 필수.)
+_ALLOWLIST: dict[str, str] = {
+    # 채널톡 WAM 웹뷰: 유일한 mutation 이 exempt endpoint /channel/wam/api/telemetry.
+    "templates/channel/wam/layout.html": "mutation=telemetry only (manifest exempt)",
+}
 
 #: 전체 HTML 문서(= 다른 레이아웃에 include 되는 조각이 아님).
 _STANDALONE_RE = re.compile(r"<!DOCTYPE\s+html", re.IGNORECASE)
@@ -63,11 +76,29 @@ def test_map_view_standalone_document_includes_csrf_partial() -> None:
     )
 
 
+def _mutates(body: str) -> bool:
+    """템플릿 본문 또는 그 템플릿이 싣는 로컬 정적 JS 가 mutation 을 쏘는가.
+
+    2026-09-08 사고: 도면 마법사(standalone)는 mutation 이 전부 외부
+    ``static/js/drawing/wizard.js`` 에 있어 인라인만 보던 이 게이트를 통과했고,
+    저장·이미지 업로드·실측 사진 삽입이 403 invalid_csrf_token 으로 막혀 있었다.
+    그래서 ``<script src=url_for('static', ...)>`` 로 실리는 파일까지 따라 본다.
+    """
+    if _MUTATION_RE.search(body):
+        return True
+    for rel in _STATIC_SRC_RE.findall(body):
+        asset = REPO_ROOT / "static" / rel
+        if asset.is_file() and _MUTATION_RE.search(_read(asset)):
+            return True
+    return False
+
+
 def test_every_standalone_template_with_mutation_has_csrf_wiring() -> None:
     """mutation 을 쏘는 standalone 템플릿은 예외 없이 CSRF 배선을 가져야 한다.
 
     조각(partial)은 대상이 아니다 — 이들은 base 를 extends 하는 페이지에 include 되어
-    layout_head 경유로 배선을 얻는다.
+    layout_head 경유로 배선을 얻는다. mutation 판정은 인라인 스크립트뿐 아니라 그
+    문서가 싣는 로컬 정적 JS 까지 포함한다(:func:`_mutates`).
     """
     offenders: list[str] = []
     for path in sorted(TEMPLATES_DIR.rglob("*.html")):
@@ -76,9 +107,12 @@ def test_every_standalone_template_with_mutation_has_csrf_wiring() -> None:
             continue
         if _EXTENDS_RE.search(body):
             continue
-        if not _MUTATION_RE.search(body):
+        if not _mutates(body):
             continue
         if _INCLUDE_RE.search(body):
+            continue
+        rel_path = str(path.relative_to(REPO_ROOT)).replace("\\", "/")
+        if rel_path in _ALLOWLIST:
             continue
         offenders.append(str(path.relative_to(REPO_ROOT)).replace("\\", "/"))
 
@@ -99,3 +133,41 @@ def test_map_view_reads_both_message_and_error_keys() -> None:
     assert "function serverErrorText(" in body
     assert "d.message || d.error" in body
     assert "serverErrorText(res.status, data)" in body
+
+
+def test_drawing_wizard_standalone_document_includes_csrf_partial() -> None:
+    """회귀 고정: 도면 마법사(standalone 문서)가 CSRF 배선을 갖는다.
+
+    2026-09-08 이전에는 빠져 있어 저장·이미지 업로드·실측 사진 삽입이 모두
+    403 invalid_csrf_token 이었다(mutation 이 외부 JS 라 게이트도 못 잡았다).
+    """
+    body = _read(TEMPLATES_DIR / "drawing" / "wizard.html")
+    assert _STANDALONE_RE.search(body), "wizard.html 이 더 이상 standalone 문서가 아니다(계약 재검토 필요)"
+    assert _INCLUDE_RE.search(body), (
+        "wizard.html 에 csrf_bootstrap.html include 가 없다 — "
+        "도면 마법사의 모든 mutation 이 403 invalid_csrf_token 이 된다"
+    )
+
+
+def test_allowlisted_standalone_wam_mutates_only_exempt_telemetry() -> None:
+    """allowlist 근거 고정: WAM 웹뷰의 mutation 은 exempt telemetry 하나뿐이다.
+
+    다른 mutation 이 늘면 이 테스트가 먼저 깨져 allowlist 재검토를 강제한다.
+    """
+    manifest = json.loads(
+        (REPO_ROOT / "docs" / "harness" / "foms_write_guard_manifest.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    telemetry = manifest["routes"]["channel_wam_api.wam_telemetry"]
+    assert telemetry["mode"] == "exempt"
+
+    mutating_files = []
+    for rel in _STATIC_SRC_RE.findall(_read(TEMPLATES_DIR / "channel" / "wam" / "layout.html")):
+        asset = REPO_ROOT / "static" / rel
+        if asset.is_file() and _MUTATION_RE.search(_read(asset)):
+            mutating_files.append(rel)
+    assert mutating_files == ["js/channel/telemetry.js"], (
+        f"WAM 웹뷰에 telemetry 외 mutation 이 생겼다: {mutating_files} — "
+        "csrf_bootstrap include 가 필요한지 재검토하라"
+    )

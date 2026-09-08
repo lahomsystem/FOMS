@@ -17,7 +17,8 @@ the view runs and without trusting the default parser to cap file size:
 
 2. A 4-field route body-cap manifest (``route_pattern``, ``max_body_bytes``,
    ``max_files``, ``category``) declaring the ceiling for each public surface:
-   telemetry 2 KiB, login 16 KiB, legacy multipart upload 50 MiB + 256 KiB, and
+   telemetry 2 KiB, login 16 KiB, legacy multipart upload 50 MiB + 256 KiB,
+   drawing-wizard image upload 10 MiB + 256 KiB, and
    a 1 MiB ``normal`` default for everything else. Presigned / direct-upload endpoints are excluded (their file
    bytes never transit the app — the browser PUTs straight to R2/S3).
 
@@ -58,6 +59,17 @@ _NORMAL_CAP = 1 * _MIB
 _LEGACY_CAP = 50 * _MIB + 256 * _KIB
 _LEGACY_MAX_FILES = 20
 
+# Image/media upload surfaces whose handlers enforce their own per-file ceiling.
+# The platform cap must sit just above that ceiling (file bytes + 256 KiB
+# multipart overhead); otherwise the route falls back to the 1 MiB ``normal``
+# default and every real photo / exported PNG is rejected with 413 before the
+# handler (and its own, friendlier size message) ever runs.
+#   - drawing wizard asset / sheet-png : ``wizard.py`` ``_MAX_ASSET_BYTES`` 10 MiB
+#   - channel push-estimate            : ``channel_integration.py`` 15 MiB
+_WIZARD_IMAGE_CAP = 10 * _MIB + 256 * _KIB
+_WIZARD_MAX_FILES = 1
+_ESTIMATE_IMAGE_CAP = 15 * _MIB + 256 * _KIB
+
 # Global outermost ceiling (replaces the old 500 MiB). Also the MAX_CONTENT_LENGTH.
 GLOBAL_BODY_CAP = 50 * _MIB + 256 * _KIB
 
@@ -96,6 +108,17 @@ _MANIFEST: tuple[BodyCap, ...] = (
     BodyCap(r"^/login$", _LOGIN_CAP, 0, "login"),
     BodyCap(r"^/api/orders/\d+/attachments$", _LEGACY_CAP, _LEGACY_MAX_FILES, "legacy"),
     BodyCap(r"^/api/chat/upload$", _LEGACY_CAP, _LEGACY_MAX_FILES, "legacy"),
+    BodyCap(
+        r"^/api/orders/\d+/drawing-wizard/(asset|sheet-png)$",
+        _WIZARD_IMAGE_CAP,
+        _WIZARD_MAX_FILES,
+        "wizard_image",
+    ),
+    BodyCap(r"^/api/channel/push-estimate$", _ESTIMATE_IMAGE_CAP, 1, "estimate_image"),
+    # 신규주문 마법사 첨부(폰 사진·동영상)와 도면창구 업로드 폴백은 레거시 첨부와 같은
+    # 성격의 multipart 업로드다(핸들러 자체 상한 20 MiB 이미지 / 동영상).
+    BodyCap(r"^/api/erp/order-draft/attachments$", _LEGACY_CAP, _LEGACY_MAX_FILES, "legacy"),
+    BodyCap(r"^/api/orders/\d+/drawing-gateway-upload$", _LEGACY_CAP, _LEGACY_MAX_FILES, "legacy"),
 )
 
 # Presigned / direct-upload surfaces: the file bytes go browser -> R2/S3, only a
