@@ -460,8 +460,11 @@ def test_approving_does_not_open_the_reconcile_run_button(client, workbench_on, 
     assert run_button is not None
     assert "disabled" in run_button.group(0), "확정 전인데 정리 실행이 열렸다"
     assert _approve_buttons(body, kind="cancel"), "승인 버튼은 그 자리에 있어야 한다"
-    assert "확정된 뒤에 정리하세요" in _flat(body), \
-        "ⓘ 행의 기존 문장을 지웠다 — 그 문장이 곧 이 버튼이 필요한 이유다"
+    # 맺음말 훈수는 뗐다(2026-09-08). 잠금 사유는 run_block 한 곳이 들고, 그 본문이
+    # 비활성 `정리 실행` 옆에 찍힌다 — 문장 사본이 아니라 그 배선을 문다.
+    assert "네이버가 아직 취소를 확정하지 않았습니다" in plans["REPAY"]["run_block"]
+    assert _flat(plans["REPAY"]["run_block"]) in _flat(body), \
+        "잠금 사유가 화면에서 사라졌다 — 그 사유가 곧 이 버튼이 필요한 이유다"
 
 
 # --------------------------------------------------------------------------- #

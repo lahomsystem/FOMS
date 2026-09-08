@@ -92,9 +92,9 @@ def deposit_guidance(order: Order, *, new_amount: int, relation: str,
     if relation == "REPAY" and str(current_claim_code or "") == REFUNDED_HOUSEHOLD_CODE:
         # 지금 집이 옛 결제다 — 그 돈은 이미 고객에게 돌아갔다. 숫자를 권하지 않는다.
         target, verb = int(current), "그대로"
-        sentence = (f"이 수집분은 전부 취소·환불된 옛 결제입니다 —"
-                    f" 예약금(선금) {current:,}원은 그대로 두세요"
-                    " (살아 있는 돈은 이 주문에 이미 붙어 있는 결제입니다).")
+        sentence = (f"전부 취소·환불된 옛 결제입니다 —"
+                    f" 예약금(선금) {current:,}원은 그대로 둡니다"
+                    " (살아 있는 돈은 이미 이 주문에 붙어 있습니다).")
     elif relation == "REPAY":
         # 옛 결제는 환불됐다 — 더하면 이중 계상이다.
         target, verb = amount, "바꾸기"
@@ -138,7 +138,8 @@ def run_gate(claim_code: str) -> tuple[bool, str]:
         ``(실행해도 되는가, 안 되는 이유)``. 되면 이유는 빈 문자열.
     """
     if str(claim_code or "") in UNSETTLED_CLAIM_CODES:
-        return False, "네이버가 아직 취소를 확정하지 않았습니다 — 확정된 뒤에 정리하세요"
+        # 꼬리 훈수만 뗀다 — 잠금 사유는 앞 절이 온전히 든다. 마침표는 부르는 쪽이 붙인다.
+        return False, "네이버가 아직 취소를 확정하지 않았습니다"
     return True, ""
 
 

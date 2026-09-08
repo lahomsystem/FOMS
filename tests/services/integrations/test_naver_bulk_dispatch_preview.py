@@ -129,7 +129,7 @@ def test_strip_separates_eligible_from_blocked_in_summary(client, workbench_on, 
     _linked(_order_measured_today(today, customer="이막힘"), place_status="")
     body = _body(client)
     assert 'data-wb-bulk-dispatch="2"' in body
-    assert "지금 보낼 수 있는 집 1집" in body
+    assert "보낼 수 있는 집 1집" in body
     assert "먼저 해결할 집 1집" in body
 
 

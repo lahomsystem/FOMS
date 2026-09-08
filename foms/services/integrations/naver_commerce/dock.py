@@ -714,8 +714,9 @@ def _deposit_hint(order: Any, households: list[dict[str, Any]], *,
         hint["sentence"] = f"예약금(선금) {current:,}원 — {basis}과 같습니다."
     elif diff < 0:
         hint.update({"state": "over", "copy_value": ""})
-        hint["sentence"] = (f"예약금(선금) {current:,}원이 {basis} = {target:,}원보다"
-                            f" {-diff:,}원 많습니다 — 네이버 밖 입금이면 그대로 두세요.")
+        # 방향 지시(`그대로`)는 남긴다 — 없애면 담당자가 예약금을 깎는다.
+        hint["sentence"] = (f"예약금(선금) {current:,}원이 {basis}({target:,}원)보다"
+                            f" {-diff:,}원 많습니다 — 네이버 밖 입금이면 그대로 둡니다.")
     else:
         hint["state"] = "differs"
         # 지금 집 축이 없다 — 여기 ``new_amount`` 는 **살아 있는 집들의 합계**라

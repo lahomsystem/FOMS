@@ -4742,7 +4742,8 @@ def naver_ingest_ghost_discard(order_id: int):
     # 않게 여기서 한 번 더 잠근다(2026-08-28).
     if target.get("claim_phase") != "done":
         return jsonify({"success": False, "data": None,
-                        "error": "네이버가 아직 취소를 확정하지 않았습니다 — 확정 후에 접으세요."}), 400
+                        # 꼬리 훈수만 뗀 사본 — ghost_orders.py:233 과 같은 문장.
+                        "error": "네이버가 아직 취소를 확정하지 않았습니다."}), 400
     if not target["can_discard"]:
         return jsonify({"success": False, "data": None,
                         "error": f"{target['discard_block']} — 재결제로 정리하세요."}), 400
@@ -5846,9 +5847,9 @@ def naver_ingest_run_now():
         return jsonify({
             "success": False,
             "data": None,
-            "error": "수집을 맡을 워커가 한 대도 살아 있지 않습니다. 지금 넣으면 아무도 "
-                     "꺼내지 않는 큐에 남으므로 넣지 않았습니다. WORKER 서비스 상태를 "
-                     "확인한 뒤 다시 눌러 주세요.",
+            # 큐 내부 사정은 담당자가 쓸 재료가 아니다 — 결과와 출구만 남긴다.
+            "error": "수집을 맡을 워커가 없어 넣지 않았습니다. "
+                     "WORKER 서비스를 확인한 뒤 다시 시도하세요.",
         }), 503
     # 기준 지문은 **큐에 넣기 전에** 읽는다. enqueue 뒤에 읽으면 그 사이 워커가 스윕을
     # 끝냈을 때 기준점이 이미 새 값이라, 화면은 바뀔 리 없는 값을 90초 동안 지켜본다.
@@ -5964,9 +5965,9 @@ def naver_ingest_backfill():
         )
         return jsonify({
             "success": False, "data": None,
-            "error": "수집을 맡을 워커가 한 대도 살아 있지 않습니다. 지금 넣으면 아무도 "
-                     "꺼내지 않는 큐에 남으므로 넣지 않았습니다. WORKER 서비스 상태를 "
-                     "확인한 뒤 다시 눌러 주세요.",
+            # 큐 내부 사정은 담당자가 쓸 재료가 아니다 — 결과와 출구만 남긴다.
+            "error": "수집을 맡을 워커가 없어 넣지 않았습니다. "
+                     "WORKER 서비스를 확인한 뒤 다시 시도하세요.",
         }), 503
 
     base_rev = str(bf.read_state(db).get("rev") or "")

@@ -200,8 +200,9 @@
         // 걸리는 시간은 **서버가 만든 값**을 그대로 옮긴다 — 툴팁·모달·진행 라벨이 같은
         // 말을 해야 한다(여기서 다시 계산하면 같은 화면이 두 말을 하는 자리가 된다).
         var eta = (button.dataset.eta || '').trim();
+        // 자동으로 일어나는 일은 예고하지 않는다 — 시간만 말한다.
         var message = '아직 변할 수 있는 ' + (count || '전체') + '개 주문을 네이버에서 다시 읽습니다.\n'
-            + (eta ? eta + ' 걸립니다. 끝나면 화면이 스스로 새로 그려집니다.\n' : '')
+            + (eta ? eta + ' 걸립니다.\n' : '')
             + '조회만 하며 네이버에는 아무것도 보내지 않습니다.\n'
             + '취소·반품이 처음 발견되면 담당자·관리자에게 알림이 갑니다.';
         if (!window.confirm(message)) {
@@ -1019,7 +1020,7 @@
             }
             // 조용히 비우지 않는다 — 빈 모달은 "원본이 없다"로 읽힌다.
             body.innerHTML = '<p class="text-danger mb-0">원본을 불러오지 못했습니다. '
-                + '잠시 뒤 다시 눌러 주세요.</p>';
+                + '잠시 뒤 다시 시도하세요.</p>';
         } finally {
             if (token === detailToken) {
                 body.setAttribute('aria-busy', 'false');
@@ -1396,11 +1397,11 @@
                 if (sawAction) {
                     // 조작은 성공했다. 못 받은 것은 **최신 스냅샷**뿐이라 그렇게 말한다 —
                     // "결과가 안 왔다"고 하면 나간 조작을 안 나간 것처럼 읽는다.
-                    setPaneAck('네이버 ' + label + ' 완료. 최신 상태 반영이 늦어지고 있습니다 — '
-                        + '잠시 뒤 다시 읽기를 누르거나 목록을 새로 고치세요.');
+                    // 다시 읽기 버튼이 같은 화면에 있어 사용법은 뺐다.
+                    setPaneAck('네이버 ' + label + ' 완료 — 최신 상태 반영이 늦어지고 있습니다.');
                 } else {
-                    setPaneAck(label + ' 결과가 아직 안 왔습니다(네이버 응답 지연). '
-                        + '잠시 뒤 목록에서 다시 확인하세요.');
+                    // 화면이 스스로 폴링·재렌더한다 — 다시 확인 훈수를 뺐다.
+                    setPaneAck(label + ' 결과가 아직 안 왔습니다 — 네이버 응답 지연.');
                 }
                 return;
             }
@@ -1587,7 +1588,8 @@
                 // 무한 폴링 금지. 지금 시점의 서버 사실로 한 번 맞추고 접는다.
                 stopBulkWatch();
                 await softRefresh();
-                setBulkNote('아직 처리 중입니다 — 잠시 뒤 목록에서 다시 확인하세요.');
+                // 진행 중이라는 사실만 남긴다.
+                setBulkNote('아직 처리 중입니다.');
                 return;
             }
             bulkTimer = window.setTimeout(tick, BULK_POLL_INTERVAL_MS);
@@ -1930,8 +1932,8 @@
         var options = opts || {};
         var selector = (options.selector || '.wb-origin-act')
                        + '[data-link-id="' + id + '"]';
-        var doneText = options.doneText
-                       || (label + ' 완료 — 화면을 새 상태로 다시 그렸습니다');
+        // 성공이면 바로 softRefresh 가 돈다 — 눈으로 보이는 사실.
+        var doneText = options.doneText || (label + ' 완료');
         var baseErrAt = options.errAt || '';
         var deadline = Date.now() + POLL_TIMEOUT_MS;
         window.setTimeout(tick, POLL_INTERVAL_MS);
@@ -1963,7 +1965,8 @@
                 return;
             }
             if (Date.now() >= deadline) {
-                btn.textContent = label + ' 결과가 아직 안 왔습니다 — 새로고침해서 확인하세요';
+                // 버튼 글자는 라벨로만 둔다 — 훈수는 pane 문장이 든다.
+                btn.textContent = label + ' 결과가 아직 안 왔습니다';
                 return;
             }
             window.setTimeout(tick, POLL_INTERVAL_MS);
@@ -2310,8 +2313,13 @@
             money.appendChild(strong);
             var note = document.createElement('div');
             note.className = 'wb-plan__d';
-            note.textContent = data.deposit.sentence + ' 시스템이 넣지 않습니다.';
+            note.textContent = data.deposit.sentence;
             money.appendChild(note);
+            // 서버 돈 문장에 꼬리를 붙이지 않는다 — 한 줄 한 사실.
+            var noteWho = document.createElement('div');
+            noteWho.className = 'wb-plan__d';
+            noteWho.textContent = '시스템이 넣지 않습니다 — 주문 화면에서 사람이 입력합니다.';
+            money.appendChild(noteWho);
             done.appendChild(money);
         }
         if (data.edit_url && !data.discarded) {
@@ -2325,7 +2333,8 @@
         } else if (data.discarded) {
             var hint = document.createElement('div');
             hint.className = 'wb-plan__d';
-            hint.textContent = '새 주문은 큐에 그대로 있습니다 — 이제 주문 만들기를 누르세요.';
+            // + 주문 만들기 버튼이 같은 화면에 열려 있다.
+            hint.textContent = '새 주문은 큐에 그대로 있습니다.';
             done.appendChild(hint);
         }
         var close = document.createElement('button');
@@ -2685,7 +2694,7 @@
             }
             // 조용히 비우지 않는다 — 빈 결과는 "그런 주문이 없다"로 읽힌다.
             box.innerHTML = '<p class="wb-seek__msg wb-seek__msg--err">찾지 못했습니다'
-                + '(연결 오류). 잠시 뒤 다시 눌러 주세요.</p>';
+                + '(연결 오류). 잠시 뒤 다시 시도하세요.</p>';
         } finally {
             if (token === seekToken) {
                 box.setAttribute('aria-busy', 'false');
@@ -2936,7 +2945,8 @@
                         : '첫 구간을 훑는 중입니다.'));
             }
             if (Date.now() >= deadline) {
-                setBackfillNote('아직 돌고 있습니다 — 잠시 뒤 새로고침해서 결과를 확인하세요.');
+                // 진척은 위 줄이 따로 말한다.
+                setBackfillNote('아직 돌고 있습니다.');
                 enableBackfill();
                 return;
             }
@@ -3015,7 +3025,7 @@
                 // 무한 폴링 금지. 지문이 그대로면 새로 그릴 것도 없다 — 문구만 남기고
                 // 버튼을 다시 연다(수집은 워터마크로 이어 받아 두 번 돌아도 겹치지 않는다).
                 stopRunWatch();
-                setRunNote('아직 처리 중입니다 — 잠시 뒤 다시 확인하세요.');
+                setRunNote('아직 처리 중입니다.');
                 enableRunNow();
                 return;
             }
