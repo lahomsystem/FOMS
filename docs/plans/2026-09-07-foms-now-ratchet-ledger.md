@@ -1556,3 +1556,92 @@ RQ_WORKER                age=   251s  신고간격=405
 2. `SENTRY_DSN` 미설정(F-12) — 이번 Sentry 배선이 스테이징·운영에서 no-op.
 3. 하트비트 자동 조회 경로 없음(F-17) — 사람이 `--kinds` 로 불러야 읽힌다.
 4. 로그인 한도·잠금(T6) 승격 · 운영 AMBIGUOUS 924건 · F-1 · F-4.
+
+## T18. 워커 감시 축 production 승격 (사용자 지시 "지금 바로 머지")
+
+- 상태: **DONE(운영 반영·실측 확인)**. production `5f0aecb58` (PR #310).
+- 승격 방식: 이번 세션 커밋 6개 + **토대가 되는 직전 세션 커밋 2개**(41df2360 루프 하트비트·
+  51b14d4c 좌표 스윕)를 cherry-pick 했다. 내 커밋만으로는 앞뒤가 안 맞는다 —
+  `promote_completeness` 가 INCOMPLETE(missing=60)로 그것을 먼저 말했다.
+- 충돌 3건과 처리 근거:
+  - `tests/contracts/runtime/layer_dependency_baseline.json` — 운영에 **계약 테스트 자체가
+    없다**(래칫 커밋 2b090b565 미승격). 그 테스트만 읽는 파일이라 없는 상태로 뒀다.
+  - 진행 원장 문서 — 세션 기록이라 운영에 불필요. 없는 상태로 뒀다.
+  - `docs/harness/foms_failopen_inventory.json` — 타 세션 변경 44건이 섞여 있어 deploy 쪽
+    커밋을 안 가져오고 **승격 브랜치 코드로 재생성**했다.
+  - 코드 파일 충돌은 0건.
+
+### 승격 브랜치 검증
+
+```
+$ PYTHONIOENCODING=utf-8 python -c "import app; print('APP_OK')"
+APP_OK
+$ python -m pytest (하트비트·준비 판정·인벤토리 계약)
+76 passed
+$ scripts/ops/pre_push_smoke.ps1
+648 passed → PASSED (22타깃 — 운영에 없는 래칫 타깃은 자동 제외)
+PR #310 checks: test SUCCESS · pg-lane SUCCESS · harness SUCCESS · perf-gate SUCCESS
+```
+
+### 운영 실측 (머지 후)
+
+```
+[run-rq-worker] started (queues=default heartbeat_interval=60s)
+04:29:52 Worker ...: started with PID 1, version 2.12.0
+04:29:52 *** Listening on default...
+[geocode-sweep] started (interval=60s batch=50 ...)
+[naver-auto-dispatch] started (at=16:50 window=10m tick=60s)
+[escalation-loop] started (interval=60s)
+[naver-sync-loop] started (interval=1800s)
+[naver-settle-sync] started (at=05:30 window=10m tick=60s monthly_backfill=on)
+```
+
+하트비트 표(운영, 읽기 전용 질의) — **9종 전부**:
+
+```
+DELIVERY                 age=  1s  신고간격=None
+EXPIRY_SCAN              age=  1s  신고간격=None
+RETENTION                age=  1s  신고간격=None
+GEOCODE_SWEEP            age= 42s  신고간격=60     ← 운영에만 있는 루프
+NAVER_AUTO_DISPATCH      age= 38s  신고간격=60
+NAVER_ORDER_SYNC         age= 37s  신고간격=1800
+NAVER_SETTLE_SYNC        age= 38s  신고간격=60
+NOTIFICATION_ESCALATION  age= 38s  신고간격=60
+RQ_WORKER                age= 44s  신고간격=405
+```
+
+```
+$ check_sidefx_readiness.py --kinds RQ_WORKER,GEOCODE_SWEEP,NAVER_*,NOTIFICATION_ESCALATION
+[sidefx-readiness] READY failures=0
+```
+
+## T19. 승격한 도구가 곧바로 운영 결함 하나를 찾았다 (F-19)
+
+기본 판정(outbox 3종)을 운영에 돌리자 처음으로 빨간불이 켜졌다:
+
+```
+$ check_sidefx_readiness.py
+[sidefx-readiness] NOT-READY failures=1
+  - {'check': 'dead_count', 'detail': 1344, 'limit': 0}
+```
+
+```
+outbox 상태별: DEAD 1344 · DONE 924 · PENDING 116
+
+DEAD 유형별:
+  CHANNEL_PUSH_RECORDED  1190건  2026-08-03 ~ 2026-09-01   NoHandlerError
+  STAGE_NOTIFICATION      154건  2026-08-03 ~ 2026-09-08   NoHandlerError  ← 계속 쌓인다
+```
+
+- `CHANNEL_PUSH_RECORDED` 는 09-01 에 멈췄다(SIDEFX-RECORDONLY-01 handler 등록). 과거 잔재다.
+- `STAGE_NOTIFICATION` 은 **오늘도 쌓인다**(최근 2일 DEAD 18 · PENDING 1). 등록된 handler 는
+  STORAGE_DELETE·GEOCODE·ALIMTALK_SEND·CHANNEL_PUSH_RECORDED 4종뿐이고 이 타입은 없다.
+  생산자는 전이 9곳(`order_transition_service.py:409` 등)이다.
+- **아직 모르는 것**: 이 행이 CHANNEL_PUSH_RECORDED 처럼 기록·dedupe 전용인지, 아니면 정말
+  배달돼야 하는데 아무도 안 하는지. 최근 2일 실제 알림은 17건 생성됐지만(NAVER_ORDER_CLAIMED
+  8·SHIPMENT_ORDER_CHANGED 5·ERP_ORDER_CHANGED 3·NAVER_AUTO_DISPATCH 1) 그것이 전이 알림을
+  덮는지는 추적하지 않았다. **추측하지 않고 사용자 판단을 기다린다.**
+
+| # | 항목 | 필요한 것 |
+|---|---|---|
+| F-19 | 운영 outbox DEAD 1,344건 · `STAGE_NOTIFICATION` 154건이 계속 증가 | 전이 알림이 실제로 유실되는지 추적 → 기록 전용이면 handler 등재, 배달 필요면 handler 구현. 어느 쪽이든 **사용자 판단** |
