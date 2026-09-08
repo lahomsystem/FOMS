@@ -673,12 +673,10 @@
         </div>
         {% elif dispatched and not locked %}
         <div class="wb-acts__why small">
-            이 주문은 발송처리가 끝났습니다 — 취소가 필요하면 <b>반품 접수</b>를 쓰세요.
-            {# 접수는 `RETURN_REQUEST` 까지다. 승인·환불이 어디서 일어나는지를 여기서 말하지
-               않으면 사람이 이 버튼으로 환불까지 끝났다고 읽는다.
-               2026-08-31: 승인을 FOMS 에서도 할 수 있게 됐다(모달 체크박스). 그래도 **기본은
-               접수까지**라 이 문장은 남는다 — 체크를 안 켜면 환불은 안 나간다. #}
-            승인·환불은 모달에서 <b>승인까지 한 번에</b> 를 켜거나, 판매자센터에서 합니다.
+            {# 한 줄이면 끝난다(2026-09-08 담당자 지적). 다음 행동은 바로 옆 `반품 접수`
+               버튼이 말하고, 승인·환불 범위는 그 모달이 자기 자리에서 말한다 — 여기서
+               다시 설명하면 아무도 안 읽는 긴 문단이 된다. #}
+            이 주문은 발송처리가 끝났습니다.
         </div>
         {% elif locked and dispatched_any %}
         {# 잠금 안내는 취소를 언급하지 않는다. 잠김 + 발송분이 겹치면 취소 버튼이 사라진 이유가
@@ -969,10 +967,19 @@
             <a class="btn btn-sm btn-outline-secondary" target="_blank" rel="noopener"
                href="{{ selected.seller_center_url }}">네이버 판매자센터 열기 ↗</a>
             {% elif selected_origin.alive_rows %}
+            {# 관계에 따라 **할 일이 정반대**다(2026-09-08 담당자 지적).
+               재결제(REPAY)는 같은 물건 값을 다시 받은 것이라 옛 결제를 네이버에서
+               취소·반품해야 한다. 추가결제(ADDON)는 원 주문에 **덧붙인** 결제라 원 주문은
+               그대로 살아 있어야 한다 — 여기에 "취소해야 합니다"를 적으면 화면이 담당자에게
+               멀쩡한 주문을 환불하라고 시킨다. 그래서 낱말을 관계로 가른다.
+               판정 축이 아니다: 붙이기·되돌리기·취소 버튼 조건은 이 분기를 읽지 않는다. #}
+            {% set is_addon = selected.relation == 'ADDON' %}
             {% for row in selected_origin.alive_rows %}
             <div class="wb-relation__origin-row">
                 <div class="wb-relation__origin-h">
-                    {% if row.dispatched %}
+                    {% if is_addon %}
+                    네이버 원 주문 — <b>그대로 둡니다</b>
+                    {% elif row.dispatched %}
                     네이버 옛 주문이 아직 살아 있습니다 — <b>이미 발송 처리된 주문입니다</b>
                     {% else %}
                     네이버 옛 주문이 아직 살아 있습니다
@@ -981,12 +988,16 @@
                 <p class="wb-relation__why">
                     주문번호 {{ row.external_order_no }} · 상품주문 {{ row.product_order_count }}건 ·
                     {{ '{:,}'.format(row.amount_total) }}원.
-                    {% if row.dispatched %}
+                    {% if is_addon %}
+                    {# 추가결제는 한 줄이면 끝난다 — 할 일이 없기 때문이다. 오래 안 읽었다는
+                       경고도 붙이지 않는다(정리할 대상이 아니라 경고할 것이 없다). #}
+                    추가결제라서 <b>이 주문은 취소하지 않습니다.</b>
+                    {% elif row.dispatched %}
                     발송 뒤에는 취소가 아니라 <b>반품</b>으로 처리합니다.
                     {% else %}
                     새 결제를 받았으니 <b>이 옛 주문은 네이버에서 취소해야 합니다.</b>
                     {% endif %}
-                    {% if row.stale %}
+                    {% if row.stale and not is_addon %}
                     <br><b>새 결제를 받은 뒤로 이 옛 주문을 확인한 적이 없습니다.</b>
                     그 사이에 고객이 스스로 취소했을 수 있습니다.
                     {% endif %}
@@ -994,7 +1005,9 @@
                     <span class="wb-relation__stamp">이 상태는 {{ row.read_at_text }} 에 읽은 것입니다.</span>
                     {% endif %}
                 </p>
-                {% if row.stale %}
+                {% if is_addon %}
+                <a class="btn btn-sm btn-outline-primary" href="{{ row.pane_url }}">원 주문 열기 →</a>
+                {% elif row.stale %}
                 <button type="button" class="btn btn-sm btn-outline-primary wb-origin-open"
                         data-link-id="{{ row.link_id }}"
                         data-pane-url="{{ row.pane_url }}">옛 주문 다시 읽고 열기 →</button>
