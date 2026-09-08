@@ -465,9 +465,10 @@ def _partial_discard_text(*, alive: dict[str, dict[str, Any]], house_keys: set[s
     house_total = len(house_keys)
     alive_house_count = len(alive)
     dead_house_count = house_total - alive_house_count
-    link_axis = ("이 주문에는 아직 살아 있는 결제가 있습니다 — 상품주문 "
-                 f"{bucket['link_count']}건 중 {bucket['canceled']}건만 취소됐습니다. "
-                 "전부 취소된 뒤에 접습니다")
+    # 문장은 짧을수록 읽힌다(2026-09-08 담당자 지적) — 앞머리 설명과 맺음말을 걷어내고
+    # 사실만 남긴다. 무엇을 해야 하는지는 버튼과 꼬리표가 이미 말한다.
+    link_axis = ("부분 취소 건 — 상품주문 "
+                 f"{bucket['link_count']}건 중 {bucket['canceled']}건만 취소됐습니다")
     if not group_key or group_key not in house_keys:
         # 이 주문에 없는 집이면 집 축으로 말할 사실이 없다.
         return link_axis
