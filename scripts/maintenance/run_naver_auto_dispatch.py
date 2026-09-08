@@ -161,7 +161,8 @@ def _capture_to_sentry() -> None:
     sentry_sdk.capture_exception()
 
 
-def _heartbeat_metadata(*, in_window_now: bool, result: Optional[dict]) -> dict:
+def _heartbeat_metadata(*, in_window_now: bool, result: Optional[dict],
+                        tick: int = 0) -> dict:
     """하트비트에 실을 집계값을 만든다.
 
     Args:
@@ -174,6 +175,9 @@ def _heartbeat_metadata(*, in_window_now: bool, result: Optional[dict]) -> dict:
     """
     payload = result or {}
     return {
+        # 판정부가 예산을 잡는 근거(:meth:`ReadinessThresholds.heartbeat_age_limit`).
+        # 간격이 env 로 열려도 감시가 따라온다.
+        "interval_seconds": int(tick or 0),
         "in_window": bool(in_window_now),
         "outcome": payload.get("outcome") or None,
         "queued": int(payload.get("queued") or 0),
@@ -182,7 +186,8 @@ def _heartbeat_metadata(*, in_window_now: bool, result: Optional[dict]) -> dict:
     }
 
 
-def _emit_heartbeat(*, in_window_now: bool, result: Optional[dict]) -> None:
+def _emit_heartbeat(*, in_window_now: bool, result: Optional[dict],
+                    tick: int = 0) -> None:
     """이번 tick 의 생존 신호를 ``side_effect_worker_heartbeats`` 에 남긴다.
 
     **일을 안 한 tick 에서도 갱신한다.** 창 밖 tick 이 건너뛰면 하루 23시간 50분 동안
@@ -203,7 +208,8 @@ def _emit_heartbeat(*, in_window_now: bool, result: Optional[dict]) -> None:
     try:
         upsert_heartbeat(
             engine, HEARTBEAT_WORKER_KIND,
-            metadata=_heartbeat_metadata(in_window_now=in_window_now, result=result),
+            metadata=_heartbeat_metadata(in_window_now=in_window_now, result=result,
+                                         tick=tick),
         )
     except Exception:
         _LOGGER.warning("heartbeat upsert failed worker_kind=%s",
@@ -236,7 +242,8 @@ def _run_tick(args: argparse.Namespace, at: tuple[int, int]) -> None:
         print("[naver-auto-dispatch] run failed:", flush=True)
         traceback.print_exc()
         _capture_to_sentry()
-    _emit_heartbeat(in_window_now=in_window_now, result=result)
+    _emit_heartbeat(in_window_now=in_window_now, result=result,
+                    tick=max(5, int(getattr(args, "tick", 0) or 0)))
 
 
 def _run_loop(args: argparse.Namespace) -> int:
