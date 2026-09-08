@@ -3598,31 +3598,155 @@
     return todayMMDD() + ' ' + fsSafe(customerName);
   }
 
+  /* ---- 저장 폴더 기억(File System Access 핸들 + IndexedDB) --------------
+     폴더 선택창은 브라우저가 사용자 제스처 안에서만 열어준다. 핸들 자체는 구조화 복제가
+     되므로 IndexedDB 에 담아 두면 다음부터 선택창 없이 같은 폴더에 바로 쓸 수 있다.
+     권한은 브라우저를 껐다 켜면 'prompt' 로 돌아가는데, 그때는 클릭 1번(허용)이면 된다. */
+  var DIR_DB_NAME = 'foms-dws-export';
+  var DIR_STORE = 'handles';
+  var DIR_KEY = 'exportDir';
+  var savedDirHandle = null;   // init 에서 미리 로드(클릭 시점에 비동기 조회를 하면 제스처가 끊긴다)
+
+  /** 핸들 저장소 열기. IndexedDB 를 못 쓰는 환경이면 reject. */
+  function openDirDb() {
+    return new Promise(function (resolve, reject) {
+      if (!window.indexedDB) { reject(new Error('indexedDB 미지원')); return; }
+      var req = window.indexedDB.open(DIR_DB_NAME, 1);
+      req.onupgradeneeded = function () {
+        var db = req.result;
+        if (!db.objectStoreNames.contains(DIR_STORE)) { db.createObjectStore(DIR_STORE); }
+      };
+      req.onsuccess = function () { resolve(req.result); };
+      req.onerror = function () { reject(req.error || new Error('indexedDB 열기 실패')); };
+    });
+  }
+
+  /** 저장소 트랜잭션 1회 실행(fn 이 store 를 받아 IDBRequest 반환). 실패는 reject. */
+  function withDirStore(mode, fn) {
+    return openDirDb().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        var tx = db.transaction(DIR_STORE, mode);
+        var req = fn(tx.objectStore(DIR_STORE));
+        req.onsuccess = function () { resolve(req.result); };
+        req.onerror = function () { reject(req.error || new Error('indexedDB 요청 실패')); };
+        tx.oncomplete = function () { db.close(); };
+      });
+    });
+  }
+
+  /** 기억된 폴더 핸들을 읽어 모듈 변수·메뉴 라벨에 반영한다(없거나 실패하면 조용히 무시). */
+  function loadSavedDirHandle() {
+    if (typeof window.showDirectoryPicker !== 'function') { renderExportDirRow(); return; }
+    withDirStore('readonly', function (store) { return store.get(DIR_KEY); })
+      .then(function (handle) {
+        savedDirHandle = (handle && typeof handle.getFileHandle === 'function') ? handle : null;
+        renderExportDirRow();
+      }, function (err) {
+        console.warn('[dws] export dir load', err);
+        renderExportDirRow();
+      });
+  }
+
+  /** 폴더 핸들을 기억한다(실패해도 이번 내보내기는 계속 — 다음번에 다시 물어볼 뿐). */
+  function rememberDirHandle(handle) {
+    savedDirHandle = handle;
+    renderExportDirRow();
+    return withDirStore('readwrite', function (store) { return store.put(handle, DIR_KEY); })
+      .catch(function (err) { console.warn('[dws] export dir save', err); });
+  }
+
+  /** 기억된 폴더를 잊는다(핸들이 무효해졌을 때). */
+  function forgetDirHandle() {
+    savedDirHandle = null;
+    renderExportDirRow();
+    return withDirStore('readwrite', function (store) { return store.delete(DIR_KEY); })
+      .catch(function (err) { console.warn('[dws] export dir clear', err); });
+  }
+
+  /** 메뉴의 "저장 폴더" 줄 갱신. 폴더 저장 미지원 브라우저면 줄 자체를 숨긴다. */
+  function renderExportDirRow() {
+    var row = document.getElementById('dws-export-dir');
+    var name = document.getElementById('dws-export-dir-name');
+    var btn = document.getElementById('dws-btn-export-dir-change');
+    if (!row || !name || !btn) { return; }
+    if (typeof window.showDirectoryPicker !== 'function') { row.hidden = true; return; }
+    row.hidden = false;
+    name.textContent = savedDirHandle ? (savedDirHandle.name || '선택한 폴더') : '매번 물어봄';
+    name.title = savedDirHandle
+      ? ('일괄 내보내기가 이 폴더에 바로 저장합니다: ' + (savedDirHandle.name || ''))
+      : '아직 지정하지 않았습니다 — 처음 내보낼 때 한 번만 고르면 기억합니다.';
+    btn.textContent = savedDirHandle ? '바꾸기' : '지정';
+  }
+
+  /** 기억된 폴더의 쓰기 권한을 확인/요청한다(클릭 제스처 안에서 호출해야 한다). */
+  function ensureDirPermission(handle) {
+    if (!handle || typeof handle.requestPermission !== 'function') { return Promise.resolve(true); }
+    return Promise.resolve(handle.requestPermission({ mode: 'readwrite' }))
+      .then(function (state) { return state === 'granted'; })
+      .catch(function (err) { console.warn('[dws] export dir permission', err); return false; });
+  }
+
   /**
    * 일괄 내보내기(X-3): 모든 시트 PNG 를 로컬 폴더에 저장.
-   * File System Access API(showDirectoryPicker) 지원 시 `MMDD 고객이름` 서브폴더에 저장, 미지원이면 개별 다운로드.
-   * showDirectoryPicker 는 사용자 제스처(버튼 클릭) 안에서 직접 호출해야 하므로 클릭 핸들러에서 진입한다.
+   * 기억된 폴더가 있으면 권한만 확인하고 바로 저장, 없으면 폴더 선택창을 연다.
+   * File System Access API 미지원이면 개별 다운로드로 폴백.
+   * 선택창·권한 요청은 사용자 제스처(버튼 클릭) 안에서 동기 진입해야 하므로 여기서 시작한다.
    */
   function exportAll() {
     closeMenus();
     if (!state.sheets.length) { toast('내보낼 도면이 없습니다.'); return; }
-    if (typeof window.showDirectoryPicker === 'function') {
-      exportAllToDirectory();
-    } else {
+    if (typeof window.showDirectoryPicker !== 'function') {
       exportAllFallbackDownloads();
+      return;
     }
+    if (!savedDirHandle) { pickDirThenExport(); return; }
+    ensureDirPermission(savedDirHandle).then(function (ok) {
+      if (ok) { exportAllToDirectory(savedDirHandle); return; }
+      toast('폴더 권한이 없어 다시 골라야 합니다.');
+      pickDirThenExport();
+    });
   }
 
-  /** 폴더 선택 → `MMDD 고객이름` 서브폴더 생성 → 각 시트 PNG 를 파일로 write. */
-  function exportAllToDirectory() {
+  /** 폴더 선택창 → 기억 → 그 폴더로 내보내기. */
+  function pickDirThenExport() {
+    openDirectoryPicker().then(function (dirHandle) {
+      if (!dirHandle) { return; }
+      rememberDirHandle(dirHandle);
+      exportAllToDirectory(dirHandle);
+    });
+  }
+
+  /** 폴더 선택창만 연다(취소·차단은 안내 후 null). id 고정으로 지난 위치를 기억한다. */
+  function openDirectoryPicker() {
+    return window.showDirectoryPicker({ mode: 'readwrite', id: 'dwsExport', startIn: 'documents' })
+      .catch(function (err) {
+        if (err && err.name === 'AbortError') {
+          // 폴더 선택 취소 또는 브라우저의 특수 폴더 차단(드라이브 루트·Windows·홈 루트·바탕화면·
+          // OneDrive·다운로드) → showDirectoryPicker 는 둘 다 AbortError 로 오므로 안내를 통일한다.
+          toast('폴더 선택이 취소되었거나 차단되었습니다. 바탕화면·OneDrive·시스템 폴더는 브라우저가 막습니다 — C:\\도면 같은 일반 폴더를 만들어 지정하세요.');
+          return null;
+        }
+        console.warn('[dws] export dir picker', err);
+        toast('폴더를 열지 못했습니다: ' + ((err && err.message) || '알 수 없는 오류'));
+        return null;
+      });
+  }
+
+  /** 메뉴의 [지정/바꾸기]: 내보내기 없이 저장 폴더만 새로 고른다. */
+  function changeExportDir() {
+    if (typeof window.showDirectoryPicker !== 'function') { return; }
+    openDirectoryPicker().then(function (dirHandle) {
+      if (!dirHandle) { return; }
+      rememberDirHandle(dirHandle);
+      toast('저장 폴더를 "' + (dirHandle.name || '선택한 폴더') + '"(으)로 기억했습니다.');
+    });
+  }
+
+  /** 주어진 폴더 안에 `MMDD 고객이름` 서브폴더를 만들고 각 시트 PNG 를 파일로 write. */
+  function exportAllToDirectory(dirHandle) {
     var origIdx = current;
     var folderName = exportFolderName();
-    // showDirectoryPicker 는 제스처 직후 동기 호출(이 함수는 클릭 핸들러 콜스택 내에서 즉시 진입).
-    // id: 같은 id 로 재호출 시 브라우저가 마지막 선택 폴더를 기억(두 번째부터 그 위치에서 열림).
-    // startIn: 시작 위치를 문서로 유도 — 드라이브 루트/시스템 폴더 선택(브라우저 차단)을 줄인다.
-    window.showDirectoryPicker({ mode: 'readwrite', id: 'dwsExport', startIn: 'documents' }).then(function (dirHandle) {
-      return dirHandle.getDirectoryHandle(folderName, { create: true });
-    }).then(function (custDir) {
+    Promise.resolve(dirHandle.getDirectoryHandle(folderName, { create: true })).then(function (custDir) {
       return eachSheetToBlob(function (blob, sheet, i) {
         return custDir.getFileHandle(exportSheetFilename(sheet, i), { create: true })
           .then(function (fh) { return fh.createWritable(); })
@@ -3631,21 +3755,22 @@
           });
       }, '일괄 내보내기').then(function (res) {
         switchSheet(origIdx);
+        var where = (dirHandle.name ? dirHandle.name + '\\' : '') + folderName;
         if (res.fail.length) {
           toast('일괄 내보내기 완료 · ' + res.ok + '/' + res.total + ' 성공, ' + res.fail.length + '건 실패');
         } else {
-          toast('일괄 내보내기 완료 · "' + folderName + '" 폴더에 ' + res.total + '개 저장');
+          toast('일괄 내보내기 완료 · "' + where + '" 폴더에 ' + res.total + '개 저장');
         }
       });
     }).catch(function (err) {
-      if (err && err.name === 'AbortError') {
-        // 폴더 선택 취소 또는 브라우저의 특수 폴더 차단(드라이브 루트·Windows·홈 루트·바탕화면·
-        // OneDrive·다운로드) → showDirectoryPicker 는 둘 다 AbortError 로 오므로 안내 토스트로 통일.
-        toast('폴더 선택이 취소되었거나 차단되었습니다. 바탕화면·OneDrive·시스템 폴더는 브라우저가 막습니다 — C:\\도면 같은 일반 폴더를 만들어 지정하세요.');
-        return;
-      }
       switchSheet(origIdx);
       console.warn('[dws] export-all', err);
+      // 기억한 폴더가 사라졌거나 권한이 끊긴 경우 — 기억을 지우고 다음번에 다시 묻는다.
+      if (err && (err.name === 'NotFoundError' || err.name === 'NotAllowedError')) {
+        forgetDirHandle();
+        toast('기억한 폴더를 쓸 수 없습니다(이동·삭제·권한 해제). 폴더를 다시 지정하세요.');
+        return;
+      }
       toast('일괄 내보내기 실패: ' + ((err && err.message) || '알 수 없는 오류'));
     });
   }
@@ -3904,6 +4029,8 @@
     document.getElementById('dws-btn-export-png').addEventListener('click', exportPng);
     var exportAllBtn = document.getElementById('dws-btn-export-all');
     if (exportAllBtn) { exportAllBtn.addEventListener('click', exportAll); }
+    var exportDirBtn = document.getElementById('dws-btn-export-dir-change');
+    if (exportDirBtn) { exportDirBtn.addEventListener('click', changeExportDir); }
     document.getElementById('dws-btn-version-history').addEventListener('click', openVersionDialog);
 
     // 미니 툴바 — 텍스트 (편집 중이면 선택범위/전체에 실시간 적용, 아니면 선택 객체 통일)
@@ -4295,6 +4422,7 @@
     loadUserPresets();
     // 자동 저장 타이머(단일). 실제 저장 여부는 tickAutosave 내부 게이트가 판단(canSave 포함).
     if (!autosaveTimer) { autosaveTimer = setInterval(tickAutosave, AUTOSAVE_INTERVAL_MS); }
+    loadSavedDirHandle();   // 기억한 저장 폴더를 미리 읽어 둔다(클릭 제스처 보존)
   }
 
   if (document.readyState === 'loading') {
