@@ -200,6 +200,7 @@
     "foms/platform/blueprints.py::foms.api.notifications",
     "foms/platform/blueprints.py::foms.api.notifications.push",
     "foms/platform/blueprints.py::foms.api.ops_drift",
+    "foms/platform/blueprints.py::foms.api.ops_worker_heartbeat",
     "foms/platform/blueprints.py::foms.api.orders",
     "foms/platform/blueprints.py::foms.api.personal_board",
     "foms/platform/blueprints.py::foms.api.production",

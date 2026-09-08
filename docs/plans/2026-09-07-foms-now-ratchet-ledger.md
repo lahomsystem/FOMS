@@ -1863,3 +1863,54 @@ SIDEFX  triggers=[{branch: production, repository: lahomsystem/FOMS}]
 | F-17 | 하트비트 자동 조회 경로 없음(사람이 `--kinds` 로 불러야 읽힌다) | 사용자 판단 |
 | F-21b | 트리거가 실제로 작동하는지는 **다음 production 머지 때 확인** | 관측 대기 |
 | T6 | 로그인 한도·잠금 승격 · 운영 AMBIGUOUS 924건 · F-1 · F-4 | 사용자 판단 |
+
+## T24. F-17 — 하트비트를 매일 기계가 본다
+
+- 상태: **DONE(로컬 검증)**. deploy 반영 대기.
+- 문제: `check_sidefx_readiness` 는 **사람이 명령을 쳐야만** 판정한다. 2026-02 워커 offline·
+  2026-08-31 SIDEFX 미배포는 두 번 다 사용자가 화면에서 먼저 발견했다 — 재는 도구가 있어도
+  재는 사람이 없으면 없는 것과 같다.
+- 만든 것(드리프트 감사와 같은 모양):
+  - `foms/api/ops_worker_heartbeat.py` — admin 전용 읽기 전용 JSON
+    (`GET /api/foms/ops/worker-heartbeats`). 미인증 401 · 비-ADMIN 403.
+  - `tools/ops/heartbeat_report_http.py` — 로그인 후 조회, step summary 표, exit 0/1/2/3.
+  - `.github/workflows/worker-heartbeat-daily.yml` — 18:50 UTC(03:50 KST). 드리프트 감사
+    (18:20)·RUM(22:30)과 30분 이상 벌렸다.
+- 판정 규약(모듈 docstring 이 정본):
+  - **필수 kind** = outbox 3종. 행이 없으면 not-ready(fail-closed).
+  - **관측된 kind** = 표에 행이 있는 나머지 loop. 신선도만 본다.
+    → 스테이징처럼 그 루프를 안 켠 환경에서 매일 빨간불이 되지 않는다(그러면 오늘 걷어낸
+    문제가 되살아난다).
+  - 예산은 서버가 계산한다 — 신고 간격 x 3 과 등록부 값 중 큰 쪽.
+  - 등록부에 없는 kind 는 `unknown_kinds` 로 싣고 **실패로 본다**(조용히 넘기면 안 읽는 것과 같다).
+- **명시한 한계**: 한 번도 하트비트를 쓴 적 없는 루프는 이 조회로 안 보인다. 그 축은
+  `tests/domains/test_loop_heartbeat_wiring.py`(start.sh 의 모든 `--loop` 러너가 등록부 kind 를
+  선언) 가 막는다.
+
+### 검증 + 변이 6종
+
+```
+$ python -m pytest tests/domains/test_ops_worker_heartbeat_endpoint.py \
+    tests/domains/test_worker_heartbeat_daily_wiring.py -q
+22 passed
+
+MUT28 필수 kind 누락 무시            2 failed, 20 passed
+MUT29 신선도 판정 무력화              2 failed, 20 passed
+MUT30 신고 간격을 예산에 안 씀        1 failed, 21 passed
+MUT31 조회 도구가 언제나 exit 0       2 failed, 20 passed
+MUT32 판정 불가 kind 를 초록 처리     1 failed, 21 passed
+MUT33 다른 매일 워크플로와 같은 시각  1 failed, 21 passed
+복원 후: 22 passed
+
+$ python -m pytest tests/domains/test_ops_route_containment.py tests/domains/test_ops_drift_endpoint.py \
+    tests/domains/test_foms_namespace_imports.py tests/domains/test_failopen_inventory.py \
+    tests/domains/test_audit_coverage_inventory.py tests/contracts/runtime/*.py -q
+228 passed  (계층 래칫 기준선 1줄 추가 — blueprints 지연 import 는 기존 blueprint 들과 같은 패턴)
+
+$ scripts/ops/pre_push_smoke.ps1 → PASSED (25타깃)
+```
+
+### 남은 것
+
+운영 반영 후 **첫 실행을 수동 dispatch 로 돌려** 실제 응답과 판정을 확인해야 한다
+(드리프트 감사도 같은 절차를 밟았다).
