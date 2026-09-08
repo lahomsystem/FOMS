@@ -23,7 +23,7 @@ from models import ExternalOrderLink, Order
 
 # 화면 낱말 — 여기서만 적고 단언은 이 상수를 쓴다.
 HERE_ALIVE_HEAD = "이 주문에 붙은 "
-ONLY_THIS_HOUSE = "이 집만 취소됐습니다"
+ONLY_THIS_HOUSE = "이전 주문 취소 됐습니다"   # 2026-09-08 담당자 낱말(옛 `이 집만 취소됐습니다`)
 HOUSE_UNIT = "집 중"      # 집 축 문장에만 나온다
 LINK_UNIT = "건 중"       # 상품주문 축 문장에만 나온다
 PRODUCT_ORDER_UNIT = "상품주문 "
