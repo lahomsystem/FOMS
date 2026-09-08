@@ -47,7 +47,10 @@ from foms.services.datetime_kst import now_kst  # noqa: E402
 from foms.services.integrations.naver_commerce.auto_dispatch import (  # noqa: E402
     run_auto_dispatch,
 )
-from foms.services.sidefx_worker import upsert_heartbeat  # noqa: E402
+from foms.services.sidefx_worker import (  # noqa: E402
+    WORKER_KIND_NAVER_AUTO_DISPATCH,
+    upsert_heartbeat,
+)
 
 _LOGGER = logging.getLogger("naver_auto_dispatch")
 
@@ -61,7 +64,8 @@ DEFAULT_WINDOW_MINUTES = 10
 DEFAULT_AT = "16:50"
 
 #: 이 루프의 heartbeat PK 값(``side_effect_worker_heartbeats.worker_kind``).
-HEARTBEAT_WORKER_KIND = "NAVER_AUTO_DISPATCH"
+#: 정본은 :data:`foms.services.sidefx_worker.WORKER_KIND_SPECS` 등록부다.
+HEARTBEAT_WORKER_KIND = WORKER_KIND_NAVER_AUTO_DISPATCH
 
 
 def _parse_args() -> argparse.Namespace:
