@@ -42,7 +42,9 @@ def test_detail_dom_cachebuster_cascade_bumped() -> None:
     entry = _read(ENTRY_JS)
     layout = _read(LAYOUT_SCRIPTS)
     assert "erp-dashboard-detail-dom.js?v=20260814d" in entry
-    assert "erp-dashboard-entry.js') }}?v=20260814d" in layout
+    # 도면 0장 전달 차단(2026-09-09): drawing.js 자식 핀 신설 + entry 부모 핀 범프.
+    assert "erp-dashboard-drawing.js?v=20260909a" in entry
+    assert "erp-dashboard-entry.js') }}?v=20260909a" in layout
 
 
 def test_workbench_include_confirmed_toggle() -> None:

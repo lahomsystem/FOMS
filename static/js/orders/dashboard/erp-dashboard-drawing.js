@@ -57,6 +57,12 @@ const files = filesInput ? filesInput.files : [];
 const replaceSelectEl = document.getElementById('drawing-transfer-replace-key');
 const replaceTargetKey = (replaceSelectEl && replaceSelectEl.value) ? String(replaceSelectEl.value).trim() : '';
 const currentFiles = getDrawingCurrentFiles(__currentTransferOrderId);
+// 도면 0장 전달 차단: 새 파일도 없고 기존 전달본도 없으면 '확정 대기'로만 넘어가
+// 영업이 볼 도면이 없는 주문이 된다(서버도 400 으로 막지만 여기서 먼저 알린다).
+if (files.length === 0 && currentFiles.length === 0) {
+showErpToast('전달할 도면이 없습니다. 도면 파일을 먼저 업로드해주세요.', 'error');
+return;
+}
 if (__isRetransfer && currentFiles.length > 1 && !replaceTargetKey) {
 showErpToast('수정본 재전송 시 교체할 도면 번호를 선택해주세요.', 'info');
 return;

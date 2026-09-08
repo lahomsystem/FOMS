@@ -103,6 +103,29 @@ def test_transfer_filters_non_drawing_keys(app):
     assert measurement_key not in keys  # 실측 첨부 유출 차단
 
 
+def test_transfer_rejects_empty_first_delivery(app):
+    """도면 0장 전달 차단: 새 파일도 기존 전달본도 없으면 400 이고 상태가 안 움직인다.
+
+    운영 실측(2026-09-08): 이 경로로 ``TRANSFERRED`` 인데 도면 0장인 주문이 24건 쌓였다 —
+    영업 화면에 볼 도면이 없는데 수령 확정만 요구받는다.
+    """
+    user = _make_user("sd_empty", team="DRAWING")
+    order = _make_order(sd={**_base_sd(user.id)})
+    oid = order.id
+
+    with app.test_request_context():
+        payload, status = perform_drawing_transfer(
+            db_session, order, oid, user, user.id, files=[],
+        )
+
+    assert status == 400 and payload["success"] is False
+    assert "전달할 도면이 없습니다" in payload["message"]
+    saved = db_session.get(Order, oid)
+    saved_sd = saved.structured_data or {}
+    assert (saved_sd.get("drawing_status") or "PENDING") == "PENDING"
+    assert not (saved_sd.get("drawing_transfer_history") or [])
+
+
 # --- explicit assignment: team-only write 거부 --------------------------------
 
 
