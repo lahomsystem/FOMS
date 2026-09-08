@@ -74,7 +74,7 @@
     "foms/services/jobs/tasks.py:640",
     "foms/services/jobs/tasks.py:684",
     "foms/services/jobs/tasks.py:690",
-    "foms/services/notifications/push_sender.py:377",
+    "foms/services/notifications/push_sender.py:380",
     "foms/web/orders/trash.py:147",
     "wdcalculator_db.py:179"
   ],
@@ -4249,7 +4249,7 @@
     },
     {
       "path": "foms/services/notifications/push_sender.py",
-      "lineno": 303,
+      "lineno": 306,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "telemetry",
@@ -4258,7 +4258,7 @@
     },
     {
       "path": "foms/services/notifications/push_sender.py",
-      "lineno": 377,
+      "lineno": 380,
       "handler_type": "broad_exception",
       "disposition": "FAIL_CLOSED",
       "owner": "telemetry",
@@ -4267,7 +4267,7 @@
     },
     {
       "path": "foms/services/notifications/push_sender.py",
-      "lineno": 455,
+      "lineno": 458,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "telemetry",
@@ -4276,7 +4276,7 @@
     },
     {
       "path": "foms/services/notifications/push_sender.py",
-      "lineno": 509,
+      "lineno": 512,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "telemetry",

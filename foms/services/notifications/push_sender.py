@@ -59,6 +59,9 @@ _DEFAULT_P1_TYPES = frozenset(
         "NAVER_APP_EXPIRY",
         # 수집 뒤 고객이 취소한 건. 화면을 안 보고 있으면 취소된 집으로 생산·시공이 나간다.
         "NAVER_ORDER_CLAIMED",
+        # 워커 정지. 이 알림만은 **rq 를 거치지 않고** 감시자(SIDEFX)가 직접 발송한다 —
+        # 큐가 죽었다는 사실을 큐에 넣어 알릴 수는 없다(2026-09-08 사고).
+        "WORKER_STALLED",
     }
 )
 
