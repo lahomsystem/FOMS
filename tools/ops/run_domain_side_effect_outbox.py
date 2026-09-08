@@ -68,6 +68,10 @@ from foms.services.sidefx_worker import (  # noqa: E402
     run_retention_once,
     upsert_heartbeat,
 )
+from foms.services.worker_watchdog import (  # noqa: E402
+    is_enabled as watchdog_is_enabled,
+    run_watchdog_once,
+)
 from foms.services.alimtalk_delivery_handler import handle_alimtalk_send  # noqa: E402
 from foms.services.geocode_delivery_handler import handle_geocode
 from foms.services.record_only_effects import (
@@ -142,6 +146,60 @@ def _emit_heartbeats(engine: Engine, clock: _Clock) -> None:
                      oldest_lag_seconds=clock.scan_lag(clock.last_retention_scan_at, now), now=now)
 
 
+#: 워커 정지 감시 주기(초). 판정 임계값이 가장 짧은 kind 가 180초라 그보다 촘촘하면
+#: 같은 사실을 반복해서 물을 뿐이다. 알림은 **상태 전이에서만** 나가므로 이 주기가
+#: 알림 빈도를 정하지는 않는다.
+WATCHDOG_INTERVAL_SECONDS = 60
+
+
+def _run_watchdog(engine: Engine) -> None:
+    """WORKER 컨테이너가 멎었는지 보고, 상태가 바뀌었으면 관리자에게 알린다.
+
+    **여기서 도는 이유**: 감시자가 WORKER 안에 있으면 워커가 죽을 때 같이 죽는다
+    (2026-09-08 사고에서 11분 동안 아무도 몰랐다). 이 프로세스는 별도 컨테이너다.
+    기본은 off — ``FOMS_WORKER_WATCHDOG_ENABLED=1`` 로 켠다.
+    """
+    if not watchdog_is_enabled():
+        return
+    session_local = sessionmaker(bind=engine)
+    s = session_local()
+    try:
+        result = run_watchdog_once(s)
+        s.commit()
+        if result["changed"]:
+            _LOGGER.warning("[sidefx-worker] 워커 상태 전이 알림: %s", result["health"])
+            _push_watchdog_notification(s, result.get("notification_id"))
+    except Exception:
+        s.rollback()
+        raise
+    finally:
+        s.close()
+
+
+def _push_watchdog_notification(session, notification_id) -> None:
+    """워커 정지 알림만은 **rq 를 거치지 않고 여기서 바로** 웹푸시로 보낸다.
+
+    다른 알림은 push job 을 큐에 넣는다. 이 알림은 그럴 수 없다 — 알리려는 사실 자체가
+    "그 큐를 돌릴 워커가 죽었다" 라서, 큐에 넣으면 워커가 살아난 뒤에야 나간다(그때는
+    이미 알릴 필요가 없다).
+
+    push 실패가 감시를 멈추면 안 되므로 여기서 삼키지 않고 로그로 남기고 계속한다 —
+    알림 행 자체는 이미 커밋돼 알림 센터에는 남아 있다.
+    """
+    if not notification_id:
+        return
+    try:
+        from foms.services.notifications.push_sender import send_push_for_notification
+
+        summary = send_push_for_notification(int(notification_id), session)
+        session.commit()
+        _LOGGER.info("[sidefx-worker] 워커 정지 push: %s", summary)
+    except Exception:  # noqa: BLE001 - 알림 행은 이미 남았다. push 실패는 로그로.
+        session.rollback()
+        _LOGGER.exception("[sidefx-worker] 워커 정지 push 실패(알림 센터에는 남음)")
+        capture_exception("worker-watchdog-push")
+
+
 def _run_cycle(engine: Engine, args: argparse.Namespace, owner: str) -> dict:
     """delivery + expiry + retention 한 번씩 실행하고 결과를 반환(--once 용)."""
     delivery = run_delivery_once(
@@ -163,6 +221,7 @@ def _run_loop(engine: Engine, args: argparse.Namespace, owner: str,
     now = now_utc_naive()
     clock = _Clock(now)
     next_delivery = next_expiry = next_retention = next_heartbeat = time.monotonic()
+    next_watchdog = time.monotonic()
     _LOGGER.info("[sidefx-worker] started owner=%s interval=%ds expiry=%ds retention=%ds",
                  owner[:12], interval, args.expiry_scan_interval, args.retention_scan_interval)
     while not stop.is_set():
@@ -187,6 +246,9 @@ def _run_loop(engine: Engine, args: argparse.Namespace, owner: str,
         if mono >= next_heartbeat:
             _safe(lambda: _emit_heartbeats(engine, clock), "heartbeat")
             next_heartbeat = mono + HEARTBEAT_INTERVAL_SECONDS
+        if mono >= next_watchdog:
+            _safe(lambda: _run_watchdog(engine), "worker-watchdog")
+            next_watchdog = mono + WATCHDOG_INTERVAL_SECONDS
         stop.wait(min(interval, HEARTBEAT_INTERVAL_SECONDS))
     _LOGGER.info("[sidefx-worker] graceful shutdown")
     return 0
