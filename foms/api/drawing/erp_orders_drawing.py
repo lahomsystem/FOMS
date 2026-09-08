@@ -139,6 +139,13 @@ def perform_drawing_transfer(
     if is_retransfer and not new_files:
         return {'success': False, 'message': '수정본 재전송 시 도면 파일 업로드가 필요합니다.'}, 400
 
+    # 첫 전달이라도 결과가 0장이면 막는다. 상태만 'TRANSFERRED' 로 넘어가고 영업이 볼
+    # 도면이 없는 주문이 운영에 24건 쌓였다(2026-09-08 실측). 도면 작업실 모달은
+    # 클라이언트에서 막지만 ERP 대시보드 전달 경로는 빈 files 로 그대로 요청을 보낸다.
+    if not new_files and not old_files:
+        return {'success': False,
+                'message': '전달할 도면이 없습니다. 도면 파일을 먼저 업로드해주세요.'}, 400
+
     if new_files:
         if mode == 'REPLACE_ALL':
             # 기존 파일은 타임라인 히스토리에서 계속 참조되므로 R2에서 삭제하지 않음.
