@@ -105,16 +105,47 @@ def test_server_never_names_the_width_field():
     assert "spec_width" not in set(COPY_TARGET_BY_KEY.values())
 
 
-def test_size_and_layout_keys_deliberately_have_no_target():
-    """``사이즈``·``서랍``·``수납구성`` 값은 **복사 전용**이다 (일부러 비운 자리).
+def test_layout_keys_deliberately_have_no_target():
+    """``서랍``·``수납구성`` 값은 **복사 전용**이다 (일부러 비운 자리).
 
-    이 칩들은 사람이 읽고 판단할 재료일 뿐 어느 칸의 정본도 아니다. 여기에 칸 이름이
-    붙으면 위 3,720mm 사고가 그대로 난다.
+    이 칩들은 사람이 읽고 판단할 재료일 뿐 어느 칸의 정본도 아니다.
     """
-    assert _pairs("사이즈: 150（무몰딩）") == [("150（무몰딩）", "")]
     assert _pairs("서랍: 1단(소)") == [("1단(소)", "")]
     assert _pairs("수납구성: TYPE A") == [("TYPE A", "")]
     assert _pairs("피닉스바") == [("피닉스바", "")]
+
+
+def test_size_key_fills_the_product_name_field_not_the_width_field():
+    """``사이즈`` 값은 **제품명 칸**으로 간다 (2026-09-08 담당자 지시).
+
+    ``사이즈: 150（무몰딩）`` 만 있고 ``제품`` 키가 없는 상품이 실재한다(담당자 스크린샷).
+    그 화면에서 담당자가 제품명 칸에 적는 글자가 이 값이라, 칩이 복사 전용이면 매번 손으로
+    옮겨 적는다. **W 칸 자격은 여전히 없다** — 이 값은 모듈 폭이라 총폭이 아니다.
+    """
+    assert _pairs("사이즈: 150（무몰딩）") == [("150（무몰딩）", "product_name")]
+    for key in ("사이즈", "싸이즈", "규격", "폭", "size"):
+        assert COPY_TARGET_BY_KEY[key] == "product_name"
+
+
+def test_size_value_keeps_its_trailing_parenthesis():
+    """사이즈 값은 :func:`main_product_name` 으로 **깎지 않는다**.
+
+    깎으면 ``150（무몰딩）`` 이 ``150`` 이 된다 — ``（무몰딩）`` 은 부가 설명이 아니라 제품
+    사양이고, 그것이 빠진 제품명은 몰딩/무몰딩을 구분하지 못한다.
+    """
+    assert _pairs("사이즈: 150（무몰딩）") == [("150（무몰딩）", "product_name")]
+    assert _pairs("사이즈: 1800mm 이하") == [("1800mm 이하", "product_name")]
+
+
+def test_product_key_chip_comes_before_the_size_chip():
+    """``제품`` 과 ``사이즈`` 가 함께 있으면 **제품 칩이 먼저** 나온다.
+
+    둘 다 제품명 칸을 가리키므로 일괄 입력은 먼저 나온 것을 쓴다(화면 ``dockBulkTargets``).
+    순서가 뒤집히면 제품명 칸이 숫자로 덮인다.
+    """
+    pairs = _pairs("제품: 로라 무몰딩 여닫이 30cm / 사이즈: 150（무몰딩）")
+    assert pairs == [("로라 무몰딩 여닫이", "product_name"),
+                     ("150（무몰딩）", "product_name")]
 
 
 # --------------------------------------------------------------------------- #
@@ -127,10 +158,10 @@ def test_full_width_pair_becomes_two_chips_with_their_own_targets():
     운영 실사례(2026-09-01 주문 2026090191203001)다. 네이버는 그룹을 반각 ``/`` 로,
     그룹 안의 짝을 전각 ``／`` 로 낸다. 갈라 놓지 않으면 키가 ``사이즈 ／ 색상`` 이라
     색상 칩이 어느 칸에도 못 들어간다 — 담당자가 다시 손으로 옮겨 적는다.
-    폭 조각(``180cm``)은 여전히 복사 전용이다.
+    폭 조각(``180cm``)은 2026-09-08 부터 제품명 칸으로 간다(W 칸은 여전히 아니다).
     """
     assert _pairs("사이즈 ／ 색상: 180cm ／ 클린 화이트 / 손잡이: 푸쉬타입") == [
-        ("180cm", ""),
+        ("180cm", "product_name"),
         ("클린 화이트", "color"),
         ("푸쉬타입", "handle"),
     ]

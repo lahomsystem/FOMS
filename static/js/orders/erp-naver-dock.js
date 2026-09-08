@@ -617,6 +617,20 @@
             wb.rel = 'noopener';
             head.appendChild(wb);
         }
+        // 칩을 하나씩 누르지 않고 네 칸을 한 번에 채운다(2026-09-08 담당자 요구).
+        // 본품이 둘 이상이면 잠근다 — 어느 집 값을 넣을지는 사람의 판단이고, 그 자리는
+        // 칩 하나씩이 맞다. 잠근 이유는 title 이 아니라 눌렀을 때 글자로도 말한다.
+        var fillAll = el('button', 'btn btn-sm btn-outline-primary naver-dock-fillall',
+            '⤵ 전부 넣기');
+        fillAll.type = 'button';
+        fillAll.setAttribute('data-naver-dock-fill-all', '1');
+        if (state.mains.length > 1) {
+            fillAll.disabled = true;
+            fillAll.title = '본품이 ' + state.mains.length + '개입니다 — 칩을 하나씩 누르세요';
+        } else {
+            fillAll.title = '제품명·색상·손잡이·W(가로·총폭) 를 한 번에 넣습니다';
+        }
+        head.appendChild(fillAll);
         head.appendChild(el('span', 'naver-dock-prog'));
         if (withClose) {
             var close = el('button', 'btn btn-sm btn-outline-secondary', '닫기');
@@ -978,14 +992,18 @@
      * (`erp-order-shared.js:1585`·`1644`). 대입만 하면 자동저장·계산기가 모른다.
      * @param {Element} field 값을 넣을 칸.
      * @param {string} value 넣을 값.
+     * @param {boolean} [quiet] 참이면 스크롤·포커스를 하지 않는다 — 일괄 입력에서 네 칸을
+     *     각각 끌고 다니면 화면이 네 번 흔들리고 마지막 칸만 남는다. 일괄 입력은 첫 칸
+     *     하나만 소리 내어 넣고 나머지는 조용히 넣는다.
      * @returns {boolean} 넣었으면 true.
      */
-    function dockApplyValue(field, value) {
+    function dockApplyValue(field, value, quiet) {
         if (!field) return false;
         field.value = value;
         ['input', 'change'].forEach(function (name) {
             if (field.dispatchEvent) field.dispatchEvent(new Event(name, { bubbles: true }));
         });
+        if (quiet) return true;
         // 넣은 칸을 눈으로 확인하게 데려간다 — 포커스가 스크롤을 또 흔들지 않게 preventScroll.
         if (field.scrollIntoView) field.scrollIntoView({ block: 'center', behavior: 'smooth' });
         if (field.focus) field.focus({ preventScroll: true });
@@ -1023,6 +1041,108 @@
     }
 
     /**
+     * 일괄 입력 계획 — 칸마다 **먼저 나온 칩** 하나만 남긴다.
+     *
+     * 한 칸을 노리는 칩이 둘일 수 있다. 실사례가 제품명이다: `제품: 로라 무몰딩 여닫이 /
+     * 사이즈: 150（무몰딩）` 는 둘 다 제품명 칸을 가리킨다. 네이버는 `제품` 을 먼저 내므로
+     * 먼저 나온 것이 더 제품명답다 — 뒤엣것으로 덮으면 이름이 숫자로 바뀐다. 칩을 하나씩
+     * 누르는 길은 그대로라, 사람이 사이즈 값을 넣고 싶으면 그 칩을 누르면 된다.
+     * @param {Array<{value: string, target: string}>} chips 화면에 그려진 칩들(그리는 순서).
+     * @returns {Array<{target: string, value: string}>} 칸마다 하나씩(복사 전용 칩은 뺀다).
+     */
+    function dockBulkTargets(chips) {
+        var seen = {};
+        var plan = [];
+        (chips || []).forEach(function (chip) {
+            var target = String((chip && chip.target) || '');
+            var raw = chip && chip.value !== undefined && chip.value !== null ? chip.value : '';
+            var value = String(raw);
+            if (!target || !value) return;
+            if (Object.prototype.hasOwnProperty.call(seen, target)) return;
+            seen[target] = true;
+            plan.push({ target: target, value: value });
+        });
+        return plan;
+    }
+
+    /**
+     * 일괄 입력 확인창 문구 — 덮어쓸 칸을 **한 번에** 보여 준다.
+     *
+     * 칸마다 확인창을 띄우면 최대 네 번이 뜬다. 네 번 뜨는 확인창은 읽히지 않는다.
+     * 취소했을 때 무슨 일이 일어나는지도 여기서 말한다 — 빈 칸은 덮어쓰는 것이 아니라
+     * 잃을 값이 없으므로, 취소해도 빈 칸은 채운다.
+     * @param {string} itemLabel `항목 2`.
+     * @param {Array<Object>} asks 값이 이미 있는(또는 규격 행이 여럿인) 칸들.
+     * @param {number} blankCount 확인 없이 채울 빈 칸 수.
+     * @returns {string} 확인창 본문.
+     */
+    function dockBulkConfirmText(itemLabel, asks, blankCount) {
+        var lines = [itemLabel + ' — 사람이 볼 칸 ' + asks.length + '개'];
+        asks.forEach(function (entry) {
+            var raw = entry.field && entry.field.value;
+            var old = String(raw === undefined || raw === null ? '' : raw).trim();
+            lines.push('· ' + entry.label + ': ' + (old ? old : '(비어 있음)')
+                + ' → ' + entry.value + (entry.note ? ' (' + entry.note + ')' : ''));
+        });
+        lines.push('');
+        lines.push(blankCount
+            ? '넣을까요? (취소하면 비어 있는 칸 ' + blankCount + '개만 넣습니다)'
+            : '넣을까요? (취소하면 그대로 둡니다)');
+        return lines.join('\n');
+    }
+
+    /**
+     * 일괄 입력 — 항목 하나를 골라 계획의 칸들을 한 번에 채운다.
+     *
+     * 항목 고르기는 칩 하나를 누를 때와 **같은 함수**(:func:`dockPickItemRow`)를 쓴다.
+     * 두 길이 다른 항목을 고르면 사람이 어느 항목에 들어갈지 예측할 수 없다.
+     * @param {Array<{target: string, value: string}>} plan 칸별 계획.
+     * @param {Array<Element>} rows 품목 행들.
+     * @param {?Element} lastRow 마지막으로 포커스된 행.
+     * @param {function(string): boolean} confirmFn 확인창.
+     * @returns {{ok: boolean, itemLabel: string, filled: Array<string>,
+     *     skipped: Array<string>, reason: string}} 결과.
+     */
+    function dockFillAll(plan, rows, lastRow, confirmFn) {
+        if (!plan || !plan.length) return { ok: false, reason: '넣을 칩이 없습니다' };
+        var itemRow = dockPickItemRow(rows, lastRow);
+        if (!itemRow) return { ok: false, reason: '넣을 항목이 없습니다' };
+        var itemLabel = dockItemLabel(itemRow);
+        var specRows = dockSpecRowCount(itemRow);
+        var entries = [];
+        plan.forEach(function (chip) {
+            var field = dockFieldFor(itemRow, chip.target);
+            if (!field) return;
+            // 규격 행이 여럿이면 칸이 비어 있어도 사람이 본다 — 어느 행인지가 판단이다.
+            var note = chip.target === 'spec_width' && specRows > 1
+                ? '규격 행이 ' + specRows + '개입니다 — 1행에 넣습니다.' : '';
+            entries.push({
+                field: field, value: chip.value, note: note,
+                label: dockFieldLabel(chip.target) || chip.target,
+                ask: !dockIsBlankValue(field.value) || !!note
+            });
+        });
+        if (!entries.length) return { ok: false, reason: '넣을 칸을 못 찾았습니다' };
+        var asks = entries.filter(function (entry) { return entry.ask; });
+        var okAll = false;
+        if (asks.length) {
+            var ask = confirmFn || function () { return false; };
+            // 문구는 값을 넣기 **전에** 만든다 — 넣은 뒤 만들면 '지금 값' 이 새 값이 된다.
+            okAll = !!ask(dockBulkConfirmText(itemLabel, asks, entries.length - asks.length));
+        }
+        var approved = entries.filter(function (entry) { return okAll || !entry.ask; });
+        if (!approved.length) return { ok: false, reason: '넣지 않았습니다' };
+        approved.forEach(function (entry, index) {
+            dockApplyValue(entry.field, entry.value, index > 0);
+        });
+        return {
+            ok: true, itemLabel: itemLabel,
+            filled: approved.map(function (entry) { return entry.label; }),
+            skipped: okAll ? [] : asks.map(function (entry) { return entry.label; })
+        };
+    }
+
+    /**
      * 품목 행들 — 자동 입력 경로에서 폼 DOM 을 찾는 유일한 자리다.
      *
      * 폼 불가침의 남은 절반은 그대로다: 폼의 **id·name 은 읽지 않는다**. 도크가 보는 것은
@@ -1046,7 +1166,52 @@
         if (row) lastItemRow = row;
     });
 
+    /**
+     * 버튼 글자를 잠깐 결과로 바꿨다가 되돌린다 — 도크에는 토스트가 없다.
+     * @param {Element} button 누른 버튼.
+     * @param {string} text 보여 줄 글자.
+     * @param {string} cls 잠깐 붙일 클래스.
+     * @param {number} ms 되돌릴 때까지의 밀리초.
+     * @returns {void}
+     */
+    function flashButton(button, text, cls, ms) {
+        // 원문은 글자를 바꾸기 **전에** 잡는다 — 바꾼 뒤 잡으면 되돌릴 원문이 사라진다.
+        var original = button.textContent;
+        button.classList.add(cls);
+        button.textContent = text;
+        setTimeout(function () {
+            button.textContent = original;
+            button.classList.remove(cls);
+        }, ms);
+    }
+
     document.addEventListener('click', function (event) {
+        var fillAll = event.target.closest('[data-naver-dock-fill-all]');
+        if (fillAll) {
+            if (fillAll.disabled) return;
+            // 계획의 재료는 **지금 그려진 칩**이다 — state 를 다시 훑지 않는다. 사람이
+            // 귀속을 옮기면 화면이 다시 그려지고, 그 화면이 곧 계획이 된다.
+            var mount = fillAll.closest('.erp-naver-dock-mount') || fillAll.ownerDocument;
+            var specs = Array.prototype.map.call(
+                mount.querySelectorAll('[data-naver-dock-target]'), function (node) {
+                    return {
+                        value: node.getAttribute('data-naver-dock-copy') || '',
+                        target: node.getAttribute('data-naver-dock-target') || ''
+                    };
+                });
+            var bulk = dockFillAll(dockBulkTargets(specs),
+                erpDockItemRows(fillAll.ownerDocument), lastItemRow,
+                function (text) { return window.confirm(text); });
+            if (bulk && bulk.ok) {
+                var said = '✓ ' + bulk.itemLabel + ' · ' + bulk.filled.join('·') + ' 넣음';
+                if (bulk.skipped.length) said += ' (' + bulk.skipped.join('·') + ' 그대로)';
+                flashButton(fillAll, said, 'is-filled', 2200);
+            } else {
+                flashButton(fillAll, '· ' + ((bulk && bulk.reason) || '넣지 않았습니다'),
+                    'is-copied', 1600);
+            }
+            return;
+        }
         var copy = event.target.closest('[data-naver-dock-copy]');
         if (copy) {
             var value = copy.getAttribute('data-naver-dock-copy');
@@ -1056,18 +1221,13 @@
                 value, erpDockItemRows(copy.ownerDocument), lastItemRow,
                 // window.confirm 을 떼어 넘기지 않는다 — 호출 시 this 가 window 여야 한다.
                 function (text) { return window.confirm(text); });
-            // 원문은 글자를 바꾸기 **전에** 잡는다 — 바꾼 뒤 잡으면 되돌릴 원문이 사라진다.
-            var original = copy.textContent;
             var filledOk = !!(filled && filled.ok);
-            copy.classList.add(filledOk ? 'is-filled' : 'is-copied');
-            copy.textContent = filledOk
-                ? '✓ ' + filled.itemLabel + ' ' + filled.fieldLabel + '에 넣음'
-                : (filled && filled.reason ? '✓ 복사됨 — ' + filled.reason : '✓ 복사됨');
-            setTimeout(function () {
-                copy.textContent = original;
-                copy.classList.remove('is-copied');
-                copy.classList.remove('is-filled');
-            }, filledOk ? 1600 : 1200);
+            flashButton(copy,
+                filledOk
+                    ? '✓ ' + filled.itemLabel + ' ' + filled.fieldLabel + '에 넣음'
+                    : (filled && filled.reason ? '✓ 복사됨 — ' + filled.reason : '✓ 복사됨'),
+                filledOk ? 'is-filled' : 'is-copied',
+                filledOk ? 1600 : 1200);
             return;
         }
         // 체크박스(15px)가 너무 작아 손가락으로 누르기 어렵다 — 행 아무 데나 누르면
