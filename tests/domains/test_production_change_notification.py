@@ -279,7 +279,11 @@ def test_hook_drawing_transfer(app):
     with app.test_request_context():
         payload, status = perform_drawing_transfer(
             db_session, order, order.id, user, user.id,
-            note="재전달", files=[{"key": "k1", "filename": "d1.png"}],
+            note="재전달",
+            # 도면 key 경로여야 materialize_transfer_attachments 를 통과한다(leak 필터).
+            # 통과하지 못하면 전달 파일 0장이 되어 빈 전달 가드에 400 으로 막힌다.
+            files=[{"key": f"orders/{order.id}/drawing_wizard/exports/d1.png",
+                    "filename": "d1.png"}],
         )
     assert payload.get("success") is True
     assert len(_notifs(order.id)) == len(TARGET_TEAMS)
