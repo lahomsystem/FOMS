@@ -492,8 +492,13 @@ def api_order_cancel_transfer(order_id):
             removed_transfer = True
 
         # ── 6. 이전 상태로 복원 ──────────────────────────────────────────────────
-        # 히스토리에서 마지막 액션이 REQUEST_REVISION이면 RETURNED, 아니면 PENDING
+        # 취소한 TRANSFER 를 뺀 이력을 역순 스캔해 그 직전 상태로 되돌린다.
+        # 남은 최신 액션이 TRANSFER 면 **이전 전달본이 그대로 살아있다**(복원된
+        # drawing_current_files 에도 그 파일이 남는다) — 예전에 여기서 PENDING 을 넘겨
+        # 영업의 수령 확정 버튼이 사라졌다(버튼 게이트가 TRANSFERRED 전용).
+        # 수정요청 취소 경로의 _resolve_revision_restore_status 와 같은 규칙이다.
         restore_status = 'PENDING'
+        restored_transfer = None
         for h in reversed(history):
             if not isinstance(h, dict):
                 continue
@@ -501,14 +506,18 @@ def api_order_cancel_transfer(order_id):
             if prev_action == 'REQUEST_REVISION':
                 restore_status = 'RETURNED'
                 break
+            elif prev_action == 'CONFIRM_RECEIPT':
+                restore_status = 'CONFIRMED'
+                break
             elif prev_action == 'TRANSFER':
-                restore_status = 'PENDING'
+                restore_status = 'TRANSFERRED'
+                restored_transfer = h
                 break
 
         s_data['drawing_status'] = restore_status
-        s_data['drawing_transferred'] = False
+        s_data['drawing_transferred'] = (restore_status == 'TRANSFERRED')
         s_data['drawing_current_files'] = restored_files
-        s_data['last_drawing_transfer'] = None
+        s_data['last_drawing_transfer'] = restored_transfer
         s_data['drawing_transfer_history'] = history
         order.structured_data = s_data
         flag_modified(order, 'structured_data')
