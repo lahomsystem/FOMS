@@ -103,13 +103,50 @@ def test_every_start_sh_loop_declares_a_registered_kind(runner_name):
 
 
 def test_queue_consumer_runs_through_the_heartbeat_runner():
-    """맨 rq worker 는 자기 생존을 FOMS 표에 안 남긴다 — 러너를 거쳐야 한다."""
+    """맨 rq worker 는 자기 생존을 FOMS 표에 안 남긴다 — 러너를 거쳐야 한다.
+
+    2026-09-08 이후 러너는 ``exec`` 가 아니라 감시 루프 안에서 백그라운드로 뜬다
+    (PID 1 은 루프가 잡는다 — ``test_worker_supervisor_contract.py``). 여기서 지키는 것은
+    그대로다: 큐 소비자는 **반드시 러너를 거친다**.
+    """
     text = _START_SH.read_text(encoding="utf-8")
-    exec_lines = [ln.strip() for ln in text.splitlines()
-                  if ln.strip().startswith("exec ") and "rq" in ln]
-    assert len(exec_lines) == 1, exec_lines
-    assert "tools/ops/run_rq_worker.py" in exec_lines[0]
-    assert not exec_lines[0].startswith("exec rq worker")
+    code_lines = [ln.strip() for ln in text.splitlines() if not ln.strip().startswith("#")]
+    runner_lines = [ln for ln in code_lines if "run_rq_worker.py" in ln]
+    assert len(runner_lines) == 1, runner_lines
+    assert runner_lines[0].endswith("&"), "러너는 백그라운드로 띄워야 감시 루프가 wait 로 지킨다"
+    assert not any(ln.startswith("exec rq worker") for ln in code_lines),         "맨 rq CLI 로 돌아가면 RQ_WORKER 하트비트가 사라진다"
+
+
+def test_rq_runner_drops_inherited_db_connections_in_the_child(monkeypatch):
+    """fork 자식이 부모의 DB 연결을 물려받아 같이 쓰면 TLS 가 깨진다(2026-09-08 운영 결함).
+
+    부모는 하트비트 때문에 psycopg2 연결을 풀에 살려 두고, rq 는 잡마다 ``fork`` 한다.
+    자식이 그 소켓을 그대로 쓰면 60초 뒤 부모의 다음 하트비트와 레코드가 섞여
+    ``SSL error: decryption failed or bad record mac`` → 잡이 통째로 실패한다.
+    실측: 정산 동기화 run 28·29 가 두 번 다 정확히 60초에 죽었다.
+
+    rq 의 진짜 ``main_work_horse`` 는 잡을 돌리고 ``os._exit`` 한다 — 대역으로 끊는다.
+    """
+    runner = _load(_RQ_RUNNER)
+    calls = []
+
+    class _Engine:
+        def dispose(self, close=True):
+            calls.append(("dispose", close))
+
+    monkeypatch.setattr(runner, "engine", _Engine())
+    monkeypatch.setattr(runner.Worker, "main_work_horse",
+                        lambda self, *a, **k: calls.append(("super", a)), raising=False)
+
+    worker = runner.HeartbeatWorker.__new__(runner.HeartbeatWorker)
+    worker._last_db_heartbeat_at = "부모에게서 물려받은 표식"
+    runner.HeartbeatWorker.main_work_horse(worker, "job", "queue")
+
+    assert calls == [("dispose", False), ("super", ("job", "queue"))], (
+        "자식은 super() 로 넘어가기 전에 engine.dispose(close=False) 를 해야 한다 — "
+        f"close=True 면 소켓의 진짜 주인인 부모 연결까지 끊는다. 실제 호출: {calls}"
+    )
+    assert worker._last_db_heartbeat_at is None, "자식이 부모의 하트비트 표식을 물려받았다"
 
 
 def test_rq_runner_kind_is_registered():

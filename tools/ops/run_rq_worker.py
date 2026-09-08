@@ -106,6 +106,29 @@ class HeartbeatWorkerMixin:
 class HeartbeatWorker(HeartbeatWorkerMixin, Worker):
     """``rq worker`` 본체 + FOMS 감시 표 하트비트."""
 
+    def main_work_horse(self, *args, **kwargs):
+        """fork 직후 **자식** 진입점 — 물려받은 DB 연결을 버리고 시작한다.
+
+        이 한 줄이 없으면 2026-09-08 운영 결함이 재현된다. 부모(워커 본체)가 하트비트를
+        쓰면서 SQLAlchemy 풀에 살아 있는 psycopg2 연결을 남기고, rq 는 잡마다 ``fork`` 한다.
+        자식은 그 풀을 그대로 물려받아 **같은 TLS 소켓**에 쓰고, 60초 뒤 부모가 다음
+        하트비트를 같은 소켓에 쓰는 순간 두 프로세스의 TLS 레코드가 섞인다:
+
+            Postgres: SSL error: decryption failed or bad record mac
+            Postgres: unexpected EOF on client connection with an open transaction
+            worker  : (psycopg2.OperationalError) SSL SYSCALL error: EOF detected
+
+        실측(운영 run 28·29): 정산 동기화가 두 번 다 **정확히 60초**(부모 하트비트 주기)에
+        죽었다. 60초를 넘게 도는 잡은 전부 같은 방식으로 깨진다.
+
+        ``dispose(close=False)`` 는 풀에서 참조만 버리고 소켓을 닫지 않는다 — 닫으면 그
+        소켓의 진짜 주인인 **부모의 연결까지** 끊긴다.
+        """
+        engine.dispose(close=False)
+        # 자식은 자기 시각으로 다시 센다(부모가 방금 썼다는 표식을 물려받으면 안 된다).
+        self._last_db_heartbeat_at = None
+        return super().main_work_horse(*args, **kwargs)
+
 
 def _parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Run an rq worker that reports a FOMS heartbeat.")
