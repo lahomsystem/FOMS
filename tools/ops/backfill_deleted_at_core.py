@@ -118,7 +118,18 @@ def _classify(order: Order) -> tuple[Optional[str], str]:
         return None, "no_original_status"
     if "delete" in _structured(order):
         return None, "has_delete_projection"  # 정본 projection 행 — 이미 규약대로다
-    return MARKER_LEGACY_KST, ""
+    # ``legacy_kst`` 갈래는 2026-09-08 운영 실측으로 **철회했다**. 이 술어가 잡는 행들은
+    # 이미 naive UTC 로 적혀 있었고, -9시간 보정은 그것을 9시간 틀리게 만든다. 근거 둘:
+    #
+    # * 운영 234행을 보정하면 **85행의 삭제 시각이 자기 주문 생성 시각보다 앞선다**
+    #   (보정 전에는 0행이다). 삭제가 생성보다 먼저일 수 없다.
+    # * 지금 값을 UTC 로 읽으면 234행 중 176행이 09-19시(KST) 업무시간에 들어온다.
+    #   KST 로 읽으면 20행뿐이고 23시·00시·07시에 몰린다 — 담당자가 새벽에 지운 것이 된다.
+    #
+    # 그래서 이 갈래는 **아무것도 바꾸지 않는다**. :data:`MARKER_LEGACY_KST` 상수와
+    # :func:`_convert` 의 -9시간 갈래는 남긴다 — 이미 적힌 저널을 되돌리는 길이라
+    # 지우면 되돌리기가 죽는다. 진짜 KST 행이 있다는 근거가 나오면 그때 다시 켠다.
+    return None, "legacy_kst_retired"
 
 
 def _convert(marker: str, raw: str) -> tuple[Optional[str], str]:
