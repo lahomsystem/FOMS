@@ -612,7 +612,23 @@
   font-variant-numeric: tabular-nums;
 }
 
-.naver-dock-deposit .naver-dock-deposit-say {
+.naver-dock-deposit /* 예약금 대조 줄(2026-09-09). 돈은 사람이 넣지만, 넣었는지는 화면이 센다 — 안 넣으면
+   잔금이 조용히 틀린다. 맞으면 초록 한 줄로 끝내고 더 말하지 않는다. */
+.naver-dock-deposit-state {
+  margin-top: 4px;
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.naver-dock-deposit-state.is-match {
+  color: #059669;
+}
+
+.naver-dock-deposit-state.is-differs {
+  color: #b45309;
+}
+
+.naver-dock-deposit-say {
   margin-top: 3px;
   font-size: 13px;
   font-weight: 600;
