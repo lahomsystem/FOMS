@@ -1750,3 +1750,58 @@ CLI 로는 못 고친다: `railway redeploy` 는 같은 커밋(9월 2일 이미�
 | # | 항목 | 필요한 것 |
 |---|---|---|
 | F-21 | SIDEFX 서비스가 production 푸시로 자동 배포되지 않는다 | 서비스 설정(감시 경로·브랜치 연결·CI 대기)을 조사해 근본 원인을 찾고, 안 되면 배포 절차 문서에 "SIDEFX 는 수동 배포" 를 못박아야 한다. **지금까지 이 사실이 어디에도 안 적혀 있었다** |
+
+### 근본 원인: Redeploy 는 최신 커밋을 안 가져온다 (F-21 확정)
+
+사용자가 대시보드에서 Redeploy 를 눌렀고, 그 결과가 이것이다:
+
+```
+SUCCESS  2026-09-08T06:11:01Z  sha=bbd75e08d  "Merge pull request #253"   ← Redeploy 결과
+REMOVED  2026-09-02T00:44:36Z  sha=bbd75e08d  "Merge pull request #253"
+```
+
+**Redeploy 는 직전 배포와 같은 커밋을 다시 실행한다.** 대시보드에 그것밖에 없다. 9월 2일
+원장이 이미 적어둔 함정인데 이번에 다시 밟았다 — 그때 쓴 방법이 정답이다:
+
+```
+mutation { serviceInstanceDeploy(serviceId:"…", environmentId:"…", latestCommit:true) }
+```
+
+API 접근 메모(다음 사람 몫): CLI 토큰(`~/.railway/config.json` → `user.token`)을
+`Authorization: Bearer` 로 보내되 **`User-Agent: railwayapp/<ver>` 를 반드시 넣는다** —
+없으면 403 이다. `serviceInstanceDeployV2` 에는 `latestCommit` 인자가 없다(400).
+
+결과:
+
+```
+SUCCESS 2026-09-08T06:13:08Z  f17b047ac  Merge pull request #314   ← 새 코드
+REMOVED 2026-09-08T06:11:01Z  bbd75e08d  Merge pull request #253
+```
+
+**판정은 로그 문구가 아니라 `meta.commitHash` 로 한다.**
+
+## T22. F-20 실행 — 운영 DEAD 전량 정리 (사용자 승인)
+
+```
+$ purge_domain_side_effect_outbox.py --dead-retention-days 0 --done-retention-days 99999 --apply
+status=DEAD batch=1 deleted=1000 total=1000
+status=DEAD batch=2 deleted=348  total=1348
+mode=apply scanned_done=0 scanned_dead=1348 deleted_done=0 deleted_dead=1348 batches=2 elapsed=2.5s
+```
+
+`deleted_done=0` — 정상 처리된 쪽지는 한 건도 안 건드렸다. 새 도구를 만들지 않고 기존
+SIDEFX-RETENTION-01 CLI 를 그대로 썼다(dry-run 기본·ID 멤버십 삭제·PENDING/PROCESSING
+구조적 제외·advisory lock·배치 커밋 재개).
+
+### 정리 후 운영 판정
+
+```
+$ check_sidefx_readiness.py
+[sidefx-readiness] READY failures=0
+
+outbox 상태별: DONE 944 · PENDING 119   (DEAD 0)
+```
+
+**기본 판정이 처음으로 초록불이다.** 이제 dead_count 가 다시 오르면 그건 진짜 배달 실패다.
+
+남은 증명 1건: 다음 단계 전이 쪽지가 DONE 으로 끝나는지(옛 코드면 DEAD). 감시 중.
