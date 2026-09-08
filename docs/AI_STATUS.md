@@ -1,7 +1,7 @@
 # FOMS 현재 상태
-> 자동 업데이트: 2026-09-06
-> 최신: **네이버 수집탭 문구 87곳 정리 + 도크 자동 입력 운영 반영(2026-09-08, PR #311 · production `1e3420244`)** — 화면이 짧게 말하고, 도크 칩 4짝이 ERP 칸에 바로 들어간다(돈 칸은 복사만)
-> 직전: **삭제 축 통일 운영 반영(2026-09-07, PR #308·#309 · production `5f195e0ea`)** — 휴지통 표기·낱말 한 벌, 삭제 시각 저장 규약 naive UTC 고정폭
+> 자동 업데이트: 2026-09-08
+> 최신: **워커 사망 2건 운영 반영(2026-09-08, PR #313 · production `8c0d666f9`)** — ① Redis 가 운행 중 재기동하자 큐 소비자가 자멸했고 `exec` 로 PID 1 을 잡아 컨테이너째 죽었다(ON_FAILURE 는 정상 종료를 안 잡는다) → 감시 루프가 PID 1. ② rq fork 자식이 부모 DB 연결을 물려받아 **60초 넘는 잡이 전멸**(정산 동기화 run 28~30, `SSL bad record mac`) → 자식에서 `engine.dispose(close=False)`. 검증: run 31 이 61초 완주(파티션 135 전량)
+> 직전: **네이버 수집탭 문구 87곳 정리 + 도크 자동 입력 운영 반영(2026-09-08, PR #311 · production `1e3420244`)** — 화면이 짧게 말하고, 도크 칩 4짝이 ERP 칸에 바로 들어간다(돈 칸은 복사만)
 > 이 파일 상단 40줄이 세션 시작 컨텍스트의 전부다(hygiene 계약으로 강제). 상세 이력은 "## 최근 완료"·"## 기록 보관".
 
 
@@ -10,14 +10,12 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
+- [2026-09-08] **정산 동기화 진행 표시 deploy(`0a7b33c5a`·`951cbc206`, 채널 핀 20260908a)** — 워커가 하루치마다 진행을 실행 행에 새기고(2초 조임·**별도 연결**이라 창 원자성 유지) `GET /api/settlement/channel/sync/progress` 를 화면이 2초마다 읽어 막대로 그린다. **실패 사유를 상태줄에 낸다**(rev 는 실패해도 안 바뀌어 지금까지 화면이 조용히 끝났다). 전체 다시 읽기 칩도 막대 동반. 잔여: CI green 확인 → 운영 승격
 - [2026-09-08] **워커 감시 축 운영 반영(PR #310 · production `5f0aecb58`)** — 루프 5종 + 큐 소비 본체가 하트비트를 남기고 준비 판정이 kind 등록부로 읽는다(`--kinds`). 각 루프가 tick 간격을 신고해 예산이 env 를 따라간다. `start.sh` 가 `run_rq_worker.py` 로 뜬다. 운영 하트비트 9종 READY. 그 판정이 outbox DEAD 1,344건을 드러내 소비자 미구현 `STAGE_NOTIFICATION` 을 막았다(알림 유실 아님, deploy `4d23c3277`). 원장 `docs/plans/2026-09-07-foms-now-ratchet-ledger.md`
 - [2026-09-08] **수집탭 문구 정리 + 도크 자동 입력 운영 반영(PR #311 · production `1e3420244`)** — 문구 87곳: 앞머리·훈수·재진술을 걷고 잠금 사유 5자리를 title → 본문 **승격**, 거짓이던 `새로고침하면` → `네이버 확정이 돌아오면`, 리뷰 P0 로 계약 배출구 문장 되살림, 핀 `?v=20260908a`. 도크: 칩 4짝만 칸에 넣는다(제품명·색상·손잡이·W총폭) — **돈 칸은 target 미부착 = 복사만**, 사이즈/규격/폭 키 제외(모듈 폭 ≠ 총폭), `copies` 유지 + `copy_chips` 덧붙이기(SW 옛 JS 창 방어), 숨겨진 항목엔 안 넣음(리뷰 P1), `상담` 은 빈 칸 취급. 추가결제 화면이 멀쩡한 원 주문을 취소하라고 말하던 것도 함께. 계획 `docs/plans/2026-09-08-naver-tab-copy-plan.md` · 계약 `docs/plans/2026-09-08-naver-dock-autofill-contract.md`
-- [2026-09-07] **삭제 축 통일 운영 반영(PR #309 · production `5f195e0ea`)** — 휴지통 낱말 한 벌: `read_order_trash` 를 `orders/soft_delete.py` 로 옮겨 pane 머리줄·유령 블록·후보 표·검색 표가 한 함수를 읽는다(후보 표 시각 `09-07 08:41` 형식으로 바뀜, 템플릿 무변경). 저장 규약 한 벌: 일괄 삭제(KST)·드래프트 폐기(ISO)·cron 초안 정리 3자리를 naive UTC 고정폭으로. 인벤토리 게이트로 회귀 차단
 - [2026-09-07] **옛 삭제 시각 백필은 도구만 만들었다(실행 대기)** — 운영 휴지통 308행 중 274행이 규약 밖(legacy KST 246 · ISO 28). `tools/ops/backfill_deleted_at_utc.py` 기본 dry-run·JSONL 저널 되돌리기·표식 멱등. ISO 행은 형식만 고치고 시각은 안 옮긴다(컨테이너 TZ 미상). **사용자 승인 뒤 실행**
-- [2026-09-07] **옛 결제 승인 버튼 운영 반영(PR #307 · production `90e82cf7b`)** — 정리 계획 카드 ⓘ 행에서 옛 집 취소·반품 승인. 대상은 `fulfillment.links_of_group` + 서버 술어로 뽑아 **화면 대상 == 서버 대상**(리뷰 P0: 후보 주문 링크만 세면 과소 진술 → 화면 2건·서버 3건 환불). 비용 가드 `_naver_facts(with_approve=False)` 기본
 - [2026-09-07] **조작 뒤 제자리 갱신 + 도크 재결제 문구(deploy 대기 `c3c4c7abc`)** — 조작 완료(rev 이동) 시 `softRefresh`, 실패 시엔 안 그린다. 도크 재결제 줄 = `지금 받은 결제입니다 …`(옛 문구는 지금 결제를 취소 잔재로 읽게 했다). 핀 `?v=20260907b` 3줄
 - [2026-09-07] **확인: 취소 확정 주문 자동 폐기는 존재하지 않는다(설계상 잘라낸 범위)** — `soft_delete_order` 호출부 4곳 전부 사람이 누르는 라우트. 사용자 결정: **지금처럼 수동 유지**. 자동화 시 함정 11종은 조사 결과 참조(재결제 짝·확정 전 취소·교환·워커 행위자 부재·모집단 술어 불일치)
-- [2026-09-07] **취소·반품에 실측 전/후 맥락(운영 반영 PR #308 · `d2e1d263a`)** — 판정 SSOT `foms/services/orders/measure_progress.py`. 클레임 알림·유령 목록·집 pane 이 같은 함수·같은 낱말. 표시 축이라 판정·모집단은 안 본다
 
 ## 알려진 이슈
 - 차단 이슈 없음. 남은 구조 부채는 `WR-B1`/`WR-J1`/`WR-H1` 처럼 explicit future-batch 조건으로만 존재한다. `wdcalculator_scripts_config.html` Jinja 변수 주입 구간의 JS lint false-positive 는 기존과 동일.
@@ -150,6 +148,11 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 - [2026-04-15] **Strict final canonical tree `SFC-B11B` slice 2 (`dashboards`, §6.16):** 구현을 `foms/web/dashboards/routes.py`로 이전; `foms/web/dashboards/__init__.py`는 `routes`만 import; `apps/dashboards.py`는 `foms.web.dashboards` 재노출 shim. 검증: `APP_OK`, `verify_result.py --json`, `pytest tests` **586 passed**. 근거: batch11b **§Slice B11B-2**.
 
 ## 기록 보관 (strict canonical / 이전 배치 요약)
+
+### 2026-09-08 상단 정리 — 진행 중에서 이관
+- [2026-09-07] **삭제 축 통일 운영 반영(PR #309 · production `5f195e0ea`)** — 휴지통 낱말 한 벌: `read_order_trash` 를 `orders/soft_delete.py` 로 옮겨 pane 머리줄·유령 블록·후보 표·검색 표가 한 함수를 읽는다(후보 표 시각 `09-07 08:41` 형식으로 바뀜, 템플릿 무변경). 저장 규약 한 벌: 일괄 삭제(KST)·드래프트 폐기(ISO)·cron 초안 정리 3자리를 naive UTC 고정폭으로. 인벤토리 게이트로 회귀 차단
+- [2026-09-07] **옛 결제 승인 버튼 운영 반영(PR #307 · production `90e82cf7b`)** — 정리 계획 카드 ⓘ 행에서 옛 집 취소·반품 승인. 대상은 `fulfillment.links_of_group` + 서버 술어로 뽑아 **화면 대상 == 서버 대상**(리뷰 P0: 후보 주문 링크만 세면 과소 진술 → 화면 2건·서버 3건 환불). 비용 가드 `_naver_facts(with_approve=False)` 기본
+- [2026-09-07] **취소·반품에 실측 전/후 맥락(운영 반영 PR #308 · `d2e1d263a`)** — 판정 SSOT `foms/services/orders/measure_progress.py`. 클레임 알림·유령 목록·집 pane 이 같은 함수·같은 낱말. 표시 축이라 판정·모집단은 안 본다
 - [2026-09-01] **네이버 재결제 옛 주문을 띠에서 바로 취소·반품 + 발송 축 결함 수정 deploy** — 처리 탭 띠 줄에서 바로 쏜다(낡은 줄 차단·모달 4종 세트·결과 감시). **판매자센터 발송 집이 띠에선 '반품'인데 pane 은 취소를 열어 주던 결함** — `dispatched_any`·`cancel_order` 가 우리 표식만 봤다. 설계서 §7-E. **운영 승격 완료(PR #255 · production `95f4267d`)** — 발송처리 재진술 두 신호·0건 집 버튼 가드 동반
 - [2026-09-01] **네이버 과거 주문 백필 deploy 반영** — 워크벤치 90일 1회 실행·워터마크 불변·소급분은 큐 밖·매칭 캡 해소(`naverbf_00`). **운영 실행 승인 대기**. 원장 `docs/plans/2026-09-01-naver-ingest-backfill-ledger.md`
 - [2026-09-01] **네이버 T1·T2·T3 운영 승격(PR #213 · `c462bdb9`)** — 반품 승인(기본 꺼짐·환불 확정)·후보 0건 주문 찾아서 붙이기·조작 뒤 자동 다시읽기. 함정: `promote_completeness` incomplete 30건 중 23건은 **이미 운영에 있었다**(옛 cherry-pick patch-id 차이) — 소스 grep 확인 후 5건만
