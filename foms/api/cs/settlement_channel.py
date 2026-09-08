@@ -400,6 +400,53 @@ def api_settlement_channel_sync():
                              "job_id": job_id}})
 
 
+@settlement_channel_api_bp.route("/sync/progress", methods=["GET"])
+@login_required
+def api_settlement_channel_sync_progress():
+    """진행 중인 동기화가 지금 어디까지 왔는지.
+
+    화면이 [지금 동기화] 를 누른 뒤 2초마다 이 자리를 읽는다. 지금까지는 결과가 반영될
+    때까지 화면이 아무 말도 못 했다 — 60초 동안 "확인하는 중" 한 줄뿐이라, 워커가 죽어
+    있어도(2026-09-08 사고) 실패해도(run 28·29) 사용자는 버튼을 계속 눌렀다.
+
+    **감사 행을 남기지 않는다** — 2초마다 읽는 조회라 남기면 감사가 이 한 종류로 덮인다.
+
+    Returns:
+        200 ``{'success': True, 'data': {...}, 'error': None}``. ``data`` 는 —
+        ``run_id``·``status``(RUNNING/OK/FAILED/ABORTED_QUOTA)·``trigger``·
+        ``started_at``·``finished_at``(UTC ISO)·``elapsed_seconds``·``error``(실패 사유)·
+        ``progress``(``{phase, done_days, total_days, percent, current_date, calls, rows}``
+        또는 None). 실행 이력이 아예 없으면 ``data=None``. 권한 거부 403.
+    """
+    user = getattr(g, "current_user", None)
+    if not can_view_channel_settlement(user):
+        return _error(_DENIED_MESSAGE, 403)
+
+    from models import NaverSettleSyncRun
+
+    row = (get_db().query(NaverSettleSyncRun)
+           .filter(NaverSettleSyncRun.channel == _ALLOWED_CHANNELS[0])
+           .order_by(NaverSettleSyncRun.id.desc())
+           .first())
+    if row is None:
+        return jsonify({"success": True, "error": None, "data": None})
+
+    stats = row.stats if isinstance(row.stats, dict) else {}
+    progress = stats.get("progress") if isinstance(stats.get("progress"), dict) else None
+    finished = row.finished_at
+    elapsed = ((finished or datetime.datetime.utcnow()) - row.started_at).total_seconds()
+    return jsonify({"success": True, "error": None, "data": {
+        "run_id": int(row.id),
+        "status": row.status,
+        "trigger": row.trigger,
+        "started_at": row.started_at.isoformat() if row.started_at else None,
+        "finished_at": finished.isoformat() if finished else None,
+        "elapsed_seconds": int(max(0, elapsed)),
+        "error": row.error,
+        "progress": progress,
+    }})
+
+
 def _export_filters() -> dict:
     """CSV 내보내기의 유형·검색 조건. **빈 값은 키째 뺀다.**
 

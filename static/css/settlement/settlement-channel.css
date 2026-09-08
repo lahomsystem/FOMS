@@ -130,6 +130,38 @@
   border: 1px solid var(--s-line); background: var(--s-surface-soft);
   border-radius: 7px; padding: 6px 10px; font-size: calc(12px * var(--s-fs, 1)); color: var(--s-text);
 }
+/* 진행 막대(2026-09-08) — [지금 동기화] 뒤 워커가 어디까지 왔는지. 지금까지는 화면이
+   60초 동안 "확인하는 중" 한 줄뿐이라 워커가 죽어 있어도 사용자가 계속 눌렀다.
+   폭은 인라인 style 이 아니라 커스텀 프로퍼티(--s-ch-prog)로 넘긴다. */
+.foms-settle .s-ch-prog { display: grid; gap: 4px; }
+.foms-settle .s-ch-prog-head {
+  display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap;
+  font-size: calc(12px * var(--s-fs, 1)); color: var(--s-text);
+}
+.foms-settle .s-ch-prog-pct { font-weight: 800; font-variant-numeric: tabular-nums; }
+.foms-settle .s-ch-prog-sub { color: var(--s-muted); }
+.foms-settle .s-ch-prog-track {
+  height: 6px; border-radius: 999px; background: var(--s-surface-soft);
+  border: 1px solid var(--s-line); overflow: hidden;
+}
+.foms-settle .s-ch-prog-fill {
+  height: 100%; width: calc(var(--s-ch-prog, 0) * 1%);
+  background: var(--s-ch-ok); transition: width .3s ease;
+}
+/* 분모를 아직 모르는 구간(요청 직후·부가세 단계)은 폭 대신 흐르는 줄무늬로 "돌고 있다"만 말한다. */
+.foms-settle .s-ch-prog--indeterminate .s-ch-prog-fill {
+  width: 35%; background: linear-gradient(90deg, transparent, var(--s-ch-ok), transparent);
+  animation: s-ch-prog-slide 1.2s linear infinite;
+}
+@keyframes s-ch-prog-slide {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(300%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .foms-settle .s-ch-prog-fill { transition: none; }
+  .foms-settle .s-ch-prog--indeterminate .s-ch-prog-fill { animation: none; width: 100%; opacity: .45; }
+}
+
 .foms-settle .s-ch-notice--error {
   border-color: var(--s-ch-error-line); background: var(--s-ch-error-soft); color: var(--s-bad);
 }

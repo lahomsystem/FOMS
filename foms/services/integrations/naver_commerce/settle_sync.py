@@ -414,6 +414,15 @@ class _SyncContext:
     #: 마지막 창 커밋 시점의 ``retro_changes`` 길이. 창마다 커밋되므로 실패 때 되돌릴 수 있는
     #: 소급 변경은 이 표식 뒤의 꼬리만이다(앞 창의 것은 DB 에 이미 새 값).
     committed_retro: int = 0
+    #: 진행 표시용 — 이번 실행이 훑을 전체 날짜 수와 지금까지 끝낸 수.
+    total_days: int = 0
+    done_days: int = 0
+    #: 지금 무엇을 하는 중인가(``settle``/``vat``). 화면 문구가 이 값으로 갈린다.
+    phase: str = "settle"
+    #: 지금 훑고 있는 날짜(화면이 "언제까지 왔는지" 를 말한다).
+    current_day: Optional[date] = None
+    #: 마지막으로 진행 상황을 DB 에 새긴 시각(``time.monotonic``). 조이는 데 쓴다.
+    progress_written_at: Optional[float] = None
     stats: dict[str, Any] = field(default_factory=lambda: {
         "calls": {}, "rows": {}, "retro_changes": [], "partitions": 0,
         "skipped_no_axis": 0, "last_dates": {},
@@ -430,6 +439,31 @@ class _SyncContext:
         covered = self.stats["last_dates"]
         current = str(covered.get(endpoint) or "")
         covered[endpoint] = max(current, through.isoformat())
+
+    def note_progress(self, *, day: Optional[date] = None, phase: Optional[str] = None,
+                      advance: bool = False) -> None:
+        """진행 상황을 갱신하고 필요하면 DB 에 새긴다(실패해도 본 작업을 안 막는다)."""
+        if phase:
+            self.phase = phase
+        if day is not None:
+            self.current_day = day
+        if advance:
+            self.done_days += 1
+        _publish_progress(self)
+
+    def progress_payload(self) -> dict[str, Any]:
+        """화면이 그대로 그리는 진행 dict."""
+        total = max(0, int(self.total_days))
+        done = min(max(0, int(self.done_days)), total) if total else 0
+        return {
+            "phase": self.phase,
+            "done_days": done,
+            "total_days": total,
+            "percent": int(round(done * 100 / total)) if total else 0,
+            "current_date": self.current_day.isoformat() if self.current_day else None,
+            "calls": int(self.calls),
+            "rows": dict(self.stats.get("rows") or {}),
+        }
 
     def note_rows(self, table: str, count: int) -> None:
         """적재 행수를 집계한다."""
@@ -455,6 +489,43 @@ class _SyncContext:
         header = getattr(self.client, "last_quota_limit_header", None)
         if header:
             raise SettleSyncQuotaAborted(f"네이버 호출 쿼터 제한(gncp-gw-quota-limit={header})")
+
+
+#: 진행 상황을 DB 에 새기는 최소 간격(초). 하루치가 1~2초라 매 하루 쓰면 60초 실행에
+#: UPDATE 가 45번 난다 — 화면 갱신 주기(2초)보다 촘촘할 이유가 없다.
+PROGRESS_MIN_INTERVAL_SECONDS = 2.0
+
+
+def _publish_progress(ctx: _SyncContext, *, force: bool = False) -> None:
+    """진행 상황을 실행 행에 새긴다 — **본 세션이 아닌 별도 연결로**.
+
+    왜 별도 연결인가: :func:`_sync_window` 는 창 하나를 다 받은 뒤에야 커밋하고,
+    창 도중 실패하면 :func:`_discard_failed_window` 가 그 창의 부분 교체를 통째로 버린다.
+    진행 표시를 ``ctx.session`` 으로 쓰면 그 커밋이 **반쯤 교체된 파티션까지 같이 커밋**해
+    창 원자성(CFO 감사 F-04)이 깨진다. 그래서 짧은 트랜잭션 하나를 따로 열어 실행 행의
+    ``stats`` 만 갱신한다. 이 값은 :func:`_close_run` 이 끝에 최종 stats 로 덮는다.
+
+    관측 배선이 본 작업을 막으면 안 되므로 어떤 실패도 경고 로그로만 남긴다.
+    """
+    if ctx.dry_run or ctx.run_id is None:
+        return
+    now = time.monotonic()
+    if (not force and ctx.progress_written_at is not None
+            and (now - ctx.progress_written_at) < PROGRESS_MIN_INTERVAL_SECONDS):
+        return
+    try:
+        from sqlalchemy import update as _update
+
+        from db import engine as _engine
+
+        table = NaverSettleSyncRun.__table__
+        with _engine.begin() as conn:
+            conn.execute(_update(table)
+                         .where(table.c.id == ctx.run_id)
+                         .values(stats={"progress": ctx.progress_payload()}))
+        ctx.progress_written_at = now
+    except Exception as exc:  # noqa: BLE001 - 진행 표시 실패가 동기화를 막지 않는다
+        logger.warning("[NAVER][정산] 진행 상황 기록 실패(동기화는 계속): %s", exc)
 
 
 def _fetch_pages(ctx: _SyncContext, endpoint: str,
@@ -806,12 +877,16 @@ def run_settle_sync(session: Session, client: Any, *, today: date, trigger: str,
 def _drive(ctx: _SyncContext, *, start: date, end: date, scope: dict,
            backfill_from: Optional[date]) -> dict[str, Any]:
     """구간을 실제로 훑고 결과를 확정한다(예외를 삼켜 상태로 바꾼다)."""
+    # 진행 표시의 분모. 창을 어떻게 쪼개든 훑는 날짜의 총합은 같다.
+    ctx.total_days = len(list(iter_days(start, end)))
+    ctx.note_progress(phase="settle")
     try:
         for window_start, window_end in split_windows(start, end):
             _sync_window(ctx, window_start, window_end)
         for month_start, month_end in resolve_vat_months(
                 read_settle_state(ctx.session), ctx.today,
                 backfill_from=backfill_from):
+            ctx.note_progress(phase="vat", day=month_start)
             _sync_vat_month(ctx, month_start, month_end)
             ctx.stats["vat_month"] = month_start.strftime("%Y-%m")
     except SettleSyncQuotaAborted as exc:
@@ -827,9 +902,12 @@ def _sync_window(ctx: _SyncContext, window_start: date, window_end: date) -> Non
     _sync_settle_daily(ctx, window_start, window_end)
     for day in iter_days(window_start, window_end):
         if ctx.skip_day(day):
+            # 건너뛴 날도 분모에 들어 있다 — 안 세면 진행률이 100% 에 못 닿는다.
+            ctx.note_progress(day=day, advance=True)
             continue
         _sync_settle_case(ctx, day)
         _sync_settle_commission(ctx, day)
+        ctx.note_progress(day=day, advance=True)
     if not ctx.dry_run:
         # 창마다 커밋한다 — 중간에 멈춰도 여기까지 받은 것은 남는다.
         ctx.session.commit()

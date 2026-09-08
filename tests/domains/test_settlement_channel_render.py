@@ -76,7 +76,9 @@ _STATIC_ASSETS = (CSS_ASSET, JS_ASSET)
 #: (JS + CSS, 직전 핀 → 20260906a).
 #: 2026-09-06 CFO 백로그 3차 — 503 문구(F-02)·확정 구간 부제(B-01)·AMOUNT_DIFF 배지(D-03)·실무 탭 금액
 #: 두 원값 병기 CSS(D-03)(JS + CSS, 20260906a → 20260906b; 셸 4줄도 operations.js 변경으로 20260906b).
-_CHANNEL_PIN = "20260906b"
+#: 2026-09-08 동기화 진행 표시 — 워커가 남기는 진행을 2초마다 읽어 막대로 그린다
+#: (JS + CSS + 파셜 앵커, 20260906b → 20260908a; 셸 5줄 동반 이동).
+_CHANNEL_PIN = "20260908a"
 
 _CHANNEL_TAB_ID = "foms-settle-tab-channel"
 _CHANNEL_PANE_ID = "foms-settle-pane-channel"
@@ -1493,3 +1495,60 @@ def test_final_before_line_carries_the_correction_note():
             in source), "부제 리터럴이 계약과 다르다"
     assert re.search(r"\.foms-settle \.s-ch-sync-note\s*\{[^}]*flex-basis:\s*100%", css), (
         "CSS 에 s-ch-sync-note 가 없거나 줄바꿈 규칙이 없다")
+
+
+# --------------------------------------------------------------------------- #
+# 동기화 진행 표시 (2026-09-08)
+# --------------------------------------------------------------------------- #
+
+def test_progress_anchor_and_api_are_on_the_root(app):
+    """진행 조회 주소는 루트의 data 속성이 정본이다 — JS 리터럴이 유일 출처면 갈린다."""
+    html = _render(app)
+    assert 'data-settlement-ch-progress-api="/api/settlement/channel/sync/progress"' in html
+
+
+def test_sync_starts_progress_polling_next_to_the_rev_poll(app):
+    """요청 직후부터 진행을 읽는다. rev 폴링만 두면 60초 동안 화면이 아무 말도 못 한다."""
+    sync = _js_function("requestSync")
+    assert "startProgressPoll(ctx)" in sync, "요청 뒤 진행 폴링을 시작하지 않는다"
+    assert sync.find("startProgressPoll(ctx)") < sync.find("startRevPoll(ctx"), \
+        "진행 폴링이 rev 폴링보다 먼저 시작돼야 첫 2초가 안 비어 보인다"
+
+
+def test_progress_poll_is_stopped_with_the_rev_poll(app):
+    """폴링이 남으면 화면을 떠난 뒤에도 2초마다 서버를 두드린다."""
+    stop = _js_function("stopRevPoll")
+    assert "stopProgressPoll(ctx)" in stop
+    source = _read_code(f"static/{JS_ASSET}")
+    assert "window.clearTimeout(ctx.progressTimer);" in source, \
+        "스왑으로 떨어져 나간 루트의 진행 타이머를 정리하지 않는다"
+
+
+def test_failed_run_says_why_on_the_state_line(app):
+    """실패 사유를 진행 폴링이 말한다 — rev 는 실패해도 안 바뀌어 화면이 조용히 끝난다.
+
+    2026-09-08 실제로 이 구멍에 빠졌다: 운영 실행 28·29·30 이 전부 FAILED 였는데 화면은
+    "최대 1분간 반영을 확인합니다" 만 내고 조용히 끝나, 사용자는 같은 버튼을 계속 눌렀다.
+    """
+    poll = _js_function("startProgressPoll")
+    text = _js_function("syncFailureText")
+    assert "notice(ctx, syncFailureText(data), true)" in poll, "실패 사유가 상태줄로 안 간다"
+    assert "data.status !== 'OK'" in poll, "성공이 아닌 종료를 실패로 안 가른다"
+    assert "ABORTED_QUOTA" in text, "쿼터 중단을 실패와 같은 문장으로 말하면 안 된다"
+
+
+def test_progress_bar_width_goes_through_a_custom_property(app):
+    """폭은 인라인 style 이 아니라 커스텀 프로퍼티로 넘긴다(이 저장소의 규율)."""
+    node = _js_function("progressNode")
+    assert "setProperty('--s-ch-prog'" in node
+    assert ".style.width" not in node, "인라인 style 로 폭을 주면 안 된다"
+    css = _read(f"static/{CSS_ASSET}")
+    assert "--s-ch-prog" in css and ".s-ch-prog-fill" in css
+    assert "prefers-reduced-motion" in css, "움직임 축소 설정을 무시하면 안 된다"
+
+
+def test_progress_bar_is_indeterminate_when_the_denominator_is_unknown(app):
+    """분모를 모르면 퍼센트를 지어내지 않는다 — 없는 사실을 말하지 않는 이 화면의 규율."""
+    node = _js_function("progressNode")
+    assert "s-ch-prog--indeterminate" in node
+    assert "'워커가 시작하기를 기다리는 중입니다'" in node
