@@ -2,8 +2,12 @@
 
 주문 편집기에서 규격을 입력하는 사람이 네이버 원문을 다른 화면으로 오가며 보지 않도록,
 그 주문의 수집 원본을 편집 셸 옆에 나란히 보여준다. **폼 불가침 계약**: 이 모듈은 표시용
-데이터만 만들고 주문(items·spec_rows)은 절대 건드리지 않는다 — 값 전달은 사람이
-복사 버튼으로만 한다.
+데이터만 만들고 주문(items·spec_rows)은 절대 건드리지 않는다 — 서버는 DOM 을 모른다.
+
+값 전달(2026-09-08 담당자 요구로 결정 변경): 제품명·색상·손잡이·총폭 **4칸에 한해** 사람이
+칩을 눌러 그 칸에 넣는다. 서버가 하는 일은 칩마다 ``target`` 낱말을 다는 데까지고, 어느
+항목·어느 행에 넣을지와 덮어쓸지는 전부 화면이 정한다. 그 밖(예약금·금액·발송기한 같은
+돈 칸)은 **여전히 복사만** 한다 — 돈은 사람이 넣는다.
 
 본품/추가옵션 판정은 네이버 원본의 ``productClass`` 가 정본이다(실측 2026-08-14):
 ``조합형옵션상품`` = 본품, ``추가구성상품`` = 추가옵션. **귀속(어느 본품의 옵션인가)은
@@ -42,6 +46,17 @@ def _text(value: Any) -> str:
 #: ``서랍`` 같은 키의 값(``1800mm 이하``\ ·``1단(소)``)까지 깎으면 칩이 통째로 망가진다.
 PRODUCT_NAME_KEYS = frozenset({"제품", "제품명", "상품", "상품명", "품목"})
 
+#: 옵션 키 → 그 값이 들어갈 ERP 칸(칩의 ``target``). 없는 키는 복사 전용(``""``)이다.
+#: ``사이즈``\ ·``규격``\ ·``폭`` 은 **일부러 뺐다** — 그 값(``150``\ ·``180cm``)은 고객이 고른
+#: 모듈 폭이지 ERP 총폭이 아니다(총폭 = 모듈×수량 + 길이추가, 실사례 30cm×12 + 1cm×12 =
+#: 3,720mm). ``150`` 을 W 칸에 넣으면 2,220mm 를 잃는다 — 총폭 칩은 화면이 만든다.
+#: 오타·영문 변형을 함께 담는 것은 :data:`SIZE_OPTION_KEYS` 와 같은 급의 값싼 보험이다.
+COPY_TARGET_BY_KEY: dict[str, str] = {
+    **{key: "product_name" for key in PRODUCT_NAME_KEYS},
+    "컬러": "color", "색상": "color", "색깔": "color", "color": "color",
+    "손잡이": "handle", "핸들": "handle", "handle": "handle",
+}
+
 #: 제품명 뒤에 붙는 규격 토큰(``30cm``\ ·``2400mm``\ ·``2.4m``)부터 끝까지 — 여기서부터는
 #: 제품명이 아니라 규격·부가 설명이다.
 _PRODUCT_SPEC_TAIL_RE = re.compile(r"\s*\d+(?:\.\d+)?\s*(?:mm|cm|m)\b.*$", re.I)
@@ -74,14 +89,77 @@ def main_product_name(value: str) -> str:
     return trimmed or text
 
 
-def split_option_copies(option_text: str) -> list[str]:
-    """옵션 원문을 복사 칩 값 목록으로 쪼갠다.
+def _pair_chips(key_part: str, value_part: str) -> list[dict[str, str]]:
+    """옵션 한 그룹(``키: 값``)을 칩 목록으로 만든다.
 
-    ``"사이즈: 150 / 색상: 클린 화이트"`` → ``["150", "클린 화이트"]``.
-    콜론이 없는 조각은 통째로 하나의 칩이 된다. ``제품`` 처럼 값이 제품명인 키는
-    :func:`main_product_name` 으로 메인 제품명만 남긴다(규격·괄호 설명 제거) —
-    이 칩은 ERP 제품명 칸에 그대로 붙여 넣는 값이다. 파싱 실패해도 원문이 화면에
-    남으므로 칩은 편의 기능일 뿐이다(자동 기입 금지 — 스펙 확정 결정 3).
+    왜 전각으로 또 자르나: 네이버는 그룹을 반각 ``/`` 로, 그룹 안의 짝을 전각 ``／`` 로 낸다
+    (운영 실사례 ``사이즈 ／ 색상: 180cm ／ 클린 화이트``). 키 조각 수와 값 조각 수가 **같을
+    때만** 자리로 짝지어 칩을 따로 낸다 — 수가 다르면 어느 값이 어느 키의 것인지 알 수 없으니
+    오늘처럼 값 전체를 칩 하나로 둔다(:func:`size_option_mm` 이 이미 쓰는 규칙).
+    ``_PAIR_SEPARATOR`` 는 아래에 정의된다 — 호출 시점에 읽으므로 정의 순서는 상관없다.
+
+    Args:
+        key_part: 콜론 앞(키) 부분.
+        value_part: 콜론 뒤(값) 부분.
+
+    Returns:
+        ``[{"value", "target"}, ...]`` — 빈 값은 뺀다.
+    """
+    keys = [key.strip() for key in key_part.split(_PAIR_SEPARATOR)]
+    values = [value.strip() for value in value_part.split(_PAIR_SEPARATOR)]
+    if len(keys) != len(values):
+        keys, values = [key_part.strip()], [value_part.strip()]
+    chips: list[dict[str, str]] = []
+    for key, value in zip(keys, values):
+        if key in PRODUCT_NAME_KEYS:
+            value = main_product_name(value)
+        if value:
+            chips.append({
+                "value": value,
+                "target": COPY_TARGET_BY_KEY.get(key.lower(), ""),
+            })
+    return chips
+
+
+def option_copy_chips(option_text: str) -> list[dict[str, str]]:
+    """옵션 원문을 복사 칩 목록으로 쪼갠다 — 값과 **들어갈 칸**을 함께 낸다.
+
+    ``"제품: 로라 무몰딩 여닫이 30cm / 컬러: 클린 화이트"`` →
+    ``[{"value": "로라 무몰딩 여닫이", "target": "product_name"},
+    {"value": "클린 화이트", "target": "color"}]``.
+    콜론이 없는 조각은 통째로 칩 하나가 되고 ``target`` 은 빈 값이다(복사 전용).
+    ``제품`` 처럼 값이 제품명인 키는 :func:`main_product_name` 으로 메인 제품명만 남긴다.
+
+    ``target`` 은 :data:`COPY_TARGET_BY_KEY` 가 정한 낱말(``product_name`` · ``color`` ·
+    ``handle`` · 빈 값)까지다. 서버는 DOM 을 모른다 — 어느 항목·어느 행에 넣을지, 덮어쓸지는
+    화면이 정한다. ``spec_width`` 는 여기서 나오지 않는다(총폭 칩은 화면이 만든다).
+
+    Args:
+        option_text: 네이버 ``productOption`` 원문.
+
+    Returns:
+        ``[{"value", "target"}, ...]`` — 빈 값은 제외한다.
+    """
+    chips: list[dict[str, str]] = []
+    for segment in _text(option_text).split("/"):
+        segment = segment.strip()
+        if not segment:
+            continue
+        if ":" in segment:
+            key_part, value_part = segment.split(":", 1)
+            chips.extend(_pair_chips(key_part, value_part))
+        else:
+            chips.append({"value": segment, "target": ""})
+    return chips
+
+
+def split_option_copies(option_text: str) -> list[str]:
+    """칩 **값만** 필요한 옛 호출자를 위한 얇은 껍데기.
+
+    파서는 :func:`option_copy_chips` 한 벌뿐이다 — 두 벌로 만들면 값이 갈린다.
+    파싱에 실패해도 원문이 화면에 남으므로 칩은 편의 기능일 뿐이다. 다만 2026-09-08
+    담당자 요구로 제품명·색상·손잡이·총폭 4칸은 사람이 칩을 눌러 그 칸에 넣는다(그 밖의
+    돈 칸은 여전히 복사만) — 어느 칸인지는 :func:`option_copy_chips` 의 ``target`` 이 말한다.
 
     Args:
         option_text: 네이버 ``productOption`` 원문.
@@ -89,21 +167,7 @@ def split_option_copies(option_text: str) -> list[str]:
     Returns:
         복사 칩 값 목록(빈 값 제외).
     """
-    copies: list[str] = []
-    for segment in _text(option_text).split("/"):
-        segment = segment.strip()
-        if not segment:
-            continue
-        if ":" in segment:
-            key, raw_value = segment.split(":", 1)
-            value = raw_value.strip()
-            if key.strip() in PRODUCT_NAME_KEYS:
-                value = main_product_name(value)
-        else:
-            value = segment
-        if value:
-            copies.append(value)
-    return copies
+    return [chip["value"] for chip in option_copy_chips(option_text)]
 
 
 #: 원문에서 길이를 읽는다. ``30cm``·``2400mm``·``2.4m`` 를 모두 mm 로 환산한다.
@@ -260,7 +324,8 @@ def build_width_hint(main: dict[str, Any], addons: list[dict[str, Any]]) -> Opti
     """본품 + 길이추가 옵션으로 **총폭 후보**를 계산한다 (T14-I).
 
     CS 는 지금 이 계산을 손으로 한다: 30cm 모듈 12개 + 1cm 추가 12개 = 3,600 + 120 = 3,720.
-    자동 기입은 하지 않는다(규격 SSOT 보호) — 계산식과 복사 버튼까지가 이 기능의 끝이다.
+    2026-09-08 담당자 요구로 이 총폭은 화면의 확인창을 거쳐 W 칸에 **들어간다** — 계산 정본은
+    여전히 여기다. 서버는 ``spec_width`` target 을 내보내지 않는다(총폭 칩은 화면이 만든다).
 
     화면(``erp-naver-dock.js`` ``computeWidthHint``)이 **같은 등식을 지금 화면의 그룹으로**
     다시 센다. 이 함수는 그 계산의 정본이자 로드 시점 폴백(payload ``width_hints``)이고,
@@ -978,6 +1043,13 @@ def build_dock_payload(db: Any, order: Any, *,
             # 본품 = 옵션 원문 값들, 추가옵션 = 이름(+수량) 칩 하나.
             "copies": (split_option_copies(source["option_text"])
                        if not is_addon else ([name_chip] if name_chip else [])),
+            # 같은 칩을 target(들어갈 칸)까지 달아 한 번 더 싣는다. copies 를 dict 목록으로
+            # 바꾸지 않고 덧붙이는 이유: SW 가 staticCacheFirst 라 배포 직후 "옛 JS + 새
+            # payload" 창이 반드시 생기고, 그때 옛 JS 는 칩을 전부 [object Object] 로 그린다.
+            # 추가옵션 이름 칩은 `… ×3` 수량 꼬리가 붙은 구성 이름이라 ERP 제품명이 아니다.
+            "copy_chips": (option_copy_chips(source["option_text"])
+                           if not is_addon
+                           else ([{"value": name_chip, "target": ""}] if name_chip else [])),
             "checked": bool(state.get("checked")),
             "assigned_main": state.get("assigned_main"),
             "reviewed": link.reviewed_at is not None,
@@ -1109,9 +1181,11 @@ __all__ = [
     "SPEC_AXES",
     "build_dock_payload",
     "PRODUCT_NAME_KEYS",
+    "COPY_TARGET_BY_KEY",
     "build_width_hint",
     "size_option_mm",
     "main_product_name",
     "parse_length_mm",
+    "option_copy_chips",
     "split_option_copies",
 ]
