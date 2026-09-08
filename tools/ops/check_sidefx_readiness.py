@@ -54,8 +54,9 @@ def _parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(
         description="Domain side-effect worker readiness checker (fail-closed)."
     )
-    p.add_argument("--max-heartbeat-age", type=int, default=30,
-                   help="heartbeat 최대 신선도(초). 초과하거나 미존재면 not-ready.")
+    p.add_argument("--max-heartbeat-age", type=int, default=None,
+                   help="heartbeat 최대 신선도(초) — 주면 대상 kind 전부에 적용한다. "
+                        "생략하면 kind 별 등록부 예산(outbox 3종 30초).")
     p.add_argument("--max-oldest-pending-lag", type=int, default=60,
                    help="처리 가능한 가장 오래된 PENDING 최대 지연(초).")
     p.add_argument("--max-expiry-scan-lag", type=int, default=360,

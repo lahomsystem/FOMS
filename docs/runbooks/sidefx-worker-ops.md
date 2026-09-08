@@ -67,13 +67,22 @@ python tools/ops/check_sidefx_readiness.py --max-heartbeat-age 30 \
 `--kinds` 로 골라서 본다.
 
 ```
-python tools/ops/check_sidefx_readiness.py --kinds NAVER_AUTO_DISPATCH,GEOCODE_SWEEP
+python tools/ops/check_sidefx_readiness.py --kinds NAVER_AUTO_DISPATCH,GEOCODE_SWEEP,NOTIFICATION_ESCALATION,NAVER_ORDER_SYNC,NAVER_SETTLE_SYNC,RQ_WORKER
 ```
 
 | worker_kind | 쓰는 곳 | 신선도 예산 | 멎으면 무슨 일이 안 일어나나 |
 |---|---|---|---|
-| `NAVER_AUTO_DISPATCH` | `scripts/maintenance/run_naver_auto_dispatch.py --loop` (tick 60s) | 180초 | 평일 16:50 자동 발송처리가 조용히 안 나간다 |
-| `GEOCODE_SWEEP` | `scripts/maintenance/run_geocode_sweep.py --loop` (기본 interval 60s) | 180초 | 좌표 없는 주문이 지도에서 계속 빠진다 |
+| `NAVER_AUTO_DISPATCH` | `run_naver_auto_dispatch.py --loop` (tick 60s) | 180초 | 평일 16:50 자동 발송처리가 조용히 안 나간다 |
+| `GEOCODE_SWEEP` | `run_geocode_sweep.py --loop` (interval 60s) | 180초 | 좌표 없는 주문이 지도에서 계속 빠진다 |
+| `NOTIFICATION_ESCALATION` | `run_notification_escalation.py --loop` (interval 60s) | 180초 | 늦어진 긴급 알림이 아무에게도 안 올라간다 |
+| `NAVER_ORDER_SYNC` | `run_naver_order_sync.py --loop` (interval 300s) | 900초 | 스마트스토어 신규 주문이 FOMS 에 안 들어온다 |
+| `NAVER_SETTLE_SYNC` | `run_naver_settle_sync.py --loop` (tick 60s, 05:30 창) | 180초 | 정산 데이터가 갱신되지 않는다 |
+| `RQ_WORKER` | `tools/ops/run_rq_worker.py` (start.sh exec) | 900초 | 큐 소비가 멎는다 — 썸네일·지오코딩·푸시·채널톡 전부 |
+
+- `RQ_WORKER` 예산이 큰 이유: 놀고 있는 rq 워커는 `worker_ttl - 15` = 405초마다만
+  하트비트를 부른다(rq 기본값). 2주기 + 여유로 900초를 잡았다.
+- 루프 간격을 env 로 늘렸다면 `--max-heartbeat-age` 로 예산을 함께 올린다(주면 대상 kind
+  전부에 적용된다).
 
 - 예산이 outbox 3종(30초)과 다른 이유: 두 루프는 tick 이 60초라 30초 예산이면 살아 있는
   루프를 죽었다고 판정한다. 3틱(180초) 동안 소식이 없으면 죽은 것으로 본다.

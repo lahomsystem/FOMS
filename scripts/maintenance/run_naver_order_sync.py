@@ -17,6 +17,7 @@ HTTP 는 WORKER 한 곳에서만 나가야 한다. web 에서 실행하면 등�
 """
 import argparse
 import json
+import logging
 import os
 import sys
 import time
@@ -28,8 +29,15 @@ sys.path.append(
 )
 
 from app import app  # noqa: E402
-from db import get_db  # noqa: E402
+from db import engine, get_db  # noqa: E402
 from foms.services.integrations.naver_commerce.ingest import run_sweep  # noqa: E402
+from foms.services.loop_heartbeat import capture_exception, emit_heartbeat  # noqa: E402
+from foms.services.sidefx_worker import WORKER_KIND_NAVER_ORDER_SYNC  # noqa: E402
+
+_LOGGER = logging.getLogger("naver_order_sync")
+
+#: 이 루프의 heartbeat PK 값. 정본은 sidefx_worker 의 WORKER_KIND_SPECS 등록부다.
+HEARTBEAT_WORKER_KIND = WORKER_KIND_NAVER_ORDER_SYNC
 
 #: --loop 최소 간격(초). 이보다 촘촘하면 rate limit 만 소모한다.
 MIN_INTERVAL_SECONDS = 60
@@ -75,11 +83,24 @@ def _print_result(result: dict, as_json: bool) -> None:
     )
 
 
+def _heartbeat_metadata(result) -> dict:
+    """하트비트에 실을 집계값. 주문 식별자·고객 정보는 싣지 않는다(운영 감시용)."""
+    payload = result or {}
+    return {
+        "outcome": "ok" if result is not None else "sweep_failed",
+        "changed": int(payload.get("changed") or 0),
+        "candidates": int(payload.get("candidates") or 0),
+        "created": int(payload.get("created") or 0),
+        "pending_review": int(payload.get("pending_review") or 0),
+    }
+
+
 def _run_loop(interval: int, dry_run: bool, as_json: bool) -> int:
     """앱 1회 부팅 후 interval 간격 반복. 스윕 실패는 기록 후 계속(루프 생존)."""
     interval = max(MIN_INTERVAL_SECONDS, interval)
     print(f"[naver-sync-loop] started (interval={interval}s)", flush=True)
     while True:
+        result = None
         try:
             with app.app_context():
                 result = _sweep_once(dry_run)
@@ -88,6 +109,10 @@ def _run_loop(interval: int, dry_run: bool, as_json: bool) -> int:
             # 스윕 1회 실패가 루프를 죽이면 수집이 통째로 꺼진다(조용한 중단이 최악).
             print("[naver-sync-loop] sweep failed:", flush=True)
             traceback.print_exc()
+            capture_exception()
+        # 스윕이 터진 tick 도 하트비트를 남긴다 — "죽었다" 와 "이번 스윕만 실패" 를 가른다.
+        emit_heartbeat(engine, HEARTBEAT_WORKER_KIND,
+                       metadata=_heartbeat_metadata(result), logger=_LOGGER)
         time.sleep(interval)
 
 

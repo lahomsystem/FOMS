@@ -71,7 +71,11 @@ if [ "$USE_RQ_WORKER" = "1" ]; then
     python scripts/maintenance/run_geocode_sweep.py --loop \
       --interval "${FOMS_GEOCODE_SWEEP_INTERVAL_SECONDS:-60}" --json &
   fi
-  exec rq worker default --url "$REDIS_URL"
+  # 큐 소비 본체. `rq worker` CLI 를 그대로 쓰지 않는 이유는 하나다 — 그 프로세스가
+  # 자기 생존을 FOMS 감시 표(side_effect_worker_heartbeats)에 안 남겨서, 큐가 멎어도
+  # 표만 봐서는 알 수 없었다(2026-02 워커 offline). 러너는 rq 하트비트 자리에서
+  # RQ_WORKER 행을 함께 갱신할 뿐, 소비 동작은 rq 그대로다.
+  exec python tools/ops/run_rq_worker.py --url "$REDIS_URL" --queues default
 else
   exec gunicorn -k gevent -w 2 --timeout 120 --graceful-timeout 30 --keep-alive 5 --access-logfile - --bind "0.0.0.0:${PORT:-8080}" app:app
 fi
