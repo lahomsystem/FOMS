@@ -48,7 +48,7 @@
     "foms/persistence/designer/repositories.py:173",
     "foms/persistence/designer/repositories.py:211",
     "foms/persistence/designer/repositories.py:505",
-    "foms/platform/request_limits.py:175",
+    "foms/platform/request_limits.py:198",
     "foms/services/app_init.py:146",
     "foms/services/channel_client.py:309",
     "foms/services/channel_dispatch.py:56",
@@ -74,7 +74,7 @@
     "foms/services/jobs/tasks.py:640",
     "foms/services/jobs/tasks.py:684",
     "foms/services/jobs/tasks.py:690",
-    "foms/services/notifications/push_sender.py:377",
+    "foms/services/notifications/push_sender.py:380",
     "foms/web/orders/trash.py:147",
     "wdcalculator_db.py:179"
   ],
@@ -2863,7 +2863,7 @@
     },
     {
       "path": "foms/platform/request_limits.py",
-      "lineno": 175,
+      "lineno": 198,
       "handler_type": "base_exception",
       "disposition": "FAIL_CLOSED",
       "owner": "platform",
@@ -2872,7 +2872,7 @@
     },
     {
       "path": "foms/platform/request_limits.py",
-      "lineno": 181,
+      "lineno": 204,
       "handler_type": "broad_exception",
       "disposition": "INTENTIONAL",
       "owner": "platform",
@@ -4249,7 +4249,7 @@
     },
     {
       "path": "foms/services/notifications/push_sender.py",
-      "lineno": 303,
+      "lineno": 306,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "telemetry",
@@ -4258,7 +4258,7 @@
     },
     {
       "path": "foms/services/notifications/push_sender.py",
-      "lineno": 377,
+      "lineno": 380,
       "handler_type": "broad_exception",
       "disposition": "FAIL_CLOSED",
       "owner": "telemetry",
@@ -4267,7 +4267,7 @@
     },
     {
       "path": "foms/services/notifications/push_sender.py",
-      "lineno": 455,
+      "lineno": 458,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "telemetry",
@@ -4276,7 +4276,7 @@
     },
     {
       "path": "foms/services/notifications/push_sender.py",
-      "lineno": 509,
+      "lineno": 512,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "telemetry",
