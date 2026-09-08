@@ -1520,3 +1520,39 @@ $ python -m pytest tests/domains/test_geocode_sweep_heartbeat.py \
     tests/domains/test_sidefx_readiness_kinds.py -q
 63 passed, 1 warning in 8.97s
 ```
+
+### T17 스테이징 재확인 (재배포 후)
+
+```
+DELIVERY                 age=     8s  신고간격=None   (outbox 워커 — 하트비트 주기 10초 고정)
+EXPIRY_SCAN              age=     8s  신고간격=None
+RETENTION                age=     8s  신고간격=None
+NAVER_AUTO_DISPATCH      age=     5s  신고간격=60     ← T17 로 새로 신고
+NAVER_ORDER_SYNC         age=   245s  신고간격=1800
+NAVER_SETTLE_SYNC        age=     5s  신고간격=60
+NOTIFICATION_ESCALATION  age=     5s  신고간격=60
+RQ_WORKER                age=   251s  신고간격=405
+```
+
+`GEOCODE_SWEEP` 은 스테이징에 루프 스위치가 없어 행이 없다(정상). outbox 3종은 하트비트
+주기가 코드 상수(10초)로 고정이라 신고 축이 필요 없다 — 등록부 30초가 정본이다.
+
+## 후속 세션 2 최종 마감 (2026-09-08)
+
+| | |
+|---|---|
+| deploy | `c73c00c61` — 전 워크플로 green |
+| production | 이번 세션에서 건드리지 않았다 |
+| 처리 | F-9 · F-5 · F-6 · F-7 · F-18 (+ F-11 실사례 대응) |
+| 계약 | 63건, 변이 23종 전부 red 확인 |
+| 실측 | 스테이징 워커 기동·하트비트 8행·예산 오판 양성/음성 대조 |
+
+커밋: `328055bf0`(F-9) · `50107e891`(F-5/F-6) · `7d28a2892`(F-7·래칫·스모크) ·
+`1288e99b2`(간격 신고) · `c73c00c61`(F-18) + 인벤토리·원장 커밋.
+
+### 남은 사용자 판단 (그대로)
+
+1. `start.sh` exec 줄 변경의 production 승격 — 스테이징에서는 워커가 정상 기동했다.
+2. `SENTRY_DSN` 미설정(F-12) — 이번 Sentry 배선이 스테이징·운영에서 no-op.
+3. 하트비트 자동 조회 경로 없음(F-17) — 사람이 `--kinds` 로 불러야 읽힌다.
+4. 로그인 한도·잠금(T6) 승격 · 운영 AMBIGUOUS 924건 · F-1 · F-4.
