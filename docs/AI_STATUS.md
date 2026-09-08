@@ -1,7 +1,7 @@
 # FOMS 현재 상태
 > 자동 업데이트: 2026-09-08
-> 최신: **워커 사망 2건 운영 반영(2026-09-08, PR #313 · production `8c0d666f9`)** — ① Redis 가 운행 중 재기동하자 큐 소비자가 자멸했고 `exec` 로 PID 1 을 잡아 컨테이너째 죽었다(ON_FAILURE 는 정상 종료를 안 잡는다) → 감시 루프가 PID 1. ② rq fork 자식이 부모 DB 연결을 물려받아 **60초 넘는 잡이 전멸**(정산 동기화 run 28~30, `SSL bad record mac`) → 자식에서 `engine.dispose(close=False)`. 검증: run 31 이 61초 완주(파티션 135 전량)
-> 직전: **네이버 수집탭 문구 87곳 정리 + 도크 자동 입력 운영 반영(2026-09-08, PR #311 · production `1e3420244`)** — 화면이 짧게 말하고, 도크 칩 4짝이 ERP 칸에 바로 들어간다(돈 칸은 복사만)
+> 최신: **도면 마법사 이미지 첨부 복구 운영 반영(PR #315 · production `854f0377c`)** — ① standalone `wizard.html` 이 `csrf_bootstrap` 미include → 모든 mutation 403(map_view 유형 재발) ② REQUEST-LIMIT-01 미등재 라우트는 1 MiB → 1 MB 넘는 사진 413(업로드 5개 동시 사망). `multiple` 첨부·게이트 2개 동반
+> 직전: **워커 사망 2건 운영 반영(2026-09-08, PR #313 · production `8c0d666f9`)** — ① Redis 가 운행 중 재기동하자 큐 소비자가 자멸했고 `exec` 로 PID 1 을 잡아 컨테이너째 죽었다(ON_FAILURE 는 정상 종료를 안 잡는다) → 감시 루프가 PID 1. ② rq fork 자식이 부모 DB 연결을 물려받아 **60초 넘는 잡이 전멸**(정산 동기화 run 28~30, `SSL bad record mac`) → 자식에서 `engine.dispose(close=False)`. 검증: run 31 이 61초 완주(파티션 135 전량)
 > 이 파일 상단 40줄이 세션 시작 컨텍스트의 전부다(hygiene 계약으로 강제). 상세 이력은 "## 최근 완료"·"## 기록 보관".
 
 
@@ -10,6 +10,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
+- [2026-09-08] **도면 마법사 이미지 첨부·붙여넣기·여러 장(PR #315 · production `854f0377c`)** — CSRF 누락(403)+본문 캡 미등재(413) 이중 원인. 실제 Chromium 검증 전부 200
 - [2026-09-08] **정산 동기화 진행 표시 deploy(`0a7b33c5a`·`951cbc206`, 채널 핀 20260908a)** — 워커가 하루치마다 진행을 실행 행에 새기고(2초 조임·**별도 연결**이라 창 원자성 유지) `GET /api/settlement/channel/sync/progress` 를 화면이 2초마다 읽어 막대로 그린다. **실패 사유를 상태줄에 낸다**(rev 는 실패해도 안 바뀌어 지금까지 화면이 조용히 끝났다). 전체 다시 읽기 칩도 막대 동반. 잔여: CI green 확인 → 운영 승격
 - [2026-09-08] **워커 감시 축 운영 반영(PR #310 · production `5f0aecb58`)** — 루프 5종 + 큐 소비 본체가 하트비트를 남기고 준비 판정이 kind 등록부로 읽는다(`--kinds`). 각 루프가 tick 간격을 신고해 예산이 env 를 따라간다. `start.sh` 가 `run_rq_worker.py` 로 뜬다. 운영 하트비트 9종 READY. 그 판정이 outbox DEAD 1,344건을 드러내 소비자 미구현 `STAGE_NOTIFICATION` 을 막았다(알림 유실 아님, deploy `4d23c3277`). 원장 `docs/plans/2026-09-07-foms-now-ratchet-ledger.md`
 - [2026-09-08] **수집탭 문구 정리 + 도크 자동 입력 운영 반영(PR #311 · production `1e3420244`)** — 문구 87곳: 앞머리·훈수·재진술을 걷고 잠금 사유 5자리를 title → 본문 **승격**, 거짓이던 `새로고침하면` → `네이버 확정이 돌아오면`, 리뷰 P0 로 계약 배출구 문장 되살림, 핀 `?v=20260908a`. 도크: 칩 4짝만 칸에 넣는다(제품명·색상·손잡이·W총폭) — **돈 칸은 target 미부착 = 복사만**, 사이즈/규격/폭 키 제외(모듈 폭 ≠ 총폭), `copies` 유지 + `copy_chips` 덧붙이기(SW 옛 JS 창 방어), 숨겨진 항목엔 안 넣음(리뷰 P1), `상담` 은 빈 칸 취급. 추가결제 화면이 멀쩡한 원 주문을 취소하라고 말하던 것도 함께. 계획 `docs/plans/2026-09-08-naver-tab-copy-plan.md` · 계약 `docs/plans/2026-09-08-naver-dock-autofill-contract.md`
