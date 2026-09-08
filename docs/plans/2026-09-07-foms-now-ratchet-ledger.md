@@ -1833,3 +1833,33 @@ SIDEFX  triggers=[{branch: production, repository: lahomsystem/FOMS}]
 
 남은 검증: **다음 production 머지 때 SIDEFX 가 자동으로 뜨는지** 확인해야 트리거가 실제로
 작동한다는 증거가 된다(지금은 설정만 맞춘 상태).
+
+### 최종 증명 — 실환경 end-to-end
+
+```
+쪽지 #2469  STAGE_NOTIFICATION  status=DONE  attempts=1  created=2026-09-08 06:51:55
+```
+
+정리 이후 처음 생긴 단계 전이 쪽지가 **시도 1회에 DONE** 으로 끝났다. 이전에는 같은 쪽지가
+10회 재시도 끝에 DEAD 였다. 운영에서 새 handler 가 실제로 돈다는 직접 증거다.
+
+## 후속 세션 2 최종 마감 v2 (2026-09-08)
+
+| | |
+|---|---|
+| deploy | 워커 감시 축·간격 신고·단계 전이 handler·런북 (전 워크플로 green) |
+| production | `f17b047ac` — PR #310(워커 감시 축) · PR #314(단계 전이 handler) |
+| 운영 판정 | `check_sidefx_readiness` **READY failures=0** (DEAD 0, 첫 초록불) |
+| 운영 하트비트 | 9종 전부 기록 중 |
+| 인프라 | SIDEFX 에 production 브랜치 트리거 연결(6일간 배포 사각) |
+
+처리한 후속: F-5 · F-6 · F-7 · F-9 · F-11(실사례) · F-18 · F-19 · F-20 · F-21.
+
+### 남은 것
+
+| # | 항목 | 상태 |
+|---|---|---|
+| F-12 | `SENTRY_DSN` 미설정 — Sentry 배선 4곳이 no-op | 사용자 판단 |
+| F-17 | 하트비트 자동 조회 경로 없음(사람이 `--kinds` 로 불러야 읽힌다) | 사용자 판단 |
+| F-21b | 트리거가 실제로 작동하는지는 **다음 production 머지 때 확인** | 관측 대기 |
+| T6 | 로그인 한도·잠금 승격 · 운영 AMBIGUOUS 924건 · F-1 · F-4 | 사용자 판단 |
