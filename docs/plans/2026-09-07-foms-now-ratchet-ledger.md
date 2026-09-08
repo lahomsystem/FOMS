@@ -1695,3 +1695,58 @@ MUT27 두 handler 를 같은 함수로 별칭       2 failed, 4 passed
 | # | 항목 | 필요한 것 |
 |---|---|---|
 | F-20 | 기존 DEAD 1,344행이 2027-01-30 까지 남아 기본 판정을 빨갛게 고정 | 운영 쓰기라 승인 필요 — 정리할지, 만료를 기다릴지 |
+
+## T21. F-19 운영 반영 + F-20 정리 착수 (사용자 결정 "지금 지워서 초록불로")
+
+- 순서를 지켰다: **① 그만 쌓이게 하는 수정을 먼저 운영에** → ② 이미 죽은 행 정리.
+  반대로 하면 며칠 만에 다시 빨간불이 된다(하루 약 6건).
+- ① PR #314 머지 → production `f17b047ac`. 검사 4개 SUCCESS. 승격 브랜치에서 APP_OK ·
+  계약 6건 · pre_push_smoke PASSED. 충돌은 원장 문서 1건(코드 충돌 0).
+- **SIDEFX 는 web·worker 와 별도 서비스다**(09-02 함정). 머지 직후 로그에는 여전히
+  `NoHandlerError STAGE_NOTIFICATION` 이 찍혔다 — 배포가 끝나기 전이었다.
+- ② 정리 도구는 **새로 만들지 않았다**. `tools/ops/purge_domain_side_effect_outbox.py` 가
+  이미 dry-run 기본·ID 멤버십 삭제·PENDING/PROCESSING 구조적 제외·advisory lock·배치 커밋
+  재개를 갖췄다. `--dead-retention-days 0 --done-retention-days 99999` 로 DEAD 만 겨눈다.
+
+### 운영 dry-run (아무것도 안 지움)
+
+```
+[purge_domain_side_effect_outbox] mode=dry-run done_retention_days=99999 dead_retention_days=0
+  scanned_done=0 scanned_dead=1345 deleted_done=0 deleted_dead=0 batches=0 elapsed=2.0s
+```
+
+`scanned_done=0` — 정상 처리된 쪽지는 한 건도 대상이 아니다.
+
+### 새 handler 가 실제로 붙었는지 판정하는 방법
+
+행 `#2436`(시도 9회, 다음 시도 05:45:43)이 **DONE 이면 새 코드**, DEAD 면 아직 옛 코드다.
+로그 문자열이 아니라 이 전이로 판정한다.
+
+### 판정 결과 — SIDEFX 는 9월 2일 코드로 멈춰 있었다 (F-21, 이번 세션 최대 발견)
+
+행 `#2436` 이 **DEAD(시도 10, NoHandlerError)** 로 끝났다. 로그 문자열이 아니라 DB 전이로
+판정했다. 이어서 빌드 로그를 보니 이유가 나왔다:
+
+```
+$ railway logs --build   (service=SIDEFX, project=FOMS-PRODUCTION)
+org.opencontainers.image.created: 2026-09-02T00:44:55Z
+```
+
+**SIDEFX 서비스는 2026-09-02 이후 한 번도 다시 빌드되지 않았다.** production 브랜치에
+머지해도 이 서비스는 자동 배포되지 않는다(web·WORKER 는 된다). 컨테이너도 그때 뜬
+프로세스 그대로다(`owner=9ba6258b9cdc`, 재시작 흔적 없음).
+
+이것이 뜻하는 바:
+
+* 오늘 올린 `STAGE_NOTIFICATION` 수정(PR #314)이 **운영에서 안 돈다**.
+* 오늘 올린 F-7(SIDEFX 워커 Sentry 배선, PR #310)도 **안 돈다** — 같은 프로세스 몫이다.
+* 9월 2일 수정이 반영된 건 그때 수동 배포를 했기 때문이다.
+* 즉 **outbox 워커 쪽은 고쳐도 운영에 안 붙는 경로**였다. F-19 보다 이쪽이 크다.
+
+CLI 로는 못 고친다: `railway redeploy` 는 같은 커밋(9월 2일 이미지)을 다시 돌리고,
+`railway up` 은 로컬 폴더를 업로드해 커밋 이력과 어긋난다. 대시보드에서 최신 커밋 배포가
+필요하다(사용자 진행 중).
+
+| # | 항목 | 필요한 것 |
+|---|---|---|
+| F-21 | SIDEFX 서비스가 production 푸시로 자동 배포되지 않는다 | 서비스 설정(감시 경로·브랜치 연결·CI 대기)을 조사해 근본 원인을 찾고, 안 되면 배포 절차 문서에 "SIDEFX 는 수동 배포" 를 못박아야 한다. **지금까지 이 사실이 어디에도 안 적혀 있었다** |
