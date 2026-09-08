@@ -1805,3 +1805,31 @@ outbox 상태별: DONE 944 · PENDING 119   (DEAD 0)
 **기본 판정이 처음으로 초록불이다.** 이제 dead_count 가 다시 오르면 그건 진짜 배달 실패다.
 
 남은 증명 1건: 다음 단계 전이 쪽지가 DONE 으로 끝나는지(옛 코드면 DEAD). 감시 중.
+
+## T23. F-21 근본 수정 — SIDEFX 에 브랜치 트리거가 없었다
+
+원인은 "자동 배포가 안 된다" 가 아니라 **연결이 처음부터 없었다** 였다.
+
+```
+web        triggers=[{branch: production, repository: lahomsystem/FOMS}]
+WORKER     triggers=[{branch: production, repository: lahomsystem/FOMS}]
+FOMS-cron  triggers=[{branch: production, repository: lahomsystem/FOMS}]
+SIDEFX     triggers=[]        ← 아무것도 없었다
+```
+
+조치: `serviceConnect(id, {repo:"lahomsystem/FOMS", branch:"production"})` 로 연결.
+(`deploymentTriggerCreate` 는 400 "Problem processing request" 로 거부됐다.)
+
+연결 후 확인 — 네 서비스가 같은 모양이 됐고, **SIDEFX 시작 명령이 그대로인지도 확인했다**
+(연결이 설정을 덮어쓰면 web 명령으로 뜰 수 있다):
+
+```
+SIDEFX  triggers=[{branch: production, repository: lahomsystem/FOMS}]
+        start=python tools/ops/run_domain_side_effect_outbox.py --loop --interval 5 ...
+```
+
+런북 `docs/runbooks/sidefx-worker-ops.md` 에 "배포(필독)" 절 신설 — Redeploy 함정·GraphQL
+강제 배포·`meta.commitHash` 로 판정·User-Agent 403 을 모두 적었다.
+
+남은 검증: **다음 production 머지 때 SIDEFX 가 자동으로 뜨는지** 확인해야 트리거가 실제로
+작동한다는 증거가 된다(지금은 설정만 맞춘 상태).

@@ -97,6 +97,25 @@ python tools/ops/check_sidefx_readiness.py --kinds NAVER_AUTO_DISPATCH,GEOCODE_S
 - 자동 조회는 아직 없다(운영 DB 자격증명이 GitHub 에 없다 — 드리프트 감사처럼 admin HTTP
   경로가 생겨야 매일 자동으로 볼 수 있다).
 
+## 배포 (필독 — 2026-09-08 실측)
+
+**이 서비스는 web·WORKER 와 따로 배포된다.** 그리고 2026-09-08 까지 **저장소 브랜치 트리거가
+아예 없었다** — production 에 머지해도 SIDEFX 는 영원히 안 떴다. 9월 2일 코드가 6일간 그대로
+돌았고, 그 사이 올린 outbox 관련 수정은 저장소에만 있었다.
+
+* 원인: 서비스 생성 시 repo trigger 미연결(web·WORKER·FOMS-cron 은 `branch=production` 트리거
+  보유, SIDEFX 만 `triggers=[]`). 2026-09-08 에 `serviceConnect(repo, branch=production)` 로 연결.
+* **대시보드 `Redeploy` 로는 새 코드가 안 올라간다** — 직전 배포와 **같은 커밋**을 다시 실행한다
+  (2026-09-08 실측: Redeploy 결과 sha 가 9월 2일 커밋 그대로).
+* 최신 커밋 강제 배포(CLI 에 명령 없음, GraphQL)::
+
+      mutation { serviceInstanceDeploy(serviceId:"<svc>", environmentId:"<env>", latestCommit:true) }
+
+  토큰은 `~/.railway/config.json` 의 `user.token` 을 `Authorization: Bearer` 로 보내되
+  **`User-Agent: railwayapp/<ver>` 헤더를 반드시 넣는다**(없으면 403).
+* **판정은 로그 문구가 아니라 배포의 `meta.commitHash`** 로 한다. 컨테이너가 재기동돼도 커밋이
+  같으면 옛 코드다.
+
 ## 장애 대응
 
 | 증상 | 원인 후보 | 조치 |
