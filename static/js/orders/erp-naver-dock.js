@@ -412,6 +412,61 @@
      * 이 안내가 화면에 남아 있어야 한다.
      * @returns {Element|null} 카드(그릴 근거가 없으면 null — 옛 payload 포함).
      */
+    /**
+     * 예약금 칸의 지금 값이 넣어야 할 금액과 같은가 (2026-09-09 담당자 지적).
+     *
+     * **왜 필요한가.** 돈은 사람이 넣는다(확정된 결정). 그런데 안 넣었을 때 아무도 몰랐다 —
+     * 실사례로 예약금이 옛 값 1,093,100원으로 남으면 잔금이 4,650원 틀리고, 그 오차는
+     * 조용하다. 화면이 대조해 주면 넣은 사람은 ✓ 를 보고 끝내고, 안 넣은 사람은 경고를 본다.
+     *
+     * 쉼표·`원`·공백을 걷고 **숫자만** 견준다 — 칸은 `1,088,450` 처럼 쉼표를 달고 산다.
+     * 빈 칸은 `differs` 다(0원이 아니라 '아직 안 넣었다'). 숫자를 못 읽으면 `unknown` —
+     * 모르면 경고하지 않는다(자유 입력 칸에 사람이 적어 둔 글자를 틀렸다고 말하지 않는다).
+     * @param {*} currentText 예약금 칸의 지금 글자.
+     * @param {*} target 넣어야 할 금액.
+     * @returns {string} `match` · `differs` · `unknown`.
+     */
+    function dockDepositMatch(currentText, target) {
+        var want = Number(target);
+        if (!isFinite(want) || want <= 0) return 'unknown';
+        var text = String(currentText === undefined || currentText === null ? '' : currentText).trim();
+        if (text === '') return 'differs';
+        var digits = text.replace(/[,\s원]/g, '');
+        if (!/^-?\d+$/.test(digits)) return 'unknown';
+        return Number(digits) === want ? 'match' : 'differs';
+    }
+
+    /**
+     * 예약금 칸 — `data-erp` 계약만 읽는다(폼 id 무참조).
+     * @param {Node} root 조회 기준.
+     * @returns {?Element} 칸(없으면 null).
+     */
+    function erpDepositField(root) {
+        if (!root || !root.querySelector) return null;
+        return root.querySelector('[data-erp="deposit_amount"]');
+    }
+
+    /**
+     * 예약금 대조 줄을 지금 값으로 다시 쓴다. 렌더 뒤와 사람이 칸을 고칠 때마다 부른다.
+     * @returns {void}
+     */
+    function syncDepositMatch() {
+        var hint = state && state.depositHint;
+        if (!hint) return;
+        var field = erpDepositField(document);
+        var verdict = dockDepositMatch(field && field.value, hint.target);
+        Array.prototype.forEach.call(
+            document.querySelectorAll('.naver-dock-deposit-state'), function (node) {
+                node.classList.toggle('is-match', verdict === 'match');
+                node.classList.toggle('is-differs', verdict === 'differs');
+                node.hidden = verdict === 'unknown';
+                node.textContent = verdict === 'match'
+                    ? '✓ 예약금 칸이 이 금액과 같습니다'
+                    : '⚠ 예약금 칸이 아직 다릅니다 — 지금 '
+                      + ((field && String(field.value).trim()) || '(비어 있음)');
+            });
+    }
+
     function buildDepositCard() {
         var hint = state.depositHint;
         if (!hint || hint.state !== 'differs' || !hint.sentence) return null;
@@ -424,6 +479,8 @@
             card.appendChild(el('div', 'naver-dock-deposit-won', hint.target_display));
         }
         card.appendChild(el('div', 'naver-dock-deposit-say', hint.sentence));
+        // 넣었는지 안 넣었는지를 화면이 대신 세어 준다 — 글자는 `syncDepositMatch` 가 쓴다.
+        card.appendChild(el('div', 'naver-dock-deposit-state', ''));
         if (hint.note) {
             card.appendChild(el('div', 'naver-dock-deposit-note', hint.note));
         }
@@ -711,6 +768,8 @@
             mount.appendChild(buildPanel(mount.getAttribute('data-naver-dock-mount') === 'drawer'));
         });
         syncStatus();
+        // 대조 줄은 렌더 직후 한 번 채운다 — 빈 줄이 먼저 보이면 '아무 말 없음'으로 읽힌다.
+        syncDepositMatch();
     }
 
     function syncStatus() {
@@ -1164,6 +1223,16 @@
     document.addEventListener('focusin', function (event) {
         var row = event.target.closest && event.target.closest('.erp-item-row');
         if (row) lastItemRow = row;
+    });
+
+    // 예약금을 고치는 순간 대조 줄이 따라간다 — 사람이 넣고 나서 ✓ 를 봐야 끝난 줄 안다.
+    // `input` 과 `change` 를 둘 다 듣는 이유: 폼이 값을 주입할 때는 `change` 만 오고,
+    // 사람이 타이핑할 때는 `input` 이 온다(쉼표 포맷터도 여기에 얹혀 있다).
+    ['input', 'change'].forEach(function (name) {
+        document.addEventListener(name, function (event) {
+            var field = event.target.closest && event.target.closest('[data-erp="deposit_amount"]');
+            if (field) syncDepositMatch();
+        });
     });
 
     /**

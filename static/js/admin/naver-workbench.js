@@ -2303,6 +2303,21 @@
     }
 
     /**
+     * 살아 있는 옛 결제 한 줄 — `2026090362157171(7건 · 1,156,500원)`.
+     *
+     * 실행 **전** i 칸이 쓰는 모양과 같다(pane 템플릿). 두 자리가 다른 모양이면 같은
+     * 결제가 두 번 다르게 읽힌다.
+     * @param {Object} row 살아 있는 옛 결제 한 건.
+     * @returns {string} 사람이 읽는 한 줄.
+     */
+    function originAliveText(row) {
+        var no = (row && row.external_order_no) || '';
+        var count = Number((row && row.product_order_count) || 0);
+        var amount = Number((row && row.amount_total) || 0);
+        return no + '(' + count + '건 · ' + amount.toLocaleString('ko-KR') + '원)';
+    }
+
+    /**
      * 실행 결과를 카드 안에 쓴다. 새로고침으로 바로 넘기지 않는 이유는 **예약금에 넣을
      * 금액** 때문이다 — 시스템이 넣지 않으므로 사람이 그 숫자를 읽고 주문 화면에 옮겨
      * 적어야 한다. 새로고침이 먼저 오면 그 숫자가 사라진다.
@@ -2325,6 +2340,36 @@
             ? '✓ 취소 처리 완료 — 주문 #' + data.order_id + ' 이 휴지통으로 갔습니다'
             : '✓ 붙이기 완료 — 주문 #' + data.order_id + ' 에 ' + data.attached + '건';
         done.appendChild(title);
+
+        // 남은 일을 **여기서** 센다(2026-09-09 담당자 지적). 예전에는 옛 결제를 취소·반품
+        // 하라는 말이 실행 **전** 카드(i 칸)에만 있어서, 성공 화면을 읽고 닫은 담당자가
+        // 환불을 통째로 빠뜨렸다. 재결제는 돈이 두 번 움직인다 — 옛 결제를 환불하고 새
+        // 결제를 받는다. 화면이 그 둘을 한자리에서 세지 않으면 한쪽이 조용히 남는다.
+        var todos = [];
+        if (Array.isArray(data.origin_alive) && data.origin_alive.length) {
+            todos.push('옛 결제 취소·반품 — '
+                + data.origin_alive.map(originAliveText).join(', ')
+                + ' (위 관계 줄에서 옛 주문 열기)');
+        }
+        if (data.deposit) {
+            todos.push('예약금을 '
+                + Number(data.deposit.target).toLocaleString('ko-KR')
+                + '원으로 넣기 — 시스템이 넣지 않습니다');
+        }
+        if (todos.length) {
+            var head = document.createElement('div');
+            head.className = 'wb-plan__h';
+            head.textContent = '남은 일 ' + todos.length + '개';
+            done.appendChild(head);
+            var list = document.createElement('ol');
+            list.className = 'wb-plan__todo';
+            todos.forEach(function (text) {
+                var item = document.createElement('li');
+                item.textContent = text;
+                list.appendChild(item);
+            });
+            done.appendChild(list);
+        }
 
         if (data.deposit) {
             var money = document.createElement('div');
@@ -2668,7 +2713,11 @@
         watchOriginAct(id, result.data && result.data.rev, label, {
             selector: selector,
             errAt: result.data && result.data.err_at,
-            doneText: '승인 보냄 — 네이버 확정이 돌아오면 정리 실행이 열립니다'
+            // 2026-09-09 담당자 지적: 계획 카드는 `정리한 뒤 옛 주문을 반품하세요` 라고
+            // 말하는데 이 문장은 `정리 실행이 열립니다` 라고 말했다 — 카드 지시대로 정리를
+            // 먼저 한 사람에게는 뜻이 없는 말이다(이미 열렸고 이미 눌렀다). 그래서 순서를
+            // 전제하지 않는 사실만 말한다: 네이버가 확정하면 상태가 바뀐다.
+            doneText: label + ' 보냄 — 네이버가 확정하면 화면 상태가 바뀝니다'
         });
     }
 

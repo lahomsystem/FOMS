@@ -288,6 +288,9 @@ def test_dock_js_never_touches_the_order_form():
         "erpNaverDockDrawer",
         ".erp-naver-dock-fab-badge",
         ".erp-naver-dock-mount",
+        # 예약금 대조 줄(2026-09-09). 도크가 **자기 카드 안에** 만든 노드다 — 두 마운트
+        # (넓은 셸 pane · 좁은 셸 drawer)에 같은 줄이 서므로 문서 전역으로 찾는다.
+        ".naver-dock-deposit-state",
     }
     looked_up = {
         match[1] for match in

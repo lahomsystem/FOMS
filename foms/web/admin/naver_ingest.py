@@ -5547,6 +5547,13 @@ def naver_ingest_repay_reconcile(link_id: int):
                              "attached": result["attached"],
                              "discarded": result["discarded"],
                              "deposit": deposit,
+                             # 정리 성공 화면이 **남은 일**을 말하려면 살아 있는 옛 결제가
+                             # 필요하다(2026-09-09 담당자 지적). 예전에는 이 사실이 실행
+                             # **전** 카드에만 있어서, 성공 화면을 읽고 닫은 담당자가 환불을
+                             # 통째로 빠뜨렸다. 값은 후보가 이미 세어 둔 것 그대로다 —
+                             # 여기서 다시 세지 않는다(두 벌이 되면 숫자가 갈린다).
+                             "origin_alive": (candidate.get("naver_alive_rows") or []
+                                              ) if result["fork"] == "SUCCEED" else [],
                              "edit_url": url_for("order_edit.edit_order",
                                                  order_id=int(order_id), open="erp-order")},
                     "error": None})
