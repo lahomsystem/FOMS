@@ -30,6 +30,7 @@ from foms.services.erp_display import (
     _drawing_status_label,
     _drawing_next_action_text,
     _normalize_date_to_yyyymmdd,
+    manager_display_name,
 )
 from foms.services.erp_product_items import build_product_items_for_order
 from foms.services.notifications.drawing_order_change import (
@@ -455,7 +456,7 @@ def erp_drawing_workbench_dashboard():
             continue
 
         customer_name = (((sd.get('parties') or {}).get('customer') or {}).get('name')) or '-'
-        manager_name = (((sd.get('parties') or {}).get('manager') or {}).get('name')) or '-'
+        manager_name = manager_display_name(sd.get('parties')) or '-'
         drawing_files = list(sd.get('drawing_current_files', []) or [])
         # 전달 대기 도면(마법사 저장분): structured_data['drawing_wizard']['pending'] 길이.
         # 이미 로드된 sd 에서 계산(추가 쿼리 없음). 작업실 일괄 전송 UI의 행 배지/판별 소스.
@@ -897,7 +898,7 @@ def erp_drawing_workbench_detail(order_id):
     can_cancel_transfer = bool(can_cancel_transfer and is_transfer_authorized_team)
 
     customer_name = (((s_data.get('parties') or {}).get('customer') or {}).get('name')) or '-'
-    manager_name = (((s_data.get('parties') or {}).get('manager') or {}).get('name')) or (order.manager_name or '-') or '-'
+    manager_name = manager_display_name(s_data.get('parties')) or (order.manager_name or '-') or '-'
     users_by_id = {
         u.id: u for u in db.query(User).filter(User.id.in_(draw_assignee_ids)).all()  # perf-ok
     } if draw_assignee_ids else {}

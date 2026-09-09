@@ -184,6 +184,7 @@
   #as-dashboard-table col[data-col-key="workers"] { width: 120px; }
   #as-dashboard-table col[data-col-key="customer"] { width: 126px; }
   #as-dashboard-table col[data-col-key="address"] { width: 264px; }
+  #as-dashboard-table col[data-col-key="sales_delivery"] { width: 268px; }
   #as-dashboard-table col[data-col-key="attach"] { width: 62px; }
   #as-dashboard-table col[data-col-key="blueprint"] { width: 54px; }
   #as-dashboard-table col[data-col-key="content"] { width: 420px; }
@@ -1581,4 +1582,629 @@
 
 .erp-as-move__x:hover {
   border-color: #6d28d9;
+}
+
+/* ══ AS 영업 전달 배정(전달 배정 열 · 요약 pill · 모달) ═══════════════════════
+   스펙: docs/specs/2026-09-09-as-sales-delivery-measurement-assignment-design.md §6.1·§7.
+   목업(Claude Design "AS 전달 배정 화면")의 인라인 값을 그대로 옮긴 클래스 체계다 —
+   템플릿·매크로에는 style= 을 하나도 두지 않는다(프로젝트 규약: 인라인 스타일 금지).
+   색은 목업 팔레트 고정값: 배정 #4a55b8/#f3f4ff, 전달완료 #059669/#D1FAE5,
+   택배 #4b525d/#eef0f3, 미배정·경고 #D97706/#FEF3C7, drift #DC2626/#EF4444. */
+
+.erp-as-sd-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.erp-as-sd-summary__pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid transparent;
+  border-radius: 9999px;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.erp-as-sd-summary__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 9999px;
+  background: currentColor;
+}
+
+.erp-as-sd-summary__value {
+  font-weight: 800;
+}
+
+.erp-as-sd-summary__pill--unassigned {
+  background: #fef3c7;
+  color: #d97706;
+}
+
+.erp-as-sd-summary__pill--assigned {
+  background: #f3f4ff;
+  color: #4a55b8;
+}
+
+.erp-as-sd-summary__pill--delivered {
+  background: #d1fae5;
+  color: #059669;
+}
+
+.erp-as-sd-summary__pill--parcel {
+  background: #eef0f3;
+  border-color: #dde1e6;
+  color: #4b525d;
+}
+
+/* 실측일이 바뀐 전달 건 경고 띠(목업 Main 5). 배너가 아니라 얇은 띠다 —
+   조치 버튼은 행 셀이 소유하고 여기서는 "몇 건인지"만 알린다. */
+.erp-as-sd-driftbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 10px 14px;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  background: #fee2e2;
+  color: #dc2626;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+/* ── 전달 배정 셀 ─────────────────────────────────────────────────────────── */
+.erp-as-sd-td {
+  vertical-align: middle;
+}
+
+.erp-as-sd-cell {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.erp-as-sd-cell__sub {
+  flex: 0 0 100%;
+  color: #6b7380;
+  font-size: 0.75rem;
+  line-height: 1.35;
+}
+
+.erp-as-sd-cell__icons {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* 무음 실패 금지 — 실패/성공 문구는 .alert(5초 자동 닫힘) 말고 이 자리에도 남는다. */
+.erp-as-sd-cell__msg:empty {
+  display: none;
+}
+
+.erp-as-sd-cell__msg {
+  flex: 0 0 100%;
+  color: #b45309;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.erp-as-sd-cell__msg.is-error {
+  color: #dc2626;
+  font-weight: 600;
+}
+
+.erp-as-sd-cell__msg.is-ok {
+  color: #059669;
+}
+
+.erp-as-sd-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid #2563eb;
+  border-radius: 8px;
+  background: #fff;
+  color: #2563eb;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.erp-as-sd-btn:hover:not(:disabled) {
+  background: #eff6ff;
+}
+
+.erp-as-sd-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.erp-as-sd-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 5px 10px;
+  border: 1px solid #dde1e6;
+  border-radius: 9999px;
+  background: #f3f4ff;
+  color: #14171c;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.erp-as-sd-chip--parcel {
+  background: #eef0f3;
+  color: #4b525d;
+}
+
+.erp-as-sd-chip__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+  background: #3b82f6;
+}
+
+.erp-as-sd-chip__when {
+  color: #4b525d;
+}
+
+.erp-as-sd-chip__old {
+  color: #6b7380;
+}
+
+.erp-as-sd-chip__arrow {
+  color: #dc2626;
+  font-weight: 800;
+}
+
+.erp-as-sd-chip__new,
+.erp-as-sd-chip__gone {
+  color: #dc2626;
+  font-weight: 800;
+}
+
+/* drift 는 칩을 감싸는 빨강 테두리로 낸다(목업 Main 6 - #4712 행). */
+.erp-as-sd-cell--drift .erp-as-sd-chip {
+  border: 1.5px solid #ef4444;
+  background: #fff5f5;
+}
+
+.erp-as-sd-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  background: #d1fae5;
+  color: #059669;
+  font-size: 0.75rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.erp-as-sd-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid #c1c7d0;
+  border-radius: 6px;
+  background: #fff;
+  color: #6b7380;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.erp-as-sd-icon:hover:not(:disabled) {
+  border-color: #2563eb;
+  color: #2563eb;
+}
+
+.erp-as-sd-icon:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.erp-as-sd-icon--go:hover:not(:disabled) {
+  border-color: #059669;
+  color: #059669;
+}
+
+.erp-as-sd-drift-actions {
+  display: inline-flex;
+  flex: 0 0 100%;
+  align-items: center;
+  gap: 6px;
+}
+
+.erp-as-sd-mini {
+  padding: 4px 8px;
+  border: 1px solid #c1c7d0;
+  border-radius: 6px;
+  background: #fff;
+  color: #4b525d;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.erp-as-sd-mini--primary {
+  border-color: #2563eb;
+  color: #2563eb;
+}
+
+.erp-as-sd-mini:hover:not(:disabled) {
+  filter: brightness(0.97);
+}
+
+.erp-as-sd-mini:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* 모바일 카드(v2) 전달 줄 — PC 와 같은 매크로라 클래스만 감싼다. */
+.erp-as-mobile-card__sd {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 12px;
+}
+
+.erp-as-mobile-card__sd-label {
+  flex: 0 0 auto;
+  color: #6b7380;
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1.9;
+}
+
+/* ── 배정 모달 ───────────────────────────────────────────────────────────── */
+.erp-as-sd-modal__titlewrap {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.erp-as-sd-modal__subtitle {
+  color: #4b525d;
+  font-size: 0.875rem;
+}
+
+.erp-as-sd-modal__addr {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border: 1px solid #dde1e6;
+  border-radius: 8px;
+  background: #f7f8fa;
+  font-size: 0.875rem;
+}
+
+.erp-as-sd-modal__pin {
+  color: #ef4444;
+}
+
+.erp-as-sd-modal__addr-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: #14171c;
+}
+
+.erp-as-sd-modal__radius {
+  flex: 0 0 auto;
+  padding: 3px 8px;
+  border-radius: 9999px;
+  background: #eef0f3;
+  color: #4b525d;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.erp-as-sd-modal__radius:empty {
+  display: none;
+}
+
+.erp-as-sd-modal__tabs {
+  margin: 12px 0 8px;
+}
+
+.erp-as-sd-modal__list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 120px;
+}
+
+.erp-as-sd-cand {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 9px 12px;
+  border: 1px solid #dde1e6;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.erp-as-sd-cand--top {
+  border: 2px solid #5a67d8;
+  box-shadow: 0 1px 3px rgba(15, 17, 21, 0.06);
+}
+
+.erp-as-sd-cand__main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.erp-as-sd-cand__date {
+  flex: 0 0 66px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.erp-as-sd-cand__date-md {
+  color: #14171c;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.erp-as-sd-cand__date-dow {
+  color: #4b525d;
+  font-size: 0.75rem;
+}
+
+.erp-as-sd-cand__body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.erp-as-sd-cand__line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.erp-as-sd-cand__manager {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  background: #eef0f3;
+  color: #14171c;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.erp-as-sd-cand__who {
+  color: #14171c;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.erp-as-sd-cand__time {
+  color: #4b525d;
+  font-size: 0.75rem;
+}
+
+.erp-as-sd-cand__addr {
+  overflow: hidden;
+  color: #6b7380;
+  font-size: 0.75rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.erp-as-sd-cand__dist {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+  color: #14171c;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.erp-as-sd-cand__dist-sub {
+  color: #6b7380;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.erp-as-sd-cand__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.erp-as-sd-cand__note {
+  color: #6b7380;
+  font-size: 0.75rem;
+}
+
+.erp-as-sd-cand__pick {
+  padding: 5px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: #2563eb;
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.erp-as-sd-cand__pick:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.erp-as-sd-cand__msg:empty {
+  display: none;
+}
+
+.erp-as-sd-cand__msg {
+  color: #dc2626;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.erp-as-sd-modal__hint {
+  padding: 16px 4px;
+  color: #6b7380;
+  font-size: 0.875rem;
+  text-align: center;
+}
+
+.erp-as-sd-modal__hint--error {
+  color: #dc2626;
+  font-weight: 600;
+}
+
+/* 후보 0건 빈 상태 — 택배 전환이 1차 버튼(사용자 결정 2026-09-09). */
+.erp-as-sd-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 28px 16px 8px;
+  text-align: center;
+}
+
+.erp-as-sd-empty__icon {
+  color: #c1c7d0;
+  font-size: 2.75rem;
+}
+
+.erp-as-sd-empty__title {
+  color: #14171c;
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.erp-as-sd-empty__desc {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: #4b525d;
+  font-size: 0.875rem;
+}
+
+.erp-as-sd-empty__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(380px, 100%);
+}
+
+.erp-as-sd-empty__primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 48px;
+  border: 0;
+  border-radius: 8px;
+  background: #2563eb;
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.erp-as-sd-empty__secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 48px;
+  border: 1px solid #c1c7d0;
+  border-radius: 8px;
+  background: transparent;
+  color: #4b525d;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.erp-as-sd-parcelbox {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid #dde1e6;
+  border-radius: 8px;
+  background: #f7f8fa;
+}
+
+.erp-as-sd-parcelbox__label {
+  color: #6b7380;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-align: left;
+}
+
+.erp-as-sd-parcelbox__row {
+  display: flex;
+  gap: 8px;
+}
+
+.erp-as-sd-parcelbox__carrier {
+  flex: 0 0 130px;
+}
+
+.erp-as-sd-parcelbox__tracking {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.erp-as-sd-modal__footer {
+  justify-content: space-between;
+}
+
+.erp-as-sd-modal__parcel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #4a55b8;
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.erp-as-sd-modal__status:empty {
+  display: none;
+}
+
+.erp-as-sd-modal__status {
+  flex: 1 1 auto;
+  color: #dc2626;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  text-align: center;
 }

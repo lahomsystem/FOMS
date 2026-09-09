@@ -18,7 +18,7 @@ from foms.api.files import build_file_download_url, build_file_view_url
 from foms.services.as_content_safety import combined_as_content_text
 from foms.services.erp_dashboard_search import erp_order_dashboard_search_predicate
 from foms.services.erp_order_deeplink import load_focus_order_only
-from foms.services.erp_display import _ensure_dict
+from foms.services.erp_display import _ensure_dict, manager_display_name
 from foms.services.common.erp_mine_filter import erp_mine_only_for_construction
 from foms.services.erp_permissions import build_mine_sql_filter, is_order_related_to_user
 from foms.services.erp_policy import ORDER_SETTLEMENT_ALERT_TARGET_STATUSES
@@ -190,7 +190,7 @@ def _serialize_completion_orders(db, orders: list[Order]) -> list[dict]:
         construction_date = (schedule.get("construction") or {}).get("date")
         parties = sd.get("parties") or {}
         customer_name = (parties.get("customer") or {}).get("name") or getattr(order, "customer_name", None) or "-"
-        manager_name = (parties.get("manager") or {}).get("name") or getattr(order, "manager_name", None) or "-"
+        manager_name = manager_display_name(parties) or getattr(order, "manager_name", None) or "-"
         items = sd.get("items") or []
         product_summary = ", ".join(
             str((item.get("product_name") or "").strip() or "")

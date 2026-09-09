@@ -4,9 +4,19 @@
      - mobile_queue_rows  : 선택일(기본=오늘) 실측 큐(build_mobile_queue_order_row)
      - measurement_panel_dates : 60일 날짜별 건수 패널(내일 이후 예정 섹션 재료)
      - today_date / erp_mine_only
-   레이아웃: 히어로(다음 방문) → 오늘 방문 큐 → 예정(내일 이후, 접힘 = 날짜별 건수).
-   클래스는 static/css/v3/foms-mobile-v3.css의 .fos-*/.px-sales-* 만 사용.
-   스크립트 신규 없음(셸 foms-mobile-v3.js 위임 + 네이티브 <details>).
+     - sales_delivery_by_ref : {실측 주문 id: [전달 item, ...]} — 라우트가
+       build_sales_delivery_by_ref(db)["by_ref"] 를 **한 번만** 호출해 넘겨준다.
+       템플릿은 절대 직접 호출하지 않는다(T5 실측 대시보드와 중복 쿼리 방지).
+     - mobile_queue_time_hm : {실측 주문 id: "HH:MM"} — 방문시각 정렬 SSOT
+       (format_minutes_hm(measurement_time_minutes_of(order)))를 뷰가 미리 접은 맵.
+       HH:MM 은 사전순 비교가 곧 시간순이라 템플릿 정렬이 안전하다(자유 텍스트
+       "10시"<"4시" 오판을 낸 ROUTE-02 재발 방지). 없으면 큐 순서를 그대로 쓴다.
+   레이아웃: 안내 배너(전달 있을 때만) → 히어로(다음 방문) → 오늘 동선(시간축 +
+     실측 카드 + 동행 전달 서브카드) → 예정(내일 이후, 접힘 = 날짜별 건수).
+   전제: 이 파샬은 v3 셸(shell_variant == 'v3')에서만 렌더된다. v3 셸은 surfaces
+     번들을 싣지 않으므로 모든 스타일은 static/css/v3/foms-mobile-v3.css 안에 있다
+     (.fos-*/.px-sales-*/.px-run-*). 인라인 스타일 금지.
+   스크립트: 전달 완료/전달 못 함 훅은 셸 JS(static/js/v3/foms-mobile-v3.js) 위임.
    ========================================================================= #}
 {%- set _st_map = {
   'RECEIVED': 'received', 'MEASURE': 'measure', 'DRAWING': 'drawing',
@@ -25,6 +35,28 @@
     {%- set _ = _upcoming.append(_it) -%}
   {%- endif -%}
 {%- endfor -%}
+
+{#- 오늘 동선: 실측 행(_rows) + 그 실측에 배정된 동행 전달(sales_delivery_by_ref).
+    실측 일정·담당자 매칭은 실측 대시보드가 이미 적용한 SSOT(order_schedule_dates
+    kind='measurement' + structured_data.parties.manager → Order.manager_name)의
+    결과물인 mobile_queue_rows 를 그대로 쓴다 — 여기서 재질의하지 않는다.
+    _hm 미상('99:99')은 시간축 맨 뒤로. sort 는 안정 정렬이라 동시각은 큐 순서 유지. -#}
+{%- set _sd_by_ref = sales_delivery_by_ref or {} -%}
+{%- set _hm_map = mobile_queue_time_hm or {} -%}
+{%- set _run = [] -%}
+{%- set _deliv_all = [] -%}
+{%- set _pack_items = [] -%}
+{%- for _o in _rows -%}
+  {%- set _ds = _sd_by_ref.get(_o.id) or [] -%}
+  {%- set _ = _run.append({'o': _o, 'hm': _hm_map.get(_o.id) or '99:99', 'deliveries': _ds}) -%}
+  {%- for _d in _ds -%}
+    {%- set _ = _deliv_all.append(_d) -%}
+    {%- if _d.state != 'delivered' and _d.item_text and _d.item_text not in _pack_items -%}
+      {%- set _ = _pack_items.append(_d.item_text) -%}
+    {%- endif -%}
+  {%- endfor -%}
+{%- endfor -%}
+{%- set _run = _run|sort(attribute='hm') -%}
 
 {%- macro sales_card(o, st_map) -%}
   {%- set _sc = st_map.get(o.stage_code, 'received') -%}
@@ -58,6 +90,15 @@
       <div class="sub tnum">실측 {{ _rows|length }}곳{% if _rows %} · 완료 {{ _done_ns.n }} · 남은 {{ _rows|length - _done_ns.n }}{% endif %}{% if _upcoming %} · 예정 {{ _upcoming|length }}일{% endif %}{% if erp_mine_only %} · 내 담당{% endif %}</div>
     </div>
   </div>
+
+  {#- 안내 배너: 상태가 아니라 알림이다(전달 0건이면 아예 렌더하지 않는다).
+      품목(item_text)이 하나도 없으면 "챙기세요" 문구를 생략한다. -#}
+  {% if _deliv_all %}
+  <div class="px-run-banner" role="status" data-run-banner>
+    <i class="fas fa-box-open px-run-banner__ic" aria-hidden="true"></i>
+    <span class="px-run-banner__text">오늘 전달 {{ _deliv_all|length }}건{% if _pack_items %} — 출발 전 {{ _pack_items|join(', ') }} 을 챙기세요.{% endif %}</span>
+  </div>
+  {% endif %}
 
   {% if _hero %}
   {%- set _hero_phone = (_hero.phone or '')|replace('-', '')|replace(' ', '') -%}
@@ -118,10 +159,40 @@
   </div>
   {% endif %}
 
-  <div class="fos-sec">
-    <div class="fos-sec__hd">오늘 방문 · {{ _rows|length }}건</div>
-    {% if _rows %}
-      {% for o in _rows %}{{ sales_card(o, _st_map) }}{% endfor %}
+  <div class="fos-sec px-run" data-run-timeline>
+    <div class="fos-sec__hd">오늘 동선 · 방문 {{ _rows|length }}곳{% if _deliv_all %} · 동행 전달 {{ _deliv_all|length }}건{% endif %}</div>
+    {% if _run %}
+      {% for _step in _run %}
+      <div class="px-run__step"{% if _step.deliveries %} data-has-delivery="1"{% endif %}>
+        <div class="px-run__rail" aria-hidden="true">
+          <span class="px-run__dot"></span>
+          <span class="px-run__line"></span>
+        </div>
+        <div class="px-run__body">
+          <span class="px-run__time tnum">{{ _step.hm if _step.hm != '99:99' else '시간 미정' }}</span>
+          {{ sales_card(_step.o, _st_map) }}
+          {% for _d in _step.deliveries %}
+          <div class="px-run-deliv{% if _d.state == 'delivered' %} is-done{% endif %}"
+               data-sales-delivery-card
+               data-order-id="{{ _d.order_id }}"
+               data-state="{{ _d.state }}">
+            <span class="px-run-deliv__tag">동행 전달</span>
+            <span class="px-run-deliv__title">AS #{{ _d.order_id }} {{ _d.customer_name or '-' }}</span>
+            {% if _d.item_text %}<span class="px-run-deliv__item">{{ _d.item_text }}</span>{% endif %}
+            {% if _d.address and _d.address != '-' %}<span class="px-run-deliv__addr">{{ _d.address }}</span>{% endif %}
+            <span class="px-run-deliv__state fos-stage" data-st="{{ 'completed' if _d.state == 'delivered' else 'cs' }}" data-deliv-state>{{ '전달 완료됨' if _d.state == 'delivered' else '전달 예정' }}</span>
+            <button type="button"
+                    class="fos-btn fos-btn--primary fos-btn--block fos-btn--field px-run-deliv__done"
+                    data-sales-delivery-done data-order-id="{{ _d.order_id }}"
+                    {% if _d.state == 'delivered' %}disabled{% endif %}>전달 완료</button>
+            {#- 실패/안내는 .alert(5초 자동 닫힘) 대신 카드 안 인라인 텍스트로 남긴다. -#}
+            <span class="px-run-deliv__msg" data-sales-delivery-msg role="status" hidden></span>
+            <button type="button" class="px-run-deliv__skip" data-sales-delivery-skip>전달 못 함</button>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endfor %}
     {% else %}
     <div class="fos-empty">
       <span class="fos-empty__ic"><i class="fas fa-ruler-combined" aria-hidden="true"></i></span>

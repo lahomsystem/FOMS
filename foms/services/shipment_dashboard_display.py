@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from foms.services.erp_display import _ensure_dict
+from foms.services.erp_display import _ensure_dict, manager_display_name
 from foms.services.as_content_safety import as_content_html_to_text
 from foms.services.orders.as_log import latest_client_log_text
 from foms.services.shipment_dashboard_helpers import (
@@ -96,7 +96,7 @@ def sort_shipment_rows(rows: list[Any]) -> None:
     def get_manager_name_for_sort(order):
         if order.is_erp_order and order.structured_data:
             sd = order.structured_data
-            erp_manager = (((sd.get('parties') or {}).get('manager') or {}).get('name'))
+            erp_manager = manager_display_name(sd.get('parties'))
             if erp_manager:
                 return erp_manager
         return order.manager_name or ''

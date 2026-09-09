@@ -191,3 +191,18 @@ def test_measurement_mobile_list_does_not_force_measure_badge() -> None:
     ).read_text(encoding="utf-8")
     assert "badge_text='실측'" not in listing
     assert "'--measure'" not in listing
+
+
+def test_assignee_user_ids_accepts_scalar_manager():
+    """parties.manager 가 문자열이어도 터지지 않는다(대시보드 전체 500 방지).
+
+    실측 대시보드·AS 전달 배정은 담당자를 dict/스칼라 두 모양으로 다 읽는다. 여기서 dict 를
+    가정하면 스칼라 주문 한 건이 모바일 큐 배치 조회를 통째로 깨뜨린다(2026-09-09 로컬 재현).
+    """
+    from foms.services.erp_quest_display import assignee_user_ids_from_sd
+
+    assert assignee_user_ids_from_sd({"parties": {"manager": "이정민"}}) == set()
+    assert assignee_user_ids_from_sd({"parties": {"manager": "42"}}) == {42}
+    assert assignee_user_ids_from_sd({"parties": {"manager": 7}}) == {7}
+    assert assignee_user_ids_from_sd({"parties": {"manager": {"name": "9"}}}) == {9}
+    assert assignee_user_ids_from_sd({"parties": {"manager": None}}) == set()

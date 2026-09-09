@@ -27,6 +27,7 @@ from foms.services.erp_display import (
     _erp_get_stage,
     erp_payment_amount_from_structured,
     get_today_kst,
+    manager_display_name,
 )
 from foms.services.datetime_kst import now_utc_naive
 from foms.services.common.business_calendar import business_days_until
@@ -133,7 +134,7 @@ def _measure_assigned(order: Any, sd: dict) -> bool:
     assignments = sd.get("assignments") or {}
     if assignments.get("sales_assignee_user_ids"):
         return True
-    manager = (((sd.get("parties") or {}).get("manager") or {}).get("name")) or getattr(order, "manager_name", None)
+    manager = manager_display_name(sd.get("parties")) or getattr(order, "manager_name", None)
     return bool(str(manager or "").strip())
 
 
@@ -347,7 +348,7 @@ def _field_ops_for_date(base: Any, date_iso: str, *, field_type: str = "all", li
             "type_code": "as" if is_as_only_visit else ("construction" if is_cons else "measure"),
             "time": (str(sched.get("time") or "").strip() or None),
             "addr": site.get("address_full") or site.get("address_main") or "-",
-            "manager": (parties.get("manager") or {}).get("name") or getattr(order, "manager_name", None) or "-",
+            "manager": manager_display_name(parties) or getattr(order, "manager_name", None) or "-",
             "readiness_state": state,
             "readiness_label": label,
         })

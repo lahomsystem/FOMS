@@ -17,6 +17,7 @@ import datetime
 import hashlib
 import json
 import logging
+import re
 import uuid
 from typing import Any, Callable, Dict, List, Optional
 
@@ -33,7 +34,7 @@ from foms.services.as_content_safety import (
     sanitize_as_content_html,
 )
 from foms.services.datetime_kst import now_utc_naive
-from foms.services.erp_display import get_today_kst
+from foms.services.erp_display import get_today_kst, normalize_manager_name
 from foms.services.erp_permissions import erp_construction_edit_required, erp_edit_required
 from foms.services.erp_sync_columns import sync_erp_flat_columns
 from foms.services.erp_utils import ensure_path
@@ -80,6 +81,7 @@ from foms.services.orders.as_schedule_link import (
     relink,
     write_link,
 )
+from foms.services.orders import sales_delivery_link as sdl
 from foms.services.orders.order_field_change_writer import record_field_changes
 from foms.services.orders.revision import RevisionError, execute_order_mutation
 from foms.services.orders.structured_diff import diff_structured
@@ -101,6 +103,7 @@ POLICY_AS_LOG_PATCH = "STATE_AS_LOG_PATCH"
 POLICY_AS_LOG_DELETE = "STATE_AS_LOG_DELETE"
 POLICY_AS_REREGISTER = "STATE_AS_REREGISTER"
 POLICY_AS_SCHEDULE_LINK = "STATE_AS_SCHEDULE_LINK"
+POLICY_AS_SALES_DELIVERY = "STATE_AS_SALES_DELIVERY"
 
 
 def _invalidate_shipment_asrec_caches(reason: str) -> None:
@@ -1560,6 +1563,342 @@ def api_as_schedule_link(order_id: int):
         ref_date=ref_date, as_visit_date=captured["as_visit_date"]))
 
 
+
+# --------------------------------------------------------------------------- #
+# AS 영업 전달 배정(sales_delivery) — 배정 / 재배정 / 확인 / 해제 / 전달 / 택배
+# --------------------------------------------------------------------------- #
+# 스펙: docs/specs/2026-09-09-as-sales-delivery-measurement-assignment-design.md §2·§5.
+# 스키마·상태 판정은 순수 서비스(foms/services/orders/sales_delivery_link.py)가 SSOT 고,
+# 여기서는 검증·기준 실측 주문 재조회·mutation 배선만 한다.
+# `schedule.as_visit.schedule_link`(위 섹션)과 **다른 축**이다 — 서로 건드리지 않는다.
+_SALES_DELIVERY_ACTIONS = (
+    "assign", "reassign", "ack", "unassign", "deliver", "undeliver", "parcel", "parcel_cancel",
+)
+_SALES_DELIVERY_ACTION_LABELS = {
+    "assign": "배정", "reassign": "재배정", "ack": "일정변경 확인", "unassign": "배정 해제",
+    "deliver": "전달 완료", "undeliver": "전달 완료 취소",
+    "parcel": "택배 전환", "parcel_cancel": "택배 전환 취소",
+}
+# 링크가 있어야만 성립하는 액션(없으면 409).
+_SALES_DELIVERY_LINK_REQUIRED = ("reassign", "ack", "deliver", "undeliver")
+_ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+def _iso_date_text(value: Any) -> Optional[str]:
+    """날짜 값에서 'YYYY-MM-DD' 모양만 통과시킨다(varchar 오염값 '미정' 차단).
+
+    Args:
+        value: 날짜 원본(str/date/datetime/None).
+
+    Returns:
+        ISO 날짜 문자열 또는 None.
+    """
+    if value is None:
+        return None
+    if isinstance(value, datetime.datetime):
+        return value.date().isoformat()
+    if isinstance(value, datetime.date):
+        return value.isoformat()
+    text = str(value).strip()[:10]
+    return text if _ISO_DATE_RE.match(text) else None
+
+
+def _ref_measurement_date(ref: Order) -> Optional[str]:
+    """기준 주문의 **현재** 실측일(Ds). ``order_schedule_dates`` 최솟값 우선.
+
+    싱크 컬럼(``erp_measurement_date``)은 복수 실측 일정 중 첫 날짜만 담으므로 SSOT 가
+    아니다. 행이 하나도 없을 때만 ``structured_data.schedule.measurement.date`` 를 읽고,
+    거기 값이 리스트면 첫 날짜를 쓴다.
+
+    Args:
+        ref: 기준 실측 주문(활성 확인 완료).
+
+    Returns:
+        'YYYY-MM-DD' 문자열, 실측일이 하나도 없으면 None.
+    """
+    dates = sorted(
+        value
+        for value in (
+            _iso_date_text(getattr(row, "date", None))
+            for row in (getattr(ref, "schedule_dates", None) or [])
+            if getattr(row, "kind", None) == "measurement"
+        )
+        if value
+    )
+    if dates:
+        return dates[0]
+    sd = ref.structured_data if isinstance(ref.structured_data, dict) else {}
+    raw = ((sd.get("schedule") or {}).get("measurement") or {}).get("date")
+    if isinstance(raw, (list, tuple)):
+        raw = next((v for v in raw if _iso_date_text(v)), None)
+    return _iso_date_text(raw)
+
+
+def _ref_measurement_manager(ref: Order) -> Optional[str]:
+    """기준 실측 주문의 담당자 표시명 스냅샷.
+
+    ``structured_data.parties.manager`` 가 정본이고, 없으면 플랫 컬럼
+    ``Order.manager_name`` 으로 폴백한다(둘 다 id 문자열일 수 있어 정규화한다).
+
+    Args:
+        ref: 기준 실측 주문.
+
+    Returns:
+        담당자 표시명, 없으면 None.
+    """
+    sd = ref.structured_data if isinstance(ref.structured_data, dict) else {}
+    manager = (sd.get("parties") or {}).get("manager")
+    raw = manager.get("name") if isinstance(manager, dict) else manager
+    name = normalize_manager_name(raw, fallback=getattr(ref, "manager_name", "") or "")
+    return name or None
+
+
+def _current_measurement_date(db: Session, ref_order_id: Any) -> Optional[str]:
+    """기준 주문 id 로 현재 실측일만 느슨하게 읽는다(없으면 None — 드리프트 판정용).
+
+    ``ack``/``deliver`` 처럼 이미 걸린 링크를 다루는 액션은 기준 주문이 사라졌어도
+    막지 않는다(그 상황의 정답은 해제이지 오류가 아니다). 그래서 여기서는 404 를
+    만들지 않고 None 을 돌려 ``ref_gone`` 으로 흐르게 한다.
+
+    Args:
+        db: 요청 세션. ref_order_id: 링크에 적힌 기준 주문 id.
+
+    Returns:
+        'YYYY-MM-DD' 또는 None.
+    """
+    try:
+        ref_id = int(ref_order_id)
+    except (TypeError, ValueError):
+        return None
+    ref = db.get(Order, ref_id)
+    if not ref or ref.status == "DELETED" or ref.deleted_at is not None:
+        return None
+    return _ref_measurement_date(ref)
+
+
+def _resolve_sales_delivery_ref(db: Session, raw_ref_id: object, *, as_order_id: int):
+    """기준 실측 주문을 검증·로드하고 실측일·담당자를 서버 기준으로 확정한다.
+
+    클라이언트가 보낸 ``ref_date``/``ref_manager`` 는 채택하지 않는다 — 모달을 열어둔
+    사이 실측일이 바뀌었을 수 있어 링크의 D0 가 처음부터 틀어진다(스펙 §5).
+
+    Args:
+        db: 요청 세션. raw_ref_id: 기준 주문 id 원본. as_order_id: 요청 대상 주문 id.
+
+    Returns:
+        ``((ref_order_id, ref_date, ref_manager), None)`` 또는 ``(None, (응답, 상태코드))``.
+    """
+    try:
+        ref_id = int(raw_ref_id)
+    except (TypeError, ValueError):
+        return None, (jsonify({"success": False, "message": "기준 실측 주문 id가 필요합니다."}), 400)
+    if ref_id == as_order_id:
+        return None, (
+            jsonify({"success": False, "message": "자기 자신에게 전달을 배정할 수 없습니다."}), 400)
+    ref, err = _load_active_order(db, ref_id)
+    if err:
+        return None, (
+            jsonify({"success": False, "message": "기준 실측 주문을 찾을 수 없습니다."}), 404)
+    ref_date = _ref_measurement_date(ref)
+    if not ref_date:
+        return None, (
+            jsonify({"success": False, "message": "기준 주문에 실측일이 없어 배정할 수 없습니다."}),
+            400)
+    return (ref_id, ref_date, _ref_measurement_manager(ref)), None
+
+
+def _plan_sales_delivery(db: Session, order: Order, data: Dict[str, Any]):
+    """요청을 검증해 실행 계획을 확정한다(쓰기 전 단계 — 잠금 없이 판단 가능한 것만).
+
+    Args:
+        db: 요청 세션. order: 대상 전달 건 주문. data: 요청 body.
+
+    Returns:
+        ``((action, ref_order_id, ref_date, ref_manager, ref_current_date, 기존 링크), None)``
+        또는 ``(None, (응답, 상태코드))``.
+    """
+    action = str(data.get("action") or "").strip()
+    if action not in _SALES_DELIVERY_ACTIONS:
+        return None, (jsonify({"success": False, "message": "지원하지 않는 action 입니다."}), 400)
+    existing = sdl.read_link(order.structured_data or {})
+    if action in _SALES_DELIVERY_LINK_REQUIRED and existing is None:
+        return None, (jsonify({"success": False, "message": "배정된 실측 일정이 없습니다."}), 409)
+    if action in ("assign", "reassign"):
+        raw_ref = data.get("ref_order_id")
+        if raw_ref is None and existing is not None:
+            raw_ref = existing.get("ref_order_id")
+        resolved, err = _resolve_sales_delivery_ref(db, raw_ref, as_order_id=order.id)
+        if err:
+            return None, err
+        ref_id, ref_date, ref_manager = resolved
+        return (action, ref_id, ref_date, ref_manager, ref_date, existing), None
+    ref_current = (
+        _current_measurement_date(db, existing.get("ref_order_id")) if existing else None)
+    return (action, None, None, None, ref_current, existing), None
+
+
+def _apply_sales_delivery(
+    sd: Dict[str, Any], *, action: str, ref_order_id: Optional[int], ref_date: Optional[str],
+    ref_manager: Optional[str], ref_current_date: Optional[str],
+    user_id: Optional[int], user_name: str, carrier: Optional[str], tracking_no: Optional[str],
+) -> Dict[str, Any]:
+    """잠긴 sd 에 전달 배정 액션을 적용한다(``_run_sd_mutation`` 의 apply 본체).
+
+    AS 타임라인 system 항목은 ``assign``·``unassign``·``deliver``·``parcel`` 4개만 남긴다 —
+    ``ack``/``reassign``/``undeliver``/``parcel_cancel`` 은 정정·확인이라 노이즈만 늘린다
+    (스펙 §5). 같은 액션을 두 번 눌러도 상태가 실제로 바뀔 때만 남긴다.
+
+    Args:
+        sd: 잠긴 주문 structured_data 사본. action: 8종 액션 중 하나.
+        ref_order_id: 기준 실측 주문 id(assign/reassign 만). ref_date: 서버 재조회 실측일.
+        ref_manager: 서버 재조회 담당자 스냅샷. ref_current_date: ack 가 굳힐 현재 실측일.
+        user_id: actor id. user_name: actor 표시명.
+        carrier: 택배사(parcel). tracking_no: 송장번호(parcel).
+
+    Returns:
+        ``{'link': 갱신된 링크 or None, 'cleared': bool}``.
+
+    Raises:
+        ValueError: 잠근 뒤 링크가 사라진 경우(경쟁) → 호출부에서 409.
+    """
+    cleared = False
+    # 스칼라로 떠 둔다 — read_link 는 sd 안의 **살아있는 dict** 를 돌려주므로 아래
+    # mutate 후 다시 읽으면 "바뀌기 전 상태"가 이미 덮여 있다(로그 중복 판정 오염).
+    existing_link = sdl.read_link(sd)
+    had_link = existing_link is not None
+    before_status = (existing_link or {}).get("status")
+    if action in ("assign", "reassign"):
+        sdl.write_link(sd, ref_order_id=ref_order_id, ref_date=ref_date, ref_manager=ref_manager,
+                       actor_user_id=user_id, actor_name=user_name, now=now_utc_naive())
+        if action == "assign":
+            append_system_log(sd, text=f"전달 배정: 실측 주문 #{ref_order_id} ({ref_date})")
+    elif action == "ack":
+        if not sdl.ack_link(sd, ref_current_date):
+            raise ValueError("배정된 실측 일정이 없습니다.")
+    elif action == "unassign":
+        cleared = sdl.clear_link(sd)
+        if cleared:
+            append_system_log(sd, text="전달 배정 해제")
+    elif action == "deliver":
+        if not sdl.mark_delivered(sd, at=now_utc_naive(), by=user_name):
+            raise ValueError("배정된 실측 일정이 없습니다.")
+        if before_status != sdl.STATUS_DELIVERED:
+            append_system_log(sd, text="전달 완료")
+    elif action == "undeliver":
+        if sdl.read_link(sd) is None:
+            raise ValueError("배정된 실측 일정이 없습니다.")
+        sdl.unmark_delivered(sd)
+    elif action == "parcel":
+        was_parcel = sdl.read_method(sd) == sdl.METHOD_PARCEL
+        sdl.set_method(sd, sdl.METHOD_PARCEL,
+                       parcel={"carrier": carrier, "tracking_no": tracking_no},
+                       actor_name=user_name, now=now_utc_naive())
+        cleared = had_link
+        if not was_parcel:
+            suffix = " ".join(t for t in (carrier, tracking_no) if t)
+            append_system_log(sd, text=f"택배 전환: {suffix}" if suffix else "택배 전환")
+    else:  # parcel_cancel
+        sdl.set_method(sd, sdl.METHOD_SALES)
+    return {"link": sdl.read_link(sd), "cleared": cleared}
+
+
+def _sales_delivery_payload(sd: Optional[dict], ref_current_date: Optional[str]) -> Dict[str, Any]:
+    """성공 응답 조립 — 링크·드리프트·표시 상태·전달 수단(읽기 SSOT 는 순수 서비스).
+
+    Args:
+        sd: 커밋 대상 structured_data. ref_current_date: 기준 주문의 현재 실측일(Ds).
+
+    Returns:
+        ``{'success', 'link', 'drift', 'display_state', 'method'}``.
+    """
+    return {
+        "success": True,
+        "link": sdl.read_link(sd),
+        "drift": sdl.evaluate_drift(sd, ref_current_date),
+        "display_state": sdl.derive_display_state(sd),
+        "method": sdl.read_method(sd),
+    }
+
+
+def _sales_delivery_text(value: object, limit: int = 60) -> Optional[str]:
+    """택배사/송장번호 같은 짧은 자유 입력을 정리한다(공백 제거 + 길이 상한).
+
+    Args:
+        value: 요청 body 값. limit: 최대 길이.
+
+    Returns:
+        정리된 문자열, 비었으면 None.
+    """
+    text = str(value or "").strip()
+    return text[:limit] if text else None
+
+
+@erp_orders_as_bp.route("/<int:order_id>/sales-delivery", methods=["POST"])
+@login_required
+@erp_edit_required
+def api_as_sales_delivery(order_id: int):
+    """AS 영업 전달 배정 쓰기. body ``{action, ref_order_id?, carrier?, tracking_no?}``.
+
+    실측일(D0)·담당자는 서버가 기준 실측 주문에서 다시 읽는다 — 클라이언트가 보낸
+    값은 참고도 하지 않는다(스펙 §5, stale 방지).
+
+    Args:
+        order_id: 대상 전달 건 주문 PK.
+
+    Returns:
+        200 ``{'success', 'link', 'drift', 'display_state', 'method'}`` /
+        400 잘못된 action·ref 없음·자기참조·실측일 없음 / 404 기준 주문 없음·삭제됨 /
+        409 링크 없음·무결성.
+    """
+    db = get_db()
+    order, err = _load_active_order(db, order_id)
+    if err:
+        return err
+    data = request.get_json(silent=True) or {}
+    plan, plan_err = _plan_sales_delivery(db, order, data)
+    if plan_err:
+        return plan_err
+    action, ref_id, ref_date, ref_manager, ref_current, existing = plan
+    if action == "unassign" and existing is None:
+        # 멱등: 이미 해제된 배정의 재요청에 REV bump·receipt·system 로그를 남기지 않는다
+        # (schedule-link unlink 선례 — 무변경에 mutation 을 돌리지 않는다).
+        return jsonify(_sales_delivery_payload(order.structured_data, None))
+    user_id = session.get("user_id")
+    user = get_user_by_id(user_id)
+    captured: Dict[str, Any] = {}
+
+    def _apply(sd: Dict[str, Any], _order: Order) -> None:
+        """잠긴 sd 에 액션을 적용하고 응답 조립용 사본을 붙든다."""
+        captured["sd"] = sd
+        captured.update(_apply_sales_delivery(
+            sd, action=action, ref_order_id=ref_id, ref_date=ref_date,
+            ref_manager=ref_manager, ref_current_date=ref_current,
+            user_id=user_id, user_name=(user.name if user else ""),
+            carrier=_sales_delivery_text(data.get("carrier")),
+            tracking_no=_sales_delivery_text(data.get("tracking_no"))))
+
+    try:
+        _run_sd_mutation(
+            db, order_id=order_id, actor_user_id=user_id,
+            policy_id=POLICY_AS_SALES_DELIVERY, command_id="AS_SALES_DELIVERY", body=data,
+            apply=_apply,
+        )
+    except Exception as exc:  # noqa: BLE001
+        # 409(낙관적 경쟁·무결성)까지 포함해 남긴다 — 배정 실패는 화면에 조용히 묻히면
+        # "눌렀는데 안 됐다" 로만 보고되어 재현 근거가 사라진다.
+        logger.warning("[AS-SD] sales-delivery mutation failed (order=%s, action=%s)",
+                       order_id, action, exc_info=True)
+        return _as_error_response(db, exc)
+
+    _audit_as(order, "AS_SALES_DELIVERY_CHANGED", user_id,
+              note=_SALES_DELIVERY_ACTION_LABELS[action],
+              extra={"delivery_action": action, "ref_order_id": ref_id, "ref_date": ref_date})
+    payload = _sales_delivery_payload(captured["sd"], ref_current)  # commit 앞 조립
+    db.commit()
+    _invalidate_shipment_asrec_caches("api_as_sales_delivery")
+    return jsonify(payload)
+
+
 __all__ = [
     "erp_orders_as_bp",
     "api_as_start",
@@ -1575,6 +1914,7 @@ __all__ = [
     "api_as_log_patch",
     "api_as_log_delete",
     "api_as_schedule_link",
+    "api_as_sales_delivery",
     "api_as_upload_anchor",
     "get_today_kst",
 ]

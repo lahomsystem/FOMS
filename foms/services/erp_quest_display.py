@@ -8,7 +8,7 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-from foms.services.erp_display import normalize_manager_name
+from foms.services.erp_display import manager_display_name, normalize_manager_name
 from foms.services.erp_policy import (
     STAGE_LABELS,
     STAGE_NAME_TO_CODE,
@@ -196,7 +196,7 @@ def _assignee_display_names(
                 names.append(mapped)
     elif stage_code in ("MEASURE", "CONFIRM"):
         mgr = (
-            ((sd.get("parties") or {}).get("manager") or {}).get("name")
+            manager_display_name(sd.get("parties"))
             or getattr(order, "manager_name", None)
             or current_quest.get("owner_person")
             or ""
@@ -240,7 +240,7 @@ def resolve_order_role_assignees(
             sales_ids.append(int(raw))
     measurement_names = [user_map[uid] for uid in sales_ids if uid in user_map]
     if not measurement_names:
-        raw_manager = ((parties.get("manager") or {}).get("name"))
+        raw_manager = manager_display_name(parties) or None
         if raw_manager is None and order is not None:
             raw_manager = getattr(order, "manager_name", None)
         try:
@@ -251,7 +251,7 @@ def resolve_order_role_assignees(
             pass
     if not measurement_names:
         resolved = normalize_manager_name(
-            ((parties.get("manager") or {}).get("name")),
+            manager_display_name(parties),
             getattr(order, "manager_name", None) if order is not None else "",
         )
         if str(resolved or "").strip() and str(resolved).strip() != "-":
@@ -347,7 +347,7 @@ def _compute_can_assignee_approve(
 
     manager_names: set[str] = set()
     for src in [
-        ((sd.get("parties") or {}).get("manager") or {}).get("name"),
+        manager_display_name(sd.get("parties")),
         getattr(order, "manager_name", None),
         current_quest.get("owner_person"),
     ]:
@@ -426,7 +426,11 @@ def assignee_user_ids_from_sd(sd: dict[str, Any]) -> set[int]:
                 user_ids.add(int(a["id"]))
             except (TypeError, ValueError):
                 pass
-    manager_raw = ((sd.get("parties") or {}).get("manager") or {}).get("name")
+    # parties.manager 는 dict({name,id}) 와 스칼라(이름 문자열·user id) 두 모양을 다 쓴다
+    # (실측 대시보드·AS 전달 배정은 normalize_manager_name 으로 둘 다 받는다). dict 를 가정하면
+    # 스칼라 주문 한 건이 대시보드 전체를 500 으로 만든다 — 2026-09-09 로컬 재현.
+    manager_value = (sd.get("parties") or {}).get("manager")
+    manager_raw = manager_value.get("name") if isinstance(manager_value, dict) else manager_value
     if isinstance(manager_raw, int):
         user_ids.add(manager_raw)
     elif isinstance(manager_raw, str) and manager_raw.isdigit():

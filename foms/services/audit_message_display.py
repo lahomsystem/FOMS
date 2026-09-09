@@ -204,6 +204,7 @@ ACTION_LABELS: dict[str, str] = {
     "AS_BILLING_DECIDED": "AS 비용 판정",
     "AS_ROUND_VERDICT": "AS 회차 판정",
     "AS_SCHEDULE_LINK_CHANGED": "AS 기준 일정",
+    "AS_SALES_DELIVERY_CHANGED": "AS 전달 배정",
     "AS_LOG_ADDED": "AS 기록 추가",
     "AS_LOG_UPDATED": "AS 기록 수정",
     "AS_LOG_DELETED": "AS 기록 삭제",

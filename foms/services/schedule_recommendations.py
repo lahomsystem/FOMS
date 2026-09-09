@@ -11,6 +11,7 @@ from __future__ import annotations
 import datetime
 import logging
 import math
+import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Callable
 
@@ -20,6 +21,7 @@ from sqlalchemy.orm import Session, load_only, selectinload
 from foms.services.common.address_converter import FOMSAddressConverter
 from foms.services.datetime_kst import get_today_kst
 from foms.services.geocode_helpers import get_order_display_address
+from foms.services.erp_display import normalize_manager_name
 from foms.services.erp_order_flags import is_erp_order_record
 from models import Order, OrderScheduleDate
 
@@ -28,6 +30,8 @@ NEARBY_MAX_RESULTS = 5
 GEOCODE_WORKERS = 10
 
 _AS_NEARBY_EXCLUDED_STATUSES = ("AS_RECEIVED", "AS_COMPLETED", "DELETED")
+_SELF_MEASUREMENT_STATUSES = ("SELF_MEASUREMENT", "SELF_MEASURED")
+_ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -174,6 +178,144 @@ def load_construction_nearby_valid_items(
     return valid_items
 
 
+def get_order_measurement_schedule_date(order, ref_date: str | None = None) -> str | None:
+    """Return the earliest measurement date (>= ``ref_date``) for nearby ranking.
+
+    실측 일정 SSOT 는 ``order_schedule_dates`` 의 ``kind='measurement'`` 행이다
+    (싱크 컬럼은 복수 일정 중 첫 날짜만 담으므로 신뢰하지 않는다). ``date`` 는 varchar 라
+    '미정' 같은 비-ISO 오염값이 문자열 비교에서 미래일처럼 걸린다 — ISO 모양만 통과시킨다.
+
+    Args:
+        order: ``Order`` ORM 객체(``schedule_dates`` 가 이미 로드돼 있어야 한다).
+        ref_date: 'YYYY-MM-DD' 기준일. 주면 그 날짜 이상만 유효로 본다.
+
+    Returns:
+        'YYYY-MM-DD' 문자열 또는 None.
+    """
+    if not order:
+        return None
+    schedule_dates = getattr(order, "schedule_dates", None) or []
+    dates = sorted(
+        value
+        for value in (
+            str(row.date).strip() if row.date else ""
+            for row in schedule_dates
+            if getattr(row, "kind", None) == "measurement"
+        )
+        if _ISO_DATE_RE.match(value) and (not ref_date or value >= ref_date)
+    )
+    return dates[0] if dates else None
+
+
+def build_measurement_candidate_item(order, ref_date: str | None = None) -> dict:
+    """Convert an order ORM object into a measurement nearby candidate item.
+
+    시공 item 과 같은 키에 ``type``/``manager``/``time`` 을 더한다. 담당자 색·
+    배정 건수는 이 계층의 책임이 아니다(읽기 모델에서 붙인다).
+
+    Args:
+        order: ``Order`` ORM 객체.
+        ref_date: 'YYYY-MM-DD' 기준일.
+
+    Returns:
+        nearby payload candidate dict.
+    """
+    structured_data = getattr(order, "structured_data", None)
+    raw_manager = None
+    if isinstance(structured_data, dict):
+        raw_manager = (structured_data.get("parties") or {}).get("manager")
+    manager = normalize_manager_name(
+        raw_manager, getattr(order, "manager_name", "") or ""
+    )
+
+    item = {
+        "id": order.id,
+        "customer_name": get_order_display_customer_name(order),
+        "address": get_order_display_address(order),
+        "date": get_order_measurement_schedule_date(order, ref_date),
+        "type": "실측",
+        "manager": manager or "",
+        "time": (getattr(order, "measurement_time", None) or "").strip(),
+    }
+
+    db_lat = getattr(order, "lat", None)
+    db_lng = getattr(order, "lng", None)
+    if db_lat and db_lng and getattr(order, "geocode_status", None) == "success":
+        item["_db_lat"] = float(db_lat)
+        item["_db_lng"] = float(db_lng)
+    return item
+
+
+def load_measurement_nearby_valid_items(
+    db: Session, ref_date: str, exclude_id: int | None
+) -> list[dict]:
+    """Load measurement-schedule orders and return nearby candidate items.
+
+    후보 = ``OrderScheduleDate.kind='measurement'`` 이고 date >= ``ref_date``.
+    제외 = soft-delete / 자가실측(``is_self_measurement`` 또는 status
+    SELF_MEASUREMENT·SELF_MEASURED) / 지방(``is_regional``).
+    예산은 시공 로더와 같다: ``load_only`` + ``selectinload`` + DB 캡 2500.
+
+    Args:
+        db: SQLAlchemy 세션.
+        ref_date: 'YYYY-MM-DD' 기준일.
+        exclude_id: 기준 주문 id(후보에서 제외). None 이면 제외 없음.
+
+    Returns:
+        nearby candidate item 리스트.
+    """
+    query = (
+        db.query(Order)
+        .options(
+            load_only(
+                Order.id,
+                Order.address,
+                Order.status,
+                Order.measurement_time,
+                Order.manager_name,
+                Order.is_erp_order,
+                Order.is_regional,
+                Order.is_self_measurement,
+                Order.structured_data,
+                Order.customer_name,
+                Order.lat,
+                Order.lng,
+                Order.geocode_status,
+            ),
+            selectinload(Order.schedule_dates),
+        )
+        .join(
+            OrderScheduleDate,
+            and_(
+                Order.id == OrderScheduleDate.order_id,
+                OrderScheduleDate.kind == "measurement",
+                OrderScheduleDate.date >= ref_date,
+            ),
+        )
+        .filter(
+            Order.not_deleted_filter(),
+            ~Order.status.in_(_SELF_MEASUREMENT_STATUSES),
+            Order.is_self_measurement.isnot(True),
+            Order.is_regional.isnot(True),
+        )
+        .distinct()
+    )
+
+    if exclude_id:
+        query = query.filter(Order.id != exclude_id)
+
+    candidates = query.order_by(Order.id.desc()).limit(2500).all()
+
+    valid_items: list[dict] = []
+    for order in candidates:
+        if not get_order_display_address(order):
+            continue
+        if not get_order_measurement_schedule_date(order, ref_date):
+            continue
+        valid_items.append(build_measurement_candidate_item(order, ref_date))
+    return valid_items
+
+
 def resolve_nearby_start_coordinates(
     db: Session,
     converter: FOMSAddressConverter,
@@ -225,7 +367,7 @@ def _geocode_region_prefixes() -> tuple[str, ...]:
     )
 
 
-def compute_construction_nearby_success_payload(
+def compute_nearby_success_payload(
     *,
     valid_items: list[dict],
     converter: FOMSAddressConverter,
@@ -235,7 +377,11 @@ def compute_construction_nearby_success_payload(
     log_warning: Callable[..., None] | None = None,
     route_timeout_sec: float | None = None,
 ) -> dict[str, Any]:
-    """Geocode, rank, and route-score construction candidates (legacy nearby contract)."""
+    """Geocode, rank, and route-score nearby candidates (legacy nearby contract).
+
+    후보 종류(시공/실측)에 무관한 공통 계산부다. 기존 이름
+    ``compute_construction_nearby_success_payload`` 는 이 함수의 별칭으로 남는다.
+    """
     warn = log_warning or _LOGGER.warning
 
     def geocode_item(item: dict):
@@ -374,6 +520,10 @@ def compute_construction_nearby_success_payload(
         "ref_lat": start_lat,
         "ref_lng": start_lng,
     }
+
+
+#: 기존 호출자·테스트가 쓰는 이름. 동작·시그니처는 위 함수와 동일하다.
+compute_construction_nearby_success_payload = compute_nearby_success_payload
 
 
 def compute_construction_nearby_fallback_payload(

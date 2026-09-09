@@ -7,6 +7,7 @@ from typing import Any
 from foms.api.files import build_file_view_url
 from foms.services.feature_flags import env_bool_or_mobile_v2
 from foms.services.erp_display import (
+    manager_display_name,
     _ensure_dict,
     _erp_alerts,
     _erp_get_stage,
@@ -478,7 +479,7 @@ def build_construction_row_dtos(orders, att_counts, f_stage):
                 "owner_team": "CONSTRUCTION",
                 "measurement_date": (((structured_data.get("schedule") or {}).get("measurement") or {}).get("date")),
                 "construction_date": (((structured_data.get("schedule") or {}).get("construction") or {}).get("date")),
-                "manager_name": (((structured_data.get("parties") or {}).get("manager") or {}).get("name")) or "-",
+                "manager_name": manager_display_name(structured_data.get("parties")) or "-",
                 "manager_phone": resolve_manager_phone_for_queue(
                     structured_data.get("parties") or {},
                     order=order,
