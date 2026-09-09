@@ -305,35 +305,35 @@
     },
     {
       "path": "foms/api/drawing/wizard.py",
-      "lineno": 693,
+      "lineno": 694,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "WIZ-01"
     },
     {
       "path": "foms/api/drawing/wizard.py",
-      "lineno": 947,
+      "lineno": 965,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "WIZ-01"
     },
     {
       "path": "foms/api/drawing/wizard.py",
-      "lineno": 1084,
+      "lineno": 1102,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "WIZ-01"
     },
     {
       "path": "foms/api/drawing/wizard.py",
-      "lineno": 1250,
+      "lineno": 1268,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "WIZ-01"
     },
     {
       "path": "foms/api/drawing/wizard.py",
-      "lineno": 1384,
+      "lineno": 1402,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "WIZ-01"
