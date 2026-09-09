@@ -1035,8 +1035,9 @@
             </p>
             {% elif selected_origin.claim_label %}
             <p class="wb-relation__why">
-                옛 주문 <b>{{ selected_origin.claim_label }}</b> — 고객이 이미 처리해
-                <b>할 일 없습니다.</b>
+                옛 주문 <b>{{ selected_origin.claim_label }}</b>{% if selected_origin.claim_stamp %}
+                <span class="wb-relation__stamp">· {{ selected_origin.claim_stamp }}</span>{% endif %}
+                — 고객이 이미 처리해 <b>할 일 없습니다.</b>
             </p>
             {% endif %}
         </div>
