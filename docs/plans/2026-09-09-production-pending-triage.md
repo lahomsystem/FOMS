@@ -112,7 +112,25 @@ tools/harness/*_scan.py --check (5종)                             -> exit 0
 ```
 
 - 브랜치 push → **PR #339** (`gh pr create --base production`, `HEAD:production` 직접 push 없음). 머지는 사용자 확인 뒤.
-- 남는 것: PR 검사 4종(FOMS CI · Harness CI · PostgreSQL Lane · perf-gate) 결과 → 사용자 머지 결정 → 머지 후 `/healthz` SHA 확인, `drift-audit-daily` 다음 실행(기준선 924) 관측, `promote/triage-20260909` 워크트리 정리.
+- PR #339 검사 4종 **전부 pass**(FOMS CI 3m26s · Harness 1m19s · pg-lane 2m5s · perf-gate 1m36s). `mergeable=MERGEABLE · CLEAN`.
+
+## 머지 (사용자 승인 "지금 머지", 2026-09-10 08:41 KST)
+
+- 머지 직전 `git ls-remote origin production` = `9e89d8e3a`(base 불변) 재확인 → `gh pr merge 339 --merge`.
+- production `9e89d8e3a` → **`3888da9ab`**. `ec234106a` 가 production 조상임을 확인.
+- 배포: `/healthz` 가 21초 뒤 `commit=3888da9ab · status=ok`.
+- 머지 커밋 자체에는 워크플로 런 0건(선례와 같음, `ci_watch --quick` 은 "런 없음 → green 취급" — 근거는 PR 검사 4종이다).
+- 정리: 승격 워크트리 `c:/tmp/foms-promo-20260909`·로컬/원격 브랜치 `promote/triage-20260909` 삭제.
+
+## 운영 관측 (머지 전 09-09 밤 스케줄 런, 손대지 않음 — 다음 세션 판단)
+
+- `drift-audit-daily` 09-09 20:59Z(`9e89d8e3a`, 옛 기준선) **실패**: "AS 축 투영(as_axis_status) 드리프트 0 → 1 (+1)", 총 927건. **운영에 AS 축 투영 누락 1건이 새로 생겼다** — 09-08 은 로그인 502 였고 이번은 진짜 순증이다. 오늘 밤 런은 새 기준선(flat 924)으로 돈다 — flat 도 924 를 넘으면 red 가 두 줄이 된다.
+- `worker-heartbeat-daily` 09-09 21:15Z **실패**: `NAVER_SETTLE_SYNC` 하트비트 나이 2760초(예산 180) STALE — 09-08 밤(3479초)에 이어 이틀째. 다른 루프는 OK.
+
+## 남은 것
+
+- 로그인 한도·잠금(A, deploy `40d25bb1b`) — 사용자 판단 대기(운영에 올리면 8회 실패 → 15분 429, 관리자 해제 UI 없음).
+- 위 운영 관측 2건(AS 축 드리프트 1건 · 정산 동기화 하트비트 STALE)의 원인 조사.
 
 ## 검증 (이 워크트리, HEAD `103eb092e` = origin/deploy)
 
