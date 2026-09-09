@@ -2282,8 +2282,9 @@
       var unavailable = !!(err && err.status === 503);
       notice(ctx, unavailable ? SYNC_UNAVAILABLE_TEXT
         : (err && err.handled ? err.message : '동기화 요청에 실패했습니다. 잠시 후 다시 시도하세요.'), true);
-      ctx.state.syncing = false;
-      if (ctx.els.syncBtn) ctx.els.syncBtn.disabled = false;
+      // 되돌림은 `stopRevPoll` 한 곳에서 한다 — 여기서 상태만 끄면 방금 그린 진행 막대가
+      // 안 지워진 채 남는다(요청 자체가 실패해 시작도 안 했는데 "기다리는 중"이 돈다).
+      stopRevPoll(ctx);
     }
   }
 
@@ -2394,6 +2395,13 @@
     return wrap;
   }
 
+  /** 동기화 감시 종료 — 타이머·상태·버튼을 되돌리고 **그 상태에 걸린 그림까지 다시 그린다**.
+   *
+   * 진행 막대는 `renderSync` 안에서 `state.syncing` 일 때만 그려진다(:func:`progressNode`).
+   * 그래서 여기서 끄기만 하고 다시 그리지 않으면, 마감 직전에 그려진 막대가 화면에 그대로
+   * 남아 "워커가 시작하기를 기다리는 중입니다"가 영원히 돈다(2026-09-09 운영 신고). 끝을
+   * 아는 쪽이 지우는 것이 맞다 — 호출자마다 순서를 지키게 하면 새 경로가 생길 때 또 샌다.
+   */
   function stopRevPoll(ctx) {
     if (ctx.pollTimer) window.clearTimeout(ctx.pollTimer);
     ctx.pollTimer = null;
@@ -2402,6 +2410,7 @@
     ctx.state.backfilling = false;
     if (ctx.els.syncBtn) ctx.els.syncBtn.disabled = false;
     renderBackfillBanner(ctx);
+    renderSync(ctx);
   }
 
   function daysBetween(fromIso, toIso) {

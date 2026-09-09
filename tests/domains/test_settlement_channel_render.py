@@ -81,7 +81,7 @@ _STATIC_ASSETS = (CSS_ASSET, JS_ASSET)
 #: 2026-09-08 시각·대기창 수정 — 화면 시각이 UTC 로 9시간 어긋나던 것을 서울 시각으로,
 #: 60초 확인 창이 실측 62초를 못 담아 성공해도 실패 문구가 뜨던 것을 150초로
 #: (JS 만, 20260908a → 20260908c; 셸 6줄 동반 이동).
-_CHANNEL_PIN = "20260908c"
+_CHANNEL_PIN = "20260909a"
 
 _CHANNEL_TAB_ID = "foms-settle-tab-channel"
 _CHANNEL_PANE_ID = "foms-settle-pane-channel"
@@ -1525,6 +1525,35 @@ def test_progress_poll_is_stopped_with_the_rev_poll(app):
     source = _read_code(f"static/{JS_ASSET}")
     assert "window.clearTimeout(ctx.progressTimer);" in source, \
         "스왑으로 떨어져 나간 루트의 진행 타이머를 정리하지 않는다"
+
+
+def test_finishing_the_sync_repaints_the_state_line(app):
+    """동기화가 끝나면 진행 막대가 화면에서 사라진다 — 상태를 끈 쪽이 다시 그려야 한다.
+
+    2026-09-09 운영 신고: 동기화가 OK 로 끝나고 "동기화가 반영되어 화면을 다시 읽었습니다"
+    까지 떴는데 그 아래 "워커가 시작하기를 기다리는 중입니다" 막대가 계속 돌았다. 막대는
+    ``state.syncing`` 일 때만 그려지는데, 마감 경로가 **그리고 나서** 상태를 껐다 —
+    끈 뒤 다시 그리지 않으니 직전에 그린 막대가 그대로 남았다.
+    """
+    stop = _js_function("stopRevPoll")
+
+    assert "ctx.state.syncing = false;" in stop, "마감이 동기화 상태를 안 끈다"
+    assert "renderSync(ctx);" in stop, (
+        "상태를 끄고 다시 그리지 않는다 — 진행 막대가 화면에 남는다")
+    assert stop.index("ctx.state.syncing = false;") < stop.index("renderSync(ctx);"), (
+        "상태를 끄기 전에 그리면 막대가 다시 그려진다")
+
+
+def test_only_the_stop_helper_turns_the_sync_flag_off(app):
+    """``state.syncing`` 을 끄는 자리는 :js:func:`stopRevPoll` 하나뿐이다.
+
+    다른 곳에서 손수 끄면 그 경로만 다시 그리기를 빠뜨려 같은 결함이 되살아난다
+    (실제로 요청 실패 경로가 그랬다 — 시작도 안 했는데 막대가 돌았다).
+    """
+    source = _read_code(f"static/{JS_ASSET}")
+
+    assert source.count("state.syncing = false") == 1, (
+        "동기화 상태를 끄는 자리가 여러 곳이다 — stopRevPoll 하나로 모아라")
 
 
 def test_failed_run_says_why_on_the_state_line(app):
