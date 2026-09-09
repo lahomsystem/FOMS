@@ -35,6 +35,7 @@ from foms.services.orders.drawing_wizard_pending import (
     mark_delete_pending,
     record_pending,
 )
+from foms.services.image_margin_trim import trim_uniform_margins
 from foms.services.sidefx_outbox import enqueue_side_effect
 from foms.web.auth import login_required, get_user_by_id, log_access
 from foms.services.audit_message_display import describe_order_action
@@ -785,22 +786,39 @@ def api_post_drawing_wizard_asset(order_id):
         if size > _MAX_ASSET_BYTES:
             return jsonify({'success': False, 'message': '이미지 용량이 너무 큽니다(최대 10MB).'}), 400
 
+        # 여백 트림: 스케치업 렌더 PNG 의 흰 테두리를 잘라 저장한다. 마법사는 이미지를
+        # 원본 크기 상자로 놓기 때문에 여백이 그대로 선택·리사이즈 영역이 되어, 여러 장을
+        # 놓으면 서로 겹쳐 잡힌다. 판정이 서지 않으면 원본을 그대로 올린다(fail-open).
+        upload_source = file
+        trimmed = trim_uniform_margins(file.read(), ext=ext)
+        file.seek(0)
+        if trimmed is not None:
+            upload_source = io.BytesIO(trimmed.data)
+
         storage = get_storage()
-        result = storage.upload_file(file, file.filename, f"orders/{order_id}/drawing_wizard/assets")
+        result = storage.upload_file(upload_source, file.filename, f"orders/{order_id}/drawing_wizard/assets")
         if not result.get('success'):
             return jsonify({'success': False, 'message': '파일 업로드에 실패했습니다.'}), 500
 
         key = result.get('key')
+        audit_extra = {"filename": file.filename, "storage_key": key}
+        if trimmed is not None:
+            audit_extra["trimmed"] = (
+                f"{trimmed.original_width}x{trimmed.original_height}"
+                f"->{trimmed.width}x{trimmed.height}"
+            )
         _audit_wizard(order, "DRAWING_WIZARD_ASSET_ADDED", note=file.filename,
-                      extra={"filename": file.filename, "storage_key": key}, auto_commit=True)
-        return jsonify({
-            'success': True,
-            'data': {
-                'key': key,
-                'view_url': f"/api/files/view/{key}",
-                'filename': file.filename,
-            },
-        })
+                      extra=audit_extra, auto_commit=True)
+        payload = {
+            'key': key,
+            'view_url': f"/api/files/view/{key}",
+            'filename': file.filename,
+            'trimmed': trimmed is not None,
+        }
+        if trimmed is not None:
+            payload['width'] = trimmed.width
+            payload['height'] = trimmed.height
+        return jsonify({'success': True, 'data': payload})
     except Exception as e:
         logger.error("drawing-wizard asset upload failed: %s", e, exc_info=True)
         return jsonify({'success': False, 'message': f'오류 발생: {str(e)}'}), 500

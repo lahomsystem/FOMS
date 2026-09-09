@@ -357,6 +357,7 @@
       </div>
       <div class="dws-mt-group" id="dws-mt-image" hidden>
         <button type="button" class="dws-mt-btn" id="dws-mt-ratio" title="비율 고정">비율고정: 켬</button>
+        <button type="button" class="dws-mt-btn" id="dws-mt-trim" title="그림 둘레의 빈 여백을 잘라냅니다">여백 자르기</button>
         <button type="button" class="dws-mt-btn dws-mt-del" id="dws-mt-del-image" title="삭제">삭제</button>
       </div>
       <div class="dws-mt-group" id="dws-mt-shape" hidden>
@@ -441,6 +442,6 @@
 
   <script id="drawing-wizard-config" type="application/json">{{ wizard_config|tojson }}</script>
   <script src="{{ url_for('static', filename='vendor/konva.min.js') }}?v=20260706b" defer></script>
-  <script src="{{ url_for('static', filename='js/drawing/wizard.js') }}?v=20260908b" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/wizard.js') }}?v=20260909a" defer></script>
 </body>
 </html>
