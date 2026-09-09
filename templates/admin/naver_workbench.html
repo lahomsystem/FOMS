@@ -19,7 +19,7 @@
 {% block title %}네이버 수집{% endblock %}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260909b">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260909c">
 {% endblock %}
 
 {% block content %}
@@ -746,85 +746,16 @@
                             {{ group.product }}{% if group.extra_count %} 외 {{ group.extra_count }}건{% endif %}
                         </span>
                         <span class="wb-row__line3">
-                            {# 'N건 묶음'은 **집 전체**의 상품주문 수다. 예전에는 group.count
-                               (화면 모집단 안의 수)를 썼는데, 확인이 끝났거나 매핑 실패로 큐에서
-                               빠진 형제를 안 세서 "2건 묶음"을 읽고 체크한 뒤 모달에서 "상품주문
-                               4건"을 봤다 — 한 화면 안에서 건수가 두 개였다(2026-08-24 감사).
-                               household_count 는 워커가 실제로 손댈 집 전체 수다. #}
-                            {% set row_items = group.household_count or group.count %}
-                            {% if row_items > 1 %}
-                            <span class="badge bg-light text-dark">{{ row_items }}건 묶음</span>
-                            {% endif %}
-                            {# 관계 배지는 추가결제·재결제에만 단다(결정 D4). 대부분이 신규라
-                               전부 달면 배지가 배경이 된다 — 다른 것만 눈에 띄어야 한다. #}
-                            {% if group.relation in ('ADDON', 'REPAY') %}
-                            <span class="badge bg-info text-dark">
-                                {{ '추가결제' if group.relation == 'ADDON' else '재결제' }}
-                            </span>
-                            {% endif %}
-                            {# 다음 할 일 배지는 클레임을 모른다. 취소·반품 집에 그대로 찍으면
-                               한 줄에서 "손대지 않음"과 "주문 만들기"가 충돌한다. #}
-                            {% if group.canceled %}
-                            <span class="badge bg-secondary">취소 완료</span>
-                            {% endif %}
-                            {# 'spec' 행에서는 오른쪽 `.wb-can` 이 이미 "규격 입력할 차례" 라고
-                               말한다 — 배지까지 두면 같은 말이 한 줄에 두 번이다(발주확인 할 차례
-                               배지와 같은 손질). 'wait'·'go' 의 "주문 만들기" 는 글자 라벨과
-                               다른 말이라 남긴다.
-                               갈래를 나열하는 꼴로 바꿨다: 'stop' 은 곧 row_locked 이라 옛 조건
-                               (not row_locked and row_kind != 'spec')과 지금 값 기준으로 같고,
-                               새로 생긴 'done'·'send' 만 빠진다. 발송이 끝난 집에 '규격 입력'
-                               파란 배지가 남으면 같은 줄의 글자 라벨('발송까지 끝남')과 정면으로
-                               충돌한다 — 그것이 2026-09-09 신고 본문이다. #}
-                            {% if group.next_step and row_kind in ('wait', 'go') %}
-                            <span class="badge bg-primary">{{ group.next_step }}</span>
-                            {% endif %}
-                            {# 취소·반품은 끝난 건도 빨강이다 — 회색으로 식히면 목록에서
-                               평범한 집과 구별이 안 된다(2026-09-03 사용자 지시). #}
-                            {% if group.claim_label %}
-                            <span class="badge bg-{{ 'danger' if group.claim_money_back else 'secondary' }}">{{ group.claim_label }}</span>
-                            {% endif %}
-                            {# 같은 줄 오른쪽 끝의 `.wb-can` 이 이미 "발주확인 먼저" 라고 말한다 —
-                               row_kind == 'wait' 이면 같은 사실을 한 줄에서 두 번 쓰는 셈이고,
-                               그 배지 하나(≈90px) 때문에 배지 줄이 접혀 행 높이가 튄다
-                               (2026-08-23 CEO 검수). 주문이 이미 있는 집(spec)에서는 글자 라벨이
-                               "규격 입력할 차례"라 발주확인 사실을 여기서만 알 수 있으므로 남긴다.
-                               위 배지와 같은 손질이되 빠지는 집이 하나 더 있다: 'done'·'send' 와,
-                               주문이 있고 규격도 이미 들어간 발주확인 전 집('wait')이다. 그 집은
-                               글자 라벨이 '발주확인 먼저' 라 같은 사실을 이미 말한다. 발송까지
-                               끝난 집에 '발주확인 할 차례' 가 남으면 한 줄에서 라벨과 충돌한다. #}
-                            {% if group.place_pending and row_kind in ('spec', 'go') %}
-                            <span class="badge bg-warning text-dark">발주확인 할 차례</span>
-                            {% endif %}
-                            {# 발송기한을 넘기면 네이버가 자동 취소할 수 있다 — 없어진
-                               '발주확인 전' 탭이 갖고 있던 사실을 여기로 옮겼다. #}
-                            {# 2026-08-24: `place_pending` 조건을 뗐다. 발송기한 임박순으로
-                               정렬할 수 있게 되었는데, 발주확인이 끝난 집은 기한이 있어도
-                               배지가 없어서 **정렬의 근거가 화면에 없었다**(실화면에서 상단
-                               15줄이 기한을 안 보여줬다). 정렬한 값은 보여야 한다.
-                               발주확인이 끝나도 그 날짜까지 발송해야 하는 것은 그대로다. #}
-                            {# 발주확인이 끝난 집에는 아무 표시가 없어서 '발주확인 할 차례' 배지가
-                               **없다는 사실**로만 읽어야 했다 — 화면 규칙을 외운 사람만 읽는다.
-                               상세 pane 은 같은 이유로 이미 완료 배지를 달고 있다.
-                               모든 행에 달지는 않는다(결정 D4: 전부 달면 배지가 배경이 된다) —
-                               **체크박스가 회색인 이유**가 필요한 행, 즉 잠기지 않았는데 벌크
-                               대상이 아닌 행에만 단다. 그 조건이 곧 '발주확인이 끝났다'이다. #}
-                            {% if not row_locked and not can_pick %}
-                            <span class="badge bg-light text-dark wb-badge--done">발주확인 완료</span>
-                            {% endif %}
-                            {# 발송이 끝난 집(done)에서는 뺀다 — 기한의 뜻이 "넘기면 네이버가
-                               자동 취소한다" 인데 이미 나갔으면 아무 결정도 안 바꾼다.
-                               2026-09-09 신고 화면의 `발송기한 10-01` 이 그 자리다. #}
-                            {% if group.shipping_due and not row_locked and row_kind != 'done' %}
-                            {# 연도는 전부 같은 해라 아무 결정도 바꾸지 않는다 — 목록에서만 뗀다
-                               (상세·모달은 전체 날짜 그대로). #}
-                            <span class="badge bg-light text-dark">발송기한 {{ group.shipping_due[5:] if group.shipping_due|length > 7 else group.shipping_due }}</span>
-                            {% endif %}
-                            {% if group.order_id %}
-                            <span class="badge bg-light text-dark">주문 #{{ group.order_id }}</span>
-                            {% endif %}
-                            {# 낱말은 서버 _row_view 가 한 벌로 정한다. 여기 조건문을 남기면
-                               같은 낱말이 두 벌이 되고, pane 이 실어 오는 값과 어긋난다. #}
+                            {# 배지 띠의 순서·글자·색은 서버가 한 벌로 정한다
+                               (:func:`naver_ingest._row_badges`). 여기 조건문을 남기면
+                               같은 규칙이 두 벌이 되고, 줄을 눌러 pane 값으로 다시 그릴 때
+                               라벨만 새 값이고 배지는 옛 값으로 남는다 — 한 줄에서
+                               "발송까지 끝남" 과 "발주확인 할 차례" 가 함께 보였다
+                               (2026-09-09 CEO 리뷰 M2). #}
+                            {% for badge in group.row_badges %}
+                            <span class="badge {{ badge.cls }}">{{ badge.text }}</span>
+                            {% endfor %}
+                            {# 낱말은 서버 _row_view 가 한 벌로 정한다. #}
                             <span class="wb-can wb-can--{{ row_kind }}">{{ group.row_can }}</span>
                         </span>
                     </span>
@@ -1371,5 +1302,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260909b" defer></script>
+<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260909c" defer></script>
 {% endblock %}
