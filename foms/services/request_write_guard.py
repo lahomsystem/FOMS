@@ -14,8 +14,9 @@ cookie-auth state-changing route 를 두 계층으로 보호한다.
 2. **레거시 per-route** :func:`require_same_origin_write` (커스텀 헤더 ``"1"``)는 호환을
    위해 유지한다. 공용 가드가 상위 방어이고 데코레이터는 추가(defense-in-depth)다.
 
-CSRF 토큰은 세션에 저장된 per-session 랜덤 seed 를 ``itsdangerous`` (``app.secret_key``)
-로 서명한 값이다. HTML 은 ``<meta name="csrf-token">``/hidden field, JSON·fetch 는
+CSRF 토큰은 seed 를 ``itsdangerous`` (``app.secret_key``)로 서명한 값이다. seed 는 로그인
+사용자면 user id + secret 파생값(세션에 쓰지 않아 세션 쿠키 경합에 안전), 비로그인이면
+세션에 저장된 랜덤값이다. HTML 은 ``<meta name="csrf-token">``/hidden field, JSON·fetch 는
 ``X-CSRF-Token`` 헤더(또는 sendBeacon 용 JSON body ``csrf_token``)로 전달한다. 검증은
 constant-time(:func:`hmac.compare_digest`). SameSite/CORS 는 보조 방어이며 이 가드를
 대체하지 않는다.
@@ -46,6 +47,7 @@ _WRITE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 # --- CSRF 토큰 상수 -------------------------------------------------------
 _CSRF_SESSION_KEY = "_csrf_seed"
 _CSRF_SALT = "foms-csrf-token"
+_CSRF_SEED_SALT = "foms-csrf-seed-v1"
 _CSRF_HEADER = "X-CSRF-Token"
 _CSRF_FIELD = "csrf_token"
 _BLOCK_HEADER = "X-Write-Guard"
@@ -176,11 +178,45 @@ def _serializer() -> URLSafeSerializer:
     return URLSafeSerializer(current_app.secret_key, salt=_CSRF_SALT)
 
 
-def _ensure_csrf_seed() -> str:
-    """세션에 per-session CSRF seed 를 보장하고 반환.
+def _derived_seed() -> str | None:
+    """로그인 사용자용 결정적 CSRF seed (세션 쓰기 없이 재계산 가능).
 
-    :return: 세션에 저장된(없으면 새로 생성한) 128-bit hex seed 문자열.
+    세션 쿠키에 저장되는 랜덤 seed 는 **동시 요청 경합에 취약하다**: 페이지 렌더가 새 seed
+    를 심는 순간에도, 그 이전에 시작된 폴링 요청(``/erp/api/notifications/badge`` 등)이
+    ``SESSION_REFRESH_EACH_REQUEST`` 때문에 **자기 스냅샷으로** 세션 쿠키를 다시 쓴다.
+    마지막 응답이 이기므로 방금 심은 seed 가 지워지고, 그 페이지의 모든 mutation 이
+    ``invalid_csrf_token`` 403 이 된다(탭을 여럿 열어 둔 사용자에게 재현성 100%,
+    2026-09-09 WD 계산기 견적 저장 사고).
+
+    그래서 로그인 사용자는 seed 를 세션에 **저장하지 않고** user id + ``secret_key`` 에서
+    파생한다. 어느 워커에서 계산하든 같은 값이라 쿠키 경합의 영향을 받지 않는다.
+    토큰은 여전히 secret 을 모르면 만들 수 없고, 사용자·secret 이 바뀌면 무효가 된다.
+
+    :return: 로그인 상태면 파생 seed hex 문자열, 비로그인/secret 부재면 ``None``.
     """
+    user_id = _session_user_id()
+    if user_id is None:
+        return None
+    secret = current_app.secret_key
+    if not secret:
+        return None
+    if isinstance(secret, str):
+        secret = secret.encode("utf-8")
+    return hmac.new(secret, f"{_CSRF_SEED_SALT}:{user_id}".encode("utf-8"),
+                    "sha256").hexdigest()
+
+
+def _ensure_csrf_seed() -> str:
+    """이 요청에서 쓸 CSRF seed 를 반환한다.
+
+    로그인 사용자는 :func:`_derived_seed` (세션 쓰기 없음), 비로그인(로그인 폼 등)은
+    기존처럼 세션에 랜덤 seed 를 심는다.
+
+    :return: 서명 대상 seed 문자열.
+    """
+    derived = _derived_seed()
+    if derived:
+        return derived
     seed = session.get(_CSRF_SESSION_KEY)
     if not seed:
         seed = os.urandom(16).hex()
@@ -209,14 +245,21 @@ def validate_csrf_token(token: str | None) -> bool:
     """
     if not token:
         return False
-    seed = session.get(_CSRF_SESSION_KEY)
-    if not seed:
-        return False
     try:
         unsigned = _serializer().loads(token)
     except BadSignature:
         return False
-    return hmac.compare_digest(str(unsigned), str(seed))
+    unsigned = str(unsigned)
+    # 파생 seed(로그인 사용자, 쿠키 경합 무관) 또는 세션 랜덤 seed(비로그인/구 페이지) 중
+    # 하나와 일치하면 유효. 둘 다 보는 이유는 배포 시점에 이미 렌더된 페이지의 구 토큰을
+    # 깨지 않기 위함이다.
+    derived = _derived_seed()
+    if derived and hmac.compare_digest(unsigned, derived):
+        return True
+    seed = session.get(_CSRF_SESSION_KEY)
+    if seed and hmac.compare_digest(unsigned, str(seed)):
+        return True
+    return False
 
 
 def _request_csrf_token() -> str:
