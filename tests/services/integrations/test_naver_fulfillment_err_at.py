@@ -75,10 +75,24 @@ def test_the_plan_approve_done_text_does_not_promise_an_open_gate():
     "열립니다"로 단정하면 새로고침한 사람이 여전히 잠긴 버튼을 본다.
     """
     # 2026-09-07: 완료 뒤 화면이 스스로 다시 그리게 되면서 문장이 바뀌었다.
-    # **단정 금지 규칙은 그대로다** — 여전히 "이미 열렸다"고 말하지 않는다.
-    assert "승인 보냄 — 네이버 확정이 돌아오면 정리 실행이 열립니다" in JS
+    # 2026-09-09: **정리 실행을 아예 입에 담지 않는다**. 계획 카드는 "정리한 뒤 옛 주문을
+    # 반품하세요" 라고 말하는데, 그 지시를 따른 담당자에게 "정리 실행이 열립니다" 는 뜻이
+    # 없는 말이다(이미 열렸고 이미 눌렀다). 두 문구가 서로 반대 순서를 전제하면 담당자는
+    # 어느 쪽이 맞는지 확인하러 판매자센터를 연다. **단정 금지 규칙은 그대로다.**
+    assert "네이버가 확정하면 화면 상태가 바뀝니다" in JS
+    assert "정리 실행이 열립니다" not in _plan_approve_done_line(), (
+        "승인 완료 문장이 다시 순서를 전제한다")
     assert "완료 — 새로고침하면 정리 실행이 열립니다" not in JS
     assert "정리 실행이 열렸습니다" not in JS
+
+
+def _plan_approve_done_line() -> str:
+    """승인 완료 문장 한 줄 — 주석이 옛 문장을 인용하므로 `doneText:` 줄만 집는다."""
+    at = JS.index("function submitPlanClaimApprove")
+    body = JS[at:at + 2400]
+    lines = [line for line in body.splitlines() if "doneText:" in line]
+    assert len(lines) == 1, "승인 결과 문장이 한 자리가 아니다"
+    return lines[0]
 
 
 def test_the_undefined_fallback_is_gone():
@@ -102,4 +116,4 @@ def test_the_cancel_failure_note_points_at_the_approve_button():
 
 def test_the_asset_pin_moved():
     """JS 를 고쳤으면 핀을 올린다 — 서비스워커 캐시가 옛 파일을 준다."""
-    assert WORKBENCH.count("?v=20260908b") == 2, "CSS·JS 핀을 함께 올린다"
+    assert WORKBENCH.count("?v=20260909a") == 2, "CSS·JS 핀을 함께 올린다"

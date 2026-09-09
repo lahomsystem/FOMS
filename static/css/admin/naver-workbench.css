@@ -1159,6 +1159,10 @@ input.wb-pick:disabled,
 .wb-plan__body { flex: 1 1 auto; min-width: 0; }
 .wb-plan__h { font-weight: 700; }
 .wb-plan__d { color: var(--wb-muted); line-height: 1.55; margin-top: 3px; }
+/* 정리 성공 뒤 남은 일 목록(2026-09-09). 옛 결제 환불과 예약금이 한자리에 선다 —
+   예전에는 환불하라는 말이 실행 전 카드에만 있어 성공 화면을 읽고 닫으면 빠졌다. */
+.wb-plan__todo { margin: 4px 0 6px; padding-left: 20px; line-height: 1.6; }
+.wb-plan__todo li { margin-bottom: 2px; }
 .wb-plan__d--warn { color: #b45309; }
 
 /* `.wb-discard__tag` 가 같은 규칙을 탄다 — 되돌릴 수 있음/지금은 안 됨 딱지는
