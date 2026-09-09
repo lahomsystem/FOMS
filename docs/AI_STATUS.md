@@ -1,7 +1,7 @@
 # FOMS 현재 상태
 > 자동 업데이트: 2026-09-08
 > 최신: **워커 정지 헛알림 26건 근본 수정(deploy 예정)** — 같은 하트비트를 readiness 는 `max(등록부, 신고간격 x 3)`=5400초, 감시자는 등록부 900 고정으로 읽어 반대로 말했다(운영 수집 루프 간격 1800 → 15분마다 멈춤·복구 왕복, 09-08 알림 26건). 예산 정본 `effective_heartbeat_budget` 신설로 판정부 2곳이 한 함수만 부른다. 상세 `docs/incidents/2026-09-09-worker-watchdog-false-stall-flap.md`
-> 직전: **고객컨펌 승인 불가 + 전달 도면 미저장 + 작업실 '완료' 실종 수정(운영 반영 PR #324 · production `35338ce20`)** — ① CONFIRM 은 2026-07-26 가드만 들어오고 짝인 `CUSTOMER_CONFIRM` command 가 없어 승인 409·생산 시작 409 로 막다른 골목이었다(운영 #5193). 라우트 가드를 DRAWING 전용으로 좁히고 CONFIRM 승인이 quest 종결+`blueprint.customer_confirmed` 를 한 tx 로 쓰되 전이는 안 한다 ② 주문 '도면' 탭 정본인 `OrderAttachment(drawing)` 를 **만드는 INSERT 가 없어**(전달은 category UPDATE 뿐, 마법사 산출물은 행 0) 탭이 영구 공백 → 전달 시 행 생성 ③ 작업실 '완료' 타일은 `status=CONFIRMED` 만 보내고 모집단 포함(`include_confirmed`)은 안 붙여 늘 0건이었다 → 서버가 필터와 모집단을 결합하고 타일 숫자는 전체 큐로 센다. 스테이징 실브라우저 확인(승인 200·완료 29건) 후 승격
+> 직전: **고객컨펌 승인 불가 + 전달 도면 미저장 + 작업실 '완료' 실종(운영 반영 PR #324 · production `35338ce20`)** — ① CONFIRM 은 2026-07-26 가드만 들어오고 짝인 `CUSTOMER_CONFIRM` command 가 없어 승인·생산 시작 409 막다른 골목이었다(운영 #5193). 라우트 가드를 DRAWING 전용으로 좁히고 CONFIRM 승인이 quest 종결+`blueprint.customer_confirmed` 를 한 tx 로 쓰되 전이는 안 한다 ② 주문 '도면' 탭 정본 `OrderAttachment(drawing)` 를 **만드는 INSERT 가 없어**(전달은 category UPDATE 뿐) 탭이 영구 공백 → 전달 시 행 생성 ③ 완료 타일이 모집단 포함을 안 붙여 늘 0건 → 서버가 필터와 모집단을 결합. 스테이징 실브라우저 확인 후 승격
 > 이 파일 상단 40줄이 세션 시작 컨텍스트의 전부다(hygiene 계약으로 강제). 상세 이력은 "## 최근 완료"·"## 기록 보관".
 
 
