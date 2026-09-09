@@ -23,6 +23,7 @@ import sys
 import time
 import traceback
 from datetime import datetime
+from typing import Optional
 
 sys.path.append(
     os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
@@ -31,7 +32,11 @@ sys.path.append(
 from app import app  # noqa: E402
 from db import engine, get_db  # noqa: E402
 from foms.services.integrations.naver_commerce.ingest import run_sweep  # noqa: E402
-from foms.services.loop_heartbeat import capture_exception, emit_heartbeat  # noqa: E402
+from foms.services.loop_heartbeat import (  # noqa: E402
+    capture_exception,
+    emit_heartbeat,
+    init_sentry_once,
+)
 from foms.services.sidefx_worker import WORKER_KIND_NAVER_ORDER_SYNC  # noqa: E402
 
 _LOGGER = logging.getLogger("naver_order_sync")
@@ -41,6 +46,15 @@ HEARTBEAT_WORKER_KIND = WORKER_KIND_NAVER_ORDER_SYNC
 
 #: --loop 최소 간격(초). 이보다 촘촘하면 rate limit 만 소모한다.
 MIN_INTERVAL_SECONDS = 60
+
+#: 잠을 쪼개는 단위(초). **일하는 주기와 살아 있다고 말하는 주기를 분리**한다.
+#: 스윕은 그대로 interval 마다 1회만 돌고(네이버 HTTP 호출 증가 0), 자는 동안에는
+#: 이 간격으로 DB 하트비트만 남긴다. 신고 간격이 좁아지면 판정부
+#: (:func:`foms.services.sidefx_worker.effective_heartbeat_budget`)가 예산을
+#: ``max(등록부 900, 60 x 3)`` = 900초로 잡아, 자는 도중 죽은 루프가 감시 주기 60초
+#: (``tools/ops/run_domain_side_effect_outbox.py``)를 더해 최대 16분 안에 잡힌다
+#: (예전에는 신고 1800 -> 예산 5400 이라 90분+ 침묵했다).
+HEARTBEAT_TICK_SECONDS = 60
 
 
 def _parse_args() -> argparse.Namespace:
@@ -83,21 +97,83 @@ def _print_result(result: dict, as_json: bool) -> None:
     )
 
 
-def _heartbeat_metadata(result, interval: int = 0) -> dict:
+def _heartbeat_metadata(result, interval: int = 0,
+                        outcome: Optional[str] = None) -> dict:
     """하트비트에 실을 집계값. 주문 식별자·고객 정보는 싣지 않는다(운영 감시용).
 
     ``interval_seconds`` 는 판정부가 예산을 잡는 근거다 — 이 루프의 간격은 env
     (``FOMS_NAVER_SYNC_INTERVAL_SECONDS``)로 바뀐다(스테이징 실측 1800초).
+
+    ``outcome`` 을 넘기면 스윕 결과 대신 그 값을 쓴다 — 스윕 **전에** 남기는 하트비트를
+    ``sweep_failed`` 로 거짓 기록하지 않기 위해서다.
     """
     payload = result or {}
     return {
         "interval_seconds": int(interval or 0),
-        "outcome": "ok" if result is not None else "sweep_failed",
+        "outcome": outcome or ("ok" if result is not None else "sweep_failed"),
         "changed": int(payload.get("changed") or 0),
         "candidates": int(payload.get("candidates") or 0),
         "created": int(payload.get("created") or 0),
         "pending_review": int(payload.get("pending_review") or 0),
     }
+
+
+def _beat(result: Optional[dict], declared_interval: int,
+          outcome: Optional[str] = None) -> None:
+    """하트비트 1건을 남긴다.
+
+    ``declared_interval`` 은 스윕 주기가 아니라 **다음 하트비트까지 벌어질 수 있는 최대
+    공백**(초)이다. 판정부가 ``max(등록부 기본값, 신고 x 3)`` 으로 예산을 잡으므로 이
+    값이 곧 정지 감지 지연을 정한다.
+
+    Args:
+        result: 마지막 스윕 결과. 스윕이 터졌으면 ``None``(metadata 의 ``outcome`` 이
+            ``sweep_failed`` 가 된다).
+        declared_interval: 이 하트비트가 신고할 최대 공백(초).
+        outcome: metadata 의 ``outcome`` 을 이 값으로 고정한다(스윕 전 하트비트용).
+
+    Returns:
+        None. 기록 실패는 :func:`emit_heartbeat` 가 경고 로그 + Sentry 로 남기고 삼킨다
+        (관측 배선이 수집을 멈추면 더 나쁜 실패다).
+    """
+    emit_heartbeat(engine, HEARTBEAT_WORKER_KIND,
+                   metadata=_heartbeat_metadata(result, declared_interval, outcome),
+                   logger=_LOGGER)
+
+
+def _sleep_with_heartbeats(interval: int, result: Optional[dict],
+                           tick: int = HEARTBEAT_TICK_SECONDS) -> None:
+    """다음 스윕까지의 잠을 ``tick`` 초로 쪼개고 조각마다 하트비트를 남긴다.
+
+    별도 스레드를 쓰지 않는다 — 스레드는 루프 본체가 멎어도 계속 뛰어 "살아 있다" 고
+    거짓말한다(``tools/ops/run_rq_worker.py`` 가 같은 이유로 스레드를 배제했다).
+    스윕 호출 횟수는 그대로라 네이버 HTTP 호출은 한 번도 늘지 않는다 — 늘어나는 것은
+    분당 하트비트 upsert 1회뿐이다.
+
+    신고값 규칙이 이 함수의 핵심이다.
+
+    * 마지막 조각이 아니면 ``tick``(60)을 신고한다 -> 예산 900초. 자는 도중 죽으면
+      감시 주기 60초를 더해 최대 16분 안에 잡힌다.
+    * 마지막 조각 뒤에는 곧바로 스윕이 시작되므로 ``interval``(운영 1800)을 신고해 예산을
+      스윕 허용치로 되넓힌다. ``resolve_window``(naver_commerce/watermark.py)에는 구간
+      상한이 없어, 며칠 멎어 있다 살아난 첫 스윕은 24시간씩 쪼개 여러 번 도느라 길어질
+      수 있다. 거기서 예산을 좁게 두면 2026-09-08 헛알림을 그대로 되풀이한다.
+
+    Args:
+        interval: 스윕 주기(초). 잠의 총합이자 마지막 조각의 신고값이다.
+        result: 마지막 스윕 결과(하트비트 metadata 용).
+        tick: 잠 한 조각의 길이(초).
+
+    Returns:
+        None.
+    """
+    remaining = interval
+    while remaining > 0:
+        nap = min(tick, remaining)
+        # 모듈 속성으로 부른다 — 계약 테스트가 이 자리에서 루프를 끊는다.
+        time.sleep(nap)
+        remaining -= nap
+        _beat(result, interval if remaining <= 0 else tick)
 
 
 def _run_loop(interval: int, dry_run: bool, as_json: bool) -> int:
@@ -106,6 +182,11 @@ def _run_loop(interval: int, dry_run: bool, as_json: bool) -> int:
     print(f"[naver-sync-loop] started (interval={interval}s)", flush=True)
     while True:
         result = None
+        # 스윕 **전에** 넓은 예산을 신고한다. 이 한 줄이 첫 스윕(재배포 직후, 밀린 구간을
+        # 따라잡느라 길다 — resolve_window 에 구간 상한이 없다)과 매 사이클 스윕을 함께
+        # 덮는다. 여기가 없으면 표에 남은 마지막 신고가 tick(60)이라 예산이 900 뿐이고,
+        # 멀쩡히 따라잡는 루프에 2026-09-08 과 같은 헛알림이 난다.
+        _beat(None, interval, outcome="sweeping")
         try:
             with app.app_context():
                 result = _sweep_once(dry_run)
@@ -116,12 +197,26 @@ def _run_loop(interval: int, dry_run: bool, as_json: bool) -> int:
             traceback.print_exc()
             capture_exception()
         # 스윕이 터진 tick 도 하트비트를 남긴다 — "죽었다" 와 "이번 스윕만 실패" 를 가른다.
-        emit_heartbeat(engine, HEARTBEAT_WORKER_KIND,
-                       metadata=_heartbeat_metadata(result, interval), logger=_LOGGER)
-        time.sleep(interval)
+        # 신고값은 tick 이다: 이 하트비트 다음에 오는 것은 스윕이 아니라 60초 낮잠이라,
+        # 여기서 interval 을 신고하면 자는 동안 예산이 90분으로 되넓어진다(넓은 예산이
+        # 필요한 자리는 스윕 **앞**이고, 그것은 위에서 이미 신고했다).
+        _beat(result, HEARTBEAT_TICK_SECONDS)
+        _sleep_with_heartbeats(interval, result)
 
 
 def run() -> int:
+    """CLI 진입점.
+
+    Sentry 는 진입점에서 공용 게이트로 붙인다. 이 파일은 상단에서 ``app`` 을 import 하므로
+    사실상 이미 붙어 있고(``app_factory`` 가 ``init_sentry`` 를 부른다), 게이트는 그때
+    다시 init 하지 않는다 — 앞 클라이언트를 갈아치우면 전송 대기 이벤트가 유실된다.
+    그럼에도 명시로 부르는 이유는 배선을 한 벌로 두기 위해서다(러너마다 다른 방식으로
+    붙이면 어디가 비었는지 아무도 모른다).
+
+    Returns:
+        프로세스 종료 코드(``--loop`` 는 정상 경로에서 돌아오지 않는다).
+    """
+    init_sentry_once(_LOGGER)
     args = _parse_args()
     if args.loop:
         return _run_loop(args.interval, args.dry_run, args.json)

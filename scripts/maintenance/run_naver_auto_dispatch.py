@@ -13,8 +13,10 @@
 
 관측(OPS-HEARTBEAT-01): tick 마다 ``side_effect_worker_heartbeats`` 의
 ``NAVER_AUTO_DISPATCH`` 행을 갱신한다. **창 밖이라 아무것도 안 한 tick 도 갱신한다** —
-그래야 "루프가 죽었다" 와 "지금은 일할 시각이 아니다" 가 갈린다. Sentry 는 아래
-``from app import app`` 이 이미 초기화하므로 여기서 다시 부르지 않는다.
+그래야 "루프가 죽었다" 와 "지금은 일할 시각이 아니다" 가 갈린다. Sentry 는 진입점에서
+공용 게이트 :func:`foms.services.loop_heartbeat.init_sentry_once` 로 붙인다 — 이미 붙어
+있으면(상단 ``from app import app`` 경로) 다시 init 하지 않는다(앞 클라이언트를 갈아치우면
+그 전송 스레드에 남아 있던 이벤트가 유실된다).
 
 사용 예 (PowerShell 5.x)::
 
@@ -47,6 +49,7 @@ from foms.services.datetime_kst import now_kst  # noqa: E402
 from foms.services.integrations.naver_commerce.auto_dispatch import (  # noqa: E402
     run_auto_dispatch,
 )
+from foms.services.loop_heartbeat import capture_exception, init_sentry_once  # noqa: E402
 from foms.services.sidefx_worker import (  # noqa: E402
     WORKER_KIND_NAVER_AUTO_DISPATCH,
     upsert_heartbeat,
@@ -143,24 +146,6 @@ def _print_result(result: dict, as_json: bool) -> None:
           f"blocked={result.get('blocked')} total={result.get('total')}", flush=True)
 
 
-def _capture_to_sentry() -> None:
-    """지금 처리 중인 예외를 Sentry 로 올린다(``except`` 블록 안에서만 부른다).
-
-    Sentry 초기화는 ``app`` import 가 이미 했다. 문제는 이 러너가 예외를 잡아 stdout 으로만
-    찍는다는 것이었다 — 잡힌 예외는 SDK 가 스스로 못 본다. 그래서 여기서 명시로 올린다.
-
-    Returns:
-        None. ``SENTRY_DSN`` 이 없으면 클라이언트가 안 붙어 있어 no-op 이고,
-        ``sentry-sdk`` 미설치 환경에서는 조용히 지나간다(관측 배선이 본 작업을 막으면
-        안 된다 — 실패 사실 자체는 호출측이 이미 stdout/로그에 남겼다).
-    """
-    try:
-        import sentry_sdk
-    except ImportError:
-        return
-    sentry_sdk.capture_exception()
-
-
 def _heartbeat_metadata(*, in_window_now: bool, result: Optional[dict],
                         tick: int = 0) -> dict:
     """하트비트에 실을 집계값을 만든다.
@@ -214,7 +199,7 @@ def _emit_heartbeat(*, in_window_now: bool, result: Optional[dict],
     except Exception:
         _LOGGER.warning("heartbeat upsert failed worker_kind=%s",
                         HEARTBEAT_WORKER_KIND, exc_info=True)
-        _capture_to_sentry()
+        capture_exception()
 
 
 def _run_tick(args: argparse.Namespace, at: tuple[int, int]) -> None:
@@ -241,7 +226,7 @@ def _run_tick(args: argparse.Namespace, at: tuple[int, int]) -> None:
     except Exception:
         print("[naver-auto-dispatch] run failed:", flush=True)
         traceback.print_exc()
-        _capture_to_sentry()
+        capture_exception()
     _emit_heartbeat(in_window_now=in_window_now, result=result,
                     tick=max(5, int(getattr(args, "tick", 0) or 0)))
 
@@ -267,11 +252,17 @@ def _run_loop(args: argparse.Namespace) -> int:
         except Exception:
             print("[naver-auto-dispatch] tick failed:", flush=True)
             traceback.print_exc()
-            _capture_to_sentry()
+            capture_exception()
         time.sleep(tick)
 
 
 def run() -> int:
+    """CLI 진입점 — 이 프로세스의 Sentry 를 먼저 붙이고 1회 실행 또는 루프로 간다.
+
+    Returns:
+        프로세스 exit code(0=정상).
+    """
+    init_sentry_once(_LOGGER)
     args = _parse_args()
     if args.loop:
         return _run_loop(args)

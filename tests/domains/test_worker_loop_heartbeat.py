@@ -25,6 +25,7 @@ web 프로세스에서의 이중 초기화(앞 클라이언트가 교체돼 이�
 from __future__ import annotations
 
 import argparse
+import datetime
 import importlib.util
 import logging
 import os
@@ -37,6 +38,7 @@ import pytest
 from sqlalchemy import select
 
 from db import engine
+from foms.services import sidefx_worker
 from models import SideEffectWorkerHeartbeat
 
 _REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -153,9 +155,19 @@ def test_a_second_tick_updates_the_same_heartbeat_row(runner, monkeypatch):
 
     행이 늘면 PK 가 아니라 append 로 쌓이고 있다는 뜻이고, 시각이 그대로면 upsert 가
     갱신을 안 하고 있다는 뜻이다 — 둘 다 "살아 있다" 판정을 못 하게 만든다.
+
+    시계는 주입한다. 두 tick 이 실제로 몇 밀리초 안에 끝나는데 Windows 의
+    ``datetime.now`` 분해능은 약 15.6ms 라, 진짜 시계로는 두 값이 같아져 이 테스트가
+    반쯤 빨개졌다(리눅스 CI 에서는 안 나던 flake). 주입하면 upsert 가 값을 갱신하는지를
+    시계 운에 맡기지 않고 그대로 본다.
     """
     monkeypatch.setattr(runner, "in_window", lambda *a, **k: False)
     at = runner.parse_at("16:50")
+    stamps = iter([
+        datetime.datetime(2026, 9, 9, 7, 50, 0),
+        datetime.datetime(2026, 9, 9, 7, 51, 0),
+    ])
+    monkeypatch.setattr(sidefx_worker, "now_utc_naive", lambda: next(stamps))
 
     runner._run_tick(_args(), at)
     first = _heartbeats()

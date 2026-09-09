@@ -53,16 +53,24 @@ WATCHED_KINDS: tuple[str, ...] = (
 #: 마지막으로 알린 상태를 담는 SystemSetting 키. 이 값이 있어야 **전이에서만** 알린다.
 SETTING_KEY = "worker_watchdog_state"
 
-#: 알림 유형. push P1 집합에 등재해야 화면을 안 보고 있어도 닿는다(push_sender).
+#: 알림 유형(멎음). push P1 집합에 등재해야 화면을 안 보고 있어도 닿는다(push_sender).
+#: 상수 이름은 그대로 둔다 — 밖에서 이 이름을 "멎음 유형"으로 읽고 있다.
 NOTIFICATION_TYPE = "WORKER_STALLED"
+
+#: 알림 유형(복구). 멎음과 **다른 유형**이어야 push 제목·본문이 갈린다 — push_sender 가
+#: Notification 에서 볼 수 있는 축은 is_urgent(둘 다 False)와 notification_type 뿐이라,
+#: 같은 유형을 쓰면 복구 push 가 "멈췄습니다" 를 그대로 반복한다(2026-09-08).
+#: 이 유형도 P1 집합에 들어간다 — 같은 tag 로 잠금화면의 "멈췄다" 배너를 교체해야
+#: 그 배너가 거짓인 채 남지 않는다.
+NOTIFICATION_TYPE_RECOVERED = "WORKER_RECOVERED"
 
 #: 게이트 env. 다른 루프와 같은 규율 — 기본은 off 로 두고 운영에서 켠다.
 ENABLED_ENV = "FOMS_WORKER_WATCHDOG_ENABLED"
 
 _TRUTHY = frozenset({"1", "true", "yes", "on"})
 
-_TITLE_STALLED = "백그라운드 작업이 멈췄습니다"
-_TITLE_RECOVERED = "백그라운드 작업이 다시 돌고 있습니다"
+_TITLE_STALLED = "자동 처리가 멈췄습니다"
+_TITLE_RECOVERED = "자동 처리가 다시 시작됐습니다"
 
 
 def is_enabled() -> bool:
@@ -121,7 +129,7 @@ def _write_state(session: Any, value: dict) -> None:
 def _message(health: dict, *, stalled: bool) -> str:
     """사람이 읽는 한 줄. 무엇이 몇 분째 멎었는지까지 말한다."""
     if not stalled:
-        return "멈췄던 백그라운드 작업이 다시 돌기 시작했습니다. 밀려 있던 요청은 순서대로 처리됩니다."
+        return "멈췄던 자동 처리가 다시 시작됐습니다. 밀려 있던 요청은 순서대로 처리됩니다."
     parts = []
     for kind in health["stale_kinds"]:
         minutes = max(1, round(health["ages"].get(kind, 0) / 60))
@@ -132,10 +140,24 @@ def _message(health: dict, *, stalled: bool) -> str:
 
 def _notify(session: Any, health: dict, *, stalled: bool,
             now: datetime.datetime) -> Optional[int]:
-    """관리자 전원에게 알림 1건. 사건 1건 = Notification 1행 + 수신자별 state."""
+    """관리자 전원에게 알림 1건. 사건 1건 = Notification 1행 + 수신자별 state.
+
+    멎음과 복구는 **서로 다른 유형**으로 남긴다. 휴대폰 push 는 알림 행에서
+    notification_type 말고는 둘을 가를 재료가 없어, 같은 유형이면 복구 알림까지
+    "멈췄습니다" 로 나간다.
+
+    Args:
+        session: SQLAlchemy 세션(커밋은 호출부).
+        health: :func:`evaluate_worker_health` 결과.
+        stalled: 멈춘 상태로 전이했으면 True, 다시 돌기 시작했으면 False.
+        now: 기준 시각.
+
+    Returns:
+        만든 알림 id.
+    """
     notif = Notification(
         order_id=None,
-        notification_type=NOTIFICATION_TYPE,
+        notification_type=NOTIFICATION_TYPE if stalled else NOTIFICATION_TYPE_RECOVERED,
         target_type="ROLE",
         target_role="ADMIN",
         # is_urgent=True 는 에스컬레이션 스윕을 부른다 — 사람이 아니라 인프라 사건이라

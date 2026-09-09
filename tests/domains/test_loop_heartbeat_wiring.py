@@ -253,17 +253,32 @@ def test_settle_sync_loop_beats_outside_its_window(app, monkeypatch):
 
 
 def test_loops_declare_their_real_tick_interval(app, monkeypatch):
-    """신고 값이 실제 간격과 갈리면 판정 예산이 틀린다 — 루프가 받은 값을 그대로 싣는다."""
+    """신고 값이 실제 간격과 갈리면 판정 예산이 틀린다 — 루프가 받은 값을 그대로 싣는다.
+
+    수집 루프는 구간마다 다른 값을 신고한다: 스윕 **앞**에서는 받은 간격(1800)으로 예산을
+    넓히고, 스윕이 끝나면 낮잠 길이(60)를 신고해 좁힌다. 둘 다 하드코딩이 아니라 루프가
+    받은 값에서 나와야 한다.
+    """
     runner = _load(_REPO_ROOT / "scripts" / "maintenance" / "run_naver_order_sync.py")
     kind = runner.HEARTBEAT_WORKER_KIND
     assert _heartbeat_rows(kind) == []
 
+    declared: list = []
+    real_emit = runner.emit_heartbeat
+
+    def _emit(engine, worker_kind, *, metadata=None, logger=None, **kw):
+        declared.append(int((metadata or {}).get("interval_seconds") or 0))
+        return real_emit(engine, worker_kind, metadata=metadata, logger=logger, **kw)
+
+    monkeypatch.setattr(runner, "emit_heartbeat", _emit)
     monkeypatch.setattr(runner, "_sweep_once", lambda _dry: {"changed": 0})
     _drive_one_tick(runner, monkeypatch, lambda: runner._run_loop(1800, False, True))
 
     rows = _heartbeat_rows(kind)
     assert len(rows) == 1
-    assert rows[0].metadata_json["interval_seconds"] == 1800
+    assert declared[0] == 1800, f"스윕 앞 신고={declared[0]} — 받은 간격을 안 싣는다"
+    assert rows[0].metadata_json["interval_seconds"] == runner.HEARTBEAT_TICK_SECONDS, (
+        "스윕 뒤 신고가 낮잠 길이가 아니다 — 자는 구간 예산이 되넓어진다")
 
 
 def test_rq_worker_declares_its_dequeue_cadence():
@@ -348,70 +363,3 @@ def test_rq_worker_class_wraps_rq_heartbeat():
     runner = _load(_RQ_RUNNER)
     order = runner.HeartbeatWorker.__mro__
     assert order.index(runner.HeartbeatWorkerMixin) < order.index(runner.Worker)
-
-
-# --------------------------------------------------------------------------- #
-# 5. SIDEFX outbox 워커 — 잡은 예외가 Sentry 로 간다 (F-7)
-# --------------------------------------------------------------------------- #
-def _init_sentry_with(monkeypatch, *, dsn: str, client_active: bool) -> list:
-    """``init_sentry_once`` 를 주어진 상태에서 돌리고 init 호출 횟수를 돌려준다."""
-    import sentry_sdk
-    from foms.platform import sentry_setup
-
-    calls = []
-    if dsn:
-        monkeypatch.setenv(loop_heartbeat.SENTRY_DSN_ENV, dsn)
-    else:
-        monkeypatch.delenv(loop_heartbeat.SENTRY_DSN_ENV, raising=False)
-    monkeypatch.setattr(sentry_sdk, "get_client",
-                        lambda: SimpleNamespace(is_active=lambda: client_active))
-    monkeypatch.setattr(sentry_setup, "init_sentry", lambda: calls.append(True) or True)
-
-    loop_heartbeat.init_sentry_once()
-    return calls
-
-
-def test_worker_sentry_is_attached_when_a_dsn_is_set(monkeypatch):
-    """app.py 를 안 거치는 워커도 DSN 이 있으면 Sentry 를 붙인다."""
-    assert _init_sentry_with(monkeypatch, dsn="https://public@example.invalid/1",
-                             client_active=False) == [True]
-
-
-def test_worker_sentry_is_not_reinitialized(monkeypatch):
-    """음성 대조군 — 이미 붙어 있으면 다시 부르지 않는다(앞 클라이언트가 교체된다)."""
-    assert _init_sentry_with(monkeypatch, dsn="https://public@example.invalid/1",
-                             client_active=True) == []
-
-
-def test_worker_sentry_is_skipped_without_a_dsn(monkeypatch):
-    """DSN 이 없으면 아무것도 하지 않는다(foms.platform 을 열지 않기 위해서다)."""
-    assert _init_sentry_with(monkeypatch, dsn="", client_active=False) == []
-
-
-def test_sentry_env_name_matches_the_platform_constant():
-    """게이트가 보는 env 이름이 정본과 갈리면 워커가 조용히 Sentry 없이 뜬다."""
-    from foms.platform.sentry_setup import SENTRY_DSN_ENV
-
-    assert loop_heartbeat.SENTRY_DSN_ENV == SENTRY_DSN_ENV
-
-
-def test_outbox_worker_initializes_sentry_and_reports_step_failures(monkeypatch):
-    """SIDEFX 워커의 잡은 예외가 지금까지 아무 데도 안 갔다 — 이제 Sentry 로 간다."""
-    outbox = _load(_REPO_ROOT / "tools" / "ops" / "run_domain_side_effect_outbox.py")
-    captured = []
-    monkeypatch.setattr(outbox, "capture_exception", lambda *a, **k: captured.append(True))
-
-    def _boom():
-        raise RuntimeError("delivery step exploded")
-
-    assert outbox._safe(_boom, "delivery") is False
-    assert captured == [True], "잡은 예외가 Sentry 로 안 갔다"
-    assert outbox._safe(lambda: None, "delivery") is True
-    assert captured == [True], "성공한 step 까지 Sentry 로 보냈다"
-
-
-def test_outbox_worker_calls_the_sentry_gate_on_startup():
-    """호출처가 없으면 배선이 있어도 안 붙는다 — main 이 게이트를 부르는지 본다."""
-    source = (_REPO_ROOT / "tools" / "ops" / "run_domain_side_effect_outbox.py").read_text(
-        encoding="utf-8")
-    assert "init_sentry_once(" in source.split("def main(", 1)[1]

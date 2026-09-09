@@ -11,6 +11,8 @@
 3. 하트비트 행이 **없는** kind 는 죽은 것으로 세지 않는다 — 게이트를 꺼 둔 루프마다
    알림이 나가면 잡음이 된다.
 4. push 는 **rq 를 거치지 않는다** — 알리려는 사실이 "그 큐가 안 돈다" 이기 때문이다.
+5. 멎음과 복구는 **서로 다른 notification_type** 이다 — 휴대폰 push 가 알림 행에서 둘을
+   가를 수 있는 축이 그것뿐이라, 같은 유형이면 복구 push 까지 "멈췄습니다" 를 반복한다.
 """
 
 from __future__ import annotations
@@ -35,6 +37,10 @@ from models import Notification, SideEffectWorkerHeartbeat, SystemSetting, User
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _SIDEFX_RUNNER = _REPO_ROOT / "tools" / "ops" / "run_domain_side_effect_outbox.py"
 _START_SH = _REPO_ROOT / "start.sh"
+
+#: 감시자가 쓰는 알림 유형 둘(멎음·복구).
+_WATCHDOG_TYPES = (worker_watchdog.NOTIFICATION_TYPE,
+                   worker_watchdog.NOTIFICATION_TYPE_RECOVERED)
 
 _NOW = datetime.datetime(2026, 9, 8, 5, 0, 0)
 _BUDGET = WORKER_KIND_SPECS[WORKER_KIND_RQ_WORKER].max_heartbeat_age
@@ -74,8 +80,9 @@ def _beat(kind: str, *, age_seconds: int, now: datetime.datetime = _NOW,
 
 
 def _notif_count() -> int:
+    """감시자가 만든 알림 수(멎음 + 복구 두 유형 합)."""
     return (db_session.query(Notification)
-            .filter(Notification.notification_type == worker_watchdog.NOTIFICATION_TYPE)
+            .filter(Notification.notification_type.in_(_WATCHDOG_TYPES))
             .count())
 
 
@@ -207,9 +214,34 @@ def test_recovery_is_announced_too(app):
     assert back["changed"] is True
     assert _notif_count() == 2
     latest = (db_session.query(Notification)
-              .filter(Notification.notification_type == worker_watchdog.NOTIFICATION_TYPE)
+              .filter(Notification.notification_type.in_(_WATCHDOG_TYPES))
               .order_by(Notification.id.desc()).first())
     assert "다시" in (latest.title or "")
+
+
+def test_recovery_gets_its_own_notification_type(app):
+    """멎음과 복구가 같은 유형이면 휴대폰 push 가 둘을 가르지 못한다.
+
+    push_sender 가 알림 행에서 볼 수 있는 축은 ``is_urgent``(둘 다 False)와
+    ``notification_type`` 뿐이다 — 유형이 같으면 복구 push 까지 "멈췄습니다" 를 반복하고,
+    잠금화면에는 거짓 배너가 남는다(2026-09-08 무내용 push 20건 사건).
+    """
+    _admin()
+    _beat(WORKER_KIND_RQ_WORKER, age_seconds=_BUDGET + 60)
+    worker_watchdog.run_watchdog_once(db_session, now=_NOW)
+    db_session.commit()
+
+    _beat(WORKER_KIND_RQ_WORKER, age_seconds=5)
+    worker_watchdog.run_watchdog_once(db_session, now=_NOW)
+    db_session.commit()
+
+    types = [n.notification_type for n in
+             db_session.query(Notification)
+             .filter(Notification.notification_type.in_(_WATCHDOG_TYPES))
+             .order_by(Notification.id).all()]
+    assert types == [worker_watchdog.NOTIFICATION_TYPE,
+                     worker_watchdog.NOTIFICATION_TYPE_RECOVERED], (
+        "멎음과 복구가 같은 유형으로 나갔다 — push 가 둘을 가를 수 없다")
 
 
 def test_notification_targets_every_admin_without_an_order(app):
@@ -339,5 +371,17 @@ def test_worker_stalled_is_registered_for_push():
     """P1 집합에 없으면 push 를 만들어도 조용히 no-op 된다(무음 push 의 유일한 기전)."""
     from foms.services.notifications import push_sender
 
-    source = Path(push_sender.__file__).read_text(encoding="utf-8")
-    assert '"WORKER_STALLED",' in source
+    assert worker_watchdog.NOTIFICATION_TYPE in push_sender._DEFAULT_P1_TYPES, (
+        "멎음 유형이 P1 집합에 없다 — 발송해도 severity_skipped 로 조용히 사라진다")
+
+
+def test_worker_recovered_is_registered_for_push():
+    """복구도 P1 이어야 잠금화면의 "멈췄습니다" 배너가 교체된다.
+
+    미등재면 ``_should_push`` 가 False 라 복구 push 가 조용히 no-op 되고, 워커가 다시
+    도는데도 휴대폰에는 멎었다는 배너가 그대로 남는다(같은 tag 로 교체하는 설계의 전제).
+    """
+    from foms.services.notifications import push_sender
+
+    assert worker_watchdog.NOTIFICATION_TYPE_RECOVERED in push_sender._DEFAULT_P1_TYPES, (
+        "복구 유형이 P1 집합에 없다 — 거짓 배너가 잠금화면에 남는다")

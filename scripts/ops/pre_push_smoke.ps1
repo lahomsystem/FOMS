@@ -233,6 +233,13 @@ if ($Full) {
         # 정산 핀 사슬(셸 4줄·채널 2줄·_CHANNEL_PIN)은 테스트가 잡지만 smoke 서브셋에 없었다(CFO 감사 H-02).
         "tests/domains/test_settlement_channel_render.py",
         "tests/domains/test_settlement_operations_render.py",
+        # 워커 러너 배선 계약(하트비트 kind·신고 간격·Sentry 게이트). smoke 사각이라
+        # 2026-09-09 에 로컬 초록·CI 빨강이 같은 커밋에 성립했다.
+        "tests/domains/test_loop_heartbeat_wiring.py",
+        "tests/domains/test_worker_loop_heartbeat.py",
+        "tests/domains/test_order_sync_cadence.py",
+        "tests/domains/test_worker_sentry_wiring.py",
+        "tests/domains/test_worker_watchdog.py",
         "tests/harness/test_hook_log_hygiene.py::test_ai_status_head_budget",
         "tests/visual/test_staging_mobile_v2_assets.py",
         "tests/visual/test_p1_mockup_structure.py",
