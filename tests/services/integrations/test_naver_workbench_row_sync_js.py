@@ -41,22 +41,67 @@ function makeClassList() {
     state.remove = function (name) { state.removed.push(name); };
     return state;
 }
-function makeRow(linkId, kind, canText) {
+function makeElement(tag) {
+    return { tag: tag, className: '', textContent: '', parentNode: null };
+}
+function isBadge(node) {
+    return String(node.className || '').split(' ').indexOf('badge') !== -1;
+}
+function makeStrip(badges, can) {
+    var children = [];
+    var strip = {
+        children: children,
+        querySelector: function (sel) { return sel === '.wb-can' ? can : null; },
+        querySelectorAll: function (sel) {
+            if (sel !== '.badge') { return []; }
+            return children.filter(isBadge);
+        },
+        insertBefore: function (node, anchor) {
+            var at = children.indexOf(anchor);
+            if (at === -1) { children.push(node); } else { children.splice(at, 0, node); }
+            node.parentNode = strip;
+        },
+        removeChild: function (node) {
+            var at = children.indexOf(node);
+            if (at !== -1) { children.splice(at, 1); }
+        }
+    };
+    (badges || []).forEach(function (badge) {
+        var span = makeElement('span');
+        span.className = 'badge ' + badge.cls;
+        span.textContent = badge.text;
+        span.parentNode = strip;
+        children.push(span);
+    });
+    children.push(can);
+    return strip;
+}
+function stripText(strip) {
+    return strip.children.filter(isBadge).map(function (node) { return node.textContent; });
+}
+function makeRow(linkId, kind, canText, badges) {
     var attrs = { 'data-link-id': linkId, 'data-row-kind': kind };
-    var can = { classList: makeClassList(), textContent: canText };
+    var can = { classList: makeClassList(), textContent: canText, className: 'wb-can' };
+    var strip = makeStrip(badges, can);
     return {
         can: can,
+        strip: strip,
         classList: makeClassList(),
         getAttribute: function (name) {
             return Object.prototype.hasOwnProperty.call(attrs, name) ? attrs[name] : null;
         },
         setAttribute: function (name, value) { attrs[name] = value; },
-        querySelector: function (sel) { return sel === '.wb-can' ? can : null; }
+        querySelector: function (sel) {
+            if (sel === '.wb-can') { return can; }
+            if (sel === '.wb-row__line3') { return strip; }
+            return null;
+        }
     };
 }
-function makePane(kind, can, linkIds) {
+function makePane(kind, can, linkIds, badgesJson) {
     var attrs = {
-        'data-row-kind': kind, 'data-row-can': can, 'data-row-link-ids': linkIds
+        'data-row-kind': kind, 'data-row-can': can, 'data-row-link-ids': linkIds,
+        'data-row-badges': typeof badgesJson === 'undefined' ? null : badgesJson
     };
     return {
         getAttribute: function (name) {
@@ -64,6 +109,7 @@ function makePane(kind, can, linkIds) {
         }
     };
 }
+var document = { createElement: makeElement };
 """
 
 
@@ -82,8 +128,10 @@ def _run_row_view_js(scenario: str) -> dict:
     source = _WORKBENCH_JS.read_text(encoding="utf-8")
     script = "\n".join([
         _extract_function(source, "readRowView"),
+        _extract_function(source, "safeBadgeList"),
         _extract_function(source, "pickRowForView"),
         _extract_function(source, "applyRowView"),
+        _extract_function(source, "applyRowBadges"),
         _DOM_STUBS,
         scenario,
     ])
@@ -115,6 +163,45 @@ process.stdout.write(JSON.stringify({
     kind_attr: target.getAttribute('data-row-kind'),
     other_text: other.can.textContent,
     other_added: other.classList.added
+}));
+"""
+
+
+_BADGE_SCENARIO = """
+var BADGES = [
+    { text: '3건 묶음', cls: 'bg-light text-dark' },
+    { text: '주문 #5200', cls: 'bg-light text-dark' }
+];
+var pane = makePane('done', '발송까지 끝남', '7,9', JSON.stringify(BADGES));
+var target = makeRow('9', 'spec', '규격 입력할 차례', [
+    { text: '3건 묶음', cls: 'bg-light text-dark' },
+    { text: '발주확인 할 차례', cls: 'bg-warning text-dark' },
+    { text: '발송기한 10-01', cls: 'bg-light text-dark' }
+]);
+applyRowView(target, readRowView(pane));
+
+var quiet = makeRow('9', 'spec', '규격 입력할 차례', [
+    { text: '발주확인 할 차례', cls: 'bg-warning text-dark' }
+]);
+applyRowView(quiet, readRowView(makePane('done', '발송까지 끝남', '7,9')));
+
+var emptied = makeRow('9', 'spec', '규격 입력할 차례', [
+    { text: '발주확인 할 차례', cls: 'bg-warning text-dark' }
+]);
+applyRowView(emptied, readRowView(makePane('done', '발송까지 끝남', '7,9', '[]')));
+
+var broken = makeRow('9', 'spec', '규격 입력할 차례', [
+    { text: '발주확인 할 차례', cls: 'bg-warning text-dark' }
+]);
+applyRowView(broken, readRowView(makePane('done', '발송까지 끝남', '7,9', '{oops')));
+
+process.stdout.write(JSON.stringify({
+    repainted: stripText(target.strip),
+    classes: target.strip.children.filter(isBadge).map(function (n) { return n.className; }),
+    label_last: target.strip.children[target.strip.children.length - 1].className,
+    quiet: stripText(quiet.strip),
+    emptied: stripText(emptied.strip),
+    broken: stripText(broken.strip)
 }));
 """
 
@@ -154,6 +241,29 @@ def test_apply_row_view_swaps_the_label_and_the_colour_band():
     # 음성 대조군 — 고르지 않은 줄은 한 글자도 안 건드린다.
     assert result["other_text"] == "지금 처리 가능", result
     assert result["other_added"] == [], result
+
+
+@_needs_node
+def test_apply_row_view_repaints_the_badge_strip_from_the_server_list():
+    """배지 띠도 pane 이 실어 온 목록대로 다시 그린다 — 옛 배지는 남지 않는다.
+
+    신고 화면의 줄은 `발주확인 할 차례`·`발송기한 10-01` 을 달고 있었는데 같은 줄의
+    라벨은 `발송까지 끝남` 으로 바뀌었다. 배지를 안 갈면 한 줄이 두 말을 한다.
+
+    음성 대조군 셋을 함께 돌린다 — 배지를 통째로 지우는 갈래로 굳어도 곧바로 빨개진다.
+    · 속성을 안 실은 pane → 옛 배지 **그대로**(서버가 안 보냈으면 건드리지 않는다)
+    · 빈 배열을 실은 pane → 전부 지운다(배지가 없는 집이 있다)
+    · 깨진 JSON → 그대로 둔다(파싱 실패를 "배지 없음"으로 읽지 않는다)
+    """
+    result = _run_row_view_js(_BADGE_SCENARIO)
+
+    assert result["repainted"] == ["3건 묶음", "주문 #5200"], result
+    assert result["classes"] == ["badge bg-light text-dark"] * 2, result
+    # 라벨은 배지 **뒤**에 남는다 — 앞으로 밀리면 줄 끝의 글자가 사라진다.
+    assert result["label_last"] == "wb-can", result
+    assert result["quiet"] == ["발주확인 할 차례"], result
+    assert result["emptied"] == [], result
+    assert result["broken"] == ["발주확인 할 차례"], result
 
 
 @_needs_node
@@ -197,7 +307,10 @@ function makeParsedPane(html) {
     return { getAttribute: function (name) { return paneAttr(html, name); } };
 }
 var document = {
-    createElement: function () {
+    createElement: function (tag) {
+        // 배지 span 은 _DOM_STUBS 의 노드로 만든다 — 이 스텁이 아래에서 document 를
+        // 통째로 덮으므로, 여기서 갈래를 안 두면 swapPane 경로에서만 배지가 안 그려진다.
+        if (tag === 'span') { return makeElement('span'); }
         var holder = { innerHTML: '' };
         holder.querySelector = function (sel) {
             if (sel !== '#wb-pane' || holder.innerHTML.indexOf('id="wb-pane"') === -1) {
@@ -233,8 +346,10 @@ def _run_swap_pane_js(scenario: str) -> dict:
     source = _WORKBENCH_JS.read_text(encoding="utf-8")
     script = "\n".join([
         _extract_function(source, "readRowView"),
+        _extract_function(source, "safeBadgeList"),
         _extract_function(source, "pickRowForView"),
         _extract_function(source, "applyRowView"),
+        _extract_function(source, "applyRowBadges"),
         _extract_function(source, "syncRowFromPane"),
         _extract_function(source, "swapPane"),
         _DOM_STUBS,

@@ -129,4 +129,4 @@ def test_workbench_asset_pin_moved_for_the_followup_change():
     """서비스워커가 옛 JS 를 주지 않도록 CSS·JS 핀이 **함께** 올라갔다."""
     markup = pathlib.Path("templates/admin/naver_workbench.html").read_text(encoding="utf-8")
 
-    assert markup.count("?v=20260909b") == 2, "CSS·JS 핀을 함께 올린다"
+    assert markup.count("?v=20260909c") == 2, "CSS·JS 핀을 함께 올린다"
