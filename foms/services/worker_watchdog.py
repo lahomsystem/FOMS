@@ -9,8 +9,11 @@
 에 얹었다 — 5초 루프를 이미 돌고 있고, 판정 재료인 ``side_effect_worker_heartbeats`` 를
 이미 읽는다. web 에 얹지 않은 이유는 replica 가 둘이라 같은 알림이 두 번 나가기 때문이다.
 
-판정은 새 규칙을 만들지 않는다. :data:`foms.services.sidefx_worker.WORKER_KIND_SPECS` 의
-``max_heartbeat_age`` 가 정본이고 여기서는 그 등록부를 읽기만 한다.
+판정은 새 규칙을 만들지 않는다. 예산의 정본은
+:func:`foms.services.sidefx_worker.effective_heartbeat_budget` 하나다 — readiness 게이트도
+이 감시자도 그 함수만 부른다. 각자 등록부를 읽던 시절 감시자는 등록부 900 고정, readiness 는
+신고 간격 x 3(5400)으로 같은 하트비트를 보고 반대로 말했고, 그것이 2026-09-08 15분 주기
+헛알림 왕복의 원인이었다.
 """
 from __future__ import annotations
 
@@ -28,7 +31,8 @@ from foms.services.sidefx_worker import (
     WORKER_KIND_NAVER_SETTLE_SYNC,
     WORKER_KIND_NOTIFICATION_ESCALATION,
     WORKER_KIND_RQ_WORKER,
-    WORKER_KIND_SPECS,
+    _declared_interval,
+    effective_heartbeat_budget,
 )
 from models import Notification, SideEffectWorkerHeartbeat, SystemSetting
 
@@ -91,7 +95,7 @@ def evaluate_worker_health(session: Any, *,
             continue
         age = max(0, int((now - hb.last_heartbeat_at).total_seconds()))
         ages[kind] = age
-        if age >= WORKER_KIND_SPECS[kind].max_heartbeat_age:
+        if age >= effective_heartbeat_budget(kind, _declared_interval(hb.metadata_json)):
             stale.append(kind)
     return {"stalled": bool(stale), "stale_kinds": stale, "ages": ages,
             "checked_at": now.isoformat()}
@@ -174,8 +178,15 @@ def run_watchdog_once(session: Any, *, now: Optional[datetime.datetime] = None,
         notification_id = _notify(session, health, stalled=health["stalled"], now=now)
         logger.warning("[worker-watchdog] 상태 전이: stalled=%s kinds=%s",
                        health["stalled"], health["stale_kinds"])
-    if changed:
-        _write_state(session, {"stalled": health["stalled"],
-                               "stale_kinds": health["stale_kinds"],
-                               "changed_at": now.isoformat()})
+
+    # **매 회차 기록한다.** 전이 때만 쓰면 모든 게 정상인 동안 이 감시자가 도는지 아닌지
+    # 아무 흔적이 없다 — 게이트를 켰는지, 배포가 됐는지, 프로세스가 살았는지를 확인할
+    # 길이 사라진다(감시자가 자기 생존을 안 남기는 것은 감시 대상의 결함과 같은 결함이다).
+    # ``changed_at`` 은 전이 때만 움직인다 — "언제부터 이 상태인가" 를 잃지 않는다.
+    _write_state(session, {
+        "stalled": health["stalled"],
+        "stale_kinds": health["stale_kinds"],
+        "changed_at": now.isoformat() if changed else previous.get("changed_at"),
+        "checked_at": now.isoformat(),
+    })
     return {"health": health, "changed": changed, "notification_id": notification_id}

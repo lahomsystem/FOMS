@@ -95,7 +95,9 @@ WORKER_KIND_SPECS: dict[str, "WorkerKindSpec"] = {
     WORKER_KIND_NAVER_SETTLE_SYNC: WorkerKindSpec(
         WORKER_KIND_NAVER_SETTLE_SYNC, max_heartbeat_age=180),
     # rq worker 는 놀 때 dequeue 블로킹이 405초(worker_ttl 420 - 15)라 그 주기로만
-    # 하트비트를 남긴다. 2주기 + 여유 = 900초.
+    # 하트비트를 남기고, 그 405 를 metadata 로 신고한다. 여기 900 은 신고가 없을 때의
+    # 바닥값이고 실제 예산은 effective_heartbeat_budget 이 max(900, 405 x 3) = 1215초로
+    # 잡는다 — 정지 감지가 15분에서 20분 15초로 넓어지는 것을 규칙 한 벌의 대가로 받는다.
     WORKER_KIND_RQ_WORKER: WorkerKindSpec(
         WORKER_KIND_RQ_WORKER, max_heartbeat_age=900),
 }
@@ -612,6 +614,36 @@ def dead_count(session: Session) -> int:
     )
 
 
+def effective_heartbeat_budget(kind: str, declared_interval: Optional[int]) -> int:
+    """kind 의 하트비트 신선도 예산(초) — 모든 판정부의 정본.
+
+    같은 사실(하트비트 나이)을 readiness 게이트와 정지 감시자가 서로 다른 예산으로 읽어
+    2026-09-08 헛알림(15분 주기 왕복 10회)이 났다 — 감시자는 등록부 900 고정, readiness 는
+    신고 1800 x 3 = 5400. 두 판정부가 이 함수 하나만 부른다.
+
+    규칙: 루프가 신고한 tick 간격 x 3 과 등록부 기본값 중 **큰 쪽**. 신고가 없거나 말이
+    안 되면 등록부 기본값. 간격은 env 로 바뀌므로(운영 수집 루프 1800초, 기본값 300초)
+    등록부 값만 믿으면 살아 있는 루프를 죽었다고 판정한다. 신고가 짧아도 등록부 아래로는
+    내려가지 않는다(잡음으로 빨갛게 만들지 않는다).
+
+    Args:
+        kind: worker_kind. :data:`WORKER_KIND_SPECS` 에 있어야 한다.
+        declared_interval: 하트비트가 신고한 tick 간격(초). 없으면 ``None``
+            (:func:`_declared_interval` 이 metadata 에서 푼 값).
+
+    Returns:
+        예산(초). ``age >= 반환값`` 이면 stale 로 본다.
+
+    Raises:
+        KeyError: 등록부에 없는 kind. 조용히 기본값을 주면 오타 kind 가 영원히
+            통과해 "아무도 안 읽는" 상태로 되돌아간다.
+    """
+    base = WORKER_KIND_SPECS[kind].max_heartbeat_age
+    if declared_interval:
+        return max(base, declared_interval * 3)
+    return base
+
+
 @dataclass
 class ReadinessThresholds:
     """readiness 판정 임계값(§8.2 check template 의 flag 와 1:1)."""
@@ -626,9 +658,10 @@ class ReadinessThresholds:
                             declared_interval: Optional[int] = None) -> int:
         """kind 의 하트비트 신선도 예산(초).
 
-        우선순위: 명시 flag > 루프가 신고한 tick 간격 x 3 > 등록부 기본값. 가운데 항이
-        핵심이다 — 간격은 env 로 바뀐다(스테이징 수집 루프는 1800초, 기본값은 300초).
-        등록부 값만 믿으면 살아 있는 루프를 죽었다고 판정한다.
+        명시 flag(``--max-heartbeat-age``)가 있으면 그것이 최우선이고, 없으면
+        :func:`effective_heartbeat_budget` 이 정본이다 — 감시자
+        (:mod:`foms.services.worker_watchdog`)도 같은 함수를 부르므로 두 판정부의
+        예산이 갈라질 수 없다. 규칙 자체는 여기 다시 쓰지 않는다.
 
         Args:
             kind: worker_kind.
@@ -636,9 +669,7 @@ class ReadinessThresholds:
         """
         if self.max_heartbeat_age is not None:
             return self.max_heartbeat_age
-        if declared_interval:
-            return max(WORKER_KIND_SPECS[kind].max_heartbeat_age, declared_interval * 3)
-        return WORKER_KIND_SPECS[kind].max_heartbeat_age
+        return effective_heartbeat_budget(kind, declared_interval)
 
     def scan_lag_limit(self, kind: str) -> Optional[int]:
         """kind 의 ``oldest_lag_seconds`` 한도(초). ``None`` 이면 그 검사를 안 한다."""

@@ -10,8 +10,10 @@
 뜻이라, 별도 스레드로 심장을 따로 뛰게 하는 것보다 정직하다(스레드는 rq 루프가 멎어도
 계속 뛴다).
 
-놀고 있는 워커의 ``heartbeat()`` 주기는 ``worker_ttl - 15`` = 405초(rq 기본)라, 판정 예산은
-등록부에서 900초로 잡혀 있다(:data:`foms.services.sidefx_worker.WORKER_KIND_SPECS`).
+놀고 있는 워커의 ``heartbeat()`` 주기는 ``worker_ttl - 15`` = 405초(rq 기본)이고, 그 값을
+하트비트 metadata 의 ``interval_seconds`` 로 신고한다. 판정 예산의 정본은
+:func:`foms.services.sidefx_worker.effective_heartbeat_budget` 이며 운영값은
+max(등록부 900, 405 x 3) = **1215초**다 — 등록부 900 은 신고가 없을 때의 바닥값이다.
 
 사용::
 
