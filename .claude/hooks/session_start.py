@@ -11,7 +11,6 @@ from datetime import datetime, timedelta
 
 _dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, _dir)
-from ctx_gate import record_compact_baseline  # type: ignore[import-not-found]  # noqa: E402
 from shared_utils import (  # type: ignore[import-not-found]  # noqa: E402
     harness_runtime_path,
     hook_log,
@@ -196,14 +195,9 @@ def main() -> None:
     """SessionStart 페이로드를 처리하고 additionalContext를 주입한다."""
     payload = read_stdin_json()
     try:
-        full_session_id = str(payload.get("session_id") or "unknown")
-        session_id = full_session_id[:8]
+        session_id = str(payload.get("session_id") or "unknown")[:8]
         source = str(payload.get("source") or "startup")
         _record_session(session_id)
-        if source == "compact":
-            # compact 후 transcript는 계속 자라므로 baseline을 여기서 굳힌다
-            # (안 하면 ctx_gate가 영구 과대추정). id는 절단 없이 전체를 넘긴다.
-            record_compact_baseline(full_session_id, str(payload.get("transcript_path") or ""))
         write_stdout_json(
             {
                 "hookSpecificOutput": {

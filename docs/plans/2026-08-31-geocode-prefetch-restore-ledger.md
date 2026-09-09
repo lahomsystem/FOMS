@@ -345,3 +345,306 @@ production 실측(claude_master 해제 → 측정 → **재잠금 완료**):
 ### 14.6 캐시 핀
 
 `dashboard.js` 를 고쳤으므로 SW `staticCacheFirst` 함정에 대비해 핀 3곳을 범프했다(`20260810b`→`20260831a`): `measurement-entry.js:10 MEAS_JS_V`, `dashboard.html:17`, 그리고 **`dashboard_scripts.html:1 measurement_js_v`** — 마지막 것은 entry 자체의 핀이라 안 올리면 SW 가 옛 entry 를 주어 앞의 두 범프가 무효가 된다.
+
+---
+
+## 15. 승격 진행 현황 (2026-08-31 마감 시점)
+
+| 작업 | deploy | production |
+|---|---|---|
+| 지도 지연 근본 수정 | `44f8d1ee` | **`365b1280` 운영 반영 완료** (좌표 소진 121→0, 스윕 정상 순환) |
+| 엑셀 업로드 제거 | `d61dccd8` (CI 4/4) | 승격 PR 대기 |
+| 동선 추천 제거 + 5초 수리 | `be52d9c3` (CI 4/4) | 승격 PR 대기 |
+
+승격 워크트리 `c:/tmp/promo2` 에 세 커밋을 체리픽했다(`e5fe53a0`·`dc2777d1`·`316ac61e`).
+
+### 15.1 리베이스에서 막은 충돌 (동선 제거)
+
+타 세션이 **같은 자리**에 "실측일 미정 주문 모아보기" 버튼·모달을 넣어 3구간이 충돌했다. 자동 병합에 맡겼으면 한쪽이 통째로 사라질 자리라 손으로 갈랐다:
+
+- 버튼 줄 — 내 "동선 지도" 링크 + 타 세션 "실측일 미정" 버튼 **둘 다 보존**
+- 모달 구간 — 동선 추천 모달 40줄만 제거, 새 모달 49줄 보존
+- JS 블록 — 동선 블록 61줄 제거, 실측일 미정 166줄 보존 + 주석 번호 재정합(중복 1줄 포함)
+
+추가로 두 가지가 딸려 나왔다:
+
+1. **타 세션 계약 파손** — `tests/domains/test_measurement_undated_ui_contract.py::test_undated_button_is_last_in_filter_actions` 가 내가 지운 `id="btn-route-plan"` 을 **위치 기준점**으로 삼고 있었다(`ValueError: substring not found`). 기준점을 현재 요소(`&route=1` 동선 지도 링크)로 갱신했다. **삭제가 남의 위치 계약을 깨뜨릴 수 있다는 사례다.**
+2. **인벤토리 줄밀림** — 코드 삭제로 `foms_failopen_inventory.json`·`foms_order_mutation_writer_inventory.json` 의 `lineno` 가 밀렸다. 스모크가 재생성한 결과를 커밋에 포함해야 CI 가 green 이다.
+
+### 15.2 승격 체리픽 충돌 3건 (성격별 처리)
+
+- `foms_audit_coverage_inventory.json` — 생성물. 승격 트리에서 **재생성**(가져오지 않음).
+- `tests/domains/test_settlement_aggregation.py` — 정산 대시보드가 아직 운영에 없어 파일 자체가 없다. 그 변경은 **가져오지 않음**.
+- `docs/AI_STATUS.md` — 문서 계보 차이. 규칙대로 **코드만 승격, 문서는 production 버전 유지**(2회 발생).
+
+### 15.3 남은 일
+
+1. 승격 트리 본 스위트 + 스모크 (진행 중)
+2. 승격 PR 생성 → 검사 4종 → 머지
+3. 승격 후 운영 화면 확인 — 실측 대시보드에서 "동선" 버튼이 사라지고 "동선 지도" 링크가 그 자리에 있는지, 엑셀 다운로드는 살아 있는지
+
+---
+
+## 16. SIDEFX 워커 서비스 등록 (2026-08-31) — T5 해소
+
+사용자 승인("지금 만들어 켜라") 후 실행했다. §10 에서 "CLI 로는 불가"라고 적었던 판단은 **API 수준에서 뒤집혔다** — Railway public GraphQL 로 서비스 생성·설정·배포가 전부 가능하다.
+
+### 16.1 Railway 가 Config as Code 를 폐기했다 (중요)
+
+`serviceInstanceUpdate` 에 `railwayConfigFile: "railway-domain-sidefx.toml"` 을 넣자 거부됐다:
+
+```
+Config as Code (railway.json / railway.toml) is deprecated.
+Use Infrastructure as Code (.railway/railway.ts) instead.
+```
+
+즉 **저장소의 `railway-domain-sidefx.toml` 은 사문이다.** 같은 결과를 `startCommand` 직접 지정으로 얻었다.
+
+**더 넓은 함의**: `railway.toml`·`railway-worker.toml`·`railway-cron.toml` 도 같은 운명이다. 기존 서비스들이 지금 저장소 toml 이 아니라 **각자 대시보드/API 설정으로 돌고 있을** 가능성이 크다 — 저장소 toml 을 고쳐도 운영에 반영되지 않는다는 뜻이라 **다음 세션이 반드시 확인해야 한다.**
+
+### 16.2 실행한 것
+
+| 단계 | 내용 |
+|---|---|
+| 서비스 생성 | `serviceCreate` — name `SIDEFX`, 변수 5개 동봉(`DATABASE_URL` + `R2_*` 4개, WORKER 에서 복사) |
+| 설정 | `serviceInstanceUpdate` — source repo `lahomsystem/FOMS`, `numReplicas: 1`, startCommand: `python tools/ops/run_domain_side_effect_outbox.py --loop --interval 5 --expiry-scan-interval 300 --retention-scan-interval 86400` |
+| 배포 | `serviceInstanceDeployV2` → SUCCESS |
+
+**순서가 중요했다**: 소스를 먼저 붙이면 루트 `railway.toml`(`sh start.sh`)로 gunicorn 이 하나 더 뜬다. 그래서 변수·설정을 먼저 넣고 소스를 마지막에 붙였다.
+
+### 16.3 결과 — 워커가 사상 처음 돌았다
+
+`side_effect_worker_heartbeats` 에 3행 생성(`DELIVERY`·`EXPIRY_SCAN`·`RETENTION`). 그 전까지 0행이었다.
+
+소진 시작 직후 관측: `GEOCODE` 7 DONE, `STORAGE_DELETE` 2 DONE + 8 PROCESSING.
+
+로그에는 `NoHandlerError` 가 반복되는데 **정상이다** — 핸들러가 없는 `CHANNEL_PUSH_RECORDED`·`STAGE_NOTIFICATION`(1224건)이 재시도 후 DEAD 로 가는 승인된 경로다.
+
+**삭제 안전성 재확인**: 켜기 직전 조회에서 `STORAGE_DELETE` 대상 424건 중 살아있는 첨부(`order_attachments`·`chat_attachments`)가 참조하는 키는 **0건**이었다.
+
+### 16.4 남은 확인
+
+- `CHANNEL_PUSH_RECORDED`·`STAGE_NOTIFICATION` 이 DEAD 로 확정되기까지 한 행당 최소 0.7시간(백오프 5초→3600초 cap, 10회). 몇 시간 로그가 이어진다.
+- 핸들러가 나중에 배포돼도 DEAD 행은 자동 실행되지 않는다.
+
+---
+
+## 17. 다음 작업 지시 — 엑셀 내보내기·동선 전면 삭제 (2026-09-01 사용자 결정)
+
+### 17.1 결정 배경
+
+사용자가 세 가지를 밝혔다:
+1. **엑셀 다운로드(내보내기)도 필요 없다** — 앞선 §12 에서 "2026-07-03 까지 실사용"이라 보존했으나, 사용자가 불필요하다고 확인했다.
+2. **모바일 v3 를 쓰지 않는다** — §14 에서 `/api/erp/measurement/route` 엔드포인트를 남긴 **유일한 근거**가 "v3 영업 홈 띠가 `data-route-inline` 없이 이 API 로 폴백한다"였다. 그 전제가 사라졌으므로 **엔드포인트도 삭제 가능**하다.
+3. **동선을 쓰지 않는다** — 히어로 카운트다운과 지도 동선 오버레이까지 **전부 삭제**(사용자 명시 선택).
+
+### 17.2 삭제 범위 A — 엑셀 내보내기 (남은 절반)
+
+| 대상 | 위치 |
+|---|---|
+| `download_excel()` 라우트 | `foms/web/admin/excel_import.py` (이제 이 파일에 남은 유일한 라우트 → **파일·Blueprint·등록 3곳까지 제거**: `foms/web/admin/__init__.py`, `foms/platform/blueprints.py`) |
+| 수납장 대시보드 엑셀 내보내기 | `foms/web/admin/storage.py:87-190` |
+| 버튼 2곳 | `templates/orders/index.html`(엑셀 다운로드), `templates/admin/storage_dashboard.html:135` |
+| 의존성 | `pandas`·`openpyxl` — **다른 소비자가 있는지 먼저 전수 확인**(있으면 `requirements.txt` 유지) |
+| 매니페스트 | GET 라우트라 audit 스코프 밖. `foms_api_error_leak_inventory.json` 등재 여부 확인 |
+
+### 17.3 삭제 범위 B — 동선 전면
+
+**엔드포인트**: `/api/erp/measurement/route`, `/api/erp/measurement/route-eta` (`foms/api/measurement/routes.py:496-577`)
+
+**서비스**: `foms/services/measurement_route.py` — 이제 소비자가 전부 사라지므로 **파일 통째**. 단 `foms/web/measurement/dashboard.py` 의 `build_inline_route_strip_payload` 호출(`:17, 424-435, 509`)과 히어로 산출(`:404-419`)도 함께 제거해야 한다.
+
+**JS**: `static/js/measurement/foms-route-strip.js` **파일 통째**(카운트다운 포함 — 사용자 승인). `static/js/measurement/measurement-entry.js` 의 로드 배선, `templates/measurement/dashboard.html`·`partials/dashboard_scripts.html` 의 `?v=` 핀 정리.
+
+**CSS**: `static/css/measurement/foms-route-strip.css` — **파일 통째 삭제 금지.** 다음은 동선이 아니므로 판정 필요:
+- `.foms-visit-summary*`(8-24) 진행 요약 — 동선 아님, 보존 검토
+- `.foms-measure-done`(203-215) 큐 카드 완료 배지 — 동선 아님, **보존**
+- `.foms-hero-*`(32-103) — 히어로. 카운트다운만 지울지 히어로 전체인지 판정
+- `:root{--foms-route-line}` + `.foms-route-c0~c7`(142-150) — 지도 동선 팔레트. 지도 동선도 지우므로 함께 제거 가능
+
+**템플릿 마운트·진입점**: `templates/measurement/partials/mobile_list.html`(히어로·스트립 마운트), `templates/partials/v3/persona_home_sales.html:79-122`, `templates/measurement/partials/dashboard_main.html`(동선 지도 링크), `templates/measurement/partials/mobile_filters.html`(동선 지도 칩)
+
+**지도 동선 오버레이(route=1)**: `foms/api/erp_map.py:573-586`, `foms/api/measurement/map.py:136-164`, `foms/services/common/map_generator.py:207-258, 288-289, 350-355, 452-455, 475-495`(`_route_sort_key`·범례), `static/js/measurement/map-view-kakao.js:247-266, 819-836, 878-931`(`routeSortKey`·`sortForRoute`), `templates/measurement/map_view.html:1103-1104, 1316-1317, 1612-1613, 1954, 2062, 2092`
+
+### 17.4 절대 건드리면 안 되는 것
+
+- **`/api/calculate_route`**(`foms/api/erp_map.py:657-669`)와 `.foms-kmap-routecalc*` — 주문↔주문 2점 실도로 거리 측정으로 **동선과 다른 기능**이다. AS 대시보드·출고 대시보드·`schedule_recommendations.py`·`shipment_as_recommendation_cache.py` 가 공유한다.
+- **`foms/services/measurement_time.py`** — 방문시각 파서 SSOT. 리프 모듈이고 다른 소비자가 있다.
+- 지도 **핀 보기**(`/map_view` 기본) — 동선 오버레이만 지우고 지도 자체는 남긴다.
+
+### 17.5 동반 작업 (놓치면 CI red)
+
+1. **ROUTE-01 패킷 제거** — `docs/harness/foms_bugfix_packet_tests.json` 의 `created_tests` 가 `tests/domains/test_measurement_route.py` 를 참조한다. 파일을 지우면 릴리스 게이트가 red. §12.3 과 같은 방식으로 패킷 제거 + 하드코딩 개수 하향(`tests/harness/test_bugfix_packet_manifest.py` 의 `EXPECTED_PACKETS`·`len(manifest)`·`REV99_DEPENDS_ON`, `tools/ops/check_foms_remediation_readiness.py:66`). **현재 123 → 122**, REV-99 의존도 함께.
+2. **인벤토리 재생성** — 코드 삭제로 `lineno` 가 밀린다: `python tools/harness/failopen_scan.py`, `python tools/harness/audit_coverage_scan.py`. 재생성분을 **커밋에 포함**해야 한다.
+3. **위치 고정 계약 주의** — `tests/domains/test_measurement_undated_ui_contract.py` 가 `&route=1`(동선 지도 링크)을 위치 기준점으로 쓴다. 링크를 지우면 이 계약이 깨진다(§15.1 과 같은 함정, 이번엔 미리 안다).
+4. **`?v=` 핀** — JS/CSS 를 지우거나 고치면 `measurement-entry.js` 의 `MEAS_JS_V`, `dashboard.html`, `dashboard_scripts.html` **3곳 동반 범프**.
+5. 테스트 정리: `test_measurement_route.py`, `test_measurement_route_inline.py`, `test_measurement_route_eta.py`, `test_measurement_time_sort.py`(인라인 부분), `test_erp_measurement_mobile_render.py`(핀 계약), `test_foms_map_generator.py`(route_mode), `test_shell_v3_contract.py:56`("오늘 동선" 문자열 확인 — 깨진다)
+
+### 17.6 검증 기준
+
+`import app` APP_OK · `pre_push_smoke` exit 0 · `tests/domains`+`tests/contracts`+`tests/harness` 전량 green · 잔존 grep 0건 · 승격 트리에서 본 스위트 재실행 후 승격 PR.
+
+---
+
+## 18. 실행 — 엑셀 내보내기·동선 전면 삭제 (2026-09-01)
+
+작업 트리: `c:/tmp/rmroute` (브랜치 `rmroute-2026-09-01`, `origin/deploy` `118a38c6` 기준 클린).
+
+### 18.0 착수 전 조사로 확정한 판정
+
+| 항목 | 조사 결과 | 판정 |
+|---|---|---|
+| `pandas` / `openpyxl` 소비자 | 루트 저장소에서 `excel_import.py`(pandas+openpyxl) · `storage.py`(openpyxl) **2곳뿐**. `SCheduler/`는 자체 requirements 를 가진 별도 하위 프로젝트 | 둘 다 `requirements.txt` 에서 제거 (설치 메타데이터로 folium 등 전이 의존 없음 확인 후) |
+| 동선 지도 링크를 지우면 지도가 고아가 되나 | PC 툴바·모바일 칩 **양쪽에 별도 "지도"(핀) 진입점이 이미 있다** | "동선 지도" 링크·칩 삭제, 핀 지도는 그대로 |
+| `.foms-route-pin` / `.foms-route-c*` 팔레트 소비자 | `map-view-kakao.js` 의 route 모드 렌더 1곳 | 팔레트·핀 CSS 전부 삭제 가능. `map_view.html` 의 `foms-route-strip.css` 링크도 함께 제거 |
+| `.foms-visit-summary*` / `.foms-measure-done` | `mobile_list.html` 진행요약·완료배지 (동선 아님) | **보존** |
+| 히어로(`.foms-hero-*`) | 다음 방문 카드 = 스펙·내비·전화·상세. 판정은 `measurement_time.py` SSOT 이고 `measurement_route.py` 와 무관 | **보존**, 카운트다운(`.foms-visit-countdown` + `data-foms-visit-time`)만 제거하고 방문시각 텍스트는 평문으로 남긴다 |
+| `data-route-state="none"` (`map_generator.py:430`) | 항상 `"none"` 상수, `route_mode` 와 무관, JS 소비자 0, 계약 테스트가 고정 | **건드리지 않음** |
+| `OPS-ROUTE-01` 패킷 | `/debug-db` 봉쇄 패킷 — 이름만 비슷하고 동선과 무관 | **보존**. 지우는 것은 `ROUTE-01` 하나 |
+| `/api/calculate_route` · `.foms-kmap-routecalc*` · `measurement_time.py` | §17.4 금지 목록 | **무변경** |
+
+### 18.1 Task 표 (완료 기준 포함)
+
+| Task | 범위 | 완료 기준 |
+|---|---|---|
+| T1 엑셀 내보내기 제거 | `excel_import.py` 파일 삭제 + `foms/web/admin/__init__.py`·`foms/platform/blueprints.py` 등록 해제, `storage.py` `export_storage_dashboard_excel` 제거, 버튼 2곳(`orders/index.html`·`storage_dashboard.html`), `requirements.txt` 2줄, `foms_api_error_leak_inventory.json` 엔트리 | `import app` APP_OK · `excel`·`download_excel`·`export_excel` 잔존 grep 0 · 관련 테스트 green |
+| T2 동선 API·서비스 제거 | `/api/erp/measurement/route`·`/route-eta` 삭제, `foms/services/measurement_route.py` 파일 삭제, `dashboard.py` 인라인 스트립 블록·import·템플릿 인자 제거 | APP_OK · `measurement_route` import 0건 · 실측 대시보드 렌더 테스트 green |
+| T3 스트립·카운트다운 프론트 제거 | `foms-route-strip.js` 파일 삭제 + `measurement-entry.js` 로더, 마운트 2곳(`mobile_list.html`·`persona_home_sales.html`), 카운트다운 span 2곳, CSS 동선 규칙만 제거(파일 보존), `?v=` 핀 3곳 + fragment·map_view 링크 범프 | 핀 계약 테스트 green · `foms-route-strip.js` 참조 0 · `data-foms-visit-time` 0 |
+| T4 지도 동선 오버레이 제거 | `erp_map.py` route 파라미터, `measurement/map.py` `route_mode`·`route_skipped_count`, `map_generator.py` 헬퍼 4개+분기+범례, `map-view-kakao.js` `routeSortKey`/`sortForRoute`/`routeMode`, `map_view.html` 6구간, 동선 지도 링크·칩 2곳 | `route_mode`·`routeMode` 잔존 0 · 지도(핀) 렌더 테스트 green |
+| T5 하네스·계약·테스트 정리 | `ROUTE-01` 패킷 제거(줄 단위 국소 편집) + `EXPECTED_PACKETS` 123→122 · `REV99_DEPENDS_ON` · `check_foms_remediation_readiness.py:66`, 테스트 3종 삭제·3종 수정, 인벤토리 재생성 | `tests/domains`+`tests/contracts`+`tests/harness` 전량 green · `check_foms_remediation_readiness.py` 통과 |
+| T6 검증·푸시·승격 | pre_push_smoke → deploy push → `gh run list --commit` 4종 확인 → 자기 커밋만 cherry-pick 승격 트리 → 본 스위트 직접 실행 → PR | 4개 워크플로 SUCCESS · 승격 PR 검사 4종 SUCCESS |
+
+### 18.2 진행 상태
+
+| Task | 상태 |
+|---|---|
+| T1 엑셀 내보내기 제거 | DONE — deploy `9e62c452`→(리베이스)→`06173012` |
+| T2 동선 API·서비스 제거 | DONE |
+| T3 스트립·카운트다운 제거 | DONE |
+| T4 지도 동선 오버레이 제거 | DONE |
+| T5 하네스·계약·테스트 정리 | DONE (T2~T5 한 커밋: `8f0f2a1d`) |
+| T6 검증·푸시·승격 | 진행 중 — deploy 푸시 `8f0f2a1d`, CI 4종 확인 후 승격 |
+
+### 18.3 실제로 삭제한 것 (커밋 2개)
+
+`06173012` **엑셀 내보내기** — `excel_import.py` 파일·Blueprint·등록 3곳, 수납장
+`export_excel` 라우트, 버튼 2곳, `requirements.txt` 의 pandas·openpyxl,
+SYSTEM_DOCUMENTATION 의 엑셀 절·API·기술스택. storage.py 는 라우트 삭제로 죽은
+import 6개(os·datetime·send_file·flash·redirect·url_for)까지 정리했다.
+
+`8f0f2a1d` **동선 전면** — 엔드포인트 2개, `measurement_route.py`(380줄),
+`foms-route-strip.js`(431줄), 지도 오버레이(folium 순번 배지·폴리라인·범례 +
+카카오 routeMode·순번 핀·정렬), 마운트·링크·칩, 테스트 3종(507줄).
+합계 −1952줄 / +92줄.
+
+### 18.4 §17 지시에서 갈라진 판단 4건
+
+1. **`.foms-hero-*` 는 전부 보존**했다(§17.3 은 "카운트다운만 지울지 히어로 전체인지
+   판정" 이라 열어뒀다). 히어로 판정은 `measurement_time.py` SSOT 가 하고
+   `measurement_route.py` 를 쓰지 않아 동선과 독립이다. 카운트다운은 span 을 평문으로
+   바꿔 방문시각 텍스트는 남겼다 — 시각은 동선이 아니라 일정이다.
+2. **"동선 지도" 링크·칩은 대체 없이 삭제**했다. PC 툴바(`open_map=1`)와 모바일 칩
+   (`measurement_map_url`)에 핀 지도 진입점이 이미 따로 있어서 고아가 되지 않는다.
+3. **`data-route-state="none"`(`map_generator.py`)은 건드리지 않았다.** 이름만 route 일
+   뿐 `/api/calculate_route`(2점 거리 측정, §17.4 보존 대상)의 마커 상태 속성이다.
+   `route_mode` 와 무관하고 계약 테스트가 고정하고 있다.
+4. **화면 라벨도 바꿨다**(사용자 승인): v3 앱바 `오늘 동선`→`오늘 실측`, 태블릿 큐
+   `오늘 동선 큐`→`오늘 실측 큐`. 없는 기능 이름이 화면에 남는 것을 피했다.
+   `foms-route-strip.css` **파일명은 유지**했다 — 자산 핀(?v=) 계약이 3곳에 물려 있어
+   개명 비용이 이득보다 크다.
+
+### 18.5 동반 작업에서 실제로 물린 것
+
+- **ROUTE-01 패킷**: manifest 123→122, `EXPECTED_PACKETS`·`len(manifest)`·
+  `toposort` 길이·`REV99_DEPENDS_ON`(110→109)·`check_foms_remediation_readiness.py`
+  **5곳**을 내렸다. §17.5 는 3곳이라 했는데 `test_graph_is_acyclic` 의 `len(order)`와
+  REV-99 개수 단언이 추가로 red 였다. JSON 은 §12.4 대로 줄 단위 국소 편집(−23줄).
+- **위치 고정 계약**: `test_undated_button_is_last_in_filter_actions` 의 기준점을
+  `&route=1` → `open_map=1` 로 옮겼다. 이 계약은 §15.1 에서 한 번, 이번에 또 한 번
+  삭제에 밀렸다 — 기준점이 사라질 수 있는 요소면 계약이 매번 따라 깨진다.
+- **`?v=` 핀**: `MEAS_JS_V`·`dashboard.html`·`dashboard_scripts.html`·
+  `dashboard_fragment.html`·`map_view.html`(map-view-kakao.js) **5곳**을 20260901a 로.
+  §17.5 의 3곳에 fragment 와 카카오 지도 JS 가 더 붙었다.
+- **인벤토리**: failopen(route-eta 의 broad catch 1건 감소)·audit coverage·order
+  mutation writer 3종 재생성. 리베이스로 남의 lineno 드리프트가 섞이지만 게이트가
+  lineno-무관이라 무해하다.
+- **죽은 배선 2건**: 실측 대시보드의 `kakao_js_key`(스트립이 유일 소비자였다 →
+  layout_head 의 지도 preconnect 가 무의미해져 함께 제거), measurement-entry 의
+  병렬 로더 기계(PARALLEL 배열이 route strip 하나뿐이었다).
+
+### 18.6 승격 경로에서 만난 것
+
+`origin/deploy` 가 작업 중 **네 번** 움직였다(타 세션 5커밋). 리베이스 충돌 2종:
+
+- **생성물**(failopen·audit coverage 인벤토리) — 손으로 병합하지 않고 upstream 을 취한 뒤
+  스캐너 재실행으로 재생성(§15.2 와 같은 처리).
+- **자산 핀 같은 줄**(`dashboard.html`·`dashboard_fragment.html`) — 타 세션이
+  `erp-alimtalk-trace.css` 를, 내가 `foms-route-strip.css` 를 같은 블록에서 올려
+  3줄이 겹쳤다. 정규식 keep-both 없이 두 줄을 명시로 다시 썼다(양쪽 20260901a).
+
+### 18.7 검증 기록
+
+| 항목 | 결과 |
+|---|---|
+| `import app` | APP_OK (리베이스마다 재확인) |
+| `pre_push_smoke` | exit 0 (4회) |
+| `tests/domains` + `tests/harness` | **6277 passed, 5 skipped** |
+| `tests/contracts` | 68 passed (harness 합산 457 passed) |
+| `tests/performance` | 89 passed |
+| 잔존 grep | `route_mode`·`routeMode`·`measurement_route`·`route=1`·`foms-route-strip.js`·`download_excel`·`excel_bp` **0건** |
+
+### 18.8 승격 현황 — PR #223 (perf-gate 가 남의 회귀에 막혔다)
+
+| 검사 | 결과 |
+|---|---|
+| test | PASS |
+| harness | PASS |
+| pg-lane | PASS |
+| perf-gate | **FAIL** — `/erp/completion?view=fragment` wire 26107 > 예산 18466 |
+
+**내 변경 때문이 아니다.** 근거 3가지:
+
+1. 실패 경로 `/erp/completion`(정산 보드)은 이번 작업이 건드리지 않았다. 내가 만진
+   `/erp/measurement?view=fragment` 은 wire 12825 / 예산 36916 으로 통과한다.
+2. **3분 먼저 올라간 타 세션 승격 브랜치**(`promote/own-1788222511-26868`)가 같은 경로에서
+   거의 같은 바이트(26109)로 똑같이 FAIL 했다. 내 커밋이 없는 브랜치다.
+3. perf-gate 는 **스테이징 실서버를 측정**한다. 지금 deploy 에는 정산 대시보드 작업이
+   연속 착지 중(`0347d749`·`7c09a312`·`2853f28a`·`846f8262`·`0784ea5e`·`6c89e26b`)이고,
+   그 화면의 프래그먼트가 예산을 넘겼다.
+
+deploy push 는 advisory 라 green 으로 통과했고(승격 PR 만 blocking) 이 구조 때문에
+**정산 세션이 페이로드를 줄이거나 예산을 갱신하기 전까지 모든 승격이 막힌다.**
+내 PR #223 은 열어둔 채 대기한다 — 남의 예산·페이로드를 대신 고치지 않는다.
+
+deploy 의 FOMS CI red 도 내 것이 아니었다: 타 세션이 `erp_order_js.html` 자산 핀
+3개를 같은 날짜 문자열로 올려 `order_js.count(pin) == 2` 계약이 깨진 것으로, 직전 커밋
+`fd04014d` 에서 이미 red 였고 그 세션이 `5d346401`·`6740af20` 로 자체 수정했다.
+
+**재실행 결과(09:56)**: 사용자 요청으로 perf-gate 만 다시 돌렸다 — `/erp/completion`
+wire **26110**(직전 26107)로 그대로 FAIL. 정산 쪽이 아직 손대지 않았다는 뜻이라
+PR #223 은 계속 대기한다.
+
+### 18.9 운영 반영 완료 (2026-09-01 10:46 KST · PR #223 `68f1100d`)
+
+막힘의 정체는 정산 세션의 회귀가 아니라 **게이트 기준이 브랜치에 사는 구조**였다:
+
+- perf-gate 는 **스테이징 실서버**를 측정하는데, 판정 기준은 **PR 브랜치의**
+  `tools/perf/perf_budgets.json` 을 읽는다.
+- 스테이징에는 완료 대시보드의 경로 재배치(목록을 API 응답에서 페이지로)가 이미
+  올라가 26,109B 가 관측되는데, production 계보의 예산은 18,466 이었다.
+- 정산 세션은 deploy 에 재시드(`77a1209c`, 18466→33941)를 넣었지만 **그 커밋이
+  운영에 닿지 않아**(그 세션 승격 PR #224 는 닫힘) 모든 승격이 계속 막혔다.
+
+사용자 판단으로 **그 게이트 설정 한 항목만** 승격 브랜치에 반입했다(`303b53b3`).
+기능 코드는 가져오지 않았고, 실제로 production 대비 이 파일의 차이는 completion
+예산값과 `_comment` 사유 두 줄뿐임을 JSON 비교로 확인한 뒤 파일을 통째로 취했다.
+
+결과: 검사 4종(test·harness·pg-lane·perf-gate) 전부 PASS → 머지.
+운영 트리 확인 — `foms/web/admin/excel_import.py`·`foms/services/measurement_route.py`
+둘 다 부재, completion 예산 33941 반영.
+
+**다음 세션을 위한 교훈**: 승격 PR 의 perf-gate 가 "내가 안 건드린 경로"에서 red 면
+회귀를 의심하기 전에 **예산 파일이 어느 계보인지** 먼저 본다. 측정 대상(스테이징)과
+판정 기준(PR 브랜치)이 다른 곳에서 오므로, deploy 에서 재시드한 예산이 운영에 안
+닿으면 무관한 세션들이 연쇄로 막힌다.
+

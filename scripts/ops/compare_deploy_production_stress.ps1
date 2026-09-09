@@ -1,4 +1,4 @@
-# Deploy vs Production ERP stress — L1 (HTTP TTFB) + L2 (browser tab stress).
+﻿# Deploy vs Production ERP stress — L1 (HTTP TTFB) + L2 (browser tab stress).
 # Win11 PowerShell 5.x, repo root에서 실행.
 #
 # Usage:
@@ -16,6 +16,10 @@ param(
     [string]$ProductionUrl = "https://lahom-production.up.railway.app",
     [switch]$SkipBrowser
 )
+# Win11 cp949 console: force UTF-8 output so Korean text is not mangled.
+$OutputEncoding = New-Object System.Text.UTF8Encoding $false
+[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false
+
 
 $ErrorActionPreference = "Stop"
 

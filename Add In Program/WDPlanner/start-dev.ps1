@@ -1,4 +1,8 @@
-# WDPlanner 개발 서버 시작 스크립트 (PowerShell)
+﻿# WDPlanner 개발 서버 시작 스크립트 (PowerShell)
+
+# Win11 cp949 console: force UTF-8 output so Korean text is not mangled.
+$OutputEncoding = New-Object System.Text.UTF8Encoding $false
+[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false
 
 Write-Host "====================================" -ForegroundColor Cyan
 Write-Host "WDPlanner 개발 서버 시작" -ForegroundColor Cyan

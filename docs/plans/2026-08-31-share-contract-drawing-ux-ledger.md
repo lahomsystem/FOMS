@@ -72,6 +72,8 @@ iOS·Android 인앱 브라우저 다운로드 제약 정리.
 - T2 DONE — ZIP 일괄 저장 라우트 + 다운로드 섹션 UI (`foms/api/share.py`, `share_drawing_body.html`)
 - T3 DONE — `docs/harness/evidence/2026-08-31-share-route-contracts.md`
 - CEO 교차검수 DONE — 조건부 승인, 지적 S1~S5 전부 반영
+- **deploy DONE** — `72e16e1b`, CI 4/4 green
+- **운영 승격 DONE** — PR #208 머지(production `a6175cd7`), 검사 4/4 pass. 운영 자산 실서빙 확인(`foms-share-contract.css` 200 · `export-clone` 규칙 존재 · `share-contract.js` 에 `EXPORT_WIDTH = 700`·`toDataURL`). **잔여 = 실기기(iOS·Android 카톡 인앱) 확인**
 
 ### 총괄이 직접 잡아 고친 것 (T1~T3 산출물의 결함)
 
@@ -153,6 +155,30 @@ iOS·Android 인앱 브라우저 다운로드 제약 정리.
   실브라우저 실측(모바일 390px 합본 flex/ZIP none·아이콘 32×32 히트 44px / PC 1280px ZIP flex·합본 none / `<button>` 안 `<a>` 중첩 0건).
 - **PDF 는 합치지 않는다**(사용자 명시). '하나씩 저장' 목록에서 받는다.
 
+### 후속 4 — 계약서 라이브 반영 (사용자 지시 2026-09-01)
+
+지시: "도면은 실시간 반영되는데 계약서는 금액을 바꿔도 최초 것이 pinned 돼 있다. 실시간 반영으로 바꿔라."
+
+**D6 동결을 뒤집은 결정이다.** 발급 시점 스냅샷을 얼려 두던 규칙(금액 문서라 그렇게 잡았다)을 라이브로 바꿨다.
+
+- `_live_estimate_snapshot(row, order)` 신설 — estimate·bundle 두 경로가 같이 쓴다.
+  **유출 차단은 유지**: 라이브 주문 값을 템플릿에 직접 넘기지 않고 `build_estimate_snapshot`
+  화이트리스트를 열람할 때마다 다시 태운다(타 브랜드 계좌·내부 플래그는 키 자체가 안 생긴다).
+- 날짜 두 축 분리 — 라이브로 바꾸면서 새로 생기는 함정 두 개를 막는다:
+  - `issued_date` = 주문 `structured_updated_at`(KST). 오늘 날짜를 박으면 **아무것도 안 바뀐
+    계약서의 날짜가 매일 굴러간다**.
+  - `contract_no_date` = **발급 시점 고정**. 계약번호가 발행일에서 나오므로 여기까지 라이브면
+    고객이 들고 있는 번호가 날마다 달라진다.
+- 폴백: 라이브 재구성이 `SnapshotTooLargeError` 면 발급본 사용(빈 화면보다 낫다).
+  라이브도 저장본도 없으면 503(빈 계약서·도면만 보여주기 금지).
+- 저장 스냅샷 없는 링크가 이제 503 대신 정상 렌더된다. 발급 스냅샷은 계약번호 고정·폴백용으로 계속 저장.
+- 화면 문구: "…기준으로 발행된 내용입니다" → "…기준 계약 내용입니다. 변경되면 이 화면에도 반영됩니다."
+- 동결 강제 계약 테스트 4건을 라이브 계약으로 뒤집고, 계약번호 고정·폴백·양쪽 부재 503 신규 3건.
+- 검증: APP_OK · 214 passed · pre_push_smoke exit 0 · deploy `240dad29a` CI 4/4 green.
+- **운영 반영 완료** — PR #235(합본 사진 `54936d3f` 동반 승격), production `77fd9354e`, 검사 4/4 pass.
+
+**의도된 부작용(기록)**: 고객이 어제 본 금액이 오늘 다르게 보일 수 있다. 계약서에 법적 효력 문구가 있는 문서라, 발급 이력 보존은 별도 작업으로 남는다(이번 범위 밖 — 사용자에게 고지함).
+
 ### 남은 미검증 (실기기 없음 — 사용자 확인 필요)
 
 1. 카카오톡 인앱에서 `Content-Disposition: attachment` zip 이 실제로 파일로 남는가 (개별 저장 폴백도 같은 메커니즘이라 함께 실패할 수 있다)
@@ -210,3 +236,25 @@ iOS·Android 인앱 브라우저 다운로드 제약 정리.
   계약서 본문·계좌 복사·저장 버튼 무변경. 검증용 임시 주문 2914 는 삭제했다.
 
 **남은 일**: 운영 승격(PR) — 승격 시 마이그레이션 1건이 함께 간다.
+
+**운영 반영 완료(2026-09-01)** — PR #237 머지, production `b1ed7bff`. 검사 4/4 pass.
+승격 시 충돌 2건은 이렇게 풀었다: `test_alimtalk_ui_contract.py` 는 **production 쪽 구현이 더
+엄격**(자산 이름 기준)이라 그대로 두고 핀 리터럴만 `20260901a`→`b`, failopen 인벤토리는 생성물이라
+승격 트리에서 재생성. 승격 트리에서 **전체 스위트 8038 passed** 직접 실행(승격 PR 은 본 스위트를
+안 도는 구멍이 있다). 운영 확인: `erp-share.js?v=20260901b` 실서빙 + 운영 DB `order_share_snapshots`
+존재·`alembic_version=sharehist_00`.
+무관 기존 red 1건 기록: `test_erp_order_edit_mobile_form.py::test_edit_erp_order_ships_responsive_form_mounts_for_cohort`
+는 **깨끗한 origin/production 체크아웃에서도 빨강**이다(이 작업이 만든 것이 아니다).
+
+**실서버 확인(2026-09-01, claude_master)**
+
+- **스테이징 E2E(쓰기 포함)**: 가상 주문 `CLAUDE-TEST-share-hist`(더미 010-0000-0000) 생성 →
+  계약서 링크 발급 → 비로그인 열람(1,000,000) → 금액 변경 → 재열람(1,400,000) →
+  **이력 2행**(각 행이 자기 금액 보존) → 그 시점 화면 200(배너 표시·옛 금액 표시·**새 금액 누출 0**) →
+  주문 soft delete 정리. 함정: `/add` 의 ERP 경로는 `create_mode=ERP_ORDER` 이고 **ADMIN 은
+  `sales_owner_id`(활성 SALES) 지정이 필수**다(UI 에는 그 입력칸이 없어 폼 흉내로는 안 만들어진다).
+- **운영(읽기 전용, 계정 해제→확인→재잠금)**: 배포 직후 **실고객 열람 1건이 이미 원장에 쌓여 있었다**
+  (`order_share_snapshots` 1행, share 17, `source=live`). 직원 이력 목록 200(스냅샷 원문 미포함 확인),
+  그 시점 화면 200(배너·계약 내용), **열람 전 링크는 0행**(음성 대조군), 주문 편집 화면에
+  `erp-share-history`·"고객이 본 내용"·`erp-share.js?v=20260901b` 모두 실림.
+  운영 쓰기는 하지 않았다(감사 `SHARE_HISTORY_VIEWED` 1건은 허용 잔여물). 계정 재잠금 완료.

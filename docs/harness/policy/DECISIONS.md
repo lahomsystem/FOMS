@@ -2,9 +2,19 @@
 
 > AI 세션 간 중요 기술/아키텍처 결정을 기록합니다.
 > **규칙**: 최대 15개 유지. 초과 시 가장 오래된 것을 `docs/evolution/`로 이동.
+> **현황(2026-09-07)**: 항목 25개 — 규칙 위반 상태로 정리 보류. 착수 시점 23개였고 이 세션이
+> 2건(AS-AXIS-01·ept_b8 정정)을 더했다. 정리(가장 오래된 10건 이동)도 상한 개정도 이번 래칫
+> 세션 범위 밖이라 **간극을 기록으로만 남긴다** — 이 줄이 없으면 다음 세션이 규칙 줄 전체를
+> 무시하게 된다. 추적: `docs/plans/2026-09-07-foms-now-ratchet-ledger.md` 후속 항목.
 > **검색**: 각 결정의 `키워드` 태그를 Grep 검색하여 관련 결정을 빠르게 찾을 수 있습니다.
 
 ---
+
+### [2026-09-07] 정정 — `ept_b8_staging_session_from_login.py` 는 삭제되지 않았고 perf-gate 의 라이브 의존이다
+- **키워드**: harness, ablation, correction, ept-b8, perf-gate, staging, dead-code, decision-drift, 2027-02
+- **결정**: 아래 [2026-08-03] 하네스 전면 ablation 항목이 `tools/harness/ept_b8_staging_session_from_login.py` 를 "참조 0건" DEAD 3종의 하나로 삭제했다고 적은 것은 **현행 저장소 상태와 어긋난다**. 그 파일은 **지금 존재하고**(`ls tools/harness | grep ept_b8` → `ept_b8_staging_session_from_login.py`), `.github/workflows/perf-gate.yml:44` 주석이 그 스크립트를 게이트 import 체인의 **라이브 의존**으로 명시한다("게이트 import 체인은 순수 stdlib(erp_navigation_contract) + requests(ept_b8 로그인, staging_perf_gate) 뿐이라 flask/앱 전체 설치가 불필요하다 → requests 만"). 이 항목은 그 모순을 **기록**하는 것이지 고치는 것이 아니다 — 워크플로도 스크립트도 건드리지 않고, [2026-08-03] 항목 본문도 당시 판정의 기록이므로 그대로 둔다.
+- **이유**: 경과는 이미 다른 정본에 남아 있다 — `docs/AI_STATUS.md:101` 이 "ablation이 삭제한 perf-gate 라이브 의존 `ept_b8_staging_session_from_login.py`는 로컬 복원 커밋 `2819e0ae`(원격은 원래 보유 — push 시 empty cherry-pick 주의)" 라고 적는다. 즉 삭제 → 라이브 의존 발각 → 복원까지 끝났는데 **결정 원장만 옛 판정을 유지**하고 있었다. 이대로 두면 다음 ablation(2027-02)이 같은 "참조 0건" 을 근거로 같은 파일을 다시 지운다 — 같은 실패를 두 번 하는 자리다. 남는 교훈 둘: (1) [확인됨] 지금의 유일한 참조는 **워크플로 주석**이라 코드 심볼 grep 에는 안 걸린다. DEAD 판정은 `.yml` 주석까지 훑어야 성립한다. (2) [추정] 2026-08-03 의 "참조 0건" 이 그 주석을 지나쳤을 가능성이 크지만, 당시 무엇을 어떤 범위로 grep 했는지 적은 줄이 없어 단정하지 않는다(그 범위는 `미상(근거 없음)`).
+- **영향**: 기록만. `tools/harness/ept_b8_staging_session_from_login.py`(무변경) · `.github/workflows/perf-gate.yml:44`(무변경) · 본 파일 [2026-08-03] 항목(무변경 — 이 항목이 정정을 얹는다) · `docs/plans/2026-09-06-foms-system-review-report.md:83`(R8, 정본 문서가 현행 코드와 어긋나는 축)
 
 ### [2026-09-02] 네이버 규격 감사 — 불가역 호출은 재시도하지 않고, 게이트는 endpoint 범례로만 잠근다
 - **키워드**: naver, commerce-api, audit, retry, idempotency, cancel-reason, beforeClaim, sunset, approve
@@ -23,6 +33,18 @@
 - **결정**: FOMS CI `Run tests` 839초를 계측해 **PBKDF2 600,000 반복 676초(73%)** + **매 테스트 83테이블 `create_all`/`drop_all` 146초(17%)** 로 분해했다(실제 테스트 로직은 92~98초, 11%). 세 갈래로 고친다. (1) 테스트 레인 한정 `werkzeug.security.DEFAULT_PBKDF2_ITERATIONS = 10` — **모듈 상수 패치여야 한다**(호출 시점에 읽으므로 early-bound import 에도 먹는다. 함수 교체 방식은 `from werkzeug.security import ...` 한 모듈에 적용되지 않아 65초가 조용히 남는다). 운영은 `password_policy.py` 가 `method=` 없이 호출해 영향 없음. (2) 스키마는 세션에 한 번, 테스트마다 전 테이블 DELETE + `after_create` 싱글턴 시드 5종 재주입(`tests/postgres/conftest.py` 의 TRUNCATE+재시드 구현을 SQLite 로 이식). (3) `pytest-xdist -n auto --dist loadfile`. 각 완화는 봉인 계약으로 잠근다(`test_password_kdf_contract.py`, `test_docs_facing_registry.py`). 부수 결정: **`concurrency: cancel-in-progress` 는 기각**, 대신 `ci_watch` 를 fail-closed 로(green = `success` 하나뿐). 문서 전용 커밋은 워크플로를 건너뛰지 않고 **무거운 스텝만** 바꾼다.
 - **이유**: `--durations` 상위 40건이 전체의 9%뿐이라 "느린 테스트 찾기"로는 잡히지 않는다. 병목이 꼬리가 아니라 모든 테스트에 균일하게 붙는 고정세여서, 분포가 5ms 미만 2,897건 / 100ms 이상 1,695건으로 갈리고 후자 평균 537ms 가 해시 생성 269ms + 대조 258ms 와 일치한다. 항목별 실측 합이 총시간을 오차 2% 로 재구성돼 숨은 병목이 없음도 확인됐다. 워크플로를 통째로 건너뛰지 않는 이유는 그 커밋에 런이 아예 없어지면 `ci_watch` 가 "런 없음"과 green 을 구분하지 못하기 때문이고, 이는 커밋 단위 cherry-pick 승격 정책과 정면으로 충돌한다.
 - **영향**: `tests/conftest.py`, `tests/domains/test_password_kdf_contract.py`, `tests/domains/test_docs_facing_registry.py`, `tests/domains/test_static_js_syntax.py`, `tests/domains/test_auth_finance.py`, `tests/postgres/test_ops_approval.py`, `tests/harness/test_ci_watch.py`, `tools/harness/ci_watch.py`, `pytest.ini`, `requirements.txt`, `.github/workflows/{ci,harness-ci,postgres-lane,perf-gate,rum-daily,visual-baseline-linux,coding-research-center-weekly}.yml`, `docs/plans/2026-08-26-ci-speed-ledger.md`
+
+### [2026-08-18] AS-AXIS-01 — AS 목록의 술어를 파생 사본 status 에서 AS 축 투영으로 옮긴다
+- **키워드**: AS-AXIS, as_axis_status, as_lifecycle, derive_as_axis_status, asaxis_00, projection, sync_erp_flat_columns, incident-2026-08-14, drift-audit, negative-control
+- **결정**: AS 대시보드 술어를 `orders.status` 단독에서 **AS 축 투영 `as_axis_status`** 로 교체해 2026-08-14 사고(AS 55건 증발)의 **구조적 원인**을 제거한다. 정본은 `as_lifecycle` 인데 목록 술어가 파생값 `orders.status` 단독이라 아무 write 나 그 컬럼을 덮으면 목록이 통째로 증발했다. 구성: 플랫 투영 `as_axis_status`(부분 인덱스, 마이그레이션 `asaxis_00`) + 유도 SSOT `derive_as_axis_status` + `sync_erp_flat_columns` 동기화 + 백필·드리프트 감사 도구, 술어 교체 4곳(근거 줄 병기: "탭 2·모집단 3·지도 1" — 합이 4와 어긋나지만 원문 표기를 그대로 옮긴다). 곁가지 근본수정: `blueprint_projection._legacy_orders` 가 전체 컬럼 SELECT 라 새 컬럼 추가만으로 alembic 체인 왕복이 깨져 `load_only` 로 축소.
+- **이유**: 2026-08-14 일괄 완료처리가 AS 접수/완료 주문 55건의 `status` 를 `COMPLETED` 로 덮어 AS 대시보드에서 증발시켰고(기록은 무손상, 복구 55/55), 그때 들어간 것은 가드였지 구조 변경이 아니었다 — 술어가 파생 사본을 보는 한 다음 쓰기 경로가 또 덮는다. **실측으로 바뀐 설계가 2건**이라 이 결정의 값이 여기 있다. ① **날짜 폴백 제거** — 백필하니 미완료가 54→67로 늘었고 늘어난 건 전부 `as_received_date` 만 남은 옛 주문(운영 18건, 3~5월, AS 이벤트 0)이라 화면 무변동을 택했다(재백필 후 구/신 53/53·426/426·집합차 0). ② **투영 암묵삭제 금지** — 2단 배포 후 스테이징 사고 재현에서 레거시 AS 주문이 여전히 증발했다: 일괄 상태변경이 sync 를 지나는데 lifecycle 없는 행은 근거가 status 뿐이라 재유도하면 None 이 되어 투영이 삭제된다. **유도값이 있을 때만 갱신**하도록 고쳤고, 이 "값 없으면 안 지움" 규약이 이후 방어선이 된다. 검증: 스테이징 실브라우저 사고 재현(강제 완료 후에도 AS 완료 탭 유지·`as_axis_status` 보존), 드리프트 507건 0, PG 레인 737 green(체인 왕복+인덱스 가드), AS 도메인 845, smoke 323.
+- **영향**: `models.py`, `migrations/versions/asaxis_00_as_axis_status.py`, `foms/services/orders/state_axes.py`, `foms/services/erp_sync_columns.py`, `foms/services/as_dashboard_helpers.py`, `foms/web/cs/as_dashboard.py`, `foms/services/map_snapshot.py`, `foms/services/orders/blueprint_projection.py`, `tools/ops/{backfill_as_axis_status,audit_as_axis_drift}.py`, `tests/domains/test_as_axis_projection.py`, `tests/postgres/test_scale_as.py` | 커밋 `29fb31b5`·`0a533944`·`e061beb7` | 근거 `docs/AI_CHANGELOG.md:49` | 사고 원장 `docs/incidents/2026-08-14-as-dashboard-bulk-complete-vanish.md`. **후속 사고**: 이 투영이 `sync_erp_flat_columns` 의 `is_erp_order` 게이트 안에만 있어 비ERP AS 주문에서 새어 나간 자리가 2026-09-03 에 드러났다(`docs/incidents/2026-09-03-as-axis-projection-escape.md`) — 결정 자체가 아니라 동기화 배선의 결함이다.
+
+### [2026-08-07] guard_policy ask 완화 2건 (임시폴더 삭제·기본 pip 설치)
+- **키워드**: harness, guard-policy, ask, pip, supply-chain, remove-item, temp, bypass-permissions
+- **결정**: 상시 반복되던 ask 프롬프트 2종을 대상 기준으로 좁힌다. (1) `Remove-Item -Recurse -Force`는 삭제 대상이 **전부 임시폴더 루트 하위**(`c:/tmp`·`%TEMP%`·`%TMP%`)일 때만 allow — 루트 자체·`..` 상위 탈출·그 외 경로는 ask 유지(세션 worktree 청소 `c:/tmp/foms-*`가 실제 반복 케이스). (2) `pip install`은 기본 PyPI 설치를 allow로 뒤집고, **공급망 벡터만** ask로 남긴다 — 대체 인덱스(`-i`/`--index-url`/`--extra-index-url`/`-f`/`--find-links`), 신뢰 우회(`--trusted-host`), 원격 URL·VCS 직접 설치(`http(s)://`/`git+`/`hg+`/`svn+`/`bzr+`). `=` 결합형(`--index-url=...`)도 동일 판정. deny 계층(rm 루트 재귀·`del /s /q <drive>`·DB 파괴·force push)은 무변경.
+- **이유**: 훅의 `ask`는 bypassPermissions 모드에서도 프롬프트를 띄우므로, 전건 발화는 마찰만 남기고 방어 효과는 소진된다(항상 승인되는 게이트 = 게이트 아님). 위험 신호가 실제로 높은 형태에만 프롬프트를 집중시키는 편이 신호 대 잡음 비가 낫다. **잔존 리스크**: 일반 이름 오타·환각 패키지(typosquat/slopsquat)는 이 판정으로 막히지 않는다 — 코드가 아니라 운영 규율(설치 전 패키지명 사용자 보고)로 보완하며, 재발 시 requirements.txt 등재분만 allow 하는 안으로 되돌린다.
+- **영향**: `tools/harness/guard_policy.py`(`_classify_powershell_remove`·`_classify_pip`·`_temp_roots`/`_is_temp_path`/`_ps_remove_targets` 신설), `tests/harness/test_guard_policy.py`(CASES 21건 추가 + `%TEMP%` monkeypatch 단위 테스트). Claude/Cursor 훅 양측이 같은 모듈을 소비하므로 판정 동시 반영.
 
 ### [2026-08-03] 하네스 전면 ablation (Boris Cherny 6개월 삭제 주기 도입)
 - **키워드**: harness, ablation, claude-md, hooks, skills, plugins, ssot, token

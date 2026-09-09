@@ -1,4 +1,4 @@
-#requires -Version 5.1
+﻿#requires -Version 5.1
 <#
 .SYNOPSIS
   Removes forbidden workspace residue before PTC final audit (plan §4.4 / §5.6).
@@ -25,6 +25,10 @@ param(
     [switch]$RecursePyCache,
     [switch]$WhatIf
 )
+
+# Win11 cp949 console: force UTF-8 output so Korean text is not mangled.
+$OutputEncoding = New-Object System.Text.UTF8Encoding $false
+[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
