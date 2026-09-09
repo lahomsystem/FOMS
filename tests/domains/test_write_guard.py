@@ -14,11 +14,14 @@ import pytest
 from itsdangerous import URLSafeSerializer
 from werkzeug.security import generate_password_hash
 
+from flask import session as flask_session
+
 from db import db_session
 from models import Order, User
 from foms.services.request_write_guard import (
     _CSRF_SALT,
     _CSRF_SESSION_KEY,
+    generate_csrf_token,
     load_write_guard_manifest,
 )
 
@@ -158,6 +161,53 @@ def test_valid_csrf_same_origin_passes(client, app, guard_on):
     assert resp.headers.get("X-Write-Guard") is None
     refreshed = _fresh_order(oid)
     assert refreshed.structured_data["calls"][0]["result"] == "connected"
+
+
+def test_token_survives_session_cookie_clobber(client, app, guard_on):
+    """세션 쿠키가 옛 스냅샷으로 덮여 seed 가 사라져도 발급 토큰은 계속 유효하다.
+
+    회귀 방지: 폴링 응답(SESSION_REFRESH_EACH_REQUEST)이 렌더가 심은 seed 를 지워
+    탭을 여럿 연 사용자의 모든 저장이 403 이 됐던 2026-09-09 사고.
+    """
+    uid = _login(client)
+    oid = _create_order()
+    with app.test_request_context("/"):
+        flask_session["user_id"] = uid
+        token = generate_csrf_token()
+
+    with client.session_transaction() as sess:
+        sess.pop(_CSRF_SESSION_KEY, None)  # 동시 폴링이 옛 스냅샷으로 쿠키를 덮어쓴 상태
+
+    resp = client.post(
+        f"/api/orders/{oid}/call-log",
+        json={"result": "connected"},
+        headers={"X-CSRF-Token": token},
+    )
+
+    assert resp.status_code == 200, resp.get_data(as_text=True)
+    assert resp.headers.get("X-Write-Guard") is None
+
+
+def test_other_users_token_rejected(client, app, guard_on):
+    """다른 사용자 앞으로 발급된 토큰은 거부된다(파생 seed 가 user 에 묶임)."""
+    _login(client)
+    oid = _create_order()
+    with app.test_request_context("/"):
+        flask_session["user_id"] = 987654
+        foreign_token = generate_csrf_token()
+
+    with client.session_transaction() as sess:
+        sess.pop(_CSRF_SESSION_KEY, None)
+
+    resp = client.post(
+        f"/api/orders/{oid}/call-log",
+        json={"result": "connected"},
+        headers={"X-CSRF-Token": foreign_token},
+    )
+
+    assert _is_write_guard_block(resp)
+    refreshed = _fresh_order(oid)
+    assert "calls" not in (refreshed.structured_data or {})
 
 
 def test_cross_origin_blocked_even_with_token(client, app, guard_on):
