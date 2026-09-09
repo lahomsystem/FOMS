@@ -131,6 +131,13 @@
             <button type="button" class="dws-menu-item" id="dws-btn-version-history">버전 이력…</button>
           </div>
         </div>
+
+        <span class="dws-appbar-sep"></span>
+
+        <!-- 도면방 PUSH — 현재 전달본 도면 전부를 채널톡 도면방으로. 전달 대기(pending)는 보내지 않는다.
+             dws-edit-ctl 을 붙이면 applyPermissions 가 열람 전용일 때 자동으로 잠근다(새 권한 축 신설 금지). -->
+        <button type="button" class="dws-btn dws-edit-ctl" id="dws-btn-room-push"
+          title="현재 전달본 도면을 도면방으로 보냅니다">도면방 PUSH</button>
       </div>
     </header>
 
@@ -442,6 +449,6 @@
 
   <script id="drawing-wizard-config" type="application/json">{{ wizard_config|tojson }}</script>
   <script src="{{ url_for('static', filename='vendor/konva.min.js') }}?v=20260706b" defer></script>
-  <script src="{{ url_for('static', filename='js/drawing/wizard.js') }}?v=20260909a" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/wizard.js') }}?v=20260909b" defer></script>
 </body>
 </html>
