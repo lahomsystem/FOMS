@@ -26,6 +26,11 @@ offline 과 2026-08-31 SIDEFX 미배포는 **두 번 다 사용자가 화면에�
   큰 쪽이다. 그래서 간격을 env 로 바꿔도 살아 있는 루프를 죽었다고 하지 않는다.
 * 등록부에 없는 kind 가 표에 있으면 판정할 수 없으므로 ``unknown_kinds`` 로 싣는다(조회
   도구가 시끄럽게 실패한다). 조용히 지나가면 "아무도 안 읽는" 상태로 되돌아간다.
+* **결론(``ready``)은 여기서 새로 만들지 않는다.** CLI 가 쓰는
+  :func:`~foms.services.sidefx_worker.evaluate_readiness` 를 그대로 부른다 — 하트비트
+  유무·신선도만이 아니라 **scan lag·큐 적체(`oldest_pending_lag`)·DEAD 수**까지 같은
+  네 축으로 본다. 2026-09-09 이전에는 이 조회가 앞의 두 축만 봐서, CLI 는 not-ready 인데
+  일일 보고는 "전부 신선" 이라 말할 수 있었다(같은 사실을 두 판정부가 다르게 읽는 결함).
 
 **한계(명시)**: 한 번도 하트비트를 쓴 적 없는 loop 는 이 조회로 보이지 않는다. 그 축은
 ``tests/domains/test_loop_heartbeat_wiring.py`` 가 막는다 — ``start.sh`` 가 띄우는 모든
@@ -47,6 +52,7 @@ from foms.services.sidefx_worker import (
     WORKER_KINDS,
     ReadinessThresholds,
     collect_readiness_observations,
+    evaluate_readiness,
 )
 
 ops_worker_heartbeat_bp = Blueprint("ops_worker_heartbeat", __name__)
@@ -63,10 +69,16 @@ def summarize_heartbeats(
         thresholds: 임계값 묶음(생략 시 기본 — kind 별 등록부 예산을 쓴다).
 
     Returns:
-        ``{"kinds": {kind: {...}}, "not_ready": [kind...], "not_ready_count": int,
-        "unknown_kinds": [kind...]}``. 각 kind 항목은 ``age_seconds``·
-        ``interval_seconds``(루프가 신고한 값, 없으면 ``None``)·``limit_seconds``·
-        ``ready``·``reason``(``ok``/``missing``/``stale``)·``required``.
+        ``{"kinds": {kind: {...}}, "not_ready": [...], "not_ready_count": int,
+        "unknown_kinds": [...], "ready": bool, "failures": [...],
+        "oldest_pending_lag": int|None, "dead_count": int}``.
+
+        각 kind 항목은 ``age_seconds``·``interval_seconds``(루프가 신고한 값, 없으면
+        ``None``)·``limit_seconds``·``ready``·``reason``(``ok``/``missing``/``stale``)·
+        ``required``.
+
+        ``ready`` 는 **kind 표만의 결론이 아니다** — :func:`evaluate_readiness` 가
+        보는 네 축(하트비트 유무·신선도·scan lag·큐 적체/DEAD)을 그대로 받는다.
     """
     thresholds = thresholds or ReadinessThresholds()
     heartbeats = observations.get("heartbeats", {}) or {}
@@ -96,11 +108,22 @@ def summarize_heartbeats(
         }
 
     not_ready = sorted(k for k, v in kinds.items() if not v["ready"])
+
+    # 결론은 여기서 새로 만들지 않는다. CLI(check_sidefx_readiness)가 쓰는 판정 함수를
+    # 그대로 부른다 — 위 표는 하트비트 축만 보므로, 큐가 적체되거나 DEAD 가 쌓여
+    # CLI 가 not-ready 라고 말하는 상태를 이 조회는 "전부 신선" 이라 보고했다
+    # (같은 사실을 두 판정부가 다르게 읽는 결함 — 2026-09-08 헛알림과 같은 계열).
+    report = evaluate_readiness(observations, thresholds, kinds=judged)
+
     return {
         "kinds": kinds,
         "not_ready": not_ready,
         "not_ready_count": len(not_ready),
         "unknown_kinds": unknown,
+        "ready": report.ready and not unknown,
+        "failures": report.failures,
+        "oldest_pending_lag": observations.get("oldest_pending_lag"),
+        "dead_count": int(observations.get("dead_count") or 0),
     }
 
 
@@ -112,8 +135,10 @@ def worker_heartbeats() -> tuple[Any, int]:
 
     Returns:
         200 ``{"success": True, "data": {kinds, not_ready, not_ready_count,
-        unknown_kinds, elapsed_ms}}``. ``not_ready_count`` + ``unknown_kinds`` 가
-        워크플로 판정용이다. 판정 규약은 모듈 docstring 이 정본.
+        unknown_kinds, ready, failures, oldest_pending_lag, dead_count,
+        elapsed_ms}}``. 워크플로가 읽는 판정값은 ``ready`` 다 — 하트비트 축만 보는
+        ``not_ready_count`` 와 달리 큐 적체·DEAD 까지 포함한다. 규약은 모듈
+        docstring 이 정본.
     """
     user = getattr(g, "current_user", None)
     if user is None:

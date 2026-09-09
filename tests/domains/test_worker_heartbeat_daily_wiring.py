@@ -156,3 +156,35 @@ def test_summary_table_says_which_kind_and_why(stale):
     text = module.render_summary(report)
     assert "RQ_WORKER" in text and "1215" in text
     assert ("STALE" in text) is stale
+
+
+def test_queue_axis_alone_fails_the_daily_check(monkeypatch):
+    """하트비트가 전부 신선해도 ``ready`` 가 거짓이면 매일 점검이 빨개진다.
+
+    2026-09-09 이전에는 이 경로가 ``not_ready`` 만 봐서, 큐가 적체되거나 DEAD 가 쌓인
+    상태를 매일 "전부 신선" 으로 보고했다(CLI 는 같은 시각 not-ready 였다).
+    """
+    code = _run_main(monkeypatch, _report(
+        ready=False, dead_count=7, oldest_pending_lag=None,
+        failures=[{"check": "dead_count", "detail": 7, "limit": 0}]))
+    assert code == 1, "DEAD 7건인데 매일 점검이 초록이었다"
+
+
+def test_ready_true_exits_zero(monkeypatch):
+    """양성 대조군 — 네 축이 깨끗하면 성공이다."""
+    assert _run_main(monkeypatch, _report(ready=True, dead_count=0,
+                                          oldest_pending_lag=None, failures=[])) == 0
+
+
+def test_an_endpoint_without_the_queue_axis_says_so(monkeypatch):
+    """옛 배포(``ready`` 키 없음)는 하트비트 축만으로 물러서되 그 사실을 요약에 적는다.
+
+    조용히 반쪽만 판정하면 초록이 무슨 뜻인지 아무도 모른다 — 이 사고의 뿌리가 그것이다.
+    """
+    module = _load_script()
+    legacy = _report()  # ready 키가 없는 옛 응답
+    assert "ready" not in legacy
+    summary = module.render_summary(legacy)
+
+    assert "큐 축이 없다" in summary, "반쪽 판정이라는 사실을 요약이 말하지 않는다"
+    assert _run_main(monkeypatch, legacy) == 0, "옛 응답에서도 하트비트 축 판정은 살아 있다"
