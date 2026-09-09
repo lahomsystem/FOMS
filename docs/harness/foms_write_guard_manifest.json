@@ -3,7 +3,7 @@
   "guard": "CSRF_TOKEN+ORIGIN",
   "description": "WRITE-GUARD-01 정본: 모든 cookie-auth state-changing route 의 write_guard metadata. mode=guard 는 공용 CSRF+Origin before_request 가드(enforce_csrf_origin) 적용, mode=exempt 는 자기 정책(서명/ingest/anon)으로 명시 우회. url_map 의 모든 POST/PUT/PATCH/DELETE endpoint 가 여기 등재되어야 하며 누락은 static gate fail(fail-safe: 미등재 endpoint 는 런타임에서 guard).",
   "exempt_count": 9,
-  "guard_count": 200,
+  "guard_count": 201,
   "routes": {
     "admin.naver_ingest_attach_order": {
       "mode": "guard",
@@ -354,6 +354,10 @@
     "erp_orders_as.api_as_reopen": {
       "mode": "guard",
       "rule": "/api/orders/<int:order_id>/as/reopen"
+    },
+    "erp_orders_as.api_as_sales_delivery": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/sales-delivery"
     },
     "erp_orders_as.api_as_schedule": {
       "mode": "guard",
