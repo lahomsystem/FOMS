@@ -61,10 +61,15 @@ from foms.services.erp_dashboard_search import (
     apply_legacy_dashboard_search_filter,
     erp_measurement_main_search_predicate,
 )
+from foms.services.orders.sales_delivery_map import build_sales_delivery_by_ref
 
 erp_measurement_dashboard_bp = Blueprint(
     'erp_measurement_dashboard', __name__, url_prefix='/erp'
 )
+
+# 동행 전달(AS 영업/택배 → 실측 일정 배정) 역방향 맵 로드 상한.
+# 넘으면 화면이 "일부가 빠졌다"고 공시한다(대시보드 캡 공시 규약, 스펙 §4.2).
+MEASUREMENT_SALES_DELIVERY_CAP = 300
 
 
 def _erp_order_search_filter(query, q):
@@ -114,6 +119,52 @@ def _naver_dispatch_preview(selected_date: str, today_date: str) -> dict:
     preview = build_preview(get_db(), on_date=on_date)
     preview["is_today"] = on_date == today_date
     return preview
+
+
+def _build_panel_delivery_counts(
+    db, by_ref: dict, range_start_str: str, range_end_str: str
+) -> dict[str, int]:
+    """날짜 패널 카드에 붙일 ``전달 N`` — 그 날짜에 실측이 잡힌 주문들의 전달 건수 합.
+
+    날짜 패널 카운트는 60일 base 캐시 슬라이스(``measurement_panel_assembly``)가
+    들고 있는데, 전달 배정은 AS 탭에서 수시로 바뀐다. 캐시 키에 전달 맵을 섞으면
+    배정 한 번에 패널 캐시가 통째로 갈리므로(스펙 §6.2), 배지는 **렌더 시점 조인**
+    으로만 붙인다.
+
+    JSONB 역질의·N+1 금지: 기준 실측 주문 id 집합(최대 cap 건)을 ``in_`` 배치
+    **1회**로 조회해 파이썬에서 날짜별로 합산한다.
+
+    Args:
+        db: 요청 스코프 DB 세션.
+        by_ref: ``build_sales_delivery_by_ref`` 의 ``by_ref``(실측 주문 id -> 전달 item 목록).
+        range_start_str: 패널 창 시작일(``YYYY-MM-DD``).
+        range_end_str: 패널 창 종료일(``YYYY-MM-DD``).
+
+    Returns:
+        ``{'YYYY-MM-DD': 전달 건수}``. 전달 배정이 없으면 빈 dict.
+    """
+    if not by_ref:
+        return {}
+    counts: dict[str, int] = {}
+    seen: set[tuple] = set()
+    pairs = (
+        db.query(OrderScheduleDate.order_id, OrderScheduleDate.date)
+        .filter(
+            OrderScheduleDate.order_id.in_(list(by_ref.keys())),
+            OrderScheduleDate.kind == 'measurement',
+            OrderScheduleDate.date >= range_start_str,
+            OrderScheduleDate.date <= range_end_str,
+        )
+        .all()
+    )
+    for order_id, date_value in pairs:
+        if not date_value or (order_id, date_value) in seen:
+            continue
+        seen.add((order_id, date_value))
+        item_count = len(by_ref.get(order_id) or [])
+        if item_count:
+            counts[date_value] = counts.get(date_value, 0) + item_count
+    return counts
 
 
 @erp_measurement_dashboard_bp.route('/measurement')
@@ -372,6 +423,19 @@ def erp_measurement_dashboard():
         measurement_manager_options,
     )
 
+    # 동행 전달(스펙 §6.2): AS 영업/택배 전달 건 -> 기준 실측 주문 역방향 맵을 **1회** 읽어
+    # 렌더되는 행에 그대로 붙인다. 캐시 슬라이스 키(_panel_fp/_main_fp)에는 넣지 않는다.
+    _sales_delivery_map = build_sales_delivery_by_ref(
+        db, cap=MEASUREMENT_SALES_DELIVERY_CAP
+    )
+    _sales_delivery_by_ref = _sales_delivery_map["by_ref"]
+    for o in rows:
+        o.sales_delivery_items = _sales_delivery_by_ref.get(o.id, [])
+    sales_delivery_visible_total = sum(len(o.sales_delivery_items) for o in rows)
+    measurement_panel_delivery_counts = _build_panel_delivery_counts(
+        db, _sales_delivery_by_ref, range_start_str, range_end_str
+    )
+
     # 모바일 v2 큐: 홈과 동일한 깔끔한 queue-card-v2용 view-model (cohort에서만 계산)
     from foms.services.feature_flags import (
         is_mobile_v2_shell,
@@ -418,6 +482,13 @@ def erp_measurement_dashboard():
         )
         mobile_hero_row = _hero_pair[1]
         mobile_hero_time_hm = format_minutes_hm(measurement_time_minutes_of(_hero_pair[0]))
+
+    # v3 영업 홈 '오늘 동선'(스펙 §6.3)이 실측 카드마다 방문시각을 찍는다. 히어로와 같은
+    # SSOT(measurement_time)를 쓰고 이미 로드한 rows 만 재사용한다 — 신규 쿼리 0.
+    # 템플릿이 자유 텍스트를 사전순 비교하면 "10시" < "4시" 오판이 재발한다(ROUTE-02).
+    mobile_queue_time_hm = {
+        _o.id: format_minutes_hm(measurement_time_minutes_of(_o)) for _o in rows
+    } if mobile_queue_rows else {}
 
     # 태블릿 가로 코호트 좌측 큐(W12): 스테이지 색배지 + 날짜버킷(오늘/주간/미확정) + 완료 dim.
     # 이미 로드된 rows만 재사용(신규 쿼리 0). split 표시 게이트(erp_mobile_v2_enabled +
@@ -482,9 +553,15 @@ def erp_measurement_dashboard():
             mobile_queue_rows=mobile_queue_rows,
             mobile_hero_row=mobile_hero_row,
             mobile_hero_time_hm=mobile_hero_time_hm,
+            mobile_queue_time_hm=mobile_queue_time_hm,
+            sales_delivery_by_ref=_sales_delivery_by_ref,
             tablet_card_view=tablet_card_view,
             tablet_bucket_counts=tablet_bucket_counts,
             measurement_panel_dates=measurement_panel_dates,
+            measurement_panel_delivery_counts=measurement_panel_delivery_counts,
+            sales_delivery_visible_total=sales_delivery_visible_total,
+            sales_delivery_truncated=_sales_delivery_map["truncated"],
+            sales_delivery_cap=MEASUREMENT_SALES_DELIVERY_CAP,
             measurement_manager_options=measurement_manager_options,
             measurement_manager_color_map=measurement_manager_color_map,
             today_date=today_date,

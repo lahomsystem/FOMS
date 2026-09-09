@@ -23,7 +23,15 @@ from foms.services.orders.as_schedule_link import (
     read_as_visit_date,
     read_link,
 )
-from models import Order, OrderAttachment
+# 영업 전달 배정은 **다른 축**이다(전달 건을 남의 실측일에 태움) — as_schedule_link 와 이름이
+# 겹치는 함수가 많아 별칭으로만 부른다. 두 축을 한 이름으로 부르면 반드시 섞인다.
+from foms.services.orders.sales_delivery_link import (
+    derive_display_state as sd_derive_display_state,
+    evaluate_drift as sd_evaluate_drift,
+    read_link as sd_read_link,
+    read_method as sd_read_method,
+)
+from models import Order, OrderAttachment, OrderScheduleDate
 
 __all__ = [
     "as_billing_badge_kind",
@@ -35,6 +43,7 @@ __all__ = [
     "batch_resolve_as_compare_photos",
     "apply_as_dashboard_row_display_fields",
     "apply_schedule_link_drift_fields",
+    "apply_sales_delivery_display_fields",
     "build_schedule_link_drift",
 ]
 
@@ -535,6 +544,176 @@ def apply_schedule_link_drift_fields(rows, db: Any) -> dict[str, Any]:
     }
 
 
+#: 영업 전달 배정 셀에서 빨강 테두리 + 조치 버튼을 내는 드리프트 상태(스펙 §6.1).
+#: 이 축에는 `both_moved` 가 없다 — 전달 건 자체에는 날짜가 없고 기준 실측일만 움직인다.
+_SD_DRIFT_WARN_STATES = ("ref_moved", "ref_gone")
+
+_KO_WEEKDAYS = ("월", "화", "수", "목", "금", "토", "일")
+
+
+def _md_dow(iso_date: Any) -> str:
+    """'YYYY-MM-DD' → '09-11(목)'. 파싱 실패/None 이면 빈 문자열.
+
+    칩이 요일을 함께 내는 이유: 영업 동선은 "며칠 뒤"가 아니라 "무슨 요일"로 잡힌다
+    (목업 Main 아트보드 — `이정민 · 09-11(목)`).
+
+    Args:
+        iso_date: 날짜 문자열(또는 None).
+
+    Returns:
+        'MM-DD(요일)' 문자열, 파싱 실패면 빈 문자열.
+    """
+    parsed = _parse_iso_date(iso_date)
+    if parsed is None:
+        return ""
+    return f"{parsed.month:02d}-{parsed.day:02d}({_KO_WEEKDAYS[parsed.weekday()]})"
+
+
+def _collect_sales_delivery_ref_ids(rows) -> set[int]:
+    """행들의 sales_delivery_link 가 참조하는 기준 실측 주문 id 집합(중복 제거).
+
+    Args:
+        rows: structured_data 가 이미 dict 로 정규화된 Order 리스트.
+
+    Returns:
+        ref_order_id 집합(링크 없거나 형식이 이상하면 제외).
+    """
+    ref_ids: set[int] = set()
+    for r in rows:
+        link = sd_read_link(r.structured_data)
+        ref_id = link.get("ref_order_id") if link else None
+        if isinstance(ref_id, int):
+            ref_ids.add(ref_id)
+    return ref_ids
+
+
+def _batch_load_ref_measurement_snapshot(
+    ref_ids: set[int], db: Any
+) -> dict[int, dict[str, Any]]:
+    """기준 실측 주문들의 **현재 실측일**·고객명을 렌더 행 한정으로 배치 조회한다.
+
+    쿼리 2개뿐이다(스펙 §9): ① 기준 주문 메타(id/status/deleted_at/customer_name),
+    ② `order_schedule_dates` 의 `kind='measurement'` 최솟값 GROUP BY. 둘 다 `in_()` 한정이라
+    전체 스캔·N+1 이 없고 JSONB 술어도 쓰지 않는다.
+    싱크 컬럼(`erp_measurement_date`)을 읽지 않는 이유 — 복수 실측 일정 중 첫 날짜만 담아
+    SSOT 가 아니다(쓰기 API `_ref_measurement_date` 와 같은 규약).
+
+    Args:
+        ref_ids: 조회할 기준 실측 주문 id 집합.
+        db: SQLAlchemy 세션.
+
+    Returns:
+        ``{ref_order_id: {"measurement_date": str|None, "customer_name": str|None,
+        "missing": bool}}``. missing=True 는 DELETED·soft-delete 된 기준 주문.
+        결과에 없는 id 는 호출측이 "조회 불가(orphan)"로 처리한다.
+    """
+    if not ref_ids:
+        return {}
+    snapshot: dict[int, dict[str, Any]] = {}
+    for oid, status, deleted_at, customer_name in (
+        db.query(Order.id, Order.status, Order.deleted_at, Order.customer_name)
+        .filter(Order.id.in_(ref_ids))
+        .all()
+    ):
+        snapshot[int(oid)] = {
+            "measurement_date": None,
+            "customer_name": customer_name or None,
+            "missing": bool(deleted_at) or str(status or "") == "DELETED",
+        }
+    if not snapshot:
+        return snapshot
+    date_rows = (
+        db.query(OrderScheduleDate.order_id, OrderScheduleDate.date)
+        .filter(
+            OrderScheduleDate.order_id.in_(list(snapshot.keys())),
+            OrderScheduleDate.kind == "measurement",
+        )
+        .all()
+    )
+    for oid, value in date_rows:
+        entry = snapshot.get(int(oid))
+        text = str(value or "").strip()
+        if entry is None or not text:
+            continue
+        current = entry["measurement_date"]
+        if current is None or text < current:
+            entry["measurement_date"] = text
+    return snapshot
+
+
+def _sales_delivery_chip(link: dict | None, ref_info: dict[str, Any] | None) -> dict | None:
+    """칩 렌더용 축약 링크 dict(표시 파생 필드 포함). 링크가 없으면 None.
+
+    Args:
+        link: `sales_delivery_link.read_link` 결과.
+        ref_info: `_batch_load_ref_measurement_snapshot` 의 해당 항목(없어도 됨).
+
+    Returns:
+        `{ref_order_id, ref_date, ref_date_display, ref_manager, ref_customer_name,
+        status, delivered_by, delivered_at}` 또는 None.
+    """
+    if not link:
+        return None
+    return {
+        "ref_order_id": link.get("ref_order_id"),
+        "ref_date": link.get("ref_date"),
+        "ref_date_display": _md_dow(link.get("ref_date")),
+        "ref_manager": link.get("ref_manager") or "",
+        "ref_customer_name": (ref_info or {}).get("customer_name") or "",
+        "status": link.get("status"),
+        "delivered_by": link.get("delivered_by") or "",
+        "delivered_at": link.get("delivered_at") or "",
+    }
+
+
+def apply_sales_delivery_display_fields(rows, db: Any) -> dict[str, int]:
+    """행마다 영업 전달 배정 4필드를 부착하고, 요약 pill 집계를 반환한다(스펙 §6.1).
+
+    부착 필드: `sales_delivery_state`(unassigned|assigned|delivered|parcel),
+    `sales_delivery_link`(칩용 축약 dict), `sales_delivery_drift`, `sales_delivery_method`.
+    집계는 **렌더된 행에서만** 센다 — 탭 카운트 SQL 을 건드리지 않는다(기존 정규식 계약이
+    탭 마크업을 고정한다).
+
+    Args:
+        rows: structured_data 가 이미 dict 로 정규화된 Order 리스트.
+        db: SQLAlchemy 세션.
+
+    Returns:
+        `{"unassigned", "assigned", "delivered", "parcel", "drift"}` 건수 dict.
+        `drift` 는 조치가 필요한(ref_moved/ref_gone) 배정 행 수다.
+    """
+    ref_snapshot = _batch_load_ref_measurement_snapshot(
+        _collect_sales_delivery_ref_ids(rows), db
+    )
+    summary = {"unassigned": 0, "assigned": 0, "delivered": 0, "parcel": 0, "drift": 0}
+    for r in rows:
+        sd = r.structured_data
+        link = sd_read_link(sd)
+        ref_info = ref_snapshot.get(link.get("ref_order_id")) if link else None
+        # 기준 주문이 삭제됐거나 조회 불가면 현재 실측일이 없는 것으로 본다 → ref_gone.
+        ref_current = (
+            ref_info.get("measurement_date")
+            if (ref_info and not ref_info.get("missing"))
+            else None
+        )
+        drift = sd_evaluate_drift(sd, ref_current)
+        drift["ref_customer_name"] = (ref_info or {}).get("customer_name") if link else None
+        drift["ref_label"] = _ref_label(drift.get("ref_order_id"), drift.get("ref_customer_name"))
+        drift["ref_date_md"] = _short_md(drift.get("ref_date"))
+        drift["ref_current_date_md"] = _short_md(drift.get("ref_current_date"))
+        drift["ref_current_date_display"] = _md_dow(drift.get("ref_current_date"))
+        state = sd_derive_display_state(sd)
+        r.sales_delivery_state = state
+        r.sales_delivery_link = _sales_delivery_chip(link, ref_info)
+        r.sales_delivery_drift = drift
+        r.sales_delivery_method = sd_read_method(sd)
+        if state in summary:
+            summary[state] += 1
+        if state == "assigned" and drift.get("state") in _SD_DRIFT_WARN_STATES:
+            summary["drift"] += 1
+    return summary
+
+
 def apply_as_dashboard_row_display_fields(rows, db, *, mobile_v2_active):
     """AS 대시보드 rows에 표시 필드를 in-place 보강 (구 erp_as_dashboard 표시 블록). 동작 보존.
 
@@ -646,4 +825,10 @@ def apply_as_dashboard_row_display_fields(rows, db, *, mobile_v2_active):
     record_phase("rd_sanitize", _t_sanitize * 1000)
     record_phase("rd_timeline", _t_timeline * 1000)
     with phase("rd_drift"):
-        return apply_schedule_link_drift_fields(rows, db)
+        banner = apply_schedule_link_drift_fields(rows, db)
+    # 영업 전달 배정(스펙 §6.1). 요약 pill 숫자는 라우트를 고치지 않고 이 반환 dict 에
+    # 얹어 템플릿까지 나른다 — 집계 구현이 파이썬 한 곳에만 있게 하려는 의도다
+    # (템플릿에서 다시 세면 셀 상태와 pill 숫자가 갈라진다).
+    with phase("rd_sales_delivery"):
+        banner["sales_delivery_summary"] = apply_sales_delivery_display_fields(rows, db)
+    return banner

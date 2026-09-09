@@ -306,3 +306,111 @@
 <span class="erp-as-construction-worker-text">{{ display_text or '-' }}</span>
 {% endif %}
 {%- endmacro %}
+
+{# ─────────────────────────────────────────────────────────────────────────────
+   영업 전달 배정 셀 — PC 표 "전달 배정" 열 + 모바일 카드 칩이 공유하는 SSOT.
+   스펙: docs/specs/2026-09-09-as-sales-delivery-measurement-assignment-design.md §6.1·§7.
+   목업: Claude Design "AS 전달 배정 화면" Main 아트보드(4상태 + drift).
+
+   r 은 as_dashboard_display.apply_sales_delivery_display_fields 가 보강한 행이다:
+   sales_delivery_state / sales_delivery_link(칩용 축약) / sales_delivery_drift /
+   sales_delivery_method. 판정은 전부 서버(순수 서비스)가 소유하고 매크로는 배치만 한다.
+
+   drift(ref_moved/ref_gone)는 **배정 상태 위에 얹히는 축**이라 상태 분기 안에서 처리한다.
+   색·테두리·크기는 전부 as-dashboard-body.css 의 .erp-as-sd-* 클래스 소관(인라인 스타일 금지).
+   버튼 훅은 as-dashboard.js 의 salesDeliveryAssign IIFE 가 문서 위임으로 잡는다.
+   버튼에 data-order-id 를 복제하지 않는다 — 주문 식별자는 행 컨테이너(tr/카드)에만 싣고
+   자손은 orderIdOf() 가 closest('[data-order-id]') 로 역참조한다(계약:
+   tests/domains/test_as_row_order_id_scope.py).
+   ───────────────────────────────────────────────────────────────────────────── #}
+{% macro render_sales_delivery_cell(r, can_edit=true) -%}
+{% set state = r.sales_delivery_state or 'unassigned' %}
+{% set link = r.sales_delivery_link %}
+{% set d = r.sales_delivery_drift or {} %}
+{% set drifted = (state == 'assigned') and (d.state in ('ref_moved', 'ref_gone')) %}
+<div class="erp-as-sd-cell erp-as-sd-cell--{{ state }}{% if drifted %} erp-as-sd-cell--drift{% endif %}"
+  data-as-sd-cell="{{ r.id }}" data-as-sd-state="{{ state }}">
+{%- if state == 'unassigned' -%}
+  {# 미배정: 후보 모달 열기. 주소·좌표는 nearby 조회 인자라 버튼이 그대로 들고 있는다. #}
+  <button type="button" class="erp-as-sd-btn erp-as-sd-btn--primary js-as-sd-open"
+    data-address="{{ r.address or '' }}"
+    data-lat="{{ r.lat or '' }}"
+    data-lng="{{ r.lng or '' }}"
+    data-customer-name="{{ r.customer_name or '' }}"
+    title="근처 실측 일정에 이 전달 건을 태웁니다">
+    <i class="fas fa-map-marker-alt" aria-hidden="true"></i><span>실측에 태우기</span>
+  </button>
+{%- elif state == 'parcel' -%}
+  <span class="erp-as-sd-chip erp-as-sd-chip--parcel" title="택배로 보낸 전달 건입니다">
+    <i class="fas fa-truck" aria-hidden="true"></i><span>택배</span>
+  </span>
+  {%- if can_edit %}
+  <button type="button" class="erp-as-sd-icon js-as-sd-parcel-cancel"
+    title="택배 전환을 취소하고 대기 목록으로 되돌립니다" aria-label="택배 전환 취소">
+    <i class="fas fa-rotate-left" aria-hidden="true"></i>
+  </button>
+  {%- endif %}
+{%- elif state == 'delivered' -%}
+  <span class="erp-as-sd-badge erp-as-sd-badge--delivered" title="영업담당이 전달을 마쳤습니다">
+    <i class="fas fa-check" aria-hidden="true"></i><span>전달완료</span>
+  </span>
+  {%- if can_edit %}
+  <button type="button" class="erp-as-sd-icon js-as-sd-undeliver"
+    title="전달 완료를 되돌립니다" aria-label="전달 완료 되돌리기">
+    <i class="fas fa-rotate-left" aria-hidden="true"></i>
+  </button>
+  {%- endif %}
+  {%- if link %}
+  <span class="erp-as-sd-cell__sub">실측 #{{ link.ref_order_id }} {{ link.ref_customer_name }}</span>
+  {%- endif %}
+{%- else -%}
+  {# 배정 상태. drift 면 같은 칩에 옛 날짜 취소선 → 새 날짜를 얹고 조치 버튼 2개를 낸다. #}
+  <span class="erp-as-sd-chip erp-as-sd-chip--assigned">
+    <span class="erp-as-sd-chip__dot" aria-hidden="true"></span>
+    <span class="erp-as-sd-chip__who">{{ link.ref_manager or '담당 미지정' }}</span>
+    {%- if drifted and d.state == 'ref_gone' %}
+    <span class="erp-as-sd-chip__gone">일정 사라짐</span>
+    {%- elif drifted %}
+    <s class="erp-as-sd-chip__old">{{ link.ref_date_display }}</s>
+    <span class="erp-as-sd-chip__arrow" aria-hidden="true">→</span>
+    <strong class="erp-as-sd-chip__new">{{ d.ref_current_date_display }}</strong>
+    {%- else %}
+    <span class="erp-as-sd-chip__when">· {{ link.ref_date_display }}</span>
+    {%- endif %}
+  </span>
+  {%- if can_edit %}
+  <span class="erp-as-sd-cell__icons">
+    <button type="button" class="erp-as-sd-icon js-as-sd-open"
+      data-address="{{ r.address or '' }}" data-lat="{{ r.lat or '' }}" data-lng="{{ r.lng or '' }}"
+      data-customer-name="{{ r.customer_name or '' }}" data-reassign="1"
+      title="다른 실측 일정으로 바꿉니다" aria-label="배정 변경">
+      <i class="fas fa-pen" aria-hidden="true"></i>
+    </button>
+    <button type="button" class="erp-as-sd-icon js-as-sd-unassign"
+      title="배정을 해제합니다" aria-label="배정 해제">
+      <i class="fas fa-xmark" aria-hidden="true"></i>
+    </button>
+    <button type="button" class="erp-as-sd-icon erp-as-sd-icon--go js-as-sd-deliver"
+      title="전달을 마쳤습니다" aria-label="전달 완료">
+      <i class="fas fa-check" aria-hidden="true"></i>
+    </button>
+  </span>
+  {%- endif %}
+  {%- if link %}
+  <span class="erp-as-sd-cell__sub">실측 #{{ link.ref_order_id }} {{ link.ref_customer_name }}</span>
+  {%- endif %}
+  {%- if drifted and can_edit %}
+  {# 무음 실패 금지: 조치 결과는 .alert 가 아니라 이 자리 상태 텍스트로도 남긴다. #}
+  <span class="erp-as-sd-drift-actions">
+    <button type="button" class="erp-as-sd-mini js-as-sd-ack"
+      title="바뀐 실측일 그대로 전달을 유지합니다">그대로 유지</button>
+    <button type="button" class="erp-as-sd-mini erp-as-sd-mini--primary js-as-sd-open"
+      data-address="{{ r.address or '' }}" data-lat="{{ r.lat or '' }}"
+      data-lng="{{ r.lng or '' }}" data-customer-name="{{ r.customer_name or '' }}" data-reassign="1"
+      title="다른 실측 일정으로 다시 배정합니다">다른 일정으로</button>
+  </span>
+  {%- endif %}
+{%- endif -%}
+  <span class="erp-as-sd-cell__msg js-as-sd-msg" role="status" aria-live="polite"></span>
+</div>
+{%- endmacro %}
