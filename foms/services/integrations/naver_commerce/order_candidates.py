@@ -47,6 +47,7 @@ from foms.services.integrations.naver_commerce.mapping import (
     CLAIM_PHASE_PROGRESS,
     CLAIM_PHASE_REQUESTED,
     MONEY_BACK_CLAIM_KINDS,
+    extract_claim_settlement_facts,
 )
 from foms.services.orders.soft_delete import read_order_trash
 from foms.services.phone_search import normalize_phone_digits
@@ -793,6 +794,10 @@ def _naver_facts(session, order_ids: list[int], *,
             "link_count": 0, "canceled": 0, "pending": 0, "alive": 0, "amount_total": 0,
             "claim_label": "", "claim_code": "", "alive_rows": [], "cancel_reasons": [],
             "naver_cancel_approve_groups": [], "naver_return_approve_groups": [],
+            # 확정된 클레임의 도장 재료(2026-09-09 P-4) — 확정 시각과 돌아간 돈.
+            # 시각은 집 안에서 **가장 늦은 값**이다(본품·옵션이 따로 확정될 수 있고,
+            # 담당자가 알아야 하는 것은 "이 집이 언제 끝났나"다).
+            "claim_done_at": "", "refund_total": 0, "refund_known": False,
         })
         bucket["link_count"] += 1
         # --- 옛 집 승인 재료(2026-09-07) ---
@@ -826,6 +831,14 @@ def _naver_facts(session, order_ids: list[int], *,
                 and phase["kind"] in MONEY_BACK_CLAIM_KINDS):
             if phase["phase"] == CLAIM_PHASE_DONE:
                 bucket["canceled"] += 1
+                # 돈이 실제로 돌아간 건만 센다 — 요청·진행 중인 건을 더하면 화면이
+                # 아직 안 나간 환불을 "환불 N원"이라고 확정해 말한다.
+                settle = extract_claim_settlement_facts(snapshot)
+                if settle["completed_at"] > bucket["claim_done_at"]:
+                    bucket["claim_done_at"] = settle["completed_at"]
+                if settle["refunded_amount"] is not None:
+                    bucket["refund_total"] += settle["refunded_amount"]
+                    bucket["refund_known"] = True
             else:
                 bucket["pending"] += 1
             # 왜 취소했는지는 고객이 써 놨다. 본품·옵션이 같은 문장을 각각 들고 오므로
@@ -901,7 +914,8 @@ def origin_facts(session, order_id: Any, *, exclude_link_ids: set[int],
         추가결제만 함께 붙어 있는 주문도 여기 해당하며, 그게 맞다: 대체된 옛 주문이 없다.
     """
     empty = {"link_count": 0, "claim_code": "", "claim_label": "",
-             "alive_rows": [], "stale_any": False}
+             "alive_rows": [], "stale_any": False,
+             "claim_done_at": "", "refund_total": 0, "refund_known": False}
     try:
         oid = int(order_id)
     except (TypeError, ValueError):
@@ -924,6 +938,10 @@ def origin_facts(session, order_id: Any, *, exclude_link_ids: set[int],
         "claim_label": bucket.get("claim_label") or "",
         "alive_rows": rows,
         "stale_any": stale_any,
+        # 확정된 클레임의 도장 재료 — 화면은 `claim_label` 을 낼 때만 함께 읽는다.
+        "claim_done_at": bucket.get("claim_done_at") or "",
+        "refund_total": int(bucket.get("refund_total") or 0),
+        "refund_known": bool(bucket.get("refund_known")),
     }
 
 

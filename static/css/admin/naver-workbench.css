@@ -974,6 +974,9 @@ input.wb-pick:disabled,
 .wb-relation--ask { display: block; }
 .wb-relation__text { font-size: calc(13px * var(--wb-fs, 1)); }
 .wb-relation__why { font-size: calc(12.5px * var(--wb-fs, 1)); margin: 0 0 8px; }
+/* 확정된 옛 클레임의 도장(확정 시각·환불액). 라벨보다 한 칸 물러선 색으로 둔다 —
+   무엇이 일어났나(라벨)가 먼저 읽히고 언제·얼마가 그 다음이다. */
+.wb-relation__stamp { color: var(--wb-muted, #6b7280); white-space: nowrap; }
 .wb-relation__reason { color: var(--wb-muted); font-size: calc(11.5px * var(--wb-fs, 1)); }
 /* 원 주문 줄(NVREPAY-01) — 붙인 뒤 남은 **네이버 쪽 할 일**을 말한다.
    경고색을 쓰지 않는 것은 위와 같은 이유다: 이 블록 자체는 아무것도 보내지 않고,
