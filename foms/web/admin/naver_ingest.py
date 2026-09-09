@@ -2650,6 +2650,93 @@ def _attach_row_flags(groups: list[dict[str, Any]]) -> None:
         group["can_pick"] = _group_matches_filter(group, "place")
 
 
+def _row_axes(group: dict[str, Any]) -> dict[str, Any]:
+    """줄 표시가 읽는 세 값을 **집 전체 기준**으로 고른다.
+
+    목록 줄의 집은 화면 모집단으로 좁혀져 있어 형제가 밖에 있으면 값이 틀린다. 그래서
+    :func:`_apply_household_counts` 가 ``household_*`` 키를 따로 얹고 여기서 그 값을
+    먼저 본다. pane 의 집(:func:`_group_of_link`)은 애초에 주문번호 전체로 묶여 있어
+    ``household_*`` 가 없고, 그때는 원래 키가 곧 집 전체 값이라 그대로 떨어진다.
+
+    이 고르기가 :func:`_row_view` 와 :func:`_row_badges` 두 곳에 흩어지면 같은 집이
+    라벨과 배지에서 다른 말을 한다 — 한 함수로 둔다.
+
+    Args:
+        group: 집 dict.
+
+    Returns:
+        ``{"dispatched": ..., "order_id": ..., "spec_filled": ...}``.
+    """
+    return {
+        "dispatched": group.get("household_dispatched", group.get("dispatched")),
+        "order_id": group.get("household_order_id") or group.get("order_id"),
+        "spec_filled": group.get("household_spec_filled", group.get("spec_filled")),
+    }
+
+
+def _row_badges(group: dict[str, Any], kind: str) -> list[dict[str, str]]:
+    """목록 줄의 **배지 띠**를 서버가 한 번만 정한다 — 순서·글자·색까지.
+
+    배지 규칙은 목록 템플릿의 Jinja 조건문 아홉 줄에 있었다. 그래서 줄을 눌러 pane 만
+    갈아 끼우면 라벨은 새 값인데 옆의 배지는 옛 값 그대로였다 — 한 줄 안에서 `발송까지
+    끝남` 과 `발주확인 할 차례` 가 함께 보인다(2026-09-09 CEO 리뷰 M2). 규칙을 여기 한
+    벌로 두면 목록 템플릿도 pane 이 실어 보내는 값도 같은 목록을 그린다. JS 는 글자와
+    클래스를 옮기기만 하고 조건은 하나도 안 든다.
+
+    잠금·선택 술어는 :func:`_group_matches_filter` 를 **불러서** 본다.
+    ``group["locked"]``·``group["can_pick"]`` 은 :func:`_attach_row_flags` 가
+    :func:`_work_groups` 에서만 붙이는 키라 pane 의 집에는 없다.
+
+    Args:
+        group: 집 dict.
+        kind: :func:`_row_view` 가 정한 갈래(배지 억제 조건이 이 값을 읽는다).
+
+    Returns:
+        ``[{"text": 글자, "cls": 배지 클래스}, ...]`` — 화면에 그릴 순서 그대로.
+    """
+    locked = _group_matches_filter(group, "claim")
+    can_pick = _group_matches_filter(group, "place")
+    axes = _row_axes(group)
+    order_id, spec_filled = axes["order_id"], axes["spec_filled"]
+    badges: list[dict[str, str]] = []
+
+    # 'N건 묶음'은 **집 전체**의 상품주문 수다(화면 모집단 수를 쓰면 모달과 어긋난다).
+    items = int(group.get("household_count") or group.get("count") or 0)
+    if items > 1:
+        badges.append({"text": f"{items}건 묶음", "cls": "bg-light text-dark"})
+    # 관계 배지는 추가결제·재결제에만 단다(결정 D4) — 전부 달면 배지가 배경이 된다.
+    relation = (group.get("relation") or "").strip().upper()
+    if relation in ("ADDON", "REPAY"):
+        badges.append({"text": "추가결제" if relation == "ADDON" else "재결제",
+                       "cls": "bg-info text-dark"})
+    if group.get("canceled"):
+        badges.append({"text": "취소 완료", "cls": "bg-secondary"})
+    # '다음 할 일'은 라벨과 **다른 말일 때만** 낸다. 'spec' 줄에서는 오른쪽 라벨이 이미
+    # "규격 입력할 차례" 라고 말하고, 'done'·'send' 에서는 정면으로 부딪힌다.
+    next_step = "" if order_id and spec_filled else (
+        "주문 만들기" if not order_id else "규격 입력")
+    if next_step and kind in ("wait", "go"):
+        badges.append({"text": next_step, "cls": "bg-primary"})
+    # 취소·반품은 끝난 건도 빨강이다 — 회색으로 식히면 목록에서 평범한 집과 구별이 안 된다.
+    if group.get("claim_label"):
+        badges.append({"text": group["claim_label"],
+                       "cls": "bg-danger" if group.get("claim_money_back") else "bg-secondary"})
+    if group.get("place_pending") and kind in ("spec", "go"):
+        badges.append({"text": "발주확인 할 차례", "cls": "bg-warning text-dark"})
+    # **체크박스가 회색인 이유**가 필요한 줄에만 단다 — 잠기지 않았는데 벌크 대상이 아닌 줄.
+    if not locked and not can_pick:
+        badges.append({"text": "발주확인 완료", "cls": "bg-light text-dark wb-badge--done"})
+    # 발송이 끝난 집에서는 뺀다 — 기한의 뜻이 "넘기면 네이버가 자동 취소한다" 인데
+    # 이미 나갔으면 아무 결정도 안 바꾼다. 연도는 전부 같은 해라 목록에서만 뗀다.
+    due = str(group.get("shipping_due") or "")
+    if due and not locked and kind != "done":
+        badges.append({"text": f"발송기한 {due[5:] if len(due) > 7 else due}",
+                       "cls": "bg-light text-dark"})
+    if order_id:
+        badges.append({"text": f"주문 #{order_id}", "cls": "bg-light text-dark"})
+    return badges
+
+
 def _row_view(group: dict[str, Any]) -> dict[str, str]:
     """목록 줄의 **표시 갈래와 라벨**을 서버가 한 번만 판정한다.
 
@@ -2668,11 +2755,16 @@ def _row_view(group: dict[str, Any]) -> dict[str, str]:
     완료 배지가 같은 값을 읽으므로(:func:`_group_queue` 의 두 값 주석 참조) 그래야
     목록과 상세가 같은 말을 한다.
 
-    **판정부는 한 벌이지만 입력 집은 두 벌이다.** 목록 줄은 화면 모집단으로 좁힌 집
+    **판정부는 한 벌이고 입력도 집 전체로 맞춘다.** 목록 줄은 화면 모집단으로 좁힌 집
     (:func:`_work_groups`)을, pane 은 주문번호 전체 집(:func:`_group_of_link`)을 넣는다.
-    잠금 축만 :func:`_apply_household_counts` 가 집 전체로 덮어 정렬돼 있고
-    ``dispatched``·``spec_filled`` 는 안 덮는다 — 형제가 모집단 밖이면 두 자리의 갈래가
-    갈릴 수 있다. 모집단을 맞추는 일은 표시 축 밖이라 이 함수의 몫이 아니다.
+    그래서 형제가 모집단 밖이면 같은 집이 두 자리에서 다른 갈래로 떨어졌다(2026-09-09
+    CEO 리뷰 M1). :func:`_apply_household_counts` 가 잠금 축에 이어 발송·주문·규격도
+    집 전체 기준으로 ``household_*`` 키에 얹고, 이 함수가 **그 값을 먼저** 본다.
+    원래 키(``dispatched``·``order_id``·``spec_filled``)는 그대로 둔다 — 불가역 모달의
+    건수 재진술이 화면 모집단 기준이라 덮으면 그쪽이 거짓이 된다.
+
+    pane 의 집에는 ``household_*`` 가 없다. 그 집은 애초에 주문번호 전체로 묶여 있어
+    원래 키가 곧 집 전체 값이므로, 없으면 원래 키로 떨어지는 것이 정답이다.
 
     Args:
         group: :func:`_group_queue` 또는 :func:`_group_of_link` 가 만든 집 dict.
@@ -2688,13 +2780,15 @@ def _row_view(group: dict[str, Any]) -> dict[str, str]:
     # 잠금 술어는 `claim` 칩과 한 벌 — 목록 줄과 칩 모집단이 갈리면 안 된다.
     if _group_matches_filter(group, "claim"):
         return {"kind": "stop", "can": "손대지 않음"}
+    axes = _row_axes(group)
+    dispatched, order_id = axes["dispatched"], axes["order_id"]
+    spec_filled = axes["spec_filled"]
     # 발송처리는 되돌릴 수 없는 마지막 문이라 규격·발주확인보다 위에서 끊는다.
-    if group.get("dispatched"):
+    if dispatched:
         return {"kind": "done", "can": "발송까지 끝남"}
-    if group.get("order_id") and not group.get("spec_filled"):
+    if order_id and not spec_filled:
         return {"kind": "spec", "can": "규격 입력할 차례"}
-    if (group.get("order_id") and group.get("spec_filled")
-            and not group.get("place_pending")):
+    if order_id and spec_filled and not group.get("place_pending"):
         return {"kind": "send", "can": "발송할 차례"}
     if group.get("place_pending"):
         return {"kind": "wait", "can": "발주확인 먼저"}
@@ -2709,12 +2803,13 @@ def _attach_row_view(groups: list[dict[str, Any]]) -> None:
     색띠가 갈리지 않는다.
 
     Args:
-        groups: 집 목록. 제자리에서 ``row_kind`` · ``row_can`` 두 키를 채운다.
+        groups: 집 목록. 제자리에서 ``row_kind`` · ``row_can`` · ``row_badges`` 를 채운다.
     """
     for group in groups:
         view = _row_view(group)
         group["row_kind"] = view["kind"]
         group["row_can"] = view["can"]
+        group["row_badges"] = _row_badges(group, view["kind"])
 
 
 #: 목록 정렬 닫힌집합. 임의 문자열이 정렬식으로 들어가지 않게 한다.
@@ -3026,7 +3121,8 @@ def _history_view(db) -> dict[str, Any]:
 
 def _place_groups(db, *, display: bool = True, links: Optional[list[Any]] = None,
                   truncated: Optional[bool] = None,
-                  sibling: Optional["_SiblingIndex"] = None
+                  sibling: Optional["_SiblingIndex"] = None,
+                  orders: Optional[dict] = None
                   ) -> tuple[list[dict[str, Any]], bool]:
     """'발주확인 전' 탭의 집 목록 (W2).
 
@@ -3043,6 +3139,8 @@ def _place_groups(db, *, display: bool = True, links: Optional[list[Any]] = None
             술어는 같고 조회만 한 벌이다.
         truncated: 그 목록이 조회 상한에 걸렸는지(``links`` 를 줬을 때만 쓴다).
         sibling: 미리 만든 :class:`_SiblingIndex` (없으면 형제를 여기서 다시 읽는다).
+        orders: 호출자가 **이미 읽어 둔** ``{order_id: Order}`` (없으면 여기서 읽는다).
+            :func:`_work_groups` 는 주문 표를 한 번만 읽어 세 자리가 나눠 쓴다.
 
     Returns:
         ``(묶음 목록, 잘렸는지)``. 조용히 자르면 사람이 나머지를 찾아 헤맨다 —
@@ -3068,14 +3166,17 @@ def _place_groups(db, *, display: bool = True, links: Optional[list[Any]] = None
     if not links:
         return [], False
     # 주문은 표시(고객명·다음 할 일)에만 쓴다 — 얇은 경로는 조회 자체를 내지 않는다.
-    order_ids = [int(row.order_id) for row in links if row.order_id] if display else []
-    orders = {}
-    if order_ids:
-        orders = {o.id: o for o in db.query(Order).filter(Order.id.in_(order_ids)).all()}
+    if orders is None:
+        order_ids = ([int(row.order_id) for row in links if row.order_id]
+                     if display else [])
+        orders = {}
+        if order_ids:
+            orders = {o.id: o
+                      for o in db.query(Order).filter(Order.id.in_(order_ids)).all()}
     # 상한은 **클레임을 걸러낸 뒤에** 건다. 앞에서 자르면 빠질 집이 상한을 먹어
     # "잘렸다"를 숨긴다(60집 중 5집이 취소면 46집만 보이고 경고가 안 뜬다).
     groups = _group_queue(links, orders, truncated=hit_cap,
-                          limit=QUEUE_LINK_FETCH_LIMIT)
+                          limit=QUEUE_LINK_FETCH_LIMIT, orders_loaded=display)
     # 우리가 취소한 집은 목록에서 뺀다. 컬럼(place_order_status)만 보는 SQL 술어로는 못 거른다
     # — 취소 표식은 triage_state(JSONB) 이고 hot path 에서 JSONB 를 스캔하지 않는다.
     # 탭 배지는 이 목록의 길이를 쓰므로 여기서 빼면 배지와 목록이 함께 줄어든다.
@@ -3177,16 +3278,19 @@ def _work_groups(db, *, display: bool = True,
     place_links = [row for row in source if _row_place_pending(row)]
     # 형제 판정은 여기서 **한 벌만** 만든다 — 아래 세 곳이 같은 색인을 나눠 쓴다.
     sibling = _build_sibling_index(db, _source_order_nos(source), display=display)
+    # 주문 표는 **한 번만** 읽는다 — 확인 큐·발주확인 전 목록·집 전체 규격이 나눠 쓴다.
+    orders = _attach_household_orders(db, sibling, source, display=display)
     # **캡 하나를 더 넘겨 받아** 잘렸는지 스스로 안다. `_group_queue` 는 상한까지만 돌려주는데
     # 그 사실을 아무도 안 봐서, 집이 50을 넘으면 화면이 조용히 51번째부터 버렸다 —
     # 링크 250 상한(`truncated`)에 걸릴 때만 안내 띠가 떴다. 캡으로 자른 뒤 아무 말도 안 하면
     # 사람은 나머지를 찾아 헤맨다(2026-08-14 대시보드 캡 결함과 같은 부류, CEO 검수 보통).
     # 캡은 여기서 걸지 않는다 — 병합이 끝난 뒤 한 곳에서 건다(아래). 원천마다 자르면
     # 큐가 잘려 띠가 켜지는데 화면 줄수는 캡보다 커지는, 서로 어긋난 상태가 된다.
-    queue = _group_queue(pending, _orders_by_id(db, pending) if display else {},
-                         truncated=truncated, limit=WORK_GROUP_LIMIT + 1)
+    queue = _group_queue(pending, orders, truncated=truncated,
+                         limit=WORK_GROUP_LIMIT + 1, orders_loaded=display)
     place_groups, place_truncated = _place_groups(
-        db, display=display, links=place_links, truncated=truncated, sibling=sibling)
+        db, display=display, links=place_links, truncated=truncated, sibling=sibling,
+        orders=orders)
 
     merged: dict[Any, dict[str, Any]] = {}
     order_of_key: list[Any] = []
@@ -3350,6 +3454,18 @@ def _apply_household_counts(groups: list[dict[str, Any]], sibling: "_SiblingInde
             group["claim_blocking"] = True
         if group["key"] in sibling.canceled:
             group["canceled"] = True
+        # 줄 표시 갈래(:func:`_row_view`)가 읽는 **집 전체 값 축**. 원래 값
+        # (``dispatched``·``order_id``·``spec_filled``)은 건드리지 않는다 — 그 값들은
+        # 불가역 모달의 건수 재진술이 쓰는 화면 모집단 기준이고, 여기서 덮으면
+        # "3건 보냅니다" 가 다시 거짓이 된다(리뷰 H2 와 같은 부류). 새 키로 얹고
+        # 표시 판정만 그것을 먼저 본다.
+        if sibling.axes_ready and group["key"] in sibling.counts:
+            group["household_dispatched"] = group["key"] in sibling.dispatched_all
+            household_order_id = sibling.order_id_by_key.get(group["key"])
+            if household_order_id:
+                group["household_order_id"] = household_order_id
+            if sibling.orders_loaded:
+                group["household_spec_filled"] = group["key"] in sibling.spec_filled
 
 
 def _household_has_claim(db, link: Optional[ExternalOrderLink]) -> bool:
@@ -3410,10 +3526,22 @@ class _SiblingIndex:
         canceled: 우리가 취소한(``canceled_at``) 집키 집합.
         confirmed_claim_blocked: **이미 발주확인이 끝난** 형제가 취소·반품인 집키 집합
             — 옛 :func:`_claim_blocked_group_keys` 의 반환값과 같은 어휘다.
+        dispatched_all: 형제가 **하나도 빠짐없이** 발송처리된 집키 집합.
+        order_id_by_key: ``{집키: FOMS 주문 id}`` — 집 전체에서 본 값. 한 집은 주문
+            하나로 합쳐지므로 형제 여럿이 값을 들고 있어도 같다(가장 작은 id 를 쓴다).
+        spec_filled: 그 주문에 규격 행이 있는 집키 집합(:func:`_attach_household_orders`
+            를 부른 뒤에만 채워진다).
+        orders_loaded: 위 ``spec_filled`` 를 실제로 계산했는가. 얇은 경로(뱃지)는 주문을
+            안 읽으므로 False 로 남고, 그때 화면은 이 축을 **아예 안 읽는다** —
+            "규격 없음"으로 굳은 거짓값을 읽는 것보다 낫다.
+        axes_ready: 위 세 축이 형제 조회로 실제 채워졌는가. 옛 경로가 손으로 만든 색인은
+            이 값이 False 라 집 전체 축을 얹지 않는다(빈 집합을 "발송 안 됨"으로 읽으면
+            안 된다).
     """
 
     __slots__ = ("counts", "pending_counts", "blocking", "canceled",
-                 "confirmed_claim_blocked")
+                 "confirmed_claim_blocked", "dispatched_all", "order_id_by_key",
+                 "spec_filled", "orders_loaded", "axes_ready")
 
     def __init__(self):
         self.counts: dict[Any, int] = {}
@@ -3421,6 +3549,11 @@ class _SiblingIndex:
         self.blocking: set = set()
         self.canceled: set = set()
         self.confirmed_claim_blocked: set = set()
+        self.dispatched_all: set = set()
+        self.order_id_by_key: dict[Any, int] = {}
+        self.spec_filled: set = set()
+        self.orders_loaded: bool = False
+        self.axes_ready: bool = False
 
 
 def _source_order_nos(links: list[Any]) -> set:
@@ -3462,11 +3595,24 @@ def _build_sibling_index(db, order_nos: set, *, display: bool) -> _SiblingIndex:
         ExternalOrderLink.external_order_no.in_(sorted(order_nos)),
         display=display,
     )
+    dispatched_counts: dict[Any, int] = {}
     for row in rows:
         hkey = household_key(row)
         index.counts[hkey] = index.counts.get(hkey, 0) + 1
         if is_place_pending(row):
             index.pending_counts[hkey] = index.pending_counts.get(hkey, 0) + 1
+        # 발송 표식은 **집 전체**로 센다. 화면 모집단 안에서만 세면, 확인이 끝나 큐에서
+        # 빠진 형제가 아직 안 나갔는데도 목록 줄이 "발송까지 끝남" 이라고 말한다
+        # (2026-09-09 CEO 리뷰 M1). 술어는 :func:`_dispatched_count` 와 같은 한 줄이다.
+        if ((row.triage_state or {}).get("fulfillment") or {}).get("dispatched_at"):
+            dispatched_counts[hkey] = dispatched_counts.get(hkey, 0) + 1
+        # 한 집은 주문 하나로 합쳐진다(``promote_link_to_order``). 그래도 형제마다 값을
+        # 들고 있을 수 있어 **가장 작은 id** 로 고정한다 — 대표가 누구냐에 따라 목록과
+        # 상세가 다른 주문번호를 말하지 않게.
+        if row.order_id:
+            prev = index.order_id_by_key.get(hkey)
+            oid = int(row.order_id)
+            index.order_id_by_key[hkey] = oid if prev is None else min(prev, oid)
         # 원본 파싱은 행마다 **한 번**이다 — 옛 경로는 같은 행을 세 벌로 다시 풀었다.
         claim_blocking = summarize_snapshot(row.raw_snapshot)["claim_blocking"]
         if claim_blocking:
@@ -3477,7 +3623,47 @@ def _build_sibling_index(db, order_nos: set, *, display: bool) -> _SiblingIndex:
                 index.confirmed_claim_blocked.add(hkey)
         if ((row.triage_state or {}).get("fulfillment") or {}).get("canceled_at"):
             index.canceled.add(hkey)
+    index.dispatched_all = {hkey for hkey, total in index.counts.items()
+                            if total and dispatched_counts.get(hkey, 0) == total}
+    index.axes_ready = True
     return index
+
+
+def _attach_household_orders(db, index: "_SiblingIndex", links: list[Any], *,
+                             display: bool) -> dict[int, Any]:
+    """집 전체의 FOMS 주문을 **한 번에** 읽어 색인에 규격 유무를 채운다.
+
+    처리 탭은 주문 표를 세 번 읽고 있었다 — 확인 큐(:func:`_orders_by_id`)·
+    :func:`_place_groups`·(이번에 필요해진) 집 전체 규격. 같은 표를 세 번 읽는 대신
+    합집합 한 번으로 읽고 세 자리가 나눠 쓴다.
+
+    규격 축을 집 전체로 보는 이유는 M1 과 같다: 목록 줄은 화면 모집단 안의 대표
+    주문을 보고 pane 은 집 전체 대표를 보는데, 그 둘이 갈리면 한 화면이 두 말을 한다.
+
+    Args:
+        db: 요청 스코프 DB 세션.
+        index: :func:`_build_sibling_index` 가 만든 색인. 제자리에서 ``spec_filled``·
+            ``orders_loaded`` 를 채운다.
+        links: 주문 id 를 들고 있을 수 있는 링크(형제 밖 링크까지 합쳐 읽는다 —
+            주문번호가 빈 링크는 형제 색인에 안 들어온다).
+        display: 표시용인가. False 면 주문을 **아예 안 읽는다**(뱃지 경로).
+
+    Returns:
+        ``{order_id: Order}`` — 얇은 경로에서는 빈 dict.
+    """
+    if not display:
+        return {}
+    order_ids = set(index.order_id_by_key.values())
+    order_ids.update(int(row.order_id) for row in links if row.order_id)
+    index.orders_loaded = True
+    if not order_ids:
+        return {}
+    orders = {order.id: order for order in
+              db.query(Order).filter(Order.id.in_(sorted(order_ids))).all()}
+    for hkey, order_id in index.order_id_by_key.items():
+        if order_has_spec_rows(orders.get(order_id)):
+            index.spec_filled.add(hkey)
+    return orders
 
 
 def _claim_blocked_group_keys(db, links: list[Any], *, display: bool = True) -> set:
@@ -4003,7 +4189,8 @@ def _dispatched_any(links: list[ExternalOrderLink]) -> bool:
 
 
 def _group_queue(links: list[ExternalOrderLink], orders: dict,
-                 *, truncated: bool, limit: Optional[int] = None) -> list[dict[str, Any]]:
+                 *, truncated: bool, limit: Optional[int] = None,
+                 orders_loaded: bool = True) -> list[dict[str, Any]]:
     """확인 대기 링크를 **한 집 = 한 줄**로 묶는다 (T14-C).
 
     네이버는 본품과 구성 옵션을 각각 다른 상품주문으로 준다. 링크 1건 = 1행으로 두면
@@ -4020,6 +4207,11 @@ def _group_queue(links: list[ExternalOrderLink], orders: dict,
         truncated: 조회 상한에 걸렸는지. 걸렸으면 마지막 묶음은 잘렸을 수 있어 버린다.
         limit: 돌려줄 묶음 수 상한(기본 :data:`PAGE_SIZE`). 호출자가 잘림을 알아채려면
             ``PAGE_SIZE + 1`` 을 주고 길이를 보면 된다.
+        orders_loaded: ``orders`` 가 **실제로 읽힌** 값인가. 얇은 경로(nav 뱃지)는 주문을
+            안 읽으므로 빈 dict 가 오는데, 그때 규격 유무를 ``False`` 로 적으면 화면이
+            "규격이 없다"고 **틀린 말**을 들고 있게 된다(지금은 읽는 곳이 없어 무해하지만
+            값이 틀린 것은 그대로다 — 2026-09-09 CEO 리뷰 low). 안 읽었으면 ``None``
+            (모른다)으로 두고 ``next_step`` 도 비운다.
 
     Returns:
         묶음 목록(최신 수집순). 각 항목은 대표 정보 + 구성 링크 목록.
@@ -4253,12 +4445,15 @@ def _group_queue(links: list[ExternalOrderLink], orders: dict,
             # 그대로 손실이다. 값은 ISO 날짜 문자열이라 사전순 최소 = 가장 이른 날짜다.
             "shipping_due": min((s["shipping_due"] for s in member_summaries
                                  if s["shipping_due"]), default=""),
-            # CS 가 다음에 할 일을 목록에서 바로 알아보게 한다.
-            "next_step": ("주문 만들기" if not lead.order_id
-                          else ("규격 입력" if not order_has_spec_rows(order) else "")),
+            # CS 가 다음에 할 일을 목록에서 바로 알아보게 한다. 주문을 안 읽은 얇은
+            # 경로에서는 아무 말도 안 한다 — "규격 입력"이라고 적으면 그건 거짓이다.
+            "next_step": (("주문 만들기" if not lead.order_id
+                           else ("규격 입력" if not order_has_spec_rows(order) else ""))
+                          if orders_loaded else ""),
             # 규격 유무는 **값 축으로 따로** 낸다. 화면이 위 ``next_step`` 문자열을
             # 비교해 규격 유무를 읽으면 낱말을 다듬는 순간 조용히 어긋난다.
-            "spec_filled": order_has_spec_rows(order),
+            # ``None`` 은 "모른다"다(얇은 경로) — ``False``("규격 없음")와 다른 뜻이다.
+            "spec_filled": order_has_spec_rows(order) if orders_loaded else None,
             "link_ids": [row.id for row in members],
             # 펼침 목록도 **대표 먼저** — 사람이 처음 보는 줄이 0원 구성 옵션이면 본품을
             # 찾아 헤맨다(map_group·도크와 같은 순서 규칙).

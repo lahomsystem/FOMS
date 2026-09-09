@@ -141,6 +141,11 @@ def test_template_reads_the_server_axis_instead_of_rebuilding_the_chain(app):
     markup = WORKBENCH_TEMPLATE.read_text(encoding="utf-8")
 
     assert "row.claim_money_back" in markup
-    assert "group.claim_money_back" in markup
+    # 목록 줄의 배지는 이제 서버가 통째로 만든다(:func:`naver_ingest._row_badges`) —
+    # 축을 거기서 읽는지 본다. 템플릿에 조건문이 남아 있으면 규칙이 두 벌이 된다.
+    assert "group.claim_money_back" not in markup
+    assert "if group.claim_label" not in markup
+    server = pathlib.Path("foms/web/admin/naver_ingest.py").read_text(encoding="utf-8")
+    assert 'group.get("claim_money_back")' in server
     # 예전 사슬(단계별 색 표)이 되살아나면 도크·처리 탭과 판정이 두 벌이 된다.
     assert "'done': 'slate'" not in markup

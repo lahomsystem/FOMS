@@ -393,6 +393,10 @@
 /* 결정 4 의 3층째 — 색띠. 색만으로 구분하면 색맹 사용자가 못 읽으므로
    .wb-can 글자 라벨을 항상 함께 둔다. */
 .wb-row__bar { background: #2563eb; }
+/* 갈래마다 한 줄씩 둔다 — 'go' 만 기본값에 기대고 있었고, 그래서 갈래를 늘렸을 때
+   색띠가 조용히 기본값으로 떨어지는 것을 아무도 못 봤다(2026-09-09 CEO 리뷰 low).
+   서버 `_row_view` 의 닫힌집합과 이 파일이 맞는지는 계약 테스트가 센다. */
+.wb-row--go .wb-row__bar { background: #2563eb; }
 .wb-row--wait .wb-row__bar { background: #f59e0b; }
 .wb-row--spec .wb-row__bar { background: #22c55e; }
 /* 규격까지 다 넣어 이제 발송만 남은 집. */

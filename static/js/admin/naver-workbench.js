@@ -1133,8 +1133,29 @@
         return {
             kind: pane.getAttribute('data-row-kind') || '',
             can: pane.getAttribute('data-row-can') || '',
+            badges: safeBadgeList(pane.getAttribute('data-row-badges')),
             linkIds: String(pane.getAttribute('data-row-link-ids') || '').split(',').filter(Boolean)
         };
+    }
+
+    /**
+     * data-row-badges 를 배지 배열로 읽는다(못 읽으면 null).
+     *
+     * null 과 빈 배열은 뜻이 다르다 — null 은 "서버가 안 실어 보냈다"라 배지를 건드리지
+     * 않고, 빈 배열은 "이 줄에는 배지가 없다"라 전부 지운다. 둘을 섞으면 옛 배지가
+     * 남거나 멀쩡한 배지가 통째로 사라진다.
+     */
+    function safeBadgeList(raw) {
+        var text = String(raw || '').trim();
+        if (!text) {
+            return null;
+        }
+        try {
+            var parsed = JSON.parse(text);
+            return Array.isArray(parsed) ? parsed : null;
+        } catch (err) {
+            return null;
+        }
     }
 
     /**
@@ -1155,14 +1176,14 @@
     }
 
     /**
-     * 줄 하나에 pane 이 준 표시값을 입힌다 — 라벨 글자와 색띠 클래스, 그 둘뿐이다.
+     * 줄 하나에 pane 이 준 표시값을 입힌다 — 라벨·색띠, 그리고 배지 띠.
      *
-     * 배지·체크박스는 일부러 안 만진다. pane 의 집은 목록 줄의 집보다 넓어(주문번호 전체)
-     * claim_blocking·canceled 가 같거나 더 강할 뿐이라 잠긴 줄이 풀리는 방향으로는 가지
-     * 않지만, 배지 규칙까지 JS 가 다시 쓰기 시작하면 술어가 두 벌이 된다(paneOfflist 가
-     * 남긴 규율과 같다).
+     * 조건은 하나도 안 든다. 배지의 순서·글자·색은 서버 `_row_badges` 가 정해 실어 보내고
+     * 여기서는 그 목록대로 다시 그리기만 한다 — 규칙을 JS 가 다시 쓰기 시작하면 술어가
+     * 두 벌이 된다(paneOfflist 가 남긴 규율과 같다). 체크박스는 그대로 둔다: 벌크 선택은
+     * 목록 모집단의 축이라 pane 이 답을 들고 있지 않다.
      *
-     * 갈래 이름 목록은 여기에 적지 않는다. 옛 클래스는 줄이 들고 있던 data-row-kind 로만
+     * 갈래 이름 목록도 여기에 적지 않는다. 옛 클래스는 줄이 들고 있던 data-row-kind 로만
      * 지우므로 서버가 갈래를 늘려도 이 파일은 안 고친다.
      */
     function applyRowView(row, view) {
@@ -1182,6 +1203,34 @@
         if (can) {
             can.classList.add('wb-can--' + view.kind);
             can.textContent = view.can;
+        }
+        applyRowBadges(row, view.badges);
+    }
+
+    /**
+     * 줄의 배지 띠를 서버가 준 목록으로 다시 그린다.
+     *
+     * 배지는 라벨 span 앞에 순서대로 산다 — 라벨을 지우거나 뒤로 밀면 줄 끝의 글자가
+     * 사라진다. 글자는 textContent 로만 넣는다(서버 값이라도 innerHTML 로 붙이지 않는다).
+     */
+    function applyRowBadges(row, badges) {
+        if (!badges) {
+            return;
+        }
+        var strip = row.querySelector('.wb-row__line3');
+        if (!strip) {
+            return;
+        }
+        var old = strip.querySelectorAll('.badge');
+        for (var i = 0; i < old.length; i += 1) {
+            old[i].parentNode.removeChild(old[i]);
+        }
+        var anchor = strip.querySelector('.wb-can');
+        for (var j = 0; j < badges.length; j += 1) {
+            var span = document.createElement('span');
+            span.className = 'badge ' + String(badges[j].cls || '');
+            span.textContent = String(badges[j].text || '');
+            strip.insertBefore(span, anchor);
         }
     }
 

@@ -28,7 +28,7 @@
    link-ids 는 집 동일성 판정용이다 — 목록 줄의 data-link-id 는 **모집단 안** 최대금액
    링크라 selected_group.id 와 갈릴 수 있어 단순 비교로는 못 찾는 집이 생긴다.
    id="wb-pane" 은 첫 속성으로 둔다(응답 조각의 루트를 문자열로 자르는 테스트가 있다). #}
-<div id="wb-pane"{% if selected_group %} data-row-kind="{{ selected_group.row_kind }}" data-row-can="{{ selected_group.row_can }}" data-row-link-ids="{{ selected_group.link_ids|join(',') }}"{% endif %}>
+<div id="wb-pane"{% if selected_group %} data-row-kind="{{ selected_group.row_kind }}" data-row-can="{{ selected_group.row_can }}" data-row-link-ids="{{ selected_group.link_ids|join(',') }}" data-row-badges='{{ selected_group.row_badges|tojson }}'{% endif %}>
 {% if selected %}
 
 {# ── 판정값을 맨 위에서 한 번만 만든다. 버튼과 모달이 서로 다른 식을 쓰면

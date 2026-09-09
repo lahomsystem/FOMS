@@ -165,9 +165,16 @@ def test_thin_path_does_not_load_orders(app, monkeypatch):
 
     _seed_mixed(db_session)
     calls: list[int] = []
-    original = naver_ingest._orders_by_id
-    monkeypatch.setattr(naver_ingest, "_orders_by_id",
-                        lambda db, links: (calls.append(len(links)), original(db, links))[1])
+    # 주문 조회 SSOT 는 :func:`_attach_household_orders` 다 — 확인 큐·발주확인 전 목록·
+    # 집 전체 규격이 그 한 벌을 나눠 쓴다(2026-09-09 M1).
+    original = naver_ingest._attach_household_orders
+
+    def _spy(db, index, links, *, display):
+        if display:
+            calls.append(len(links))
+        return original(db, index, links, display=display)
+
+    monkeypatch.setattr(naver_ingest, "_attach_household_orders", _spy)
 
     naver_ingest._work_groups(db_session, display=False)
     assert calls == []
