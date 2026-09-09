@@ -1,7 +1,8 @@
 # FOMS 현재 상태
 > 자동 업데이트: 2026-09-09
-> 최신: **견적 저장 403 운영 사고 복구(production `d25ded59b` · PR #325)** — 페이지가 세션에 심은 CSRF seed 를 탭마다 도는 폴링 응답이 옛 스냅샷으로 덮어 지웠다(`SESSION_REFRESH_EACH_REQUEST` + 매 요청 `session.permanent = True`). 새로고침해도 재현. 1차: 로그인 사용자 seed 를 `user_id`+secret 파생값으로(쿠키 무관). 2차(SESSION-COOKIE-01): 갱신 전용 Set-Cookie 차단 — 세션 쓰기 전반의 덮어쓰기 뿌리 제거, 만료 슬라이딩은 last-seen 터치가 유지
-> 직전: **워커 정지 헛알림 26건 근본 수정(deploy 예정)** — 같은 하트비트를 readiness 는 `max(등록부, 신고간격 x 3)`=5400초, 감시자는 등록부 900 고정으로 읽어 반대로 말했다(운영 수집 루프 간격 1800 → 15분마다 멈춤·복구 왕복, 09-08 알림 26건). 예산 정본 `effective_heartbeat_budget` 신설로 판정부 2곳이 한 함수만 부른다. 상세 `docs/incidents/2026-09-09-worker-watchdog-false-stall-flap.md`
+> 최신: **도면 전달 상태 결함 2건 운영 반영(production `8efef9886` · PR #320·#323)** — (1) 2차 전달만 취소하면 남은 1차 전달본이 살아 있는데도 `PENDING` 으로 되돌려 영업의 수령 확정 버튼이 사라졌다(운영 #5193). 잔여 이력 역순 스캔으로 복원(TRANSFER=TRANSFERRED). (2) 첫 전달은 파일 0장도 통과해 도면 없이 '확정 대기'가 된 주문이 24건 쌓였다 — 서버 400 + 대시보드 경로 가드. 24건은 PENDING 으로 되돌림(백업 보관)
+> 직전: **견적 저장 403 운영 사고 복구(production `d25ded59b` · PR #325)** — 페이지가 세션에 심은 CSRF seed 를 탭마다 도는 폴링 응답이 옛 스냅샷으로 덮어 지웠다(`SESSION_REFRESH_EACH_REQUEST` + 매 요청 `session.permanent = True`). 새로고침해도 재현. 1차: 로그인 사용자 seed 를 `user_id`+secret 파생값으로(쿠키 무관). 2차(SESSION-COOKIE-01): 갱신 전용 Set-Cookie 차단 — 세션 쓰기 전반의 덮어쓰기 뿌리 제거, 만료 슬라이딩은 last-seen 터치가 유지
+> 그 전: **워커 정지 헛알림 26건 근본 수정(deploy 예정)** — 같은 하트비트를 readiness 는 `max(등록부, 신고간격 x 3)`=5400초, 감시자는 등록부 900 고정으로 읽어 반대로 말했다(운영 수집 루프 간격 1800 → 15분마다 멈춤·복구 왕복, 09-08 알림 26건). 예산 정본 `effective_heartbeat_budget` 신설로 판정부 2곳이 한 함수만 부른다. 상세 `docs/incidents/2026-09-09-worker-watchdog-false-stall-flap.md`
 > 이 파일 상단 40줄이 세션 시작 컨텍스트의 전부다(hygiene 계약으로 강제). 상세 이력은 "## 최근 완료"·"## 기록 보관".
 
 
@@ -10,6 +11,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
+- [2026-09-09] **도면 마법사 이미지 여백 트림(deploy `248ab4517`)** — 스케치업 PNG 흰 여백이 선택·리사이즈 영역까지 먹어 여러 장 놓으면 간섭했다. 업로드 시점에 균일 여백(투명·단색 테두리) 트림, 기존 그림은 미니툴바 [여백 자르기](신규 라우트 없이 같은 업로드 경로 재사용). 보수적 판정 4중 가드(모서리 단색·98% 규칙·32px·fail-open). 잔여: 스테이징 QA → 운영 승격
 - [2026-09-09] **재결제 후속 3건 운영 반영(PR #327 · production `e000f9f31`)** — 담당자 보고("반품 승인 뒤 후속 프로세스 없음")로 화면을 읽어 끊긴 자리 셋을 메웠다. (1) 정리 성공 화면이 `남은 일 N개`로 **옛 결제 환불**과 **예약금**을 한 목록으로 센다(`/reconcile` 응답에 `origin_alive`, SUCCEED 갈래만). (2) 승인 결과 문구에서 `정리 실행이 열립니다` 제거 — 계획 카드와 반대 순서를 전제해 화면이 자기와 모순했다. (3) 도크 예약금 대조 줄(`dockDepositMatch`) — 돈은 그대로 사람이 넣고 **넣었는지만** 화면이 센다(실사례 오차 4,650원). 자산 핀 `20260909a`. 잔여: **P-4 반품 완료 도장**(확정 시각·환불 금액이 payload 에 없어 서버 필드 신설 필요)
 - [2026-09-09] **워커 정지 헛알림 근본 수정** — 변이 검증 2종 통과. **잔여: 배포 후 SIDEFX `FOMS_WORKER_WATCHDOG_ENABLED` 0 → 1 복구 필요**(지금 꺼져 있어 조용한 것)
 - [2026-09-09] **고객컨펌 승인·도면 첨부 등록(deploy `4868a2cc4`)** — 원장 `docs/plans/2026-09-09-confirm-quest-and-drawing-attachment-plan.md`. dev+PG E2E 로 승인 200·수령확정 후 첨부 유지 확인. 잔여: 운영 승격 여부 사용자 확인
