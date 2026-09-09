@@ -466,11 +466,16 @@ def _force_preserve_drawing_transfer_history(old_sd: dict, structured_data: dict
 
 
 # shipment 하위 AS 서버 전용 키 — 폼은 렌더하지 않고 AS 전용 API 만 쓴다.
-_AS_SERVER_OWNED_SHIPMENT_KEYS = ('as_billing', 'as_log')
+_AS_SERVER_OWNED_SHIPMENT_KEYS = (
+    'as_billing', 'as_log',
+    # 영업 전달 배정 3키(스펙 2026-09-09 §2.3) — AS 전달 API 만 쓴다. 폼이 stale
+    # shipment 스냅샷으로 되쓰면 방금 만든 배정·택배 전환이 통째로 사라진다.
+    'sales_delivery_link', 'sales_delivery_method', 'sales_delivery_parcel',
+)
 
 
 def _force_preserve_as_server_state(old_sd: dict, structured_data: dict) -> None:
-    """shipment 의 AS 서버 전용 키(as_billing·as_log)를 DB 값으로 강제.
+    """shipment 의 AS 서버 전용 키(as_billing·as_log·sales_delivery_*)를 DB 값으로 강제.
 
     폼 JS 는 shipment 를 페이지 로드 시점 스냅샷에서 통째로 복사해 보낸다. deep-merge 는
     dict 만 병합하고 나머지는 incoming 으로 교체하므로 두 키 모두 stale 스냅샷에 진다 —
@@ -489,7 +494,9 @@ def _force_preserve_as_server_state(old_sd: dict, structured_data: dict) -> None
         old_shipment = {}
     for key in _AS_SERVER_OWNED_SHIPMENT_KEYS:
         old_value = old_shipment.get(key)
-        if isinstance(old_value, (dict, list)):
+        # dict/list 뿐 아니라 스칼라(예: sales_delivery_method='parcel')도 보존한다 —
+        # 컨테이너만 보존하면 문자열 서버 전용 키가 폼 저장마다 조용히 지워진다.
+        if old_value is not None:
             new_shipment[key] = copy.deepcopy(old_value)
         else:
             new_shipment.pop(key, None)
