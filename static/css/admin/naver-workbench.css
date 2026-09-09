@@ -395,6 +395,11 @@
 .wb-row__bar { background: #2563eb; }
 .wb-row--wait .wb-row__bar { background: #f59e0b; }
 .wb-row--spec .wb-row__bar { background: #22c55e; }
+/* 규격까지 다 넣어 이제 발송만 남은 집. */
+.wb-row--send .wb-row__bar { background: #0ea5e9; }
+/* 발송처리까지 끝난 집 — 끊긴 띠로 그리지 않는다. 끊긴 띠는 stop·locked 의 뜻
+   ("손대면 안 되는 줄")이라 겹치면 발송이 끝난 집이 잠긴 집으로 읽힌다. */
+.wb-row--done .wb-row__bar { background: #94a3b8; }
 
 /* 손대면 안 되는 집은 띠를 끊어 그린다 — 색을 못 봐도 "다른 줄"임을 안다. */
 .wb-row--stop .wb-row__bar {
@@ -476,6 +481,8 @@ input.wb-pick:disabled,
 .wb-can--wait { color: #b45309; }
 .wb-can--spec { color: #15803d; }
 .wb-can--stop { color: #6b7280; }
+.wb-can--send { color: #0369a1; }
+.wb-can--done { color: #475569; }
 
 /* ── 우측 상세 ──────────────────────────────────────────────────────── */
 .wb-option-raw { font-size: calc(16px * var(--wb-fs, 1)); font-weight: 700; line-height: 1.5; }

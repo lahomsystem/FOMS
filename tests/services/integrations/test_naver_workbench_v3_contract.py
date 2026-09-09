@@ -293,7 +293,13 @@ def test_staff_never_receives_history_context_on_any_url(client, workbench_on):
 # --------------------------------------------------------------------------- #
 
 def test_pane_route_returns_only_the_fragment(client, workbench_on):
-    """레이아웃 없는 조각이어야 JS 가 `#wb-pane` 을 그대로 갈아 끼운다."""
+    """레이아웃 없는 조각이어야 JS 가 `#wb-pane` 을 그대로 갈아 끼운다.
+
+    루트는 여전히 ``#wb-pane`` div **하나**다 — 그 계약은 안 약해진다. 달라진 것은
+    그 루트가 왼쪽 목록 줄로 옮길 표시값(``data-row-kind`` 등)을 **함께 싣는다**는
+    점뿐이라, 여는 태그가 속성을 갖는다. 그래서 닫는 꺾쇠까지 묶어 비교하지 않고,
+    대신 값이 실려 오는지를 양성으로 함께 단언한다(속성이 통째로 빠지면 빨개진다).
+    """
     _login(client)
     link = _collected(order_no="N-V3-PANE", product="붙박이장")
 
@@ -304,7 +310,8 @@ def test_pane_route_returns_only_the_fragment(client, workbench_on):
     assert response.headers["Content-Type"].startswith("text/html")
     assert "<html" not in body.lower(), "전체 페이지가 왔다"
     assert "<!doctype" not in body.lower()
-    assert body.strip().startswith('<div id="wb-pane">'), body[:200]
+    assert body.strip().startswith('<div id="wb-pane"'), body[:200]
+    assert 'data-row-kind="' in body.split(">")[0], body[:200]
     assert "붙박이장" in body
 
 
