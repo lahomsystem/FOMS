@@ -426,7 +426,11 @@ def assignee_user_ids_from_sd(sd: dict[str, Any]) -> set[int]:
                 user_ids.add(int(a["id"]))
             except (TypeError, ValueError):
                 pass
-    manager_raw = ((sd.get("parties") or {}).get("manager") or {}).get("name")
+    # parties.manager 는 dict({name,id}) 와 스칼라(이름 문자열·user id) 두 모양을 다 쓴다
+    # (실측 대시보드·AS 전달 배정은 normalize_manager_name 으로 둘 다 받는다). dict 를 가정하면
+    # 스칼라 주문 한 건이 대시보드 전체를 500 으로 만든다 — 2026-09-09 로컬 재현.
+    manager_value = (sd.get("parties") or {}).get("manager")
+    manager_raw = manager_value.get("name") if isinstance(manager_value, dict) else manager_value
     if isinstance(manager_raw, int):
         user_ids.add(manager_raw)
     elif isinstance(manager_raw, str) and manager_raw.isdigit():

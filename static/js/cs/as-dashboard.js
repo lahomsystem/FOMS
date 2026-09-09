@@ -3249,6 +3249,363 @@
       });
     }
 
+    // ═══════════════════════════════════════════════════════════════════════
+    // 영업 전달 배정(salesDeliveryAssign) — AS 영업/택배 탭의 전달 건을 영업담당 실측
+    // 일정에 태운다. 스펙 §7, 목업 AssignModal/NoCandidate 아트보드.
+    //
+    // 기존 '가까운 일정 찾기' IIFE(#scheduleSearchModal)를 **재사용하지 않는다**:
+    // 엔드포인트(kind=measurement), 상태(4상태 + drift), 액션(8종)이 전부 다르다.
+    // 이벤트는 기존 addAsDashboardListener 위임 인프라를 그대로 쓴다(AbortController 정리).
+    // CSRF 는 전역 인터셉터가 붙인다 — 여기서 수동 부착하지 않는다.
+    // 실패는 .alert/토스트로만 알리지 않는다(5초 자동 닫힘 = 무음 실패). 버튼 옆
+    // 인라인 상태 텍스트(.js-as-sd-msg / .erp-as-sd-cand__msg / .js-as-sd-modal-msg)를 병행한다.
+    // ═══════════════════════════════════════════════════════════════════════
+    (function salesDeliveryAssign() {
+      const SD_ENDPOINT = (orderId) => '/api/orders/' + encodeURIComponent(orderId) + '/sales-delivery';
+      const KO_DOW = ['일', '월', '화', '수', '목', '금', '토'];
+
+      let sdState = {
+        orderId: '',
+        address: '',
+        lat: '',
+        lng: '',
+        customerName: '',
+        reassign: false,
+        lists: { distance: [], date: [], combined: [] },
+      };
+
+      function sdEscape(value) {
+        if (value == null) return '';
+        return String(value)
+          .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+      }
+
+      /** 셀 안 인라인 상태 텍스트 — 토스트와 함께 쓴다(무음 실패 금지). */
+      function sdNote(fromEl, text, kind) {
+        const cell = fromEl && fromEl.closest ? fromEl.closest('.erp-as-sd-cell') : null;
+        const msg = cell ? cell.querySelector('.js-as-sd-msg') : null;
+        if (!msg) return;
+        msg.textContent = text || '';
+        msg.classList.toggle('is-error', kind === 'error');
+        msg.classList.toggle('is-ok', kind === 'ok');
+      }
+
+      function sdModalNote(text, isError) {
+        const el = document.querySelector('#salesDeliveryModal .js-as-sd-modal-msg');
+        if (!el) return;
+        el.textContent = text || '';
+        el.classList.toggle('is-error', !!isError);
+      }
+
+      /** POST /api/orders/<id>/sales-delivery — 응답은 {success, link, drift, display_state, method}. */
+      async function postSalesDelivery(orderId, body) {
+        const res = await fetch(SD_ENDPOINT(orderId), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+          credentials: 'same-origin',
+          body: JSON.stringify(body),
+        });
+        return parseJsonResponse(res);
+      }
+
+      function sdErrorText(res, fallback) {
+        const d = (res && res.data) || {};
+        return String(d.message || d.error || fallback);
+      }
+
+      /**
+       * 행 액션 공통 실행부 — 버튼 잠금 → POST → 성공 시 목록 재조회.
+       *
+       * 표시 상태의 SSOT 는 서버(as_dashboard_display)다. 낙관적으로 셀을 갈아끼우지 않고
+       * 목록을 다시 받아 재계산시킨다(드리프트 배지·요약 pill 이 함께 움직여야 한다).
+       *
+       * @param {HTMLElement} btn 누른 버튼.
+       * @param {object} body 요청 body({action, ...}).
+       * @param {string} okText 성공 토스트 문구.
+       * @returns {Promise<boolean>} 성공 여부.
+       */
+      async function runSalesDeliveryAction(btn, body, okText) {
+        // 주문 식별자는 행 컨테이너에만 실린다 — 버튼은 orderIdOf 로 역참조한다.
+        const orderId = orderIdOf(btn);
+        if (!orderId) return false;
+        btn.disabled = true;
+        sdNote(btn, '처리 중...', '');
+        let res;
+        try {
+          res = await postSalesDelivery(orderId, body);
+        } catch (err) {
+          btn.disabled = false;
+          const text = '전달 배정 저장 실패: ' + String((err && err.message) || err || '네트워크 오류');
+          sdNote(btn, text, 'error');
+          showFeedback(text, true);
+          return false;
+        }
+        if (!res.ok || res.data.success !== true) {
+          btn.disabled = false;
+          const text = sdErrorText(res, '전달 배정을 저장하지 못했습니다.');
+          sdNote(btn, text, 'error');
+          showFeedback(text, true);
+          return false;
+        }
+        sdNote(btn, okText, 'ok');
+        showFeedback(okText);
+        window.location.href = buildAsDashboardUrl({ focus_order: orderId });
+        return true;
+      }
+
+      // ── 후보 모달 ─────────────────────────────────────────────────────────
+      function sdModalEl() {
+        return document.getElementById('salesDeliveryModal');
+      }
+
+      function sdSetHint(html, isError) {
+        const list = document.getElementById('salesDeliveryResults');
+        if (!list) return;
+        list.innerHTML = '<div class="erp-as-sd-modal__hint' + (isError ? ' erp-as-sd-modal__hint--error' : '')
+          + '">' + html + '</div>';
+      }
+
+      function sdShowEmpty(show) {
+        const empty = document.getElementById('salesDeliveryEmpty');
+        const tabs = document.getElementById('salesDeliverySortTabs');
+        const list = document.getElementById('salesDeliveryResults');
+        if (empty) empty.classList.toggle('d-none', !show);
+        if (tabs) tabs.classList.toggle('d-none', show);
+        if (list) list.classList.toggle('d-none', show);
+      }
+
+      /** 'YYYY-MM-DD' → {md:'09-11', dow:'목'}. 파싱 실패면 원문 그대로. */
+      function sdDateParts(value) {
+        const text = String(value || '').slice(0, 10);
+        const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text);
+        if (!m) return { md: text, dow: '' };
+        const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+        return { md: m[2] + '-' + m[3], dow: KO_DOW[d.getDay()] || '' };
+      }
+
+      function sdCandidateHtml(item, index) {
+        const parts = sdDateParts(item.date);
+        const dist = item.distance_km != null ? item.distance_km + 'km'
+          : (item.dist_km != null ? '약 ' + item.dist_km + 'km' : '');
+        const dur = item.duration_min != null ? '차량 ' + item.duration_min + '분' : (item.score_text || '');
+        return ''
+          + '<div class="erp-as-sd-cand' + (index === 0 ? ' erp-as-sd-cand--top' : '') + '">'
+          + '  <div class="erp-as-sd-cand__main">'
+          + '    <div class="erp-as-sd-cand__date">'
+          + '      <span class="erp-as-sd-cand__date-md">' + sdEscape(parts.md) + '</span>'
+          + '      <span class="erp-as-sd-cand__date-dow">' + sdEscape(parts.dow) + '</span>'
+          + '    </div>'
+          + '    <div class="erp-as-sd-cand__body">'
+          + '      <div class="erp-as-sd-cand__line">'
+          + (item.manager ? '<span class="erp-as-sd-cand__manager">' + sdEscape(item.manager) + '</span>' : '')
+          + '        <span class="erp-as-sd-cand__who">#' + sdEscape(item.id) + ' ' + sdEscape(item.customer_name) + '</span>'
+          + (item.time ? '<span class="erp-as-sd-cand__time">' + sdEscape(item.time) + '</span>' : '')
+          + '      </div>'
+          + '      <span class="erp-as-sd-cand__addr">' + sdEscape(item.address) + '</span>'
+          + '    </div>'
+          + '    <div class="erp-as-sd-cand__dist">'
+          + '      <span>' + sdEscape(dist) + '</span>'
+          + '      <span class="erp-as-sd-cand__dist-sub">' + sdEscape(dur) + '</span>'
+          + '    </div>'
+          + '  </div>'
+          + '  <div class="erp-as-sd-cand__foot">'
+          + '    <span class="erp-as-sd-cand__note">' + sdEscape(item.type || '실측') + ' 일정</span>'
+          + '    <span class="erp-as-sd-cand__msg js-as-sd-cand-msg" role="status"></span>'
+          + '    <button type="button" class="erp-as-sd-cand__pick js-as-sd-pick" data-ref-order-id="' + sdEscape(item.id) + '">'
+          + '이 일정에 태우기</button>'
+          + '  </div>'
+          + '</div>';
+      }
+
+      function sdRenderList(sort) {
+        const list = document.getElementById('salesDeliveryResults');
+        if (!list) return;
+        const items = sdState.lists[sort] || [];
+        if (!items.length) {
+          sdSetHint('이 정렬에는 후보가 없습니다.');
+          return;
+        }
+        list.innerHTML = items.map(sdCandidateHtml).join('');
+      }
+
+      /**
+       * 후보 조회 — GET /api/orders/nearby?kind=measurement.
+       *
+       * 후보 0건이고 서버가 parcel_suggested 를 주면 택배 전환 빈 상태를 1차로 낸다
+       * (사용자 결정 2026-09-09 — 근처 실측이 없으면 택배를 먼저 권한다).
+       */
+      async function sdRunSearch() {
+        sdShowEmpty(false);
+        sdSetHint('근처 실측 일정을 찾는 중입니다...');
+        const radius = document.getElementById('salesDeliveryRadius');
+        if (radius) radius.textContent = '';
+        try {
+          const params = new URLSearchParams({ kind: 'measurement', address: sdState.address });
+          if (sdState.orderId) params.append('exclude_id', sdState.orderId);
+          if (sdState.lat && sdState.lng) {
+            params.append('lat', sdState.lat);
+            params.append('lng', sdState.lng);
+          }
+          const res = await fetch('/api/orders/nearby?' + params.toString(), { credentials: 'same-origin' });
+          const parsed = await parseJsonResponse(res);
+          if (!parsed.ok || parsed.data.success !== true) {
+            throw new Error(sdErrorText(parsed, '후보를 불러오지 못했습니다.'));
+          }
+          const data = parsed.data;
+          sdState.lists = {
+            distance: data.by_distance || [],
+            date: data.by_date || [],
+            combined: data.by_combined || [],
+          };
+          const hasAny = sdState.lists.distance.length || sdState.lists.date.length
+            || sdState.lists.combined.length;
+          if (!hasAny) {
+            // parcel_suggested 가 아니어도 후보가 없으면 같은 빈 상태를 낸다 —
+            // 사람이 볼 화면은 하나뿐이고, 택배 버튼은 언제나 유효한 출구다.
+            sdShowEmpty(true);
+            return;
+          }
+          if (radius && data.search_radius_km) radius.textContent = '반경 ' + data.search_radius_km + 'km';
+          const tabs = document.getElementById('salesDeliverySortTabs');
+          if (tabs) {
+            tabs.querySelectorAll('.nav-link').forEach((t, i) => t.classList.toggle('active', i === 0));
+          }
+          sdRenderList('distance');
+        } catch (err) {
+          sdSetHint(sdEscape(String((err && err.message) || err || '오류가 발생했습니다.')), true);
+        }
+      }
+
+      addAsDashboardListener(document.body, 'click', async function (e) {
+        const btn = e.target.closest ? e.target.closest('.js-as-sd-open') : null;
+        if (!btn) return;
+        e.preventDefault();
+        e.stopPropagation();
+        const modalEl = sdModalEl();
+        if (!modalEl) {
+          showFeedback('화면이 오래되었습니다. 새로고침(F5) 해주세요.', true);
+          return;
+        }
+        sdState = {
+          orderId: orderIdOf(btn),
+          address: btn.dataset.address || '',
+          lat: btn.dataset.lat || '',
+          lng: btn.dataset.lng || '',
+          customerName: btn.dataset.customerName || '',
+          reassign: btn.dataset.reassign === '1',
+          lists: { distance: [], date: [], combined: [] },
+        };
+        const subtitle = document.getElementById('salesDeliveryModalSubtitle');
+        if (subtitle) {
+          subtitle.textContent = 'AS #' + sdState.orderId
+            + (sdState.customerName ? ' · ' + sdState.customerName : '');
+        }
+        const addrEl = document.getElementById('salesDeliveryModalAddress');
+        if (addrEl) addrEl.textContent = sdState.address || '주소 없음';
+        sdModalNote('', false);
+        bootstrap.Modal.getOrCreateInstance(modalEl).show();
+        if (!sdState.address) {
+          sdSetHint('주소가 없어 근처 실측 일정을 찾을 수 없습니다. 주문 주소를 먼저 채워주세요.', true);
+          return;
+        }
+        await sdRunSearch();
+      });
+
+      addAsDashboardListener(document.getElementById('salesDeliverySortTabs'), 'click', function (e) {
+        const tab = e.target.closest ? e.target.closest('[data-sd-sort]') : null;
+        if (!tab) return;
+        this.querySelectorAll('.nav-link').forEach((t) => t.classList.remove('active'));
+        tab.classList.add('active');
+        sdRenderList(tab.dataset.sdSort);
+      });
+
+      // 후보 선택 = 배정/재배정. ref_date·담당자는 서버가 실측 주문에서 다시 읽는다(스펙 §5).
+      addAsDashboardListener(document.body, 'click', async function (e) {
+        const btn = e.target.closest ? e.target.closest('.js-as-sd-pick') : null;
+        if (!btn) return;
+        e.preventDefault();
+        e.stopPropagation();
+        const msgEl = btn.parentElement ? btn.parentElement.querySelector('.js-as-sd-cand-msg') : null;
+        if (msgEl) msgEl.textContent = '';
+        btn.disabled = true;
+        let res;
+        try {
+          res = await postSalesDelivery(sdState.orderId, {
+            action: sdState.reassign ? 'reassign' : 'assign',
+            ref_order_id: parseInt(btn.dataset.refOrderId, 10),
+          });
+        } catch (err) {
+          btn.disabled = false;
+          const text = String((err && err.message) || err || '배정 중 오류가 발생했습니다.');
+          if (msgEl) msgEl.textContent = text;
+          sdModalNote(text, true);
+          return;
+        }
+        if (!res.ok || res.data.success !== true) {
+          btn.disabled = false;
+          const text = sdErrorText(res, '배정에 실패했습니다.');
+          if (msgEl) msgEl.textContent = text;
+          sdModalNote(text, true);
+          return;
+        }
+        showFeedback('실측 일정에 전달을 태웠습니다.');
+        window.location.href = buildAsDashboardUrl({ focus_order: sdState.orderId });
+      });
+
+      // 택배 전환 — 모달 푸터/빈 상태 두 버튼이 같은 훅을 쓴다(문구·경로 1개).
+      addAsDashboardListener(document.body, 'click', async function (e) {
+        const btn = e.target.closest ? e.target.closest('.js-as-sd-parcel') : null;
+        if (!btn) return;
+        e.preventDefault();
+        e.stopPropagation();
+        const carrier = document.getElementById('salesDeliveryCarrier');
+        const tracking = document.getElementById('salesDeliveryTracking');
+        btn.disabled = true;
+        sdModalNote('처리 중...', false);
+        let res;
+        try {
+          res = await postSalesDelivery(sdState.orderId, {
+            action: 'parcel',
+            carrier: carrier ? carrier.value.trim() : '',
+            tracking_no: tracking ? tracking.value.trim() : '',
+          });
+        } catch (err) {
+          btn.disabled = false;
+          sdModalNote('택배 전환 실패: ' + String((err && err.message) || err || '네트워크 오류'), true);
+          return;
+        }
+        if (!res.ok || res.data.success !== true) {
+          btn.disabled = false;
+          sdModalNote(sdErrorText(res, '택배 전환에 실패했습니다.'), true);
+          return;
+        }
+        showFeedback('택배로 보내는 것으로 바꿨습니다.');
+        window.location.href = buildAsDashboardUrl({ focus_order: sdState.orderId });
+      });
+
+      // ── 행 액션(배정 해제 / 전달 완료 / 되돌리기 / 택배 취소 / 일정변경 확인) ──
+      const SD_ROW_ACTIONS = [
+        { hook: '.js-as-sd-unassign', action: 'unassign', ok: '배정을 해제했습니다.' },
+        { hook: '.js-as-sd-deliver', action: 'deliver', ok: '전달 완료로 기록했습니다.' },
+        { hook: '.js-as-sd-undeliver', action: 'undeliver', ok: '전달 완료를 되돌렸습니다.' },
+        { hook: '.js-as-sd-parcel-cancel', action: 'parcel_cancel', ok: '택배 전환을 취소했습니다.' },
+        { hook: '.js-as-sd-ack', action: 'ack', ok: '바뀐 실측일 그대로 유지합니다.' },
+      ];
+
+      addAsDashboardListener(document.body, 'click', async function (e) {
+        if (!e.target.closest) return;
+        for (const spec of SD_ROW_ACTIONS) {
+          const btn = e.target.closest(spec.hook);
+          if (!btn) continue;
+          e.preventDefault();
+          e.stopPropagation();
+          await runSalesDeliveryAction(btn, { action: spec.action }, spec.ok);
+          return;
+        }
+      });
+    })();
+
     }
 
     // static defer 모듈 부트스트랩:

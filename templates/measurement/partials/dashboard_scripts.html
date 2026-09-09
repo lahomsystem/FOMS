@@ -3,6 +3,19 @@
 <script src="{{ url_for('static', filename='js/measurement/measurement-entry.js') }}?v={{ measurement_js_v }}" defer></script>
 <script>
   (function () {
+    // 동행 전달 [전달 완료] 핸들러(스펙 §6.2)를 문서당 1회만 싣는다.
+    // 여기에 외부 script 태그를 하나 더 두면 셸 스왑마다 파편 안의 모든 스크립트가
+    // 재파싱·재실행된다(perf 가드 _scan_fragment_multi_script · 실측탭 5.8s 사건).
+    // entry 와 같은 singleton 동적 로드 패턴으로, 스왑에는 아무 비용도 들지 않는다.
+    // 자산 핀: 20260909a (SW staticCacheFirst 가 옛 파일을 서빙하지 않게).
+    if (window.__fomsMeasurementSalesDeliveryLoading) return;
+    window.__fomsMeasurementSalesDeliveryLoading = true;
+    var script = document.createElement('script');
+    script.src = '/static/js/measurement/measurement-sales-delivery.js?v=20260909a';
+    script.defer = true;
+    document.head.appendChild(script);
+  })();
+  (function () {
     function focusRequestedMeasurementRow() {
       var urlParams = new URLSearchParams(window.location.search);
       var focusOrder = urlParams.get('focus_order');

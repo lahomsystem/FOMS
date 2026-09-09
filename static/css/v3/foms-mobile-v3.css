@@ -691,3 +691,69 @@
   white-space: pre-line;
   overflow-wrap: anywhere;
 }
+
+/* =========================================================================
+   [F] 오늘 동선 · 동행 전달 (영업 페르소나 홈, 스펙 §6.3)
+   목업: MobileRun.dc.html (안내 배너 + 시간축 + 전달 서브카드).
+   v3 셸은 foms-mobile-surfaces 번들을 로드하지 않으므로 공용 컴포넌트 CSS에
+   기대지 않고 여기서 자립한다. 터치 타깃 ≥48px, 최소 글자 12px(v3 규약).
+   ========================================================================= */
+
+/* 안내 배너 — 상태 배지가 아니라 "출발 전에 챙길 것" 알림 한 줄 */
+.px-run-banner{
+  display:flex; align-items:center; gap:8px;
+  padding:12px 13px; border-radius:12px;
+  background:color-mix(in srgb,var(--st-cs) 12%,var(--fos-bg1));
+  border:1px solid color-mix(in srgb,var(--st-cs) 30%,transparent);
+  color:var(--st-cs);
+}
+.px-run-banner__ic{flex:0 0 auto; font-size:14px}
+.px-run-banner__text{font-size:13px; font-weight:700; line-height:1.4; overflow-wrap:anywhere}
+
+/* 시간축 */
+.px-run__step{display:flex; gap:10px}
+.px-run__step:last-child .px-run__line{display:none}
+.px-run__rail{flex:0 0 auto; width:14px; display:flex; flex-direction:column; align-items:center; padding-top:5px}
+.px-run__dot{
+  flex:0 0 auto; width:9px; height:9px; border-radius:50%;
+  background:var(--st-measure); box-shadow:0 0 0 3px color-mix(in srgb,var(--st-measure) 22%,transparent);
+}
+.px-run__line{flex:1 1 auto; width:2px; margin-top:6px; background:var(--fos-line); border-radius:2px}
+.px-run__body{flex:1 1 auto; min-width:0; display:flex; flex-direction:column; gap:8px}
+.px-run__time{font-size:12.5px; font-weight:800; letter-spacing:.02em; color:var(--fos-tx1)}
+
+/* 동행 전달 서브카드 (실측 카드 아래에 붙는다) */
+.px-run-deliv{
+  display:flex; flex-direction:column; align-items:flex-start; gap:7px;
+  background:var(--fos-bg1); border:1px solid var(--fos-line);
+  border-left:3px solid var(--st-cs); border-radius:14px;
+  box-shadow:0 1px 2px rgba(32,28,23,.05);
+  padding:12px 12px 13px; margin-left:12px;
+}
+.px-run-deliv__tag{
+  display:inline-flex; align-items:center; font-size:12px; font-weight:800; white-space:nowrap;
+  padding:3px 10px; border-radius:99px;
+  background:color-mix(in srgb,var(--st-cs) 15%,var(--fos-bg2));
+  color:var(--st-cs); border:1px solid color-mix(in srgb,var(--st-cs) 30%,transparent);
+}
+.px-run-deliv__title{font-size:15px; font-weight:800; letter-spacing:-.01em; color:var(--fos-tx0); overflow-wrap:anywhere}
+.px-run-deliv__item{font-size:13px; font-weight:600; color:var(--fos-tx1); overflow-wrap:anywhere}
+.px-run-deliv__addr{font-size:12.5px; color:var(--fos-tx2); overflow-wrap:anywhere}
+.px-run-deliv__done{width:100%; margin-top:2px}
+.px-run-deliv__msg{font-size:12.5px; font-weight:700; color:var(--fos-tx1); overflow-wrap:anywhere}
+.px-run-deliv__msg[hidden]{display:none}
+.px-run-deliv__msg.is-error{color:var(--danger)}
+/* 보조 동작: 링크처럼 보이되 터치 타깃은 48px 이상을 지킨다 */
+.px-run-deliv__skip{
+  width:100%; min-height:48px; border:0; background:transparent; cursor:pointer;
+  font:inherit; font-size:13px; font-weight:600; color:var(--fos-tx2);
+  text-decoration:underline; text-underline-offset:3px;
+}
+.px-run-deliv.is-done{border-left-color:var(--st-completed); opacity:.72}
+.px-run-deliv.is-done .px-run-deliv__tag{
+  background:color-mix(in srgb,var(--st-completed) 15%,var(--fos-bg2));
+  color:var(--st-completed); border-color:color-mix(in srgb,var(--st-completed) 30%,transparent);
+}
+
+[data-foms-contrast="high"] .fos-shell-v3 .px-run-banner,
+[data-foms-contrast="high"] .fos-shell-v3 .px-run-deliv__tag{border-width:1.5px; font-weight:800}

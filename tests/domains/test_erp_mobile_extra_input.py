@@ -49,4 +49,4 @@ def test_v3_shell_css_carries_pre_line_rule() -> None:
     layout_head = (
         ROOT / "templates" / "partials" / "shared" / "layout_head.html"
     ).read_text(encoding="utf-8")
-    assert "css/v3/foms-mobile-v3.css') }}?v=20260826a" in layout_head
+    assert "css/v3/foms-mobile-v3.css') }}?v=20260909a" in layout_head

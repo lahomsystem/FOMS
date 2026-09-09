@@ -1,5 +1,5 @@
 {# AS 모바일 주문 카드 1건 — 초기 렌더 루프와 무한스크롤 청크가 공유(SSOT). 루프 변수 r 필요. #}
-{% from 'cs/partials/as_card_macros.html' import render_as_orderer_line, render_as_construction_workers, render_as_timeline, render_as_schedule_drift_badge %}
+{% from 'cs/partials/as_card_macros.html' import render_as_orderer_line, render_as_construction_workers, render_as_timeline, render_as_schedule_drift_badge, render_sales_delivery_cell %}
 
 {% if erp_mobile_v2_enabled %}
 {# v2 compact: 현장 담당자가 스크롤 최소로 건 스캔·방문일·사진·미결 처리 #}
@@ -154,6 +154,15 @@
     </button>
     {% endif %}
   </div>
+
+  {# 전달 배정 칩(모바일 v2). PC 표 "전달 배정" 열과 **같은 매크로**를 쓴다 — 표면마다
+     따로 조립하면 상태 표기가 갈라진다. 영업/택배 건에만 낸다(그 외에는 의미 없는 줄). #}
+  {% if r.is_sales_delivery %}
+  <div class="erp-as-mobile-card__sd">
+    <span class="erp-as-mobile-card__sd-label">전달</span>
+    {{ render_sales_delivery_cell(r, can_edit_erp|default(false)) }}
+  </div>
+  {% endif %}
 
   <footer class="erp-as-mobile-card__actions" aria-label="AS 빠른 작업">
     {% if can_view_as_photos %}
@@ -313,6 +322,12 @@
         title="AS 사진 보기">
         <i class="fas fa-paperclip"></i> 보기
       </button>
+    </div>
+    {% endif %}
+    {% if r.is_sales_delivery %}
+    <div class="erp-pro-order-card__row erp-pro-order-card__row--full">
+      <span class="erp-pro-order-card__label">전달 배정</span>
+      <div class="mt-1 w-100">{{ render_sales_delivery_cell(r, can_edit_erp|default(false)) }}</div>
     </div>
     {% endif %}
     <div class="erp-pro-order-card__row">

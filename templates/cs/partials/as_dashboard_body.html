@@ -11,14 +11,14 @@
   </a>
 {% endmacro %}
 {# foms-kv-rollout: erp_mobile_shell → kv-copy.js + queue card foms_order_contact_kv #}
-{% from 'cs/partials/as_card_macros.html' import render_as_orderer_line, render_as_construction_workers, render_as_timeline_cell, render_as_billing_badge, render_as_schedule_drift_badge, render_as_drift_jump_chip %}
+{% from 'cs/partials/as_card_macros.html' import render_as_orderer_line, render_as_construction_workers, render_as_timeline_cell, render_as_billing_badge, render_as_schedule_drift_badge, render_as_drift_jump_chip, render_sales_delivery_cell %}
 
 {# AS 타임라인 공용 컴포넌트(SSOT) — 컨텍스트 오버라이드(as-dashboard-body.css)보다 먼저 로드해
    캐스케이드 순서를 지킨다(컴포넌트 → 컨텍스트 오버라이드). #}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-as-timeline.css') }}?v=20260806a">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-as-round-chart.css') }}?v=20260828a">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-as-attachment-order.css') }}?v=20260820a">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/cs/as-dashboard-body.css') }}?v=20260824b">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/cs/as-dashboard-body.css') }}?v=20260909a">
 {# 카드 CSS는 body 파셜에 둔다 → fast-tab 프래그먼트 스왑(as_dashboard_fragment.html)에도
    함께 실려, 탭 이동 첫 진입에서 카드가 원시(미스타일)로 뜨는 FOUC를 막는다.
    (head_extra 전용이면 전체 새로고침 전까지 카드 CSS가 누락된다) #}
@@ -200,6 +200,35 @@
         {% endfor %}
       </div>
       {% endif %}
+      {# 영업/택배 탭 요약 pill 4개(미배정/배정/전달완료/택배). 숫자는 **렌더된 행에서
+         파이썬이 집계**한 값이다(as_dashboard_display.apply_sales_delivery_display_fields
+         → drift_banner.sales_delivery_summary). 탭 카운트 SQL·탭 마크업은 손대지 않는다 —
+         그쪽은 test_erp_as_dashboard_tabs.py 의 정규식 계약이 고정한다. 필터 링크가 아닌
+         이유: 서버에 배정 상태 술어가 없다(JSONB 무인덱스 스캔 금지, 스펙 §9). #}
+      {% set _sd_sum = (drift_banner or {}).get('sales_delivery_summary') %}
+      {% if as_tab == 'sales_delivery' and _sd_sum %}
+      <div class="erp-as-sd-summary" role="group" aria-label="전달 배정 요약">
+        {% for p in [
+          {'key': 'unassigned', 'label': '미배정'},
+          {'key': 'assigned', 'label': '배정'},
+          {'key': 'delivered', 'label': '전달완료'},
+          {'key': 'parcel', 'label': '택배'}
+        ] %}
+        <span class="erp-as-sd-summary__pill erp-as-sd-summary__pill--{{ p.key }}"
+          data-as-sd-summary="{{ p.key }}" data-count="{{ _sd_sum[p.key] }}">
+          <span class="erp-as-sd-summary__dot" aria-hidden="true"></span>
+          <span class="erp-as-sd-summary__label">{{ p.label }}</span>
+          <span class="erp-as-sd-summary__value">{{ _sd_sum[p.key] }}</span>
+        </span>
+        {% endfor %}
+      </div>
+      {% if _sd_sum.drift %}
+      <div class="erp-as-sd-driftbar" role="alert">
+        <i class="fas fa-triangle-exclamation" aria-hidden="true"></i>
+        <span>실측일이 바뀐 전달 건 {{ _sd_sum.drift }}건 — 다시 확인이 필요합니다.</span>
+      </div>
+      {% endif %}
+      {% endif %}
       {# 태블릿 가로(코호트) 전/후 대조 표면. 표시/은닉·배타(대조 표시 + 아래 데스크톱 테이블
          은닉)는 foms-tablet-as-compare.css 코호트 @media 소유. 코호트 밖에선 base display:none
          으로 완전 무동작 → 폰/세로/데스크톱 동작 불변(데스크톱 테이블 그대로). #}
@@ -223,6 +252,7 @@
             <col data-col-key="workers">
             <col data-col-key="customer">
             <col data-col-key="address">
+            <col data-col-key="sales_delivery">
             <col data-col-key="attach">
             <col data-col-key="blueprint">
             <col data-col-key="content">
@@ -246,6 +276,11 @@
               <th data-col-key="workers">시공자<button type="button" class="col-resize-handle" aria-label="시공자 열 너비 조절"></button></th>
               <th data-col-key="customer">고객<button type="button" class="col-resize-handle" aria-label="고객 열 너비 조절"></button></th>
               <th data-col-key="address">주소<button type="button" class="col-resize-handle" aria-label="주소 열 너비 조절"></button></th>
+              {# 전달 배정 열(스펙 §6.1). 주소 바로 뒤에 둔다 — 배정 판단의 근거가 주소다.
+                 customer 는 여전히 7번째라 as-dashboard.js 의 td:nth-child(7) 계약이 그대로 산다.
+                 드래그 핸들을 달지 않는 이유: 핸들 개수가 test_as_timeline_wiring.py 의
+                 리사이저 DOM 계약(11개)으로 고정돼 있다. 폭은 CSS 기본값(268px)이 소유한다. #}
+              <th data-col-key="sales_delivery">전달 배정</th>
               <th data-col-key="attach">첨부<button type="button" class="col-resize-handle" aria-label="첨부 열 너비 조절"></button></th>
               <th data-col-key="blueprint" class="text-center" title="AS도면">
                 <span class="d-inline-block small lh-sm">AS<br>도면</span><button type="button" class="col-resize-handle" aria-label="AS도면 열 너비 조절"></button>
@@ -343,6 +378,7 @@
                   {% endif %}
                 </div>
               </td>
+              <td class="erp-as-sd-td">{{ render_sales_delivery_cell(r, can_edit_erp|default(false)) }}</td>
               <td>
                 {% if can_view_as_photos %}
                 <button type="button"
@@ -388,7 +424,7 @@
             {% endfor %}
             {% else %}
             <tr>
-              <td colspan="12" class="text-center text-muted py-4">데이터가 없습니다.</td>
+              <td colspan="13" class="text-center text-muted py-4">데이터가 없습니다.</td>
             </tr>
             {% endif %}
           </tbody>
@@ -623,13 +659,80 @@
   </div>
 </div>
 
+<!-- 전달 배정 모달 (AS 영업/택배 → 영업 실측 일정에 태우기)
+     스펙: docs/specs/2026-09-09-as-sales-delivery-measurement-assignment-design.md §7.
+     목업: Claude Design "AS 전달 배정 화면" AssignModal / NoCandidate 아트보드.
+     후보는 GET /api/orders/nearby?kind=measurement 가, 쓰기는 POST /api/orders/<id>/sales-delivery
+     가 소유한다. 기존 '가까운 일정 찾기' 모달(#scheduleSearchModal)과는 엔드포인트·상태·
+     액션이 전부 달라 재사용하지 않는다(설계서 §7 — 분리 지시). -->
+<div class="modal fade" id="salesDeliveryModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered modal-fullscreen-md-down">
+    <div class="modal-content erp-as-sd-modal">
+      <div class="modal-header">
+        <div class="erp-as-sd-modal__titlewrap">
+          <h5 class="modal-title" id="salesDeliveryModalTitle">실측 일정에 태우기</h5>
+          <div class="erp-as-sd-modal__subtitle" id="salesDeliveryModalSubtitle"></div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
+      </div>
+      <div class="modal-body">
+        <div class="erp-as-sd-modal__addr">
+          <i class="fas fa-map-marker-alt erp-as-sd-modal__pin" aria-hidden="true"></i>
+          <span class="erp-as-sd-modal__addr-text" id="salesDeliveryModalAddress"></span>
+          <span class="erp-as-sd-modal__radius" id="salesDeliveryRadius"></span>
+        </div>
+        {# 정렬 탭 3종 — 후보 리스트 3개(by_distance/by_date/by_combined)를 갈아끼운다. #}
+        <ul class="nav nav-tabs erp-as-sd-modal__tabs" id="salesDeliverySortTabs" role="tablist">
+          <li class="nav-item"><button type="button" class="nav-link active" data-sd-sort="distance">가까운 순</button></li>
+          <li class="nav-item"><button type="button" class="nav-link" data-sd-sort="date">빠른 날짜순</button></li>
+          <li class="nav-item"><button type="button" class="nav-link" data-sd-sort="combined">복합 추천</button></li>
+        </ul>
+        <div class="erp-as-sd-modal__list" id="salesDeliveryResults" aria-live="polite"></div>
+        {# 후보 0건(parcel_suggested) 빈 상태 — 택배 전환이 1차 버튼이다(사용자 결정 2026-09-09). #}
+        <div class="erp-as-sd-empty d-none" id="salesDeliveryEmpty">
+          <i class="fas fa-map-location-dot erp-as-sd-empty__icon" aria-hidden="true"></i>
+          <div class="erp-as-sd-empty__title">30km 안에 예정된 실측 일정이 없습니다</div>
+          <div class="erp-as-sd-empty__desc">
+            <span>앞으로 이 주소 근처로 나가는 실측 일정이 없습니다.</span>
+            <span>택배로 보내면 오늘 바로 처리됩니다.</span>
+          </div>
+          <div class="erp-as-sd-empty__actions">
+            <button type="button" class="erp-as-sd-empty__primary js-as-sd-parcel">
+              <i class="fas fa-truck" aria-hidden="true"></i><span>택배로 보내기</span>
+            </button>
+            <div class="erp-as-sd-parcelbox">
+              <span class="erp-as-sd-parcelbox__label">택배 정보 (보내기 전에 적어도 됩니다)</span>
+              <div class="erp-as-sd-parcelbox__row">
+                <input type="text" class="erp-pro-input erp-as-sd-parcelbox__carrier" id="salesDeliveryCarrier"
+                  placeholder="택배사(선택)" maxlength="60">
+                <input type="text" class="erp-pro-input erp-as-sd-parcelbox__tracking" id="salesDeliveryTracking"
+                  placeholder="송장번호 입력(선택)" maxlength="60">
+              </div>
+            </div>
+            <button type="button" class="erp-as-sd-empty__secondary" data-bs-dismiss="modal">
+              <i class="far fa-clock" aria-hidden="true"></i><span>그래도 대기 목록에 두기</span>
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer erp-as-sd-modal__footer">
+        <button type="button" class="erp-as-sd-modal__parcel js-as-sd-parcel">
+          <i class="fas fa-truck" aria-hidden="true"></i><span>택배로 보내기</span>
+        </button>
+        <span class="erp-as-sd-modal__status js-as-sd-modal-msg" role="status" aria-live="polite"></span>
+        <button type="button" class="erp-pro-btn erp-pro-btn--secondary" data-bs-dismiss="modal">닫기</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div id="as-dashboard-config" class="d-none" data-search-query-compact="{{ (compact_search_q or '')|e }}" data-current-as-tab="{{ (as_tab or 'incomplete')|e }}"></div>
 {# 기준↔시공지 지도 공용 모듈(출고 AS 일정추천 모달과 공유). 클릭 시점 호출이라 순서 의존은
    없지만 프래그먼트 경로에도 함께 실려야 지도 버튼이 죽지 않는다. #}
 <script src="{{ url_for('static', filename='js/common/foms-schedule-map.js') }}?v=20260730g" defer></script>
 <script src="{{ url_for('static', filename='js/cs/as-attachment-order.js') }}?v=20260819a" defer></script>
 <script src="{{ url_for('static', filename='js/cs/as-push-confirm.js') }}?v=20260820a" defer></script>
-<script src="{{ url_for('static', filename='js/cs/as-dashboard.js') }}?v=20260824b" defer></script>
+<script src="{{ url_for('static', filename='js/cs/as-dashboard.js') }}?v=20260909a" defer></script>
 {# PC 12열 컬럼 폭 조절(드래그 + localStorage). 모바일은 파일 자체가 조기 반환 —
    body 파셜에 두는 이유는 CSS 와 같다(fast-tab 프래그먼트 스왑에도 함께 실려야 재초기화된다). #}
 <script src="{{ url_for('static', filename='js/cs/as-dashboard-columns.js') }}?v=20260728b" defer></script>
