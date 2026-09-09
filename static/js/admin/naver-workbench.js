@@ -1123,6 +1123,87 @@
         }
     }
 
+    /**
+     * pane 프래그먼트가 실어 온 줄 표시값 3종을 읽는다.
+     *
+     * 판정은 서버 `_row_view` 한 벌이 한다 — 여기서는 값을 옮기기만 한다. 선택된 집이 없는
+     * pane 은 세 속성을 아예 안 내므로 kind 가 빈 문자열이 되고, 호출자는 거기서 멈춘다.
+     */
+    function readRowView(pane) {
+        return {
+            kind: pane.getAttribute('data-row-kind') || '',
+            can: pane.getAttribute('data-row-can') || '',
+            linkIds: String(pane.getAttribute('data-row-link-ids') || '').split(',').filter(Boolean)
+        };
+    }
+
+    /**
+     * 줄 배열에서 pane 이 연 집과 같은 줄 하나를 고른다(없으면 null).
+     *
+     * 목록 줄의 data-link-id 는 **화면 모집단** 안 최대금액 링크이고 pane 의 집은 주문번호
+     * 전체에서 뽑은 것이라 두 값이 갈릴 수 있다. data-link-id 로 곧장 찾으면 못 찾는 집이
+     * 생긴다 — 그래서 링크 포함으로 본다. 집 동일성 판정은 이 함수 하나뿐이다.
+     */
+    function pickRowForView(rows, linkIds) {
+        for (var index = 0; index < rows.length; index += 1) {
+            var id = rows[index].getAttribute('data-link-id') || '';
+            if (id && linkIds.indexOf(id) !== -1) {
+                return rows[index];
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 줄 하나에 pane 이 준 표시값을 입힌다 — 라벨 글자와 색띠 클래스, 그 둘뿐이다.
+     *
+     * 배지·체크박스는 일부러 안 만진다. pane 의 집은 목록 줄의 집보다 넓어(주문번호 전체)
+     * claim_blocking·canceled 가 같거나 더 강할 뿐이라 잠긴 줄이 풀리는 방향으로는 가지
+     * 않지만, 배지 규칙까지 JS 가 다시 쓰기 시작하면 술어가 두 벌이 된다(paneOfflist 가
+     * 남긴 규율과 같다).
+     *
+     * 갈래 이름 목록은 여기에 적지 않는다. 옛 클래스는 줄이 들고 있던 data-row-kind 로만
+     * 지우므로 서버가 갈래를 늘려도 이 파일은 안 고친다.
+     */
+    function applyRowView(row, view) {
+        if (!view.kind) {
+            return;
+        }
+        var can = row.querySelector('.wb-can');
+        var old = row.getAttribute('data-row-kind') || '';
+        if (old) {
+            row.classList.remove('wb-row--' + old);
+            if (can) {
+                can.classList.remove('wb-can--' + old);
+            }
+        }
+        row.classList.add('wb-row--' + view.kind);
+        row.setAttribute('data-row-kind', view.kind);
+        if (can) {
+            can.classList.add('wb-can--' + view.kind);
+            can.textContent = view.can;
+        }
+    }
+
+    /**
+     * 갈아 끼운 pane 이 실어 온 값으로 왼쪽 줄 하나를 맞춘다.
+     *
+     * 줄을 눌러 pane 만 받는 순간에만 필요하다. 발주확인·발송처리·다시 읽기 뒤에는
+     * softRefresh 가 목록 루트째 갈아 끼워 서버가 줄을 다시 그리므로, 그 경로에서 또
+     * 덮지 않는다. 목록 밖 집을 연 경우는 맞출 줄이 없으니 조용히 아무 일도 안 한다.
+     */
+    function syncRowFromPane(pane) {
+        var view = readRowView(pane);
+        if (!view.kind) {
+            return;
+        }
+        var rows = Array.prototype.slice.call(document.querySelectorAll('a.wb-row'));
+        var row = pickRowForView(rows, view.linkIds);
+        if (row) {
+            applyRowView(row, view);
+        }
+    }
+
     function swapPane(html) {
         var holder = document.createElement('div');
         holder.innerHTML = html;
@@ -1134,6 +1215,7 @@
         teardownModals(current);
         current.replaceWith(next);
         applyOfflistFlag();
+        syncRowFromPane(next);
     }
 
     function markCurrent(row) {

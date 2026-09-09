@@ -2186,6 +2186,10 @@ def _pane_context(db, link: Optional[ExternalOrderLink],
     )
 
     household = _group_of_link(db, link) if link is not None else None
+    # pane 도 목록 줄과 **같은 판정부**로 표시값을 얻는다 — 프래그먼트만 갈아 끼워도
+    # 왼쪽 줄이 같은 말을 하게 하려면 두 화면이 한 함수를 봐야 한다.
+    if household is not None:
+        _attach_row_view([household])
     member_rows = _member_rows(db, household)
     return {
         "selected": _triage_pane(db, link) if link is not None else None,
@@ -2646,6 +2650,73 @@ def _attach_row_flags(groups: list[dict[str, Any]]) -> None:
         group["locked"] = _group_matches_filter(group, "claim")
         # `place` 칩과 같은 술어. 발주확인 대상이 아닌 집은 애초에 고를 수 없다.
         group["can_pick"] = _group_matches_filter(group, "place")
+
+
+def _row_view(group: dict[str, Any]) -> dict[str, str]:
+    """목록 줄의 **표시 갈래와 라벨**을 서버가 한 번만 판정한다.
+
+    이 판정은 원래 목록 템플릿의 Jinja 식에 있었는데, 거기서는 ``group.order_id``
+    하나만 봐서 주문이 붙은 집을 전부 ``규격 입력할 차례`` 로 읽었다. 2026-09-09
+    신고가 그 결과다 — 규격을 다 넣고 **발송처리까지 끝난 집**이 왼쪽 목록에서는
+    여전히 규격을 입력하라고 말했다. 같은 사실을 pane 은 이미 정확히 말하고 있었으니
+    한 화면이 두 말을 한 셈이다. :func:`_attach_row_flags` 의 H1 사고와 같은 부류라
+    같은 처방을 쓴다: 술어를 한 벌로 만들고 화면은 값을 읽기만 한다.
+
+    잠금은 반드시 :func:`_group_matches_filter` 를 **불러서** 본다. ``group["locked"]``
+    는 :func:`_attach_row_flags` 가 :func:`_work_groups` 에서만 붙이는 키라 pane 의
+    집(:func:`_group_of_link`)에는 없다 — 읽으면 조용히 안 잠긴 것으로 읽힌다.
+
+    발송 여부는 ``dispatched_any`` 가 아니라 ``dispatched`` 를 쓴다. pane 의 초록
+    완료 배지가 같은 값을 읽으므로(:func:`_group_queue` 의 두 값 주석 참조) 그래야
+    목록과 상세가 같은 말을 한다.
+
+    **판정부는 한 벌이지만 입력 집은 두 벌이다.** 목록 줄은 화면 모집단으로 좁힌 집
+    (:func:`_work_groups`)을, pane 은 주문번호 전체 집(:func:`_group_of_link`)을 넣는다.
+    잠금 축만 :func:`_apply_household_counts` 가 집 전체로 덮어 정렬돼 있고
+    ``dispatched``·``spec_filled`` 는 안 덮는다 — 형제가 모집단 밖이면 두 자리의 갈래가
+    갈릴 수 있다. 모집단을 맞추는 일은 표시 축 밖이라 이 함수의 몫이 아니다.
+
+    Args:
+        group: :func:`_group_queue` 또는 :func:`_group_of_link` 가 만든 집 dict.
+
+    Returns:
+        ``{"kind": ..., "can": ...}``. ``kind`` 는 색띠·배지 억제가 읽는 닫힌집합
+        (``stop`` | ``done`` | ``spec`` | ``send`` | ``wait`` | ``go``)이고,
+        ``can`` 은 ``.wb-can`` 자리에 그대로 찍히는 한국어 글자다.
+    """
+    # 취소가 맨 위다. 아래 `claim` 술어에도 걸리지만 낱말은 취소 쪽이 더 정확하다.
+    if group.get("canceled"):
+        return {"kind": "stop", "can": "취소한 주문"}
+    # 잠금 술어는 `claim` 칩과 한 벌 — 목록 줄과 칩 모집단이 갈리면 안 된다.
+    if _group_matches_filter(group, "claim"):
+        return {"kind": "stop", "can": "손대지 않음"}
+    # 발송처리는 되돌릴 수 없는 마지막 문이라 규격·발주확인보다 위에서 끊는다.
+    if group.get("dispatched"):
+        return {"kind": "done", "can": "발송까지 끝남"}
+    if group.get("order_id") and not group.get("spec_filled"):
+        return {"kind": "spec", "can": "규격 입력할 차례"}
+    if (group.get("order_id") and group.get("spec_filled")
+            and not group.get("place_pending")):
+        return {"kind": "send", "can": "발송할 차례"}
+    if group.get("place_pending"):
+        return {"kind": "wait", "can": "발주확인 먼저"}
+    return {"kind": "go", "can": "지금 처리 가능"}
+
+
+def _attach_row_view(groups: list[dict[str, Any]]) -> None:
+    """각 집에 줄 표시값(:func:`_row_view`)을 싣는다.
+
+    :func:`_attach_row_flags` 와 같은 모양의 attach 함수다. 목록 템플릿과 pane
+    프래그먼트가 **같은 두 키**를 읽으므로, 줄을 다시 그리는 쪽이 어디든 글자와
+    색띠가 갈리지 않는다.
+
+    Args:
+        groups: 집 목록. 제자리에서 ``row_kind`` · ``row_can`` 두 키를 채운다.
+    """
+    for group in groups:
+        view = _row_view(group)
+        group["row_kind"] = view["kind"]
+        group["row_can"] = view["can"]
 
 
 #: 목록 정렬 닫힌집합. 임의 문자열이 정렬식으로 들어가지 않게 한다.
@@ -3138,6 +3209,9 @@ def _work_groups(db, *, display: bool = True,
     _attach_household_counts(db, groups, display=display, sibling=sibling)
     # 잠금·선택 판정은 위 두 단계가 끝난 **뒤에** 한 번만 한다(형제 클레임이 반영된 값으로).
     _attach_row_flags(groups)
+    # 표시 갈래·라벨도 같은 자리에서. 형제 클레임(`_mark_sibling_claims`)이 반영된
+    # 뒤여야 잠긴 집을 안 잠긴 것으로 읽지 않는다.
+    _attach_row_view(groups)
     # 정렬은 **캡보다 먼저** 한다. 뒤에 하면 캡이 자를 집을 정렬이 못 고른다 — 발송기한이
     # 임박한 집은 정의상 오래 전에 수집된 집이라 접수순 목록의 아래쪽에 있고, 캡이 먼저
     # 자르면 그 집이 화면 밖으로 밀린 뒤에야 정렬이 돈다.
@@ -4184,6 +4258,9 @@ def _group_queue(links: list[ExternalOrderLink], orders: dict,
             # CS 가 다음에 할 일을 목록에서 바로 알아보게 한다.
             "next_step": ("주문 만들기" if not lead.order_id
                           else ("규격 입력" if not order_has_spec_rows(order) else "")),
+            # 규격 유무는 **값 축으로 따로** 낸다. 화면이 위 ``next_step`` 문자열을
+            # 비교해 규격 유무를 읽으면 낱말을 다듬는 순간 조용히 어긋난다.
+            "spec_filled": order_has_spec_rows(order),
             "link_ids": [row.id for row in members],
             # 펼침 목록도 **대표 먼저** — 사람이 처음 보는 줄이 0원 구성 옵션이면 본품을
             # 찾아 헤맨다(map_group·도크와 같은 순서 규칙).
