@@ -209,7 +209,12 @@ def build_app(*, socketio_available: bool) -> AppFactoryResult:
 
     session_days = int(os.environ.get("FOMS_SESSION_DAYS", "30") or "30")
     app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=max(1, session_days))
-    app.config["SESSION_REFRESH_EACH_REQUEST"] = True
+    # SESSION-COOKIE-01: 갱신 전용 Set-Cookie 를 끈다. permanent 세션에 이 값이 True 면
+    # Flask 는 세션을 안 고친 응답에도 쿠키를 다시 쓰는데, 그 값은 그 요청이 시작될 때의
+    # 스냅샷이다. 탭마다 도는 폴링(알림 배지 등)이 나중에 응답하면서 방금 심은 세션 값을
+    # 덮어 지웠다(2026-09-09 CSRF seed 증발 → 저장 전부 403). 만료 슬라이딩은 LAST-SEEN-01
+    # 터치(5분마다 세션 쓰기 → 쿠키 재발급)가 대신 유지한다.
+    app.config["SESSION_REFRESH_EACH_REQUEST"] = False
 
     trust_proxy = os.environ.get("TRUST_PROXY", "").lower() in ("1", "true", "yes")
     if trust_proxy or is_production:

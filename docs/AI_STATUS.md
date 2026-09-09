@@ -1,7 +1,7 @@
 # FOMS 현재 상태
-> 자동 업데이트: 2026-09-08
-> 최신: **워커 정지 헛알림 26건 근본 수정(deploy 예정)** — 같은 하트비트를 readiness 는 `max(등록부, 신고간격 x 3)`=5400초, 감시자는 등록부 900 고정으로 읽어 반대로 말했다(운영 수집 루프 간격 1800 → 15분마다 멈춤·복구 왕복, 09-08 알림 26건). 예산 정본 `effective_heartbeat_budget` 신설로 판정부 2곳이 한 함수만 부른다. 상세 `docs/incidents/2026-09-09-worker-watchdog-false-stall-flap.md`
-> 직전: **고객컨펌 승인 불가 + 전달 도면 미저장 + 작업실 '완료' 실종(운영 반영 PR #324 · production `35338ce20`)** — ① CONFIRM 은 2026-07-26 가드만 들어오고 짝인 `CUSTOMER_CONFIRM` command 가 없어 승인·생산 시작 409 막다른 골목이었다(운영 #5193). 라우트 가드를 DRAWING 전용으로 좁히고 CONFIRM 승인이 quest 종결+`blueprint.customer_confirmed` 를 한 tx 로 쓰되 전이는 안 한다 ② 주문 '도면' 탭 정본 `OrderAttachment(drawing)` 를 **만드는 INSERT 가 없어**(전달은 category UPDATE 뿐) 탭이 영구 공백 → 전달 시 행 생성 ③ 완료 타일이 모집단 포함을 안 붙여 늘 0건 → 서버가 필터와 모집단을 결합. 스테이징 실브라우저 확인 후 승격
+> 자동 업데이트: 2026-09-09
+> 최신: **견적 저장 403 운영 사고 복구(production `d25ded59b` · PR #325)** — 페이지가 세션에 심은 CSRF seed 를 탭마다 도는 폴링 응답이 옛 스냅샷으로 덮어 지웠다(`SESSION_REFRESH_EACH_REQUEST` + 매 요청 `session.permanent = True`). 새로고침해도 재현. 1차: 로그인 사용자 seed 를 `user_id`+secret 파생값으로(쿠키 무관). 2차(SESSION-COOKIE-01): 갱신 전용 Set-Cookie 차단 — 세션 쓰기 전반의 덮어쓰기 뿌리 제거, 만료 슬라이딩은 last-seen 터치가 유지
+> 직전: **워커 정지 헛알림 26건 근본 수정(deploy 예정)** — 같은 하트비트를 readiness 는 `max(등록부, 신고간격 x 3)`=5400초, 감시자는 등록부 900 고정으로 읽어 반대로 말했다(운영 수집 루프 간격 1800 → 15분마다 멈춤·복구 왕복, 09-08 알림 26건). 예산 정본 `effective_heartbeat_budget` 신설로 판정부 2곳이 한 함수만 부른다. 상세 `docs/incidents/2026-09-09-worker-watchdog-false-stall-flap.md`
 > 이 파일 상단 40줄이 세션 시작 컨텍스트의 전부다(hygiene 계약으로 강제). 상세 이력은 "## 최근 완료"·"## 기록 보관".
 
 

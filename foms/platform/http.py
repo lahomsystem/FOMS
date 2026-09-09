@@ -216,7 +216,12 @@ def register_http_bootstrap(
         g.current_user = None
         user_id = session.get("user_id")
         if user_id:
-            session.permanent = True
+            # SESSION-COOKIE-01: 이미 permanent 면 다시 쓰지 않는다. ``session.permanent = True``
+            # 는 대입일 뿐이어도 세션을 modified 로 만들어 **모든 응답이 Set-Cookie 를 다시
+            # 쓰게** 했다. 그 값은 요청 시작 시점 스냅샷이라, 폴링 응답 하나가 방금 심은
+            # 세션 값을 지운다(2026-09-09 CSRF seed 증발 사고).
+            if not session.get("_permanent"):
+                session.permanent = True
             g.current_user = get_user_by_id(user_id)
 
     @app.before_request
