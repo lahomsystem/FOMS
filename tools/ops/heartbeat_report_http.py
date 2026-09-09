@@ -9,7 +9,9 @@
 2026-02 워커 offline·2026-08-31 SIDEFX 미배포는 두 번 다 사용자가 화면에서 먼저 발견했다.
 재는 도구가 있어도 재는 사람이 없으면 없는 것과 같다.
 
-**판정**: `not_ready` 가 하나라도 있으면 실패(exit 1). 기준선 래칫이 아니라 절대 0 인 이유는,
+**판정**: 엔드포인트의 `ready`(하트비트 유무·신선도·scan lag·큐 적체·DEAD 네 축)가 거짓이면
+실패(exit 1). 옛 배포라 그 키가 없으면 `not_ready` 만으로 물러서고 그 사실을 요약에 적는다.
+기준선 래칫이 아니라 절대 0 인 이유는,
 하트비트가 낡았다는 것은 누적 부채가 아니라 **지금 루프가 멎었다는 뜻**이기 때문이다.
 예산은 서버가 정한다 — 루프가 신고한 tick 간격 x 3 과 등록부 값 중 큰 쪽이라, 간격을 env 로
 바꿔도 살아 있는 루프를 죽었다고 하지 않는다.
@@ -101,8 +103,33 @@ def render_summary(report: dict[str, Any]) -> str:
     if unknown:
         lines += ["", f"판정 불가 kind: {', '.join('`%s`' % k for k in unknown)} "
                       "(등록부 `WORKER_KIND_SPECS` 에 없다)"]
-    verdict = "전부 신선" if not report.get("not_ready") and not unknown else "문제 있음"
-    lines += ["", f"판정: **{verdict}** · 조회 {report.get('elapsed_ms', 0)}ms", ""]
+
+    # 큐 축. 하트비트가 전부 신선해도 여기서 not-ready 가 날 수 있다 — 소비 프로세스는
+    # 살아 있는데 잡이 밀리거나 DEAD 로 쌓이는 상태가 실재한다(운영 DEAD 1,344건).
+    if "dead_count" in report or "oldest_pending_lag" in report:
+        pending = report.get("oldest_pending_lag")
+        lines += ["", f"큐: 가장 오래 밀린 잡 {'-' if pending is None else str(pending) + '초'} · "
+                       f"DEAD {report.get('dead_count', 0)}건"]
+
+    failures = report.get("failures") or []
+    if failures:
+        lines += ["", "실패 축:"]
+        for fail in failures:
+            kind = fail.get("kind")
+            lines.append(f"- `{fail.get('check')}`" + (f" ({kind})" if kind else "")
+                         + f" — 실측 {fail.get('detail')}"
+                         + (f", 한도 {fail['limit']}" if 'limit' in fail else ''))
+
+    # 판정값은 엔드포인트의 ``ready`` 다(네 축 전부). 옛 배포는 그 키가 없으므로
+    # 하트비트 축만으로 물러서되, 그 사실을 요약에 적는다(조용한 반쪽 판정 금지).
+    legacy = "ready" not in report
+    ok = (not report.get("not_ready") and not unknown) if legacy else (
+        bool(report.get("ready")) and not unknown)
+    verdict = "전부 신선" if ok else "문제 있음"
+    lines += ["", f"판정: **{verdict}** · 조회 {report.get('elapsed_ms', 0)}ms"]
+    if legacy:
+        lines += ["", "주의: 이 응답에는 큐 축이 없다(운영 미승격) — 하트비트 축만 판정했다."]
+    lines += [""]
     return "\n".join(lines)
 
 
@@ -165,6 +192,15 @@ def main() -> int:
         row = report["kinds"][kind]
         print(f"ERROR: {kind} 하트비트 {row['reason']} — 나이 {row['age_seconds']}초 "
               f"(예산 {row['limit_seconds']}초).", file=sys.stderr)
+    for fail in report.get("failures") or []:
+        if fail.get("check") in ("heartbeat_present", "heartbeat_fresh"):
+            continue  # 위에서 kind 별로 이미 말했다
+        print(f"ERROR: {fail.get('check')} — 실측 {fail.get('detail')}"
+              + (f", 한도 {fail['limit']}" if 'limit' in fail else ''), file=sys.stderr)
+
+    # ``ready`` 가 정본이다. 없으면(운영 미승격) 하트비트 축만으로 물러선다.
+    if "ready" in report:
+        return 0 if (report["ready"] and not unknown) else 1
     return 1 if (not_ready or unknown) else 0
 
 
