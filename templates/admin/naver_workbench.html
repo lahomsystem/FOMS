@@ -19,7 +19,7 @@
 {% block title %}네이버 수집{% endblock %}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260909a">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260909b">
 {% endblock %}
 
 {% block content %}
@@ -688,11 +688,14 @@
                   색띠만으로 구분하면 색맹 사용자가 못 읽어서 글자를 항상 함께 둔다.
                 #}
                 {# 잠금·선택 판정은 서버가 이미 했다(_attach_row_flags). 화면이 같은 식을
-                   다시 쓰면 한쪽만 고쳐졌을 때 조용히 어긋난다 — H1 이 그렇게 났다. #}
+                   다시 쓰면 한쪽만 고쳐졌을 때 조용히 어긋난다 — H1 이 그렇게 났다.
+                   색띠·글자 라벨 갈래(row_kind)도 같은 이유로 서버(_row_view)가 정한다.
+                   여기서 group.order_id 하나만 보고 'spec' 을 찍던 옛 식은 규격이 이미
+                   들어간 집과 발송처리까지 끝난 집에도 "규격 입력할 차례" 라고 썼다
+                   (2026-09-09 담당자 신고). 서버가 한 벌로 정해야 상세 pane 프래그먼트도
+                   같은 값을 실어 보낼 수 있다. #}
                 {% set row_locked = group.locked %}
-                {% set row_kind = 'stop' if row_locked
-                                  else ('spec' if group.order_id
-                                        else ('wait' if group.place_pending else 'go')) %}
+                {% set row_kind = group.row_kind %}
                 {# 벌크는 '아직 발주확인 안 된, 손대도 되는 집' 에만 연다(계약 §2.2 place 술어와 같다). #}
                 {% set can_pick = group.can_pick %}
                 {# 찾기 대상 텍스트를 행이 직접 들고 있는다. JS 가 여러 자식 요소를 훑어
@@ -701,6 +704,9 @@
                 <a class="wb-row wb-row--pick wb-row--{{ row_kind }}{{ ' wb-row--locked' if row_locked else '' }}"
                    data-find="{{ (group.customer_name ~ ' ' ~ (group.external_order_no or '') ~ ' ' ~ (group.product or '') ~ ' ' ~ ('주문 ' ~ group.order_id if group.order_id else ''))|lower }}"
                    data-group-id="{{ group.id }}" data-link-id="{{ group.id }}"
+                   {# JS 가 pane 값으로 줄을 갈아 끼울 때 **옛 클래스를 지우는 기억**이다.
+                      이게 없으면 갈래 이름 목록을 JS 가 따로 들고 있어야 한다(두 벌). #}
+                   data-row-kind="{{ row_kind }}"
                    {# 대표 링크 id 로 비교하면 안 된다 — group.id 는 **목록 모집단** 안의 최대금액
                       링크이고 selected_group.id 는 _group_of_link 가 **집 전체**에서 뽑은 것이라
                       본품이 이미 발주확인 완료거나 확인 완료면 두 값이 갈린다. 그러면 열린 집이
@@ -764,8 +770,13 @@
                             {# 'spec' 행에서는 오른쪽 `.wb-can` 이 이미 "규격 입력할 차례" 라고
                                말한다 — 배지까지 두면 같은 말이 한 줄에 두 번이다(발주확인 할 차례
                                배지와 같은 손질). 'wait'·'go' 의 "주문 만들기" 는 글자 라벨과
-                               다른 말이라 남긴다. #}
-                            {% if group.next_step and not row_locked and row_kind != 'spec' %}
+                               다른 말이라 남긴다.
+                               갈래를 나열하는 꼴로 바꿨다: 'stop' 은 곧 row_locked 이라 옛 조건
+                               (not row_locked and row_kind != 'spec')과 지금 값 기준으로 같고,
+                               새로 생긴 'done'·'send' 만 빠진다. 발송이 끝난 집에 '규격 입력'
+                               파란 배지가 남으면 같은 줄의 글자 라벨('발송까지 끝남')과 정면으로
+                               충돌한다 — 그것이 2026-09-09 신고 본문이다. #}
+                            {% if group.next_step and row_kind in ('wait', 'go') %}
                             <span class="badge bg-primary">{{ group.next_step }}</span>
                             {% endif %}
                             {# 취소·반품은 끝난 건도 빨강이다 — 회색으로 식히면 목록에서
@@ -777,8 +788,12 @@
                                row_kind == 'wait' 이면 같은 사실을 한 줄에서 두 번 쓰는 셈이고,
                                그 배지 하나(≈90px) 때문에 배지 줄이 접혀 행 높이가 튄다
                                (2026-08-23 CEO 검수). 주문이 이미 있는 집(spec)에서는 글자 라벨이
-                               "규격 입력할 차례"라 발주확인 사실을 여기서만 알 수 있으므로 남긴다. #}
-                            {% if group.place_pending and not row_locked and row_kind != 'wait' %}
+                               "규격 입력할 차례"라 발주확인 사실을 여기서만 알 수 있으므로 남긴다.
+                               위 배지와 같은 손질이되 빠지는 집이 하나 더 있다: 'done'·'send' 와,
+                               주문이 있고 규격도 이미 들어간 발주확인 전 집('wait')이다. 그 집은
+                               글자 라벨이 '발주확인 먼저' 라 같은 사실을 이미 말한다. 발송까지
+                               끝난 집에 '발주확인 할 차례' 가 남으면 한 줄에서 라벨과 충돌한다. #}
+                            {% if group.place_pending and row_kind in ('spec', 'go') %}
                             <span class="badge bg-warning text-dark">발주확인 할 차례</span>
                             {% endif %}
                             {# 발송기한을 넘기면 네이버가 자동 취소할 수 있다 — 없어진
@@ -797,7 +812,10 @@
                             {% if not row_locked and not can_pick %}
                             <span class="badge bg-light text-dark wb-badge--done">발주확인 완료</span>
                             {% endif %}
-                            {% if group.shipping_due and not row_locked %}
+                            {# 발송이 끝난 집(done)에서는 뺀다 — 기한의 뜻이 "넘기면 네이버가
+                               자동 취소한다" 인데 이미 나갔으면 아무 결정도 안 바꾼다.
+                               2026-09-09 신고 화면의 `발송기한 10-01` 이 그 자리다. #}
+                            {% if group.shipping_due and not row_locked and row_kind != 'done' %}
                             {# 연도는 전부 같은 해라 아무 결정도 바꾸지 않는다 — 목록에서만 뗀다
                                (상세·모달은 전체 날짜 그대로). #}
                             <span class="badge bg-light text-dark">발송기한 {{ group.shipping_due[5:] if group.shipping_due|length > 7 else group.shipping_due }}</span>
@@ -805,13 +823,9 @@
                             {% if group.order_id %}
                             <span class="badge bg-light text-dark">주문 #{{ group.order_id }}</span>
                             {% endif %}
-                            <span class="wb-can wb-can--{{ row_kind }}">
-                                {% if group.canceled %}취소한 주문
-                                {% elif row_kind == 'stop' %}손대지 않음
-                                {% elif row_kind == 'spec' %}규격 입력할 차례
-                                {% elif row_kind == 'wait' %}발주확인 먼저
-                                {% else %}지금 처리 가능{% endif %}
-                            </span>
+                            {# 낱말은 서버 _row_view 가 한 벌로 정한다. 여기 조건문을 남기면
+                               같은 낱말이 두 벌이 되고, pane 이 실어 오는 값과 어긋난다. #}
+                            <span class="wb-can wb-can--{{ row_kind }}">{{ group.row_can }}</span>
                         </span>
                     </span>
                 </a>
@@ -1357,5 +1371,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260909a" defer></script>
+<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260909b" defer></script>
 {% endblock %}
