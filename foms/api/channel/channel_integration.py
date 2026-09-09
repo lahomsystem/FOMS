@@ -13,6 +13,7 @@ import traceback
 from typing import Any
 
 from flask import Blueprint, g, jsonify, request
+from sqlalchemy import text as sa_text
 from sqlalchemy.orm.attributes import flag_modified
 
 from db import get_db
@@ -363,6 +364,50 @@ def _record_push_metadata(
 
 
 
+_PUSH_SLOT_BUSY_MESSAGE = "이미 전송 처리 중입니다. 잠시 후 다시 시도해주세요."
+
+
+def _try_claim_push_slot(db, order_id: int, push_kind: str) -> bool:
+    """같은 주문·같은 push 종류의 동시 발송을 트랜잭션 자문 잠금으로 직렬화한다.
+
+    `is_resend` 는 structured_data 에서 읽는데, 판정과 기록 사이에 채널톡 HTTP
+    발송이 끼어 수 초가 열린다. 잠금이 없으면 동시에 누른 두 요청이 둘 다
+    `pushed=False` 를 보고 "첫 발송"으로 처리해 같은 메시지가 두 번 나가고
+    변경 내용 입력도 건너뛴다. 그래서 판정 **전에** 슬롯을 잡는다.
+
+    잠금은 트랜잭션이 끝날 때(= push 이력 커밋 시점) 자동으로 풀린다. 대기하지
+    않는 ``try`` 계열이라 발송이 늦어져도 두 번째 요청이 매달리지 않는다.
+
+    파라미터:
+        db: 요청 스코프 세션.
+        order_id: 주문 ID(잠금 키 상위 32비트).
+        push_kind: push 종류(잠금 키 하위 32비트 — 종류가 다르면 서로 막지 않는다).
+    반환: 슬롯을 잡았으면 True, 이미 다른 요청이 잡고 있으면 False.
+    """
+    dialect = db.get_bind().dialect.name
+    if dialect != "postgresql":
+        # SQLite 레인에는 자문 잠금이 없다. 조용히 넘기지 않고 사실을 남긴다.
+        logger.info(
+            "[채널톡 push] advisory lock 미지원 dialect=%s — 동시성 가드 없이 진행 (order=%s, kind=%s)",
+            dialect, order_id, push_kind,
+        )
+        return True
+    kind_key = int.from_bytes(
+        hashlib.blake2s(push_kind.encode("utf-8"), digest_size=4).digest(),
+        "big",
+        signed=True,
+    )
+    acquired = db.execute(
+        sa_text("SELECT pg_try_advisory_xact_lock(:order_key, :kind_key)"),
+        {"order_key": int(order_id), "kind_key": kind_key},
+    ).scalar()
+    if not acquired:
+        logger.info(
+            "[채널톡 push] 동시 발송 차단 (order=%s, kind=%s)", order_id, push_kind
+        )
+    return bool(acquired)
+
+
 def _audit_channel_push(order, push_kind: str, is_resend: bool, *,
                         actor_user_id, files_count: int | None = None) -> None:
     """채널톡 발송 1건을 구조화 감사로 남긴다(고객에게 나간 것은 반드시 추적 가능해야 한다).
@@ -456,6 +501,14 @@ def api_channel_push_manual():
         order = db.query(Order).filter(Order.id == int(order_id), Order.active_filter()).first()
         if not order:
             return jsonify({'success': False, 'message': f'주문 #{order_id}을 찾을 수 없습니다.'}), 404
+
+        # 동시 클릭 직렬화: is_resend 판정 전에 (주문, push 종류) 슬롯을 잡는다.
+        if not _try_claim_push_slot(db, order.id, push_kind):
+            return jsonify({
+                'success': False,
+                'message': _PUSH_SLOT_BUSY_MESSAGE,
+                'error': 'push_in_progress',
+            }), 409
 
         if push_kind == 'as':
             text = build_as_push_text(order)
@@ -892,6 +945,14 @@ def api_channel_push_estimate():
         order = db.query(Order).filter(Order.id == int(order_id), Order.active_filter()).first()
         if not order:
             return jsonify({'success': False, 'message': f'주문 #{order_id}을 찾을 수 없습니다.'}), 404
+
+        # 동시 클릭 직렬화: is_resend 판정 전에 (주문, push 종류) 슬롯을 잡는다.
+        if not _try_claim_push_slot(db, order.id, 'estimate'):
+            return jsonify({
+                'success': False,
+                'message': _PUSH_SLOT_BUSY_MESSAGE,
+                'error': 'push_in_progress',
+            }), 409
 
         sd = copy.deepcopy(order.structured_data or {})
         prev_push = sd.get(_ESTIMATE_PUSH_HISTORY_KEY) or {}

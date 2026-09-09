@@ -43,8 +43,8 @@
   },
   "fail_closed_sites": [
     "db.py:88",
-    "foms/api/channel/channel_integration.py:359",
-    "foms/api/channel/channel_integration.py:956",
+    "foms/api/channel/channel_integration.py:360",
+    "foms/api/channel/channel_integration.py:1017",
     "foms/persistence/designer/repositories.py:173",
     "foms/persistence/designer/repositories.py:211",
     "foms/persistence/designer/repositories.py:505",
@@ -109,7 +109,7 @@
     },
     {
       "path": "foms/api/channel/channel_integration.py",
-      "lineno": 359,
+      "lineno": 360,
       "handler_type": "broad_exception",
       "disposition": "FAIL_CLOSED",
       "owner": "channel",
@@ -118,7 +118,7 @@
     },
     {
       "path": "foms/api/channel/channel_integration.py",
-      "lineno": 631,
+      "lineno": 684,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "channel",
@@ -127,7 +127,7 @@
     },
     {
       "path": "foms/api/channel/channel_integration.py",
-      "lineno": 824,
+      "lineno": 877,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "channel",
@@ -136,7 +136,7 @@
     },
     {
       "path": "foms/api/channel/channel_integration.py",
-      "lineno": 956,
+      "lineno": 1017,
       "handler_type": "broad_exception",
       "disposition": "FAIL_CLOSED",
       "owner": "channel",
@@ -145,7 +145,7 @@
     },
     {
       "path": "foms/api/channel/channel_integration.py",
-      "lineno": 984,
+      "lineno": 1045,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "channel",
@@ -154,7 +154,7 @@
     },
     {
       "path": "foms/api/channel/channel_integration.py",
-      "lineno": 1134,
+      "lineno": 1195,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "channel",
@@ -163,7 +163,7 @@
     },
     {
       "path": "foms/api/channel/channel_integration.py",
-      "lineno": 1212,
+      "lineno": 1273,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "channel",
