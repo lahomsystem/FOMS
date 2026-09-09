@@ -1,7 +1,7 @@
 # FOMS 현재 상태
 > 자동 업데이트: 2026-09-08
-> 최신: **고객컨펌 승인 불가 + 전달 도면 미저장 수정(deploy `4868a2cc4`)** — ① CONFIRM 은 2026-07-26 가드만 들어오고 짝인 `CUSTOMER_CONFIRM` command 가 없어 승인 409·생산 시작 409 로 막다른 골목이었다(운영 #5193). 라우트 가드를 DRAWING 전용으로 좁히고 CONFIRM 승인이 quest 종결+`blueprint.customer_confirmed` 를 한 tx 로 쓰되 전이는 안 한다 ② 주문 '도면' 탭 정본인 `OrderAttachment(drawing)` 를 **만드는 INSERT 가 없어**(전달은 category UPDATE 뿐, 마법사 산출물은 행 0) 탭이 영구 공백 → 전달 시 행 생성
-> 직전: **도면 마법사 이미지 첨부 복구 운영 반영(PR #315 · production `854f0377c`)** — ① standalone `wizard.html` 이 `csrf_bootstrap` 미include → 모든 mutation 403(map_view 유형 재발) ② REQUEST-LIMIT-01 미등재 라우트는 1 MiB → 1 MB 넘는 사진 413(업로드 5개 동시 사망). `multiple` 첨부·게이트 2개 동반
+> 최신: **워커 정지 헛알림 26건 근본 수정(deploy 예정)** — 같은 하트비트를 readiness 는 `max(등록부, 신고간격 x 3)`=5400초, 감시자는 등록부 900 고정으로 읽어 반대로 말했다(운영 수집 루프 간격 1800 → 15분마다 멈춤·복구 왕복, 09-08 알림 26건). 예산 정본 `effective_heartbeat_budget` 신설로 판정부 2곳이 한 함수만 부른다. 상세 `docs/incidents/2026-09-09-worker-watchdog-false-stall-flap.md`
+> 직전: **고객컨펌 승인 불가 + 전달 도면 미저장 수정(deploy `4868a2cc4`)** — ① CONFIRM 은 2026-07-26 가드만 들어오고 짝인 `CUSTOMER_CONFIRM` command 가 없어 승인 409·생산 시작 409 로 막다른 골목이었다(운영 #5193). 라우트 가드를 DRAWING 전용으로 좁히고 CONFIRM 승인이 quest 종결+`blueprint.customer_confirmed` 를 한 tx 로 쓰되 전이는 안 한다 ② 주문 '도면' 탭 정본인 `OrderAttachment(drawing)` 를 **만드는 INSERT 가 없어**(전달은 category UPDATE 뿐, 마법사 산출물은 행 0) 탭이 영구 공백 → 전달 시 행 생성
 > 이 파일 상단 40줄이 세션 시작 컨텍스트의 전부다(hygiene 계약으로 강제). 상세 이력은 "## 최근 완료"·"## 기록 보관".
 
 
@@ -10,6 +10,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
+- [2026-09-09] **워커 정지 헛알림 근본 수정** — 변이 검증 2종 통과. **잔여: 배포 후 SIDEFX `FOMS_WORKER_WATCHDOG_ENABLED` 0 → 1 복구 필요**(지금 꺼져 있어 조용한 것)
 - [2026-09-09] **고객컨펌 승인·도면 첨부 등록(deploy `4868a2cc4`)** — 원장 `docs/plans/2026-09-09-confirm-quest-and-drawing-attachment-plan.md`. dev+PG E2E 로 승인 200·수령확정 후 첨부 유지 확인. 잔여: 운영 승격 여부 사용자 확인
 - [2026-09-08] **429 재전송 + 옛 집 문장 낱말 교체 운영 반영(PR #319 · production `10aaefdae`)** — 담당자 반품 승인이 `HTTP 429 GW.RATE_LIMIT` 로 실패했다(주문 2026090362157171, 15:26). 게이트웨이 한도 2 RPS 고정인데 클레임 5종이 `retry=False` 라 그대로 실패로 남았다. **429 만** 1초 쉬고 1회 재전송 — 게이트웨이가 본체에 넘기기 전에 끊은 것이라 중복 클레임이 날 수 없다(500·타임아웃은 그대로 재전송 금지, 음성 대조군 2건으로 고정). 문장: `이 집만 취소됐습니다` → `이전 주문 취소 됐습니다`(담당자 낱말).
 - [2026-09-08] **도면 마법사 이미지 첨부·붙여넣기·여러 장(PR #315 · production `854f0377c`)** — CSRF 누락(403)+본문 캡 미등재(413) 이중 원인. 실제 Chromium 검증 전부 200
