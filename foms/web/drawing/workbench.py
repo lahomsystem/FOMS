@@ -49,6 +49,7 @@ from foms.services.common.dashboard_cache import (
 from foms.services.drawing_workbench_read_model import (
     fetch_drawing_seed_order_ids,
     hydrate_drawing_orders_by_ids,
+    count_confirmed_drawing_orders,
 )
 from foms.services.common.erp_shell_http import apply_erp_shell_fragment_headers, wants_erp_shell_tab_body
 from foms.services.request_utils import get_search_query_arg
@@ -359,6 +360,11 @@ def erp_drawing_workbench_dashboard():
     pending_only = (request.args.get('pending') or '').strip() == '1'
     # 컨펌 포함 토글: 기본 목록은 노이즈 방지로 컨펌(수령확정) 주문 제외. =1 일 때만 추가.
     include_confirmed = (request.args.get('include_confirmed') or '').strip() == '1'
+    # '완료' 필터를 고르면 모집단에도 컨펌 주문이 있어야 한다. 이 결합이 없으면 파이프라인
+    # '완료' 타일·모바일 필터 서랍이 status 만 붙여 보내 seed 밖을 거르게 되고 항상 0건이 된다
+    # (수령확정 직후 주문이 도면 작업실에서 통째로 사라지는 증상의 정체).
+    if status_filter == 'CONFIRMED':
+        include_confirmed = True
     assignee_filter_raw = (request.args.get('assignee') or '').strip()
     assignee_filter = assignee_filter_raw.lower()
     sort_by = (request.args.get('sort') or '').strip().lower()
@@ -400,7 +406,10 @@ def erp_drawing_workbench_dashboard():
         lambda: {
             "order_ids": fetch_drawing_seed_order_ids(
                 orders_query, include_confirmed=include_confirmed
-            )
+            ),
+            # '완료' 타일 숫자는 모집단(컨펌 제외)과 무관한 전체 큐 기준이라 따로 센다.
+            # seed 와 같은 캐시 슬라이스에 담아 요청당 추가 쿼리가 생기지 않게 한다.
+            "confirmed_count": count_confirmed_drawing_orders(orders_query),
         },
         page="drawing",
         slice_name="workbench_queue_ids",
@@ -650,6 +659,11 @@ def erp_drawing_workbench_dashboard():
         if int(r.get('pending_count') or 0) > 0:
             stats['pending_transfer'] += 1
 
+    # 컨펌 주문은 기본 모집단에서 빠지므로 rows 만으로는 '완료'가 늘 0 이다.
+    # 포함 모드가 아니면 캐시된 전체 큐 카운트로 채운다(구 캐시 블롭이면 0 폴백).
+    if not include_confirmed:
+        stats['CONFIRMED'] = int(_seed_blob.get('confirmed_count') or 0)
+
     if focus_order_id:
         # 검색 카드 딥링크: 단건만 착지시키고 목록 필터·페이지는 적용하지 않는다.
         rows = [r for r in rows if r.get('id') == focus_order_id]
@@ -740,7 +754,7 @@ def erp_drawing_workbench_dashboard():
             stats=stats,
             pagination={'page': page, 'per_page': per_page, 'total_count': total_count, 'total_pages': total_pages, 'has_prev': page > 1, 'has_next': page < total_pages},
             sort_by=request.args.get('sort') or '',
-            filters={'q': q_raw, 'status': status_filter, 'mine': '1' if mine_only else '', 'unread': '1' if unread_only else '', 'due_today': '1' if due_today_only else '', 'overdue': '1' if overdue_only else '', 'assignee': assignee_filter_raw, 'dday3': '1' if dday3_only else '', 'pending': '1' if pending_only else ''},
+            filters={'q': q_raw, 'status': status_filter, 'mine': '1' if mine_only else '', 'unread': '1' if unread_only else '', 'due_today': '1' if due_today_only else '', 'overdue': '1' if overdue_only else '', 'assignee': assignee_filter_raw, 'dday3': '1' if dday3_only else '', 'pending': '1' if pending_only else '', 'include_confirmed': '1' if include_confirmed else ''},
             can_edit_erp=can_edit_erp(current_user),
             erp_order_enabled=True,
             erp_mine_only=mine_only,

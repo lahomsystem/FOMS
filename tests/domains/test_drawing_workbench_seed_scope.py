@@ -13,6 +13,7 @@ seed 가 **단계 조건 없이** ``created_at desc LIMIT cap`` 으로 최신 N�
 from __future__ import annotations
 
 import datetime
+import re
 
 import pytest
 from werkzeug.security import generate_password_hash
@@ -191,3 +192,50 @@ def test_include_confirmed_lists_confirmed_outside_drawing_stage(client):
     link = _detail_link(confirmed_id)
     assert link not in off.get_data(as_text=True), "기본 목록은 컨펌 주문을 제외한다"
     assert link in on.get_data(as_text=True), "컨펌 포함 토글이 수령확정 도면을 못 찾는다"
+
+
+def test_confirmed_status_filter_pulls_confirmed_into_population(client):
+    """'완료' 필터(``?status=CONFIRMED``)는 컨펌 포함 토글 없이도 컨펌 주문을 보여준다.
+
+    운영 증상(2026-09-09): 영업이 수령확정을 하면 stage 가 CONFIRM 으로 올라가 도면 모집단
+    (단계 ∪ RETURNED)에서 빠지고, 파이프라인 '완료' 타일은 ``status`` 만 붙여 보내므로
+    seed 밖을 거르는 꼴이 되어 **항상 0건**이었다 — 도면팀에겐 주문이 통째로 사라진 것으로
+    보인다. 필터와 모집단을 서버에서 묶어 이 구멍을 닫는다.
+    """
+    _login_admin(client)
+    confirmed_id = _seed_order(
+        61, stage="CONFIRM", created_at=_OLD, drawing_status="CONFIRMED"
+    )
+    db_session.commit()
+
+    resp = client.get(
+        "/erp/drawing-workbench?view=fragment&status=CONFIRMED",
+        headers={"X-FOMS-ERP-SHELL": "1"},
+    )
+
+    assert resp.status_code == 200
+    assert _detail_link(confirmed_id) in resp.get_data(as_text=True), (
+        "'완료' 필터가 수령확정 주문을 못 찾는다 — 모집단이 단계로만 잘렸다"
+    )
+
+
+def test_confirmed_tile_count_survives_default_population(client):
+    """기본 목록(컨펌 제외)에서도 '완료' 타일 숫자는 실제 컨펌 건수를 보여준다."""
+    _login_admin(client)
+    _seed_order(62, stage="CONFIRM", created_at=_OLD, drawing_status="CONFIRMED")
+    db_session.commit()
+
+    resp = _fragment_get(client)
+    body = resp.get_data(as_text=True)
+
+    assert resp.status_code == 200
+    assert _detail_link(62) not in body, "기본 목록은 여전히 컨펌 주문 행을 제외한다"
+
+    # 타일 숫자는 rows 가 아니라 전체 큐 카운트를 읽는다 — 0 이면 "사라졌다"로 읽힌다.
+    tile = re.search(
+        r'data-status="CONFIRMED".*?erp-pro-pipeline__count">(\d+)<',
+        body,
+        re.S,
+    )
+    assert tile, "'완료' 타일을 찾지 못했다(마크업 변경?)"
+    assert int(tile.group(1)) >= 1, "'완료' 타일이 컨펌 주문을 세지 않는다"
