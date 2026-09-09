@@ -355,6 +355,7 @@
     els.logoPopup = document.getElementById('dws-logo-popup');
     els.saveBtn = document.getElementById('dws-btn-save');
     els.saveAllBtn = document.getElementById('dws-btn-save-all');
+    els.roomPushBtn = document.getElementById('dws-btn-room-push');
     els.zoomRange = document.getElementById('dws-zoom-range');
     els.zoomLabel = document.getElementById('dws-zoom-label');
     els.fileInput = document.getElementById('dws-file-input');
@@ -3989,6 +3990,7 @@
     document.getElementById('dws-btn-redo').addEventListener('click', redo);
     els.saveBtn.addEventListener('click', function () { save(); });
     if (els.saveAllBtn) { els.saveAllBtn.addEventListener('click', saveAll); }
+    if (els.roomPushBtn) { els.roomPushBtn.addEventListener('click', pushDrawingRoom); }
 
     // 빈 상태 오버레이 — "빈 시트 추가"(제품 없는 주문 대비). addSheet 는 defaults 로 시트 생성.
     if (els.emptyAdd) { els.emptyAdd.addEventListener('click', function () { addSheet(); }); }
@@ -4421,6 +4423,59 @@
     window.addEventListener('beforeunload', function (e) {
       if (dirty && !leaving) { e.preventDefault(); e.returnValue = ''; return ''; }
     });
+  }
+
+  /* ── 도면방 PUSH ────────────────────────────────────────────────────────
+     현재 전달본(structured_data.drawing_current_files) 도면 전부를 채널톡 도면방으로.
+     본문·첨부 선택은 서버가 한다. 마법사 전달 대기(pending)는 대상이 아니다. */
+
+  /** 나갈 도면 장수를 서버에 물어본다(미리보기 = 실제 전송과 같은 선택자). */
+  function fetchRoomPushPreview() {
+    return jsonFetch('/api/channel/push-preview?order_id=' + ORDER_ID + '&push_kind=drawing_room',
+      { headers: { 'Accept': 'application/json' } });
+  }
+
+  /** 도면방 PUSH 1회 전송. changeNote 가 있으면 재전송으로 보낸다. */
+  function sendRoomPush(changeNote) {
+    var payload = { order_id: ORDER_ID, push_kind: 'drawing_room' };
+    if (changeNote) { payload.change_note = changeNote; }
+    return jsonFetch('/api/channel/push-manual', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+  }
+
+  /** 앱바 [도면방 PUSH] 클릭 — 사전 점검 → 확인 → 전송(재전송이면 변경 내용 1회 회수). */
+  function pushDrawingRoom() {
+    var btn = els.roomPushBtn;
+    if (!btn || btn.disabled) { return; }
+    btn.disabled = true;
+    fetchRoomPushPreview().then(function (pre) {
+      var count = (pre.data && pre.data.files_count) || 0;
+      if (!pre.data || pre.data.success !== true || !count) {
+        toast(serverErrorText(pre, '전달된 도면이 없습니다. 도면을 먼저 전달해주세요.'));
+        btn.title = '전달된 도면이 없습니다. 도면을 먼저 전달해주세요.';
+        return;   // finally 에서 다시 열린다
+      }
+      if (!confirm('현재 전달본 도면 ' + count + '장을 도면방으로 보냅니다. 진행할까요?')) { return; }
+      return sendRoomPush(null).then(function (r) {
+        var msg = String((r.data && r.data.message) || '');
+        if (r.data && r.data.success !== true && msg.indexOf('재전송 시 변경 내용') >= 0) {
+          var note = (prompt('이번 재전송의 변경 내용을 입력해주세요. (1~500자)') || '').trim();
+          if (!note) { return null; }
+          return sendRoomPush(note);
+        }
+        return r;
+      }).then(function (r) {
+        if (!r) { return; }
+        if (!r.data || r.data.success !== true) { toast(serverErrorText(r, '도면방 PUSH 실패')); return; }
+        toast('도면방으로 도면 ' + (r.data.files_count || 0) + '장을 보냈습니다.');
+      });
+    }).catch(function (err) {
+      console.warn('[dws] drawing room push', err);
+      toast('도면방 PUSH 중 오류가 발생했습니다.');
+    }).then(function () { btn.disabled = !canSave; });
   }
 
   /** 나가기 — 도면 작업실 상세로 복귀. 미저장(dirty)이면 확인 후 이동한다(기존 dirty
