@@ -39,6 +39,24 @@ def _drawing_status_exprs():
     )
 
 
+def count_confirmed_drawing_orders(base_query) -> int:
+    """수령확정(``CONFIRMED``) 도면 주문 수를 base scope 안에서 센다.
+
+    기본 목록은 노이즈를 줄이려고 컨펌 주문을 모집단에서 뺀다(``include_confirmed=False``).
+    그러면 화면 행만으로 세는 '완료' 타일이 **항상 0** 이 되어, 도면팀 입장에서는 수령확정한
+    주문이 화면에서 통째로 사라진 것처럼 보인다. 타일 숫자는 목록 필터와 무관한 전체 큐
+    기준이므로 여기서 따로 센다.
+
+    Args:
+        base_query: 목록과 같은 base scope(active·ERP·mine) 가 적용된 ``Order`` 쿼리.
+
+    Returns:
+        컨펌 상태 주문 수(중첩/flat 두 키 중 하나라도 ``CONFIRMED``).
+    """
+    nested, flat = _drawing_status_exprs()
+    return base_query.filter(or_(nested == 'CONFIRMED', flat == 'CONFIRMED')).count()
+
+
 def build_drawing_queue_filter(*, include_confirmed: bool = False):
     """도면 작업실 모집단 술어(SQL) — 라우트 행 필터의 **상위집합(superset)**.
 

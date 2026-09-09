@@ -125,7 +125,7 @@ def test_actor_team_mismatch_forbidden(client):
 
 
 # --------------------------------------------------------------------------- #
-# DRAWING/CONFIRM 단독 승인 → command-required 409
+# DRAWING 단독 승인 → command-required 409 / CONFIRM → 고객 컨펌 완료(전이 없음)
 # --------------------------------------------------------------------------- #
 def test_drawing_standalone_approval_is_command_required(client):
     """DRAWING 단독 quest 승인은 409(전용 command 로만) — 관리자도 예외 없음."""
@@ -139,16 +139,34 @@ def test_drawing_standalone_approval_is_command_required(client):
     assert resp.get_json().get("code") == "COMMAND_REQUIRED"
 
 
-def test_confirm_standalone_approval_is_command_required(client):
-    """CONFIRM 단독 quest 승인은 409(전용 command 로만) — 관리자도 예외 없음."""
+def test_confirm_approval_completes_quest_without_stage_transition(client):
+    """CONFIRM 승인은 quest 를 종결하고 고객 컨펌 사실을 남기되 stage 는 전이하지 않는다.
+
+    2026-07-26 가드는 짝이 될 ``CUSTOMER_CONFIRM`` command 없이 들어와 CONFIRM 을 막다른 골목으로
+    만들었다(승인 409 → 생산 시작도 quest 미완으로 409, 운영 #5193). 이 라우트가 그 빠진 단계를
+    품는다. 전이 금지 불변식은 그대로다 — CONFIRM→PRODUCTION 은 ``PRODUCTION_START`` 소관.
+    """
     user = _make_user(role="ADMIN", team="SALES", username="confirm-admin")
     _login(client, user)
     order = _create_order(stage="CONFIRM", quests=[_assignee_quest("CONFIRM")])
+    order_id = order.id
 
-    resp = client.post(f"/api/orders/{order.id}/quest/approve", json={})
+    resp = client.post(f"/api/orders/{order_id}/quest/approve", json={})
 
-    assert resp.status_code == 409, resp.get_json()
-    assert resp.get_json().get("code") == "COMMAND_REQUIRED"
+    assert resp.status_code == 200, resp.get_json()
+    body = resp.get_json()
+    assert body["all_approved"] is True
+    assert body["auto_transitioned"] is False, "CONFIRM 은 자동 전이하지 않는다"
+
+    db_session.expire_all()
+    refreshed = db_session.get(Order, order_id)
+    sd = refreshed.structured_data or {}
+    quest = next(q for q in sd["quests"] if q.get("stage") in ("CONFIRM", "고객컨펌"))
+    assert quest["status"] == "COMPLETED"
+    assert quest["assignee_approval"]["approved"] is True
+    assert (sd.get("blueprint") or {}).get("customer_confirmed") is True
+    stage = (sd.get("workflow") or {}).get("stage")
+    assert stage in ("CONFIRM", "고객컨펌"), f"stage 가 전이됐다: {stage}"
 
 
 # --------------------------------------------------------------------------- #

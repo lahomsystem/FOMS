@@ -35,6 +35,7 @@ from foms.services.orders.drawing_transfer import (
     materialize_pending_snapshot,
     materialize_transfer_attachments,
 )
+from foms.services.orders.upload_ticket import _file_type as attachment_file_type  # 확장자→image/video/file (첨부 정본과 같은 규칙)
 from foms.services.sidefx_outbox import enqueue_side_effect
 from foms.services.storage import get_storage
 from foms.api.files import build_file_view_url, build_file_download_url
@@ -194,6 +195,36 @@ def perform_drawing_transfer(
                 {OrderAttachment.category: 'drawing'},
                 synchronize_session=False
             )
+
+            # 위 UPDATE 는 **이미 있는 행**의 category 만 바꾼다. 도면 마법사 산출물
+            # (``orders/<id>/drawing_wizard/exports/``)은 첨부 행 자체가 없어(저장/전달 분리
+            # dc81a5658) 대상 0건으로 조용히 지나갔고, 주문 '도면' 탭(정본 =
+            # OrderAttachment category='drawing', foms/api/files/order_routes.py)은 전달·수령확정
+            # 뒤에도 영구 공백이었다. 전달은 도면이 그 정본에 등록되는 유일한 시점이므로
+            # 여기서 행 없는 key 를 만든다(수령확정 정리 로직의 keep 목록은 전달 이력에서
+            # 재구성되므로 현재 전달본은 보존된다).
+            existing_keys = {
+                row[0] for row in db.query(OrderAttachment.storage_key).filter(
+                    OrderAttachment.order_id == order_id,
+                    OrderAttachment.storage_key.in_(new_keys),
+                ).all()
+            }
+            for nf in new_files:
+                nf_key = ((nf or {}).get('key') or '').strip()
+                if not nf_key or nf_key in existing_keys:
+                    continue
+                nf_name = (((nf or {}).get('filename') or '').strip()
+                           or nf_key.rsplit('/', 1)[-1])
+                db.add(OrderAttachment(
+                    order_id=order_id,
+                    filename=nf_name[:255],
+                    file_type=attachment_file_type(nf_name),
+                    category='drawing',
+                    storage_key=nf_key,
+                    file_size=0,
+                    user_id=actor_uid,
+                ))
+                existing_keys.add(nf_key)
 
     transfer_info = {
         'action': 'TRANSFER',
