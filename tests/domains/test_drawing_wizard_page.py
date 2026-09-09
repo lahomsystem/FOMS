@@ -108,3 +108,19 @@ def test_workbench_detail_shows_wizard_entry_button(client):
     assert resp.status_code == 200
     body = resp.get_data(as_text=True)
     assert f"/drawing-workbench/{order_id}/wizard" in body
+
+
+def test_wizard_image_toolbar_exposes_trim_button(client):
+    """이미지 미니툴바에 '여백 자르기' 버튼 — 이미 올려둔(여백 포함) 그림을 사람이 직접
+    정리하는 진입로. 신규 라우트 없이 기존 asset 업로드 파이프라인을 다시 태운다."""
+    _login_admin(client)
+    order = _erp_order()
+
+    resp = client.get(f"/erp/drawing-workbench/{order.id}/wizard")
+
+    assert resp.status_code == 200
+    body = resp.get_data(as_text=True)
+    assert 'id="dws-mt-trim"' in body
+    assert "여백 자르기" in body
+    # 내용이 바뀐 wizard.js 는 SW staticCacheFirst 스테일 봉합 핀을 함께 올린다.
+    assert "js/drawing/wizard.js') }}?v=20260908b" not in body
