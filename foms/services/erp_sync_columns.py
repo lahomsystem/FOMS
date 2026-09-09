@@ -4,6 +4,7 @@ from foms.services.erp_display import (
     _normalize_date_to_yyyymmdd,
     clean_dict_like_name,
     erp_deposit_amount_from_structured,
+    manager_display_name,
 )
 from foms.services.datetime_kst import to_utc_naive
 from foms.services.erp_order_flags import is_erp_order_record
@@ -54,7 +55,7 @@ def sync_erp_flat_columns(order, structured_data: dict) -> None:
         return
 
     parties = (structured_data.get('parties') or {})
-    manager_name = clean_dict_like_name(((parties.get('manager') or {}).get('name')) or '')
+    manager_name = clean_dict_like_name(manager_display_name(parties))
     order.manager_name = manager_name or ''
 
     schedule = (structured_data.get('schedule') or {})

@@ -19,6 +19,7 @@ from foms.services.orders.estimate_defaults import (
 )
 from foms.services.orders.status_constants import STATUS
 from foms.services.order_display_utils import format_options_for_display, _ensure_dict
+from foms.services.erp_display import manager_display_name
 # 지오코드 enqueue 는 이제 생성자(order_create)가 tx-내 GEOCODE outbox 로 예약한다. 이
 # 바인딩은 namespace surface 계약(foms_namespace_surface_tests: order_pages 가 canonical
 # jobs.queue 를 재노출)을 위해 유지한다.
@@ -240,7 +241,7 @@ def index():
                 construction_date = (((sd.get('schedule') or {}).get('construction') or {}).get('date'))
                 if construction_date:
                     setattr(order_display_data, 'scheduled_date', construction_date)
-                manager_name = ((sd.get('parties') or {}).get('manager') or {}).get('name')
+                manager_name = manager_display_name(sd.get('parties'))
                 if manager_name:
                     setattr(order_display_data, 'manager_name', manager_name)
                 orderer_name = ((sd.get('parties') or {}).get('orderer') or {}).get('name')

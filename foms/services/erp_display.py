@@ -14,6 +14,7 @@ from foms.services.erp_policy import (
 )
 
 __all__ = [
+    'manager_display_name',
     "_normalize_for_search",
     "get_today_kst",
     "format_datetime_kst",
@@ -116,6 +117,28 @@ def _lookup_user_name_from_candidate(candidate_text):
     except Exception:
         return ''
     return ''
+
+
+def manager_display_name(parties) -> str:
+    """``structured_data["parties"]["manager"]`` 에서 표시명을 꺼낸다.
+
+    manager 는 dict(``{"name": ...}``)가 정본이지만 스칼라(이름 문자열·user id)도 들어온다
+    — :func:`normalize_manager_name` 이 두 모양을 다 받는 이유가 그것이다. dict 를 가정한
+    ``(parties.get("manager") or {}).get("name")`` 은 스칼라 주문 한 건에 AttributeError 를
+    내고 대시보드 전체를 500 으로 만든다(2026-09-09 실측 대시보드에서 재현).
+
+    Args:
+        parties: structured_data 의 parties dict(None·비 dict 허용).
+
+    Returns:
+        표시명 문자열. 값이 없으면 빈 문자열.
+    """
+    if not isinstance(parties, dict):
+        return ''
+    manager = parties.get('manager')
+    if isinstance(manager, dict):
+        return str(manager.get('name') or '').strip()
+    return str(manager or '').strip()
 
 
 def normalize_manager_name(value, fallback=''):
@@ -493,7 +516,7 @@ def _sales_domain_fallback_match(user, order, structured_data) -> bool:
         return False
     manager_names = set()
     parties = (structured_data.get('parties') or {}) if isinstance(structured_data, dict) else {}
-    manager_name_sd = ((parties.get('manager') or {}).get('name') or '').strip()
+    manager_name_sd = manager_display_name(parties)
     if manager_name_sd:
         manager_names.add(manager_name_sd.lower())
     manager_name_col = (order.manager_name or '').strip()

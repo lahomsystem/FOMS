@@ -18,7 +18,7 @@ from foms.services.orders.audit_order_context import order_audit_context
 from foms.services.datetime_kst import now_utc_naive
 from foms.services.erp_permissions import erp_edit_required
 from foms.services.erp_sync_columns import sync_erp_flat_columns
-from foms.services.erp_display import _ensure_dict
+from foms.services.erp_display import _ensure_dict, manager_display_name
 from foms.services.erp_policy import can_modify_domain, get_assignee_ids
 from foms.services.drawing_confirm_cleanup import finalize_drawing_files_on_confirm
 from foms.services.storage import get_storage
@@ -350,7 +350,7 @@ def api_order_confirm_drawing_receipt(order_id):
             if not sales_assignee_ids:
                 manager_names = set()
                 parties = (s_data.get('parties') or {}) if isinstance(s_data, dict) else {}
-                manager_name_sd = ((parties.get('manager') or {}).get('name') or '').strip()
+                manager_name_sd = manager_display_name(parties)
                 if manager_name_sd:
                     manager_names.add(manager_name_sd.lower())
 

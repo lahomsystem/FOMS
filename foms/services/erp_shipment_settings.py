@@ -9,6 +9,7 @@ import os
 
 from foms.persistence.main.db import db_session
 from foms.persistence.main.models import SystemSetting
+from foms.services.erp_display import manager_display_name
 
 __all__ = [
     "ERP_SHIPMENT_SETTINGS_KEY",
@@ -164,7 +165,7 @@ def is_order_mine_for_user(order, user):
     sd = getattr(order, 'structured_data', None) or {}
     if isinstance(sd, dict):
         parties = sd.get('parties') or {}
-        mn = ((parties.get('manager') or {}).get('name') or '').strip()
+        mn = manager_display_name(parties)
         if mn:
             manager_names.add(mn.lower())
         wf = sd.get('workflow') or {}

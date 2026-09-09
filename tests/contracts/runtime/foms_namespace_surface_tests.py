@@ -1577,6 +1577,7 @@ def test_namespaced_erp_shipment_settings_shim_preserves_canonical_contract() ->
 def test_namespaced_erp_display_shim_preserves_canonical_contract() -> None:
     """The legacy services path should re-export the canonical ERP display contract."""
     expected_public_names = [
+        "manager_display_name",
         "_normalize_for_search",
         "get_today_kst",
         "format_datetime_kst",

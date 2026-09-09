@@ -8,6 +8,7 @@ from typing import Any
 from foms.api.files.routes import build_file_download_url, build_file_view_url
 from foms.services.erp_display import (
     _ensure_dict,
+    manager_display_name,
     _erp_alerts,
     _erp_get_stage,
     _erp_has_media,
@@ -809,21 +810,6 @@ def build_mobile_queue_batch_context(
     )
 
 
-def _manager_display_name(parties: dict[str, Any]) -> str:
-    """parties.manager 에서 표시명을 꺼낸다(dict 정본 · 스칼라 허용).
-
-    Args:
-        parties: structured_data["parties"] dict.
-
-    Returns:
-        표시명 문자열. 값이 없으면 빈 문자열.
-    """
-    manager = parties.get("manager")
-    if isinstance(manager, dict):
-        return str(manager.get("name") or "").strip()
-    return str(manager or "").strip()
-
-
 def build_mobile_queue_order_row(db, order, current_user=None, *, batch_ctx=None) -> dict[str, Any]:
     """Build a dashboard-compatible dict for mobile v2 queue/detail templates.
 
@@ -891,7 +877,7 @@ def build_mobile_queue_order_row(db, order, current_user=None, *, batch_ctx=None
         # parties.manager 는 dict({name,...})가 정본이지만 스칼라(이름·user id)도 들어온다
         # (normalize_manager_name 이 두 모양을 다 받는다). dict 를 가정하면 그런 주문 한 건이
         # 모바일 큐 전체를 500 으로 만든다 — 2026-09-09 로컬 재현.
-        "manager_name": _manager_display_name(parties) or getattr(order, "manager_name", None) or "-",
+        "manager_name": manager_display_name(parties) or getattr(order, "manager_name", None) or "-",
         "manager_phone": resolve_manager_phone_for_queue(
             parties,
             order=order,
