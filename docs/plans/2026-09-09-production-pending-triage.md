@@ -79,6 +79,41 @@
 - 운영 `worker-heartbeat-daily` 09-08 21:27Z 실패 — `NAVER_SETTLE_SYNC` STALE 3479초. 09-09 05:44Z 실행은 success.
 - 이 워크트리 검증: 아래 갱신.
 
+## 판정 뒤 일어난 일 (같은 날 저녁)
+
+- **production 이 판정 중에 두 번 움직였다.** PR #337(E 채널톡 동시클릭 경합, `b3fa32f35`) · PR #338(D AS 전달 배정, `e4064acea`~`cc67d7188`) — 각자 세션이 승격했다. production `93a2addf7` → `9e89d8e3a`. deploy `12532a70f`(문서 1건 추가).
+- 사용자 선택(AskUserQuestion): 제품 **B·E**, 도구 **백필+ACL · drift 924 · perf 18466 · 하네스 나머지 통째**. A·D 는 제외. E 는 이미 운영에 있어 빠진다.
+- 승격 브랜치 `promote/triage-20260909`(worktree `c:/tmp/foms-promo-20260909`, base `9e89d8e3a`) — 7 커밋:
+
+| 커밋 | 출처 | 방식 |
+|---|---|---|
+| `0dbed45d0` B 지난 날짜 발송 띠 | deploy `bdff05c8b` | cherry-pick CLEAN |
+| `19a1bb271` ACL 가드 | deploy `f730cd851` | cherry-pick CLEAN |
+| `2d943b381` 백필 -9시간 갈래 철회 | deploy `7a4a8fd9b` | cherry-pick CLEAN |
+| `3a235ce8e` drift 기준선 924 | deploy `017153194` | cherry-pick CLEAN |
+| `031f1370a` perf 예산 18466 | deploy `c1eaaa024` 의 JSON 1줄만 | 파일 반입(코드 hunk 는 production 에 이미 동일) |
+| `99e704f1f` 하네스·도구·문서 동기화 | origin/deploy `12532a70f` 파일 125개 | 파일 반입 — A 파일 5개·`docs/harness/*.json` 제외 |
+| `ec234106a` 인벤토리 재생성 | 이 트리 코드 | 스캔 5종 실행(`--check` 전부 exit 0) |
+
+- **잔차 검사**: `git diff --name-only P origin/deploy` = A 파일 5개 + 인벤토리 JSON 4개(deploy 쪽은 A 항목을 품고 있어 다른 게 정상). 그 외 0 — 즉 P = deploy − A.
+- `promote_completeness.py --shas bdff05c8b,f730cd851,7a4a8fd9b,017153194` 는 `naver_ingest.py`·`naver_dispatch_strip.html` 을 건드린 타 커밋 12건을 `+`(missing)로 찍었다. 그 두 파일은 P 와 deploy 가 바이트 동일(잔차 0)이라 **내용은 이미 production 에 있고 SHA 만 다른 오탐**이다(원장 T10 의 `30836696` 과 같은 축).
+- 인벤토리 cherry-pick 함정: E 커밋을 옛 base 에 얹었을 때 `docs/AI_STATUS.md` 만 충돌했다(코드 무충돌). 새 base 에서는 E 자체를 빼서 문제 없음.
+
+## 검증 (승격 브랜치 P, HEAD `ec234106a`)
+
+```
+python -c "import app; print('APP_OK')"                         -> APP_OK
+python -m pytest tests/harness -q                                -> 471 passed
+python -m pytest -q --ignore=tests/visual --ignore=tests/harness -p no:playwright -n auto --dist loadfile
+                                                                 -> 9326 passed, 595 skipped
+CI 'UI structural' 서브셋(tests/visual 15 파일)                  -> 149 passed, 2 skipped
+scripts/ops/pre_push_smoke.ps1                                   -> PRE-PUSH SMOKE PASSED (exit 0)
+tools/harness/*_scan.py --check (5종)                             -> exit 0
+```
+
+- 브랜치 push → **PR #339** (`gh pr create --base production`, `HEAD:production` 직접 push 없음). 머지는 사용자 확인 뒤.
+- 남는 것: PR 검사 4종(FOMS CI · Harness CI · PostgreSQL Lane · perf-gate) 결과 → 사용자 머지 결정 → 머지 후 `/healthz` SHA 확인, `drift-audit-daily` 다음 실행(기준선 924) 관측, `promote/triage-20260909` 워크트리 정리.
+
 ## 검증 (이 워크트리, HEAD `103eb092e` = origin/deploy)
 
 코드 변경 없음. deploy 트리 그대로 검증 명령을 돌렸다.
