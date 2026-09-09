@@ -309,7 +309,7 @@ def _worker_payload(ntype):
         ntype=ntype,
         target_type="ROLE",
         target_role="ADMIN",
-        title="백그라운드 작업이 멈췄습니다",
+        title="자동 처리가 멈췄습니다",
         message="RQ_WORKER(11분째) 응답 없음",
     )
     return _build_payload(notif)
@@ -317,8 +317,8 @@ def _worker_payload(ntype):
 
 def test_worker_health_push_titles_name_the_event(db):
     """제목이 "새 알림" 이면 잠금화면만 보고는 무슨 일인지 알 수 없다(그게 그날 밤이었다)."""
-    assert _worker_payload("WORKER_STALLED")["title"] == "백그라운드 작업 멈춤"
-    assert _worker_payload("WORKER_RECOVERED")["title"] == "백그라운드 작업 복구"
+    assert _worker_payload("WORKER_STALLED")["title"] == "자동 처리가 멈췄습니다"
+    assert _worker_payload("WORKER_RECOVERED")["title"] == "자동 처리가 다시 시작됐습니다"
 
 
 def test_worker_health_push_body_says_what_to_do_without_details(db):

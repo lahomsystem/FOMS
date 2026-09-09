@@ -69,8 +69,8 @@ ENABLED_ENV = "FOMS_WORKER_WATCHDOG_ENABLED"
 
 _TRUTHY = frozenset({"1", "true", "yes", "on"})
 
-_TITLE_STALLED = "백그라운드 작업이 멈췄습니다"
-_TITLE_RECOVERED = "백그라운드 작업이 다시 돌고 있습니다"
+_TITLE_STALLED = "자동 처리가 멈췄습니다"
+_TITLE_RECOVERED = "자동 처리가 다시 시작됐습니다"
 
 
 def is_enabled() -> bool:
@@ -129,7 +129,7 @@ def _write_state(session: Any, value: dict) -> None:
 def _message(health: dict, *, stalled: bool) -> str:
     """사람이 읽는 한 줄. 무엇이 몇 분째 멎었는지까지 말한다."""
     if not stalled:
-        return "멈췄던 백그라운드 작업이 다시 돌기 시작했습니다. 밀려 있던 요청은 순서대로 처리됩니다."
+        return "멈췄던 자동 처리가 다시 시작됐습니다. 밀려 있던 요청은 순서대로 처리됩니다."
     parts = []
     for kind in health["stale_kinds"]:
         minutes = max(1, round(health["ages"].get(kind, 0) / 60))

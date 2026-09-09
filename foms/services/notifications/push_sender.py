@@ -180,9 +180,9 @@ def _generic_title(urgent: bool, ntype: str) -> str:
     if ntype == "URGENT_ESCALATION":
         return "에스컬레이션"
     if ntype == "WORKER_STALLED":
-        return "백그라운드 작업 멈춤"
+        return "자동 처리가 멈췄습니다"
     if ntype == "WORKER_RECOVERED":
-        return "백그라운드 작업 복구"
+        return "자동 처리가 다시 시작됐습니다"
     return "새 알림"
 
 
