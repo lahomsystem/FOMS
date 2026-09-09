@@ -2044,7 +2044,8 @@ def _origin_view(db, link: Optional[ExternalOrderLink],
     from foms.services.integrations.naver_commerce.order_candidates import origin_facts
 
     empty = {"link_count": 0, "claim_code": "", "claim_label": "",
-             "alive_rows": [], "stale_any": False, "sweep": {}}
+             "alive_rows": [], "stale_any": False, "sweep": {},
+             "claim_stamp": ""}
     if link is None or not link.order_id:
         return empty
     exclude = set(int(i) for i in ((household or {}).get("link_ids") or []))
@@ -2071,7 +2072,35 @@ def _origin_view(db, link: Optional[ExternalOrderLink],
         except (ValueError, TypeError, AttributeError) as exc:  # 보조 정보라 흐름을 막지 않는다
             logger.warning("[NAVER] 수집 상태 조회 실패: %s", exc)
     facts["sweep"] = sweep
+    facts["claim_stamp"] = _claim_stamp_text(facts)
     return facts
+
+
+def _claim_stamp_text(facts: dict[str, Any]) -> str:
+    """확정된 옛 클레임의 도장 한 줄 — ``09-08 15:27 · 환불 1,156,500원`` (2026-09-09 P-4).
+
+    담당자는 `옛 주문 반품 완료 — 할 일 없습니다` 만 보고 **언제 끝났고 얼마가 돌아갔는지**
+    를 판매자센터에서 따로 확인하고 있었다. 두 값 다 수집해 둔 원본에 있다
+    (:func:`mapping.extract_claim_settlement_facts`).
+
+    **모르는 조각은 아예 안 낸다.** 시각이 없으면 시각을, 금액을 못 읽었으면 금액을 뺀다 —
+    빈 칸이나 ``0원`` 으로 채우면 "값이 없다"와 "우리가 모른다"가 같은 모양이 된다
+    (반품 축 ``known`` 규율과 같다). 둘 다 없으면 빈 문자열이라 화면이 도장을 안 찍는다.
+
+    Args:
+        facts: :func:`order_candidates.origin_facts` 결과.
+
+    Returns:
+        가운뎃점으로 이은 한 줄(``MM-DD HH:MM · 환불 N원``). 낼 것이 없으면 빈 문자열.
+    """
+    parts: list[str] = []
+    done_at = str(facts.get("claim_done_at") or "")
+    if done_at:
+        # 연도는 목록·머리줄 규칙과 같이 뗀다 — 옛 주문은 전부 올해다.
+        parts.append(format_datetime_kst(done_at, "%m-%d %H:%M") or done_at)
+    if facts.get("refund_known"):
+        parts.append(f"환불 {int(facts.get('refund_total') or 0):,}원")
+    return " · ".join(parts)
 
 
 def _ghost_discard_view(db, link: Optional[ExternalOrderLink]) -> dict[str, Any]:

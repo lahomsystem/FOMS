@@ -416,6 +416,51 @@ def extract_cancel_axis(detail: Any) -> dict:
     }
 
 
+def extract_claim_settlement_facts(detail: Any) -> dict:
+    """확정된 클레임의 **언제·얼마** — 도장 한 줄이 읽는 두 값 (2026-09-09 P-4).
+
+    재결제로 갈아탄 옛 주문 pane 은 지금 `옛 주문 반품 완료 — 고객이 이미 처리해 할 일
+    없습니다` 까지만 말한다. 담당자가 실제로 확인해야 하는 것은 **언제 확정됐고 얼마가
+    돌아갔나**인데, 그 두 값은 판매자센터를 따로 열어야 보였다.
+
+    두 값 다 이미 수집해 둔 원본에 있다(2026-09-09 운영 읽기 전용 확인):
+
+    * 확정 시각 — 취소는 ``cancelCompletedDate``(운영 358건 전부), 반품은
+      ``returnCompletedDate``(166건 전부). 종류에 따라 **한쪽만** 실려 오므로 둘을 잇는다.
+      블록 탐색은 이미 갈라 둔 축(:func:`_cancel_blocks`·:func:`_return_blocks`)을 쓴다 —
+      한 축으로 합치면 2026-08-27 에 고친 누출(취소 블록 값이 반품 진행으로 샌다)이 산다.
+    * 환불액 — ``initialPaymentAmount - remainPaymentAmount``. ``totalPaymentAmount`` 를
+      그대로 쓰면 **부분 환불**에서 틀린다(운영 2건). 클레임이 없는 1,766건은 두 값이
+      정확히 같아 이 뺄셈이 0 이다 — 음성 대조군이 데이터 안에 이미 있다.
+
+    Args:
+        detail: 상품주문 상세 1건(dict 가 아니면 전부 빈 값).
+
+    Returns:
+        ``{"completed_at", "refunded_amount", "known"}``. 시각은 **원문 문자열 그대로**
+        (형식 변환은 화면 몫), 금액은 원 단위 int (못 읽으면 ``None``).
+        ``known`` 이 False 면 화면은 그 조각을 **안 낸다** — 0원이라고 적으면
+        "환불이 없었다"와 "우리가 모른다"가 같은 모양이 된다.
+    """
+    completed_at = (_first_text(_cancel_blocks(detail), "cancelCompletedDate")
+                    or _first_text(_return_blocks(detail), "returnCompletedDate"))
+    _order, product_order, _shipping = unwrap_detail(detail)
+    product_order = product_order or {}
+    initial = product_order.get("initialPaymentAmount")
+    remain = product_order.get("remainPaymentAmount")
+    refunded = None
+    if isinstance(initial, int) and isinstance(remain, int):
+        # 음수는 우리가 모르는 모양이다 — 화면에 -3,000원 을 찍느니 말하지 않는다.
+        refunded = initial - remain
+        if refunded < 0:
+            refunded = None
+    return {
+        "completed_at": completed_at,
+        "refunded_amount": refunded,
+        "known": bool(completed_at) or refunded is not None,
+    }
+
+
 def _return_blocks(detail: Any) -> list[dict]:
     """**반품 축**이 읽을 블록만 우선순위 순으로 모은다 (2026-08-27 CEO A1).
 
