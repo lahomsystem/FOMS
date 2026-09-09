@@ -158,3 +158,62 @@ def test_expiry_and_retention_are_required_too():
     hb = {WORKER_KIND_DELIVERY: {"age_seconds": 5, "oldest_lag_seconds": 1}}
     summary = summarize_heartbeats(_obs(**hb))
     assert set(summary["not_ready"]) == {WORKER_KIND_EXPIRY_SCAN, WORKER_KIND_RETENTION}
+
+
+# --------------------------------------------------------------------------- #
+# 4. 결론은 CLI 와 같은 네 축이다 (2026-09-09 — 반쪽 판정 종결)
+#
+# 이 조회는 하트비트 유무·신선도 두 축만 봤다. 그래서 소비 프로세스는 살아 있는데 잡이
+# 밀리거나 DEAD 로 쌓이는 상태(운영 DEAD 1,344건이 실재했다)에서 CLI 는 not-ready 인데
+# 매일 자동 점검은 "전부 신선" 이라 말할 수 있었다.
+# --------------------------------------------------------------------------- #
+def test_dead_jobs_make_the_verdict_not_ready_even_when_every_heartbeat_is_fresh():
+    """DEAD 가 쌓이면 결론이 not-ready 다 — 하트비트 표는 여전히 전부 초록이다."""
+    obs = _obs(**_healthy_outbox())
+    obs["dead_count"] = 3
+    summary = summarize_heartbeats(obs)
+
+    assert summary["not_ready"] == [], "하트비트 축은 멀쩡하다(이 축만 보면 초록이었다)"
+    assert summary["ready"] is False, "DEAD 3건인데 준비됐다고 말했다"
+    assert summary["dead_count"] == 3
+    assert any(f["check"] == "dead_count" for f in summary["failures"])
+
+
+def test_a_backed_up_queue_makes_the_verdict_not_ready():
+    """가장 오래 밀린 잡이 한도를 넘으면 not-ready — 큐가 돈다는 말과 다르다."""
+    obs = _obs(**_healthy_outbox())
+    obs["oldest_pending_lag"] = 600
+    summary = summarize_heartbeats(obs)
+
+    assert summary["not_ready"] == []
+    assert summary["ready"] is False, "10분 밀린 큐를 준비됐다고 말했다"
+    assert summary["oldest_pending_lag"] == 600
+
+
+def test_a_stalled_expiry_scan_makes_the_verdict_not_ready():
+    """scan lag 축도 결론에 들어온다(하트비트는 신선한데 스캔만 멎은 상태)."""
+    hb = _healthy_outbox()
+    hb[WORKER_KIND_EXPIRY_SCAN] = {"age_seconds": 5, "oldest_lag_seconds": 99999}
+    summary = summarize_heartbeats(_obs(**hb))
+
+    assert summary["not_ready"] == []
+    assert summary["ready"] is False, "만료 스캔이 멎었는데 준비됐다고 말했다"
+
+
+def test_a_clean_system_is_ready():
+    """양성 대조군 — 네 축이 모두 깨끗하면 준비됐다고 말한다(항상 빨간불이면 아무도 안 본다)."""
+    summary = summarize_heartbeats(_obs(**_healthy_outbox()))
+
+    assert summary["ready"] is True
+    assert summary["failures"] == []
+    assert summary["dead_count"] == 0
+
+
+def test_an_unjudgeable_kind_blocks_the_verdict():
+    """등록부에 없는 kind 가 있으면 결론도 준비 안 됨이다 — 판정 불가는 초록이 아니다."""
+    hb = _healthy_outbox()
+    hb["SOME_NEW_LOOP"] = {"age_seconds": 5}
+    summary = summarize_heartbeats(_obs(**hb))
+
+    assert summary["unknown_kinds"] == ["SOME_NEW_LOOP"]
+    assert summary["ready"] is False, "판정할 수 없는 신호를 초록으로 넘겼다"

@@ -240,6 +240,8 @@ if ($Full) {
         "tests/domains/test_order_sync_cadence.py",
         "tests/domains/test_worker_sentry_wiring.py",
         "tests/domains/test_worker_watchdog.py",
+        "tests/domains/test_ops_worker_heartbeat_endpoint.py",
+        "tests/domains/test_worker_heartbeat_daily_wiring.py",
         "tests/harness/test_hook_log_hygiene.py::test_ai_status_head_budget",
         "tests/visual/test_staging_mobile_v2_assets.py",
         "tests/visual/test_p1_mockup_structure.py",
