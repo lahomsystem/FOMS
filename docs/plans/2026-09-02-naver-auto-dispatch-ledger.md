@@ -11,7 +11,7 @@
 | T2 러너(`--once`/`--loop --at`) | DONE | 시각 창 판정·형식 오류 거절 계약 green |
 | T3 `start.sh` 배선 + env 3종 | DONE | WORKER 분기 안·기본 꺼짐·백그라운드(&) 계약 green |
 | T4 화면 안내 한 줄 | DONE | 두 띠가 **같은 값**(build_preview `auto`)을 읽는다 |
-| T5 게이트·푸시·승격 | 진행 중 | pre_push_smoke exit 0 · CI 전 워크플로 green |
+| T5 게이트·푸시·승격 | DONE | pre_push_smoke exit 0 · CI 전 워크플로 green |
 
 ## 사용자 결정 (2026-09-02)
 
@@ -57,3 +57,37 @@
    실행한다.
 3. 운영 env 3종 투입: `FOMS_NAVER_AUTO_DISPATCH_ENABLED=1`(+ 필요 시 시각·창).
    **변수만 넣으면 안 켜진다** — 새 부팅이 있어야 프로세스가 새 env 를 든다.
+
+## 스테이징 실증 (2026-09-02)
+
+워커 env 3종 투입 + 재배포 후 로그로 확인:
+
+- 기동: `[naver-auto-dispatch] started (at=14:50 window=10m tick=60s)` (검증용으로 시각을
+  임박한 14:50 으로 잠깐 두고 관측, 확인 뒤 16:50 으로 되돌림).
+- 14:50:18 창에서 실제 판정 실행 → `no_target`(그날 스테이징에 보낼 집 0) → **아무것도
+  보내지 않고** 알림·감사도 만들지 않았다(설계대로 조용히).
+- 이후 매 tick 은 `2026-09-02 은 이미 실행했다 — 건너뛴다` — **하루 1회 계약이 실환경에서
+  작동**함을 확인.
+- 상태 행 실측: `{"last_outcome": "no_target", "last_run_date": "2026-09-02",
+  "last_run_at": "2026-09-02T14:50:18+09:00", "last_summary": {"queued": 0, "blocked": 0}}`.
+
+**스테이징에서 실제 발송 경로는 일부러 돌리지 않았다** — 스테이징 워커도 같은 커머스
+계정을 써서, 시드 주문에 실제 상품주문번호를 붙이면 **진짜 발송처리가 나간다**.
+
+## 운영 반영 완료 (2026-09-02)
+
+- 승격 PR **#270** 머지 — production `51c366e9`. 검사 4종 SUCCESS · CLEAN ·
+  승격 트리에서 본 스위트 8,046 passed + pre_push_smoke exit 0.
+- 재배포 전 큐 안전 판정: `check_worker_redeploy_safe.py` → **exit 0(지금 재배포해도 된다)**
+  — 진행 중 작업 없음 · 큐 비어 있음.
+- 운영 WORKER env 투입: `FOMS_NAVER_AUTO_DISPATCH_ENABLED=1` ·
+  `FOMS_NAVER_BULK_DISPATCH_ENABLED=1` · `FOMS_NAVER_AUTO_DISPATCH_AT=16:50`.
+- **워커 재배포 완료** → 로그 확인:
+  `[naver-auto-dispatch] started (at=16:50 window=10m tick=60s)` (escalation·수집 루프도 정상 기동).
+  변수만 넣으면 안 켜진다는 함정을 피해, **새 부팅 뒤 로그로** 판정했다.
+
+## 남은 관측
+
+오늘 16:50 첫 실제 실행. 볼 것 셋: ① 워커 로그 `naver auto-dispatch: outcome=...`
+② 관리자 알림 1건(보낸 집이 있을 때만) ③ 실측 대시보드 띠가 "발송됨"으로 바뀌는지.
+끄는 법은 `FOMS_NAVER_AUTO_DISPATCH_ENABLED=0` + 워커 재배포다.

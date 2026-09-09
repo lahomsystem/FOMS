@@ -1,10 +1,14 @@
-# 원격(Railway) DB 초기화 후 로컬 Postgres 완전 복사
+﻿# 원격(Railway) DB 초기화 후 로컬 Postgres 완전 복사
 # 운영 절차서: docs/guides/RAILWAY_LOCAL_TO_REMOTE_SYNC.md
 # 사용: 프로젝트 루트에서 .\scripts\ops\sync_local_to_railway.ps1
 # 덤프 경로: FOMS_RUNTIME_OUTPUT_ROOT\dumps\foms.dump (미설정 시 %USERPROFILE%\FOMS-runtime)
 #
 # ⛔ 금지: 로컬 Postgres DB는 절대 삭제/초기화하지 않음.
 #    로컬에는 pg_dump(읽기)만 수행하고, pg_restore(--clean)는 원격(DATABASE_URL)에만 적용.
+
+# Win11 cp949 console: force UTF-8 output so Korean text is not mangled.
+$OutputEncoding = New-Object System.Text.UTF8Encoding $false
+[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false
 
 $ErrorActionPreference = "Stop"
 $ProjectRoot = Split-Path $PSScriptRoot -Parent

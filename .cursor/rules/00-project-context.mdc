@@ -28,5 +28,6 @@ alwaysApply: true
 - 수동: `/auto-status-update` 워크플로우 실행
 
 ## 디렉토리 구조 핵심
-- `app.py`: Flask 앱 초기화(최소화, 라우트 추가 금지 — 새 API는 `apps/api/` Blueprint)
-- `services/`: 비즈니스 로직·정책 엔진, `templates/`: HTML, `static/`: JS·CSS
+- `app.py`: Flask 앱 초기화(최소화, 라우트 추가 금지 — 새 라우트는 `foms/api/`(JSON·API·webhook)·`foms/web/`(HTML 페이지) Blueprint, 등록 정본은 `foms/platform/blueprints.py`)
+- `foms/services/`: 비즈니스 로직·정책 엔진, `templates/`: HTML, `static/`: JS·CSS
+- `models.py`: DB 모델 / 상수는 도메인 모듈 옆(예 `foms/services/orders/erp_policy_constants.py`) — 루트 단일 상수 모듈은 없다

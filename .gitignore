@@ -132,6 +132,7 @@ docs/context/analysis/browser_audit_*/
 
 # tools/ runtime noise (§2.2.1: tools/ is harness|smoke|research_center only)
 tools/request_log.txt
+tools/research_center/.tmp_*
 
 # gstack setup/runtime generated artifacts
 .agents/skills/gstack-*/

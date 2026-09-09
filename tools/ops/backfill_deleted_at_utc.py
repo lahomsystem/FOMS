@@ -15,10 +15,12 @@
   TZ 를 모르고, 대조로 쓸 UTC 컬럼도 없다 — ``Order.created_at`` 기본값도
   ``datetime.datetime.now``, ``models.py:36``). 모르는 값을 옮기지 않는다가 계약이다.
   ``datetime.fromisoformat`` 파싱 실패 행은 건드리지 않고 skipped 로만 센다.
-* ``legacy_kst`` — 고정폭 ``^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}$`` 이고
-  ``status='DELETED'`` 이고 ``original_status IS NOT NULL`` 이고
-  ``structured_data['delete']`` 가 없다 → legacy 일괄 삭제가 KST 로 적은 행이다.
-  **-9시간** 보정한다.
+* ``legacy_kst`` — **2026-09-08 철회. 지금은 아무것도 바꾸지 않는다**
+  (``legacy_kst_retired`` 로만 센다). 이 갈래는 고정폭 행이 KST 로 적혔다는 전제로
+  -9시간을 깎았는데 운영 실측이 전제를 뒤집었다: 234행을 보정하면 **85행의 삭제 시각이
+  자기 주문 생성 시각보다 앞서고**(보정 전 0행), 지금 값을 UTC 로 읽어야 176행이
+  업무시간(09-19시 KST)에 들어온다 — KST 로 읽으면 20행뿐이고 23시·00시·07시에 몰린다.
+  그 행들은 이미 규약대로다. 상수와 -9시간 변환 함수는 남긴다(이미 적힌 저널의 되돌리기).
 
 **두 마커는 배타이고, 판정은 문자열 모양(``T`` 유무)이 먼저다.** 여기에 함정이 하나 있다:
 초안 폐기가 남긴 ISO 행은 ``status='DELETED'`` + ``original_status='DRAFT'`` + delete meta

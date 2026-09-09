@@ -36,6 +36,9 @@ _PTC_ROOT_ALLOWLIST: frozenset[str] = frozenset(
         "tests",
         "tools",
         ".dockerignore",
+        # 2026-09-07: 두 번째 개발자 부팅 경로(검토 보고서 ④ 지금 7번). 키 이름만 담고
+        # 값은 없다 — README 3단계가 이 파일을 복사해 채우라고 지시한다.
+        ".env.example",
         ".gcloudignore",
         ".gitattributes",
         ".gitignore",

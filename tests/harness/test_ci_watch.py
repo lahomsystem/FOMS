@@ -81,6 +81,34 @@ def test_failures_filters_only_failure(mod) -> None:
     assert mod.failures(runs) == [{"conclusion": "failure", "workflowName": "x"}]
 
 
+# CI-CONCLUSION-01 회귀 가드: 완주하지 못한 run 을 green 으로 읽지 않는다.
+@pytest.mark.parametrize(
+    "conclusion",
+    ["cancelled", "timed_out", "startup_failure", "action_required", "stale", "skipped", "neutral"],
+)
+def test_non_success_conclusions_are_not_green(mod, conclusion) -> None:
+    """success 가 아닌 종료 상태는 전부 실패로 집계된다.
+
+    실사례: perf-gate 의 cancelled 4 건이 예전 구현에서 green 으로 보고됐다.
+    """
+    runs = [{"conclusion": "success"}, {"conclusion": conclusion, "workflowName": "w", "databaseId": 1}]
+    assert mod.failures(runs) == [{"conclusion": conclusion, "workflowName": "w", "databaseId": 1}]
+
+
+def test_cancelled_run_yields_needs_fix_exit_code(mod) -> None:
+    """cancelled run 은 로그 조회 없이 exit 1(조치 필요)로 수렴한다."""
+    printed: list[str] = []
+    code = mod.handle_failures(
+        [{"conclusion": "cancelled", "workflowName": "perf-gate", "databaseId": 7}],
+        "abc1234",
+        "https://example.invalid/healthz",
+        set(),
+        printer=printed.append,
+    )
+    assert code == 1, printed
+    assert any("cancelled" in line for line in printed), printed
+
+
 @pytest.mark.parametrize(
     "actions,expected",
     [

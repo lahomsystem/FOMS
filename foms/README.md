@@ -2,7 +2,7 @@
 
 ## 목적
 
-Flask 앱의 **canonical runtime tree** (`foms/web`, `foms/api`, `foms/services`, `foms/platform`, …)에 대한 사람/AI용 **내비게이션 진입점**이다. 레거시 등록 경로는 `apps/`에 남아 있으며, 신규 구현은 이 트리 우선이다 (controlling spec §2.4).
+Flask 앱의 **canonical runtime tree** (`foms/web`, `foms/api`, `foms/services`, `foms/platform`, …)에 대한 사람/AI용 **내비게이션 진입점**이다. 전환기의 레거시 등록 오버레이(구 apps 레이아웃)는 2026-04 strict canonical tree 작업으로 제거됐고, 지금은 등록·구현 모두 이 트리가 정본이다 (controlling spec §2.4).
 
 ## 주요 모듈 (요약)
 
@@ -19,16 +19,16 @@ Flask 앱의 **canonical runtime tree** (`foms/web`, `foms/api`, `foms/services`
 2. Live blueprint 순서: `foms/platform/blueprints.py` (`register_blueprints`)
 3. **FR20 로컬 README 앵커** (bounded context별 단일 진입점):
    - Measurement: `foms/web/measurement/README.md`
-   - Orders API: `foms/api/orders/README.md`
-4. 레거시 Flask 등록 경로: `apps/` (전환기; Wave 2에서 adapter/alias 계약 고정)
+   - Orders API: `foms/api/orders/` — 로컬 README 는 아직 없다. 진입점은 `foms/api/orders/__init__.py`
+4. 전환기 레거시 등록 오버레이의 제거 기록: `docs/plans/2026-04-13-wave2-batch1-blueprint-truth-map-run-record.md` (제거 후 등록 진입점은 위 2번 하나뿐이다)
 
 ## 금지 / 주의 의존성
 
 - `foms/*`에서 `Add In Program/`, `SCheduler/` 등 **quarantine** 트리로의 runtime import 금지 (spec §2.5).
-- `apps/`는 **overlay** — 새 장기 비즈니스 로직의 기본 위치로 삼지 않는다 (spec §1.2 FR5).
+- 구 overlay 트리(spec §1.2 FR5 가 "새 장기 비즈니스 로직의 기본 위치로 삼지 않는다" 고 못박았던 그 트리)는 이제 저장소에 없다 — 비즈니스 로직은 `foms/services/` 에 둔다.
 - 구조 작업 시 blueprint **이름·`url_prefix`·등록 순서**는 별도 승인 없이 바꾸지 않는다 (Wave 2 freeze).
 
 ## 관련 기록
 
 - Wave 2 truth map: `docs/plans/2026-04-13-wave2-batch1-blueprint-truth-map-run-record.md`
-- `src/`: non-product / tooling-adjacent — `src/README.md` 참고 (Wave 1 분류).
+- Wave 1 이 non-product / tooling-adjacent 로 분류했던 src 트리는 지금 저장소에 없다. 분류 기록만 위 Wave 문서에 남아 있다.

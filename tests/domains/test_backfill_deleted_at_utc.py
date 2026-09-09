@@ -67,8 +67,17 @@ def _journal_lines(path: Path) -> list[dict[str, Any]]:
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line]
 
 
-def test_legacy_kst_row_shifts_back_nine_hours(app, tmp_path) -> None:
-    """legacy 일괄 삭제 표식 행은 -9시간 보정되고 표식이 남는다."""
+def test_legacy_bulk_delete_row_is_left_alone(app, tmp_path) -> None:
+    """legacy 일괄 삭제 표식 행은 **아무것도 바뀌지 않는다** (2026-09-08 갈래 철회).
+
+    이 갈래는 그 행들이 KST 로 적혔다는 전제로 -9시간을 깎았다. 운영 실측이 전제를
+    뒤집었다 — 234행을 보정하면 85행의 삭제 시각이 자기 주문 **생성 시각보다 앞서고**,
+    지금 값을 UTC 로 읽어야 176행이 업무시간(09-19시 KST)에 들어온다. 보정하면 그 삭제가
+    전부 새벽으로 옮겨간다.
+
+    이 테스트가 빨개지면 9시간 오차가 운영 234행에 영구히 박힌다 — 되돌릴 저널이 없으면
+    복구할 길도 없다.
+    """
     order = _make_order(
         deleted_at="2026-09-07 17:41:00", status="DELETED", original_status="RECEIVED"
     )
@@ -76,24 +85,14 @@ def test_legacy_kst_row_shifts_back_nine_hours(app, tmp_path) -> None:
 
     summary = run_backfill(db_session, apply=True, journal_path=str(journal))
 
-    assert summary["markers"][MARKER_LEGACY_KST] == {"scanned": 1, "changed": 1, "skipped": 0}
+    assert summary["changed"] == 0
+    assert summary["markers"][MARKER_LEGACY_KST]["scanned"] == 0
     assert summary["markers"][MARKER_ISO]["scanned"] == 0
+    assert summary["skipped"].get("legacy_kst_retired") == 1
     saved = _reload(order.id)
-    assert saved.deleted_at == "2026-09-07 08:41:00"
-    # 판정 축은 건드리지 않는다.
-    assert saved.status == "DELETED"
-    assert saved.original_status == "RECEIVED"
-    assert "delete" not in saved.structured_data
-    assert saved.structured_data[BACKFILL_KEY]["marker"] == MARKER_LEGACY_KST
-    assert saved.structured_data[BACKFILL_KEY]["before"] == "2026-09-07 17:41:00"
-    assert _journal_lines(journal) == [
-        {
-            "order_id": order.id,
-            "marker": MARKER_LEGACY_KST,
-            "before": "2026-09-07 17:41:00",
-            "after": "2026-09-07 08:41:00",
-        }
-    ]
+    assert saved.deleted_at == "2026-09-07 17:41:00", "철회한 갈래가 시각을 옮겼다"
+    assert BACKFILL_KEY not in saved.structured_data, "안 바꾼 행에 표식이 남았다"
+    assert _journal_lines(journal) == []
 
 
 def test_iso_row_is_format_normalized_without_moving_the_clock(app, tmp_path) -> None:
@@ -127,17 +126,19 @@ def test_iso_draft_row_survives_two_applies(app, tmp_path) -> None:
 
 def test_second_apply_changes_nothing_and_journal_is_empty(app, tmp_path) -> None:
     """멱등 — 2회차는 changed=0 이고 2회차 저널이 0행이다."""
-    legacy = _make_order(
-        deleted_at="2026-09-07 17:41:00", status="DELETED", original_status="RECEIVED"
+    # 바뀌는 마커는 이제 ``iso`` 하나뿐이다(``legacy_kst`` 는 2026-09-08 에 철회했다).
+    iso_one = _make_order(
+        deleted_at="2026-09-07T17:41:00.123456", status="DELETED", original_status="DRAFT"
     )
-    iso = _make_order(
+    iso_two = _make_order(
         deleted_at="2026-09-06T23:10:30", status="DELETED", original_status="DRAFT"
     )
     first_journal = tmp_path / "run1.jsonl"
     second_journal = tmp_path / "run2.jsonl"
 
     first = run_backfill(db_session, apply=True, journal_path=str(first_journal))
-    frozen = {legacy.id: _reload(legacy.id).deleted_at, iso.id: _reload(iso.id).deleted_at}
+    frozen = {iso_one.id: _reload(iso_one.id).deleted_at,
+              iso_two.id: _reload(iso_two.id).deleted_at}
     second = run_backfill(db_session, apply=True, journal_path=str(second_journal))
 
     assert first["changed"] == 2
@@ -196,7 +197,7 @@ def test_unparsable_value_is_only_counted_as_skipped(app, tmp_path) -> None:
 def test_dry_run_writes_journal_but_not_the_row(app, tmp_path) -> None:
     """dry-run 은 값·structured_data 를 안 바꾸고 저널(미리보기)만 남긴다."""
     order = _make_order(
-        deleted_at="2026-09-07 17:41:00", status="DELETED", original_status="RECEIVED"
+        deleted_at="2026-09-07T17:41:00.123456", status="DELETED", original_status="DRAFT"
     )
     journal = tmp_path / "preview.jsonl"
 
@@ -205,14 +206,14 @@ def test_dry_run_writes_journal_but_not_the_row(app, tmp_path) -> None:
     assert summary["mode"] == "dry-run"
     assert summary["changed"] == 1
     saved = _reload(order.id)
-    assert saved.deleted_at == "2026-09-07 17:41:00"
+    assert saved.deleted_at == "2026-09-07T17:41:00.123456"
     assert BACKFILL_KEY not in saved.structured_data
     assert _journal_lines(journal) == [
         {
             "order_id": order.id,
-            "marker": MARKER_LEGACY_KST,
-            "before": "2026-09-07 17:41:00",
-            "after": "2026-09-07 08:41:00",
+            "marker": MARKER_ISO,
+            "before": "2026-09-07T17:41:00.123456",
+            "after": "2026-09-07 17:41:00",
         }
     ]
 
@@ -220,21 +221,21 @@ def test_dry_run_writes_journal_but_not_the_row(app, tmp_path) -> None:
 def test_revert_restores_original_value_and_removes_marker(app, tmp_path) -> None:
     """되돌리기 — 저널의 before 로 복원하고 표식을 지운다."""
     order = _make_order(
-        deleted_at="2026-09-07 17:41:00", status="DELETED", original_status="RECEIVED"
+        deleted_at="2026-09-07T17:41:00.123456", status="DELETED", original_status="DRAFT"
     )
     journal = tmp_path / "run1.jsonl"
     run_backfill(db_session, apply=True, journal_path=str(journal))
-    assert _reload(order.id).deleted_at == "2026-09-07 08:41:00"
+    assert _reload(order.id).deleted_at == "2026-09-07 17:41:00"
 
     preview = run_revert(db_session, str(journal), apply=False)
     assert preview == {"mode": "revert-dry-run", "scanned": 1, "reverted": 1, "skipped": {}}
-    assert _reload(order.id).deleted_at == "2026-09-07 08:41:00"
+    assert _reload(order.id).deleted_at == "2026-09-07 17:41:00"
 
     summary = run_revert(db_session, str(journal), apply=True)
 
     assert summary == {"mode": "revert", "scanned": 1, "reverted": 1, "skipped": {}}
     restored = _reload(order.id)
-    assert restored.deleted_at == "2026-09-07 17:41:00"
+    assert restored.deleted_at == "2026-09-07T17:41:00.123456"
     assert BACKFILL_KEY not in restored.structured_data
 
 
@@ -274,7 +275,7 @@ def test_rerun_refuses_to_overwrite_the_journal(app, tmp_path) -> None:
     그래서 **파일이 비지 않았는지**까지 봐야 대조군이다.
     """
     order = _make_order(
-        deleted_at="2026-09-07 17:41:00", status="DELETED", original_status="RECEIVED"
+        deleted_at="2026-09-07T17:41:00.123456", status="DELETED", original_status="DRAFT"
     )
     journal = tmp_path / "run1.jsonl"
 
@@ -286,7 +287,7 @@ def test_rerun_refuses_to_overwrite_the_journal(app, tmp_path) -> None:
         run_backfill(db_session, apply=True, journal_path=str(journal))
 
     assert _journal_lines(journal) == first_rows
-    assert first_rows[0]["before"] == "2026-09-07 17:41:00"
+    assert first_rows[0]["before"] == "2026-09-07T17:41:00.123456"
     assert first_rows[0]["order_id"] == order.id
 
 

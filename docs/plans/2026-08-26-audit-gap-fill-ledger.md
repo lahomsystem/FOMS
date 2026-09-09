@@ -202,3 +202,26 @@ T7 에서 지방 메모에 붙인 `(내용 수정)` 표식이 **화면에 안 �
 3. `as_orders.py:672-681` 첨부 승격 블록 **중복 2회**(기존 코드, 멱등).
 4. `as_cycle_service._apply_classification_projection` 파생 쓰기는 원장 미투영(의도적 — 라우트가 서비스 규칙을 흉내 내면 원장이 거짓말한다).
 5. failopen 인벤토리 재생성 환경 의존 이상(위).
+
+## T11 운영 승격 완료 + 실물 확인 (2026-08-27)
+
+- **승격**: PR #166 머지(`2026-08-27T01:22:13Z`), production tip `69c0ab69`. 세션 자기 커밋 3개 cherry-pick(`574ceeef`·`2887d970`·`65a73744` → `b3525f1e`·`0de32776`·`18372910`).
+- **사전검사 의존 6건은 전부 가짜**였다: 5건은 `foms_audit_coverage_inventory.json`(생성물)에서만 겹쳐 승격 트리 재생성 결과 **차이 0**, 나머지 2건도 기능 의존이 아니라 무충돌로 붙었다.
+- **승격 트리 재검증**: `APP_OK` · alembic head 단일 · 신규 계약 187 passed · 전체 **5309 passed / 5 skipped / 0 failed** · `pre_push_smoke` exit 0 · `requirements.txt` 차이는 `pytest-xdist` 1줄(테스트 전용).
+- **PR CI**: perf-gate ✅ / pg-lane ✅, `MERGEABLE / CLEAN`.
+
+### 운영 실물 확인 — **계정 잠금 해제 없이** 성립
+자산 파일로는 판별이 불가했다(이번 승격은 서버 코드만 변경). 대신 **새 코드만 쓸 수 있는 원장 경로**가 운영에 실제로 쌓였는지를 읽기 전용으로 확인했다:
+
+| 경로 | 운영 최초 기록 | 근거 |
+|---|---|---|
+| `order_notes` | 2026-08-27 01:33:10 | 이번 작업이 신설한 경로(T1) |
+| `shipment.as_content` | 2026-08-27 01:43:04 | 화이트리스트(T2)+`as_orders.py` 배선(F2) 둘 다 이번 승격분 |
+
+머지 시각(01:22:13) 이후이고 옛 빌드는 이 경로를 쓸 수 없다 → **새 빌드 가동 확인**. 실사용자가 이미 기록을 생성 중.
+
+- 운영 계정 `claude_master`(id 57)는 **잠긴 상태 유지**(`is_active=False`) — 해제 불필요했다.
+- 운영 실데이터 **변경 0**. SELECT 만 수행. DSN 덤프 파일 삭제 완료.
+- 가드 3중 통과: `RAILWAY_PROJECT_NAME=FOMS-PRODUCTION` · service `Postgres` · 데이터 지문 `TESTCLR` 0건.
+
+**AUDIT-GAP-01 종결.** 남은 별건 5건은 T10 목록.

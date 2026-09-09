@@ -214,3 +214,16 @@ payload["deposit_hint"] = {
 - 화면에 길이 파서를 만들지 않았다 — `computeWidthHint` 는 `product_name`·`option_text` 를
   **한 번도 읽지 않는다**(테스트가 못박음).
 - CSS 변경 0(렌더 함수 `buildWidthHint` 는 입력 모양이 같아 그대로).
+
+## 운영 반영 확인 (2026-08-31 — 별 세션 점검)
+
+**승격할 것이 남아 있지 않다.** 원장이 남긴 "스테이징 실화면 확인 → 운영 승격"은 낡았다 —
+D1·D2·D3 과 총폭 힌트 수정(`eaed04ab`)의 내용이 이미 운영에 있다. 판정은 커밋 목록이 아니라
+내용으로 했다(앞선 네이버 승격 PR 들이 cherry-pick 이라 SHA 는 안 맞는다).
+
+- `git diff origin/production origin/deploy` 가 `dock.py` · `erp-naver-dock.js` ·
+  `erp-naver-dock.css` · `naver_workbench_pane.html` 넷에 대해 **0줄**이다.
+- 표식 확인: `본품+옵션` · `deposit_guidance` · `발송처리 보내기` · `금액 모름` 전부 운영에 존재.
+- 음성 축: `지금 닫기` 는 운영 소스에 **0건**(D1 통일이 끝났다는 뜻).
+
+남은 것은 운영 실화면 육안 확인뿐이고, 그것은 배포 여부와 다른 축이다(이 점검에서는 안 했다).

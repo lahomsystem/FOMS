@@ -55,6 +55,118 @@
 - 수정: production 브랜치 `requirements.txt` 에 한 줄 추가(두 브랜치 diff 는 이 줄뿐) → 재배포 빌드에 `solapi-5.0.3` 설치 확인.
 - **운영 실검증 완료**: 주문 4870(CLAUDE-TEST-PROD-T13, 라홈 발주사) 미저장 실측시간 `11시 20분` → 알림톡 클릭 → 자동 저장 후 본문 반영(T13) → 발송 성공. Solapi ATA `status=COMPLETE·수신 완료`, **from=15660792**(T14 라홈 분기), to=010-8327-7282(사용자 변경 번호). 정리 완료: 주문 soft delete·로그아웃·`claude_master`(id57) 재잠금.
 
+### T16 도면+계약서 한 번에 (2026-08-31 — 운영 승격·실발송 검증 완료, 종결)
+
+- 사용자 요구: 알림톡으로 도면·계약서를 **한 번에** 보내고 싶다. 두 갈래를 **둘 다** 하기로 결정.
+- **① 통합 열람 링크(deploy `703e61e3`)** — `SHARE_KINDS` 에 `bundle` 추가. 계약서 쪽 동결 규칙은
+  estimate 와 동일(`SNAPSHOT_KINDS`), 스냅샷 없는 bundle 링크는 열람에서 503. 열람 페이지는 도면 본문·
+  계약서 본문 **파셜을 공유**(사본 금지 — 단독 링크와 문구가 갈리지 않게). 인쇄는 계약서만.
+  알림톡 드롭다운·모바일 시트에 '도면 + 계약서 (한 링크로)'. **지금 승인된 템플릿 그대로 사용**
+  (문서종류 = 도면·계약서). 테스트 6건 추가.
+- **② 새 템플릿 2종 심사 제출(2026-08-25)** — WL 버튼 2개(`도면 보기`·`계약서 보기`), 변수 6종
+  (고객명·유효기간·담당자·담당자연락처·**도면토큰·계약서토큰**), 카테고리 005003.
+  라홈 `KA01TP260825021747177Iu2C2ykuJfS` · 하우드 `KA01TP260825021755111MLTAvg2dLLn` — `INSPECTING`.
+  **승인 대비 배선 완료(deploy `db17611e`)**: `SOLAPI_TEMPLATE_SHARE_BOTH_ID_{brand}` 가 등록돼 있고
+  kind 가 `bundle` 이면 그 자리에서 도면·계약서 링크를 발급해 토큰 2개로 버튼 2개 템플릿을 쓴다.
+  env 가 없으면 통합 열람 링크 1개(구 경로) 그대로 — **라우트·UI 무변경, 전환은 env 하나**.
+  계약서 링크는 발급 시점 동결(상한 초과 시 발송 전 400), 이벤트·감사에 share id 2개 기록,
+  멱등 앵커는 bundle share 하나 유지(중복 클릭이 링크 4개를 만들지 않는다). 테스트 3건.
+  **승인 후 사용자 작업 2건**: ① 스테이징·운영·로컬에 `SOLAPI_TEMPLATE_SHARE_BOTH_ID_LAHOM`
+  =`KA01TP260825021747177Iu2C2ykuJfS` · `_HAUD`=`KA01TP260825021755111MLTAvg2dLLn` 등록
+  ② 문자 대체발송 문구(replacements) 콘솔 등록 — URL 2개 본문(MCP 도구엔 파라미터 없음).
+- **지방 주문 안내 연락처 규칙(deploy `b7b37042`·`70b94b14`)** — 지방 주문은 도면 컨펌을 본사 CS 가
+  받으므로 담당자 표기 `고객센터` + 연락처 본사 대표번호(라홈 `1566-0792` / 라홈 외 발주사 `1566-0703`),
+  **문자 대체발송 발신번호도 같은 번호**. env `FOMS_REGIONAL_CONTACT_PHONE_{LAHOM,HAUD}` 로 교체 가능.
+  발신 우선순위에 `regional_cs` 단계가 담당자 앞에 붙는다(비지방 T8.1 3단 무변경).
+- **운영 승격 시점(사용자 결정 2026-08-25): 템플릿 심사 통과 후 코드+env 를 한번에.** 지금 승격해도
+  버튼 2개 경로는 env 미등록이라 꺼져 있고, 운영에 올렸다 내렸다 하는 횟수만 늘어난다. 승인 알림이
+  오면 ① env 3곳 등록 ② replacements 콘솔 등록 ③ 코드 승격 PR 순서로 진행한다.
+- **템플릿 2종 승인 완료(2026-08-28)** — 라홈 `KA01TP260825021747177Iu2C2ykuJfS` · 하우드
+  `KA01TP260825021755111MLTAvg2dLLn` 둘 다 `APPROVED`(제출 08-25, 3일). env 등록 진행:
+  **로컬 `.env` 완료**(백업 `.env.bak-20260828`) · **스테이징 FOMS-DEV `FOMS` 서비스 완료**
+  (`railway variables --set` 2건, `--kv` 로 재확인). **운영 `web` 은 아직 안 켠다** —
+  문자 대체발송 문구(`replacements`)가 콘솔에 등록되기 전에 켜면 카톡 실패 시 빈 본문이 나간다.
+  `update_kakao_template` MCP 도구에 `replacements` 파라미터가 없음을 재확인 → **콘솔 작업 확정**.
+- **대체발송(replacements) 현황(2026-08-30 콘솔 직접 조회)** — 통합 2종은 `replacements=[]` ·
+  `disableReplacements=null`(대체발송 켜짐). 반면 **기존 공유 단일링크 2종은 `disableReplacements=true`**
+  (문구를 넣는 대신 대체발송 자체를 꺼둔 상태), 실측 2종은 `replacements` 본문이 채워져 있고
+  `disableReplacements=false`. 즉 공유 계열의 기존 관례는 '대체발송 끄기' 다. `update_kakao_template`
+  MCP 도구엔 `replacements`·`disableReplacements` 둘 다 파라미터가 없다 — 콘솔 전용.
+  **사용자가 직접 설정하기로 결정(2026-08-30).**
+- **스테이징 실발송 검증 완료(2026-08-30)** — 주문 4495(`CLAUDE-TEST-T16-BOTH`, 라홈) →
+  `POST /api/share/create` `kind=bundle` → `POST /api/share/send-alimtalk`. 벤더 기록
+  `M4V202608301622066XNYRYDZA0VBGUA`: **templateId 가 통합 템플릿**(`KA01TP260825021747177Iu2C2ykuJfS`),
+  버튼 2개(`도면 보기`·`계약서 보기`)에 **서로 다른 토큰**, `from=15660792`, `status=COMPLETE·4000`, 수신 완료.
+  DB: `bundle` 앵커 share 1개 + 도면·계약서 share 2개, 계약서만 스냅샷 동결,
+  `OrderEvent SHARE_ALIMTALK status=sent sender_source=brand`. 담당자 미지정 주문이라
+  표기는 `고객센터`+브랜드 대표번호(지방 분기 아닌 정상 폴백). 수신자 실기기에서 버튼 2개 확인.
+  정리: 주문 4495 soft delete 완료. 버튼 링크는 WL 링크가 운영 도메인 고정이라 스테이징 토큰으로는 404(알려진 한계).
+- **운영 승격 PR #196 생성(2026-08-30, 머지 대기)** — base `production`(tip `5acef038`),
+  코드 5커밋 cherry-pick(`c7e40709→ec7f2971` · `b7b37042→3767a780` · `70b94b14→4fc73c0b` ·
+  `703e61e3→36748528` · `db17611e→0f17bf99`) + 인벤토리 재생성 `007f092e`. 문서 커밋 미포함.
+  충돌은 알려진 2종뿐: 인벤토리 JSON 2개(승격 트리 재생성) · 자산 `?v` 핀(운영 목록 유지 +
+  본 승격이 바꾼 `erp-share.js` 핀만 `20260825a`). 검증: APP_OK · alembic 단일 head
+  `merge_drawq_naverfail` · 공유 도메인 테스트 86 passed · pre_push_smoke exit 0(324 passed) ·
+  전체 스위트 5,419 passed · PR 검사 4종(test·harness·pg-lane·perf-gate) 전부 pass, `MERGEABLE/CLEAN`.
+- **독립 재검증(2026-08-31, 별 세션)** — 승격 head `007f092e` 를 별도 워크트리로 받아 다시 돌렸다:
+  `APP_OK` · 공유 스위트 99 passed(`test_order_share_{alimtalk,api,view,sms}` + `test_alimtalk_ui_contract`) ·
+  `tests/contracts`+`tests/domains` **5350 passed · 5 skipped**(17분 7초). PR base 가 아직 현재 운영 tip
+  `5acef038` 과 같아 재배열 불필요. 머지는 사용자 승인 대기.
+- **운영 반영 완료(2026-08-31, 사용자 지시)** — PR #196 머지 → production `d6f1c84e`.
+  머지 직전 운영이 #197 로 움직여 base 가 낡아 있었다(`5acef038` → `4be86ab2`). 파일 겹침은 0 이었지만
+  **인벤토리 2종은 겹치지 않아도 밀린다**(#197 이 `claim_watch.py`·`naver_ingest.py` 를 건드렸다) —
+  그래서 현재 운영 tip 위에서 병합을 먼저 시뮬레이션해 확인했다: `APP_OK` · 드리프트 게이트 6종 68 passed ·
+  `tests/contracts`+공유 4종+`tests/services/integrations` **1175 passed**. 드리프트 없음(lineno-무관 게이트 덕).
+- **운영 env 등록 + 재배포(2026-08-31)** — `SOLAPI_TEMPLATE_SHARE_BOTH_ID_{LAHOM,HAUD}` 를 `FOMS-PRODUCTION`
+  `web` 에 등록(`--kv` 재확인, `RAILWAY_PROJECT_NAME` 가드 확인). **막고 있던 조건은 해소돼 있었다** —
+  통합 템플릿 2종 모두 `replacements` 본문이 채워지고 `disableReplacements=false`·`APPROVED`(콘솔 직접 조회).
+  **함정: `railway variables --set` 은 재배포를 안 건다.** 변수는 들어갔는데 마지막 부팅이 23:34:29 그대로였다
+  → `railway redeploy --service web` 로 23:41:03 재부팅. env 는 `ka._env` 로 호출 시점에 읽으므로 이제 유효하다.
+  운영 라이브 확인: `/static/js/orders/erp-share.js` 에 `bundle: '도면·계약서'` 존재 · `/login` 200.
+- **운영 화면 확인 완료(2026-08-31, 발송 없음)** — `claude_master`(id 57) 해제 → 주문 `/edit/4921?open=erp-order`
+  열람 → 재잠금. 알림톡 드롭다운에 `data-share-kind="bundle"` + 문구 `도면 + 계약서 (한 링크로)` 존재,
+  자산 핀 `erp-share.js?v=20260825a` 서빙. 대조군으로 기존 `drawing`·`estimate` 항목도 그대로 있는 것을 같이 확인했다
+  (새 항목이 옛 항목을 밀어낸 게 아니다). 재잠금은 잠금 오라클로 검증(로그인 302 아닌 **200**).
+- 잔여: 운영 실발송 1건 육안(실제 고객 발송이라 사용자 판단). 스테이징 실발송은 08-30 에 벤더 기록으로 확인 완료.
+- **승격 트리 전체 스위트에서 나온 빨강 2종은 T16 무관** — ①
+  `tests/visual/test_erp_order_edit_mobile_form.py::test_edit_erp_order_ships_responsive_form_mounts_for_cohort`
+  은 **운영 기준선 `5acef038` 에 그대로 있던 빨강**이다(승격 트리·기준선 둘 다 동일 실패, T16 커밋과 무관).
+  **원인은 계약 테스트가 폼 구간을 자르는 자리를 잘못 잡아 공유 모달을 폼으로 세던 것** — deploy 에서
+  타 세션이 `a5125de8`(test(erp): 모바일 폼 계약이 자르는 자리를 고친다)로 이미 고쳤고, 그 수정은
+  아직 production 에 없다. 승격 PR 은 이 파일을 안 탄다(production `ci.yml` 은 `--ignore=tests/visual`
+  + 4파일 허용목록). deploy 는 2026-08-30 `6abc2b43` 으로 visual 14개를 CI 에 등재했다.
+  ② visual 24 errors 는 `DATABASE_URL` file-backed SQLite 미설정(로컬 환경) 때문.
+- **대체발송 문구 등록 완료(2026-08-30, 사용자 콘솔 작업 → API 로 검증)** — 두 템플릿 다
+  `replacements` 1벌 + `disableReplacements=false`. 라홈 `from=15660792` · 하우드 `from=15660703`,
+  본문에 도면·계약서 URL 2개가 `#{도면토큰}`·`#{계약서토큰}` 로 들어갔고 **변수 6종이 코드의
+  `_share_both_variables` 와 정확히 일치**한다(빈 본문 위험 해소).
+  주의: `replacements.from` 은 브랜드 대표번호 고정인데 알림톡 발신은 담당자 등록번호가 우선이다 —
+  담당자 `sender_phone` 이 등록되면 카톡은 담당자 번호, 대체 문자는 대표번호로 갈린다(현재 등록자 0명).
+- **운영 승격 완료(2026-08-30)** — PR #196 머지 → production `d6f1c84e`.
+  운영 코드에 `SHARE_KINDS = ('drawing', 'estimate', 'bundle')` 확인. 직전 운영 tip 은 타 세션 PR #197
+  (`4be86ab2`)로 움직였지만 #196 은 충돌 없이 `MERGEABLE/CLEAN` 유지했다.
+- **운영 env 등록 완료(2026-08-30)** — FOMS-PRODUCTION `web` 서비스에
+  `SOLAPI_TEMPLATE_SHARE_BOTH_ID_LAHOM=KA01TP260825021747177Iu2C2ykuJfS` ·
+  `_HAUD=KA01TP260825021755111MLTAvg2dLLn` (`railway variables --set` 2건, `--kv` 재확인).
+  **env 가 러닝 프로세스에 살아 있다는 증거는 재배포 로그가 아니라 실발송이다** — 직후 운영 실발송이
+  통합 템플릿 id 로 나갔다(= `_both_template_id(brand)` 가 값을 읽었다). `railway variables --set` 이
+  재배포를 거는지는 확인하지 못했다(같은 시각 머지 배포와 겹쳐 인과를 가를 수 없었다).
+  AI_STATUS 에는 타 세션이 '재배포를 안 건다' 로 기록해 뒀으니 그쪽을 따른다.
+- **운영 실발송 검증 완료 — T16 종결(2026-08-31)**. 사용자 요청 1건에 대한 production 측정
+  (`claude_master` id57 해제 → 측정 → 재잠금). 가상 주문 5070 `CLAUDE-TEST-T16-PROD`, 라홈,
+  **수신번호는 사용자 본인 번호 010-8327-7282**(더미 번호 규칙의 예외 — 실발송 자체가 검증 목적이라
+  사용자가 명시 지정). 가짜 도면 PNG 1장 첨부(`category=drawing`) + 견적 항목 2건(1,200,000 / 800,000).
+  - 벤더 `M4V20260831122310N9WJBTWTE5JJEOG`: templateId **통합 라홈**, 버튼 2개에 운영 도메인 URL,
+    변수 6종 치환, `from=15660792`, `to=01083277282`. **`replacements` LMS 본문이 요청에 실려 나갔다**
+    (대체발송 등록분이 실제로 붙는 것까지 확인 — 빈 본문 위험이 코드 경로에서도 해소).
+  - DB: `bundle` 앵커 share 5 + 도면 6 + 계약서 7, 계약서만 스냅샷 동결,
+    `OrderEvent SHARE_ALIMTALK status=sent sender_source=brand`.
+  - **버튼 링크 2개를 비로그인으로 실제 열람** — 도면 `HTTP 200`(첨부 도면 렌더),
+    계약서 `HTTP 200`(고객명·품목 2건·1,200,000·합계 2,000,000 렌더). **스테이징에서 도메인 고정
+    때문에 못 봤던 마지막 구멍**이 여기서 닫혔다.
+  - 정리 완료: 첨부 soft delete · share 3개 전부 revoke · 주문 5070 soft delete · 로그아웃 ·
+    `claude_master` 재잠금(`is_active=false`) 확인.
+
 ### 개정 템플릿 4종 교체 (2026-08-24 — 승인 완료, PR #140)
 - Solapi 심사 승인: 실측 라홈 `KA01TP260819235109543IZ09ZS2GGxU` · 실측 하우드 `KA01TP260819083609155X1JFCnksFJ2` · 공유 라홈 `KA01TP260819084043806JpKvOqz3TDo` · 공유 하우드 `KA01TP260819084128244ThoZdhdBocC`.
 - env 교체 완료 3곳(로컬 `.env` · 스테이징 `FOMS` · 운영 `web`, `--skip-deploys`). 템플릿 ID 는 web 서비스에만 존재(worker·cron 없음).

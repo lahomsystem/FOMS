@@ -2,7 +2,8 @@
 
 - 작성 2026-08-29 · 워크트리 `C:/tmp/nvrepay` (session/nvrepay-cancel)
 - 앞선 작업: `docs/plans/2026-08-28-naver-repay-origin-cancel-ledger.md`(NVREPAY-01, 운영 반영 완료)
-- 상태: **완료 — 운영 반영·운영 실화면 확인**(NVREPAY-02 PR #194 `f03c3de8`, NVREPAY-03 PR #195 `5acef038`).
+- 상태: **완료 — 운영 반영·운영 실화면 확인**(NVREPAY-02 PR #194 `f03c3de8`,
+  NVREPAY-03 PR #195 `5acef038`, NVREPAY-04 PR #197 `4be86ab2`).
 
 ## 1. 무엇이 문제였나
 

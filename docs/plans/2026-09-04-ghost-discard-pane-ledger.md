@@ -32,11 +32,17 @@
 - 푸시 직전 origin/deploy 가 타 세션 커밋 2개(정산 내보내기 안내 줄)로 앞서 있어 rebase 후
   smoke 재실행(PASSED). AI_STATUS 는 서로 다른 줄이라 충돌 없음 — 상대 문장 잔존 확인.
 - deploy `1fd113d55` push. CI 4/4 success(FOMS CI · PG Lane · Harness · perf-gate).
-- **운영 승격 보류(사용자 결정 2026-09-04)**. 시도했다가 멈춘 이유: production 은 워크벤치 핀이
+- 운영 승격 1차 시도 보류. 멈춘 이유: production 은 워크벤치 핀이
   `20260904b` 이고 `afb0b4396`(조작 뒤 버튼 수정 · 이전 세션)이 아직 없다. production 기반 임시
   워크트리에서 내 커밋만 cherry-pick 하니 충돌 6곳 — 핀 2곳·핀 계약 테스트 4곳, 그중
   `test_naver_post_action_refresh.py` 는 **production 에 파일 자체가 없다**(afb0b4396 이 만든 파일).
   `cherry-pick 충돌 = 타 세션 의존 신호 → 임의 해결 금지` 규칙에 따라 워크트리를 되돌려 지웠다.
+- **운영 반영 완료(PR #297 · production `a5b2697ff`)** — 사용자 결정으로 선행 `afb0b4396` 을
+  함께 승격. `be049fd54`(설계 기록 docs)는 skip 했다: 그 문장을 뒤 커밋이 통째로 교체해
+  최종본에 남을 내용이 0이다. `docs/AI_STATUS.md` 충돌은 deploy 최종본 채택으로 풀고
+  production 고유 줄이 사라지지 않는지 diff 로 확인했다(더 최신 문장으로 대체된 줄만 바뀜).
+  승격 트리 직접 검증: `APP_OK` · 8318 passed, 5 skipped · pre_push_smoke PASSED.
+  PR 검사 4/4 pass(test · pg-lane · harness · perf-gate), MERGEABLE/CLEAN 확인 후 머지.
 
 ## 스테이징 실화면 확인 (2026-09-04 · upperkill 전환)
 
@@ -65,8 +71,14 @@ QA 중 발견해 고침: 재결제 경고에서 `(25,000원) 이 큐에` 처럼 
   정리 띠·`run_reconcile` 거절 문장 넷을 `stage_label` 로 옮기고, 후보 행과 정리 대기 행에
   `status_label` 을 냈다. `status`(판정 축)는 그대로. 계약 3곳에 `"MEASURE" not in` 반증축을
   붙였다 — 문구만 바꾸고 소스를 안 고치면 통과하던 자리다.
-- **새로 관측: `tests/domains/test_production_kpi_slim_projection.py::test_production_kpi_slim_equals_full`
-  이 flaky 하다.** `0c66f6d61` CI 에서 `JSONDecodeError: Expecting value: line 1 column 1` 로
+- ~~새로 관측: 생산 KPI 테스트가 flaky~~ → **해소**(PR #299 · production `7de57c03d`).
+  flaky 가 아니라 **공휴일 캐시 파일 경합**이었다. `data/holidays_kr_<year>.json` 은 저장소에
+  없고(`.gitignore:164`) 미래 날짜 `2099-01-01` 을 쓰는 테스트 파일이 셋이라, xdist 워커들이
+  같은 파일을 동시에 만들며 `open("w")` 가 비운 창을 다른 워커가 읽었다. 임시 파일 + fsync +
+  `os.replace` 원자 교체로 고치고, Windows 전용 `os.replace` 잠금은 읽기 재시도로 흡수했다
+  (끝내 못 읽으면 raise — 조용히 공휴일 0건으로 영업일을 세지 않는다). 회귀 계약 5건 신설.
+  아래는 당시 관측 기록이다.
+- (관측 원문) `test_production_kpi_slim_equals_full` `0c66f6d61` CI 에서 `JSONDecodeError: Expecting value: line 1 column 1` 로
   1회 실패, 같은 커밋 rerun 은 success. 로컬 `tests/domains/` 단독은 통과. 이 작업과 무관한
   코드(생산 KPI)이고 그 파일들은 이번에 손대지 않았다 — 실행 순서·DB 상태 의존으로 보인다.
   `compute_production_kpis_and_badges` 의 `sd_json['flags']` 투영이 NULL 을 만나면
