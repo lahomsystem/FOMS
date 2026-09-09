@@ -253,17 +253,32 @@ def test_settle_sync_loop_beats_outside_its_window(app, monkeypatch):
 
 
 def test_loops_declare_their_real_tick_interval(app, monkeypatch):
-    """신고 값이 실제 간격과 갈리면 판정 예산이 틀린다 — 루프가 받은 값을 그대로 싣는다."""
+    """신고 값이 실제 간격과 갈리면 판정 예산이 틀린다 — 루프가 받은 값을 그대로 싣는다.
+
+    수집 루프는 구간마다 다른 값을 신고한다: 스윕 **앞**에서는 받은 간격(1800)으로 예산을
+    넓히고, 스윕이 끝나면 낮잠 길이(60)를 신고해 좁힌다. 둘 다 하드코딩이 아니라 루프가
+    받은 값에서 나와야 한다.
+    """
     runner = _load(_REPO_ROOT / "scripts" / "maintenance" / "run_naver_order_sync.py")
     kind = runner.HEARTBEAT_WORKER_KIND
     assert _heartbeat_rows(kind) == []
 
+    declared: list = []
+    real_emit = runner.emit_heartbeat
+
+    def _emit(engine, worker_kind, *, metadata=None, logger=None, **kw):
+        declared.append(int((metadata or {}).get("interval_seconds") or 0))
+        return real_emit(engine, worker_kind, metadata=metadata, logger=logger, **kw)
+
+    monkeypatch.setattr(runner, "emit_heartbeat", _emit)
     monkeypatch.setattr(runner, "_sweep_once", lambda _dry: {"changed": 0})
     _drive_one_tick(runner, monkeypatch, lambda: runner._run_loop(1800, False, True))
 
     rows = _heartbeat_rows(kind)
     assert len(rows) == 1
-    assert rows[0].metadata_json["interval_seconds"] == 1800
+    assert declared[0] == 1800, f"스윕 앞 신고={declared[0]} — 받은 간격을 안 싣는다"
+    assert rows[0].metadata_json["interval_seconds"] == runner.HEARTBEAT_TICK_SECONDS, (
+        "스윕 뒤 신고가 낮잠 길이가 아니다 — 자는 구간 예산이 되넓어진다")
 
 
 def test_rq_worker_declares_its_dequeue_cadence():
@@ -415,3 +430,85 @@ def test_outbox_worker_calls_the_sentry_gate_on_startup():
     source = (_REPO_ROOT / "tools" / "ops" / "run_domain_side_effect_outbox.py").read_text(
         encoding="utf-8")
     assert "init_sentry_once(" in source.split("def main(", 1)[1]
+
+
+# --------------------------------------------------------------------------- #
+# 6. Sentry 게이트 배선 — 워커 프로세스마다 자기 init 이 있다 (B)
+# --------------------------------------------------------------------------- #
+#: 공용 게이트 호출만 인정하는 패턴. 앞에 ``_`` 가 붙은 사설 복제본
+#: (``run_geocode_sweep._init_sentry_once``)은 여기서 통과하지 못한다 — 같은 일을 두 벌로
+#: 두면 한쪽만 고쳐지고(실측: 복제본은 env 이름을 문자열로 하드코딩해 SENTRY_DSN_ENV
+#: 정본 일치 계약 밖에 있다) 그 갈라짐을 아무도 못 본다.
+_SENTRY_GATE_CALL = re.compile(r"(?<![A-Za-z0-9_])init_sentry_once\(")
+
+
+def _entry_runner_paths() -> list:
+    """워커 컨테이너가 프로세스로 띄우는 러너들의 저장소 상대 경로.
+
+    ``start.sh`` 의 ``--loop`` 러너 목록(:func:`_loop_runners_in_start_sh`)을 그대로 재사용해
+    뽑는다. 이름을 손으로 나열하지 않는 것이 요점이다 — 다음 사람이 새 루프를 배선하면
+    목록에 자동으로 들어와 Sentry 배선을 빠뜨릴 수 없다.
+
+    Returns:
+        경로 문자열 목록(큐 소비 본체 러너를 마지막에 붙인다).
+    """
+    paths = [f"scripts/maintenance/{name}.py" for name in _loop_runners_in_start_sh()]
+    paths.append(str(_RQ_RUNNER.relative_to(_REPO_ROOT)).replace("\\", "/"))
+    return paths
+
+
+def _entry_function_name(source: str) -> str:
+    """``if __name__ == '__main__':`` 이 실제로 부르는 진입 함수 이름.
+
+    진입 함수 이름을 테스트에 적어 두면 러너마다 ``run``/``main`` 으로 갈리는 현실과
+    어긋난다 — 프로세스의 진짜 시작점은 ``__main__`` 가드가 부르는 그 함수다.
+
+    Args:
+        source: 러너 파일 전문.
+
+    Returns:
+        진입 함수 이름(예 ``run``·``main``).
+
+    Raises:
+        AssertionError: ``__main__`` 가드가 없거나 함수를 부르지 않을 때.
+    """
+    tail = re.split(r"^if __name__ == ['\"]__main__['\"]:", source, maxsplit=1, flags=re.M)
+    assert len(tail) == 2, "__main__ 가드가 없다 — 프로세스 진입점을 특정할 수 없다"
+    match = re.search(r"(?:sys\.exit|SystemExit)\(\s*([A-Za-z_][A-Za-z0-9_]*)\(", tail[1])
+    assert match, f"__main__ 가드가 진입 함수를 부르지 않는다: {tail[1][:80]!r}"
+    return match.group(1)
+
+
+def test_sentry_gate_population_is_not_empty():
+    """음성 대조군 — 목록을 못 뽑으면 아래 파라미터화가 조용히 0건으로 통과한다."""
+    paths = _entry_runner_paths()
+    assert len(paths) >= 6, paths
+    assert "tools/ops/run_rq_worker.py" in paths, paths
+    for rel in paths:
+        assert (_REPO_ROOT / rel).is_file(), rel
+
+
+@pytest.mark.parametrize("runner_rel", _entry_runner_paths())
+def test_every_worker_process_calls_the_sentry_gate_at_its_entry(runner_rel):
+    """워커 프로세스는 저마다 자기 Sentry init 을 갖는다.
+
+    ``start.sh`` 의 루프들은 ``&`` 로 뜨는 **별개 프로세스**라 프로세스마다 init 이 필요하다.
+    ``capture_exception``(loop_heartbeat)은 스스로 초기화하지 않으므로, init 없는 프로세스는
+    DSN 을 넣어도 한 건도 보내지 않는다(실측: run_rq_worker 는 import 직후
+    ``sentry_sdk.get_client().is_active()`` 가 False 였다).
+
+    ``_run_loop`` 이 아니라 **진입 함수**에서 찾는 이유: ``--once`` 로 손으로 돌리는 운영
+    실행도 같은 관측을 받아야 하고, 루프 안에 두면 "프로세스당 1회" 를 코드가 아니라 우연이
+    보장하게 된다.
+    """
+    source = (_REPO_ROOT / runner_rel).read_text(encoding="utf-8")
+    entry = _entry_function_name(source)
+    body = source.split(f"def {entry}(", 1)
+    assert len(body) == 2, f"{runner_rel} 에 진입 함수 def {entry}( 가 없다"
+    # 진입 함수 **본문까지만** 본다. 파일 끝까지 훑으면 그 아래 헬퍼 안의 호출이 대신
+    # 통과시켜, 정작 진입 함수에서 배선이 빠져도 초록이 된다.
+    body[1] = re.split(r"^(?:def |class |if __name__)", body[1], maxsplit=1, flags=re.M)[0]
+    assert _SENTRY_GATE_CALL.search(body[1]), (
+        f"{runner_rel} 의 {entry}() 가 init_sentry_once( 를 부르지 않는다 — "
+        "이 프로세스의 예외는 아무 데도 가지 않는다"
+    )

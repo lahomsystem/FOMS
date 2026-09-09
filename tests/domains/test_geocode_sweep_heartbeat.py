@@ -43,7 +43,6 @@ def _one_tick(module, monkeypatch, round_result, calls):
 
     monkeypatch.setattr(module, "_run_round", fake_round)
     monkeypatch.setattr(module, "print_result", lambda *a, **k: None)
-    monkeypatch.setattr(module, "_init_sentry_once", lambda: calls.setdefault("sentry", 0))
 
     def fake_wait(_interval):
         module._shutdown.set()
@@ -89,7 +88,8 @@ def test_heartbeat_failure_does_not_stop_the_sweep_and_is_logged(
     monkeypatch.setattr("foms.services.sidefx_worker.upsert_heartbeat", boom)
     logged = []
     monkeypatch.setattr(sweep, "_log_error", lambda msg: logged.append(msg))
-    monkeypatch.setattr(sweep, "_capture", lambda msg: logged.append(f"sentry:{msg}"))
+    monkeypatch.setattr(sweep, "capture_exception",
+                        lambda *a, **k: logged.append("sentry:heartbeat"))
 
     with caplog.at_level(logging.WARNING):
         rc = _one_tick(sweep, monkeypatch, {"enqueued": 0, "failed": 0, "scanned": 0}, {})
@@ -103,24 +103,30 @@ def test_heartbeat_failure_does_not_stop_the_sweep_and_is_logged(
     assert captures, "Sentry 로도 안 갔다"
 
 
-def test_sentry_init_is_called_once_before_the_loop(sweep, monkeypatch) -> None:
-    """루프 진입 전에 Sentry 를 붙인다(이 프로세스는 app.py 를 안 거친다)."""
-    hits = []
-    monkeypatch.setattr(sweep, "_emit_heartbeat", lambda result, interval=0: None)
-    monkeypatch.setattr(sweep, "_run_round", lambda **k: {"enqueued": 0, "failed": 0, "scanned": 0})
-    monkeypatch.setattr(sweep, "print_result", lambda *a, **k: None)
-    monkeypatch.setattr(sweep, "_init_sentry_once", lambda: hits.append(1))
-    monkeypatch.setattr(sweep._shutdown, "wait", lambda _i: sweep._shutdown.set())
-    sweep._shutdown.clear()
-    try:
-        sweep._run_loop(interval=15, batch=1, include_failed=False, as_json=False)
-    finally:
-        sweep._shutdown.clear()
-    assert hits == [1], "Sentry init 이 루프 진입 전에 1회 호출돼야 한다"
+def test_the_sweep_uses_the_shared_sentry_gate_not_its_own_copy(sweep) -> None:
+    """Sentry 배선은 공용 함수 한 벌이다 — 이 파일이 자기 복제본을 갖고 있으면 갈라진다.
+
+    실제로 갈라져 있었다: 복제본은 env 이름을 ``"SENTRY_DSN"`` 문자열로 박아, 정본 상수
+    ``loop_heartbeat.SENTRY_DSN_ENV`` 와 일치를 지키는 계약
+    (``test_loop_heartbeat_wiring.py``) 밖에 있었다. 진입 함수가 게이트를 부르는지는
+    그 파일의 러너 전수 계약이 따로 본다 — 여기서는 **같은 함수인지**만 못 박는다.
+    """
+    from foms.services import loop_heartbeat
+
+    assert sweep.init_sentry_once is loop_heartbeat.init_sentry_once, (
+        "사설 Sentry init 복제본이 다시 생겼다")
+    assert sweep.capture_exception is loop_heartbeat.capture_exception, (
+        "사설 capture 복제본이 다시 생겼다")
+    assert not hasattr(sweep, "_init_sentry_once") and not hasattr(sweep, "_capture"), (
+        "옛 사설 복제본이 남아 있다")
 
 
 def test_no_dsn_means_no_sentry_import(sweep, monkeypatch) -> None:
-    """DSN 이 없으면 sentry_sdk 도 foms.platform 도 건드리지 않는다(부팅 비용 0)."""
+    """DSN 이 없으면 sentry_sdk 도 foms.platform 도 건드리지 않는다(부팅 비용 0).
+
+    ``foms.platform.__init__`` 은 app_factory·blueprints 를 통째로 끌어온다 — DSN 없는
+    환경에서 그 비용을 내면 워커 부팅이 Railway heartbeat timeout 에 걸린다.
+    """
     import builtins
 
     monkeypatch.delenv("SENTRY_DSN", raising=False)
@@ -132,7 +138,7 @@ def test_no_dsn_means_no_sentry_import(sweep, monkeypatch) -> None:
         return real_import(name, *args, **kwargs)
 
     monkeypatch.setattr(builtins, "__import__", _record)
-    sweep._init_sentry_once()
+    sweep.init_sentry_once()
     monkeypatch.setattr(builtins, "__import__", real_import)
     assert not any(n.startswith("sentry_sdk") or n.startswith("foms.platform") for n in touched), (
         f"DSN 없는데 import 했다: {touched}"

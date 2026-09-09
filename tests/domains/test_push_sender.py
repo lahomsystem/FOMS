@@ -25,6 +25,7 @@ from foms.services.notifications.escalation import (
     finalize_escalation_delivery,
 )
 from foms.services.notifications.push_sender import (
+    _build_payload,
     _generic_title,
     _should_push,
     enqueue_push_for_notification,
@@ -143,6 +144,17 @@ def db(app):
     db_session.rollback()
 
 
+@pytest.fixture(autouse=True)
+def web_push_flag_on(monkeypatch):
+    """웹푸시 기능 플래그를 켠 상태를 이 파일의 기본으로 둔다.
+
+    발송 함수(``_send_push_impl``)가 맨 앞에서 플래그를 보게 되면서 — rq 를 안 거치는
+    직접 호출자(워커 정지 감시자)의 우회를 막는 게이트다 — 발송 경로 테스트는 플래그가
+    켜져 있어야 실제 발송까지 간다. 꺼진 상태를 보는 테스트는 각자 다시 끈다.
+    """
+    monkeypatch.setenv(FLAG_ENV, "1")
+
+
 # ---------------------------------------------------------------------------
 # send_push_for_notification: 발송 성공
 # ---------------------------------------------------------------------------
@@ -258,6 +270,125 @@ def test_p1_type_sends(db, monkeypatch):
     result = send_push_for_notification(notif.id, db=db)
     assert result["sent"] == 1
     assert len(rec.calls) == 1
+
+
+def test_send_is_skipped_when_the_web_push_flag_is_off(db, monkeypatch):
+    """플래그가 꺼져 있으면 **직접 호출자**도 발송하지 못한다.
+
+    감시자(SIDEFX)는 큐가 죽었다는 사실을 알리는 알림이라 rq 를 거치지 않고
+    ``send_push_for_notification`` 을 직접 부른다. 검사가 enqueue 경로에만 있던 동안
+    그 경로는 "웹푸시 꺼짐" 을 통째로 우회했다 — 규칙의 정본은 발송 함수 하나다.
+    긴급(P0) 알림으로 확인한다: severity 가 아니라 플래그가 먼저 막아야 한다.
+    """
+    monkeypatch.setenv(FLAG_ENV, "0")
+    rec = _Recorder()
+    _install_pywebpush(monkeypatch, rec)
+    u = _mk_user("s_flagoff", "A")
+    notif = _mk_notification(is_urgent=True)
+    _mk_state(notif, u)
+    _mk_sub(u, "https://fcm.googleapis.com/send/flagoff")
+
+    result = send_push_for_notification(notif.id, db=db)
+    assert result["reason"] == "flag_off"
+    assert rec.calls == [], "플래그가 꺼졌는데 실제로 발송했다"
+    assert _events(notif.id, NotificationEventType.PUSH_ATTEMPTED) == []
+
+
+# ---------------------------------------------------------------------------
+# 워커 건강 push (2026-09-08: 무내용 push 20건이 쌓인 사건)
+# ---------------------------------------------------------------------------
+
+def _worker_payload(ntype):
+    """감시자가 만드는 알림 1건의 실제 push payload.
+
+    :param ntype: ``WORKER_STALLED`` 또는 ``WORKER_RECOVERED``
+    :return: ``_build_payload`` 결과 dict
+    """
+    notif = _mk_notification(
+        is_urgent=False,
+        ntype=ntype,
+        target_type="ROLE",
+        target_role="ADMIN",
+        title="백그라운드 작업이 멈췄습니다",
+        message="RQ_WORKER(11분째) 응답 없음",
+    )
+    return _build_payload(notif)
+
+
+def test_worker_health_push_titles_name_the_event(db):
+    """제목이 "새 알림" 이면 잠금화면만 보고는 무슨 일인지 알 수 없다(그게 그날 밤이었다)."""
+    assert _worker_payload("WORKER_STALLED")["title"] == "백그라운드 작업 멈춤"
+    assert _worker_payload("WORKER_RECOVERED")["title"] == "백그라운드 작업 복구"
+
+
+def test_worker_health_push_body_says_what_to_do_without_details(db):
+    """본문은 "앱을 열어라" 까지다 — kind 이름도 경과 분도 넣지 않는다(generic 규약)."""
+    stalled = _worker_payload("WORKER_STALLED")["body"]
+    assert "앱을 열어" in stalled
+    assert _worker_payload("WORKER_RECOVERED")["body"] == "자동 처리가 다시 시작됐습니다."
+    # 알림 센터 message 에는 있는 정보다 — push payload 에만 안 담는다.
+    assert "RQ_WORKER" not in stalled, "push 본문에 kind 이름이 새어 들어갔다"
+    assert "분째" not in stalled, "push 본문에 경과 분이 새어 들어갔다"
+
+
+def test_worker_health_push_shares_one_fixed_tag(db):
+    """두 유형이 같은 고정 tag 를 쓴다 — OS 알림이 쌓이지 않고 **교체**된다.
+
+    id 를 tag 에 섞으면 건마다 새 배너가 되어 20건이 쌓이던 그 사건이 그대로 돌아온다
+    (긴급 알림의 ``foms-urgent-<id>`` 와 의도적으로 다른 규칙이다).
+    """
+    stalled = _worker_payload("WORKER_STALLED")
+    recovered = _worker_payload("WORKER_RECOVERED")
+    assert stalled["tag"] == "foms-worker-health"
+    assert recovered["tag"] == stalled["tag"], "복구가 다른 tag 면 배너가 둘로 남는다"
+    assert str(stalled["data"]["notification_id"]) not in stalled["tag"], (
+        "tag 에 알림 id 가 섞였다 — 사건마다 배너가 쌓인다")
+
+
+def test_stalled_renotifies_but_recovery_replaces_quietly(db):
+    """멎음은 진동·소리로 알리고, 복구는 조용히 배너만 바꾼다(소음 0, 잠금화면은 진실)."""
+    assert _worker_payload("WORKER_STALLED")["renotify"] is True
+    assert _worker_payload("WORKER_RECOVERED")["renotify"] is False, (
+        "복구가 다시 울리면 한밤중에 두 번 깨운다")
+    # 인프라 사건은 긴급이 아니다 — 손으로 지워야 하는 배너로 만들지 않는다.
+    assert "requireInteraction" not in _worker_payload("WORKER_STALLED")
+
+
+def test_recovery_push_carries_an_empty_vibration_pattern(db):
+    """복구는 진동도 없어야 한다 — renotify=False 만으로는 조용해지지 않는다.
+
+    ``renotify=False`` 는 같은 tag 의 **기존 알림을 교체할 때만** 무음이다. 사람이 멎음
+    배너를 이미 지웠으면 복구는 새 알림이 되고, ``static/sw.js`` 의
+    ``vibrate: payload.vibrate || [80, 40, 80]`` 이 기본 패턴을 붙여 새벽에 울린다.
+    JS 에서 빈 배열은 truthy 라 ``[]`` 를 실어 보내면 그 기본값이 안 걸린다.
+    """
+    assert _worker_payload("WORKER_RECOVERED")["vibrate"] == [], (
+        "복구 push 에 빈 진동 패턴이 없다 — sw.js 기본값이 붙어 한밤중에 울린다")
+    assert _worker_payload("WORKER_STALLED")["vibrate"] == [80, 40, 80], (
+        "멎음은 진동으로 알려야 한다")
+
+
+def test_worker_health_types_match_the_watchdog_constants(db):
+    """두 유형 이름이 감시자 상수와 갈리면 push 가 조용히 옛 모습으로 돌아간다.
+
+    이름은 push_sender 안에서 네 군데(P1 집합·_WORKER_HEALTH_TYPES·제목·본문)에 리터럴로
+    적혀 있다. 감시자 쪽 상수만 바꾸면 ``_build_payload`` 의 분기가 통째로 빠져 고정 tag 가
+    사라지고(2026-09-08 20건 사건 재현) 본문도 "확인이 필요한 새 알림" 으로 되돌아가는데,
+    그 사실을 아무 테스트도 못 잡는다 — 그 구멍을 여기서 막는다.
+    """
+    from foms.services import worker_watchdog
+    from foms.services.notifications import push_sender
+
+    assert set(push_sender._WORKER_HEALTH_TYPES) == {
+        worker_watchdog.NOTIFICATION_TYPE,
+        worker_watchdog.NOTIFICATION_TYPE_RECOVERED,
+    }, "push 쪽 유형 이름이 감시자 상수와 갈렸다"
+    for ntype in (worker_watchdog.NOTIFICATION_TYPE,
+                  worker_watchdog.NOTIFICATION_TYPE_RECOVERED):
+        assert ntype in push_sender._DEFAULT_P1_TYPES, (
+            f"{ntype} 이 P1 집합에 없다 — push 가 조용히 no-op 된다")
+        assert _worker_payload(ntype)["title"] != "새 알림", (
+            f"{ntype} 이 제목 분기를 못 탄다")
 
 
 # ---------------------------------------------------------------------------

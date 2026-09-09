@@ -54,7 +54,11 @@ from foms.services.integrations.naver_commerce.client import (  # noqa: E402
 from foms.services.integrations.naver_commerce.settle_sync import (  # noqa: E402
     run_settle_sync,
 )
-from foms.services.loop_heartbeat import capture_exception, emit_heartbeat  # noqa: E402
+from foms.services.loop_heartbeat import (  # noqa: E402
+    capture_exception,
+    emit_heartbeat,
+    init_sentry_once,
+)
 from foms.services.sidefx_worker import WORKER_KIND_NAVER_SETTLE_SYNC  # noqa: E402
 
 _LOGGER = logging.getLogger("naver_settle_sync")
@@ -319,6 +323,13 @@ def run() -> int:
     Returns:
         종료 코드. 0=성공, 1=실행은 됐으나 실패·중단(쿼터), 2=인자 오류.
     """
+    # 이 프로세스의 Sentry 를 명시로 붙인다. 지금은 상단 ``from app import app`` 이
+    # build_app -> init_sentry 를 태워 우연히 붙어 있지만(실측 is_active=True), 그 우연이
+    # 사라지는 순간 capture_exception() 이 전부 no-op 이 된다 — 콜드스타트를 줄이려고
+    # app import 를 걷어내는 것이 바로 이 러너류의 다음 개선 방향이다. 게이트는 이미 붙어
+    # 있으면 다시 init 하지 않는다(loop_heartbeat.init_sentry_once). --loop 이 아니라
+    # 여기 두는 이유: 손으로 1회 돌리는 운영 실행도 같은 관측을 받아야 한다.
+    init_sentry_once(_LOGGER)
     args = _parse_args()
     try:
         backfill_from = parse_backfill_from(args.backfill_from)

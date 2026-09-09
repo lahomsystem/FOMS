@@ -62,8 +62,19 @@ _DEFAULT_P1_TYPES = frozenset(
         # 워커 정지. 이 알림만은 **rq 를 거치지 않고** 감시자(SIDEFX)가 직접 발송한다 —
         # 큐가 죽었다는 사실을 큐에 넣어 알릴 수는 없다(2026-09-08 사고).
         "WORKER_STALLED",
+        # 복구도 push 한다. 멎음 push 와 같은 tag 라 OS 알림이 쌓이지 않고 **교체**되며,
+        # 이 유형만 renotify=False 라 소리 없이 배너만 바뀐다. 복구를 화면에만 남기면
+        # 잠금화면에 "멈췄습니다" 배너가 거짓인 채로 남는다.
+        "WORKER_RECOVERED",
     }
 )
+
+#: 워커 건강(멎음·복구) push 를 한 자리에 접는 OS 알림 tag. 두 유형이 같은 문자열을 쓰는
+#: 것이 핵심이다 — id 를 붙이면 알림이 20건 쌓이던 2026-09-08 사건이 그대로 돌아온다.
+_WORKER_HEALTH_TAG = "foms-worker-health"
+
+#: 감시자가 만드는 두 유형(worker_watchdog 의 상수와 같은 문자열).
+_WORKER_HEALTH_TYPES = ("WORKER_STALLED", "WORKER_RECOVERED")
 
 # 이미 더 진행된 상태이면 last_delivery_status 를 push 결과로 덮어쓰지 않는다.
 _TERMINAL_STATUSES = frozenset(
@@ -168,7 +179,33 @@ def _generic_title(urgent: bool, ntype: str) -> str:
         return "업무 배정 알림"
     if ntype == "URGENT_ESCALATION":
         return "에스컬레이션"
+    if ntype == "WORKER_STALLED":
+        return "백그라운드 작업 멈춤"
+    if ntype == "WORKER_RECOVERED":
+        return "백그라운드 작업 복구"
     return "새 알림"
+
+
+def _generic_body(urgent: bool, ntype: str) -> str:
+    """유형별 일반 본문(민감정보 없음).
+
+    워커 건강 두 유형은 kind 이름도 경과 분도 넣지 않는다 — generic payload 규약에
+    예외를 파지 않기 위해서다. 몇 분째 어느 루프인지는 알림 센터 message 에 이미 있고,
+    push 의 임무는 "앱을 열어라" 까지다.
+
+    :param urgent: 긴급 알림 여부
+    :param ntype: 대문자 정규화된 notification_type
+    :return: push 본문 문자열
+    """
+    if urgent:
+        return "긴급 확인이 필요한 알림이 있습니다."
+    if ntype == "URGENT_ESCALATION":
+        return "미확인 긴급 알림이 에스컬레이션되었습니다."
+    if ntype == "WORKER_STALLED":
+        return "발주확인·발송처리 같은 자동 처리가 멈췄습니다. 앱을 열어 확인하세요."
+    if ntype == "WORKER_RECOVERED":
+        return "자동 처리가 다시 시작됐습니다."
+    return "확인이 필요한 새 알림이 있습니다."
 
 
 def _build_payload(notif: Notification) -> Dict[str, Any]:
@@ -177,21 +214,24 @@ def _build_payload(notif: Notification) -> Dict[str, Any]:
     ntype = (notif.notification_type or "").strip().upper()
     payload: Dict[str, Any] = {
         "title": _generic_title(urgent, ntype),
-        "body": (
-            "긴급 확인이 필요한 알림이 있습니다."
-            if urgent
-            else (
-                "미확인 긴급 알림이 에스컬레이션되었습니다."
-                if ntype == "URGENT_ESCALATION"
-                else "확인이 필요한 새 알림이 있습니다."
-            )
-        ),
+        "body": _generic_body(urgent, ntype),
         "data": {"notification_id": int(notif.id), "deep_link": _deep_link(notif)},
     }
     if urgent:
         payload["requireInteraction"] = True
         payload["tag"] = f"foms-urgent-{int(notif.id)}"
         payload["renotify"] = True
+    elif ntype in _WORKER_HEALTH_TYPES:
+        # 고정 tag = 같은 사건이 잠금화면에서 1건으로 접히고, 복구가 멎음 배너를 교체한다.
+        # requireInteraction 은 긴급에만 붙이는 현행 규칙을 지킨다(인프라 사건은 긴급이 아니다).
+        payload["tag"] = _WORKER_HEALTH_TAG
+        # 멎음은 진동·소리로 알리고, 복구는 조용히 배너만 바꾼다(소음 0).
+        payload["renotify"] = ntype == "WORKER_STALLED"
+        # renotify=False 는 **같은 tag 의 기존 알림을 교체할 때만** 무음이다. 사람이
+        # 멎음 배너를 이미 지웠으면 복구는 새 알림이 되고, static/sw.js 의
+        # ``payload.vibrate || [80, 40, 80]`` 이 기본 진동을 붙여 새벽에 울린다.
+        # JS 에서 빈 배열은 truthy 라 []를 그대로 보내면 진동이 꺼진다.
+        payload["vibrate"] = [] if ntype == "WORKER_RECOVERED" else [80, 40, 80]
     return payload
 
 
@@ -313,7 +353,15 @@ def _deliver_one(
 
 
 def _send_push_impl(db: Any, notification_id: int) -> Dict[str, Any]:
-    """실제 발송 로직(주어진 세션 사용, commit 은 호출자 책임)."""
+    """실제 발송 로직(주어진 세션 사용, commit 은 호출자 책임).
+
+    기능 플래그를 **여기서** 본다. enqueue 경로에만 두면 rq 를 거치지 않는 직접 호출자
+    (워커 정지 감시자가 정확히 그렇다)가 플래그를 통째로 우회한다 — "웹푸시가 꺼져 있다"
+    의 정본은 발송 함수 하나여야 하고, 호출자마다 검사를 복제하면 규칙이 두 벌이 된다.
+    """
+    if not _web_push_enabled():
+        return {"sent": 0, "failed": 0, "revoked": 0, "reason": "flag_off"}
+
     notif = (
         db.query(Notification).filter(Notification.id == int(notification_id)).first()
     )

@@ -36,7 +36,7 @@ from rq import Queue, Worker  # noqa: E402
 
 from db import engine  # noqa: E402
 from foms.services.datetime_kst import now_utc_naive  # noqa: E402
-from foms.services.loop_heartbeat import emit_heartbeat  # noqa: E402
+from foms.services.loop_heartbeat import emit_heartbeat, init_sentry_once  # noqa: E402
 from foms.services.sidefx_worker import WORKER_KIND_RQ_WORKER  # noqa: E402
 
 _LOGGER = logging.getLogger("run_rq_worker")
@@ -151,6 +151,12 @@ def main(argv: Optional[list[str]] = None) -> int:
     Returns:
         종료 코드. 인자 오류(URL 부재)는 2 — 조용히 큐 없이 도는 것보다 죽는 게 낫다.
     """
+    # 이 프로세스에는 지금까지 Sentry 가 한 번도 붙지 않았다(실측: import 직후
+    # ``sentry_sdk.get_client().is_active()`` = False). ``app.py`` 를 안 거치고 ``db`` 만
+    # 열기 때문이다 — 그래서 하트비트 실패마다 부르는 emit_heartbeat 의 capture_exception()
+    # 이 전량 no-op 이었다. init 하나로 그 구멍이 닫힌다: 잡 실패는 RQ 통합이, 미처리 예외는
+    # SDK excepthook 이 스스로 잡으므로 여기에 try/except 를 새로 만들지 않는다.
+    init_sentry_once(_LOGGER)
     args = _parse_args(argv)
     if not (args.url or "").strip():
         print("[run-rq-worker] REDIS_URL 이 없다", flush=True)
