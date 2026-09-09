@@ -244,6 +244,8 @@ if ($Full) {
         # 2026-09-09 에 로컬 초록·CI 빨강이 같은 커밋에 성립했다.
         "tests/domains/test_loop_heartbeat_wiring.py",
         "tests/domains/test_worker_loop_heartbeat.py",
+        "tests/domains/test_order_sync_cadence.py",
+        "tests/domains/test_worker_sentry_wiring.py",
         "tests/domains/test_worker_watchdog.py",
         "tests/harness/test_hook_log_hygiene.py::test_ai_status_head_budget",
         "tests/harness/test_powershell_encoding_contract.py",
