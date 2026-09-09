@@ -6,7 +6,7 @@
 """
 from __future__ import annotations
 
-from foms.services.erp_display import _erp_get_stage, _erp_alerts, _erp_has_media
+from foms.services.erp_display import _erp_get_stage, _erp_alerts, _erp_has_media, manager_display_name
 from foms.services.erp_policy import (
     STAGE_NAME_TO_CODE,
     DEFAULT_OWNER_TEAM_BY_STAGE,
@@ -75,7 +75,7 @@ def build_orders_row_dtos(page_orders, page_sds, att_counts, user_map, current_u
         # '담당' 칸이 실제로 읽는 값 = ERP 주문담당자(structured_data.parties.manager.name).
         # 뱃지 판정도 같은 값을 봐야 한다 — 사람이 담당자를 적어 넣었는데 보류함이 아직
         # owner 라는 이유로 '담당 미지정' 이 뜨면, 화면은 적어둔 이름을 가려버린다.
-        manager_name = ((parties.get('manager') or {}).get('name') or '').strip()
+        manager_name = manager_display_name(parties)
         enriched.append({
             'id': o.id,
             # v3 CS 콜/접수 홈: 접수 큐 필터(status)·접수일 표시(파생값, 신규 쿼리 없음).

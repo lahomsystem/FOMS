@@ -8,7 +8,7 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-from foms.services.erp_display import normalize_manager_name
+from foms.services.erp_display import manager_display_name, normalize_manager_name
 from foms.services.erp_policy import (
     STAGE_LABELS,
     STAGE_NAME_TO_CODE,
@@ -196,7 +196,7 @@ def _assignee_display_names(
                 names.append(mapped)
     elif stage_code in ("MEASURE", "CONFIRM"):
         mgr = (
-            ((sd.get("parties") or {}).get("manager") or {}).get("name")
+            manager_display_name(sd.get("parties"))
             or getattr(order, "manager_name", None)
             or current_quest.get("owner_person")
             or ""
@@ -240,7 +240,7 @@ def resolve_order_role_assignees(
             sales_ids.append(int(raw))
     measurement_names = [user_map[uid] for uid in sales_ids if uid in user_map]
     if not measurement_names:
-        raw_manager = ((parties.get("manager") or {}).get("name"))
+        raw_manager = manager_display_name(parties) or None
         if raw_manager is None and order is not None:
             raw_manager = getattr(order, "manager_name", None)
         try:
@@ -251,7 +251,7 @@ def resolve_order_role_assignees(
             pass
     if not measurement_names:
         resolved = normalize_manager_name(
-            ((parties.get("manager") or {}).get("name")),
+            manager_display_name(parties),
             getattr(order, "manager_name", None) if order is not None else "",
         )
         if str(resolved or "").strip() and str(resolved).strip() != "-":
@@ -347,7 +347,7 @@ def _compute_can_assignee_approve(
 
     manager_names: set[str] = set()
     for src in [
-        ((sd.get("parties") or {}).get("manager") or {}).get("name"),
+        manager_display_name(sd.get("parties")),
         getattr(order, "manager_name", None),
         current_quest.get("owner_person"),
     ]:
