@@ -244,11 +244,13 @@ _OPERATIONAL_TOP_LEVEL_KEYS = (
     'estimate_preview',
     # ChannelTalk manual push history (server-managed on /api/channel/push-manual,
     # /api/channel/push-estimate). Never rendered by the form, so preserve across PUTs.
+    # 마지막 줄은 도면방 PUSH 이력(서버 소유 — 폼은 렌더하지도 보내지도 않는다).
     'channeltalk_push',
     'channeltalk_push_drawing',
     'channeltalk_push_estimate',
     'channeltalk_push_as',
     'channeltalk_push_measure_room',
+    'channeltalk_push_drawing_room',
     # 실측 예약 안내 알림톡 이력(서버 소유 — kakao_alimtalk._record_history 만 쓴다).
     # 폼은 이 키를 렌더하지도 보내지도 않으므로 보존 목록에 없으면 **주문을 한 번 저장하는
     # 것만으로 사라진다**. 그러면 저장 직후 돌아가는 maybe_send_measure_alimtalk 의

@@ -26,6 +26,11 @@ from foms.services.channel_as_attachments import (
     select_as_push_attachments,
 )
 from foms.services.channel_as_message import build_as_push_text
+from foms.services.channel_drawing_attachments import (
+    current_drawing_storage_keys,
+    select_drawing_room_push_attachments,
+)
+from foms.services.channel_drawing_room_message import build_drawing_room_push_text
 from foms.services.orders.as_log import decorate_entry
 from foms.services.channel_client import is_configured
 from foms.services.channel_dispatch import dispatch_order_event
@@ -47,6 +52,8 @@ from foms.services.jobs.queue import get_rq_runtime_status
 logger = logging.getLogger(__name__)
 
 _MAX_TEXT_LENGTH = 4000
+# 본문을 서버가 저장된 주문으로 단독 조립하는 push 종류(클라이언트 text 를 신뢰하지 않는다).
+_SERVER_COMPOSED_TEXT_KINDS = frozenset({'as', 'drawing_room'})
 _MIN_CHANGE_NOTE_LEN = 1
 _MAX_CHANGE_NOTE_LEN = 500
 _RETIRED_GROUP_MESSAGE = '이 채널톡 방(554075)으로의 PUSH 기능은 삭제되었습니다.'
@@ -88,6 +95,13 @@ _PUSH_KIND_CONFIG = {
         'category': 'measurement',
         'history_key': 'channeltalk_push_measure_room',
         'group_env': 'CHANNEL_GROUP_MEASURE_ROOM',
+    },
+    # 도면방 PUSH: 현재 전달본 도면만 도면방으로. category 는 'drawing' 을 공유하지만
+    # 이력 키는 분리한다 — 발주 PUSH 를 보냈다고 도면방 PUSH 가 재전송이 되면 안 된다.
+    'drawing_room': {
+        'category': 'drawing',
+        'history_key': 'channeltalk_push_drawing_room',
+        'group_env': 'CHANNEL_GROUP_DRAWING_ROOM',
     },
 }
 
@@ -385,11 +399,14 @@ def api_channel_push_manual():
         - measure_room(실측 PUSH): 실측 첨부 → 실측 그룹(229923)
         - drawing(발주 PUSH): 도면 첨부 → 도면 그룹(229625)
         - as(AS PUSH): AS 첨부 → AS 그룹(230351)
+        - drawing_room(도면방 PUSH): 현재 전달본 도면 → 도면방 그룹(230331),
+          본문·첨부 모두 서버 조립
 
     Request JSON:
         order_id (int): 주문 ID
         text (str): 전송할 텍스트 (변환된 내용)
-        push_kind (str): 'measurement'(기본) / 'measure_room' / 'drawing' / 'as'
+        push_kind (str): 'measurement'(기본) / 'measure_room' / 'drawing' / 'as' /
+            'drawing_room'
         change_note (str, optional): 재전송 시 변경 내용 (1~500자, 필수)
 
     Returns:
@@ -409,9 +426,10 @@ def api_channel_push_manual():
 
         if not order_id:
             return jsonify({'success': False, 'message': 'order_id가 없습니다.'}), 400
-        # AS 본문은 서버가 저장된 주문으로 조립한다(SSOT). ERP 폼·AS 대시보드 어느 쪽에서
-        # 쏘든 같은 문구가 나가야 하므로 클라이언트가 보낸 text 는 이 경로에서 신뢰하지 않는다.
-        if push_kind != 'as':
+        # AS·도면방 본문은 서버가 저장된 주문으로 조립한다(SSOT). ERP 폼·AS 대시보드·
+        # 도면 워크벤치·도면 마법사 어느 쪽에서 쏘든 같은 문구가 나가야 하므로 클라이언트가
+        # 보낸 text 는 이 경로에서 신뢰하지 않는다.
+        if push_kind not in _SERVER_COMPOSED_TEXT_KINDS:
             if not text:
                 return jsonify({'success': False, 'message': '전송할 텍스트가 없습니다. 변환 버튼을 먼저 누르거나 내용을 입력해주세요.'}), 400
             if len(text) > _MAX_TEXT_LENGTH:
@@ -450,6 +468,19 @@ def api_channel_push_manual():
                 return jsonify({
                     'success': False,
                     'message': f'AS 접수 내용이 너무 깁니다 (최대 {_MAX_TEXT_LENGTH}자).',
+                }), 400
+
+        if push_kind == 'drawing_room':
+            text = build_drawing_room_push_text(order)
+            if not text:
+                return jsonify({
+                    'success': False,
+                    'message': '주문 정보가 비어 있어 도면방에 보낼 본문을 만들 수 없습니다.',
+                }), 400
+            if len(text) > _MAX_TEXT_LENGTH:
+                return jsonify({
+                    'success': False,
+                    'message': f'도면방 본문이 너무 깁니다 (최대 {_MAX_TEXT_LENGTH}자).',
                 }), 400
 
         # 이전 푸쉬 이력 확인 (push_kind별 분리)
@@ -506,6 +537,27 @@ def api_channel_push_manual():
                 attachments = select_as_push_attachments(
                     sd, attachments, sd.get(kind_config['history_key'])
                 )
+        elif push_kind == 'drawing_room':
+            # 도면방은 category='drawing' 전량이 아니라 **현재 전달본**만 보낸다. 전달할
+            # 때마다 category 가 'drawing' 으로 표시되므로 옛 전달본 첨부행이 남아 있다.
+            current_keys = current_drawing_storage_keys(order)
+            if not current_keys:
+                return jsonify({
+                    'success': False,
+                    'message': '전달된 도면이 없습니다. 도면을 먼저 전달한 뒤 도면방 PUSH 를 눌러주세요.',
+                }), 400
+            attachments = select_drawing_room_push_attachments(order, attachments)
+            if not attachments:
+                # 옛 전달본은 첨부행이 지워졌을 수 있다 — "전달 안 함"과 다른 상황이므로
+                # 문구도 다르게 안내한다(첫 문구를 쓰면 전달했는데 안 했다고 말하게 된다).
+                logger.warning(
+                    "[채널톡 도면방푸쉬] 전달본 key 는 있으나 첨부행 교집합 0 (order_id=%s)",
+                    order.id,
+                )
+                return jsonify({
+                    'success': False,
+                    'message': '현재 전달본 도면을 첨부 목록에서 찾지 못했습니다. 도면을 다시 전달한 뒤 시도해주세요.',
+                }), 400
 
         storage = get_storage()
         files = []
@@ -603,6 +655,52 @@ def _as_log_labels(sd: dict) -> dict:
     return labels
 
 
+def _drawing_room_preview_files(selected: list, storage: Any) -> list[dict]:
+    """도면방 미리보기 파일 목록 — 선정분만 내린다(도면방은 사용자 재선택이 없다).
+
+    Args:
+        selected: ``select_drawing_room_push_attachments`` 결과(전송 순서).
+        storage: 스토리지 서비스(서명 URL 발급).
+
+    Returns:
+        ``[{filename, url, is_image, selected, source}]``.
+    """
+    files = []
+    for att in selected:
+        if not att.storage_key:
+            continue
+        preview_key = att.thumbnail_key or att.storage_key
+        files.append({
+            'filename': att.filename or 'file',
+            'url': storage.get_download_url(preview_key, expires_in=3600),
+            'is_image': (att.file_type or 'image') == 'image',
+            'selected': True,
+            'source': '현재 전달본',
+        })
+    return files
+
+
+def _drawing_room_preview_payload(order: Any, attachments: list, storage: Any) -> dict:
+    """도면방 PUSH 미리보기 payload — 전송과 **같은 선택자**를 쓴다(미리보기 = 실제).
+
+    Args:
+        order: 대상 주문.
+        attachments: 그 주문의 ``category='drawing'`` 첨부.
+        storage: 스토리지 서비스.
+
+    Returns:
+        ``{success, text, files, files_count}``.
+    """
+    selected = select_drawing_room_push_attachments(order, attachments)
+    files = _drawing_room_preview_files(selected, storage)
+    return {
+        'success': True,
+        'text': build_drawing_room_push_text(order),
+        'files': files,
+        'files_count': len(files),
+    }
+
+
 @channel_integration_bp.route('/push-preview', methods=['GET'])
 @login_required
 @role_required(['ADMIN', 'MANAGER', 'STAFF'])
@@ -613,9 +711,12 @@ def api_channel_push_preview():
     ``select_as_push_attachments`` 와 **같은 함수**를 쓴다 — 미리보기와 실제 전송이 다른
     규칙을 쓰면 확인창이 오히려 오해를 만든다.
 
+    도면방 PUSH(``drawing_room``)도 같은 이유로 여기를 쓰되, 응답은 AS 경로에 들어가기
+    전에 별도 헬퍼가 만든다 — AS 응답 모양을 한 글자도 건드리지 않기 위해서다.
+
     Query Args:
         order_id: 대상 주문 PK.
-        push_kind: 현재는 ``as`` 만 지원(다른 값은 400).
+        push_kind: ``as`` / ``drawing_room`` 만 지원(다른 값은 400).
 
     Returns:
         200 ``{success, text, files:[{id, filename, url, is_image, selected, source}]}`` /
@@ -623,8 +724,8 @@ def api_channel_push_preview():
     """
     db = get_db()
     push_kind = (request.args.get('push_kind') or 'as').strip()
-    if push_kind != 'as':
-        return jsonify({'success': False, 'message': 'AS PUSH 만 미리보기를 지원합니다.'}), 400
+    if push_kind not in ('as', 'drawing_room'):
+        return jsonify({'success': False, 'message': 'AS·도면방 PUSH 만 미리보기를 지원합니다.'}), 400
     try:
         order_id = int(request.args.get('order_id') or 0)
     except (TypeError, ValueError):
@@ -635,6 +736,20 @@ def api_channel_push_preview():
     order = db.query(Order).filter(Order.id == order_id, Order.active_filter()).first()
     if not order:
         return jsonify({'success': False, 'message': f'주문 #{order_id}을 찾을 수 없습니다.'}), 404
+
+    if push_kind == 'drawing_room':
+        drawing_attachments = (
+            db.query(OrderAttachment)
+            .filter(
+                OrderAttachment.order_id == order.id,
+                OrderAttachment.category == 'drawing',
+            )
+            .order_by(OrderAttachment.id.asc())
+            .all()
+        )
+        return jsonify(
+            _drawing_room_preview_payload(order, drawing_attachments, get_storage())
+        )
 
     sd = order.structured_data if isinstance(order.structured_data, dict) else {}
     attachments = (

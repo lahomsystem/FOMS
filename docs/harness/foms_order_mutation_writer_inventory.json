@@ -165,7 +165,7 @@
   "writers": [
     {
       "path": "foms/api/channel/channel_integration.py",
-      "lineno": 304,
+      "lineno": 318,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "CHANNEL-WRITER-01"
@@ -340,28 +340,28 @@
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 1158,
+      "lineno": 1160,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "DATA-01"
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 1594,
+      "lineno": 1596,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "DATA-01"
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 1858,
+      "lineno": 1860,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "DATA-01"
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 2300,
+      "lineno": 2302,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "DATA-01"

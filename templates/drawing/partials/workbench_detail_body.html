@@ -1520,6 +1520,14 @@
               <i class="fas fa-rotate-left"></i> 수정요청 취소
             </button>
             {% endif %}
+            {# 도면방 PUSH — 현재 전달본 도면 전부를 도면방으로. 권한 축은 새로 만들지 않고
+               워크벤치 참여자(도면팀·배정자·관리자) 판정을 그대로 쓴다. #}
+            {% if can_toggle_revision_check %}
+            <button class="btn btn-outline-info btn-sm" type="button" id="dw-btn-drawing-room-push"
+              {% if not drawing_files %}disabled title="전달된 도면이 없습니다. 도면을 먼저 전달해주세요."{% endif %}>
+              <i class="fas fa-comment-dots"></i> 도면방 PUSH
+            </button>
+            {% endif %}
           </div>
 
           <div class="bg-white border rounded p-2 mb-2">
@@ -1581,6 +1589,13 @@
   {% if can_cancel_revision_request and drawing_status == 'RETURNED' %}
   <button class="btn btn-warning" type="button" id="btn-cancel-revision-mobile">
     <i class="fas fa-rotate-left"></i> 요청취소
+  </button>
+  {% endif %}
+  {# 도면방 PUSH — 좁은 폭 라벨. 데스크톱 버튼과 id 가 겹치면 안 된다. #}
+  {% if can_toggle_revision_check %}
+  <button class="btn btn-outline-info" type="button" id="dw-btn-drawing-room-push-mobile"
+    {% if not drawing_files %}disabled title="전달된 도면이 없습니다. 도면을 먼저 전달해주세요."{% endif %}>
+    <i class="fas fa-comment-dots"></i> 도면방
   </button>
   {% endif %}
 </div>
@@ -2781,6 +2796,48 @@
       }
     }
 
+    // 도면방 PUSH — 현재 전달본 도면 전부를 채널톡 도면방으로. 본문·첨부는 서버가 조립한다.
+    const DRAWING_ROOM_FILE_COUNT = Array.isArray(drawingFiles) ? drawingFiles.length : 0;
+
+    async function sendDrawingRoomPush(changeNote) {
+      const payload = { order_id: orderId, push_kind: 'drawing_room' };
+      if (changeNote) { payload.change_note = changeNote; }
+      const res = await fetch('/api/channel/push-manual', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      return await res.json();
+    }
+
+    async function pushDrawingRoom(btn) {
+      if (!DRAWING_ROOM_FILE_COUNT) {
+        showWorkbenchToast('전달된 도면이 없습니다. 도면을 먼저 전달해주세요.', 'error');
+        return;
+      }
+      if (!confirm('현재 전달본 도면 ' + DRAWING_ROOM_FILE_COUNT + '장을 도면방으로 보냅니다. 진행할까요?')) return;
+      btn.disabled = true;
+      try {
+        let data = await sendDrawingRoomPush(null);
+        // 재전송이면 서버가 400 으로 변경 내용을 요구한다(이력 유무는 서버가 정본).
+        if (!data.success && String(data.message || '').indexOf('재전송 시 변경 내용') >= 0) {
+          const note = (prompt('이번 재전송의 변경 내용을 입력해주세요. (1~500자)') || '').trim();
+          if (!note) { btn.disabled = false; return; }
+          data = await sendDrawingRoomPush(note);
+        }
+        if (!data.success) {
+          showWorkbenchToast(data.message || data.error || '도면방 PUSH 실패', 'error');
+          btn.disabled = false;
+          return;
+        }
+        showWorkbenchToast('도면방으로 도면 ' + (data.files_count || 0) + '장을 보냈습니다.', 'success');
+      } catch (e) {
+        console.error(e);
+        showWorkbenchToast('도면방 PUSH 중 오류가 발생했습니다.', 'error');
+      }
+      btn.disabled = false;
+    }
+
     async function cancelRevisionRequest() {
       if (!confirm('수정 요청을 취소하시겠습니까?\n요청 시 첨부한 참고 파일이 함께 삭제되며, 도면 전달 상태로 복귀합니다.')) return;
       try {
@@ -2833,6 +2890,8 @@
     document.getElementById('btn-cancel-transfer')?.addEventListener('click', cancelTransfer);
     document.getElementById('btn-cancel-revision')?.addEventListener('click', cancelRevisionRequest);
     document.getElementById('btn-cancel-revision-mobile')?.addEventListener('click', cancelRevisionRequest); // 모바일 하단바
+    document.getElementById('dw-btn-drawing-room-push')?.addEventListener('click', function () { pushDrawingRoom(this); });
+    document.getElementById('dw-btn-drawing-room-push-mobile')?.addEventListener('click', function () { pushDrawingRoom(this); });
 
     // 모달 열릴 때 초기화
     document.getElementById('dwTransferModal')?.addEventListener('show.bs.modal', function () {
