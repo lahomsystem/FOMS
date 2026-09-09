@@ -358,6 +358,7 @@
     els.zoomRange = document.getElementById('dws-zoom-range');
     els.zoomLabel = document.getElementById('dws-zoom-label');
     els.fileInput = document.getElementById('dws-file-input');
+    els.mtTrim = document.getElementById('dws-mt-trim');
     els.presetMenu = document.getElementById('dws-preset-menu');
     els.shapeMenu = document.getElementById('dws-shape-menu');
     els.exportMenu = document.getElementById('dws-export-menu');
@@ -2297,6 +2298,50 @@
     return placed;
   }
 
+  /** 선택한 이미지의 여백을 잘라 새 에셋으로 교체한다.
+
+      서버는 업로드 시점에 여백을 잘라 저장하므로, 기존에 올려둔(여백 포함) 에셋도
+      원본 바이트를 그대로 다시 올리면 같은 트림을 거친다 — 신규 라우트 없이 업로드
+      파이프라인 하나만 쓴다. 놓인 자리(x,y)와 가로 폭은 유지하고 세로만 새 비율로 맞춘다. */
+  function trimSelectedImage() {
+    var o = findObj(selected);
+    if (!canSave || !o || o.type !== 'image' || !o.key) { return; }
+    if (els.mtTrim) { els.mtTrim.disabled = true; }
+    function done() { if (els.mtTrim) { els.mtTrim.disabled = false; } }
+    fetch(viewUrl(o.key), { credentials: 'same-origin' }).then(function (resp) {
+      if (!resp.ok) { throw new Error('asset fetch ' + resp.status); }
+      return resp.blob();
+    }).then(function (blob) {
+      var name = String(o.key).split('/').pop() || ('trim-' + Date.now() + '.png');
+      return uploadAsset(new File([blob], name, { type: blob.type || 'image/png' }));
+    }).then(function (r) {
+      done();
+      var data = (r && r.data && r.data.data) || null;
+      if (r.status !== 200 || !r.data || !r.data.success || !data) {
+        toast((r.data && r.data.message) || '여백 자르기에 실패했습니다.');
+        return;
+      }
+      if (!data.trimmed) { toast('잘라낼 여백이 없습니다.'); return; }
+      var cur = findObj(o.id);
+      if (!cur || cur.type !== 'image') { return; }
+      recordUndo();
+      cur.key = data.key;
+      cur.natural_w = data.width || cur.natural_w;
+      cur.natural_h = data.height || cur.natural_h;
+      if (cur.natural_w > 0 && cur.natural_h > 0) {
+        cur.h = clampDim(Math.round(cur.w * cur.natural_h / cur.natural_w));
+      }
+      markDirty();
+      rebuildAnno();
+      selectById(cur.id);
+      toast('여백을 잘랐습니다.');
+    }).catch(function (err) {
+      done();
+      console.warn('[dws] trim image', err);
+      toast('여백 자르기 오류');
+    });
+  }
+
   /** 드롭 화면좌표(clientX/Y)를 스테이지 논리좌표로 역산한다.
       anno 컨테이너 rect + `zoom` 스케일 기준(positionMiniToolbar 의 정매핑
       screen = annoRect + logical*zoom 의 역). 매핑 불가(사이즈 0 등) 시 null → 중앙 폴백. */
@@ -4082,6 +4127,7 @@
       syncImageToolbar();
     });
     document.getElementById('dws-mt-del-image').addEventListener('click', deleteSelected);
+    if (els.mtTrim) { els.mtTrim.addEventListener('click', trimSelectedImage); }
 
     // 미니 툴바 — 도형
     Array.prototype.forEach.call(els.mtShape.querySelectorAll('.dws-swatch'), function (sw) {

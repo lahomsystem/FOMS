@@ -298,6 +298,76 @@ def test_asset_upload_returns_key_and_view_url(client, monkeypatch):
     assert data["filename"] == "plan.png"
 
 
+def test_asset_upload_trims_uniform_margins(client, monkeypatch):
+    """업로드 시 흰 여백을 잘라 저장한다 — 마법사가 이미지를 원본 크기 상자로 놓기 때문에
+    여백이 그대로 선택·리사이즈 영역이 되어 여러 장을 놓으면 서로 겹쳐 잡힌다."""
+    from PIL import Image
+
+    _login_participant_admin(client)
+    order = _erp_order()
+    order_id = order.id
+
+    source = Image.new("RGB", (600, 400), (255, 255, 255))
+    source.paste(Image.new("RGB", (200, 150), (10, 10, 10)), (150, 100))
+    raw = io.BytesIO()
+    source.save(raw, format="PNG")
+
+    stored = {}
+
+    class DummyStorage:
+        def upload_file(self, file_obj, filename, folder):
+            file_obj.seek(0)
+            stored["bytes"] = file_obj.read()
+            return {"success": True, "key": f"{folder}/{filename}"}
+
+    monkeypatch.setattr("foms.api.drawing.wizard.get_storage", lambda: DummyStorage())
+
+    resp = client.post(
+        f"/api/orders/{order_id}/drawing-wizard/asset",
+        data={"file": (io.BytesIO(raw.getvalue()), "render.png")},
+        content_type="multipart/form-data",
+    )
+
+    assert resp.status_code == 200
+    data = resp.get_json()["data"]
+    assert data["trimmed"] is True
+    assert (data["width"], data["height"]) == (200, 150)
+    with Image.open(io.BytesIO(stored["bytes"])) as saved:
+        assert saved.size == (200, 150)   # 저장본 자체가 여백 없는 그림
+
+
+def test_asset_upload_keeps_original_when_no_margin(client, monkeypatch):
+    """여백이 없으면 원본 바이트를 그대로 저장하고 trimmed=False 로 알린다."""
+    from PIL import Image
+
+    _login_participant_admin(client)
+    order = _erp_order()
+    order_id = order.id
+
+    raw = io.BytesIO()
+    Image.new("RGB", (240, 180), (12, 34, 56)).save(raw, format="PNG")
+    original_bytes = raw.getvalue()
+    stored = {}
+
+    class DummyStorage:
+        def upload_file(self, file_obj, filename, folder):
+            file_obj.seek(0)
+            stored["bytes"] = file_obj.read()
+            return {"success": True, "key": f"{folder}/{filename}"}
+
+    monkeypatch.setattr("foms.api.drawing.wizard.get_storage", lambda: DummyStorage())
+
+    resp = client.post(
+        f"/api/orders/{order_id}/drawing-wizard/asset",
+        data={"file": (io.BytesIO(original_bytes), "photo.png")},
+        content_type="multipart/form-data",
+    )
+
+    assert resp.status_code == 200
+    assert resp.get_json()["data"]["trimmed"] is False
+    assert stored["bytes"] == original_bytes
+
+
 def test_asset_raw_returns_bytes_with_mimetype(client, monkeypatch):
     _login_participant_admin(client)
     order = _erp_order()
