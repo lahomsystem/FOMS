@@ -29,7 +29,11 @@ sys.path.append(
 
 from app import app  # noqa: E402
 from db import engine, get_db  # noqa: E402
-from foms.services.loop_heartbeat import capture_exception, emit_heartbeat  # noqa: E402
+from foms.services.loop_heartbeat import (  # noqa: E402
+    capture_exception,
+    emit_heartbeat,
+    init_sentry_once,
+)
 from foms.services.notifications.escalation import (  # noqa: E402
     escalate_overdue_urgent,
     finalize_escalation_delivery,
@@ -146,6 +150,17 @@ def _run_loop(interval: int, dry_run: bool, as_json: bool) -> int:
 
 
 def run() -> int:
+    """CLI 진입점.
+
+    Returns:
+        종료 코드(정상 종료 0).
+    """
+    # 이 프로세스의 Sentry 를 명시로 붙인다. 지금은 상단 ``from app import app`` 이
+    # build_app -> init_sentry 를 태워 우연히 붙어 있지만(실측 is_active=True), 그 우연이
+    # 사라지면 capture_exception()(_run_loop) 이 통째로 no-op 이 된다. 게이트는 이미 붙어
+    # 있으면 다시 init 하지 않는다. --loop 이 아니라 여기 두는 이유: 손으로 1회 돌리는
+    # 운영 실행도 같은 관측을 받아야 한다.
+    init_sentry_once(_LOGGER)
     args = _parse_args()
     if args.loop:
         return _run_loop(args.interval, args.dry_run, args.json)
