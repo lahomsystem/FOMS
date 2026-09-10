@@ -86,9 +86,10 @@ TypeError: int() argument must be a string, a bytes-like object or a real number
 
 ```
 # 수정 전(빨강) — 새 테스트 2건이 운영 증상 그대로 루프를 뚫고 나온다
-tests\domains	est_loop_heartbeat_wiring.py::test_settle_sync_loop_survives_a_successful_run_tick
+tests/domains/test_loop_heartbeat_wiring.py::test_settle_sync_loop_survives_a_successful_run_tick
   E TypeError: int() argument must be a string, a bytes-like object or a real number, not 'dict'
-  scripts\maintenanceun_naver_settle_sync.py:270: TypeError
+  scripts\maintenance
+un_naver_settle_sync.py:270: TypeError
 
 # 수정 후(초록)
 python -m pytest tests/domains/test_loop_heartbeat_wiring.py -q          -> 24 passed
