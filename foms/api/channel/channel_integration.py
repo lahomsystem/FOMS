@@ -777,25 +777,36 @@ def _drawing_room_preview_files(selected: list, storage: Any) -> list[dict]:
     return files
 
 
-def _drawing_room_preview_payload(order: Any, attachments: list, storage: Any) -> dict:
+def _drawing_room_preview_payload(order: Any, attachments: list, storage: Any, db: Any = None) -> dict:
     """도면방 PUSH 미리보기 payload — 전송과 **같은 선택자**를 쓴다(미리보기 = 실제).
+
+    담당자 개인방도 **전송과 같은 해석기**로 미리 보여준다. 누르기 전에 어느 방으로
+    나가는지 알아야 하고, 발송 없이 매칭을 확인할 수 있는 유일한 자리이기도 하다.
 
     Args:
         order: 대상 주문.
         attachments: 그 주문의 ``category='drawing'`` 첨부.
         storage: 스토리지 서비스.
+        db: 담당자 개인방 조회용 세션(없으면 개인방 정보를 싣지 않는다).
 
     Returns:
-        ``{success, text, files, files_count}``.
+        ``{success, text, files, files_count, manager_room_group_id, manager_name,
+        manager_room_note}``.
     """
     selected = select_drawing_room_push_attachments(order, attachments)
     files = _drawing_room_preview_files(selected, storage)
-    return {
+    payload = {
         'success': True,
         'text': build_drawing_room_push_text(order),
         'files': files,
         'files_count': len(files),
     }
+    if db is not None:
+        lookup = resolve_manager_room(db, order)
+        payload['manager_name'] = lookup.manager_name
+        payload['manager_room_group_id'] = lookup.group_id
+        payload['manager_room_note'] = lookup.message
+    return payload
 
 
 @channel_integration_bp.route('/push-preview', methods=['GET'])
@@ -845,7 +856,7 @@ def api_channel_push_preview():
             .all()
         )
         return jsonify(
-            _drawing_room_preview_payload(order, drawing_attachments, get_storage())
+            _drawing_room_preview_payload(order, drawing_attachments, get_storage(), db)
         )
 
     sd = order.structured_data if isinstance(order.structured_data, dict) else {}
