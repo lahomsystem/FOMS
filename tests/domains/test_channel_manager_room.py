@@ -115,11 +115,11 @@ def test_conflicting_rooms_are_skipped_not_guessed() -> None:
 @pytest.mark.parametrize(
     "manager, users, reason",
     [
-        ("", [], "no_manager"),
-        (None, [], "no_manager"),
+        ("", [_FakeUser("강민경", "567925")], "no_manager"),
+        (None, [_FakeUser("강민경", "567925")], "no_manager"),
         ("명창욱", [_FakeUser("강민경", "567925")], "no_user"),
-        ("강민경", [_FakeUser("강민경", None)], "not_registered"),
-        ("강민경", [_FakeUser("강민경", "   ")], "not_registered"),
+        ("강민경", [_FakeUser("강민경", None), _FakeUser("한용희", "567922")], "not_registered"),
+        ("강민경", [_FakeUser("강민경", "   "), _FakeUser("한용희", "567922")], "not_registered"),
     ],
 )
 def test_missing_room_reports_a_distinct_reason(manager, users, reason) -> None:
@@ -128,3 +128,31 @@ def test_missing_room_reports_a_distinct_reason(manager, users, reason) -> None:
     assert lookup.group_id is None
     assert lookup.reason == reason
     assert lookup.message, "사유만 있고 안내 문구가 없다"
+
+
+@pytest.mark.parametrize(
+    "users",
+    [
+        [],
+        [_FakeUser("강민경", None), _FakeUser("한용희", "")],
+        [_FakeUser("강민경", "   ")],
+    ],
+)
+def test_dormant_when_nobody_registered_a_room(users) -> None:
+    """아무도 방을 등록하지 않았으면 조용하다 — 공용방만 보내던 예전 화면 그대로.
+
+    운영 결정(2026-09-10): 개인방을 공개 그룹으로 바꾸면 검색이 번잡해져 일단
+    공용 도면방만 쓴다. 그 상태에서 "미등록" 을 매번 알리면 소음이다.
+    """
+    lookup = resolve_manager_room(_FakeDb(users), _FakeOrder("강민경"))
+    assert lookup.group_id is None
+    assert lookup.reason == "dormant"
+    assert lookup.message is None, "기능을 안 쓰는 상태인데 화면에 무언가를 띄운다"
+
+
+def test_one_registration_wakes_the_reasons_back_up() -> None:
+    """한 명이라도 등록하면 나머지 담당자의 미등록 안내가 스스로 살아난다."""
+    users = [_FakeUser("한용희", "567922"), _FakeUser("강민경", None)]
+    lookup = resolve_manager_room(_FakeDb(users), _FakeOrder("강민경"))
+    assert lookup.reason == "not_registered"
+    assert lookup.message

@@ -39,6 +39,7 @@ class ManagerRoomLookup:
         group_id: 보낼 개인방 그룹 id. 없으면 ``None``.
         manager_name: 판정에 쓴 담당자 이름(빈 담당자면 ``""``).
         reason: ``group_id`` 가 없을 때의 사유 코드 —
+            ``dormant``(아무도 개인방을 등록하지 않음 = 기능 미사용) /
             ``no_manager``(담당자 미입력) / ``no_user``(같은 이름 계정 없음) /
             ``not_registered``(계정은 있으나 방 미등록) /
             ``ambiguous``(같은 이름 계정들이 서로 다른 방을 가리킴).
@@ -104,16 +105,21 @@ def resolve_manager_room(db, order: Any) -> ManagerRoomLookup:
     from models import User  # 순환 import 회피 — 서비스가 모델을 끌어오지 않는다
 
     manager_name = str(getattr(order, "manager_name", None) or "").strip()
+    users = db.query(User).filter(User.name.isnot(None)).all()
+
+    # 아무도 개인방을 등록하지 않았으면 기능을 안 쓰는 상태다. 그때는 "미등록" 을
+    # 매번 알리지 않는다 — 공용 도면방만 보내던 예전 화면 그대로다. 한 명이라도
+    # 등록하는 순간 아래 사유 안내가 스스로 살아난다.
+    feature_in_use = any(str(u.channel_drawing_group_id or "").strip() for u in users)
+    if not feature_in_use:
+        return ManagerRoomLookup(None, manager_name, "dormant", None)
+
     if not manager_name:
         return ManagerRoomLookup(
             None, "", "no_manager", "주문에 담당자가 없어 담당자 개인방은 보내지 않았습니다."
         )
 
-    candidates = [
-        user
-        for user in db.query(User).filter(User.name.isnot(None)).all()
-        if str(user.name or "").strip() == manager_name
-    ]
+    candidates = [user for user in users if str(user.name or "").strip() == manager_name]
     if not candidates:
         return ManagerRoomLookup(
             None,
