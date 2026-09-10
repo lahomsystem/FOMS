@@ -6,6 +6,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from foms.services import erp_quest_display as qd
+from foms.services.orders import quest_approve_cta as cta_mod
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -260,11 +261,11 @@ def test_approve_cta_does_not_promise_a_move_that_never_happens() -> None:
 def test_command_required_stages_expose_no_approve_button() -> None:
     """도면·고객컨펌은 quest approve API 가 409 로 거부한다 — 버튼 자체를 주면 막다른 길이다."""
     for stage_code in ("DRAWING", "CONFIRM"):
-        cta = qd._build_approve_cta(stage_code, SimpleNamespace(id=1, customer_name="홍길동"))
+        cta = cta_mod.build_approve_cta(stage_code, SimpleNamespace(id=1, customer_name="홍길동"))
         assert cta["approve_label"] is None
         assert cta["command_required"] is True
     # 완료 단계는 다음 stage 가 없어 승인이 아무것도 바꾸지 않는다 — 역시 버튼 없음.
-    assert qd._build_approve_cta("COMPLETED", SimpleNamespace(id=1))["approve_label"] is None
+    assert cta_mod.build_approve_cta("COMPLETED", SimpleNamespace(id=1))["approve_label"] is None
 
 
 def test_queue_card_hides_approve_when_server_gives_no_label() -> None:
