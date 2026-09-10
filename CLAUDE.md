@@ -27,7 +27,7 @@
 - 성능 가드(pre_push_smoke 가 강제)·문제 수정 정책(근본 원인만)·마이그레이션 규약 전문: `AGENTS.md`. 디버깅은 `diagnosing-bugs` 스킬부터.
 
 ## 작업 방식
-- 프롬프트 맨 앞 `**A`~`**D` 는 사용자의 등급 선언이다(뜻과 절차 정본 `docs/guides/LONG_TASK_PROMPTS.md`). 코어 변경(DB/Auth/API·배포·하네스)은 Spec → 승인 → 구현. 단순 UI·타이포는 바로 코딩 — superpowers brainstorming 게이트보다 우선하고, git 관련 스킬보다 위 Git 규칙이 우선한다.
+- 프롬프트 맨 앞 `**A`~`**D` 는 사용자의 등급 선언이다(뜻과 절차 정본 `docs/guides/LONG_TASK_PROMPTS.md`). 코어 변경(DB/Auth/API·배포·하네스)은 Spec → 승인 → 구현. 단순 UI·타이포는 바로 코딩. 스킬은 온디맨드로만 부르고, git 관련 스킬보다 위 Git 규칙이 우선한다.
 - 서브에이전트 보고는 주장이다 — diff·테스트를 직접 확인한 뒤에만 완료라고 한다. 위임 브리프에는 경로:행 컨텍스트·완료 기준(검증 명령)·변경 범위를 넣는다.
 
 # Compact instructions

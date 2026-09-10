@@ -194,3 +194,15 @@ def test_memory_index_line_budget() -> None:
         return
     n = _read(p).count("\n") + 1
     assert n <= MEMORY_INDEX_MAX_LINES, f"MEMORY.md {n}줄 > {MEMORY_INDEX_MAX_LINES} — 저장소에서 유도 가능·만료 항목을 지워라(판정표 docs/plans/2026-09-09-harness-ablation-v2-memory-judgment.md)"
+
+
+def test_superpowers_plugin_disabled() -> None:
+    """superpowers 플러그인이 다시 켜지면 red — 2026-08-03 결정이 6.3.0 업데이트로 되돌아간 사고 재발 방지.
+
+    근거(2026-09-10 결정 ⑥-4-가): Fable 5.1 12회 + Opus 5 4회 실행에서 Skill 호출 0·결과 차이 0. 파일이 없는 환경(CI)은 통과.
+    """
+    p = HOME_CLAUDE / "settings.json"
+    if not p.exists():
+        return
+    enabled = json.loads(_read(p)).get("enabledPlugins", {}).get("superpowers@claude-plugins-official")
+    assert enabled is False, "superpowers 플러그인이 켜져 있다 — enabledPlugins 를 false 로(복원 트리거: 승인 없는 구현 착수 재작업 2회)"
