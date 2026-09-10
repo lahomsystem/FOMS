@@ -127,6 +127,39 @@ tools/harness/*_scan.py --check (5종)                             -> exit 0
 - `drift-audit-daily` 09-09 20:59Z(`9e89d8e3a`, 옛 기준선) **실패**: "AS 축 투영(as_axis_status) 드리프트 0 → 1 (+1)", 총 927건. **운영에 AS 축 투영 누락 1건이 새로 생겼다** — 09-08 은 로그인 502 였고 이번은 진짜 순증이다. 오늘 밤 런은 새 기준선(flat 924)으로 돈다 — flat 도 924 를 넘으면 red 가 두 줄이 된다.
 - `worker-heartbeat-daily` 09-09 21:15Z **실패**: `NAVER_SETTLE_SYNC` 하트비트 나이 2760초(예산 180) STALE — 09-08 밤(3479초)에 이어 이틀째. 다른 루프는 OK.
 
+## 조사: 정산 동기화 하트비트 STALE (2026-09-10, 읽기 전용 — 사용자 선택)
+
+**원인 확정**: `scripts/maintenance/run_naver_settle_sync.py:270` `_heartbeat_metadata` 가
+`int(stats.get("calls") or 0)` 를 하는데 `run_settle_sync` 의 `stats["calls"]` 는 endpoint 별 **dict**
+(`rows` 도 table 별 dict). 매일 05:30 KST 정기 실행(61~62초, OK)이 끝난 그 tick 에서 `TypeError` →
+이 호출은 `_run_loop` 의 `try` **밖**이라 루프 프로세스가 죽는다. `start.sh` 의 `… --json &` 루프에는
+감독자가 없다(감시 루프는 RQ 소비자만) → 다음 WORKER 재배포까지 하트비트 정지.
+
+근거(전부 읽기 전용):
+- 운영 `naver_settle_sync_runs`: SCHEDULE run 35(09-08 20:30:35Z) · 38(09-09 20:30:26Z) 둘 다 61~62초, OK,
+  calls `{'settle/case': 45, 'settle/daily': 3, 'settle/commission-details': 45}`.
+- 일일 점검의 나이 3479초(09-08 21:27Z)·2760초(09-09 21:15Z) → 마지막 하트비트 20:29Z = 실행 시작 직전 tick.
+- WORKER 이전 배포(`0e7f589a`, 09-09 12:02Z) 로그: `2026-09-09T20:31:30Z Traceback … run_naver_settle_sync.py
+  line 270, in _heartbeat_metadata / TypeError: int() argument must be … not 'dict'`. 루프 시작 로그
+  12:03:21Z(tick=60s) 이후 정확히 정기 실행 1회 뒤.
+- 감시자는 제대로 울렸다: `WORKER_STALLED` 20:32:42Z "NAVER_SETTLE_SYNC(3분째)" → `WORKER_RECOVERED`
+  23:43:17Z(PR #339 머지 재배포로 루프 재기동). 낮 점검이 초록이던 것은 재배포가 잦았기 때문.
+- 로컬 재현(스크래치 탐침 `probe_settle_loop_death.py`): 운영과 같은 결과 모양을 돌려주면 `_run_loop` 이
+  `TypeError` 로 탈출, 그 tick 하트비트 0 — 3초 만에 RED.
+
+기각한 가설: "sync 가 오래 걸려 그동안 하트비트가 없다" — 실행 표가 61초라고 말한다.
+
+왜 못 잡았나: `test_settle_sync_loop_beats_outside_its_window` 는 창 밖(result=None)만 돌린다. 창 안 성공
+tick 을 실제 `_finish` payload 모양으로 돌리는 테스트가 없다.
+
+같은 로그의 다른 Traceback 6건(22:15Z~23:39Z)은 전부 `botocore ClientError 404 HeadObject`(R2 객체 없음) —
+별개 축, 손대지 않음.
+
+수정안(A 등급): ① dict 면 값을 합산(`sum(calls.values())`), rows 도 같이 ② `emit_heartbeat`·metadata 조립을
+루프의 예외 가드 안으로(하트비트 결함이 루프를 죽일 수 없게) ③ 회귀 테스트 — 창 안 성공 tick 을 실제 payload
+모양으로 1 tick 돌려 루프 생존 + 하트비트 1건 단언(`test_loop_heartbeat_wiring.py` 의 `_drive_one_tick` 시임)
+④ 사고 원장 `docs/incidents/2026-09-10-settle-loop-dies-after-success-tick.md`.
+
 ## 남은 것
 
 - 로그인 한도·잠금(A, deploy `40d25bb1b`) — 사용자 판단 대기(운영에 올리면 8회 실패 → 15분 429, 관리자 해제 UI 없음).
