@@ -66,6 +66,8 @@ _RISK_ORDER = {"allow": 0, "ask": 1, "deny": 2}
 # classify_command 호출 동안 deploy scope 검사용 컨텍스트(재귀 언랩 공유).
 _ctx_project_root: str | None = None
 _ctx_session_id: str | None = None
+#: 같은 명령 안 선행 `cd <dir>` 세그먼트가 알려 준 작업 디렉토리(임시폴더 면제 판정용).
+_ctx_cwd_hint: str | None = None
 
 #: 선행 환경변수 할당 토큰(`KEY=VAL`) 패턴 — 실제 명령 앞에서 스킵한다.
 _ENV_ASSIGN_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
@@ -91,6 +93,59 @@ _MAX_UNWRAP_DEPTH = 5
 # ---------------------------------------------------------------------------
 # 저수준 파서
 # ---------------------------------------------------------------------------
+
+#: heredoc 본문을 **실행**하는 소비자 — 이들에게 먹이는 본문은 명령으로 판정한다.
+_SHELL_HEREDOC_CONSUMERS: frozenset[str] = frozenset(
+    {"bash", "sh", "zsh", "dash", "ksh", "pwsh", "powershell", "cmd"}
+)
+_HEREDOC_RE = re.compile(r"<<-?\s*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\1")
+
+
+def _heredoc_consumer(prefix: str) -> str:
+    """heredoc 연산자 앞 텍스트에서 본문을 받는 명령 이름을 뽑는다(마지막 세그먼트의 첫 토큰).
+
+    파라미터:
+        prefix: 같은 줄에서 `<<` 앞까지의 문자열.
+    반환: 소문자 명령 이름(없으면 빈 문자열).
+    """
+    last = re.split(r"&&|\|\||;|\|", prefix)[-1].strip()
+    tokens = _tokenize(last) if last else []
+    return _command_name(tokens) if tokens else ""
+
+
+def _strip_heredoc_bodies(command: str) -> str:
+    """셸이 아닌 명령에 먹이는 heredoc 본문을 제거한다 — 본문은 데이터다.
+
+    `cat > 문서 <<'MD' ... MD`, `python - <<'PY' ... PY`, `git commit -F - <<EOF` 의 본문에
+    적힌 위험 명령 문자열은 실행되지 않는데, 세그먼트 분해가 본문 각 줄을 명령으로 읽어
+    deploy 푸시 ask·rm 재귀 deny 오탐을 냈다(2026-09-09 감사 H-13·H-16). `bash <<EOF` 처럼
+    셸이 본문을 실행하는 경우는 그대로 둔다.
+
+    파라미터:
+        command: 개행 정규화된 원본 명령.
+    반환: heredoc 본문 줄이 제거된 명령(종결 태그 줄도 제거).
+    """
+    lines = command.split("\n")
+    out: list[str] = []
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        match = _HEREDOC_RE.search(line)
+        if not match:
+            out.append(line)
+            i += 1
+            continue
+        tag = match.group(2)
+        keep_body = _heredoc_consumer(line[: match.start()]) in _SHELL_HEREDOC_CONSUMERS
+        out.append(line)
+        i += 1
+        while i < len(lines) and lines[i].strip() != tag:
+            if keep_body:
+                out.append(lines[i])
+            i += 1
+        i += 1  # 종결 태그 줄 소비
+    return "\n".join(out)
+
 
 def _split_segments(command: str) -> list[str]:
     """복합 셸 명령을 연산자(`&&`,`||`,`;`,`|`) 및 개행(`\\n`) 경계로 분해한다.
@@ -348,8 +403,36 @@ def _classify_git_push(
     return "allow", ""
 
 
+def _git_effective_dir(tokens: list[str]) -> str | None:
+    """git 명령이 실제로 도는 디렉토리 — `-C <dir>` > 선행 `cd` 힌트 > project_root.
+
+    파라미터:
+        tokens: 따옴표 제거된 argv 토큰(첫 토큰 = git).
+    반환: 디렉토리 문자열 또는 None(알 수 없음).
+    """
+    i = 1
+    while i < len(tokens):
+        tok = _strip_quotes(tokens[i])
+        if tok == "-C" and i + 1 < len(tokens):
+            return _strip_quotes(tokens[i + 1])
+        if not tok.startswith("-"):
+            break
+        i += 2 if tok in _GIT_GLOBAL_VALUE_FLAGS else 1
+    return _ctx_cwd_hint or _ctx_project_root
+
+
+def _in_temp_worktree(tokens: list[str]) -> bool:
+    """git 명령의 실효 디렉토리가 임시폴더 하위(세션·승격 worktree)인지."""
+    effective = _git_effective_dir(tokens)
+    return bool(effective) and _is_temp_path(effective)
+
+
 def _classify_git_reset(tokens: list[str], reset_idx: int) -> tuple[str, str]:
-    """`git reset` 위험도 판정 (--hard + origin 대상 = 로컬 파괴)."""
+    """`git reset` 위험도 판정 (--hard + origin 대상 = 로컬 파괴).
+
+    임시폴더 worktree 안의 `reset --hard`(대상 없음)는 허용한다 — 승격·세션 worktree 정리에서
+    반복되던 ask 오탐(2026-09-09 감사 H-14). origin 대상 파괴는 어디서든 deny.
+    """
     rest = tokens[reset_idx + 1:]
     if not any(t == "--hard" for t in rest):
         return "allow", ""
@@ -357,6 +440,8 @@ def _classify_git_reset(tokens: list[str], reset_idx: int) -> tuple[str, str]:
         low = tok.lower()
         if low == "origin" or low.startswith("origin/"):
             return "deny", "reset --hard origin(로컬 커밋 파괴)"
+    if _in_temp_worktree(tokens):
+        return "allow", ""
     return "ask", "reset --hard(로컬 변경 폐기)"
 
 
@@ -371,8 +456,10 @@ def _classify_git_clean(tokens: list[str], clean_idx: int) -> tuple[str, str]:
 
 
 def _classify_git_checkout(tokens: list[str], checkout_idx: int) -> tuple[str, str]:
-    """`git checkout -- <path>` (작업트리 변경 폐기) = ask."""
+    """`git checkout -- <path>` (작업트리 변경 폐기) = ask. 임시폴더 worktree 안이면 allow."""
     if any(t == "--" for t in tokens[checkout_idx + 1:]):
+        if _in_temp_worktree(tokens):
+            return "allow", ""
         return "ask", "checkout -- (작업 변경 폐기)"
     return "allow", ""
 
@@ -424,18 +511,21 @@ def _classify_rm(tokens: list[str]) -> tuple[str, str]:
         recursive_force = True
     if not recursive_force:
         return "allow", ""
-    for tok in tokens[1:]:
-        target = _strip_quotes(tok)
-        if target.startswith("-"):
-            continue
+    targets = [_strip_quotes(tok) for tok in tokens[1:] if not _strip_quotes(tok).startswith("-")]
+    # 임시폴더(c:/tmp·%TEMP% — Git Bash /c/tmp 표기 포함) 하위만 지우면 allow(워크트리 청소).
+    if targets and all(_is_temp_path(t) for t in targets):
+        return "allow", ""
+    for target in targets:
         low = target.lower()
-        if (
-            low in ("/", "\\", "~", ".", "..", "*", "/*")
-            or low.startswith(("/", "\\", "../", "..\\", "~/"))
-            or low == ".."
-            or re.fullmatch(r"[a-z]:[\\/]?", low)
-        ):
-            return "deny", "rm 재귀 삭제(루트/상위 경로)"
+        slashed = low.replace("\\", "/")
+        if low in ("/", "\\", "*", "/*") or re.fullmatch(r"[a-z]:[\\/]?", low) or re.fullmatch(r"/[a-z]/?", slashed):
+            return "deny", "rm 재귀 삭제(루트/드라이브)"
+        if low in (".", "..") or slashed.startswith("../"):
+            return "deny", "rm 재귀 삭제(상위/현재 경로)"
+        if low == "~" or slashed.startswith("~/"):
+            return "deny", "rm 재귀 삭제(홈 ~)"
+        if slashed.startswith("/"):
+            return "deny", "rm 재귀 삭제(절대 경로)"
     return "allow", ""
 
 
@@ -474,6 +564,9 @@ def _is_temp_path(target: str) -> bool:
     반환: 루트 하위면 True. 루트 자체·`..` 포함(상위 탈출)·미확정 경로는 False.
     """
     low = _strip_quotes(target).replace("\\", "/").rstrip("/").lower()
+    drive = re.fullmatch(r"/([a-z])(/.*)?", low)  # Git Bash 표기 /c/tmp/x → c:/tmp/x
+    if drive:
+        low = f"{drive.group(1)}:{drive.group(2) or ''}"
     if ".." in low.split("/"):
         return False
     return any(low.startswith(root + "/") for root in _temp_roots())
@@ -792,12 +885,16 @@ def _classify_command(command: str, depth: int) -> tuple[str, str]:
     if depth > _MAX_UNWRAP_DEPTH:
         return "ask", "언랩 깊이 상한 초과(의심 명령)"
 
-    unified = command.replace("\r\n", "\n").replace("\r", "\n")
+    global _ctx_cwd_hint
+    unified = _strip_heredoc_bodies(command.replace("\r\n", "\n").replace("\r", "\n"))
     best_decision, best_label = "allow", ""
     for raw_segment in _split_segments(unified):
         segment = re.sub(r"\s+", " ", raw_segment).strip()
         if not segment:
             continue
+        cd_tokens = _tokenize(segment)
+        if cd_tokens and _command_name(cd_tokens) in ("cd", "pushd") and len(cd_tokens) >= 2:
+            _ctx_cwd_hint = _strip_quotes(cd_tokens[1])
         decision, label = _classify_segment(segment, depth)
         if _RISK_ORDER[decision] > _RISK_ORDER[best_decision]:
             best_decision, best_label = decision, label
@@ -827,13 +924,13 @@ def classify_command(
         (decision, label) 튜플. decision ∈ {"deny","ask","allow"}.
         label 은 로그/사유용 한글 요약(allow 시 빈 문자열).
     """
-    global _ctx_project_root, _ctx_session_id
-    prev_root, prev_sid = _ctx_project_root, _ctx_session_id
-    _ctx_project_root, _ctx_session_id = project_root, session_id
+    global _ctx_project_root, _ctx_session_id, _ctx_cwd_hint
+    prev_root, prev_sid, prev_cwd = _ctx_project_root, _ctx_session_id, _ctx_cwd_hint
+    _ctx_project_root, _ctx_session_id, _ctx_cwd_hint = project_root, session_id, None
     try:
         return _classify_command(command, 0)
     finally:
-        _ctx_project_root, _ctx_session_id = prev_root, prev_sid
+        _ctx_project_root, _ctx_session_id, _ctx_cwd_hint = prev_root, prev_sid, prev_cwd
 
 
 # ---------------------------------------------------------------------------

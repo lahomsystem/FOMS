@@ -85,7 +85,14 @@ def harness_runtime_path(*parts: str) -> str:
 
 
 def harness_log_path(*parts: str) -> str:
-    """Return an absolute path under `docs/harness/logs/`."""
+    """Return an absolute path under `docs/harness/logs/`.
+
+    env `FOMS_HARNESS_LOG_DIR` 가 있으면 그 디렉토리를 쓴다 — 테스트가 훅을 subprocess 로
+    돌리며 실 로그를 오염시키던 것(2026-09-09 감사 55%)을 막는 격리 지점이다.
+    """
+    override = os.environ.get("FOMS_HARNESS_LOG_DIR")
+    if override:
+        return os.path.join(override, *parts)
     return harness_docs_path("logs", *parts)
 
 

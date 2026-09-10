@@ -7,7 +7,10 @@ ablation 판정이 플러그인 업데이트·메모리 증식·규칙 복제·�
 from __future__ import annotations
 
 import json
+import os
 import re
+import subprocess
+import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
@@ -96,3 +99,53 @@ def test_task_grade_marker_ssot_is_guide() -> None:
     claude = _read(REPO / "CLAUDE.md")
     assert "docs/guides/LONG_TASK_PROMPTS.md" in claude
     assert "`**B` 하루" not in claude, "마커 상세가 CLAUDE.md 에 다시 들어왔다"
+
+
+_LIVE_GUARD_LOG = REPO / "docs" / "harness" / "logs" / "SHELL_GUARD_LOG.md"
+_LIVE_HOOK_LOG = REPO / "docs" / "harness" / "logs" / "CLAUDE_HOOK_LOG.md"
+
+
+def _snapshot(p: Path) -> bytes:
+    return p.read_bytes() if p.exists() else b""
+
+
+def test_guard_hooks_do_not_write_live_log(tmp_path: Path) -> None:
+    """가드 훅 2종(Claude·Cursor)이 FOMS_HARNESS_LOG_DIR 를 존중해야 한다.
+
+    2026-09-09 감사: 실 SHELL_GUARD_LOG 300행 중 164행(55%)이 테스트 오염이었다 — 로그가
+    실제 발화를 대표하지 못해 가드 실효 판정이 불가능했다(원장 §3).
+    """
+    before_guard, before_hook = _snapshot(_LIVE_GUARD_LOG), _snapshot(_LIVE_HOOK_LOG)
+    env = dict(os.environ, FOMS_HARNESS_LOG_DIR=str(tmp_path))
+    danger = "git push --force origin production"
+    subprocess.run(
+        [sys.executable, str(REPO / ".claude" / "hooks" / "guard_shell.py")],
+        input=json.dumps({"tool_name": "Bash", "tool_input": {"command": danger}}).encode(),
+        capture_output=True, env=env, cwd=REPO, timeout=60,
+    )
+    cursor_env = dict(env, CURSOR_PAYLOAD=json.dumps({"command": danger, "workspace_roots": [str(REPO)]}))
+    cursor_env.pop("PYTHONPATH", None)
+    subprocess.run(
+        [sys.executable, str(REPO / ".cursor" / "hooks" / "guard_shell.py")],
+        stdin=subprocess.DEVNULL, capture_output=True, env=cursor_env, cwd=REPO, timeout=60,
+    )
+    assert _snapshot(_LIVE_GUARD_LOG) == before_guard, "가드 훅이 env 로그 경로를 무시하고 실 로그에 썼다"
+    assert _snapshot(_LIVE_HOOK_LOG) == before_hook, "훅이 실 CLAUDE_HOOK_LOG 에 썼다"
+    isolated = tmp_path / "SHELL_GUARD_LOG.md"
+    assert isolated.exists(), "가드 훅이 주입된 로그 경로에 아무것도 쓰지 않았다"
+    rows = [ln for ln in _read(isolated).splitlines() if ln.startswith("| 20")]
+    assert len(rows) == 2, rows
+
+
+def test_hook_log_utils_warn_honors_log_dir_env(tmp_path: Path, monkeypatch) -> None:
+    """공용 유틸의 내부 경고 로그도 env 경로를 쓴다 — 테스트가 `id='unknown'` 27행을 실 로그에 남긴 사고."""
+    monkeypatch.setenv("FOMS_HARNESS_LOG_DIR", str(tmp_path))
+    before = _snapshot(_LIVE_HOOK_LOG)
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("hlu_env_test", REPO / "tools" / "harness" / "hook_log_utils.py")
+    assert spec and spec.loader
+    hlu = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(hlu)
+    hlu._warn("드리프트 가드 테스트 경고")
+    assert _snapshot(_LIVE_HOOK_LOG) == before
+    assert "드리프트 가드 테스트 경고" in _read(tmp_path / "CLAUDE_HOOK_LOG.md")

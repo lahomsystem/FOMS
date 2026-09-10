@@ -103,6 +103,27 @@ CASES: list[tuple[str, str]] = [
         'powershell -NoProfile -Command "Remove-Item -Recurse -Force'
         " 'C:\\tmp\\foms-cbtn2' -ErrorAction SilentlyContinue\"",
     ),
+    # --- ablation v2 §5 (2026-09-10): 임시폴더 면제를 rm·reset·checkout 으로 확장 ---
+    # Git Bash 드라이브 표기(/c/tmp/...)도 임시폴더다 — 이전엔 "/" 로 시작해 루트 deny 오탐
+    ("allow", "rm -rf /c/tmp/abl-T1-A"),
+    ("allow", "rm -rf C:/tmp/foms-s-x"),
+    ("allow", r"rm -rf 'C:\tmp\foms-s-x' C:/tmp/foms-s-y"),
+    ("deny", "rm -rf /c/tmp"),
+    ("deny", "rm -rf /c/tmp/../DEV"),
+    ("allow", "cd /c/tmp/foms-s-x && git reset --hard"),
+    ("allow", "git -C C:/tmp/foms-prod-own-1 checkout --ours -- docs/AI_STATUS.md"),
+    ("ask", "git checkout -- README.md"),
+    ("ask", "cd C:/DEV/FOMS && git reset --hard"),
+    ("deny", "cd /c/tmp/foms-s-x && git reset --hard origin/deploy"),
+    # heredoc 본문은 데이터다 — 문서·스크립트 파일에 적힌 위험 명령 문자열로 발화하지 않는다
+    ("allow", "cat >> docs/x.md <<'MD'\n| deploy | git push origin HEAD:deploy |\nMD"),
+    ("allow", "cat > notes.txt <<'EOF'\nrm -rf /\nEOF"),
+    ("allow", "python - <<'PY'\nprint('git push --force origin production')\nPY"),
+    # 단, 셸에 먹이는 heredoc 은 실행되므로 본문을 그대로 판정한다
+    ("deny", "bash <<'EOF'\ngit push --force origin production\nEOF"),
+    ("deny", "sh <<EOF\nrm -rf /\nEOF"),
+    # heredoc 뒤에 이어지는 실제 명령은 여전히 판정한다
+    ("deny", "cat > x.txt <<'EOF'\nhello\nEOF\ngit push --force origin production"),
 ]
 
 _IDS = [f"{dec}:{cmd}".replace("\n", "\\n") for dec, cmd in CASES]
@@ -180,6 +201,19 @@ def test_classify_command(expected: str, command: str) -> None:
     policy = _load_policy()
     decision, _label = policy.classify_command(command)
     assert decision == expected, f"{command!r} → {decision} (기대: {expected})"
+
+
+def test_rm_deny_labels_name_the_matched_rule() -> None:
+    """deny 라벨은 실제로 걸린 규칙을 말해야 한다(ablation v2 §5: 라벨 불일치)."""
+    policy = _load_policy()
+    _, label = policy.classify_command("rm -rf /")
+    assert "루트" in label, label
+    _, label = policy.classify_command("rm -rf ../x")
+    assert "상위" in label, label
+    _, label = policy.classify_command("rm -rf ~/x")
+    assert "홈" in label, label
+    _, label = policy.classify_command("rm -rf /opt/x")
+    assert "절대 경로" in label, label
 
 
 def test_remove_item_temp_env_allow(monkeypatch: pytest.MonkeyPatch) -> None:

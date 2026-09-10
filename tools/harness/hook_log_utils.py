@@ -48,6 +48,14 @@ LOCK_TIMEOUT_SEC = 2.0
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 _HOOK_LOG_PATH = os.path.join(_PROJECT_ROOT, "docs", "harness", "logs", "CLAUDE_HOOK_LOG.md")
 
+
+def _hook_log_path() -> str:
+    """CLAUDE_HOOK_LOG 경로 — env `FOMS_HARNESS_LOG_DIR` 가 있으면 그 아래(테스트 격리)."""
+    override = os.environ.get("FOMS_HARNESS_LOG_DIR")
+    if override:
+        return os.path.join(override, "CLAUDE_HOOK_LOG.md")
+    return _HOOK_LOG_PATH
+
 SESSION_LOG_SECTION_MARKER = "## 최근 세션\n\n"
 SESSION_LOG_NOTE = (
     "이 파일은 하네스 Hooks(Claude Code · Cursor)가 자동 관리합니다. "
@@ -96,8 +104,9 @@ def _warn(message: str) -> None:
     """
     line = f"- {_now()} [hook_log_utils] {message}\n"
     try:
-        _ensure_parent(_HOOK_LOG_PATH)
-        with open(_HOOK_LOG_PATH, "a", encoding="utf-8") as handle:
+        path = _hook_log_path()
+        _ensure_parent(path)
+        with open(path, "a", encoding="utf-8") as handle:
             handle.write(line)
     except OSError as exc:
         try:
