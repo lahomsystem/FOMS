@@ -16,6 +16,23 @@
 
 > 실행 전 기준선 보존: `git tag harness-v2-baseline` + `cp -r ~/.claude c:/tmp/claude-home-baseline-20260909`. 각 단계는 독립적으로 되돌릴 수 있다. 순서는 보고서 ⑤.
 
+## 0.1 적용 결과 (2026-09-10, deploy 브랜치)
+
+| 절 | 커밋 | 상태 | 비고 |
+|---|---|---|---|
+| 1단계 문서 5묶음 | `168828c81` | 완료 | 지시서·원장·보고서·초안·실험(러너·원시 결과 12건) |
+| §1 사실 오류 정정 | `7eecbb4d2` | 완료 | :26·:39·:48-50 정정 + 경로 실존·MCP 일치 가드. `settings.local.json` 행은 결정 ⑥-6 로 제외 |
+| §2 플러그인 | `9c44d7653` | 완료(Opus 5 실측 뒤) | superpowers off·벤더링 0·가드 테스트·상쇄 문장 정리. 전역 settings.json 백업 `C:/tmp/claude-global-settings.json.bak-20260910` |
+| §3 규칙 파일 교체 | `08279d7da` | 완료 | CLAUDE.md 35줄 2,897자 · AGENTS.md 본체 압축 · 마커 정본 LONG_TASK_PROMPTS.md · 전역 CLAUDE.md 5줄(백업 `C:/tmp/claude-global-CLAUDE.md.bak-20260910`). `# Compact instructions` 2줄은 Claude 전용 압축 메커니즘이라 유지(초안과 다른 점) |
+| §4 프로젝트 훅 | `af5ba2743` | 완료 | ctx_gate 삭제·MEMORY-GATE/CONCURRENT-EDIT 제거·트리밖 스킵 무기록·Stop 차단 로깅(빨강→초록). session_stop 은 SESSION_LOG 마감·임시파일 정리라 유지 |
+| §5 가드 인프라 5종 | `f758490b7` | 완료 | 로그 env 격리(conftest autouse)·캡 3,000+월별 보관(공용 writer)·`/c/tmp` 정규화 + rm/reset/checkout 면제·heredoc 본문 제외(타세션 ask 오탐의 진범)·라벨 세분. 2주 재관측 뒤 H-11·12·17~20·22·23 재판정 |
+| §6 MOVE-TO-CODE | `8451b64cc` | 완료(3/4) | 인라인 스타일 ratchet 828·`git add -f` ask·승격 PR 범위 대조. 파일 단위 세션 귀속은 설계 필요 → 별도 작업 |
+| §7 메모리 | `87773fe95` | 완료 | 154건 전수 판정(`docs/plans/2026-09-09-harness-ablation-v2-memory-judgment.md`): DELETE 108 · 유지 46. MEMORY.md 54줄. 백업 `C:/tmp/memory-baseline-20260910`, 이동 `C:/tmp/memory-deleted-20260910`. 상한 60줄·전역 8줄 가드 |
+| §8 인벤토리 키 | — | 범위 밖 | 별도 `**B` |
+| §9 사용자 결정 뒤 | (전역 파일, 커밋 없음) | 부분 완료 | gstack 57 → 9종(이동 백업 `C:/tmp/claude-skills-gstack-removed-20260910-111549`). orca·caveman 유지(⑥-1·2). 전역 `permissions.allow` 정리는 미결 — 다음 단계 후보 |
+| 3단계 부산물 | `5828c02b0`(스크립트 보강) | 완료 | `abl_cleanup.sh` 실행: 워크트리 15+1·브랜치 6+2·설정/훅/메모리 사본·`extensions.worktreeConfig` 정리. 타 세션 워크트리 22개 무접촉 |
+| Opus 5 재실험 | `5828c02b0` | 완료 | T2·T4 팔 A/B 4회, `experiment/runs-opus5/` |
+
 ## 1. 사실 오류 정정 (즉시, 위험 0)
 
 | 파일:행 | 지금 | 바꿀 것 |

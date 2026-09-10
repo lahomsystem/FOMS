@@ -1,7 +1,7 @@
 # FOMS 현재 상태
-> 자동 업데이트: 2026-09-09
-> 최신: **도면 전달 상태 결함 2건 운영 반영(production `8efef9886` · PR #320·#323)** — 전달 취소가 살아 있는 이전 전달본을 두고 `PENDING` 으로 되돌려 수령 확정 버튼이 사라졌다(#5193) + 도면 0장 전달 허용(운영 24건 PENDING 복귀·백업 보관)
-> 직전: **견적 저장 403 운영 사고 복구(production `d25ded59b` · PR #325)** — 페이지가 세션에 심은 CSRF seed 를 탭마다 도는 폴링 응답이 옛 스냅샷으로 덮어 지웠다(`SESSION_REFRESH_EACH_REQUEST` + 매 요청 `session.permanent = True`). 새로고침해도 재현. 1차: 로그인 사용자 seed 를 `user_id`+secret 파생값으로(쿠키 무관). 2차(SESSION-COOKIE-01): 갱신 전용 Set-Cookie 차단 — 세션 쓰기 전반의 덮어쓰기 뿌리 제거, 만료 슬라이딩은 last-seen 터치가 유지
+> 자동 업데이트: 2026-09-10
+> 최신: **하네스 ablation v2 적용(deploy `9c44d7653` 까지 10커밋)** — CLAUDE.md 108→35줄, 전역 42→5줄, 메모리 154→46, ctx_gate·동시편집·MEMORY-GATE 훅 해제, 가드 로그 격리·캡 3,000·heredoc 본문 제외, superpowers off(16회 실행 Skill 0), 드리프트 가드 12종. 정본 `docs/plans/2026-09-09-harness-ablation-v2-*` + drafts/DELETE_LIST.md §0
+> 직전: **도면 전달 상태 결함 2건 운영 반영(production `8efef9886` · PR #320·#323)** — 전달 취소가 살아 있는 이전 전달본을 두고 `PENDING` 으로 되돌려 수령 확정 버튼이 사라졌다(#5193) + 도면 0장 전달 허용(운영 24건 PENDING 복귀·백업 보관)
 > 그 전: **워커 정지 헛알림 26건 근본 수정(deploy 예정)** — 같은 하트비트를 readiness 는 `max(등록부, 신고간격 x 3)`=5400초, 감시자는 등록부 900 고정으로 읽어 반대로 말했다(운영 수집 루프 간격 1800 → 15분마다 멈춤·복구 왕복, 09-08 알림 26건). 예산 정본 `effective_heartbeat_budget` 신설로 판정부 2곳이 한 함수만 부른다. 상세 `docs/incidents/2026-09-09-worker-watchdog-false-stall-flap.md`
 > 이 파일 상단 40줄이 세션 시작 컨텍스트의 전부다(hygiene 계약으로 강제). 상세 이력은 "## 최근 완료"·"## 기록 보관".
 

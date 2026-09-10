@@ -10,6 +10,12 @@
 
 ---
 
+### [2026-09-10] 하네스 ablation v2 — 걷어낼 것은 복제·리마인더·절차, 남길 것은 1줄 사실과 코드 가드
+- **키워드**: harness, ablation, claude-md, agents-md, hooks, guard-policy, memory, superpowers, drift-guard, heredoc
+- **결정**: 정적 감사(274행 판정) + 헤드리스 실험(Fable 5.1 12회, Opus 5 4회)로 상시 로드 텍스트를 재구성했다. 프로젝트 CLAUDE.md 108→35줄(정책 본체는 AGENTS.md, 원자 사실은 두 파일에 자구 동일 + 가드), 전역 CLAUDE.md 42→5줄, MEMORY.md 159→54줄(154건 전수 판정, DELETE 108), ctx_gate·MEMORY-GATE·동시편집 경고 훅 해제, superpowers off(16회 실행에서 Skill 호출 0), gstack 57→9종. 가드 인프라 결함 5종(테스트 로그 오염 55%·캡 300·`/c/tmp` 오탐·heredoc 본문 판정·라벨)을 고쳐 2주 뒤 실효 재판정이 가능하게 했고, 텍스트가 못 막던 셋(인라인 스타일 76행·`git add -f`·승격 PR 범위)을 코드로 옮겼다. orca·caveman 은 사용자 결정으로 유지.
+- **이유**: 실험에서 세 팔(현행/최소/무규칙)의 결과 품질이 같았다 — 텍스트 규칙은 품질을 만들지 않는다. 무규칙 팔은 관례를 매번 재발견해 턴 +31%·시간 +35% 였으므로 사실은 저장소 문서(AGENTS.md)와 1줄 포인터로 남긴다. 상시 텍스트의 진짜 비용은 토큰이 아니라 복제(RESOLVE 61건)와 상충(6쌍)이었고, 되돌림은 드리프트 가드 테스트 12종이 막는다.
+- **영향**: `CLAUDE.md`, `AGENTS.md`, `docs/guides/LONG_TASK_PROMPTS.md`, `.claude/settings.json`, `.claude/hooks/*`, `.cursor/hooks/*`, `tools/harness/{guard_policy,guard_log,hook_log_utils,promote_own_to_production}.py`, `tests/harness/*`, `~/.claude/{CLAUDE.md,settings.json,skills,projects/c--DEV-FOMS/memory}`(백업 `C:/tmp/*-20260910`). 정본: `docs/plans/2026-09-09-harness-ablation-v2-*.md`. 남은 것: §8 인벤토리 키 재정의(별도 `**B`), 전역 allow 정리, 파일 단위 세션 귀속, 2주 뒤 가드 재판정.
+
 ### [2026-09-07] 정정 — `ept_b8_staging_session_from_login.py` 는 삭제되지 않았고 perf-gate 의 라이브 의존이다
 - **키워드**: harness, ablation, correction, ept-b8, perf-gate, staging, dead-code, decision-drift, 2027-02
 - **결정**: 아래 [2026-08-03] 하네스 전면 ablation 항목이 `tools/harness/ept_b8_staging_session_from_login.py` 를 "참조 0건" DEAD 3종의 하나로 삭제했다고 적은 것은 **현행 저장소 상태와 어긋난다**. 그 파일은 **지금 존재하고**(`ls tools/harness | grep ept_b8` → `ept_b8_staging_session_from_login.py`), `.github/workflows/perf-gate.yml:44` 주석이 그 스크립트를 게이트 import 체인의 **라이브 의존**으로 명시한다("게이트 import 체인은 순수 stdlib(erp_navigation_contract) + requests(ept_b8 로그인, staging_perf_gate) 뿐이라 flask/앱 전체 설치가 불필요하다 → requests 만"). 이 항목은 그 모순을 **기록**하는 것이지 고치는 것이 아니다 — 워크플로도 스크립트도 건드리지 않고, [2026-08-03] 항목 본문도 당시 판정의 기록이므로 그대로 둔다.

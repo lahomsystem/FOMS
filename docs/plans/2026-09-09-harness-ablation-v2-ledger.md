@@ -68,18 +68,18 @@
 
 | 절 | 내용 | 상태 | 커밋 |
 |---|---|---|---|
-| 1단계 | 문서 5묶음 커밋 | PENDING | |
-| §1 | 사실 오류 정정(CLAUDE.md:39·48-50·26) + 경로·MCP 드리프트 가드 | PENDING | |
-| §2 | 플러그인(superpowers) | 보류 — Opus 5 실측 뒤 결정(⑥-4) | |
-| §3 | 규칙 파일 교체(프로젝트 CLAUDE.md·AGENTS.md 압축·전역 CLAUDE.md 3줄) | PENDING | |
-| §4 | 프로젝트 훅 해제(ctx_gate·동시편집 경고·MEMORY-GATE·Stop 차단 로깅) | PENDING | |
-| §5 | 가드 인프라 결함 5종 | PENDING | |
-| §6 | MOVE-TO-CODE(인라인 스타일 ratchet·git add -f ask) | PENDING | |
-| §7 | 메모리 전수 확인·정리 + MEMORY.md 60줄 가드 | PENDING | |
+| 1단계 | 문서 5묶음 커밋 | DONE | `168828c81` |
+| §1 | 사실 오류 정정(CLAUDE.md:39·48-50·26) + 경로·MCP 드리프트 가드 | DONE | `7eecbb4d2` |
+| §2 | 플러그인(superpowers) | DONE — Opus 5 실측(4회 Skill 0) 뒤 off·벤더링 0 | `9c44d7653` |
+| §3 | 규칙 파일 교체(프로젝트 CLAUDE.md 35줄·AGENTS.md 압축·전역 CLAUDE.md 5줄) | DONE | `08279d7da` |
+| §4 | 프로젝트 훅 해제(ctx_gate·동시편집 경고·MEMORY-GATE·Stop 차단 로깅) | DONE | `af5ba2743` |
+| §5 | 가드 인프라 결함 5종 | DONE — 2주 재관측 뒤 재판정 | `f758490b7` |
+| §6 | MOVE-TO-CODE(인라인 스타일 ratchet·git add -f ask·승격 PR 범위 대조; 세션 귀속은 별도) | DONE | `8451b64cc` |
+| §7 | 메모리 전수 확인·정리(154 → 46) + MEMORY.md 60줄 가드 | DONE | `87773fe95` |
 | §8 | 인벤토리 키 재정의 | 범위 밖 — 별도 `**B` | |
-| §9 | 사용자 결정 뒤(gstack 핵심만; orca·caveman 유지; allow 정리 미결) | PENDING | |
-| 3단계 | 실험 부산물 정리(abl_cleanup.sh) | PENDING | |
-| 마감 | deploy push → pre_push_smoke → ci_watch --quick | PENDING | |
+| §9 | 사용자 결정 뒤(gstack 57 → 9; orca·caveman 유지; allow 정리 미결) | 부분 DONE(전역 파일, 커밋 없음) | — |
+| 3단계 | 실험 부산물 정리(abl_cleanup.sh, Opus 5 부산물 포함) | DONE | `5828c02b0` |
+| 마감 | deploy push → pre_push_smoke → ci_watch --quick | 사용자 확인 대기 | |
 
 ---
 
