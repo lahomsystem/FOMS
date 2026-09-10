@@ -644,34 +644,6 @@ def _household_amounts(rows: list[dict[str, Any]]) -> dict[str, dict[str, int]]:
 #: 예약금(선금) 안내 상태 4종 — 화면은 이 값으로만 분기한다.
 DEPOSIT_HINT_STATES = ("match", "differs", "over", "unknown")
 
-#: 재결제로 대체된 집이 섞여 있을 때 합계에 붙는 단서.
-_DEPOSIT_SUPERSEDED_NOTE = "환불된 이전 주문은 뺀 금액입니다"
-
-
-def _deposit_note(*, has_superseded: bool, claim_label: str,
-                  claim_money_back: bool) -> str:
-    """예약금 합계가 **무엇을 빼고 무엇을 안 뺐는지** 말하는 단서 (D3).
-
-    2026-08-28 (R-8): 예전에는 **라벨이 비어 있지 않으면** 환불 문장을 붙였다. 그래서
-    ``반품 거부``(환불이 영영 없는 건)에도 "환불액은 아직 빠지지 않은 금액입니다"라고
-    적었다. 판정은 :func:`mapping.is_money_back_claim` 이 한다.
-
-    Args:
-        has_superseded: 재결제로 대체된 옛 집이 있는가(그 집 금액은 합계에서 뺐다).
-        claim_label: 취소·반품 라벨(:func:`mapping.extract_claim` 의 ``label``).
-        claim_money_back: 그 클레임 때문에 **돈이 되돌아가는가**. 거부·교환은 False.
-
-    Returns:
-        단서 문장. 붙일 근거가 없으면 빈 문자열.
-    """
-    parts: list[str] = []
-    if has_superseded:
-        parts.append(_DEPOSIT_SUPERSEDED_NOTE)
-    label = _text(claim_label)
-    if label and claim_money_back:
-        # 클레임 환불액은 ``totalPaymentAmount`` 에서 아직 빠지지 않는다(결제 시점 값).
-        parts.append(f"{label} 건이 있어 환불액은 아직 빠지지 않은 금액입니다")
-    return " · ".join(parts)
 
 
 def _deposit_target(households: list[dict[str, Any]]) -> tuple[int, int]:
@@ -686,46 +658,6 @@ def _deposit_target(households: list[dict[str, Any]]) -> tuple[int, int]:
     live = [fact for fact in households if not fact.get("superseded")]
     return (sum(int(fact.get("amount_total") or 0) for fact in live),
             sum(int(fact.get("amount_unknown") or 0) for fact in live))
-
-
-def _deposit_base(order: Any, households: list[dict[str, Any]], *,
-                  current: int, live_total: int) -> int:
-    """예약금 중 **네이버가 아닌 돈** — 네이버 결제액 위에 깔린 바닥값 (2026-09-03).
-
-    ERP 에서 직접 만든 주문에 추가결제를 붙이면 예약금 정답은 `바닥값 + 네이버 결제액`
-    이다. 지금까지 도크는 바닥값을 0 으로 놓아 "지금 값 100,000원에 1,007,560원을 더해
-    1,107,560원으로" 라고 말했는데, 워크벤치 정리 계획은 같은 주문을 두고 1,207,560원을
-    말했다 — 원래 받은 100,000원이 도크 쪽에서만 증발했다(주문 #5112 실사례).
-
-    판정 순서:
-
-    1. 이 주문으로 **만들어진** 집(``NEW``)이 있으면 바닥값은 0 이다 — 예약금 자체가
-       네이버 돈에서 나왔다.
-    2. 붙일 때 새긴 값(:data:`promotion.NAVER_DEPOSIT_BASE_KEY`)이 있으면 그 값이다.
-    3. 둘 다 없는 **옛 붙이기**는 새긴 값이 없다. 그 경우에만 지금 예약금으로 되짚는다 —
-       네이버 결제액보다 적으면 아직 반영 전이라 지금 값이 곧 바닥값이고, 그보다 크거나
-       같으면 이미 반영한 뒤라 그만큼 빼면 바닥값이 남는다. 추정이므로 **저장하지 않는다**
-       (설계서 §7.3 — 추정을 데이터로 굳히지 않는다).
-
-    Args:
-        order: 도크가 실린 주문.
-        households: 관계·금액이 병합된 집 사실 목록.
-        current: 지금 예약금(원).
-        live_total: 살아 있는 집들의 네이버 결제액 합계(원).
-
-    Returns:
-        바닥값(원). 음수는 만들지 않는다.
-    """
-    from foms.services.integrations.naver_commerce.promotion import NAVER_DEPOSIT_BASE_KEY
-
-    if any(_text(fact.get("relation")) == "NEW" for fact in households):
-        return 0
-    pricing = (getattr(order, "structured_data", None) or {}).get("pricing")
-    if isinstance(pricing, dict) and isinstance(pricing.get(NAVER_DEPOSIT_BASE_KEY), int):
-        return max(0, int(pricing[NAVER_DEPOSIT_BASE_KEY]))
-    if current < live_total:
-        return max(0, current)
-    return max(0, current - live_total)
 
 
 def _deposit_relation_label(households: list[dict[str, Any]]) -> str:
@@ -753,86 +685,35 @@ def _deposit_relation_label(households: list[dict[str, Any]]) -> str:
     return "네이버 결제"
 
 
-def _deposit_hint(order: Any, households: list[dict[str, Any]], *,
-                  claim_label: str = "", claim_money_back: bool = False) -> dict[str, Any]:
-    """예약금(선금)에 넣을 금액을 **문장으로** 말한다 — 넣지는 않는다 (D3).
+def _deposit_hint(households: list[dict[str, Any]]) -> dict[str, Any]:
+    """네이버 결제 금액 카드의 재료 — 낱말과 돈 표기를 **서버가** 만든다 (2026-09-10).
 
-    도크는 붙인 뒤 **며칠 뒤** 화면이라 재결제 카드의 상대값(``current + amount``)을 쓰면
-    사람이 이미 고쳐 놓은 값에 한 번 더 더하게 된다. 그래서 **절대 target** 을 먼저 정하고
-    문장만 :func:`repay_reconcile.deposit_guidance` 에 위임한다. 그 절대값은 살아 있는 집들의
-    결제액 합에 **바닥값**(:func:`_deposit_base` — 네이버 아닌 돈)을 더한 값이다: ERP 에서
-    직접 만든 주문은 붙이기 전부터 받아 둔 예약금이 있고, 그걸 0 으로 놓으면 도크가 그 돈을
-    안내에서 지운다(2026-09-03 주문 #5112: 워크벤치는 1,207,560원, 도크는 1,107,560원).
-    ``over`` 에서 "낮추라"고 말하지 않는 이유: 네이버 밖 입금이 정당할 수 있고 그 지시가
-    ``잔금 = 출고가 − 예약금`` 을 타고 고객 청구로 나간다.
+    2026-09-10 까지는 예약금(선금) 목표액·대조 상태·"지금 값에 더해 고치세요" 문장·복사값·
+    환불 단서(``state``·``current``·``target``·``target_display``·``diff``·``sentence``·
+    ``copy_value``·``note``·``base``)까지 실었다. 사용자 지시로 화면이 그 설명문을 전부 걷고
+    **낱말 + 금액 한 줄**만 그리게 되자 읽는 곳이 0 이 됐고, 2026-09-11 에 키·헬퍼
+    (``_deposit_note``·``_deposit_base``·``deposit_guidance`` 호출)를 함께 걷어냈다. 예약금 목표액
+    셈(옛 예약금 바닥값 + 네이버 결제액)은 워크벤치 정리 카드의 :func:`repay_reconcile.deposit_guidance`
+    에만 남아 있고, 붙일 때 새기는 :data:`promotion.NAVER_DEPOSIT_BASE_KEY` 는 그대로다(읽는 곳 없음 —
+    별도 판단).
 
     Args:
-        order: 도크가 실린 :class:`models.Order` (예약금 현재값을 읽는다).
-        households: ``amount_total``·``amount_unknown`` 이 병합된 집 사실 목록.
-        claim_label: 이 주문의 취소·반품 라벨(없으면 빈 문자열).
-        claim_money_back: 그 클레임 때문에 돈이 되돌아가는가(거부·교환이면 False).
+        households: ``amount_total``·``amount_unknown``·``relation``·``superseded`` 가 병합된 집 사실 목록.
 
     Returns:
-        ``{"state", "current", "target", "target_display", "diff", "sentence",
-        "copy_value", "unknown_count", "note", "base", "live_total", "relation_label",
-        "live_total_display"}``. ``copy_value`` 는 쉼표·단위 없는 정수
-        문자열이고 ``over``·``unknown`` 에서는 빈 문자열이다(복사할 정답이 없다).
-        ``target_display`` 는 사람이 읽는 표기(``"872,200원"``) — 화면이 돈을 다시
-        포맷하지 않게 서버가 문장과 **같은 자리에서** 만든다.
-        ``live_total_display`` 는 바닥값을 뺀 네이버 결제액 표기(``"1,290,850원"``) — 모름이면
-        빈 문자열. ``relation_label`` 은 :func:`_deposit_relation_label` 이 정한 카드 머리말
-        낱말(2026-09-10 — 도크 카드는 이 두 키만 그린다).
+        ``{"unknown_count", "live_total", "relation_label", "live_total_display"}``.
+        ``live_total`` 은 살아 있는(대체되지 않은) 집들의 네이버 결제액 합(원), ``live_total_display``
+        는 그 표기(``"1,290,850원"``, 못 읽은 건이 하나라도 있으면 빈 문자열 — 숫자를 못 내는 날엔 숫자를
+        말하지 않는다). ``relation_label`` 은 :func:`_deposit_relation_label` 이 정한 카드 머리말
+        (``추가 결제``/``재결제``/``네이버 결제``/빈 문자열=카드 없음).
     """
-    from foms.services.erp_display import erp_deposit_amount_from_structured
-    from foms.services.integrations.naver_commerce.repay_reconcile import deposit_guidance
-
-    current = int(erp_deposit_amount_from_structured(
-        getattr(order, "structured_data", None) or {}) or 0)
-    superseded = any(fact.get("superseded") for fact in households)
     live_total, unknown = _deposit_target(households)
-    base = _deposit_base(order, households, current=current, live_total=live_total)
-    target = base + live_total
-    hint: dict[str, Any] = {
-        "state": "unknown", "current": current, "target": None, "diff": None,
-        "target_display": "", "sentence": "", "copy_value": "", "unknown_count": unknown,
-        # 바닥값과 네이버 합계를 따로 싣는다 — 목표액 하나만 주면 화면도 사람도 그 숫자가
-        # 어디서 왔는지 되짚을 수 없다(바닥값이 있는 주문은 셈이 두 단계다).
-        "base": base, "live_total": live_total,
-        # 카드 한 줄(2026-09-10): 낱말과 돈 표기를 서버가 만든다 — 화면은 그리기만 한다.
+    return {
+        "unknown_count": unknown,
+        "live_total": live_total,
         "relation_label": _deposit_relation_label(households),
         "live_total_display": "" if unknown else f"{live_total:,}원",
-        "note": _deposit_note(has_superseded=superseded, claim_label=claim_label,
-                              claim_money_back=claim_money_back)}
-    if unknown:
-        hint["sentence"] = (f"금액을 못 읽은 상품주문이 {unknown}건 있어 네이버 결제액"
-                            " 합계를 내지 못했습니다 — 원본을 열어 확인하세요.")
-        return hint
-    diff = target - current
-    hint.update({"target": target, "diff": diff, "copy_value": str(target),
-                 "target_display": f"{target:,}원"})
-    # 바닥값(네이버 아닌 돈)이 있으면 목표액은 네이버 결제액이 **아니다**. 그 사실을 말하지
-    # 않고 숫자만 바꾸면, 화면이 "네이버 결제액"이라 부르는 값과 실제 합계가 갈린다.
-    basis = (f"원래 예약금 {base:,}원 + 네이버 결제액 {live_total:,}원"
-             if base else f"네이버 결제액 {live_total:,}원")
-    if diff == 0:
-        hint["state"] = "match"
-        hint["sentence"] = f"예약금(선금) {current:,}원 — {basis}과 같습니다."
-    elif diff < 0:
-        hint.update({"state": "over", "copy_value": ""})
-        # 방향 지시(`그대로`)는 남긴다 — 없애면 담당자가 예약금을 깎는다.
-        hint["sentence"] = (f"예약금(선금) {current:,}원이 {basis}({target:,}원)보다"
-                            f" {-diff:,}원 많습니다 — 네이버 밖 입금이면 그대로 둡니다.")
-    else:
-        hint["state"] = "differs"
-        # 지금 집 축이 없다 — 여기 ``new_amount`` 는 **살아 있는 집들의 합계**라
-        # (:func:`_deposit_target`) 환불된 돈이 애초에 안 섞인다. 빈 문자열은 "방향을
-        # 가를 재료가 없다"는 뜻이고, 그러면 예전 문장 그대로다(2026-09-07).
-        hint["sentence"] = deposit_guidance(
-            order, new_amount=target if superseded else diff,
-            relation="REPAY" if superseded else "ADDON",
-            current_claim_code="")["sentence"]
-    return hint
-
+    }
 
 
 def _main_qualifier(row: dict[str, Any], fact: dict[str, Any]) -> str:
@@ -1178,9 +1059,8 @@ def build_dock_payload(db: Any, order: Any, *,
         # 집이 하나면 라벨이 전부 빈 문자열이라 화면이 오늘과 똑같이 그려진다.
         "households": households,
         # 네이버 결제 금액 카드(2026-09-10) — 낱말(relation_label)·돈 표기(live_total_display)는 서버가
-        # 만들고 화면은 노드 2개만 그린다. 옛 키(state·target·sentence·copy_value·note)는 남겨 둔다 — 후속 정리 후보.
-        "deposit_hint": _deposit_hint(order, households, claim_label=claim_label,
-                                      claim_money_back=claim_money_back),
+        # 만들고 화면은 노드 2개만 그린다. 예약금 목표액·문장 키는 2026-09-11 에 걷어냈다(읽는 곳 0).
+        "deposit_hint": _deposit_hint(households),
         # 위 `workbench_url` 이 실제로 여는 집의 번호. 머리말에서 그 집을 표시해
         # "읽은 번호 != 열리는 집" 을 없앤다. **주소와 같은 행에서 끌어온다** — 둘이
         # 갈리면 이 수정이 무의미해지므로 `rows[-1]` 을 공통 출처로 못박는다.

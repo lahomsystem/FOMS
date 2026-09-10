@@ -135,4 +135,6 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ops/pre_push_smoke.p
 - 리뷰: 스펙 pass · 품질 pass. P2 6건 — 커밋 범위에 위 2파일 포함 / `.m.txt` 정리 / 게이트1 수치 107(계약 106+CSS 폐기 단언 1) / 낡은 주석 3곳(erp-naver-dock.js:594·dock.py:1179·test_naver_dock_amounts.py 머리말) / `test_naver_dock_deposit_hint.py:332·341` "(워크벤치가 읽는다)" 는 거짓 근거(워크벤치는 자기 라우트의 `deposit_guidance` 를 읽고 도크 옛 키는 런타임 소비처 0) → 총괄 직접 반영.
 - CEO 판정: **ship**. 총괄 검증·커밋·push·스테이징 QA 는 아래.
 - 총괄 직접 diff 확인: 서버 판정 함수 1 + 행 dict 키 1 + 템플릿 분기 1 / 서버 키 2 + 헬퍼 1 / JS 카드 2노드·문장/대조/리스너/사실줄 제거 / CSS 5규칙 제거 / 핀 2줄 / 테스트 재작성. 잔재 grep(`syncDepositMatch|depositFactLine|naver-dock-deposit-state`) 0.
-- 후속 후보(범위 밖): dock.py `_deposit_hint` 의 옛 키(state·target·sentence·copy_value·note)와 `deposit_guidance` 호출은 이제 런타임 소비처가 없다 — 정리는 별도 판단. 워크벤치 정리 계획 카드의 예약금 문장(`naver-workbench.js:2480-2520`)은 그대로.
+- 후속(2026-09-11 완료): dock.py `_deposit_hint` 의 옛 키(state·current·target·target_display·diff·sentence·copy_value·note·base)와 `_deposit_note`·`_deposit_base`·`deposit_guidance` 호출을 걷어냈다(`_deposit_hint(households)` → unknown_count·live_total·relation_label·live_total_display). 테스트: 옛 문장 계약 14건 삭제, 새김 규약·합계·모름 계수·낱말 테스트 유지. `promotion.NAVER_DEPOSIT_BASE_KEY` 새김은 읽는 곳 0 이지만 데이터 사실이라 그대로(별도 판단). 워크벤치 정리 계획 카드의 예약금 문장(`naver-workbench.js:2480-2520`)은 그대로.
+
+- 총괄 마감: deploy `5a0b9e665`(CI 4종 green) → 스테이징 실화면 QA PASS(#4242 추가결제·#4485 재결제 행, 도크 payload, 배포 JS) → PR #341 검사 4종 pass → production **`a1ec42996`**(2026-09-10 13:30 KST, healthz 62초). 승격 브랜치·워크트리 삭제.
