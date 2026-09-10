@@ -1250,7 +1250,7 @@ input.wb-pick:disabled,
 .wb-fork__body { display: block; }
 .wb-fork__d { display: block; color: var(--wb-muted); line-height: 1.55; margin-top: 3px; }
 
-/* 예약금 안내. **시스템이 넣지 않는다** — 사람이 읽고 옮겨 적는 숫자라 크게 둔다. */
+/* 결제 금액 한 줄(2026-09-10) — `추가 결제 1,290,850원`. 사람이 읽고 옮겨 적는 숫자라 크게 둔다. */
 .wb-fork__money,
 .wb-plan__money {
     display: block;

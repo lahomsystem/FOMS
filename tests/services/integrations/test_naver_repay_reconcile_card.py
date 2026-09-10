@@ -122,17 +122,24 @@ def test_candidate_row_opens_a_plan_card(client, workbench_on):
     assert "hidden" in card.split(">")[0]
 
 
-def test_plan_card_carries_both_deposit_sentences(client, workbench_on):
-    """예약금 안내는 관계 두 벌이다 — 재결제는 바꾸고 추가결제는 더한다."""
+def test_plan_card_carries_the_payment_amount_for_both_relations(client, workbench_on):
+    """돈 줄은 관계 두 벌이지만 둘 다 **지금 집의 결제 금액** 한 줄이다 (2026-09-10 사용자 지시).
+
+    예전에는 재결제 `1,610,780원으로 바꾸세요`·추가결제 `2,110,780원으로 고치세요`(옛 예약금
+    500,000 을 더한 목표액) 문장과 `시스템이 넣지 않는다` 안내를 실었다. ERP 도크와 같은 규칙으로
+    목표액·문장·안내를 걷고 `추가 결제 1,610,780원` / `재결제 1,610,780원` 만 남긴다.
+    """
     _login(client)
     order = _order(tel="010-9100-0002", deposit=500_000)
     link = _link(order_no="N-PLAN-2", tel="010-9100-0002", amount=1_610_780)
 
     card = _card(_body(client, link_id=int(link.id)), int(order.id))
 
-    assert "1,610,780원" in card, "재결제는 새 금액으로 바꾼다"
-    assert "2,110,780원" in card, "추가결제는 기존 예약금 위에 더한다"
-    assert "시스템이 넣지 않는다" in card, "자동 반영하지 않는다는 사실을 말해야 한다"
+    assert card.count("1,610,780원") >= 2, "관계 두 벌 모두 지금 집 결제 금액을 말해야 한다"
+    assert "추가 결제" in card and "재결제" in card, card[:300]
+    assert "2,110,780원" not in card, "옛 예약금을 더한 목표액이 다시 살아났다"
+    for gone in ("시스템이 넣지 않는다", "으로 고치세요", "으로 바꾸세요", "예약금(선금)에 넣을 금액"):
+        assert gone not in card, gone
 
 
 def test_plan_card_asks_a_reason_after_measure(client, workbench_on):

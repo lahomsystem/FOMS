@@ -143,7 +143,7 @@
                         data-link-id="{{ seek_link_id }}"
                         data-order-id="{{ row.order_id }}"
                         data-customer="{{ row.customer_name }}"
-                        data-deposit="{{ row.deposit[rel].sentence }}"
+                        data-deposit="{{ '추가 결제' if rel == 'ADDON' else '재결제' }} {{ '{:,}'.format(row.deposit[rel].new_amount) }}원{{ ' · 환불된 옛 결제' if row.deposit[rel].verb == '그대로' else '' }}"
                         data-relation="{{ rel }}">{{ '재결제로 붙이기' if rel == 'REPAY' else '추가결제로 붙이기' }}</button>
                 {% endfor %}
                 {% endif %}
