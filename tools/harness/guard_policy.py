@@ -404,11 +404,15 @@ def _classify_git_push(
 
 
 def _git_effective_dir(tokens: list[str]) -> str | None:
-    """git 명령이 실제로 도는 디렉토리 — `-C <dir>` > 선행 `cd` 힌트 > project_root.
+    """git 명령이 **명시적으로** 가리키는 디렉토리 — `-C <dir>` 또는 같은 명령의 선행 `cd`.
+
+    project_root 는 보지 않는다: 세션 worktree(`c:/tmp/foms-s-*`)에서 며칠씩 일하는 세션이
+    `git reset --hard` 를 치면 그 미커밋 작업이 진짜로 날아간다. 면제는 "임시 경로를 명령에 직접
+    적은" 경우(승격·실험 worktree 청소)로 한정한다.
 
     파라미터:
         tokens: 따옴표 제거된 argv 토큰(첫 토큰 = git).
-    반환: 디렉토리 문자열 또는 None(알 수 없음).
+    반환: 디렉토리 문자열 또는 None(명시된 것이 없음).
     """
     i = 1
     while i < len(tokens):
@@ -418,7 +422,7 @@ def _git_effective_dir(tokens: list[str]) -> str | None:
         if not tok.startswith("-"):
             break
         i += 2 if tok in _GIT_GLOBAL_VALUE_FLAGS else 1
-    return _ctx_cwd_hint or _ctx_project_root
+    return _ctx_cwd_hint
 
 
 def _in_temp_worktree(tokens: list[str]) -> bool:
