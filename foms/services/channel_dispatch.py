@@ -25,7 +25,8 @@ def dispatch_order_event(event_type: str, data: Dict[str, Any], raise_on_error: 
     Args:
         event_type: Must be ``manual`` (ERP 푸쉬 버튼).
         data: Order id, customer name, conversion text, optional attachment files,
-            optional ``pushed_by_name`` (FOMS login display name for botName).
+            optional ``pushed_by_name`` (FOMS login display name for botName),
+            optional ``group_id`` (보낼 방을 직접 지정 — 담당자 개인 도면방).
         raise_on_error: Propagate ChannelTalk API failures when True.
 
     Returns:
@@ -36,7 +37,9 @@ def dispatch_order_event(event_type: str, data: Dict[str, Any], raise_on_error: 
         return {"success": False, "message_id": None}
 
     try:
-        group_id = get_routing_group_id(event_type, data)
+        # 명시 그룹이 있으면 그 방으로 보낸다(담당자 개인 도면방). 없으면 종류별 정책이
+        # 정한 공용 방으로 간다 — 기존 호출부는 이 키를 넣지 않으므로 영향이 없다.
+        group_id = str(data.get("group_id") or "").strip() or get_routing_group_id(event_type, data)
         if not group_id:
             logger.warning("[ChannelDispatch] No routing group for manual push")
             return {"success": False, "message_id": None}

@@ -99,7 +99,7 @@ def test_wizard_js_asset_pin_bumped() -> None:
     tpl = WIZARD_TPL.read_text(encoding="utf-8")
 
     assert "js/drawing/wizard.js') }}?v=20260909a" not in tpl
-    assert "js/drawing/wizard.js') }}?v=20260909b" in tpl
+    assert "js/drawing/wizard.js') }}?v=20260910a" in tpl
 
 
 def test_wizard_js_calls_push_manual_and_preview_with_drawing_room_kind() -> None:

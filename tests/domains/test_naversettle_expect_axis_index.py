@@ -66,10 +66,20 @@ def test_revision_chains_onto_naversettle_01_without_importing_models() -> None:
         "마이그레이션이 models 를 import 한다 — 상수 동결 원칙 위반")
 
 
-def test_alembic_head_is_exactly_naversettle_02() -> None:
-    """스크립트 디렉토리의 head 가 정확히 naversettle_02 하나다."""
+def test_naversettle_02_stays_on_the_head_chain() -> None:
+    """naversettle_02 가 head 로 이어지는 체인 위에 남아 있다(끊기거나 갈라지지 않았다).
+
+    head 이름을 문자열로 박아두면 뒤에 붙는 모든 마이그레이션이 이 테스트를 깬다 —
+    실제로 그랬다(2026-09-10 ``mgrroom_00``). 이 테스트가 지키려는 것은 "이 리비전이
+    적용 경로 위에 있다" 이고, head 가 하나라는 계약은
+    ``tests/domains/test_alembic_single_head.py`` 가 따로 소유한다.
+    """
     script = ScriptDirectory.from_config(Config(str(_REPO_ROOT / "alembic.ini")))
-    assert script.get_heads() == ["naversettle_02"]
+    heads = script.get_heads()
+    assert heads, "alembic head 가 없다"
+    chain = {rev.revision for rev in script.walk_revisions("base", heads[0])}
+    assert "naversettle_02" in chain, (
+        f"naversettle_02 가 head({heads[0]}) 체인에서 빠졌다 — 적용되지 않는 리비전이다")
 
 
 def test_model_indexes_compile_to_the_channel_coalesce_expression() -> None:

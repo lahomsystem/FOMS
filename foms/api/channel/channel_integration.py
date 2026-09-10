@@ -32,6 +32,7 @@ from foms.services.channel_drawing_attachments import (
     select_drawing_room_push_attachments,
 )
 from foms.services.channel_drawing_room_message import build_drawing_room_push_text
+from foms.services.channel_manager_room import resolve_manager_room
 from foms.services.orders.as_log import decorate_entry
 from foms.services.channel_client import is_configured
 from foms.services.channel_dispatch import dispatch_order_event
@@ -409,7 +410,9 @@ def _try_claim_push_slot(db, order_id: int, push_kind: str) -> bool:
 
 
 def _audit_channel_push(order, push_kind: str, is_resend: bool, *,
-                        actor_user_id, files_count: int | None = None) -> None:
+                        actor_user_id, files_count: int | None = None,
+                        manager_room_group_id: str | None = None,
+                        manager_room_sent: bool | None = None) -> None:
     """채널톡 발송 1건을 구조화 감사로 남긴다(고객에게 나간 것은 반드시 추적 가능해야 한다).
 
     본문은 남기지 않는다 — 발송 텍스트에는 고객 정보가 섞인다(원장 PII 최소화).
@@ -420,6 +423,8 @@ def _audit_channel_push(order, push_kind: str, is_resend: bool, *,
     :param is_resend: 재발송 여부.
     :param actor_user_id: 발송자 user id.
     :param files_count: 함께 보낸 파일 수(있으면).
+    :param manager_room_group_id: 담당자 개인 도면방 그룹 id(찾았으면).
+    :param manager_room_sent: 담당자 개인방까지 실제로 나갔는지(도면방 PUSH 만).
     """
     context = order_audit_context(order)
     log_access(
@@ -428,7 +433,9 @@ def _audit_channel_push(order, push_kind: str, is_resend: bool, *,
         actor_user_id,
         action="CHANNEL_PUSH_SENT", target_type="order", target_id=int(order.id),
         detail={"push_kind": push_kind, "is_resend": bool(is_resend),
-                "files_count": files_count, **context},
+                "files_count": files_count,
+                "manager_room_group_id": manager_room_group_id,
+                "manager_room_sent": manager_room_sent, **context},
     )
 
 
@@ -654,6 +661,36 @@ def api_channel_push_manual():
         )
         _ensure_dispatch_sent(result, push_kind)
 
+        # 도면방 PUSH 는 담당자 개인 도면방에도 같은 본문·같은 첨부로 함께 나간다.
+        # 개인방을 못 찾거나 그쪽 전송이 실패해도 공용방 전송은 이미 끝났으므로
+        # 되돌리지 않는다 — 무슨 일이 있었는지 응답으로 정직하게 알린다.
+        manager_room_note = None
+        manager_room_sent = False
+        manager_room_group_id = None
+        if push_kind == 'drawing_room':
+            lookup = resolve_manager_room(db, order)
+            manager_room_group_id = lookup.group_id
+            if lookup.group_id:
+                try:
+                    room_result = dispatch_order_event(
+                        event_type='manual',
+                        data={**dispatch_data, 'group_id': lookup.group_id},
+                        raise_on_error=True,
+                    )
+                    _ensure_dispatch_sent(room_result, push_kind)
+                    manager_room_sent = True
+                except Exception as exc:  # noqa: BLE001 - 공용방은 이미 나갔다
+                    logger.error(
+                        "[채널톡 도면방] 담당자 개인방 전송 실패 (order=%s, manager=%s, group=%s): %s",
+                        order.id, lookup.manager_name, lookup.group_id, exc, exc_info=True,
+                    )
+                    manager_room_note = (
+                        f"도면방에는 보냈지만 담당자 '{lookup.manager_name}' 개인방 전송은 "
+                        "실패했습니다."
+                    )
+            else:
+                manager_room_note = lookup.message
+
         # 전송 성공 후 push 결과·metadata 를 typed command 로 원자 기록한다(push_kind별 분리):
         # structured_data 이력 + mutation_version bump + receipt + OrderEvent 1 + dedupe enqueue.
         _record_push_metadata(
@@ -672,8 +709,15 @@ def api_channel_push_manual():
 
         _audit_channel_push(order, push_kind, is_resend,
                             actor_user_id=current_user.id if current_user else None,
-                            files_count=len(files))
-        return jsonify({'success': True, 'files_count': len(files)})
+                            files_count=len(files),
+                            manager_room_group_id=manager_room_group_id,
+                            manager_room_sent=(manager_room_sent if push_kind == 'drawing_room' else None))
+        response = {'success': True, 'files_count': len(files)}
+        if push_kind == 'drawing_room':
+            response['manager_room_sent'] = manager_room_sent
+            if manager_room_note:
+                response['message'] = manager_room_note
+        return jsonify(response)
 
     except RuntimeError as e:
         # 채널톡 API 레벨 오류 (토큰 발급 실패, API 거부 등)
@@ -733,25 +777,36 @@ def _drawing_room_preview_files(selected: list, storage: Any) -> list[dict]:
     return files
 
 
-def _drawing_room_preview_payload(order: Any, attachments: list, storage: Any) -> dict:
+def _drawing_room_preview_payload(order: Any, attachments: list, storage: Any, db: Any = None) -> dict:
     """도면방 PUSH 미리보기 payload — 전송과 **같은 선택자**를 쓴다(미리보기 = 실제).
+
+    담당자 개인방도 **전송과 같은 해석기**로 미리 보여준다. 누르기 전에 어느 방으로
+    나가는지 알아야 하고, 발송 없이 매칭을 확인할 수 있는 유일한 자리이기도 하다.
 
     Args:
         order: 대상 주문.
         attachments: 그 주문의 ``category='drawing'`` 첨부.
         storage: 스토리지 서비스.
+        db: 담당자 개인방 조회용 세션(없으면 개인방 정보를 싣지 않는다).
 
     Returns:
-        ``{success, text, files, files_count}``.
+        ``{success, text, files, files_count, manager_room_group_id, manager_name,
+        manager_room_note}``.
     """
     selected = select_drawing_room_push_attachments(order, attachments)
     files = _drawing_room_preview_files(selected, storage)
-    return {
+    payload = {
         'success': True,
         'text': build_drawing_room_push_text(order),
         'files': files,
         'files_count': len(files),
     }
+    if db is not None:
+        lookup = resolve_manager_room(db, order)
+        payload['manager_name'] = lookup.manager_name
+        payload['manager_room_group_id'] = lookup.group_id
+        payload['manager_room_note'] = lookup.message
+    return payload
 
 
 @channel_integration_bp.route('/push-preview', methods=['GET'])
@@ -801,7 +856,7 @@ def api_channel_push_preview():
             .all()
         )
         return jsonify(
-            _drawing_room_preview_payload(order, drawing_attachments, get_storage())
+            _drawing_room_preview_payload(order, drawing_attachments, get_storage(), db)
         )
 
     sd = order.structured_data if isinstance(order.structured_data, dict) else {}
