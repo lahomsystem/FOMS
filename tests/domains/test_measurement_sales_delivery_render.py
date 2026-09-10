@@ -12,13 +12,13 @@ AS 영업/택배 전달 건이 실측 일정에 배정되면 실측 대시보드
 """
 import copy
 import re
-from datetime import date
 from pathlib import Path
 
 from sqlalchemy.orm.attributes import flag_modified
 from werkzeug.security import generate_password_hash
 
 from db import db_session
+from foms.services.datetime_kst import get_today_kst
 from foms.services.orders.sales_delivery_link import mark_delivered, write_link
 from foms.web.measurement import dashboard as measurement_dashboard
 from models import Order, OrderScheduleDate, User
@@ -81,7 +81,7 @@ def _create_measurement_order(*, customer_name, on_date, product="붙박이장")
 
 def _create_delivery_order(*, customer_name, as_content="상판 마감캡 6EA", address="광주시 오포읍 능평로 87"):
     """`sales_delivery=true` 인 미완료 AS 주문(전달 건 후보)을 만든다."""
-    today = date.today().strftime("%Y-%m-%d")
+    today = get_today_kst().strftime("%Y-%m-%d")
     order = Order(
         received_date=today,
         customer_name=customer_name,
@@ -126,7 +126,7 @@ def _fetch_dashboard(client, on_date):
 
 def test_delivery_badge_renders_only_on_rows_with_delivery(client):
     """전달 배지는 전달 건이 붙은 행에만 뜬다(음성 대조군: 전달 없는 실측 행)."""
-    today = date.today().strftime("%Y-%m-%d")
+    today = get_today_kst().strftime("%Y-%m-%d")
     _login_erp_admin(client)
     with_delivery = _create_measurement_order(customer_name="오세영", on_date=today)
     _create_measurement_order(customer_name="신동혁", on_date=today)  # 대조군(전달 없음)
@@ -142,7 +142,7 @@ def test_delivery_badge_renders_only_on_rows_with_delivery(client):
 
 def test_detail_row_renders_delivery_card_with_deliver_hook(client):
     """상세행 전달 카드: 고객·품목·주소·배정자 + [전달 완료] 버튼 훅."""
-    today = date.today().strftime("%Y-%m-%d")
+    today = get_today_kst().strftime("%Y-%m-%d")
     _login_erp_admin(client)
     ref = _create_measurement_order(customer_name="오세영", on_date=today)
     delivery = _create_delivery_order(
@@ -165,7 +165,7 @@ def test_detail_row_renders_delivery_card_with_deliver_hook(client):
 
 def test_delivered_item_shows_done_marker_without_button(client):
     """이미 전달된 건은 버튼 대신 '전달 완료됨' 표시만 남는다."""
-    today = date.today().strftime("%Y-%m-%d")
+    today = get_today_kst().strftime("%Y-%m-%d")
     _login_erp_admin(client)
     ref = _create_measurement_order(customer_name="오세영", on_date=today)
     delivery = _create_delivery_order(customer_name="윤아름")
@@ -180,7 +180,7 @@ def test_delivered_item_shows_done_marker_without_button(client):
 
 def test_date_panel_card_shows_delivery_count_sum(client):
     """날짜 패널 배지 = 그 날짜에 실측이 잡힌 주문들의 전달 건수 **합**."""
-    today = date.today().strftime("%Y-%m-%d")
+    today = get_today_kst().strftime("%Y-%m-%d")
     _login_erp_admin(client)
     ref = _create_measurement_order(customer_name="오세영", on_date=today)
     _assign(_create_delivery_order(customer_name="전달 A"), ref.id, ref_date=today)
@@ -193,7 +193,7 @@ def test_date_panel_card_shows_delivery_count_sum(client):
 
 def test_summary_strip_reports_measurement_and_delivery_counts(client):
     """요약 스트립: 선택 날짜 + `실측 N건` + `동행 전달 N건`."""
-    today = date.today().strftime("%Y-%m-%d")
+    today = get_today_kst().strftime("%Y-%m-%d")
     _login_erp_admin(client)
     ref = _create_measurement_order(customer_name="오세영", on_date=today)
     _create_measurement_order(customer_name="신동혁", on_date=today)
@@ -211,7 +211,7 @@ def test_summary_strip_reports_measurement_and_delivery_counts(client):
 
 def test_truncated_map_is_disclosed_on_screen(client, monkeypatch):
     """역방향 맵이 캡에 걸리면 조용히 줄이지 않고 화면에 남긴다."""
-    today = date.today().strftime("%Y-%m-%d")
+    today = get_today_kst().strftime("%Y-%m-%d")
     _login_erp_admin(client)
     _create_measurement_order(customer_name="오세영", on_date=today)
     monkeypatch.setattr(
