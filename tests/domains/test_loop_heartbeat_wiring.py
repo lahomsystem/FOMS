@@ -252,6 +252,84 @@ def test_settle_sync_loop_beats_outside_its_window(app, monkeypatch):
     assert rows[0].metadata_json["ran"] is False
 
 
+def _settle_result_like_production() -> dict:
+    """운영 run 38(2026-09-10 05:30 KST)이 돌려준 모양 그대로 — ``calls``·``rows`` 는 **dict** 다.
+
+    ``run_settle_sync`` 의 ``_finish`` 는 ``_SyncContext.stats`` 를 그대로 싣고, 그 초기값은
+    ``{"calls": {}, "rows": {}, ...}`` (endpoint 별·table 별 카운터)이다. 이 모양으로 러너를
+    돌려야 2026-09-10 사고(성공 tick 직후 ``int(dict)`` TypeError 로 루프 사망)가 재현된다 —
+    정수를 넣은 가짜 결과는 그 사고를 못 본다.
+    """
+    return {
+        "ok": True, "status": "OK", "run_id": 38, "dry_run": False, "error": None,
+        "scope": {"from": "2026-08-11", "to": "2026-09-24"},
+        "stats": {
+            "calls": {"settle/case": 45, "settle/daily": 3, "settle/commission-details": 45},
+            "rows": {"naver_settle_daily": 40, "naver_settle_case": 12},
+            "retro_changes": [], "partitions": 3,
+        },
+    }
+
+
+def _settle_args() -> argparse.Namespace:
+    """``run_naver_settle_sync --loop`` 인자(창 안 판정은 ``should_run`` 패치로 정한다)."""
+    return argparse.Namespace(at="05:30", window=10, tick=5, dry_run=False, json=True,
+                              backfill_from=None, loop=True)
+
+
+def test_settle_sync_loop_survives_a_successful_run_tick(app, monkeypatch):
+    """창 안 **성공** tick 뒤에도 루프가 살아 있고 하트비트가 남는다 (2026-09-10 사고).
+
+    운영에서 매일 05:30 정기 실행(61초, OK)이 끝난 그 tick 에 ``_heartbeat_metadata`` 가
+    ``int(dict)`` 로 터져 루프 프로세스가 죽었다 — 그 줄은 ``_run_loop`` 의 ``try`` 밖이었고
+    ``start.sh`` 백그라운드 루프엔 감독자가 없어, 하트비트는 실행 직전 tick 에 멈춘 채 다음
+    WORKER 재배포까지 STALE 이었다(일일 점검 이틀 연속 red).
+    """
+    runner = _load(_REPO_ROOT / "scripts" / "maintenance" / "run_naver_settle_sync.py")
+    kind = runner.HEARTBEAT_WORKER_KIND
+    assert _heartbeat_rows(kind) == []
+
+    monkeypatch.setattr(runner, "should_run", lambda *a, **k: True)
+    monkeypatch.setattr(runner, "_sync_once",
+                        lambda _dry_run, _backfill_from: _settle_result_like_production())
+    _drive_one_tick(runner, monkeypatch, lambda: runner._run_loop(_settle_args()))
+
+    rows = _heartbeat_rows(kind)
+    assert len(rows) == 1, "성공 tick 이 하트비트를 못 남겼다 — 루프가 죽는 자리다"
+    meta = rows[0].metadata_json
+    assert meta["ran"] is True and meta["status"] == "OK", meta
+    assert meta["calls"] == 93 and meta["rows"] == 52, meta
+
+
+def test_settle_sync_loop_beats_even_when_metadata_building_explodes(app, monkeypatch):
+    """metadata 조립 결함이 다시 생겨도 루프는 살고 하트비트는 남는다 — 경고 + Sentry 1건.
+
+    조립은 생존 신호의 곁가지다. 그것이 터져서 신호 자체가 끊기면 "죽었다" 와 구분이 안 된다.
+    """
+    runner = _load(_REPO_ROOT / "scripts" / "maintenance" / "run_naver_settle_sync.py")
+    kind = runner.HEARTBEAT_WORKER_KIND
+    assert _heartbeat_rows(kind) == []
+
+    captured: list = []
+    monkeypatch.setattr(runner, "capture_exception", lambda *a, **k: captured.append(1))
+
+    def _boom(**_kw):
+        raise TypeError("metadata exploded")
+
+    monkeypatch.setattr(runner, "_heartbeat_metadata", _boom)
+    monkeypatch.setattr(runner, "should_run", lambda *a, **k: True)
+    monkeypatch.setattr(runner, "_sync_once",
+                        lambda _dry_run, _backfill_from: _settle_result_like_production())
+    _drive_one_tick(runner, monkeypatch, lambda: runner._run_loop(_settle_args()))
+
+    rows = _heartbeat_rows(kind)
+    assert len(rows) == 1, "조립이 터졌다고 하트비트까지 사라졌다"
+    meta = rows[0].metadata_json
+    assert meta["ran"] is True and meta["interval_seconds"] == 5, meta
+    assert set(meta) == _ALLOWED_METADATA_KEYS["run_naver_settle_sync"], meta
+    assert captured == [1], "조립 실패가 Sentry 에 안 남는다"
+
+
 def test_loops_declare_their_real_tick_interval(app, monkeypatch):
     """신고 값이 실제 간격과 갈리면 판정 예산이 틀린다 — 루프가 받은 값을 그대로 싣는다.
 
@@ -299,8 +377,10 @@ def test_heartbeat_metadata_never_carries_customer_information(runner_name):
     """metadata 는 운영 감시용 집계 수치만 싣는다(이름·전화·주소 금지)."""
     runner = _load(_REPO_ROOT / "scripts" / "maintenance" / f"{runner_name}.py")
     if runner_name == "run_naver_settle_sync":
+        # calls·rows 는 실제 반환 모양(dict)으로 — 정수 가짜는 2026-09-10 사고를 못 봤다.
         payload = runner._heartbeat_metadata(ran_now=True, result={
-            "status": "OK", "stats": {"calls": 3, "rows": 9},
+            "status": "OK",
+            "stats": {"calls": {"settle/case": 3}, "rows": {"naver_settle_case": 9}},
             "customer_name": "홍길동", "phone": "010-0000-0000"})
     else:
         payload = runner._heartbeat_metadata({
