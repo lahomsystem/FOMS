@@ -2453,6 +2453,20 @@
      * 금액** 때문이다 — 시스템이 넣지 않으므로 사람이 그 숫자를 읽고 주문 화면에 옮겨
      * 적어야 한다. 새로고침이 먼저 오면 그 숫자가 사라진다.
      */
+    /**
+     * 정리 결과의 돈 한 줄 — `추가 결제 1,290,850원` (2026-09-10 사용자 지시, ERP 도크와 같은 규칙).
+     *
+     * 예약금 목표액·"지금 값에 더해 고치세요" 문장·"시스템이 넣지 않습니다" 안내는 뺐다.
+     * 금액은 지금 집(새 결제)의 합계(`deposit.new_amount`)다 — 옛 예약금을 더한 목표액이 아니다.
+     * @param {Object} data 정리 응답(`relation`·`deposit.new_amount`).
+     * @returns {string} 한 줄 텍스트(돈 정보가 없으면 빈 문자열).
+     */
+    function planMoneyLine(data) {
+        if (!data || !data.deposit) return '';
+        var label = data.relation === 'ADDON' ? '추가 결제' : '재결제';
+        return label + ' ' + Number(data.deposit.new_amount || 0).toLocaleString('ko-KR') + '원';
+    }
+
     function showPlanResult(card, data) {
         var done = card.querySelector('.wb-plan__done');
         var acts = card.querySelector('.wb-plan__acts');
@@ -2483,9 +2497,7 @@
                 + ' (위 관계 줄에서 옛 주문 열기)');
         }
         if (data.deposit) {
-            todos.push('예약금을 '
-                + Number(data.deposit.target).toLocaleString('ko-KR')
-                + '원으로 넣기 — 시스템이 넣지 않습니다');
+            todos.push(planMoneyLine(data) + ' — 예약금(선금) 칸 확인');
         }
         if (todos.length) {
             var head = document.createElement('div');
@@ -2506,18 +2518,15 @@
             var money = document.createElement('div');
             money.className = 'wb-plan__money';
             var strong = document.createElement('b');
-            strong.textContent = '예약금(선금)에 넣을 금액: '
-                + Number(data.deposit.target).toLocaleString('ko-KR') + '원';
+            strong.textContent = planMoneyLine(data);
             money.appendChild(strong);
-            var note = document.createElement('div');
-            note.className = 'wb-plan__d';
-            note.textContent = data.deposit.sentence;
-            money.appendChild(note);
-            // 서버 돈 문장에 꼬리를 붙이지 않는다 — 한 줄 한 사실.
-            var noteWho = document.createElement('div');
-            noteWho.className = 'wb-plan__d';
-            noteWho.textContent = '시스템이 넣지 않습니다 — 주문 화면에서 사람이 입력합니다.';
-            money.appendChild(noteWho);
+            if (data.deposit.verb === '그대로') {
+                // 전부 환불된 옛 결제 — 그 돈을 예약금에 옮기면 잔금이 틀린다. 표식 하나만.
+                var refunded = document.createElement('div');
+                refunded.className = 'wb-plan__d';
+                refunded.textContent = '환불된 옛 결제';
+                money.appendChild(refunded);
+            }
             done.appendChild(money);
         }
         if (data.edit_url && !data.discarded) {
@@ -2959,16 +2968,14 @@
             + data.attached + '건 (' + label + ')';
         done.appendChild(title);
 
+        // 검색 경로 돈 한 줄 — 버튼의 data-deposit 이 이미 `추가 결제 N원` 꼴이다(2026-09-10,
+        // 정리 계획 카드·완료 패널과 같은 규칙). 설명문은 붙이지 않는다.
         if (depositSentence) {
             var money = document.createElement('div');
             money.className = 'wb-plan__money';
             var strong = document.createElement('b');
-            strong.textContent = '예약금(선금): ' + depositSentence;
+            strong.textContent = depositSentence;
             money.appendChild(strong);
-            var note = document.createElement('div');
-            note.className = 'wb-plan__d';
-            note.textContent = '시스템이 넣지 않습니다 — 주문 화면에서 사람이 입력합니다.';
-            money.appendChild(note);
             done.appendChild(money);
         }
         if (data.edit_url) {

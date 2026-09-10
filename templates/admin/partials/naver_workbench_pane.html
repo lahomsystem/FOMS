@@ -1261,17 +1261,17 @@
                             <span class="wb-fork__body">
                                 <b>승계 — 주문을 살려 둔다</b>
                                 <span class="wb-fork__d">실측·도면·첨부·이력이 그대로 남는다.</span>
-                                {# D-1 확정: 자동 반영하지 않는다. 숫자만 말하고 입력은 사람이. #}
+                                {# 2026-09-10 사용자 지시(ERP 도크와 같은 규칙): 결제 금액 **한 줄**만 — 예약금 목표액·
+                                   "지금 값에 더해 고치세요" 문장·"시스템이 넣지 않는다" 안내는 뺐다. 금액은 지금 집(새 결제)의
+                                   합계(`deposit.new_amount`). 전부 환불된 옛 결제(verb `그대로`)만 짧은 표식을 단다 —
+                                   그 돈을 예약금에 옮기면 잔금이 그만큼 틀린다. #}
                                 {% for rel in ('REPAY', 'ADDON') %}
                                 <span class="wb-fork__money" data-plan-rel="{{ rel }}">
-                                    <b>예약금(선금)에 넣을 금액</b>
-                                    <span class="wb-fork__won">{{ '{:,}'.format(cand.reconcile[rel].deposit.target) }}원</span>
-                                    <span class="wb-fork__note">{{ cand.reconcile[rel].deposit.sentence }}</span>
+                                    <b>{{ '추가 결제' if rel == 'ADDON' else '재결제' }}</b>
+                                    <span class="wb-fork__won">{{ '{:,}'.format(cand.reconcile[rel].deposit.new_amount) }}원</span>
+                                    {% if cand.reconcile[rel].deposit.verb == '그대로' %}<span class="wb-fork__note">환불된 옛 결제</span>{% endif %}
                                 </span>
                                 {% endfor %}
-                                <span class="wb-fork__d"><b>시스템이 넣지 않는다</b> —
-                                    정리한 뒤 주문 화면에서 예약금 칸에 직접 적어 주세요.
-                                    출고가·품목은 바뀌지 않습니다.</span>
                             </span>
                         </label>
                         {# 2026-09-04: 잠금 축이 **단계**에서 **옛 결제 확정 여부**로 바뀌었다
