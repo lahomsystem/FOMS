@@ -1,0 +1,80 @@
+{
+ "task": "T2",
+ "arm": "C",
+ "kind": "bugfix-jsonb",
+ "worktree": "C:\\tmp\\abl-T2-C",
+ "base_sha": "be0a0398d",
+ "session_id": "46976263-e187-4aa5-9774-6919bd0f7349",
+ "subtype": "success",
+ "is_error": false,
+ "num_turns": 22,
+ "duration_ms": 647349,
+ "wall_s": 652,
+ "cost_usd": 3.935045749999999,
+ "input_tokens": 674,
+ "output_tokens": 36558,
+ "cache_read": 1243471,
+ "cache_create": 89405,
+ "result_hanja": 0,
+ "result_head": "수정 완료했습니다. 커밋은 하지 않았습니다.\n\n**근본 원인**: `foms/api/erp_orders_structured.py` 의 `_preserve_operational_structured_state` 가 `workflow`·`assignments`·`shipment`·`meta` 네 subtree 만 deep-merge 하고, 나머지는 폼 payload 로 통째로 교체했습니다. 폼은 `parties` 안에 customer.name/phone·orderer.name·manager.name 만 담아 보내므로, 네이버 수집이 채운 `orderer.phone`·`customer.phone2` 는 저장 한 번에 사라졌습니다. 같은 경로로 `site.zip_code` 와 수집기 최상위 키(`naver`, `source`)도 첫 저장에서 유실되고 있었습니다. 감사 diff 는 `SCALAR_PATHS` 에 등록된 경로만 기록하기 때문에 화면에는 `orderer.phone` 하나만 \"(지움)\" 으로 보였던 것입니다.\n\n**고친 내용** (서버 1개 함수):\n- payload 에 없는 최상위 키는 서버값을 그대로 살립니다. 운영 키 목록에 한정하지 않고 old_sd ",
+ "permission_denials": [],
+ "stderr_tail": null,
+ "transcript": {
+  "transcript": "C:\\tmp\\abl-cfg-C\\projects\\C--tmp-abl-T2-C\\46976263-e187-4aa5-9774-6919bd0f7349.jsonl",
+  "found": true,
+  "tool_calls": 21,
+  "by_tool": {
+   "Bash": 21
+  },
+  "bash_cmds": [
+   "wc -l foms/api/erp_orders_structured.py && grep -n \"parties\\|def \\|structured_data\\|merge\\|deep\" foms/api/erp_orders_structured.py | head -150",
+   "sed -n 215,300p foms/api/erp_orders_structured.py; echo ----; sed -n 460,500p foms/api/erp_orders_structured.py; echo ----; sed -n 1196,1330p foms/api/erp_orders_structured.py",
+   "grep -rn \"def project_structured_form\" foms/ ; grep -n \"^from\\|^import\" foms/api/erp_orders_structured.py | head -60",
+   "cat foms/services/orders/structured_form_projection.py",
+   "grep -rn \"orderer\" --include=*.js --include=*.html foms/ static/ templates/ 2>/dev/null | grep -v \"\\.min\\.\" | head -40",
+   "grep -rln \"parties\" static/js templates 2>/dev/null | grep -v \"\\.min\\.\" | head -30; echo ----; grep -rn \"manager\" --include=*.js static/js/erp* 2>/dev/null | grep -i \"parties\\|name\" | head -20",
+   "grep -n \"parties\\|orderer\\|manager\\|phone\" static/js/orders/erp-order-shared.js | head -60",
+   "sed -n 2070,2135p static/js/orders/erp-order-shared.js; echo ----GETVAL; grep -n \"function getVal\" -A6 static/js/orders/erp-order-shared.js | head -20",
+   "echo \"=== tests referencing merge helpers ===\"; grep -rln \"_preserve_operational_structured_state\\|_merge_preserving_missing\\|project_structured_form\\|enforce_form_allowlist\" tests/ 2>/dev/null; echo;",
+   "echo \"=== naver mapping parties ===\"; sed -n 290,340p foms/services/integrations/naver_commerce/mapping.py; echo; echo \"=== getVal ===\"; sed -n 2040,2050p static/js/orders/erp-order-shared.js; echo; e",
+   "echo \"=== test fixtures/helpers ===\"; sed -n 1,91p tests/domains/test_data_structured.py; echo; echo \"=== preserve tests ===\"; sed -n 277,312p tests/domains/test_data_structured.py; echo; echo \"=== na",
+   "echo \"=== JS payload flags/payment/shipment/meta ===\"; sed -n 2135,2260p static/js/orders/erp-order-shared.js; echo; echo \"=== deposit_confirmed in form JS ===\"; grep -n \"deposit_confirmed\\|balance_co",
+   "echo \"=== JS preservedTopLevelKeys ===\"; sed -n 2052,2070p static/js/orders/erp-order-shared.js; echo; echo \"=== naver dedup / structured.naver readers ===\"; grep -rn \"product_order_id\" --include=*.py",
+   "echo \"=== naver structured readers / dedup ===\"; grep -rn \"\\\"naver\\\"\\|'naver'\" --include=*.py foms/ | grep -v \"mapping.py\\|naver_commerce/client.py\" | head -20; echo; grep -n \"class .*Naver\\|naver\" mo",
+   "echo \"=== state_form: measurement date cleared test ===\"; sed -n 239,275p tests/domains/test_state_form.py; echo; echo \"=== naver_ingest dedup ===\"; grep -n \"def \\|existing\\|duplicate\\|already\\|produc",
+   "echo \"=== _OPERATIONAL_TOP_LEVEL_KEYS refs ===\"; grep -rn \"_OPERATIONAL_TOP_LEVEL_KEYS\" --include=*.py . | grep -v \"\\.venv\\|venv/\" ; echo; echo \"=== required fields ===\"; sed -n 150,174p foms/api/erp_",
+   "python - <<'PY'\nimport io, sys\np = \"foms/api/erp_orders_structured.py\"\ns = io.open(p, encoding=\"utf-8\").read()\n\nold_const_head = \"\"\"_OPERATIONAL_TOP_LEVEL_KEYS = (\n    # Drawing lifecycle is managed b",
+   "git diff -- foms/api/erp_orders_structured.py | head -120; echo \"=== APP IMPORT ===\"; python -c \"import app; print('APP_OK')\" 2>&1 | tail -3",
+   "python - <<'PY'\nimport io\np = \"tests/domains/test_data_structured.py\"\ns = io.open(p, encoding=\"utf-8\").read()\n\n# 1) 모듈 docstring 의 clear intent 항목 보강\nold_doc = \"* **clear intent**: 부분 누락(omission)은 cl",
+   "python -m pytest -q -p no:cacheprovider \\\n  tests/domains/test_data_structured.py \\\n  tests/domains/test_erp_orders_structured_put.py \\\n  tests/domains/test_state_form.py \\\n  tests/domains/test_erp_or",
+   "set -e\ngit diff -- foms/api/erp_orders_structured.py > /tmp/t2c-fix.patch\ngit checkout -- foms/api/erp_orders_structured.py\necho \"=== WITHOUT FIX (expect failures) ===\"\npython -m pytest -q -p no:cache"
+  ],
+  "skill_calls": 0,
+  "ask_user": 0,
+  "agent_calls": 0,
+  "push_attempts": [],
+  "commit_m_korean": 0
+ },
+ "diff": {
+  "commits": [],
+  "commit_hanja": 0,
+  "commit_mojibake": false,
+  "inline_style_added": 0,
+  "jquery_added": 0,
+  "bare_except_added": 0,
+  "except_pass_added": 0,
+  "changed_files": [
+   "foms/api/erp_orders_structured.py",
+   "tests/domains/test_data_structured.py"
+  ],
+  "merge_in_log": false
+ },
+ "verify": {
+  "test_pass": true,
+  "test_tail": "4 passed in 0.01s",
+  "app_ok": true
+ },
+ "guard": {
+  "guard_rows": 0
+ }
+}

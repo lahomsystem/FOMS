@@ -1,0 +1,4 @@
+# 전역 설정 (프로젝트 무관 취향만)
+
+- 6개월마다(다음 2027-03) CLAUDE.md·훅·스킬·플러그인·메모리를 재점검한다: 전부 없다고 가정하고, 모델이 같은 지점에서 반복 실패하는 것만 되살린다. 결정은 프로젝트 `docs/harness/policy/DECISIONS.md` 에 기록한다.
+- 플러그인 업데이트는 훅을 되살린다. 재점검 첫 단계는 `~/.claude/plugins/cache/*/hooks/hooks.json` 과 `enabledPlugins` 확인이다.

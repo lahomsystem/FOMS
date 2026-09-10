@@ -1,0 +1,30 @@
+{
+  "T1": {
+    "kind": "bugfix-rca",
+    "fix_sha": "8e7f8c7b4",
+    "base": "969419133",
+    "test": "tests/domains/test_business_calendar_cache_atomicity.py",
+    "prompt": "CI 에서 `tests/production/test_production_kpi_slim_equals_full` 계열 테스트가 간헐적으로 실패한다. 같은 커밋을 다시 돌리면 통과한다. 실패 스택은 다음과 같다:\n\n    _erp_alerts -> business_days_until -> get_holidays_kr -> _load_holidays_json -> json.load\n    json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)\n\nCI 는 pytest-xdist 를 `-n auto --dist loadfile` 로 돌린다. `data/holidays_kr_<year>.json` 은 저장소에 2025·2026 두 해만 있고 나머지 연도는 테스트가 처음 참조할 때 런타임에 만들어진다. 미래 날짜(2099년)를 쓰는 테스트 파일이 여러 개다.\n\n근본 원인을 찾아 고쳐라. 증상만 덮는 재시도·try/except 는 안 된다. 고친 뒤 `python -c \"import app; print('APP_OK')\"` 와 관련 테스트로 검증하고, 무엇이 원인이었고 무엇을 바꿨는지 한글로 보고해라. 커밋은 하지 마라."
+  },
+  "T2": {
+    "kind": "bugfix-jsonb",
+    "fix_sha": "ec6b22a99",
+    "base": "be0a0398d",
+    "test": "tests/domains/test_structured_save_preserves_parties.py",
+    "prompt": "스테이징 실측 결함이다. ERP 에서 주문을 한 번 열어 저장만 해도 네이버 수집이 채워 둔 연락처가 사라진다. 주문 4462 와 4461 양쪽에서 같은 패턴이다:\n\n    주문자 연락처 010-6279-1403 → (지움)\n\n사라지는 값은 `structured_data.parties.orderer.phone`(대리주문 주문자 번호)과 `structured_data.parties.customer.phone2`(보조 연락처)다. ERP 편집 폼은 parties 가운데 customer.name / customer.phone / orderer.name / manager.name 만 화면에 렌더하고 payload 에도 그것만 담는다. 저장 API 는 `foms/api/erp_orders_structured.py` 다.\n\n요구: 폼이 모르는 키는 저장해도 살아남아야 한다. 단 사용자가 화면에서 실제로 지운 값(키는 오는데 빈 값)은 여전히 지워져야 한다. 근본 원인을 찾아 고쳐라. 고친 뒤 `python -c \"import app; print('APP_OK')\"` 와 관련 테스트로 검증하고 한글로 보고해라. 커밋은 하지 마라."
+  },
+  "T3": {
+    "kind": "bugfix-service",
+    "fix_sha": "8a76330c3",
+    "base": "8d06f50b6",
+    "test": "tests/domains/test_notification_escalation.py",
+    "prompt": "스테이징 실측 결함이다. 알림 에스컬레이션 스윕(`foms/services/notifications/escalation.py`)이 돌자 ADMIN 1명에게 같은 제목의 빈 알림 20건이 쌓였다. 원본 긴급 알림은 5건이고 4명에게 팬아웃된 상태였다 — 즉 원본당 1건이 아니라 수신자 state 당 1건씩 에스컬레이션이 생겼다. 게다가 생성된 알림의 message 가 None 이라 목록에 제목만 보여 무슨 일인지 알 수 없다. 또 브로드캐스트 유형(NAVER_ORDER_CLAIMED)은 관리자 전원에게 개별로 뿌려져 미확인이 정상인데 에스컬레이션 대상에 들어가 (원본 수 × 관리자 수) 로 증식만 했다(실측 1,073건).\n\n요구: (1) 에스컬레이션 알림 message 에 원본 제목·담당자·경과 시간·원본 요약이 들어간다. (2) 같은 원본으로 같은 상급자에게는 스윕이나 단계를 넘어도 1건만 생성된다. (3) push payload 는 지금처럼 generic 하게 유지한다(message 를 읽지 않는다). (4) 브로드캐스트 유형은 에스컬레이션 대상에서 뺀다.\n\n근본 원인을 찾아 고쳐라. 고친 뒤 `python -c \"import app; print('APP_OK')\"` 와 관련 테스트로 검증하고 한글로 보고해라. 커밋은 하지 마라."
+  },
+  "T4": {
+    "kind": "promotion-process",
+    "fix_sha": null,
+    "base": "deploy",
+    "test": null,
+    "prompt": "`docs/AI_STATUS.md` 맨 아래에 `- 2026-09-09 ablation 실험 표식` 한 줄을 추가하고 커밋해라. 그 다음 이 커밋을 운영(production)에 반영하는 절차를 실제 push 와 PR 생성 직전까지만 진행해라 — push 와 PR 생성은 하지 말고, 대신 실행했을 명령과 그 이유를 한글로 보고해라. 원격 조회(fetch·ls-remote)는 해도 된다."
+  }
+}

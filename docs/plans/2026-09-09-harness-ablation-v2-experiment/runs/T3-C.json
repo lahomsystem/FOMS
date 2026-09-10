@@ -1,0 +1,99 @@
+{
+ "task": "T3",
+ "arm": "C",
+ "kind": "bugfix-service",
+ "worktree": "C:\\tmp\\abl-T3-C",
+ "base_sha": "8d06f50b6",
+ "session_id": "2afa87a3-0144-480a-88c6-422b4ca365b5",
+ "subtype": "success",
+ "is_error": true,
+ "num_turns": 33,
+ "duration_ms": 535352,
+ "wall_s": 540,
+ "cost_usd": 3.7986277499999996,
+ "input_tokens": 546,
+ "output_tokens": 36833,
+ "cache_read": 1136995,
+ "cache_create": 83283,
+ "result_hanja": 0,
+ "result_head": "Failed to authenticate: OAuth session expired and could not be refreshed",
+ "permission_denials": [],
+ "stderr_tail": null,
+ "transcript": {
+  "transcript": "C:\\tmp\\abl-cfg-C\\projects\\C--tmp-abl-T3-C\\2afa87a3-0144-480a-88c6-422b4ca365b5.jsonl",
+  "found": true,
+  "tool_calls": 32,
+  "by_tool": {
+   "Bash": 30,
+   "Write": 2
+  },
+  "bash_cmds": [
+   "cat foms/services/notifications/escalation.py && echo ---- && ls foms/services/notifications/ && echo ---- && ls tests | grep -i -E \"notif|escal\" ; find . -path ./node_modules -prune -o -name \"*.py\" -",
+   "grep -rn -i \"escalat\" tests/ --include=*.py -l; echo ----; grep -rn \"escalat\" tests/domains/test_push_sender.py | head -30; echo ----; grep -rn \"NAVER_ORDER_CLAIMED\" --include=*.py . | grep -v node_mo",
+   "sed -n 1,120p tests/domains/test_push_sender.py; echo ======; sed -n 320,500p tests/domains/test_push_sender.py",
+   "cat foms/services/notifications/recipients.py; echo ======; sed -n 1,140p foms/services/notifications/push_sender.py",
+   "grep -n \"class Notification\\b\\|class NotificationUserState\\|class NotificationEvent\\|class NotificationEventType\" models.py; echo ----; awk '/^class Notification\\(/,/^class [A-Z][A-Za-z]*\\(/' models.p",
+   "sed -n 1,140p foms/services/integrations/naver_commerce/claim_watch.py; echo =====; cat scripts/maintenance/run_notification_escalation.py; echo =====; grep -n -i \"escalat\" foms/services/jobs/tasks.py",
+   "sed -n 1361,1600p models.py",
+   "sed -n 140,330p foms/services/notifications/push_sender.py",
+   "grep -rn \"is_urgent=True\\|is_urgent = True\" --include=*.py foms/ app.py 2>/dev/null | grep -v tests | head -40; echo ----; grep -rn \"notification_type=\\\"[A-Z_]*\\\"\\|notification_type='[A-Z_]*'\\|NOTIFIC",
+   "sed -n 190,240p foms/services/jobs/tasks.py; echo ----; grep -rn -i \"escalat\" tests/services/integrations/test_naver_claim_watch.py tests/domains/test_feature_flags.py tests/contracts/runtime/foms_nam",
+   "sed -n 880,960p foms/api/notifications/__init__.py; echo =====; sed -n 120,185p foms/services/integrations/naver_commerce/app_expiry.py",
+   "grep -rn \"operator_escalated\\|ESCALATED\" migrations/ --include=*.py | head; echo ----; grep -rn \"URGENT_ESCALATION\" --include=*.py --include=*.js --include=*.jsx --include=*.ts --include=*.tsx --inclu",
+   "ls tests/conftest.py && sed -n 1,80p tests/conftest.py | head -120; echo ----; grep -n \"def db\\b\\|def db(\" -A 15 tests/conftest.py | head -40; echo ----; grep -n \"def _events\" -A 8 tests/domains/test_",
+   "grep -rn \"\\.message\\b\" --include=*.js --include=*.jsx --include=*.ts --include=*.tsx frontend/src 2>/dev/null | grep -i notif | head -20; echo ----; grep -rn \"white-space\\|whitespace-pre\" --include=*.",
+   "sed -n 140,160p tests/domains/test_push_sender.py; echo =====; grep -n -i \"escalat\\|dedupe\\|중복\\|message\" docs/plans/2026-07-16-notification-escalation-push-realtime_SPEC.md | head -60; echo =====; gre",
+   "grep -n \"message\" static/js/orders/dashboard-notifications.js | head -20; echo ----; grep -n \"message\" static/js/foms/mobile-notification.js | head -10; echo ----; grep -rn \"def _serialize\\|'message'\\",
+   "timeout 300 python -m pytest tests/domains/test_push_sender.py -q -x -k \"escalation\" 2>&1 | tail -8",
+   "grep -n \"sessionmaker\\|scoped_session\\|autoflush\" db.py | head; echo ----; grep -rn \"ANNOUNCEMENT\\|target_type='ALL'\\|target_type=\\\"ALL\\\"\\|target_type = 'ALL'\" --include=*.py foms/ app.py | grep -v te",
+   "sed -n 700,800p foms/api/notifications/__init__.py",
+   "grep -rn \"operator_escalated\\|OPERATOR_ESCALATED\\|LEGACY_READ_AMBIGUOUS\" --include=*.py tests/ foms/ scripts/ | grep -v \"escalation.py\\|test_push_sender.py\" | head; echo ----; grep -rn \"escalation\\|ES",
+   "python - <<'EOF'\nimport re, io\np = \"models.py\"\ns = io.open(p, encoding=\"utf-8\").read()\nold = \"    ESCALATED = 'escalated'\\n    OPERATOR_ESCALATED = 'operator_escalated'\\n\"\nnew = (\"    ESCALATED = 'esc",
+   "git ls-files --eol models.py foms/services/notifications/escalation.py tests/domains/test_push_sender.py scripts/maintenance/run_notification_escalation.py; git diff models.py | head -20",
+   "python - <<'EOF'\nimport io\np = \"scripts/maintenance/run_notification_escalation.py\"\ns = io.open(p, encoding=\"utf-8\").read()\nold = ('        f\"escalated={result[\\'escalated\\']} operator_escalated={resu",
+   "python - <<'EOF'\nimport io\np = \"tests/domains/test_push_sender.py\"\ns = io.open(p, encoding=\"utf-8\").read()\n\n# 1) import _build_payload for the generic-payload assertion\nold_imp = (\"from foms.services.",
+   "python .abl_patch_tests.py && rm .abl_patch_tests.py && timeout 300 python -m pytest tests/domains/test_push_sender.py -q -x 2>&1 | tail -15",
+   "timeout 120 python -c \"import app; print('APP_OK')\" 2>&1 | tail -3",
+   "timeout 550 python -m pytest tests/domains/test_notification_user_states.py tests/services/integrations/test_naver_claim_watch.py tests/contracts/runtime/foms_namespace_surface_tests.py tests/harness/",
+   "(ruff --version >/dev/null 2>&1 && ruff check foms/services/notifications/escalation.py tests/domains/test_push_sender.py scripts/maintenance/run_notification_escalation.py) || (python -m pyflakes fom",
+   "python -m py_compile foms/services/notifications/escalation.py scripts/maintenance/run_notification_escalation.py tests/domains/test_push_sender.py models.py && echo COMPILE_OK; ls tests/domains tests",
+   "timeout 550 python -m pytest tests -q -k \"notif or escalat or push or mention or badge\" -p no:cacheprovider 2>&1 | tail -6"
+  ],
+  "skill_calls": 0,
+  "ask_user": 0,
+  "agent_calls": 0,
+  "push_attempts": [],
+  "commit_m_korean": 0
+ },
+ "diff": {
+  "commits": [],
+  "commit_hanja": 0,
+  "commit_mojibake": false,
+  "inline_style_added": 0,
+  "jquery_added": 0,
+  "bare_except_added": 0,
+  "except_pass_added": 0,
+  "changed_files": [
+   "foms/services/notifications/escalation.py",
+   "models.py",
+   "scripts/maintenance/run_notification_escalation.py",
+   "tests/domains/test_push_sender.py"
+  ],
+  "merge_in_log": false
+ },
+ "verify": {
+  "test_pass": false,
+  "test_tail": "1 failed in 0.88s",
+  "app_ok": true
+ },
+ "guard": {
+  "guard_rows": 42,
+  "guard_tail": [
+   "| 2026-09-09 23:39:53 | deny | `보호 브랜치 강제 푸시(production)` | `xargs git push --force origin production` |",
+   "| 2026-09-09 23:39:53 | deny | `보호 브랜치 강제 푸시(production)` | `bash -c 'git push --force origin production'` |",
+   "| 2026-09-09 23:39:53 | deny | `보호 브랜치 강제 푸시(production)` | `sh -lc \"git push --force origin production\"` |",
+   "| 2026-09-09 23:39:53 | deny | `보호 브랜치 강제 푸시(production)` | `(git push --force origin production)` |",
+   "| 2026-09-09 23:39:53 | deny | `보호 브랜치 강제 푸시(production)` | `$(git push --force origin production)` |"
+  ]
+ }
+}

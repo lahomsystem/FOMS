@@ -1,0 +1,75 @@
+{
+ "task": "T2",
+ "arm": "B",
+ "kind": "bugfix-jsonb",
+ "worktree": "C:\\tmp\\abl-T2-B",
+ "base_sha": "be0a0398d",
+ "session_id": "66a4b830-c327-4ca3-ab28-30f766646891",
+ "subtype": "success",
+ "is_error": false,
+ "num_turns": 17,
+ "duration_ms": 337192,
+ "wall_s": 342,
+ "cost_usd": 2.28851175,
+ "input_tokens": 514,
+ "output_tokens": 17333,
+ "cache_read": 802815,
+ "cache_create": 60730,
+ "result_hanja": 0,
+ "result_head": "고쳤고 검증까지 끝났습니다. 커밋은 하지 않았습니다.\n\n**근본 원인**\n`foms/api/erp_orders_structured.py` 의 `_preserve_operational_structured_state` 가 폼 저장 시 서버값과 deep-merge 하는 최상위 키를 `workflow·assignments·shipment·meta` 네 개로만 잡고 있었습니다. `parties` 는 이 목록에 없어서 폼 payload 가 서버의 `parties` 를 통째로 덮어썼습니다. 폼 JS(`static/js/orders/erp-order-shared.js`)는 `customer.name/phone·orderer.name·manager.name` 만 보내므로, 네이버 매핑이 채운 `customer.phone2` 와 `orderer.phone` 은 저장 한 번에 사라졌습니다.\n\n**수정 내용** (`foms/api/erp_orders_structured.py:474`)\n- deep-merge 대상에 `parties` 를 추가했습니다. 기존 `_merge_preserving_missing` 이 그대로 적용되어, 폼이 보내지 않은 키는 서버값이 남고 폼이 보낸 키는 ",
+ "permission_denials": [],
+ "stderr_tail": null,
+ "transcript": {
+  "transcript": "C:\\tmp\\abl-cfg-B\\projects\\C--tmp-abl-T2-B\\66a4b830-c327-4ca3-ab28-30f766646891.jsonl",
+  "found": true,
+  "tool_calls": 16,
+  "by_tool": {
+   "Bash": 16
+  },
+  "bash_cmds": [
+   "head -40 docs/AI_STATUS.md && echo ---- && wc -l foms/api/erp_orders_structured.py && grep -n \"parties\" foms/api/erp_orders_structured.py | head -60",
+   "grep -n \"def \\|@.*route\\|deepcopy\\|flag_modified\\|merge\\|\\.update(\" foms/api/erp_orders_structured.py | head -120",
+   "sed -n 240,300p foms/api/erp_orders_structured.py; echo ======; sed -n 460,500p foms/api/erp_orders_structured.py; echo ======; sed -n 1071,1300p foms/api/erp_orders_structured.py",
+   "grep -rn \"def project_structured_form\" foms/ ; grep -rn \"^from\\|^import\" foms/api/erp_orders_structured.py | grep -i \"project_structured_form\\|structured_form\"",
+   "cat foms/services/orders/structured_form_projection.py",
+   "echo \"=== naver ingest parties writers ===\"; grep -rn \"phone2\\|'orderer'\\|\\\"orderer\\\"\" foms/services foms/api --include=*.py | grep -v \"^foms/api/erp_orders_structured.py\" | head -40; echo; echo \"=== ",
+   "echo \"=== naver mapping parties ===\"; sed -n 300,345p foms/services/integrations/naver_commerce/mapping.py; echo; echo \"=== form JS parties ===\"; grep -n \"parties\" static/js/orders/erp-order-shared.js",
+   "echo \"=== form payload parties/site ===\"; sed -n 2075,2125p static/js/orders/erp-order-shared.js; echo; echo \"=== tests referencing preserve/merge ===\"; grep -rln \"_preserve_operational_structured_sta",
+   "echo \"=== shared form scripts test (preserve refs) ===\"; grep -n \"_preserve_operational_structured_state\\|_merge_preserving_missing\\|def test_\" tests/domains/test_erp_order_shared_form_scripts.py | he",
+   "echo \"=== OPERATIONAL keys const ===\"; sed -n 200,240p foms/api/erp_orders_structured.py; echo; echo \"=== shared scripts test 548-561 ===\"; sed -n 548,561p tests/domains/test_erp_order_shared_form_scr",
+   "echo \"=== template preserve test ===\"; sed -n 349,378p tests/domains/test_erp_orders_structured_put.py; echo; echo \"=== data_structured test parties ctx ===\"; sed -n 88,120p tests/domains/test_data_st",
+   "python - <<'EOF'\nfrom pathlib import Path\np = Path(\"foms/api/erp_orders_structured.py\")\nt = p.read_text(encoding=\"utf-8\")\nold = \"    for key in ('workflow', 'assignments', 'shipment', 'meta'):\\n      ",
+   "echo \"=== APP import ===\"; python -c \"import app; print('APP_OK')\" 2>&1 | tail -3; echo; echo \"=== test file tail ===\"; sed -n 1075,1130p tests/domains/test_erp_orders_structured_put.py; echo; echo \"=",
+   "python - <<'EOF'\nfrom pathlib import Path\np = Path(\"tests/domains/test_erp_orders_structured_put.py\")\nt = p.read_text(encoding=\"utf-8\")\naddition = '''\n\ndef test_preserve_operational_state_merges_parti",
+   "export PYTHONIOENCODING=utf-8\npython - <<'EOF'\nfrom pathlib import Path\np = Path(\"foms/api/erp_orders_structured.py\")\nt = p.read_text(encoding=\"utf-8\")\nassert t.count(\"'meta', 'parties'):\") == 1\np.wri",
+   "export PYTHONIOENCODING=utf-8; git diff -- foms/api/erp_orders_structured.py; echo \"=== APP import after restore ===\"; python -c \"import app; print('APP_OK')\" 2>&1 | tail -1"
+  ],
+  "skill_calls": 0,
+  "ask_user": 0,
+  "agent_calls": 0,
+  "push_attempts": [],
+  "commit_m_korean": 0
+ },
+ "diff": {
+  "commits": [],
+  "commit_hanja": 0,
+  "commit_mojibake": false,
+  "inline_style_added": 0,
+  "jquery_added": 0,
+  "bare_except_added": 0,
+  "except_pass_added": 0,
+  "changed_files": [
+   "foms/api/erp_orders_structured.py",
+   "tests/domains/test_erp_orders_structured_put.py"
+  ],
+  "merge_in_log": false
+ },
+ "verify": {
+  "test_pass": true,
+  "test_tail": "4 passed in 0.01s",
+  "app_ok": true
+ },
+ "guard": {
+  "guard_rows": 0
+ }
+}

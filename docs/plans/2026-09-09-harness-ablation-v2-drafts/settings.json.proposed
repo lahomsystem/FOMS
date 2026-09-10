@@ -1,0 +1,88 @@
+{
+  "_comment": "프로젝트 .claude/settings.json 제안 초안 (ablation v2 2026-09-09). 해제: UserPromptSubmit ctx_gate, Stop session_stop(SESSION_LOG 갱신·임시파일 정리는 record_commit_ledger/post_bash 로 흡수 가능하면 제거, 아니면 유지). track_edits 는 동시편집 경고 2기능을 코드에서 빼고 pending 기록만 남긴다(코드 수정 별도). session_start 는 compact 포인터만 남기고 MEMORY-GATE·CONCURRENT-EDIT 를 제거한다(코드 수정 별도).",
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
+    "PYTHONIOENCODING": "utf-8",
+    "PYTHONUTF8": "1"
+  },
+  "permissions": {
+    "allow": [
+      "Bash(python -c \"import app; print('APP_OK')\")",
+      "Bash(python tools/harness/verify_result.py:*)",
+      "Bash(pytest tests/harness:*)",
+      "Bash(python -m pytest tests/harness/test_ai_status_hygiene.py -q)",
+      "Bash(python -m pytest tests/harness/test_hook_log_hygiene.py -q)"
+    ],
+    "deny": [
+      "Bash(git push origin production*)",
+      "Bash(git push --force*)",
+      "Bash(git push -f *)"
+    ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"${CLAUDE_PROJECT_DIR}/.claude/hooks/session_start.py\""
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"${CLAUDE_PROJECT_DIR}/.claude/hooks/pre_compact.py\""
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"${CLAUDE_PROJECT_DIR}/.claude/hooks/guard_shell.py\""
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"${CLAUDE_PROJECT_DIR}/.claude/hooks/track_edits.py\""
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"${CLAUDE_PROJECT_DIR}/.claude/hooks/post_bash.py\""
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"${CLAUDE_PROJECT_DIR}/.claude/hooks/quality_check.py\""
+          }
+        ]
+      }
+    ]
+  }
+}

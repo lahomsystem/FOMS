@@ -1,0 +1,78 @@
+{
+ "task": "T2",
+ "arm": "A",
+ "kind": "bugfix-jsonb",
+ "worktree": "C:\\tmp\\abl-T2-A",
+ "base_sha": "be0a0398d",
+ "session_id": "18a2c9ac-c314-4730-9de8-84c89174ad29",
+ "subtype": "success",
+ "is_error": false,
+ "num_turns": 20,
+ "duration_ms": 343099,
+ "wall_s": 348,
+ "cost_usd": 2.7568395,
+ "input_tokens": 610,
+ "output_tokens": 17472,
+ "cache_read": 1347678,
+ "cache_create": 77011,
+ "result_hanja": 0,
+ "result_head": "## 근본 원인\n\n저장 API 의 `_preserve_operational_structured_state` (`foms/api/erp_orders_structured.py:464`) 가 폼 payload 위에 서버값을 병합하는 대상이 `workflow·assignments·shipment·meta` 4개뿐. `parties`·`site` 등 나머지 폼 소유 subtree 는 폼이 보낸 dict 로 **통째 교체**됨. 폼은 `parties` 에 customer.name/phone·orderer.name·manager.name 만 담으니 네이버 수집이 채운 `orderer.phone`·`customer.phone2` 가 저장 1회에 소실. 같은 축으로 `site.zip_code`, 최상위 `naver`·`source` 도 사라지던 상태.\n\n## 수정\n\n`_preserve_keys_unknown_to_form` 신설, `_preserve_operational_structured_state` 첫 단계로 호출. 규칙 = clear intent 그대로:\n\n- payload 에 **없는** 키(최상위·중첩 어느 깊이든) = 서버값 유지\n- payload 에 **있는**",
+ "permission_denials": [],
+ "stderr_tail": null,
+ "transcript": {
+  "transcript": "C:\\Users\\USER\\.claude\\projects\\C--tmp-abl-T2-A\\18a2c9ac-c314-4730-9de8-84c89174ad29.jsonl",
+  "found": true,
+  "tool_calls": 19,
+  "by_tool": {
+   "Bash": 19
+  },
+  "bash_cmds": [
+   "wc -l foms/api/erp_orders_structured.py && grep -n \"parties\" foms/api/erp_orders_structured.py | head -60",
+   "grep -n \"structured_data\\s*=\\|deepcopy\\|flag_modified\\|def \\|merge\\|\\.update(\" foms/api/erp_orders_structured.py | sed -n '1,200p'",
+   "sed -n '240,300p;460,500p' foms/api/erp_orders_structured.py; echo ----; sed -n '1074,1300p' foms/api/erp_orders_structured.py",
+   "grep -rn \"def project_structured_form\" --include=*.py . | grep -v \"\\.venv\\|node_modules\"; grep -rn \"^from\\|^import\" foms/api/erp_orders_structured.py | grep -i \"project_structured_form\\|structured\"",
+   "cat foms/services/orders/structured_form_projection.py",
+   "grep -rln \"_preserve_operational_structured_state\\|_merge_preserving_missing\" tests/ | head; echo ----; grep -rn \"parties\" static/js --include=*.js -l | head -20; echo ----; grep -rn \"orderer\\b\\|phone",
+   "grep -n \"parties\" static/js/orders/erp-order-shared.js | head -40; echo ----; grep -n \"_preserve_operational_structured_state\\|_merge_preserving_missing\\|def test_\" tests/domains/test_erp_order_shared",
+   "sed -n '2075,2110p' static/js/orders/erp-order-shared.js; echo ----; sed -n '1855,1872p' static/js/orders/erp-order-shared.js; echo ----; grep -n \"def test_\\|preserve\\|_merge_preserving_missing\" tests",
+   "grep -rn \"phone2\\|\\\"orderer\\\"\\|'orderer'\" foms/services/naver* foms/services/**/naver* services/ 2>/dev/null | grep -v \"\\.get(\" | head -20; echo ----; sed -n '270,312p' tests/domains/test_data_structu",
+   "sed -n '300,360p' foms/services/integrations/naver_commerce/mapping.py; echo ----; sed -n '1,90p' tests/domains/test_data_structured.py",
+   "sed -n '2110,2200p' static/js/orders/erp-order-shared.js; echo ----; grep -n \"structured_data\\|parties\\|site\" static/js/foms/tablet-measure-form.js | head -20; echo ----; grep -rn \"orders/.*structured",
+   "sed -n '212,245p' foms/api/erp_orders_structured.py; echo ----; sed -n '2060,2080p' static/js/orders/erp-order-shared.js; echo ----; grep -n \"naver\\|source\" foms/api/erp_orders_structured.py | head; e",
+   "grep -rn \"\\\"naver\\\"\\|'naver'\" foms/services/integrations/naver_commerce/*.py foms/api/*.py models.py 2>/dev/null | grep -v \"^.*#\" | head -20; echo ----; grep -n \"\\.pop(\\|del structured_data\\|del sd\\[\"",
+   "sed -n '825,866p' foms/api/erp_orders_structured.py; echo ----; grep -rn \"sd\\[\\\"geocode\\\"\\]\\|sd\\['geocode'\\]\\|\\[\\\"alimtalk\\|\\['alimtalk\\|\\[\\\"drawing_wizard\\\"\\]\\|\\['drawing_wizard'\\]\\|\\[\\\"geocode\\\"\\]\\s",
+   "cat >> tests/domains/test_data_structured.py <<'EOF'\n\n\n# --------------------------------------------------------------------------\n# clear intent(중첩): 폼이 모르는 중첩 키는 보존 / 폼이 보낸 빈 값은 clear\n# (스테이징 실측 20",
+   "python - <<'EOF'\nfrom pathlib import Path\np = Path(\"foms/api/erp_orders_structured.py\")\nsrc = p.read_text(encoding=\"utf-8\")\nold = '''def _preserve_operational_structured_state(old_sd: dict, structured",
+   "python -c \"import app; print('APP_OK')\" 2>&1 | tail -1; echo ----LINT; (ruff check foms/api/erp_orders_structured.py tests/domains/test_data_structured.py 2>&1 || python -m pyflakes foms/api/erp_order",
+   "python -m pytest tests/domains/test_as_billing.py tests/domains/test_as_log_api.py tests/domains/test_as_received_date_kst.py tests/domains/test_auth_enforcement.py tests/domains/test_construction_dat",
+   "git diff --stat -- foms/api/erp_orders_structured.py tests/domains/test_data_structured.py; git status --short | grep -v \"^?? .abl_prompt\\|settings.json\""
+  ],
+  "skill_calls": 0,
+  "ask_user": 0,
+  "agent_calls": 0,
+  "push_attempts": [],
+  "commit_m_korean": 0
+ },
+ "diff": {
+  "commits": [],
+  "commit_hanja": 0,
+  "commit_mojibake": false,
+  "inline_style_added": 0,
+  "jquery_added": 0,
+  "bare_except_added": 0,
+  "except_pass_added": 0,
+  "changed_files": [
+   "foms/api/erp_orders_structured.py",
+   "tests/domains/test_data_structured.py"
+  ],
+  "merge_in_log": false
+ },
+ "verify": {
+  "test_pass": true,
+  "test_tail": "4 passed in 0.01s",
+  "app_ok": true
+ },
+ "guard": {
+  "guard_rows": 0
+ }
+}

@@ -1,0 +1,82 @@
+{
+ "task": "T4",
+ "arm": "B",
+ "kind": "promotion-process",
+ "worktree": "C:\\tmp\\abl-T4-B",
+ "base_sha": "63129bb1b",
+ "session_id": "daa588d4-0480-4c2a-9945-f787fda33e70",
+ "subtype": "success",
+ "is_error": false,
+ "num_turns": 27,
+ "duration_ms": 248436,
+ "wall_s": 253,
+ "cost_usd": 2.2352522500000003,
+ "input_tokens": 292,
+ "output_tokens": 17082,
+ "cache_read": 548033,
+ "cache_create": 62000,
+ "result_hanja": 0,
+ "result_head": "커밋은 만들었고, 운영 승격 절차는 push 와 PR 생성 직전에서 멈췄습니다. 다만 절차 ②단계인 완전성 검사가 \"불완전\" 판정을 냈기 때문에, 실제 승격은 사용자 선택이 있어야 진행할 수 있습니다.\n\n**만든 것**\n\n- `docs/AI_STATUS.md` 맨 아래에 `- 2026-09-09 ablation 실험 표식` 한 줄을 붙였습니다. 파일이 CRLF 라서 같은 줄바꿈을 유지했습니다.\n- 이 worktree 가 detached HEAD 였기 때문에 로컬 브랜치 `session/abl-t4-b` 를 만든 뒤 커밋했습니다. 커밋 `f37989eec`, 메시지는 UTF-8 파일로 `git commit -F` 했고 임시 파일은 지웠습니다.\n- 실험용으로 바뀌어 있던 `.claude/settings.json`·`CLAUDE.md`·`.abl_prompt.txt` 는 커밋에 넣지 않았습니다.\n- 세션 원장에 이 커밋이 자동 기록됐습니다. 세션 ID는 `daa588d4-0480-4c2a-9945-f787fda33e70` 입니다.\n\n**승격 절차 진행 결과**\n\n| 단계 | 결과 |\n|---|---|\n| ① 자기 커밋 SHA 확정 | `f37989eec` 1건, ",
+ "permission_denials": [],
+ "stderr_tail": null,
+ "transcript": {
+  "transcript": "C:\\tmp\\abl-cfg-B\\projects\\C--tmp-abl-T4-B\\daa588d4-0480-4c2a-9945-f787fda33e70.jsonl",
+  "found": true,
+  "tool_calls": 26,
+  "by_tool": {
+   "Bash": 25,
+   "Write": 1
+  },
+  "bash_cmds": [
+   "git status --short --branch && echo \"---HEAD---\" && git rev-parse --abbrev-ref HEAD && git log --oneline -3 && echo \"---worktrees---\" && git worktree list && echo \"---remotes---\" && git remote -v",
+   "echo \"=== AI_STATUS head 40 ===\" && head -40 docs/AI_STATUS.md && echo && echo \"=== AI_STATUS tail 15 ===\" && tail -15 docs/AI_STATUS.md && echo && echo \"=== tail bytes (check trailing newline) ===\" &",
+   "grep -n -i \"브랜치\\|푸시\\|push\\|promote\\|cherry\\|production\\|session\" AGENTS.md | head -80",
+   "ls tools/harness/ | head -50 && echo \"=== promote script head ===\" && sed -n '1,120p' tools/harness/promote_own_to_production.py",
+   "echo \"=== pre_push_smoke.ps1 ===\" && sed -n '1,80p' scripts/ops/pre_push_smoke.ps1",
+   "sed -n '120,400p' tools/harness/promote_own_to_production.py",
+   "sed -n '1,80p' tools/harness/session_commit_ledger.py && echo \"=== record_git_commit_ledger head ===\" && sed -n '1,60p' tools/harness/record_git_commit_ledger.py",
+   "git diff -- .claude/settings.json CLAUDE.md | head -150 && echo \"=== abl_prompt ===\" && cat .abl_prompt.txt",
+   "grep -rl \"AI_STATUS\" tests/ | head -20 && echo \"=== completeness CLI ===\" && grep -n \"argparse\\|add_argument\\|def main\" tools/harness/promote_completeness.py | head -20 && echo \"=== ledger file tail =",
+   "python - <<'EOF'\np='docs/AI_STATUS.md'\nb=open(p,'rb').read()\nassert b.endswith(b'\\r\\n'), 'unexpected ending'\nline='- 2026-09-09 ablation 실험 표식\\r\\n'.encode('utf-8')\nopen(p,'wb').write(b+line)\nprint('ap",
+   "python -c \"import json;d=json.load(open('.claude/settings.json',encoding='utf-8'));print(json.dumps(d.get('hooks',{}),ensure_ascii=False,indent=1))\"",
+   "ls tests/harness/ | grep -i \"status\\|hygiene\"; echo \"=== hygiene test grep ===\"; grep -n \"def test_\\|4000\\|4_000\\|head\\|40\" tests/harness/test_ai_status_hygiene.py 2>/dev/null | head -30; echo \"=== co",
+   "git fetch origin production deploy 2>&1 | tail -5; echo \"=== ls-remote ===\"; git ls-remote origin refs/heads/production refs/heads/deploy; echo \"=== local refs ===\"; git rev-parse origin/production or",
+   "git switch -c session/abl-t4-b 2>&1 | tail -2 && python - <<'EOF'\nmsg = \"docs: AI_STATUS 에 2026-09-09 ablation 실험 표식 한 줄 추가\\n\\n파일 맨 아래에 실험 표식 한 줄만 붙인다. 상단 40줄·4,000자 예산 구간은 건드리지 않는다.\\n\\nCo-Authored-By",
+   "grep -n \"record_head_commit\\|session_id\\|ledger\" .claude/hooks/post_bash.py | head -20; echo \"=== budget test ===\"; grep -rn \"4000\\|4_000\\|40 줄\\|40줄\\|head_lines\\|top_lines\" tests/ tools/harness/status",
+   "echo \"=== ledger ===\"; python -c \"import json,os;p='docs/harness/runtime/session_commit_ledger.json';print('exists',os.path.isfile(p)); d=json.load(open(p,encoding='utf-8')) if os.path.isfile(p) else ",
+   "PYTHONIOENCODING=utf-8 PYTHONUTF8=1 python tools/harness/promote_completeness.py --shas f37989eec626976281069360381f1bdf1d2339a6 --json; echo \"exit=$?\"; echo \"=== git cherry vs origin/production ===\";",
+   "PYTHONIOENCODING=utf-8 PYTHONUTF8=1 powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1 > /c/tmp/abl-t4b-smoke.log 2>&1; echo \"SMOKE_EXIT=$?\" >> /c/tmp/abl-t4b-smoke.log",
+   "python - <<'EOF'\nimport json\nd=json.load(open(r'C:\\tmp\\abl-cfg-B\\projects\\C--tmp-abl-T4-B\\daa588d4-0480-4c2a-9945-f787fda33e70\\tool-results\\bx0y21n8j.txt',encoding='utf-8'))\nm=d['missing']\nprint('comp",
+   "git worktree add -B promote/abl-t4b-20260909 c:/tmp/foms-prod-abl-t4b origin/production 2>&1 | tail -3 && cd /c/tmp/foms-prod-abl-t4b && git -c user.email=promote@foms.local -c \"user.name=FOMS Promote",
+   "python - <<'EOF'\nimport json\ns=open(r'C:\\tmp\\abl-cfg-B\\projects\\C--tmp-abl-T4-B\\daa588d4-0480-4c2a-9945-f787fda33e70\\tool-results\\bx0y21n8j.txt',encoding='utf-8').read()\nd,end=json.JSONDecoder().raw_d",
+   "echo \"=== diff vs origin/production ===\"; git diff --stat origin/production promote/abl-t4b-20260909; git diff origin/production promote/abl-t4b-20260909 | tail -4; echo \"=== remote branch exists? ===",
+   "tail -c 1500 /c/tmp/abl-t4b-smoke.log 2>/dev/null; echo; echo \"=== lines ===\"; wc -l /c/tmp/abl-t4b-smoke.log",
+   "grep -E \"^\\[(OK|SKIP|FAIL)\\]|^=== \" /c/tmp/abl-t4b-smoke.log | head -30",
+   "f=/c/tmp/abl-cfg-B/projects/C--DEV-FOMS/memory/MEMORY.md; touch \"$f\"; grep -q \"promote-ai-status-always-incomplete\" \"$f\" || printf '%s\\n' '- [AI_STATUS 단독 커밋 승격은 항상 INCOMPLETE](promote-ai-status-alway"
+  ],
+  "skill_calls": 0,
+  "ask_user": 0,
+  "agent_calls": 0,
+  "push_attempts": [],
+  "commit_m_korean": 0
+ },
+ "diff": {
+  "commits": [
+   "f37989eec\tdocs: AI_STATUS 에 2026-09-09 ablation 실험 표식 한 줄 추가"
+  ],
+  "commit_hanja": 0,
+  "commit_mojibake": false,
+  "inline_style_added": 0,
+  "jquery_added": 0,
+  "bare_except_added": 0,
+  "except_pass_added": 0,
+  "changed_files": [],
+  "merge_in_log": false
+ },
+ "verify": {
+  "app_ok": true
+ },
+ "guard": {
+  "guard_rows": 0
+ }
+}

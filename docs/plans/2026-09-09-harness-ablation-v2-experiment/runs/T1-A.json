@@ -1,0 +1,82 @@
+{
+ "task": "T1",
+ "arm": "A",
+ "kind": "bugfix-rca",
+ "worktree": "C:\\tmp\\abl-T1-A",
+ "base_sha": "969419133",
+ "session_id": "da1d5313-1a48-468f-a235-ccdf6bed5ed1",
+ "subtype": "success",
+ "is_error": false,
+ "num_turns": 23,
+ "duration_ms": 348107,
+ "wall_s": 353,
+ "cost_usd": 2.50666775,
+ "input_tokens": 418,
+ "output_tokens": 20455,
+ "cache_read": 773271,
+ "cache_create": 64321,
+ "result_hanja": 0,
+ "result_head": "완료. 커밋 안 함.\n\n**원인**\n- `foms/services/common/business_calendar.py`의 `_generate_holidays_kr` 가 목적 파일을 `open(\"w\")` 로 열어 **먼저 비운 뒤** JSON 을 씀. 그 사이 다른 xdist 워커가 `path.exists()`=True 를 보고 빈 파일을 `json.load` → `Expecting value: line 1 column 1`.\n- 2099년 테스트는 `business_days_between` 이 2026..2099 **74개 연도 파일을 연쇄 생성**함. 2099 쓰는 파일이 여러 개고 `--dist loadfile` 로 서로 다른 워커에 실리니 거의 같은 순간 같은 연도를 만듦. 재실행 시 통과하는 이유 = 파일이 이미 있어 생성 경로를 안 탐.\n- 부수 발견: 단순 원자 교체(`os.replace`)만 넣고 xdist 돌리자 Windows 에서 `PermissionError` 1회 재현. Windows 는 리더가 열어 둔 파일 위로 `os.replace` 못 함(로컬 실험으로 확인). CI(ubuntu)는 무관하나 로컬 xdist 는 걸림.\n\n**바꾼 것**",
+ "permission_denials": [],
+ "stderr_tail": null,
+ "transcript": {
+  "transcript": "C:\\Users\\USER\\.claude\\projects\\C--tmp-abl-T1-A\\da1d5313-1a48-468f-a235-ccdf6bed5ed1.jsonl",
+  "found": true,
+  "tool_calls": 22,
+  "by_tool": {
+   "Bash": 22
+  },
+  "bash_cmds": [
+   "grep -rn \"_load_holidays_json\\|def get_holidays_kr\\|holidays_kr_\" --include=*.py . | grep -v \"\\.git/\" | head -40; ls data/ | grep -i holiday",
+   "cat foms/services/common/business_calendar.py; echo ----; ls -la data/holidays_kr_*.json; git status --short data/; grep -rn \"2099\" --include=*.py tests/ | head -20",
+   "cd /c/tmp/abl-T1-A; grep -n \"holiday\" .gitignore; echo ----; ls tests/production/ 2>/dev/null | head; grep -rln \"kpi_slim_equals_full\" tests/ | head; echo ----; grep -rn \"business_calendar\\|get_holida",
+   "cd /c/tmp/abl-T1-A; git ls-files data/ | head; ls tests/services/ | head -30; ls tests/services/common 2>/dev/null | head; find tests -name \"__init__.py\" | head -5; grep -n \"pytest\\|testpaths\\|addopts",
+   "cd /c/tmp/abl-T1-A; grep -n \"pytest\" .github/workflows/ci.yml | head -20",
+   "cd /c/tmp/abl-T1-A; cat > tests/domains/test_business_calendar_holiday_cache_atomic.py <<'EOF'\n\"\"\"공휴일 캐시 파일 생성은 원자적이어야 한다 (xdist 워커 간 경합 회귀 테스트).\n\n배경: `_generate_holidays_kr` 가 목적 파일을 `open(\"w\")` 로 먼저",
+   "cd /c/tmp/abl-T1-A; python - <<'EOF'\nfrom pathlib import Path\np = Path(\"foms/services/common/business_calendar.py\")\ns = p.read_text(encoding=\"utf-8\")\n\nold_imports = \"\"\"import datetime\nimport json\nfrom",
+   "cd /c/tmp/abl-T1-A; python -c \"import app; print('APP_OK')\" 2>&1 | tail -1",
+   "cd /c/tmp/abl-T1-A; ls data/ | grep holiday; python -m pytest tests/domains/test_production_kpi_slim_projection.py tests/domains/test_construction_kpi_slim_projection.py tests/domains/test_erp_dashboa",
+   "cd /c/tmp/abl-T1-A; grep -n \"runs-on\" .github/workflows/ci.yml | head -3; (ruff check foms/services/common/business_calendar.py tests/domains/test_business_calendar_holiday_cache_atomic.py 2>&1 || pyt",
+   "cd /c/tmp; python - <<'EOF'\n# Windows: os.replace over a target that another handle holds open for read?\nimport os, tempfile, threading, time\nd = tempfile.mkdtemp()\nt = os.path.join(d, \"t.json\"); s = ",
+   "cd /c/tmp/abl-T1-A; grep -in \"filelock\\|portalocker\" requirements*.txt; python -c \"import filelock; print('filelock', filelock.__version__)\" 2>&1 | tail -1; grep -rn \"filelock\\|fcntl\\|msvcrt\" --includ",
+   "cd /c/tmp/abl-T1-A; python - <<'EOF'\nfrom pathlib import Path\np = Path(\"foms/services/common/business_calendar.py\")\ns = p.read_text(encoding=\"utf-8\")\n\nold_imports = \"\"\"import datetime\nimport json\nimpo",
+   "cd /c/tmp/abl-T1-A; python - <<'EOF'\nfrom pathlib import Path\np = Path(\"tests/domains/test_business_calendar_holiday_cache_atomic.py\")\ns = p.read_text(encoding=\"utf-8\")\nold = '''    assert observed ==",
+   "cd /c/tmp/abl-T1-A; sed -n '160,168p' .gitignore; python - <<'EOF'\nfrom pathlib import Path\np = Path(\".gitignore\")\ns = p.read_text(encoding=\"utf-8\")\nold = \"data/holidays_kr_*.json\\n\"\nnew = \"data/holid",
+   "cd /c/tmp/abl-T1-A; for y in $(seq 2027 2099); do rm -f \"data/holidays_kr_$y.json\"; done; rm -f data/holidays_kr_*.json.lock data/.holidays_kr_*.tmp; ls data/ | grep holiday; git status --short data/",
+   "cd /c/tmp/abl-T1-A; python -m pytest tests/domains/test_business_calendar_holiday_cache_atomic.py -q -p no:playwright 2>&1 | tail -3; python -c \"import app; print('APP_OK')\" 2>&1 | tail -1",
+   "cd /c/tmp/abl-T1-A; cat > /c/tmp/holiday_stress.py <<'EOF'\n\"\"\"8 프로세스가 같은 빈 DATA_DIR 에서 2027..2099 를 동시에 생성/읽기 — 경합 스트레스.\"\"\"\nimport json, multiprocessing as mp, os, sys, tempfile\nfrom pathlib import Pa",
+   "cd /c/tmp/abl-T1-A; for i in 1 2 3; do for y in $(seq 2027 2099); do rm -f \"data/holidays_kr_$y.json\"; done; rm -f data/holidays_kr_*.json.lock; echo \"== run $i\"; python -m pytest tests/domains/test_p",
+   "cd /c/tmp/abl-T1-A; for y in $(seq 2027 2099); do rm -f \"data/holidays_kr_$y.json\"; done; rm -f data/holidays_kr_*.json.lock data/.holidays_kr_*.tmp /c/tmp/holiday_stress.py; ls data/ | grep holiday; ",
+   "cd /c/tmp/abl-T1-A; python -m pytest tests/domains/test_foms_namespace_imports.py -q -p no:playwright 2>&1 | tail -1",
+   "cd /c/tmp/abl-T1-A; git diff -- foms/services/common/business_calendar.py .gitignore"
+  ],
+  "skill_calls": 0,
+  "ask_user": 0,
+  "agent_calls": 0,
+  "push_attempts": [],
+  "commit_m_korean": 0
+ },
+ "diff": {
+  "commits": [],
+  "commit_hanja": 0,
+  "commit_mojibake": false,
+  "inline_style_added": 0,
+  "jquery_added": 0,
+  "bare_except_added": 0,
+  "except_pass_added": 0,
+  "changed_files": [
+   ".gitignore",
+   "foms/services/common/business_calendar.py",
+   "tests/domains/test_business_calendar_holiday_cache_atomic.py"
+  ],
+  "merge_in_log": false
+ },
+ "verify": {
+  "test_pass": false,
+  "test_tail": "1 failed, 3 passed in 0.91s",
+  "app_ok": true
+ },
+ "guard": {
+  "guard_rows": 0
+ }
+}

@@ -1,0 +1,77 @@
+{
+ "task": "T4",
+ "arm": "A",
+ "kind": "promotion-process",
+ "worktree": "C:\\tmp\\abl-T4-A",
+ "base_sha": "63129bb1b",
+ "session_id": "e2751489-c9ff-41d9-ba61-36804a1a42f2",
+ "subtype": "success",
+ "is_error": false,
+ "num_turns": 22,
+ "duration_ms": 281212,
+ "wall_s": 286,
+ "cost_usd": 2.2135402500000003,
+ "input_tokens": 386,
+ "output_tokens": 11115,
+ "cache_read": 892681,
+ "cache_create": 71538,
+ "result_hanja": 0,
+ "result_head": "검증 다 끝남. 최종 보고 작성.\n\n## 완료 보고\n\n**1단계 커밋 완료.** `docs/AI_STATUS.md` 맨 아래에 `- 2026-09-09 ablation 실험 표식` 한 줄 추가.\n\n| 항목 | 값 |\n|---|---|\n| 작업 트리 | `C:\\tmp\\abl-T4-A` (detached HEAD 였으므로 `session/abl-t4-a` 브랜치 신설 후 커밋) |\n| 커밋 | `f1e782b8e` (UTF-8 메시지 파일 + `git commit -F … -- docs/AI_STATUS.md` pathspec 커밋) |\n| 제외 | `.claude/settings.json` 변경분·`.abl_prompt.txt` 는 실험 장치라 커밋 안 함 |\n\n**2단계 승격 절차 — push·PR 직전까지 진행 완료.** AGENTS.md §브랜치·푸시 ①~⑤ 그대로 밟음.\n\n- **① 자기 커밋 확정**: `git log` 로 이 세션 커밋은 `f1e782b8e` 하나뿐 확인. 타 세션 커밋 혼입 없음.\n- **② 완전성 사전검사**: `promote_completeness.py --shas f1e782b8e --fetch` 결과 `INCOMPLETE: ",
+ "permission_denials": [],
+ "stderr_tail": null,
+ "transcript": {
+  "transcript": "C:\\Users\\USER\\.claude\\projects\\C--tmp-abl-T4-A\\e2751489-c9ff-41d9-ba61-36804a1a42f2.jsonl",
+  "found": true,
+  "tool_calls": 21,
+  "by_tool": {
+   "Bash": 21
+  },
+  "bash_cmds": [
+   "git status --short --branch && git rev-parse --abbrev-ref HEAD && git rev-parse HEAD && git worktree list && git branch -a --contains HEAD | head -20",
+   "grep -n -i \"승격\\|production\\|cherry-pick\\|promote\" AGENTS.md | head -80",
+   "cat \"C:/Users/USER/.claude/projects/C--DEV-FOMS/memory/project_promotion_traps_master.md\"; echo ----; cat \"C:/Users/USER/.claude/projects/C--DEV-FOMS/memory/project_git_worktree_and_push_discipline.md",
+   "tail -15 docs/AI_STATUS.md; echo ----; ls tools/harness/promote_own_to_production.py tools/harness/promote_completeness.py tools/harness/push_own_session_commits.py scripts/ops/pre_push_smoke.ps1 2>&1",
+   "tail -c 120 docs/AI_STATUS.md | od -c | tail -4; echo ----; wc -l docs/AI_STATUS.md; echo ----; grep -rln \"AI_STATUS\" tests/ | head; echo ----; git config --get-all remote.origin.fetch",
+   "python tools/harness/promote_own_to_production.py --help 2>&1 | head -60; echo ----; python tools/harness/promote_completeness.py --help 2>&1 | head -40",
+   "grep -n \"session_commit_ledger\\|PostToolUse\\|git commit\" .claude/settings.json tools/harness/*.py 2>/dev/null | grep -i ledger | head -10; echo ----; git log --oneline -3 origin/production 2>&1; echo ",
+   "git ls-files --eol docs/AI_STATUS.md && grep -c $'\\r$' docs/AI_STATUS.md && git checkout -b session/abl-t4-a 2>&1 && printf -- '- 2026-09-09 ablation \\xec\\x8b\\xa4\\xed\\x97\\x98 \\xed\\x91\\x9c\\xec\\x8b\\x9d\\",
+   "git config core.autocrlf; git checkout -b session/abl-t4-a 2>&1 && printf -- '- 2026-09-09 ablation \\xec\\x8b\\xa4\\xed\\x97\\x98 \\xed\\x91\\x9c\\xec\\x8b\\x9d\\r\\n' >> docs/AI_STATUS.md && git diff -- docs/AI_S",
+   "tail -1 docs/AI_STATUS.md && printf 'docs: 2026-09-09 ablation \\xec\\x8b\\xa4\\xed\\x97\\x98 \\xed\\x91\\x9c\\xec\\x8b\\x9d \\xed\\x95\\x9c \\xec\\xa4\\x84 \\xec\\xb6\\x94\\xea\\xb0\\x80\\n\\nAI_STATUS.md \\xeb\\xa7\\xa8 \\xec\\x9",
+   "git log --oneline origin/deploy..HEAD 2>&1 | head; echo \"--- own SHA set (HEAD only, base 63129bb1b)\"; git rev-list --count 63129bb1b..HEAD; echo ---- completeness; python tools/harness/promote_comple",
+   "git fetch origin production 2>&1 | tail -2; git ls-remote origin refs/heads/production; git rev-parse origin/production; echo ---- ci.yml on production; export MSYS_NO_PATHCONV=1; git show \"origin/pro",
+   "git diff origin/production HEAD --stat -- requirements.txt alembic/versions | tail -3; echo ---- alembic heads on this tree; python -c \"from alembic.config import Config; from alembic.script import Sc",
+   "python tools/harness/promote_completeness.py --shas f1e782b8e --json >/dev/null 2>&1; echo \"completeness exit=$?\"; python tools/harness/promote_completeness.py --shas f1e782b8e 2>&1 | head -4",
+   "git worktree add -b promote/abl-t4a-20260909 /c/tmp/foms-prod-abl-t4a origin/production 2>&1 | tail -2 && cd /c/tmp/foms-prod-abl-t4a && pwd && git rev-parse HEAD && git cherry-pick -x f1e782b8e 2>&1 ",
+   "pwd && git diff origin/production HEAD --stat && python -c \"import app; print('APP_OK')\" 2>&1 | tail -1",
+   "sed -n '1,45p' scripts/ops/pre_push_smoke.ps1 | grep -n \"param\\|Quick\\|Skip\\|\\$env\\|pytest\\|# \" | head -30",
+   "sed -n '43,70p' scripts/ops/pre_push_smoke.ps1",
+   "pwd && python -m pytest -q -p no:playwright tests/harness/test_hook_log_hygiene.py tests/contracts/runtime/foms_namespace_surface_tests.py -x 2>&1 | tail -4",
+   "pwd && powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ops/pre_push_smoke.ps1 > /c/tmp/abl-t4a-smoke.log 2>&1; echo \"smoke exit=$?\"; grep -E \"^\\[OK\\]|^\\[SKIP\\]|^\\[FAIL\\]|FAILED|passed|fail",
+   "pwd && git rev-parse --abbrev-ref HEAD && git log --oneline origin/production..HEAD && git ls-remote origin refs/heads/production refs/heads/promote/abl-t4a-20260909 && git status --short | head -3; e"
+  ],
+  "skill_calls": 0,
+  "ask_user": 0,
+  "agent_calls": 0,
+  "push_attempts": [],
+  "commit_m_korean": 0
+ },
+ "diff": {
+  "commits": [
+   "f1e782b8e\tdocs: 2026-09-09 ablation 실험 표식 한 줄 추가"
+  ],
+  "commit_hanja": 0,
+  "commit_mojibake": false,
+  "inline_style_added": 0,
+  "jquery_added": 0,
+  "bare_except_added": 0,
+  "except_pass_added": 0,
+  "changed_files": [],
+  "merge_in_log": false
+ },
+ "verify": {
+  "app_ok": true
+ },
+ "guard": {
+  "guard_rows": 0
+ }
+}
