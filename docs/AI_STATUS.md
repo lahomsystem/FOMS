@@ -11,7 +11,8 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
-- [2026-09-10] **운영 대기분 선별 승격(PR #339 · production `3888da9ab`)** — deploy↔production 파일 차이 188개를 파일 diff 로 판정(원장 `docs/plans/2026-09-09-production-pending-triage.md`). 사용자 선택으로 지난 날짜 발송 띠·ACL 가드·백필 -9시간 갈래 철회·drift 기준선 924·perf 예산 18466·하네스/문서 동기화를 올렸다. **로그인 한도·잠금(`40d25bb1b`)만 deploy 잔류(사용자 판단 보류)**. `/healthz` 21초 뒤 새 SHA 확인
+- [2026-09-10] **정산 동기화 루프 매일 05:31 사망 근본 수정(deploy 대기 → 운영 승격 예정)** — 성공 tick 의 `_heartbeat_metadata` 가 `int(dict)` 로 터지고 그 줄이 try 밖이라 루프가 죽어 다음 재배포까지 STALE(일일 점검 09-08·09 red, 감시자 push 는 정상). 합산 `_count` + 조립 가드 + 회귀 2건. 원장 `docs/incidents/2026-09-10-settle-loop-dies-after-success-tick.md`
+- [2026-09-10] **운영 대기분 선별 승격(PR #339 · production `3888da9ab`)** — 파일 diff 로 판정(원장 `docs/plans/2026-09-09-production-pending-triage.md`), 사용자 선택분(지난 날짜 발송 띠·ACL 가드·백필 갈래 철회·drift 924·perf 18466·하네스/문서 동기화) 반영. **로그인 잠금(`40d25bb1b`)만 deploy 잔류(사용자 보류)**
 - [2026-09-09] **AS 전달 배정 스테이징 반영(deploy `3c2253802`)** — 영업/택배 건을 근처 실측 일정에 태운다. 스펙·원장 `2026-09-09-as-sales-delivery-*`. → 운영 반영(PR #338 · production `9e89d8e3a`, 해당 세션)
 - [2026-09-09] **CTX-GATE 헛알림 근본 수정(deploy `2bbd12bb7`)** — 판정 축이 transcript **파일 크기**(누적 I/O)라 창에 안 남는 바이트까지 세서 실점유 13.8% 세션에 131% 보고. 축을 마지막 assistant `message.usage` 로 교체(→ `record_compact_baseline` 제거). 테스트 8건
 - [2026-09-09] **워커 관측 4건 운영 반영(PR #326·#331 · production `d40d8bdb2`)** — ①예산 정본 `effective_heartbeat_budget` 하나로(헛알림 종결, 운영 실측 `나이 1064초·새 알림 0`) ②push 가 사건을 말한다 ③정지 감지 90분 → 16분 ④WORKER·SIDEFX `SENTRY_DSN` 배선 확인. ④는 web 에만 있던 값을 복사한 것(F-12 는 오판)

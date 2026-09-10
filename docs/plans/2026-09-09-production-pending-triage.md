@@ -163,7 +163,7 @@ tick 을 실제 `_finish` payload 모양으로 돌리는 테스트가 없다.
 ## 남은 것
 
 - 로그인 한도·잠금(A, deploy `40d25bb1b`) — 사용자 판단 대기(운영에 올리면 8회 실패 → 15분 429, 관리자 해제 UI 없음).
-- 위 운영 관측 2건(AS 축 드리프트 1건 · 정산 동기화 하트비트 STALE)의 원인 조사.
+- 운영 관측: AS 축 드리프트 1건 원인 조사(미착수). 정산 동기화 STALE 은 원인 확정·수정(위 절, 사고 원장 `docs/incidents/2026-09-10-settle-loop-dies-after-success-tick.md`) — 운영 승격 뒤 다음 05:31 KST 지나서 수동 dispatch 로 확인.
 
 ## 검증 (이 워크트리, HEAD `103eb092e` = origin/deploy)
 
