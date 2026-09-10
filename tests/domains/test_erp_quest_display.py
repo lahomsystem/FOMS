@@ -101,7 +101,15 @@ def test_mobile_detail_template_allows_assignee_gate() -> None:
     ).read_text(encoding="utf-8")
     assert "can_approve_quest" in partial
     assert "can_assignee_approve" in partial
-    assert "invalidatePrimaryNavFragmentCache" in partial
+    # 승인 CTA 동작은 큐 카드와 공용인 erp-quest-approve.js 로 이관됐다.
+    approve_js = (ROOT / "static" / "js" / "foms" / "erp-quest-approve.js").read_text(
+        encoding="utf-8"
+    )
+    assert "invalidatePrimaryNavFragmentCache" in approve_js
+    # 승인 성공 뒤 문서를 실제로 다시 읽어야 한다 — 해시만 바꾸는 location.href 는
+    # 같은 URL 에서 아무 일도 하지 않아 버튼이 disabled 로 굳는다(회귀 가드).
+    assert "window.location.reload()" in approve_js
+    assert "location.href = location.pathname" not in partial
 
 
 def test_resolve_order_role_assignees_from_structured_data() -> None:
@@ -206,3 +214,90 @@ def test_assignee_user_ids_accepts_scalar_manager():
     assert assignee_user_ids_from_sd({"parties": {"manager": 7}}) == {7}
     assert assignee_user_ids_from_sd({"parties": {"manager": {"name": "9"}}}) == {9}
     assert assignee_user_ids_from_sd({"parties": {"manager": None}}) == set()
+
+
+def _payload_for_stage(stage: str, stage_code: str) -> dict:
+    """해당 stage 의 current_quest payload 를 만든다(승인 CTA 문구 검증용)."""
+    sd = {
+        "workflow": {"stage": stage_code},
+        "quests": [{"stage": stage_code, "title": stage, "status": "OPEN"}],
+    }
+    order = SimpleNamespace(id=4385, customer_name="홍길동", manager_name="안중훈")
+    return qd.build_current_quest_payload(
+        sd=sd, stage=stage, stage_code=stage_code, order=order, current_user=None, user_map={}
+    )
+
+
+def test_approve_cta_names_the_stage_and_promises_the_move() -> None:
+    """단계를 실제로 옮기는 stage 는 다음 단계까지 문구가 말한다(승인 문구 SSOT)."""
+    measure = _payload_for_stage("실측", "MEASURE")
+    assert measure["approve_label"] == "실측 완료"
+    assert measure["advances_stage"] is True
+    assert measure["next_stage_label"] == "도면"
+    assert "도면 단계로 넘길까요?" in measure["approve_confirm"]
+    # 오탭 방지용 대상 표기(고객명/주문번호).
+    assert "홍길동 / #4385" in measure["approve_confirm"]
+
+    received = _payload_for_stage("주문접수", "RECEIVED")
+    assert received["approve_label"] == "접수 확인"
+    assert received["advances_stage"] is True
+    assert received["next_stage_label"] == "실측"
+
+
+def test_approve_cta_does_not_promise_a_move_that_never_happens() -> None:
+    """생산·CS 는 승인해도 stage 가 그대로다 — 문구가 이동을 약속하면 안 된다."""
+    for stage, stage_code, label in [
+        ("생산", "PRODUCTION", "생산 확인"),
+        ("CS", "CS", "CS 확인"),
+    ]:
+        payload = _payload_for_stage(stage, stage_code)
+        assert payload["approve_label"] == label
+        assert payload["advances_stage"] is False
+        assert "그대로 유지됩니다" in payload["approve_confirm"]
+        assert "넘길까요" not in payload["approve_confirm"]
+
+
+def test_command_required_stages_expose_no_approve_button() -> None:
+    """도면·고객컨펌은 quest approve API 가 409 로 거부한다 — 버튼 자체를 주면 막다른 길이다."""
+    for stage_code in ("DRAWING", "CONFIRM"):
+        cta = qd._build_approve_cta(stage_code, SimpleNamespace(id=1, customer_name="홍길동"))
+        assert cta["approve_label"] is None
+        assert cta["command_required"] is True
+    # 완료 단계는 다음 stage 가 없어 승인이 아무것도 바꾸지 않는다 — 역시 버튼 없음.
+    assert qd._build_approve_cta("COMPLETED", SimpleNamespace(id=1))["approve_label"] is None
+
+
+def test_queue_card_hides_approve_when_server_gives_no_label() -> None:
+    """카드의 승인 CTA 노출은 approve_label 이 SSOT — 도면 카드가 '도면 창구'를 되찾는다."""
+    card = (
+        ROOT / "templates" / "partials" / "shared" / "erp_mobile_queue_card_v2.html"
+    ).read_text(encoding="utf-8")
+    assert "and quest.approve_label" in card
+    assert "quest_inline_approve = quest_actionable and quest.advances_stage" in card
+    assert "confirm_actionable" in card
+
+
+def test_list_approve_restores_place_instead_of_removing_the_card() -> None:
+    """목록 승인은 카드를 지우지 않는다 — 승인해도 그 주문은 목록에서 빠지지 않기 때문이다.
+
+    실측 큐는 실측일 기준이라 승인 뒤에도 '실측 완료' 배지를 달고 남고, 메인 대시보드는
+    단계별 섹션이라 다음 단계 섹션으로 옮겨 갈 뿐이다. 카드를 지우면 '사라졌다'는 거짓이 된다.
+    대신 스크롤 자리를 기억했다가 다시 읽은 뒤 그 카드로 돌아가 잠깐 강조한다.
+    """
+    js = (ROOT / "static" / "js" / "foms" / "erp-quest-approve.js").read_text(
+        encoding="utf-8"
+    )
+    assert "rememberPlace" in js
+    assert "restorePlace" in js
+    assert "is-foms-just-approved" in js
+    # 카드를 DOM 에서 제거하는 경로가 없어야 한다(회귀 가드).
+    assert ".remove()" not in js
+    # 강조 스타일과 자산 핀이 함께 있어야 실기기에서 구버전 CSS 가 남지 않는다.
+    css = (ROOT / "static" / "css" / "components" / "foms-queue-card-v2.css").read_text(
+        encoding="utf-8"
+    )
+    assert ".foms-queue-card-v2.is-foms-just-approved" in css
+    surfaces = (
+        ROOT / "static" / "css" / "foundation" / "foms-mobile-surfaces.css"
+    ).read_text(encoding="utf-8")
+    assert "foms-queue-card-v2.css?v=20260910a" in surfaces
