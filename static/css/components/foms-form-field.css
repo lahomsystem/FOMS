@@ -313,6 +313,17 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-attachment-controls
   white-space: nowrap;
 }
 
+/* 접힘 힌트는 "기본 접힘"(개발 설정 설명)이 아니라 지금 누르면 무슨 일이 나는지를
+   말한다. 상태는 aria-expanded 가 이미 들고 있으므로 CSS 로 문구만 갈아끼운다.
+   보조기기에는 aria-expanded 로 이미 전달되어 span 은 aria-hidden 이다. */
+.erp-mobile-collapse-toggle[aria-expanded="false"] .erp-mobile-collapse-hint::after {
+  content: "펼치기";
+}
+
+.erp-mobile-collapse-toggle[aria-expanded="true"] .erp-mobile-collapse-hint::after {
+  content: "접기";
+}
+
 .erp-mobile-collapse-toggle[aria-expanded="true"] .fa-chevron-right {
   transform: rotate(90deg);
 }
