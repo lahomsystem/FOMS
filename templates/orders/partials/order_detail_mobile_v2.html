@@ -117,11 +117,15 @@
     {% set is_measure_stage = order.stage_code == 'MEASURE' or order.stage in ['MEASURE', '실측'] %}
     {# 담당자 승인 CTA는 하단 고정바가 SSOT — 같은 버튼을 '현재 작업' 섹션에 다시 그리면 중복 표기가 된다. #}
     {% set quest_assignee_approval = (order.current_quest.assignee_approval or {}) if order.current_quest else {} %}
+    {# 버튼 문구는 서버(erp_quest_display._build_approve_cta)가 단계별로 만든다 — 화면이 여러 곳이라
+       템플릿마다 if 체인을 두면 문구와 실제 전이 규칙이 갈라진다. #}
+    {% set quest_approve_label = (order.current_quest.approve_label if order.current_quest else '') or '승인' %}
     {% set sticky_quest_approve = (
          is_measure_stage
          and order.current_quest
          and order.current_quest.title
          and order.current_quest.approval_mode == 'assignee'
+         and order.current_quest.approve_label
          and (can_edit_erp or order.current_quest.can_assignee_approve)
          and not quest_assignee_approval.get('approved')
        ) %}
@@ -259,7 +263,10 @@
           <h2 class="foms-detail-section__title" id="foms-detail-quest-title">현재 작업</h2>
         </div>
         <p class="mb-0">{{ order.current_quest.title }}</p>
-        {% set can_approve_quest = can_edit_erp or (order.current_quest and order.current_quest.can_assignee_approve) %}
+        {# 승인 버튼 노출은 approve_label 이 SSOT — 전용 command 단계(도면·고객컨펌)와 완료 단계는
+           서버가 label 을 비워 보내고, 그 단계에서 승인 API 는 409 로 거부한다(막다른 길 방지). #}
+        {% set can_approve_quest = (can_edit_erp or (order.current_quest and order.current_quest.can_assignee_approve))
+             and order.current_quest.approve_label %}
         {% if can_approve_quest %}
           <div class="foms-detail-action-stack mt-3" id="mobile-quest-approvals-{{ order.id }}">
             {% if order.current_quest.approval_mode == 'assignee' %}
@@ -272,8 +279,11 @@
                 <button
                   type="button"
                   class="foms-btn foms-btn--primary foms-btn--full erp-mobile-quest-approve-assignee"
-                  data-order-id="{{ order.id }}">
-                  {{ '실측 완료 → 도면 전달' if is_measure_stage else '담당자 승인' }}
+                  data-order-id="{{ order.id }}"
+                  data-approve-label="{{ quest_approve_label }}"
+                  data-confirm="{{ order.current_quest.approve_confirm }}"
+                  data-refresh-anchor="#foms-detail-quest">
+                  {{ quest_approve_label }}
                 </button>
               {% endif %}
             {% else %}
@@ -291,8 +301,11 @@
                     type="button"
                     class="foms-btn foms-btn--primary foms-btn--full erp-mobile-quest-approve-team"
                     data-order-id="{{ order.id }}"
-                    data-team="{{ team }}">
-                    {{ team }} 승인
+                    data-team="{{ team }}"
+                    data-approve-label="{{ team }} {{ quest_approve_label }}"
+                    data-confirm="{{ team }} 팀 승인으로 진행합니다.&#10;{{ order.current_quest.approve_confirm }}"
+                    data-refresh-anchor="#foms-detail-quest">
+                    {{ team }} {{ quest_approve_label }}
                   </button>
                 {% endif %}
               {% endfor %}
@@ -369,8 +382,11 @@
       <button
         type="button"
         class="foms-btn foms-btn--primary foms-btn--full erp-mobile-quest-approve-assignee"
-        data-order-id="{{ order.id }}">
-        실측 완료 → 도면 전달
+        data-order-id="{{ order.id }}"
+        data-approve-label="{{ quest_approve_label }}"
+        data-confirm="{{ order.current_quest.approve_confirm }}"
+        data-refresh-anchor="#foms-detail-quest">
+        {{ quest_approve_label }}{% if order.current_quest.advances_stage %} → {{ order.current_quest.next_stage_label }} 전달{% endif %}
       </button>
     {% endif %}
     {# 완료 버튼이 함께 뜨는 실측 단계에서는 편집 링크를 보조 버튼으로 낮춰 CTA 위계를 유지한다. #}
@@ -382,37 +398,6 @@
 
 {% include 'partials/shared/foms_attachment_preview_modal.html' %}
 
-<script>
-  document.addEventListener('click', async function (event) {
-    const teamBtn = event.target.closest('.erp-mobile-quest-approve-team');
-    const assigneeBtn = event.target.closest('.erp-mobile-quest-approve-assignee');
-    const btn = teamBtn || assigneeBtn;
-    if (!btn) return;
-    const orderId = btn.getAttribute('data-order-id');
-    const team = btn.getAttribute('data-team');
-    if (!orderId) return;
-    btn.disabled = true;
-    try {
-      const res = await fetch(`/api/orders/${orderId}/quest/approve`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(team ? { team: team } : {})
-      });
-      const data = await res.json();
-      if (!data.success) {
-        // 서버 code(COMMAND_REQUIRED·QUEST_INCOMPLETE·전이 충돌)까지 노출해야 원인 파악이 된다.
-        const detail = data.code ? ` (${data.code})` : '';
-        throw new Error((data.message || data.error || '승인 실패') + detail);
-      }
-      if (window.FOMS_ERP_SHELL && typeof window.FOMS_ERP_SHELL.invalidatePrimaryNavFragmentCache === 'function') {
-        window.FOMS_ERP_SHELL.invalidatePrimaryNavFragmentCache();
-      } else if (window.FOMS_ERP_SHELL && typeof window.FOMS_ERP_SHELL.invalidateFragmentCache === 'function') {
-        window.FOMS_ERP_SHELL.invalidateFragmentCache(true);
-      }
-      location.href = location.pathname + location.search + '#foms-detail-quest';
-    } catch (error) {
-      btn.disabled = false;
-      alert(String((error && error.message) || error || '승인 중 오류가 발생했습니다.'));
-    }
-  });
-</script>
+{# 퀘스트 승인 CTA 동작은 static/js/foms/erp-quest-approve.js 가 맡는다(큐 카드와 공용).
+   예전 인라인 스크립트는 해시만 바꾸는 location.href 로 새로고침을 시도해, 승인이 성공해도
+   화면이 그대로이고 버튼이 disabled 로 굳었다. #}
