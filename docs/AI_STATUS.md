@@ -11,7 +11,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
-- [2026-09-10] **추가결제 행 `주문 만듦` 배지 접기 + ERP 도크 예약금 카드 → 결제 금액 한 줄(deploy `5a0b9e665`, 스테이징 QA PASS)** — 사용자 지시(#5206 김도희). 서버 판정 `foms_badge_hidden`(linked∧ADDON/REPAY∧관계 배지=대표 주문), 도크는 서버 `relation_label`·`live_total_display` 두 노드만(설명문·대조 줄 전부 제거, 핀 20260910a). 원장 `docs/plans/2026-09-10-addon-badge-dock-brief.md`. 잔여: 운영 승격 여부
+- [2026-09-10] **추가결제 행 `주문 만듦` 배지 접기 + ERP 도크 예약금 카드 → 결제 금액 한 줄(PR #341 · production `a1ec42996`)** — 사용자 지시(#5206 김도희). 서버 판정 `foms_badge_hidden`(linked∧ADDON/REPAY∧관계 배지=대표 주문), 도크는 서버 `relation_label`·`live_total_display` 두 노드만(설명문·대조 줄 전부 제거, 핀 20260910a). 원장 `docs/plans/2026-09-10-addon-badge-dock-brief.md`. 스테이징 QA PASS 후 승격
 - [2026-09-10] **정산 동기화 루프 매일 05:31 사망 근본 수정(deploy 대기 → 운영 승격 예정)** — 성공 tick 의 `_heartbeat_metadata` 가 `int(dict)` 로 터지고 그 줄이 try 밖이라 루프가 죽어 다음 재배포까지 STALE(일일 점검 09-08·09 red, 감시자 push 는 정상). 합산 `_count` + 조립 가드 + 회귀 2건. 원장 `docs/incidents/2026-09-10-settle-loop-dies-after-success-tick.md`
 - [2026-09-10] **운영 대기분 선별 승격(PR #339 · production `3888da9ab`)** — 파일 diff 로 판정(원장 `docs/plans/2026-09-09-production-pending-triage.md`), 사용자 선택분(지난 날짜 발송 띠·ACL 가드·백필 갈래 철회·drift 924·perf 18466·하네스/문서 동기화) 반영. **로그인 잠금(`40d25bb1b`)만 deploy 잔류(사용자 보류)**
 - [2026-09-09] **AS 전달 배정 스테이징 반영(deploy `3c2253802`)** — 영업/택배 건을 근처 실측 일정에 태운다. 스펙·원장 `2026-09-09-as-sales-delivery-*`. → 운영 반영(PR #338 · production `9e89d8e3a`, 해당 세션)
