@@ -77,6 +77,17 @@ def test_manager_room_failure_does_not_fail_the_whole_push() -> None:
     assert "raise" not in room_block.split("manager_room_note = (")[0].split("except")[-1]
 
 
+def test_preview_reports_the_manager_room_without_sending() -> None:
+    """미리보기가 개인방까지 말한다 — 누르기 전에 어디로 가는지 알아야 하고,
+    발송 없이 매칭을 확인할 수 있는 유일한 자리다."""
+    from foms.api.channel.channel_integration import _drawing_room_preview_payload
+
+    source = inspect.getsource(_drawing_room_preview_payload)
+    assert "resolve_manager_room" in source, "미리보기가 전송과 다른 방식으로 방을 정한다"
+    for key in ("manager_room_group_id", "manager_name", "manager_room_note"):
+        assert key in source, f"미리보기 payload 에 {key} 가 없다"
+
+
 def test_user_admin_screens_expose_the_room_field() -> None:
     """사용자 관리에서 등록·확인이 가능해야 담당자 추가·삭제에 대응할 수 있다."""
     edit = (REPO_ROOT / "templates/auth/edit_user.html").read_text(encoding="utf-8")
