@@ -8,6 +8,8 @@
 
 from __future__ import annotations
 
+import re
+
 import pytest
 
 from db import db_session
@@ -291,3 +293,80 @@ def test_trashed_candidate_deposit_hint_does_not_move_refunded_money(client, wor
     assert plans["REPAY"]["deposit"]["verb"] == "그대로"
     assert "1,093,100" not in plans["REPAY"]["deposit"]["sentence"]
 
+# --------------------------------------------------------------------------- #
+# 9. 정리 계획 카드·검색 경로의 돈 줄 — 결제 금액 한 줄만 (2026-09-10 사용자 지시)
+# --------------------------------------------------------------------------- #
+
+_OLD_DEPOSIT_COPY = ("예약금(선금)에 넣을 금액", "시스템이 넣지 않는다", "시스템이 넣지 않습니다",
+                     "으로 고치세요", "예약금 칸에 직접 적어")
+
+
+def _money_blocks(body: str) -> tuple[str, str]:
+    """승계 갈래의 돈 블록(`.wb-fork__money`) 안쪽 — (ADDON, REPAY). 관계 배지·탭이 아니라 이 블록만 본다."""
+    out = []
+    for rel in ("ADDON", "REPAY"):
+        marker = f'class="wb-fork__money" data-plan-rel="{rel}">'
+        assert marker in body, f"{rel} 돈 블록이 없다"
+        chunk = body.split(marker, 1)[1]
+        out.append(chunk.split('class="wb-fork__money"', 1)[0].split("wb-fork__d", 1)[0])
+    return out[0], out[1]
+
+
+def test_plan_card_says_the_payment_amount_only(client, workbench_on):
+    """승계 갈래의 돈 블록은 `추가 결제 / N원`(재결제는 `재결제 / N원`) 한 줄 — ERP 도크와 같은 규칙.
+
+    2026-09-10 사용자 지시: 예약금 목표액·"지금 값에 더해 고치세요" 문장·"시스템이 넣지 않는다"
+    안내는 쓸데없는 설명문이다. 숫자는 지금 집(새 결제)의 합계지 옛 예약금을 더한 목표액이 아니다.
+    """
+    _login(client)
+    tel = "010-7788-0101"
+    _order(tel=tel, name="금액한줄고객")
+    current = _link(order_no="N-MONEY-LINE", tel=tel, amount=1_290_850, name="금액한줄고객")
+
+    body = _pane(client, link_id=current.id)
+
+    addon, repay = _money_blocks(body)
+    assert "추가 결제" in addon and "1,290,850원" in addon, addon
+    assert "재결제" in repay and "1,290,850원" in repay, repay
+    for gone in _OLD_DEPOSIT_COPY:
+        assert gone not in body, gone
+    assert "환불된 옛 결제" not in body, "살아 있는 집인데 환불 표식이 붙었다"
+
+
+def test_plan_card_marks_a_refunded_old_payment_instead_of_a_sentence(client, workbench_on):
+    """전부 취소·환불된 지금 집(재결제 = 옛 결제)은 금액 옆에 `환불된 옛 결제` 표식만 단다.
+
+    그 돈을 예약금에 옮기면 잔금이 그만큼 틀린다 — 문장 대신 표식 하나로 막는다.
+    """
+    _login(client)
+    tel = "010-7788-0102"
+    order_id = _order(tel=tel, name="환불표식고객")
+    _link(order_no="N-MARK-OLD", tel=tel, amount=900_000, order_id=order_id, name="환불표식고객")
+    current = _link(order_no="N-MARK-CUR", tel=tel, amount=1_093_100,
+                    claim="CANCEL_DONE", name="환불표식고객")
+
+    body = _pane(client, link_id=current.id)
+
+    _addon, repay = _money_blocks(body)
+    assert "환불된 옛 결제" in repay, repay
+    for gone in _OLD_DEPOSIT_COPY:
+        assert gone not in body, gone
+
+
+def test_seek_buttons_carry_the_payment_amount_line_not_a_sentence(client, workbench_on):
+    """검색으로 붙일 때 결과 패널이 읽는 `data-deposit` 도 `추가 결제 N원` 꼴이다 — 문장이 아니다."""
+    _login(client)
+    tel = "010-7788-0103"
+    _order(tel=tel, name="검색금액고객")
+    current = _link(order_no="N-SEEK-MONEY", tel="010-7788-0199", amount=620_000, name="검색금액고객")
+
+    body = _seek(client, link_id=current.id, query="검색금액고객")
+
+    buttons = _seek_buttons(body)
+    assert buttons, body[:400]
+    deposits = re.findall(r'data-deposit="([^"]*)"', body)
+    assert deposits and all(d.endswith("원") for d in deposits), deposits
+    assert any(d.startswith("추가 결제 620,000원") for d in deposits), deposits
+    assert any(d.startswith("재결제 620,000원") for d in deposits), deposits
+    for gone in _OLD_DEPOSIT_COPY:
+        assert gone not in body, gone

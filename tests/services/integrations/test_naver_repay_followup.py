@@ -68,9 +68,10 @@ def test_success_screen_lists_the_refund_and_the_deposit_together():
         "옛 결제가 있을 때만 환불을 남은 일에 올리는 갈래가 없다")
     assert "originAliveText" in body, "옛 결제를 사람이 읽는 줄로 만들지 않는다"
     assert "'남은 일 '" in body, "몇 개 남았는지 말하지 않는다"
-    assert "예약금을 " in body, "예약금이 남은 일에 없다"
+    # 2026-09-10 사용자 지시: 예약금 목표액 문장 대신 결제 금액 한 줄(`추가 결제 N원 — 예약금(선금) 칸 확인`).
+    assert "planMoneyLine(data) + ' — 예약금(선금) 칸 확인'" in body, "예약금 확인이 남은 일에 없다"
     # 목록은 순서가 있는 일이다 — 환불이 먼저고 예약금이 뒤다(돈이 나가야 금액이 굳는다).
-    assert body.index("data.origin_alive") < body.index("예약금을 ")
+    assert body.index("data.origin_alive") < body.index("예약금(선금) 칸 확인")
 
 
 def test_old_payment_line_shows_the_order_number_count_and_money():
@@ -129,4 +130,5 @@ def test_workbench_asset_pin_moved_for_the_followup_change():
     """서비스워커가 옛 JS 를 주지 않도록 CSS·JS 핀이 **함께** 올라갔다."""
     markup = pathlib.Path("templates/admin/naver_workbench.html").read_text(encoding="utf-8")
 
-    assert markup.count("?v=20260909d") == 2, "CSS·JS 핀을 함께 올린다"
+    # 2026-09-10: 정리 계획 카드·완료 패널의 예약금 설명문을 걷으며 핀을 20260910a 로 올렸다.
+    assert markup.count("?v=20260910a") == 2, "CSS·JS 핀을 함께 올린다"
