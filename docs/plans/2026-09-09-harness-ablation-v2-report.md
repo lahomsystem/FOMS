@@ -156,7 +156,7 @@ Fable 5.1 같은 과제(④ 표): T2-A 34턴·19도구·348초·2.76달러, T2-B
 | 9 | 사용자 결정 뒤: orca 훅 10이벤트, caveman, gstack 목록, 전역 allow 약 110줄 정리 | 전역 설정 백업 복원 |
 | 10 | 2단계 실험(§7) — 1~9 적용 전 기준선(위 태그·백업)을 팔 A 로 사용 | — |
 
-> **적용 상태(2026-09-10)**: 1~7 완료(커밋은 DELETE_LIST §0.1 표), 8 은 별도 `**B`, 9 는 gstack·superpowers 만 적용(orca·caveman 유지, 전역 allow 정리 미결), 10(2단계 실험)은 §④·④-2 로 완료. 기준선: 태그 `harness-v2-baseline`(`63129bb1b`) + `C:/tmp/claude-home-baseline-20260909`.
+> **적용 상태(2026-09-10)**: 1~7 완료(커밋은 DELETE_LIST §0.1 표; 4 의 ctx_gate 삭제는 타 세션이 같은 날 근본 수정한 재작성본 `53ac75cb5` 을 발견해 철회·유지), 8 은 별도 `**B`, 9 는 gstack·superpowers 만 적용(orca·caveman 유지, 전역 allow 정리 미결), 10(2단계 실험)은 §④·④-2 로 완료. 기준선: 태그 `harness-v2-baseline`(`63129bb1b`) + `C:/tmp/claude-home-baseline-20260909`.
 
 ## ⑥ 열린 질문 (사용자 결정 필요)
 

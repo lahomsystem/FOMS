@@ -72,7 +72,7 @@
 | §1 | 사실 오류 정정(CLAUDE.md:39·48-50·26) + 경로·MCP 드리프트 가드 | DONE | `7eecbb4d2` |
 | §2 | 플러그인(superpowers) | DONE — Opus 5 실측(4회 Skill 0) 뒤 off·벤더링 0 | `9c44d7653` |
 | §3 | 규칙 파일 교체(프로젝트 CLAUDE.md 35줄·AGENTS.md 압축·전역 CLAUDE.md 5줄) | DONE | `08279d7da` |
-| §4 | 프로젝트 훅 해제(ctx_gate·동시편집 경고·MEMORY-GATE·Stop 차단 로깅) | DONE | `af5ba2743` |
+| §4 | 프로젝트 훅 해제(동시편집 경고·MEMORY-GATE·Stop 차단 로깅; ctx_gate 는 타 세션 재작성본 유지로 철회) | DONE(3/4) | `af5ba2743`(로컬) |
 | §5 | 가드 인프라 결함 5종 | DONE — 2주 재관측 뒤 재판정 | `f758490b7` |
 | §6 | MOVE-TO-CODE(인라인 스타일 ratchet·git add -f ask·승격 PR 범위 대조; 세션 귀속은 별도) | DONE | `8451b64cc` |
 | §7 | 메모리 전수 확인·정리(154 → 46) + MEMORY.md 60줄 가드 | DONE | `87773fe95` |

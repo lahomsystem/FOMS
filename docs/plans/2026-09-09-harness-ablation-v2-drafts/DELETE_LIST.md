@@ -24,7 +24,7 @@
 | §1 사실 오류 정정 | `7eecbb4d2` | 완료 | :26·:39·:48-50 정정 + 경로 실존·MCP 일치 가드. `settings.local.json` 행은 결정 ⑥-6 로 제외 |
 | §2 플러그인 | `9c44d7653` | 완료(Opus 5 실측 뒤) | superpowers off·벤더링 0·가드 테스트·상쇄 문장 정리. 전역 settings.json 백업 `C:/tmp/claude-global-settings.json.bak-20260910` |
 | §3 규칙 파일 교체 | `08279d7da` | 완료 | CLAUDE.md 35줄 2,897자 · AGENTS.md 본체 압축 · 마커 정본 LONG_TASK_PROMPTS.md · 전역 CLAUDE.md 5줄(백업 `C:/tmp/claude-global-CLAUDE.md.bak-20260910`). `# Compact instructions` 2줄은 Claude 전용 압축 메커니즘이라 유지(초안과 다른 점) |
-| §4 프로젝트 훅 | `af5ba2743` | 완료 | ctx_gate 삭제·MEMORY-GATE/CONCURRENT-EDIT 제거·트리밖 스킵 무기록·Stop 차단 로깅(빨강→초록). session_stop 은 SESSION_LOG 마감·임시파일 정리라 유지 |
+| §4 프로젝트 훅 | `af5ba2743`(로컬) → origin 재적용 시 ctx_gate 삭제 철회 | 완료(3/4) | MEMORY-GATE/CONCURRENT-EDIT 제거·트리밖 스킵 무기록·Stop 차단 로깅(빨강→초록). **ctx_gate 는 유지** — 타 세션이 2026-09-09 `53ac75cb5` 로 과대추정 원인(파일 크기 판정)을 실제 창 점유 판정으로 근본 수정해 origin/deploy 에 올려 두었고, 내 삭제 근거(발화 1건 뒤 원장 커밋 0)는 그 옛 구현의 관측이라 사용자 결정으로 철회. 2주 재관측 대상(H-05~H-08 재판정). session_stop 은 SESSION_LOG 마감·임시파일 정리라 유지 |
 | §5 가드 인프라 5종 | `f758490b7` | 완료 | 로그 env 격리(conftest autouse)·캡 3,000+월별 보관(공용 writer)·`/c/tmp` 정규화 + rm/reset/checkout 면제·heredoc 본문 제외(타세션 ask 오탐의 진범)·라벨 세분. 2주 재관측 뒤 H-11·12·17~20·22·23 재판정 |
 | §6 MOVE-TO-CODE | `8451b64cc` | 완료(3/4) | 인라인 스타일 ratchet 828·`git add -f` ask·승격 PR 범위 대조. 파일 단위 세션 귀속은 설계 필요 → 별도 작업 |
 | §7 메모리 | `87773fe95` | 완료 | 154건 전수 판정(`docs/plans/2026-09-09-harness-ablation-v2-memory-judgment.md`): DELETE 108 · 유지 46. MEMORY.md 54줄. 백업 `C:/tmp/memory-baseline-20260910`, 이동 `C:/tmp/memory-deleted-20260910`. 상한 60줄·전역 8줄 가드 |
@@ -65,7 +65,7 @@
 
 | 대상 | 조치 | 근거(원장) |
 |---|---|---|
-| UserPromptSubmit `ctx_gate.py` | 배선 해제, 파일 삭제, `session_start.py` 의 `record_compact_baseline` 호출 제거 | H-05~H-08 |
+| UserPromptSubmit `ctx_gate.py` | ~~배선 해제, 파일 삭제~~ → **유지**(2026-09-10 철회: 타 세션 `53ac75cb5` 가 실제 창 점유 판정으로 재작성, `record_compact_baseline` 은 그 커밋이 이미 제거) | H-05~H-08(재관측) |
 | `track_edits.py` 동시편집 경고 2기능(`:152-169,206-213`) | 코드 제거, pending 기록·EDIT_LOG 는 유지 | H-28·H-29 |
 | `session_start.py` MEMORY-GATE(`:39-69`)·CONCURRENT-EDIT(`:111-154`) | 코드 제거, compact 포인터만 유지, matcher 를 `compact` 로 | H-03·H-04 |
 | `track_edits.py:267-270` 트리밖 스킵 로그 | `CLAUDE_HOOK_LOG` 대신 디버그 파일 또는 무기록 | H-30 |
