@@ -32,7 +32,9 @@
   body.erp-mobile-v2-layout .erp-mobile-segment .nav-link {
     width: 100%;
     min-width: 0;
-    min-height: 36px;
+    /* 프로젝트 터치 기준(--foms-touch-target-min: 44px). 카드 헤더는 sticky 가
+       아니라 세로 여유가 있어 기준값을 그대로 쓴다. */
+    min-height: var(--foms-touch-target-min, 44px);
     margin: 0;
     padding: 0 4px;
     display: inline-flex;
@@ -853,6 +855,15 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-attachment-controls
   }
 }
 
+/* Bootstrap 기본 체크박스는 14px 이라 16px 본문 옆에서 작아 보인다.
+   히트 영역은 label(40px) 이 이미 커버하므로 시각 크기만 키운다. */
+.erp-order-mobile-form .erp-mobile-check .form-check-input {
+  width: 18px;
+  height: 18px;
+  margin-top: 0;
+  flex: 0 0 auto;
+}
+
 .erp-mobile-sticky-action-bar .foms-btn {
   flex: 1 1 0;
   /* 390px 폭 4버튼(저장·PUSH·알림톡·공유)에서 기본 좌우 패딩 16px 을 쓰면 내용 폭이
@@ -994,7 +1005,9 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-attachment-controls
 .erp-order-mobile-form .erp-mobile-secnav-track::-webkit-scrollbar { display: none; }
 .erp-order-mobile-form .erp-mobile-secnav-chip {
   min-width: 0;
-  min-height: 2rem;
+  /* 40px — sticky 네비라 화면을 상시 점유해서 44px 기준을 그대로 쓰지 않는다.
+     WCAG 2.2 AA(24px)는 넘고, 스크롤 없이 6개를 한 줄에 두는 폭 제약과 맞바꾼 값이다. */
+  min-height: 40px;
   padding: 0 2px;
   border: 1px solid var(--foms-border-default);
   border-radius: 999px;
