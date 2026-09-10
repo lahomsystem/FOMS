@@ -314,6 +314,11 @@
       var(--foms-shell-bottom-nav-h, 72px) + env(safe-area-inset-bottom, 0px)
     );
     z-index: 110;
+    /* sticky arm 의 full-bleed 음수 좌우 마진(-1rem)을 반드시 되돌린다. position:fixed
+       + left/right:0 에 그 마진이 남으면 바가 뷰포트보다 32px 넓어져(-16 ~ 406px)
+       좌우 패딩이 화면 밖으로 나가고 마지막 버튼이 화면 끝에 붙어 잘려 보인다. */
+    margin-left: 0;
+    margin-right: 0;
     margin-bottom: 0;
   }
 }
