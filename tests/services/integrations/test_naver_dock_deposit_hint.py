@@ -319,3 +319,60 @@ def test_every_household_carries_its_own_amount_totals(app):
     assert by_no[_NEW_NO]["superseded"] is False
     # 예약금 target 은 살아 있는 집만 더한 값과 같다.
     assert payload["deposit_hint"]["target"] == by_no[_NEW_NO]["amount_total"]
+
+
+# --------------------------------------------------------------------------- #
+# (9) 카드 한 줄 키 — 낱말·돈 표기는 서버가 만든다 (2026-09-10 사용자 지시)
+# --------------------------------------------------------------------------- #
+
+def test_pure_addon_household_says_addon_and_the_naver_amount_alone(app):
+    """주문 #5206 모양: ERP 주문에 추가결제 집 하나 — `추가 결제` + `1,290,850원`.
+
+    목표액(바닥값 포함 1,390,850)은 카드에 안 쓴다 — 사용자가 지운 설명문의 숫자다.
+    기존 키(``target_display``)는 그대로 산다(CEO 계약 2026-09-10 — 런타임 소비처 없음, 후속 정리 후보).
+    """
+    order = _naver_order(deposit=100000)
+    _link(order, _snapshot(amount=1290850, order_no=_NEW_NO), order_no=_NEW_NO, relation="ADDON")
+
+    hint = build_dock_payload(db_session, order)["deposit_hint"]
+
+    assert hint["relation_label"] == "추가 결제"
+    assert hint["live_total_display"] == "1,290,850원"
+    assert hint["target_display"] == "1,390,850원"   # 기존 키는 그대로 산다(CEO 계약 2026-09-10 — 런타임 소비처 없음, 후속 정리 후보)
+
+
+def test_pure_repay_household_says_repay_and_excludes_the_superseded_house(app):
+    """재결제로 대체된 옛 집은 낱말·돈 둘 다에서 빠진다 — 살아 있는 집이 전부 REPAY 면 `재결제`."""
+    payload = _two_households(deposit=0, relation="REPAY", old_amount=500000, new_amount=704200)
+
+    assert payload["deposit_hint"]["relation_label"] == "재결제"
+    assert payload["deposit_hint"]["live_total_display"] == "704,200원"
+
+
+def test_mixed_live_households_say_naver_payment_with_the_live_total(app):
+    """원 주문 집(NEW)이 살아 있고 추가결제 집이 붙으면 `네이버 결제` + 두 집 합계."""
+    payload = _two_households(deposit=0, relation="ADDON", old_amount=500000, new_amount=120000)
+
+    assert payload["deposit_hint"]["relation_label"] == "네이버 결제"
+    assert payload["deposit_hint"]["live_total_display"] == "620,000원"
+
+
+def test_plain_new_order_has_no_relation_word_so_no_card(app):
+    """보통 주문(집 하나·NEW)은 낱말이 빈 문자열 — 돈 표기는 있어도 카드는 서지 않는다."""
+    hint = _single(deposit=0, amount=704200)["deposit_hint"]
+
+    assert hint["relation_label"] == ""
+    assert hint["live_total_display"] == "704,200원"
+
+
+def test_unknown_amount_leaves_the_display_blank(app):
+    """금액 모름이면 돈 표기를 비운다 — 숫자를 못 내는 날엔 숫자를 말하지 않는다((4) 와 같은 픽스처)."""
+    order = _naver_order(deposit=100000)
+    _link(order, _snapshot(amount=100000, order_no=_OLD_NO), order_no=_OLD_NO, relation="ADDON")
+    _link(order, _snapshot(amount=None, order_no=_OLD_NO, product_name="길이추가 1cm",
+                           product_class="추가구성상품"), order_no=_OLD_NO, relation="ADDON")
+
+    hint = build_dock_payload(db_session, order)["deposit_hint"]
+
+    assert hint["state"] == "unknown"
+    assert hint["live_total_display"] == ""

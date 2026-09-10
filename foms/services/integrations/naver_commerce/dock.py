@@ -728,6 +728,31 @@ def _deposit_base(order: Any, households: list[dict[str, Any]], *,
     return max(0, current - live_total)
 
 
+def _deposit_relation_label(households: list[dict[str, Any]]) -> str:
+    """도크 금액 카드의 머리말 낱말 — 살아 있는 집들의 관계로 정한다 (2026-09-10).
+
+    사용자 지시로 예약금 목표액·대조 줄·안내문을 걷어내고 "결제 금액 한 줄"만 남겼다.
+    낱말은 서버가 정한다 — 화면이 관계 값으로 문구를 조립하면 워크벤치와 두 벌이 된다.
+
+    Args:
+        households: :func:`_household_facts` 결과(``relation``·``superseded`` 를 읽는다).
+
+    Returns:
+        살아 있는 집이 전부 ``ADDON`` 이면 ``"추가 결제"``, 전부 ``REPAY`` 면 ``"재결제"``,
+        ``ADDON``/``REPAY`` 가 ``NEW`` 나 서로 섞이면 ``"네이버 결제"``, 관계 집이 하나도
+        없으면(보통 주문) 빈 문자열 — 그때는 카드가 서지 않는다.
+    """
+    kinds = {_text(fact.get("relation")).upper() or "NEW"
+             for fact in households if not fact.get("superseded")}
+    if not kinds & {"ADDON", "REPAY"}:
+        return ""
+    if kinds == {"ADDON"}:
+        return "추가 결제"
+    if kinds == {"REPAY"}:
+        return "재결제"
+    return "네이버 결제"
+
+
 def _deposit_hint(order: Any, households: list[dict[str, Any]], *,
                   claim_label: str = "", claim_money_back: bool = False) -> dict[str, Any]:
     """예약금(선금)에 넣을 금액을 **문장으로** 말한다 — 넣지는 않는다 (D3).
@@ -749,10 +774,14 @@ def _deposit_hint(order: Any, households: list[dict[str, Any]], *,
 
     Returns:
         ``{"state", "current", "target", "target_display", "diff", "sentence",
-        "copy_value", "unknown_count", "note", "base", "live_total"}``. ``copy_value`` 는 쉼표·단위 없는 정수
+        "copy_value", "unknown_count", "note", "base", "live_total", "relation_label",
+        "live_total_display"}``. ``copy_value`` 는 쉼표·단위 없는 정수
         문자열이고 ``over``·``unknown`` 에서는 빈 문자열이다(복사할 정답이 없다).
         ``target_display`` 는 사람이 읽는 표기(``"872,200원"``) — 화면이 돈을 다시
         포맷하지 않게 서버가 문장과 **같은 자리에서** 만든다.
+        ``live_total_display`` 는 바닥값을 뺀 네이버 결제액 표기(``"1,290,850원"``) — 모름이면
+        빈 문자열. ``relation_label`` 은 :func:`_deposit_relation_label` 이 정한 카드 머리말
+        낱말(2026-09-10 — 도크 카드는 이 두 키만 그린다).
     """
     from foms.services.erp_display import erp_deposit_amount_from_structured
     from foms.services.integrations.naver_commerce.repay_reconcile import deposit_guidance
@@ -769,6 +798,9 @@ def _deposit_hint(order: Any, households: list[dict[str, Any]], *,
         # 바닥값과 네이버 합계를 따로 싣는다 — 목표액 하나만 주면 화면도 사람도 그 숫자가
         # 어디서 왔는지 되짚을 수 없다(바닥값이 있는 주문은 셈이 두 단계다).
         "base": base, "live_total": live_total,
+        # 카드 한 줄(2026-09-10): 낱말과 돈 표기를 서버가 만든다 — 화면은 그리기만 한다.
+        "relation_label": _deposit_relation_label(households),
+        "live_total_display": "" if unknown else f"{live_total:,}원",
         "note": _deposit_note(has_superseded=superseded, claim_label=claim_label,
                               claim_money_back=claim_money_back)}
     if unknown:
@@ -1145,8 +1177,8 @@ def build_dock_payload(db: Any, order: Any, *,
         # 집마다의 관계·라벨(N2). 화면은 이 목록으로 **이전 주문 / 이번 주문**을 가른다.
         # 집이 하나면 라벨이 전부 빈 문자열이라 화면이 오늘과 똑같이 그려진다.
         "households": households,
-        # 예약금(선금) 안내(D3). 문장은 **서버가** 만든다 — 재결제 화면과 같은 말을 써야
-        # 두 화면이 같은 규칙으로 읽힌다. 화면은 그리기와 복사까지고 **자동 기입은 없다**.
+        # 네이버 결제 금액 카드(2026-09-10) — 낱말(relation_label)·돈 표기(live_total_display)는 서버가
+        # 만들고 화면은 노드 2개만 그린다. 옛 키(state·target·sentence·copy_value·note)는 남겨 둔다 — 후속 정리 후보.
         "deposit_hint": _deposit_hint(order, households, claim_label=claim_label,
                                       claim_money_back=claim_money_back),
         # 위 `workbench_url` 이 실제로 여는 집의 번호. 머리말에서 그 집을 표시해
