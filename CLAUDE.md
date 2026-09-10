@@ -23,7 +23,6 @@
 1. `docs/AI_STATUS.md` 상단 40줄만 읽기 → 전체 상황 파악 (아래는 상세 기록, 필요 시 grep)
 2. **핵심 코어 변경(DB/Auth/API, 배포 인프라, 하네스 인프라)** → RPI 필수: Research(`docs/harness/policy/DECISIONS.md`+`docs/ARCHIVE_INDEX.md` 조사) → Plan(Spec 작성 → 사용자 승인 대기) → Implement
 3. **단순 UI 변경/타이포** → 바로 코딩 허용
-4. **대화가 길어지면** → 핵심 요약 후 새 세션 권유
 
 ## 작업 등급 마커 (프롬프트 맨 앞 `**A`~`**D` = 사용자 명시 선언 — 해당 절차 생략 금지)
 - `**A` 소형: 완료 기준이 없으면 착수 전 1줄 스스로 정의. 나머지는 기본 프로토콜(직접/단일 위임 → 검증 → 보고, 플랜 생략).
@@ -36,7 +35,7 @@
 - **Stop 게이트**: `.py` 편집 세션은 턴 종료 시 `import app` 검증 자동 통과 필수 (실패 시 종료 차단, 근본 수정 후 재시도).
 - **push 후 CI 확인(논블로킹)**: push 성공 시 훅이 리마인드 주입. `python tools/harness/ci_watch.py`를 `run_in_background` 또는 `--quick`(exit 0=green·1=코드 실패·4=진행 중·3=gh 불가)으로. **CI green까지가 push 완료의 정의**, 단 완주 대기로 세션을 막지 않는다. exit 1이면 근본 수정 → pre_push_smoke → 재푸시까지가 한 작업 단위.
 - **컴팩트**: `PreCompact` 훅이 `docs/harness/runtime/COMPACT_CHECKPOINT.md` 갱신, 재개 시 그 파일부터 읽기.
-- **MCP 정본**: 루트 `.mcp.json` (postgres, context7, youtube). youtube=자막 조회(uvx mcp-youtube-transcript), 메타데이터 보조=`yt-dlp` CLI.
+- **MCP 정본**: 루트 `.mcp.json`(postgres·context7·solapi).
 - **온디맨드 컨텍스트 번들**: `python tools/harness/build_context_bundle.py --all` (커밋하지 않음).
 
 ## 스킬 (2026-08-03 ablation 후 — 근거: DECISIONS.md)
