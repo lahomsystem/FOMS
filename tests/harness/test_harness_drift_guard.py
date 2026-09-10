@@ -171,3 +171,26 @@ def test_hook_log_utils_warn_honors_log_dir_env(tmp_path: Path, monkeypatch) -> 
     hlu._warn("드리프트 가드 테스트 경고")
     assert _snapshot(_LIVE_HOOK_LOG) == before
     assert "드리프트 가드 테스트 경고" in _read(tmp_path / "CLAUDE_HOOK_LOG.md")
+
+
+HOME_CLAUDE = Path(os.path.expanduser("~")) / ".claude"
+GLOBAL_CLAUDE_MD_MAX_LINES = 8
+MEMORY_INDEX_MAX_LINES = 60
+
+
+def test_global_claude_md_line_budget() -> None:
+    """전역 CLAUDE.md 는 프로젝트 무관 취향만(42줄 → 5줄) — 위임·검증 절차 복제 재유입 방지. 파일이 없는 환경(CI)은 통과."""
+    p = HOME_CLAUDE / "CLAUDE.md"
+    if not p.exists():
+        return
+    n = _read(p).count("\n") + 1
+    assert n <= GLOBAL_CLAUDE_MD_MAX_LINES, f"전역 CLAUDE.md {n}줄 > {GLOBAL_CLAUDE_MD_MAX_LINES} — 내장 프롬프트와 겹치는 절차는 지워라"
+
+
+def test_memory_index_line_budget() -> None:
+    """MEMORY.md 색인 상한 — 세션마다 통째로 로드된다(2026-09-10 정리 뒤 53줄). 훅 MEMORY-GATE 를 대체한다."""
+    p = HOME_CLAUDE / "projects" / "c--DEV-FOMS" / "memory" / "MEMORY.md"
+    if not p.exists():
+        return
+    n = _read(p).count("\n") + 1
+    assert n <= MEMORY_INDEX_MAX_LINES, f"MEMORY.md {n}줄 > {MEMORY_INDEX_MAX_LINES} — 저장소에서 유도 가능·만료 항목을 지워라(판정표 docs/plans/2026-09-09-harness-ablation-v2-memory-judgment.md)"
