@@ -1169,6 +1169,9 @@ class User(Base):
     # NULL이면 회사 대표번호(SOLAPI_SENDER_PHONE) 폴백. server_default 없음 —
     # migration_chain 지문 정합(senderphone_00 과 컬럼 단위 동일).
     sender_phone = Column(String(20), nullable=True)
+    # 담당자 개인 도면방(채널톡 그룹 id). 주문 담당자 이름이 이 사용자와 맞으면
+    # 도면방 PUSH 가 공용 도면방과 여기로 함께 나간다. 미등록이면 공용방만 나간다.
+    channel_drawing_group_id = Column(String(32), nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.now)
     last_login = Column(DateTime)
 

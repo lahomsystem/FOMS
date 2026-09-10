@@ -2322,7 +2322,8 @@
     setupDropzone('dw-revision-dropzone', 'dw-revision-files');
 
     function showWorkbenchToast(message, type) {
-      const cls = type === 'error' ? 'danger' : (type === 'success' ? 'success' : 'secondary');
+      const cls = type === 'error' ? 'danger'
+        : (type === 'success' ? 'success' : (type === 'warning' ? 'warning' : 'secondary'));
       const box = document.createElement('div');
       box.className = `alert alert-${cls} shadow-sm`;
       box.style.position = 'fixed';
@@ -2815,7 +2816,7 @@
         showWorkbenchToast('전달된 도면이 없습니다. 도면을 먼저 전달해주세요.', 'error');
         return;
       }
-      if (!confirm('현재 전달본 도면 ' + DRAWING_ROOM_FILE_COUNT + '장을 도면방으로 보냅니다. 진행할까요?')) return;
+      if (!confirm('현재 전달본 도면 ' + DRAWING_ROOM_FILE_COUNT + '장을 도면방과 담당자 개인방으로 보냅니다. 진행할까요?')) return;
       btn.disabled = true;
       try {
         let data = await sendDrawingRoomPush(null);
@@ -2830,7 +2831,15 @@
           btn.disabled = false;
           return;
         }
-        showWorkbenchToast('도면방으로 도면 ' + (data.files_count || 0) + '장을 보냈습니다.', 'success');
+        // 담당자 개인방까지 나갔는지는 서버가 말한다. 못 보냈으면 그 사유를 그대로 띄운다.
+        const roomCount = data.files_count || 0;
+        if (data.manager_room_sent) {
+          showWorkbenchToast('도면방과 담당자 개인방으로 도면 ' + roomCount + '장을 보냈습니다.', 'success');
+        } else if (data.message) {
+          showWorkbenchToast(data.message, 'warning');
+        } else {
+          showWorkbenchToast('도면방으로 도면 ' + roomCount + '장을 보냈습니다.', 'success');
+        }
       } catch (e) {
         console.error(e);
         showWorkbenchToast('도면방 PUSH 중 오류가 발생했습니다.', 'error');
