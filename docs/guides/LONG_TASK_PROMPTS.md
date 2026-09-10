@@ -2,7 +2,7 @@
 
 > 각 문구가 **왜 그렇게 생겼는지** 풀어쓴 해설판: `LONG_TASK_PROMPTS_EASY.md`
 
-> 2026-07-28 작성. `<>` 자리만 채워 쓴다. 배경 스택: SDD 프로토콜(전역 CLAUDE.md, 상시) + CTX-GATE 훅(55% 자가정리) + `/overnight` 스킬 + AI_STATUS 40줄 계약. 설계 근거: `docs/specs/2026-07-28-context-ledger-hygiene-design.md`
+> 2026-07-28 작성. `<>` 자리만 채워 쓴다. 배경 스택(2026-09-10 갱신): `/overnight` 스킬 + AI_STATUS 40줄 계약 + PreCompact 체크포인트 훅 + CTX-GATE 훅(2026-09-09 실제 창 점유 판정으로 재작성 — ablation v2 는 삭제를 판정했으나 같은 날 근본 수정이 있어 유지, 2주 재관측). SDD 전역 프로토콜(2026-08-03)은 폐기됐다 — 원장 갱신은 이 문서의 마커 규칙(ledger 규율)이 담당한다. 설계 근거: `docs/specs/2026-07-28-context-ledger-hygiene-design.md`
 
 ## 크기 판정 — 등급 마커로 소환 (프롬프트 맨 앞 2글자)
 

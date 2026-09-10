@@ -26,8 +26,8 @@ import sys
 import threading
 import time
 from contextlib import contextmanager
-from datetime import datetime, timedelta
-from typing import Dict, Iterator, List, Optional, Tuple
+from datetime import datetime
+from typing import Dict, Iterator, List, Optional
 
 try:  # Windows 운영 환경
     import msvcrt
@@ -61,11 +61,6 @@ EDIT_LOG_HEADER_LINES = [
     "| Time | File | Tool | Session |",
     "|------|------|------|---------|",
 ]
-
-# 코드 파일 판정 제외 확장자 (`.claude/hooks/session_start.py:_is_code_edit`와 동일 규칙)
-_NON_CODE_SUFFIXES = (".md", ".txt")
-# 동시 편집 감지 기본 윈도우(분) — env FOMS_CONCURRENT_EDIT_WINDOW_MIN 컨벤션과 동일 기본값
-CONCURRENT_EDIT_WINDOW_MIN = 30
 
 _SESSION_BLOCK_SPLIT = re.compile(r"(?m)^(?=### Session: )")
 _SESSION_BLOCK_RE = re.compile(
@@ -445,59 +440,6 @@ def _edit_row_cols(line: str) -> List[str]:
 def _row_session(cols: List[str]) -> str:
     """행 컬럼에서 Session 값을 뽑는다(Session 컬럼 없는 구세대 3컬럼 행은 "-")."""
     return cols[3] if len(cols) >= 4 and cols[3] else "-"
-
-
-def is_code_edit_path(rel_path: str) -> bool:
-    """편집 경로가 코드 파일인지 판정한다(docs/ 하위·.md/.txt 제외).
-
-    `.claude/hooks/session_start.py`의 `_is_code_edit`와 같은 규칙이다. 훅 모듈
-    간 import 얽힘을 만들지 않기 위해 의도적으로 중복 구현한다.
-
-    파라미터:
-        rel_path: 저장소 상대 경로.
-    반환: 코드 파일이면 True.
-    """
-    normalized = rel_path.replace("\\", "/")
-    if normalized.startswith("docs/"):
-        return False
-    return not normalized.lower().endswith(_NON_CODE_SUFFIXES)
-
-
-def find_other_session_edits(
-    rows: List[str],
-    own_session: str,
-    window_min: int = CONCURRENT_EDIT_WINDOW_MIN,
-    now: Optional[datetime] = None,
-) -> List[Tuple[str, str]]:
-    """EDIT_LOG 행들에서 윈도우 내 **타 세션** 코드 편집을 뽑는다.
-
-    Session이 "-"/빈값(구세대 3컬럼 행)·`unknown`인 행은 **미상**으로 보고 제외한다.
-    미상을 타 세션으로 세면 자기 세션 편집까지 경고로 잡혀 오탐이 된다.
-
-    파라미터:
-        rows: EDIT_LOG 원본 행 리스트.
-        own_session: 자기 세션 태그(보통 session_id 앞 8자).
-        window_min: 최근 몇 분 내 편집만 볼지.
-        now: 기준 시각(None이면 현재 시각). 테스트 주입용.
-    반환: (session, rel_path) 목록 — 파일 내 등장 순서(oldest→newest) 유지.
-    """
-    cutoff = (now or datetime.now()) - timedelta(minutes=window_min)
-    found: List[Tuple[str, str]] = []
-    for line in rows:
-        cols = _edit_row_cols(line)
-        if len(cols) < 2:
-            continue
-        session = _row_session(cols)
-        if session in ("-", "unknown") or session == own_session:
-            continue
-        try:
-            stamp = datetime.strptime(cols[0], "%Y-%m-%d %H:%M:%S")
-        except ValueError:
-            continue
-        rel = cols[1].strip("`").strip()
-        if stamp >= cutoff and rel and is_code_edit_path(rel):
-            found.append((session, rel))
-    return found
 
 
 def read_recent_edited_files(path: str, limit: int = 10) -> List[str]:
