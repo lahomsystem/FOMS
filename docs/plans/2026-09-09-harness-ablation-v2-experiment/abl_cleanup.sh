@@ -8,11 +8,14 @@ for t in T1 T2 T3 T4; do
   for a in A B C; do git worktree remove --force "C:/tmp/abl-$t-$a" 2>/dev/null || true; done
 done
 for a in a b c; do git worktree remove --force "C:/tmp/foms-prod-abl-t4$a" 2>/dev/null || true; done
+# 2026-09-10 Opus 5 재실행(T2·T4 팔 A/B) 부산물
+git worktree remove --force "C:/tmp/foms-prod-abl-t4a-20260910" 2>/dev/null || true
 git worktree prune
 for a in a b c; do
   git branch -D "session/abl-t4-$a" 2>/dev/null || true
   git branch -D "promote/abl-t4$a-20260909" 2>/dev/null || true
 done
+git branch -D "session/abl-t4-a-20260910" "promote/abl-t4a-20260910" 2>/dev/null || true
 # 설정 사본·훅 디렉토리·메모리 사본 (전부 C:/tmp 또는 ~/.claude/projects 아래의 실험 전용 경로)
 python - <<'PY'
 import shutil, pathlib
