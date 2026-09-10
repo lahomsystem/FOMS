@@ -79,7 +79,7 @@
 | §8 | 인벤토리 키 재정의 | 범위 밖 — 별도 `**B` | |
 | §9 | 사용자 결정 뒤(gstack 57 → 9; orca·caveman 유지; allow 정리 미결) | 부분 DONE(전역 파일, 커밋 없음) | — |
 | 3단계 | 실험 부산물 정리(abl_cleanup.sh, Opus 5 부산물 포함) | DONE | `5828c02b0` |
-| 마감 | deploy push → pre_push_smoke → ci_watch --quick | 사용자 확인 대기 | |
+| 마감 | deploy push → pre_push_smoke → ci_watch --quick | DONE — origin/deploy `075438c3b`~`5e9286a52` 12커밋(cherry-pick 재적용본, 대응표 DELETE_LIST §0.1 아래). `ci_watch --quick 5e9286a52 deploy` = ALL GREEN, exit 0 (2026-09-10) | `5e9286a52` |
 
 ---
 
