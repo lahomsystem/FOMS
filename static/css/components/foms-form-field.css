@@ -13,33 +13,51 @@
     border-bottom: 1px solid var(--foms-border-default);
     background: var(--foms-surface-base);
   }
+  /* ORDER-SEG-01: 탭 개수는 분기(ERP/비ERP)와 플래그에 따라 3~5개로 변한다.
+     고정 `repeat(3, 1fr)` 은 '변경 이력' 탭이 붙은 뒤 4번째를 둘째 줄로 밀어냈다.
+     auto-flow column 은 개수와 무관하게 항상 한 줄을 보장한다. */
   body.erp-mobile-v2-layout .erp-mobile-segment.nav-tabs {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: var(--foms-space-1);
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
+    gap: 4px;
+    width: 100%;
     border-bottom: 0;
     margin: 0;
+    padding: 3px;
+    border-radius: var(--foms-radius-lg, 12px);
+    background: var(--foms-surface-subtle, #f1f5f9);
   }
-  body.erp-mobile-v2-layout .erp-mobile-segment .nav-item { margin: 0; }
+  body.erp-mobile-v2-layout .erp-mobile-segment .nav-item { margin: 0; min-width: 0; }
   body.erp-mobile-v2-layout .erp-mobile-segment .nav-link {
     width: 100%;
-    min-height: 40px;
+    min-width: 0;
+    min-height: 36px;
     margin: 0;
+    padding: 0 4px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 6px;
-    border: 1px solid var(--foms-border-default);
-    border-radius: var(--foms-radius-md);
-    background: var(--foms-surface-subtle, #f8fafc);
+    gap: 0;
+    border: 0;
+    border-radius: var(--foms-radius-md, 8px);
+    background: transparent;
     color: var(--foms-text-secondary);
-    font-weight: var(--foms-font-weight-bold, 700);
-    font-size: var(--foms-font-size-sm);
+    font-weight: var(--foms-font-weight-medium, 500);
+    font-size: 13px;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: background-color .15s ease, color .15s ease;
   }
+  /* 한 줄 유지가 목적 — 좁은 폭에서 라벨을 지키기 위해 아이콘을 버린다. */
+  body.erp-mobile-v2-layout .erp-mobile-segment .nav-link > i { display: none; }
   body.erp-mobile-v2-layout .erp-mobile-segment .nav-link.active {
-    background: var(--foms-interactive-primary, #2563eb);
-    border-color: var(--foms-interactive-primary, #2563eb);
-    color: #fff;
+    background: var(--foms-surface-base, #fff);
+    color: var(--foms-interactive-primary, #2563eb);
+    font-weight: var(--foms-font-weight-bold, 700);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, .12);
   }
   /* 계산기 pane: 모바일 가독성(매칭 견적 테이블 가로 스크롤·폰트 축소) */
   body.erp-mobile-v2-layout #calculatorTabContent { padding: 0 2px; }
