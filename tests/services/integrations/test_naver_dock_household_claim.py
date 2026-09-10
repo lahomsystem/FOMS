@@ -129,12 +129,13 @@ def test_partial_return_household_does_not_say_return_done(app):
 
 
 def test_partial_return_household_keeps_the_money_back_flag(app):
-    """라벨과 환불 판정은 **짝으로** 바뀐다 — ⚠ 와 예약금 단서가 그 짝을 쓴다."""
+    """라벨과 환불 판정은 **짝으로** 바뀐다 — ⚠ 표시가 그 짝을 쓴다.
+
+    (예약금 단서 문장은 2026-09-11 에 도크에서 걷어냈다 — 환불 판정 축은 그대로다.)
+    """
     payload = _incident_household()
 
     assert payload["claim_money_back"] is True
-    note = payload["deposit_hint"]["note"]
-    assert "일부 반품" in note and "환불액" in note
 
 
 # --------------------------------------------------------------------------- #

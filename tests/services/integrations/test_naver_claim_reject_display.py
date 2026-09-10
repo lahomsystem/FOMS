@@ -49,32 +49,6 @@ def test_unknown_and_empty_never_count():
         assert is_money_back_claim(_claim(status)) is False, status
 
 
-# ── 도크 예약금 단서 ─────────────────────────────────────────────────────────
-
-def test_deposit_note_stays_quiet_for_a_rejected_claim():
-    """거부 건에 "환불액은 아직 빠지지 않았다"고 말하지 않는다 — 환불이 영영 없다."""
-    from foms.services.integrations.naver_commerce.dock import _deposit_note
-
-    note = _deposit_note(has_superseded=False, claim_label="반품 거부",
-                         claim_money_back=False)
-
-    assert "환불" not in note
-    assert note == ""
-
-
-def test_deposit_note_still_explains_a_live_cancel():
-    """**음성 대조군** — 진짜 취소 건에서는 예전처럼 설명한다."""
-    from foms.services.integrations.naver_commerce.dock import _deposit_note
-
-    note = _deposit_note(has_superseded=False, claim_label="취소 요청",
-                         claim_money_back=True)
-
-    assert "환불액은 아직 빠지지 않은 금액입니다" in note
-    assert "취소 요청" in note
-
-
-# ── 화면 실물 ────────────────────────────────────────────────────────────────
-
 import pytest  # noqa: E402
 from werkzeug.security import generate_password_hash  # noqa: E402
 
