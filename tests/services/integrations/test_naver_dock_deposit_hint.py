@@ -1,22 +1,19 @@
-"""D3: 도크가 **예약금(선금)에 넣을 금액**을 말하는지 (2026-08-27).
+"""도크 네이버 결제 금액 카드의 재료 — ``deposit_hint`` 는 낱말·돈 표기·합계·모름 건수만 싣는다.
 
-결함(사용자 실화면): 도크는 네이버 결제액을 그대로 보여 주지만 그 숫자가 ERP 의
-``#erp-deposit-amount`` 와 맞는지는 아무도 말하지 않았다. 붙인 뒤 며칠 지난 화면이라
-사람은 자기가 예전에 넣은 값이 지금도 맞는지 알 수 없었고, 재결제 집이 섞이면 환불된
-옛 집 금액까지 더해 읽었다.
+2026-08-27(D3)~2026-09-10 사이에는 예약금(선금) 목표액·대조 상태·"지금 값에 더해 고치세요" 문장·
+복사값·환불 단서까지 실었다. 2026-09-10 사용자 지시로 화면(ERP 도크)이 그 설명문을 전부 걷고
+**낱말 + 금액 한 줄**만 그리게 되자 읽는 곳이 0 이 됐고, 2026-09-11 에 키·헬퍼를 함께 걷어냈다.
+예약금 목표액 셈은 워크벤치 정리 카드의 :func:`repay_reconcile.deposit_guidance` 에만 남아 있다.
 
 여기서 못박는 것:
 
-* ``target`` 은 **절대값**(살아 있는 집들의 상품주문 결제액 합)이다 — 재결제 카드의
-  상대값(``현재값 + 새 금액``)을 며칠 뒤 화면에 그대로 쓰면 이미 고쳐 놓은 값에 한 번 더
-  더하게 된다. 재결제로 대체된 집(``superseded``)은 합계에서 **빠진다**.
-* 문장은 **서버가** 만들고 :func:`repay_reconcile.deposit_guidance` 에 위임한다 —
-  재결제 화면과 같은 말을 써야 두 화면이 같은 규칙으로 읽힌다.
-  대체된 집이 있으면 ``REPAY``(대신 바꾸기), 없으면 ``ADDON``(차액 더하기).
-* 금액을 못 읽은 상품주문은 **0 으로 더하지 않고 센다**. 조용히 작아진 합계는
-  ``잔금 = 출고가 − 예약금`` 을 타고 고객 과다 청구가 된다.
-* ``copy_value`` 는 쉼표·단위 없는 정수 문자열이고, 복사할 정답이 없는
-  ``over``·``unknown`` 에서는 빈 문자열이다. **자동 기입은 없다** — 복사까지가 끝이다.
+* ``live_total`` 은 **살아 있는 집**(재결제로 대체되지 않은 집)들의 상품주문 결제액 합이다 —
+  대체된 옛 집은 빠진다. 재결제 카드의 상대값을 쓰지 않는다.
+* 금액을 못 읽은 상품주문은 **0 으로 더하지 않고 센다**(``unknown_count``). 그 날은
+  ``live_total_display`` 를 비운다 — 조용히 작아진 합계는 ``잔금 = 출고가 − 예약금`` 을 타고
+  고객 과다 청구가 된다.
+* 낱말(``relation_label``)과 돈 표기(``live_total_display``)는 **서버가** 만든다 — 화면이 다시
+  포맷하면 두 자리가 조용히 갈린다.
 """
 
 from __future__ import annotations
@@ -134,168 +131,29 @@ def _two_households(*, deposit, relation: str, old_amount: int, new_amount: int)
 # (1) 값이 맞는 보통 주문 — 한 줄 확인
 # --------------------------------------------------------------------------- #
 
-def test_match_state_confirms_without_asking_for_a_change(app):
-    """예약금이 네이버 결제액과 같으면 ``match`` — 고치라고 말하지 않는다.
-
-    보통 주문에 상시 카드를 세우면 잡음이 되고, 정말 틀린 날에 아무도 안 읽는다.
-    """
-    payload = _two_households(deposit=824200, relation="ADDON",
-                              old_amount=704200, new_amount=120000)
-
-    hint = payload["deposit_hint"]
-    assert hint["state"] == "match"
-    assert hint["current"] == 824200
-    assert hint["target"] == 824200
-    assert hint["diff"] == 0
-    assert "같습니다" in hint["sentence"]
-    # 고치라는 동사가 없어야 한다 — 맞는 값에 손대게 만들면 안 된다.
-    assert "고치세요" not in hint["sentence"]
-    assert "바꾸세요" not in hint["sentence"]
-
-
 # --------------------------------------------------------------------------- #
 # (2) 추가결제 — 차액을 "더해"
 # --------------------------------------------------------------------------- #
-
-def test_differs_addon_says_add_the_gap(app):
-    """대체된 집이 없으면 ``ADDON`` 위임 — 옛 결제가 살아 있으니 차액을 **더한다**.
-
-    문장은 :func:`repay_reconcile.deposit_guidance` 가 만든다. 도크가 따로 쓰면 재결제
-    화면과 다른 말을 하게 되고, 사람은 어느 쪽을 믿을지 알 수 없다.
-    """
-    payload = _two_households(deposit=500000, relation="ADDON",
-                              old_amount=500000, new_amount=120000)
-
-    hint = payload["deposit_hint"]
-    assert hint["state"] == "differs"
-    assert hint["current"] == 500000
-    # 두 집 모두 살아 있다 — 합계는 둘 다 든다.
-    assert hint["target"] == 620000
-    assert hint["diff"] == 120000
-    assert "120,000원을 더해" in hint["sentence"]
-    assert "620,000원" in hint["sentence"]
-    assert hint["copy_value"] == "620000"
-    # 대체된 집이 없으므로 "환불된 이전 주문" 단서가 붙으면 거짓말이다.
-    assert "환불된 이전 주문" not in hint["note"]
-
 
 # --------------------------------------------------------------------------- #
 # (3) 재결제 — 옛 집을 빼고 "대신" + 단서
 # --------------------------------------------------------------------------- #
 
-def test_differs_repay_excludes_superseded_and_notes_it(app):
-    """재결제 집이 있으면 ``REPAY`` 위임 — 옛 집 금액은 합계에서 **빠지고** 단서가 붙는다.
-
-    합치면 이중 계상이다: 옛 결제는 이미 환불됐다(``repay_reconcile`` 모듈 머리말).
-    """
-    payload = _two_households(deposit=500000, relation="REPAY",
-                              old_amount=500000, new_amount=704200)
-
-    hint = payload["deposit_hint"]
-    assert hint["state"] == "differs"
-    # 대체된 옛 집(500,000)은 빠진다 — 1,204,200 이 아니다.
-    assert hint["target"] == 704200
-    assert hint["diff"] == 204200
-    assert "704,200원으로 바꾸세요" in hint["sentence"]
-    assert "대신" in hint["sentence"]
-    assert hint["note"] == "환불된 이전 주문은 뺀 금액입니다"
-    assert hint["copy_value"] == "704200"
-
-
 # --------------------------------------------------------------------------- #
 # (4) 금액을 못 읽은 행 — 0 으로 더하지 않고 센다
 # --------------------------------------------------------------------------- #
-
-def test_unknown_amount_is_counted_never_summed_as_zero(app):
-    """``totalPaymentAmount`` 가 int 가 아니면 **모름 1건**이지 0 원이 아니다.
-
-    0 으로 더하면 합계가 조용히 작아지고, 그 숫자를 예약금에 넣은 사람이
-    ``잔금 = 출고가 − 예약금`` 을 타고 고객에게 과다 청구한다. 숫자를 못 내는 날에는
-    숫자를 말하지 않는다.
-    """
-    order = _naver_order(deposit=100000)
-    _link(order, _snapshot(amount=100000, order_no=_OLD_NO), order_no=_OLD_NO)
-    _link(order, _snapshot(amount=None, order_no=_OLD_NO, product_name="길이추가 1cm",
-                           product_class="추가구성상품"), order_no=_OLD_NO)
-
-    payload = build_dock_payload(db_session, order)
-
-    house = payload["households"][0]
-    assert house["amount_total"] == 100000
-    assert house["amount_unknown"] == 1
-    hint = payload["deposit_hint"]
-    assert hint["state"] == "unknown"
-    assert hint["unknown_count"] == 1
-    assert hint["target"] is None
-    assert hint["diff"] is None
-    # 복사할 정답이 없다 — 빈 값이라 복사 버튼이 붙지 않는다.
-    assert hint["copy_value"] == ""
-    assert "1건" in hint["sentence"]
-    assert hint["current"] == 100000
-
 
 # --------------------------------------------------------------------------- #
 # (5) 예약금이 더 큰 경우 — 경고만, "낮추라"고 말하지 않는다
 # --------------------------------------------------------------------------- #
 
-def test_over_state_warns_without_telling_anyone_to_lower_it(app):
-    """예약금이 네이버 결제액보다 크면 ``over`` — 내리라고 지시하지 않는다.
-
-    네이버 밖 입금(계좌이체 선금 등)이 정당할 수 있고, 그 지시는
-    ``잔금 = 출고가 − 예약금`` 을 타고 고객 청구로 나간다.
-    """
-    payload = _single(deposit=900000, amount=704200)
-
-    hint = payload["deposit_hint"]
-    assert hint["state"] == "over"
-    assert hint["current"] == 900000
-    assert hint["target"] == 704200
-    assert hint["diff"] == -195800
-    assert "195,800원 많습니다" in hint["sentence"]
-    for forbidden in ("낮추", "내리", "줄이"):
-        assert forbidden not in hint["sentence"], hint["sentence"]
-    # 틀렸다고 단정할 수 없으니 복사할 값도 없다.
-    assert hint["copy_value"] == ""
-
-
 # --------------------------------------------------------------------------- #
 # (6) 클레임 — 환불액 미반영을 고지한다
 # --------------------------------------------------------------------------- #
 
-def test_claim_adds_note_that_refund_is_not_deducted_yet(app):
-    """취소·반품이 걸린 주문은 합계가 **환불 전** 금액임을 말한다.
-
-    ``totalPaymentAmount`` 는 결제 시점 값이라 클레임 환불이 아직 안 빠져 있다. 그걸
-    말하지 않으면 사람이 환불된 돈까지 예약금에 넣는다.
-    """
-    payload = _single(deposit=100000, amount=704200, claim_status="CANCEL_REQUEST")
-
-    assert payload["claim_label"] == "취소 요청"
-    note = payload["deposit_hint"]["note"]
-    assert "취소 요청" in note
-    assert "환불액" in note
-
-
 # --------------------------------------------------------------------------- #
 # (7) 복사값 형식 — 쉼표·단위 없는 정수 문자열
 # --------------------------------------------------------------------------- #
-
-def test_copy_value_is_a_bare_integer_string(app):
-    """``copy_value`` 는 ``"1234567"`` — 쉼표·``원`` 이 붙으면 붙여넣기가 깨진다.
-
-    사람은 이 값을 ``#erp-deposit-amount`` 에 **직접** 붙여넣는다(자동 기입 금지 —
-    명문 규약). 문장 쪽은 사람이 읽는 자리라 쉼표를 유지한다.
-    """
-    payload = _single(deposit=0, amount=1234567)
-
-    hint = payload["deposit_hint"]
-    assert hint["copy_value"] == "1234567"
-    assert "," not in hint["copy_value"]
-    assert "원" not in hint["copy_value"]
-    assert int(hint["copy_value"]) == hint["target"]
-    # 읽는 문장에는 쉼표가 그대로 있어야 한다(같은 값을 두 축으로 낸다).
-    assert "1,234,567원" in hint["sentence"]
-
 
 # --------------------------------------------------------------------------- #
 # (8) 집 단위 금액 키 — 화면이 그룹 합계를 검산할 근거
@@ -304,7 +162,7 @@ def test_copy_value_is_a_bare_integer_string(app):
 def test_every_household_carries_its_own_amount_totals(app):
     """``households[]`` 마다 ``amount_total``·``amount_unknown`` 이 실린다.
 
-    집이 둘인 주문에서 화면이 집별 합계를 직접 세면 예약금 안내와 어긋난다 —
+    집이 둘인 주문에서 화면이 집별 합계를 직접 세면 카드 합계와 어긋난다 —
     같은 자리에서 낸 값을 함께 싣는다.
     """
     payload = _two_households(deposit=0, relation="REPAY",
@@ -317,8 +175,8 @@ def test_every_household_carries_its_own_amount_totals(app):
     assert by_no[_NEW_NO]["amount_total"] == 704200
     assert by_no[_NEW_NO]["amount_unknown"] == 0
     assert by_no[_NEW_NO]["superseded"] is False
-    # 예약금 target 은 살아 있는 집만 더한 값과 같다.
-    assert payload["deposit_hint"]["target"] == by_no[_NEW_NO]["amount_total"]
+    # 카드의 합계(live_total)는 살아 있는 집만 더한 값과 같다.
+    assert payload["deposit_hint"]["live_total"] == by_no[_NEW_NO]["amount_total"]
 
 
 # --------------------------------------------------------------------------- #
@@ -338,7 +196,6 @@ def test_pure_addon_household_says_addon_and_the_naver_amount_alone(app):
 
     assert hint["relation_label"] == "추가 결제"
     assert hint["live_total_display"] == "1,290,850원"
-    assert hint["target_display"] == "1,390,850원"   # 기존 키는 그대로 산다(CEO 계약 2026-09-10 — 런타임 소비처 없음, 후속 정리 후보)
 
 
 def test_pure_repay_household_says_repay_and_excludes_the_superseded_house(app):
@@ -374,5 +231,6 @@ def test_unknown_amount_leaves_the_display_blank(app):
 
     hint = build_dock_payload(db_session, order)["deposit_hint"]
 
-    assert hint["state"] == "unknown"
+    assert hint["unknown_count"] == 1
     assert hint["live_total_display"] == ""
+    assert hint["live_total"] == 100000, "못 읽은 건은 0 으로 더하지 않고 센다 — 읽은 건 합만 남는다"
