@@ -347,7 +347,11 @@ def test_mobile_erp_secnav_has_single_scroll_owner() -> None:
 
 
 def test_mobile_erp_secnav_chip_order_and_targets() -> None:
-    """secnav 칩 순서: 고객→일정→현장스펙→…, 모든 target id가 섹션에 존재."""
+    """secnav 칩 순서: 고객→일정→스펙→…, 모든 target id가 섹션에 존재.
+
+    라벨이 짧은 이유: 칩 6개를 가로 스크롤 없이 한 줄에 균등 배치하면서
+    360px 에서 '현장 스펙' 이 말줄임으로 잘렸다. 섹션 제목은 '현장 스펙' 그대로다.
+    """
     mobile = (
         ROOT / "templates" / "orders" / "partials" / "erp_order_tab_mobile.html"
     ).read_text(encoding="utf-8")
@@ -359,7 +363,7 @@ def test_mobile_erp_secnav_chip_order_and_targets() -> None:
     assert [label.strip() for _, label in chip_labels] == [
         "고객",
         "일정",
-        "현장 스펙",
+        "스펙",
         "사진",
         "발주",
         "접수",

@@ -974,9 +974,14 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-attachment-controls
   background: var(--foms-surface-base);
   border-bottom: 1px solid var(--foms-border-subtle, #e5e7eb);
 }
+/* ORDER-SEC-01: 칩 6개를 가로 스크롤에 맡기면 마지막 '접수'가 화면 밖에 숨어
+   눌러야 할 것이 있는 줄 모른다. 한 줄에 전부 균등 배치해 전체를 보이게 한다.
+   개수가 늘어도 auto-flow column 이 한 줄을 유지한다. */
 .erp-order-mobile-form .erp-mobile-secnav-track {
-  display: flex;
-  gap: var(--foms-space-2);
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 4px;
   overflow-x: auto;
   scrollbar-width: none;
 }
@@ -988,16 +993,19 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-attachment-controls
 }
 .erp-order-mobile-form .erp-mobile-secnav-track::-webkit-scrollbar { display: none; }
 .erp-order-mobile-form .erp-mobile-secnav-chip {
-  flex: 0 0 auto;
-  min-height: 2.25rem;
-  padding: 0 var(--foms-space-3);
+  min-width: 0;
+  min-height: 2rem;
+  padding: 0 2px;
   border: 1px solid var(--foms-border-default);
   border-radius: 999px;
   background: var(--foms-surface-subtle, #f8fafc);
   color: var(--foms-text-secondary);
-  font-size: var(--foms-font-size-sm);
+  font-size: 12px;
+  line-height: 1.2;
   font-weight: var(--foms-font-weight-medium);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .erp-order-mobile-form .erp-mobile-secnav-chip.is-active {
   background: var(--foms-interactive-primary, #2563eb);
