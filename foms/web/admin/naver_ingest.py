@@ -659,6 +659,35 @@ def _history_foms_state(lead: dict[str, Any], statuses: list[str]) -> str:
     return "linked"
 
 
+def _history_foms_badge_hidden(foms_state: str, relation: str,
+                               related_order_id: Optional[int],
+                               lead: dict[str, Any]) -> bool:
+    """FOMS 축 `주문 만듦` 배지를 **접을지** — 관계 배지가 같은 주문을 이미 가리킬 때.
+
+    추가결제·재결제 집은 주문을 **만든** 것이 아니라 기존 주문에 **붙인** 결제다. 그 행에
+    `주문 만듦` 과 `추가결제 → #5206` 이 나란히 서면 화면이 거짓말을 한다(2026-09-10 사용자
+    지시, 주문 #5206 김도희 캡처). ``foms_state``·``foms_label`` 은 건드리지 않는다 — 필터
+    칩과 카운트가 그 축을 센다. 판정은 여기(서버)뿐이고 템플릿은 분기 하나만 한다.
+
+    Args:
+        foms_state: :func:`_history_foms_state` 결과.
+        relation: 집의 관계(``NEW``/``ADDON``/``REPAY``).
+        related_order_id: 관계 배지가 가리키는 주문 id(없으면 None).
+        lead: 대표 멤버 dict(``order_id`` 를 읽는다).
+
+    Returns:
+        ``linked`` 이고 관계가 ``ADDON``/``REPAY`` 이고 관계 배지가 **대표가 붙은 그 주문**을
+        가리킬 때만 True. 섞인 집(대표는 다른 주문)·``closed``·``review``·``failed``·
+        ``collected``·``NEW``·상대 주문 없음은 전부 False — 그 신호는 관계 배지가 대신
+        말해 주지 않는다.
+    """
+    if foms_state != "linked" or relation not in ("ADDON", "REPAY"):
+        return False
+    if not related_order_id or not lead["order_id"]:
+        return False
+    return int(lead["order_id"]) == int(related_order_id)
+
+
 def _household_claim(claims: list[dict[str, Any]], *, fallback_label: str) -> dict[str, str]:
     """집의 취소·반품 배지 — **첫 라벨이 아니라 집계**다 (NVCLAIM-ORDER-01 T5).
 
@@ -1046,6 +1075,8 @@ def _history_group_axes(group: list[dict[str, Any]], *, lead: dict[str, Any],
         "relation": relation,
         "relation_label": HISTORY_RELATION_LABELS[relation],
         "related_order_id": related_order_id,
+        # `주문 만듦` 접기(2026-09-10) — 판정은 여기, 템플릿은 `if not row.foms_badge_hidden` 뿐.
+        "foms_badge_hidden": _history_foms_badge_hidden(foms_state, relation, related_order_id, lead),
         # 네이버 파이프(발주확인·발송) 재료 + 판정 결과.
         **_history_pipe_fields(group_size=len(group), place_done_count=place_done_count,
                                dispatch=dispatch, fail=fail, naver_axis=naver_axis,

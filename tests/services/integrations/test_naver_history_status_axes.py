@@ -384,6 +384,114 @@ def test_relation_badge_without_a_linked_order_shows_the_word_only(client, workb
 
 
 # --------------------------------------------------------------------------- #
+# 1-b. 관계 축 — `주문 만듦` 접기 (2026-09-10 사용자 지시, 주문 #5206 캡처)
+# --------------------------------------------------------------------------- #
+
+def test_addon_household_folds_the_order_made_badge_into_the_relation_badge(client, workbench_on):
+    """추가결제 집은 `주문 만듦` 을 내지 않는다 — `추가결제 → #id` 가 이미 주문이 있다고 말한다.
+
+    추가결제는 주문을 **만든** 게 아니라 기존 주문에 **붙인** 결제다(2026-09-10 사용자 지시).
+    필터 칩 축(`주문 만듦 N주문`)은 그대로다 — 배지만 접고 상태 키는 안 바꾼다.
+    """
+    _login(client)
+    order = _order(product="추가결제 붙은 주문")
+    _link(order_no="N-HSA-ADDON-FOLD", product="붙박이장 추가 옵션", amount=1290850,
+          relation="ADDON", order_id=int(order.id))
+
+    body = _open(client)
+    cell = _status_cell(_row(body, "N-HSA-ADDON-FOLD"))
+    badges = _badges(_axis_row(cell, "FOMS"))
+
+    assert "주문 만듦" not in cell, cell
+    assert any(badge.startswith("추가결제") for badge in badges), badges
+    assert _hash_numbers(cell) == [str(order.id)], cell
+    assert "<a " in cell, "상대 주문번호 링크는 그대로여야 한다"
+    assert "주문 만듦" in _chips(body), "칩 축(foms_state)까지 바뀌었다 — 배지만 접어야 한다"
+
+
+def test_repay_household_folds_the_order_made_badge_too(client, workbench_on):
+    """재결제 집도 같다 — `재결제 → #id` 만 남는다."""
+    _login(client)
+    order = _order(product="재결제 붙은 주문")
+    _link(order_no="N-HSA-REPAY-FOLD", product="중문 재주문", amount=1690000,
+          relation="REPAY", order_id=int(order.id))
+
+    cell = _status_cell(_row(_open(client), "N-HSA-REPAY-FOLD"))
+    badges = _badges(_axis_row(cell, "FOMS"))
+
+    assert "주문 만듦" not in cell, cell
+    assert any(badge.startswith("재결제") for badge in badges), badges
+    assert _hash_numbers(cell) == [str(order.id)], cell
+
+
+def test_new_household_keeps_the_order_made_badge(client, workbench_on):
+    """대조군 — 신규(NEW) 집은 `주문 만듦` 이 그대로다. 접는 것은 관계 집뿐이다."""
+    _login(client)
+    order = _order(product="신규 주문")
+    _link(order_no="N-HSA-NEW-KEEP", product="붙박이장 신규", amount=2000000,
+          relation="NEW", order_id=int(order.id))
+
+    cell = _status_cell(_row(_open(client), "N-HSA-NEW-KEEP"))
+
+    assert _tight("주문 만듦") in _badges(_axis_row(cell, "FOMS")), cell
+    assert "추가결제" not in cell and "재결제" not in cell, cell
+
+
+def test_addon_household_whose_order_was_dropped_still_says_closed(client, workbench_on):
+    """대조군 — 추가결제 집이라도 붙은 주문을 접었으면 `주문 접음` 은 **반드시** 보인다.
+
+    접는 것은 `주문 만듦` 하나다. `closed` 신호가 사라지면 정산에서 죽은 주문을 산 것으로 센다.
+    """
+    _login(client)
+    order = _order(product="접은 추가결제 주문")
+    order.status = "DELETED"
+    db_session.commit()
+    _link(order_no="N-HSA-ADDON-CLOSED", product="붙박이장 추가분(접음)", amount=150000,
+          relation="ADDON", order_id=int(order.id), place_status="OK", reviewed=True)
+
+    cell = _status_cell(_row(_open(client), "N-HSA-ADDON-CLOSED"))
+    badges = _badges(_axis_row(cell, "FOMS"))
+
+    assert _tight("주문 접음") in badges, cell
+    assert "주문 만듦" not in cell, cell
+    assert any(badge.startswith("추가결제") for badge in badges), badges
+
+
+def test_addon_household_without_an_order_keeps_the_collected_badge(client, workbench_on):
+    """대조군 — 붙은 주문이 없는 추가결제 집은 기존 규칙(`받아옴`) 그대로다."""
+    _login(client)
+    _link(order_no="N-HSA-ADDON-COLLECTED", product="붙박이장 미붙임 추가분 2",
+          amount=90000, relation="ADDON", order_id=None, sync_status="COLLECTED")
+
+    cell = _status_cell(_row(_open(client), "N-HSA-ADDON-COLLECTED"))
+    badges = _badges(_axis_row(cell, "FOMS"))
+
+    assert _tight("받아옴") in badges, cell
+    assert "주문 만듦" not in cell, cell
+    assert any(badge.startswith("추가결제") for badge in badges), badges
+
+
+def test_mixed_household_keeps_order_made_when_it_points_at_a_different_order(client, workbench_on):
+    """대조군 — 대표(NEW)가 붙은 주문과 관계 배지가 가리키는 주문이 **다르면** 접지 않는다.
+
+    `주문 만듦` 은 대표가 만든 주문 A 를, `추가결제 → #B` 는 형제가 붙은 주문 B 를 말한다.
+    둘이 다른 주문이면 접는 순간 A 가 화면에서 사라진다.
+    """
+    _login(client)
+    new_order = _order(product="시스템장 본품 2")
+    addon_order = _order(product="시스템장 추가구성 2")
+    _link(order_no="N-HSA-MIX-KEEP", product="시스템장 8자 (섞임)", amount=3180000,
+          relation="NEW", order_id=int(new_order.id))
+    _link(order_no="N-HSA-MIX-KEEP", product="시스템장 추가 선반 (섞임)", amount=120000,
+          relation="ADDON", order_id=int(addon_order.id))
+
+    cell = _status_cell(_row(_open(client), "N-HSA-MIX-KEEP"))
+
+    assert _tight("주문 만듦") in _badges(_axis_row(cell, "FOMS")), cell
+    assert _hash_numbers(cell) == [str(addon_order.id)], cell
+
+
+# --------------------------------------------------------------------------- #
 # 2. 네이버 축 — 완료를 글자로 (계약 §2.3-B·C · §3.2)
 # --------------------------------------------------------------------------- #
 

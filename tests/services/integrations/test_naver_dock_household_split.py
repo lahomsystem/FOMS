@@ -311,11 +311,12 @@ def test_dock_asset_pin_moved_for_household_split():
     """CSS·JS 를 고쳤으니 ``?v`` 핀이 움직였다.
 
     SW 가 ``staticCacheFirst`` 라 핀을 안 올리면 옛 자산이 계속 서빙되어 배포해도
-    사람 화면은 그대로다.
+    사람 화면은 그대로다. 핀 값은 2026-09-10 사용자 지시(예약금 카드 설명문 폐기)로
+    ``20260910a`` 가 됐다.
     """
     tpl = _ORDER_JS_TPL.read_text(encoding="utf-8")
-    assert "js/orders/erp-naver-dock.js') }}?v=20260909a" in tpl
-    assert "css/orders/erp-naver-dock.css') }}?v=20260909a" in tpl
+    assert "js/orders/erp-naver-dock.js') }}?v=20260910a" in tpl
+    assert "css/orders/erp-naver-dock.css') }}?v=20260910a" in tpl
 
 
 # ------------------------------------------- 확인 완료 게이트가 죽은 주문을 안 센다
