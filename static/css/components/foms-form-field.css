@@ -866,6 +866,19 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-attachment-controls
   }
 }
 
+/* 특이사항 펼침 버튼은 공용 .foms-btn--sm(36px)을 쓴다. 데스크톱에서는 마우스라
+   충분하지만 모바일 폼에서는 프로젝트 터치 기준(44px) 아래다. 전역 sm 크기를 건드리면
+   다른 화면까지 흔들리므로 이 폼 안에서만 올린다. */
+.erp-order-mobile-form .foms-btn--sm {
+  min-height: var(--foms-touch-target-min, 44px);
+}
+
+/* 알림톡 발송 상태 칩(26px)도 실제 버튼이다(누르면 발송 이력이 열린다).
+   sticky 액션바 안이라 44px 을 그대로 쓰면 바가 두꺼워져 36px 로 둔다. */
+.erp-mobile-sticky-action-bar .erp-alimtalk-trace {
+  min-height: 36px;
+}
+
 /* Bootstrap 기본 체크박스는 14px 이라 16px 본문 옆에서 작아 보인다.
    히트 영역은 label(40px) 이 이미 커버하므로 시각 크기만 키운다. */
 .erp-order-mobile-form .erp-mobile-check .form-check-input {
