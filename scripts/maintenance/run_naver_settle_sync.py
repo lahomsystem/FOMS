@@ -38,7 +38,7 @@ import sys
 import time
 import traceback
 from datetime import date, datetime, timedelta
-from typing import Optional
+from typing import Any, Optional
 
 sys.path.append(
     os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
@@ -254,12 +254,39 @@ def _print_result(result: dict, as_json: bool) -> None:
           f"dry_run={result.get('dry_run')} error={result.get('error')}", flush=True)
 
 
+def _count(value: Any) -> int:
+    """집계값을 정수 하나로 접는다 — dict 면 값의 합, 숫자면 그대로, 그 외는 0.
+
+    ``run_settle_sync`` 가 돌려주는 ``stats["calls"]``·``stats["rows"]`` 는 endpoint 별·table 별
+    **dict** 다(``_SyncContext.stats`` 초기값 ``{"calls": {}, "rows": {}}``). 2026-09-10 까지는
+    여기서 ``int(dict)`` 를 해 매일 05:30 정기 실행이 **성공한 직후** TypeError 로 루프가 죽었다
+    (``docs/incidents/2026-09-10-settle-loop-dies-after-success-tick.md``).
+
+    Args:
+        value: 카운터 원본(dict·숫자·None).
+
+    Returns:
+        음수 아닌 정수 합계.
+    """
+    if isinstance(value, dict):
+        return sum(_count(item) for item in value.values())
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, (int, float)):
+        return int(value)
+    return 0
+
+
 def _heartbeat_metadata(*, ran_now: bool, result, tick: int = 0) -> dict:
     """하트비트에 실을 집계값. 정산 금액·주문 식별자는 싣지 않는다(운영 감시용).
 
     Args:
         ran_now: 이번 tick 이 실제로 동기화를 돌렸는가(창 안 + 오늘 첫 실행).
         result: 돌렸으면 :func:`_sync_once` 결과, 아니면 ``None``.
+        tick: 루프가 자는 간격(초) — 판정 예산의 근거로 신고한다.
+
+    Returns:
+        키 계약(``tests/domains/test_loop_heartbeat_wiring.py``)에 맞는 metadata.
     """
     payload = result or {}
     stats = payload.get("stats") or {}
@@ -267,9 +294,34 @@ def _heartbeat_metadata(*, ran_now: bool, result, tick: int = 0) -> dict:
         "interval_seconds": int(tick or 0),
         "ran": bool(ran_now),
         "status": payload.get("status") or None,
-        "calls": int(stats.get("calls") or 0),
-        "rows": int(stats.get("rows") or 0),
+        "calls": _count(stats.get("calls")),
+        "rows": _count(stats.get("rows")),
     }
+
+
+def _safe_heartbeat_metadata(*, ran_now: bool, result, tick: int) -> dict:
+    """metadata 조립이 터져도 하트비트는 나간다 — 조립 결함이 루프를 죽이면 안 된다.
+
+    2026-09-10 사고: 조립의 TypeError 가 :func:`_run_loop` 의 예외 가드 **밖**에서 터져 루프
+    프로세스가 죽었고, ``start.sh`` 백그라운드 루프에는 감독자가 없어 다음 WORKER 재배포까지
+    하트비트가 STALE 이었다. 실패는 경고 로그 + Sentry 로 남기고, 집계값 0 인 **같은 키**의
+    최소 metadata 를 싣는다(감시 표·키 계약이 그대로 읽는다).
+
+    Args:
+        ran_now: 이번 tick 이 동기화를 돌렸는가.
+        result: :func:`_sync_once` 결과 또는 ``None``.
+        tick: 루프 간격(초).
+
+    Returns:
+        조립 결과, 실패하면 최소 metadata.
+    """
+    try:
+        return _heartbeat_metadata(ran_now=ran_now, result=result, tick=tick)
+    except Exception as exc:  # noqa: BLE001 - 조립 결함이 생존 신호를 막으면 안 된다
+        _LOGGER.warning("[naver-settle-sync] heartbeat metadata failed: %s", exc, exc_info=True)
+        capture_exception()
+        return {"interval_seconds": int(tick or 0), "ran": bool(ran_now), "status": None,
+                "calls": 0, "rows": 0}
 
 
 def _run_loop(args: argparse.Namespace) -> int:
@@ -311,8 +363,10 @@ def _run_loop(args: argparse.Namespace) -> int:
             capture_exception()
         # 창 밖이라 아무것도 안 한 tick 도 하트비트를 남긴다 — 안 그러면 하루 23시간 넘게
         # 낡아 보여 "죽었다" 와 구분되지 않는다.
+        # 조립은 :func:`_safe_heartbeat_metadata` — 여기는 try 밖이라 조립이 터지면 루프가
+        # 죽는다(2026-09-10 사고). emit_heartbeat 자체는 실패를 삼키고 경고만 남긴다.
         emit_heartbeat(engine, HEARTBEAT_WORKER_KIND,
-                       metadata=_heartbeat_metadata(ran_now=ran_now, result=result, tick=tick),
+                       metadata=_safe_heartbeat_metadata(ran_now=ran_now, result=result, tick=tick),
                        logger=_LOGGER)
         time.sleep(tick)
 
