@@ -274,24 +274,6 @@
     }
 
     /**
-     * 예약금(선금) 한 줄 — 카드로 서지 않는 세 상태(`match`·`over`·`unknown`)의 문장.
-     *
-     * `differs` 만 카드로 세운다. 값이 맞는 보통 주문에까지 카드를 세우면 그 자리가
-     * 잡음이 되고 정작 틀린 날에 아무도 안 읽는다. 같은 말을 카드와 줄로 두 번 하지도
-     * 않는다 — 어느 쪽이 최신인지 사람이 의심한다.
-     *
-     * 문장은 **서버가 만든다**(payload `deposit_hint.sentence`) — 재결제 정본과 같은
-     * 규율이다(서버가 문장, 화면은 그리기만). 키가 없는 옛 응답이면 빈 문자열이라
-     * 줄 자체가 생기지 않는다(오늘과 같은 화면).
-     * @returns {string} 표시할 문장(없으면 빈 문자열).
-     */
-    function depositFactLine() {
-        var hint = state.depositHint;
-        if (!hint || hint.state === 'differs' || !hint.sentence) return '';
-        return hint.note ? hint.sentence + ' — ' + hint.note : hint.sentence;
-    }
-
-    /**
      * 머리말 정보 블록 — 수취인/주문자 이름과 배송메모.
      * 주문 대표 이름은 수취인이다. 주문자는 **다를 때만** 보조로 띄운다(대리주문 표식).
      * 배송메모는 원문 그대로 보여주고 복사만 제공한다 — 폼에 자동 기입하지 않는다.
@@ -301,9 +283,8 @@
         var hasWho = !!state.recipientName;
         var hasMemo = !!state.shippingMemo;
         var hasClaim = !!state.claimLabel;
-        var depositLine = depositFactLine();
         var hasFacts = !!(state.recipientTel2 || state.paidAt || state.payMeans || state.discount
-            || state.extraPaymentCount || state.couponCount || depositLine);
+            || state.extraPaymentCount || state.couponCount);
         if (!hasWho && !hasMemo && !hasClaim && !hasFacts) return null;
         var info = el('div', 'naver-dock-info');
         if (hasClaim) {
@@ -368,12 +349,6 @@
                 '원 — 지금 받은 결제입니다. 옛 결제는 환불됐으니 출고가·잔금은 이 금액 기준으로 보세요(더하지 마세요)',
                 false, 'naver-dock-fact-warn']);
         }
-        // 예약금(선금) 안내 — **facts 맨 뒤에만** 붙인다(D3). 위 두 줄(추가결제·재결제)은
-        // 담당자가 자리째로 외운 문구라 순서를 흔들지 않는다(R1 회귀 방지).
-        if (depositLine) {
-            facts.push(['예약금(선금)', depositLine, false,
-                state.depositHint.state === 'match' ? '' : 'naver-dock-fact-warn']);
-        }
         facts.forEach(function (fact) {
             var row = el('div', fact[3] ? 'naver-dock-fact ' + fact[3] : 'naver-dock-fact');
             row.appendChild(el('span', 'naver-dock-fact-k', fact[0]));
@@ -401,105 +376,23 @@
     }
 
     /**
-     * 예약금(선금) 안내 카드 — **값이 다를 때(`differs`)만** 선다 (D3).
+     * 네이버 결제 금액 카드 — 낱말 + 돈 한 줄 (2026-09-10 사용자 지시).
      *
-     * 이 값이 들어갈 자리의 정본 이름은 **예약금(선금)**이다(출고가·잔금은 입력칸이
-     * 아니라 계산 표시다). 도크는 그 입력칸의 id 를 **읽지도 쓰지도 않는다** — 폼
-     * 불가침 계약이고, 자동 기입 금지는 명문 규약이다. 값은 사람이 복사로 옮긴다.
-     * 복사값은 서버가 만든 **쉼표 없는 정수**라 그대로 붙여넣을 수 있다.
+     * 예약금 목표액·대조 줄·안내문·복사 칩은 뺐다(주문 #5206 캡처: "추가 결제 금액이 얼마인지만
+     * 간단히"). 낱말(`relation_label`)과 돈 표기(`live_total_display`)는 **서버가 만든다** —
+     * 화면은 그리기만 한다(돈을 다시 포맷하지 않는다). 둘 중 하나라도 비면(관계 집이 없는
+     * 보통 주문·금액을 못 읽은 건) 카드가 서지 않는다. 폼은 여전히 **읽지도 쓰지도** 않는다.
      *
      * 카드가 스크롤 영역(`.naver-dock-bd`) 밖에 서는 이유: 행을 아래로 훑는 동안에도
-     * 이 안내가 화면에 남아 있어야 한다.
+     * 이 숫자가 화면에 남아 있어야 한다.
      * @returns {Element|null} 카드(그릴 근거가 없으면 null — 옛 payload 포함).
      */
-    /**
-     * 예약금 칸의 지금 값이 넣어야 할 금액과 같은가 (2026-09-09 담당자 지적).
-     *
-     * **왜 필요한가.** 돈은 사람이 넣는다(확정된 결정). 그런데 안 넣었을 때 아무도 몰랐다 —
-     * 실사례로 예약금이 옛 값 1,093,100원으로 남으면 잔금이 4,650원 틀리고, 그 오차는
-     * 조용하다. 화면이 대조해 주면 넣은 사람은 ✓ 를 보고 끝내고, 안 넣은 사람은 경고를 본다.
-     *
-     * 쉼표·`원`·공백을 걷고 **숫자만** 견준다 — 칸은 `1,088,450` 처럼 쉼표를 달고 산다.
-     * 빈 칸은 `differs` 다(0원이 아니라 '아직 안 넣었다'). 숫자를 못 읽으면 `unknown` —
-     * 모르면 경고하지 않는다(자유 입력 칸에 사람이 적어 둔 글자를 틀렸다고 말하지 않는다).
-     * @param {*} currentText 예약금 칸의 지금 글자.
-     * @param {*} target 넣어야 할 금액.
-     * @returns {string} `match` · `differs` · `unknown`.
-     */
-    function dockDepositMatch(currentText, target) {
-        var want = Number(target);
-        if (!isFinite(want) || want <= 0) return 'unknown';
-        var text = String(currentText === undefined || currentText === null ? '' : currentText).trim();
-        if (text === '') return 'differs';
-        var digits = text.replace(/[,\s원]/g, '');
-        if (!/^-?\d+$/.test(digits)) return 'unknown';
-        return Number(digits) === want ? 'match' : 'differs';
-    }
-
-    /**
-     * 예약금 칸 — `data-erp` 계약만 읽는다(폼 id 무참조).
-     * @param {Node} root 조회 기준.
-     * @returns {?Element} 칸(없으면 null).
-     */
-    function erpDepositField(root) {
-        if (!root || !root.querySelector) return null;
-        return root.querySelector('[data-erp="deposit_amount"]');
-    }
-
-    /**
-     * 예약금 대조 줄을 지금 값으로 다시 쓴다. 렌더 뒤와 사람이 칸을 고칠 때마다 부른다.
-     * @returns {void}
-     */
-    function syncDepositMatch() {
-        var hint = state && state.depositHint;
-        if (!hint) return;
-        var field = erpDepositField(document);
-        var verdict = dockDepositMatch(field && field.value, hint.target);
-        Array.prototype.forEach.call(
-            document.querySelectorAll('.naver-dock-deposit-state'), function (node) {
-                node.classList.toggle('is-match', verdict === 'match');
-                node.classList.toggle('is-differs', verdict === 'differs');
-                node.hidden = verdict === 'unknown';
-                node.textContent = verdict === 'match'
-                    ? '✓ 예약금 칸이 이 금액과 같습니다'
-                    : '⚠ 예약금 칸이 아직 다릅니다 — 지금 '
-                      + ((field && String(field.value).trim()) || '(비어 있음)');
-            });
-    }
-
     function buildDepositCard() {
         var hint = state.depositHint;
-        if (!hint || hint.state !== 'differs' || !hint.sentence) return null;
+        if (!hint || !hint.relation_label || !hint.live_total_display) return null;
         var card = el('div', 'naver-dock-deposit');
-        // 라벨·큰 숫자·문장 3단은 재결제 계획 카드(.wb-fork__money)와 같은 규격이다 —
-        // 옮겨 적는 숫자가 두 화면에서 다른 모양이면 사람이 다른 값으로 읽는다.
-        card.appendChild(el('div', 'naver-dock-deposit-hd', '💰 예약금(선금)에 넣을 금액'));
-        if (hint.target_display) {
-            // 돈 표기는 서버가 만든 것만 쓴다 — 화면이 다시 포맷하면 두 자리가 조용히 갈린다.
-            card.appendChild(el('div', 'naver-dock-deposit-won', hint.target_display));
-        }
-        card.appendChild(el('div', 'naver-dock-deposit-say', hint.sentence));
-        // 넣었는지 안 넣었는지를 화면이 대신 세어 준다 — 글자는 `syncDepositMatch` 가 쓴다.
-        card.appendChild(el('div', 'naver-dock-deposit-state', ''));
-        if (hint.note) {
-            card.appendChild(el('div', 'naver-dock-deposit-note', hint.note));
-        }
-        if (hint.copy_value) {
-            var acts = el('div', 'naver-dock-deposit-acts');
-            var copy = el('button', 'naver-dock-copy', '📋 ' + hint.copy_value);
-            copy.type = 'button';
-            copy.setAttribute('data-naver-dock-copy', hint.copy_value);
-            acts.appendChild(copy);
-            // 돈은 여전히 사람이 넣는다 — 이 칩에는 `data-naver-dock-target` 을 달지 않는다.
-            // 2026-09-08 자동 입력은 제품명·색상·손잡이·총폭 네 칸에만 열렸다. 금액을 잘못
-            // 넣으면 출고가·잔금이 통째로 틀리므로 예약금은 자동 기입 금지를 그대로 둔다.
-            // 그 사실을 화면이 직접 말한다 — 잔금은 사람이 따로 고칠 필요가 없다는 것까지
-            // 말해야 한 번에 끝난다.
-            acts.appendChild(el('span', 'naver-dock-deposit-hint',
-                '시스템이 넣지 않습니다 — 예약금(선금) 칸에 직접 입력하세요. '
-                + '잔금은 출고가 − 예약금으로 따라옵니다.'));
-            card.appendChild(acts);
-        }
+        card.appendChild(el('div', 'naver-dock-deposit-hd', hint.relation_label));
+        card.appendChild(el('div', 'naver-dock-deposit-won', hint.live_total_display));
         return card;
     }
 
@@ -698,7 +591,7 @@
         frag.appendChild(head);
         var info = buildInfo();
         if (info) frag.appendChild(info);
-        // 예약금 카드는 정보 블록과 진행바 사이 — 스크롤 영역 밖이라 늘 보인다(D3).
+        // 네이버 결제 금액 카드(2026-09-10) — 낱말·돈 표기는 서버, 화면은 노드 2개. 스크롤 영역 밖이라 늘 보인다.
         var deposit = buildDepositCard();
         if (deposit) frag.appendChild(deposit);
 
@@ -768,8 +661,6 @@
             mount.appendChild(buildPanel(mount.getAttribute('data-naver-dock-mount') === 'drawer'));
         });
         syncStatus();
-        // 대조 줄은 렌더 직후 한 번 채운다 — 빈 줄이 먼저 보이면 '아무 말 없음'으로 읽힌다.
-        syncDepositMatch();
     }
 
     function syncStatus() {
@@ -1225,16 +1116,6 @@
         if (row) lastItemRow = row;
     });
 
-    // 예약금을 고치는 순간 대조 줄이 따라간다 — 사람이 넣고 나서 ✓ 를 봐야 끝난 줄 안다.
-    // `input` 과 `change` 를 둘 다 듣는 이유: 폼이 값을 주입할 때는 `change` 만 오고,
-    // 사람이 타이핑할 때는 `input` 이 온다(쉼표 포맷터도 여기에 얹혀 있다).
-    ['input', 'change'].forEach(function (name) {
-        document.addEventListener(name, function (event) {
-            var field = event.target.closest && event.target.closest('[data-erp="deposit_amount"]');
-            if (field) syncDepositMatch();
-        });
-    });
-
     /**
      * 버튼 글자를 잠깐 결과로 바꿨다가 되돌린다 — 도크에는 토스트가 없다.
      * @param {Element} button 누른 버튼.
@@ -1424,8 +1305,8 @@
             couponDiscount: payload.coupon_discount || 0,
             couponSellerBurden: payload.coupon_seller_burden || 0,
             widthHints: payload.width_hints || {},
-            // 예약금(선금) 안내(D3) — 문장·복사값까지 **서버가 만들어 보낸다**.
-            // 키가 없는 옛 응답이면 null 이고, 그러면 화면은 오늘과 똑같이 그린다.
+            // 네이버 결제 금액 카드 — 낱말(relation_label)·돈 표기(live_total_display)는 **서버가 만든다**.
+            // 키가 없는 옛 응답이면 null 이고, 그러면 카드가 서지 않는다.
             depositHint: payload.deposit_hint || null
         };
         render();

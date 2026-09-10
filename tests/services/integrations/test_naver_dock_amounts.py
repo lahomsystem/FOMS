@@ -1,4 +1,4 @@
-"""도크 그룹 금액 표시와 예약금(선금) 안내 (D2·D3 — 2026-08-27 원장).
+"""도크 그룹 금액 표시와 네이버 결제 금액 카드(2026-09-10; 옛 예약금 안내 폐기) (D2·D3 — 2026-08-27 원장).
 
 **왜 이 파일이 따로 있나.** 담당자가 도크 머리말의 숫자를 그룹 전체 값으로 읽었다.
 그 숫자는 본품 결제액 하나였고 그 본품에 귀속된 옵션값은 빠져 있었다 — 라벨이 없어서
@@ -204,44 +204,48 @@ def test_row_amount_chip_keeps_zero_and_adds_unknown():
 
 
 # --------------------------------------------------------------------------- #
-# (3) 예약금(선금) 안내 — 하위호환·카드 조건·문구 자리
+# (3) 네이버 결제 금액 카드 — 하위호환·카드 조건·마운트 자리(2026-09-10)
 # --------------------------------------------------------------------------- #
 
-def test_deposit_hint_is_optional_and_card_stands_only_when_values_differ():
-    """``deposit_hint`` 키가 없어도 오늘과 똑같이 그린다. 카드는 ``differs`` 일 때만.
+def test_deposit_hint_is_optional_and_card_is_the_relation_word_plus_amount():
+    """``deposit_hint`` 키가 없어도 오늘과 똑같이 그린다. 카드는 서버 낱말+돈 표기가 둘 다
+    있을 때만 — 2026-09-10 사용자 지시로 문장·대조 줄·복사 칩·안내문 폐기.
 
     도크 payload 는 서버가 따로 진화한다 — 키가 없는 응답에서 화면이 깨지면 배포 순서
-    하나로 편집 화면이 죽는다. 그리고 값이 맞는 보통 주문에까지 카드를 세우면 그 자리가
-    잡음이 되어, 정말 틀린 날에 아무도 안 읽는다.
+    하나로 편집 화면이 죽는다. 카드는 관계 집(추가 결제·재결제)이 있을 때만 서고, 그때도
+    낱말(``relation_label``)과 돈 표기(``live_total_display``)를 **서버 것 그대로** 그린다.
     """
     source = _squash(_source())
 
     assert "depositHint: payload.deposit_hint || null" in source, "하위호환 기본값이 없다"
-    assert "if (!hint || hint.state !== 'differs' || !hint.sentence) return null;" in source
-    # 문장은 서버가 만든다 — 화면이 금액으로 문장을 조립하지 않는다(재결제 정본 규율).
-    assert "el('div', 'naver-dock-deposit-say', hint.sentence)" in source
-    # 복사값은 서버가 만든 쉼표 없는 정수 그대로 — 화면이 다시 포매팅하지 않는다.
-    assert "copy.setAttribute('data-naver-dock-copy', hint.copy_value);" in source
-    assert "formatAmount(hint" not in source, "복사값·문장을 화면이 다시 만들고 있다"
+    assert "if (!hint || !hint.relation_label || !hint.live_total_display) return null;" in source
+    assert "el('div', 'naver-dock-deposit-hd', hint.relation_label)" in source
+    assert "el('div', 'naver-dock-deposit-won', hint.live_total_display)" in source
+    # 문장·대조 줄·안내문·복사 칩은 없다(2026-09-10). 돈 표기는 여전히 서버 것만.
+    for gone in ("naver-dock-deposit-say", "naver-dock-deposit-state", "naver-dock-deposit-note",
+                 "naver-dock-deposit-hint", "data-naver-dock-copy', hint.copy_value",
+                 "hint.sentence", "hint.target"):
+        assert gone not in source, gone
+    assert "formatAmount(hint" not in source, "돈 표기를 화면이 다시 만들고 있다"
 
 
-def test_deposit_line_is_appended_after_the_frozen_fact_lines():
-    """예약금 한 줄은 facts **맨 뒤**에 붙는다 — 추가결제·재결제 줄 자리를 흔들지 않는다.
+def test_deposit_sentence_no_longer_rides_the_fact_lines():
+    """예약금 문장 줄은 info 블록에서 빠졌다(2026-09-10 사용자 지시). 추가결제·재결제 두 줄의
+    자리는 그대로다(R1).
 
-    담당자는 그 두 줄을 자리째로 외웠다(R1). 순서가 바뀌면 "무엇이 달라졌나"를 다시
-    배워야 한다. ``differs`` 는 카드가 따로 서므로 여기서는 말하지 않는다 — 같은 말을
-    두 번 하면 어느 쪽이 최신인지 사람이 의심한다.
+    담당자는 그 두 줄을 자리째로 외웠다. 예약금 문장은 카드와 같은 말을 두 번 하던 경로였고,
+    사용자가 "쓸데없는 설명문"으로 지목해 문장 전달 경로째 걷어냈다.
     """
     source = _squash(_source())
 
     addon_at = source.index("facts.push(['추가결제', ")
     repay_at = source.index("facts.push(['재결제', ")
-    deposit_at = source.index("facts.push(['예약금(선금)', ")
-    assert addon_at < repay_at < deposit_at, "예약금 줄이 기존 두 줄 사이·앞으로 끼어들었다"
+    assert addon_at < repay_at, "추가결제·재결제 줄 순서가 바뀌었다"
+    assert "facts.push(['재결제', " in source
 
-    assert "hint.state === 'differs' || !hint.sentence) return '';" in source
-    assert "state.depositHint.state === 'match' ? '' : 'naver-dock-fact-warn'" in source, (
-        "맞지 않는 상태를 평범한 줄로 말한다")
+    assert "facts.push(['예약금(선금)'" not in source, "예약금 문장 줄이 info 블록에 남아 있다"
+    assert "depositFactLine" not in source, "문장 줄을 만들던 함수가 남아 있다"
+    assert "state.depositHint.state" not in source, "화면이 예약금 상태로 톤을 가르고 있다"
 
 
 def test_deposit_card_sits_outside_the_scrolling_row_list():
@@ -288,9 +292,6 @@ def test_dock_js_never_touches_the_order_form():
         "erpNaverDockDrawer",
         ".erp-naver-dock-fab-badge",
         ".erp-naver-dock-mount",
-        # 예약금 대조 줄(2026-09-09). 도크가 **자기 카드 안에** 만든 노드다 — 두 마운트
-        # (넓은 셸 pane · 좁은 셸 drawer)에 같은 줄이 서므로 문서 전역으로 찾는다.
-        ".naver-dock-deposit-state",
     }
     looked_up = {
         match[1] for match in
@@ -312,3 +313,14 @@ def test_dock_css_added_the_new_rules_without_dropping_the_old_ones():
     assert ".naver-dock-row.is-superseded" in css
     assert ".naver-dock-hh" in css
     assert ".naver-dock-row .naver-dock-zero" in css
+
+
+def test_dock_css_dropped_the_deposit_explainer_rules():
+    """카드 규칙은 3개(`.naver-dock-deposit`·`-hd`·`-won`)만 남는다 — 2026-09-10 사용자 지시로
+    대조 줄·문장·안내문 규칙 폐기."""
+    css = _DOCK_CSS.read_text(encoding="utf-8")
+    assert ".naver-dock-deposit .naver-dock-deposit-hd" in css
+    assert ".naver-dock-deposit .naver-dock-deposit-won" in css
+    for gone in (".naver-dock-deposit-state", ".naver-dock-deposit-say", ".naver-dock-deposit-note",
+                 ".naver-dock-deposit-acts", ".naver-dock-deposit-hint"):
+        assert gone not in css, gone

@@ -1055,7 +1055,11 @@
                                 <div class="wb-st">
                                     <div class="wb-st__k">FOMS</div>
                                     <div class="wb-st__v">
+                                        {# 추가결제·재결제 집이 대표가 붙은 그 주문을 가리키면 `주문 만듦` 은 접는다
+                                           (2026-09-10 사용자 지시) — 판정은 서버(`row.foms_badge_hidden`), 여기는 분기뿐. #}
+                                        {% if not row.foms_badge_hidden %}
                                         <span class="wb-st__b wb-st__b--{{ foms_tone }}">{{ row.foms_label }}</span>
+                                        {% endif %}
                                         {% if row.relation == 'NEW' %}
                                         <span class="wb-st__b wb-st__b--ghost">{{ row.relation_label }}</span>
                                         {% elif row.relation in ('ADDON', 'REPAY') %}
