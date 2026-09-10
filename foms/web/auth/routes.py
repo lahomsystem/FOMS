@@ -23,6 +23,7 @@ from foms.services.security.account_requests import (
     submit_password_reset_request,
 )
 from foms.services.audit_writer import normalize_security_detail
+from foms.services.channel_manager_room import normalize_channel_group_id
 from foms.services.user_deletion import (
     UserDeletionBlockedError,
     deactivate_user_preserving_audit,
@@ -145,7 +146,8 @@ def _merge_audit_detail(additional_data: object, detail: dict | None) -> dict | 
 
 
 # 관리자 사용자 수정에서 from→to 로 감사할 필드(권한·소속·활성·식별자).
-_AUDITED_USER_FIELDS = ('username', 'role', 'team', 'is_active', 'sender_phone')
+_AUDITED_USER_FIELDS = ('username', 'role', 'team', 'is_active', 'sender_phone',
+                        'channel_drawing_group_id')
 
 
 def _user_audit_snapshot(user):
@@ -853,6 +855,19 @@ def edit_user(user_id):
             sender_phone_raw = (request.form.get('sender_phone') or '').strip()
             sender_phone_digits = re.sub(r'\D', '', sender_phone_raw)
             user.sender_phone = sender_phone_digits or None
+            # 담당자 개인 도면방: 방 주소를 통째로 붙여 넣어도 받아 숫자만 저장한다.
+            room_raw = (request.form.get('channel_drawing_group_id') or '').strip()
+            try:
+                room_group_id = normalize_channel_group_id(room_raw)
+            except ValueError as exc:
+                flash(str(exc), 'error')
+                return render_template('auth/edit_user.html', user=user, roles=ROLES, teams=TEAMS,
+                                       count_admin=db.query(User).filter(User.role == 'ADMIN').count())
+            if room_raw and not room_group_id:
+                flash('담당자 도면방은 방 번호이거나 방 주소여야 합니다. 예: 567922', 'error')
+                return render_template('auth/edit_user.html', user=user, roles=ROLES, teams=TEAMS,
+                                       count_admin=db.query(User).filter(User.role == 'ADMIN').count())
+            user.channel_drawing_group_id = room_group_id or None
 
             # commit 후에는 속성이 expire 되므로 커밋 전에 after 를 확정한다.
             audit_after = _user_audit_snapshot(user)

@@ -89,6 +89,15 @@
                 <div class="form-text">고객 공유 링크 문자를 개인 명의로 보낼 때 씁니다. Solapi에 등록된 번호만 발신되며,
                     비워두면 회사 대표번호로 발송됩니다.</div>
             </div>
+            <div class="mb-3">
+                <label for="channel_drawing_group_id" class="form-label">담당자 도면방 (선택)</label>
+                <input type="text" class="form-control" id="channel_drawing_group_id" name="channel_drawing_group_id"
+                    value="{{ user.channel_drawing_group_id or '' }}"
+                    placeholder="예: 567922 또는 방 주소 붙여넣기" autocomplete="off">
+                <div class="form-text">도면방 PUSH 를 누르면 공용 도면방과 <strong>이 담당자의 개인 도면방</strong>으로 함께
+                    나갑니다. 주문의 담당자 이름이 위 <strong>이름</strong>과 같을 때 매칭됩니다. 비워두면 공용 도면방에만
+                    나갑니다. 채널톡 방 주소를 그대로 붙여 넣어도 됩니다.</div>
+            </div>
             <hr>
             <h6 class="mb-3">비밀번호 변경 (선택 사항)</h6>
             <div class="mb-3">

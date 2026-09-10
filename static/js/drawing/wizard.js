@@ -4458,7 +4458,7 @@
         btn.title = '전달된 도면이 없습니다. 도면을 먼저 전달해주세요.';
         return;   // finally 에서 다시 열린다
       }
-      if (!confirm('현재 전달본 도면 ' + count + '장을 도면방으로 보냅니다. 진행할까요?')) { return; }
+      if (!confirm('현재 전달본 도면 ' + count + '장을 도면방과 담당자 개인방으로 보냅니다. 진행할까요?')) { return; }
       return sendRoomPush(null).then(function (r) {
         var msg = String((r.data && r.data.message) || '');
         if (r.data && r.data.success !== true && msg.indexOf('재전송 시 변경 내용') >= 0) {
@@ -4470,7 +4470,15 @@
       }).then(function (r) {
         if (!r) { return; }
         if (!r.data || r.data.success !== true) { toast(serverErrorText(r, '도면방 PUSH 실패')); return; }
-        toast('도면방으로 도면 ' + (r.data.files_count || 0) + '장을 보냈습니다.');
+        // 담당자 개인방까지 나갔는지는 서버가 말한다. 못 보냈으면 그 사유를 그대로 띄운다.
+        var sentCount = r.data.files_count || 0;
+        if (r.data.manager_room_sent) {
+          toast('도면방과 담당자 개인방으로 도면 ' + sentCount + '장을 보냈습니다.');
+        } else if (r.data.message) {
+          toast(r.data.message);
+        } else {
+          toast('도면방으로 도면 ' + sentCount + '장을 보냈습니다.');
+        }
       });
     }).catch(function (err) {
       console.warn('[dws] drawing room push', err);
