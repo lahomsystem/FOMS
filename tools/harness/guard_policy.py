@@ -464,12 +464,33 @@ def _classify_git_checkout(tokens: list[str], checkout_idx: int) -> tuple[str, s
     return "allow", ""
 
 
+def _classify_git_add(tokens: list[str], add_idx: int) -> tuple[str, str]:
+    """`git add -f/--force` = ask — ignored 파일(로그·비밀·산출물)을 추적에 넣는 유일한 경로.
+
+    2026-09-09 감사 MOVE-TO-CODE 2순위: 텍스트 규칙으로는 막지 못한 산출물 커밋 혼입.
+
+    파라미터:
+        tokens: 따옴표 제거된 argv 토큰.
+        add_idx: 'add' 토큰의 인덱스.
+    반환: (decision, label).
+    """
+    for tok in tokens[add_idx + 1:]:
+        stripped = _strip_quotes(tok)
+        if stripped == "--":
+            break
+        if stripped == "--force" or re.fullmatch(r"-[A-Za-z]*f[A-Za-z]*", stripped):
+            return "ask", "git add 강제(ignored 파일 추적)"
+    return "allow", ""
+
+
 def _classify_git(tokens: list[str]) -> tuple[str, str]:
     """git 명령 디스패처."""
     idx = _git_subcommand_index(tokens)
     if idx is None:
         return "allow", ""
     sub = _strip_quotes(tokens[idx]).lower()
+    if sub == "add":
+        return _classify_git_add(tokens, idx)
     if sub == "push":
         return _classify_git_push(
             tokens,

@@ -124,6 +124,14 @@ CASES: list[tuple[str, str]] = [
     ("deny", "sh <<EOF\nrm -rf /\nEOF"),
     # heredoc 뒤에 이어지는 실제 명령은 여전히 판정한다
     ("deny", "cat > x.txt <<'EOF'\nhello\nEOF\ngit push --force origin production"),
+    # --- ablation v2 §6 MOVE-TO-CODE: `git add -f` 는 ignored 파일(로그·비밀·산출물)을 추적에 넣는다 ---
+    ("ask", "git add -f docs/harness/logs/SHELL_GUARD_LOG.md"),
+    ("ask", "git add --force .env"),
+    ("ask", "git add -fA ."),
+    ("ask", "git add -Af ."),
+    ("allow", "git add -A"),
+    ("allow", "git add -- CLAUDE.md"),
+    ("allow", "git add -p foms/"),
 ]
 
 _IDS = [f"{dec}:{cmd}".replace("\n", "\\n") for dec, cmd in CASES]

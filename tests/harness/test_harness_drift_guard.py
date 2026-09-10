@@ -101,6 +101,28 @@ def test_task_grade_marker_ssot_is_guide() -> None:
     assert "`**B` 하루" not in claude, "마커 상세가 CLAUDE.md 에 다시 들어왔다"
 
 
+INLINE_STYLE_RATCHET = 828  # 2026-09-10 실측: templates+static 의 .html/.js 안 `style="` 개수. 줄어들면 값을 낮춘다
+
+
+def count_inline_styles() -> int:
+    """templates/·static/ 의 .html/.js 파일에서 `style="` 개수를 센다(ratchet 기준값 재측정용)."""
+    count = 0
+    for base in ("templates", "static"):
+        for p in (REPO / base).rglob("*"):
+            if p.suffix in {".html", ".js"} and p.is_file():
+                count += _read(p).count('style="')
+    return count
+
+
+def test_inline_style_ratchet() -> None:
+    """인라인 style 개수는 기준값보다 늘 수 없다 — 규칙 두 벌(CLAUDE.md·AGENTS.md)이 5주간 76행 추가를 못 막았다(MOVE-TO-CODE)."""
+    count = count_inline_styles()
+    assert count <= INLINE_STYLE_RATCHET, (
+        f"inline style {count} > 기준 {INLINE_STYLE_RATCHET} — erp-pro.css 로 옮겨라"
+        "(기준값은 tests/harness/test_harness_drift_guard.py::INLINE_STYLE_RATCHET)"
+    )
+
+
 _LIVE_GUARD_LOG = REPO / "docs" / "harness" / "logs" / "SHELL_GUARD_LOG.md"
 _LIVE_HOOK_LOG = REPO / "docs" / "harness" / "logs" / "CLAUDE_HOOK_LOG.md"
 

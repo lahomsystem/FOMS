@@ -123,3 +123,33 @@ def test_promote_creates_pr_not_direct_production_push(
         ["git", "branch", "-a"], cwd=bare, text=True
     )
     assert "promote/own-" in branches or "tmp/own-prod-" in branches
+
+
+def test_promote_range_mismatch_blocks_pr(tmp_path: Path, monkeypatch: Any) -> None:
+    """cherry-pick 뒤 worktree 커밋 수가 요청 SHA 수와 다르면(타 세션 혼입·누락) PR 을 열지 않는다.
+
+    ablation v2 §6 MOVE-TO-CODE 3순위 — 승격 PR 에 타 세션 커밋이 동반된 사고(`7357924c0`)의 코드 가드.
+    """
+    mod = _load()
+    local, _bare, dep, feat = _setup(tmp_path)
+    gh_calls: list[list[str]] = []
+
+    def fake_gh(cwd: str, args: list[str]) -> subprocess.CompletedProcess[str]:
+        gh_calls.append(list(args))
+        return subprocess.CompletedProcess(args, 0, "https://example/pr/9" + chr(10), "")
+
+    real_run = mod._run
+
+    def spy_run(cwd: str, *args: str, check: bool = True):
+        result = real_run(cwd, *args, check=check)
+        if args and args[0] == "git" and "cherry-pick" in args and result.returncode == 0:
+            # 타 세션 커밋이 끼어든 상황을 흉내 낸다
+            real_run(cwd, "git", "-c", "user.email=x@x", "-c", "user.name=x", "commit", "--allow-empty", "-m", "stray", check=False)
+        return result
+
+    monkeypatch.setattr(mod, "_run", spy_run)
+    wt = tmp_path / "wts"
+    wt.mkdir()
+    code = mod.promote_own_commits(str(local), [dep, feat], worktree_parent=str(wt), gh_runner=fake_gh)
+    assert code == 3, "범위 불일치는 충돌과 같은 등급으로 멈춰야 한다"
+    assert gh_calls == [], "PR 을 열면 안 된다"
