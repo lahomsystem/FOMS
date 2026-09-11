@@ -14,6 +14,8 @@ from pathlib import Path
 from werkzeug.security import generate_password_hash
 
 import foms.api.drawing.erp_orders_revision as revision_api
+from sqlalchemy.orm.attributes import flag_modified
+
 from db import db_session
 from models import Order, User
 
@@ -105,22 +107,40 @@ def test_revision_realtime_payload_carries_interrupt_grade(client, monkeypatch):
 
 
 def test_revision_cancel_is_not_an_interrupt(client, monkeypatch):
-    """요청 취소는 작업을 멈출 일이 아니다 — 확인창 등급을 달지 않는다."""
+    """요청 취소는 작업을 멈출 일이 아니다 — 확인창 등급을 달지 않는다(쪽지 등급은 별도)."""
     source = (ROOT / "foms/api/drawing/erp_orders_revision.py").read_text(encoding="utf-8")
     cancel_block = source.split("DRAWING_REVISION_CANCELLED", 1)[1]
     assert "'interrupt': True" not in cancel_block
 
 
-def test_shared_layout_routes_interrupt_to_dialog():
-    """공용 레이아웃(인라인 + 외부 SSOT 사본) 둘 다 interrupt 분기를 가진다."""
+def test_shared_layout_routes_grades_to_dialog():
+    """공용 레이아웃(인라인 + 외부 SSOT 사본) 둘 다 등급 분기를 모듈로 넘긴다."""
     head = (ROOT / "templates/partials/shared/layout_head.html").read_text(encoding="utf-8")
     init_js = (ROOT / "static/js/runtime/layout-head-init.js").read_text(encoding="utf-8")
     scripts = (ROOT / "templates/partials/shared/layout_scripts.html").read_text(encoding="utf-8")
     for text in (head, init_js):
-        assert "data.interrupt === true" in text
-        assert "window.FOMSDrawingAlert.show(data)" in text
+        assert "window.FOMSDrawingAlert.handle(data)" in text
+        # 긴급(P0)은 여전히 전체화면 오버레이가 먼저 잡는다.
+        assert "triggerUrgentBriefingAlert(data)" in text
     assert "js/foms/foms-drawing-alert.js" in scripts
     assert "css/components/foms-drawing-alert.css" in scripts
+
+
+def test_cancel_notice_grade_is_wired():
+    """수정 요청 취소는 NOTICE 등급(쪽지)으로 나가고, 확인창 등급은 아니다."""
+    source = (ROOT / "foms/api/drawing/erp_orders_revision.py").read_text(encoding="utf-8")
+    cancel_block = source.split("DRAWING_REVISION_CANCELLED", 1)[1]
+    assert "'notice': True" in cancel_block
+    assert "'interrupt': True" not in cancel_block
+
+    js = (ROOT / "static/js/foms/foms-drawing-alert.js").read_text(encoding="utf-8")
+    # 등급 판정은 서버 몫 — 프런트는 두 플래그만 본다.
+    assert "data.interrupt === true" in js
+    assert "data.notice === true" in js
+    # 쪽지는 스스로 닫아야 읽음이 된다(자동 닫힘 금지 — 못 본 채 사라짐 재발).
+    assert "setTimeout" not in js.split("function notice(", 1)[1].split("function handle(", 1)[0]
+    css = (ROOT / "static/css/components/foms-drawing-alert.css").read_text(encoding="utf-8")
+    assert ".foms-drawing-notice" in css
 
 
 def test_wizard_standalone_loads_alert_stack():
@@ -146,3 +166,40 @@ def test_dialog_acks_before_closing():
     assert "FOMSNotificationWrite" in js
     # 서버가 등급을 정한다 — 프런트는 interrupt 플래그만 본다.
     assert "data.interrupt !== true" in js
+
+
+def test_cancel_realtime_payload_carries_notice_grade(client, monkeypatch):
+    """취소 라우트가 실제로 notice 등급 payload 를 쏜다(문자열 검사가 아니라 호출 결과로)."""
+    sent: list[dict] = []
+    monkeypatch.setattr(
+        revision_api,
+        "emit_erp_notification_to_users",
+        lambda user_ids, payload: sent.append(dict(payload or {})),
+    )
+    monkeypatch.setattr(
+        revision_api, "enqueue_push_for_notification", lambda *a, **k: None, raising=False
+    )
+
+    sales = _make_user("rev_sales_notice", role="MANAGER", team="SALES", name="영업취소")
+    order = _make_transferred_order("영업취소")
+    sd = dict(order.structured_data)
+    sd["drawing_status"] = "RETURNED"
+    sd["drawing_transfer_history"] = sd["drawing_transfer_history"] + [
+        {"action": "REQUEST_REVISION", "by_user_name": "영업취소", "files": [],
+         "at": "2026-09-11 09:00:00"}
+    ]
+    order.structured_data = sd
+    flag_modified(order, "structured_data")
+    db_session.commit()
+    order_id = order.id
+    _login(client, sales)
+
+    res = client.post(f"/api/orders/{order_id}/cancel-revision-request")
+    assert res.status_code == 200, res.get_data(as_text=True)
+
+    cancels = [p for p in sent if p.get("notification_type") == "DRAWING_REVISION_CANCELLED"]
+    assert len(cancels) == 1
+    payload = cancels[0]
+    assert payload["notice"] is True
+    assert payload.get("interrupt") in (None, False)
+    assert payload["created_by_name"] == "영업취소"

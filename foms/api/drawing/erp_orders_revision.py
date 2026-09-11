@@ -391,6 +391,10 @@ def api_order_cancel_revision_request(order_id):
                     'notification_id': cancel_notif.id, 'order_id': order_id,
                     'notification_type': 'DRAWING_REVISION_CANCELLED',
                     'title': cancel_notif.title, 'message': cancel_notif.message,
+                    'created_by_name': current_user.name,
+                    # NOTICE 등급: 작업을 멈출 일은 아니지만 종 배지로만 두면 놓친다.
+                    # 화면 오른쪽 아래 쪽지로 남고, 닫으면 읽음 처리된다(확인창과 달리 ack 없음).
+                    'notice': True,
                 })
             except Exception as _fin_err:
                 logger.warning("cancel-revision notification finalize failed: %s", _fin_err, exc_info=True)

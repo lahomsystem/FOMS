@@ -152,3 +152,108 @@ html.foms-drawing-alert-open {
     flex-direction: column;
   }
 }
+
+/* ── NOTICE 등급: 오른쪽 아래 쪽지 (수정 요청 취소 등) ─────────────────────
+ * 작업을 막지 않는다. 자동으로 사라지지도 않는다 — 스스로 닫아야 읽음이 된다.
+ * 여러 건이면 아래에서 위로 쌓인다.
+ */
+.foms-drawing-notices {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 105400; /* 확인창(105500) 바로 아래 */
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 10px;
+  max-width: min(340px, calc(100vw - 36px));
+  pointer-events: none;
+}
+
+.foms-drawing-notice {
+  pointer-events: auto;
+  background: #fff;
+  color: #1b2733;
+  border: 1px solid #b3c3d0;
+  border-left: 4px solid #b8431a;
+  border-radius: 3px;
+  box-shadow: 0 10px 28px rgba(16, 32, 44, 0.18);
+  padding: 12px 14px;
+}
+
+.foms-drawing-notice__h {
+  margin: 0;
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: #b8431a;
+}
+
+.foms-drawing-notice__m {
+  margin: 6px 0 0;
+  font-size: 0.86rem;
+  line-height: 1.5;
+  color: #33465a;
+  word-break: keep-all;
+}
+
+.foms-drawing-notice__m span {
+  color: #6d8598;
+}
+
+.foms-drawing-notice__a {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.foms-drawing-notice__btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 6px 12px;
+  border: 1px solid #b3c3d0;
+  border-radius: 3px;
+  background: #fff;
+  color: #1b2733;
+  font-size: 0.86rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.foms-drawing-notice__btn:hover {
+  background: #f2f5f8;
+}
+
+.foms-drawing-notice__btn--ghost {
+  color: #6d8598;
+}
+
+.foms-drawing-notice__btn:focus-visible {
+  outline: 3px solid #1763a6;
+  outline-offset: 2px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .foms-drawing-notice {
+    background: #13212c;
+    color: #e8eef3;
+    border-color: #37576d;
+    border-left-color: #f08a5d;
+  }
+
+  .foms-drawing-notice__h {
+    color: #f08a5d;
+  }
+
+  .foms-drawing-notice__m {
+    color: #a9bcc9;
+  }
+
+  .foms-drawing-notice__btn {
+    background: #182b38;
+    border-color: #37576d;
+    color: #e8eef3;
+  }
+}
