@@ -14,6 +14,8 @@ from foms.services.notifications.drawing_order_change import (
     ack_drawing_order_change,
     apply_drawing_order_change_alert,
     compute_drawing_relevant_changes,
+    drawing_impacting_changes,
+    is_drawing_impacting_path,
     is_order_change_pending,
     should_alert_drawing_team,
     summarize_changes,
@@ -218,8 +220,12 @@ def test_debounce_merges_within_60s(app, drawing_order):
         actor_id = actor.id
         order = db.get(Order, drawing_order.id)
         old = copy.deepcopy(order.structured_data)
+        # 1차는 도면 영향 변경(색상 교체)으로 알림을 띄운다 — 시공일 같은 비영향 변경은
+        # 2026-09-11 개편 이후 알림을 만들지 않는다. 빈 값→값 최초 입력도 사고가 아니라
+        # change 로 안 잡히므로 이전 색상을 채워 둔다.
+        old["items"][0]["color"] = "화이트"
         new = copy.deepcopy(old)
-        new["schedule"]["construction"]["date"] = "2026-07-28"
+        new["items"][0]["color"] = "포그그레이"
         n1, c1 = apply_drawing_order_change_alert(
             db, order, old, new, actor_user_id=actor_id, actor_name="A"
         )
@@ -235,7 +241,7 @@ def test_debounce_merges_within_60s(app, drawing_order):
         history = new2.get("drawing_transfer_history") or []
         assert len([h for h in history if h.get("action") == HISTORY_ACTION]) == 1
         note = history[-1]["note"]
-        assert "시공일" in note and "주소" in note
+        assert "색상" in note and "주소" in note
         db.rollback()
 
 
@@ -552,3 +558,125 @@ def test_humanize_dedupes_legacy_dimension_rows():
         {"path": "items.0.color", "label": "항목1 색상", "from": "화이트", "to": "그레이"},
     ])
     assert [r["path"] for r in rows] == ["items.0.spec", "items.1.spec", "items.0.color"]
+
+
+# --- 2026-09-11 알림 다이어트: 도면 영향 항목만 알림으로 올린다 ---------------
+
+
+def test_impacting_path_classification():
+    """품목·비고·지방시공유형만 도면을 다시 그리게 만든다."""
+    for path in (
+        "items.0.color",
+        "items.1.product_name",
+        "items.0.spec_width",
+        "notes",
+        "notes.measurement_note",
+        "construction_type",
+    ):
+        assert is_drawing_impacting_path(path) is True, path
+    for path in (
+        "payment",
+        "payment.free_input",
+        "schedule.construction.date",
+        "schedule.measurement.date",
+        "shipment.construction_workers",
+        "site.address",
+        "flags.factory2",
+        "parties.manager.name",
+        "notes.phone_note",
+        "is_regional",
+        "",
+    ):
+        assert is_drawing_impacting_path(path) is False, path
+
+
+def test_non_drawing_change_records_timeline_without_notification(app, drawing_order):
+    """결제·시공일만 바뀌면 타임라인에는 남고 알림·배지는 생기지 않는다."""
+    with app.app_context():
+        db = db_session()
+        order = db.get(Order, drawing_order.id)
+        old = copy.deepcopy(order.structured_data)
+        new = copy.deepcopy(old)
+        new["schedule"]["construction"]["date"] = "2026-08-01"
+        new["payment"] = {"balance": 500000}
+        before = db.query(Notification).filter(
+            Notification.order_id == order.id,
+            Notification.notification_type == NOTIFICATION_TYPE,
+        ).count()
+        notif, created = apply_drawing_order_change_alert(
+            db, order, old, new, actor_user_id=None, actor_name="영업"
+        )
+        assert notif is None and created is False
+        after = db.query(Notification).filter(
+            Notification.order_id == order.id,
+            Notification.notification_type == NOTIFICATION_TYPE,
+        ).count()
+        assert after == before
+        history = [h for h in (new.get("drawing_transfer_history") or [])
+                   if h.get("action") == HISTORY_ACTION]
+        assert len(history) == 1
+        assert "시공일" in history[-1]["note"]
+        assert is_order_change_pending(new) is False
+        db.rollback()
+
+
+def test_drawing_change_still_notifies(app, drawing_order):
+    """규격이 바뀌면 종전처럼 알림 + 배지가 뜬다(다이어트가 과하게 자르지 않는다)."""
+    with app.app_context():
+        db = db_session()
+        order = db.get(Order, drawing_order.id)
+        old = copy.deepcopy(order.structured_data)
+        new = copy.deepcopy(old)
+        new["items"][0]["width"] = "1500"
+        notif, created = apply_drawing_order_change_alert(
+            db, order, old, new, actor_user_id=None, actor_name="영업"
+        )
+        assert created is True
+        assert notif is not None and notif.target_team == "DRAWING"
+        assert is_order_change_pending(new) is True
+        db.rollback()
+
+
+def test_mixed_change_notifies_and_keeps_every_row(app, drawing_order):
+    """도면 항목 1개 + 무관 항목들이 섞이면 알림은 뜨고 타임라인은 전부 남는다."""
+    with app.app_context():
+        db = db_session()
+        order = db.get(Order, drawing_order.id)
+        old = copy.deepcopy(order.structured_data)
+        new = copy.deepcopy(old)
+        new["items"][0]["height"] = "2200"
+        new["schedule"]["construction"]["date"] = "2026-08-02"
+        notif, created = apply_drawing_order_change_alert(
+            db, order, old, new, actor_user_id=None, actor_name="영업"
+        )
+        assert created is True and notif is not None
+        entry = [h for h in (new.get("drawing_transfer_history") or [])
+                 if h.get("action") == HISTORY_ACTION][-1]
+        paths = {c.get("path") for c in (entry.get("changes") or [])}
+        assert "schedule.construction.date" in paths
+        assert any(p.startswith("items") for p in paths)
+        assert len(drawing_impacting_changes(entry["changes"])) >= 1
+        db.rollback()
+
+
+def test_non_drawing_change_does_not_clear_earlier_badge(app, drawing_order):
+    """도면 변경이 미확인인데 뒤이어 결제만 바뀌어도 '주문변경' 배지는 살아 있다."""
+    with app.app_context():
+        db = db_session()
+        order = db.get(Order, drawing_order.id)
+        base = copy.deepcopy(order.structured_data)
+        step1 = copy.deepcopy(base)
+        step1["items"][0]["width"] = "1600"
+        apply_drawing_order_change_alert(
+            db, order, base, step1, actor_user_id=None, actor_name="영업"
+        )
+        assert is_order_change_pending(step1) is True
+        # 60초 debounce 밖에서 온 무관 변경(다른 actor)
+        step2 = copy.deepcopy(step1)
+        step2["payment"] = {"balance": 1000}
+        notif, created = apply_drawing_order_change_alert(
+            db, order, step1, step2, actor_user_id=None, actor_name="회계"
+        )
+        assert created is False
+        assert is_order_change_pending(step2) is True
+        db.rollback()
