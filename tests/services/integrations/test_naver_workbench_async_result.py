@@ -412,7 +412,7 @@ def test_bulk_note_exists_and_asset_pin_moved():
 
     assert 'id="wb-bulk-note"' in markup
     assert 'id="wb-retry-note"' in markup
-    assert markup.count("?v=20260910a") == 2, "CSS·JS 핀을 함께 올린다"
+    assert markup.count("?v=20260911a") == 2, "CSS·JS 핀을 함께 올린다"  # 2026-09-11 부분 취소·반품
 
 
 # --------------------------------------------------------------------------- #

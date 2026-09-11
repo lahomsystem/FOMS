@@ -417,7 +417,8 @@ def _enqueue_refresh_after(action: str, link_id: int, actor_user_id=None) -> boo
 
 
 def run_naver_fulfillment_task(link_id: int, action: str, actor_user_id=None,
-                               reason=None, detail=None, approve=False):
+                               reason=None, detail=None, approve=False,
+                               product_order_ids=None):
     """발주확인·발송처리·취소·반품접수 1건 실행 (NAVER-INGEST-02 T16-G, WORKER 전용).
 
     web 은 enqueue 만 한다 — 커머스API 에 등록된 호출 IP 가 WORKER 것뿐이라 web 에서 나가면
@@ -433,6 +434,10 @@ def run_naver_fulfillment_task(link_id: int, action: str, actor_user_id=None,
         reason: 사유 코드(``cancel``·``return``) 또는 **거부 사유 문장**(``return-reject`` —
             코드가 아니라 구매자에게 그대로 가는 문장이다).
         detail: 상세 사유(``cancel``·``return`` 일 때만, 선택).
+        approve: ``return`` 에서 접수 성공분을 이어서 승인할지.
+        product_order_ids: ``cancel``·``return`` 의 대상 상품주문 id 목록(NVCLAIM-PARTIAL-01).
+            ``None`` = 키 부재 = 집 전체 — 그때는 서비스 kwargs 도 오늘과 같다. 목록이면 그대로
+            서비스에 넘기고, 세 의미(None / [] / 목록)의 판정은 서비스가 한다.
 
     Returns:
         서비스 결과 dict.
@@ -447,6 +452,10 @@ def run_naver_fulfillment_task(link_id: int, action: str, actor_user_id=None,
         db = db_session()
         try:
             client = NaverCommerceClient()
+            # 대상 목록은 **있을 때만** 넘긴다 — None 이면 옛 kwargs 그대로라 서비스 시그니처에
+            # 기대는 가짜 서비스(테스트)·옛 워커가 그대로 돈다.
+            extra = ({"product_order_ids": list(product_order_ids)}
+                     if product_order_ids is not None else {})
             if action == "confirm":
                 result = naver_fulfillment.confirm_place_order(
                     db, client, link_id=int(link_id), actor_user_id=actor_user_id)
@@ -456,14 +465,14 @@ def run_naver_fulfillment_task(link_id: int, action: str, actor_user_id=None,
             elif action == "cancel":
                 result = naver_fulfillment.cancel_order(
                     db, client, link_id=int(link_id), reason=str(reason or ""),
-                    detail=detail, actor_user_id=actor_user_id)
+                    detail=detail, actor_user_id=actor_user_id, **extra)
             elif action == "return":
                 # 반품 접수도 되돌릴 수 없다 — 취소와 같은 자리를 쓰는 이유는 아래
                 # ``except FulfillmentError`` 의 커밋 규율이다(실패 사유를 DB 에 남긴다).
                 result = naver_fulfillment.request_return(
                     db, client, link_id=int(link_id), reason=str(reason or ""),
                     detail=detail, actor_user_id=actor_user_id,
-                    approve=bool(approve))
+                    approve=bool(approve), **extra)
             elif action == "return-reject":
                 # 반품 **거부**(T8-S3). 접수·승인과 같은 자리를 쓰는 이유는 아래
                 # ``except FulfillmentError`` 의 커밋 규율이다 — 실패 사유가 DB 에 남는다.

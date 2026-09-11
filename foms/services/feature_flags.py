@@ -328,6 +328,30 @@ def is_naver_workbench_enabled(user_id: int | None) -> bool:
     )
 
 
+def is_naver_partial_claim_enabled(user_id: int | None) -> bool:
+    """네이버 워크벤치 취소·반품의 **상품주문 일부 선택**(NVCLAIM-PARTIAL-01) 자격 판정.
+
+    기본 off 다. 꺼져 있으면 오늘 모달(집 전체 취소·반품)이 그대로 뜨고, 라우트는
+    ``product_order_ids`` 목록을 받으면 403 으로 튕긴다 — 켜기 전에는 어떤 경로로도
+    일부 선택이 네이버로 나가지 않는다. **롤백 = 이 게이트를 끄는 것**이다.
+
+    라우트 3곳이 **같은 게이트**를 본다: 취소·반품 라우트의 목록 인자
+    (``product_order_ids``)와 미리보기 라우트(``claim-plan``). 한쪽만 열면 열린 화면이
+    403/404 를 받는다(워크벤치 게이트와 같은 규율). 코호트는 워크벤치 게이트 안에서
+    더 좁게 잡는다 — 실호출 전 스테이징 측정 계정 1명만 켜는 용도다.
+
+    Args:
+        user_id: 현재 사용자 id(미인증 시 None).
+
+    Returns:
+        일부 선택 UI·라우트를 열 자격이 있으면 True.
+    """
+    return is_enabled_for_user(
+        "FOMS_NAVER_PARTIAL_CLAIM_ENABLED", user_id,
+        cohort_key="FOMS_NAVER_PARTIAL_CLAIM_COHORT",
+    )
+
+
 def is_naver_bulk_dispatch_enabled() -> bool:
     """네이버 **일괄 발송처리 실행**이 켜져 있나 (NAVER-BULKDISPATCH-01 T4).
 

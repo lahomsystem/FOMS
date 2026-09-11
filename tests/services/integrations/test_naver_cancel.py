@@ -84,6 +84,9 @@ def test_cancel_covers_the_whole_household_one_call_each(app):
     """한 집은 통째로 취소한다 — 형제가 남으면 반쪽 취소가 된다.
 
     네이버 취소 API 는 상품주문 1건씩이라 집 크기만큼 호출한다.
+
+    **키 부재 경로**(``product_order_ids=None``)의 계약이다 — 부분집합은
+    test_naver_partial_claim.py(NVCLAIM-PARTIAL-01, 2026-09-11).
     """
     first = _link("PO-C1", order_no="N-CXL-1")
     _link("PO-C2", order_no="N-CXL-1")

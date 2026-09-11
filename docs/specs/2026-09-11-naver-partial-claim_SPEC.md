@@ -232,5 +232,15 @@ deploy(스테이징) → 게이트 OFF 로 배포 → §8 QA → 게이트 ON(�
 | 5 | 부분 취소 뒤 남은 라인 발주확인·발송 | **허용** — 취소 표식 라인 제외, 취소 실패 라인 있으면 차단 유지 | 2026-09-11 |
 | 6 | 재결제·추가결제 관계 집 | **허용** | 2026-09-11 |
 | 7 | 수량 일부 취소 | **범위 밖** — 호출자 `quantity` 금지 계약 | 2026-09-11 |
+| 8 | 취소 버튼이 형제 클레임으로 집을 잠그나 | **아니오(CEO, 계약 §4 개정)** — `can_cancel` 은 `household_claimed` 를 안 본다. 행 술어 `cancel_sendable_count > 0` + 서버 `_claim_guard(scope=todo)` 가 형제 클레임을 라인 단위로 거른다 | 2026-09-11 |
+| 9 | 벌크 발송 pre-check(`bulk_dispatch._blocking_reason`) | **`_cancel_guard` 거울(CEO)** — partial 표식 행은 클레임 판정에서 빼고 집도 잠그지 않는다. household·옛 키 없음 표식, 취소 실패 잔존(`last_error_action == "cancel"`)만 잠금 | 2026-09-11 |
 
 기준 사례: 운영 #2354(브리프 §2-1). 스펙 승인 2026-09-11, 2단계 구현 워크플로로 진행.
+
+### 11-1. 계약 개정·앵커 (CEO 재판정 2026-09-11, 구현 반영 뒤 행 번호)
+
+- **계약 §4 개정**: `can_cancel = not household_canceled and not dispatched_any and not naver_sent_at and cancel_sendable_count > 0 and not cancel_scope_gap` (결정 8). pane 은 `household_claimed = selected_household_claimed or (selected.claim.blocking and not selected.partial_canceled) or grp.claim_blocking` 으로 — 어느 형제로 열었느냐에 따라 발주확인·발송 버튼이 달라지지 않는다(M-4).
+- **계약 §3 앵커 추가**(결정 5 — 우리가 일부 취소한 행의 `CANCEL_DONE` 은 집을 잠그지 않는다, `_group_queue`·`_household_has_claim` 와 같은 규칙):
+  `naver_ingest._attach_household_counts` :3570-3605(옛 경로, `blocking`) · `naver_ingest._build_sibling_index` :3792-3811(`index.blocking`·`index.confirmed_claim_blocked`·`index.canceled`) · `naver_ingest._triage_pane.selected.partial_canceled` :1592 · `bulk_dispatch._blocking_reason` :341-372(결정 9).
+- **공존 — 설계 유지**: 목록 줄 `_row_view`(:2786-2790) 는 형제 `CANCEL_DONE`(판매자센터 취소, 우리 표식 없음) 집을 여전히 `stop`/"손대지 않음" 으로 그리고, pane 은 같은 집에서 취소 버튼을 연다. 목록 줄 술어는 **발주확인·발송 축**이고 취소 축은 pane 의 행 단위 모달만 쓴다 — 반품 축과 같은 공존이다. 고치지 않는다.
+- 회귀 테스트: `tests/services/integrations/test_naver_partial_claim.py` (a) `test_list_row_and_pane_stay_open_for_a_partially_canceled_sibling`(음성 대조군 household·옛 표식) (b) `test_pane_buttons_do_not_depend_on_which_sibling_opened_it` (c) `test_bulk_blocking_reason_mirrors_the_cancel_guard`(순수 함수, 네이버 0회). `is_partial_canceled` 를 항상 False 로 바꾸면 셋 다 red 임을 CEO 가 재확인했다.
