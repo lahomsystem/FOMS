@@ -555,7 +555,10 @@ def test_queue_card_v2_supports_pc_workflow_action_parity() -> None:
     # - 미승인 퀘스트: 상세 승인 섹션으로 deep-link(맥락/권한 재검증)
     # - 도면 단계(메인 enrichment에서 퀘스트 미생성): 도면 창구로 직접 진입
     assert "quest_actionable" in card
-    assert "퀘스트 승인" in card
+    # 승인 CTA 문구는 서버가 단계별로 만든다 — 카드에 "퀘스트 승인" 같은 한 덩어리 이름을 박지 않는다.
+    assert "quest.approve_label" in card
+    assert "quest.approve_confirm" in card
+    assert "quest_inline_approve" in card
     assert "#foms-detail-quest" in card
     assert "can_assignee_approve" in card
     assert "drawing_actionable" in card

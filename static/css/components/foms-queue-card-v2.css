@@ -384,3 +384,24 @@
     margin-bottom: var(--foms-space-3);
   }
 }
+
+/* 승인 직후 되돌아온 카드 강조 — 목록에서 승인하면 문서를 다시 읽으므로, 방금 처리한
+   카드가 어디로 갔는지(단계 섹션 이동·완료 배지) 눈으로 찾을 수 있어야 한다.
+   erp-quest-approve.js 가 2.4초간 붙였다 뗀다. */
+.foms-queue-card-v2.is-foms-just-approved {
+  outline: 2px solid var(--foms-color-primary, #0b57d0);
+  outline-offset: 2px;
+  animation: foms-queue-card-just-approved 2.4s ease-out both;
+}
+
+@keyframes foms-queue-card-just-approved {
+  0% { outline-color: var(--foms-color-primary, #0b57d0); }
+  70% { outline-color: var(--foms-color-primary, #0b57d0); }
+  100% { outline-color: transparent; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .foms-queue-card-v2.is-foms-just-approved {
+    animation: none;
+  }
+}

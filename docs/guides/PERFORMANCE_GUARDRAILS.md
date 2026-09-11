@@ -52,6 +52,19 @@ fragment 경로를 반복 측정(첫 회 웜업 버림) → 커밋된 예산(`to
     RTT 분산(창 분산)이 상쇄돼, 빠른 창에 시드한 예산이 정상 창을 오탐하던 결함이 사라진다.
   - **median/p95/최댓값은 판정에 절대 넣지 않는다**(리포트 정보용). 정밀 서버 회귀는
     render_ms_max·바이트·쿼리 계약이 잡는다.
+- **측정 페르소나 = 광폭 마우스 PC** (2026-09-11 신설, `GATE_PERSONA_COOKIES`). 봇이
+  `foms_scr=1920`·`foms_ptr=fine` 을 함께 실어 **실제 PC 브라우저와 같은 응답**을 받는다.
+  이 쿠키가 없으면 서버가 안전 폴백으로 데스크톱 큐 + 태블릿 칸반 + 모바일 카드를 **전부**
+  렌더해, 실사용자에 없는 합성 최악값을 재게 된다(실측: `/erp/production/dashboard`
+  44,121B·dTTFB 106.5ms → 36,893B·86.7ms, 20ms·16% 과대. `/erp/construction/dashboard`
+  바이트 예산은 재시드로 −75.9%).
+  - 이 게이트가 재는 `?view=fragment` 는 셸이 이미 뜬 뒤의 탭 전환이라 실제 클라이언트는
+    항상 두 쿠키를 갖고 있다. 쿠키 없는 첫 요청은 full document 경로이고 측정 대상이 아니다.
+  - **쿠키 jar 가 아니라 `Cookie` 헤더에 합쳐야 한다.** 세션이 로그인 쿠키를
+    `headers['Cookie']` 로 명시하므로 requests 가 jar 를 병합하지 않는다(jar 로 심은 첫
+    구현은 wire 가 1바이트도 안 줄어 드러났다).
+  - **커버리지 공백(의도)**: `foms_ptr=fine` 이라 coarse 전용 표면(태블릿 칸반)은 이 패스에
+    안 잡힌다. 예전에는 쿠키가 없어 우연히 함께 재고 있었다. 별도 페르소나 패스가 후속 과제.
 - **budgets 스키마 v2**: 경로별 판정 키 `ttfb_delta_min_ms`(신규) + `body_bytes_max`(유지).
   v1 의 `ttfb_warm_median_ms` 는 제거됨. `_global.schema: 2` 표기.
 - **조건부 304 계약**: 각 경로 1회 ETag 에코(If-None-Match) → 304 확인(하트비트 경제성 회귀 감시).

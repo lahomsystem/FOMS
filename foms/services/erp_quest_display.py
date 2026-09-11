@@ -17,6 +17,7 @@ from foms.services.erp_policy import (
     get_quest_template_for_stage,
     get_required_approval_teams_for_stage,
 )
+from foms.services.orders.quest_approve_cta import build_approve_cta
 
 __all__ = [
     "ACTIVE_QUEST_STATUSES",
@@ -403,6 +404,7 @@ def build_current_quest_payload(
         "assignee_approval": current_quest.get("assignee_approval") or {},
         "assignee_display_names": assignee_display_names,
         "can_assignee_approve": can_assignee_approve,
+        **build_approve_cta(stage_code_key, order),
     }
 
 

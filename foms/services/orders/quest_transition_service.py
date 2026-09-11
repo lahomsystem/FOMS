@@ -77,6 +77,28 @@ _STAGE_ADVANCE: Dict[str, Tuple[str, str, str, bool]] = {
 _COMMAND_REQUIRED_STAGES = frozenset({"DRAWING", "CONFIRM"})
 
 
+def stage_advance_target(stage_code: Optional[str]) -> Optional[str]:
+    """``stage_code`` 의 quest 최종 승인이 옮겨 갈 다음 stage 코드. 옮기지 않으면 None.
+
+    표시 계층(승인 버튼 문구)이 "다음 단계로 넘어간다"를 약속해도 되는지 판정하는 SSOT.
+    :data:`_STAGE_ADVANCE` 를 그대로 읽으므로 전이 규칙과 문구가 갈라지지 않는다.
+
+    :param stage_code: 영문 stage 코드(``MEASURE`` 등). None/미등록이면 None.
+    :returns: 다음 stage 코드 또는 None(prerequisite-only·command 전용·미등록).
+    """
+    advance = _STAGE_ADVANCE.get(stage_code) if stage_code else None
+    return advance[2] if advance else None
+
+
+def is_command_required_stage(stage_code: Optional[str]) -> bool:
+    """``stage_code`` 가 전용 command 로만 전이하는 단계(DRAWING/CONFIRM)면 True.
+
+    이 단계에서 quest approve API 는 409 ``COMMAND_REQUIRED`` 로 거부한다 — 표시 계층은
+    승인 버튼 자체를 그리지 않아야 막다른 길이 생기지 않는다.
+    """
+    return stage_code in _COMMAND_REQUIRED_STAGES
+
+
 def _find_stage_quest(
     sd: Dict[str, Any], stage: Optional[str], stage_code: str
 ) -> Optional[Dict[str, Any]]:
@@ -301,4 +323,6 @@ __all__ = [
     "OrderNotFoundError",
     "advance_stage_on_quest_completion",
     "complete_confirm_quest",
+    "stage_advance_target",
+    "is_command_required_stage",
 ]
