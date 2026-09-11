@@ -3500,22 +3500,26 @@ def _work_groups(db, *, display: bool = True,
     Returns:
         ``(집 목록, 조회 상한에 걸렸는지)``. 순서는 큐(수집 최신순) → 큐 밖 발주확인 전 집.
     """
-    source, truncated = _work_source_links(db, display=display)
+    with phase("wg_fetch"):
+        source, truncated = _work_source_links(db, display=display)
     # 술어는 SQL 과 같은 갈래를 파이썬에서 그대로 쓴다(`_row_place_pending`).
     pending = [row for row in source if row.reviewed_at is None]
     place_links = [row for row in source if _row_place_pending(row)]
     # 형제 판정은 여기서 **한 벌만** 만든다 — 아래 세 곳이 같은 색인을 나눠 쓴다.
-    sibling = _build_sibling_index(db, _source_order_nos(source), display=display)
+    with phase("wg_sibling"):
+        sibling = _build_sibling_index(db, _source_order_nos(source), display=display)
     # 주문 표는 **한 번만** 읽는다 — 확인 큐·발주확인 전 목록·집 전체 규격이 나눠 쓴다.
-    orders = _attach_household_orders(db, sibling, source, display=display)
+    with phase("wg_orders"):
+        orders = _attach_household_orders(db, sibling, source, display=display)
     # **캡 하나를 더 넘겨 받아** 잘렸는지 스스로 안다. `_group_queue` 는 상한까지만 돌려주는데
     # 그 사실을 아무도 안 봐서, 집이 50을 넘으면 화면이 조용히 51번째부터 버렸다 —
     # 링크 250 상한(`truncated`)에 걸릴 때만 안내 띠가 떴다. 캡으로 자른 뒤 아무 말도 안 하면
     # 사람은 나머지를 찾아 헤맨다(2026-08-14 대시보드 캡 결함과 같은 부류, CEO 검수 보통).
     # 캡은 여기서 걸지 않는다 — 병합이 끝난 뒤 한 곳에서 건다(아래). 원천마다 자르면
     # 큐가 잘려 띠가 켜지는데 화면 줄수는 캡보다 커지는, 서로 어긋난 상태가 된다.
-    queue = _group_queue(pending, orders, truncated=truncated,
-                         limit=WORK_GROUP_LIMIT + 1, orders_loaded=display)
+    with phase("wg_group_queue"):
+        queue = _group_queue(pending, orders, truncated=truncated,
+                             limit=WORK_GROUP_LIMIT + 1, orders_loaded=display)
     place_groups, place_truncated = _place_groups(
         db, display=display, links=place_links, truncated=truncated, sibling=sibling,
         orders=orders)
@@ -3535,17 +3539,22 @@ def _work_groups(db, *, display: bool = True,
         merged[group["key"]] = dict(group, in_queue=False)
         order_of_key.append(group["key"])
     groups = [merged[key] for key in order_of_key]
-    _mark_sibling_claims(db, pending, groups, display=display, sibling=sibling)
-    _attach_household_counts(db, groups, display=display, sibling=sibling)
+    with phase("wg_sibling_claims"):
+        _mark_sibling_claims(db, pending, groups, display=display, sibling=sibling)
+    with phase("wg_household"):
+        _attach_household_counts(db, groups, display=display, sibling=sibling)
     # 잠금·선택 판정은 위 두 단계가 끝난 **뒤에** 한 번만 한다(형제 클레임이 반영된 값으로).
-    _attach_row_flags(groups)
+    with phase("wg_row_flags"):
+        _attach_row_flags(groups)
     # 표시 갈래·라벨도 같은 자리에서. 형제 클레임(`_mark_sibling_claims`)이 반영된
     # 뒤여야 잠긴 집을 안 잠긴 것으로 읽지 않는다.
-    _attach_row_view(groups)
+    with phase("wg_row_view"):
+        _attach_row_view(groups)
     # 정렬은 **캡보다 먼저** 한다. 뒤에 하면 캡이 자를 집을 정렬이 못 고른다 — 발송기한이
     # 임박한 집은 정의상 오래 전에 수집된 집이라 접수순 목록의 아래쪽에 있고, 캡이 먼저
     # 자르면 그 집이 화면 밖으로 밀린 뒤에야 정렬이 돈다.
-    _sort_groups(groups, sort)
+    with phase("wg_sort"):
+        _sort_groups(groups, sort)
     # 캡 한 곳 — 병합 결과에만 건다. 닿으면 **로그를 남기고** 화면에도 말한다(조용히 자르면
     # 사람이 나머지를 찾아 헤맨다 — 2026-08-14 대시보드 캡 결함과 같은 부류).
     capped = len(groups) > WORK_GROUP_LIMIT
