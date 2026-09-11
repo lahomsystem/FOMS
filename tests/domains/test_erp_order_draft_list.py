@@ -246,14 +246,31 @@ def test_dashboard_registers_assets_with_pins() -> None:
     assert scripts.index("erp-dashboard-entry.js") < scripts.index("draft_resume.js")
 
 
-def test_mobile_body_has_placeholder_hidden_by_default() -> None:
-    body = (ROOT / "templates/orders/partials/dashboard_mobile_v2_body.html").read_text(
-        encoding="utf-8"
-    )
-    assert 'id="foms-draft-resume-bar"' in body
-    assert 'id="foms-draft-resume-sheet"' in body
+def test_placeholder_is_hidden_by_default() -> None:
+    bar = (ROOT / "templates/orders/partials/draft_resume_bar.html").read_text(encoding="utf-8")
+    assert 'id="foms-draft-resume-bar"' in bar
+    assert 'id="foms-draft-resume-sheet"' in bar
     # 0건이면 아무것도 안 보인다 — 서버는 hidden 으로만 그린다.
-    assert 'id="foms-draft-resume" hidden' in body
+    assert 'id="foms-draft-resume" hidden' in bar
+
+
+def test_both_mobile_v2_surfaces_include_the_bar() -> None:
+    """타워·큐 **두 분기 모두**에 실려야 한다.
+
+    모바일 홈의 기본 표면은 타워다(``tower_mode = mobile_v2 and not drill and not chunk``,
+    foms/web/orders/dashboard.py:433). 처음에 큐 분기에만 넣어 스테이징 실화면에서
+    배너가 아예 뜨지 않았다 — 템플릿 파일에 마크업이 있다는 계약만으로는 못 잡힌 결함이라
+    두 분기를 이름으로 못박는다.
+    """
+    include = "orders/partials/draft_resume_bar.html"
+    for rel in (
+        "templates/orders/partials/dashboard_mobile_tower.html",
+        "templates/orders/partials/dashboard_mobile_v2_body.html",
+    ):
+        surface = (ROOT / rel).read_text(encoding="utf-8")
+        assert include in surface, f"{rel} 에 초안 되찾기 줄이 없다"
+        # 마크업은 조각 한 곳에만 있어야 한다(복제하면 한쪽만 고치게 된다).
+        assert 'id="foms-draft-resume"' not in surface
 
 
 def test_resume_js_is_safe_and_silent() -> None:
