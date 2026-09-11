@@ -577,3 +577,83 @@ def test_report_and_evidence_disclose_the_persona() -> None:
 
     src = inspect.getsource(gate.run_gate)
     assert '"persona": GATE_PERSONA' in src
+
+
+# ---------------------------------------------------------------------------
+# coarse 커버리지 패스 (2026-09-11) — 페르소나 도입이 만든 공백을 닫는다
+# ---------------------------------------------------------------------------
+def test_coarse_persona_is_a_touch_tablet() -> None:
+    """두 번째 패스는 터치 태블릿이어야 coarse 전용 표면이 렌더된다."""
+    assert gate.COARSE_PERSONA_COOKIES["foms_ptr"] == "coarse"
+    # 광폭(992 이상)이어야 데스크톱 표면까지 함께 본다 — 좁으면 그쪽이 또 공백이 된다.
+    assert int(gate.COARSE_PERSONA_COOKIES["foms_scr"]) >= 992
+    assert gate.COARSE_PERSONA != gate.GATE_PERSONA
+
+
+def test_apply_persona_cookies_takes_either_persona() -> None:
+    """두 패스가 같은 헬퍼를 쓰되 서로 다른 쿠키를 실을 수 있어야 한다."""
+    import requests
+
+    pc = requests.Session()
+    pc.headers["Cookie"] = "session=abc"
+    gate.apply_persona_cookies(pc)
+    assert "foms_ptr=fine" in pc.headers["Cookie"]
+
+    tablet = requests.Session()
+    tablet.headers["Cookie"] = "session=abc"
+    gate.apply_persona_cookies(tablet, gate.COARSE_PERSONA_COOKIES)
+    assert "foms_ptr=coarse" in tablet.headers["Cookie"]
+    assert "session=abc" in tablet.headers["Cookie"]
+
+
+def test_coarse_pass_judges_bytes_only() -> None:
+    """coarse 패스는 바이트만 본다 — latency 심판석이 둘로 갈리면 안 된다."""
+    summary = {"median_wire_bytes": 30000}
+    ok = gate.judge_coarse_bytes("/x", summary, {"body_bytes_max": 40000})
+    assert ok["passed"] is True and ok["reasons"] == []
+
+    over = gate.judge_coarse_bytes("/x", summary, {"body_bytes_max": 20000})
+    assert over["passed"] is False
+    assert "coarse 표면 회귀" in over["reasons"][0]
+    # TTFB 는 판정에 끼지 않는다.
+    assert "ttfb" not in str(over).lower()
+
+
+def test_missing_coarse_budget_is_disclosed_not_silently_passed() -> None:
+    """예산이 없으면 통과시키되 표에 드러낸다 — 조용히 통과하면 안 재는 줄 모른다."""
+    row = gate.judge_coarse_bytes("/x", {"median_wire_bytes": 1}, {})
+    assert row["passed"] is True
+    assert row["budget_missing"] is True
+    assert "SEED?" in gate.render_coarse_table([row])
+
+
+def test_coarse_failure_fails_the_whole_gate() -> None:
+    """coarse 회귀도 게이트를 빨갛게 만들어야 커버리지가 실제로 생긴다."""
+    import inspect
+
+    src = inspect.getsource(gate.run_gate)
+    assert 'coarse_rows = run_coarse_pass(base, cookie, budgets)' in src
+    assert 'all(r["passed"] for r in coarse_rows)' in src
+
+
+def test_budgets_file_carries_coarse_budgets() -> None:
+    """coarse 예산이 커밋돼 있어야 다음 런이 SEED? 가 아니라 실제 판정을 한다."""
+    budgets = json.loads(gate.BUDGETS_PATH.read_text(encoding="utf-8"))
+    coarse = budgets.get("coarse_paths") or {}
+    assert coarse, "coarse_paths 예산이 비어 있다"
+    for path in gate.FRAGMENT_PATHS:
+        assert path in coarse, f"{path} coarse 예산 없음"
+        assert coarse[path]["body_bytes_max"] > 0
+
+
+def test_ci_workflow_can_reseed_budgets_without_committing() -> None:
+    """TTFB 예산 갱신 자리는 CI 뿐이다(로컬은 reconcile_seed_budget 이 막는다).
+
+    그리고 결과를 **커밋하지 않는다** — 봇이 예산을 스스로 헐겁게 만들면 게이트가 조용히
+    무력화된다. artifact 로만 내고 사람이 diff 를 읽어 반영한다.
+    """
+    workflow = (gate.ROOT / ".github/workflows/perf-gate.yml").read_text(encoding="utf-8")
+    assert "mode:" in workflow and "seed" in workflow
+    assert "staging_perf_gate.py --seed" in workflow
+    assert "perf-budgets-seeded" in workflow
+    assert "git push" not in workflow, "CI 가 예산을 스스로 커밋하면 게이트 무력화"

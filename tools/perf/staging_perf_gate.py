@@ -113,8 +113,29 @@ GATE_PERSONA_COOKIES = {
     "foms_ptr": "fine",  # 마우스 기기 — coarse 전용 표면 생략
 }
 
+#: 두 번째 패스가 흉내 내는 페르소나 = **터치 태블릿**(현장 기기).
+#:
+#: 주 패스가 ``foms_ptr=fine`` 이라 coarse 전용 표면(생산 칸반·시공 작업모드·AS 비교판·
+#: 완료 보드·도면 창구 태블릿)이 **아무 패스에도 안 잡히는 공백**이 생겼다. 쿠키를 안 싣던
+#: 예전 봇은 그것들을 "우연히" 함께 재고 있었을 뿐이라, 페르소나를 도입하면서 커버리지가
+#: 줄었다(2026-09-11 Spec §1.3 에 후속 과제로 적어 둔 것을 여기서 닫는다).
+#:
+#: 이 패스는 **바이트만** 판정한다. latency 예산은 CI 심판석 기준으로 시드돼 있고
+#: (``reconcile_seed_budget``), 페르소나마다 다시 시드하면 심판석이 둘로 갈린다. 반면
+#: 바이트는 결정적이라 어느 창에서 재도 같고, coarse 표면이 부풀면 그것만으로 잡힌다.
+COARSE_PERSONA = "tablet-coarse"
+COARSE_PERSONA_COOKIES = {
+    "foms_scr": "1180",   # 태블릿 긴 변 — 992 이상이라 광폭 표면도 함께 본다
+    "foms_ptr": "coarse",  # 터치 기기 — coarse 전용 표면 렌더
+}
 
-def apply_persona_cookies(session: requests.Session) -> None:
+#: coarse 패스 라운드 수. 바이트는 결정적이라 웜업 1 + 표본 1 이면 충분하다
+#: (주 패스의 ROUNDS=7 을 그대로 쓰면 런 시간이 두 배가 된다).
+COARSE_ROUNDS = 2
+
+
+def apply_persona_cookies(session: requests.Session,
+                          cookies: dict[str, str] | None = None) -> None:
     """게이트 세션의 ``Cookie`` 헤더에 페르소나 쿠키를 합친다(``run_gate``/``run_seed`` 공용).
 
     **쿠키 jar 에 심으면 안 된다.** 이 세션은 로그인 쿠키를 ``session.headers['Cookie']`` 로
@@ -125,10 +146,12 @@ def apply_persona_cookies(session: requests.Session) -> None:
     이미 붙어 있으면 다시 붙이지 않는다(재호출 안전).
 
     :param session: 로그인 쿠키가 ``headers['Cookie']`` 에 실린 세션.
+    :param cookies: 심을 페르소나 쿠키(기본 :data:`GATE_PERSONA_COOKIES`).
     """
+    cookies = GATE_PERSONA_COOKIES if cookies is None else cookies
     header = session.headers.get("Cookie", "") or ""
     present = {c.split("=", 1)[0].strip() for c in header.split(";") if "=" in c}
-    add = [f"{k}={v}" for k, v in GATE_PERSONA_COOKIES.items() if k not in present]
+    add = [f"{k}={v}" for k, v in cookies.items() if k not in present]
     if not add:
         return
     session.headers["Cookie"] = "; ".join([header.rstrip("; ")] + add) if header else "; ".join(add)
@@ -515,10 +538,14 @@ def run_gate(base: str, user: str, password: str, budgets: dict[str, Any]) -> di
         row["_summary"] = summary
         rows.append(row)
 
-    ok = all(r["passed"] for r in rows)
+    # coarse 전용 표면 커버리지 — 주 패스가 fine 이라 이 패스가 없으면 아무도 안 잰다.
+    coarse_rows = run_coarse_pass(base, cookie, budgets)
+    ok = all(r["passed"] for r in rows) and all(r["passed"] for r in coarse_rows)
     return {
         "base": base,
         "ok": ok,
+        "coarse_persona": COARSE_PERSONA,
+        "coarse_rows": coarse_rows,
         # 페르소나가 바뀌면 수치가 통째로 이동한다 — 과거 evidence 와 비교할 때 필수 축.
         "persona": GATE_PERSONA,
         "persona_cookies": dict(GATE_PERSONA_COOKIES),
@@ -526,6 +553,77 @@ def run_gate(base: str, user: str, password: str, budgets: dict[str, Any]) -> di
         "rows": rows,
         "raw": raw,
     }
+
+
+def judge_coarse_bytes(path: str, summary: dict[str, Any],
+                       budget: dict[str, Any]) -> dict[str, Any]:
+    """coarse 패스 판정 — **바이트만** 본다(latency 는 주 패스가 심판석 기준으로 맡는다).
+
+    Args:
+        path: fragment 경로.
+        summary: :func:`summarize_samples` 결과.
+        budget: ``{body_bytes_max}``. 없으면 판정하지 않고 통과시킨다(첫 도입 시 시드 전).
+
+    Returns:
+        판정 row. 예산이 없으면 ``budget_missing`` 을 달아 표에 드러낸다 — 조용히 통과하면
+        "재고 있다"고 착각한 채 실제로는 아무 것도 안 잡는 상태가 된다.
+    """
+    wire = int(summary["median_wire_bytes"])
+    limit = budget.get("body_bytes_max")
+    if limit is None:
+        return {"path": path, "passed": True, "budget_missing": True,
+                "wire_bytes": wire, "body_bytes_max": None, "reasons": []}
+    passed = wire <= int(limit)
+    reasons = [] if passed else [f"wire {wire}B > budget {int(limit)}B (coarse 표면 회귀)"]
+    return {"path": path, "passed": passed, "budget_missing": False,
+            "wire_bytes": wire, "body_bytes_max": int(limit), "reasons": reasons}
+
+
+def run_coarse_pass(base: str, cookie: str, budgets: dict[str, Any]) -> list[dict[str, Any]]:
+    """터치 태블릿 페르소나로 한 바퀴 더 돌아 **바이트만** 판정한다.
+
+    주 패스가 ``foms_ptr=fine`` 이라 coarse 전용 표면이 어느 패스에도 안 잡히는 공백이
+    생겼다(:data:`COARSE_PERSONA` 참조). 이 패스가 그 공백을 닫는다.
+
+    세션을 새로 만든다 — :func:`apply_persona_cookies` 는 이미 있는 쿠키를 덮지 않으므로
+    같은 세션에 두 페르소나를 실을 수 없다.
+
+    Args:
+        base: 스테이징 origin.
+        cookie: 로그인 쿠키 문자열(주 패스와 같은 것을 재사용).
+        budgets: 예산 dict. coarse 예산은 ``budgets["coarse_paths"]`` 아래.
+
+    Returns:
+        경로별 판정 row 목록.
+    """
+    session = requests.Session()
+    session.headers["Cookie"] = cookie
+    apply_persona_cookies(session, COARSE_PERSONA_COOKIES)
+    coarse_budgets = budgets.get("coarse_paths") or {}
+    rows: list[dict[str, Any]] = []
+    for path in FRAGMENT_PATHS:
+        measured = measure_path(session, base, path, rounds=COARSE_ROUNDS)
+        summary = summarize_samples(measured["warm"])
+        rows.append(judge_coarse_bytes(path, summary, coarse_budgets.get(path, {})))
+    return rows
+
+
+def render_coarse_table(rows: list[dict[str, Any]]) -> str:
+    """coarse 패스 표(경로|wire|budget|판정)."""
+    cookie_desc = " ".join(f"{k}={v}" for k, v in COARSE_PERSONA_COOKIES.items())
+    lines = [
+        "",
+        f"[coarse 패스] persona: {COARSE_PERSONA} ({cookie_desc}) — 바이트만 판정",
+        f"{'PATH':<40} {'wire':>8} {'budget':>8} {'RESULT':>6}",
+        "-" * 66,
+    ]
+    for row in rows:
+        limit = "-" if row["body_bytes_max"] is None else str(row["body_bytes_max"])
+        result = "SEED?" if row.get("budget_missing") else ("PASS" if row["passed"] else "FAIL")
+        lines.append(f"{row['path']:<40} {row['wire_bytes']:>8} {limit:>8} {result:>6}")
+        for reason in row["reasons"]:
+            lines.append(f"    ↳ {reason}")
+    return "\n".join(lines)
 
 
 def run_seed(base: str, user: str, password: str, prev: dict[str, Any]) -> dict[str, Any]:
@@ -552,6 +650,22 @@ def run_seed(base: str, user: str, password: str, prev: dict[str, Any]) -> dict[
             if old_budget.get(k) is not None and new_budget[k] > old_budget[k]:
                 loosened.append(f"{path} {k}: {old_budget[k]} -> {new_budget[k]}")
         paths[path] = new_budget
+    # coarse 패스 바이트 예산도 같은 시드에서 만든다 — 따로 시드하면 두 패스의 기준 창이
+    # 갈려 한쪽만 헐거워진다. 바이트는 결정적이라 로컬 시드로도 유효하다.
+    coarse_session = requests.Session()
+    coarse_session.headers["Cookie"] = cookie
+    apply_persona_cookies(coarse_session, COARSE_PERSONA_COOKIES)
+    coarse_paths: dict[str, Any] = {}
+    prev_coarse = prev.get("coarse_paths") or {}
+    for path in FRAGMENT_PATHS:
+        measured = measure_path(coarse_session, base, path, rounds=COARSE_ROUNDS)
+        summary = summarize_samples(measured["warm"])
+        new_bytes = int(round(summary["median_wire_bytes"] * (1 + SEED_MARGIN)))
+        old_bytes = (prev_coarse.get(path) or {}).get("body_bytes_max")
+        if old_bytes is not None and new_bytes > old_bytes:
+            loosened.append(f"[coarse] {path} body_bytes_max: {old_bytes} -> {new_bytes}")
+        coarse_paths[path] = {"body_bytes_max": new_bytes}
+
     if loosened:
         # 예산 완화(느려짐 수용)는 실수로 일어나면 게이트 무력화 — 명시 확인 강제.
         print("[perf-gate][WARN] --seed 가 기존 예산을 완화합니다(의도된 성능 변화인지 diff 리뷰 필수):")
@@ -567,6 +681,7 @@ def run_seed(base: str, user: str, password: str, prev: dict[str, Any]) -> dict[
             paths[path] = old_budget
     prev_global = prev.get("_global") or {}
     return {
+        "coarse_paths": coarse_paths,
         "_comment": (
             "스테이징 성능 게이트 예산 v2(SSOT: tools/perf/staging_perf_gate.py). "
             "판정값 ttfb_delta_min_ms = min(warm path TTFB) − min(healthz TTFB): "
@@ -741,6 +856,8 @@ def main() -> int:
         print(json.dumps(result, ensure_ascii=False, indent=2))
     else:
         print(render_table(result["rows"], result.get("base_ttfb_ms")))
+        if result.get("coarse_rows"):
+            print(render_coarse_table(result["coarse_rows"]))
         print(f"\nevidence: {fp}")
         print("RESULT: " + ("PASS" if result["ok"] else "FAIL"))
     if not result["ok"] and args.advisory:

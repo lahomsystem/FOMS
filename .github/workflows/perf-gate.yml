@@ -19,6 +19,12 @@ on:
       - "docs/**"
       - "**/*.md"
   workflow_dispatch:
+    inputs:
+      mode:
+        description: "gate = 평소 판정 · seed = 예산 재시드(커밋 안 함, artifact 로만)"
+        type: choice
+        options: [gate, seed]
+        default: gate
 
 # 빠른 연속 푸시의 중복 런은 취소(진행 중 런 노이즈·크레딧 낭비 감소).
 concurrency:
@@ -62,11 +68,33 @@ jobs:
 
       # production 승격 PR / 수동 dispatch = 블로킹 하드 게이트(예산 초과 → exit 1 → job fail).
       - name: Run staging perf gate (blocking on production promotion / manual)
-        if: github.event_name != 'push'
+        if: github.event_name != 'push' && inputs.mode != 'seed'
         env:
           FOMS_STAGING_USERNAME: ${{ secrets.FOMS_STAGING_USERNAME }}
           FOMS_STAGING_PASSWORD: ${{ secrets.FOMS_STAGING_PASSWORD }}
         run: python tools/perf/staging_perf_gate.py
+
+      # TTFB 예산의 관측 기준은 **CI 러너**다. 로컬 --seed 는 reconcile_seed_budget 이
+      # TTFB 갱신을 막으므로(로컬 네트워크가 심판석 값을 오염), 여기가 유일한 갱신 자리다.
+      # 결과는 **커밋하지 않고 artifact 로만** 낸다 — 봇이 예산을 스스로 헐겁게 만들면
+      # 게이트가 조용히 무력화된다. 사람이 diff 를 읽고 반영한다.
+      - name: Re-seed budgets (manual dispatch, artifact only)
+        if: inputs.mode == 'seed'
+        env:
+          FOMS_STAGING_USERNAME: ${{ secrets.FOMS_STAGING_USERNAME }}
+          FOMS_STAGING_PASSWORD: ${{ secrets.FOMS_STAGING_PASSWORD }}
+        run: |
+          python tools/perf/staging_perf_gate.py --seed
+          echo "--- budgets diff (사람이 읽고 반영한다) ---"
+          git --no-pager diff -- tools/perf/perf_budgets.json || true
+
+      - name: Upload re-seeded budgets
+        if: inputs.mode == 'seed'
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-budgets-seeded
+          path: tools/perf/perf_budgets.json
+          retention-days: 14
 
       # 판정 evidence 는 CI 에서 커밋하지 않고 artifact 로만 보존(로컬 실행과 무충돌).
       - name: Upload evidence

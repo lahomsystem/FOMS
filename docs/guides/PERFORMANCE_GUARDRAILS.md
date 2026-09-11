@@ -63,8 +63,15 @@ fragment 경로를 반복 측정(첫 회 웜업 버림) → 커밋된 예산(`to
   - **쿠키 jar 가 아니라 `Cookie` 헤더에 합쳐야 한다.** 세션이 로그인 쿠키를
     `headers['Cookie']` 로 명시하므로 requests 가 jar 를 병합하지 않는다(jar 로 심은 첫
     구현은 wire 가 1바이트도 안 줄어 드러났다).
-  - **커버리지 공백(의도)**: `foms_ptr=fine` 이라 coarse 전용 표면(태블릿 칸반)은 이 패스에
-    안 잡힌다. 예전에는 쿠키가 없어 우연히 함께 재고 있었다. 별도 페르소나 패스가 후속 과제.
+  - **coarse 패스(2026-09-11 신설)**: 주 패스가 `fine` 이라 생기는 공백을 터치 태블릿
+    페르소나(`tablet-coarse`, `foms_scr=1180`·`foms_ptr=coarse`)가 한 바퀴 더 돌아 닫는다.
+    **바이트만** 판정한다(latency 심판석을 둘로 가르지 않기 위해). 라운드 2회 — 바이트는
+    결정적이라 웜업 1 + 표본 1 이면 충분하고 런 시간이 두 배가 되지 않는다.
+    coarse 전용 표면 무게 실측(pc 대비): 시공 +64% · 완료 +42% · AS +40% · 도면창구 +26% ·
+    생산 +20% · 대시보드 +12%.
+  - **TTFB 예산 재시드는 CI 에서**: `workflow_dispatch` 의 `mode: seed` 로 돌린다.
+    결과는 커밋하지 않고 artifact(`perf-budgets-seeded`)로만 낸다 — 봇이 스스로 예산을
+    헐겁게 만들면 게이트가 조용히 무력화되므로 사람이 diff 를 읽고 반영한다.
 - **budgets 스키마 v2**: 경로별 판정 키 `ttfb_delta_min_ms`(신규) + `body_bytes_max`(유지).
   v1 의 `ttfb_warm_median_ms` 는 제거됨. `_global.schema: 2` 표기.
 - **조건부 304 계약**: 각 경로 1회 ETag 에코(If-None-Match) → 304 확인(하트비트 경제성 회귀 감시).
