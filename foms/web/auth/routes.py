@@ -95,8 +95,9 @@ def log_access(action_message, user_id=None, additional_data=None, auto_commit=T
         여기서 :func:`get_db` 를 부르면 ``g.db`` 가 새로 붙어 요청 teardown 이 세션을 닫고,
         호출자가 들고 있던 ORM 인스턴스가 detach 된다(수명주기 오염).
     """
+    session_db = None
     try:
-        db = db if db is not None else get_db()
+        session_db = db if db is not None else get_db()
         log = SecurityLog(
             user_id=user_id,
             message=action_message,
@@ -105,16 +106,31 @@ def log_access(action_message, user_id=None, additional_data=None, auto_commit=T
             target_id=target_id,
             detail=normalize_security_detail(_merge_audit_detail(additional_data, detail)),
         )
-        db.add(log)
+        # 감사 실패의 사정거리를 감사 행 하나로 묶는다(SAVEPOINT). 예전에는 except 분기가
+        # 호출자 세션을 통째로 rollback 해서, auto_commit=False 로 호출자 트랜잭션에 얹는
+        # 자리(초안 등록 등)는 감사 한 줄이 실패하면 **방금 만든 주문까지 사라지고도**
+        # 호출부가 그대로 commit·200 을 돌려줬다. 이제 되감기는 감사 행뿐이다.
+        savepoint = session_db.begin_nested()
+        try:
+            session_db.add(log)
+            session_db.flush()
+        except Exception:
+            savepoint.rollback()
+            raise
+        savepoint.commit()
         if auto_commit:
-            db.commit()
+            session_db.commit()
     except Exception:
         # 감사 기록 실패가 원 요청을 죽이면 안 된다(fail-open) — 단 스택까지 반드시 로그.
         logger.warning("[LOG ERROR] SecurityLog 기록 실패: action=%s", action_message, exc_info=True)
-        try:
-            db.rollback()
-        except Exception:
-            log_handled_exception("auth log_access rollback")
+        # auto_commit=False 면 트랜잭션 주인은 호출자다 — 여기서 되감으면 남의 것을 죽인다.
+        # 세션 자체가 깨져 savepoint 조차 못 연 경우는 호출자의 commit 이 시끄럽게 실패한다.
+        # 조용히 빈 커밋을 하는 것보다 그쪽이 낫다.
+        if auto_commit and session_db is not None:
+            try:
+                session_db.rollback()
+            except Exception:
+                log_handled_exception("auth log_access rollback")
 
 
 def _merge_audit_detail(additional_data: object, detail: dict | None) -> dict | None:
