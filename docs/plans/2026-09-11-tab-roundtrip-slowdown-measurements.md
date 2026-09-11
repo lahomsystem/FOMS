@@ -205,3 +205,53 @@ HTML 234KB — 행당 약 4.7KB·6~11ms. 서버가 이미 계산해 둔 dict 를
 
 **아직 안 잰 것**: 이 마커가 실린 응답을 아직 못 읽었다. 스테이징은 코호트 밖이라
 관리자 사용자 전환(id 38)으로 넘어야 하고, 운영은 승격이 필요하다.
+
+### §10.1 실측 — 템플릿은 범인이 아니었다 (스테이징, `247f8ded9`)
+
+```
+처리 탭  wb_template=299~777   shell_head=0~2  shell_nav=2  wb_head_region=0~1
+                               work_rows=15    pane=25~183  wb_modals=0  shell_scripts=0
+이력 탭  wb_template=173~188   shell_head=0    shell_nav=2  hist_rows=3~5
+                               wb_modals=0     shell_scripts=0
+```
+
+**셸 전체가 2ms다.** `layout_head`(1,270줄)·`layout_scripts`(1,750줄)를 의심했는데 둘 다 0ms.
+이력 행 50줄이 HTML 231KB 를 만드는 데 **3~5ms**. Jinja 는 느리지 않다.
+
+그러면 `wb_template` 173ms 중 **167ms 가 어디인가** — 답은 **템플릿 밖**이었다.
+
+```python
+with phase("wb_template"):
+    return render_template(
+        "admin/naver_workbench.html",
+        history=_history_view(db) if active_tab == "all" else {},   # ← DB 조회
+        failures=_failure_rows(db),                                  # ← DB 조회
+        ghosts=_ghost_view(db) ...,                                  # ← DB 조회
+        **_pane_context(db, _selected_link(db, visible), ...),       # ← DB 조회 여러 벌
+    )
+```
+
+인자 식은 `render_template` 이 불리기 **전에** 평가된다. 그래서 이 조회들이 전부
+`wb_template` 으로 계상됐다. 구간 이름이 거짓말을 하고 있었다 — "템플릿 렌더 300~545ms"
+라는 §9 의 결론은 **측정 도구가 만든 착시**다.
+
+### §10.2 고침 — 인자를 먼저 만들고 각각 잰다
+
+`_render_workbench` 를 다시 짰다(동작 동일, 호출 순서·횟수 그대로).
+
+| 새 구간 | 재는 것 |
+|---|---|
+| `wb_history` | 수집 이력 페이지(50집) 조회·조립 |
+| `wb_failures` | 실패 띠 |
+| `wb_ghosts` · `wb_origin_cleanup` · `wb_bulk_dispatch` | 처리 탭 전용 띠 셋 |
+| `wb_refresh` | 다시 읽기 버튼·진행 상태(ADMIN 전용) |
+| `wb_counts` | 칩 숫자·손댈 수 있는 집 수(메모리) |
+| `wb_pane_ctx` | 선택 링크 + pane 컨텍스트 |
+| `wb_template` | **이제 진짜 Jinja 렌더만** |
+
+### 규율 메모 (둘째)
+
+§9 의 "남은 최대 몫은 템플릿" 은 **내가 그은 구간선이 틀려서** 나온 결론이었다.
+구간 계측은 추정보다 낫지만, **구간의 경계가 코드의 실제 평가 순서와 맞는지**를 먼저 봐야 한다.
+파이썬에서 인자 식은 호출 전에 평가된다 — `with` 블록 안에 호출문만 있다고 그 블록이
+호출의 비용만 재는 것이 아니다.
