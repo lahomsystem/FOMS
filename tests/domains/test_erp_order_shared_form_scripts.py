@@ -90,7 +90,7 @@ def _assert_shared_form_script_contract(body: str) -> None:
     assert "js/orders/erp-items-master-detail.js?v=20260630c" in body
     assert "erp-items-master-detail-shell" in body
     assert 'id="erp-md-rail-list"' in body
-    assert "js/orders/estimate-preview.js?v=20260720b" in body
+    assert "js/orders/estimate-preview.js?v=20260911a" in body
 
     estimate_preview_js = (
         Path(__file__).resolve().parents[2]
@@ -101,6 +101,18 @@ def _assert_shared_form_script_contract(body: str) -> None:
     ).read_text(encoding="utf-8")
     assert "html2canvas.min.js" in estimate_preview_js
     assert "document.createElement('script')" in estimate_preview_js
+
+    # iPhone 사진 저장(2026-09-11): iOS 는 data: URL 이미지를 길게 눌러도 사진 앱에 저장하지
+    # 못한다 — 공유 시트를 거쳐야 사진 보관함에 들어간다. 저장 버튼이 그 새 사용자 제스처다
+    # (비동기 캡처 뒤의 share() 는 활성화를 잃어 시트가 안 열린다).
+    assert "navigator.share({ files: [file], title: filename })" in estimate_preview_js
+    assert "navigator.canShare({ files: [file] })" in estimate_preview_js
+    assert "function _estimateImageToFile(" in estimate_preview_js
+    # 사용자가 시트를 닫은 것은 실패가 아니다 — 오류창을 띄우면 안 된다.
+    assert "err.name === 'AbortError'" in estimate_preview_js
+    # 모달이 열릴 때 버튼을 이번 이미지에 맞춰 걸어 둔다(탭 시점에 활성화 보존).
+    assert "_setupEstimatePreviewSaveBtn(dataUrl, opts.filename)" in estimate_preview_js
+    assert 'id="btn-est-preview-save"' in body
 
     # W5-B8: giant inline shared-form code was moved out of the partial.
     assert "function erpRecalcItemsTotal()" not in body

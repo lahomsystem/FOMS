@@ -806,6 +806,13 @@
                 <div id="erp-estimate-preview-body"></div>
             </div>
             <div class="modal-footer">
+                {# iOS 는 data: URL 이미지를 길게 눌러도 사진 앱에 저장되지 않는다 — 공유 시트를
+                   거쳐야 사진 보관함에 들어간다. 이 버튼 탭이 그 새 사용자 제스처다(비동기
+                   캡처 뒤의 share() 는 활성화를 잃어 시트가 안 열린다). 파일 공유를 못 하는
+                   브라우저에서는 estimate-preview.js 가 숨긴다. #}
+                <button type="button" class="btn btn-primary" id="btn-est-preview-save" hidden>
+                    <i class="fas fa-download"></i> 사진에 저장
+                </button>
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
                     <i class="fas fa-times"></i> 닫기
                 </button>
