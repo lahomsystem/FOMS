@@ -1,7 +1,7 @@
 # FOMS 현재 상태
 > 자동 업데이트: 2026-09-11
-> 최신: **네이버 취소·반품 부분 선택(NVCLAIM-PARTIAL-01, deploy 대기 · 게이트 `FOMS_NAVER_PARTIAL_CLAIM_ENABLED`+`_COHORT`)** — 운영 #2354: 집 단위라 1건만 취소를 못 했고 부분 취소 뒤 남은 라인 발송이 막혔다. 모달 체크박스 + 서버 `product_order_ids`(None=집 전체/[]=400/목록=그 라인만), 본품 선택 시 추가구성 자동 동반 + 서버 재검사(0건 전송), 표식 `cancel_scope` partial/household(partial 행만 제외, household·취소 실패 잔존은 집 차단), 취소 버튼·벌크 pre-check 는 형제 클레임으로 집을 안 잠근다(결정 8·9). 스펙 `docs/specs/2026-09-11-naver-partial-claim_SPEC.md` §11. **잔여: 스테이징 §8 ①②③ + 사용자 #2354 화면 확인**
-> 직전: **도면팀 알림 개편(운영 반영 PR #350 · production `401ebeb45`)** — 90일 수신 204건 중 183건이 `ERP_ORDER_CHANGED`, 변경 61건 중 31건은 도면 무관. `is_drawing_impacting_path` 로 품목·비고·지방시공유형만 알림 사유, `DRAWING_REVISION` interrupt 등급 → 중앙 확인창(확인=ack), 마법사에도 소켓·확인창
+> 최신: **모바일 ERP 3건 + perf-gate 정비(운영 PR #346·#354·#355·#358·#360·#361)** — 실측 완료 버튼 먹통(해시만 바꾸는 `location.href` 는 재로드 못 함)·아이폰 견적서 사진 저장(공유 시트)·수집 뱃지 **탭 전환 590→35ms·첫 화면 423→47ms**·perf-gate 페르소나 쿠키+coarse 패스. 상세·측정 함정 3종은 AI_CHANGELOG
+> 직전: **네이버 취소·반품 부분 선택(NVCLAIM-PARTIAL-01, deploy 대기 · 게이트 `FOMS_NAVER_PARTIAL_CLAIM_ENABLED`+`_COHORT`)** — 운영 #2354: 집 단위라 1건만 취소를 못 했고 부분 취소 뒤 남은 라인 발송이 막혔다. 모달 체크박스 + 서버 `product_order_ids`(None=집 전체/[]=400/목록=그 라인만), 본품 선택 시 추가구성 자동 동반 + 서버 재검사(0건 전송), 표식 `cancel_scope` partial/household(partial 행만 제외, household·취소 실패 잔존은 집 차단), 취소 버튼·벌크 pre-check 는 형제 클레임으로 집을 안 잠근다(결정 8·9). 스펙 `docs/specs/2026-09-11-naver-partial-claim_SPEC.md` §11. **잔여: 스테이징 §8 ①②③ + 사용자 #2354 화면 확인**
 > 이 파일 상단 40줄이 세션 시작 컨텍스트의 전부다(hygiene 계약으로 강제). 상세 이력은 "## 최근 완료"·"## 기록 보관".
 
 
@@ -50,6 +50,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 
 
 ## 최근 완료 (최대 5개)
+- **도면팀 알림 개편(운영 반영 PR #350 · production `401ebeb45`)** — 90일 수신 204건 중 183건이 `ERP_ORDER_CHANGED`, 변경 61건 중 31건은 도면 무관. `is_drawing_impacting_path` 로 품목·비고·지방시공유형만 알림 사유, `DRAWING_REVISION` interrupt 등급 → 중앙 확인창(확인=ack), 마법사에도 소켓·확인창
 - [2026-09-10] **담당자별 개인 도면방 동시 발송 운영 완료(PR #343 · production `62ee11969`)** — 도면방 PUSH 한 번에 공용방(230331)+담당자 개인방. 방 번호 = `users.channel_drawing_group_id`(사용자 관리에서 등록), 매칭 `manager_name`→`users.name`. **잔여: 8명 방 번호 등록(현재 0명)**
 - [2026-09-10] **하네스 ablation v2 마감(origin/deploy `075438c3b`~`93bcc746b` 14커밋·CI green)** — CLAUDE.md 108→35줄, 전역 42→5줄, 메모리 154→46, 훅 3종 해제(ctx_gate 유지), superpowers off, 드리프트 가드 12종. `/context` 실측 상시 37k/1M·스킬 54종 5,610. 정본 `docs/plans/2026-09-09-harness-ablation-v2-*` + drafts/DELETE_LIST.md §0
 - [2026-09-09] **도면 전달 상태 결함 2건 운영 반영(production `8efef9886` · PR #320·#323)** — 전달 취소가 살아 있는 이전 전달본을 두고 `PENDING` 으로 되돌려 수령 확정 버튼이 사라졌다(#5193) + 도면 0장 전달 허용(운영 24건 PENDING 복귀·백업 보관)
