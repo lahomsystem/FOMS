@@ -546,6 +546,31 @@
         });
     }
 
+    /**
+     * 캡처 이미지 URL(data:/blob:) → PNG File.
+     *
+     * iOS 는 data: URL 이미지를 길게 눌러도 사진 앱에 저장하지 못한다(메뉴에 '사진에 저장'이
+     * 없거나 눌러도 저장이 안 된다). 공유 시트를 거쳐야 사진 보관함에 들어가므로 File 로
+     * 바꿔 Web Share 에 넘긴다.
+     */
+    function _estimateImageToFile(imageUrl, filename) {
+        return fetch(imageUrl)
+            .then(function (res) { return res.blob(); })
+            .then(function (blob) {
+                return new File([blob], filename || '견적서.png', {
+                    type: blob.type || 'image/png'
+                });
+            });
+    }
+
+    /** 이 브라우저가 파일 공유(= iOS 사진 보관함 저장 경로)를 지원하는지. */
+    function _canShareEstimateFile() {
+        return typeof navigator !== 'undefined'
+            && typeof navigator.share === 'function'
+            && typeof navigator.canShare === 'function'
+            && typeof File === 'function';
+    }
+
     function _openEstimatePreviewModal(opts) {
         opts = opts || {};
         var modalEl = document.getElementById('erpEstimatePreviewModal');
@@ -561,6 +586,7 @@
                 + '<img src="' + dataUrl + '" alt="견적서" class="img-fluid rounded erp-attachment-preview-img" draggable="false">';
             _bindEstimatePreviewImageZoom(body);
             _ensureEstimatePreviewModalZoomReset();
+            _setupEstimatePreviewSaveBtn(dataUrl, opts.filename);
             bootstrap.Modal.getOrCreateInstance(modalEl).show();
         }
 
@@ -577,6 +603,68 @@
         _refreshMobilePreview().then(function () {
             showModal(_mobilePreviewDataUrl);
         });
+    }
+
+    /**
+     * 모달 안의 '사진에 저장' 버튼을 이번 이미지에 맞춰 준비한다.
+     *
+     * 공유는 **버튼 탭이라는 새 사용자 제스처 안에서** 불러야 한다. 저장 버튼 탭 → 비동기
+     * 캡처 → share() 순서로는 iOS 가 사용자 활성화를 잃었다고 보고 공유 시트를 안 연다.
+     * 캡처는 이미 끝난 뒤 이 모달이 뜨므로, 여기서 버튼만 걸어 두면 활성화가 살아 있다.
+     *
+     * @param {string} imageUrl 캡처 이미지 URL(data:/blob:).
+     * @param {string} [filename] 저장 파일명.
+     */
+    function _setupEstimatePreviewSaveBtn(imageUrl, filename) {
+        var btn = document.getElementById('btn-est-preview-save');
+        if (!btn) return;
+
+        // 파일 공유를 못 하는 브라우저(데스크톱 크롬 등)에서는 버튼 자체를 숨긴다 —
+        // 눌러도 아무 일이 없는 버튼을 주면 "저장이 안 된다"는 같은 신고가 반복된다.
+        if (!_canShareEstimateFile()) {
+            btn.hidden = true;
+            return;
+        }
+        btn.hidden = false;
+        btn.disabled = false;
+        btn.dataset.estImageUrl = imageUrl;
+        btn.dataset.estFilename = filename || '견적서.png';
+
+        if (btn.dataset.estSaveBound === '1') return;
+        btn.dataset.estSaveBound = '1';
+        btn.addEventListener('click', function () {
+            _shareEstimateImage(btn);
+        });
+    }
+
+    function _shareEstimateImage(btn) {
+        var imageUrl = btn.dataset.estImageUrl || '';
+        var filename = btn.dataset.estFilename || '견적서.png';
+        if (!imageUrl) return;
+
+        var originalHTML = btn.innerHTML;
+        btn.disabled = true;
+        _estimateImageToFile(imageUrl, filename)
+            .then(function (file) {
+                if (!navigator.canShare({ files: [file] })) {
+                    throw new Error('이 브라우저가 이미지 공유를 지원하지 않습니다.');
+                }
+                return navigator.share({ files: [file], title: filename });
+            })
+            .catch(function (err) {
+                // 사용자가 공유 시트를 닫은 것은 실패가 아니다.
+                if (err && err.name === 'AbortError') return;
+                console.error('[estimate-preview] 사진 저장 공유 실패:', err);
+                alert(
+                    '사진에 저장하지 못했습니다.\n'
+                    + '이미지를 길게 눌러 저장하거나 화면 캡처를 이용해 주세요.\n'
+                    + (err && err.message ? err.message : String(err))
+                );
+            })
+            .finally(function () {
+                btn.disabled = false;
+                btn.innerHTML = originalHTML;
+            });
     }
 
     function _bindEstimateMobilePreview() {
@@ -1353,7 +1441,9 @@
                 const filename = numText + '.png';
 
                 // iOS Safari는 a[download]를 무시하므로(비동기 후 click은 활성화도 소실)
-                // 캡처 이미지를 모달로 띄워 길게 눌러 사진에 저장하도록 안내한다.
+                // 캡처 이미지를 모달로 띄운다. 다만 iOS 는 data: URL 이미지를 길게 눌러도
+                // 사진 앱에 저장하지 못한다(메뉴에 '사진에 저장'이 없거나 눌러도 안 들어간다)
+                // — 공유 시트를 거쳐야 사진 보관함에 들어가므로 모달의 저장 버튼이 그 경로다.
                 if (_isIosLike()) {
                     const imgUrl = await _captureEstimateDataUrl({ preferBlobUrl: false });
                     if (!imgUrl) {
@@ -1361,7 +1451,10 @@
                     }
                     _openEstimatePreviewModal({
                         dataUrl: imgUrl,
-                        hint: '이미지를 길게 눌러 \u0027사진에 저장\u0027을 선택하세요.'
+                        filename: filename,
+                        hint: _canShareEstimateFile()
+                            ? "아래 '사진에 저장' 을 누르면 공유 시트에서 사진 보관함에 저장됩니다."
+                            : "이미지를 길게 눌러 '사진에 저장'을 선택하세요."
                     });
                     return;
                 }
