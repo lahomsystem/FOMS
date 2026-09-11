@@ -26,16 +26,29 @@
 
 ## Task
 
-- [ ] **T1 알림 사유 분리** — `drawing_order_change.py` 에 도면 영향 판정 추가. history/타임라인은
+- [x] **T1 알림 사유 분리** — `drawing_order_change.py` 에 도면 영향 판정 추가. history/타임라인은
       전 항목 유지, Notification·`order_change_pending` 배지는 영향 항목이 있을 때만.
       완료 기준: 신규 계약 테스트(영향 있음 → 알림 1건 · 결제/시공일만 → 알림 0건·history 1건) green.
-- [ ] **T2 수정 요청 확인창** — 알림 payload 에 인터럽트 등급을 실어 공용 프런트에서 확인창을
+- [x] **T2 수정 요청 확인창** — 알림 payload 에 인터럽트 등급을 실어 공용 프런트에서 확인창을
       띄우고, 확인 클릭이 ack API 로 간다. 완료 기준: DRAWING_REVISION realtime payload 계약
       테스트 green + 실화면 확인.
-- [ ] **T3 마법사 알림 배선** — 마법사에 소켓·확인창 로드. 완료 기준: 마법사에서 수정 요청 수신 시
+- [x] **T3 마법사 알림 배선** — 마법사에 소켓·확인창 로드. 완료 기준: 마법사에서 수정 요청 수신 시
       확인창 노출(실화면), 캔버스 단축키 회귀 없음.
 - [ ] **T4 검증·배포** — `APP_OK` · 관련 테스트 · `pre_push_smoke` exit 0 · deploy push → CI 4종 green.
 
 ## 진행
 
-(비어 있음 — 시작)
+- **T1 DONE** (`8c21011c5`) — `is_drawing_impacting_path`/`drawing_impacting_changes`. 타임라인은 전 항목
+  유지, 알림·배지는 도면 영향 항목만. 비영향 변경은 기존 배지를 끄지 않는다. 계약 5건 + 음성 대조군
+  (판정 무력화 시 2건 red). 기존 debounce 테스트 전제를 시공일→색상 교체로 옮김.
+- **T2·T3 DONE** (`48f0ae6a3`) — 서버가 `interrupt` 등급을 싣고(취소는 제외), 공용 확인창
+  `foms-drawing-alert.js`(+CSS)가 ack+read 후 닫는다. 공용 레이아웃 인라인/외부 사본 양쪽 분기.
+  마법사엔 소켓·write helper·확인창 + `wizard-alert-bridge.js`.
+  로컬 dev 실브라우저 E2E: 실제 request-revision 200 → 마법사에 확인창 등장 → ack 200·read 200 →
+  닫힘, 콘솔 에러 0.
+- **T4** — 진행 중(pre_push_smoke → deploy push → CI 4종).
+
+## 남은 판단거리(사용자 몫)
+
+- 수정 요청 **취소**는 지금 확인창을 안 띄운다(쪽지 등급 미구현 — 종 배지 그대로). 필요하면 추가.
+- 웹푸시 구독이 도면팀 3인 중 2개뿐이다. 화면을 안 보고 있을 때의 도달은 그만큼만 보장된다.
