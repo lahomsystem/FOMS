@@ -75,6 +75,9 @@
 {% if current_user %}
 {% include 'partials/shared/erp_mobile_notification_panel.html' %}
 <script src="{{ url_for('static', filename='js/foms/mobile-notification.js') }}?v=20260716a" defer></script>
+{# 도면 수정 요청 확인창(ACTION-REQUIRED). 종 배지로는 놓쳐서 90일 21건 중 8건이 미독이었다. #}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-drawing-alert.css') }}?v=20260911a">
+<script src="{{ url_for('static', filename='js/foms/foms-drawing-alert.js') }}?v=20260911a" defer></script>
 <script src="{{ url_for('static', filename='js/foms/mobile-push.js') }}?v=20260716a" defer></script>
 {% endif %}
 {# PWA service worker 등록(전 페이지, 데스크톱 포함) — 데스크톱 full page load의 css/js

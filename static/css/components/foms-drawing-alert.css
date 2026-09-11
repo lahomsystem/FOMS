@@ -1,0 +1,154 @@
+/* 도면 수정 요청 확인창 (ACTION-REQUIRED 등급).
+ *
+ * 긴급 호출(P0)의 전체화면 빨강보다 한 단계 낮다: 화면을 덮어 작업을 멈추게 하지만
+ * 색과 크기는 절제한다. 확인 버튼을 누르기 전에는 닫히지 않는다(닫기 X 없음).
+ * 자산 핀: layout_scripts.html / drawing/wizard.html 의 ?v= 와 함께 올린다.
+ */
+
+.foms-drawing-alert {
+  position: fixed;
+  inset: 0;
+  z-index: 105500; /* 긴급 오버레이(106000) 아래, 나머지 모달 위 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(16, 32, 44, 0.46);
+  backdrop-filter: blur(2px);
+}
+
+.foms-drawing-alert[hidden] {
+  display: none !important;
+}
+
+html.foms-drawing-alert-open {
+  overflow: hidden;
+}
+
+.foms-drawing-alert__card {
+  width: min(100%, 440px);
+  background: #fff;
+  color: #1b2733;
+  border: 1px solid #b8431a;
+  border-top: 5px solid #b8431a;
+  border-radius: 4px;
+  box-shadow: 0 18px 48px rgba(16, 32, 44, 0.3);
+  padding: 22px 24px 20px;
+}
+
+.foms-drawing-alert__kicker {
+  margin: 0;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: #b8431a;
+}
+
+.foms-drawing-alert__title {
+  margin: 8px 0 10px;
+  font-size: 1.2rem;
+  font-weight: 700;
+  line-height: 1.35;
+  word-break: keep-all;
+}
+
+.foms-drawing-alert__body {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: #33465a;
+  word-break: keep-all;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+.foms-drawing-alert__meta {
+  margin: 12px 0 0;
+  font-size: 0.82rem;
+  color: #6d8598;
+}
+
+.foms-drawing-alert__acts {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.foms-drawing-alert__btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px; /* 태블릿 터치 목표 */
+  padding: 10px 16px;
+  border: 1px solid #b3c3d0;
+  border-radius: 3px;
+  background: #fff;
+  color: #1b2733;
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.foms-drawing-alert__btn:hover {
+  background: #f2f5f8;
+}
+
+.foms-drawing-alert__btn--primary {
+  background: #b8431a;
+  border-color: #b8431a;
+  color: #fff;
+}
+
+.foms-drawing-alert__btn--primary:hover {
+  background: #9c3813;
+}
+
+.foms-drawing-alert__btn:focus-visible {
+  outline: 3px solid #1763a6;
+  outline-offset: 2px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .foms-drawing-alert__card {
+    background: #13212c;
+    color: #e8eef3;
+    border-color: #f08a5d;
+    border-top-color: #f08a5d;
+  }
+
+  .foms-drawing-alert__kicker,
+  .foms-drawing-alert__btn--primary {
+    color: #fff;
+  }
+
+  .foms-drawing-alert__kicker {
+    color: #f08a5d;
+  }
+
+  .foms-drawing-alert__body {
+    color: #a9bcc9;
+  }
+
+  .foms-drawing-alert__btn {
+    background: #182b38;
+    border-color: #37576d;
+    color: #e8eef3;
+  }
+
+  .foms-drawing-alert__btn--primary {
+    background: #c2521f;
+    border-color: #c2521f;
+  }
+}
+
+@media (max-width: 480px) {
+  .foms-drawing-alert {
+    padding: 14px;
+  }
+
+  .foms-drawing-alert__acts {
+    flex-direction: column;
+  }
+}
