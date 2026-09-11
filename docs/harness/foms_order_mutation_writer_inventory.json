@@ -61,13 +61,13 @@
     },
     {
       "path": "foms/api/drawing/erp_orders_revision.py",
-      "lineno": 334,
+      "lineno": 339,
       "kind": "flag_modified_structured_data",
       "owner": "DRAWING-REVISION-BACKFILL-00"
     },
     {
       "path": "foms/api/drawing/erp_orders_revision.py",
-      "lineno": 479,
+      "lineno": 484,
       "kind": "flag_modified_structured_data",
       "owner": "DRAWING-REVISION-BACKFILL-00"
     },
@@ -133,7 +133,7 @@
     },
     {
       "path": "foms/services/notifications/drawing_order_change.py",
-      "lineno": 1223,
+      "lineno": 1292,
       "kind": "flag_modified_structured_data",
       "owner": "STATE-DRAWING-01"
     },
@@ -165,7 +165,7 @@
   "writers": [
     {
       "path": "foms/api/channel/channel_integration.py",
-      "lineno": 318,
+      "lineno": 320,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "CHANNEL-WRITER-01"
@@ -291,14 +291,14 @@
     },
     {
       "path": "foms/api/drawing/erp_orders_revision.py",
-      "lineno": 334,
+      "lineno": 339,
       "kind": "flag_modified_structured_data",
       "classification": "EXTERNAL",
       "owner": "DRAWING-REVISION-BACKFILL-00"
     },
     {
       "path": "foms/api/drawing/erp_orders_revision.py",
-      "lineno": 479,
+      "lineno": 484,
       "kind": "flag_modified_structured_data",
       "classification": "EXTERNAL",
       "owner": "DRAWING-REVISION-BACKFILL-00"
@@ -522,7 +522,7 @@
     },
     {
       "path": "foms/services/notifications/drawing_order_change.py",
-      "lineno": 1223,
+      "lineno": 1292,
       "kind": "flag_modified_structured_data",
       "classification": "EXTERNAL",
       "owner": "STATE-DRAWING-01"
