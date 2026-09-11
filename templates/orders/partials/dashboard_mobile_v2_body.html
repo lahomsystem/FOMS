@@ -48,16 +48,7 @@
   data-page-label="{{ page }} / {{ total_pages }}">
   {% include 'orders/partials/dashboard_mobile_filter_sheet.html' %}
 
-  {#- 작성 중인 초안 되찾기 줄. 내용은 static/js/foms/draft_resume.js 가 목록 API 를
-      부른 뒤에 채운다 — 대시보드 쿼리에 얹으면 홈 응답시간에 그대로 붙는다. 0건이면
-      끝까지 hidden 이다. -#}
-  <div class="foms-draft-resume" id="foms-draft-resume" hidden>
-    <button type="button" class="foms-draft-resume__bar" id="foms-draft-resume-bar"
-            aria-expanded="false" aria-controls="foms-draft-resume-sheet">
-      <span class="foms-draft-resume__count"></span>
-      <span class="foms-draft-resume__hint">이어서 쓰기</span>
-    </button>
-    <div class="foms-draft-resume__sheet" id="foms-draft-resume-sheet" hidden></div>
+  {% include 'orders/partials/draft_resume_bar.html' %}
   </div>
 
   {% if risk_frame %}{% include 'orders/partials/risk_frame.html' %}{% endif %}
