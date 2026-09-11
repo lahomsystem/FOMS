@@ -21,7 +21,7 @@ $dryRun = python tools/ops/railway_configure_cron_service.py --target production
 Write-Host $dryRun
 
 $required = @(
-    '"startCommand": "python tools/cron/cleanup_order_drafts.py --execute"',
+    '"startCommand": "python tools/cron/cleanup_order_drafts.py --execute && python tools/ops/purge_order_mutation_receipts.py --retention-days 7 --batch-size 1000 --apply && python tools/ops/purge_audit_logs.py --apply"',
     '"cronSchedule": "0 17 * * *"',
     '"railwayConfigFile": "railway-cron.toml"'
 )
