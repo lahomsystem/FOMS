@@ -156,7 +156,7 @@
 | `foms/services/feature_flags.py` | 서버 워커 B | T7 |
 | `templates/admin/partials/naver_workbench_pane.html`, `templates/admin/naver_workbench.html` | 화면 워커 C | T6, 핀 |
 | `static/js/admin/naver-workbench.js`, `static/css/admin/naver-workbench.css` | 화면 워커 C | `node --check` 필수 |
-| `tests/services/integrations/test_naver_partial_claim.py`(신설) | 테스트 워커 D | 서비스·라우트·화면 계약 |
+| `tests/services/integrations/test_naver_partial_claim*.py`(신설) | 테스트 워커 D | 서비스·라우트·화면 계약 |
 | 기존 테스트 갱신(v3_contract·relation·cancel·핀 6곳) | 테스트 워커 D | 갱신은 단언 이동만, 삭제 금지 |
 | `docs/*` | CEO | T9 |
 
@@ -167,7 +167,7 @@
 ```
 python -c "import app; print('APP_OK')"
 node --check static/js/admin/naver-workbench.js
-python -m pytest -q tests/services/integrations/test_naver_partial_claim.py
+python -m pytest -q tests/services/integrations/ -k partial_claim
 python -m pytest -q tests/services/integrations/test_naver_cancel.py tests/services/integrations/test_naver_return_send.py \
   tests/services/integrations/test_naver_addon_claim_order.py tests/services/integrations/test_naver_return_wiring.py \
   tests/services/integrations/test_naver_workbench_v3_contract.py tests/services/integrations/test_naver_workbench_relation.py \
@@ -243,4 +243,4 @@ deploy(스테이징) → 게이트 OFF 로 배포 → §8 QA → 게이트 ON(�
 - **계약 §3 앵커 추가**(결정 5 — 우리가 일부 취소한 행의 `CANCEL_DONE` 은 집을 잠그지 않는다, `_group_queue`·`_household_has_claim` 와 같은 규칙):
   `naver_ingest._attach_household_counts` :3570-3605(옛 경로, `blocking`) · `naver_ingest._build_sibling_index` :3792-3811(`index.blocking`·`index.confirmed_claim_blocked`·`index.canceled`) · `naver_ingest._triage_pane.selected.partial_canceled` :1592 · `bulk_dispatch._blocking_reason` :341-372(결정 9).
 - **공존 — 설계 유지**: 목록 줄 `_row_view`(:2786-2790) 는 형제 `CANCEL_DONE`(판매자센터 취소, 우리 표식 없음) 집을 여전히 `stop`/"손대지 않음" 으로 그리고, pane 은 같은 집에서 취소 버튼을 연다. 목록 줄 술어는 **발주확인·발송 축**이고 취소 축은 pane 의 행 단위 모달만 쓴다 — 반품 축과 같은 공존이다. 고치지 않는다.
-- 회귀 테스트: `tests/services/integrations/test_naver_partial_claim.py` (a) `test_list_row_and_pane_stay_open_for_a_partially_canceled_sibling`(음성 대조군 household·옛 표식) (b) `test_pane_buttons_do_not_depend_on_which_sibling_opened_it` (c) `test_bulk_blocking_reason_mirrors_the_cancel_guard`(순수 함수, 네이버 0회). `is_partial_canceled` 를 항상 False 로 바꾸면 셋 다 red 임을 CEO 가 재확인했다.
+- 회귀 테스트: `tests/services/integrations/test_naver_partial_claim*.py` (a) `test_list_row_and_pane_stay_open_for_a_partially_canceled_sibling`(음성 대조군 household·옛 표식) (b) `test_pane_buttons_do_not_depend_on_which_sibling_opened_it` (c) `test_bulk_blocking_reason_mirrors_the_cancel_guard`(순수 함수, 네이버 0회). `is_partial_canceled` 를 항상 False 로 바꾸면 셋 다 red 임을 CEO 가 재확인했다.
