@@ -1,3 +1,4 @@
+{{ mark('shell_scripts') }}
     <!-- 전역 채팅 알림 팝업 컨테이너 (모든 페이지에서 사용) -->
     {% if current_user %}
     <div id="chat-notification-container" class="chat-notification-container"></div>
@@ -1748,3 +1749,4 @@
     <script src="{{ url_for('static', filename='js/orders/erp-dashboard-entry.js') }}?v=20260909a" defer></script>
     <script src="{{ url_for('static', filename='js/foms/draft_resume.js') }}?v=20260911a" defer></script>
     {% endif %}
+{{ mark('shell_scripts') }}
