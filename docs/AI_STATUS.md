@@ -10,7 +10,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
-- [2026-09-10] **담당자별 개인 도면방 동시 발송 운영 완료(PR #343 · production `62ee11969`)** — 도면방 PUSH 한 번에 공용방(230331)+담당자 개인방. 방 번호 = `users.channel_drawing_group_id`(사용자 관리에서 등록), 매칭 `manager_name`→`users.name`. **잔여: 8명 방 번호 등록(현재 0명)**
+- [2026-09-11] **도면 마법사 캔버스 소실 사고 종결(production `5564994a6`·PR #353)** — 주문 폼 전체 저장 1회가 `drawing_wizard` 를 통째 삭제(보존 목록 누락, 감사엔 `변경 0건`). 같은 자리 6번째라 등재 대신 **비-폼 키 기본 보존**으로 뒤집음. 피해=마법사 쓴 주문 2건 전부, **둘 다 R2 스냅샷으로 복구**. 기록 `docs/plans/2026-09-11-drawing-wizard-data-loss-incident.md`
 - [2026-09-10] **추가결제 행 `주문 만듦` 배지 접기 + ERP 도크 예약금 카드 → 결제 금액 한 줄(PR #341 · production `a1ec42996`)** — 사용자 지시(#5206 김도희). 서버 판정 `foms_badge_hidden`, 도크는 서버 `relation_label`·`live_total_display` 두 노드만(설명문 전부 제거) · 워크벤치 정리 계획 카드·검색 붙이기·완료 패널도 같은 규칙(PR #342 · production `89561e10a`) · 09-11 dock.py 옛 예약금 키·헬퍼 제거(PR #348 · production `ee4526737`). 원장 `docs/plans/2026-09-10-addon-badge-dock-brief.md`. 스테이징 QA PASS 후 승격
 - [2026-09-10] **정산 동기화 루프 매일 05:31 사망 근본 수정(deploy 대기 → 운영 승격 예정)** — 성공 tick 의 `_heartbeat_metadata` 가 `int(dict)` 로 터지고 그 줄이 try 밖이라 루프가 죽어 다음 재배포까지 STALE. 합산 `_count` + 조립 가드 + 회귀 2건. 원장 `docs/incidents/2026-09-10-settle-loop-dies-after-success-tick.md`
 - [2026-09-10] **운영 대기분 선별 승격(PR #339 · production `3888da9ab`)** — 원장 `docs/plans/2026-09-09-production-pending-triage.md`. 지난 날짜 발송 띠·ACL·백필 갈래 철회·drift 924·perf 18466·하네스/문서 동기화. **로그인 잠금(`40d25bb1b`)만 deploy 잔류(사용자 보류)**
@@ -47,6 +47,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 
 
 ## 최근 완료 (최대 5개)
+- [2026-09-10] **담당자별 개인 도면방 동시 발송 운영 완료(PR #343 · production `62ee11969`)** — 도면방 PUSH 한 번에 공용방(230331)+담당자 개인방. 방 번호 = `users.channel_drawing_group_id`(사용자 관리에서 등록), 매칭 `manager_name`→`users.name`. **잔여: 8명 방 번호 등록(현재 0명)**
 - [2026-09-09] **도면 전달 상태 결함 2건 운영 반영(production `8efef9886` · PR #320·#323)** — 전달 취소가 살아 있는 이전 전달본을 두고 `PENDING` 으로 되돌려 수령 확정 버튼이 사라졌다(#5193) + 도면 0장 전달 허용(운영 24건 PENDING 복귀·백업 보관)
 - [2026-09-09] **워커 정지 헛알림 26건 근본 수정(deploy 예정)** — 같은 하트비트를 readiness 는 `max(등록부, 신고간격 x 3)`=5400초, 감시자는 등록부 900 고정으로 읽어 반대로 말했다(운영 수집 루프 간격 1800 → 15분마다 멈춤·복구 왕복, 09-08 알림 26건). 예산 정본 `effective_heartbeat_budget` 신설로 판정부 2곳이 한 함수만 부른다. 상세 `docs/incidents/2026-09-09-worker-watchdog-false-stall-flap.md`
 - [2026-09-11] **마법사 발송 후 미등록 유실 차단 운영 반영(PR #349 · production `02eee54489`)** — 초안 발송은 설계상 주문을 만들지 않는데(설계 D1) 화면이 그 사실을 안 알려 푸시 54건 중 3건이 주문 없이 끝났다(2026-09-10 실측 1건: 초안 `new.ff7475d50b3a42ac` 푸시 200, `submit` 요청 0건). ①발송 완료 문구를 "아직 주문 등록 전입니다"로 + 등록 버튼 강조 ②그 상태로 닫으면 확인창 ③등록 실패 무음 제거(`.catch`·버튼 잠금·복구) — 이 구멍 때문에 "안 눌렀다"와 "눌렀는데 안 나갔다"를 서버 증거로 가를 수 없었다. 원장 `docs/plans/2026-09-11-erporder-channel-push-missing-order-ledger.md`
