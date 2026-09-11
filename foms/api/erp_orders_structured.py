@@ -240,6 +240,14 @@ _OPERATIONAL_TOP_LEVEL_KEYS = (
     'drawing_transfer_history',
     'last_drawing_transfer',
     'drawing_assignees',
+    # 도면 마법사 캔버스 상태(서버 소유 — 폼은 렌더하지도 보내지도 않는다).
+    # 2026-09-10 주문 5177: 폼 전체 저장 1회로 sheets·pending·versions 가 통째로
+    # 사라졌고 diff 는 change_count 0 이었다. 16시간 뒤 도면 담당자가 마법사를 열자
+    # GET 이 state=null 을 줘 백지가 떴고, 거기서 만든 새 시트가 저장됐다.
+    # structured_form_projection.preserve_non_form_keys 가 이제 이름 없는 서버 소유
+    # 키까지 일반 규칙으로 지키지만, 이 등재는 유지한다 — 이 목록이 "왜 이 키가 서버
+    # 소유인지"의 문서이고, 계약 테스트가 이 블록을 문자열로 읽는다.
+    'drawing_wizard',
     # Estimate preview manual rows are edited from the contract tab, not the main form.
     'estimate_preview',
     # ChannelTalk manual push history (server-managed on /api/channel/push-manual,

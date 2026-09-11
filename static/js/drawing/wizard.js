@@ -212,6 +212,9 @@
   var state = { v: 1, sheets: [] };
   var current = 0;
   var dirty = false;
+  var hydrated = false;                // load() 가 200 으로 렌더까지 마쳤을 때만 true(하이드레이션 완료)
+  var userDirty = false;               // 사용자 조작으로 생긴 변경만 true(자동 저장 대상 판정)
+  var autosaveSuspended = false;       // 충돌을 '내 버전 유지'로 넘긴 뒤 자동 저장 금지(사람이 저장 버튼을 눌러야 덮어쓴다)
   var leaving = false;                 // 나가기 버튼 등 의도적 이탈 시 beforeunload 중복 프롬프트 억제
   var baseUpdatedAt = null;
   var canSave = !!CONFIG.can_save;
@@ -315,7 +318,7 @@
     markDirty();
   }
 
-  function markDirty() { dirty = true; updateSaveState(); }
+  function markDirty() { dirty = true; userDirty = true; updateSaveState(); }
 
   /* ========================================================================
    * [3] form render
@@ -3250,6 +3253,7 @@
   }
 
   function load() {
+    hydrated = false;   // 응답·렌더가 끝나기 전에는 어떤 저장도 나가지 않는다(못 불러온 상태를 서버에 쓰지 않음)
     jsonFetch(API_BASE + '/drawing-wizard', { headers: { 'Accept': 'application/json' } }).then(function (r) {
       if (r.status !== 200 || !r.data || !r.data.success || !r.data.data) {
         toast(serverErrorText(r, '불러오기에 실패했습니다.'));
@@ -3274,12 +3278,14 @@
       undoStack.length = 0;
       redoStack.length = 0;
       dirty = false;
+      userDirty = false; autosaveSuspended = false;   // 새 서버 상태 위에서 다시 시작(사용자 변경·충돌 억제 해제)
       // 저장 시트라도 지정 도면담당자의 영문명이 있으면 DREW를 그 값으로 동기화(담당자 기준 SSOT).
       if (d.drew_assignee_en) {
         var changed = false;
         state.sheets.forEach(function (s) {
           if (s.form && s.form.drew !== d.drew_assignee_en) { s.form.drew = d.drew_assignee_en; changed = true; }
         });
+        // 사용자가 하지 않은 변경을 사용자 대신 서버에 써 넣지 않는다(저장 버튼은 켜되 자동저장은 하지 않는다).
         if (changed) { dirty = true; }   // 값이 실제로 바뀌면 저장 유도(dirty 표시)
       }
       // 제품별 시트의 페이지 번호가 비어있으면(과거 저장분) 제품 번호(1-base)로 자동 채움.
@@ -3291,6 +3297,7 @@
           var cur = String(s.form.page_no == null ? '' : s.form.page_no).trim();
           if (cur === '' || cur === '-') { s.form.page_no = String(s.product_index + 1); numbered = true; }
         });
+        // 사용자가 하지 않은 변경을 사용자 대신 서버에 써 넣지 않는다(저장 버튼은 켜되 자동저장은 하지 않는다).
         if (numbered) { dirty = true; }
       })();
       selectedIds = [];
@@ -3305,21 +3312,33 @@
       updateSaveState();
       fitZoom();
       refreshPending();   // 저장된 도면(전달 대기) 미리보기 패널 초기 로드
+      hydrated = true;   // 렌더까지 끝난 뒤에만 저장 허용(성공 핸들러의 맨 마지막 문장)
     }, function (err) { console.warn('[dws] load', err); toast('불러오기 오류'); });
   }
 
   function handleConflict(cdata) {
     var name = (cdata && cdata.server_updated_by_name) || '다른 사용자';
+    // 서버 배선 계약: 409 body 의 conflict_reason 은 'stale' 또는 'vanished'.
+    // 'vanished' = 내가 편집하던 서버 상태가 통째로 사라졌다 — 채택할 서버 타임스탬프가 없다.
+    var vanished = !!(cdata && cdata.conflict_reason === 'vanished');
     var ok = confirm(
-      '다른 사용자(' + name + ')가 먼저 저장했습니다.\n\n' +
-      '[확인] 서버 버전을 다시 불러옵니다.\n' +
-      '[취소] 내 버전을 유지합니다(다시 저장하면 서버 내용을 덮어씁니다).'
+      vanished
+        ? ('서버에 저장돼 있던 도면 상태가 사라졌습니다.\n\n' +
+           '[확인] 다시 불러옵니다.\n' +
+           '[취소] 내 화면을 유지합니다(저장하려면 저장 버튼을 눌러야 합니다).')
+        : ('다른 사용자(' + name + ')가 먼저 저장했습니다.\n\n' +
+           '[확인] 서버 버전을 다시 불러옵니다.\n' +
+           '[취소] 내 버전을 유지합니다(다시 저장하면 서버 내용을 덮어씁니다).')
     );
     if (ok) {
       load();
     } else {
-      baseUpdatedAt = (cdata && cdata.server_updated_at) || baseUpdatedAt;
-      toast('내 버전을 유지합니다. 다시 저장하면 덮어씁니다.');
+      // 내 버전 유지 → 덮어쓰기는 사람이 저장 버튼을 눌러야만 가능(자동 저장이 조용히 서버를 덮지 못하게).
+      autosaveSuspended = true;
+      if (!vanished) {
+        baseUpdatedAt = (cdata && cdata.server_updated_at) || baseUpdatedAt;
+      }
+      toast('내 버전을 유지합니다. 저장하려면 저장 버튼을 눌러 주세요.');
     }
   }
 
@@ -3335,6 +3354,10 @@
     opts = opts || {};
     var auto = opts.auto === true;
     if (!canSave || saveInFlight) { return Promise.resolve(false); }
+    if (!hydrated) {   // 못 불러온 상태를 서버에 써 넣지 않는다(로드 성공 여부로만 판정 — 내용 기반 차단 아님)
+      if (!auto) { toast('도면을 불러오는 중입니다. 잠시 후 저장해 주세요.'); }
+      return Promise.resolve(false);
+    }
     if (!state.sheets.length) {
       if (!auto) { toast('저장할 도면이 없습니다. 제품을 선택해 도면을 먼저 만드세요.'); }
       return Promise.resolve(false);
@@ -3346,7 +3369,7 @@
     }
     saveInFlight = true;
     var sheet = currentSheet();   // 저장 시점 시트 참조(비동기 PNG 단계 동안 고정)
-    var body = { state: serializeState(), base_updated_at: baseUpdatedAt };
+    var body = { state: serializeState(), base_updated_at: baseUpdatedAt, auto: auto };
     els.saveBtn.disabled = true;
     return jsonFetch(API_BASE + '/drawing-wizard', {
       method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
@@ -3354,6 +3377,7 @@
       if (r.status === 200 && r.data && r.data.success) {
         baseUpdatedAt = (r.data.data && r.data.data.updated_at) || baseUpdatedAt;
         dirty = false;
+        userDirty = false;
         autoConflictWarned = false;   // 저장 성공 → 다음 충돌 시 다시 1회 경고 허용
         updateSaveState();
         if (auto) {
@@ -3395,6 +3419,7 @@
 
   /** 자동 저장 틱: 안전 조건을 모두 만족할 때만 조용히 저장(수동 저장 동작 불변). */
   function tickAutosave() {
+    if (!hydrated || !userDirty || autosaveSuspended) { return; }   // 로드 완료 + 사용자 변경 + 충돌 미억제일 때만
     if (!dirty || !canSave || saveInFlight) { return; }
     if (!state.sheets.length) { return; }          // 빈 상태(시트 0개)는 저장 대상 없음
     if (editingTextarea || editCtx) { return; }   // 주석 텍스트 편집 중이면 보류
@@ -3528,6 +3553,7 @@
       }
       baseUpdatedAt = (r.data.data && r.data.data.updated_at) || baseUpdatedAt;
       dirty = false;
+      userDirty = false;
       autoConflictWarned = false;
       updateSaveState();
       return eachSheetToBlob(postSheetPngBlob, '일괄 저장').then(function (res) {

@@ -56,6 +56,61 @@ FORM_INTRODUCED_KEYS = frozenset(PROVENANCE_KEYS | {
     "meta",
 })
 
+#: 폼 저장 경로가 **의도적으로** 제거하는 유일한 최상위 키. 정본은
+#: ``foms.api.erp_orders_structured._force_preserve_as_lifecycle`` 의
+#: ``structured_data.pop("as_lifecycle", None)``(erp_orders_structured.py:519) 이며,
+#: 서버값이 dict 가 아닐 때 폼이 보낸 stale 스냅샷을 떨어뜨린다. 아래
+#: :func:`preserve_non_form_keys` 의 "빠진 옛 키 복원" 규칙이 이 키를 되살리면 그 pop 이
+#: 무효가 되므로 예외로 둔다. 2026-09-11 실측: 폼 저장 경로의 최상위 키 제거는 이 한 곳뿐이다
+#: (``grep -n "structured_data.pop\|del structured_data" foms/api/erp_orders_structured.py``).
+SERVER_OWNED_REMOVABLE_KEYS = frozenset({"as_lifecycle"})
+
+
+def preserve_non_form_keys(old_sd: dict, structured_data: dict) -> list[str]:
+    """폼이 안 보낸 서버 소유 최상위 키를 old_sd 에서 되살린다(in-place). 복원 키를 반환한다.
+
+    :func:`enforce_form_allowlist` 의 **대칭짝**이다 — 저쪽은 "클라이언트가 새 키를 못 만들게"
+    하고, 이쪽은 "클라이언트가 남의 키를 못 지우게" 한다. allowlist 는 들어온 dict 에서 낯선
+    키를 걷어낼 뿐 **빠진 옛 키를 되살리지 않으므로**, 폼이 렌더하지도 보내지도 않는 서버 소유
+    키는 지금까지 "보존 목록에 이름을 적어야만" 살아남았다.
+
+    2026-09-10 주문 5177: 영업 담당자의 전체 폼 저장 1회가
+    ``structured_data['drawing_wizard']`` 를 통째로 지웠다(도면 시트 2장의 ``objects`` 와
+    ``pending``·``versions``). 그 키만 ``_OPERATIONAL_TOP_LEVEL_KEYS`` 에 빠져 있었고, 폼이
+    애초에 보내지 않는 키라 strip 목록에도 안 남아 **경고 로그조차 없었다**. 감사 원장에는
+    ``change_count 0`` 으로 기록됐다. 같은 계열 사고는 ``source``·``naver``·``pricing``·
+    ``alimtalk_measurement``·``schedule.as_visit`` 에 이어 여섯 번째였다. 그래서 목록 등재가
+    아니라 **기본값 자체를 "비-폼 키는 보존"으로 뒤집는다**.
+
+    복원 대상: old_sd 의 최상위 키 중 :data:`FORM_INTRODUCED_KEYS` 에도
+    :data:`SERVER_OWNED_REMOVABLE_KEYS` 에도 없고, ``structured_data`` 에 없는 키.
+    폼이 값을 보낸 키는 건드리지 않으므로 정상 편집(값 비우기 포함)을 막지 않는다.
+
+    Args:
+        old_sd: 저장 전 서버 structured_data(복원 원본).
+        structured_data: in-place 로 복원될 projection 대상 dict.
+
+    Returns:
+        복원된 최상위 키 이름 목록(빈 목록이면 잃을 뻔한 키 없음).
+    """
+    if not isinstance(structured_data, dict) or not isinstance(old_sd, dict):
+        return []
+    restored = [
+        key
+        for key in list(old_sd.keys())
+        if key not in FORM_INTRODUCED_KEYS
+        and key not in SERVER_OWNED_REMOVABLE_KEYS
+        and key not in structured_data
+    ]
+    for key in restored:
+        structured_data[key] = copy.deepcopy(old_sd[key])
+    if restored:
+        logger.warning(
+            "[DATA-01] restored server-owned structured keys dropped by form payload: %s",
+            restored,
+        )
+    return restored
+
 
 def enforce_form_allowlist(structured_data: dict, old_sd: dict) -> list[str]:
     """임의 최상위 키를 strip 한다(partial allowlist). strip 된 키 목록을 반환한다.
@@ -168,8 +223,12 @@ def project_structured_form(old_sd: dict, structured_data: dict) -> list[str]:
 
     호출 전제: 호출자가 이미 old_sd 운영상태 병합
     (``_preserve_operational_structured_state``)을 끝낸 ``structured_data`` 를 넘긴다. 이
-    함수는 그 위에 (1) allowlist strip → (2) provenance lock → (3) server pricing 을 순서대로
-    적용한다.
+    함수는 그 위에 (0) 비-폼 키 복원 → (1) allowlist strip → (2) provenance lock →
+    (3) server pricing 을 순서대로 적용한다.
+
+    (0)은 :func:`preserve_non_form_keys` 다 — 폼이 보내지 않은 서버 소유 최상위 키를 old_sd
+    에서 되살린다. allowlist 앞에 둬야 복원된 키가 "old_sd 에 이미 있는 키"로 판정돼 그대로
+    통과한다. 반환 시그니처는 바꾸지 않는다(호출자·기존 테스트가 strip 목록에 기댄다).
 
     Args:
         old_sd: 저장 전 서버 structured_data.
@@ -178,6 +237,7 @@ def project_structured_form(old_sd: dict, structured_data: dict) -> list[str]:
     Returns:
         allowlist 로 strip 된 최상위 키 목록.
     """
+    preserve_non_form_keys(old_sd, structured_data)
     stripped = enforce_form_allowlist(structured_data, old_sd)
     lock_provenance(old_sd, structured_data)
     recompute_totals(structured_data)
@@ -187,6 +247,8 @@ def project_structured_form(old_sd: dict, structured_data: dict) -> list[str]:
 __all__ = [
     "PROVENANCE_KEYS",
     "FORM_INTRODUCED_KEYS",
+    "SERVER_OWNED_REMOVABLE_KEYS",
+    "preserve_non_form_keys",
     "enforce_form_allowlist",
     "lock_provenance",
     "recompute_totals",

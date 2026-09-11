@@ -59,6 +59,15 @@ def _erp_order():
 
 
 def _state(sheet_name="도면 1"):
+    """빈 ``objects`` 상태 — 이 파일 전체가 이 모양으로 green 인 것이 설계 결정의 증거다.
+
+    서버는 빈 캔버스 저장을 막지 않는다(2026-09-11 DATA-01 결정). 사용자가 전부 지우는
+    것은 정당한 편집이고, 서버는 '지운 것'과 '못 불러온 것'을 내용만으로 구분할 근거가
+    없기 때문이다. "못 불러온 상태를 저장하지 않는다"는 기간계(하이드레이션 여부)로
+    클라이언트가 맡고, "내 밑에서 상태가 사라진 채로 쓰지 않는다"는 서버가
+    ``conflict_reason='vanished'`` 409 로 맡는다
+    (``tests/domains/test_wiz_put_vanished_state.py``). 여기에 objects 하한을 넣지 말 것.
+    """
     return {
         "v": 1,
         "sheets": [{"id": "s-1", "name": sheet_name, "form": {}, "objects": []}],
