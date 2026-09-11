@@ -48,6 +48,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 
 
 ## 최근 완료 (최대 5개)
+- [2026-09-11] **마법사 발송 후 미등록 유실 차단 운영 반영(PR #349 · production `02eee54489`)** — 초안 발송은 설계상 주문을 만들지 않는데(설계 D1) 화면이 그 사실을 안 알려 푸시 54건 중 3건이 주문 없이 끝났다(2026-09-10 실측 1건: 초안 `new.ff7475d50b3a42ac` 푸시 200, `submit` 요청 0건). ①발송 완료 문구를 "아직 주문 등록 전입니다"로 + 등록 버튼 강조 ②그 상태로 닫으면 확인창 ③등록 실패 무음 제거(`.catch`·버튼 잠금·복구) — 이 구멍 때문에 "안 눌렀다"와 "눌렀는데 안 나갔다"를 서버 증거로 가를 수 없었다. 원장 `docs/plans/2026-09-11-erporder-channel-push-missing-order-ledger.md`
 - [2026-09-09] **CTX-GATE 헛알림 근본 수정(deploy `2bbd12bb7`)** — 판정 축이 transcript **파일 크기**(누적 I/O)라 창에 안 남는 바이트까지 세서 실점유 13.8% 세션에 131% 보고. 축을 마지막 assistant `message.usage` 로 교체(→ `record_compact_baseline` 제거). 테스트 8건
 - [2026-09-09] **워커 관측 4건 운영 반영(PR #326·#331 · production `d40d8bdb2`)** — ①예산 정본 `effective_heartbeat_budget` 하나로(헛알림 종결, 운영 실측 `나이 1064초·새 알림 0`) ②push 가 사건을 말한다 ③정지 감지 90분 → 16분 ④WORKER·SIDEFX `SENTRY_DSN` 배선 확인. ④는 web 에만 있던 값을 복사한 것(F-12 는 오판)
 - [2026-09-09] **채널톡 push 동시클릭 경합 운영 반영 완료(PR #337 · production `1b2b14651`)** — `is_resend` 를 잠금 없이 읽고 발송·기록 사이가 수 초 열려 동시 클릭 2건이 둘 다 '첫 발송' 판정(메시지 2번·변경 내용 건너뜀). 판정 전에 `pg_try_advisory_xact_lock(주문, 종류)` 로 슬롯을 잡고 못 잡으면 409. push 5종 진입점 2곳 전부. PG 레인 계약 3건 + 배선 4건
