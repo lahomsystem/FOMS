@@ -28,7 +28,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy.sql.elements import ColumnElement
 
 from db import get_db
-from foms.services.common.ept_b7_profile import apply_ept_b7_render_headers, phase
+from foms.services.common.ept_b7_profile import (apply_ept_b7_render_headers, phase,
+                                                  template_mark)
 from foms.services.datetime_kst import (format_datetime_kst, get_today_kst,
                                         now_kst, now_utc_naive)
 from foms.services.feature_flags import (
@@ -2483,6 +2484,9 @@ def _render_workbench(db) -> str:
     with phase("wb_template"):
         return render_template(
         "admin/naver_workbench.html",
+        # 템플릿 구간 계측(2026-09-11) — `{{ mark('x') }}` 를 **쌍으로** 부르면 그 사이가
+        # X-FOMS-EPT-B7-PHASES 에 실린다. wb_template 500ms 안이 안 보여서 넣었다.
+        mark=template_mark,
         active_tab=active_tab,
         active_filter=active_filter,
         active_sort=active_sort,
