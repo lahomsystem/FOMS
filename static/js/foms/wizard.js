@@ -928,6 +928,56 @@
     root.setAttribute("data-current-step", String(step));
   }
 
+  /**
+   * 4단계 "주문 등록" 클릭 처리.
+   *
+   * 예전에는 `submitOrder().then(...)` 하나뿐이라 **실패가 무음이었다**. fetch 가 거부되거나
+   * (회선 끊김·iOS 백그라운드 전환) 서버가 JSON 이 아닌 응답(500 HTML·로그인 리다이렉트)을
+   * 주면 `res.json()` 이 거부되는데, 잡는 자리가 없어 alert 도 상태 문구도 뜨지 않았다.
+   * 사용자는 등록된 줄 알고 화면을 떠나고 주문은 없었다(2026-09-10 유실 1건).
+   *
+   * 그래서 세 가지를 함께 건다: 누르는 즉시 잠금 + "등록 중…" 표시, 실패 시 반드시 알림,
+   * 실패 뒤 버튼 원상복구(다시 누를 수 있어야 한다). 성공은 화면을 떠나므로 복구하지 않는다.
+   * @param {HTMLElement} root 마법사 루트.
+   * @param {Object} draftClient 초안 클라이언트.
+   * @returns {void}
+   */
+  function submitOrderWithFeedback(root, draftClient) {
+    var submitBtn = root.querySelector("#foms-wizard-next");
+    if (submitBtn && submitBtn.disabled) {
+      return;
+    }
+    var restoreLabel = submitBtn ? submitBtn.textContent : "";
+    function unlock() {
+      if (!submitBtn) {
+        return;
+      }
+      submitBtn.disabled = false;
+      submitBtn.textContent = restoreLabel;
+    }
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = "등록 중…";
+    }
+    draftClient
+      .submitOrder()
+      .then(function (result) {
+        if (result.data && result.data.success) {
+          window.location.href = readWizardExitHref(root);
+          return;
+        }
+        var msg = (result.data && result.data.error) || "주문 등록에 실패했습니다.";
+        window.alert(msg);
+        unlock();
+      })
+      .catch(function () {
+        window.alert(
+          "주문 등록에 실패했습니다 — 통신이 끊겼습니다.\n연결을 확인하고 [주문 등록] 을 다시 눌러 주세요. 입력한 내용은 그대로 남아 있습니다."
+        );
+        unlock();
+      });
+  }
+
   function init() {
     var root = document.getElementById("foms-wizard-root");
     if (!root || !window.FomsDraftClient) {
@@ -1173,16 +1223,7 @@
         return;
       }
       if (currentStep >= MAX_STEP) {
-        draftClient.submitOrder().then(function (result) {
-          if (result.data && result.data.success) {
-            window.location.href = readWizardExitHref(root);
-            return;
-          }
-          var msg =
-            (result.data && result.data.error) ||
-            "주문 등록에 실패했습니다.";
-          window.alert(msg);
-        });
+        submitOrderWithFeedback(root, draftClient);
         return;
       }
       currentStep += 1;
@@ -1205,6 +1246,16 @@
     var closeBtn = root.querySelector("#foms-wizard-close");
     if (closeBtn) {
       closeBtn.addEventListener("click", function () {
+        // 발송은 끝났는데 등록을 안 한 채 나가면 주문이 통째로 없다(설계 D1 — 발송은 주문을
+        // 만들지 않는다). 초안 푸시 54건 중 3건이 그렇게 유실됐으므로 여기서 한 번 잡는다.
+        if (window.FomsWizardHasPendingSend && window.FomsWizardHasPendingSend()) {
+          var ok = window.confirm(
+            "발송은 끝났지만 주문은 아직 등록되지 않았습니다.\n지금 나가면 주문이 저장되지 않습니다. 나갈까요?"
+          );
+          if (!ok) {
+            return;
+          }
+        }
         var exitHref = readWizardExitHref(root);
         draftClient.flush().finally(function () {
           window.location.href = exitHref;

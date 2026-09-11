@@ -700,6 +700,30 @@
   color: var(--foms-color-danger-600, #dc2626);
 }
 
+/* 발송 완료 · 등록 전 — 남은 한 걸음을 눈에 띄게 한다(WIZ-SEND-01 후속, 2026-09-11).
+   발송 버튼은 설계상 주문을 만들지 않는데 "발송 완료" 만 보고 나가 주문이 유실된
+   사고가 있었다(초안 푸시 54건 중 3건). 문구만으로는 못 잡아서 시각 신호를 함께 준다. */
+.foms-btn.is-pending-submit {
+  box-shadow: 0 0 0 3px var(--foms-color-warning-500, #f59e0b);
+  animation: foms-wizard-pending-submit 1.4s ease-in-out 3;
+}
+
+@keyframes foms-wizard-pending-submit {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.03);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .foms-btn.is-pending-submit {
+    animation: none;
+  }
+}
+
 .foms-wizard__send-trace {
   margin: 2px 0 0;
   font-size: var(--foms-font-size-xs, 12px);
