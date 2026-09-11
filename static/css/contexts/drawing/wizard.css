@@ -560,6 +560,18 @@ html, body {
 }
 .dws-readonly-banner[hidden] { display: none; }
 
+/* 자동 저장 중단 경고 — 토스트와 달리 사라지지 않는다(사용자가 모른 채 그리는 것을 막는다). */
+.dws-autosave-banner {
+  padding: 8px 12px;
+  background: #fdecea;
+  border: 1px solid #f5c6cb;
+  border-radius: 6px;
+  color: #842029;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.dws-autosave-banner[hidden] { display: none; }
+
 /* ---- 시트 탭 바 (pill 탭) ------------------------------------------------ */
 .dws-tabbar {
   flex: 0 0 auto;

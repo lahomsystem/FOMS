@@ -215,6 +215,9 @@
   var hydrated = false;                // load() 가 200 으로 렌더까지 마쳤을 때만 true(하이드레이션 완료)
   var userDirty = false;               // 사용자 조작으로 생긴 변경만 true(자동 저장 대상 판정)
   var autosaveSuspended = false;       // 충돌을 '내 버전 유지'로 넘긴 뒤 자동 저장 금지(사람이 저장 버튼을 눌러야 덮어쓴다)
+  var autosaveStopped = false;         // 자동 저장이 실패로 멈췄다 — 사람이 저장 버튼을 눌러야 재개
+  var autosaveStopReason = '';         // 멈춘 사유(배너에 그대로 보인다)
+  var loadFailed = false;              // load() 가 실패해 하이드레이션이 안 끝났다(저장 차단 사유 구분용)
   var leaving = false;                 // 나가기 버튼 등 의도적 이탈 시 beforeunload 중복 프롬프트 억제
   var baseUpdatedAt = null;
   var canSave = !!CONFIG.can_save;
@@ -328,6 +331,8 @@
   function cacheDom() {
     els.customer = document.getElementById('dws-customer');
     els.readonlyBanner = document.getElementById('dws-readonly-banner');
+    els.autosaveBanner = document.getElementById('dws-autosave-banner');
+    els.autosaveBannerReason = document.getElementById('dws-autosave-banner-reason');
     els.products = document.getElementById('dws-products');
     els.productList = document.getElementById('dws-product-list');
     els.productToggle = document.getElementById('dws-products-toggle');
@@ -3071,9 +3076,29 @@
   }
 
   function updateSaveState() {
+    if (els.autosaveBanner) {
+      // 토스트가 아니라 상시 배너로 알린다 — 5초 뒤 사라지면 사용자가 못 본 채 계속 그린다.
+      els.autosaveBanner.hidden = !autosaveStopped;
+      if (els.autosaveBannerReason) { els.autosaveBannerReason.textContent = autosaveStopReason || ''; }
+    }
     if (!els.saveBtn) { return; }
     els.saveBtn.classList.toggle('dws-dirty', !!dirty);
     els.saveBtn.textContent = dirty ? '저장 *' : '저장';
+  }
+
+  /** 자동 저장을 멈추고 사유를 상시 배너로 띄운다. 재개는 수동 저장 성공 또는 재로드. */
+  function stopAutosave(reason) {
+    autosaveStopped = true;
+    autosaveStopReason = reason || '';
+    updateSaveState();
+  }
+
+  /** 자동 저장 재개(수동 저장 성공·재로드처럼 '지금 서버와 맞다'가 확인된 시점에만). */
+  function resumeAutosave() {
+    if (!autosaveStopped && !autosaveStopReason) { return; }
+    autosaveStopped = false;
+    autosaveStopReason = '';
+    updateSaveState();
   }
 
   function applyPermissions() {
@@ -3256,7 +3281,10 @@
     hydrated = false;   // 응답·렌더가 끝나기 전에는 어떤 저장도 나가지 않는다(못 불러온 상태를 서버에 쓰지 않음)
     jsonFetch(API_BASE + '/drawing-wizard', { headers: { 'Accept': 'application/json' } }).then(function (r) {
       if (r.status !== 200 || !r.data || !r.data.success || !r.data.data) {
-        toast(serverErrorText(r, '불러오기에 실패했습니다.'));
+        // 하이드레이션이 안 끝났다 → 저장은 계속 막힌다. '불러오는 중'과 '실패'를 갈라
+        // 안내해야 사용자가 새로고침해야 한다는 걸 안다(예전엔 영원히 '불러오는 중'이었다).
+        loadFailed = true;
+        toast(serverErrorText(r, '불러오기에 실패했습니다. 새로고침해 주세요.'));
         return;
       }
       var d = r.data.data;
@@ -3278,7 +3306,8 @@
       undoStack.length = 0;
       redoStack.length = 0;
       dirty = false;
-      userDirty = false; autosaveSuspended = false;   // 새 서버 상태 위에서 다시 시작(사용자 변경·충돌 억제 해제)
+      userDirty = false; autosaveSuspended = false; loadFailed = false;   // 새 서버 상태 위에서 다시 시작
+      resumeAutosave();   // 실패로 멈췄던 자동 저장도 재로드 성공으로 풀린다
       // 저장 시트라도 지정 도면담당자의 영문명이 있으면 DREW를 그 값으로 동기화(담당자 기준 SSOT).
       if (d.drew_assignee_en) {
         var changed = false;
@@ -3313,7 +3342,7 @@
       fitZoom();
       refreshPending();   // 저장된 도면(전달 대기) 미리보기 패널 초기 로드
       hydrated = true;   // 렌더까지 끝난 뒤에만 저장 허용(성공 핸들러의 맨 마지막 문장)
-    }, function (err) { console.warn('[dws] load', err); toast('불러오기 오류'); });
+    }, function (err) { loadFailed = true; console.warn('[dws] load', err); toast('불러오기 오류 — 새로고침해 주세요.'); });
   }
 
   function handleConflict(cdata) {
@@ -3361,7 +3390,11 @@
     var auto = opts.auto === true;
     if (!canSave || saveInFlight) { return Promise.resolve(false); }
     if (!hydrated) {   // 못 불러온 상태를 서버에 써 넣지 않는다(로드 성공 여부로만 판정 — 내용 기반 차단 아님)
-      if (!auto) { toast('도면을 불러오는 중입니다. 잠시 후 저장해 주세요.'); }
+      if (!auto) {
+        toast(loadFailed
+          ? '불러오기에 실패했습니다. 새로고침해 다시 불러와 주세요.'
+          : '도면을 불러오는 중입니다. 잠시 후 저장해 주세요.');
+      }
       return Promise.resolve(false);
     }
     if (!state.sheets.length) {
@@ -3385,6 +3418,11 @@
         dirty = false;
         userDirty = false;
         autoConflictWarned = false;   // 저장 성공 → 다음 충돌 시 다시 1회 경고 허용
+        if (!auto) {
+          // 사람이 눌러 성공했다 = 서버와 맞다. 자동 저장을 다시 켠다(멈춤·억제 모두 해제).
+          autosaveSuspended = false;
+          resumeAutosave();
+        }
         updateSaveState();
         if (auto) {
           els.saveBtn.disabled = false;
@@ -3402,6 +3440,9 @@
       saveInFlight = false;
       if (r.status === 409) {
         if (auto) {
+          // 자동 저장은 여기서 멈춘다. 예전에는 dirty 를 유지한 채 45초마다 같은 실패를
+          // 무한 반복했고 토스트는 첫 1회뿐이라 사용자가 알아채지 못했다.
+          stopAutosave('다른 사용자가 먼저 저장했습니다.');
           if (!autoConflictWarned) {
             autoConflictWarned = true;
             toast('자동 저장 충돌 — 다른 사용자가 저장했습니다. 수동 저장으로 확인하세요.');
@@ -3411,7 +3452,13 @@
           handleConflict(r.data);
         }
       } else {
-        toast(serverErrorText(r, ('저장 실패 (' + r.status + ')')));
+        var failText = serverErrorText(r, ('저장 실패 (' + r.status + ')'));
+        if (auto) {
+          // 2026-09-08 주문 5193: CSRF 403 으로 자동 저장이 80여 회 연속 실패하는 동안
+          // 두 사람이 2시간 그림을 그렸다. 반복 실패는 멈추고 상시 배너로 알린다.
+          stopAutosave(failText);
+        }
+        toast(failText);
       }
       return false;
     }, function (err) {
@@ -3425,7 +3472,7 @@
 
   /** 자동 저장 틱: 안전 조건을 모두 만족할 때만 조용히 저장(수동 저장 동작 불변). */
   function tickAutosave() {
-    if (!hydrated || !userDirty || autosaveSuspended) { return; }   // 로드 완료 + 사용자 변경 + 충돌 미억제일 때만
+    if (!hydrated || !userDirty || autosaveSuspended || autosaveStopped) { return; }   // 로드 완료 + 사용자 변경 + 충돌 미억제 + 실패로 멈추지 않았을 때만
     if (!dirty || !canSave || saveInFlight) { return; }
     if (!state.sheets.length) { return; }          // 빈 상태(시트 0개)는 저장 대상 없음
     if (editingTextarea || editCtx) { return; }   // 주석 텍스트 편집 중이면 보류
@@ -3537,6 +3584,12 @@
    */
   function saveAll() {
     if (!canSave || saveInFlight) { return; }
+    if (!hydrated) {   // save() 와 같은 계약 — 못 불러온 상태를 서버에 써 넣지 않는다
+      toast(loadFailed
+        ? '불러오기에 실패했습니다. 새로고침해 다시 불러와 주세요.'
+        : '도면을 불러오는 중입니다. 잠시 후 저장해 주세요.');
+      return;
+    }
     if (!state.sheets.length) {
       toast('저장할 도면이 없습니다. 제품을 선택해 도면을 먼저 만드세요.');
       return;
@@ -3547,7 +3600,7 @@
     var origIdx = current;
     els.saveBtn.disabled = true;
     if (els.saveAllBtn) { els.saveAllBtn.disabled = true; }
-    var body = { state: serializeState(), base_updated_at: baseUpdatedAt };
+    var body = { state: serializeState(), base_updated_at: baseUpdatedAt, auto: false };
     jsonFetch(API_BASE + '/drawing-wizard', {
       method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
     }).then(function (r) {
