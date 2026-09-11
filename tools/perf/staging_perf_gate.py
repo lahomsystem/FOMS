@@ -92,6 +92,47 @@ FRAGMENT_HEADERS = {
     "Accept-Encoding": "gzip, br",
 }
 
+#: 게이트가 흉내 내는 클라이언트 페르소나 = **광폭 마우스 PC**.
+#:
+#: 서버는 pre-paint 부트가 심는 두 쿠키로 "그 기기가 구조적으로 볼 수 없는 표면"을 렌더에서
+#: 뺀다(``wants_wide_only_surfaces`` / ``wants_coarse_pointer_surfaces``). 쿠키가 없으면
+#: 안전 폴백으로 **전부** 렌더하므로, 쿠키를 안 싣던 예전 봇은 데스크톱 큐 + 태블릿 칸반 +
+#: 모바일 카드를 한꺼번에 받는 **실사용자에 없는 합성 최악값**을 재고 있었다
+#: (실측 2026-09-11 /erp/production/dashboard: 44,121B·dTTFB 106.5ms vs 실제 PC
+#: 36,893B·dTTFB 86.7ms — 20ms·16% 과대).
+#:
+#: 이 게이트가 재는 ``?view=fragment`` 는 셸이 이미 뜬 뒤의 탭 전환이라, 실제 클라이언트는
+#: 이 시점에 항상 두 쿠키를 갖고 있다. 쿠키 없는 첫 요청은 full document 경로이고 측정
+#: 대상이 아니다.
+#:
+#: 커버리지 공백(의도): ``foms_ptr=fine`` 이므로 coarse 전용 표면(태블릿 칸반)은 이 패스에
+#: 안 잡힌다. 예전에는 쿠키가 없어 우연히 함께 재고 있었다. 별도 페르소나 패스가 후속 과제다.
+GATE_PERSONA = "pc-wide-fine"
+GATE_PERSONA_COOKIES = {
+    "foms_scr": "1920",  # 화면 긴 변(px) — WIDE_SURFACE_MIN_PX(992) 이상 = 데스크톱 큐 렌더
+    "foms_ptr": "fine",  # 마우스 기기 — coarse 전용 표면 생략
+}
+
+
+def apply_persona_cookies(session: requests.Session) -> None:
+    """게이트 세션의 ``Cookie`` 헤더에 페르소나 쿠키를 합친다(``run_gate``/``run_seed`` 공용).
+
+    **쿠키 jar 에 심으면 안 된다.** 이 세션은 로그인 쿠키를 ``session.headers['Cookie']`` 로
+    명시하는데, requests 는 명시된 Cookie 헤더가 있으면 jar 를 병합하지 않고 헤더를 그대로
+    보낸다. 실제로 jar 방식으로 먼저 구현했다가 ``/erp/production/dashboard`` wire 가
+    44,121B 로 **1바이트도 안 줄어** 드러났다(쿠키가 전송되지 않았다는 증거).
+
+    이미 붙어 있으면 다시 붙이지 않는다(재호출 안전).
+
+    :param session: 로그인 쿠키가 ``headers['Cookie']`` 에 실린 세션.
+    """
+    header = session.headers.get("Cookie", "") or ""
+    present = {c.split("=", 1)[0].strip() for c in header.split(";") if "=" in c}
+    add = [f"{k}={v}" for k, v in GATE_PERSONA_COOKIES.items() if k not in present]
+    if not add:
+        return
+    session.headers["Cookie"] = "; ".join([header.rstrip("; ")] + add) if header else "; ".join(add)
+
 
 def fragment_path(primary_path: str) -> str:
     """primary 경로 → shell fragment GET 경로(``?view=fragment``).
@@ -436,6 +477,7 @@ def run_gate(base: str, user: str, password: str, budgets: dict[str, Any]) -> di
     cookie, _ = fetch_session_cookie(base, user, password)
     session = requests.Session()
     session.headers["Cookie"] = cookie
+    apply_persona_cookies(session)
     global_budget = budgets.get("_global", {})
     path_budgets = budgets.get("paths", {})
     # 창 무관 판정의 핵심: 런 시작 시 그 창의 네트워크 베이스 RTT 를 확정한다.
@@ -474,7 +516,16 @@ def run_gate(base: str, user: str, password: str, budgets: dict[str, Any]) -> di
         rows.append(row)
 
     ok = all(r["passed"] for r in rows)
-    return {"base": base, "ok": ok, "base_ttfb_ms": base_ttfb_ms, "rows": rows, "raw": raw}
+    return {
+        "base": base,
+        "ok": ok,
+        # 페르소나가 바뀌면 수치가 통째로 이동한다 — 과거 evidence 와 비교할 때 필수 축.
+        "persona": GATE_PERSONA,
+        "persona_cookies": dict(GATE_PERSONA_COOKIES),
+        "base_ttfb_ms": base_ttfb_ms,
+        "rows": rows,
+        "raw": raw,
+    }
 
 
 def run_seed(base: str, user: str, password: str, prev: dict[str, Any]) -> dict[str, Any]:
@@ -482,6 +533,7 @@ def run_seed(base: str, user: str, password: str, prev: dict[str, Any]) -> dict[
     cookie, _ = fetch_session_cookie(base, user, password)
     session = requests.Session()
     session.headers["Cookie"] = cookie
+    apply_persona_cookies(session)
     base_ttfb_ms = measure_healthz_base(session, base, rounds=SEED_ROUNDS)
     paths: dict[str, Any] = {}
     prev_paths = prev.get("paths", {})
@@ -571,6 +623,9 @@ def render_table(rows: list[dict[str, Any]], base_ttfb_ms: int | None = None) ->
         f"{'medTTFB':>8} {'p95':>6} {'wire':>8} {'budget':>8} {'raw':>8} {'304':>4} {'RESULT':>6}"
     )
     lines: list[str] = []
+    # 페르소나를 안 찍으면 수치가 왜 이동했는지 표만 보고는 알 수 없다.
+    cookie_desc = " ".join(f"{k}={v}" for k, v in GATE_PERSONA_COOKIES.items())
+    lines.append(f"persona: {GATE_PERSONA} ({cookie_desc}) — 서버가 이 기기에 보이는 표면만 렌더")
     if base_ttfb_ms is not None:
         lines.append(
             f"healthz base(min TTFB): {base_ttfb_ms}ms  "

@@ -509,3 +509,71 @@ def test_advisory_flag_and_emit_helper_exist():
         capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30,
     )
     assert "--advisory" in out.stdout
+
+
+# ---------------------------------------------------------------------------
+# 페르소나 쿠키 (2026-09-11) — 게이트가 실제 사용자와 같은 응답을 받는지
+# ---------------------------------------------------------------------------
+def test_persona_cookies_are_the_wide_mouse_pc() -> None:
+    """게이트 페르소나 = 광폭 마우스 PC.
+
+    쿠키가 없으면 서버가 안전 폴백으로 **전 표면**을 렌더해, 실사용자에 없는 합성 최악값을
+    재게 된다(실측: /erp/production/dashboard 44,121B·dTTFB 106.5ms vs 실제 PC
+    36,893B·86.7ms). 값이 바뀌면 예산 기준이 통째로 이동하므로 상수를 고정한다.
+    """
+    assert gate.GATE_PERSONA_COOKIES["foms_ptr"] == "fine"
+    # 데스크톱 큐가 보이는 폭(WIDE_SURFACE_MIN_PX=992) 이상이어야 PC 페르소나가 된다.
+    assert int(gate.GATE_PERSONA_COOKIES["foms_scr"]) >= 992
+
+
+def test_persona_cookies_are_merged_into_the_cookie_header() -> None:
+    """페르소나 쿠키는 ``headers['Cookie']`` 에 합쳐야 실제로 전송된다.
+
+    requests 는 명시된 Cookie 헤더가 있으면 쿠키 jar 를 병합하지 않는다. jar 로 심었던
+    첫 구현은 /erp/production/dashboard wire 가 44,121B 로 1바이트도 안 줄어 드러났다.
+    """
+    import requests
+
+    session = requests.Session()
+    session.headers["Cookie"] = "session=abc"
+    gate.apply_persona_cookies(session)
+
+    sent = session.headers["Cookie"]
+    assert "session=abc" in sent, "로그인 쿠키가 보존돼야 한다"
+    for name, value in gate.GATE_PERSONA_COOKIES.items():
+        assert f"{name}={value}" in sent, f"{name} 이 Cookie 헤더에 없다"
+    # jar 는 쓰지 않는다 — 전송되지 않으므로 심어도 무의미하다.
+    assert len(session.cookies) == 0
+
+
+def test_persona_cookies_are_idempotent() -> None:
+    """두 번 불러도 중복으로 붙지 않는다(run_gate·run_seed 재사용 안전)."""
+    import requests
+
+    session = requests.Session()
+    session.headers["Cookie"] = "session=abc"
+    gate.apply_persona_cookies(session)
+    once = session.headers["Cookie"]
+    gate.apply_persona_cookies(session)
+    assert session.headers["Cookie"] == once
+
+
+def test_gate_and_seed_use_the_same_persona() -> None:
+    """run_gate·run_seed 가 갈리면 예산과 판정의 기준이 어긋난다 — 같은 헬퍼를 부른다."""
+    import inspect
+
+    for fn in (gate.run_gate, gate.run_seed):
+        src = inspect.getsource(fn)
+        assert "apply_persona_cookies(session)" in src, f"{fn.__name__} 에 페르소나 미부착"
+
+
+def test_report_and_evidence_disclose_the_persona() -> None:
+    """표와 evidence 에 페르소나가 남아야 과거 측정과 비교할 수 있다."""
+    table = gate.render_table([], base_ttfb_ms=120)
+    assert gate.GATE_PERSONA in table
+    assert "foms_ptr=fine" in table
+
+    import inspect
+
+    src = inspect.getsource(gate.run_gate)
+    assert '"persona": GATE_PERSONA' in src
