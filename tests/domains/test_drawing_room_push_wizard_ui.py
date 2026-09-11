@@ -95,11 +95,16 @@ def test_room_push_button_is_edit_gated(client):
 
 
 def test_wizard_js_asset_pin_bumped() -> None:
-    """wizard.js 내용이 바뀌었으므로 ?v= 핀을 올렸다(SW staticCacheFirst 스테일 봉합)."""
+    """wizard.js 내용이 바뀌었으므로 ?v= 핀을 올렸다(SW staticCacheFirst 스테일 봉합).
+
+    2026-09-11: 자동저장 하이드레이션 가드(hydrated·userDirty·autosaveSuspended)를
+    넣으면서 wizard.js 가 바뀌었다 — 스테일 캐시가 옛 자동저장을 계속 돌리면
+    가드가 없는 것과 같으므로 핀을 함께 올린다.
+    """
     tpl = WIZARD_TPL.read_text(encoding="utf-8")
 
-    assert "js/drawing/wizard.js') }}?v=20260909a" not in tpl
-    assert "js/drawing/wizard.js') }}?v=20260910a" in tpl
+    assert "js/drawing/wizard.js') }}?v=20260910a" not in tpl
+    assert "js/drawing/wizard.js') }}?v=20260911a" in tpl
 
 
 def test_wizard_js_calls_push_manual_and_preview_with_drawing_room_kind() -> None:

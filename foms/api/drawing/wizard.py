@@ -107,6 +107,8 @@ _CELL_FONT_MIN, _CELL_FONT_MAX = 10, 28
 
 _MSG_NOT_FOUND = '주문을 찾을 수 없습니다.'
 _MSG_FORBIDDEN = '도면 담당자·도면팀 또는 관리자만 저장할 수 있습니다.'
+#: 클라가 기대한 서버 wizard 상태가 사라졌을 때의 409 문구(``conflict_reason='vanished'``).
+_MSG_STATE_VANISHED = '서버에 저장된 도면 상태를 찾을 수 없습니다. 새로고침해 다시 확인해 주세요.'
 
 #: PUT 페이로드에서 클라이언트가 소유·갱신할 수 있는 wizard 상태 최상위 키(허용 목록).
 #: 이 목록 밖 키(pending·versions·updated_* 등 서버 소유)는 클라가 덮거나 주입할 수 없다(P0-4).
@@ -580,16 +582,26 @@ def api_get_drawing_wizard(order_id):
 
 
 class _WizardStaleError(Exception):
-    """PUT 낙관적 잠금 충돌(base_updated_at 불일치). FOR UPDATE 락 아래에서 감지한다.
+    """PUT 낙관적 잠금 충돌. FOR UPDATE 락 아래에서 감지한다.
 
     현재 서버 상태의 ``updated_at``/``updated_by_name`` 을 실어 클라이언트가 어떤 저장에
     밀렸는지 409 응답으로 알린다.
+
+    ``reason`` 은 충돌의 종류이며 409 본문의 ``conflict_reason`` 으로 그대로 나간다.
+
+    * ``'stale'`` — 다른 사용자가 먼저 저장했다(``base_updated_at`` 이 서버 최신과 다르다).
+      서버 상태는 살아 있으므로 클라이언트는 ``server_updated_at`` 을 채택해 이어갈 수 있다.
+    * ``'vanished'`` — 클라이언트가 기대한 서버 상태가 **사라졌다**(``drawing_wizard`` 키
+      자체가 없다). 채택할 서버 값이 없어 ``server_updated_*`` 는 None 이고, 클라이언트는
+      다시 불러와야 한다.
     """
 
-    def __init__(self, server_updated_at: Optional[str], server_updated_by_name: Optional[str]):
-        super().__init__('drawing wizard state is stale')
+    def __init__(self, server_updated_at: Optional[str], server_updated_by_name: Optional[str],
+                 reason: str = 'stale'):
+        super().__init__(f'drawing wizard state is {reason}')
         self.server_updated_at = server_updated_at
         self.server_updated_by_name = server_updated_by_name
+        self.reason = reason
 
 
 def _project_wizard_state(saved: Optional[dict], state: dict) -> dict:
@@ -683,8 +695,19 @@ def api_put_drawing_wizard(order_id):
             sess.refresh(o)  # 락 획득 후 최신 커밋 상태를 읽어 stale 판정·projection 을 race-free 화
             sd = _load_structured_data(o)
             saved = sd.get('drawing_wizard')
-            if isinstance(saved, dict) and saved.get('updated_at') != (base_updated_at or None):
-                raise _WizardStaleError(saved.get('updated_at'), saved.get('updated_by_name'))
+            if isinstance(saved, dict):
+                if saved.get('updated_at') != (base_updated_at or None):
+                    raise _WizardStaleError(saved.get('updated_at'), saved.get('updated_by_name'))
+            elif base_updated_at:
+                # 클라이언트는 서버 상태 위에서 편집 중인데 그 상태가 사라졌다 — 덮어쓰지 않는다.
+                # 2026-09-10 주문 5177: 폼 전체 저장(PUT /structured, mode=full)이
+                # structured_data['drawing_wizard'] 키를 통째로 지웠고, 종전 검사는
+                # ``isinstance(saved, dict) and ...`` 라서 saved 가 None 이면 통째로
+                # 건너뛰었다. 그래서 상태가 사라진 직후의 첫 저장이 무조건 200 이 됐고
+                # _project_wizard_state 가 빈 dict 에서 새 상태(빈 캔버스)를 만들어
+                # 사라진 자리를 덮었다. base_updated_at 이 없으면(진짜 최초 저장) 그대로
+                # 통과시킨다 — 정상 최초 저장을 막으면 기능이 죽는다.
+                raise _WizardStaleError(None, None, reason='vanished')
             projected = _project_wizard_state(saved, state)
             projected['updated_at'] = now_utc_naive().strftime('%Y-%m-%d %H:%M:%S')
             projected['updated_by'] = current_user.id
@@ -697,16 +720,29 @@ def api_put_drawing_wizard(order_id):
 
         try:
             outcome = _run_wizard_mutation(db, order_id, current_user, data, _mutate)
-            _audit_wizard(order, "DRAWING_WIZARD_SAVED")
+            _audit_wizard(order, "DRAWING_WIZARD_SAVED", extra={
+                # 자동저장/수동저장 구분은 서버가 가진 유일한 근거다(payload 최상위 `auto`).
+                # 2026-09-10 조사는 이 값이 없어 "SHEET_SAVED 감사행 부재 + 45초 정각 일치"
+                # 라는 정황 추론에 기댔다. 규모(sheets·objects)도 함께 남겨 다음 사고에서는
+                # "언제 몇 장이 몇 개에서 0 개가 됐는지"를 감사만으로 읽을 수 있게 한다.
+                "auto": bool(data.get('auto')),
+                "sheets": len(state.get('sheets') or []),
+                "objects": sum(
+                    len(s.get('objects') or [])
+                    for s in (state.get('sheets') or []) if isinstance(s, dict)
+                ),
+            })
             db.commit()
         except _WizardStaleError as stale:
             db.rollback()
             return jsonify({
                 'success': False,
                 'error': 'conflict',
-                'message': '다른 사용자가 먼저 저장했습니다.',
+                'message': (_MSG_STATE_VANISHED if stale.reason == 'vanished'
+                            else '다른 사용자가 먼저 저장했습니다.'),
                 'server_updated_at': stale.server_updated_at,
                 'server_updated_by_name': stale.server_updated_by_name,
+                'conflict_reason': stale.reason,
             }), 409
         except RevisionError as rev:
             db.rollback()
