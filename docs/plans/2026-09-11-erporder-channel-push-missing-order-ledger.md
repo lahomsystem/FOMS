@@ -65,3 +65,36 @@
 (`foms/web/auth/routes.py:97-116`). submit 은 그 직후 `erp_order_draft.py:677` 에서 commit 하고
 200 + order_id 를 돌려준다 → 감사 한 줄 실패가 주문 생성을 통째로 되감으면서 화면엔 성공으로 보인다.
 9/10 운영 로그에 `[LOG ERROR] SecurityLog 기록 실패` 는 0건이라 이번 건의 원인은 아니다.
+
+## 후속 처리 결과 (2026-09-11)
+
+제안 1·2 를 구현해 운영까지 반영했다. 제안 3(초안 목록 화면)은 미착수다.
+
+| 단계 | 결과 |
+|---|---|
+| 작업 트리 | `/c/tmp/wizpend` (`origin/deploy` 기준) — 메인 체크아웃 로컬 `deploy` 는 44 ahead·189 behind 로 영구 분기 상태라 거기서 푸시하지 않았다 |
+| 커밋 | `188516ecc` 본체(7 files, +363 −14) · `315dc780c` 후속 수정 |
+| deploy CI | `315dc780c` ALL GREEN |
+| 승격 | PR #349 (`promote/own-1789087471-6012` → production), 검사 4종 pass 후 머지 |
+| production | `708b15efd` → `02eee54489` |
+
+### 구현 내용
+
+1. 발송 성공 시 상태 문구를 "발송 완료 — 아직 주문 등록 전입니다"로 바꾸고 등록 버튼에
+   `is-pending-submit` 을 걸어 강조한다. 두 파일이 별개 IIFE 라 `window.FomsWizardHasPendingSend`
+   로 상태를 공유한다(`static/js/foms/wizard-send.js`).
+2. 그 상태로 닫기(X)를 누르면 확인창이 막는다(`static/js/foms/wizard.js` 닫기 핸들러).
+3. 등록 실패를 무음에서 꺼냈다 — `submitOrderWithFeedback()` 이 `.catch` 로 통신 실패까지
+   알리고, 누르는 즉시 버튼을 잠그고 "등록 중…"을 띄운 뒤 실패하면 되돌린다.
+4. 회귀 계약 7건(`tests/domains/test_wizard_pending_submit_guard.py`).
+
+### 이번에 얻은 함정
+
+- **JS 를 고쳤으면 `node --check` 를 바로 걸어라.** 첫 푸시가 CI red 였다 — 패치 스크립트에서
+  `\n` 이 실제 줄바꿈으로 들어가 문자열 리터럴이 끊겼는데(`Invalid or unexpected token`),
+  `pre_push_smoke.ps1` 의 32개 타깃에 `tests/domains/test_static_js_syntax.py` 가 **없어서**
+  로컬 smoke 는 green 이었다. 로컬에 node 가 있으니 그 테스트를 직접 지정해 돌리면 잡힌다.
+- **승격 완전성 검사의 "missing baseline deps" 는 오탐일 수 있다.** 이번 `d774ff77` 은 내용이
+  이미 운영에 있었고(건드리는 파일 4개가 `origin/production` 과 바이트 동일) 승격 때
+  cherry-pick 으로 SHA 가 재작성돼 검사기가 못 찾은 것이다. 판정은 커밋 SHA 가 아니라
+  **파일 내용 대조**로 한다. 우회(`--allow-incomplete`)는 사용자 승인 뒤에만.
