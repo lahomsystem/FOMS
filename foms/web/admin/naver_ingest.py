@@ -2605,6 +2605,42 @@ def naver_ingest_triage_detail() -> str:
     )
 
 
+@admin_bp.route("/admin/naver-ingest/triage/pending-count")
+@login_required
+@role_required(["ADMIN", "MANAGER", "STAFF"])
+def naver_ingest_triage_pending_count():
+    """nav 확인 대기 뱃지 숫자만 돌려준다 — 페이지 렌더 임계경로에서 뺀 자리.
+
+    이 숫자는 원래 컨텍스트 프로세서가 계산해 **모든 전체 문서 렌더**에 실렸다. 워크벤치
+    코호트 안에서는 그게 콜드마다 약 400ms 였다(2026-09-11 스테이징 실측:
+    ``/erp/dashboard`` render 423ms 중 ``nvbadge`` 382ms). 뱃지는 숫자 하나짜리 부가
+    정보인데 사용자가 화면을 보기까지의 시간을 그만큼 밀고 있었다.
+
+    그래서 nav 는 빈 자리만 그리고 이 경로가 늦게 채운다. 숫자가 0.3초 늦게 뜨는 값을
+    치르고 첫 화면을 그만큼 앞당긴다.
+
+    세는 **정의는 그대로**다 — :func:`get_triage_pending_count` 를 부른다(30초 캐시 포함).
+    모집단을 SQL COUNT 로 옮기는 길은 계약상 막혀 있다
+    (:func:`~foms.services.integrations.naver_commerce.triage_count._workbench_group_count`
+    docstring: 취소 표식 JSONB·발주확인 전 집 때문에 SQL 술어로는 같은 수가 안 나온다).
+
+    읽기 전용 GET 이다. 실패해도 뱃지는 부가 정보라 0 으로 답하고 화면을 깨지 않는다
+    (계산 실패를 삼키는 자리는 ``compute_triage_pending_count`` 다).
+
+    Returns:
+        ``{"success": True, "data": {"count": int}}``.
+    """
+    from foms.services.feature_flags import is_naver_workbench_enabled
+    from foms.services.integrations.naver_commerce.triage_count import (
+        get_triage_pending_count,
+    )
+
+    db = get_db()
+    count = get_triage_pending_count(
+        db, workbench=is_naver_workbench_enabled(session.get("user_id")))
+    return jsonify({"success": True, "data": {"count": int(count)}, "error": None})
+
+
 @admin_bp.route("/admin/naver-ingest/triage/fulfillment-state")
 @login_required
 @role_required(["ADMIN", "MANAGER", "STAFF"])
