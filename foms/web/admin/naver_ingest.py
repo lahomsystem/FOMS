@@ -28,7 +28,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.sql.elements import ColumnElement
 
 from db import get_db
-from foms.services.common.ept_b7_profile import phase
+from foms.services.common.ept_b7_profile import apply_ept_b7_render_headers, phase
 from foms.services.datetime_kst import (format_datetime_kst, get_today_kst,
                                         now_kst, now_utc_naive)
 from foms.services.integrations.naver_commerce.constants import SELLER_CENTER_URL
@@ -1947,8 +1947,6 @@ def naver_ingest_triage():
         # 서버 렌더 시간을 응답 헤더로 드러낸다(2026-09-11). 이 화면은 코드가 3주 만에
         # 12배로 커지는 동안 계측이 한 곳도 없어, "탭 왕복이 느리다"는 신고를 숫자로
         # 판정할 수 없었다. /erp/dashboard 와 **같은 배선**이라 두 화면을 나란히 잰다.
-        from foms.services.common.ept_b7_profile import apply_ept_b7_render_headers
-
         _t0 = time.perf_counter()
         _body = _render_workbench(db)
         _render_ms = (time.perf_counter() - _t0) * 1000.0
@@ -2459,6 +2457,13 @@ def _render_workbench(db) -> str:
     active_sort = _active_sort()
     with phase("wb_work_groups"):
         groups, work_truncated = _work_groups(db, sort=active_sort)
+    # nav 뱃지(`inject_status_list` → `get_triage_pending_count`)는 **템플릿 렌더 중**
+    # 돌면서 같은 `_work_groups` 를 한 번 더 계산한다. 30초 캐시가 콜드면 그 두 번째
+    # 계산이 통째로 더해진다 — 스테이징 실측 콜드 render 1,387ms 중 nvbadge 가 428ms
+    # (wb_work_groups 436ms 와 거의 같은 값 = 같은 일을 두 번 한 것).
+    # 이 요청은 답을 이미 알고 있으므로 여기 남겨 배지가 재사용하게 한다. 요청 스코프라
+    # 신선도 문제가 없고(같은 요청·같은 트랜잭션), `_work_groups` 자체는 순수하게 둔다.
+    g.wb_actionable_count = _actionable_count(groups)
     visible = [group for group in groups if _group_matches_filter(group, active_filter)]
     # 수집 상태(워터마크·인증 만료일)는 이력 탭에 함께 싣는다. 게이트가 켜지면 옛 수집
     # 화면이 리다이렉트로 닫히는데, 그 화면에만 있던 값이라 여기 없으면 수집이 조용히
