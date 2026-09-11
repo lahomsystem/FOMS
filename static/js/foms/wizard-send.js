@@ -55,6 +55,10 @@
     busy: false,
     sendable: false,
     resend: false,
+    // 이 화면에서 발송이 성공했는데 아직 등록하지 않은 상태인가.
+    // 발송만 하고 이탈해 주문이 통째로 유실된 사고가 있었다(2026-09-10, 초안 푸시 54건 중 3건).
+    // wizard.js 의 닫기 확인창이 이 값을 읽는다.
+    sentPendingSubmit: false,
   };
 
   /**
@@ -159,6 +163,21 @@
     var confirmBtn = document.getElementById("foms-wizard-send-confirm");
     if (confirmBtn) {
       confirmBtn.disabled = !!locked || !state.sendable;
+    }
+  }
+
+  /**
+   * 발송은 끝났는데 등록이 남았다는 것을 화면과 wizard.js 에 알린다.
+   *
+   * 초안 발송 버튼은 설계상 주문을 만들지 않는다(설계 D1). 그래서 "발송 완료" 만 보고
+   * 나가면 입력한 내용이 초안으로만 남고 주문은 존재하지 않는다 — 실제로 그렇게 유실됐다.
+   * @returns {void}
+   */
+  function markPendingSubmit() {
+    state.sentPendingSubmit = true;
+    var next = document.getElementById("foms-wizard-next");
+    if (next) {
+      next.classList.add("is-pending-submit");
     }
   }
 
@@ -372,7 +391,8 @@
           if (!data.last) {
             renderTrace(kind, { sent_at: new Date().toISOString() });
           }
-          setStatus(conf.title + " 발송 완료");
+          setStatus(conf.title + " 발송 완료 — 아직 주문 등록 전입니다. 아래 [주문 등록] 을 눌러 주세요");
+          markPendingSubmit();
           toggleSheet(false);
           return;
         }
@@ -442,4 +462,8 @@
   }
 
   window.FomsWizardSendReasonLabel = reasonLabel;
+  // wizard.js 의 닫기 확인창이 읽는다(발송 완료 + 등록 전이면 그냥 못 나간다).
+  window.FomsWizardHasPendingSend = function () {
+    return !!state.sentPendingSubmit;
+  };
 })();
