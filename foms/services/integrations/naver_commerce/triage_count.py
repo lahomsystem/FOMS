@@ -115,6 +115,20 @@ def _workbench_group_count(db: Any) -> int:
     Returns:
         int: 처리 탭 스트립·탭 배지와 같은 수(손댈 수 있는 집).
     """
+    # 워크벤치 페이지가 이 요청에서 이미 같은 목록을 계산했으면 그 답을 쓴다.
+    # 안 그러면 한 요청이 `_work_groups` 를 **두 번** 돈다 — 배지용 1회 + 페이지용 1회
+    # (스테이징 실측: 콜드에서 배지 몫만 411~428ms). `display` 는 모집단을 바꾸지 않으므로
+    # (:func:`_work_groups` docstring) 두 경로의 집계 값은 같다.
+    try:
+        from flask import g, has_request_context
+
+        if has_request_context():
+            cached = getattr(g, "wb_actionable_count", None)
+            if isinstance(cached, int):
+                return cached
+    except RuntimeError:  # 요청 밖(워커·CLI) — 그냥 계산한다
+        pass
+
     from foms.web.admin.naver_ingest import _actionable_count, _work_groups
 
     groups, _truncated = _work_groups(db, display=False)

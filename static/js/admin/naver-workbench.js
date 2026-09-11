@@ -743,6 +743,15 @@
             syncBulk();
             return;
         }
+        // 부분 선택 체크(NVCLAIM-PARTIAL-01) — 바뀔 때마다 서버 미리보기로 재진술을 다시 받는다.
+        // 위임으로 붙이는 이유는 아래 승인 체크와 같다(pane 프래그먼트가 교체된다).
+        if (target.classList.contains('wb-scope-pick')) {
+            var scope = target.closest('[data-wb-scope]');
+            if (scope) {
+                refreshClaimPlan(scope.dataset.wbScope);
+            }
+            return;
+        }
         // 승인 체크를 켜면 빨간 띠가 한 줄 더 말한다 — 접수보다 무겁다(환불이 나간다).
         // 위임으로 붙이는 이유: 이 모달은 pane 프래그먼트라 교체될 때마다 다시 그려진다.
         if (target.id === 'wb-return-approve') {
@@ -1588,7 +1597,10 @@
      * 서버 판정대로 열린다(잠금 판정 SSOT 는 서버 하나다).
      */
     function lockPaneActions() {
-        ['wb-confirm', 'wb-dispatch', 'wb-cancel', 'wb-create'].forEach(function (id) {
+        // 반품 접수·거부·승인 2종까지 잠근다(NVCLAIM-PARTIAL-01) — 부분 선택이 붙어 재클릭
+        // 표면이 커졌고, 같은 집에 다른 부분집합 job 이 겹치면 재진술과 처리가 갈린다.
+        ['wb-confirm', 'wb-dispatch', 'wb-cancel', 'wb-create',
+         'wb-return', 'wb-return-reject', 'wb-cancel-approve', 'wb-return-approve-btn'].forEach(function (id) {
             var btn = document.getElementById(id);
             if (btn) {
                 btn.disabled = true;
@@ -1650,6 +1662,135 @@
         } catch (error) {
             window.location.reload();
             return false;
+        }
+    }
+
+    /* ── 부분 선택 (NVCLAIM-PARTIAL-01) — 취소·반품 모달의 상품주문 체크 목록 ──── */
+
+    /** 미리보기 요청 토큰(kind 별). 늦게 온 응답이 더 새 체크 상태를 덮지 않게 한다. */
+    var planToken = { cancel: 0, return: 0 };
+
+    /**
+     * 사용자가 **직접 고른** 상품주문 id 목록(문자열). 자동 동반 행(`data-auto="1"`)과 보낼 수
+     * 없는 행(`data-sendable="0"`)은 뺀다 — 자동 동반은 서버 `plan_claim_scope` 가 다시 붙이고,
+     * 요청 본문에는 사람이 고른 것만 실린다(계약 §0). 빈 배열은 그대로 빈 배열이다 —
+     * "선택 없으면 전체" 패턴은 여기서도 쓰지 않는다(`submitBulk` 주석, 2026-08-14 사고).
+     */
+    function scopeSelection(kind) {
+        var scope = document.getElementById('wb-' + kind + '-scope');
+        if (!scope) {
+            return [];
+        }
+        var ids = [];
+        scope.querySelectorAll('input.wb-scope-pick:checked').forEach(function (box) {
+            if (box.dataset.sendable === '1' && box.dataset.auto !== '1' && box.value) {
+                ids.push(String(box.value));
+            }
+        });
+        return ids;
+    }
+
+    /**
+     * 체크가 바뀌면 서버 `claim-plan` 미리보기를 다시 받아 재진술을 갱신한다(계약 C1 — 화면은
+     * 서버 계획을 재진술만 한다). 네이버 호출은 없다(web 에서 계산만). `po=` 는 고른 목록
+     * 그대로다 — 비어 있으면 서버가 "대상 상품주문을 고르세요" 로 답하고 확인 버튼이 닫힌다.
+     * 요청 중에는 확인 버튼을 잠근다 — 옛 계획을 보고 누르는 자리가 없어야 한다.
+     */
+    async function refreshClaimPlan(kind) {
+        if (kind !== 'cancel' && kind !== 'return') {
+            return;
+        }
+        var scope = document.getElementById('wb-' + kind + '-scope');
+        var id = scope ? safeId(scope.dataset.linkId) : '';
+        if (!id) {
+            return;
+        }
+        var confirmBtn = document.getElementById('wb-' + kind + '-confirm');
+        if (confirmBtn) {
+            confirmBtn.disabled = true;
+        }
+        var token = ++planToken[kind];
+        var ids = scopeSelection(kind);
+        const result = await getJson(BASE + id + '/claim-plan?action=' + kind
+            + '&po=' + encodeURIComponent(ids.join(',')));
+        if (token !== planToken[kind]) {
+            return;
+        }
+        if (!result.ok) {
+            // 미리보기를 못 받았으면 확인 버튼은 잠긴 채 둔다 — 모르는 계획으로 불가역 호출을 열지 않는다.
+            var errEl = document.getElementById('wb-' + kind + '-scope-error');
+            if (errEl) {
+                errEl.textContent = result.error;
+                errEl.hidden = false;
+            }
+            return;
+        }
+        renderClaimPlan(kind, result.data);
+    }
+
+    /**
+     * 서버 계획(`plan_claim_scope` dict)을 모달에 그린다 — textContent 만 쓴다.
+     * 자동 동반 행은 체크+잠금(`data-auto="1"`), 자동에서 풀린 행은 체크 해제+잠금 해제,
+     * 보낼 수 없는 행(`data-sendable="0"`)은 건드리지 않는다. 확인 버튼은 `plan.ok` 에만 열린다.
+     */
+    function renderClaimPlan(kind, plan) {
+        if (!plan || !Array.isArray(plan.todo)) {
+            return;
+        }
+        var autoIds = Array.isArray(plan.auto_added) ? plan.auto_added.map(String) : [];
+        setText('wb-' + kind + '-selected-count', plan.todo.length);
+        setText('wb-' + kind + '-selected-list', plan.todo.join(', '));
+        setText('wb-' + kind + '-auto-count', autoIds.length);
+        var scope = document.getElementById('wb-' + kind + '-scope');
+        if (scope) {
+            var boxes = scope.querySelectorAll('input.wb-scope-pick');
+            var total = Array.isArray(plan.rows) ? plan.rows.length : boxes.length;
+            setText('wb-' + kind + '-rest-count', Math.max(0, total - plan.todo.length));
+            var notes = scope.querySelectorAll('.wb-scope__note');
+            boxes.forEach(function (box) {
+                if (box.dataset.sendable !== '1') {
+                    return;
+                }
+                var isAuto = autoIds.indexOf(String(box.value)) !== -1;
+                var wasAuto = box.dataset.auto === '1';
+                if (isAuto === wasAuto) {
+                    return;
+                }
+                var note = null;
+                notes.forEach(function (el) {
+                    if (el.dataset.poNote === String(box.value)) {
+                        note = el;
+                    }
+                });
+                if (isAuto) {
+                    box.checked = true;
+                    box.disabled = true;
+                    box.dataset.auto = '1';
+                    if (note) {
+                        note.textContent = '본품과 함께 자동 포함';
+                    }
+                } else {
+                    box.checked = false;
+                    box.disabled = false;
+                    box.dataset.auto = '0';
+                    if (note) {
+                        note.textContent = '';
+                    }
+                }
+            });
+        }
+        var autoEl = document.getElementById('wb-' + kind + '-scope-auto');
+        if (autoEl) {
+            autoEl.hidden = !autoIds.length;
+        }
+        var errEl = document.getElementById('wb-' + kind + '-scope-error');
+        if (errEl) {
+            errEl.textContent = plan.ok ? '' : String(plan.message || '');
+            errEl.hidden = !!plan.ok;
+        }
+        var confirmBtn = document.getElementById('wb-' + kind + '-confirm');
+        if (confirmBtn) {
+            confirmBtn.disabled = !plan.ok;
         }
     }
 
@@ -2202,11 +2343,25 @@
             window.alert('취소 사유를 고르세요.');
             return;
         }
-        btn.disabled = true;
-        const result = await postJson(BASE + id + '/cancel', {
+        var body = {
             reason: reasonEl.value,
             detail: detailEl ? detailEl.value : ''
-        });
+        };
+        // 부분 선택(NVCLAIM-PARTIAL-01): 체크 목록이 있으면(게이트 ON) 사람이 고른 상품주문만
+        // `product_order_ids` 로 싣는다. 비어 있으면 요청 자체를 보내지 않는다 — "선택 없으면
+        // 전체" 패턴은 쓰지 않는다(`submitBulk` 주석, 2026-08-14 일괄 완료처리 AS 증발 사고).
+        // 목록이 없으면(게이트 OFF) 키를 넣지 않는다 = 서버가 오늘처럼 집 전체를 잡는다.
+        var scope = document.getElementById('wb-cancel-scope');
+        if (scope) {
+            var ids = scopeSelection('cancel');
+            if (!ids.length) {
+                window.alert('대상 상품주문을 고르세요.');
+                return;
+            }
+            body.product_order_ids = ids;
+        }
+        btn.disabled = true;
+        const result = await postJson(BASE + id + '/cancel', body);
         if (!result.ok) {
             window.alert(result.error);
             btn.disabled = false;
@@ -2237,12 +2392,24 @@
         // 갈래라 "모르면 안 켠다"가 안전한 기본값이다.
         var approveEl = document.getElementById('wb-return-approve');
         var approve = !!(approveEl && approveEl.checked);
-        btn.disabled = true;
-        const result = await postJson(BASE + id + '/return', {
+        var body = {
             reason: reasonEl.value,
             detail: detailEl ? detailEl.value : '',
             approve: approve
-        });
+        };
+        // 부분 선택(NVCLAIM-PARTIAL-01) — 취소와 같은 규율. 체크 목록이 있으면 고른 것만 싣고,
+        // 비면 보내지 않는다("선택 없으면 전체" 금지, 2026-08-14 사고). 목록이 없으면 키 부재.
+        var scope = document.getElementById('wb-return-scope');
+        if (scope) {
+            var ids = scopeSelection('return');
+            if (!ids.length) {
+                window.alert('대상 상품주문을 고르세요.');
+                return;
+            }
+            body.product_order_ids = ids;
+        }
+        btn.disabled = true;
+        const result = await postJson(BASE + id + '/return', body);
         if (!result.ok) {
             window.alert(result.error);
             btn.disabled = false;
@@ -3373,6 +3540,36 @@
             }
             if (!data) {
                 // 403/500 이 HTML 로 오는 경우다 — 조용히 성공으로 넘기지 않는다.
+                return { ok: false, data: null, error: '서버 응답을 읽지 못했습니다(HTTP '
+                    + response.status + '). 새로고침한 뒤 다시 시도하세요.' };
+            }
+            if (!data.success) {
+                return { ok: false, data: null, error: data.error || '요청에 실패했습니다.' };
+            }
+            return { ok: true, data: data.data, error: null };
+        } catch (error) {
+            return { ok: false, data: null, error: '요청 중 오류가 발생했습니다: ' + error };
+        }
+    }
+
+    /**
+     * JSON GET 한 번 — `postJson` 의 거울(같은 `{ok, data, error}` 모양, try/catch +
+     * `data.success` 검증). 서버가 계산만 하고 아무것도 바꾸지 않는 요청(클레임 미리보기)에 쓴다.
+     */
+    async function getJson(url) {
+        try {
+            const response = await fetch(url, {
+                method: 'GET',
+                credentials: 'same-origin',
+                headers: { 'Accept': 'application/json' }
+            });
+            let data = null;
+            try {
+                data = await response.json();
+            } catch (parseError) {
+                data = null;
+            }
+            if (!data) {
                 return { ok: false, data: null, error: '서버 응답을 읽지 못했습니다(HTTP '
                     + response.status + '). 새로고침한 뒤 다시 시도하세요.' };
             }

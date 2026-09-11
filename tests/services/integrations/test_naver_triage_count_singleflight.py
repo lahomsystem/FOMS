@@ -127,3 +127,59 @@ def test_failure_still_fails_open_under_the_lock(monkeypatch):
     assert tc.get_triage_pending_count(object(), workbench=True) == 0
     # 잠금이 풀려 있어야 다음 요청이 통과한다.
     assert tc.get_triage_pending_count(object(), workbench=True) == 0
+
+
+# --------------------------------------------------------------------------- #
+# 한 요청에서 같은 목록을 두 번 계산하지 않는다 (2026-09-11)
+# --------------------------------------------------------------------------- #
+
+def test_badge_reuses_the_page_answer_within_one_request(app) -> None:
+    """워크벤치 페이지가 이미 센 답이 있으면 뱃지는 `_work_groups` 를 다시 돌지 않는다.
+
+    스테이징 실측(코호트 안, 콜드): 한 요청의 서버 렌더 1,387ms 중 페이지 몫
+    ``wb_work_groups`` 436ms 와 뱃지 몫 ``nvbadge`` 428ms 가 거의 같았다 — **같은 일을
+    두 번** 한 것이다. 뱃지는 템플릿 렌더 중에 돌아 페이지보다 **나중**이므로, 페이지가
+    남긴 답을 쓰면 그 두 번째 계산이 통째로 사라진다.
+    """
+    calls: list[str] = []
+
+    def _boom(*_args, **_kwargs):
+        calls.append("computed")
+        raise AssertionError("뱃지가 목록을 다시 계산했다 — 요청 스코프 답을 안 썼다")
+
+    with app.test_request_context("/admin/naver-ingest/triage"):
+        from flask import g
+
+        g.wb_actionable_count = 7
+        monkey = pytest.MonkeyPatch()
+        try:
+            import foms.web.admin.naver_ingest as ingest
+
+            monkey.setattr(ingest, "_work_groups", _boom)
+            assert tc._workbench_group_count(None) == 7
+        finally:
+            monkey.undo()
+
+    assert calls == [], calls
+
+
+def test_badge_still_computes_without_a_page_answer(app) -> None:
+    """음성 대조군 — 페이지가 안 돈 요청(예: 다른 화면)에서는 뱃지가 직접 센다."""
+    seen: list[bool] = []
+
+    def _fake_groups(_db, **kwargs):
+        seen.append(kwargs.get("display", True))
+        return ([], False)
+
+    with app.test_request_context("/erp/dashboard"):
+        monkey = pytest.MonkeyPatch()
+        try:
+            import foms.web.admin.naver_ingest as ingest
+
+            monkey.setattr(ingest, "_work_groups", _fake_groups)
+            monkey.setattr(ingest, "_actionable_count", lambda _g: 0)
+            assert tc._workbench_group_count(None) == 0
+        finally:
+            monkey.undo()
+
+    assert seen == [False], f"뱃지 경로가 축소 문서(display=False)로 돌지 않았다: {seen}"

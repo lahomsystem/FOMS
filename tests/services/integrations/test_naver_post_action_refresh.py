@@ -102,4 +102,4 @@ def test_the_follow_up_refresh_covers_every_action():
 
 def test_the_asset_pin_moved():
     """JS 를 고쳤으면 핀을 올린다 — 서비스워커 캐시가 옛 파일을 준다."""
-    assert WORKBENCH.count("?v=20260910a") == 2, "CSS·JS 핀을 함께 올린다"
+    assert WORKBENCH.count("?v=20260911a") == 2, "CSS·JS 핀을 함께 올린다"  # 2026-09-11 부분 취소·반품

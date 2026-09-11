@@ -18,15 +18,17 @@ import datetime
 import hashlib
 import json
 import logging
+import time
 from typing import Any, Optional
 
-from flask import (abort, g, jsonify, redirect, render_template, request, session,
-                   url_for)
+from flask import (abort, g, jsonify, make_response, redirect, render_template,
+                   request, session, url_for)
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.elements import ColumnElement
 
 from db import get_db
+from foms.services.common.ept_b7_profile import apply_ept_b7_render_headers, phase
 from foms.services.datetime_kst import (format_datetime_kst, get_today_kst,
                                         now_kst, now_utc_naive)
 from foms.services.integrations.naver_commerce.constants import SELLER_CENTER_URL
@@ -1528,6 +1530,7 @@ def _triage_pane(db, link: ExternalOrderLink, *,
     Returns:
         pane 컨텍스트 dict. ``with_candidates`` 가 False 면 ``candidates`` 는 빈 목록이다.
     """
+    from foms.services.integrations.naver_commerce.fulfillment import is_partial_canceled
     from foms.services.integrations.naver_commerce.mapping import (
         build_payment_info,
         extract_claim,
@@ -1585,6 +1588,10 @@ def _triage_pane(db, link: ExternalOrderLink, *,
         },
         # 발주확인·발송처리 처리 이력(멱등 기록). 값이 있으면 다시 부르지 않는다 — T16-G.
         "fulfillment": (link.triage_state or {}).get("fulfillment") or {},
+        # 우리가 **일부 선택 취소**한 행인가(결정 5). pane 이 이 행 자신의 CANCEL_DONE 을
+        # 집 잠금(`household_claimed`)으로 읽지 않게 — 어느 형제로 열었느냐에 따라
+        # 발주확인·발송 버튼이 달라지면 안 된다(M-4).
+        "partial_canceled": is_partial_canceled(link),
         "edit_url": (url_for("order_edit.edit_order", order_id=int(link.order_id),
                              open="erp-order") if link.order_id else ""),
         # 취소·반품은 productOrderStatus 로는 안 보인다 — 별도 축으로 싣는다.
@@ -1834,6 +1841,88 @@ def _link_by_id(db, link_id: int) -> Optional[ExternalOrderLink]:
     )
 
 
+def _normalize_product_order_ids(values: list[Any]) -> list[str]:
+    """상품주문 id 목록을 **문자열 리스트**로 정규화한다 (NVCLAIM-PARTIAL-01 계약 §0).
+
+    ``str(x).strip()`` → 빈 값 제거 → 순서 보존 중복 제거. 요청 본문·쿼리·DOM 어디서
+    왔든 같은 함수로 굳혀야 서비스(:func:`fulfillment.resolve_claim_scope`)와 어휘가 같다.
+
+    Args:
+        values: 원본 값 목록(문자열·숫자 섞여 올 수 있다).
+
+    Returns:
+        정규화된 id 목록(빈 목록 가능).
+    """
+    seen: list[str] = []
+    for value in values:
+        text = str(value if value is not None else "").strip()
+        if text and text not in seen:
+            seen.append(text)
+    return seen
+
+
+def _parse_product_order_ids(payload: dict) -> tuple[Optional[list[str]], str]:
+    """요청 본문의 ``product_order_ids`` 를 읽는다 (NVCLAIM-PARTIAL-01 계약 §3).
+
+    의미 3종을 여기서 가른다: **키 부재 = None(집 전체, 오늘 동작)** · 리스트가 아니면
+    오류 · 정규화 뒤 빈 목록이면 오류("빈 선택 = 전체" 해석은 어디에도 없다 — 계약 C2).
+
+    Args:
+        payload: ``request.get_json()`` 결과(dict).
+
+    Returns:
+        ``(ids 또는 None, 오류문)``. 오류문이 비어 있지 않으면 400 사유다.
+    """
+    if "product_order_ids" not in payload:
+        return None, ""
+    raw = payload.get("product_order_ids")
+    if not isinstance(raw, list):
+        return None, "대상 상품주문 목록이 올바르지 않습니다."
+    ids = _normalize_product_order_ids(raw)
+    if not ids:
+        return None, "대상 상품주문을 고르세요."
+    return ids, ""
+
+
+def _claim_scope_or_error(db, link: Optional[ExternalOrderLink], link_id: int,
+                          payload: dict) -> tuple[Optional[list[str]], Optional[tuple[Any, int]]]:
+    """취소·반품 라우트의 **대상 상품주문 목록** 판정 — 두 라우트가 이 함수 하나를 쓴다.
+
+    판정 순서(계약 §3): 목록 파싱 오류 400 → 목록이 있는데 일부선택 게이트가 꺼져 있으면
+    403 → 링크 없음 404 → 집(:func:`fulfillment.links_of_group`) 밖 id 400. 목록이 없으면
+    (키 부재) 아무것도 확인하지 않고 ``(None, None)`` — 오늘 경로 그대로다.
+
+    Args:
+        db: 요청 스코프 DB 세션.
+        link: :func:`_link_by_id` 결과(없으면 None).
+        link_id: 경로의 링크 id.
+        payload: 요청 본문 dict.
+
+    Returns:
+        ``(ids, None)`` 이면 계속 진행, ``(None, (응답, 상태코드))`` 면 그대로 돌려준다.
+    """
+    from foms.services.feature_flags import is_naver_partial_claim_enabled
+    from foms.services.integrations.naver_commerce.fulfillment import links_of_group
+
+    def _fail(message: str, status: int) -> tuple[Optional[list[str]], tuple[Any, int]]:
+        return None, (jsonify({"success": False, "data": None, "error": message}), status)
+
+    ids, error = _parse_product_order_ids(payload)
+    if error:
+        return _fail(error, 400)
+    if ids is None:
+        return None, None
+    if not is_naver_partial_claim_enabled(session.get("user_id")):
+        return _fail("이 화면에서는 일부 상품주문만 고를 수 없습니다.", 403)
+    if link is None:
+        return _fail(f"수집 기록을 찾을 수 없습니다 (link {link_id}).", 404)
+    known = {str(row.external_id or "").strip() for row in links_of_group(db, link_id)}
+    unknown = [pid for pid in ids if pid not in known]
+    if unknown:
+        return _fail("이 주문에 없는 상품주문입니다: " + ", ".join(unknown), 400)
+    return ids, None
+
+
 @admin_bp.route("/admin/naver-ingest/triage")
 @login_required
 @role_required(["ADMIN", "MANAGER", "STAFF"])
@@ -1855,7 +1944,16 @@ def naver_ingest_triage():
     from foms.services.feature_flags import is_naver_workbench_enabled
 
     if is_naver_workbench_enabled(session.get("user_id")):
-        return _render_workbench(db)
+        # 서버 렌더 시간을 응답 헤더로 드러낸다(2026-09-11). 이 화면은 코드가 3주 만에
+        # 12배로 커지는 동안 계측이 한 곳도 없어, "탭 왕복이 느리다"는 신고를 숫자로
+        # 판정할 수 없었다. /erp/dashboard 와 **같은 배선**이라 두 화면을 나란히 잰다.
+        _t0 = time.perf_counter()
+        _body = _render_workbench(db)
+        _render_ms = (time.perf_counter() - _t0) * 1000.0
+        response = make_response(_body)
+        apply_ept_b7_render_headers(response, route_id="naver_ingest_triage",
+                                    render_ms=_render_ms)
+        return response
 
     # --- 아래는 게이트 OFF 경로(롤백 경로) — 예전 화면 그대로 둔다 ---
     pending, truncated = _queue_links(db)
@@ -2228,10 +2326,13 @@ def _pane_context(db, link: Optional[ExternalOrderLink],
 
     Returns:
         ``selected``·``selected_group``·``selected_household_claimed``·``member_rows``·
-        ``cancel_reasons``·``return_reasons``·``selected_offlist``.
+        ``cancel_reasons``·``return_reasons``·``selected_offlist`` + 일부 선택
+        (NVCLAIM-PARTIAL-01) ``partial_claim_enabled``·``cancel_plan``·``return_plan``
+        (게이트 꺼짐이거나 링크 없으면 두 계획은 None).
     """
     from foms.services.feature_flags import (
         is_naver_cancel_approve_enabled,
+        is_naver_partial_claim_enabled,
         is_naver_return_approve_enabled,
         is_naver_return_reject_enabled,
     )
@@ -2239,6 +2340,7 @@ def _pane_context(db, link: Optional[ExternalOrderLink],
         CANCEL_REASONS,
         RETURN_REASONS,
         RETURN_REJECT_REASON_MAX,
+        links_of_group,
     )
     from foms.services.integrations.naver_commerce.reject_templates import (
         load_templates as load_reject_templates,
@@ -2251,9 +2353,20 @@ def _pane_context(db, link: Optional[ExternalOrderLink],
     if household is not None:
         _attach_row_view([household])
     member_rows = _member_rows(db, household)
+    # 일부 선택 모달의 기본 계획(NVCLAIM-PARTIAL-01). **선택 집 1개**만, 게이트가 켜진
+    # 때만 계산한다 — 큐 묶음 전체에 붙이면 목록 렌더가 집 수만큼 커진다(성능 가드).
+    # 집 행은 한 번 읽어 취소·반품 두 계획이 나눠 쓴다.
+    partial_claim_enabled = is_naver_partial_claim_enabled(session.get("user_id"))
+    plan_links = (links_of_group(db, link.id)
+                  if (partial_claim_enabled and link is not None) else None)
     return {
         "selected": _triage_pane(db, link) if link is not None else None,
         "selected_group": household,
+        "partial_claim_enabled": partial_claim_enabled,
+        "cancel_plan": (_claim_plan_view(db, link, "cancel", None, links=plan_links)
+                        if plan_links is not None else None),
+        "return_plan": (_claim_plan_view(db, link, "return", None, links=plan_links)
+                        if plan_links is not None else None),
         # 클레임 판정 모집단도 **형제 전부**다. 확인 완료돼 큐에서 빠진 형제의 취소를 큐
         # 묶음은 못 보는데, 발송처리는 되돌릴 수 없어 그 구멍이 그대로 사고가 된다.
         "selected_household_claimed": _household_has_claim(db, link),
@@ -2342,7 +2455,15 @@ def _render_workbench(db) -> str:
     active_tab = _active_tab()
     active_filter = _active_filter()
     active_sort = _active_sort()
-    groups, work_truncated = _work_groups(db, sort=active_sort)
+    with phase("wb_work_groups"):
+        groups, work_truncated = _work_groups(db, sort=active_sort)
+    # nav 뱃지(`inject_status_list` → `get_triage_pending_count`)는 **템플릿 렌더 중**
+    # 돌면서 같은 `_work_groups` 를 한 번 더 계산한다. 30초 캐시가 콜드면 그 두 번째
+    # 계산이 통째로 더해진다 — 스테이징 실측 콜드 render 1,387ms 중 nvbadge 가 428ms
+    # (wb_work_groups 436ms 와 거의 같은 값 = 같은 일을 두 번 한 것).
+    # 이 요청은 답을 이미 알고 있으므로 여기 남겨 배지가 재사용하게 한다. 요청 스코프라
+    # 신선도 문제가 없고(같은 요청·같은 트랜잭션), `_work_groups` 자체는 순수하게 둔다.
+    g.wb_actionable_count = _actionable_count(groups)
     visible = [group for group in groups if _group_matches_filter(group, active_filter)]
     # 수집 상태(워터마크·인증 만료일)는 이력 탭에 함께 싣는다. 게이트가 켜지면 옛 수집
     # 화면이 리다이렉트로 닫히는데, 그 화면에만 있던 값이라 여기 없으면 수집이 조용히
@@ -2350,7 +2471,8 @@ def _render_workbench(db) -> str:
     # 열린 뒤에도 이 카드(지금 수집·소급 수집·만료일 등록)는 ADMIN 손잡이다.
     ingest_status = ({"watermark": _watermark_view(db), "expiry": _expiry_view(db)}
                      if active_tab == "all" and _is_ingest_admin() else {})
-    return render_template(
+    with phase("wb_template"):
+        return render_template(
         "admin/naver_workbench.html",
         active_tab=active_tab,
         active_filter=active_filter,
@@ -3470,7 +3592,11 @@ def _attach_household_counts(db, groups: list[dict[str, Any]], *,
             ExternalOrderLink.external_order_no.in_(sorted(order_nos)),
             display=display,
         )
-        from foms.services.integrations.naver_commerce.fulfillment import is_place_pending
+        from foms.services.integrations.naver_commerce.fulfillment import (
+            cancel_locks_household_state,
+            is_partial_canceled,
+            is_place_pending,
+        )
         from foms.services.integrations.naver_commerce.mapping import extract_claim
 
         for row in rows:
@@ -3483,13 +3609,17 @@ def _attach_household_counts(db, groups: list[dict[str, Any]], *,
             # 클레임 ② 우리가 낸 취소(`canceled_at`)를 놓쳤다 — 그 집은 행이 안 잠기고
             # 체크박스가 열려 벌크 발주확인 대상이 됐다(2026-08-23 리뷰 H-A).
             # 목록이 "보내도 된다"고 하는데 상세는 "닫혀 있다"고 하면 그건 화면의 거짓말이다.
+            # 결정 5 — 우리가 일부 취소한 행의 CANCEL_DONE 은 집을 잠그지 않는다(`_group_queue`·`_household_has_claim` 와 같은 규칙).
             try:
-                if (extract_claim(row.raw_snapshot or {}) or {}).get("blocking"):
+                if (not is_partial_canceled(row)
+                        and (extract_claim(row.raw_snapshot or {}) or {}).get("blocking")):
                     blocking.add(hkey)
             except (ValueError, TypeError, AttributeError, KeyError) as exc:
                 logger.warning("[NAVER] 형제 클레임 판정 실패(link %s): %s", row.id, exc)
             state = (row.triage_state or {}).get("fulfillment") or {}
-            if state.get("canceled_at"):
+            # 집 잠금은 **집 전체 취소**(옛 표식·household)만이다 — 일부 취소 행은 남은
+            # 라인의 발주확인·발송을 막지 않는다(NVCLAIM-PARTIAL-01 결정 5).
+            if cancel_locks_household_state(state):
                 canceled.add(hkey)
     index = _SiblingIndex()
     index.counts, index.pending_counts = counts, pending_counts
@@ -3542,15 +3672,21 @@ def _household_has_claim(db, link: Optional[ExternalOrderLink]) -> bool:
         link: 선택된 링크(없으면 False).
 
     Returns:
-        형제 중 하나라도 취소·반품이면 True.
+        형제 중 하나라도 취소·반품이면 True. **우리가 일부 취소한 행**
+        (:func:`fulfillment.is_partial_canceled`)은 건너뛴다 — 그 행의 클레임은 우리가
+        낸 것이고 남은 라인의 발주확인·발송을 막지 않는다(결정 5, 2026-09-11).
     """
+    from foms.services.integrations.naver_commerce.fulfillment import (
+        household_key,
+        is_partial_canceled,
+    )
+
     if link is None:
         return False
     order_no = (link.external_order_no or "").strip()
     if not order_no:
-        return bool(summarize_snapshot(link.raw_snapshot)["claim_blocking"])
-
-    from foms.services.integrations.naver_commerce.fulfillment import household_key
+        return (bool(summarize_snapshot(link.raw_snapshot)["claim_blocking"])
+                and not is_partial_canceled(link))
 
     base_key = household_key(link)
     rows = (
@@ -3560,7 +3696,8 @@ def _household_has_claim(db, link: Optional[ExternalOrderLink]) -> bool:
         .all()
     )
     return any(summarize_snapshot(row.raw_snapshot)["claim_blocking"]
-               for row in rows if household_key(row) == base_key)
+               for row in rows
+               if household_key(row) == base_key and not is_partial_canceled(row))
 
 
 class _SiblingIndex:
@@ -3644,7 +3781,9 @@ def _build_sibling_index(db, order_nos: set, *, display: bool) -> _SiblingIndex:
         :class:`_SiblingIndex`. 주문번호가 없으면 빈 색인.
     """
     from foms.services.integrations.naver_commerce.fulfillment import (
+        cancel_locks_household_state,
         household_key,
+        is_partial_canceled,
         is_place_pending,
     )
 
@@ -3676,14 +3815,19 @@ def _build_sibling_index(db, order_nos: set, *, display: bool) -> _SiblingIndex:
             oid = int(row.order_id)
             index.order_id_by_key[hkey] = oid if prev is None else min(prev, oid)
         # 원본 파싱은 행마다 **한 번**이다 — 옛 경로는 같은 행을 세 벌로 다시 풀었다.
-        claim_blocking = summarize_snapshot(row.raw_snapshot)["claim_blocking"]
+        # 결정 5 — 우리가 일부 취소한 행의 CANCEL_DONE 은 집을 잠그지 않는다(`_group_queue`·
+        # `_household_has_claim` 와 같은 규칙). `blocking`·`confirmed_claim_blocked` 둘 다 건너뛴다.
+        claim_blocking = (summarize_snapshot(row.raw_snapshot)["claim_blocking"]
+                          and not is_partial_canceled(row))
         if claim_blocking:
             index.blocking.add(hkey)
             # 발주확인이 끝난 형제의 클레임만 따로 센다 — 발주확인 전 형제의 클레임은
             # 이미 목록 안에 있어 `_group_queue` 가 판정했다(옛 SQL 술어와 같은 갈래).
             if (row.place_order_status or "") in CONFIRMED_PLACE_VALUES:
                 index.confirmed_claim_blocked.add(hkey)
-        if ((row.triage_state or {}).get("fulfillment") or {}).get("canceled_at"):
+        # 집 잠금은 **집 전체 취소**(옛 표식·household)만이다(NVCLAIM-PARTIAL-01 결정 5).
+        if cancel_locks_household_state(
+                (row.triage_state or {}).get("fulfillment") or {}):
             index.canceled.add(hkey)
     index.dispatched_all = {hkey for hkey, total in index.counts.items()
                             if total and dispatched_counts.get(hkey, 0) == total}
@@ -3789,6 +3933,46 @@ def _group_of_link(db, link: ExternalOrderLink) -> Optional[dict[str, Any]]:
         그 링크가 속한 묶음(없으면 None).
     """
     return _household_of_link(db, link)[0]
+
+
+def _claim_plan_view(db, link: ExternalOrderLink, action: str,
+                     product_order_ids: Optional[list[str]], *,
+                     links: Optional[list[ExternalOrderLink]] = None) -> dict[str, Any]:
+    """취소·반품 **대상 계획**의 화면용 사본 (NVCLAIM-PARTIAL-01 T5, 계약 §3).
+
+    판정은 전부 서비스 한 벌(:func:`fulfillment.plan_claim_scope` — 워커가 실제로 보낼
+    ``todo`` 를 만드는 같은 함수)이 하고, 여기서는 행마다 **표시값**(제품·옵션·수량·
+    결제 금액)만 덧붙인다. 그래야 모달이 재진술하는 목록 == 서버가 보낼 목록(C1)이다.
+    네이버 HTTP 는 0회다 — 원본 스냅샷과 우리 표식만 읽는다.
+
+    Args:
+        db: 요청 스코프 DB 세션.
+        link: 선택된 링크(집의 기준).
+        action: ``"cancel"`` 또는 ``"return"``.
+        product_order_ids: 사용자가 고른 상품주문 id 목록(None = 보낼 수 있는 전부).
+        links: 이미 읽어 둔 집의 링크 행(없으면 :func:`fulfillment.links_of_group` 으로
+            1회 조회). pane 이 취소·반품 두 계획을 만들 때 집을 두 번 읽지 않게 한다.
+
+    Returns:
+        ``plan_claim_scope`` dict + ``link_id`` + 각 ``rows[i]`` 에 ``product``·``options``·
+        ``quantity``·``amount``.
+    """
+    from foms.services.integrations.naver_commerce import fulfillment
+
+    members = links if links is not None else fulfillment.links_of_group(db, link.id)
+    plan = fulfillment.plan_claim_scope(members, action=action,
+                                        product_order_ids=product_order_ids)
+    by_id = {int(row.id): row for row in members}
+    rows: list[dict[str, Any]] = []
+    for item in plan["rows"]:
+        member = by_id.get(int(item["link_id"]))
+        summary = summarize_snapshot(member.raw_snapshot if member is not None else None)
+        rows.append({**item,
+                     "product": summary["product"],
+                     "options": summary["options"],
+                     "quantity": summary["quantity"],
+                     "amount": _link_payment_amount(member) if member is not None else 0})
+    return {**plan, "link_id": int(link.id), "rows": rows}
 
 
 def _household_of_link(db, link: ExternalOrderLink
@@ -4053,10 +4237,23 @@ def _member_claim_view(link: ExternalOrderLink) -> dict[str, Any]:
     snapshot = link.raw_snapshot or {}
     claim = extract_claim(snapshot)
     ours = (link.triage_state or {}).get("return") or {}
-    from foms.services.integrations.naver_commerce.fulfillment import product_class_known
+    ours_cancel = (link.triage_state or {}).get("fulfillment") or {}
+    from foms.services.integrations.naver_commerce.fulfillment import (
+        cancel_sendable,
+        product_class_known,
+        return_sendable,
+    )
 
     return {
         "is_addon": is_addon_detail(snapshot),
+        # 우리가 보낸 **취소**(NVCLAIM-PARTIAL-01). ``return_requested_at`` 과 같은 규율 —
+        # 네이버가 말하는 클레임 상태와 다른 사실이라 한 칸에 합치지 않는다. ``cancel_scope``
+        # 는 ``partial``(그 라인만) / ``household``(집 전체) / 빈 문자열(옛 표식 = 집 전체).
+        "cancel_requested_at": _dispatch_time_text(ours_cancel.get("canceled_at")),
+        "cancel_scope": str(ours_cancel.get("cancel_scope") or ""),
+        # 라인 단위 "보낼 수 있나" — 서버 술어 한 벌(모달 체크박스가 이 값으로 열린다).
+        "cancel_sendable": cancel_sendable(link),
+        "return_sendable": return_sendable(link),
         # 판정에 **근거가 있는가**(감사 F12). ``productClass`` 가 없는 옛 수집분은 코드가
         # 본품으로 보는데(안전측 기본값), 화면이 그걸 `본품` 이라고 **단정**하면 담당자는
         # 없는 사실을 읽는다. 그 집은 호출 순서가 사실상 `id.asc` 이고 반품 범위 검사도
@@ -4250,6 +4447,22 @@ def _dispatched_any(links: list[ExternalOrderLink]) -> bool:
                for row in links)
 
 
+def _canceled_ours(link: ExternalOrderLink) -> bool:
+    """우리가 취소 표식(``fulfillment.canceled_at``)을 찍은 상품주문인가.
+
+    범위(``cancel_scope``)를 가리지 않는다 — 집 전체든 일부든 취소한 라인은 발주확인·
+    발송 건수에서 빠진다(NVCLAIM-PARTIAL-01 결정 5: 서버 ``confirm_place_order``·
+    ``dispatch_order`` 도 취소 표식 라인을 제외하고 보낸다).
+
+    Args:
+        link: 수집 링크(상품주문 1건).
+
+    Returns:
+        취소 표식이 있으면 True.
+    """
+    return bool(((link.triage_state or {}).get("fulfillment") or {}).get("canceled_at"))
+
+
 def _group_queue(links: list[ExternalOrderLink], orders: dict,
                  *, truncated: bool, limit: Optional[int] = None,
                  orders_loaded: bool = True) -> list[dict[str, Any]]:
@@ -4284,10 +4497,13 @@ def _group_queue(links: list[ExternalOrderLink], orders: dict,
     # 붙어 보이고 워커는 따로 처리하는 갈라짐이었다(리뷰 L-1). 폴백을 한 벌만 둔다.
     from foms.services.integrations.naver_commerce.fulfillment import (
         addon_return_gap,
+        cancel_lock,
+        cancel_sendable,
         household_exchange_in_flight,
         household_key,
         is_cancel_approvable,
         is_dispatch_pending,
+        is_partial_canceled,
         is_place_pending,
         is_return_approvable,
         is_return_pending,
@@ -4333,7 +4549,9 @@ def _group_queue(links: list[ExternalOrderLink], orders: dict,
         # `member_count - dispatched_count` 로 재진술하면 판매자센터에서 사람이 직접 보낸
         # 형제를 안 빼서 "3건 보냅니다"라고 읽히는데 서버는 1건만 보낸다. 불가역 경로의
         # 과대 진술이라 그 자체가 사고다(설계서 2026-08-29 §7-E).
-        dispatch_pending_n = sum(1 for row in members if is_dispatch_pending(row))
+        # 우리가 취소한 라인은 발송 대상에서 빠진다(결정 5 — 서버 dispatch_order 와 한 벌).
+        dispatch_pending_n = sum(1 for row in members
+                                 if is_dispatch_pending(row) and not _canceled_ours(row))
         queue.append({
             "id": lead.id,
             # 묶음키 그대로 — 호출자가 이 집에 다른 판정(형제까지 본 클레임 등)을 붙일 때 쓴다.
@@ -4362,10 +4580,16 @@ def _group_queue(links: list[ExternalOrderLink], orders: dict,
             "claim_label": household_claim["claim_label"],
             "claim_code": household_claim["claim_code"],
             "claim_kind": household_claim["claim_kind"],
-            "claim_blocking": any(s["claim_blocking"] for s in member_summaries),
+            # 우리가 **일부 취소**한 라인의 클레임은 집을 잠그지 않는다(NVCLAIM-PARTIAL-01
+            # 결정 5) — 그 클레임은 우리가 낸 것이고 남은 라인은 발주확인·발송을 계속한다.
+            "claim_blocking": any(s["claim_blocking"]
+                                  for s, row in zip(ordered_summaries, [lead, *rest])
+                                  if not is_partial_canceled(row)),
             "claim_money_back": any(s["claim_money_back"] for s in member_summaries),
             # 발주확인은 상품주문 단위다 — 하나라도 남아 있으면 그 집은 "발주확인 전"이다(T16-A).
-            "place_pending": any(not _place_view(row)["confirmed"] for row in members),
+            # 우리가 취소한 라인은 세지 않는다(결정 5 — 서버 confirm_place_order 도 뺀다).
+            "place_pending": any(not _place_view(row)["confirmed"]
+                                 for row in members if not _canceled_ours(row)),
             # 관계 축(추가결제·재결제) — 이 값은 **배지 라벨**이다. 붙이기는 집 전체를 함께
             # 붙이지만(attach_link_to_order) 백필 전 데이터는 형제 일부만 값이 있을 수 있어
             # 멤버 전체를 본다. 둘이 섞이면 ADDON 을 대표로 적는다 — **표기 우선순위일 뿐**
@@ -4383,8 +4607,18 @@ def _group_queue(links: list[ExternalOrderLink], orders: dict,
             "close_now": all((row.relation or "").upper() in CLOSE_NOW_RELATIONS
                              for row in members),
             # 우리가 취소한 집은 더 손대지 않는다 — 버튼·모달·발주확인 전 탭에서 함께 뺀다.
-            "canceled": any(((row.triage_state or {}).get("fulfillment") or {}).get("canceled_at")
-                            for row in members),
+            # 뜻은 **집 잠금**이다(NVCLAIM-PARTIAL-01): 집 전체 취소(옛 표식 포함)거나
+            # 모든 라인이 취소됐을 때만 참. 일부 취소는 라인만 빼고 집은 열어 둔다(결정 5).
+            "canceled": cancel_lock(members),
+            # 취소를 **실제로 보낼 수 있는** 라인 수 — 서버 술어 한 벌
+            # (:func:`fulfillment.cancel_sendable`). 반품의 `return_sendable_count` 와 같은 규율.
+            "cancel_sendable_count": sum(1 for row in members if cancel_sendable(row)),
+            # 취소 축의 범위 규격(FAQ 3880, 결정 4 — 안전측): 보낼 수 있는 전부를 대상으로
+            # 잡았을 때 함께 가지 않는 추가구성상품. 서버가 0건 전송으로 거절하는 조건이다.
+            "cancel_scope_gap": [row.external_id for row in addon_return_gap(
+                members, [row for row in members if cancel_sendable(row)])],
+            # 우리가 **일부 취소**한 라인 수 — 화면이 "N건은 취소됨" 을 말하는 근거.
+            "canceled_partial_count": sum(1 for row in members if is_partial_canceled(row)),
             # 발송처리는 **상품주문(링크)마다** 찍힌다 — 워커가 건별로 성공/실패해서 한 집이
             # 부분 발송으로 남을 수 있다. pane 이 링크 1건의 표식만 보면 어느 형제로 열었느냐에
             # 따라 취소 버튼이 있기도 없기도 한다(리뷰 M-4). 판정을 집 단위로 한 번만 한다.
@@ -4409,7 +4643,9 @@ def _group_queue(links: list[ExternalOrderLink], orders: dict,
             "promotable_count": sum(1 for row in members if is_promotable(row)),
             # 발주확인이 **실제로 나갈** 건수. 서버 confirm_place_order 는 이미 확인된
             # 형제를 빼고 보낸다 — 집 전체 수로 재진술하면 과대 진술이 된다(계약 §0-2).
-            "place_pending_count": sum(1 for row in members if is_place_pending(row)),
+            # 우리가 취소한 라인은 세지 않는다(결정 5 — 서버도 취소 표식 라인을 뺀다).
+            "place_pending_count": sum(1 for row in members
+                                       if is_place_pending(row) and not _canceled_ours(row)),
             # 반품 접수가 **실제로 나갈** 건수(T8-S1). 술어는 서버와 한 벌
             # (:func:`fulfillment.is_return_pending`) — 부분 발송 집에서 집 전체 수로
             # 재진술하면 "3건 반품 접수합니다"라고 읽히는데 서버는 나간 1건만 보낸다.
@@ -5157,27 +5393,39 @@ def naver_ingest_cancel(link_id: int):
     # 기준 지문은 enqueue 앞에서(발주확인·발송처리와 같은 이유).
     db = get_db()
     link = _link_by_id(db, link_id)
+    # 일부 선택(NVCLAIM-PARTIAL-01) — **사용자가 고른 것만** 받는다. 자동 동반(본품의
+    # 남은 추가구성상품)은 워커의 서비스가 붙인다. 키 부재면 오늘처럼 집 전체다.
+    ids, error_response = _claim_scope_or_error(db, link, link_id, payload)
+    if error_response is not None:
+        return error_response
     base_state = _fulfillment_state(db, link) if link is not None else {}
     base_rev = base_state.get("rev", "")
     base_err_at = base_state.get("last_error_at", "")
     base_sync_at = base_state.get("sync_at", "")
 
-    queued = enqueue_naver_cancel(link_id, reason, detail or None, session.get("user_id"))
+    # 목록이 있을 때만 kwarg 를 붙인다 — 키 부재(집 전체) 경로의 호출 모양은 오늘과 같다.
+    scope_kwargs = {"product_order_ids": ids} if ids is not None else {}
+    queued = enqueue_naver_cancel(link_id, reason, detail or None, session.get("user_id"),
+                                  **scope_kwargs)
     if not queued:
         return jsonify({"success": False, "data": None,
                         "error": "작업 큐를 쓸 수 없습니다(REDIS_URL 미설정 또는 큐 장애). "
                                  "지금은 판매자센터에서 처리하세요."}), 503
 
+    scope = "partial" if ids is not None else "household"
     log_access(
-        f"네이버 취소 요청 (link {link_id}, {CANCEL_REASONS[reason]})",
+        f"네이버 취소 요청 (link {link_id}, {CANCEL_REASONS[reason]})"
+        + (f" · 상품주문 {len(ids)}건 선택" if ids is not None else ""),
         session.get("user_id"),
         action="NAVER_INGEST_CANCEL_ENQUEUE",
-        detail={"link_id": link_id, "reason": reason, "cancel_detail": detail},
+        detail={"link_id": link_id, "reason": reason, "cancel_detail": detail,
+                "product_order_ids": ids, "scope": scope},
     )
     return jsonify({"success": True,
                     "data": {"link_id": link_id, "reason": reason, "queued": True,
                              "rev": base_rev, "err_at": base_err_at,
-                             "sync_at": base_sync_at},
+                             "sync_at": base_sync_at,
+                             "product_order_ids": ids, "scope": scope},
                     "error": None})
 
 
@@ -5226,13 +5474,19 @@ def naver_ingest_return(link_id: int):
     # 기준 지문은 enqueue 앞에서(취소와 같은 이유 — 워커가 뒤집기 전 값이어야 한다).
     db = get_db()
     link = _link_by_id(db, link_id)
+    # 일부 선택(NVCLAIM-PARTIAL-01) — 취소 라우트와 **같은 판정 함수**다.
+    ids, error_response = _claim_scope_or_error(db, link, link_id, payload)
+    if error_response is not None:
+        return error_response
     base_state = _fulfillment_state(db, link) if link is not None else {}
     base_rev = base_state.get("rev", "")
     base_err_at = base_state.get("last_error_at", "")
     base_sync_at = base_state.get("sync_at", "")
 
+    # 목록이 있을 때만 kwarg 를 붙인다 — 키 부재(집 전체) 경로의 호출 모양은 오늘과 같다.
+    scope_kwargs = {"product_order_ids": ids} if ids is not None else {}
     queued = enqueue_naver_return(link_id, reason, detail or None, session.get("user_id"),
-                                  approve=approve)
+                                  approve=approve, **scope_kwargs)
     if not queued:
         return jsonify({"success": False, "data": None,
                         "error": "작업 큐를 쓸 수 없습니다(REDIS_URL 미설정 또는 큐 장애). "
@@ -5241,20 +5495,23 @@ def naver_ingest_return(link_id: int):
     # 승인은 **다른 사건**이다 — 돈이 나간다. 감사 원장에서 접수와 갈라 읽을 수 있어야
     # "누가 환불을 냈나"에 답할 수 있다. 라벨은 `audit_message_display` 에 등재돼 있어야
     # 하고(미등재면 CI red), 그 등재가 이 갈래의 계약이다.
+    scope = "partial" if ids is not None else "household"
     log_access(
         (f"네이버 반품 접수+승인 요청 (link {link_id}, {RETURN_REASONS[reason]})"
          if approve else
-         f"네이버 반품 접수 요청 (link {link_id}, {RETURN_REASONS[reason]})"),
+         f"네이버 반품 접수 요청 (link {link_id}, {RETURN_REASONS[reason]})")
+        + (f" · 상품주문 {len(ids)}건 선택" if ids is not None else ""),
         session.get("user_id"),
         action=("NAVER_INGEST_RETURN_APPROVE_ENQUEUE" if approve
                 else "NAVER_INGEST_RETURN_ENQUEUE"),
         detail={"link_id": link_id, "reason": reason, "return_detail": detail,
-                "approve": approve},
+                "approve": approve, "product_order_ids": ids, "scope": scope},
     )
     return jsonify({"success": True,
                     "data": {"link_id": link_id, "reason": reason, "queued": True,
                              "approve": approve, "rev": base_rev,
-                             "err_at": base_err_at, "sync_at": base_sync_at},
+                             "err_at": base_err_at, "sync_at": base_sync_at,
+                             "product_order_ids": ids, "scope": scope},
                     "error": None})
 
 @admin_bp.route("/admin/naver-ingest/reject-templates", methods=["POST"])
@@ -5677,6 +5934,52 @@ def naver_ingest_order_search(link_id: int) -> str:
         seek=search_orders_for_attach(db, link, query=request.args.get("q", "")),
         seek_link_id=link_id,
     )
+
+
+@admin_bp.route("/admin/naver-ingest/<int:link_id>/claim-plan")
+@login_required
+@role_required(["ADMIN", "MANAGER", "STAFF"])
+def naver_ingest_claim_plan(link_id: int):
+    """취소·반품 **대상 계획 미리보기** — 모달이 체크를 바꿀 때마다 읽는다 (NVCLAIM-PARTIAL-01 T5).
+
+    서버가 실제로 보낼 목록(``todo`` — 호출 순서·자동 동반·범위 규격·불가 사유)을 **같은
+    함수**(:func:`fulfillment.plan_claim_scope`)로 계산해 JSON 으로 준다. 화면은 이 값을
+    재진술만 한다 — 화면이 자기 술어로 세면 모달이 말하는 목록과 워커가 보내는 목록이
+    갈리고, 그 갈림이 불가역 경로의 과대 진술이다(C1).
+
+    읽기 전용 GET 이다 — 아무것도 바꾸지 않으므로 write manifest 등재도 감사 라벨도 없다
+    (:func:`naver_ingest_order_search` 와 같은 규율). 네이버 HTTP 는 0회(web 에서 돈다).
+
+    Query:
+        ``action``: ``cancel`` 또는 ``return``(그 밖은 400).
+        ``po``: 쉼표 구분 상품주문 id. **파라미터 부재 = 보낼 수 있는 전부**(기본 선택),
+            ``po=`` 빈 문자열 = 아무것도 안 고름(``todo`` 가 비고 ``ok`` 거짓).
+
+    Returns:
+        ``{"success": True, "data": <plan_view>, "error": None}``. 워크벤치 게이트나
+        일부선택 게이트가 꺼져 있으면 404(그 화면에는 이 경로가 없다), 없는 링크는 404.
+    """
+    from foms.services.feature_flags import (
+        is_naver_partial_claim_enabled,
+        is_naver_workbench_enabled,
+    )
+
+    user_id = session.get("user_id")
+    if not (is_naver_workbench_enabled(user_id) and is_naver_partial_claim_enabled(user_id)):
+        abort(404)
+    action = str(request.args.get("action") or "").strip().lower()
+    if action not in ("cancel", "return"):
+        return jsonify({"success": False, "data": None,
+                        "error": "action 이 올바르지 않습니다."}), 400
+    db = get_db()
+    link = _link_by_id(db, link_id)
+    if link is None:
+        abort(404)
+    po = request.args.get("po")
+    ids = None if po is None else _normalize_product_order_ids(po.split(","))
+    return jsonify({"success": True,
+                    "data": _claim_plan_view(db, link, action, ids),
+                    "error": None})
 
 
 @admin_bp.route("/admin/naver-ingest/<int:link_id>/attach", methods=["POST"])

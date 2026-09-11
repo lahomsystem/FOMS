@@ -352,7 +352,12 @@ def _product_order_table(pane: str) -> str:
 
 
 def test_pane_household_is_the_group_the_server_will_touch(client, workbench_on):
-    """pane 의 집 = `_group_of_link` 결과. 큐 기준으로 세면 1건이라 말하고 3건이 나간다."""
+    """pane 의 집 = `_group_of_link` 결과. 큐 기준으로 세면 1건이라 말하고 3건이 나간다.
+
+    취소 모달은 2026-09-11 부터 `cancel_sendable_count` 를 재진술한다(계약 §0-2) — 이
+    픽스처(클레임·발송·취소 없음)에서는 `count` 와 값이 같다. 부분집합 계약은
+    test_naver_partial_claim.py.
+    """
     from foms.web.admin import naver_ingest as mod
 
     _login(client)
@@ -375,8 +380,9 @@ def test_pane_household_is_the_group_the_server_will_touch(client, workbench_on)
     for pane in (_pane(full), fragment):
         # ① 표 제목이 집 전체를 말한다.
         assert f"상품주문 {household['count']}건" in pane, pane[:400]
-        # ② 불가역 모달이 **같은 숫자**를 재진술한다.
-        assert f"상품주문 {household['count']}건을" in pane, pane[:400]
+        # ② 불가역 모달이 **같은 숫자**를 재진술한다(취소 모달 = 보낼 수 있는 건수, 2026-09-11).
+        assert household["cancel_sendable_count"] == household["count"]
+        assert f"상품주문 {household['cancel_sendable_count']}건을" in pane, pane[:400]
         # ③ 표에 실제로 그 상품주문들이 다 있다(숫자만 맞고 표는 반쪽인 경우 차단).
         table = _product_order_table(pane)
         for link in (lead, sib1, sib2):
@@ -385,7 +391,11 @@ def test_pane_household_is_the_group_the_server_will_touch(client, workbench_on)
 
 
 def test_pane_household_survives_the_queue_fetch_limit(client, workbench_on, monkeypatch):
-    """조회 상한 밖 집을 열어도 재진술 건수는 집 전체다 — 상한은 목록의 사정일 뿐이다."""
+    """조회 상한 밖 집을 열어도 재진술 건수는 집 전체다 — 상한은 목록의 사정일 뿐이다.
+
+    취소 모달은 2026-09-11 부터 `cancel_sendable_count` 를 재진술한다(계약 §0-2) — 이
+    픽스처에서는 `count` 와 값이 같다.
+    """
     from foms.web.admin import naver_ingest as mod
 
     monkeypatch.setattr(mod, "QUEUE_LINK_FETCH_LIMIT", 1, raising=False)
@@ -397,6 +407,7 @@ def test_pane_household_survives_the_queue_fetch_limit(client, workbench_on, mon
     fragment = client.get(f"{PANE_PATH}?link_id={lead.id}").get_data(as_text=True)
 
     assert household["count"] == 2
+    assert household["cancel_sendable_count"] == 2
     assert "상품주문 2건" in fragment
     assert "상품주문 2건을" in fragment
 

@@ -258,20 +258,35 @@ def enqueue_naver_refresh(link_id: int, actor_user_id: Optional[int] = None) -> 
 
 
 def enqueue_naver_cancel(link_id: int, reason: str, detail: Optional[str] = None,
-                         actor_user_id: Optional[int] = None) -> bool:
-    """판매자 직접취소 job enqueue (스펙 §3.4).
+                         actor_user_id: Optional[int] = None,
+                         product_order_ids: Optional[list[str]] = None) -> bool:
+    """판매자 직접취소 job enqueue (스펙 §3.4 · NVCLAIM-PARTIAL-01).
 
     발주확인·발송처리와 같은 출구(WORKER)를 쓴다 — 커머스API 호출 IP 가 WORKER 것뿐이다.
     큐가 없으면 False 를 돌려주고 화면이 "판매자센터에서 처리하세요"를 그대로 보여준다.
+
+    Args:
+        link_id: 기준 수집 링크 id(집 판정의 기준).
+        reason: 취소 사유 코드(라우트가 검사했고 서비스가 호출 직전에 다시 본다).
+        detail: 취소 상세 사유(선택).
+        actor_user_id: 화면에서 누른 사람(기록용).
+        product_order_ids: 세 의미 — ``None`` = 키 부재 = 집 전체(job kwargs 도 오늘과 같다) /
+            ``[]`` = 서비스가 거절(라우트는 400 으로 먼저 막는다) / ``[id…]`` = 그 상품주문만.
+            **None 이 아닐 때만** job kwargs 에 실린다.
+
+    Returns:
+        큐에 넣었으면 True.
     """
     q = get_rq_queue()
     if not q:
         return False
+    extra = ({"product_order_ids": list(product_order_ids)}
+             if product_order_ids is not None else {})
     try:
         q.enqueue(
             f"{_TASK_PATH_PREFIX}.run_naver_fulfillment_task",
             int(link_id), "cancel", actor_user_id,
-            reason=str(reason), detail=detail,
+            reason=str(reason), detail=detail, **extra,
             job_timeout="5m",
         )
         return True
@@ -283,7 +298,8 @@ def enqueue_naver_cancel(link_id: int, reason: str, detail: Optional[str] = None
 
 def enqueue_naver_return(link_id: int, reason: str, detail: Optional[str] = None,
                          actor_user_id: Optional[int] = None,
-                         approve: bool = False) -> bool:
+                         approve: bool = False,
+                         product_order_ids: Optional[list[str]] = None) -> bool:
     """판매자 반품 접수 job enqueue (T8-S1). ``approve`` 면 승인까지 (T8-S2).
 
     취소와 **같은 출구**(WORKER)를 쓴다 — 커머스API 에 등록된 호출 IP 가 WORKER 것뿐이다.
@@ -300,6 +316,10 @@ def enqueue_naver_return(link_id: int, reason: str, detail: Optional[str] = None
             서비스가 호출 직전에 한 번 더 본다).
         detail: 반품 상세 사유(선택, 500자).
         actor_user_id: 화면에서 누른 사람(기록용).
+        approve: 접수 성공분을 이어서 승인할지.
+        product_order_ids: 세 의미(NVCLAIM-PARTIAL-01) — ``None`` = 키 부재 = 집 전체(job kwargs
+            도 오늘과 같다) / ``[]`` = 서비스가 거절(라우트는 400 으로 먼저 막는다) /
+            ``[id…]`` = 그 상품주문만. **None 이 아닐 때만** job kwargs 에 실린다.
 
     Returns:
         큐에 넣었으면 True.
@@ -307,11 +327,13 @@ def enqueue_naver_return(link_id: int, reason: str, detail: Optional[str] = None
     q = get_rq_queue()
     if not q:
         return False
+    extra = ({"product_order_ids": list(product_order_ids)}
+             if product_order_ids is not None else {})
     try:
         q.enqueue(
             f"{_TASK_PATH_PREFIX}.run_naver_fulfillment_task",
             int(link_id), "return", actor_user_id,
-            reason=str(reason), detail=detail, approve=bool(approve),
+            reason=str(reason), detail=detail, approve=bool(approve), **extra,
             job_timeout="5m",
         )
         return True
