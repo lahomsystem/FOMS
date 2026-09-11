@@ -687,7 +687,7 @@ def api_put_drawing_wizard(order_id):
         if error:
             return jsonify({'success': False, 'message': error}), 400
 
-        captured: dict = {'updated_at': None}
+        captured: dict = {'updated_at': None, 'sheets_before': None, 'objects_before': None}
 
         def _mutate(sess: Session, orders: list) -> dict:
             """FOR UPDATE 락 아래: 최신 상태 재조회 → stale 확인 → projection → updated_* 기록."""
@@ -708,6 +708,13 @@ def api_put_drawing_wizard(order_id):
                 # 사라진 자리를 덮었다. base_updated_at 이 없으면(진짜 최초 저장) 그대로
                 # 통과시킨다 — 정상 최초 저장을 막으면 기능이 죽는다.
                 raise _WizardStaleError(None, None, reason='vanished')
+            # 락 아래의 직전 값 — 감사 한 행만으로 "몇 개에서 몇 개가 됐는지"를 읽게 한다.
+            prev_sheets = (saved.get('sheets') or []) if isinstance(saved, dict) else []
+            captured['sheets_before'] = len(prev_sheets)
+            captured['objects_before'] = sum(
+                len(sh.get('objects') or [])
+                for sh in prev_sheets if isinstance(sh, dict)
+            )
             projected = _project_wizard_state(saved, state)
             projected['updated_at'] = now_utc_naive().strftime('%Y-%m-%d %H:%M:%S')
             projected['updated_by'] = current_user.id
@@ -723,9 +730,11 @@ def api_put_drawing_wizard(order_id):
             _audit_wizard(order, "DRAWING_WIZARD_SAVED", extra={
                 # 자동저장/수동저장 구분은 서버가 가진 유일한 근거다(payload 최상위 `auto`).
                 # 2026-09-10 조사는 이 값이 없어 "SHEET_SAVED 감사행 부재 + 45초 정각 일치"
-                # 라는 정황 추론에 기댔다. 규모(sheets·objects)도 함께 남겨 다음 사고에서는
-                # "언제 몇 장이 몇 개에서 0 개가 됐는지"를 감사만으로 읽을 수 있게 한다.
+                # 라는 정황 추론에 기댔다. 규모는 before/after 를 함께 남긴다 — 한 행만으로
+                # "몇 장 몇 개에서 몇 개가 됐는지"가 읽혀야 다음 사고를 정황 없이 판정한다.
                 "auto": bool(data.get('auto')),
+                "sheets_before": captured['sheets_before'],
+                "objects_before": captured['objects_before'],
                 "sheets": len(state.get('sheets') or []),
                 "objects": sum(
                     len(s.get('objects') or [])

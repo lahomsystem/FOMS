@@ -43,7 +43,10 @@ def test_tick_autosave_gate_requires_hydration_and_user_edit() -> None:
     """자동저장 틱 최상단이 하이드레이션·사용자변경·충돌억제를 먼저 본다."""
     tick = _fn_slice(JS, "function tickAutosave() {")
 
-    assert "if (!hydrated || !userDirty || autosaveSuspended) { return; }" in tick
+    # 문자열 통째 고정은 조건이 하나 늘 때마다 깨진다 — 조건별로 확인한다.
+    gate = tick.splitlines()[1] if len(tick.splitlines()) > 1 else tick
+    for cond in ("!hydrated", "!userDirty", "autosaveSuspended"):
+        assert cond in gate, f"자동저장 틱 게이트에 {cond} 가 없다: {gate!r}"
     # 기존 게이트는 한 줄도 지우지 않는다.
     assert "if (!dirty || !canSave || saveInFlight) { return; }" in tick
     assert "if (!state.sheets.length) { return; }" in tick
@@ -126,8 +129,8 @@ def test_handle_conflict_suspends_autosave_and_reads_conflict_reason() -> None:
 
 def test_wizard_js_asset_pin_bumped_for_autosave_guard() -> None:
     """wizard.js 내용이 바뀌었으므로 ?v= 핀을 올렸다(SW staticCacheFirst 스테일 봉합)."""
-    assert "js/drawing/wizard.js') }}?v=20260910a" not in TPL
-    assert "js/drawing/wizard.js') }}?v=20260911a" in TPL
+    assert "js/drawing/wizard.js') }}?v=20260911a" not in TPL
+    assert "js/drawing/wizard.js') }}?v=20260911b" in TPL
 
 
 def test_no_content_based_empty_canvas_block() -> None:
@@ -144,3 +147,54 @@ def test_no_content_based_empty_canvas_block() -> None:
         assert "objects || []).length" not in src
     # 자동저장 자체는 살아 있다(기능을 끄지 않았다).
     assert "autosaveTimer = setInterval(tickAutosave, AUTOSAVE_INTERVAL_MS);" in JS
+
+
+# --------------------------------------------------------------------------- #
+# P2 — 자동 저장 실패 폭주 차단 · 불러오기 실패 구분 · 일괄 저장 게이트
+#
+# 2026-09-08 주문 5193: CSRF 403 으로 자동 저장이 80여 회 연속 실패하는 동안 두 사람이
+# 2시간 그림을 그렸다. 토스트는 5초 뒤 사라지고 첫 1회만 떠서 아무도 몰랐다. 원인(CSRF)은
+# 2026-09-09 에 고쳤지만 "조용히 무한 재시도"라는 증폭기는 남아 있었다.
+# --------------------------------------------------------------------------- #
+def test_autosave_stops_on_failure_instead_of_retrying_forever() -> None:
+    """자동 저장이 실패하면 멈춘다 — 45초마다 같은 실패를 반복하지 않는다."""
+    assert "autosaveStopped" in JS, "자동 저장 중단 상태가 없다"
+    assert "function stopAutosave(" in JS
+    tick = JS[JS.index("function tickAutosave("):]
+    tick = tick[:tick.index("\n  }")]
+    assert "autosaveStopped" in tick, "tickAutosave 가 중단 상태를 보지 않는다 — 무한 재시도가 남는다"
+
+    # 409 와 그 외 실패 모두에서 멈춘다(403·5xx 도 폭주 대상이었다).
+    save_src = JS[JS.index("  function save("):]
+    save_src = save_src[:save_src.index("\n  /** 자동 저장 틱")]
+    assert save_src.count("stopAutosave(") >= 2, "409 만 멈추고 그 외 실패는 그대로 폭주한다"
+
+
+def test_autosave_failure_is_shown_in_a_persistent_banner() -> None:
+    """사라지는 토스트가 아니라 상시 배너로 알린다(5초 뒤 사라지면 못 본다)."""
+    assert 'id="dws-autosave-banner"' in TPL, "상시 경고 배너가 템플릿에 없다"
+    assert "els.autosaveBanner" in JS
+    upd = JS[JS.index("function updateSaveState("):]
+    upd = upd[:upd.index("\n  }")]
+    assert "autosaveBanner" in upd and "autosaveStopped" in upd, "배너가 중단 상태를 따라가지 않는다"
+
+
+def test_manual_save_and_reload_resume_autosave() -> None:
+    """사람이 저장에 성공하거나 재로드하면 자동 저장이 다시 켜진다(영구 정지 금지)."""
+    assert "function resumeAutosave(" in JS
+    load_src = JS[JS.index("  function load("):]
+    load_src = load_src[:load_src.index("function handleConflict(")]
+    assert "resumeAutosave()" in load_src, "재로드가 중단을 풀지 않는다"
+
+
+def test_save_all_shares_the_hydration_gate() -> None:
+    """일괄 저장도 못 불러온 상태를 서버에 쓰지 않는다(save() 와 같은 계약)."""
+    src = JS[JS.index("  function saveAll("):]
+    src = src[:src.index("jsonFetch(")]
+    assert "!hydrated" in src, "일괄 저장이 하이드레이션 게이트를 우회한다"
+
+
+def test_load_failure_is_distinguished_from_loading() -> None:
+    """'불러오는 중'과 '불러오기 실패'를 갈라 안내한다 — 실패는 새로고침이 필요하다."""
+    assert "loadFailed" in JS, "불러오기 실패 상태가 없다"
+    assert "새로고침" in JS, "실패 안내에 다음 행동이 없다"
