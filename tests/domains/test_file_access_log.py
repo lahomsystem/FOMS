@@ -300,6 +300,62 @@ def test_view_dedupe_is_per_file_key(app, r2_storage):
         assert [_payload(r)["storage_key"] for r in _rows()] == keys
 
 
+def test_thumbnail_view_is_not_recorded(app, r2_storage):
+    """썸네일 열람은 행을 만들지 않는다 — 목록 렌더링 부산물이지 사람의 열람이 아니다.
+
+    dedupe 는 같은 key 반복만 억제하므로, 갤러리 한 화면이 만드는 서로 다른 thumb key
+    수십 개는 dedupe 를 그대로 통과한다(2026-09-11 운영 실측 FILE_VIEW 의 54%).
+    """
+    with app.app_context():
+        user_id = _make_user()
+        order_id = _make_order()
+        thumbs = [_order_key(order_id, f"thumb_2026081{i}_a{i}.jpg") for i in range(3)]
+
+        for key in thumbs:
+            assert _get(app, user_id, f"/api/files/view/{key}").status_code == 302
+
+        assert _rows() == []
+
+
+def test_original_view_is_still_recorded_next_to_thumbnails(app, r2_storage):
+    """썸네일 제외가 원본 열람 기록까지 삼키지 않는다 — 감사 질문의 답은 원본 쪽에 있다."""
+    with app.app_context():
+        user_id = _make_user()
+        order_id = _make_order()
+        thumb = _order_key(order_id, "thumb_20260813_151400_x.jpg")
+        original = _order_key(order_id, "20260813_151400_x.jpg")
+
+        _get(app, user_id, f"/api/files/view/{thumb}")
+        assert _get(app, user_id, f"/api/files/view/{original}").status_code == 302
+
+        rows = _rows()
+        assert [_payload(r)["storage_key"] for r in rows] == [original]
+
+
+def test_thumbnail_download_is_still_recorded(app, r2_storage):
+    """제외는 view 축에만 적용된다 — 반출(download)은 대상이 무엇이든 전량 기록한다."""
+    with app.app_context():
+        user_id = _make_user()
+        order_id = _make_order()
+        key = _order_key(order_id, "thumb_20260813_151400_x.jpg")
+
+        assert _get(app, user_id, f"/api/files/download/{key}").status_code == 302
+
+        rows = _rows()
+        assert [r.action for r in rows] == ["FILE_DOWNLOAD"]
+
+
+def test_thumbnail_rule_matches_basename_only(app, r2_storage):
+    """경로 중간의 ``thumb_`` 디렉토리는 제외 대상이 아니다(원본 기록 유실 방지)."""
+    with app.app_context():
+        user_id = _make_user()
+        order_id = _make_order()
+        key = f"orders/{order_id}/thumb_dir/photo.jpg"
+
+        assert _get(app, user_id, f"/api/files/view/{key}").status_code == 302
+        assert [_payload(r)["storage_key"] for r in _rows()] == [key]
+
+
 def test_view_dedupe_is_per_user(app, r2_storage):
     """다른 사용자의 같은 파일 열람은 억제되지 않는다(주체별 독립)."""
     with app.app_context():

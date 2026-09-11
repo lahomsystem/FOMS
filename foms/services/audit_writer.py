@@ -64,6 +64,15 @@ DEDUPE_CACHE_LIMIT = 2048
 # 없고 행만 불린다. download/presigned 는 의도적 1회 행위라 dedupe 하지 않는다.
 ACCESS_VIEW_DEDUPE_WINDOW_SECONDS = 600.0
 
+# 열람 기록에서 제외하는 파생 파일 이름 접두어 — 썸네일은 "사람이 연 파일"이 아니라 목록
+# 렌더링 부산물이다. dedupe 는 같은 key 반복만 억제하므로 갤러리 한 화면이 서로 다른 key
+# 수십 개를 만들어 그대로 통과한다(2026-09-11 운영 실측: FILE_VIEW 24,900행 중 13,351행
+# =54%가 thumb_*, 사용자·분 묶음당 평균 5.3행). 원본 열람 기록은 그대로 남으므로 "누가
+# 무엇을 열었나"라는 감사 질문의 답은 잃지 않는다. 제외는 **view 축에만** 적용한다 —
+# download/presigned 는 의도적 1회 행위라 대상이 무엇이든 전량 기록한다.
+ACCESS_VIEW_SKIP_BASENAME_PREFIXES = ("thumb_",)
+ACCESS_ACTION_FILE_VIEW = "FILE_VIEW"
+
 # additional_data(Text) 격납 상한 — 감사 컬럼이 비정상 payload 로 부풀지 않게 자른다.
 ACCESS_ADDITIONAL_DATA_LIMIT = 2000
 
@@ -424,6 +433,23 @@ def write_access_log_detached(
     return True
 
 
+def _is_view_skipped_key(action: str, storage_key: str) -> bool:
+    """이 열람 기록을 남기지 않을 파생 파일(``thumb_*``)인지 판정한다.
+
+    판정은 **basename 접두어**로만 한다 — 경로 중간의 디렉토리 이름(``.../thumb_dir/a.jpg``)
+    까지 걸리면 원본 열람 기록이 조용히 사라진다.
+
+    :param action: 접근 종류 태그. ``FILE_VIEW`` 가 아니면 항상 False(다운로드·presigned 는
+        대상이 무엇이든 전량 기록).
+    :param storage_key: 접근 대상 object key.
+    :return: 기록에서 제외하면 True.
+    """
+    if action != ACCESS_ACTION_FILE_VIEW:
+        return False
+    basename = storage_key.rsplit("/", 1)[-1]
+    return basename.startswith(ACCESS_VIEW_SKIP_BASENAME_PREFIXES)
+
+
 def record_file_access(
     action: str,
     *,
@@ -449,6 +475,9 @@ def record_file_access(
     :param dedupe_window_seconds: dedupe 창(초). ``None`` 이면 dedupe 없음.
     :return: 이번 호출로 실제 행을 기록했으면 True, 억제/실패면 False.
     """
+    if _is_view_skipped_key(action, storage_key):
+        return False
+
     suppressed = 0
     if dedupe_window_seconds is not None:
         subject = str(user_id) if user_id is not None else (ip or "-")
