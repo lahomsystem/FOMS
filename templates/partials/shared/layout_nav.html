@@ -91,9 +91,9 @@
                         <li><a class="dropdown-item d-flex align-items-center justify-content-between"
                                href="{{ url_for('admin.naver_ingest_triage') }}">
                                 <span><svg class="foms-nav-mark foms-nav-mark--naver" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false"><rect width="24" height="24" rx="5" fill="#03C75A"/><path d="M13.6 12.3 10.2 7.2H7.2v9.6h3.2v-5.1l3.4 5.1h3v-9.6h-3.2z" fill="#fff"/></svg> 네이버 수집</span>
-                                {% if naver_triage_pending %}
-                                <span class="badge bg-danger ms-2">{{ naver_triage_pending }}</span>
-                                {% endif %}
+                                {# 숫자는 렌더 뒤에 채운다(foms-nav-triage-badge.js) — 서버에서 세면
+                                   워크벤치 코호트 콜드에 약 400ms 가 첫 화면 앞에 붙는다. #}
+                                <span class="badge bg-danger ms-2" data-foms-nav-triage-badge hidden></span>
                             </a></li>
                         {% if not impersonating_from_id and admin_switch_users %}
                         <li>
@@ -177,8 +177,8 @@
                            일감이라, 사내 화면들 사이에서 눈으로 즉시 갈라져야 한다.
                            외부 이미지가 아니라 인라인 SVG 다: 네트워크 왕복 0 · CSP 무관 ·
                            자산 핀(?v) 관리 대상이 아니다. #}
-                        <a class="nav-link" href="{{ item.url }}">{% if item.id == 'naver_orders' %}<svg class="foms-nav-mark foms-nav-mark--naver" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false"><rect width="24" height="24" rx="5" fill="#03C75A"/><path d="M13.6 12.3 10.2 7.2H7.2v9.6h3.2v-5.1l3.4 5.1h3v-9.6h-3.2z" fill="#fff"/></svg>{% endif %}{{ item.name }}{% if item.id == 'naver_orders' and naver_triage_pending %}
-                            <span class="badge rounded-pill bg-danger">{{ naver_triage_pending }}</span>{% endif %}</a>
+                        <a class="nav-link" href="{{ item.url }}">{% if item.id == 'naver_orders' %}<svg class="foms-nav-mark foms-nav-mark--naver" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false"><rect width="24" height="24" rx="5" fill="#03C75A"/><path d="M13.6 12.3 10.2 7.2H7.2v9.6h3.2v-5.1l3.4 5.1h3v-9.6h-3.2z" fill="#fff"/></svg>{% endif %}{{ item.name }}{% if item.id == 'naver_orders' %}
+                            <span class="badge rounded-pill bg-danger" data-foms-nav-triage-badge hidden></span>{% endif %}</a>
                     </li>
                     {% endfor %}
                     {% if current_user.role == 'ADMIN' %}
