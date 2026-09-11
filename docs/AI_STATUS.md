@@ -1,11 +1,7 @@
 # FOMS 현재 상태
-> 자동 업데이트: 2026-09-10
-> 최신: **하네스 ablation v2 적용(deploy `9c44d7653` 까지 10커밋)** — CLAUDE.md 108→35줄, 전역 42→5줄, 메모리 154→46, 동시편집·MEMORY-GATE 훅 해제(ctx_gate 유지), 가드 로그 격리·캡 3,000·heredoc 본문 제외, superpowers off(16회 실행 Skill 0), 드리프트 가드 12종. 정본 `docs/plans/2026-09-09-harness-ablation-v2-*` + drafts/DELETE_LIST.md §0
-> 직전: **도면 전달 상태 결함 2건 운영 반영(production `8efef9886` · PR #320·#323)** — 전달 취소가 살아 있는 이전 전달본을 두고 `PENDING` 으로 되돌려 수령 확정 버튼이 사라졌다(#5193) + 도면 0장 전달 허용(운영 24건 PENDING 복귀·백업 보관)
-> 그 전: **워커 정지 헛알림 26건 근본 수정(deploy 예정)** — 같은 하트비트를 readiness 는 `max(등록부, 신고간격 x 3)`=5400초, 감시자는 등록부 900 고정으로 읽어 반대로 말했다(운영 수집 루프 간격 1800 → 15분마다 멈춤·복구 왕복, 09-08 알림 26건). 예산 정본 `effective_heartbeat_budget` 신설로 판정부 2곳이 한 함수만 부른다. 상세 `docs/incidents/2026-09-09-worker-watchdog-false-stall-flap.md`
 > 자동 업데이트: 2026-09-11
-> 최신: **네이버 취소·반품 부분 선택(NVCLAIM-PARTIAL-01, deploy 대기 · 게이트 `FOMS_NAVER_PARTIAL_CLAIM_ENABLED`+`_COHORT`)** — 운영 #2354: 집 단위라 1건만 취소를 못 했고 부분 취소 뒤 남은 라인 발송이 막혔다. 모달 체크박스 + 서버 `product_order_ids`(None=집 전체/[]=400/목록=그 라인만), 본품 선택 시 추가구성 자동 동반 + 서버 재검사(0건 전송), 표식 `cancel_scope` partial/household(partial 행만 제외, household·취소 실패 잔존은 집 차단), 취소 버튼·벌크 pre-check 는 형제 클레임으로 집을 안 잠근다(결정 8·9). 스펙 `docs/specs/2026-09-11-naver-partial-claim_SPEC.md` §11. **잔여: 스테이징 §8 ①②③ + 사용자 #2354 화면 확인**
-> 직전: **도면팀 알림 개편(운영 반영 PR #350 · production `401ebeb45`)** — 90일 수신 204건 중 183건이 `ERP_ORDER_CHANGED`, 변경 61건 중 31건은 도면 무관. `is_drawing_impacting_path` 로 품목·비고·지방시공유형만 알림 사유, `DRAWING_REVISION` interrupt 등급 → 중앙 확인창(확인=ack), 마법사에도 소켓·확인창
+> 최신: **모바일 ERP 3건 + perf-gate 정비(운영 PR #346·#354·#355·#358·#360·#361)** — 실측 완료 버튼 먹통(해시만 바꾸는 `location.href` 는 재로드 못 함)·아이폰 견적서 사진 저장(공유 시트)·수집 뱃지 **탭 전환 590→35ms·첫 화면 423→47ms**·perf-gate 페르소나 쿠키+coarse 패스. 상세·측정 함정 3종은 AI_CHANGELOG
+> 직전: **네이버 취소·반품 부분 선택(NVCLAIM-PARTIAL-01, deploy 대기 · 게이트 `FOMS_NAVER_PARTIAL_CLAIM_ENABLED`+`_COHORT`)** — 운영 #2354: 집 단위라 1건만 취소를 못 했고 부분 취소 뒤 남은 라인 발송이 막혔다. 모달 체크박스 + 서버 `product_order_ids`(None=집 전체/[]=400/목록=그 라인만), 본품 선택 시 추가구성 자동 동반 + 서버 재검사(0건 전송), 표식 `cancel_scope` partial/household(partial 행만 제외, household·취소 실패 잔존은 집 차단), 취소 버튼·벌크 pre-check 는 형제 클레임으로 집을 안 잠근다(결정 8·9). 스펙 `docs/specs/2026-09-11-naver-partial-claim_SPEC.md` §11. **잔여: 스테이징 §8 ①②③ + 사용자 #2354 화면 확인**
 > 이 파일 상단 40줄이 세션 시작 컨텍스트의 전부다(hygiene 계약으로 강제). 상세 이력은 "## 최근 완료"·"## 기록 보관".
 
 
@@ -14,11 +10,13 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
-- [2026-09-10] **추가결제 행 `주문 만듦` 배지 접기 + ERP 도크 예약금 카드 → 결제 금액 한 줄(PR #341 · production `a1ec42996`)** — 사용자 지시(#5206 김도희). 서버 판정 `foms_badge_hidden`(linked∧ADDON/REPAY∧관계 배지=대표 주문), 도크는 서버 `relation_label`·`live_total_display` 두 노드만(설명문·대조 줄 전부 제거, 핀 20260910a) · 워크벤치 정리 계획 카드·검색 붙이기·완료 패널도 같은 규칙(PR #342 · production `89561e10a`) · 09-11 dock.py 옛 예약금 키·헬퍼 제거(deploy). 원장 `docs/plans/2026-09-10-addon-badge-dock-brief.md`. 스테이징 QA PASS 후 승격
-- [2026-09-10] **정산 동기화 루프 매일 05:31 사망 근본 수정(deploy 대기 → 운영 승격 예정)** — 성공 tick 의 `_heartbeat_metadata` 가 `int(dict)` 로 터지고 그 줄이 try 밖이라 루프가 죽어 다음 재배포까지 STALE. 합산 `_count` + 조립 가드 + 회귀 2건. 원장 `docs/incidents/2026-09-10-settle-loop-dies-after-success-tick.md`
-- [2026-09-09] **AS 전달 배정 스테이징 반영(deploy `3c2253802`)** — 영업/택배 건을 근처 실측 일정에 태운다. 스펙·원장 `2026-09-09-as-sales-delivery-*`. → 운영 반영(PR #338 · production `9e89d8e3a`, 해당 세션)
-- [2026-09-09] **매일 자동 점검 반쪽 판정 종결(deploy `69586ee0c`)** — 일일 조회가 하트비트 축만 봐 큐 적체·DEAD 를 못 봤다(CLI 는 같은 시각 not-ready). 결론을 `evaluate_readiness` 에 위임. 잔여: 운영 승격
-- [2026-09-09] **고객컨펌 승인·도면 첨부 등록(deploy `4868a2cc4`)** — 원장 `docs/plans/2026-09-09-confirm-quest-and-drawing-attachment-plan.md`. dev+PG E2E 로 승인 200·수령확정 후 첨부 유지 확인. 잔여: 운영 승격 여부 사용자 확인
+- [2026-09-11] **도면 마법사 캔버스 소실 사고 종결(production `5564994a6`·PR #353)** — 주문 폼 전체 저장 1회가 `drawing_wizard` 를 통째 삭제(보존 목록 누락, 감사엔 `변경 0건`). 같은 자리 6번째라 등재 대신 **비-폼 키 기본 보존**으로 뒤집음. 피해=마법사 쓴 주문 2건 전부, **둘 다 R2 스냅샷으로 복구**. 기록 `docs/plans/2026-09-11-drawing-wizard-data-loss-incident.md`
+- [2026-09-10] **추가결제 행 `주문 만듦` 배지 접기 + ERP 도크 예약금 카드 → 결제 금액 한 줄(PR #341 · production `a1ec42996`)** — 사용자 지시(#5206 김도희). 서버 판정 `foms_badge_hidden`, 도크는 서버 `relation_label`·`live_total_display` 두 노드만(설명문 전부 제거) · 워크벤치 정리 계획 카드·검색 붙이기·완료 패널도 같은 규칙(PR #342 · production `89561e10a`) · 09-11 dock.py 옛 예약금 키·헬퍼 제거(PR #348 · production `ee4526737`). 원장 `docs/plans/2026-09-10-addon-badge-dock-brief.md`. 스테이징 QA PASS 후 승격
+- [2026-09-11] **탭 왕복 느림 — 범인은 렌더가 아니라 조회(deploy `81ffe843d`)** — `with phase("wb_template")` 안에 `render_template` 호출만 두면 **인자 식이 먼저 평가돼** 그 조회들이 템플릿 시간으로 계상된다. 쪼개 재니 진짜 Jinja 는 5~7ms, 나머지는 조회였다(이력 탭: 처리 목록 308~355 · 이력 74~104 · 다시 읽기 버튼 상태 65~253 · pane 42~45). 최대 몫은 **이력 탭이 안 쓰는 처리 목록을 통째로 도는 것**. 원장 `docs/plans/2026-09-11-tab-roundtrip-slowdown-measurements.md` §10
+- [2026-09-10] **정산 동기화 루프 매일 05:31 사망 근본 수정(PR #340 · production `d8e4bb196`)** — 성공 tick 의 `_heartbeat_metadata` 가 `int(dict)` 로 터지고 그 줄이 try 밖이라 루프가 죽어 STALE. 원장 `docs/incidents/2026-09-10-settle-loop-dies-after-success-tick.md`
+- [2026-09-10] **운영 대기분 선별 승격(PR #339 · production `3888da9ab`)** — 원장 `docs/plans/2026-09-09-production-pending-triage.md`. 지난 날짜 발송 띠·ACL·백필 갈래 철회·drift 924·perf 18466·하네스/문서 동기화. **로그인 잠금(`40d25bb1b`)만 deploy 잔류(사용자 보류)**
+- [2026-09-09] **매일 자동 점검 반쪽 판정 종결(deploy `69586ee0c`)** — 하트비트 축만 봐 큐 적체·DEAD 를 못 봤다. 결론을 `evaluate_readiness` 에 위임. 잔여: 운영 승격
+- [2026-09-09] **고객컨펌 승인·도면 첨부 등록(deploy `4868a2cc4`)** — dev+PG E2E 로 승인 200·수령확정 후 첨부 유지 확인. 잔여: 운영 승격 여부 사용자 확인
 
 ## 알려진 이슈
 - 차단 이슈 없음. 남은 구조 부채는 `WR-B1`/`WR-J1`/`WR-H1` 처럼 explicit future-batch 조건으로만 존재한다. `wdcalculator_scripts_config.html` Jinja 변수 주입 구간의 JS lint false-positive 는 기존과 동일.
@@ -36,6 +34,10 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 
 <!-- 이하 상세 기록. 세션 시작 시에는 상단 40줄만 읽는다(hygiene 계약) -->
 
+- [2026-09-09] 옛 주문 클레임 도장(PR #336 · production `1bdcdc79f`) — 환불액은 `initialPaymentAmount - remainPaymentAmount`(`totalPaymentAmount` 는 부분 환불에서 틀린다)
+
+- [2026-09-09] AS 전달 배정 — 영업/택배 건을 근처 실측 일정에 태운다(PR #338 · production `9e89d8e3a`)
+
 
 
 
@@ -48,8 +50,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 
 
 ## 최근 완료 (최대 5개)
-- [2026-09-10] **운영 대기분 선별 승격(PR #339 · production `3888da9ab`)** — 원장 `docs/plans/2026-09-09-production-pending-triage.md`. 지난 날짜 발송 띠·ACL·백필 갈래 철회·drift 924·perf 18466·하네스/문서 동기화. **로그인 잠금(`40d25bb1b`)만 deploy 잔류(사용자 보류)**
-- [2026-09-09] **옛 주문 클레임 도장 운영 반영(PR #336 · production `1bdcdc79f`, 핀 `20260909d`)** — `옛 주문 반품 완료 · 09-08 15:27 · 환불 1,156,500원`. 두 값 다 원본에 있었다: 시각은 `cancelCompletedDate`/`returnCompletedDate`(종류별 한쪽만), 환불액은 **`initialPaymentAmount - remainPaymentAmount`**(`totalPaymentAmount` 는 부분 환불에서 틀린다). 확정 전에는 안 찍는다
+- **도면팀 알림 개편(운영 반영 PR #350 · production `401ebeb45`)** — 90일 수신 204건 중 183건이 `ERP_ORDER_CHANGED`, 변경 61건 중 31건은 도면 무관. `is_drawing_impacting_path` 로 품목·비고·지방시공유형만 알림 사유, `DRAWING_REVISION` interrupt 등급 → 중앙 확인창(확인=ack), 마법사에도 소켓·확인창
 - [2026-09-10] **담당자별 개인 도면방 동시 발송 운영 완료(PR #343 · production `62ee11969`)** — 도면방 PUSH 한 번에 공용방(230331)+담당자 개인방. 방 번호 = `users.channel_drawing_group_id`(사용자 관리에서 등록), 매칭 `manager_name`→`users.name`. **잔여: 8명 방 번호 등록(현재 0명)**
 - [2026-09-10] **하네스 ablation v2 마감(origin/deploy `075438c3b`~`93bcc746b` 14커밋·CI green)** — CLAUDE.md 108→35줄, 전역 42→5줄, 메모리 154→46, 훅 3종 해제(ctx_gate 유지), superpowers off, 드리프트 가드 12종. `/context` 실측 상시 37k/1M·스킬 54종 5,610. 정본 `docs/plans/2026-09-09-harness-ablation-v2-*` + drafts/DELETE_LIST.md §0
 - [2026-09-09] **도면 전달 상태 결함 2건 운영 반영(production `8efef9886` · PR #320·#323)** — 전달 취소가 살아 있는 이전 전달본을 두고 `PENDING` 으로 되돌려 수령 확정 버튼이 사라졌다(#5193) + 도면 0장 전달 허용(운영 24건 PENDING 복귀·백업 보관)
