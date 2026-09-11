@@ -1737,6 +1737,9 @@
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ko.js" defer></script>
     {% if current_user %}
     <script src="{{ url_for('static', filename='js/global-nav-runtime.js') }}" defer></script>
+    {# nav 수집 뱃지 숫자는 렌더 뒤에 채운다 — 서버에서 세면 워크벤치 코호트 콜드에
+       약 400ms 가 첫 화면 앞에 붙는다(2026-09-11 실측). #}
+    <script src="{{ url_for('static', filename='js/foms/foms-nav-triage-badge.js') }}?v=20260911a" defer></script>
     {% endif %}
     {% if request.path.startswith('/erp/') %}
     <script src="{{ url_for('static', filename='js/foms/erp-mine-only.js') }}" defer></script>

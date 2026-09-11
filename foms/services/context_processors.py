@@ -140,6 +140,78 @@ def _current_shell_variant() -> str:
     return resolve_shell_variant_cached(uid, request)
 
 
+class LazyBadgeCount:
+    """템플릿이 **실제로 쓸 때만** 세는 뱃지 숫자.
+
+    왜 필요한가: 이 값은 컨텍스트 프로세서가 넣으므로 ``render_template`` 마다 계산됐는데,
+    정작 뱃지를 그리는 건 ``layout_nav.html`` · ``orders/index.html`` ·
+    ``admin/naver_ingest.html`` 셋뿐이다. ERP 셸의 **프래그먼트 응답**(``?view=fragment``)은
+    레이아웃을 안 싣는데도 같은 값을 계산하고 버렸다 — 탭 전환이 곧 프래그먼트 요청이라
+    "탭 왕복이 느리다"는 신고의 한 축이었다.
+
+    실측(2026-09-11 스테이징, claude_master, 워크벤치 코호트 안, 콜드):
+
+    ==================================  ==========  =========  ================
+    응답                                 render_ms   nvbadge    layout_nav 렌더
+    ==================================  ==========  =========  ================
+    ``/erp/dashboard``                       423.0      382ms   예(뱃지 156)
+    ``/erp/dashboard?view=fragment``         590.2      552ms   **아니오**
+    ==================================  ==========  =========  ================
+
+    즉 프래그먼트는 552ms 를 **쓰지도 않을 값**에 썼다. 지연 평가하면 그 요청의 비용이
+    0 이 되고, 뱃지를 실제로 그리는 전체 문서는 동작·숫자가 그대로다.
+
+    세는 **정의는 건드리지 않는다** — ``get_triage_pending_count`` 를 그대로 부른다.
+    모집단 정의를 SQL COUNT 로 옮기는 길은 계약상 막혀 있다(``triage_count.py``
+    ``_workbench_group_count`` docstring: 취소 표식 JSONB·발주확인 전 집 때문에 SQL 술어로는
+    같은 수가 안 나온다, nav 67 · 탭 45 불일치 전례).
+
+    Jinja 가 쓰는 통로(``{% if x %}`` → ``__bool__``, ``{{ x }}`` → ``__str__``)와 파이썬
+    쪽 통상 통로를 모두 덮는다. 계산은 1회만 하고 결과를 붙든다(같은 렌더에서 여러 번
+    써도 한 번).
+    """
+
+    __slots__ = ("_compute", "_value", "_done")
+
+    def __init__(self, compute: Any) -> None:
+        self._compute = compute
+        self._value = 0
+        self._done = False
+
+    def _get(self) -> int:
+        if not self._done:
+            # phase 계측은 실제 계산 시점에 걸어야 헤더가 진실을 말한다 —
+            # 지연 평가 뒤에도 nvbadge 가 0 이면 "안 썼다"는 뜻이 된다.
+            with phase("nvbadge"):
+                self._value = self._compute()
+            self._done = True
+        return self._value
+
+    def __int__(self) -> int:
+        return self._get()
+
+    def __index__(self) -> int:
+        return self._get()
+
+    def __bool__(self) -> bool:
+        return bool(self._get())
+
+    def __str__(self) -> str:
+        return str(self._get())
+
+    def __repr__(self) -> str:
+        return repr(self._get())
+
+    def __format__(self, spec: str) -> str:
+        return format(self._get(), spec)
+
+    def __eq__(self, other: Any) -> bool:
+        return self._get() == other
+
+    def __hash__(self) -> int:
+        return hash(self._get())
+
+
 def inject_status_list() -> dict[str, Any]:
     """Inject status lists and current-user context into templates."""
     display_status = {k: v for k, v in STATUS.items() if k != "DELETED"}
@@ -153,7 +225,7 @@ def inject_status_list() -> dict[str, Any]:
     # 역할이 늘어도 nav 렌더 비용은 그대로다.
     # 모집단은 **그 사람이 링크를 눌렀을 때 볼 목록**과 같아야 한다 — 워크벤치 v3 게이트가
     # 켜졌으면 처리 탭 목록(확인 큐 ∪ 발주확인 전), 아니면 옛 확인 대기 큐(v3 계약 §6).
-    naver_triage_pending = 0
+    naver_triage_pending: Any = 0
     if current_user:
         db = get_db()
         if current_user.role == "ADMIN":
@@ -164,9 +236,13 @@ def inject_status_list() -> dict[str, Any]:
             # 수백 건)로 바뀐다 — 코호트를 넓히기 전에 **추정이 아니라 실측**이 있어야
             # 한다(2026-08-24 승격 게이트 1). 30초 캐시 히트는 0ms 로 찍히므로 캐시
             # 미스(콜드) 표본만 골라낼 수 있다. 진단 전용이라 응답을 깨지 않는다.
-            with phase("nvbadge"):
-                naver_triage_pending = get_triage_pending_count(
-                    db, workbench=is_naver_workbench_enabled(current_user.id))
+            #
+            # 계산은 **템플릿이 값을 쓸 때까지 미룬다**(:class:`LazyBadgeCount`). 뱃지를
+            # 그리는 템플릿은 셋뿐인데 프래그먼트 응답은 레이아웃을 안 싣고도 이 값을
+            # 계산하고 버렸다(스테이징 콜드 552ms). phase 계측도 실제 계산 시점으로 따라간다.
+            naver_triage_pending = LazyBadgeCount(
+                lambda _db=db, _uid=current_user.id: get_triage_pending_count(
+                    _db, workbench=is_naver_workbench_enabled(_uid)))
 
     erp_order_enabled = env_bool("ERP_ORDER_ENABLED", default=True)
     shell_variant = _current_shell_variant()

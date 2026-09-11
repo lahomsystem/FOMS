@@ -142,6 +142,29 @@ def test_gate_off_admin_still_reaches_the_old_ingest_screen(client):
     assert client.get(INGEST_PATH).status_code == 200
 
 
+PENDING_COUNT_PATH = "/admin/naver-ingest/triage/pending-count"
+
+
+def _badge_count(client) -> int:
+    """nav 뱃지에 실제로 찍힐 숫자.
+
+    2026-09-11 부터 이 숫자는 **서버 렌더가 아니라 렌더 뒤 JS** 가 채운다
+    (`static/js/foms/foms-nav-triage-badge.js`). 서버에서 세면 워크벤치 코호트 콜드에
+    약 400ms 가 첫 화면 앞에 붙었다(스테이징 실측: /erp/dashboard render 423ms 중
+    nvbadge 382ms). 세는 정의는 그대로라 이 헬퍼가 그 정의를 그대로 확인한다.
+    """
+    response = client.get(PENDING_COUNT_PATH)
+    assert response.status_code == 200, response.status_code
+    payload = response.get_json()
+    assert payload["success"] is True, payload
+    return int(payload["data"]["count"])
+
+
+def _has_badge_slot(html: str) -> bool:
+    """nav 에 뱃지 자리가 있는가(숫자는 JS 가 채운다)."""
+    return "data-foms-nav-triage-badge" in html
+
+
 def test_pending_badge_counts_collected_and_linked(client):
     """뱃지는 큐 정의 그대로 COLLECTED+LINKED(미확인)를 센다."""
     _login(client, username="nav_admin_badge", role="ADMIN")
@@ -154,9 +177,9 @@ def test_pending_badge_counts_collected_and_linked(client):
     html = client.get("/erp/dashboard").get_data(as_text=True)
 
     assert TRIAGE_PATH in html
-    # ADMIN 드롭다운 뱃지 + 주 메뉴 탭 뱃지 둘 다 같은 수를 보여준다.
-    assert '<span class="badge bg-danger ms-2">3</span>' in html
-    assert '<span class="badge rounded-pill bg-danger">3</span>' in html
+    # ADMIN 드롭다운 뱃지 + 주 메뉴 탭 뱃지 두 자리 모두 있고, 숫자는 엔드포인트가 준다.
+    assert html.count("data-foms-nav-triage-badge") >= 2
+    assert _badge_count(client) == 3
 
 
 def test_staff_sees_tab_but_not_admin_ops_entry(client):
@@ -167,7 +190,8 @@ def test_staff_sees_tab_but_not_admin_ops_entry(client):
     html = client.get("/erp/dashboard").get_data(as_text=True)
 
     assert TRIAGE_PATH in html, "'네이버 수집' 탭이 STAFF 에게 없다"
-    assert '<span class="badge rounded-pill bg-danger">1</span>' in html
+    assert _has_badge_slot(html)
+    assert _badge_count(client) == 1
     # 운영 화면은 관리자 전용 — 정확한 href 로만 검사(트리아지 URL 이 이 경로를 포함하므로).
     assert f'href="{INGEST_PATH}"' not in html
 
@@ -195,6 +219,8 @@ def test_viewer_cannot_open_triage_and_gets_no_badge(client):
 
     html = client.get("/erp/dashboard").get_data(as_text=True)
     assert '<span class="badge rounded-pill bg-danger">' not in html
+    # 숫자를 주는 경로도 VIEWER 에게는 막혀 있어야 한다(자리를 숨기는 것만으로는 부족).
+    assert client.get(PENDING_COUNT_PATH).status_code in (302, 403)
 
 
 def test_order_list_shows_inbox_strip_only_when_pending(client):
@@ -257,7 +283,8 @@ def test_badge_counts_households_not_product_orders(client):
 
     html = client.get("/erp/dashboard").get_data(as_text=True)
 
-    assert '<span class="badge rounded-pill bg-danger">2</span>' in html, "집 단위로 세야 한다"
+    assert _has_badge_slot(html)
+    assert _badge_count(client) == 2, "집 단위로 세야 한다"
 
 
 def test_badge_falls_back_to_order_no_when_group_key_missing(client):
@@ -272,7 +299,8 @@ def test_badge_falls_back_to_order_no_when_group_key_missing(client):
     reset_triage_count_cache_for_tests()
 
     html = client.get("/erp/dashboard").get_data(as_text=True)
-    assert '<span class="badge rounded-pill bg-danger">1</span>' in html
+    assert _has_badge_slot(html)
+    assert _badge_count(client) == 1
 
 
 def test_inbox_strip_labels_the_unit_as_households(client):
@@ -374,5 +402,5 @@ def test_nav_badge_uses_the_workbench_number_when_gate_is_on(client, workbench_o
 
     html = client.get("/erp/dashboard").get_data(as_text=True)
 
-    assert '<span class="badge rounded-pill bg-danger">2</span>' in html
-    assert '<span class="badge bg-danger ms-2">2</span>' in html
+    assert html.count("data-foms-nav-triage-badge") >= 2
+    assert _badge_count(client) == 2

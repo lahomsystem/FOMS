@@ -40,11 +40,39 @@ def test_mark_is_scoped_to_the_naver_item_only():
 
 
 def test_badge_still_renders_next_to_the_mark():
-    """확인 대기 뱃지는 그대로다 — 표식이 뱃지를 밀어내면 건수를 못 본다."""
+    """확인 대기 뱃지 자리는 그대로다 — 표식이 뱃지를 밀어내면 건수를 못 본다.
+
+    2026-09-11 부터 **숫자는 서버가 아니라 렌더 뒤 JS 가 채운다**. 서버에서 세면 워크벤치
+    코호트 콜드에 약 400ms 가 첫 화면 앞에 붙었다(스테이징 실측: /erp/dashboard render
+    423ms 중 nvbadge 382ms). 그래서 자리(placeholder)만 있는지를 본다.
+    """
     markup = _nav()
 
-    assert "item.id == 'naver_orders' and naver_triage_pending" in markup
-    assert "{{ naver_triage_pending }}" in markup
+    assert "{% if item.id == 'naver_orders' %}" in markup
+    assert markup.count("data-foms-nav-triage-badge") >= 2, (
+        "nav 항목과 관리자 드롭다운 두 자리 모두 뱃지 자리를 가져야 한다"
+    )
+    # 0 을 빨간 뱃지로 띄우면 "할 일이 있다"는 거짓 신호다 — 기본은 숨김이고 JS 가 연다.
+    assert "data-foms-nav-triage-badge hidden" in markup
+
+
+def test_badge_number_is_filled_after_render() -> None:
+    """숫자를 채우는 쪽(JS·엔드포인트)이 실제로 배선돼 있어야 자리가 영영 빈 채로 안 남는다."""
+    root = pathlib.Path(__file__).resolve().parents[2]
+    js = (root / "static/js/foms/foms-nav-triage-badge.js").read_text(encoding="utf-8")
+    scripts = (root / "templates/partials/shared/layout_scripts.html").read_text(
+        encoding="utf-8"
+    )
+    api = (root / "foms/web/admin/naver_ingest.py").read_text(encoding="utf-8")
+
+    assert "/admin/naver-ingest/triage/pending-count" in js
+    assert "data-foms-nav-triage-badge" in js
+    assert "foms-nav-triage-badge.js" in scripts
+    assert '@admin_bp.route("/admin/naver-ingest/triage/pending-count")' in api
+    # 세는 정의는 그대로여야 한다(SQL COUNT 쌍둥이로 갈아타지 않았다).
+    assert "get_triage_pending_count(" in api
+    # 프래그먼트 재평가에 대비한 singleton 가드(저장소 표준).
+    assert "__FOMS_NAV_TRIAGE_BADGE_BOUND" in js
 
 
 def test_dropdown_entry_uses_the_same_mark():
