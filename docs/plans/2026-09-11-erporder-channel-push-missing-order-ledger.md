@@ -98,3 +98,40 @@
   이미 운영에 있었고(건드리는 파일 4개가 `origin/production` 과 바이트 동일) 승격 때
   cherry-pick 으로 SHA 가 재작성돼 검사기가 못 찾은 것이다. 판정은 커밋 SHA 가 아니라
   **파일 내용 대조**로 한다. 우회(`--allow-incomplete`)는 사용자 승인 뒤에만.
+
+## 후속 T1·T2 운영 반영 (2026-09-11)
+
+설계서 `docs/plans/2026-09-11-draft-list-and-audit-rollback-spec.md` 의 두 건을 모두 올렸다.
+
+| 단계 | 결과 |
+|---|---|
+| T1 감사 SAVEPOINT | deploy `68ba5e0d9` |
+| T2 초안 목록 | deploy `c8afed459` · `2bb58cf1a` · `50ee1988e` |
+| 승격 | PR #359 (검사 4종 pass) → **production `a378255b1a`** |
+
+### 스테이징 실화면 확인
+
+iPhone UA 390x844 + `foms_shell_pref=v2` 로 브라우저 실측:
+줄 노출(`작성 중인 주문 1건`) · 시트 전개(rows 1) · 이어쓰기 링크
+`/add?key=...&wizard=1&step=4` · KST 시각(`09-11 14:05 저장`, DB 는 05:05 UTC) 확인.
+가상 초안(`CLAUDE-TEST-` 접두어·더미 연락처)은 확인 후 삭제했다.
+
+### 이 작업에서 얻은 함정 (원인별)
+
+1. **모바일 홈 v2 는 두 분기다.** 기본은 컨트롤 타워(`tower_mode = mobile_v2 and not drill
+   and not chunk`, `foms/web/orders/dashboard.py:433`)이고 검색·필터·큐 진입일 때만
+   `dashboard_mobile_v2_body.html` 이다. 두 분기가 **같은 클래스**(`foms-mobile-v2-dashboard`)를
+   쓰므로 페이지 HTML 에서 그 클래스를 찾는 것으로는 어느 쪽이 그려졌는지 못 가른다.
+   줄을 큐 분기에만 넣어 기본 화면에서 아예 안 뜨는 상태로 배포됐고, **템플릿 파일에 마크업이
+   있다는 계약은 끝까지 초록이었다.** 실화면 확인이 유일한 발견 경로였다.
+2. **`pre_push_smoke` 32타깃은 CI 범위가 아니다.** `test_static_js_syntax.py`(정적 JS 구문)와
+   `test_shell_fragment_css_fouc_audit.py`(셸 조각 FOUC)가 그 밖에 있어 로컬 green·CI red 를
+   두 번 만들었다. push 전에 돌릴 것:
+   `python -m pytest -q tests/services/integrations tests/domains tests/harness tests/performance tests/contracts`
+3. **셸 조각 CSS.** ERP 셸은 조각 HTML 의 `<link rel=stylesheet>` 만 읽어 먼저 로드한다.
+   자산을 추가하면 전체 페이지와 조각 **두 곳 모두**에 같은 `?v=` 핀으로 넣어야 한다.
+4. **QA 계정의 기본 셸은 v3 다.** `claude_master` 는 스테이징에서 v3 로 뜨므로 v2 표면을 보려면
+   쿠키 `foms_shell_pref=v2` 가 필요하다. 운영은 `FOMS_SHELL_V3_ENABLED` 미설정이라 전원 v2 다.
+5. **승격 완전성 검사의 판정은 파일 내용 대조로.** 이번엔 의존 다수가 떴지만 실제 충돌은
+   fail-open 인벤토리 생성물 1건뿐이었고(`--ours` 후 승격 트리에서 재생성), 타 세션 의존
+   `846077f97` 은 이미 운영에 있어 cherry-pick 이 비었다.
