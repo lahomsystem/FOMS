@@ -927,9 +927,10 @@
                     refreshErpNotificationUI({ force: true, reason: 'erp-notification' });
                     if (data && data.urgent) {
                         triggerUrgentBriefingAlert(data);
-                    } else if (data && data.interrupt === true && window.FOMSDrawingAlert) {
-                        // ACTION-REQUIRED(도면 수정 요청): 확인을 눌러야 닫히는 중앙 확인창.
-                        window.FOMSDrawingAlert.show(data);
+                    } else if (data && window.FOMSDrawingAlert) {
+                        // 등급별 표시: interrupt=중앙 확인창(도면 수정 요청),
+                        // notice=오른쪽 아래 쪽지(수정 요청 취소). 판정은 서버 payload 가 한다.
+                        window.FOMSDrawingAlert.handle(data);
                     }
                 }
             };

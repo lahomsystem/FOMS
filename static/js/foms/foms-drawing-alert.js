@@ -10,7 +10,11 @@
  * 등급 판정은 서버가 한다 — payload 의 `interrupt === true` 만 이 창을 띄운다.
  * 확인 클릭 = ack(+read) 이므로, 지금 0건인 확인 기록이 사람의 행동으로 채워진다.
  *
- * 사용: window.FOMSDrawingAlert.show(payload) / .bindSocket(socket)
+ * 등급은 둘이다:
+ *   - `interrupt: true` → 중앙 확인창(확인을 눌러야 닫힘, ack 기록). 수정 요청.
+ *   - `notice: true`    → 오른쪽 아래 쪽지(작업을 막지 않음, 닫으면 읽음). 수정 요청 취소.
+ *
+ * 사용: window.FOMSDrawingAlert.show(payload) / .notice(payload) / .bindSocket(socket)
  */
 (function () {
   'use strict';
@@ -154,13 +158,89 @@
     return true;
   }
 
+  var NOTICE_STACK_ID = 'foms-drawing-notices';
+
+  function ensureNoticeStack() {
+    var stack = document.getElementById(NOTICE_STACK_ID);
+    if (stack) return stack;
+    stack = document.createElement('div');
+    stack.id = NOTICE_STACK_ID;
+    stack.className = 'foms-drawing-notices';
+    document.body.appendChild(stack);
+    return stack;
+  }
+
+  function markRead(notifId) {
+    if (!notifId || !window.FOMSNotificationWrite) return;
+    try {
+      window.FOMSNotificationWrite.fetch(
+        '/erp/api/notifications/' + encodeURIComponent(notifId) + '/read',
+        { method: 'POST', headers: { 'Accept': 'application/json' } }
+      )
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (d && d.success && window.FOMSNotificationBadge &&
+            typeof window.FOMSNotificationBadge.refresh === 'function') {
+            window.FOMSNotificationBadge.refresh({ force: true, reason: 'drawing-notice-read' });
+          }
+        })
+        .catch(function (err) { console.warn('[drawing-notice] read 오류:', err); });
+    } catch (e) {
+      console.warn('[drawing-notice] write helper 오류:', e);
+    }
+  }
+
+  /**
+   * NOTICE 등급(수정 요청 취소 등): 작업을 막지 않는 쪽지. 자동으로 사라지지 않는다 —
+   * 스스로 닫아야 읽음이 된다(자동 닫힘은 "못 본 채 사라짐"을 다시 만든다).
+   */
+  function notice(data) {
+    if (!data || data.notice !== true) return false;
+    var key = String(data.notification_id || data.id || '');
+    if (key && shown[key]) return false;
+    if (key) shown[key] = true;
+
+    var stack = ensureNoticeStack();
+    var card = document.createElement('div');
+    card.className = 'foms-drawing-notice';
+    var who = data.created_by_name || '';
+    var href = deepLink(data);
+    card.innerHTML = [
+      '<p class="foms-drawing-notice__h">' + esc(data.title || '도면 수정요청 취소') + '</p>',
+      '<p class="foms-drawing-notice__m">' + esc(data.message || '') + (who ? ' <span>(' + esc(who) + ')</span>' : '') + '</p>',
+      '<div class="foms-drawing-notice__a">',
+      href ? '  <a class="foms-drawing-notice__btn" data-role="open" href="' + esc(href) + '">주문 열기</a>' : '',
+      '  <button type="button" class="foms-drawing-notice__btn foms-drawing-notice__btn--ghost" data-role="close">닫기</button>',
+      '</div>'
+    ].join('');
+    card.addEventListener('click', function (e) {
+      var t = e.target.closest('[data-role]');
+      if (!t) return;
+      markRead(key);
+      if (t.dataset.role === 'close') {
+        card.remove();
+      }
+    });
+    stack.appendChild(card);
+    return true;
+  }
+
+  function handle(data) {
+    if (!data) return false;
+    if (data.interrupt === true) return show(data);
+    if (data.notice === true) return notice(data);
+    return false;
+  }
+
   function bindSocket(socket) {
     if (!socket || typeof socket.on !== 'function') return false;
     if (socket.__fomsDrawingAlertBound) return true;
     socket.__fomsDrawingAlertBound = true;
-    socket.on('erp_notification', function (data) { show(data); });
+    socket.on('erp_notification', function (data) { handle(data); });
     return true;
   }
 
-  window.FOMSDrawingAlert = { show: show, bindSocket: bindSocket };
+  window.FOMSDrawingAlert = {
+    show: show, notice: notice, handle: handle, bindSocket: bindSocket
+  };
 })();
