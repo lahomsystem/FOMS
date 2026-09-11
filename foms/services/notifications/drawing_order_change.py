@@ -730,6 +730,54 @@ def _notes_object_fingerprint(sd: dict) -> str:
     return _norm_scalar(notes)
 
 
+# 도면에 영향을 주는 변경 경로. 나머지(결제·시공일·시공담당자·주소표기·플래그·당사자)는
+# 타임라인에는 남기되 알림으로는 올리지 않는다 — 2026-09-11 실측에서 90일 변경 61건 중
+# 31건이 도면을 한 획도 바꾸지 않는 변경이었고, 그 소음이 수정 요청 알림을 묻었다.
+_ALERT_WORTHY_PREFIXES: Tuple[str, ...] = ("items",)
+_ALERT_WORTHY_PATHS = frozenset(
+    {
+        # 비고 계열은 "몰딩 간섭" 같은 도면 지시가 들어오는 통로다.
+        "notes",
+        "notes.object",
+        "notes.measurement_note",
+        # 지방 시공유형은 도면 양식 자체를 바꾼다.
+        "construction_type",
+    }
+)
+
+
+def is_drawing_impacting_path(path: Any) -> bool:
+    """이 변경 경로가 도면을 다시 그리게 만드는가.
+
+    Args:
+        path: ``compute_drawing_relevant_changes`` 가 낸 change 의 ``path``.
+
+    Returns:
+        알림으로 올려야 하면 True, 타임라인 기록만 하면 False.
+    """
+    text = str(path or "")
+    if not text:
+        return False
+    if text in _ALERT_WORTHY_PATHS:
+        return True
+    head = text.split(".", 1)[0].split("[", 1)[0]
+    return head in _ALERT_WORTHY_PREFIXES
+
+
+def drawing_impacting_changes(
+    changes: Sequence[Dict[str, str]]
+) -> List[Dict[str, str]]:
+    """변경 목록에서 도면 영향 항목만 추린다.
+
+    Args:
+        changes: history/알림용 change 목록.
+
+    Returns:
+        도면 영향 change 들(원본 순서 유지).
+    """
+    return [c for c in (changes or []) if is_drawing_impacting_path(c.get("path"))]
+
+
 def compute_drawing_relevant_changes(
     old_sd: dict,
     new_sd: dict,
@@ -946,7 +994,16 @@ def is_order_change_pending(sd: dict) -> bool:
             continue
         if entry.get("action") != HISTORY_ACTION:
             continue
-        return not bool(entry.get("acked"))
+        if bool(entry.get("acked")):
+            # 확인은 미확인 항목을 한꺼번에 닫는다(ack_drawing_order_change) — 여기서 끝.
+            return False
+        changes = entry.get("changes")
+        if not isinstance(changes, list) or not changes:
+            # changes 를 안 담던 옛 항목은 판정 근거가 없다 — 종전대로 pending.
+            return True
+        if drawing_impacting_changes(changes):
+            return True
+        # 도면과 무관한 변경(결제·시공일 등)은 배지 근거가 아니다 — 앞 항목을 더 본다.
     return False
 
 
@@ -1078,6 +1135,7 @@ def apply_drawing_order_change_alert(
         return None, False
 
     now = now_utc_naive()
+    impacting = drawing_impacting_changes(changes)
     note = summarize_changes(changes)
     # Form PUT may send a stale drawing_transfer_history snapshot — always base on DB old_sd.
     history = list(copy.deepcopy((old_sd or {}).get("drawing_transfer_history") or []))
@@ -1095,7 +1153,13 @@ def apply_drawing_order_change_alert(
         entry["by_user_name"] = actor_name
         history[merge_idx] = entry
         new_sd["drawing_transfer_history"] = history
-        _set_pending_flag(new_sd, True)
+        # 누적분 기준으로 판정한다 — 앞선 변경에 도면 항목이 있었으면 배지·알림을 유지한다.
+        merged_impacting = drawing_impacting_changes(merged)
+        if merged_impacting:
+            _set_pending_flag(new_sd, True)
+        else:
+            # 비영향 변경은 기존 배지를 끄지도 켜지도 않는다(앞선 미확인 도면 변경 보호).
+            return None, False
 
         notif = _find_mergeable_notification(
             db, int(order.id), actor_user_id=actor_user_id, now=now
@@ -1120,7 +1184,12 @@ def apply_drawing_order_change_alert(
         }
         history.append(entry)
         new_sd["drawing_transfer_history"] = history
-        _set_pending_flag(new_sd, True)
+        if impacting:
+            _set_pending_flag(new_sd, True)
+        else:
+            # 도면과 무관한 변경 — 작업실 타임라인에만 남기고 알림·배지는 만들지 않는다.
+            # 기존 플래그는 건드리지 않는다(앞선 미확인 도면 변경이 지워지면 안 된다).
+            return None, False
 
     notif = Notification(
         order_id=int(order.id),
