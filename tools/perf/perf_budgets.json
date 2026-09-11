@@ -1,4 +1,33 @@
 {
+  "coarse_paths": {
+    "/erp/dashboard?view=fragment": {
+      "body_bytes_max": 30128
+    },
+    "/erp/measurement?view=fragment": {
+      "body_bytes_max": 17485
+    },
+    "/erp/drawing-workbench?view=fragment": {
+      "body_bytes_max": 22000
+    },
+    "/erp/production/dashboard?view=fragment": {
+      "body_bytes_max": 57357
+    },
+    "/erp/shipment?view=fragment": {
+      "body_bytes_max": 11648
+    },
+    "/erp/as?view=fragment": {
+      "body_bytes_max": 64579
+    },
+    "/erp/construction/dashboard?view=fragment": {
+      "body_bytes_max": 38983
+    },
+    "/erp/completion?view=fragment": {
+      "body_bytes_max": 17770
+    },
+    "/erp/history/?view=fragment": {
+      "body_bytes_max": 9330
+    }
+  },
   "_comment": "스테이징 성능 게이트 예산 v2(SSOT: tools/perf/staging_perf_gate.py). 판정값 ttfb_delta_min_ms = min(warm path TTFB) − min(healthz TTFB): min 은 tail(2~9s) 오염 면역, healthz 델타는 시간대별 베이스 RTT(창 분산)를 상쇄한다. body_bytes_max = 전송(wire, 압축) 바이트 상한(실사용 다운로드 비용; 해압은 정보용, 결정적 min 성격). 정밀 서버 회귀는 render_ms_max·bytes·쿼리 계약이 잡는다. --seed 는 의도된 성능 변화 때만 실행하고 diff 를 리뷰한다.",
   "_global": {
     "schema": 2,
@@ -9,7 +38,7 @@
   "paths": {
     "/erp/dashboard?view=fragment": {
       "ttfb_delta_min_ms": 167,
-      "body_bytes_max": 26724
+      "body_bytes_max": 26827
     },
     "/erp/measurement?view=fragment": {
       "ttfb_delta_min_ms": 140,
@@ -17,11 +46,11 @@
     },
     "/erp/drawing-workbench?view=fragment": {
       "ttfb_delta_min_ms": 124,
-      "body_bytes_max": 17570
+      "body_bytes_max": 17497
     },
     "/erp/production/dashboard?view=fragment": {
       "ttfb_delta_min_ms": 133,
-      "body_bytes_max": 47961
+      "body_bytes_max": 47960
     },
     "/erp/shipment?view=fragment": {
       "ttfb_delta_min_ms": 291,
@@ -33,7 +62,7 @@
     },
     "/erp/construction/dashboard?view=fragment": {
       "ttfb_delta_min_ms": 147,
-      "body_bytes_max": 23820
+      "body_bytes_max": 23812
     },
     "/erp/completion?view=fragment": {
       "ttfb_delta_min_ms": 107,
