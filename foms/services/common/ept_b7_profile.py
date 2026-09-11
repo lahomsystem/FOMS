@@ -55,6 +55,48 @@ def phase(name: str) -> Iterator[None]:
         record_phase(name, (time.perf_counter() - t0) * 1000)
 
 
+_MARK_KEY: Final[str] = "_foms_ept_b7_marks"
+
+
+def template_mark(name: str) -> str:
+    """템플릿 안에서 구간을 **쌍으로** 표시한다 — `{{ mark('hist') }}` … `{{ mark('hist') }}`.
+
+    왜 필요한가: `render_template` 하나를 `phase("wb_template")` 로 감싸면 "템플릿이 500ms"
+    까지만 알 수 있고 **그 안 어디인지는 모른다**. 2026-09-11 운영 실측에서 수집 이력 탭의
+    서버 시간 대부분(300~545ms)이 그 한 덩어리에 묶여 있었다. 파이썬 `phase()` 는 컨텍스트
+    매니저라 Jinja 에서 못 쓰므로, 같은 이름을 두 번 부르는 것으로 구간을 만든다.
+
+    첫 호출은 시작 시각을 적고, 두 번째 호출이 경과를 :func:`record_phase` 로 넘긴다 —
+    즉 결과가 기존 ``X-FOMS-EPT-B7-PHASES`` 헤더에 그대로 실린다. 짝이 안 맞으면(한 번만
+    불렀으면) 아무것도 기록되지 않는다.
+
+    **항상 빈 문자열을 돌려준다** — 화면에 아무것도 찍지 않는다. 요청 밖에서는 조용히 무시한다.
+
+    Args:
+        name: 구간 이름(헤더에 그대로 나온다).
+
+    Returns:
+        빈 문자열(템플릿 출력에 영향 없음).
+    """
+    try:
+        from flask import g, has_request_context
+
+        if not has_request_context():
+            return ""
+        marks = getattr(g, _MARK_KEY, None)
+        if marks is None:
+            marks = {}
+            setattr(g, _MARK_KEY, marks)
+        started = marks.pop(name, None)
+        if started is None:
+            marks[name] = time.perf_counter()
+        else:
+            record_phase(name, (time.perf_counter() - started) * 1000.0)
+    except Exception:  # noqa: BLE001 - 계측이 화면을 깨뜨리면 안 된다
+        logger.debug("[EPT-B7] template_mark(%s) 실패", name, exc_info=True)
+    return ""
+
+
 def format_phases() -> str:
     """구간 관측을 헤더 값 한 줄로 만든다.
 
