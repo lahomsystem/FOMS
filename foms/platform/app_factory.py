@@ -82,6 +82,40 @@ def _add_static_response_headers(headers: Any, path: str, url: str) -> None:
         headers["Cache-Control"] = "no-cache"
 
 
+def _weak_etag_revalidation_middleware(wsgi_app: Any) -> Any:
+    """``If-None-Match`` 의 ``W/`` 접두어를 벗겨 **weak 비교**를 복원한다 (RFC 7232 §2.3.2).
+
+    증상(2026-09-11 운영·스테이징 동일 실측): 브라우저가 받은 ETag 를 그대로 되돌려도
+    304 가 아니라 200 + 전체 본문이 온다. ``W/`` 세 글자만 떼면 304 다.
+
+    ```
+    GET  /static/js/runtime/erp-shell.js        -> ETag: W/"6aa37651-9703"  (Content-Encoding: gzip)
+    GET  + If-None-Match: W/"6aa37651-9703"     -> 200, 38,659 bytes
+    GET  + If-None-Match:   "6aa37651-9703"     -> 304, 0 bytes
+    ```
+
+    압축은 ETag 를 **weak 변형**으로 만들므로 앞단(압축 계층·엣지)이 ``W/`` 를 붙이는 것은
+    옳다. 틀린 쪽은 비교다 — ``If-None-Match`` 는 규격상 **weak 비교**라 ``W/"x"`` 가 ``"x"``
+    와 일치해야 하는데, 정적 파일을 서빙하는 계층이 문자열을 그대로 견줘 영영 매치되지
+    않는다. 그래서 **압축 응답을 받는 실제 브라우저는 재검증할 때마다 전량을 다시 받는다**
+    (HEAD 로 ETag 를 모으면 압축이 안 걸려 strong 값이 오므로 이 결함이 안 보인다 — 측정
+    함정이다).
+
+    여기서 요청 헤더만 정규화한다. 응답 ETag 는 건드리지 않으므로 브라우저가 저장한 값과
+    다음 요청은 그대로고, 바뀌는 것은 **서버가 같다고 인정하는가** 하나뿐이다.
+
+    Args:
+        wsgi_app: 감쌀 WSGI 앱.
+    """
+    def _app(environ: Any, start_response: Any) -> Any:
+        header = environ.get("HTTP_IF_NONE_MATCH")
+        if header and "W/" in header:
+            environ["HTTP_IF_NONE_MATCH"] = header.replace('W/"', '"')
+        return wsgi_app(environ, start_response)
+
+    return _app
+
+
 def _versioned_static_cache_middleware(wsgi_app: Any) -> Any:
     """버전 쿼리(``?v=``)가 있는 css/js 응답에 한해 단기 max-age 캐시를 부여한다.
 
@@ -92,13 +126,21 @@ def _versioned_static_cache_middleware(wsgi_app: Any) -> Any:
 
     이 미들웨어는 요청 단계에서 ``?v=``가 붙은 css/js에 한해 응답의 ``Cache-Control``을
     ``max-age``로 바꾼다. 버전 URL은 배포 시 ``?v=``가 바뀌어 새 URL이 되므로
-    (캐시 미스→즉시 최신) 캐시해도 안전하고, 짧은 max-age(1시간)로 "버전 누락" 시의
-    staleness도 길게 가지 않게 bound한다. 미버전(@import 등)은 그대로 ``no-cache``.
+    (캐시 미스→즉시 최신) 캐시해도 안전하고, max-age로 "버전 누락" 시의 staleness를
+    bound한다. 미버전(@import 등)은 그대로 ``no-cache``.
+
+    **1시간 → 하루 (2026-09-11).** 사용자 신고 "수집 워크벤치 ↔ ERP 대시보드 탭 왕복이
+    느리다"를 재니 대시보드 한 화면이 자산 84개를 싣고 그중 73개가 이 max-age 대상이었다
+    (스테이징 실측). 1시간이 지나면 그 73개를 한꺼번에 재검증하는데, 오리진이 싱가포르라
+    요청 하나가 왕복 약 0.15초다 — 브라우저 동시 연결 6개로 나눠도 1.8초가 얹힌다.
+    하루로 늘리면 근무 시간 안에서는 재검증이 사라진다. staleness 위험은 그대로 bound
+    되어 있고(핀을 안 올린 실수가 최대 하루), 핀 범프는 SW staticCacheFirst 계약이 이미
+    강제한다. 더 늘리지 않는 이유도 같다 — 실수 노출을 하루 안에 묶는다.
 
     Args:
         wsgi_app: 감쌀 WSGI 앱(여기서는 WhiteNoise).
     """
-    _CACHE_VALUE = "public, max-age=3600"
+    _CACHE_VALUE = "public, max-age=86400"
 
     def _app(environ: Any, start_response: Any) -> Any:
         path = (environ.get("PATH_INFO") or "")
@@ -193,6 +235,10 @@ def build_app(*, socketio_available: bool) -> AppFactoryResult:
     )
     # 버전된(?v=) css/js는 매 네비게이션 재검증(304) 대신 단기 캐시 → 정적 요청 폭주 완화.
     app.wsgi_app = _versioned_static_cache_middleware(app.wsgi_app)
+    # 재검증이 실제로 0바이트가 되게 한다 — 압축 응답의 weak ETag 가 strong 비교에 걸려
+    # 지금까지 304 대신 200 전량이 나갔다(2026-09-11 실측). 캐시 만료 뒤 첫 요청의 비용이
+    # 여기서 갈린다. **정적 캐시 미들웨어 바깥**에 둬 모든 경로의 요청 헤더를 덮는다.
+    app.wsgi_app = _weak_etag_revalidation_middleware(app.wsgi_app)
 
     # P0-22: deployed(Railway/production) 에서 SECRET_KEY 가 absent/known-default/short 이면
     # 하드코딩 fallback 없이 기동을 막는다. 비-deployed dev 만 dev key 를 허용한다.

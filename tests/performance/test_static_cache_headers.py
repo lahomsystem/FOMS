@@ -126,3 +126,28 @@ def test_service_worker_registration_is_global_not_shell_gated() -> None:
     assert not re.search(
         r"""<script\b[^>]*a2hs-prompt\.js""", bundle, re.I | re.S
     ), "a2hs-prompt.js가 전역 승격 후에도 P2 번들에 <script>로 남아 중복 로드된다"
+
+
+def test_weak_etag_revalidation_returns_304(client) -> None:
+    """압축 응답의 weak ETag(``W/"x"``)를 되돌려도 304 여야 한다 (RFC 7232 weak 비교).
+
+    2026-09-11 운영·스테이징 실측: 브라우저가 받은 ETag 를 그대로 보내면 200 + 전체 본문이
+    왔고 ``W/`` 세 글자만 떼면 304 였다. 압축이 ETag 를 weak 로 만드는 것은 옳고 틀린 쪽은
+    비교다 — ``If-None-Match`` 는 weak 비교라 ``W/"x"`` 가 ``"x"`` 와 일치해야 한다.
+    그 결함이 살아 있으면 **캐시 만료 뒤 첫 재검증마다 전량 재다운로드**가 된다.
+
+    측정 함정 주의: HEAD 로 ETag 를 모으면 본문이 없어 압축이 안 걸리고 strong 값이 와서
+    이 결함이 안 보인다. 실제 브라우저 경로는 GET 이다.
+    """
+    path = "/static/js/orders/erp-order-shared.js?v=test"
+    first = client.get(path)
+    etag = first.headers.get("ETag")
+    assert etag, "정적 응답에 ETag 가 없다"
+
+    weak = etag if etag.startswith("W/") else 'W/' + etag
+    again = client.get(path, headers={"If-None-Match": weak})
+
+    assert again.status_code == 304, (
+        f"weak ETag {weak!r} 재검증이 304 가 아니다(status={again.status_code}, "
+        f"{len(again.data)}바이트) — 재검증마다 전량 재다운로드가 된다")
+    assert not again.data

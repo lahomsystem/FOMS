@@ -18,15 +18,17 @@ import datetime
 import hashlib
 import json
 import logging
+import time
 from typing import Any, Optional
 
-from flask import (abort, g, jsonify, redirect, render_template, request, session,
-                   url_for)
+from flask import (abort, g, jsonify, make_response, redirect, render_template,
+                   request, session, url_for)
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.elements import ColumnElement
 
 from db import get_db
+from foms.services.common.ept_b7_profile import phase
 from foms.services.datetime_kst import (format_datetime_kst, get_today_kst,
                                         now_kst, now_utc_naive)
 from foms.services.integrations.naver_commerce.constants import SELLER_CENTER_URL
@@ -1942,7 +1944,18 @@ def naver_ingest_triage():
     from foms.services.feature_flags import is_naver_workbench_enabled
 
     if is_naver_workbench_enabled(session.get("user_id")):
-        return _render_workbench(db)
+        # 서버 렌더 시간을 응답 헤더로 드러낸다(2026-09-11). 이 화면은 코드가 3주 만에
+        # 12배로 커지는 동안 계측이 한 곳도 없어, "탭 왕복이 느리다"는 신고를 숫자로
+        # 판정할 수 없었다. /erp/dashboard 와 **같은 배선**이라 두 화면을 나란히 잰다.
+        from foms.services.common.ept_b7_profile import apply_ept_b7_render_headers
+
+        _t0 = time.perf_counter()
+        _body = _render_workbench(db)
+        _render_ms = (time.perf_counter() - _t0) * 1000.0
+        response = make_response(_body)
+        apply_ept_b7_render_headers(response, route_id="naver_ingest_triage",
+                                    render_ms=_render_ms)
+        return response
 
     # --- 아래는 게이트 OFF 경로(롤백 경로) — 예전 화면 그대로 둔다 ---
     pending, truncated = _queue_links(db)
@@ -2444,7 +2457,8 @@ def _render_workbench(db) -> str:
     active_tab = _active_tab()
     active_filter = _active_filter()
     active_sort = _active_sort()
-    groups, work_truncated = _work_groups(db, sort=active_sort)
+    with phase("wb_work_groups"):
+        groups, work_truncated = _work_groups(db, sort=active_sort)
     visible = [group for group in groups if _group_matches_filter(group, active_filter)]
     # 수집 상태(워터마크·인증 만료일)는 이력 탭에 함께 싣는다. 게이트가 켜지면 옛 수집
     # 화면이 리다이렉트로 닫히는데, 그 화면에만 있던 값이라 여기 없으면 수집이 조용히
@@ -2452,7 +2466,8 @@ def _render_workbench(db) -> str:
     # 열린 뒤에도 이 카드(지금 수집·소급 수집·만료일 등록)는 ADMIN 손잡이다.
     ingest_status = ({"watermark": _watermark_view(db), "expiry": _expiry_view(db)}
                      if active_tab == "all" and _is_ingest_admin() else {})
-    return render_template(
+    with phase("wb_template"):
+        return render_template(
         "admin/naver_workbench.html",
         active_tab=active_tab,
         active_filter=active_filter,
