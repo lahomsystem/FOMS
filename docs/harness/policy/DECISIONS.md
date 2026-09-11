@@ -10,6 +10,12 @@
 
 ---
 
+### [2026-09-11] NVCLAIM-PARTIAL-01 — 네이버 취소·반품 부분 선택, 표식 기반 집 잠금 완화
+- **키워드**: naver, claim, cancel, return, partial, product_order_ids, cancel_scope, household-lock, bulk-dispatch, FAQ-3880
+- **결정**: ① 부분 선택은 취소·반품 둘 다 ② 거부·승인 부분 선택은 범위 밖 ③ 본품 선택 시 남은 추가구성은 서버(`plan_claim_scope`)가 자동 동반 + 재검사(빠지면 0건 전송) ④ 취소 축에도 FAQ 3880 범위 규격(`addon_return_gap`) ⑤ 부분 취소 뒤 남은 라인은 발주확인·발송 허용 — 성공 표식 `fulfillment.cancel_scope ∈ {partial, household}`, partial 행만 대상에서 빼고 household·옛 키 없음 표식과 취소 실패 잔존(`last_error_action == "cancel"`)은 집 전체 차단 유지 ⑥ 재결제·추가결제 집 허용 ⑦ 수량 일부 취소 범위 밖(호출자 `quantity` 금지 계약) ⑧ 취소 버튼은 형제 클레임으로 집을 잠그지 않는다(`can_cancel` 은 `household_claimed` 를 안 보고 `cancel_sendable_count`·서버 `_claim_guard(scope=todo)` 가 라인 단위로 거른다) ⑨ 벌크 발송 pre-check(`bulk_dispatch._blocking_reason`)도 `_cancel_guard` 거울. `product_order_ids` 의미 3종은 전 계층 동일: None=집 전체 / []=400·FulfillmentError / [id…]=그 라인만. 게이트 `FOMS_NAVER_PARTIAL_CLAIM_ENABLED`+`_COHORT`.
+- **이유**: 운영 #2354 — 본품·추가구성 4건 집에서 1건만 취소해야 했는데 화면·서비스가 집 단위라 못 했고, 부분 취소 뒤 남은 3건의 발송이 옛 `canceled_at` 표식에 집 전체로 막혔다. 형제의 `CANCEL_DONE` 이 pane 을 열었는지에 따라 버튼이 달라지는 것(M-4)은 화면의 거짓말이다. 클레임은 불가역이라 서버가 범위를 재검사하고 하나라도 어긋나면 0건 전송한다.
+- **영향**: `foms/services/integrations/naver_commerce/{fulfillment,bulk_dispatch,queue}.py`, `foms/services/jobs/tasks.py`, `foms/services/feature_flags.py`, `foms/web/admin/naver_ingest.py`, `templates/admin/partials/naver_workbench_pane.html`, `static/js/admin/naver-workbench.js`, `static/css/admin/naver-workbench.css`, `tests/services/integrations/test_naver_partial_claim.py`(50), 핀 `?v=20260911a`. 정본 `docs/specs/2026-09-11-naver-partial-claim_SPEC.md` §11·§11-1, 브리프 `docs/plans/2026-09-11-naver-partial-claim-brief.md`.
+
 ### [2026-09-10] 하네스 ablation v2 — 걷어낼 것은 복제·리마인더·절차, 남길 것은 1줄 사실과 코드 가드
 - **키워드**: harness, ablation, claude-md, agents-md, hooks, guard-policy, memory, superpowers, drift-guard, heredoc
 - **결정**: 정적 감사(274행 판정) + 헤드리스 실험(Fable 5.1 12회, Opus 5 4회)로 상시 로드 텍스트를 재구성했다. 프로젝트 CLAUDE.md 108→35줄(정책 본체는 AGENTS.md, 원자 사실은 두 파일에 자구 동일 + 가드), 전역 CLAUDE.md 42→5줄, MEMORY.md 159→54줄(154건 전수 판정, DELETE 108), MEMORY-GATE·동시편집 경고 훅 해제(ctx_gate 는 타 세션이 같은 날 실제 창 점유 판정으로 재작성해 유지, 2주 재관측), superpowers off(16회 실행에서 Skill 호출 0), gstack 57→9종. 가드 인프라 결함 5종(테스트 로그 오염 55%·캡 300·`/c/tmp` 오탐·heredoc 본문 판정·라벨)을 고쳐 2주 뒤 실효 재판정이 가능하게 했고, 텍스트가 못 막던 셋(인라인 스타일 76행·`git add -f`·승격 PR 범위)을 코드로 옮겼다. orca·caveman 은 사용자 결정으로 유지.

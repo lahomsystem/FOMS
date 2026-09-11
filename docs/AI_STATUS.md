@@ -1,7 +1,7 @@
 # FOMS 현재 상태
 > 자동 업데이트: 2026-09-11
-> 최신: **도면팀 알림 개편(운영 반영 PR #350 · production `401ebeb45`)** — 실측: 도면팀 3인 90일 수신 204건 중 183건(90%)이 `ERP_ORDER_CHANGED`, 30일 26건은 ack 0건, 수정 요청 21건 중 8건 미독. 변경 61건 중 31건은 도면을 안 바꾸는 항목이었다. ① `is_drawing_impacting_path` 로 품목·비고·지방시공유형만 알림 사유(타임라인은 전 항목 유지, 비영향 변경은 기존 배지를 끄지 않는다) ② `DRAWING_REVISION` 에 `interrupt` 등급 → 중앙 확인창, 확인이 곧 ack(취소는 등급 없음) ③ **마법사는 standalone 이라 알림 UI 가 0이었다** — 소켓·확인창만 싣는다
-> 직전: **하네스 ablation v2 마감(origin/deploy `075438c3b`~`93bcc746b` 14커밋·CI green)** — CLAUDE.md 108→35줄, 전역 42→5줄, 메모리 154→46, 훅 3종 해제(ctx_gate 유지), superpowers off, 드리프트 가드 12종. `/context` 실측 상시 37k/1M·스킬 54종 5,610. 정본 `docs/plans/2026-09-09-harness-ablation-v2-*` + drafts/DELETE_LIST.md §0
+> 최신: **네이버 취소·반품 부분 선택(NVCLAIM-PARTIAL-01, deploy 대기 · 게이트 `FOMS_NAVER_PARTIAL_CLAIM_ENABLED`+`_COHORT`)** — 운영 #2354: 집 단위라 1건만 취소를 못 했고 부분 취소 뒤 남은 라인 발송이 막혔다. 모달 체크박스 + 서버 `product_order_ids`(None=집 전체/[]=400/목록=그 라인만), 본품 선택 시 추가구성 자동 동반 + 서버 재검사(0건 전송), 표식 `cancel_scope` partial/household(partial 행만 제외, household·취소 실패 잔존은 집 차단), 취소 버튼·벌크 pre-check 는 형제 클레임으로 집을 안 잠근다(결정 8·9). 스펙 `docs/specs/2026-09-11-naver-partial-claim_SPEC.md` §11. **잔여: 스테이징 §8 ①②③ + 사용자 #2354 화면 확인**
+> 직전: **도면팀 알림 개편(운영 반영 PR #350 · production `401ebeb45`)** — 90일 수신 204건 중 183건이 `ERP_ORDER_CHANGED`, 변경 61건 중 31건은 도면 무관. `is_drawing_impacting_path` 로 품목·비고·지방시공유형만 알림 사유, `DRAWING_REVISION` interrupt 등급 → 중앙 확인창(확인=ack), 마법사에도 소켓·확인창
 > 이 파일 상단 40줄이 세션 시작 컨텍스트의 전부다(hygiene 계약으로 강제). 상세 이력은 "## 최근 완료"·"## 기록 보관".
 
 
@@ -48,6 +48,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 
 ## 최근 완료 (최대 5개)
 - [2026-09-10] **담당자별 개인 도면방 동시 발송 운영 완료(PR #343 · production `62ee11969`)** — 도면방 PUSH 한 번에 공용방(230331)+담당자 개인방. 방 번호 = `users.channel_drawing_group_id`(사용자 관리에서 등록), 매칭 `manager_name`→`users.name`. **잔여: 8명 방 번호 등록(현재 0명)**
+- [2026-09-10] **하네스 ablation v2 마감(origin/deploy `075438c3b`~`93bcc746b` 14커밋·CI green)** — CLAUDE.md 108→35줄, 전역 42→5줄, 메모리 154→46, 훅 3종 해제(ctx_gate 유지), superpowers off, 드리프트 가드 12종. `/context` 실측 상시 37k/1M·스킬 54종 5,610. 정본 `docs/plans/2026-09-09-harness-ablation-v2-*` + drafts/DELETE_LIST.md §0
 - [2026-09-09] **도면 전달 상태 결함 2건 운영 반영(production `8efef9886` · PR #320·#323)** — 전달 취소가 살아 있는 이전 전달본을 두고 `PENDING` 으로 되돌려 수령 확정 버튼이 사라졌다(#5193) + 도면 0장 전달 허용(운영 24건 PENDING 복귀·백업 보관)
 - [2026-09-09] **워커 정지 헛알림 26건 근본 수정(deploy 예정)** — 같은 하트비트를 readiness 는 `max(등록부, 신고간격 x 3)`=5400초, 감시자는 등록부 900 고정으로 읽어 반대로 말했다(운영 수집 루프 간격 1800 → 15분마다 멈춤·복구 왕복, 09-08 알림 26건). 예산 정본 `effective_heartbeat_budget` 신설로 판정부 2곳이 한 함수만 부른다. 상세 `docs/incidents/2026-09-09-worker-watchdog-false-stall-flap.md`
 - [2026-09-11] **마법사 발송 후 미등록 유실 차단 운영 반영(PR #349 · production `02eee54489`)** — 초안 발송은 설계상 주문을 만들지 않는데(설계 D1) 화면이 그 사실을 안 알려 푸시 54건 중 3건이 주문 없이 끝났다(2026-09-10 실측 1건: 초안 `new.ff7475d50b3a42ac` 푸시 200, `submit` 요청 0건). ①발송 완료 문구를 "아직 주문 등록 전입니다"로 + 등록 버튼 강조 ②그 상태로 닫으면 확인창 ③등록 실패 무음 제거(`.catch`·버튼 잠금·복구) — 이 구멍 때문에 "안 눌렀다"와 "눌렀는데 안 나갔다"를 서버 증거로 가를 수 없었다. 원장 `docs/plans/2026-09-11-erporder-channel-push-missing-order-ledger.md`

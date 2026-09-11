@@ -497,6 +497,10 @@ def test_modal_counts_the_household_the_server_will_touch(client, workbench_on):
 
     확인 완료된 형제는 큐에서 빠지지만 워커는 그 집을 통째로 처리한다. 화면이 큐 기준으로
     세면 "1건 취소합니다"라고 읽히고 2건이 환불된다.
+
+    취소 모달은 2026-09-11 부터 `cancel_sendable_count` 를 재진술한다(계약 §0-2) — 이
+    픽스처(클레임·발송·취소 없음)에서는 집 전체 수와 같다. 부분집합 계약은
+    test_naver_partial_claim.py.
     """
     from foms.services.datetime_kst import now_utc_naive
 

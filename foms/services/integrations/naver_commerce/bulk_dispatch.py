@@ -34,7 +34,9 @@ from .constants import CHANNEL
 from .fulfillment import (
     CLOSE_NOW_RELATIONS,
     HEALTHY_SYNC_STATUSES,
+    cancel_locks_household_state,
     household_key,
+    is_partial_canceled,
 )
 
 logger = logging.getLogger(__name__)
@@ -332,8 +334,11 @@ def _expand_households(
 def _blocking_reason(links: list[ExternalOrderLink]) -> str:
     """집이 지금 발송처리를 못 받는 사유 — 없으면 빈 문자열.
 
-    :func:`fulfillment.dispatch_order` 의 가드와 **같은 순서**로 본다. 다만 마지막 항목
-    (수집 상태)은 서비스에 없는 조건이다 — 모듈 docstring 참조.
+    :func:`fulfillment.dispatch_order` 의 가드와 **같은 순서**로 본다 — 클레임
+    (:func:`fulfillment._claim_guard`) → 취소 표식(:func:`fulfillment._cancel_guard` 의
+    거울: 우리가 **일부 선택 취소**한 행은 클레임 판정에서 빼고 집도 잠그지 않는다,
+    집 단위 취소 표식(household·옛 키 없음)과 취소 **실패 잔존** 만 막는다 — NVCLAIM-PARTIAL-01
+    결정 5) → 발주확인 선행. 다만 수집 상태 항목은 서비스에 없는 조건이다 — 모듈 docstring 참조.
 
     Args:
         links: 집 전체 링크.
@@ -342,12 +347,21 @@ def _blocking_reason(links: list[ExternalOrderLink]) -> str:
         사람이 읽는 사유 문장. 보낼 수 있으면 ``""``.
     """
     for row in links:
+        if is_partial_canceled(row):
+            continue
         claim = mapping.extract_claim(row.raw_snapshot or {})
         if mapping.blocks_irreversible(claim):
             return "취소·반품·교환이 걸린 주문입니다 — 판매자센터에서 처리하세요."
-    canceled = [row for row in links if _fulfillment_state(row).get("canceled_at")]
+    canceled = [row for row in links if cancel_locks_household_state(_fulfillment_state(row))]
     if canceled:
         return f"취소한 주문입니다(취소된 상품주문 {len(canceled)}건)."
+    failed = [
+        row for row in links
+        if str(_fulfillment_state(row).get("last_error") or "").strip()
+        and _fulfillment_state(row).get("last_error_action") == "cancel"
+    ]
+    if failed:
+        return f"취소가 실패한 상품주문이 있습니다({len(failed)}건) — 취소를 먼저 끝내세요."
     broken = [
         row for row in links
         if (row.sync_status or "").strip().upper() not in HEALTHY_SYNC_STATUSES

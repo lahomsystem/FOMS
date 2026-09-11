@@ -131,4 +131,5 @@ def test_workbench_asset_pin_moved_for_the_followup_change():
     markup = pathlib.Path("templates/admin/naver_workbench.html").read_text(encoding="utf-8")
 
     # 2026-09-10: 정리 계획 카드·완료 패널의 예약금 설명문을 걷으며 핀을 20260910a 로 올렸다.
-    assert markup.count("?v=20260910a") == 2, "CSS·JS 핀을 함께 올린다"
+    # 2026-09-11: 취소·반품 상품주문 일부 선택(NVCLAIM-PARTIAL-01)으로 20260911a.
+    assert markup.count("?v=20260911a") == 2, "CSS·JS 핀을 함께 올린다"

@@ -1514,6 +1514,21 @@ input.wb-pick:disabled,
 .wb-approve-warn { display: none; }
 .wb-approve-warn:not([hidden]) { display: block; }
 
+/* 부분 선택 목록(NVCLAIM-PARTIAL-01) — 취소·반품 모달의 상품주문 체크 목록.
+   8행 이상 집(#2354 는 8건)에서 모달이 화면을 넘지 않게 **목록만** 40vh 안에서 스크롤한다 —
+   되돌릴 수 없음 띠·사유·확인 버튼은 스크롤 없이 늘 보인다. 글자는 `--wb-fs` 배율을 따른다. */
+.wb-scope { max-height: 40vh; overflow-y: auto; }
+.wb-scope__row {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+    padding: 4px 0;
+    border-bottom: 1px solid var(--wb-line-soft);
+}
+.wb-scope__row .form-check-input { flex: 0 0 auto; margin-top: 3px; }
+.wb-scope__row--off { color: var(--wb-muted); }
+.wb-scope__note { display: block; font-size: calc(11.5px * var(--wb-fs, 1)); color: var(--wb-muted); }
+
 /* 전체 다시 읽기 진행 막대(2026-09-08) — 지금까지는 글자로만 "45주문 중 12주문 완료" 라
    말했다. 같은 문장을 눈으로 재는 데 시간이 걸려 관리자가 끝났는지 아닌지 계속 되읽었다.
    버튼 자체를 막대로 쓴다(마크업 추가 없음). 폭은 JS 가 --wb-prog(0~100)로 넘긴다. */

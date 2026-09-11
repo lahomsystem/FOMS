@@ -38,7 +38,8 @@
 {% set rel_label = '추가결제' if relation == 'ADDON' else ('재결제' if relation == 'REPAY' else '') %}
 {# 클레임 판정은 **집 단위**다. 대표 링크만 보면 확인 완료돼 큐에서 빠진 형제의
    취소를 못 보고 버튼이 열린다 — 되돌릴 수 없는 호출이 나간다. #}
-{% set household_claimed = selected_household_claimed or selected.claim.blocking
+{% set household_claimed = selected_household_claimed
+                           or (selected.claim.blocking and not selected.partial_canceled)
                            or (grp.claim_blocking if grp else False) %}
 {% set household_canceled = grp.canceled if grp else selected.fulfillment.canceled_at %}
 {% set locked = household_claimed or household_canceled %}
@@ -85,6 +86,19 @@
 {% set naver_sent_at = '' if selected.dispatch.ours_at else selected.dispatch.naver_at %}
 {% set claim_label = (grp.claim_label if grp else '') or selected.claim.label or '' %}
 {% set member_count = grp.count if grp else 1 %}
+{# 취소가 **실제로 나갈** 건수(NVCLAIM-PARTIAL-01). 술어는 서버 `fulfillment.cancel_sendable`
+   한 벌(return_sendable 거울) — 집 전체 수(`member_count`)로 재진술하면 형제가 판매자센터에서
+   이미 취소된 집(운영 #2354: 8건 중 4건 CANCELED)에서 "8건 취소합니다"라고 읽히는데 서버는
+   남은 건만 보낸다. 불가역 경로의 과대 진술은 그대로 사고다(계약 §0-2).
+   집을 못 만든 경우(큐 밖 단건)는 링크 자신이 취소 표식이 없을 때만 1건. #}
+{% set cancel_sendable_count = grp.cancel_sendable_count if grp else (0 if selected.fulfillment.canceled_at else 1) %}
+{# 취소 축 범위 규격(FAQ 3880, 결정 4 2026-09-11) — 보낼 수 있는 대상만 모아도 본품보다 먼저
+   처리해야 하는 추가구성상품이 빠지는 집. 서버 `addon_return_gap` 과 한 벌(반품 `return_scope_gap` 거울). #}
+{% set cancel_scope_gap = grp.cancel_scope_gap if grp else [] %}
+{# 취소 버튼이 잠긴 이유(반품 버튼 title 과 같은 우선순위: 범위 규격 → 보낼 게 없음). #}
+{% set cancel_lock_why = ('추가구성상품 ' ~ (cancel_scope_gap|length) ~ '건이 아직 처리되지 않았습니다')
+                         if cancel_scope_gap
+                         else ('취소를 보낼 상품주문이 없습니다' if cancel_sendable_count <= 0 else '') %}
 {# 주문 만들기가 실제로 옮길 형제 수(리뷰 M-2). 집이 없으면(큐 밖 단건) 링크 자신이
    주문 미생성일 때만 1건이다. #}
 {% set promotable_count = grp.promotable_count if grp else (0 if selected.order_id else 1) %}
@@ -128,7 +142,18 @@
    우리 표식만 보면 **판매자센터에서 사람이 직접 발송한 집**을 놓친다 — 그 집에서 화면이
    다른 자리(정리 띠·관계 블록)로는 "반품 건"이라 적어 놓고 여기서는 취소를 열어 줬다.
    서버 `cancel_order` 도 같은 두 신호로 한 겹 더 막는다(발송처리와 같은 규율). #}
-{% set can_cancel = not locked and not dispatched_any and not naver_sent_at %}
+{# `cancel_sendable_count > 0 and not cancel_scope_gap`(NVCLAIM-PARTIAL-01): 보낼 것이 하나도
+   없거나 범위 규격에 걸리는 집은 열지 않는다 — `can_dispatch` 의 `dispatch_pending_count > 0`,
+   `can_return` 의 `return_scope_gap` 과 같은 규율. 술어는 서버 `fulfillment.cancel_sendable`
+   한 벌(return_sendable 거울)이고, 서버 `cancel_order` 가 같은 술어로 한 겹 더 막는다. #}
+{# `household_claimed` 는 안 본다(NVCLAIM-PARTIAL-01, 2026-09-11 — 아래 반품 술어의 RC3 개정과
+   같은 이유). 형제가 판매자센터에서 이미 취소된 집(운영 #2354: 8건 중 4건 CANCEL_DONE)은
+   `claim_blocking` 이 집을 통째로 잠가 **남은 4건을 FOMS 에서 취소할 길이 없었다**. 형제
+   클레임은 행 단위 `cancel_sendable`(→ `cancel_sendable_count`)이 이미 거르고, 서버
+   `cancel_order` 도 `_claim_guard(scope=todo)` 로 같은 행만 본다. 우리가 집 단위로 취소한
+   집(`household_canceled` = `cancel_lock`)은 그대로 잠근다. #}
+{% set can_cancel = not household_canceled and not dispatched_any and not naver_sent_at
+                    and cancel_sendable_count > 0 and not cancel_scope_gap %}
 {# 반품 접수(T8-S1)가 **실제로 나갈** 건수. 술어는 서버와 한 벌
    (`fulfillment.is_return_pending`) — 집 전체 수로 재진술하면 부분 발송 집에서
    "3건 접수합니다"라고 읽히는데 서버는 나간 1건만 보낸다. **불가역 경로라 그 과대
@@ -386,7 +411,7 @@
             {% if not dispatched_any %}
             <button type="button"
                     class="btn btn-sm {{ 'btn-outline-danger' if can_cancel else 'btn-outline-secondary' }}"
-                    id="wb-cancel" {% if can_cancel %}data-bs-toggle="modal" data-bs-target="#wb-modal-cancel"{% else %}disabled title="{{ lock_why or naver_sent_why }}"{% endif %}>
+                    id="wb-cancel" {% if can_cancel %}data-bs-toggle="modal" data-bs-target="#wb-modal-cancel"{% else %}disabled title="{{ lock_why or naver_sent_why or cancel_lock_why }}"{% endif %}>
                 취소처리
             </button>
             {% endif %}
@@ -854,6 +879,12 @@
                         {% endif %}
                         {% else %}
                         <span class="small text-muted">클레임 없음</span>
+                        {% endif %}
+                        {# 우리가 보낸 **취소** 표식(NVCLAIM-PARTIAL-01). 부분 취소 뒤 다음 수집
+                           전까지 형제 스냅샷에는 클레임이 없다 — 이 줄이 없으면 우리가 취소한
+                           라인과 안 건드린 라인이 표에서 같아 보인다(반품 축 `우리 접수` 거울). #}
+                        {% if row.cancel_requested_at %}
+                        <div class="small text-muted">우리 취소 {{ row.cancel_requested_at }}</div>
                         {% endif %}
                         {% if row.return_requested_at %}
                         <div class="small text-muted">우리 접수 {{ row.return_requested_at }}</div>
@@ -1649,11 +1680,63 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
             </div>
             <div class="modal-body">
-                {# ① 건수 재진술 #}
+                {# ① 건수 재진술 — **서버가 실제로 보낼 대상**이다(계약 §0-2, NVCLAIM-PARTIAL-01 C1).
+                   게이트 ON(`partial_claim_enabled and cancel_plan` — 이 순서를 지킨다: 서버가 키를
+                   안 주면 undefined 로 else 갈래를 탄다): 서버 `plan_claim_scope` 가 준 `todo`(호출
+                   순서)를 건수·**목록**으로 재진술하고(2026-09-01 규율 "건수가 아니라 목록"), 아래
+                   체크가 바뀌면 JS 가 `claim-plan` 미리보기를 다시 받아 같은 자리를 갱신한다 —
+                   화면은 서버 계획을 재진술만 하고 자동 동반도 서버가 붙인다.
+                   게이트 OFF: 오늘 모달 그대로(건수만 `cancel_sendable_count`). #}
+                {% if partial_claim_enabled and cancel_plan %}
                 <p class="fw-semibold mb-2">
-                    {{ selected.naver.recipient_name }}님의 상품주문 {{ member_count }}건을
+                    {{ selected.naver.recipient_name }}님의 상품주문 <b id="wb-cancel-selected-count">{{ cancel_plan.todo|length }}</b>건을
                     네이버에서 <b>판매자 직접취소</b> 합니다.
+                    <span class="d-block small text-muted fw-normal">대상 상품주문: <span id="wb-cancel-selected-list">{{ cancel_plan.todo|join(', ') }}</span></span>
                 </p>
+                {# 상품주문 목록 — 체크 가능/불가는 서버 술어(`row.sendable` = `fulfillment.cancel_sendable`)
+                   로만 가른다. 분기는 전부 불리언·코드(`reason_code`)다 — 한국어 라벨을 `==` 로
+                   비교하지 않는다(멤버 표 규율). 자동 동반 행(`row.auto`)은 체크·잠금 상태로 그린다.
+                   8행 이상 집에서는 `.wb-scope`(max-height 40vh) 안에서 목록만 스크롤한다. #}
+                <ul class="wb-scope list-unstyled mb-2" id="wb-cancel-scope" data-wb-scope="cancel" data-link-id="{{ target_id }}">
+                    {% for row in cancel_plan.rows %}
+                    <li class="wb-scope__row{% if not row.sendable %} wb-scope__row--off{% endif %}" data-po="{{ row.external_id }}">
+                        <input type="checkbox" class="form-check-input wb-scope-pick" name="po" value="{{ row.external_id }}"
+                               id="wb-cancel-po-{{ row.link_id }}" data-link-id="{{ row.link_id }}"
+                               data-addon="{{ 1 if row.is_addon else 0 }}" data-sendable="{{ 1 if row.sendable else 0 }}"
+                               data-auto="{{ 1 if row.auto else 0 }}"
+                               {% if row.selected or row.auto %}checked{% endif %}
+                               {% if not row.sendable or row.auto %}disabled{% endif %}>
+                        <label class="form-check-label" for="wb-cancel-po-{{ row.link_id }}">
+                            <span class="fw-semibold">{{ row.external_id }}</span>
+                            · {% if row.product_class_known %}{{ '추가구성상품' if row.is_addon else '본품' }}{% else %}구성 미상{% endif %}
+                            · {{ row.product }}
+                            · {{ '{:,}'.format(row.amount) if row.amount is not none else '–' }}원
+                            <span class="wb-scope__note" data-po-note="{{ row.external_id }}">{% if row.auto %}본품과 함께 자동 포함{% else %}{{ row.reason }}{% endif %}</span>
+                        </label>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {# 자동 동반 안내(결정 3) — 본품을 고르면 남은 추가구성상품이 함께 간다(FAQ 3880).
+                   `hidden` 토글은 JS. `.d-block` 금지(`hidden` 을 이긴다 — 승인 경고 함정). #}
+                <div class="alert alert-warning py-2 mb-2" id="wb-cancel-scope-auto" data-foms-no-autodismiss {% if not cancel_plan.auto_added %}hidden{% endif %}>
+                    본품과 함께 가야 하는 추가구성상품 <b id="wb-cancel-auto-count">{{ cancel_plan.auto_added|length }}</b>건이 자동으로 포함됩니다(네이버 규격).
+                </div>
+                <div class="alert alert-danger py-2 mb-2" id="wb-cancel-scope-error" data-foms-no-autodismiss {% if cancel_plan.ok %}hidden{% endif %}>{{ cancel_plan.message }}</div>
+                <p class="small text-muted mb-2" id="wb-cancel-scope-rest">고르지 않은 <b id="wb-cancel-rest-count">{{ member_count - (cancel_plan.todo|length) }}</b>건은 그대로 남습니다.</p>
+                {% else %}
+                <p class="fw-semibold mb-2">
+                    {{ selected.naver.recipient_name }}님의 상품주문 {{ cancel_sendable_count }}건을
+                    네이버에서 <b>판매자 직접취소</b> 합니다.
+                    {# 집 전체와 다르면 왜 다른지 말한다(반품 모달 부기 거울) — 형제가 판매자센터에서
+                       이미 취소·발송된 집에서 "8건" 이라 읽히던 자리다(#2354). #}
+                    {% if cancel_sendable_count != member_count %}
+                    <span class="d-block small text-muted fw-normal">
+                        이 집은 상품주문 {{ member_count }}건인데 <b>취소를 보낼 수 있는 {{ cancel_sendable_count }}건만</b> 나갑니다 —
+                        이미 취소됐거나 클레임이 걸린 건은 판매자센터를 따릅니다.
+                    </span>
+                    {% endif %}
+                </p>
+                {% endif %}
                 {# ② 되돌릴 수 없음 #}
                 <div class="alert alert-danger py-2 mb-2" data-foms-no-autodismiss>
                     네이버로 나가는 호출이라 <b>되돌릴 수 없습니다</b>. 구매자에게 결제
@@ -1689,8 +1772,11 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">닫기</button>
+                {# 서버 계획이 `ok` 가 아니면(빈 선택·범위 규격·불가 행) 닫힌 채 그린다 — JS 가
+                   미리보기마다 `disabled = !plan.ok` 로 다시 맞춘다. #}
                 <button type="button" class="btn btn-danger" id="wb-cancel-confirm"
-                        data-link-id="{{ target_id }}">취소 보내기</button>
+                        data-link-id="{{ target_id }}"
+                        {% if partial_claim_enabled and cancel_plan and not cancel_plan.ok %}disabled{% endif %}>취소 보내기</button>
             </div>
         </div>
     </div>
@@ -1708,6 +1794,40 @@
             <div class="modal-body">
                 {# ① 건수 재진술 — **서버가 실제로 보낼 건수**다(계약 §0-2).
                       집 전체 수를 쓰면 부분 발송 집에서 과대 진술이 된다. #}
+                {# 게이트 ON(NVCLAIM-PARTIAL-01) — 취소 모달의 거울. 서버 `plan_claim_scope(action="return")`
+                   의 `todo` 를 건수·목록으로 재진술하고 체크 목록을 그린다(`row.sendable` =
+                   `fulfillment.return_sendable`). 분기 순서 `partial_claim_enabled and return_plan` 유지. #}
+                {% if partial_claim_enabled and return_plan %}
+                <p class="fw-semibold mb-2">
+                    {{ selected.naver.recipient_name }}님의 상품주문 <b id="wb-return-selected-count">{{ return_plan.todo|length }}</b>건을
+                    네이버에 <b>판매자 반품 접수</b> 합니다.
+                    <span class="d-block small text-muted fw-normal">대상 상품주문: <span id="wb-return-selected-list">{{ return_plan.todo|join(', ') }}</span></span>
+                </p>
+                <ul class="wb-scope list-unstyled mb-2" id="wb-return-scope" data-wb-scope="return" data-link-id="{{ target_id }}">
+                    {% for row in return_plan.rows %}
+                    <li class="wb-scope__row{% if not row.sendable %} wb-scope__row--off{% endif %}" data-po="{{ row.external_id }}">
+                        <input type="checkbox" class="form-check-input wb-scope-pick" name="po" value="{{ row.external_id }}"
+                               id="wb-return-po-{{ row.link_id }}" data-link-id="{{ row.link_id }}"
+                               data-addon="{{ 1 if row.is_addon else 0 }}" data-sendable="{{ 1 if row.sendable else 0 }}"
+                               data-auto="{{ 1 if row.auto else 0 }}"
+                               {% if row.selected or row.auto %}checked{% endif %}
+                               {% if not row.sendable or row.auto %}disabled{% endif %}>
+                        <label class="form-check-label" for="wb-return-po-{{ row.link_id }}">
+                            <span class="fw-semibold">{{ row.external_id }}</span>
+                            · {% if row.product_class_known %}{{ '추가구성상품' if row.is_addon else '본품' }}{% else %}구성 미상{% endif %}
+                            · {{ row.product }}
+                            · {{ '{:,}'.format(row.amount) if row.amount is not none else '–' }}원
+                            <span class="wb-scope__note" data-po-note="{{ row.external_id }}">{% if row.auto %}본품과 함께 자동 포함{% else %}{{ row.reason }}{% endif %}</span>
+                        </label>
+                    </li>
+                    {% endfor %}
+                </ul>
+                <div class="alert alert-warning py-2 mb-2" id="wb-return-scope-auto" data-foms-no-autodismiss {% if not return_plan.auto_added %}hidden{% endif %}>
+                    본품과 함께 가야 하는 추가구성상품 <b id="wb-return-auto-count">{{ return_plan.auto_added|length }}</b>건이 자동으로 포함됩니다(네이버 규격).
+                </div>
+                <div class="alert alert-danger py-2 mb-2" id="wb-return-scope-error" data-foms-no-autodismiss {% if return_plan.ok %}hidden{% endif %}>{{ return_plan.message }}</div>
+                <p class="small text-muted mb-2" id="wb-return-scope-rest">고르지 않은 <b id="wb-return-rest-count">{{ member_count - (return_plan.todo|length) }}</b>건은 그대로 남습니다.</p>
+                {% else %}
                 <p class="fw-semibold mb-2">
                     {{ selected.naver.recipient_name }}님의 상품주문 <b>{{ return_sendable_count }}건</b>을
                     네이버에 <b>판매자 반품 접수</b> 합니다.
@@ -1727,6 +1847,7 @@
                     </span>
                     {% endif %}
                 </p>
+                {% endif %}
                 {# ② 되돌릴 수 없음 #}
                 <div class="alert alert-danger py-2 mb-2" data-foms-no-autodismiss>
                     네이버로 나가는 호출이라 <b>되돌릴 수 없습니다</b>. 접수하면 구매자에게
@@ -1796,7 +1917,8 @@
             <div class="modal-footer">
                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">닫기</button>
                 <button type="button" class="btn btn-danger" id="wb-return-confirm"
-                        data-link-id="{{ target_id }}">반품 접수 보내기</button>
+                        data-link-id="{{ target_id }}"
+                        {% if partial_claim_enabled and return_plan and not return_plan.ok %}disabled{% endif %}>반품 접수 보내기</button>
             </div>
         </div>
     </div>
