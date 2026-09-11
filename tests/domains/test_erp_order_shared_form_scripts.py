@@ -573,6 +573,9 @@ def test_structured_put_preserves_estimate_preview_state() -> None:
     keys_end = text.index("def _merge_preserving_missing", keys_start)
     keys_block = text[keys_start:keys_end]
     assert "'estimate_preview'" in keys_block
+    # 2026-09-10 주문 5177: 이 키가 목록에 없어서 폼 저장 1회로 도면 마법사 캔버스가
+    # 통째로 사라졌다(diff change_count 0). 빼면 여기서 빨개진다.
+    assert "'drawing_wizard'" in keys_block
     assert "'channeltalk_push'" in keys_block
     assert "'channeltalk_push_drawing'" in keys_block
     assert "'channeltalk_push_estimate'" in keys_block
