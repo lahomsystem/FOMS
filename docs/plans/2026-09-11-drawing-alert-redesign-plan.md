@@ -46,9 +46,11 @@
   마법사엔 소켓·write helper·확인창 + `wizard-alert-bridge.js`.
   로컬 dev 실브라우저 E2E: 실제 request-revision 200 → 마법사에 확인창 등장 → ack 200·read 200 →
   닫힘, 콘솔 에러 0.
-- **T4** — 진행 중(pre_push_smoke → deploy push → CI 4종).
+- **T4 DONE** — deploy `30722831b` CI 4종 green → 스테이징 확인 → **운영 반영 PR #350 · production `401ebeb45`**.
+- **T5 DONE (취소 쪽지 등급)** — deploy `65c955ea7` → **운영 반영 PR #352 · production `36c6b4cfe`**.
+  `DRAWING_REVISION_CANCELLED` payload 에 `notice: True`, 오른쪽 아래 쪽지(자동 닫힘 없음, 닫기가 read).
+  공용 소켓 핸들러 두 사본은 `FOMSDrawingAlert.handle(data)` 로 일원화. 자산 핀 `?v=20260911b`.
 
 ## 남은 판단거리(사용자 몫)
 
-- 수정 요청 **취소**는 지금 확인창을 안 띄운다(쪽지 등급 미구현 — 종 배지 그대로). 필요하면 추가.
 - 웹푸시 구독이 도면팀 3인 중 2개뿐이다. 화면을 안 보고 있을 때의 도달은 그만큼만 보장된다.
