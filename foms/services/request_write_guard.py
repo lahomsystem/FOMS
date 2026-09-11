@@ -192,9 +192,36 @@ def _derived_seed() -> str | None:
     파생한다. 어느 워커에서 계산하든 같은 값이라 쿠키 경합의 영향을 받지 않는다.
     토큰은 여전히 secret 을 모르면 만들 수 없고, 사용자·secret 이 바뀌면 무효가 된다.
 
+    seed 의 기준 주체는 **실제 로그인 주체**(impersonation 중이면 원래 관리자)다.
+    관리자 계정 전환(switch-user)/복귀(switch-back)은 ``session['user_id']`` 를 바꾸므로,
+    seed 를 ``user_id`` 에 묶으면 전환 직전에 렌더된 다른 탭의 토큰이 전부 무효가 되어
+    ``invalid_csrf_token`` 403 이 된다(2026-09-11 switch-back 403 사고). 전환 전/중/후에
+    변하지 않는 ``impersonating_from or user_id`` 를 쓰면 같은 로그인 주체의 토큰이 전환
+    경계를 넘어 유효하다.
+
     :return: 로그인 상태면 파생 seed hex 문자열, 비로그인/secret 부재면 ``None``.
     """
-    user_id = _session_user_id()
+    return _derive_seed_for(_csrf_principal_id())
+
+
+def _csrf_principal_id() -> int | None:
+    """CSRF seed 의 기준이 되는 주체 id — impersonation 중에도 변하지 않는다.
+
+    :return: 전환 중이면 원래 관리자 id, 아니면 세션 user id. 비로그인이면 ``None``.
+    """
+    try:
+        impersonator = int(session.get("impersonating_from"))
+    except (TypeError, ValueError):
+        impersonator = None
+    return impersonator if impersonator is not None else _session_user_id()
+
+
+def _derive_seed_for(user_id: int | None) -> str | None:
+    """``user_id`` + ``secret_key`` 로 결정적 seed 를 만든다.
+
+    :param user_id: 기준 주체 id. ``None`` 이면 파생 불가.
+    :return: 파생 seed hex 문자열 또는 ``None``.
+    """
     if user_id is None:
         return None
     secret = current_app.secret_key
@@ -256,6 +283,13 @@ def validate_csrf_token(token: str | None) -> bool:
     derived = _derived_seed()
     if derived and hmac.compare_digest(unsigned, derived):
         return True
+    # impersonation 중에는 **전환된 계정** id 로 파생한 토큰도 인정한다: 이 커밋 이전에
+    # 렌더된 페이지(전환 계정 seed)와 배포 경계를 넘어온 탭을 깨지 않기 위한 호환 경로다.
+    impersonated = _session_user_id()
+    if impersonated is not None and impersonated != _csrf_principal_id():
+        legacy = _derive_seed_for(impersonated)
+        if legacy and hmac.compare_digest(unsigned, legacy):
+            return True
     seed = session.get(_CSRF_SESSION_KEY)
     if seed and hmac.compare_digest(unsigned, str(seed)):
         return True
