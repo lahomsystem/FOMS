@@ -173,6 +173,11 @@ def api_order_request_revision(order_id):
                 'notification_type': 'DRAWING_REVISION',
                 'title': new_notification.title,
                 'message': new_notification.message,
+                'created_by_name': current_user.name,
+                # ACTION-REQUIRED 등급: 도면팀 화면에 확인을 눌러야 닫히는 창을 띄운다.
+                # 등급 판정은 서버가 한다(프런트는 이 키만 본다). 긴급 호출(P0, urgent)과 달리
+                # 전체화면 빨강이 아니라 중앙 확인창이다 — 2026-09-11 알림 개편.
+                'interrupt': True,
             },
         )
 
