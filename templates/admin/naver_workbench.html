@@ -23,6 +23,7 @@
 {% endblock %}
 
 {% block content %}
+{{ mark('wb_head_region') }}
 <div class="container-fluid naver-workbench"
      data-active-tab="{{ active_tab }}" data-active-filter="{{ active_filter }}">
 
@@ -660,6 +661,7 @@
 
     <div class="wb-split">
 
+{{ mark('wb_head_region') }}
         <section class="card shadow-sm">
             <div class="card-header py-2 d-flex flex-wrap align-items-center gap-2">
                 <span class="small fw-semibold">처리할 주문</span>
@@ -1212,6 +1214,7 @@
       **대상 집은 서버가 link_id 로 다시 계산한다** — 여기 적힌 건수는 사람이 읽는 재진술이지
       처리 대상 지정이 아니다(일괄 발송처리와 같은 규율).
     #}
+{{ mark('wb_modals') }}
     <div class="modal fade" id="wb-modal-origin-cancel" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
@@ -1309,6 +1312,7 @@
         </div>
     </div>
 </div>
+{{ mark('wb_modals') }}
 {% endblock %}
 
 {% block scripts %}

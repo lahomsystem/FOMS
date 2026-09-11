@@ -58,3 +58,30 @@ def test_template_mark_alone_records_nothing() -> None:
 def test_template_mark_outside_request_is_silent() -> None:
     """요청 밖에서 불려도 예외 없이 빈 문자열."""
     assert template_mark("no_request") == ""
+
+
+def test_mark_is_registered_as_a_jinja_global() -> None:
+    """셸 파셜이 `mark` 를 부른다 — 전역이 빠지면 모든 페이지가 UndefinedError 로 죽는다."""
+    import app as _app_module
+
+    assert _app_module.app.jinja_env.globals.get("mark") is template_mark
+
+
+def test_template_marks_are_balanced_pairs() -> None:
+    """마커는 **짝**이어야 구간이 된다. 홀수면 그 이름은 조용히 사라진다."""
+    import re
+    from collections import Counter
+
+    watched = [
+        "templates/admin/naver_workbench.html",
+        "templates/partials/shared/layout_head.html",
+        "templates/partials/shared/layout_nav.html",
+        "templates/partials/shared/layout_scripts.html",
+    ]
+    counts: Counter = Counter()
+    for rel in watched:
+        text = (_REPO_ROOT / rel).read_text(encoding="utf-8")
+        counts.update(re.findall(r"\{\{\s*mark\('([a-z0-9_]+)'\)\s*\}\}", text))
+    assert counts, "마커가 하나도 없다 — 계측이 통째로 사라졌다"
+    odd = {name: n for name, n in counts.items() if n % 2}
+    assert not odd, f"짝이 안 맞는 마커: {odd}"
