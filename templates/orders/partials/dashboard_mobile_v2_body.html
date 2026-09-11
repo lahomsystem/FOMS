@@ -48,6 +48,9 @@
   data-page-label="{{ page }} / {{ total_pages }}">
   {% include 'orders/partials/dashboard_mobile_filter_sheet.html' %}
 
+  {% include 'orders/partials/draft_resume_bar.html' %}
+  </div>
+
   {% if risk_frame %}{% include 'orders/partials/risk_frame.html' %}{% endif %}
 
   {#- A1: 가장 오래된 접수 히어로 (대상 0건이거나 위험 드릴다운이면 비노출). -#}
