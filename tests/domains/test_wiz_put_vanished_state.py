@@ -272,3 +272,45 @@ def test_put_on_live_state_still_preserves_server_owned_keys(client):
     assert _stored_dw(order_id)["versions"] == [
         {"v": 1, "key": "orders/1/versions/v1.json"}
     ]
+
+
+# --------------------------------------------------------------------------- #
+# 7. 409 vanished 뒤 복귀 — 확인창이 약속한 "저장 버튼을 누르면 저장된다"를 못박는다
+# --------------------------------------------------------------------------- #
+def test_client_can_recover_after_vanished_conflict(client):
+    """상태 소실 → base 있는 저장 409 → base 없이 재저장 → 200 으로 내 화면이 저장된다.
+
+    클라이언트 handleConflict 의 vanished [취소] 분기는 ``baseUpdatedAt = null`` 로 내린다.
+    그 계약이 서버에서 실제로 통하는지 — 즉 사용자가 확인창을 승인한 뒤 저장 버튼을 누르면
+    정말 저장되는지 — 를 서버 경로로 고정한다. 이 시퀀스가 깨지면 사용자는 409 를 무한히
+    맞는 막다른 길에 갇히고 확인창 문구가 거짓말이 된다(2026-09-11 리뷰 P1).
+    """
+    _login_admin(client)
+    order = _erp_order()
+    order_id = order.id
+
+    first = _put(client, order_id, _state("원본", objects=[_pen()]), base=None)
+    assert first.status_code == 200, first.get_json()
+    base = first.get_json()["data"]["updated_at"]
+
+    # 폼 전체 저장이 drawing_wizard 를 통째로 지운 상황을 재현
+    db_session.expire_all()
+    o = db_session.query(Order).filter_by(id=order_id).first()
+    sd = copy.deepcopy(o.structured_data)
+    sd.pop("drawing_wizard", None)
+    o.structured_data = sd
+    flag_modified(o, "structured_data")
+    db_session.commit()
+
+    # 1) 편집 중이던 탭의 저장은 막힌다
+    blocked = _put(client, order_id, _state("내 화면", objects=[_pen()]), base=base)
+    assert blocked.status_code == 409, blocked.get_json()
+    assert blocked.get_json().get("conflict_reason") == "vanished"
+
+    # 2) 사용자가 확인창에서 [취소](내 화면 유지)를 고른 뒤 저장 버튼 → base=null 로 재시도
+    recovered = _put(client, order_id, _state("내 화면", objects=[_pen()]), base=None)
+    assert recovered.status_code == 200, recovered.get_json()
+
+    stored = _stored_dw(order_id)
+    assert stored["sheets"][0]["name"] == "내 화면"
+    assert len(stored["sheets"][0]["objects"]) == 1, "되살린 저장이 캔버스를 비운 채 들어갔다"

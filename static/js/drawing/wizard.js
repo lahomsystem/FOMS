@@ -3335,7 +3335,13 @@
     } else {
       // 내 버전 유지 → 덮어쓰기는 사람이 저장 버튼을 눌러야만 가능(자동 저장이 조용히 서버를 덮지 못하게).
       autosaveSuspended = true;
-      if (!vanished) {
+      if (vanished) {
+        // 서버 상태가 사라졌음을 사용자가 확인창으로 승인했다 → 다음 수동 저장은 '정당한 최초 저장'이다.
+        // null 로 내리지 않으면 서버 가드(wizard.py 의 `elif base_updated_at:`)에 매번 걸려 수동
+        // 저장까지 영원히 409 가 되고, 확인창의 '저장 버튼을 눌러 주세요' 가 거짓 약속이 된다.
+        // 그 사이 다른 사람이 상태를 새로 만들었으면 base=null vs saved dict 로 409 stale 이 다시 잡는다.
+        baseUpdatedAt = null;
+      } else {
         baseUpdatedAt = (cdata && cdata.server_updated_at) || baseUpdatedAt;
       }
       toast('내 버전을 유지합니다. 저장하려면 저장 버튼을 눌러 주세요.');
