@@ -31,7 +31,16 @@ from db import get_db
 from foms.services.common.ept_b7_profile import apply_ept_b7_render_headers, phase
 from foms.services.datetime_kst import (format_datetime_kst, get_today_kst,
                                         now_kst, now_utc_naive)
+from foms.services.feature_flags import (
+    is_naver_workbench_enabled as _is_naver_workbench_enabled,
+)
 from foms.services.integrations.naver_commerce.constants import SELLER_CENTER_URL
+# 뱃지 숫자 엔드포인트가 쓴다. 모듈 상단 import 다 — 함수 안 지연 import 는 계층 래칫
+# (tests/contracts/runtime/test_layer_dependency_ratchet.py)이 새로 늘어나는 것을 막는다.
+# triage_count 는 web 을 상단에서 import 하지 않으므로(자기 함수 안에서만 부른다) 순환이 아니다.
+from foms.services.integrations.naver_commerce.triage_count import (
+    get_triage_pending_count,
+)
 from foms.services.integrations.naver_commerce.fulfillment import CLOSE_NOW_RELATIONS
 from foms.services.integrations.naver_commerce.mapping import (
     CLAIM_BLOCK_KEYS,
@@ -2630,14 +2639,9 @@ def naver_ingest_triage_pending_count():
     Returns:
         ``{"success": True, "data": {"count": int}}``.
     """
-    from foms.services.feature_flags import is_naver_workbench_enabled
-    from foms.services.integrations.naver_commerce.triage_count import (
-        get_triage_pending_count,
-    )
-
     db = get_db()
     count = get_triage_pending_count(
-        db, workbench=is_naver_workbench_enabled(session.get("user_id")))
+        db, workbench=_is_naver_workbench_enabled(session.get("user_id")))
     return jsonify({"success": True, "data": {"count": int(count)}, "error": None})
 
 
