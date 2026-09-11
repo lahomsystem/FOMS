@@ -10,6 +10,8 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
+from foms.services.datetime_kst import now_utc_naive
+
 from models import OrderDraft
 
 _DRAFT_V1_REQUIRED = frozenset({"schema_version", "step", "data"})
@@ -102,6 +104,48 @@ def get_draft(db: Session, user_id: int, draft_key: str) -> OrderDraft | None:
             OrderDraft.draft_key == draft_key.strip(),
         )
         .one_or_none()
+    )
+
+
+def list_open_drafts(
+    db: Session,
+    user_id: int,
+    *,
+    limit: int = 20,
+    now: datetime.datetime | None = None,
+) -> list[OrderDraft]:
+    """아직 주문이 되지 않은 내 초안을 최신순으로 준다.
+
+    초안은 TTL 이 지나면 조용히 사라진다(``new.*`` 7일·``edit.*`` 24시간). 목록이 없던
+    시절에는 화면을 한 번 떠난 사용자가 그것을 되찾을 방법이 아예 없었다 — 실제로
+    2026-09-02·09-03·09-10 세 건이 그렇게 유실됐다.
+
+    셋을 모두 건다(하나라도 빠지면 남의 초안이나 죽은 초안이 목록에 선다):
+
+    * ``user_id`` — 본인 소유만.
+    * ``order_id IS NULL`` — 이미 주문이 된 초안(편집 초안)은 "작성 중"이 아니다.
+    * ``expires_at > now`` — 만료분은 곧 정리 대상이라 이어서 쓸 수 없다.
+
+    Args:
+        db: 조회 세션.
+        user_id: 초안 주인.
+        limit: 최대 행 수(과도한 목록을 막는 상한).
+        now: 만료 기준 시각(UTC naive). 생략하면 현재.
+
+    Returns:
+        ``updated_at`` 내림차순 ``OrderDraft`` 목록.
+    """
+    threshold = now if now is not None else now_utc_naive()
+    return (
+        db.query(OrderDraft)
+        .filter(
+            OrderDraft.user_id == user_id,
+            OrderDraft.order_id.is_(None),
+            OrderDraft.expires_at > threshold,
+        )
+        .order_by(OrderDraft.updated_at.desc(), OrderDraft.id.desc())
+        .limit(max(1, int(limit)))
+        .all()
     )
 
 

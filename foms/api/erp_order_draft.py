@@ -11,6 +11,7 @@ from flask import Blueprint, jsonify, request, session
 from sqlalchemy.orm import Session
 
 from db import get_db
+from models import OrderDraft
 from foms.services.feature_flags import env_bool, wizard_new_order_enabled
 from foms.api.files.routes import build_file_view_url
 from foms.services.order_draft_attachments import (
@@ -27,11 +28,12 @@ from foms.services.order_draft_service import (
     format_updated_at,
     get_draft,
     get_draft_send_history,
+    list_open_drafts,
     upsert_draft,
     validate_draft_payload,
 )
 from foms.services.storage import get_storage
-from foms.services.datetime_kst import get_today_kst, now_kst
+from foms.services.datetime_kst import format_datetime_kst, get_today_kst, now_kst
 from foms.services.orders.estimate_defaults import (
     ERP_DRAFT_PLACEHOLDER_CUSTOMER,
     ERP_DRAFT_PLACEHOLDER_PHONE,
@@ -282,6 +284,77 @@ def api_get_order_draft() -> tuple[Any, int]:
     if row is None:
         return jsonify({"success": True, "draft": None}), 200
     return jsonify({"success": True, "draft": draft_to_api_dict(row)}), 200
+
+
+def _draft_list_row(row: OrderDraft) -> dict[str, Any]:
+    """초안 1건을 목록 카드 한 줄로 줄인다.
+
+    고객명·주소는 등록(submit)이 읽는 것과 **같은 변환**(:func:`_draft_payload_to_structured`)
+    으로 뽑는다. 두 경로가 갈리면 목록에 보이는 이름과 등록되는 이름이 달라진다.
+    어느 칸이든 비어 있을 수 있으므로(초안이다) 없으면 ``None`` 이다.
+
+    ``files_count`` 는 **payload 에 적힌** 첨부 수다 — 스토리지 실재 확인은 하지 않는다
+    (목록 한 번에 수십 번의 객체 조회가 붙는다). 카드의 참고 숫자일 뿐이고, 실제 전송·승격
+    판정은 여전히 ``collect_draft_measure_files``·``promote_draft_attachments`` 가 한다.
+    """
+    payload = row.payload if isinstance(row.payload, dict) else {}
+    data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
+    structured = _draft_payload_to_structured(data)
+    customer = ((structured.get("parties") or {}).get("customer") or {})
+    name = (customer.get("name") or "").strip()
+    address = ((structured.get("site") or {}).get("address_full") or "").strip()
+    items = structured.get("items") if isinstance(structured.get("items"), list) else []
+
+    files_count = 0
+    raw_items = data.get("items") if isinstance(data.get("items"), list) else []
+    for item in raw_items:
+        if isinstance(item, dict) and isinstance(item.get("attachments"), list):
+            files_count += len(item["attachments"])
+
+    history = row.send_history if isinstance(row.send_history, dict) else {}
+    # 시각 표시는 **서버가 KST 로 만들어 보낸다**. DB 값은 naive UTC 라 클라이언트가
+    # Date 로 파싱하면 9시간이 밀리고, "만료까지 n일"이 하루씩 어긋난다.
+    expires_in_days = None
+    if row.expires_at is not None:
+        expires_in_days = max(0, (row.expires_at - now_utc_naive()).days)
+    return {
+        "draft_key": row.draft_key,
+        "step": row.step,
+        "updated_at": format_updated_at(row.updated_at),
+        "updated_label": format_datetime_kst(row.updated_at, "%m-%d %H:%M"),
+        "expires_at": format_updated_at(row.expires_at),
+        "expires_in_days": expires_in_days,
+        "customer_name": name or None,
+        "address": address or None,
+        "items_count": len(items),
+        "files_count": files_count,
+        # 발송은 했는데 등록을 안 한 초안. 이 목록이 생긴 이유 그 자체라 카드에 배지로 세운다.
+        "has_send_history": any(
+            isinstance(entry, dict) and entry.get("pushed") or entry.get("sent")
+            for entry in history.values()
+        ),
+    }
+
+
+@erp_order_draft_bp.route("/order-draft/list", methods=["GET"])
+@login_required
+@role_required(["ADMIN", "MANAGER", "STAFF"])
+def api_list_order_drafts() -> tuple[Any, int]:
+    """아직 주문이 되지 않은 내 초안 목록(작성 중인 주문).
+
+    게이트는 초안 라우트 5종과 같다. 남의 초안·이미 주문이 된 초안·만료분은 서비스
+    계층에서 걸러진다(:func:`list_open_drafts`).
+    """
+    blocked = _require_wizard()
+    if blocked is not None:
+        return blocked
+
+    uid = _user_id()
+    if uid is None:
+        return jsonify({"success": False, "error": "UNAUTHORIZED"}), 401
+
+    rows = list_open_drafts(get_db(), uid, now=now_utc_naive())
+    return jsonify({"success": True, "data": {"drafts": [_draft_list_row(r) for r in rows]}}), 200
 
 
 @erp_order_draft_bp.route("/order-draft", methods=["PUT"])
