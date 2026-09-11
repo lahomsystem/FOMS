@@ -12,12 +12,11 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 ## 진행 중
 - [2026-09-11] **도면 마법사 캔버스 소실 사고 종결(production `5564994a6`·PR #353)** — 주문 폼 전체 저장 1회가 `drawing_wizard` 를 통째 삭제(보존 목록 누락, 감사엔 `변경 0건`). 같은 자리 6번째라 등재 대신 **비-폼 키 기본 보존**으로 뒤집음. 피해=마법사 쓴 주문 2건 전부, **둘 다 R2 스냅샷으로 복구**. 기록 `docs/plans/2026-09-11-drawing-wizard-data-loss-incident.md`
 - [2026-09-10] **추가결제 행 `주문 만듦` 배지 접기 + ERP 도크 예약금 카드 → 결제 금액 한 줄(PR #341 · production `a1ec42996`)** — 사용자 지시(#5206 김도희). 서버 판정 `foms_badge_hidden`, 도크는 서버 `relation_label`·`live_total_display` 두 노드만(설명문 전부 제거) · 워크벤치 정리 계획 카드·검색 붙이기·완료 패널도 같은 규칙(PR #342 · production `89561e10a`) · 09-11 dock.py 옛 예약금 키·헬퍼 제거(PR #348 · production `ee4526737`). 원장 `docs/plans/2026-09-10-addon-badge-dock-brief.md`. 스테이징 QA PASS 후 승격
-- [2026-09-10] **정산 동기화 루프 매일 05:31 사망 근본 수정(deploy 대기 → 운영 승격 예정)** — 성공 tick 의 `_heartbeat_metadata` 가 `int(dict)` 로 터지고 그 줄이 try 밖이라 루프가 죽어 다음 재배포까지 STALE. 합산 `_count` + 조립 가드 + 회귀 2건. 원장 `docs/incidents/2026-09-10-settle-loop-dies-after-success-tick.md`
+- [2026-09-11] **탭 왕복 느림 — 범인은 렌더가 아니라 조회(deploy `81ffe843d`)** — `with phase("wb_template")` 안에 `render_template` 호출만 두면 **인자 식이 먼저 평가돼** 그 조회들이 템플릿 시간으로 계상된다. 쪼개 재니 진짜 Jinja 는 5~7ms, 나머지는 조회였다(이력 탭: 처리 목록 308~355 · 이력 74~104 · 다시 읽기 버튼 상태 65~253 · pane 42~45). 최대 몫은 **이력 탭이 안 쓰는 처리 목록을 통째로 도는 것**. 원장 `docs/plans/2026-09-11-tab-roundtrip-slowdown-measurements.md` §10
+- [2026-09-10] **정산 동기화 루프 매일 05:31 사망 근본 수정(PR #340 · production `d8e4bb196`)** — 성공 tick 의 `_heartbeat_metadata` 가 `int(dict)` 로 터지고 그 줄이 try 밖이라 루프가 죽어 STALE. 원장 `docs/incidents/2026-09-10-settle-loop-dies-after-success-tick.md`
 - [2026-09-10] **운영 대기분 선별 승격(PR #339 · production `3888da9ab`)** — 원장 `docs/plans/2026-09-09-production-pending-triage.md`. 지난 날짜 발송 띠·ACL·백필 갈래 철회·drift 924·perf 18466·하네스/문서 동기화. **로그인 잠금(`40d25bb1b`)만 deploy 잔류(사용자 보류)**
-- [2026-09-09] **AS 전달 배정 스테이징 반영(deploy `3c2253802`)** — 영업/택배 건을 근처 실측 일정에 태운다. 스펙·원장 `2026-09-09-as-sales-delivery-*`. → 운영 반영(PR #338 · production `9e89d8e3a`, 해당 세션)
-- [2026-09-09] **매일 자동 점검 반쪽 판정 종결(deploy `69586ee0c`)** — 일일 조회가 하트비트 축만 봐 큐 적체·DEAD 를 못 봤다(CLI 는 같은 시각 not-ready). 결론을 `evaluate_readiness` 에 위임. 잔여: 운영 승격
-- [2026-09-09] **고객컨펌 승인·도면 첨부 등록(deploy `4868a2cc4`)** — 원장 `docs/plans/2026-09-09-confirm-quest-and-drawing-attachment-plan.md`. dev+PG E2E 로 승인 200·수령확정 후 첨부 유지 확인. 잔여: 운영 승격 여부 사용자 확인
-- [2026-09-09] **옛 주문 클레임 도장 운영 반영(PR #336 · production `1bdcdc79f`, 핀 `20260909d`)** — `옛 주문 반품 완료 · 09-08 15:27 · 환불 1,156,500원`. 두 값 다 원본에 있었다: 시각은 `cancelCompletedDate`/`returnCompletedDate`(종류별 한쪽만), 환불액은 **`initialPaymentAmount - remainPaymentAmount`**(`totalPaymentAmount` 는 부분 환불에서 틀린다). 확정 전에는 안 찍는다
+- [2026-09-09] **매일 자동 점검 반쪽 판정 종결(deploy `69586ee0c`)** — 하트비트 축만 봐 큐 적체·DEAD 를 못 봤다. 결론을 `evaluate_readiness` 에 위임. 잔여: 운영 승격
+- [2026-09-09] **고객컨펌 승인·도면 첨부 등록(deploy `4868a2cc4`)** — dev+PG E2E 로 승인 200·수령확정 후 첨부 유지 확인. 잔여: 운영 승격 여부 사용자 확인
 
 ## 알려진 이슈
 - 차단 이슈 없음. 남은 구조 부채는 `WR-B1`/`WR-J1`/`WR-H1` 처럼 explicit future-batch 조건으로만 존재한다. `wdcalculator_scripts_config.html` Jinja 변수 주입 구간의 JS lint false-positive 는 기존과 동일.
@@ -34,6 +33,10 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 - 대형 파일 분해: Step 6에서 inventory와 separate governance spec이 분리됐고, 실제 split은 future batch에서 contract freeze 후 실행한다
 
 <!-- 이하 상세 기록. 세션 시작 시에는 상단 40줄만 읽는다(hygiene 계약) -->
+
+- [2026-09-09] 옛 주문 클레임 도장(PR #336 · production `1bdcdc79f`) — 환불액은 `initialPaymentAmount - remainPaymentAmount`(`totalPaymentAmount` 는 부분 환불에서 틀린다)
+
+- [2026-09-09] AS 전달 배정 — 영업/택배 건을 근처 실측 일정에 태운다(PR #338 · production `9e89d8e3a`)
 
 
 
