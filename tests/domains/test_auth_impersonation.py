@@ -198,3 +198,80 @@ def test_delete_route_unchanged_non_admin_still_redirects(client, app):
 def test_delete_get_returns_405(client):
     """대조: delete 는 POST 전용 유지 — GET 405(무변경)."""
     assert client.get("/admin/users/delete/1").status_code == 405
+
+
+# --------------------------------------------------------------------------
+# CSRF seed 가 전환 경계를 넘어 유효한지(2026-09-11 switch-back 403 회귀)
+# --------------------------------------------------------------------------
+def _render_token(app, *, user_id, impersonating_from=None):
+    """페이지 렌더 시점의 ``{{ csrf_token() }}`` 값을 그대로 재현한다."""
+    from flask import session as flask_session
+
+    from foms.services.request_write_guard import generate_csrf_token
+
+    with app.test_request_context():
+        flask_session["user_id"] = user_id
+        if impersonating_from is not None:
+            flask_session["impersonating_from"] = impersonating_from
+        return generate_csrf_token()
+
+
+def test_switch_back_token_from_impersonated_page_is_accepted(client, app, guard_on):
+    """전환 상태에서 렌더된 페이지의 토큰으로 복귀 POST → 가드 통과(403 아님)."""
+    admin_id = _make_user(username="root-admin-csrf1", role="ADMIN")
+    target_id = _make_user(username="staff-csrf1", role="STAFF")
+    with client.session_transaction() as sess:
+        sess["user_id"] = target_id
+        sess["username"] = "staff-csrf1"
+        sess["role"] = "STAFF"
+        sess["impersonating_from"] = admin_id
+
+    token = _render_token(app, user_id=target_id, impersonating_from=admin_id)
+    resp = client.post("/switch-back", data={"csrf_token": token})
+
+    assert not _is_write_guard_block(resp), resp.get_json()
+    assert resp.status_code == 302
+    with client.session_transaction() as sess:
+        assert sess["user_id"] == admin_id
+
+
+def test_stale_tab_token_survives_switch_back(client, app, guard_on):
+    """다른 탭이 이미 복귀시킨 뒤 남은 탭이 복귀를 눌러도 403 이 아니다.
+
+    전환 중 렌더된 토큰의 seed 는 전환 계정이 아니라 **원 관리자**에 묶이므로, 복귀로
+    ``session['user_id']`` 가 바뀌어도 같은 로그인 주체의 토큰은 유효하다. 사용자에게는
+    검증 실패 JSON 대신 '전환된 상태가 아닙니다' 안내가 간다.
+    """
+    admin_id = _make_user(username="root-admin-csrf2", role="ADMIN")
+    target_id = _make_user(username="staff-csrf2", role="STAFF")
+    with client.session_transaction() as sess:
+        sess["user_id"] = target_id
+        sess["username"] = "staff-csrf2"
+        sess["role"] = "STAFF"
+        sess["impersonating_from"] = admin_id
+
+    stale_token = _render_token(app, user_id=target_id, impersonating_from=admin_id)
+    # 다른 탭이 먼저 복귀
+    assert client.post("/switch-back", data={"csrf_token": stale_token}).status_code == 302
+    # 남은 탭(같은 토큰)이 뒤늦게 복귀 시도
+    resp = client.post("/switch-back", data={"csrf_token": stale_token})
+
+    assert not _is_write_guard_block(resp), resp.get_json()
+    assert resp.status_code == 302
+
+
+def test_legacy_impersonated_seed_token_still_accepted(client, app, guard_on):
+    """배포 전 렌더된 구 토큰(전환 계정 seed)도 전환 중에는 계속 통과한다."""
+    admin_id = _make_user(username="root-admin-csrf3", role="ADMIN")
+    target_id = _make_user(username="staff-csrf3", role="STAFF")
+    with client.session_transaction() as sess:
+        sess["user_id"] = target_id
+        sess["username"] = "staff-csrf3"
+        sess["role"] = "STAFF"
+        sess["impersonating_from"] = admin_id
+
+    legacy_token = _render_token(app, user_id=target_id)  # impersonating_from 없이 파생
+    resp = client.post("/switch-back", data={"csrf_token": legacy_token})
+
+    assert not _is_write_guard_block(resp), resp.get_json()
+    assert resp.status_code == 302
