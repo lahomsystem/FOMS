@@ -226,6 +226,17 @@ def test_dashboard_registers_assets_with_pins() -> None:
     assert "?v=20260911a" in css_line
     assert "draft_resume.js" not in page, "조각 교체 경로에서 안 도는 자리에 실렸다"
 
+    # CSS 는 조각(dashboard_main.html)에도 실려야 한다. 셸은 조각 HTML 에서 <link> 를
+    # 뽑아 먼저 로드하므로, 전체 페이지에만 있으면 탭 첫 진입에서 스타일 없는 줄이
+    # 번쩍인다(tests/domains/test_shell_fragment_css_fouc_audit.py 가 강제).
+    fragment = (ROOT / "templates/orders/partials/dashboard_main.html").read_text(
+        encoding="utf-8"
+    )
+    frag_css_line = [
+        line for line in fragment.splitlines() if "foms-draft-resume.css" in line
+    ][0]
+    assert "?v=20260911a" in frag_css_line, "조각과 전체 페이지의 핀이 갈렸다"
+
     scripts = (ROOT / "templates/partials/shared/layout_scripts.html").read_text(
         encoding="utf-8"
     )
