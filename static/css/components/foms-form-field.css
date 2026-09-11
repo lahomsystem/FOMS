@@ -809,6 +809,21 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-attachment-controls
   #erpEstimatePreviewModal .modal-footer {
     justify-content: flex-end;
   }
+
+  /* 아이폰에서 '사진에 저장'·'닫기' 가 글자 중간에서 줄바꿈되던 것(실기기 스크린샷 2026-09-11).
+     부트스트랩 기본값은 flex-shrink:1 + white-space:normal 이라, 기기 폰트가 조금만 넓어도
+     버튼이 내용보다 좁게 눌리고 한글은 글자 단위로 끊긴다("사진에 저" / "장").
+     내용 너비 아래로 줄지 않게 고정하고 줄바꿈을 막는다 — 한 줄에 못 넣는 폭에서는 푸터의
+     flex-wrap 이 두 줄로 가지런히 내려 준다(글자를 쪼개는 것보다 낫다). */
+  #erpEstimatePreviewModal .modal-footer .btn {
+    display: inline-flex;
+    flex: 0 0 auto;
+    gap: 6px;
+    align-items: center;
+    justify-content: center;
+    min-height: var(--foms-touch-target-min, 44px);
+    white-space: nowrap;
+  }
 }
 
 .erp-order-mobile-form .erp-attachment-preview-actions,

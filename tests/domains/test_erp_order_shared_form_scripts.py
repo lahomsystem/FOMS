@@ -114,6 +114,18 @@ def _assert_shared_form_script_contract(body: str) -> None:
     assert "_setupEstimatePreviewSaveBtn(dataUrl, opts.filename)" in estimate_preview_js
     assert 'id="btn-est-preview-save"' in body
 
+    # 아이폰에서 '사진에 저장'·'닫기' 가 글자 중간에서 줄바꿈되던 것(실기기 2026-09-11).
+    # 부트스트랩 기본 flex-shrink:1 + white-space:normal 이면 기기 폰트가 조금만 넓어도
+    # 버튼이 내용보다 좁게 눌리고 한글은 글자 단위로 끊긴다("사진에 저" / "장").
+    form_field_css = (
+        Path(__file__).resolve().parents[2]
+        / "static" / "css" / "components" / "foms-form-field.css"
+    ).read_text(encoding="utf-8")
+    footer_btn_rule = form_field_css.split("#erpEstimatePreviewModal .modal-footer .btn")[1]
+    footer_btn_rule = footer_btn_rule.split("}")[0]
+    assert "white-space: nowrap" in footer_btn_rule
+    assert "flex: 0 0 auto" in footer_btn_rule
+
     # W5-B8: giant inline shared-form code was moved out of the partial.
     assert "function erpRecalcItemsTotal()" not in body
     assert "async function erpSaveStructured(opts = {})" not in body
@@ -1402,7 +1414,7 @@ def test_mobile_attachment_preview_uses_viewport_sized_modal() -> None:
     ) in css_text
     assert ".erp-order-mobile-form .erp-attachment-preview-actions .btn" not in css_text
     assert "max-width: min(92vw, 36rem)" not in css_text
-    assert "../components/foms-form-field.css?v=20260821a" in mobile_bundle
+    assert "../components/foms-form-field.css?v=20260911a" in mobile_bundle
     assert "foms-mobile-surfaces.css') }}?v=20260826a" in layout_head
 
 
