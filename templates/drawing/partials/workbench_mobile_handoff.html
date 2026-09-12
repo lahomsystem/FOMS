@@ -9,6 +9,28 @@
       <div>
         <h2>{{ mobile_handoff_turn.label }}</h2>
         <p>{{ mobile_handoff_turn.sub }}</p>
+        {# 주문 변경 신호는 이 한 줄뿐이다. 값(이전 → 이후)은 타임라인 말풍선 한 곳에만 둔다.
+           이 섹션은 목록/상세 분기 바깥이라 도면 목록 화면에도 그대로 따라온다. #}
+        {% if order_change_line and order_change_line.state == 'pending' %}
+        <div class="foms-drawing-turn__change" id="dwOrderChangeLine"
+          data-order-id="{{ order.id }}"
+          data-order-change-lines="{{ order_change_line.line_count }}">
+          <span class="foms-drawing-turn__change-chip">{% if can_ack_order_change %}미확인{% else %}도면팀 확인 대기{% endif %}</span>
+          <span class="foms-drawing-turn__change-text">주문이 바뀌었습니다{% if order_change_line.field_text %} · {{ order_change_line.field_text }}{% endif %} {{ order_change_line.line_count }}줄</span>
+          {% if mobile_handoff_view == 'list' %}
+            {% if mobile_handoff_files %}
+            <a class="foms-drawing-turn__change-act" href="{{ mobile_handoff_files[0].detail_url }}">{{ mobile_handoff_files[0].no }}번 도면에서 보기</a>
+            {% endif %}
+          {% else %}
+          <button type="button" class="foms-drawing-turn__change-act" data-dw-order-change-focus>변경 보기</button>
+          {% endif %}
+        </div>
+        {% elif order_change_line and order_change_line.state == 'acked' %}
+        <div class="foms-drawing-turn__change foms-drawing-turn__change--done" id="dwOrderChangeLine">
+          <span class="foms-drawing-turn__change-chip"><i class="fas fa-check" aria-hidden="true"></i> 확인함</span>
+          <span class="foms-drawing-turn__change-text">주문 변경 {{ order_change_line.line_count }}줄{% if order_change_line.acked_by %} · {{ order_change_line.acked_by }}{% endif %}{% if order_change_line.acked_at %} {{ order_change_line.acked_at }}{% endif %}</span>
+        </div>
+        {% endif %}
       </div>
     </section>
 
@@ -19,23 +41,6 @@
       </div>
       <p>주문 담당 {{ manager_name }} · 도면 담당 {{ assignee_text }}</p>
     </section>
-
-    {% if order_change_pending %}
-    <div class="foms-drawing-handoff__notice dw-order-change-banner" id="dwOrderChangeBanner"
-      role="status"
-      data-order-id="{{ order.id }}"
-      data-ack-url="/api/orders/{{ order.id }}/drawing/ack-order-change">
-      <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
-      <div>
-        <strong>주문 내용 변경</strong>
-        <span>{% if latest_order_change_note %}{{ latest_order_change_note }}{% else %}도면 반영이 필요할 수 있습니다.{% endif %}</span>
-        <div class="foms-drawing-handoff__order-change-actions">
-          <button type="button" class="foms-btn foms-btn--sm foms-btn--secondary" data-dw-order-change-focus>타임라인</button>
-          <button type="button" class="foms-btn foms-btn--sm foms-btn--primary" data-dw-order-change-ack>확인함</button>
-        </div>
-      </div>
-    </div>
-    {% endif %}
 
     {% if mobile_handoff_invalid_drawing_key %}
     <div class="foms-drawing-handoff__notice" role="status">
@@ -160,7 +165,7 @@
     <section class="foms-drawing-thread" aria-label="도면 대화 스레드">
       {% if mobile_handoff_thread %}
       {% for event in mobile_handoff_thread %}
-      <article class="foms-drawing-thread__msg foms-drawing-thread__msg--{{ event.side }}{% if event.is_highlight %} is-highlight{% endif %}">
+      <article class="foms-drawing-thread__msg foms-drawing-thread__msg--{{ event.side }}{% if event.is_highlight %} is-highlight{% endif %}{% if event.action == 'ERP_ORDER_CHANGED' and event.acked %} is-acked{% endif %}">
         <div class="foms-drawing-thread__who">{{ event.by_text }}</div>
         <div class="foms-drawing-thread__bubble">
           <span class="foms-drawing-thread__tag">{{ event.tag }}{% if event.target_text %} · {{ event.target_text }}{% endif %}</span>
@@ -175,6 +180,18 @@
           </ul>
           {% elif event.note %}<p>{{ event.note }}</p>{% endif %}
           {% if event.files %}<small>첨부 {{ event.files|length }}건</small>{% endif %}
+          {# 확인 버튼은 값을 읽은 자리 바로 아래 하나뿐이다. 확인은 건별이 아니라 주문 단위다. #}
+          {% if event.is_ack_target %}
+          <div class="foms-drawing-thread__ack">
+            <button type="button" class="foms-btn foms-btn--sm foms-btn--primary"
+              data-dw-order-change-ack
+              data-order-id="{{ order.id }}"
+              data-ack-url="/api/orders/{{ order.id }}/drawing/ack-order-change">이 주문 변경 {{ order_change_line.line_count }}줄 확인</button>
+            <small>확인은 주문 단위입니다</small>
+          </div>
+          {% elif event.action == 'ERP_ORDER_CHANGED' and event.acked and event.acked_by_name %}
+          <p class="foms-drawing-thread__acked"><i class="fas fa-check" aria-hidden="true"></i> {{ event.acked_by_name }} 확인{% if event.acked_at_text %} · {{ event.acked_at_text }}{% endif %}</p>
+          {% endif %}
         </div>
         <time>{{ event.at_text }}</time>
       </article>

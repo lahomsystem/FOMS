@@ -1,4 +1,5 @@
 """ERP 도면 작업실 (ERP-SLIM-5; canonical, SFC-B11B). /erp/drawing-workbench."""
+import re
 from typing import Any, Mapping
 
 from flask import Blueprint, make_response, render_template, request, url_for, redirect, flash, g
@@ -241,8 +242,54 @@ def _build_drawing_turn(
     round_text = f'도면팀 {transfer_round}차 전달' if transfer_round else '도면 전달 대기'
     return {
         'label': label,
-        'sub': f'{round_text} · 도면 {file_count}장 · 주문 단위 상태 1개',
+        'sub': f'{round_text} · 도면 {file_count}장',
         'tone': tone,
+    }
+
+
+_ORDER_CHANGE_ITEM_PREFIX = re.compile(r'^항목\s*\d+\s+')
+
+
+def _build_order_change_line(events: list[Mapping[str, Any]]) -> dict[str, Any]:
+    """상태 리본 한 줄용 요약 — 값은 빼고 '무엇이 몇 줄 바뀌었는지'만 만든다.
+
+    모바일 상단 배너를 걷어낸 자리를 대신하는 줄이다. 타임라인이 이미 전량으로 보여 주는
+    실수치(1170 → 1165*620*2311)는 일부러 담지 않는다 — 같은 값을 두 번 읽히지 않기 위해서다.
+    리본은 목록/상세 분기 바깥에 있어 도면 목록 화면에서는 이 줄이 유일한 변경 신호가 된다.
+
+    Args:
+        events: humanize 를 거친 ERP_ORDER_CHANGED 이벤트(최신 우선).
+
+    Returns:
+        ``state``('pending'/'acked'/''), ``field_text``(바뀐 항목 이름 2개 + '외 N개'),
+        ``line_count``, ``acked_by``, ``acked_at`` 을 담은 dict.
+    """
+    empty = {'state': '', 'field_text': '', 'line_count': 0, 'acked_by': '', 'acked_at': ''}
+    if not events:
+        return empty
+    pending = [e for e in events if not bool(e.get('acked'))]
+    target = pending if pending else events[:1]
+    names: list[str] = []
+    line_count = 0
+    for event in target:
+        for change in (event.get('changes') or []):
+            if not isinstance(change, Mapping):
+                continue
+            line_count += 1
+            label = _ORDER_CHANGE_ITEM_PREFIX.sub('', str(change.get('label') or change.get('path') or '').strip())
+            if label and label not in names:
+                names.append(label)
+    field_text = f"{', '.join(names[:2])} 외 {len(names) - 2}개" if len(names) > 2 else ', '.join(names)
+    if pending:
+        return {'state': 'pending', 'field_text': field_text, 'line_count': line_count,
+                'acked_by': '', 'acked_at': ''}
+    latest = events[0]
+    return {
+        'state': 'acked',
+        'field_text': field_text,
+        'line_count': line_count,
+        'acked_by': str(latest.get('acked_by_name') or '').strip(),
+        'acked_at': format_datetime_kst(latest.get('acked_at'), '%m-%d %H:%M') or '',
     }
 
 
@@ -337,6 +384,7 @@ def _build_handoff_thread(history: list[Mapping[str, Any]]) -> list[dict[str, An
             'target_text': f'{target_text}번 대상' if target_text else '',
             'files': list(event.get('files') or []) if isinstance(event.get('files'), list) else [],
             'changes': changes if changes is not None else event.get('changes'),
+            'acked_at_text': format_datetime_kst(event.get('acked_at'), '%m-%d %H:%M') or '',
         })
     return thread
 
@@ -974,6 +1022,33 @@ def erp_drawing_workbench_detail(order_id):
                 summarize_changes(h.get('changes')) if h.get('changes')
                 else str(h.get('note') or '').strip()
             )
+    order_change_line = _build_order_change_line(order_change_events)
+    # 확인(ack) 권한은 API 게이트와 같은 축이다(도면 작업 참여자 + 관리자). 권한이 없는
+    # 영업 시점에는 버튼을 아예 그리지 않는다 — 옛 배너는 그려 놓고 403 을 만들었다.
+    can_ack_order_change = bool(is_drawing_participant or is_admin)
+    if order_change_pending and can_ack_order_change:
+        # 확인은 주문 단위다. 데스크톱 변경 이력 카드에서도 가장 최근 미확인 건 하나에만 버튼을 붙인다.
+        for change_event in order_change_events:
+            if not bool(change_event.get('acked')):
+                change_event['is_ack_target'] = True
+                break
+        else:
+            if order_change_events:
+                order_change_events[0]['is_ack_target'] = True
+        # 모바일 타임라인도 같은 규칙 — 값이 있는 말풍선 바로 아래 한 개.
+        fallback_ack_event = None
+        for thread_event in handoff_thread:
+            if (thread_event.get('action') or '').upper() != 'ERP_ORDER_CHANGED':
+                continue
+            if fallback_ack_event is None:
+                fallback_ack_event = thread_event
+            if not bool(thread_event.get('acked')):
+                thread_event['is_ack_target'] = True
+                break
+        else:
+            if fallback_ack_event is not None:
+                fallback_ack_event['is_ack_target'] = True
+
     # 도면 상세 전용: 공통 실측 이미지(항목에 매핑되지 않은 첨부) 수집
     common_measure_photos = []
     for att in db.query(OrderAttachment).filter(
@@ -1019,6 +1094,8 @@ def erp_drawing_workbench_detail(order_id):
         order_change_pending=order_change_pending,
         latest_order_change_note=latest_order_change_note,
         order_change_events=order_change_events,
+        order_change_line=order_change_line,
+        can_ack_order_change=can_ack_order_change,
         checklist=checklist,
         mobile_handoff_view=handoff_view,
         mobile_handoff_files=handoff_files,
