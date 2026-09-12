@@ -1,8 +1,17 @@
 # Cron 서비스 전용 Railway Config (P0-00C)
 # Railway 대시보드 > Cron 서비스 > Settings > Config Path: railway-cron.toml
+# FOMS-DEV·FOMS-PRODUCTION 의 `FOMS-cron` 서비스가 **둘 다** 이 파일을 읽는다(2026-09-11 실측).
+#
+# REV-CLEANUP-01 / AUDIT-LOG T9 — retention purge 2종을 여기에 체이닝한다.
+# 원설계는 별도 cron 서비스(`railway-cron-receipt-purge.toml`)였는데 그 서비스가 두 프로젝트
+# 어디에도 등록되지 않아 purge 가 한 번도 돌지 않았다(2026-09-11 운영 실측: 보존 7일짜리
+# `order_mutation_receipts` 에 7일 초과 행 6,329건 잔존). 서비스를 증설하는 대신 **이미 도는**
+# cron 에 붙여 "등록 누락"이라는 실패 모양 자체를 없앤다.
+# 실패 커플링은 명시 수용: 앞 단계가 죽으면 뒤 단계는 실행되지 않는다. 세 단계 모두 배치마다
+# commit 하는 resume 형이고 advisory lock 으로 직렬화되므로 다음 날 실행이 곧 복구다.
 [build]
 builder = "nixpacks"
 
 [deploy]
-startCommand = "python tools/cron/cleanup_order_drafts.py --execute"
+startCommand = "python tools/cron/cleanup_order_drafts.py --execute && python tools/ops/purge_order_mutation_receipts.py --retention-days 7 --batch-size 1000 --apply && python tools/ops/purge_audit_logs.py --apply"
 cronSchedule = "0 17 * * *"  # UTC 17:00 = KST 02:00
