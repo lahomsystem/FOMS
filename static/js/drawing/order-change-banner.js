@@ -1,5 +1,6 @@
 /**
- * 도면 작업실 — ERP 주문 변경 배너 (타임라인 포커스 + ack).
+ * 도면 작업실 — ERP 주문 변경 확인(ack) + 변경 이력 포커스.
+ * 옛 상단 배너를 걷어낸 뒤로 확인 버튼은 변경 값 바로 아래(모바일 타임라인/데스크톱 카드)에 산다.
  * fragment 재실행 대비 document 위임 + singleton 가드 (perf G4).
  */
 (function () {
@@ -29,6 +30,7 @@
     }
     var target =
       document.querySelector('.dw-order-change-card.is-pending') ||
+      document.querySelector('.foms-drawing-thread__msg--alert:not(.is-acked)') ||
       document.querySelector('.foms-drawing-thread__msg--alert') ||
       document.querySelector('.dw-order-change-badge');
     if (target && typeof target.scrollIntoView === 'function') {
@@ -41,10 +43,34 @@
     } catch (e) { /* ignore */ }
   }
 
+  /** 확인 직후 화면 교체 — 버튼 줄은 걷고, 모바일 리본 한 줄은 '확인됨'으로 바꾼다. */
+  function markAcked(data) {
+    document.querySelectorAll('.foms-drawing-thread__ack, .dw-order-change-ack-row').forEach(function (el) {
+      el.remove();
+    });
+    var line = document.getElementById('dwOrderChangeLine');
+    if (!line) return;
+    var lines = line.getAttribute('data-order-change-lines') || '';
+    line.classList.add('foms-drawing-turn__change--done');
+    var chip = line.querySelector('.foms-drawing-turn__change-chip');
+    if (chip) chip.textContent = '확인함';
+    var act = line.querySelector('.foms-drawing-turn__change-act');
+    if (act) act.remove();
+    var text = line.querySelector('.foms-drawing-turn__change-text');
+    if (text) {
+      var who = (data && data.acked_by_name) || '';
+      var at = (data && data.acked_at) || '';
+      text.textContent =
+        '주문 변경' + (lines ? ' ' + lines + '줄' : '') +
+        (who ? ' · ' + who : '') + (at ? ' ' + at : '');
+    }
+  }
+
   function ackBanner(btn) {
-    var banner = btn.closest('#dwOrderChangeBanner, .dw-order-change-banner');
-    if (!banner) return;
-    var url = banner.getAttribute('data-ack-url');
+    // 확인 버튼이 자기 주소를 직접 싣는다(옛 배너는 조상에서 읽었고, 그 배너는 사라졌다).
+    var holder = btn.closest('[data-ack-url]');
+    if (!holder) return;
+    var url = holder.getAttribute('data-ack-url');
     if (!url) return;
     btn.disabled = true;
     fetch(url, {
@@ -67,7 +93,7 @@
             (result.data && result.data.message) || '확인 처리 실패'
           );
         }
-        banner.remove();
+        markAcked(result.data);
         document.querySelectorAll('.dw-order-change-badge, .is-order-change').forEach(function (el) {
           el.remove();
         });

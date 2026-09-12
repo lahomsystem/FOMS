@@ -448,16 +448,91 @@
     color: var(--foms-text-tertiary, #6b7380);
   }
 
-  body.erp-mobile-v2-layout .foms-drawing-handoff__notice.dw-order-change-banner {
-    border-color: #f9a8d4;
-    background: #fff0f6;
-    color: #9d174d;
+  /* 주문 변경 한 줄 — 옛 상단 배너(.dw-order-change-banner)를 대신한다.
+     리본 안에 들어가 첫 화면 블록 수를 늘리지 않고, 목록 뷰에도 같은 줄이 따라온다. */
+  body.erp-mobile-v2-layout .foms-drawing-turn__change {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem 0.5rem;
+    margin-top: 0.625rem;
+    padding: 0.5rem 0.625rem;
+    border: 1px solid var(--foms-border-subtle, #dde1e6);
+    border-left: 3px solid #f9a8d4;
+    border-radius: 6px;
+    background: var(--foms-surface-base, #fff);
   }
 
-  body.erp-mobile-v2-layout .foms-drawing-handoff__order-change-actions {
-    display: flex;
-    gap: 0.5rem;
+  body.erp-mobile-v2-layout .foms-drawing-turn__change-chip {
+    padding: 0.05rem 0.4rem;
+    border: 1px solid #f9a8d4;
+    border-radius: 999px;
+    background: #fff0f6;
+    color: #9d174d;
+    font-size: 0.72rem;
+    font-weight: 800;
+    white-space: nowrap;
+  }
+
+  body.erp-mobile-v2-layout .foms-drawing-turn__change-text {
+    flex: 1 1 8rem;
+    min-width: 0;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--foms-text-primary, #14171c);
+    overflow-wrap: anywhere;
+  }
+
+  body.erp-mobile-v2-layout .foms-drawing-turn__change-act {
+    flex: 0 0 auto;
+    padding: 0.3rem 0.6rem;
+    border: 1px solid var(--foms-border-default, #c1c7d0);
+    border-radius: 6px;
+    background: var(--foms-surface-base, #fff);
+    color: var(--foms-text-primary, #14171c);
+    font-size: 0.72rem;
+    font-weight: 800;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+
+  body.erp-mobile-v2-layout .foms-drawing-turn__change--done {
+    border-left-color: var(--foms-border-subtle, #dde1e6);
+  }
+
+  body.erp-mobile-v2-layout .foms-drawing-turn__change--done .foms-drawing-turn__change-chip {
+    border-color: var(--foms-border-subtle, #dde1e6);
+    background: var(--foms-surface-overlay, #eef0f3);
+    color: var(--foms-text-secondary, #4b525d);
+  }
+
+  body.erp-mobile-v2-layout .foms-drawing-turn__change--done .foms-drawing-turn__change-text {
+    font-weight: 600;
+    color: var(--foms-text-secondary, #4b525d);
+  }
+
+  /* 확인 버튼 줄 — 변경 값 바로 아래에 놓인다(대조 없이 누르는 지름길을 없앤다). */
+  body.erp-mobile-v2-layout .foms-drawing-thread__ack {
+    display: grid;
+    gap: 0.25rem;
     margin-top: 0.5rem;
+  }
+
+  body.erp-mobile-v2-layout .foms-drawing-thread__ack .foms-btn {
+    width: 100%;
+  }
+
+  body.erp-mobile-v2-layout .foms-drawing-thread__ack small {
+    font-size: 0.72rem;
+    color: var(--foms-text-tertiary, #6b7380);
+    text-align: center;
+  }
+
+  body.erp-mobile-v2-layout .foms-drawing-thread__acked {
+    margin: 0.45rem 0 0;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--foms-color-success-600, #059669);
   }
 
   body.erp-mobile-v2-layout .foms-drawing-queue-card__chip.is-order-change {
@@ -475,6 +550,11 @@
   body.erp-mobile-v2-layout .foms-drawing-thread__msg--alert .foms-drawing-thread__bubble {
     background: #fff0f6;
     border: 1px solid #f9a8d4;
+  }
+
+  body.erp-mobile-v2-layout .foms-drawing-thread__msg--alert.is-acked .foms-drawing-thread__bubble {
+    background: var(--foms-surface-base, #fff);
+    border-color: var(--foms-border-subtle, #dde1e6);
   }
 
   body.erp-mobile-v2-layout .foms-drawing-thread__changes b {

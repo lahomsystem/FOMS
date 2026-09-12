@@ -818,15 +818,24 @@
     }
 
     /* 주문변경 — 밝은 파스텔 핑크 */
-    .dw-order-change-banner {
-      border: 1px solid #f9a8d4;
-      background: #fff0f6;
-      position: relative;
-      z-index: 3;
+    .dw-order-change-feed__fields {
+      /* 머리글은 [제목][미확인][이름 N줄] 순으로 붙여 읽는다(오른쪽 끝으로 밀지 않는다). */
+      margin-right: auto;
+      font-size: .82rem;
+      font-weight: 600;
+      color: var(--foms-text-secondary, #4b525d);
     }
 
-    .dw-order-change-banner .dw-order-change-icon {
-      color: #ec4899;
+    .dw-order-change-ack-row {
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+      margin-top: .625rem;
+    }
+
+    .dw-order-change-ack-hint {
+      font-size: .78rem;
+      color: var(--foms-text-tertiary, #6b7380);
     }
 
     .dw-order-change-badge {
@@ -835,20 +844,6 @@
       color: #9d174d !important;
       border: 1px solid #f9a8d4;
       font-weight: 600;
-    }
-
-    .btn.dw-order-change-btn {
-      background: #f9a8d4;
-      border-color: #f472b6;
-      color: #831843;
-      font-weight: 600;
-    }
-
-    .btn.dw-order-change-btn:hover,
-    .btn.dw-order-change-btn:focus {
-      background: #f472b6;
-      border-color: #ec4899;
-      color: #fff;
     }
 
     .dw-order-change-feed {
@@ -958,36 +953,16 @@
     </div>
   </div>
 
-  {% if order_change_pending %}
-  <div class="erp-pro-card mb-3 dw-order-change-banner" id="dwOrderChangeBanner"
-    data-order-id="{{ order.id }}"
-    data-ack-url="/api/orders/{{ order.id }}/drawing/ack-order-change">
-    <div class="card-body py-3 d-flex flex-wrap align-items-center justify-content-between gap-2">
-      <div>
-        <div class="fw-semibold">
-          <i class="fas fa-exclamation-triangle dw-order-change-icon"></i> 주문 내용 변경 — 도면 반영 필요
-        </div>
-        <div class="small text-muted mt-1">
-          {% if latest_order_change_note %}{{ latest_order_change_note }}{% else %}아래 변경 이력을 확인하고 도면을 수정하세요.{% endif %}
-        </div>
-      </div>
-      <div class="d-flex flex-wrap gap-2">
-        <button type="button" class="btn btn-sm dw-order-change-btn" data-dw-order-change-focus>
-          변경 이력 보기
-        </button>
-        <button type="button" class="btn btn-sm btn-outline-secondary" data-dw-order-change-ack>
-          확인함
-        </button>
-      </div>
-    </div>
-  </div>
-  {% endif %}
-
   {% if order_change_events %}
   <section class="dw-order-change-feed" id="dwOrderChangeFeed" aria-label="ERP 주문 변경 이력">
     <div class="dw-order-change-feed__head">
       <span><i class="fas fa-clipboard-list"></i> 주문 변경 이력 (누적 {{ order_change_events|length }}건)</span>
-      {% if order_change_pending %}<span class="badge dw-order-change-badge">미확인</span>{% endif %}
+      {# 배너를 걷어낸 자리. 이름과 줄 수까지만 말하고 값은 아래 표 한 곳에만 둔다. #}
+      {% if order_change_pending %}<span class="badge dw-order-change-badge">미확인</span>
+      {% if order_change_line and order_change_line.field_text %}<span class="dw-order-change-feed__fields">{{ order_change_line.field_text }} {{ order_change_line.line_count }}줄</span>{% endif %}
+      {% elif order_change_line and order_change_line.state == 'acked' and order_change_line.acked_by %}
+      <span class="dw-order-change-feed__fields">{{ order_change_line.acked_by }} 확인{% if order_change_line.acked_at %} · {{ order_change_line.acked_at }}{% endif %}</span>
+      {% endif %}
     </div>
     <div class="dw-order-change-feed__body">
       {% for h in order_change_events %}
@@ -1018,6 +993,16 @@
         </table>
         {% elif h.note %}
         <div class="small">{{ h.note }}</div>
+        {% endif %}
+        {# 확인 버튼은 값을 읽은 자리 바로 아래 하나뿐이다. 확인은 건별이 아니라 주문 단위다. #}
+        {% if h.is_ack_target %}
+        <div class="dw-order-change-ack-row">
+          <button type="button" class="btn btn-sm btn-primary"
+            data-dw-order-change-ack
+            data-order-id="{{ order.id }}"
+            data-ack-url="/api/orders/{{ order.id }}/drawing/ack-order-change">이 주문 변경 {{ order_change_line.line_count }}줄 확인</button>
+          <span class="dw-order-change-ack-hint">확인은 주문 단위입니다</span>
+        </div>
         {% endif %}
       </article>
       {% endfor %}
