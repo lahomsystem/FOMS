@@ -372,3 +372,41 @@ layout_head compile   1st= 18.8ms
 5. **이력 탭의 `wb_work_groups` 131ms** — 그 탭은 목록을 그리지 않는다. 칩 숫자만 필요하다.
 
 `wb_counts`·`wb_household`·`wb_row_flags`·`wb_sort` 는 전부 0~1ms 다 — **건드릴 값이 없다.**
+
+---
+
+## §12 고친 것 — 배포 직후 첫 방문자의 550~590ms (TEMPLATE-WARM-01)
+
+사용자 선택: "배포 뒤 첫 화면 느림부터".
+
+Jinja 는 프로세스마다 첫 렌더에서 한 번 컴파일한다. 그래서 재배포 직후 **각 프로세스의 첫
+방문자 한 사람**이 그 값을 혼자 치렀다(운영 4 프로세스 = 네 사람). 부팅으로 옮긴다.
+
+- `foms/services/common/template_warm.py` — `warm_templates(app, names, budget_ms)`.
+  목록은 **컴파일 실측으로** 골랐다(로컬 ms, 무거운 순):
+
+  | 템플릿 | ms |
+  |---|---|
+  | `admin/partials/naver_workbench_pane.html` | 112 |
+  | `drawing/partials/workbench_detail_body.html` | 78 |
+  | `admin/naver_workbench.html` | 75 |
+  | `measurement/partials/dashboard_main.html` | 54 |
+  | `measurement/regional_dashboard.html` | 47 |
+  | `orders/index.html` | 43 |
+  | `measurement/metropolitan_dashboard.html` | 33 |
+  | `measurement/self_measurement_dashboard.html` | 23 |
+  | 셸 3종(`layout_head`·`layout_scripts`·`layout_nav`) | 16 · 15 · 10 |
+
+  포함 파셜을 **따로 적는다** — 부모를 컴파일해도 `{% include %}` 대상은 첫 렌더에서 컴파일된다.
+  예산 2,500ms 를 넘으면 남은 것은 첫 렌더에 맡긴다(워밍이 배포를 늦추는 쪽이 더 나쁠 수 있다).
+  실패는 무해하다 — 못 데워도 첫 렌더가 그때 컴파일한다.
+- `foms/platform/app_factory.py` — `is_production or is_railway` 일 때만 부른다. dev 는
+  `TEMPLATES_AUTO_RELOAD` 가 켜져 있어 파일을 고치면 어차피 다시 컴파일하므로 건너뛴다.
+- `tests/performance/test_template_warm.py` — 계약 5건: 캐시에 실제로 들어가는가(두 번째 조회
+  5ms 미만), 목록 경로가 실재하는가(옛 경로면 조용히 아무 일도 안 한다), 없는 이름이 예외를
+  안 내는가, 예산이 자르는가, **배선이 배포 게이트 안에 있는가**.
+
+돌연변이 검증: `get_template` 호출을 지우면 계약 2건이 red.
+
+**아직 확인 못 한 것**: 운영 효과(배포 뒤 첫 요청의 `wb_template` 이 9ms 대로 떨어지는가).
+운영 측정은 1회 세션 규칙이라 사용자 요청이 다시 있을 때 잰다.

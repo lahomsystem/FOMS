@@ -109,6 +109,8 @@ _PTC_FOMS_SERVICES_COMMON_ALLOWLIST: frozenset[str] = frozenset(
         "map_generator.py",
         # HB-S1: 테이블 단위 쓰기 버전 카운터(세션 훅 신호원, 읽는 쪽은 S2)
         "table_version_counter.py",
+        # TEMPLATE-WARM-01: 부팅 때 무거운 Jinja 템플릿 선컴파일(배포 직후 첫 방문자 몫)
+        "template_warm.py",
     }
 )
 

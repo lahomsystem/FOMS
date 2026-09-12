@@ -24,6 +24,7 @@ from .sentry_setup import init_sentry
 from .request_limits import FomsRequest, GLOBAL_BODY_CAP, register_request_limits
 
 from foms.services.common.html_whitespace import install_html_indentation_trimmer
+from foms.services.common.template_warm import warm_templates
 from foms.services.context_processors import register_context_processors
 from foms.services.rate_limit import init_limiter
 from foms.services.request_write_guard import register_write_guard
@@ -301,5 +302,12 @@ def build_app(*, socketio_available: bool) -> AppFactoryResult:
     # AUTH-01: §2.1 권한 정책 before_request 가드 + policy_can template helper.
     # (URL-map manifest 부재 시 loud fail — startup 차단.)
     register_order_mutation_policy(app)
+
+    # TEMPLATE-WARM-01: 무거운 템플릿을 미리 컴파일한다. Jinja 는 프로세스마다 첫 렌더에서
+    # 한 번 컴파일하므로, 재배포 직후 각 프로세스의 **첫 방문자**가 그 값을 혼자 치른다
+    # (2026-09-12 운영 실측 `wb_template` 594ms / 9ms / 551ms). dev 는 건너뛴다 —
+    # TEMPLATES_AUTO_RELOAD 가 켜져 있어 파일을 고치면 어차피 다시 컴파일한다.
+    if is_production or is_railway:
+        warm_templates(app)
 
     return AppFactoryResult(app=app, socketio=realtime_bindings.socketio)
