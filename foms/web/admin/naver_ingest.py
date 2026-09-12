@@ -2480,55 +2480,77 @@ def _render_workbench(db) -> str:
     # 열린 뒤에도 이 카드(지금 수집·소급 수집·만료일 등록)는 ADMIN 손잡이다.
     ingest_status = ({"watermark": _watermark_view(db), "expiry": _expiry_view(db)}
                      if active_tab == "all" and _is_ingest_admin() else {})
+    # 렌더 인자는 **먼저** 만든다 — 인자 식을 `render_template(...)` 괄호 안에 두면
+    # 그 조회들이 전부 `wb_template` 으로 계상돼 "템플릿이 300ms" 라는 거짓 판정이 나온다
+    # (2026-09-11 실측: 이력 탭 wb_template 173ms 인데 템플릿 안 마커 합은 6ms 였다).
+    with phase("wb_history"):
+        history_view = _history_view(db) if active_tab == "all" else {}
+    with phase("wb_failures"):
+        failures_view = _failure_rows(db)
+    with phase("wb_ghosts"):
+        ghosts_view = _ghost_view(db) if active_tab == "work" else {"count": 0, "rows": []}
+    with phase("wb_origin_cleanup"):
+        origin_cleanup_view = (_origin_cleanup_view(db) if active_tab == "work"
+                               else {"count": 0, "rows": [], "truncated": False})
+    with phase("wb_bulk_dispatch"):
+        bulk_dispatch_view = (_bulk_dispatch_view(db) if active_tab == "work"
+                              else {"date": "", "count": 0, "eligible": 0,
+                                    "blocked": 0, "rows": []})
+    with phase("wb_refresh"):
+        refresh_all_view = _refresh_all_view(db) if _is_ingest_admin() else {"count": 0}
+        refresh_running_view = (_refresh_running_view(db) if _is_ingest_admin()
+                                else {"running": False})
+    with phase("wb_counts"):
+        filter_counts_view = _filter_counts(groups)
+        actionable = _actionable_count(groups)
+        pending_total = sum(int(group["count"]) for group in groups)
+    with phase("wb_pane_ctx"):
+        pane_context = _pane_context(db, _selected_link(db, visible), visible=visible)
     with phase("wb_template"):
         return render_template(
-        "admin/naver_workbench.html",
-        active_tab=active_tab,
-        active_filter=active_filter,
-        active_sort=active_sort,
-        work_groups=visible,
-        # 칩 숫자·스트립·탭 배지는 **필터 전 전체**에서 센다(칩을 눌러도 총량은 안 변한다).
-        filter_counts=_filter_counts(groups),
-        group_count=len(groups),
-        # 스트립·탭 배지·nav 뱃지가 말하는 수 — 손댈 수 있는 집만(계약 §2.4).
-        # 잠긴 집은 목록에는 남고 `locked_count` 로 따로 고지된다.
-        actionable_count=_actionable_count(groups),
-        locked_count=len(groups) - _actionable_count(groups),
-        pending_count=sum(int(group["count"]) for group in groups),
-        work_truncated=work_truncated,
-        can_view_history=_can_view_history(),
-        history=_history_view(db) if active_tab == "all" else {},
-        ingest_status=ingest_status,
-        # 소급 수집 날짜 칸의 기본값. 기본 범위는 90일(사용자 결정 2026-09-01)이고
-        # 끝은 **어제**다 — 오늘 구간은 정상 5분 스윕이 이미 맡고 있다.
-        backfill_defaults=_backfill_defaults(),
-        # 실패는 어느 탭에 있든 보여야 한다 — 탭을 옮겼다고 사고가 사라지지 않는다.
-        failures=_failure_rows(db),
-        # 유령 주문(R-2): 네이버 결제가 전부 취소됐는데 살아 있는 ERP 주문.
-        # 처리 탭에서만 낸다 — 이력 탭은 지난 기록을 보는 자리라 할 일을 띄우지 않는다.
-        ghosts=_ghost_view(db) if active_tab == "work" else {"count": 0, "rows": []},
-        # 재결제 뒤 정리 안 된 옛 네이버 주문(NVREPAY-02). 유령 띠와 같은 자리·같은 규율 —
-        # 처리 탭에서만 낸다(이력 탭은 할 일을 띄우는 자리가 아니다).
-        origin_cleanup=(_origin_cleanup_view(db) if active_tab == "work"
-                        else {"count": 0, "rows": [], "truncated": False}),
-        # 오늘 실측한 네이버 건(NAVER-BULKDISPATCH-01 T2). 처리 탭에서만 센다 — 이력 탭은
-        # 지난 일을 보는 자리라 '오늘 5시에 나갈 것'이 낄 자리가 아니다.
-        bulk_dispatch=(_bulk_dispatch_view(db) if active_tab == "work"
-                       else {"date": "", "count": 0, "eligible": 0,
-                             "blocked": 0, "rows": []}),
-        # 전역 킬스위치. 코호트가 아니다 — 코호트를 쓰면 그 밖의 실측 담당자에게 실행
-        # 라우트가 403 이 되어 진입점 두 곳 중 하나가 조용히 죽는다.
-        naver_bulk_dispatch_enabled=is_naver_bulk_dispatch_enabled(),
-        # 전체 다시 읽기(NVREPAY-03) — 탭과 무관한 수집 전체 조작이라 두 탭 모두에서 낸다.
-        # ADMIN 이 아니면 세지도 않는다(버튼이 없으므로 쿼리도 필요 없다). 이력을 보는
-        # 회계팀·영업팀도 여기서는 빠진다 — 실행 라우트가 ADMIN 전용이다.
-        refresh_all=(_refresh_all_view(db) if _is_ingest_admin() else {"count": 0}),
-        # 남이 눌러 놓은 다시 읽기(NVREPAY-05 T1) — 돌고 있으면 버튼 대신 진행을 그린다.
-        # 버튼과 같은 자리·같은 권한이라 같은 조건에서만 센다.
-        refresh_running=(_refresh_running_view(db) if _is_ingest_admin()
-                         else {"running": False}),
-        **_pane_context(db, _selected_link(db, visible), visible=visible),
-    )
+            "admin/naver_workbench.html",
+            active_tab=active_tab,
+            active_filter=active_filter,
+            active_sort=active_sort,
+            work_groups=visible,
+            # 칩 숫자·스트립·탭 배지는 **필터 전 전체**에서 센다(칩을 눌러도 총량은 안 변한다).
+            filter_counts=filter_counts_view,
+            group_count=len(groups),
+            # 스트립·탭 배지·nav 뱃지가 말하는 수 — 손댈 수 있는 집만(계약 §2.4).
+            # 잠긴 집은 목록에는 남고 `locked_count` 로 따로 고지된다.
+            actionable_count=actionable,
+            locked_count=len(groups) - actionable,
+            pending_count=pending_total,
+            work_truncated=work_truncated,
+            can_view_history=_can_view_history(),
+            history=history_view,
+            ingest_status=ingest_status,
+            # 소급 수집 날짜 칸의 기본값. 기본 범위는 90일(사용자 결정 2026-09-01)이고
+            # 끝은 **어제**다 — 오늘 구간은 정상 5분 스윕이 이미 맡고 있다.
+            backfill_defaults=_backfill_defaults(),
+            # 실패는 어느 탭에 있든 보여야 한다 — 탭을 옮겼다고 사고가 사라지지 않는다.
+            failures=failures_view,
+            # 유령 주문(R-2): 네이버 결제가 전부 취소됐는데 살아 있는 ERP 주문.
+            # 처리 탭에서만 낸다 — 이력 탭은 지난 기록을 보는 자리라 할 일을 띄우지 않는다.
+            ghosts=ghosts_view,
+            # 재결제 뒤 정리 안 된 옛 네이버 주문(NVREPAY-02). 유령 띠와 같은 자리·같은 규율 —
+            # 처리 탭에서만 낸다(이력 탭은 할 일을 띄우는 자리가 아니다).
+            origin_cleanup=origin_cleanup_view,
+            # 오늘 실측한 네이버 건(NAVER-BULKDISPATCH-01 T2). 처리 탭에서만 센다 — 이력 탭은
+            # 지난 일을 보는 자리라 '오늘 5시에 나갈 것'이 낄 자리가 아니다.
+            bulk_dispatch=bulk_dispatch_view,
+            # 전역 킬스위치. 코호트가 아니다 — 코호트를 쓰면 그 밖의 실측 담당자에게 실행
+            # 라우트가 403 이 되어 진입점 두 곳 중 하나가 조용히 죽는다.
+            naver_bulk_dispatch_enabled=is_naver_bulk_dispatch_enabled(),
+            # 전체 다시 읽기(NVREPAY-03) — 탭과 무관한 수집 전체 조작이라 두 탭 모두에서 낸다.
+            # ADMIN 이 아니면 세지도 않는다(버튼이 없으므로 쿼리도 필요 없다). 이력을 보는
+            # 회계팀·영업팀도 여기서는 빠진다 — 실행 라우트가 ADMIN 전용이다.
+            refresh_all=refresh_all_view,
+            # 남이 눌러 놓은 다시 읽기(NVREPAY-05 T1) — 돌고 있으면 버튼 대신 진행을 그린다.
+            # 버튼과 같은 자리·같은 권한이라 같은 조건에서만 센다.
+            refresh_running=refresh_running_view,
+            **pane_context,
+        )
 
 
 @admin_bp.route("/admin/naver-ingest/triage/pane")

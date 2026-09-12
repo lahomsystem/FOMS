@@ -1,3 +1,4 @@
+{{ mark('shell_head') }}
     <script>
         if (typeof window.FOMS_DEBUG === 'undefined') {
             window.FOMS_DEBUG = false;
@@ -1268,3 +1269,4 @@
     {# use_direct_upload Jinja 변수를 자동 주입하므로, 각 하위 JS에서 const로 직접 선언합니다. #}
     {# layout.html에서 window.USE_DIRECT_UPLOAD로 전역 주입 시 하위 const와 충돌(SyntaxError) 발생. #}
 
+{{ mark('shell_head') }}

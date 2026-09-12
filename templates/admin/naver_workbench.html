@@ -23,6 +23,7 @@
 {% endblock %}
 
 {% block content %}
+{{ mark('wb_head_region') }}
 <div class="container-fluid naver-workbench"
      data-active-tab="{{ active_tab }}" data-active-filter="{{ active_filter }}">
 
@@ -660,6 +661,7 @@
 
     <div class="wb-split">
 
+{{ mark('wb_head_region') }}
         <section class="card shadow-sm">
             <div class="card-header py-2 d-flex flex-wrap align-items-center gap-2">
                 <span class="small fw-semibold">처리할 주문</span>
@@ -682,6 +684,7 @@
             {% endif %}
 
             <div class="wb-queue" id="wb-queue">
+                {{ mark('work_rows') }}
                 {% for group in work_groups %}
                 {#
                   결정 4 의 3층: ① 진행축 배지 ② 클레임축 배지 ③ 색띠 + 글자 라벨.
@@ -767,12 +770,15 @@
                     {% else %}이 필터에 해당하는 주문이 없습니다.{% endif %}
                 </div>
                 {% endfor %}
+                {{ mark('work_rows') }}
             </div>
         </section>
 
         {# 상세 pane. 전체 렌더와 프래그먼트 응답이 이 파셜 하나를 공유한다(계약 §3.1).
            최상위 요소가 #wb-pane 이라 JS 가 응답으로 그대로 갈아 끼운다. #}
+        {{ mark('pane') }}
         {% include "admin/partials/naver_workbench_pane.html" %}
+        {{ mark('pane') }}
     </div>
 
     {# 결정 6: 불가역 액션 4종 세트 — 벌크 쪽. 집 수·상품주문 건수·이름은 선택에 따라
@@ -1006,6 +1012,7 @@
                     </tr>
                 </thead>
                 <tbody>
+                    {{ mark('hist_rows') }}
                     {% for row in history.rows %}
                     {# 결정 2: 취소·반품은 빼지 않는다. 회색으로 같은 자리에 남긴다. #}
                     {# 찾기 대상 텍스트는 처리 탭 행(위)과 **같은 식**이다 — 한쪽만 고치면
@@ -1161,6 +1168,7 @@
                     {% else %}
                     <tr><td colspan="8" class="wb-empty">수집 이력이 없습니다.</td></tr>
                     {% endfor %}
+                    {{ mark('hist_rows') }}
                 </tbody>
             </table>
         </div>
@@ -1206,6 +1214,7 @@
       **대상 집은 서버가 link_id 로 다시 계산한다** — 여기 적힌 건수는 사람이 읽는 재진술이지
       처리 대상 지정이 아니다(일괄 발송처리와 같은 규율).
     #}
+{{ mark('wb_modals') }}
     <div class="modal fade" id="wb-modal-origin-cancel" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
@@ -1303,6 +1312,7 @@
         </div>
     </div>
 </div>
+{{ mark('wb_modals') }}
 {% endblock %}
 
 {% block scripts %}

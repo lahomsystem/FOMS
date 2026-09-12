@@ -26,7 +26,7 @@ from foms.services.feature_flags import (
 from foms.services.datetime_kst import format_datetime_kst
 from foms.services.dashboard_counts import get_nav_badge_counts
 from foms.services.integrations.naver_commerce.triage_count import get_triage_pending_count
-from foms.services.common.ept_b7_profile import phase
+from foms.services.common.ept_b7_profile import phase, template_mark
 from foms.services.common.erp_mine_filter import erp_mine_only_from_request
 from foms.services.common.geocode_config import KAKAO_JS_API_KEY
 from foms.services.orders.order_flag_permissions import can_toggle_order_flags
@@ -486,6 +486,7 @@ def inject_tablet_rail_helper() -> dict[str, Any]:
 
 def register_context_processors(app) -> None:
     """Register all template filters and context processors on the Flask app."""
+    app.jinja_env.globals["mark"] = template_mark  # 계측 전용(셸 파셜이 모든 페이지에서 쓴다)
     app.add_template_filter(parse_json_string_filter, "parse_json_string")
     app.add_template_filter(format_datetime_kst, "format_datetime_kst")
     app.context_processor(inject_statuses)
