@@ -243,7 +243,7 @@
     {% set quest_actionable = (not action_list) and quest and quest.title
         and quest.approve_label
         and (not quest.all_approved)
-        and (can_edit or quest.can_assignee_approve) %}
+        and quest.can_assignee_approve %}
     {# 접수·실측만 카드에서 바로 승인한다(단계가 실제로 넘어가고, 판단에 필요한 정보가 카드에 있다).
        나머지 단계는 지금처럼 상세로 보내 맥락·권한을 다시 확인하게 한다. #}
     {% set quest_inline_approve = quest_actionable and quest.advances_stage %}
