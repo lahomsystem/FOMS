@@ -104,7 +104,7 @@
                 els.stage?.addEventListener('touchstart', handleTouchStart, { passive: true });
                 els.stage?.addEventListener('touchmove', handleTouchMove, { passive: false });
                 els.stage?.addEventListener('touchend', handleTouchEnd, { passive: true });
-                els.stage?.addEventListener('touchcancel', handleTouchEnd, { passive: true });
+                els.stage?.addEventListener('touchcancel', handleTouchCancel, { passive: true });
             }
 
             function open(files, startIndex = 0) {
@@ -601,6 +601,24 @@
 
                 if (dx < 0) next();
                 else prev();
+            }
+
+            /** 시스템이 제스처를 가져갔을 때(touchcancel) — 상태만 되돌리고 넘김은 하지 않는다.
+             *
+             * iOS 는 전화 수신·제어센터·화면 가장자리 뒤로가기에서 touchcancel 을 보낸다.
+             * 중단된 손짓을 touchend 와 같은 함수로 처리하면 '넘김 완료'로 읽혀, 사용자가
+             * 끝내지도 않은 스와이프로 사진이 넘어간다. 줌 상태는 그대로 둔다. */
+            function handleTouchCancel() {
+                state.touching = false;
+                state.panning = false;
+                state.pinching = false;
+                if (state.scale <= 1.05) {
+                    state.scale = 1;
+                    state.tx = 0;
+                    state.ty = 0;
+                    updateTransform();
+                }
+                setGestureTransition(false);
             }
 
             // 현재 표시 중인 파일 인덱스(스와이프 반영) — 도면 판정이 대상 key 를 고르는 근거.
