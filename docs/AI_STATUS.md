@@ -1,7 +1,7 @@
 # FOMS 현재 상태
 > 자동 업데이트: 2026-09-11
-> 최신: **모바일 ERP 3건 + perf-gate 정비(운영 PR #346·#354·#355·#358·#360·#361)** — 실측 완료 버튼 먹통(해시만 바꾸는 `location.href` 는 재로드 못 함)·아이폰 견적서 사진 저장(공유 시트)·수집 뱃지 **탭 전환 590→35ms·첫 화면 423→47ms**·perf-gate 페르소나 쿠키+coarse 패스. 상세·측정 함정 3종은 AI_CHANGELOG
-> 직전: **네이버 취소·반품 부분 선택(NVCLAIM-PARTIAL-01, deploy 대기 · 게이트 `FOMS_NAVER_PARTIAL_CLAIM_ENABLED`+`_COHORT`)** — 운영 #2354: 집 단위라 1건만 취소를 못 했고 부분 취소 뒤 남은 라인 발송이 막혔다. 모달 체크박스 + 서버 `product_order_ids`(None=집 전체/[]=400/목록=그 라인만), 본품 선택 시 추가구성 자동 동반 + 서버 재검사(0건 전송), 표식 `cancel_scope` partial/household(partial 행만 제외, household·취소 실패 잔존은 집 차단), 취소 버튼·벌크 pre-check 는 형제 클레임으로 집을 안 잠근다(결정 8·9). 스펙 `docs/specs/2026-09-11-naver-partial-claim_SPEC.md` §11. **잔여: 스테이징 §8 ①②③ + 사용자 #2354 화면 확인**
+> 최신: **도면 주문 변경 배너 제거 — 신호 한 줄, 값은 한 곳(deploy 대기)** — 배너가 타임라인(모바일)·변경 이력 표(PC)와 같은 값을 두 번 읽혔다. 리본·머리글은 `스펙, 제품명 2줄` 처럼 이름과 줄 수까지만 쓴다. 확인 버튼은 값 바로 아래 1개(주소를 버튼이 싣는다)·권한 없으면 미렌더(옛 배너는 403 을 만들었다). 목록 뷰 신호는 리본이 분기 밖이라 유지. ack 응답에 확인자·시각. 상수 `주문 단위 상태 1개` 제거
+> 직전: **모바일 ERP 3건 + perf-gate 정비(운영 PR #346·#354·#355·#358·#360·#361)** — 실측 완료 버튼 먹통(해시만 바꾸는 `location.href` 는 재로드 못 함)·아이폰 견적서 사진 저장(공유 시트)·수집 뱃지 **탭 전환 590→35ms·첫 화면 423→47ms**·perf-gate 페르소나 쿠키+coarse 패스. 상세·측정 함정 3종은 AI_CHANGELOG
 > 이 파일 상단 40줄이 세션 시작 컨텍스트의 전부다(hygiene 계약으로 강제). 상세 이력은 "## 최근 완료"·"## 기록 보관".
 
 
@@ -10,6 +10,8 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
+- [2026-09-12] **도면 주문 변경 UI 재설계(deploy 대기)** — 근거 `docs/plans/2026-09-11-drawing-mobile-order-change-brief.md`. 잔여: 스테이징 실화면 확인
+- [2026-09-11] **네이버 취소·반품 부분 선택(deploy 대기 · 게이트 `FOMS_NAVER_PARTIAL_CLAIM_ENABLED`+`_COHORT`)** — 스펙 `docs/specs/2026-09-11-naver-partial-claim_SPEC.md` §11. **잔여: 스테이징 §8 ①②③ + 사용자 #2354 화면 확인**
 - [2026-09-11] **도면 마법사 캔버스 소실 사고 종결(production `5564994a6`·PR #353)** — 주문 폼 전체 저장 1회가 `drawing_wizard` 를 통째 삭제(보존 목록 누락, 감사엔 `변경 0건`). 같은 자리 6번째라 등재 대신 **비-폼 키 기본 보존**으로 뒤집음. 피해=마법사 쓴 주문 2건 전부, **둘 다 R2 스냅샷으로 복구**. 기록 `docs/plans/2026-09-11-drawing-wizard-data-loss-incident.md`
 - [2026-09-10] **추가결제 행 `주문 만듦` 배지 접기 + ERP 도크 예약금 카드 → 결제 금액 한 줄(PR #341 · production `a1ec42996`)** — 사용자 지시(#5206 김도희). 서버 판정 `foms_badge_hidden`, 도크는 서버 `relation_label`·`live_total_display` 두 노드만(설명문 전부 제거) · 워크벤치 정리 계획 카드·검색 붙이기·완료 패널도 같은 규칙(PR #342 · production `89561e10a`) · 09-11 dock.py 옛 예약금 키·헬퍼 제거(PR #348 · production `ee4526737`). 원장 `docs/plans/2026-09-10-addon-badge-dock-brief.md`. 스테이징 QA PASS 후 승격
 - [2026-09-11] **탭 왕복 느림 — 범인은 렌더가 아니라 조회(deploy `81ffe843d`)** — `with phase("wb_template")` 안에 `render_template` 호출만 두면 **인자 식이 먼저 평가돼** 그 조회들이 템플릿 시간으로 계상된다. 쪼개 재니 진짜 Jinja 는 5~7ms, 나머지는 조회였다(이력 탭: 처리 목록 308~355 · 이력 74~104 · 다시 읽기 버튼 상태 65~253 · pane 42~45). 최대 몫은 **이력 탭이 안 쓰는 처리 목록을 통째로 도는 것**. 원장 `docs/plans/2026-09-11-tab-roundtrip-slowdown-measurements.md` §10

@@ -15,7 +15,7 @@ from models import Order, OrderAttachment, Notification, SecurityLog
 from foms.web.auth import login_required, get_user_by_id, log_access
 from foms.services.audit_message_display import describe_order_action
 from foms.services.orders.audit_order_context import order_audit_context
-from foms.services.datetime_kst import now_utc_naive
+from foms.services.datetime_kst import format_datetime_kst, now_utc_naive
 from foms.services.storage import get_storage
 from foms.api.notifications import (
     resolve_notification_recipient_user_ids,
@@ -528,6 +528,16 @@ def api_ack_drawing_order_change(order_id):
             actor_user_id=session.get('user_id'),
             actor_name=current_user.name or '',
         )
+        # 모바일 리본 한 줄이 '확인함 · 누가 언제'로 바뀌려면 이 두 값이 필요하다.
+        # commit 뒤에는 속성이 만료되므로 커밋 전에 읽는다.
+        acked_at_text = ''
+        sd_after = order.structured_data if isinstance(order.structured_data, dict) else {}
+        for entry in reversed(list(sd_after.get('drawing_transfer_history') or [])):
+            if not isinstance(entry, dict):
+                continue
+            if entry.get('action') == 'ERP_ORDER_CHANGED' and entry.get('acked_at'):
+                acked_at_text = format_datetime_kst(entry.get('acked_at'), '%m-%d %H:%M') or ''
+                break
         if changed:
             ack_context = order_audit_context(order)
             log_access(
@@ -546,7 +556,12 @@ def api_ack_drawing_order_change(order_id):
             invalidate_dashboard_families(DASHBOARD_FAMILY_DRAWING)
         else:
             db.rollback()
-        return jsonify({'success': True, 'acked': bool(changed)})
+        return jsonify({
+            'success': True,
+            'acked': bool(changed),
+            'acked_by_name': current_user.name or '',
+            'acked_at': acked_at_text,
+        })
     except Exception as e:
         db.rollback()
         logger.exception("ack drawing order-change failed: %s", e)
