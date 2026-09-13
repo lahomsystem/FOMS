@@ -29,6 +29,7 @@ from sqlalchemy.orm import Session
 from foms.services.datetime_kst import now_utc_naive
 from foms.services.integrations.naver_commerce.constants import CHANNEL
 from foms.services.integrations.naver_commerce.grouping import resolve_group_key
+from foms.services.integrations.naver_commerce.link_mirror import apply_claim_mirror
 from foms.services.integrations.naver_commerce.mapping import (
     claim_kind,
     claim_reason_text,
@@ -452,6 +453,9 @@ def _refresh_link(link: ExternalOrderLink, detail: dict, *, stamp: datetime,
     refreshed_group_key = group_key_text(detail)
     if refreshed_group_key:
         link.group_key = refreshed_group_key
+    # 클레임 축 사본도 같은 자리에서 갱신한다(NVMIRROR-01) — 스윕이 클레임의 첫 목격자라
+    # 여기서 안 쓰면 사본이 영영 낡는다. 값을 못 뽑으면 옛 사본을 지우지 않는다.
+    apply_claim_mirror(link, detail)
     state = copy.deepcopy(link.triage_state) if isinstance(link.triage_state, dict) else {}
     sync = dict(state.get(STATE_KEY) or {})
     sync["last_status"] = claim["status"]
@@ -853,24 +857,40 @@ def refreshable_household_link_ids(
     stamp = now or now_utc_naive()
     cutoff = stamp - timedelta(seconds=REFRESH_ALL_COOLDOWN_SECONDS)
 
-    # raw_snapshot 전체를 끌어오지 않는다 — 집 200링크면 스냅샷이 수 MB 다. 필요한
-    # 스칼라 두 개만 JSON 경로로 뽑는다(중첩·평평 두 모양 모두 받는다: 응답 변형은
-    # ``mapping.extract_*`` 가 이미 겪은 자리다).
-    nested = ExternalOrderLink.raw_snapshot["productOrder"]["productOrderStatus"].as_string()
-    flat = ExternalOrderLink.raw_snapshot["productOrderStatus"].as_string()
+    # **`raw_snapshot` 을 건드리지 않는다**(NVMIRROR-01). 스칼라만 뽑아도 그 컬럼을 읽는 순간
+    # 행마다 TOAST 를 한 번 더 읽는다 — 운영 실측(2,388행)에서 같은 스캔이 버퍼 14,736·50.5ms
+    # 대 249·0.95ms 였다. 상태는 사본 컬럼에서, 클레임·갱신 시각은 `triage_state`(평균 280
+    # bytes, 본체에 들어간다)에서 읽는다.
+    order_status = ExternalOrderLink.product_order_status
     claim_status = ExternalOrderLink.triage_state[STATE_KEY]["last_status"].as_string()
     refreshed_at = ExternalOrderLink.triage_state[STATE_KEY]["refreshed_at"].as_string()
 
     rows = (session.query(ExternalOrderLink.id,
                           ExternalOrderLink.external_order_no,
                           ExternalOrderLink.created_at,
-                          nested, flat, claim_status, refreshed_at)
+                          order_status, claim_status, refreshed_at)
             .filter(ExternalOrderLink.channel == CHANNEL,
                     ExternalOrderLink.external_order_no.isnot(None))
-            .all())  # perf-ok: 링크 단위 스칼라 투영(운영 200행), 관리자 전용 조작 경로
+            .all())  # perf-ok: 사본 컬럼 스칼라 투영(TOAST 접근 없음), 관리자 전용 조작 경로
+
+    # 사본이 NULL 인 행(백필 전)만 스냅샷에서 읽는다. 빈 문자열은 "값 없음" 이라 폴백하지
+    # 않는다 — 그 구분이 없으면 백필 뒤에도 상태 없는 행이 스냅샷을 다시 읽는다.
+    stale_ids = [int(link_id) for link_id, _no, _at, status, _c, _r in rows if status is None]
+    stale_status: dict[int, str] = {}
+    if stale_ids:
+        nested = ExternalOrderLink.raw_snapshot["productOrder"]["productOrderStatus"].as_string()
+        flat = ExternalOrderLink.raw_snapshot["productOrderStatus"].as_string()
+        stale_status = {
+            int(link_id): (nested_st or flat_st or "")
+            for link_id, nested_st, flat_st in session.query(
+                ExternalOrderLink.id, nested, flat)
+            .filter(ExternalOrderLink.id.in_(stale_ids))  # perf-ok: 백필 전 행만
+            .all()
+        }
 
     households: dict[str, dict[str, Any]] = {}
-    for link_id, order_no, created_at, nested_st, flat_st, claim_st, seen_at in rows:
+    for link_id, order_no, created_at, order_st, claim_st, seen_at in rows:
+        order_st = stale_status.get(int(link_id), "") if order_st is None else order_st
         house = households.setdefault(str(order_no), {
             "link_id": int(link_id), "seen_at": created_at,
             "all_terminal": True, "all_recent": True,
@@ -878,7 +898,7 @@ def refreshable_household_link_ids(
         house["link_id"] = min(house["link_id"], int(link_id))
         if created_at is not None and (house["seen_at"] is None or created_at > house["seen_at"]):
             house["seen_at"] = created_at
-        if not _is_terminal_link(claim_st, nested_st or flat_st):
+        if not _is_terminal_link(claim_st, order_st):
             house["all_terminal"] = False
         if not _is_recent_refresh(seen_at, cutoff):
             house["all_recent"] = False

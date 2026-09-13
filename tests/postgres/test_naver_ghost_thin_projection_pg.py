@@ -162,3 +162,64 @@ def test_ghost_band_lists_the_same_orders_and_amounts(pg_session):
     row = next(r for r in result["rows"] if r["order_id"] == ghost.id)
     assert row["naver_amount_total"] == 250000 + 310000, "금액 합이 갈렸다"
     assert row["naver_link_count"] == 2
+
+
+def test_mirror_columns_keep_the_snapshot_untouched(pg_session, pg_engine):
+    """사본이 채워진 행만 있으면 유령 스캔이 ``raw_snapshot`` 을 **한 번도** 안 읽는다.
+
+    §13 의 투영은 "덜 읽는다" 였고 NVMIRROR-01 은 "안 읽는다" 다. 그 차이를 여기서 잠근다.
+    """
+    from foms.services.integrations.naver_commerce.ghost_orders import find_ghost_orders
+    from foms.services.integrations.naver_commerce.link_mirror import apply_claim_mirror
+
+    order = _order(pg_session, "사본-채운행")
+    for index, (name, shape) in enumerate(sorted(GHOST_SHAPES.items())):
+        row = _link(pg_session, order.id, f"GHOSTMIRROR-{index}", shape)
+        apply_claim_mirror(row, shape)
+    pg_session.flush()
+
+    seen: list[str] = []
+
+    def _record(conn, cursor, statement, parameters, context, executemany):
+        seen.append(statement)
+
+    event.listen(pg_engine, "before_cursor_execute", _record)
+    try:
+        find_ghost_orders(pg_session)
+    finally:
+        event.remove(pg_engine, "before_cursor_execute", _record)
+
+    touched = [sql for sql in seen if "raw_snapshot" in sql.lower()]
+    assert not touched, f"사본이 있는데도 스냅샷을 읽었다: {touched[:1]}"
+
+
+def test_stale_rows_still_fall_back_to_the_snapshot(pg_session, pg_engine):
+    """사본이 NULL 인 행(백필 전)은 스냅샷으로 폴백한다 — 그 행만, 답은 그대로.
+
+    음성 대조군이다: 위 테스트가 "안 읽는다" 를 증명하므로, 여기서 "필요하면 읽는다" 까지
+    보여야 폴백이 살아 있는지 알 수 있다.
+    """
+    from foms.services.integrations.naver_commerce.ghost_orders import find_ghost_orders
+
+    ghost = _order(pg_session, "백필전-전부취소")
+    # 사본을 **채우지 않는다**(NULL) — 옛 행과 같은 상태.
+    _link(pg_session, ghost.id, "GHOSTSTALE-1", GHOST_SHAPES["취소확정"])
+    _link(pg_session, ghost.id, "GHOSTSTALE-2", GHOST_SHAPES["최상위-반품확정"])
+    pg_session.flush()
+
+    seen: list[str] = []
+
+    def _record(conn, cursor, statement, parameters, context, executemany):
+        seen.append(statement)
+
+    event.listen(pg_engine, "before_cursor_execute", _record)
+    try:
+        result = find_ghost_orders(pg_session)
+    finally:
+        event.remove(pg_engine, "before_cursor_execute", _record)
+
+    ids = [row["order_id"] for row in result["rows"]]
+    assert ghost.id in ids, "백필 전 행이 띠에서 빠졌다 — 폴백이 죽었다"
+    row = next(r for r in result["rows"] if r["order_id"] == ghost.id)
+    assert row["naver_amount_total"] == 250000 + 310000
+    assert any("jsonb_build_object" in sql for sql in seen), "폴백이 투영을 안 썼다"
