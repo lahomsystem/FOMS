@@ -6,6 +6,13 @@
 
   <main class="foms-shell-body foms-drawing-handoff__body">
     <section class="foms-drawing-turn foms-drawing-turn--{{ mobile_handoff_turn.tone }}">
+      {# 뒤로가기는 목적지를 명시한 순수 링크다. 셸의 data-foms-shell-back 은 history.back() 이라
+         도면 페이저를 몇 번 누르면 목록이 아니라 직전 도면으로 가고, 딥링크 진입자는 앱 밖으로 나간다. #}
+      <a class="foms-drawing-turn__back"
+        href="{{ url_for('erp_drawing_workbench.erp_drawing_workbench_dashboard') }}"
+        aria-label="도면 작업실 목록으로 돌아가기">
+        <i class="fas fa-arrow-left" aria-hidden="true"></i>
+      </a>
       <span class="foms-drawing-turn__dot" aria-hidden="true"></span>
       <div>
         <h2>{{ mobile_handoff_turn.label }}</h2>
