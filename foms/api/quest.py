@@ -17,6 +17,7 @@ from foms.services.audit_message_display import describe_order_action
 from foms.services.orders.audit_order_context import order_audit_context
 from foms.services.erp_sync_columns import sync_erp_flat_columns
 from foms.services.orders.erp_policy_constants import DEFAULT_OWNER_TEAM_BY_STAGE
+from foms.services.orders.erp_policy_quests import resolve_required_approval_teams
 from foms.services.orders.order_mutation_policy import normalize_team, team_has_capability
 from foms.services.erp_policy import (
     get_stage,
@@ -273,7 +274,6 @@ def _required_teams_for_stage(current_quest, stage_code):
     Returns:
         정규화된 팀 코드 목록.
     """
-    from foms.services.orders.erp_policy_quests import resolve_required_approval_teams
 
     # 저장값을 그대로 믿지 않는다 — 옛 규칙으로 좁게 저장된 quest 를 SSOT 가 정책으로
     # 덮는다(2026-09-13: 라홈 실측이 ["CS"] 로 저장돼 영업이 못 누르던 것).
