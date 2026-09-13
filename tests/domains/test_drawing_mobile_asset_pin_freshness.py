@@ -116,7 +116,7 @@ def test_focus_fix_forces_js_pin_bump() -> None:
 # 자산 본문의 해시와 그때의 핀을 한 쌍으로 적어 두고, 해시가 달라졌는데 핀이 그대로면 실패시킨다.
 # 자산을 고쳤다면: 핀을 새 값으로 올리고 아래 표의 (해시, 핀) 을 함께 갱신한다.
 ASSET_PIN_LOCK = {
-    "static/css/components/foms-drawing-mobile.css": ("c446e10149c1", "20260913a"),
+    "static/css/components/foms-drawing-mobile.css": ("c8db1ceb7c9a", "20260913b"),
     "static/js/drawing/order-change-banner.js": ("a736727fa07e", "20260913a"),
 }
 
