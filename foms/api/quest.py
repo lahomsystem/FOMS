@@ -273,8 +273,11 @@ def _required_teams_for_stage(current_quest, stage_code):
     Returns:
         정규화된 팀 코드 목록.
     """
-    raw = current_quest.get("required_approvals") if isinstance(current_quest, dict) else None
-    teams = [normalize_team(t) for t in (raw or []) if t]
+    from foms.services.orders.erp_policy_quests import resolve_required_approval_teams
+
+    # 저장값을 그대로 믿지 않는다 — 옛 규칙으로 좁게 저장된 quest 를 SSOT 가 정책으로
+    # 덮는다(2026-09-13: 라홈 실측이 ["CS"] 로 저장돼 영업이 못 누르던 것).
+    teams = [normalize_team(t) for t in resolve_required_approval_teams(stage_code, current_quest) if t]
     if not teams:
         default = DEFAULT_OWNER_TEAM_BY_STAGE.get(stage_code)
         if default:

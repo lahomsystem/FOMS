@@ -17,6 +17,8 @@ from foms.services.erp_policy import (
     get_quest_template_for_stage,
     get_required_approval_teams_for_stage,
 )
+from foms.services.orders.erp_policy_quests import resolve_required_approval_teams
+from foms.services.orders.order_mutation_policy import team_has_capability
 from foms.services.orders.quest_approve_cta import build_approve_cta
 
 __all__ = [
@@ -102,27 +104,22 @@ def resolve_current_quest(
 
 
 def _apply_lahom_cs_override(current_quest: dict[str, Any], sd: dict[str, Any], stage: str) -> list[str]:
-    """Apply 라홈 orderer CS team override to quest + required teams."""
-    required_teams = list(get_required_approval_teams_for_stage(stage))
+    """라홈 발주사면 **주관 팀 표시**를 CS 로 바꾸고, 필수 승인 팀을 돌려준다.
+
+    2026-09-13 정정. 예전에는 이 함수가 승인 축까지 ``["CS"]`` 로 좁히고
+    ``team_approvals`` 도 CS 한 칸만 남겼다. 그 규칙이 업무와 달랐다 — 실측·고객컨펌은
+    CS 와 영업이 함께 주관한다(CS 자가실측, 영업 방문실측). 승인 축은
+    :func:`resolve_required_approval_teams` 가 단독으로 답하고, 여기서는
+    "누가 주관하는가"(표시·배정)만 바꾼다.
+
+    ``team_approvals`` 를 CS 한 칸으로 줄이던 것도 함께 뺐다 — 필수 팀에 영업이 들어온
+    지금 그렇게 하면 영업 승인 기록이 화면에서 사라진다.
+    """
     if stage in ("실측", "MEASURE", "고객컨펌", "CONFIRM"):
         orderer_name = (((sd.get("parties") or {}).get("orderer") or {}).get("name") or "").strip()
         if orderer_name and "라홈" in orderer_name:
             current_quest["owner_team"] = "CS"
-            required_teams = ["CS"]
-            existing_cs = current_quest.get("team_approvals", {}).get("CS", {})
-            approved = (
-                existing_cs.get("approved", False)
-                if isinstance(existing_cs, dict)
-                else bool(existing_cs)
-            )
-            current_quest["team_approvals"] = {
-                "CS": {
-                    "approved": approved,
-                    "approved_by": existing_cs.get("approved_by") if isinstance(existing_cs, dict) else None,
-                    "approved_at": existing_cs.get("approved_at") if isinstance(existing_cs, dict) else None,
-                }
-            }
-    return required_teams
+    return list(resolve_required_approval_teams(stage, current_quest))
 
 
 def _compute_approval_state(
@@ -332,6 +329,17 @@ def _compute_can_assignee_approve(
     )
     if not domain:
         return False
+
+    # 서버 게이트(`_authorize_quest_approve`)와 **같은 팀 술어**를 먼저 통과해야 한다.
+    # 이게 없으면 화면이 "누를 수 있다"고 판단한 버튼을 서버가 403 으로 거부한다
+    # (2026-09-13 운영 신고: 영업팀이 라홈 실측 완료를 눌렀다가 거부당했다).
+    # ADMIN 은 서버가 role bypass 하므로 여기서도 통과시킨다.
+    role = str(getattr(current_user, "role", "") or "").strip().upper()
+    if role != "ADMIN":
+        required_teams = resolve_required_approval_teams(stage_code, current_quest)
+        if required_teams and not team_has_capability(
+                getattr(current_user, "team", None), required_teams):
+            return False
 
     can_assignee = can_modify_domain(current_user, order, domain, False, None)
     if can_assignee:
