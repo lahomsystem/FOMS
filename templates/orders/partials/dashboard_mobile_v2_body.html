@@ -1,6 +1,7 @@
 {% if tower_mode|default(false) and control_tower %}
 {% include 'orders/partials/dashboard_mobile_tower.html' %}
 {% else %}
+{% from 'partials/shared/channel_mark.html' import channel_mark %}
 
 {% set _filters = filters or {} %}
 {% set _base_url = url_for('erp_dashboard.erp_dashboard') %}
@@ -66,6 +67,7 @@
       </p>
       <h2 class="foms-v2h-hero__title">
         {{ _cs_hero.customer_name or '-' }}
+        {{ channel_mark(_cs_hero.channel_source) }}
         {% if _cs_hero.product_subtitle %}<span class="foms-v2h-hero__subtitle">{{ _cs_hero.product_subtitle }}</span>{% endif %}
       </h2>
       <dl class="foms-v2h-hero__meta">

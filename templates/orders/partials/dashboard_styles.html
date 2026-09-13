@@ -2,3 +2,6 @@
    fragment 마다 48KB를 재전송하던 것을 캐시 가능한 <link> 1회 로드로 대체(성능 다이어트).
    ?v= 스탬프로 배포 시 즉시 반영. gateway-notifications.css와 동일한 컨텍스트 css 관례. #}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/orders/dashboard-grid.css') }}?v=20260814a">
+{# 판매채널 출처 마크(고객 이름 바로 뒤). 이 partial 은 dashboard_main.html:138 한 곳에서만
+   include 되므로 대시보드 전 코호트(PC 그리드·모바일 v2·태블릿 시트·v3 폴백)가 한 번에 받는다. #}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-channel-mark.css') }}?v=20260913a">

@@ -1,4 +1,5 @@
 {# foms-kv-rollout: order grid deeplinks via edit_order + mobile shell kv-copy.js #}
+{% from 'partials/shared/channel_mark.html' import channel_mark %}
 
     <!-- Middle: Grid -->
     {# data-foms-stage-catalog: 8단계 워크플로 카탈로그(STAGE_SEQUENCE SSOT, code+label). 태블릿
@@ -266,7 +267,7 @@
                         도면 담당: <strong>{{ draftsman_text }}</strong><br />
                         주문 담당:
                         {% if o.is_unassigned_intake %}
-                        <span class="badge bg-warning text-dark" title="네이버 수집 주문 — 담당자 배정 전">담당 미지정</span>
+                        <span class="badge bg-warning text-dark" title="담당자 배정 전">담당 미지정</span>
                         {% else %}<strong>{{ o.manager_name or '-' }}</strong>{% endif %}
                         {% if drawing_transferred and drawing_files %}
                         <br />전달 파일: <strong>{{ drawing_files|length }}개</strong>
@@ -312,6 +313,7 @@
                     <div class="d-flex flex-column gap-1">
                       <span class="d-inline-flex align-items-center gap-1 flex-wrap">
                         {{ o.customer_name }}
+                        {{ channel_mark(o.channel_source) }}
                         {% if (o.orderer_name or '')|string and '라홈' in (o.orderer_name or '') %}
                         <img src="{{ url_for('static', filename='images/lahom-logo.png') }}" alt="라홈" class="erp-lahom-logo ms-1" title="라홈 주문">
                         {% endif %}
@@ -406,7 +408,7 @@
                   </td>
                   <td data-col-key="manager" data-label="담당" style="font-size: 1.1rem; color: #495057;">
                     {% if o.is_unassigned_intake %}
-                    <span class="badge bg-warning text-dark" title="네이버 수집 주문 — 담당자 배정 전">담당 미지정</span>
+                    <span class="badge bg-warning text-dark" title="담당자 배정 전">담당 미지정</span>
                     {% else %}{{ o.manager_name or '-' }}{% endif %}
                   </td>
                   <td data-col-key="attachment" data-label="첨부">
