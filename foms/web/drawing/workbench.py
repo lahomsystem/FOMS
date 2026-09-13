@@ -338,6 +338,33 @@ def _build_handoff_files(order_id: int, drawing_files: list[Any], history: list[
     return rows
 
 
+def _build_handoff_viewer_files(handoff_files: list[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    """Build the GlobalImageViewer payload for the mobile handoff detail viewer.
+
+    도면이 여러 장이면 뷰어가 좌우로 넘어가야 하므로(실측 이미지와 동일), 선택된 한 장이
+    아니라 같은 주문의 도면 전체를 넘긴다. 순서는 `mobile_handoff_files` 와 같아서
+    뷰어 카운터(i / N)가 페이저의 "도면 N / M" 과 일치한다.
+
+    Args:
+        handoff_files: `_build_handoff_files` 결과 행 목록.
+
+    Returns:
+        `{key, view_url, download_url, filename}` 목록. view_url 이 없는 행은 제외한다.
+    """
+    viewer_files = []
+    for row in handoff_files:
+        view_url = str(row.get('view_url') or '')
+        if not view_url:
+            continue
+        viewer_files.append({
+            'key': str(row.get('key') or ''),
+            'view_url': view_url,
+            'download_url': str(row.get('download_url') or view_url),
+            'filename': str(row.get('filename') or '도면'),
+        })
+    return viewer_files
+
+
 def _build_handoff_thread(history: list[Mapping[str, Any]]) -> list[dict[str, Any]]:
     """Build chat-like mobile timeline entries from order-level drawing history."""
     thread = []
@@ -1099,6 +1126,7 @@ def erp_drawing_workbench_detail(order_id):
         checklist=checklist,
         mobile_handoff_view=handoff_view,
         mobile_handoff_files=handoff_files,
+        mobile_handoff_viewer_files=_build_handoff_viewer_files(handoff_files),
         mobile_handoff_selected_file=selected_file,
         mobile_handoff_selected_index=selected_index,
         mobile_handoff_prev_url=handoff_prev_url,

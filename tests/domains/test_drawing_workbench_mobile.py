@@ -1,5 +1,7 @@
 """P0-02 — drawing workbench mobile card thumb + filter offcanvas."""
 
+import html
+import json
 import re
 from datetime import date
 from pathlib import Path
@@ -497,6 +499,38 @@ def test_drawing_workbench_valid_drawing_key_opens_mobile_detail(client, monkeyp
     assert "data-selected-drawing-key=\"drawings/kitchen.png\"" in body
     assert "foms-drawing-viewer__download" in body
     assert "/api/files/download/drawings/kitchen.png" in body
+
+
+def test_drawing_workbench_mobile_viewer_carries_every_drawing(client, monkeypatch):
+    """도면 미리보기는 주문의 도면 전체를 들고 열린다(한 장만 열던 회귀 차단).
+
+    예전에는 drawing-handoff.js 가 선택된 한 장만 GlobalImageViewer 에 넘겨서
+    좌우로 넘길 수 없었다. 목록은 서버가 data-* 로 실어 보낸다.
+    """
+    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
+    user = _login_drawing_admin(client)
+    monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(user.id))
+    order = _multi_drawing_order()
+
+    response = client.get(f"/erp/drawing-workbench/{order.id}?drawing_key=drawings/kitchen.png")
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+
+    marker = "data-foms-drawing-handoff-files='"
+    assert marker in body
+    raw = body.split(marker, 1)[1].split("'", 1)[0]
+    files = json.loads(html.unescape(raw))
+    assert [f["key"] for f in files] == ["drawings/living.png", "drawings/kitchen.png"]
+    assert files[1]["view_url"] == "/api/files/view/drawings/kitchen.png"
+    assert files[1]["download_url"] == "/api/files/download/drawings/kitchen.png"
+
+
+def test_drawing_handoff_js_opens_viewer_with_the_whole_list():
+    """drawing-handoff.js 가 단일 배열 하드코딩으로 되돌아가지 않았는지 본다."""
+    source = Path("static/js/foms/drawing-handoff.js").read_text(encoding="utf-8")
+
+    assert "data-foms-drawing-handoff-files" in source
+    assert "GlobalImageViewer.open(files, index)" in source
 
 
 def test_drawing_workbench_invalid_drawing_key_returns_mobile_list_notice(client, monkeypatch):

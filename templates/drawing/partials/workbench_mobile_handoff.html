@@ -1,6 +1,7 @@
 <div class="erp-mobile-shell foms-drawing-handoff d-lg-none"
   data-handoff-mode="{{ mobile_handoff_view }}"
-  data-selected-drawing-key="{{ mobile_handoff_selected_file.key if mobile_handoff_selected_file else '' }}">
+  data-selected-drawing-key="{{ mobile_handoff_selected_file.key if mobile_handoff_selected_file else '' }}"
+  data-foms-drawing-handoff-files='{{ (mobile_handoff_viewer_files or [])|tojson }}'>
   {% include 'partials/shared/erp_mobile_shell.html' %}
 
   <main class="foms-shell-body foms-drawing-handoff__body">
