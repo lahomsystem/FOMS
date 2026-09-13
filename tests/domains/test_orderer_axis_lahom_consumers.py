@@ -55,14 +55,20 @@ def test_drawing_logo_is_lahom():
 
 
 def test_quest_cs_override_applies():
-    """실측 단계 퀘스트가 CS 팀 override 를 받는다."""
+    """실측 단계 퀘스트의 **주관 팀**이 CS 로 바뀐다.
+
+    2026-09-13 정정: 예전에는 이 override 가 **승인 팀**까지 ``["CS"]`` 로 좁혔고, 그래서
+    영업팀이 라홈 주문의 실측 완료를 누르면 서버가 403 을 냈다(운영 신고). 실측·고객컨펌의
+    주관 팀은 CS 와 영업 **둘 다**다(CS 자가실측, 영업 방문실측). 그래서 이 override 는
+    이제 표시·배정 축(``owner_team``)만 바꾸고 승인 축은 안 건드린다.
+    """
     from foms.services.erp_quest_display import _apply_lahom_cs_override
 
     quest: dict = {"owner_team": "SALES", "team_approvals": {}}
     required = _apply_lahom_cs_override(quest, _ingested_sd(), "실측")
 
-    assert quest["owner_team"] == "CS"
-    assert required == ["CS"]
+    assert quest["owner_team"] == "CS", "주관 팀 표시는 여전히 CS"
+    assert set(required) == {"CS", "SALES"}, "승인 축은 좁히지 않는다"
 
 
 def test_measure_date_clear_returns_to_received():

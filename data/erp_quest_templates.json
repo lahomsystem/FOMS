@@ -29,6 +29,7 @@
         "HAUDD"
       ],
       "required_approvals": [
+        "CS",
         "SALES"
       ],
       "next_stage": "DRAWING",
@@ -70,6 +71,7 @@
         "DRAWING"
       ],
       "required_approvals": [
+        "CS",
         "SALES"
       ],
       "next_stage": "PRODUCTION",

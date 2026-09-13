@@ -75,12 +75,15 @@ def test_build_payload_sets_can_assignee_for_manager_name_match() -> None:
             }
         ],
     }
+    # 2026-09-13: 팀은 실측 승인 팀(CS·영업) 중 하나여야 한다. 예전에는 CONSTRUCTION 으로도
+    # True 가 나왔는데, 서버(`_authorize_quest_approve`)는 그 팀을 403 으로 거부했다 —
+    # 화면만 "누를 수 있다"고 말하던 거짓말이었다. 음성 대조군은 아래 테스트가 맡는다.
     user = SimpleNamespace(
         id=9,
         name="Manager Kim",
         username="mkim",
         role="STAFF",
-        team="CONSTRUCTION",
+        team="SALES",
     )
     order = SimpleNamespace(id=1, manager_name="Manager Kim", structured_data=sd)
     payload = qd.build_current_quest_payload(
@@ -302,3 +305,28 @@ def test_list_approve_restores_place_instead_of_removing_the_card() -> None:
         ROOT / "static" / "css" / "foundation" / "foms-mobile-surfaces.css"
     ).read_text(encoding="utf-8")
     assert "foms-queue-card-v2.css?v=20260910a" in surfaces
+
+
+def test_manager_name_fallback_does_not_beat_the_team_gate() -> None:
+    """음성 대조군 — 담당자 이름이 같아도 승인 팀이 아니면 화면도 버튼을 안 준다.
+
+    서버는 팀으로만 판정한다(`_authorize_quest_approve`). 이름 일치 폴백이 그 위를
+    덮으면 화면이 "누를 수 있다"고 말한 버튼을 서버가 403 으로 거부한다.
+    """
+    sd = {
+        "workflow": {"stage": "MEASURE"},
+        "parties": {"manager": {"name": "Manager Kim"}},
+        "quests": [{
+            "stage": "실측", "title": "실측", "status": "OPEN",
+            "approval_mode": "assignee", "assignee_approval": {"approved": False},
+        }],
+    }
+    user = SimpleNamespace(id=9, name="Manager Kim", username="mkim",
+                           role="STAFF", team="CONSTRUCTION")
+    order = SimpleNamespace(id=1, manager_name="Manager Kim", structured_data=sd)
+    payload = qd.build_current_quest_payload(
+        sd=sd, stage="실측", stage_code="MEASURE", order=order,
+        current_user=user, user_map={},
+    )
+    assert payload is not None
+    assert payload["can_assignee_approve"] is False

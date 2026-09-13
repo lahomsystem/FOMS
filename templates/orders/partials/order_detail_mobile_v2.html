@@ -126,7 +126,7 @@
          and order.current_quest.title
          and order.current_quest.approval_mode == 'assignee'
          and order.current_quest.approve_label
-         and (can_edit_erp or order.current_quest.can_assignee_approve)
+         and order.current_quest.can_assignee_approve
          and not quest_assignee_approval.get('approved')
        ) %}
 
@@ -265,7 +265,10 @@
         <p class="mb-0">{{ order.current_quest.title }}</p>
         {# 승인 버튼 노출은 approve_label 이 SSOT — 전용 command 단계(도면·고객컨펌)와 완료 단계는
            서버가 label 을 비워 보내고, 그 단계에서 승인 API 는 409 로 거부한다(막다른 길 방지). #}
-        {% set can_approve_quest = (can_edit_erp or (order.current_quest and order.current_quest.can_assignee_approve))
+        {# 노출 조건은 **서버 권한 게이트와 같은 답**이어야 한다. 예전에는 can_edit_erp 만으로도
+           버튼이 떠서, 필수 승인 팀이 아닌 사람이 누르면 403 을 맞았다(2026-09-13 운영 신고).
+           can_assignee_approve 가 이제 서버와 같은 팀 술어를 포함한다. #}
+        {% set can_approve_quest = (order.current_quest and order.current_quest.can_assignee_approve)
              and order.current_quest.approve_label %}
         {% if can_approve_quest %}
           <div class="foms-detail-action-stack mt-3" id="mobile-quest-approvals-{{ order.id }}">

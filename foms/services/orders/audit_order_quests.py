@@ -36,6 +36,7 @@ from foms.services.erp_quest_display import ACTIVE_QUEST_STATUSES
 from foms.services.orders.erp_policy_constants import STAGE_NAME_TO_CODE
 from foms.services.orders.erp_policy_quests import (
     get_required_approval_teams_for_stage,
+    resolve_required_approval_teams,
 )
 
 PACKET_ID = "QUEST-BACKFILL-00"
@@ -107,13 +108,14 @@ def _newest_index(quests: List[Any], indexes: List[int]) -> int:
 
 
 def _expected_required_teams(stage_code: str, sd: Dict[str, Any]) -> List[str]:
-    """stage 의 dynamic required approval teams(라홈 발주사 CS override 포함)."""
-    teams = list(get_required_approval_teams_for_stage(stage_code))
-    if stage_code in ("MEASURE", "CONFIRM"):
-        orderer = (((sd.get("parties") or {}).get("orderer") or {}).get("name") or "").strip()
-        if orderer and "라홈" in orderer:
-            return ["CS"]
-    return teams
+    """stage 의 필수 승인 팀 — 화면·서버와 **같은 SSOT** 를 쓴다.
+
+    2026-09-13 이전에는 여기에 라홈 발주사 CS override 사본이 있어, 실측·고객컨펌의
+    기대값을 ``["CS"]`` 로 좁혔다. 그 규칙 자체가 업무와 달랐고(실측·고객컨펌은 CS·영업
+    둘 다 주관), 판정이 세 곳에 흩어져 있어 한 곳만 고치면 나머지가 조용히 어긋났다.
+    ``sd`` 인자는 호출부 호환을 위해 남긴다 — 승인 축은 발주사와 무관해졌다.
+    """
+    return list(resolve_required_approval_teams(stage_code))
 
 
 # --------------------------------------------------------------------------- #
