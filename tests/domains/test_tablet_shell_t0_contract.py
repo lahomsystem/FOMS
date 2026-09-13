@@ -213,6 +213,58 @@ def test_viewer_extra_cleanup_and_get_index_synced_in_both_copies() -> None:
         assert "global-viewer-completion-extra" in body
 
 
+def test_viewer_swipe_consumes_touchmove_in_both_copies() -> None:
+    """넘김 스와이프가 touchmove 를 소비해야 한다(미러 SSOT + 실서빙 인라인 양쪽).
+
+    소비하지 않으면 touch-action:none 이어도 브라우저가 같은 움직임을 스크롤/플링
+    제스처로 인식하고, 그 뒤 약 0.5초 동안 다음 탭의 click 합성을 눌러버린다. 뷰어의
+    닫기 X·화살표는 click 으로만 동작하므로 첫 탭이 통째로 먹히지 않는다
+    (= 여러 장을 넘기다 X 를 두 번 눌러야 닫히던 증상).
+    """
+    for rel in (IMAGE_VIEWER_JS, "templates/partials/shared/layout_scripts.html"):
+        body = _read(rel)
+        start = body.index("if (state.touching && e.touches && e.touches.length === 1) {")
+        swipe_branch = body[start : start + 900]
+        assert "e.preventDefault()" in swipe_branch, f"{rel}: 스와이프 분기가 touchmove 를 소비하지 않음"
+
+
+def test_viewer_touchcancel_does_not_reuse_touchend_in_both_copies() -> None:
+    """touchcancel 은 전용 핸들러로 간다(미러 SSOT + 실서빙 인라인 양쪽).
+
+    iOS 는 전화 수신·제어센터·가장자리 뒤로가기에서 touchcancel 을 보낸다. 이것을
+    touchend 와 같은 함수로 처리하면 중단된 손짓이 '넘김 완료'로 읽혀, 사용자가
+    끝내지도 않은 스와이프로 사진이 넘어간다.
+    """
+    for rel in (IMAGE_VIEWER_JS, "templates/partials/shared/layout_scripts.html"):
+        body = _read(rel)
+        assert "'touchcancel', handleTouchCancel" in body, f"{rel}: touchcancel 전용 핸들러 누락"
+        assert "'touchcancel', handleTouchEnd" not in body, f"{rel}: touchcancel 이 touchend 로 되돌아감"
+        assert "function handleTouchCancel()" in body, f"{rel}: handleTouchCancel 정의 누락"
+
+
+def test_viewer_hover_styles_are_gated_to_pointer_devices() -> None:
+    """뷰어 :hover 는 `(hover: hover)` 안에만 있어야 한다(실서빙 인라인 사본).
+
+    터치 기기에서는 탭한 버튼에 hover 가 눌러붙어(iOS) 다음 탭까지 커진 채·빨간 채로
+    남는다. 화살표 표시는 hover 와 무관한 `.nav-visible`(+ coarse 미디어쿼리)가 맡는다.
+    """
+    body = _read("templates/partials/shared/layout_scripts.html")
+    hover_selectors = (
+        ".global-viewer-nav:hover",
+        "#global-image-viewer:hover .global-viewer-nav",
+        "#global-viewer-download:hover",
+        "#global-viewer-close:hover",
+    )
+    for selector in hover_selectors:
+        index = body.index(selector)
+        # 해당 규칙 앞 800자 안에 (hover: hover) 블록 시작이 있어야 한다.
+        assert "@media (hover: hover)" in body[max(0, index - 800):index], (
+            f"{selector} 가 (hover: hover) 밖에 있다 — 터치 기기에서 hover 가 눌러붙는다"
+        )
+    # 터치에서도 화살표가 보이는 경로는 hover 와 독립이어야 한다.
+    assert "#global-image-viewer.nav-visible .global-viewer-nav {" in body
+
+
 def test_mobile_select_gate_uses_tablet_mq_not_bare_width() -> None:
     """foms-mobile-select adopts the coarse-pointer tablet gate; the old bare
     ``matchMedia("(max-width: 991.98px)")`` (no pointer clause) is gone."""

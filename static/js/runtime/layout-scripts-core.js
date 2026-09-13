@@ -104,7 +104,7 @@
                 els.stage?.addEventListener('touchstart', handleTouchStart, { passive: true });
                 els.stage?.addEventListener('touchmove', handleTouchMove, { passive: false });
                 els.stage?.addEventListener('touchend', handleTouchEnd, { passive: true });
-                els.stage?.addEventListener('touchcancel', handleTouchEnd, { passive: true });
+                els.stage?.addEventListener('touchcancel', handleTouchCancel, { passive: true });
             }
 
             function open(files, startIndex = 0) {
@@ -524,6 +524,11 @@
                     const t = e.touches[0];
                     state.touchLastX = t.clientX;
                     state.touchLastY = t.clientY;
+                    // 넘김 스와이프도 뷰어가 소비한다. 여기서 preventDefault 하지 않으면
+                    // touch-action:none 이어도 브라우저가 같은 움직임을 스크롤/플링 제스처로
+                    // 인식하고, 그 직후 약 0.5초 동안 탭의 click 합성을 눌러버린다
+                    // (= 여러 장을 넘기다 닫기 X 를 눌러도 첫 탭이 먹지 않던 원인).
+                    if (e.cancelable) e.preventDefault();
                 }
             }
 
@@ -596,6 +601,24 @@
 
                 if (dx < 0) next();
                 else prev();
+            }
+
+            /** 시스템이 제스처를 가져갔을 때(touchcancel) — 상태만 되돌리고 넘김은 하지 않는다.
+             *
+             * iOS 는 전화 수신·제어센터·화면 가장자리 뒤로가기에서 touchcancel 을 보낸다.
+             * 중단된 손짓을 touchend 와 같은 함수로 처리하면 '넘김 완료'로 읽혀, 사용자가
+             * 끝내지도 않은 스와이프로 사진이 넘어간다. 줌 상태는 그대로 둔다. */
+            function handleTouchCancel() {
+                state.touching = false;
+                state.panning = false;
+                state.pinching = false;
+                if (state.scale <= 1.05) {
+                    state.scale = 1;
+                    state.tx = 0;
+                    state.ty = 0;
+                    updateTransform();
+                }
+                setGestureTransition(false);
             }
 
             // 현재 표시 중인 파일 인덱스(스와이프 반영) — 도면 판정이 대상 key 를 고르는 근거.
