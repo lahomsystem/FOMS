@@ -1,6 +1,6 @@
 # FOMS 현재 상태
 > 자동 업데이트: 2026-09-13
-> 최신: **모바일 이미지 뷰어 3건** — ① 사진을 넘기다 X 첫 탭이 무시되던 것: 스와이프가 `touchmove` 를 안 먹어 브라우저가 플링으로 보고 **직후 0.5초간 click 합성을 눌렀다**(`touch-action:none` 으로는 못 막는다) ② 도면 미리보기가 한 장만: 서버가 도면 전체를 `data-*` 로 실어보냄 ③ 아이폰 잔가지(중단된 제스처로 넘어감·hover 눌러붙음)
+> 최신: **모바일 이미지 뷰어 3건(운영 반영 완료 · PR #369 · production `2598dadcf`)** — ① 사진을 넘기다 X 첫 탭이 무시되던 것: 스와이프가 `touchmove` 를 안 먹어 브라우저가 플링으로 보고 **직후 0.5초간 click 합성을 눌렀다**(`touch-action:none` 으로는 못 막는다) ② 도면 미리보기가 한 장만: 서버가 도면 전체를 `data-*` 로 실어보냄 ③ 아이폰 잔가지(중단된 제스처로 넘어감·hover 눌러붙음)
 > 직전: **도면 주문 변경 배너 제거 — 신호 한 줄, 값은 한 곳(운영 반영 `0d67f76f3`)** — 배너가 타임라인(모바일)·이력 표(PC)와 같은 값을 두 번 읽혔다. 리본·머리글은 `스펙, 제품명 2줄` 처럼 이름과 줄 수까지만 쓴다. 확인 버튼은 값 아래 1개(주소를 버튼이 싣는다)·무권한 미렌더(옛 배너는 403 을 냈다). 목록 뷰 신호는 리본이 분기 밖이라 유지. ack 응답에 확인자·시각. 상수 `주문 단위 상태 1개` 제거
 > 이 파일 상단 40줄이 세션 시작 컨텍스트의 전부다(hygiene 계약으로 강제). 상세 이력은 "## 최근 완료"·"## 기록 보관".
 
@@ -10,7 +10,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
-- [2026-09-13] **모바일 이미지 뷰어 3건(위 최신 항목)** — 스와이프가 `touchmove` 소비(미러 `.js`+인라인 양쪽) · 도면 상세 `mobile_handoff_viewer_files` → `data-foms-drawing-handoff-files` · touchcancel 전용 핸들러 + hover `(hover: hover)` 게이트. 회귀 가드 5개. **잔여: 실기기(아이폰) 확인**
+- [2026-09-13] **모바일 이미지 뷰어 3건(운영 반영 완료 · PR #369 · production `2598dadcf`)** — 스와이프가 `touchmove` 소비(미러 `.js`+인라인 양쪽) · 도면 상세 `mobile_handoff_viewer_files` → `data-foms-drawing-handoff-files` · touchcancel 전용 핸들러 + hover `(hover: hover)` 게이트. 회귀 가드 5개. **잔여: 사용자 아이폰 화면 확인**
 - [2026-09-12] **도면 주문 변경 UI 재설계(운영 반영 PR #366)** — 근거 `docs/plans/2026-09-11-drawing-mobile-order-change-brief.md`. 잔여: 스테이징 실화면 확인
 - [2026-09-11] **네이버 취소·반품 부분 선택(deploy 대기 · 게이트 `FOMS_NAVER_PARTIAL_CLAIM_ENABLED`+`_COHORT`)** — 스펙 `docs/specs/2026-09-11-naver-partial-claim_SPEC.md` §11. **잔여: 스테이징 §8 ①②③ + 사용자 #2354 화면 확인**
 - [2026-09-11] **도면 마법사 캔버스 소실 사고 종결(production `5564994a6`·PR #353)** — 주문 폼 전체 저장 1회가 `drawing_wizard` 를 통째 삭제(보존 목록 누락, 감사엔 `변경 0건`). 같은 자리 6번째라 등재 대신 **비-폼 키 기본 보존**으로 뒤집음. 피해=마법사 쓴 주문 2건 전부, **둘 다 R2 스냅샷으로 복구**. 기록 `docs/plans/2026-09-11-drawing-wizard-data-loss-incident.md`
