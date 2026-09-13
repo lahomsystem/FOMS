@@ -3591,6 +3591,21 @@ class ExternalOrderLink(Base):
     recipient_name = Column(String(80), nullable=True)
     recipient_phone_digits = Column(String(20), nullable=True)
     orderer_phone_digits = Column(String(20), nullable=True)
+    # --- 클레임 축 사본 (NVMIRROR-01, 2026-09-13) ---
+    # `place_order_status`·`group_key`·`recipient_*` 와 같은 규약의 사본이다. 이 축을 컬럼으로
+    # 뺀 이유는 인덱스가 아니라 **TOAST** 다: `raw_snapshot` 평균이 2,194 bytes 라 임계(약 2KB)를
+    # 넘어 대부분이 본체 밖에 있고, 그 컬럼을 건드리는 조회는 행마다 TOAST 를 한 번 더 읽는다.
+    # 운영 실측(2,388행): 스냅샷에서 스칼라 두 개를 뽑으면 버퍼 14,736·50.5ms, 스냅샷을 아예
+    # 안 건드리면 버퍼 249·0.95ms 다. 스칼라 투영으로는 더 줄지 않는다.
+    # 정본은 여전히 `raw_snapshot` 이고, 값이 없으면(백필 전 행) 읽는 쪽이 스냅샷 경로로
+    # 폴백해 예전과 **같은 답**을 낸다 — 그래서 배포 순서가 어긋나도 화면이 안 바뀐다.
+    # `claim_status`·`claim_type` 은 원본 필드 하나가 아니라 `mapping.extract_claim` 의
+    # 결과다 — 그 함수가 6개 블록을 훑는 SSOT 이고, 손으로 경로를 고르면 얇은 경로만
+    # "클레임 없음" 이 되는 R-7 이 재발한다.
+    product_order_status = Column(String(30), nullable=True)
+    claim_status = Column(String(40), nullable=True)
+    claim_type = Column(String(20), nullable=True)
+    payment_amount = Column(Integer, nullable=True)
     # 도크(주문 편집 옆 네이버 원본 패널) 반영 상태 — T14-B.
     # {checked, checked_by, checked_at, assigned_main, assigned_by, assigned_at}.
     # reviewed_at 과 다른 축: 저건 큐 이탈(첫 확인 시각 불변), 이건 토글 가능한 표시용.

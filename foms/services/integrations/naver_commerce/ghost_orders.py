@@ -49,13 +49,16 @@ from typing import Any, Optional
 from sqlalchemy.orm import selectinload
 
 from foms.services.integrations.naver_commerce.grouping import resolve_group_key
+from foms.services.integrations.naver_commerce.link_mirror import snapshot_from_mirror
 from foms.services.integrations.naver_commerce.mapping import (
+    CLAIM_BLOCK_KEYS,
     CLAIM_KIND_LABELS,
     CLAIM_PHASE_DONE,
     CLAIM_PHASE_PROGRESS,
     CLAIM_PHASE_REQUESTED,
     MONEY_BACK_CLAIM_KINDS,
     RELATION_LABELS,
+    RETURN_BLOCK_KEYS,
     claim_kind,
     extract_claim,
 )
@@ -67,7 +70,8 @@ from models import ExternalOrderLink, Order
 logger = logging.getLogger(__name__)
 
 __all__ = ["find_ghost_orders", "judge_order_discard", "stage_label",
-           "GHOST_LIST_LIMIT", "DISCARDABLE_STATUSES", "GHOST_CLAIM_KINDS"]
+           "GHOST_LIST_LIMIT", "DISCARDABLE_STATUSES", "GHOST_CLAIM_KINDS",
+           "GHOST_PROJECTION_BLOCK_KEYS"]
 
 #: 유령 모집단에 넣는 단계. ``rejected``(거부·철회)는 주문이 살아 있다는 뜻이라 뺀다.
 GHOST_CLAIM_PHASES = (CLAIM_PHASE_DONE, CLAIM_PHASE_REQUESTED, CLAIM_PHASE_PROGRESS)
@@ -90,6 +94,60 @@ GHOST_LIST_LIMIT = 20
 #: **사용자 결정 2026-09-02**: 단계 제한을 없애되, 이 목록 밖은 **관리자가 사유 문장을
 #: 적어야** 접힌다. 휴지통은 복구되므로 잃는 것은 없고, 남는 것은 "왜 접었나"다.
 DISCARDABLE_STATUSES = ("RECEIVED",)
+
+
+#: 유령 스캔의 축소 스냅샷이 남기는 **클레임 블록 키**. 손으로 적지 않고
+#: :mod:`mapping` 에서 파생한다 — 블록 이름이 늘 때 여기만 옛 목록으로 남으면 얇은 경로가
+#: "클레임 없음" 으로 갈린다(R-7 이 정확히 그 사고였다: `claimStatus` 가 top-level
+#: `return` 에만 실려 오는 반품에서 얇은 경로와 두꺼운 경로의 판정이 달라졌다).
+GHOST_PROJECTION_BLOCK_KEYS = tuple(dict.fromkeys(
+    tuple(CLAIM_BLOCK_KEYS) + tuple(RETURN_BLOCK_KEYS) + ("currentClaim", "beforeClaim")))
+
+
+def _ghost_snapshot_projection(session):
+    """유령 스캔이 읽는 경로만 담은 **축소 스냅샷** SQL 식.
+
+    :func:`find_ghost_orders` 는 주문에 붙은 링크를 **전부** 읽는다. 그런데 판정이 보는 것은
+    클레임 블록과 결제 금액뿐이고, 나머지(제품명·옵션·주소·배송 이력)는 한 술어도 읽지 않는다.
+    2026-09-13 운영 실측: 그 전량이 **1,958KB**, 축소하면 **290KB** 로 줄고 조회 시간이
+    788ms → 167ms 가 됐다(같은 연결·같은 489행). 파이썬 판정 자체는 어느 쪽이든 2ms 다 —
+    비용은 파싱이 아니라 **읽어 오는 양**이다.
+
+    판정 함수는 한 줄도 갈라지지 않는다. 축소 문서를 ``raw_snapshot`` 자리에 그대로 넣으므로
+    :func:`_claim_of` 와 :func:`_fold_link` 가 같은 경로를 읽는다 — 술어가 아니라 **입력만**
+    얇게 한다(같은 규율의 선례가 `naver_ingest._snapshot_projection` 이다).
+
+    ``COALESCE`` 는 ``unwrap_detail`` 의 평평한 응답 폴백을 옮긴 것이다(``productOrder`` 가
+    dict 가 아니면 최상위에서 찾는다).
+
+    Args:
+        session: 요청 스코프 DB 세션(방언 판정용).
+
+    Returns:
+        SQL 식. PostgreSQL 이 아니면 ``raw_snapshot`` 컬럼 그대로 — 결과는 같고 비용만
+        옛 값이다(SQLite 테스트 레인 보호).
+    """
+    from sqlalchemy import func
+
+    bind = session.get_bind()
+    if getattr(getattr(bind, "dialect", None), "name", "") != "postgresql":
+        return ExternalOrderLink.raw_snapshot
+    raw = ExternalOrderLink.raw_snapshot
+    return func.jsonb_build_object(
+        "order", func.jsonb_build_object("claimStatus", raw["order"]["claimStatus"]),
+        "productOrder", func.jsonb_build_object(
+            "claimStatus", func.coalesce(raw["productOrder"]["claimStatus"],
+                                         raw["claimStatus"]),
+            "claimType", func.coalesce(raw["productOrder"]["claimType"],
+                                       raw["claimType"]),
+            # 금액 축(`_fold_link` 의 `amount_total`). 표시 전용처럼 보이지만 띠 문장이
+            # 이 합계를 말한다 — 빼면 얇은 경로의 금액이 항상 0 이 된다.
+            # **COALESCE 를 쓰지 않는다**: `_fold_link` 는 `productOrder` 안만 보므로,
+            # 최상위 폴백을 넣으면 평평한 응답에서 얇은 경로가 두꺼운 경로보다 큰 금액을
+            # 낸다(계약 테스트가 이 차이를 잡았다). 여기서는 동치가 먼저다.
+            "totalPaymentAmount", raw["productOrder"]["totalPaymentAmount"]),
+        *[arg for key in GHOST_PROJECTION_BLOCK_KEYS for arg in (key, raw[key])],
+    )
 
 
 def _claim_of(snapshot: Any) -> tuple[str, str, str]:
@@ -263,14 +321,39 @@ def find_ghost_orders(session, *, limit: int = GHOST_LIST_LIMIT) -> dict[str, An
         ``discard_needs_reason``(접으려면 관리자 사유 문장이 필요한지) +
         ``measure``(실측 전/후 표시 축 — 판정에는 안 쓴다).
     """
+    # **사본 컬럼만 읽는다**(NVMIRROR-01). `raw_snapshot` 은 평균 2,194 bytes 로 TOAST 임계를
+    # 넘어 그 컬럼을 건드리는 순간 행마다 TOAST 를 한 번 더 읽는다 — 운영 실측으로 같은 스캔이
+    # 버퍼 14,736·50.5ms 대 249·0.95ms 였다. 사본으로 판정하면 그 읽기가 아예 없다.
+    #
+    # 판정은 **한 벌 그대로** 쓴다: 사본을 `snapshot_from_mirror` 로 같은 모양 문서로 되돌려
+    # 기존 `_fold_link` 에 넣는다. `if 사본 else 스냅샷` 으로 술어를 갈라 쓰면 R-7 이 재발한다.
     rows = (
-        session.query(ExternalOrderLink.order_id, ExternalOrderLink.raw_snapshot,
+        session.query(ExternalOrderLink.order_id, ExternalOrderLink.claim_status,
+                      ExternalOrderLink.claim_type, ExternalOrderLink.payment_amount,
                       ExternalOrderLink.external_order_no, ExternalOrderLink.id)
         .filter(ExternalOrderLink.order_id.isnot(None))
         .all()
     )
+    # `claim_status IS NULL` = **아직 계산 안 한 행**(백필 전). 빈 문자열은 "클레임 없음" 이라
+    # 폴백하지 않는다 — 그 구분이 없으면 백필 뒤에도 클레임 없는 행 전부가 스냅샷을 다시 읽는다.
+    stale_ids = [int(link_id) for _oid, claim_status, _t, _a, _no, link_id in rows
+                 if claim_status is None]
+    stale_snapshots: dict[int, Any] = {}
+    if stale_ids:
+        stale_snapshots = {
+            int(link_id): snapshot
+            for link_id, snapshot in session.query(
+                ExternalOrderLink.id,
+                _ghost_snapshot_projection(session).label("raw_snapshot"))
+            .filter(ExternalOrderLink.id.in_(stale_ids))  # perf-ok: 백필 전 행만
+            .all()
+        }
     buckets: dict[int, dict[str, Any]] = {}
-    for order_id, snapshot, order_no, link_id in rows:
+    for order_id, claim_status, claim_type, amount, order_no, link_id in rows:
+        snapshot = (stale_snapshots.get(int(link_id)) if claim_status is None
+                    else snapshot_from_mirror(claim_status=claim_status,
+                                              claim_type=claim_type,
+                                              payment_amount=amount))
         bucket = buckets.setdefault(int(order_id), _new_bucket())
         _fold_link(bucket, snapshot=snapshot, order_no=order_no, link_id=link_id)
 
