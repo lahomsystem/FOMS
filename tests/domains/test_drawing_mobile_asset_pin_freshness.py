@@ -116,13 +116,19 @@ def test_focus_fix_forces_js_pin_bump() -> None:
 # 자산 본문의 해시와 그때의 핀을 한 쌍으로 적어 두고, 해시가 달라졌는데 핀이 그대로면 실패시킨다.
 # 자산을 고쳤다면: 핀을 새 값으로 올리고 아래 표의 (해시, 핀) 을 함께 갱신한다.
 ASSET_PIN_LOCK = {
-    "static/css/components/foms-drawing-mobile.css": ("9166283a420f", "20260913a"),
-    "static/js/drawing/order-change-banner.js": ("ae62eeb24f63", "20260913a"),
+    "static/css/components/foms-drawing-mobile.css": ("c446e10149c1", "20260913a"),
+    "static/js/drawing/order-change-banner.js": ("a736727fa07e", "20260913a"),
 }
 
 
 def _sha12(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()[:12]
+    """줄끝을 LF 로 맞춘 뒤 해시한다.
+
+    저장소 체크아웃은 윈도우에서 CRLF, CI(리눅스)에서 LF 라 바이트 해시는 플랫폼마다 다르다
+    (2026-09-13 실측: 같은 파일이 9166283a420f / c446e10149c1). 내용이 같으면 같은 값이어야 한다.
+    """
+    text = path.read_text(encoding="utf-8").replace("\r\n", "\n")
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()[:12]
 
 
 def test_asset_body_and_pin_move_together() -> None:
