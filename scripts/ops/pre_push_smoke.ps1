@@ -254,7 +254,10 @@ if ($Full) {
         "tests/visual/test_staging_mobile_v2_assets.py",
         "tests/visual/test_p1_mockup_structure.py",
         "tests/visual/test_p1_mockup_png_baseline.py",
-        "tests/visual/test_p1_mockup_chrome_parity.py"
+        "tests/visual/test_p1_mockup_chrome_parity.py",
+        # 조상 관계만 바뀌는 렌더 파손(2026-09-13 짝 없는 </div>)을 잡는 유일한 게이트.
+        # 기존 문자열 인덱스 검사 45건이 전부 초록이었다 — 이건 파서로만 잡힌다. 2.3초.
+        "tests/visual/test_mobile_v2_surface_containment.py"
     )
 
     $existingTargets = @()
