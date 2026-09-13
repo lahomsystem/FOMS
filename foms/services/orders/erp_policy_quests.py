@@ -103,6 +103,57 @@ def check_quest_approvals_complete(sd: Dict[str, Any], stage: Optional[str]) -> 
     return (len(missing_teams) == 0, missing_teams)
 
 
+#: 발주사 라홈 주문에서 **주관 팀**을 CS 로 바꾸는 단계(표시·배정 축).
+#: 승인 축(누가 누를 수 있는가)은 여기서 좁히지 않는다 — 2026-09-13 정정 참조.
+LAHOM_CS_OWNER_STAGES = ("실측", "MEASURE", "고객컨펌", "CONFIRM")
+
+
+def resolve_required_approval_teams(
+    stage: Optional[str],
+    quest: Optional[Dict[str, Any]] = None,
+) -> List[str]:
+    """이 단계를 **누가 승인할 수 있는가** — 화면·서버·감사가 함께 쓰는 SSOT.
+
+    2026-09-13 정정. 그 전에는 이 판정이 세 곳(quest 생성·화면 표시·감사)에 각자 라홈
+    분기를 갖고 흩어져 있었고, 두 가지가 동시에 틀려 있었다.
+
+    1. **업무 규칙이 달랐다.** 실측·고객컨펌의 주관 팀은 CS 와 영업 **둘 다**다
+       (사용자 확인 2026-09-13: CS 는 자가실측, 영업은 방문 실측). 그런데 템플릿 기본값은
+       ``["SALES"]`` 라 CS 가 자가실측을 못 눌렀고, 라홈 분기는 ``["CS"]`` 로 덮어써서
+       영업이 방문실측을 못 눌렀다. 양쪽이 서로 다른 한 팀을 배제하고 있었다.
+       (운영 신고: 영업팀이 라홈 주문 실측 완료를 누르자 403 — 실측 단계 라홈 344건이
+       그 상태였다.)
+    2. **화면과 서버가 다른 잣대를 썼다.** 서버는 ``required_approvals`` 로 판정하는데
+       화면은 그걸 안 보고 ``can_edit_erp``/도메인 권한으로만 판정해, **서버가 거부할
+       버튼을 화면이 내밀었다.**
+
+    라홈 주문의 ``owner_team=CS`` 는 그대로다 — "누가 주관하는가"(표시·배정)와
+    "누가 승인할 수 있는가"는 다른 축이고, 이 함수는 승인 축만 답한다.
+
+    저장값 취급: quest 에 이미 실린 ``required_approvals`` 가 정책보다 **좁으면 정책을
+    쓴다**. 옛 규칙으로 저장된 quest(``["CS"]`` 84건)를 마이그레이션 없이 오늘 바로 풀기
+    위해서다. 저장값이 정책과 같거나 더 넓으면 그대로 존중한다(수동으로 넓힌 경우 보존).
+
+    Args:
+        stage: 단계(한글명 또는 영문 코드).
+        quest: 저장된 quest dict(없으면 정책만 본다).
+
+    Returns:
+        승인 가능한 팀 코드 목록(정규화 전 원본 코드).
+    """
+    policy = [str(t) for t in (get_required_approval_teams_for_stage(stage) or []) if t]
+    raw = quest.get("required_approvals") if isinstance(quest, dict) else None
+    saved = [str(t) for t in (raw or []) if t]
+    if not saved:
+        return policy
+    if not policy:
+        return saved
+    # 저장값이 정책의 진부분집합이면 옛 규칙으로 좁혀진 것 — 정책이 이긴다.
+    if set(saved) < set(policy):
+        return policy
+    return saved
+
+
 def create_quest_from_template(
     stage: Optional[str],
     owner_person: Optional[str] = None,
@@ -120,11 +171,12 @@ def create_quest_from_template(
     required_teams = quest_template.get("required_approvals") or []
     owner_team = quest_template.get("owner_team") or ""
 
-    if stage in ("실측", "MEASURE", "고객컨펌", "CONFIRM") and structured_data:
+    # 라홈 발주사는 **주관 팀**만 CS 로 바꾼다(표시·배정). 승인 축은 안 좁힌다 —
+    # 실측·고객컨펌은 CS·영업 둘 다 누른다(:func:`resolve_required_approval_teams`).
+    if stage in LAHOM_CS_OWNER_STAGES and structured_data:
         orderer_name = (((structured_data.get("parties") or {}).get("orderer") or {}).get("name") or "").strip()
         if orderer_name and "라홈" in orderer_name:
             owner_team = "CS"
-            required_teams = ["CS"]
 
     assignee_based_stages = ["실측", "MEASURE", "도면", "DRAWING", "고객컨펌", "CONFIRM"]
     is_assignee_based = stage in assignee_based_stages
