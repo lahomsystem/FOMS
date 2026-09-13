@@ -170,6 +170,7 @@ jobs:
           tests/visual/test_edit_order_mobile_v2_shell.py \
           tests/visual/test_erp_order_edit_mobile_form.py \
           tests/visual/test_mobile_notification_center.py \
+          tests/visual/test_mobile_v2_surface_containment.py \
           tests/visual/test_p1_mockup_chrome_parity.py \
           tests/visual/test_p1_mockup_home_parity.py \
           tests/visual/test_p1_mockup_png_baseline.py \

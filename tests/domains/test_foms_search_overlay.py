@@ -63,6 +63,31 @@ def test_search_assets_imported() -> None:
     assert "mobile-queue-focus.js" in app_shell
 
 
+def test_mobile_queue_focus_prefers_visible_candidate() -> None:
+    """focus 스크립트가 보이는 후보를 우선 채택하는지(소스 계약).
+
+    데스크톱 v2 응답에도 모바일 큐 카드가 항상 렌더되고(광폭에서는
+    display:none) 선택자 0번이라, 무조건 첫 매치를 채택하면 데스크톱에서
+    scrollIntoView 가 무동작이 되고 표 행 강조가 사라진다.
+
+    한계: 저장소에 JS 러너가 없어(package.json 없음) 이건 소스 문자열
+    계약이다 — 약한 게이트이고 실동작 검증은 스테이징 실화면 몫이다.
+    """
+    js = (ROOT / "static/js/foms/mobile-queue-focus.js").read_text(encoding="utf-8")
+    # 가시성 필터 존재.
+    assert "offsetParent" in js
+    assert "candidate.offsetParent !== null" in js
+    # 보이는 후보가 하나도 없으면 첫 매치로 폴백(기존 동작 보존).
+    assert "fallback" in js
+    # 선택자 우선순위는 그대로: 모바일 카드가 데스크톱 표 행보다 앞선다.
+    assert js.index('.foms-queue-card-v2[data-order-id=') < js.index('tr[data-order-id=')
+    assert js.index('.foms-drawing-queue-card[data-order-id=') < js.index('tr[data-order-id=')
+    assert js.index('.erp-drawing-mobile-card[data-order-id=') < js.index('tr[data-order-id=')
+    # 리스너는 늘어나지 않는다(싱글턴 가드 + document 리스너 2개 고정).
+    assert "__FOMS_MOBILE_QUEUE_FOCUS_BOUND" in js
+    assert js.count("document.addEventListener(") == 2
+
+
 def test_unified_search_finds_customer(app) -> None:
     from db import db_session
     from foms.services.foms_unified_search import search_unified
