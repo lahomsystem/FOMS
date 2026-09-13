@@ -49,6 +49,7 @@ from typing import Any, Optional
 from sqlalchemy.orm import selectinload
 
 from foms.services.integrations.naver_commerce.grouping import resolve_group_key
+from foms.services.integrations.naver_commerce.link_mirror import snapshot_from_mirror
 from foms.services.integrations.naver_commerce.mapping import (
     CLAIM_BLOCK_KEYS,
     CLAIM_KIND_LABELS,
@@ -320,17 +321,39 @@ def find_ghost_orders(session, *, limit: int = GHOST_LIST_LIMIT) -> dict[str, An
         ``discard_needs_reason``(접으려면 관리자 사유 문장이 필요한지) +
         ``measure``(실측 전/후 표시 축 — 판정에는 안 쓴다).
     """
-    # 스냅샷은 **축소해서** 읽는다 — 판정이 읽는 경로만(:func:`_ghost_snapshot_projection`).
-    # 전량은 운영에서 1,958KB 였고 축소하면 290KB 다(2026-09-13 실측, 조회 788ms → 167ms).
+    # **사본 컬럼만 읽는다**(NVMIRROR-01). `raw_snapshot` 은 평균 2,194 bytes 로 TOAST 임계를
+    # 넘어 그 컬럼을 건드리는 순간 행마다 TOAST 를 한 번 더 읽는다 — 운영 실측으로 같은 스캔이
+    # 버퍼 14,736·50.5ms 대 249·0.95ms 였다. 사본으로 판정하면 그 읽기가 아예 없다.
+    #
+    # 판정은 **한 벌 그대로** 쓴다: 사본을 `snapshot_from_mirror` 로 같은 모양 문서로 되돌려
+    # 기존 `_fold_link` 에 넣는다. `if 사본 else 스냅샷` 으로 술어를 갈라 쓰면 R-7 이 재발한다.
     rows = (
-        session.query(ExternalOrderLink.order_id,
-                      _ghost_snapshot_projection(session).label("raw_snapshot"),
+        session.query(ExternalOrderLink.order_id, ExternalOrderLink.claim_status,
+                      ExternalOrderLink.claim_type, ExternalOrderLink.payment_amount,
                       ExternalOrderLink.external_order_no, ExternalOrderLink.id)
         .filter(ExternalOrderLink.order_id.isnot(None))
         .all()
     )
+    # `claim_status IS NULL` = **아직 계산 안 한 행**(백필 전). 빈 문자열은 "클레임 없음" 이라
+    # 폴백하지 않는다 — 그 구분이 없으면 백필 뒤에도 클레임 없는 행 전부가 스냅샷을 다시 읽는다.
+    stale_ids = [int(link_id) for _oid, claim_status, _t, _a, _no, link_id in rows
+                 if claim_status is None]
+    stale_snapshots: dict[int, Any] = {}
+    if stale_ids:
+        stale_snapshots = {
+            int(link_id): snapshot
+            for link_id, snapshot in session.query(
+                ExternalOrderLink.id,
+                _ghost_snapshot_projection(session).label("raw_snapshot"))
+            .filter(ExternalOrderLink.id.in_(stale_ids))  # perf-ok: 백필 전 행만
+            .all()
+        }
     buckets: dict[int, dict[str, Any]] = {}
-    for order_id, snapshot, order_no, link_id in rows:
+    for order_id, claim_status, claim_type, amount, order_no, link_id in rows:
+        snapshot = (stale_snapshots.get(int(link_id)) if claim_status is None
+                    else snapshot_from_mirror(claim_status=claim_status,
+                                              claim_type=claim_type,
+                                              payment_amount=amount))
         bucket = buckets.setdefault(int(order_id), _new_bucket())
         _fold_link(bucket, snapshot=snapshot, order_no=order_no, link_id=link_id)
 

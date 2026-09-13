@@ -531,3 +531,62 @@ Execution Time: 50.519 ms
 
 A 가 근본이고 B·C 는 즉효다. `wb_history` 는 화면이 제품명·금액을 실제로 그리므로 **투영으로
 줄일 자리가 아니다**(§13 과 다르다).
+
+---
+
+## §15 고친 것 3 — 사본 컬럼으로 TOAST 읽기를 끊는다 (NVMIRROR-01, 2026-09-13)
+
+§14 의 갈래 A. 사용자 승인 뒤 구현했다. 스펙 `docs/specs/2026-09-13-naver-link-claim-mirror_SPEC.md`.
+
+### 무엇
+
+`external_order_links` 에 사본 컬럼 넷 — `product_order_status` · `claim_status` · `claim_type`
+· `payment_amount`. 이 저장소가 같은 이유로 이미 만든 사본(`place_order_status`·`group_key`
+·`recipient_*`)과 **같은 규약**이다: 정본은 `raw_snapshot`, 사본은 필터·집계 전용.
+
+`claim_status`·`claim_type` 은 원본 필드 하나가 아니라 **`mapping.extract_claim` 의 결과**다.
+그 함수가 6개 블록을 훑는 SSOT 이라, 손으로 경로를 고르면 얇은 경로만 "클레임 없음" 이 되는
+R-7 이 재발한다.
+
+### 핵심 설계 둘
+
+**1. `NULL` 과 `''` 를 가른다.** `NULL` = 아직 계산 안 함(백필 전) → 그 행만 스냅샷 폴백.
+`''` = 계산했고 값 없음 → 폴백하지 않는다. 이 구분이 없으면 백필이 끝나도 클레임 없는 행이
+전부 폴백을 탄다(운영 489행 중 클레임 있는 행은 119개뿐이니 370행이 그렇게 된다).
+
+**2. 판정을 두 벌로 만들지 않는다.** 사본을 `snapshot_from_mirror()` 로 **같은 모양 문서**로
+되돌려 기존 `_fold_link` 에 넣는다. `if 사본 … else 스냅샷 …` 로 갈라 쓰면 그 순간 술어가 두
+벌이 된다. 되돌릴 수 있는 근거는 사본 자체가 `extract_claim` 의 결과라는 것이다.
+
+### 자리
+
+| 파일 | 무엇 |
+|---|---|
+| `migrations/versions/nvmirror_00_link_claim_mirror.py` | 컬럼 4개(nullable). 값 채움은 안 한다 — 파싱 규칙이 서비스 코드에 있어 복제하면 두 벌이 된다 |
+| `foms/services/integrations/naver_commerce/link_mirror.py` | `claim_mirror_values` · `apply_claim_mirror` · `snapshot_from_mirror` |
+| `ingest.py` (2자리) · `claim_watch.py` (스윕) | 사본 갱신. 발주확인은 **부르지 않는다**(그 경로는 `placeOrderStatus` 만 바꾼다) |
+| `ghost_orders.find_ghost_orders` | 사본으로 판정, NULL 행만 투영 폴백 |
+| `claim_watch.refreshable_household_link_ids` | 같은 규율. `triage_state`(평균 280B, 본체)는 그대로 읽는다 |
+| `scripts/maintenance/backfill_link_claim_mirror.py` | 배치 500, 멱등(`claim_status IS NULL` 만) |
+
+### 증명
+
+* 사본 판정 == 스냅샷 판정: 모양 9종(`tests/services/integrations/test_naver_link_claim_mirror.py`).
+* **PG 레인**: 사본이 채워진 행만 있으면 유령 스캔 SQL 에 `raw_snapshot` 이 **한 번도** 안 나온다.
+  음성 대조군으로 NULL 행이 폴백해 같은 띠를 내는 것도 함께 잠갔다.
+* 평평한 응답 금액은 **0** 이다 — `_fold_link` 가 중첩 블록만 보기 때문이고, 최상위 폴백을
+  넣었더니 사본이 스냅샷보다 큰 합계를 냈다(계약 테스트가 잡았다).
+* 마이그레이션 왕복(`tests/postgres/test_migration_chain.py`)이 로컬 PG 17 에서 green —
+  처음엔 `down_revision` 을 `naverbf_00` 에 달아 head 가 둘이 됐고 그 테스트가 잡았다.
+* 전량 9,941 passed · PG 레인 762 passed · `pre_push_smoke` exit 0.
+
+### 배포 순서와 되돌리기
+
+폴백이 동치를 보장하므로 **순서가 어긋나도 답이 안 바뀐다**. 운영 순서는
+마이그레이션 → 배포 → 백필 → 실측이고, 백필 전에는 예전과 같은 비용으로 돈다.
+되돌리기는 컬럼 4개 drop(정본은 그대로).
+
+### 아직 안 한 것
+
+운영 효과 확인. 백필 뒤 `wb_ghosts` 와 `wb_refresh` 를 `X-FOMS-EPT-B7-PHASES` 로 읽어
+판정한다(1회 세션 규칙).

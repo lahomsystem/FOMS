@@ -42,6 +42,7 @@ from foms.services.integrations.naver_commerce.constants import (
     OWNER_USERNAME as _OWNER_USERNAME,
 )
 from foms.services.integrations.naver_commerce.claim_watch import refresh_claims
+from foms.services.integrations.naver_commerce.link_mirror import claim_mirror_values
 from foms.services.integrations.naver_commerce.mapping import (
     COLLECTIBLE_STATUS,
     NaverMappingError,
@@ -143,6 +144,8 @@ def _record_pending(session: Session, *, external_id: str, detail: dict, reason:
             recipient_name=match_keys["recipient_name"],
             recipient_phone_digits=match_keys["recipient_phone_digits"],
             orderer_phone_digits=match_keys["orderer_phone_digits"],
+            # 클레임 축 사본 — 유령 스캔·다시 읽기 판정이 TOAST 를 안 읽게 한다(NVMIRROR-01).
+            **claim_mirror_values(detail),
             failure_reason=reason[:2000],
         )
     )
@@ -370,6 +373,8 @@ def ingest_detail(
                 recipient_name=match_keys["recipient_name"],
                 recipient_phone_digits=match_keys["recipient_phone_digits"],
                 orderer_phone_digits=match_keys["orderer_phone_digits"],
+                # 클레임 축 사본 — 스냅샷 TOAST 를 안 읽고 판정하게 한다(NVMIRROR-01).
+                **claim_mirror_values(detail),
                 reviewed_at=stamp,
                 triage_state=state,
             )
