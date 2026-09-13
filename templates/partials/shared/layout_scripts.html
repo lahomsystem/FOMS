@@ -469,7 +469,7 @@
                 els.stage?.addEventListener('touchstart', handleTouchStart, { passive: true });
                 els.stage?.addEventListener('touchmove', handleTouchMove, { passive: false });
                 els.stage?.addEventListener('touchend', handleTouchEnd, { passive: true });
-                els.stage?.addEventListener('touchcancel', handleTouchEnd, { passive: true });
+                els.stage?.addEventListener('touchcancel', handleTouchCancel, { passive: true });
             }
 
             function open(files, startIndex = 0) {
@@ -968,6 +968,24 @@
                 else prev();
             }
 
+            /** 시스템이 제스처를 가져갔을 때(touchcancel) — 상태만 되돌리고 넘김은 하지 않는다.
+             *
+             * iOS 는 전화 수신·제어센터·화면 가장자리 뒤로가기에서 touchcancel 을 보낸다.
+             * 중단된 손짓을 touchend 와 같은 함수로 처리하면 '넘김 완료'로 읽혀, 사용자가
+             * 끝내지도 않은 스와이프로 사진이 넘어간다. 줌 상태는 그대로 둔다. */
+            function handleTouchCancel() {
+                state.touching = false;
+                state.panning = false;
+                state.pinching = false;
+                if (state.scale <= 1.05) {
+                    state.scale = 1;
+                    state.tx = 0;
+                    state.ty = 0;
+                    updateTransform();
+                }
+                setGestureTransition(false);
+            }
+
             // 현재 표시 중인 파일 인덱스(스와이프 반영) — 도면 판정이 대상 key 를 고르는 근거.
             function getIndex() { return state.index; }
 
@@ -1147,11 +1165,6 @@
             font-size: 24px;
         }
 
-        .global-viewer-nav:hover {
-            background: rgba(255, 255, 255, 0.25);
-            transform: translateY(-50%) scale(1.1);
-        }
-
         #global-viewer-prev {
             left: 24px;
         }
@@ -1160,7 +1173,6 @@
             right: 24px;
         }
 
-        #global-image-viewer:hover .global-viewer-nav,
         #global-image-viewer.nav-visible .global-viewer-nav {
             opacity: 1;
             pointer-events: auto;
@@ -1170,11 +1182,29 @@
             display: none !important;
         }
 
-        /* 끝단(첫/마지막 장) 화살표 dim — hover/표시 상태에서만 시각 효과 */
-        #global-image-viewer:hover .global-viewer-nav.at-edge,
+        /* 끝단(첫/마지막 장) 화살표 dim — 표시 상태에서만 시각 효과 */
         #global-image-viewer.nav-visible .global-viewer-nav.at-edge {
             opacity: 0.25;
             pointer-events: none;
+        }
+
+        /* :hover 는 진짜 포인터가 있는 기기에서만. 터치에서는 탭한 버튼에 hover 가
+           눌러붙어(iOS) 다음 탭까지 커진 채/빨간 채로 남는다. */
+        @media (hover: hover) {
+            .global-viewer-nav:hover {
+                background: rgba(255, 255, 255, 0.25);
+                transform: translateY(-50%) scale(1.1);
+            }
+
+            #global-image-viewer:hover .global-viewer-nav {
+                opacity: 1;
+                pointer-events: auto;
+            }
+
+            #global-image-viewer:hover .global-viewer-nav.at-edge {
+                opacity: 0.25;
+                pointer-events: none;
+            }
         }
 
         /* 다중 파일 카운터 pill (n / N) — CS 코멘트용 footer 와 별개 노드 */
@@ -1246,9 +1276,11 @@
             transition: all 0.2s ease;
         }
 
-        #global-viewer-download:hover {
-            background: rgba(255, 255, 255, 0.22);
-            color: #fff;
+        @media (hover: hover) {
+            #global-viewer-download:hover {
+                background: rgba(255, 255, 255, 0.22);
+                color: #fff;
+            }
         }
 
         #global-viewer-close {
@@ -1269,9 +1301,11 @@
             transition: all 0.2s ease;
         }
 
-        #global-viewer-close:hover {
-            background: rgba(255, 59, 48, 0.8);
-            transform: rotate(90deg);
+        @media (hover: hover) {
+            #global-viewer-close:hover {
+                background: rgba(255, 59, 48, 0.8);
+                transform: rotate(90deg);
+            }
         }
 
         #global-viewer-footer {
