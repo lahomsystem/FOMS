@@ -2478,6 +2478,10 @@ _PAC_PARTIALS_SHARED_HTML_ALLOWLIST = frozenset(
         "erp_mobile_order_timeline_sheet.html",
         "erp_mobile_urgent_call_panel.html",
         "erp_mobile_queue_card_v2.html",
+        # 판매채널 출처 마크 매크로. 대시보드 라우트가 코호트별로 그리는 표면 여섯 곳
+        # (orders/ 4곳·partials/shared/ 1곳·partials/v3/ 1곳)이 같은 마크를 불러야 해서
+        # 도메인 밖에 산다 — 두 벌로 두면 화면마다 크기·접근성 문구가 갈린다(2026-09-13).
+        "channel_mark.html",
         "erp_mobile_shell.html",
         "erp_mobile_shell_header.html",
         "erp_mobile_v2_tab_notice.html",

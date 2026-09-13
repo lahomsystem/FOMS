@@ -1,6 +1,7 @@
 {#- suppress_schedule_meta / suppress_role_meta / show_orderer / defer_product /
     defer_attachments: 출고 배차 IA 옵트인(기본 false → 타 도메인 렌더 바이트 무변경).
     suppress_drawing_role_meta: DRAWING 전용 실측·도면 담당 메타만 끔(하위호환). -#}
+{% from 'partials/shared/channel_mark.html' import channel_mark %}
 {% macro render_queue_card_v2(order, can_edit=false, task_action=None, badge_modifier=None, badge_text=None, task_actions=None, edit_return_to=None, detail_return_to=None, edit_label='ERP 편집', show_last_call=false, detail_slot=None, aux_slot=None, footer_extra_slot=None, suppress_drawing_role_meta=false, suppress_schedule_meta=false, suppress_role_meta=false, show_orderer=false, defer_product=false, defer_attachments=false) -%}
   {% set primary_alerts = [] %}
   {% if order.alerts.urgent %}
@@ -64,6 +65,11 @@
 
     <h3 class="queue-card__title foms-queue-card-v2__title">
       <span class="foms-queue-card-v2__customer">{{ order.customer_name or '-' }}</span>
+      {# 이 카드는 6곳이 공유한다(대시보드·이력·시공·실측·생산·출고). channel_source 를
+         채우는 건 대시보드 DTO(build_orders_row_dtos) 하나뿐이라 나머지 5곳에서는
+         아무것도 렌더되지 않는다 - 그 5곳의 행 DTO 는 전부 dict 이고 없는 키 접근은
+         Undefined 라 터지지 않는다. 전파할 때는 foms-channel-mark.css 부터 실어야 한다. #}
+      {{ channel_mark(order.channel_source|default(none, true)) }}
       {% if show_orderer %}
         {% set _orderer = (order.orderer_name or '')|trim %}
         {% if _orderer %}

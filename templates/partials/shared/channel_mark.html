@@ -1,0 +1,16 @@
+{#- 판매채널 출처 마크 — 고객 이름 바로 뒤에 붙는다(A안).
+    판정 축은 출처다: structured_data['source'] == SOURCE_MARKER 를 DTO 가
+    channel_source = 'NAVER' | None 으로 정규화해 넘긴다. naver_linked 는 출처가
+    아니므로 이 마크의 축이 아니다.
+    channel_source 가 없으면 공백 한 칸도 남기지 않는다({%- -%} 가 그 일을 한다).
+    role="img"+aria-label 은 바깥 span, aria-hidden 은 안쪽 svg — 뒤집지 않는다.
+    색은 SVG 속성으로 박고 크기도 표시 속성으로 박는다 — CSS 가 아직 안 실린
+    fragment 에서 색과 기하가 둘 다 맞아야 한다(선례: erp_mobile_queue_card_v2.html:78-79
+    라홈 로고). 인라인 style 속성은 쓰지 않는다.
+    크기는 감싸는 글자를 따라간다(em 기준). 간격은 감싸는 줄의 gap 이 만든다 -
+    이 매크로는 margin 을 만들지 않는다. -#}
+{% macro channel_mark(channel_source) -%}
+{%- if channel_source == 'NAVER' -%}
+<span class="foms-channel-mark foms-channel-mark--naver" role="img" aria-label="네이버 스마트스토어 주문" title="네이버 스마트스토어 주문"><svg viewBox="0 0 24 24" width="22" height="22" focusable="false" aria-hidden="true"><rect x="0.5" y="0.5" width="23" height="23" rx="4.75" fill="#03C75A" stroke="#02A34A" stroke-width="1"></rect><path d="M6.5 6 H11.2 L14.6 11.6 V6 H17.5 V18 H12.8 L9.4 12.4 V18 H6.5 Z" fill="#FFFFFF"></path></svg></span>
+{%- endif -%}
+{%- endmacro %}

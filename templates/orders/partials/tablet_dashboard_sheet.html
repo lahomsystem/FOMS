@@ -3,6 +3,7 @@
    data-foms-sheet-url 로 이 fragment 를 시트 본문(.foms-tablet-sheet__body)에 로드한다.
    파이프라인 8단계는 시트 크롬(JS renderPipe, 행 data-stage)이 소유하므로 여기엔 없다.
    컨텍스트: o(단건 표시 DTO — build_orders_row_dtos), team_labels, can_edit_erp. #}
+{% from 'partials/shared/channel_mark.html' import channel_mark %}
 {% set q = o.current_quest %}
 {% set phone_digits = (o.phone or '')|replace('-', '')|replace(' ', '')|replace('.', '') %}
 <div class="foms-tsheet">
@@ -11,6 +12,7 @@
   <div class="foms-tsheet-head">
     <div class="foms-tsheet-head__main">
       <span class="foms-tsheet-head__name">{{ o.customer_name or '-' }}</span>
+      {{ channel_mark(o.channel_source) }}
       <span class="foms-stage-badge foms-stage-badge{{ o.stage_badge_modifier|default('--received', true) }} foms-tsheet-head__stage">{{ o.stage_badge_label or o.stage or '-' }}</span>
     </div>
     <span class="foms-tsheet-head__count">#{{ o.id }}</span>

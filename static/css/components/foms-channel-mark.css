@@ -1,0 +1,26 @@
+/* 판매채널 출처 마크 — 고객 이름 바로 뒤(A안).
+   크기 축은 erp-lahom-logo 와 같다(height: 1.25em) → 본문 1.1rem 옆에서 22px 다.
+   개별 margin 을 주지 않는다: 네 곳은 부모의 flex gap(PC 그리드는 gap-1 = .25rem),
+   큐 카드 제목과 fos 히어로는 인라인 공백 한 칸이 간격을 만든다 - 그 두 곳
+   (.foms-queue-card-v2__title, .fos-hero__title)은 display 선언 자체가 없는 블록이라
+   gap 이 없고, Jinja 줄바꿈이 남긴 공백 한 칸이 간격이다.
+   align-self 는 부모가 align-items: baseline 인 flex 줄에서 마크가 아래로
+   처지는 것을 막는다 - inline-flex 상자는 baseline 이 없어 하단 모서리로 정렬된다
+   (.foms-v2h-hero__title, .fos-queue-card__title 이 baseline 이다).
+   vertical-align 은 flex 가 아닌 블록 안에 놓일 때를 위한 것이다. */
+.foms-channel-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 1.25em;
+  width: 1.25em;
+  flex-shrink: 0;
+  align-self: center;
+  vertical-align: middle;
+}
+
+.foms-channel-mark svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}

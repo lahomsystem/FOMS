@@ -24,6 +24,7 @@
 {# 실측일/시공일 헤더 정렬은 PC 작업 큐와 같은 매크로·같은 sort/dir 쿼리 파라미터를 쓴다
    (동일 라우트라 서버 정렬 규칙이 그대로 적용된다). #}
 {% from 'orders/partials/sort_header_macro.html' import erp_sort_header with context %}
+{% from 'partials/shared/channel_mark.html' import channel_mark %}
 <div class="foms-tablet-workqueue-wrap" data-foms-stage-catalog='{{ foms_stage_catalog|tojson }}'>
   <table class="foms-tqgrid">
     <thead>
@@ -56,6 +57,7 @@
         {# 고객: 이름(굵게) + 긴급 칩만(로고·결제 코인 뱃지 없음 — 목업 정합). #}
         <td class="foms-tqcell-customer">
           <span class="foms-tqcell-customer__name">{{ o.customer_name or '-' }}</span>
+          {{ channel_mark(o.channel_source) }}
           {% if o.alerts.urgent %}<span class="foms-tqchip-urgent">긴급</span>{% endif %}
         </td>
         {# 다음 할 일: 현재 퀘스트의 다음 액션(plain 텍스트, 버튼 없음). 퀘스트 부재 행
