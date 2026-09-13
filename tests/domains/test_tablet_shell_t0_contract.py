@@ -213,6 +213,21 @@ def test_viewer_extra_cleanup_and_get_index_synced_in_both_copies() -> None:
         assert "global-viewer-completion-extra" in body
 
 
+def test_viewer_swipe_consumes_touchmove_in_both_copies() -> None:
+    """넘김 스와이프가 touchmove 를 소비해야 한다(미러 SSOT + 실서빙 인라인 양쪽).
+
+    소비하지 않으면 touch-action:none 이어도 브라우저가 같은 움직임을 스크롤/플링
+    제스처로 인식하고, 그 뒤 약 0.5초 동안 다음 탭의 click 합성을 눌러버린다. 뷰어의
+    닫기 X·화살표는 click 으로만 동작하므로 첫 탭이 통째로 먹히지 않는다
+    (= 여러 장을 넘기다 X 를 두 번 눌러야 닫히던 증상).
+    """
+    for rel in (IMAGE_VIEWER_JS, "templates/partials/shared/layout_scripts.html"):
+        body = _read(rel)
+        start = body.index("if (state.touching && e.touches && e.touches.length === 1) {")
+        swipe_branch = body[start : start + 900]
+        assert "e.preventDefault()" in swipe_branch, f"{rel}: 스와이프 분기가 touchmove 를 소비하지 않음"
+
+
 def test_mobile_select_gate_uses_tablet_mq_not_bare_width() -> None:
     """foms-mobile-select adopts the coarse-pointer tablet gate; the old bare
     ``matchMedia("(max-width: 991.98px)")`` (no pointer clause) is gone."""

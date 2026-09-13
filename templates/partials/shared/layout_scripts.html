@@ -889,6 +889,11 @@
                     const t = e.touches[0];
                     state.touchLastX = t.clientX;
                     state.touchLastY = t.clientY;
+                    // 넘김 스와이프도 뷰어가 소비한다. 여기서 preventDefault 하지 않으면
+                    // touch-action:none 이어도 브라우저가 같은 움직임을 스크롤/플링 제스처로
+                    // 인식하고, 그 직후 약 0.5초 동안 탭의 click 합성을 눌러버린다
+                    // (= 여러 장을 넘기다 닫기 X 를 눌러도 첫 탭이 먹지 않던 원인).
+                    if (e.cancelable) e.preventDefault();
                 }
             }
 

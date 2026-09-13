@@ -99,11 +99,16 @@ def test_drawing_room_push_adds_no_document_level_listener():
 
 
 def test_drawing_room_push_does_not_move_static_asset_pins():
-    """외부 .js 를 고치지 않았으므로 이 파일의 ?v= 핀 두 줄은 그대로여야 한다."""
+    """이 파일의 ?v= 핀은 해당 .js 를 실제로 고칠 때만 움직인다.
+
+    drawing-handoff.js 핀은 2026-09-12 에 한 번 움직였다 — 모바일 도면 미리보기가
+    한 장만 열던 것을 주문의 도면 전체를 넘길 수 있게 고치면서 파일이 바뀌었고,
+    캐시 무효화를 위해 함께 올렸다(핀을 안 올리면 옛 스크립트가 그대로 뜬다).
+    """
     text = _template_text()
 
     assert "filename='js/drawing/order-change-banner.js') }}?v=20260716a" in text
-    assert "filename='js/foms/drawing-handoff.js') }}?v=20260609a" in text
+    assert "filename='js/foms/drawing-handoff.js') }}?v=20260912a" in text
 
 
 def _login_drawing_admin(client) -> User:
