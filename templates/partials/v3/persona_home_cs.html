@@ -11,6 +11,7 @@
    전부 클래스화 — 인라인 style은 동적 --sc 스테이지색 주입만 예외). 스크립트 신규 없음
    (셸 foms-mobile-v3.js 위임: 칩 is-active 토글).
    ========================================================================= #}
+{% from 'partials/shared/channel_mark.html' import channel_mark %}
 {%- set _st_map = {
   'RECEIVED': 'received', 'MEASURE': 'measure', 'DRAWING': 'drawing',
   'CONFIRM': 'confirm', 'PRODUCTION': 'production', 'CONSTRUCTION': 'construction',
@@ -48,6 +49,7 @@
       <span class="fos-queue-card__body">
         <span class="fos-queue-card__title">
           <span class="who">{{ o.customer_name or '-' }}</span>
+          {{ channel_mark(o.channel_source) }}
           {%- if o.product_subtitle %}<span class="prod">{{ o.product_subtitle }}</span>{% endif -%}
         </span>
         <span class="fos-queue-card__meta">
@@ -112,7 +114,10 @@
       <span class="fos-tl-btn" role="button" data-fos-timeline data-order-id="{{ _hero.id }}" aria-label="주문 진행 타임라인 보기"><i class="fas fa-timeline" aria-hidden="true"></i></span>
     </div>
     <div class="fos-hero__titlerow">
-      <div class="fos-hero__title">{{ _hero.customer_name or '-' }}</div>
+      <div class="fos-hero__title">
+        {{ _hero.customer_name or '-' }}
+        {{ channel_mark(_hero.channel_source) }}
+      </div>
       <span class="fos-stage" data-st="{{ _st_map.get(_hero.stage_code, 'received') }}">{{ _hero.stage or '주문접수' }}</span>
     </div>
     <div class="fos-hero__meta">

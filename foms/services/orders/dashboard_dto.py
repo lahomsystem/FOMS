@@ -20,6 +20,7 @@ from foms.services.erp_mobile_order_display import (
     stage_badge_modifier,
 )
 from foms.services.estimate_service import build_measurement_manager_phone_map
+from foms.services.integrations.naver_commerce.constants import SOURCE_MARKER
 
 
 def build_orders_row_dtos(page_orders, page_sds, att_counts, user_map, current_user,
@@ -93,6 +94,9 @@ def build_orders_row_dtos(page_orders, page_sds, att_counts, user_map, current_u
             'manager_name': manager_name or '-',
             # 수집 주문이 보류함 owner 를 그대로 달고 있고, 주문담당자도 아직 빈 상태.
             'is_unassigned_intake': o.id in unassigned_ids and not manager_name,
+            # 판매채널 출처 마크(A안)의 판정 축. 출처 하나로만 정한다 —
+            # naver_linked 는 ERP 주문에 네이버 재결제를 붙인 경우도 참이라 출처가 아니다.
+            'channel_source': 'NAVER' if sd.get('source') == SOURCE_MARKER else None,
             'manager_phone': resolve_manager_phone_for_queue(
                 parties, order=o, manager_phone_map=manager_phone_map
             ),
