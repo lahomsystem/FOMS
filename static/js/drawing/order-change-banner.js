@@ -18,23 +18,52 @@
     } catch (e) { /* ignore */ }
   }
 
-  function focusTimeline() {
-    var feed = document.getElementById('dwOrderChangeFeed');
-    if (feed && typeof feed.scrollIntoView === 'function') {
-      feed.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      return;
+  /**
+   * 화면에 실제로 렌더된 요소인지 본다.
+   * offsetParent 가 null 이면 대개 조상이 display:none 이다 — 폰 폭에서 데스크톱 본문
+   * (`dw-legacy-detail d-none d-lg-block`)이 통째로 그 상태라서, 그 안의 요소로
+   * scrollIntoView 를 부르면 아무 일도 일어나지 않는다.
+   * 다만 position:fixed 요소는 눈에 보여도 offsetParent 가 null 이므로 그 한 가지만 예외로 둔다.
+   */
+  function isVisible(el) {
+    if (!el) return false;
+    if (el.offsetParent !== null) return true;
+    try {
+      return getComputedStyle(el).position === 'fixed' && getComputedStyle(el).display !== 'none';
+    } catch (e) {
+      return false;
     }
+  }
+
+  function focusTimeline() {
+    // 접힌 안쪽 후보가 순회 시점에 '보이는' 상태가 되도록 먼저 편다.
     var detailsList = document.querySelectorAll('details.dw-secondary-collapse');
     if (detailsList && detailsList.length) {
       detailsList[0].open = true;
     }
-    var target =
-      document.querySelector('.dw-order-change-card.is-pending') ||
-      document.querySelector('.foms-drawing-thread__msg--alert:not(.is-acked)') ||
-      document.querySelector('.foms-drawing-thread__msg--alert') ||
-      document.querySelector('.dw-order-change-badge');
-    if (target && typeof target.scrollIntoView === 'function') {
-      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    // 데스크톱 피드를 첫 후보로 남겨 둔다(지금 트리거는 모바일에만 있지만, 데스크톱에 생겨도 순서가 맞다).
+    // 숨은 후보는 건너뛰고(return 하지 않는다)
+    // 다음 후보 — 모바일 타임라인의 미확인 말풍선 — 로 내려간다.
+    var candidates = [
+      document.getElementById('dwOrderChangeFeed'),
+      document.querySelector('.dw-order-change-card.is-pending'),
+      document.querySelector('.foms-drawing-thread__msg--alert:not(.is-acked)'),
+      document.querySelector('.foms-drawing-thread__msg--alert'),
+      document.querySelector('.dw-order-change-badge'),
+    ];
+    var landed = null;
+    for (var i = 0; i < candidates.length; i += 1) {
+      var el = candidates[i];
+      if (!isVisible(el)) continue;
+      if (typeof el.scrollIntoView !== 'function') continue;
+      el.scrollIntoView({ behavior: 'smooth', block: i === 0 ? 'start' : 'center' });
+      landed = el;
+      break;
+    }
+    if (!landed) {
+      // 조용히 끝내면 버튼이 죽은 것처럼 보인다 — 최소한 티를 낸다.
+      toast('변경 내역을 찾지 못했습니다. 화면을 새로고침해 주세요.');
+      return;
     }
     try {
       var url = new URL(window.location.href);

@@ -99,11 +99,37 @@
 
   body.erp-mobile-v2-layout .foms-drawing-turn {
     display: grid;
-    grid-template-columns: 0.75rem minmax(0, 1fr);
+    /* 칼럼 1 = 뒤로가기 아이콘, 2 = 기존 점, 3 = 기존 내용. 블록을 새로 만들지 않고
+       이미 있는 리본 안에 뒤로가기를 넣기 위해 칼럼만 하나 늘렸다. */
+    grid-template-columns: auto 0.75rem minmax(0, 1fr);
     gap: 0.625rem;
     align-items: start;
     padding: 0.875rem;
     color: var(--foms-color-info-600, #2563eb);
+  }
+
+  /* 뒤로가기 탭 타깃은 최소 44px(2.75rem) 을 지키되, 음수 마진으로 리본 패딩을 되먹어
+     리본 높이 증가를 0 으로 만든다 — 상단 블록이 화면을 아래로 밀지 않아야 한다. */
+  body.erp-mobile-v2-layout .foms-drawing-turn__back {
+    display: grid;
+    place-items: center;
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+    margin: -0.5rem 0 -0.5rem -0.375rem;
+    border-radius: 8px;
+    /* 리본 상태색(파랑·주황·초록)을 물려받으면 셸 헤더의 같은 화살표와 색이 갈린다 — 본문색 고정. */
+    color: var(--foms-text-primary, #14171c);
+    text-decoration: none;
+  }
+
+  body.erp-mobile-v2-layout .foms-drawing-turn__back:active {
+    background: var(--foms-surface-overlay, #eef0f3);
+  }
+
+  body.erp-mobile-v2-layout .foms-drawing-turn__back:focus-visible {
+    background: var(--foms-surface-overlay, #eef0f3);
+    outline: 2px solid currentColor;
+    outline-offset: 2px;
   }
 
   body.erp-mobile-v2-layout .foms-drawing-turn--mine {
