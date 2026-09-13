@@ -169,6 +169,28 @@
      그 광폭에서 foms-mobile-v2-surfaces-hide.css 가 display:none !important 로 끈다. 좁은 폭·
      세로 coarse 에선 fallback 자체가 display:none 이라 내부도 미렌더 — 뷰포트가 식에서 소거되므로
      리사이즈 재요청 배선 없이 안전하다. v2 코호트엔 이 wrapper 자체가 없어 영향 없음. #}
+  {# 이 include 가 데스크톱 응답에도 무조건 들어가는 이유 — 설계다, 결함이 아니다.
+     셸 전환 기준은 뷰포트 폭(max-width: 991.98px)인데 서버는 뷰포트를 알 수 없다. 그래서
+     서버는 데스크톱 본문과 모바일 v2 바디를 둘 다 내보내고, 실제로 무엇을 보여줄지는 CSS 가
+     고른다.
+
+     서버에서 foms_ptr / foms_scr 로 이 include 를 끄는 것은 금지한다. 근거는
+     foms/services/feature_flags.py:180-181 원문 — "뷰포트 폭 기반 표면(모바일 셸
+     max-width: 991.98px)에는 쓰면 안 된다. 그쪽은 PC 창을 좁히는 것만으로 필요해지는데
+     pointer 값은 그대로라 오판한다." 두 쿠키는 기기 고정 특성이라, 이걸로 include 를 끄면
+     PC 창을 좁힌 사용자에게 화면이 빈다.
+
+     그래서 반드시 성립해야 하는 봉쇄 불변식: 모바일 v2 마커는 전부
+     .foms-mobile-v2-dashboard 의 자손이어야 한다. 그래야 은닉 CSS
+     (static/css/foundation/foms-mobile-v2-surfaces-hide.css:27-31 의 display:none !important)
+     가 발화한다. 마커 하나라도 이 섹션 밖으로 빠져나가면 — 예를 들어 짝 없는 </div> 가
+     섹션과 조상 .erp-dashboard 를 함께 닫아버리면 — 은닉 규칙이 겨냥하는 클래스가 아니게
+     되어 데스크톱 화면에 그대로 노출된다.
+
+     예외는 .foms-shell-fab 하나뿐이다. 이것은 타워 섹션의 형제 노드로 두는 것이 의도이며
+     (foms-mobile-v2-surfaces-hide.css:4 주석), 자체 은닉 훅이 위 규칙에 따로 들어 있다.
+
+     이 불변식은 tests/visual/test_mobile_v2_surface_containment.py 가 강제한다. #}
   {% if erp_mobile_v2_enabled and shell_variant != 'v3' %}
     {% include 'orders/partials/dashboard_mobile_v2_body.html' %}
   {% endif %}
