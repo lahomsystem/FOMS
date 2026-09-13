@@ -477,11 +477,13 @@
   /* 주문 변경 한 줄 — 옛 상단 배너(.dw-order-change-banner)를 대신한다.
      리본 안에 들어가 첫 화면 블록 수를 늘리지 않고, 목록 뷰에도 같은 줄이 따라온다. */
   body.erp-mobile-v2-layout .foms-drawing-turn__change {
+    /* 리본 그리드의 전 칼럼을 쓴다 — 안쪽 칼럼에 있으면 뒤로가기·점 폭만큼 왼쪽이 비어 보인다.
+       행 간격은 리본의 grid gap 이 준다(margin-top 을 더하면 두 번 벌어진다). */
+    grid-column: 1 / -1;
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 0.35rem 0.5rem;
-    margin-top: 0.625rem;
     padding: 0.5rem 0.625rem;
     border: 1px solid var(--foms-border-subtle, #dde1e6);
     border-left: 3px solid #f9a8d4;
