@@ -1,0 +1,146 @@
+[
+  {
+    "action_id": "A-2026-09-14-f7ee4b63",
+    "priority": "P1",
+    "track": "ai_coding",
+    "title": "Harness or Model? Isolating the Harness Effect in Agentic Coding with a Contamination-Controlled Private Suite",
+    "rationale": "arXiv cs.AI RSS source, score=100, confidence=High, track=ai_coding, focus=2, focus_hits=bootstrap",
+    "proposed_change": "Run controlled pilot for 'Harness or Model? Isolating the Harness Effect in Agentic Coding with a Contamination-Controlled Private Suite' in one workflow, compare dev-time and defect metrics.",
+    "owner": "evolution-architect",
+    "source_links": [
+      "https://arxiv.org/abs/2609.11987"
+    ]
+  },
+  {
+    "action_id": "A-2026-09-14-23f969f1",
+    "priority": "P1",
+    "track": "ai_coding",
+    "title": "Retrieval-Augmented Generation for Scientific Code Understanding",
+    "rationale": "arXiv cs.SE RSS source, score=100, confidence=High, track=ai_coding, focus=0",
+    "proposed_change": "Run controlled pilot for 'Retrieval-Augmented Generation for Scientific Code Understanding' in one workflow, compare dev-time and defect metrics.",
+    "owner": "evolution-architect",
+    "source_links": [
+      "https://arxiv.org/abs/2609.12190"
+    ]
+  },
+  {
+    "action_id": "A-2026-09-14-54111279",
+    "priority": "P1",
+    "track": "ai_coding",
+    "title": "What is the Difference Between Me and You? Benchmarking the Quality Gap Between Human-Written and AI-Generated Code",
+    "rationale": "arXiv cs.SE RSS source, score=100, confidence=High, track=ai_coding, focus=6, focus_hits=security,python",
+    "proposed_change": "Run controlled pilot for 'What is the Difference Between Me and You? Benchmarking the Quality Gap Between Human-Written and AI-Generated Code' in one workflow, compare dev-time and defect metrics.",
+    "owner": "evolution-architect",
+    "source_links": [
+      "https://arxiv.org/abs/2609.12708"
+    ]
+  },
+  {
+    "action_id": "A-2026-09-14-7ea30dbb",
+    "priority": "P1",
+    "track": "ai_coding",
+    "title": "v2.1.269",
+    "rationale": "anthropics/claude-code Releases source, score=100, confidence=High, track=ai_coding, focus=2, focus_hits=opentelemetry",
+    "proposed_change": "Run controlled pilot for 'v2.1.269' in one workflow, compare dev-time and defect metrics.",
+    "owner": "evolution-architect",
+    "source_links": [
+      "https://github.com/anthropics/claude-code/releases/tag/v2.1.269"
+    ]
+  },
+  {
+    "action_id": "A-2026-09-14-30326e98",
+    "priority": "P1",
+    "track": "backend",
+    "title": "1.20.0",
+    "rationale": "sqlalchemy/alembic Releases source, score=100, confidence=High, track=backend, focus=10, focus_hits=migration,sqlalchemy,alembic",
+    "proposed_change": "Create spike branch to validate backend impact of '1.20.0', then run API smoke tests.",
+    "owner": "evolution-architect",
+    "source_links": [
+      "https://github.com/sqlalchemy/alembic/releases/tag/rel_1_20_0"
+    ]
+  },
+  {
+    "action_id": "A-2026-09-14-477fda49",
+    "priority": "P0",
+    "track": "data_layer",
+    "title": "CERN PGDay 2027: Announcement and CfP",
+    "rationale": "PostgreSQL News source, score=100, confidence=High, track=data_layer, focus=12, focus_hits=security,performance,postgresql",
+    "proposed_change": "Assess schema/query/index impact of 'CERN PGDay 2027: Announcement and CfP' and verify migration safety with backup/restore test.",
+    "owner": "evolution-architect",
+    "source_links": [
+      "https://www.postgresql.org/about/news/cern-pgday-2027-announcement-and-cfp-3375/"
+    ]
+  },
+  {
+    "action_id": "A-2026-09-14-2efbd8aa",
+    "priority": "P0",
+    "track": "tech_stack",
+    "title": "v0.29.0",
+    "rationale": "vllm-project/vllm Releases source, score=100, confidence=High, track=tech_stack, focus=22, focus_hits=security,breaking,deprecate",
+    "proposed_change": "Build compatibility matrix for 'v0.29.0' and execute dependency upgrade rehearsal.",
+    "owner": "evolution-architect",
+    "source_links": [
+      "https://github.com/vllm-project/vllm/releases/tag/v0.29.0"
+    ]
+  },
+  {
+    "action_id": "A-2026-09-14-4fa9b056",
+    "priority": "P0",
+    "track": "ai_coding",
+    "title": "v2.1.268",
+    "rationale": "anthropics/claude-code Releases source, score=100, confidence=High, track=ai_coding, focus=8, focus_hits=breaking,migration",
+    "proposed_change": "Run controlled pilot for 'v2.1.268' in one workflow, compare dev-time and defect metrics.",
+    "owner": "evolution-architect",
+    "source_links": [
+      "https://github.com/anthropics/claude-code/releases/tag/v2.1.268"
+    ]
+  },
+  {
+    "action_id": "A-2026-09-14-4881386c",
+    "priority": "P0",
+    "track": "tech_stack",
+    "title": "Release 5.17.0",
+    "rationale": "huggingface/transformers Releases source, score=100, confidence=High, track=tech_stack, focus=18, focus_hits=breaking,deprecate,performance",
+    "proposed_change": "Build compatibility matrix for 'Release 5.17.0' and execute dependency upgrade rehearsal.",
+    "owner": "evolution-architect",
+    "source_links": [
+      "https://github.com/huggingface/transformers/releases/tag/v5.17.0"
+    ]
+  },
+  {
+    "action_id": "A-2026-09-14-b84ea636",
+    "priority": "P1",
+    "track": "data_layer",
+    "title": "PostgreSQL Migrator 1.0 : first stable release",
+    "rationale": "PostgreSQL News source, score=100, confidence=High, track=data_layer, focus=12, focus_hits=migration,performance,postgresql",
+    "proposed_change": "Assess schema/query/index impact of 'PostgreSQL Migrator 1.0 : first stable release' and verify migration safety with backup/restore test.",
+    "owner": "evolution-architect",
+    "source_links": [
+      "https://www.postgresql.org/about/news/postgresql-migrator-10-first-stable-release-3377/"
+    ]
+  },
+  {
+    "action_id": "A-2026-09-14-bb563fda",
+    "priority": "P0",
+    "track": "tech_stack",
+    "title": "PostgreSQL Anonymizer 3.2 : Faster Pseudonymization",
+    "rationale": "PostgreSQL News source, score=100, confidence=High, track=tech_stack, focus=18, focus_hits=security,cve,deprecate",
+    "proposed_change": "Build compatibility matrix for 'PostgreSQL Anonymizer 3.2 : Faster Pseudonymization' and execute dependency upgrade rehearsal.",
+    "owner": "evolution-architect",
+    "source_links": [
+      "https://www.postgresql.org/about/news/postgresql-anonymizer-32-faster-pseudonymization-3373/"
+    ]
+  },
+  {
+    "action_id": "A-2026-09-14-179e3cf4",
+    "priority": "P0",
+    "track": "ai_coding",
+    "title": "v2.1.265",
+    "rationale": "anthropics/claude-code Releases source, score=100, confidence=High, track=ai_coding, focus=2, focus_hits=opentelemetry",
+    "proposed_change": "Run controlled pilot for 'v2.1.265' in one workflow, compare dev-time and defect metrics.",
+    "owner": "evolution-architect",
+    "source_links": [
+      "https://github.com/anthropics/claude-code/releases/tag/v2.1.265"
+    ]
+  }
+]
