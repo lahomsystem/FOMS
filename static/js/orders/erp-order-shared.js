@@ -4227,11 +4227,65 @@ function erpApplyAttachmentPreviewZoom(img) {
     }
 }
 
-function erpBindAttachmentPreviewImageZoom(bodyEl) {
+function erpBindAttachmentPreviewImageZoom(bodyEl, attachmentId) {
     if (typeof window.fomsBindAttachmentPreviewImageZoom !== 'function') return;
     window.fomsBindAttachmentPreviewImageZoom(bodyEl, {
-        ensureModalReset: erpEnsureAttachmentPreviewModalZoomReset
+        ensureModalReset: erpEnsureAttachmentPreviewModalZoomReset,
+        // 클릭 시점에 평가한다 — 삭제·재로딩으로 첨부 목록이 바뀌어도 최신 목록으로 연다.
+        fullscreen: function () { return erpBuildAttachmentFullscreenPayload(attachmentId); }
     });
+}
+
+// 서명된 R2 URL 은 만료된다 — 미리보기·뷰어는 항상 앱 라우트(/api/files/...)로 간다.
+function erpStableAttachmentUrls(a) {
+    const storageKey = a && (a.storage_key || (a.download_url && String(a.download_url).replace(/^\/api\/files\/download\//, '')));
+    const storagePath = storageKey ? storageKey.split('/').map(function (s) { return encodeURIComponent(s); }).join('/') : '';
+    function isSignedStorageUrl(url) {
+        return /(?:^|\/\/|[.])r2\.cloudflarestorage\.com/i.test(url || '') ||
+            /(?:[?&](?:X-Amz-Signature|Signature)=)/i.test(url || '');
+    }
+    const stableViewUrl = storagePath ? `/api/files/view/${storagePath}` : '#';
+    const stableDownloadUrl = storagePath ? `/api/files/download/${storagePath}` : '#';
+    return {
+        storageKey: storageKey || null,
+        viewUrl: isSignedStorageUrl(a && a.view_url) ? stableViewUrl : ((a && a.view_url) || stableViewUrl),
+        downloadUrl: isSignedStorageUrl(a && a.download_url) ? stableDownloadUrl : ((a && a.download_url) || stableDownloadUrl)
+    };
+}
+
+// 뷰어 좌우 이동 대상 = 같은 주문의 이미지 첨부. 갤러리 카드 분기(type === 'image')와 같은
+// 잣대여야 화면에 문서로 보이는 첨부가 뷰어 사이에 끼지 않는다.
+function erpAttachmentIsImage(a) {
+    return String((a && a.file_type) || '').toLowerCase() === 'image';
+}
+
+function erpBuildAttachmentFullscreenPayload(attachmentId) {
+    const targetId = Number(attachmentId);
+    // 갤러리는 measurement→drawing→construction→as 로 묶어 그린다(erpRenderAttachments).
+    // 화살표 순서가 화면 순서와 어긋나면 사용자가 본 적 없는 순서로 넘어가므로 같은 순서로 세운다.
+    const order = ['measurement', 'drawing', 'construction', 'as'];
+    const images = (Array.isArray(__erpAttachments) ? __erpAttachments : []).filter(erpAttachmentIsImage);
+    const sorted = images
+        .map(function (a, i) { return { a: a, i: i, rank: order.indexOf(erpNormalizeAttachmentCategory(a.category)) }; })
+        .sort(function (x, y) {
+            const rx = x.rank < 0 ? order.length : x.rank;
+            const ry = y.rank < 0 ? order.length : y.rank;
+            return rx === ry ? x.i - y.i : rx - ry;
+        })
+        .map(function (e) { return e.a; });
+    const index = sorted.findIndex(function (a) { return Number(a.id) === targetId; });
+    // 클릭한 첨부가 목록에 없으면 엉뚱한 이미지를 여는 대신 모달 안 확대로 되돌린다.
+    if (index < 0) return null;
+    const files = sorted.map(function (a) {
+        const urls = erpStableAttachmentUrls(a);
+        return {
+            view_url: urls.viewUrl,
+            download_url: urls.downloadUrl,
+            filename: a.filename || '이미지',
+            key: urls.storageKey
+        };
+    });
+    return { files: files, index: index };
 }
 
 function erpOpenAttachmentPreview(attachmentId) {
@@ -4243,16 +4297,9 @@ function erpOpenAttachmentPreview(attachmentId) {
     const dl = document.getElementById('erp-attachment-preview-download');
     if (!modalEl || !body || !dl) return;
 
-    const storageKey = a.storage_key || (a.download_url && String(a.download_url).replace(/^\/api\/files\/download\//, ''));
-    const storagePath = storageKey ? storageKey.split('/').map(function (s) { return encodeURIComponent(s); }).join('/') : '';
-    function isSignedStorageUrl(url) {
-        return /(?:^|\/\/|[.])r2\.cloudflarestorage\.com/i.test(url || '') ||
-            /(?:[?&](?:X-Amz-Signature|Signature)=)/i.test(url || '');
-    }
-    const stableViewUrl = storagePath ? `/api/files/view/${storagePath}` : '#';
-    const stableDownloadUrl = storagePath ? `/api/files/download/${storagePath}` : '#';
-    const viewUrl = isSignedStorageUrl(a.view_url) ? stableViewUrl : (a.view_url || stableViewUrl);
-    const downloadUrl = isSignedStorageUrl(a.download_url) ? stableDownloadUrl : (a.download_url || stableDownloadUrl);
+    const urls = erpStableAttachmentUrls(a);
+    const viewUrl = urls.viewUrl;
+    const downloadUrl = urls.downloadUrl;
     dl.href = downloadUrl;
     erpSyncAttachmentPreviewActions(a);
 
@@ -4279,7 +4326,7 @@ function erpOpenAttachmentPreview(attachmentId) {
 <img src="${viewUrl}" alt="${escapeHtml(a.filename || '')}" class="img-fluid rounded erp-attachment-preview-img" draggable="false">
 <div class="small text-muted mt-2 erp-attachment-preview-caption">${escapeHtml(a.filename || '')}</div>
 `;
-        erpBindAttachmentPreviewImageZoom(body);
+        erpBindAttachmentPreviewImageZoom(body, a.id);
     }
 
     erpEnsureAttachmentPreviewModalZoomReset();

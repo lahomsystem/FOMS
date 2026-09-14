@@ -31,10 +31,17 @@
     if (selectEl) selectEl.classList.add("d-none");
   }
 
-  function bindBodyZoom(body, modalEl) {
+  function bindBodyZoom(body, modalEl, fileInfo) {
     ensureModalLifecycle(modalEl);
     if (typeof window.fomsBindAttachmentPreviewImageZoom === "function") {
-      window.fomsBindAttachmentPreviewImageZoom(body, { ensureModalReset: ensureModalLifecycle });
+      window.fomsBindAttachmentPreviewImageZoom(body, {
+        ensureModalReset: ensureModalLifecycle,
+        // 단일 첨부라도 files 1개로 넘겨 전체화면 뷰어가 열리게 한다.
+        fullscreen: function () {
+          if (!fileInfo || !fileInfo.view_url) return null;
+          return { files: [fileInfo], index: 0, modalEl: modalEl };
+        }
+      });
     }
   }
 
@@ -115,7 +122,11 @@
         '<div class="small text-muted mt-2 erp-attachment-preview-caption">' +
         escapeHtml(filename) +
         "</div>";
-      bindBodyZoom(body, modalEl);
+      bindBodyZoom(body, modalEl, {
+        view_url: viewUrl,
+        download_url: downloadUrl,
+        filename: filename || "이미지"
+      });
     }
 
     showModal(modalEl);
