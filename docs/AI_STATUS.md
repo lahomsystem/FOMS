@@ -10,6 +10,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
+- [2026-09-14] **실측 보드 도면 전달 버튼** — `docs/plans/2026-09-14-measure-to-drawing-transfer-ledger.md`
 - [2026-09-13] **도면 모바일 제보 3건 수정(운영 반영)** — 근거 `docs/plans/2026-09-13-drawing-mobile-change-line-fixes-brief.md`. 잔여: 실기기 확인
 - [2026-09-13] **모바일 이미지 뷰어 3건(위 최신 항목)** — 스와이프가 `touchmove` 소비(미러 `.js`+인라인 양쪽) · 도면 상세 `mobile_handoff_viewer_files` → `data-foms-drawing-handoff-files` · touchcancel 전용 핸들러 + hover `(hover: hover)` 게이트. 회귀 가드 5개. **잔여: 실기기(아이폰) 확인**
 - [2026-09-12] **도면 주문 변경 UI 재설계(운영 반영 PR #366)** — 근거 `docs/plans/2026-09-11-drawing-mobile-order-change-brief.md`. 잔여: 스테이징 실화면 확인
