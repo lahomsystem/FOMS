@@ -12,6 +12,7 @@ from datetime import date, timedelta
 from sqlalchemy import String, cast, or_, and_, func
 
 from foms.services.common.erp_mine_filter import erp_mine_only_from_request
+from foms.services.measurement.drawing_transfer_cta import build_drawing_transfer_ctas
 from foms.services.measurement_time import (
     format_minutes_hm,
     measurement_time_minutes_of,
@@ -785,8 +786,13 @@ def regional_dashboard():
         )
     )
 
+    drawing_ctas = build_drawing_transfer_ctas(
+        db, all_regional_orders, getattr(g, "current_user", None)
+    )
+
     return render_template(
         "measurement/regional_dashboard.html",
+        drawing_ctas=drawing_ctas,
         pending_orders=pending_orders,
         scheduled_orders=scheduled_orders,
         completed_orders=completed_orders,
@@ -1031,8 +1037,13 @@ def self_measurement_dashboard():
         if o.status not in ["COMPLETED", "AS_COMPLETED", "SCHEDULED", "AS_RECEIVED"]
     ]
 
+    drawing_ctas = build_drawing_transfer_ctas(
+        db, all_orders, getattr(g, "current_user", None)
+    )
+
     return render_template(
         "measurement/self_measurement_dashboard.html",
+        drawing_ctas=drawing_ctas,
         pending_orders=pending_orders,
         scheduled_orders=scheduled_orders,
         as_orders=as_orders,

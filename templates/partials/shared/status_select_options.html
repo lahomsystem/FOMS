@@ -86,3 +86,28 @@
 {%- macro board_status_badge(label, tone) -%}
   <span class="foms-board-status-badge foms-board-status-badge--{{ tone }}">{{ label }}</span>
 {%- endmacro -%}
+
+{#
+  STATE-CONTROLS-04 — 실측 대시보드 '도면 전달' 컨트롤.
+
+  본공정 stage MEASURE→DRAWING 을 기존 quest approve(POST /api/orders/<id>/quest/approve)
+  로 넘긴다. 도면팀이 도면 **파일**을 넘기는 drawing_status 축과는 다른 축이다.
+  노출 잣대는 서버 판정과 같아야 하므로 조건을 여기서 만들지 않는다 —
+  foms/services/measurement/drawing_transfer_cta.py 가 만든 cta dict 만 읽는다.
+
+  배선: static/js/measurement/drawing-transfer-btn.js (전역 위임, defer 로드 필수).
+
+  아이콘·톤 계약: 같은 행에 있는 도면 **파일** 뷰어 버튼이
+  `btn-outline-info` + `fa-drafting-compass` 다. 오클릭이 되돌리기 어려운 stage 전이를
+  일으키므로 이 버튼은 아이콘(fa-arrow-right)·톤(btn-outline-primary + 전용 색)을
+  반드시 다르게 유지한다. 색은 static/css/measurement/complete-order-btn.css 가 못박는다.
+#}
+{%- macro drawing_transfer_control(order_id, cta) -%}
+  {%- if cta and cta.visible -%}
+  <button type="button" class="btn btn-sm btn-outline-primary js-drawing-transfer"
+          data-order-id="{{ order_id }}" data-confirm="{{ cta.confirm }}"
+          {% if cta.enabled %}title="실측을 완료하고 본공정 단계를 도면으로 넘깁니다"{% else %}disabled title="{{ cta.blocked_reason }}"{% endif %}>
+    <i class="fas fa-arrow-right"></i> {{ cta.label }}
+  </button>
+  {%- endif -%}
+{%- endmacro -%}
