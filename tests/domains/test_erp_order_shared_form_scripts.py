@@ -70,7 +70,7 @@ def _assert_shared_form_script_contract(body: str) -> None:
     assert "html2canvas.min.js" not in body
     assert "js/orders/erp-channel-push-confirm.js?v=20260821a" in body
     assert "js/cs/as-push-confirm.js?v=20260820a" in body
-    assert "js/orders/erp-order-shared.js?v=20260907a" in body
+    assert "js/orders/erp-order-shared.js?v=20260914a" in body
     assert "js/cs/as-attachment-order.js?v=20260819a" in body
     assert "js/orders/erp-alimtalk-send.js?v=20260824b" in body
     # T15 발송 흔적: 칩 자리·이력 패널이 실제 렌더에 붙어 있어야 한다(템플릿 계약만으로는
@@ -1481,7 +1481,7 @@ def test_attachment_preview_image_zoom_supports_in_modal_gestures() -> None:
     assert "cursor: grab" in css_text
     assert "erp-attachment-preview-img--dragging" in css_text
 
-    assert "function erpBindAttachmentPreviewImageZoom(bodyEl)" in erp_js
+    assert "function erpBindAttachmentPreviewImageZoom(bodyEl, attachmentId)" in erp_js
     assert "function erpApplyAttachmentPreviewZoom(img)" in erp_js
     assert "function erpResetAttachmentPreviewZoom(img)" in erp_js
     assert "fomsBindAttachmentPreviewImageZoom" in erp_js
