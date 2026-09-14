@@ -405,6 +405,45 @@ def test_the_screen_says_the_same_count_the_server_sends(app):
     assert row["sendable_orders"] == len(result["dispatched"])
 
 
+def test_a_household_that_sent_everything_it_could_reads_as_sent(app):
+    """★ 보낼 것을 다 보낸 집은 `발송됨` 으로 읽힌다 — 남은 건이 클레임뿐이어도.
+
+    운영 #5245 이지학(2026-09-14): 상품주문 5건 중 4건이 나갔고 남은 1건은 구매자가
+    09-10 에 취소 확정한 건이었다. 그런데 띠는 `보낼 상품주문 0건` 옆에
+    `보낼 수 없음 — 판매자센터에서 처리하세요` 라고 적었다. 0건인데 못 보낸다는 모순이고,
+    할 일이 없는 담당자를 판매자센터로 보낸다. 끝난 집은 끝났다고 말해야 한다.
+    """
+    from foms.services.integrations.naver_commerce.fulfillment import dispatch_order
+
+    main, _main_id, _claimed_id = _claimed_pair("SENTALL")
+    _attach_to_a_measured_order([row.id for row in _links(main)], customer="이지학")
+
+    client = _StubClient()
+    dispatch_order(db_session, client, link_id=main)
+    db_session.commit()
+
+    row = _day_row(main)
+
+    assert row["state"] == "sent", f"끝난 집이 {row['state']} 로 읽힌다 — {row['reason']}"
+    assert not row["reason"], "할 일이 없는데 사유를 말한다"
+    assert row["claim_excluded"] == 1, "몇 건을 빼고 보냈는지 말하지 않는다"
+
+
+def test_a_claim_only_household_that_never_sent_is_still_blocked(app):
+    """★ 음성 대조군 — 나간 게 하나도 없는 집은 여전히 `보낼 수 없음` 이다.
+
+    위 규칙은 '이미 보낸 집'에만 적용된다. 한 건도 못 보낸 집까지 `발송됨` 으로 읽으면
+    화면이 없는 사실을 말한다.
+    """
+    main, addon = _fully_claimed("NEVERSENT")
+    _attach_to_a_measured_order([main, addon], customer="전부취소")
+
+    row = _day_row(main)
+
+    assert row["state"] != "sent"
+    assert row["reason"], "보낼 수 없다면서 사유가 비었다"
+
+
 def test_a_fully_claimed_household_is_not_eligible_on_the_screen(app):
     """★ 음성 대조군 — 집 전부가 클레임이면 띠도 사유와 함께 닫혀 있다."""
     main, addon = _fully_claimed("DAYALL")

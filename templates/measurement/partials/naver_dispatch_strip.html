@@ -205,6 +205,11 @@
             {% if row.state == 'sent' %}
             <span class="text-success small fw-semibold">발송됨</span>
             <div class="text-muted small">{{ row.sent_at }}{% if row.sent_by_naver %} · 판매자센터에서 보낸 건입니다{% endif %}</div>
+            {% if row.claim_excluded %}
+            {# 워크벤치와 **같은 문장**이다 — 두 화면이 다른 말을 하면 담당자가 어느 쪽을
+               믿어야 할지 모른다(#5245). #}
+            <div class="text-muted small">취소·반품 {{ row.claim_excluded }}건은 빼고 보냈습니다</div>
+            {% endif %}
             {% elif row.state == 'superseded' %}
             <span class="text-success small fw-semibold">발송됨</span>
             <div class="text-muted small">재결제 건으로 나갔습니다 — {{ row.superseded_by }}{% if row.superseded_at %} · {{ row.superseded_at }}{% endif %}</div>

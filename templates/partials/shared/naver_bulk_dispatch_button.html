@@ -127,6 +127,11 @@
       label.textContent = '발송됨';
       detail.textContent = (row.sent_at || '')
         + (row.sent_by_naver ? ' · 판매자센터에서 보낸 건입니다' : '');
+      // 남은 건이 클레임뿐이라 끝난 집 — 템플릿 두 곳과 **같은 문장**이어야 한다(#5245).
+      if (row.claim_excluded) {
+        detail.textContent = (detail.textContent ? detail.textContent + ' · ' : '')
+          + '취소·반품 ' + row.claim_excluded + '건은 빼고 보냈습니다';
+      }
     } else if (row.state === 'failed') {
       label.className = 'fw-semibold text-danger';
       label.textContent = '실패';

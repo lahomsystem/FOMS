@@ -518,6 +518,11 @@
                         {% if row.state == 'sent' %}
                         <span class="wb-bulkdispatch__sent">발송됨</span>
                         <div class="wb-ghost__dim">{{ row.sent_at }}{% if row.sent_by_naver %} · 판매자센터에서 보낸 건입니다{% endif %}</div>
+                        {% if row.claim_excluded %}
+                        {# 남은 건이 클레임뿐이라 끝난 집(2026-09-14 #5245). 이 줄이 없으면
+                           "발송됨" 옆의 건수와 집 전체 상품주문 수가 갈려 보인다. #}
+                        <div class="wb-ghost__dim">취소·반품 {{ row.claim_excluded }}건은 빼고 보냈습니다</div>
+                        {% endif %}
                         {% elif row.state == 'superseded' %}
                         {# 취소 확정 뒤 재결제 집으로 나간 집(2026-09-02). 목록에서 빼지 않고
                            **어느 집으로 나갔는지**를 말한다 — 빼면 사람이 확인할 자리가 없다. #}
