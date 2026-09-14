@@ -6,6 +6,7 @@
    소유한다. 이 partial 은 dashboard_main.html 안에서 erp_mobile_v2_enabled 게이트로만
    포함되며, 코호트 밖(폰/세로/데스크톱)에서는 CSS base rule(display:none)로 완전 숨김.
    NO inline style, NO <script>. #}
+{% from 'partials/shared/channel_mark.html' import channel_mark %}
 <div class="foms-tablet-measure-split" aria-label="실측 태블릿 작업 화면">
   {# 실측일 순 정렬: measurement_date 는 문자열(YYYY-MM-DD) 또는 None.
      None 은 Jinja sort 에서 예외 → 유효 값만 selectattr 로 분리해 정렬 후 미지정 뒤에 붙임. #}
@@ -63,7 +64,8 @@
             <span class="foms-stage-badge foms-stage-badge{{ _stage_mod }}">{{ _stage_lbl }}</span>
             <span class="foms-tablet-measure-card__time">{{ r.measurement_time or '-' }}</span>
           </div>
-          <div class="foms-tablet-measure-card__customer">{{ r.customer_name or '-' }}</div>
+          <div class="foms-tablet-measure-card__customer">{{ r.customer_name or '-' }}
+            {{ channel_mark(r.channel_source|default(none, true)) }}</div>
           <div class="foms-tablet-measure-card__product">{{ (r.product or '-')|strip_product_w or '-' }}</div>
           <div class="foms-tablet-measure-card__meta">
             {% if r.phone %}

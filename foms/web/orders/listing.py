@@ -45,6 +45,7 @@ from foms.services.feature_flags import (
 from foms.services.post_auth_navigation import redirect_to_authenticated_home, should_use_erp_mobile_home
 from foms.services.gnav_contract import gnav_orders_layout_parent, wants_gnav_fragment
 from foms.services.erp_dashboard_search import erp_order_dashboard_search_predicate
+from foms.services.integrations.naver_commerce.constants import SOURCE_MARKER
 
 
 def _extract_orderer_from_options(options_str):
@@ -215,6 +216,12 @@ def index():
         for order_db_item in orders_from_db:
             order_display_data = copy.deepcopy(order_db_item)
             order_display_data.display_options = format_options_for_display(order_db_item.options)
+            # 판정 축은 출처 하나다(structured_data['source']). naver_linked 는
+            # 출처가 아니다 - 절대 쓰지 마라. is_erp_order 분기 밖에 둔다:
+            # 안에 넣으면 ERP 플래그가 없는 네이버 행이 조용히 빠진다.
+            _sd_all = _ensure_dict(order_db_item.structured_data) if order_db_item.structured_data else {}
+            setattr(order_display_data, 'channel_source',
+                    'NAVER' if _sd_all.get('source') == SOURCE_MARKER else None)
             if order_db_item.is_erp_order and order_db_item.structured_data:  # type: ignore
                 sd = _ensure_dict(order_db_item.structured_data)
                 customer_name = ((sd.get('parties') or {}).get('customer') or {}).get('name')

@@ -42,6 +42,15 @@
             <a class="wb-tab" role="tab" data-tab="all" aria-selected="{{ 'true' if active_tab == 'all' else 'false' }}"
                href="{{ url_for('admin.naver_ingest_triage', tab='all') }}">이력{% if history and history.total is defined and not history.find %}<span class="wb-tab__n">{{ history.total }}주문</span>{% endif %}</a>
             {% endif %}
+            {# 대조 — 수집분 중 주문이 없는 것을 사유별로 본다. 권한은 이력과 같은
+               판정(`_can_view_history`)이다: 회계팀은 정산 대조, 영업팀은 자기 주문을
+               좇는 자리라 같은 사람들이 본다.
+               **숫자 배지를 달지 않는다** — 배지를 달면 처리·이력 탭을 그릴 때마다
+               대조 스캔이 한 번 더 돈다. 숫자는 들어와야 보인다. #}
+            {% if can_view_history %}
+            <a class="wb-tab" role="tab" data-tab="gap" aria-selected="{{ 'true' if active_tab == 'gap' else 'false' }}"
+               href="{{ url_for('admin.naver_ingest_triage', tab='gap') }}">대조</a>
+            {% endif %}
         </nav>
         {# 결정 3: 숫자 이중 표기(집 · 상품주문)는 화면에서 여기 한 곳만 한다.
            **스트립·탭 배지·nav 뱃지는 '손댈 수 있는 집'을 말한다**(계약 §2.4, 2026-08-24 개정).
@@ -820,6 +829,15 @@
             </div>
         </div>
     </div>
+
+    {% elif active_tab == 'gap' %}
+    {# ══ 대조 ════════════════════════════════════════════════════════
+       수집분 중 **주문이 없는 것**을 사유별로 가른다. 읽기 전용이다 —
+       행에 액션 버튼·data-link-id 를 두지 않는다(이력 탭과 같은 규율:
+       불가역 mutation 라우트가 STAFF 까지 열려 있어서, 누를 수 있게
+       만들면 과거 주문 전체에 그 버튼을 주는 셈이다).
+       숫자는 서버가 센 값을 그대로 낸다. #}
+    {% include 'admin/partials/naver_gap_pane.html' %}
 
     {% else %}
     {# ══ 이력 (ADMIN 전용) ═══════════════════════════════════════════
