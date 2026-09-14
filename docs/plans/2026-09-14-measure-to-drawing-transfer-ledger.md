@@ -291,3 +291,11 @@ CTA 빌더 자체 비용(합성 2,000행, 5회 최소값, `PYTHONPATH=C:/DEV/FOM
    오면 이 버튼이 아니라 outbox 핸들러 부재를 봐라.
 5. 강제 이동(`erp-stage-override.js`)으로 우회하지 마라 — ADMIN/MANAGER 전용이고 `reason` 을
    요구하며 감사 의미가 다르다.
+
+## 운영 반영 (2026-09-14)
+
+- deploy `97adf68e7` CI ALL GREEN. production `4e0e5c24d`(PR #379) 병합, PR 체크 4종(test·harness·perf-gate·pg-lane) pass.
+- 스테이징(lahom-dev) 실서버 확인: 자가 보드 버튼 1개·지방 보드 12개 렌더, 실제 왕복 `auto_transitioned: true` / `next_stage: 도면` 확인 후 stage-override 로 원상 복구(주문 #4382).
+- 운영 배포 확인: `/static/js/measurement/drawing-transfer-btn.js?v=20260914a` 200, 핸들러·엔드포인트 문자열 포함. 운영 실화면 로그인 확인은 계정 정책상 미실시.
+- 승격 경로: `promote_own_to_production.py` 가 `INCOMPLETE: missing baseline deps=228` 로 중단 → origin/production 기준 워크트리에서 직접 cherry-pick(충돌은 AI_STATUS·AI_CHANGELOG 2건뿐, 코드 무충돌) → APP_OK·계약 153 passed·pre_push_smoke EXIT=0 확인 후 PR.
+- 푸시 뒤 CI 가 잡은 결함 2건(로컬 게이트가 못 본 것): ① layer dependency ratchet — 술어 추출로 함수 안 지연 import 가 새 위반이 됐다(모듈 상단으로 올림). ② file size ratchet — 새 테스트 860줄 > 임계 500줄(기준선 등록 대신 헬퍼·T1~T7·T8~T12 셋으로 분할). **둘 다 로컬에 없는 게이트였다 — 로컬 deploy 가 원격보다 277 커밋 뒤였기 때문.**
