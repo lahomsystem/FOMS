@@ -4237,8 +4237,9 @@ function erpBindAttachmentPreviewImageZoom(bodyEl, attachmentId) {
 }
 
 // 서명된 R2 URL 은 만료된다 — 미리보기·뷰어는 항상 앱 라우트(/api/files/...)로 간다.
-function erpStableAttachmentUrls(a) {
-    const storageKey = a && (a.storage_key || (a.download_url && String(a.download_url).replace(/^\/api\/files\/download\//, '')));
+function erpStableAttachmentUrls(attachment) {
+    const a = attachment || {};
+    const storageKey = a.storage_key || (a.download_url && String(a.download_url).replace(/^\/api\/files\/download\//, ''));
     const storagePath = storageKey ? storageKey.split('/').map(function (s) { return encodeURIComponent(s); }).join('/') : '';
     function isSignedStorageUrl(url) {
         return /(?:^|\/\/|[.])r2\.cloudflarestorage\.com/i.test(url || '') ||
@@ -4248,8 +4249,8 @@ function erpStableAttachmentUrls(a) {
     const stableDownloadUrl = storagePath ? `/api/files/download/${storagePath}` : '#';
     return {
         storageKey: storageKey || null,
-        viewUrl: isSignedStorageUrl(a && a.view_url) ? stableViewUrl : ((a && a.view_url) || stableViewUrl),
-        downloadUrl: isSignedStorageUrl(a && a.download_url) ? stableDownloadUrl : ((a && a.download_url) || stableDownloadUrl)
+        viewUrl: isSignedStorageUrl(a.view_url) ? stableViewUrl : (a.view_url || stableViewUrl),
+        downloadUrl: isSignedStorageUrl(a.download_url) ? stableDownloadUrl : (a.download_url || stableDownloadUrl)
     };
 }
 
