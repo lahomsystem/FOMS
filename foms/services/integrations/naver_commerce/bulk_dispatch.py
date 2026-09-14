@@ -635,7 +635,14 @@ def _build_target(key: tuple[str, str, str], links: list[ExternalOrderLink],
     # 아니라 **우리가 부분 취소한 행만 남은 집**이다 — 걸리지도 않은 클레임을 사유로
     # 말하면 담당자가 판매자센터를 열어 아무것도 못 찾는다.
     if pending and not sendable and not reason:
-        if claim_excluded:
+        if claim_excluded and sent:
+            # 보낼 것을 **다 보낸** 집이다(2026-09-14 운영 #5245: 5건 중 4건 발송,
+            # 남은 1건은 구매자가 취소 확정한 건). 여기서 `보낼 수 없음` 이라고 쓰면
+            # 화면이 "0건인데 못 보낸다"는 모순을 말하고, 담당자를 판매자센터로
+            # 보내 아무 할 일도 없는 화면을 열게 한다. 남은 건이 전부 클레임이면
+            # 그 집은 **끝난 집**이다 — 아래에서 state 를 sent 로 둔다.
+            reason = ""
+        elif claim_excluded:
             reason = "취소·반품·교환이 걸린 주문입니다 — 판매자센터에서 처리하세요."
         else:
             reason = "취소한 상품주문만 남았습니다 — 보낼 상품주문이 없습니다."
@@ -643,7 +650,10 @@ def _build_target(key: tuple[str, str, str], links: list[ExternalOrderLink],
     # 보내기를 권하게 되고, 그 재시도는 서버 가드에 그대로 막힌다(발주확인이 먼저다).
     # 이 순서 덕에 ``state == "failed"`` 인 집은 **항상** 보낼 수 있는 집이고, 그래서
     # 줄마다 붙는 재시도 버튼이 언제나 뜻이 있다.
-    if not pending:
+    # 남은 행이 전부 클레임이고 이미 나간 건이 있으면 **끝난 집**이다 — `pending` 이
+    # 비지 않았다는 이유로 `blocked` 로 두면 화면이 "0건인데 보낼 수 없음" 이라고 말한다.
+    settled_by_claim = bool(sent) and bool(pending) and not sendable and bool(claim_excluded)
+    if not pending or settled_by_claim:
         state = "sent"
     elif reason:
         state = "blocked"
