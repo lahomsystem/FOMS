@@ -1,0 +1,105 @@
+{# 수집·주문 대조 (GAP-01) — 워크벤치 세 번째 탭의 본문.
+
+   수집분 중 **주문이 없는 것**을 사유별로 가른다. 읽기 전용이다 — 행에 액션 버튼도,
+   링크 id 를 심는 데이터 속성도 두지 않는다(이력 표와 같은 규율: 불가역 mutation
+   라우트가 STAFF 까지 열려 있어서, 누를 수 있게 만들면 과거 주문 전체에 그 버튼을
+   주는 셈이다).
+
+   숫자와 칸 이름은 서버가 정한다. 칸 라벨·설명의 SSOT 는
+   `foms/services/integrations/naver_commerce/order_gap.py` 의 GAP_LABELS 하나다 —
+   여기에 한글 라벨을 박으면 두 자리가 서로 다른 이름을 말하게 된다.
+
+   개인정보: 전화번호·주소는 행 dict 에 아예 없다. 이름은 서버에서 마스킹해 온
+   `recipient_name_masked` 를 그대로 낸다 — 화면에서 풀지 않는다.
+
+   CSS 는 워크벤치 기존 클래스만 쓴다(.wb-bar·.wb-chips·.wb-cmp·.wb-empty·.wb-pager).
+   새 인라인 style 도 script 도 두지 않는다. #}
+<section class="card shadow-sm">
+
+    <div class="wb-bar wb-bar--head">
+        <span class="wb-bar__title">수집·주문 대조</span>
+        {# 이 한 줄은 글자까지 계약이다. 93 은 전화 대조 휴리스틱이 낸 수이고 양쪽으로
+           틀릴 수 있다 — 단정하는 낱말을 쓰지 않는다. #}
+        <span class="wb-bar__fact">전화 대조로 짚은 후보입니다 — 확정된 수가 아닙니다.</span>
+        <span class="wb-bar__spacer"></span>
+        <span class="wb-bar__fact wb-bar__fact--quiet">읽은 수집분 <b>{{ gap.scanned }}</b>건</span>
+    </div>
+
+    <div class="wb-bar">
+        <span class="wb-bar__fact wb-bar__fact--quiet">같은 전화의 ERP 주문이 있는지로 갈랐습니다. 이름·주소는 보지 않습니다.</span>
+    </div>
+
+    {# 칸 칩 — 서버가 준 순서 그대로 돈다(GAP_BUCKETS 순서이자 전수). 0건이어도 칸은
+       남는다: 칸이 사라지면 '없다'와 '안 셌다'가 화면에서 같은 모양이 된다. #}
+    <span class="wb-chips" role="group" aria-label="대조 칸">
+        {% for key, info in (gap.buckets or {}).items() %}
+        <a class="wb-chip" aria-pressed="{{ 'true' if gap.bucket == key else 'false' }}"
+           href="{{ url_for('admin.naver_ingest_triage', tab='gap', b=key) }}">{{ info.label }} {{ info.count }}건</a>
+        {% endfor %}
+    </span>
+
+    {% set cur = (gap.buckets or {}).get(gap.bucket) %}
+    {% if cur %}
+    <div class="wb-bar">
+        <span class="wb-bar__fact">{{ cur.note }}</span>
+        <span class="wb-bar__spacer"></span>
+        <span class="wb-bar__fact">금액 합계 <b>{{ '{:,}'.format(cur.amount or 0) }}</b>원</span>
+    </div>
+    {% endif %}
+
+    {% if gap.truncated %}
+    <div class="wb-bar">
+        <span class="wb-bar__fact">모집단이 {{ gap.cap }}행 상한에 닿았습니다 — 이 표는 최근 {{ gap.cap }}행만 셌습니다.</span>
+    </div>
+    {% endif %}
+
+    <div class="table-responsive">
+        <table class="wb-cmp">
+            <thead>
+                <tr>
+                    <th>수집일</th><th>주문번호</th><th>수취인</th><th>제품</th>
+                    <th class="wb-cmp__num">금액</th><th>네이버 상태</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in gap.rows %}
+                <tr>
+                    <td class="wb-cmp__k">{{ row.collected_date or '–' }}</td>
+                    <td>{{ row.external_order_no or '–' }}</td>
+                    <td>{{ row.recipient_name_masked or '–' }}</td>
+                    <td>{{ row.product_name or '–' }}</td>
+                    <td class="wb-cmp__num">{{ '{:,}'.format(row.payment_amount or 0) }}</td>
+                    <td>
+                        {# 네이버가 준 상태 원문이다. 우리 말로 옮기지 않는다 —
+                           옮기면 셀러센터 화면과 낱말이 갈린다. #}
+                        <span class="wb-st__b wb-st__b--slate">{{ row.naver_status or '–' }}</span>
+                        {% if row.claim_label %}
+                        <span class="wb-st__b wb-st__b--slate">{{ row.claim_label }}</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="6" class="wb-empty">이 칸에 해당하는 수집분이 없습니다.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {# 페이저는 지금 보는 칸을 들고 간다 — b 가 빠지면 넘긴 순간 기본 칸으로 돌아간다
+       (이력 페이저가 필터 넷을 전부 들고 가는 것과 같은 이유). #}
+    {% if gap.offset or gap.has_more %}
+    <div class="wb-pager">
+        {% if gap.offset %}
+        <a href="{{ url_for('admin.naver_ingest_triage', tab='gap', b=gap.bucket,
+                            o=[0, gap.offset - gap.limit]|max) }}">이전</a>
+        {% endif %}
+        {% if gap.rows %}
+        <span class="wb-pager__cur">{{ gap.offset + 1 }} – {{ gap.offset + (gap.rows|length) }}</span>
+        {% endif %}
+        {% if gap.has_more %}
+        <a href="{{ url_for('admin.naver_ingest_triage', tab='gap', b=gap.bucket,
+                            o=gap.offset + gap.limit) }}">다음</a>
+        {% endif %}
+    </div>
+    {% endif %}
+</section>

@@ -1,3 +1,4 @@
+{% from 'partials/shared/channel_mark.html' import channel_mark %}
 {# 동행 전달(스펙 §6.2) 전용 CSS. dashboard.html / dashboard_fragment.html 은 이 파일을
    공통으로 include 하므로 여기에 두면 전체 페이지·프래그먼트 양쪽에 실린다
    (erp-shell preloadFragmentStylesheets 가 프래그먼트 HTML 의 link 를 head 로 올린다). #}
@@ -857,6 +858,7 @@
                   <td data-label="고객" style="border-right: 1px solid #e0e0e0;">
                     <span class="d-inline-flex align-items-center flex-wrap gap-1">
                       {{ customer or '-' }}
+                      {{ channel_mark(r.channel_source|default(none, true)) }}
                       {% if r.is_erp_order %}
                       {% set payment = r.structured_data.get('payment', {}) if r.structured_data else {} %}
                       {% set deposit_raw = payment.get('deposit') %}

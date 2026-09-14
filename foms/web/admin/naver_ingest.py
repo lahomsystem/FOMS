@@ -49,6 +49,14 @@ from foms.services.integrations.naver_commerce.mapping import (
     is_money_back_claim,
 )
 from foms.services.integrations.naver_commerce.order_candidates import find_order_candidates
+# 대조 탭(GAP-01)이 쓰는 읽기 전용 집계. 모듈 상단 import 다 — 함수 안 지연 import 는
+# 선례(커밋 103bc281d)에서 걷어낸 모양이라 다시 들이지 않는다.
+from foms.services.integrations.naver_commerce.order_gap import (
+    GAP_BUCKETS,
+    GAP_MISSING,
+    GAP_PAGE_SIZE,
+    build_order_gap_view,
+)
 from foms.services.integrations.naver_commerce.promotion import (
     is_promotable,
     summarize_link_household,
@@ -2450,8 +2458,9 @@ def _selected_link(db, visible: list[dict[str, Any]]) -> Optional[ExternalOrderL
 def _render_workbench(db) -> str:
     """워크벤치(게이트 ON) 렌더 — 목록 하나 + 필터 칩 + 상세 pane.
 
-    탭은 처리/이력 둘뿐이다. 예전 ``발주확인 전``·``취소·반품`` 탭은 같은 목록의 필터
+    탭은 처리/이력/대조 셋이다. 예전 ``발주확인 전``·``취소·반품`` 탭은 같은 목록의 필터
     칩으로 내려왔다 — 한 집을 처리하려고 탭을 오가던 것이 이 개편의 출발점이다.
+    대조 탭은 수집분 중 주문이 없는 것을 사유별로 보는 읽기 전용 자리다(GAP-01).
 
     Args:
         db: 요청 스코프 DB 세션.
@@ -2504,6 +2513,14 @@ def _render_workbench(db) -> str:
         filter_counts_view = _filter_counts(groups)
         actionable = _actionable_count(groups)
         pending_total = sum(int(group["count"]) for group in groups)
+    # 대조(GAP-01) — 탭에 들어왔을 때만 센다. 다른 탭에서 세면 렌더마다 쿼리가
+    # 붙는다. 그래서 탭 배지에도 숫자를 달지 않는다. 인자 식을 render_template
+    # 괄호 안에 두면 wb_template 으로 계상되므로 여기서 먼저 만든다(2026-09-11 교훈).
+    with phase("wb_gap"):
+        gap_view = (build_order_gap_view(db, bucket=_active_gap_bucket(),
+                                         limit=GAP_PAGE_SIZE,
+                                         offset=_active_gap_offset())
+                    if active_tab == "gap" else {})
     with phase("wb_pane_ctx"):
         pane_context = _pane_context(db, _selected_link(db, visible), visible=visible)
     with phase("wb_template"):
@@ -2524,6 +2541,7 @@ def _render_workbench(db) -> str:
             work_truncated=work_truncated,
             can_view_history=_can_view_history(),
             history=history_view,
+            gap=gap_view,
             ingest_status=ingest_status,
             # 소급 수집 날짜 칸의 기본값. 기본 범위는 90일(사용자 결정 2026-09-01)이고
             # 끝은 **어제**다 — 오늘 구간은 정상 5분 스윕이 이미 맡고 있다.
@@ -2757,7 +2775,8 @@ FULFILLMENT_ACTION_LABELS = {"confirm": "발주확인", "dispatch": "발송처�
 
 #: 통합 화면의 탭 — 두 URL 왕복을 없앤 자리(설계 결정 1). v3 에서 ``place``·``claim`` 은
 #: 탭이 아니라 **같은 목록의 필터 칩**으로 내려왔다(한 집 처리하려고 탭을 오가던 통증).
-WORKBENCH_TABS = ("work", "all")
+#: ``gap`` 은 수집분과 ERP 주문을 맞대 보는 읽기 전용 탭이다(GAP-01).
+WORKBENCH_TABS = ("work", "all", "gap")
 
 #: 처리 탭의 필터 칩. 술어 SSOT 는 :func:`_group_matches_filter` 하나뿐이다.
 WORKBENCH_FILTERS = ("all", "place", "rel", "claim")
@@ -2833,11 +2852,13 @@ def _active_tab() -> str:
     볼 권한이 없는 탭도 같은 자리로 떨어진다(403 대신 기본 탭 — 나머지 작업은 계속 된다).
 
     Returns:
-        ``work`` 또는 ``all``.
+        ``work``·``all``·``gap`` 중 하나.
     """
     raw = (request.args.get("tab") or "").strip().lower()
     tab = raw if raw in WORKBENCH_TABS else "work"
     if tab == "all" and not _can_view_history():
+        return "work"
+    if tab == "gap" and not _can_view_history():
         return "work"
     return tab
 
@@ -2856,6 +2877,31 @@ def _active_filter() -> str:
         return LEGACY_TAB_FILTERS[legacy]
     raw = (request.args.get("f") or "").strip().lower()
     return raw if raw in WORKBENCH_FILTERS else "all"
+
+
+def _active_gap_bucket() -> str:
+    """``?b=`` 를 읽어 유효한 대조 칸 이름으로 정규화한다.
+
+    모르는 값은 조용히 기본 칸으로 떨어뜨린다 — 주소를 손으로 고쳐도 화면이 죽지
+    않는다(:func:`_active_filter` 와 같은 규율).
+
+    Returns:
+        :data:`order_gap.GAP_BUCKETS` 중 하나.
+    """
+    raw = (request.args.get("b") or "").strip().lower()
+    return raw if raw in GAP_BUCKETS else GAP_MISSING
+
+
+def _active_gap_offset() -> int:
+    """``?o=`` 를 읽어 0 이상 정수로 정규화한다.
+
+    Returns:
+        0 이상 정수. 숫자가 아니거나 음수면 0.
+    """
+    try:
+        return max(0, int(request.args.get("o") or 0))
+    except (TypeError, ValueError):
+        return 0
 
 
 def _group_matches_filter(group: dict[str, Any], name: str) -> bool:

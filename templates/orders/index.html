@@ -607,6 +607,7 @@
 {% endblock %}
 
 {% block content %}
+{% from 'partials/shared/channel_mark.html' import channel_mark %}
 <div class="erp-pro order-list-container">
     {# === 네이버 수집 인박스 스트립 (T14-A) — 확인 대기>0 일 때만. 카운트는
        naver_triage_pending 30초 전역 캐시 재사용이라 목록 렌더 비용 불변. === #}
@@ -876,6 +877,7 @@
                                 {% endif %}
                                 <span class="d-inline-flex align-items-center gap-1 flex-nowrap" style="max-width: 100px;" title="{{ order.customer_name }}">
                                     <span class="text-truncate" style="min-width: 0;">{{ display_name }}</span>
+                                    {{ channel_mark(order.channel_source) }}
                                     {% if (order.orderer_name|default('')) and '라홈' in (order.orderer_name|default('')) %}
                                     <img src="{{ url_for('static', filename='images/lahom-logo.png') }}" alt="라홈" class="erp-lahom-logo ms-1" title="라홈 주문">
                                     {% endif %}
