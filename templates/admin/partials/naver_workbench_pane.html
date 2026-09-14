@@ -43,6 +43,14 @@
                            or (grp.claim_blocking if grp else False) %}
 {% set household_canceled = grp.canceled if grp else selected.fulfillment.canceled_at %}
 {% set locked = household_claimed or household_canceled %}
+{# **발송 축만 따로 판정한다**(NVCLAIM-PARTIAL-02, 2026-09-14). `locked` 는 주문 만들기·
+   발주확인·취소까지 함께 닫는 집 잠금인데, 발송은 구매자가 일부만 클레임한 집에서
+   **남은 상품주문이 나가야 한다** — 판매자센터가 그걸 허용하고 서버 `dispatch_order` 도
+   남은 라인만 보낸다(#5245 이지학). 정본은 서버 `grp.dispatch_claim_locked`(보낼 것이
+   하나도 없을 때만 참). 집이 없을 때(큐 밖 단건)는 옛 판정으로 떨어진다. #}
+{% set dispatch_claim_locked = grp.dispatch_claim_locked if grp else household_claimed %}
+{% set dispatch_locked = dispatch_claim_locked or household_canceled %}
+{% set dispatch_claim_excluded = (grp.dispatch_claim_excluded_count if grp else 0) or 0 %}
 {% set place_pending = grp.place_pending if grp else (not selected.place.confirmed) %}
 {# 결정 D1(2026-08-24 개정): **추가결제만** 물건이 따로 나가지 않는다 — 그 집만 발주확인
    전에도 바로 닫는다. 재결제는 원 주문을 취소하고 그 물건값을 다시 낸 것이라 **원 주문의
@@ -86,6 +94,9 @@
 {% set naver_sent_at = '' if selected.dispatch.ours_at else selected.dispatch.naver_at %}
 {% set claim_label = (grp.claim_label if grp else '') or selected.claim.label or '' %}
 {% set member_count = grp.count if grp else 1 %}
+{# 클레임으로 뺀 건은 '이미 발송처리된' 이 아니다 — 그 낱말로 세면 화면이 나가지도
+   않은 건을 나갔다고 말한다. 두 수를 갈라 두고 문장도 갈라 쓴다. #}
+{% set dispatch_already_sent = member_count - dispatch_pending_count - dispatch_claim_excluded %}
 {# 취소가 **실제로 나갈** 건수(NVCLAIM-PARTIAL-01). 술어는 서버 `fulfillment.cancel_sendable`
    한 벌(return_sendable 거울) — 집 전체 수(`member_count`)로 재진술하면 형제가 판매자센터에서
    이미 취소된 집(운영 #2354: 8건 중 4건 CANCELED)에서 "8건 취소합니다"라고 읽히는데 서버는
@@ -132,7 +143,7 @@
    자신과 모순된다. 집 전체가 **판매자센터에서** 나갔고 pane 이 연 상품주문만 우리 표식을
    가진 집이 그 자리다 — `naver_sent_at` 은 연 1건만 봐서 못 막고, `dispatched` 는 우리가
    보낸 수로만 판정해 못 막는다(둘 다 그대로 두는 것이 옳다: 2026-09-02 상류 판단). #}
-{% set can_dispatch = not locked and not dispatched and not naver_sent_at
+{% set can_dispatch = not dispatch_locked and not dispatched and not naver_sent_at
                       and (not place_pending or close_now)
                       and dispatch_pending_count > 0 %}
 {# 취소는 **하나라도** 나갔으면 닫는다 — 서버 `cancel_order` 가 형제 중 발송된 건이
@@ -397,7 +408,7 @@
                        (판매자센터로 보낸다) → 발주확인 미완(우리 화면에서 이어서 한다).
                        네이버 기록이 발주확인보다 앞이어야 한다 — 이미 발송된 집에
                        "발주확인이 먼저입니다"는 사람을 틀린 곳으로 보내는 말이다. #}
-                    id="wb-dispatch" {% if can_dispatch %}data-bs-toggle="modal" data-bs-target="#wb-modal-dispatch"{% else %}disabled title="{% if locked %}{{ lock_why }}{% elif naver_sent_at %}{{ naver_sent_why }}{% else %}발주확인 전 상품주문이 있습니다{% endif %}"{% endif %}>
+                    id="wb-dispatch" {% if can_dispatch %}data-bs-toggle="modal" data-bs-target="#wb-modal-dispatch"{% else %}disabled title="{% if dispatch_locked %}{{ lock_why }}{% elif naver_sent_at %}{{ naver_sent_why }}{% elif not dispatch_pending_count %}보낼 상품주문이 없습니다{% else %}발주확인 전 상품주문이 있습니다{% endif %}"{% endif %}>
                 {# 라벨은 close_now 여부와 무관하게 **발송처리** 하나다 — 같은 호출인데 이름이
                    둘이면 사람이 다른 기능으로 읽는다(모달 본문은 이미 '발송처리' 어휘였다). #}
                 발송처리
@@ -707,7 +718,7 @@
             {# 나간 건수도 **두 신호**로 센다(2026-09-02). `dispatched_count` 는 우리가 보낸
                수라, 형제가 판매자센터에서 나간 집에서 "2건 중 0건 발송 완료" 라는 거짓 문장이
                나왔다. 집 전체가 나간 집은 이 가지에 오지 않는다(`dispatched` 도 두 신호). #}
-            상품주문 {{ member_count }}건 중 <b>{{ member_count - dispatch_pending_count }}건 발송 완료</b> —
+            상품주문 {{ member_count }}건 중 <b>{{ dispatch_already_sent }}건 발송 완료</b>{% if dispatch_claim_excluded %} · 클레임 {{ dispatch_claim_excluded }}건 제외{% endif %} —
             {# 발주확인이 남아 있으면 발송처리 버튼은 잠겨 있다. 그때 "남은 건만 나갑니다"는
                화면이 없는 동작을 약속하는 말이 된다(CEO 검수 중).
                네이버 기록으로 잠긴 집도 같은 함정이다 — 사유가 발주확인이 아닌데 "발주확인이
@@ -1635,12 +1646,19 @@
                 {# 서버 dispatch_order 의 todo 는 **이미 나간 형제를 두 신호로** 뺀다
                    (우리 표식 + 네이버 sendDate). 집 전체 수나 우리 표식만으로 재진술하면
                    "3건 보냅니다" 라고 읽히는데 1건만 나간다(계약 §0-2). #}
-                {% if member_count - dispatch_pending_count %}
+                {% if dispatch_claim_excluded %}
+                <p class="small mb-2">
+                    {# 구매자 클레임이 걸린 상품주문은 네이버 payload 에 한 건도 안 실린다
+                       (서버 `dispatch_order` 가 호출 직전에 한 번 더 센다). #}
+                    클레임이 걸린 <b>{{ dispatch_claim_excluded }}건</b>은 빼고 보냅니다.
+                </p>
+                {% endif %}
+                {% if dispatch_already_sent %}
                 <p class="small mb-2">
                     {# '이미 발송처리된' 이라는 낱말은 여기 말고도 화면이 "취소가 왜 없는지"를
                        말하는 근거로 읽는다 — 문구를 바꾸려면 M-4 계약 테스트를 함께 본다.
                        세는 건수는 **두 신호**다: 우리가 보낸 것과 판매자센터에서 나간 것. #}
-                    이미 발송처리된 <b>{{ member_count - dispatch_pending_count }}건</b>은 다시 보내지 않습니다.
+                    이미 발송처리된 <b>{{ dispatch_already_sent }}건</b>은 다시 보내지 않습니다.
                 </p>
                 {% endif %}
                 {# ② 되돌릴 수 없음 — 관계에 따라 사람이 물어야 할 질문이 다르다.

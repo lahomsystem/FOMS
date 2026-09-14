@@ -269,9 +269,9 @@ def test_js_sends_product_order_ids_and_locks_more_buttons():
     assert "innerHTML" not in block, "새 함수 블록이 innerHTML 을 쓴다(XSS) — textContent 만"
 
 
-def test_workbench_pins_moved_to_20260914a():
+def test_workbench_pins_moved_to_20260914b():
     """CSS·JS 를 고쳤으면 ``?v`` 핀이 함께 움직인다(SW staticCacheFirst) — 2026-09-14 재결제 예정 표시·부분 클레임 발송."""
     markup = WORKBENCH_TEMPLATE.read_text(encoding="utf-8")
 
-    assert markup.count("?v=20260914a") == 2
+    assert markup.count("?v=20260914b") == 2
     assert "?v=20260911a" not in markup
