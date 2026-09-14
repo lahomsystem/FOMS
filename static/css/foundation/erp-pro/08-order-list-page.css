@@ -314,6 +314,23 @@
 .order-list-table-container td.th-received-time { min-width: 80px !important; }
 .order-list-table-container .th-customer-name,
 .order-list-table-container td.th-customer-name { min-width: 110px !important; }
+
+/* 고객명 셀: 폭 제한은 **이름에만** 건다.
+   예전에는 이름+아이콘을 감싼 flex 줄 전체에 max-width:100px 이 걸려 있어서,
+   네이버 마크(22px)·라홈 로고(47px)·지방 아이콘이 붙는 행에서 그 셋이 100px 를
+   나눠 갖고 이름 몫이 한 글자도 안 남았다. 캡을 안쪽 이름 span 으로 옮기면
+   이름은 늘 100px 를 쓰고 아이콘은 그 옆에 붙는다.
+   줄은 접지 않는다(flex-nowrap) — 아이콘이 이름 아래로 떨어지면 행 높이가 들쭉날쭉해진다.
+   열 폭은 이 페이지의 자동 계산 JS 가 내용에 맞춰 다시 잡는다(th-customer-name 에 +40px). */
+.order-list-container .erp-customer-name-wrap {
+  max-width: none;
+  min-width: 0;
+}
+
+.order-list-container .erp-customer-name-text {
+  min-width: 0;
+  max-width: 100px;
+}
 .order-list-table-container .th-phone,
 .order-list-table-container td.th-phone { min-width: 120px !important; }
 /* 작업 컬럼: 수정·삭제 아이콘 두 개만 딱 들어가는 최소 폭, 접수일 침범 없음 */
