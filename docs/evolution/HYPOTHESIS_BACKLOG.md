@@ -39,3 +39,7 @@
 | H-017 | 2026-02-16 | ai_coding 개선: From Biased Chatbots to Biased Agents: Examining Role Assignment Effects on LLM Agent Robu 적용 시 품질/속도 개선 | 4 | 2 | 2 | 4 | evolution-architect | proposed | 리드타임/오류율/회귀건수 |
 
 | H-018 | 2026-02-16 | ai_coding 개선: From Biased Chatbots to Biased Agents: Examining Role Assignment Effects on LLM Agent Robu 적용 시 품질/속도 개선 | 4 | 2 | 2 | 4 | evolution-architect | proposed | 리드타임/오류율/회귀건수 |
+
+| H-019 | 2026-09-14 | ai_coding 개선: Harness or Model? Isolating the Harness Effect in Agentic Coding with a Contamination-Cont 적용 시 품질/속도 개선 | 4 | 2 | 2 | 4 | evolution-architect | proposed | 리드타임/오류율/회귀건수 |
+| H-020 | 2026-09-14 | ai_coding 개선: Retrieval-Augmented Generation for Scientific Code Understanding 적용 시 품질/속도 개선 | 4 | 2 | 2 | 4 | evolution-architect | proposed | 리드타임/오류율/회귀건수 |
+| H-021 | 2026-09-14 | ai_coding 개선: What is the Difference Between Me and You? Benchmarking the Quality Gap Between Human-Writ 적용 시 품질/속도 개선 | 4 | 2 | 2 | 4 | evolution-architect | proposed | 리드타임/오류율/회귀건수 |
