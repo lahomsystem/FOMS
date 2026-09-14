@@ -132,5 +132,5 @@ def test_workbench_asset_pin_moved_for_the_followup_change():
 
     # 2026-09-10: 정리 계획 카드·완료 패널의 예약금 설명문을 걷으며 핀을 20260910a 로 올렸다.
     # 2026-09-11: 취소·반품 상품주문 일부 선택(NVCLAIM-PARTIAL-01).
-    # 2026-09-14: 재결제 예정 표시·부분 클레임 발송으로 20260914a.
-    assert markup.count("?v=20260914a") == 2, "CSS·JS 핀을 함께 올린다"
+    # 2026-09-14: 재결제 예정 표시·부분 클레임 발송으로 20260914b.
+    assert markup.count("?v=20260914b") == 2, "CSS·JS 핀을 함께 올린다"

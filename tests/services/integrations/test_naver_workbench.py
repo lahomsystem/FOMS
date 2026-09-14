@@ -1382,8 +1382,13 @@ def test_acknowledge_action_has_an_audit_label(client, workbench_on):
 # 3차 리뷰 — 집 단위 클레임 잠금 / 잘림 감지 순서 / 실패 띠 묶음 규칙
 # --------------------------------------------------------------------------- #
 
-def test_dispatch_is_locked_when_a_sibling_is_claimed(client, workbench_on):
-    """형제가 취소된 집은 대표를 열어도 발송처리를 보낼 수 없다 — 판정은 집 단위다."""
+def test_dispatch_opens_for_the_rest_when_a_sibling_is_claimed(client, workbench_on):
+    """형제 하나가 클레임이어도 **남은 상품주문**은 보낼 수 있다 (NVCLAIM-PARTIAL-02).
+
+    2026-09-14 에 뒤집힌 계약이다. 예전에는 형제 한 건의 클레임이 집 전체를 잠갔는데,
+    판매자센터는 남은 상품주문 발송을 허용해 우리 화면에서만 영영 못 보냈다(#5245).
+    잠금은 **보낼 것이 하나도 없을 때**만 선다 — 그 음성 대조군은 아래 테스트가 본다.
+    """
     _login(client)
     _collected(order_no="N-DSP-SIB", product="취소된 형제", amount=100000,
                place_status="OK", claim_status="CANCEL_REQUEST",
@@ -1393,10 +1398,10 @@ def test_dispatch_is_locked_when_a_sibling_is_claimed(client, workbench_on):
 
     body = client.get(f"{TRIAGE_PATH}?link_id={clean.id}").get_data(as_text=True)
 
-    head = open_tag(body, "wb-dispatch")
-    assert is_disabled(body, "wb-dispatch"), "취소가 걸린 집에 발송처리 버튼이 열렸다"
-    assert 'id="wb-modal-dispatch"' not in body
-    assert 'id="wb-dispatch-confirm"' not in body
+    assert not is_disabled(body, "wb-dispatch"), "남은 상품주문이 있는데 발송처리가 잠겼다"
+    assert 'id="wb-modal-dispatch"' in body
+    # 화면은 몇 건을 빼는지 말한다 — 말하지 않으면 담당자가 다른 수를 기대한다.
+    assert "클레임이 걸린" in body and "빼고 보냅니다" in body
 
 
 def test_truncation_is_measured_after_the_claim_filter(client, workbench_on, monkeypatch):
@@ -1447,10 +1452,11 @@ def test_failure_strip_folds_by_the_same_rule_the_actions_use(client, workbench_
 # 4차 리뷰 — 큐 밖 형제의 클레임 / 실패 띠 묶음 경계
 # --------------------------------------------------------------------------- #
 
-def test_dispatch_is_locked_when_the_claimed_sibling_left_the_queue(client, workbench_on):
-    """확인 완료돼 큐에서 빠진 형제가 취소 중이어도 발송처리는 잠긴다.
+def test_the_claimed_sibling_outside_the_queue_is_still_counted(client, workbench_on):
+    """확인 완료돼 큐에서 빠진 형제의 클레임도 **세어서 뺀다**.
 
     큐 모집단 안에서만 클레임을 보면 그 형제가 안 보인다 — 집 전체를 봐야 한다.
+    2026-09-14 이후 그 판정의 결과는 '집 잠금' 이 아니라 '그 라인 제외' 다.
     """
     _login(client)
     claimed = _collected(order_no="N-DSP-GONE", product="취소된 형제", amount=100000,
@@ -1462,10 +1468,29 @@ def test_dispatch_is_locked_when_the_claimed_sibling_left_the_queue(client, work
 
     body = client.get(f"{TRIAGE_PATH}?link_id={clean.id}").get_data(as_text=True)
 
-    head = open_tag(body, "wb-dispatch")
-    assert is_disabled(body, "wb-dispatch"), "큐 밖 형제의 취소를 못 봤다"
+    assert not is_disabled(body, "wb-dispatch"), "남은 상품주문이 있는데 발송처리가 잠겼다"
+    # 큐 밖 형제를 못 봤다면 제외 건수가 0이라 이 문장이 안 나온다.
+    assert "클레임이 걸린" in body and "빼고 보냅니다" in body
+
+
+def test_dispatch_is_locked_when_every_line_is_claimed(client, workbench_on):
+    """집의 상품주문이 **전부** 클레임이면 발송처리는 잠긴다 (음성 대조군).
+
+    2026-09-14 에 문을 좁혔지, 없애지 않았다. 보낼 것이 하나도 없는 집에서 버튼이
+    열리면 눌러도 서버가 거절하고, 그 거절은 불가역 경로의 재클릭을 부른다.
+    """
+    _login(client)
+    first = _collected(order_no="N-DSP-ALL", product="취소된 형제 하나", amount=100000,
+                       place_status="OK", claim_status="CANCEL_REQUEST",
+                       address="대전 유성구 9", tel="010-2222-3333")
+    _collected(order_no="N-DSP-ALL", product="취소된 형제 둘", amount=50000,
+               place_status="OK", claim_status="CANCEL_REQUEST",
+               address="대전 유성구 9", tel="010-2222-3333")
+
+    body = client.get(f"{TRIAGE_PATH}?link_id={first.id}").get_data(as_text=True)
+
+    assert is_disabled(body, "wb-dispatch"), "전부 클레임인 집에 발송처리가 열렸다"
     assert 'id="wb-modal-dispatch"' not in body
-    assert 'id="wb-dispatch-confirm"' not in body
 
 
 def test_failure_strip_does_not_merge_different_orders(client, workbench_on):

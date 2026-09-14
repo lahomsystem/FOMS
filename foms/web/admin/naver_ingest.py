@@ -48,6 +48,7 @@ from foms.services.integrations.naver_commerce.mapping import (
     RETURN_BLOCK_KEYS,
     is_money_back_claim,
 )
+from foms.services.integrations.naver_commerce.fulfillment import claim_blocked_rows
 from foms.services.integrations.naver_commerce.order_candidates import find_order_candidates
 # 대조 탭(GAP-01)이 쓰는 읽기 전용 집계. 모듈 상단 import 다 — 함수 안 지연 import 는
 # 선례(커밋 103bc281d)에서 걷어낸 모양이라 다시 들이지 않는다.
@@ -4669,6 +4670,16 @@ def _group_queue(links: list[ExternalOrderLink], orders: dict,
         # 우리가 취소한 라인은 발송 대상에서 빠진다(결정 5 — 서버 dispatch_order 와 한 벌).
         dispatch_pending_n = sum(1 for row in members
                                  if is_dispatch_pending(row) and not _canceled_ours(row))
+        # 구매자가 네이버에서 직접 낸 클레임이 걸린 라인도 발송 대상이 아니다
+        # (NVCLAIM-PARTIAL-02, 2026-09-14 — 서버 ``dispatch_order`` 와 한 벌).
+        # 우리가 낸 부분 취소와 **따로** 센다: 화면이 '클레임 N건은 빼고 보냅니다' 를
+        # 말하는 근거이고, 두 축을 합치면 담당자가 누가 취소했는지 못 읽는다.
+        claim_blocked = claim_blocked_rows(members)
+        dispatch_claim_excluded_n = sum(
+            1 for row in claim_blocked
+            if is_dispatch_pending(row) and not _canceled_ours(row))
+        dispatch_pending_n -= dispatch_claim_excluded_n
+
         queue.append({
             "id": lead.id,
             # 묶음키 그대로 — 호출자가 이 집에 다른 판정(형제까지 본 클레임 등)을 붙일 때 쓴다.
@@ -4754,6 +4765,14 @@ def _group_queue(links: list[ExternalOrderLink], orders: dict,
             # 모달 재진술이 읽는 값(위 계산 자리의 주석 참조) — 화면이 약속하는 건수는
             # 서버가 보낼 건수와 **같은 술어**에서 나온다.
             "dispatch_pending_count": dispatch_pending_n,
+            # 구매자 클레임 때문에 뺀 건수 — 화면이 "클레임 N건은 빼고 보냅니다" 로
+            # 말하는 근거(벌크 띠의 ``claim_excluded`` 와 같은 뜻·같은 문장).
+            "dispatch_claim_excluded_count": dispatch_claim_excluded_n,
+            # **발송 축 전용 잠금**(NVCLAIM-PARTIAL-02). 집 잠금(``claim_blocking``)은
+            # 주문 만들기·발주확인·취소 버튼도 함께 닫는데, 발송만은 남은 라인이 있으면
+            # 열려야 한다 — 판매자센터가 그걸 허용하고 서버 ``dispatch_order`` 도
+            # 2026-09-14 부터 남은 라인만 보낸다. 보낼 것이 하나도 없을 때만 참이다.
+            "dispatch_claim_locked": bool(claim_blocked) and dispatch_pending_n == 0,
             # 주문 만들기가 **실제로 옮길** 형제 수. 집 전체 수(count)로 재진술하면 이미
             # 주문이 붙은 형제까지 세어 "3건을 주문 1건으로" 라고 읽히는데 서버는 2건만
             # 옮긴다(리뷰 M-2). 술어는 promotion 모듈 한 벌을 그대로 쓴다.
