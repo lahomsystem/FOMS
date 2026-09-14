@@ -197,37 +197,12 @@ def test_viewer_partial_untouched() -> None:
 
 
 def test_other_zoom_callers_keep_modal_scale() -> None:
-    """음성 대조군 — 모바일 상세 첨부(mobile-detail-attachments.js)는 범위 밖이다.
+    """음성 대조군 — 견적 미리보기와 모바일 상세 첨부는 이번 범위 밖이다. 두 호출부는
     fullscreen 옵션을 넘기지 않아 모달 안 scale 확대를 그대로 유지해야 한다.
-    바인드 호출 자체는 살아 있어야 한다(대조군은 모집단 안에서 고른다).
-
-    견적 미리보기는 2026-09-14 부터 범위 안이다 —
-    test_estimate_preview_delegates_fullscreen_on_desktop_only 가 그쪽을 잠근다."""
-    mobile_detail = _read(MOBILE_DETAIL_JS)
-    assert "fullscreen" not in mobile_detail
-    assert "fomsBindAttachmentPreviewImageZoom" in mobile_detail
-
-
-def test_estimate_preview_delegates_fullscreen_on_desktop_only() -> None:
-    """견적 미리보기도 이미지 클릭이 전체화면 뷰어로 가야 한다 — 단 데스크톱만.
-
-    모바일을 제외하는 이유는 취향이 아니라 아이폰 사진 저장 경로다: 사진 보관함에
-    넣는 길은 이 모달의 '사진에 저장' 버튼(버튼 탭이라는 새 사용자 제스처)뿐이고,
-    뷰어의 다운로드 단추는 data: URL 이라 저장되지 않는다. 그 가드가 사라지면
-    모바일에서 저장 경로가 조용히 막히므로 여기서 못 박는다."""
+    바인드 호출 자체는 살아 있어야 한다(대조군은 모집단 안에서 고른다)."""
     estimate = _read(ESTIMATE_JS)
-
+    mobile_detail = _read(MOBILE_DETAIL_JS)
+    assert "fullscreen" not in estimate
+    assert "fullscreen" not in mobile_detail
     assert "fomsBindAttachmentPreviewImageZoom" in estimate
-    assert "fullscreen" in estimate
-    # 캡처 이미지 URL·파일명이 바인드까지 실려야 뷰어가 열 것이 있다.
-    assert _has_any(
-        estimate,
-        "_bindEstimatePreviewImageZoom(body, dataUrl, opts.filename)",
-        "_bindEstimatePreviewImageZoom(body, dataUrl, opts.filename);",
-    )
-    assert re.search(r"function\s+_bindEstimatePreviewImageZoom\s*\(\s*bodyEl\s*,\s*imageUrl\s*,\s*filename\s*\)", estimate)
-    # 모바일 가드: fomsIsMobileImageViewer 가 참이면 null 을 돌려 모달 안 확대로 남는다.
-    assert "fomsIsMobileImageViewer" in estimate
-    assert re.search(r"fomsIsMobileImageViewer\(\)\s*\)\s*return null", estimate)
-    assert re.search(r"view_url:\s*imageUrl", estimate)
-    assert re.search(r"download_url:\s*imageUrl", estimate)
+    assert "fomsBindAttachmentPreviewImageZoom" in mobile_detail

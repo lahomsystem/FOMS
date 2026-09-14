@@ -90,7 +90,7 @@ def _assert_shared_form_script_contract(body: str) -> None:
     assert "js/orders/erp-items-master-detail.js?v=20260630c" in body
     assert "erp-items-master-detail-shell" in body
     assert 'id="erp-md-rail-list"' in body
-    assert "js/orders/estimate-preview.js?v=20260914a" in body
+    assert "js/orders/estimate-preview.js?v=20260911a" in body
 
     estimate_preview_js = (
         Path(__file__).resolve().parents[2]

@@ -539,25 +539,10 @@
         window.fomsBindAttachmentPreviewModalZoomReset(modalEl, 'erp-estimate-preview-body', {});
     }
 
-    function _bindEstimatePreviewImageZoom(bodyEl, imageUrl, filename) {
+    function _bindEstimatePreviewImageZoom(bodyEl) {
         if (typeof window.fomsBindAttachmentPreviewImageZoom !== 'function') return;
         window.fomsBindAttachmentPreviewImageZoom(bodyEl, {
-            ensureModalReset: _ensureEstimatePreviewModalZoomReset,
-            // 데스크톱만 전체화면 뷰어로 위임한다. 모바일 모달은 이미 화면을 꽉 채우고,
-            // 아이폰 사진 저장은 이 모달의 '사진에 저장' 버튼(버튼 탭이라는 새 사용자 제스처)
-            // 으로만 성공한다 — 뷰어의 다운로드 단추는 data: URL 이라 사진 보관함에 못 넣는다.
-            fullscreen: function () {
-                if (!imageUrl) return null;
-                if (window.fomsIsMobileImageViewer && window.fomsIsMobileImageViewer()) return null;
-                return {
-                    files: [{
-                        view_url: imageUrl,
-                        download_url: imageUrl,
-                        filename: filename || '견적서.png'
-                    }],
-                    index: 0
-                };
-            }
+            ensureModalReset: _ensureEstimatePreviewModalZoomReset
         });
     }
 
@@ -599,7 +584,7 @@
                 : '';
             body.innerHTML = hintHtml
                 + '<img src="' + dataUrl + '" alt="견적서" class="img-fluid rounded erp-attachment-preview-img" draggable="false">';
-            _bindEstimatePreviewImageZoom(body, dataUrl, opts.filename);
+            _bindEstimatePreviewImageZoom(body);
             _ensureEstimatePreviewModalZoomReset();
             _setupEstimatePreviewSaveBtn(dataUrl, opts.filename);
             bootstrap.Modal.getOrCreateInstance(modalEl).show();
