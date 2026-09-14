@@ -687,10 +687,17 @@ def _claimed(link_id: int, status: str = "CANCEL_REQUEST") -> None:
     db_session.commit()
 
 
-def test_dispatch_refuses_a_household_with_a_claim(app):
-    """형제가 취소·반품 중이면 발송처리를 서버가 막는다 — 되돌릴 수 없는 호출이다."""
+def test_dispatch_refuses_a_fully_claimed_household(app):
+    """집의 상품주문이 **전부** 클레임이면 발송처리를 서버가 막는다 — 불가역 호출이다.
+
+    2026-09-14 에 좁아진 문이다. 예전에는 형제 한 건의 클레임이 집 전체를 잠갔는데,
+    판매자센터는 남은 상품주문 발송을 허용하므로 우리 화면에서만 영영 못 보냈다
+    (#5245). 이제 **남은 행이 하나도 없을 때만** 여기로 온다 — 부분 클레임 집이
+    나머지를 보내는 계약은 ``test_naver_partial_claim_dispatch`` 가 본다.
+    """
     first = _link("PO-CLM-1", order_no="N-CLM", place="OK")
     second = _link("PO-CLM-2", order_no="N-CLM", place="OK")
+    _claimed(first)
     _claimed(second)
     client = _StubClient()
 
@@ -742,6 +749,7 @@ def test_claim_refusal_is_written_where_the_screen_can_see_it(app):
     보냈다고 믿는다 — 실패 사유를 상태에 남기는 것이 유일한 통로다.
     """
     first = _link("PO-CLMV-1", order_no="N-CLMV", place="OK")
+    _claimed(first)   # 2026-09-14: 남은 행이 하나도 없어야 집이 거절된다
     _claimed(_link("PO-CLMV-2", order_no="N-CLMV", place="OK"))
 
     with pytest.raises(FulfillmentError):

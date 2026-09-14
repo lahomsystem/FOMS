@@ -131,6 +131,7 @@
         'wb-expiry-edit': toggleExpiryEdit,
         'wb-ghost-discard': submitGhostDiscard,
         'wb-pane-ghost-discard': submitPaneGhostDiscard,
+        'wb-ghost-repay-expected': submitGhostRepayExpected,
         'wb-origin-refresh-all': submitOriginRefreshAll,
         'wb-origin-cancel-confirm': submitOriginCancel,
         'wb-origin-return-confirm': submitOriginReturn,
@@ -541,6 +542,47 @@
         }
         button.disabled = true;
         const result = await postJson(BASE + 'ghost/' + orderId + '/discard', { reason: note });
+        if (!result.ok) {
+            button.disabled = false;
+            window.alert(result.error);
+            return;
+        }
+        await softRefresh();
+    }
+
+    /**
+     * 유령 주문 '재결제 예정' 표시 켜기·끄기 (2026-09-14).
+     *
+     * 띠와 pane 이 **같은 버튼 id·같은 라우트**를 쓴다. 표시는 되돌릴 수 있어 4종 세트가
+     * 아니라 켤 때 메모 한 줄(prompt, 빈 값 허용) · 끌 때 확인창 1회다.
+     * 성공 뒤 `softRefresh()` — 띠와 pane 이 같은 판정을 다시 받아야 한다.
+     *
+     * @param {HTMLElement} button 눌린 버튼.
+     * @returns {Promise<void>}
+     */
+    async function submitGhostRepayExpected(button) {
+        var orderId = safeId(button.dataset.orderId);
+        if (!orderId) {
+            return;
+        }
+        var expected = button.dataset.expected === '1';
+        var who = button.dataset.customer || '';
+        var head = '주문 #' + orderId + (who ? ' (' + who + ')' : '');
+        var note = '';
+        if (expected) {
+            note = window.prompt(head + ' 을 재결제 예정으로 표시합니다.\n'
+                + '표시하는 동안 휴지통 버튼이 잠깁니다. 재결제가 붙으면 저절로 풀립니다.\n'
+                + '메모가 있으면 한 줄 적어 주세요(없어도 됩니다).', '');
+            if (note === null) {
+                return;
+            }
+            note = String(note).trim();
+        } else if (!window.confirm(head + ' 의 재결제 예정 표시를 풉니다.')) {
+            return;
+        }
+        button.disabled = true;
+        const result = await postJson(BASE + 'ghost/' + orderId + '/repay-expected',
+            { expected: expected, note: note });
         if (!result.ok) {
             button.disabled = false;
             window.alert(result.error);

@@ -345,6 +345,7 @@ def run_reconcile(session, *, link_id: int, order_id: int, relation: str, fork: 
             필요한 관리자 권한·사유가 없을 때.
         PromotionError: 붙이기가 거절될 때(이미 다른 주문에 붙어 있는 경우 등).
     """
+    from foms.services.integrations.naver_commerce.ghost_orders import clear_repay_expected
     from foms.services.integrations.naver_commerce.promotion import (
         ATTACHABLE_RELATIONS,
         attach_link_to_order,
@@ -386,6 +387,9 @@ def run_reconcile(session, *, link_id: int, order_id: int, relation: str, fork: 
         reason_text = "재결제 정리 — 기존 주문 취소 처리"
         if note:
             reason_text = f"{reason_text} ({note})"
+        # 접는 주문이 들고 있던 '재결제 예정' 표시는 여기서 지운다 — 나중에 되돌리기로
+        # 되살아날 때 죽은 표시를 그대로 들고 오면 휴지통 버튼이 이유 없이 잠긴다.
+        clear_repay_expected(order)
         soft_delete_order(session, order_id=int(order_id),
                           actor_user_id=int(actor_user_id or 0),
                           reason=reason_text)
@@ -398,6 +402,9 @@ def run_reconcile(session, *, link_id: int, order_id: int, relation: str, fork: 
     attached, target_order_id, changed = attach_link_to_order(
         session, link_id=int(link_id), order_id=int(order_id), relation=relation,
         actor_user_id=actor_user_id)
+    # 재결제가 실제로 이 주문에 붙었다 — '재결제 기다림' 은 더 이상 사실이 아니라서
+    # 여기서 저절로 풀린다(같은 트랜잭션 · 커밋은 호출자).
+    clear_repay_expected(order)
     logger.info("[NAVER] 재결제 정리 승계 order=%s link=%s relation=%s (+%d)",
                 target_order_id, link_id, relation, attached)
     return {"fork": fork, "relation": relation, "order_id": int(target_order_id),

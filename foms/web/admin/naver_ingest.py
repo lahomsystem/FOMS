@@ -2278,7 +2278,7 @@ def _ghost_discard_view(db, link: Optional[ExternalOrderLink]) -> dict[str, Any]
         # 표기 키만 더한 것이라 판정 축은 그대로다.
         return {"applicable": False, "can_discard": False,
                 "discard_needs_reason": False, "discard_block": "",
-                "repay_candidates": [],
+                "repay_candidates": [], "repay_expected": None,
                 "trashed": False, "trashed_at_text": "", "trashed_note": ""}
     view = judge_order_discard(db, int(link.order_id),
                                group_key=_history_group_key(link))
@@ -5431,6 +5431,12 @@ def naver_ingest_ghost_discard(order_id: int):
         return jsonify({"success": False, "data": None,
                         # 꼬리 훈수만 뗀 사본 — ghost_orders.py:233 과 같은 문장.
                         "error": "네이버가 아직 취소를 확정하지 않았습니다."}), 400
+    # 재결제 예정 표시가 있으면 접지 않는다 — 표시를 풀어야 열린다(사용자 결정 2026-09-14).
+    # `can_discard` 가 이미 같은 판정을 담지만, 여기는 되돌리기 어려운 동작이라 사유 문장을
+    # 사람 말로 한 겹 더 낸다(목록 계산이 나중에 바뀌어도 조용히 열리지 않게).
+    if target.get("repay_expected"):
+        return jsonify({"success": False, "data": None,
+                        "error": "재결제 예정으로 표시돼 있습니다 — 표시를 풀고 다시 누르세요."}), 400
     if not target["can_discard"]:
         return jsonify({"success": False, "data": None,
                         "error": f"{target['discard_block']} — 재결제로 정리하세요."}), 400
@@ -5475,6 +5481,92 @@ def naver_ingest_ghost_discard(order_id: int):
     )
     return jsonify({"success": True,
                     "data": {"order_id": int(order_id), "discarded": True},
+                    "error": None})
+
+
+@admin_bp.route("/admin/naver-ingest/ghost/<int:order_id>/repay-expected", methods=["POST"])
+@login_required
+@role_required(["ADMIN", "MANAGER", "STAFF"])
+def naver_ingest_ghost_repay_expected(order_id: int):
+    """유령 주문에 **재결제 예정** 표시를 켜고 끈다 (2026-09-14).
+
+    `네이버 결제가 전부 취소된 주문` 띠에는 고객이 다시 결제하기로 한 건이 섞여 있다.
+    재결제가 아직 네이버 큐에 들어오지 않았으면 짝 찾기는 구조적으로 `없음` 을 낸다 —
+    **시스템이 알 수 없는 사실**이라 사람이 손으로 표시한다.
+
+    표시가 켜져 있는 동안 휴지통 버튼이 잠긴다. 접어 버리면 재결제가 들어왔을 때 붙일
+    주문이 휴지통에 있기 때문이다. 표시는 **되돌릴 수 있어** 휴지통보다 문턱이 낮다 —
+    이 화면을 쓰는 사람 누구나 켜고 끈다(사용자 결정 2026-09-14).
+
+    푸는 길은 둘이다. 사람이 여기서 `expected=false` 로 끄거나, 재결제가 **실제로 그
+    주문에 붙는 순간** 저절로 풀린다(:func:`naver_ingest_attach_order` 와
+    :func:`repay_reconcile.run_reconcile` 가 붙이는 자리에서 표시를 지운다).
+
+    **켤 때만 띠에 뜬 주문으로 제한한다.** 목록 밖 주문 id 로 표시를 켜면 이 라우트가
+    범용 쓰기 경로가 되는데, 그건 주문 화면의 일이고 권한 규칙도 다르다(휴지통 라우트와
+    같은 규율). **푸는 요청에는 그 관문을 걸지 않는다** — 표시가 켜진 주문이 붙이기 없이
+    모집단을 벗어나면(클레임 거부·철회로 전부 취소가 아니게 되는 등) 띠에서 행이 사라지고
+    pane 버튼은 400 이라 푸는 길이 없어진다. 그러면 판정이 `접을 수 없음` 에 영영 물린다.
+    푸는 것은 파괴적이지 않으니 관문을 걸 이유가 없다.
+
+    **클레임 확정 전이어도 표시는 허용한다.** 표시는 파괴적이지 않고, 확정 전 건이야말로
+    재결제 예정이 흔하다 — 휴지통 라우트의 확정 검사를 여기에 복사하지 않는다.
+    """
+    from foms.services.feature_flags import is_naver_workbench_enabled
+    from foms.services.integrations.naver_commerce.ghost_orders import (
+        clear_repay_expected,
+        find_ghost_orders,
+        set_repay_expected,
+    )
+    from models import User
+
+    # 워크벤치 전용 기능이다 — 게이트를 끄는 것이 롤백 경로이므로 라우트도 함께 닫는다.
+    if not is_naver_workbench_enabled(session.get("user_id")):
+        return jsonify({"success": False, "data": None,
+                        "error": "이 화면에서는 재결제 예정 표시를 할 수 없습니다."}), 403
+
+    db = get_db()
+    payload = request.get_json(silent=True) or {}
+    expected = bool(payload.get("expected"))
+    note = str(payload.get("note") or "").strip()[:200]
+
+    if expected:
+        ghosts = find_ghost_orders(db, limit=1000)
+        target = next((row for row in ghosts["rows"] if row["order_id"] == int(order_id)), None)
+        if target is None:
+            return jsonify({"success": False, "data": None,
+                            "error": "이 주문은 '네이버 결제가 전부 취소된 주문' 목록에 없습니다."}), 400
+
+    order = db.get(Order, int(order_id))
+    if order is None:
+        return jsonify({"success": False, "data": None,
+                        "error": "주문을 찾을 수 없습니다."}), 400
+
+    if expected:
+        # 화면에 그대로 찍히는 이름이다. ``session["username"]`` 은 로그인 아이디라
+        # 담당자 이름 자리에 계정 id 가 뜬다 — 저장소 관례대로 ``User.name`` 을 먼저 읽고
+        # 없을 때만 아이디로 물러선다.
+        user = db.get(User, int(session.get("user_id") or 0))
+        mark = set_repay_expected(order,
+                                  actor_user_id=int(session.get("user_id") or 0),
+                                  actor_name=str(getattr(user, "name", "")
+                                                 or session.get("username") or ""),
+                                  note=note)
+    else:
+        # 지울 게 없으면 ``False`` 라 아무 일도 하지 않는다 — 호출이 무해하다.
+        clear_repay_expected(order)
+        mark = None
+    db.commit()
+
+    log_access(
+        f"네이버 유령 주문 재결제 예정 {'표시' if expected else '해제'} (order {order_id})",
+        session.get("user_id"),
+        action="NAVER_INGEST_GHOST_REPAY_EXPECTED",
+        target_type="order", target_id=int(order_id),
+        detail={"order_id": int(order_id), "expected": expected, "note": note},
+    )
+    return jsonify({"success": True,
+                    "data": {"order_id": int(order_id), "repay_expected": mark},
                     "error": None})
 
 
@@ -6111,6 +6203,7 @@ def naver_ingest_attach_order(link_id: int):
     관계 판정은 **사람이** 한다(후보 제시는 :mod:`order_candidates`). 이 라우트는 사람이
     고른 결과를 받아 적을 뿐이다.
     """
+    from foms.services.integrations.naver_commerce.ghost_orders import clear_repay_expected
     from foms.services.integrations.naver_commerce.promotion import (
         PromotionError,
         attach_link_to_order,
@@ -6140,6 +6233,11 @@ def naver_ingest_attach_order(link_id: int):
             _record_link_history(db, order_id=target_order_id, link_id=link_id,
                                  event_type=ATTACH_EVENT_TYPE, relation=relation,
                                  summary=history)
+        # 재결제가 실제로 그 주문에 붙었으면 '재결제 기다림' 표시는 사실이 아니다 —
+        # 여기서 저절로 풀린다(관계와 무관: 붙은 순간 기다림이 끝난다).
+        target_order = db.get(Order, int(target_order_id))
+        if target_order is not None:
+            clear_repay_expected(target_order)
         db.commit()
     except PromotionError as exc:
         db.rollback()
