@@ -246,6 +246,11 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-notification-center.css') }}?v=20260806a">
     {# ORDER-REASON-00: 사유 시트/배너는 PC·태블릿·모바일 모두에서 뜬다 — 전역 로드. #}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-change-reason.css') }}?v=20260813a">
+    {# 판매채널 출처 마크 — 대시보드 밖(전체 주문 목록 `/` · 실측 `/erp/measurement`)에도
+       나가므로 전역 로드다. `orders/partials/dashboard_styles.html` 의 같은 링크는
+       그대로 둔다: URL·핀이 같아 브라우저가 한 번만 받고, 대시보드 프래그먼트가
+       head 없이 주입되는 경로의 보험이다. CSS 를 고치면 두 핀을 함께 올린다. #}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-channel-mark.css') }}?v=20260913a">
     <!-- Flatpickr (다중 실측일/시공일 선택) -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-flatpickr-theme.css') }}?v=20260626a">

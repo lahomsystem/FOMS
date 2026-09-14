@@ -62,6 +62,7 @@ from foms.services.erp_dashboard_search import (
     erp_measurement_main_search_predicate,
 )
 from foms.services.orders.sales_delivery_map import build_sales_delivery_by_ref
+from foms.services.integrations.naver_commerce.constants import SOURCE_MARKER
 
 erp_measurement_dashboard_bp = Blueprint(
     'erp_measurement_dashboard', __name__, url_prefix='/erp'
@@ -326,6 +327,13 @@ def erp_measurement_dashboard():
         date_to=date_to,
     )
 
+    # 판매채널 출처 마크(A안). 판정 축은 출처 하나 - structured_data['source'].
+    # hydrate 가 이미 structured_data 를 dict 로 만들어 실어 놨다 -> 추가 쿼리 0.
+    for _o in rows:
+        _o.channel_source = ('NAVER'
+                             if (_o.structured_data or {}).get('source') == SOURCE_MARKER
+                             else None)
+
     # 담당자 필터: rows hydrate 후 Python 적용(담당자 값이 structured_data.parties.manager와
     # Order.manager_name에 분산되고 normalize_manager_name으로 정규화되므로 SQL 필터는 부정확).
     # _pi_fp(order_ids 포함) 계산 전에 적용해야 product_items 캐시 키가 올바르게 좁혀진다.
@@ -464,6 +472,9 @@ def erp_measurement_dashboard():
             )
             if _mgr:
                 _row['manager_name'] = _mgr
+            # 큐 카드(erp_mobile_queue_card_v2.html:72)는 이미 매크로를 부른다 -
+            # 이 키를 채우는 순간 실측 모바일 카드에도 마크가 뜬다(템플릿 편집 없음).
+            _row['channel_source'] = getattr(_o, 'channel_source', None)
             mobile_queue_rows.append(_row)
 
     # '다음 방문' 히어로: 방문시각 정렬 SSOT(measurement_time_sort_key)로 첫 미완료

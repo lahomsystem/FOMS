@@ -1,4 +1,5 @@
 {% from 'partials/shared/erp_mobile_queue_card_v2.html' import render_queue_card_v2 %}
+{% from 'partials/shared/channel_mark.html' import channel_mark %}
 
 {# A5: 다음 실측 히어로 — 기본 진입 시 mobile_queue_rows = 당일(today_date) 실측 큐.
    '다음 방문' 판정은 뷰(dashboard.py)가 방문시각 정렬 SSOT
@@ -41,7 +42,8 @@
   {% endif %}
   <div class="foms-v2dh-hero" data-st="measure" aria-label="다음 실측">
     <div class="foms-v2dh-hero__eyebrow"><i class="fas fa-location-dot" aria-hidden="true"></i> 다음 방문{% if _mh_time %} · <span>{{ _mh_time }} 방문</span>{% endif %}</div>
-    <div class="foms-v2dh-hero__title">{{ _mhero.customer_name or '-' }}</div>
+    <div class="foms-v2dh-hero__title">{{ _mhero.customer_name or '-' }}
+      {{ channel_mark(_mhero.channel_source|default(none, true)) }}</div>
     {% if _mh_pn or _mh_w or _mh_d or _mh_h or _mh_color %}
     <div class="foms-hero-spec" aria-label="제품 규격">
       {% if _mh_pn %}<span class="foms-hero-spec__name">{{ _mh_pn }}</span>{% endif %}
