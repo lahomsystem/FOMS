@@ -19,7 +19,7 @@
 {% block title %}네이버 수집{% endblock %}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260911a">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260914a">
 {% endblock %}
 
 {% block content %}
@@ -185,7 +185,17 @@
                         {% endif %}
                     </td>
                     <td class="text-end">
-                        {% if row.can_discard %}
+                        {% if row.repay_expected %}
+                        {# 표시가 있으면 휴지통을 잠근다(사용자 결정 2026-09-14). 되돌릴 수 있는 표시라
+                           문턱은 휴지통보다 낮다 — 이 화면을 쓰는 사람 누구나 풀 수 있다. #}
+                        <span class="wb-ghost__repay">재결제 기다림</span>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" id="wb-ghost-repay-expected"
+                                data-order-id="{{ row.order_id }}"
+                                data-customer="{{ row.customer_name }}"
+                                data-expected="0">표시 풀기</button>
+                        <div class="wb-ghost__dim">{{ row.repay_expected.at }}{% if row.repay_expected.by_name %} · {{ row.repay_expected.by_name }}{% endif %}</div>
+                        {% if row.repay_expected.note %}<div class="wb-ghost__dim">{{ row.repay_expected.note }}</div>{% endif %}
+                        {% elif row.can_discard %}
                         {# 접수 이후 단계도 접히되 **관리자가 사유를 적어야** 한다(2026-09-02).
                            `data-needs-reason` 이 있으면 JS 가 확인창 대신 사유 입력을 띄우고,
                            라우트도 같은 조건으로 막는다 — 한쪽만 좁히면 열린 버튼이 400 을 받는다. #}
@@ -200,6 +210,10 @@
                         {# 바로 위 버튼이 `휴지통으로 보내기` — 한 칸에서 같은 낱말을 두 번 쓰지 않는다. #}
                         <div class="wb-ghost__dim">복구 가능</div>
                         {% endif %}
+                        <button type="button" class="btn btn-sm btn-outline-secondary" id="wb-ghost-repay-expected"
+                                data-order-id="{{ row.order_id }}"
+                                data-customer="{{ row.customer_name }}"
+                                data-expected="1">재결제 예정</button>
                         {% elif row.claim_phase != 'done' and row.lead_link_id %}
                         {# 네이버가 아직 확정 안 한 건은 **승인할 수 있다**(T9-G1). 다만 여기서
                            누르게 하지 않는다 — 같은 행에 `주문 취소 처리`(휴지통·복구 가능)와
@@ -210,6 +224,13 @@
                             열어서 승인하기
                         </a>
                         {# 버튼 라벨이 `열어서 승인하기` — 무엇을 승인하는지는 행의 진행 칸이 든다. #}
+                        {# 확정 전 건이야말로 재결제 예정이 가장 흔하다 — 라우트도 확정 전을
+                           명시적으로 허용한다. 이 갈래에 표시 버튼이 없으면 pane 에서만 열려
+                           같은 기능이 두 화면에서 다른 조건으로 서게 된다. #}
+                        <button type="button" class="btn btn-sm btn-outline-secondary" id="wb-ghost-repay-expected"
+                                data-order-id="{{ row.order_id }}"
+                                data-customer="{{ row.customer_name }}"
+                                data-expected="1">재결제 예정</button>
                         {% else %}
                         <span class="wb-ghost__dim">휴지통 잠김</span>
                         {% endif %}
@@ -474,7 +495,7 @@
                     </td>
                     <td>
                         {{ row.order_no or '-' }}
-                        <div class="wb-ghost__dim">{% if row.state == 'sent' %}발송 상품주문 {{ row.sent_orders }}건{% elif row.state == 'superseded' %}취소된 결제 · 상품주문 {{ row.product_orders }}건{% else %}보낼 상품주문 {{ row.product_orders }}건{% endif %}</div>
+                        <div class="wb-ghost__dim">{% if row.state == 'sent' %}발송 상품주문 {{ row.sent_orders }}건{% elif row.state == 'superseded' %}취소된 결제 · 상품주문 {{ row.product_orders }}건{% else %}보낼 상품주문 {{ row.sendable_orders }}건{% endif %}</div>
                     </td>
                     <td>
                         {% if row.measurement_done %}
@@ -502,6 +523,11 @@
                         {% endif %}
                         {% elif row.eligible %}
                         <span class="wb-ghost__dim">보낼 수 있음</span>
+                        {% if row.claim_excluded %}
+                        {# 구매자가 낸 클레임이 걸린 상품주문은 빼고 나머지만 나간다(2026-09-14).
+                           몇 건을 뺐는지 말하지 않으면 화면이 조용히 다른 수를 보낸다. #}
+                        <div class="wb-ghost__dim">클레임 {{ row.claim_excluded }}건은 빼고 보냅니다</div>
+                        {% endif %}
                         {% else %}
                         <span class="wb-ghost__claim">보낼 수 없음</span>
                         <div class="wb-ghost__dim">{{ row.reason }}</div>
@@ -1316,5 +1342,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260911a" defer></script>
+<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260914a" defer></script>
 {% endblock %}

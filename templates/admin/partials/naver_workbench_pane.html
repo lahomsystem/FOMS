@@ -587,6 +587,29 @@
             </div>
             {% endif %}
 
+            {# 재결제 예정 표시(2026-09-14) — 띠와 **같은 버튼 id·같은 라우트**다.
+               아래 휴지통 버튼은 손대지 않는다: 서버 `can_discard` 가 이미 False 라 저절로
+               잠기고, 잠긴 이유도 서버가 준 문장이 아래 경고 줄에 그대로 나온다.
+
+               버튼은 **라우트가 받는 주문에만** 연다. `applicable` 은 취소 링크가 1건만
+               있어도 참이라, 부분 취소 주문·이미 휴지통에 있는 주문에서도 버튼이 서고
+               누르면 `목록에 없습니다` 400 이 온다 — 눌러야만 알 수 있는 죽은 버튼이다.
+               서버가 라우트와 같은 술어로 내려 주는 `in_ghost_band` 를 그대로 읽는다.
+               표시가 이미 켜진 주문은 모집단을 벗어나도 푸는 길이 남아야 한다. #}
+            {% if ghost_discard.in_ghost_band or ghost_discard.repay_expected %}
+            {% if ghost_discard.repay_expected %}
+            <div class="w-100">
+                <span class="wb-ghost__repay">재결제 기다림</span>
+                <span class="wb-ghost__dim">{{ ghost_discard.repay_expected.at }}{% if ghost_discard.repay_expected.by_name %} · {{ ghost_discard.repay_expected.by_name }}{% endif %}</span>
+                {% if ghost_discard.repay_expected.note %}<div class="wb-ghost__dim">{{ ghost_discard.repay_expected.note }}</div>{% endif %}
+            </div>
+            {% endif %}
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="wb-ghost-repay-expected"
+                    data-order-id="{{ ghost_discard.order_id }}"
+                    data-customer="{{ ghost_discard.customer_name }}"
+                    data-expected="{{ '0' if ghost_discard.repay_expected else '1' }}">{{ '표시 풀기' if ghost_discard.repay_expected else '재결제 예정' }}</button>
+            {% endif %}
+
             <button type="button"
                     class="btn btn-sm {{ 'btn-outline-danger' if ghost_discard.can_discard else 'btn-outline-secondary' }}"
                     id="wb-pane-ghost-discard"

@@ -43,11 +43,14 @@
 
 from __future__ import annotations
 
+import copy
 import logging
 from typing import Any, Optional
 
 from sqlalchemy.orm import selectinload
+from sqlalchemy.orm.attributes import flag_modified
 
+from foms.services.datetime_kst import now_kst
 from foms.services.integrations.naver_commerce.grouping import resolve_group_key
 from foms.services.integrations.naver_commerce.link_mirror import snapshot_from_mirror
 from foms.services.integrations.naver_commerce.mapping import (
@@ -71,7 +74,9 @@ logger = logging.getLogger(__name__)
 
 __all__ = ["find_ghost_orders", "judge_order_discard", "stage_label",
            "GHOST_LIST_LIMIT", "DISCARDABLE_STATUSES", "GHOST_CLAIM_KINDS",
-           "GHOST_PROJECTION_BLOCK_KEYS"]
+           "GHOST_PROJECTION_BLOCK_KEYS",
+           "REPAY_EXPECTED_SD_KEY", "REPAY_EXPECTED_BLOCK_TEXT",
+           "read_repay_expected", "set_repay_expected", "clear_repay_expected"]
 
 #: 유령 모집단에 넣는 단계. ``rejected``(거부·철회)는 주문이 살아 있다는 뜻이라 뺀다.
 GHOST_CLAIM_PHASES = (CLAIM_PHASE_DONE, CLAIM_PHASE_REQUESTED, CLAIM_PHASE_PROGRESS)
@@ -94,6 +99,21 @@ GHOST_LIST_LIMIT = 20
 #: **사용자 결정 2026-09-02**: 단계 제한을 없애되, 이 목록 밖은 **관리자가 사유 문장을
 #: 적어야** 접힌다. 휴지통은 복구되므로 잃는 것은 없고, 남는 것은 "왜 접었나"다.
 DISCARDABLE_STATUSES = ("RECEIVED",)
+
+#: 사람이 손으로 켜는 **재결제 예정** 표시가 사는 ``structured_data`` 키.
+#:
+#: 왜 사람이 켜는가: :func:`find_repay_candidate_links` 는 **이미 네이버 큐에 들어온 집**만
+#: 짝으로 찾는다. 아직 결제가 안 들어온 건은 구조적으로 `짝 없음` 이라, 고객이 다시 결제하기로
+#: 했다는 사실은 시스템이 알 수 없다 — 담당자만 안다(사용자 결정 2026-09-14).
+REPAY_EXPECTED_SD_KEY = "naver_repay_expected"
+
+#: 표시에 붙이는 메모 한 줄의 최대 길이.
+REPAY_EXPECTED_NOTE_MAX = 200
+
+#: 표시가 켜져 있을 때 화면에 나가는 **잠금 사유**.
+#: 마침표를 찍지 않는다 — pane 템플릿이 ``{{ ghost_discard.discard_block }}.`` 로 붙인다
+#: (다른 갈래와 같은 규칙).
+REPAY_EXPECTED_BLOCK_TEXT = "재결제 예정으로 표시돼 있습니다 — 결제가 들어오면 저절로 풀립니다"
 
 
 #: 유령 스캔의 축소 스냅샷이 남기는 **클레임 블록 키**. 손으로 적지 않고
@@ -191,6 +211,82 @@ def stage_label(status: Any) -> str:
     return STAGE_LABELS.get(text, text)
 
 
+def read_repay_expected(order) -> Optional[dict[str, Any]]:
+    """재결제 예정 표시 — 있으면 ``{"at","by","by_name","note"}`` dict, 없으면 ``None``.
+
+    ``structured_data`` 가 dict 가 아니거나 값이 dict 가 아니면 ``None`` 이다.
+    **모르면 없는 것으로 읽는다** — 모양이 깨진 값이 휴지통을 잠그면 화면에서 푸는 길이
+    없어진다(표시를 푸는 버튼도 이 값으로 그려지기 때문이다).
+
+    Args:
+        order: ERP 주문 ORM 인스턴스.
+
+    Returns:
+        표시 dict 또는 ``None``.
+    """
+    data = getattr(order, "structured_data", None)
+    if not isinstance(data, dict):
+        return None
+    mark = data.get(REPAY_EXPECTED_SD_KEY)
+    return mark if isinstance(mark, dict) else None
+
+
+def set_repay_expected(order, *, actor_user_id: int, actor_name: str = "",
+                       note: str = "") -> dict[str, Any]:
+    """재결제 예정 표시를 켠다 — 제자리 수정, **커밋은 호출자**.
+
+    ``at`` 은 ISO 가 아니라 **KST 표시 문자열**(``"YYYY-MM-DD HH:MM"``)이다. 화면이 아무
+    변환 없이 그대로 찍는다 — ISO naive 로 두면 시각 표시 함수가 그 값을 UTC 로 읽어
+    9시간이 밀린다.
+
+    Args:
+        order: ERP 주문 ORM 인스턴스.
+        actor_user_id: 표시한 사람의 사용자 id.
+        actor_name: 표시한 사람의 이름(화면에 그대로 나간다).
+        note: 메모 한 줄. 앞뒤 공백을 떼고 :data:`REPAY_EXPECTED_NOTE_MAX` 로 자른다.
+
+    Returns:
+        저장한 표시 dict 그대로.
+    """
+    mark = {
+        "at": now_kst().strftime("%Y-%m-%d %H:%M"),
+        "by": int(actor_user_id),
+        "by_name": str(actor_name or ""),
+        "note": str(note or "").strip()[:REPAY_EXPECTED_NOTE_MAX],
+    }
+    data = copy.deepcopy(order.structured_data or {})
+    data[REPAY_EXPECTED_SD_KEY] = mark
+    order.structured_data = data
+    flag_modified(order, "structured_data")
+    return mark
+
+
+def clear_repay_expected(order) -> bool:
+    """재결제 예정 표시를 지운다 — 지울 게 있었으면 ``True``.
+
+    해제는 **키 삭제**다(빈 dict 를 남기지 않는다) — 화면과 라우트가 ``if sd.get(키)``
+    한 비트로 읽는다.
+
+    지울 게 없으면 **deepcopy 도 flag_modified 도 하지 않는다**: ``structured_data`` 는
+    TOAST 에 사는 값이라 건드리는 것만으로 쓰기 비용이 든다. 자동 해제 지점이 부르는
+    함수라 아무 일도 안 하는 호출이 압도적으로 많다.
+
+    Args:
+        order: ERP 주문 ORM 인스턴스.
+
+    Returns:
+        지웠으면 ``True``, 표시가 없었으면 ``False``(호출이 무해하다).
+    """
+    data = getattr(order, "structured_data", None)
+    if not isinstance(data, dict) or REPAY_EXPECTED_SD_KEY not in data:
+        return False
+    new = copy.deepcopy(data)
+    new.pop(REPAY_EXPECTED_SD_KEY, None)
+    order.structured_data = new
+    flag_modified(order, "structured_data")
+    return True
+
+
 def _new_bucket() -> dict[str, Any]:
     """주문 하나의 링크를 접어 담을 빈 버킷.
 
@@ -244,7 +340,8 @@ def _fold_link(bucket: dict[str, Any], *, snapshot: Any, order_no: Any,
     return claim, phase, kind
 
 
-def _discard_verdict(bucket: dict[str, Any], status: str) -> dict[str, Any]:
+def _discard_verdict(bucket: dict[str, Any], status: str, *,
+                     repay_expected: bool = False) -> dict[str, Any]:
     """버킷 + 진행 단계 → **판정 3종과 표시 문구**.
 
     띠(:func:`find_ghost_orders`)와 pane(:func:`judge_order_discard`)이 같은 함수를 쓴다.
@@ -258,10 +355,14 @@ def _discard_verdict(bucket: dict[str, Any], status: str) -> dict[str, Any]:
     Args:
         bucket: :func:`_fold_link` 로 접은 버킷.
         status: ``Order.status``.
+        repay_expected: 사람이 켠 '재결제 예정' 표시가 있는가
+            (:func:`read_repay_expected`). 있으면 휴지통을 잠근다.
 
     Returns:
         ``claim_kind``·``claim_phase``·``claim_text``·``can_discard``·
         ``discard_needs_reason``·``discard_block``·``status_label``.
+        잠금 사유는 **살아 있는 결제 → 확정 전 → 재결제 표시** 순으로 고른다
+        (사람이 먼저 알아야 할 사실이 앞이다).
     """
     # 반품과 취소를 한 낱말로 뭉치지 않는다 — 사람이 보는 사실이 다르다.
     # 판정 축은 ``claimType``(:func:`mapping.claim_kind`)이다. 예전에는 상태 이름
@@ -283,7 +384,10 @@ def _discard_verdict(bucket: dict[str, Any], status: str) -> dict[str, Any]:
     whole = bool(bucket["link_count"]) and bucket["canceled"] == bucket["link_count"]
     # **확정된 취소에만** 폐기 버튼을 연다. 확정 전에 접으면 취소가 거부됐을 때
     # 살아 있어야 할 주문이 휴지통에 있다. 이 조건은 돈의 문제라 바뀌지 않는다.
-    can_discard = whole and claim_phase == "done"
+    #
+    # 사람이 켠 '재결제 예정' 표시도 같은 자리에서 잠근다(사용자 결정 2026-09-14).
+    # 되돌릴 수 있는 표시라 문턱은 휴지통보다 낮다 — 표시를 풀면 다시 열린다.
+    can_discard = whole and claim_phase == "done" and not repay_expected
     if not whole:
         # 문장은 부르는 쪽이 사실(건수·살아 있는 집)로 다시 쓴다. 여기서는 축만 말한다.
         discard_block = "이 주문에는 아직 살아 있는 결제가 있습니다"
@@ -291,6 +395,10 @@ def _discard_verdict(bucket: dict[str, Any], status: str) -> dict[str, Any]:
         # 꼬리 훈수(`확정 후에 접으세요`)만 뗀다 — 잠금 사유는 앞 절이 온전히 든다.
         # 마침표는 pane 587 이 붙인다(다른 갈래와 같은 규칙) — 여기서는 안 찍는다.
         discard_block = "네이버가 아직 취소를 확정하지 않았습니다"
+    elif repay_expected:
+        # 앞의 두 사실이 지난 뒤에만 표시가 잠금 사유가 된다. 살아 있는 결제·확정 전은
+        # 시스템이 아는 사실이고, 재결제 예정은 사람이 적어 둔 사실이라 뒤에 온다.
+        discard_block = REPAY_EXPECTED_BLOCK_TEXT
     else:
         discard_block = ""
     return {
@@ -319,7 +427,8 @@ def find_ghost_orders(session, *, limit: int = GHOST_LIST_LIMIT) -> dict[str, An
         ``{"count": 전체 건수, "rows": [...]}``. 각 행은 주문 요약 + 네이버 사실 +
         ``can_discard``(취소 처리 버튼을 열지) + ``discard_block``(못 여는 이유) +
         ``discard_needs_reason``(접으려면 관리자 사유 문장이 필요한지) +
-        ``measure``(실측 전/후 표시 축 — 판정에는 안 쓴다).
+        ``measure``(실측 전/후 표시 축 — 판정에는 안 쓴다) +
+        ``repay_expected``(사람이 켠 재결제 예정 표시 dict 또는 ``None``).
     """
     # **사본 컬럼만 읽는다**(NVMIRROR-01). `raw_snapshot` 은 평균 2,194 bytes 로 TOAST 임계를
     # 넘어 그 컬럼을 건드리는 순간 행마다 TOAST 를 한 번 더 읽는다 — 운영 실측으로 같은 스캔이
@@ -378,6 +487,9 @@ def find_ghost_orders(session, *, limit: int = GHOST_LIST_LIMIT) -> dict[str, An
     for order in orders:
         bucket = buckets[int(order.id)]
         status = str(order.status or "")
+        # 사람이 켠 '재결제 예정' 표시. **모집단에서 빼지 않는다**(사용자 결정 2026-09-14:
+        # 숨기지 않는다) — 행은 띠에 그대로 남고 휴지통 버튼만 잠긴다.
+        repay = read_repay_expected(order)
         views.append({
             "order_id": int(order.id),
             "customer_name": order.customer_name or "",
@@ -391,7 +503,8 @@ def find_ghost_orders(session, *, limit: int = GHOST_LIST_LIMIT) -> dict[str, An
             "naver_amount_total": bucket["amount_total"],
             # 표시 축만 추가한다 — 폐기 판정(_discard_verdict)은 이 값을 안 본다.
             "measure": judge_measure_progress(order),
-            **_discard_verdict(bucket, status),
+            "repay_expected": repay,
+            **_discard_verdict(bucket, status, repay_expected=bool(repay)),
         })
 
     # 금액 큰 것부터 — 돈이 큰 유령이 더 급하다.
@@ -594,7 +707,8 @@ def judge_order_discard(session, order_id: int, *, group_key: str = "") -> dict[
         ``applicable``(이 주문에 클레임이 하나라도 있어 이 블록을 그릴지) ·
         ``can_discard`` · ``discard_needs_reason`` · ``discard_block`` 과
         화면이 재진술할 사실(``status_label``·``link_count``·``canceled_count``·
-        ``claim_kind``·``repay_candidates``·``measure``).
+        ``claim_kind``·``repay_candidates``·``measure``·``repay_expected``·
+        ``in_ghost_band``).
     """
     rows = (
         session.query(ExternalOrderLink.id, ExternalOrderLink.raw_snapshot,
@@ -607,7 +721,8 @@ def judge_order_discard(session, order_id: int, *, group_key: str = "") -> dict[
     # 정본은 pane 머리줄의 독립 키(``order_trashed``)이고, 여기 값은 **블록이 그려질 때만**
     # 사실을 말한다.
     blank = {"applicable": False, "can_discard": False, "discard_needs_reason": False,
-             "discard_block": "", "repay_candidates": [],
+             "discard_block": "", "repay_candidates": [], "repay_expected": None,
+             "in_ghost_band": False,
              "trashed": False, "trashed_at_text": "", "trashed_note": ""}
     if not rows:
         return blank
@@ -647,7 +762,9 @@ def judge_order_discard(session, order_id: int, *, group_key: str = "") -> dict[
         return blank
 
     status = str(order.status or "")
-    verdict = _discard_verdict(bucket, status)
+    # 띠와 **같은 값·같은 함수**. 표시가 있으면 판정이 잠기고 문구가 바뀐다.
+    repay = read_repay_expected(order)
+    verdict = _discard_verdict(bucket, status, repay_expected=bool(repay))
     trash = read_order_trash(order)
     whole = bucket["canceled"] == bucket["link_count"]
     if not whole:
@@ -684,6 +801,14 @@ def judge_order_discard(session, order_id: int, *, group_key: str = "") -> dict[
         "repay_candidates": candidates,
         # 띠와 **같은 함수·같은 문구**. pane 용으로 다시 만들지 않는다.
         "measure": judge_measure_progress(order),
+        # 사람이 켠 재결제 예정 표시 — 띠와 같은 키·같은 모양. 없으면 ``None`` 이다
+        # (모양이 갈리면 pane 이 없는 값을 읽는다).
+        "repay_expected": repay,
+        # 이 주문이 지금 유령 띠 모집단에 들어 있는가 — 라우트(:func:`find_ghost_orders`:
+        # 링크가 있고 전부 취소이며 휴지통이 아닌 주문)와 **같은 술어**를 서버가 한 벌로
+        # 내려 준다. 화면이 ``link_count == canceled_count`` 를 손으로 다시 세면 판정 축이
+        # 두 벌이 되어 pane 버튼이 라우트와 다른 말을 하게 된다.
+        "in_ghost_band": bool(bucket["link_count"]) and whole and not trash["trashed"],
         # 표기 전용 사실을 먼저 깔고 **판정 키를 마지막에** 싣는다(기존 모양 유지).
         **trash,
         **verdict,

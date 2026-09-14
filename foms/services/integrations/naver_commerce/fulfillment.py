@@ -63,6 +63,7 @@ __all__ = [
     "CANCEL_SCOPE_HOUSEHOLD",
     "cancel_sendable",
     "is_partial_canceled",
+    "claim_blocked_rows",
     "cancel_locks_household_state",
     "cancel_lock",
     "resolve_claim_scope",
@@ -1114,9 +1115,16 @@ def dispatch_order(session: Session, client: Any, *, link_id: int,
         now: 시각 주입(테스트).
 
     Returns:
-        ``{"dispatched": [...], "skipped": [...]}``. ``skipped`` 에는 우리 표식으로
-        이미 나간 건과 **네이버 원본이 이미 발송을 말하는 건**(:func:`_naver_dispatched_at`)
-        이 함께 들어간다 — 둘 다 네이버로 호출이 나가지 않은 건이다.
+        ``{"dispatched": [...], "skipped": [...], "claim_skipped": [...]}``.
+        ``skipped`` 에는 우리 표식으로 이미 나간 건과 **네이버 원본이 이미 발송을 말하는
+        건**(:func:`_naver_dispatched_at`)이 함께 들어간다 — 둘 다 네이버로 호출이 나가지
+        않은 건이다. **모양은 종전 그대로 ``list[str]`` 이다**(이 모듈의 다른 함수·워커·
+        기존 테스트가 그 모양을 읽는다). ``claim_skipped`` 는 2026-09-14 에 더한 키로,
+        그중 **구매자 클레임 때문에** 뺀 상품주문 id 만 따로 담는다 — 화면이 "몇 건을 빼고
+        보냈나"를 말하는 근거다.
+        지금은 **테스트 전용 관측 키**다 — ``foms/`` 안에 읽는 곳이 아직 없다(화면은
+        벌크 띠의 ``claim_excluded`` 로 같은 사실을 읽는다). 값의 뜻이 계약이므로
+        소비처가 없다고 지우지 않는다.
 
     Raises:
         FulfillmentError: 링크가 없거나 (:data:`CLOSE_NOW_RELATIONS` 밖의 집인데 —
@@ -1127,8 +1135,18 @@ def dispatch_order(session: Session, client: Any, *, link_id: int,
     links = _links_of_group(session, link_id)
     # 일부 선택 취소로 취소된 행은 대상이 아니다(결정 5) — 클레임 가드도 남은 행만 본다.
     partial = [row for row in links if is_partial_canceled(row)]
+    # 구매자가 네이버에서 직접 낸 클레임이 걸린 행도 대상이 아니다(2026-09-14).
+    # 2026-09-11 은 **우리가 취소한 행**에만 라인 스코프를 열어 뒀다 — 그 비대칭을 없앤다.
+    # 판매자센터는 남은 상품주문 발송을 허용하는데 우리 화면에서만 집이 통째로 잠겼다(#5245).
+    claimed = claim_blocked_rows(links)
+    rest = [row for row in links if row not in partial and row not in claimed]
+    # **보낼 수 있는 행이 하나도 없으면 클레임 행을 그대로 가드에 넘긴다.** 집 전부가
+    # 클레임이면 오늘과 **같은 문구·같은 실패 표식**으로 거절된다(음성 대조군 불변).
+    # 둘 다 비면(집 전부가 우리 부분 취소) 가드가 아무 일도 하지 않는다 — 옛 조용한
+    # skip 을 유지한다. 집 전부를 넘기면 다음 수집이 그 행에 CANCEL_DONE 을 채우는 순간
+    # 전 행에 실패 표식이 찍혀 워크벤치에 거짓 빨간 띠가 뜬다.
     _claim_guard(session, links, action="dispatch", stamp=stamp,
-                 scope=[row for row in links if row not in partial])
+                 scope=rest or claimed)
     excluded = _cancel_guard(session, links, action="dispatch", stamp=stamp)
     # 관계 판정은 **집 단위**다(화면 배지와 같은 규칙). 붙이기가 집 전체를 함께 붙이지만
     # 백필 전 데이터는 형제 일부만 값이 있어, 한 건만 보면 화면과 서버가 갈린다.
@@ -1145,6 +1163,7 @@ def dispatch_order(session: Session, client: Any, *, link_id: int,
     not_confirmed = [] if close_now else [
         row for row in links
         if row not in excluded
+        and row not in claimed          # 클레임 행은 발주확인이 영영 안 된다(부분 취소 행과 같은 이유)
         and not (_state(row).get("place_confirmed_at")
                  or (row.place_order_status or "").upper() == "OK")]
     if not_confirmed:
@@ -1172,7 +1191,9 @@ def dispatch_order(session: Session, client: Any, *, link_id: int,
     # ``payload`` 가 이 순서 그대로 나간다. 대상을 고르는 축(술어)과 보내는 순서 축은
     # 서로 독립이라, 두 수정이 같은 줄에서 만나도 합쳐지는 것이 정상이다.
     todo = dispatch_call_order([row for row in links
-                                if is_dispatch_pending(row) and row not in excluded])
+                               if is_dispatch_pending(row)
+                               and row not in excluded
+                               and row not in claimed])
     if not todo:
         if naver_done:
             # **조용히 성공으로 돌려주지 않는다.** web 은 enqueue 만 하고 이미
@@ -1198,7 +1219,8 @@ def dispatch_order(session: Session, client: Any, *, link_id: int,
             logger.warning("[NAVER] 발송처리 생략 link=%s 네이버 기록=%d건",
                            link_id, len(naver_done))
             raise FulfillmentError(reason)
-        return {"dispatched": [], "skipped": [row.external_id for row in links]}
+        return {"dispatched": [], "skipped": [row.external_id for row in links],
+                "claim_skipped": [str(row.external_id) for row in claimed]}
     if naver_done:
         # 일부만 걸린 집은 남은 건을 그대로 보낸다 — 실패가 아니라 **뺀 것**이다.
         # 여기서 실패 사유를 찍으면 정상 처리된 집에 빨간 띠가 남는다.
@@ -1206,6 +1228,15 @@ def dispatch_order(session: Session, client: Any, *, link_id: int,
                     link_id, len(naver_done), len(todo))
 
     ids = [str(row.external_id) for row in todo]
+    # 마지막 문(2026-09-14). 발송처리는 불가역이다 — 구매자에게 '배송 시작'으로 보이고
+    # 정산 시계를 돌린다. `todo` 계산이 나중에 바뀌어도 클레임 행 id 가 네이버 payload 에
+    # 실리지 않도록, 호출 **바로 앞**에서 한 겹 더 센다. 이 줄이 이 작업의 안전 전부다.
+    claimed_ids = {str(row.external_id) for row in claimed}
+    leaked = [pid for pid in ids if pid in claimed_ids]
+    if leaked:
+        raise FulfillmentError(
+            f"클레임이 걸린 상품주문이 발송 대상에 섞였습니다({', '.join(leaked)}) — "
+            "보내지 않았습니다.")
     by_id = {str(row.external_id): row for row in todo}
     payload = [{"productOrderId": pid,
                 "deliveryMethod": delivery_method,
@@ -1235,7 +1266,9 @@ def dispatch_order(session: Session, client: Any, *, link_id: int,
         raise FulfillmentError(f"발송처리 일부가 실패했습니다: {detail}")
     logger.info("[NAVER] 발송처리 완료 link=%s 건수=%d", link_id, len(ok_ids))
     return {"dispatched": ok_ids,
-            "skipped": [row.external_id for row in links if row not in todo]}
+            "skipped": [row.external_id for row in links if row not in todo],
+            # 화면이 "몇 건을 빼고 보냈나"를 말할 수 있게 클레임 제외분을 따로 싣는다.
+            "claim_skipped": [str(row.external_id) for row in claimed]}
 
 
 def record_task_failure(session: Session, *, link_id: int, action: str, reason: str,
@@ -1739,6 +1772,28 @@ def is_partial_canceled(link: ExternalOrderLink) -> bool:
     """
     state = _state(link)
     return bool(state.get("canceled_at")) and state.get("cancel_scope") == CANCEL_SCOPE_PARTIAL
+
+
+def claim_blocked_rows(links: list[ExternalOrderLink]) -> list[ExternalOrderLink]:
+    """네이버 클레임이 걸려 **불가역 호출을 보내면 안 되는** 상품주문 (판정 SSOT).
+
+    판정은 :func:`mapping.blocks_irreversible` 한 벌이다 — :func:`_claim_guard` 와 같은 술어.
+    우리가 낸 부분 취소(:func:`is_partial_canceled`)는 **여기서 빼지 않는다**: 호출자가
+    두 목록을 각각 제외하므로, 여기서 빼면 다음 수집에서 그 행에 ``CANCEL_DONE`` 이 붙었을 때
+    어느 목록에도 안 들어가 발송 대상에 그대로 남는다.
+
+    Args:
+        links: 한 집의 링크들(또는 그 부분집합).
+
+    Returns:
+        클레임이 걸려 대상에서 빼야 할 행 목록(입력 순서 보존).
+    """
+    from foms.services.integrations.naver_commerce.mapping import (
+        blocks_irreversible, extract_claim,
+    )
+
+    return [row for row in links
+            if blocks_irreversible(extract_claim(row.raw_snapshot or {}))]
 
 
 def cancel_locks_household_state(state: dict[str, Any]) -> bool:

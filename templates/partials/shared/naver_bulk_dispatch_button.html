@@ -134,6 +134,12 @@
     } else if (row.eligible) {
       label.className = 'text-muted small';
       label.textContent = '보낼 수 있음';
+      // 클레임이 걸린 상품주문은 빼고 나머지만 나간다(2026-09-14). 첫 렌더(템플릿)와
+      // 이 폴링 렌더가 같은 문장을 내야 한다 — 여기서 다시 그리지 않으면 일괄 발송을
+      // 한 번 누른 뒤 제외 건수 문장이 조용히 사라져 화면이 다른 수를 말한다.
+      if (row.claim_excluded) {
+        detail.textContent = '클레임 ' + row.claim_excluded + '건은 빼고 보냅니다';
+      }
     } else {
       label.className = 'fw-semibold';
       label.textContent = '보낼 수 없음';

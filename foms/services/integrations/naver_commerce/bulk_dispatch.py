@@ -35,6 +35,7 @@ from .fulfillment import (
     CLOSE_NOW_RELATIONS,
     HEALTHY_SYNC_STATUSES,
     cancel_locks_household_state,
+    claim_blocked_rows,
     household_key,
     is_partial_canceled,
 )
@@ -110,6 +111,11 @@ class BulkDispatchTarget:
         external_order_no: 네이버 묶음 주문번호(표시·묶기용).
         link_ids: 집에 속한 전체 링크 id.
         pending_link_ids: 그중 아직 발송 전인 링크 id(양쪽 신호 모두 빈 것).
+        sendable_link_ids: ``pending_link_ids`` 중 **실제로 네이버로 나갈** 링크 id —
+            클레임 행·우리가 부분 취소한 행을 뺀 것. 화면 재진술과 서버
+            :func:`fulfillment.dispatch_order` 의 ``todo`` 가 같은 수여야 한다(계약 §0-2).
+        claim_excluded_link_ids: 그중 **클레임 때문에** 뺀 링크 id. 화면이 "N건은 빼고
+            보냅니다"를 말하는 근거 — 조용히 빼면 화면이 다른 수를 세게 된다.
         sent_link_ids: 이미 발송된 링크 id — **우리가 보낸 것과 판매자센터에서 사람이
             보낸 것을 함께** 센다. 우리 표식만 보면 손으로 보낸 집이 영원히 "남음"으로
             뜬다(화면 큐가 이미 그 실수를 하고 있다).
@@ -141,6 +147,8 @@ class BulkDispatchTarget:
     external_order_no: str
     link_ids: list[int] = field(default_factory=list)
     pending_link_ids: list[int] = field(default_factory=list)
+    sendable_link_ids: list[int] = field(default_factory=list)
+    claim_excluded_link_ids: list[int] = field(default_factory=list)
     order_ids: list[int] = field(default_factory=list)
     customer_names: list[str] = field(default_factory=list)
     measurement_done: bool = False
@@ -334,11 +342,15 @@ def _expand_households(
 def _blocking_reason(links: list[ExternalOrderLink]) -> str:
     """집이 지금 발송처리를 못 받는 사유 — 없으면 빈 문자열.
 
-    :func:`fulfillment.dispatch_order` 의 가드와 **같은 순서**로 본다 — 클레임
-    (:func:`fulfillment._claim_guard`) → 취소 표식(:func:`fulfillment._cancel_guard` 의
-    거울: 우리가 **일부 선택 취소**한 행은 클레임 판정에서 빼고 집도 잠그지 않는다,
-    집 단위 취소 표식(household·옛 키 없음)과 취소 **실패 잔존** 만 막는다 — NVCLAIM-PARTIAL-01
-    결정 5) → 발주확인 선행. 다만 수집 상태 항목은 서비스에 없는 조건이다 — 모듈 docstring 참조.
+    :func:`fulfillment.dispatch_order` 의 가드와 **같은 순서**로 본다. 2026-09-14 개정:
+    클레임 판정을 :func:`fulfillment.claim_blocked_rows` 로 옮기고 **집 전부가 클레임일
+    때만** 사유를 낸다 — 구매자가 낸 부분 클레임이 남은 상품주문까지 잠그던 비대칭을
+    없앤다(#5245 이지학: 발주확인 5/5 · 일부 취소 1건인데 집 전체가 막혔다).
+
+    **집 단위 잠금은 그대로다**(NVCLAIM-PARTIAL-01 결정 5 불변): 집 단위 취소 표식
+    (:func:`fulfillment.cancel_locks_household_state`)과 취소 **실패 잔존**은 여전히
+    ``links`` 전체를 보고 집을 잠근다. 수집 상태·발주확인 선행만 **뺀 나머지**로 본다 —
+    서버 ``dispatch_order`` 가 그 두 부류를 대상에서 빼기 때문이다.
 
     Args:
         links: 집 전체 링크.
@@ -346,12 +358,11 @@ def _blocking_reason(links: list[ExternalOrderLink]) -> str:
     Returns:
         사람이 읽는 사유 문장. 보낼 수 있으면 ``""``.
     """
-    for row in links:
-        if is_partial_canceled(row):
-            continue
-        claim = mapping.extract_claim(row.raw_snapshot or {})
-        if mapping.blocks_irreversible(claim):
-            return "취소·반품·교환이 걸린 주문입니다 — 판매자센터에서 처리하세요."
+    claimed = claim_blocked_rows(links)
+    rest = [row for row in links
+            if row not in claimed and not is_partial_canceled(row)]
+    if claimed and not rest:
+        return "취소·반품·교환이 걸린 주문입니다 — 판매자센터에서 처리하세요."
     canceled = [row for row in links if cancel_locks_household_state(_fulfillment_state(row))]
     if canceled:
         return f"취소한 주문입니다(취소된 상품주문 {len(canceled)}건)."
@@ -363,23 +374,27 @@ def _blocking_reason(links: list[ExternalOrderLink]) -> str:
     if failed:
         return f"취소가 실패한 상품주문이 있습니다({len(failed)}건) — 취소를 먼저 끝내세요."
     broken = [
-        row for row in links
+        row for row in rest
         if (row.sync_status or "").strip().upper() not in HEALTHY_SYNC_STATUSES
     ]
     if broken:
         return f"수집이 완전하지 않습니다(상태 이상 {len(broken)}건) — 다시 읽은 뒤 처리하세요."
-    return _place_pending_reason(links)
+    return _place_pending_reason(links, scope=rest)
 
 
-def _place_pending_reason(links: list[ExternalOrderLink]) -> str:
+def _place_pending_reason(links: list[ExternalOrderLink], *,
+                          scope: Optional[list[ExternalOrderLink]] = None) -> str:
     """발주확인 선행 규칙 — 막히면 사유, 아니면 빈 문자열.
 
     ``close_now``(집 전체가 :data:`fulfillment.CLOSE_NOW_RELATIONS`)면 발주확인 없이 닫는다.
     ``all()`` 인 이유는 attach 이후 수집된 형제가 ``NEW`` 로 들어와 관계가 섞이기 때문이다 —
-    ``any()`` 로 두면 그 형제까지 발주확인 없이 나간다.
+    ``any()`` 로 두면 그 형제까지 발주확인 없이 나간다. **``close_now`` 는 언제나 집 전체
+    (``links``)로 센다** — 뺀 목록으로 다시 세면 뜻이 바뀐다.
 
     Args:
         links: 집 전체 링크.
+        scope: 발주확인 전 행을 셀 목록(기본 None = 집 전체). 클레임·부분 취소로 대상에서
+            빠진 행은 발주확인이 영영 안 되므로, 호출자가 **뺀 나머지**를 준다.
 
     Returns:
         사유 문장 또는 ``""``.
@@ -389,7 +404,7 @@ def _place_pending_reason(links: list[ExternalOrderLink]) -> str:
     )
     if close_now:
         return ""
-    pending = [row for row in links if _is_place_pending(row)]
+    pending = [row for row in (links if scope is None else scope) if _is_place_pending(row)]
     if pending:
         return f"발주확인이 먼저입니다(발주확인 전 상품주문 {len(pending)}건)."
     return ""
@@ -591,6 +606,13 @@ def _build_target(key: tuple[str, str, str], links: list[ExternalOrderLink],
     """
     by_id = {row.id: row for row in links}
     pending = [lid for lid in day_link_ids if not _is_dispatched(by_id[lid])]
+    # 클레임 행·우리가 부분 취소한 행은 그날 모집단에 있어도 네이버로 나가지 않는다 —
+    # 서버 :func:`fulfillment.dispatch_order` 의 ``todo`` 와 같은 수를 세려고 화면도
+    # 같은 자리에서 뺀다(2026-09-14).
+    claimed_ids = {row.id for row in claim_blocked_rows(links)}
+    skip_ids = claimed_ids | {row.id for row in links if is_partial_canceled(row)}
+    sendable = [lid for lid in pending if lid not in skip_ids]
+    claim_excluded = [lid for lid in pending if lid in claimed_ids]
     sent = [lid for lid in day_link_ids if lid not in set(pending)]
     order_ids = sorted({row.order_id for row in links if row.order_id})
     seen = [display[oid] for oid in order_ids if oid in display]
@@ -607,6 +629,16 @@ def _build_target(key: tuple[str, str, str], links: list[ExternalOrderLink],
             if failure:
                 break
     reason = _blocking_reason(links) if pending else ""
+    # 집에는 보낼 행이 남았는데 **그날 모집단 쪽**이 전부 빠진 경우 — 침묵하면 화면이
+    # `보낼 수 없음` 을 사유 없이 낸다. 사람이 읽을 사유를 반드시 낸다.
+    # 사유는 **왜 빠졌는지로 갈라 낸다.** 이 자리에 오는 흔한 경우는 구매자 클레임이
+    # 아니라 **우리가 부분 취소한 행만 남은 집**이다 — 걸리지도 않은 클레임을 사유로
+    # 말하면 담당자가 판매자센터를 열어 아무것도 못 찾는다.
+    if pending and not sendable and not reason:
+        if claim_excluded:
+            reason = "취소·반품·교환이 걸린 주문입니다 — 판매자센터에서 처리하세요."
+        else:
+            reason = "취소한 상품주문만 남았습니다 — 보낼 상품주문이 없습니다."
     # 순서가 뜻이다: **막힘이 실패를 이긴다.** 둘 다인 집에 "실패"라고 쓰면 화면이 다시
     # 보내기를 권하게 되고, 그 재시도는 서버 가드에 그대로 막힌다(발주확인이 먼저다).
     # 이 순서 덕에 ``state == "failed"`` 인 집은 **항상** 보낼 수 있는 집이고, 그래서
@@ -628,11 +660,13 @@ def _build_target(key: tuple[str, str, str], links: list[ExternalOrderLink],
         external_order_no=(links[0].external_order_no or "").strip(),
         link_ids=[row.id for row in links],
         pending_link_ids=pending,
+        sendable_link_ids=sendable,
+        claim_excluded_link_ids=claim_excluded,
         order_ids=order_ids,
         customer_names=[name for name, _done in seen if name],
         # 붙은 주문이 하나도 없으면 '완료'라고 말하지 않는다 — all([]) 은 참이다.
         measurement_done=bool(seen) and all(done for _name, done in seen),
-        eligible=bool(pending) and not reason,
+        eligible=bool(sendable) and not reason,
         reason=reason,
         sent_link_ids=sent,
         sent_at=times[-1] if times else "",
@@ -1099,7 +1133,9 @@ def _row_of(target: BulkDispatchTarget) -> dict[str, Any]:
         "order_no": target.external_order_no,
         "order_ids": target.order_ids,
         "customer": " · ".join(target.customer_names) or "(주문 미생성)",
-        "product_orders": len(target.pending_link_ids),
+        "product_orders": len(target.pending_link_ids),      # 그대로 — superseded 줄이 이 값을 쓴다
+        "sendable_orders": len(target.sendable_link_ids),    # 새 키: 실제로 나갈 건수
+        "claim_excluded": len(target.claim_excluded_link_ids),
         "sent_orders": len(target.sent_link_ids),
         "measurement_done": target.measurement_done,
         "eligible": target.eligible,

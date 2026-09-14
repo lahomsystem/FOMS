@@ -192,7 +192,7 @@
           </td>
           <td>
             {{ row.order_no or '-' }}
-            <div class="text-muted small">{% if row.state == 'sent' %}발송 상품주문 {{ row.sent_orders }}건{% elif row.state == 'superseded' %}취소된 결제 · 상품주문 {{ row.product_orders }}건{% else %}보낼 상품주문 {{ row.product_orders }}건{% endif %}</div>
+            <div class="text-muted small">{% if row.state == 'sent' %}발송 상품주문 {{ row.sent_orders }}건{% elif row.state == 'superseded' %}취소된 결제 · 상품주문 {{ row.product_orders }}건{% else %}보낼 상품주문 {{ row.sendable_orders }}건{% endif %}</div>
           </td>
           <td>
             {% if row.measurement_done %}
@@ -217,6 +217,11 @@
             {% endif %}
             {% elif row.eligible %}
             <span class="text-muted small">보낼 수 있음</span>
+            {% if row.claim_excluded %}
+            {# 워크벤치 띠와 **글자까지 같은 문장**이다 — build_preview 한 함수를 두 화면이
+               나눠 읽으므로 한쪽만 고치면 두 화면이 다른 수를 말한다(2026-09-14). #}
+            <div class="text-muted small">클레임 {{ row.claim_excluded }}건은 빼고 보냅니다</div>
+            {% endif %}
             {% else %}
             <span class="badge bg-secondary">보낼 수 없음</span>
             <div class="text-muted small">{{ row.reason }}</div>
