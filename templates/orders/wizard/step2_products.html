@@ -21,9 +21,13 @@
         <label class="field__label">규격 (폭·깊이·높이)</label>
         <div class="foms-wizard__spec-rows" data-spec-rows>
           <div class="foms-wizard__spec-row" data-spec-row>
-            <div class="foms-wizard__spec-cell">
-              <label class="foms-wizard__spec-lbl">W(폭)</label>
-              <input class="foms-input foms-tabular" data-product-field="spec_width" inputmode="numeric" placeholder="폭" aria-label="폭" />
+            <div class="foms-wizard__spec-cell foms-wizard__spec-cell--w">
+              <label class="foms-wizard__spec-lbl">W(가로·총폭)</label>
+              <textarea class="foms-input foms-tabular foms-wizard__autosize foms-wizard__spec-w" rows="1"
+                data-product-field="spec_width" lang="ko"
+                placeholder="예: 5700(2402+1864+1638) 또는 2352+2100+2860"
+                aria-label="가로(총폭) — 복합 표기 가능"></textarea>
+              <span class="foms-wizard__spec-w-preview" data-spec-w-preview aria-live="polite"></span>
             </div>
             <div class="foms-wizard__spec-cell">
               <label class="foms-wizard__spec-lbl">D(깊이)</label>
@@ -36,6 +40,7 @@
             <button type="button" class="foms-wizard__spec-del" data-spec-del aria-label="규격 행 삭제" hidden>−</button>
           </div>
         </div>
+        <p class="foms-wizard__spec-hint">가로(W)는 복합 표기를 받는다 — 4120+4121+2354 · 5700,4512,2300 · 5700(2402+1864+1638)</p>
         <button type="button" class="foms-btn foms-btn--ghost foms-btn--sm foms-wizard__spec-add" data-spec-add>＋ 규격 1행 추가</button>
       </div>
       <div class="foms-wizard__field">
