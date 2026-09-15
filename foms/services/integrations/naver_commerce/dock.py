@@ -102,6 +102,52 @@ def main_product_name(value: str) -> str:
     return trimmed or text
 
 
+def resolve_copy_target(key: str) -> str:
+    """옵션 키 → 그 값이 들어갈 ERP 칸. 수식어가 붙은 키도 알아본다 (2026-09-16).
+
+    결함(운영 #5321 · 하반 침대붙박이장): 옵션 원문이
+    ``"제품: 하반 침대 붙박이장 30cm / 붙박이장 색상: 클린 화이트"`` 인데 키가 ``색상`` 이
+    아니라 **``붙박이장 색상``** 이라 :data:`COPY_TARGET_BY_KEY` 정확 일치가 빗나갔다.
+    칩에 칸이 안 붙으니 ``전부 넣기`` 가 색상을 건너뛰었다 — 사람이 보기엔 아무 말 없이
+    한 칸만 안 들어간다. 로라 계열은 ``컬러:`` 나 ``색상:`` 단독이라 멀쩡했다.
+
+    해석 순서:
+
+    1. 키 전체 정확 일치(종전 동작 — 기존 매핑이 이긴다).
+    2. 괄호 설명을 떼고 다시 정확 일치(``색상（도어）`` → ``색상``).
+    3. 공백으로 끊어 **마지막 낱말**로 일치(``붙박이장 색상`` → ``색상``).
+       수식어는 앞에 붙고 축은 뒤에 온다 — 한국어 옵션 키의 규칙이다.
+
+    마지막 낱말만 보는 이유: ``색상표`` 같은 다른 낱말이 ``색상`` 으로 잘못 잡히지 않는다
+    (부분 문자열 포함으로 찾으면 그게 잡힌다).
+
+    Args:
+        key: 옵션 한 조각의 키(콜론 앞).
+
+    Returns:
+        ``product_name``·``color``·``handle`` 중 하나, 못 찾으면 빈 문자열(복사 전용).
+    """
+    text = _text(key).lower()
+    if not text:
+        return ""
+    direct = COPY_TARGET_BY_KEY.get(text)
+    if direct:
+        return direct
+    bare = _TRAILING_PAREN_RE.sub("", text).strip()
+    if bare != text:
+        direct = COPY_TARGET_BY_KEY.get(bare)
+        if direct:
+            return direct
+    # 짝이 안 맞아 **키 여럿이 통째로 남은** 조각(``색상 ／ 사이즈``)에는 꼬리 규칙을 쓰지
+    # 않는다. 그 조각은 어느 값이 어느 키의 것인지 모르는 상태라, 마지막 낱말을 믿으면
+    # 엉뚱한 칸에 값을 넣는다(:func:`_pair_chips` 의 짝 수 불일치 갈래 — 그 계약은
+    # ``test_full_width_pair_that_does_not_line_up_stays_one_chip`` 이 잠근다).
+    if _PAIR_SEPARATOR in bare:
+        return ""
+    tail = bare.split()[-1] if bare.split() else ""
+    return COPY_TARGET_BY_KEY.get(tail, "")
+
+
 def _pair_chips(key_part: str, value_part: str) -> list[dict[str, str]]:
     """옵션 한 그룹(``키: 값``)을 칩 목록으로 만든다.
 
@@ -129,7 +175,7 @@ def _pair_chips(key_part: str, value_part: str) -> list[dict[str, str]]:
         if value:
             chips.append({
                 "value": value,
-                "target": COPY_TARGET_BY_KEY.get(key.lower(), ""),
+                "target": resolve_copy_target(key),
             })
     return chips
 
@@ -534,6 +580,45 @@ def _extra_payment_summary(order: Any) -> dict[str, Any]:
 _SUPERSEDED_NOTE = "재결제로 대체된 이전 주문 — 옛 결제는 환불됐습니다"
 
 
+#: 취소·반품이 **확정된** 집에 붙는 사유 문구. :data:`_SUPERSEDED_NOTE` 와 갈라 쓴다 —
+#: 대체된 집(옛 결제가 환불됨)과 취소된 집은 담당자가 할 일이 다르다.
+_SETTLED_NOTE = "취소·반품이 확정된 결제입니다 — 환불 완료"
+
+
+def _household_settled(claims_by_no: dict[str, list[dict[str, str]]]) -> dict[str, bool]:
+    """집마다 **결제가 전부 환불 확정인가** — 죽은 집 판정의 돈 축 (2026-09-16).
+
+    왜 필요한가: 죽은 집 판정이 관계(``relation``) 한 축뿐이라, 재결제가 **두 번** 일어난
+    주문에서 먼저 온 재결제 집이 이미 취소 확정돼도 살아 있는 것으로 셌다. 운영 #5158
+    김선미에서 도크가 09-14 에 취소된 집(1,134,200원)을 `이번 주문(재결제)` 로 부르고
+    금액 카드도 그 돈을 함께 더해, 담당자가 청구액을 10만원 틀리게 읽었다.
+
+    판정은 **확정된 환불만** 센다(``phase == "done"`` 이고 돈이 되돌아가는 종류). 확정 전
+    취소 요청은 거부될 수 있어 죽은 집이 아니다 — 거기서 죽었다고 말하면 살아 있는 청구가
+    화면에서 사라진다(유령 주문 띠와 같은 규율).
+
+    Args:
+        claims_by_no: ``{집 주문번호: [{"phase", "type"}, ...]}`` — 그 집 상품주문들의
+            클레임 축(:func:`_row_source` 의 ``claim_phase``·``claim_kind``).
+
+    Returns:
+        ``{집 주문번호: 전부 환불 확정인가}``. 행이 없는 집은 ``False``(모르면 살아 있는
+        것으로 읽는다).
+    """
+    from foms.services.integrations.naver_commerce.mapping import (
+        MONEY_BACK_CLAIM_KINDS,
+    )
+
+    settled: dict[str, bool] = {}
+    for order_no, entries in claims_by_no.items():
+        settled[order_no] = bool(entries) and all(
+            _text(entry.get("phase")) == "done"
+            and _text(entry.get("type")) in MONEY_BACK_CLAIM_KINDS
+            for entry in entries
+        )
+    return settled
+
+
 def _household_relations(links: list[Any]) -> dict[str, str]:
     """집(``external_order_no``)마다 관계 하나 — ``NEW`` 가 아닌 값이 이긴다.
 
@@ -557,7 +642,8 @@ def _household_relations(links: list[Any]) -> dict[str, str]:
     return relations
 
 
-def _household_facts(links: list[Any], order_nos: list[str]) -> list[dict[str, Any]]:
+def _household_facts(links: list[Any], order_nos: list[str],
+                     settled_by_no: Optional[dict[str, bool]] = None) -> list[dict[str, Any]]:
     """집마다 관계·대체 여부·화면 라벨을 판정한다 (N2 · 2026-08-26).
 
     왜 필요한가: 재결제로 집이 둘 붙은 주문에서 화면이 두 집을 **같은 톤으로** 세워,
@@ -578,23 +664,36 @@ def _household_facts(links: list[Any], order_nos: list[str]) -> list[dict[str, A
         같은 순서.
     """
     relations = _household_relations(links)
+    settled_map = settled_by_no or {}
     values = [relations.get(order_no, "NEW") for order_no in order_nos]
     multi = len(order_nos) > 1
     has_repay = "REPAY" in values
     has_addon = "ADDON" in values
+    # 살아 있는 재결제 집 중 **마지막에 수집된 것**만 `이번 주문` 이다. 재결제가 두 번
+    # 일어나면(첫 재결제도 취소되고 다시 결제) 옛 재결제 집이 취소 확정이라 여기서 빠진다.
+    live_repays = [no for no, rel in zip(order_nos, values)
+                   if rel == "REPAY" and not settled_map.get(no)]
+    current_repay = live_repays[-1] if live_repays else ""
     facts: list[dict[str, Any]] = []
     for order_no, relation in zip(order_nos, values):
-        superseded = has_repay and relation == "NEW"
+        settled = bool(settled_map.get(order_no))
+        # 죽은 집 축은 둘이다: **돈이 끝난 집**(취소·반품 확정)과 **재결제로 대체된 집**.
+        # 앞의 것이 관계를 이긴다 — 취소 확정된 재결제 집도 죽은 집이다(2026-09-16 #5158).
+        superseded = settled or (has_repay and relation == "NEW")
         label = ""
         if multi:
-            label = _household_label(relation, superseded=superseded, has_addon=has_addon)
+            label = _household_label(relation, superseded=superseded, has_addon=has_addon,
+                                     settled=settled,
+                                     is_current_repay=order_no == current_repay)
         facts.append({"order_no": order_no, "relation": relation,
-                      "superseded": superseded, "label": label,
-                      "note": _SUPERSEDED_NOTE if superseded else ""})
+                      "superseded": superseded, "settled": settled, "label": label,
+                      "note": _SETTLED_NOTE if settled
+                              else (_SUPERSEDED_NOTE if superseded else "")})
     return facts
 
 
-def _household_label(relation: str, *, superseded: bool, has_addon: bool) -> str:
+def _household_label(relation: str, *, superseded: bool, has_addon: bool,
+                     settled: bool = False, is_current_repay: bool = True) -> str:
     """집 하나가 화면에서 불릴 이름 — 관계마다 문구가 다르다.
 
     Args:
@@ -605,8 +704,14 @@ def _household_label(relation: str, *, superseded: bool, has_addon: bool) -> str
     Returns:
         화면 라벨. 이름 붙일 근거가 없으면 빈 문자열.
     """
+    # 취소·반품이 확정된 집은 관계와 무관하게 **취소된 결제**다. 그 집을 `이번 주문` 이라
+    # 부르면 화면이 이미 환불된 돈을 이번 청구로 말한다(#5158).
+    if settled:
+        return "취소된 결제"
     if relation == "REPAY":
-        return "이번 주문(재결제)"
+        # 살아 있는 재결제가 둘 이상이면 마지막 집만 `이번 주문` 이다 — 둘 다 그렇게 부르면
+        # 어느 쪽이 이번 결제인지 화면이 말하지 못한다.
+        return "이번 주문(재결제)" if is_current_repay else "재결제분"
     if relation == "ADDON":
         return "추가결제분"
     if superseded:
@@ -924,6 +1029,10 @@ def build_dock_payload(db: Any, order: Any, *,
     memos: list[str] = []
     # 집계용 클레임 축(A-7). 라벨 한 개가 아니라 **전부** 모은다.
     claims: list[dict[str, str]] = []
+    # 집별 클레임 축(2026-09-16) — 죽은 집 판정의 돈 축 입력(:func:`_household_settled`).
+    # 여기서 모으는 이유: 원본 파싱은 링크마다 한 번뿐이고(``_row_source``), 판정 자리에서
+    # 다시 파싱하면 큰 집에서 그 비용이 두 배가 된다.
+    claims_by_no: dict[str, list[dict[str, str]]] = {}
     for link in links:
         source = _row_source(link)
         recipient_name = recipient_name or source["recipient_name"]
@@ -932,7 +1041,9 @@ def build_dock_payload(db: Any, order: Any, *,
         if not claim_label and source["claim_label"]:
             claim_label = source["claim_label"]
             claim_money_back = source["claim_money_back"]
-        claims.append({"phase": source["claim_phase"], "type": source["claim_kind"]})
+        entry = {"phase": source["claim_phase"], "type": source["claim_kind"]}
+        claims.append(entry)
+        claims_by_no.setdefault(_text(link.external_order_no), []).append(entry)
         recipient_tel2 = recipient_tel2 or source["recipient_tel2"]
         paid_at = paid_at or source["paid_at"]
         pay_means = pay_means or source["pay_means"]
@@ -1029,7 +1140,7 @@ def build_dock_payload(db: Any, order: Any, *,
     # 집마다 관계·대체 여부를 판정하고, 그 사실을 **행에도** 찍는다(N2). 행 단위로 찍는
     # 이유: 귀속(추가옵션이 어느 본품 소속인가)은 집 경계를 넘을 수 있어, 화면이 그룹
     # 머리말만 보고 흐리면 살아 있는 집의 행까지 함께 흐려진다.
-    households = _household_facts(links, order_nos)
+    households = _household_facts(links, order_nos, _household_settled(claims_by_no))
     superseded_nos = {fact["order_no"] for fact in households if fact["superseded"]}
     for row in rows:
         row["superseded"] = row["external_order_no"] in superseded_nos
