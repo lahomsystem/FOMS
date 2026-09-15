@@ -1787,5 +1787,7 @@
     <script src="{{ url_for('static', filename='js/runtime/erp-shell.js') }}?v=20260724a" defer></script>
     <script src="{{ url_for('static', filename='js/orders/erp-dashboard-entry.js') }}?v=20260909a" defer></script>
     <script src="{{ url_for('static', filename='js/foms/draft_resume.js') }}?v=20260915a" defer></script>
+    {# 아이폰 전용 빠른 시작 시트 — ＋ 탭 제스처 안에서 고객명 칸을 열어 자판을 올린다. #}
+    <script src="{{ url_for('static', filename='js/foms/wizard-quickstart.js') }}?v=20260915a" defer></script>
     {% endif %}
 {{ mark('shell_scripts') }}
