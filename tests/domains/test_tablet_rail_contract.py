@@ -165,9 +165,19 @@ def test_cache_chain_versions_bumped() -> None:
     assert "foms-tablet-bundle.css') }}?v=20260727d" in head
     # erp-pro.css link bumped (old value gone, a fresh value present).
     assert "?v=20260711ad" not in head
-    assert "erp-pro.css') }}?v=20260825a" in head
+
+    # 두 핀을 **리터럴로** 못 박으면 정당한 상향마다 이 테스트가 빨개지고(2026-09-15 실제로
+    # deploy CI 가 그렇게 멈췄다), 사람이 값만 고쳐 초록을 만들면서 계약이 형해화된다.
+    # 진짜 위험은 **자식(@import)만 올리는 것**이다 — 부모가 캐시에 남아 새 @import URL 을
+    # 아무도 못 본다. 부모만 올리는 것은 안전하다. 그래서 "부모 핀이 자식 핀보다 오래되지
+    # 않았다"로 검사한다(핀은 YYYYMMDD+접미사라 문자열 비교가 곧 시간 비교다).
+    parent_pin = head.split("erp-pro.css') }}?v=", 1)[1].split('"', 1)[0]
     erp_pro = _read(ERP_PRO_CSS)
-    assert "13-foms-shell-bridge.css?v=20260825a" in erp_pro
+    child_pin = erp_pro.split("13-foms-shell-bridge.css?v=", 1)[1].split('"', 1)[0]
+    assert parent_pin >= child_pin, (
+        f"자식 @import 핀({child_pin})이 부모 링크 핀({parent_pin})보다 새롭다 — "
+        "부모가 캐시에 남아 새 @import 를 아무도 못 본다"
+    )
 
 
 # --- ⑥ Jinja global registration -------------------------------------------
