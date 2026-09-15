@@ -1016,13 +1016,13 @@
   function focusStepFirstField(root, step) {
     // 충돌 대화상자가 떠 있으면 뒤쪽 칸으로 포커스가 새면 안 된다(접근성).
     var dialog = root.querySelector("#foms-wizard-conflict");
-    if (dialog && dialog.classList.contains("is-open")) return;
+    if (dialog && dialog.classList.contains("is-open")) return false;
     // 사용자가 이미 마법사 안 어떤 칸에 커서를 두고 있으면 덮어쓰지 않는다
     // (초안 복구 후 돌아온 경우·자동 포커스보다 사용자의 선택이 우선).
     var active = document.activeElement;
-    if (active && root.contains(active) && isFocusableField(active)) return;
+    if (active && root.contains(active) && isFocusableField(active)) return true;
     var el = findFirstFocusableField(root, step);
-    if (!el) return;
+    if (!el) return false;
     try {
       el.focus({ preventScroll: true }); // 화면이 튀지 않게 브라우저 기본 스크롤을 막는다
     } catch (e) {
@@ -1042,6 +1042,51 @@
     } catch (e3) {
       /* 구형 브라우저 무시 */
     }
+    // 실제로 먹었는지 돌려준다. iOS 사파리는 제스처 없는 로드 시점의 focus() 를
+    // 받아 주지 않아 여기서 false 가 된다 — 호출부가 그때만 대비책을 건다.
+    return document.activeElement === el;
+  }
+
+  /**
+   * 진입 자동 포커스가 iOS 에서 먹지 않았을 때의 대비책.
+   *
+   * 아이폰 사파리는 **사용자 활성화(제스처) 없이는** 입력 칸에 포커스를 주지 않는다.
+   * 마법사는 `?open=erp-order&wizard=1` 로 **새 문서를 여는 일반 이동**이라 진입 시점에
+   * 제스처가 없다(FAB 을 탭한 활성화는 이전 문서에 속한다). 그래서 안드로이드에서는
+   * 커서가 놓이는데 아이폰에서는 아무 일도 안 일어난다(2026-09-15 사용자 제보).
+   *
+   * 그 경우에만, 사용자의 **첫 탭**을 빌려 첫 칸에 커서를 놓는다. 제스처 안에서 동기로
+   * 부르므로 키보드까지 올라온다. 탭이 이미 다른 조작(입력 칸·버튼·링크)을 겨눴다면
+   * 그 의도가 우선이라 아무것도 하지 않고 물러난다.
+   *
+   * @param {HTMLElement} root 마법사 루트.
+   * @param {number} step 현재 단계.
+   * @returns {void}
+   */
+  function armFirstTapFocus(root, step) {
+    var done = false;
+    function disarm() {
+      if (done) return;
+      done = true;
+      root.removeEventListener("touchend", onTap, true);
+      root.removeEventListener("mouseup", onTap, true);
+      root.removeEventListener("focusin", disarm, true);
+    }
+    function onTap(ev) {
+      if (done) return;
+      var t = ev.target;
+      // 사용자가 무언가를 직접 겨눴으면 그 의도가 우선이다.
+      if (t && t.closest && t.closest("input, select, textarea, button, a, label, [role='button']")) {
+        disarm();
+        return;
+      }
+      disarm();
+      focusStepFirstField(root, step);
+    }
+    root.addEventListener("touchend", onTap, true);
+    root.addEventListener("mouseup", onTap, true);
+    // 사용자가 스스로 어딘가에 커서를 놓았으면 더는 끼어들지 않는다.
+    root.addEventListener("focusin", disarm, true);
   }
 
   function setStep(root, step) {
@@ -1172,9 +1217,12 @@
     window.fomsWizardDraftClient = draftClient; // 4단계 발송(wizard-send.js) 강제 flush 진입점
     draftClient.bindAutosave();
     setStep(root, currentStep);
-    // 진입 즉시 1단계 첫 칸에 커서를 둔다. iOS 사파리는 제스처 없는 문서 로드 시점에는
-    // 소프트 키보드를 올리지 않으므로 여기서 보장되는 것은 캐럿·포커스 링까지다.
-    focusStepFirstField(root, currentStep);
+    // 진입 즉시 1단계 첫 칸에 커서를 둔다.
+    // 안드로이드 크롬은 여기서 커서가 놓인다. **아이폰 사파리는 제스처가 없으면 포커스
+    // 자체를 안 준다** — 그때만 첫 탭을 빌리는 대비책을 건다(사용자 제보 2026-09-15).
+    if (!focusStepFirstField(root, currentStep)) {
+      armFirstTapFocus(root, currentStep);
+    }
 
     if (window.FomsWizardAttachments) {
       window.FomsWizardAttachments.bindAll(root, draftKey, function () {
