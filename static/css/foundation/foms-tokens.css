@@ -64,6 +64,15 @@
 
   --foms-border-subtle: var(--foms-color-neutral-200);
   --foms-border-default: var(--foms-color-neutral-300);
+
+  /* 입력칸(부트스트랩 .form-control/.form-select) 색.
+     style-pro-max.css 가 이 세 값을 !important 로 못 박고 있어서, 다크에서 배경만 라이트로
+     남고 글자만 밝게 뒤집혀 안 보였다. 승자 선언을 그대로 두고 **값만** 토큰으로 바꾼다 —
+     캐스케이드 순위가 안 변하므로 다른 화면의 기존 override 관계도 그대로다.
+     라이트 값은 그때 하드코딩돼 있던 값과 같다(라이트 무변경). */
+  --foms-input-bg: #F2F2F7;
+  --foms-input-bg-focus: #FFFFFF;
+  --foms-input-border: #E5E5EA;
   --foms-border-strong: var(--foms-color-neutral-500);
   --foms-border-focus: var(--foms-color-brand-500);
 
@@ -181,6 +190,10 @@
 
   --foms-border-subtle: var(--foms-color-neutral-800);
   --foms-border-default: var(--foms-color-neutral-700);
+
+  --foms-input-bg: var(--foms-surface-raised);
+  --foms-input-bg-focus: var(--foms-surface-overlay);
+  --foms-input-border: var(--foms-border-default);
   --foms-border-strong: var(--foms-color-neutral-500);
 
   --foms-text-primary: var(--foms-color-neutral-50);
