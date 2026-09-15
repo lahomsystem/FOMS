@@ -5,6 +5,15 @@
 
 .foms-draft-resume {
   margin: var(--foms-space-2, 8px) var(--foms-space-3, 12px) 0;
+  /* 모바일 홈 본문은 `display: grid` 다(foundation/foms-shell.css). 그리드 아이템은
+     기본값이 `min-width: auto` 라 **내용의 최소 폭 아래로 줄어들지 못한다.** 이 띠 안의
+     주소는 `white-space: nowrap` 이라 주소가 길면 그 최소 폭이 화면을 넘고, 줄어들 수
+     없으니 그리드 칼럼째 넓어져 **홈 화면 전체가 오른쪽으로 밀린다**
+     (2026-09-15 제보: 주소가 긴 초안이 있을 때만 나타난다).
+     타워 CSS 가 자기 자식들에게 하나씩 걸어 둔 것과 같은 계약을 여기서도 건다 —
+     이 파일에 두면 타워·큐 두 분기에 함께 적용된다. */
+  min-width: 0;
+  max-width: 100%;
 }
 
 .foms-draft-resume[hidden] {
@@ -63,6 +72,14 @@
   align-items: center;
   gap: var(--foms-space-2, 8px);
   flex-wrap: wrap;
+  min-width: 0;
+}
+
+/* 고객명이 아주 길어도 줄 폭을 밀지 않게 한다(주소와 같은 이유). */
+.foms-draft-resume__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .foms-draft-resume__name {

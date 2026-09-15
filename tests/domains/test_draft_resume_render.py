@@ -362,3 +362,20 @@ def test_network_failure_tells_the_user_and_unlocks_the_button() -> None:
     after = _run(_TWO_DRAFTS, click_index=0, delete_payload={"success": False})["after"]
     assert "지우지 못했습니다" in " ".join(after["toasts"]), "무음 실패 금지"
     assert len(after["rows"]) == 2, "실패했는데 행이 사라졌다"
+
+
+def test_draft_bar_can_shrink_inside_the_grid_home() -> None:
+    """모바일 홈 본문은 `display: grid` 라, 띠가 줄어들 수 있어야 한다.
+
+    그리드 아이템의 기본값은 `min-width: auto` 여서 **내용의 최소 폭 아래로 못 줄어든다.**
+    띠 안의 주소는 `white-space: nowrap` 이라, 주소가 긴 초안이 하나라도 있으면 그 최소
+    폭이 화면을 넘고 그리드 칼럼째 넓어져 **홈 화면 전체가 오른쪽으로 밀렸다**
+    (2026-09-15 제보, 운영·스테이징 공통. 재현 실측: 390px 화면에서 문서가 710px).
+
+    타워 CSS 가 자기 자식들에게 하나씩 걸어 둔 계약과 같은 것을 컴포넌트 쪽에 둔다 —
+    여기 있어야 타워·큐 두 분기에 함께 적용된다.
+    """
+    css = (ROOT / "static" / "css" / "components" / "foms-draft-resume.css").read_text(encoding="utf-8")
+    block = css.split(".foms-draft-resume {", 1)[1].split("}", 1)[0]
+    assert "min-width: 0" in block, "그리드 안에서 줄어들 수 없으면 홈 화면이 통째로 밀린다"
+    assert "max-width: 100%" in block
