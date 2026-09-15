@@ -1048,138 +1048,17 @@
   }
 
   /**
-   * 진입 자동 포커스만으로는 아이폰에서 키보드가 안 올라온다 — 첫 탭을 빌린다.
-   *
-   * 아이폰 사파리는 **사용자 활성화(제스처) 없이 부른 focus() 로는 소프트 키보드를 올리지
-   * 않는다.** 마법사는 `?open=erp-order&wizard=1` 로 **새 문서를 여는 일반 이동**이라 진입
-   * 시점에 제스처가 없다(FAB 을 탭한 활성화는 이전 문서에 속한다).
-   *
-   * 2026-09-15 1차 시도는 `document.activeElement` 로 "포커스가 먹었는지"를 보고 안 먹었을
-   * 때만 대비책을 걸었는데, **그게 틀렸다.** 아이폰은 포커스를 주기는 준다 — 키보드만 안
-   * 띄운다. 그래서 대비책이 아예 안 걸렸고 사용자에게는 여전히 아무 일도 없었다.
-   * 그래서 지금은 **조건 없이** 걸고, 첫 탭 안에서 blur→focus 로 키보드를 끌어올린다
-   * (이미 포커스된 칸에 focus() 를 다시 부르면 아무 일도 안 일어나므로 blur 가 필요하다).
-   *
-   * 끼어들지 말아야 할 때는 물러난다: 탭이 다른 칸·버튼·링크를 겨눴을 때, 손가락이 움직인
-   * 스크롤일 때, 사용자가 스스로 다른 칸에 커서를 놓았을 때.
-   *
-   * @param {HTMLElement} root 마법사 루트.
-   * @param {number} step 현재 단계.
-   * @returns {void}
+   * iOS(아이폰·아이패드) 사파리 계열 여부.
+   * iPadOS 13+ 는 UA 가 Mac 으로 위장하므로 maxTouchPoints 로 보강한다
+   * (같은 판별이 static/js/orders/estimate-preview.js·mobile-push.js 에도 있다).
+   * @returns {boolean}
    */
-  function armEntryKeyboard(root, step) {
-    var target = findFirstFocusableField(root, step);
-    if (!target) return;
-    var done = false;
-    var sx = 0;
-    var sy = 0;
-    var moved = false;
-
-    function disarm() {
-      if (done) return;
-      done = true;
-      document.removeEventListener("touchstart", onStart, true);
-      document.removeEventListener("touchmove", onMove, true);
-      document.removeEventListener("touchend", onEnd, true);
-      document.removeEventListener("click", onEnd, true);
-      document.removeEventListener("focusin", onFocusIn, true);
-    }
-    function point(ev) {
-      var t = ev.touches && ev.touches.length ? ev.touches[0] : ev.changedTouches && ev.changedTouches.length ? ev.changedTouches[0] : ev;
-      return { x: t.clientX || 0, y: t.clientY || 0 };
-    }
-    function onStart(ev) {
-      var p = point(ev);
-      sx = p.x;
-      sy = p.y;
-      moved = false;
-    }
-    function onMove(ev) {
-      var p = point(ev);
-      if (Math.abs(p.x - sx) > 10 || Math.abs(p.y - sy) > 10) moved = true;
-    }
-    function onEnd(ev) {
-      if (done) return;
-      // 스크롤이었다. 기회를 쓰지 않고 다음 탭을 기다린다.
-      if (moved) {
-        moved = false;
-        return;
-      }
-      var t = ev.target;
-      var hit = t && t.closest
-        ? t.closest("input, select, textarea, button, a, label, [role='button'], [contenteditable]")
-        : null;
-      // 겨눈 것이 **그 칸 자신**이면 물러나면 안 된다. 진입 시 이미 포커스를 줘 놨기 때문에
-      // 사파리 눈에는 포커스 변화가 없어 자판을 안 올린다 — 실사용에서 가장 흔한 탭이
-      // 하필 이 경우다(2026-09-15 기기 로그로 확인). 아래 blur→focus 로 같이 끌어올린다.
-      if (hit && hit !== target) {
-        disarm();
-        return;
-      }
-      disarm();
-      // 이미 포커스돼 있으면 focus() 가 무시된다 — 키보드를 올리려면 한 번 놓았다 잡는다.
-      try {
-        if (document.activeElement === target) target.blur();
-      } catch (e) {
-        /* 무시 */
-      }
-      try {
-        target.focus({ preventScroll: true });
-      } catch (e2) {
-        target.focus();
-      }
-    }
-    function onFocusIn(ev) {
-      // 사용자가 스스로 다른 칸에 커서를 놓았으면 더는 끼어들지 않는다.
-      if (ev.target !== target) disarm();
-    }
-
-    document.addEventListener("touchstart", onStart, true);
-    document.addEventListener("touchmove", onMove, true);
-    document.addEventListener("touchend", onEnd, true);
-    document.addEventListener("click", onEnd, true);
-    document.addEventListener("focusin", onFocusIn, true);
-    bindKeyboardRescue(target);
-  }
-
-  /**
-   * 포커스는 있는데 자판만 내려가 있을 때, 그 칸을 다시 탭하면 자판을 올려 준다.
-   *
-   * 사파리는 **이미 포커스된** 요소를 탭해도 포커스 변화가 없으니 자판을 올리지 않는다.
-   * 마법사는 진입 시 커서를 미리 놓기 때문에 사용자의 첫 탭이 딱 이 경우가 된다.
-   * `armEntryKeyboard` 의 첫 탭 예약은 한 번 쓰면 풀리므로, 그 뒤로도 계속 살아 있는
-   * 구조가 따로 필요하다.
-   *
-   * **자판이 내려가 있을 때만** 개입한다 — 입력 중(자판이 올라온 상태)에 blur→focus 를
-   * 하면 캐럿이 튄다. 판정은 `visualViewport` 높이다(자판 표시 여부를 묻는 API 는 없다).
-   *
-   * @param {HTMLElement} field 대상 입력 칸.
-   * @returns {void}
-   */
-  function bindKeyboardRescue(field) {
-    var vp = window.visualViewport;
-    if (!vp) return; // 판정 수단이 없으면 아예 건드리지 않는다.
-    var base = Math.round(vp.height || 0);
-    vp.addEventListener("resize", function () {
-      // 자판이 내려가 화면이 도로 커지면 그때 높이를 기준으로 삼는다.
-      var h = Math.round(vp.height || 0);
-      if (h > base) base = h;
-    });
-    field.addEventListener("touchend", function () {
-      if (document.activeElement !== field) return; // 포커스가 없으면 사파리가 알아서 올린다.
-      var h = Math.round(vp.height || 0);
-      if (base - h > 100) return; // 이미 올라와 있다 — 입력 중이니 건드리지 않는다.
-      try {
-        field.blur();
-      } catch (e) {
-        /* 무시 */
-      }
-      try {
-        field.focus({ preventScroll: true });
-      } catch (e2) {
-        field.focus();
-      }
-    });
+  function isIosLike() {
+    var ua = navigator.userAgent || "";
+    if (/iPad|iPhone|iPod/.test(ua)) return true;
+    return navigator.platform === "MacIntel"
+      && typeof navigator.maxTouchPoints === "number"
+      && navigator.maxTouchPoints > 1;
   }
 
   function setStep(root, step) {
@@ -1313,10 +1192,19 @@
     // 진입 즉시 1단계 첫 칸에 커서를 둔다.
     // 안드로이드 크롬은 여기서 커서가 놓인다. **아이폰 사파리는 제스처가 없으면 포커스
     // 자체를 안 준다** — 그때만 첫 탭을 빌리는 대비책을 건다(사용자 제보 2026-09-15).
-    focusStepFirstField(root, currentStep);
-    // 아이폰은 위 focus() 로 커서만 놓고 키보드는 안 올린다 — 조건 없이 첫 탭을 예약한다.
-    // (안드로이드는 이미 키보드가 떠 있고, 사용자가 다른 칸을 겨누면 예약이 스스로 풀린다.)
-    armEntryKeyboard(root, currentStep);
+    // 진입 시 첫 칸에 커서를 둔다 — **아이폰은 제외한다.**
+    //
+    // 사파리는 제스처 안에서 일어난 **진짜 포커스 변화**에만 자판을 올린다. 마법사 진입은
+    // 새 문서를 여는 이동이라 제스처가 없어 자판이 안 뜨는데, 여기서 미리 포커스를 줘 버리면
+    // 그 뒤 사용자가 그 칸을 탭해도 **포커스 변화가 없어 자판이 영영 안 올라온다.**
+    // 즉 이 자동 포커스가 아이폰에서 원래 되던 동작을 망가뜨린다(2026-09-15 제보 4회).
+    // 안 하면 그 칸은 2단계 제품명과 똑같이 굴러간다 — 탭 한 번에 자판이 올라온다.
+    //
+    // 단계 전환(setStep 직후 호출)은 버튼 탭 제스처 안이고 아직 포커스가 없던 칸이라
+    // 아이폰에서도 자판이 뜬다 — 그쪽은 그대로 둔다.
+    if (!isIosLike()) {
+      focusStepFirstField(root, currentStep);
+    }
 
     if (window.FomsWizardAttachments) {
       window.FomsWizardAttachments.bindAll(root, draftKey, function () {

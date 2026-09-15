@@ -20,43 +20,10 @@ def _src() -> str:
     return WIZARD_JS.read_text(encoding="utf-8")
 
 
-def test_entry_arms_the_first_tap_unconditionally() -> None:
-    """첫 탭 예약은 **조건 없이** 걸려야 한다.
-
-    1차 시도는 `document.activeElement` 로 포커스가 먹었는지 보고 실패했을 때만 걸었는데,
-    아이폰은 포커스를 주기는 준다 — 키보드만 안 띄운다. 그래서 예약이 아예 안 걸렸고
-    사용자에게는 여전히 아무 일도 없었다(2026-09-15 2차 제보).
-    """
-    src = _src()
-    assert "function armEntryKeyboard(" in src
-    assert "armEntryKeyboard(root, currentStep);" in src
-    assert "if (!focusStepFirstField(root, currentStep)) {" not in src, (
-        "포커스 성공 여부로 예약을 가르면 아이폰에서 다시 안 걸린다"
-    )
-
-
 def test_focus_helper_reports_whether_it_actually_took() -> None:
     """`focus()` 호출만으로 성공을 단정하면 안 된다 — 아이폰은 조용히 무시한다."""
     src = _src()
     assert "return document.activeElement === el;" in src
-
-
-def test_first_tap_yields_to_a_deliberate_tap_and_to_scrolling() -> None:
-    """다른 칸을 겨눈 탭·스크롤에는 물러나야 한다."""
-    src = _src()
-    block = src.split("function armEntryKeyboard(", 1)[1]
-    assert "input, select, textarea, button, a, label" in block
-    assert "if (moved)" in block, "손가락이 움직인 스크롤에 키보드가 튀어나오면 안 된다"
-    assert "if (ev.target !== target) disarm();" in block, (
-        "사용자가 스스로 다른 칸에 커서를 놓았는데도 예약이 살아 있으면 다음 탭에서 칸이 튄다"
-    )
-
-
-def test_first_tap_re_focuses_so_the_keyboard_actually_comes_up() -> None:
-    """이미 포커스된 칸에 focus() 를 다시 부르면 아무 일도 없다 — blur 를 거쳐야 한다."""
-    src = _src()
-    block = src.split("function armEntryKeyboard(", 1)[1]
-    assert "if (document.activeElement === target) target.blur();" in block
 
 
 def test_step_transition_focus_stays_inside_the_tap_gesture() -> None:
@@ -83,24 +50,24 @@ def test_date_pickers_stay_out_of_auto_focus() -> None:
         assert f'"{t}"' in block
 
 
-def test_tapping_the_already_focused_field_still_raises_the_keyboard() -> None:
-    """그 칸 자신을 겨눈 탭에는 물러나면 안 된다.
+def test_entry_focus_is_skipped_on_ios() -> None:
+    """아이폰에서는 진입 자동 포커스를 **하지 않는다.**
 
-    진입 시 커서를 미리 놓기 때문에 사파리 눈에는 포커스 변화가 없어 자판이 안 올라온다.
-    실사용에서 가장 흔한 탭이 하필 이 경우다(2026-09-15 기기 로그로 확인).
+    사파리는 제스처 안에서 일어난 진짜 포커스 변화에만 자판을 올린다. 진입 시 미리
+    포커스를 줘 버리면 그 뒤 사용자가 그 칸을 탭해도 포커스 변화가 없어 자판이 영영
+    안 올라온다 — 우리가 넣은 편의 기능이 원래 되던 동작을 망가뜨린 것이다
+    (2026-09-15 제보 4회, 2단계 제품명은 멀쩡히 되는 것이 대조군이었다).
     """
     src = _src()
-    block = src.split("function armEntryKeyboard(", 1)[1]
-    assert "if (hit && hit !== target) {" in block, (
-        "그 칸 자신을 겨눈 탭까지 물러나면 사용자가 칸을 눌러도 자판이 안 뜬다"
-    )
+    assert "function isIosLike(" in src
+    assert "if (!isIosLike()) {" in src, "아이폰에서 진입 포커스를 건너뛰는 분기가 없다"
+    # 재주(강제 blur→focus)로 되돌리려던 구조는 남아 있으면 안 된다.
+    assert "armEntryKeyboard" not in src
+    assert "bindKeyboardRescue" not in src
 
 
-def test_keyboard_rescue_only_fires_while_the_keyboard_is_down() -> None:
-    """입력 중(자판이 올라온 상태)에 blur→focus 를 하면 캐럿이 튄다."""
+def test_step_transition_focus_is_not_gated_by_platform() -> None:
+    """단계 전환은 버튼 탭 제스처 안이라 아이폰에서도 자판이 뜬다 — 막지 않는다."""
     src = _src()
-    assert "function bindKeyboardRescue(" in src
-    block = src.split("function bindKeyboardRescue(", 1)[1].split("\n  }\n", 1)[0]
-    assert "if (base - h > 100) return;" in block, "자판이 올라와 있으면 건드리지 않아야 한다"
-    assert "if (document.activeElement !== field) return;" in block
-    assert "if (!vp) return;" in block, "판정 수단이 없으면 아예 개입하지 않는다"
+    body = src.split("#foms-wizard-next", 1)[1]
+    assert "focusStepFirstField(root, currentStep);" in body
