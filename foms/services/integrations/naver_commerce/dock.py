@@ -102,6 +102,52 @@ def main_product_name(value: str) -> str:
     return trimmed or text
 
 
+def resolve_copy_target(key: str) -> str:
+    """옵션 키 → 그 값이 들어갈 ERP 칸. 수식어가 붙은 키도 알아본다 (2026-09-16).
+
+    결함(운영 #5321 · 하반 침대붙박이장): 옵션 원문이
+    ``"제품: 하반 침대 붙박이장 30cm / 붙박이장 색상: 클린 화이트"`` 인데 키가 ``색상`` 이
+    아니라 **``붙박이장 색상``** 이라 :data:`COPY_TARGET_BY_KEY` 정확 일치가 빗나갔다.
+    칩에 칸이 안 붙으니 ``전부 넣기`` 가 색상을 건너뛰었다 — 사람이 보기엔 아무 말 없이
+    한 칸만 안 들어간다. 로라 계열은 ``컬러:`` 나 ``색상:`` 단독이라 멀쩡했다.
+
+    해석 순서:
+
+    1. 키 전체 정확 일치(종전 동작 — 기존 매핑이 이긴다).
+    2. 괄호 설명을 떼고 다시 정확 일치(``색상（도어）`` → ``색상``).
+    3. 공백으로 끊어 **마지막 낱말**로 일치(``붙박이장 색상`` → ``색상``).
+       수식어는 앞에 붙고 축은 뒤에 온다 — 한국어 옵션 키의 규칙이다.
+
+    마지막 낱말만 보는 이유: ``색상표`` 같은 다른 낱말이 ``색상`` 으로 잘못 잡히지 않는다
+    (부분 문자열 포함으로 찾으면 그게 잡힌다).
+
+    Args:
+        key: 옵션 한 조각의 키(콜론 앞).
+
+    Returns:
+        ``product_name``·``color``·``handle`` 중 하나, 못 찾으면 빈 문자열(복사 전용).
+    """
+    text = _text(key).lower()
+    if not text:
+        return ""
+    direct = COPY_TARGET_BY_KEY.get(text)
+    if direct:
+        return direct
+    bare = _TRAILING_PAREN_RE.sub("", text).strip()
+    if bare != text:
+        direct = COPY_TARGET_BY_KEY.get(bare)
+        if direct:
+            return direct
+    # 짝이 안 맞아 **키 여럿이 통째로 남은** 조각(``색상 ／ 사이즈``)에는 꼬리 규칙을 쓰지
+    # 않는다. 그 조각은 어느 값이 어느 키의 것인지 모르는 상태라, 마지막 낱말을 믿으면
+    # 엉뚱한 칸에 값을 넣는다(:func:`_pair_chips` 의 짝 수 불일치 갈래 — 그 계약은
+    # ``test_full_width_pair_that_does_not_line_up_stays_one_chip`` 이 잠근다).
+    if _PAIR_SEPARATOR in bare:
+        return ""
+    tail = bare.split()[-1] if bare.split() else ""
+    return COPY_TARGET_BY_KEY.get(tail, "")
+
+
 def _pair_chips(key_part: str, value_part: str) -> list[dict[str, str]]:
     """옵션 한 그룹(``키: 값``)을 칩 목록으로 만든다.
 
@@ -129,7 +175,7 @@ def _pair_chips(key_part: str, value_part: str) -> list[dict[str, str]]:
         if value:
             chips.append({
                 "value": value,
-                "target": COPY_TARGET_BY_KEY.get(key.lower(), ""),
+                "target": resolve_copy_target(key),
             })
     return chips
 
