@@ -116,6 +116,11 @@
     syncFlagFieldVisibility(root);
   }
 
+  // 가로(W)는 textarea 라 줄바꿈이 섞일 수 있다. 저장 전 공백 1칸으로 평탄화한다.
+  function readSpecWidth(el) {
+    return readValue(el).replace(/\s+/g, " ");
+  }
+
   function collectProducts(root) {
     var cards = root.querySelectorAll("[data-product-index]");
     var items = [];
@@ -124,7 +129,7 @@
       var specRows = [];
       card.querySelectorAll("[data-spec-row]").forEach(function (sr) {
         specRows.push({
-          spec_width: readValue(sr.querySelector('[data-product-field="spec_width"]')),
+          spec_width: readSpecWidth(sr.querySelector('[data-product-field="spec_width"]')),
           spec_depth: readValue(sr.querySelector('[data-product-field="spec_depth"]')),
           spec_height: readValue(sr.querySelector('[data-product-field="spec_height"]')),
         });
@@ -375,6 +380,10 @@
       input.value = "";
       input.removeAttribute("data-foms-wizard-amount-bound");
     });
+    clone.querySelectorAll("[data-spec-w-preview]").forEach(function (pv) {
+      pv.textContent = "";
+      pv.classList.remove("is-invalid");
+    });
     // 규격은 1행으로 리셋(템플릿이 다중 행 상태였을 수 있음).
     var specRowsWrap = clone.querySelector("[data-spec-rows]");
     if (specRowsWrap) {
@@ -432,14 +441,58 @@
       if (del) del.hidden = rows.length <= 1;
     });
   }
+  /* ---- 가로(W) 복합 표기 합계 미리보기 ---- */
+  // 합계 규칙은 SSOT 를 그대로 부른다(static/js/wdcalculator/spec-width-eval.js
+  // · 파이썬 정본 foms/services/erp_template_filters.py eval_spec_width_mm).
+  // 마법사에서 같은 규칙을 다시 구현하지 않는다.
+  function updateSpecWidthPreview(inputEl) {
+    if (!inputEl || !inputEl.closest) return;
+    var row = inputEl.closest("[data-spec-row]");
+    var pv = row && row.querySelector("[data-spec-w-preview]");
+    if (!pv) return;
+    var raw = String(inputEl.value || "").trim();
+    if (!raw || typeof window.evalSpecWidthMm !== "function") {
+      pv.textContent = "";
+      pv.classList.remove("is-invalid");
+      return;
+    }
+    var mm = Math.round(window.evalSpecWidthMm(raw));
+    if (!mm) {
+      // 숫자를 하나도 못 읽었다. 칸이 자유 입력이 되면서 `57OO`(알파벳 O) 같은 오타가
+      // 조용히 0mm 으로 저장될 수 있게 됐다 — 가로는 출고 W/300 계산에 쓰이므로 말해 준다.
+      pv.textContent = "가로 표기를 확인하세요";
+      pv.classList.add("is-invalid");
+      return;
+    }
+    // 순수한 숫자만 적혔으면 합계를 되풀이하지 않는다(화면 소음).
+    // 그 밖에는 **무엇이 적혔든** 읽어 낸 총합을 보인다 — SSOT 는 첫 숫자만 집어내므로
+    // `57OO`(알파벳 O) 같은 오타가 경고 없이 57mm 이라는 그럴듯한 오답이 된다.
+    // 총합을 보여 주면 사용자가 그 자리에서 알아챈다.
+    if (/^[\d\s]+$/.test(raw)) {
+      pv.textContent = "";
+      pv.classList.remove("is-invalid");
+      return;
+    }
+    pv.textContent = "총 " + mm.toLocaleString("ko-KR") + "mm";
+    pv.classList.remove("is-invalid");
+  }
+  function refreshSpecWidthPreviews(scope) {
+    if (!scope || !scope.querySelectorAll) return;
+    scope.querySelectorAll('[data-product-field="spec_width"]').forEach(updateSpecWidthPreview);
+  }
   function addSpecRow(card) {
     var rowsWrap = card.querySelector("[data-spec-rows]");
     if (!rowsWrap) return null;
     var first = rowsWrap.querySelector("[data-spec-row]");
     if (!first) return null;
     var clone = first.cloneNode(true);
-    clone.querySelectorAll("input").forEach(function (i) {
+    // 가로(W) 칸이 textarea 라 "input" 만 잡으면 앞 행 복합 폭이 그대로 복사된다.
+    clone.querySelectorAll("input, textarea").forEach(function (i) {
       i.value = "";
+    });
+    clone.querySelectorAll("[data-spec-w-preview]").forEach(function (pv) {
+      pv.textContent = "";
+      pv.classList.remove("is-invalid");
     });
     // 규격칸도 음성 입력 대상이라 복제된 죽은 마이크를 제거하고 새 행에 재부착한다.
     clone.querySelectorAll(".foms-voice-btn").forEach(function (b) {
@@ -507,6 +560,7 @@
         if (inp) inp.value = sr[name] != null ? sr[name] : "";
       });
     });
+    refreshSpecWidthPreviews(card);
     if (window.FomsWizardAttachments) {
       window.FomsWizardAttachments.applyAttachments(card, item.attachments);
     }
@@ -832,8 +886,13 @@
     if (prodBody) {
       prodBody.innerHTML = items
         .map(function (i, idx) {
-          var spec = (i.spec_rows && i.spec_rows[0]) || {};
-          var dims = [spec.spec_width, spec.spec_depth, spec.spec_height].filter(Boolean).join(" × ");
+          // 가로가 복합 표기(5700,4512,2300)일 수 있어 행 구분자로 ","를 쓰지 않는다.
+          var dims = (i.spec_rows || [])
+            .map(function (sp) {
+              return [sp.spec_width, sp.spec_depth, sp.spec_height].filter(Boolean).join(" × ");
+            })
+            .filter(Boolean)
+            .join(" / ");
           var amt = parseAmount(i.price);
           total += amt;
           return (
@@ -891,6 +950,97 @@
         (schedule.construction_manager ? sumRow("시공담당", esc(schedule.construction_manager)) : "") +
         (schedule.notes ? sumRow("비고", esc(schedule.notes)) : "") +
         renderFlagsSummaryRow(root);
+    }
+  }
+
+  // 자동 포커스에서 뺄 input type — 값 입력 칸이 아니거나 화면에 없는 것들.
+  // 날짜·시간 계열도 뺀다: 자동 포커스가 곧바로 네이티브 피커를 열어 화면 절반을 덮는 단말이 있다
+  // (3단계 첫 칸이 실측일 type=date 다). 날짜는 사용자가 직접 탭해서 고르게 둔다.
+  var FOCUS_SKIP_TYPES = [
+    "hidden", "submit", "button", "reset", "image", "file", "checkbox", "radio",
+    "date", "time", "datetime-local", "month", "week",
+  ];
+
+  // "사용자가 지금 타이핑할 수 있는 칸" 판정. 숨김·비활성·탭 제외(tabindex=-1)·
+  // visually-hidden(크기 0) 을 모두 걸러 낸다.
+  function isFocusableField(el) {
+    if (!el || !/^(INPUT|SELECT|TEXTAREA)$/.test(el.tagName)) return false;
+    if (el.disabled || el.readOnly) return false;
+    if (el.hidden || el.closest("[hidden]")) return false;
+    if (el.getAttribute("tabindex") === "-1") return false;
+    if (el.tagName === "INPUT" && FOCUS_SKIP_TYPES.indexOf(String(el.type || "text").toLowerCase()) !== -1) {
+      return false;
+    }
+    if (!el.offsetParent) return false; // display:none 인 비활성 단계·접힌 카드
+    var rect = el.getBoundingClientRect();
+    return rect.width >= 2 && rect.height >= 2;
+  }
+
+  // 해당 단계 패널 안에서 "보이는 첫 입력 칸"을 찾는다. 칸을 하드코딩하지 않으므로
+  // 3단계(실측일)·4단계(요약 — 입력칸 없음 → null)에도 그대로 적용된다.
+  function findFirstFocusableField(root, step) {
+    var panel = root.querySelector('[data-wizard-step="' + step + '"]');
+    if (!panel) return null;
+    function scan() {
+      var found = null;
+      panel.querySelectorAll("input, select, textarea").forEach(function (el) {
+        if (!found && isFocusableField(el)) found = el;
+      });
+      return found;
+    }
+    var hit = scan();
+    if (!hit) {
+      // 2단계에서 제품 카드가 모두 접혀 있으면 보이는 칸이 하나도 없다. 첫 빈 카드를 펼치고 다시 찾는다.
+      // 카드는 **이 패널 안** 것만 편다 — findFirstEmptyProductCard 는 마법사 전체를 뒤지므로,
+      // 4단계(요약)처럼 입력칸이 없는 단계에서 2단계 카드를 몰래 펼치는 일이 생긴다.
+      var scanned = findFirstEmptyProductCard(root);
+      var card = scanned.firstEmpty || panel.querySelector("[data-product-index]");
+      if (card && panel.contains(card)) {
+        expandWizardCard(card);
+        hit = scan();
+      }
+    }
+    return hit;
+  }
+
+  /**
+   * 해당 단계의 첫 입력 칸에 커서를 둔다.
+   *
+   * iOS 사파리는 사용자 제스처(버튼 탭)가 살아 있는 동안 "동기로" 부른 focus() 에서만
+   * 소프트 키보드를 올린다. 그래서 setTimeout/await/smooth 뒤로 절대 미루지 않는다 —
+   * 미루면 캐럿만 옮겨지고 키보드가 안 뜬다. 또 setStep 으로 패널이 보이게 된 "뒤"에
+   * 불러야 한다(display:none 인 칸은 focus 가 조용히 무시된다).
+   * setStep 안에 넣지 않는 이유: 초안 복구·충돌 병합처럼 제스처가 아닌 비동기 경로에서도
+   * setStep 이 불리는데, 거기서 포커스를 뺏으면 입력 중인 칸이 튄다.
+   */
+  function focusStepFirstField(root, step) {
+    // 충돌 대화상자가 떠 있으면 뒤쪽 칸으로 포커스가 새면 안 된다(접근성).
+    var dialog = root.querySelector("#foms-wizard-conflict");
+    if (dialog && dialog.classList.contains("is-open")) return;
+    // 사용자가 이미 마법사 안 어떤 칸에 커서를 두고 있으면 덮어쓰지 않는다
+    // (초안 복구 후 돌아온 경우·자동 포커스보다 사용자의 선택이 우선).
+    var active = document.activeElement;
+    if (active && root.contains(active) && isFocusableField(active)) return;
+    var el = findFirstFocusableField(root, step);
+    if (!el) return;
+    try {
+      el.focus({ preventScroll: true }); // 화면이 튀지 않게 브라우저 기본 스크롤을 막는다
+    } catch (e) {
+      el.focus();
+    }
+    try {
+      var v = String(el.value == null ? "" : el.value);
+      el.setSelectionRange(v.length, v.length); // 기존 값이 있으면 캐럿을 끝으로
+    } catch (e2) {
+      /* type=date/select 등은 선택 영역이 없다 */
+    }
+    // 이미 보이는 칸이면 스크롤하지 않는다. 화면 밖일 때만 즉시(애니메이션 없이) 끌어온다.
+    try {
+      var r = el.getBoundingClientRect();
+      var h = window.innerHeight || document.documentElement.clientHeight;
+      if (r.top < 0 || r.bottom > h) el.scrollIntoView({ block: "center" });
+    } catch (e3) {
+      /* 구형 브라우저 무시 */
     }
   }
 
@@ -1022,6 +1172,9 @@
     window.fomsWizardDraftClient = draftClient; // 4단계 발송(wizard-send.js) 강제 flush 진입점
     draftClient.bindAutosave();
     setStep(root, currentStep);
+    // 진입 즉시 1단계 첫 칸에 커서를 둔다. iOS 사파리는 제스처 없는 문서 로드 시점에는
+    // 소프트 키보드를 올리지 않으므로 여기서 보장되는 것은 캐럿·포커스 링까지다.
+    focusStepFirstField(root, currentStep);
 
     if (window.FomsWizardAttachments) {
       window.FomsWizardAttachments.bindAll(root, draftKey, function () {
@@ -1065,6 +1218,9 @@
     if (productsContainer) {
       productsContainer.addEventListener("input", function (e) {
         var target = e.target;
+        if (target && target.matches && target.matches('[data-product-field="spec_width"]')) {
+          updateSpecWidthPreview(target);
+        }
         if (target && target.matches && target.matches('[data-product-field="price"]')) {
           recalcWizardAmounts(root);
         }
@@ -1102,6 +1258,7 @@
 
     // 규격 행 추가/삭제(위임 → 동적 카드/행 대응).
     root.querySelectorAll("[data-product-index]").forEach(updateSpecDelVisibility);
+    refreshSpecWidthPreviews(root);
     renumberProductCards(root.querySelector("#foms-wizard-products"));
     root.addEventListener("click", function (e) {
       var removeProductBtn = e.target.closest("[data-foms-product-remove]");
@@ -1137,7 +1294,7 @@
         if (card) {
           var newRow = addSpecRow(card);
           if (newRow) {
-            var f = newRow.querySelector("input");
+            var f = newRow.querySelector('[data-product-field="spec_width"]');
             if (f && f.focus) f.focus();
           }
           draftClient.scheduleSave();
@@ -1209,6 +1366,7 @@
       if (currentStep <= 1) return;
       currentStep -= 1;
       setStep(root, currentStep);
+      focusStepFirstField(root, currentStep); // 제스처 안 동기 호출(iOS 키보드 유지)
       draftClient.scheduleSave();
     });
 
@@ -1228,6 +1386,7 @@
       }
       currentStep += 1;
       setStep(root, currentStep);
+      focusStepFirstField(root, currentStep); // 제스처 안 동기 호출(iOS 키보드 유지)
       draftClient.scheduleSave();
     });
 
@@ -1239,6 +1398,7 @@
         }
         currentStep = target;
         setStep(root, currentStep);
+        focusStepFirstField(root, currentStep); // 제스처 안 동기 호출(iOS 키보드 유지)
         draftClient.scheduleSave();
       });
     });

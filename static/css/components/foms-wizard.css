@@ -177,16 +177,47 @@
   margin-bottom: 16px;
 }
 
+/* 규격 행: 가로(W)는 복합 표기(예: 5700(2402+1864+1638))를 담아야 하므로 한 줄을 통째로 쓰고,
+   깊이(D)·높이(H)·삭제는 아랫줄에 둔다. ERP 모바일 폼(foms-form-field.css #erp-items)과 같은 규칙. */
+.foms-wizard__spec-rows {
+  display: grid;
+  gap: var(--foms-space-3, 12px);
+}
+
 .foms-wizard__spec-row {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr auto;
-  gap: 8px;
-  margin-bottom: 8px;
+  /* 명시 트랙은 D·H 둘뿐이다. 삭제 버튼은 3번째(암시) 열로 밀어
+     버튼이 hidden 일 때 트랙 자체가 생기지 않게 한다(오른쪽 빈 gap 방지). */
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-auto-columns: var(--foms-touch-target-min, 48px);
+  grid-auto-flow: row;
+  gap: var(--foms-space-2, 8px);
   align-items: end;
+}
+/* 첫줄: 가로(W)가 행 전체를 차지한다. */
+.foms-wizard__spec-row > .foms-wizard__spec-cell--w {
+  grid-column: 1 / -1;
+  grid-row: 1;
+}
+/* 행을 **명시**한다. `1 / -1` 은 명시 트랙(2열)까지만 덮으므로, 삭제 버튼이 만드는
+   3번째 암시 열이 1행에 빈 칸으로 남고 자동 배치가 깊이 칸을 그 48px 자리로 빨아들인다
+   (2026-09-15 스테이징 실화면에서 깊이 칸이 마이크만 남은 채 눌려 있었다). */
+.foms-wizard__spec-row > .foms-wizard__spec-cell:not(.foms-wizard__spec-cell--w) {
+  grid-row: 2;
+}
+/* 둘째줄: 삭제 버튼은 D·H 오른쪽 끝. */
+.foms-wizard__spec-row > .foms-wizard__spec-del {
+  grid-column: 3;
+  grid-row: 2;
+}
+/* 2행 이상일 때만 행 경계를 그어 두 줄짜리 행이 섞여 보이지 않게 한다. */
+.foms-wizard__spec-row + .foms-wizard__spec-row {
+  padding-top: var(--foms-space-3, 12px);
+  border-top: 1px solid var(--foms-border-default, #dee2e6);
 }
 .foms-wizard__spec-cell {
   display: grid;
-  gap: 4px;
+  gap: var(--foms-space-1, 4px);
   min-width: 0;
 }
 .foms-wizard__spec-lbl {
@@ -194,23 +225,56 @@
   font-size: var(--foms-font-size-xs, 12px);
   color: var(--foms-text-tertiary, #6b7280);
 }
+.foms-wizard__spec-w {
+  min-height: var(--foms-touch-target-min, 48px);
+}
+/* 가로 합계 미리보기·입력 힌트 */
+.foms-wizard__spec-w-preview:empty {
+  display: none;
+}
+.foms-wizard__spec-w-preview {
+  font-size: var(--foms-font-size-xs, 12px);
+  color: var(--foms-text-tertiary, #6b7280);
+}
+.foms-wizard__spec-w-preview.is-invalid {
+  color: var(--foms-color-danger-500, #ef4444);
+}
+.foms-wizard__spec-hint {
+  margin: var(--foms-space-1, 4px) 0 0;
+  font-size: var(--foms-font-size-xs, 12px);
+  color: var(--foms-text-tertiary, #6b7280);
+}
+/* 터치 타겟 48px(--foms-touch-target-min). H 입력칸과 아랫변이 맞는다. */
 .foms-wizard__spec-del {
-  width: 36px;
-  height: 36px;
-  border: 1px solid var(--foms-border-default, #ced4da);
+  width: var(--foms-touch-target-min, 48px);
+  min-width: var(--foms-touch-target-min, 48px);
+  height: var(--foms-touch-target-min, 48px);
+  min-height: var(--foms-touch-target-min, 48px);
+  padding: 0;
+  border: 1px solid var(--foms-border-default, #dee2e6);
   background: var(--foms-surface-base, #fff);
-  color: var(--foms-color-danger-500, #dc3545);
+  color: var(--foms-color-danger-500, #ef4444);
   border-radius: var(--foms-radius-md, 8px);
   font-size: 18px;
   line-height: 1;
   cursor: pointer;
 }
+.foms-wizard__spec-del:active {
+  background: var(--foms-interactive-secondary, #f3f4f6);
+}
 .foms-wizard__spec-del[hidden] {
   display: none;
 }
 .foms-wizard__spec-add {
-  margin-top: 4px;
+  margin-top: var(--foms-space-1, 4px);
   color: var(--foms-color-brand-600, #2563eb);
+}
+/* 아주 좁은 단말에서는 삭제 버튼을 아랫줄로 내려 D·H 칸 폭을 되돌린다. */
+@media (max-width: 360px) {
+  .foms-wizard__spec-row > .foms-wizard__spec-del {
+    grid-column: 1 / -1;
+    justify-self: end;
+  }
 }
 .foms-wizard__autosize {
   resize: none;

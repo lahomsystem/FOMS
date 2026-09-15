@@ -90,3 +90,40 @@
   white-space: nowrap;
   text-overflow: ellipsis;
 }
+
+/* 행(이어쓰기 링크) + 지우기 버튼을 한 줄에 세운다. 버튼을 링크 안에 넣으면 모바일에서
+   탭이 링크로 새므로 형제로 둔다. */
+.foms-draft-resume__item {
+  display: flex;
+  align-items: stretch;
+  gap: var(--foms-space-2, 8px);
+}
+
+.foms-draft-resume__item .foms-draft-resume__row {
+  flex: 1 1 auto;
+  min-width: 0; /* 없으면 __address 의 말줄임이 죽고 시트가 가로로 삐져나온다 */
+}
+
+/* 삭제는 되돌리는 UI 가 없는 동작이라 위험색으로 분리한다. */
+.foms-draft-resume__delete {
+  flex: 0 0 auto;
+  width: 44px;
+  min-height: 44px; /* 터치 영역 기준 */
+  border: 1px solid var(--foms-border-subtle, #e5e7eb);
+  border-radius: var(--foms-radius-md, 8px);
+  background: var(--foms-surface-raised, #ffffff);
+  color: var(--foms-color-danger-600, #dc2626);
+  font-size: var(--foms-font-size-sm, 13px);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.foms-draft-resume__delete:active {
+  background: var(--foms-color-danger-50, #fef2f2);
+}
+
+.foms-draft-resume__delete[disabled],
+.foms-draft-resume__delete[aria-busy="true"] {
+  opacity: 0.5;
+  cursor: default;
+}

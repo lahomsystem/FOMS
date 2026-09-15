@@ -192,3 +192,38 @@ def test_as_schedule_equal_columns_and_no_row_class_on_dates():
     assert "erp-as-mobile-card__date--received erp-pro-order-card__row" not in card
     assert "erp-as-mobile-card__date--visit erp-pro-order-card__row" not in card
     assert "white-space: nowrap" not in css.split("erp-as-mobile-card__date-value")[1].split("}")[0]
+
+
+def test_bootstrap_input_colors_come_from_tokens_not_hardcoded_light():
+    """다크에서 입력칸 글자가 안 보이던 것(2026-09-15 운영 제보)의 회귀 방지.
+
+    `style-pro-max.css` 가 `.form-control/.form-select` 배경을 라이트 색으로 `!important`
+    고정하고 있었고, 글자색만 부트스트랩 다크 변수를 따라 밝게 뒤집혀 대비가 사라졌다.
+    승자 선언을 그대로 두고 **값만** 토큰으로 바꿨으므로(캐스케이드 순위 무변경),
+    그 토큰화가 되돌려지면 같은 증상이 조용히 재발한다. 여기서 못 박는다.
+    """
+    css = _read("static/css/foundation/style-pro-max.css")
+    inputs_block = css.split("/* Inputs */", 1)[1].split("/* Badges */", 1)[0]
+    assert "var(--foms-input-bg," in inputs_block
+    assert "var(--foms-input-bg-focus," in inputs_block
+    assert "var(--foms-input-border," in inputs_block
+    # 라이트 하드코딩이 되살아나면(토큰 없이) 다크가 다시 깨진다.
+    assert "background-color: #F2F2F7 !important" not in inputs_block
+    assert "background-color: white !important" not in inputs_block
+
+    tokens = _read("static/css/foundation/foms-tokens.css")
+    light, dark = tokens.split("[data-theme='dark']", 1)
+    for name in ("--foms-input-bg:", "--foms-input-bg-focus:", "--foms-input-border:"):
+        assert name in light, f"라이트 :root 에 {name} 가 없다"
+        assert name in dark, f"다크 블록에 {name} 가 없다"
+
+
+def test_changed_foundation_css_assets_carry_a_cache_pin():
+    """정적 CSS 를 고쳤는데 ?v= 핀이 없으면 브라우저가 옛 파일을 계속 쓴다.
+
+    `style-pro-max.css` 는 오래 핀 없이 로드돼 있었다 — 고칠 일이 생기면 그대로는 못 내보낸다.
+    """
+    head = _read("templates/partials/shared/layout_head.html")
+    for asset in ("style-pro-max.css", "foms-tokens.css"):
+        line = next(ln for ln in head.splitlines() if asset in ln and "<link" in ln)
+        assert "?v=" in line, f"{asset} 링크에 캐시 핀이 없다: {line.strip()}"

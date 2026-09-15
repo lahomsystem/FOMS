@@ -239,12 +239,20 @@
   }
 
   function buildWizardSummary(row) {
-    var specRow = row.querySelector("[data-spec-row]");
-    var parts = ["spec_width", "spec_depth", "spec_height"].map(function (field) {
-      return readValue(specRow && specRow.querySelector('[data-product-field="' + field + '"]'));
-    }).filter(Boolean);
+    // 가로(W)가 복합 표기(5700,4512,2300)일 수 있어 행 구분자로 ","를 쓰지 않고 " / " 를 쓴다.
+    var dims = Array.prototype.map
+      .call(row.querySelectorAll("[data-spec-row]"), function (specRow) {
+        return ["spec_width", "spec_depth", "spec_height"]
+          .map(function (field) {
+            return readValue(specRow.querySelector('[data-product-field="' + field + '"]'));
+          })
+          .filter(Boolean)
+          .join("×");
+      })
+      .filter(Boolean)
+      .join(" / ");
     var chunks = [];
-    if (parts.length) chunks.push(parts.join("×"));
+    if (dims) chunks.push(dims);
     var priceDisplay = formatPriceSummaryDisplay(row.querySelector('[data-product-field="price"]'));
     if (priceDisplay) chunks.push(priceDisplay);
     return chunks.join(" · ") || readValue(row.querySelector('[data-product-field="product_name"]')) || "제품명 미입력";

@@ -223,7 +223,7 @@ def test_dashboard_registers_assets_with_pins() -> None:
     page = (ROOT / "templates/orders/dashboard.html").read_text(encoding="utf-8")
     assert "css/components/foms-draft-resume.css" in page
     css_line = [line for line in page.splitlines() if "foms-draft-resume.css" in line][0]
-    assert "?v=20260911a" in css_line
+    assert "?v=20260915a" in css_line
     assert "draft_resume.js" not in page, "조각 교체 경로에서 안 도는 자리에 실렸다"
 
     # CSS 는 조각(dashboard_main.html)에도 실려야 한다. 셸은 조각 HTML 에서 <link> 를
@@ -235,14 +235,14 @@ def test_dashboard_registers_assets_with_pins() -> None:
     frag_css_line = [
         line for line in fragment.splitlines() if "foms-draft-resume.css" in line
     ][0]
-    assert "?v=20260911a" in frag_css_line, "조각과 전체 페이지의 핀이 갈렸다"
+    assert "?v=20260915a" in frag_css_line, "조각과 전체 페이지의 핀이 갈렸다"
 
     scripts = (ROOT / "templates/partials/shared/layout_scripts.html").read_text(
         encoding="utf-8"
     )
     script_line = [line for line in scripts.splitlines() if "draft_resume.js" in line][0]
     assert "defer" in script_line, "렌더 차단 스크립트 금지(perf G1)"
-    assert "?v=20260911a" in script_line
+    assert "?v=20260915a" in script_line
     assert scripts.index("erp-dashboard-entry.js") < scripts.index("draft_resume.js")
 
 
@@ -293,9 +293,16 @@ def test_resume_js_is_safe_and_silent() -> None:
     assert "foms:erp-shell-fragment-swapped" in js
     assert "foms:main-content-swapped" in js
     assert "root.fomsDraftResumeBound" in js
+    # 초안 삭제 — 행 래퍼에 키를 심고 DELETE 로 부른다(href 파싱 금지).
+    assert 'method: "DELETE"' in js
+    assert "data-draft-key" in js
+    assert "/api/erp/order-draft?" not in js, "키는 encodeURIComponent 로 붙인다"
+    assert "window.confirm(" in js, "되돌릴 수 없는 삭제에 확인이 빠졌다"
 
 
 def test_resume_css_has_touch_target() -> None:
     css = (ROOT / "static/css/components/foms-draft-resume.css").read_text(encoding="utf-8")
     assert ".foms-draft-resume__bar" in css
     assert css.count("min-height: 44px") >= 2, "터치 영역 기준(44px)이 빠졌다"
+    assert ".foms-draft-resume__delete" in css, "지우기 버튼 스타일이 CSS 파일에 없다"
+    assert ".foms-draft-resume__item" in css
