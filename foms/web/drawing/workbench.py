@@ -441,6 +441,14 @@ def erp_drawing_workbench_dashboard():
     # (수령확정 직후 주문이 도면 작업실에서 통째로 사라지는 증상의 정체).
     if status_filter == 'CONFIRMED':
         include_confirmed = True
+    # 검색어를 넣으면 수령확정 건도 찾는다. 검색은 모집단 **안에서만** 돈다
+    # (아래 행 필터 `q in (r['search_hay'])`). 수령확정 주문은 기본 모집단 밖이라
+    # 고객 이름을 정확히 쳐도 결과가 0 이었다 — 2026-09-15 주문 5177(임인경):
+    # 전날 수령확정을 한 뒤 `?q=임인경` 으로 찾을 수 없었고, `include_confirmed=1` 을
+    # 손으로 붙이면 나왔다. 위 status 결합과 같은 축이다: 노이즈를 줄이려는 기본값이
+    # 사용자가 명시한 조회 의도(검색어)보다 앞서면 안 된다.
+    if q:
+        include_confirmed = True
     assignee_filter_raw = (request.args.get('assignee') or '').strip()
     assignee_filter = assignee_filter_raw.lower()
     sort_by = (request.args.get('sort') or '').strip().lower()
