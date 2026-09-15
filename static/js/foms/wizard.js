@@ -1048,45 +1048,91 @@
   }
 
   /**
-   * 진입 자동 포커스가 iOS 에서 먹지 않았을 때의 대비책.
+   * 진입 자동 포커스만으로는 아이폰에서 키보드가 안 올라온다 — 첫 탭을 빌린다.
    *
-   * 아이폰 사파리는 **사용자 활성화(제스처) 없이는** 입력 칸에 포커스를 주지 않는다.
-   * 마법사는 `?open=erp-order&wizard=1` 로 **새 문서를 여는 일반 이동**이라 진입 시점에
-   * 제스처가 없다(FAB 을 탭한 활성화는 이전 문서에 속한다). 그래서 안드로이드에서는
-   * 커서가 놓이는데 아이폰에서는 아무 일도 안 일어난다(2026-09-15 사용자 제보).
+   * 아이폰 사파리는 **사용자 활성화(제스처) 없이 부른 focus() 로는 소프트 키보드를 올리지
+   * 않는다.** 마법사는 `?open=erp-order&wizard=1` 로 **새 문서를 여는 일반 이동**이라 진입
+   * 시점에 제스처가 없다(FAB 을 탭한 활성화는 이전 문서에 속한다).
    *
-   * 그 경우에만, 사용자의 **첫 탭**을 빌려 첫 칸에 커서를 놓는다. 제스처 안에서 동기로
-   * 부르므로 키보드까지 올라온다. 탭이 이미 다른 조작(입력 칸·버튼·링크)을 겨눴다면
-   * 그 의도가 우선이라 아무것도 하지 않고 물러난다.
+   * 2026-09-15 1차 시도는 `document.activeElement` 로 "포커스가 먹었는지"를 보고 안 먹었을
+   * 때만 대비책을 걸었는데, **그게 틀렸다.** 아이폰은 포커스를 주기는 준다 — 키보드만 안
+   * 띄운다. 그래서 대비책이 아예 안 걸렸고 사용자에게는 여전히 아무 일도 없었다.
+   * 그래서 지금은 **조건 없이** 걸고, 첫 탭 안에서 blur→focus 로 키보드를 끌어올린다
+   * (이미 포커스된 칸에 focus() 를 다시 부르면 아무 일도 안 일어나므로 blur 가 필요하다).
+   *
+   * 끼어들지 말아야 할 때는 물러난다: 탭이 다른 칸·버튼·링크를 겨눴을 때, 손가락이 움직인
+   * 스크롤일 때, 사용자가 스스로 다른 칸에 커서를 놓았을 때.
    *
    * @param {HTMLElement} root 마법사 루트.
    * @param {number} step 현재 단계.
    * @returns {void}
    */
-  function armFirstTapFocus(root, step) {
+  function armEntryKeyboard(root, step) {
+    var target = findFirstFocusableField(root, step);
+    if (!target) return;
     var done = false;
+    var sx = 0;
+    var sy = 0;
+    var moved = false;
+
     function disarm() {
       if (done) return;
       done = true;
-      root.removeEventListener("touchend", onTap, true);
-      root.removeEventListener("mouseup", onTap, true);
-      root.removeEventListener("focusin", disarm, true);
+      document.removeEventListener("touchstart", onStart, true);
+      document.removeEventListener("touchmove", onMove, true);
+      document.removeEventListener("touchend", onEnd, true);
+      document.removeEventListener("click", onEnd, true);
+      document.removeEventListener("focusin", onFocusIn, true);
     }
-    function onTap(ev) {
+    function point(ev) {
+      var t = ev.touches && ev.touches.length ? ev.touches[0] : ev.changedTouches && ev.changedTouches.length ? ev.changedTouches[0] : ev;
+      return { x: t.clientX || 0, y: t.clientY || 0 };
+    }
+    function onStart(ev) {
+      var p = point(ev);
+      sx = p.x;
+      sy = p.y;
+      moved = false;
+    }
+    function onMove(ev) {
+      var p = point(ev);
+      if (Math.abs(p.x - sx) > 10 || Math.abs(p.y - sy) > 10) moved = true;
+    }
+    function onEnd(ev) {
       if (done) return;
+      // 스크롤이었다. 기회를 쓰지 않고 다음 탭을 기다린다.
+      if (moved) {
+        moved = false;
+        return;
+      }
       var t = ev.target;
-      // 사용자가 무언가를 직접 겨눴으면 그 의도가 우선이다.
-      if (t && t.closest && t.closest("input, select, textarea, button, a, label, [role='button']")) {
+      if (t && t.closest && t.closest("input, select, textarea, button, a, label, [role='button'], [contenteditable]")) {
         disarm();
         return;
       }
       disarm();
-      focusStepFirstField(root, step);
+      // 이미 포커스돼 있으면 focus() 가 무시된다 — 키보드를 올리려면 한 번 놓았다 잡는다.
+      try {
+        if (document.activeElement === target) target.blur();
+      } catch (e) {
+        /* 무시 */
+      }
+      try {
+        target.focus({ preventScroll: true });
+      } catch (e2) {
+        target.focus();
+      }
     }
-    root.addEventListener("touchend", onTap, true);
-    root.addEventListener("mouseup", onTap, true);
-    // 사용자가 스스로 어딘가에 커서를 놓았으면 더는 끼어들지 않는다.
-    root.addEventListener("focusin", disarm, true);
+    function onFocusIn(ev) {
+      // 사용자가 스스로 다른 칸에 커서를 놓았으면 더는 끼어들지 않는다.
+      if (ev.target !== target) disarm();
+    }
+
+    document.addEventListener("touchstart", onStart, true);
+    document.addEventListener("touchmove", onMove, true);
+    document.addEventListener("touchend", onEnd, true);
+    document.addEventListener("click", onEnd, true);
+    document.addEventListener("focusin", onFocusIn, true);
   }
 
   function setStep(root, step) {
@@ -1220,9 +1266,10 @@
     // 진입 즉시 1단계 첫 칸에 커서를 둔다.
     // 안드로이드 크롬은 여기서 커서가 놓인다. **아이폰 사파리는 제스처가 없으면 포커스
     // 자체를 안 준다** — 그때만 첫 탭을 빌리는 대비책을 건다(사용자 제보 2026-09-15).
-    if (!focusStepFirstField(root, currentStep)) {
-      armFirstTapFocus(root, currentStep);
-    }
+    focusStepFirstField(root, currentStep);
+    // 아이폰은 위 focus() 로 커서만 놓고 키보드는 안 올린다 — 조건 없이 첫 탭을 예약한다.
+    // (안드로이드는 이미 키보드가 떠 있고, 사용자가 다른 칸을 겨누면 예약이 스스로 풀린다.)
+    armEntryKeyboard(root, currentStep);
 
     if (window.FomsWizardAttachments) {
       window.FomsWizardAttachments.bindAll(root, draftKey, function () {
