@@ -223,7 +223,10 @@ def test_dashboard_registers_assets_with_pins() -> None:
     page = (ROOT / "templates/orders/dashboard.html").read_text(encoding="utf-8")
     assert "css/components/foms-draft-resume.css" in page
     css_line = [line for line in page.splitlines() if "foms-draft-resume.css" in line][0]
-    assert "?v=20260915a" in css_line
+    # 핀 값을 리터럴로 못 박지 않는다 — 정당한 상향마다 이 테스트가 깨지고, 그러면
+    # 사람이 값만 고쳐 초록을 만들게 되어 계약이 형해화된다. 지켜야 할 것은 두 가지다:
+    # 핀이 **있을 것**, 그리고 전체 페이지와 조각이 **같은 값**일 것(아래).
+    assert "?v=" in css_line, "캐시 핀이 없으면 고쳐도 옛 CSS 를 쥔다"
     assert "draft_resume.js" not in page, "조각 교체 경로에서 안 도는 자리에 실렸다"
 
     # CSS 는 조각(dashboard_main.html)에도 실려야 한다. 셸은 조각 HTML 에서 <link> 를
@@ -235,14 +238,16 @@ def test_dashboard_registers_assets_with_pins() -> None:
     frag_css_line = [
         line for line in fragment.splitlines() if "foms-draft-resume.css" in line
     ][0]
-    assert "?v=20260915a" in frag_css_line, "조각과 전체 페이지의 핀이 갈렸다"
+    assert "?v=" in frag_css_line
+    _pin = lambda line: line.split("?v=", 1)[1].split('"', 1)[0]
+    assert _pin(frag_css_line) == _pin(css_line), "조각과 전체 페이지의 핀이 갈렸다"
 
     scripts = (ROOT / "templates/partials/shared/layout_scripts.html").read_text(
         encoding="utf-8"
     )
     script_line = [line for line in scripts.splitlines() if "draft_resume.js" in line][0]
     assert "defer" in script_line, "렌더 차단 스크립트 금지(perf G1)"
-    assert "?v=20260915a" in script_line
+    assert "?v=" in script_line, "캐시 핀이 없으면 고쳐도 옛 JS 를 쥔다"
     assert scripts.index("erp-dashboard-entry.js") < scripts.index("draft_resume.js")
 
 
