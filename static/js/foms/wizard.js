@@ -1067,9 +1067,73 @@
    * @param {number} step 현재 단계.
    * @returns {void}
    */
+  /**
+   * 아이폰 자판 진단 패널. 주소에 `?kbdebug=1` 이 있을 때만 켜진다.
+   *
+   * 원격에서 아이폰 사파리의 포커스·자판 거동을 두 번 잘못 짚었다(2026-09-15). 추측을
+   * 한 번 더 하는 대신, 기기에서 무슨 일이 일어났는지 화면에 찍어서 받기로 했다.
+   * 자판이 실제로 올라왔는지는 `visualViewport` 높이가 줄었는지로 판정한다 —
+   * 자판 표시 여부를 직접 물어보는 API 는 없다.
+   *
+   * @returns {{log: function(string): void, vv: function(): number}|null} 꺼져 있으면 null.
+   */
+  function createKeyboardDebug() {
+    var on = false;
+    try {
+      on = String(window.location.search || "").indexOf("kbdebug=1") !== -1;
+    } catch (e) {
+      on = false;
+    }
+    if (!on) return null;
+    var panel = document.createElement("div");
+    panel.className = "foms-wizard__kbdebug";
+    panel.setAttribute("aria-hidden", "true");
+    document.body.appendChild(panel);
+    var n = 0;
+    function vv() {
+      try {
+        return Math.round((window.visualViewport && window.visualViewport.height) || window.innerHeight || 0);
+      } catch (e2) {
+        return 0;
+      }
+    }
+    function log(msg) {
+      n += 1;
+      panel.appendChild(document.createTextNode(n + ") " + msg + "  [vv=" + vv() + "]" + String.fromCharCode(10)));
+      panel.scrollTop = panel.scrollHeight;
+    }
+    return { log: log, vv: vv };
+  }
+
+  /**
+   * 요소를 진단 로그에 적기 좋은 짧은 이름으로 만든다.
+   * @param {Element|null} el 대상.
+   * @returns {string}
+   */
+  function describeEl(el) {
+    if (!el) return "(없음)";
+    if (!el.tagName) return String(el);
+    var name = el.tagName.toLowerCase();
+    if (el.id) name += "#" + el.id;
+    var cls = String(el.className || "");
+    if (cls && cls.split) name += "." + cls.split(/\s+/).slice(0, 2).join(".");
+    return name;
+  }
+
   function armEntryKeyboard(root, step) {
+    var dbg = createKeyboardDebug();
     var target = findFirstFocusableField(root, step);
-    if (!target) return;
+    if (!target) {
+      if (dbg) dbg.log("arm 실패 — 첫 입력 칸을 못 찾았다");
+      return;
+    }
+    if (dbg) {
+      dbg.log(
+        "arm target=" + describeEl(target) +
+        " 진입포커스=" + (document.activeElement === target ? "먹음" : "안먹음") +
+        " active=" + describeEl(document.activeElement)
+      );
+    }
     var done = false;
     var sx = 0;
     var sy = 0;
@@ -1093,20 +1157,29 @@
       sx = p.x;
       sy = p.y;
       moved = false;
+      if (dbg) dbg.log("touchstart tgt=" + describeEl(ev.target));
     }
     function onMove(ev) {
       var p = point(ev);
       if (Math.abs(p.x - sx) > 10 || Math.abs(p.y - sy) > 10) moved = true;
     }
     function onEnd(ev) {
-      if (done) return;
+      if (done) {
+        if (dbg) dbg.log(ev.type + " — 이미 해제됨(무시)");
+        return;
+      }
       // 스크롤이었다. 기회를 쓰지 않고 다음 탭을 기다린다.
       if (moved) {
+        if (dbg) dbg.log(ev.type + " — 스크롤로 보고 건너뜀");
         moved = false;
         return;
       }
       var t = ev.target;
-      if (t && t.closest && t.closest("input, select, textarea, button, a, label, [role='button'], [contenteditable]")) {
+      var hit = t && t.closest
+        ? t.closest("input, select, textarea, button, a, label, [role='button'], [contenteditable]")
+        : null;
+      if (dbg) dbg.log(ev.type + " tgt=" + describeEl(t) + " 가로챔=" + describeEl(hit));
+      if (hit) {
         disarm();
         return;
       }
@@ -1122,10 +1195,21 @@
       } catch (e2) {
         target.focus();
       }
+      if (dbg) {
+        var before = dbg.vv();
+        dbg.log("blur+focus 실행 → active=" + describeEl(document.activeElement));
+        setTimeout(function () {
+          var after = dbg.vv();
+          dbg.log("0.7초 뒤 판정: 자판=" + (before - after > 100 ? "올라옴" : "안 올라옴") + " (전 " + before + " → 후 " + after + ")");
+        }, 700);
+      }
     }
     function onFocusIn(ev) {
       // 사용자가 스스로 다른 칸에 커서를 놓았으면 더는 끼어들지 않는다.
-      if (ev.target !== target) disarm();
+      if (ev.target !== target) {
+        if (dbg) dbg.log("focusin " + describeEl(ev.target) + " → 예약 해제");
+        disarm();
+      }
     }
 
     document.addEventListener("touchstart", onStart, true);

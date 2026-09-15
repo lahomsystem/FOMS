@@ -47,7 +47,7 @@ def test_first_tap_yields_to_a_deliberate_tap_and_to_scrolling() -> None:
     block = src.split("function armEntryKeyboard(", 1)[1]
     assert "input, select, textarea, button, a, label" in block
     assert "if (moved)" in block, "손가락이 움직인 스크롤에 키보드가 튀어나오면 안 된다"
-    assert "if (ev.target !== target) disarm();" in block, (
+    assert "if (ev.target !== target) {" in block, (
         "사용자가 스스로 다른 칸에 커서를 놓았는데도 예약이 살아 있으면 다음 탭에서 칸이 튄다"
     )
 
@@ -81,3 +81,19 @@ def test_date_pickers_stay_out_of_auto_focus() -> None:
     block = src.split("FOCUS_SKIP_TYPES = [", 1)[1].split("]", 1)[0]
     for t in ("date", "time", "datetime-local", "month", "week"):
         assert f'"{t}"' in block
+
+
+def test_keyboard_debug_panel_is_off_unless_the_url_asks_for_it() -> None:
+    """진단 패널은 `?kbdebug=1` 없이는 절대 안 뜬다.
+
+    운영에 함께 나가는 코드라, 게이트가 풀리면 모든 사용자 화면 아래에 검은 로그 판이
+    깔린다. 켜는 조건과 끄는 기본값을 여기서 못 박는다.
+    """
+    src = _src()
+    block = src.split("function createKeyboardDebug(", 1)[1].split("\n  }\n", 1)[0]
+    assert 'indexOf("kbdebug=1") !== -1' in block
+    assert "if (!on) return null;" in block, "기본값이 꺼짐이 아니면 운영 화면에 로그판이 뜬다"
+    # 패널 생성은 그 판정 뒤에만 있어야 한다.
+    before_gate, after_gate = block.split("if (!on) return null;", 1)
+    assert "createElement" not in before_gate
+    assert "createElement" in after_gate
