@@ -97,3 +97,26 @@ def test_keyboard_debug_panel_is_off_unless_the_url_asks_for_it() -> None:
     before_gate, after_gate = block.split("if (!on) return null;", 1)
     assert "createElement" not in before_gate
     assert "createElement" in after_gate
+
+
+def test_tapping_the_already_focused_field_still_raises_the_keyboard() -> None:
+    """그 칸 자신을 겨눈 탭에는 물러나면 안 된다.
+
+    진입 시 커서를 미리 놓기 때문에 사파리 눈에는 포커스 변화가 없어 자판이 안 올라온다.
+    실사용에서 가장 흔한 탭이 하필 이 경우다(2026-09-15 기기 로그로 확인).
+    """
+    src = _src()
+    block = src.split("function armEntryKeyboard(", 1)[1]
+    assert "if (hit && hit !== target) {" in block, (
+        "그 칸 자신을 겨눈 탭까지 물러나면 사용자가 칸을 눌러도 자판이 안 뜬다"
+    )
+
+
+def test_keyboard_rescue_only_fires_while_the_keyboard_is_down() -> None:
+    """입력 중(자판이 올라온 상태)에 blur→focus 를 하면 캐럿이 튄다."""
+    src = _src()
+    assert "function bindKeyboardRescue(" in src
+    block = src.split("function bindKeyboardRescue(", 1)[1].split("\n  }\n", 1)[0]
+    assert "if (base - h > 100) return;" in block, "자판이 올라와 있으면 건드리지 않아야 한다"
+    assert "if (document.activeElement !== field) return;" in block
+    assert "if (!vp) return;" in block, "판정 수단이 없으면 아예 개입하지 않는다"

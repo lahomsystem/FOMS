@@ -1179,7 +1179,10 @@
         ? t.closest("input, select, textarea, button, a, label, [role='button'], [contenteditable]")
         : null;
       if (dbg) dbg.log(ev.type + " tgt=" + describeEl(t) + " 가로챔=" + describeEl(hit));
-      if (hit) {
+      // 겨눈 것이 **그 칸 자신**이면 물러나면 안 된다. 진입 시 이미 포커스를 줘 놨기 때문에
+      // 사파리 눈에는 포커스 변화가 없어 자판을 안 올린다 — 실사용에서 가장 흔한 탭이
+      // 하필 이 경우다(2026-09-15 기기 로그로 확인). 아래 blur→focus 로 같이 끌어올린다.
+      if (hit && hit !== target) {
         disarm();
         return;
       }
@@ -1217,6 +1220,49 @@
     document.addEventListener("touchend", onEnd, true);
     document.addEventListener("click", onEnd, true);
     document.addEventListener("focusin", onFocusIn, true);
+    bindKeyboardRescue(target, dbg);
+  }
+
+  /**
+   * 포커스는 있는데 자판만 내려가 있을 때, 그 칸을 다시 탭하면 자판을 올려 준다.
+   *
+   * 사파리는 **이미 포커스된** 요소를 탭해도 포커스 변화가 없으니 자판을 올리지 않는다.
+   * 마법사는 진입 시 커서를 미리 놓기 때문에 사용자의 첫 탭이 딱 이 경우가 된다.
+   * `armEntryKeyboard` 의 첫 탭 예약은 한 번 쓰면 풀리므로, 그 뒤로도 계속 살아 있는
+   * 구조가 따로 필요하다.
+   *
+   * **자판이 내려가 있을 때만** 개입한다 — 입력 중(자판이 올라온 상태)에 blur→focus 를
+   * 하면 캐럿이 튄다. 판정은 `visualViewport` 높이다(자판 표시 여부를 묻는 API 는 없다).
+   *
+   * @param {HTMLElement} field 대상 입력 칸.
+   * @param {{log: function(string): void}|null} dbg 진단 패널(없으면 null).
+   * @returns {void}
+   */
+  function bindKeyboardRescue(field, dbg) {
+    var vp = window.visualViewport;
+    if (!vp) return; // 판정 수단이 없으면 아예 건드리지 않는다.
+    var base = Math.round(vp.height || 0);
+    vp.addEventListener("resize", function () {
+      // 자판이 내려가 화면이 도로 커지면 그때 높이를 기준으로 삼는다.
+      var h = Math.round(vp.height || 0);
+      if (h > base) base = h;
+    });
+    field.addEventListener("touchend", function () {
+      if (document.activeElement !== field) return; // 포커스가 없으면 사파리가 알아서 올린다.
+      var h = Math.round(vp.height || 0);
+      if (base - h > 100) return; // 이미 올라와 있다 — 입력 중이니 건드리지 않는다.
+      if (dbg) dbg.log("칸 재탭: 자판이 내려가 있어 다시 잡는다");
+      try {
+        field.blur();
+      } catch (e) {
+        /* 무시 */
+      }
+      try {
+        field.focus({ preventScroll: true });
+      } catch (e2) {
+        field.focus();
+      }
+    });
   }
 
   function setStep(root, step) {
