@@ -83,6 +83,33 @@ def test_live_option_text_names_the_erp_field_for_each_chip():
     ]
 
 
+def test_a_qualified_key_still_finds_its_field(app=None):
+    """★ 수식어가 붙은 키도 칸을 찾는다 — 운영 #5321 하반 침대붙박이장.
+
+    옵션 원문이 ``"제품: 하반 침대 붙박이장 30cm / 붙박이장 색상: 클린 화이트"`` 인데
+    키가 ``색상`` 이 아니라 ``붙박이장 색상`` 이라 정확 일치가 빗나갔다. 칩에 칸이 안
+    붙으니 `전부 넣기` 가 **아무 말 없이** 색상만 건너뛰었다. 상품마다 키에 수식어가
+    붙을 수 있으므로 매핑표를 늘리는 대신 **마지막 낱말**로 해석한다.
+    """
+    assert _pairs("제품: 하반 침대 붙박이장 30cm / 붙박이장 색상: 클린 화이트") == [
+        ("하반 침대 붙박이장", "product_name"),
+        ("클린 화이트", "color"),
+    ]
+    assert _pairs("도어 손잡이: 블랙") == [("블랙", "handle")]
+    assert _pairs("본체 컬러: 포그 그레이") == [("포그 그레이", "color")]
+
+
+def test_a_qualified_key_does_not_swallow_unrelated_words():
+    """★ 음성 대조군 — 마지막 낱말만 본다. 포함 검색이면 아래가 색상 칸으로 잘못 간다."""
+    assert _pairs("색상표: 참고 바랍니다") == [("참고 바랍니다", "")]
+    assert _pairs("색상 선택: 나중에") == [("나중에", "")]
+
+
+def test_a_key_with_a_trailing_paren_still_finds_its_field():
+    """괄호 설명이 붙은 키(``색상（도어）``)도 같은 칸으로 간다."""
+    assert _pairs("색상（도어）: 클린 화이트") == [("클린 화이트", "color")]
+
+
 def test_color_key_variants_all_point_at_the_color_field():
     """``컬러``·``색상`` 은 **둘 다** 운영에서 온다 — 하나만 매핑하면 절반이 복사 전용이 된다.
 
