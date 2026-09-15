@@ -197,10 +197,18 @@
 /* 첫줄: 가로(W)가 행 전체를 차지한다. */
 .foms-wizard__spec-row > .foms-wizard__spec-cell--w {
   grid-column: 1 / -1;
+  grid-row: 1;
+}
+/* 행을 **명시**한다. `1 / -1` 은 명시 트랙(2열)까지만 덮으므로, 삭제 버튼이 만드는
+   3번째 암시 열이 1행에 빈 칸으로 남고 자동 배치가 깊이 칸을 그 48px 자리로 빨아들인다
+   (2026-09-15 스테이징 실화면에서 깊이 칸이 마이크만 남은 채 눌려 있었다). */
+.foms-wizard__spec-row > .foms-wizard__spec-cell:not(.foms-wizard__spec-cell--w) {
+  grid-row: 2;
 }
 /* 둘째줄: 삭제 버튼은 D·H 오른쪽 끝. */
 .foms-wizard__spec-row > .foms-wizard__spec-del {
   grid-column: 3;
+  grid-row: 2;
 }
 /* 2행 이상일 때만 행 경계를 그어 두 줄짜리 행이 섞여 보이지 않게 한다. */
 .foms-wizard__spec-row + .foms-wizard__spec-row {
