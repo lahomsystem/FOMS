@@ -23,6 +23,7 @@ import pytest
 from werkzeug.security import generate_password_hash
 
 from db import db_session
+from foms.services.datetime_kst import now_utc_naive
 from models import DomainSideEffectOutbox, Order, OrderEvent, User
 
 _PATH = "/admin/alimtalk-failures"
@@ -56,8 +57,16 @@ def _order(name: str = "임다슬", phone: str = "010-2473-6730") -> Order:
 
 
 def _event(order_id: int, event_type: str, payload: dict) -> OrderEvent:
+    """실패 이벤트 1건. created_at 은 **지금 기준 상대 시각**이어야 한다.
+
+    라우트는 ``since = now_utc_naive() - timedelta(days=_DEFAULT_DAYS)``(기본 14일)로
+    자르는 상대 창을 쓴다. 여기에 고정 날짜를 박으면 달력이 그 날짜를 지나치는 순간
+    이벤트가 창 밖으로 밀려나 목록이 비고, **코드를 아무도 안 고쳤는데** 테스트가
+    빨개진다. 2026-09-15 에 실제로 그렇게 깨졌다 — 고정값 2026-09-01 01:00 이
+    since(2026-09-01 02:00)보다 1시간 일렀다.
+    """
     event = OrderEvent(order_id=order_id, event_type=event_type, payload=payload,
-                       created_at=datetime.datetime(2026, 9, 1, 1, 0, 0))
+                       created_at=now_utc_naive() - datetime.timedelta(days=1))
     db_session.add(event)
     db_session.commit()
     return event
