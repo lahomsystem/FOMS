@@ -83,3 +83,17 @@ def test_script_and_style_are_registered_with_cache_pins() -> None:
     assert "font-size: 16px" in css.split(".foms-quickstart__input", 1)[1][:400], (
         "16px 미만이면 사파리가 포커스 때 화면을 확대한다"
     )
+
+
+def test_script_is_loaded_outside_the_erp_path_gate() -> None:
+    """＋ 버튼은 /erp/ 밖 화면(실측·도면·생산·CS)에도 있다.
+
+    `/erp/` 조건 안에 두면 그 화면들에서 시트가 아예 안 뜬다(2026-09-15 스테이징에서
+    실제로 그랬다).
+    """
+    scripts = _read(LAYOUT_SCRIPTS)
+    head, tail = scripts.split("js/foms/wizard-quickstart.js", 1)
+    gate = "{% if request.path.startswith('/erp/') %}"
+    assert gate not in head.rsplit("{% endif %}", 1)[-1], (
+        "스크립트가 /erp/ 경로 조건 안에 있다 — 다른 대시보드의 ＋ 에서 안 걸린다"
+    )

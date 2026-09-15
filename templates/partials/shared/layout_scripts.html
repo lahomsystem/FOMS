@@ -1780,6 +1780,10 @@
     {# nav 수집 뱃지 숫자는 렌더 뒤에 채운다 — 서버에서 세면 워크벤치 코호트 콜드에
        약 400ms 가 첫 화면 앞에 붙는다(2026-09-11 실측). #}
     <script src="{{ url_for('static', filename='js/foms/foms-nav-triage-badge.js') }}?v=20260911a" defer></script>
+    {# 아이폰 전용 빠른 시작 시트 — ＋ 탭 제스처 안에서 고객명 칸을 열어 자판을 올린다.
+       ＋ 버튼이 /erp/ 밖 화면(실측·도면·생산·CS 대시보드)에도 있어 로그인 공통으로 싣는다.
+       안드로이드에서는 스크립트가 아무것도 만들지 않는다(iOS 판별 후 즉시 반환). #}
+    <script src="{{ url_for('static', filename='js/foms/wizard-quickstart.js') }}?v=20260915b" defer></script>
     {% endif %}
     {% if request.path.startswith('/erp/') %}
     <script src="{{ url_for('static', filename='js/foms/erp-mine-only.js') }}" defer></script>
@@ -1787,7 +1791,5 @@
     <script src="{{ url_for('static', filename='js/runtime/erp-shell.js') }}?v=20260724a" defer></script>
     <script src="{{ url_for('static', filename='js/orders/erp-dashboard-entry.js') }}?v=20260909a" defer></script>
     <script src="{{ url_for('static', filename='js/foms/draft_resume.js') }}?v=20260915a" defer></script>
-    {# 아이폰 전용 빠른 시작 시트 — ＋ 탭 제스처 안에서 고객명 칸을 열어 자판을 올린다. #}
-    <script src="{{ url_for('static', filename='js/foms/wizard-quickstart.js') }}?v=20260915a" defer></script>
     {% endif %}
 {{ mark('shell_scripts') }}
