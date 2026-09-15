@@ -219,6 +219,72 @@ def test_confirmed_status_filter_pulls_confirmed_into_population(client):
     )
 
 
+def test_search_pulls_confirmed_into_population(client):
+    """검색어를 넣으면 수령확정 주문도 찾는다(컨펌 포함 토글을 손으로 켜지 않아도).
+
+    운영 증상(2026-09-15, 주문 5177 임인경): 영업이 전날 수령확정을 하자
+    ``?q=임인경`` 으로 아무리 찾아도 0건이었고, ``&include_confirmed=1`` 을 손으로
+    붙여야 나왔다. 검색은 모집단 **안에서만** 도는 행 필터
+    (``rows = [r for r in rows if q in r['search_hay']]``)인데 수령확정 주문은 기본
+    모집단(단계 ∪ RETURNED) 밖이기 때문이다. 화면 문구는 '전체 검색'인데 실제로는
+    '기본 목록 안 검색'이었다.
+
+    바로 위 ``status=CONFIRMED`` 결합과 같은 축이다 — 노이즈를 줄이려는 기본값이
+    사용자가 명시한 조회 의도보다 앞서면 안 된다.
+    """
+    _login_admin(client)
+    confirmed_id = _seed_order(
+        63, stage="CONFIRM", created_at=_OLD, drawing_status="CONFIRMED"
+    )
+    db_session.commit()
+
+    resp = client.get(
+        "/erp/drawing-workbench?view=fragment&q=%EA%B3%A0%EA%B0%9D63",
+        headers={"X-FOMS-ERP-SHELL": "1"},
+    )
+
+    assert resp.status_code == 200
+    assert _detail_link(confirmed_id) in resp.get_data(as_text=True), (
+        "검색어로 수령확정 주문을 못 찾는다 — 검색이 기본 모집단 안에서만 돈다"
+    )
+
+
+def test_search_still_excludes_non_matching_confirmed(client):
+    """검색이 모집단을 넓히되, 검색어와 안 맞는 컨펌 주문까지 끌어오지는 않는다."""
+    _login_admin(client)
+    wanted = _seed_order(64, stage="CONFIRM", created_at=_OLD, drawing_status="CONFIRMED")
+    other = _seed_order(65, stage="CONFIRM", created_at=_OLD, drawing_status="CONFIRMED")
+    db_session.commit()
+
+    resp = client.get(
+        "/erp/drawing-workbench?view=fragment&q=%EA%B3%A0%EA%B0%9D64",
+        headers={"X-FOMS-ERP-SHELL": "1"},
+    )
+
+    body = resp.get_data(as_text=True)
+    assert _detail_link(wanted) in body
+    assert _detail_link(other) not in body, "검색어와 무관한 컨펌 주문까지 노출됐다"
+
+
+def test_blank_search_keeps_confirmed_out_of_default_list(client):
+    """검색어가 없으면 기본 목록은 그대로 컨펌 주문을 제외한다(노이즈 방지 유지)."""
+    _login_admin(client)
+    confirmed_id = _seed_order(
+        66, stage="CONFIRM", created_at=_OLD, drawing_status="CONFIRMED"
+    )
+    db_session.commit()
+
+    # 빈 q 파라미터가 붙어도(폼 왕복) 모집단이 넓어지면 안 된다.
+    resp = client.get(
+        "/erp/drawing-workbench?view=fragment&q=&assignee=",
+        headers={"X-FOMS-ERP-SHELL": "1"},
+    )
+
+    assert _detail_link(confirmed_id) not in resp.get_data(as_text=True), (
+        "빈 검색어가 컨펌 주문을 기본 목록에 끌어들였다"
+    )
+
+
 def test_confirmed_tile_count_survives_default_population(client):
     """기본 목록(컨펌 제외)에서도 '완료' 타일 숫자는 실제 컨펌 건수를 보여준다."""
     _login_admin(client)
