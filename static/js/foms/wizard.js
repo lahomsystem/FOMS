@@ -451,16 +451,23 @@
     var pv = row && row.querySelector("[data-spec-w-preview]");
     if (!pv) return;
     var raw = String(inputEl.value || "").trim();
-    var compound = /[+,()]/.test(raw);
-    if (!raw || !compound || typeof window.evalSpecWidthMm !== "function") {
+    if (!raw || typeof window.evalSpecWidthMm !== "function") {
       pv.textContent = "";
       pv.classList.remove("is-invalid");
       return;
     }
     var mm = Math.round(window.evalSpecWidthMm(raw));
     if (!mm) {
+      // 숫자를 하나도 못 읽었다. 칸이 자유 입력이 되면서 `57OO`(알파벳 O) 같은 오타가
+      // 조용히 0mm 으로 저장될 수 있게 됐다 — 가로는 출고 W/300 계산에 쓰이므로 말해 준다.
       pv.textContent = "가로 표기를 확인하세요";
       pv.classList.add("is-invalid");
+      return;
+    }
+    // 단일 숫자는 굳이 합계를 되풀이하지 않는다(화면 소음). 복합 표기일 때만 총합을 보인다.
+    if (!/[+,()]/.test(raw)) {
+      pv.textContent = "";
+      pv.classList.remove("is-invalid");
       return;
     }
     pv.textContent = "총 " + mm.toLocaleString("ko-KR") + "mm";
