@@ -2153,7 +2153,7 @@ def test_strict_canonical_scripts_taxonomy() -> None:
 
 
 def test_strict_canonical_tools_taxonomy() -> None:
-    """§2.2.1: tools/ contains harness/, ops/, smoke/, research_center/, designer/, cron/, design/ (+ README).
+    """§2.2.1: tools/ contains harness/, ops/, smoke/, designer/, cron/, design/ (+ README).
 
     designer/ added (PG-B2/PG-B5+): fixture management CLI tools for FOMS Brain.
     cron/ added: Railway scheduled job entrypoints (e.g. cleanup_order_drafts).
@@ -2168,7 +2168,6 @@ def test_strict_canonical_tools_taxonomy() -> None:
         "harness",
         "ops",
         "smoke",
-        "research_center",
         "designer",
         "cron",
         "design",
