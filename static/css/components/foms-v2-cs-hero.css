@@ -15,6 +15,10 @@
   border-left: 4px solid var(--foms-color-brand-500);
   border-radius: var(--foms-radius-lg);
   box-shadow: var(--foms-shadow-sm);
+  /* 모바일 홈 본문은 grid 라 아이템 기본 min-width:auto 가 내용 폭 아래로 못 줄어든다.
+     이어쓰기 띠(foms-draft-resume)·실측 히어로와 같은 수축 계약을 건다. */
+  min-width: 0;
+  max-width: 100%;
 }
 
 .foms-v2h-hero.is-danger {
@@ -49,12 +53,22 @@
   font-weight: var(--foms-font-weight-bold);
   color: var(--foms-text-primary);
   line-height: 1.25;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
+/* 실측 모바일 히어로(foms-v2dh-hero__title + foms-hero-spec)와 같은 배치:
+   이름·채널 마크는 한 줄, 제품명은 자기 줄에서 접힌다. 이름 옆에 붙이면 긴 제품명이
+   baseline 줄을 밀어 글자가 카드 밖으로 넘친다(2026-09-17 제보). */
 .foms-v2h-hero__subtitle {
+  flex-basis: 100%;
+  min-width: 0;
   font-size: var(--foms-font-size-sm);
   font-weight: var(--foms-font-weight-medium);
   color: var(--foms-text-secondary);
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .foms-v2h-hero__meta {
@@ -80,9 +94,11 @@
 
 .foms-v2h-hero__meta dd {
   margin: 0;
+  min-width: 0;
   font-size: var(--foms-font-size-sm);
   font-weight: var(--foms-font-weight-semibold);
   color: var(--foms-text-primary);
+  overflow-wrap: anywhere;
 }
 
 .foms-v2h-hero__actions {

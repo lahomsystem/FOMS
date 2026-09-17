@@ -56,11 +56,11 @@ __all__ = [
     "mobile_amount_summary",
 ]
 
-_MEASUREMENT_PRIORITY_STAGE_CODES = frozenset(
-    {"RECEIVED", "HAPPYCALL", "MEASURE", "DRAWING", "CONFIRM"}
-)
+# 실측이 끝난 단계(도면·컨펌)부터는 지난 실측일보다 앞으로 올 시공일이 카드에 유용하다
+# (2026-09-17 사용자 결정: 컨펌·도면 둘 다 시공일 우선). 실측일은 시공일이 없을 때만 대체.
+_MEASUREMENT_PRIORITY_STAGE_CODES = frozenset({"RECEIVED", "HAPPYCALL", "MEASURE"})
 _CONSTRUCTION_PRIORITY_STAGE_CODES = frozenset(
-    {"PRODUCTION", "CONSTRUCTION", "CONSTRUCTING", "SHIPMENT"}
+    {"DRAWING", "CONFIRM", "PRODUCTION", "CONSTRUCTION", "CONSTRUCTING", "SHIPMENT"}
 )
 
 _MOBILE_ATTACHMENT_CATEGORY_ORDER: tuple[tuple[str, str], ...] = (
@@ -587,7 +587,8 @@ def resolve_queue_card_schedule(
     """
     Pick one schedule row for mobile v2 queue cards (SSOT).
 
-    Production/construction stages prefer 시공일; measure/confirm prefer 실측일.
+    Drawing/confirm/production/construction stages prefer 시공일; receive/measure
+    stages prefer 실측일.
     Falls back to whichever date exists. Matches legacy v1 card intent with
     Korean sub-stage labels (시공대기, 제작대기).
     """
