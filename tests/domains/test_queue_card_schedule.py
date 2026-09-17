@@ -73,6 +73,26 @@ def test_sub_stage_prefix_overrides_conflicting_stage_code() -> None:
     assert schedule == {"label": "시공", "value": "2026-06-25"}
 
 
+def test_confirm_and_drawing_prefer_construction_date() -> None:
+    """실측이 끝난 도면·컨펌 단계는 지난 실측일이 아니라 다가올 시공일을 보여 준다 (2026-09-17)."""
+    for code in ("DRAWING", "CONFIRM"):
+        schedule = resolve_queue_card_schedule(
+            stage_code=code,
+            measurement_date="2026-09-08",
+            construction_date="2026-09-20",
+        )
+        assert schedule == {"label": "시공", "value": "2026-09-20"}, code
+
+
+def test_confirm_without_construction_date_falls_back_to_measurement() -> None:
+    schedule = resolve_queue_card_schedule(
+        stage_code="CONFIRM",
+        measurement_date="2026-09-08",
+        construction_date=None,
+    )
+    assert schedule == {"label": "실측", "value": "2026-09-08"}
+
+
 def test_format_queue_card_schedule_summary() -> None:
     text = format_queue_card_schedule_summary({"label": "시공", "value": "2026-06-20"})
     assert text == "시공 2026-06-20"
