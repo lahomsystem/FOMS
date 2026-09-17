@@ -101,15 +101,23 @@
   overflow-wrap: anywhere;
 }
 
+/* 버튼 글자는 두 줄로 접지 않는다. 카드가 좁으면(2026-09-17 운영 제보: ~290px 카드에서
+   '지금 통화'·'결과 기록' 이 두 줄로 꺾임) 버튼째 다음 줄로 내린다. */
 .foms-v2h-hero__actions {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--foms-space-2);
 }
 
+.foms-v2h-hero__actions > .foms-btn {
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+
 /* 히어로 CTA는 foms-btn 기반(48px 터치) + 히어로 전용 액센트 오버레이 */
-.foms-v2h-hero__cta {
+.foms-v2h-hero__actions > .foms-v2h-hero__cta {
   flex: 1 1 auto;
-  min-width: 0;
+  min-width: max-content;
 }
 
 .foms-v2h-hero__cta--danger {
