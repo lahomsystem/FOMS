@@ -15,10 +15,11 @@
         autocomplete="off"
         enterkeyhint="search"
         hx-get="{{ url_for('foms_search.api_foms_search_fragment') }}"
-        hx-trigger="input changed delay:200ms, search"
+        hx-trigger="input changed delay:200ms"
         hx-target="#foms-search-results"
         hx-include="#foms-search-group"
-        hx-indicator="#foms-search-spinner" />
+        hx-indicator="#foms-search-spinner"
+        data-search-history-url="{{ url_for('erp_history.history_dashboard') }}" />
       <input type="hidden" id="foms-search-group" name="group" value="all" />
     </div>
     <button class="foms-search-overlay__icon-btn" type="button" data-foms-search-clear aria-label="지우기">

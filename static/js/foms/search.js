@@ -8,6 +8,7 @@
   var RECENT_KEY = 'foms.search.recent.v1';
   var RECENT_MAX = 5;
   var activeIndex = -1;
+  var historyNavigationStarted = false;
 
   function getDialog() {
     return document.getElementById('foms-search-overlay');
@@ -100,6 +101,7 @@
     }
     renderRecent();
     setResultsVisible(false);
+    historyNavigationStarted = false;
     var input = getInput();
     if (input) {
       input.value = '';
@@ -157,6 +159,30 @@
     }
     setResultsVisible(false);
     activeIndex = -1;
+  }
+
+  function buildHistorySearchHref(input) {
+    var base = input.getAttribute('data-search-history-url') || '/erp/history/';
+    var url = new URL(base, window.location.origin);
+    url.searchParams.set('q', input.value.trim());
+    url.searchParams.set('from_search', '1');
+    return url.pathname + url.search;
+  }
+
+  function isAllSearchGroup() {
+    var groupInput = getGroupInput();
+    return !groupInput || groupInput.value === 'all';
+  }
+
+  function navigateToHistorySearch(input) {
+    if (historyNavigationStarted || !input.value.trim()) {
+      return;
+    }
+    historyNavigationStarted = true;
+    var historyHref = buildHistorySearchHref(input);
+    pushRecent(input.value);
+    closeDialog();
+    window.location.assign(historyHref);
   }
 
   function navigateToResult(link) {
@@ -289,6 +315,16 @@
     activeIndex = -1;
   });
 
+  document.addEventListener('search', function (event) {
+    if (!event.target || event.target.id !== 'foms-search-input') {
+      return;
+    }
+    if (isAllSearchGroup() && event.target.value.trim()) {
+      event.preventDefault();
+      navigateToHistorySearch(event.target);
+    }
+  });
+
   document.addEventListener('keydown', function (event) {
     if (!event.target || event.target.id !== 'foms-search-input') {
       return;
@@ -298,18 +334,13 @@
       return;
     }
     var links = resultLinks();
-    if (event.key === 'Enter' && !links.length && input.value.trim()) {
-      var resultsRoot = getResultsRoot();
-      var historyFallback = resultsRoot
-        ? resultsRoot.querySelector('[data-search-history-fallback]')
-        : null;
-      if (historyFallback) {
-        event.preventDefault();
-        pushRecent(input.value);
-        closeDialog();
-        window.location.assign(historyFallback.getAttribute('href') || '/erp/history/');
-        return;
-      }
+    if (event.key === 'Enter' && (event.isComposing || event.keyCode === 229)) {
+      return;
+    }
+    if (event.key === 'Enter' && activeIndex < 0 && isAllSearchGroup() && input.value.trim()) {
+      event.preventDefault();
+      navigateToHistorySearch(input);
+      return;
     }
     if (!links.length) {
       return;

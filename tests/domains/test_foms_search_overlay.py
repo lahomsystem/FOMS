@@ -1,5 +1,7 @@
 """P1-02: unified search service + overlay wiring."""
 
+import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -29,6 +31,7 @@ def test_search_overlay_template_contract() -> None:
     assert 'id="foms-search-overlay"' in overlay
     assert "hx-trigger" in overlay
     assert "delay:200ms" in overlay
+    assert 'hx-trigger="input changed delay:200ms"' in overlay
     assert "data-foms-search-open" not in overlay
     header = (ROOT / "templates/partials/shared/erp_mobile_shell_header.html").read_text(
         encoding="utf-8"
@@ -61,6 +64,29 @@ def test_search_assets_imported() -> None:
     assert "bypassCache: true" in shell_branch
     assert shell_branch.index("navigateByShell") < shell_branch.index("window.location.assign(href)")
     assert "mobile-queue-focus.js" in app_shell
+
+
+def test_mobile_search_enter_uses_full_history_fallback() -> None:
+    """모바일 일반 Enter와 IME search 이벤트가 전기간 이력 검색을 실행한다."""
+    overlay = (ROOT / "templates/partials/shared/foms_search_overlay.html").read_text(
+        encoding="utf-8"
+    )
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("node is required for the mobile search event contract")
+
+    assert "data-search-history-url" in overlay
+    runner = ROOT / "tests/support/foms_search_enter_contract_node_checks.js"
+    search_js = ROOT / "static/js/foms/search.js"
+    proc = subprocess.run(
+        [node, str(runner), str(search_js)],
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    assert proc.returncode == 0, proc.stderr or proc.stdout
+    assert "FOMS_SEARCH_ENTER_OK" in proc.stdout
 
 
 def test_mobile_queue_focus_prefers_visible_candidate() -> None:
