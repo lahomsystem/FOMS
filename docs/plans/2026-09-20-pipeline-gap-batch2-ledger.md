@@ -61,6 +61,16 @@
 
 인벤토리 4종(writer·state·failopen·감사 커버리지) 재생성 후 `--check` exit 0, 파일 크기 래칫 신규 초과 0(`erp_orders_draftsman.py` 499/500).
 
+## 5b. 스테이징 실서버 확인 (2026-09-20, deploy `7e687d378` 배포 뒤, claude_master)
+
+- 실측 보드(`/metropolitan_dashboard`)에 새 완료 버튼 마크업(`data-complete-endpoint`) 렌더 확인.
+- 우회로 차단: `POST /api/update_order_field {status: COMPLETED}` 를 실측 단계 주문(#4382)에 보내자 **409 `USE_CS_COMPLETE`**,
+  문구 "아직 실측 단계라 완료할 수 없습니다. 시공까지 끝내면 CS 단계에서 완료할 수 있습니다. 주문 상세의 퀘스트 칸에서 다음 단계를 진행하세요."
+- 모바일 v2·v3 생산 화면 둘 다 `startProduction`·`completeProduction`·`productionRework`·`productionCancel`·`productionUncomplete` 마크업 존재.
+- 모바일 v2·v3 시공 화면 둘 다 `startConstruction`·`cwork-fail`(시공 불가) 존재, v2 에는 공용 사유 시트(`foms-reason-sheet`)도 실린다.
+- CS 배지는 스테이징에 CS 단계 주문이 0건이라 실화면 대조를 못 했다 — 코드(`stage_badge_label` 의 `"CS": "CS"`)와 단위 테스트로만 확인.
+- 쓰기는 위 409 요청 하나뿐이고 상태 변화 없음. 시드·계정 생성 없음, 운영 접속 없음.
+
 ## 6. 운영 영향(승격 전 고지 필요)
 
 - **실측 3보드 [완료] 버튼이 CS 단계가 아닌 주문에서 막힌다.** 그 경로로 바로 완료하던 업무는 시공 완료 → CS 승인 → 완료 2단계를 밟아야 한다. 화면이 막힌 이유와 "승인하러 가기" 링크를 보여 준다.
