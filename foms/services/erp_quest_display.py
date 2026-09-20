@@ -351,30 +351,19 @@ def _compute_can_assignee_approve(
                 getattr(current_user, "team", None), required_teams):
             return False
 
+    # 실측·고객컨펌(SALES_DOMAIN)은 서버 게이트가 **팀 capability 만** 본다 — 담당자 지정·이름
+    # 일치는 요구하지 않는다(quest_approve_authz.authorize_quest_approve). 그런데 화면은 여기서
+    # 담당자/이름 일치까지 요구해 담당자 칸이 비었거나 다른 이름인 주문은 모바일에서 버튼이
+    # 안 뜨고 PC 로 가야 했다(2026-09-20 스테이징 페르소나 검수 P1). 서버와 같은 답을 낸다.
+    if domain == "SALES_DOMAIN":
+        return True
+
     can_assignee = can_modify_domain(current_user, order, domain, False, None)
     if can_assignee:
         return True
 
-    if domain != "SALES_DOMAIN":
-        return False
+    return False
 
-    assignments = sd.get("assignments") or {}
-    user_ids = assignments.get("sales_assignee_user_ids") or []
-    user_ids = [int(uid) for uid in user_ids if isinstance(uid, (int, str)) and str(uid).isdigit()]
-    if user_ids:
-        return False
-
-    manager_names: set[str] = set()
-    for src in [
-        manager_display_name(sd.get("parties")),
-        getattr(order, "manager_name", None),
-        current_quest.get("owner_person"),
-    ]:
-        if str(src or "").strip():
-            manager_names.add(str(src).strip().lower())
-    un = (getattr(current_user, "name", None) or "").strip().lower()
-    uu = (getattr(current_user, "username", None) or "").strip().lower()
-    return un in manager_names or uu in manager_names
 
 
 def build_current_quest_payload(
