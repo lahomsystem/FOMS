@@ -64,6 +64,19 @@ PC 에서 실측 완료를 눌렀는데 도면으로 안 넘어간다(주문 이
 
 인벤토리 3종(writer·state·failopen) 재생성 후 `--check` exit 0. `tests/visual` 전체(로컬 Playwright 레인)는 실패 19건이 base `a89243fee` 에서도 동일 — 이 배치와 무관한 로컬 베이스라인 드리프트이고 CI 는 그 레인을 제외한다.
 
+## 5b. 스테이징 실서버 확인 (2026-09-20, deploy `e992e07a0` 배포 뒤, claude_master)
+
+- 자산 핀 `20260920b` 5곳 반영 확인(옛 핀 0).
+- #4382(이영아) PC 그리드: 완료 배지 옆 **[도면 단계로 넘기기]** 렌더, 확인 문구 "이미 완료된 실측 완료 입니다. / 도면 단계로 다시 넘길까요? / 이영아 / #4382".
+- 그 버튼과 같은 요청(`POST /api/orders/4382/quest/approve {}`) → **200** `auto_transitioned true`·`next_stage "도면"`, stage MEASURE→DRAWING.
+  승인 기록은 **불변**(`approved_by 58`·`approved_at 2026-09-14T05:39:39`·`completed_at` 그대로), 새 `QUEST_APPROVAL_CHANGED` 없음,
+  전이 이벤트 `MEASUREMENT_COMPLETED` reason "실측 재전이(완료 quest, 강제 단계 변경 뒤)" 1건.
+- C2 확인: 같은 주문을 `POST /workflow/stage-override {to_stage: MEASURE, confirm: true, reason: …}` 으로 되돌리자
+  quest 가 **OPEN 으로 재개**(`assignee_approval` 비움, `reopened_by_override` 표식), STAGE_OVERRIDE payload 에 `quest_reopened: "MEASURE"`.
+  타임라인 라벨도 "기타 변경" → **"단계 강제 변경"**(C7).
+- 스테이징 잔여 3건(#2921 권미리·#3338 ERP Order·#3610 박상건)은 전부 완료 배지 옆 [도면 단계로 넘기기] 가 보인다 — 막다른 길 0.
+- #4382 는 검증 뒤 실측·OPEN(정상 진행 상태)로 남겼다. 시드·계정 생성 없음, 운영 접속 없음.
+
 ## 6. 잔여 위험·다음 배치
 
 - **팀 alias 함정(기존)**: ACCOUNTING(CS alias) STAFF 가 팀 승인을 하면 슬롯이 `ACCOUNTING` 으로 기록돼 required `CS` 가 미승인으로 남는다(`quest.py` `effective_team`). 화면은 버튼을 그리고 서버는 200 인데 종결이 안 된다 — 다음 배치에서 `요청 team ∈ actor capability` 로.
