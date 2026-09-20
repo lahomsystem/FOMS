@@ -148,6 +148,15 @@
 .fos-queue-card__meta .addr{color:var(--fos-tx2)}
 .fos-queue-card__aside{flex:0 0 auto; display:flex; align-items:center; gap:8px; align-self:center}
 .fos-chevron{color:var(--fos-tx2)}
+
+/* 큐 카드 + 액션 줄 묶음 (C-D2) — 카드 통짜 링크(<a>) 안에 버튼을 넣지 않으려고
+   카드를 이 래퍼로 감싸고 액션 줄을 <a> 의 형제로 둔다. 래퍼가 .fos-sec 의
+   flex 자식이 되므로 카드 사이 간격(gap:10px)은 그대로 유지된다. */
+.fos-queue-item{display:flex; flex-direction:column; gap:8px}
+.fos-queue-actions{display:flex; gap:8px; flex-wrap:wrap; padding:0 2px}
+.fos-queue-actions > .fos-btn{flex:1 1 auto; min-width:96px}
+/* 카드 아래 액션 줄은 손가락이 닿을 만큼만 작게 — 카드 자체보다 눈에 덜 띄게 한다. */
+.fos-btn--sm{min-height:40px; padding:8px 12px; font-size:13.5px; border-radius:10px}
 /* 원탭 콜 버튼 */
 .fos-callbtn{
   width:52px; height:52px; border-radius:14px; border:0; cursor:pointer;

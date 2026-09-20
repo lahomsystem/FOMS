@@ -225,6 +225,57 @@ def _grid_html(client, user, stage_label: str) -> str:
     return resp.get_data(as_text=True)
 
 
+def _db_order_with_assignee_quest(stage_code: str, customer_name: str, required: list[str]):
+    """담당자 모드 quest 를 실은 주문 1건(승인 팀은 인자로 고정).
+
+    structured_data 규약대로 새 dict 를 만들어 통째로 넣는다(생성 직후라 deepcopy 불필요).
+    """
+    from db import db_session
+
+    order = _db_order(stage_code, customer_name)
+    order.structured_data = {
+        "workflow": {"stage": stage_code},
+        "quests": [{
+            "stage": stage_code,
+            "title": f"{stage_code} quest",
+            "status": "OPEN",
+            "approval_mode": "assignee",
+            "required_approvals": list(required),
+            "assignee_approval": {"approved": False},
+        }],
+    }
+    db_session.commit()
+    return order
+
+
+def test_대조군_수정권한만_있고_담당자_승인권한이_없으면_승인_버튼이_없다(client):
+    """PC 그리드 — can_edit_erp=True·can_assignee_approve=False 는 버튼 0 + '(승인 권한 없음)'.
+
+    승인 팀이 생산팀인 담당자 quest 는 CS 팀이 눌러도 서버가 403 을 준다. 예전 술어
+    (``can_edit_erp or can_assignee_approve``)는 이 사람에게 버튼을 그려 줬다.
+    """
+    user = _db_user("grid_assignee_cs", role="STAFF", team="CS")
+    order = _db_order_with_assignee_quest("CONFIRM", "담당자 승인 음성", ["PRODUCTION"])
+    order_id = order.id
+
+    html = _grid_html(client, user, "고객컨펌")
+    assert f"quest-collapse-{order_id}" in html
+    assert html.count("erp-btn-approve-assignee") == 0
+    assert "(승인 권한 없음)" in html
+
+
+def test_대조군_담당자_승인권한만_있으면_수정권한이_없어도_승인_버튼이_있다(client):
+    """PC 그리드 — can_edit_erp=False·can_assignee_approve=True 는 버튼 1개(막다른 길 0)."""
+    user = _db_user("grid_assignee_prod", role="STAFF", team="PRODUCTION")
+    order = _db_order_with_assignee_quest("CONFIRM", "담당자 승인 양성", ["PRODUCTION"])
+    order_id = order.id
+
+    html = _grid_html(client, user, "고객컨펌")
+    assert f"quest-collapse-{order_id}" in html
+    assert html.count("erp-btn-approve-assignee") == 1
+    assert "(승인 권한 없음)" not in html
+
+
 def test_pc_grid_says_board_not_permission_for_synthesized_production_quest(client):
     """PC 그리드 — 생산 합성 quest 는 ADMIN 에게도 '(승인 권한 없음)' 이 아니라 '(보드에서 진행)' 을 보인다."""
     user = _db_user("grid_synth_admin", role="ADMIN", team="SALES")

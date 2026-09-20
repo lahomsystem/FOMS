@@ -19,6 +19,10 @@ from db import get_db
 from foms.services.as_content_safety import load_structured_data_dict_or_raise
 from foms.services.erp_order_flags import is_erp_order_record
 from foms.services.orders.state_axes import as_overlay_outranks_status_write
+from foms.services.orders.complete_path_policy import (
+    rejects_completed_field_write,
+    use_cs_complete_response_body,
+)
 from foms.services.erp_permissions import can_edit_erp
 from foms.services.erp_display import _normalize_date_to_yyyymmdd
 from foms.services.erp_sync_columns import sync_erp_flat_columns
@@ -508,6 +512,15 @@ def update_order_field_response(
             order, "status", getattr(order, "status", None),
             getattr(order, "structured_data", None) or {},
         ))
+
+    # C-B2: 메인 파이프라인 ERP 주문의 최종 완료는 cs/complete 한 길만 쓴다. 이 우회로는
+    # CS quest·보류·AS 게이트를 통째로 건너뛰고 workflow.stage 까지 COMPLETED 로 덮었다.
+    # 다른 축은 막지 않는다 — 술어가 value == 'COMPLETED' 에서 먼저 끊기므로 출고 보드
+    # (SCHEDULED·MEASURED·SHIPPED_PENDING)·AS 축 저장은 그대로 지나간다. 비ERP 주문,
+    # 삭제 축, stage 판독 불가, 이미 완료도 기존 동작을 유지한다.
+    # 403 이 아니라 409 다 — 권한 문제가 아니라 경로·상태 충돌이다.
+    if field == "status" and rejects_completed_field_write(order, value):
+        return jsonify(use_cs_complete_response_body(order, user)), 409
 
     try:
         if field == "construction_type":

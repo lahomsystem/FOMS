@@ -2,9 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import re
 from typing import TYPE_CHECKING
+
+from foms.services import datetime_kst
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from werkzeug.wrappers import Request
@@ -19,6 +24,7 @@ __all__ = [
     "is_naver_settle_sync_enabled",
     "is_naver_workbench_enabled",
     "is_shell_v3_eligible",
+    "note_shell_v3_view",
     "prefers_mobile_wizard_client",
     "resolve_shell_variant",
     "resolve_shell_variant_cached",
@@ -285,6 +291,81 @@ def resolve_shell_variant(
     if _read_shell_pref_cookie(request) == "v2":
         return "v2"
     return "v3"
+
+
+# v3 셸 진입 관측(C-D2 g): (user_id, KST 날짜, surface) 당 하루 1행만 남기기 위한
+# 프로세스 내 메모 집합. 워커가 여러 개면 워커마다 1행이 날 수 있지만, 목적이
+# "v3 를 실제로 쓰는 사람이 있는가" 라 그 정도 중복은 감수한다(비용 0 에 가깝게 유지).
+_SHELL_V3_VIEW_SEEN: set[tuple[int, str, str]] = set()
+_SHELL_V3_VIEW_SEEN_CAP = 5000
+
+
+def note_shell_v3_view(user_id: int | None, surface: str) -> bool:
+    """v3 셸 진입을 하루 1회 SecurityLog 에 남긴다(코호트 관측).
+
+    v3 코호트가 실제로 몇 명인지 앱에서 알 방법이 없어 생긴 관측 구멍을 메운다.
+    같은 사용자·같은 KST 날짜·같은 surface 면 프로세스가 사는 동안 한 번만 기록한다.
+    날짜는 ``date.today()``(UTC 경계)가 아니라 KST 헬퍼로 구한다 — CI(UTC)에서만
+    밤에 갈라지는 날짜 버그를 막기 위해서다.
+
+    쓰기는 **요청 세션이 아니라 엔진에서 연 짧은 별도 세션**에서 한다. 요청 세션에
+    ``commit()`` 을 걸면 그 요청이 아직 쓰는 중인 다른 변경까지 함께 확정돼, 관측 한 줄이
+    화면의 트랜잭션 경계를 바꿔 버린다.
+
+    화면을 깨뜨리면 안 되는 부가 기능이라 어떤 예외도 삼키고 ``False`` 를 돌려준다.
+    실패한 키는 메모 집합에서 빼 다음 요청이 다시 시도하게 한다(관측 구멍 최소화).
+
+    Args:
+        user_id: 현재 사용자 id(미인증 시 None → 기록하지 않는다).
+        surface: 진입 화면 이름(``"production"``·``"construction"`` 등).
+
+    Returns:
+        이번 호출이 새 감사 행을 남겼으면 True.
+    """
+    if not user_id:
+        return False
+    surface_key = (surface or "").strip() or "unknown"
+    session = None
+    key = None
+    try:
+        key = (int(user_id), datetime_kst.get_today_kst().isoformat(), surface_key)
+        if key in _SHELL_V3_VIEW_SEEN:
+            return False
+        # 메모 집합이 무한히 자라지 않게 상한에서 비운다(날짜가 바뀌면 키도 바뀐다).
+        if len(_SHELL_V3_VIEW_SEEN) >= _SHELL_V3_VIEW_SEEN_CAP:
+            _SHELL_V3_VIEW_SEEN.clear()
+        _SHELL_V3_VIEW_SEEN.add(key)
+
+        from sqlalchemy.orm import Session
+
+        from db import engine
+        from models import SecurityLog
+
+        session = Session(bind=engine)
+        session.add(
+            SecurityLog(
+                user_id=int(user_id),
+                message=f"[SHELL_V3] {surface_key} 진입",
+            )
+        )
+        session.commit()
+        return True
+    except Exception:  # noqa: BLE001 - 관측 실패가 페이지를 깨뜨리면 안 된다
+        logger.warning("[SHELL_V3] 진입 관측 기록 실패 (surface=%s)", surface_key, exc_info=True)
+        try:
+            if session is not None:
+                session.rollback()
+        except Exception:  # noqa: BLE001
+            pass  # failopen: intentional: 관측 전용 세션 rollback best-effort
+        if key is not None:
+            _SHELL_V3_VIEW_SEEN.discard(key)
+        return False
+    finally:
+        try:
+            if session is not None:
+                session.close()
+        except Exception:  # noqa: BLE001
+            pass  # failopen: intentional: 관측 전용 세션 close best-effort
 
 
 def is_shell_v3_eligible(user_id: int | None) -> bool:

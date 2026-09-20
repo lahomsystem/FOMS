@@ -80,6 +80,24 @@ COMMAND_REGISTRY.setdefault(
     ),
 )
 
+# 시공 불가(재작업) = main CONSTRUCTION→사유별 이전 단계. 사유별 command 를 쪼개지 않고
+# to_values 다중 1개로 둔다 — 캐시 무효화 family 는 엔진이 실제 before/after 로 만들고,
+# policy_id 를 기존 문자열 그대로 써야 영수증·멱등 이력이 끊기지 않는다. site_issue 는
+# CONSTRUCTION→CONSTRUCTION 자기 전이라 expected_from 과 target 이 같다(정상).
+COMMAND_REGISTRY.setdefault(
+    "CONSTRUCTION_REWORK",
+    TransitionCommand(
+        command_id="CONSTRUCTION_REWORK",
+        policy_id=_POLICY_CONSTRUCTION_REWORK,
+        axis=AXIS_MAIN,
+        from_values=("CONSTRUCTION",),
+        to_values=("DRAWING", "MEASURE", "PRODUCTION", "CONSTRUCTION"),
+        event_type="CONSTRUCTION_REWORKED",
+        effect_type="STAGE_NOTIFICATION",
+        extra_families=(),
+    ),
+)
+
 
 # --------------------------------------------------------------------------- #
 # REV-00 조립 헬퍼(idempotency/scope/receipt) — STATE-PROD-01 관례 복제(파일 로컬)
@@ -329,8 +347,8 @@ def api_construction_complete(order_id):
     """시공 완료 — 현재 attempt IN_PROGRESS→READY + main CONSTRUCTION→CS(direct COMPLETED 금지).
 
     시공중 stage 에서만 완료할 수 있고, 목표는 항상 CS 다(최종 COMPLETED 는 CS 단계
-    ``cs/complete`` 의 quest+AS gate 소관). ``FOMS_CONSTRUCTION_GATE_ENABLED`` 가 켜지면 live
-    evidence(after≥2·signature) 요건을 강제한다(기본 off = 요건 미강제). 전이는 STATE-CORE
+    ``cs/complete`` 의 quest+AS gate 소관). live evidence(after≥2·signature) 요건은 **기본 on**
+    이다 — 끄려면 ``FOMS_CONSTRUCTION_GATE_ENABLED`` 를 명시적으로 false 로 둔다. 전이는 STATE-CORE
     transition_order 로 원자 실행하고, 전이 후 same-tx 로 current attempt 를 READY 로 봉인한다.
     """
     db = get_db()
@@ -343,7 +361,7 @@ def api_construction_complete(order_id):
         ):
             return jsonify({"success": False, "message": "Order not found"}), 404
 
-        if env_bool("FOMS_CONSTRUCTION_GATE_ENABLED", default=False):
+        if env_bool("FOMS_CONSTRUCTION_GATE_ENABLED", default=True):
             missing = _evidence_gate_missing(order)
             if missing:
                 return (
@@ -480,6 +498,68 @@ def api_construction_evidence(order_id):
         return jsonify({"success": False, "error": str(exc)}), 500
 
 
+def _apply_fail_side_effects(db: Any, order: Order, user: Any, user_id: Any, reason: str,
+                             detail: str, reschedule_date: Any) -> Optional[int]:
+    """CONSTRUCTION_REWORK 전이 후 same-tx 부수효과(단계·status 는 절대 쓰지 않는다).
+
+    현재 attempt 를 REWORKED 로 봉인하고, 시공 불가 이력·workflow 이력·재예약을 남긴다.
+    main stage 는 전이 엔진이 소유하므로 여기서는 읽기만 한다(이중 쓰기 0).
+
+    :param reason: 사유 코드(``drawing_error`` 등).
+    :param detail: 사유 상세(자유 문장).
+    :param reschedule_date: 재예약 시공일(없으면 None).
+    :returns: 봉인한 attempt id(열린 attempt 가 없으면 None).
+    """
+    now = now_utc_naive()
+    new_stage = _REWORK_STAGE_MAP.get(reason, "CONSTRUCTION")
+    sd = copy.deepcopy(_ensure_dict(order.structured_data))
+
+    # 현재(열린) attempt 만 REWORKED 로 봉인 — 과거 terminal attempt 는 손대지 않는다.
+    attempt = _current_attempt(db, order.id)
+    attempt_id = None
+    if attempt is not None:
+        attempt.evidence = _live_evidence(sd)
+        attempt.status = "REWORKED"
+        attempt.is_current = False
+        attempt.fail_reason = reason
+        attempt.fail_detail = detail
+        attempt_id = attempt.id
+
+    fail_info = sd.get("construction_fail_history") or []
+    fail_info.append({
+        "id": len(fail_info) + 1, "failed_at": now.isoformat(),
+        "failed_by": user.name if user else "Unknown", "reason": reason,
+        "detail": detail, "reschedule_date": reschedule_date, "previous_stage": "CONSTRUCTION",
+    })
+    sd["construction_fail_history"] = fail_info
+
+    wf = sd.get("workflow") or {}
+    wf["stage_updated_by"] = user.name if user else "Unknown"
+    wf["rework_reason"] = reason
+    hist = wf.get("history") or []
+    hist.append({
+        "stage": new_stage, "updated_at": wf.get("stage_updated_at") or now.isoformat(),
+        "updated_by": wf["stage_updated_by"],
+        "note": f"시공 불가 → {_REWORK_LABELS.get(reason, reason)}: {detail}",
+    })
+    wf["history"] = hist
+    sd["workflow"] = wf
+
+    if reschedule_date:
+        schedule = sd.get("schedule") or {}
+        construction = schedule.get("construction") or {}
+        construction["date"] = reschedule_date
+        construction["rescheduled"] = True
+        construction["reschedule_reason"] = reason
+        schedule["construction"] = construction
+        sd["schedule"] = schedule
+
+    order.structured_data = sd
+    flag_modified(order, "structured_data")
+    sync_erp_flat_columns(order, sd)
+    return attempt_id
+
+
 _REWORK_STAGE_MAP = {
     "drawing_error": "DRAWING",
     "measurement_error": "MEASURE",
@@ -503,8 +583,9 @@ def api_construction_fail(order_id):
     현재 attempt 를 ``REWORKED``(``is_current=False``·terminal)로 봉인하고 live evidence 를 그
     attempt 스냅샷으로 남긴다. 과거 attempt 는 immutable(is_current attempt 만 write 대상)이므로
     재작업은 override 가 아니라 다음 시공 시작이 **새 attempt 를 append** 한다. main stage 는 사유
-    (drawing/measurement/product/site)별 이전 단계로 되돌린다. version/receipt/event 는 REV-00
-    execute_order_mutation 이 원자 보장한다.
+    (drawing/measurement/product/site)별 이전 단계로 되돌리며, 그 전이는 STATE-CORE
+    :func:`transition_order` 한 경로만 탄다(``execute_order_mutation`` 중첩 금지 — 이중 영수증·
+    이중 버전 방지). 시공중이 아니면 엔진이 단계 충돌 409(``INVALID_STAGE``)를 돌려준다.
     """
     db = get_db()
     try:
@@ -525,86 +606,40 @@ def api_construction_fail(order_id):
 
         user_id = session.get("user_id")
         user = get_user_by_id(user_id)
-        captured: dict[str, Any] = {}
 
-        def _mutate(sess: Any, orders: list[Order]) -> dict[int, list[str]]:
-            o = orders[0]
-            now = now_utc_naive()
-            sd = copy.deepcopy(_ensure_dict(o.structured_data))
-
-            # 현재(열린) attempt 만 REWORKED 로 봉인 — 과거 terminal attempt 는 손대지 않는다.
-            attempt = _current_attempt(sess, o.id)
-            if attempt is not None:
-                attempt.evidence = _live_evidence(sd)
-                attempt.status = "REWORKED"
-                attempt.is_current = False
-                attempt.fail_reason = reason
-                attempt.fail_detail = detail
-                captured["attempt_id"] = attempt.id
-
-            fail_info = sd.get("construction_fail_history") or []
-            fail_info.append({
-                "id": len(fail_info) + 1, "failed_at": now.isoformat(),
-                "failed_by": user.name if user else "Unknown", "reason": reason,
-                "detail": detail, "reschedule_date": reschedule_date, "previous_stage": "CONSTRUCTION",
-            })
-            sd["construction_fail_history"] = fail_info
-
-            wf = sd.get("workflow") or {}
-            wf["stage"] = new_stage
-            wf["stage_updated_at"] = now.isoformat()
-            wf["stage_updated_by"] = user.name if user else "Unknown"
-            wf["rework_reason"] = reason
-            hist = wf.get("history") or []
-            hist.append({
-                "stage": new_stage, "updated_at": wf["stage_updated_at"],
-                "updated_by": wf["stage_updated_by"],
-                "note": f"시공 불가 → {_REWORK_LABELS.get(reason, reason)}: {detail}",
-            })
-            wf["history"] = hist
-            sd["workflow"] = wf
-
-            if reschedule_date:
-                schedule = sd.get("schedule") or {}
-                construction = schedule.get("construction") or {}
-                construction["date"] = reschedule_date
-                construction["rescheduled"] = True
-                construction["reschedule_reason"] = reason
-                schedule["construction"] = construction
-                sd["schedule"] = schedule
-
-            o.structured_data = sd
-            flag_modified(o, "structured_data")
-            sync_erp_flat_columns(o, sd)
-            o.status = new_stage
-            sess.add(OrderEvent(
-                order_id=o.id, event_type="CONSTRUCTION_REWORKED",
-                payload={"reason": reason, "detail": detail, "new_stage": new_stage,
-                         "attempt_id": captured.get("attempt_id"),
-                         "domain": "CONSTRUCTION_DOMAIN", "action": "CONSTRUCTION_REWORKED"},
-                created_by_user_id=user_id,
-            ))
-            return {o.id: []}
+        reason_label = _REWORK_LABELS.get(reason, reason)
+        # 사유 상세는 전이 이벤트 payload 의 reason 에 함께 싣는다 — 타임라인에서
+        # "무엇 때문에 되돌렸는가" 를 이벤트 하나만 보고 알 수 있어야 한다.
+        transition_reason = f"{reason_label}: {detail}" if detail else reason_label
 
         try:
-            execute_order_mutation(
-                db, actor_user_id=user_id, policy_id=_POLICY_CONSTRUCTION_REWORK,
-                order_ids=[order_id], scope_hash=_scope_hash("CONSTRUCTION_REWORK", order_id),
-                request_hash=_request_hash(data), mutation=_mutate, idempotency_key=idem_key,
+            result = transition_order(
+                db, command_id="CONSTRUCTION_REWORK", order_id=order_id,
+                actor_user_id=user_id, expected_from="CONSTRUCTION", target_value=new_stage,
+                scope_hash=_scope_hash("CONSTRUCTION_REWORK", order_id),
+                request_hash=_request_hash(data), idempotency_key=idem_key,
+                reason=transition_reason, source_screen="erp_construction_dashboard",
             )
-        except RevisionError as exc:
+        except (TransitionError, RevisionError) as exc:
             db.rollback()
-            return jsonify({"success": False, "error": str(exc), "code": exc.error_code}), exc.status_code
+            return _transition_error_response(exc)
 
-        _audit_construction(
-            order, "CONSTRUCTION_REWORK_REQUESTED", user_id,
-            note=_REWORK_LABELS.get(reason, reason),
-            extra={"reason": reason, "detail": detail or None, "new_stage": new_stage},
-        )
+        # 단계·status 는 전이가 소유한다 — 부수효과는 전이 뒤 같은 tx 에서만.
+        # replay(같은 Idempotency-Key 재전송)면 전이가 아무것도 다시 쓰지 않으므로
+        # 이력·attempt 봉인도 다시 남기지 않는다(시공 완료·CS 완료와 같은 모양).
+        if not result.replayed:
+            attempt_id = _apply_fail_side_effects(
+                db, order, user, user_id, reason, detail, reschedule_date)
+            _audit_construction(
+                order, "CONSTRUCTION_REWORK_REQUESTED", user_id,
+                note=reason_label,
+                extra={"reason": reason, "detail": detail or None, "new_stage": new_stage,
+                       "attempt_id": attempt_id},
+            )
         db.commit()
         return jsonify({
             "success": True,
-            "message": f"시공 불가로 처리되었습니다. {_REWORK_LABELS.get(reason, reason)}로 인해 {new_stage} 단계로 이동합니다.",
+            "message": f"시공 불가로 처리되었습니다. {reason_label}로 인해 {new_stage} 단계로 이동합니다.",
             "new_status": new_stage,
             "reason": reason,
         })

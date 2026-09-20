@@ -33,6 +33,10 @@ from foms.services.orders.status_constants import (
     is_logistics_board_status,
 )
 from foms.services.orders.state_axes import as_overlay_outranks_status_write
+from foms.services.orders.complete_path_policy import (
+    rejects_completed_field_write,
+    use_cs_complete_response_body,
+)
 from foms.services.orders.status_constants import AS_OVERLAY_PRESERVE_WORKFLOW_STAGE
 from foms.services.orders.stage_override import (
     AS_OVERLAY_BLOCK_MESSAGE,
@@ -304,6 +308,12 @@ def update_order_status_response(
 
         user_id = session.get("user_id")
 
+        # C-B2: 메인 파이프라인 ERP 주문의 최종 완료는 cs/complete 한 길만 쓴다.
+        # field_update 와 **같은 술어·같은 문구**를 쓴다(complete_path_policy 한 곳에서 만든다).
+        # 다른 축 상태 쓰기(출고·AS)는 술어가 value=='COMPLETED' 에서 끊겨 들어오지 않는다.
+        if rejects_completed_field_write(order, new_status):
+            return jsonify(use_cs_complete_response_body(order, get_user_by_id(user_id))), 409
+
         if should_canonicalize_main_status(order, new_status):
             # 순수 메인 파이프라인 전이 → canonical 엔진 경유(direct stage 배정 없음).
             err = apply_canonical_main_stage(
@@ -505,6 +515,8 @@ def bulk_update_order_status_response(
         updated = 0
         blocked_override_required: list[int] = []
         blocked_as_orders: list[dict[str, Any]] = []
+        # C-B2: 완료는 cs/complete 한 길만 쓴다 — 일괄 경로는 막고 200 으로 보고한다.
+        blocked_use_cs_complete: list[int] = []
 
         valid_ids = []
         for order_id in order_ids:
@@ -539,6 +551,11 @@ def bulk_update_order_status_response(
             from_stage = current_stage_for_order(order)
             if is_erp_order_record(order) and requires_privileged_override(from_stage, new_status):
                 blocked_override_required.append(int(order.id))
+                continue
+
+            # 단건 라우트와 같은 술어 — 메인 파이프라인 주문의 COMPLETED 직접 저장만 걸린다.
+            if rejects_completed_field_write(order, new_status):
+                blocked_use_cs_complete.append(int(order.id))
                 continue
 
             if should_canonicalize_main_status(order, new_status):
@@ -583,6 +600,12 @@ def bulk_update_order_status_response(
         if blocked_as_orders:
             as_note = f"AS 상태 {len(blocked_as_orders)}건 제외 — " + AS_OVERLAY_BLOCK_MESSAGE
             message = f"{message} {as_note}" if message else as_note
+        if blocked_use_cs_complete:
+            cs_note = (
+                f"{len(blocked_use_cs_complete)}건은 완료 경로가 달라 제외 — "
+                "주문의 [완료] 버튼(CS 완료)으로 처리하세요."
+            )
+            message = f"{message} {cs_note}" if message else cs_note
         payload: dict[str, Any] = {
             "success": success,
             "updated": updated,
@@ -590,6 +613,7 @@ def bulk_update_order_status_response(
             "status_display": STATUS.get(new_status, new_status),
             "blocked_override_required": blocked_override_required,
             "blocked_as_orders": blocked_as_orders,
+            "blocked_use_cs_complete": blocked_use_cs_complete,
         }
         if message:
             payload["message"] = message

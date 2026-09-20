@@ -142,6 +142,16 @@ def test_construction_start_and_complete_are_recorded(client):
                        user_id=user_id, customer_name="최영수")
     assert "시공 시작" in start.message
 
+    # 시공 증빙 게이트가 기본 ON 이라 완료 전에 after 2장·서명을 실제로 채운다(게이트 끄기 금지).
+    for kind, filename in (("after", "완료1.png"), ("after", "완료2.png"), ("signature", "서명.png")):
+        att = OrderAttachment(order_id=order_id, filename=filename, file_type="image",
+                              category="construction", file_size=1,
+                              storage_key=f"orders/{order_id}/{filename}")
+        db_session.add(att)
+        db_session.commit()
+        assert client.post(f"/api/orders/{order_id}/construction/evidence",
+                           json={"kind": kind, "attachment_id": att.id}).status_code == 200
+
     resp = client.post(f"/api/orders/{order_id}/construction/complete",
                        json={"completion_note": "마감 확인"})
     assert resp.status_code == 200, resp.get_data(as_text=True)
@@ -166,6 +176,8 @@ def test_construction_rework_records_the_reason(client):
                        user_id=user_id, customer_name="김철수")
     assert row.detail["reason"] == "drawing_error" and row.detail["new_stage"] == "DRAWING"
     assert "시공 불가(재작업 요청): 도면 오류" in row.message
+    # 감사 기록과 단계 전이는 같은 tx 다 — 엔진이 옮긴 단계까지 확인한다.
+    assert resp.get_json()["new_status"] == "DRAWING"
 
 
 # --------------------------------------------------------------------------- #

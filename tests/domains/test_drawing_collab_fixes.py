@@ -72,7 +72,10 @@ def test_confirm_receipt_blocked_when_not_transferred(client):
     assert res.status_code == 400
     assert "전달된 도면" in res.get_json()["message"]
     # 상태 정합성 가드는 ADMIN 도 통과 못함 → drawing_status 불변.
-    assert db_session.get(Order, order.id).structured_data["drawing_status"] == "RETURNED"
+    saved = db_session.get(Order, order.id)
+    assert saved.structured_data["drawing_status"] == "RETURNED"
+    # 가드에 막히면 단계 전이도 없다(엔진 경유 전후 동일).
+    assert saved.structured_data["workflow"]["stage"] == "DRAWING"
 
 
 def test_confirm_receipt_allowed_when_transferred(client):
@@ -89,7 +92,13 @@ def test_confirm_receipt_allowed_when_transferred(client):
     res = client.post(f"/api/orders/{oid}/confirm-drawing-receipt")
     assert res.status_code == 200
     assert res.get_json()["success"] is True
-    assert db_session.get(Order, oid).structured_data["drawing_status"] == "CONFIRMED"
+    assert res.get_json()["stage_moved"] is True
+    db_session.expire_all()
+    saved = db_session.get(Order, oid)
+    assert saved.structured_data["drawing_status"] == "CONFIRMED"
+    # 단계 전이는 STATE-CORE 엔진이 한다 — workflow.stage 와 색인 미러가 함께 움직인다.
+    assert saved.structured_data["workflow"]["stage"] == "CONFIRM"
+    assert saved.erp_stage_code == "CONFIRM"
 
 
 # --- 전달취소 알림 (Alert A) -------------------------------------------------

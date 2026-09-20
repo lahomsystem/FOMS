@@ -231,7 +231,7 @@
 
   // ---- 시공 불가 ------------------------------------------------------------
 
-  // 서버와 일치하는 정본 사유 4종(순서 = 프롬프트 번호).
+  // 서버와 일치하는 정본 사유 4종(순서 = 시트 라디오 순서).
   var FAIL_REASONS = [
     { code: "drawing_error", label: "도면 오류" },
     { code: "measurement_error", label: "실측 오류" },
@@ -239,26 +239,28 @@
     { code: "site_issue", label: "현장 문제" },
   ];
 
-  // 사유 번호 프롬프트. 취소/무효 입력이면 null → 조용히 중단.
-  function promptFailReason() {
-    var lines = ["시공 불가 사유를 선택하세요:"];
-    for (var i = 0; i < FAIL_REASONS.length; i++) {
-      lines.push(i + 1 + ". " + FAIL_REASONS[i].label);
+  // 사유 선택은 공용 바텀시트(static/js/foms/foms-reason-sheet.js)가 맡는다 —
+  // window.prompt 는 쓰지 않는다(모바일·태블릿·v3 가 같은 시트를 쓴다).
+  function submitFail(id) {
+    if (!id) return;
+    if (!window.FomsReasonSheet) {
+      window.alert("사유 입력 창을 불러오지 못했습니다. 새로고침한 뒤 다시 시도해 주세요.");
+      return;
     }
-    var raw = window.prompt(lines.join("\n"));
-    if (raw === null) return null;
-    var n = parseInt(raw.trim(), 10);
-    if (isNaN(n) || n < 1 || n > FAIL_REASONS.length) return null;
-    return FAIL_REASONS[n - 1].code;
+    window.FomsReasonSheet.open({
+      title: "시공 불가 처리",
+      actionLabel: "시공 불가",
+      reasons: FAIL_REASONS,
+      detailLabel: "상세 사유 (선택)",
+      onSubmit: function (reason, detail) {
+        if (!reason) return;
+        postFail(id, reason, detail);
+      },
+    });
   }
 
   // 시공 불가 요청 → 성공 시 새로고침, 실패/오류 시 alert.
-  function submitFail(id) {
-    if (!id) return;
-    var reason = promptFailReason();
-    if (!reason) return; // 취소 / 무효 번호 → 조용히 중단
-    var detailRaw = window.prompt("상세 사유(선택)를 입력하세요:");
-    var detail = detailRaw === null ? "" : detailRaw.trim();
+  function postFail(id, reason, detail) {
     try {
       fetch("/api/orders/" + encodeURIComponent(id) + "/construction/fail", {
         method: "POST",

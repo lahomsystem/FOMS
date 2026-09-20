@@ -144,6 +144,8 @@ def translate_event_type_to_korean(event_type: str | None) -> str:
         "ORDER_HOLD_RELEASED": "주문 보류 해제",
         "CONSTRUCTION_EVIDENCE_ADDED": "시공 증빙 등록",
         "DRAWING_STATUS_CHANGED": "도면 상태 변경",
+        "DRAWING_RECEIPT_CONFIRMED": "도면 수령 확정",
+        "CONSTRUCTION_REWORKED": "시공 불가",
         "DRAWING_ASSIGNEE_SET": "도면 담당자 지정",
         "DRAWING_SENT": "도면 전달",
         "DRAWING_CONFIRMED": "도면 확인",

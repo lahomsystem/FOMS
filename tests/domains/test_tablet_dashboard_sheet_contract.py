@@ -215,3 +215,44 @@ def test_dashboard_sheet_thumb_is_60x46() -> None:
     assert m is not None, "foms-tsheet-attach-thumb 규칙 부재"
     assert "width: 60px" in m.group(0)
     assert "height: 46px" in m.group(0)
+
+
+# --------------------------------------------------------------------------- #
+# C-A2 승인 버튼 술어 — 화면 잣대 == 서버 잣대(거부당할 버튼 0)
+# --------------------------------------------------------------------------- #
+def _render_sheet(*, q: dict, can_edit_erp: bool) -> str:
+    """시트 파셜만 실제로 렌더한다 — 문자열 검사가 아니라 나온 HTML 로 판정."""
+    import app as _app
+    from types import SimpleNamespace
+
+    order = SimpleNamespace(
+        id=1, customer_name="홍길동", phone="010-1234-5678", address="서울 테헤란로 123",
+        product="붙박이장", stage_badge_label="접수", current_quest=q,
+    )
+    with _app.app.test_request_context("/"):
+        template = _app.app.jinja_env.get_template("orders/partials/tablet_dashboard_sheet.html")
+        return template.render(o=order, can_edit_erp=can_edit_erp, team_labels={})
+
+
+def test_담당자_승인_버튼은_수정권한이_아니라_승인자격으로_나온다() -> None:
+    """음성/양성 대조군: can_edit_erp 만 있는 사람에겐 안 나오고, 승인 자격자에겐 나온다."""
+    base = {"all_approved": False, "approval_mode": "assignee", "approvable_teams": [],
+            "owner_team": "CS"}
+    denied = _render_sheet(q=dict(base, can_assignee_approve=False), can_edit_erp=True)
+    assert "erp-btn-approve-assignee" not in denied, "수정 권한만으로 승인 버튼이 나왔다"
+    assert "지정 담당자만 승인할 수 있습니다." in denied
+
+    allowed = _render_sheet(q=dict(base, can_assignee_approve=True), can_edit_erp=False)
+    assert "erp-btn-approve-assignee" in allowed
+
+
+def test_팀_승인_버튼은_서버가_계산한_approvable_teams_로만_나온다() -> None:
+    """팀 분기도 같은 잣대 — owner_team 이 아니라 approvable_teams 첫 팀을 누른다."""
+    base = {"all_approved": False, "approval_mode": "team", "can_assignee_approve": False,
+            "owner_team": "CS"}
+    denied = _render_sheet(q=dict(base, approvable_teams=[]), can_edit_erp=True)
+    assert "erp-btn-approve-team" not in denied, "수정 권한만으로 팀 승인 버튼이 나왔다"
+
+    allowed = _render_sheet(q=dict(base, approvable_teams=["SALES"]), can_edit_erp=False)
+    assert "erp-btn-approve-team" in allowed
+    assert 'data-team="SALES"' in allowed

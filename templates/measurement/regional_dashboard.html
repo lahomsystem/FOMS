@@ -1004,7 +1004,7 @@
                                             <td>
                                                 <div class="foms-board-status-stack">
                                                     {{ board_status_badge('설치예정', 'scheduled') }}
-                                                    {{ complete_order_control(order.id, order.status) }}
+                                                    {{ complete_order_control(order.id, order.status, complete_ctas.get(order.id)) }}
                                                     {{ drawing_transfer_control(order.id, drawing_ctas.get(order.id)) }}
                                                 </div>
                                             </td>

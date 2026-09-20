@@ -516,7 +516,14 @@ def stage_badge_modifier(stage: str | None) -> str:
 
 
 def stage_badge_label(stage: str | None) -> str:
-    """Short badge label for queue card header."""
+    """큐 카드 머리에 붙는 짧은 단계 배지 글자.
+
+    정본은 ``foms.services.orders.erp_policy_constants.STAGE_LABELS`` 이고, 여기 표는
+    좁은 배지에 들어가도록 줄인 **표시 전용 축약**이다(주문접수→접수, 고객컨펌→컨펌,
+    생산·시공은 정본과 같음). 축약이 아니라 **다른 단계를 가리키는 값**은 두지 않는다 —
+    예전에는 ``CS`` 를 ``"AS"`` 로 적어 CS 단계와 AS 처리가 화면에서 구분되지 않았다
+    (2026-09-20 C-D3 에서 ``"CS"`` 로 고쳤다). 표에 없는 코드는 정본 라벨로 떨어진다.
+    """
     if not stage:
         return "-"
     code = STAGE_NAME_TO_CODE.get(stage, stage)
@@ -529,7 +536,7 @@ def stage_badge_label(stage: str | None) -> str:
         "PRODUCTION": "생산",
         "SHIPMENT": "출고",
         "CONSTRUCTION": "시공",
-        "CS": "AS",
+        "CS": "CS",
         "COMPLETED": "완료",
     }
     return short.get(code, STAGE_LABELS.get(code, stage))

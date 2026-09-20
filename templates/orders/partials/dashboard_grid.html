@@ -172,14 +172,14 @@
                                 {% else %}
                                 <div class="mb-2">
                                   <span class="fw-semibold" style="font-size: 0.9rem;">{{ assignee_names|join(', ') or '담당자 지정 필요' }}</span>
-                                  {% if can_edit_erp|default(false) or o.current_quest.can_assignee_approve|default(false) %}
+                                  {% if o.current_quest.can_assignee_approve|default(false) %}
                                   <button class="btn btn-primary fw-semibold ms-2 erp-btn-approve-assignee"
                                     data-order-id="{{ o.id }}" data-confirm="{{ o.current_quest.approve_confirm or '' }}"
                                     style="font-size: 0.9rem; padding: 0.3rem 0.6rem;">
                                     <i class="fas fa-check"></i> 승인
                                   </button>
                                   {% else %}
-                                  <span class="text-muted small ms-2">(수정 권한 없음)</span>
+                                  <span class="text-muted small ms-2">(승인 권한 없음)</span>
                                   {% endif %}
                                 </div>
                                 {% endif %}

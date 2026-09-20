@@ -2,7 +2,7 @@
 
 - evidence 등록(before/after/signature) 200 + JSONB 갱신 + OrderEvent.
 - 잘못된 첨부(타 주문/타 카테고리) 400.
-- 완료 게이트: env off = 기존 동작 불변(200), env on = 미충족 400(missing)·충족 200.
+- 완료 게이트: **기본 on**(변수 미설정 = 켜짐, 명시적 false 만 끈다), 미충족 400(missing)·충족 200.
 - 권한 403.
 """
 
@@ -171,8 +171,25 @@ def test_evidence_requires_permission(client, app):
     assert resp.status_code == 403
 
 
-def test_complete_gate_off_keeps_legacy_behavior(client, app, monkeypatch):
+def test_complete_gate_unset_env_is_on(client, app, monkeypatch):
+    """C-B3(2026-09-20): 변수를 안 걸면 게이트가 켜진 것이다(운영 기본 on)."""
     monkeypatch.delenv("FOMS_CONSTRUCTION_GATE_ENABLED", raising=False)
+    _login(client, suffix="unset")
+    oid = _construction_order()
+
+    resp = client.post(
+        f"/api/orders/{oid}/construction/complete",
+        json={"completion_note": "증빙 없음"},
+    )
+    assert resp.status_code == 400
+    data = resp.get_json()
+    assert data["error"] == "완료 요건 미충족"
+    assert set(data["data"]["missing"]) == {"after", "signature"}
+
+
+def test_complete_gate_explicit_false_keeps_legacy_behavior(client, app, monkeypatch):
+    """게이트를 끄려면 명시적으로 false 를 넣어야 한다 — 그때만 옛 동작."""
+    monkeypatch.setenv("FOMS_CONSTRUCTION_GATE_ENABLED", "false")
     _login(client, suffix="off")
     oid = _construction_order()
 

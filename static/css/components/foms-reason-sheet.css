@@ -1,0 +1,151 @@
+/* 공용 사유 입력 바텀시트(foms-reason-sheet.js 제어). 인라인 스타일 금지 정책 준수.
+   토큰(var)이 없는 레거시 화면을 위해 foms-complete-gate.css 관례대로 fallback 값을 둔다. */
+
+.foms-reason-sheet[hidden] {
+  display: none;
+}
+
+.foms-reason-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 1090;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.foms-reason-sheet__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.5);
+}
+
+.foms-reason-sheet__panel {
+  position: relative;
+  width: 100%;
+  max-width: 560px;
+  margin: 0 auto;
+  max-height: 92vh;
+  overflow-y: auto;
+  background: var(--foms-surface, #fff);
+  color: var(--foms-text, #1f2937);
+  border-top-left-radius: 18px;
+  border-top-right-radius: 18px;
+  padding: 18px 18px calc(18px + env(safe-area-inset-bottom, 0px));
+  box-shadow: 0 -12px 32px rgba(15, 23, 42, 0.24);
+  animation: foms-reason-slide-up 0.18s ease-out;
+}
+
+@keyframes foms-reason-slide-up {
+  from { transform: translateY(16px); opacity: 0.6; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.foms-reason-sheet__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.foms-reason-sheet__title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.foms-reason-sheet__close {
+  border: 0;
+  background: transparent;
+  font-size: 1.2rem;
+  line-height: 1;
+  color: var(--foms-text-muted, #6b7280);
+  padding: 6px;
+  cursor: pointer;
+}
+
+.foms-reason-sheet__reasons[hidden] {
+  display: none;
+}
+
+.foms-reason-sheet__reasons {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border: 0;
+  margin: 0 0 12px;
+  padding: 0;
+}
+
+.foms-reason-sheet__legend {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--foms-text-muted, #6b7280);
+  padding: 0;
+  margin-bottom: 4px;
+}
+
+.foms-reason-sheet__option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 12px;
+  border: 1px solid var(--foms-border, #e5e7eb);
+  border-radius: 12px;
+  font-size: 0.95rem;
+  cursor: pointer;
+  min-height: 44px;
+}
+
+.foms-reason-sheet__option.is-selected {
+  border-color: var(--foms-primary, #2563eb);
+  background: var(--foms-primary-soft, rgba(37, 99, 235, 0.08));
+}
+
+.foms-reason-sheet__field {
+  display: block;
+  margin-bottom: 10px;
+}
+
+.foms-reason-sheet__label {
+  display: block;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--foms-text-muted, #6b7280);
+  margin-bottom: 4px;
+}
+
+.foms-reason-sheet__detail {
+  width: 100%;
+  border: 1px solid var(--foms-border, #e5e7eb);
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 0.95rem;
+  resize: vertical;
+  background: var(--foms-surface, #fff);
+  color: inherit;
+}
+
+.foms-reason-sheet__error[hidden] {
+  display: none;
+}
+
+.foms-reason-sheet__error {
+  margin: 0 0 10px;
+  font-size: 0.85rem;
+  color: var(--foms-danger, #dc2626);
+}
+
+.foms-reason-sheet__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.foms-reason-sheet__actions > .foms-btn {
+  flex: 1 1 0;
+  min-height: 46px;
+}
+
+body.foms-reason-sheet-open {
+  overflow: hidden;
+}

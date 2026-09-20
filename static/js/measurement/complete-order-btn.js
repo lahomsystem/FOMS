@@ -6,6 +6,9 @@
  * 버튼이 data-field/data-value 로 선언한다:
  *   - 일반 완료: field=status,            value=COMPLETED
  *   - AS 완료  : field=as_completed_date, value=오늘(YYYY-MM-DD)
+ * C-B1(2026-09-20): 메인 파이프라인 주문의 최종 완료는 서버가 data-complete-endpoint=
+ * "cs_complete" 로 표시하고, 그때는 정식 경로 POST /api/orders/<id>/cs/complete 를 부른다
+ * (body 없음). 그 밖에는 기존 field_update 경로 그대로다.
  * AS 완료가 status 를 직접 쓰지 않는 이유는 AS 완료 탭 조건이 status+as_completed_date
  * 동시 충족이고, canonical AS cycle 만 그 둘을 한 트랜잭션으로 채우기 때문이다.
  *
@@ -23,15 +26,19 @@
     if (!orderId) return;
     if (!window.confirm(confirmMsg)) return;
 
+    var endpoint = btn.getAttribute('data-complete-endpoint') || '';
+    var url = '/api/update_order_field';
+    var payload = { order_id: orderId, field_name: field, new_value: value };
+    if (endpoint === 'cs_complete') {
+      url = '/api/orders/' + encodeURIComponent(orderId) + '/cs/complete';
+      payload = {};
+    }
+
     btn.disabled = true;
-    fetch('/api/update_order_field', {
+    fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        order_id: orderId,
-        field_name: field,
-        new_value: value
-      })
+      body: JSON.stringify(payload)
     })
       .then(function (r) { return r.json(); })
       .then(function (data) {

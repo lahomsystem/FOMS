@@ -57,20 +57,52 @@ def test_logistics_helpers():
     assert should_sync_workflow_stage_on_status("COMPLETED") is True
 
 
-def test_field_update_allows_completed_despite_construction_stage(client):
-    """UI status=SCHEDULED, workflow.stage=CONSTRUCTION 이어도 COMPLETED 허용."""
+def test_field_update_rejects_completed_with_use_cs_complete(client):
+    """보드 우회로의 COMPLETED 쓰기는 409 USE_CS_COMPLETE 로 거부되고 상태는 그대로다.
+
+    C-B2(2026-09-20): 메인 파이프라인 ERP 주문의 최종 완료는 cs/complete 한 길만 쓴다.
+    옛 계약(단계가 시공이어도 보드에서 바로 COMPLETED 저장)은 quest·보류·AS 게이트를
+    통째로 건너뛰었기 때문에 여기서 뒤집힌다.
+    """
     _login(client, "log_comp_ok")
     order = _make_erp(status="SCHEDULED", stage="CONSTRUCTION")
     resp = client.post(
         "/api/update_order_field",
         json={"order_id": order.id, "field": "status", "value": "COMPLETED"},
     )
-    assert resp.status_code == 200, resp.get_json()
-    assert resp.get_json()["success"] is True
+    assert resp.status_code == 409, resp.get_json()
+    body = resp.get_json()
+    assert body["success"] is False
+    assert body["code"] == "USE_CS_COMPLETE"
+    assert body["stage"] == "CONSTRUCTION"
+    assert "시공" in body["message"]  # 막힌 이유를 사람 말로 준다
     saved = db_session.get(Order, order.id)
     assert saved is not None
-    assert saved.status == "COMPLETED"
-    assert (saved.structured_data or {}).get("workflow", {}).get("stage") == "COMPLETED"
+    assert saved.status == "SCHEDULED"  # status 불변
+    assert (saved.structured_data or {}).get("workflow", {}).get("stage") == "CONSTRUCTION"
+
+
+def test_field_update_completed_untouched_for_non_erp_order(client):
+    """대조군 — 비ERP 레거시 주문의 COMPLETED 저장은 기존 경로 그대로 200."""
+    _login(client, "log_comp_legacy")
+    order = Order(
+        received_date="2026-07-01",
+        customer_name="레거시-고객",
+        phone="010-2222-4444",
+        address="Busan",
+        product="붙박이장",
+        status="SCHEDULED",
+        manager_name="Mgr",
+        is_erp_order=False,
+    )
+    db_session.add(order)
+    db_session.commit()
+    resp = client.post(
+        "/api/update_order_field",
+        json={"order_id": order.id, "field": "status", "value": "COMPLETED"},
+    )
+    assert resp.status_code == 200, resp.get_json()
+    assert db_session.get(Order, order.id).status == "COMPLETED"
 
 
 def test_field_update_scheduled_preserves_workflow_stage(client):

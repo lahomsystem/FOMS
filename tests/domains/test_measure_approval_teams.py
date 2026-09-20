@@ -131,3 +131,24 @@ def test_unrelated_team_is_still_denied() -> None:
              "approval_mode": "assignee", "required_approvals": ["CS", "SALES"]}
     assert _server_allows("PRODUCTION", "STAFF", dict(quest)) is False
     assert _screen_shows("PRODUCTION", "STAFF", LAHOM_SD, dict(quest)) is False
+
+
+def test_승인_슬롯_팀은_누른_팀이_아니라_필수_팀이다() -> None:
+    """C-A1 — 슬롯 키 헬퍼가 실측 필수 팀(CS/SALES) 안에서 고른다. 경리팀은 CS 칸을 채운다."""
+    from foms.services.orders.quest_approve_authz import approval_slot_team
+
+    quest = {"stage": "MEASURE", "title": "실측", "status": "OPEN",
+             "approval_mode": "team", "required_approvals": ["CS", "SALES"],
+             "team_approvals": {}}
+    order = SimpleNamespace(id=1, customer_name="김태우", structured_data={}, is_erp_order=True)
+
+    def _slot(team: str, role: str = "STAFF", payload_team: str = "") -> str | None:
+        user = SimpleNamespace(id=7, role=role, team=team, name="테스터", username="tester")
+        return approval_slot_team(None, user, order, "MEASURE", dict(quest),
+                                  payload_team=payload_team)
+
+    assert _slot("ACCOUNTING") == "CS"        # 경리팀 = CS capability
+    assert _slot("MEASURE") == "SALES"        # 실측 팀 = SALES 로 정규화
+    assert _slot("SALES") == "SALES"
+    assert _slot("PRODUCTION") is None        # 음성 대조군 — 라우트가 actor 팀으로 폴백
+    assert _slot("CS", role="ADMIN", payload_team="SALES") == "SALES"

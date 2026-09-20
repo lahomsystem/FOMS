@@ -23,6 +23,7 @@ from foms.services.common.ept_b7_profile import apply_ept_b7_render_headers, pha
 from foms.services.common.erp_shell_http import apply_erp_shell_fragment_headers, wants_erp_shell_tab_body
 from foms.services.erp_permissions import (
     build_mine_sql_filter,
+    can_act_construction,
     can_edit_erp,
     is_order_related_to_user,
 )
@@ -51,7 +52,11 @@ from foms.services.construction_read_model import (
     fetch_construction_attachment_counts,
     paginate_construction_orders,
 )
-from foms.services.feature_flags import is_mobile_v2_shell, resolve_shell_variant_cached
+from foms.services.feature_flags import (
+    is_mobile_v2_shell,
+    note_shell_v3_view,
+    resolve_shell_variant_cached,
+)
 from foms.services.datetime_kst import get_today_kst
 from models import Order
 
@@ -216,9 +221,11 @@ def erp_construction_dashboard():
     process_steps = build_construction_process_steps(step_stats)
 
     current_user = getattr(g, "current_user", None)
-    mobile_v2_active = is_mobile_v2_shell(
-        resolve_shell_variant_cached(current_user.id if current_user else None)
-    )
+    shell_variant = resolve_shell_variant_cached(current_user.id if current_user else None)
+    mobile_v2_active = is_mobile_v2_shell(shell_variant)
+    # C-D2 (g): v3 셸 진입 관측 — 같은 사용자·같은 날은 1행만 남는다(실패해도 화면 무영향).
+    if shell_variant == "v3":
+        note_shell_v3_view(current_user.id if current_user else None, "construction")
     with phase("mobile_enrich"):
         enrich_construction_mobile_rows(
             enriched,
@@ -246,6 +253,10 @@ def erp_construction_dashboard():
             stage_labels=STAGE_LABELS,
             is_admin=is_admin,
             can_edit_erp=can_edit_erp(user),
+            # C-D1: 시공 액션 버튼(시작·완료 준비·완료·시공 불가)은 서버 데코레이터
+            # (erp_construction_edit_required)와 **같은 함수**로 판정한다 — CS·영업팀도
+            # 서버가 200 을 주므로 버튼이 보여야 한다(막다른 길 0).
+            can_act_construction=can_act_construction(user),
             erp_mine_only=mine_only,
             page=page,
             per_page=per_page,
