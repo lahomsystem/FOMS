@@ -444,3 +444,8 @@
   max-width: 100%;
 }
 
+/* 퀘스트 칸 완료 배지(현 단계 quest 가 COMPLETED) — dashboard_grid.html */
+.erp-quest-done {
+  font-size: 1rem;
+  padding: 0.4em 0.7em;
+}

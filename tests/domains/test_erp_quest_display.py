@@ -261,24 +261,128 @@ def test_approve_cta_does_not_promise_a_move_that_never_happens() -> None:
         assert "넘길까요" not in payload["approve_confirm"]
 
 
-def test_command_required_stages_expose_no_approve_button() -> None:
-    """도면·고객컨펌은 quest approve API 가 409 로 거부한다 — 버튼 자체를 주면 막다른 길이다."""
-    for stage_code in ("DRAWING", "CONFIRM"):
-        cta = cta_mod.build_approve_cta(stage_code, SimpleNamespace(id=1, customer_name="홍길동"))
-        assert cta["approve_label"] is None
-        assert cta["command_required"] is True
+def test_command_required_stage_exposes_no_approve_button() -> None:
+    """도면만 quest approve API 가 409 로 거부한다 — 버튼 자체를 주면 막다른 길이다.
+
+    고객컨펌은 2026-09-17 부터 승인 API 가 생산 단계로 넘기므로 버튼 문구가 있다.
+    """
+    order = SimpleNamespace(id=1, customer_name="홍길동")
+    drawing = cta_mod.build_approve_cta("DRAWING", order)
+    assert drawing["approve_label"] is None
+    assert drawing["command_required"] is True
+
+    confirm = cta_mod.build_approve_cta("CONFIRM", order)
+    assert confirm["approve_label"] == "고객 컨펌 완료"
+    assert confirm["advances_stage"] is True
+    assert confirm["next_stage_label"] == "생산"
+    assert confirm["command_required"] is False
+    assert "생산 단계로 넘길까요" in confirm["approve_confirm"]
+    assert confirm["done_label"] == "고객 컨펌 완료"
     # 완료 단계는 다음 stage 가 없어 승인이 아무것도 바꾸지 않는다 — 역시 버튼 없음.
     assert cta_mod.build_approve_cta("COMPLETED", SimpleNamespace(id=1))["approve_label"] is None
 
 
+def test_done_label_always_ends_with_wanryo() -> None:
+    """완료 배지 문구는 단계마다 '… 완료' 꼴 — 이미 '완료' 로 끝나는 라벨은 그대로 쓴다."""
+    order = SimpleNamespace(id=1, customer_name="홍길동")
+    expected = {
+        "CONFIRM": "고객 컨펌 완료",
+        "MEASURE": "실측 완료",
+        "RECEIVED": "접수 확인 완료",
+        "PRODUCTION": "생산 확인 완료",
+        "CONSTRUCTION": "시공 확인 완료",
+        "CS": "CS 확인 완료",
+    }
+    for stage_code, label in expected.items():
+        assert cta_mod.build_approve_cta(stage_code, order)["done_label"] == label, stage_code
+    # 조기 반환(라벨 없는 단계)도 done_label 을 준다.
+    assert "done_label" in cta_mod.build_approve_cta("DRAWING", order)
+
+
 def test_queue_card_hides_approve_when_server_gives_no_label() -> None:
-    """카드의 승인 CTA 노출은 approve_label 이 SSOT — 도면 카드가 '도면 창구'를 되찾는다."""
+    """카드의 승인 CTA 노출은 approve_label 이 SSOT — 도면 카드가 '도면 창구'를 되찾는다.
+
+    고객컨펌 전용 링크(confirm_actionable)는 사라졌다 — 이제 승인 버튼이 직접 그려지고,
+    끝난 quest 는 완료 배지(erp-queue-card__quest-done)를 단다.
+    """
     card = (
         ROOT / "templates" / "partials" / "shared" / "erp_mobile_queue_card_v2.html"
     ).read_text(encoding="utf-8")
     assert "and quest.approve_label" in card
     assert "quest_inline_approve = quest_actionable and quest.advances_stage" in card
-    assert "confirm_actionable" in card
+    assert "confirm_actionable" not in card
+    assert "erp-queue-card__confirm-open" not in card
+    assert "quest.is_done" in card
+    assert "erp-queue-card__quest-done" in card
+
+
+def test_resolve_synthesizes_open_when_only_stale_measure_completed_on_confirm() -> None:
+    """CONFIRM 단계에 옛 MEASURE COMPLETED 만 있으면 합성 OPEN quest(is_done 없음)."""
+    sd = {
+        "workflow": {"stage": "CONFIRM"},
+        "quests": [{
+            "stage": "실측", "title": "실측", "status": "COMPLETED",
+            "approval_mode": "assignee", "assignee_approval": {"approved": True},
+        }],
+    }
+    quest = qd.resolve_current_quest(sd, "고객컨펌", "CONFIRM")
+    assert quest is not None
+    assert quest.get("status") == "OPEN"
+    assert not quest.get("is_done")
+
+
+def test_resolve_returns_completed_confirm_quest_as_done() -> None:
+    """CONFIRM COMPLETED 만 있으면 그 quest 를 is_done=True 얕은 복사로 돌려준다(원본 무변경)."""
+    done_quest = {
+        "stage": "고객컨펌", "title": "고객 컨펌", "status": "COMPLETED",
+        "approval_mode": "assignee", "assignee_approval": {"approved": True},
+        "completed_at": "2026-09-16T10:00:00",
+    }
+    sd = {"workflow": {"stage": "CONFIRM"}, "quests": [done_quest]}
+    quest = qd.resolve_current_quest(sd, "고객컨펌", "CONFIRM")
+    assert quest is not None
+    assert quest["is_done"] is True
+    assert quest["title"] == "고객 컨펌"
+    assert "is_done" not in done_quest, "원본 sd dict 를 건드리면 안 된다"
+
+
+def test_resolve_prefers_open_over_completed_on_same_stage() -> None:
+    """같은 단계에 OPEN 과 COMPLETED 가 같이 있으면 OPEN(활성)이 이긴다."""
+    sd = {
+        "workflow": {"stage": "CONFIRM"},
+        "quests": [
+            {"stage": "CONFIRM", "title": "옛 컨펌", "status": "COMPLETED",
+             "completed_at": "2026-09-16T10:00:00"},
+            {"stage": "고객컨펌", "title": "새 컨펌", "status": "OPEN", "approval_mode": "assignee"},
+        ],
+    }
+    quest = qd.resolve_current_quest(sd, "고객컨펌", "CONFIRM")
+    assert quest is not None
+    assert quest.get("status") == "OPEN"
+    assert not quest.get("is_done")
+
+
+def test_build_payload_exposes_is_done_and_done_label() -> None:
+    """payload 에 is_done·done_label 키가 실려 세 표면(큐 카드·모바일 상세·PC 그리드)이 같은 답을 본다."""
+    sd = {
+        "workflow": {"stage": "CONFIRM"},
+        "quests": [{
+            "stage": "고객컨펌", "title": "고객 컨펌", "status": "COMPLETED",
+            "approval_mode": "assignee", "assignee_approval": {"approved": True},
+        }],
+    }
+    order = SimpleNamespace(id=5193, customer_name="이다은", manager_name="이다은담당")
+    payload = qd.build_current_quest_payload(
+        sd=sd, stage="고객컨펌", stage_code="CONFIRM", order=order, current_user=None, user_map={}
+    )
+    assert payload is not None
+    assert payload["is_done"] is True
+    assert payload["done_label"] == "고객 컨펌 완료"
+    assert payload["all_approved"] is True
+
+    open_payload = _payload_for_stage("고객컨펌", "CONFIRM")
+    assert open_payload["is_done"] is False
+    assert open_payload["done_label"] == "고객 컨펌 완료"
 
 
 def test_list_approve_restores_place_instead_of_removing_the_card() -> None:

@@ -4,9 +4,9 @@ quest 최종 승인이 stage 전이를 유발하는 정본 경로를 **서비스
 호출·request monkeypatch 금지, §5.2·report line 320,330-331):
 
 * RECEIVED/MEASURE 최종 승인 → order_transition_service 경유 다음 stage 전이(version/receipt/event).
-* CUSTOMER_CONFIRM adapter 는 CONFIRM quest 를 같은 tx 에서 완료(stage 는 CONFIRM 유지).
+* CONFIRM 최종 승인(담당자 승인) → CUSTOMER_CONFIRM 명령으로 PRODUCTION 전이(PRODUCTION quest 미생성).
 * PRODUCTION/CONSTRUCTION/CS quest 승인은 prerequisite-only → stage advance 없음.
-* DRAWING/CONFIRM standalone quest 승인 전이는 STAGE_COMMAND_REQUIRED 로 거부.
+* DRAWING standalone quest 승인 전이는 STAGE_COMMAND_REQUIRED 로 거부.
 
 전이 엔진은 SQLite 도메인 레인에서 동작한다(STATE-PROD 선례). ``session.commit()`` 은 테스트가
 소유한다(REV-00). 실 PostgreSQL 다중세션 원자성·FOR UPDATE 직렬화는
@@ -19,7 +19,6 @@ from foms.services.orders.quest_transition_service import (
     QuestIncompleteError,
     StandaloneStageAdvanceError,
     advance_stage_on_quest_completion,
-    complete_confirm_quest,
 )
 from models import (
     DomainSideEffectOutbox,
@@ -207,32 +206,50 @@ def test_measure_final_approval_transitions_to_drawing(app):
 
 
 # --------------------------------------------------------------------------- #
-# CUSTOMER_CONFIRM adapter → CONFIRM quest 한 tx 완료 (stage 는 CONFIRM 유지)
+# CONFIRM 최종 승인 → PRODUCTION 전이 (CUSTOMER_CONFIRM, PRODUCTION quest 미생성)
 # --------------------------------------------------------------------------- #
-def test_customer_confirm_completes_confirm_quest_in_one_tx(app):
+def test_confirm_final_approval_transitions_to_production(app):
+    """담당자 승인이 끝난 CONFIRM quest 는 고객 컨펌 완료 = 생산 단계 진입이다(2026-09-17).
+
+    예전에는 승인 라우트가 quest 만 닫고 stage 를 CONFIRM 에 두어 생산 탭 [제작 시작] 이
+    유일한 전이였다. 이제 최종 승인이 ``CUSTOMER_CONFIRM`` 명령으로 PRODUCTION 까지 옮긴다.
+    PRODUCTION quest 는 만들지 않는다 — 만들면 제작 완료가 '생산팀 승인' 뒤로 잠긴다.
+    """
     actor = _make_actor()
-    order = _make_order(stage="CONFIRM", quests=[_open_confirm_quest()])
+    order = _make_order(stage="CONFIRM", quests=[_approved_assignee_quest("CONFIRM")])
     order_id, base_version = order.id, order.mutation_version
 
-    changed = complete_confirm_quest(
-        order, actor_user_id=actor.id, actor_name="영업", approving_team="SALES"
+    result = advance_stage_on_quest_completion(
+        db_session,
+        order_id=order_id,
+        actor_user_id=actor.id,
+        scope_hash=_H,
+        request_hash=_H,
     )
     db_session.commit()
 
-    assert changed is True
+    assert result is not None and not result.replayed
+    assert result.event_type == "CUSTOMER_CONFIRMED"
 
     db_session.expire_all()
     saved = db_session.get(Order, order_id)
-    quest = saved.structured_data["quests"][0]
-    # quest 완료 처리 + actor approval 기록.
-    assert quest["status"] == "COMPLETED"
-    assert quest["completed_at"]
-    assert quest["assignee_approval"]["approved"] is True
-    assert quest["assignee_approval"]["approved_by"] == actor.id
-    # stage 는 CONFIRM 유지(CONFIRM→PRODUCTION 은 PRODUCTION_START 소관) · version 불변(전이 아님).
-    assert saved.structured_data["workflow"]["stage"] == "CONFIRM"
-    assert saved.erp_stage_code == "CONFIRM"
-    assert saved.mutation_version == base_version
+    assert saved.structured_data["workflow"]["stage"] == "PRODUCTION"
+    assert saved.erp_stage_code == "PRODUCTION"
+    assert saved.mutation_version == base_version + 1
+    stages = [q.get("stage") for q in saved.structured_data.get("quests", [])]
+    assert "PRODUCTION" not in stages and "생산" not in stages
+    assert (
+        db_session.query(OrderMutationReceipt)
+        .filter(OrderMutationReceipt.read_receipt_id == result.mutation.read_receipt_id)
+        .count()
+        == 1
+    )
+    assert (
+        db_session.query(DomainSideEffectOutbox)
+        .filter(DomainSideEffectOutbox.order_event_id == result.event_id)
+        .count()
+        == 1
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -266,7 +283,7 @@ def test_prerequisite_only_stage_does_not_advance(app):
 
 
 # --------------------------------------------------------------------------- #
-# standalone DRAWING/CONFIRM stage advance 거부 (STAGE_COMMAND_REQUIRED)
+# standalone DRAWING stage advance 거부 (STAGE_COMMAND_REQUIRED)
 # --------------------------------------------------------------------------- #
 def test_standalone_drawing_advance_rejected(app):
     actor = _make_actor()
@@ -295,10 +312,11 @@ def test_standalone_drawing_advance_rejected(app):
     assert saved.mutation_version == base_version
 
 
-def test_standalone_confirm_advance_rejected(app):
+def test_confirm_incomplete_quest_blocks_transition(app):
+    """담당자 승인이 없는 CONFIRM quest 는 전이하지 않는다(QuestIncompleteError, stage CONFIRM)."""
     actor = _make_actor()
-    order = _make_order(stage="CONFIRM", quests=[_approved_assignee_quest("CONFIRM")])
-    order_id = order.id
+    order = _make_order(stage="CONFIRM", quests=[_open_confirm_quest()])
+    order_id, base_version = order.id, order.mutation_version
 
     try:
         advance_stage_on_quest_completion(
@@ -309,14 +327,17 @@ def test_standalone_confirm_advance_rejected(app):
             request_hash=_H,
         )
         raised = None
-    except StandaloneStageAdvanceError as exc:
+    except QuestIncompleteError as exc:
         raised = exc
     db_session.rollback()
 
     assert raised is not None
-    assert raised.error_code == "STAGE_COMMAND_REQUIRED"
+    assert raised.error_code == "QUEST_INCOMPLETE"
     db_session.expire_all()
-    assert db_session.get(Order, order_id).structured_data["workflow"]["stage"] == "CONFIRM"
+    saved = db_session.get(Order, order_id)
+    assert saved.structured_data["workflow"]["stage"] == "CONFIRM"
+    assert saved.erp_stage_code == "CONFIRM"
+    assert saved.mutation_version == base_version
 
 
 # --------------------------------------------------------------------------- #

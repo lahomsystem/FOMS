@@ -236,9 +236,12 @@ def _apply_production_hold_gate(
 _POLICY_PRODUCTION_START = "STATE_PRODUCTION_START"
 _POLICY_PRODUCTION_COMPLETE = "STATE_PRODUCTION_COMPLETE"
 
-# 되돌리기 2종(제작 취소·완료 취소)도 같은 엔진 경유 — 후진 전이라 stage 게이트만 앞세우고
-# 보류 게이트는 걸지 않는다(보류는 전진만 막는다). 직접 order.status/workflow.stage 대입을
-# 신설하지 않으므로 STATE-GUARD-01 EXTERNAL 잔여가 늘지 않는다.
+# 되돌리기 2종(제작 취소·완료 취소) — 후진이라 보류 게이트는 걸지 않는다(보류는 전진만
+# 막는다). 완료 취소는 같은 엔진 경유(CONSTRUCTION→PRODUCTION). 제작 취소는 2026-09-17 부터
+# **단계를 옮기지 않는다**(PRODUCTION 유지 + current run 만 SUPERSEDED → 보드 버킷이
+# 제작대기로 돌아간다) — TransitionCommand 가 아니라 execute_order_mutation(REV-00) 으로
+# 감싸고, 아래 문자열은 그 receipt 의 policy scope 로만 쓴다. 직접 order.status/workflow.stage
+# 대입을 신설하지 않으므로 STATE-GUARD-01 EXTERNAL 잔여가 늘지 않는다.
 _POLICY_PRODUCTION_CANCEL = "STATE_PRODUCTION_CANCEL"
 _POLICY_PRODUCTION_UNCOMPLETE = "STATE_PRODUCTION_UNCOMPLETE"
 
@@ -260,11 +263,6 @@ for _command in (
         command_id="PRODUCTION_COMPLETE", policy_id=_POLICY_PRODUCTION_COMPLETE,
         axis=AXIS_MAIN, from_values=("PRODUCTION",), to_values=("CONSTRUCTION",),
         event_type="PRODUCTION_COMPLETED", effect_type="STAGE_NOTIFICATION",
-    ),
-    TransitionCommand(
-        command_id="PRODUCTION_CANCEL", policy_id=_POLICY_PRODUCTION_CANCEL,
-        axis=AXIS_MAIN, from_values=("PRODUCTION",), to_values=("CONFIRM",),
-        event_type="PRODUCTION_CANCELLED", effect_type="STAGE_NOTIFICATION",
     ),
     TransitionCommand(
         command_id="PRODUCTION_UNCOMPLETE", policy_id=_POLICY_PRODUCTION_UNCOMPLETE,
@@ -452,17 +450,43 @@ def _mint_current_production_run(db: Any, order_id: int, sd: dict[str, Any]) -> 
     ))
 
 
-def _close_current_production_run(db: Any, order_id: int) -> None:
-    """current IN_PROGRESS run 을 COMPLETED + is_current=False 로 종결(없으면 no-op)."""
-    run = (
+def _current_production_run(db: Any, order_id: int) -> ProductionRun | None:
+    """해당 주문의 current production run(없으면 None). start/cancel 게이트·종결이 공유."""
+    return (
         db.query(ProductionRun)
         .filter(ProductionRun.order_id == order_id, ProductionRun.is_current.is_(True))
         .first()
     )
+
+
+def _close_current_production_run(db: Any, order_id: int) -> None:
+    """current IN_PROGRESS run 을 COMPLETED + is_current=False 로 종결(없으면 no-op)."""
+    run = _current_production_run(db, order_id)
     if run is None:
         return
     run.status = "COMPLETED"
     run.is_current = False
+
+
+def _reopen_last_production_run(db: Any, order_id: int, sd: dict[str, Any]) -> None:
+    """완료 취소용: 마지막으로 닫힌 run 이 COMPLETED 면 다시 current IN_PROGRESS 로 연다.
+
+    닫힌 run 이 없거나(레거시 no-run 주문) 마지막 run 이 SUPERSEDED 면 새 run 을 발급한다
+    (:func:`_mint_current_production_run`). current run 이 이미 있으면 no-op(부분 유니크 보호).
+    """
+    if _current_production_run(db, order_id) is not None:
+        return
+    last = (
+        db.query(ProductionRun)
+        .filter(ProductionRun.order_id == order_id, ProductionRun.is_current.is_(False))
+        .order_by(ProductionRun.created_at.desc())
+        .first()
+    )
+    if last is not None and last.status == "COMPLETED":
+        last.status = "IN_PROGRESS"
+        last.is_current = True
+        return
+    _mint_current_production_run(db, order_id, sd)
 
 
 def _append_stage_history(sd: dict[str, Any], stage: str, note: str, user: Any) -> None:
@@ -546,18 +570,22 @@ def _apply_complete_side_effects(db: Any, order: Order, user: Any, user_id: Any,
 
 
 def _apply_cancel_side_effects(db: Any, order: Order, user: Any, user_id: Any,
-                               reason: str, event_id: Any) -> None:
-    """PRODUCTION_CANCEL 전이 후 same-tx side-effect: history·진행 플래그 정리·event 보강.
+                               reason: str, run_id: Any) -> None:
+    """제작 취소 mutation 안의 same-tx side-effect(단계 무변경): history·진행 플래그 정리·event.
 
-    깨끗한 되돌림(F-1b): ``rework.active`` 해제(count·reason·at 보존)와 active hold 해제
-    (:func:`_append_hold_history` 로 이력 보존)를 수행하고, 정리 여부를 전이 event payload 에
-    ``rework_cleared``/``hold_released`` 로 남긴다.
+    단계 축은 PRODUCTION 그대로다 — 되돌리는 것은 current run 뿐이라 history 도 stage
+    "PRODUCTION" 으로 남기고, ``PRODUCTION_CANCELLED`` OrderEvent 를 직접 add 한다(전이 엔진을
+    타지 않으므로 STAGE_NOTIFICATION 오발송이 없다). 깨끗한 되돌림(F-1b): ``rework.active``
+    해제(count·reason·at 보존)와 active hold 해제(:func:`_append_hold_history` 로 이력 보존)를
+    수행하고, 정리 여부를 event payload 에 ``rework_cleared``/``hold_released`` 로 남긴다.
+
+    :param run_id: 이 취소가 SUPERSEDED 로 종결한 run id(없었으면 None).
     """
     sd = copy.deepcopy(_ensure_dict(order.structured_data))
     note = "제작 취소 (제작대기 복귀)"
     if reason:
         note += f" — {reason}"
-    _append_stage_history(sd, "CONFIRM", note, user)
+    _append_stage_history(sd, "PRODUCTION", note, user)
 
     production = sd.get("production")
     rework_cleared = False
@@ -576,13 +604,15 @@ def _apply_cancel_side_effects(db: Any, order: Order, user: Any, user_id: Any,
     order.structured_data = sd
     flag_modified(order, "structured_data")
     sync_erp_flat_columns(order, sd)
-    _merge_event_payload(db, event_id, {
-        "domain": "PRODUCTION_DOMAIN", "action": "PRODUCTION_CANCELLED",
-        "reason": reason, "rework_cleared": rework_cleared, "hold_released": hold_released,
-    })
-    # production run 은 건드리지 않는다 — 재시작 시 _mint_current_production_run 이 기존 current
-    # run 을 그대로 재사용(멱등)하므로 중복 발급이 없고, 취소된 run 을 COMPLETED 로 종결하는
-    # 의미 왜곡도 피한다(rework 경로와 동일 관례).
+    db.add(OrderEvent(
+        order_id=order.id, event_type="PRODUCTION_CANCELLED",
+        payload={
+            "domain": "PRODUCTION_DOMAIN", "action": "PRODUCTION_CANCELLED",
+            "reason": reason, "rework_cleared": rework_cleared, "hold_released": hold_released,
+            "run_id": run_id,
+        },
+        created_by_user_id=user_id,
+    ))
     _audit_production(order, "PRODUCTION_START_CANCELED", user_id,
                       extra={"reason": reason or None, "rework_cleared": rework_cleared,
                              "hold_released": hold_released})
@@ -593,8 +623,9 @@ def _apply_uncomplete_side_effects(db: Any, order: Order, user: Any, user_id: An
     """PRODUCTION_UNCOMPLETE 전이 후 same-tx side-effect: history·재제작 복원·event 보강.
 
     직전 완료가 재제작 완료였으면(``rework.completed_at`` 존재 + ``active`` False) rework 를
-    다시 활성으로 복원하고 완료 시각 표식을 제거한다(count 불변). production run 은 rework
-    경로와 동일하게 건드리지 않는다(재완료 시 종결 호출이 no-op 로 수렴).
+    다시 활성으로 복원하고 완료 시각 표식을 제거한다(count 불변). production run 은
+    :func:`_reopen_last_production_run` 으로 다시 연다(마지막 COMPLETED run 을 current
+    IN_PROGRESS 로, 없으면 신규 발급) — 버킷 = 단계 + run 이라 run 없이는 제작대기로 떨어진다.
     """
     sd = copy.deepcopy(_ensure_dict(order.structured_data))
     _append_stage_history(sd, "PRODUCTION", "완료 취소 (제작중 복귀)", user)
@@ -614,6 +645,7 @@ def _apply_uncomplete_side_effects(db: Any, order: Order, user: Any, user_id: An
         "domain": "PRODUCTION_DOMAIN", "action": "PRODUCTION_COMPLETE_REVERTED",
         "rework_restored": rework_restored,
     })
+    _reopen_last_production_run(db, order.id, sd)
     _audit_production(order, "PRODUCTION_COMPLETE_CANCELED", user_id,
                       extra={"rework_restored": rework_restored})
 
@@ -653,12 +685,22 @@ def _enrich_production_completed_event(db: Any, event_id: Any, is_rework: bool) 
 @login_required
 @_production_steps_edit_required
 def api_production_start(order_id):
-    """제작 시작 (고객컨펌/CONFIRM → PRODUCTION), transition_order(PRODUCTION_START) 경유.
+    """제작 시작 — 제작대기(단계 + run 없음) 주문에 current IN_PROGRESS run 을 연다.
 
-    5단계 하드 게이트를 순서대로 검사한다: 존재(404) → team 권한(데코레이터 403) → 제작대기
-    stage(INVALID_STAGE 409) → 보류(HOLD_ACTIVE 409, release_hold 예외) → 현재 stage quest
-    완료(QUEST_INCOMPLETE 409). same-key(idempotency) 재요청은 전이/side-effect 없이 저장된
-    성공을 replay 한다. 전이 후 same-tx 로 history·보류해제·current IN_PROGRESS run 을 반영한다.
+    2026-09-17 부터 고객 컨펌 승인이 단계를 CONFIRM→PRODUCTION 으로 넘기므로 제작대기 =
+    "PRODUCTION 이면서 current run 없음" 이 기본이다. 단계별 경로:
+
+    (a) PRODUCTION·run 없음 — 단계는 그대로, ``execute_order_mutation``(REV-00) 안에서
+        history("제작 시작")·보류 해제·run 발급·감사 + ``PRODUCTION_STARTED`` OrderEvent 직접
+        add. mutation_version +1, ``order.status`` 무변경. 응답에 ``run_started: True``.
+        current run 이 이미 있으면 409 INVALID_STAGE("이미 제작중인 주문입니다.").
+    (b) CONFIRM(호환 — 승인이 단계를 못 넘긴 옛 주문) — 기존 그대로 CONFIRM quest 게이트 뒤
+        ``transition_order(PRODUCTION_START, CONFIRM→PRODUCTION)`` + 같은 side-effect.
+    (c) 그 밖 — 409 INVALID_STAGE("제작대기 상태에서만 제작을 시작할 수 있습니다.").
+
+    공통 게이트 순서: 존재(404) → team 권한(데코레이터 403) → 단계(409) → 보류(HOLD_ACTIVE
+    409, release_hold 예외) → [(b) 만] CONFIRM quest 완료(QUEST_INCOMPLETE 409). same-key
+    (idempotency) 재요청은 두 경로 모두 저장된 성공을 replay 한다(side-effect 없음).
     """
     db = get_db()
     try:
@@ -673,19 +715,60 @@ def api_production_start(order_id):
         user = get_user_by_id(user_id)
         sd = _ensure_dict(order.structured_data)
         hold_was_active = _hold_active(sd)[0]
+        stage = order.erp_stage_code
+        run_only_path = stage in ("생산", "PRODUCTION")
 
         # replay(같은 key 저장 receipt 존재) 가 아니면 전제 게이트를 검사한다.
         if not _idempotency_receipt_exists(db, user_id, _POLICY_PRODUCTION_START, idem_key):
-            if order.erp_stage_code not in ("고객컨펌", "CONFIRM"):
+            if run_only_path:
+                if _current_production_run(db, order_id) is not None:
+                    return jsonify({"success": False, "code": "INVALID_STAGE",
+                                    "message": "이미 제작중인 주문입니다."}), 409
+                blocked = _hold_block_response(sd, release_hold)
+                if blocked is not None:
+                    return blocked
+            elif stage in ("고객컨펌", "CONFIRM"):
+                blocked = _hold_block_response(sd, release_hold)
+                if blocked is not None:
+                    return blocked
+                blocked = _stage_quest_block(sd, "CONFIRM", "고객컨펌")
+                if blocked is not None:
+                    return blocked
+            else:
                 return jsonify({"success": False, "code": "INVALID_STAGE",
                                 "message": "제작대기 상태에서만 제작을 시작할 수 있습니다."}), 409
-            blocked = _hold_block_response(sd, release_hold)
-            if blocked is not None:
-                return blocked
-            blocked = _stage_quest_block(sd, "CONFIRM", "고객컨펌")
-            if blocked is not None:
-                return blocked
 
+        if run_only_path:
+            # (a) 단계 무변경 — run 발급만 mutation 으로 감싼다(row lock·version++·receipt).
+            def _mutate(sess: Any, orders: list[Order]) -> dict[int, list[str]]:
+                target = orders[0]
+                _apply_start_side_effects(sess, target, user, user_id, release_hold, hold_was_active)
+                sess.add(OrderEvent(
+                    order_id=order_id, event_type="PRODUCTION_STARTED",
+                    payload={
+                        "domain": "PRODUCTION_DOMAIN", "action": "PRODUCTION_STARTED",
+                        "target": "production_run", "from": "PRODUCTION", "to": "PRODUCTION",
+                        "run_started": True, "change_method": "API",
+                    },
+                    created_by_user_id=user_id,
+                ))
+                return {order_id: [f"ORDER_DETAIL:{order_id}", "ORDERS_INDEX"]}
+
+            try:
+                execute_order_mutation(
+                    db, actor_user_id=user_id, policy_id=_POLICY_PRODUCTION_START,
+                    order_ids=[order_id], scope_hash=_scope_hash("PRODUCTION_START", order_id),
+                    request_hash=_request_hash(body), idempotency_key=idem_key,
+                    mutation=_mutate,
+                )
+            except RevisionError as exc:
+                db.rollback()
+                return _transition_error_response(exc)
+            db.commit()
+            return jsonify({"success": True, "message": "제작이 시작되었습니다.",
+                            "new_status": "PRODUCTION", "run_started": True})
+
+        # (b) CONFIRM 호환 경로 — 엔진 전이 CONFIRM→PRODUCTION + same-tx side-effect.
         try:
             result = transition_order(
                 db, command_id="PRODUCTION_START", order_id=order_id,
@@ -779,6 +862,7 @@ def api_production_rework(order_id: int):
     제작완료(시공/CONSTRUCTION) 상태의 주문을 다시 제작중(PRODUCTION)으로 되돌린다.
     재제작 회차(count)를 누적하고 ``sd['production']['rework']`` 에 활성 표식을 남긴다
     (완료 시 ``api_production_complete`` 가 active=False 로 해제하며 count 는 보존).
+    단계 쓰기 뒤 새 회차 current run 을 발급한다(버킷 = 단계 + run → 제작중).
     가드는 start/complete 와 동일 순서: 404 → INVALID_STAGE(제작완료가 아니면 409) →
     보류 게이트(HOLD_ACTIVE / release_hold, via="release_on_rework").
 
@@ -867,6 +951,8 @@ def api_production_rework(order_id: int):
         flag_modified(order, "structured_data")
         order.status = "PRODUCTION"
         sync_erp_flat_columns(order, sd)
+        # 버킷 = 단계 + run: 새 회차 run 을 열어야 보드가 제작중으로 잡는다(있으면 멱등 skip).
+        _mint_current_production_run(db, order_id, sd)
 
         db.add(
             OrderEvent(
@@ -896,14 +982,17 @@ def api_production_rework(order_id: int):
 @login_required
 @_production_steps_edit_required
 def api_production_cancel(order_id: int):
-    """제작 취소 (제작중 → 제작대기/CONFIRM 되돌림), transition_order(PRODUCTION_CANCEL) 경유.
+    """제작 취소 (제작중 → 제작대기 복귀) — 단계는 PRODUCTION 그대로, current run 만 닫는다.
 
-    제작중(생산/PRODUCTION) 상태의 주문을 제작대기(CONFIRM)로 되돌린다. 후진 전이이므로
+    제작 취소 ≠ 컨펌 취소(2026-09-17). 단계 축은 움직이지 않고 current run 을 SUPERSEDED·
+    ``is_current=False`` 로 종결하면 보드 버킷(단계 + run)이 제작대기로 돌아간다. 후진이므로
     **보류 게이트를 적용하지 않는다** — 보류는 전진(시작·완료·수정 제작)만 막는 배지이며,
     되돌리기는 보류가 걸린 채로도 허용한다(단, 아래처럼 정리한다). 가드는 404 →
-    INVALID_STAGE(제작중이 아니면 409) 순서. 상태 변이는 start/complete 와 같은 canonical
-    엔진 경유라 mutation_version++·idempotency receipt·legacy OrderEvent·tx내 outbox 가
-    원자 보장되며, 전이 후 same-tx 로 history·플래그 정리·SecurityLog 를 반영한다.
+    INVALID_STAGE(제작중이 아니면 409) → INVALID_STAGE(current run 없으면 409, "제작 시작 전
+    주문은 취소할 수 없습니다.") 순서. transition_order 를 타지 않고
+    ``execute_order_mutation``(REV-00) 으로 감싸 row lock·mutation_version++·idempotency
+    receipt 를 보장하며, ``PRODUCTION_CANCELLED`` OrderEvent 는 직접 add 한다(단계 축이
+    안 움직이므로 STAGE_NOTIFICATION 오발송 없음). 응답 ``new_status`` 는 "PRODUCTION".
 
     **깨끗한 되돌림(F-1)**: 취소는 진행 자체를 되돌리므로 진행 플래그를 정리한다(이력 보존).
     ``sd['production']`` 이 dict 면 (1) ``rework`` dict 의 ``active`` 를 False 로(count·reason·at
@@ -929,31 +1018,41 @@ def api_production_cancel(order_id: int):
         user = get_user_by_id(user_id)
 
         # replay(같은 key 저장 receipt 존재) 가 아니면 전제 게이트를 검사한다.
-        # 전이 전제조건: 제작중(생산/PRODUCTION) 에서만 취소 허용. 레거시 한글 값 포함.
+        # 전제조건: 제작중(생산/PRODUCTION + current run) 에서만 취소 허용. 레거시 한글 값 포함.
         if not _idempotency_receipt_exists(db, user_id, _POLICY_PRODUCTION_CANCEL, idem_key):
             if order.erp_stage_code not in ("생산", "PRODUCTION"):
                 return jsonify({"success": False, "code": "INVALID_STAGE",
                                 "message": "제작중 상태에서만 제작을 취소할 수 있습니다."}), 409
+            if _current_production_run(db, order_id) is None:
+                return jsonify({"success": False, "code": "INVALID_STAGE",
+                                "message": "제작 시작 전 주문은 취소할 수 없습니다."}), 409
+
+        def _mutate(sess: Any, orders: list[Order]) -> dict[int, list[str]]:
+            target = orders[0]
+            run = _current_production_run(sess, order_id)
+            run_id = None
+            if run is not None:
+                run.status = "SUPERSEDED"
+                run.is_current = False
+                run_id = run.id
+            _apply_cancel_side_effects(sess, target, user, user_id, reason, run_id)
+            return {order_id: [f"ORDER_DETAIL:{order_id}", "ORDERS_INDEX"]}
 
         try:
-            result = transition_order(
-                db, command_id="PRODUCTION_CANCEL", order_id=order_id,
-                actor_user_id=user_id, expected_from="PRODUCTION", target_value="CONFIRM",
-                scope_hash=_scope_hash("PRODUCTION_CANCEL", order_id),
+            execute_order_mutation(
+                db, actor_user_id=user_id, policy_id=_POLICY_PRODUCTION_CANCEL,
+                order_ids=[order_id], scope_hash=_scope_hash("PRODUCTION_CANCEL", order_id),
                 request_hash=_request_hash(body), idempotency_key=idem_key,
-                reason=reason or None,
+                mutation=_mutate,
             )
-        except (TransitionError, RevisionError) as exc:
+        except RevisionError as exc:
             db.rollback()
             return _transition_error_response(exc)
-
-        if not result.replayed:
-            _apply_cancel_side_effects(db, order, user, user_id, reason, result.event_id)
         db.commit()
         return jsonify({
             "success": True,
             "message": "제작을 취소했습니다. (제작대기 복귀)",
-            "new_status": "CONFIRM",
+            "new_status": "PRODUCTION",
         })
     except Exception as exc:  # noqa: BLE001 - 최종 방어(구체 전이 예외는 위에서 매핑)
         db.rollback()
@@ -969,7 +1068,8 @@ def api_production_uncomplete(order_id: int):
     제작완료(시공/CONSTRUCTION) 상태의 주문을 다시 제작중(PRODUCTION)으로 되돌린다.
     후진 전이이므로 **보류 게이트를 적용하지 않는다**(cancel 참조 — 보류는 유지된다).
     가드는 404 → INVALID_STAGE(제작완료가 아니면 409) 순서. 상태 변이는 canonical 엔진
-    경유이며, 전이 후 same-tx 로 history·재제작 복원·run 재발급·SecurityLog 를 반영한다.
+    경유이며, 전이 후 same-tx 로 history·재제작 복원·run 재개(마지막 COMPLETED run 을 current
+    로, 없으면 신규 발급 — 버킷 = 단계 + run)·SecurityLog 를 반영한다.
 
     **재제작 복원**: 직전 완료가 재제작 완료였다면(``rework`` dict 에 ``completed_at`` 가 있고
     ``active`` 가 False) 완료를 되돌리며 rework 를 ``active=True`` 로 복원하고 ``completed_at``

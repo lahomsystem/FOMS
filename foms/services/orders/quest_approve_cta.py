@@ -19,11 +19,12 @@ __all__ = ["build_approve_cta"]
 
 
 # stage 코드 → 승인 버튼 문구. 한 이름("퀘스트 승인")으로 묶으면 눌렀을 때 무엇이 되는지
-# 화면이 말해 주지 못한다. DRAWING/CONFIRM 은 전용 command 단계라 여기에 없다(버튼 미노출).
+# 화면이 말해 주지 못한다. DRAWING 은 전용 command 단계라 여기에 없다(버튼 미노출).
 # COMPLETED 도 없다 — 다음 단계가 없어 승인이 아무것도 바꾸지 않는다.
 _QUEST_APPROVE_LABELS: dict[str, str] = {
     "RECEIVED": "접수 확인",
     "MEASURE": "실측 완료",
+    "CONFIRM": "고객 컨펌 완료",
     "PRODUCTION": "생산 확인",
     "CONSTRUCTION": "시공 확인",
     "CS": "CS 확인",
@@ -34,7 +35,15 @@ _QUEST_APPROVE_LABELS: dict[str, str] = {
 _QUEST_APPROVE_CONFIRM_HEADS: dict[str, str] = {
     "RECEIVED": "주문 접수 확인을 마치고 실측 단계로 넘길까요?",
     "MEASURE": "실측을 완료하고 도면 단계로 넘길까요?",
+    "CONFIRM": "고객 컨펌을 완료하고 생산 단계로 넘길까요?",
 }
+
+
+def _done_label(label: str | None, stage_label: str) -> str:
+    """승인이 끝난 quest 에 붙는 완료 배지 문구. 버튼 문구가 이미 '완료' 로 끝나면 그대로 쓴다."""
+    if label and label.endswith("완료"):
+        return label
+    return f"{label or stage_label} 완료"
 
 
 def _order_confirm_context(order: Any) -> str:
@@ -58,10 +67,13 @@ def build_approve_cta(stage_code: str | None, order: Any) -> dict[str, Any]:
     :param stage_code: 영문 stage 코드.
     :param order: 확인 문구에 넣을 고객명/주문번호 출처 Order.
     :returns: ``approve_label`` (없으면 None = 버튼 미노출), ``approve_confirm``,
-        ``advances_stage``, ``next_stage_label``, ``command_required``.
+        ``advances_stage``, ``next_stage_label``, ``command_required``,
+        ``done_label`` (승인이 끝난 quest 의 완료 배지 문구 — 항상 채운다).
     """
     command_required = is_command_required_stage(stage_code)
     label = None if command_required else _QUEST_APPROVE_LABELS.get(stage_code or "")
+    stage_label = STAGE_LABELS.get(stage_code or "", stage_code or "")
+    done_label = _done_label(label, stage_label)
     if not label:
         return {
             "approve_label": None,
@@ -69,11 +81,11 @@ def build_approve_cta(stage_code: str | None, order: Any) -> dict[str, Any]:
             "advances_stage": False,
             "next_stage_label": "",
             "command_required": command_required,
+            "done_label": done_label,
         }
 
     next_stage_code = stage_advance_target(stage_code)
     next_stage_label = STAGE_LABELS.get(next_stage_code, next_stage_code or "")
-    stage_label = STAGE_LABELS.get(stage_code or "", stage_code or "")
 
     if next_stage_code:
         head = _QUEST_APPROVE_CONFIRM_HEADS.get(
@@ -91,4 +103,5 @@ def build_approve_cta(stage_code: str | None, order: Any) -> dict[str, Any]:
         "advances_stage": bool(next_stage_code),
         "next_stage_label": next_stage_label,
         "command_required": command_required,
+        "done_label": done_label,
     }

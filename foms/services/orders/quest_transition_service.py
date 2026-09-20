@@ -3,15 +3,18 @@
 quest 최종 승인이 stage 전이를 유발하는 **유일한 경로**를 정본화한다(§5.2·report §line 320,
 330-331):
 
-* RECEIVED/MEASURE 최종 승인 → :mod:`order_transition_service` 로 다음 stage 전이
+* RECEIVED/MEASURE/CONFIRM 최종 승인 → :mod:`order_transition_service` 로 다음 stage 전이
   (``REQUEST_MEASUREMENT``: RECEIVED→MEASURE, fresh MEASURE quest; ``COMPLETE_MEASUREMENT``:
-  MEASURE→DRAWING, DRAWING quest 미생성).
-* DRAWING/CONFIRM 은 전용 command(도면 transfer·``CUSTOMER_CONFIRM``)로만 전이 — standalone
-  quest 승인 전이는 거부(``STAGE_COMMAND_REQUIRED`` 409).
+  MEASURE→DRAWING, DRAWING quest 미생성; ``CUSTOMER_CONFIRM``: CONFIRM→PRODUCTION,
+  PRODUCTION quest 미생성).
+* DRAWING 은 전용 command(도면 transfer·수령 확정)로만 전이 — standalone quest 승인 전이는
+  거부(``STAGE_COMMAND_REQUIRED`` 409).
 * PRODUCTION/CONSTRUCTION/CS quest 승인은 prerequisite 만 기록하고 stage 를 쓰지 않는다(no-op).
-* ``CUSTOMER_CONFIRM`` 은 CONFIRM quest 를 **같은 tx** 에서 완료 처리한다(stage 는 CONFIRM
-  유지 — CONFIRM→PRODUCTION 전이는 ``PRODUCTION_START`` 소관). :func:`complete_confirm_quest`
-  는 STATE-DRAWING-01 의 ``CUSTOMER_CONFIRM`` command 가 조립하는 adapter 다.
+* CONFIRM 이 PRODUCTION quest 를 만들지 않는 이유: 생산 quest 는 팀 승인(PRODUCTION) 모드라
+  ``foms/api/production/orders.py`` 의 제작 완료 게이트(``_stage_quest_block(sd, "PRODUCTION")``)
+  가 '생산팀 승인' 뒤로 잠기는데, 생산 보드에는 그 승인 버튼이 없다. 2026-09-17 전에는
+  CONFIRM 이 command 전용 집합에 남아 "승인도 못 하고 생산으로도 못 가는" 막다른 골목이었다
+  (운영 #5193) — 이제 CONFIRM 최종 승인이 곧 ``CUSTOMER_CONFIRM`` 전이다.
 
 전이는 :func:`~foms.services.orders.order_transition_service.transition_order` 를 경유한다
 (엔진 무편집·재구현 금지). ``session.commit()`` 은 **호출자 소유**(REV-00). 승인 **권한** 판정은
@@ -27,8 +30,7 @@ from typing import Any, Dict, Optional, Tuple
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
-from foms.services.datetime_kst import now_utc_naive
-from foms.services.orders.erp_policy_constants import STAGE_NAME_TO_CODE
+from foms.services.orders.erp_policy_constants import STAGE_NAME_TO_CODE, STAGE_LABELS
 from foms.services.orders.erp_policy_data_access import get_stage
 from foms.services.orders.erp_policy_quests import (
     check_quest_approvals_complete,
@@ -43,7 +45,7 @@ from models import Order
 
 
 class StandaloneStageAdvanceError(TransitionError):
-    """DRAWING/CONFIRM 을 standalone quest 승인으로 전이하려는 시도 — 전용 command 필요(409)."""
+    """DRAWING 을 standalone quest 승인으로 전이하려는 시도 — 전용 command 필요(409)."""
 
     status_code = 409
     error_code = "STAGE_COMMAND_REQUIRED"
@@ -64,17 +66,20 @@ class OrderNotFoundError(TransitionError):
 
 
 # stage(영문 코드) → (transition command, expected_from, target_value, 다음 stage quest 생성 여부).
-# RECEIVED/MEASURE 최종 승인만 stage 전이를 유발한다. DRAWING/CONFIRM 은 _COMMAND_REQUIRED_STAGES,
+# RECEIVED/MEASURE/CONFIRM 최종 승인만 stage 전이를 유발한다. DRAWING 은 _COMMAND_REQUIRED_STAGES,
 # 나머지(PRODUCTION/CONSTRUCTION/CS/…)는 이 map 에 없어 prerequisite-only(no-op)로 처리된다.
 #   RECEIVED→MEASURE: fresh MEASURE quest 생성(report line 330).
 #   MEASURE→DRAWING: DRAWING quest 미생성 — DRAWING 은 command 전용(report line 331).
+#   CONFIRM→PRODUCTION: PRODUCTION quest 미생성 — 만들면 생산 보드의 제작 완료 게이트
+#     (production/orders.py _stage_quest_block(sd, "PRODUCTION")) 가 없는 승인 버튼 뒤로 잠긴다.
 _STAGE_ADVANCE: Dict[str, Tuple[str, str, str, bool]] = {
     "RECEIVED": ("REQUEST_MEASUREMENT", "RECEIVED", "MEASURE", True),
     "MEASURE": ("COMPLETE_MEASUREMENT", "MEASURE", "DRAWING", False),
+    "CONFIRM": ("CUSTOMER_CONFIRM", "CONFIRM", "PRODUCTION", False),
 }
 
-# 전용 command(도면 transfer·CUSTOMER_CONFIRM)로만 전이하는 stage — standalone 승인 전이 거부.
-_COMMAND_REQUIRED_STAGES = frozenset({"DRAWING", "CONFIRM"})
+# 전용 command(도면 transfer·수령 확정)로만 전이하는 stage — standalone 승인 전이 거부.
+_COMMAND_REQUIRED_STAGES = frozenset({"DRAWING"})
 
 
 def stage_advance_target(stage_code: Optional[str]) -> Optional[str]:
@@ -91,7 +96,7 @@ def stage_advance_target(stage_code: Optional[str]) -> Optional[str]:
 
 
 def is_command_required_stage(stage_code: Optional[str]) -> bool:
-    """``stage_code`` 가 전용 command 로만 전이하는 단계(DRAWING/CONFIRM)면 True.
+    """``stage_code`` 가 전용 command 로만 전이하는 단계(DRAWING)면 True.
 
     이 단계에서 quest approve API 는 409 ``COMMAND_REQUIRED`` 로 거부한다 — 표시 계층은
     승인 버튼 자체를 그리지 않아야 막다른 길이 생기지 않는다.
@@ -106,8 +111,14 @@ def _find_stage_quest(
     quests = sd.get("quests")
     if not isinstance(quests, list):
         return None
+    # SSOT(check_quest_approvals_complete)와 같은 별칭 집합 — 한글 저장형('고객컨펌')을
+    # 코드('CONFIRM')로 찾을 때 놓치면 '없음 → True' 로 새어 나간다(2026-09-20 P2).
+    aliases = {
+        stage, stage_code, STAGE_LABELS.get(stage_code, ""),
+        STAGE_NAME_TO_CODE.get(stage or "", ""), STAGE_NAME_TO_CODE.get(stage_code, ""),
+    } - {"", None}
     for quest in quests:
-        if isinstance(quest, dict) and quest.get("stage") in (stage, stage_code):
+        if isinstance(quest, dict) and quest.get("stage") in aliases:
             return quest
     return None
 
@@ -116,8 +127,8 @@ def _stage_quest_complete(sd: Dict[str, Any], stage: Optional[str], stage_code: 
     """현 stage quest 가 (a) 아예 없거나 (b) 최종 승인 완료면 True(전이 허용), 미완이면 False.
 
     quest 자체가 없으면 게이트하지 않는다(레거시/backfill 미완 lock-out 방지, STATE-PROD 선례).
-    완료 판정은 quest 의 ``approval_mode`` 를 따른다(quest approve route 와 동일): assignee 모드는
-    ``assignee_approval.approved``, team 모드는 :func:`check_quest_approvals_complete`.
+    완료 판정은 :func:`check_quest_approvals_complete` (판정 SSOT — status COMPLETED·assignee·
+    team 모드를 모두 안다) 한 곳에 위임한다. 여기서 모드를 다시 가르지 않는다.
 
     Args:
         sd: 대상 order 의 structured_data.
@@ -130,13 +141,7 @@ def _stage_quest_complete(sd: Dict[str, Any], stage: Optional[str], stage_code: 
     quest = _find_stage_quest(sd, stage, stage_code)
     if quest is None:
         return True
-    if quest.get("approval_mode") == "assignee":
-        approval = quest.get("assignee_approval")
-        return bool(isinstance(approval, dict) and approval.get("approved"))
-    for candidate in (stage, stage_code):
-        if candidate and check_quest_approvals_complete(sd, candidate)[0]:
-            return True
-    return False
+    return check_quest_approvals_complete(sd, stage_code)[0]
 
 
 def _append_next_stage_quest(
@@ -179,8 +184,8 @@ def advance_stage_on_quest_completion(
 ) -> Optional[TransitionResult]:
     """현 stage quest 의 최종 승인이 stage 전이를 유발하면 :func:`transition_order` 로 전이한다.
 
-    RECEIVED/MEASURE 만 stage 를 advance 한다(다음 stage 로 canonical 전이 + 필요 시 fresh
-    quest). DRAWING/CONFIRM 은 전용 command 전용이라 standalone 전이를 거부하고, 그 밖의 stage
+    RECEIVED/MEASURE/CONFIRM 만 stage 를 advance 한다(다음 stage 로 canonical 전이 + 필요 시
+    fresh quest). DRAWING 은 전용 command 전용이라 standalone 전이를 거부하고, 그 밖의 stage
     (PRODUCTION/CONSTRUCTION/CS/…)는 prerequisite-only 라 stage 를 쓰지 않는다(None). 전이는
     order_transition_service 경유이며 version bump·receipt·legacy OrderEvent·tx내 outbox 는
     엔진이 원자 보장한다. ``session.commit()`` 은 호출자 소유(REV-00).
@@ -202,7 +207,7 @@ def advance_stage_on_quest_completion(
 
     Raises:
         OrderNotFoundError: order_id 미존재(404).
-        StandaloneStageAdvanceError: stage 가 DRAWING/CONFIRM(전용 command 필요, 409).
+        StandaloneStageAdvanceError: stage 가 DRAWING(전용 command 필요, 409).
         QuestIncompleteError: 현 stage quest 가 존재하나 미완(409).
         TransitionError/RevisionError: 전이 엔진/REV helper 예외 전파.
     """
@@ -250,79 +255,11 @@ def advance_stage_on_quest_completion(
     return result
 
 
-def complete_confirm_quest(
-    order: Order,
-    *,
-    actor_user_id: int,
-    actor_name: Optional[str] = None,
-    approving_team: Optional[str] = None,
-    now: Optional[datetime.datetime] = None,
-) -> bool:
-    """CONFIRM quest 를 **같은 tx** 에서 완료 처리한다(``CUSTOMER_CONFIRM`` adapter).
-
-    현 CONFIRM quest 에 required-team actor approval 을 기록하고 status 를 COMPLETED 로 종결한다.
-    stage 는 CONFIRM 유지(CONFIRM→PRODUCTION 전이는 ``PRODUCTION_START`` 소관 — 여기서 stage 를
-    쓰지 않는다). structured_data 를 copy.deepcopy + flag_modified 로 mutate 하며 commit 은
-    호출자(STATE-DRAWING-01 ``CUSTOMER_CONFIRM``) 소유다.
-
-    Args:
-        order: 대상 order(현 stage=CONFIRM 이라고 가정 — 호출자가 게이트).
-        actor_user_id: 확정 actor(approval author).
-        actor_name: actor 표시 이름(approval 기록, 선택).
-        approving_team: team-mode quest 의 승인 슬롯 팀(assignee-mode 면 무시, 선택).
-        now: 테스트용 시각 주입(기본 now_utc_naive()).
-
-    Returns:
-        CONFIRM quest 를 완료 처리했으면 True, CONFIRM quest 가 없으면 False(no-op).
-    """
-    now = now or now_utc_naive()
-    sd = copy.deepcopy(order.structured_data or {})
-    quests = sd.get("quests")
-    if not isinstance(quests, list):
-        return False
-
-    index = -1
-    for i, quest in enumerate(quests):
-        if isinstance(quest, dict) and quest.get("stage") in ("CONFIRM", "고객컨펌"):
-            index = i
-            break
-    if index < 0:
-        return False
-
-    quest = quests[index]
-    stamp = {
-        "approved": True,
-        "approved_by": actor_user_id,
-        "approved_by_name": actor_name or "",
-        "approved_at": now.isoformat(),
-    }
-    if quest.get("approval_mode") == "team":
-        team = approving_team or (quest.get("required_approvals") or [None])[0]
-        team_approvals = quest.get("team_approvals")
-        if not isinstance(team_approvals, dict):
-            team_approvals = {}
-        if team:
-            team_approvals[str(team)] = stamp
-        quest["team_approvals"] = team_approvals
-    else:
-        quest["assignee_approval"] = stamp
-
-    quest["status"] = "COMPLETED"
-    quest["completed_at"] = now.isoformat()
-    quest["updated_at"] = now.isoformat()
-    quests[index] = quest
-    sd["quests"] = quests
-    order.structured_data = sd
-    flag_modified(order, "structured_data")
-    return True
-
-
 __all__ = [
     "StandaloneStageAdvanceError",
     "QuestIncompleteError",
     "OrderNotFoundError",
     "advance_stage_on_quest_completion",
-    "complete_confirm_quest",
     "stage_advance_target",
     "is_command_required_stage",
 ]

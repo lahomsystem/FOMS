@@ -895,7 +895,7 @@
               const orderId = approveBtn.dataset.orderId;
               const team = approveBtn.dataset.team;
               if (typeof approveQuestTeam === 'function') {
-                approveQuestTeam(Number(orderId), team);
+                approveQuestTeam(Number(orderId), team, approveBtn);
               } else {
                 console.warn('approveQuestTeam is not defined');
               }
@@ -905,7 +905,7 @@
             if (approveAssigneeBtn) {
               const orderId = Number(approveAssigneeBtn.dataset.orderId);
               if (typeof approveQuestAssignee === 'function') {
-                approveQuestAssignee(orderId);
+                approveQuestAssignee(orderId, approveAssigneeBtn);
               }
             }
 
