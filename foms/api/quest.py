@@ -3,6 +3,7 @@ Quest API (단계별 퀘스트 시스템).
 GET/POST /api/orders/<id>/quest, POST /approve, PUT /status
 """
 
+import copy
 import datetime
 import hashlib
 import json
@@ -18,6 +19,7 @@ from foms.services.orders.audit_order_context import order_audit_context
 from foms.services.erp_sync_columns import sync_erp_flat_columns
 from foms.services.orders.order_mutation_policy import normalize_team
 from foms.services.orders.quest_approve_authz import (
+    approval_slot_team as _approval_slot_team,
     authorize_quest_approve as _authorize_quest_approve,
     find_stage_quest as _find_stage_quest,
     required_teams_for_stage as _required_teams_for_stage,
@@ -34,6 +36,7 @@ from foms.services.erp_policy import (
 from foms.services.orders.order_transition_service import TransitionError
 from foms.services.orders.quest_transition_service import (
     advance_stage_on_quest_completion,
+    find_stage_quest_for_approve,
     stage_advance_target,
 )
 from foms.services.orders.revision import RevisionError
@@ -145,16 +148,15 @@ def api_order_quest_create(order_id):
         if stage_code == 'DRAWING':
             return jsonify({'success': False, 'message': '도면 단계 퀘스트는 비활성화되었습니다.'}), 400
 
-        # 이미 해당 단계의 quest가 있는지 확인
-        sd = order.structured_data or {}
+        # 이미 해당 단계의 quest가 있는지 확인 — quest.stage 는 한글명('실측')으로도, 코드('MEASURE')로도
+        # 저장돼 있어 별칭 두 가지를 모두 본다(정확 일치만 보면 한글 저장형이 있는데 하나 더 만든다).
+        sd = copy.deepcopy(order.structured_data or {})
         if not sd.get("quests"):
             sd["quests"] = []
 
-        existing = None
-        for q in sd["quests"]:
-            if isinstance(q, dict) and q.get("stage") == stage:
-                existing = q
-                break
+        CODE_TO_STAGE_NAME = {v: k for k, v in STAGE_NAME_TO_CODE.items()}
+        stage_name = CODE_TO_STAGE_NAME.get(stage_code, stage_code)
+        existing, _existing_index = _find_stage_quest(sd, stage_name, stage_code)
 
         if existing:
             return jsonify({'success': False, 'message': '이미 해당 단계의 Quest가 존재합니다.'}), 400
@@ -167,7 +169,10 @@ def api_order_quest_create(order_id):
             return jsonify({'success': False, 'message': 'Quest 템플릿을 찾을 수 없습니다.'}), 400
 
         sd["quests"].append(new_quest)
+        # 프로젝트 규약(deepcopy → 수정 → 재대입 → flag_modified)을 따른다. 예전 버그는 로드된 dict 를
+        # 제자리에서 고쳐 같은 객체를 재대입해 dirty 가 안 잡힌 것.
         order.structured_data = sd
+        flag_modified(order, "structured_data")
         order.updated_at = datetime.datetime.now()
         _audit_quest(order, "QUEST_CREATED", session.get('user_id'), note=stage,
                      extra={"stage": stage, "owner": owner_person})
@@ -319,7 +324,8 @@ def api_order_quest_approve(order_id):
         CODE_TO_STAGE_NAME = {v: k for k, v in STAGE_NAME_TO_CODE.items()}
         current_stage_name = CODE_TO_STAGE_NAME.get(current_stage_code, current_stage_code)
 
-        current_quest, quest_index = _find_stage_quest(sd, current_stage_name, current_stage_code)
+        # 같은 단계 quest 가 여럿이면 표시 SSOT 와 같은 규칙(활성 최신 → 완료 최신)으로 고른다.
+        current_quest, quest_index = find_stage_quest_for_approve(sd, current_stage_name, current_stage_code)
 
         if not current_quest:
             # 전이 직후의 stale 재요청(연타·같은 키·옛 화면) 방어. 예: 고객 컨펌 최종 승인으로
@@ -356,8 +362,56 @@ def api_order_quest_approve(order_id):
         username = session.get('username') or ''
         now = datetime.datetime.now()
 
-        # 승인 슬롯 팀: 기본은 actor 자기 팀(스푸핑 방지). ADMIN/오버라이드는 payload team 허용.
-        effective_team = (team or actor_team) if (role == 'ADMIN' or emergency_override) else actor_team
+        # ── 재전이: 강제 단계 변경(regress)으로 되돌아온 뒤 완료 quest 가 그대로 남아 있으면
+        # 승인 기록(assignee_approval·team_approvals·completed_at)은 손대지 않고 전이만 다시 건다.
+        # 예전엔 이 경로가 승인 기록을 actor 로 덮어쓰고 가짜 QUEST_APPROVAL_CHANGED 를 남겼다
+        # (2026-09-20 스테이징 #4382). 다음 단계가 없는 COMPLETED(PRODUCTION/CS 등)는 대상이 아니다.
+        # 활성 quest 가 있으면 그 quest 를 잡아 정상 승인 경로를 탄다(2026-09-20 리뷰 P2).
+        is_retransition = (
+            str(current_quest.get('status', 'OPEN')).upper() == 'COMPLETED'
+            and stage_advance_target(current_stage_code) is not None
+        )
+        if is_retransition:
+            _audit_quest(order, 'QUEST_APPROVED', user_id, note='재전이',
+                         extra={'team': team, 'retransition': True})
+            try:
+                transition_result = advance_stage_on_quest_completion(
+                    db,
+                    order_id=order.id,
+                    actor_user_id=user_id,
+                    scope_hash=_scope_hash(_QUEST_APPROVE_COMMAND, order.id),
+                    request_hash=_request_hash(payload),
+                    idempotency_key=_idempotency_key(payload),
+                    reason=f'{current_stage_name} 재전이(완료 quest, 강제 단계 변경 뒤)',
+                    source_screen='erp_dashboard',
+                    now=now,
+                )
+            except (TransitionError, RevisionError) as exc:
+                db.rollback()
+                return _transition_error_response(exc)
+            db.commit()
+            from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
+
+            invalidate_all_dashboard_slice_caches()
+            next_code = order.erp_stage_code
+            return jsonify({
+                'success': True,
+                'quest': current_quest,
+                'all_approved': True,
+                'missing_teams': [],
+                'auto_transitioned': transition_result is not None and not transition_result.replayed,
+                'retransitioned': True,
+                'next_stage': CODE_TO_STAGE_NAME.get(next_code, next_code),
+            })
+
+        # 승인 슬롯 팀: actor 의 소속 팀이 아니라 **필수 팀 중 actor 가 자격을 갖는 팀**이다.
+        # 완료 판정(check_quest_approvals_complete)이 필수 팀 이름으로 정확 일치만 보기 때문에,
+        # 경리팀(ACCOUNTING)이 CS 필수 quest 를 승인하면 슬롯 키는 CS 여야 그 칸이 채워진다.
+        # 실제로 누른 팀은 아래 슬롯 값의 by_team 에 원문 그대로 남긴다.
+        effective_team = _approval_slot_team(
+            db, user, order, current_stage_code, current_quest,
+            payload_team=team, emergency_override=emergency_override,
+        ) or actor_team
 
         approval_mode = current_quest.get("approval_mode", "team")
 
@@ -416,6 +470,8 @@ def api_order_quest_approve(order_id):
                 "approved_by": user_id,
                 "approved_by_name": username,
                 "approved_at": now.isoformat(),
+                # 슬롯 키는 필수 팀이라 실제로 누른 팀이 지워진다 — 정규화 전 원문을 남긴다.
+                "by_team": (user.team or "").strip().upper(),
             }
             current_quest["updated_at"] = now.isoformat()
             if current_quest.get("status") == "OPEN":
@@ -516,6 +572,7 @@ def api_order_quest_approve(order_id):
             'all_approved': is_complete,
             'missing_teams': missing_teams,
             'auto_transitioned': auto_transitioned,
+            'retransitioned': False,
             'next_stage': next_stage_for_response,
         })
     except Exception as e:
@@ -542,48 +599,77 @@ def api_order_quest_update_status(order_id):
         payload = request.get_json(silent=True) or {}
         status = payload.get('status')
         owner_person = payload.get('owner_person')
+        reason = str(payload.get('reason') or '').strip()
 
         if status not in ['OPEN', 'IN_PROGRESS', 'COMPLETED']:
             return jsonify({'success': False, 'message': '유효하지 않은 상태입니다.'}), 400
 
-        sd = order.structured_data or {}
-        current_stage = get_stage(sd)
+        user_id = session.get('user_id')
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            return jsonify({'success': False, 'message': '사용자를 찾을 수 없습니다.'}), 401
 
-        if not current_stage:
+        # 수동 COMPLETED 는 승인 없이 단계 게이트를 여는 행위라 관리자만, 사유 필수.
+        if status == 'COMPLETED':
+            role = (user.role or '').strip().upper()
+            if role not in ('ADMIN', 'MANAGER'):
+                return jsonify({
+                    'success': False,
+                    'code': 'ROLE_REQUIRED',
+                    'message': '퀘스트 수동 완료는 관리자만 할 수 있습니다.',
+                }), 403
+            if not reason:
+                return jsonify({
+                    'success': False,
+                    'code': 'REASON_REQUIRED',
+                    'message': '사유를 입력하세요.',
+                }), 400
+
+        sd = copy.deepcopy(order.structured_data or {})
+        current_stage_code = get_stage(sd)
+
+        if not current_stage_code:
             return jsonify({'success': False, 'message': '현재 단계가 없습니다.'}), 400
 
-        quests = sd.get("quests") or []
-        quest_index = -1
-        for i, q in enumerate(quests):
-            if isinstance(q, dict) and q.get("stage") == current_stage:
-                quest_index = i
-                break
+        # quest.stage 는 한글명 또는 코드 — approve 라우트와 같은 별칭 매칭(정확 일치만 보면
+        # '고객컨펌' 저장형을 stage CONFIRM 에서 못 찾아 404 였다).
+        CODE_TO_STAGE_NAME = {v: k for k, v in STAGE_NAME_TO_CODE.items()}
+        current_stage_name = CODE_TO_STAGE_NAME.get(current_stage_code, current_stage_code)
+        quest, quest_index = _find_stage_quest(sd, current_stage_name, current_stage_code)
 
-        if quest_index == -1:
+        if not quest:
             return jsonify({'success': False, 'message': 'Quest를 찾을 수 없습니다.'}), 404
 
         now = datetime.datetime.now()
-        quests[quest_index]["status"] = status
-        quests[quest_index]["updated_at"] = now.isoformat()
+        new_q = dict(quest)
+        new_q["status"] = status
+        new_q["updated_at"] = now.isoformat()
 
         if owner_person:
-            quests[quest_index]["owner_person"] = owner_person
+            new_q["owner_person"] = owner_person
 
-        if status == "COMPLETED" and not quests[quest_index].get("completed_at"):
-            quests[quest_index]["completed_at"] = now.isoformat()
+        if status == "COMPLETED":
+            if not new_q.get("completed_at"):
+                new_q["completed_at"] = now.isoformat()
+            new_q["manual_status"] = {
+                "status": status, "by": user_id, "at": now.isoformat(), "reason": reason,
+            }
 
+        quests = list(sd.get("quests") or [])
+        quests[quest_index] = new_q
         sd["quests"] = quests
         order.structured_data = sd
+        flag_modified(order, "structured_data")
         order.updated_at = now
-        _audit_quest(order, "QUEST_STATUS_CHANGED", session.get('user_id'), note=status,
-                     extra={"status": status})
+        _audit_quest(order, "QUEST_STATUS_CHANGED", user_id, note=status,
+                     extra={"status": status, "reason": reason})
         db.commit()
         # Tier A(broad): quest 상태 변경은 stage 전환으로 이어질 수 있어 탭 간 이동 발생.
         from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
 
         invalidate_all_dashboard_slice_caches()
 
-        return jsonify({'success': True, 'quest': quests[quest_index]})
+        return jsonify({'success': True, 'quest': new_q})
     except Exception as e:
         db = get_db()
         try:

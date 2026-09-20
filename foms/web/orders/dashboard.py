@@ -528,7 +528,13 @@ def erp_dashboard():
         stage_labels=STAGE_LABELS,
         is_admin=is_admin,
         can_edit_erp=can_edit_erp_flag,
-        status_choices=list(BULK_ACTION_STATUS.items()) + [('DELETED', '삭제(휴지통)')],
+        # STATE-CONTROLS-01: 완료·AS 계열은 canonical 컨트롤(CS 완료·AS) 전용이라 일괄
+        # 선택지에서 뺀다(templates/orders/index.html 의 같은 제외와 한 잣대) — 눌러도
+        # 서버가 409 로 거부할 선택지를 화면에 두지 않는다.
+        status_choices=[
+            (code, label) for code, label in BULK_ACTION_STATUS.items()
+            if code not in ('COMPLETED', 'AS', 'AS_RECEIVED', 'AS_COMPLETED')
+        ] + [('DELETED', '삭제(휴지통)')],
         page=page,
         total_pages=total_pages,
         total_orders=total_orders,

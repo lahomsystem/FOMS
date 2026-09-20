@@ -139,7 +139,7 @@ def _external_owner(rel_path: str) -> str:
         return "STATE-DRAWING-01"
     if "/drawing/" in p or p.endswith("services/notifications/drawing_order_change.py"):
         return "STATE-DRAWING-01"
-    if p.endswith("api/cs/complete.py") or p.endswith("api/cs/confirm.py") or p.endswith("api/cs/dashboard.py"):
+    if p.endswith("api/cs/complete.py") or p.endswith("api/cs/dashboard.py"):
         return "STATE-CONST-CS-01"
     if p.endswith("api/events.py"):
         return "EVENT-REVERT-01"

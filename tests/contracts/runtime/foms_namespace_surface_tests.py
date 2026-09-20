@@ -769,7 +769,6 @@ def test_b11b_canonical_erp_orders_lane_importable() -> None:
     from foms.api.cs.complete import erp_orders_cs_bp
     from foms.api.cs.as_orders import erp_orders_as_bp
     from foms.api.cs.dashboard import erp_orders_completion_bp
-    from foms.api.cs.confirm import erp_orders_confirm_bp
     from foms.api import erp_orders_structured
     from foms.api.erp_map import erp_map_bp
     from foms.api.shipment.settings import erp_shipment_bp
@@ -784,7 +783,9 @@ def test_b11b_canonical_erp_orders_lane_importable() -> None:
     assert erp_orders_cs_bp is not None
     assert erp_orders_as_bp is not None
     assert erp_orders_completion_bp is not None
-    assert erp_orders_confirm_bp is not None
+    # 2026-09-20 삭제: foms/api/cs/confirm.py(POST /api/orders/<id>/confirm/customer) 는
+    # blueprint.customer_confirmed 만 쓰고 quest·단계·이벤트·영수증을 남기지 않았고 화면
+    # 호출자도 0 이었다(죽은 API). 고객 컨펌 정본은 quest 승인 → CUSTOMER_CONFIRM 전이다.
     assert erp_orders_structured is not None
     assert erp_map_bp is not None
     assert erp_shipment_bp is not None
@@ -1215,8 +1216,11 @@ def test_app_uses_canonical_context_processors_import() -> None:
 
 def test_namespaced_erp_permissions_shim_preserves_canonical_contract() -> None:
     """The legacy services path should re-export the canonical ERP permission helpers."""
+    # can_act_construction(2026-09-20 C-D1): 시공 액션 노출 잣대를 화면과 데코레이터가
+    # 같은 함수로 쓰기 위해 추가한 공개 술어.
     expected_public_names = [
         "build_mine_sql_filter",
+        "can_act_construction",
         "can_edit_erp",
         "can_edit_erp_construction",
         "erp_edit_required",
@@ -1298,9 +1302,6 @@ def test_erp_api_modules_use_canonical_erp_permissions_imports() -> None:
         "foms.api.cs.as_orders": {
             "erp_edit_required": namespaced_erp_permissions.erp_edit_required,
             "erp_construction_edit_required": namespaced_erp_permissions.erp_construction_edit_required,
-        },
-        "foms.api.cs.confirm": {
-            "erp_edit_required": namespaced_erp_permissions.erp_edit_required,
         },
         "foms.api.construction.orders": {
             "erp_construction_edit_required": namespaced_erp_permissions.erp_construction_edit_required,
@@ -2498,6 +2499,10 @@ _PAC_PARTIALS_SHARED_HTML_ALLOWLIST = frozenset(
         "foms_order_contact_kv.html",
         "foms_order_detail_fragment.html",
         "foms_p2_surface_bundle.html",
+        # C-D1 사유 입력 공용 바텀시트. 생산 모바일 큐·시공 모바일 큐·v3 페르소나 홈
+        # 세 표면이 같은 시트를 불러야 해서 도메인 밖에 산다 — window.prompt 를 없애며
+        # 도메인마다 시트를 따로 두면 사유 목록과 확인 문구가 화면마다 갈린다(2026-09-20).
+        "foms_reason_sheet.html",
         "foms_search_overlay.html",
         "foms_search_results_partial.html",
         "foms_side_tab.html",

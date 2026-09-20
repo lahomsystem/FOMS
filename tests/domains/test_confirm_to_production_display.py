@@ -125,6 +125,9 @@ def test_queue_card_renders_done_badge_for_completed_quest(client, monkeypatch):
     assert "고객 컨펌 완료" in html
     assert "erp-queue-card__quest-approve" not in html
     assert "erp-queue-card__confirm-open" not in html
+    # 완료 quest 인데 단계가 CONFIRM 그대로 → 재전이 버튼(ADMIN 은 서버도 200).
+    assert "erp-queue-card__quest-retransition" in html
+    assert "생산 단계로 넘기기" in html
 
 
 # --------------------------------------------------------------------------- #
@@ -142,6 +145,8 @@ def test_mobile_detail_renders_done_badge(client, monkeypatch):
     assert "erp-quest-done" in html
     assert "고객 컨펌 완료" in html
     assert "erp-mobile-quest-approve-assignee" not in html
+    assert "erp-mobile-quest-retransition" in html
+    assert "생산 단계로 넘기기" in html
 
 
 def test_mobile_detail_renders_approve_button_for_open_quest(client, monkeypatch):
@@ -170,6 +175,8 @@ def test_pc_grid_renders_done_badge(client):
     assert f'quest-collapse-{order.id}' in html
     assert "erp-quest-done" in html
     assert "고객 컨펌 완료" in html
+    assert "erp-btn-retransition erp-btn-approve-assignee" in html
+    assert "생산 단계로 넘기기" in html
 
 
 def test_pc_grid_open_quest_has_no_done_badge(client):
@@ -180,6 +187,7 @@ def test_pc_grid_open_quest_has_no_done_badge(client):
     html = client.get("/erp/dashboard", query_string={"stage": "고객컨펌"}).get_data(as_text=True)
     assert f'quest-collapse-{order.id}' in html
     assert "erp-quest-done" not in html
+    assert "erp-btn-retransition" not in html
 
 
 # --------------------------------------------------------------------------- #

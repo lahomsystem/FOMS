@@ -7,6 +7,35 @@
    .fos-* / .px-construction-* 클래스는 static/css/v3/foms-mobile-v3.css 이식본.
    ========================================================================= #}
 {% set _base = url_for('erp_construction_page.erp_construction_dashboard') %}
+{# C-D2: v3 시공 카드 액션 — v2 와 같은 클래스(.erp-construction-action)·같은 data-action
+   이름을 쓰므로 static/js/construction/dashboard.js 의 기존 전역 위임이 v3 문서에서도 탄다.
+   카드가 통짜 링크(<a>)라 버튼은 절대 그 안에 넣지 않는다 — 호출부가 <a> 의 형제로 배치한다.
+   can_act(can_act_construction)는 서버 데코레이터 erp_construction_edit_required 와 **같은
+   함수**다 — 시작·완료 준비·완료·시공 불가 4종이 전부 그 하나의 게이트를 지나므로 화면도
+   하나로 판정한다. 시공팀만으로 좁히면 CS·영업팀 v3 사용자는 서버가 200 을 주는데도
+   버튼이 0개인 막다른 길을 본다(거부당할 버튼 0, 막다른 길 0). #}
+{% macro v3_construction_actions(o, can_act) %}
+  {% if can_act %}
+    {% set _acts = [] %}
+    {% if o.stage == '시공대기' %}
+      {% set _ = _acts.append({'label': '시공 시작', 'action': 'startConstruction'}) %}
+    {% elif o.stage == '시공중' %}
+      {% set _ = _acts.append({'label': '완료 준비', 'action': 'openCompleteGate'}) %}
+      {% set _ = _acts.append({'label': '시공 완료', 'action': 'completeConstruction'}) %}
+      {% set _ = _acts.append({'label': '시공 불가', 'action': 'constructionFail'}) %}
+    {% endif %}
+    {% if _acts %}
+      <div class="fos-queue-actions">
+        {% for _a in _acts %}
+          <button type="button"
+                  class="fos-btn fos-btn--sm erp-construction-action"
+                  data-order-id="{{ o.id }}"
+                  data-action="{{ _a.action }}">{{ _a.label }}</button>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endif %}
+{% endmacro %}
 {% set _today = (today_iso | default('', true)) %}
 {% set _cur_stage = (filters.stage if filters else '') or '' %}
 {% set _st_map = {'시공대기': 'construction', '시공중': 'construction', '시공완료': 'completed'} %}
@@ -90,6 +119,7 @@
         <div class="fos-sec__hd">오늘 배차 · {{ _today_rows | length }}건</div>
         {% for o in _today_rows %}
           {% set _danger = o.alerts and o.alerts.construction_d3 %}
+          <div class="fos-queue-item">
           <a class="fos-queue-card{% if _danger %} is-danger{% endif %}"
              href="{{ url_for('erp_dashboard.erp_order_mobile_detail', order_id=o.id) }}">
             <span class="px-construction-seq tnum" data-st="{{ _st_map.get(o.stage, 'construction') }}">{{ loop.index }}</span>
@@ -104,6 +134,8 @@
               <i class="fas fa-chevron-right fos-chevron" aria-hidden="true"></i>
             </span>
           </a>
+          {{ v3_construction_actions(o, can_act_construction|default(false)) }}
+          </div>
         {% endfor %}
       </div>
     {% else %}
@@ -142,6 +174,7 @@
         {% for o in orders %}
           {% set _danger = o.alerts and o.alerts.construction_d3 %}
           {% set _tel = (o.phone or '') | replace('-', '') | replace(' ', '') %}
+          <div class="fos-queue-item">
           <a class="fos-queue-card{% if _danger %} is-danger{% endif %}"
              href="{{ url_for('erp_dashboard.erp_order_mobile_detail', order_id=o.id) }}">
             <span class="fos-queue-card__dot" style="--sc:var(--st-{{ _st_map.get(o.stage, 'construction') }})"></span>
@@ -158,6 +191,8 @@
               <i class="fas fa-chevron-right fos-chevron" aria-hidden="true"></i>
             </span>
           </a>
+          {{ v3_construction_actions(o, can_act_construction|default(false)) }}
+          </div>
         {% endfor %}
         {% if total_pages and total_pages > 1 and page < total_pages %}
           <a class="fos-btn fos-btn--block"
@@ -176,3 +211,9 @@
 
   </div>
 </div>
+
+{# C-D1: 사유 입력 공용 바텀시트(window.prompt 대체) — v3 는 v2 큐 파셜을 렌더하지 않으므로
+   여기서 페이지당 1회 include 하고 CSS·JS 태그도 여기서 낸다. #}
+{% include 'partials/shared/foms_reason_sheet.html' %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-reason-sheet.css') }}?v=20260920a">
+<script src="{{ url_for('static', filename='js/foms/foms-reason-sheet.js') }}?v=20260920a" defer></script>

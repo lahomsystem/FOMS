@@ -79,16 +79,16 @@
       <i class="fas fa-check-circle"></i> 승인 완료
     </button>
     {% elif q and q.approval_mode == 'assignee' %}
-      {% if can_edit_erp or q.can_assignee_approve %}
+      {% if q.can_assignee_approve %}
       <button type="button" class="foms-tsheet-foot__btn foms-tsheet-foot__btn--pri erp-btn-approve-assignee"
         data-order-id="{{ o.id }}"><i class="fas fa-check"></i> 퀘스트 승인</button>
       {% else %}
       <button type="button" class="foms-tsheet-foot__btn foms-tsheet-foot__btn--pri" disabled
         title="지정 담당자만 승인할 수 있습니다.">퀘스트 승인</button>
       {% endif %}
-    {% elif q and can_edit_erp and q.owner_team %}
+    {% elif q and (q.approvable_teams or []) %}
     <button type="button" class="foms-tsheet-foot__btn foms-tsheet-foot__btn--pri erp-btn-approve-team"
-      data-order-id="{{ o.id }}" data-team="{{ q.owner_team }}"><i class="fas fa-check"></i> 퀘스트 승인</button>
+      data-order-id="{{ o.id }}" data-team="{{ q.approvable_teams[0] }}"><i class="fas fa-check"></i> 퀘스트 승인</button>
     {% else %}
     <button type="button" class="foms-tsheet-foot__btn foms-tsheet-foot__btn--pri" disabled
       title="{% if not q %}현재 단계 퀘스트가 없습니다.{% else %}승인 권한이 없습니다.{% endif %}">퀘스트 승인</button>

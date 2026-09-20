@@ -300,6 +300,8 @@ def test_final_approval_advances_stage_via_canonical_engine(client):
         q for q in (saved.structured_data.get("quests") or []) if q.get("stage") == "RECEIVED"
     ][0]
     assert receiv_quest["team_approvals"]["CS"]["approved"] is True
+    # 슬롯 키는 필수 팀(CS), 값에는 실제로 누른 팀이 by_team 으로 남는다(C-A1).
+    assert receiv_quest["team_approvals"]["CS"]["by_team"] == "CS"
     assert receiv_quest["status"] == "COMPLETED"
     # 다음 단계(MEASURE) quest 가 생성된다.
     assert any(q.get("stage") == "MEASURE" for q in saved.structured_data.get("quests") or [])

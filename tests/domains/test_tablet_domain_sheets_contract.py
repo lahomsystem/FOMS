@@ -77,8 +77,12 @@ def test_domain_sheets_js_wires_production_start_with_confirm() -> None:
 
 
 def test_domain_sheets_js_wires_production_cancel_and_uncomplete() -> None:
-    """되돌리기 2종(시트 전용): 제작 취소 = /production/cancel + confirm,
-    완료 취소 = /production/uncomplete + confirm. 위임 액션명·엔드포인트·문구 고정."""
+    """되돌리기 2종(시트 전용): 제작 취소 = /production/cancel, 완료 취소 =
+    /production/uncomplete. 위임 액션명·엔드포인트·문구 고정.
+
+    묻는 문장은 그대로 두되 창만 바뀌었다 — 제작 취소는 사유를 받아야 해서
+    window.confirm 대신 공용 사유 시트의 제목으로 같은 문장을 띄운다(2026-09-20).
+    """
     js = _read(DOMAIN_SHEETS_JS)
     assert "production-cancel" in js  # 시트 액션 위임 분기
     assert "/production/cancel" in js  # 신규 되돌리기 엔드포인트

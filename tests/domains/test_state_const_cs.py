@@ -12,7 +12,10 @@ construction start/complete/rework + cs/complete 를 OrderConstructionAttempt �
 
 from __future__ import annotations
 
+import copy
 from datetime import date
+
+from sqlalchemy.orm.attributes import flag_modified
 
 from werkzeug.security import generate_password_hash
 
@@ -83,6 +86,27 @@ def _cs_quest(approved: bool) -> dict:
             "team_approvals": {"CS": {"approved": approved, "approved_by": None, "approved_at": None}}}
 
 
+def _seed_construction_evidence(order_id: int) -> None:
+    """시공 완료 증빙 게이트(after 사진 2장·서명)를 채운다 — C-B3 기본 on 대응.
+
+    게이트를 끄지 않고 시드를 채우는 이유: 운영에서 증빙 없는 완료는 이제 없다.
+    라우트(_evidence_gate_missing)는 live construction.evidence 블록만 보므로 첨부 행
+    자체는 필요 없다.
+    """
+    order = db_session.get(Order, order_id)
+    sd = copy.deepcopy(order.structured_data or {})
+    construction = sd.get("construction") or {}
+    evidence = construction.get("evidence") or {}
+    evidence["before"] = list(evidence.get("before") or [])
+    evidence["after"] = [9001, 9002]
+    evidence["signature_att_id"] = 9003
+    construction["evidence"] = evidence
+    sd["construction"] = construction
+    order.structured_data = sd
+    flag_modified(order, "structured_data")
+    db_session.commit()
+
+
 def _active_as_cycle() -> dict:
     """current RECEIVED AS cycle(진행 중 AS) — read_as_status → RECEIVED."""
     return {"as_lifecycle": {"current_cycle_id": "c1", "cycles": [{"cycle_id": "c1", "transitions": []}]}}
@@ -144,6 +168,12 @@ def test_complete_advances_to_cs_and_attempt_ready(client):
     oid = _make_order("CONSTRUCTION").id
     assert client.post(f"/api/orders/{oid}/construction/start", json={}).status_code == 200
 
+    # 증빙 게이트는 기본 on 이다 — 증빙 없이 부르면 400·missing 으로 막힌다.
+    blocked = client.post(f"/api/orders/{oid}/construction/complete", json={"completion_note": "끝"})
+    assert blocked.status_code == 400
+    assert set(blocked.get_json()["data"]["missing"]) == {"after", "signature"}
+
+    _seed_construction_evidence(oid)
     resp = client.post(f"/api/orders/{oid}/construction/complete", json={"completion_note": "끝"})
     assert resp.status_code == 200 and resp.get_json()["new_status"] == "CS"
 
@@ -179,6 +209,7 @@ def test_complete_rejected_outside_construction_stage(client):
     """시공중 아님(CS 에서 재완료) → complete 409 INVALID_STAGE."""
     _login(client, _make_user("cc_done2", role="STAFF", team="CONSTRUCTION"))
     oid = _make_order("CS").id
+    _seed_construction_evidence(oid)  # 증빙 게이트가 아니라 stage 게이트가 답하게 한다
     resp = client.post(f"/api/orders/{oid}/construction/complete", json={})
     assert resp.status_code == 409 and resp.get_json()["code"] == "INVALID_STAGE"
 
@@ -219,6 +250,10 @@ def test_rework_seals_current_attempt_reworked_and_clears_current(client):
     assert _current(oid) is None  # 열린 attempt 없음 → 다음 start 가 새 attempt append
     assert len(_attempts(oid)) == 1  # 과거 attempt 덮어쓰기 0
     assert db_session.query(OrderEvent).filter_by(order_id=oid, event_type="CONSTRUCTION_REWORKED").count() == 1
+    # 재작업 단계 이동도 STATE-CORE 엔진 경유다 — 이벤트는 엔진 것 1건뿐(라우트 중복 발행 0).
+    saved = db_session.get(Order, oid)
+    assert saved.structured_data["workflow"]["stage"] == "CONSTRUCTION"
+    assert saved.erp_stage_code == "CONSTRUCTION"
 
 
 # --------------------------------------------------------------------------- #

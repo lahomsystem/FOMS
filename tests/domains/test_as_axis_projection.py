@@ -178,9 +178,11 @@ def test_as_dashboard_still_lists_order_after_status_overwrite(client):
 
 
 def test_legacy_as_order_survives_bulk_complete_api(client):
-    """**2026-08-14 사고 전체 재현** — lifecycle 없는 레거시 AS 주문을 일괄 완료해도 남는다.
+    """**2026-08-14 사고 전체 재현** — 레거시 AS 주문은 완료해도 AS 목록에 남는다.
 
-    가드(AS 제외)를 명시로 우회(``include_as``)해 status 를 덮는, 사고와 동일한 경로다.
+    2026-09-20(C-B2)부터 메인 파이프라인 주문의 완료는 ``cs/complete`` 한 길뿐이라,
+    일괄 경로는 이 주문을 고치지 않고 ``blocked_use_cs_complete`` 로 보고한다. 사고의
+    핵심(완료 뒤 AS 완료 탭에서 증발)은 정식 경로로 완료해서 그대로 잠근다 —
     술어·투영·동기화 셋 중 하나라도 되돌아가면 red.
     """
     _login(client, "axis_admin4")
@@ -195,15 +197,19 @@ def test_legacy_as_order_survives_bulk_complete_api(client):
     resp = client.post("/api/bulk_update_order_status",
                        json={"order_ids": [order_id], "status": "COMPLETED", "include_as": True})
     assert resp.status_code == 200, resp.get_json()
-    assert resp.get_json()["updated"] == 1
+    assert resp.get_json()["updated"] == 0
+    assert resp.get_json()["blocked_use_cs_complete"] == [order_id]
+
+    canonical = client.post(f"/api/orders/{order_id}/cs/complete", json={})
+    assert canonical.status_code == 200, canonical.get_data(as_text=True)
 
     db_session.expire_all()
     saved = db_session.get(Order, order_id)
-    assert saved.status == "COMPLETED"
+    assert saved.erp_stage_code == "COMPLETED"
     assert saved.as_axis_status == "COMPLETED"
 
     completed_after = client.get("/erp/as?tab=completed").get_data(as_text=True)
-    assert "AXISLEGACY" in completed_after, "레거시 AS 주문이 일괄 완료로 목록에서 사라졌다"
+    assert "AXISLEGACY" in completed_after, "레거시 AS 주문이 완료로 목록에서 사라졌다"
 
 
 def _open_as_lifecycle(cycle_id: str = "n1") -> dict:

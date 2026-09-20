@@ -278,6 +278,8 @@ def test_confirm_drawing_receipt_api_prunes_old_files(client, monkeypatch):
     order = db_session.get(Order, order_id)
     saved_keys = [f["key"] for f in order.structured_data["drawing_current_files"]]
     assert saved_keys == ["orders/77/new.pdf"]
+    # 파일 정리는 전이 뒤다 — 정리가 끝났다면 단계도 이미 CONFIRM 이다.
+    assert order.structured_data["workflow"]["stage"] == "CONFIRM"
 
     remaining = (
         db_session.query(OrderAttachment)

@@ -13,6 +13,7 @@ from sqlalchemy import String, cast, or_, and_, func
 
 from foms.services.common.erp_mine_filter import erp_mine_only_from_request
 from foms.services.measurement.drawing_transfer_cta import build_drawing_transfer_ctas
+from foms.services.orders.complete_path_policy import build_complete_ctas
 from foms.services.measurement_time import (
     format_minutes_hm,
     measurement_time_minutes_of,
@@ -789,10 +790,15 @@ def regional_dashboard():
     drawing_ctas = build_drawing_transfer_ctas(
         db, all_regional_orders, getattr(g, "current_user", None)
     )
+    # C-B1: 완료 버튼의 경로·차단 사유는 서버가 정한다(화면 잣대 == 서버 잣대).
+    complete_ctas = build_complete_ctas(
+        all_regional_orders, getattr(g, "current_user", None)
+    )
 
     return render_template(
         "measurement/regional_dashboard.html",
         drawing_ctas=drawing_ctas,
+        complete_ctas=complete_ctas,
         pending_orders=pending_orders,
         scheduled_orders=scheduled_orders,
         completed_orders=completed_orders,
@@ -985,9 +991,12 @@ def metropolitan_dashboard():
         + completed_orders
     )
     apply_erp_display_fields_to_orders(all_metro)
+    # C-B1: 완료 버튼의 경로·차단 사유는 서버가 정한다(화면 잣대 == 서버 잣대).
+    complete_ctas = build_complete_ctas(all_metro, getattr(g, "current_user", None))
 
     return render_template(
         "measurement/metropolitan_dashboard.html",
+        complete_ctas=complete_ctas,
         urgent_alerts=urgent_alerts,
         measurement_alerts=measurement_alerts,
         pre_measurement_alerts=pre_measurement_alerts,
@@ -1040,10 +1049,13 @@ def self_measurement_dashboard():
     drawing_ctas = build_drawing_transfer_ctas(
         db, all_orders, getattr(g, "current_user", None)
     )
+    # C-B1: 완료 버튼의 경로·차단 사유는 서버가 정한다(화면 잣대 == 서버 잣대).
+    complete_ctas = build_complete_ctas(all_orders, getattr(g, "current_user", None))
 
     return render_template(
         "measurement/self_measurement_dashboard.html",
         drawing_ctas=drawing_ctas,
+        complete_ctas=complete_ctas,
         pending_orders=pending_orders,
         scheduled_orders=scheduled_orders,
         as_orders=as_orders,

@@ -68,7 +68,9 @@ def build_approve_cta(stage_code: str | None, order: Any) -> dict[str, Any]:
     :param order: 확인 문구에 넣을 고객명/주문번호 출처 Order.
     :returns: ``approve_label`` (없으면 None = 버튼 미노출), ``approve_confirm``,
         ``advances_stage``, ``next_stage_label``, ``command_required``,
-        ``done_label`` (승인이 끝난 quest 의 완료 배지 문구 — 항상 채운다).
+        ``done_label`` (승인이 끝난 quest 의 완료 배지 문구 — 항상 채운다),
+        ``retransition_label``·``retransition_confirm`` (완료 quest 를 다음 단계로 다시
+        넘기는 버튼 문구·확인 문장 — 단계를 옮기지 않는 stage 는 빈 문자열).
     """
     command_required = is_command_required_stage(stage_code)
     label = None if command_required else _QUEST_APPROVE_LABELS.get(stage_code or "")
@@ -82,6 +84,8 @@ def build_approve_cta(stage_code: str | None, order: Any) -> dict[str, Any]:
             "next_stage_label": "",
             "command_required": command_required,
             "done_label": done_label,
+            "retransition_label": "",
+            "retransition_confirm": "",
         }
 
     next_stage_code = stage_advance_target(stage_code)
@@ -97,6 +101,16 @@ def build_approve_cta(stage_code: str | None, order: Any) -> dict[str, Any]:
 
     context_line = _order_confirm_context(order)
     confirm = f"{head}\n\n{context_line}" if context_line else head
+
+    # 재전이 문구 — 완료 quest 인데 단계가 그대로인 주문(강제 단계 변경으로 되돌린 뒤)을
+    # 사람이 다시 넘길 때 쓴다. 단계를 옮기지 않는 stage 는 재전이가 없으므로 비운다.
+    retransition_label = ""
+    retransition_confirm = ""
+    if next_stage_code:
+        retransition_label = f"{next_stage_label} 단계로 넘기기"
+        retransition_confirm = f"이미 완료된 {done_label} 입니다.\n{next_stage_label} 단계로 다시 넘길까요?"
+        if context_line:
+            retransition_confirm += f"\n\n{context_line}"
     return {
         "approve_label": label,
         "approve_confirm": confirm,
@@ -104,4 +118,6 @@ def build_approve_cta(stage_code: str | None, order: Any) -> dict[str, Any]:
         "next_stage_label": next_stage_label,
         "command_required": command_required,
         "done_label": done_label,
+        "retransition_label": retransition_label,
+        "retransition_confirm": retransition_confirm,
     }

@@ -41,16 +41,42 @@
     <div class="erp-mobile-queue-section__list foms-mobile-queue-list">
       {% for o in orders %}
         {% set task_action = None %}
+        {% set task_actions = None %}
+        {# 되돌리기 액션(수정 제작·제작 취소·완료 취소)은 서버 술어와 같은 조건에서만 그린다
+           — can_act_production = ADMIN 또는 team capability CS/SALES/PRODUCTION
+           (foms/api/production/orders.py 의 _PRODUCTION_STEPS_EDIT_TEAMS 와 같은 답). #}
+        {% set _can_prod = can_act_production|default(false) %}
         {% if o.stage == '제작대기' and o.is_sales_approved %}
-          {% set task_action = {'label': '제작 시작', 'icon': 'fas fa-play', 'data_action': 'startProduction', 'button_class': 'erp-production-action'} %}
+          {# 제작 시작·완료도 되돌리기와 같은 데코레이터(_production_steps_edit_required)를
+             지난다 — 권한이 없으면 버튼 대신 배지만 남긴다(거부당할 버튼 0). #}
+          {% if _can_prod %}
+            {% set task_action = {'label': '제작 시작', 'icon': 'fas fa-play', 'data_action': 'startProduction', 'button_class': 'erp-production-action'} %}
+          {% else %}
+            {% set task_action = {'label': '제작 대기', 'icon': 'fas fa-hourglass-half', 'badge_only': true, 'button_class': 'foms-production-status'} %}
+          {% endif %}
         {% elif o.stage == '제작대기' %}
           {% set task_action = {'label': '고객 컨펌 전', 'icon': 'fas fa-pause-circle', 'badge_only': true, 'button_class': 'foms-production-status'} %}
         {% elif o.stage == '제작중' %}
-          {% set task_action = {'label': '제작 완료', 'icon': 'fas fa-check', 'data_action': 'completeProduction', 'button_class': 'erp-production-action'} %}
+          {% if _can_prod %}
+            {% set task_actions = [
+              {'label': '제작 완료', 'icon': 'fas fa-check', 'data_action': 'completeProduction', 'button_class': 'erp-production-action'},
+              {'label': '수정 제작', 'icon': 'fas fa-rotate-left', 'data_action': 'productionRework', 'button_class': 'erp-production-action'},
+              {'label': '제작 취소', 'icon': 'fas fa-ban', 'data_action': 'productionCancel', 'button_class': 'erp-production-action'}
+            ] %}
+          {% else %}
+            {% set task_action = {'label': '제작중', 'icon': 'fas fa-hammer', 'badge_only': true, 'button_class': 'foms-production-status'} %}
+          {% endif %}
         {% elif o.stage == '제작완료' %}
-          {% set task_action = {'label': '제작 완료', 'icon': 'fas fa-check-circle', 'badge_only': true, 'button_class': 'foms-production-status'} %}
+          {% if _can_prod %}
+            {% set task_actions = [
+              {'label': '제작 완료', 'icon': 'fas fa-check-circle', 'badge_only': true, 'button_class': 'foms-production-status'},
+              {'label': '완료 취소', 'icon': 'fas fa-rotate-left', 'data_action': 'productionUncomplete', 'button_class': 'erp-production-action'}
+            ] %}
+          {% else %}
+            {% set task_action = {'label': '제작 완료', 'icon': 'fas fa-check-circle', 'badge_only': true, 'button_class': 'foms-production-status'} %}
+          {% endif %}
         {% endif %}
-        {{ render_queue_card_v2(o, can_edit_erp|default(false), task_action, '--production', o.stage) }}
+        {{ render_queue_card_v2(o, can_edit_erp|default(false), task_action, '--production', o.stage, task_actions=task_actions) }}
         {# B3: 카드당 서버 렌더는 '공정 N/5' 배지 버튼 1줄만(enriched 행 sd 파생, 신규 쿼리 없음).
            체크 5행 UI 는 페이지 공용 바텀시트 1개에서 GET lazy 로드 — 카드마다 인라인
            반복 렌더 금지(fragment 전송 바이트 예산). 권한 게이트는 서버 SSOT(403 폴백). #}
@@ -75,3 +101,8 @@
 </section>
 {# B3: 공정 체크 공용 바텀시트 — 페이지당 1개 마크업(카드 인라인 반복 금지). #}
 {% include 'production/partials/production_steps_sheet.html' %}
+{# C-D1: 사유 입력 공용 바텀시트(window.prompt 대체) — 페이지당 1회.
+   CSS·JS 태그는 layout_head 를 건드리지 않고 여기서 낸다(tablet_kanban_body.html 선례). #}
+{% include 'partials/shared/foms_reason_sheet.html' %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-reason-sheet.css') }}?v=20260920a">
+<script src="{{ url_for('static', filename='js/foms/foms-reason-sheet.js') }}?v=20260920a" defer></script>

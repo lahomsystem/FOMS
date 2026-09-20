@@ -61,6 +61,8 @@ from foms.services.erp_permissions import (
     can_edit_erp,
     is_order_related_to_user,
 )
+from foms.services.feature_flags import note_shell_v3_view, resolve_shell_variant_cached
+from foms.services.orders.order_mutation_policy import team_has_capability
 from foms.services.erp_policy import STAGE_LABELS
 # namespace surface 계약(pin): 라우트 본문 미사용이어도 erp_display 재export 유지
 from foms.services.erp_display import (
@@ -258,6 +260,16 @@ def erp_production_dashboard():
     # detail_payload eager 조립 제거: 템플릿 preload가 lazy fetch(/api/orders/<id>/
     # detail-payload)로 전환되어 이 서버측 계산은 미사용이었다(매 요청 N행 낭비).
 
+    # C-D1: 생산 되돌리기 버튼(수정 제작·제작 취소·완료 취소)은 서버 술어와 같은 조건에서만
+    # 그린다 — foms/api/production/orders.py 의 _PRODUCTION_STEPS_EDIT_TEAMS 와 같은 답이다.
+    can_act_production = bool(user) and (
+        user.role == 'ADMIN'
+        or team_has_capability(getattr(user, 'team', None), ('CS', 'SALES', 'PRODUCTION'))
+    )
+    # C-D2 (g): v3 셸 진입 관측 — 같은 사용자·같은 날은 1행만 남는다(실패해도 화면 무영향).
+    if resolve_shell_variant_cached(user.id if user else None) == 'v3':
+        note_shell_v3_view(user.id if user else None, 'production')
+
     template_name = (
         'production/partials/dashboard_fragment.html'
         if wants_erp_shell_tab_body(request)
@@ -278,6 +290,7 @@ def erp_production_dashboard():
             stage_labels=STAGE_LABELS,
             is_admin=is_admin,
             can_edit_erp=can_edit_erp(user),
+            can_act_production=can_act_production,
             erp_mine_only=erp_mine_only,
             page=page,
             per_page=PRODUCTION_DASHBOARD_PAGE_SIZE,

@@ -235,6 +235,8 @@ def test_construction_fail_reschedule_emits_event(client):
     )
     assert resp.status_code == 200, resp.get_data(as_text=True)
     assert _from_to(order_id) == [("2026-07-20", "2026-08-05")]
+    # 재예약은 전이 뒤 같은 tx 부수효과다 — 자기 전이(CONSTRUCTION→CONSTRUCTION)라 단계는 유지.
+    assert resp.get_json()["new_status"] == "CONSTRUCTION"
 
 
 # --------------------------------------------------------------------------- #

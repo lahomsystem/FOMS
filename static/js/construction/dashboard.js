@@ -421,6 +421,21 @@
     }
   }
 
+  // B5 완료 게이트(400)의 missing 코드 → 사람 말. 서버는 코드만 주고, 사람 말은 화면 몫이다.
+  const CONSTRUCTION_GATE_MISSING_LABELS = {
+    after: '완료 사진 2장',
+    signature: '고객 서명'
+  };
+
+  function describeCompleteGateMissing(data) {
+    const missing = (data && data.data && Array.isArray(data.data.missing)) ? data.data.missing : [];
+    if (!missing.length) return '';
+    const words = missing.map(function (key) {
+      return CONSTRUCTION_GATE_MISSING_LABELS[key] || String(key);
+    });
+    return words.join(', ') + '이 필요합니다';
+  }
+
   function completeConstruction(orderId) {
     const orderIdInput = document.getElementById('erp-cons-complete-order-id');
     if (orderIdInput) orderIdInput.value = orderId;
@@ -434,6 +449,60 @@
     if (modalEl) {
       const modal = new bootstrap.Modal(modalEl);
       modal.show();
+    }
+  }
+
+  // 시공 불가 사유 4종(서버 화이트리스트와 같은 코드·순서).
+  const CONSTRUCTION_FAIL_REASONS = [
+    { code: 'drawing_error', label: '도면 오류' },
+    { code: 'measurement_error', label: '실측 오류' },
+    { code: 'product_defect', label: '제품 불량' },
+    { code: 'site_issue', label: '현장 문제' }
+  ];
+
+  // 시공 불가 — 모바일·v3 카드의 data-action="constructionFail" 위임이 window 에서
+  // 이 이름을 찾으므로 최상위 함수 선언이어야 한다. 사유는 window.prompt 가 아니라
+  // 공용 바텀시트(FomsReasonSheet)로 받는다(라디오 4종 + 상세).
+  function constructionFail(orderId) {
+    if (!orderId) return;
+    if (!window.FomsReasonSheet) {
+      alert('사유 입력 창을 불러오지 못했습니다. 새로고침한 뒤 다시 시도해 주세요.');
+      return;
+    }
+    window.FomsReasonSheet.open({
+      title: '시공 불가 처리',
+      actionLabel: '시공 불가',
+      reasons: CONSTRUCTION_FAIL_REASONS,
+      detailLabel: '상세 사유 (선택)',
+      onSubmit: function (reason, detail) {
+        submitConstructionFail(orderId, reason, detail);
+      }
+    });
+  }
+
+  async function submitConstructionFail(orderId, reason, detail) {
+    try {
+      const res = await fetch(`/api/orders/${orderId}/construction/fail`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: reason, detail: detail || '' })
+      });
+      let data;
+      try {
+        data = await res.json();
+      } catch (_) {
+        data = { success: false, message: '서버 응답 형식 오류' };
+      }
+      if (data && data.success) {
+        alert(data.message || '시공 불가로 처리했습니다.');
+        window.location.reload();
+      } else {
+        alert('오류: ' + ((data && (data.error || data.message)) || '시공 불가 처리 실패'));
+      }
+    } catch (err) {
+      console.error('Construction fail error:', err);
+      alert('시공 불가 처리 중 오류가 발생했습니다.');
     }
   }
 
@@ -553,7 +622,19 @@
         }
         window.location.href = '/erp/construction/dashboard';
       } else {
-        if (statusEl) statusEl.innerHTML = '<span class="text-danger">오류: ' + esc(data.message) + '</span>';
+        // 요건 미충족이면 "무엇이 없어서 막혔는지" 를 사람 말로 붙이고, 곧바로 채울 수 있는
+        // 길(완료 준비 시트)을 준다 — 코드만 보여 주는 막다른 길을 만들지 않는다.
+        const missingText = describeCompleteGateMissing(data);
+        let html = '<span class="text-danger">오류: ' + esc(data.message);
+        if (missingText) html += ' — ' + esc(missingText);
+        html += '</span>';
+        if (missingText && typeof window.openCompleteGate === 'function') {
+          html += ' <button type="button" class="btn btn-sm btn-link erp-construction-action"'
+            + ' data-order-id="' + esc(String(orderId)) + '" data-action="openCompleteGate">완료 준비 열기</button>';
+        } else if (missingText) {
+          html += ' <span class="text-muted small">아래 사진 첨부 칸에 올린 뒤 다시 눌러 주세요.</span>';
+        }
+        if (statusEl) statusEl.innerHTML = html;
         if (completeBtn) completeBtn.disabled = false;
       }
     } catch (err) {

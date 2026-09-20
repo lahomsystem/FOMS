@@ -19,7 +19,8 @@
 (function () {
   'use strict';
 
-  var SELECTOR = '.erp-mobile-quest-approve-assignee, .erp-mobile-quest-approve-team, .erp-queue-card__quest-approve';
+  // 재전이 버튼(완료 quest 를 다음 단계로 다시 넘김)도 같은 승인 API 에 POST {} 를 보낸다.
+  var SELECTOR = '.erp-mobile-quest-approve-assignee, .erp-mobile-quest-approve-team, .erp-queue-card__quest-approve, .erp-queue-card__quest-retransition, .erp-mobile-quest-retransition';
   var RESTORE_KEY = 'foms:quest-approve:restore';
   var RESTORE_TTL_MS = 30 * 1000;
   var HIGHLIGHT_MS = 2400;
@@ -45,6 +46,9 @@
 
   /** 승인 후 결과 문장 — 단계가 옮겨졌는지 서버 응답으로만 말한다(추정 금지). */
   function resultMessage(data, btn) {
+    if (data.retransitioned && data.next_stage) {
+      return data.next_stage + ' 단계로 넘겼습니다.';
+    }
     if (data.auto_transitioned && data.next_stage) {
       return '승인 완료 — ' + data.next_stage + ' 단계로 넘어갔습니다.';
     }
