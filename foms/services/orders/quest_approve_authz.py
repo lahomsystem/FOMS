@@ -16,6 +16,7 @@ __all__ = [
     "QUEST_APPROVE_ROLES",
     "actor_teams_for",
     "approvable_teams_for",
+    "approval_slot_team",
     "authorize_quest_approve",
     "display_team_axes",
     "find_stage_quest",
@@ -265,3 +266,85 @@ def authorize_quest_approve(
     if quest_approve_allowed(user, order, stage_code, current_quest):
         return (True, 200, "")
     return (False, 403, "현재 단계 승인 권한이 없는 팀입니다. (오버라이드가 필요합니다.)")
+
+
+def _slot_approved(quest: dict | None, team: str) -> bool:
+    """quest.team_approvals 의 해당 칸이 이미 승인됐는가(approvable_teams_for 와 같은 판정)."""
+    approvals = (quest or {}).get("team_approvals") or {}
+    record = approvals.get(str(team)) or approvals.get(team)
+    return bool(record.get("approved")) if isinstance(record, dict) else bool(record)
+
+
+def approval_slot_team(
+    db,
+    user,
+    order,
+    stage_code: str,
+    quest: dict | None,
+    *,
+    payload_team: str = "",
+    emergency_override: bool = False,
+) -> str | None:
+    """승인 기록을 적을 슬롯 팀 — actor 의 소속 팀이 아니라 **필수 팀 중 actor 가 자격을 갖는 팀**.
+
+    완료 판정(:func:`check_quest_approvals_complete`)은 필수 팀 이름으로 정확 일치만 본다.
+    그래서 경리팀(ACCOUNTING)이 CS 필수 quest 를 승인하면 슬롯을 ``ACCOUNTING`` 으로 적을
+    때 그 칸은 영원히 비어 보인다. 자격(capability)으로 고른 **필수 팀 이름**을 슬롯 키로
+    쓰면 읽기 술어를 건드리지 않고도 같은 답이 된다. 실제로 누른 팀은 라우트가 슬롯 값의
+    ``by_team`` 에 따로 남긴다.
+
+    규칙:
+        1. ADMIN 이거나 긴급 오버라이드이고 payload 팀이 있으면 그 팀(현행 유지).
+        2. 후보 = 아직 승인 안 된 자격 팀(:func:`approvable_teams_for`), 없으면
+           **아직 승인 안 된** 자격 팀 전체(:func:`actor_teams_for` 에서 이미 approved 인
+           팀을 뺀 것). 시공 단계는 배정 user id 를 :func:`authorize_quest_approve` 와
+           같은 방식으로 넘긴다.
+        3. payload 팀이 후보 안에 있으면 그 팀, 아니면 후보 첫 번째.
+        4. 후보가 비면 ``None`` — 라우트가 기존 actor 팀으로 폴백한다(새 400 을 만들지 않는다).
+
+    폴백에서 이미 승인된 팀을 빼는 이유: 승인 원장은 덮어쓰지 않는다. 필수 2팀(CS·SALES)
+    중 CS 만 승인된 quest 를 CS 자격만 가진 다른 사람이 다시 누르면, 폴백이 CS 를 그대로
+    돌려줄 때 먼저 승인한 사람의 ``approved_by``·``approved_by_name``·``approved_at`` 이
+    새 값으로 덮여 "누가 언제 승인했는가" 가 사라진다. 남은 후보가 없으면 ``None`` 을
+    돌려 라우트가 actor 팀 슬롯에 적게 한다(필수 칸은 건드리지 않는다).
+
+    Args:
+        db: DB 세션(시공 배정 조회용).
+        user: 승인 주체(role/team/id).
+        order: 대상 주문.
+        stage_code: 현재 단계 영문 코드.
+        quest: 현재 단계 quest dict.
+        payload_team: 요청 본문이 지정한 팀(정규화 전 원문).
+        emergency_override: 관리자 오버라이드 요청 여부.
+
+    Returns:
+        슬롯 키로 쓸 팀 코드, 또는 후보가 없으면 ``None``.
+    """
+    role = (getattr(user, "role", None) or "").strip().upper()
+    wanted = normalize_team(payload_team)
+    if (role == "ADMIN" or emergency_override) and wanted:
+        return wanted
+
+    construction_assignee_ids = None
+    if stage_code == "CONSTRUCTION":
+        construction_assignee_ids = active_assignee_ids(db, order.id, "CONSTRUCTION")
+
+    cands = approvable_teams_for(
+        user, order, stage_code, quest,
+        construction_assignee_ids=construction_assignee_ids,
+    )
+    if not cands:
+        # 폴백도 좁게 — 이미 approved 인 슬롯은 후보에서 뺀다(승인 원장 덮어쓰기 금지).
+        cands = [
+            t
+            for t in actor_teams_for(
+                user, order, stage_code, quest,
+                construction_assignee_ids=construction_assignee_ids,
+            )
+            if not _slot_approved(quest, t)
+        ]
+    if not cands:
+        return None
+    if wanted and wanted in cands:
+        return wanted
+    return cands[0]

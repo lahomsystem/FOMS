@@ -31,7 +31,12 @@ from foms.services.orders.order_transition_service import (
     transition_order,
 )
 from foms.services.orders.revision import RevisionError
-from foms.services.orders.state_axes import AXIS_MAIN, read_as_status, read_hold
+from foms.services.orders.state_axes import (
+    AXIS_MAIN,
+    read_as_status,
+    read_hold,
+    read_main_stage,
+)
 from models import Order, OrderConstructionAttempt, SecurityLog
 
 erp_orders_cs_bp = Blueprint(
@@ -182,7 +187,11 @@ def api_cs_complete(order_id):
 
         # replay(같은 key 저장 receipt) 가 아니면 CS stage + quest/hold/AS 게이트를 검사한다.
         if not _cs_replay(db, user_id, idem_key):
-            if order.erp_stage_code not in _CS_STAGES:
+            # 단계 판독은 canonical 축(workflow.stage 우선)으로 한다 — 화면 CTA
+            # (complete_path_policy.complete_block_reason)와 전이 엔진 expected_from 이
+            # 모두 이 축을 보므로, 평면 미러(erp_stage_code)가 뒤처진 주문에서 화면은
+            # 켜진 버튼을 내밀고 서버만 409 를 주던 어긋남이 사라진다.
+            if read_main_stage(order) not in _CS_STAGES:
                 return jsonify({"success": False, "code": "INVALID_STAGE",
                                 "message": "CS 상태에서만 완료할 수 있습니다."}), 409
             blocked = _cs_gate_block(order, sd)

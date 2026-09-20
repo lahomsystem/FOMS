@@ -89,6 +89,10 @@
         {% set _st = 'confirm' if o.stage == '제작대기' else ('production' if o.stage == '제작중' else 'completed') %}
         {% set _dday = o.construction_dday %}
         {% set _overdue = (_dday is not none and _dday < 0) or (o.alerts and o.alerts.urgent) %}
+        {# C-D2: 카드 통짜 링크(<a>) 안에 버튼을 넣지 않는다 — 카드를 감싸고 <a> 의 형제로
+           액션 줄을 둔다. data-action 이름·클래스는 v2 와 같아서 기존 전역 위임
+           (production/partials/scripts.html)이 v3 문서에서도 그대로 탄다. #}
+        <div class="fos-queue-item">
         <a class="fos-queue-card{% if _overdue %} is-danger{% endif %}"
            href="{{ url_for('erp_dashboard.erp_order_mobile_detail', order_id=o.id) }}"
            aria-label="주문 {{ o.customer_name or '고객' }} 상세">
@@ -139,6 +143,28 @@
             <span class="fos-chevron"><i class="fas fa-chevron-right" aria-hidden="true"></i></span>
           </span>
         </a>
+        {% set _can_prod = can_act_production|default(false) %}
+        {% set _v3acts = [] %}
+        {% if o.stage == '제작대기' and o.is_sales_approved and _can_prod %}
+          {% set _ = _v3acts.append({'label': '제작 시작', 'action': 'startProduction'}) %}
+        {% elif o.stage == '제작중' and _can_prod %}
+          {% set _ = _v3acts.append({'label': '제작 완료', 'action': 'completeProduction'}) %}
+          {% set _ = _v3acts.append({'label': '수정 제작', 'action': 'productionRework'}) %}
+          {% set _ = _v3acts.append({'label': '제작 취소', 'action': 'productionCancel'}) %}
+        {% elif o.stage == '제작완료' and _can_prod %}
+          {% set _ = _v3acts.append({'label': '완료 취소', 'action': 'productionUncomplete'}) %}
+        {% endif %}
+        {% if _v3acts %}
+          <div class="fos-queue-actions">
+            {% for _a in _v3acts %}
+              <button type="button"
+                      class="fos-btn fos-btn--sm erp-production-action"
+                      data-order-id="{{ o.id }}"
+                      data-action="{{ _a.action }}">{{ _a.label }}</button>
+            {% endfor %}
+          </div>
+        {% endif %}
+        </div>
       {% endfor %}
     {% else %}
       <div class="fos-empty">
@@ -149,3 +175,9 @@
     {% endif %}
   </div>
 </div>
+
+{# C-D1: 사유 입력 공용 바텀시트(window.prompt 대체) — v3 는 v2 큐 파셜을 렌더하지 않으므로
+   여기서 페이지당 1회 include 하고 CSS·JS 태그도 여기서 낸다. #}
+{% include 'partials/shared/foms_reason_sheet.html' %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-reason-sheet.css') }}?v=20260920a">
+<script src="{{ url_for('static', filename='js/foms/foms-reason-sheet.js') }}?v=20260920a" defer></script>

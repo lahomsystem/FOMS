@@ -30,22 +30,56 @@
   STATE-CONTROLS-02 — canonical COMPLETE control.
 
   STATE-CONTROLS-01 이 선택자에서 COMPLETED 를 제거하며 전제한 "정식 완료 컨트롤"의
-  구현체. 물류/실측 대시보드 행에서 confirm 후 field_update(status=COMPLETED)로
-  전이한다(백엔드 semantics 는 기존 선택자 경로와 동일). 이미 terminal 상태인 행
-  (완료·AS 계열·삭제)에는 렌더하지 않는다 — AS 전이는 STATE-AS 소관 유지.
+  구현체. 이미 terminal 상태인 행(완료·AS 계열·삭제)에는 렌더하지 않는다 —
+  AS 전이는 STATE-AS 소관 유지.
+
+  C-B1·C-B2(2026-09-20): 메인 파이프라인 ERP 주문의 최종 완료는 cs/complete 한 길만
+  쓴다. 어느 길로 보낼지·막혔으면 왜 막혔는지는 화면이 정하지 않고 서버가 준다 —
+  foms/services/orders/complete_path_policy.py 의 build_complete_ctas 가 만든 cta dict
+  (visible/enabled/endpoint/label/confirm/blocked_reason/blocked_href/blocked_link_label)
+  만 읽는다 — 주문 dict 는 보지 않는다.
+  cta 를 안 받으면(None) 옛 호출부 호환으로 현행 field_update 마크업을 그대로 그린다.
+  막혔을 때도 버튼은 남기고 사유를 title + 텍스트 노드로 보여 주며, 사용자가 직접 풀 수
+  있는 사유(승인·보류·AS)에는 그 화면으로 가는 링크를 옆에 붙인다(막다른 길 0).
+  링크 문구도 서버가 준다(cta.blocked_link_label — 사유마다 가는 곳이 다르다).
+
+  Args:
+    order_id: 대상 주문 id. current_status: 현재 상태 코드. cta: 서버가 준 완료 CTA dict.
 
   배선: static/js/measurement/complete-order-btn.js (전역 위임, defer 로드 필수).
 #}
-{%- macro complete_order_control(order_id, current_status) -%}
+{%- macro complete_order_control(order_id, current_status, cta=None) -%}
   {%- set _terminal = ['COMPLETED', 'AS', 'AS_RECEIVED', 'AS_COMPLETED', 'DELETED'] -%}
   {%- set _cur = (current_status or '') | string -%}
-  {%- if _cur not in _terminal -%}
+  {%- if cta is none -%}
+    {%- if _cur not in _terminal -%}
   <button type="button" class="btn btn-sm btn-success mt-1 js-complete-order"
           data-order-id="{{ order_id }}" data-field="status" data-value="COMPLETED"
           data-confirm="이 주문을 완료 처리할까요? 완료된 주문 섹션으로 이동합니다."
           title="이 주문을 완료 상태로 변경합니다">
     <i class="fas fa-check-circle"></i> 완료
   </button>
+    {%- endif -%}
+  {%- elif cta.visible -%}
+    {%- if cta.enabled -%}
+  <button type="button" class="btn btn-sm btn-success mt-1 js-complete-order"
+          data-order-id="{{ order_id }}" data-complete-endpoint="{{ cta.endpoint }}"
+          {% if cta.endpoint != 'cs_complete' %}data-field="status" data-value="COMPLETED"{% endif %}
+          data-confirm="{{ cta.confirm }}"
+          title="이 주문을 완료 상태로 변경합니다">
+    <i class="fas fa-check-circle"></i> {{ cta.label }}
+  </button>
+    {%- else -%}
+  <button type="button" class="btn btn-sm btn-success mt-1" disabled
+          data-order-id="{{ order_id }}" title="{{ cta.blocked_reason }}">
+    <i class="fas fa-check-circle"></i> {{ cta.label }}
+  </button>
+  {# 사유는 title 만으로는 태블릿·모바일에서 읽을 길이 없다 — 실제 텍스트 노드로도 낸다. #}
+  <span class="foms-complete-blocked-reason">{{ cta.blocked_reason }}</span>
+      {%- if cta.blocked_href -%}
+  <a class="btn btn-sm btn-link js-complete-blocked-link" href="{{ cta.blocked_href }}">{{ cta.blocked_link_label|default('승인하러 가기', true) }}</a>
+      {%- endif -%}
+    {%- endif -%}
   {%- endif -%}
 {%- endmacro -%}
 

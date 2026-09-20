@@ -91,7 +91,10 @@ def test_owner_STAFF_는_JSONB_배정이_비어_있어도_수령_확정_200(clie
     assert res.status_code == 200, res.get_json()
     assert res.get_json()["success"] is True
     db_session.expire_all()
-    assert db_session.get(Order, order_id).structured_data["drawing_status"] == "CONFIRMED"
+    saved = db_session.get(Order, order_id)
+    assert saved.structured_data["drawing_status"] == "CONFIRMED"
+    assert saved.structured_data["workflow"]["stage"] == "CONFIRM"  # 엔진 전이까지 확인
+    assert saved.erp_stage_code == "CONFIRM"
 
 
 def test_대조군_다른_SALES_STAFF_는_403(client):
@@ -104,7 +107,9 @@ def test_대조군_다른_SALES_STAFF_는_403(client):
     assert res.status_code == 403
     assert "지정된 영업 담당자" in res.get_json()["message"]
     db_session.expire_all()
-    assert db_session.get(Order, order_id).structured_data["drawing_status"] == "TRANSFERRED"
+    saved = db_session.get(Order, order_id)
+    assert saved.structured_data["drawing_status"] == "TRANSFERRED"
+    assert saved.structured_data["workflow"]["stage"] == "DRAWING"  # 거부 = 단계 불변
 
 
 def test_대조군_ADMIN_은_배정과_무관하게_200(client):

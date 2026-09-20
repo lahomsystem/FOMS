@@ -19,6 +19,7 @@ from foms.services.orders.audit_order_context import order_audit_context
 from foms.services.erp_sync_columns import sync_erp_flat_columns
 from foms.services.orders.order_mutation_policy import normalize_team
 from foms.services.orders.quest_approve_authz import (
+    approval_slot_team as _approval_slot_team,
     authorize_quest_approve as _authorize_quest_approve,
     find_stage_quest as _find_stage_quest,
     required_teams_for_stage as _required_teams_for_stage,
@@ -403,8 +404,14 @@ def api_order_quest_approve(order_id):
                 'next_stage': CODE_TO_STAGE_NAME.get(next_code, next_code),
             })
 
-        # 승인 슬롯 팀: 기본은 actor 자기 팀(스푸핑 방지). ADMIN/오버라이드는 payload team 허용.
-        effective_team = (team or actor_team) if (role == 'ADMIN' or emergency_override) else actor_team
+        # 승인 슬롯 팀: actor 의 소속 팀이 아니라 **필수 팀 중 actor 가 자격을 갖는 팀**이다.
+        # 완료 판정(check_quest_approvals_complete)이 필수 팀 이름으로 정확 일치만 보기 때문에,
+        # 경리팀(ACCOUNTING)이 CS 필수 quest 를 승인하면 슬롯 키는 CS 여야 그 칸이 채워진다.
+        # 실제로 누른 팀은 아래 슬롯 값의 by_team 에 원문 그대로 남긴다.
+        effective_team = _approval_slot_team(
+            db, user, order, current_stage_code, current_quest,
+            payload_team=team, emergency_override=emergency_override,
+        ) or actor_team
 
         approval_mode = current_quest.get("approval_mode", "team")
 
@@ -463,6 +470,8 @@ def api_order_quest_approve(order_id):
                 "approved_by": user_id,
                 "approved_by_name": username,
                 "approved_at": now.isoformat(),
+                # 슬롯 키는 필수 팀이라 실제로 누른 팀이 지워진다 — 정규화 전 원문을 남긴다.
+                "by_team": (user.team or "").strip().upper(),
             }
             current_quest["updated_at"] = now.isoformat()
             if current_quest.get("status") == "OPEN":

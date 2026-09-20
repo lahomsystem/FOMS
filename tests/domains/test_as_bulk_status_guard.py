@@ -39,8 +39,12 @@ def _login(client, username: str, role: str = "ADMIN") -> User:
     return user
 
 
-def _make_order(*, status: str, stage: str = "MEASURE") -> Order:
-    """AS overlay status + 메인 stage 를 동시에 가진 ERP 주문(사고 재현 형태)."""
+def _make_order(*, status: str, stage: str = "MEASURE", is_erp: bool = True) -> Order:
+    """AS overlay status + 메인 stage 를 동시에 가진 ERP 주문(사고 재현 형태).
+
+    ``is_erp=False`` 는 메인 파이프라인 밖 레거시 주문 — 완료 경로 일원화(C-B2)의
+    거부 술어에 들어가지 않아 일괄 변경이 그대로 통한다(대조군용).
+    """
     order = Order(
         received_date="2026-08-01",
         customer_name="AS-고객",
@@ -49,9 +53,9 @@ def _make_order(*, status: str, stage: str = "MEASURE") -> Order:
         product="붙박이장",
         status=status,
         manager_name="Mgr",
-        is_erp_order=True,
+        is_erp_order=is_erp,
         as_received_date="2026-08-14" if status in AS_OVERLAY_STATUSES else None,
-        structured_data={"workflow": {"stage": stage}},
+        structured_data={"workflow": {"stage": stage}} if is_erp else None,
     )
     db_session.add(order)
     db_session.commit()
@@ -153,22 +157,32 @@ def test_stage_override_records_previous_status(client):
 
 
 def test_bulk_status_api_excludes_as_orders(client):
-    """주문 일괄 상태변경(status API)도 AS 주문을 제외하고 사유를 알려준다."""
+    """주문 일괄 상태변경(status API)도 AS 주문을 제외하고 사유를 알려준다.
+
+    2026-09-20(C-B2)부터 메인 파이프라인 ERP 주문의 COMPLETED 직접 저장은 따로 막히므로
+    (``blocked_use_cs_complete``), 이 테스트의 '통과하는 주문' 은 메인 축 밖 레거시 주문이다.
+    AS 제외 가드 자체는 그대로다 — 사고 재현 차단이 이 테스트의 핵심이다.
+    """
     _login(client, "as_guard_admin", role="ADMIN")
     as_id = _make_order(status="AS_RECEIVED").id
-    plain_id = _make_order(status="CS", stage="CS").id  # CS → COMPLETED = advance(차단 대상 아님)
+    cs_id = _make_order(status="CS", stage="CS").id  # 메인 파이프라인 → CS 완료 경로 소관
+    legacy_id = _make_order(status="SCHEDULED", is_erp=False).id
 
     resp = client.post(
         "/api/bulk_update_order_status",
-        json={"order_ids": [as_id, plain_id], "status": "COMPLETED"},
+        json={"order_ids": [as_id, cs_id, legacy_id], "status": "COMPLETED"},
     )
     assert resp.status_code == 200, resp.get_json()
     payload = resp.get_json()
     assert [item["order_id"] for item in payload["blocked_as_orders"]] == [as_id]
+    assert payload["blocked_use_cs_complete"] == [cs_id]
+    assert payload["updated"] == 1
     assert "AS" in payload["message"]
 
     db_session.expire_all()
     assert db_session.get(Order, as_id).status == "AS_RECEIVED"
+    assert db_session.get(Order, cs_id).status == "CS"
+    assert db_session.get(Order, legacy_id).status == "COMPLETED"
 
 
 def test_bulk_status_api_allows_as_target(client):

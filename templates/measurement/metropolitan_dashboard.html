@@ -440,7 +440,7 @@
                                                         data-current-status="{{ order.status }}">
                                                     {{ assignable_status_options(METRO_BOARD_STATUS, order.status) }}
                                                 </select>
-                                                {{ complete_order_control(order.id, order.status) }}
+                                                {{ complete_order_control(order.id, order.status, complete_ctas.get(order.id)) }}
                                             </td>
                                             <td>{{ order.manager_name or '-' }}</td>
                                             <td>{{ order.measurement_date or '-' }}</td>

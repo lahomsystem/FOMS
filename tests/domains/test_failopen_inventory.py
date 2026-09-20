@@ -41,7 +41,9 @@ _INVENTORY_PATH = _REPO_ROOT / "docs" / "harness" / "foms_failopen_inventory.jso
 #: broad catch 의 현재 총량. **줄이는 것은 언제나 허용**(줄었으면 이 상수를 새 값으로
 #: 내려 잠근다), 늘리는 것은 red 다. 새 broad catch 를 추가할 거면 그 자리에서
 #: ``logger.warning(..., exc_info=True)`` 나 ``log_handled_exception`` 을 함께 배선하라.
-_SWALLOW_BASELINE = 180
+#: 180 → 179 (2026-09-20 C-C3): 아무도 부르지 않던 ``foms/api/cs/confirm.py`` 를 지우면서
+#: 그 안의 무로깅 broad catch 1건이 함께 사라졌다. 줄어든 값으로 잠근다.
+_SWALLOW_BASELINE = 179
 
 
 def _load_scanner():

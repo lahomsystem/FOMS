@@ -129,26 +129,43 @@
     );
   }
 
-  // 수정 제작 — 제작완료 → 제작중 되돌림. confirm 후 사유 prompt(취소=중단, 빈 값=진행).
-  // HOLD_ACTIVE 재시도는 submitTransition 이 body(reason)를 유지한 채 처리한다.
-  function productionRework(orderId) {
+  // 사유 입력 공용 바텀시트(static/js/foms/foms-reason-sheet.js)로 사유를 받아 전이한다.
+  // window.prompt 는 쓰지 않는다 — 모바일·태블릿·v3 세 화면이 같은 시트를 쓴다.
+  function openReasonSheetAndSubmit(orderId, path, opts) {
     if (!orderId) return;
-    if (!window.confirm("수정 제작으로 되돌리시겠습니까? (상태가 제작중으로 변경됩니다)")) return;
-    // prompt 취소(null) = 전이 중단. 빈 문자열 확인은 빈 사유로 진행.
-    var reason = window.prompt("수정 제작 사유를 입력하세요. (선택)");
-    if (reason === null) return;
-    submitTransition(orderId, "/production/rework", { reason: reason.trim() });
+    if (!window.FomsReasonSheet) {
+      window.alert("사유 입력 창을 불러오지 못했습니다. 새로고침한 뒤 다시 시도해 주세요.");
+      return;
+    }
+    window.FomsReasonSheet.open({
+      title: opts.title,
+      actionLabel: opts.actionLabel,
+      reasons: null,
+      detailLabel: opts.detailLabel,
+      onSubmit: function (reason, detail) {
+        submitTransition(orderId, path, { reason: detail });
+      },
+    });
   }
 
-  // 제작 취소 — 제작중 → 제작대기 되돌림(시트 전용, 의도적 마찰). confirm 후 사유 prompt
-  // (취소=중단, 빈 값=진행). 후진 전이라 서버 보류 게이트 없음(HOLD_ACTIVE 분기 무발동, 무해).
+  // 수정 제작 — 제작완료 → 제작중 되돌림. 사유는 공용 시트에서 받는다(빈 값 허용).
+  // HOLD_ACTIVE 재시도는 submitTransition 이 body(reason)를 유지한 채 처리한다.
+  function productionRework(orderId) {
+    openReasonSheetAndSubmit(orderId, "/production/rework", {
+      title: "수정 제작으로 되돌리기",
+      actionLabel: "수정 제작",
+      detailLabel: "수정 제작 사유 (선택)",
+    });
+  }
+
+  // 제작 취소 — 제작중 → 제작대기 되돌림(시트 전용, 의도적 마찰). 사유는 공용 시트에서 받는다.
+  // 후진 전이라 서버 보류 게이트 없음(HOLD_ACTIVE 분기 무발동, 무해).
   function productionCancel(orderId) {
-    if (!orderId) return;
-    if (!window.confirm("제작을 취소하고 제작대기로 되돌릴까요?")) return;
-    // prompt 취소(null) = 전이 중단. 빈 문자열 확인은 빈 사유로 진행.
-    var reason = window.prompt("제작 취소 사유를 입력하세요. (선택)");
-    if (reason === null) return;
-    submitTransition(orderId, "/production/cancel", { reason: reason.trim() });
+    openReasonSheetAndSubmit(orderId, "/production/cancel", {
+      title: "제작을 취소하고 제작대기로 되돌릴까요?",
+      actionLabel: "제작 취소",
+      detailLabel: "제작 취소 사유 (선택)",
+    });
   }
 
   // 완료 취소 — 제작완료 → 제작중 되돌림(시트 전용, 의도적 마찰). confirm 만(사유 없음).
@@ -168,23 +185,40 @@
   function productionHold(orderId, btn) {
     if (!orderId) return;
     var isActive = btn && btn.getAttribute("data-hold-active") === "1";
-    var nextActive = !isActive;
-    var reason = "";
-    if (nextActive) {
-      reason = window.prompt("보류 사유를 입력하세요. (선택)", "") || "";
-      reason = reason.trim();
-    } else {
-      // 해제 confirm — 서버 렌더 사유(data-hold-reason)를 병기(있을 때만).
-      var heldReason = btn ? (btn.getAttribute("data-hold-reason") || "").trim() : "";
-      var releaseMsg = "보류를 해제할까요?";
-      if (heldReason) releaseMsg += " (사유: " + heldReason + ")";
-      if (!window.confirm(releaseMsg)) return;
+    if (!isActive) {
+      // 보류 사유도 공용 시트에서 받는다(window.prompt 금지). 시트는 비동기라 제출
+      // 콜백에서 같은 요청을 이어 보낸다.
+      if (!window.FomsReasonSheet) {
+        window.alert("사유 입력 창을 불러오지 못했습니다. 새로고침한 뒤 다시 시도해 주세요.");
+        return;
+      }
+      window.FomsReasonSheet.open({
+        title: "생산 보류",
+        actionLabel: "보류",
+        reasons: null,
+        detailLabel: "보류 사유 (선택)",
+        onSubmit: function (_reason, detail) {
+          submitProductionHold(orderId, true, detail);
+        },
+      });
+      return;
     }
+    // 해제 confirm — 서버 렌더 사유(data-hold-reason)를 병기(있을 때만).
+    var heldReason = btn ? (btn.getAttribute("data-hold-reason") || "").trim() : "";
+    var releaseMsg = "보류를 해제할까요?";
+    if (heldReason) releaseMsg += " (사유: " + heldReason + ")";
+    if (!window.confirm(releaseMsg)) return;
+    submitProductionHold(orderId, false, "");
+  }
+
+  // 보류 토글 요청 본체. 성공 시 시트를 닫고 새로고침해 카드/시트 배지를 재조회한다.
+  // 에러 키 = error/message(전이 409 는 message).
+  function submitProductionHold(orderId, active, reason) {
     fetch("/api/orders/" + encodeURIComponent(orderId) + "/production/hold", {
       method: "POST",
       credentials: "same-origin",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ active: nextActive, reason: reason }),
+      body: JSON.stringify({ active: active, reason: (reason || "").trim() }),
     })
       .then(function (res) {
         return res.json().catch(function () {

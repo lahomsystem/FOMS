@@ -84,14 +84,27 @@
       {% for o in orders %}
         {% set task_action = None %}
         {% set task_actions = None %}
+        {# 시공 액션 4종은 모두 같은 서버 데코레이터(erp_construction_edit_required)를 지난다
+           — 화면도 한 술어(can_act_construction)로만 그린다. 권한이 없으면 버튼 대신
+           단계 배지만 남긴다(눌러도 403 받을 버튼 0). #}
+        {% set _can_cons = can_act_construction|default(false) %}
         {% if o.stage == '시공대기' %}
-          {% set task_action = {'label': '시공 시작', 'icon': 'fas fa-play', 'data_action': 'startConstruction', 'button_class': 'erp-construction-action'} %}
+          {% if _can_cons %}
+            {% set task_action = {'label': '시공 시작', 'icon': 'fas fa-play', 'data_action': 'startConstruction', 'button_class': 'erp-construction-action'} %}
+          {% else %}
+            {% set task_action = {'label': '시공 대기', 'icon': 'fas fa-hourglass-half', 'badge_only': true, 'button_class': 'foms-construction-status'} %}
+          {% endif %}
         {% elif o.stage == '시공중' %}
           {# B5 완료 게이트: "완료 준비"(증빙 시트) 우선 + 기존 빠른 완료 병존. #}
-          {% set task_actions = [
-            {'label': '완료 준비', 'icon': 'fas fa-clipboard-check', 'data_action': 'openCompleteGate', 'button_class': 'erp-construction-action'},
-            {'label': '시공 완료', 'icon': 'fas fa-check', 'data_action': 'completeConstruction', 'button_class': 'erp-construction-action'}
-          ] %}
+          {% if _can_cons %}
+            {% set task_actions = [
+              {'label': '완료 준비', 'icon': 'fas fa-clipboard-check', 'data_action': 'openCompleteGate', 'button_class': 'erp-construction-action'},
+              {'label': '시공 완료', 'icon': 'fas fa-check', 'data_action': 'completeConstruction', 'button_class': 'erp-construction-action'},
+              {'label': '시공 불가', 'icon': 'fas fa-triangle-exclamation', 'data_action': 'constructionFail', 'button_class': 'erp-construction-action'}
+            ] %}
+          {% else %}
+            {% set task_action = {'label': '시공중', 'icon': 'fas fa-hammer', 'badge_only': true, 'button_class': 'foms-construction-status'} %}
+          {% endif %}
         {% elif o.stage == '시공완료' and o.as_received_done %}
           {% set task_actions = [
             {'label': '재 업로드', 'icon': 'fas fa-redo', 'data_action': 'reuploadConstructionPhotos', 'button_class': 'erp-construction-action'},
@@ -118,3 +131,9 @@
 
 {# G4 출발 전 자재 확인 — 기존 출고 패킹 시트/JS 재사용(무수정 include, foms-packing.js 제어). #}
 {% include 'shipment/partials/packing_sheet.html' %}
+
+{# C-D1: 사유 입력 공용 바텀시트(window.prompt 대체) — 페이지당 1회.
+   CSS·JS 태그는 layout_head 를 건드리지 않고 여기서 낸다(tablet_kanban_body.html 선례). #}
+{% include 'partials/shared/foms_reason_sheet.html' %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-reason-sheet.css') }}?v=20260920a">
+<script src="{{ url_for('static', filename='js/foms/foms-reason-sheet.js') }}?v=20260920a" defer></script>

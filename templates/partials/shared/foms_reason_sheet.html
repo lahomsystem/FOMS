@@ -1,0 +1,49 @@
+{# 공용 사유 입력 바텀시트 — window.prompt 를 대체하는 단일 패턴(C-D1·C-D2).
+   시공 완료 게이트 시트(construction/partials/complete_gate_sheet.html)와 같은 구조:
+   backdrop + panel + 머리(제목·닫기) + 사유 라디오 목록 + 상세 textarea + 취소/확인.
+   내용(제목·사유 목록·버튼 글자)은 static/js/foms/foms-reason-sheet.js 가 열 때 채운다.
+   페이지당 1회만 include 한다(모바일 큐 파셜 v2 / v3 페르소나 홈). #}
+<div class="foms-reason-sheet"
+     data-foms-reason-sheet
+     hidden
+     aria-hidden="true">
+  <div class="foms-reason-sheet__backdrop" data-foms-reason-close></div>
+  <div class="foms-reason-sheet__panel"
+       role="dialog"
+       aria-modal="true"
+       aria-labelledby="foms-reason-sheet-title">
+    <div class="foms-reason-sheet__head">
+      <h2 class="foms-reason-sheet__title" id="foms-reason-sheet-title" data-foms-reason-title>사유 입력</h2>
+      <button type="button"
+              class="foms-reason-sheet__close"
+              data-foms-reason-close
+              aria-label="닫기">
+        <i class="fas fa-xmark" aria-hidden="true"></i>
+      </button>
+    </div>
+
+    <fieldset class="foms-reason-sheet__reasons" data-foms-reason-list hidden>
+      <legend class="foms-reason-sheet__legend">사유 선택</legend>
+    </fieldset>
+
+    <label class="foms-reason-sheet__field">
+      <span class="foms-reason-sheet__label" data-foms-reason-detail-label>상세 사유 (선택)</span>
+      <textarea class="foms-reason-sheet__detail"
+                data-foms-reason-detail
+                rows="3"
+                maxlength="500"
+                placeholder="필요하면 자세한 내용을 적어 주세요"></textarea>
+    </label>
+
+    <p class="foms-reason-sheet__error" data-foms-reason-error hidden role="alert"></p>
+
+    <div class="foms-reason-sheet__actions">
+      <button type="button"
+              class="foms-btn foms-btn--secondary foms-reason-sheet__cancel"
+              data-foms-reason-close>취소</button>
+      <button type="button"
+              class="foms-btn foms-btn--primary foms-reason-sheet__submit"
+              data-foms-reason-submit>확인</button>
+    </div>
+  </div>
+</div>

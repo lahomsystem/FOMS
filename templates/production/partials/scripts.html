@@ -249,12 +249,14 @@
     }
 
     // 전이 실행 — 409 HOLD_ACTIVE(보류 중) 면 해제 confirm 후 {release_hold:true} 로 1회 재시도.
-    async function submitProductionTransition(orderId, path) {
+    // body 는 선택 인자다(사유가 있는 되돌리기 전이가 넘긴다). 재시도 때도 그 값을 유지한다.
+    async function submitProductionTransition(orderId, path, body) {
+      const payload = body || {};
       try {
-        let result = await postProductionTransition(orderId, path, {});
+        let result = await postProductionTransition(orderId, path, payload);
         if (result.status === 409 && result.data.code === 'HOLD_ACTIVE') {
           if (!confirm(prodHoldConfirmText(result.data.hold))) return;
-          result = await postProductionTransition(orderId, path, { release_hold: true });
+          result = await postProductionTransition(orderId, path, Object.assign({}, payload, { release_hold: true }));
         }
         if (result.data.success) {
           alert(result.data.message);
@@ -276,6 +278,53 @@
     async function completeProduction(orderId) {
       if (!confirm('제작을 완료하시겠습니까? (상태가 출고대기로 변경됩니다)')) return;
       await submitProductionTransition(orderId, '/production/complete');
+    }
+
+    // 되돌리기 전이 3종(수정 제작·제작 취소·완료 취소) — 모바일·v3 카드의 data-action 이
+    // 이름 그대로 window[action] 으로 찾아 부르므로 반드시 최상위 함수 선언이어야 한다.
+    // 사유는 window.prompt 가 아니라 공용 바텀시트(FomsReasonSheet)로 받는다.
+    function openProductionReasonSheet(orderId, opts) {
+      if (!orderId) return;
+      if (!window.FomsReasonSheet) {
+        alert('사유 입력 창을 불러오지 못했습니다. 새로고침한 뒤 다시 시도해 주세요.');
+        return;
+      }
+      window.FomsReasonSheet.open({
+        title: opts.title,
+        actionLabel: opts.actionLabel,
+        reasons: null,
+        detailLabel: opts.detailLabel,
+        onSubmit: function (reason, detail) {
+          submitProductionTransition(orderId, opts.path, { reason: detail });
+        }
+      });
+    }
+
+    function productionRework(orderId) {
+      openProductionReasonSheet(orderId, {
+        title: '수정 제작으로 되돌리기',
+        actionLabel: '수정 제작',
+        detailLabel: '수정 제작 사유 (선택)',
+        path: '/production/rework'
+      });
+    }
+
+    function productionCancel(orderId) {
+      openProductionReasonSheet(orderId, {
+        title: '제작을 취소하고 제작대기로 되돌릴까요?',
+        actionLabel: '제작 취소',
+        detailLabel: '제작 취소 사유 (선택)',
+        path: '/production/cancel'
+      });
+    }
+
+    function productionUncomplete(orderId) {
+      openProductionReasonSheet(orderId, {
+        title: '완료를 취소하고 제작중으로 되돌릴까요?',
+        actionLabel: '완료 취소',
+        detailLabel: '완료 취소 사유 (선택)',
+        path: '/production/uncomplete'
+      });
     }
 
     // 생산 액션 버튼(.erp-production-action) 클릭 위임은 하단 __fomsProdWireOnce() 로 이관.

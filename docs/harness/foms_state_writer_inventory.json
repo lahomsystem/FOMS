@@ -3,63 +3,21 @@
   "summary": "Order main-stage / overlay direct-writer inventory for foms/. Every direct assignment to order.status / workflow.stage(+erp_stage_code mirror) / shipment.logistics_status / workflow.hold is classified CANONICAL / CONSTRUCTOR / AUDITED_BACKFILL / EXTERNAL. Release target: EXTERNAL == 0 (every write routes through the canonical engine). EXTERNAL sites below are pinned residual writers reported to their owner STATE packet — the drift gate keeps the set from growing.",
   "scope": "foms/**.py",
   "baselines": {
-    "total": 41,
-    "external": 24
+    "total": 35,
+    "external": 18
   },
   "classification_counts": {
     "AUDITED_BACKFILL": 1,
     "CANONICAL": 15,
     "CONSTRUCTOR": 1,
-    "EXTERNAL": 24
+    "EXTERNAL": 18
   },
   "axis_counts": {
     "HOLD": 2,
     "LOGISTICS": 1,
-    "MAIN": 38
+    "MAIN": 32
   },
   "external_sites": [
-    {
-      "path": "foms/api/construction/orders.py",
-      "lineno": 554,
-      "axis": "MAIN",
-      "kind": "subscript_stage",
-      "owner": "STATE-CONST-CS"
-    },
-    {
-      "path": "foms/api/construction/orders.py",
-      "lineno": 555,
-      "axis": "MAIN",
-      "kind": "subscript_stage",
-      "owner": "STATE-CONST-CS"
-    },
-    {
-      "path": "foms/api/construction/orders.py",
-      "lineno": 579,
-      "axis": "MAIN",
-      "kind": "attr_status",
-      "owner": "STATE-CONST-CS"
-    },
-    {
-      "path": "foms/api/drawing/erp_orders_draftsman.py",
-      "lineno": 394,
-      "axis": "MAIN",
-      "kind": "subscript_stage",
-      "owner": "STATE-DRAWING"
-    },
-    {
-      "path": "foms/api/drawing/erp_orders_draftsman.py",
-      "lineno": 395,
-      "axis": "MAIN",
-      "kind": "subscript_stage",
-      "owner": "STATE-DRAWING"
-    },
-    {
-      "path": "foms/api/drawing/erp_orders_draftsman.py",
-      "lineno": 427,
-      "axis": "MAIN",
-      "kind": "attr_status",
-      "owner": "STATE-DRAWING"
-    },
     {
       "path": "foms/api/erp_orders_structured.py",
       "lineno": 340,
@@ -90,49 +48,49 @@
     },
     {
       "path": "foms/api/orders/field_update.py",
-      "lineno": 605,
+      "lineno": 618,
       "axis": "MAIN",
       "kind": "subscript_stage",
       "owner": "STATE-LEGACY"
     },
     {
       "path": "foms/api/orders/field_update.py",
-      "lineno": 606,
+      "lineno": 619,
       "axis": "MAIN",
       "kind": "subscript_stage",
       "owner": "STATE-LEGACY"
     },
     {
       "path": "foms/api/orders/status.py",
-      "lineno": 248,
+      "lineno": 252,
       "axis": "MAIN",
       "kind": "subscript_stage",
       "owner": "STATE-LEGACY"
     },
     {
       "path": "foms/api/orders/status.py",
-      "lineno": 249,
+      "lineno": 253,
       "axis": "MAIN",
       "kind": "subscript_stage",
       "owner": "STATE-LEGACY"
     },
     {
       "path": "foms/api/orders/status.py",
-      "lineno": 317,
+      "lineno": 327,
       "axis": "MAIN",
       "kind": "attr_status",
       "owner": "STATE-LEGACY"
     },
     {
       "path": "foms/api/orders/status.py",
-      "lineno": 433,
+      "lineno": 443,
       "axis": "MAIN",
       "kind": "attr_status",
       "owner": "STATE-LEGACY"
     },
     {
       "path": "foms/api/orders/status.py",
-      "lineno": 434,
+      "lineno": 444,
       "axis": "MAIN",
       "kind": "attr_status",
       "owner": "STATE-LEGACY"
@@ -189,54 +147,6 @@
   ],
   "writers": [
     {
-      "path": "foms/api/construction/orders.py",
-      "lineno": 554,
-      "kind": "subscript_stage",
-      "axis": "MAIN",
-      "classification": "EXTERNAL",
-      "owner": "STATE-CONST-CS"
-    },
-    {
-      "path": "foms/api/construction/orders.py",
-      "lineno": 555,
-      "kind": "subscript_stage",
-      "axis": "MAIN",
-      "classification": "EXTERNAL",
-      "owner": "STATE-CONST-CS"
-    },
-    {
-      "path": "foms/api/construction/orders.py",
-      "lineno": 579,
-      "kind": "attr_status",
-      "axis": "MAIN",
-      "classification": "EXTERNAL",
-      "owner": "STATE-CONST-CS"
-    },
-    {
-      "path": "foms/api/drawing/erp_orders_draftsman.py",
-      "lineno": 394,
-      "kind": "subscript_stage",
-      "axis": "MAIN",
-      "classification": "EXTERNAL",
-      "owner": "STATE-DRAWING"
-    },
-    {
-      "path": "foms/api/drawing/erp_orders_draftsman.py",
-      "lineno": 395,
-      "kind": "subscript_stage",
-      "axis": "MAIN",
-      "classification": "EXTERNAL",
-      "owner": "STATE-DRAWING"
-    },
-    {
-      "path": "foms/api/drawing/erp_orders_draftsman.py",
-      "lineno": 427,
-      "kind": "attr_status",
-      "axis": "MAIN",
-      "classification": "EXTERNAL",
-      "owner": "STATE-DRAWING"
-    },
-    {
       "path": "foms/api/erp_orders_structured.py",
       "lineno": 340,
       "kind": "subscript_stage",
@@ -270,7 +180,7 @@
     },
     {
       "path": "foms/api/orders/field_update.py",
-      "lineno": 605,
+      "lineno": 618,
       "kind": "subscript_stage",
       "axis": "MAIN",
       "classification": "EXTERNAL",
@@ -278,7 +188,7 @@
     },
     {
       "path": "foms/api/orders/field_update.py",
-      "lineno": 606,
+      "lineno": 619,
       "kind": "subscript_stage",
       "axis": "MAIN",
       "classification": "EXTERNAL",
@@ -286,7 +196,7 @@
     },
     {
       "path": "foms/api/orders/status.py",
-      "lineno": 248,
+      "lineno": 252,
       "kind": "subscript_stage",
       "axis": "MAIN",
       "classification": "EXTERNAL",
@@ -294,7 +204,7 @@
     },
     {
       "path": "foms/api/orders/status.py",
-      "lineno": 249,
+      "lineno": 253,
       "kind": "subscript_stage",
       "axis": "MAIN",
       "classification": "EXTERNAL",
@@ -302,7 +212,7 @@
     },
     {
       "path": "foms/api/orders/status.py",
-      "lineno": 317,
+      "lineno": 327,
       "kind": "attr_status",
       "axis": "MAIN",
       "classification": "EXTERNAL",
@@ -310,7 +220,7 @@
     },
     {
       "path": "foms/api/orders/status.py",
-      "lineno": 433,
+      "lineno": 443,
       "kind": "attr_status",
       "axis": "MAIN",
       "classification": "EXTERNAL",
@@ -318,7 +228,7 @@
     },
     {
       "path": "foms/api/orders/status.py",
-      "lineno": 434,
+      "lineno": 444,
       "kind": "attr_status",
       "axis": "MAIN",
       "classification": "EXTERNAL",

@@ -22,6 +22,13 @@ from foms.services.erp_display import _ensure_dict, manager_display_name
 from foms.services.erp_policy import can_modify_domain, get_assignee_ids
 from foms.services.orders.assignment import active_assignee_ids
 from foms.services.drawing_confirm_cleanup import finalize_drawing_files_on_confirm
+from foms.services.orders.drawing_receipt_command import (
+    advance_receipt_stage,
+    receipt_transition_error,
+)
+from foms.services.orders.order_transition_service import TransitionError
+from foms.services.orders.revision import RevisionError
+from foms.services.orders.state_axes import read_main_stage
 from foms.services.storage import get_storage
 
 erp_orders_draftsman_bp = Blueprint(
@@ -383,24 +390,40 @@ def api_order_confirm_drawing_receipt(order_id):
             return jsonify({'success': False, 'message': msg}), 403
 
         old_drawing_status = s_data.get('drawing_status', 'UNKNOWN')
+        old_stage = read_main_stage(order)
+
+        # 단계 전이는 STATE-CORE 엔진이 소유한다 — 라우트는 workflow.stage·order.status 를
+        # 직접 쓰지 않는다. 도면 축 확정과 파일 정리는 전이가 성공한 **뒤에만** 한다.
+        try:
+            stage_moved = advance_receipt_stage(
+                db, order, actor_user_id=current_user.id, body=data)
+        except (TransitionError, RevisionError) as exc:
+            db.rollback()
+            code, status = receipt_transition_error(exc)
+            return jsonify({'success': False, 'code': code, 'message': str(exc)}), status
+
+        next_stage = read_main_stage(order) or old_stage or 'CONFIRM'
+
+        # 전이가 structured_data 를 새로 썼으므로 도면 축 쓰기는 최신 dict 에서 이어 간다.
+        s_data = copy.deepcopy(_ensure_dict(order.structured_data))
         s_data['drawing_status'] = 'CONFIRMED'
         s_data['drawing_confirmed_at'] = datetime.now().isoformat()
         s_data['drawing_confirmed_by'] = current_user.name
 
-        next_stage = 'CONFIRM'
-
+        # 단계 축 타임스탬프(workflow.stage_updated_at)는 전이 엔진만 쓰고 라우트는 읽기만
+        # 한다. 이력 행 시각은 이번 요청 시각이다 — 단계가 실제로 옮겨 간 경우에만 전이가
+        # 방금 넣은 값을 써서 두 기록이 같은 순간을 가리킨다(drift 경로의 옛 시각 금지).
+        request_at = now_utc_naive().isoformat()
         wf: dict = s_data.get('workflow') or {}
-        old_stage = wf.get('stage', 'DRAWING')
-        wf['stage'] = next_stage
-        wf['stage_updated_at'] = now_utc_naive().isoformat()
         wf['stage_updated_by'] = current_user.name
+        history_at = (wf.get('stage_updated_at') or request_at) if stage_moved else request_at
 
         hist: list = wf.get('history') or []
         hist.append({
             'stage': next_stage,
-            'updated_at': wf['stage_updated_at'],
+            'updated_at': history_at,
             'updated_by': wf['stage_updated_by'],
-            'note': '도면 수령 확인 및 단계 이동'
+            'note': '도면 수령 확인 및 단계 이동' if stage_moved else '도면 수령 확인(단계 유지)'
         })
         wf['history'] = hist
         s_data['workflow'] = wf
@@ -424,7 +447,6 @@ def api_order_confirm_drawing_receipt(order_id):
 
         order.structured_data = copy.deepcopy(s_data)
         flag_modified(order, "structured_data")
-        order.status = next_stage
         sync_erp_flat_columns(order, s_data)
 
         event_payload = {
@@ -447,7 +469,14 @@ def api_order_confirm_drawing_receipt(order_id):
         )
         db.add(drawing_confirm_event)
 
-        db.add(SecurityLog(user_id=current_user.id, message=f"주문 #{order_id} 도면 확정 및 단계 이동 ({old_stage} -> {next_stage})"))
+        if stage_moved:
+            security_note = f"주문 #{order_id} 도면 확정 및 단계 이동 ({old_stage} -> {next_stage})"
+        else:
+            security_note = (
+                f"주문 #{order_id} 도면 확정(단계 유지 {next_stage}) — 전달된 도면이 "
+                f"도면 단계 밖에서 확정되어 단계를 되돌리지 않았다."
+            )
+        db.add(SecurityLog(user_id=current_user.id, message=security_note))
 
         db.commit()
         # Tier A(broad): 도면 수령 확인은 workflow.stage DRAWING→CONFIRM 전환 +
@@ -456,7 +485,13 @@ def api_order_confirm_drawing_receipt(order_id):
 
         invalidate_all_dashboard_slice_caches()
 
-        return jsonify({'success': True, 'message': '도면이 확정되었습니다. 다음 단계로 이동합니다.', 'new_stage': next_stage})
+        return jsonify({
+            'success': True,
+            'message': ('도면이 확정되었습니다. 다음 단계로 이동합니다.' if stage_moved
+                        else '도면이 확정되었습니다. 단계는 그대로 유지됩니다.'),
+            'new_stage': next_stage,
+            'stage_moved': stage_moved,
+        })
 
     except Exception as e:
         if db is not None:

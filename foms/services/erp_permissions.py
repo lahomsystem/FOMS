@@ -27,6 +27,7 @@ _LIKE_ESCAPE_RE = re.compile(r"([%_\\])")
 
 __all__ = [
     "build_mine_sql_filter",
+    "can_act_construction",
     "can_edit_erp",
     "can_edit_erp_construction",
     "erp_edit_required",
@@ -318,6 +319,19 @@ def can_edit_erp_construction(user: Any) -> bool:
     return normalize_team(getattr(user, "team", None)) == "CONSTRUCTION"
 
 
+def can_act_construction(user: Any) -> bool:
+    """시공 액션(시공 시작·완료·시공 불가)을 할 수 있는가 — 화면과 서버의 한 잣대.
+
+    :func:`erp_construction_edit_required` 가 통과시키는 조건과 **같은 함수**를 쓴다.
+    화면이 이 술어를 따로 흉내 내면(예: 시공팀만) CS·영업팀은 서버가 200 을 주는데도
+    버튼이 하나도 없는 막다른 길을 보게 된다.
+
+    :param user: 대상 사용자(``role``·``team`` 속성).
+    :return: 시공 액션 가능 여부.
+    """
+    return can_edit_erp(user) or can_edit_erp_construction(user)
+
+
 def erp_edit_required(f: Callable[..., Any]) -> Callable[..., Any]:
     """ERP Order write-permission decorator."""
 
@@ -349,7 +363,7 @@ def erp_construction_edit_required(f: Callable[..., Any]) -> Callable[..., Any]:
         user = get_user_by_id(session.get("user_id"))
         if not user:
             return jsonify({"success": False, "message": "로그인이 필요합니다."}), 401
-        if can_edit_erp(user) or can_edit_erp_construction(user):
+        if can_act_construction(user):
             return f(*args, **kwargs)
         return (
             jsonify(
