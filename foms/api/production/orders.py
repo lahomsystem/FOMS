@@ -372,17 +372,31 @@ def _hold_block_response(sd: dict[str, Any], release_hold: bool):
     return jsonify({"success": False, "code": "HOLD_ACTIVE", "message": message, "hold": hold}), 409
 
 
-def _stage_quest_block(sd: dict[str, Any], stage_code: str, stage_label: str):
+def _stage_quest_block(sd: dict[str, Any], stage_code: str, stage_label: str, *, require_quest: bool = False):
     """현재 stage quest 가 존재하고 미완이면 409 QUEST_INCOMPLETE, 아니면 None.
 
-    quest 자체가 없으면(레거시/backfill 미완) 게이트하지 않는다(lock-out 방지) — 존재하는
-    stage quest 의 필수 승인이 완료돼야만 전이한다.
+    quest 자체가 없으면(레거시/backfill 미완) 기본(``require_quest=False``)은 게이트하지 않는다
+    (lock-out 방지) — 존재하는 stage quest 의 필수 승인이 완료돼야만 전이한다.
+    ``require_quest=True`` 면 quest 없음도 409 로 거부한다(code 는 소비자 호환을 위해
+    ``QUEST_INCOMPLETE`` 그대로, 구분은 ``reason: "QUEST_MISSING"``). 이때 missing_teams 는
+    정책 템플릿의 필수 팀(CONFIRM 이면 CS·SALES)이다. 화면 승인 버튼(합성 quest)이 quest 를
+    만들고 전이까지 하므로 막다른 길이 아니다(2026-09-20 F2).
     """
     quests = sd.get("quests")
-    if not isinstance(quests, list) or not quests:
-        return None
-    if not any(isinstance(q, dict) and q.get("stage") in (stage_code, stage_label) for q in quests):
-        return None
+    has_stage_quest = isinstance(quests, list) and any(
+        isinstance(q, dict) and q.get("stage") in (stage_code, stage_label) for q in quests
+    )
+    if not has_stage_quest:
+        if not require_quest:
+            return None
+        _complete, missing = check_quest_approvals_complete(sd, stage_code)
+        return (
+            jsonify({
+                "success": False, "code": "QUEST_INCOMPLETE", "reason": "QUEST_MISSING",
+                "message": f"{stage_label} 승인이 먼저 필요합니다.", "missing_teams": missing,
+            }),
+            409,
+        )
     for stage in (stage_code, stage_label):
         complete, _missing = check_quest_approvals_complete(sd, stage)
         if complete:
@@ -699,7 +713,8 @@ def api_production_start(order_id):
     (c) 그 밖 — 409 INVALID_STAGE("제작대기 상태에서만 제작을 시작할 수 있습니다.").
 
     공통 게이트 순서: 존재(404) → team 권한(데코레이터 403) → 단계(409) → 보류(HOLD_ACTIVE
-    409, release_hold 예외) → [(b) 만] CONFIRM quest 완료(QUEST_INCOMPLETE 409). same-key
+    409, release_hold 예외) → [(b) 만] CONFIRM quest 완료(QUEST_INCOMPLETE 409 — CONFIRM quest
+    없음도 409, reason QUEST_MISSING; 2026-09-20 F2). same-key
     (idempotency) 재요청은 두 경로 모두 저장된 성공을 replay 한다(side-effect 없음).
     """
     db = get_db()
@@ -731,7 +746,7 @@ def api_production_start(order_id):
                 blocked = _hold_block_response(sd, release_hold)
                 if blocked is not None:
                     return blocked
-                blocked = _stage_quest_block(sd, "CONFIRM", "고객컨펌")
+                blocked = _stage_quest_block(sd, "CONFIRM", "고객컨펌", require_quest=True)
                 if blocked is not None:
                     return blocked
             else:

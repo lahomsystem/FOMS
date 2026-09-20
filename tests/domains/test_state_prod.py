@@ -32,6 +32,10 @@ from models import (
     ProductionRun,
     User,
 )
+from tests.support.quest_seed import confirm_quest_completed
+
+# 2026-09-20 F2: 생산 시작의 CONFIRM 호환 경로는 승인 완료된 CONFIRM quest 를 요구한다.
+_CONFIRM_DONE = {"quests": [confirm_quest_completed()]}
 
 
 def _make_user(username: str, *, role: str = "ADMIN", team: str | None = None) -> User:
@@ -99,7 +103,7 @@ def _mint_run(order_id: int) -> ProductionRun:
 def test_start_routes_through_transition_engine(client):
     """CONFIRM→PRODUCTION: transition_order 경유(version++·receipt·PRODUCTION_STARTED·outbox·run 발급)."""
     _login(client, _make_user("sp_start", role="STAFF", team="PRODUCTION"))
-    order_id = _make_order("CONFIRM").id
+    order_id = _make_order("CONFIRM", structured_data=_CONFIRM_DONE).id
 
     resp = client.post(f"/api/orders/{order_id}/production/start", json={})
     assert resp.status_code == 200 and resp.get_json()["new_status"] == "PRODUCTION"
@@ -219,7 +223,7 @@ def test_team_wide_allows_cs_sales_production(client):
     """CS·SALES·PRODUCTION STAFF 모두 start 200(P0-9 team-wide, erp_edit_required 복구 금지)."""
     for i, team in enumerate(("CS", "SALES", "PRODUCTION")):
         _login(client, _make_user(f"sp_tw_{team}", role="STAFF", team=team))
-        order_id = _make_order("CONFIRM").id
+        order_id = _make_order("CONFIRM", structured_data=_CONFIRM_DONE).id
         resp = client.post(f"/api/orders/{order_id}/production/start", json={})
         assert resp.status_code == 200, (team, resp.get_data(as_text=True))
 
@@ -227,7 +231,8 @@ def test_team_wide_allows_cs_sales_production(client):
 def test_unrelated_team_denied(client):
     """DRAWING 팀 STAFF → start 403(생산 team-wide 밖)."""
     _login(client, _make_user("sp_draw", role="STAFF", team="DRAWING"))
-    order_id = _make_order("CONFIRM").id
+    # 403 은 quest 게이트보다 앞이라 시드 없어도 통과하지만, CONFIRM 픽스처 모양을 통일한다.
+    order_id = _make_order("CONFIRM", structured_data=_CONFIRM_DONE).id
     resp = client.post(f"/api/orders/{order_id}/production/start", json={})
     assert resp.status_code == 403
 
@@ -238,7 +243,7 @@ def test_unrelated_team_denied(client):
 def test_same_key_replay_transitions_once(client):
     """같은 idempotency key 로 start 재요청 → 200 replay, 전이/event/run 중복 0."""
     _login(client, _make_user("sp_idem", role="STAFF", team="PRODUCTION"))
-    order_id = _make_order("CONFIRM").id
+    order_id = _make_order("CONFIRM", structured_data=_CONFIRM_DONE).id
     body = {"idempotency_key": "sp-replay-key-0001"}
 
     r1 = client.post(f"/api/orders/{order_id}/production/start", json=body)
@@ -292,7 +297,7 @@ def test_gate_hold_active(client):
     _login(client, _make_user("sp_g2", role="STAFF", team="PRODUCTION"))
     order_id = _make_order(
         "CONFIRM",
-        structured_data={"production": {"hold": {"active": True, "reason": "자재 지연"}}},
+        structured_data={**_CONFIRM_DONE, "production": {"hold": {"active": True, "reason": "자재 지연"}}},
     ).id
     resp = client.post(f"/api/orders/{order_id}/production/start", json={})
     assert resp.status_code == 409 and resp.get_json()["code"] == "HOLD_ACTIVE"
@@ -308,7 +313,7 @@ def test_release_hold_absorbed_into_atomic_transition(client):
     _login(client, _make_user("sp_rh", role="STAFF", team="PRODUCTION"))
     order_id = _make_order(
         "CONFIRM",
-        structured_data={"production": {"hold": {"active": True, "reason": "자재 지연"}}},
+        structured_data={**_CONFIRM_DONE, "production": {"hold": {"active": True, "reason": "자재 지연"}}},
     ).id
 
     resp = client.post(f"/api/orders/{order_id}/production/start", json={"release_hold": True})

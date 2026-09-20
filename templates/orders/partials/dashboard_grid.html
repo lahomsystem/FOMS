@@ -105,6 +105,12 @@
                     <div class="erp-grid-quest-stack">
                       {% if o.current_quest.is_done %}
                       <span class="badge bg-success erp-quest-done">{{ o.current_quest.done_label }}</span>
+                      {# 완료 quest 인데 단계가 그대로인 막다른 길(강제 단계 변경 뒤) — 재전이 버튼.
+                         erp-btn-approve-assignee 를 겸용해 detail-dom.js 의 기존 위임(POST {})을 탄다. #}
+                      {% if o.current_quest.can_retransition %}
+                      <button type="button" class="btn btn-sm btn-outline-primary fw-semibold erp-btn-retransition erp-btn-approve-assignee"
+                        data-order-id="{{ o.id }}" data-confirm="{{ o.current_quest.retransition_confirm }}">{{ o.current_quest.retransition_label }}</button>
+                      {% endif %}
                       {% elif o.current_quest.all_approved %}
                       <span class="badge bg-success" style="font-size: 1rem; padding: 0.4em 0.7em;">완료</span>
                       {% else %}
@@ -139,6 +145,12 @@
                                 {% if o.current_quest.is_done %}{{ o.current_quest.done_label }}{% elif o.current_quest.all_approved %}완료{% else %}진행중{% endif %}
                               </span>
                             </div>
+                            {% if o.current_quest.is_done and o.current_quest.can_retransition %}
+                            <div class="mb-3">
+                              <button type="button" class="btn btn-sm btn-outline-primary fw-semibold erp-btn-retransition erp-btn-approve-assignee"
+                                data-order-id="{{ o.id }}" data-confirm="{{ o.current_quest.retransition_confirm }}">{{ o.current_quest.retransition_label }}</button>
+                            </div>
+                            {% endif %}
                             <div class="mb-3">
                               <div class="text-muted mb-2 fw-semibold" style="font-size: 0.9rem;">담당 팀</div>
                               <div class="fw-bold" style="font-size: 1rem;">{{
@@ -182,15 +194,20 @@
                                   <span class="badge bg-success ms-2"
                                     style="font-size: 0.9rem; padding: 0.3em 0.6em;">승인완료</span>
                                   {% else %}
-                                  {% if can_edit_erp|default(false) %}
+                                  {# 팀 버튼 노출은 서버 권한 술어(approvable_teams)와 같은 답 — can_edit_erp 만으로
+                                     그리면 서버가 403 을 줄 버튼을 화면이 내민다. #}
+                                  {% if team in (o.current_quest.approvable_teams or []) %}
                                   {% set order_id_approve = o.id %}
                                   {% set team_name = team %}
                                   <button class="btn btn-primary fw-semibold ms-2 erp-btn-approve-team"
                                     data-order-id="{{ order_id_approve }}" data-team="{{ team_name }}"
                                     data-confirm="{{ o.current_quest.approve_confirm or '' }}"
                                     style="font-size: 0.9rem; padding: 0.3rem 0.6rem;">승인</button>
+                                  {% elif o.current_quest.is_synthesized and o.stage_code not in ('RECEIVED', 'CS') %}
+                                  {# 저장되지 않은 합성 quest(생산·시공 등)는 보드 명령이 실제 액션 — 권한 문제가 아니다. #}
+                                  <span class="text-muted small ms-2">(보드에서 진행)</span>
                                   {% else %}
-                                  <span class="text-muted small ms-2">(수정 권한 없음)</span>
+                                  <span class="text-muted small ms-2">(승인 권한 없음)</span>
                                   {% endif %}
                                   {% endif %}
                                 </div>

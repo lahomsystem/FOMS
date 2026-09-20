@@ -14,8 +14,12 @@ from foms.services.orders.order_mutation_policy import normalize_team, team_has_
 
 __all__ = [
     "QUEST_APPROVE_ROLES",
+    "actor_teams_for",
+    "approvable_teams_for",
     "authorize_quest_approve",
+    "display_team_axes",
     "find_stage_quest",
+    "quest_approve_allowed",
     "required_teams_for_stage",
 ]
 
@@ -80,6 +84,134 @@ def required_teams_for_stage(current_quest: dict | None, stage_code: str) -> lis
     return [t for t in teams if t]
 
 
+def actor_teams_for(
+    user,
+    order,
+    stage_code: str,
+    quest: dict | None,
+    required_teams: list[str] | None = None,
+    *,
+    construction_assignee_ids=None,
+) -> list[str]:
+    """현재 사용자가 승인 주체로 설 수 있는 팀 목록(승인 여부는 보지 않는다).
+
+    라우트 게이트(:func:`authorize_quest_approve`)와 화면(재전이 버튼·팀 버튼)이 같은 답을
+    내도록 판정을 이 한 함수에 모았다. ADMIN 은 필수 팀 전부, 승인 role 밖(VIEWER 등)은 빈
+    목록 — 데코레이터 403 과 같은 답이다.
+
+    Args:
+        user: 현재 사용자(role/team/id).
+        order: 대상 주문(시그니처 고정용 — 시공 배정은 ``construction_assignee_ids`` 로 받는다).
+        stage_code: 현재 단계 영문 코드.
+        quest: 현 단계 quest(required_approvals 근거). 없으면 정책 기본값.
+        required_teams: 이미 계산한 필수 팀이 있으면 그대로 쓴다.
+        construction_assignee_ids: 시공 단계의 active 배정 user id 목록(있으면 배정만 통과).
+
+    Returns:
+        승인 주체로 설 수 있는 팀 코드 목록.
+    """
+    role = (getattr(user, "role", None) or "").strip()
+    if not user or role not in QUEST_APPROVE_ROLES:
+        return []
+    teams = (
+        [normalize_team(t) for t in required_teams if t]
+        if required_teams
+        else required_teams_for_stage(quest, stage_code)
+    )
+    actor_team = normalize_team(getattr(user, "team", None))
+    if stage_code == "CONSTRUCTION":
+        if role.upper() == "ADMIN":
+            return ["CONSTRUCTION"]
+        if construction_assignee_ids:
+            uid = _int_or_none(getattr(user, "id", None))
+            return ["CONSTRUCTION"] if uid is not None and uid in construction_assignee_ids else []
+        return ["CONSTRUCTION"] if team_has_capability(actor_team, ("CS", "SALES", "CONSTRUCTION")) else []
+    if role.upper() == "ADMIN":
+        return list(teams)
+    return [t for t in teams if team_has_capability(actor_team, [t])]
+
+
+def quest_approve_allowed(
+    user,
+    order,
+    stage_code: str,
+    quest: dict | None,
+    required_teams: list[str] | None = None,
+    *,
+    construction_assignee_ids=None,
+) -> bool:
+    """현재 사용자가 이 단계 승인 API 에서 200 을 받는가(권한 축만)."""
+    return bool(
+        actor_teams_for(
+            user, order, stage_code, quest, required_teams,
+            construction_assignee_ids=construction_assignee_ids,
+        )
+    )
+
+
+def approvable_teams_for(
+    user,
+    order,
+    stage_code: str,
+    quest: dict | None,
+    required_teams: list[str] | None = None,
+    *,
+    construction_assignee_ids=None,
+) -> list[str]:
+    """팀 모드에서 아직 승인 안 된 팀 중 현재 사용자가 눌러 200 을 받을 팀. assignee 모드면 빈 목록."""
+    quest = quest or {}
+    if quest.get("approval_mode", "team") == "assignee":
+        return []
+    approvals = quest.get("team_approvals") or {}
+
+    def _approved(team: str) -> bool:
+        record = approvals.get(str(team)) or approvals.get(team)
+        return bool(record.get("approved")) if isinstance(record, dict) else bool(record)
+
+    return [
+        t
+        for t in actor_teams_for(
+            user, order, stage_code, quest, required_teams,
+            construction_assignee_ids=construction_assignee_ids,
+        )
+        if not _approved(t)
+    ]
+
+
+def display_team_axes(
+    user,
+    order,
+    stage_code: str,
+    quest: dict,
+    required_teams: list[str],
+    *,
+    approval_mode: str,
+    cta: dict,
+) -> tuple[list[str], bool]:
+    """화면용 두 축 — ``(approvable_teams, can_retransition)``.
+
+    * ``approvable_teams``: 팀 모드에서만. 완료(is_done) quest 는 빈 목록. 저장되지 않은 합성
+      quest 는 RECEIVED·CS 에서만 계산한다 — 생산·완료·AS 는 보드 명령이 실제 액션이고
+      PRODUCTION quest 는 만들지 않는다는 규칙을 지킨다.
+    * ``can_retransition``: 완료 quest 인데 단계가 아직 안 넘어간 막다른 길에서, 서버 재전이
+      게이트(권한 + stage_advance_target + command 아님)와 같은 답.
+    """
+    is_done = bool(quest.get("is_done"))
+    is_synth = bool(quest.get("is_synthesized"))
+    if is_done or approval_mode != "team" or (is_synth and stage_code not in ("RECEIVED", "CS")):
+        approvable: list[str] = []
+    else:
+        approvable = approvable_teams_for(user, order, stage_code, quest, required_teams)
+    can_retransition = bool(
+        is_done
+        and cta.get("advances_stage")
+        and not cta.get("command_required")
+        and user is not None
+        and quest_approve_allowed(user, order, stage_code, quest, required_teams)
+    )
+    return approvable, can_retransition
+
+
 def authorize_quest_approve(
     db, user, order, stage_code: str, current_quest: dict | None, *,
     emergency_override: bool = False,
@@ -104,7 +236,6 @@ def authorize_quest_approve(
         (allowed, status, message) 튜플. 허용이면 ``(True, 200, "")``.
     """
     role = (getattr(user, "role", None) or "").strip().upper()
-    actor_team = normalize_team(getattr(user, "team", None))
 
     # 관리자 오버라이드: 사유 필수(감사). role/team 불일치를 override_reason 으로만 뚫는다.
     if emergency_override:
@@ -118,21 +249,19 @@ def authorize_quest_approve(
     if role == "ADMIN":
         return (True, 200, "")
 
-    # 시공: ASSIGNMENT-00 user-ID row 기반(JSONB 이름 미사용).
+    # 시공: ASSIGNMENT-00 user-ID row 기반(JSONB 이름 미사용). 판정은 actor_teams_for 가 한다.
     if stage_code == "CONSTRUCTION":
         assigned = active_assignee_ids(db, order.id, "CONSTRUCTION")
-        if assigned:
-            uid = _int_or_none(getattr(user, "id", None))
-            if uid is not None and uid in assigned:
-                return (True, 200, "")
-            return (False, 403, "이 주문에 배정된 시공 담당자만 승인할 수 있습니다.")
-        # 배정 0(backfill 미완) → 팀 capability 폴백(lock-out 방지).
-        if team_has_capability(actor_team, ("CS", "SALES", "CONSTRUCTION")):
+        if quest_approve_allowed(
+            user, order, stage_code, current_quest, construction_assignee_ids=assigned
+        ):
             return (True, 200, "")
+        if assigned:
+            return (False, 403, "이 주문에 배정된 시공 담당자만 승인할 수 있습니다.")
+        # 배정 0(backfill 미완) → 팀 capability 폴백(lock-out 방지)까지 실패한 경우.
         return (False, 403, "시공 승인 권한이 없는 팀입니다.")
 
-    # 일반: actor team = 현 단계 필수 승인 팀(dynamic).
-    required_teams = required_teams_for_stage(current_quest, stage_code)
-    if required_teams and team_has_capability(actor_team, required_teams):
+    # 일반: actor team = 현 단계 필수 승인 팀(dynamic). 화면과 같은 술어를 쓴다.
+    if quest_approve_allowed(user, order, stage_code, current_quest):
         return (True, 200, "")
     return (False, 403, "현재 단계 승인 권한이 없는 팀입니다. (오버라이드가 필요합니다.)")

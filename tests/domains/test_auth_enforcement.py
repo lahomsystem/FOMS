@@ -24,6 +24,7 @@ from werkzeug.security import generate_password_hash
 
 from db import db_session
 from models import Order, OrderAssignment, User
+from tests.support.quest_seed import confirm_quest_completed
 from foms.services.orders.order_mutation_policy import (
     ANCILLARY_ALLOWLIST,
     POLICY_REGISTRY,
@@ -80,7 +81,11 @@ def _login(client, user_or_creds):
         sess["role"] = role
 
 
-def _make_order(stage_code="RECEIVED"):
+def _make_order(stage_code="RECEIVED", *, quests=None):
+    """ERP 주문 1건 생성. ``quests`` 를 주면 structured_data.quests 로 함께 저장한다."""
+    sd = {"workflow": {"stage": stage_code}}
+    if quests is not None:
+        sd["quests"] = quests
     order = Order(
         received_date="2026-04-07",
         customer_name="권한 대상",
@@ -90,7 +95,7 @@ def _make_order(stage_code="RECEIVED"):
         status=stage_code,
         manager_name="Alice",
         is_erp_order=True,
-        structured_data={"workflow": {"stage": stage_code}},
+        structured_data=sd,
         erp_stage_code=stage_code,
     )
     db_session.add(order)
@@ -231,7 +236,8 @@ def test_production_team_can_start_and_complete(client, app, policy_on):
     """PRODUCTION 팀이 제작 시작/완료 가능 — P0-9 권한 역전 수정(200 성공)."""
     _login(client, _make_user("prod-user", role="STAFF", team="PRODUCTION"))
 
-    start_id = _make_order("CONFIRM")
+    # 2026-09-20 F2: CONFIRM 호환 경로는 승인 완료 CONFIRM quest 가 있어야 200.
+    start_id = _make_order("CONFIRM", quests=[confirm_quest_completed()])
     r1 = client.post(f"/api/orders/{start_id}/production/start", json={})
     assert r1.status_code == 200 and r1.get_json()["success"] is True, r1.get_data(as_text=True)
 
@@ -243,6 +249,7 @@ def test_production_team_can_start_and_complete(client, app, policy_on):
 def test_production_denied_for_unrelated_team(client, app, policy_on):
     """DRAWING 팀은 production start 403(생산 정책 팀 밖)."""
     _login(client, _make_user("draw-onprod", role="STAFF", team="DRAWING"))
+    # quest 시드 없음: 정책 가드(403)가 handler 의 quest 게이트(409)보다 앞이라 여전히 403 이어야 한다.
     oid = _make_order("CONFIRM")
     resp = client.post(f"/api/orders/{oid}/production/start", json={})
     assert _denied(resp), (resp.status_code, resp.headers.get("X-Auth-Policy"))

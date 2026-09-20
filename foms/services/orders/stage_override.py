@@ -206,6 +206,55 @@ def override_pins_stage(sd: Any, stage: str) -> bool:
     return str(marker.get("measurement_date") or "").strip() == structured_measurement_date(sd)
 
 
+def _reopen_completed_stage_quest(
+    sd: dict[str, Any], to_code: str, from_code: str, reason: str, at: str
+) -> Optional[str]:
+    """되돌아간 단계의 COMPLETED quest 1건을 다시 OPEN 으로 돌린다(regress 전용).
+
+    quest 를 그대로 두면 화면은 완료 배지만 그리고 승인 버튼이 없어 막다른 길이 된다
+    (2026-09-20 스테이징 #4382). quest.stage 는 코드('MEASURE')와 한글 라벨('실측') 두 가지로
+    저장돼 있어 둘 다 별칭으로 본다. 같은 단계 COMPLETED 가 여럿이면 표시 SSOT
+    (erp_quest_display) 와 같은 정렬 키로 가장 최근 1건만 되돌린다.
+
+    ``sd`` 는 셸 복사본이라 ``sd["quests"]`` 는 ORM 원본 리스트를 가리킨다 — 원본 리스트·원본
+    quest dict 를 제자리에서 바꾸지 않고 새 리스트·새 dict 를 만들어 재대입한다.
+
+    :param sd: 셸 복사된 structured_data(호출자가 ``dict(sd)`` 로 만든 것).
+    :param to_code: 되돌아간 단계 코드.
+    :param from_code: 떠나온 단계 코드(흔적으로 남긴다).
+    :param reason: 강제 변경 사유.
+    :param at: 단계 변경 시각(isoformat).
+    :returns: 되돌린 quest 의 단계 코드(``to_code``). 되돌린 게 없으면 None.
+    """
+    aliases = {to_code, STAGE_LABELS.get(to_code, "")} - {""}
+    quests = list(sd.get("quests") or [])
+    candidates = [
+        (i, q) for i, q in enumerate(quests)
+        if isinstance(q, dict) and q.get("stage") in aliases
+        and str(q.get("status") or "").upper() == "COMPLETED"
+    ]
+    if not candidates:
+        return None
+    index, quest = max(
+        candidates,
+        key=lambda item: str(
+            item[1].get("completed_at") or item[1].get("updated_at")
+            or item[1].get("created_at") or "1970-01-01T00:00:00"
+        ),
+    )
+    new_quest = {k: v for k, v in quest.items() if k != "completed_at"}
+    new_quest.update(
+        status="OPEN",
+        assignee_approval={},
+        team_approvals={},
+        updated_at=at,
+        reopened_by_override={"at": at, "from_stage": from_code, "reason": reason},
+    )
+    quests[index] = new_quest
+    sd["quests"] = quests
+    return to_code
+
+
 def apply_stage_override(
     *,
     order: Order,
@@ -216,10 +265,12 @@ def apply_stage_override(
 ) -> dict[str, Any]:
     """status + workflow.stage 만 변경하고 STAGE_OVERRIDE 이벤트를 남긴다.
 
-    퀘스트/_handle_stage_transition 부수효과는 호출하지 않는다.
+    _handle_stage_transition 부수효과는 호출하지 않는다. 단, regress 는 되돌아간 단계의
+    COMPLETED quest 1건을 OPEN 으로 돌린다(:func:`_reopen_completed_stage_quest`) — 그대로 두면
+    승인 버튼 없는 완료 배지만 남아 막다른 길이 된다. advance/skip/jump 는 quest 를 건드리지 않는다.
     drawing_transfer_history 등 운영 JSON은 건드리지 않는다.
 
-    :returns: {from, to, mode, reason, from_status[, as_overlay_cleared]}
+    :returns: {from, to, mode, reason, from_status[, as_overlay_cleared][, quest_reopened]}
     :raises ValueError: 검증 실패(메시지 한글)
     """
     to_code = normalize_main_stage(to_stage)
@@ -241,6 +292,7 @@ def apply_stage_override(
     # (2026-08-14: payload from 이 MEASURE 라 AS 상태를 이벤트로 되짚을 수 없었다).
     status_before = str(getattr(order, "status", None) or "").strip()
     overlay_cleared = as_overlay_status(order)
+    quest_reopened: Optional[str] = None
 
     order.status = to_code
 
@@ -264,6 +316,10 @@ def apply_stage_override(
             "stage": to_code,
             "measurement_date": structured_measurement_date(sd),
         }
+        if mode == "regress":
+            quest_reopened = _reopen_completed_stage_quest(
+                sd, to_code, from_code, reason_clean, stage_changed_at
+            )
         sd["workflow"] = workflow
         order.structured_data = sd
         flag_modified(order, "structured_data")
@@ -279,6 +335,8 @@ def apply_stage_override(
     }
     if overlay_cleared:
         payload["as_overlay_cleared"] = overlay_cleared
+    if quest_reopened:
+        payload["quest_reopened"] = quest_reopened
     db.add(
         OrderEvent(
             order_id=order.id,

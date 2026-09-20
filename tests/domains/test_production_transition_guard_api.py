@@ -19,6 +19,22 @@ from werkzeug.security import generate_password_hash
 
 from db import db_session
 from models import Order, OrderEvent, ProductionRun, User
+from tests.support.quest_seed import confirm_quest_completed
+
+_CONFIRM_STAGES = ("CONFIRM", "고객컨펌")
+
+
+def _default_quests(stage_code: str, quests: list[dict] | None) -> list[dict] | None:
+    """quests 가 None 이고 단계가 CONFIRM(한글 포함)이면 승인 완료 CONFIRM quest 를 자동 시드한다.
+
+    2026-09-20 F2 부터 생산 시작의 CONFIRM 호환 경로는 quest 없음도 409 라, 이 파일의 CONFIRM
+    픽스처는 기본으로 quest 를 갖는다. 한글 단계면 quest stage 도 한글로 저장해 별칭 경로를 탄다.
+    """
+    if quests is not None:
+        return quests
+    if stage_code in _CONFIRM_STAGES:
+        return [confirm_quest_completed(stage=stage_code)]
+    return None
 
 
 def _make_user(username: str, *, role: str = "ADMIN", team: str | None = None) -> User:
@@ -42,8 +58,15 @@ def _login(client, user: User) -> None:
         sess["role"] = user.role
 
 
-def _make_order(stage_code: str) -> Order:
-    """지정한 erp_stage_code 로 ERP 주문 1건 생성. workflow.stage 도 동기화."""
+def _make_order(stage_code: str, *, quests: list[dict] | None = None) -> Order:
+    """지정한 erp_stage_code 로 ERP 주문 1건 생성. workflow.stage 도 동기화.
+
+    ``quests`` 가 None 이면 CONFIRM 단계에 한해 승인 완료 quest 를 자동 시드한다(``_default_quests``).
+    """
+    sd: dict = {"workflow": {"stage": stage_code}}
+    seeded = _default_quests(stage_code, quests)
+    if seeded is not None:
+        sd["quests"] = seeded
     order = Order(
         received_date=date.today().isoformat(),
         customer_name="전이 고객",
@@ -53,7 +76,7 @@ def _make_order(stage_code: str) -> Order:
         status=stage_code,
         manager_name="Bob",
         is_erp_order=True,
-        structured_data={"workflow": {"stage": stage_code}},
+        structured_data=sd,
         erp_stage_code=stage_code,
     )
     db_session.add(order)
@@ -61,8 +84,12 @@ def _make_order(stage_code: str) -> Order:
     return order
 
 
-def _make_order_with_hold(stage_code: str, *, reason: str = "자재 입고 지연") -> Order:
-    """보류(hold active) 상태의 ERP 주문 생성. workflow.stage 도 동기화."""
+def _make_order_with_hold(stage_code: str, *, reason: str = "자재 입고 지연", quests: list[dict] | None = None) -> Order:
+    """보류(hold active) 상태의 ERP 주문 생성. workflow.stage 도 동기화(CONFIRM 이면 quest 자동 시드)."""
+    sd_extra: dict = {}
+    seeded = _default_quests(stage_code, quests)
+    if seeded is not None:
+        sd_extra["quests"] = seeded
     order = Order(
         received_date=date.today().isoformat(),
         customer_name="보류 고객",
@@ -73,6 +100,7 @@ def _make_order_with_hold(stage_code: str, *, reason: str = "자재 입고 지�
         manager_name="Bob",
         is_erp_order=True,
         structured_data={
+            **sd_extra,
             "workflow": {"stage": stage_code},
             "production": {
                 "hold": {

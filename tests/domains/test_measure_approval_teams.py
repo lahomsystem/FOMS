@@ -110,6 +110,21 @@ def test_sales_can_now_approve_lahom_measure() -> None:
     assert _screen_shows("SALES", "MANAGER", LAHOM_SD, dict(quest)) is True
 
 
+def test_pure_predicate_matches_the_route_gate() -> None:
+    """화면이 쓰는 순수 함수(quest_approve_allowed)와 라우트 게이트(authorize_quest_approve)가 같은 답."""
+    from foms.services.orders.quest_approve_authz import authorize_quest_approve, quest_approve_allowed
+
+    quest = {"stage": "MEASURE", "title": "실측", "status": "OPEN",
+             "approval_mode": "assignee", "required_approvals": ["CS"]}
+    order = SimpleNamespace(id=1, customer_name="김태우", structured_data={}, is_erp_order=True)
+    for team, role in (("SALES", "MANAGER"), ("CS", "STAFF"), ("ACCOUNTING", "STAFF"),
+                       ("PRODUCTION", "STAFF"), ("DRAWING", "STAFF"), ("DRAWING", "ADMIN")):
+        user = SimpleNamespace(id=7, role=role, team=team, name="테스터", username="tester")
+        pure = quest_approve_allowed(user, order, "MEASURE", dict(quest))
+        route = authorize_quest_approve(None, user, order, "MEASURE", dict(quest))[0]
+        assert pure == route == _server_allows(team, role, dict(quest)), f"{team}/{role}"
+
+
 def test_unrelated_team_is_still_denied() -> None:
     """음성 대조군 — 넓히는 변경이 '아무나 누른다'가 되지 않았는지."""
     quest = {"stage": "MEASURE", "title": "실측", "status": "OPEN",
