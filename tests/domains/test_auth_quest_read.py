@@ -155,16 +155,10 @@ def test_quest_post_still_creates_quest_regression_guard(client):
     assert data["success"] is True
     assert data["quest"]["stage"] == "RECEIVED"
 
-    # 주의(범위 밖 발견): api_order_quest_create는 `order.structured_data = sd`가
-    # 로드된 dict를 in-place mutate 후 동일 객체 참조로 재대입하는 패턴이라
-    # copy.deepcopy/flag_modified 없이는 SQLAlchemy dirty-tracking에 잡히지 않는다
-    # (CLAUDE.md JSONB 수정 패턴 위반, 이 packet 이전부터 존재하던 별개 버그).
-    # AUTH-QUEST-READ-01은 GET 경로만 다루므로 이 동작을 고치지 않는다 — 아래
-    # assert는 "내 GET 수정이 creation 경로 동작을 바꾸지 않았음"을 현재 실제
-    # 동작 그대로 고정한다 (STATE-QUEST-01에서 mutation을 transition tx로
-    # 이관할 때 함께 정정될 것으로 예상).
+    # 2026-09-20 C6: POST /quest 가 deepcopy + flag_modified 로 실제 저장되므로
+    # 생성한 quest 1건이 재조회에서도 남아 있어야 한다.
     db_session.expire_all()
     saved_order = db_session.get(Order, order_id)
     assert saved_order is not None
     saved_quests = (saved_order.structured_data or {}).get("quests") or []
-    assert saved_quests == []
+    assert len(saved_quests) == 1 and saved_quests[0]["stage"] == "RECEIVED"

@@ -19,6 +19,7 @@ from foms.services.erp_policy import (
 )
 from foms.services.orders.erp_policy_quests import resolve_required_approval_teams
 from foms.services.orders.order_mutation_policy import team_has_capability
+from foms.services.orders.quest_approve_authz import display_team_axes
 from foms.services.orders.quest_approve_cta import build_approve_cta
 
 __all__ = [
@@ -96,8 +97,8 @@ def resolve_current_quest(
     if not quest_tpl:
         return None
     temp_quest = create_quest_from_template(stage, None, sd)
-    if temp_quest:
-        return temp_quest
+    if temp_quest:  # 저장되지 않은 합성 quest — 표시 전용 dict 라 표식을 얹어도 안전하다.
+        return {**temp_quest, "is_synthesized": True}
     team_approvals_template = {
         str(team): {"approved": False, "approved_by": None, "approved_at": None}
         for team in quest_tpl.get("required_approvals", []) or []
@@ -110,6 +111,7 @@ def resolve_current_quest(
         "owner_team": quest_tpl.get("owner_team", ""),
         "status": "OPEN",
         "team_approvals": team_approvals_template,
+        "is_synthesized": True,
     }
 
 
@@ -397,6 +399,11 @@ def build_current_quest_payload(
     can_assignee_approve = _compute_can_assignee_approve(
         current_user, order, sd, stage_code_key, current_quest
     )
+    cta = build_approve_cta(stage_code_key, order)
+    approvable_teams, can_retransition = display_team_axes(
+        current_user, order, stage_code_key, current_quest, required_teams,
+        approval_mode=approval_mode, cta=cta,
+    )
 
     return {
         "title": current_quest.get("title", ""),
@@ -412,7 +419,10 @@ def build_current_quest_payload(
         "assignee_display_names": assignee_display_names,
         "can_assignee_approve": can_assignee_approve,
         "is_done": bool(current_quest.get("is_done")),
-        **build_approve_cta(stage_code_key, order),
+        "is_synthesized": bool(current_quest.get("is_synthesized")),
+        "approvable_teams": approvable_teams,
+        "can_retransition": can_retransition,
+        **cta,
     }
 
 

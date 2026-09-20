@@ -3,17 +3,17 @@
   "summary": "Order mutation writer inventory for foms/. Every persisted order mutation — flag_modified(order, 'structured_data') or a direct mutation_version bump — is classified CANONICAL (routes through REV-00 execute_order_mutation / canonical mutator) / VERSIONED_DIRECT (direct version bump under FOR UPDATE) / AUDITED_RECOVERY (OPS-APPROVAL offline apply) / EXTERNAL (direct writer with no version/If-Match contract). Release target: EXTERNAL == 0 (every order mutation carries version bump + If-Match/idempotency metadata). EXTERNAL sites below are pinned residual writers reported to their owner packet — the drift gate keeps the set from growing.",
   "scope": "foms/**.py",
   "baselines": {
-    "total": 71,
-    "external": 25
+    "total": 73,
+    "external": 27
   },
   "classification_counts": {
     "AUDITED_RECOVERY": 2,
     "CANONICAL": 39,
-    "EXTERNAL": 25,
+    "EXTERNAL": 27,
     "VERSIONED_DIRECT": 5
   },
   "kind_counts": {
-    "flag_modified_structured_data": 67,
+    "flag_modified_structured_data": 69,
     "mutation_version_bump": 4
   },
   "external_sites": [
@@ -37,19 +37,19 @@
     },
     {
       "path": "foms/api/drawing/erp_orders_draftsman.py",
-      "lineno": 133,
+      "lineno": 134,
       "kind": "flag_modified_structured_data",
       "owner": "STATE-DRAWING-01"
     },
     {
       "path": "foms/api/drawing/erp_orders_draftsman.py",
-      "lineno": 272,
+      "lineno": 273,
       "kind": "flag_modified_structured_data",
       "owner": "STATE-DRAWING-01"
     },
     {
       "path": "foms/api/drawing/erp_orders_draftsman.py",
-      "lineno": 419,
+      "lineno": 426,
       "kind": "flag_modified_structured_data",
       "owner": "STATE-DRAWING-01"
     },
@@ -91,7 +91,19 @@
     },
     {
       "path": "foms/api/quest.py",
-      "lineno": 466,
+      "lineno": 174,
+      "kind": "flag_modified_structured_data",
+      "owner": "STATE-QUEST-01"
+    },
+    {
+      "path": "foms/api/quest.py",
+      "lineno": 513,
+      "kind": "flag_modified_structured_data",
+      "owner": "STATE-QUEST-01"
+    },
+    {
+      "path": "foms/api/quest.py",
+      "lineno": 653,
       "kind": "flag_modified_structured_data",
       "owner": "STATE-QUEST-01"
     },
@@ -157,7 +169,7 @@
     },
     {
       "path": "foms/services/orders/quest_transition_service.py",
-      "lineno": 169,
+      "lineno": 198,
       "kind": "flag_modified_structured_data",
       "owner": "STATE-QUEST-01"
     },
@@ -248,21 +260,21 @@
     },
     {
       "path": "foms/api/drawing/erp_orders_draftsman.py",
-      "lineno": 133,
+      "lineno": 134,
       "kind": "flag_modified_structured_data",
       "classification": "EXTERNAL",
       "owner": "STATE-DRAWING-01"
     },
     {
       "path": "foms/api/drawing/erp_orders_draftsman.py",
-      "lineno": 272,
+      "lineno": 273,
       "kind": "flag_modified_structured_data",
       "classification": "EXTERNAL",
       "owner": "STATE-DRAWING-01"
     },
     {
       "path": "foms/api/drawing/erp_orders_draftsman.py",
-      "lineno": 419,
+      "lineno": 426,
       "kind": "flag_modified_structured_data",
       "classification": "EXTERNAL",
       "owner": "STATE-DRAWING-01"
@@ -409,63 +421,77 @@
     },
     {
       "path": "foms/api/production/orders.py",
-      "lineno": 539,
+      "lineno": 553,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "STATE-PROD-01"
     },
     {
       "path": "foms/api/production/orders.py",
-      "lineno": 564,
+      "lineno": 578,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "STATE-PROD-01"
     },
     {
       "path": "foms/api/production/orders.py",
-      "lineno": 605,
+      "lineno": 619,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "STATE-PROD-01"
     },
     {
       "path": "foms/api/production/orders.py",
-      "lineno": 642,
+      "lineno": 656,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "STATE-PROD-01"
     },
     {
       "path": "foms/api/production/orders.py",
-      "lineno": 951,
+      "lineno": 966,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "STATE-PROD-01"
     },
     {
       "path": "foms/api/production/orders.py",
-      "lineno": 1267,
+      "lineno": 1282,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "STATE-PROD-01"
     },
     {
       "path": "foms/api/production/orders.py",
-      "lineno": 1361,
+      "lineno": 1376,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "STATE-PROD-01"
     },
     {
       "path": "foms/api/production/orders.py",
-      "lineno": 1442,
+      "lineno": 1457,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "STATE-PROD-01"
     },
     {
       "path": "foms/api/quest.py",
-      "lineno": 466,
+      "lineno": 174,
+      "kind": "flag_modified_structured_data",
+      "classification": "EXTERNAL",
+      "owner": "STATE-QUEST-01"
+    },
+    {
+      "path": "foms/api/quest.py",
+      "lineno": 513,
+      "kind": "flag_modified_structured_data",
+      "classification": "EXTERNAL",
+      "owner": "STATE-QUEST-01"
+    },
+    {
+      "path": "foms/api/quest.py",
+      "lineno": 653,
       "kind": "flag_modified_structured_data",
       "classification": "EXTERNAL",
       "owner": "STATE-QUEST-01"
@@ -605,7 +631,7 @@
     },
     {
       "path": "foms/services/orders/quest_transition_service.py",
-      "lineno": 169,
+      "lineno": 198,
       "kind": "flag_modified_structured_data",
       "classification": "EXTERNAL",
       "owner": "STATE-QUEST-01"
@@ -626,7 +652,7 @@
     },
     {
       "path": "foms/services/orders/stage_override.py",
-      "lineno": 269,
+      "lineno": 325,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "STATE-OVERLAY-01"

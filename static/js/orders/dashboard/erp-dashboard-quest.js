@@ -44,7 +44,11 @@ function renderBadges(alerts) {
             }
 
             let _toastMsg;
-            if (data.auto_transitioned && data.next_stage) {
+            if (data.retransitioned && data.next_stage) {
+              // 완료 quest 재전이(강제 단계 변경 뒤 막다른 길) — 담당자 함수와 같은 우선순위.
+              const nextStageLabel = label(STAGE_LABELS, data.next_stage, data.next_stage);
+              _toastMsg = '↩ ' + nextStageLabel + ' 단계로 넘겼습니다';
+            } else if (data.auto_transitioned && data.next_stage) {
               const nextStageLabel = label(STAGE_LABELS, data.next_stage, data.next_stage);
               _toastMsg = '✅ 승인 완료 — ' + nextStageLabel + ' 단계로 이동';
             } else if (data.all_approved) {
@@ -84,7 +88,11 @@ function renderBadges(alerts) {
             }
 
             let _toastMsg;
-            if (data.auto_transitioned && data.next_stage) {
+            if (data.retransitioned && data.next_stage) {
+              // 완료 quest 재전이(강제 단계 변경 뒤 막다른 길) — 승인 기록은 그대로, 단계만 넘어갔다.
+              const nextStageLabel = label(STAGE_LABELS, data.next_stage, data.next_stage);
+              _toastMsg = '↩ ' + nextStageLabel + ' 단계로 넘겼습니다';
+            } else if (data.auto_transitioned && data.next_stage) {
               const nextStageLabel = label(STAGE_LABELS, data.next_stage, data.next_stage);
               _toastMsg = '✅ 담당자 승인 완료 — ' + nextStageLabel + ' 단계로 이동';
             } else if (data.all_approved) {

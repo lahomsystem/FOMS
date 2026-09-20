@@ -271,10 +271,24 @@
         {# 노출 조건은 **서버 권한 게이트와 같은 답**이어야 한다. 예전에는 can_edit_erp 만으로도
            버튼이 떠서, 필수 승인 팀이 아닌 사람이 누르면 403 을 맞았다(2026-09-13 운영 신고).
            can_assignee_approve 가 이제 서버와 같은 팀 술어를 포함한다. #}
-        {% set can_approve_quest = (order.current_quest and order.current_quest.can_assignee_approve)
+        {% set approvable_teams = order.current_quest.approvable_teams or [] %}
+        {% set can_approve_quest = (order.current_quest and (order.current_quest.can_assignee_approve or approvable_teams))
              and order.current_quest.approve_label %}
         {% if order.current_quest.is_done %}
           <span class="foms-badge foms-badge--count erp-quest-done" role="status">{{ order.current_quest.done_label }}</span>
+          {# 완료 quest 인데 단계가 그대로인 막다른 길(강제 단계 변경 뒤) — 다음 단계로 다시 넘기는 버튼. #}
+          {% if order.current_quest.can_retransition %}
+            <div class="foms-detail-action-stack mt-3">
+              <button
+                type="button"
+                class="foms-btn foms-btn--primary foms-btn--full erp-mobile-quest-retransition"
+                data-order-id="{{ order.id }}"
+                data-confirm="{{ order.current_quest.retransition_confirm }}"
+                data-refresh-anchor="#foms-detail-quest">
+                {{ order.current_quest.retransition_label }}
+              </button>
+            </div>
+          {% endif %}
         {% elif can_approve_quest %}
           <div class="foms-detail-action-stack mt-3" id="mobile-quest-approvals-{{ order.id }}">
             {% if order.current_quest.approval_mode == 'assignee' %}
@@ -304,6 +318,9 @@
                 {% endif %}
                 {% if is_approved %}
                   <span class="foms-badge foms-badge--count">{{ team }} 승인완료</span>
+                {% elif team not in approvable_teams %}
+                  {# 서버가 403 을 줄 팀은 버튼 대신 이름만 — 화면과 서버가 같은 답. #}
+                  <span class="foms-badge foms-badge--count">{{ team }} 대기</span>
                 {% else %}
                   <button
                     type="button"

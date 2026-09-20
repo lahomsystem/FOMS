@@ -1,6 +1,7 @@
 """주문 360° 8단계 타임라인 데이터 빌더 (FOMS Field OS v3 · 읽기 전용).
 
-structured_data['workflow']와 OrderEvent 스트림(STAGE_CHANGED)을 병합해
+structured_data['workflow']와 OrderEvent 스트림(단계 전이 이벤트 —
+STAGE_CHANGED·STAGE_OVERRIDE·엔진 axis MAIN 전이)을 병합해
 표준 8단계(RECEIVED→MEASURE→DRAWING→CONFIRM→PRODUCTION→CONSTRUCTION→CS→
 COMPLETED)의 도달 여부·일시·담당·산출물 요약을 만든다.
 
@@ -71,8 +72,20 @@ def _current_stage_code(order: Any) -> str:
     return _canonical_stage(status)
 
 
+# 단계 도달로 읽는 이벤트 이름. 엔진(order_transition_service)이 내는 전이 이벤트는
+# 이름이 MEASUREMENT_COMPLETED·CUSTOMER_CONFIRMED 처럼 제각각이라 이름 대신
+# payload['axis'] == 'MAIN' 으로 함께 잡는다. STAGE_AUTO_TRANSITIONED 는 발행처가
+# 없지만 라벨이 등재돼 있어 읽기 집합에 넣어도 무해하다.
+_STAGE_EVENT_TYPES = frozenset({"STAGE_CHANGED", "STAGE_OVERRIDE", "STAGE_AUTO_TRANSITIONED"})
+
+
 def _stage_reach_events(events: Any) -> dict[str, Any]:
-    """STAGE_CHANGED payload['to']를 표준 단계로 접어 최초 도달 이벤트를 기록.
+    """단계 전이 이벤트의 payload['to']를 표준 단계로 접어 최초 도달 이벤트를 기록.
+
+    읽는 이벤트 = event_type 이 ``_STAGE_EVENT_TYPES`` 에 있거나 payload['axis'] 가
+    'MAIN' 인 것. ``to`` 가 STATUS_TO_STAGE 의 키일 때만 기록한다 — 예전엔 미상 값이
+    RECEIVED 로 접혀 엉뚱한 단계에 시각이 붙었다(run-only PRODUCTION_STARTED 처럼
+    axis 가 없는 이벤트는 여기서 걸러진다).
 
     Args:
         events: created_at 오름차순 정렬된 OrderEvent 목록.
@@ -82,11 +95,13 @@ def _stage_reach_events(events: Any) -> dict[str, Any]:
     """
     reached: dict[str, Any] = {}
     for ev in events:
-        if getattr(ev, "event_type", None) != "STAGE_CHANGED":
-            continue
         payload = ev.payload if isinstance(getattr(ev, "payload", None), dict) else {}
-        to_stage = _canonical_stage(payload.get("to"))
-        reached.setdefault(to_stage, ev)
+        if getattr(ev, "event_type", None) not in _STAGE_EVENT_TYPES and payload.get("axis") != "MAIN":
+            continue
+        raw_to = str(payload.get("to") or "").strip().upper()
+        if raw_to not in STATUS_TO_STAGE:
+            continue
+        reached.setdefault(STATUS_TO_STAGE[raw_to], ev)
     return reached
 
 

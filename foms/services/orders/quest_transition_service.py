@@ -123,6 +123,35 @@ def _find_stage_quest(
     return None
 
 
+def find_stage_quest_for_approve(
+    sd: Dict[str, Any], stage_name: Optional[str], stage_code: str
+) -> Tuple[Optional[Dict[str, Any]], int]:
+    """승인 라우트가 잡을 현 단계 quest 와 원본 ``quests`` 인덱스. 없으면 ``(None, -1)``.
+    같은 단계 quest 가 여럿(강제 단계 변경 뒤 COMPLETED 옆에 새 OPEN 등)이면 표시 SSOT
+    (``erp_quest_display.resolve_current_quest``)와 같은 규칙 — (1) OPEN/IN_PROGRESS 중 created_at·
+    updated_at 최신, (2) 없으면 COMPLETED 중 completed_at·updated_at·created_at 최신, (3) 그 밖은 첫
+    일치. 화면이 버튼을 그린 quest 를 서버도 잡아야 재전이로 잘못 빠지지 않는다(2026-09-20 리뷰 P2).
+    """
+    quests = sd.get("quests") if isinstance(sd.get("quests"), list) else []
+    aliases = {
+        stage_name, stage_code, STAGE_LABELS.get(stage_code, ""),
+        STAGE_NAME_TO_CODE.get(stage_name or "", ""), STAGE_NAME_TO_CODE.get(stage_code, ""),
+    } - {"", None}
+    matched = [(i, q) for i, q in enumerate(quests) if isinstance(q, dict) and q.get("stage") in aliases]
+    status_of = lambda q: str(q.get("status", "OPEN")).upper()
+    active = [(i, q) for i, q in matched if status_of(q) in ("OPEN", "IN_PROGRESS")]
+    done = [(i, q) for i, q in matched if status_of(q) == "COMPLETED"]
+    if active:  # max 는 동률이면 앞선 것 — 표시 SSOT 의 안정 정렬(reverse=True)과 같은 답이다.
+        i, q = max(active, key=lambda iq: iq[1].get("created_at") or iq[1].get("updated_at")
+                   or "1970-01-01T00:00:00")
+    elif done:
+        i, q = max(done, key=lambda iq: iq[1].get("completed_at") or iq[1].get("updated_at")
+                   or iq[1].get("created_at") or "1970-01-01T00:00:00")
+    else:
+        i, q = matched[0] if matched else (-1, None)
+    return q, i
+
+
 def _stage_quest_complete(sd: Dict[str, Any], stage: Optional[str], stage_code: str) -> bool:
     """현 stage quest 가 (a) 아예 없거나 (b) 최종 승인 완료면 True(전이 허용), 미완이면 False.
 
@@ -260,6 +289,7 @@ __all__ = [
     "QuestIncompleteError",
     "OrderNotFoundError",
     "advance_stage_on_quest_completion",
+    "find_stage_quest_for_approve",
     "stage_advance_target",
     "is_command_required_stage",
 ]

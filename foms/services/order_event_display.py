@@ -32,7 +32,7 @@ TEAM_LABELS: dict[str, str] = {
 }
 
 _STAGE_EVENT_TYPES = frozenset(
-    {"STAGE_CHANGED", "STAGE_AUTO_TRANSITIONED", "STAGE_MANUAL_OVERRIDE"}
+    {"STAGE_CHANGED", "STAGE_AUTO_TRANSITIONED", "STAGE_MANUAL_OVERRIDE", "STAGE_OVERRIDE"}
 )
 
 _EMPTY_DISPLAY_VALUES = frozenset({"", "none", "null"})
@@ -133,7 +133,16 @@ def translate_event_type_to_korean(event_type: str | None) -> str:
         "QUEST_COMPLETED": "퀘스트 완료",
         "STAGE_CHANGED": "단계 변경",
         "STAGE_AUTO_TRANSITIONED": "단계 자동 전환",
-        "STAGE_MANUAL_OVERRIDE": "단계 수동 변경",
+        "STAGE_MANUAL_OVERRIDE": "단계 수동 변경",  # 죽은 키 — 발행처 없음(2026-09-20). 실제 키는 STAGE_OVERRIDE.
+        # 관리자 강제 단계 변경(stage_override.py)과 생산·보류·시공 증빙 이벤트 —
+        # 미등재면 '기타 변경' 으로 뭉개져 타임라인에서 구분이 안 된다(2026-09-20 P2).
+        "STAGE_OVERRIDE": "단계 강제 변경",
+        "PRODUCTION_REWORK_STARTED": "수정 제작 시작",
+        "PRODUCTION_COMPLETE_REVERTED": "제작 완료 취소",
+        "PRODUCTION_HOLD_TOGGLED": "생산 보류 변경",
+        "ORDER_HELD": "주문 보류",
+        "ORDER_HOLD_RELEASED": "주문 보류 해제",
+        "CONSTRUCTION_EVIDENCE_ADDED": "시공 증빙 등록",
         "DRAWING_STATUS_CHANGED": "도면 상태 변경",
         "DRAWING_ASSIGNEE_SET": "도면 담당자 지정",
         "DRAWING_SENT": "도면 전달",
@@ -415,6 +424,12 @@ def generate_change_description(
 
     if event_type == "STAGE_AUTO_TRANSITIONED":
         return f"퀘스트 완료로 인해 단계가 '{before_kr}'에서 '{after_kr}'로 자동 전환되었습니다"
+
+    if event_type == "STAGE_OVERRIDE":
+        # 관리자가 손으로 단계를 옮긴 기록 — 사유가 있으면 같이 보여 준다.
+        reason = str(payload.get("reason") or "").strip()
+        text = f"진행 단계를 '{before_kr}'에서 '{after_kr}'로 강제 변경했습니다"
+        return f"{text} (사유: {reason})" if reason else text
 
     if event_type == "DRAWING_ASSIGNEE_SET":
         assignees = payload.get("assignee_names", [])

@@ -24,6 +24,7 @@ from werkzeug.security import generate_password_hash
 
 from db import db_session
 from models import Order, OrderAttachment, SecurityLog, User
+from tests.support.quest_seed import confirm_quest_completed
 
 _REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 _counter = itertools.count(1)
@@ -174,7 +175,9 @@ def test_production_start_and_complete_are_recorded(client):
     """제작 시작·완료가 구조화로 남는다."""
     user_id = _make_user(role="STAFF", team="PRODUCTION")
     _login(client, user_id)
-    order_id = _make_order(stage="CONFIRM", customer_name="조혜리").id
+    # 2026-09-20 F2: CONFIRM 호환 경로는 승인 완료 CONFIRM quest 가 있어야 start 200.
+    order_id = _make_order(stage="CONFIRM", customer_name="조혜리",
+                           structured_data={"quests": [confirm_quest_completed()]}).id
 
     resp = client.post(f"/api/orders/{order_id}/production/start", json={})
     assert resp.status_code == 200, resp.get_data(as_text=True)

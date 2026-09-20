@@ -20,6 +20,7 @@ from foms.services.erp_permissions import erp_edit_required
 from foms.services.erp_sync_columns import sync_erp_flat_columns
 from foms.services.erp_display import _ensure_dict, manager_display_name
 from foms.services.erp_policy import can_modify_domain, get_assignee_ids
+from foms.services.orders.assignment import active_assignee_ids
 from foms.services.drawing_confirm_cleanup import finalize_drawing_files_on_confirm
 from foms.services.storage import get_storage
 
@@ -344,6 +345,12 @@ def api_order_confirm_drawing_receipt(order_id):
         can_confirm_receipt = can_modify_domain(
             current_user, order, 'SALES_DOMAIN', emergency_override, override_reason
         )
+
+        if not can_confirm_receipt:
+            # 주문 생성 시 owner 는 OrderAssignment(SALES) 행에만 남는다(ORDER-CREATE-01)
+            # — 이름 대조보다 id 대조가 먼저다(F9: owner STAFF 가 403 받던 것).
+            if current_user.id in active_assignee_ids(db, order.id, 'SALES'):
+                can_confirm_receipt = True
 
         if not can_confirm_receipt:
             sales_assignee_ids = get_assignee_ids(order, 'SALES_DOMAIN')
