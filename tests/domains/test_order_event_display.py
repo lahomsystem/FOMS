@@ -24,6 +24,12 @@ def test_unknown_event_type_falls_back_to_misc() -> None:
     assert translate_event_type_to_korean("TOTALLY_UNKNOWN_EVENT") == "기타 변경"
 
 
+def test_confirm_flow_event_types_have_korean_labels() -> None:
+    """고객 컨펌 전이(CUSTOMER_CONFIRMED)·제작 취소(PRODUCTION_CANCELLED)가 '기타 변경' 으로 뜨지 않는다."""
+    assert translate_event_type_to_korean("CUSTOMER_CONFIRMED") == "고객 컨펌 완료"
+    assert translate_event_type_to_korean("PRODUCTION_CANCELLED") == "제작 취소"
+
+
 def test_stage_auto_transitioned_meta_uses_korean_stage() -> None:
     meta = format_timeline_meta(
         "STAGE_AUTO_TRANSITIONED",

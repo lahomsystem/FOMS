@@ -442,6 +442,9 @@ class ProductionRun(Base):
         Index(
             'uq_production_run_current', 'order_id',
             unique=True, postgresql_where=text('is_current'),
+            # SQLite 테스트 레인도 같은 부분 유니크여야 한 주문의 두 번째 run(재제작·취소 뒤
+            # 재시작)이 IntegrityError 가 되지 않는다(운영 DDL 은 alembic 의 postgresql_where).
+            sqlite_where=text('is_current'),
         ),
     )
 

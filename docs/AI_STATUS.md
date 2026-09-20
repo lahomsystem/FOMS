@@ -1,5 +1,5 @@
 # FOMS 현재 상태
-> 자동 업데이트: 2026-09-15
+> 자동 업데이트: 2026-09-20
 > 최신: **초안 띠가 홈을 밀던 것 해결 + deploy CI 복구(PR #387 · production `b7a6f14e3`)** — 모바일 홈은 grid 라 아이템이 `min-width:0` 없이는 긴 주소의 최소 폭에 밀려 화면째 넓어진다(문서 폭 710 → 390). 타워가 자식 5개에 걸어 둔 계약에 이 띠만 빠져 있었다
 > 직전: **아이폰 마법사 자판 해결(PR #386 · production `406ea4120`)** — 재주가 아니라 원인 제거였다. 진입 자동 포커스가 오히려 자판을 막고 있었고, iOS 에서는 미리 포커스하지 않는 것이 답이다. 실기기 확인 완료. 앞선 세 번(#383·#384·#385)의 판정과 visualViewport 근거는 틀렸다
 > 이 파일 상단 40줄이 세션 시작 컨텍스트의 전부다(hygiene 계약으로 강제). 상세 이력은 "## 최근 완료"·"## 기록 보관".
@@ -10,6 +10,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
+- [2026-09-20] **고객 컨펌 승인 → 생산 단계 자동 이동 + 생산 보드 run 축 + 모바일 동기화(deploy 대기)** — 승인 완료 판정을 `check_quest_approvals_complete` 하나로(담당자 승인을 생산 게이트가 못 읽어 409). 제작 시작 = run 발급, 제작 취소 = run 종결. 원장 `docs/plans/2026-09-17-confirm-to-production-workflow-ledger.md`
 - [2026-09-14] **실측 보드 도면 전달 버튼** — `docs/plans/2026-09-14-measure-to-drawing-transfer-ledger.md`
 - [2026-09-13] **네이버 주문 마크 — 고객 이름 옆(deploy 대기)** — 판정 축은 출처(`source == SOURCE_MARKER`), `naver_linked` 아님. 대시보드 코호트 6곳 전수. 원장 `docs/plans/2026-09-13-naver-channel-mark-impl-brief.md`
 - [2026-09-13] **도면 모바일 제보 3건 수정(deploy 대기)** — 근거 `docs/plans/2026-09-13-drawing-mobile-change-line-fixes-brief.md`. 잔여: 실기기 확인

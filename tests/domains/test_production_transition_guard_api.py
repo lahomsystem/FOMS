@@ -1,7 +1,9 @@
 """생산 전이 전제조건 가드 계약 (P1).
 
-- 제작 시작(POST /api/orders/<id>/production/start): 제작대기(고객컨펌/CONFIRM)에서만 허용.
-  그 외 stage → 409 + code=INVALID_STAGE, message 키, 상태 불변.
+- 제작 시작(POST /api/orders/<id>/production/start): 제작대기에서만 허용 — 고객컨펌/CONFIRM(호환
+  경로, CONFIRM→PRODUCTION 전이) 또는 PRODUCTION 인데 current run 이 없는 주문(2026-09-17,
+  단계는 그대로 두고 run 만 발급). 그 외 → 409 + code=INVALID_STAGE, message 키, 상태 불변.
+- 제작 취소: PRODUCTION + current run 이 있을 때만. 단계는 PRODUCTION 에 남고 run 만 SUPERSEDED.
 - 제작 완료(POST /api/orders/<id>/production/complete): 제작중(생산/PRODUCTION)에서만 허용.
 - 레거시 한글 stage 값('생산' 등)도 허용 목록에 포함.
 - 시트 풋터 조건 렌더: stage/is_sales_approved 분기(제작중 → 생산 완료, 제작대기 미승인 → 고객 컨펌 전).
@@ -16,7 +18,7 @@ from datetime import date
 from werkzeug.security import generate_password_hash
 
 from db import db_session
-from models import Order, OrderEvent, User
+from models import Order, OrderEvent, ProductionRun, User
 
 
 def _make_user(username: str, *, role: str = "ADMIN", team: str | None = None) -> User:
@@ -88,6 +90,23 @@ def _make_order_with_hold(stage_code: str, *, reason: str = "자재 입고 지�
     return order
 
 
+def _mint_run(order_id: int) -> ProductionRun:
+    """current IN_PROGRESS run 1건 시드(test_state_prod._mint_run 형)."""
+    run = ProductionRun(order_id=order_id, status="IN_PROGRESS", steps=[], defects=[], is_current=True)
+    db_session.add(run)
+    db_session.commit()
+    return run
+
+
+def _runs(order_id: int) -> list[ProductionRun]:
+    return (
+        db_session.query(ProductionRun)
+        .filter(ProductionRun.order_id == order_id)
+        .order_by(ProductionRun.created_at.asc())
+        .all()
+    )
+
+
 # --- 완료 가드 -----------------------------------------------------------------
 
 
@@ -141,10 +160,43 @@ def test_complete_succeeds_from_legacy_korean_stage(client):
 # --- 시작 가드 -----------------------------------------------------------------
 
 
-def test_start_blocked_when_already_production(client):
-    """제작중(PRODUCTION) 주문 시작 재시도 → 409 INVALID_STAGE, 상태 불변."""
+def test_start_from_production_without_run_mints_run(client):
+    """PRODUCTION 인데 current run 이 없는 주문(제작대기) 시작 → 200, 단계 불변, run 발급.
+
+    2026-09-17 부터 고객 컨펌 승인이 주문을 PRODUCTION 으로 옮기므로 '제작대기' 는
+    run 이 없는 PRODUCTION 이다. 시작은 단계를 쓰지 않고 run 만 발급한다(version +1).
+    """
     _login(client, _make_user("guard_s1"))
+    order = _make_order("PRODUCTION")
+    order_id, base_version = order.id, order.mutation_version
+
+    resp = client.post(f"/api/orders/{order_id}/production/start", json={})
+    assert resp.status_code == 200, resp.get_json()
+    data = resp.get_json()
+    assert data["success"] is True
+    assert data["new_status"] == "PRODUCTION"
+    assert data["run_started"] is True
+
+    db_session.expire_all()
+    saved = db_session.get(Order, order_id)
+    assert saved.erp_stage_code == "PRODUCTION"
+    assert saved.mutation_version == base_version + 1
+    runs = _runs(order_id)
+    assert len(runs) == 1
+    assert runs[0].status == "IN_PROGRESS" and runs[0].is_current is True
+    started = (
+        db_session.query(OrderEvent)
+        .filter(OrderEvent.order_id == order_id, OrderEvent.event_type == "PRODUCTION_STARTED")
+        .all()
+    )
+    assert len(started) == 1
+
+
+def test_start_blocked_when_already_running(client):
+    """PRODUCTION + current run(제작중) 시작 재시도 → 409 INVALID_STAGE, run 중복 발급 0."""
+    _login(client, _make_user("guard_s1b"))
     order_id = _make_order("PRODUCTION").id
+    _mint_run(order_id)
 
     resp = client.post(f"/api/orders/{order_id}/production/start", json={})
     assert resp.status_code == 409
@@ -155,6 +207,7 @@ def test_start_blocked_when_already_production(client):
     db_session.expire_all()
     saved = db_session.get(Order, order_id)
     assert saved.erp_stage_code == "PRODUCTION"
+    assert len(_runs(order_id)) == 1
 
 
 def test_start_succeeds_from_confirm(client):
@@ -625,20 +678,23 @@ def test_rework_reason_is_trimmed(client):
 
 
 def test_cancel_from_production_succeeds(client):
-    """제작중(PRODUCTION) 주문 → cancel → success, CONFIRM(제작대기) 복귀, 이벤트 기록."""
+    """제작중(PRODUCTION + run) → cancel → success, 단계 PRODUCTION 유지, run SUPERSEDED, 이벤트 기록."""
     _login(client, _make_user("guard_x1"))
     order_id = _make_order("PRODUCTION").id
+    _mint_run(order_id)
 
     resp = client.post(f"/api/orders/{order_id}/production/cancel", json={"reason": "  오배정  "})
-    assert resp.status_code == 200
+    assert resp.status_code == 200, resp.get_json()
     data = resp.get_json()
     assert data["success"] is True
-    assert data["new_status"] == "CONFIRM"
+    assert data["new_status"] == "PRODUCTION"
 
     db_session.expire_all()
     saved = db_session.get(Order, order_id)
-    assert saved.erp_stage_code == "CONFIRM"
-    assert saved.status == "CONFIRM"
+    assert saved.erp_stage_code == "PRODUCTION"
+    runs = _runs(order_id)
+    assert len(runs) == 1
+    assert runs[0].status == "SUPERSEDED" and runs[0].is_current is False
 
     events = (
         db_session.query(OrderEvent)
@@ -666,6 +722,21 @@ def test_cancel_blocked_when_not_production(client):
     db_session.expire_all()
     saved = db_session.get(Order, order_id)
     assert saved.erp_stage_code == "CONFIRM"
+
+
+def test_cancel_blocked_when_production_without_run(client):
+    """PRODUCTION 인데 run 이 없는(제작대기) 주문 → cancel → 409 INVALID_STAGE(시작 전은 취소 불가)."""
+    _login(client, _make_user("guard_x2b"))
+    order_id = _make_order("PRODUCTION").id
+
+    resp = client.post(f"/api/orders/{order_id}/production/cancel", json={})
+    assert resp.status_code == 409
+    data = resp.get_json()
+    assert data["code"] == "INVALID_STAGE"
+
+    db_session.expire_all()
+    assert db_session.get(Order, order_id).erp_stage_code == "PRODUCTION"
+    assert _runs(order_id) == []
 
 
 def test_uncomplete_from_construction_succeeds(client):
@@ -1089,25 +1160,42 @@ def test_quest_state_false_for_new_unapproved_without_production_history():
     assert approved is False
 
 
-def test_cancel_then_restart_available_via_production_history(client):
-    """F-1a+b 통합: 미승인 CONFIRM 건도 제작 시작(history PRODUCTION 기록) 후 취소하면,
-    제작대기 복귀에도 is_sales_approved=True (재시작 버튼) — '고객 컨펌 전' 미표시."""
+def test_cancel_then_restart_mints_second_run(client):
+    """F-1a+b 통합(2026-09-17 run 축): CONFIRM 시작(run1) → 취소(단계 PRODUCTION 유지·run1 SUPERSEDED)
+    → 보드 행 제작대기·is_sales_approved=True(재시작 버튼) → 재시작 200 → run 2개(1 SUPERSEDED,
+    1 IN_PROGRESS) → 보드 행 제작중."""
     from foms.services.production_dashboard_display import build_production_enriched_rows
 
     _login(client, _make_user("guard_f1"))
     order_id = _make_order("CONFIRM").id
 
-    # 제작 시작(history 에 PRODUCTION append) → 취소(제작대기 복귀)
     assert client.post(f"/api/orders/{order_id}/production/start", json={}).status_code == 200
-    assert client.post(f"/api/orders/{order_id}/production/cancel", json={}).status_code == 200
+    db_session.expire_all()
+    assert db_session.get(Order, order_id).erp_stage_code == "PRODUCTION"
+    assert len(_runs(order_id)) == 1
 
+    assert client.post(f"/api/orders/{order_id}/production/cancel", json={}).status_code == 200
     db_session.expire_all()
     saved = db_session.get(Order, order_id)
-    assert saved.erp_stage_code == "CONFIRM"  # 제작대기 복귀
+    assert saved.erp_stage_code == "PRODUCTION"  # 단계는 그대로, run 만 종결
+    runs = _runs(order_id)
+    assert len(runs) == 1 and runs[0].status == "SUPERSEDED" and runs[0].is_current is False
 
-    rows = build_production_enriched_rows([saved], {})
+    rows = build_production_enriched_rows([saved], {}, set())
     assert len(rows) == 1
+    assert rows[0]["stage"] == "제작대기"
     assert rows[0]["is_sales_approved"] is True  # 제작 이력 → 재시작 허용
+
+    assert client.post(f"/api/orders/{order_id}/production/start", json={}).status_code == 200
+    db_session.expire_all()
+    saved = db_session.get(Order, order_id)
+    runs = _runs(order_id)
+    assert len(runs) == 2
+    assert sorted(r.status for r in runs) == ["IN_PROGRESS", "SUPERSEDED"]
+    assert [r.is_current for r in runs if r.status == "IN_PROGRESS"] == [True]
+
+    rows = build_production_enriched_rows([saved], {}, {saved.id})
+    assert rows[0]["stage"] == "제작중"
 
 
 def test_cancel_clears_rework_active_preserves_count(client):
@@ -1115,17 +1203,19 @@ def test_cancel_clears_rework_active_preserves_count(client):
     _login(client, _make_user("guard_f2"))
     order_id = _make_order("CONSTRUCTION").id
 
-    # rework 로 제작중(PRODUCTION) + rework active=True, count=1 상태 진입.
+    # rework 로 제작중(PRODUCTION + run) + rework active=True, count=1 상태 진입.
     assert client.post(
         f"/api/orders/{order_id}/production/rework", json={"reason": "치수"}
     ).status_code == 200
+    if not any(r.is_current for r in _runs(order_id)):
+        _mint_run(order_id)
 
     resp = client.post(f"/api/orders/{order_id}/production/cancel", json={})
-    assert resp.status_code == 200
+    assert resp.status_code == 200, resp.get_json()
 
     db_session.expire_all()
     saved = db_session.get(Order, order_id)
-    assert saved.erp_stage_code == "CONFIRM"
+    assert saved.erp_stage_code == "PRODUCTION"  # 단계 유지(run 만 종결)
     rework = saved.structured_data["production"]["rework"]
     assert rework["active"] is False   # 취소 시 해제
     assert rework["count"] == 1        # count 보존
@@ -1148,9 +1238,10 @@ def test_cancel_releases_hold_and_appends_history(client):
     user_name = user.name
     _login(client, user)
     order_id = _make_order_with_hold("PRODUCTION", reason="자재 지연").id
+    _mint_run(order_id)
 
     resp = client.post(f"/api/orders/{order_id}/production/cancel", json={})
-    assert resp.status_code == 200
+    assert resp.status_code == 200, resp.get_json()
 
     db_session.expire_all()
     saved = db_session.get(Order, order_id)
@@ -1177,13 +1268,14 @@ def test_cancel_without_production_flags_is_harmless(client):
     """F-1b: production 플래그 없는 일반 제작중 주문 취소 → 정리 스킵(무해), 정상 복귀."""
     _login(client, _make_user("guard_f4"))
     order_id = _make_order("PRODUCTION").id  # production dict 없음
+    _mint_run(order_id)
 
     resp = client.post(f"/api/orders/{order_id}/production/cancel", json={})
-    assert resp.status_code == 200
+    assert resp.status_code == 200, resp.get_json()
 
     db_session.expire_all()
     saved = db_session.get(Order, order_id)
-    assert saved.erp_stage_code == "CONFIRM"
+    assert saved.erp_stage_code == "PRODUCTION"
 
     events = (
         db_session.query(OrderEvent)

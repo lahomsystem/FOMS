@@ -140,6 +140,8 @@ def translate_event_type_to_korean(event_type: str | None) -> str:
         "DRAWING_CONFIRMED": "도면 확인",
         "DRAWING_REVISION_REQUESTED": "도면 수정 요청",
         "PRODUCTION_STARTED": "생산 시작",
+        "PRODUCTION_CANCELLED": "제작 취소",
+        "CUSTOMER_CONFIRMED": "고객 컨펌 완료",
         "PRODUCTION_COMPLETED": "생산 완료",
         "PRODUCTION_DELAYED": "생산 지연",
         "CONSTRUCTION_STARTED": "시공 시작",
@@ -435,6 +437,10 @@ def generate_change_description(
         return "생산을 완료 처리했습니다"
     if event_type == "PRODUCTION_STARTED":
         return "생산을 시작했습니다"
+    if event_type == "PRODUCTION_CANCELLED":
+        return "제작을 취소했습니다 (제작대기 복귀)"
+    if event_type == "CUSTOMER_CONFIRMED":
+        return "고객 컨펌을 완료해 생산 단계로 넘겼습니다"
     if event_type == "CONSTRUCTION_COMPLETED":
         return "시공을 완료 처리했습니다"
     if event_type == "CONSTRUCTION_STARTED":

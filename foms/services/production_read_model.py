@@ -11,16 +11,38 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from sqlalchemy import String, bindparam, case as sql_case, cast, func, or_, text
+from sqlalchemy import (
+    String, and_, bindparam, case as sql_case, cast, exists, func, or_, text,
+)
 from sqlalchemy.orm import Query
 
-from models import Order
+from models import Order, ProductionRun
 from foms.services.erp_display import _ensure_dict, _erp_alerts, _erp_get_stage
 
 PRODUCTION_DASHBOARD_PAGE_SIZE = 50
 # 태블릿 칸반은 페이지 윈도가 아닌 정렬 전량을 렌더한다(시공일 변경 카드 소실 회귀 방지).
 # 이 캡을 넘으면 상위 N건만 렌더하고 kanban_capped 로 노출(silent 축소 금지).
 PRODUCTION_KANBAN_MAX_ROWS = 300
+
+# 버킷 축 = 단계 + current production run(2026-09-17 CONFIRM→PRODUCTION 재설계).
+#   제작대기 = CONFIRM(호환) 또는 PRODUCTION 이면서 current run 없음
+#   제작중   = PRODUCTION 이면서 current run 있음
+#   제작완료 = CONSTRUCTION
+_BUCKET_WAIT_STAGES = ['고객컨펌', 'CONFIRM']
+_BUCKET_PROD_STAGES = ['생산', 'PRODUCTION']
+_BUCKET_DONE_STAGES = ['시공', 'CONSTRUCTION']
+
+
+def current_production_run_exists() -> Any:
+    """``Order`` 에 상관된 EXISTS(current production run) SQL 식.
+
+    ``production_runs`` 부분 유니크 ``uq_production_run_current``(``order_id`` WHERE
+    ``is_current``, models.py ProductionRun)를 탐침해 주문당 최대 1행만 본다. JSONB 는
+    SQL 에 넣지 않는다(인덱스 보존 — perf-gate 대상 쿼리).
+    """
+    return exists().where(
+        ProductionRun.order_id == Order.id, ProductionRun.is_current.is_(True)
+    ).correlate(Order)
 
 
 def build_production_orders_query(
@@ -43,12 +65,16 @@ def build_production_orders_query(
     _q = _q.filter(Order.erp_stage_code.in_(base_stages))
 
     if f_stage:
+        run = current_production_run_exists()
         if f_stage == '제작대기':
-            _q = _q.filter(Order.erp_stage_code.in_(['고객컨펌', 'CONFIRM']))
+            _q = _q.filter(or_(
+                Order.erp_stage_code.in_(_BUCKET_WAIT_STAGES),
+                and_(Order.erp_stage_code.in_(_BUCKET_PROD_STAGES), ~run),
+            ))
         elif f_stage == '제작중':
-            _q = _q.filter(Order.erp_stage_code.in_(['생산', 'PRODUCTION']))
+            _q = _q.filter(and_(Order.erp_stage_code.in_(_BUCKET_PROD_STAGES), run))
         elif f_stage == '제작완료':
-            _q = _q.filter(Order.erp_stage_code.in_(['시공', 'CONSTRUCTION']))
+            _q = _q.filter(Order.erp_stage_code.in_(_BUCKET_DONE_STAGES))
 
     if f_q:
         search_term = f"%{f_q}%"
@@ -74,16 +100,21 @@ def build_production_orders_query(
 
 
 def production_stage_bucket_expr() -> Any:
-    """DB 단계 → 제작대기/제작중/제작완료 버킷.
+    """DB 단계 + current run → 제작대기/제작중/제작완료 버킷.
 
-    flat 컬럼 ``Order.erp_stage_code``(index=True)를 직접 참조한다. JSONB path cast를
-    제거해 ``ix_orders_erp_stage_code`` 인덱스 스캔으로 전환. erp_stage_code는 원문값
+    flat 컬럼 ``Order.erp_stage_code``(index=True)와 ``production_runs`` 상관 EXISTS 만
+    참조한다(JSONB path 없음 → ``ix_orders_erp_stage_code``·``uq_production_run_current``
+    인덱스 보존). PRODUCTION 단계는 current run 이 있어야 제작중이고, 없으면(승인 직후·
+    제작 취소 뒤·stage_override 로 놓인 주문) 제작대기다. erp_stage_code는 원문값
     (JSON 따옴표 없음)이므로 IN 목록에도 따옴표를 붙이지 않는다.
     """
+    run = current_production_run_exists()
     return sql_case(
-        (Order.erp_stage_code.in_(['고객컨펌', 'CONFIRM']), '제작대기'),
-        (Order.erp_stage_code.in_(['생산', 'PRODUCTION']), '제작중'),
-        (Order.erp_stage_code.in_(['시공', 'CONSTRUCTION']), '제작완료'),
+        (Order.erp_stage_code.in_(_BUCKET_WAIT_STAGES), '제작대기'),
+        # run 분기를 먼저 두어 상관 EXISTS 를 한 번만 평가한다(CEO 판정 P3).
+        (and_(Order.erp_stage_code.in_(_BUCKET_PROD_STAGES), run), '제작중'),
+        (Order.erp_stage_code.in_(_BUCKET_PROD_STAGES), '제작대기'),
+        (Order.erp_stage_code.in_(_BUCKET_DONE_STAGES), '제작완료'),
         else_='기타',
     )
 
@@ -111,13 +142,14 @@ def fill_production_step_counts(
             step_stats[row.bucket]['count'] = row.cnt
 
 
-def _kpi_stage_label_from_erp_stage(stage: str) -> str | None:
+def _kpi_stage_label_from_erp_stage(stage: str, has_current_run: bool = False) -> str | None:
+    """KPI 배지용 버킷 라벨. PRODUCTION 은 current run 유무로 제작대기/제작중을 가른다."""
     if stage not in ('고객컨펌', '생산', '시공', 'CONFIRM', 'PRODUCTION', 'CONSTRUCTION'):
         return None
     if stage in ('CONFIRM', '고객컨펌'):
         return '제작대기'
     if stage in ('PRODUCTION', '생산'):
-        return '제작중'
+        return '제작중' if has_current_run else '제작대기'
     if stage in ('CONSTRUCTION', '시공'):
         return '제작완료'
     return None
@@ -143,6 +175,7 @@ def compute_production_kpis_and_badges(
         sd_json['flags'].label('sd_flags'),
         sd_json['schedule'].label('sd_schedule'),
         sd_json['workflow'].label('sd_workflow'),
+        current_production_run_exists().label('has_run'),
     ).all()
     kpis = {
         'urgent_count': 0,
@@ -166,7 +199,9 @@ def compute_production_kpis_and_badges(
         if kpi_alerts.get('construction_d3'):
             kpis['construction_d3_count'] += 1
 
-        stage_label = _kpi_stage_label_from_erp_stage(_erp_get_stage(None, kpi_sd) or '')
+        stage_label = _kpi_stage_label_from_erp_stage(
+            _erp_get_stage(None, kpi_sd) or '', bool(kpi_row.has_run)
+        )
         if not stage_label or stage_label not in step_stats:
             continue
         if kpi_alerts.get('production_d2'):
@@ -216,6 +251,23 @@ def fetch_production_attachment_counts(db: Any, page_rows: list[Any]) -> dict[in
     except Exception as e:
         logging.getLogger(__name__).warning("att_counts query failed: %s", e)
     return att_counts
+
+
+def fetch_production_current_run_ids(db: Any, page_rows: list[Any]) -> set[int]:
+    """행 목록 중 current production run 이 있는 주문 id 집합(쿼리 1회, 캐시 없음).
+
+    행 DTO(``build_production_enriched_rows``)·묘비 버킷이 PRODUCTION 단계를 제작대기/제작중으로
+    가르는 데 쓴다. 빈 목록이면 쿼리 없이 빈 set.
+    """
+    if not page_rows:
+        return set()
+    ids = [o.id for o in page_rows]
+    rows = (
+        db.query(ProductionRun.order_id)
+        .filter(ProductionRun.order_id.in_(ids), ProductionRun.is_current.is_(True))
+        .all()
+    )
+    return {int(r.order_id) for r in rows}
 
 
 def paginate_production_rows(

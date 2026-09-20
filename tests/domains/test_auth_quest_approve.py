@@ -4,7 +4,8 @@ quest approve route 는 승인 **권한만** 판정하고 order 상태를 직접
 (전이는 STATE-QUEST-01 하류). 정본 규칙(§5.2):
 
 * actor team = 현 단계 필수 승인 팀(불일치 403).
-* DRAWING/CONFIRM 단독 승인은 전용 command 로만 → command-required 409.
+* DRAWING 단독 승인은 전용 command 로만 → command-required 409. CONFIRM 최종 승인은
+  고객 컨펌 완료로서 정본 엔진 경유 PRODUCTION 전이를 일으킨다(2026-09-17).
 * 시공 승인은 ASSIGNMENT-00 ``order_assignments`` user-ID row 기반(팀 자격만으로는 불가).
 * 관리자 override 승인은 사유(override_reason) 필수(감사) — STAFF 는 override 불가.
 * approve 는 stage 를 **직접** 쓰지 않는다. 최종 승인 시 전이는 STATE-QUEST-01
@@ -125,7 +126,7 @@ def test_actor_team_mismatch_forbidden(client):
 
 
 # --------------------------------------------------------------------------- #
-# DRAWING 단독 승인 → command-required 409 / CONFIRM → 고객 컨펌 완료(전이 없음)
+# DRAWING 단독 승인 → command-required 409 / CONFIRM → 고객 컨펌 완료 = PRODUCTION 전이
 # --------------------------------------------------------------------------- #
 def test_drawing_standalone_approval_is_command_required(client):
     """DRAWING 단독 quest 승인은 409(전용 command 로만) — 관리자도 예외 없음."""
@@ -139,12 +140,12 @@ def test_drawing_standalone_approval_is_command_required(client):
     assert resp.get_json().get("code") == "COMMAND_REQUIRED"
 
 
-def test_confirm_approval_completes_quest_without_stage_transition(client):
-    """CONFIRM 승인은 quest 를 종결하고 고객 컨펌 사실을 남기되 stage 는 전이하지 않는다.
+def test_confirm_approval_transitions_to_production(client):
+    """CONFIRM 담당자 승인 = 고객 컨펌 완료 → quest 종결·blueprint 기록·PRODUCTION 전이(한 tx).
 
-    2026-07-26 가드는 짝이 될 ``CUSTOMER_CONFIRM`` command 없이 들어와 CONFIRM 을 막다른 골목으로
-    만들었다(승인 409 → 생산 시작도 quest 미완으로 409, 운영 #5193). 이 라우트가 그 빠진 단계를
-    품는다. 전이 금지 불변식은 그대로다 — CONFIRM→PRODUCTION 은 ``PRODUCTION_START`` 소관.
+    2026-07-26 가드는 짝이 될 ``CUSTOMER_CONFIRM`` command 없이 들어와 CONFIRM 을 막다른
+    골목으로 만들었다(운영 #5193). 2026-09-17 부터 이 라우트의 최종 승인이 그 명령을 부른다 —
+    생산 탭 [제작 시작] 은 호환 경로로만 남는다.
     """
     user = _make_user(role="ADMIN", team="SALES", username="confirm-admin")
     _login(client, user)
@@ -156,7 +157,8 @@ def test_confirm_approval_completes_quest_without_stage_transition(client):
     assert resp.status_code == 200, resp.get_json()
     body = resp.get_json()
     assert body["all_approved"] is True
-    assert body["auto_transitioned"] is False, "CONFIRM 은 자동 전이하지 않는다"
+    assert body["auto_transitioned"] is True, "CONFIRM 최종 승인은 생산 단계로 넘어간다"
+    assert body["next_stage"] == "생산"
 
     db_session.expire_all()
     refreshed = db_session.get(Order, order_id)
@@ -165,8 +167,8 @@ def test_confirm_approval_completes_quest_without_stage_transition(client):
     assert quest["status"] == "COMPLETED"
     assert quest["assignee_approval"]["approved"] is True
     assert (sd.get("blueprint") or {}).get("customer_confirmed") is True
-    stage = (sd.get("workflow") or {}).get("stage")
-    assert stage in ("CONFIRM", "고객컨펌"), f"stage 가 전이됐다: {stage}"
+    assert (sd.get("workflow") or {}).get("stage") == "PRODUCTION"
+    assert refreshed.erp_stage_code == "PRODUCTION"
 
 
 # --------------------------------------------------------------------------- #

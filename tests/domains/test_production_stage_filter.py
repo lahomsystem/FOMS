@@ -23,7 +23,7 @@ from foms.services.production_read_model import (
     fill_production_step_counts,
     production_stage_bucket_expr,
 )
-from models import Order, User
+from models import Order, ProductionRun, User
 
 
 def _make_user(username: str) -> User:
@@ -40,8 +40,11 @@ def _make_user(username: str) -> User:
     return user
 
 
-def _seed(idx: int, stage_code: str | None) -> int:
-    """erp_stage_code를 명시 세팅한 ERP 주문 1건 생성(sync 우회 — 게이트 정합 전제)."""
+def _seed(idx: int, stage_code: str | None, *, run: bool = False) -> int:
+    """erp_stage_code를 명시 세팅한 ERP 주문 1건 생성(sync 우회 — 게이트 정합 전제).
+
+    ``run=True`` 면 current IN_PROGRESS ProductionRun 1건을 붙인다(제작중 판정 축, 2026-09-17).
+    """
     order = Order(
         received_date="2026-06-01",
         customer_name=f"고객{idx}",
@@ -56,6 +59,9 @@ def _seed(idx: int, stage_code: str | None) -> int:
     )
     db_session.add(order)
     db_session.commit()
+    if run:
+        db_session.add(ProductionRun(order_id=order.id, status="IN_PROGRESS", steps=[], defects=[], is_current=True))
+        db_session.commit()
     return order.id
 
 
@@ -86,15 +92,17 @@ def test_base_stage_filter_includes_and_excludes(app):
 
 
 def test_f_stage_branch_filters(app):
-    """f_stage 분기: 제작대기→CONFIRM/고객컨펌, 제작중→PRODUCTION/생산, 제작완료→CONSTRUCTION/시공."""
+    """f_stage 분기(2026-09-17 run 축): 제작대기→CONFIRM/고객컨펌 + run 없는 PRODUCTION/생산,
+    제작중→current run 이 있는 PRODUCTION/생산만, 제작완료→CONSTRUCTION/시공."""
     with app.app_context():
         user = _make_user("prod_stage_branch")
         confirm_id = _seed(1, "CONFIRM")
         gcc_id = _seed(2, "고객컨펌")  # 한글 대기값
-        prod_id = _seed(3, "PRODUCTION")
-        prod_kr_id = _seed(4, "생산")
-        cons_id = _seed(5, "CONSTRUCTION")
-        cons_kr_id = _seed(6, "시공")
+        prod_norun_id = _seed(3, "PRODUCTION")  # 컨펌 승인 직후 — run 없음 = 제작대기
+        prod_run_id = _seed(4, "PRODUCTION", run=True)
+        prod_kr_run_id = _seed(5, "생산", run=True)
+        cons_id = _seed(6, "CONSTRUCTION")
+        cons_kr_id = _seed(7, "시공")
 
         def ids_for(f_stage: str) -> set[int]:
             _q = build_production_orders_query(
@@ -102,20 +110,21 @@ def test_f_stage_branch_filters(app):
             )
             return {o.id for o in _q.all()}
 
-        assert ids_for("제작대기") == {confirm_id, gcc_id}
-        assert ids_for("제작중") == {prod_id, prod_kr_id}
+        assert ids_for("제작대기") == {confirm_id, gcc_id, prod_norun_id}
+        assert ids_for("제작중") == {prod_run_id, prod_kr_run_id}
         assert ids_for("제작완료") == {cons_id, cons_kr_id}
 
 
 def test_stage_bucket_expr_labels(app):
-    """production_stage_bucket_expr GROUP BY가 stage별 올바른 버킷 라벨로 카운트."""
+    """production_stage_bucket_expr GROUP BY 카운트가 f_stage 와 같은 규칙(run 축)을 쓴다."""
     with app.app_context():
         user = _make_user("prod_stage_bucket")
         _seed(1, "CONFIRM")
-        _seed(2, "고객컨펌")   # 제작대기 (총 2)
-        _seed(3, "PRODUCTION")  # 제작중 (총 1)
-        _seed(4, "CONSTRUCTION")
-        _seed(5, "시공")        # 제작완료 (총 2)
+        _seed(2, "고객컨펌")            # 제작대기
+        _seed(3, "PRODUCTION")          # run 없음 → 제작대기 (총 3)
+        _seed(4, "PRODUCTION", run=True)  # 제작중 (총 1)
+        _seed(5, "CONSTRUCTION")
+        _seed(6, "시공")                # 제작완료 (총 2)
 
         _q = build_production_orders_query(
             db_session, user, f_stage="", f_q="", erp_mine_only=False
@@ -123,6 +132,6 @@ def test_stage_bucket_expr_labels(app):
         step_stats = empty_production_step_stats()
         fill_production_step_counts(_q, production_stage_bucket_expr(), step_stats)
 
-        assert step_stats["제작대기"]["count"] == 2
+        assert step_stats["제작대기"]["count"] == 3
         assert step_stats["제작중"]["count"] == 1
         assert step_stats["제작완료"]["count"] == 2

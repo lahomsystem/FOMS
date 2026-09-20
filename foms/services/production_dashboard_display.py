@@ -21,6 +21,7 @@ from foms.services.erp_display import (
 )
 from foms.services.erp_mobile_order_display import resolve_manager_phone_for_queue
 from foms.services.estimate_service import build_measurement_manager_phone_map
+from foms.services.orders.erp_policy_quests import check_quest_approvals_complete
 
 __all__ = [
     "build_production_enriched_rows",
@@ -142,30 +143,40 @@ def _production_hold_days(hold_at: Any) -> int | None:
     return days if days >= 0 else None
 
 
-def _production_stage_label_from_stage(stage: str) -> str | None:
+def _production_stage_label_from_stage(stage: str, has_current_run: bool = False) -> str | None:
+    """단계 + current run → 버킷 라벨(read-model ``production_stage_bucket_expr`` 와 같은 규칙).
+
+    PRODUCTION 분기만 run 에 의존한다: current run 이 있으면 제작중, 없으면 제작대기.
+    CONFIRM 은 호환 경로(제작대기), CONSTRUCTION 은 제작완료.
+    """
     if stage not in ['고객컨펌', '생산', '시공', 'CONFIRM', 'PRODUCTION', 'CONSTRUCTION']:
         return None
     label = stage
     if stage in ('CONFIRM', '고객컨펌'):
         label = '제작대기'
     if stage in ('PRODUCTION', '생산'):
-        label = '제작중'
+        label = '제작중' if has_current_run else '제작대기'
     if stage in ('CONSTRUCTION', '시공'):
         label = '제작완료'
     return label
 
 
 def _production_quest_sales_state(
-    sd: dict[str, Any], stage_label: str
+    sd: dict[str, Any], stage_label: str, raw_stage: str | None = None
 ) -> tuple[bool | None, Any]:
-    """제작대기일 때 퀘스트·영업 승인 상태.
+    """제작대기일 때 퀘스트·영업 승인 상태 ``(approved, quest)``.
 
-    제작대기가 아니면 항상 승인(True) 취급한다. 제작대기라도 ``workflow.history`` 에
-    PRODUCTION('생산'/'PRODUCTION') 기록이 하나라도 있으면 이미 컨펌·제작된 건이므로
-    (제작 취소로 제작대기에 복귀했더라도) 재승인 없이 재시작을 허용한다(True 반환) —
-    소급 자동 커버(별도 마커 불필요). 그 외에는 기존 퀘스트/영업 승인 판정을 따른다.
+    제작대기가 아니면 항상 승인(True) 취급한다. 제작대기라도 ``raw_stage`` 가 이미
+    PRODUCTION('생산'/'PRODUCTION') 이면(고객 컨펌 승인이 단계를 넘겼거나 제작 취소로 run 만
+    닫힌 건) 승인은 끝난 것이므로 True. ``workflow.history`` 에 PRODUCTION 기록이 하나라도
+    있으면 이미 컨펌·제작된 건이므로 재승인 없이 재시작을 허용한다(소급 자동 커버).
+    그 외(CONFIRM 호환 경로)는 CONFIRM quest 를 찾아 판정 SSOT
+    :func:`~foms.services.orders.erp_policy_quests.check_quest_approvals_complete` 로 판정한다
+    (assignee/team 모드·COMPLETED 를 한 곳에서 본다 — 생산 API 게이트와 같은 답).
     """
     if stage_label != '제작대기':
+        return True, None
+    if raw_stage in ('PRODUCTION', '생산'):
         return True, None
     # 제작 이력 판정: 이미 제작에 들어간 적이 있으면 취소 복귀라도 재시작 허용(True).
     workflow = sd.get('workflow')
@@ -174,24 +185,15 @@ def _production_quest_sales_state(
         for entry in history:
             if isinstance(entry, dict) and entry.get('stage') in ('PRODUCTION', '생산'):
                 return True, None
-    is_sales_approved = False
     quests = sd.get('quests') or []
-    active_quest = next((q for q in quests if q.get('stage') in ('CONFIRM', '고객컨펌')), None)
+    active_quest = next(
+        (q for q in quests if isinstance(q, dict) and q.get('stage') in ('CONFIRM', '고객컨펌')),
+        None,
+    )
     if not active_quest:
-        return is_sales_approved, active_quest
-    assignee_approval = active_quest.get('assignee_approval') or {}
-    if isinstance(assignee_approval, dict):
-        is_sales_approved = assignee_approval.get('approved') is True
-    else:
-        is_sales_approved = bool(assignee_approval)
-    if not is_sales_approved:
-        team_approvals = active_quest.get('team_approvals') or {}
-        sales_val = team_approvals.get('SALES') or team_approvals.get('영업팀')
-        if isinstance(sales_val, dict):
-            is_sales_approved = sales_val.get('approved') is True
-        else:
-            is_sales_approved = bool(sales_val)
-    return is_sales_approved, active_quest
+        return False, None
+    approved = check_quest_approvals_complete(sd, 'CONFIRM')[0]
+    return bool(approved), active_quest
 
 
 def _enrich_one_production_order(
@@ -200,9 +202,10 @@ def _enrich_one_production_order(
     stage_label: str,
     att_n: int,
     manager_phone_map: dict[str, str] | None = None,
+    raw_stage: str | None = None,
 ) -> dict[str, Any]:
     """단일 Order → 목록 행 dict."""
-    is_sales_approved, active_quest = _production_quest_sales_state(sd, stage_label)
+    is_sales_approved, active_quest = _production_quest_sales_state(sd, stage_label, raw_stage)
     alerts = _erp_alerts(o, sd, att_n)
     _construction_date = (((sd.get('schedule') or {}).get('construction') or {}).get('date'))
     _first_item, _items = _production_first_item(sd)
@@ -250,10 +253,17 @@ def _enrich_one_production_order(
 
 
 def build_production_enriched_rows(
-    page_rows: list[Any], att_counts: dict[int, int]
+    page_rows: list[Any], att_counts: dict[int, int],
+    current_run_ids: set[int] | None = None,
 ) -> list[dict[str, Any]]:
-    """현재 페이지 주문만 목록용 dict로 변환."""
+    """현재 페이지 주문만 목록용 dict로 변환.
+
+    ``current_run_ids`` 는 current production run 이 있는 주문 id 집합
+    (``fetch_production_current_run_ids``). PRODUCTION 단계는 여기 있으면 제작중, 없으면
+    제작대기다(None 이면 빈 집합 취급 — PRODUCTION 전부 제작대기).
+    """
     enriched: list[dict[str, Any]] = []
+    run_ids = current_run_ids or set()
     # N+1 제거: 실측담당자 연락처 map을 1회 만들어 행마다 재사용(설정 재조회 제거).
     manager_phone_map = build_measurement_manager_phone_map()
     for o in page_rows:
@@ -261,12 +271,14 @@ def build_production_enriched_rows(
         raw_stage = _erp_get_stage(o, sd)
         if not raw_stage:
             continue
-        stage_label = _production_stage_label_from_stage(raw_stage)
+        stage_label = _production_stage_label_from_stage(raw_stage, o.id in run_ids)
         if not stage_label:
             continue
         att_n = att_counts.get(o.id, 0)
         enriched.append(
-            _enrich_one_production_order(o, sd, stage_label, att_n, manager_phone_map)
+            _enrich_one_production_order(
+                o, sd, stage_label, att_n, manager_phone_map, raw_stage=raw_stage
+            )
         )
     return enriched
 

@@ -34,6 +34,7 @@ from foms.services.erp_policy import (
 from foms.services.orders.order_transition_service import TransitionError
 from foms.services.orders.quest_transition_service import (
     advance_stage_on_quest_completion,
+    stage_advance_target,
 )
 from foms.services.orders.revision import RevisionError
 
@@ -187,18 +188,12 @@ def api_order_quest_create(order_id):
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
-# DRAWING/CONFIRM 은 전용 command(도면 전달·고객 컨펌)로만 진행 — 단독 quest 승인 거부.
-# 전용 command 로만 진행하는 stage — 단독 quest 승인 거부(409).
-# DRAWING 은 전달·수령확정이 실제 전용 경로다.
-# CONFIRM 은 2026-07-26 가드가 들어올 때 짝이 될 ``CUSTOMER_CONFIRM`` command 가 끝내
-# 안 들어와 "승인도 못 하고 생산으로도 못 가는" 막다른 골목이 됐다(운영 #5193).
-# 이 라우트가 그 빠진 단계를 품는다: CONFIRM quest 종결 + ``blueprint.customer_confirmed``
-# 를 같은 tx 로 기록하되 **stage 전이는 하지 않는다**(CONFIRM→PRODUCTION 은
-# ``PRODUCTION_START`` 소관). 서비스 층의 전이 거부(quest_transition_service)는 그대로 둔다.
+# 전용 command 로만 진행하는 stage — 단독 quest 승인 거부(409). DRAWING 은 도면 전달·수령확정이
+# 실제 전용 경로다. CONFIRM 은 2026-07-26 가드가 들어올 때 짝이 될 ``CUSTOMER_CONFIRM`` command
+# 가 끝내 안 들어와 "승인도 못 하고 생산으로도 못 가는" 막다른 골목이었다(운영 #5193) —
+# 2026-09-17 부터 CONFIRM 최종 승인은 quest 종결 + ``blueprint.customer_confirmed`` 기록 뒤
+# 서비스(quest_transition_service ``CUSTOMER_CONFIRM``)로 CONFIRM→PRODUCTION 을 **전이한다**.
 _COMMAND_REQUIRED_STAGES = frozenset({"DRAWING"})
-
-#: 최종 승인이 나도 자동 전이를 시도하지 않는 stage(서비스가 전이를 거부하는 stage와 한 쌍).
-_NO_AUTO_ADVANCE_STAGES = frozenset({"CONFIRM"})
 
 #: 전이 receipt scope 구성용 command 식별자(라우트 단일 진입점 — 실제 stage command 는
 #: quest_transition_service 의 _STAGE_ADVANCE 가 고른다).
@@ -243,6 +238,27 @@ def _request_hash(body) -> str:
     """
     canonical = json.dumps(body or {}, sort_keys=True, ensure_ascii=False, default=str)
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _already_transitioned_into(sd, current_stage_code: str) -> bool:
+    """종결(COMPLETED)된 quest 중 다음 단계가 ``current_stage_code`` 인 것이 있는가.
+
+    있으면 이 단계는 그 quest 의 최종 승인으로 이미 들어온 것이고, 현 단계 quest 가 없는
+    상태에서 팀 없이 온 승인 요청은 전이 직후의 재요청이다.
+    """
+    quests = sd.get('quests')
+    if not isinstance(quests, list):
+        return False
+    for quest in quests:
+        if not isinstance(quest, dict):
+            continue
+        if str(quest.get('status', 'OPEN')).upper() != 'COMPLETED':
+            continue
+        raw = quest.get('stage')
+        code = STAGE_NAME_TO_CODE.get(raw, raw)
+        if stage_advance_target(code) == current_stage_code:
+            return True
+    return False
 
 
 def _transition_error_response(exc):
@@ -306,6 +322,20 @@ def api_order_quest_approve(order_id):
         current_quest, quest_index = _find_stage_quest(sd, current_stage_name, current_stage_code)
 
         if not current_quest:
+            # 전이 직후의 stale 재요청(연타·같은 키·옛 화면) 방어. 예: 고객 컨펌 최종 승인으로
+            # stage 가 PRODUCTION 이 된 뒤 같은 버튼이 다시 오면 현 단계 quest 가 없어
+            # 템플릿으로 PRODUCTION quest 를 만들고 무관한 팀 승인을 남겨 제작 완료 게이트를
+            # 잠갔다(2026-09-20 CEO 판정 P1). 팀을 명시하지 않은 요청이고, 이미 종결된 quest 의
+            # 다음 단계가 지금 단계면 그 요청은 이미 처리된 것이다.
+            if not team and _already_transitioned_into(sd, current_stage_code):
+                return jsonify({
+                    'success': False,
+                    'code': 'ALREADY_TRANSITIONED',
+                    'message': (
+                        f'이미 {STAGE_LABELS.get(current_stage_code, current_stage_code)} '
+                        f'단계로 넘어간 주문입니다. 화면을 새로고침하세요.'
+                    ),
+                }), 409
             owner_person = session.get('username') or ''
             current_quest = create_quest_from_template(current_stage_name, owner_person, sd)
             if not current_quest:
@@ -441,10 +471,11 @@ def api_order_quest_approve(order_id):
         # 최종 승인 → stage 전이(STATE-QUEST-01). 라우트는 stage 를 직접 쓰지 않고 정본 서비스에
         # 위임한다. 승인 기록을 먼저 order 에 반영해 두어야 전이 엔진의 structured_data 스냅샷에
         # 승인이 포함된다(승인·전이가 한 tx·한 commit 에 원자적으로 남는다).
-        # RECEIVED→MEASURE, MEASURE→DRAWING 만 advance 하고 그 밖의 stage 는 None(no-op).
+        # RECEIVED→MEASURE, MEASURE→DRAWING, CONFIRM→PRODUCTION 만 advance 하고 그 밖의 stage 는
+        # None(no-op).
         auto_transitioned = False
         transition_result = None
-        if is_complete and current_stage_code not in _NO_AUTO_ADVANCE_STAGES:
+        if is_complete:
             try:
                 transition_result = advance_stage_on_quest_completion(
                     db,

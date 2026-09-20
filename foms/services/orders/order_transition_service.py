@@ -193,6 +193,14 @@ COMMAND_REGISTRY: Dict[str, TransitionCommand] = {
             axis=AXIS_MAIN, from_values=("MEASURE",), to_values=("DRAWING",),
             event_type="MEASUREMENT_COMPLETED", effect_type="STAGE_NOTIFICATION",
         ),
+        # CONFIRM quest 최종 승인(고객 컨펌 완료)이 곧 생산 단계 전이 — quest_transition_service
+        # 의 _STAGE_ADVANCE 가 고른다. 2026-09-17 전까지 이 command 가 비어 있어 CONFIRM 이
+        # 막다른 골목이었다(운영 #5193).
+        _cmd(
+            command_id="CUSTOMER_CONFIRM", policy_id="STATE_CUSTOMER_CONFIRM",
+            axis=AXIS_MAIN, from_values=("CONFIRM",), to_values=("PRODUCTION",),
+            event_type="CUSTOMER_CONFIRMED", effect_type="STAGE_NOTIFICATION",
+        ),
         _cmd(
             command_id="SET_LOGISTICS_STATUS", policy_id="STATE_SET_LOGISTICS_STATUS",
             axis=AXIS_LOGISTICS, from_values=LOGISTICS_VALUES, to_values=LOGISTICS_VALUES,
