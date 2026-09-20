@@ -1,140 +1,14 @@
 /* =========================================================================
    FOMS v3→v2 이식: CS '지금 확인할 접수' 히어로 · 접수 상태 필터 칩 · 퀘스트 강조 칩
-   (A1 + A4 + A2). v2 모바일 대시보드(templates/orders/partials/dashboard_mobile_v2_body.html)
+   (A4 + A2 — A1 히어로는 2026-09-20 제거). v2 모바일 대시보드(templates/orders/partials/dashboard_mobile_v2_body.html)
    와 큐 카드 매크로에서만 사용. 디자인 참고: templates/partials/v3/persona_home_cs.html
    (히어로·칩·퀘스트 라벨)을 v2 라이트 컨벤션(foms-* 토큰)으로 재현한다.
    접두: foms-v2h-* (v2 hero). 인라인 스타일 금지, 터치 타깃 44px+.
    ========================================================================= */
 
-/* ── A1: CS 히어로 "지금 확인할 접수" ─────────────────────────────────── */
-.foms-v2h-hero {
-  margin: var(--foms-space-3) var(--foms-space-1) var(--foms-space-2);
-  padding: var(--foms-space-4);
-  background: var(--foms-surface-raised);
-  border: 1px solid var(--foms-color-neutral-200);
-  border-left: 4px solid var(--foms-color-brand-500);
-  border-radius: var(--foms-radius-lg);
-  box-shadow: var(--foms-shadow-sm);
-  /* 모바일 홈 본문은 grid 라 아이템 기본 min-width:auto 가 내용 폭 아래로 못 줄어든다.
-     이어쓰기 띠(foms-draft-resume)·실측 히어로와 같은 수축 계약을 건다. */
-  min-width: 0;
-  max-width: 100%;
-}
+/* A1 CS 히어로 카드는 2026-09-20 제거됐다(사용자 요청). 아래 A4·A2 만 남는다. */
 
-.foms-v2h-hero.is-danger {
-  border-color: var(--foms-color-danger-500);
-  border-left-color: var(--foms-color-danger-500);
-  background: var(--foms-color-danger-50);
-}
-
-.foms-v2h-hero__label {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--foms-space-2);
-  margin: 0 0 var(--foms-space-2);
-  font-size: var(--foms-font-size-xs);
-  font-weight: var(--foms-font-weight-bold);
-  letter-spacing: 0.02em;
-  color: var(--foms-color-brand-600);
-  text-transform: none;
-}
-
-.foms-v2h-hero.is-danger .foms-v2h-hero__label {
-  color: var(--foms-color-danger-600);
-}
-
-.foms-v2h-hero__title {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--foms-space-2);
-  margin: 0 0 var(--foms-space-2);
-  font-size: var(--foms-font-size-lg);
-  font-weight: var(--foms-font-weight-bold);
-  color: var(--foms-text-primary);
-  line-height: 1.25;
-  min-width: 0;
-  overflow-wrap: anywhere;
-  word-break: break-word;
-}
-
-/* 실측 모바일 히어로(foms-v2dh-hero__title + foms-hero-spec)와 같은 배치:
-   이름·채널 마크는 한 줄, 제품명은 자기 줄에서 접힌다. 이름 옆에 붙이면 긴 제품명이
-   baseline 줄을 밀어 글자가 카드 밖으로 넘친다(2026-09-17 제보). */
-.foms-v2h-hero__subtitle {
-  flex-basis: 100%;
-  min-width: 0;
-  font-size: var(--foms-font-size-sm);
-  font-weight: var(--foms-font-weight-medium);
-  color: var(--foms-text-secondary);
-  overflow-wrap: anywhere;
-  word-break: break-word;
-}
-
-.foms-v2h-hero__meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--foms-space-2) var(--foms-space-4);
-  margin: 0 0 var(--foms-space-3);
-}
-
-.foms-v2h-hero__meta > div {
-  display: inline-flex;
-  align-items: baseline;
-  gap: var(--foms-space-2);
-  margin: 0;
-}
-
-.foms-v2h-hero__meta dt {
-  margin: 0;
-  font-size: var(--foms-font-size-xs);
-  font-weight: var(--foms-font-weight-medium);
-  color: var(--foms-text-tertiary);
-}
-
-.foms-v2h-hero__meta dd {
-  margin: 0;
-  min-width: 0;
-  font-size: var(--foms-font-size-sm);
-  font-weight: var(--foms-font-weight-semibold);
-  color: var(--foms-text-primary);
-  overflow-wrap: anywhere;
-}
-
-/* 버튼 글자는 두 줄로 접지 않는다. 카드가 좁으면(2026-09-17 운영 제보: ~290px 카드에서
-   '지금 통화'·'결과 기록' 이 두 줄로 꺾임) 버튼째 다음 줄로 내린다. */
-.foms-v2h-hero__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--foms-space-2);
-}
-
-.foms-v2h-hero__actions > .foms-btn {
-  white-space: nowrap;
-  flex: 0 0 auto;
-}
-
-/* 히어로 CTA는 foms-btn 기반(48px 터치) + 히어로 전용 액센트 오버레이 */
-.foms-v2h-hero__actions > .foms-v2h-hero__cta {
-  flex: 1 1 auto;
-  min-width: max-content;
-}
-
-.foms-v2h-hero__cta--danger {
-  background: var(--foms-interactive-danger);
-  color: #fff;
-}
-
-.foms-v2h-hero__cta--danger:hover {
-  background: var(--foms-color-danger-600);
-}
-
-.foms-v2h-hero__detail {
-  flex: 0 0 auto;
-  border: 1px solid var(--foms-color-neutral-300);
-}
-
-/* ── A4: 접수 상태 필터 칩 행 (히어로 아래) ──────────────────────────── */
+/* ── A4: 접수 상태 필터 칩 행 ──────────────────────────── */
 .foms-v2h-chips {
   display: flex;
   gap: var(--foms-space-2);

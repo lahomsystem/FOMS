@@ -1,7 +1,6 @@
 {% if tower_mode|default(false) and control_tower %}
 {% include 'orders/partials/dashboard_mobile_tower.html' %}
 {% else %}
-{% from 'partials/shared/channel_mark.html' import channel_mark %}
 
 {% set _filters = filters or {} %}
 {% set _base_url = url_for('erp_dashboard.erp_dashboard') %}
@@ -28,7 +27,6 @@
 {% set _cs_total = _cs_rows | length %}
 {% set _cs_hold_ct = _cs_rows | selectattr('status', 'equalto', 'ON_HOLD') | list | length %}
 {% set _cs_recheck_ct = _cs_rows | selectattr('status', 'equalto', 'RECHECK') | list | length %}
-{% set _cs_hero = _cs_rows[0] if _cs_rows else None %}
 {% set _cs_status_active = request.args.get('status') or '' %}
 
 {#- B2: '부재중' 페이지 필터 칩 카운트 — 로드된 큐 카드(orders) 중 마지막 통화=no_answer 수.
@@ -53,49 +51,9 @@
 
   {% if risk_frame %}{% include 'orders/partials/risk_frame.html' %}{% endif %}
 
-  {#- A1: 가장 오래된 접수 히어로 (대상 0건이거나 위험 드릴다운이면 비노출). -#}
-  {% if _cs_hero and not risk_frame %}
-    {% set _hero_phone = (_cs_hero.phone or '')|replace('-', '')|replace(' ', '') %}
-    {% set _hero_has_phone = _hero_phone and _hero_phone != '-' %}
-    {% set _hero_overdue = _cs_hero.received_date and (cs_overdue_before|default('')) and _cs_hero.received_date < cs_overdue_before %}
-    {% set _hero_danger = (_cs_hero.alerts and _cs_hero.alerts.urgent) or _hero_overdue %}
-    <section class="foms-v2h-hero{% if _hero_danger %} is-danger{% endif %}"
-             aria-label="지금 확인할 접수" data-order-id="{{ _cs_hero.id }}">
-      <p class="foms-v2h-hero__label">
-        <i class="fas fa-phone-volume" aria-hidden="true"></i>
-        지금 확인할 접수{% if _hero_danger %} · 지연{% endif %}
-      </p>
-      <h2 class="foms-v2h-hero__title">
-        {{ _cs_hero.customer_name or '-' }}
-        {{ channel_mark(_cs_hero.channel_source) }}
-        {% if _cs_hero.product_subtitle %}<span class="foms-v2h-hero__subtitle">{{ _cs_hero.product_subtitle }}</span>{% endif %}
-      </h2>
-      <dl class="foms-v2h-hero__meta">
-        {% if _cs_hero.received_date %}<div><dt>접수일</dt><dd class="foms-tabular">{{ _cs_hero.received_date }}</dd></div>{% endif %}
-        {% if _cs_hero.phone and _cs_hero.phone != '-' %}<div><dt>연락처</dt><dd class="foms-tabular">{{ _cs_hero.phone }}</dd></div>{% endif %}
-      </dl>
-      <div class="foms-v2h-hero__actions">
-        {% if _hero_has_phone %}
-          <a class="foms-btn foms-v2h-hero__cta{% if _hero_danger %} foms-v2h-hero__cta--danger{% else %} foms-btn--primary{% endif %}"
-             href="tel:{{ _hero_phone }}" aria-label="{{ _cs_hero.customer_name or '고객' }} 지금 통화">
-            <i class="fas fa-phone" aria-hidden="true"></i> 지금 통화
-          </a>
-        {% endif %}
-        {% if can_edit_erp|default(false) %}
-          <button type="button"
-                  class="foms-btn foms-btn--ghost foms-v2h-hero__log"
-                  data-foms-call-log-open
-                  data-order-id="{{ _cs_hero.id }}"
-                  data-customer-name="{{ _cs_hero.customer_name or '' }}"
-                  aria-label="{{ _cs_hero.customer_name or '고객' }} 통화 결과 기록">
-            <i class="fas fa-clipboard-check" aria-hidden="true"></i> 결과 기록
-          </button>
-        {% endif %}
-        <a class="foms-btn foms-btn--ghost foms-v2h-hero__detail"
-           href="{{ url_for('erp_dashboard.erp_order_mobile_detail', order_id=_cs_hero.id) }}">상세</a>
-      </div>
-    </section>
-
+  {#- A1 히어로('지금 확인할 접수' 카드)는 2026-09-20 사용자 요청으로 제거했다. 카드 자체가
+      필요 없다는 판단. 아래 A4 칩만 남긴다(위험 드릴다운이면 비노출). -#}
+  {% if not risk_frame %}
     {#- A4: 접수 상태 필터 칩(전체/보류/재확인). 서버 렌더 a 태그(status 필터 파라미터). -#}
     {% if _cs_total %}
       <nav class="foms-v2h-chips" aria-label="접수 상태 필터">
