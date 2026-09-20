@@ -5,8 +5,11 @@ from __future__ import annotations
 import datetime
 from typing import Any, Dict, List, Optional
 
-from foms.services.orders.erp_policy_constants import STAGE_NAME_TO_CODE
+from foms.services.orders.erp_policy_constants import STAGE_LABELS, STAGE_NAME_TO_CODE
 from foms.services.orders.erp_policy_data_access import get_quest_templates
+
+#: assignee 모드 quest 가 미승인일 때 ``missing`` 목록에 실리는 토큰(팀 코드가 아니다).
+ASSIGNEE_MISSING_TOKEN = "ASSIGNEE"
 
 
 def get_quest_template_for_stage(stage: Optional[str]) -> Optional[Dict[str, Any]]:
@@ -40,7 +43,21 @@ def get_next_stage_for_completed_quest(stage: Optional[str]) -> Optional[str]:
 
 
 def check_quest_approvals_complete(sd: Dict[str, Any], stage: Optional[str]) -> tuple[bool, List[str]]:
-    """현재 단계 Quest의 필수 승인 완료 여부를 반환한다."""
+    """현재 단계 Quest의 필수 승인 완료 여부를 반환한다 — 승인 판정 SSOT.
+
+    quest 는 ``stage`` 의 별칭(원문·영문 코드·한글 라벨) 중 하나와 일치하는 **첫** 항목이다
+    (``quest_approve_authz.find_stage_quest`` 와 같은 규칙). 판정 순서:
+
+    1. quest 없음 → ``(False, 필수 팀)``.
+    2. ``status == COMPLETED`` → ``(True, [])`` (모드 무관, 최우선).
+    3. ``approval_mode == assignee`` → ``assignee_approval.approved`` 로
+       ``(True, [])`` / ``(False, [ASSIGNEE_MISSING_TOKEN])``.
+    4. 그 밖(team 모드) → ``team_approvals`` 로 팀별 판정. OPEN 이고 아무 팀도 승인하지
+       않았으면 필수 팀 전체를 missing 으로 돌려준다.
+
+    2026-09-17 전까지는 4 만 있어서, 담당자 승인으로 COMPLETED 된 고객컨펌 quest 를 생산
+    게이트(``_stage_quest_block``)가 ``missing=[CS, SALES]`` 로 거부했다(운영 제보).
+    """
     if not stage:
         return (False, [])
 
@@ -49,17 +66,25 @@ def check_quest_approvals_complete(sd: Dict[str, Any], stage: Optional[str]) -> 
         return (False, [])
 
     stage_code = STAGE_NAME_TO_CODE.get(stage, stage)
+    aliases = {stage, stage_code, STAGE_LABELS.get(stage_code, "")} - {""}
     current_quest = None
     for quest in quests:
-        if isinstance(quest, dict):
-            quest_stage = quest.get("stage")
-            if quest_stage == stage or quest_stage == stage_code:
-                current_quest = quest
-                break
+        if isinstance(quest, dict) and quest.get("stage") in aliases:
+            current_quest = quest
+            break
 
     if not current_quest:
         required_teams = get_required_approval_teams_for_stage(stage)
         return (False, required_teams)
+
+    if str(current_quest.get("status", "OPEN")).upper() == "COMPLETED":
+        return (True, [])
+
+    if current_quest.get("approval_mode") == "assignee":
+        approval = current_quest.get("assignee_approval")
+        if isinstance(approval, dict) and bool(approval.get("approved")):
+            return (True, [])
+        return (False, [ASSIGNEE_MISSING_TOKEN])
 
     required_teams = current_quest.get("required_approvals")
     if not required_teams or not isinstance(required_teams, list):
@@ -216,6 +241,7 @@ def create_quest_from_template(
 
 
 __all__ = [
+    "ASSIGNEE_MISSING_TOKEN",
     "check_quest_approvals_complete",
     "create_quest_from_template",
     "get_next_stage_for_completed_quest",

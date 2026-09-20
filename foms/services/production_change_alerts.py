@@ -38,6 +38,7 @@ from foms.services.production_dashboard_display import (
     _production_product_label,
     _production_stage_label_from_stage,
 )
+from foms.services.production_read_model import fetch_production_current_run_ids
 
 __all__ = [
     "PROD_STAGES",
@@ -311,6 +312,8 @@ def collect_production_tombstones(
             if isinstance(marker, str):
                 ack_markers_by_order.setdefault(ev.order_id, set()).add(marker)
 
+    # 묘비 버킷 = 단계 + current run(삭제 시점의 run 은 남아 있다 — 쿼리 1회).
+    run_ids = fetch_production_current_run_ids(db, candidates)
     tombstones: list[dict[str, Any]] = []
     for o in candidates:
         # 본인이 이 삭제 시점을 확인한 마커가 있으면 제외(개인별, 시계 비교 없음).
@@ -322,7 +325,9 @@ def collect_production_tombstones(
             {
                 "id": o.id,
                 "customer_name": (((sd.get("parties") or {}).get("customer") or {}).get("name")) or "-",
-                "bucket": _production_stage_label_from_stage(o.erp_stage_code or ""),
+                "bucket": _production_stage_label_from_stage(
+                    o.erp_stage_code or "", o.id in run_ids
+                ),
                 "deleted_md": _date_to_md((o.deleted_at or "")[:10]),
                 "product_label": _production_product_label(items),
             }

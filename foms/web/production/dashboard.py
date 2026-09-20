@@ -14,7 +14,7 @@ from flask import Blueprint, abort, make_response, render_template, request, g
 from sqlalchemy import case as sql_case
 
 from db import get_db
-from models import Order
+from models import Order, ProductionRun
 from foms.web.auth import login_required
 
 from foms.services.datetime_kst import get_today_kst
@@ -30,6 +30,7 @@ from foms.services.production_read_model import (
     production_stage_bucket_expr,
     compute_production_summary_blob,
     fetch_production_attachment_counts,
+    fetch_production_current_run_ids,
     paginate_production_rows,
     PRODUCTION_DASHBOARD_PAGE_SIZE,
     PRODUCTION_KANBAN_MAX_ROWS,
@@ -212,8 +213,11 @@ def erp_production_dashboard():
     )
     att_counts = {int(k): int(v) for k, v in (_att_blob or {}).items()}
 
+    # 버킷 = 단계 + current run: PRODUCTION 행을 제작대기/제작중으로 가르는 run id 집합
+    # (쿼리 1회, 캐시하지 않는다 — 제작 시작/취소 직후 보드가 즉시 맞아야 한다).
+    _run_ids = fetch_production_current_run_ids(db, _all_rows)
     # 변경 감지·지방 뱃지·자수는 칸반이 소비하는 전량 셋 기준(모달·칩 카운트가 보드와 일치).
-    _enriched_all = build_production_enriched_rows(_all_rows, att_counts)
+    _enriched_all = build_production_enriched_rows(_all_rows, att_counts, _run_ids)
     _orders_by_id = {o.id: o for o in _all_rows}
     _alerts_by_id = collect_production_change_alerts(db, _all_rows, user.id if user else None)
     for _r in _enriched_all:
@@ -442,8 +446,15 @@ def erp_production_tablet_sheet(order_id: int):
     _hold = _prod.get('hold') if isinstance(_prod.get('hold'), dict) else {}
     _rework = _prod.get('rework') if isinstance(_prod.get('rework'), dict) else {}
     # 전이 버튼 조건 렌더용 stage/승인 상태(read-model 버킷 매핑·row 규약과 동일 헬퍼 재사용).
-    stage_label = _production_stage_label_from_stage(order.erp_stage_code) or '기타'
-    is_sales_approved = _production_quest_sales_state(sd, stage_label)[0]
+    # 버킷 = 단계 + current run(단건 조회 1회).
+    has_run = (
+        db.query(ProductionRun.id)
+        .filter(ProductionRun.order_id == order.id, ProductionRun.is_current.is_(True))
+        .first()
+        is not None
+    )
+    stage_label = _production_stage_label_from_stage(order.erp_stage_code, has_run) or '기타'
+    is_sales_approved = _production_quest_sales_state(sd, stage_label, order.erp_stage_code)[0]
     sheet = {
         'id': order.id,
         'customer_name': (((sd.get('parties') or {}).get('customer') or {}).get('name')) or '-',

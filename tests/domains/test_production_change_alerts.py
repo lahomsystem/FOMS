@@ -13,7 +13,7 @@ import datetime
 from werkzeug.security import generate_password_hash
 
 from db import db_session
-from models import Order, OrderEvent, User
+from models import Order, OrderEvent, ProductionRun, User
 from foms.services.datetime_kst import get_today_kst
 from foms.services.production_change_alerts import (
     collect_production_change_alerts,
@@ -236,10 +236,13 @@ def test_drawing_before_window_ignored(app):
 
 
 def test_tombstone_included(app):
+    """제작중(PRODUCTION + current run) 주문의 묘비는 bucket 제작중 — 버킷 = 단계 + run(2026-09-17)."""
     today = get_today_kst()
     deleted_at = today.strftime("%Y-%m-%d 12:00:00")
     sd = {"workflow": {"stage": "생산"}, "parties": {"customer": {"name": "홍길동"}}, "items": [{"product_name": "장롱"}]}
     order = _make_order(stage="생산", status="DELETED", sd=sd, deleted_at=deleted_at)
+    db_session.add(ProductionRun(order_id=order.id, status="IN_PROGRESS", steps=[], defects=[], is_current=True))
+    db_session.commit()
     tombs = collect_production_tombstones(db_session, None, False)
     match = [t for t in tombs if t["id"] == order.id]
     assert len(match) == 1
@@ -248,6 +251,16 @@ def test_tombstone_included(app):
     assert t["bucket"] == "제작중"
     assert t["product_label"] == "장롱"
     assert t["deleted_md"] == f"{today.month}/{today.day}"
+
+
+def test_tombstone_without_run_is_wait_bucket(app):
+    """PRODUCTION 이지만 current run 이 없던 주문의 묘비는 제작대기(음성 대조군)."""
+    today = get_today_kst()
+    deleted_at = today.strftime("%Y-%m-%d 12:00:00")
+    order = _make_order(stage="생산", status="DELETED", deleted_at=deleted_at)
+    tombs = collect_production_tombstones(db_session, None, False)
+    match = [t for t in tombs if t["id"] == order.id]
+    assert len(match) == 1 and match[0]["bucket"] == "제작대기"
 
 
 def test_tombstone_excluded_by_my_marker_ack(app):

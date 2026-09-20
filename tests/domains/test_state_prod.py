@@ -265,13 +265,26 @@ def test_gate_not_found(client):
 
 
 def test_gate_wrong_stage(client):
-    """제작대기 아님(PRODUCTION 에서 start) → 409 INVALID_STAGE, 상태 불변."""
+    """제작대기 아님 → 409 INVALID_STAGE, 상태 불변(2026-09-17 버킷 = 단계 + current run).
+
+    제작중(PRODUCTION + current run)에서 start 는 "이미 제작중" 409, 제작완료(CONSTRUCTION)
+    에서 start 는 "제작대기 상태에서만" 409. PRODUCTION 이면서 run 이 없는 주문은 제작대기라
+    start 가 200 이다(``test_production_transition_guard_api`` 가 고정).
+    """
     _login(client, _make_user("sp_g1", role="STAFF", team="PRODUCTION"))
-    order_id = _make_order("PRODUCTION").id
-    resp = client.post(f"/api/orders/{order_id}/production/start", json={})
+    in_progress_id = _make_order("PRODUCTION").id
+    _mint_run(in_progress_id)
+    resp = client.post(f"/api/orders/{in_progress_id}/production/start", json={})
     assert resp.status_code == 409 and resp.get_json()["code"] == "INVALID_STAGE"
+    assert resp.get_json()["message"] == "이미 제작중인 주문입니다."
+    done_id = _make_order("CONSTRUCTION").id
+    resp2 = client.post(f"/api/orders/{done_id}/production/start", json={})
+    assert resp2.status_code == 409 and resp2.get_json()["code"] == "INVALID_STAGE"
     db_session.expire_all()
-    assert db_session.get(Order, order_id).erp_stage_code == "PRODUCTION"
+    assert db_session.get(Order, in_progress_id).erp_stage_code == "PRODUCTION"
+    assert db_session.get(Order, done_id).erp_stage_code == "CONSTRUCTION"
+    assert db_session.query(ProductionRun).filter_by(order_id=in_progress_id).count() == 1
+    assert db_session.query(ProductionRun).filter_by(order_id=done_id).count() == 0
 
 
 def test_gate_hold_active(client):

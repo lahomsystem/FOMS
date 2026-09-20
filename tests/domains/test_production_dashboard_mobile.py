@@ -8,7 +8,7 @@ from pathlib import Path
 from werkzeug.security import generate_password_hash
 
 from db import db_session
-from models import Order, User
+from models import Order, ProductionRun, User
 
 
 def _login_plain_admin(client):
@@ -93,26 +93,29 @@ def test_production_mobile_queue_numbered_pagination(client, monkeypatch):
 
 
 def test_production_mobile_queue_renders_complete_and_edit_for_in_progress(client, monkeypatch):
+    """제작중 = PRODUCTION + current run(2026-09-17 버킷 축) 행에 [제작 완료]·ERP 편집이 그려진다."""
     monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
     user = _login_plain_admin(client)
     monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(user.id))
 
     today = date.today().strftime("%Y-%m-%d")
-    db_session.add(
-        Order(
-            received_date=today,
-            customer_name="제작중 모바일 고객",
-            phone="010-0000-0000",
-            address="Seoul",
-            product="붙박이장",
-            status="PRODUCTION",
-            manager_name="Bob",
-            is_erp_order=True,
-            structured_data={"workflow": {"stage": "생산"}},
-            # W3-2: flat 컬럼 erp_stage_code 필터 전환 → seed도 운영 현실대로 채운다.
-            erp_stage_code="생산",
-        )
+    order = Order(
+        received_date=today,
+        customer_name="제작중 모바일 고객",
+        phone="010-0000-0000",
+        address="Seoul",
+        product="붙박이장",
+        status="PRODUCTION",
+        manager_name="Bob",
+        is_erp_order=True,
+        structured_data={"workflow": {"stage": "생산"}},
+        # W3-2: flat 컬럼 erp_stage_code 필터 전환 → seed도 운영 현실대로 채운다.
+        erp_stage_code="생산",
     )
+    db_session.add(order)
+    db_session.commit()
+    # 버킷 = 단계 + run: current run 이 있어야 제작중이다(없으면 제작대기 → [제작 시작]).
+    db_session.add(ProductionRun(order_id=order.id, status="IN_PROGRESS", steps=[], defects=[], is_current=True))
     db_session.commit()
 
     response = client.get("/erp/production/dashboard")

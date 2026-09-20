@@ -38,13 +38,14 @@ def test_detail_dom_confirmed_revision_entrypoint() -> None:
 
 def test_detail_dom_cachebuster_cascade_bumped() -> None:
     """내용 변경 시 로드 전수 ?v 범프(SW staticCacheFirst 스테일 봉합): detail-dom 자식
-    20260814d + entry 부모 20260814d(일괄 단계 강제 변경 캐스케이드)."""
+    20260814d + entry 부모 20260814d(일괄 단계 강제 변경 캐스케이드) → 2026-09-20 고객 컨펌
+    승인 확인창·연타 잠금으로 detail-dom/quest 자식 + entry 부모 20260920a."""
     entry = _read(ENTRY_JS)
     layout = _read(LAYOUT_SCRIPTS)
-    assert "erp-dashboard-detail-dom.js?v=20260814d" in entry
+    assert "erp-dashboard-detail-dom.js?v=20260920a" in entry
     # 도면 0장 전달 차단(2026-09-09): drawing.js 자식 핀 신설 + entry 부모 핀 범프.
     assert "erp-dashboard-drawing.js?v=20260909a" in entry
-    assert "erp-dashboard-entry.js') }}?v=20260909a" in layout
+    assert "erp-dashboard-entry.js') }}?v=20260920a" in layout
 
 
 def test_workbench_include_confirmed_toggle() -> None:

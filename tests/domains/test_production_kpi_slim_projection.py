@@ -19,7 +19,7 @@ from foms.services.production_read_model import (
     compute_production_kpis_and_badges,
     empty_production_step_stats,
 )
-from models import Order, User
+from models import Order, ProductionRun, User
 
 
 def _make_user(username: str) -> User:
@@ -43,7 +43,8 @@ def _big_extra() -> dict:
     }
 
 
-def _seed(idx: int, *, flags=None, schedule=None, workflow=None) -> int:
+def _seed(idx: int, *, flags=None, schedule=None, workflow=None, run: bool = False) -> int:
+    """ERP 주문 1건 시드. ``run=True`` 면 current IN_PROGRESS run 을 붙인다(제작중 분기 대조)."""
     sd = dict(_big_extra())
     if flags is not None:
         sd["flags"] = flags
@@ -61,14 +62,28 @@ def _seed(idx: int, *, flags=None, schedule=None, workflow=None) -> int:
         manager_name="생산담당",
         is_erp_order=True,
         structured_data=sd,
+        erp_stage_code=(workflow or {}).get("stage"),
     )
     db_session.add(order)
     db_session.commit()
+    if run:
+        db_session.add(ProductionRun(order_id=order.id, status="IN_PROGRESS", steps=[], defects=[], is_current=True))
+        db_session.commit()
     return order.id
 
 
-def _reference(ids, step_stats) -> dict:
-    """전체 structured_data 로드 경로로 동일 KPI/배지 계산(reference)."""
+def _run_ids(ids) -> set[int]:
+    """시드 중 current run 이 붙은 주문 id 집합(reference 의 has_run 인자)."""
+    rows = (
+        db_session.query(ProductionRun.order_id)
+        .filter(ProductionRun.order_id.in_(ids), ProductionRun.is_current.is_(True))
+        .all()
+    )
+    return {int(r[0]) for r in rows}
+
+
+def _reference(ids, step_stats, run_ids: set[int]) -> dict:
+    """전체 structured_data 로드 경로로 동일 KPI/배지 계산(reference). 제작중 판정은 run 유무."""
     kpis = {
         "urgent_count": 0,
         "production_d2_count": 0,
@@ -92,7 +107,7 @@ def _reference(ids, step_stats) -> dict:
             kpis["measurement_d4_count"] += 1
         if a.get("construction_d3"):
             kpis["construction_d3_count"] += 1
-        label = _kpi_stage_label_from_erp_stage(_erp_get_stage(None, sd) or "")
+        label = _kpi_stage_label_from_erp_stage(_erp_get_stage(None, sd) or "", r.id in run_ids)
         if not label or label not in step_stats:
             continue
         if a.get("production_d2"):
@@ -107,7 +122,7 @@ def test_production_kpi_slim_equals_full(app):
         _make_user("prod_kpi_slim")
         ids = [
             _seed(1, flags={"urgent": True}, workflow={"stage": "PRODUCTION"},
-                  schedule={"construction": {"date": "2026-06-28"}}),
+                  schedule={"construction": {"date": "2026-06-28"}}, run=True),
             _seed(2, workflow={"stage": "CONFIRM"},
                   schedule={"construction": {"date": "2099-01-01"}}),
             _seed(3, flags={"urgent": True}, workflow={"stage": "CONSTRUCTION"},
@@ -122,7 +137,7 @@ def test_production_kpi_slim_equals_full(app):
         kpi_rows, slim_kpis = compute_production_kpis_and_badges(q, slim_steps)
 
         ref_steps = empty_production_step_stats()
-        ref_kpis = _reference(ids, ref_steps)
+        ref_kpis = _reference(ids, ref_steps, _run_ids(ids))
 
         assert slim_kpis == ref_kpis, f"slim={slim_kpis} ref={ref_kpis}"
         assert slim_steps == ref_steps, f"slim={slim_steps} ref={ref_steps}"

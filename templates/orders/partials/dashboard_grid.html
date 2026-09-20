@@ -103,7 +103,9 @@
                   <td data-col-key="quest" data-label="퀘스트" class="erp-quest-cell erp-wrap">
                     {% if o.current_quest %}
                     <div class="erp-grid-quest-stack">
-                      {% if o.current_quest.all_approved %}
+                      {% if o.current_quest.is_done %}
+                      <span class="badge bg-success erp-quest-done">{{ o.current_quest.done_label }}</span>
+                      {% elif o.current_quest.all_approved %}
                       <span class="badge bg-success" style="font-size: 1rem; padding: 0.4em 0.7em;">완료</span>
                       {% else %}
                       <span class="badge bg-warning" style="font-size: 1rem; padding: 0.4em 0.7em;">진행중</span>
@@ -134,7 +136,7 @@
                               <span
                                 class="badge {% if o.current_quest.all_approved %}bg-success{% else %}bg-warning{% endif %}"
                                 style="font-size: 0.9rem; padding: 0.4em 0.6em;">
-                                {% if o.current_quest.all_approved %}완료{% else %}진행중{% endif %}
+                                {% if o.current_quest.is_done %}{{ o.current_quest.done_label }}{% elif o.current_quest.all_approved %}완료{% else %}진행중{% endif %}
                               </span>
                             </div>
                             <div class="mb-3">
@@ -160,7 +162,7 @@
                                   <span class="fw-semibold" style="font-size: 0.9rem;">{{ assignee_names|join(', ') or '담당자 지정 필요' }}</span>
                                   {% if can_edit_erp|default(false) or o.current_quest.can_assignee_approve|default(false) %}
                                   <button class="btn btn-primary fw-semibold ms-2 erp-btn-approve-assignee"
-                                    data-order-id="{{ o.id }}"
+                                    data-order-id="{{ o.id }}" data-confirm="{{ o.current_quest.approve_confirm or '' }}"
                                     style="font-size: 0.9rem; padding: 0.3rem 0.6rem;">
                                     <i class="fas fa-check"></i> 승인
                                   </button>
@@ -185,6 +187,7 @@
                                   {% set team_name = team %}
                                   <button class="btn btn-primary fw-semibold ms-2 erp-btn-approve-team"
                                     data-order-id="{{ order_id_approve }}" data-team="{{ team_name }}"
+                                    data-confirm="{{ o.current_quest.approve_confirm or '' }}"
                                     style="font-size: 0.9rem; padding: 0.3rem 0.6rem;">승인</button>
                                   {% else %}
                                   <span class="text-muted small ms-2">(수정 권한 없음)</span>

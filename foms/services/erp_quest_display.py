@@ -50,7 +50,7 @@ def resolve_current_quest(
     stage: str | None,
     stage_code: str | None,
 ) -> dict[str, Any] | None:
-    """Resolve the active quest for display (display-only synthesis allowed).
+    """Resolve the active (or latest completed) quest for display (display-only synthesis allowed).
 
     Args:
         sd: Order structured_data.
@@ -58,7 +58,8 @@ def resolve_current_quest(
         stage_code: Normalized stage code.
 
     Returns:
-        Quest dict for UI, or None when quest UI should be hidden.
+        Quest dict for UI, or None when quest UI should be hidden. 완료된 quest 는
+        ``is_done=True`` 가 얹힌 얕은 복사본으로 돌아온다.
     """
     if not stage or not stage_code:
         return None
@@ -76,11 +77,20 @@ def resolve_current_quest(
             for q in matching
             if str(q.get("status", "OPEN")).upper() in ACTIVE_QUEST_STATUSES
         ]
-        if not active:
+        if active:
+            sort_key = lambda x: (x.get("created_at") or x.get("updated_at") or "1970-01-01T00:00:00",)
+            active.sort(key=sort_key, reverse=True)
+            return active[0]
+        # 활성 quest 가 없어도 이 단계의 **완료된** quest 는 보여 준다(2026-09-17 — 예전엔 COMPLETED
+        # 를 버려 담당자 승인이 끝난 고객컨펌이 "-" 로 보였다). 얕은 복사에 is_done 만 얹는다.
+        done = [q for q in matching if str(q.get("status", "OPEN")).upper() == "COMPLETED"]
+        if not done:
             return None
-        sort_key = lambda x: (x.get("created_at") or x.get("updated_at") or "1970-01-01T00:00:00",)
-        active.sort(key=sort_key, reverse=True)
-        return active[0]
+        done_key = lambda x: (
+            x.get("completed_at") or x.get("updated_at") or x.get("created_at") or "1970-01-01T00:00:00",
+        )
+        done.sort(key=done_key, reverse=True)
+        return {**done[0], "is_done": True}
 
     quest_tpl = get_quest_template_for_stage(stage)
     if not quest_tpl:
@@ -341,30 +351,19 @@ def _compute_can_assignee_approve(
                 getattr(current_user, "team", None), required_teams):
             return False
 
+    # 실측·고객컨펌(SALES_DOMAIN)은 서버 게이트가 **팀 capability 만** 본다 — 담당자 지정·이름
+    # 일치는 요구하지 않는다(quest_approve_authz.authorize_quest_approve). 그런데 화면은 여기서
+    # 담당자/이름 일치까지 요구해 담당자 칸이 비었거나 다른 이름인 주문은 모바일에서 버튼이
+    # 안 뜨고 PC 로 가야 했다(2026-09-20 스테이징 페르소나 검수 P1). 서버와 같은 답을 낸다.
+    if domain == "SALES_DOMAIN":
+        return True
+
     can_assignee = can_modify_domain(current_user, order, domain, False, None)
     if can_assignee:
         return True
 
-    if domain != "SALES_DOMAIN":
-        return False
+    return False
 
-    assignments = sd.get("assignments") or {}
-    user_ids = assignments.get("sales_assignee_user_ids") or []
-    user_ids = [int(uid) for uid in user_ids if isinstance(uid, (int, str)) and str(uid).isdigit()]
-    if user_ids:
-        return False
-
-    manager_names: set[str] = set()
-    for src in [
-        manager_display_name(sd.get("parties")),
-        getattr(order, "manager_name", None),
-        current_quest.get("owner_person"),
-    ]:
-        if str(src or "").strip():
-            manager_names.add(str(src).strip().lower())
-    un = (getattr(current_user, "name", None) or "").strip().lower()
-    uu = (getattr(current_user, "username", None) or "").strip().lower()
-    return un in manager_names or uu in manager_names
 
 
 def build_current_quest_payload(
@@ -412,6 +411,7 @@ def build_current_quest_payload(
         "assignee_approval": current_quest.get("assignee_approval") or {},
         "assignee_display_names": assignee_display_names,
         "can_assignee_approve": can_assignee_approve,
+        "is_done": bool(current_quest.get("is_done")),
         **build_approve_cta(stage_code_key, order),
     }
 

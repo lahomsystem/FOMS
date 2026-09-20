@@ -9,7 +9,23 @@ function renderBadges(alerts) {
           return out.join('') || '<span class="text-muted small">경보 없음</span>';
         }
 
-        async function approveQuestTeam(orderId, team) {
+        // 승인 버튼 공통 전처리: 서버가 준 확인 문구(data-confirm)가 있으면 묻고, 연타를 막기 위해
+        // 버튼을 잠근다. 고객 컨펌 승인은 이제 단계 전이(→생산)라 실수 클릭이 되돌리기 어렵다.
+        function beginQuestApprove(btn) {
+          if (btn && btn.disabled) return false;
+          const confirmText = btn && btn.dataset ? btn.dataset.confirm : '';
+          if (confirmText && !window.confirm(confirmText)) return false;
+          if (btn) btn.disabled = true;
+          return true;
+        }
+        function failQuestApprove(btn, data) {
+          if (btn) btn.disabled = false;
+          const detail = data && data.code ? ' (' + data.code + ')' : '';
+          alert('승인 실패: ' + ((data && (data.message || data.error)) || '알 수 없는 오류') + detail);
+        }
+
+        async function approveQuestTeam(orderId, team, btn) {
+          if (!beginQuestApprove(btn)) return;
           try {
             const res = await fetch(`/api/orders/${orderId}/quest/approve`, {
               method: 'POST',
@@ -19,7 +35,7 @@ function renderBadges(alerts) {
             const data = await res.json();
 
             if (!data.success) {
-              alert('승인 실패: ' + (data.message || data.error || '알 수 없는 오류'));
+              failQuestApprove(btn, data);
               return;
             }
 
@@ -42,12 +58,14 @@ function renderBadges(alerts) {
             await loadQuestDetail(orderId);
             window.location.reload();
           } catch (err) {
+            if (btn) btn.disabled = false;
             console.error('승인 실패:', err);
             alert('승인 중 오류가 발생했습니다.');
           }
         }
 
-        async function approveQuestAssignee(orderId) {
+        async function approveQuestAssignee(orderId, btn) {
+          if (!beginQuestApprove(btn)) return;
           try {
             const res = await fetch(`/api/orders/${orderId}/quest/approve`, {
               method: 'POST',
@@ -57,7 +75,7 @@ function renderBadges(alerts) {
             const data = await res.json();
 
             if (!data.success) {
-              alert('승인 실패: ' + (data.message || data.error || '알 수 없는 오류'));
+              failQuestApprove(btn, data);
               return;
             }
 
@@ -78,6 +96,7 @@ function renderBadges(alerts) {
 
             window.location.reload();
           } catch (err) {
+            if (btn) btn.disabled = false;
             console.error('승인 실패:', err);
             alert('승인 중 오류가 발생했습니다.');
           }
