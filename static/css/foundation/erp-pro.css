@@ -104,3 +104,15 @@
     padding: 2px 4px;
     font-size: 10px;
 }
+
+/* STATE-CONTROLS-02 — 막힌 완료 버튼의 사유(텍스트 노드).
+   title 툴팁은 태블릿·모바일에서 뜨지 않아 "왜 막혔는지" 를 읽을 길이 없었다.
+   버튼 아래 한 줄로 내려 주고, 옆의 '갈 곳' 링크와 한 덩어리로 보이게 한다. */
+.foms-complete-blocked-reason {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  color: var(--foms-text-secondary, #6b7280);
+  word-break: keep-all;
+}
