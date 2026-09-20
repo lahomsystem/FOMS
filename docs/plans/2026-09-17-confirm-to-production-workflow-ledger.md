@@ -48,7 +48,17 @@ CEO 설계 정본 `2026-09-17-confirm-flow-ceo-design.json`(spec·contract·워�
 
 ## 5. 게이트
 
-(총괄이 세션 워크트리 `c:\tmp\foms-s-confirm-flow`, origin/deploy 기준에서 직접 실행 — 결과는 §7 갱신)
+총괄이 세션 워크트리(origin/deploy 기준, 최신 5커밋 리베이스 뒤) 직접 실행: `APP_OK` · `tests/domains` 7549 passed(파일 분할·정렬 수정 뒤 재실행 exit 0) · `tests/contracts+harness` 624 passed · `pre_push_smoke` EXIT=0(33타깃) · 인벤토리 가드 31 passed · node --check 0.
+deploy `0cb601e7b` CI red 1건 = 네이버 집 발송기한 테스트가 오늘 날짜(09-20)와 충돌 — 우리 변경 무관, `474efaf08` 로 단언 수정 → CI ALL GREEN.
+
+## 5b. 스테이징 페르소나 검수 (2026-09-20, 3명 병렬 + 종합)
+
+원장 `docs/plans/2026-09-20-pipeline-persona-audit.md`(A/B/C 개별 보고·스테이징 브리프 동봉). **약속 6항 전부 확인.** 결함:
+- F1 P1 **이번 범위** — 모바일 큐 카드·상세의 [고객 컨펌 완료]·[실측 완료] 가 담당자 이름 대조를 통과한 사람에게만 떴다(서버·PC 는 CS/SALES 팀이면 허용). `_compute_can_assignee_approve` 를 SALES_DOMAIN 에서 서버와 같은 팀 규칙으로 정렬 + 대조군 테스트(`2ff318fd1`).
+- F2 P0 범위 밖(지도 #5·계약 C8, 기존) — 퀘스트가 아직 안 생긴 CONFIRM 주문에 `production/start` API 를 직접 부르면 컨펌 없이 200. 화면은 버튼을 숨긴다. 닫으려면 CONFIRM 호환 경로에서 퀘스트 없음 = 409 + 기존 테스트 8파일 픽스처 수정 — **다음 배치 결정 사항**.
+- P1 범위 밖(기존) — `POST /quest`·`PUT /quest/status` 200 인데 미저장(flag_modified 없음); PC 그리드가 승인 직후 합성 생산 quest 에 [승인] 을 그려 STAFF 는 403; 팀 승인 단계(접수·생산·시공·CS) 모바일 승인 버튼 없음; SALES owner 가 도면 수령 확정을 못 함.
+- P2 범위 밖 — 360° 타임라인이 엔진 전이 이벤트를 안 읽어 "기록 없음"; 이벤트 6종 "기타 변경"; v3 모바일 생산 큐 카드에 제작 시작/완료 없음.
+- 스테이징 잔여물: 페르소나 주문 22건 soft delete·계정 12개 비활성. 허용 잔여물(삭제 주문 하위 run·첨부·감사 로그·R2 1px png 2개)은 보고에 id 기록.
 
 ## 6. 잔여 위험·범위 밖 (다음 배치)
 

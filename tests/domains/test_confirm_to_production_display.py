@@ -7,6 +7,8 @@
 """
 from __future__ import annotations
 
+import pytest
+
 from werkzeug.security import generate_password_hash
 
 from db import db_session
@@ -178,3 +180,35 @@ def test_pc_grid_open_quest_has_no_done_badge(client):
     html = client.get("/erp/dashboard", query_string={"stage": "고객컨펌"}).get_data(as_text=True)
     assert f'quest-collapse-{order.id}' in html
     assert "erp-quest-done" not in html
+
+
+# --------------------------------------------------------------------------- #
+# 모바일 승인 버튼 노출 == 서버 팀 규칙 (2026-09-20 스테이징 페르소나 검수 P1)
+# --------------------------------------------------------------------------- #
+def _confirm_sd_for_display() -> dict:
+    return {
+        "workflow": {"stage": "CONFIRM"},
+        "parties": {"manager": {"name": "다른 사람"}},
+        "assignments": {},
+        "quests": [{
+            "stage": "CONFIRM", "title": "고객 컨펌", "status": "OPEN", "approval_mode": "assignee",
+            "owner_team": "SALES", "required_approvals": ["CS", "SALES"],
+            "assignee_approval": {"approved": False},
+        }],
+    }
+
+
+@pytest.mark.parametrize("team,expected", [("CS", True), ("SALES", True), ("PRODUCTION", False), ("DRAWING", False)])
+def test_confirm_mobile_button_follows_server_team_rule(team, expected):
+    """담당자 이름이 비었거나 다른 사람이어도 CS·SALES 면 모바일에 [고객 컨펌 완료] 가 뜬다 — 서버가 200 을 주는 조합.
+    PRODUCTION·DRAWING 은 서버가 403 이므로 버튼도 없다."""
+    from types import SimpleNamespace
+    from foms.services.erp_quest_display import build_current_quest_payload
+
+    sd = _confirm_sd_for_display()
+    user = SimpleNamespace(id=5, role="STAFF", team=team, name="검수자", username="auditor")
+    order = SimpleNamespace(id=1, customer_name="고객", manager_name="다른 사람", structured_data=sd, is_erp_order=True)
+    payload = build_current_quest_payload(sd=sd, stage="고객컨펌", stage_code="CONFIRM", order=order, current_user=user, user_map={})
+    assert payload is not None
+    assert payload["can_assignee_approve"] is expected
+    assert payload["approve_label"] == "고객 컨펌 완료"
