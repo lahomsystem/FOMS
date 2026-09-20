@@ -500,7 +500,9 @@ def test_household_due_is_the_earliest_one_not_the_first_member(client, workbenc
     row = _row_of(body, "본품")
 
     assert "발송기한 09-08" in row, f"가장 이른 기한이 아니다: {row}"
-    assert "09-20" not in row, "대표 멤버의 늦은 기한이 집을 대표했다"
+    # 행에는 수집 시각(오늘 날짜)도 찍히므로 날짜 조각이 아니라 발송기한 칩으로 단언한다
+    # (2026-09-20 CI: 오늘이 09-20 이라 수집 시각 "09-20 14:20" 에 걸려 빨갛던 것).
+    assert "발송기한 09-20" not in row, "대표 멤버의 늦은 기한이 집을 대표했다"
 
 
 def test_place_tab_excludes_claimed_households(client, workbench_on):
