@@ -147,7 +147,7 @@ def test_orders_dashboard_fragment_runtime_css(client, monkeypatch):
         sess["role"] = user.role
 
     for token in (
-        "foms-v2-cs-hero.css') }}?v=20260920b",
+        "foms-v2-cs-hero.css') }}?v=20260921a",
         "foms-call-log.css') }}?v=20260712b",
     ):
         assert token in _read("templates/orders/dashboard.html")
@@ -159,7 +159,7 @@ def test_orders_dashboard_fragment_runtime_css(client, monkeypatch):
     ).get_data(as_text=True)
     assert "foms-v2-cs-hero.css" in frag
     assert "foms-call-log.css" in frag
-    assert "v=20260920b" in frag
+    assert "v=20260921a" in frag
     assert "v=20260712b" in frag
 
 

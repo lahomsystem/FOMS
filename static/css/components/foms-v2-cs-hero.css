@@ -1,6 +1,6 @@
 /* =========================================================================
    FOMS v3→v2 이식: CS '지금 확인할 접수' 히어로 · 접수 상태 필터 칩 · 퀘스트 강조 칩
-   (A4 + A2 — A1 히어로는 2026-09-20 제거). v2 모바일 대시보드(templates/orders/partials/dashboard_mobile_v2_body.html)
+   (A4 — A1 히어로 2026-09-20·A2 퀘스트 칩 2026-09-21 제거). v2 모바일 대시보드(templates/orders/partials/dashboard_mobile_v2_body.html)
    와 큐 카드 매크로에서만 사용. 디자인 참고: templates/partials/v3/persona_home_cs.html
    (히어로·칩·퀘스트 라벨)을 v2 라이트 컨벤션(foms-* 토큰)으로 재현한다.
    접두: foms-v2h-* (v2 hero). 인라인 스타일 금지, 터치 타깃 44px+.
@@ -57,33 +57,7 @@
   color: rgba(255, 255, 255, 0.85);
 }
 
-/* ── A2: 큐 카드 current_quest 강조 칩 (액센트 텍스트) ─────────────────── */
-.foms-v2h-quest-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--foms-space-1);
-  max-width: 100%;
-  margin: 0 0 var(--foms-space-2);
-  padding: 2px 8px;
-  border-radius: var(--foms-radius-full);
-  background: var(--foms-color-brand-50);
-  color: var(--foms-color-brand-600);
-  font-size: var(--foms-font-size-xs);
-  font-weight: var(--foms-font-weight-semibold);
-  line-height: 1.4;
-}
-
-.foms-v2h-quest-chip > i {
-  flex-shrink: 0;
-  font-size: 0.85em;
-}
-
-.foms-v2h-quest-chip > span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
+/* A2 큐 카드 current_quest 칩은 2026-09-21 제거됐다(단계 뱃지와 중복). */
 /* ── B2: 마지막 통화 배지(큐 카드 헤더) + '부재중' 페이지 필터 칩/힌트 ────── */
 .foms-lastcall-badge {
   display: inline-flex;

@@ -94,13 +94,8 @@
       {% endif %}
     </h3>
 
-    {# v3→v2 이식(A2): current_quest 강조 칩(액센트) — 부제 폴백 대신 전용 표기. #}
-    {% if order.current_quest and order.current_quest.title %}
-      <p class="foms-v2h-quest-chip">
-        <i class="fas fa-flag-checkered" aria-hidden="true"></i>
-        <span>{{ order.current_quest.title }}</span>
-      </p>
-    {% endif %}
+    {# A2 current_quest 칩은 2026-09-21 사용자 요청으로 뺐다 — 머리의 단계 뱃지와 같은 말을
+       한 번 더 하는 중복 정보였다(실측/실측, 고객 컨펌/컨펌). #}
 
     {%- set attachments_block -%}
     {% if order.attachments_count is defined and order.attachments_count > 0 %}
