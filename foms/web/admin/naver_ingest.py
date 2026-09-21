@@ -2027,6 +2027,32 @@ def _ghost_view(db) -> dict[str, Any]:
         return {"count": 0, "rows": []}
 
 
+def _partial_claim_view(db) -> dict[str, Any]:
+    """부분 취소 띠 데이터 (2026-09-21).
+
+    집 하나가 통째로 취소·반품됐는데 **살아 있는 집이 남은** 주문이다. 유령 띠는 그런
+    주문을 일부러 뺀다(부분 취소는 정상 진행 중일 수 있다) — 그 제외가 운영 #5268
+    (김현정)의 본품 반품 5건을 화면 어디에도 안 보이게 만들었다. 판정은
+    :func:`ghost_orders.find_partial_claim_orders` 한 곳에만 둔다.
+
+    Args:
+        db: 요청 스코프 DB 세션.
+
+    Returns:
+        ``{"count": n, "rows": [...]}``. 유령 띠와 같은 규율로 **실패해도 화면을 죽이지
+        않는다**(failopen — 로그로 남긴다).
+    """
+    from foms.services.integrations.naver_commerce.ghost_orders import (
+        find_partial_claim_orders,
+    )
+
+    try:
+        return find_partial_claim_orders(db)
+    except SQLAlchemyError as exc:  # 보조 정보라 흐름을 막지 않는다(failopen — 로그로 남긴다)
+        logger.warning("[NAVER] 부분 취소 조회 실패(띠 생략): %s", exc, exc_info=True)
+        return {"count": 0, "rows": []}
+
+
 def _origin_cleanup_view(db) -> dict[str, Any]:
     """재결제 뒤 **정리 안 된 옛 네이버 주문** 띠 데이터 (NVREPAY-02).
 
@@ -2499,6 +2525,9 @@ def _render_workbench(db) -> str:
         failures_view = _failure_rows(db)
     with phase("wb_ghosts"):
         ghosts_view = _ghost_view(db) if active_tab == "work" else {"count": 0, "rows": []}
+    with phase("wb_partial_claims"):
+        partial_claims_view = (_partial_claim_view(db) if active_tab == "work"
+                               else {"count": 0, "rows": []})
     with phase("wb_origin_cleanup"):
         origin_cleanup_view = (_origin_cleanup_view(db) if active_tab == "work"
                                else {"count": 0, "rows": [], "truncated": False})
@@ -2552,6 +2581,11 @@ def _render_workbench(db) -> str:
             # 유령 주문(R-2): 네이버 결제가 전부 취소됐는데 살아 있는 ERP 주문.
             # 처리 탭에서만 낸다 — 이력 탭은 지난 기록을 보는 자리라 할 일을 띄우지 않는다.
             ghosts=ghosts_view,
+            # 부분 취소 띠(2026-09-21): 집 하나가 통째로 취소·반품됐는데 살아 있는 집이
+            # 남아 유령 띠에서 **일부러** 빠진 주문. 유령 판정을 넓히지 않고 띠를 따로
+            # 둔다 — 넓히면 "전부 취소"라는 그 띠의 약속이 거짓이 되고 휴지통 버튼의
+            # 모집단이 흔들린다.
+            partial_claims=partial_claims_view,
             # 재결제 뒤 정리 안 된 옛 네이버 주문(NVREPAY-02). 유령 띠와 같은 자리·같은 규율 —
             # 처리 탭에서만 낸다(이력 탭은 할 일을 띄우는 자리가 아니다).
             origin_cleanup=origin_cleanup_view,
