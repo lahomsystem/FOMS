@@ -1258,7 +1258,8 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-attachment-controls
   body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-stage-row__btn {
     flex: 0 0 auto;
     min-height: var(--foms-touch-target-min);
-    padding: 0 10px;
+    min-width: 44px;
+    padding: 0 8px;
     font-size: var(--foms-font-size-sm);
     white-space: nowrap;
     border: 1px solid var(--foms-border-default);
@@ -1274,7 +1275,14 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-attachment-controls
   body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-stage-row__btn--override .fas {
     font-size: 1.05em;
   }
+  /* 2026-09-21: 'AS 접수' → 'AS'(접수 수정은 AS+펜). 확보한 폭은 셀렉트가 다 쓴다.
+     옵션 글자도 A~H 접두를 뺐다 — 폰 셀렉트 시트가 "G. …" 로 잘라 단계가 안 보였다. */
+  body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-stage-row__btn-ico {
+    font-size: 0.7em;
+    margin-left: 4px;
+  }
   body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-stage-row__btn--as {
+    font-weight: var(--foms-font-weight-bold);
     color: var(--foms-color-brand-600);
     border-color: var(--foms-color-brand-500);
     background: var(--foms-color-brand-50);
