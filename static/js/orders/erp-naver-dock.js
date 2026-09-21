@@ -691,12 +691,12 @@
                 hint.textContent = '모든 항목 반영됨';
             }
         });
-        var badge = document.querySelector('.erp-naver-dock-fab-badge');
-        if (badge) {
-            var remain = total - checked;
+        // FAB 배지 + 모바일 '네이버 수집' 칩 배지(둘 다 같은 클래스) — 남은 항목 수를 함께 갱신
+        var remain = total - checked;
+        document.querySelectorAll('.erp-naver-dock-fab-badge').forEach(function (badge) {
             badge.textContent = String(remain);
             badge.classList.toggle('d-none', remain <= 0);
-        }
+        });
     }
 
     /**
@@ -1194,7 +1194,7 @@
             }
             return;
         }
-        if (event.target.closest('#erpNaverDockFab')) { openDrawer(); return; }
+        if (event.target.closest('#erpNaverDockFab') || event.target.closest('[data-naver-dock-open]')) { openDrawer(); return; }
         if (event.target.closest('[data-naver-dock-close]')) { closeDrawer(); return; }
         var done = event.target.closest('[data-naver-dock-done]');
         if (done && state && !done.disabled && !completing) {
