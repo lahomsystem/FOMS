@@ -84,15 +84,31 @@
   color: #fff;
 }
 
-/* 모바일 v2 셸: 하단은 sticky 액션바 + 바텀 내비가 차지한다. 위쪽 우측으로. */
+/* 모바일 v2 셸(2026-09-21 사용자 결정): 플로팅 FAB 를 아예 띄우지 않고, 폼 상단의
+   '네이버 수집' 칩이 서랍 입구가 된다(빨간 배지도 그 칩에). 탭 줄·편집 동선과 안 겹친다. */
 body.erp-mobile-v2-layout .erp-naver-dock-fab {
-  top: calc(var(--foms-shell-header-h, 48px) + var(--foms-safe-area-top, 0px) + 10px);
-  bottom: auto;
-  right: 12px;
-  width: 44px;
-  height: 44px;
-  font-size: 1.05rem;
-  opacity: 0.92;
+  display: none !important;
+}
+
+.erp-naver-source-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 10px 0 10px;
+  border: 0;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.erp-naver-source-chip .erp-naver-dock-fab-badge {
+  position: static;
+  border: 0;
+  font-size: 0.65rem;
+  padding: 3px 6px;
+}
+.erp-naver-source-chip__arrow {
+  font-size: 0.7em;
+  opacity: 0.8;
 }
 
 /* ── 슬라이드 서랍 ── */
