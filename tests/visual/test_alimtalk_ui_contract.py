@@ -381,12 +381,16 @@ def test_share_trace_assets_pinned_together() -> None:
     고친 쪽과 무관한 커밋까지 함께 빨개졌다).
     """
     pin = "?v=20260901b"
+    css_pin = "?v=20260921a"  # 2026-09-21: 모바일 미발송 칩 숨김으로 CSS 만 앞서 올랐다
     assert pin in _read("templates/partials/shared/layout_scripts.html")
     order_js = _read("templates/orders/partials/erp_order_js.html")
-    for asset in ("css/orders/erp-alimtalk-trace.css", "js/orders/erp-share.js"):
+    for asset, want in (("css/orders/erp-alimtalk-trace.css", css_pin),
+                        ("js/orders/erp-share.js", pin)):
         line = next((row for row in order_js.splitlines() if asset in row), "")
         assert line, f"{asset} 선언이 사라졌다"
-        assert pin in line, f"{asset} 핀이 함께 안 올라갔다"
+        assert want in line, f"{asset} 핀이 함께 안 올라갔다"
     for surface in ("templates/measurement/dashboard.html",
                     "templates/measurement/partials/dashboard_fragment.html"):
-        assert pin in _read(surface), surface
+        line = next((row for row in _read(surface).splitlines()
+                     if "css/orders/erp-alimtalk-trace.css" in row), "")
+        assert css_pin in line, surface
