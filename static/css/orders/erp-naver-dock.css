@@ -90,15 +90,27 @@ body.erp-mobile-v2-layout .erp-naver-dock-fab {
   display: none !important;
 }
 
+/* 네이버 시그니처 그린(채널 마크 #03C75A 와 같은 값) — 눌리는 입구임을 색으로도 말한다. */
 .erp-naver-source-chip {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   min-height: 32px;
   padding: 0 10px 0 10px;
-  border: 0;
+  border: 1px solid #02A34A;
+  background: #03C75A;
+  color: #fff;
   font-size: 0.8rem;
   cursor: pointer;
+}
+.erp-naver-source-chip:hover,
+.erp-naver-source-chip:focus {
+  background: #02b351;
+  color: #fff;
+}
+.erp-naver-source-chip .erp-naver-dock-fab-badge {
+  background: #fff !important;
+  color: #d6303b;
 }
 .erp-naver-source-chip .erp-naver-dock-fab-badge {
   position: static;

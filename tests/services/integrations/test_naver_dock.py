@@ -788,7 +788,7 @@ def test_dock_js_says_repay_separately_and_asset_pin_moved():
     # 핀은 R2(워크벤치 링크)에서 다시 움직였고, 2026-09-10 사용자 지시(예약금 카드 → 관계 낱말+금액
     # 두 줄)로 한 번 더 움직였다 — 값은 ``test_dock_js_renders_workbench_anchor_and_asset_pin_moved`` 가 못박는다.
     assert "js/orders/erp-naver-dock.js') }}?v=20260921a" in tpl
-    assert "css/orders/erp-naver-dock.css') }}?v=20260921c" in tpl
+    assert "css/orders/erp-naver-dock.css') }}?v=20260921d" in tpl
 
 
 # --------------------------------------------------------------------------- #
@@ -971,4 +971,4 @@ def test_dock_js_renders_workbench_anchor_and_asset_pin_moved():
 
     tpl = _ORDER_JS_TPL.read_text(encoding="utf-8")
     assert "js/orders/erp-naver-dock.js') }}?v=20260921a" in tpl
-    assert "css/orders/erp-naver-dock.css') }}?v=20260921c" in tpl
+    assert "css/orders/erp-naver-dock.css') }}?v=20260921d" in tpl
