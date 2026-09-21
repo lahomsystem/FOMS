@@ -32,24 +32,49 @@
   flex-direction: column;
 }
 
-/* ── FAB (좁은 셸) ── */
+/* ── FAB (좁은 셸) ──
+   2026-09-21: 글자 달린 알약 버튼이 모바일 하단 고정 바·자동저장 토스트와 겹쳐 서로
+   가렸다. 48px 동그라미(아이콘만) 로 줄이고, 하단 바 위(bottom 84px)·우측 14px 에 띄워
+   erporder 편집 동선을 막지 않게 한다. 글자는 시각적으로만 숨기고 aria-label 로 남긴다. */
 .erp-naver-dock-fab {
   position: fixed;
-  right: 22px;
-  bottom: 22px;
+  right: 14px;
+  bottom: calc(84px + env(safe-area-inset-bottom, 0px));
   /* .row 직계 자식이라 Bootstrap `.row > * { width:100% }` 가 걸린다 — fixed 여도
-     지정 너비는 적용되므로 반드시 auto 로 되돌린다(실사고: 1366px 풀폭 바). */
-  width: auto;
+     지정 너비는 적용되므로 반드시 고정값으로 되돌린다(실사고: 1366px 풀폭 바). */
+  width: 48px;
+  height: 48px;
   max-width: none;
+  padding: 0;
+  border-radius: 50%;
   z-index: 1055;
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  justify-content: center;
   background: #059669;
   border-color: #059669;
   color: #fff;
-  font-weight: 600;
+  font-size: 1.15rem;
   box-shadow: 0 6px 20px rgba(15, 23, 42, 0.25);
+}
+
+.erp-naver-dock-fab__label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.erp-naver-dock-fab-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  font-size: 0.65rem;
+  line-height: 1;
+  padding: 3px 5px;
+  border: 2px solid #fff;
 }
 
 .erp-naver-dock-fab:hover,
