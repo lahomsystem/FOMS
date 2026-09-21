@@ -72,8 +72,9 @@ from models import ExternalOrderLink, Order
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["find_ghost_orders", "judge_order_discard", "stage_label",
-           "GHOST_LIST_LIMIT", "DISCARDABLE_STATUSES", "GHOST_CLAIM_KINDS",
+__all__ = ["find_ghost_orders", "find_partial_claim_orders", "judge_order_discard",
+           "stage_label", "GHOST_LIST_LIMIT", "PARTIAL_LIST_LIMIT",
+           "PARTIAL_PENDING_PHASES", "DISCARDABLE_STATUSES", "GHOST_CLAIM_KINDS",
            "GHOST_PROJECTION_BLOCK_KEYS",
            "REPAY_EXPECTED_SD_KEY", "REPAY_EXPECTED_BLOCK_TEXT",
            "read_repay_expected", "set_repay_expected", "clear_repay_expected"]
@@ -88,6 +89,16 @@ GHOST_CLAIM_KINDS = MONEY_BACK_CLAIM_KINDS
 
 #: 띠에서 펼쳐 보여줄 최대 건수. 더 많으면 사람이 못 훑는다(수는 배지가 말한다).
 GHOST_LIST_LIMIT = 20
+
+#: 부분 취소 띠(:func:`find_partial_claim_orders`)가 세는 단계 — **확정 전**만.
+#: 확정된 부분 취소는 재결제로 이미 정리된 정상 모양이 대부분이다(운영 실조회 2026-09-21:
+#: 죽은 집 + 살아 있는 집이 공존하는 주문 24건 중 확정 전은 1건). 나머지의 정리는 옛 주문
+#: 정리 띠(``order_candidates.pending_origin_cleanup``)가 이미 말한다 — 같은 사실을 두 띠가
+#: 외치면 둘 다 안 읽힌다.
+PARTIAL_PENDING_PHASES = (CLAIM_PHASE_REQUESTED, CLAIM_PHASE_PROGRESS)
+
+#: 부분 취소 띠의 펼침 상한 — 유령 띠와 같은 수로 둔다(두 띠가 다른 규칙이면 헷갈린다).
+PARTIAL_LIST_LIMIT = GHOST_LIST_LIMIT
 
 #: `취소 처리`(soft delete) 를 **사유 없이** 바로 열어 주는 진행 단계.
 #:
@@ -436,34 +447,11 @@ def find_ghost_orders(session, *, limit: int = GHOST_LIST_LIMIT) -> dict[str, An
     #
     # 판정은 **한 벌 그대로** 쓴다: 사본을 `snapshot_from_mirror` 로 같은 모양 문서로 되돌려
     # 기존 `_fold_link` 에 넣는다. `if 사본 else 스냅샷` 으로 술어를 갈라 쓰면 R-7 이 재발한다.
-    rows = (
-        session.query(ExternalOrderLink.order_id, ExternalOrderLink.claim_status,
-                      ExternalOrderLink.claim_type, ExternalOrderLink.payment_amount,
-                      ExternalOrderLink.external_order_no, ExternalOrderLink.id)
-        .filter(ExternalOrderLink.order_id.isnot(None))
-        .all()
-    )
-    # `claim_status IS NULL` = **아직 계산 안 한 행**(백필 전). 빈 문자열은 "클레임 없음" 이라
-    # 폴백하지 않는다 — 그 구분이 없으면 백필 뒤에도 클레임 없는 행 전부가 스냅샷을 다시 읽는다.
-    stale_ids = [int(link_id) for _oid, claim_status, _t, _a, _no, link_id in rows
-                 if claim_status is None]
-    stale_snapshots: dict[int, Any] = {}
-    if stale_ids:
-        stale_snapshots = {
-            int(link_id): snapshot
-            for link_id, snapshot in session.query(
-                ExternalOrderLink.id,
-                _ghost_snapshot_projection(session).label("raw_snapshot"))
-            .filter(ExternalOrderLink.id.in_(stale_ids))  # perf-ok: 백필 전 행만
-            .all()
-        }
+    # 링크 읽기는 :func:`_mirror_link_rows` 한 벌이다 — 부분 취소 띠와 같은 리더를 쓴다.
+    # 쿼리를 두 벌 두면 "백필 전 행을 어떻게 읽는가"가 띠마다 갈린다.
     buckets: dict[int, dict[str, Any]] = {}
-    for order_id, claim_status, claim_type, amount, order_no, link_id in rows:
-        snapshot = (stale_snapshots.get(int(link_id)) if claim_status is None
-                    else snapshot_from_mirror(claim_status=claim_status,
-                                              claim_type=claim_type,
-                                              payment_amount=amount))
-        bucket = buckets.setdefault(int(order_id), _new_bucket())
+    for order_id, snapshot, order_no, link_id in _mirror_link_rows(session):
+        bucket = buckets.setdefault(order_id, _new_bucket())
         _fold_link(bucket, snapshot=snapshot, order_no=order_no, link_id=link_id)
 
     # 전부 취소된 것만 남긴다(부분 취소 제외 — 정상 진행 중일 수 있다).
@@ -508,6 +496,157 @@ def find_ghost_orders(session, *, limit: int = GHOST_LIST_LIMIT) -> dict[str, An
         })
 
     # 금액 큰 것부터 — 돈이 큰 유령이 더 급하다.
+    views.sort(key=lambda row: (-int(row["naver_amount_total"] or 0), -row["order_id"]))
+    return {"count": len(views), "rows": views[:limit]}
+
+
+def _mirror_link_rows(session) -> list[tuple]:
+    """띠 두 개가 쓰는 **링크 한 벌** — 사본 컬럼만 읽는다(NVMIRROR-01).
+
+    ``raw_snapshot`` 은 평균 2,194 bytes 로 TOAST 임계를 넘어, 그 컬럼을 건드리는 순간
+    행마다 TOAST 를 한 번 더 읽는다(운영 실측: 같은 스캔이 버퍼 14,736·50.5ms 대
+    249·0.95ms). 그래서 사본으로 판정하고, 사본이 아직 없는 행(``claim_status IS NULL``
+    = 백필 전)만 투영 스냅샷을 따로 읽는다.
+
+    Args:
+        session: 요청 스코프 DB 세션.
+
+    Returns:
+        ``(order_id, snapshot, external_order_no, link_id)`` 목록 — 스냅샷은 사본을
+        :func:`link_mirror.snapshot_from_mirror` 로 되돌린 **판정용 문서**다. 판정 함수를
+        두 벌로 갈라 쓰지 않으려고 모양을 맞춰 돌려준다(R-7).
+    """
+    rows = (
+        session.query(ExternalOrderLink.order_id, ExternalOrderLink.claim_status,
+                      ExternalOrderLink.claim_type, ExternalOrderLink.payment_amount,
+                      ExternalOrderLink.external_order_no, ExternalOrderLink.id)
+        .filter(ExternalOrderLink.order_id.isnot(None))
+        .all()
+    )
+    stale_ids = [int(link_id) for _oid, claim_status, _t, _a, _no, link_id in rows
+                 if claim_status is None]
+    stale_snapshots: dict[int, Any] = {}
+    if stale_ids:
+        stale_snapshots = {
+            int(link_id): snapshot
+            for link_id, snapshot in session.query(
+                ExternalOrderLink.id,
+                _ghost_snapshot_projection(session).label("raw_snapshot"))
+            .filter(ExternalOrderLink.id.in_(stale_ids))  # perf-ok: 백필 전 행만
+            .all()
+        }
+    out: list[tuple] = []
+    for order_id, claim_status, claim_type, amount, order_no, link_id in rows:
+        snapshot = (stale_snapshots.get(int(link_id)) if claim_status is None
+                    else snapshot_from_mirror(claim_status=claim_status,
+                                              claim_type=claim_type,
+                                              payment_amount=amount))
+        out.append((int(order_id), snapshot, order_no, link_id))
+    return out
+
+
+def find_partial_claim_orders(session, *,
+                              limit: int = PARTIAL_LIST_LIMIT) -> dict[str, Any]:
+    """**집 하나가 통째로 취소·반품됐는데** 살아 있는 집이 남은 주문 (2026-09-21).
+
+    유령 띠(:func:`find_ghost_orders`)는 일부러 "붙은 링크가 전부 취소"만 센다 — 부분
+    취소는 정상 진행 중일 수 있어서다. 그런데 그 제외가 **추가결제가 붙은 주문의 본품
+    반품을 통째로 감췄다**: 운영 #5268(김현정)은 본품 5건이 전부 ``RETURN_REQUEST`` 인데
+    추가결제 집 6건이 살아 있어 띠 밖이었고, 담당자가 그 반품을 볼 자리가 화면에 없었다
+    (2026-09-21 사용자 보고 — "네이버엔 반품 2건인데 FOMS 엔 1건").
+
+    그래서 유령 판정은 **한 글자도 건드리지 않고** 띠를 하나 더 둔다. 모집단은 셋 다 참일
+    때다:
+
+    * 집(네이버 주문번호) 하나가 **그 집 링크 전부** 취소·반품이고,
+    * 같은 ERP 주문에 클레임이 **없는 링크가 하나라도** 살아 있고,
+    * 죽은 집의 클레임이 **아직 확정 전**(:data:`PARTIAL_PENDING_PHASES`)이다.
+
+    셋째 조건이 이 띠를 할 일 목록으로 만든다(근거는 그 상수에 적었다).
+
+    **불가역 버튼은 내지 않는다** — 행이 주는 것은 ``lead_link_id`` 뿐이고, 승인·거부는
+    그 집 pane 에서 한다(유령 띠의 `열어서 승인하기` 와 같은 규율).
+
+    Args:
+        session: 요청 스코프 DB 세션.
+        limit: 목록에 담을 최대 건수(수는 전체를 센다).
+
+    Returns:
+        ``{"count": 전체 건수, "rows": [...]}``. 각 행은 주문 요약 + 죽은 집의 클레임
+        문구(``claim_text``·``claim_phase``·``claim_kind``) + ``dead_order_nos`` +
+        ``alive_link_count`` + ``lead_link_id`` + ``measure``(표시 축).
+    """
+    # 집 축으로 접는다 — 유령 띠는 주문 축이라 버킷을 공유할 수 없다. 셈법 자체는
+    # `_fold_link` 한 벌이라 "무엇을 취소로 세는가"는 두 띠가 같다.
+    households: dict[int, dict[str, dict[str, Any]]] = {}
+    for order_id, snapshot, order_no, link_id in _mirror_link_rows(session):
+        by_no = households.setdefault(order_id, {})
+        key = str(order_no or "").strip() or f"link:{int(link_id)}"
+        bucket = by_no.setdefault(key, _new_bucket())
+        _fold_link(bucket, snapshot=snapshot, order_no=order_no, link_id=link_id)
+
+    picked: dict[int, dict[str, Any]] = {}
+    for order_id, by_no in households.items():
+        dead = [bucket for bucket in by_no.values()
+                if bucket["link_count"] and bucket["canceled"] == bucket["link_count"]]
+        alive_links = sum(bucket["link_count"] - bucket["canceled"]
+                          for bucket in by_no.values())
+        if not dead or not alive_links:
+            continue
+        pending = [bucket for bucket in dead
+                   if bucket["phases"] & set(PARTIAL_PENDING_PHASES)]
+        if not pending:
+            continue
+        # 여러 집이 걸리면 **링크 id 가 가장 작은** 집을 대표로 쓴다 — 렌더마다 흔들리지
+        # 않게(유령 띠의 `lead_link_id` 와 같은 결정론).
+        lead = min(pending, key=lambda bucket: int(bucket["lead_link_id"] or 0))
+        picked[order_id] = {"lead": lead, "dead": dead, "alive_links": int(alive_links)}
+
+    if not picked:
+        return {"count": 0, "rows": []}
+
+    orders = (
+        session.query(Order)
+        .filter(Order.id.in_(list(picked.keys())), Order.not_deleted_filter())  # perf-ok: id batch
+        # 실측 축(judge_measure_progress)이 schedule_dates 관계를 읽는다 — N+1 방지 필수.
+        .options(selectinload(Order.schedule_dates))
+        .all()
+    )
+    if not orders:
+        return {"count": 0, "rows": []}
+
+    views: list[dict[str, Any]] = []
+    for order in orders:
+        found = picked[int(order.id)]
+        lead, dead = found["lead"], found["dead"]
+        verdict = _discard_verdict(lead, str(order.status or ""))
+        dead_order_nos: list[str] = []
+        for bucket in dead:
+            for text in bucket["order_nos"]:
+                if text not in dead_order_nos:
+                    dead_order_nos.append(text)
+        views.append({
+            "order_id": int(order.id),
+            "customer_name": order.customer_name or "",
+            "phone": order.phone or "",
+            "status": str(order.status or ""),
+            "status_label": verdict["status_label"],
+            "payment_amount": order.payment_amount or 0,
+            # 금액은 **죽은 집**의 것이다 — 살아 있는 추가결제까지 더하면 환불 예정액을
+            # 거짓말한다.
+            "naver_amount_total": int(lead["amount_total"] or 0),
+            "dead_order_nos": dead_order_nos,
+            "dead_link_count": int(lead["link_count"]),
+            "alive_link_count": found["alive_links"],
+            "lead_link_id": lead["lead_link_id"],
+            "claim_kind": verdict["claim_kind"],
+            "claim_phase": verdict["claim_phase"],
+            "claim_text": verdict["claim_text"],
+            # 표시 축만 낸다 — 유령 띠와 같이 모집단 판정은 이 값을 보지 않는다.
+            "measure": judge_measure_progress(order),
+        })
+
+    # 돈이 큰 것부터 — 유령 띠와 같은 정렬이라 두 띠를 위아래로 읽어도 순서가 같다.
     views.sort(key=lambda row: (-int(row["naver_amount_total"] or 0), -row["order_id"]))
     return {"count": len(views), "rows": views[:limit]}
 

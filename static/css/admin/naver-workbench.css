@@ -868,6 +868,17 @@ input.wb-pick:disabled,
 /* 접기 삼각형 옆 버튼이 summary 클릭(펼치기)을 삼키지 않게 자기 영역만 먹는다. */
 .wb-origins .wb-ghost__head > .btn { flex: none; }
 
+/* ── 부분 취소 띠 (2026-09-21) ───────────────────────────────────────
+   유령 띠와 같은 생김새를 쓰되 색은 노랑이다 — 이 띠의 모집단은 **네이버가 아직 확정하지
+   않은** 클레임뿐이라(ghost_orders.PARTIAL_PENDING_PHASES) 이 화면의 색 규약(노랑 = 확정
+   전)이 그대로 맞다. 빨강으로 칠하면 담당자가 확정된 것으로 읽는다. */
+.wb-partial { border-left-color: var(--wb-warn); }
+.wb-partial .wb-ghost__badge {
+    background: var(--wb-warn-soft);
+    border-color: var(--wb-warn-line);
+    color: var(--wb-warn);
+}
+
 .wb-empty { padding: 40px 16px; text-align: center; color: var(--wb-muted); }
 
 /* ── 전체 이력 (W4) ──────────────────────────────────────────────────── */
