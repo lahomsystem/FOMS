@@ -1,7 +1,7 @@
 # Spec — 시공일 지난 적체 주문 일괄 완료 처리 (2026-09-22)
 
 > 상태: **구현 완료 · 스테이징 리허설 통과(2026-09-22)** · 운영 apply 는 사용자 승인 대기.
-> 도구 `tools/ops/bulk_complete_past_construction.py` · 테스트 `tests/domains/test_bulk_complete_past_construction_plan.py`(순수 8) + `tests/postgres/test_bulk_complete_past_construction_pg.py`(PG 레인 2).
+> 도구 `tools/ops/bulk_complete_past_construction.py`(CLI) + `_core.py`(판정·행 단위 쓰기, 500줄 래칫 분리) · 테스트 `tests/domains/test_bulk_complete_past_construction_plan.py`(순수 8) + `tests/postgres/test_bulk_complete_past_construction_pg.py`(PG 레인 2).
 > 배경: 도면 단계까지 도면팀·영업팀이 실사용을 시작한다. 실측 853·도면 100 타일에
 > 이미 끝난 주문이 섞여 있어 "진짜 도면을 만들어야 하는 건"이 안 보인다.
 
