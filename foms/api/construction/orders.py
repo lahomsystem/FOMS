@@ -47,7 +47,13 @@ from foms.services.orders.order_transition_service import (
     transition_order,
 )
 from foms.services.orders.revision import RevisionError, execute_order_mutation
-from foms.services.orders.state_axes import AXIS_MAIN
+from foms.services.orders.state_axes import AXIS_MAIN, read_main_stage
+from foms.services.orders.admin_override import (
+    admin_override_error,
+    log_admin_override_denied,
+    record_admin_override_event,
+    resolve_admin_override,
+)
 from models import (
     Order,
     OrderAttachment,
@@ -183,6 +189,20 @@ def _scheduled_date(sd: dict[str, Any]) -> Optional[str]:
     return str(value) if value else None
 
 
+def _punch_or_return(blocked, code: str, override, punched: list):
+    """업무 게이트 판정을 관리자 강제 진행과 합친다.
+
+    막히지 않았으면 None. 막혔는데 override 가 없으면 거부 응답을 그대로 돌려주고,
+    override 가 있으면 건너뛴 게이트 코드를 ``punched`` 에 적고 None 을 돌려준다.
+    """
+    if blocked is None:
+        return None
+    if override is None:
+        return blocked
+    punched.append(code)
+    return None
+
+
 def _evidence_gate_missing(order: Order) -> list[str]:
     """완료 게이트 미충족 항목(after<2·signature 없음). live evidence 블록 기준."""
     sd = _ensure_dict(order.structured_data)
@@ -221,10 +241,23 @@ def api_construction_start(order_id):
         user_id = session.get("user_id")
         user = get_user_by_id(user_id)
 
+        # 권한 축 판정은 업무 게이트보다 먼저 — 비관리자가 게이트 코드 대신 정확한 오답을 받는다.
+        err = admin_override_error(user, body)
+        if err is not None:
+            log_admin_override_denied(
+                db, order_id=order_id, gate=err[0].get_json().get("code"),
+                route="erp_orders_construction.api_construction_start", user=user)
+            return err
+        override = resolve_admin_override(user, body)
+        punched: list = []
+
         if not _idempotency_receipt_exists(db, user_id, _POLICY_CONSTRUCTION_START, idem_key):
             if order.erp_stage_code not in _CONSTRUCTION_STAGES:
-                return jsonify({"success": False, "code": "INVALID_STAGE",
-                                "message": "시공 대기 상태에서만 시공을 시작할 수 있습니다."}), 409
+                if override is None:
+                    return jsonify({"success": False, "code": "INVALID_STAGE",
+                                    "message": "시공 대기 상태에서만 시공을 시작할 수 있습니다."}), 409
+                punched.append("INVALID_STAGE")
+            # 중복 attempt 발급은 권한 문제가 아니라 잘못된 데이터다 — 관리자도 못 뚫는다.
             if _current_attempt(db, order_id) is not None:
                 return jsonify({"success": False, "code": "ALREADY_STARTED",
                                 "message": "이미 진행 중인 시공 attempt 가 있습니다."}), 409
@@ -276,6 +309,11 @@ def api_construction_start(order_id):
             return jsonify({"success": False, "error": str(exc), "code": exc.error_code}), exc.status_code
 
         _audit_construction(order, "CONSTRUCTION_STARTED", user_id)
+        if override is not None and punched:
+            record_admin_override_event(
+                db, order, override=override, gates=punched,
+                route="erp_orders_construction.api_construction_start", axis="CONSTRUCTION",
+                from_value="", to_value="")
         db.commit()
         return jsonify({"success": True, "message": "시공이 시작되었습니다.",
                         "attempt_id": captured.get("attempt_id")})
@@ -361,32 +399,50 @@ def api_construction_complete(order_id):
         ):
             return jsonify({"success": False, "message": "Order not found"}), 404
 
-        if env_bool("FOMS_CONSTRUCTION_GATE_ENABLED", default=True):
-            missing = _evidence_gate_missing(order)
-            if missing:
-                return (
-                    jsonify({"success": False, "error": "완료 요건 미충족",
-                             "message": "완료 요건 미충족", "data": {"missing": missing}}),
-                    400,
-                )
-
+        # 본문 파싱이 증빙 게이트보다 먼저다 — 관리자가 그 게이트를 뚫으려면 본문의
+        # ``admin_override`` 를 먼저 읽어야 한다.
         body = request.get_json(silent=True) or {}
         completion_note = (body.get("completion_note") or "").strip()
         idem_key = _idempotency_key(body)
         user_id = session.get("user_id")
         user = get_user_by_id(user_id)
 
+        err = admin_override_error(user, body)
+        if err is not None:
+            log_admin_override_denied(
+                db, order_id=order_id, gate=err[0].get_json().get("code"),
+                route="erp_orders_construction.api_construction_complete", user=user)
+            return err
+        override = resolve_admin_override(user, body)
+        punched: list = []
+        from_stage = read_main_stage(order)
+
+        if env_bool("FOMS_CONSTRUCTION_GATE_ENABLED", default=True):
+            missing = _evidence_gate_missing(order)
+            if missing:
+                if override is None:
+                    return (
+                        jsonify({"success": False, "error": "완료 요건 미충족",
+                                 "message": "완료 요건 미충족", "data": {"missing": missing}}),
+                        400,
+                    )
+                punched.append("EVIDENCE_MISSING")
+
         if not _idempotency_receipt_exists(db, user_id, _POLICY_CONSTRUCTION_COMPLETE, idem_key):
             if order.erp_stage_code not in _CONSTRUCTION_STAGES:
-                return jsonify({"success": False, "code": "INVALID_STAGE",
-                                "message": "시공중 상태에서만 시공을 완료할 수 있습니다."}), 409
+                if override is None:
+                    return jsonify({"success": False, "code": "INVALID_STAGE",
+                                    "message": "시공중 상태에서만 시공을 완료할 수 있습니다."}), 409
+                punched.append("INVALID_STAGE")
 
         try:
             result = transition_order(
                 db, command_id="CONSTRUCTION_COMPLETE", order_id=order_id,
-                actor_user_id=user_id, expected_from="CONSTRUCTION", target_value="CS",
+                actor_user_id=user_id, expected_from=from_stage, target_value="CS",
                 scope_hash=_scope_hash("CONSTRUCTION_COMPLETE", order_id),
                 request_hash=_request_hash(body), idempotency_key=idem_key,
+                emergency_override=bool(override),
+                reason=(override.reason if override is not None else None),
             )
         except (TransitionError, RevisionError) as exc:
             db.rollback()
@@ -394,6 +450,11 @@ def api_construction_complete(order_id):
 
         if not result.replayed:
             _apply_complete_side_effects(db, order, user, user_id, completion_note)
+        if override is not None and punched:
+            record_admin_override_event(
+                db, order, override=override, gates=punched,
+                route="erp_orders_construction.api_construction_complete", axis="MAIN",
+                from_value=from_stage, to_value="CS")
         db.commit()
         return jsonify({"success": True, "message": "시공이 완료되었습니다. CS 단계로 이동합니다.",
                         "new_status": "CS"})

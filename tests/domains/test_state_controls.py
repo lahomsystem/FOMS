@@ -292,3 +292,95 @@ def test_dashboards_use_curated_board_maps() -> None:
     assert "assignable_status_options(LOGISTICS_BOARD_STATUS" not in src_self
     assert "assignable_status_options(METRO_BOARD_STATUS" in src_metro
     assert "assignable_status_options(STATUS," not in src_metro
+
+
+# ---------------------------------------------------------------------------
+# 5) ADMIN-OVERRIDE-01: 화면 잣대 == 서버 잣대 — 완료 CTA 는 admin_override 도입 뒤에도
+#    평소와 한 글자도 다르지 않게 그려진다. 첫 클릭은 관리자도 여전히 막히고, 뚫기는
+#    거부 응답을 받은 뒤 2차 확인(사유 입력)에서만 일어난다.
+# ---------------------------------------------------------------------------
+
+def test_완료_CTA_는_관리자여도_평소와_똑같이_그려진다() -> None:
+    """관리자와 일반 직원의 완료 CTA 가 완전히 같고, 첫 클릭은 둘 다 막힌다."""
+    from types import SimpleNamespace
+
+    from foms.services.orders.complete_path_policy import build_complete_ctas
+    from models import Order
+
+    order = Order(
+        id=990001,
+        received_date="2026-09-01",
+        customer_name="CTA-고객",
+        status="CONSTRUCTION",
+        is_erp_order=True,
+        structured_data={"workflow": {"stage": "CONSTRUCTION"}},
+    )
+    admin = SimpleNamespace(id=1, name="관리자", role="ADMIN", team="CS")
+    staff = SimpleNamespace(id=2, name="직원", role="STAFF", team="CS")
+
+    cta_admin = build_complete_ctas([order], admin)[order.id]
+    cta_staff = build_complete_ctas([order], staff)[order.id]
+
+    assert cta_admin == cta_staff          # 관리자라고 버튼이 달라지지 않는다
+    assert cta_admin["enabled"] is False   # 첫 클릭은 전원 거부 — 서버 잣대와 같다
+    assert cta_admin["blocked_reason"]     # 막힌 이유는 사람 말로 준다
+    # CTA 키는 7개로 고정이다 — 뚫기 힌트는 CTA 가 아니라 거부 응답에만 실린다.
+    assert set(cta_admin) == {
+        "visible", "enabled", "endpoint", "label", "confirm",
+        "blocked_reason", "blocked_href", "blocked_link_label",
+    }
+
+
+# ---------------------------------------------------------------------------
+# 3) 완료 CTA 는 관리자 강제 진행이 생겨도 평소와 똑같이 그려진다
+#    (ADMIN-OVERRIDE-01 음성 대조군 — 화면 잣대 == 서버 잣대)
+# ---------------------------------------------------------------------------
+
+def test_완료_버튼은_관리자에게도_첫_클릭이_평소와_같다() -> None:
+    """뚫기는 거부 응답 뒤 2차 확인에서만 일어난다 — 첫 화면은 아무도 달라지지 않는다.
+
+    ``build_complete_ctas`` 판정을 관리자 예외로 풀면 화면이 "눌러도 되는 버튼"을
+    보여 주는데 서버는 여전히 막으므로 두 잣대가 어긋난다. 그래서 CTA 는 role 과
+    무관하게 같은 값이어야 한다.
+    """
+    from foms.services.orders.complete_path_policy import build_complete_ctas
+
+    class _사용자:
+        def __init__(self, role: str) -> None:
+            self.id = 1
+            self.role = role
+            self.name = role
+            self.team = "CS"
+
+    class _주문:
+        """시공 단계에 머문 ERP 주문 1건(완료 우회로가 막히는 대표 모양)."""
+
+        id = 4242
+        status = "CONSTRUCTION"
+        is_erp_order = True
+        deleted_at = None
+        structured_data = {"workflow": {"stage": "CONSTRUCTION"}}
+
+    관리자_cta = build_complete_ctas([_주문()], _사용자("ADMIN"))[4242]
+    직원_cta = build_complete_ctas([_주문()], _사용자("STAFF"))[4242]
+
+    assert 관리자_cta == 직원_cta          # role 로 갈리지 않는다
+    assert 관리자_cta["enabled"] is False  # 첫 클릭은 전원 거부된다
+    assert 관리자_cta["blocked_reason"]    # 왜 막혔는지는 사람 말로 준다
+
+
+def test_완료_거부_응답에_강제_진행_힌트가_실린다() -> None:
+    """409 본문의 ``admin_override_available`` 은 판정이 아니라 화면 재시도 힌트다."""
+    from foms.services.orders.complete_path_policy import use_cs_complete_response_body
+
+    class _주문:
+        id = 4243
+        status = "CONSTRUCTION"
+        is_erp_order = True
+        deleted_at = None
+        structured_data = {"workflow": {"stage": "CONSTRUCTION"}}
+
+    본문 = use_cs_complete_response_body(_주문(), None)
+    assert 본문["success"] is False
+    assert 본문["code"] == "USE_CS_COMPLETE"
+    assert 본문["admin_override_available"] is True

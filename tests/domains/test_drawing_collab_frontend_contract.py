@@ -45,7 +45,9 @@ def test_detail_dom_cachebuster_cascade_bumped() -> None:
     assert "erp-dashboard-detail-dom.js?v=20260920b" in entry
     # 도면 0장 전달 차단(2026-09-09): drawing.js 자식 핀 신설 + entry 부모 핀 범프.
     assert "erp-dashboard-drawing.js?v=20260909a" in entry
-    assert "erp-dashboard-entry.js') }}?v=20260920b" in layout
+    # 2026-09-21 관리자 강제 진행 재시도 배선(erp-dashboard-quest.js)으로 entry 부모 핀만
+    # 올렸다 — detail-dom 자식은 그때 안 바뀌었으니 20260920b 그대로다.
+    assert "erp-dashboard-entry.js') }}?v=20260921a" in layout
 
 
 def test_workbench_include_confirmed_toggle() -> None:

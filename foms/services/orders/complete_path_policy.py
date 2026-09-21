@@ -270,7 +270,8 @@ def use_cs_complete_response_body(order: Any, user: Any) -> dict:
         order: 대상 Order. user: 현재 사용자.
 
     Returns:
-        ``{'success', 'code', 'message', 'stage', 'reason_code'}`` dict.
+        ``{'success', 'code', 'message', 'stage', 'reason_code',
+        'admin_override_available'}`` dict.
     """
     blocked = complete_block_reason(order, user)
     code, message, _href = blocked if blocked else ("USE_CS_COMPLETE", CS_PATH_MESSAGE, "")
@@ -280,6 +281,10 @@ def use_cs_complete_response_body(order: Any, user: Any) -> dict:
         "message": message,
         "stage": read_main_stage(order),
         "reason_code": code,
+        # ADMIN-OVERRIDE-01 C8: 화면 재시도 힌트다. 판정이 아니라 "이 거부는 관리자가 사유를
+        # 적으면 다시 시도해 볼 수 있는 종류"라는 표시일 뿐이고, 실제 통과 여부는 서버가
+        # 재요청에서 다시 판정한다(비관리자 화면은 JS 가 시트를 열지 않는다).
+        "admin_override_available": True,
     }
 
 

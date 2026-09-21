@@ -3,7 +3,10 @@
 structured PUT 가드·status API 잠금·override API가 동일 rank/mode를 쓴다.
 단계 변경은 status/workflow.stage 만 건드리고 도면·이관 이력은 보존한다.
 
-정책: to_stage 는 메인 파이프라인만(AS/DELETED 목표 불가).
+정책: 이 모듈의 :func:`apply_stage_override` 는 **메인 파이프라인 전용**이다.
+AS 3종·DELETED 목표(ADMIN-OVERRIDE-01)는 각자 축 서비스가 처리하며
+(:mod:`foms.api.orders.stage_override_targets`), 여기서는 목표 분류에 쓰는 상수·판정
+(:data:`OVERRIDE_TARGET_CODES`·:data:`AS_TARGET_TO_AXIS`·:func:`normalize_override_target`)만 둔다.
 from 이 AS/레거시면 → 메인으로의 jump 는 운영 복구용으로 허용한다.
 """
 
@@ -49,6 +52,23 @@ MAIN_PIPELINE_CODES: tuple[str, ...] = (
     "CS",
     "COMPLETED",
 )
+
+#: 강제 변경이 갈 수 있는 목표 전부(ADMIN-OVERRIDE-01). 메인 8단계는 기존 그대로이고,
+#: AS 3종·DELETED 는 **ADMIN + admin_override** 가 있어야 하며 raw stage 쓰기가 아니라
+#: 각 축 서비스(as_cycle_service·trash_mirror)를 태운다.
+OVERRIDE_TARGET_CODES: tuple[str, ...] = MAIN_PIPELINE_CODES + (
+    "AS_RECEIVED",
+    "AS",
+    "AS_COMPLETED",
+    "DELETED",
+)
+
+#: 강제 변경 목표 코드 → AS 축(state_axes.read_as_status) 값.
+AS_TARGET_TO_AXIS: dict[str, str] = {
+    "AS_RECEIVED": "RECEIVED",
+    "AS": "IN_PROGRESS",
+    "AS_COMPLETED": "COMPLETED",
+}
 
 OVERRIDE_ALLOWED_ROLES: frozenset[str] = frozenset({"ADMIN", "MANAGER"})
 OVERRIDE_BLOCK_MESSAGE = (
@@ -114,6 +134,27 @@ def normalize_main_stage(raw: Any) -> Optional[str]:
             if STAGE_FORWARD_RANK.get(code) == STAGE_FORWARD_RANK[text]:
                 return code
     return None
+
+
+def normalize_override_target(raw: Any) -> Optional[str]:
+    """강제 변경 목표를 :data:`OVERRIDE_TARGET_CODES` 코드로 정규화한다. 불가하면 None.
+
+    AS 3종·DELETED 는 대문자 코드 그대로만 받고(한글 별칭 없음), 메인 8단계는 기존
+    :func:`normalize_main_stage` 가 한글 라벨까지 받아 준다.
+
+    Args:
+        raw: 요청의 ``to_stage`` 원값.
+
+    Returns:
+        목표 코드, 알 수 없으면 None.
+    """
+    text = str(raw or "").strip()
+    if not text:
+        return None
+    upper = text.upper()
+    if upper in AS_TARGET_TO_AXIS or upper == "DELETED":
+        return upper
+    return normalize_main_stage(text)
 
 
 def classify_stage_move(from_stage: Any, to_stage: Any) -> str:
@@ -275,7 +316,10 @@ def apply_stage_override(
     """
     to_code = normalize_main_stage(to_stage)
     if to_code is None or to_code not in MAIN_PIPELINE_CODES:
-        raise ValueError("메인 파이프라인 단계만 강제 변경할 수 있습니다. (AS/삭제는 기존 경로 사용)")
+        raise ValueError(
+            "메인 파이프라인 단계만 강제 변경할 수 있습니다. "
+            "(AS·삭제는 관리자 권한이 필요합니다.)"
+        )
 
     reason_clean = str(reason or "").strip()
     if not reason_clean:
@@ -351,7 +395,10 @@ def apply_stage_override(
 __all__ = [
     "AS_OVERLAY_BLOCK_MESSAGE",
     "AS_OVERLAY_STATUSES",
+    "AS_TARGET_TO_AXIS",
     "MAIN_PIPELINE_CODES",
+    "OVERRIDE_TARGET_CODES",
+    "normalize_override_target",
     "OVERRIDE_ALLOWED_ROLES",
     "OVERRIDE_BLOCK_MESSAGE",
     "override_pins_stage",

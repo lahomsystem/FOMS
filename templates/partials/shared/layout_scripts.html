@@ -1,4 +1,7 @@
 {{ mark('shell_scripts') }}
+{# 관리자 강제 진행(ADMIN-OVERRIDE-01) 판정용 전역 role. static/js/foms/foms-admin-override.js
+   의 canOverride() 가 이 값만 본다 — 페이지가 이미 심었으면 덮지 않는다. #}
+<script>window.MY_ROLE = window.MY_ROLE || {{ (current_user.role if current_user is defined and current_user else '')|tojson }};</script>
     <!-- 전역 채팅 알림 팝업 컨테이너 (모든 페이지에서 사용) -->
     {% if current_user %}
     <div id="chat-notification-container" class="chat-notification-container"></div>
@@ -97,7 +100,7 @@
 <script src="{{ url_for('static', filename='js/orders/order-change-reason.js') }}?v=20260814a" defer></script>
 <script src="{{ url_for('static', filename='js/orders/order-delete-reason.js') }}?v=20260814a" defer></script>
 <script src="{{ url_for('static', filename='js/foms/tablet-measurement.js') }}?v=20260720a" defer></script>
-<script src="{{ url_for('static', filename='js/foms/tablet-production-kanban.js') }}?v=20260725a" defer></script>
+<script src="{{ url_for('static', filename='js/foms/tablet-production-kanban.js') }}?v=20260921a" defer></script>
 {% if flag_rum_baseline %}
 <script src="{{ url_for('static', filename='js/foms/rum-baseline.js') }}?v=20260704a" defer></script>
 {% endif %}
@@ -1787,9 +1790,9 @@
     {% endif %}
     {% if request.path.startswith('/erp/') %}
     <script src="{{ url_for('static', filename='js/foms/erp-mine-only.js') }}" defer></script>
-    <script src="{{ url_for('static', filename='js/foms/erp-quest-approve.js') }}?v=20260920b" defer></script>
+    <script src="{{ url_for('static', filename='js/foms/erp-quest-approve.js') }}?v=20260921a" defer></script>
     <script src="{{ url_for('static', filename='js/runtime/erp-shell.js') }}?v=20260724a" defer></script>
-    <script src="{{ url_for('static', filename='js/orders/erp-dashboard-entry.js') }}?v=20260920b" defer></script>
+    <script src="{{ url_for('static', filename='js/orders/erp-dashboard-entry.js') }}?v=20260921a" defer></script>
     <script src="{{ url_for('static', filename='js/foms/draft_resume.js') }}?v=20260915a" defer></script>
     {% endif %}
 {{ mark('shell_scripts') }}

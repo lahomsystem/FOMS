@@ -11,6 +11,7 @@
  *     actionLabel,  // 확인 버튼 글자(문자열, 기본 '확인')
  *     reasons,      // [{code, label}] 라디오 목록. null/빈 배열이면 사유 선택 없음
  *     detailLabel,  // 상세 textarea 라벨(문자열)
+ *     requireDetail,// true 면 상세가 비었을 때 닫지 않고 오류를 띄운다(기본 false)
  *     onSubmit(reason, detail)  // 확인 시 호출. reason 은 선택 없음이면 ''
  *   })
  *   window.FomsReasonSheet.close()
@@ -30,6 +31,7 @@
   var state = {
     reasons: [],
     selected: '',
+    requireDetail: false,
     onSubmit: null
   };
 
@@ -127,6 +129,8 @@
     var options = opts || {};
     state.reasons = Array.isArray(options.reasons) ? options.reasons : [];
     state.selected = state.reasons.length ? state.reasons[0].code : '';
+    // 기본값 false — 기존 호출부의 동작은 한 글자도 바뀌지 않는다.
+    state.requireDetail = options.requireDetail === true;
     state.onSubmit = typeof options.onSubmit === 'function' ? options.onSubmit : null;
 
     setText(sheet, '[data-foms-reason-title]', options.title || '사유 입력');
@@ -156,6 +160,15 @@
     }
     var detailEl = sheet.querySelector('[data-foms-reason-detail]');
     var detail = detailEl ? (detailEl.value || '').trim() : '';
+    // 사유가 반드시 필요한 호출(관리자 강제 진행)은 빈 제출로 닫히지 않는다 —
+    // 닫아 버리면 호출부가 '취소' 와 '빈 사유' 를 구분하지 못한다.
+    if (state.requireDetail && !detail) {
+      setError(sheet, '사유를 입력하세요.');
+      if (detailEl && detailEl.focus) {
+        try { detailEl.focus(); } catch (_) { /* 포커스 실패는 무시 */ }
+      }
+      return;
+    }
     var handler = state.onSubmit;
     var reason = state.reasons.length ? state.selected : '';
     close();

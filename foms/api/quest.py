@@ -40,6 +40,12 @@ from foms.services.orders.quest_transition_service import (
     stage_advance_target,
 )
 from foms.services.orders.revision import RevisionError
+from foms.services.orders.admin_override import (
+    admin_override_error,
+    log_admin_override_denied,
+    record_admin_override_event,
+    resolve_admin_override,
+)
 
 
 quest_bp = Blueprint('quest', __name__, url_prefix='/api')
@@ -304,6 +310,17 @@ def api_order_quest_approve(order_id):
         role = (user.role or '').strip().upper()
         actor_team = normalize_team(user.team)
 
+        # 권한 축 판정은 업무 게이트보다 먼저 — 비관리자가 게이트 코드 대신 정확한 오답을 받는다.
+        # admin_override(업무 게이트 축)와 emergency_override(권한 소유 축)는 서로 독립이다.
+        admin_err = admin_override_error(user, payload)
+        if admin_err is not None:
+            log_admin_override_denied(
+                db, order_id=order_id, gate=admin_err[0].get_json().get('code'),
+                route='quest.api_order_quest_approve', user=user)
+            return admin_err
+        admin_override = resolve_admin_override(user, payload)
+        punched: list = []
+
         sd = order.structured_data or {}
         current_stage_code = get_stage(sd)
 
@@ -311,15 +328,19 @@ def api_order_quest_approve(order_id):
             return jsonify({'success': False, 'message': '현재 단계가 없습니다.'}), 400
 
         # DRAWING 단독 승인은 전용 경로(도면 전달·수령확정)로만 — command-required 거부.
+        # 관리자가 admin_override 를 켜면 이 게이트만 건너뛴다. 하류 전이가 409 를 내면
+        # 그대로 돌려준다(그 계층에는 override 를 넘기지 않는다).
         if current_stage_code in _COMMAND_REQUIRED_STAGES:
-            return jsonify({
-                'success': False,
-                'code': 'COMMAND_REQUIRED',
-                'message': (
-                    f'{STAGE_LABELS.get(current_stage_code, current_stage_code)} 단계는 '
-                    f'단독 퀘스트 승인이 아니라 전용 command로 진행해야 합니다.'
-                ),
-            }), 409
+            if admin_override is None:
+                return jsonify({
+                    'success': False,
+                    'code': 'COMMAND_REQUIRED',
+                    'message': (
+                        f'{STAGE_LABELS.get(current_stage_code, current_stage_code)} 단계는 '
+                        f'단독 퀘스트 승인이 아니라 전용 command로 진행해야 합니다.'
+                    ),
+                }), 409
+            punched.append('COMMAND_REQUIRED')
 
         CODE_TO_STAGE_NAME = {v: k for k, v in STAGE_NAME_TO_CODE.items()}
         current_stage_name = CODE_TO_STAGE_NAME.get(current_stage_code, current_stage_code)
@@ -389,6 +410,11 @@ def api_order_quest_approve(order_id):
             except (TransitionError, RevisionError) as exc:
                 db.rollback()
                 return _transition_error_response(exc)
+            if admin_override is not None and punched:
+                record_admin_override_event(
+                    db, order, override=admin_override, gates=punched,
+                    route='quest.api_order_quest_approve', axis='QUEST',
+                    from_value='', to_value='')
             db.commit()
             from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
 
@@ -549,6 +575,11 @@ def api_order_quest_approve(order_id):
                 return _transition_error_response(exc)
             auto_transitioned = transition_result is not None and not transition_result.replayed
 
+        if admin_override is not None and punched:
+            record_admin_override_event(
+                db, order, override=admin_override, gates=punched,
+                route='quest.api_order_quest_approve', axis='QUEST',
+                from_value='', to_value='')
         db.commit()
         # quest 승인 기록은 배지/카운트에 반영되므로 대시보드 슬라이스 캐시를 무효화한다.
         from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches

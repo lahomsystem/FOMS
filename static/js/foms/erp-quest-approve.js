@@ -151,16 +151,32 @@
     var anchor = btn.getAttribute('data-refresh-anchor') || '';
     btn.disabled = true;
     try {
-      var res = await fetch('/api/orders/' + orderId + '/quest/approve', {
+      var url = '/api/orders/' + orderId + '/quest/approve';
+      var headers = { 'Content-Type': 'application/json' };
+      var payload = team ? { team: team } : {};
+      var res = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(team ? { team: team } : {})
+        headers: headers,
+        body: JSON.stringify(payload)
       });
       var data = await res.json();
       if (!data.success) {
-        // 서버 code(COMMAND_REQUIRED·QUEST_INCOMPLETE·전이 충돌)까지 노출해야 원인 파악이 된다.
-        var detail = data.code ? ' (' + data.code + ')' : '';
-        throw new Error((data.message || data.error || '승인 실패') + detail);
+        // 관리자가 업무 게이트(도면 전용 경로 등)에 막혔으면 사유를 받아 한 번만 다시 보낸다.
+        var ctl = window.FomsAdminOverride;
+        var again = (ctl && typeof ctl.retry === 'function')
+          ? await ctl.retry({
+            url: url, method: 'POST', headers: headers, body: payload,
+            code: data.code || '', message: data.message || data.error || ''
+          })
+          : null;
+        if (again && again.ok) {
+          data = again.data;
+        } else {
+          var failed = (again && again.data) || data;
+          // 서버 code(COMMAND_REQUIRED·QUEST_INCOMPLETE·전이 충돌)까지 노출해야 원인 파악이 된다.
+          var detail = failed.code ? ' (' + failed.code + ')' : '';
+          throw new Error((failed.message || failed.error || '승인 실패') + detail);
+        }
       }
       invalidateShellCache();
       toast(resultMessage(data, btn));

@@ -101,9 +101,33 @@
         if (data.success) {
           closeSheet();
           window.location.reload();
-        } else {
-          window.alert("오류: " + (data.message || "처리 실패"));
+          return;
         }
+        // 관리자가 업무 게이트(단계 전제·승인)에 막혔으면 사유를 받아 한 번만 다시 보낸다.
+        // 보류는 위에서 자기해제 경로로 빠지므로 여기 오지 않는다.
+        var ctl = window.FomsAdminOverride;
+        if (!ctl || typeof ctl.retry !== "function") {
+          window.alert("오류: " + (data.message || "처리 실패"));
+          return;
+        }
+        return ctl
+          .retry({
+            url: "/api/orders/" + encodeURIComponent(orderId) + path,
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: body || {},
+            code: data.code || "",
+            message: data.message || data.error || "",
+          })
+          .then(function (again) {
+            if (again && again.ok) {
+              closeSheet();
+              window.location.reload();
+              return;
+            }
+            var failed = (again && again.data) || data;
+            window.alert("오류: " + (failed.message || failed.error || "처리 실패"));
+          });
       })
       .catch(function (err) {
         console.error("[foms-domain-sheets] 생산 전이 실패:", err);

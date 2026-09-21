@@ -1,7 +1,7 @@
 {# 시공 대시보드 스크립트: 외부 .js (프래그먼트 전송량 감축 · swap 재실행은 erp-shell activateScripts 가 보장) #}
 <div id="foms-construction-config" hidden
      data-foms-direct-upload="{{ 'true' if use_direct_upload else 'false' }}"></div>
-<script src="{{ url_for('static', filename='js/construction/dashboard.js') }}?v=20260811b" defer></script>
+<script src="{{ url_for('static', filename='js/construction/dashboard.js') }}?v=20260921a" defer></script>
 
 <!-- 알림 패널 -->
 <div id="notification-panel" class="notification-panel" style="display: none;">
@@ -20,3 +20,9 @@
     <div class="notification-empty">알림이 없습니다.</div>
   </div>
 </div>
+{# 관리자 강제 진행 재시도(ADMIN-OVERRIDE-01 C8): 시트 include 와 두 스크립트는 반드시 세트다.
+   하나라도 빠지면 재시도가 무음으로 실패한다. #}
+{% include 'partials/shared/foms_reason_sheet.html' %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-reason-sheet.css') }}?v=20260920a">
+<script src="{{ url_for('static', filename='js/foms/foms-reason-sheet.js') }}?v=20260921a" defer></script>
+<script src="{{ url_for('static', filename='js/foms/foms-admin-override.js') }}?v=20260921a" defer></script>

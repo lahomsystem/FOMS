@@ -13,7 +13,7 @@ from __future__ import annotations
 from werkzeug.security import generate_password_hash
 
 from db import db_session
-from models import Order, ProductionRun, User
+from models import Order, OrderEvent, ProductionRun, User
 from tests.support.quest_seed import confirm_quest_completed, confirm_quest_open
 
 
@@ -236,3 +236,46 @@ def test_same_key_replay_skips_quest_gate(client):
     second = client.post(f"/api/orders/{order_id}/production/start", json={}, headers=headers)
     assert second.status_code == 200, second.get_data(as_text=True)
     assert db_session.query(ProductionRun).filter_by(order_id=order_id).count() == 1
+
+
+# --------------------------------------------------------------------------- #
+# 9. 관리자 강제 진행 — 승인이 없어도 사유를 적으면 뚫린다(ADMIN-OVERRIDE-01)
+# --------------------------------------------------------------------------- #
+def test_admin_override_punches_confirm_quest_gate(client):
+    """ADMIN 이 admin_override 와 사유를 실으면 CONFIRM 승인 없이도 제작이 시작된다.
+
+    평소 거부(위 1번)는 음성 대조군으로 그대로 남는다 — 그냥 클릭은 관리자도 막힌다.
+    """
+    _login(client, _make_user("cq_admin_punch", role="ADMIN"))
+    order_id = _make_order("CONFIRM", None).id
+
+    resp = _start(client, order_id, {"admin_override": True,
+                                     "override_reason": "고객이 전화로 컨펌해 관리자가 진행"})
+
+    assert resp.status_code == 200, resp.get_data(as_text=True)
+    assert _saved(order_id).erp_stage_code == "PRODUCTION"
+    events = (
+        db_session.query(OrderEvent)
+        .filter(OrderEvent.order_id == order_id,
+                OrderEvent.event_type == "ADMIN_OVERRIDE_USED")
+        .all()
+    )
+    assert len(events) == 1
+    payload = events[0].payload
+    assert payload["gates"] == ["QUEST_INCOMPLETE"]
+    assert payload["route"] == "erp_orders_production.api_production_start"
+    assert payload["from"] == "CONFIRM"
+    assert payload["to"] == "PRODUCTION"
+    assert payload["reason"] == "고객이 전화로 컨펌해 관리자가 진행"
+
+
+def test_staff_admin_override_is_rejected_with_admin_only(client):
+    """음성 대조군 — STAFF 가 admin_override 를 켜면 게이트 코드가 아니라 403 ADMIN_ONLY."""
+    _login(client, _make_user("cq_staff_try"))
+    order_id = _make_order("CONFIRM", None).id
+
+    resp = _start(client, order_id, {"admin_override": True, "override_reason": "그냥"})
+
+    assert resp.status_code == 403, resp.get_data(as_text=True)
+    assert resp.get_json()["code"] == "ADMIN_ONLY"
+    assert _saved(order_id).erp_stage_code == "CONFIRM"

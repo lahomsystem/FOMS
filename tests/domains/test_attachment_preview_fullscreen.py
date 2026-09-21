@@ -30,6 +30,10 @@ MOBILE_DETAIL_JS = "static/js/foms/mobile-detail-attachments.js"
 
 PIN = "?v=20260914a"
 
+#: erp-order-shared.js 만 ADMIN-OVERRIDE-01(퀘스트 승인 거부 → 관리자 강제 진행 재시도)로
+#: 다시 바뀌었다. 나머지 두 JS 는 그때 안 바뀌었으니 핀을 따로 둔다.
+SHARED_PIN = "?v=20260921a"
+
 ZOOM_SRC = "attachment-preview-zoom.js') }}"
 OPEN_SRC = "erp-attachment-preview-open.js') }}"
 SHARED_SRC = "erp-order-shared.js') }}"
@@ -157,7 +161,7 @@ def test_asset_pins_bumped_together() -> None:
 
     erp_order_js = _read("templates/orders/partials/erp_order_js.html")
     assert ZOOM_SRC + PIN in erp_order_js
-    assert SHARED_SRC + PIN in erp_order_js
+    assert SHARED_SRC + SHARED_PIN in erp_order_js
 
     wizard_shell = _read("templates/orders/wizard/wizard_shell.html")
     assert ZOOM_SRC + PIN in wizard_shell

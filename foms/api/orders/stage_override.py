@@ -4,6 +4,11 @@ STATE-FORM-01: 명시적 단계 override 는 REV-00 :func:`execute_order_mutatio
 If-Match(mutation_version) 낙관 잠금 · ``FOR UPDATE`` 직렬화 · version bump · idempotency
 receipt 를 한 transaction 에 원자화한다(stale tab 방어). 실제 단계 write·``STAGE_OVERRIDE``
 audit 이벤트는 :func:`apply_stage_override` 가 lock 아래에서 수행한다(폼 저장과 분리).
+
+ADMIN-OVERRIDE-01: 목표가 AS 3종·``DELETED``·``COMPLETED`` 면 이 라우트는 배선만 하고
+:mod:`foms.api.orders.stage_override_admin` 이 각 축 서비스를 태운다 — 그 서비스들이
+자기 mutation 을 소유하므로 ``execute_order_mutation`` 으로 겹쳐 감싸지 않는다.
+권한 축(``admin_override``, ADMIN 전용)은 업무 게이트보다 **먼저** 판정한다.
 """
 
 from __future__ import annotations
@@ -23,13 +28,26 @@ from foms.services.orders.revision import (
 )
 from foms.services.audit_message_display import describe_field_change
 from foms.services.orders.audit_order_context import order_audit_context
+from foms.api.orders.stage_override_admin import (
+    extended_bulk_response,
+    extended_single_response,
+    parse_if_match,
+)
+from foms.api.orders.stage_override_targets import (
+    BAD_TARGET_MESSAGE,
+    KIND_MAIN,
+    classify_override_target,
+    split_override_targets,
+)
+from foms.services.orders.admin_override import (
+    admin_override_error,
+    log_admin_override_denied,
+    resolve_admin_override,
+)
 from foms.services.orders.stage_override import (
     AS_OVERLAY_BLOCK_MESSAGE,
     OVERRIDE_ALLOWED_ROLES,
     apply_stage_override,
-    as_overlay_status,
-    classify_stage_move,
-    current_stage_for_order,
 )
 from foms.web.auth import log_access
 from models import Order, User
@@ -37,24 +55,6 @@ from models import Order, User
 #: override mutation 의 receipt idempotency scope 문자열(POLICY_REGISTRY 무관 — REV-00 receipt
 #: scope 구성요소일 뿐; auth 게이트는 아래 role 검사가 담당).
 STAGE_OVERRIDE_POLICY_ID = "STAGE_OVERRIDE"
-
-
-def _parse_if_match(raw: Optional[str]) -> tuple[Optional[int], bool]:
-    """If-Match 헤더를 mutation_version(int) 로 파싱한다.
-
-    Args:
-        raw: ``If-Match`` 헤더 원문(따옴표 포함 가능) 또는 None.
-
-    Returns:
-        (version, ok) — 헤더가 없으면 (None, True), 형식 오류면 (None, False).
-    """
-    cleaned = (raw or "").strip().strip('"')
-    if not cleaned:
-        return None, True
-    try:
-        return int(cleaned), True
-    except ValueError:
-        return None, False
 
 
 def stage_override_response(order_id: int):
@@ -89,11 +89,21 @@ def stage_override_response(order_id: int):
                 400,
             )
 
+        # 권한 축 판정은 업무 게이트보다 먼저 — 비관리자가 정확한 오답(403)을 받는다.
+        err = admin_override_error(user, data)
+        if err is not None:
+            log_admin_override_denied(
+                db, order_id=order_id, gate=err[0].get_json().get("code", ""),
+                route="orders.stage_override", user=user,
+            )
+            return err
+        override = resolve_admin_override(user, data)
+
         to_stage = str(data.get("to_stage") or "")
         reason = str(data.get("reason") or "")
 
         # optional If-Match(mutation_version) 낙관 잠금 — 형식 오류는 삼키지 않고 400.
-        expected_version, if_match_ok = _parse_if_match(request.headers.get("If-Match"))
+        expected_version, if_match_ok = parse_if_match(request.headers.get("If-Match"))
         if not if_match_ok:
             return jsonify({"success": False, "error": "If-Match 형식이 올바르지 않습니다."}), 400
         expected_versions: Optional[Mapping[int, int]] = (
@@ -103,6 +113,20 @@ def stage_override_response(order_id: int):
         order = db.query(Order).filter(Order.id == order_id).first()
         if not order:
             return jsonify({"success": False, "error": "주문을 찾을 수 없습니다."}), 404
+        if order.deleted_at is not None or str(order.status or "") == "DELETED":
+            # 삭제된 주문은 강제 변경으로도 되살아나지 않는다(휴지통에서 조용히 사라진다).
+            return jsonify({"success": False, "error": "주문을 찾을 수 없습니다."}), 404
+
+        # AS·삭제·완료 목표는 각자 mutation 을 소유한 서비스가 처리한다(중첩 금지).
+        to_code, kind = classify_override_target(to_stage)
+        if kind is None:
+            return jsonify({"success": False, "error": BAD_TARGET_MESSAGE}), 400
+        if kind != KIND_MAIN or to_code == "COMPLETED":
+            return extended_single_response(
+                db, order, kind=kind, to_code=to_code, override=override,
+                expected_version=expected_version, data=data, user=user, user_id=user_id,
+                audit_sink=log_access,
+            )
 
         scope_hash = hashlib.sha256(
             f"{STAGE_OVERRIDE_POLICY_ID}:{order_id}".encode("utf-8")
@@ -243,38 +267,6 @@ def _parse_bulk_ids(raw: Any) -> list[int]:
         seen.add(oid)
         out.append(oid)
     return out
-
-
-def _split_override_targets(
-    orders: List[Order], to_stage: str, *, include_as: bool = False
-) -> tuple[list[Order], list[int], list[dict[str, Any]]]:
-    """동일 단계·AS overlay 를 걸러 실제 변경 대상만 남긴다.
-
-    AS 접수/완료 상태 주문을 메인 단계로 덮으면 AS 대시보드에서 통째로 사라진다
-    (기록은 남지만 목록 술어가 status 기반). 일괄 경로는 사람이 건건이 확인하지 않으므로
-    기본 제외하고 호출부가 ``include_as=True`` 로만 명시 포함할 수 있다.
-
-    Args:
-        orders: 요청 순서대로 정렬된 대상 주문 목록.
-        to_stage: 목표 단계.
-        include_as: True 면 AS overlay 주문도 변경 대상에 넣는다(명시 opt-in).
-
-    Returns:
-        (변경 대상, 동일 단계로 건너뛴 id, AS 로 제외한 ``{order_id, status}`` 목록).
-    """
-    change: list[Order] = []
-    skipped: list[int] = []
-    skipped_as: list[dict[str, Any]] = []
-    for order in orders:
-        if classify_stage_move(current_stage_for_order(order), to_stage) == "same":
-            skipped.append(int(order.id))
-            continue
-        overlay = as_overlay_status(order)
-        if overlay and not include_as:
-            skipped_as.append({"order_id": int(order.id), "status": overlay})
-            continue
-        change.append(order)
-    return change, skipped, skipped_as
 
 
 def _audit_stage_override_status(results: list[dict[str, Any]], user_id: Any) -> None:
@@ -418,18 +410,33 @@ def bulk_stage_override_response():
     to_stage, reason, payload_err = _parse_override_payload(data)
     if payload_err is not None:
         return payload_err
+    err = admin_override_error(user, data)
+    if err is not None:
+        log_admin_override_denied(
+            db, order_id=None, gate=err[0].get_json().get("code", ""),
+            route="orders.bulk_stage_override", user=user,
+        )
+        return err
+    override = resolve_admin_override(user, data)
+    to_code, kind = classify_override_target(to_stage)
+    if kind is None:
+        return _json_error(BAD_TARGET_MESSAGE, 400)
     order_ids = _parse_bulk_ids(data.get("order_ids"))
     if not order_ids:
         return _json_error("order_ids(배열)가 필요합니다.", 400)
     if len(order_ids) > MAX_RESOURCES:
         return _json_error(f"한 번에 {MAX_RESOURCES}건까지 변경할 수 있습니다.", 400)
     found = db.query(Order).filter(Order.id.in_(order_ids)).all()  # perf-ok: request bulk id batch
-    found_map = {int(order.id): order for order in found}
+    # 삭제된 주문은 대상에서 제외해 not_found 로 흘린다(강제 변경으로 되살아나면 안 된다).
+    found_map = {
+        int(order.id): order
+        for order in found
+        if order.deleted_at is None and str(order.status or "") != "DELETED"
+    }
     not_found = [oid for oid in order_ids if oid not in found_map]
-    change, skipped_same, skipped_as = _split_override_targets(
-        [found_map[oid] for oid in order_ids if oid in found_map],
-        to_stage,
-        include_as=data.get("include_as") is True,
+    ordered = [found_map[oid] for oid in order_ids if oid in found_map]
+    change, skipped_same, skipped_as = split_override_targets(
+        ordered, to_code, kind, include_as=data.get("include_as") is True,
     )
     if not change:
         if skipped_as:
@@ -437,8 +444,14 @@ def bulk_stage_override_response():
         if skipped_same and not not_found:
             return _json_error("현재와 동일한 단계로는 변경할 수 없습니다.", 400)
         return _json_error("주문을 찾을 수 없습니다.", 404)
-    captured: dict[str, Any] = {"results": []}
     user_id = int(user.id)
+    if kind != KIND_MAIN or to_code == "COMPLETED":
+        return extended_bulk_response(
+            db, change, kind=kind, to_code=to_code, override=override, data=data,
+            user=user, user_id=user_id, skipped_same=skipped_same,
+            skipped_as=skipped_as, not_found=not_found, audit_sink=log_access,
+        )
+    captured: dict[str, Any] = {"results": []}
     outcome, mut_err = _execute_bulk_override(
         db,
         user_id=user_id,

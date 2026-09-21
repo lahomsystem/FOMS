@@ -504,7 +504,7 @@ def register_as_cycle(
     received_date: Optional[str] = None, construction_worker_name: Optional[str] = None,
     recurrence: bool = False,
     scope_hash: str, request_hash: str, now: Optional[datetime.datetime] = None,
-    idempotency_key: Optional[str] = None,
+    idempotency_key: Optional[str] = None, expected_version: Optional[int] = None,
     sd_hook: Optional[Callable[[Dict[str, Any]], None]] = None,
 ) -> MutationResult:
     """AS_REGISTER: 새 RECEIVED cycle 을 발급하고 current 로 교체한다(과거 cycle 보존).
@@ -522,6 +522,9 @@ def register_as_cycle(
     (:func:`_clear_visit_for_new_cycle`, 지웠을 때만 AS_REGISTER payload 에
     ``visit_cleared`` 표식). 열린 건 재접수(지방 AS 재상차)는 이 함수를 타지 않으므로
     방문일이 유지된다.
+
+    ``expected_version`` 은 If-Match(mutation_version) 낙관 잠금이다 — 관리자 강제 단계
+    변경이 AS 목표에서도 stale tab 을 막을 수 있도록 노출한다(불일치면 REV-00 이 409).
     """
     now = now or now_utc_naive()
     content = _require_text(as_content, field="AS 내용", min_len=0, max_len=_MAX_CONTENT)
@@ -562,6 +565,7 @@ def register_as_cycle(
 
     return _run_as_command(
         session, order_id=order_id, actor_user_id=actor_user_id, policy_id=POLICY_AS_REGISTER,
+        expected_version=expected_version,
         event_type="AS_REGISTERED", apply=_apply, scope_hash=scope_hash,
         request_hash=request_hash, idempotency_key=idempotency_key, now=now,
         sd_hook=_pre,
@@ -631,8 +635,12 @@ def start_as_cycle(
     session: Session, *, order_id: int, actor_user_id: int, reason: str, description: str,
     cycle_id: Optional[str] = None, scope_hash: str, request_hash: str,
     now: Optional[datetime.datetime] = None, idempotency_key: Optional[str] = None,
+    expected_version: Optional[int] = None,
 ) -> MutationResult:
-    """AS_START: current RECEIVED cycle 을 IN_PROGRESS 로 전이한다(사유/설명 기록)."""
+    """AS_START: current RECEIVED cycle 을 IN_PROGRESS 로 전이한다(사유/설명 기록).
+
+    ``expected_version`` 은 If-Match(mutation_version) 낙관 잠금이다(불일치면 409).
+    """
     now = now or now_utc_naive()
     reason_str = _require_text(reason, field="사유", min_len=1, max_len=_MAX_REASON)
     desc_str = _require_text(description, field="설명", min_len=1, max_len=_MAX_DESCRIPTION)
@@ -647,6 +655,7 @@ def start_as_cycle(
 
     return _run_as_command(
         session, order_id=order_id, actor_user_id=actor_user_id, policy_id=POLICY_AS_START,
+        expected_version=expected_version,
         event_type="AS_STARTED", apply=_apply, scope_hash=scope_hash,
         request_hash=request_hash, idempotency_key=idempotency_key, now=now,
     )
@@ -657,6 +666,7 @@ def complete_as_cycle(
     cycle_id: Optional[str] = None, scope_hash: str, request_hash: str,
     now: Optional[datetime.datetime] = None, idempotency_key: Optional[str] = None,
     completed_date: Optional[str] = None, allow_from: Any = (AS_IN_PROGRESS,),
+    expected_version: Optional[int] = None,
     sd_hook: Optional[Callable[[Dict[str, Any]], None]] = None,
     legacy_bridge: bool = False,
 ) -> MutationResult:
@@ -667,6 +677,7 @@ def complete_as_cycle(
     RECEIVED cycle 을 곧바로 종결하는 실제 동선이라 ``(RECEIVED, IN_PROGRESS)`` 를 넘긴다.
     ``completed_date`` 는 사용자가 고른 완료일(``YYYY-MM-DD``); 생략하면 오늘(KST)이다.
     완료일과 그 시점 비용(``as_billing``) 판정은 cycle 스냅샷으로 봉인한다.
+    ``expected_version`` 은 If-Match(mutation_version) 낙관 잠금이다(불일치면 409).
     """
     now = now or now_utc_naive()
     note_str = _require_text(note, field="완료 메모", min_len=0, max_len=_MAX_NOTE)
@@ -688,6 +699,7 @@ def complete_as_cycle(
 
     return _run_as_command(
         session, order_id=order_id, actor_user_id=actor_user_id, policy_id=POLICY_AS_COMPLETE,
+        expected_version=expected_version,
         event_type="AS_COMPLETED", apply=_apply, scope_hash=scope_hash,
         request_hash=request_hash, idempotency_key=idempotency_key, now=now,
         sd_hook=sd_hook, legacy_bridge=legacy_bridge,
@@ -698,10 +710,14 @@ def reopen_as_cycle(
     session: Session, *, order_id: int, actor_user_id: int, reason: str,
     cycle_id: Optional[str] = None, scope_hash: str, request_hash: str,
     now: Optional[datetime.datetime] = None, idempotency_key: Optional[str] = None,
+    expected_version: Optional[int] = None,
     sd_hook: Optional[Callable[[Dict[str, Any]], None]] = None,
     legacy_bridge: bool = False,
 ) -> MutationResult:
-    """AS_REOPEN: 오완료된 current COMPLETED cycle 을 **같은 cycle** 로 RECEIVED 로 되돌린다."""
+    """AS_REOPEN: 오완료된 current COMPLETED cycle 을 **같은 cycle** 로 RECEIVED 로 되돌린다.
+
+    ``expected_version`` 은 If-Match(mutation_version) 낙관 잠금이다(불일치면 409).
+    """
     now = now or now_utc_naive()
     reason_str = _require_text(reason, field="사유", min_len=1, max_len=_MAX_REASON)
 
@@ -721,6 +737,7 @@ def reopen_as_cycle(
 
     return _run_as_command(
         session, order_id=order_id, actor_user_id=actor_user_id, policy_id=POLICY_AS_REOPEN,
+        expected_version=expected_version,
         event_type="AS_REOPENED", apply=_apply, scope_hash=scope_hash,
         request_hash=request_hash, idempotency_key=idempotency_key, now=now,
         sd_hook=sd_hook, legacy_bridge=legacy_bridge,

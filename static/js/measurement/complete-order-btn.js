@@ -34,26 +34,57 @@
       payload = {};
     }
 
+    var headers = { 'Content-Type': 'application/json' };
     btn.disabled = true;
     fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: headers,
       body: JSON.stringify(payload)
     })
-      .then(function (r) { return r.json(); })
+      .then(function (r) {
+        return r.json().catch(function () { return null; });
+      })
       .then(function (data) {
         if (data && data.success) {
           window.location.reload();
-          return;
+          return null;
         }
-        var msg = (data && (data.message || data.error)) || '완료 처리에 실패했습니다.';
-        window.alert(msg);
-        btn.disabled = false;
+        // 관리자가 업무 게이트(완료 경로·역행 차단)에 막혔으면 사유를 받아 한 번만 다시 보낸다.
+        return askAdminOverride(url, headers, payload, data).then(function (retried) {
+          if (retried && retried.ok) {
+            window.location.reload();
+            return null;
+          }
+          var failed = (retried && retried.data) || data;
+          var msg = (failed && (failed.message || failed.error)) || '완료 처리에 실패했습니다.';
+          window.alert(msg);
+          btn.disabled = false;
+          return null;
+        });
       })
       .catch(function () {
         window.alert('서버 통신 중 오류가 발생했습니다.');
         btn.disabled = false;
       });
+  }
+
+  /**
+   * 거부 응답을 공용 재시도 컨트롤러에 넘긴다.
+   * 컨트롤러가 없거나(스크립트 미배선) 관리자가 아니면 아무것도 하지 않는다 — 호출부가 원래 오류를 띄운다.
+   */
+  function askAdminOverride(url, headers, payload, data) {
+    var ctl = window.FomsAdminOverride;
+    if (!ctl || typeof ctl.retry !== 'function') {
+      return Promise.resolve(null);
+    }
+    return ctl.retry({
+      url: url,
+      method: 'POST',
+      headers: headers,
+      body: payload,
+      code: (data && data.code) || '',
+      message: (data && (data.message || data.error)) || ''
+    });
   }
 
   if (!window.__FOMS_COMPLETE_ORDER_BTN_BOUND) {

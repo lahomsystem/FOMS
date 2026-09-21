@@ -37,7 +37,13 @@ from foms.services.orders.revision import (
     RevisionError,
     execute_order_mutation,
 )
-from foms.services.orders.state_axes import AXIS_MAIN, read_logistics
+from foms.services.orders.state_axes import AXIS_MAIN, read_logistics, read_main_stage
+from foms.services.orders.admin_override import (
+    admin_override_error,
+    log_admin_override_denied,
+    record_admin_override_event,
+    resolve_admin_override,
+)
 from foms.services.orders.order_mutation_policy import (
     POLICY_REGISTRY,
     evaluate_policy,
@@ -411,6 +417,20 @@ def _stage_quest_block(sd: dict[str, Any], stage_code: str, stage_label: str, *,
     )
 
 
+def _punch_or_return(blocked, code: str, override, punched: list):
+    """업무 게이트 판정을 관리자 강제 진행과 합친다.
+
+    막히지 않았으면 None. 막혔는데 override 가 없으면 거부 응답을 그대로 돌려주고,
+    override 가 있으면 건너뛴 게이트 코드를 ``punched`` 에 적고 None 을 돌려준다.
+    """
+    if blocked is None:
+        return None
+    if override is None:
+        return blocked
+    punched.append(code)
+    return None
+
+
 def _transition_error_response(exc: Exception):
     """전이 엔진/REV helper 예외를 route JSON 오류로 매핑(stage 불일치는 INVALID_STAGE)."""
     code = "INVALID_STAGE" if isinstance(exc, StageConflictError) else getattr(exc, "error_code", "TRANSITION_ERROR")
@@ -728,30 +748,55 @@ def api_production_start(order_id):
         idem_key = _idempotency_key(body)
         user_id = session.get("user_id")
         user = get_user_by_id(user_id)
+
+        # 권한 축 판정은 업무 게이트보다 먼저 — 비관리자가 게이트 코드 대신 정확한 오답을 받는다.
+        err = admin_override_error(user, body)
+        if err is not None:
+            log_admin_override_denied(
+                db, order_id=order_id, gate=err[0].get_json().get("code"),
+                route="erp_orders_production.api_production_start", user=user)
+            return err
+        override = resolve_admin_override(user, body)
+        punched: list = []
+
         sd = _ensure_dict(order.structured_data)
         hold_was_active = _hold_active(sd)[0]
         stage = order.erp_stage_code
+        from_stage = read_main_stage(order)
         run_only_path = stage in ("생산", "PRODUCTION")
 
         # replay(같은 key 저장 receipt 존재) 가 아니면 전제 게이트를 검사한다.
         if not _idempotency_receipt_exists(db, user_id, _POLICY_PRODUCTION_START, idem_key):
             if run_only_path:
+                # 중복 run 발급은 권한 문제가 아니라 잘못된 데이터다 — 관리자도 못 뚫는다.
                 if _current_production_run(db, order_id) is not None:
                     return jsonify({"success": False, "code": "INVALID_STAGE",
                                     "message": "이미 제작중인 주문입니다."}), 409
-                blocked = _hold_block_response(sd, release_hold)
+                blocked = _punch_or_return(
+                    _hold_block_response(sd, release_hold), "HOLD_ACTIVE", override, punched)
                 if blocked is not None:
                     return blocked
             elif stage in ("고객컨펌", "CONFIRM"):
-                blocked = _hold_block_response(sd, release_hold)
+                blocked = _punch_or_return(
+                    _hold_block_response(sd, release_hold), "HOLD_ACTIVE", override, punched)
                 if blocked is not None:
                     return blocked
-                blocked = _stage_quest_block(sd, "CONFIRM", "고객컨펌", require_quest=True)
+                blocked = _punch_or_return(
+                    _stage_quest_block(sd, "CONFIRM", "고객컨펌", require_quest=True),
+                    "QUEST_INCOMPLETE", override, punched)
                 if blocked is not None:
                     return blocked
-            else:
+            elif override is None:
                 return jsonify({"success": False, "code": "INVALID_STAGE",
                                 "message": "제작대기 상태에서만 제작을 시작할 수 있습니다."}), 409
+            else:
+                # 단계 전제를 뚫었으면 고객컨펌 호환 경로와 같은 게이트를 돌되 함께 건너뛴다.
+                punched.append("INVALID_STAGE")
+                _punch_or_return(
+                    _hold_block_response(sd, release_hold), "HOLD_ACTIVE", override, punched)
+                _punch_or_return(
+                    _stage_quest_block(sd, "CONFIRM", "고객컨펌", require_quest=True),
+                    "QUEST_INCOMPLETE", override, punched)
 
         if run_only_path:
             # (a) 단계 무변경 — run 발급만 mutation 으로 감싼다(row lock·version++·receipt).
@@ -779,6 +824,11 @@ def api_production_start(order_id):
             except RevisionError as exc:
                 db.rollback()
                 return _transition_error_response(exc)
+            if override is not None and punched:
+                record_admin_override_event(
+                    db, order, override=override, gates=punched,
+                    route="erp_orders_production.api_production_start", axis="MAIN",
+                    from_value="", to_value="")
             db.commit()
             return jsonify({"success": True, "message": "제작이 시작되었습니다.",
                             "new_status": "PRODUCTION", "run_started": True})
@@ -787,9 +837,11 @@ def api_production_start(order_id):
         try:
             result = transition_order(
                 db, command_id="PRODUCTION_START", order_id=order_id,
-                actor_user_id=user_id, expected_from="CONFIRM", target_value="PRODUCTION",
+                actor_user_id=user_id, expected_from=from_stage, target_value="PRODUCTION",
                 scope_hash=_scope_hash("PRODUCTION_START", order_id),
                 request_hash=_request_hash(body), idempotency_key=idem_key,
+                emergency_override=bool(override),
+                reason=(override.reason if override is not None else None),
             )
         except (TransitionError, RevisionError) as exc:
             db.rollback()
@@ -797,6 +849,11 @@ def api_production_start(order_id):
 
         if not result.replayed:
             _apply_start_side_effects(db, order, user, user_id, release_hold, hold_was_active)
+        if override is not None and punched:
+            record_admin_override_event(
+                db, order, override=override, gates=punched,
+                route="erp_orders_production.api_production_start", axis="MAIN",
+                from_value=from_stage, to_value="PRODUCTION")
         db.commit()
         return jsonify({"success": True, "message": "제작이 시작되었습니다.", "new_status": "PRODUCTION"})
     except Exception as exc:  # noqa: BLE001 - 최종 방어(구체 전이 예외는 위에서 매핑)
@@ -827,27 +884,44 @@ def api_production_complete(order_id):
         idem_key = _idempotency_key(body)
         user_id = session.get("user_id")
         user = get_user_by_id(user_id)
+
+        err = admin_override_error(user, body)
+        if err is not None:
+            log_admin_override_denied(
+                db, order_id=order_id, gate=err[0].get_json().get("code"),
+                route="erp_orders_production.api_production_complete", user=user)
+            return err
+        override = resolve_admin_override(user, body)
+        punched: list = []
+
         sd = _ensure_dict(order.structured_data)
         hold_was_active = _hold_active(sd)[0]
         is_rework = _is_rework_completion(sd)
+        from_stage = read_main_stage(order)
 
         if not _idempotency_receipt_exists(db, user_id, _POLICY_PRODUCTION_COMPLETE, idem_key):
             if order.erp_stage_code not in ("생산", "PRODUCTION"):
-                return jsonify({"success": False, "code": "INVALID_STAGE",
-                                "message": "제작중 상태에서만 제작을 완료할 수 있습니다."}), 409
-            blocked = _hold_block_response(sd, release_hold)
+                if override is None:
+                    return jsonify({"success": False, "code": "INVALID_STAGE",
+                                    "message": "제작중 상태에서만 제작을 완료할 수 있습니다."}), 409
+                punched.append("INVALID_STAGE")
+            blocked = _punch_or_return(
+                _hold_block_response(sd, release_hold), "HOLD_ACTIVE", override, punched)
             if blocked is not None:
                 return blocked
-            blocked = _stage_quest_block(sd, "PRODUCTION", "생산")
+            blocked = _punch_or_return(
+                _stage_quest_block(sd, "PRODUCTION", "생산"), "QUEST_INCOMPLETE", override, punched)
             if blocked is not None:
                 return blocked
 
         try:
             result = transition_order(
                 db, command_id="PRODUCTION_COMPLETE", order_id=order_id,
-                actor_user_id=user_id, expected_from="PRODUCTION", target_value="CONSTRUCTION",
+                actor_user_id=user_id, expected_from=from_stage, target_value="CONSTRUCTION",
                 scope_hash=_scope_hash("PRODUCTION_COMPLETE", order_id),
                 request_hash=_request_hash(body), idempotency_key=idem_key,
+                emergency_override=bool(override),
+                reason=(override.reason if override is not None else None),
             )
         except (TransitionError, RevisionError) as exc:
             db.rollback()
@@ -857,6 +931,11 @@ def api_production_complete(order_id):
             _apply_complete_side_effects(
                 db, order, user, user_id, release_hold, hold_was_active, is_rework, result.event_id
             )
+        if override is not None and punched:
+            record_admin_override_event(
+                db, order, override=override, gates=punched,
+                route="erp_orders_production.api_production_complete", axis="MAIN",
+                from_value=from_stage, to_value="CONSTRUCTION")
         db.commit()
         return jsonify({
             "success": True,
@@ -892,19 +971,6 @@ def api_production_rework(order_id: int):
         if not order or order.status == "DELETED" or order.deleted_at is not None:
             return jsonify({"success": False, "message": "주문을 찾을 수 없습니다."}), 404
 
-        # 전이 전제조건: 제작완료(시공/CONSTRUCTION) 에서만 수정 제작 허용. 레거시 한글 값 포함.
-        if order.erp_stage_code not in ("시공", "CONSTRUCTION"):
-            return (
-                jsonify(
-                    {
-                        "success": False,
-                        "code": "INVALID_STAGE",
-                        "message": "제작완료 상태에서만 수정 제작을 시작할 수 있습니다.",
-                    }
-                ),
-                409,
-            )
-
         body = request.get_json(silent=True) or {}
         release_hold = body.get("release_hold") is True
         reason_raw = body.get("reason")
@@ -913,17 +979,45 @@ def api_production_rework(order_id: int):
         user_id = session.get("user_id")
         user = get_user_by_id(user_id)
 
+        # 권한 축 판정은 업무 게이트보다 먼저 — 비관리자가 게이트 코드 대신 정확한 오답을 받는다.
+        err = admin_override_error(user, body)
+        if err is not None:
+            log_admin_override_denied(
+                db, order_id=order_id, gate=err[0].get_json().get("code"),
+                route="erp_orders_production.api_production_rework", user=user)
+            return err
+        override = resolve_admin_override(user, body)
+        punched: list = []
+        from_stage = read_main_stage(order)
+
+        # 전이 전제조건: 제작완료(시공/CONSTRUCTION) 에서만 수정 제작 허용. 레거시 한글 값 포함.
+        if order.erp_stage_code not in ("시공", "CONSTRUCTION"):
+            if override is None:
+                return (
+                    jsonify(
+                        {
+                            "success": False,
+                            "code": "INVALID_STAGE",
+                            "message": "제작완료 상태에서만 수정 제작을 시작할 수 있습니다.",
+                        }
+                    ),
+                    409,
+                )
+            punched.append("INVALID_STAGE")
+
         sd = _ensure_dict(order.structured_data)
 
-        hold_gate = _apply_production_hold_gate(
-            sd,
-            release_hold=release_hold,
-            via="release_on_rework",
-            order_id=order_id,
-            user_id=user_id,
-            released_by=user.name if user else None,
-            db=db,
-        )
+        hold_gate = _punch_or_return(
+            _apply_production_hold_gate(
+                sd,
+                release_hold=release_hold,
+                via="release_on_rework",
+                order_id=order_id,
+                user_id=user_id,
+                released_by=user.name if user else None,
+                db=db,
+            ),
+            "HOLD_ACTIVE", override, punched)
         if hold_gate is not None:
             return hold_gate
 
@@ -984,6 +1078,11 @@ def api_production_rework(order_id: int):
         )
         _audit_production(order, "PRODUCTION_REWORK_STARTED", user_id,
                           note=reason or None, extra={"reason": reason or None, "count": count})
+        if override is not None and punched:
+            record_admin_override_event(
+                db, order, override=override, gates=punched,
+                route="erp_orders_production.api_production_rework", axis="MAIN",
+                from_value=from_stage, to_value="PRODUCTION")
         db.commit()
         return jsonify(
             {"success": True, "message": "수정 제작을 시작했습니다.", "new_status": "PRODUCTION"}
@@ -1032,13 +1131,27 @@ def api_production_cancel(order_id: int):
         user_id = session.get("user_id")
         user = get_user_by_id(user_id)
 
+        # 권한 축 판정은 업무 게이트보다 먼저 — 비관리자가 게이트 코드 대신 정확한 오답을 받는다.
+        err = admin_override_error(user, body)
+        if err is not None:
+            log_admin_override_denied(
+                db, order_id=order_id, gate=err[0].get_json().get("code"),
+                route="erp_orders_production.api_production_cancel", user=user)
+            return err
+        override = resolve_admin_override(user, body)
+        punched: list = []
+
         # replay(같은 key 저장 receipt 존재) 가 아니면 전제 게이트를 검사한다.
         # 전제조건: 제작중(생산/PRODUCTION + current run) 에서만 취소 허용. 레거시 한글 값 포함.
         if not _idempotency_receipt_exists(db, user_id, _POLICY_PRODUCTION_CANCEL, idem_key):
             if order.erp_stage_code not in ("생산", "PRODUCTION"):
-                return jsonify({"success": False, "code": "INVALID_STAGE",
-                                "message": "제작중 상태에서만 제작을 취소할 수 있습니다."}), 409
+                if override is None:
+                    return jsonify({"success": False, "code": "INVALID_STAGE",
+                                    "message": "제작중 상태에서만 제작을 취소할 수 있습니다."}), 409
+                punched.append("INVALID_STAGE")
             if _current_production_run(db, order_id) is None:
+                # 닫을 run 이 없는 것은 권한 문제가 아니라 없는 일을 되돌리라는 요청이다 —
+                # 관리자도 못 뚫는다(중복 발급 계열과 같은 축).
                 return jsonify({"success": False, "code": "INVALID_STAGE",
                                 "message": "제작 시작 전 주문은 취소할 수 없습니다."}), 409
 
@@ -1063,6 +1176,12 @@ def api_production_cancel(order_id: int):
         except RevisionError as exc:
             db.rollback()
             return _transition_error_response(exc)
+        if override is not None and punched:
+            # 취소는 단계 축을 움직이지 않는다(run 만 닫는다) — from/to 는 빈 문자열이다.
+            record_admin_override_event(
+                db, order, override=override, gates=punched,
+                route="erp_orders_production.api_production_cancel", axis="MAIN",
+                from_value="", to_value="")
         db.commit()
         return jsonify({
             "success": True,
@@ -1104,18 +1223,35 @@ def api_production_uncomplete(order_id: int):
         user_id = session.get("user_id")
         user = get_user_by_id(user_id)
 
+        # 권한 축 판정은 업무 게이트보다 먼저 — 비관리자가 게이트 코드 대신 정확한 오답을 받는다.
+        err = admin_override_error(user, body)
+        if err is not None:
+            log_admin_override_denied(
+                db, order_id=order_id, gate=err[0].get_json().get("code"),
+                route="erp_orders_production.api_production_uncomplete", user=user)
+            return err
+        override = resolve_admin_override(user, body)
+        punched: list = []
+        from_stage = read_main_stage(order)
+
         # 전이 전제조건: 제작완료(시공/CONSTRUCTION) 에서만 완료 취소 허용. 레거시 한글 값 포함.
         if not _idempotency_receipt_exists(db, user_id, _POLICY_PRODUCTION_UNCOMPLETE, idem_key):
             if order.erp_stage_code not in ("시공", "CONSTRUCTION"):
-                return jsonify({"success": False, "code": "INVALID_STAGE",
-                                "message": "제작완료 상태에서만 완료 취소할 수 있습니다."}), 409
+                if override is None:
+                    return jsonify({"success": False, "code": "INVALID_STAGE",
+                                    "message": "제작완료 상태에서만 완료 취소할 수 있습니다."}), 409
+                punched.append("INVALID_STAGE")
 
         try:
             result = transition_order(
                 db, command_id="PRODUCTION_UNCOMPLETE", order_id=order_id,
-                actor_user_id=user_id, expected_from="CONSTRUCTION", target_value="PRODUCTION",
+                # 하드코딩 문자열 대신 **요청 직전에 읽은 실제 축 값**을 넘긴다(계약 C5) —
+                # 잠금 아래 expected_from 재확인은 그대로 돌아야 동시 편집을 덮지 않는다.
+                actor_user_id=user_id, expected_from=from_stage, target_value="PRODUCTION",
                 scope_hash=_scope_hash("PRODUCTION_UNCOMPLETE", order_id),
                 request_hash=_request_hash(body), idempotency_key=idem_key,
+                emergency_override=bool(override),
+                reason=(override.reason if override is not None else None),
             )
         except (TransitionError, RevisionError) as exc:
             db.rollback()
@@ -1123,6 +1259,11 @@ def api_production_uncomplete(order_id: int):
 
         if not result.replayed:
             _apply_uncomplete_side_effects(db, order, user, user_id, result.event_id)
+        if override is not None and punched:
+            record_admin_override_event(
+                db, order, override=override, gates=punched,
+                route="erp_orders_production.api_production_uncomplete", axis="MAIN",
+                from_value=from_stage, to_value="PRODUCTION")
         db.commit()
         return jsonify({
             "success": True,

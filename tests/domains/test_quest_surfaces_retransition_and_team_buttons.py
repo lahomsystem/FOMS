@@ -419,13 +419,19 @@ def test_js_handles_retransition_buttons_and_response_key():
 
 
 def test_asset_pins_bumped_to_20260920b():
-    """JS·CSS 를 바꿨으니 핀을 올린다 — 안 올리면 SW 캐시로 옛 파일이 산다."""
-    assert "erp-quest-approve.js') }}?v=20260920b" in _read("templates/partials/shared/layout_scripts.html")
-    assert "erp-dashboard-entry.js') }}?v=20260920b" in _read("templates/partials/shared/layout_scripts.html")
+    """JS·CSS 를 바꿨으니 핀을 올린다 — 안 올리면 SW 캐시로 옛 파일이 산다.
+
+    erp-quest-approve.js·erp-dashboard-quest.js 는 ADMIN-OVERRIDE-01(관리자 강제 진행 재시도
+    배선)로 다시 바뀌어 핀이 20260921a 로 올라갔다. 모듈 핀을 품은 erp-dashboard-entry.js 도
+    함께 바뀌었으므로 그 핀도 올린다 — 안 올리면 옛 entry 가 옛 모듈 핀을 계속 부른다.
+    나머지 자산은 그때 안 바뀌었으니 20260920b 그대로다.
+    """
+    assert "erp-quest-approve.js') }}?v=20260921a" in _read("templates/partials/shared/layout_scripts.html")
+    assert "erp-dashboard-entry.js') }}?v=20260921a" in _read("templates/partials/shared/layout_scripts.html")
     assert "erp-pro.css') }}?v=20260920b" in _read("templates/partials/shared/layout_head.html")
     assert "04-filter-table-badges-buttons.css?v=20260920b" in _read("static/css/foundation/erp-pro.css")
     entry = _read("static/js/orders/erp-dashboard-entry.js")
-    assert "erp-dashboard-quest.js?v=20260920b" in entry
+    assert "erp-dashboard-quest.js?v=20260921a" in entry
     assert "erp-dashboard-detail-dom.js?v=20260920b" in entry
     for rel in ("templates/orders/dashboard.html", "templates/orders/partials/dashboard_main.html"):
         assert "foms-v2-cs-hero.css') }}?v=20260920b" in _read(rel)
