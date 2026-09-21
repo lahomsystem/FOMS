@@ -1,0 +1,146 @@
+[
+  {
+    "action_id": "A-2026-09-21-8cd9151e",
+    "priority": "P0",
+    "track": "ai_coding",
+    "title": "v2.1.277",
+    "rationale": "anthropics/claude-code Releases source, score=100, confidence=High, track=ai_coding, focus=8, focus_hits=breaking,deprecate",
+    "proposed_change": "Run controlled pilot for 'v2.1.277' in one workflow, compare dev-time and defect metrics.",
+    "owner": "evolution-architect",
+    "source_links": [
+      "https://github.com/anthropics/claude-code/releases/tag/v2.1.277"
+    ]
+  },
+  {
+    "action_id": "A-2026-09-21-3d48a88f",
+    "priority": "P1",
+    "track": "ai_coding",
+    "title": "v2.1.275",
+    "rationale": "anthropics/claude-code Releases source, score=100, confidence=High, track=ai_coding, focus=0",
+    "proposed_change": "Run controlled pilot for 'v2.1.275' in one workflow, compare dev-time and defect metrics.",
+    "owner": "evolution-architect",
+    "source_links": [
+      "https://github.com/anthropics/claude-code/releases/tag/v2.1.275"
+    ]
+  },
+  {
+    "action_id": "A-2026-09-21-23cbf7d4",
+    "priority": "P1",
+    "track": "ai_coding",
+    "title": "Agentic CLI customizations now in the usage metrics API",
+    "rationale": "GitHub Changelog source, score=100, confidence=High, track=ai_coding, focus=0",
+    "proposed_change": "Run controlled pilot for 'Agentic CLI customizations now in the usage metrics API' in one workflow, compare dev-time and defect metrics.",
+    "owner": "evolution-architect",
+    "source_links": [
+      "https://github.blog/changelog/2026-09-17-agentic-cli-customizations-now-in-the-usage-metrics-api"
+    ]
+  },
+  {
+    "action_id": "A-2026-09-21-c1524e2d",
+    "priority": "P0",
+    "track": "backend",
+    "title": "8.10.2",
+    "rationale": "redis/redis Releases source, score=100, confidence=High, track=backend, focus=6, focus_hits=security,redis",
+    "proposed_change": "Create spike branch to validate backend impact of '8.10.2', then run API smoke tests.",
+    "owner": "evolution-architect",
+    "source_links": [
+      "https://github.com/redis/redis/releases/tag/8.10.2"
+    ]
+  },
+  {
+    "action_id": "A-2026-09-21-fc3e272e",
+    "priority": "P0",
+    "track": "backend",
+    "title": "8.8.3",
+    "rationale": "redis/redis Releases source, score=100, confidence=High, track=backend, focus=6, focus_hits=security,redis",
+    "proposed_change": "Create spike branch to validate backend impact of '8.8.3', then run API smoke tests.",
+    "owner": "evolution-architect",
+    "source_links": [
+      "https://github.com/redis/redis/releases/tag/8.8.3"
+    ]
+  },
+  {
+    "action_id": "A-2026-09-21-e48eebf3",
+    "priority": "P0",
+    "track": "backend",
+    "title": "8.6.7",
+    "rationale": "redis/redis Releases source, score=100, confidence=High, track=backend, focus=6, focus_hits=security,redis",
+    "proposed_change": "Create spike branch to validate backend impact of '8.6.7', then run API smoke tests.",
+    "owner": "evolution-architect",
+    "source_links": [
+      "https://github.com/redis/redis/releases/tag/8.6.7"
+    ]
+  },
+  {
+    "action_id": "A-2026-09-21-92068538",
+    "priority": "P0",
+    "track": "backend",
+    "title": "8.4.7",
+    "rationale": "redis/redis Releases source, score=100, confidence=High, track=backend, focus=6, focus_hits=security,redis",
+    "proposed_change": "Create spike branch to validate backend impact of '8.4.7', then run API smoke tests.",
+    "owner": "evolution-architect",
+    "source_links": [
+      "https://github.com/redis/redis/releases/tag/8.4.7"
+    ]
+  },
+  {
+    "action_id": "A-2026-09-21-ee4b3ab9",
+    "priority": "P0",
+    "track": "backend",
+    "title": "8.2.10",
+    "rationale": "redis/redis Releases source, score=100, confidence=High, track=backend, focus=6, focus_hits=security,redis",
+    "proposed_change": "Create spike branch to validate backend impact of '8.2.10', then run API smoke tests.",
+    "owner": "evolution-architect",
+    "source_links": [
+      "https://github.com/redis/redis/releases/tag/8.2.10"
+    ]
+  },
+  {
+    "action_id": "A-2026-09-21-3b471312",
+    "priority": "P1",
+    "track": "ai_coding",
+    "title": "v2.1.274",
+    "rationale": "anthropics/claude-code Releases source, score=100, confidence=High, track=ai_coding, focus=6, focus_hits=postgres,opentelemetry,rq",
+    "proposed_change": "Run controlled pilot for 'v2.1.274' in one workflow, compare dev-time and defect metrics.",
+    "owner": "evolution-architect",
+    "source_links": [
+      "https://github.com/anthropics/claude-code/releases/tag/v2.1.274"
+    ]
+  },
+  {
+    "action_id": "A-2026-09-21-175626ec",
+    "priority": "P0",
+    "track": "backend",
+    "title": "pgAdmin 4 v9.18 Released",
+    "rationale": "PostgreSQL News source, score=100, confidence=High, track=backend, focus=20, focus_hits=security,cve,flask",
+    "proposed_change": "Create spike branch to validate backend impact of 'pgAdmin 4 v9.18 Released', then run API smoke tests.",
+    "owner": "evolution-architect",
+    "source_links": [
+      "https://www.postgresql.org/about/news/pgadmin-4-v918-released-3381/"
+    ]
+  },
+  {
+    "action_id": "A-2026-09-21-f9fa075e",
+    "priority": "P1",
+    "track": "ai_coding",
+    "title": "v2.1.273",
+    "rationale": "anthropics/claude-code Releases source, score=100, confidence=High, track=ai_coding, focus=0",
+    "proposed_change": "Run controlled pilot for 'v2.1.273' in one workflow, compare dev-time and defect metrics.",
+    "owner": "evolution-architect",
+    "source_links": [
+      "https://github.com/anthropics/claude-code/releases/tag/v2.1.273"
+    ]
+  },
+  {
+    "action_id": "A-2026-09-21-83751126",
+    "priority": "P0",
+    "track": "ai_coding",
+    "title": "sdk: v0.126.0",
+    "rationale": "anthropics/anthropic-sdk-typescript Releases source, score=100, confidence=High, track=ai_coding, focus=8, focus_hits=deprecate,performance",
+    "proposed_change": "Run controlled pilot for 'sdk: v0.126.0' in one workflow, compare dev-time and defect metrics.",
+    "owner": "evolution-architect",
+    "source_links": [
+      "https://github.com/anthropics/anthropic-sdk-typescript/releases/tag/sdk-v0.126.0"
+    ]
+  }
+]

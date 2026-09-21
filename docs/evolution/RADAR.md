@@ -18,3 +18,5 @@
 | 2026-02-16 | research-center | GitHub Changelog: GPT-5.3-Codex is now generally available for GitHub Copilot | ai_coding | High | Medium | open | score=97, link=https://github.blog/changelog/2026-02-09-gpt-5-3-codex-is-now-generally-available-for-github-copilot |
 
 | 2026-02-16 | research-center | arXiv cs.AI RSS: From Biased Chatbots to Biased Agents: Examining Role Assignment Effects on LLM  | ai_coding | High | Medium | open | score=100, link=https://arxiv.org/abs/2602.12285 |
+
+| 2026-09-21 | research-center | anthropics/claude-code Releases: v2.1.277 | ai_coding | High | Medium | open | score=100, link=https://github.com/anthropics/claude-code/releases/tag/v2.1.277 |
