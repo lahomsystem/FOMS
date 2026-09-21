@@ -299,7 +299,7 @@
       <option value="material">자재</option>
       <option value="memo" selected>메모</option>
     </select>
-    <textarea class="as-timeline__text erp-pro-input" rows="2" aria-label="기록 내용" placeholder="기록 입력... (Ctrl/⌘+Enter로 추가 · {{ v.current_display_round or v.current_round }}차에 저장)"></textarea>
+    <textarea class="as-timeline__text erp-pro-input" rows="2" aria-label="기록 내용" placeholder="기록 입력... (Ctrl/⌘+Enter로 추가 · 캡처는 Ctrl/⌘+V 로 첨부 · {{ v.current_display_round or v.current_round }}차에 저장)"></textarea>
     {# 입력과 함께 올리는 파일(AS-FRESH-01 T5) — 저장 후 그 기록에 결합된다.
        제출 전 미리보기는 로컬 objectURL 이라 업로드 왕복 없이 보인다. #}
     <input type="file" class="as-rchart-dock__file" accept="image/*,video/*,.pdf,.doc,.docx" multiple hidden>
@@ -309,6 +309,7 @@
       <button type="button" class="btn btn-sm btn-outline-secondary as-rchart-dock__pick" title="파일 첨부">
         <i class="fas fa-paperclip" aria-hidden="true"></i> 파일
       </button>
+      <span class="as-rchart-dock__hint">캡처는 Ctrl+V 로 바로 붙여넣기</span>
       <button type="submit" class="btn btn-sm btn-primary as-timeline__submit">기록 추가</button>
       {% if v.verdict_prompt %}
       <span class="as-rchart-verdict-prompt">

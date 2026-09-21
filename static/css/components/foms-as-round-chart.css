@@ -566,6 +566,22 @@
   flex-wrap: wrap;
 }
 
+/* 붙여넣기 안내 — 파일 버튼 옆 한 줄. 좁은 화면에서는 접는다(버튼만 남아도 뜻이 통한다). */
+.as-rchart-dock__hint {
+  color: #94a3b8;
+  font-size: 0.75rem;
+}
+
+@media (max-width: 480px) {
+  .as-rchart-dock__hint { display: none; }
+}
+
+/* 붙여넣기 성공 순간의 한 번 깜빡임 — "들어갔다"를 미리보기 말고도 알려 준다. */
+.as-rchart-dock.is-paste-hit {
+  background: #eff6ff;
+  box-shadow: inset 0 0 0 2px #93c5fd;
+}
+
 .as-rchart-verdict-prompt {
   display: inline-flex;
   align-items: center;

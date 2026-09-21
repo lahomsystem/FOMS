@@ -1637,6 +1637,62 @@
         if (input) input.click();
       });
 
+      /** 클립보드에서 이미지만 골라 File[] 로. erporder 와 같은 규칙(image/* item 만). */
+      function dockClipboardImageFiles(event) {
+        const items = event && event.clipboardData && event.clipboardData.items;
+        if (!items || !items.length) return [];
+        const stamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14);
+        const files = [];
+        for (let i = 0; i < items.length; i++) {
+          const item = items[i];
+          if (!item || item.kind !== 'file' || String(item.type || '').indexOf('image/') !== 0) continue;
+          const raw = item.getAsFile();
+          if (!raw) continue;
+          const type = raw.type || item.type || 'image/png';
+          const ext = type === 'image/jpeg' ? 'jpg'
+            : type === 'image/webp' ? 'webp'
+              : type === 'image/gif' ? 'gif' : 'png';
+          const name = 'capture-' + stamp + (files.length ? '-' + (files.length + 1) : '') + '.' + ext;
+          try {
+            files.push(new File([raw], name, { type: type, lastModified: Date.now() }));
+          } catch (err) {
+            files.push(raw); // File 생성자 미지원 브라우저는 원본 이름 그대로
+          }
+        }
+        return files;
+      }
+
+      /** 미리보기 컨트롤러가 없는 경우의 대비 경로 — 파일 인풋에 직접 합친다. */
+      function dockAppendToInput(form, files) {
+        const input = form && form.querySelector('.as-rchart-dock__file');
+        if (!input) return;
+        try {
+          const dt = new DataTransfer();
+          Array.from(input.files || []).concat(files).forEach(function (f) { dt.items.add(f); });
+          input.files = dt.files;
+        } catch (err) {
+          return; // DataTransfer 미지원이면 붙여넣기 첨부는 포기(파일 버튼은 그대로 동작)
+        }
+        renderDockPreview(form);
+      }
+
+      // 캡처 붙여넣기 — 입력 도크 안에 포커스가 있으면 Ctrl/⌘+V 로 바로 첨부한다.
+      // 클립보드에 이미지가 없으면 막지 않는다(텍스트 붙여넣기 그대로).
+      document.addEventListener('paste', function (e) {
+        const from = (e.target && e.target.closest && e.target.closest('.as-rchart-dock'))
+          || (document.activeElement && document.activeElement.closest
+            && document.activeElement.closest('.as-rchart-dock'));
+        if (!from) return;
+        const files = dockClipboardImageFiles(e);
+        if (!files.length) return;
+        e.preventDefault();
+        const ctl = dockController(from);
+        if (ctl) ctl.addFiles(files);
+        else dockAppendToInput(from, files);
+        from.classList.add('is-paste-hit');
+        setTimeout(function () { from.classList.remove('is-paste-hit'); }, 700);
+      });
+
       document.addEventListener('change', function (e) {
         const input = e.target.closest && e.target.closest('.as-rchart-dock__file');
         if (!input) return;
