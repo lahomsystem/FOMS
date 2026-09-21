@@ -1676,21 +1676,91 @@
         renderDockPreview(form);
       }
 
-      // 캡처 붙여넣기 — 입력 도크 안에 포커스가 있으면 Ctrl/⌘+V 로 바로 첨부한다.
+      /** 첨부를 받는 자리 찾기 — 새 기록 입력 도크, 또는 이미 저장된 기록의 스테이징. */
+      function attachTargetFrom(el) {
+        if (!el || typeof el.closest !== 'function') return null;
+        const dock = el.closest('.as-rchart-dock');
+        if (dock) return { kind: 'dock', el: dock };
+        const stage = el.closest('.as-rchart-row__stage');
+        if (stage) return { kind: 'stage', el: stage, item: stage.closest('.as-tl-item') };
+        return null;
+      }
+
+      /** 찾은 자리에 파일을 넣고 한 번 깜빡인다. */
+      function attachFilesToTarget(target, files) {
+        if (!target || !files.length) return;
+        if (target.kind === 'dock') {
+          const ctl = dockController(target.el);
+          if (ctl) ctl.addFiles(files);
+          else dockAppendToInput(target.el, files);
+        } else {
+          stageAddFiles(target.item, files);
+        }
+        target.el.classList.add('is-paste-hit');
+        setTimeout(function () { target.el.classList.remove('is-paste-hit'); }, 700);
+      }
+
+      // 캡처 붙여넣기 — 입력 도크나 스테이징 안에 포커스가 있으면 Ctrl/⌘+V 로 바로 첨부한다.
       // 클립보드에 이미지가 없으면 막지 않는다(텍스트 붙여넣기 그대로).
       document.addEventListener('paste', function (e) {
-        const from = (e.target && e.target.closest && e.target.closest('.as-rchart-dock'))
-          || (document.activeElement && document.activeElement.closest
-            && document.activeElement.closest('.as-rchart-dock'));
-        if (!from) return;
+        const target = attachTargetFrom(e.target) || attachTargetFrom(document.activeElement);
+        if (!target) return;
         const files = dockClipboardImageFiles(e);
         if (!files.length) return;
         e.preventDefault();
-        const ctl = dockController(from);
-        if (ctl) ctl.addFiles(files);
-        else dockAppendToInput(from, files);
-        from.classList.add('is-paste-hit');
-        setTimeout(function () { from.classList.remove('is-paste-hit'); }, 700);
+        attachFilesToTarget(target, files);
+      });
+
+      /** 바깥에서 끌고 온 파일인지 — 차트 안 첨부 순서 바꾸기(내부 드래그)와 가른다. */
+      function isExternalFileDrag(e) {
+        const dt = e.dataTransfer;
+        if (!dt || chartDragWrap) return false;
+        const types = dt.types ? Array.from(dt.types) : [];
+        return types.indexOf('Files') >= 0;
+      }
+
+      /** 끌어다 놓기를 받는 자리 — 기록 행에 그냥 떨어뜨리면 스테이징을 연다. */
+      function dropTargetFrom(el) {
+        const target = attachTargetFrom(el);
+        if (target) return target;
+        if (!el || typeof el.closest !== 'function') return null;
+        const item = el.closest('.as-tl-item');
+        if (!item || !item.dataset.logId) return null;
+        return { kind: 'stage', el: item, item: item };
+      }
+
+      // 끌어다 놓기 — dragover 에서 막아 주지 않으면 브라우저가 파일을 그냥 연다.
+      document.addEventListener('dragover', function (e) {
+        if (!isExternalFileDrag(e)) return;
+        const target = dropTargetFrom(e.target);
+        if (!target) return;
+        e.preventDefault();
+        if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+        target.el.classList.add('is-drop-over');
+      });
+
+      document.addEventListener('dragleave', function (e) {
+        const target = dropTargetFrom(e.target);
+        if (target) target.el.classList.remove('is-drop-over');
+      });
+
+      document.addEventListener('drop', function (e) {
+        if (!isExternalFileDrag(e)) return;
+        const target = dropTargetFrom(e.target);
+        if (!target) return;
+        e.preventDefault();
+        target.el.classList.remove('is-drop-over');
+        const files = e.dataTransfer && e.dataTransfer.files
+          ? Array.from(e.dataTransfer.files) : [];
+        if (!files.length) return;
+        if (target.kind === 'stage' && target.item && target.el === target.item) {
+          // 기록 행에 바로 떨어뜨린 경우 — 스테이징을 열고 그쪽으로 넣는다.
+          const stage = ensureRowStage(target.item);
+          attachFilesToTarget({ kind: 'stage', el: stage, item: target.item }, files);
+          try { stage.focus({ preventScroll: true }); } catch (err) { stage.focus(); }
+          return;
+        }
+        attachFilesToTarget(target, files);
       });
 
       document.addEventListener('change', function (e) {
@@ -1709,7 +1779,12 @@
         if (!stage) {
           stage = document.createElement('div');
           stage.className = 'as-rchart-row__stage';
+          // tabindex: 붙여넣기(paste)는 포커스한 곳에서 올라온다 — 스테이징이 포커스를 받아야 Ctrl+V 가 닿는다.
+          stage.setAttribute('tabindex', '-1');
           stage.innerHTML = '<div class="as-rchart-row__stage-preview as-attach-order"></div>'
+            + '<button type="button" class="btn btn-sm btn-outline-secondary as-rchart-row__stage-pick">'
+            + '<i class="fas fa-paperclip" aria-hidden="true"></i> 파일</button>'
+            + '<span class="as-rchart-row__stage-hint">캡처는 Ctrl+V · 파일은 끌어다 놓기</span>'
             + '<button type="button" class="btn btn-sm btn-primary as-rchart-row__stage-send">올리기</button>'
             + '<button type="button" class="btn btn-sm btn-link as-rchart-row__stage-cancel">취소</button>';
           const text = item.querySelector('.as-rchart-row__text');
@@ -1729,32 +1804,52 @@
         stage.remove();
       }
 
-      // 이미 저장된 기록에 파일 추가(행 클립 버튼) — 고른 뒤 스테이징에서 순서를 정하고 올린다.
-      document.addEventListener('click', function (e) {
-        const attach = e.target.closest && e.target.closest('.as-tl-item__attach');
-        if (!attach) return;
-        const item = attach.closest('.as-tl-item');
-        const chart = attach.closest('.as-rchart');
-        const logId = item && item.dataset.logId;
+      /** 스테이징에 파일을 넣는다. 미리보기 컨트롤러가 없으면 곧바로 올린다(옛 경로). */
+      function stageAddFiles(item, files) {
+        if (!item || !files || !files.length) return;
+        const chart = item.closest('.as-rchart');
+        const logId = item.dataset.logId;
         const orderId = chart && chart.dataset.orderId;
         if (!logId || !orderId) return;
+        const stage = ensureRowStage(item);
+        if (stage._asOrder) {
+          stage._asOrder.addFiles(files);
+          return;
+        }
+        uploadAsLogFiles(orderId, logId, files, null).then(function () {
+          return refreshRoundChart(orderId);
+        });
+      }
+
+      /** 파일 고르기 창 — 고른 파일은 스테이징으로 들어간다. */
+      function openRowFilePicker(item) {
         const picker = document.createElement('input');
         picker.type = 'file';
         picker.multiple = true;
         picker.accept = 'image/*,video/*,.pdf,.doc,.docx';
         picker.addEventListener('change', function () {
-          const files = this.files ? Array.from(this.files) : [];
-          if (!files.length) return;
-          const stage = ensureRowStage(item);
-          if (stage._asOrder) stage._asOrder.addFiles(files);
-          else {
-            attach.disabled = true;
-            uploadAsLogFiles(orderId, logId, files, null).then(function () {
-              return refreshRoundChart(orderId);
-            }).finally(function () { attach.disabled = false; });
-          }
+          stageAddFiles(item, this.files ? Array.from(this.files) : []);
         });
         picker.click();
+      }
+
+      // 이미 저장된 기록에 파일 추가(행 클립 버튼) — 스테이징을 열어 붙여넣기·끌어놓기·파일 고르기를 함께 받는다.
+      document.addEventListener('click', function (e) {
+        const attach = e.target.closest && e.target.closest('.as-tl-item__attach');
+        if (!attach) return;
+        const item = attach.closest('.as-tl-item');
+        const chart = attach.closest('.as-rchart');
+        if (!item || !item.dataset.logId || !chart || !chart.dataset.orderId) return;
+        const stage = ensureRowStage(item);
+        try { stage.focus({ preventScroll: true }); } catch (err) { stage.focus(); }
+      });
+
+      // 스테이징 안 '파일' 버튼 — 옛 동선(클립 = 파일 창)을 그대로 남긴다.
+      document.addEventListener('click', function (e) {
+        const pick = e.target.closest && e.target.closest('.as-rchart-row__stage-pick');
+        if (!pick) return;
+        const item = pick.closest('.as-tl-item');
+        if (item) openRowFilePicker(item);
       });
 
       document.addEventListener('click', function (e) {
