@@ -33,9 +33,10 @@
 }
 
 /* ── FAB (좁은 셸) ──
-   2026-09-21: 글자 달린 알약 버튼이 모바일 하단 고정 바·자동저장 토스트와 겹쳐 서로
-   가렸다. 48px 동그라미(아이콘만) 로 줄이고, 하단 바 위(bottom 84px)·우측 14px 에 띄워
-   erporder 편집 동선을 막지 않게 한다. 글자는 시각적으로만 숨기고 aria-label 로 남긴다. */
+   2026-09-21: 글자 달린 알약 버튼이 모바일 하단 고정 바(저장·PUSH·알림톡)·자동저장
+   토스트와 겹쳐 서로 가렸다. 48px 동그라미(아이콘만) 로 줄이고, 모바일 v2 셸에서는
+   하단 액션 영역을 아예 떠나 헤더 바로 아래 우측 상단에 띄운다(마법사 FAB 처럼
+   편집 동선 밖). 글자는 시각적으로만 숨기고 aria-label 로 남긴다. */
 .erp-naver-dock-fab {
   position: fixed;
   right: 14px;
@@ -81,6 +82,17 @@
 .erp-naver-dock-fab:focus {
   background: #047857;
   color: #fff;
+}
+
+/* 모바일 v2 셸: 하단은 sticky 액션바 + 바텀 내비가 차지한다. 위쪽 우측으로. */
+body.erp-mobile-v2-layout .erp-naver-dock-fab {
+  top: calc(var(--foms-shell-header-h, 48px) + var(--foms-safe-area-top, 0px) + 10px);
+  bottom: auto;
+  right: 12px;
+  width: 44px;
+  height: 44px;
+  font-size: 1.05rem;
+  opacity: 0.92;
 }
 
 /* ── 슬라이드 서랍 ── */

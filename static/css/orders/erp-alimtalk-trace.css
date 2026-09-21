@@ -129,6 +129,15 @@
   padding-bottom: 0.15rem;
 }
 
+/* 2026-09-21 사용자 제보: '아직 안 보냄' 칩이 상시 노출돼 좁은 모바일 액션바를 더
+   답답하게 만든다. 미발송(--none)은 정보가 없는 상태라 모바일에서는 줄째 감춘다 —
+   보냄·문자·실패처럼 알아야 할 흔적이 생기면 그때 나타난다. 이력은 알림톡 시트의
+   발송 이력에서도 볼 수 있어 잃는 진입점이 없다. 데스크톱은 그대로(폭이 넉넉하다).
+   :has 미지원 구형 브라우저는 종전처럼 칩이 보일 뿐이다(무해한 폴백). */
+.erp-alimtalk-trace-slot--mobile:has(> .erp-alimtalk-trace--none) {
+  display: none;
+}
+
 /* 이력 패널 */
 .erp-alimtalk-trace-count {
   font-size: 0.75rem;
