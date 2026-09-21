@@ -316,7 +316,7 @@ def test_dock_asset_pin_moved_for_household_split():
     """
     tpl = _ORDER_JS_TPL.read_text(encoding="utf-8")
     assert "js/orders/erp-naver-dock.js') }}?v=20260910a" in tpl
-    assert "css/orders/erp-naver-dock.css') }}?v=20260910a" in tpl
+    assert "css/orders/erp-naver-dock.css') }}?v=20260921a" in tpl
 
 
 # ------------------------------------------- 확인 완료 게이트가 죽은 주문을 안 센다
