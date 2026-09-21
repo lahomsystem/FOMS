@@ -371,22 +371,13 @@ ERP Order mobile-v2 tab pane.
                             </div>
                         </div>
                         <div class="field-grid-2">
-                            <div class="field erp-mobile-inline">
-                                <div class="d-flex align-items-center gap-2">
-                                    <label class="field__label mb-0" for="erp-workflow-stage">본공정 단계</label>
-                                    {% if erp_as_status_label %}
-                                    <span class="badge text-bg-info" data-erp-as-status="{{ order.status }}">AS: {{ erp_as_status_label }}</span>
-                                    {% endif %}
-                                    {% if erp_as_can_reregister %}
-                                    <button type="button" class="btn btn-sm btn-outline-info py-0"
-                                        data-erp-as-reregister-open data-order-id="{{ order.id }}">접수 수정</button>
-                                    {% elif erp_as_can_receive %}
-                                    <button type="button" class="btn btn-sm btn-outline-info py-0"
-                                        data-erp-as-receive-open data-order-id="{{ order.id }}">AS 접수</button>
-                                    {% endif %}
-                                </div>
-                                <div class="d-flex gap-1 align-items-stretch">
-                                    <select class="foms-select flex-grow-1" id="erp-workflow-stage"
+                            {#- 본공정 단계: 모바일은 한 줄이다(2026-09-21 사용자 요청). 라벨 | 셀렉트 | 강제변경 | AS.
+                                라벨을 d-flex 로 감싸면 72px 라벨 칸에 버튼까지 끼어 줄이 어긋난다.
+                                data-* 계약(as-receive/reregister/stage-override/as-status)은 그대로다. -#}
+                            <div class="field erp-mobile-inline erp-mobile-stage-row">
+                                <label class="field__label mb-0" for="erp-workflow-stage">본공정 단계</label>
+                                <div class="erp-mobile-stage-row__controls">
+                                    <select class="foms-select" id="erp-workflow-stage"
                                         data-erp-as-active="{{ '1' if erp_as_status_label else '' }}"
                                         data-erp-as-label="{{ erp_as_status_label or '' }}">
                                         <option value="">-</option>
@@ -400,12 +391,22 @@ ERP Order mobile-v2 tab pane.
                                         <option value="COMPLETED">완료</option>
                                     </select>
                                     {% if current_user is defined and current_user and current_user.role in ['ADMIN', 'MANAGER'] %}
-                                    <button type="button" class="btn btn-outline-warning btn-sm text-nowrap"
+                                    <button type="button" class="foms-btn foms-btn--ghost erp-mobile-stage-row__btn erp-mobile-stage-row__btn--override"
                                         data-erp-stage-override-open
                                         data-order-id="{{ order.id if order is defined and order else 0 }}"
-                                        title="역행·건너뛰기 강제 변경">
-                                        <i class="fas fa-exchange-alt"></i>
+                                        title="역행·건너뛰기 강제 변경" aria-label="단계 강제 변경">
+                                        <i class="fas fa-exchange-alt" aria-hidden="true"></i>
                                     </button>
+                                    {% endif %}
+                                    {% if erp_as_status_label %}
+                                    <span class="erp-mobile-stage-row__as" data-erp-as-status="{{ order.status }}">AS: {{ erp_as_status_label }}</span>
+                                    {% endif %}
+                                    {% if erp_as_can_reregister %}
+                                    <button type="button" class="foms-btn foms-btn--ghost erp-mobile-stage-row__btn erp-mobile-stage-row__btn--as"
+                                        data-erp-as-reregister-open data-order-id="{{ order.id }}">접수 수정</button>
+                                    {% elif erp_as_can_receive %}
+                                    <button type="button" class="foms-btn foms-btn--ghost erp-mobile-stage-row__btn erp-mobile-stage-row__btn--as"
+                                        data-erp-as-receive-open data-order-id="{{ order.id }}">AS 접수</button>
                                     {% endif %}
                                 </div>
                             </div>

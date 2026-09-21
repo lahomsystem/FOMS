@@ -1242,6 +1242,46 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-attachment-controls
     margin: 0 0 2px;
     align-self: auto;
   }
+  /* ── 본공정 단계 한 줄 행(2026-09-21): 라벨 | 셀렉트(남는 폭) | 강제변경 | AS 접수 ──
+     셀렉트는 min-width:0 으로 줄고 옵션 글자는 셀렉트 안에서 다 보인다. 버튼은
+     내용 폭 고정·nowrap(글자 중간 줄바꿈 금지), 높이는 셀렉트와 같은 44px 터치. */
+  body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-stage-row__controls {
+    display: flex;
+    align-items: stretch;
+    gap: 6px;
+    min-width: 0;
+  }
+  body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-stage-row__controls > .foms-select {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+  body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-stage-row__btn {
+    flex: 0 0 auto;
+    min-height: var(--foms-touch-target-min);
+    padding: 0 10px;
+    font-size: var(--foms-font-size-sm);
+    white-space: nowrap;
+    border: 1px solid var(--foms-border-default);
+    border-radius: var(--foms-radius-md);
+  }
+  body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-stage-row__btn--override {
+    color: var(--foms-color-warning-600, #b45309);
+  }
+  body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-stage-row__btn--as {
+    color: var(--foms-color-brand-600);
+  }
+  body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-stage-row__as {
+    display: inline-flex;
+    align-items: center;
+    flex: 0 0 auto;
+    padding: 0 8px;
+    font-size: var(--foms-font-size-xs);
+    font-weight: var(--foms-font-weight-semibold);
+    color: var(--foms-color-brand-600);
+    background: var(--foms-color-brand-50, #eef2ff);
+    border-radius: var(--foms-radius-md);
+    white-space: nowrap;
+  }
   /* 인라인 행 내부의 부가 컨트롤(시간 select+직접입력, 날짜+달력버튼)도 우측 칸에 정렬 */
   body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-inline > .erp-mobile-time-inline,
   body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-inline > .erp-mobile-date-field {
