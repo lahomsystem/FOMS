@@ -10,7 +10,7 @@
     window.ERP_SPEC_PICKER_ENABLED = {{ 'true' if flag_spec_picker else 'false' }};
     window.MY_ROLE = {{ (current_user.role if current_user is defined and current_user else '')|tojson }};
 </script>
-<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-as-attachment-order.css') }}?v=20260820a">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-as-attachment-order.css') }}?v=20260921a">
 <script src="{{ url_for('static', filename='js/foms/attachment-preview-zoom.js') }}?v=20260914a" defer></script>
 <link rel="stylesheet" href="{{ url_for('static', filename='css/orders/erp-autosave.css') }}?v=20260630a">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/orders/erp-items-master-detail.css') }}?v=20260701f">
