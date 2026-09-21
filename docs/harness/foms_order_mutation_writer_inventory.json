@@ -109,13 +109,13 @@
     },
     {
       "path": "foms/services/integrations/naver_commerce/ghost_orders.py",
-      "lineno": 260,
+      "lineno": 271,
       "kind": "flag_modified_structured_data",
       "owner": "UNASSIGNED"
     },
     {
       "path": "foms/services/integrations/naver_commerce/ghost_orders.py",
-      "lineno": 286,
+      "lineno": 297,
       "kind": "flag_modified_structured_data",
       "owner": "UNASSIGNED"
     },
@@ -506,14 +506,14 @@
     },
     {
       "path": "foms/services/integrations/naver_commerce/ghost_orders.py",
-      "lineno": 260,
+      "lineno": 271,
       "kind": "flag_modified_structured_data",
       "classification": "EXTERNAL",
       "owner": "UNASSIGNED"
     },
     {
       "path": "foms/services/integrations/naver_commerce/ghost_orders.py",
-      "lineno": 286,
+      "lineno": 297,
       "kind": "flag_modified_structured_data",
       "classification": "EXTERNAL",
       "owner": "UNASSIGNED"

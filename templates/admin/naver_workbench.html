@@ -251,6 +251,67 @@
     </details>
     {% endif %}
 
+    {# 부분 취소 띠(2026-09-21) — 집 하나가 통째로 취소·반품됐는데 살아 있는 집이 남아
+       유령 띠에서 빠진 주문. 유령 띠 **바로 아래**에 둔다: 같은 사실(결제가 죽었다)의
+       약한 형태라, 강한 쪽을 먼저 읽고 이쪽을 읽는 순서가 맞다.
+       불가역 버튼은 두지 않는다 — 승인·거부는 그 집 pane 에서. #}
+    {% if partial_claims and partial_claims.count %}
+    <details class="wb-ghost wb-partial" data-foms-no-autodismiss
+             data-wb-partial-claims="{{ partial_claims.count }}">
+        <summary class="wb-ghost__head">
+            <span class="wb-ghost__badge">{{ partial_claims.count }}건</span>
+            <b>일부만 취소·반품된 주문</b>
+            <span class="wb-ghost__sub">한 집이 통째로 취소·반품됐는데 같은 주문에 살아 있는 결제가 남아
+                있습니다 — 위 띠(전부 취소)에는 안 나옵니다. 네이버가 아직 확정하지 않은 건만 셉니다.</span>
+        </summary>
+        <table class="wb-ghost__list">
+            <thead>
+                <tr><th>주문</th><th>네이버 주문</th><th>진행</th><th>살아 있는 결제</th><th class="text-end">할 일</th></tr>
+            </thead>
+            <tbody>
+                {% for row in partial_claims.rows %}
+                <tr data-partial-order-id="{{ row.order_id }}">
+                    <td>
+                        <a href="{{ url_for('order_edit.edit_order', order_id=row.order_id, open='erp-order') }}"
+                           target="_blank" rel="noopener">#{{ row.order_id }}</a>
+                        {{ row.customer_name }}
+                        <div class="wb-ghost__dim">{{ '{:,}'.format(row.naver_amount_total) }}원</div>
+                    </td>
+                    <td>
+                        {# 문구는 서버가 만든다(유령 띠와 같은 `_discard_verdict`). #}
+                        <span class="wb-ghost__claim{% if row.claim_phase != 'done' %} wb-ghost__claim--pending{% endif %}">{{ row.claim_text }}</span>
+                        <div class="wb-ghost__dim">{{ row.dead_link_count }}건 전부 ·
+                            {{ row.dead_order_nos|join(', ') }}</div>
+                    </td>
+                    <td>
+                        {{ row.status_label }}
+                        <div class="wb-ghost__meas wb-ghost__meas--{{ row.measure.code }}">{{ row.measure.text }}</div>
+                        {% if row.measure.basis_text %}
+                        <div class="wb-ghost__dim">{{ row.measure.basis_text }}</div>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <span class="wb-ghost__dim">상품주문 {{ row.alive_link_count }}건이 살아 있습니다</span>
+                        <div class="wb-ghost__dim">그래서 '전부 취소' 띠에는 안 뜹니다</div>
+                    </td>
+                    <td class="text-end">
+                        {% if row.lead_link_id %}
+                        <a class="btn btn-sm btn-outline-secondary"
+                           href="{{ url_for('admin.naver_ingest_triage', tab='work', link_id=row.lead_link_id) }}">
+                            열어서 확인하기
+                        </a>
+                        <div class="wb-ghost__dim">승인·거부는 그 집 화면에서</div>
+                        {% else %}
+                        <span class="wb-ghost__dim">열 링크 없음</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </details>
+    {% endif %}
+
     {#
       재결제 뒤 정리 안 된 옛 네이버 주문 띠 (NVREPAY-02).
       관계 블록은 그 주문 pane 을 연 사람에게만 말한다 — 아무도 안 열면 아무도 모른다.
