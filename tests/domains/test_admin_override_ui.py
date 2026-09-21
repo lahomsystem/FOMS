@@ -221,13 +221,22 @@ def test_재시도를_배선한_JS_는_전부_새_핀으로_실린다():
     호출부 JS 는 화면마다 다른 템플릿이 싣는다 — 한 줄이라도 옛 핀이면 그 화면의
     관리자는 거부 문구만 보고 끝난다.
     """
+    import re as _re
+
     missed = []
     for rel in RETRY_CALLER_SCRIPTS:
         # basename 으로 찾으면 다른 dashboard.js 까지 걸린다 — static/ 뒤 전체 경로로 짚는다.
         name = rel[len("static/"):]
         for tpl in (REPO_ROOT / "templates").rglob("*.html"):
             for line in tpl.read_text(encoding="utf-8").splitlines():
-                if name in line and "?v=" in line and RETRY_ASSET_PIN not in line:
+                if name not in line or "?v=" not in line:
+                    continue
+                # 계약은 "재시도 배선 이후의 핀" 이다 — 같은 값이 아니라 **그보다 낡지 않은**
+                # 값. 리터럴 동일성으로 재면 그 뒤 정당한 범프(2026-09-21 AS 접수 머무름,
+                # erp-order-shared.js 20260921b)마다 무관한 커밋이 빨개진다. 날짜+접미 핀은
+                # 사전순이 시간순이다.
+                found = _re.search(r"\?v=([0-9]{8}[a-z]?)", line)
+                if not found or found.group(1) < RETRY_ASSET_PIN:
                     missed.append(f"{tpl.relative_to(REPO_ROOT).as_posix()}: {line.strip()}")
     assert not missed, "재시도 배선 JS 인데 핀이 안 올라간 곳: " + "; ".join(missed)
 
