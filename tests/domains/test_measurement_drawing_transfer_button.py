@@ -35,6 +35,9 @@ from tests.domains.drawing_transfer_helpers import (
     ASSET_PIN,
 )
 
+#: ADMIN-OVERRIDE-01 에서 바뀐 JS 의 자산 핀. CSS(``ASSET_PIN``)는 안 바뀌었으니 그대로 둔다.
+ADMIN_OVERRIDE_JS_PIN = "20260921a"
+
 # --------------------------------------------------------------------------- #
 # T8 매크로 출력 문자열.
 # --------------------------------------------------------------------------- #
@@ -154,14 +157,16 @@ def test_templates_pin_transfer_assets(path: Path) -> None:
 
     js_lines = [line for line in lines if "drawing-transfer-btn.js" in line]
     assert len(js_lines) == 1, f"{path.name}: 새 JS script 태그 {len(js_lines)}개"
-    assert ASSET_PIN in js_lines[0], f"{path.name}: 새 JS 핀이 {ASSET_PIN} 가 아니다"
+    # ADMIN-OVERRIDE-01 에서 이 JS 에 관리자 강제 진행 재시도를 배선했으므로 핀이 올랐다.
+    assert ADMIN_OVERRIDE_JS_PIN in js_lines[0], (
+        f"{path.name}: 새 JS 핀이 {ADMIN_OVERRIDE_JS_PIN} 가 아니다")
 
     css_lines = [line for line in lines if "complete-order-btn.css" in line]
     assert len(css_lines) == 1, f"{path.name}: CSS 링크 {len(css_lines)}개"
     assert ASSET_PIN in css_lines[0], f"{path.name}: CSS 핀이 {ASSET_PIN} 가 아니다"
 
-    # 기존 complete-order-btn.js 핀은 건드리지 않는다.
-    assert "complete-order-btn.js') }}?v=20260807b" in src
+    # complete-order-btn.js 도 ADMIN-OVERRIDE-01 재시도 배선으로 바뀌어 핀이 올랐다.
+    assert f"complete-order-btn.js') }}}}?v={ADMIN_OVERRIDE_JS_PIN}" in src
 
 
 @pytest.mark.parametrize("path", [SELF_TEMPLATE, REGIONAL_TEMPLATE])

@@ -49,9 +49,26 @@
         );
       }
       if (!data.success) {
-        // 서버 code(COMMAND_REQUIRED·QUEST_INCOMPLETE·STAGE_CONFLICT)까지 노출해야 원인 파악이 된다.
-        var detail = data.code ? ' (' + data.code + ')' : '';
-        throw new Error((data.message || data.error || '도면 전달 실패') + detail);
+        // 관리자가 업무 게이트에 막혔으면 사유를 받아 한 번만 다시 보낸다(권한 축만 푼다).
+        var ctl = window.FomsAdminOverride;
+        var again = (ctl && typeof ctl.retry === 'function')
+          ? await ctl.retry({
+            url: '/api/orders/' + orderId + '/quest/approve',
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: {},
+            code: data.code || '',
+            message: data.message || data.error || ''
+          })
+          : null;
+        if (again && again.ok) {
+          data = again.data;
+        } else {
+          var failed = (again && again.data) || data;
+          // 서버 code(COMMAND_REQUIRED·QUEST_INCOMPLETE·STAGE_CONFLICT)까지 노출해야 원인 파악이 된다.
+          var detail = failed.code ? ' (' + failed.code + ')' : '';
+          throw new Error((failed.message || failed.error || '도면 전달 실패') + detail);
+        }
       }
       if (!data.auto_transitioned) {
         window.alert('승인은 기록됐지만 단계가 넘어가지 않았습니다. 관리자에게 확인하세요.');

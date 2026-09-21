@@ -401,6 +401,24 @@
   // Zone 4: 시공 / AS 비즈니스 로직
   // ═══════════════════════════════════════════════════════════════
 
+  /**
+   * 업무 게이트 거부를 공용 관리자 강제 진행 컨트롤러에 넘긴다.
+   * 컨트롤러가 없거나 관리자가 아니면 null 을 돌려주고, 호출부가 원래 오류를 그대로 띄운다.
+   * 시공 완료 증빙 거부(400)는 서버가 code 를 주지 않으므로 호출부가 EVIDENCE_MISSING 을 직접 넘긴다.
+   */
+  async function askAdminOverride(url, body, data, fallbackCode) {
+    const ctl = window.FomsAdminOverride;
+    if (!ctl || typeof ctl.retry !== 'function') return null;
+    return ctl.retry({
+      url: url,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: body || {},
+      code: (data && data.code) || fallbackCode || '',
+      message: (data && (data.message || data.error)) || ''
+    });
+  }
+
   async function startConstruction(orderId) {
     if (!confirm('시공을 시작하시겠습니까? (로그가 기록됩니다)')) return;
     try {
@@ -408,12 +426,16 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       });
-      const data = await res.json();
-      if (data.success) {
+      let data = await res.json();
+      if (!data.success) {
+        const again = await askAdminOverride(`/api/orders/${orderId}/construction/start`, {}, data);
+        if (again && again.data) data = again.data;
+      }
+      if (data && data.success) {
         alert(data.message);
         window.location.reload();
       } else {
-        alert('오류: ' + data.message);
+        alert('오류: ' + ((data && (data.message || data.error)) || '시공 시작에 실패했습니다.'));
       }
     } catch (err) {
       console.error('Construction start error:', err);
@@ -613,8 +635,17 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ completion_note: noteValue })
       });
-      const data = await res.json();
-      if (data.success) {
+      let data = await res.json();
+      if (!data.success) {
+        const again = await askAdminOverride(
+          `/api/orders/${orderId}/construction/complete`,
+          { completion_note: noteValue },
+          data,
+          describeCompleteGateMissing(data) ? 'EVIDENCE_MISSING' : ''
+        );
+        if (again && again.data) data = again.data;
+      }
+      if (data && data.success) {
         const modalEl = document.getElementById('erpConstructionCompleteModal');
         if (modalEl) {
           const modal = bootstrap.Modal.getInstance(modalEl);
@@ -802,10 +833,15 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ team: team })
       });
-      const data = await res.json();
+      let data = await res.json();
 
       if (!data.success) {
-        alert('승인 실패: ' + (data.message || data.error || '알 수 없는 오류'));
+        const again = await askAdminOverride(
+          `/api/orders/${orderId}/quest/approve`, { team: team }, data);
+        if (again && again.data) data = again.data;
+      }
+      if (!data || !data.success) {
+        alert('승인 실패: ' + ((data && (data.message || data.error)) || '알 수 없는 오류'));
         return;
       }
 

@@ -139,7 +139,10 @@ def _external_owner(rel_path: str) -> str:
         return "STATE-DRAWING-01"
     if "/drawing/" in p or p.endswith("services/notifications/drawing_order_change.py"):
         return "STATE-DRAWING-01"
-    if p.endswith("api/cs/complete.py") or p.endswith("api/cs/dashboard.py"):
+    if (p.endswith("api/cs/complete.py") or p.endswith("api/cs/dashboard.py")
+            or p.endswith("services/orders/cs_complete_service.py")):
+        # CS 완료 mutation 본체는 ADMIN-OVERRIDE-01 에서 라우트 → 서비스로 옮겨 갔다
+        # (완료는 한 길만). 옮긴 자리도 같은 패킷이 소유한다.
         return "STATE-CONST-CS-01"
     if p.endswith("api/events.py"):
         return "EVENT-REVERT-01"

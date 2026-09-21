@@ -227,7 +227,7 @@ def test_update_order_status_blocks_skip(client):
 
 
 def test_override_rejects_as_and_deleted_targets(client):
-    """목표 단계 AS_*/DELETED 는 override 타깃 불가(기존 AS/삭제 API 유지)."""
+    """음성 대조군: admin_override 없이는 관리자도 AS_*/DELETED 목표를 쓸 수 없다."""
     _login(client, "ov_as_tgt", role="ADMIN")
     order_id = _make_erp_order(status="DRAWING").id
     for bad in ("AS_RECEIVED", "AS_COMPLETED", "AS", "DELETED"):
@@ -241,6 +241,34 @@ def test_override_rejects_as_and_deleted_targets(client):
         )
         assert resp.status_code == 400, bad
         assert resp.get_json()["success"] is False
+
+    db_session.expire_all()
+    saved = db_session.get(Order, order_id)
+    assert saved.status == "DRAWING"
+    assert saved.deleted_at is None
+    assert db_session.query(OrderEvent).filter(
+        OrderEvent.order_id == order_id
+    ).count() == 0
+
+
+def test_override_as_target_rejects_manager_even_with_flag(client):
+    """MANAGER 는 admin_override 를 실어도 AS 목표를 쓸 수 없다(403 ADMIN_ONLY)."""
+    _login(client, "ov_as_mgr", role="MANAGER")
+    order_id = _make_erp_order(status="DRAWING").id
+    resp = client.post(
+        f"/api/orders/{order_id}/workflow/stage-override",
+        json={
+            "to_stage": "AS_RECEIVED",
+            "reason": "관리자 아님 검증용 사유",
+            "confirm": True,
+            "admin_override": True,
+        },
+    )
+    assert resp.status_code == 403
+    assert resp.get_json()["code"] == "ADMIN_ONLY"
+
+    db_session.expire_all()
+    assert db_session.get(Order, order_id).status == "DRAWING"
 
 
 def test_override_from_as_to_main_allowed(client):

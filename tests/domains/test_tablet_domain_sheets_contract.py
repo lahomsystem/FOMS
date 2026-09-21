@@ -30,7 +30,9 @@ SHIPMENT_DASHBOARD_SCRIPTS = "templates/shipment/partials/dashboard_scripts.html
 CORE_MEDIA_QUERY = (
     "(min-width: 992px) and (orientation: landscape) and (pointer: coarse)"
 )
-SCRIPT_CACHEBUSTER = "?v=20260728a"
+# ADMIN-OVERRIDE-01: tablet-domain-sheets.js 에 관리자 강제 진행 재시도가 들어가
+# 자산 핀을 올렸다. 핀 고정 계약은 새 핀을 따라간다(안 바꾼 자산의 핀은 안 올린다).
+SCRIPT_CACHEBUSTER = "?v=20260921a"
 
 
 def _read(rel: str) -> str:

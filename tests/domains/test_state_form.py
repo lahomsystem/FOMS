@@ -385,9 +385,10 @@ def test_invalid_override_rejected(client):
     order = _make_erp_order(stage="DRAWING")
     order_id = order.id
 
+    # admin_override 를 켜지 않으면 AS 목표는 그대로 막힌다(음성 대조군).
     bad_target = client.post(
         f"/api/orders/{order_id}/workflow/stage-override",
-        json={"to_stage": "AS_RECEIVED", "reason": "메인 파이프라인 아님", "confirm": True},
+        json={"to_stage": "AS_RECEIVED", "reason": "관리자 강제 진행 아님", "confirm": True},
     )
     assert bad_target.status_code == 400
 
@@ -402,6 +403,22 @@ def test_invalid_override_rejected(client):
         json={"to_stage": "DRAWING", "reason": "동일 단계 거부 검증", "confirm": True},
     )
     assert same_stage.status_code == 400
+
+    # 못 뚫는 축: 사유가 공백이면 뚫기 요청 자체가 422, 동일 단계는 그대로 400.
+    blank_reason = client.post(
+        f"/api/orders/{order_id}/workflow/stage-override",
+        json={"to_stage": "AS_RECEIVED", "reason": "  ", "confirm": True,
+              "admin_override": True, "override_reason": "  "},
+    )
+    assert blank_reason.status_code == 422
+    assert blank_reason.get_json()["code"] == "REASON_REQUIRED"
+
+    same_with_override = client.post(
+        f"/api/orders/{order_id}/workflow/stage-override",
+        json={"to_stage": "DRAWING", "reason": "동일 단계는 관리자도 못 뚫는다",
+              "confirm": True, "admin_override": True},
+    )
+    assert same_with_override.status_code == 400
 
     db_session.expire_all()
     saved = db_session.get(Order, order_id)

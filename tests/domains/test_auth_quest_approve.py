@@ -129,7 +129,11 @@ def test_actor_team_mismatch_forbidden(client):
 # DRAWING 단독 승인 → command-required 409 / CONFIRM → 고객 컨펌 완료 = PRODUCTION 전이
 # --------------------------------------------------------------------------- #
 def test_drawing_standalone_approval_is_command_required(client):
-    """DRAWING 단독 quest 승인은 409(전용 command 로만) — 관리자도 예외 없음."""
+    """평소에는 관리자도 막힌다 — DRAWING 단독 quest 승인은 409(전용 command 로만).
+
+    ``admin_override`` 를 켜지 않은 그냥 클릭은 관리자여도 지금까지와 똑같이 거부된다
+    (ADMIN-OVERRIDE-01 음성 대조군).
+    """
     user = _make_user(role="ADMIN", team="DRAWING", username="draw-admin")
     _login(client, user)
     order = _create_order(stage="DRAWING", quests=[_assignee_quest("DRAWING")])

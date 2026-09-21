@@ -19,6 +19,7 @@ __all__ = [
     "generate_change_description",
     "format_timeline_meta",
     "format_timeline_description",
+    "translate_admin_override_gates",
 ]
 
 TEAM_LABELS: dict[str, str] = {
@@ -34,6 +35,47 @@ TEAM_LABELS: dict[str, str] = {
 _STAGE_EVENT_TYPES = frozenset(
     {"STAGE_CHANGED", "STAGE_AUTO_TRANSITIONED", "STAGE_MANUAL_OVERRIDE", "STAGE_OVERRIDE"}
 )
+
+# 관리자가 건너뛴 검사(게이트) 코드를 사람 말로 옮긴 표(ADMIN-OVERRIDE-01).
+# 화면 잣대 == 서버 잣대: 서버가 내는 게이트 코드와 키가 1:1 이다.
+_ADMIN_OVERRIDE_GATE_LABELS: dict[str, str] = {
+    "USE_CS_COMPLETE": "완료 경로",
+    "QUEST_INCOMPLETE": "필수 승인",
+    "HOLD_ACTIVE": "보류",
+    "EVIDENCE_MISSING": "시공 증빙",
+    "INVALID_STAGE": "단계 전제",
+    "COMMAND_REQUIRED": "도면 전용 경로",
+    "DRAWING_STATUS": "도면 수령 전제",
+    "AS_ACTIVE": "진행 중 AS",
+    "OVERRIDE_BLOCK": "역행·건너뛰기 차단",
+    "OVERRIDE_TARGET": "강제 변경 목표 제한",
+}
+
+
+def translate_admin_override_gates(payload: dict[str, Any] | None) -> str:
+    """건너뛴 검사 코드 목록을 한글 이름으로 이어 붙인다.
+
+    ``gates`` 가 비어 있으면 처음 막은 ``gate`` 하나만 읽는다. 표에 없는 코드는
+    코드 그대로 보여 준다(모르는 게이트를 조용히 지우지 않는다).
+    """
+    payload = payload or {}
+    raw = payload.get("gates")
+    codes: list[str] = []
+    if isinstance(raw, (list, tuple)):
+        codes = [str(x).strip() for x in raw if str(x).strip()]
+    if not codes:
+        one = str(payload.get("gate") or "").strip()
+        if one:
+            codes = [one]
+    seen: set[str] = set()
+    labels: list[str] = []
+    for code in codes:
+        if code in seen:
+            continue
+        seen.add(code)
+        labels.append(_ADMIN_OVERRIDE_GATE_LABELS.get(code, code))
+    return ", ".join(labels)
+
 
 _EMPTY_DISPLAY_VALUES = frozenset({"", "none", "null"})
 
@@ -137,6 +179,10 @@ def translate_event_type_to_korean(event_type: str | None) -> str:
         # 관리자 강제 단계 변경(stage_override.py)과 생산·보류·시공 증빙 이벤트 —
         # 미등재면 '기타 변경' 으로 뭉개져 타임라인에서 구분이 안 된다(2026-09-20 P2).
         "STAGE_OVERRIDE": "단계 강제 변경",
+        # 관리자가 업무 게이트를 사유와 함께 건너뛴 기록(ADMIN-OVERRIDE-01).
+        # 단계 이벤트가 아니라서 _STAGE_EVENT_TYPES 에는 넣지 않는다 —
+        # 넣으면 타임라인에 실제로 밟지 않은 유령 단계 행이 생긴다.
+        "ADMIN_OVERRIDE_USED": "관리자 강제 진행",
         "PRODUCTION_REWORK_STARTED": "수정 제작 시작",
         "PRODUCTION_COMPLETE_REVERTED": "제작 완료 취소",
         "PRODUCTION_HOLD_TOGGLED": "생산 보류 변경",
@@ -432,6 +478,16 @@ def generate_change_description(
         reason = str(payload.get("reason") or "").strip()
         text = f"진행 단계를 '{before_kr}'에서 '{after_kr}'로 강제 변경했습니다"
         return f"{text} (사유: {reason})" if reason else text
+
+    if event_type == "ADMIN_OVERRIDE_USED":
+        # 관리자가 사유를 적고 업무 게이트를 건너뛴 기록. 무엇을 건너뛰었는지와
+        # 사유를 한 줄에 함께 보여 준다(D4: 이력에서 한눈에 보여야 한다).
+        gates_kr = translate_admin_override_gates(payload)
+        reason = str(payload.get("reason") or "").strip()
+        return (
+            "관리자가 검사를 건너뛰고 진행했습니다 "
+            f"(건너뛴 검사: {gates_kr or '-'}, 사유: {reason or '-'})"
+        )
 
     if event_type == "DRAWING_ASSIGNEE_SET":
         assignees = payload.get("assignee_names", [])

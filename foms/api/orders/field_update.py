@@ -18,7 +18,17 @@ from foms.services.orders.status_constants import STATUS
 from db import get_db
 from foms.services.as_content_safety import load_structured_data_dict_or_raise
 from foms.services.erp_order_flags import is_erp_order_record
-from foms.services.orders.state_axes import as_overlay_outranks_status_write
+from foms.services.orders.state_axes import (
+    as_overlay_outranks_status_write,
+    read_main_stage,
+)
+from foms.services.orders.admin_override import (
+    admin_override_error,
+    log_admin_override_denied,
+    record_admin_override_event,
+    resolve_admin_override,
+)
+from foms.services.orders.cs_complete_service import complete_order_as_cs
 from foms.services.orders.complete_path_policy import (
     rejects_completed_field_write,
     use_cs_complete_response_body,
@@ -498,6 +508,24 @@ def update_order_field_response(
             400,
         )
 
+    # ADMIN-OVERRIDE-01 C1: 권한 축 판정을 업무 게이트보다 먼저 돌린다.
+    err = admin_override_error(user, data)
+    if err is not None:
+        # 거부된 뚫기 시도는 주문 이력이 아니라 감사 원장에만 남는다(C7).
+        log_admin_override_denied(
+            db, order_id=getattr(order, "id", None),
+            gate=err[0].get_json().get("code", ""),
+            route="orders.update_order_field", user=user,
+        )
+        return err
+    override = resolve_admin_override(user, data)
+    # 삭제된 주문은 권한 축이 아니다(C0) — 뚫기 요청이어도 되살리지 않는다.
+    # 복구는 휴지통 경로의 일이다.
+    if override is not None and getattr(order, "deleted_at", None) is not None:
+        return jsonify({"success": False, "code": "NOT_FOUND",
+                        "message": "삭제된 주문입니다. 휴지통에서 먼저 복구하세요."}), 404
+    punched: list[str] = []
+
     # AS 완료/취소는 상태축 전이라 generic 쓰기 경로로 내려보내지 않는다(STATE-AS-01).
     if field == "as_completed_date":
         return _bridge_as_completed_date(db, order, user, value, data)
@@ -520,7 +548,45 @@ def update_order_field_response(
     # 삭제 축, stage 판독 불가, 이미 완료도 기존 동작을 유지한다.
     # 403 이 아니라 409 다 — 권한 문제가 아니라 경로·상태 충돌이다.
     if field == "status" and rejects_completed_field_write(order, value):
-        return jsonify(use_cs_complete_response_body(order, user)), 409
+        if override is None:
+            return jsonify(use_cs_complete_response_body(order, user)), 409
+        # 관리자가 뚫어도 완료는 CS 완료 서비스 한 길만 쓴다(C4) — 시공 attempt
+        # 봉인·이력이 함께 일어난다. 이 라우트가 status 를 직접 덤는 일은 없다.
+        from_stage_for_complete = read_main_stage(order)
+        old_status_for_complete = getattr(order, "status", None)
+        punched.append("USE_CS_COMPLETE")
+        failed = complete_order_as_cs(
+            db, order, actor_user=user, actor_user_id=getattr(user, "id", None), body=data,
+            override=override, punched=punched,
+        )
+        if failed is not None:
+            return failed
+        record_admin_override_event(
+            db, order, override=override, gates=punched,
+            route="orders.update_order_field", axis="MAIN",
+            from_value=from_stage_for_complete, to_value="COMPLETED",
+        )
+        # 평소 필드 변경과 같은 감사행을 남긴다 — 강제 진행 건만 원장에서 빠지면
+        # 감사 화면이 실제 변경보다 적게 센다(아래 평소 분기와 같은 action·같은 문장).
+        complete_audit_context = order_audit_context(order)
+        log_access(
+            describe_field_change(
+                order_id=order.id, field="status", before=old_status_for_complete,
+                after=getattr(order, "status", None), has_before=True,
+                **complete_audit_context,
+            ),
+            session["user_id"],
+            auto_commit=False,
+            action="ORDER_STATUS_CHANGED", target_type="order", target_id=order.id,
+            detail={"field": "status", "before": old_status_for_complete,
+                    "after": getattr(order, "status", None),
+                    **complete_audit_context},
+        )
+        db.commit()
+        return jsonify(_build_order_update_response(
+            order, "status", getattr(order, "status", None),
+            getattr(order, "structured_data", None) or {},
+        ))
 
     try:
         if field == "construction_type":
@@ -554,7 +620,16 @@ def update_order_field_response(
             # 물류 보드 목표 상태(설치예정·완료·AS 등)는 stage-override 가드 제외.
             if not is_logistics_board_status(value):
                 if requires_privileged_override(current_stage_for_order(order), value):
-                    return jsonify({"success": False, "message": OVERRIDE_BLOCK_MESSAGE}), 403
+                    if override is None:
+                        return jsonify(
+                            {"success": False, "message": OVERRIDE_BLOCK_MESSAGE}
+                        ), 403
+                    punched.append("OVERRIDE_BLOCK")
+                    record_admin_override_event(
+                        db, order, override=override, gates=list(punched),
+                        route="orders.update_order_field", axis="MAIN",
+                        from_value=current_stage_for_order(order), to_value=value,
+                    )
 
             # STATE-LEGACY-01: 순수 메인 파이프라인 전이는 canonical 전이 엔진 경유
             # (direct order.status/workflow.stage 배정 없음). 물류/AS/overlay 타깃과 overlay

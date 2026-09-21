@@ -106,6 +106,37 @@
       });
   }
 
+  /**
+   * 업무 게이트 거부를 관리자 강제 진행으로 한 번만 다시 보낸다. 뚫렸으면 새로고침하고,
+   * 아니면 원래 오류를 그대로 띄운다. 보류는 위 자기해제 경로가 먼저 가로챈다.
+   * 이 분기를 submitMove 밖에 두는 이유는 ERR-UX-01 계약(성공 분기에만 reload) 때문이다.
+   */
+  function punchOrAlert(orderId, spec, body, result) {
+    var data = result.data || {};
+    var ctl = window.FomsAdminOverride;
+    if (!ctl || typeof ctl.retry !== "function") {
+      window.alert("오류: " + result.message);
+      return;
+    }
+    return ctl
+      .retry({
+        url: "/api/orders/" + encodeURIComponent(orderId) + spec.path,
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: body || {},
+        code: data.code || "",
+        message: result.message || "",
+      })
+      .then(function (again) {
+        if (again && again.ok) {
+          window.location.reload();
+          return;
+        }
+        var failed = (again && again.data) || data;
+        window.alert("오류: " + (failed.message || failed.error || result.message));
+      });
+  }
+
   // 전이 POST. 409 HOLD_ACTIVE(보류 중) 면 해제 confirm 후 {release_hold:true} 로 1회 재시도.
   function submitMove(orderId, spec, body) {
     mutationFetch("/api/orders/" + encodeURIComponent(orderId) + spec.path, {
@@ -127,9 +158,9 @@
       }
       if (result.ok) {
         window.location.reload();
-      } else {
-        window.alert("오류: " + result.message);
+        return;
       }
+      return punchOrAlert(orderId, spec, body, result);
     });
   }
 

@@ -56,7 +56,17 @@ from foms.services.orders.order_transition_service import (
     transition_order,
 )
 from foms.services.orders.revision import RevisionError
-from foms.services.orders.soft_delete import soft_delete_order
+from foms.services.orders.admin_override import (
+    admin_override_error,
+    log_admin_override_denied,
+    record_admin_override_event,
+    resolve_admin_override,
+)
+from foms.services.orders.cs_complete_service import complete_order_as_cs
+from foms.services.orders.trash_mirror import (
+    invalidate_trash_caches,
+    soft_delete_with_trash_mirror,
+)
 from foms.services.orders.order_mutation_policy import user_can
 from foms.services.orders.state_axes import AXIS_MAIN, read_main_stage, read_state_axes
 from foms.services.erp_order_flags import is_erp_order_record
@@ -113,6 +123,30 @@ def _bulk_audit(order, old_status, new_status, user_id) -> None:
         action="ORDER_STATUS_CHANGED", target_type="order", target_id=int(order.id),
         detail={"field": "status", "before": old_status, "after": new_status,
                 "bulk": True, **context},
+    )
+
+
+def _single_audit(order, old_status, new_status, user_id) -> None:
+    """단건 상태 변경 1건을 구조화 감사로 남긴다(벌크와 같은 문장 SSOT·같은 action).
+
+    뚫기(관리자 강제 진행)로 완료된 분기도 평소 분기와 **같은 감사행**을 남겨야 한다 —
+    한쪽만 남기면 강제 진행 건이 감사 원장에서 통째로 빠진다.
+
+    :param order: 대상 :class:`~models.Order`.
+    :param old_status: 변경 전 상태 코드.
+    :param new_status: 변경 후 상태 코드.
+    :param user_id: 행위자 user id.
+    """
+    context = order_audit_context(order)
+    log_access(
+        describe_field_change(
+            order_id=order.id, field="status", before=old_status, after=new_status,
+            has_before=True, **context,
+        ),
+        user_id,
+        action="ORDER_STATUS_CHANGED", target_type="order", target_id=int(order.id),
+        detail={"field": "status", "before": old_status, "after": new_status,
+                **context},
     )
 
 
@@ -303,16 +337,62 @@ def update_order_status_response(
                 "message": "AS 접수 중인 주문이라 상태를 유지했습니다.",
             })
         from_stage = current_stage_for_order(order)
-        if is_erp_order_record(order) and requires_privileged_override(from_stage, new_status):
-            return jsonify({"success": False, "message": OVERRIDE_BLOCK_MESSAGE}), 403
-
         user_id = session.get("user_id")
+        user = get_user_by_id(user_id)
+
+        # ADMIN-OVERRIDE-01 C1: 권한 축 판정은 업무 게이트보다 **먼저** 돌린다 — 비관리자가
+        # 게이트 코드 대신 ADMIN_ONLY/REASON_REQUIRED 라는 정확한 오답을 받게 한다.
+        err = admin_override_error(user, data)
+        if err is not None:
+            # 거부된 뚫기 시도는 주문 이력이 아니라 감사 원장에만 남는다(C7).
+            log_admin_override_denied(
+                db, order_id=order_id, gate=err[0].get_json().get("code", ""),
+                route="orders.update_order_status", user=user,
+            )
+            return err
+        override = resolve_admin_override(user, data)
+        # 삭제된 주문은 권한 축이 아니다(C0) — 뚫기 요청이어도 되살리지 않는다.
+        # 복구는 휴지통 경로의 일이다.
+        if override is not None and getattr(order, "deleted_at", None) is not None:
+            return jsonify({"success": False, "code": "NOT_FOUND",
+                            "message": "삭제된 주문입니다. 휴지통에서 먼저 복구하세요."}), 404
+        punched: list[str] = []
+
+        if is_erp_order_record(order) and requires_privileged_override(from_stage, new_status):
+            if override is None:
+                return jsonify({"success": False, "message": OVERRIDE_BLOCK_MESSAGE}), 403
+            punched.append("OVERRIDE_BLOCK")
 
         # C-B2: 메인 파이프라인 ERP 주문의 최종 완료는 cs/complete 한 길만 쓴다.
         # field_update 와 **같은 술어·같은 문구**를 쓴다(complete_path_policy 한 곳에서 만든다).
         # 다른 축 상태 쓰기(출고·AS)는 술어가 value=='COMPLETED' 에서 끊겨 들어오지 않는다.
         if rejects_completed_field_write(order, new_status):
-            return jsonify(use_cs_complete_response_body(order, get_user_by_id(user_id))), 409
+            if override is None:
+                return jsonify(use_cs_complete_response_body(order, user)), 409
+            # 관리자가 뚫어도 완료는 한 길만 쓴다(C4) — CS 완료 서비스가 시공 attempt 봉인·
+            # 이력까지 함께 한다. "상태만 COMPLETED 이고 뒤가 빈" 주문을 만들지 않는다.
+            punched.append("USE_CS_COMPLETE")
+            failed = complete_order_as_cs(
+                db, order, actor_user=user, actor_user_id=user_id, body=data,
+                idempotency_key=_idempotency_key(data), override=override, punched=punched,
+            )
+            if failed is not None:
+                return failed
+            record_admin_override_event(
+                db, order, override=override, gates=punched,
+                route="orders.update_order_status", axis="MAIN",
+                from_value=from_stage, to_value="COMPLETED",
+            )
+            db.commit()
+            # 평소 분기(:아래 _single_audit)와 같은 감사행을 남긴다 — 강제 진행 건만
+            # 감사에서 빠지면 원장이 실제 변경보다 적게 센다.
+            _single_audit(order, old_status, new_status, user_id)
+            return jsonify({
+                "success": True,
+                "old_status": old_status,
+                "new_status": new_status,
+                "status_display": STATUS.get(new_status, new_status),
+            })
 
         if should_canonicalize_main_status(order, new_status):
             # 순수 메인 파이프라인 전이 → canonical 엔진 경유(direct stage 배정 없음).
@@ -329,19 +409,15 @@ def update_order_status_response(
                 setattr(order, "as_received_date", get_today_kst_func().strftime("%Y-%m-%d"))
             _sync_erp_stage(order, new_status, user_id, db, bulk=False)
 
+        if override is not None and punched:
+            record_admin_override_event(
+                db, order, override=override, gates=punched,
+                route="orders.update_order_status", axis="MAIN",
+                from_value=from_stage, to_value=new_status,
+            )
         db.commit()
 
-        audit_context = order_audit_context(order)
-        log_access(
-            describe_field_change(
-                order_id=order_id, field="status", before=old_status, after=new_status,
-                has_before=True, **audit_context,
-            ),
-            user_id,
-            action="ORDER_STATUS_CHANGED", target_type="order", target_id=order_id,
-            detail={"field": "status", "before": old_status, "after": new_status,
-                    **audit_context},
-        )
+        _single_audit(order, old_status, new_status, user_id)
 
         return jsonify(
             {
@@ -428,47 +504,19 @@ def _bulk_soft_delete_response(
     try:
         deleted = 0
         for order_id in order_ids:
-            result = soft_delete_order(
+            if soft_delete_with_trash_mirror(
                 db,
                 order_id=order_id,
                 actor_user_id=actor_user_id,
                 expected_version=expected_versions.get(order_id),
-            )
-            if result is not None:  # None = 이미 삭제됨(멱등 no-op)
+                bulk=True,
+                # 접근 로그는 api 층 소유다(services 는 foms.web 을 import 하지 않는다).
+                audit_sink=log_access,
+            ):
                 deleted += 1
-            # 전이기 dual-write: canonical deleted_at 과 함께 legacy status/original_status 를
-            # 같은 tx 에 미러(trash 호환). status 를 덮기 전 원상태를 original_status 로 보존한다.
-            order = db.get(Order, order_id)
-            if order is not None and getattr(order, "status", None) != "DELETED":
-                order.original_status = order.status or "RECEIVED"
-                order.status = "DELETED"
-            # original_status 에 방금 보존한 값이 곧 '이전 상태'다(덮어쓰기 전 값).
-            trash_context = order_audit_context(order)
-            previous_status = getattr(order, "original_status", None)
-            log_access(
-                describe_field_change(
-                    order_id=order_id, field="status", before=previous_status,
-                    after="DELETED", has_before=True, **trash_context,
-                ),
-                actor_user_id,
-                auto_commit=False,
-                action="ORDER_SOFT_DELETED", target_type="order", target_id=order_id,
-                detail={"field": "status", "before": previous_status, "after": "DELETED",
-                        "bulk": True, **trash_context},
-            )
         db.commit()
-        # 삭제 즉시 반영: 대시보드 read-slice 캐시(TTL 최대 300초) 무효화가 없으면 삭제한
-        # 주문이 실측 날짜별 집계 등에 최대 5분 잔존한다(2026-08-10 운영 사고). commit 뒤에만.
-        try:
-            from foms.services.common.dashboard_cache import (
-                invalidate_dashboard_caches_after_delete_transition,
-            )
-
-            invalidate_dashboard_caches_after_delete_transition("order_bulk_delete")
-        except Exception:
-            current_app.logger.warning(
-                "post bulk delete dashboard cache invalidate failed", exc_info=True
-            )
+        # 삭제 즉시 반영: 대시보드 캐시 무효화는 commit 뒤에만 1회.
+        invalidate_trash_caches("order_bulk_delete")
     except RevisionError as exc:
         # version 충돌/미존재 등 → 전체 롤백(부분 삭제 0). exc.status_code 로 HTTP 매핑.
         db.rollback()
@@ -512,6 +560,17 @@ def bulk_update_order_status_response(
 
         db = get_db()
         user_id = session.get("user_id")
+        user = get_user_by_id(user_id)
+        # ADMIN-OVERRIDE-01 C1: 권한 축 판정은 주문 루프보다 먼저 돌린다(최상위 키 1회).
+        err = admin_override_error(user, data)
+        if err is not None:
+            # 일괄도 단건과 같은 모양으로 거부를 남긴다(주문 id 는 최상위 키라 없다).
+            log_admin_override_denied(
+                db, order_id=None, gate=err[0].get_json().get("code", ""),
+                route="orders.bulk_update_order_status", user=user,
+            )
+            return err
+        override = resolve_admin_override(user, data)
         updated = 0
         blocked_override_required: list[int] = []
         blocked_as_orders: list[dict[str, Any]] = []
@@ -549,13 +608,38 @@ def bulk_update_order_status_response(
                 blocked_as_orders.append({"order_id": int(order.id), "status": overlay})
                 continue
             from_stage = current_stage_for_order(order)
+            punched: list[str] = []
             if is_erp_order_record(order) and requires_privileged_override(from_stage, new_status):
-                blocked_override_required.append(int(order.id))
-                continue
+                if override is None:
+                    blocked_override_required.append(int(order.id))
+                    continue
+                punched.append("OVERRIDE_BLOCK")
 
             # 단건 라우트와 같은 술어 — 메인 파이프라인 주문의 COMPLETED 직접 저장만 걸린다.
             if rejects_completed_field_write(order, new_status):
-                blocked_use_cs_complete.append(int(order.id))
+                if override is None:
+                    blocked_use_cs_complete.append(int(order.id))
+                    continue
+                # 뚫어서 완료할 때도 완료는 CS 완료 서비스 한 길만 쓴다(C4).
+                # 한 건이라도 실패하면 **전체 롤백**이다(확장 목표 일괄과 같은 모양) —
+                # 전이 실패는 세션 전체를 이미 되감으므로, 여기서 continue 하면 앞 건의
+                # 변경이 사라진 채 updated 만 올라가 실제 커밋 건수와 어긋난다.
+                punched.append("USE_CS_COMPLETE")
+                failed = complete_order_as_cs(
+                    db, order, actor_user=user, actor_user_id=user_id,
+                    body={"order_id": order.id, "status": new_status},
+                    idempotency_key=None, override=override, punched=punched,
+                )
+                if failed is not None:
+                    db.rollback()
+                    return failed
+                record_admin_override_event(
+                    db, order, override=override, gates=punched,
+                    route="orders.bulk_update_order_status", axis="MAIN",
+                    from_value=from_stage, to_value=new_status, bulk=True,
+                )
+                _bulk_audit(order, old_status, new_status, user_id)
+                updated += 1
                 continue
 
             if should_canonicalize_main_status(order, new_status):
@@ -569,6 +653,12 @@ def bulk_update_order_status_response(
                 )
                 if err is not None:
                     return err
+                if override is not None and punched:
+                    record_admin_override_event(
+                        db, order, override=override, gates=punched,
+                        route="orders.bulk_update_order_status", axis="MAIN",
+                        from_value=from_stage, to_value=new_status, bulk=True,
+                    )
                 _bulk_audit(order, old_status, new_status, user_id)
                 updated += 1
                 continue
@@ -583,6 +673,12 @@ def bulk_update_order_status_response(
                 continue
             _sync_erp_stage(order, new_status, user_id, db, bulk=True)
 
+            if override is not None and punched:
+                record_admin_override_event(
+                    db, order, override=override, gates=punched,
+                    route="orders.bulk_update_order_status", axis="MAIN",
+                    from_value=from_stage, to_value=new_status, bulk=True,
+                )
             _bulk_audit(order, old_status, new_status, user_id)
             updated += 1
 
