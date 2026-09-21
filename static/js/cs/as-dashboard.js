@@ -1782,11 +1782,13 @@
           // tabindex: 붙여넣기(paste)는 포커스한 곳에서 올라온다 — 스테이징이 포커스를 받아야 Ctrl+V 가 닿는다.
           stage.setAttribute('tabindex', '-1');
           stage.innerHTML = '<div class="as-rchart-row__stage-preview as-attach-order"></div>'
+            + '<div class="as-rchart-row__stage-actions">'
             + '<button type="button" class="btn btn-sm btn-outline-secondary as-rchart-row__stage-pick">'
             + '<i class="fas fa-paperclip" aria-hidden="true"></i> 파일</button>'
             + '<span class="as-rchart-row__stage-hint">캡처는 Ctrl+V · 파일은 끌어다 놓기</span>'
             + '<button type="button" class="btn btn-sm btn-primary as-rchart-row__stage-send">올리기</button>'
-            + '<button type="button" class="btn btn-sm btn-link as-rchart-row__stage-cancel">취소</button>';
+            + '<button type="button" class="btn btn-sm btn-link as-rchart-row__stage-cancel">취소</button>'
+            + '</div>';
           const text = item.querySelector('.as-rchart-row__text');
           (text || item).appendChild(stage);
         }

@@ -757,11 +757,21 @@
   color: #4f46e5;
 }
 
+/* 스테이징 — 미리보기 줄 위, 버튼 줄 아래. 좁은 칸에서 버튼이 그림 옆으로 끼어 접히지 않게. */
 .as-rchart-row__stage {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: stretch;
+  margin-top: 6px;
+}
+
+.as-rchart-row__stage-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
   align-items: center;
-  margin-top: 6px;
 }
+
+.as-rchart-row__stage-actions .as-rchart-row__stage-send { margin-left: auto; }
 
