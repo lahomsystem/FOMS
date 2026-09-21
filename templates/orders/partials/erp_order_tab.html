@@ -668,8 +668,11 @@ ERP Order Tab Pane (shared between add_order and edit_order)
                                 <i class="fas fa-images me-2"></i> 갤러리에서 선택
                             </button>
                         </div>
+                        {#- 카메라 입력은 accept="image/*" 단독 + capture 만 둔다. video/*·.gif 를 섞거나 multiple 을
+                            주면 안드로이드·iOS 가 카메라 대신 갤러리 선택기를 연다(2026-09-21 제보).
+                            동영상·여러 장은 아래 갤러리 입력이 맡는다. -#}
                         <input type="file" id="as-receive-files" class="visually-hidden"
-                            multiple accept="image/*,video/*,.gif" capture="environment" tabindex="-1" aria-hidden="true">
+                            accept="image/*" capture="environment" tabindex="-1" aria-hidden="true">
                         <input type="file" class="visually-hidden foms-photo-capture__gallery-input"
                             multiple accept="image/*,video/*,.gif" tabindex="-1" aria-hidden="true">
                         <div class="border rounded p-2 bg-light" data-erp-attachment-paste-zone="as-receive" data-show-on="desktop" tabindex="0"

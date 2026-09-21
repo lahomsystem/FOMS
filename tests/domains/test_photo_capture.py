@@ -117,3 +117,25 @@ def test_edit_order_blueprint_input_has_capture(erp_editor_client) -> None:
     assert body.index('id="blueprint-file-input"') < body.index(
         'capture="environment"', body.index('id="blueprint-file-input"')
     )
+
+
+def test_as_receive_camera_input_is_image_only_single_capture():
+    """카메라 입력에 video/*·.gif 를 섞거나 multiple 을 주면 안드로이드·iOS 가 카메라 대신
+    갤러리 선택기를 연다(2026-09-21 제보). 카메라는 image/* + capture 단독, 동영상·여러 장은
+    갤러리 입력이 맡는다 — PC·모바일 두 템플릿 모두."""
+    import re
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    for rel in ("templates/orders/partials/erp_order_tab.html",
+                "templates/orders/partials/erp_order_tab_mobile.html"):
+        html = (root / rel).read_text(encoding="utf-8")
+        cam = re.search(r'<input[^>]*id="as-receive-files"[^>]*>', html, re.S)
+        assert cam, rel
+        tag = cam.group(0)
+        assert 'accept="image/*"' in tag, rel
+        assert 'capture="environment"' in tag, rel
+        assert "multiple" not in tag, rel
+        assert "video" not in tag, rel
+        gal = re.search(r'<input[^>]*foms-photo-capture__gallery-input[^>]*>', html, re.S)
+        assert gal and "video/*" in gal.group(0) and "multiple" in gal.group(0), rel
