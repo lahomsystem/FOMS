@@ -31,6 +31,23 @@ def test_as_round_chart_dock_paste_has_visual_feedback() -> None:
 
     assert "as-rchart-dock__hint" in template
     assert "Ctrl+V" in template
+    assert "끌어다 놓기" in template
     assert "is-paste-hit" in js
     assert ".as-rchart-dock__hint {" in css
-    assert ".as-rchart-dock.is-paste-hit {" in css
+    assert ".as-rchart-dock.is-paste-hit," in css
+
+
+def test_as_round_chart_saved_row_takes_paste_and_drop() -> None:
+    """이미 저장된 기록도 스테이징에서 붙여넣기·끌어다 놓기를 받는다."""
+    js = _js()
+    css = (_root() / "static/css/components/foms-as-round-chart.css").read_text(encoding="utf-8")
+
+    # 스테이징은 포커스를 받아야 Ctrl+V 가 닿는다.
+    assert "stage.setAttribute('tabindex', '-1');" in js
+    assert "as-rchart-row__stage-pick" in js
+    assert "closest('.as-rchart-row__stage')" in js
+    # 내부 첨부 순서 드래그와 바깥 파일 드래그를 가른다.
+    assert "function isExternalFileDrag(e)" in js
+    assert "types.indexOf('Files') >= 0" in js
+    assert "if (!dt || chartDragWrap) return false;" in js
+    assert ".as-rchart-row__stage.is-drop-over" in css

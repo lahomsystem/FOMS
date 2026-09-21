@@ -71,6 +71,7 @@
 }
 
 .as-rchart-dock__preview.as-attach-order,
+.as-rchart-row__stage-preview.as-attach-order,
 #as-receive-preview.as-attach-order {
   display: flex;
   flex-wrap: wrap;

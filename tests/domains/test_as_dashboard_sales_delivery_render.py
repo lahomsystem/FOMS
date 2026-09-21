@@ -26,7 +26,7 @@ from models import Order, OrderScheduleDate, User
 
 _ROOT = Path(__file__).resolve().parents[2]
 _TODAY = date.today().strftime("%Y-%m-%d")
-_ASSET_PIN = "20260909a"
+_ASSET_PIN = "20260921b"
 
 
 def _login_as_admin(client, username: str = "sales-delivery-render-admin") -> None:

@@ -577,9 +577,34 @@
 }
 
 /* 붙여넣기 성공 순간의 한 번 깜빡임 — "들어갔다"를 미리보기 말고도 알려 준다. */
-.as-rchart-dock.is-paste-hit {
+.as-rchart-dock.is-paste-hit,
+.as-rchart-row__stage.is-paste-hit {
   background: #eff6ff;
   box-shadow: inset 0 0 0 2px #93c5fd;
+}
+
+/* 파일을 끌고 들어온 동안의 표시 — 여기 놓으면 된다는 신호. */
+.as-rchart-dock.is-drop-over,
+.as-rchart-row__stage.is-drop-over,
+.as-tl-item.is-drop-over {
+  background: #eff6ff;
+  box-shadow: inset 0 0 0 2px #60a5fa;
+}
+
+.as-rchart-row__stage {
+  border-radius: 8px;
+  padding: 4px;
+}
+
+.as-rchart-row__stage:focus { outline: none; }
+
+.as-rchart-row__stage-hint {
+  color: #94a3b8;
+  font-size: 0.75rem;
+}
+
+@media (max-width: 480px) {
+  .as-rchart-row__stage-hint { display: none; }
 }
 
 .as-rchart-verdict-prompt {
@@ -732,11 +757,21 @@
   color: #4f46e5;
 }
 
+/* 스테이징 — 미리보기 줄 위, 버튼 줄 아래. 좁은 칸에서 버튼이 그림 옆으로 끼어 접히지 않게. */
 .as-rchart-row__stage {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: stretch;
+  margin-top: 6px;
+}
+
+.as-rchart-row__stage-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
   align-items: center;
-  margin-top: 6px;
 }
+
+.as-rchart-row__stage-actions .as-rchart-row__stage-send { margin-left: auto; }
 
