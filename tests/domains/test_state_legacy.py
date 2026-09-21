@@ -194,7 +194,7 @@ def test_canonical_main_keeps_overlay_axes(client):
 # --------------------------------------------------------------------------- #
 # 2. admin override → emergency override 만 남되 reason + OrderEvent 필수(감사)
 # --------------------------------------------------------------------------- #
-def test_admin_override_records_reason_and_event(client):
+def test_stage_override_records_reason_and_event(client):
     """「단계 강제 변경」 역행 → STAGE_OVERRIDE OrderEvent(reason 보존, ADMIN/MANAGER)."""
     user = _make_user("leg_override", role="MANAGER")
     user_id = user.id

@@ -6073,15 +6073,32 @@ async function erpApproveQuestTeam(team) {
 
     erpSetQuestStatus('승인 처리 중...');
     try {
-        const res = await fetch(`/api/orders/${ORDER_ID}/quest/approve`, {
+        const questUrl = `/api/orders/${ORDER_ID}/quest/approve`;
+        const questHeaders = { 'Content-Type': 'application/json' };
+        const questBody = { team };
+        const res = await fetch(questUrl, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ team })
+            headers: questHeaders,
+            body: JSON.stringify(questBody)
         });
-        const data = await res.json();
+        let data = await res.json();
         if (!data.success) {
-            erpSetQuestStatus(data.message || '승인 실패', true);
-            return;
+            // 관리자면 사유를 받아 권한 축만 실어 1회 재시도한다(ADMIN-OVERRIDE-01).
+            // 컨트롤러가 없는 화면에서는 원래 거부 문구를 그대로 띄운다.
+            const ctl = window.FomsAdminOverride;
+            const again = (ctl && typeof ctl.retry === 'function')
+                ? await ctl.retry({
+                    url: questUrl, method: 'POST', headers: questHeaders, body: questBody,
+                    code: data.code || '', message: data.message || data.error || ''
+                })
+                : null;
+            if (again && again.ok && again.data && again.data.success) {
+                data = again.data;
+            } else {
+                const failed = (again && again.data) || data;
+                erpSetQuestStatus(failed.message || failed.error || '승인 실패', true);
+                return;
+            }
         }
 
         if (window.FOMS_ERP_SHELL && typeof window.FOMS_ERP_SHELL.invalidatePrimaryNavFragmentCache === 'function') {

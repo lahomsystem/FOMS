@@ -18,9 +18,9 @@ from foms.services.orders.audit_order_context import order_audit_context
 from foms.services.datetime_kst import now_utc_naive
 from foms.services.erp_permissions import erp_edit_required
 from foms.services.erp_sync_columns import sync_erp_flat_columns
-from foms.services.erp_display import _ensure_dict, manager_display_name
-from foms.services.erp_policy import can_modify_domain, get_assignee_ids
-from foms.services.orders.assignment import active_assignee_ids
+from foms.services.erp_display import _ensure_dict
+from foms.services.erp_policy import can_modify_domain
+from foms.api.drawing.draftsman_receipt_authz import can_confirm_drawing_receipt
 from foms.services.drawing_confirm_cleanup import finalize_drawing_files_on_confirm
 from foms.services.orders.drawing_receipt_command import (
     advance_receipt_stage,
@@ -29,6 +29,9 @@ from foms.services.orders.drawing_receipt_command import (
 from foms.services.orders.order_transition_service import TransitionError
 from foms.services.orders.revision import RevisionError
 from foms.services.orders.state_axes import read_main_stage
+from foms.services.orders.admin_override import (
+    admin_override_error, log_admin_override_denied,
+    record_admin_override_event, resolve_admin_override)
 from foms.services.storage import get_storage
 
 erp_orders_draftsman_bp = Blueprint(
@@ -341,47 +344,32 @@ def api_order_confirm_drawing_receipt(order_id):
         if not current_user:
             return jsonify({'success': False, 'message': '사용자를 찾을 수 없습니다.'}), 401
 
+        # 권한 축 판정은 업무 게이트보다 먼저 — 비관리자가 게이트 문구 대신 정확한 오답을 받는다.
+        # admin_override(업무 게이트 축)와 emergency_override(권한 소유 축)는 서로 독립이다.
+        admin_err = admin_override_error(current_user, data)
+        if admin_err is not None:
+            log_admin_override_denied(
+                db, order_id=order_id, gate=admin_err[0].get_json().get('code'),
+                route='erp_orders_draftsman.api_order_confirm_drawing_receipt',
+                user=current_user)
+            return admin_err
+        admin_override = resolve_admin_override(current_user, data)
+        punched: list = []
+
         # 상태 정합성 가드: 전달된 도면(확정 대기)에서만 수령 확정 가능.
-        # 권한 우회(ADMIN/오버라이드) 대상 아님 — 상태 가드는 전원 적용.
+        # 관리자가 admin_override 를 켜면 이 전제만 건너뛴다.
         if s_data.get('drawing_status') != 'TRANSFERRED':
-            return jsonify({
-                'success': False,
-                'message': '전달된 도면(확정 대기 상태)에서만 수령 확정할 수 있습니다.'
-            }), 400
+            if admin_override is None:
+                return jsonify({
+                    'success': False,
+                    'message': '전달된 도면(확정 대기 상태)에서만 수령 확정할 수 있습니다.'
+                }), 400
+            punched.append('DRAWING_STATUS')
 
-        can_confirm_receipt = can_modify_domain(
-            current_user, order, 'SALES_DOMAIN', emergency_override, override_reason
+        can_confirm_receipt = can_confirm_drawing_receipt(
+            db, order, current_user, s_data,
+            emergency_override=emergency_override, override_reason=override_reason,
         )
-
-        if not can_confirm_receipt:
-            # 주문 생성 시 owner 는 OrderAssignment(SALES) 행에만 남는다(ORDER-CREATE-01)
-            # — 이름 대조보다 id 대조가 먼저다(F9: owner STAFF 가 403 받던 것).
-            if current_user.id in active_assignee_ids(db, order.id, 'SALES'):
-                can_confirm_receipt = True
-
-        if not can_confirm_receipt:
-            sales_assignee_ids = get_assignee_ids(order, 'SALES_DOMAIN')
-            if not sales_assignee_ids:
-                manager_names = set()
-                parties = (s_data.get('parties') or {}) if isinstance(s_data, dict) else {}
-                manager_name_sd = manager_display_name(parties)
-                if manager_name_sd:
-                    manager_names.add(manager_name_sd.lower())
-
-                manager_name_col = (order.manager_name or '').strip()
-                if manager_name_col:
-                    manager_names.add(manager_name_col.lower())
-
-                wf_tmp = (s_data.get('workflow') or {}) if isinstance(s_data, dict) else {}
-                current_quest = (wf_tmp.get('current_quest') or {})
-                owner_person = (current_quest.get('owner_person') or '').strip()
-                if owner_person:
-                    manager_names.add(owner_person.lower())
-
-                user_name = (current_user.name or '').strip().lower()
-                user_username = (current_user.username or '').strip().lower()
-                if user_name in manager_names or user_username in manager_names:
-                    can_confirm_receipt = True
 
         if not can_confirm_receipt:
             msg = '도면 수령 확인은 지정된 영업 담당자만 가능합니다.'
@@ -477,6 +465,13 @@ def api_order_confirm_drawing_receipt(order_id):
                 f"도면 단계 밖에서 확정되어 단계를 되돌리지 않았다."
             )
         db.add(SecurityLog(user_id=current_user.id, message=security_note))
+
+        if admin_override is not None and punched:
+            record_admin_override_event(
+                db, order, override=admin_override, gates=punched,
+                route='erp_orders_draftsman.api_order_confirm_drawing_receipt',
+                axis='DRAWING', from_value=str(old_drawing_status or ''),
+                to_value='CONFIRMED')
 
         db.commit()
         # Tier A(broad): 도면 수령 확인은 workflow.stage DRAWING→CONFIRM 전환 +

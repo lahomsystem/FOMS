@@ -23,6 +23,13 @@
         </div>
     </div>
 
+{# ADMIN-OVERRIDE-01 C8: 출고 화면의 관리자 강제 진행 재시도도 사유 시트가 있어야 뜬다.
+   출고 파샬(shipment/partials/dashboard_scripts.html)은 <script src> 2개가 perf_scan
+   fragment-multi-script veto 로 잠겨 있어 더 얹을 수 없다 — 파샬은 그대로 두고 셸에
+   한 번만 올린다. 본문 밖이라 프래그먼트 교체에도 살아남는다. #}
+{% include 'partials/shared/foms_reason_sheet.html' %}
+<script src="{{ url_for('static', filename='js/foms/foms-reason-sheet.js') }}?v=20260921a" defer></script>
+<script src="{{ url_for('static', filename='js/foms/foms-admin-override.js') }}?v=20260921a" defer></script>
 {% include 'partials/shared/layout_scripts.html' %}
 {% block scripts %}{% endblock %}
 </body>

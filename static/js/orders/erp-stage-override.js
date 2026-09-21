@@ -27,6 +27,53 @@
     COMPLETED: '완료'
   };
 
+  // 관리자 전용 목표(AS 3종·삭제). 본공정 RANK 밖이라 서버에 admin_override 를 함께 싣는다.
+  var ADMIN_ONLY_TARGETS = {
+    AS_RECEIVED: 'AS',
+    AS: 'AS',
+    AS_COMPLETED: 'AS',
+    DELETED: 'DELETED'
+  };
+
+  // 서버가 내는 거부 코드를 사람 말로 옮긴 표. 여기 있는 것들은 사유를 더 적어도
+  // 뚫리지 않는다(모델에 길이 없거나, 권한 자체가 없거나, 정합 축이다).
+  var ERROR_MESSAGES = {
+    AS_NO_PATH: '진행 중인 AS 는 접수로 되돌릴 수 없습니다. AS 를 완료한 뒤 다시 접수하세요.',
+    ADMIN_ONLY: '관리자만 검사를 건너뛸 수 있습니다.',
+    REASON_REQUIRED: '검사를 건너뛰려면 사유가 필요합니다.',
+    IF_MATCH_UNSUPPORTED_TARGET:
+      '이 목표는 다른 탭 감지(If-Match)를 아직 지원하지 않습니다. 새로고침 후 다시 시도하세요.'
+  };
+
+  function adminTargetKind(code) {
+    return ADMIN_ONLY_TARGETS[String(code || '').trim()] || '';
+  }
+
+  // 정합 축(다른 탭 감지·멱등 키) 거부 코드. 사유를 적어도 뚫리지 않으므로 문구가 다르다.
+  var REV_CONFLICT_CODES = [
+    'REVISION_CONFLICT',
+    'REVISION_ERROR',
+    'PRECONDITION_REQUIRED',
+    'IDEMPOTENCY_KEY_EXPIRED',
+    'IDEMPOTENCY_KEY_CONFLICT'
+  ];
+  var REV_CONFLICT_MSG =
+    '다른 탭/사용자가 이미 상태를 변경했습니다. 새로고침 후 다시 시도하세요.';
+
+  // 코드가 아예 없는 옛 응답도 정합 축으로 본다(기존 문구 보존).
+  function isRevConflictCode(code) {
+    return !code || REV_CONFLICT_CODES.indexOf(code) !== -1;
+  }
+
+  // admin_override 는 ADMIN 전용이다 — canOverride() 는 MANAGER 까지 포함하므로 쓰지 않는다.
+  function isAdminRole() {
+    var ctl = window.FomsAdminOverride;
+    if (ctl && typeof ctl.canOverride === 'function') {
+      return !!ctl.canOverride();
+    }
+    return String(window.MY_ROLE || '').toUpperCase() === 'ADMIN';
+  }
+
   var BLOCK_MSG =
     '단계 역행/건너뛰기는 「단계 강제 변경」에서 사유·확인 후 진행하세요.';
 
@@ -182,7 +229,17 @@
     var from = fromEl.getAttribute('data-stage-code') || '';
     var to = toEl.value;
     var mode = classifyMove(from, to);
-    hint.textContent = modeHint(mode);
+    var kind = adminTargetKind(to);
+    hint.textContent = kind ? '' : modeHint(mode);
+    // AS·삭제를 고르면 무슨 일이 일어나는지 한 줄로 띄운다.
+    var warn = document.getElementById('erp-stage-override-target-warning');
+    if (warn) {
+      var msg = '';
+      if (kind === 'AS') msg = warn.getAttribute('data-warning-as') || '';
+      else if (kind === 'DELETED') msg = warn.getAttribute('data-warning-deleted') || '';
+      warn.textContent = msg;
+      warn.classList.toggle('d-none', !msg);
+    }
   }
 
   var _pending = null;
@@ -255,6 +312,12 @@
         bulkHint.classList.add('d-none');
       }
     }
+    // AS 주문 포함 여부는 일괄 변경에서만 고른다.
+    var includeAsRow = document.getElementById('erp-stage-override-include-as-row');
+    var includeAsEl = document.getElementById('erp-stage-override-include-as');
+    var isBulkOpen = !!opts.bulk || orderIds.length > 1;
+    if (includeAsEl) includeAsEl.checked = false;
+    if (includeAsRow) includeAsRow.classList.toggle('d-none', !isBulkOpen);
     showError('');
     syncModeHint();
 
@@ -336,6 +399,68 @@
     var body = isBulk
       ? { order_ids: orderIds, to_stage: to, reason: reason, confirm: true }
       : { to_stage: to, reason: reason, confirm: true };
+    if (isBulk) {
+      var includeAsBox = document.getElementById('erp-stage-override-include-as');
+      body.include_as = !!(includeAsBox && includeAsBox.checked);
+    }
+    // AS·삭제 목표는 관리자 권한 축을 명시적으로 켠 요청만 받는다.
+    // 완료 목표도 CS 게이트를 지나므로 **관리자일 때만** 같은 축을 켠다 —
+    // 매니저 요청은 현행 그대로 409 로 막힌다.
+    // 사유는 위 사유 칸을 그대로 쓴다(두 번 적게 하지 않는다).
+    if (adminTargetKind(to) || (to === 'COMPLETED' && isAdminRole())) {
+      body.admin_override = true;
+      body.override_reason = reason;
+    }
+
+    // 거부 응답을 사람 말로 띄운다. 409 는 코드로 가른다 — REV 충돌 계열만 '다른 탭'
+    // 문구이고, 게이트 코드(INVALID_STAGE 등)는 서버 문구를 그대로 보여야
+    // 화면 잣대가 서버 잣대와 같아진다.
+    function showFailure(res) {
+      var failCode = String((res.data && res.data.code) || '').trim();
+      if (ERROR_MESSAGES[failCode]) {
+        showError(ERROR_MESSAGES[failCode]);
+        return;
+      }
+      if (res.status === 409 && isRevConflictCode(failCode)) {
+        showError(REV_CONFLICT_MSG);
+        return;
+      }
+      showError((res.data && (res.data.error || res.data.message)) || '변경 실패');
+    }
+
+    function applySuccess(payload) {
+      // 최신 mutation_version 을 갱신해 다음 override/저장이 stale 되지 않게 한다.
+      if (payload.data && typeof payload.data.mutation_version === 'number') {
+        window.__erpLastMutationVersion = payload.data.mutation_version;
+      }
+      // AS·삭제 목표는 본공정 단계를 옮기지 않는다 — 폼 select 를 덮으면 화면이 거짓말한다.
+      if (!adminTargetKind(to)) {
+        var stageEl = document.getElementById('erp-workflow-stage');
+        if (stageEl) stageEl.value = to;
+        noteServerStage(to);
+        if (window.__erpLastStructuredData && typeof window.__erpLastStructuredData === 'object') {
+          window.__erpLastStructuredData.workflow =
+            window.__erpLastStructuredData.workflow || {};
+          window.__erpLastStructuredData.workflow.stage = to;
+        }
+      }
+      // AS 접수/완료 주문은 일괄 강제 변경에서 제외된다(AS 대시보드 증발 방지).
+      var skippedAs = (payload.data && payload.data.skipped_as) || [];
+      if (skippedAs.length) {
+        alert('AS 상태라 제외한 주문 ' + skippedAs.length + '건: '
+          + skippedAs.map(function (it) { return '#' + it.order_id; }).join(', ')
+          + '\n' + (payload.data.warning || ''));
+      }
+      var pending = _pending;
+      _pending = null; // hide.bs.modal 이 cancel로 취급하지 않도록 선제 클리어
+      closeModal();
+      if (pending && pending.resolve) pending.resolve(payload);
+      if (pending && pending.opts && typeof pending.opts.onSuccess === 'function') {
+        pending.opts.onSuccess(payload);
+      } else if (!pending || !pending.opts || !pending.opts.skipReload) {
+        window.location.reload();
+      }
+    }
 
     fetch(url, {
       method: 'POST',
@@ -348,42 +473,35 @@
         });
       })
       .then(function (res) {
-        if (res.status === 409) {
-          showError('다른 탭/사용자가 이미 상태를 변경했습니다. 새로고침 후 다시 시도하세요.');
-          return;
+        if (res.data && res.data.success) {
+          applySuccess(res.data);
+          return null;
         }
-        if (!res.data || !res.data.success) {
-          showError((res.data && (res.data.error || res.data.message)) || '변경 실패');
-          return;
+        // 게이트에 막힌 관리자는 공통 컨트롤러가 사유를 받아 딱 한 번 다시 보낸다.
+        var ctl = window.FomsAdminOverride;
+        if (!ctl || typeof ctl.retry !== 'function') {
+          // 컨트롤러가 없는 화면은 원래 오류를 그대로 띄운다(무음 실패 금지).
+          showFailure(res);
+          return null;
         }
-        // 최신 mutation_version 을 갱신해 다음 override/저장이 stale 되지 않게 한다.
-        if (res.data.data && typeof res.data.data.mutation_version === 'number') {
-          window.__erpLastMutationVersion = res.data.data.mutation_version;
-        }
-        var stageEl = document.getElementById('erp-workflow-stage');
-        if (stageEl) stageEl.value = to;
-        noteServerStage(to);
-        if (window.__erpLastStructuredData && typeof window.__erpLastStructuredData === 'object') {
-          window.__erpLastStructuredData.workflow =
-            window.__erpLastStructuredData.workflow || {};
-          window.__erpLastStructuredData.workflow.stage = to;
-        }
-        // AS 접수/완료 주문은 일괄 강제 변경에서 제외된다(AS 대시보드 증발 방지).
-        var skippedAs = (res.data.data && res.data.data.skipped_as) || [];
-        if (skippedAs.length) {
-          alert('AS 상태라 제외한 주문 ' + skippedAs.length + '건: '
-            + skippedAs.map(function (it) { return '#' + it.order_id; }).join(', ')
-            + '\n' + (res.data.data.warning || ''));
-        }
-        var pending = _pending;
-        _pending = null; // hide.bs.modal 이 cancel로 취급하지 않도록 선제 클리어
-        closeModal();
-        if (pending && pending.resolve) pending.resolve(res.data);
-        if (pending && pending.opts && typeof pending.opts.onSuccess === 'function') {
-          pending.opts.onSuccess(res.data);
-        } else if (!pending || !pending.opts || !pending.opts.skipReload) {
-          window.location.reload();
-        }
+        return ctl.retry({
+          url: url,
+          method: 'POST',
+          headers: headers,
+          body: body,
+          code: String((res.data && res.data.code) || '').trim(),
+          message: (res.data && (res.data.message || res.data.error)) || ''
+        }).then(function (out) {
+          if (!out || !out.retried) {
+            showFailure(res);
+            return;
+          }
+          if (out.ok) {
+            applySuccess(out.data);
+            return;
+          }
+          showFailure({ status: out.status, data: out.data });
+        });
       })
       .catch(function () {
         showError('서버 통신 오류');

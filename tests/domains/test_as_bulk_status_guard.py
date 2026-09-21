@@ -70,18 +70,24 @@ def test_as_overlay_status_unit(client):
 
 
 def test_bulk_stage_override_excludes_as_orders(client):
-    """일괄 단계 강제 변경: AS 주문은 제외되고 경고가 온다."""
+    """일괄 단계 강제 변경: AS 주문은 제외되고 경고가 온다.
+
+    2026-09-21(ADMIN-OVERRIDE-01)부터 COMPLETED 목표는 CS 완료 경로 소관이라, AS 제외
+    가드 자체를 재는 이 테스트는 메인 단계(시공)로 목표를 옮겼다. 사고 재현 차단이 핵심이다.
+    """
     _login(client, "as_guard_mgr", role="MANAGER")
     as_order = _make_order(status="AS_RECEIVED")
     plain = _make_order(status="DRAWING", stage="DRAWING")
     as_id, plain_id = as_order.id, plain.id
 
+    # 목표는 메인 단계(시공)다 — COMPLETED 목표는 2026-09-21(ADMIN-OVERRIDE-01)부터 CS 완료
+    # 경로로 가므로, AS 제외 가드 자체를 재려면 완료가 아닌 메인 목표로 재야 한다.
     resp = client.post(
         "/api/orders/workflow/stage-override/bulk",
         json={
             "order_ids": [as_id, plain_id],
-            "to_stage": "COMPLETED",
-            "reason": "완료 정리",
+            "to_stage": "CONSTRUCTION",
+            "reason": "시공 단계로 정리",
             "confirm": True,
         },
     )
@@ -93,7 +99,7 @@ def test_bulk_stage_override_excludes_as_orders(client):
 
     db_session.expire_all()
     assert db_session.get(Order, as_id).status == "AS_RECEIVED"  # 사고 재현 차단
-    assert db_session.get(Order, plain_id).status == "COMPLETED"
+    assert db_session.get(Order, plain_id).status == "CONSTRUCTION"
 
 
 def test_bulk_stage_override_all_as_returns_400(client):
@@ -117,14 +123,14 @@ def test_bulk_stage_override_include_as_opt_in(client):
     resp = client.post(
         "/api/orders/workflow/stage-override/bulk",
         json={
-            "order_ids": [as_id], "to_stage": "COMPLETED", "reason": "정말 완료",
+            "order_ids": [as_id], "to_stage": "CONSTRUCTION", "reason": "정말 시공으로",
             "confirm": True, "include_as": True,
         },
     )
     assert resp.status_code == 200, resp.get_json()
     assert resp.get_json()["data"]["updated"] == 1
     db_session.expire_all()
-    assert db_session.get(Order, as_id).status == "COMPLETED"
+    assert db_session.get(Order, as_id).status == "CONSTRUCTION"
 
 
 def test_stage_override_records_previous_status(client):
@@ -134,7 +140,7 @@ def test_stage_override_records_previous_status(client):
 
     resp = client.post(
         f"/api/orders/{as_id}/workflow/stage-override",
-        json={"to_stage": "COMPLETED", "reason": "AS 종결 후 완료", "confirm": True},
+        json={"to_stage": "CONSTRUCTION", "reason": "AS 종결 후 시공 복귀", "confirm": True},
     )
     assert resp.status_code == 200, resp.get_json()
 
@@ -152,7 +158,7 @@ def test_stage_override_records_previous_status(client):
         .one()
     )
     assert log.detail["before"] == "AS_RECEIVED"
-    assert log.detail["after"] == "COMPLETED"
+    assert log.detail["after"] == "CONSTRUCTION"
     assert log.detail["stage_override"] is True
 
 
@@ -197,3 +203,31 @@ def test_bulk_status_api_allows_as_target(client):
     assert resp.get_json()["updated"] == 1
     db_session.expire_all()
     assert db_session.get(Order, as_id).status == "AS_COMPLETED"
+
+
+def test_split_keeps_as_orders_for_as_targets(client):
+    """AS 3종 목표의 일괄 변경은 include_as 없이도 AS overlay 주문을 대상에 넣는다.
+
+    제외 근거가 "AS 표시가 사라진다" 인데 AS 목표는 AS 축 자체를 다루므로 그 사고가
+    성립하지 않는다. 메인 목표에서는 그대로 제외된다(같은 입력으로 재는 음성 대조군).
+    """
+    from foms.api.orders.stage_override_targets import (
+        KIND_AS,
+        KIND_MAIN,
+        split_override_targets,
+    )
+
+    as_order = _make_order(status="AS_COMPLETED")
+    plain = _make_order(status="DRAWING", stage="DRAWING")
+
+    change, skipped, skipped_as = split_override_targets(
+        [as_order, plain], "AS_RECEIVED", KIND_AS,
+    )
+    assert [int(o.id) for o in change] == [int(as_order.id), int(plain.id)]
+    assert skipped == [] and skipped_as == []
+
+    change_main, _, skipped_as_main = split_override_targets(
+        [as_order, plain], "CONSTRUCTION", KIND_MAIN,
+    )
+    assert [int(o.id) for o in change_main] == [int(plain.id)]
+    assert [item["order_id"] for item in skipped_as_main] == [int(as_order.id)]

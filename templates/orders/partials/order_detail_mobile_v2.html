@@ -426,3 +426,9 @@
 {# 퀘스트 승인 CTA 동작은 static/js/foms/erp-quest-approve.js 가 맡는다(큐 카드와 공용).
    예전 인라인 스크립트는 해시만 바꾸는 location.href 로 새로고침을 시도해, 승인이 성공해도
    화면이 그대로이고 버튼이 disabled 로 굳었다. #}
+{# 관리자 강제 진행 재시도(ADMIN-OVERRIDE-01 C8): 시트 include 와 두 스크립트는 반드시 세트다.
+   하나라도 빠지면 재시도가 무음으로 실패한다. #}
+{% include 'partials/shared/foms_reason_sheet.html' %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-reason-sheet.css') }}?v=20260920a">
+<script src="{{ url_for('static', filename='js/foms/foms-reason-sheet.js') }}?v=20260921a" defer></script>
+<script src="{{ url_for('static', filename='js/foms/foms-admin-override.js') }}?v=20260921a" defer></script>

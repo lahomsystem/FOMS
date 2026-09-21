@@ -9,7 +9,7 @@
     '/static/js/orders/dashboard/erp-dashboard-gateway.js',
     '/static/js/orders/dashboard/erp-dashboard-attachments.js',
     '/static/js/orders/dashboard/erp-dashboard-drawing.js?v=20260909a',
-    '/static/js/orders/dashboard/erp-dashboard-quest.js?v=20260920b',
+    '/static/js/orders/dashboard/erp-dashboard-quest.js?v=20260921a',
     '/static/js/orders/dashboard/erp-dashboard-detail-dom.js?v=20260920b',
     '/static/js/orders/dashboard-notifications.js',
     // 태블릿 벌크 선택(프레임 12) — long-press 선택 모드 + contextual bar. 코호트(coarse

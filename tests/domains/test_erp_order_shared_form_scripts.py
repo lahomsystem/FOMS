@@ -70,7 +70,8 @@ def _assert_shared_form_script_contract(body: str) -> None:
     assert "html2canvas.min.js" not in body
     assert "js/orders/erp-channel-push-confirm.js?v=20260821a" in body
     assert "js/cs/as-push-confirm.js?v=20260820a" in body
-    assert "js/orders/erp-order-shared.js?v=20260914a" in body
+    # ADMIN-OVERRIDE-01: 퀘스트 승인 거부에 공통 재시도를 배선했으므로 핀이 올랐다.
+    assert "js/orders/erp-order-shared.js?v=20260921a" in body
     assert "js/cs/as-attachment-order.js?v=20260819a" in body
     assert "js/orders/erp-alimtalk-send.js?v=20260824b" in body
     # T15 발송 흔적: 칩 자리·이력 패널이 실제 렌더에 붙어 있어야 한다(템플릿 계약만으로는
@@ -80,7 +81,12 @@ def _assert_shared_form_script_contract(body: str) -> None:
     assert 'id="erpAlimtalkTraceModal"' in body
     assert "js/orders/erp-share.js?v=20260901b" in body
     assert "css/orders/erp-share.css?v=20260821a" in body
-    assert "js/orders/erp-stage-override.js?v=20260825a" in body
+    assert "js/orders/erp-stage-override.js?v=20260921a" in body
+    # ADMIN-OVERRIDE-01 C8: 관리자 강제 진행 재시도는 사유 시트가 있어야 동작한다.
+    # 시트 include 와 두 스크립트는 세트여야 하고, 하나라도 빠지면 무음 실패다.
+    assert "data-foms-reason-sheet" in body
+    assert "js/foms/foms-reason-sheet.js?v=20260921a" in body
+    assert "js/foms/foms-admin-override.js?v=20260921a" in body
     assert "erp_stage_override_modal.html" not in body  # include renders modal markup, not path
     assert 'id="erpStageOverrideModal"' in body
     assert 'id="asPushConfirmModal"' in body

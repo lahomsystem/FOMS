@@ -18,6 +18,24 @@ function renderBadges(alerts) {
           if (btn) btn.disabled = true;
           return true;
         }
+        /**
+         * 업무 게이트 거부를 관리자 강제 진행으로 한 번만 다시 보낸다(ADMIN-OVERRIDE-01).
+         * 뚫렸으면 새 응답을, 아니면 null 을 돌려주고 호출부가 원래 오류를 띄운다.
+         */
+        async function punchQuestApprove(orderId, body, data) {
+          const ctl = window.FomsAdminOverride;
+          if (!ctl || typeof ctl.retry !== 'function') return null;
+          const again = await ctl.retry({
+            url: `/api/orders/${orderId}/quest/approve`,
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: body,
+            code: (data && data.code) || '',
+            message: (data && (data.message || data.error)) || ''
+          });
+          return (again && again.ok && again.data && again.data.success) ? again.data : null;
+        }
+
         function failQuestApprove(btn, data) {
           if (btn) btn.disabled = false;
           const detail = data && data.code ? ' (' + data.code + ')' : '';
@@ -32,11 +50,15 @@ function renderBadges(alerts) {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ team: team })
             });
-            const data = await res.json();
+            let data = await res.json();
 
             if (!data.success) {
-              failQuestApprove(btn, data);
-              return;
+              const punched = await punchQuestApprove(orderId, { team: team }, data);
+              if (!punched) {
+                failQuestApprove(btn, data);
+                return;
+              }
+              data = punched;
             }
 
             if (window.FOMS_ERP_SHELL && typeof window.FOMS_ERP_SHELL.invalidatePrimaryNavFragmentCache === 'function') {
@@ -76,11 +98,15 @@ function renderBadges(alerts) {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({})
             });
-            const data = await res.json();
+            let data = await res.json();
 
             if (!data.success) {
-              failQuestApprove(btn, data);
-              return;
+              const punched = await punchQuestApprove(orderId, {}, data);
+              if (!punched) {
+                failQuestApprove(btn, data);
+                return;
+              }
+              data = punched;
             }
 
             if (window.FOMS_ERP_SHELL && typeof window.FOMS_ERP_SHELL.invalidatePrimaryNavFragmentCache === 'function') {
