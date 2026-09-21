@@ -3520,12 +3520,15 @@ ${escapeHtml(sub)}</div>` : ''}`;
                     bootstrap.Modal.getInstance(modalEl)?.hide();
                     erpSetStatus('AS 접수 저장 중...');
 
-                    const saveResult = await erpSaveStructured({
-                        redirect: true,
-                        redirectUrl: '/erp/as',
-                    });
-                    if (!saveResult || saveResult.success !== true) {
-                        window.location.href = '/erp/as';
+                    // 2026-09-21 사용자 결정: 접수 뒤 AS 탭으로 나가지 않는다. 접수 직후
+                    // 이 화면에서 AS 푸시(알림톡·PUSH)를 이어서 하므로, 저장만 하고
+                    // 'AS 등록 완료' 를 띄운 채 ERP Order 에 머문다. 저장 실패도 화면을
+                    // 떠나지 않고 상태줄로 말한다(자동 이동은 실패를 삼켰다).
+                    const saveResult = await erpSaveStructured({ redirect: false });
+                    if (saveResult && saveResult.success === true) {
+                        erpSetStatus('AS 등록 완료');
+                    } else {
+                        erpSetStatus('AS 접수는 등록됐지만 주문 저장에 실패했습니다. 저장을 다시 눌러 주세요.');
                     }
                 } catch (e) {
                     console.error(e);
