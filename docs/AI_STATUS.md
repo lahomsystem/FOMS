@@ -1,7 +1,7 @@
 # FOMS 현재 상태
 > 자동 업데이트: 2026-09-22
-> 최신: **모바일 주문 삭제 운영 반영(PR #411 · production `3d09e1a38`)** — ⋯ 메뉴 → 확인 시트(사유 칩·길게 눌러 1.5초) → 5초 되돌리기. 정책 `ORDER_SOFT_DELETE`. 스펙 `docs/plans/2026-09-22-mobile-order-delete-spec.md`
-> 직전: **관리자는 모든 단계를 바꿀 수 있다(deploy 대기)** — 강제 변경 목표에 AS 3종·삭제 추가(AS 는 AS 축 명령으로, 삭제는 휴지통 경유 복구 가능), 일반 화면 역행·건너뛰기·완료도 관리자면 통과. 뚫기는 본문 `admin_override`+사유 필수이고 `ADMIN_OVERRIDE_USED` 1행과 "관리자 강제 진행" 라벨이 남는다. **권한 축만 푼다** — If-Match·잠금 아래 expected_from·to_values·중복 발급은 그대로. 완료는 한 길(`cs_complete_service`)로 모았다. 원장 `docs/plans/2026-09-21-admin-full-stage-control-ledger.md`
+> 최신: **deploy 전체 운영 승격(PR #414 · production `7ac1ee0e0`)** — 도면 전달이 실측완료 표시까지 켠다(quest 전이와 같은 tx, 지방·자가실측만). 두 브랜치 트리 동일. 백필 대상 0건. 스펙 `docs/plans/2026-09-22-drawing-transfer-marks-measurement-complete-spec.md`
+> 직전: **모바일 주문 삭제 운영 반영(PR #411 · production `3d09e1a38`)** — ⋯ 메뉴 → 확인 시트(사유 칩·길게 눌러 1.5초) → 5초 되돌리기. 정책 `ORDER_SOFT_DELETE`
 > 이 파일 상단 40줄이 세션 시작 컨텍스트의 전부다(hygiene 계약으로 강제). 상세 이력은 "## 최근 완료"·"## 기록 보관".
 
 
@@ -12,7 +12,6 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 ## 진행 중
 - [2026-09-22] **시공일 지난 적체 주문 일괄 완료 — 운영 적용 완료(413건)** — 1차(+7일) 413 + 2차(시공일<오늘, 사용자 수동 시공일 입력 뒤) 174 = 587건. 실측 858→237 · 도면 101→48 · 완료 1451→2038. AS 탭 건 143 은 stage 만(AS 축 지문 두 차례 모두 적용 전후 동일 · AS 탭 불변). 스냅샷 `C:/tmp/foms-backlog-complete-20260922/`(rollback 가능). 잔여: 시공일 없는 건 CSV 영업 검토. 스펙 `docs/plans/2026-09-22-past-construction-bulk-complete-spec.md`
 - [2026-09-20] **고객 컨펌 승인 → 생산 단계 자동 이동 + 생산 보드 run 축 + 모바일 동기화(deploy 대기)** — 승인 완료 판정을 `check_quest_approvals_complete` 하나로(담당자 승인을 생산 게이트가 못 읽어 409). 제작 시작 = run 발급, 제작 취소 = run 종결. 원장 `docs/plans/2026-09-17-confirm-to-production-workflow-ledger.md`
-- [2026-09-14] **실측 보드 도면 전달 버튼** — `docs/plans/2026-09-14-measure-to-drawing-transfer-ledger.md`
 - [2026-09-13] **네이버 주문 마크 — 고객 이름 옆(deploy 대기)** — 판정 축은 출처(`source == SOURCE_MARKER`), `naver_linked` 아님. 대시보드 코호트 6곳 전수. 원장 `docs/plans/2026-09-13-naver-channel-mark-impl-brief.md`
 - [2026-09-13] **도면 모바일 제보 3건 수정(deploy 대기)** — 근거 `docs/plans/2026-09-13-drawing-mobile-change-line-fixes-brief.md`. 잔여: 실기기 확인
 - [2026-09-12] **도면 주문 변경 UI 재설계(운영 반영 PR #366)** — 근거 `docs/plans/2026-09-11-drawing-mobile-order-change-brief.md`. 잔여: 스테이징 실화면 확인

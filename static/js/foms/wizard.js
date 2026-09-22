@@ -1161,32 +1161,6 @@
 
     var draftKey = root.getAttribute("data-draft-key") || "";
 
-    // 빠른 시작 시트(아이폰)에서 적어 온 고객명. 주소창에 남기지 않으려고 세션 저장소로
-    // 건너온다(static/js/foms/wizard-quickstart.js). 한 번 쓰고 지운다.
-    var quickstartName = "";
-    try {
-      quickstartName = String(window.sessionStorage.getItem("foms-wizard-quickstart-name") || "").trim();
-      if (quickstartName) window.sessionStorage.removeItem("foms-wizard-quickstart-name");
-    } catch (e) {
-      quickstartName = "";
-    }
-
-    /**
-     * 빠른 시작에서 받아 온 고객명을 채운다.
-     *
-     * 초안 복구(onRecovered)가 나중에 payload 를 덮어쓸 수 있어서, 그 뒤에도 한 번 더
-     * 부른다 — 방금 사람이 친 이름이 옛 초안 값에 밀리면 안 된다.
-     * @returns {void}
-     */
-    function applyQuickstartName() {
-      if (!quickstartName) return;
-      var nameEl = root.querySelector("#wiz-customer-name");
-      if (!nameEl) return;
-      if (String(nameEl.value || "").trim() === quickstartName) return;
-      nameEl.value = quickstartName;
-      nameEl.dispatchEvent(new Event("input", { bubbles: true }));
-    }
-
     var draftClient = new window.FomsDraftClient(root, {
       getStep: function () {
         return currentStep;
@@ -1209,7 +1183,6 @@
           currentStep = payload.step;
           setStep(root, currentStep);
         }
-        applyQuickstartName();
       },
     });
 
@@ -1232,7 +1205,6 @@
     if (!isIosLike()) {
       focusStepFirstField(root, currentStep);
     }
-    applyQuickstartName();
 
     if (window.FomsWizardAttachments) {
       window.FomsWizardAttachments.bindAll(root, draftKey, function () {
