@@ -194,6 +194,11 @@ CLAIM_STATUS_LABELS = {
     "CANCEL_REQUESTED": "취소 요청",
     "CANCELING": "취소 처리중",
     "CANCEL_DONE": "취소 완료",
+    # 직권취소(2026-09-22). 구매확정 뒤에는 구매자가 반품을 신청할 수 없어, 판매자센터
+    # [판매관리 > 구매확정 내역]의 '구매확정 후 취소처리'가 이 값으로 돌아온다
+    # (claimType ``ADMIN_CANCEL`` · claimStatus ``ADMIN_CANCEL_DONE``, 공식 답변 #2028·#2168).
+    # 이 값을 모르던 동안 운영 12건이 **살아 있는 결제**로 읽혔다.
+    "ADMIN_CANCEL_DONE": "직권취소 완료",
     "CANCEL_REJECT": "취소 거부",
     "RETURN_REQUEST": "반품 요청",
     "RETURN_REQUESTED": "반품 요청",
@@ -512,7 +517,7 @@ def _first_text(blocks: list[dict], *keys: str) -> str:
 #: **여기 넣는 값은 반드시 ``CLAIM_STATUS_LABELS`` 에도 넣는다** — 차단은 되는데 라벨이
 #: 없으면 배지에 영문 상수가 뜨고, 담당자가 왜 잠겼는지 화면에서 못 읽는다(T8-S0).
 BLOCKING_CLAIM_STATUSES = frozenset({
-    "CANCEL_REQUEST", "CANCEL_REQUESTED", "CANCELING", "CANCEL_DONE",
+    "CANCEL_REQUEST", "CANCEL_REQUESTED", "CANCELING", "CANCEL_DONE", "ADMIN_CANCEL_DONE",
     "RETURN_REQUEST", "RETURN_REQUESTED", "RETURN_DONE", "COLLECTING", "COLLECT_DONE",
 })
 
@@ -545,6 +550,9 @@ CLAIM_PHASES = {
     "COLLECTING": CLAIM_PHASE_PROGRESS,
     "COLLECT_DONE": CLAIM_PHASE_PROGRESS,
     "CANCEL_DONE": CLAIM_PHASE_DONE,
+    # 직권취소는 **확정**이다 — 부분 수량 취소가 없고(공식 답변 #2028: "구매확정된 수량,
+    # 금액에 맞춰 취소") 되돌리는 절차도 없다.
+    "ADMIN_CANCEL_DONE": CLAIM_PHASE_DONE,
     "RETURN_DONE": CLAIM_PHASE_DONE,
     "EXCHANGE_DONE": CLAIM_PHASE_DONE,
     "CANCEL_REJECT": CLAIM_PHASE_REJECTED,
@@ -558,11 +566,19 @@ CLAIM_PHASES = {
 #: ``COLLECTING``·``COLLECT_DONE`` 은 ``RETURN`` 으로 시작하지 않는다 — 접두어만 보면
 #: 수거 단계 반품이 종류 미상으로 떨어진다(그 실수가 유령 목록에 아직 남아 있다).
 _CLAIM_KIND_PREFIXES = (
+    # 직권취소(``ADMIN_CANCEL_DONE``)를 **먼저** 본다 — 뒤에 두면 어느 접두어에도 안 걸려
+    # 종류 미상이 되고, 확정 취소가 "살아 있는 결제"로 읽힌다(2026-09-22).
+    ("ADMIN_CANCEL", "CANCEL"),
     ("CANCEL", "CANCEL"),
     ("RETURN", "RETURN"),
     ("COLLECT", "RETURN"),
     ("EXCHANGE", "EXCHANGE"),
 )
+
+
+#: 네이버 ``claimType`` 별칭 → 우리가 쓰는 종류. 읽기 전용 축이다(쓰기 enum 이 아니다 —
+#: 우리가 보낼 수 있는 코드는 ``OFFICIAL_CANCEL_REASONS`` 쪽이 따로 잠근다).
+CLAIM_KIND_ALIASES = {"ADMIN_CANCEL": "CANCEL"}
 
 
 def claim_kind(claim: dict) -> str:
@@ -585,6 +601,11 @@ def claim_kind(claim: dict) -> str:
     kind = (claim.get("type") or "").strip().upper()
     if kind in ("CANCEL", "RETURN", "EXCHANGE"):
         return kind
+    # 네이버는 구매확정 뒤 취소를 **다른 종류 이름**으로 준다(``ADMIN_CANCEL`` = 직권 취소,
+    # 공식 답변 #2028). 돈이 돌아가는 축은 취소와 같으므로 여기서 취소로 접는다 —
+    # 접지 않으면 ``MONEY_BACK_CLAIM_KINDS`` 밖이라 확정 취소가 "살아 있는 결제"로 읽힌다.
+    if kind in CLAIM_KIND_ALIASES:
+        return CLAIM_KIND_ALIASES[kind]
     status = (claim.get("status") or "").strip().upper()
     for prefix, resolved in _CLAIM_KIND_PREFIXES:
         if status.startswith(prefix):
