@@ -1,6 +1,6 @@
 # Spec — 시공일 지난 적체 주문 일괄 완료 처리 (2026-09-22)
 
-> 상태: **구현 완료 · 스테이징 리허설 통과(2026-09-22)** · 운영 apply 는 사용자 승인 대기.
+> 상태: **운영 적용 완료(2026-09-22, 사용자 승인)** — plan 413 = main 299 + as_stage_only 114(제외 draft 1 · stage_not_main 63), applied 413 · stale 0. 실측 858→478 · 도면 101→69 · 완료 1451→1864. AS 지문 `ec71af89e29f8010` 적용 전후 동일, AS 탭 659/46 불변. 행위자 id57(claude_master). 옛 시공일 표식 5건(#4662·#4664·#5299·#5349·#5352) 포함 적용. 스냅샷·plan 사본 `C:/tmp/foms-backlog-complete-20260922/` + 세션 스크래치패드.
 > 도구 `tools/ops/bulk_complete_past_construction.py`(CLI) + `_core.py`(판정·행 단위 쓰기, 500줄 래칫 분리) · 테스트 `tests/domains/test_bulk_complete_past_construction_plan.py`(순수 8) + `tests/postgres/test_bulk_complete_past_construction_pg.py`(PG 레인 2).
 > 배경: 도면 단계까지 도면팀·영업팀이 실사용을 시작한다. 실측 853·도면 100 타일에
 > 이미 끝난 주문이 섞여 있어 "진짜 도면을 만들어야 하는 건"이 안 보인다.

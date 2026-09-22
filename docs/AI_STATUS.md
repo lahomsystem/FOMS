@@ -10,7 +10,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
-- [2026-09-22] **시공일 지난 적체 주문 일괄 완료 도구(plan/apply/rollback)** — 실측 853·도면 100 안의 끝난 주문 정리. AS 탭 건은 status·AS 축 불변, stage 만 COMPLETED(2026-08-14 사고 방지). 스테이징 217건 apply→rollback 왕복 일치. 잔여: **운영 apply 사용자 승인**(후보 401 = main 289 + AS 112, 행위자 ADMIN id 지정). 스펙 `docs/plans/2026-09-22-past-construction-bulk-complete-spec.md`
+- [2026-09-22] **시공일 지난 적체 주문 일괄 완료 — 운영 적용 완료(413건)** — 실측 858→478 · 도면 101→69 · 완료 1451→1864. AS 탭 건 114 는 stage 만(status·AS 축 지문 `ec71af89e29f8010` 적용 전후 동일 · AS 탭 659/46 불변). 행위자 id57, 스냅샷 `C:/tmp/foms-backlog-complete-20260922/`(rollback 가능). 잔여: 시공일 없는 실측 306 CSV 영업 검토 · 운영 화면 확인. 스펙 `docs/plans/2026-09-22-past-construction-bulk-complete-spec.md`
 - [2026-09-20] **고객 컨펌 승인 → 생산 단계 자동 이동 + 생산 보드 run 축 + 모바일 동기화(deploy 대기)** — 승인 완료 판정을 `check_quest_approvals_complete` 하나로(담당자 승인을 생산 게이트가 못 읽어 409). 제작 시작 = run 발급, 제작 취소 = run 종결. 원장 `docs/plans/2026-09-17-confirm-to-production-workflow-ledger.md`
 - [2026-09-14] **실측 보드 도면 전달 버튼** — `docs/plans/2026-09-14-measure-to-drawing-transfer-ledger.md`
 - [2026-09-13] **네이버 주문 마크 — 고객 이름 옆(deploy 대기)** — 판정 축은 출처(`source == SOURCE_MARKER`), `naver_linked` 아님. 대시보드 코호트 6곳 전수. 원장 `docs/plans/2026-09-13-naver-channel-mark-impl-brief.md`
