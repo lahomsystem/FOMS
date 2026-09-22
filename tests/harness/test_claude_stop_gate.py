@@ -111,6 +111,11 @@ def test_pending_import_failure_blocks(tmp_path: Path, monkeypatch, capsys) -> N
     assert "STOP GATE" in captured.err
     assert "foms/api/broken.py" in captured.err
     assert pending.exists(), "pending should be retained after a failed gate"
+    # 차단은 stderr 뿐 아니라 CLAUDE_HOOK_LOG 에도 남아야 실효를 나중에 셀 수 있다(ablation v2 H-37).
+    log_file = tmp_path / "logs" / "CLAUDE_HOOK_LOG.md"
+    assert log_file.exists(), "차단이 로그에 기록되지 않았다"
+    text = log_file.read_text(encoding="utf-8")
+    assert "차단" in text and "foms/api/broken.py" in text
 
 
 def test_pending_timeout_is_fail_open(tmp_path: Path, monkeypatch) -> None:

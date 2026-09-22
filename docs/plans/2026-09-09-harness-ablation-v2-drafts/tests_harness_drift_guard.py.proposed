@@ -1,0 +1,137 @@
+"""하네스 드리프트 가드 (ablation v2 2026-09-09 초안).
+
+ablation 판정이 플러그인 업데이트·메모리 증식·규칙 복제로 되돌아가는 것을 코드로 막는다.
+`tests/harness/test_harness_drift_guard.py` 로 옮겨 pre_push_smoke 서브셋에 등재한다.
+기준값(상한·ratchet)은 적용 시점 실측으로 고정한다 — 아래 숫자는 초안 값이다.
+"""
+from __future__ import annotations
+
+import json
+import os
+import re
+import subprocess
+from pathlib import Path
+
+import pytest
+
+REPO = Path(__file__).resolve().parents[2]
+HOME = Path(os.path.expanduser("~"))
+CLAUDE_HOME = HOME / ".claude"
+
+CLAUDE_MD_MAX_LINES = 45
+GLOBAL_CLAUDE_MD_MAX_LINES = 8
+MEMORY_INDEX_MAX_LINES = 60
+INLINE_STYLE_RATCHET = 828  # 2026-09-09 실측(templates+static 의 style=" 개수). 적용 시점에 다시 재고 고정한다
+DUP_MIN_CHARS = 40
+
+
+def _read(p: Path) -> str:
+    """UTF-8 로 읽는다(cp949 함정 회피)."""
+    return p.read_text(encoding="utf-8")
+
+
+def test_superpowers_plugin_hook_disabled() -> None:
+    """superpowers SessionStart 훅이 다시 살아나면 red — 2026-08-03 결정이 6.3.0 업데이트로 되돌아간 사고 재발 방지."""
+    settings = json.loads(_read(CLAUDE_HOME / "settings.json"))
+    enabled = settings.get("enabledPlugins", {}).get("superpowers@claude-plugins-official")
+    if enabled is False:
+        return
+    hooks = list((CLAUDE_HOME / "plugins" / "cache" / "claude-plugins-official" / "superpowers").glob("*/hooks/hooks.json"))
+    for h in hooks:
+        data = json.loads(_read(h))
+        assert not data.get("hooks", {}).get("SessionStart"), (
+            f"superpowers SessionStart 훅이 활성이다: {h} — 플러그인을 끄거나 hooks.json 을 비워라"
+        )
+
+
+def test_project_claude_md_line_budget() -> None:
+    """프로젝트 CLAUDE.md 줄 수 상한 — 상시 로드 텍스트 재증식 방지."""
+    n = _read(REPO / "CLAUDE.md").count("\n") + 1
+    assert n <= CLAUDE_MD_MAX_LINES, f"CLAUDE.md {n}줄 > {CLAUDE_MD_MAX_LINES}"
+
+
+def test_global_claude_md_line_budget() -> None:
+    """전역 CLAUDE.md 는 프로젝트 무관 취향만 — 위임·검증 절차 복제 재유입 방지."""
+    p = CLAUDE_HOME / "CLAUDE.md"
+    if not p.exists():
+        return
+    n = _read(p).count("\n") + 1
+    assert n <= GLOBAL_CLAUDE_MD_MAX_LINES, f"전역 CLAUDE.md {n}줄 > {GLOBAL_CLAUDE_MD_MAX_LINES}"
+
+
+def test_memory_index_line_budget() -> None:
+    """MEMORY.md 색인 상한 — 세션마다 통째로 로드되는 파일."""
+    p = CLAUDE_HOME / "projects" / "c--DEV-FOMS" / "memory" / "MEMORY.md"
+    if not p.exists():
+        return
+    n = _read(p).count("\n") + 1
+    assert n <= MEMORY_INDEX_MAX_LINES, f"MEMORY.md {n}줄 > {MEMORY_INDEX_MAX_LINES} — 유도 가능·만료 항목을 지워라"
+
+
+def test_no_duplicate_policy_lines_between_claude_and_agents() -> None:
+    """같은 정책 문장이 CLAUDE.md 와 AGENTS.md 양쪽에 있으면 red — 자구 동일 허용 목록(APP_OK·claude_master)만 예외."""
+    allow = {"APP_OK", "claude_master"}
+    def lines(p: Path) -> set[str]:
+        out = set()
+        for ln in _read(p).splitlines():
+            s = re.sub(r"\s+", " ", ln.strip("-* \t"))
+            if len(s) >= DUP_MIN_CHARS and not any(k in s for k in allow):
+                out.add(s)
+        return out
+    dup = lines(REPO / "CLAUDE.md") & lines(REPO / "AGENTS.md")
+    assert not dup, "CLAUDE.md↔AGENTS.md 중복 문장:\n" + "\n".join(sorted(dup))
+
+
+def test_atomic_facts_identical_in_both_files() -> None:
+    """두 소비자(Claude / Codex·Cursor)가 각각 읽는 원자 사실은 자구가 같아야 한다."""
+    c = _read(REPO / "CLAUDE.md")
+    a = _read(REPO / "AGENTS.md")
+    for token in ("APP_OK", "claude_master", "CLAUDE-TEST-"):
+        assert token in c and token in a, f"원자 사실 {token} 이 한쪽 파일에 없다"
+
+
+def test_claude_md_paths_exist() -> None:
+    """CLAUDE.md 가 가리키는 경로가 실존해야 한다 — `apps/api/` 류 유령 경로 재발 방지."""
+    text = _read(REPO / "CLAUDE.md")
+    missing = []
+    for m in re.finditer(r"`((?:[\w.-]+/)+[\w.-]*|[\w-]+\.(?:py|md|json|ps1|css|js))`", text):
+        raw = m.group(1).rstrip("/")
+        if raw.startswith(("http", "~", "<")) or "*" in raw:
+            continue
+        if not (REPO / raw).exists():
+            missing.append(raw)
+    assert not missing, f"CLAUDE.md 가 가리키는 없는 경로: {missing}"
+
+
+def test_mcp_servers_match_claude_md() -> None:
+    """CLAUDE.md 의 MCP 정본 서술과 .mcp.json 실제 서버 집합이 같아야 한다."""
+    servers = set(json.loads(_read(REPO / ".mcp.json"))["mcpServers"].keys())
+    text = _read(REPO / "CLAUDE.md")
+    m = re.search(r"\.mcp\.json`\(([^)]*)\)", text)
+    assert m, "CLAUDE.md 에 `.mcp.json`(서버 목록) 서술이 없다"
+    stated = {s.strip() for s in re.split(r"[·,]", m.group(1)) if s.strip()}
+    assert stated == servers, f"CLAUDE.md {stated} != .mcp.json {servers}"
+
+
+def test_inline_style_ratchet() -> None:
+    """템플릿·정적 파일의 inline style 개수는 기준값보다 늘 수 없다(줄어들면 기준값을 낮춘다)."""
+    count = 0
+    for base in ("templates", "static"):
+        for p in (REPO / base).rglob("*"):
+            if p.suffix in {".html", ".js"} and p.is_file():
+                count += _read(p).count('style="')
+    assert count <= INLINE_STYLE_RATCHET, (
+        f"inline style {count} > 기준 {INLINE_STYLE_RATCHET} — erp-pro.css 로 옮겨라"
+    )
+
+
+def test_guard_tests_do_not_write_live_log(tmp_path: Path) -> None:
+    """가드 훅 테스트가 실 SHELL_GUARD_LOG 에 쓰면 red — 로그 경로 env 주입이 살아 있는지 확인."""
+    live = REPO / "docs" / "harness" / "logs" / "SHELL_GUARD_LOG.md"
+    before = live.stat().st_size if live.exists() else 0
+    env = dict(os.environ, FOMS_HARNESS_LOG_DIR=str(tmp_path), CLAUDE_PROJECT_DIR=str(REPO))
+    payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": "git push --force origin production"}})
+    subprocess.run(["python", str(REPO / ".claude" / "hooks" / "guard_shell.py")], input=payload.encode(), capture_output=True, env=env, cwd=REPO, timeout=30)
+    after = live.stat().st_size if live.exists() else 0
+    assert after == before, "가드 훅이 env 로그 경로를 무시하고 실 로그에 썼다"
+    assert any(tmp_path.iterdir()), "가드 훅이 주입된 로그 경로에 아무것도 쓰지 않았다"

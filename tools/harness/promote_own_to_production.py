@@ -66,6 +66,23 @@ def _ordered_promote_shas(project_root: str, own: Sequence[str]) -> list[str]:
     return [s for s in range_shas if sha_in_list(s, own_list)]
 
 
+def _count_range(worktree: str, base_ref: str) -> int:
+    """`base_ref..HEAD` 커밋 수 — cherry-pick 결과가 요청 SHA 수와 같은지 대조하는 데 쓴다.
+
+    파라미터:
+        worktree: 승격 worktree 경로.
+        base_ref: production 정본 ref.
+    반환: 커밋 수. 조회 실패는 -1(불일치로 취급돼 안전측 정지).
+    """
+    proc = _run(worktree, "git", "rev-list", "--count", f"{base_ref}..HEAD", check=False)
+    if proc.returncode != 0:
+        return -1
+    try:
+        return int((proc.stdout or "").strip() or "0")
+    except ValueError:
+        return -1
+
+
 def promote_own_commits(
     project_root: str,
     shas: Sequence[str],
@@ -182,6 +199,19 @@ def promote_own_commits(
                 if not keep_on_error:
                     _cleanup(project_root, wt, branch)
                 return 3
+
+        # 승격 범위 대조(ablation v2 §6): worktree 에 얹힌 커밋 수가 요청 SHA 수와 다르면
+        # 타 세션 커밋 혼입·누락 신호 — PR 을 열지 않고 충돌과 같은 등급으로 멈춘다.
+        applied = _count_range(wt, base_ref)
+        if applied != len(ordered):
+            print(
+                f"승격 범위 불일치: worktree 에 {applied}개 커밋, 요청 {len(ordered)}개 — "
+                f"타 세션 커밋 혼입/누락 의심. worktree 보존: {wt}",
+                file=sys.stderr,
+            )
+            if not keep_on_error:
+                _cleanup(project_root, wt, branch)
+            return 3
 
         push = _run(
             wt,

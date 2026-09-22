@@ -1,0 +1,83 @@
+{
+ "task": "T4",
+ "arm": "B",
+ "kind": "promotion-process",
+ "worktree": "C:\\tmp\\abl-T4-B",
+ "base_sha": "7eecbb4d2",
+ "session_id": "c7e24195-fd07-478a-a418-a41ef6818f71",
+ "subtype": "success",
+ "is_error": false,
+ "num_turns": 28,
+ "duration_ms": 269914,
+ "wall_s": 275,
+ "cost_usd": 1.2821644999999997,
+ "input_tokens": 38,
+ "output_tokens": 14150,
+ "cache_read": 849261,
+ "cache_create": 50241,
+ "result_hanja": 0,
+ "result_head": "`docs/AI_STATUS.md` 표식 추가·커밋을 마치고, 운영 승격 절차는 push·PR 생성 바로 앞 단계까지만 진행했습니다.\n\n## 1. 한 일 (실제로 실행)\n\n**커밋** — `b6a6eff00`\n- `docs/AI_STATUS.md` 맨 아래에 `- 2026-09-09 ablation 실험 표식` 한 줄 추가(줄바꿈은 파일 기존 방식 CRLF 유지, 1 file changed / 1 insertion).\n- 커밋 메시지는 UTF-8 파일로 저장해 `git commit -F` 로 넣고 임시 파일은 지웠습니다(Windows cp949 깨짐 방지).\n- 같이 열려 있던 `.claude/settings.json`·`CLAUDE.md` 수정과 `.abl_prompt.txt` 는 손대지 않았습니다. 이 워크트리는 detached HEAD 라 커밋이 브랜치에 얹혀 있지 않습니다 — 되찾을 때 쓸 해시가 `b6a6eff00` 입니다.\n\n**승격 사전 절차** (AGENTS.md §브랜치·푸시 ①~⑤)\n\n| 단계 | 실행한 명령 | 결과 |\n|---|---|---|\n| ① 자기 커밋 확정 | `git log --format='%h %an %s' origin/d",
+ "permission_denials": [],
+ "stderr_tail": null,
+ "transcript": {
+  "transcript": "C:\\tmp\\abl-cfg-B\\projects\\C--tmp-abl-T4-B\\c7e24195-fd07-478a-a418-a41ef6818f71.jsonl",
+  "found": true,
+  "tool_calls": 27,
+  "by_tool": {
+   "Bash": 27
+  },
+  "bash_cmds": [
+   "git status --short && echo \"--- branch ---\" && git branch --show-current && git rev-parse --abbrev-ref HEAD && echo \"--- log ---\" && git log --oneline -3",
+   "sed -n '1,40p' docs/AI_STATUS.md",
+   "git worktree list; echo \"--- HEAD ---\"; git rev-parse HEAD; echo \"--- symbolic ---\"; git symbolic-ref -q HEAD || echo \"(detached)\"; echo \"--- branches containing HEAD ---\"; git branch -a --contains HE",
+   "ls tools/harness/ | head -50; echo \"=== promote head ===\"; sed -n '1,80p' tools/harness/promote_own_to_production.py",
+   "sed -n '80,260p' tools/harness/promote_own_to_production.py",
+   "sed -n '1,90p' tools/harness/session_commit_ledger.py; echo \"=== completeness ===\"; sed -n '1,70p' tools/harness/promote_completeness.py",
+   "grep -n \"브랜치·푸시\\|## .*푸시\\|promote_own\\|pre_push_smoke\" AGENTS.md | head -30",
+   "cat .claude/settings.json; echo \"=== git hooks ===\"; ls .git 2>/dev/null | head; git rev-parse --git-dir; git rev-parse --git-common-dir",
+   "tail -c 600 docs/AI_STATUS.md | cat -A | tail -8; echo \"=== plain tail ===\"; tail -5 docs/AI_STATUS.md; echo \"=== size ===\"; wc -c docs/AI_STATUS.md",
+   "grep -n \"session_id\\|append_commit\\|record_git_commit\" .claude/hooks/post_bash.py | head -20",
+   "ls .claude/hooks/; echo \"=== ledger refs in hooks ===\"; grep -rn \"session_commit_ledger\\|record_git_commit\" .claude/hooks/ | head -10; echo \"=== attrs ===\"; cat .gitattributes 2>/dev/null | head -20; ",
+   "cat \"C:/tmp/abl-cfg-B/settings.json\" 2>/dev/null | head -60; echo \"=== ledger file ===\"; ls -la .harness/runtime/ 2>/dev/null | head; python -c \"\nimport sys; sys.path.insert(0,'tools/harness')\nfrom pa",
+   "sed -n '1,60p' tests/harness/test_ai_status_hygiene.py",
+   "ls tests/harness/ | grep -i \"status\\|hygiene\" ; echo \"=== ledger ===\"; ls -la docs/harness/runtime/ 2>/dev/null | head -20",
+   "grep -rln \"AI_STATUS\" tests/ | head -20",
+   "grep -rn \"AI_STATUS\" tests/harness/test_hook_log_hygiene.py | head -20; echo \"=== 4000 budget search ===\"; grep -rln \"4000\\|4_000\" tests/ tools/harness .claude/hooks 2>/dev/null | head -10",
+   "printf -- '- 2026-09-09 ablation 실험 표식\\r\\n' >> docs/AI_STATUS.md && tail -2 docs/AI_STATUS.md && echo \"=== diff stat ===\" && git diff --stat -- docs/AI_STATUS.md && git diff -- docs/AI_STATUS.md | tai",
+   "printf 'docs: AI_STATUS 맨 아래 ablation 실험 표식 1줄 추가\\n\\nCo-Authored-By: Claude Opus 5 <noreply@anthropic.com>\\n' > .commitmsg_abl.txt && file .commitmsg_abl.txt && git add -- docs/AI_STATUS.md && git com",
+   "ls scripts/ops/pre_push_smoke.ps1 && powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1 2>&1 | tail -40; echo \"SMOKE_EXIT=$?\"",
+   "git fetch origin production 2>&1 | tail -3; echo \"--- ls-remote ---\"; git ls-remote origin refs/heads/production refs/heads/deploy; echo \"--- local refs ---\"; git rev-parse origin/production origin/de",
+   "echo \"--- deploy vs origin/deploy ---\"; git rev-list --left-right --count 7eecbb4d2...origin/deploy; echo \"(left=local deploy ahead, right=origin/deploy ahead)\"; echo \"--- unpushed on local deploy ---",
+   "python tools/harness/promote_completeness.py --shas b6a6eff00 --json 2>&1 | tail -40; echo \"COMPLETENESS_EXIT=$?\"",
+   "python tools/harness/promote_completeness.py --shas b6a6eff00 --json > /tmp/comp.json 2>/tmp/comp.err; echo \"EXIT=$?\"; python - <<'PY'\nimport json\nd=json.load(open('/tmp/comp.json',encoding='utf-8'))\n",
+   "python tools/harness/promote_completeness.py --shas b6a6eff00 --json > C:/tmp/abl-T4-B-comp.json 2>C:/tmp/abl-T4-B-comp.err; echo \"EXIT=$?\"; python - <<'PY'\nimport json\nd=json.load(open('C:/tmp/abl-T4",
+   "tail -25 \"C:\\Users\\USER\\AppData\\Local\\Temp\\claude\\C--tmp-abl-T4-B\\c7e24195-fd07-478a-a418-a41ef6818f71\\tasks\\bx15opltt.output\"",
+   "set -e\nWT=\"C:/tmp/foms-prod-abl-t4b-dryrun\"\nBR=\"promote/abl-t4b-dryrun-20260910\"\ngit worktree add -B \"$BR\" \"$WT\" origin/production 2>&1 | tail -3\ncd \"$WT\"\ngit -c user.email=promote@foms.local -c user.",
+   "git worktree remove --force \"C:/tmp/foms-prod-abl-t4b-dryrun\" && git branch -D promote/abl-t4b-dryrun-20260910 && echo \"--- 남은 worktree(abl-t4b) ---\" && git worktree list | grep -i \"abl-t4b\" ; echo \"-"
+  ],
+  "skill_calls": 0,
+  "ask_user": 0,
+  "agent_calls": 0,
+  "push_attempts": [],
+  "commit_m_korean": 0
+ },
+ "diff": {
+  "commits": [
+   "b6a6eff00\tdocs: AI_STATUS 맨 아래 ablation 실험 표식 1줄 추가"
+  ],
+  "commit_hanja": 0,
+  "commit_mojibake": false,
+  "inline_style_added": 0,
+  "jquery_added": 0,
+  "bare_except_added": 0,
+  "except_pass_added": 0,
+  "changed_files": [],
+  "merge_in_log": false
+ },
+ "verify": {
+  "app_ok": true
+ },
+ "guard": {
+  "guard_rows": 0
+ }
+}

@@ -20,7 +20,7 @@
   "sites": [
     {
       "path": "foms/api/drawing/erp_orders_drawing.py",
-      "lineno": 191,
+      "lineno": 183,
       "kind": "query_bulk_update",
       "func": "perform_drawing_transfer",
       "signal": "MARKED",
@@ -68,7 +68,7 @@
     },
     {
       "path": "foms/services/integrations/naver_commerce/settle_sync.py",
-      "lineno": 374,
+      "lineno": 370,
       "kind": "query_bulk_delete",
       "func": "replace_partition",
       "signal": "UNTRACKED_TABLE",

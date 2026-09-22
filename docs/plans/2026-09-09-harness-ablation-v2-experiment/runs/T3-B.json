@@ -1,0 +1,84 @@
+{
+ "task": "T3",
+ "arm": "B",
+ "kind": "bugfix-service",
+ "worktree": "C:\\tmp\\abl-T3-B",
+ "base_sha": "8d06f50b6",
+ "session_id": "7a37e353-6614-46b0-950a-c824111b8d4a",
+ "subtype": "success",
+ "is_error": false,
+ "num_turns": 2,
+ "duration_ms": 38499,
+ "wall_s": 604,
+ "cost_usd": 4.85902125,
+ "input_tokens": 36,
+ "output_tokens": 2346,
+ "cache_read": 238577,
+ "cache_create": 1223,
+ "result_hanja": 0,
+ "result_head": "수정과 검증이 모두 끝났습니다. 커밋은 하지 않았습니다.\n\n**근본 원인 3가지**\n\n- **state 단위 생성.** 스윕이 `(state, notification)` 조인을 한 줄씩 돌며 상급자 알림을 만들었다. 원본 1건이 4명에게 팬아웃되면 상급자 1명에게 4건이 생긴다. 스윕·단계를 넘는 중복 방지 근거도 없었다. 상급자 알림 row 에는 원본을 가리키는 컬럼이 없어서 \"이미 보냈는지\" 확인할 방법 자체가 없었다.\n- **message 고정 None.** `_create_escalation_notification` 이 generic 제목만 넣고 message 는 항상 None 으로 저장했다.\n- **브로드캐스트 미제외.** 관리자 전원에게 1인 1건씩 뿌리는 유형도 긴급 조건만 맞으면 대상에 들어갔다. 그래서 (원본 수 × 관리자 수) 만큼 증식했다.\n\n**고친 내용**\n\n- `foms/services/notifications/escalation.py`: 스윕을 **원본 알림 단위**로 묶었다. 단계 판정과 `escalated`/`operator_escalated` 이벤트는 종전대로 state 마다 기록하되, 상급자 알림은 원본 1건당 상급자 1인에",
+ "permission_denials": [],
+ "stderr_tail": null,
+ "transcript": {
+  "transcript": "C:\\tmp\\abl-cfg-B\\projects\\C--tmp-abl-T3-B\\7a37e353-6614-46b0-950a-c824111b8d4a.jsonl",
+  "found": true,
+  "tool_calls": 25,
+  "by_tool": {
+   "Bash": 19,
+   "Write": 1,
+   "Edit": 5
+  },
+  "bash_cmds": [
+   "head -40 docs/AI_STATUS.md 2>/dev/null | head -40; echo ---; cat foms/services/notifications/escalation.py",
+   "grep -n \"class Notification\\b\\|class NotificationUserState\\|class NotificationEvent\\b\\|class NotificationEventType\" -A 60 models.py | head -300",
+   "cd /c/tmp/abl-T3-B; echo \"=== tests referencing escalation ===\"; grep -rl \"escalat\" tests/ | head -20; echo \"=== callers ===\"; grep -rn \"escalate_overdue_urgent\\|finalize_escalation_delivery\" --includ",
+   "cd /c/tmp/abl-T3-B; echo \"=== tests using escalate_overdue_urgent ===\"; grep -rln \"escalate_overdue_urgent\\|URGENT_ESCALATION\" tests/ ; echo \"=== claim_watch.py ===\"; sed -n 1,200p foms/services/integ",
+   "cd /c/tmp/abl-T3-B; echo \"=== test_push_sender escalation section ===\"; grep -n \"escalat\\|URGENT_ESCALATION\\|def test_\\|^class \\|^def _\\|^import\\|^from\" tests/domains/test_push_sender.py | head -120; ",
+   "cd /c/tmp/abl-T3-B; echo \"=== tests 85-150 & 331-420 ===\"; sed -n 85,150p tests/domains/test_push_sender.py; sed -n 331,420p tests/domains/test_push_sender.py; echo; echo \"=== event type enumerations ",
+   "cd /c/tmp/abl-T3-B; echo \"=== SPEC 1-80 ===\"; sed -n 1,80p docs/plans/2026-07-16-notification-escalation-push-realtime_SPEC.md; echo; echo \"=== URGENT_ANNOUNCEMENT creation 720-760 ===\"; sed -n 720,76",
+   "cd /c/tmp/abl-T3-B; sed -n 12,42p tests/domains/test_push_sender.py; echo \"=== changelog head ===\"; head -30 docs/AI_CHANGELOG.md; echo \"=== status budget test ===\"; grep -rn \"4000\\|4,000\" tests/ --in",
+   "cd /c/tmp/abl-T3-B; grep -rn \"\\.message\" static/js/notifications/*.js static/js/*notification*.js 2>/dev/null | head -8; ls static/js | grep -i notif; grep -rn \"white-space\" static/css/foundation/erp-",
+   "cd /c/tmp/abl-T3-B; grep -rln \"notification_type\" static/js | head -5; grep -rn \"\\.message\\b\" $(grep -rln \"notification_type\" static/js | head -3) 2>/dev/null | head -6; grep -rn \"notif-message\\|notif",
+   "cd /c/tmp/abl-T3-B; sed -n 1,11p tests/domains/test_push_sender.py; grep -n \"^import json\" tests/domains/test_push_sender.py",
+   "cd /c/tmp/abl-T3-B; export PYTHONUTF8=1 PYTHONIOENCODING=utf-8; python -c \"import app; print('APP_OK')\" 2>&1 | tail -3",
+   "cd /c/tmp/abl-T3-B; export PYTHONUTF8=1 PYTHONIOENCODING=utf-8; python -m pytest tests/domains/test_push_sender.py tests/services/integrations/test_naver_claim_watch.py tests/domains/test_feature_flag",
+   "cd /c/tmp/abl-T3-B; export PYTHONUTF8=1 PYTHONIOENCODING=utf-8; python -m pytest tests/domains/test_push_sender.py -q -p no:cacheprovider -k \"escalation\" -v 2>&1 | grep -E \"PASSED|FAILED|ERROR|passed|",
+   "cd /c/tmp/abl-T3-B; echo \"=== original line endings ===\"; git show HEAD:foms/services/notifications/escalation.py | file -; file foms/services/notifications/escalation.py models.py tests/domains/test_",
+   "cd /c/tmp/abl-T3-B; export PYTHONUTF8=1 PYTHONIOENCODING=utf-8; powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ops/pre_push_smoke.ps1 > /tmp/smoke_escalation.log 2>&1; echo \"EXIT=$?\" >> /",
+   "cd /c/tmp/abl-T3-B; git diff -- models.py; git diff -- foms/services/notifications/escalation.py | grep -E \"^[-+]\" | grep -vE \"^(\\+\\+\\+|---)\" | sed -n 1,60p",
+   "tail -c 1500 /tmp/smoke_escalation.log 2>/dev/null; echo; echo \"--- task output ---\"; tail -c 600 \"C:/Users/USER/AppData/Local/Temp/claude/C--tmp-abl-T3-B/7a37e353-6614-46b0-950a-c824111b8d4a/tasks/bi",
+   "grep -E \"passed|failed|error|EXIT=|\\[OK\\]|\\[FAIL\\]\" /tmp/smoke_escalation.log | tail -12"
+  ],
+  "skill_calls": 0,
+  "ask_user": 0,
+  "agent_calls": 0,
+  "push_attempts": [],
+  "commit_m_korean": 0
+ },
+ "diff": {
+  "commits": [],
+  "commit_hanja": 0,
+  "commit_mojibake": false,
+  "inline_style_added": 0,
+  "jquery_added": 0,
+  "bare_except_added": 0,
+  "except_pass_added": 0,
+  "changed_files": [
+   "docs/AI_CHANGELOG.md",
+   "docs/harness/foms_failopen_inventory.json",
+   "docs/harness/foms_order_mutation_writer_inventory.json",
+   "foms/services/notifications/escalation.py",
+   "models.py",
+   "tests/domains/test_push_sender.py"
+  ],
+  "merge_in_log": false
+ },
+ "verify": {
+  "test_pass": false,
+  "test_tail": "1 failed in 0.79s",
+  "app_ok": true
+ },
+ "guard": {
+  "guard_rows": 0
+ }
+}

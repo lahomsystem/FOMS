@@ -7,6 +7,7 @@ import copy
 import datetime
 import hashlib
 import json
+import uuid
 from foms.services.error_logging import log_handled_exception
 from flask import Blueprint, request, jsonify, session
 from sqlalchemy.orm.attributes import flag_modified
@@ -14,7 +15,7 @@ from sqlalchemy.orm.attributes import flag_modified
 from db import get_db
 from models import Order, User, OrderEvent
 from foms.web.auth import log_access, login_required, role_required
-from foms.services.audit_message_display import describe_order_action
+from foms.services.audit_message_display import describe_field_change, describe_order_action
 from foms.services.orders.audit_order_context import order_audit_context
 from foms.services.erp_sync_columns import sync_erp_flat_columns
 from foms.services.orders.order_mutation_policy import normalize_team
@@ -39,6 +40,7 @@ from foms.services.orders.quest_transition_service import (
     find_stage_quest_for_approve,
     stage_advance_target,
 )
+from foms.services.orders.regional_checklist import mark_checklist_flag
 from foms.services.orders.revision import RevisionError
 from foms.services.orders.admin_override import (
     admin_override_error,
@@ -209,6 +211,29 @@ _COMMAND_REQUIRED_STAGES = frozenset({"DRAWING"})
 #: 전이 receipt scope 구성용 command 식별자(라우트 단일 진입점 — 실제 stage command 는
 #: quest_transition_service 의 _STAGE_ADVANCE 가 고른다).
 _QUEST_APPROVE_COMMAND = "QUEST_APPROVE"
+
+#: MEASURE→DRAWING 전이가 함께 켜는 체크리스트 컬럼(STATE-CONTROLS-04 · 2026-09-22).
+#: 버튼 확인문이 "실측을 완료하고 도면 단계로 넘길까요?"(quest_approve_cta.py)라고 약속하므로
+#: 단계만 옮기고 끝내면 문구와 동작이 어긋난다 — 실측완료 표시를 같은 tx 에서 함께 켠다.
+_MEASURE_DONE_FIELD = "measurement_completed"
+
+
+def _has_measurement_checklist(order) -> bool:
+    """지방/자가실측 주문인가 — 실측완료 체크박스가 실제로 있는 주문만 True.
+
+    체크리스트 API(:func:`foms.api.orders.regional._order_or_404`)와 **같은 잣대**를 쓴다.
+    일반 ERP 주문에까지 플래그를 켜면 체크박스가 없는 화면에 값만 생겨 두 축이 또 갈라진다.
+
+    Args:
+        order: 대상 Order.
+
+    Returns:
+        지방 또는 자가실측이면 True.
+    """
+    return bool(
+        getattr(order, "is_regional", False)
+        or getattr(order, "is_self_measurement", False)
+    )
 
 
 def _idempotency_key(body):
@@ -580,11 +605,45 @@ def api_order_quest_approve(order_id):
                 db, order, override=admin_override, gates=punched,
                 route='quest.api_order_quest_approve', axis='QUEST',
                 from_value='', to_value='')
+
+        # MEASURE→DRAWING 이 실제로 일어났으면 실측완료 표시도 같은 tx 에서 켠다.
+        # 체크박스 경로와 **같은 공용 writer** 를 써서 원장 path·OrderEvent 타입이 갈라지지
+        # 않게 한다(감사 화면이 한 축으로 읽는다). replay 는 side effect 가 없어야 하므로
+        # auto_transitioned(=전이 발생, replay 아님)만 통과시킨다.
+        checklist_change_set = None
+        if (
+            auto_transitioned
+            and current_stage_code == "MEASURE"
+            and _has_measurement_checklist(order)
+        ):
+            checklist_change_set = str(uuid.uuid4())
+            if not mark_checklist_flag(
+                db, order, _MEASURE_DONE_FIELD, True,
+                actor_user_id=user_id,
+                change_set_id=checklist_change_set,
+            ):
+                # 이미 켜져 있었다 — 원장 행이 없으므로 감사 헤더도 남기지 않는다.
+                checklist_change_set = None
+
         db.commit()
         # quest 승인 기록은 배지/카운트에 반영되므로 대시보드 슬라이스 캐시를 무효화한다.
         from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
 
         invalidate_all_dashboard_slice_caches()
+
+        if checklist_change_set:
+            # 원장과 같은 change_set 으로 묶어야 관리자 감사 화면이 조인한다(AUDIT-GAP-01).
+            checklist_audit_context = order_audit_context(order)
+            log_access(
+                describe_field_change(
+                    order_id=order.id, field=_MEASURE_DONE_FIELD,
+                    before=False, after=True, has_before=True, **checklist_audit_context,
+                ),
+                user_id,
+                action="ORDER_CHECKLIST_UPDATED", target_type="order", target_id=order.id,
+                detail={"field": _MEASURE_DONE_FIELD, "before": False, "after": True,
+                        "change_set": checklist_change_set, **checklist_audit_context},
+            )
 
         next_stage_for_response = None
         if is_complete:

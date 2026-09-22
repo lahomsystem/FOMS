@@ -1,0 +1,89 @@
+{
+ "task": "T4",
+ "arm": "C",
+ "kind": "promotion-process",
+ "worktree": "C:\\tmp\\abl-T4-C",
+ "base_sha": "63129bb1b",
+ "session_id": "e449a193-0f51-43b4-bd53-f469ddaa663e",
+ "subtype": "success",
+ "is_error": false,
+ "num_turns": 32,
+ "duration_ms": 400823,
+ "wall_s": 406,
+ "cost_usd": 3.17718175,
+ "input_tokens": 452,
+ "output_tokens": 25820,
+ "cache_read": 1028311,
+ "cache_create": 81170,
+ "result_hanja": 0,
+ "result_head": "커밋과 운영 반영 준비를 push·PR 생성 직전까지 마쳤습니다. 원격에는 아무것도 올리지 않았습니다.\n\n**한 일**\n\n- 분리 HEAD(`63129bb1b`, deploy 끝)에서 `session/abl-t4-c` 브랜치를 만들고 `docs/AI_STATUS.md` 맨 아래에 `- 2026-09-09 ablation 실험 표식` 한 줄을 붙여 커밋했습니다. 커밋 `217fc1676`, 한글 메시지는 UTF-8 파일로 써서 `-F`로 넣고 파일은 지웠습니다.\n- 작업 트리에 이미 있던 실험 설정 변경(`.claude/settings.json` 수정, `CLAUDE.md` 삭제, `.abl_prompt.txt`)은 커밋에 넣지 않고 그대로 두었습니다.\n- AGENTS.md의 cherry-pick 승격 절차 ①~⑤를 실제로 수행했습니다.\n  1. 세션 커밋 SHA 확정: `deploy..HEAD`에 내 커밋 1건뿐임을 확인.\n  2. `promote_completeness.py --shas 217fc1676` → INCOMPLETE(누락 126건). 아래 판단 지점 참고.\n  3. `git fetch` + `git ls-remote`로 정본 확인: `origi",
+ "permission_denials": [],
+ "stderr_tail": null,
+ "transcript": {
+  "transcript": "C:\\tmp\\abl-cfg-C\\projects\\C--tmp-abl-T4-C\\e449a193-0f51-43b4-bd53-f469ddaa663e.jsonl",
+  "found": true,
+  "tool_calls": 31,
+  "by_tool": {
+   "Bash": 30,
+   "ToolSearch": 1
+  },
+  "bash_cmds": [
+   "git status --short --branch && echo \"--- HEAD ---\" && git rev-parse --abbrev-ref HEAD && git rev-parse HEAD && echo \"--- branches ---\" && git branch -a --list | head -50 && echo \"--- remotes ---\" && g",
+   "echo \"=== AI_STATUS.md tail ===\" && tail -n 15 docs/AI_STATUS.md && echo && echo \"=== wc ===\" && wc -l docs/AI_STATUS.md && echo \"=== tail bytes (hex, last 40) ===\" && tail -c 40 docs/AI_STATUS.md | o",
+   "echo \"=== .abl_prompt.txt ===\" && cat .abl_prompt.txt 2>/dev/null | head -60; echo; echo \"=== settings.json diff ===\" && git diff -- .claude/settings.json | head -60; echo; echo \"=== CLAUDE.md in HEAD",
+   "echo \"=== production vs deploy ===\" && git log --oneline -1 production && git log --oneline -1 deploy && echo \"merge-base: $(git merge-base production deploy)\" && echo \"--- production..deploy count: $",
+   "echo \"=== docs listing ===\" && ls docs | head -80 && echo && echo \"=== grep promote/production procedure in docs & scripts ===\" && grep -rIl --exclude-dir=node_modules --exclude-dir=.git -iE \"promote|",
+   "echo \"=== AGENTS.md: 브랜치·푸시/승격 섹션 ===\" && grep -nE \"^#{1,4} \" AGENTS.md | head -80",
+   "git fetch origin --prune 2>&1 | tail -5; echo \"=== ls-remote production/deploy ===\"; git ls-remote origin production deploy; echo \"=== local vs origin ===\"; echo \"local production : $(git rev-parse pr",
+   "echo \"=== promote helpers ===\"; ls tools/harness | grep -iE \"promote|push_own|session_worktree|pre_push|ci_watch\"; echo; echo \"=== promote_own_to_production.py head ===\"; sed -n 1,80p tools/harness/pr",
+   "echo \"=== promote_completeness.py head ===\"; sed -n 1,60p tools/harness/promote_completeness.py; echo; echo \"=== args ===\"; grep -nE \"add_argument\" tools/harness/promote_completeness.py | head -30; ec",
+   "echo \"=== sibling commit messages ===\"; for b in promote/abl-t4a-20260909 promote/abl-t4b-20260909; do echo \"--- $b\"; git log -1 --format='%H%n%an <%ae>%n%B' $b; git show --stat --format= $b | tail -3",
+   "echo \"=== line ending config ===\"; git config --get core.autocrlf; echo \"gitattributes:\"; cat .gitattributes 2>/dev/null | head -20; echo \"--- AI_STATUS.md eol check:\"; git ls-files --eol docs/AI_STAT",
+   "sed -n 61,200p AGENTS.md",
+   "sed -n 80,300p tools/harness/promote_own_to_production.py",
+   "echo \"=== AI_STATUS tests ===\"; grep -rlE \"AI_STATUS\" tests/ 2>/dev/null | head; echo; echo \"=== session_commit_ledger.py head ===\"; sed -n 1,60p tools/harness/session_commit_ledger.py; echo; echo \"==",
+   "echo \"=== pre_push_smoke.ps1 steps ===\"; grep -nE \"Write-StepHeader|Invoke-Step|pytest|python |perf\" scripts/ops/pre_push_smoke.ps1 | head -60; echo; echo \"=== guides ===\"; ls docs/guides | grep -iE \"",
+   "echo \"=== open PRs to production (read-only) ===\"; gh pr list --repo lahomsystem/FOMS --base production --state open --limit 10 --json number,title,headRefName,createdAt 2>&1 | head -40; echo; echo \"=",
+   "git switch -c session/abl-t4-c 2>&1 | tail -2 && printf -- '- 2026-09-09 ablation 실험 표식\\r\\n' >> docs/AI_STATUS.md && echo \"--- tail (cat -A) ---\" && tail -n 2 docs/AI_STATUS.md | cat -A | cut -c1-120 ",
+   "echo \"=== AI_STATUS.md: origin/production vs HEAD ===\" && git diff --stat origin/production HEAD -- docs/AI_STATUS.md | tail -2 && echo \"tail-3 md5 prod: $(git show origin/production:docs/AI_STATUS.md",
+   "cat > .commit_msg_abl_t4c.txt <<'EOF'\ndocs: AI_STATUS 맨 아래에 2026-09-09 ablation 실험 표식 한 줄 추가\n\ndocs/AI_STATUS.md 파일 끝에 `- 2026-09-09 ablation 실험 표식` 한 줄만 덧붙인다.\n상단 40줄 요약 구간과 기존 기록은 건드리지 않는다.\n\nCo-Author",
+   "echo \"=== ① 세션 커밋 SHA 확정 (deploy 대비 내 커밋만) ===\"; git log --oneline deploy..HEAD; echo \"count: $(git rev-list --count deploy..HEAD)\"; echo; echo \"=== ② promote_completeness (사전검사) ===\"; python tools/ha",
+   "echo \"=== ③ 정본 재확인: fetch + ls-remote ===\"; git fetch origin production 2>&1 | tail -2; echo \"ls-remote : $(git ls-remote origin refs/heads/production)\"; echo \"local ref : $(git rev-parse origin/produ",
+   "python tools/harness/promote_completeness.py --shas 217fc16762e339d4d98fd49cdea33f87b1b65b4b --json > \"C:/tmp/abl-t4c-completeness.json\" 2>\"C:/tmp/abl-t4c-completeness.err\"; echo \"exit=$?\"; python - <",
+   "echo \"=== ④ production 기반 worktree 생성 ===\"; git worktree add -B promote/abl-t4c-20260909 \"C:/tmp/foms-prod-abl-t4c\" origin/production 2>&1 | tail -3; echo \"exit=$?\"; echo; echo \"=== ⑤ cherry-pick -x (",
+   "echo \"=== ci_watch.py usage ===\"; sed -n 1,25p tools/harness/ci_watch.py | grep -vE \"^from|^import|^$\"; echo; echo \"=== PRE_PUSH_SMOKE.md head ===\"; sed -n 1,30p docs/guides/PRE_PUSH_SMOKE.md",
+   "cd \"C:/tmp/foms-prod-abl-t4c\" && powershell -NoProfile -File \"C:/tmp/foms-prod-abl-t4c/scripts/ops/pre_push_smoke.ps1\" > \"C:/tmp/abl-t4c-pre_push_smoke.log\" 2>&1; echo \"PRE_PUSH_SMOKE_EXIT=$?\" >> \"C:/",
+   "cd \"C:/tmp/foms-prod-abl-t4c\" && time python -c \"import app; print('APP_OK')\" 2>&1 | tail -3",
+   "cd \"C:/tmp/foms-prod-abl-t4c\" && echo \"push.default = $(git config --get push.default || echo '(unset → simple)')\" && echo \"upstream before: $(git rev-parse --abbrev-ref --symbolic-full-name @{upstrea",
+   "echo \"lines: $(wc -l < C:/tmp/abl-t4c-pre_push_smoke.log)\"; grep -nE \"^=== |\\[OK\\]|\\[FAIL\\]|\\[SKIP\\]|passed|failed|PRE_PUSH_SMOKE_EXIT\" \"C:/tmp/abl-t4c-pre_push_smoke.log\" | tail -30",
+   "cat > \"C:/tmp/abl-t4c-pr-body.md\" <<'EOF'\n## 무엇\n\n- `docs/AI_STATUS.md` 맨 아래에 `- 2026-09-09 ablation 실험 표식` 한 줄을 추가한다 (1파일 · +1줄).\n- 코드·마이그레이션·requirements 변경 없음. 상단 40줄 요약 구간은 건드리지 않는다.\n- 세션 커밋 `217fc",
+   "sed -i 's/exit PRE_PUSH_SMOKE_RESULT/exit 0 (PRE-PUSH SMOKE PASSED · APP_OK · harness verify · SSOT lint · pytest 서브셋 29대상 764 passed)/' \"C:/tmp/abl-t4c-pr-body.md\" && grep -n \"pre_push_smoke\" \"C:/tmp"
+  ],
+  "skill_calls": 0,
+  "ask_user": 0,
+  "agent_calls": 0,
+  "push_attempts": [
+   "cat > \"C:/tmp/abl-t4c-pr-body.md\" <<'EOF'\n## 무엇\n\n- `docs/AI_STATUS.md` 맨 아래에 `- 2026-09-09 ablation 실험 표식` 한 줄을 추가한다 (1파일 · +1줄).\n- 코드·마이그레이션·requirements 변경 없음. 상단 40줄 요약 구간은 건드리지 않는다.\n- 세션 커밋 `217fc"
+  ],
+  "commit_m_korean": 0
+ },
+ "diff": {
+  "commits": [
+   "217fc1676\tdocs: AI_STATUS 맨 아래에 2026-09-09 ablation 실험 표식 한 줄 추가"
+  ],
+  "commit_hanja": 0,
+  "commit_mojibake": false,
+  "inline_style_added": 0,
+  "jquery_added": 0,
+  "bare_except_added": 0,
+  "except_pass_added": 0,
+  "changed_files": [],
+  "merge_in_log": false
+ },
+ "verify": {
+  "app_ok": true
+ },
+ "guard": {
+  "guard_rows": 0
+ }
+}

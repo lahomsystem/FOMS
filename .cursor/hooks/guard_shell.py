@@ -6,14 +6,13 @@ Cursor 고유 출력 계약({continue, permission, userMessage, agentMessage})�
   - ask   → continue=True,  permission="ask"
   - allow → continue=True,  permission="allow"
 
-ask/deny 판정만 docs/harness/logs/SHELL_GUARD_LOG.md 에 기록하며,
+ask/deny 판정만 docs/harness/logs/SHELL_GUARD_LOG.md 에 기록하며(공용 writer tools/harness/guard_log.py),
 로그 실패는 shared_utils.hook_runtime_log 로 남긴다(묵시적 삼킴 금지).
 """
 import json
 import os
 import re
 import sys
-from datetime import datetime
 
 
 def _load_debug():
@@ -31,20 +30,8 @@ maybe_log_payload, get_payload = _load_debug()
 from shared_utils import (  # noqa: E402
     extract_project_root,
     find_key_recursive,
-    harness_log_path,
     hook_runtime_log,
 )
-
-_LOG_HEADER = [
-    "# Shell Guard Log",
-    "",
-    "> Cursor Hook(`beforeShellExecution`)가 자동 기록합니다. (ask/deny 판정만)",
-    "",
-    "| Time | Decision | Label | Command |",
-    "|------|----------|-------|---------|",
-]
-_LOG_CAP = 300
-
 
 def _sanitize_command(command: str) -> str:
     """가로 공백만 정규화하고 개행은 세그먼트 경계로 보존한다.
@@ -94,24 +81,14 @@ def _extract_command(payload: dict) -> str:
 
 
 def _log_command(project_root: str, decision: str, label: str, command: str) -> None:
-    """ask/deny 판정을 SHELL_GUARD_LOG.md 에 1행 기록(300행 캡)."""
+    """ask/deny 판정을 SHELL_GUARD_LOG.md 에 1행 기록(공용 writer, 3,000행 캡 + 월별 보관)."""
     try:
-        log_path = harness_log_path(project_root, "SHELL_GUARD_LOG.md")
-        os.makedirs(os.path.dirname(log_path), exist_ok=True)
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        row = f"| {timestamp} | {decision} | `{label or '-'}` | `{command[:160]}` |\n"
+        harness_dir = os.path.join(project_root, "tools", "harness")
+        if harness_dir not in sys.path:
+            sys.path.insert(0, harness_dir)
+        import guard_log  # noqa: WPS433 - 공용 writer 지연 로드
 
-        data_rows: list[str] = []
-        if os.path.exists(log_path):
-            with open(log_path, "r", encoding="utf-8") as stream:
-                data_rows = [ln for ln in stream.readlines() if ln.startswith("| 20")]
-        data_rows.append(row)
-        if len(data_rows) > _LOG_CAP:
-            data_rows = data_rows[-_LOG_CAP:]
-
-        with open(log_path, "w", encoding="utf-8") as stream:
-            stream.write("\n".join(_LOG_HEADER) + "\n")
-            stream.writelines(data_rows)
+        guard_log.append_guard_row(guard_log.resolve_log_dir(project_root), decision, label, command)
     except Exception as exc:  # noqa: BLE001 - fail-open, 단 반드시 기록
         hook_runtime_log(
             f"SHELL_GUARD_LOG 기록 실패: {exc}", project_root=project_root, tag="guard_shell"

@@ -10,6 +10,12 @@ on:
     # 마이그레이션 부모 누락·Docker 매니페스트)이 전부 이 구멍에서 나왔다.
     branches: [ "main", "deploy", "production" ]
 
+# 같은 ref 에 연달아 푸시가 들어오면 앞선 런은 이미 의미가 없다. 2026-09-22 계측에서
+# 12초 간격 deploy 푸시 2건이 각각 풀 CI 를 끝까지 태웠다(런 8개). 뒤 런만 남긴다.
+concurrency:
+  group: foms-ci-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
