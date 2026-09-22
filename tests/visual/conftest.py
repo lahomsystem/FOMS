@@ -428,3 +428,24 @@ def dark_mode_page(page):
         "document.documentElement.setAttribute('data-theme', 'dark')"
     )
     return page
+
+
+def pytest_collection_modifyitems(
+    config: pytest.Config, items: list[pytest.Item]
+) -> None:
+    """playwright 플러그인이 꺼져 있으면 브라우저 테스트는 error 가 아니라 skip 이다.
+
+    pre_push_smoke 기본 게이트는 `-p no:playwright` 로 tests/visual 을 통째 돌린다.
+    브라우저 픽스처를 쓰는 파일을 게이트가 손으로 목록화하면 그 목록이 낡는다 —
+    CI-VISUAL-01 과 같은 실패 양식(등재 목록이 낡아 red 가 2주 반 살았다).
+    대신 요청한 픽스처 이름으로 런타임에 가른다. 목록이 없으면 낡을 것도 없다.
+    """
+    if config.pluginmanager.hasplugin("playwright"):
+        return
+    skip_browser = pytest.mark.skip(
+        reason="playwright 플러그인 비활성(-p no:playwright) — 브라우저 테스트 건너뜀"
+    )
+    browser_fixtures = {"page", "browser", "context", "browser_context"}
+    for item in items:
+        if browser_fixtures & set(getattr(item, "fixturenames", ())):
+            item.add_marker(skip_browser)

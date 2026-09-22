@@ -63,7 +63,7 @@
 
 ## 푸시 전 로컬 검증 (deploy/main)
 
-`deploy` / `main` push **직전** 수동 실행: `powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1` (APP_OK, harness verify, SSOT lint, CI 자주 실패 pytest subset, ~2–5분). **UI/CSS/템플릿 변경 시** 기본 게이트는 PNG visual regression이 아니라 **`test_p1_mockup_*` 구조 테스트**(subset 포함). win32 PNG `--update-snapshots`·`-Visual`은 UI 안정기에만 선택. 머지 직전 전체 pytest: `-Full` (느림). **git push 시 자동 실행 아님** — GitHub Actions `test` job이 담당(PNG visual job 비활성). 상세: [`docs/guides/PRE_PUSH_SMOKE.md`](docs/guides/PRE_PUSH_SMOKE.md).
+`deploy` / `main` push **직전** 수동 실행: `powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1` (APP_OK, harness verify, SSOT lint, 인벤토리 자동 재생성, **pytest 전체 스위트** `-n auto`, ~2–3분 — 타깃 목록은 2026-09-22 에 없앴다). **UI/CSS/템플릿 변경 시** 기본 게이트는 PNG visual regression이 아니라 **`test_p1_mockup_*` 구조 테스트**(subset 포함). win32 PNG `--update-snapshots`·`-Visual`은 UI 안정기에만 선택. `-Full` 은 여기에 `tests/harness` 만 더한다(로컬 약 2분). **git push 시 자동 실행 아님** — GitHub Actions `test` job이 담당(PNG visual job 비활성). 상세: [`docs/guides/PRE_PUSH_SMOKE.md`](docs/guides/PRE_PUSH_SMOKE.md).
 
 - **push 후 CI green 확인이 "push 완료"의 정의다(모든 도구·모델 공통) — 단, 확인은 논블로킹**: `deploy`/`production` 반영 후 `python tools/harness/ci_watch.py`(기본 HEAD·deploy; production은 `... HEAD production`)로 CI 완료를 감시한다. exit 0=green, **exit 1=코드 실패 → 근본 수정 → pre_push_smoke → 재푸시까지가 한 작업 단위**, exit 2=자동 재실행(재폴링), exit 3=gh 미설치/미인증. **블로킹 완주 대기 금지** — 백그라운드 실행하거나 `--quick`(폴링 없이 단발 조회: exit 0/1/3 + **4=진행 중**)으로 즉시 상태만 보고 작업을 계속한다. Claude Code는 push 감지 시 `post_push_watch` 훅이 논블로킹 안내를 주입하고, Cursor는 `afterShellExecution`이 기록한 마커를 `afterAgentResponse`가 소비해 매 턴 `--quick`을 직접 돌려 결과를 리마인드한다(진행 중이면 마커 유지 → 다음 턴 자동 재확인).
 

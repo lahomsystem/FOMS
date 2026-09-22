@@ -10,7 +10,7 @@
 - `tests/visual/test_p1_mockup_png_baseline.py` — mockup ↔ 앱 클래스 parity (PNG 없음)
 - `tests/visual/test_p1_mockup_chrome_parity.py` — Chrome 구조 parity
 
-`pre_push_smoke.ps1` 기본 subset에 위 테스트가 포함됩니다. **템플릿/CSS 변경 시 `-Visual`·win32 PNG 커밋은 필수가 아닙니다.**
+`pre_push_smoke.ps1` 기본 실행이 `tests/visual` 을 통째로 돌리므로 위 테스트가 모두 포함됩니다. **템플릿/CSS 변경 시 `-Visual`·win32 PNG 커밋은 필수가 아닙니다.**
 
 PNG 회귀(`-Visual`, win32 baseline 갱신)는 UI 안정기(릴리스 고정)에만 **선택**으로 사용합니다.
 
@@ -52,7 +52,7 @@ git add tests/visual/baseline/win32/*.png
 - `deploy` / `main`으로 push 직전
 - PR 머지 전 자신감 확인 (빠른 회귀 방지)
 - CI에서 자주 깨지는 영역(배포 Dockerfile, import 계약, HTMX, visual asset) 변경 후
-- **UI/CSS/레이아웃 변경 후**: 기본 subset만 (구조 테스트 `test_p1_mockup_*`). PNG `-Visual`은 선택
+- **UI/CSS/레이아웃 변경 후**: 기본 실행만 (구조 테스트 `test_p1_mockup_*` 포함). PNG `-Visual`은 선택
 
 ## 명령 (Win11 / PowerShell 5.x)
 
@@ -114,10 +114,17 @@ OneDrive 잠금이 있으면 `TEMP`를 `C:\tmp`로 두고, 그래도 실패하�
 | APP import | `python -c "import app; print('APP_OK')"` |
 | Harness | `tools/harness/verify_result.py --json` (있을 때) |
 | Design SSOT | `tools/design/ssot_lint.py docs/design` (있을 때) |
-| Pytest subset | Dockerfile 계약, namespace import, search overlay, HTMX fragment, staging mobile v2 / P1 mockup visual / P1 chrome parity (CSS 계약) |
+| 인벤토리 자동 재생성 | `tools/harness/*_scan.py` 5종 실행 후 `docs/harness/*.json` 변경분 안내(실패 아님) |
+| Pytest 전체 스위트 | `tests/harness` 만 빼고 전부, `-n auto --dist loadfile` |
+| Pytest UI 구조 | `tests/visual` 전체. 브라우저 픽스처 테스트는 conftest 가 skip 처리 |
+| Pytest 하네스 (`-Full`) | `tests/harness` (로컬 약 2분) |
 | Visual regression (`-Visual`) | `tests/visual` Playwright PNG compare (win32 baseline) |
 
-기본 subset 목표 시간: **약 2–5분**.
+기본 실행 목표 시간: **약 2–3분**(2026-09-22 계측, 12코어 기준 전체 스위트 104초 + UI 구조 20초).
+
+### 왜 타깃 목록이 없나
+
+예전 기본 게이트는 손으로 고른 33개 타깃(379 테스트)을 직렬로 130초 동안 돌렸습니다. 2026-09-22 계측에서 그 시점 CI red 20건이 **전부** 그 목록 밖 파일이었습니다 — 게이트가 느려서가 아니라 목록이 좁아서 못 잡은 것입니다. 같은 시간에 `-n auto --dist loadfile` 로 전체 10,204개를 볼 수 있으므로 목록을 없앴습니다. 손으로 유지하는 목록은 낡습니다(CI-VISUAL-01 은 등재 목록이 낡아 red 가 2주 반 살았습니다).
 
 ## 중요
 

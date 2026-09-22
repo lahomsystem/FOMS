@@ -3,20 +3,21 @@
   Fast local smoke checks before pushing to deploy/main (mirrors CI test job subset).
 
 .DESCRIPTION
-  Target runtime: ~2-5 minutes. Sets in-memory SQLite test env and runs import,
-  harness verify, design SSOT lint, and a curated pytest subset that catches
-  common CI failures. Does NOT run on git push automatically — run manually.
+  Target runtime: ~2-3 minutes. Sets in-memory SQLite test env and runs import,
+  harness verify, design SSOT lint, inventory regeneration, and the FULL pytest
+  suite (tests/harness excluded) in parallel. There is no curated target list —
+  curated lists go stale. Does NOT run on git push automatically — run manually.
 
 .PARAMETER Full
-  Slow pre-merge check: full pytest suite (ignores tests/visual, no playwright).
-  Expect several minutes.
+  Adds tests/harness (~2 minutes locally) on top of the default run. The default
+  already covers every other test, so -Full is only about tests/harness.
 
 .PARAMETER Visual
   Local-only Playwright visual regression (tests/visual, win32 baselines).
   Requires `pip install playwright; playwright install chromium`. Skipped with a
   notice when playwright is missing. CI is unaffected (CI ignores tests/visual);
   baselines are platform-specific so do not regenerate linux baselines here.
-  Combine with default subset or -Full.
+  Combine with the default run or -Full.
 
 .EXAMPLE
   powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1
@@ -124,7 +125,7 @@ function Invoke-PythonCommand {
 
 Write-Host "FOMS pre-push smoke" -ForegroundColor Cyan
 Write-Host "Root: $root"
-Write-Host "Mode: $(if ($Full) { 'Full (slow)' } else { 'Fast subset' })$(if ($Visual) { ' + Visual regression' })$(if ($PerfGate) { ' + Staging perf gate' })"
+Write-Host "Mode: $(if ($Full) { 'Full (+harness)' } else { 'Default (full suite, no harness)' })$(if ($Visual) { ' + Visual regression' })$(if ($PerfGate) { ' + Staging perf gate' })"
 
 $visualStaleScript = Join-Path $root "scripts\ops\visual_baseline_stale.py"
 $visualGateRequired = $false
@@ -206,79 +207,46 @@ if (Test-Path $ssotPath) {
     Write-StepSkip "tools/design/ssot_lint.py not found"
 }
 
-if ($Full) {
-    Invoke-SmokeStep -Name "Full pytest (no visual, no playwright) — SLOW" -Action {
-        Invoke-PythonCommand "-m pytest -v --ignore=tests/visual -p no:playwright"
-    }
+# 인벤토리 자동 재생성 — 사람이 재생성 명령 5개를 기억할 필요를 없앤다.
+# 생성물이 낡으면 계약 테스트가 red 를 내는데(test_inventory_matches_fresh_scan 등),
+# 2026-09 CI red 의 반복 원인이었다. 탐지는 아래 전체 스위트가 하고, 여기서는 먼저 고쳐 둔다.
+# 줄번호만 밀린 무의미한 변화는 도구가 되돌리므로 커밋이 더러워지지 않는다(도구 docstring 참조).
+$refreshPath = Join-Path $root "tools/harness/refresh_inventories.py"
+if (Test-Path $refreshPath) {
+    Write-StepHeader "인벤토리 자동 재생성 (docs/harness/*.json)"
+    & python tools/harness/refresh_inventories.py 2>&1 | ForEach-Object { Write-Host "  $_" }
 } else {
-    $pytestTargets = @(
-        "tests/performance/test_perf_regression_guard.py",
-        "tests/performance/test_static_cache_headers.py",
-        "tests/contracts/runtime/test_dockerfile_deploy_contract.py",
-        # 닫힌집합·계층 래칫: 둘 다 서브셋 밖이라 "로컬 초록 + CI 빨강" 이 같은 커밋에
-        # 성립했다(2026-09-08 실측 — loop_heartbeat 의 지연 import 가 CI 에서만 걸렸다).
-        "tests/contracts/runtime/test_ptc_physical_exactness.py",
-        "tests/contracts/runtime/test_layer_dependency_ratchet.py",
-        "tests/domains/test_foms_namespace_imports.py",
-        "tests/domains/test_foms_search_overlay.py::test_search_overlay_template_contract",
-        "tests/domains/test_p2_htmx_fragment.py",
-        # repo-state sync gates: CI red 최다 원인 (2026-08-03 조사 — 18건 중 8건).
-        # 인벤토리/manifest 드리프트는 로컬에서 초 단위로 잡힌다.
-        "tests/domains/test_alembic_single_head.py",
-        "tests/domains/test_failopen_inventory.py",
-        "tests/domains/test_audit_coverage_inventory.py",
-        "tests/domains/test_rev_99.py",
-        "tests/domains/test_state_guard.py",
-        "tests/domains/test_table_version_counter.py",
-        "tests/domains/test_write_guard.py",
-        # CI-VISUAL-01: tests/visual 은 본 스위트 밖이라 ci.yml 등재 목록이 낡으면
-        # red 가 조용히 산다(2주 반 사례). 레지스트리 드리프트는 여기서 초 단위로 잡는다.
-        "tests/domains/test_visual_lane_registry.py",
-        # 호출부 명단 계약: 새 호출 지점이 명단에 없으면 CI red. smoke 사각이라
-        # 2026-08-20 에 4커밋 연속 red 를 냈다(as_upload_anchor 의 append_client_log).
-        "tests/domains/test_as_timeline_contract.py::test_as_log_write_call_sites_are_the_known_set",
-        # 정산 핀 사슬(셸 4줄·채널 2줄·_CHANNEL_PIN)은 테스트가 잡지만 smoke 서브셋에 없었다(CFO 감사 H-02).
-        "tests/domains/test_settlement_channel_render.py",
-        "tests/domains/test_settlement_operations_render.py",
-        # 워커 러너 배선 계약(하트비트 kind·신고 간격·Sentry 게이트). smoke 사각이라
-        # 2026-09-09 에 로컬 초록·CI 빨강이 같은 커밋에 성립했다.
-        "tests/domains/test_loop_heartbeat_wiring.py",
-        "tests/domains/test_worker_loop_heartbeat.py",
-        "tests/domains/test_order_sync_cadence.py",
-        "tests/domains/test_worker_sentry_wiring.py",
-        "tests/domains/test_worker_watchdog.py",
-        "tests/domains/test_ops_worker_heartbeat_endpoint.py",
-        "tests/domains/test_worker_heartbeat_daily_wiring.py",
-        "tests/harness/test_hook_log_hygiene.py::test_ai_status_head_budget",
-        "tests/harness/test_powershell_encoding_contract.py",
-        "tests/visual/test_staging_mobile_v2_assets.py",
-        "tests/visual/test_p1_mockup_structure.py",
-        "tests/visual/test_p1_mockup_png_baseline.py",
-        "tests/visual/test_p1_mockup_chrome_parity.py",
-        # 조상 관계만 바뀌는 렌더 파손(2026-09-13 짝 없는 </div>)을 잡는 유일한 게이트.
-        # 기존 문자열 인덱스 검사 45건이 전부 초록이었다 — 이건 파서로만 잡힌다. 2.3초.
-        "tests/visual/test_mobile_v2_surface_containment.py"
-    )
+    Write-StepSkip "tools/harness/refresh_inventories.py not found"
+}
 
-    $existingTargets = @()
-    foreach ($target in $pytestTargets) {
-        $filePart = ($target -split "::")[0]
-        $fullPath = Join-Path $root ($filePart -replace "/", "\")
-        if (Test-Path $fullPath) {
-            $existingTargets += $target
-        } else {
-            Write-StepSkip "Missing test file: $filePart"
-        }
-    }
+# 게이트 범위: 타깃 배열을 없애고 전체 스위트를 돌린다.
+#
+# 손으로 고른 목록은 반드시 낡는다 — 이 저장소가 이미 세 번 당했다(CI-VISUAL-01 등재 목록이
+# 낡아 red 가 2주 반 살았고, as_timeline 호출부 명단이 4커밋 연속 red 를 냈고,
+# CI-PROMOTE-01 base 필터 구멍으로 운영 사고 3건이 났다).
+#
+# 2026-09-22 계측(12코어): 33타깃 직렬 130초로 379개를 보던 게이트가, `-n auto --dist loadfile`
+# 로는 104초에 10,204개를 본다. 같은 시간에 27배를 보는 셈이다. 그리고 그 시점의 CI red 20건은
+# **전부** 타깃 배열 밖 파일이었다 — 목록이 좁아서 못 잡은 것이지, 게이트가 느려서가 아니었다.
+#
+# 분할이 loadfile 인 이유는 CI-XDIST-01 과 같다: 같은 파일의 테스트를 한 워커에 머물게 해
+# 모듈 스코프 fixture 가 워커 경계에서 갈리지 않게 한다.
+Invoke-SmokeStep -Name "Pytest 전체 스위트 (visual·harness 제외, -n auto)" -Action {
+    Invoke-PythonCommand "-m pytest -q --ignore=tests/visual --ignore=tests/harness -p no:playwright -n auto --dist loadfile"
+}
 
-    if ($existingTargets.Count -gt 0) {
-        $pytestArgs = "-m pytest -v " + ($existingTargets -join " ")
-        Invoke-SmokeStep -Name "Pytest subset ($($existingTargets.Count) targets)" -Action {
-            Invoke-PythonCommand $pytestArgs
-        }
-    } else {
-        Write-StepFail "No pytest targets found"
-        $script:FailedSteps.Add("Pytest subset")
+# tests/visual 은 목록 없이 통째로 돌린다. 브라우저 픽스처(page/browser/context)를 쓰는
+# 테스트는 tests/visual/conftest.py 의 pytest_collection_modifyitems 가 skip 으로 떨어뜨린다
+# — 예전처럼 "브라우저 없이 도는 파일" 목록을 손으로 유지하지 않는다.
+Invoke-SmokeStep -Name "Pytest UI 구조 (tests/visual, 브라우저 테스트는 skip)" -Action {
+    Invoke-PythonCommand "-m pytest -q tests/visual -p no:playwright -n auto --dist loadfile"
+}
+
+# tests/harness 는 Harness CI 잡이 전담하고 로컬에서 118초로 가장 무겁다(red 8/147 로 드물다).
+# 기본 게이트에서 빼고 -Full 에만 넣는다.
+if ($Full) {
+    Invoke-SmokeStep -Name "Pytest 하네스 (tests/harness) — SLOW" -Action {
+        Invoke-PythonCommand "-m pytest -q tests/harness -p no:playwright -n auto --dist loadfile"
     }
 }
 
