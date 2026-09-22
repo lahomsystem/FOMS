@@ -1,0 +1,78 @@
+{
+ "task": "T1",
+ "arm": "B",
+ "kind": "bugfix-rca",
+ "worktree": "C:\\tmp\\abl-T1-B",
+ "base_sha": "969419133",
+ "session_id": "921de809-dae2-4655-af99-12033b240407",
+ "subtype": "success",
+ "is_error": false,
+ "num_turns": 19,
+ "duration_ms": 592187,
+ "wall_s": 597,
+ "cost_usd": 3.35957225,
+ "input_tokens": 548,
+ "output_tokens": 35592,
+ "cache_read": 982901,
+ "cache_create": 66367,
+ "result_hanja": 0,
+ "result_head": "## 결과\n\n원인을 확정하고 고쳤습니다. 커밋은 하지 않았습니다.\n\n**원인: 공휴일 캐시 파일을 최종 경로에 바로 써서 생기는 프로세스 간 경합**\n\n- `foms/services/common/business_calendar.py` 의 `_generate_holidays_kr` 가 `data/holidays_kr_<year>.json` 최종 경로를 `open(\"w\")` 로 열었습니다. 이 순간 파일은 크기 0 으로 truncate 된 채 존재합니다.\n- 다른 xdist 워커의 `_load_holidays_json` 은 `exists()` 가 참이면 바로 `json.load` 를 하므로, 그 빈 파일을 읽고 `Expecting value: line 1 column 1 (char 0)` 을 냅니다. CI 스택과 정확히 같습니다.\n- `lru_cache` 는 프로세스 안에서만 막습니다. 워커끼리는 아무 보호가 없습니다.\n- 저장소에는 2025·2026 만 추적되고 나머지 연도는 gitignore 되어 CI 마다 새로 만듭니다.\n- 충돌이 잦았던 이유: `business_days_between(오늘, 2099-01-01)` 이 2026~2099 를 순회해 연도 7",
+ "permission_denials": [],
+ "stderr_tail": null,
+ "transcript": {
+  "transcript": "C:\\tmp\\abl-cfg-B\\projects\\C--tmp-abl-T1-B\\921de809-dae2-4655-af99-12033b240407.jsonl",
+  "found": true,
+  "tool_calls": 18,
+  "by_tool": {
+   "Bash": 18
+  },
+  "bash_cmds": [
+   "grep -rn \"_load_holidays_json\\|get_holidays_kr\\|holidays_kr_\" --include=*.py . | grep -v \"^./.venv\" | head -50",
+   "cat -n foms/services/common/business_calendar.py; echo \"-----\"; ls -la data/holidays_kr_* 2>/dev/null; echo \"-----\"; git -C . status --short data/ | head; echo \"-----\"; grep -rln \"2099\" tests --includ",
+   "echo \"=== gitignore ===\"; grep -n \"holidays\\|^data\" .gitignore 2>/dev/null; echo \"=== CI ===\"; ls .github/workflows/ 2>/dev/null; grep -rn \"xdist\\|-n auto\\|loadfile\\|runs-on\" .github/workflows/*.yml 2",
+   "echo \"=== tracked? ===\"; git ls-files data/ | head; echo \"=== ci.yml 90-115 ===\"; sed -n 90,115p .github/workflows/ci.yml; echo \"=== existing tests ===\"; grep -rln \"business_calendar\" tests --include=",
+   "cat > /tmp/repro_holiday_race.py <<'EOF'\nimport multiprocessing as mp, os, sys, time\nsys.path.insert(0, os.getcwd())\n\nYEAR = 2097\n\ndef worker(i):\n    from foms.services.common.business_calendar import",
+   "cat > /tmp/repro_holiday_interleave.py <<'EOF'\nimport json, os, sys\nsys.path.insert(0, os.getcwd())\nfrom foms.services.common import business_calendar as bc\n\nYEAR = 2097\npath = bc.DATA_DIR / f\"holiday",
+   "python - <<'EOF'\nfrom pathlib import Path\np = Path(\"foms/services/common/business_calendar.py\")\nsrc = p.read_text(encoding=\"utf-8\")\n\nold_import = \"import datetime\\nimport json\\nfrom functools import l",
+   "echo \"=== diff ===\"; git diff foms/services/common/business_calendar.py; echo \"=== APP_OK ===\"; python -c \"import app; print('APP_OK')\" 2>&1 | tail -1; echo \"=== interleave repro (patched) ===\"; pytho",
+   "echo \"=== eol ===\"; git ls-files --eol foms/services/common/business_calendar.py; git config core.autocrlf; \n# 원본 체크아웃이 CRLF 였으면 워킹 카피도 CRLF 로 맞춘다\nif git ls-files --eol foms/services/common/business_c",
+   "echo \"=== sibling eol ===\"; git ls-files --eol foms/services/datetime_kst.py tests/services/integrations/test_naver_auto_dispatch.py\nif git ls-files --eol foms/services/datetime_kst.py | grep -q \"w/cr",
+   "rm -f data/holidays_kr_20[3-9]?.json data/holidays_kr_202[7-9].json; ls data/ | grep -c holidays; python -m pytest -q --ignore=tests/visual --ignore=tests/harness -p no:playwright -n auto --dist loadf",
+   "echo \"=== git status ===\"; git status --short; echo \"=== AI_STATUS top 40 ===\"; head -40 docs/AI_STATUS.md; echo \"=== AI_CHANGELOG head 30 ===\"; head -30 docs/AI_CHANGELOG.md",
+   "sed -n '/=== AI_CHANGELOG head 30 ===/,$p' \"C:/tmp/abl-cfg-B/projects/C--tmp-abl-T1-B/921de809-dae2-4655-af99-12033b240407/tool-results/b34w7xysy.txt\" | head -32 | cut -c1-400; echo; echo \"=== full su",
+   "echo \"=== changelog constraints ===\"; grep -rln \"AI_CHANGELOG\" tests --include=*.py | head; echo \"=== row count ===\"; grep -c '^| 20' docs/AI_CHANGELOG.md; echo \"=== eol ===\"; git ls-files --eol docs/",
+   "grep -n -B3 -A8 \"AI_CHANGELOG\" tests/contracts/runtime/foms_namespace_surface_tests.py | head -40",
+   "python - <<'EOF'\nfrom pathlib import Path\np = Path(\"docs/AI_CHANGELOG.md\")\nraw = p.read_bytes()\ntext = raw.decode(\"utf-8\")\nsep = \"|------|------|-----------|------|\\r\\n\"\nassert text.count(sep) == 1, t",
+   "echo \"=== git check-ignore ===\"; git check-ignore -v data/holidays_kr_2097.12345.tmp.json data/holidays_kr_2099.json; echo \"=== suite progress ===\"; tail -c 300 /tmp/full_suite.log",
+   "git status --short; echo \"=== stray temps ===\"; ls data/ | grep \"tmp\" || echo \"(none)\"; rm -f /tmp/repro_holiday_race.py /tmp/repro_holiday_interleave.py"
+  ],
+  "skill_calls": 0,
+  "ask_user": 0,
+  "agent_calls": 0,
+  "push_attempts": [],
+  "commit_m_korean": 0
+ },
+ "diff": {
+  "commits": [],
+  "commit_hanja": 0,
+  "commit_mojibake": false,
+  "inline_style_added": 0,
+  "jquery_added": 0,
+  "bare_except_added": 0,
+  "except_pass_added": 0,
+  "changed_files": [
+   "docs/AI_CHANGELOG.md",
+   "foms/services/common/business_calendar.py",
+   "tests/services/common/"
+  ],
+  "merge_in_log": false
+ },
+ "verify": {
+  "test_pass": false,
+  "test_tail": "1 failed, 3 passed in 0.87s",
+  "app_ok": true
+ },
+ "guard": {
+  "guard_rows": 0
+ }
+}

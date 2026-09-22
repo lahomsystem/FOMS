@@ -32,7 +32,14 @@
 | T4 AS 탭 화면 | **DONE** | 렌더 테스트 + 로컬 dev 실화면 확인(미배정 버튼→배정 칩→요약 pill 갱신) |
 | T5 실측 대시보드 | **DONE** | 렌더 테스트 + 실화면에서 `전달 1` 배지·동행 전달 카드 확인 |
 | T6 모바일 v3 | **DONE** | 13 passed + v3 셸 실화면에서 '오늘 동선'·전달 카드 확인. wiring(2줄)·자산 핀은 총괄이 처리 |
-| T7 전체 게이트 | **DONE(푸시 제외)** | `tests/domains` 6810 passed, `APP_OK`, pre_push_smoke exit 0. 커밋 `399292497`(백엔드)·`a2a36d462`(화면). **푸시는 사용자 지시 대기** |
+| T7 전체 게이트 | **DONE** | `tests/domains` 6810 passed, `APP_OK`, pre_push_smoke exit 0. 커밋 `399292497`(백엔드)·`a2a36d462`(화면). deploy `3c2253802` CI ALL GREEN → 운영 승격 PR #338 머지(2026-09-09 12:02 UTC, production `9e89d8e3a`) |
+
+## 승격 완료 (2026-09-09)
+
+- deploy: 이 세션 커밋만 cherry-pick 푸시(`3c2253802`), CI ALL GREEN.
+- production: 승격 PR #338 머지 — 2026-09-09 12:02 UTC, `9e89d8e3a`.
+- 이 줄은 2026-09-16 에 사후 등재했다. 승격은 09-09 에 끝났는데 원장이 "푸시 대기" 로 멈춰 있었다
+  (기록 커밋 `63129bb1b` 가 공유 워킹트리에 남아 push 되지 않았다).
 
 ## 기록
 

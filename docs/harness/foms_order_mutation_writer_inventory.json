@@ -85,19 +85,19 @@
     },
     {
       "path": "foms/api/quest.py",
-      "lineno": 181,
+      "lineno": 183,
       "kind": "flag_modified_structured_data",
       "owner": "STATE-QUEST-01"
     },
     {
       "path": "foms/api/quest.py",
-      "lineno": 548,
+      "lineno": 573,
       "kind": "flag_modified_structured_data",
       "owner": "STATE-QUEST-01"
     },
     {
       "path": "foms/api/quest.py",
-      "lineno": 693,
+      "lineno": 752,
       "kind": "flag_modified_structured_data",
       "owner": "STATE-QUEST-01"
     },
@@ -463,21 +463,21 @@
     },
     {
       "path": "foms/api/quest.py",
-      "lineno": 181,
+      "lineno": 183,
       "kind": "flag_modified_structured_data",
       "classification": "EXTERNAL",
       "owner": "STATE-QUEST-01"
     },
     {
       "path": "foms/api/quest.py",
-      "lineno": 548,
+      "lineno": 573,
       "kind": "flag_modified_structured_data",
       "classification": "EXTERNAL",
       "owner": "STATE-QUEST-01"
     },
     {
       "path": "foms/api/quest.py",
-      "lineno": 693,
+      "lineno": 752,
       "kind": "flag_modified_structured_data",
       "classification": "EXTERNAL",
       "owner": "STATE-QUEST-01"

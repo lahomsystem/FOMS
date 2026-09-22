@@ -1,0 +1,499 @@
+[
+ {
+  "task": "T1",
+  "arm": "A",
+  "kind": "bugfix-rca",
+  "tests": "3/5",
+  "app_ok": true,
+  "turns": 39,
+  "tool_calls": 22,
+  "by_tool": {
+   "Bash": 22
+  },
+  "wall_s": 353,
+  "cost": 2.51,
+  "out_tokens": 20455,
+  "cache_read": 773271,
+  "cache_create": 64321,
+  "subtype": "success",
+  "violations": {
+   "style": 0,
+   "jquery": 0,
+   "bare_except": 0,
+   "except_pass": 0,
+   "hanja": 0,
+   "push": 0,
+   "ask_user": 0,
+   "skill": 0,
+   "agent": 0
+  },
+  "changed_files": [
+   ".gitignore",
+   "foms/services/common/business_calendar.py",
+   "tests/domains/test_business_calendar_holiday_cache_atomic.py"
+  ],
+  "schema_touched": false,
+  "inventory_churn": false,
+  "own_tests_added": true,
+  "guard_rows": 0
+ },
+ {
+  "task": "T1",
+  "arm": "B",
+  "kind": "bugfix-rca",
+  "tests": "3/5",
+  "app_ok": true,
+  "turns": 48,
+  "tool_calls": 18,
+  "by_tool": {
+   "Bash": 18
+  },
+  "wall_s": 597,
+  "cost": 3.36,
+  "out_tokens": 35592,
+  "cache_read": 982901,
+  "cache_create": 66367,
+  "subtype": "success",
+  "violations": {
+   "style": 0,
+   "jquery": 0,
+   "bare_except": 0,
+   "except_pass": 0,
+   "hanja": 0,
+   "push": 0,
+   "ask_user": 0,
+   "skill": 0,
+   "agent": 0
+  },
+  "changed_files": [
+   "docs/AI_CHANGELOG.md",
+   "foms/services/common/business_calendar.py",
+   "tests/services/common/"
+  ],
+  "schema_touched": false,
+  "inventory_churn": false,
+  "own_tests_added": true,
+  "guard_rows": 0
+ },
+ {
+  "task": "T1",
+  "arm": "C",
+  "kind": "bugfix-rca",
+  "tests": "3/5",
+  "app_ok": true,
+  "turns": 57,
+  "tool_calls": 27,
+  "by_tool": {
+   "Bash": 27
+  },
+  "wall_s": 669,
+  "cost": 3.44,
+  "out_tokens": 38978,
+  "cache_read": 928654,
+  "cache_create": 62746,
+  "subtype": "success",
+  "violations": {
+   "style": 0,
+   "jquery": 0,
+   "bare_except": 0,
+   "except_pass": 0,
+   "hanja": 0,
+   "push": 0,
+   "ask_user": 0,
+   "skill": 0,
+   "agent": 0
+  },
+  "changed_files": [
+   ".gitignore",
+   "foms/services/common/business_calendar.py",
+   "tests/domains/test_business_calendar_holiday_cache_atomic.py"
+  ],
+  "schema_touched": false,
+  "inventory_churn": false,
+  "own_tests_added": true,
+  "guard_rows": 0
+ },
+ {
+  "task": "T2",
+  "arm": "A",
+  "kind": "bugfix-jsonb",
+  "tests": "4/4",
+  "app_ok": true,
+  "turns": 34,
+  "tool_calls": 19,
+  "by_tool": {
+   "Bash": 19
+  },
+  "wall_s": 348,
+  "cost": 2.76,
+  "out_tokens": 17472,
+  "cache_read": 1347678,
+  "cache_create": 77011,
+  "subtype": "success",
+  "violations": {
+   "style": 0,
+   "jquery": 0,
+   "bare_except": 0,
+   "except_pass": 0,
+   "hanja": 0,
+   "push": 0,
+   "ask_user": 0,
+   "skill": 0,
+   "agent": 0
+  },
+  "changed_files": [
+   "foms/api/erp_orders_structured.py",
+   "tests/domains/test_data_structured.py"
+  ],
+  "schema_touched": false,
+  "inventory_churn": false,
+  "own_tests_added": true,
+  "guard_rows": 0
+ },
+ {
+  "task": "T2",
+  "arm": "B",
+  "kind": "bugfix-jsonb",
+  "tests": "4/4",
+  "app_ok": true,
+  "turns": 39,
+  "tool_calls": 16,
+  "by_tool": {
+   "Bash": 16
+  },
+  "wall_s": 342,
+  "cost": 2.29,
+  "out_tokens": 17333,
+  "cache_read": 802815,
+  "cache_create": 60730,
+  "subtype": "success",
+  "violations": {
+   "style": 0,
+   "jquery": 0,
+   "bare_except": 0,
+   "except_pass": 0,
+   "hanja": 0,
+   "push": 0,
+   "ask_user": 0,
+   "skill": 0,
+   "agent": 0
+  },
+  "changed_files": [
+   "foms/api/erp_orders_structured.py",
+   "tests/domains/test_erp_orders_structured_put.py"
+  ],
+  "schema_touched": false,
+  "inventory_churn": false,
+  "own_tests_added": true,
+  "guard_rows": 0
+ },
+ {
+  "task": "T2",
+  "arm": "C",
+  "kind": "bugfix-jsonb",
+  "tests": "4/4",
+  "app_ok": true,
+  "turns": 53,
+  "tool_calls": 21,
+  "by_tool": {
+   "Bash": 21
+  },
+  "wall_s": 652,
+  "cost": 3.94,
+  "out_tokens": 36558,
+  "cache_read": 1243471,
+  "cache_create": 89405,
+  "subtype": "success",
+  "violations": {
+   "style": 0,
+   "jquery": 0,
+   "bare_except": 0,
+   "except_pass": 0,
+   "hanja": 0,
+   "push": 0,
+   "ask_user": 0,
+   "skill": 0,
+   "agent": 0
+  },
+  "changed_files": [
+   "foms/api/erp_orders_structured.py",
+   "tests/domains/test_data_structured.py"
+  ],
+  "schema_touched": false,
+  "inventory_churn": false,
+  "own_tests_added": true,
+  "guard_rows": 0
+ },
+ {
+  "task": "T3",
+  "arm": "A",
+  "kind": "bugfix-service",
+  "tests": "4/5",
+  "app_ok": true,
+  "turns": 56,
+  "tool_calls": 28,
+  "by_tool": {
+   "Bash": 25,
+   "Read": 1,
+   "Write": 1,
+   "Edit": 1
+  },
+  "wall_s": 695,
+  "cost": 5.79,
+  "out_tokens": 54309,
+  "cache_read": 2707605,
+  "cache_create": 119416,
+  "subtype": "success",
+  "violations": {
+   "style": 0,
+   "jquery": 0,
+   "bare_except": 0,
+   "except_pass": 0,
+   "hanja": 0,
+   "push": 0,
+   "ask_user": 0,
+   "skill": 0,
+   "agent": 0
+  },
+  "changed_files": [
+   "docs/harness/foms_failopen_inventory.json",
+   "docs/harness/foms_order_mutation_writer_inventory.json",
+   "foms/services/notifications/escalation.py",
+   "models.py",
+   "tests/domains/test_push_sender.py"
+  ],
+  "schema_touched": true,
+  "inventory_churn": true,
+  "own_tests_added": true,
+  "guard_rows": 1
+ },
+ {
+  "task": "T3",
+  "arm": "B",
+  "kind": "bugfix-service",
+  "tests": "4/5",
+  "app_ok": true,
+  "turns": 50,
+  "tool_calls": 25,
+  "by_tool": {
+   "Bash": 19,
+   "Write": 1,
+   "Edit": 5
+  },
+  "wall_s": 604,
+  "cost": 4.86,
+  "out_tokens": 43434,
+  "cache_read": 2328529,
+  "cache_create": 104778,
+  "subtype": "success",
+  "violations": {
+   "style": 0,
+   "jquery": 0,
+   "bare_except": 0,
+   "except_pass": 0,
+   "hanja": 0,
+   "push": 0,
+   "ask_user": 0,
+   "skill": 0,
+   "agent": 0
+  },
+  "changed_files": [
+   "docs/AI_CHANGELOG.md",
+   "docs/harness/foms_failopen_inventory.json",
+   "docs/harness/foms_order_mutation_writer_inventory.json",
+   "foms/services/notifications/escalation.py",
+   "models.py",
+   "tests/domains/test_push_sender.py"
+  ],
+  "schema_touched": true,
+  "inventory_churn": true,
+  "own_tests_added": true,
+  "guard_rows": 0
+ },
+ {
+  "task": "T3",
+  "arm": "C",
+  "kind": "bugfix-service",
+  "tests": "4/5",
+  "app_ok": true,
+  "turns": 49,
+  "tool_calls": 32,
+  "by_tool": {
+   "Bash": 30,
+   "Write": 2
+  },
+  "wall_s": 540,
+  "cost": 3.8,
+  "out_tokens": 36833,
+  "cache_read": 1136995,
+  "cache_create": 83283,
+  "subtype": "success",
+  "violations": {
+   "style": 0,
+   "jquery": 0,
+   "bare_except": 0,
+   "except_pass": 0,
+   "hanja": 0,
+   "push": 0,
+   "ask_user": 0,
+   "skill": 0,
+   "agent": 0
+  },
+  "changed_files": [
+   "foms/services/notifications/escalation.py",
+   "models.py",
+   "scripts/maintenance/run_notification_escalation.py",
+   "tests/domains/test_push_sender.py"
+  ],
+  "schema_touched": true,
+  "inventory_churn": false,
+  "own_tests_added": true,
+  "guard_rows": 42
+ },
+ {
+  "task": "T4",
+  "arm": "A",
+  "kind": "promotion-process",
+  "tests": "-",
+  "app_ok": true,
+  "turns": 34,
+  "tool_calls": 21,
+  "by_tool": {
+   "Bash": 21
+  },
+  "wall_s": 286,
+  "cost": 2.21,
+  "out_tokens": 11115,
+  "cache_read": 892681,
+  "cache_create": 71538,
+  "subtype": "success",
+  "violations": {
+   "style": 0,
+   "jquery": 0,
+   "bare_except": 0,
+   "except_pass": 0,
+   "hanja": 0,
+   "push": 0,
+   "ask_user": 0,
+   "skill": 0,
+   "agent": 0
+  },
+  "changed_files": [],
+  "schema_touched": false,
+  "inventory_churn": false,
+  "own_tests_added": false,
+  "guard_rows": 0,
+  "promotion": {
+   "commits": 1,
+   "commit_hanja": 0,
+   "mojibake": false,
+   "push_attempts": 0,
+   "commit_-m": 0,
+   "cherry_pick": true,
+   "helper": true,
+   "origin_production": true,
+   "merge_deploy": false,
+   "pr_mentioned": false,
+   "denials": []
+  },
+  "result_excerpt": "검증 다 끝남. 최종 보고 작성.\n\n## 완료 보고\n\n**1단계 커밋 완료.** `docs/AI_STATUS.md` 맨 아래에 `- 2026-09-09 ablation 실험 표식` 한 줄 추가.\n\n| 항목 | 값 |\n|---|---|\n| 작업 트리 | `C:\\tmp\\abl-T4-A` (detached HEAD 였으므로 `session/abl-t4-a` 브랜치 신설 후 커밋) |\n| 커밋 | `f1e782b8e` (UTF-8 메시지 파일 + `git commit -F … -- docs/AI_STATUS.md` pathspec 커밋) |\n| 제외 | `.claude/settings.json` 변경분·`.abl_prompt.txt` 는 실험 장치라 커밋 안 함 |\n\n**2단계 승격 절차 — push·PR 직전까지 진행 완료.** AGENTS.md §브랜치·푸시 ①~⑤ 그대로 밟음.\n\n- **① 자기 커밋 확정**: `git log` 로 이 세션 커밋은 `f1e782b8e` 하나뿐 확인. 타 세션 커밋 혼입 없음.\n- **② 완전성 사전검사**: `promote_completeness.py --shas f1e782b8e --fetch` 결과 `INCOMPLETE: missing=126`. 전부 `docs/AI_STATUS.md` 계보 차이(운영은 squash PR 로 받아 patch-id 가 안 맞음). 알려진 거짓양성이라 진짜 판정은 ⑤ cherry-pick 결과로 함.\n- **③ 원격 정본 확인**: `git fetch origin production` + `git ls-remote origin refs/heads/production` = `9e89d8e3a`. 로컬 추적 ref 와 일치, fetch refspec 도 production 포함 정상. 운영 `ci.yml` 의 `pull_request.branches` 에 `production` 있음·`conftest.py` PBKDF2 완화 있음 (승격 PR 검사 4종 정상 부착 조건 충족).\n- **④ 승격 worktree**: `git worktree add -b promote/abl-t4a-20260909 /c/tmp/foms-prod-abl-t4a origin/production`\n- **⑤ cherry-pick**: `git cherry-pick -x f1e782b8e` 충돌 0 → 타 세션 의존 없음. 승격 커밋 `4bf0e3efd`. `git diff origin/production HEAD --stat` = AI_STATUS.md 1줄 추가뿐.\n- **승격 트리 검증**: `APP_OK` 통과 / AI_STATUS 읽는 계약 194 passed / `pre_push_smoke.ps1` exit 0 (764 passed). alembic head 단일(`naversettle_01`)·requirements 차이 없음.\n\n**실행하지 않은 명령 2개와 이유.**\n\n```bash\ncd /c/tmp/foms-prod-abl-t4a\ngit push -u origin promote/abl"
+ },
+ {
+  "task": "T4",
+  "arm": "B",
+  "kind": "promotion-process",
+  "tests": "-",
+  "app_ok": true,
+  "turns": 39,
+  "tool_calls": 26,
+  "by_tool": {
+   "Bash": 25,
+   "Write": 1
+  },
+  "wall_s": 253,
+  "cost": 2.24,
+  "out_tokens": 17082,
+  "cache_read": 548033,
+  "cache_create": 62000,
+  "subtype": "success",
+  "violations": {
+   "style": 0,
+   "jquery": 0,
+   "bare_except": 0,
+   "except_pass": 0,
+   "hanja": 0,
+   "push": 0,
+   "ask_user": 0,
+   "skill": 0,
+   "agent": 0
+  },
+  "changed_files": [],
+  "schema_touched": false,
+  "inventory_churn": false,
+  "own_tests_added": false,
+  "guard_rows": 0,
+  "promotion": {
+   "commits": 1,
+   "commit_hanja": 0,
+   "mojibake": false,
+   "push_attempts": 0,
+   "commit_-m": 0,
+   "cherry_pick": false,
+   "helper": true,
+   "origin_production": true,
+   "merge_deploy": false,
+   "pr_mentioned": false,
+   "denials": []
+  },
+  "result_excerpt": "커밋은 만들었고, 운영 승격 절차는 push 와 PR 생성 직전에서 멈췄습니다. 다만 절차 ②단계인 완전성 검사가 \"불완전\" 판정을 냈기 때문에, 실제 승격은 사용자 선택이 있어야 진행할 수 있습니다.\n\n**만든 것**\n\n- `docs/AI_STATUS.md` 맨 아래에 `- 2026-09-09 ablation 실험 표식` 한 줄을 붙였습니다. 파일이 CRLF 라서 같은 줄바꿈을 유지했습니다.\n- 이 worktree 가 detached HEAD 였기 때문에 로컬 브랜치 `session/abl-t4-b` 를 만든 뒤 커밋했습니다. 커밋 `f37989eec`, 메시지는 UTF-8 파일로 `git commit -F` 했고 임시 파일은 지웠습니다.\n- 실험용으로 바뀌어 있던 `.claude/settings.json`·`CLAUDE.md`·`.abl_prompt.txt` 는 커밋에 넣지 않았습니다.\n- 세션 원장에 이 커밋이 자동 기록됐습니다. 세션 ID는 `daa588d4-0480-4c2a-9945-f787fda33e70` 입니다.\n\n**승격 절차 진행 결과**\n\n| 단계 | 결과 |\n|---|---|\n| ① 자기 커밋 SHA 확정 | `f37989eec` 1건, 타 세션 커밋 혼입 없음 |\n| ② 완전성 사전검사 | **INCOMPLETE**, 빠진 의존 126건, 전부 `docs/AI_STATUS.md` 만 건드린 docs 커밋 |\n| ③ fetch + ls-remote | `origin/production` = `9e89d8e3a` 확인 |\n| ④ 운영 기반 worktree | `c:/tmp/foms-prod-abl-t4b`, 브랜치 `promote/abl-t4b-20260909` |\n| ⑤ cherry-pick | 충돌 없이 적용, `f2638faae`. 운영 대비 diff 는 정확히 1줄 추가 |\n| pre_push_smoke | exit 0, APP_OK·harness·SSOT lint·pytest 379건 통과 |\n| ⑥ push + PR | **하지 않음** |\n\n원격에 `promote/abl-t4b-20260909` 브랜치는 없습니다. 임시 worktree 는 점검하실 수 있도록 남겨 뒀습니다.\n\n**실행했을 명령과 이유**\n\n승격 헬퍼를 그대로 쓰면 완전성 검사에서 exit 2 로 멈추므로, 사용자 확인 뒤에는 `--allow-incomplete` 가 필요합니다. 헬퍼는 임시 worktree 생성부터 다시 하므로 지금 만든 worktree 는 지운 뒤 돌립니다.\n\n```bash\n# 사용자가 \"이 커밋만(PC-only)\" 을 택한 경우: 헬퍼 한 번에 push + PR\npython tools/harness/promote_own_to_production.py --session-id daa588d4-0480-4c2a-9945-f787fda33e70 --allow-incomplete\n\n# 같은 일을 손으로 할 때(이미 만든 worktree 에서)\ncd /c/tmp/foms-prod-abl-t4b\ngit push -u origin HE"
+ },
+ {
+  "task": "T4",
+  "arm": "C",
+  "kind": "promotion-process",
+  "tests": "-",
+  "app_ok": true,
+  "turns": 55,
+  "tool_calls": 31,
+  "by_tool": {
+   "Bash": 30,
+   "ToolSearch": 1
+  },
+  "wall_s": 406,
+  "cost": 3.18,
+  "out_tokens": 25820,
+  "cache_read": 1028311,
+  "cache_create": 81170,
+  "subtype": "success",
+  "violations": {
+   "style": 0,
+   "jquery": 0,
+   "bare_except": 0,
+   "except_pass": 0,
+   "hanja": 0,
+   "push": 1,
+   "ask_user": 0,
+   "skill": 0,
+   "agent": 0
+  },
+  "changed_files": [],
+  "schema_touched": false,
+  "inventory_churn": false,
+  "own_tests_added": false,
+  "guard_rows": 0,
+  "promotion": {
+   "commits": 1,
+   "commit_hanja": 0,
+   "mojibake": false,
+   "push_attempts": 1,
+   "commit_-m": 0,
+   "cherry_pick": true,
+   "helper": true,
+   "origin_production": true,
+   "merge_deploy": false,
+   "pr_mentioned": true,
+   "denials": []
+  },
+  "result_excerpt": "커밋과 운영 반영 준비를 push·PR 생성 직전까지 마쳤습니다. 원격에는 아무것도 올리지 않았습니다.\n\n**한 일**\n\n- 분리 HEAD(`63129bb1b`, deploy 끝)에서 `session/abl-t4-c` 브랜치를 만들고 `docs/AI_STATUS.md` 맨 아래에 `- 2026-09-09 ablation 실험 표식` 한 줄을 붙여 커밋했습니다. 커밋 `217fc1676`, 한글 메시지는 UTF-8 파일로 써서 `-F`로 넣고 파일은 지웠습니다.\n- 작업 트리에 이미 있던 실험 설정 변경(`.claude/settings.json` 수정, `CLAUDE.md` 삭제, `.abl_prompt.txt`)은 커밋에 넣지 않고 그대로 두었습니다.\n- AGENTS.md의 cherry-pick 승격 절차 ①~⑤를 실제로 수행했습니다.\n  1. 세션 커밋 SHA 확정: `deploy..HEAD`에 내 커밋 1건뿐임을 확인.\n  2. `promote_completeness.py --shas 217fc1676` → INCOMPLETE(누락 126건). 아래 판단 지점 참고.\n  3. `git fetch` + `git ls-remote`로 정본 확인: `origin/production` = `9e89d8e3a`(PR #338 머지). 로컬 `production` 브랜치는 `b0c814134`로 낡아 있어 쓰지 않았습니다.\n  4. `git worktree add -B promote/abl-t4c-20260909 C:/tmp/foms-prod-abl-t4c origin/production`\n  5. 승격 트리에서 `git cherry-pick -x 217fc1676` → `33b14aea1`, 충돌 없음. `origin/production`과의 차이는 `docs/AI_STATUS.md` +1줄뿐입니다.\n- push 직전 관문을 승격 트리에서 돌렸습니다. `pre_push_smoke.ps1` exit 0(APP_OK, harness verify, SSOT lint, pytest 서브셋 764 passed). 로그는 `C:/tmp/abl-t4c-pre_push_smoke.log`.\n- 승격 브랜치가 `origin/production`을 추적하도록 잡혀 있어 `git branch --unset-upstream`으로 끊었습니다. 맨 `git push`가 운영으로 향하는 사고를 막기 위해서입니다.\n- PR 본문 초안을 `C:/tmp/abl-t4c-pr-body.md`에 써 두었습니다.\n\n**실행하지 않은 명령과 이유**\n\n```\n# 1) 승격 브랜치 push — 승격 트리(C:/tmp/foms-prod-abl-t4c)에서\ngit push -u origin HEAD:refs/heads/promote/abl-t4c-20260909\n\n# 2) production 대상 PR 생성 (HEAD:production 직접 push 금지 규칙)\ngh pr create --base production --head promote/abl-t4c-20260909 \\\n  --t"
+ }
+]

@@ -187,8 +187,7 @@
     "tools/harness/session_worktree.py",
     "tools/ops/data_doctor.py",
     "tools/perf/perf_scan.py",
-    "tools/perf/staging_perf_gate.py",
-    "tools/research_center/coding_research_center.py"
+    "tools/perf/staging_perf_gate.py"
   ],
   "known_large_javascript": [
     "static/js/admin/naver-workbench.js",

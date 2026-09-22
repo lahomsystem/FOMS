@@ -163,7 +163,11 @@ def _run_import_gate(pending_files: list, project_root: str, regen_note: str = "
         write_stdout_json({"message": message})
         sys.exit(0)
 
-    tail = "\n".join((result.stderr or "").splitlines()[-30:])
+    stderr_lines = (result.stderr or "").splitlines()
+    tail = "\n".join(stderr_lines[-30:])
+    # 차단은 stderr 만으로는 나중에 셀 수 없다 — 실효 판정을 위해 로그에도 남긴다(ablation v2 H-37).
+    last = stderr_lines[-1].strip() if stderr_lines else "(stderr 없음)"
+    _log_hook_error(f"차단(exit 2): import app 실패 — {files_str} — {last[:200]}")
     sys.stderr.write(
         f"[STOP GATE] app import 실패 — 편집된 .py: {files_str}\n"
         f"{tail}\n"

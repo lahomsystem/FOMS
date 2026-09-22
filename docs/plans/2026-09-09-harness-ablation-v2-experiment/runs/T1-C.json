@@ -1,0 +1,87 @@
+{
+ "task": "T1",
+ "arm": "C",
+ "kind": "bugfix-rca",
+ "worktree": "C:\\tmp\\abl-T1-C",
+ "base_sha": "969419133",
+ "session_id": "c54422e0-de33-4a20-93c9-df28b4ba64d2",
+ "subtype": "success",
+ "is_error": false,
+ "num_turns": 28,
+ "duration_ms": 663997,
+ "wall_s": 669,
+ "cost_usd": 3.4432104999999997,
+ "input_tokens": 580,
+ "output_tokens": 38978,
+ "cache_read": 928654,
+ "cache_create": 62746,
+ "result_hanja": 0,
+ "result_head": "검증이 모두 끝났습니다. 커밋은 하지 않았습니다.\n\n**결론**: 원인은 공휴일 캐시 파일 쓰기가 원자적이지 않았던 것입니다. `_generate_holidays_kr`가 최종 경로를 `open(\"w\")`로 직접 열어 파일을 0바이트로 truncate한 뒤 `json.dump`를 했기 때문에, 그 사이에 다른 xdist 워커가 같은 연도를 조회하면 `path.exists()`는 참이고 `json.load`는 빈 파일을 읽어 `JSONDecodeError: Expecting value: line 1 column 1 (char 0)`가 났습니다.\n\n**왜 이 테스트가 걸렸나**\n- 실패한 테스트는 `tests/domains/test_production_kpi_slim_projection.py`에 있고, `2099-01-01` 공사일을 시드합니다. 형제 파일 `test_construction_kpi_slim_projection.py`와 `test_shipment_as_recommendations.py`도 2099 날짜를 씁니다.\n- `business_days_between`은 시작 연도부터 끝 연도까지 모든 해의 `get_holidays_kr`를 호출합니다. 즉 ",
+ "permission_denials": [],
+ "stderr_tail": null,
+ "transcript": {
+  "transcript": "C:\\tmp\\abl-cfg-C\\projects\\C--tmp-abl-T1-C\\c54422e0-de33-4a20-93c9-df28b4ba64d2.jsonl",
+  "found": true,
+  "tool_calls": 27,
+  "by_tool": {
+   "Bash": 27
+  },
+  "bash_cmds": [
+   "grep -rn \"_load_holidays_json\\|get_holidays_kr\\|holidays_kr_\" --include=*.py . | grep -v \"\\.venv\" | head -50",
+   "cat foms/services/common/business_calendar.py; echo \"-----\"; ls -la data/ | grep -i holiday; echo \"-----\"; git status --short data/ | head",
+   "echo \"== 2099 refs ==\"; grep -rln \"2099\" tests/ | head -30; echo; echo \"== target test ==\"; grep -rn \"slim_equals_full\" tests/ | head; echo; echo \"== gitignore ==\"; grep -n \"holiday\\|^data\" .gitignore",
+   "echo \"== tracked holiday files ==\"; git ls-files data/ | grep holiday; echo; echo \"== ci.yml 95-120 ==\"; sed -n 95,120p .github/workflows/ci.yml; echo; echo \"== test file ==\"; sed -n 1,140p tests/doma",
+   "echo \"== gitignore ctx ==\"; sed -n 155,175p .gitignore; echo; echo \"== existing tests for business_calendar ==\"; grep -rln \"business_calendar\" tests/ | head; echo; echo \"== test dirs ==\"; ls tests/ser",
+   "echo \"== atomic_write_token ==\"; sed -n 215,260p foms/services/security/ops_control_root.py; echo; echo \"== how tests reference business_calendar ==\"; grep -n \"business_calendar\" tests/domains/test_er",
+   "sed -n 80,130p tests/contracts/runtime/test_ptc_physical_exactness.py",
+   "python - <<'PY'\nfrom pathlib import Path\np = Path(\"foms/services/common/business_calendar.py\")\ns = p.read_text(encoding=\"utf-8\")\n\nold_imports = \"\"\"import datetime\nimport json\nfrom functools import lru",
+   "cat > tests/domains/test_business_calendar_holiday_cache_atomic.py <<'PY'\n\"\"\"공휴일 JSON 캐시 원자성 가드 (CI-XDIST 간헐 실패 재발 방지).\n\n배경: `data/holidays_kr_<year>.json` 은 2025·2026 만 커밋되어 있고 나머지 연도는\n`get_holidays_",
+   "DATABASE_URL=\"sqlite:///:memory:\" SECRET_KEY=\"ci-secret-key\" FLASK_ENV=\"testing\" python -m pytest -q -p no:playwright tests/domains/test_business_calendar_holiday_cache_atomic.py 2>&1 | tail -15",
+   "DATABASE_URL=\"sqlite:///:memory:\" SECRET_KEY=\"ci-secret-key\" FLASK_ENV=\"testing\" python -m pytest -q -p no:playwright -n 4 --dist loadfile tests/domains/test_production_kpi_slim_projection.py tests/do",
+   "DATABASE_URL=\"sqlite:///:memory:\" SECRET_KEY=\"ci-secret-key\" FLASK_ENV=\"testing\" python -c \"import app; print('APP_OK')\" 2>&1 | tail -5",
+   "DATABASE_URL=\"sqlite:///:memory:\" SECRET_KEY=\"ci-secret-key\" FLASK_ENV=\"testing\" python -m pytest -q -p no:playwright tests/contracts/runtime/test_ptc_physical_exactness.py tests/contracts/runtime/fom",
+   "cat > /tmp/race_repro.py <<'PY'\n\"\"\"실제 다중 프로세스 경합 재현: old(open('w')) vs new(임시파일+os.replace).\"\"\"\nimport json, multiprocessing as mp, os, sys, time\nfrom pathlib import Path\n\nsys.path.insert(0, os.getcwd",
+   "echo \"== git status ==\"; git status --short; echo; echo \"== data dir stray files ==\"; ls -a data/ | grep -i \"holiday\" | head -5; ls -a data/ | grep -c \"holidays_kr_\"; ls -a data/ | grep \"\\.tmp\" || ech",
+   "python - <<'PY'\nfrom pathlib import Path\np = Path(\"foms/services/common/business_calendar.py\")\ns = p.read_text(encoding=\"utf-8\")\nold = '''def _write_holidays_json_atomic(out_path: Path, payload: dict)",
+   "cat > /tmp/race_repro.py <<'PY'\n\"\"\"실제 다중 프로세스 경합 재현: old(open('w')) vs new(임시파일+os.rename).\"\"\"\nimport json, multiprocessing as mp, os, sys, time\nfrom pathlib import Path\n\nsys.path.insert(0, os.getcwd(",
+   "DATABASE_URL=\"sqlite:///:memory:\" SECRET_KEY=\"ci-secret-key\" FLASK_ENV=\"testing\" python -m pytest -q -p no:playwright -n 4 --dist loadfile tests/domains/test_business_calendar_holiday_cache_atomic.py ",
+   "DATABASE_URL=\"sqlite:///:memory:\" SECRET_KEY=\"ci-secret-key\" FLASK_ENV=\"testing\" python -m pytest -q -p no:playwright tests/contracts/runtime/test_ptc_physical_exactness.py tests/contracts/runtime/fom",
+   "python - <<'PY'\nfrom pathlib import Path\np = Path(\"C:/Users/USER/AppData/Local/Temp/race_repro.py\")\nif not p.exists():\n    import subprocess\n    p = Path(subprocess.check_output([\"bash\", \"-lc\", \"cygpa",
+   "DATABASE_URL=\"sqlite:///:memory:\" SECRET_KEY=\"ci-secret-key\" FLASK_ENV=\"testing\" python -m pytest -q --ignore=tests/visual --ignore=tests/harness -p no:playwright -n auto --dist loadfile 2>&1 | tail -",
+   "git diff foms/services/common/business_calendar.py .gitignore",
+   "python - <<'PY'\nfrom pathlib import Path\np = Path(\"C:/Users/USER/AppData/Local/Temp/race_repro.py\")\ns = p.read_text(encoding=\"utf-8\")\ns = s.replace(\"    barrier.wait()  # 모든 워커가 import 를 끝낸 뒤 출발\\n\",\n ",
+   "rm -rf \"C:/tmp/race_data\" /tmp/race_repro.py; echo cleaned; echo \"== git status ==\"; git status --short; echo \"== tmp leftovers in data ==\"; ls -a data/ | grep \"\\.tmp\" || echo \"(none)\"",
+   "cat /tmp/full_suite.log 2>/dev/null || echo \"(full suite still running)\"",
+   "tail -c 600 \"C:/Users/USER/AppData/Local/Temp/claude/C--tmp-abl-T1-C/c54422e0-de33-4a20-93c9-df28b4ba64d2/tasks/bbvbnzvnk.output\" 2>/dev/null || echo \"(no output yet)\"",
+   "cat /tmp/full_suite.log"
+  ],
+  "skill_calls": 0,
+  "ask_user": 0,
+  "agent_calls": 0,
+  "push_attempts": [],
+  "commit_m_korean": 0
+ },
+ "diff": {
+  "commits": [],
+  "commit_hanja": 0,
+  "commit_mojibake": false,
+  "inline_style_added": 0,
+  "jquery_added": 0,
+  "bare_except_added": 0,
+  "except_pass_added": 0,
+  "changed_files": [
+   ".gitignore",
+   "foms/services/common/business_calendar.py",
+   "tests/domains/test_business_calendar_holiday_cache_atomic.py"
+  ],
+  "merge_in_log": false
+ },
+ "verify": {
+  "test_pass": false,
+  "test_tail": "1 failed, 3 passed in 0.83s",
+  "app_ok": true
+ },
+ "guard": {
+  "guard_rows": 0
+ }
+}

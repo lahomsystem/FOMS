@@ -10,6 +10,12 @@
 
 ---
 
+### [2026-09-22] pre_push_smoke 게이트에서 타깃 목록을 없앤다
+- **키워드**: pre-push, smoke, gate, pytest, xdist, ci-red, 인벤토리, concurrency
+- **결정**: 기본 게이트는 손으로 고른 타깃 배열 대신 전체 스위트를 `-n auto --dist loadfile` 로 돌린다(`tests/harness` 만 제외, `-Full` 에서 포함). `tests/visual` 도 목록 없이 통째로 돌리고, 브라우저 픽스처 테스트는 `tests/visual/conftest.py` 의 `pytest_collection_modifyitems` 가 skip 으로 떨어뜨린다. 인벤토리 생성물은 `tools/harness/refresh_inventories.py` 가 먼저 재생성하되 `lineno` 만 밀린 변화는 되돌린다. `ci.yml`·`harness-ci.yml`·`postgres-lane.yml` 에 `concurrency` + `cancel-in-progress` 를 둔다.
+- **이유**: 2026-09-22 계측에서 최근 CI red 20건이 **전부** 타깃 배열 밖 파일이었다(핀·캐시체인·레지스트리·인벤토리 계약). 게이트가 느려서가 아니라 목록이 좁아서 못 잡았다. 12코어 기준 33타깃 직렬 130초(379 테스트) 대신 전체 10,204 테스트를 104초에 본다 — 더 빠르면서 27배를 본다. 손으로 유지하는 목록은 낡는다는 것이 이 저장소의 반복 실패 양식이다(CI-VISUAL-01 등재 목록 red 2주 반, as_timeline 호출부 명단 4커밋 연속 red, CI-PROMOTE-01 base 필터로 운영 사고 3건). 인벤토리를 무조건 재생성하면 깨끗한 트리에서도 lineno 때문에 3파일 68줄이 바뀌어 공유 워킹트리에 충돌을 만들고, `--check` 는 lineno 까지 보므로 초록 트리에서 exit 1 을 내 게이트로 쓸 수 없다.
+- **영향**: `scripts/ops/pre_push_smoke.ps1`, `tools/harness/refresh_inventories.py`, `tests/visual/conftest.py`, `.github/workflows/ci.yml`, `.github/workflows/harness-ci.yml`, `.github/workflows/postgres-lane.yml`, `docs/guides/PRE_PUSH_SMOKE.md`, `AGENTS.md`
+
 ### [2026-09-11] NVCLAIM-PARTIAL-01 — 네이버 취소·반품 부분 선택, 표식 기반 집 잠금 완화
 - **키워드**: naver, claim, cancel, return, partial, product_order_ids, cancel_scope, household-lock, bulk-dispatch, FAQ-3880
 - **결정**: ① 부분 선택은 취소·반품 둘 다 ② 거부·승인 부분 선택은 범위 밖 ③ 본품 선택 시 남은 추가구성은 서버(`plan_claim_scope`)가 자동 동반 + 재검사(빠지면 0건 전송) ④ 취소 축에도 FAQ 3880 범위 규격(`addon_return_gap`) ⑤ 부분 취소 뒤 남은 라인은 발주확인·발송 허용 — 성공 표식 `fulfillment.cancel_scope ∈ {partial, household}`, partial 행만 대상에서 빼고 household·옛 키 없음 표식과 취소 실패 잔존(`last_error_action == "cancel"`)은 집 전체 차단 유지 ⑥ 재결제·추가결제 집 허용 ⑦ 수량 일부 취소 범위 밖(호출자 `quantity` 금지 계약) ⑧ 취소 버튼은 형제 클레임으로 집을 잠그지 않는다(`can_cancel` 은 `household_claimed` 를 안 보고 `cancel_sendable_count`·서버 `_claim_guard(scope=todo)` 가 라인 단위로 거른다) ⑨ 벌크 발송 pre-check(`bulk_dispatch._blocking_reason`)도 `_cancel_guard` 거울. `product_order_ids` 의미 3종은 전 계층 동일: None=집 전체 / []=400·FulfillmentError / [id…]=그 라인만. 게이트 `FOMS_NAVER_PARTIAL_CLAIM_ENABLED`+`_COHORT`.

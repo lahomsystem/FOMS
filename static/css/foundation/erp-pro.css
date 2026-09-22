@@ -105,6 +105,63 @@
     font-size: 10px;
 }
 
+/* ── 주문 등록 빠른 시작 시트(아이폰 전용) ─────────────────────────────
+   ＋ 버튼을 탭한 제스처 안에서 열려야 자판이 올라오므로, 요소는 미리 만들어 두고
+   탭에서는 보여 주기만 한다(static/js/foms/wizard-quickstart.js).
+   안드로이드에는 아예 만들어지지 않는다. */
+.foms-quickstart[hidden] {
+  display: none !important;
+}
+.foms-quickstart {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: flex-end;
+}
+.foms-quickstart__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+}
+.foms-quickstart__panel {
+  position: relative;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 16px 16px calc(16px + env(safe-area-inset-bottom, 0px));
+  border-radius: 16px 16px 0 0;
+  background: var(--foms-surface-base, #fff);
+  color: var(--foms-text-primary, #1f2937);
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.18);
+}
+.foms-quickstart__label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+.foms-quickstart__input {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: var(--foms-touch-target-min, 44px);
+  /* 16px 미만이면 사파리가 포커스 때 화면을 확대한다. */
+  font-size: 16px;
+}
+.foms-quickstart__hint {
+  margin: 8px 0 0;
+  font-size: 0.8rem;
+  color: var(--foms-text-secondary, #6b7280);
+}
+.foms-quickstart__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+.foms-quickstart__actions .foms-btn {
+  flex: 1 1 0;
+  min-height: var(--foms-touch-target-min, 44px);
+}
+
 /* STATE-CONTROLS-02 — 막힌 완료 버튼의 사유(텍스트 노드).
    title 툴팁은 태블릿·모바일에서 뜨지 않아 "왜 막혔는지" 를 읽을 길이 없었다.
    버튼 아래 한 줄로 내려 주고, 옆의 '갈 곳' 링크와 한 덩어리로 보이게 한다. */

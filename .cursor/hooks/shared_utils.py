@@ -80,7 +80,14 @@ def harness_runtime_path(project_root: str | None = None, *parts: str) -> str:
 
 
 def harness_log_path(project_root: str | None = None, *parts: str) -> str:
-    """Return an absolute path under `docs/harness/logs/`."""
+    """Return an absolute path under `docs/harness/logs/`.
+
+    env `FOMS_HARNESS_LOG_DIR` 가 있으면 그 디렉토리를 쓴다(테스트 격리 — Claude 쪽
+    `.claude/hooks/shared_utils.harness_log_path` 와 같은 규약).
+    """
+    override = os.environ.get("FOMS_HARNESS_LOG_DIR")
+    if override:
+        return os.path.join(override, *parts)
     return harness_docs_path(project_root, "logs", *parts)
 
 

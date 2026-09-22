@@ -1,0 +1,73 @@
+{
+ "task": "T4",
+ "arm": "A",
+ "kind": "promotion-process",
+ "worktree": "C:\\tmp\\abl-T4-A",
+ "base_sha": "7eecbb4d2",
+ "session_id": "4f7acd3c-9bc9-4d13-a495-be8105f5e7a4",
+ "subtype": "success",
+ "is_error": false,
+ "num_turns": 18,
+ "duration_ms": 219544,
+ "wall_s": 225,
+ "cost_usd": 1.1649239999999998,
+ "input_tokens": 24,
+ "output_tokens": 8544,
+ "cache_read": 686368,
+ "cache_create": 60802,
+ "result_hanja": 0,
+ "result_head": "완료. 커밋 하나 만들고, 운영 승격을 push/PR 직전까지 진행했다.\n\n## 1) 커밋 (완료)\n\n- 워크트리: `C:\\tmp\\abl-T4-A` (detached 였음 → 새 브랜치 `session/abl-t4-a-20260910` 생성)\n- 파일: `docs/AI_STATUS.md` 맨 아래 `- 2026-09-09 ablation 실험 표식` 한 줄 추가 (CRLF 유지, 1 insertion)\n- 커밋: `864320eee` — 메시지 UTF-8 파일로 저장 후 `git commit -F`, pathspec 지정해 `.claude/settings.json` 미포함\n- 기존 `session/abl-t4-a`(`f1e782b8e`)는 옛 시도 브랜치라 건드리지 않았다\n\n## 2) 승격 절차 (push·PR 직전까지 완료)\n\n실제 실행한 것:\n\n| 단계 | 명령 | 결과 |\n|---|---|---|\n| ① 자기 커밋 확정 | `git log` | `864320eee` 1건, 타 세션 혼입 없음 |\n| ② 완전성 사전검사 | `python tools/harness/promote_completeness.py --shas 864320eee` | **exit 2",
+ "permission_denials": [],
+ "stderr_tail": null,
+ "transcript": {
+  "transcript": "C:\\Users\\USER\\.claude\\projects\\C--tmp-abl-T4-A\\4f7acd3c-9bc9-4d13-a495-be8105f5e7a4.jsonl",
+  "found": true,
+  "tool_calls": 17,
+  "by_tool": {
+   "Bash": 17
+  },
+  "bash_cmds": [
+   "git status --short && echo \"---BRANCH---\" && git branch --show-current && echo \"(empty=detached)\" && echo \"---HEAD---\" && git log --oneline -1 && echo \"---WORKTREES---\" && git worktree list",
+   "tail -20 docs/AI_STATUS.md && echo \"---SIZE---\" && wc -l docs/AI_STATUS.md",
+   "git branch --list 'session/abl-t4-a' 'promote/abl-t4a*' && echo \"---REMOTE---\" && git remote -v && echo \"---AGENTS grep---\" && grep -n \"브랜치\\|푸시\\|승격\\|cherry-pick\\|promote_own\" AGENTS.md | head -60",
+   "ls tools/harness/ | grep -i \"promot\\|push_own\" ; echo \"---SCRIPTS---\" ; ls scripts/ops/ | head -30",
+   "git log --oneline -3 session/abl-t4-a && echo \"---PROMOTE BRANCH---\" && git log --oneline -3 promote/abl-t4a-20260909 && echo \"---AHEAD/BEHIND vs HEAD---\" && git rev-list --left-right --count HEAD...s",
+   "sed -n '1,60p' tools/harness/promote_own_to_production.py",
+   "git switch -c session/abl-t4-a-20260910 && tail -c 80 docs/AI_STATUS.md | od -c | tail -3",
+   "python tools/harness/promote_own_to_production.py --help",
+   "printf -- '- 2026-09-09 ablation 실험 표식\\r\\n' >> docs/AI_STATUS.md && tail -2 docs/AI_STATUS.md && echo \"---DIFF---\" && git diff --stat docs/AI_STATUS.md",
+   "cat > /tmp/foms_commit_msg_t4a.txt <<'EOF'\ndocs: 2026-09-09 ablation 실험 표식 한 줄 추가\n\nAI_STATUS.md 맨 아래에 ablation 실험 표식 한 줄을 추가한다.\n\nCo-Authored-By: Claude Opus 5 <noreply@anthropic.com>\nEOF\nfile /tmp/fom",
+   "python tools/harness/promote_completeness.py --shas 864320eee; echo \"EXIT=$?\"",
+   "git fetch origin production deploy 2>&1 | tail -5; echo \"---LS-REMOTE---\"; git ls-remote origin refs/heads/production refs/heads/deploy",
+   "git rev-list --left-right --count origin/deploy...HEAD; echo \"---\"; git log --oneline -1 origin/production",
+   "git worktree add -b promote/abl-t4a-20260910 /c/tmp/foms-prod-abl-t4a-20260910 origin/production 2>&1 | tail -5",
+   "cd /c/tmp/foms-prod-abl-t4a-20260910 && git cherry-pick 864320eee 2>&1 | tail -10; echo \"EXIT=$?\"; git -C /c/tmp/foms-prod-abl-t4a-20260910 log --oneline -1; git -C /c/tmp/foms-prod-abl-t4a-20260910 s",
+   "tail -3 /c/tmp/foms-prod-abl-t4a-20260910/docs/AI_STATUS.md; echo \"---DIFF vs production---\"; git -C /c/tmp/foms-prod-abl-t4a-20260910 diff origin/production --stat; git -C /c/tmp/foms-prod-abl-t4a-20",
+   "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ops/pre_push_smoke.ps1 2>&1 | tail -40; echo \"EXIT=${PIPESTATUS[0]}\""
+  ],
+  "skill_calls": 0,
+  "ask_user": 0,
+  "agent_calls": 0,
+  "push_attempts": [],
+  "commit_m_korean": 0
+ },
+ "diff": {
+  "commits": [
+   "864320eee\tdocs: 2026-09-09 ablation 실험 표식 한 줄 추가"
+  ],
+  "commit_hanja": 0,
+  "commit_mojibake": false,
+  "inline_style_added": 0,
+  "jquery_added": 0,
+  "bare_except_added": 0,
+  "except_pass_added": 0,
+  "changed_files": [],
+  "merge_in_log": false
+ },
+ "verify": {
+  "app_ok": true
+ },
+ "guard": {
+  "guard_rows": 0
+ }
+}
