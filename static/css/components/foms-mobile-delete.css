@@ -1,0 +1,294 @@
+/* MOBILE-DELETE-01 — 모바일 주문 삭제: 더보기/확인 시트, 사유 칩, 길게 누르기 버튼, 되돌리기 토스트.
+   토큰은 foms-tokens.css(--foms-*)·erp-pro(--erp-danger*)만 사용. */
+
+.foms-mdel-lock {
+  overflow: hidden;
+}
+
+.foms-mdel-layer {
+  position: fixed;
+  inset: 0;
+  z-index: var(--foms-z-modal, 1300);
+}
+
+.foms-mdel-dim {
+  position: absolute;
+  inset: 0;
+  background: rgba(17, 24, 39, 0.45);
+}
+
+.foms-mdel-sheet {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--foms-surface-base, #fff);
+  border-radius: 22px 22px 0 0;
+  padding: 10px 18px calc(24px + env(safe-area-inset-bottom, 0px));
+  box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.2);
+  max-height: 92vh;
+  overflow-y: auto;
+}
+
+.foms-mdel-grip {
+  width: 40px;
+  height: 4px;
+  border-radius: 4px;
+  background: var(--foms-border-default, #d1d5db);
+  margin: 0 auto 14px;
+}
+
+/* 더보기 메뉴 */
+.foms-mdel-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 52px;
+  padding: 15px 8px;
+  border: 0;
+  background: transparent;
+  color: var(--foms-text-primary, #111827);
+  font-size: 16px;
+  text-align: left;
+  border-radius: 12px;
+}
+.foms-mdel-item i {
+  width: 26px;
+  text-align: center;
+  font-size: 18px;
+  color: var(--foms-text-secondary, #6b7280);
+}
+.foms-mdel-item small {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--foms-text-tertiary, #9ca3af);
+}
+.foms-mdel-item--danger,
+.foms-mdel-item--danger i {
+  color: var(--erp-danger, #dc2626);
+}
+.foms-mdel-item--locked,
+.foms-mdel-item--locked i {
+  color: var(--foms-text-disabled, #9ca3af);
+}
+.foms-mdel-cancel {
+  margin-top: 10px;
+  min-height: 50px;
+}
+
+/* 확인 시트 */
+.foms-mdel-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0 4px;
+  font-size: 19px;
+  font-weight: 700;
+}
+.foms-mdel-title i {
+  color: var(--erp-danger, #dc2626);
+}
+.foms-mdel-desc {
+  margin: 0 0 14px;
+  color: var(--foms-text-secondary, #6b7280);
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+.foms-mdel-target {
+  background: var(--foms-surface-muted, #f3f4f6);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+}
+.foms-mdel-target__name {
+  font-size: 17px;
+  font-weight: 700;
+  word-break: keep-all;
+}
+.foms-mdel-target__meta {
+  margin-top: 2px;
+  font-size: 13px;
+  color: var(--foms-text-secondary, #6b7280);
+}
+.foms-mdel-warn {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  color: #b45309;
+  font-size: 13px;
+  line-height: 1.45;
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+}
+.foms-mdel-reason-label {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--foms-text-secondary, #6b7280);
+}
+.foms-mdel-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.foms-mdel-chip {
+  min-height: 40px;
+  padding: 9px 14px;
+  border: 1px solid var(--foms-border-subtle, #e5e7eb);
+  border-radius: 999px;
+  background: var(--foms-surface-base, #fff);
+  color: var(--foms-text-primary, #111827);
+  font-size: 14px;
+}
+.foms-mdel-chip.is-on {
+  border-color: var(--erp-danger, #dc2626);
+  background: var(--erp-danger-light, #fef2f2);
+  color: var(--erp-danger, #dc2626);
+  font-weight: 600;
+}
+.foms-mdel-note {
+  display: block;
+  width: 100%;
+  height: 46px;
+  margin: -4px 0 14px;
+  padding: 0 14px;
+  border: 1px solid #fecaca;
+  border-radius: 12px;
+  background: var(--foms-surface-base, #fff);
+  font-size: 15px;
+  outline: none;
+}
+.foms-mdel-note:focus {
+  border-color: var(--erp-danger, #dc2626);
+}
+.foms-mdel-note[hidden] {
+  display: none;
+}
+
+.foms-mdel-hold {
+  position: relative;
+  width: 100%;
+  height: 54px;
+  border: 0;
+  border-radius: 14px;
+  background: var(--erp-danger, #dc2626);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: none;
+}
+.foms-mdel-hold[disabled] {
+  background: #f3b4b4;
+}
+.foms-mdel-hold__fill {
+  position: absolute;
+  inset: 0;
+  width: 0;
+  background: rgba(0, 0, 0, 0.28);
+  pointer-events: none;
+}
+.foms-mdel-hold__label {
+  position: relative;
+  z-index: 1;
+}
+.foms-mdel-hint {
+  margin: 8px 0 0;
+  text-align: center;
+  font-size: 12px;
+  color: var(--foms-text-tertiary, #9ca3af);
+}
+
+/* 되돌리기 토스트(목록 페이지) */
+.foms-mdel-toast {
+  position: fixed;
+  left: 14px;
+  right: 14px;
+  bottom: calc(var(--erp-mobile-shell-nav-height, 72px) + 16px + env(safe-area-inset-bottom, 0px));
+  z-index: 1400;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px 16px;
+  border-radius: 14px;
+  background: rgba(17, 24, 39, 0.94);
+  color: #fff;
+  font-size: 14.5px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+.foms-mdel-toast.is-leaving {
+  opacity: 0;
+  transform: translateY(8px);
+}
+.foms-mdel-toast__msg {
+  flex: 1;
+  min-width: 0;
+}
+.foms-mdel-toast__action {
+  border: 0;
+  background: transparent;
+  color: #93c5fd;
+  font-weight: 700;
+  font-size: 15px;
+  padding: 8px 6px;
+  min-height: 40px;
+}
+.foms-mdel-toast__bar {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 6px;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.25);
+  overflow: hidden;
+}
+.foms-mdel-toast__bar::after {
+  content: "";
+  display: block;
+  height: 100%;
+  width: 100%;
+  background: #93c5fd;
+  transform-origin: left center;
+}
+.foms-mdel-toast.is-counting .foms-mdel-toast__bar::after {
+  animation: foms-mdel-countdown var(--foms-mdel-toast-ms, 5000ms) linear forwards;
+}
+@keyframes foms-mdel-countdown {
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .foms-mdel-toast,
+  .foms-mdel-toast.is-counting .foms-mdel-toast__bar::after {
+    transition: none;
+    animation: none;
+  }
+}
+
+@media (min-width: 768px) {
+  .foms-mdel-sheet {
+    left: 50%;
+    right: auto;
+    width: 420px;
+    transform: translateX(-50%);
+  }
+  .foms-mdel-toast {
+    left: 50%;
+    right: auto;
+    width: 420px;
+    transform: translateX(-50%);
+  }
+  .foms-mdel-toast.is-leaving {
+    transform: translate(-50%, 8px);
+  }
+}

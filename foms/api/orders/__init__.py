@@ -10,6 +10,7 @@ from .calendar import calendar_orders_response
 from .call_log import log_call_response
 from .copy import copy_orders_response
 from .field_update import update_order_field_response
+from .mobile_delete import mobile_delete_order_response, mobile_restore_order_response
 from .nearby import nearby_orders_response
 from .qr import render_order_qr_svg
 from .regional import update_regional_memo_response, update_regional_status_response
@@ -141,3 +142,17 @@ __all__ = [
     "update_regional_status",
     "update_regional_status_response",
 ]
+
+
+@orders_bp.route("/orders/<int:order_id>/mobile-delete", methods=["POST"])
+@login_required
+def mobile_delete_order(order_id: int):
+    """모바일 주문 상세 단건 삭제(휴지통 이동). 정책 ORDER_SOFT_DELETE(MOBILE-DELETE-01)."""
+    return mobile_delete_order_response(order_id)
+
+
+@orders_bp.route("/orders/<int:order_id>/mobile-restore", methods=["POST"])
+@login_required
+def mobile_restore_order(order_id: int):
+    """모바일 삭제 직후 5초 되돌리기. 정책 ORDER_SOFT_DELETE(MOBILE-DELETE-01)."""
+    return mobile_restore_order_response(order_id)

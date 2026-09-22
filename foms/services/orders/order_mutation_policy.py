@@ -181,6 +181,8 @@ POLICY_REGISTRY: dict[str, Policy] = {
                            description="bulk delete/restore — ADMIN/MANAGER."),
     "ADMIN_MUTATION": _p("ADMIN_MUTATION", teams=(), manager_ok=False,
                          description="permanent delete — ADMIN 전용."),
+    "ORDER_SOFT_DELETE": _p("ORDER_SOFT_DELETE", teams=("CS", "SALES"),
+                            description="모바일 단건 soft delete(휴지통)·5초 되돌리기 — ADMIN/MANAGER 또는 STAFF+CS/SALES(MEASURE→SALES). VIEWER deny. PC bulk/trash 는 MANAGER_MUTATION 그대로."),
 
     # --- WDC (§2.1 line 154) ------------------------------------------------
     "WDC_CALCULATE": _p("WDC_CALCULATE", teams="*", viewer=True,

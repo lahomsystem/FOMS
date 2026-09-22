@@ -94,6 +94,8 @@
   <div class="foms-shell-body">
     {# AS 기준 일정 드리프트 — hero 위(상세 최상단). 편집 페이지와 같은 매크로/판정/자산. #}
     {{ render_as_schedule_drift_banner(as_schedule_drift, order.id) }}
+    {# MOBILE-DELETE-01: ⋯ 메뉴·확인 시트·되돌리기 토스트(권한 있을 때만 마크업). #}
+    {% include 'orders/partials/order_delete_mobile_sheet.html' %}
     <header class="detail-hero foms-detail-hero">
       <div class="detail-hero__badges foms-detail-hero__badges">
         <span class="foms-stage-badge foms-stage-badge{{ order.stage_badge_modifier|default('--received') }}">
