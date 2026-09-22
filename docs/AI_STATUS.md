@@ -1,6 +1,6 @@
 # FOMS 현재 상태
 > 자동 업데이트: 2026-09-22
-> 최신: **모바일 주문 삭제(MOBILE-DELETE-01, deploy)** — ⋯ 메뉴 → 확인 시트(사유 칩·길게 눌러 1.5초) → 5초 되돌리기. 정책 `ORDER_SOFT_DELETE`. 스펙 `docs/plans/2026-09-22-mobile-order-delete-spec.md`
+> 최신: **모바일 주문 삭제 운영 반영(PR #411 · production `3d09e1a38`)** — ⋯ 메뉴 → 확인 시트(사유 칩·길게 눌러 1.5초) → 5초 되돌리기. 정책 `ORDER_SOFT_DELETE`. 스펙 `docs/plans/2026-09-22-mobile-order-delete-spec.md`
 > 직전: **관리자는 모든 단계를 바꿀 수 있다(deploy 대기)** — 강제 변경 목표에 AS 3종·삭제 추가(AS 는 AS 축 명령으로, 삭제는 휴지통 경유 복구 가능), 일반 화면 역행·건너뛰기·완료도 관리자면 통과. 뚫기는 본문 `admin_override`+사유 필수이고 `ADMIN_OVERRIDE_USED` 1행과 "관리자 강제 진행" 라벨이 남는다. **권한 축만 푼다** — If-Match·잠금 아래 expected_from·to_values·중복 발급은 그대로. 완료는 한 길(`cs_complete_service`)로 모았다. 원장 `docs/plans/2026-09-21-admin-full-stage-control-ledger.md`
 > 이 파일 상단 40줄이 세션 시작 컨텍스트의 전부다(hygiene 계약으로 강제). 상세 이력은 "## 최근 완료"·"## 기록 보관".
 
