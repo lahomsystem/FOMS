@@ -196,6 +196,11 @@
    추가상품만 접수에 성공하고 본품이 거절당하는 것이 2026-09-01 사고의 모양이라서다.
    화면도 같은 술어로 닫는다(`fulfillment.addon_return_gap` — 서버와 한 벌). #}
 {% set return_scope_gap = grp.return_scope_gap if grp else [] %}
+{# 구매확정 건수(2026-09-22). 버튼을 닫는 일은 `return_sendable_count` 가 이미 하고,
+   이 값은 **왜 닫혔는지 적기 위한 것**이다 — 없으면 화면이 "보낼 상품주문이 없습니다"
+   라는 틀린 이유를 말한다. 네이버는 구매확정 뒤 반품·취소 API 를 아예 안 받는다
+   (반품 요청 문서의 진입 상태 = 발송완료·배송중·배송완료, 공식 답변 #1618). #}
+{% set purchase_decided_count = grp.purchase_decided_count if grp else 0 %}
 {% set can_return = return_sendable_count > 0 and not exchange_in_flight
                     and not return_scope_gap %}
 {# 반품 **거부**(T8-S3). 접수와 정반대 자리다 — 고객이 낸 요청이 걸려 있어야 하고,
@@ -442,7 +447,7 @@
                     class="btn btn-sm {{ 'btn-outline-danger' if can_return else 'btn-outline-secondary' }}"
                     {# title 순서가 곧 우선순위다: 교환 진행(우리가 못 푼다) → 남은 건이
                        클레임에 걸림(판매자센터) → 보낼 게 없음(정상 종료). #}
-                    id="wb-return" {% if can_return %}data-bs-toggle="modal" data-bs-target="#wb-modal-return"{% else %}disabled title="{% if exchange_in_flight %}교환이 진행 중입니다{% elif return_scope_gap %}추가구성상품 {{ return_scope_gap|length }}건이 아직 처리되지 않았습니다{% elif return_pending_count %}남은 상품주문에 이미 클레임이 걸려 있습니다{% else %}반품 접수를 보낼 상품주문이 없습니다{% endif %}"{% endif %}>
+                    id="wb-return" {% if can_return %}data-bs-toggle="modal" data-bs-target="#wb-modal-return"{% else %}disabled title="{% if exchange_in_flight %}교환이 진행 중입니다{% elif return_scope_gap %}추가구성상품 {{ return_scope_gap|length }}건이 아직 처리되지 않았습니다{% elif return_pending_count %}남은 상품주문에 이미 클레임이 걸려 있습니다{% elif purchase_decided_count %}구매확정된 주문이라 네이버가 반품 접수를 받지 않습니다{% else %}반품 접수를 보낼 상품주문이 없습니다{% endif %}"{% endif %}>
                 반품 접수
             </button>
             {% endif %}
@@ -755,6 +760,9 @@
             {% if exchange_in_flight %}교환이 진행 중이라 반품 접수가 닫혀 있습니다 — 판매자센터에서 교환을 끝낸 뒤 접수합니다.
             {% elif return_scope_gap %}함께 반품해야 하는 추가구성상품 <b>{{ return_scope_gap|length }}건</b>이 남아 있습니다 — ({{ return_scope_gap|join(', ') }}). 네이버는 이 건들을 먼저 처리해야 본상품 반품을 받습니다.
             {% elif return_pending_count %}남은 상품주문에 이미 클레임이 걸려 있어 <b>반품 접수가 닫혀 있습니다</b> — 판매자센터에서 상태를 확인하세요.
+            {# 구매확정은 네이버가 클레임 창을 닫은 상태라 API 경로 자체가 없다 — 눌러도 400
+               (`주문상태 확인 필요(반품 불가능 주문상태)`)이다. 그래서 다음 행동을 적는다. #}
+            {% elif purchase_decided_count %}구매확정된 주문 <b>{{ purchase_decided_count }}건</b>이라 네이버가 반품 접수를 받지 않습니다 — 판매자센터 <b>[판매관리 &gt; 구매확정 내역]</b>에서 구매자와 협의 후 취소 처리해야 합니다.
             {% else %}반품 접수를 보낼 상품주문이 없습니다 — 이미 접수했거나 아직 발송 전입니다.{% endif %}
         </div>
         {% endif %}

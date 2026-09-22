@@ -4657,6 +4657,7 @@ def _group_queue(links: list[ExternalOrderLink], orders: dict,
         is_dispatch_pending,
         is_partial_canceled,
         is_place_pending,
+        is_purchase_decided,
         is_return_approvable,
         is_return_pending,
         is_return_rejectable,
@@ -4826,6 +4827,10 @@ def _group_queue(links: list[ExternalOrderLink], orders: dict,
             # 라인 가드가 거절할 건까지 센다. 버튼·모달은 **이 값**에 건다
             # (:func:`fulfillment.return_sendable` — 서버와 한 벌).
             "return_sendable_count": sum(1 for row in members if return_sendable(row)),
+            # 구매확정이라 네이버가 클레임을 안 받는 건수(2026-09-22). 버튼을 닫는 일은
+            # 이미 ``is_return_pending`` 이 하고, 이 값은 **왜 닫혔는지 적기 위한 것**이다 —
+            # 숫자가 없으면 화면은 "보낼 상품주문이 없습니다"라는 틀린 이유를 말한다.
+            "purchase_decided_count": sum(1 for row in members if is_purchase_decided(row)),
             # 진행 중인 교환이 있는 집은 반품을 보내지 않는다(안전측). 화면 술어를
             # ``claim_blocking`` 으로 대신하면 안 된다 — 그쪽은 ``BLOCKING_CLAIM_STATUSES``
             # 라 ``EXCHANGE_*`` 를 담지 않아 서버보다 느슨하다(mapping.py:429).
