@@ -5,6 +5,16 @@
   overflow: hidden;
 }
 
+/* v3 셸 헤더(inner 가 auto 1fr auto 3칼럼 grid)에 ⋯ 버튼이 붙으면 4·5번째 자식이 2행으로
+   떨어진다. has-more 일 때만 우측 아이콘 수만큼 칼럼을 늘린다(v2 는 foms-shell.css 의 has-more 가 담당). */
+.erp-mobile-shell-header.has-more .erp-mobile-shell-header__inner {
+  grid-template-columns: auto 1fr auto auto auto;
+}
+.erp-mobile-shell-header.has-more.has-mytasks .erp-mobile-shell-header__inner,
+.erp-mobile-shell-header.has-more.has-v3switch .erp-mobile-shell-header__inner {
+  grid-template-columns: auto 1fr auto auto auto auto;
+}
+
 .foms-mdel-layer {
   position: fixed;
   inset: 0;

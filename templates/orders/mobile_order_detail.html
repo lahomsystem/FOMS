@@ -2,6 +2,8 @@
 
 {% block styles %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-order-timeline.css') }}?v=20260711">
+{# MOBILE-DELETE-01: 셸 변형(v2 surfaces 번들 / v3 배타 자산)과 무관하게 이 페이지가 직접 싣는다. #}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-mobile-delete.css') }}?v=20260922b">
 {% endblock %}
 
 {% block content %}

@@ -25,7 +25,7 @@
 @import url("../components/foms-drawing-mobile-card.css?v=20260714a");
 @import url("../contexts/orders/dashboard-control-tower.css?v=20260716a");
 @import url("../components/foms-as-camera.css?v=20260703a");
-@import url("../components/foms-mobile-delete.css?v=20260922a");
+@import url("../components/foms-mobile-delete.css?v=20260922b");
 /* 태블릿 T2 융합 레이어(landscape·side-sheet·measurement·kanban)는 foms-tablet-bundle.css 로
    이관(2026-07-12). 사유: 이 surfaces 번들은 layout_head 에서 shell_variant=='v2' 게이트 전용이라
    v3 코호트에서 태블릿 레이어가 미로드됐다. 번들은 erp_mobile_v2_enabled(v2∪v3) 공통 로드(셸 독립). */
