@@ -82,9 +82,18 @@
 .foms-mdel-item--locked i {
   color: var(--foms-text-disabled, #9ca3af);
 }
+/* 취소/닫기 — v3 셸은 foms-buttons.css 를 안 싣는다. 이 파일이 스스로 완결되게 직접 스타일. */
 .foms-mdel-cancel {
+  display: block;
+  width: 100%;
   margin-top: 10px;
   min-height: 50px;
+  border: 0;
+  border-radius: 14px;
+  background: var(--foms-surface-muted, #f3f4f6);
+  color: var(--foms-text-primary, #111827);
+  font-size: 16px;
+  font-weight: 600;
 }
 
 /* 확인 시트 */
