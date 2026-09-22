@@ -379,3 +379,114 @@ def test_cta_service_does_not_touch_drawing_status_axis() -> None:
 
     assert "drawing_status" not in code
     assert "erp_orders_drawing" not in code
+
+
+# --------------------------------------------------------------------------- #
+# T13 실측완료 표시 — 전이가 체크리스트 축도 함께 켠다 (2026-09-22).
+#
+# 버튼 확인문이 "실측을 완료하고 도면 단계로 넘길까요?" 라고 약속하므로 단계만 옮기면
+# 문구와 동작이 어긋난다. 체크박스 경로와 **같은 원장 path** 를 남겨야 한 축으로 읽힌다.
+# --------------------------------------------------------------------------- #
+def _measurement_ledger(order_id: int):
+    from models import OrderFieldChange
+
+    db_session.expire_all()
+    return (
+        db_session.query(OrderFieldChange)
+        .filter(
+            OrderFieldChange.order_id == order_id,
+            OrderFieldChange.path == "measurement_completed",
+        )
+        .order_by(OrderFieldChange.id)
+        .all()
+    )
+
+
+def _approve(client, order_id: int):
+    return client.post(f"/api/orders/{order_id}/quest/approve", json={})
+
+
+def test_transfer_marks_measurement_completed_on_self_order(client) -> None:
+    """자가실측 주문: 도면 전달 한 번으로 단계 이동 + 실측완료 표시가 함께 켜진다."""
+    user = _make_user(role="STAFF", team="SALES", username="transfer-marks-self")
+    _login(client, user)
+    order = _create_order(
+        quests=[_measure_assignee_quest()],
+        status="MEASURE",
+        is_self_measurement=True,
+        measurement_completed=False,
+    )
+    order_id = order.id
+
+    assert _approve(client, order_id).status_code == 200
+
+    db_session.expire_all()
+    moved = db_session.query(Order).filter(Order.id == order_id).one()
+    assert read_main_stage(moved) == "DRAWING"
+    assert moved.measurement_completed is True, "단계만 옮기고 실측완료 표시를 안 켰다"
+
+    rows = _measurement_ledger(order_id)
+    assert [(r.before_value, r.after_value) for r in rows] == [("False", "True")], (
+        "체크박스 경로와 같은 평면 path 로 원장 1행이 남아야 한다"
+    )
+
+
+def test_transfer_marks_measurement_completed_on_regional_order(client) -> None:
+    """지방 주문도 같다 — 체크리스트 API 가 허용하는 두 종류 모두 대상이다."""
+    user = _make_user(role="STAFF", team="SALES", username="transfer-marks-regional")
+    _login(client, user)
+    order = _create_order(
+        quests=[_measure_assignee_quest()],
+        status="MEASURE",
+        is_regional=True,
+        measurement_completed=False,
+    )
+    order_id = order.id
+
+    assert _approve(client, order_id).status_code == 200
+
+    db_session.expire_all()
+    assert db_session.query(Order).filter(Order.id == order_id).one().measurement_completed is True
+
+
+def test_transfer_leaves_plain_erp_order_flag_untouched(client) -> None:
+    """음성 대조군 — 지방도 자가실측도 아닌 주문은 단계만 옮기고 컬럼을 안 건드린다.
+
+    체크박스가 없는 화면에 값만 생기면 두 축이 또 갈라진다. 허용 경계는 체크리스트 API
+    (``foms/api/orders/regional.py`` 의 ``_order_or_404``)와 같아야 한다.
+    """
+    user = _make_user(role="STAFF", team="SALES", username="transfer-marks-plain")
+    _login(client, user)
+    order = _create_order(
+        quests=[_measure_assignee_quest()],
+        status="MEASURE",
+        measurement_completed=False,
+    )
+    order_id = order.id
+
+    assert _approve(client, order_id).status_code == 200
+
+    db_session.expire_all()
+    moved = db_session.query(Order).filter(Order.id == order_id).one()
+    assert read_main_stage(moved) == "DRAWING", "전이 자체는 그대로 일어나야 한다"
+    assert not moved.measurement_completed, "체크박스 없는 주문에 값이 생겼다"
+    assert _measurement_ledger(order_id) == []
+
+
+def test_transfer_does_not_duplicate_ledger_when_already_checked(client) -> None:
+    """이미 체크되어 있던 건은 원장 행을 만들지 않는다(무변경 억제)."""
+    user = _make_user(role="STAFF", team="SALES", username="transfer-marks-idem")
+    _login(client, user)
+    order = _create_order(
+        quests=[_measure_assignee_quest()],
+        status="MEASURE",
+        is_regional=True,
+        measurement_completed=True,
+    )
+    order_id = order.id
+
+    assert _approve(client, order_id).status_code == 200
+
+    db_session.expire_all()
+    assert db_session.query(Order).filter(Order.id == order_id).one().measurement_completed is True
+    assert _measurement_ledger(order_id) == [], "값이 그대로인데 원장 행이 생겼다"

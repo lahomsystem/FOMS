@@ -35,6 +35,10 @@ from db import get_db
 from foms.services.orders.order_mutation_policy import POLICY_REGISTRY, evaluate_policy
 from foms.services.orders.order_field_change_writer import ledger_text, record_field_changes
 from foms.services.orders.structured_diff import CONTENT_MODIFIED_MARK
+from foms.services.orders.regional_checklist import (
+    REGIONAL_CHECKLIST_EVENT,
+    mark_checklist_flag,
+)
 from foms.services.orders.revision import RevisionError, execute_order_mutation
 from foms.web.auth import get_user_by_id, log_access
 from foms.services.audit_message_display import describe_field_change
@@ -53,7 +57,6 @@ _REGIONAL_ALLOWED = frozenset(REGIONAL_ALLOWED_FIELDS)
 
 #: 체크리스트/메모 write 정책 — 전 STAFF 팀 업무, VIEWER deny(§2.1 STAFF_MUTATION).
 REGIONAL_POLICY_ID = "STAFF_MUTATION"
-REGIONAL_CHECKLIST_EVENT = "REGIONAL_CHECKLIST_UPDATED"
 REGIONAL_MEMO_EVENT = "REGIONAL_MEMO_UPDATED"
 _MEMO_MAX = 2000
 
@@ -172,36 +175,26 @@ def update_regional_status_response():
     change_set_id = str(uuid.uuid4())
 
     def _mutate(sess: Session, orders: List[Order]) -> Mapping[int, List[str]]:
-        """row lock 아래에서 단일 체크리스트 컬럼만 설정 + event parity(축 불변) + 원장."""
+        """row lock 아래에서 단일 체크리스트 컬럼만 설정 + event parity(축 불변) + 원장.
+
+        세 동작은 공용 writer(:func:`mark_checklist_flag`)가 소유한다 — 같은 값을 켜는
+        다른 표면(MEASURE→DRAWING 전이, :mod:`foms.api.quest`)이 같은 원장 path·같은
+        OrderEvent 타입을 남겨야 감사 화면이 한 축으로 읽는다.
+
+        AUDIT-GAP-01: 원장 쓰기를 **``_mutate`` 안**에 두는 이유 — 컬럼 write 와 운명을
+        같이해야 하기 때문이다. ``execute_order_mutation`` 반환 뒤(바깥)에 두면 두 경로가
+        어긋난다: ① 같은 Idempotency-Key replay 는 ``mutation`` 을 아예 실행하지 않고
+        저장된 응답을 반환하고(revision.py `_lookup_receipt` → `_replay`), ② receipt
+        insert 의 IntegrityError backstop 은 ``session.rollback()`` 뒤 replay 를 반환한다.
+        두 경우 모두 컬럼은 그대로인데 바깥 쓰기만 살아남아 **유령 행**이 된다. 안에서 쓰면
+        FOR UPDATE 락 안·같은 tx 라 replay 는 애초에 도달하지 않고 rollback 은 함께 지운다.
+        """
         o = orders[0]
-        # AUDIT-GAP-01: 원장 비교 기준은 아래 setattr **전에** 떠야 한다. 컬럼이 NULL 인
-        # 낡은 행이 있어 불리언으로 정규화한다 — NULL 은 '체크 안 됨'이지 별개 값이 아니다
-        # (NULL→False 저장이 변경으로 남으면 진짜 토글이 묻힌다).
-        before_flag = bool(getattr(o, field, None))
-        setattr(o, field, value)
-        sess.add(OrderEvent(
-            order_id=o.id,
-            event_type=REGIONAL_CHECKLIST_EVENT,
-            payload={"field": field, "value": value},
-            created_by_user_id=user_id,
-        ))
-        # AUDIT-GAP-01: 원장 쓰기를 **``_mutate`` 안**에 두는 이유 — 컬럼 write 와 운명을
-        # 같이해야 하기 때문이다. ``execute_order_mutation`` 반환 뒤(바깥)에 두면 두 경로가
-        # 어긋난다: ① 같은 Idempotency-Key replay 는 ``mutation`` 을 아예 실행하지 않고
-        # 저장된 응답을 반환하고(revision.py `_lookup_receipt` → `_replay`), ② receipt
-        # insert 의 IntegrityError backstop 은 ``session.rollback()`` 뒤 replay 를 반환한다.
-        # 두 경우 모두 컬럼은 그대로인데 바깥 쓰기만 살아남아 **유령 행**이 된다. 안에서 쓰면
-        # FOR UPDATE 락 안·같은 tx 라 replay 는 애초에 도달하지 않고 rollback 은 함께 지운다.
-        if before_flag != value:
-            # 무변경 저장(같은 값 재클릭·중복 요청)은 행을 만들지 않는다.
-            record_field_changes(
-                sess,
-                # path 는 점 없는 평면 컬럼명 그대로(ORDER-FLAG-01 확정 규약).
-                [{"path": field, "before": before_flag, "after": value, "op": "set"}],
-                order_id=o.id,
-                actor_user_id=user_id,
-                change_set_id=change_set_id,
-            )
+        mark_checklist_flag(
+            sess, o, field, value,
+            actor_user_id=user_id,
+            change_set_id=change_set_id,
+        )
         return {o.id: [f"ORDER_DETAIL:{o.id}", "ORDERS_INDEX"]}
 
     try:
