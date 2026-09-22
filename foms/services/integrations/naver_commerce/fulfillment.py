@@ -41,6 +41,8 @@ __all__ = [
     "claim_call_order",
     "dispatch_call_order",
     "return_sendable",
+    "is_purchase_decided",
+    "PURCHASE_DECIDED_STATUS",
     "product_class_known",
     "household_exchange_in_flight",
     "STATE_KEY",
@@ -1667,6 +1669,50 @@ def return_failure(link: ExternalOrderLink) -> dict[str, str]:
             "failed_reason": str(state.get("failed_reason") or "")}
 
 
+#: 네이버가 **클레임 창을 닫은** 상품주문 상태(``productOrderStatus``).
+#:
+#: 구매확정 뒤에는 반품·취소 API 가 아예 없다. 반품 요청 endpoint 문서가 진입 상태를
+#: "발송완료·배송중·배송완료"로만 적고, 취소도 공식 답변(commerce-api Discussions #1618,
+#: 커머스API 권현철)이 "'취소 요청API', '취소 요청 승인API'는 구매확정 이전의 주문에
+#: 대해서만 정상 반영이 가능합니다. 구매확정 후 취소는 '구매자와 협의 후'
+#: [판매관리 > 구매확정 내역]에서 취소 처리로 진행"이라고 못박는다.
+PURCHASE_DECIDED_STATUS = "PURCHASE_DECIDED"
+
+#: 구매확정 건에서 사람이 읽을 **다음 행동**. 버튼 안내·서버 거절 사유가 같은 문장을 쓴다 —
+#: 두 벌로 적으면 화면과 실패 띠가 다른 곳을 가리킨다.
+PURCHASE_DECIDED_BLOCK_TEXT = (
+    "구매확정된 주문이라 네이버가 반품 접수를 받지 않습니다 — 판매자센터 "
+    "[판매관리 > 구매확정 내역]에서 구매자와 협의 후 취소 처리해야 합니다."
+)
+
+
+def is_purchase_decided(link: ExternalOrderLink) -> bool:
+    """이 상품주문이 **구매확정**인가 — 반품·취소 API 가 닫힌 상태.
+
+    사본 컬럼(``product_order_status``)을 먼저 보고, 없으면 원본 스냅샷으로 떨어진다.
+    사본이 아직 안 채워진 옛 행에서도 판정이 흔들리지 않게 두 자리를 같은 함수가 읽는다.
+
+    왜 필요한가: 지금까지 화면은 이 상태를 보지 않아 **보낼 수 없는 건에 반품 접수 버튼이
+    열려 있었다.** 눌러야만 네이버가 400 ``주문상태 확인 필요(반품 불가능 주문상태)`` 로
+    거절했고, 그 실패가 워크벤치 실패 띠에 쌓였다(운영 2026090895141851 이가령 4건,
+    2026-09-22).
+
+    Args:
+        link: 수집 링크(상품주문 1건).
+
+    Returns:
+        구매확정이면 True.
+    """
+    mirror = str(getattr(link, "product_order_status", "") or "").strip().upper()
+    if mirror:
+        return mirror == PURCHASE_DECIDED_STATUS
+    snapshot = link.raw_snapshot if isinstance(link.raw_snapshot, dict) else {}
+    product = snapshot.get("productOrder")
+    nested = product.get("productOrderStatus") if isinstance(product, dict) else None
+    flat = snapshot.get("productOrderStatus")
+    return str(nested or flat or "").strip().upper() == PURCHASE_DECIDED_STATUS
+
+
 def is_return_pending(link: ExternalOrderLink) -> bool:
     """이 상품주문에 **반품 접수를 보낼 것인가** — 화면 재진술과 서버 처리의 공통 술어.
 
@@ -1689,6 +1735,10 @@ def is_return_pending(link: ExternalOrderLink) -> bool:
     Returns:
         반품 접수를 보낼 건이면 True.
     """
+    if is_purchase_decided(link):
+        # 구매확정은 네이버가 클레임 창을 닫은 상태다 — 보낼 수 있는 건이 아니다.
+        # 여기서 빼야 화면 버튼·모달 건수·서버 ``todo`` 가 **한 술어로** 같이 닫힌다.
+        return False
     dispatched = bool(_state(link).get("dispatched_at") or _naver_dispatched_at(link))
     return dispatched and not _return_state(link).get("requested_at")
 
@@ -2422,6 +2472,19 @@ def request_return(session: Session, client: Any, *, link_id: int, reason: str,
                        action="return", stamp=stamp)
         session.flush()
         raise FulfillmentError(reason_text)
+
+    # **구매확정 뒤에는 반품 API 가 없다** — 위 발송 가드의 짝이다. 보낼 수 있는 행이
+    # 하나도 없고 막은 이유가 구매확정이면, 조용히 빈 결과를 돌려주지 않고 사람 말로
+    # 거절한다. 조용히 끝내면 화면은 "요청했습니다"로 답하고 아무 일도 일어나지 않는다.
+    if not any(is_return_pending(row) for row in links) and any(
+            is_purchase_decided(row) for row in links):
+        decided = [row for row in links if is_purchase_decided(row)]
+        _mark_failures({str(row.external_id): row for row in decided},
+                       {str(row.external_id): PURCHASE_DECIDED_BLOCK_TEXT
+                        for row in decided},
+                       action="return", stamp=stamp)
+        session.flush()
+        raise FulfillmentError(PURCHASE_DECIDED_BLOCK_TEXT)
 
     # 대상 확정은 경로별 헬퍼가 한다 — 키 부재는 오늘 코드 그대로(:func:`_return_household_scope`),
     # 목록은 plan 의 todo(:func:`_return_scope`). 둘 다 순서는 **추가구성상품 먼저**다
