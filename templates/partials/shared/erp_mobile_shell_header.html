@@ -3,7 +3,8 @@
 {% set _shell_mytasks_active = (request.args.get('mine') == '1') or (request.args.get('tower_mine') == '1') or ((request.cookies.get('erp_mine_only') or '').strip() == '1') %}
 {% set _shell_mytasks_href = mobile_shell_mytasks_href|default(request.full_path, true) %}
 {% set _shell_show_v3switch = shell_variant == 'v2' and shell_v3_eligible %}
-<header class="erp-mobile-shell-header foms-shell-header{% if _shell_show_mytasks %} has-mytasks{% endif %}{% if _shell_show_v3switch %} has-v3switch{% endif %}" aria-label="ERP 모바일 셸">
+{% set _shell_show_more = mobile_shell_more|default(false) %}
+<header class="erp-mobile-shell-header foms-shell-header{% if _shell_show_mytasks %} has-mytasks{% endif %}{% if _shell_show_v3switch %} has-v3switch{% endif %}{% if _shell_show_more %} has-more{% endif %}" aria-label="ERP 모바일 셸">
   <div class="erp-mobile-shell-header__inner">
     {% if _shell_show_back %}
     <button
@@ -71,5 +72,17 @@
       <i class="fas fa-bell" aria-hidden="true"></i>
       <span class="erp-mobile-shell-header__notify-badge" data-foms-notif-badge hidden aria-hidden="true">0</span>
     </button>
+    {# MOBILE-DELETE-01: 페이지 더보기(⋯). 노출은 서버가 mobile_shell_more 로 결정(권한 게이트와 같은 값). #}
+    {% if _shell_show_more %}
+    <button
+      class="erp-mobile-shell-header__more foms-icon-btn"
+      type="button"
+      data-foms-more-open
+      aria-label="더보기"
+      aria-haspopup="dialog"
+      aria-expanded="false">
+      <i class="fas fa-ellipsis-h" aria-hidden="true"></i>
+    </button>
+    {% endif %}
   </div>
 </header>
