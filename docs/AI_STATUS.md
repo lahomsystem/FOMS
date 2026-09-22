@@ -1,7 +1,7 @@
 # FOMS 현재 상태
 > 자동 업데이트: 2026-09-22
-> 최신: **deploy 전체 운영 승격(PR #414 · production `7ac1ee0e0`)** — 도면 전달이 실측완료 표시까지 켠다(quest 전이와 같은 tx, 지방·자가실측만). 두 브랜치 트리 동일. 백필 대상 0건. 스펙 `docs/plans/2026-09-22-drawing-transfer-marks-measurement-complete-spec.md`
-> 직전: **모바일 주문 삭제 운영 반영(PR #411 · production `3d09e1a38`)** — ⋯ 메뉴 → 확인 시트(사유 칩·길게 눌러 1.5초) → 5초 되돌리기. 정책 `ORDER_SOFT_DELETE`
+> 최신: **아이폰 마법사 고객명 사전 입력 제거(PR #416 · production `07b075672`)** — 빠른 시작 시트 전량 삭제. 아이폰은 고객명 칸 한 번 탭으로 자판이 올라온다. `if (!isIosLike()) focusStepFirstField` 는 별개 축이라 남겼다
+> 직전: **deploy 전체 운영 승격(PR #414 · production `7ac1ee0e0`)** — 도면 전달이 실측완료 표시까지 켠다(quest 전이와 같은 tx, 지방·자가실측만). 백필 대상 0건
 > 이 파일 상단 40줄이 세션 시작 컨텍스트의 전부다(hygiene 계약으로 강제). 상세 이력은 "## 최근 완료"·"## 기록 보관".
 
 
