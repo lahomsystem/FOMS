@@ -258,11 +258,13 @@
      * 배선은 벌크 발주확인(:func:`watchBulk`)과 **같은 모양**이다. 서버 조회는 집 수와
      * 무관하게 회차당 1회이고, 마감이 있다(무한 폴링 금지).
      *
-     * @param {object} data refresh-all 응답의 data(`link_ids` 대신 `queued`·`since`).
+     * @param {object} data refresh-all 응답의 data(`link_ids`·`since`).
+     * @param {string} [buttonId] 진행을 적을 버튼 id(기본 `wb-refresh-all`). 옛 주문
+     *     일괄 다시 읽기가 같은 감시를 자기 버튼으로 쓴다.
      * @returns {void}
      */
-    function watchRefreshAll(data) {
-        var button = document.getElementById('wb-refresh-all');
+    function watchRefreshAll(data, buttonId) {
+        var button = document.getElementById(buttonId || 'wb-refresh-all');
         var ids = data.link_ids || [];
         if (!ids.length || !data.since) {
             return;
@@ -450,10 +452,18 @@
             button.disabled = false;
             return;
         }
-        var queued = (result.data && result.data.queued) || 0;
-        button.textContent = queued
-            ? '다시 읽는 중 — ' + queued + '집 (끝나면 새로고침)'
-            : '다시 읽을 집 없음';
+        var data = result.data || {};
+        var queued = data.queued || 0;
+        if (!queued) {
+            button.textContent = '다시 읽을 집 없음';
+            return;
+        }
+        button.textContent = '다시 읽는 중 — ' + queued + '집';
+        // **끝나면 화면을 스스로 새로 그린다**(2026-09-22 사용자 보고). 예전에는 라벨에만
+        // `(끝나면 새로고침)` 이라 적어 두고 아무도 새로 그리지 않아, 다 읽은 뒤에도 띠가
+        // 옛 사실을 계속 말했다. 감시는 전체 다시 읽기와 **같은 함수**다 — 두 벌로 두면
+        // 한쪽만 고쳐진다.
+        watchRefreshAll(data, 'wb-origin-refresh-all');
     }
 
     function submitGhostDiscard(button) {

@@ -204,8 +204,13 @@ def _watermark_view(db) -> dict[str, Any]:
 
     state = wm.read_state(db)
     return {
+        # 원문 두 값은 **지문**(:func:`_watermark_rev`)이 쓰는 축이라 모양을 바꾸지 않는다.
         "last_success_to": state.get("last_success_to"),
         "last_run_at": state.get("last_run_at"),
+        # 화면이 찍는 값은 따로 편다 — 원문은 `2026-09-21T08:15:08.679466+09:00` 처럼
+        # 기계 모양이라 사람이 읽는 자리에 그대로 두면 시각을 눈으로 못 읽는다.
+        "last_success_to_text": _dispatch_time_text(state.get("last_success_to")),
+        "last_run_at_text": _dispatch_time_text(state.get("last_run_at")),
         "last_error": state.get("last_error"),
         "last_summary": state.get("last_summary") or {},
     }
@@ -2072,7 +2077,13 @@ def _origin_cleanup_view(db) -> dict[str, Any]:
     )
 
     try:
-        return pending_origin_cleanup(db)
+        view = pending_origin_cleanup(db)
+        for row in view.get("rows") or []:
+            # ``read_at`` 은 naive UTC ISO 다. 그대로 찍으면 화면이 **9시간 전**을
+            # 말한다(2026-09-22 사용자 보고: 오후 1시 22분인데 `04:18`). pane 의 같은
+            # 값(:func:`_origin_view` 의 ``read_at_text``)과 한 함수를 쓴다.
+            row["read_at_text"] = _dispatch_time_text(row.get("read_at"))
+        return view
     except SQLAlchemyError as exc:  # 보조 정보라 흐름을 막지 않는다(failopen — 로그로 남긴다)
         logger.warning("[NAVER] 옛 주문 정리 대기 조회 실패(띠 생략): %s", exc, exc_info=True)
         return {"count": 0, "rows": [], "truncated": False}
@@ -5274,9 +5285,14 @@ def naver_ingest_origin_cleanup_refresh():
     db = get_db()
     pending = pending_origin_cleanup(db)
     link_ids = [int(row["link_id"]) for row in pending["rows"] if row.get("link_id")]
+    # 진행 조회(:func:`naver_ingest_refresh_progress`)가 쓸 기준 시각. **큐에 넣기 전에**
+    # 읽는다 — 넣은 뒤에 읽으면 그 사이 워커가 끝낸 건이 기준보다 앞서 영원히 '진행 중'이다
+    # (전체 다시 읽기와 같은 규율).
+    since = now_utc_naive()
     if not link_ids:
         return jsonify({"success": True,
-                        "data": {"count": 0, "queued": 0, "failed": 0},
+                        "data": {"count": 0, "queued": 0, "failed": 0,
+                                 "link_ids": [], "since": since.isoformat()},
                         "error": None})
 
     user_id = session.get("user_id")
@@ -5295,7 +5311,11 @@ def naver_ingest_origin_cleanup_refresh():
     )
     return jsonify({"success": True,
                     "data": {"count": pending["count"], "queued": len(queued),
-                             "failed": failed},
+                             "failed": failed,
+                             # 화면이 끝을 스스로 알아채는 재료(2026-09-22). 예전에는
+                             # 버튼이 "(끝나면 새로고침)"이라 적어 놓고 아무도 새로
+                             # 그리지 않았다 — 사람은 멈춘 걸로 읽고 다시 누른다.
+                             "link_ids": queued, "since": since.isoformat()},
                     "error": None})
 
 

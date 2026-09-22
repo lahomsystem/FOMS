@@ -27,9 +27,9 @@
             <div class="card shadow-sm h-100">
                 <div class="card-body">
                     <div class="text-muted small">마지막 성공 구간 끝(워터마크)</div>
-                    <div class="fs-6 fw-semibold">{{ watermark.last_success_to or '아직 없음' }}</div>
+                    <div class="fs-6 fw-semibold">{{ watermark.last_success_to_text or '아직 없음' }}</div>
                     <div class="text-muted small mt-2">마지막 실행</div>
-                    <div>{{ watermark.last_run_at or '아직 없음' }}</div>
+                    <div>{{ watermark.last_run_at_text or '아직 없음' }}</div>
                 </div>
             </div>
         </div>

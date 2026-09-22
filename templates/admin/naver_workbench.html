@@ -127,7 +127,7 @@
            ingest_status 를 싣지 않으면(처리 탭·비ADMIN) 아무것도 안 그린다. #}
         {% if ingest_status and ingest_status.watermark %}
         <span class="wb-bar__fact wb-bar__fact--quiet">
-            마지막 수집 <b>{{ ingest_status.watermark.last_run_at or '아직 없음' }}</b>
+            마지막 수집 <b>{{ ingest_status.watermark.last_run_at_text or '아직 없음' }}</b>
         </span>
         {% endif %}
     </div>
@@ -357,7 +357,7 @@
                         <span class="wb-ghost__claim wb-ghost__claim--pending">새 결제 뒤로 확인 안 함</span>
                         <div class="wb-ghost__dim">그 사이 고객이 스스로 취소했을 수 있습니다.</div>
                         {% else %}
-                        <span class="wb-ghost__dim">{{ row.read_at[:16].replace('T', ' ') }}</span>
+                        <span class="wb-ghost__dim">{{ row.read_at_text or '아직 없음' }}</span>
                         {% endif %}
                     </td>
                     <td class="text-end wb-ghost__acts">
@@ -949,7 +949,7 @@
         <div class="wb-ingest__cell">
             <div class="wb-ingest__k">마지막 성공 구간 끝(워터마크)</div>
             <div class="wb-ingest__v">{{ ingest_status.watermark.last_success_to or '아직 없음' }}</div>
-            <div class="wb-ingest__sub">마지막 실행 {{ ingest_status.watermark.last_run_at or '아직 없음' }}</div>
+            <div class="wb-ingest__sub">마지막 실행 {{ ingest_status.watermark.last_run_at_text or '아직 없음' }}</div>
         </div>
         <div class="wb-ingest__cell">
             <div class="wb-ingest__k">마지막 실행 결과</div>
