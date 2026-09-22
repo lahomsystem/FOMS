@@ -1,0 +1,64 @@
+{# MOBILE-DELETE-01: 모바일 주문 삭제 — ⋯ 메뉴 · 확인 시트 · 되돌리기 토스트.
+   마크업은 권한(mobile_delete.can, 서버 정책 게이트와 같은 값)이 있을 때만 그린다.
+   상호작용은 static/js/foms/mobile-detail-delete.js, 스타일은 components/foms-mobile-delete.css. #}
+{% set _md = mobile_delete or {} %}
+{% if _md.can %}
+{% set _guard = _md.guard or {} %}
+<div
+  id="foms-mobile-delete-root"
+  class="foms-mdel-root"
+  data-order-id="{{ order.id }}"
+  data-mutation-version="{{ _md.version }}"
+  data-guard-level="{{ _guard.level or 'warn' }}"
+  data-guard-label="{{ _guard.label or '' }}"
+  data-target-name="{{ order.customer_name or '-' }}{% if order.product_subtitle %} · {{ order.product_subtitle }}{% endif %}"
+  data-target-meta="#{{ order.id }}{% if order.stage_badge_label %} · {{ order.stage_badge_label }}{% endif %}{% if order.manager_name and order.manager_name != '-' %} · 담당 {{ order.manager_name }}{% endif %}"
+  data-return-to="{{ mobile_shell_back_href or url_for('erp_dashboard.erp_dashboard') }}"
+  hidden>
+</div>
+
+<template id="foms-mdel-menu-tpl">
+  <div class="foms-mdel-dim" data-mdel-close></div>
+  <div class="foms-mdel-sheet" role="dialog" aria-modal="true" aria-label="더보기">
+    <div class="foms-mdel-grip" aria-hidden="true"></div>
+    <button type="button" class="foms-mdel-item foms-mdel-item--danger" data-mdel-open-confirm>
+      <i class="fas fa-trash-alt" aria-hidden="true"></i>
+      <span>주문 삭제</span>
+      <small>휴지통으로</small>
+    </button>
+    <button type="button" class="foms-mdel-item foms-mdel-item--locked" data-mdel-blocked hidden>
+      <i class="fas fa-lock" aria-hidden="true"></i>
+      <span>주문 삭제</span>
+      <small>PC에서만 가능</small>
+    </button>
+    <button type="button" class="foms-btn foms-btn--secondary foms-btn--full foms-mdel-cancel" data-mdel-close>닫기</button>
+  </div>
+</template>
+
+<template id="foms-mdel-confirm-tpl">
+  <div class="foms-mdel-dim" data-mdel-close></div>
+  <div class="foms-mdel-sheet foms-mdel-sheet--confirm" role="dialog" aria-modal="true" aria-labelledby="foms-mdel-title">
+    <div class="foms-mdel-grip" aria-hidden="true"></div>
+    <h2 class="foms-mdel-title" id="foms-mdel-title"><i class="fas fa-trash-alt" aria-hidden="true"></i>이 주문을 삭제할까요?</h2>
+    <p class="foms-mdel-desc">휴지통으로 이동합니다. PC 휴지통에서 언제든 복원할 수 있어요.</p>
+    <div class="foms-mdel-target">
+      <div class="foms-mdel-target__name" data-mdel-target-name></div>
+      <div class="foms-mdel-target__meta" data-mdel-target-meta></div>
+    </div>
+    <div class="foms-mdel-warn" data-mdel-warn hidden><i class="fas fa-exclamation-triangle" aria-hidden="true"></i><span data-mdel-warn-text></span></div>
+    <p class="foms-mdel-reason-label" data-mdel-reason-label>삭제 이유 (하나 선택)</p>
+    <div class="foms-mdel-chips" role="radiogroup" aria-label="삭제 이유">
+      <button type="button" class="foms-mdel-chip" role="radio" aria-checked="false" data-mdel-reason="customer_request">고객 취소</button>
+      <button type="button" class="foms-mdel-chip" role="radio" aria-checked="false" data-mdel-reason="input_correction">잘못 입력</button>
+      <button type="button" class="foms-mdel-chip" role="radio" aria-checked="false" data-mdel-reason="other">직접 입력</button>
+    </div>
+    <input type="text" class="foms-mdel-note" data-mdel-note maxlength="200" placeholder="이유를 적어주세요 (예: 중복 등록)" hidden>
+    <button type="button" class="foms-mdel-hold" data-mdel-hold disabled>
+      <span class="foms-mdel-hold__fill" data-mdel-fill aria-hidden="true"></span>
+      <span class="foms-mdel-hold__label" data-mdel-hold-label>이유를 먼저 선택하세요</span>
+    </button>
+    <p class="foms-mdel-hint">1.5초 동안 누르고 있으면 삭제됩니다 · 손을 떼면 취소</p>
+    <button type="button" class="foms-btn foms-btn--secondary foms-btn--full foms-mdel-cancel" data-mdel-close>취소</button>
+  </div>
+</template>
+{% endif %}

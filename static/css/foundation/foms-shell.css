@@ -370,6 +370,23 @@
   body.erp-mobile-v2-layout .has-v3switch .erp-mobile-shell-header__search {
     grid-column: 4;
   }
+
+  /* 더보기(⋯) 버튼이 있는 헤더(MOBILE-DELETE-01) — 마지막 칼럼 하나 추가. has-mytasks/has-v3switch 와
+     조합될 때도 grid-column 을 지정하지 않아 자연 순서(맨 오른쪽)로 놓인다. */
+  body.erp-mobile-v2-layout .erp-mobile-shell-header.has-more,
+  body.erp-mobile-v2-layout .foms-shell-header.has-more {
+    grid-template-columns: 44px 1fr 44px 44px 44px;
+  }
+  body.erp-mobile-v2-layout .erp-mobile-shell-header.has-mytasks.has-more,
+  body.erp-mobile-v2-layout .foms-shell-header.has-mytasks.has-more,
+  body.erp-mobile-v2-layout .erp-mobile-shell-header.has-v3switch.has-more,
+  body.erp-mobile-v2-layout .foms-shell-header.has-v3switch.has-more {
+    grid-template-columns: 44px 1fr 44px 44px 44px 44px;
+  }
+  body.erp-mobile-v2-layout .erp-mobile-shell-header.has-mytasks.has-v3switch.has-more,
+  body.erp-mobile-v2-layout .foms-shell-header.has-mytasks.has-v3switch.has-more {
+    grid-template-columns: 44px 1fr 44px 44px 44px 44px 44px;
+  }
   body.erp-mobile-v2-layout .has-v3switch .erp-mobile-shell-header__notify {
     grid-column: 5;
   }

@@ -8,6 +8,7 @@ from models import Order
 from foms.web.auth import login_required
 from sqlalchemy import text
 from foms.services.erp_permissions import can_edit_erp
+from foms.services.orders.mobile_delete_guard import build_mobile_delete_context
 from foms.services.erp_order_flags import is_erp_order_record
 from foms.services.erp_policy import (
     STAGE_NAME_TO_CODE,
@@ -693,9 +694,14 @@ def erp_order_mobile_detail(order_id: int):
     # AS 기준 일정 드리프트 배너(상세 최상단). 링크가 없으면 쿼리도 마크업도 없다.
     from foms.services.as_dashboard_display import build_schedule_link_drift
 
+    # MOBILE-DELETE-01: ⋯ 메뉴 노출은 서버 정책 게이트(ORDER_SOFT_DELETE)와 같은 값.
+    mobile_delete = build_mobile_delete_context(order, current_user)
+
     return render_template(
         'orders/mobile_order_detail.html',
         order=order_row,
+        mobile_delete=mobile_delete,
+        mobile_shell_more=mobile_delete['can'],
         timeline=load_order_timeline(db, order),
         as_schedule_drift=build_schedule_link_drift(order.structured_data, db),
         can_edit_erp=can_edit_erp_flag,
