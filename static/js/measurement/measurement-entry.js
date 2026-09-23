@@ -7,7 +7,7 @@
  * __fomsMeasurementEntryInstalled 가드로 1회만 하여 listener 누적을 막는다.
  */
 (function () {
-  var MEAS_JS_V = '20260923a';
+  var MEAS_JS_V = '20260923b';
   var CHAIN = [
     '/static/js/runtime/common_utils.js?v=' + MEAS_JS_V,
     '/static/js/measurement/dashboard.js?v=' + MEAS_JS_V,
@@ -15,6 +15,7 @@
     '/static/js/runtime/column-resizer.js?v=' + MEAS_JS_V,
     '/static/js/measurement/dashboard-columns.js?v=' + MEAS_JS_V,
     '/static/js/measurement/manual-rows.js?v=' + MEAS_JS_V,
+    '/static/js/measurement/image-save-sheet.js?v=' + MEAS_JS_V,
     '/static/js/measurement/image-export.js?v=' + MEAS_JS_V,
     '/static/js/measurement/mobile-glance.js?v=' + MEAS_JS_V
   ];

@@ -374,11 +374,6 @@
         });
     }
 
-    /** 모바일 2단계 공유: 캡처가 길어 사용자 탭 효력이 끝났을 때(NotAllowedError) 한 번 더 눌러 공유한다. */
-    const PENDING_SHARE_TTL_MS = 60000;
-    const SHARE_READY_LABEL = '<i class="fas fa-share-from-square" aria-hidden="true"></i> 눌러서 공유';
-    var pendingShare = null;
-
     /**
      * 표 제목·파일명 날짜.
      * - PC: 첫 input[name="date"] 값, 없으면 오늘(기존 규칙 그대로).
@@ -417,16 +412,19 @@
         document.body.removeChild(link);
     }
 
-    /** @param {File} file */
-    function downloadFile(file) {
+    /**
+     * @param {File} file
+     * @param {string} name
+     */
+    function downloadFile(file, name) {
         const url = URL.createObjectURL(file);
         const link = document.createElement('a');
-        link.download = file.name;
+        link.download = name || file.name;
         link.href = url;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-        setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+        setTimeout(function () { URL.revokeObjectURL(url); }, 60000);
     }
 
     /** iOS Safari 캔버스 최대 면적(px). */
@@ -445,6 +443,9 @@
         probeHost.setAttribute('aria-hidden', 'true');
         const probe = sourceTable.cloneNode(true);
         probe.removeAttribute('id');
+        // 실제 캡처 대상과 같은 표식을 달아야 호스트 CSS(width:auto 등)가 똑같이 먹는다 — 없으면
+        // 인라인 1520px 로 재서 실제보다 작게 보고 iOS 캔버스 한도를 넘길 수 있었다.
+        probe.setAttribute('data-meas-export-target', '1');
         probeHost.appendChild(probe);
         document.body.appendChild(probeHost);
         try {
@@ -514,51 +515,25 @@
     }
 
     /**
+     * 모바일: 캡처가 끝난 PNG 를 저장 시트(image-save-sheet.js)로 넘긴다. 저장(공유·다운로드)은 시트의
+     * 버튼 클릭 안에서 첫 동작으로 부른다 — 캡처를 기다린 뒤 부르면 탭 효력이 끝나 막힌다.
+     * 공유 대상 앱에 따라 한글·공백 파일명이 깨지므로 공유용 이름은 영문, 다운로드는 기존 이름.
+     * @param {HTMLCanvasElement} canvas
+     * @param {string} filename - 다운로드 이름('YY-MM-DD 실측 일정.png')
+     * @param {string} labelYyMmDd
      * @param {HTMLElement} btn
-     * @param {File} file
      */
-    function armPendingShare(btn, file) {
-        pendingShare = { btn: btn, file: file, until: Date.now() + PENDING_SHARE_TTL_MS, label: null };
-    }
-
-    /**
-     * 모바일: 공유창(사진 저장·카카오톡). 취소는 조용히, 탭 효력 만료는 2단계, 그 밖은 다운로드.
-     * @returns {Promise<string>} 'armed' | 'done'
-     */
-    async function shareOrDownloadPng(canvas, filename, btn) {
+    async function openSaveSheet(canvas, filename, labelYyMmDd, btn) {
         const blob = await new Promise(function (resolve) { canvas.toBlob(resolve, 'image/png'); });
         if (!blob) {
-            downloadCanvasPng(canvas, filename);
-            return 'done';
+            throw new Error('휴대폰 메모리가 부족해 이미지를 만들지 못했어요.');
         }
-        const file = new File([blob], filename, { type: 'image/png' });
-        if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-            try {
-                await navigator.share({ files: [file] });
-                return 'done';
-            } catch (err) {
-                if (err && err.name === 'AbortError') return 'done';
-                if (err && err.name === 'NotAllowedError') {
-                    armPendingShare(btn, file);
-                    return 'armed';
-                }
-                console.warn('공유 실패, 다운로드로 대체:', err);
-            }
-        }
-        downloadCanvasPng(canvas, filename);
-        return 'done';
-    }
-
-    /** @param {HTMLElement} btn */
-    async function sharePendingFile(btn) {
-        const pending = pendingShare;
-        pendingShare = null;
-        try {
-            await navigator.share({ files: [pending.file] });
-        } catch (err) {
-            if (!(err && err.name === 'AbortError')) downloadFile(pending.file);
-        } finally {
-            if (pending.label !== null) btn.innerHTML = pending.label;
+        const shareName = 'measure-' + String(labelYyMmDd).replace(/[^0-9]/g, '') + '.png';
+        const file = new File([blob], shareName, { type: 'image/png' });
+        if (window.FomsMeasSaveSheet) {
+            window.FomsMeasSaveSheet.open({ file: file, downloadName: filename, returnFocus: btn });
+        } else {
+            downloadFile(file, filename);
         }
     }
 
@@ -567,16 +542,7 @@
      * @param {string} mode - 'pc' | 'glance'
      */
     async function runExport(btn, mode) {
-        if (pendingShare && pendingShare.btn === btn) {
-            if (Date.now() <= pendingShare.until) {
-                await sharePendingFile(btn);
-                return;
-            }
-            if (pendingShare.label !== null) btn.innerHTML = pendingShare.label;
-            pendingShare = null;
-        }
         const originalText = btn.innerHTML;
-        let armed = false;
 
         try {
             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 저장 중...';
@@ -598,7 +564,7 @@
             const filename = exportDate.labelYyMmDd + ' 실측 일정.png';
 
             if (mode === 'glance') {
-                armed = (await shareOrDownloadPng(canvas, filename, btn)) === 'armed';
+                await openSaveSheet(canvas, filename, exportDate.labelYyMmDd, btn);
             } else {
                 downloadCanvasPng(canvas, filename);
             }
@@ -608,17 +574,6 @@
         } finally {
             btn.innerHTML = originalText;
             btn.disabled = false;
-            if (armed && pendingShare && pendingShare.btn === btn) {
-                const armedShare = pendingShare;
-                armedShare.label = originalText;
-                btn.innerHTML = SHARE_READY_LABEL;
-                setTimeout(function () {
-                    if (pendingShare === armedShare) {
-                        pendingShare = null;
-                        btn.innerHTML = originalText;
-                    }
-                }, PENDING_SHARE_TTL_MS);
-            }
         }
     }
 
