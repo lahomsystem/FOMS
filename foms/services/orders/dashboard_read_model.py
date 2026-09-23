@@ -361,8 +361,8 @@ def compute_orders_summary_slice(stats_query):
         {'label': '고객컨펌', **step_stats['고객컨펌']},
         {'label': '생산', **step_stats['생산']},
         {'label': '시공', **step_stats['시공']},
-        {'label': '완료', **step_stats['완료']},
         {'label': 'CS', **step_stats['CS']},
+        {'label': '완료', **step_stats['완료']},
         {'label': 'AS처리', **step_stats['AS처리']},
     ]
     return {"kpis": kpis, "process_steps": process_steps}

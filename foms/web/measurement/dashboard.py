@@ -14,6 +14,7 @@ from sqlalchemy import String, cast, or_, and_, func
 from foms.services.common.erp_mine_filter import erp_mine_only_from_request
 from foms.services.measurement.drawing_transfer_cta import build_drawing_transfer_ctas
 from foms.services.orders.complete_path_policy import build_complete_ctas
+from foms.services.orders.state_axes import read_main_stage
 from foms.services.measurement_time import (
     format_minutes_hm,
     measurement_time_minutes_of,
@@ -1039,11 +1040,20 @@ def self_measurement_dashboard():
 
     as_orders = [o for o in all_orders if o.status == "AS_RECEIVED"]
     completed_orders = [o for o in all_orders if o.status in ["COMPLETED", "AS_COMPLETED"]]
-    scheduled_orders = [o for o in all_orders if o.status == "SCHEDULED"]
+    # 설치예정 = SCHEDULED ∪ main stage CS. CS 단계 주문은 [완료](cs/complete)를 누를 수 있는
+    # 유일한 단계인데 완료 버튼은 설치예정 섹션에만 있다 — 진행 중에 두면 막다른 길이 된다.
+    scheduled_orders = [
+        o
+        for o in all_orders
+        if o.status not in ["COMPLETED", "AS_COMPLETED", "AS_RECEIVED"]
+        and (o.status == "SCHEDULED" or read_main_stage(o) == "CS")
+    ]
+    scheduled_ids = {o.id for o in scheduled_orders}
     pending_orders = [
         o
         for o in all_orders
-        if o.status not in ["COMPLETED", "AS_COMPLETED", "SCHEDULED", "AS_RECEIVED"]
+        if o.status not in ["COMPLETED", "AS_COMPLETED", "AS_RECEIVED"]
+        and o.id not in scheduled_ids
     ]
 
     drawing_ctas = build_drawing_transfer_ctas(
