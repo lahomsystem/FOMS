@@ -285,3 +285,10 @@
 .foms-meas-export-host [data-meas-export-target] > tbody > tr > th {
   overflow: hidden;
 }
+/* PC 표에는 리사이저가 .grip-flex 도 붙이고 head 에 `.grip-flex{width:auto!important}` 를 넣는다.
+   그래서 PC 캡처는 prepareExportTable 의 width:1520px 가 무시되어 table-layout:fixed 가 풀리고,
+   긴 칸(전화번호 "010-0000-0000" 20px)이 글자 폭만큼 넓어진다(실측: PC 전화 164px, 모바일 124px 잘림).
+   모바일 복제본도 같은 결과가 되도록 호스트 안에서만 같은 규칙을 준다. */
+.foms-meas-export-host [data-meas-export-target] {
+  width: auto !important;
+}
