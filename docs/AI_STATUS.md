@@ -10,7 +10,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
-- [2026-09-23] **실측 모바일 오늘 체크리스트 + 당일 실측 긴급 알림(deploy)** — 체크리스트·이미지 저장 스테이징 확인. 긴급 알림: 오늘 실측 새로 생기면 영업 전원에 채널톡 209989·화면 확인창·웹푸시 + 기존 푸시 결함 2건. 잔여: 스테이징 두 탭·아이폰 소리, 운영 SIDEFX env(CHANNEL_*·VAPID_*). 스펙 `docs/specs/2026-09-23-same-day-measure-urgent-alert_SPEC.md`
+- [2026-09-23] **실측 모바일 통합 화면(구현·리뷰 수정 중)** — 체크리스트+카드 두 벌을 담당자 탭·접기·바텀시트 한 목록으로. 스펙 `docs/specs/2026-09-23-measurement-mobile-unified-list_SPEC.md`, 원장 `…-unified-findings-ledger.md`. 선행(체크리스트·긴급 알림·색 A안)은 운영 PR #421·#422, 저장 시트·시간순은 deploy. 잔여: 아이폰 실기기 사진첩 저장 확인
 - [2026-09-22] **시공일 지난 적체 주문 일괄 완료 — 운영 적용 완료(413건)** — 1차(+7일) 413 + 2차(시공일<오늘, 사용자 수동 시공일 입력 뒤) 174 = 587건. 실측 858→237 · 도면 101→48 · 완료 1451→2038. AS 탭 건 143 은 stage 만(AS 축 지문 두 차례 모두 적용 전후 동일 · AS 탭 불변). 스냅샷 `C:/tmp/foms-backlog-complete-20260922/`(rollback 가능). 잔여: 시공일 없는 건 CSV 영업 검토. 스펙 `docs/plans/2026-09-22-past-construction-bulk-complete-spec.md`
 - [2026-09-20] **고객 컨펌 승인 → 생산 단계 자동 이동 + 생산 보드 run 축 + 모바일 동기화(deploy 대기)** — 승인 완료 판정을 `check_quest_approvals_complete` 하나로(담당자 승인을 생산 게이트가 못 읽어 409). 제작 시작 = run 발급, 제작 취소 = run 종결. 원장 `docs/plans/2026-09-17-confirm-to-production-workflow-ledger.md`
 - [2026-09-13] **네이버 주문 마크 — 고객 이름 옆(deploy 대기)** — 판정 축은 출처(`source == SOURCE_MARKER`), `naver_linked` 아님. 대시보드 코호트 6곳 전수. 원장 `docs/plans/2026-09-13-naver-channel-mark-impl-brief.md`

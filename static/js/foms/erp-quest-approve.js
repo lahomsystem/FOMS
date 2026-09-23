@@ -109,9 +109,28 @@
     }, HIGHLIGHT_MS);
   }
 
+  /**
+   * 복원 직전 알림(실측 모바일 통합 목록 전용 — 다른 화면은 듣지 않으므로 동작 불변).
+   * 실측 화면은 카드가 숨은 원본 칸에 있어 아래 scrollIntoView 가 먹지 않는다. 그 화면이 이 주문의
+   * 담당 탭·묶음을 펼치고 줄로 스크롤한다. 실측 번들은 이 파일보다 늦게 실리므로 같은 값을
+   * window.__fomsQuestApproveRestore 에도 남긴다. 듣는 쪽이 처리했으면 preventDefault 로 알린다.
+   */
+  function announceRestore(saved) {
+    var detail = { orderId: saved.orderId, path: saved.path, at: Date.now() };
+    window.__fomsQuestApproveRestore = detail;
+    var evt;
+    try {
+      evt = new CustomEvent('foms:quest-approve:before-restore', { detail: detail, cancelable: true });
+    } catch (e) {
+      return false;
+    }
+    return !document.dispatchEvent(evt);
+  }
+
   function restorePlace() {
     var saved = takeRememberedPlace();
     if (!saved) return;
+    if (saved.orderId && announceRestore(saved)) return;
     var card = saved.orderId
       ? document.querySelector('article.queue-card[data-order-id="' + saved.orderId + '"]')
       : null;

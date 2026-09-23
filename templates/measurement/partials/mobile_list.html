@@ -2,57 +2,110 @@
 {% from 'partials/shared/channel_mark.html' import channel_mark %}
 
 {% set _mrows = mobile_queue_rows or [] %}
-{% set _mdone_ns = namespace(n=0) %}
-{% for _o in _mrows %}
-  {% if _o.measurement_completed %}{% set _mdone_ns.n = _mdone_ns.n + 1 %}{% endif %}
-{% endfor %}
-
-{% if _mrows %}
-<div class="foms-visit-summary" aria-label="오늘 실측 진행 요약">
-  <span class="foms-visit-summary__item">실측 <b>{{ _mrows|length }}</b>곳</span>
-  <span class="foms-visit-summary__sep" aria-hidden="true">·</span>
-  <span class="foms-visit-summary__item foms-visit-summary__item--done">완료 <b>{{ _mdone_ns.n }}</b></span>
-  <span class="foms-visit-summary__sep" aria-hidden="true">·</span>
-  <span class="foms-visit-summary__item foms-visit-summary__item--left">남은 <b>{{ _mrows|length - _mdone_ns.n }}</b></span>
-</div>
-{% endif %}
+{# 예전 요약 줄(foms-visit-summary: 실측 n곳·완료·남은)은 통합 머리 숫자와 겹쳐 뺐다(목업 기준, 2026-09-23). #}
 
 {% if _mrows %}
   {% set _gv_groups = mobile_glance_groups|default([], true) %}
   {% set _gv_date = measurement_visit_date|default('', true) %}
   {% set _gv_can = (can_mark_measurement_visit|default(false)) and _gv_date %}
-  {% set _gv_done = namespace(n=0) %}{% for _o in _mrows %}{% if _o.measurement_visit_done %}{% set _gv_done.n = _gv_done.n + 1 %}{% endif %}{% endfor %}
-  <section class="foms-meas-glance" data-meas-glance aria-label="실측 한눈 목록" data-meas-glance-date="{{ _gv_date }}">
+  {% set _gv_mine = erp_mine_only|default(false) %}
+  {% set _gv_done = namespace(n=0, h=0) %}{% for _o in _mrows %}{% if _o.measurement_visit_done %}{% set _gv_done.n = _gv_done.n + 1 %}{% endif %}{% if _o.measurement_completed %}{% set _gv_done.h = _gv_done.h + 1 %}{% endif %}{% endfor %}
+  {# 내 묶음 = 보는 사람 이름과 같은 담당 키(visit_check._manager_key 와 같은 trim·lower). 없으면 첫 묶음만 펼친다. #}
+  {% set _gv_me = ((current_user.name if current_user else '') or '')|trim|lower %}
+  {% set _gv_open = namespace(any_me=false, closed=0) %}{% set _gv_open_names = [] %}
+  {% for g in _gv_groups %}{% if _gv_me and g.key == _gv_me %}{% set _gv_open.any_me = true %}{% endif %}{% endfor %}
+  {# 담당자 탭: 같은 담당이 두 묶음으로 갈려도 탭은 하나(숫자는 합산). #}
+  {% set _gv_tabs = [] %}{% set _gv_tab_names = [] %}
+  {% for g in _gv_groups %}
+    {% if g.manager_name not in _gv_tab_names %}{% set _ = _gv_tab_names.append(g.manager_name) %}{% set _ = _gv_tabs.append({'name': g.manager_name, 'done': 0, 'total': 0}) %}{% endif %}
+    {% set _tb = _gv_tabs[_gv_tab_names.index(g.manager_name)] %}{% set _ = _tb.update({'done': _tb.done + g.done, 'total': _tb.total + g.total}) %}
+    {% if not (_gv_mine or (_gv_open.any_me and g.key == _gv_me) or ((not _gv_open.any_me) and loop.first)) %}{% set _gv_open.closed = _gv_open.closed + 1 %}{% elif g.manager_name not in _gv_open_names %}{% set _ = _gv_open_names.append(g.manager_name) %}{% endif %}
+  {% endfor %}
+  <section class="foms-meas-glance foms-meas-glance--unified{% if _gv_mine %} is-mine{% endif %}" data-meas-glance aria-label="실측 한눈 목록" data-meas-glance-date="{{ _gv_date }}">
     <div class="foms-meas-glance__head">
       <h2 class="foms-meas-glance__title">{% if selected_date == today_date %}오늘{% elif selected_date and selected_date|length == 10 %}{{ selected_date[5:7]|int }}월 {{ selected_date[8:10]|int }}일{% endif %} 실측{% if erp_mine_only %} · 내 일정{% endif %}</h2>
-      <span class="foms-meas-glance__count" data-meas-glance-count>{{ _mrows|length }}곳 · 실측 {{ _gv_done.n }} · 남은 {{ _mrows|length - _gv_done.n }}</span>
+      <span class="foms-meas-glance__count" data-meas-glance-count>{{ _mrows|length }}곳 · 실측 {{ _gv_done.n }} · 넘김 {{ _gv_done.h }}</span>
       <button type="button" class="foms-meas-glance__save" data-meas-export-image><i class="fas fa-file-image" aria-hidden="true"></i> 이미지 저장</button>
     </div>
     <p class="foms-meas-glance__msg" data-meas-glance-msg role="status" aria-live="polite" hidden></p>
-    {% for g in _gv_groups %}
-    {% set _gp = (g.manager_phone or '')|replace('-', '')|replace(' ', '') %}
-    <div class="foms-meas-glance__grp" data-meas-glance-grp>
-      <div class="foms-meas-glance__gname">
-        {% if _gp and _gp != '-' %}<a class="foms-meas-glance__mgr" href="tel:{{ _gp }}" data-queue-card-call-link>{{ g.manager_name }}</a>{% else %}<span class="foms-meas-glance__mgr-text">{{ g.manager_name }}</span>{% endif %}
-        <progress class="foms-meas-glance__prog" value="{{ g.done }}" max="{{ g.total }}" aria-hidden="true"></progress>
-        <span class="foms-meas-glance__gcount" data-meas-glance-grp-count>실측 {{ g.done }}/{{ g.total }}</span>
-        {% if _gp and _gp != '-' %}<a class="foms-meas-glance__call" href="tel:{{ _gp }}" aria-label="{{ g.manager_name }} 전화"><i class="fas fa-phone" aria-hidden="true"></i></a>{% endif %}
+    {% if not _gv_mine %}
+    <div class="foms-meas-glance__tabs" role="tablist" aria-label="담당자별 보기" data-meas-glance-tabs>
+      <button type="button" role="tab" id="meas-glance-tab-0" class="foms-meas-glance__tab foms-meas-glance__tab--all{% if _gv_done.n == _mrows|length %} is-full{% endif %}" data-meas-glance-tab="" aria-selected="true" aria-controls="meas-glance-panel" tabindex="0">
+        <span class="foms-meas-glance__tab-n">전체</span>
+        <span class="foms-meas-glance__tab-c" data-meas-glance-tab-count>{{ _gv_done.n }}/{{ _mrows|length }}</span>
+        <progress class="foms-meas-glance__prog foms-meas-glance__tab-prog" value="{{ _gv_done.n }}" max="{{ _mrows|length }}" aria-hidden="true"></progress>
+      </button>
+      {% for t in _gv_tabs %}
+      <button type="button" role="tab" id="meas-glance-tab-{{ loop.index }}" class="foms-meas-glance__tab{% if t.done == t.total %} is-full{% endif %}" data-meas-glance-tab="{{ t.name }}" aria-selected="false" aria-controls="meas-glance-panel" tabindex="-1">
+        <span class="foms-meas-glance__tab-n">{{ t.name }}</span>
+        <span class="foms-meas-glance__tab-c" data-meas-glance-tab-count>{{ t.done }}/{{ t.total }}</span>
+        <progress class="foms-meas-glance__prog foms-meas-glance__tab-prog" value="{{ t.done }}" max="{{ t.total }}" aria-hidden="true"></progress>
+      </button>
+      {% endfor %}
+    </div>
+    {% endif %}
+    <div class="foms-meas-glance__panel" id="meas-glance-panel" data-meas-glance-list{% if not _gv_mine %} role="tabpanel" aria-labelledby="meas-glance-tab-0"{% endif %}>
+      {% if not _gv_mine %}
+      <div class="foms-meas-glance__ctl" data-meas-glance-ctl>
+        <span>담당 <b>{{ _gv_tabs|length }}</b>명 · 펼침 <b data-meas-glance-open-count>{{ _gv_open_names|length }}</b></span>
+        <button type="button" class="foms-meas-glance__ctl-all" data-meas-glance-all="{{ 'open' if _gv_open.closed else 'close' }}"><i class="fas fa-up-down" aria-hidden="true"></i> <span data-meas-glance-all-label>{{ '모두 펼치기' if _gv_open.closed else '모두 접기' }}</span></button>
       </div>
-      {% for o in g.rows %}
-      {% set _t = (((o.structured_data or {}).get('schedule') or {}).get('measurement') or {}).get('time') %}
-      <div class="foms-meas-glance__row{% if o.measurement_visit_done %} is-done{% endif %}" data-meas-glance-row="{{ o.id }}">
-        <button type="button" class="foms-meas-glance__check" data-meas-visit-toggle="{{ o.id }}" data-meas-visit-date="{{ _gv_date }}" aria-pressed="{{ 'true' if o.measurement_visit_done else 'false' }}" aria-label="{{ o.customer_name or '고객' }} 실측 체크"{% if not _gv_can %} disabled{% endif %}><i class="fas fa-check" aria-hidden="true"></i></button>
-        <a class="foms-meas-glance__go" href="#meas-card-{{ o.id }}" data-meas-glance-go="{{ o.id }}">
-          <span class="foms-meas-glance__name">{{ o.customer_name or '-' }} {{ channel_mark(o.channel_source|default(none, true)) }}</span>
-          {% if o.address and o.address != '-' %}<span class="foms-meas-glance__addr">{{ o.address }}</span>{% endif %}
-          {% if o.product_subtitle %}<span class="foms-meas-glance__prod">{{ o.product_subtitle }}</span>{% endif %}
-          {% if _t %}<span class="foms-meas-glance__time" data-daypart="{{ _t|meas_daypart or '' }}">{{ _t }}</span>{% endif %}
-        </a>
+      {% endif %}
+      {% for g in _gv_groups %}
+      {% set _gp = (g.manager_phone or '')|replace('-', '')|replace(' ', '') %}
+      {% set _is_me = _gv_me and g.key == _gv_me %}
+      {% set _g_open = _gv_mine or (_gv_open.any_me and _is_me) or ((not _gv_open.any_me) and loop.first) %}
+      <div class="foms-meas-glance__grp{% if not _g_open %} is-closed{% endif %}{% if _is_me %} is-me{% endif %}" data-meas-glance-grp="{{ g.manager_name }}">
+        <div class="foms-meas-glance__gname">
+          {% if _gv_mine %}<span class="foms-meas-glance__gtog">{% else %}<button type="button" class="foms-meas-glance__gtog" data-meas-glance-tog aria-expanded="{{ 'true' if _g_open else 'false' }}" aria-controls="meas-glance-rows-{{ loop.index }}">{% endif %}
+            <span class="foms-meas-glance__mgr-text">{{ g.manager_name }}</span>
+            {% if _is_me %}<span class="foms-meas-glance__me">나</span>{% endif %}
+            <progress class="foms-meas-glance__prog" value="{{ g.done }}" max="{{ g.total }}" aria-hidden="true"></progress>
+            <span class="foms-meas-glance__gcount{% if g.done == g.total %} is-full{% endif %}" data-meas-glance-grp-count>실측 {{ g.done }}/{{ g.total }}</span>
+          {% if _gv_mine %}</span>{% else %}<i class="fas fa-chevron-down foms-meas-glance__gchev" aria-hidden="true"></i></button>{% endif %}
+          {% if _gp and _gp != '-' %}<a class="foms-meas-glance__call" href="tel:{{ _gp }}" data-queue-card-call-link aria-label="{{ g.manager_name }} 담당에게 전화"><i class="fas fa-phone" aria-hidden="true"></i></a>{% endif %}
+        </div>
+        <div class="foms-meas-glance__rows" id="meas-glance-rows-{{ loop.index }}">
+        {% for o in g.rows %}
+        {% set _t = (((o.structured_data or {}).get('schedule') or {}).get('measurement') or {}).get('time') %}
+        {% set _pcn = (o.attachment_preview_items or [])|length %}
+        <div class="foms-meas-glance__row{% if o.measurement_visit_done %} is-done{% endif %}" data-meas-glance-row="{{ o.id }}"{% if o.measurement_completed %} data-meas-glance-handed{% endif %}>
+          <button type="button" class="foms-meas-glance__check" data-meas-visit-toggle="{{ o.id }}" data-meas-visit-date="{{ _gv_date }}" aria-pressed="{{ 'true' if o.measurement_visit_done else 'false' }}" aria-label="{{ o.customer_name or '고객' }} 실측 체크"{% if not _gv_can %} disabled{% endif %}><i class="fas fa-check" aria-hidden="true"></i></button>
+          <a class="foms-meas-glance__go{% if _pcn %} has-pc{% endif %}" href="#meas-card-{{ o.id }}" data-meas-glance-go="{{ o.id }}" aria-haspopup="dialog" aria-controls="meas-sheet">
+            <span class="foms-meas-glance__name">{{ o.customer_name or '-' }} {{ channel_mark(o.channel_source|default(none, true)) }}{% if o.measurement_completed %}<span class="foms-meas-glance__handed"><i class="fas fa-circle-check" aria-hidden="true"></i> 실측 완료</span>{% endif %}</span>
+            {% if o.address and o.address != '-' %}<span class="foms-meas-glance__addr">{{ o.address }}</span>{% endif %}
+            {% if o.product_subtitle %}<span class="foms-meas-glance__prod">{{ o.product_subtitle }}</span>{% endif %}
+            {% if _t %}<span class="foms-meas-glance__time" data-daypart="{{ _t|meas_daypart or '' }}">{{ _t }}</span>{% endif %}
+            {% if _pcn %}<span class="foms-meas-glance__pc" data-meas-glance-photos="{{ _pcn }}"><i class="fas fa-camera" aria-hidden="true"></i><span class="visually-hidden">사진 </span>{{ _pcn }}<span class="visually-hidden">장</span></span>{% endif %}
+            <i class="fas fa-chevron-right foms-meas-glance__chev" aria-hidden="true"></i>
+          </a>
+        </div>
+        {% endfor %}
+        </div>
       </div>
       {% endfor %}
     </div>
-    {% endfor %}
   </section>
+  {# 줄을 누르면 여는 바텀시트 틀 1개. 본문에는 숨은 원본 칸의 카드 노드를 그대로 옮겨 넣는다(mobile-glance-sheet.js). #}
+  <div class="foms-meas-sheet" data-meas-sheet hidden>
+    <div class="foms-meas-sheet__scrim" data-meas-sheet-close></div>
+    <div class="foms-meas-sheet__panel" id="meas-sheet" role="dialog" aria-modal="true" aria-labelledby="meas-sheet-title" tabindex="-1">
+      <div class="foms-meas-sheet__grab" aria-hidden="true"><i></i></div>
+      <div class="foms-meas-sheet__bar">
+        <span class="foms-meas-sheet__mgr" id="meas-sheet-title" data-meas-sheet-mgr></span>
+        <span class="foms-meas-sheet__pos" data-meas-sheet-pos aria-live="polite"></span>
+        <span class="foms-meas-sheet__nav">
+          <button type="button" class="foms-meas-sheet__ibtn" data-meas-sheet-step="-1" aria-label="이전 고객"><i class="fas fa-chevron-left" aria-hidden="true"></i></button>
+          <button type="button" class="foms-meas-sheet__ibtn" data-meas-sheet-step="1" aria-label="다음 고객"><i class="fas fa-chevron-right" aria-hidden="true"></i></button>
+          <button type="button" class="foms-meas-sheet__ibtn foms-meas-sheet__ibtn--ghost" data-meas-sheet-close aria-label="닫기"><i class="fas fa-xmark" aria-hidden="true"></i></button>
+        </span>
+      </div>
+      <div class="foms-meas-sheet__body" data-meas-sheet-body>
+        <button type="button" class="foms-meas-sheet__vcheck" data-meas-sheet-check aria-pressed="false"><span class="foms-meas-sheet__vbox" aria-hidden="true"><i class="fas fa-check"></i></span>실측 체크<em data-meas-sheet-check-state>아직</em></button>
+        <div class="foms-meas-sheet__slot" data-meas-sheet-slot></div>
+      </div>
+    </div>
+  </div>
 {% else %}
   {% set _mnext_ns = namespace(date='', count=0) %}
   {% for _it in (measurement_panel_dates or []) %}
@@ -71,7 +124,10 @@
 {% endif %}
 
 
-<section class="erp-measurement-mobile-list foms-mobile-queue-section" aria-label="실측 모바일 일정">
+{# 통합 화면(2026-09-23 SPEC): 카드는 숨은 원본 칸에 두고, 줄을 누르면 mobile-glance-sheet.js 가
+   그 카드 노드(id="meas-card-N")를 시트로 옮겼다가 닫을 때 제자리로 돌려놓는다. 일정이 없을 때는
+   빈 안내가 보이도록 hidden 을 걸지 않는다. #}
+<section class="erp-measurement-mobile-list foms-mobile-queue-section" aria-label="실측 모바일 일정"{% if mobile_queue_rows %} data-meas-card-origin hidden{% endif %}>
   <div class="erp-measurement-mobile-list__summary foms-section-header section-header">
     <div>
       <span class="erp-measurement-mobile-list__eyebrow">실측 작업 큐</span>
