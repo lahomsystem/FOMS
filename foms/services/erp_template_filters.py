@@ -9,6 +9,7 @@ from foms.services.measurement_time import (
     MEAS_AM_END_HOUR,
     MEAS_AM_START_HOUR,
     MEAS_HOUR_RE,
+    measurement_glance_time_key,
 )
 
 __all__ = [
@@ -280,24 +281,23 @@ def queue_card_schedule_filter(order) -> dict[str, str | None]:
 
 
 # 오전/오후 판정 경계·시각 정규식은 measurement_time(SSOT)에서 import 한다(상단).
-# TODO(2026-09-23): 시작값에 '시'가 없는 범위("10~2시"·"11~1시")는 끝값(2시·1시)을 잡아 'pm' 으로
-# 칠한다(시작 10시·11시는 오전). 체크리스트 정렬 키 measurement_glance_time_key 는 이미 시작값을
-# 읽으므로 칩 색과 정렬 위치가 어긋날 수 있다 — 칩 판정 변경은 별도 작업으로 남긴다.
+# 칩 색은 체크리스트 정렬 키(measurement_glance_time_key)와 같은 "시작 시각"으로 정한다(2026-09-23).
+# 예전 판정은 시작에 '시'가 없는 범위("10~2시")에서 끝값을 잡아 오후로 칠해, 정렬(오전 자리)과 어긋났다.
+
+
+_LEADING_AM_RE = re.compile(r'^\s*(?:오전|아침|새벽|am)(?![a-z])', re.IGNORECASE)
 
 
 def meas_daypart(value: str | None) -> str | None:
-    """실측 대시보드 '시간' 컬럼 자유 텍스트를 오전/오후/종일로 분류한다.
+    """실측 시간 원문을 오전/오후/종일로 분류한다(시간 칩 색).
 
-    입력은 실측 시간 원문("10시", "9시30분 ~10시", "12시 전 후", "오후",
-    "11:30 이후", "-" 등)이며 렌더 시 판정만 하고 저장은 하지 않는다.
+    체크리스트 정렬 키 :func:`measurement_glance_time_key` 와 **같은 시작 시각**으로 판정한다.
+    그래야 칩 색과 정렬 자리가 어긋나지 않는다("10~2시" 는 10시 시작 → 오전).
 
-    판정 순서(첫 매치에서 종료, strip 후 판정):
-      1. '종일'/'all day' 포함 → 'allday'
-      2. 오전 마커(오전·AM·새벽·아침) / 오후 마커(오후·PM·저녁·밤·낮)가 문자열
-         어디든 있으면 그 값 우선. 둘 다 있으면 먼저 나온 쪽(=시작 기준) 채택.
-      3. 첫 숫자 시각(``9시``, ``11:`` 등 첫 매치, 범위/접미사는 시작값 기준)을
-         추출해 7~11시는 'am', 그 외 1~6시·12~23시는 'pm', 0시·24시 이상은 판정 불가.
-      4. 그 외(숫자 없음, '-', 빈값, '미정' 등) → 판정 불가.
+    - '종일'/'all day' 포함 → 'allday'(시각이 함께 적혀도 종일이 우선)
+    - 시작 시각이 12:00 전 → 'am', 12:00 이후 → 'pm'(표시 없는 1~6시는 오후, 7~11시 오전, 12시 정오)
+    - 시각 없이 '오전'·아침·새벽·AM → 'am', '오후'·낮·저녁·밤·PM → 'pm'
+    - 빈값·'-'·'미정'·판정 불가 → None
 
     Args:
         value: 실측 시간 원문 문자열(또는 None).
@@ -311,43 +311,18 @@ def meas_daypart(value: str | None) -> str | None:
     if not s:
         return None
     lower = s.lower()
-
     if '종일' in s or 'all day' in lower:
         return 'allday'
-
-    am_markers = ('오전', '새벽', '아침')
-    pm_markers = ('오후', '저녁', '밤', '낮')
-    hits: list[tuple[int, str]] = []
-    for marker in am_markers:
-        idx = s.find(marker)
-        if idx != -1:
-            hits.append((idx, 'am'))
-    for marker in pm_markers:
-        idx = s.find(marker)
-        if idx != -1:
-            hits.append((idx, 'pm'))
-    am_idx = lower.find('am')
-    if am_idx != -1:
-        hits.append((am_idx, 'am'))
-    pm_idx = lower.find('pm')
-    if pm_idx != -1:
-        hits.append((pm_idx, 'pm'))
-    match = MEAS_HOUR_RE.search(s)
-    if hits:
-        hits.sort(key=lambda hit: hit[0])
-        # 마커가 첫 시각보다 뒤에 있으면 범위의 종료부 마커다("10시~오후2시").
-        # 판정은 항상 시작 기준이므로 이때는 마커 대신 첫 시각 규칙을 쓴다.
-        if match is None or hits[0][0] < match.start():
-            return hits[0][1]
-
-    if not match:
-        return None
-    hour = int(match.group(1))
-    if hour <= 0 or hour >= 24:
-        return None
-    if MEAS_AM_START_HOUR <= hour <= MEAS_AM_END_HOUR:
-        return 'am'
-    return 'pm'
+    bucket, minutes, _sub = measurement_glance_time_key(s)
+    if bucket == 0:
+        if minutes >= 12 * 60 and _LEADING_AM_RE.match(s):
+            return 'am'  # "오전 12시" — 적은 사람이 오전이라고 했다(정렬 자리는 12:00 그대로)
+        return 'am' if minutes < 12 * 60 else 'pm'
+    if bucket == 1:
+        return 'pm'
+    if bucket == 2:
+        return 'allday'
+    return None
 
 
 def register_erp_template_filters(bp):
