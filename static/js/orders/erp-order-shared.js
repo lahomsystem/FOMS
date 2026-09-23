@@ -779,14 +779,6 @@ var erpSetStatus =
 window.erpSetStatus = erpSetStatus;
 
 /**
- * AS 접수 결과를 눈에 띄게 알린다.
- * 공용 토스트는 호스트(#foms-alpine-toast-root)와 Alpine 스토어가 있는 화면에서만 보인다 —
- * 없는 화면에서 fomsShowToast 는 스타일 없는 div 를 문서 끝에 붙여 사실상 안 보이므로
- * (draft_resume.js 참고) 그때는 alert 으로 간다.
- * @param {string} message 보여 줄 문구.
- * @returns {void}
- */
-/**
  * 서버만 쓰는 알림톡 발송 이력 키 — 화면 사본에는 남기되 저장 PUT 에는 싣지 않는다.
  *
  * 2026-09-23 사용자 제보: 저장(자동 저장 포함) 직후 화면 사본을 폼 수집본으로 갈아끼우면서
@@ -814,10 +806,30 @@ function erpCarryLocalOnlyKeys(next, prev) {
 }
 window.erpCarryLocalOnlyKeys = erpCarryLocalOnlyKeys;
 
+/**
+ * 공용 토스트가 이 화면에서 **실제로 그려지는가**.
+ * 호스트(#foms-alpine-toast-root)와 Alpine 스토어가 있어도 PC 주문 화면에서는 호스트가
+ * 모바일 셸 영역(display:none) 안에 있어 토스트가 안 보인다(2026-09-23 스테이징 실측) —
+ * 그래서 존재가 아니라 렌더 여부(getClientRects)로 판정한다.
+ * @returns {boolean}
+ */
+function erpToastVisibleHere() {
+    const root = document.getElementById('foms-alpine-toast-root');
+    return !!(root && root.getClientRects().length
+        && window.Alpine && window.Alpine.store && window.Alpine.store('fomsToast')
+        && typeof window.fomsShowToast === 'function');
+}
+window.erpToastVisibleHere = erpToastVisibleHere;
+
+/**
+ * AS 접수 결과를 눈에 띄게 알린다.
+ * 토스트가 이 화면에서 보이지 않으면(PC 주문 화면, 토스트 호스트 없는 화면) alert 으로 간다 —
+ * 보이지 않는 곳에 띄운 알림은 안 띄운 것과 같다(draft_resume.js 참고).
+ * @param {string} message 보여 줄 문구.
+ * @returns {void}
+ */
 function erpNotifyAsReceiveResult(message) {
-    const hasToastHost = !!document.getElementById('foms-alpine-toast-root')
-        && !!(window.Alpine && window.Alpine.store && window.Alpine.store('fomsToast'));
-    if (hasToastHost && typeof window.fomsShowToast === 'function') {
+    if (erpToastVisibleHere()) {
         window.fomsShowToast(message);
         return;
     }
