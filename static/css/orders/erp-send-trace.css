@@ -1,0 +1,176 @@
+/**
+ * ERP 주문 화면 발송 기록 칩 (2026-09-23) — erp-send-trace.js 가 그린다.
+ *
+ * 한 가지 칩 문법: [보낸 길 아이콘] 무엇 · 언제. 모든 칩이 같은 높이·글자 크기·순서.
+ * 색은 보낸 길: 알림톡 노랑 · 문자 파랑 · PUSH 보라 · 못 보냄 빨강 · 미발송 점선.
+ */
+
+.erp-send-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 0 10px 0 8px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  font: inherit;
+  font-size: 0.78rem;
+  line-height: 1;
+  white-space: nowrap;
+  color: inherit;
+}
+
+button.erp-send-chip {
+  cursor: pointer;
+}
+
+button.erp-send-chip:hover {
+  filter: brightness(0.97);
+}
+
+.erp-send-chip svg {
+  flex: none;
+  width: 14px;
+  height: 14px;
+}
+
+.erp-send-chip svg.erp-send-chip__re {
+  width: 12px;
+  height: 12px;
+  margin-right: -2px;
+}
+
+.erp-send-chip__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+}
+
+.erp-send-chip__meta {
+  flex: none;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.erp-send-chip--alim {
+  background: #fff7d1;
+  border-color: #ecd06a;
+  color: #5c4400;
+}
+
+.erp-send-chip--push {
+  background: #f1eeff;
+  border-color: #cfc4fb;
+  color: #4b2fb8;
+}
+
+.erp-send-chip--sms {
+  background: #eaf2ff;
+  border-color: #bcd3fa;
+  color: #1d4e9e;
+}
+
+.erp-send-chip--fail {
+  background: #fdecec;
+  border-color: #f1aca7;
+  color: #a1231b;
+}
+
+.erp-send-chip--none {
+  border-style: dashed;
+  border-color: var(--foms-border-subtle, #c9ced6);
+  color: var(--foms-text-muted, #5b606b);
+}
+
+.erp-send-chip--none svg {
+  display: none;
+}
+
+/* PC: 왼쪽부터 나열(접지 않는다 — 폭이 넉넉하다). */
+.erp-send-trace--wide {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* 모바일: 액션바(flex-wrap)에서 버튼 위 한 줄을 통째로 차지한다. 기록이 없으면 JS 가 비운다. */
+.erp-send-trace--fold {
+  flex: 1 0 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.erp-send-trace--fold:empty {
+  display: none;
+}
+
+/* 펼친 칩: 두 칸 격자 — 칩 폭이 같아 세로줄이 맞는다. */
+.erp-send-trace__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.erp-send-trace__grid .erp-send-chip {
+  width: 100%;
+}
+
+/* 요약 한 줄: 칩과 같은 높이로 낮게(2026-09-23 사용자 요청 — 화면 차지 최소화).
+   테두리·배경 없이 글자 한 줄만 두고, 누르는 자리는 줄 전체다. */
+.erp-send-trace__summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  height: 26px;
+  min-width: 0;
+  padding: 0 2px;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 0.8rem;
+  color: var(--foms-text, #1b1d22);
+  text-align: left;
+  cursor: pointer;
+}
+
+.erp-send-trace__fail.erp-send-chip {
+  height: 20px;
+  padding: 0 7px 0 5px;
+  flex: none;
+}
+
+.erp-send-trace__fail svg {
+  width: 12px;
+  height: 12px;
+}
+
+.erp-send-trace__title {
+  flex: none;
+  font-weight: 700;
+}
+
+.erp-send-trace__recent {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--foms-text-muted, #4a4f59);
+}
+
+.erp-send-trace__chev {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  color: var(--foms-text-muted, #4a4f59);
+}
