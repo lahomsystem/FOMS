@@ -16,10 +16,13 @@ import re
 from tests.domains.test_measurement_mobile_unified import GLANCE_CSS, PARTS_JS, _missing, _read
 
 COMPACT_MARKER = "/* ── 압축 시트(2026-09-23"
+#: 압축 시트 구획 다음에 덧붙인 구획(담당 색 띠 — test_measurement_manager_color.py 가 지킨다).
+NEXT_SECTION_MARKER = "/* ══ 담당자 색 띠 + 번호(V1"
 
 
 def _compact_css() -> str:
-    return COMPACT_MARKER + _read(GLANCE_CSS).replace("\r\n", "\n").split(COMPACT_MARKER, 1)[1]
+    tail = _read(GLANCE_CSS).replace("\r\n", "\n").split(COMPACT_MARKER, 1)[1]
+    return COMPACT_MARKER + tail.split(NEXT_SECTION_MARKER, 1)[0]
 
 
 def _css_rules(css: str) -> list[tuple[str, str]]:

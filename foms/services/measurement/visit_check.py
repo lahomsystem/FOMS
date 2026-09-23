@@ -15,6 +15,11 @@ import datetime
 import re
 from typing import Any, Optional
 
+from foms.services.measurement.manager_color import (
+    MANAGER_COLOR_SLOT_COUNT,
+    manager_color_key,
+    manager_color_slot,
+)
 from foms.services.measurement_time import measurement_glance_time_key
 
 MEASUREMENT_VISITS_KEY = "measurement_visits"
@@ -109,8 +114,7 @@ def apply_visit_mark(
 
 def _manager_key(name: Any) -> str:
     """PC 이미지 저장의 ``normalizeExportManagerKey`` 와 같다: trim → lower, '-' 는 ''."""
-    key = (name or "").strip().lower() if isinstance(name, str) else ""
-    return "" if key == "-" else key
+    return manager_color_key(name)
 
 
 def _manager_label(name: Any) -> str:
@@ -131,7 +135,7 @@ def _row_visit_time(row: Any) -> Any:
     return measurement.get("time") if isinstance(measurement, dict) else None
 
 
-def build_measurement_glance_groups(rows: list) -> list:
+def build_measurement_glance_groups(rows: list, color_slots: Optional[dict] = None) -> list:
     """행 순서 그대로 같은 담당자의 **연속 구간**을 묶고, 묶음 안 행만 방문 시각 이른 순으로 정렬한다.
 
     묶음 자체의 순서·경계는 입력(PC 표) 순서 그대로다. 묶음 안 정렬 키는
@@ -139,8 +143,14 @@ def build_measurement_glance_groups(rows: list) -> list:
     방문 시각은 **전날 17시에 확정한 계획값**이다 — 당일 바뀌어도 ERP 에 들어오지 않으므로
     이 정렬은 계획의 표시 순서일 뿐 실제 방문 순서를 보장하지 않는다.
 
-    원소: ``{key, manager_name, manager_phone, rows, done, total}``. ``manager_phone`` 은 묶음
-    안에서 처음 나온 비어 있지 않은 값(번호 정규화는 템플릿이 한다). ``done`` 은 ``measurement_visit_done`` 수.
+    원소: ``{key, manager_name, manager_phone, rows, done, total, color_slot, order_no}``.
+    ``manager_phone`` 은 묶음 안에서 처음 나온 비어 있지 않은 값(번호 정규화는 템플릿이 한다).
+    ``done`` 은 ``measurement_visit_done`` 수.
+
+    ``color_slot`` 은 담당 색 칸(1~8, 담당 없음 0 — :mod:`foms.services.measurement.manager_color`,
+    ``color_slots`` 는 :func:`~foms.services.measurement.manager_color.load_manager_color_slots` 결과).
+    ``order_no`` 는 오늘 목록에서 그 담당이 처음 나온 순서(1, 2, 3 …, 담당 없음 0) — 탭과 띠의
+    번호 칸(색이 안 갈리는 사람을 위한 두 번째 단서). 같은 담당이 두 묶음으로 갈려도 같은 번호다.
     """
     groups: list = []
     for row in rows or []:
@@ -162,7 +172,24 @@ def build_measurement_glance_groups(rows: list) -> list:
         grp["total"] += 1
         if row.get("measurement_visit_done"):
             grp["done"] += 1
+    order_by_key: dict = {}
+    # 영업팀 명부 담당은 고정 칸. 명부 밖 이름(외주 등)은 그날 비어 있는 칸을 받는다 — 해시 예비 칸은
+    # 명부 담당과 같은 색이 될 수 있었다(화면 확인에서 실제로 겹침).
+    slot_by_key: dict = {}
     for grp in groups:
+        if grp["key"] and color_slots and grp["key"] in color_slots:
+            slot_by_key[grp["key"]] = manager_color_slot(grp["key"], color_slots)
+    for grp in groups:
+        key = grp["key"]
+        if key and key not in slot_by_key:
+            used = set(slot_by_key.values())
+            free = [s for s in range(1, MANAGER_COLOR_SLOT_COUNT + 1) if s not in used]
+            slot_by_key[key] = free[0] if free else manager_color_slot(key, color_slots)
+    for grp in groups:
+        grp["color_slot"] = slot_by_key.get(grp["key"], 0)
+        if grp["key"] and grp["key"] not in order_by_key:
+            order_by_key[grp["key"]] = len(order_by_key) + 1
+        grp["order_no"] = order_by_key.get(grp["key"], 0)
         # sorted 는 안정 정렬 — 같은 시각 키는 PC 표 순서를 지킨다.
         grp["rows"] = sorted(grp["rows"], key=lambda r: measurement_glance_time_key(_row_visit_time(r)))
     return groups

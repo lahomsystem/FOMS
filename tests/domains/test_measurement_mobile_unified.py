@@ -60,7 +60,7 @@ def _missing(text: str, needles: list[str]) -> list[str]:
 
 
 def _group_tags(glance: str) -> list[str]:
-    return re.findall(r'<div class="foms-meas-glance__grp[^"]*" data-meas-glance-grp="[^"]*">', glance)
+    return re.findall(r'<div class="foms-meas-glance__grp[^"]*" data-meas-glance-grp="[^"]*"[^>]*>', glance)
 
 
 # ------------------------------------------------------------ A. 템플릿 표식
