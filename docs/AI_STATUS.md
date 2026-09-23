@@ -10,7 +10,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
-- [2026-09-23] **완료 quest 재전이 버튼 = 승인 버튼 이름 · AS 접수 완료 알림 · 알림톡/PUSH 발송 흔적(PR #419 · production `6db60d402`)** — 단독 링크도 흔적(09-01 결정 변경). 잔여: 링크 칩 실화면
+- [2026-09-23] **완료 quest 재전이 버튼 = 승인 버튼 이름 · AS 접수 완료 알림 · 알림톡/PUSH 발송 흔적(PR #419·#420 · production `34fe1df69`)** — 단독 링크도 흔적(09-01 결정 변경), 모바일 칩 한 줄. 잔여: 링크 칩 실화면
 - [2026-09-23] **실측 모바일 오늘 체크리스트 + 당일 실측 긴급 알림(deploy)** — 체크리스트·이미지 저장 스테이징 확인. 긴급 알림: 오늘 실측 새로 생기면 영업 전원에 채널톡 209989·화면 확인창·웹푸시 + 기존 푸시 결함 2건. 잔여: 스테이징 두 탭·아이폰 소리, 운영 SIDEFX env(CHANNEL_*·VAPID_*). 스펙 `docs/specs/2026-09-23-same-day-measure-urgent-alert_SPEC.md`
 - [2026-09-23] **CS 단계 완료 자리 2건(PR #417 · production `889d22503`)** — ① 자가실측 보드 CS 단계 주문이 진행 중에 남아 [완료] 버튼 없음(#5220) → 설치예정 = SCHEDULED ∪ stage CS ② 주문 대시보드 파이프라인 막대 완료·CS 순서 뒤바뀜(`process_steps` 손 목록) → `MAIN_PIPELINE_CODES` 순. 스테이징 실화면·CLAUDE-TEST 완료 클릭 확인. ③ 상태 드롭다운 진행 단계(실측~CS) 흰 바탕 흰 글자 → 회색(PR #418 · production `93ed406cc`). 참고: perf-gate `/erp/as` 가 예산 경계(168/168ms)에서 흔들린다
 - [2026-09-22] **시공일 지난 적체 주문 일괄 완료 — 운영 적용 완료(413건)** — 1차(+7일) 413 + 2차(시공일<오늘, 사용자 수동 시공일 입력 뒤) 174 = 587건. 실측 858→237 · 도면 101→48 · 완료 1451→2038. AS 탭 건 143 은 stage 만(AS 축 지문 두 차례 모두 적용 전후 동일 · AS 탭 불변). 스냅샷 `C:/tmp/foms-backlog-complete-20260922/`(rollback 가능). 잔여: 시공일 없는 건 CSV 영업 검토. 스펙 `docs/plans/2026-09-22-past-construction-bulk-complete-spec.md`
