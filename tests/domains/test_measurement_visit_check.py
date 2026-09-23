@@ -153,3 +153,109 @@ def test_group_key_is_case_insensitive_and_dash_means_unassigned():
 def test_groups_empty_rows():
     assert build_measurement_glance_groups([]) == []
     assert build_measurement_glance_groups(None) == []
+
+
+# ── 묶음 안 방문 시각 정렬(사용자 요구 2026-09-23) ─────────────────────────────
+
+from foms.services.measurement_time import measurement_glance_time_key  # noqa: E402
+
+
+def _trow(oid, manager, time):
+    row = _row(oid, manager)
+    row["structured_data"] = {"schedule": {"measurement": {"time": time}}}
+    return row
+
+
+def _sorted_texts(texts):
+    return sorted(texts, key=measurement_glance_time_key)
+
+
+def test_glance_key_user_example_order():
+    """사용자 예시 그대로: 9:00, 10:00, 오전, 1시 or 13:00, 2시 or 14:00, 오후."""
+    assert _sorted_texts(["오후", "2시", "오전", "13:00", "10:00", "9:00"]) == [
+        "9:00", "10:00", "오전", "13:00", "2시", "오후",
+    ]
+
+
+def test_glance_key_free_text_formats():
+    texts = [None, "-", "", "종일", "오후", "PM 3시", "오후 1시", "12시 전 후", "11:30 이후", "9시30분 ~10시", "미정"]
+    assert _sorted_texts(texts) == [
+        "9시30분 ~10시", "11:30 이후", "12시 전 후", "오후 1시", "PM 3시", "오후", "종일", None, "-", "", "미정",
+    ]
+    assert measurement_glance_time_key("9시30분 ~10시") == (0, 570, 0)
+    assert measurement_glance_time_key("PM 3시") == (0, 900, 0)
+    assert measurement_glance_time_key("오후 1시") == (0, 780, 0)
+    assert measurement_glance_time_key("1시") == (0, 780, 0)  # 마커 없는 1~6시는 오후
+    assert measurement_glance_time_key("11:59") < measurement_glance_time_key("오전") < measurement_glance_time_key("12:00")
+    assert measurement_glance_time_key("오후") < measurement_glance_time_key("저녁") < measurement_glance_time_key("종일")
+    assert measurement_glance_time_key("0시") == measurement_glance_time_key(None)  # 판정 불가 숫자는 맨 뒤
+
+
+def test_glance_groups_sort_rows_within_group_stably_and_keep_group_order():
+    rows = [
+        _trow(1, "최진호", "오후"),
+        _trow(2, "최진호", "2시"),
+        _trow(3, "최진호", "오전"),
+        _trow(4, "최진호", "13:00"),
+        _trow(5, "최진호", "10:00"),
+        _trow(6, "최진호", "9:00"),
+        _trow(7, "최진호", "10시"),  # 5번과 같은 시각 → 원래 순서(5 → 7)
+        _trow(8, "김영업", "-"),
+        _trow(9, "김영업", "11시"),
+        _row(10, "김영업"),  # structured_data 없음 → 미상(맨 뒤)
+        _trow(11, "박실측", "오후"),
+    ]
+    groups = build_measurement_glance_groups(rows)
+    assert [g["manager_name"] for g in groups] == ["최진호", "김영업", "박실측"]
+    assert [[r["id"] for r in g["rows"]] for g in groups] == [
+        [6, 5, 7, 3, 4, 2, 1],
+        [9, 8, 10],
+        [11],
+    ]
+    assert [g["total"] for g in groups] == [7, 3, 1]
+    # 입력 목록 자체(카드·PC 표 순서)는 건드리지 않는다.
+    assert [r["id"] for r in rows] == list(range(1, 12))
+
+
+def test_glance_key_real_staging_formats():
+    """스테이징 실데이터 표기(1,444행·280종 조사, 2026-09-23). 같은 칸(=)은 키가 같다."""
+    slots = [
+        ["09:00", "9~10시"],
+        ["9:30", "9시 30"],
+        ["오전 10시", "10~2시", "오전 10 전 후"],
+        ["10시 30분 전 후"],
+        ["11시(시간엄수)", "11~1시", "오전: 11~ 12시반/오후 2시반~ 4시"],
+        ["11:30"],
+        ["오전", "가급적 오전 중", "오전 일찍"],
+        ["12시 전 후", "오후 12시", "12~1시"],
+        ["12:30~2시", "12시반~1시반사이"],
+        ["1시", "오후 1~2", "1-2시"],
+        ["1:30 ~ 2:00"],
+        ["2시 이후", "２시", "2시~2시반"],
+        ["오후 3"],
+        ["3시 30분"],
+        ["4:15"],
+        ["16시 30분"],
+        ["오후 5:10"],
+        ["오후", "오후요청", "오후 조율"],
+        ["종일"],
+        ["", "조율", "비동행", "11tl", "9", None, "-", "0시"],
+    ]
+    keys = [[measurement_glance_time_key(t) for t in slot] for slot in slots]
+    for slot, slot_keys in zip(slots, keys):
+        assert len(set(slot_keys)) == 1, (slot, slot_keys)
+    firsts = [k[0] for k in keys]
+    assert firsts == sorted(firsts) and len(set(firsts)) == len(firsts)
+    assert measurement_glance_time_key("9~10시") == (0, 540, 0)
+    assert measurement_glance_time_key("10~2시") == (0, 600, 0)
+    assert measurement_glance_time_key("12시반~1시반사이") == (0, 750, 0)
+    assert measurement_glance_time_key("오후 1~2") == (0, 780, 0)
+    assert measurement_glance_time_key("２시") == (0, 840, 0)
+    assert measurement_glance_time_key("오전: 11~ 12시반/오후 2시반~ 4시") == (0, 660, 0)
+
+    flat = [t for slot in slots for t in slot]
+    shuffled = list(reversed(flat))
+    ordered = sorted(shuffled, key=measurement_glance_time_key)
+    # 칸 순서가 지켜지고, 같은 칸 안에서는 입력(역순) 순서가 그대로 남는다(안정 정렬).
+    expected = [t for slot in slots for t in reversed(slot)]
+    assert ordered == expected

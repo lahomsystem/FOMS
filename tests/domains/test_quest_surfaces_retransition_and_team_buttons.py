@@ -428,7 +428,8 @@ def test_asset_pins_bumped_to_20260920b():
     함께 바뀌었으므로 그 핀도 올린다 — 안 올리면 옛 entry 가 옛 모듈 핀을 계속 부른다.
     나머지 자산은 그때 안 바뀌었으니 20260920b 그대로다.
     """
-    assert "erp-quest-approve.js') }}?v=20260921a" in _read("templates/partials/shared/layout_scripts.html")
+    # erp-quest-approve.js 는 2026-09-23 실측 통합 화면(복원 직전 이벤트)으로 다시 올라갔다.
+    assert "erp-quest-approve.js') }}?v=20260923e" in _read("templates/partials/shared/layout_scripts.html")
     assert "erp-dashboard-entry.js') }}?v=20260921a" in _read("templates/partials/shared/layout_scripts.html")
     assert "erp-pro.css') }}?v=20260920b" in _read("templates/partials/shared/layout_head.html")
     assert "04-filter-table-badges-buttons.css?v=20260920b" in _read("static/css/foundation/erp-pro.css")

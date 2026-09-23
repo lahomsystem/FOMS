@@ -3,7 +3,7 @@
 소스 문자열 계약(템플릿·CSS·JS 원문)과 HTTP 렌더 계약으로 나눈다.
 고정하는 회귀축:
 - "다음 방문" 히어로가 사라지고 담당자 묶음 체크리스트가 그 자리에 있을 것
-- 담당자 이름·전화 아이콘이 둘 다 tel: 링크일 것(카드와 같은 번호 정규화)
+- 담당 띠의 둥근 전화 버튼이 tel: 링크일 것(카드와 같은 번호 정규화). 이름은 접기 단추다(통합 화면)
 - 체크 버튼은 단일 날짜 모드 + ERP 수정 권한일 때만 눌린다
 - 모바일 이미지 저장이 PC 와 같은 함수를 쓰고, PC 표식은 어떤 CSS 도 고르지 않는다
 """
@@ -29,6 +29,7 @@ DASHBOARD_SCRIPTS = "templates/measurement/partials/dashboard_scripts.html"
 GLANCE_CSS = "static/css/contexts/measurement/measurement-mobile-glance.css"
 IMAGE_EXPORT_JS = "static/js/measurement/image-export.js"
 GLANCE_JS = "static/js/measurement/mobile-glance.js"
+SAVE_SHEET_JS = "static/js/measurement/image-save-sheet.js"
 ENTRY_JS = "static/js/measurement/measurement-entry.js"
 
 PHONE_FILTER = "|replace('-', '')|replace(' ', '')"
@@ -52,7 +53,8 @@ def _present(text: str, needles: list[str]) -> list[str]:
 def test_mobile_list_has_glance_contract_names():
     tpl = _read(MOBILE_LIST)
     required = [
-        'class="foms-meas-glance" data-meas-glance aria-label="실측 한눈 목록"',
+        'data-meas-glance aria-label="실측 한눈 목록"',
+        'class="foms-meas-glance foms-meas-glance--unified',
         "foms-meas-glance__head",
         "foms-meas-glance__title",
         "foms-meas-glance__count",
@@ -66,12 +68,12 @@ def test_mobile_list_has_glance_contract_names():
         "foms-meas-glance__gname",
         '<progress class="foms-meas-glance__prog"',
         "data-meas-glance-grp-count",
-        'class="foms-meas-glance__mgr" href="tel:{{ _gp }}" data-queue-card-call-link',
-        'class="foms-meas-glance__call" href="tel:{{ _gp }}"',
+        # 담당 이름은 접기 단추, 오른쪽 둥근 버튼만 전화(통합 화면 SPEC §3 담당 띠).
+        'class="foms-meas-glance__call" href="tel:{{ _gp }}" data-queue-card-call-link',
         "(g.manager_phone or '')" + PHONE_FILTER,
         'class="foms-meas-glance__check" data-meas-visit-toggle="{{ o.id }}" data-meas-visit-date=',
         "aria-pressed=",
-        'class="foms-meas-glance__go" href="#meas-card-{{ o.id }}" data-meas-glance-go="{{ o.id }}"',
+        'href="#meas-card-{{ o.id }}" data-meas-glance-go="{{ o.id }}" aria-haspopup="dialog"',
         "foms-meas-glance__name",
         "foms-meas-glance__addr",
         "foms-meas-glance__prod",
@@ -79,7 +81,6 @@ def test_mobile_list_has_glance_contract_names():
         "channel_mark(o.channel_source|default(none, true))",
         'id="meas-card-{{ o.id }}"',
         # 유지
-        "foms-visit-summary",
         "foms-v2dh-status",
         "render_queue_card_v2",
     ]
@@ -104,7 +105,7 @@ def test_manager_phone_normalization_matches_queue_card():
 
 def test_dashboard_main_links_glance_css_before_desktop_body():
     main = _read(DASHBOARD_MAIN)
-    link = "css/contexts/measurement/measurement-mobile-glance.css') }}?v=20260923c"
+    link = "css/contexts/measurement/measurement-mobile-glance.css') }}?v=20260923e"
     anchor = "{% set _fos_desktop_body %}"
     assert link in main
     assert anchor in main
@@ -162,9 +163,7 @@ def test_image_export_js_shares_pc_capture_path():
         "cloneNode(true)",
         "foms-meas-export-host",
         "is-capturing",
-        "navigator.share",
-        "canShare",
-        "AbortError",
+        "FomsMeasSaveSheet.open",
         "ensureHtml2canvas",
         "localDateIso()",
         "Math.max(2, Math.min(window.devicePixelRatio || 1, 3))",
@@ -173,6 +172,46 @@ def test_image_export_js_shares_pc_capture_path():
         "prepareExportTable(clonedDoc, clonedTable, titleText)",
     ]
     assert _missing(js, required) == []
+
+
+def test_image_export_js_hands_mobile_png_to_save_sheet():
+    """휴대폰은 캡처를 기다린 뒤 공유를 부르면 탭 효력이 끝나 막힌다 — 저장은 시트 버튼에서만 부른다."""
+    js = _read(IMAGE_EXPORT_JS)
+    assert _present(js, ["navigator.share", "pendingShare", "눌러서 공유"]) == []
+    # 크기 측정 복제본에도 캡처와 같은 표식을 달아 호스트 CSS(width:auto)가 똑같이 먹게 한다.
+    probe_block = js.split("function measureOffscreenScale", 1)[1].split("prepareExportTable(probeDoc", 1)[0]
+    assert "probe.setAttribute('data-meas-export-target', '1')" in probe_block
+
+
+def test_save_sheet_js_platform_paths():
+    js = _read(SAVE_SHEET_JS)
+    required = [
+        "window.FomsMeasSaveSheet",
+        "navigator.share({ files: [file] })",
+        "canShare",
+        "AbortError",
+        "NotAllowedError",
+        "IS_IOS",
+        "IS_ANDROID",
+        "사진 앱에 저장",
+        "갤러리에 저장",
+        "사진 앱에 추가",
+        "URL.createObjectURL",
+        "revokeObjectURL",
+    ]
+    assert _missing(js, required) == []
+    # 아이폰은 <a download> 가 사진 앱이 아닌 "파일" 앱으로 가고 홈 화면 앱에선 동작하지 않는다.
+    ios_branch = js.split("function onPrimary", 1)[1].split("downloadBlob(file", 1)[0]
+    assert "if (IS_IOS)" in ios_branch and "return;" in ios_branch
+    # 핵심: 공유는 클릭 핸들러의 첫 동작이어야 한다(앞에 await 가 있으면 탭 효력이 끝난다).
+    for fn in ("function onPrimary", "function shareFile"):
+        body = js.split(fn, 1)[1].split("\n    }\n", 1)[0]
+        assert "await" not in body, fn
+    assert "IS_INAPP" in js and "InvalidStateError" in js
+    # data: 주소는 크롬 2MB 한도에 걸린다 — 시트는 blob 주소만 쓴다.
+    assert "toDataURL" not in js
+    assert _present(js, ["jQuery", "innerHTML", ".style."]) == []
+    assert len(js.splitlines()) < 300
 
 
 def test_image_export_js_finds_target_by_marker_not_hidden_table():
@@ -186,13 +225,12 @@ def test_mobile_glance_js_contract():
         "__FOMS_MEAS_GLANCE_BOUND",
         "/measurement-visit",
         "data-meas-visit-toggle",
-        "data-meas-glance-go",
         "aria-pressed",
-        "is-glance-flash",
-        "1800",
-        "scrollIntoView",
-        "meas-card-",
         "data.success",
+        "foms:meas-glance:visit",
+        "넘김 ",
+        "data-meas-glance-handed",
+        "data-meas-glance-tab-count",
         "체크를 저장하지 못했어요. 다시 눌러 주세요",
     ]
     assert _missing(js, required) == []
@@ -207,15 +245,20 @@ def test_mobile_glance_js_forbidden_and_size():
 
 def test_measurement_entry_pin_and_chain_order():
     entry = _read(ENTRY_JS)
-    assert "MEAS_JS_V = '20260923a'" in entry
+    assert "MEAS_JS_V = '20260923e'" in entry
     assert "measurement/image-export.js" in entry
     assert "measurement/mobile-glance.js" in entry
+    assert "measurement/image-save-sheet.js" in entry
+    assert entry.index("measurement/image-save-sheet.js") < entry.index("measurement/image-export.js")
     assert entry.index("measurement/image-export.js") < entry.index("measurement/mobile-glance.js")
+    # 통합 화면: 체크 → 탭 → 시트 순(시트의 딥링크가 탭 모듈의 reveal 을 쓴다).
+    assert entry.index("measurement/mobile-glance.js?") < entry.index("measurement/mobile-glance-tabs.js")
+    assert entry.index("measurement/mobile-glance-tabs.js") < entry.index("measurement/mobile-glance-sheet.js")
 
 
 def test_dashboard_scripts_pin_and_single_script():
     scripts = _read(DASHBOARD_SCRIPTS)
-    assert "measurement_js_v = '20260923a'" in scripts
+    assert "measurement_js_v = '20260923e'" in scripts
     assert scripts.count("<script src") == 1
 
 
@@ -299,7 +342,7 @@ def _get(client, url: str = "/erp/measurement") -> str:
 
 
 def _glance(body: str) -> str:
-    start = body.index('<section class="foms-meas-glance"')
+    start = body.index('<section class="foms-meas-glance ')
     end = body.index("</section>", start)
     return body[start:end + len("</section>")]
 
@@ -325,7 +368,7 @@ def test_glance_renders_checklist_grouped_by_manager(client, monkeypatch):
     glance = _glance(body)
     text = _text(glance)
 
-    assert "3곳 · 실측 1 · 남은 2" in text
+    assert "3곳 · 실측 1 · 넘김 0" in text
     assert "실측 1/2" in text
     assert "실측 0/1" in text
     assert 'value="1" max="2"' in glance
@@ -333,10 +376,10 @@ def test_glance_renders_checklist_grouped_by_manager(client, monkeypatch):
     assert glance.count('aria-pressed="true"') == 1
     assert glance.count('aria-pressed="false"') == 2
 
-    # 담당자 이름과 전화 아이콘 둘 다 tel: 링크
-    assert glance.count('href="tel:01012345678"') >= 2
-    assert re.search(r'class="foms-meas-glance__mgr" href="tel:01012345678"', glance)
+    # 담당 이름은 접기 단추, 전화는 오른쪽 둥근 버튼(tel:) 하나
+    assert glance.count('href="tel:01012345678"') == 1
     assert re.search(r'class="foms-meas-glance__call" href="tel:01012345678"', glance)
+    assert 'class="foms-meas-glance__mgr"' not in glance
     # 전화 없는 담당자는 텍스트
     assert re.search(r'foms-meas-glance__mgr-text[^>]*>\s*김도윤', glance)
 
@@ -362,7 +405,8 @@ def test_glance_renders_checklist_grouped_by_manager(client, monkeypatch):
     for oid in ids.values():
         assert body.count(f'id="meas-card-{oid}"') == 1
     assert "foms-v2dh-hero" not in body
-    assert "foms-visit-summary" in body
+    # 예전 요약 줄은 통합 머리 숫자와 겹쳐 뺐다(목업 기준, 원장 B2).
+    assert 'class="foms-visit-summary"' not in body
 
 
 def test_glance_check_disabled_without_erp_edit(client, monkeypatch):
@@ -414,9 +458,8 @@ def test_glance_group_call_link_uses_first_row_with_phone(client, monkeypatch):
     _add_order(today, customer="번호있음고객", manager="박실측", phone="010-7777-8888")
 
     glance = _glance(_get(client))
-    assert 'class="foms-meas-glance__mgr" href="tel:01077778888"' in glance
     assert 'class="foms-meas-glance__call" href="tel:01077778888"' in glance
-    assert "foms-meas-glance__mgr-text" not in glance
+    assert glance.count('href="tel:01077778888"') == 1
 
 
 def test_glance_check_disabled_in_range_mode(client, monkeypatch):

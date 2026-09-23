@@ -325,3 +325,690 @@
 .foms-meas-export-host [data-meas-export-target] {
   width: auto !important;
 }
+
+/* ── 이미지 저장 시트(image-save-sheet.js) ─────────────────────────
+   캡처가 끝난 뒤 띄운다. 저장 버튼 클릭이 곧바로 공유·다운로드를 불러야 휴대폰이 막지 않는다. */
+.foms-meas-save-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 16px 12px calc(16px + env(safe-area-inset-bottom, 0px));
+  background: rgba(15, 23, 42, 0.55);
+}
+.foms-meas-save-sheet__card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  max-width: 480px;
+  max-height: 100%;
+  padding: 16px;
+  background: var(--foms-surface-base, #fff);
+  border-radius: var(--foms-radius-lg, 12px);
+}
+.foms-meas-save-sheet__title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--foms-color-neutral-900);
+}
+.foms-meas-save-sheet__frame {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 50vh;
+  overflow: auto;
+  border: 1px solid var(--foms-color-neutral-200);
+  border-radius: var(--foms-radius-md, 8px);
+  background: var(--foms-color-neutral-50);
+  -webkit-overflow-scrolling: touch;
+}
+.foms-meas-save-sheet__img {
+  display: block;
+  width: 100%;
+  height: auto;
+  /* 길게 눌러 "사진 앱에 추가" 가 되려면 기본 터치 메뉴를 막지 않는다. */
+  -webkit-touch-callout: default;
+}
+.foms-meas-save-sheet__acts {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.foms-meas-save-sheet__btn {
+  min-height: 48px;
+  padding: 0 14px;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--foms-color-brand-700);
+  background: var(--foms-surface-base, #fff);
+  border: 1px solid var(--foms-color-brand-200);
+  border-radius: var(--foms-radius-md, 8px);
+  cursor: pointer;
+}
+.foms-meas-save-sheet__btn--primary {
+  color: #fff;
+  background: var(--foms-color-brand-500);
+  border-color: var(--foms-color-brand-500);
+}
+.foms-meas-save-sheet__msg {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--foms-color-success-600);
+}
+.foms-meas-save-sheet__msg[data-tone="warn"] {
+  color: var(--foms-color-danger-600);
+}
+.foms-meas-save-sheet__msg[hidden] {
+  display: none;
+}
+.foms-meas-save-sheet__hint {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--foms-color-neutral-600);
+}
+.foms-meas-save-sheet__close {
+  min-height: 44px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--foms-color-neutral-600);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+html.foms-meas-save-sheet-open,
+html.foms-meas-save-sheet-open body {
+  overflow: hidden;
+}
+
+/* ══ 통합 화면(체크리스트 + 주문 카드 → 목록 + 바텀시트) ═══════════════════
+ * 스펙: docs/specs/2026-09-23-measurement-mobile-unified-list_SPEC.md §3
+ * 목업: docs/plans/2026-09-23-measurement-mobile-unified-mockup.html("목업 확장")
+ * 위 규칙은 한 글자도 바꾸지 않는다 — 여기부터 덧붙인 규칙만 있다(테스트가 원문 비교).
+ */
+
+/* ── 패널: 탭 줄·담당 띠가 화면 머리 밑에 붙으려면 overflow:hidden 을 풀어야 한다 ── */
+.foms-meas-glance--unified {
+  --foms-meas-top: calc(var(--foms-shell-header-h, 48px) + var(--foms-safe-area-top, 0px));
+  --foms-meas-tabs-h: 70px;
+  /* overflow:hidden 을 풀면 셸 본문(grid) 칸이 탭 줄 내용 폭만큼 넓어진다 — 최소 폭 0 으로 막는다. */
+  min-width: 0;
+  overflow: visible;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+}
+.foms-meas-glance--unified > .foms-meas-glance__head {
+  padding: 12px 2px 8px;
+}
+
+/* ── 담당자 탭 줄(sticky · 좌우로 밀림) ── */
+.foms-meas-glance__tabs {
+  position: sticky;
+  top: var(--foms-meas-top);
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: var(--foms-meas-tabs-h);
+  min-width: 0;
+  max-width: 100%;
+  margin: 0;
+  padding: 0 2px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x proximity;
+  scroll-padding-inline: 2px;
+  scrollbar-width: none;
+  background: var(--foms-color-neutral-50);
+  border-bottom: 1px solid var(--foms-color-neutral-200);
+}
+.foms-meas-glance__tabs::-webkit-scrollbar {
+  display: none;
+}
+.foms-meas-glance__tabs::after {
+  content: "";
+  flex: 0 0 4px;
+}
+.foms-meas-glance__tab {
+  flex: none;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 4px 8px;
+  width: 106px;
+  min-height: 54px;
+  padding: 8px 10px;
+  font: inherit;
+  text-align: left;
+  color: var(--foms-color-neutral-700);
+  background: var(--foms-surface-base, #fff);
+  border: 1px solid var(--foms-color-neutral-300);
+  border-radius: 10px;
+  cursor: pointer;
+  scroll-snap-align: start;
+}
+.foms-meas-glance__tab--all {
+  width: 92px;
+}
+.foms-meas-glance__tab-n {
+  overflow: hidden;
+  font-size: 13.5px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.foms-meas-glance__tab-c {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--foms-color-neutral-600);
+  font-variant-numeric: tabular-nums;
+}
+.foms-meas-glance__tab .foms-meas-glance__tab-prog {
+  grid-column: 1 / -1;
+  width: 100%;
+  min-width: 0;
+  height: 5px;
+}
+.foms-meas-glance__tab[aria-selected="true"] {
+  padding: 7px 9px;
+  color: var(--foms-color-brand-800);
+  background: var(--foms-color-brand-50);
+  border: 2px solid var(--foms-color-brand-500);
+}
+.foms-meas-glance__tab[aria-selected="true"] .foms-meas-glance__tab-c {
+  color: var(--foms-color-brand-700);
+}
+.foms-meas-glance__tab.is-full .foms-meas-glance__tab-c,
+.foms-meas-glance__gcount.is-full {
+  color: var(--foms-color-success-700, #047857);
+}
+
+/* ── 목록(좌우로 밀면 옆 탭) ── */
+.foms-meas-glance__panel {
+  padding: 0 0 16px;
+  touch-action: pan-y;
+}
+.foms-meas-glance__panel.is-slide-l {
+  animation: foms-meas-slide-l 0.22s ease-out;
+}
+.foms-meas-glance__panel.is-slide-r {
+  animation: foms-meas-slide-r 0.22s ease-out;
+}
+@keyframes foms-meas-slide-l {
+  from { transform: translateX(28px); opacity: 0.4; }
+  to { transform: none; opacity: 1; }
+}
+@keyframes foms-meas-slide-r {
+  from { transform: translateX(-28px); opacity: 0.4; }
+  to { transform: none; opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .foms-meas-glance__panel.is-slide-l,
+  .foms-meas-glance__panel.is-slide-r {
+    animation: none;
+  }
+}
+
+/* ── 모두 펼치기 줄(전체 탭에서만) ── */
+.foms-meas-glance__ctl {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  margin: 10px 0 0;
+  padding: 0 4px 0 12px;
+  font-size: 13px;
+  color: var(--foms-color-neutral-600);
+  background: var(--foms-surface-base, #fff);
+  border: 1px solid var(--foms-color-neutral-200);
+  border-radius: 10px;
+  font-variant-numeric: tabular-nums;
+}
+.foms-meas-glance__ctl b {
+  font-weight: 800;
+  color: var(--foms-color-neutral-900);
+}
+.foms-meas-glance__ctl[hidden] {
+  display: none;
+}
+.foms-meas-glance__ctl-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 44px;
+  margin-left: auto;
+  padding: 0 10px;
+  font: inherit;
+  font-weight: 700;
+  color: var(--foms-color-brand-700);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+/* ── 담당자 묶음(카드 모양 · 접기) ── */
+.foms-meas-glance--unified .foms-meas-glance__grp {
+  margin: 8px 0 0;
+  background: var(--foms-surface-base, #fff);
+  border: 1px solid var(--foms-color-neutral-200);
+  border-radius: var(--foms-radius-lg, 12px);
+}
+.foms-meas-glance--unified .foms-meas-glance__grp[hidden] {
+  display: none;
+}
+.foms-meas-glance--unified .foms-meas-glance__gname {
+  position: sticky;
+  top: calc(var(--foms-meas-top) + var(--foms-meas-tabs-h));
+  z-index: 3;
+  gap: 4px;
+  min-height: 52px;
+  padding: 0 4px 0 14px;
+  border-bottom: 1px solid var(--foms-color-brand-200);
+  border-radius: var(--foms-radius-lg, 12px) var(--foms-radius-lg, 12px) 0 0;
+}
+.foms-meas-glance--unified.is-mine .foms-meas-glance__gname {
+  top: var(--foms-meas-top);
+}
+.foms-meas-glance--unified .foms-meas-glance__grp.is-closed .foms-meas-glance__gname {
+  position: static;
+  background: var(--foms-surface-base, #fff);
+  border-bottom: 0;
+  border-radius: var(--foms-radius-lg, 12px);
+}
+.foms-meas-glance--unified .foms-meas-glance__grp.is-closed.is-solo .foms-meas-glance__gname {
+  position: sticky;
+  background: var(--foms-color-brand-50);
+  border-bottom: 1px solid var(--foms-color-brand-200);
+  border-radius: var(--foms-radius-lg, 12px) var(--foms-radius-lg, 12px) 0 0;
+}
+.foms-meas-glance__gtog {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 48px;
+  padding: 0 6px 0 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+span.foms-meas-glance__gtog,
+.foms-meas-glance__grp.is-solo .foms-meas-glance__gtog {
+  cursor: default;
+}
+.foms-meas-glance__me {
+  flex: none;
+  padding: 1px 6px;
+  font-size: 11px;
+  font-weight: 800;
+  color: #fff;
+  background: var(--foms-color-brand-600, #4a55b8);
+  border-radius: 99px;
+}
+.foms-meas-glance__gchev {
+  flex: none;
+  width: 18px;
+  font-size: 13px;
+  text-align: center;
+  color: var(--foms-color-brand-700);
+  transition: transform 0.15s;
+}
+.foms-meas-glance__grp.is-closed .foms-meas-glance__gchev {
+  transform: rotate(-90deg);
+}
+.foms-meas-glance__grp.is-solo .foms-meas-glance__gchev {
+  display: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .foms-meas-glance__gchev {
+    transition: none;
+  }
+}
+.foms-meas-glance__grp.is-closed .foms-meas-glance__rows {
+  display: none;
+}
+.foms-meas-glance__grp.is-closed.is-solo .foms-meas-glance__rows {
+  display: block;
+}
+.foms-meas-glance--unified .foms-meas-glance__call {
+  width: 44px;
+  height: 44px;
+}
+.foms-meas-glance__rows > .foms-meas-glance__row:first-child {
+  border-top: 0;
+}
+
+/* ── 줄: 누르면 시트 · 오른쪽 📷 n · › · 넘긴 주문 "실측 완료" ── */
+.foms-meas-glance--unified .foms-meas-glance__row {
+  min-height: 64px;
+}
+.foms-meas-glance--unified .foms-meas-glance__go {
+  position: relative;
+  min-height: 56px;
+  padding-right: 18px;
+  cursor: pointer;
+}
+.foms-meas-glance__go.is-open {
+  background: var(--foms-color-brand-50);
+}
+.foms-meas-glance__go.has-pc > .foms-meas-glance__time {
+  grid-row: 1 / span 2;
+}
+.foms-meas-glance__go > .foms-meas-glance__pc {
+  grid-column: 2;
+  grid-row: 3;
+  justify-self: end;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--foms-color-neutral-600);
+  font-variant-numeric: tabular-nums;
+}
+.foms-meas-glance__go > .foms-meas-glance__chev {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  font-size: 12px;
+  color: var(--foms-color-neutral-400);
+  transform: translateY(-50%);
+}
+.foms-meas-glance__handed {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 4px;
+  padding: 1px 7px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--foms-color-brand-700);
+  background: var(--foms-color-brand-100);
+  border-radius: 99px;
+  vertical-align: 2px;
+  text-decoration: none;
+}
+.foms-meas-glance__row.is-glance-flash {
+  animation: foms-meas-glance-flash 1.8s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .foms-meas-glance__row.is-glance-flash {
+    animation: none;
+    outline: 2px solid var(--foms-color-brand-400);
+  }
+}
+
+/* ── 숨은 원본 칸: 카드 노드는 여기 있다가 시트가 열릴 때만 옮겨 간다 ── */
+.erp-measurement-mobile-list[data-meas-card-origin][hidden] {
+  display: none !important;
+}
+
+/* ── 바텀시트 ── */
+.foms-meas-sheet {
+  position: fixed;
+  inset: 0;
+  /* 하단 탭(1030)은 덮고, 주문 진행 오프캔버스(1045)·사진 미리보기(10600)는 이 위로 뜬다. */
+  z-index: 1041;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+.foms-meas-sheet[hidden] {
+  display: none;
+}
+.foms-meas-sheet__scrim {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.5);
+}
+.foms-meas-sheet__panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100% - var(--foms-shell-header-h, 48px) - var(--foms-safe-area-top, 0px) - 16px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  background: var(--foms-surface-base, #fff);
+  border-radius: 20px 20px 0 0;
+  box-shadow: 0 -8px 24px rgba(15, 23, 42, 0.18);
+  outline: none;
+}
+.foms-meas-sheet__grab {
+  display: grid;
+  place-items: center;
+  height: 20px;
+}
+.foms-meas-sheet__grab i {
+  width: 40px;
+  height: 5px;
+  background: var(--foms-color-neutral-300);
+  border-radius: 99px;
+}
+.foms-meas-sheet__bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px 8px 16px;
+  border-bottom: 1px solid var(--foms-color-neutral-100);
+}
+.foms-meas-sheet__mgr {
+  overflow: hidden;
+  font-size: 13.5px;
+  font-weight: 800;
+  color: var(--foms-color-brand-700);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.foms-meas-sheet__pos {
+  flex: none;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--foms-color-neutral-600);
+  font-variant-numeric: tabular-nums;
+}
+.foms-meas-sheet__nav {
+  display: flex;
+  flex: none;
+  gap: 4px;
+  margin-left: auto;
+}
+.foms-meas-sheet__ibtn {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  font-size: 15px;
+  color: var(--foms-color-neutral-700);
+  background: var(--foms-surface-base, #fff);
+  border: 1px solid var(--foms-color-neutral-300);
+  border-radius: var(--foms-radius-md, 8px);
+  cursor: pointer;
+}
+.foms-meas-sheet__ibtn[disabled] {
+  color: var(--foms-color-neutral-300);
+  background: var(--foms-color-neutral-50);
+  border-color: var(--foms-color-neutral-200);
+  cursor: default;
+}
+.foms-meas-sheet__ibtn--ghost {
+  border-color: transparent;
+}
+.foms-meas-sheet__body {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 12px 16px 16px;
+  -webkit-overflow-scrolling: touch;
+}
+.foms-meas-sheet__vcheck {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 52px;
+  margin: 12px 0 4px;
+  padding: 0 14px 0 12px;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 800;
+  text-align: left;
+  color: var(--foms-color-neutral-900);
+  background: var(--foms-surface-base, #fff);
+  border: 1px solid var(--foms-color-neutral-300);
+  border-radius: var(--foms-radius-md, 8px);
+  cursor: pointer;
+}
+.foms-meas-sheet__vbox {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  font-size: 12px;
+  color: transparent;
+  border: 2px solid var(--foms-color-brand-400);
+  border-radius: 7px;
+  box-sizing: border-box;
+}
+.foms-meas-sheet__vcheck em {
+  margin-left: auto;
+  font-size: 13px;
+  font-style: normal;
+  font-weight: 700;
+  color: var(--foms-color-neutral-600);
+}
+.foms-meas-sheet__vcheck[aria-pressed="true"] {
+  background: var(--foms-color-success-50, #ecfdf5);
+  border-color: var(--foms-color-success-600);
+}
+.foms-meas-sheet__vcheck[aria-pressed="true"] .foms-meas-sheet__vbox {
+  color: #fff;
+  background: var(--foms-color-success-600);
+  border-color: var(--foms-color-success-600);
+}
+.foms-meas-sheet__vcheck[aria-pressed="true"] em {
+  color: var(--foms-color-success-700, #047857);
+}
+.foms-meas-sheet__vcheck:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* 시트 안 카드: 바깥 카드 테두리·그림자를 걷어 시트가 곧 카드가 되게 한다. */
+.erp-measurement-dashboard[data-erp-mobile-v2='true'] .foms-meas-sheet__slot > .erp-measurement-mobile-card {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+.foms-meas-sheet__slot .foms-queue-card-v2.queue-card {
+  padding: 0;
+  border: 0;
+  box-shadow: none;
+}
+
+/* 실측 사진: 카드가 이미 그리는 첨부 썸네일(ERP 등록 사진)을 가로 줄로 크게. 사진이 없으면 JS 가 칸을 숨긴다. */
+.foms-meas-sheet__slot .queue-card__attachments.foms-queue-card-v2__attachments {
+  gap: 8px;
+  margin: 6px -16px 0;
+  padding: 12px 16px 4px;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  scroll-padding-inline: 16px;
+  scrollbar-width: none;
+  border-top: 1px solid var(--foms-color-neutral-100);
+}
+.foms-meas-sheet__slot .queue-card__attachments.foms-queue-card-v2__attachments::-webkit-scrollbar {
+  display: none;
+}
+.foms-meas-sheet__slot .queue-card__attachments[hidden] {
+  display: none;
+}
+.foms-meas-sheet__slot .queue-card__attachments .foms-queue-card-v2__attach-thumb {
+  flex: none;
+  width: 84px;
+  height: 84px;
+  object-fit: cover;
+  scroll-snap-align: start;
+}
+.foms-meas-sheet__slot .queue-card__attachments .foms-queue-card-v2__attach-thumb--gallery-only {
+  display: none;
+}
+
+html.foms-meas-sheet-open,
+html.foms-meas-sheet-open body {
+  overflow: hidden;
+}
+html.foms-meas-sheet-open .foms-shell-fab {
+  visibility: hidden;
+}
+
+/* ── 리뷰 반영(2026-09-23 findings 원장 B1·B4·B5·B6·B7·B8) ── */
+/* B1: 이전·다음마다 시트 높이가 바뀌면 단추가 손가락 밑에서 움직인다 — 높이를 고정하고 본문만 스크롤. */
+.foms-meas-sheet__panel {
+  height: calc(100% - var(--foms-shell-header-h, 48px) - var(--foms-safe-area-top, 0px) - 16px);
+}
+.foms-meas-sheet__body {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+/* B4: 시트 안 카드의 주소·연락처·담당 링크를 44px 누름 칸으로(시트 범위에서만). */
+.foms-meas-sheet__slot .queue-card__meta a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+/* B5: 실측 사진 제목("실측 사진 · 사진 n") — 사진 칸은 주소·연락처 아래로 옮긴다(JS). */
+.foms-meas-sheet__ph-h {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 10px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--foms-color-neutral-100);
+}
+.foms-meas-sheet__ph-h[hidden] {
+  display: none;
+}
+.foms-meas-sheet__ph-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--foms-color-neutral-900);
+}
+.foms-meas-sheet__ph-count {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--foms-color-neutral-600);
+  font-variant-numeric: tabular-nums;
+}
+.foms-meas-sheet__ph-h + .queue-card__attachments.foms-queue-card-v2__attachments {
+  margin-top: 0;
+  padding-top: 8px;
+  border-top: 0;
+}
+/* B6: 넘긴 주문의 "실측 완료" 표시는 단추 줄 자리(한 줄 전체). */
+.foms-meas-sheet__slot .queue-card__action > .foms-measure-done {
+  flex: 1 1 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 48px;
+  margin: 0;
+}
+/* B7: 오른쪽 아래 ＋ 버튼이 마지막 줄의 시간 칩·📷 를 가리지 않게 목록 끝에 여백. */
+.foms-meas-glance--unified .foms-meas-glance__panel {
+  padding-bottom: 88px;
+}
+/* B8: 이미지 저장 단추 44px. */
+.foms-meas-glance--unified .foms-meas-glance__save {
+  min-height: 44px;
+}

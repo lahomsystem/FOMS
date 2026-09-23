@@ -490,7 +490,7 @@ def erp_measurement_dashboard():
                 _o.structured_data, _visit_date
             )
             mobile_queue_rows.append(_row)
-    # 한눈 목록의 담당자 묶음: 행 순서 그대로 연속 구간만 묶는다(재정렬 금지·새 쿼리 0).
+    # 한눈 목록의 담당자 묶음: 행 순서 그대로 연속 구간만 묶고 묶음 안만 방문 시각순(새 쿼리 0).
     mobile_glance_groups = build_measurement_glance_groups(mobile_queue_rows)
 
     # v3 영업 홈 '오늘 동선'(스펙 §6.3)이 실측 카드마다 방문시각을 찍는다. 방문시각

@@ -400,6 +400,21 @@
     document.body.style.removeProperty('padding-right');
   }
 
+  /**
+   * 지금 #main-content 에 그려진 화면의 캐시 키. 겹층 기록(fomsShellKeep) 건너뛰기는 이 키가 지금 주소와
+   * 같을 때만 한다 — 다른 화면으로 갔다가 뒤로 와서 그 기록에 닿으면 다시 그려야 하기 때문이다.
+   * 화면 안에서 replaceState 로 주소만 바꾸는 쪽(실측 탭 ?mgr=)은 syncRenderedUrl() 로 알린다.
+   */
+  var lastRenderedKey = getCacheKey(window.location.href);
+
+  function syncRenderedUrl() {
+    lastRenderedKey = getCacheKey(window.location.href);
+  }
+
+  function shouldKeepOnPop(state) {
+    return !!(state && state.fomsShellKeep) && getCacheKey(window.location.href) === lastRenderedKey;
+  }
+
   function applyFragmentToMain(html, swapUrl) {
     var main = document.getElementById('main-content');
     if (!main) {
@@ -407,6 +422,9 @@
     }
     teardownOpenOverlays(main);
     main.innerHTML = html;
+    if (typeof swapUrl === 'string' && swapUrl) {
+      lastRenderedKey = getCacheKey(swapUrl);
+    }
     activateScripts(main);
     if (typeof swapUrl === 'string' && swapUrl) {
       finishErpShellFragmentSwap(swapUrl);
@@ -920,7 +938,13 @@
     true
   );
 
-  window.addEventListener('popstate', function () {
+  window.addEventListener('popstate', function (e) {
+    // 화면 안 겹층(실측 모바일 바텀시트)이 쌓은 기록 사이의 뒤로·앞으로는 같은 화면이다 — 다시 읽지 않는다.
+    // 표식은 그 겹층이 열 때 달고 닫은 뒤 지운다(mobile-glance-sheet.js). window 의 popstate 는 캡처로도
+    // 먼저 받을 수 없어(등록 순서대로 호출) 겹층 쪽에서 이 리스너를 막을 방법이 없다.
+    if (shouldKeepOnPop(e && e.state)) {
+      return;
+    }
     var url = window.location.href;
     if (!isShellFragmentSwapUrl(url)) {
       return;
@@ -1105,6 +1129,7 @@
     window.FOMS_ERP_SHELL.isFragmentCacheable = isFragmentCacheable;
     window.FOMS_ERP_SHELL.prefetchShellFragment = prefetchShellFragment;
     window.FOMS_ERP_SHELL.getCacheKey = getCacheKey;
+    window.FOMS_ERP_SHELL.syncRenderedUrl = syncRenderedUrl;
     window.FOMS_ERP_SHELL.navigateByShell = navigateByShell;
     window.FOMS_ERP_SHELL.beginShellNavigationPending = beginShellNavigationPending;
     window.FOMS_ERP_SHELL.invalidateFragmentCache = invalidateFragmentCache;

@@ -9,6 +9,9 @@
 
         var focusOrder = new URLSearchParams(window.location.search).get('focus_order');
         if (!focusOrder) return;
+        // 통합 목록(2026-09-23)은 카드가 숨은 원본 칸에 있다 — 딥링크는 mobile-glance-sheet.js 가
+        // 그 담당 묶음을 펼치고 줄로 스크롤한 뒤 시트를 연다. 여기서는 손대지 않는다.
+        if (root.querySelector('[data-meas-glance]')) return;
 
         var focusCard = root.querySelector('[data-measurement-mobile-order-id="' + focusOrder + '"]');
         if (!focusCard) return;
