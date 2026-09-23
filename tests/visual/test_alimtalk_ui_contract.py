@@ -191,19 +191,21 @@ TRACE_PARTIAL = "orders/partials/erp_alimtalk_trace_modal.html"
 
 
 def test_pc_tab_has_trace_slot_under_alimtalk_button() -> None:
-    """PC: 흔적 칩 자리가 알림톡 버튼 **아래**에 있다(0클릭 확인의 전제)."""
+    """PC: 흔적 칩 자리가 알림톡 버튼 **아래**에 있다(0클릭 확인의 전제).
+
+    2026-09-23: 알림톡·PUSH 칩을 합친 발송 기록 자리(erp-send-trace.js)가 그린다.
+    """
     html = _read("templates/orders/partials/erp_order_tab.html")
-    assert "data-erp-alimtalk-trace" in html
-    assert html.index(BUTTON_CLASS) < html.index("data-erp-alimtalk-trace")
+    assert 'data-erp-send-trace="wide"' in html
+    assert html.index(BUTTON_CLASS) < html.index('data-erp-send-trace="wide"')
 
 
 def test_mobile_tab_has_compact_trace_slot_in_action_bar() -> None:
-    """모바일: 액션바 안에서 한 줄을 차지하는 축약형 칩(보낸 사람 없음)."""
+    """모바일: 액션바 안에서 한 줄을 차지하는 발송 기록(평소엔 요약 한 줄, 누르면 펼침)."""
     html = _read("templates/orders/partials/erp_order_tab_mobile.html")
     footer = html[html.index("erp-mobile-sticky-action-bar"):]
     bar = footer[: footer.index("</footer>")]
-    assert 'data-erp-alimtalk-trace="compact"' in bar, "칩이 액션바 밖에 있다"
-    assert "erp-alimtalk-trace-slot--mobile" in bar
+    assert 'data-erp-send-trace="fold"' in bar, "칩이 액션바 밖에 있다"
 
 
 def test_trace_modal_included_on_both_html_surfaces() -> None:

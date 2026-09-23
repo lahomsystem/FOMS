@@ -31,7 +31,14 @@
     //: 이력 패널이 받아 오는 이벤트 — 실측 예약 안내 2종 + 공유 링크 발송 2종(foms/api/share.py
     //  가 남기는 앵커 이벤트, 성패는 payload.status). 2026-09-23 사용자 결정: 도면 단독·계약서
     //  단독 링크도 흔적을 남긴다 — 칩은 마지막 한 건뿐이라 지난 발송은 이 목록에서만 보인다.
-    const HISTORY_EVENT_TYPES = 'ALIMTALK_SENT,ALIMTALK_FAILED,SHARE_ALIMTALK,SHARE_SMS';
+    //  2026-09-23: 발송 기록 칩(erp-send-trace.js)이 PUSH 도 함께 보여 주므로 이 창도 PUSH 를 받는다.
+    const HISTORY_EVENT_TYPES = 'ALIMTALK_SENT,ALIMTALK_FAILED,SHARE_ALIMTALK,SHARE_SMS,CHANNELTALK_PUSH';
+
+    //: PUSH 종류(payload.push_kind) → 버튼 이름(foms/services/order_event_display.py 와 같은 표기).
+    const PUSH_KIND_LABELS = {
+        measurement: '영발 PUSH', measure_room: '실측 PUSH', drawing: '발주 PUSH',
+        drawing_room: '도면방 PUSH', estimate: '견적서 PUSH', as: 'AS PUSH',
+    };
 
     //: 공유 이벤트 종류 — _buildLogItem 이 예약 안내와 다른 규칙으로 성패·제목을 읽는다.
     const SHARE_EVENT_TYPES = ['SHARE_ALIMTALK', 'SHARE_SMS'];
@@ -296,6 +303,11 @@
 
     /** 모든 칩 자리를 현재 이력으로 다시 그린다. */
     function erpAlimtalkTraceRender() {
+        // 주문 화면의 발송 기록 칩(erp-send-trace.js)도 같은 사본을 읽는다 — 채널 확정처럼
+        // 이 모듈만 아는 갱신이 있으므로 그릴 때마다 알린다(이 모듈의 칩 자리가 없어도).
+        if (typeof document.dispatchEvent === 'function' && typeof CustomEvent === 'function') {
+            document.dispatchEvent(new CustomEvent('foms:send-trace-refresh'));
+        }
         const slots = document.querySelectorAll('[data-erp-alimtalk-trace]');
         if (!slots.length) return;
         const record = _record();
@@ -370,6 +382,13 @@
      */
     function _describeEvent(event) {
         const payload = event.payload && typeof event.payload === 'object' ? event.payload : {};
+        if (event.event_type === 'CHANNELTALK_PUSH') {
+            return {
+                failed: false,
+                kind: (PUSH_KIND_LABELS[payload.push_kind] || 'PUSH') + (payload.is_resend ? ' · 다시 보냄' : ''),
+                error: '',
+            };
+        }
         if (SHARE_EVENT_TYPES.indexOf(event.event_type) !== -1) {
             const status = String(payload.status || '');
             const via = event.event_type === 'SHARE_SMS' ? '문자' : '알림톡';
@@ -457,7 +476,7 @@
                 if (!events.length) {
                     const empty = document.createElement('li');
                     empty.className = 'erp-alimtalk-trace-log__empty';
-                    empty.textContent = '아직 보낸 알림톡이 없습니다.';
+                    empty.textContent = '아직 보낸 기록이 없습니다.';
                     list.appendChild(empty);
                     return;
                 }
