@@ -73,17 +73,19 @@
 
 /* ── 담당자 묶음 머리 ─────────────────────────────────── */
 .foms-meas-glance__grp {
-  border-top: 1px solid var(--foms-color-neutral-200);
+  border-top: 1px solid var(--foms-color-brand-200);
 }
 .foms-meas-glance__gname {
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 7px 14px;
-  font-size: 12.5px;
+  font-size: 13.5px;
   font-weight: 800;
-  color: var(--foms-color-neutral-700);
-  background: var(--foms-color-neutral-50);
+  color: var(--foms-color-brand-700);
+  background: var(--foms-color-brand-50);
+  /* 담당자 묶음 머리 = 연한 브랜드 띠 + 왼쪽 4px 표지(고객 줄과 한눈에 갈린다). */
+  box-shadow: inset 4px 0 0 var(--foms-color-brand-500);
 }
 .foms-meas-glance__mgr,
 .foms-meas-glance__mgr-text {
@@ -110,14 +112,14 @@
   font-size: 15px;
   color: var(--foms-color-success-600);
   background: var(--foms-surface-base, #fff);
-  border: 1px solid var(--foms-color-neutral-200);
+  border: 1px solid var(--foms-color-brand-200);
   border-radius: 50%;
   text-decoration: none;
 }
 .foms-meas-glance__gcount {
   flex: none;
   font-weight: 700;
-  color: var(--foms-color-neutral-600);
+  color: var(--foms-color-brand-700);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -132,19 +134,19 @@
   border: 0;
   border-radius: 99px;
   overflow: hidden;
-  background: var(--foms-color-neutral-100);
-  color: var(--foms-color-success-600);
+  background: var(--foms-color-brand-100);
+  color: var(--foms-color-brand-500);
 }
 .foms-meas-glance__prog::-webkit-progress-bar {
-  background: var(--foms-color-neutral-100);
+  background: var(--foms-color-brand-100);
   border-radius: 99px;
 }
 .foms-meas-glance__prog::-webkit-progress-value {
-  background: var(--foms-color-success-600);
+  background: var(--foms-color-brand-500);
   border-radius: 99px;
 }
 .foms-meas-glance__prog::-moz-progress-bar {
-  background: var(--foms-color-success-600);
+  background: var(--foms-color-brand-500);
   border-radius: 99px;
 }
 
@@ -174,7 +176,8 @@
   height: 24px;
   font-size: 12px;
   color: transparent;
-  border: 2px solid var(--foms-color-neutral-300);
+  /* neutral-300 은 흰 바탕 대비 1.7:1 이라 햇빛에서 빈 상자가 사라졌다. */
+  border: 2px solid var(--foms-color-brand-400);
   border-radius: 7px;
   box-sizing: border-box;
 }
@@ -206,7 +209,7 @@
   font-size: 15px;
   font-weight: 800;
   line-height: 1.35;
-  color: var(--foms-color-neutral-700);
+  color: var(--foms-color-neutral-900);
 }
 .foms-meas-glance__addr {
   font-size: 12.5px;
@@ -216,8 +219,9 @@
 .foms-meas-glance__prod {
   overflow: hidden;
   font-size: 12px;
+  font-weight: 700;
   line-height: 1.35;
-  color: var(--foms-color-neutral-500);
+  color: var(--foms-color-brand-700);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -225,14 +229,43 @@
   grid-column: 2;
   grid-row: 1 / span 3;
   align-self: center;
-  font-size: 11px;
-  color: var(--foms-color-neutral-500);
+  min-width: 52px;
+  padding: 4px 8px;
+  font-size: 12px;
+  font-weight: 800;
+  text-align: center;
+  color: var(--foms-color-neutral-600);
+  background: var(--foms-color-neutral-50);
+  border: 1px solid var(--foms-color-neutral-200);
+  border-radius: 99px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+/* 시간 칩: 오전 파랑 · 오후 주황 · 종일 남색. 글자(오전/오후/종일)가 그대로라 색에만 기대지 않는다. */
+.foms-meas-glance__time[data-daypart="am"] {
+  color: var(--foms-color-info-600);
+  background: var(--foms-color-info-50);
+  border-color: var(--foms-color-info-500);
+}
+.foms-meas-glance__time[data-daypart="pm"] {
+  color: var(--foms-color-warning-700);
+  background: var(--foms-color-warning-50);
+  border-color: var(--foms-color-warning-500);
+}
+.foms-meas-glance__time[data-daypart="allday"] {
+  color: var(--foms-color-brand-700);
+  background: var(--foms-color-brand-50);
+  border-color: var(--foms-color-brand-400);
+}
 .foms-meas-glance__row.is-done .foms-meas-glance__name,
-.foms-meas-glance__row.is-done .foms-meas-glance__addr {
+.foms-meas-glance__row.is-done .foms-meas-glance__addr,
+.foms-meas-glance__row.is-done .foms-meas-glance__prod {
   color: var(--foms-color-neutral-400);
+}
+.foms-meas-glance__row.is-done .foms-meas-glance__time {
+  color: var(--foms-color-neutral-400);
+  background: var(--foms-color-neutral-50);
+  border-color: var(--foms-color-neutral-200);
 }
 .foms-meas-glance__row.is-done .foms-meas-glance__name {
   text-decoration: line-through;
