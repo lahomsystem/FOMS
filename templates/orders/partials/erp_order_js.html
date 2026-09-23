@@ -18,16 +18,16 @@
 {# 발송 흔적 칩: 태블릿 실측 폼과 공용이라 별도 파일(양쪽에서 링크). #}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/orders/erp-alimtalk-trace.css') }}?v=20260923a">
 <script src="{{ url_for('static', filename='js/orders/erp-channel-push-confirm.js') }}?v=20260923a" defer></script>
-{# PUSH 발송 흔적 칩: 종류별 마지막 발송 시각(구조화 데이터만 읽는다 — 서버 왕복 0). #}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/orders/erp-channel-push-trace.css') }}?v=20260923b">
-<script src="{{ url_for('static', filename='js/orders/erp-channel-push-trace.js') }}?v=20260923a" defer></script>
+{# 발송 기록 칩: 알림톡·링크·PUSH 를 한 규칙으로(구조화 데이터만 읽는다 — 서버 왕복 0). #}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/orders/erp-send-trace.css') }}?v=20260923a">
+<script src="{{ url_for('static', filename='js/orders/erp-send-trace.js') }}?v=20260923b" defer></script>
 <script src="{{ url_for('static', filename='js/orders/erp-alimtalk-send.js') }}?v=20260923b" defer></script>
 <link rel="stylesheet" href="{{ url_for('static', filename='css/orders/erp-share.css') }}?v=20260821a">
 <script src="{{ url_for('static', filename='js/orders/erp-share.js') }}?v=20260923a" defer></script>
 <script src="{{ url_for('static', filename='js/cs/as-attachment-order.js') }}?v=20260819a" defer></script>
 <script src="{{ url_for('static', filename='js/cs/as-push-confirm.js') }}?v=20260820a" defer></script>
 <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-as-cycle-badge.css') }}?v=20260824a">
-<script src="{{ url_for('static', filename='js/orders/erp-order-shared.js') }}?v=20260923c" defer></script>
+<script src="{{ url_for('static', filename='js/orders/erp-order-shared.js') }}?v=20260923d" defer></script>
 {# ORDER-REASON-00: 저장 성공 뒤 사유를 받는 표면(전체 저장=시트, 인라인=배너). #}
 <script src="{{ url_for('static', filename='js/orders/order-change-reason.js') }}?v=20260814a" defer></script>
 <script src="{{ url_for('static', filename='js/orders/erp-stage-override.js') }}?v=20260921a" defer></script>
@@ -38,7 +38,7 @@
 <script src="{{ url_for('static', filename='js/foms/foms-reason-sheet.js') }}?v=20260921a" defer></script>
 <script src="{{ url_for('static', filename='js/foms/foms-admin-override.js') }}?v=20260921a" defer></script>
 <script src="{{ url_for('static', filename='js/orders/erp-items-master-detail.js') }}?v=20260630c" defer></script>
-<script src="{{ url_for('static', filename='js/orders/erp-order-autosave.js') }}?v=20260803a" defer></script>
+<script src="{{ url_for('static', filename='js/orders/erp-order-autosave.js') }}?v=20260923a" defer></script>
 <script src="{{ url_for('static', filename='js/orders/erp-wdc-split.js') }}?v=20260624c" defer></script>
 {# 네이버 원본 도크(T14-B) — 수집 주문 편집 화면 전용. 폼 무참조 additive 부품. #}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/orders/erp-naver-dock.css') }}?v=20260921d">

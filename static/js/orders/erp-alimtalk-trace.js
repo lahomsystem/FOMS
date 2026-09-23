@@ -31,7 +31,14 @@
     //: 이력 패널이 받아 오는 이벤트 — 실측 예약 안내 2종 + 공유 링크 발송 2종(foms/api/share.py
     //  가 남기는 앵커 이벤트, 성패는 payload.status). 2026-09-23 사용자 결정: 도면 단독·계약서
     //  단독 링크도 흔적을 남긴다 — 칩은 마지막 한 건뿐이라 지난 발송은 이 목록에서만 보인다.
-    const HISTORY_EVENT_TYPES = 'ALIMTALK_SENT,ALIMTALK_FAILED,SHARE_ALIMTALK,SHARE_SMS';
+    //  2026-09-23: 발송 기록 칩(erp-send-trace.js)이 PUSH 도 함께 보여 주므로 이 창도 PUSH 를 받는다.
+    const HISTORY_EVENT_TYPES = 'ALIMTALK_SENT,ALIMTALK_FAILED,SHARE_ALIMTALK,SHARE_SMS,CHANNELTALK_PUSH';
+
+    //: PUSH 종류(payload.push_kind) → 버튼 이름(foms/services/order_event_display.py 와 같은 표기).
+    const PUSH_KIND_LABELS = {
+        measurement: '영발 PUSH', measure_room: '실측 PUSH', drawing: '발주 PUSH',
+        drawing_room: '도면방 PUSH', estimate: '견적서 PUSH', as: 'AS PUSH',
+    };
 
     //: 공유 이벤트 종류 — _buildLogItem 이 예약 안내와 다른 규칙으로 성패·제목을 읽는다.
     const SHARE_EVENT_TYPES = ['SHARE_ALIMTALK', 'SHARE_SMS'];
@@ -296,6 +303,11 @@
 
     /** 모든 칩 자리를 현재 이력으로 다시 그린다. */
     function erpAlimtalkTraceRender() {
+        // 주문 화면의 발송 기록 칩(erp-send-trace.js)도 같은 사본을 읽는다 — 채널 확정처럼
+        // 이 모듈만 아는 갱신이 있으므로 그릴 때마다 알린다(이 모듈의 칩 자리가 없어도).
+        if (typeof document.dispatchEvent === 'function' && typeof CustomEvent === 'function') {
+            document.dispatchEvent(new CustomEvent('foms:send-trace-refresh'));
+        }
         const slots = document.querySelectorAll('[data-erp-alimtalk-trace]');
         if (!slots.length) return;
         const record = _record();
@@ -370,6 +382,13 @@
      */
     function _describeEvent(event) {
         const payload = event.payload && typeof event.payload === 'object' ? event.payload : {};
+        if (event.event_type === 'CHANNELTALK_PUSH') {
+            return {
+                failed: false,
+                kind: (PUSH_KIND_LABELS[payload.push_kind] || 'PUSH') + (payload.is_resend ? ' · 다시 보냄' : ''),
+                error: '',
+            };
+        }
         if (SHARE_EVENT_TYPES.indexOf(event.event_type) !== -1) {
             const status = String(payload.status || '');
             const via = event.event_type === 'SHARE_SMS' ? '문자' : '알림톡';
@@ -432,6 +451,46 @@
         return item;
     }
 
+    //: PUSH 종류 → 주문에 남는 마지막 발송 사본 키(서버 _PUSH_KIND_CONFIG 와 같은 키).
+    const PUSH_HISTORY_KEYS = {
+        measurement: 'channeltalk_push', measure_room: 'channeltalk_push_measure_room',
+        drawing: 'channeltalk_push_drawing', drawing_room: 'channeltalk_push_drawing_room',
+        estimate: 'channeltalk_push_estimate', as: 'channeltalk_push_as',
+    };
+
+    /**
+     * 이벤트가 없는 PUSH 를 주문 사본으로 채운다. CHANNELTALK_PUSH 이벤트는 2026-08-13 부터
+     * 남아서, 그 전 PUSH 는 칩에는 나오는데 이 창에는 없었다(2026-09-23 스테이징 #4369).
+     * 같은 종류의 이벤트가 이미 있으면 채우지 않는다.
+     *
+     * @param {Array<Object>} events 서버 이벤트.
+     * @returns {Array<Object>} 채운 뒤 최근 순.
+     */
+    function _withSnapshotPushes(events) {
+        const sd = window.__erpLastStructuredData;
+        if (!sd || typeof sd !== 'object') return events;
+        const seen = {};
+        events.forEach(function (ev) {
+            if (ev.event_type === 'CHANNELTALK_PUSH' && ev.payload) seen[ev.payload.push_kind] = true;
+        });
+        const out = events.slice();
+        Object.keys(PUSH_HISTORY_KEYS).forEach(function (kind) {
+            const record = sd[PUSH_HISTORY_KEYS[kind]];
+            if (seen[kind] || !record || typeof record !== 'object' || !record.sent_at) return;
+            const log = Array.isArray(record.change_log) ? record.change_log : [];
+            const last = log.length ? log[log.length - 1] : null;
+            out.push({
+                event_type: 'CHANNELTALK_PUSH',
+                payload: { push_kind: kind, is_resend: !!record.is_modified },
+                created_at: record.sent_at,
+                created_by_name: (last && last.by) || '보낸 사람 기록 없음',
+            });
+        });
+        return out.sort(function (a, b) {
+            return String(b.created_at || '').localeCompare(String(a.created_at || ''));
+        });
+    }
+
     /** 이력 목록을 서버에서 받아 패널에 채운다. */
     function _loadHistory() {
         const list = document.getElementById('erp-alimtalk-trace-log');
@@ -453,11 +512,11 @@
             .then(function (res) { return res.json(); })
             .then(function (body) {
                 if (!body || body.success !== true) throw new Error('load failed');
-                const events = Array.isArray(body.events) ? body.events : [];
+                const events = _withSnapshotPushes(Array.isArray(body.events) ? body.events : []);
                 if (!events.length) {
                     const empty = document.createElement('li');
                     empty.className = 'erp-alimtalk-trace-log__empty';
-                    empty.textContent = '아직 보낸 알림톡이 없습니다.';
+                    empty.textContent = '아직 보낸 기록이 없습니다.';
                     list.appendChild(empty);
                     return;
                 }

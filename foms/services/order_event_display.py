@@ -370,7 +370,7 @@ def translate_value_to_korean(target: str, value: Any) -> str:
 
 
 #: 채널톡 PUSH 종류(payload ``push_kind``) → 화면 버튼과 같은 이름.
-#: 발송 흔적 칩(static/js/orders/erp-channel-push-trace.js)과 같은 표기를 쓴다.
+#: 발송 기록 칩(static/js/orders/erp-send-trace.js)과 같은 표기를 쓴다.
 _CHANNEL_PUSH_KIND_LABELS: dict[str, str] = {
     "measurement": "영발 PUSH",
     "measure_room": "실측 PUSH",
