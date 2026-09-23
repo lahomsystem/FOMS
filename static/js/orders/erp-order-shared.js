@@ -778,6 +778,24 @@ var erpSetStatus =
     };
 window.erpSetStatus = erpSetStatus;
 
+/**
+ * AS 접수 결과를 눈에 띄게 알린다.
+ * 공용 토스트는 호스트(#foms-alpine-toast-root)와 Alpine 스토어가 있는 화면에서만 보인다 —
+ * 없는 화면에서 fomsShowToast 는 스타일 없는 div 를 문서 끝에 붙여 사실상 안 보이므로
+ * (draft_resume.js 참고) 그때는 alert 으로 간다.
+ * @param {string} message 보여 줄 문구.
+ * @returns {void}
+ */
+function erpNotifyAsReceiveResult(message) {
+    const hasToastHost = !!document.getElementById('foms-alpine-toast-root')
+        && !!(window.Alpine && window.Alpine.store && window.Alpine.store('fomsToast'));
+    if (hasToastHost && typeof window.fomsShowToast === 'function') {
+        window.fomsShowToast(message);
+        return;
+    }
+    alert(message);
+}
+
 var erpFormatMoneyKRW =
     window.erpFormatMoneyKRW ||
     function erpFormatMoneyKRW(num) {
@@ -3524,11 +3542,16 @@ ${escapeHtml(sub)}</div>` : ''}`;
                     // 이 화면에서 AS 푸시(알림톡·PUSH)를 이어서 하므로, 저장만 하고
                     // 'AS 등록 완료' 를 띄운 채 ERP Order 에 머문다. 저장 실패도 화면을
                     // 떠나지 않고 상태줄로 말한다(자동 이동은 실패를 삼켰다).
+                    // 상태줄 글자만 바뀌면 됐는지 안 됐는지 모른다(2026-09-23 사용자 제보) —
+                    // 결과를 눈에 띄는 알림으로도 띄운다.
                     const saveResult = await erpSaveStructured({ redirect: false });
                     if (saveResult && saveResult.success === true) {
                         erpSetStatus('AS 등록 완료');
+                        erpNotifyAsReceiveResult('AS 접수 완료');
                     } else {
-                        erpSetStatus('AS 접수는 등록됐지만 주문 저장에 실패했습니다. 저장을 다시 눌러 주세요.');
+                        const failMsg = 'AS 접수는 등록됐지만 주문 저장에 실패했습니다. 저장을 다시 눌러 주세요.';
+                        erpSetStatus(failMsg, true);
+                        alert(failMsg);
                     }
                 } catch (e) {
                     console.error(e);
