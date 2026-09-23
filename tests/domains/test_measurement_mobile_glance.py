@@ -105,7 +105,7 @@ def test_manager_phone_normalization_matches_queue_card():
 
 def test_dashboard_main_links_glance_css_before_desktop_body():
     main = _read(DASHBOARD_MAIN)
-    link = "css/contexts/measurement/measurement-mobile-glance.css') }}?v=20260923e"
+    link = "css/contexts/measurement/measurement-mobile-glance.css') }}?v=20260923f"
     anchor = "{% set _fos_desktop_body %}"
     assert link in main
     assert anchor in main
@@ -245,7 +245,7 @@ def test_mobile_glance_js_forbidden_and_size():
 
 def test_measurement_entry_pin_and_chain_order():
     entry = _read(ENTRY_JS)
-    assert "MEAS_JS_V = '20260923f'" in entry
+    assert "MEAS_JS_V = '20260923g'" in entry
     assert "measurement/image-export.js" in entry
     assert "measurement/mobile-glance.js" in entry
     assert "measurement/image-save-sheet.js" in entry
@@ -258,7 +258,7 @@ def test_measurement_entry_pin_and_chain_order():
 
 def test_dashboard_scripts_pin_and_single_script():
     scripts = _read(DASHBOARD_SCRIPTS)
-    assert "measurement_js_v = '20260923f'" in scripts
+    assert "measurement_js_v = '20260923g'" in scripts
     assert scripts.count("<script src") == 1
 
 
