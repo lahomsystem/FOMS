@@ -11,6 +11,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 
 ## 진행 중
 - [2026-09-23] **완료 quest 재전이 버튼 = 승인 버튼 이름 · AS 접수 완료 알림 · 알림톡/PUSH 발송 흔적(deploy `2afa94530` · 운영 대기)** — 단독 링크(도면·계약서)도 흔적 남김(09-01 결정 변경). 잔여: 스테이징 실화면(모바일 칩·PUSH 칩)
+- [2026-09-23] **실측 모바일 오늘 체크리스트 + 당일 실측 긴급 알림(deploy)** — 체크리스트·이미지 저장 스테이징 확인. 긴급 알림: 오늘 실측 새로 생기면 영업 전원에 채널톡 209989·화면 확인창·웹푸시 + 기존 푸시 결함 2건. 잔여: 스테이징 두 탭·아이폰 소리, 운영 SIDEFX env(CHANNEL_*·VAPID_*). 스펙 `docs/specs/2026-09-23-same-day-measure-urgent-alert_SPEC.md`
 - [2026-09-23] **CS 단계 완료 자리 2건(PR #417 · production `889d22503`)** — ① 자가실측 보드 CS 단계 주문이 진행 중에 남아 [완료] 버튼 없음(#5220) → 설치예정 = SCHEDULED ∪ stage CS ② 주문 대시보드 파이프라인 막대 완료·CS 순서 뒤바뀜(`process_steps` 손 목록) → `MAIN_PIPELINE_CODES` 순. 스테이징 실화면·CLAUDE-TEST 완료 클릭 확인. ③ 상태 드롭다운 진행 단계(실측~CS) 흰 바탕 흰 글자 → 회색(PR #418 · production `93ed406cc`). 참고: perf-gate `/erp/as` 가 예산 경계(168/168ms)에서 흔들린다
 - [2026-09-22] **시공일 지난 적체 주문 일괄 완료 — 운영 적용 완료(413건)** — 1차(+7일) 413 + 2차(시공일<오늘, 사용자 수동 시공일 입력 뒤) 174 = 587건. 실측 858→237 · 도면 101→48 · 완료 1451→2038. AS 탭 건 143 은 stage 만(AS 축 지문 두 차례 모두 적용 전후 동일 · AS 탭 불변). 스냅샷 `C:/tmp/foms-backlog-complete-20260922/`(rollback 가능). 잔여: 시공일 없는 건 CSV 영업 검토. 스펙 `docs/plans/2026-09-22-past-construction-bulk-complete-spec.md`
 - [2026-09-20] **고객 컨펌 승인 → 생산 단계 자동 이동 + 생산 보드 run 축 + 모바일 동기화(deploy 대기)** — 승인 완료 판정을 `check_quest_approvals_complete` 하나로(담당자 승인을 생산 게이트가 못 읽어 409). 제작 시작 = run 발급, 제작 취소 = run 종결. 원장 `docs/plans/2026-09-17-confirm-to-production-workflow-ledger.md`
@@ -46,6 +47,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 
 
 ## 최근 완료 (최대 5개)
+- [2026-09-13] **탭 왕복 느림 종결 — 서버 렌더 2~5배(PR #362·#367·#370 · production `22acd17cc`)** — 원인 셋: ① `with phase()` 안 인자 식 선평가로 조회가 템플릿 시간으로 계상(진짜 Jinja 5~7ms) ② 배포 직후 첫 방문자의 템플릿 컴파일 550~590ms(4 프로세스) → 부팅 워밍 ③ `raw_snapshot` 평균 2,194B 가 TOAST 임계를 넘어 같은 스캔이 14,736버퍼·50.5ms → 249·1.5ms → 클레임 축 사본 컬럼 4개(`nvmirror_00`). **운영 백필 완료 2,393행·전수 대조 불일치 0**. 실측 이력 탭 388~1,061 → 189~297ms, 처리 탭 696~1,428 → 193~259ms. 원장 §10~§16
 - [2026-09-09] **매일 자동 점검 반쪽 판정 종결(deploy `69586ee0c`)** — 하트비트 축만 봐 큐 적체·DEAD 를 못 봤다. 결론을 `evaluate_readiness` 에 위임. 잔여: 운영 승격
 - [2026-09-10] **운영 대기분 선별 승격(PR #339 · production `3888da9ab`)** — 원장 `docs/plans/2026-09-09-production-pending-triage.md`. 지난 날짜 발송 띠·ACL·백필 갈래 철회·drift 924·perf 18466·하네스/문서 동기화. **로그인 잠금(`40d25bb1b`)만 deploy 잔류(사용자 보류)**
 - [2026-09-09] **고객컨펌 승인·도면 첨부 등록(deploy `4868a2cc4`)** — dev+PG E2E 로 승인 200·수령확정 후 첨부 유지 확인. 잔여: 운영 승격 여부 사용자 확인

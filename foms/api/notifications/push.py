@@ -24,6 +24,7 @@ from sqlalchemy import func
 
 from foms.web.auth import login_required
 from foms.services.datetime_kst import now_utc_naive
+from foms.services.notifications.push_sender import send_test_push, subscription_status_rows
 from foms.services.request_write_guard import require_same_origin_write
 from db import get_db
 from models import NotificationPushSubscription, NotificationUserState
@@ -316,8 +317,6 @@ def push_test() -> Any:
                 {"success": False, "data": None, "error": "no_active_subscription"}
             ), 404
 
-        from foms.services.notifications.push_sender import send_test_push
-
         result = send_test_push(sub.id)
         return jsonify(
             {
@@ -448,6 +447,20 @@ def push_health() -> Any:
     )
 
 
+@push_bp.route("/subscriptions-status", methods=["GET"])
+@login_required
+def push_subscriptions_status() -> Any:
+    """ADMIN 전용 영업(MEASURE 포함)별 구독 상태 표. flag 무관 200, 비ADMIN 403."""
+    if not _is_admin(getattr(g, "current_user", None)):
+        return jsonify({"success": False, "data": None, "error": "forbidden"}), 403
+    try:
+        rows = subscription_status_rows(get_db(), request.args.get("team"))
+    except Exception as e:  # noqa: BLE001 - 표준 에러 응답
+        current_app.logger.warning("push subscriptions-status failed", exc_info=True)
+        return jsonify({"success": False, "data": None, "error": str(e)}), 500
+    return jsonify({"success": True, "data": {"rows": rows}, "error": None})
+
+
 @push_state_bp.route("/mobile-state", methods=["GET"])
 @login_required
 def mobile_state() -> Any:
@@ -481,11 +494,5 @@ def mobile_state() -> Any:
         return jsonify({"success": False, "data": None, "error": str(e)}), 500
 
 
-__all__ = [
-    "push_bp",
-    "push_state_bp",
-    "require_web_push_enabled",
-    "PUSH_WRITE_HEADER",
-    "WEB_PUSH_FLAG_ENV",
-    "VAPID_PUBLIC_KEY_ENV",
-]
+__all__ = ["push_bp", "push_state_bp", "require_web_push_enabled",
+           "PUSH_WRITE_HEADER", "WEB_PUSH_FLAG_ENV", "VAPID_PUBLIC_KEY_ENV"]

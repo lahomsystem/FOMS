@@ -81,8 +81,11 @@
 <script src="{{ url_for('static', filename='js/foms/mobile-notification.js') }}?v=20260716a" defer></script>
 {# 도면 수정 요청 확인창(ACTION-REQUIRED). 종 배지로는 놓쳐서 90일 21건 중 8건이 미독이었다. #}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-drawing-alert.css') }}?v=20260911b">
-<script src="{{ url_for('static', filename='js/foms/foms-drawing-alert.js') }}?v=20260911b" defer></script>
-<script src="{{ url_for('static', filename='js/foms/mobile-push.js') }}?v=20260716a" defer></script>
+<script src="{{ url_for('static', filename='js/foms/foms-drawing-alert.js') }}?v=20260923a" defer></script>
+{# 당일 실측 확인창 재조회는 영업(MEASURE 표기 포함)만 — 수신자 규칙 recipients.expand_team_codes('SALES'). #}
+{% set _alert_sync_target = ((current_user.team or '')|string|trim|upper) in ('SALES', 'MEASURE') %}
+<script src="{{ url_for('static', filename='js/foms/foms-alert-sync.js') }}?v=20260923a" data-alert-sync-target="{{ '1' if _alert_sync_target else '0' }}" defer></script>
+<script src="{{ url_for('static', filename='js/foms/mobile-push.js') }}?v=20260923a" defer></script>
 {% endif %}
 {# PWA service worker 등록(전 페이지, 데스크톱 포함) — 데스크톱 full page load의 css/js
    재검증을 SW staticCacheFirst가 흡수하도록 전역 로드. A2HS 설치 배너는 스크립트 내부

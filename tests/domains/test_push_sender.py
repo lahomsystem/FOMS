@@ -59,13 +59,16 @@ class _Recorder:
         self.calls = []
         self._exc = exc
 
-    def __call__(self, subscription_info, data, vapid_private_key=None, vapid_claims=None):
+    def __call__(self, subscription_info, data, vapid_private_key=None, vapid_claims=None,
+                 ttl=0, headers=None):
         self.calls.append(
             {
                 "subscription_info": subscription_info,
                 "data": data,
                 "vapid_private_key": vapid_private_key,
                 "vapid_claims": vapid_claims,
+                "ttl": ttl,
+                "headers": headers,
             }
         )
         if self._exc is not None:

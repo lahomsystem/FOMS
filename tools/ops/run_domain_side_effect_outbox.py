@@ -21,8 +21,14 @@ SIDEFX-00 outbox 를 소비하는 delivery/expiry/retention worker 다. 세 loop
   (DATA-MEASUREMENT-01 소비단. 주소 변경 tx 가 예약한 행을 소비해 Order 좌표를 채운다).
 * ``ALIMTALK_SEND`` — :func:`foms.services.alimtalk_delivery_handler.handle_alimtalk_send`
   (실측 예약 알림톡 자동 발송. 수동 발송은 요청 스레드 동기).
+* ``MEAS_SAME_DAY_ALERT`` —
+  :func:`foms.services.notifications.measure_same_day_delivery.handle_measure_same_day_alert`
+  (당일 실측 긴급 추가 → 채널톡 긴급방. 화면·웹푸시는 웹 after_commit 이 보낸다).
+* ``NOTIFICATION`` —
+  :func:`foms.services.notifications.notification_push_delivery.handle_notification_push`
+  (긴급 멘션 OS 웹 푸시. 30분 넘은 알림은 보내지 않는다).
 
-그 밖의 effect_type(NOTIFICATION·CACHE_INVALIDATE 등)은 아직 handler 가 없다 — 그 종류의
+그 밖의 effect_type(CACHE_INVALIDATE 등)은 아직 handler 가 없다 — 그 종류의
 행이 쌓이는 도메인을 켜기 전에 handler 를 먼저 배포해야 한다.
 
 배포: ``railway-domain-sidefx.toml`` 별도 service, start command
@@ -74,6 +80,12 @@ from foms.services.worker_watchdog import (  # noqa: E402
 )
 from foms.services.alimtalk_delivery_handler import handle_alimtalk_send  # noqa: E402
 from foms.services.geocode_delivery_handler import handle_geocode
+from foms.services.notifications.measure_same_day_delivery import (  # noqa: E402
+    handle_measure_same_day_alert,
+)
+from foms.services.notifications.notification_push_delivery import (  # noqa: E402
+    handle_notification_push,
+)
 from foms.services.record_only_effects import (
     CHANNEL_PUSH_RECORDED_EFFECT_TYPE,
     STAGE_NOTIFICATION_EFFECT_TYPE,
@@ -281,6 +293,10 @@ def main(argv: Optional[list[str]] = None) -> int:
     register_handler("GEOCODE", handle_geocode, replace=True)
     # 실측 알림톡 자동 발송. 이게 없으면 ALIMTALK_SEND 행이 NoHandler → DEAD.
     register_handler("ALIMTALK_SEND", handle_alimtalk_send, replace=True)
+    # 당일 실측 긴급 추가 → 채널톡 긴급방. 화면·웹푸시는 웹 after_commit(emit·RQ)이 보낸다.
+    register_handler("MEAS_SAME_DAY_ALERT", handle_measure_same_day_alert, replace=True)
+    # 긴급 멘션 OS 푸시(기존 결함 ②): 이 줄이 없으면 NOTIFICATION 행이 NoHandler → DEAD.
+    register_handler("NOTIFICATION", handle_notification_push, replace=True)
     # SIDEFX-RECORDONLY-01: 배달할 일이 없는 기록 전용 effect. 등록하지 않으면 NoHandler 로
     # 10회 재시도 후 DEAD 로 쌓여 **진짜 실패를 덮는다**(운영 실측 1,188행, 2026-09-02).
     register_handler(CHANNEL_PUSH_RECORDED_EFFECT_TYPE, handle_record_only, replace=True)

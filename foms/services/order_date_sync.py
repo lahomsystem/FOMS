@@ -8,7 +8,11 @@ from datetime import datetime
 from typing import Any
 
 from db import get_db
-from foms.services.erp_order_flags import is_erp_order_record
+from foms.services.erp_order_flags import (
+    is_erp_draft_structured_data,
+    is_erp_order_draft,
+    is_erp_order_record,
+)
 
 logger = logging.getLogger(__name__)
 from models import OrderEvent, OrderScheduleDate
@@ -284,8 +288,28 @@ def sync_order_dates(order: Any, db_session: Any = None) -> bool:
     return True
 
 
+def _dates_from_rows(rows: Any, kind: str) -> set[str]:
+    """일정 row 목록에서 ``kind`` 가 같은 정규화 날짜 집합을 뽑는다.
+
+    Args:
+        rows: ``OrderScheduleDate`` 유사 객체 목록(``kind``·``date`` 속성 필요).
+        kind: ``"construction"``·``"measurement"`` 등 일정 종류.
+
+    Returns:
+        정규화된 날짜 문자열 집합. 해당 종류가 없으면 빈 집합.
+    """
+    dates: set[str] = set()
+    for row in rows or []:
+        if str(getattr(row, "kind", "") or "") != kind:
+            continue
+        normalized = _normalize_date_str(str(getattr(row, "date", "") or "").strip())
+        if normalized:
+            dates.add(str(normalized))
+    return dates
+
+
 def _construction_dates_from_rows(rows: Any) -> set[str]:
-    """일정 row 목록에서 정규화된 시공일 집합을 뽑는다.
+    """일정 row 목록에서 정규화된 시공일 집합을 뽑는다(:func:`_dates_from_rows` 래퍼).
 
     Args:
         rows: ``OrderScheduleDate`` 유사 객체 목록(``kind``·``date`` 속성 필요).
@@ -293,14 +317,34 @@ def _construction_dates_from_rows(rows: Any) -> set[str]:
     Returns:
         정규화된 시공일 문자열 집합. 시공일이 없으면 빈 집합.
     """
-    dates: set[str] = set()
-    for row in rows or []:
-        if str(getattr(row, "kind", "") or "") != "construction":
-            continue
-        normalized = _normalize_date_str(str(getattr(row, "date", "") or "").strip())
-        if normalized:
-            dates.add(str(normalized))
-    return dates
+    return _dates_from_rows(rows, "construction")
+
+
+def _committed_is_draft(order: Any) -> bool:
+    """이번 flush **직전**(마지막 flush/로드 시점) 주문이 ERP 드래프트였는지 본다.
+
+    드래프트 승격(PUT 이 ``status='DRAFT'`` → 단계 코드로 바꾸는 경로)은 실측일 집합이
+    그대로라 날짜 비교로는 안 보인다. 그래서 SQLAlchemy 속성 기록에서 옛 값을 읽는다.
+
+    Args:
+        order: flush 대상 주문(영속 상태).
+
+    Returns:
+        옛 ``status`` 가 ``'DRAFT'`` 이거나 옛 ``structured_data.meta.draft`` 가 True 면 True.
+        ERP 주문이 아니거나 신규 주문이면 False.
+    """
+    if not is_erp_order_record(order) or getattr(order, "id", None) is None:
+        return False
+    from sqlalchemy import inspect as sa_inspect
+
+    attrs = sa_inspect(order).attrs
+    status_hist = attrs.status.history
+    old_status = (list(status_hist.deleted) or list(status_hist.unchanged) or [None])[0]
+    if str(old_status or "").upper() == "DRAFT":
+        return True
+    sd_hist = attrs.structured_data.history
+    old_sd = (list(sd_hist.deleted) or list(sd_hist.unchanged) or [None])[0]
+    return is_erp_draft_structured_data(old_sd)
 
 
 def _join_construction_dates(dates: set[str]) -> str:
@@ -479,6 +523,33 @@ def _sync_order_and_emit_event(session: Any, order: Any, *, allow_event: bool) -
     return changed
 
 
+def _detect_measure_same_day(
+    session: Any, order: Any, before: set[str], was_draft: bool
+) -> None:
+    """sync 뒤 실측일 집합을 구해 당일 실측 긴급 알림 판정기에 넘긴다(DB I/O 없음).
+
+    Args:
+        session: 현재 flush 중인 세션.
+        order: 대상 주문.
+        before: sync 전 실측일 집합(신규 주문이면 빈 집합).
+        was_draft: 이번 flush 직전 드래프트였는지.
+
+    Returns:
+        None. 판정 상태는 ``session.info`` 에 쌓인다(발송은 커밋 뒤).
+    """
+    from foms.services.notifications.measure_same_day import detect_same_day_additions
+
+    after = _dates_from_rows(getattr(order, "schedule_dates", []), "measurement")
+    detect_same_day_additions(
+        session,
+        order,
+        before_dates=before,
+        after_dates=after,
+        was_draft=was_draft,
+        is_draft=is_erp_order_draft(order),
+    )
+
+
 def _run_date_sync_flush(session: Any, order_cls: Any) -> None:
     """flush 대상 주문의 일정 row 재빌드 + 시공일 이벤트 emit 을 수행한다.
 
@@ -498,16 +569,23 @@ def _run_date_sync_flush(session: Any, order_cls: Any) -> None:
     try:
         schedule_changed = False
         for order in changed_orders:
-            # 생성(신규·미영속)은 "이전 값"이 없으므로 이벤트 대상이 아니다.
-            allow_event = (
-                not reentrant
-                and order not in session.new
-                and getattr(order, "id", None) is not None
+            is_new = order in session.new or getattr(order, "id", None) is None
+            # 생성(신규·미영속)은 "이전 값"이 없으므로 시공일 이벤트 대상이 아니다.
+            allow_event = not reentrant and not is_new
+            # 당일 실측 긴급 알림은 신규 주문도 본다(이전 = 빈 집합). 재진입 flush 만 제외.
+            allow_measure = not reentrant
+            measure_before: set[str] = (
+                _dates_from_rows(getattr(order, "schedule_dates", []), "measurement")
+                if allow_measure and not is_new
+                else set()
             )
+            was_draft = _committed_is_draft(order) if allow_measure and not is_new else False
             schedule_changed = (
                 _sync_order_and_emit_event(session, order, allow_event=allow_event)
                 or schedule_changed
             )
+            if allow_measure:
+                _detect_measure_same_day(session, order, measure_before, was_draft)
     finally:
         session.info[_CONSTRUCTION_EVENT_GUARD] = reentrant
 
@@ -568,3 +646,11 @@ def register_date_sync_listener() -> None:
     )
 
     register_shipment_change_alert_listener()
+
+    # 소비자 배선: 실측일에 오늘(KST)이 새로 들어온 주문을 커밋 뒤 영업에게 알린다.
+    # 판정 입력은 위 before_flush 가 모은다(자체 중복 등록 가드가 있다).
+    from foms.services.notifications.measure_same_day import (
+        register_measure_same_day_listener,
+    )
+
+    register_measure_same_day_listener()

@@ -99,7 +99,9 @@ def test_viewer_is_forbidden_and_nothing_changes(client, app):
     order = _fresh_order(oid)
     assert "measurement_visits" not in (order.structured_data or {})
     assert order.mutation_version == before
-    assert db_session.query(OrderEvent).filter_by(order_id=oid).count() == 0
+    assert db_session.query(OrderEvent).filter(
+        OrderEvent.order_id == oid, OrderEvent.event_type.in_((MARKED, UNMARKED))
+    ).count() == 0
 
 
 def test_mark_writes_entry_event_version_and_audit(client, app):

@@ -136,6 +136,8 @@ def get_routing_group_id(event_type: str, order_info: Dict[str, Any] = None) -> 
           미설정 시 운영 그룹 229923으로 폴백).
         - ``drawing_room`` (도면방 PUSH): 도면방 그룹(``CHANNEL_GROUP_DRAWING_ROOM``,
           미설정 시 운영 그룹 230331로 폴백).
+        - ``urgent_measure`` (당일 실측 긴급 자동 알림): 긴급방(``CHANNEL_GROUP_URGENT_MEASURE``,
+          미설정 시 209989로 폴백 · 빈 문자열이면 빈 문자열 그대로 = 채널톡 길 끔).
         - 그 외(영발 PUSH, 기본): 영발 그룹(``CHANNEL_GROUP_MEASUREMENT``,
           미설정 시 운영 그룹 209990으로 폴백).
 
@@ -161,6 +163,8 @@ def get_routing_group_id(event_type: str, order_info: Dict[str, Any] = None) -> 
         group_id = os.environ.get("CHANNEL_GROUP_MEASURE_ROOM", "229923")
     elif push_kind == "drawing_room":
         group_id = os.environ.get("CHANNEL_GROUP_DRAWING_ROOM", "230331")
+    elif push_kind == "urgent_measure":
+        group_id = os.environ.get("CHANNEL_GROUP_URGENT_MEASURE", "209989")
     else:
         group_id = os.environ.get("CHANNEL_GROUP_MEASUREMENT", "209990")
 

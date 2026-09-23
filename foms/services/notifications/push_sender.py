@@ -15,12 +15,15 @@ from __future__ import annotations
 
 import datetime as _dt
 
-from foms.services.datetime_kst import now_utc_naive
+from foms.services.datetime_kst import format_datetime_kst, now_utc_naive
+from foms.services.orders.order_mutation_policy import normalize_team
 import hashlib
 import json
 import logging
 import os
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
+
+from sqlalchemy import func
 
 from db import db_session, get_db
 from models import (
@@ -30,6 +33,7 @@ from models import (
     NotificationEventType,
     NotificationPushSubscription,
     NotificationUserState,
+    User,
 )
 
 logger = logging.getLogger(__name__)
@@ -39,6 +43,16 @@ _TASK_PATH_PREFIX = "foms.services.jobs.tasks"
 _PUSH_TASK = f"{_TASK_PATH_PREFIX}.send_push_for_notification_task"
 
 _TRUTHY = frozenset({"1", "true", "yes", "on"})
+
+#: push 서비스에 맡기는 보관 시간(초). pywebpush 2.0.0 ``webpush(ttl=0)`` 기본값은
+#: "지금 기기에 못 닿으면 버려라" 라서, 휴대폰이 꺼져 있거나 잠깐 망이 끊긴 사이의
+#: 알림이 전부 사라졌다(2026-09-23 설치 소스로 확인). 하루면 다음 날 아침까지 닿는다.
+PUSH_TTL_SECONDS = 86400
+
+#: 긴급(is_urgent)이 아니어도 push 서비스에 ``Urgency: high`` 로 보내는 유형.
+#: 절전 중인 안드로이드는 normal 을 몇 분~몇 시간 미룬다 — 당일 실측 긴급 추가는
+#: 몇 시간 뒤에 닿으면 의미가 없다.
+_HIGH_URGENCY_TYPES = frozenset({"MEASURE_SAME_DAY_ADDED"})
 
 # 비긴급 알림 중 push 를 발송하는 P1 유형 기본 집합(env 로 override 가능).
 _DEFAULT_P1_TYPES = frozenset(
@@ -66,6 +80,9 @@ _DEFAULT_P1_TYPES = frozenset(
         # 이 유형만 renotify=False 라 소리 없이 배너만 바뀐다. 복구를 화면에만 남기면
         # 잠금화면에 "멈췄습니다" 배너가 거짓인 채로 남는다.
         "WORKER_RECOVERED",
+        # 오늘(KST) 실측이 새로 들어온 주문. 영업이 화면을 안 보고 있어도 당일 안에
+        # 알아야 한다 — 미등록이면 enqueue 해도 조용히 안 나간다.
+        "MEASURE_SAME_DAY_ADDED",
     }
 )
 
@@ -139,6 +156,14 @@ def _should_push(notif: Notification) -> bool:
     return (notif.notification_type or "").strip().upper() in _p1_types()
 
 
+def _urgency(notif: Notification) -> str:
+    """push 서비스용 ``Urgency`` 헤더 값. 긴급이거나 지정 유형이면 "high", 아니면 "normal"."""
+    if bool(notif.is_urgent):
+        return "high"
+    ntype = (notif.notification_type or "").strip().upper()
+    return "high" if ntype in _HIGH_URGENCY_TYPES else "normal"
+
+
 def _deep_link(notif: Notification) -> str:
     """same-origin deep link. 도면 주문변경/수정요청은 워크벤치, 그 외 주문은 상세."""
     if notif.order_id:
@@ -179,6 +204,8 @@ def _generic_title(urgent: bool, ntype: str) -> str:
         return "업무 배정 알림"
     if ntype == "URGENT_ESCALATION":
         return "에스컬레이션"
+    if ntype == "MEASURE_SAME_DAY_ADDED":
+        return "긴급 실측 추가"
     if ntype == "WORKER_STALLED":
         return "자동 처리가 멈췄습니다"
     if ntype == "WORKER_RECOVERED":
@@ -201,6 +228,9 @@ def _generic_body(urgent: bool, ntype: str) -> str:
         return "긴급 확인이 필요한 알림이 있습니다."
     if ntype == "URGENT_ESCALATION":
         return "미확인 긴급 알림이 에스컬레이션되었습니다."
+    if ntype == "MEASURE_SAME_DAY_ADDED":
+        # 고객명·주소·시간은 넣지 않는다(잠금화면 노출). 상세는 앱의 확인창에서 본다.
+        return "오늘 실측이 긴급 추가됐어요"
     if ntype == "WORKER_STALLED":
         return "발주확인·발송처리 같은 자동 처리가 멈췄습니다. 앱을 열어 확인하세요."
     if ntype == "WORKER_RECOVERED":
@@ -232,6 +262,12 @@ def _build_payload(notif: Notification) -> Dict[str, Any]:
         # ``payload.vibrate || [80, 40, 80]`` 이 기본 진동을 붙여 새벽에 울린다.
         # JS 에서 빈 배열은 truthy 라 []를 그대로 보내면 진동이 꺼진다.
         payload["vibrate"] = [] if ntype == "WORKER_RECOVERED" else [80, 40, 80]
+    elif ntype == "MEASURE_SAME_DAY_ADDED":
+        # 알림별 tag(주문·날짜당 1건은 outbox dedupe 가 보장): 같은 알림 재배달은 1건으로 접히되
+        # 소리는 다시 낸다.
+        # requireInteraction 은 긴급(is_urgent) 전용 규칙이라 붙이지 않는다.
+        payload["tag"] = f"foms-meas-{int(notif.id)}"
+        payload["renotify"] = True
     return payload
 
 
@@ -270,6 +306,43 @@ def _active_subscriptions(db: Any, user_id: int) -> List[NotificationPushSubscri
         )
         .all()
     )
+
+
+def _unread_counts(db: Any, user_ids: Iterable[int]) -> Dict[int, int]:
+    """수신자별 미읽음·미보관 알림 수를 GROUP BY 한 번으로 구한다.
+
+    배지 API(``foms/api/notifications/push.py`` ``_unread_count``)와 같은 조건이다 —
+    두 곳의 숫자가 다르면 앱 아이콘 숫자와 벨 숫자가 어긋난다. 수신자 루프 안에서
+    한 명씩 세면 N+1 이 되므로 여기서 한 번에 센다.
+
+    :param db: 세션
+    :param user_ids: 수신자 user id 모음
+    :return: {user_id: 미읽음 수} (0 건인 사용자는 키가 없다)
+    """
+    ids = sorted({int(u) for u in user_ids if u is not None})
+    if not ids:
+        return {}
+    rows = (
+        db.query(NotificationUserState.user_id, func.count(NotificationUserState.id))
+        .filter(
+            NotificationUserState.user_id.in_(ids),
+            NotificationUserState.archived_at.is_(None),
+            NotificationUserState.read_at.is_(None),
+        )
+        .group_by(NotificationUserState.user_id)
+        .all()
+    )
+    return {int(uid): int(cnt or 0) for uid, cnt in rows}
+
+
+def _payload_for_recipient(base: Dict[str, Any], unread: int) -> str:
+    """기본 payload 를 복사해 수신자별 ``data.unread_count`` 를 넣고 JSON 으로 만든다.
+
+    ``payload.badge`` 는 이미 아이콘 URL 이라 숫자는 ``unread_count`` 라는 다른 이름을 쓴다.
+    """
+    payload = dict(base)
+    payload["data"] = dict(base.get("data") or {}, unread_count=int(unread))
+    return json.dumps(payload, ensure_ascii=False)
 
 
 def _record_event(
@@ -317,8 +390,14 @@ def _deliver_one(
     payload_json: str,
     webpush: Any,
     web_push_exc: Any,
+    urgency: str,
 ) -> str:
-    """단일 구독 발송. 'sent' / 'revoked' / 'failed' 중 하나를 반환(예외 미전파)."""
+    """단일 구독 발송. 'sent' / 'revoked' / 'failed' 중 하나를 반환(예외 미전파).
+
+    ``vapid_claims`` 와 ``headers`` 는 **호출마다 새 dict** 여야 한다. pywebpush 는
+    ``vapid_claims`` 에 aud(엔드포인트 출처)·exp 를 직접 써 넣으므로, 한 dict 를 여러
+    구독에 돌려 쓰면 두 번째 구독(다른 push 서비스)이 첫 구독의 aud 로 서명돼 거부된다.
+    """
     ep_hash = _endpoint_hash(sub.endpoint)
     sub_info = {
         "endpoint": sub.endpoint,
@@ -330,6 +409,8 @@ def _deliver_one(
             payload_json,
             vapid_private_key=_vapid_private_key(),
             vapid_claims={"sub": _vapid_claims_sub()},
+            ttl=PUSH_TTL_SECONDS,
+            headers={"Urgency": urgency},
         )
     except web_push_exc as exc:  # 구독 만료/유효성 실패
         code = getattr(getattr(exc, "response", None), "status_code", None)
@@ -352,8 +433,13 @@ def _deliver_one(
     return "sent"
 
 
-def _send_push_impl(db: Any, notification_id: int) -> Dict[str, Any]:
+def _send_push_impl(
+    db: Any, notification_id: int, *, skip_attempted: bool = False
+) -> Dict[str, Any]:
     """실제 발송 로직(주어진 세션 사용, commit 은 호출자 책임).
+
+    ``skip_attempted`` 가 True 면 이미 ``PUSH_ATTEMPTED`` 인 수신자는 건너뛴다(outbox 재시도가
+    같은 사람에게 잠금화면 알림을 두 번 보내지 않게 한다).
 
     기능 플래그를 **여기서** 본다. enqueue 경로에만 두면 rq 를 거치지 않는 직접 호출자
     (워커 정지 감시자가 정확히 그렇다)가 플래그를 통째로 우회한다 — "웹푸시가 꺼져 있다"
@@ -371,6 +457,11 @@ def _send_push_impl(db: Any, notification_id: int) -> Dict[str, Any]:
         return {"sent": 0, "failed": 0, "revoked": 0, "reason": "severity_skipped"}
 
     states = _pending_states(db, notif.id)
+    if skip_attempted:
+        states = [
+            s for s in states
+            if s.last_delivery_status != NotificationDeliveryStatus.PUSH_ATTEMPTED
+        ]
     if not states:
         return {"sent": 0, "failed": 0, "revoked": 0, "reason": "no_pending_states"}
 
@@ -380,16 +471,21 @@ def _send_push_impl(db: Any, notification_id: int) -> Dict[str, Any]:
         logger.error("[push] pywebpush 미설치 - 발송 불가")
         return {"sent": 0, "failed": 0, "revoked": 0, "reason": "pywebpush_unavailable"}
 
-    payload_json = json.dumps(_build_payload(notif), ensure_ascii=False)
+    base_payload = _build_payload(notif)
+    urgency = _urgency(notif)
+    unread_by_user = _unread_counts(db, (s.user_id for s in states))
     sent = failed = revoked = 0
     for state in states:
         subs = _active_subscriptions(db, state.user_id)
         if not subs:
             continue
+        payload_json = _payload_for_recipient(
+            base_payload, unread_by_user.get(int(state.user_id), 0)
+        )
         any_success = False
         for sub in subs:
             outcome = _deliver_one(
-                db, notif, state, sub, payload_json, webpush, web_push_exc
+                db, notif, state, sub, payload_json, webpush, web_push_exc, urgency
             )
             if outcome == "sent":
                 sent += 1
@@ -405,7 +501,7 @@ def _send_push_impl(db: Any, notification_id: int) -> Dict[str, Any]:
 
 
 def send_push_for_notification(
-    notification_id: int, db: Any = None
+    notification_id: int, db: Any = None, *, skip_attempted: bool = False
 ) -> Dict[str, Any]:
     """알림 1건을 대상 수신자들에게 Web Push 발송(RQ task 진입점).
 
@@ -415,13 +511,14 @@ def send_push_for_notification(
 
     :param notification_id: 발송 대상 알림 id
     :param db: 테스트/재사용용 세션(기본 None → worker db_session 자체 관리)
+    :param skip_attempted: True 면 이미 PUSH_ATTEMPTED 인 수신자는 다시 보내지 않는다
     :return: {sent, failed, revoked, reason} 요약
     """
     owns_session = db is None
     if owns_session:
         db = db_session()
     try:
-        result = _send_push_impl(db, int(notification_id))
+        result = _send_push_impl(db, int(notification_id), skip_attempted=skip_attempted)
         if owns_session:
             db.commit()
         return result
@@ -546,6 +643,8 @@ def _send_test_impl(db: Any, subscription_id: int, owns: bool) -> Dict[str, Any]
             payload,
             vapid_private_key=_vapid_private_key(),
             vapid_claims={"sub": _vapid_claims_sub()},
+            ttl=PUSH_TTL_SECONDS,
+            headers={"Urgency": "normal"},
         )
     except web_push_exc as exc:
         code = getattr(getattr(exc, "response", None), "status_code", None)
@@ -576,8 +675,107 @@ def send_test_push(subscription_id: int, db: Any = None) -> Dict[str, Any]:
     return _send_test_impl(db, int(subscription_id), owns)
 
 
+# ---------------------------------------------------------------------------
+# 관리자 구독 상태 표(영업별 설치·허용·마지막 발송)
+# ---------------------------------------------------------------------------
+
+def _team_users(db: Any, target: str) -> List[Any]:
+    """활성 사용자 중 ``normalize_team(team) == target`` 인 사람(쿼리 1회)."""
+    return [
+        u for u in (
+            db.query(User.id, User.name, User.username, User.team)
+            .filter(User.is_active.is_(True), User.team.isnot(None))
+            .all()
+        )
+        if normalize_team(u.team) == target
+    ]
+
+
+def _subscription_aggregates(db: Any, ids: List[int]) -> Dict[int, Dict[str, Any]]:
+    """활성 구독의 사용자별 개수·최근 접속·최신 구독 플랫폼/권한(쿼리 1회).
+
+    id 오름차순으로 읽어 마지막 행이 최신 구독이 되게 한다. endpoint·키는 읽지 않는다.
+    """
+    out: Dict[int, Dict[str, Any]] = {}
+    rows = (
+        db.query(
+            NotificationPushSubscription.user_id,
+            NotificationPushSubscription.platform,
+            NotificationPushSubscription.permission_state,
+            NotificationPushSubscription.last_seen_at,
+        )
+        .filter(
+            NotificationPushSubscription.user_id.in_(ids),
+            NotificationPushSubscription.revoked_at.is_(None),
+        )
+        .order_by(NotificationPushSubscription.id.asc())
+        .all()
+    )
+    for sub in rows:
+        agg = out.setdefault(int(sub.user_id), {"count": 0, "last_seen": None})
+        agg["count"] += 1
+        seen = sub.last_seen_at
+        if seen is not None and (agg["last_seen"] is None or seen > agg["last_seen"]):
+            agg["last_seen"] = seen
+        agg["platform"] = sub.platform
+        agg["permission_state"] = sub.permission_state
+    return out
+
+
+def _last_push_times(db: Any, ids: List[int]) -> Dict[int, Any]:
+    """수신자별 마지막 push 발송(PUSH_ATTEMPTED) 시각(GROUP BY 쿼리 1회)."""
+    rows = (
+        db.query(NotificationEvent.recipient_user_id, func.max(NotificationEvent.created_at))
+        .filter(
+            NotificationEvent.recipient_user_id.in_(ids),
+            NotificationEvent.event_type == NotificationEventType.PUSH_ATTEMPTED,
+        )
+        .group_by(NotificationEvent.recipient_user_id)
+        .all()
+    )
+    return {int(uid): at for uid, at in rows}
+
+
+def subscription_status_rows(db: Any, team: Optional[str] = None) -> List[Dict[str, Any]]:
+    """팀(기본 SALES) 활성 사용자별 web push 구독 상태 행(쿼리 최대 3회).
+
+    팀 비교는 ``normalize_team`` 을 거친다 — 옛 표기 MEASURE 계정도 SALES 로 센다
+    (권한 판정과 같은 규칙). endpoint 원문·키는 행에 싣지 않는다. 시각은 KST 문자열.
+
+    :param db: 세션
+    :param team: 팀 코드(빈 값이면 SALES)
+    :return: [{user_id, name, username, team, active_subscriptions, last_seen_at,
+              platform, permission_state, last_push_at}] (이름순)
+    """
+    users = _team_users(db, normalize_team(team) or "SALES")
+    ids = [int(u.id) for u in users]
+    subs = _subscription_aggregates(db, ids) if ids else {}
+    last_push = _last_push_times(db, ids) if ids else {}
+    rows: List[Dict[str, Any]] = []
+    for u in sorted(users, key=lambda x: ((x.name or ""), int(x.id))):
+        agg = subs.get(int(u.id)) or {"count": 0, "last_seen": None}
+        rows.append(
+            {
+                "user_id": int(u.id),
+                "name": u.name,
+                "username": u.username,
+                "team": (u.team or "").strip().upper(),
+                "active_subscriptions": int(agg["count"]),
+                "last_seen_at": format_datetime_kst(agg["last_seen"], "%Y-%m-%d %H:%M"),
+                "platform": agg.get("platform"),
+                "permission_state": agg.get("permission_state"),
+                "last_push_at": format_datetime_kst(
+                    last_push.get(int(u.id)), "%Y-%m-%d %H:%M"
+                ),
+            }
+        )
+    return rows
+
+
 __all__ = [
+    "PUSH_TTL_SECONDS",
     "send_push_for_notification",
     "enqueue_push_for_notification",
     "send_test_push",
+    "subscription_status_rows",
 ]
