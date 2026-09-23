@@ -647,6 +647,11 @@
       }
     }
     restoreSnapshotPayment(sd, set);
+    // 임시 저장 스냅샷은 폼 수집본이라 서버 소유 발송 기록(알림톡·도면방 PUSH)이 없다 —
+    // 그대로 갈아끼우면 발송 흔적 칩이 '안 보냄'으로 돌아간다. 저장 경로와 같은 규칙으로 옮겨 담는다.
+    if (typeof window.erpCarryLocalOnlyKeys === "function") {
+      window.erpCarryLocalOnlyKeys(sd, window.__erpLastStructuredData);
+    }
     window.__erpLastStructuredData = sd;
     window.__erpStructuredLoadSucceeded = true;
     if (typeof window.erpRecalcItemsTotal === "function") window.erpRecalcItemsTotal();

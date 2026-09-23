@@ -158,7 +158,7 @@ def test_autosave_local_storage_key_scoped_by_user(app) -> None:
     assert 'LS_KEY_PREFIX + ":u" + uid' in js
     assert "purgeLegacyLocalStorage()" in js
     assert "localStorage.removeItem(LEGACY_LS_KEY)" in js
-    assert "erp-order-autosave.js') }}?v=20260803a" in erp_js
+    assert "erp-order-autosave.js') }}?v=20260923a" in erp_js
 
 
 def test_autosave_suspends_after_explicit_save() -> None:
