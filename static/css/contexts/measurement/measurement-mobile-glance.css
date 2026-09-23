@@ -325,3 +325,101 @@
 .foms-meas-export-host [data-meas-export-target] {
   width: auto !important;
 }
+
+/* ── 이미지 저장 시트(image-save-sheet.js) ─────────────────────────
+   캡처가 끝난 뒤 띄운다. 저장 버튼 클릭이 곧바로 공유·다운로드를 불러야 휴대폰이 막지 않는다. */
+.foms-meas-save-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 16px 12px calc(16px + env(safe-area-inset-bottom, 0px));
+  background: rgba(15, 23, 42, 0.55);
+}
+.foms-meas-save-sheet__card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  max-width: 480px;
+  max-height: 100%;
+  padding: 16px;
+  background: var(--foms-surface-base, #fff);
+  border-radius: var(--foms-radius-lg, 12px);
+}
+.foms-meas-save-sheet__title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--foms-color-neutral-900);
+}
+.foms-meas-save-sheet__frame {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 50vh;
+  overflow: auto;
+  border: 1px solid var(--foms-color-neutral-200);
+  border-radius: var(--foms-radius-md, 8px);
+  background: var(--foms-color-neutral-50);
+  -webkit-overflow-scrolling: touch;
+}
+.foms-meas-save-sheet__img {
+  display: block;
+  width: 100%;
+  height: auto;
+  /* 길게 눌러 "사진 앱에 추가" 가 되려면 기본 터치 메뉴를 막지 않는다. */
+  -webkit-touch-callout: default;
+}
+.foms-meas-save-sheet__acts {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.foms-meas-save-sheet__btn {
+  min-height: 48px;
+  padding: 0 14px;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--foms-color-brand-700);
+  background: var(--foms-surface-base, #fff);
+  border: 1px solid var(--foms-color-brand-200);
+  border-radius: var(--foms-radius-md, 8px);
+  cursor: pointer;
+}
+.foms-meas-save-sheet__btn--primary {
+  color: #fff;
+  background: var(--foms-color-brand-500);
+  border-color: var(--foms-color-brand-500);
+}
+.foms-meas-save-sheet__msg {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--foms-color-success-600);
+}
+.foms-meas-save-sheet__msg[data-tone="warn"] {
+  color: var(--foms-color-danger-600);
+}
+.foms-meas-save-sheet__msg[hidden] {
+  display: none;
+}
+.foms-meas-save-sheet__hint {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--foms-color-neutral-600);
+}
+.foms-meas-save-sheet__close {
+  min-height: 44px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--foms-color-neutral-600);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+html.foms-meas-save-sheet-open,
+html.foms-meas-save-sheet-open body {
+  overflow: hidden;
+}

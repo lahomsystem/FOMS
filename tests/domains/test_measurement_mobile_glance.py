@@ -29,6 +29,7 @@ DASHBOARD_SCRIPTS = "templates/measurement/partials/dashboard_scripts.html"
 GLANCE_CSS = "static/css/contexts/measurement/measurement-mobile-glance.css"
 IMAGE_EXPORT_JS = "static/js/measurement/image-export.js"
 GLANCE_JS = "static/js/measurement/mobile-glance.js"
+SAVE_SHEET_JS = "static/js/measurement/image-save-sheet.js"
 ENTRY_JS = "static/js/measurement/measurement-entry.js"
 
 PHONE_FILTER = "|replace('-', '')|replace(' ', '')"
@@ -104,7 +105,7 @@ def test_manager_phone_normalization_matches_queue_card():
 
 def test_dashboard_main_links_glance_css_before_desktop_body():
     main = _read(DASHBOARD_MAIN)
-    link = "css/contexts/measurement/measurement-mobile-glance.css') }}?v=20260923c"
+    link = "css/contexts/measurement/measurement-mobile-glance.css') }}?v=20260923d"
     anchor = "{% set _fos_desktop_body %}"
     assert link in main
     assert anchor in main
@@ -162,9 +163,7 @@ def test_image_export_js_shares_pc_capture_path():
         "cloneNode(true)",
         "foms-meas-export-host",
         "is-capturing",
-        "navigator.share",
-        "canShare",
-        "AbortError",
+        "FomsMeasSaveSheet.open",
         "ensureHtml2canvas",
         "localDateIso()",
         "Math.max(2, Math.min(window.devicePixelRatio || 1, 3))",
@@ -173,6 +172,41 @@ def test_image_export_js_shares_pc_capture_path():
         "prepareExportTable(clonedDoc, clonedTable, titleText)",
     ]
     assert _missing(js, required) == []
+
+
+def test_image_export_js_hands_mobile_png_to_save_sheet():
+    """휴대폰은 캡처를 기다린 뒤 공유를 부르면 탭 효력이 끝나 막힌다 — 저장은 시트 버튼에서만 부른다."""
+    js = _read(IMAGE_EXPORT_JS)
+    assert _present(js, ["navigator.share", "pendingShare", "눌러서 공유"]) == []
+    # 크기 측정 복제본에도 캡처와 같은 표식을 달아 호스트 CSS(width:auto)가 똑같이 먹게 한다.
+    probe_block = js.split("function measureOffscreenScale", 1)[1].split("prepareExportTable(probeDoc", 1)[0]
+    assert "probe.setAttribute('data-meas-export-target', '1')" in probe_block
+
+
+def test_save_sheet_js_platform_paths():
+    js = _read(SAVE_SHEET_JS)
+    required = [
+        "window.FomsMeasSaveSheet",
+        "navigator.share({ files: [file] })",
+        "canShare",
+        "AbortError",
+        "NotAllowedError",
+        "IS_IOS",
+        "IS_ANDROID",
+        "사진 앱에 저장",
+        "갤러리에 저장",
+        "사진 앱에 추가",
+        "URL.createObjectURL",
+        "revokeObjectURL",
+    ]
+    assert _missing(js, required) == []
+    # 아이폰은 <a download> 가 사진 앱이 아닌 "파일" 앱으로 가고 홈 화면 앱에선 동작하지 않는다.
+    ios_branch = js.split("function onPrimary", 1)[1].split("downloadBlob(file", 1)[0]
+    assert "if (IS_IOS)" in ios_branch and "return;" in ios_branch
+    # data: 주소는 크롬 2MB 한도에 걸린다 — 시트는 blob 주소만 쓴다.
+    assert "toDataURL" not in js
+    assert _present(js, ["jQuery", "innerHTML", ".style."]) == []
+    assert len(js.splitlines()) < 300
 
 
 def test_image_export_js_finds_target_by_marker_not_hidden_table():
@@ -207,15 +241,17 @@ def test_mobile_glance_js_forbidden_and_size():
 
 def test_measurement_entry_pin_and_chain_order():
     entry = _read(ENTRY_JS)
-    assert "MEAS_JS_V = '20260923a'" in entry
+    assert "MEAS_JS_V = '20260923b'" in entry
     assert "measurement/image-export.js" in entry
     assert "measurement/mobile-glance.js" in entry
+    assert "measurement/image-save-sheet.js" in entry
+    assert entry.index("measurement/image-save-sheet.js") < entry.index("measurement/image-export.js")
     assert entry.index("measurement/image-export.js") < entry.index("measurement/mobile-glance.js")
 
 
 def test_dashboard_scripts_pin_and_single_script():
     scripts = _read(DASHBOARD_SCRIPTS)
-    assert "measurement_js_v = '20260923a'" in scripts
+    assert "measurement_js_v = '20260923b'" in scripts
     assert scripts.count("<script src") == 1
 
 
