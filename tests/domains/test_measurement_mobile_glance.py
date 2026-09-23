@@ -203,6 +203,11 @@ def test_save_sheet_js_platform_paths():
     # 아이폰은 <a download> 가 사진 앱이 아닌 "파일" 앱으로 가고 홈 화면 앱에선 동작하지 않는다.
     ios_branch = js.split("function onPrimary", 1)[1].split("downloadBlob(file", 1)[0]
     assert "if (IS_IOS)" in ios_branch and "return;" in ios_branch
+    # 핵심: 공유는 클릭 핸들러의 첫 동작이어야 한다(앞에 await 가 있으면 탭 효력이 끝난다).
+    for fn in ("function onPrimary", "function shareFile"):
+        body = js.split(fn, 1)[1].split("\n    }\n", 1)[0]
+        assert "await" not in body, fn
+    assert "IS_INAPP" in js and "InvalidStateError" in js
     # data: 주소는 크롬 2MB 한도에 걸린다 — 시트는 blob 주소만 쓴다.
     assert "toDataURL" not in js
     assert _present(js, ["jQuery", "innerHTML", ".style."]) == []

@@ -20,6 +20,8 @@
     const ua = navigator.userAgent || '';
     const IS_IOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
     const IS_ANDROID = /Android/i.test(ua);
+    // 앱 안 브라우저(카카오톡·안드로이드 웹뷰)는 blob 다운로드가 조용히 실패하고 공유도 없다.
+    const IS_INAPP = /KAKAOTALK/i.test(ua) || (IS_ANDROID && /; wv\)/.test(ua));
 
     let current = null;
 
@@ -48,7 +50,7 @@
     /** 안드로이드·PC: blob 주소로 내려받는다(data: 주소는 크롬 2MB 한도에 걸려 조용히 실패할 수 있다). */
     function downloadBlob(file, name) {
         const link = document.createElement('a');
-        link.href = current ? current.url : URL.createObjectURL(file);
+        link.href = current.url;
         link.download = name;
         document.body.appendChild(link);
         link.click();
@@ -57,11 +59,14 @@
 
     /** 공유 창. 반드시 클릭 핸들러의 첫 동작으로 부른다(앞에 await 를 두면 탭 효력이 사라진다). */
     function shareFile(file, doneText) {
+        if (current.busy) return; // 공유 창이 뜨는 중 두 번 누르면 InvalidStateError — 무시한다.
+        current.busy = true;
+        const state = current;
         navigator.share({ files: [file] }).then(function () {
             setMsg(doneText, 'ok');
         }).catch(function (err) {
             const name = err && err.name;
-            if (name === 'AbortError') return; // 사용자가 공유 창을 닫았다 — 실패가 아니다.
+            if (name === 'AbortError' || name === 'InvalidStateError') return; // 닫음·겹침 — 실패가 아니다.
             if (name === 'NotAllowedError') {
                 setMsg('한 번 더 눌러 주세요.', 'warn');
                 return;
@@ -69,6 +74,8 @@
             setMsg(IS_IOS
                 ? '저장하지 못했어요. 위 사진을 길게 눌러 "사진 앱에 추가"를 눌러 주세요.'
                 : '저장하지 못했어요. 위 사진을 길게 눌러 "이미지 저장"을 눌러 주세요.', 'warn');
+        }).then(function () {
+            state.busy = false;
         });
     }
 
@@ -83,9 +90,17 @@
             }
             return;
         }
+        if (IS_INAPP) {
+            setMsg('이 앱 안에서는 바로 저장이 안 돼요. 위 사진을 길게 눌러 "이미지 저장"을 누르거나, 크롬·삼성 인터넷으로 열어 주세요.', 'warn');
+            return;
+        }
+        if (current.busy) return; // 두 번 누르면 "(1)" 사본이 생긴다.
+        current.busy = true;
+        const state = current;
         downloadBlob(file, current.downloadName);
+        setTimeout(function () { state.busy = false; }, 1500);
         setMsg(IS_ANDROID
-            ? '저장했어요. 갤러리의 "Download(다운로드)" 앨범에서 볼 수 있어요.'
+            ? '저장을 시작했어요. 갤러리의 "Download(다운로드)" 앨범에서 볼 수 있어요. 안 보이면 사진을 길게 눌러 주세요.'
             : '다운로드 폴더에 저장했어요.', 'ok');
     }
 
@@ -134,7 +149,7 @@
         frame.appendChild(img);
 
         const primary = el('button', 'foms-meas-save-sheet__btn foms-meas-save-sheet__btn--primary',
-            IS_IOS ? '사진 앱에 저장' : (IS_ANDROID ? '갤러리에 저장' : '이미지 다운로드'));
+            IS_IOS ? '사진 앱에 저장' : (IS_INAPP ? '저장 방법 보기' : (IS_ANDROID ? '갤러리에 저장' : '이미지 다운로드')));
         primary.type = 'button';
         primary.addEventListener('click', onPrimary);
 
@@ -173,6 +188,7 @@
         current = {
             root: root, msg: msg, file: file, url: url,
             downloadName: opts.downloadName || file.name,
+            busy: false,
             returnFocus: opts.returnFocus || null
         };
         document.body.appendChild(root);
