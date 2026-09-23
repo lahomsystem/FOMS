@@ -38,6 +38,7 @@ import uuid
 from dataclasses import dataclass
 from typing import Callable, Mapping, Optional, Sequence
 
+from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -220,6 +221,21 @@ def _record_dashboard_cache_intent(
             stages.append(stage.strip())
 
 
+def _expire_clean_cached_orders(session: Session, order_ids: Sequence[int]) -> None:
+    """identity map 의 clean Order(대상 id)만 expire — 잠금 조회가 최신 행으로 다시 채운다."""
+    wanted = set(order_ids)
+    for obj in list(session.identity_map.values()):
+        if not isinstance(obj, Order):
+            continue
+        state = sa_inspect(obj)
+        ident = state.identity
+        if not ident or ident[0] not in wanted:
+            continue
+        if session.is_modified(obj):
+            continue
+        session.expire(obj)
+
+
 def execute_order_mutation(
     session: Session,
     *,
@@ -278,6 +294,13 @@ def execute_order_mutation(
 
     # 1) ID 순 FOR UPDATE — 같은 order 에 대한 동시 mutation 을 직렬화(lost update 차단)
     #    하고, 같은 key 동시 요청의 idempotency 조회를 커밋 순서대로 만든다.
+    #    identity map 에 잠금 전에 읽어 둔 같은 order 가 있으면 FOR UPDATE 조회가 그 낡은 객체를
+    #    그대로 돌려준다(값을 다시 채우지 않는다). 그러면 mutation 이 낡은 structured_data 를
+    #    deepcopy 해 통째로 되쓰고, If-Match 도 낡은 mutation_version 과 비교한다. 그래서 변경이
+    #    없는(clean) 객체는 비워서 잠금 조회가 최신 값으로 다시 채우게 한다. 호출자가 이미 고친
+    #    (dirty) 객체는 그 변경을 지우지 않도록 건드리지 않는다(autoflush=False 세션 —
+    #    populate_existing 은 dirty 변경까지 덮어쓴다).
+    _expire_clean_cached_orders(session, unique_ids)
     locked = (
         session.query(Order)
         .filter(Order.id.in_(unique_ids))

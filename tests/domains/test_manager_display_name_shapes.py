@@ -100,3 +100,24 @@ def test_is_order_mine_for_user_survives_scalar_manager() -> None:
 
     other_user = SimpleNamespace(name="박다른", username="park")
     assert is_order_mine_for_user(order, other_user) is False
+
+
+def test_resolve_manager_phone_for_queue_survives_scalar_manager() -> None:
+    """모바일 큐 담당자 전화: parties.manager 가 이름 문자열·숫자(스칼라)여도 500 없이 판정한다."""
+    from foms.services.estimate_service import normalize_measurement_manager_key
+    from foms.services.erp_mobile_order_display import resolve_manager_phone_for_queue
+
+    phone_map = {normalize_measurement_manager_key("김담당"): "010-1234-5678"}
+    order = SimpleNamespace(manager_name=None)
+
+    # 이름 문자열 → 그 이름으로 설정 연락처를 찾는다.
+    assert (
+        resolve_manager_phone_for_queue(
+            {"manager": "김담당"}, order=order, manager_phone_map=phone_map
+        )
+        == "010-1234-5678"
+    )
+    # 숫자(user id) → 이름 없음 → 빈 값(크래시 없음).
+    assert resolve_manager_phone_for_queue({"manager": 12}, order=order, manager_phone_map=phone_map) == ""
+    # parties 자체가 dict 가 아니어도 크래시 없음.
+    assert resolve_manager_phone_for_queue(["x"], order=order, manager_phone_map=phone_map) == ""  # type: ignore[arg-type]

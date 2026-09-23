@@ -291,6 +291,8 @@ _OPERATIONAL_TOP_LEVEL_KEYS = (
     'naver',
     'pricing',
     'naver_linked',
+    # 실측 방문 체크(서버 소유 — /api/orders/<id>/measurement-visit 만 쓴다; 폼은 렌더·전송하지 않음).
+    'measurement_visits',
 )
 
 

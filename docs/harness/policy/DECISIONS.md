@@ -10,6 +10,12 @@
 
 ---
 
+### [2026-09-23] REV-00 잠금 조회 전에 identity map 의 clean Order 를 비운다
+- **키워드**: revision, execute_order_mutation, lost update, identity map, FOR UPDATE, populate_existing, measurement_visits
+- **결정**: `foms/services/orders/revision.py` `execute_order_mutation` 이 `SELECT … FOR UPDATE` 직전에 `_expire_clean_cached_orders` 로 대상 id 의 **변경 없는(clean)** Order 만 expire 한다. dirty 객체는 건드리지 않는다. `populate_existing` 은 쓰지 않는다.
+- **이유**: 핸들러가 잠금 전에 같은 주문을 읽어 두면(예: 사전 no-op 판정) FOR UPDATE 조회가 identity map 의 그 낡은 객체를 값 갱신 없이 돌려준다. 그러면 mutation 이 낡은 `structured_data` 를 deepcopy 해 통째로 되써서 그 사이 다른 요청의 JSONB 변경이 사라지고(lost update), If-Match 도 낡은 `mutation_version` 과 비교한다. 새 실측 방문 체크 API(`foms/api/orders/measurement_visit.py`) 리뷰에서 재현됐다. `populate_existing` 은 autoflush=False 세션에서 호출자가 이미 고친 dirty 값까지 덮어써 다른 호출부를 깨므로 기각.
+- **영향**: `foms/services/orders/revision.py`, `foms/api/orders/measurement_visit.py`, 회귀 테스트 `tests/domains/test_measurement_visit_api.py::test_stale_identity_map_does_not_lose_other_structured_data_write`. 모든 `execute_order_mutation` 호출부에 적용(expire 된 객체는 잠금 조회 결과로 다시 채워져 추가 쿼리 없음).
+
 ### [2026-09-22] pre_push_smoke 게이트에서 타깃 목록을 없앤다
 - **키워드**: pre-push, smoke, gate, pytest, xdist, ci-red, 인벤토리, concurrency
 - **결정**: 기본 게이트는 손으로 고른 타깃 배열 대신 전체 스위트를 `-n auto --dist loadfile` 로 돌린다(`tests/harness` 만 제외, `-Full` 에서 포함). `tests/visual` 도 목록 없이 통째로 돌리고, 브라우저 픽스처 테스트는 `tests/visual/conftest.py` 의 `pytest_collection_modifyitems` 가 skip 으로 떨어뜨린다. 인벤토리 생성물은 `tools/harness/refresh_inventories.py` 가 먼저 재생성하되 `lineno` 만 밀린 변화는 되돌린다. `ci.yml`·`harness-ci.yml`·`postgres-lane.yml` 에 `concurrency` + `cancel-in-progress` 를 둔다.

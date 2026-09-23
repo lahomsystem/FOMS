@@ -9,6 +9,7 @@ from foms.services.jobs.queue import enqueue_geocode_order_address
 from .calendar import calendar_orders_response
 from .call_log import log_call_response
 from .copy import copy_orders_response
+from .measurement_visit import measurement_visit_response
 from .field_update import update_order_field_response
 from .mobile_delete import mobile_delete_order_response, mobile_restore_order_response
 from .nearby import nearby_orders_response
@@ -104,6 +105,13 @@ def api_order_call_log(order_id):
     return log_call_response(order_id)
 
 
+@orders_bp.route("/orders/<int:order_id>/measurement-visit", methods=["POST"])
+@login_required
+def api_order_measurement_visit(order_id):
+    """실측 방문 체크('실측만 완료'). 권한 ERP_EDIT 은 handler 가 enforce."""
+    return measurement_visit_response(order_id)
+
+
 @orders_bp.route("/orders/<int:order_id>/qr.svg")
 @login_required
 def api_order_qr_svg(order_id):
@@ -114,6 +122,7 @@ def api_order_qr_svg(order_id):
 __all__ = [
     "api_bulk_stage_override",
     "api_order_call_log",
+    "api_order_measurement_visit",
     "api_orders",
     "api_orders_nearby",
     "bulk_stage_override_response",
@@ -126,6 +135,7 @@ __all__ = [
     "enqueue_geocode_order_address",
     "erp_edit_required",
     "log_call_response",
+    "measurement_visit_response",
     "get_today_kst",
     "nearby_orders_response",
     "api_order_qr_svg",

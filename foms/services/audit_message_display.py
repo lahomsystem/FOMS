@@ -230,6 +230,8 @@ ACTION_LABELS: dict[str, str] = {
     "ORDER_TASK_UPDATED": "업무 수정",
     "ORDER_TASK_DELETED": "업무 삭제",
     "ORDER_CALL_LOGGED": "통화 기록",
+    "ORDER_MEASUREMENT_VISIT_MARKED": "실측 방문 체크",
+    "ORDER_MEASUREMENT_VISIT_UNMARKED": "실측 방문 체크 해제",
     # --- 파일 ---
     "FILE_UPLOADED": "파일 업로드",
     "FILE_DELETED": "파일 삭제",
