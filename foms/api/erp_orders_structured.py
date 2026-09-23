@@ -267,6 +267,9 @@ _OPERATIONAL_TOP_LEVEL_KEYS = (
     # WIZ-SEND-01 D4: 마법사 초안에서 등록 전 발송한 이력을 주문으로 승계하는 경로도
     # 같은 보존에 기댄다.
     'alimtalk_measurement',
+    # 공유 링크(도면·계약서·묶음) 알림톡/문자 발송 흔적(서버 소유 — kakao_alimtalk.record_share_history
+    # 만 쓴다). preserve_non_form_keys 일반 규칙으로도 살아남지만 서버 소유 키 문서로 등재한다.
+    'alimtalk_share',
     # 채널 수집 provenance + 채널이 기록한 결제. 폼은 이 셋을 렌더하지도 보내지도 않는다.
     # 보존 목록에 없으면 **주문을 한 번 열어 저장하는 것만으로 조용히 사라진다** —
     # allowlist(structured_form_projection.enforce_form_allowlist)는 들어온 dict 에서

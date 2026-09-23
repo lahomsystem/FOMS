@@ -651,8 +651,12 @@ def _write_structured(order: Order, sd: dict[str, Any]) -> None:
 
 SHARE_HISTORY_KEY = "alimtalk_share"
 
-#: 흔적을 남기는 공유 종류. 도면 단독·견적서 단독은 아직 대상이 아니다(사용자 결정 2026-09-01).
-SHARE_TRACKED_KINDS = ("bundle",)
+#: 흔적을 남기는 공유 종류.
+#: 2026-09-01 사용자 결정은 묶음(bundle)만이었다. 2026-09-23 사용자 결정으로 뒤집는다 —
+#: 도면 단독·계약서(견적서) 단독 링크도 고객에게 나간 메시지라 흔적이 없으면 "보냈는지"를
+#: 화면에서 확인할 길이 없다. 세 종류가 같은 ``sd['alimtalk_share']`` 한 칸(마지막 발송)을
+#: 쓰고 ``kind`` 로 갈린다 — 레코드 모양은 그대로라 기존 묶음 이력과 호환된다(마이그레이션 없음).
+SHARE_TRACKED_KINDS = ("drawing", "estimate", "bundle")
 
 
 def record_share_history(

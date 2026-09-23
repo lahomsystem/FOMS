@@ -786,6 +786,34 @@ window.erpSetStatus = erpSetStatus;
  * @param {string} message 보여 줄 문구.
  * @returns {void}
  */
+/**
+ * 서버만 쓰는 알림톡 발송 이력 키 — 화면 사본에는 남기되 저장 PUT 에는 싣지 않는다.
+ *
+ * 2026-09-23 사용자 제보: 저장(자동 저장 포함) 직후 화면 사본을 폼 수집본으로 갈아끼우면서
+ * 이 두 키가 빠져, 발송 흔적 칩이 새로고침 전까지 '아직 안 보냄'으로 되돌아갔다.
+ * preservedTopLevelKeys(PUT 에 되실어 보내는 목록)에 넣지 **않는** 이유: 서버는 폼이 보낸
+ * 값을 그대로 받으므로, 저장 왕복 사이에 서버가 새로 쓴 이력(자동 발송 등)을 화면의 낡은
+ * 사본이 덮는다. alimtalk_measurement 는 중복 발송 멱등 판정(dedupe_key)이 서 있는 자리라
+ * 덮이면 같은 예약 안내가 한 번 더 나간다. 서버 쪽 보존은 _OPERATIONAL_TOP_LEVEL_KEYS 와
+ * structured_form_projection.preserve_non_form_keys 가 한다(키가 빠져 오면 옛 값을 되살림).
+ */
+var ERP_LOCAL_ONLY_TRACE_KEYS = ['alimtalk_measurement', 'alimtalk_share'];
+
+/**
+ * 저장 직후 새 화면 사본(next)에 직전 사본(prev)의 서버 소유 발송 이력을 옮겨 담는다.
+ *
+ * @param {Object} next 저장에 쓴 폼 수집본(새 화면 사본이 된다, in-place).
+ * @param {Object|null} prev 저장 완료 시점의 화면 사본(그 사이 발송 응답이 갱신했을 수 있다).
+ */
+function erpCarryLocalOnlyKeys(next, prev) {
+    if (!next || typeof next !== 'object' || !prev || typeof prev !== 'object') return;
+    ERP_LOCAL_ONLY_TRACE_KEYS.forEach(function (key) {
+        if (prev[key] == null || Object.prototype.hasOwnProperty.call(next, key)) return;
+        next[key] = prev[key];
+    });
+}
+window.erpCarryLocalOnlyKeys = erpCarryLocalOnlyKeys;
+
 function erpNotifyAsReceiveResult(message) {
     const hasToastHost = !!document.getElementById('foms-alpine-toast-root')
         && !!(window.Alpine && window.Alpine.store && window.Alpine.store('fomsToast'));
@@ -2877,6 +2905,7 @@ async function erpSaveStructuredOnce(opts = {}) {
             if (wasDraftMode || data.draft_cleared) {
                 structured_data.meta.draft = false;
             }
+            erpCarryLocalOnlyKeys(structured_data, window.__erpLastStructuredData);
             window.__erpLastStructuredData = structured_data;
         }
         if (typeof window.erpInvalidateEstimateCache === 'function') {

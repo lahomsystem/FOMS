@@ -447,16 +447,18 @@ def test_bundle_send_records_share_trace(client, db, ata_stub, clock):
     assert record == last
 
 
-def test_drawing_send_leaves_no_share_trace(client, db, ata_stub, clock):
-    """음성 대조군: 추적 대상이 아닌 종류(도면 단독)는 아무것도 안 남긴다."""
-    order_id = _mk_order().id
-    _login(client, 'trace2')
-    share_id, token = _mk_share(order_id, kind='drawing')
-
-    resp = _send(client, share_id, token)
-
-    assert resp.status_code == 200 and resp.get_json()['data']['last_share'] is None
-    assert 'alimtalk_share' not in (db_session.get(Order, order_id).structured_data or {})
+@pytest.mark.parametrize('kind', ['drawing', 'estimate'])
+def test_single_kind_send_records_share_trace(client, db, ata_stub, clock, kind):
+    """사용자 결정 2026-09-23(09-01 뒤집음): 단독 링크도 흔적을 남긴다(모양은 묶음과 같다)."""
+    order_id, uid = _mk_order().id, _login(client, f'trace2{kind}')
+    resp = _send(client, *_mk_share(order_id, kind=kind))
+    last = resp.get_json()['data']['last_share']
+    assert resp.status_code == 200 and last['kind'] == kind and last['channel'] == 'alimtalk'
+    assert last['error'] is None and last['sent_at'] and last['sent_by'] == uid
+    assert set(last) == {'sent_at', 'kind', 'channel', 'share_id', 'error', 'sent_by',
+                         'sent_by_name'}  # 묶음과 같은 모양
+    record = (db_session.get(Order, order_id).structured_data or {}).get('alimtalk_share')
+    assert record == last
 
 
 def test_failed_bundle_send_records_reason(client, db, ata_stub, clock, monkeypatch):
