@@ -1,0 +1,91 @@
+/**
+ * 채널톡 PUSH 발송 흔적 칩 (2026-09-23) — erp-channel-push-trace.js 가 그린다.
+ *
+ * 모양은 알림톡 흔적 칩(erp-alimtalk-trace.css)과 맞춘다(알약·점·구분점·시각 숫자폭).
+ * 색은 PUSH 버튼 계열(보라)로 갈라, 한 줄에 알림톡 칩과 섞여도 무엇을 보냈는지 구분된다.
+ */
+
+.erp-channel-push-trace {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  max-width: 100%;
+  padding: 0.15rem 0.6rem 0.15rem 0.4rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.erp-channel-push-trace__dot {
+  flex: none;
+  width: 0.95rem;
+  height: 0.95rem;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.6rem;
+  color: #fff;
+}
+
+.erp-channel-push-trace__sep {
+  opacity: 0.45;
+  font-weight: 400;
+}
+
+.erp-channel-push-trace__when,
+.erp-channel-push-trace__more {
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 보냈다 */
+.erp-channel-push-trace--sent {
+  background: #f5f3ff;
+  border-color: color-mix(in srgb, #7c3aed 30%, transparent);
+  color: #6d28d9;
+}
+
+.erp-channel-push-trace--sent .erp-channel-push-trace__dot {
+  background: #7c3aed;
+}
+
+/* 아직 안 보냄(PC 전용 — 모바일은 칩을 만들지 않는다) */
+.erp-channel-push-trace--none {
+  border-style: dashed;
+  border-color: var(--foms-border-subtle, #dee2e6);
+  color: var(--foms-text-muted, #6c757d);
+  font-weight: 500;
+}
+
+.erp-channel-push-trace--none .erp-channel-push-trace__dot {
+  background: transparent;
+  border: 1px dashed var(--foms-text-muted, #6c757d);
+}
+
+.erp-channel-push-trace-slot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+/* 모바일: 액션바(flex-wrap)에서 한 줄을 통째로 차지해 버튼 위에 눕는다. */
+.erp-channel-push-trace-slot--mobile {
+  flex: 1 0 100%;
+  flex-wrap: nowrap;
+  padding-bottom: 0.15rem;
+}
+
+/* 보낸 적이 없으면 JS 가 자리를 비워 둔다 — 빈 줄이 좁은 액션바를 차지하지 않게 접는다
+   (2026-09-21 사용자 제보: 미발송 칩 때문에 모바일 액션바가 답답하다). */
+.erp-channel-push-trace-slot:empty {
+  display: none;
+}

@@ -231,6 +231,9 @@ def translate_event_type_to_korean(event_type: str | None) -> str:
         "FIELD_UPDATED": "필드 수정",
         "ALIMTALK_SENT": "알림톡 발송",
         "ALIMTALK_FAILED": "알림톡 실패",
+        # 채널톡 PUSH(channel_integration._PUSH_EVENT_TYPE). 미등재면 '기타 변경' 으로
+        # 떨어져 PUSH 를 보냈는지 이력에서 찾을 수 없었다(2026-09-23).
+        "CHANNELTALK_PUSH": "채널톡 PUSH 발송",
         "COMMENT_ADDED": "메모 추가",
         "ATTACHMENT_ADDED": "첨부파일 추가",
         "ATTACHMENT_DELETED": "첨부파일 삭제",
@@ -361,6 +364,34 @@ def translate_value_to_korean(target: str, value: Any) -> str:
         return _translate_drawing_status(value)
 
     return str(value)
+
+
+#: 채널톡 PUSH 종류(payload ``push_kind``) → 화면 버튼과 같은 이름.
+#: 발송 흔적 칩(static/js/orders/erp-channel-push-trace.js)과 같은 표기를 쓴다.
+_CHANNEL_PUSH_KIND_LABELS: dict[str, str] = {
+    "measurement": "영발 PUSH",
+    "measure_room": "실측 PUSH",
+    "drawing": "발주 PUSH",
+    "drawing_room": "도면방 PUSH",
+    "estimate": "견적서 PUSH",
+    "as": "AS PUSH",
+}
+
+
+def _describe_channel_push(payload: dict[str, Any]) -> str:
+    """채널톡 PUSH 1건을 "어느 방으로 보냈나(재전송인지)" 문장으로 만든다.
+
+    Args:
+        payload: 이벤트 payload(``push_kind``·``is_resend``).
+
+    Returns:
+        사람이 읽는 한 문장.
+    """
+    kind = str(payload.get("push_kind") or "").strip()
+    label = _CHANNEL_PUSH_KIND_LABELS.get(kind, "PUSH")
+    if payload.get("is_resend"):
+        return f"채널톡 {label}를 다시 보냈습니다(재전송)"
+    return f"채널톡 {label}를 보냈습니다"
 
 
 def _describe_naver_link_change(event_type: str, payload: dict[str, Any]) -> str:
@@ -559,6 +590,9 @@ def generate_change_description(
     if event_type in ("NAVER_CANCEL_APPROVED", "NAVER_RETURN_APPROVED"):
         return _describe_naver_claim_approve(event_type, payload)
 
+    if event_type == "CHANNELTALK_PUSH":
+        return _describe_channel_push(payload)
+
     if event_type == "CHANGE_REVERTED":
         return f"이전 변경사항을 되돌렸습니다 ({translate_target_to_korean(payload.get('target', ''))})"
 
@@ -643,6 +677,9 @@ def format_timeline_description(event_type: str, payload: dict[str, Any]) -> str
         left = from_label or "-"
         right = to_label or "-"
         return f"{left} -> {right}"
+
+    if event_type == "CHANNELTALK_PUSH":
+        return _describe_channel_push(payload)
 
     for key in ("message", "summary", "reason", "status", "value"):
         value = payload.get(key)

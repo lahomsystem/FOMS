@@ -51,16 +51,29 @@
     }
 
     /**
-     * 전송 성공 후 클라이언트 structured_data 푸시 플래그 갱신.
+     * 전송 성공 후 클라이언트 structured_data 푸시 플래그 갱신 + 발송 흔적 칩 다시 그리기.
+     *
+     * ``sentAt`` 은 **실제로 방금 보낸** 경로만 넘긴다. '재전송 메모 필요' 응답은 이미 보낸
+     * 기록이 있다는 뜻일 뿐이라 시각을 바꾸면 칩이 거짓 발송 시각을 보여 준다.
+     *
      * @param {string} pushKind
+     * @param {string} [sentAt] 방금 보낸 시각(ISO). 없으면 pushed 플래그만 올린다.
      */
-    function erpMarkChannelPushSent(pushKind) {
+    function erpMarkChannelPushSent(pushKind, sentAt) {
         const key = erpChannelPushHistoryKey(pushKind);
         if (!window.__erpLastStructuredData || typeof window.__erpLastStructuredData !== 'object') {
             window.__erpLastStructuredData = {};
         }
         const prev = window.__erpLastStructuredData[key] || {};
-        window.__erpLastStructuredData[key] = Object.assign({}, prev, { pushed: true });
+        const next = Object.assign({}, prev, { pushed: true });
+        if (sentAt) {
+            next.sent_at = sentAt;
+            next.is_modified = !!prev.pushed;
+        }
+        window.__erpLastStructuredData[key] = next;
+        document.dispatchEvent(new CustomEvent('foms:channel-push-trace-update', {
+            detail: { pushKind: pushKind },
+        }));
     }
 
     let _pendingResolve = null;
