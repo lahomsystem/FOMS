@@ -86,8 +86,28 @@
         <div id="send-result" class="mt-3 d-none"></div>
       </div>
     </div>
+
+    {# 영업(옛 표기 MEASURE 포함)별 휴대폰 알림 구독 상태. 표 내용은
+       js/admin/push-subscription-status.js 가 GET /erp/api/notifications/push/subscriptions-status
+       로 받아 textContent 로만 그린다. #}
+    <div class="card shadow-sm mt-4">
+      <div class="card-header d-flex align-items-center gap-2">
+        <i class="fas fa-mobile-screen-button text-primary" aria-hidden="true"></i>
+        <h5 class="mb-0">영업 휴대폰 알림 상태</h5>
+        <button type="button" class="btn btn-sm btn-outline-secondary ms-auto" data-push-status-reload>
+          <i class="fas fa-rotate-right" aria-hidden="true"></i> 새로고침
+        </button>
+      </div>
+      <div class="card-body">
+        <p class="text-muted small mb-2">홈 화면 설치·알림 허용을 마친 사람은 '구독 기기'가 1 이상입니다. '마지막 발송'은 서버가 이 사람에게 푸시를 보낸 마지막 시각입니다.</p>
+        <div class="table-responsive" data-push-status-table>
+          <p class="text-muted small mb-0" data-push-status-message>불러오는 중...</p>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
+<script src="{{ url_for('static', filename='js/admin/push-subscription-status.js') }}?v=20260923a" defer></script>
 
 <script>
 (function() {

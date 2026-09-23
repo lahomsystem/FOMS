@@ -75,6 +75,12 @@
       "reason": "통화 로그 append 를 REV-00 execute_order_mutation 경유로 version bump 하며 수행한다."
     },
     {
+      "path": "foms/api/orders/measurement_visit.py",
+      "classification": "CANONICAL",
+      "owner": "MEASUREMENT-VISIT-01",
+      "reason": "실측 방문 체크를 REV-00 execute_order_mutation 경유로 version bump 하며 수행한다."
+    },
+    {
       "path": "foms/api/shipment/packing.py",
       "classification": "CANONICAL",
       "owner": "PACK-01",

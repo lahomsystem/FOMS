@@ -14,11 +14,16 @@ from sqlalchemy import String, cast, or_, and_, func
 from foms.services.common.erp_mine_filter import erp_mine_only_from_request
 from foms.services.measurement.drawing_transfer_cta import build_drawing_transfer_ctas
 from foms.services.orders.complete_path_policy import build_complete_ctas
+from foms.services.orders.order_mutation_policy import POLICY_REGISTRY, evaluate_policy
 from foms.services.orders.state_axes import read_main_stage
 from foms.services.measurement_time import (
     format_minutes_hm,
     measurement_time_minutes_of,
-    measurement_time_sort_key,
+)
+from foms.services.measurement.visit_check import (
+    build_measurement_glance_groups,
+    is_visit_marked,
+    normalize_visit_date,
 )
 from foms.services.erp_permissions import (
     build_mine_sql_filter,
@@ -461,6 +466,9 @@ def erp_measurement_dashboard():
         resolve_shell_variant_cached(current_user.id if current_user else None)
     )
     mobile_queue_rows = []
+    # 실측 방문 체크(스펙 2026-09-23): 단일 날짜 모드에서 엄격한 ISO 날짜일 때만 체크 기준일이
+    # 된다. 기간 모드의 selected_date 는 검증되지 않은 값일 수 있어 체크를 모두 끈다.
+    _visit_date = normalize_visit_date(selected_date) if (use_single_day and not use_range) else None
     if mobile_v2_active:
         # W2-3(N+1 제거): 행당 ~5쿼리(첨부/미리보기/타임라인/담당자) 대신 배치 1회 조회.
         # 출고 대시보드(build_shipment_mobile_queue_rows)와 동일 패턴. mobile_v2 비활성이면
@@ -478,26 +486,14 @@ def erp_measurement_dashboard():
             # 큐 카드(erp_mobile_queue_card_v2.html:72)는 이미 매크로를 부른다 -
             # 이 키를 채우는 순간 실측 모바일 카드에도 마크가 뜬다(템플릿 편집 없음).
             _row['channel_source'] = getattr(_o, 'channel_source', None)
+            _row['measurement_visit_done'] = bool(_visit_date) and is_visit_marked(
+                _o.structured_data, _visit_date
+            )
             mobile_queue_rows.append(_row)
+    # 한눈 목록의 담당자 묶음: 행 순서 그대로 연속 구간만 묶는다(재정렬 금지·새 쿼리 0).
+    mobile_glance_groups = build_measurement_glance_groups(mobile_queue_rows)
 
-    # '다음 방문' 히어로: 방문시각 정렬 SSOT(measurement_time_sort_key)로 첫 미완료
-    # 건을 고른다. 템플릿이 자유 텍스트를 사전순 비교하던 예전 방식은 "10시" < "4시"
-    # 같은 오판을 내 실제 다음 방문지와 다른 사람을 가리켰다(ROUTE-02).
-    mobile_hero_row = None
-    mobile_hero_time_hm = None
-    if mobile_queue_rows:
-        _paired = sorted(
-            zip(rows, mobile_queue_rows),
-            key=lambda pair: measurement_time_sort_key(pair[0]),
-        )
-        _hero_pair = next(
-            (p for p in _paired if not getattr(p[0], 'measurement_completed', False)),
-            _paired[0],
-        )
-        mobile_hero_row = _hero_pair[1]
-        mobile_hero_time_hm = format_minutes_hm(measurement_time_minutes_of(_hero_pair[0]))
-
-    # v3 영업 홈 '오늘 동선'(스펙 §6.3)이 실측 카드마다 방문시각을 찍는다. 히어로와 같은
+    # v3 영업 홈 '오늘 동선'(스펙 §6.3)이 실측 카드마다 방문시각을 찍는다. 방문시각
     # SSOT(measurement_time)를 쓰고 이미 로드한 rows 만 재사용한다 — 신규 쿼리 0.
     # 템플릿이 자유 텍스트를 사전순 비교하면 "10시" < "4시" 오판이 재발한다(ROUTE-02).
     mobile_queue_time_hm = {
@@ -565,8 +561,8 @@ def erp_measurement_dashboard():
             main_rows_truncated=main_rows_truncated,
             main_rows_display_cap=MEASUREMENT_MAIN_DISPLAY_CAP,
             mobile_queue_rows=mobile_queue_rows,
-            mobile_hero_row=mobile_hero_row,
-            mobile_hero_time_hm=mobile_hero_time_hm,
+            mobile_glance_groups=mobile_glance_groups,
+            measurement_visit_date=_visit_date or '',
             mobile_queue_time_hm=mobile_queue_time_hm,
             sales_delivery_by_ref=_sales_delivery_by_ref,
             tablet_card_view=tablet_card_view,
@@ -580,6 +576,8 @@ def erp_measurement_dashboard():
             measurement_manager_color_map=measurement_manager_color_map,
             today_date=today_date,
             can_edit_erp=can_edit_erp(current_user),
+            # 체크 버튼 활성 = 체크 API 와 같은 정책(ERP_EDIT). can_edit_erp 와 규칙이 달라 따로 넘긴다.
+            can_mark_measurement_visit=evaluate_policy(POLICY_REGISTRY['ERP_EDIT'], current_user).allowed,
             erp_mine_only=mine_filter_active,
             bulk_dispatch=_naver_dispatch_preview(selected_date, today_date),
             naver_bulk_dispatch_enabled=is_naver_bulk_dispatch_enabled(),

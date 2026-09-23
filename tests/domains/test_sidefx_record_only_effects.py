@@ -137,6 +137,7 @@ def test_registered_handler_set_is_closed(monkeypatch) -> None:
     registered = _registered_effect_types()
     assert set(registered) == {
         "STORAGE_DELETE", "GEOCODE", "ALIMTALK_SEND",
+        "MEAS_SAME_DAY_ALERT", "NOTIFICATION",
         CHANNEL_PUSH_RECORDED_EFFECT_TYPE, STAGE_NOTIFICATION_EFFECT_TYPE,
     }
     assert registered[STAGE_NOTIFICATION_EFFECT_TYPE].__name__ == "handle_unimplemented_consumer"

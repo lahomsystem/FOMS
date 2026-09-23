@@ -38,6 +38,20 @@
       </div>
     </div>
   </div>
+  {# 휴대폰 알림 받는 3단계 안내(정적 문구). 지금 단계 강조·노출 여부는 mobile-push.js
+     applySteps 가 정한다 — 버튼·스크립트는 넣지 않는다(버튼은 아래 CTA 영역에 JS 가 그린다). #}
+  <div
+    class="erp-mobile-push-cta"
+    data-foms-push-steps
+    hidden
+    aria-label="휴대폰 알림 받는 3단계">
+    <p class="erp-mobile-push-cta__guide-title">휴대폰 알림 받는 3단계</p>
+    <ol class="erp-mobile-push-cta__guide-steps">
+      <li data-foms-push-step="install">홈 화면에 추가 — 아이폰은 사파리 공유 버튼 → '홈 화면에 추가' 뒤 아이콘으로 열기</li>
+      <li data-foms-push-step="allow">알림 허용 — 아래 '기기 알림 켜기'를 누르고 '허용'</li>
+      <li data-foms-push-step="test">시험 알림 받기 — 아래 '시험 알림 받기'로 휴대폰에 오는지 확인</li>
+    </ol>
+  </div>
   {# Phase 3B: 기기(Web Push) 알림 CTA 하단 고정 영역. 내용은 mobile-push.js 가
      상태(mobile-state)에 따라 렌더한다 — 인라인 버튼/스크립트 없음(위임 JS 처리). #}
   <div

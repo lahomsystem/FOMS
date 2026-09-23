@@ -214,6 +214,8 @@ def translate_event_type_to_korean(event_type: str | None) -> str:
         "MEASUREMENT_COMPLETED": "실측 완료",
         "MEASUREMENT_DATE_CHANGED": "실측 일정 변경",
         "MEASUREMENT_TIME_CHANGED": "실측 시간 변경",
+        "MEASUREMENT_VISIT_MARKED": "실측 방문 체크",
+        "MEASUREMENT_VISIT_UNMARKED": "실측 방문 체크 해제",
         "CONSTRUCTION_DATE_CHANGED": "시공 일정 변경",
         "OWNER_TEAM_CHANGED": "담당팀 변경",
         "AS_RECOMMENDATION_APPLIED": "AS 권고 적용",
@@ -234,6 +236,7 @@ def translate_event_type_to_korean(event_type: str | None) -> str:
         # 채널톡 PUSH(channel_integration._PUSH_EVENT_TYPE). 미등재면 '기타 변경' 으로
         # 떨어져 PUSH 를 보냈는지 이력에서 찾을 수 없었다(2026-09-23).
         "CHANNELTALK_PUSH": "채널톡 PUSH 발송",
+        "MEASURE_SAME_DAY_ADDED": "당일 실측 긴급 알림",
         "COMMENT_ADDED": "메모 추가",
         "ATTACHMENT_ADDED": "첨부파일 추가",
         "ATTACHMENT_DELETED": "첨부파일 삭제",
@@ -565,6 +568,10 @@ def generate_change_description(
         return "실측을 완료했습니다"
     if event_type == "MEASUREMENT_DATE_CHANGED":
         return "실측 일정을 변경했습니다"
+    if event_type == "MEASUREMENT_VISIT_MARKED":
+        return "실측 방문을 체크했습니다"
+    if event_type == "MEASUREMENT_VISIT_UNMARKED":
+        return "실측 방문 체크를 해제했습니다"
     if event_type == "CONSTRUCTION_DATE_CHANGED":
         return "시공 일정을 변경했습니다"
     if event_type == "OWNER_TEAM_CHANGED":

@@ -108,7 +108,10 @@ def resolve_notification_recipient_user_ids(
 
     conditions = []
     if team:
-        conditions.append(func.upper(User.team) == team)
+        # MEASURE 표기 계정도 영업(SALES)으로 받는다 — recipients 팀 경로와 같은 집합(배지 무효화 일치).
+        from foms.services.notifications.recipients import expand_team_codes
+
+        conditions.append(func.upper(User.team).in_(expand_team_codes(team)))
     if manager_name:
         conditions.append(User.name == manager_name)
     if include_admin:
@@ -394,6 +397,91 @@ def api_notifications_badge():
         return jsonify({"success": True, "count": count})
     except Exception:
         return jsonify({"success": True, "count": 0})
+
+
+# 끊긴 동안 온 확인창(interrupt) 알림을 다시 띄우기 위한 재조회 대상 유형.
+# 도면 수정 요청은 대상이 아니다(도면 확인창 동작 불변).
+_PENDING_INTERRUPT_TYPES = ("MEASURE_SAME_DAY_ADDED",)
+_PENDING_INTERRUPT_LIMIT = 5
+
+
+@notifications_bp.route("/notifications/pending-interrupts", methods=["GET"])
+@login_required
+def api_notifications_pending_interrupts():
+    """내(본인) 미확인 interrupt 알림 — 재연결·화면 복귀 때 확인창을 다시 띄운다.
+
+    조건: 본인 state, ack·보관 안 됨, 오늘(KST 0시) 이후 생성, 오래된 것부터 최대 5건.
+    화면 payload 는 socket emit 과 같은 빌더(`build_measure_same_day_payload`) 하나로 만든다.
+    """
+    try:
+        from foms.services.datetime_kst import get_today_kst, to_utc_naive
+        from foms.services.notifications.measure_same_day import (
+            build_measure_same_day_payload,
+        )
+        from foms.services.order_date_sync import collect_order_schedule_date_specs
+
+        user_id = session.get("user_id")
+        if user_id is None:
+            return jsonify({"success": True, "data": {"items": []}, "error": None})
+
+        today_start_utc = to_utc_naive(
+            dt_mod.datetime.combine(get_today_kst(), dt_mod.time.min),
+            assume_utc_if_naive=False,
+        )
+        db = get_db()
+        notifications = (
+            db.query(Notification)
+            .join(NotificationUserState, NotificationUserState.notification_id == Notification.id)
+            .filter(
+                NotificationUserState.user_id == user_id,
+                NotificationUserState.ack_at.is_(None),
+                NotificationUserState.archived_at.is_(None),
+                Notification.notification_type.in_(_PENDING_INTERRUPT_TYPES),
+                Notification.created_at >= today_start_utc,
+            )
+            .order_by(Notification.created_at.asc(), Notification.id.asc())
+            .limit(_PENDING_INTERRUPT_LIMIT * 4)  # 아래에서 지난 주문을 거른 뒤 5건으로 자른다
+            .all()
+        )
+        order_ids = {int(n.order_id) for n in notifications if n.order_id}
+        orders_by_id = {}
+        if order_ids:
+            orders_by_id = {
+                o.id: o for o in db.query(Order).filter(Order.id.in_(order_ids)).all()
+            }
+
+        today_iso = get_today_kst().isoformat()
+
+        def _still_today(order) -> bool:
+            # 삭제·취소됐거나 실측일에서 오늘이 빠진 주문은 다시 띄우지 않는다.
+            if getattr(order, "deleted_at", None):
+                return False
+            if str(getattr(order, "status", "") or "").upper() in ("DELETED", "CANCELLED"):
+                return False
+            return any(
+                spec.get("kind") == "measurement" and str(spec.get("date") or "") == today_iso
+                for spec in collect_order_schedule_date_specs(order)
+            )
+
+        items = []
+        for n in notifications:
+            order = orders_by_id.get(n.order_id)
+            if order is None or not _still_today(order):
+                continue
+            items.append(
+                build_measure_same_day_payload(
+                    order,
+                    notification_id=n.id,
+                    added_by=n.created_by_name or "",
+                    added_at=n.created_at,
+                )
+            )
+            if len(items) >= _PENDING_INTERRUPT_LIMIT:
+                break
+        return jsonify({"success": True, "data": {"items": items}, "error": None})
+    except Exception as e:
+        log_handled_exception()
+        return jsonify({"success": False, "data": None, "error": str(e)}), 500
 
 
 @notifications_bp.route("/notifications/<int:notification_id>/read", methods=["POST"])

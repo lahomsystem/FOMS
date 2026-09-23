@@ -1,17 +1,11 @@
 {% from 'partials/shared/erp_mobile_queue_card_v2.html' import render_queue_card_v2 %}
 {% from 'partials/shared/channel_mark.html' import channel_mark %}
 
-{# A5: 다음 실측 히어로 — 기본 진입 시 mobile_queue_rows = 당일(today_date) 실측 큐.
-   '다음 방문' 판정은 뷰(dashboard.py)가 방문시각 정렬 SSOT
-   (measurement_time_sort_key)로 계산해 mobile_hero_row 로 내려준다. 여기서 시간
-   문자열을 사전순 비교하면 "10시" < "4시" 처럼 뒤집혀 실제 다음 방문지와 다른
-   사람을 가리킨다(ROUTE-02). 뷰가 못 내려준 표면은 기존대로 첫 행 폴백. #}
 {% set _mrows = mobile_queue_rows or [] %}
 {% set _mdone_ns = namespace(n=0) %}
 {% for _o in _mrows %}
   {% if _o.measurement_completed %}{% set _mdone_ns.n = _mdone_ns.n + 1 %}{% endif %}
 {% endfor %}
-{% set _mhero = mobile_hero_row if mobile_hero_row else (_mrows[0] if _mrows else None) %}
 
 {% if _mrows %}
 <div class="foms-visit-summary" aria-label="오늘 실측 진행 요약">
@@ -23,45 +17,42 @@
 </div>
 {% endif %}
 
-{% if _mhero %}
-  {% set _mh_time = ((_mhero.structured_data.get('schedule') or {}).get('measurement') or {}).get('time') %}
-  {% set _mh_phone = (_mhero.phone or '')|replace('-', '')|replace(' ', '') %}
-  {% set _mh_items = (_mhero.structured_data.get('items') if _mhero.structured_data else None) or [] %}
-  {% set _mh_item = _mh_items[0] if _mh_items else {} %}
-  {% set _mh_pn = _mh_item.get('product_name') or _mh_item.get('name') %}
-  {% set _mh_w = _mh_item.get('spec_width') or _mh_item.get('width') %}
-  {% set _mh_d = _mh_item.get('spec_depth') or _mh_item.get('depth') %}
-  {% set _mh_h = _mh_item.get('spec_height') or _mh_item.get('height') %}
-  {% set _mh_color = _mh_item.get('color') %}
-  {% if _mhero.lat and _mhero.lng %}
-    {% set _mh_nav = 'https://map.kakao.com/link/to/' ~ (_mhero.customer_name or '방문지')|urlencode ~ ',' ~ _mhero.lat|string ~ ',' ~ _mhero.lng|string %}
-  {% elif _mhero.address and _mhero.address != '-' %}
-    {% set _mh_nav = 'https://map.kakao.com/link/search/' ~ _mhero.address|urlencode %}
-  {% else %}
-    {% set _mh_nav = '' %}
-  {% endif %}
-  <div class="foms-v2dh-hero" data-st="measure" aria-label="다음 실측">
-    <div class="foms-v2dh-hero__eyebrow"><i class="fas fa-location-dot" aria-hidden="true"></i> 다음 방문{% if _mh_time %} · <span>{{ _mh_time }} 방문</span>{% endif %}</div>
-    <div class="foms-v2dh-hero__title">{{ _mhero.customer_name or '-' }}
-      {{ channel_mark(_mhero.channel_source|default(none, true)) }}</div>
-    {% if _mh_pn or _mh_w or _mh_d or _mh_h or _mh_color %}
-    <div class="foms-hero-spec" aria-label="제품 규격">
-      {% if _mh_pn %}<span class="foms-hero-spec__name">{{ _mh_pn }}</span>{% endif %}
-      {% if _mh_w or _mh_d or _mh_h %}<span class="foms-hero-spec__dims">W{{ _mh_w or '-' }}×D{{ _mh_d or '-' }}×H{{ _mh_h or '-' }}</span>{% endif %}
-      {% if _mh_color %}<span class="foms-hero-spec__color">{{ _mh_color }}</span>{% endif %}
+{% if _mrows %}
+  {% set _gv_groups = mobile_glance_groups|default([], true) %}
+  {% set _gv_date = measurement_visit_date|default('', true) %}
+  {% set _gv_can = (can_mark_measurement_visit|default(false)) and _gv_date %}
+  {% set _gv_done = namespace(n=0) %}{% for _o in _mrows %}{% if _o.measurement_visit_done %}{% set _gv_done.n = _gv_done.n + 1 %}{% endif %}{% endfor %}
+  <section class="foms-meas-glance" data-meas-glance aria-label="실측 한눈 목록" data-meas-glance-date="{{ _gv_date }}">
+    <div class="foms-meas-glance__head">
+      <h2 class="foms-meas-glance__title">{% if selected_date == today_date %}오늘{% elif selected_date and selected_date|length == 10 %}{{ selected_date[5:7]|int }}월 {{ selected_date[8:10]|int }}일{% endif %} 실측{% if erp_mine_only %} · 내 일정{% endif %}</h2>
+      <span class="foms-meas-glance__count" data-meas-glance-count>{{ _mrows|length }}곳 · 실측 {{ _gv_done.n }} · 남은 {{ _mrows|length - _gv_done.n }}</span>
+      <button type="button" class="foms-meas-glance__save" data-meas-export-image><i class="fas fa-file-image" aria-hidden="true"></i> 이미지 저장</button>
     </div>
-    {% endif %}
-    {% if _mhero.address and _mhero.address != '-' %}
-    <div class="foms-v2dh-hero__meta">
-      <span class="foms-v2dh-hero__addr">{{ _mhero.address }}</span>
+    <p class="foms-meas-glance__msg" data-meas-glance-msg role="status" aria-live="polite" hidden></p>
+    {% for g in _gv_groups %}
+    {% set _gp = (g.manager_phone or '')|replace('-', '')|replace(' ', '') %}
+    <div class="foms-meas-glance__grp" data-meas-glance-grp>
+      <div class="foms-meas-glance__gname">
+        {% if _gp and _gp != '-' %}<a class="foms-meas-glance__mgr" href="tel:{{ _gp }}" data-queue-card-call-link>{{ g.manager_name }}</a>{% else %}<span class="foms-meas-glance__mgr-text">{{ g.manager_name }}</span>{% endif %}
+        <progress class="foms-meas-glance__prog" value="{{ g.done }}" max="{{ g.total }}" aria-hidden="true"></progress>
+        <span class="foms-meas-glance__gcount" data-meas-glance-grp-count>실측 {{ g.done }}/{{ g.total }}</span>
+        {% if _gp and _gp != '-' %}<a class="foms-meas-glance__call" href="tel:{{ _gp }}" aria-label="{{ g.manager_name }} 전화"><i class="fas fa-phone" aria-hidden="true"></i></a>{% endif %}
+      </div>
+      {% for o in g.rows %}
+      {% set _t = (((o.structured_data or {}).get('schedule') or {}).get('measurement') or {}).get('time') %}
+      <div class="foms-meas-glance__row{% if o.measurement_visit_done %} is-done{% endif %}" data-meas-glance-row="{{ o.id }}">
+        <button type="button" class="foms-meas-glance__check" data-meas-visit-toggle="{{ o.id }}" data-meas-visit-date="{{ _gv_date }}" aria-pressed="{{ 'true' if o.measurement_visit_done else 'false' }}" aria-label="{{ o.customer_name or '고객' }} 실측 체크"{% if not _gv_can %} disabled{% endif %}><i class="fas fa-check" aria-hidden="true"></i></button>
+        <a class="foms-meas-glance__go" href="#meas-card-{{ o.id }}" data-meas-glance-go="{{ o.id }}">
+          <span class="foms-meas-glance__name">{{ o.customer_name or '-' }} {{ channel_mark(o.channel_source|default(none, true)) }}</span>
+          {% if o.address and o.address != '-' %}<span class="foms-meas-glance__addr">{{ o.address }}</span>{% endif %}
+          {% if o.product_subtitle %}<span class="foms-meas-glance__prod">{{ o.product_subtitle }}</span>{% endif %}
+          {% if _t %}<span class="foms-meas-glance__time" data-daypart="{{ _t|meas_daypart or '' }}">{{ _t }}</span>{% endif %}
+        </a>
+      </div>
+      {% endfor %}
     </div>
-    {% endif %}
-    <div class="foms-hero-navrow">
-      {% if _mh_nav %}<a class="foms-hero-nav" href="{{ _mh_nav }}" target="_blank" rel="noopener" aria-label="내비 시작"><i class="fas fa-diamond-turn-right" aria-hidden="true"></i> 내비 시작</a>{% endif %}
-      {% if _mh_phone and _mh_phone != '-' %}<a class="foms-hero-callbtn" href="tel:{{ _mh_phone }}" aria-label="{{ _mhero.customer_name or '고객' }} 전화"><i class="fas fa-phone" aria-hidden="true"></i></a>{% endif %}
-      <a class="foms-hero-detailbtn" href="{{ url_for('erp_dashboard.erp_order_mobile_detail', order_id=_mhero.id, return_to='erp_measurement_dashboard') }}" aria-label="{{ _mhero.customer_name or '고객' }} 상세"><i class="fas fa-list-ul" aria-hidden="true"></i> 상세</a>
-    </div>
-  </div>
+    {% endfor %}
+  </section>
 {% else %}
   {% set _mnext_ns = namespace(date='', count=0) %}
   {% for _it in (measurement_panel_dates or []) %}
@@ -94,6 +85,7 @@
       {% for o in mobile_queue_rows %}
         <div
           class="erp-measurement-mobile-card"
+          id="meas-card-{{ o.id }}"
           data-measurement-mobile-order-id="{{ o.id }}"
           data-address="{{ o.address or '' }}"
           data-phone="{{ o.phone or '' }}"

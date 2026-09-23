@@ -22,6 +22,7 @@ from typing import Dict, Iterable, List, Optional, Tuple
 
 from sqlalchemy import func
 
+from foms.services.orders.order_mutation_policy import _TEAM_NORMALIZE, normalize_team
 from models import (
     NotificationEvent,
     NotificationEventType,
@@ -38,6 +39,30 @@ _SOURCE_ORDER = (
     NotificationRecipientSource.TARGET_MANAGER_NAME,
     NotificationRecipientSource.TARGET_USER,
 )
+
+
+def expand_team_codes(team: str) -> Tuple[str, ...]:
+    """팀 코드 하나를 "그 팀으로 정규화되는 모든 원본 표기"로 넓힌다.
+
+    권한 판정은 legacy 표기 ``MEASURE`` 를 ``SALES`` 로 정규화한다
+    (:data:`foms.services.orders.order_mutation_policy._TEAM_NORMALIZE`). 수신자 조회가
+    ``User.team == 'SALES'`` 로만 찾으면 MEASURE 표기 영업 계정이 영업 대상 알림에서
+    조용히 빠진다. 규칙 사본을 두지 않도록 정규화 표를 원천에서 그대로 읽는다.
+
+    Args:
+        team: 원본 팀 코드(대소문자·공백 무관).
+
+    Returns:
+        정규화된 팀 코드로 시작하는 tuple. 예: ``'SALES'`` → ``('SALES', 'MEASURE')``.
+        빈 값이면 빈 tuple.
+    """
+    normalized = normalize_team(team)
+    if not normalized:
+        return ()
+    aliases = tuple(
+        sorted(raw for raw, target in _TEAM_NORMALIZE.items() if target == normalized and raw != normalized)
+    )
+    return (normalized,) + aliases
 
 
 def resolve_recipients_for_notification(db, notification) -> List[Tuple[int, str]]:
@@ -70,7 +95,8 @@ def resolve_recipients_for_notification(db, notification) -> List[Tuple[int, str
     team = (notification.target_team or '').strip().upper()
     if team:
         rows = db.query(User.id).filter(
-            func.upper(User.team) == team, User.is_active == True  # noqa: E712
+            func.upper(User.team).in_(expand_team_codes(team)),
+            User.is_active == True,  # noqa: E712
         ).yield_per(500)
         for (uid,) in rows:
             source_by_user[int(uid)] = NotificationRecipientSource.TARGET_TEAM

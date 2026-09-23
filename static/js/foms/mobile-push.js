@@ -11,7 +11,11 @@
  * - 끄기 flow 는 로컬 subscription.unsubscribe + DELETE POST.
  * - 모든 write 는 window.FOMSNotificationWrite.fetch(same-origin write 헤더) 를 경유한다.
  * - app icon badge 는 navigator.setAppBadge feature detect + FOMSNotificationBadge 공유
- *   count 구독으로 반영(0 이면 clearAppBadge).
+ *   count 구독으로 반영(0 이면 clearAppBadge). 앱 복귀(visible) 때 10초 제한으로 강제 갱신한다
+ *   — 잠금화면에서 알림을 지우고 돌아오면 sw.js 가 붙인 숫자가 실제와 어긋나기 때문이다.
+ * - 3단계 안내(홈 화면에 추가 → 알림 허용 → 시험 알림 받기): 시트의 정적 목록
+ *   (data-foms-push-steps)에서 지금 단계를 강조하고, 구독이 켜지면 '시험 알림 받기' 버튼을
+ *   CTA 영역에 그린다(POST /erp/api/notifications/push/test, write helper 경유).
  *
  * foms_app_shell.html 에서 defer 로드되며 shell fragment 재실행 대상이므로 모든 상태는
  * window.__FOMS_MOBILE_PUSH_BOUND singleton 가드 뒤에서 document 위임으로 배선한다(perf G4).
@@ -24,6 +28,13 @@
   var MOBILE_STATE_URL = '/erp/api/notifications/mobile-state';
   var VAPID_KEY_URL = '/erp/api/notifications/push/vapid-public-key';
   var SUBSCRIBE_URL = '/erp/api/notifications/push/subscribe';
+  var TEST_URL = '/erp/api/notifications/push/test';
+  // 앱 복귀 때 배지 강제 갱신 최소 간격(탭 전환을 연타해도 badge API 를 두드리지 않게).
+  var RESUME_BADGE_MIN_MS = 10000;
+  // 안내 단계 순서(시트 정적 목록 data-foms-push-step 값과 같은 이름).
+  var STEP_ORDER = ['install', 'allow', 'test'];
+
+  var lastResumeBadgeAt = 0;
 
   var vapidKeyCache = null;
 
@@ -199,11 +210,16 @@
     if (!el) return;
     el.hidden = false;
     if (isIosSafari() && !isStandalone()) {
+      // 시트에 정적 3단계 목록이 있으면 그 1단계가 설치 안내다 — 같은 안내를 두 번 그리지 않는다.
+      var hasStaticSteps = !!document.querySelector('[data-foms-push-steps]');
       appendMessage(
         el,
-        '이 브라우저는 기기 알림을 지원하지 않습니다.',
-        '홈 화면에 추가하면 기기 알림을 받을 수 있습니다.'
+        '아이폰은 홈 화면에 추가해야 기기 알림을 받을 수 있습니다.',
+        hasStaticSteps
+          ? '3단계 안내의 1단계대로 추가한 뒤 홈 화면 아이콘으로 여세요.'
+          : '아래 순서대로 추가한 뒤 홈 화면 아이콘으로 여세요.'
       );
+      if (!hasStaticSteps) el.appendChild(buildGuidePanel('foms-push-install-panel', true));
     } else {
       appendMessage(el, '이 브라우저는 기기 알림을 지원하지 않습니다.');
     }
@@ -218,6 +234,17 @@
     var isIos = /iphone|ipad|ipod/i.test(ua);
     var standalone = isStandalone();
 
+    // 아이폰 사파리 탭: 홈 화면에 추가하기 전에는 알림 자체를 켤 수 없다(1단계).
+    if (!standalone && isIos) {
+      return {
+        title: '아이폰: 먼저 홈 화면에 추가하기',
+        items: [
+          '사파리 아래쪽 공유 버튼(네모에 위쪽 화살표)을 누르세요.',
+          "목록에서 '홈 화면에 추가'를 누르세요.",
+          '홈 화면에 생긴 FOMS 아이콘으로 다시 열고 알림을 켜세요.'
+        ]
+      };
+    }
     if (standalone && isIos) {
       return {
         title: '아이폰 홈 화면 앱에서 알림 켜기',
@@ -252,12 +279,12 @@
     };
   }
 
-  function buildGuidePanel(guideId) {
+  function buildGuidePanel(guideId, open) {
     var wrap = document.createElement('div');
     wrap.className = 'erp-mobile-push-cta__guide';
     wrap.setAttribute('data-foms-push-guide', '');
     wrap.id = guideId;
-    wrap.hidden = true;
+    wrap.hidden = !open;
 
     var steps = guideSteps();
     var title = document.createElement('p');
@@ -310,6 +337,77 @@
 
   function renderDisable() {
     renderButton('기기 알림 끄기', 'disable', 'fas fa-bell-slash');
+    var el = ctaEl();
+    if (!el) return;
+    // 3단계: 구독이 켜진 뒤에만 '시험 알림 받기'를 그린다(구독 없으면 서버가 404).
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'erp-mobile-push-cta__btn erp-mobile-push-cta__btn--guide';
+    btn.setAttribute('data-foms-push-test', '');
+    var icon = document.createElement('i');
+    icon.className = 'fas fa-paper-plane';
+    icon.setAttribute('aria-hidden', 'true');
+    btn.appendChild(icon);
+    btn.appendChild(document.createTextNode(' 시험 알림 받기'));
+    el.appendChild(btn);
+  }
+
+  // ---- 3단계 안내(시트 정적 목록) --------------------------------------------
+  // stage: 'install' | 'allow' | 'test' | null(숨김). 지나간 단계는 흐리게, 지금 단계는 굵게.
+  function applySteps(stage) {
+    var box = document.querySelector('[data-foms-push-steps]');
+    if (!box) return;
+    var current = STEP_ORDER.indexOf(stage);
+    box.hidden = current < 0;
+    if (current < 0) return;
+    var items = box.querySelectorAll('[data-foms-push-step]');
+    for (var i = 0; i < items.length; i++) {
+      var idx = STEP_ORDER.indexOf(items[i].getAttribute('data-foms-push-step'));
+      items[i].classList.toggle('text-muted', idx >= 0 && idx < current);
+      items[i].classList.toggle('fw-bold', idx === current);
+      if (idx === current) items[i].setAttribute('aria-current', 'step');
+      else items[i].removeAttribute('aria-current');
+    }
+  }
+
+  function sendTestPush(btn) {
+    if (btn) btn.disabled = true;
+    try {
+      writeJson(TEST_URL, 'POST', {})
+        .then(function (data) {
+          var result = (data && data.data) || {};
+          if (data && data.success && result.sent) {
+            toast('시험 알림을 보냈어요. 잠시 뒤 휴대폰에 알림이 오는지 확인하세요.');
+          } else {
+            toast('시험 알림을 보내지 못했어요. (' + (result.reason || '알 수 없음') + ')');
+          }
+        })
+        .catch(function (err) {
+          console.error('[foms-push] test push failed', err);
+          toast('시험 알림을 보내지 못했어요. 알림을 다시 켜 보세요.');
+        })
+        .finally(function () {
+          if (btn) btn.disabled = false;
+        });
+    } catch (err) {
+      console.error('[foms-push] test push error', err);
+      toast('시험 알림을 보내지 못했어요.');
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  function refreshBadgeOnResume() {
+    var now = Date.now();
+    if (now - lastResumeBadgeAt < RESUME_BADGE_MIN_MS) return;
+    lastResumeBadgeAt = now;
+    try {
+      if (window.FOMSNotificationBadge && typeof window.FOMSNotificationBadge.refresh === 'function') {
+        // subscribeAppBadge 구독자(updateAppBadge)가 새 숫자로 아이콘 배지를 맞춘다.
+        window.FOMSNotificationBadge.refresh({ force: true, reason: 'app-resume' });
+      }
+    } catch (e) {
+      /* noop */
+    }
   }
 
   function setBusy(busy) {
@@ -328,15 +426,19 @@
     // flag off(web_push_enabled false 또는 vapid 미설정) → CTA 비노출.
     if (!data.web_push_enabled || !data.vapid_configured) {
       hideCta();
+      applySteps(null);
       return;
     }
     el.hidden = false;
 
     if (!pushSupported()) {
+      // 아이폰 사파리 탭이면 1단계(홈 화면에 추가)를 강조, 그 밖의 미지원 브라우저는 안내 숨김.
+      applySteps(isIosSafari() && !isStandalone() ? 'install' : null);
       renderUnsupported();
       return;
     }
     if (window.Notification && Notification.permission === 'denied') {
+      applySteps('allow');
       renderDenied();
       return;
     }
@@ -350,13 +452,16 @@
       .then(function (localSub) {
         var active = !!(data.subscription_active && localSub);
         if (active) {
+          applySteps('test');
           renderDisable();
         } else {
+          applySteps('allow');
           renderEnable();
         }
       })
       .catch(function (err) {
         console.error('[foms-push] subscription reconcile error', err);
+        applySteps('allow');
         renderEnable();
       });
   }
@@ -379,6 +484,7 @@
       .catch(function (err) {
         console.error('[foms-push] mobile-state error', err);
         hideCta();
+        applySteps(null);
       });
   }
 
@@ -507,6 +613,12 @@
       else if (action === 'disable') disable();
       return;
     }
+    var testBtn = e.target.closest('[data-foms-push-test]');
+    if (testBtn) {
+      e.preventDefault();
+      if (!testBtn.disabled) sendTestPush(testBtn);
+      return;
+    }
     // 차단 안내 '허용 방법 보기' 토글 — 인라인 가이드 패널 확장/접기(aria-expanded 관리).
     var guideToggle = e.target.closest('[data-foms-push-guide-toggle]');
     if (guideToggle) {
@@ -528,8 +640,10 @@
 
   // OS 설정에서 알림을 켜고 앱으로 복귀하면(가시성 visible) 권한이 더 이상 denied 가
   // 아닐 수 있으므로 CTA 를 자동 재평가한다(수동 새로고침 불필요).
+  // 같은 복귀 시점에 앱 아이콘 배지도 실제 미읽음 수로 다시 맞춘다(10초 제한).
   document.addEventListener('visibilitychange', function () {
     if (document.visibilityState !== 'visible') return;
+    refreshBadgeOnResume();
     if (window.Notification && Notification.permission !== 'denied') {
       refresh();
     }
