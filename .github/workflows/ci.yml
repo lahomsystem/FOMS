@@ -171,6 +171,7 @@ jobs:
       run: |
         python -m pytest -q \
           tests/visual/test_alimtalk_ui_contract.py \
+          tests/visual/test_alimtalk_mobile_visibility_contract.py \
           tests/visual/test_baseline_policy.py \
           tests/visual/test_baseline_stale_policy.py \
           tests/visual/test_edit_order_mobile_v2_shell.py \
