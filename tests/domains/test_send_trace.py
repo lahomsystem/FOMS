@@ -247,3 +247,38 @@ def test_history_panel_includes_push_and_refreshes_send_trace() -> None:
     assert "document.dispatchEvent(new CustomEvent('foms:send-trace-refresh'));" in trace
     modal = _read("templates/orders/partials/erp_alimtalk_trace_modal.html")
     assert ">발송 이력</h5>" in modal
+
+
+@_needs_node
+def test_history_fills_pushes_older_than_push_events() -> None:
+    """CHANNELTALK_PUSH 이벤트는 2026-08-13 부터 남는다 — 그 전 PUSH 는 주문 사본으로 이력 창을 채운다.
+
+    스테이징 #4369: 칩은 '영발 PUSH 7/14' 인데 이력 창은 '아직 보낸 기록이 없습니다' 였다.
+    같은 종류의 이벤트가 이미 있으면 채우지 않는다(중복 금지).
+    """
+    src = _read("static/js/orders/erp-alimtalk-trace.js")
+    block = src[src.index("const PUSH_HISTORY_KEYS"):src.index("/** 이력 목록을 서버에서 받아 패널에 채운다. */")]
+    script = "global.window = global;\n" + block + r"""
+window.__erpLastStructuredData = {
+  channeltalk_push: { pushed: true, sent_at: '2026-07-14T06:39:06+00:00', is_modified: false },
+  channeltalk_push_drawing: { pushed: true, sent_at: '2026-09-01T01:00:00', is_modified: true,
+                              change_log: [{ at: '2026-09-01T01:00:00', by: '홍길동' }] },
+  channeltalk_push_as: { pushed: true, sent_at: '2026-09-10T01:00:00' },
+};
+const events = [
+  { event_type: 'CHANNELTALK_PUSH', payload: { push_kind: 'as' }, created_at: '2026-09-10T01:00:00', created_by_name: 'A' },
+  { event_type: 'ALIMTALK_SENT', payload: {}, created_at: '2026-09-20T00:00:00', created_by_name: 'B' },
+];
+process.stdout.write(JSON.stringify(_withSnapshotPushes(events)));
+"""
+    proc = subprocess.run([shutil.which("node"), "-e", script], capture_output=True, text=True,
+                          encoding="utf-8", timeout=30)
+    assert proc.returncode == 0, proc.stderr
+    out = json.loads(proc.stdout)
+    kinds = [(e["event_type"], (e.get("payload") or {}).get("push_kind")) for e in out]
+    assert kinds == [("ALIMTALK_SENT", None), ("CHANNELTALK_PUSH", "as"),
+                     ("CHANNELTALK_PUSH", "drawing"), ("CHANNELTALK_PUSH", "measurement")]
+    drawing = out[2]
+    assert drawing["created_by_name"] == "홍길동" and drawing["payload"]["is_resend"] is True
+    assert out[3]["created_by_name"] == "보낸 사람 기록 없음"
+    assert "_withSnapshotPushes(Array.isArray(body.events) ? body.events : [])" in src
