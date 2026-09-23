@@ -34,10 +34,6 @@
         return _html2canvasPromise;
     }
 
-    function initMeasurementImageExport() {
-    const exportBtn = document.getElementById('btn-export-image');
-    if (!exportBtn || exportBtn.dataset.fomsExportBound === '1') return;
-    exportBtn.dataset.fomsExportBound = '1';
     const EXPORT_TABLE_WIDTH = 1520;
     const EXPORT_TITLE_FONT_SIZE = '38px';
     const EXPORT_HEADER_FONT_SIZE = '15px';
@@ -378,55 +374,266 @@
         });
     }
 
-    exportBtn.addEventListener('click', async function () {
-        const originalText = exportBtn.innerHTML;
+    /** 모바일 2단계 공유: 캡처가 길어 사용자 탭 효력이 끝났을 때(NotAllowedError) 한 번 더 눌러 공유한다. */
+    const PENDING_SHARE_TTL_MS = 60000;
+    const SHARE_READY_LABEL = '<i class="fas fa-share-from-square" aria-hidden="true"></i> 눌러서 공유';
+    var pendingShare = null;
 
+    /**
+     * 표 제목·파일명 날짜.
+     * - PC: 첫 input[name="date"] 값, 없으면 오늘(기존 규칙 그대로).
+     * - 모바일 글랜스: 서버가 표를 그린 날짜(section[data-meas-glance-date]). 필터 서랍에서 바꾸고
+     *   아직 적용하지 않은 입력값(.value)을 읽으면 제목·파일명이 표의 행과 어긋난다. 비어 있으면
+     *   입력의 서버 렌더 값(defaultValue), 그것도 없으면 오늘.
+     * @param {string} mode - 'pc' | 'glance'
+     * @returns {{labelYyMmDd: string, titleText: string}}
+     */
+    function resolveExportDate(mode) {
+        const dateInput = document.querySelector('input[name="date"]');
+        let dateStr;
+        if (mode === 'glance') {
+            const panel = document.querySelector('[data-meas-glance]');
+            const panelDate = panel ? panel.getAttribute('data-meas-glance-date') : '';
+            dateStr = panelDate || (dateInput ? dateInput.defaultValue : '') || localDateIso();
+        } else {
+            dateStr = dateInput ? dateInput.value : localDateIso();
+        }
+        return {
+            labelYyMmDd: toYyMmDd(dateStr),
+            titleText: toKoreanDateLabel(dateStr) + ' 실측 일정'
+        };
+    }
+
+    /**
+     * @param {HTMLCanvasElement} canvas
+     * @param {string} filename
+     */
+    function downloadCanvasPng(canvas, filename) {
+        const link = document.createElement('a');
+        link.download = filename;
+        link.href = canvas.toDataURL('image/png');
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+
+    /** @param {File} file */
+    function downloadFile(file) {
+        const url = URL.createObjectURL(file);
+        const link = document.createElement('a');
+        link.download = file.name;
+        link.href = url;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    }
+
+    /** iOS Safari 캔버스 최대 면적(px). */
+    const IOS_CANVAS_MAX_AREA = 16777216;
+
+    /**
+     * 모바일 캡처 배율: min(2, sqrt(한도 / (w*h))). 크기는 살아 있는 문서가 아니라 버리는 복제본을
+     * 화면 밖 호스트에서 prepareExportTable 로 PNG 와 같은 모양으로 만든 뒤 잰다.
+     * @param {HTMLTableElement} sourceTable
+     * @param {string} titleText
+     * @returns {number}
+     */
+    function measureOffscreenScale(sourceTable, titleText) {
+        const probeHost = document.createElement('div');
+        probeHost.className = 'foms-meas-export-host erp-pro';
+        probeHost.setAttribute('aria-hidden', 'true');
+        const probe = sourceTable.cloneNode(true);
+        probe.removeAttribute('id');
+        probeHost.appendChild(probe);
+        document.body.appendChild(probeHost);
         try {
-            exportBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 저장 중...';
-            exportBtn.disabled = true;
+            // prepareExportTable 은 문서 전체에서 행을 지운다 — 살아 있는 문서 대신 호스트로 범위를 좁힌 가짜 문서를 준다.
+            const probeDoc = {
+                querySelectorAll: function (sel) { return probeHost.querySelectorAll(sel); },
+                createElement: function (tag) { return document.createElement(tag); },
+                defaultView: window
+            };
+            prepareExportTable(probeDoc, probe, titleText);
+            const rect = probe.getBoundingClientRect();
+            const area = Math.max(1, rect.width) * Math.max(1, rect.height);
+            return Math.min(2, Math.sqrt(IOS_CANVAS_MAX_AREA / area));
+        } catch (err) {
+            console.warn('캡처 크기 측정 실패, 배율 1 로 저장:', err);
+            return 1;
+        } finally {
+            if (probeHost.parentNode) probeHost.parentNode.removeChild(probeHost);
+        }
+    }
 
-            const tableElement = document.querySelector('.measurement-table');
-
-            if (!tableElement) {
-                alert('캡처할 실측 일정이 없습니다.');
-                return;
-            }
-
-            const dateInput = document.querySelector('input[name="date"]');
-            const dateStr = dateInput ? dateInput.value : localDateIso();
-            const labelYyMmDd = toYyMmDd(dateStr);
-            const titleText = toKoreanDateLabel(dateStr) + ' 실측 일정';
-
-            const captureScale = Math.max(2, Math.min(window.devicePixelRatio || 1, 3));
-
+    /**
+     * 보이는 표(PC)는 그대로, 숨은 표(모바일)는 body 밑 화면 밖 호스트의 복제본을 찍는다.
+     * onclone 은 표식(data-meas-export-target)으로 대상을 찾는다.
+     * @param {HTMLTableElement} sourceTable
+     * @param {string} titleText
+     * @returns {Promise<HTMLCanvasElement>}
+     */
+    async function captureMeasurementTable(sourceTable, titleText) {
+        const offscreen = sourceTable.getClientRects().length === 0;
+        let target = sourceTable;
+        let host = null;
+        if (offscreen) {
+            host = document.createElement('div');
+            host.className = 'foms-meas-export-host erp-pro';
+            host.setAttribute('aria-hidden', 'true');
+            target = sourceTable.cloneNode(true);
+            target.removeAttribute('id');
+            host.appendChild(target);
+            document.body.appendChild(host);
+        }
+        target.setAttribute('data-meas-export-target', '1');
+        try {
+            // PC 공식은 그대로. offscreen(모바일)만 iOS 캔버스 면적 한도(16,777,216px) 안으로 줄인다
+            // — 의도된 예외(브리프 §5): 행이 많으면 모바일 PNG 해상도가 PC 보다 낮다.
+            const captureScale = offscreen
+                ? measureOffscreenScale(sourceTable, titleText)
+                : Math.max(2, Math.min(window.devicePixelRatio || 1, 3));
             await ensureHtml2canvas();
-            const canvas = await html2canvas(tableElement, {
+            return await html2canvas(target, {
                 scale: captureScale,
                 useCORS: true,
                 logging: false,
                 backgroundColor: '#ffffff',
                 onclone: function (clonedDoc) {
-                    const clonedTable = clonedDoc.querySelector('.measurement-table');
+                    const clonedTable = clonedDoc.querySelector('[data-meas-export-target]');
                     if (!clonedTable) return;
+                    const clonedHost = clonedTable.closest('.foms-meas-export-host');
+                    if (clonedHost) clonedHost.classList.add('is-capturing');
                     prepareExportTable(clonedDoc, clonedTable, titleText);
                 }
             });
+        } finally {
+            target.removeAttribute('data-meas-export-target');
+            if (host && host.parentNode) host.parentNode.removeChild(host);
+        }
+    }
 
-            const link = document.createElement('a');
-            link.download = labelYyMmDd + ' 실측 일정.png';
-            link.href = canvas.toDataURL('image/png');
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
+    /**
+     * @param {HTMLElement} btn
+     * @param {File} file
+     */
+    function armPendingShare(btn, file) {
+        pendingShare = { btn: btn, file: file, until: Date.now() + PENDING_SHARE_TTL_MS, label: null };
+    }
+
+    /**
+     * 모바일: 공유창(사진 저장·카카오톡). 취소는 조용히, 탭 효력 만료는 2단계, 그 밖은 다운로드.
+     * @returns {Promise<string>} 'armed' | 'done'
+     */
+    async function shareOrDownloadPng(canvas, filename, btn) {
+        const blob = await new Promise(function (resolve) { canvas.toBlob(resolve, 'image/png'); });
+        if (!blob) {
+            downloadCanvasPng(canvas, filename);
+            return 'done';
+        }
+        const file = new File([blob], filename, { type: 'image/png' });
+        if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+            try {
+                await navigator.share({ files: [file] });
+                return 'done';
+            } catch (err) {
+                if (err && err.name === 'AbortError') return 'done';
+                if (err && err.name === 'NotAllowedError') {
+                    armPendingShare(btn, file);
+                    return 'armed';
+                }
+                console.warn('공유 실패, 다운로드로 대체:', err);
+            }
+        }
+        downloadCanvasPng(canvas, filename);
+        return 'done';
+    }
+
+    /** @param {HTMLElement} btn */
+    async function sharePendingFile(btn) {
+        const pending = pendingShare;
+        pendingShare = null;
+        try {
+            await navigator.share({ files: [pending.file] });
+        } catch (err) {
+            if (!(err && err.name === 'AbortError')) downloadFile(pending.file);
+        } finally {
+            if (pending.label !== null) btn.innerHTML = pending.label;
+        }
+    }
+
+    /**
+     * @param {HTMLElement} btn
+     * @param {string} mode - 'pc' | 'glance'
+     */
+    async function runExport(btn, mode) {
+        if (pendingShare && pendingShare.btn === btn) {
+            if (Date.now() <= pendingShare.until) {
+                await sharePendingFile(btn);
+                return;
+            }
+            if (pendingShare.label !== null) btn.innerHTML = pendingShare.label;
+            pendingShare = null;
+        }
+        const originalText = btn.innerHTML;
+        let armed = false;
+
+        try {
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 저장 중...';
+            btn.disabled = true;
+
+            const sourceTable = document.querySelector('.measurement-table');
+
+            if (!sourceTable) {
+                alert('캡처할 실측 일정이 없습니다.');
+                return;
+            }
+            if (mode === 'glance' && sourceTable.querySelectorAll('tr.measurement-row').length === 0) {
+                alert('캡처할 실측 일정이 없습니다.');
+                return;
+            }
+
+            const exportDate = resolveExportDate(mode);
+            const canvas = await captureMeasurementTable(sourceTable, exportDate.titleText);
+            const filename = exportDate.labelYyMmDd + ' 실측 일정.png';
+
+            if (mode === 'glance') {
+                armed = (await shareOrDownloadPng(canvas, filename, btn)) === 'armed';
+            } else {
+                downloadCanvasPng(canvas, filename);
+            }
         } catch (err) {
             console.error('이미지 저장 실패:', err);
             alert('이미지 저장 중 오류가 발생했습니다.\n' + (err && err.message ? err.message : String(err)));
         } finally {
-            exportBtn.innerHTML = originalText;
-            exportBtn.disabled = false;
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+            if (armed && pendingShare && pendingShare.btn === btn) {
+                const armedShare = pendingShare;
+                armedShare.label = originalText;
+                btn.innerHTML = SHARE_READY_LABEL;
+                setTimeout(function () {
+                    if (pendingShare === armedShare) {
+                        pendingShare = null;
+                        btn.innerHTML = originalText;
+                    }
+                }, PENDING_SHARE_TTL_MS);
+            }
         }
-    });
-}
+    }
+
+    function initMeasurementImageExport() {
+        const exportBtn = document.getElementById('btn-export-image');
+        if (exportBtn && exportBtn.dataset.fomsExportBound !== '1') {
+            exportBtn.dataset.fomsExportBound = '1';
+            exportBtn.addEventListener('click', function () { runExport(exportBtn, 'pc'); });
+        }
+        document.querySelectorAll('[data-meas-export-image]').forEach(function (btn) {
+            if (btn.dataset.fomsExportBound === '1') return;
+            btn.dataset.fomsExportBound = '1';
+            btn.addEventListener('click', function () { runExport(btn, 'glance'); });
+        });
+    }
 
     // entry 동적 로드 대응 readyState 분기 + fragment 스왑 재초기화(표준 이벤트로 통일).
     // 버튼 바인딩은 exportBtn.dataset.fomsExportBound 로 per-DOM 가드(스왑 시 새 버튼이라 재바인딩).

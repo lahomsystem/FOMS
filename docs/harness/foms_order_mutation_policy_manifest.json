@@ -870,6 +870,11 @@
       "policy_id": "ERP_EDIT",
       "rule": "/api/orders/<int:order_id>/call-log"
     },
+    "orders.api_order_measurement_visit": {
+      "mode": "guard",
+      "policy_id": "ERP_EDIT",
+      "rule": "/api/orders/<int:order_id>/measurement-visit"
+    },
     "orders.api_order_stage_override": {
       "mode": "guard",
       "policy_id": "STAFF_MUTATION",

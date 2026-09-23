@@ -162,8 +162,11 @@ def test_measurement_js_version_pins_are_synced_and_bumped():
     assert f"measurement_js_v = '{token}'" in _read(DASHBOARD_SCRIPTS), (
         "dashboard_scripts.html 의 measurement_js_v 가 MEAS_JS_V 와 다르다"
     )
-    assert f"?v={token}" in _read(DASHBOARD_PAGE), (
-        "dashboard.html 의 ?v 리터럴이 MEAS_JS_V 와 다르다"
+    # dashboard.html 은 JS 를 직접 싣지 않는다. 예전 `?v={token}` 단언은 route-strip CSS 핀
+    # 20260901a 와 MEAS_JS_V 가 우연히 같아서 통과했을 뿐이고, MEAS_JS_V 를 올리면 깨진다.
+    # 실제 배선은 dashboard.html → dashboard_scripts.html → measurement-entry.js 다.
+    assert "measurement/partials/dashboard_scripts.html" in _read(DASHBOARD_PAGE), (
+        "dashboard.html 이 dashboard_scripts.html 을 include 하지 않는다"
     )
 
 

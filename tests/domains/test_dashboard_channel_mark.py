@@ -47,7 +47,7 @@ SURFACES = {
     "templates/orders/partials/tablet_workqueue_grid.html": "channel_mark(o.channel_source)",
     "templates/orders/index.html": "channel_mark(order.channel_source)",
     "templates/measurement/partials/dashboard_main.html": "channel_mark(r.channel_source|default(none, true))",
-    "templates/measurement/partials/mobile_list.html": "channel_mark(_mhero.channel_source|default(none, true))",
+    "templates/measurement/partials/mobile_list.html": "channel_mark(o.channel_source|default(none, true))",
     "templates/measurement/partials/tablet_split_body.html": "channel_mark(r.channel_source|default(none, true))",
 }
 MACRO = "templates/partials/shared/channel_mark.html"

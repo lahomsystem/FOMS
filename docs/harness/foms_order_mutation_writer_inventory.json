@@ -3,17 +3,17 @@
   "summary": "Order mutation writer inventory for foms/. Every persisted order mutation — flag_modified(order, 'structured_data') or a direct mutation_version bump — is classified CANONICAL (routes through REV-00 execute_order_mutation / canonical mutator) / VERSIONED_DIRECT (direct version bump under FOR UPDATE) / AUDITED_RECOVERY (OPS-APPROVAL offline apply) / EXTERNAL (direct writer with no version/If-Match contract). Release target: EXTERNAL == 0 (every order mutation carries version bump + If-Match/idempotency metadata). EXTERNAL sites below are pinned residual writers reported to their owner packet — the drift gate keeps the set from growing.",
   "scope": "foms/**.py",
   "baselines": {
-    "total": 72,
+    "total": 73,
     "external": 27
   },
   "classification_counts": {
     "AUDITED_RECOVERY": 2,
-    "CANONICAL": 38,
+    "CANONICAL": 39,
     "EXTERNAL": 27,
     "VERSIONED_DIRECT": 5
   },
   "kind_counts": {
-    "flag_modified_structured_data": 68,
+    "flag_modified_structured_data": 69,
     "mutation_version_bump": 4
   },
   "external_sites": [
@@ -344,28 +344,28 @@
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 1175,
+      "lineno": 1177,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "DATA-01"
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 1611,
+      "lineno": 1613,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "DATA-01"
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 1875,
+      "lineno": 1877,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "DATA-01"
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 2317,
+      "lineno": 2319,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "DATA-01"
@@ -397,6 +397,13 @@
       "kind": "flag_modified_structured_data",
       "classification": "EXTERNAL",
       "owner": "STATE-LEGACY-01"
+    },
+    {
+      "path": "foms/api/orders/measurement_visit.py",
+      "lineno": 192,
+      "kind": "flag_modified_structured_data",
+      "classification": "CANONICAL",
+      "owner": "MEASUREMENT-VISIT-01"
     },
     {
       "path": "foms/api/orders/status.py",
@@ -631,7 +638,7 @@
     },
     {
       "path": "foms/services/orders/revision.py",
-      "lineno": 327,
+      "lineno": 350,
       "kind": "mutation_version_bump",
       "classification": "CANONICAL",
       "owner": "REV-00"

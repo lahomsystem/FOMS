@@ -671,8 +671,11 @@ def resolve_manager_phone_for_queue(
 
     manager_phone_map(사전 구축된 이름→연락처)이 주어지면 설정 재조회 없이 사용한다(N+1 제거).
     """
-    parties = parties or {}
+    parties = parties if isinstance(parties, dict) else {}
     manager = parties.get("manager") or {}
+    if not isinstance(manager, dict):
+        # 옛 데이터: parties.manager 가 이름 문자열이나 숫자(스칼라)인 경우 — 큐 전체 500 을 막는다.
+        manager = {"name": manager} if isinstance(manager, str) else {}
     name = (
         (manager_name if manager_name and manager_name != "-" else "")
         or manager.get("name")
