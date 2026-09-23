@@ -35,7 +35,7 @@ from tests.domains.drawing_transfer_helpers import (
     ASSET_PIN,
 )
 
-#: ADMIN-OVERRIDE-01 에서 바뀐 JS 의 자산 핀. CSS(``ASSET_PIN``)는 안 바뀌었으니 그대로 둔다.
+#: ADMIN-OVERRIDE-01 에서 바뀐 JS 의 자산 핀. CSS 핀(``ASSET_PIN``)은 상태 드롭다운 색 추가로 따로 올랐다.
 ADMIN_OVERRIDE_JS_PIN = "20260921a"
 
 # --------------------------------------------------------------------------- #
