@@ -365,6 +365,10 @@ self.addEventListener("push", function (event) {
     payload.deep_link_url ||
     null;
 
+  // 수신자별 미읽음 수(push_sender._payload_for_recipient). payload.badge 는 아이콘 URL 이라
+  // 숫자는 data.unread_count 로 따로 받는다. 없거나 숫자가 아니면 배지를 건드리지 않는다.
+  var unread = Number(pushData.unread_count);
+
   var title = payload.title || "FOMS 알림";
   var options = {
     body: payload.body || "",
@@ -377,12 +381,36 @@ self.addEventListener("push", function (event) {
     vibrate: payload.vibrate || [80, 40, 80],
     data: {
       notification_id: notificationId,
-      deep_link: deepLink
+      deep_link: deepLink,
+      unread_count: Number.isFinite(unread) ? unread : null
     }
   };
 
-  event.waitUntil(self.registration.showNotification(title, options));
+  // showNotification 은 어떤 경우에도 반드시 부른다 — iOS 는 알림을 안 띄운 push 가
+  // 3번 쌓이면 구독을 끊는다. 앱 아이콘 배지는 같은 waitUntil 안에서 함께 맞추고,
+  // 배지 실패(미지원·권한)는 삼켜서 알림 표시를 막지 않는다.
+  var jobs = [self.registration.showNotification(title, options)];
+  if (Number.isFinite(unread) && self.navigator && "setAppBadge" in self.navigator) {
+    jobs.push(applyPushAppBadge(unread));
+  }
+  event.waitUntil(Promise.all(jobs));
 });
+
+// 앱 아이콘 숫자 배지(best-effort). 동기 throw 와 거부 promise 를 모두 삼킨다.
+function applyPushAppBadge(count) {
+  try {
+    var job =
+      count > 0 || !("clearAppBadge" in self.navigator)
+        ? self.navigator.setAppBadge(count > 0 ? count : 0)
+        : self.navigator.clearAppBadge();
+    return Promise.resolve(job).catch(function (err) {
+      console.debug("[foms-sw] app badge skipped", err);
+    });
+  } catch (err) {
+    console.debug("[foms-sw] app badge skipped", err);
+    return Promise.resolve();
+  }
+}
 
 // deep link allowlist: same-origin 이면서 '/erp/' 로 시작하는 경로만 허용.
 // 그 외(교차 출처, 임의 경로, javascript: 등)는 대시보드로 폴백한다(오픈 리다이렉트 차단).

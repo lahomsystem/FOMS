@@ -38,12 +38,14 @@
 - 화면: `static/js/foms/foms-drawing-alert.js` 의 `show()` 를 유형별 제목·링크로 일반화(도면 동작 불변). 분기 두 곳(`layout_head.html:931`, `static/js/runtime/layout-head-init.js:152,167`)을 같이 고친다(계약 테스트가 비교).
 - 보강 3건: ① 여러 탭 중복 방지(BroadcastChannel `foms-alerts` — 한 탭에서 확인하면 같은 사람의 다른 탭도 닫힘, 소리는 보이는 탭만) ② 소리 준비(첫 클릭 때 AudioContext 하나 만들어 재사용) ③ 끊긴 동안 온 알림 재표시(재연결·화면 복귀 때 "내 미확인 interrupt 알림" 조회 API 신설 → 창 다시 띄움).
 - 각자 확인: 기존 ack API(`/erp/api/notifications/<id>/ack`)가 수신자별 기록 — 그대로.
+- 적용 범위(2026-09-23 통합 검증 확정): 보강 ①(탭 간 닫기)·보이는 탭만 소리·대기열은 **당일 실측 확인창에만** 적용한다. 도면 수정 요청은 기존대로(새 도면 알림이 도면 창을 덮고, 탭 간 닫기 없음). 당일 실측 창이 떠 있을 때 온 도면 알림만 대기열에 들어간다(덮으면 당일 실측 확인이 사라지므로). 재조회 API 는 대상 팀(영업·MEASURE 표기)에게만 부르고, 삭제됐거나 실측일에서 오늘이 빠진 주문은 돌려주지 않는다.
 
 ## 6. C 웹 푸시 + 앱 배지
 - `push_sender.py:44-70` `_DEFAULT_P1_TYPES` 에 `MEASURE_SAME_DAY_ADDED` 등록(없으면 조용히 안 나감).
 - pywebpush 호출(`push_sender.py:328,544`)에 `ttl=86400` + `headers={"Urgency": "high"}`(긴급 유형) / `"normal"`(그 외). **현재 ttl 미지정 — pywebpush 2.0.0 기본값이 0 이면 기기가 꺼져 있을 때 기존 푸시도 버려진다(기존 결함 가능성, 구현 전 설치 소스로 확인).**
 - 배지: payload 에 수신자별 `unread_count` 추가(발송 루프 안에서 수신자마다 계산, badge API 와 같은 조건) → `sw.js` push 핸들러에서 `event.waitUntil(showNotification(...) + navigator.setAppBadge(unread_count))`. 알림 클릭·읽음·앱 복귀 시 `FOMSNotificationBadge.refresh({force:true})` 로 맞춤. `payload.badge` 키는 이미 아이콘 URL 이라 `unread_count` 로 이름을 따로 쓴다.
 - 직원 안내: 알림 시트에 3단계 안내(홈 화면에 추가 → 알림 허용 → 시험 알림 받기 — 기존 `push/test` API 에 버튼 연결). 관리자용 영업별 구독 상태 표(설치·허용·마지막 수신 — 기존 모델 `NotificationPushSubscription`).
+- 운영 확인(배포 체크리스트): SIDEFX 서비스에 `FOMS_WEB_PUSH_ENABLED`·`VAPID_PRIVATE_KEY`·`VAPID_CLAIMS_SUB` 가 있어야 긴급 멘션(`NOTIFICATION` outbox) OS 푸시가 나간다. 없으면 SIDEFX 로그에 WARNING 1회. 재시도는 이미 `push_attempted` 인 수신자를 건너뛴다.
 - 푸시 본문은 기존 규칙대로 고객명 없이 일반 문구: "오늘 실측이 긴급 추가됐어요" + 딥링크(잠금화면 노출 대비). 고객명은 앱을 연 뒤 확인창에서.
 
 ## 7. 테스트

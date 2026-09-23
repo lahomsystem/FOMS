@@ -45,6 +45,7 @@
 - 계약 테스트가 `layout_head.html` 과 `layout-head-init.js` 분기를 비교한다 — 둘을 같이 고친다(`layout_head.html` 은 핫파일).
 - 캐시 핀: 고친 정적 파일의 `?v=` 핀을 올리고, 핀을 복제해 단언하는 테스트도 같이 올린다(`grep -rn "?v=<옛핀>" tests/`). sw.js 는 캐시 버전 상수도 확인.
 - 하네스 인벤토리 JSON(`docs/harness/foms_*_inventory.json` 등)이 새 쓰기 경로·outbox 를 요구하면 생성 스크립트로 갱신(손편집 금지 — 해당 테스트 메시지가 명령을 알려 준다).
+- 배포 체크리스트: Railway SIDEFX 에 `CHANNEL_APP_SECRET`/`CHANNEL_ID`(채널톡 긴급방)와 `FOMS_WEB_PUSH_ENABLED`·`VAPID_PRIVATE_KEY`·`VAPID_CLAIMS_SUB`(긴급 멘션 OS 푸시)가 있는지 확인한다.
 - 공통: `cd c:/tmp/foms-s-meas-glance && pwd`, git 금지, LF/UTF-8, 인라인 style 금지, jQuery 금지, `{success,data,error}`.
 
 ## 5. 검증

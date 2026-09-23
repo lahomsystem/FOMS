@@ -236,6 +236,7 @@ def translate_event_type_to_korean(event_type: str | None) -> str:
         # 채널톡 PUSH(channel_integration._PUSH_EVENT_TYPE). 미등재면 '기타 변경' 으로
         # 떨어져 PUSH 를 보냈는지 이력에서 찾을 수 없었다(2026-09-23).
         "CHANNELTALK_PUSH": "채널톡 PUSH 발송",
+        "MEASURE_SAME_DAY_ADDED": "당일 실측 긴급 알림",
         "COMMENT_ADDED": "메모 추가",
         "ATTACHMENT_ADDED": "첨부파일 추가",
         "ATTACHMENT_DELETED": "첨부파일 삭제",

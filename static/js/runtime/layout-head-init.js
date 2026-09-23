@@ -108,6 +108,7 @@
                     if (window.FOMS_DEBUG) console.log('[Global Socket.IO] Socket ID:', globalSocket.id);
                     if (window.FOMS_DEBUG) console.log('[Global Socket.IO] 연결 상태:', globalSocket.connected);
                     refreshErpNotificationUI({ reason: 'socket-connect' });
+                    if (window.FOMSAlertSync && typeof window.FOMSAlertSync.resync === 'function') { window.FOMSAlertSync.resync('socket-connect'); }
                 },
                 onConnectError: function (error) {
                     console.error('[Global Socket.IO] ❌ 연결 오류:', error);
