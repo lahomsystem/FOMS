@@ -325,7 +325,7 @@ def test_sheet_parts_js_contract():
         "att.hidden = !has",
         "'실측 사진'",
         "'사진 ' + n",
-        "meta.parentNode.insertBefore(att, meta.nextSibling)",
+        "meta.parentNode.insertBefore(att, head.nextSibling)",
         ".foms-measure-done",
         "#global-image-viewer, .offcanvas, .modal",
         "setAttribute('inert', '')",
@@ -447,3 +447,17 @@ def test_review_css_rules_appended():
         ".foms-meas-glance--unified .foms-meas-glance__save {\n  min-height: 44px;",
     ]
     assert _missing(fixes, required) == []
+
+
+def test_sheet_photo_header_is_moved_with_attachments_not_duplicated():
+    """이전·다음으로 같은 카드가 시트에 다시 들어올 때마다 "실측 사진 · 사진 n" 제목이 늘던 회귀(2026-09-23).
+
+    예전에는 사진 칸만 meta 뒤로 옮기고 제목을 남겨, 다음 호출에서 제목을 새로 만들었다(브라우저 재현 1→6개).
+    제목과 사진 칸을 함께 옮기고, 사진 칸 바로 앞이 아닌 남은 제목은 지운다.
+    """
+    js = _read("static/js/measurement/mobile-glance-sheet-parts.js")
+    body = js.split("function placePhotos", 1)[1].split("function placeHanded", 1)[0]
+    assert "var head = photoHeader(att);" in body
+    assert body.index("photoHeader(att)") < body.index("insertBefore(att")
+    assert "insertBefore(head, meta.nextSibling)" in body
+    assert "removeChild(h)" in body

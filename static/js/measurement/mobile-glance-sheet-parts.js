@@ -44,10 +44,17 @@
                 if (prevHead && prevHead.hasAttribute('data-meas-sheet-ph-h')) prevHead.hidden = true;
                 return;
             }
-            if (meta && meta.parentNode && meta.nextElementSibling !== att) {
-                meta.parentNode.insertBefore(att, meta.nextSibling);
-            }
+            // 같은 카드가 시트에 다시 들어올 때마다(이전·다음) 불린다 — 제목은 하나만 두고 사진 칸과 함께 옮긴다.
+            // 예전에는 사진 칸만 옮기고 제목을 남겨 두어, 넘길 때마다 "실측 사진 · 사진 n" 제목이 한 줄씩 늘었다.
             var head = photoHeader(att);
+            card.querySelectorAll('[data-meas-sheet-ph-h]').forEach(function (h) {
+                var nx = h.nextElementSibling;
+                if (h !== head && !(nx && nx.classList.contains('queue-card__attachments'))) h.parentNode.removeChild(h);
+            });
+            if (meta && meta.parentNode) {
+                if (meta.nextElementSibling !== head) meta.parentNode.insertBefore(head, meta.nextSibling);
+                if (head.nextElementSibling !== att) meta.parentNode.insertBefore(att, head.nextSibling);
+            }
             head.hidden = false;
             var n = att.querySelectorAll('[data-foms-erp-attachment-view-url]').length;
             head.querySelector('.foms-meas-sheet__ph-count').textContent = '사진 ' + n;
