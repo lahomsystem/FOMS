@@ -277,19 +277,22 @@
         {% set can_approve_quest = (order.current_quest and (order.current_quest.can_assignee_approve or approvable_teams))
              and order.current_quest.approve_label %}
         {% if order.current_quest.is_done %}
-          <span class="foms-badge foms-badge--count erp-quest-done" role="status">{{ order.current_quest.done_label }}</span>
-          {# 완료 quest 인데 단계가 그대로인 막다른 길(강제 단계 변경 뒤) — 다음 단계로 다시 넘기는 버튼. #}
+          {# 완료 quest 인데 단계가 그대로인 막다른 길(강제 단계 변경 뒤) — 승인 버튼과 같은 이름으로
+             다음 단계로 다시 넘긴다. 같은 이름의 완료 배지는 넘길 수 없을 때만. #}
           {% if order.current_quest.can_retransition %}
             <div class="foms-detail-action-stack mt-3">
               <button
                 type="button"
                 class="foms-btn foms-btn--primary foms-btn--full erp-mobile-quest-retransition"
                 data-order-id="{{ order.id }}"
+                data-approve-label="{{ order.current_quest.retransition_label }}"
                 data-confirm="{{ order.current_quest.retransition_confirm }}"
                 data-refresh-anchor="#foms-detail-quest">
                 {{ order.current_quest.retransition_label }}
               </button>
             </div>
+          {% else %}
+            <span class="foms-badge foms-badge--count erp-quest-done" role="status">{{ order.current_quest.done_label }}</span>
           {% endif %}
         {% elif can_approve_quest %}
           <div class="foms-detail-action-stack mt-3" id="mobile-quest-approvals-{{ order.id }}">

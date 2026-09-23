@@ -86,13 +86,15 @@ def test_measure_completed_quest_offers_retransition_only_to_teams_the_server_al
 
 
 def test_retransition_label_and_confirm_name_the_next_stage_and_the_order():
-    """버튼 문구는 다음 단계를, 확인창은 완료 사실·다음 단계·고객명/주문번호를 말한다."""
+    """재전이 버튼은 승인 버튼과 같은 이름·확인창을 쓴다 — 같은 일을 하는 버튼이 둘로 보이지 않게
+    (2026-09-23 사용자 요청: "도면 단계로 넘기기" 를 따로 두지 말고 "실측 완료" 하나로)."""
     sd = {"workflow": {"stage": "MEASURE"}, "quests": [_measure_completed_quest()]}
     payload = _payload(sd, "실측", "MEASURE", _user("SALES"))
-    assert payload["retransition_label"] == "도면 단계로 넘기기"
-    assert "이미 완료된 실측 완료 입니다." in payload["retransition_confirm"]
-    assert "도면 단계로 다시 넘길까요?" in payload["retransition_confirm"]
+    assert payload["retransition_label"] == payload["approve_label"] == "실측 완료"
+    assert payload["retransition_confirm"] == payload["approve_confirm"]
+    assert "실측을 완료하고 도면 단계로 넘길까요?" in payload["retransition_confirm"]
     assert "이영아 / #4382" in payload["retransition_confirm"]
+    assert "넘기기" not in payload["retransition_label"]
 
 
 def test_no_user_means_no_retransition():
@@ -108,13 +110,13 @@ def test_already_advanced_order_has_no_quest_payload_at_all():
 
 
 def test_confirm_completed_in_korean_storage_offers_production_retransition():
-    """한글 저장형(고객컨펌) COMPLETED 도 재전이 대상 — '생산 단계로 넘기기'."""
+    """한글 저장형(고객컨펌) COMPLETED 도 재전이 대상 — 승인 버튼과 같은 '고객 컨펌 완료'."""
     quest = {"stage": "고객컨펌", "title": "고객 컨펌", "status": "COMPLETED", "approval_mode": "assignee",
              "assignee_approval": {"approved": True}, "completed_at": "2026-09-16T10:00:00"}
     sd = {"workflow": {"stage": "CONFIRM"}, "quests": [quest]}
     payload = _payload(sd, "고객컨펌", "CONFIRM", _user("CS"))
     assert payload["can_retransition"] is True
-    assert payload["retransition_label"] == "생산 단계로 넘기기"
+    assert payload["retransition_label"] == "고객 컨펌 완료"
 
 
 def test_production_completed_team_quest_does_not_retransition():
