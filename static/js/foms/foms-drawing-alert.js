@@ -164,8 +164,9 @@
       // 당일 실측 긴급 추가 — 값은 전부 textContent(서버 값이라도 HTML 로 해석하지 않는다).
       q('kicker').textContent = '긴급 실측 추가';
       q('title').textContent = '오늘 ' + (data.time || '') + ' 실측 — ' + (data.customer_name || '');
-      q('message').textContent = (data.area || '') + ' · 담당 ' + (data.manager || '');
-      q('meta').textContent = (data.added_by || '') + ' 추가 · ' + shortTime(data.added_at);
+      // 빈 칸은 빼고 잇는다 — 담당이 비면 "· 담당" 글자만 남았다(스테이징 실화면 2026-09-23).
+      q('message').textContent = [data.area, data.manager ? '담당 ' + data.manager : ''].filter(Boolean).join(' · ');
+      q('meta').textContent = [data.added_by ? data.added_by + ' 추가' : '', shortTime(data.added_at)].filter(Boolean).join(' · ');
       openLink.textContent = '주문 열기';
       href = safeOrderUrl(data.order_url);
     } else {
