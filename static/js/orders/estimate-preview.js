@@ -1356,7 +1356,7 @@
 
             if (data.success) {
                 if (typeof window.erpMarkChannelPushSent === 'function') {
-                    window.erpMarkChannelPushSent('estimate');
+                    window.erpMarkChannelPushSent('estimate', new Date().toISOString());
                 }
                 btn.innerHTML = '<i class="fas fa-check"></i> 전송완료';
                 btn.classList.replace('erp-pro-btn--primary', 'erp-pro-btn--success');

@@ -5773,7 +5773,7 @@ function fomsMountErpOrderSurface() {
                 }
                 if (result.success) {
                     if (typeof erpMarkChannelPushSent === 'function') {
-                        erpMarkChannelPushSent(pushKind);
+                        erpMarkChannelPushSent(pushKind, new Date().toISOString());
                     }
                     btn.innerHTML = '<i class="fas fa-check"></i> 전송완료';
                     if (activeClass) btn.classList.replace(activeClass, successClass);
@@ -5805,7 +5805,7 @@ function fomsMountErpOrderSurface() {
 
             if (data.success) {
                 if (typeof erpMarkChannelPushSent === 'function') {
-                    erpMarkChannelPushSent(pushKind);
+                    erpMarkChannelPushSent(pushKind, new Date().toISOString());
                 }
                 btn.innerHTML = '<i class="fas fa-check"></i> 전송완료';
                 if (activeClass) btn.classList.replace(activeClass, successClass);
