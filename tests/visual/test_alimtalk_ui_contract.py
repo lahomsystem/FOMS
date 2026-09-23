@@ -380,8 +380,8 @@ def test_share_trace_assets_pinned_together() -> None:
     필연이다(2026-09-01: `erp-order-shared.js` 가 같은 핀을 달자 계약이 3 != 2 로 터졌고,
     고친 쪽과 무관한 커밋까지 함께 빨개졌다).
     """
-    pin = "?v=20260901b"
-    css_pin = "?v=20260921a"  # 2026-09-21: 모바일 미발송 칩 숨김으로 CSS 만 앞서 올랐다
+    pin = "?v=20260923a"  # 2026-09-23: 단독 링크 흔적·모바일 이력 노출로 함께 올렸다
+    css_pin = pin
     assert pin in _read("templates/partials/shared/layout_scripts.html")
     order_js = _read("templates/orders/partials/erp_order_js.html")
     for asset, want in (("css/orders/erp-alimtalk-trace.css", css_pin),

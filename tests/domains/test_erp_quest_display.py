@@ -381,7 +381,7 @@ def test_build_payload_exposes_is_done_and_done_label() -> None:
     assert payload["all_approved"] is True
     # current_user 없이 만든 payload 는 재전이 버튼을 내밀지 않는다(권한 주체가 없다).
     assert payload["can_retransition"] is False
-    assert payload["retransition_label"] == "생산 단계로 넘기기"
+    assert payload["retransition_label"] == "고객 컨펌 완료"
 
     open_payload = _payload_for_stage("고객컨펌", "CONFIRM")
     assert open_payload["is_done"] is False

@@ -4,6 +4,9 @@
   옛 상세 링크 ``erp-queue-card__confirm-open`` 없음. 완료 quest → ``erp-queue-card__quest-done`` + "고객 컨펌 완료".
 * 모바일 상세: 완료 quest → ``erp-quest-done`` 배지.
 * PC 그리드: 완료 quest → ``erp-quest-done`` 배지.
+
+2026-09-23: 완료 quest 인데 단계가 그대로이고 넘길 권한이 있으면 완료 배지 대신 승인 버튼과
+같은 이름("고객 컨펌 완료")의 재전이 버튼만 그린다 — 따로 이름("생산 단계로 넘기기")을 두지 않는다.
 """
 from __future__ import annotations
 
@@ -16,11 +19,11 @@ from foms.services.erp_display import get_today_kst
 from models import Order, User
 
 
-def _make_user(username: str, *, team: str = "SALES") -> User:
+def _make_user(username: str, *, team: str = "SALES", role: str = "ADMIN") -> User:
     user = User(
         username=username,
         password=generate_password_hash("pw"),
-        role="ADMIN",
+        role=role,
         team=team,
         name=f"{username} 이름",
         is_active=True,
@@ -113,7 +116,7 @@ def test_queue_card_renders_confirm_approve_button(client, monkeypatch):
     assert "erp-queue-card__quest-done" not in html
 
 
-def test_queue_card_renders_done_badge_for_completed_quest(client, monkeypatch):
+def test_queue_card_renders_retransition_not_done_badge_when_it_can_advance(client, monkeypatch):
     user = _make_user("disp_card_done")
     _login(client, user)
     _enable_mobile_v2(monkeypatch, user)
@@ -121,19 +124,34 @@ def test_queue_card_renders_done_badge_for_completed_quest(client, monkeypatch):
 
     html = _queue_html(client)
     assert f'data-order-id="{order.id}"' in html or "이다은" in html
-    assert "erp-queue-card__quest-done" in html
     assert "고객 컨펌 완료" in html
     assert "erp-queue-card__quest-approve" not in html
     assert "erp-queue-card__confirm-open" not in html
-    # 완료 quest 인데 단계가 CONFIRM 그대로 → 재전이 버튼(ADMIN 은 서버도 200).
+    # 완료 quest 인데 단계가 CONFIRM 그대로 → 승인 버튼과 같은 이름의 재전이 버튼(ADMIN 은 서버도 200).
+    # 같은 이름의 완료 배지는 넘길 수 있을 때 겹쳐 그리지 않는다.
     assert "erp-queue-card__quest-retransition" in html
-    assert "생산 단계로 넘기기" in html
+    assert 'data-approve-label="고객 컨펌 완료"' in html
+    assert "넘기기" not in html
+    assert "erp-queue-card__quest-done" not in html
+
+
+def test_queue_card_keeps_done_badge_when_user_cannot_advance(client, monkeypatch):
+    """음성 대조군 — 넘길 권한이 없는 팀(도면 STAFF)은 재전이 버튼 없이 완료 배지만 본다."""
+    user = _make_user("disp_card_done_noauth", team="DRAWING", role="STAFF")
+    _login(client, user)
+    _enable_mobile_v2(monkeypatch, user)
+    _create_order(quests=[_done_confirm_quest()], customer_name="권한없음")
+
+    html = _queue_html(client)
+    assert "권한없음" in html
+    assert "erp-queue-card__quest-done" in html
+    assert "erp-queue-card__quest-retransition" not in html
 
 
 # --------------------------------------------------------------------------- #
 # 2. 모바일 상세
 # --------------------------------------------------------------------------- #
-def test_mobile_detail_renders_done_badge(client, monkeypatch):
+def test_mobile_detail_renders_retransition_not_done_badge_when_it_can_advance(client, monkeypatch):
     user = _make_user("disp_detail_done")
     _login(client, user)
     _enable_mobile_v2(monkeypatch, user)
@@ -142,11 +160,12 @@ def test_mobile_detail_renders_done_badge(client, monkeypatch):
     resp = client.get(f"/erp/orders/{order.id}/mobile")
     assert resp.status_code == 200
     html = resp.get_data(as_text=True)
-    assert "erp-quest-done" in html
     assert "고객 컨펌 완료" in html
     assert "erp-mobile-quest-approve-assignee" not in html
     assert "erp-mobile-quest-retransition" in html
-    assert "생산 단계로 넘기기" in html
+    assert "생산 단계로 넘기기" not in html
+    # 넘길 수 있으면 같은 이름의 완료 배지는 겹쳐 그리지 않는다.
+    assert "erp-quest-done" not in html
 
 
 def test_mobile_detail_renders_approve_button_for_open_quest(client, monkeypatch):
@@ -164,7 +183,7 @@ def test_mobile_detail_renders_approve_button_for_open_quest(client, monkeypatch
 # --------------------------------------------------------------------------- #
 # 3. PC 그리드
 # --------------------------------------------------------------------------- #
-def test_pc_grid_renders_done_badge(client):
+def test_pc_grid_renders_retransition_not_done_badge_when_it_can_advance(client):
     user = _make_user("disp_grid_done")
     _login(client, user)
     order = _create_order(quests=[_done_confirm_quest()], customer_name="그리드 완료")
@@ -173,10 +192,11 @@ def test_pc_grid_renders_done_badge(client):
     assert resp.status_code == 200
     html = resp.get_data(as_text=True)
     assert f'quest-collapse-{order.id}' in html
-    assert "erp-quest-done" in html
     assert "고객 컨펌 완료" in html
     assert "erp-btn-retransition erp-btn-approve-assignee" in html
-    assert "생산 단계로 넘기기" in html
+    assert "생산 단계로 넘기기" not in html
+    # 셀의 완료 배지는 넘길 수 있을 때 겹쳐 그리지 않는다.
+    assert "erp-quest-done" not in html
 
 
 def test_pc_grid_open_quest_has_no_done_badge(client):

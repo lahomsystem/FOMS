@@ -55,7 +55,8 @@
      * 알림톡 본문은 서버가 저장된 structured_data 로 조립하므로, 저장 없이 발송하면
      * 화면에 보이는 값과 다른 본문이 고객에게 나간다. 저장 실패 시 발송을 중단한다.
      *
-     * @param {function(string):void} [setStatus] 상태 문구 표시(기본: 알림톡 상태 줄).
+     * @param {function(string, string=):void} [setStatus] 상태 문구 표시(기본: 알림톡 상태 줄 —
+     *     두 번째 인자 'error' 는 상태 줄이 없는 표면에서 alert 로 보인다).
      * @returns {Promise<boolean>} 발송 흐름을 계속해도 되는지(저장 실패면 false).
      */
     async function erpAlimtalkEnsureSaved(setStatus) {
@@ -70,7 +71,7 @@
                 && window.erpIsDraftBackedOrder());
         if (!dirty && !needsPersist) return true;
         if (typeof window.erpSaveStructured !== 'function') {
-            say('저장되지 않은 변경이 있습니다. 저장 후 발송해주세요.');
+            say('저장되지 않은 변경이 있습니다. 저장 후 발송해주세요.', 'error');
             return false;
         }
         // 필수값 검증(고객명·전화·주소·제품)은 저장 함수가 그대로 한다 — 누락이면 저장이
@@ -83,17 +84,60 @@
             result = null;
         }
         if (!result || result.success !== true) {
-            say('저장 실패 — 저장 후 다시 시도해주세요.');
+            say('저장 실패 — 저장 후 다시 시도해주세요.', 'error');
             return false;
         }
         return true;
     }
 
-    /** 버튼 옆 상태 한 줄(있는 표면에서만) 갱신. */
-    function erpAlimtalkSetStatus(text) {
+    /** @returns {boolean} 요소가 지금 화면에 그려져 있는지(display:none·떼어낸 표면이면 false). */
+    function _isShown(el) {
+        return !!(el && el.getClientRects && el.getClientRects().length);
+    }
+
+    /**
+     * 상태 줄이 없는 표면(모바일)에서 결과를 사용자에게 알린다.
+     *
+     * 토스트가 이 화면에서 실제로 그려질 때만 토스트, 아니면 alert 로 떨어진다
+     * (erp-order-shared.js erpToastVisibleHere — 호스트가 있어도 숨은 영역이면 안 보인다).
+     *
+     * @param {string} text 문구.
+     */
+    function _notifyVisible(text) {
+        const toastVisible = typeof window.erpToastVisibleHere === 'function'
+            ? window.erpToastVisibleHere()
+            : false;
+        if (toastVisible) {
+            window.fomsShowToast(text);
+            return;
+        }
+        window.alert(text);
+    }
+
+    /**
+     * 버튼 옆 상태 한 줄 갱신.
+     *
+     * 상태 줄(.erp-alimtalk-status)은 PC 표면에만 있다. 2026-09-23 사용자 제보: 모바일에서는
+     * 발송 실패·발송 완료 문구가 쓸 곳이 없어 **조용히 사라졌다**. 상태 줄이 보이지 않으면
+     * 실패(error)는 반드시 보이게(열린 발송 모달의 안내 줄이 이미 보여 주면 그걸로 충분),
+     * 완료(done)는 토스트로 알린다. 진행 문구('발송 중…' 등)는 창을 띄우지 않는다.
+     *
+     * @param {string} text 상태 문구(빈 값이면 지운다).
+     * @param {string} [level] 'error' | 'done' — 상태 줄이 없는 표면에서 대체 알림을 띄울 등급.
+     */
+    function erpAlimtalkSetStatus(text, level) {
         const nodes = document.querySelectorAll('.erp-alimtalk-status');
+        let shown = false;
         for (let i = 0; i < nodes.length; i += 1) {
             nodes[i].textContent = text || '';
+            if (_isShown(nodes[i])) shown = true;
+        }
+        if (shown || !text) return;
+        if (level === 'error') {
+            if (_isShown(document.getElementById('erp-alimtalk-notice'))) return;
+            window.alert(text);
+        } else if (level === 'done') {
+            _notifyVisible(text);
         }
     }
 
@@ -188,19 +232,20 @@
                 // 최신 이력이다'라는 선언이라, 빈 값을 보내면 멀쩡한 칩이 지워진다.
                 if (body && body.data && body.data.last) _publishTrace(body.data.last);
                 if (sent) {
-                    erpAlimtalkSetStatus('알림톡 발송 완료');
                     const modal = _modal();
                     if (modal) modal.hide();
+                    erpAlimtalkSetStatus('알림톡 발송 완료', 'done');
                     return;
                 }
                 const code = (body && (body.error || (body.data && body.data.error))) || 'network';
-                erpAlimtalkSetStatus('알림톡 발송 실패 · ' + erpAlimtalkReasonLabel(code));
+                // 모달 안내 줄을 먼저 채운다 — 그게 보이면 상태 줄 대체 알림(alert)은 생략된다.
                 _setNotice('발송 실패 — ' + erpAlimtalkReasonLabel(code));
+                erpAlimtalkSetStatus('알림톡 발송 실패 · ' + erpAlimtalkReasonLabel(code), 'error');
                 if (confirmBtn) confirmBtn.disabled = false;
             })
             .catch(function () {
-                erpAlimtalkSetStatus('알림톡 발송 실패 · ' + erpAlimtalkReasonLabel('network'));
                 _setNotice('발송 실패 — ' + erpAlimtalkReasonLabel('network'));
+                erpAlimtalkSetStatus('알림톡 발송 실패 · ' + erpAlimtalkReasonLabel('network'), 'error');
                 if (confirmBtn) confirmBtn.disabled = false;
             });
     }
@@ -216,7 +261,7 @@
             // 저장이 주문을 만들거나 승격했으면 ORDER_ID 가 갱신된다 — 저장 뒤에 읽는다.
             const orderId = erpAlimtalkOrderId();
             if (!orderId) {
-                erpAlimtalkSetStatus('저장 후 발송할 수 있습니다.');
+                erpAlimtalkSetStatus('저장 후 발송할 수 있습니다.', 'error');
                 return;
             }
             erpAlimtalkSetStatus('미리보기 불러오는 중…');
@@ -227,7 +272,7 @@
             const body = await res.json();
             if (!body || !body.success || !body.data) {
                 const code = (body && body.error) || 'network';
-                erpAlimtalkSetStatus('미리보기 실패 · ' + erpAlimtalkReasonLabel(code));
+                erpAlimtalkSetStatus('미리보기 실패 · ' + erpAlimtalkReasonLabel(code), 'error');
                 return;
             }
             erpAlimtalkSetStatus('');
@@ -240,7 +285,7 @@
             // bootstrap 미로드 폴백 — 본문 확인 후 즉시 발송 여부만 묻는다.
             if (window.confirm(body.data.text || '')) void _send(orderId);
         } catch (e) {
-            erpAlimtalkSetStatus('미리보기 실패 · ' + erpAlimtalkReasonLabel('network'));
+            erpAlimtalkSetStatus('미리보기 실패 · ' + erpAlimtalkReasonLabel('network'), 'error');
         } finally {
             _busy = false;
         }

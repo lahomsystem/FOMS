@@ -697,3 +697,24 @@ def test_corrected_snapshot_survives_next_cycle_reseed(client):
     assert sd["shipment"]["as_billing"]["type"] == "free"      # 새 건은 새 판정
     past = sd["as_lifecycle"]["cycles"][0]["billing_snapshot"]  # 지난 건은 정정값 유지
     assert past["type"] == "paid" and past["amount"] == 120000
+
+
+def test_as_receive_success_shows_visible_notice():
+    """접수 성공은 상태줄 글자만이 아니라 눈에 띄는 알림("AS 접수 완료")으로도 알린다.
+
+    2026-09-23 사용자 제보: 상태줄만 바뀌어 됐는지 안 됐는지 헷갈렸다. 토스트 호스트가 없는
+    화면에서는 fomsShowToast 가 보이지 않으므로 alert 으로 떨어져야 한다.
+    """
+    js = _shared_js()
+    assert "erpNotifyAsReceiveResult('AS 접수 완료')" in js
+    helper = js[js.index("function erpNotifyAsReceiveResult("):]
+    helper = helper[: helper.index("\n}\n")]
+    assert "erpToastVisibleHere()" in helper
+    assert "alert(message)" in helper
+    # 호스트 존재가 아니라 렌더 여부로 판정한다 — PC 주문 화면은 호스트가 모바일 셸(display:none)
+    # 안에 있어 토스트가 안 보였다(2026-09-23 스테이징 실측).
+    probe = js[js.index("function erpToastVisibleHere("):]
+    probe = probe[: probe.index("\n}\n")]
+    assert "foms-alpine-toast-root" in probe and "getClientRects().length" in probe
+    # 저장 실패도 상태줄만으로 끝내지 않는다.
+    assert "alert(failMsg)" in js

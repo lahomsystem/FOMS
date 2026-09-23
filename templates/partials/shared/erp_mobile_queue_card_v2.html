@@ -316,17 +316,22 @@
           <i class="fas fa-drafting-compass" aria-hidden="true"></i> 도면 창구
         </a>
       {% elif quest and quest.is_done %}
+        {# 완료 quest 인데 단계가 그대로인 막다른 길 — 승인 버튼과 같은 모양·이름으로 다시 넘긴다
+           (서버는 재전이 경로로 승인 기록을 건드리지 않고 전이만 건다). 완료 배지는 같은 이름이
+           둘로 보이지 않게 넘길 수 없을 때만. #}
         {% if quest.can_retransition %}
         <button
           type="button"
           class="foms-btn foms-btn--primary foms-btn--sm erp-queue-card__quest-retransition"
           data-order-id="{{ order.id }}"
+          data-approve-label="{{ quest.retransition_label }}"
           data-confirm="{{ quest.retransition_confirm }}"
-          aria-label="{{ quest.retransition_label }}">
-          <i class="fas fa-redo" aria-hidden="true"></i> {{ quest.retransition_label }}
+          aria-label="{{ quest.retransition_label }} — {{ quest.next_stage_label }} 단계로 넘김">
+          <i class="fas fa-check-circle" aria-hidden="true"></i> {{ quest.retransition_label }}
         </button>
-        {% endif %}
+        {% else %}
         <span class="foms-btn foms-btn--secondary foms-btn--sm erp-queue-card__quest-done" role="status"><i class="fas fa-check-circle" aria-hidden="true"></i> {{ quest.done_label }}</span>
+        {% endif %}
       {% endif %}{% endset %}
 
     <footer class="queue-card__action foms-queue-card-v2__action">

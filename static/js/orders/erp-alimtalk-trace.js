@@ -28,7 +28,13 @@
     //  서버가 too_early 로 되돌려 보내므로 조용히 틀리지는 않는다).
     const PROBE_DELAY_MS = 60 * 1000;
 
-    const HISTORY_EVENT_TYPES = 'ALIMTALK_SENT,ALIMTALK_FAILED';
+    //: 이력 패널이 받아 오는 이벤트 — 실측 예약 안내 2종 + 공유 링크 발송 2종(foms/api/share.py
+    //  가 남기는 앵커 이벤트, 성패는 payload.status). 2026-09-23 사용자 결정: 도면 단독·계약서
+    //  단독 링크도 흔적을 남긴다 — 칩은 마지막 한 건뿐이라 지난 발송은 이 목록에서만 보인다.
+    const HISTORY_EVENT_TYPES = 'ALIMTALK_SENT,ALIMTALK_FAILED,SHARE_ALIMTALK,SHARE_SMS';
+
+    //: 공유 이벤트 종류 — _buildLogItem 이 예약 안내와 다른 규칙으로 성패·제목을 읽는다.
+    const SHARE_EVENT_TYPES = ['SHARE_ALIMTALK', 'SHARE_SMS'];
 
     let _probeTimer = null;
     let _probing = false;
@@ -234,8 +240,9 @@
         return chip;
     }
 
-    //: 공유 종류 표기 — 서버 record.kind 와 같은 값.
-    const SHARE_KIND_LABELS = { drawing: '도면', estimate: '계약서', bundle: '도면·계약서' };
+    //: 공유 종류 표기 — 서버 record.kind 와 같은 값. 2026-09-23: 도면 단독·계약서 단독도
+    //  흔적을 남기므로(kakao_alimtalk.SHARE_TRACKED_KINDS) '무엇의 링크'인지 이름에 넣는다.
+    const SHARE_KIND_LABELS = { drawing: '도면 링크', estimate: '계약서 링크', bundle: '도면·계약서 링크' };
 
     /**
      * 공유 링크 발송 칩. **보낸 적이 없으면 아무것도 만들지 않는다** — 공유 링크는 모든
@@ -248,7 +255,14 @@
     function _buildShareChip(record, compact) {
         if (!record || (!record.sent_at && !record.error)) return null;
         const failed = !!record.error;
-        const chip = document.createElement('span');
+        // 2026-09-23: 이력 패널이 공유 발송도 보여 주므로 공유 칩도 누르면 패널이 열린다
+        // (모바일은 미발송 예약 안내 칩을 감추므로 이 칩이 줄의 유일한 진입점일 수 있다).
+        const clickable = _hasPanel();
+        const chip = document.createElement(clickable ? 'button' : 'span');
+        if (clickable) {
+            chip.type = 'button';
+            chip.setAttribute('data-erp-alimtalk-trace-open', '1');
+        }
         chip.className = 'erp-alimtalk-trace erp-alimtalk-trace--'
             + (failed ? 'failed' : 'share');
         chip.setAttribute('data-foms-no-autodismiss', '1');
@@ -273,9 +287,10 @@
                 _appendPart(chip, record.sent_by_name || '', 'erp-alimtalk-trace__who');
             }
         }
-        chip.title = failed
+        chip.title = (failed
             ? '고객에게 공유 링크를 보내지 못했습니다.'
-            : '고객에게 공유 링크를 보낸 기록입니다.';
+            : '고객에게 공유 링크를 보낸 기록입니다.')
+            + (clickable ? ' 눌러서 발송 이력을 봅니다.' : '');
         return chip;
     }
 
@@ -344,9 +359,38 @@
 
     // --- 이력 패널 -------------------------------------------------------------
 
+    /**
+     * 이력 한 줄의 제목·성패를 이벤트 종류별로 읽는다.
+     *
+     * 예약 안내는 이벤트 종류 자체가 성패(ALIMTALK_SENT/FAILED)이고, 공유 링크는 앵커
+     * 이벤트 하나를 payload.status(in_flight → sent/failed)로 승격한다.
+     *
+     * @param {Object} event 이벤트 API 한 건.
+     * @returns {{failed: boolean, kind: string, error: string}} 표시용 요약.
+     */
+    function _describeEvent(event) {
+        const payload = event.payload && typeof event.payload === 'object' ? event.payload : {};
+        if (SHARE_EVENT_TYPES.indexOf(event.event_type) !== -1) {
+            const status = String(payload.status || '');
+            const via = event.event_type === 'SHARE_SMS' ? '문자' : '알림톡';
+            return {
+                failed: status !== 'sent',
+                kind: (SHARE_KIND_LABELS[payload.kind] || '공유 링크') + ' · ' + via,
+                // 선점(in_flight)에서 멈춘 행은 결과를 모른다 — 성공으로 그리지 않는다.
+                error: status === 'in_flight' ? 'in_flight' : String(payload.error || ''),
+            };
+        }
+        return {
+            failed: event.event_type === 'ALIMTALK_FAILED',
+            kind: '실측 예약 안내',
+            error: String(payload.error || ''),
+        };
+    }
+
     /** 이력 한 줄을 만든다. */
     function _buildLogItem(event) {
-        const failed = event.event_type === 'ALIMTALK_FAILED';
+        const info = _describeEvent(event);
+        const failed = info.failed;
         const item = document.createElement('li');
         item.className = 'erp-alimtalk-trace-log__item';
 
@@ -368,7 +412,7 @@
         head.appendChild(when);
         const kind = document.createElement('span');
         kind.className = 'erp-alimtalk-trace-log__kind';
-        kind.textContent = '실측 예약 안내';
+        kind.textContent = info.kind;
         head.appendChild(kind);
         const who = document.createElement('span');
         who.className = 'erp-alimtalk-trace-log__who';
@@ -376,13 +420,12 @@
         head.appendChild(who);
         body.appendChild(head);
 
-        const payload = event.payload && typeof event.payload === 'object' ? event.payload : {};
-        if (failed && payload.error) {
+        if (failed && info.error) {
             const sub = document.createElement('div');
             sub.className = 'erp-alimtalk-trace-log__reason';
-            sub.textContent = payload.error === 'in_flight'
+            sub.textContent = info.error === 'in_flight'
                 ? '발송 진행 중 기록'
-                : _reasonLabel(payload.error);
+                : _reasonLabel(info.error);
             body.appendChild(sub);
         }
         item.appendChild(body);

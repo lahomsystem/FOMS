@@ -133,8 +133,15 @@
    답답하게 만든다. 미발송(--none)은 정보가 없는 상태라 모바일에서는 줄째 감춘다 —
    보냄·문자·실패처럼 알아야 할 흔적이 생기면 그때 나타난다. 이력은 알림톡 시트의
    발송 이력에서도 볼 수 있어 잃는 진입점이 없다. 데스크톱은 그대로(폭이 넉넉하다).
-   :has 미지원 구형 브라우저는 종전처럼 칩이 보일 뿐이다(무해한 폴백). */
-.erp-alimtalk-trace-slot--mobile:has(> .erp-alimtalk-trace--none) {
+   2026-09-23: 예전 규칙은 '미발송 칩이 있으면 줄째' 감춰서, 같은 줄의 공유 링크 칩
+   ([data-erp-share-trace])까지 함께 사라졌다. 이제 미발송 칩 자신만 감추고, 줄은
+   다른 칩이 하나도 없을 때만 감춘다(빈 줄의 여백이 액션바를 밀지 않게).
+   :has 미지원 구형 브라우저는 미발송 칩만 사라지고 빈 줄 여백이 남을 뿐이다(무해한 폴백). */
+.erp-alimtalk-trace-slot--mobile > .erp-alimtalk-trace--none {
+  display: none;
+}
+
+.erp-alimtalk-trace-slot--mobile:not(:has(> :not(.erp-alimtalk-trace--none))) {
   display: none;
 }
 

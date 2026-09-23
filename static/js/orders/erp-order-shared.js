@@ -778,6 +778,64 @@ var erpSetStatus =
     };
 window.erpSetStatus = erpSetStatus;
 
+/**
+ * 서버만 쓰는 알림톡 발송 이력 키 — 화면 사본에는 남기되 저장 PUT 에는 싣지 않는다.
+ *
+ * 2026-09-23 사용자 제보: 저장(자동 저장 포함) 직후 화면 사본을 폼 수집본으로 갈아끼우면서
+ * 이 두 키가 빠져, 발송 흔적 칩이 새로고침 전까지 '아직 안 보냄'으로 되돌아갔다.
+ * preservedTopLevelKeys(PUT 에 되실어 보내는 목록)에 넣지 **않는** 이유: 서버는 폼이 보낸
+ * 값을 그대로 받으므로, 저장 왕복 사이에 서버가 새로 쓴 이력(자동 발송 등)을 화면의 낡은
+ * 사본이 덮는다. alimtalk_measurement 는 중복 발송 멱등 판정(dedupe_key)이 서 있는 자리라
+ * 덮이면 같은 예약 안내가 한 번 더 나간다. 서버 쪽 보존은 _OPERATIONAL_TOP_LEVEL_KEYS 와
+ * structured_form_projection.preserve_non_form_keys 가 한다(키가 빠져 오면 옛 값을 되살림).
+ */
+var ERP_LOCAL_ONLY_TRACE_KEYS = ['alimtalk_measurement', 'alimtalk_share'];
+
+/**
+ * 저장 직후 새 화면 사본(next)에 직전 사본(prev)의 서버 소유 발송 이력을 옮겨 담는다.
+ *
+ * @param {Object} next 저장에 쓴 폼 수집본(새 화면 사본이 된다, in-place).
+ * @param {Object|null} prev 저장 완료 시점의 화면 사본(그 사이 발송 응답이 갱신했을 수 있다).
+ */
+function erpCarryLocalOnlyKeys(next, prev) {
+    if (!next || typeof next !== 'object' || !prev || typeof prev !== 'object') return;
+    ERP_LOCAL_ONLY_TRACE_KEYS.forEach(function (key) {
+        if (prev[key] == null || Object.prototype.hasOwnProperty.call(next, key)) return;
+        next[key] = prev[key];
+    });
+}
+window.erpCarryLocalOnlyKeys = erpCarryLocalOnlyKeys;
+
+/**
+ * 공용 토스트가 이 화면에서 **실제로 그려지는가**.
+ * 호스트(#foms-alpine-toast-root)와 Alpine 스토어가 있어도 PC 주문 화면에서는 호스트가
+ * 모바일 셸 영역(display:none) 안에 있어 토스트가 안 보인다(2026-09-23 스테이징 실측) —
+ * 그래서 존재가 아니라 렌더 여부(getClientRects)로 판정한다.
+ * @returns {boolean}
+ */
+function erpToastVisibleHere() {
+    const root = document.getElementById('foms-alpine-toast-root');
+    return !!(root && root.getClientRects().length
+        && window.Alpine && window.Alpine.store && window.Alpine.store('fomsToast')
+        && typeof window.fomsShowToast === 'function');
+}
+window.erpToastVisibleHere = erpToastVisibleHere;
+
+/**
+ * AS 접수 결과를 눈에 띄게 알린다.
+ * 토스트가 이 화면에서 보이지 않으면(PC 주문 화면, 토스트 호스트 없는 화면) alert 으로 간다 —
+ * 보이지 않는 곳에 띄운 알림은 안 띄운 것과 같다(draft_resume.js 참고).
+ * @param {string} message 보여 줄 문구.
+ * @returns {void}
+ */
+function erpNotifyAsReceiveResult(message) {
+    if (erpToastVisibleHere()) {
+        window.fomsShowToast(message);
+        return;
+    }
+    alert(message);
+}
+
 var erpFormatMoneyKRW =
     window.erpFormatMoneyKRW ||
     function erpFormatMoneyKRW(num) {
@@ -2859,6 +2917,7 @@ async function erpSaveStructuredOnce(opts = {}) {
             if (wasDraftMode || data.draft_cleared) {
                 structured_data.meta.draft = false;
             }
+            erpCarryLocalOnlyKeys(structured_data, window.__erpLastStructuredData);
             window.__erpLastStructuredData = structured_data;
         }
         if (typeof window.erpInvalidateEstimateCache === 'function') {
@@ -3524,11 +3583,16 @@ ${escapeHtml(sub)}</div>` : ''}`;
                     // 이 화면에서 AS 푸시(알림톡·PUSH)를 이어서 하므로, 저장만 하고
                     // 'AS 등록 완료' 를 띄운 채 ERP Order 에 머문다. 저장 실패도 화면을
                     // 떠나지 않고 상태줄로 말한다(자동 이동은 실패를 삼켰다).
+                    // 상태줄 글자만 바뀌면 됐는지 안 됐는지 모른다(2026-09-23 사용자 제보) —
+                    // 결과를 눈에 띄는 알림으로도 띄운다.
                     const saveResult = await erpSaveStructured({ redirect: false });
                     if (saveResult && saveResult.success === true) {
                         erpSetStatus('AS 등록 완료');
+                        erpNotifyAsReceiveResult('AS 접수 완료');
                     } else {
-                        erpSetStatus('AS 접수는 등록됐지만 주문 저장에 실패했습니다. 저장을 다시 눌러 주세요.');
+                        const failMsg = 'AS 접수는 등록됐지만 주문 저장에 실패했습니다. 저장을 다시 눌러 주세요.';
+                        erpSetStatus(failMsg, true);
+                        alert(failMsg);
                     }
                 } catch (e) {
                     console.error(e);
@@ -5721,7 +5785,7 @@ function fomsMountErpOrderSurface() {
                 }
                 if (result.success) {
                     if (typeof erpMarkChannelPushSent === 'function') {
-                        erpMarkChannelPushSent(pushKind);
+                        erpMarkChannelPushSent(pushKind, new Date().toISOString());
                     }
                     btn.innerHTML = '<i class="fas fa-check"></i> 전송완료';
                     if (activeClass) btn.classList.replace(activeClass, successClass);
@@ -5753,7 +5817,7 @@ function fomsMountErpOrderSurface() {
 
             if (data.success) {
                 if (typeof erpMarkChannelPushSent === 'function') {
-                    erpMarkChannelPushSent(pushKind);
+                    erpMarkChannelPushSent(pushKind, new Date().toISOString());
                 }
                 btn.innerHTML = '<i class="fas fa-check"></i> 전송완료';
                 if (activeClass) btn.classList.replace(activeClass, successClass);

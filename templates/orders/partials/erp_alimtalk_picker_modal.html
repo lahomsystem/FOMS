@@ -46,6 +46,14 @@
                         <i class="fas fa-clock-rotate-left"></i> 공유 링크 관리
                         <span class="erp-channel-push-picker-hint">발급 이력·열람 횟수·회수</span>
                     </button>
+                    {# 2026-09-23: 모바일은 '아직 안 보냄' 칩을 감추므로(erp-alimtalk-trace.css) 이력
+                       패널로 가는 길이 칩 말고도 하나 있어야 한다. 같은 시트 replay 흐름을 타고
+                       erp-alimtalk-trace.js 의 [data-erp-alimtalk-trace-open] 위임 핸들러가 연다. #}
+                    <button type="button" class="foms-btn foms-btn--secondary erp-alimtalk-trace-open-btn"
+                        id="erp-alimtalk-trace-open-btn-sheet" data-erp-alimtalk-trace-open="1">
+                        <i class="fas fa-list-check"></i> 발송 이력
+                        <span class="erp-channel-push-picker-hint">지금까지 보낸 예약 안내·공유 링크</span>
+                    </button>
                 </div>
             </div>
             <div class="modal-footer">
