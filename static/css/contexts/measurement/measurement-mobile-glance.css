@@ -1012,3 +1012,155 @@ html.foms-meas-sheet-open .foms-shell-fab {
 .foms-meas-glance--unified .foms-meas-glance__save {
   min-height: 44px;
 }
+
+/* ── 압축 시트(2026-09-23 목업 "이대로 만들기" C1~C5) ──
+   모든 규칙은 .foms-meas-sheet 안에서만. 옛 iOS(15.4 미만)에서도 되게 :has() 대신
+   mobile-glance-sheet-parts.js 의 tagRows() 가 다는 data-meas-sheet-row·badge·foot 표식을 고른다. */
+/* C1: 위쪽 고정 + 내용 높이 — 흰 패널은 내용만큼, 남는 자리는 어두운 배경. 이전·다음 머리 위치는 주문마다 같다.
+   B1 의 고정 높이(height: calc(...))와 본문 flex: 1 1 auto 를 덮는다. dvh 를 모르는 브라우저는 앞 줄(vh)을 쓴다. */
+.foms-meas-sheet {
+  justify-content: flex-start;
+  padding: max(12vh, calc(var(--foms-shell-header-h, 48px) + var(--foms-safe-area-top, 0px) + 8px)) 8px calc(12px + env(safe-area-inset-bottom, 0px));
+  padding: max(12dvh, calc(var(--foms-shell-header-h, 48px) + var(--foms-safe-area-top, 0px) + 8px)) 8px calc(12px + env(safe-area-inset-bottom, 0px));
+}
+.foms-meas-sheet .foms-meas-sheet__panel {
+  height: auto;
+  max-height: 100%;
+  padding-bottom: 0;
+  border-radius: 20px;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.28);
+}
+.foms-meas-sheet .foms-meas-sheet__body {
+  flex: 0 1 auto;
+  min-height: 0;
+  padding: 10px 16px 12px;
+}
+/* 끌어 내리기 손잡이는 동작이 없고, 위쪽 고정 카드에선 뜻이 없다. */
+.foms-meas-sheet .foms-meas-sheet__grab {
+  display: none;
+}
+.foms-meas-sheet .foms-meas-sheet__bar {
+  flex: none;
+  padding-top: 8px;
+}
+/* C2: 겹치는 정보 숨김 — 파란 "실측" 단계 뱃지(실측 임박·#번호는 그대로), 실측 날짜 줄, 담당 줄(머리에 있음). */
+.foms-meas-sheet .foms-meas-sheet__slot .foms-queue-card-v2__head > [data-meas-sheet-badge="stage"],
+.foms-meas-sheet .foms-meas-sheet__slot .queue-card__meta > [data-meas-sheet-row="date"],
+.foms-meas-sheet .foms-meas-sheet__slot .queue-card__meta > [data-meas-sheet-row="mgr"] {
+  display: none;
+}
+/* 타임라인 단추: 보이는 40px, ::after 로 누름 칸 44px. */
+.foms-meas-sheet .foms-meas-sheet__slot .foms-queue-card-v2__head .foms-tl-trigger {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  border-radius: 10px;
+}
+.foms-meas-sheet .foms-meas-sheet__slot .foms-queue-card-v2__head .foms-tl-trigger::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
+}
+/* C4: 실측 체크 줄 48px. */
+.foms-meas-sheet .foms-meas-sheet__vcheck {
+  min-height: 48px;
+  margin: 8px 0 2px;
+  font-size: 14.5px;
+}
+.foms-meas-sheet .foms-meas-sheet__vbox {
+  width: 24px;
+  height: 24px;
+}
+/* C3: 주소·연락처 한 줄씩 — 줄 전체가 기존 지도·전화 링크의 누름 칸, 오른쪽 끝에 지도 핀·전화 아이콘. */
+.foms-meas-sheet .foms-meas-sheet__slot .queue-card__meta {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+}
+.foms-meas-sheet .foms-meas-sheet__slot .queue-card__meta > [data-meas-sheet-row="addr"],
+.foms-meas-sheet .foms-meas-sheet__slot .queue-card__meta > [data-meas-sheet-row="phone"] {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
+  padding: 6px 40px 6px 0;
+  border-bottom: 1px solid var(--foms-color-neutral-100);
+}
+.foms-meas-sheet .foms-meas-sheet__slot .queue-card__meta > [data-meas-sheet-row="addr"] > dt,
+.foms-meas-sheet .foms-meas-sheet__slot .queue-card__meta > [data-meas-sheet-row="phone"] > dt {
+  flex: none;
+  width: 40px;
+}
+.foms-meas-sheet .foms-meas-sheet__slot .queue-card__meta > [data-meas-sheet-row="addr"] > dd,
+.foms-meas-sheet .foms-meas-sheet__slot .queue-card__meta > [data-meas-sheet-row="phone"] > dd {
+  display: -webkit-box;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  font-size: 15px;
+}
+.foms-meas-sheet .foms-meas-sheet__slot .queue-card__meta > [data-meas-sheet-row] > dd > a {
+  display: inline;
+  min-height: 0;
+  color: var(--foms-color-neutral-900);
+  text-decoration: none;
+}
+.foms-meas-sheet .foms-meas-sheet__slot .queue-card__meta > [data-meas-sheet-row="addr"] > dd > a::before,
+.foms-meas-sheet .foms-meas-sheet__slot .queue-card__meta > [data-meas-sheet-row="phone"] > dd > a::before {
+  content: "";
+  position: absolute;
+  inset: 0; /* 줄 전체를 링크 누름 칸으로(dd·a 에 position 을 두지 않는다) */
+}
+.foms-meas-sheet .foms-meas-sheet__slot .queue-card__meta > [data-meas-sheet-row="addr"]::after,
+.foms-meas-sheet .foms-meas-sheet__slot .queue-card__meta > [data-meas-sheet-row="phone"]::after {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  margin-top: -16px;
+  font-family: "Font Awesome 6 Free";
+  font-size: 15px;
+  font-weight: 900;
+  color: var(--foms-color-brand-700);
+  background: var(--foms-color-brand-50, #eff6ff);
+  border-radius: 99px;
+  pointer-events: none;
+}
+.foms-meas-sheet .foms-meas-sheet__slot .queue-card__meta > [data-meas-sheet-row="addr"]::after {
+  content: "\f3c5";
+}
+.foms-meas-sheet .foms-meas-sheet__slot .queue-card__meta > [data-meas-sheet-row="phone"]::after {
+  content: "\f095";
+}
+/* 사진 제목 간격 조금 줄임. */
+.foms-meas-sheet .foms-meas-sheet__ph-h {
+  margin-top: 4px;
+  padding-top: 10px;
+  border-top: 0;
+}
+/* C5: 단추 한 줄 — 상세 · ERP 편집 · 실측 완료(넓게). 넘긴 주문(실측 완료 표시가 단추 줄에 든 경우)은 줄바꿈 허용. */
+.foms-meas-sheet .foms-meas-sheet__slot .queue-card__action {
+  flex-wrap: nowrap;
+  margin-top: 6px;
+}
+.foms-meas-sheet .foms-meas-sheet__slot .queue-card__action > .foms-btn.foms-btn--sm {
+  flex: 1 1 0;
+  min-height: 48px;
+  padding-inline: 8px;
+}
+.foms-meas-sheet .foms-meas-sheet__slot .queue-card__action > .foms-btn.erp-queue-card__quest-approve {
+  order: 1;
+  flex-grow: 1.7;
+}
+.foms-meas-sheet .foms-meas-sheet__slot .queue-card__action[data-meas-sheet-foot="handed"] {
+  flex-wrap: wrap;
+}
+.foms-meas-sheet .foms-meas-sheet__slot .queue-card__action[data-meas-sheet-foot="handed"] > .foms-measure-done {
+  order: 2; /* 예전처럼 맨 아래 한 줄(실측 완료 단추가 order 1 로 뒤로 가도 표시는 그 뒤) */
+}
