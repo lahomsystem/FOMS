@@ -70,7 +70,7 @@ def build_approve_cta(stage_code: str | None, order: Any) -> dict[str, Any]:
         ``advances_stage``, ``next_stage_label``, ``command_required``,
         ``done_label`` (승인이 끝난 quest 의 완료 배지 문구 — 항상 채운다),
         ``retransition_label``·``retransition_confirm`` (완료 quest 를 다음 단계로 다시
-        넘기는 버튼 문구·확인 문장 — 단계를 옮기지 않는 stage 는 빈 문자열).
+        넘기는 버튼 문구·확인 문장 — 승인 버튼과 같다. 단계를 옮기지 않는 stage 는 빈 문자열).
     """
     command_required = is_command_required_stage(stage_code)
     label = None if command_required else _QUEST_APPROVE_LABELS.get(stage_code or "")
@@ -103,14 +103,11 @@ def build_approve_cta(stage_code: str | None, order: Any) -> dict[str, Any]:
     confirm = f"{head}\n\n{context_line}" if context_line else head
 
     # 재전이 문구 — 완료 quest 인데 단계가 그대로인 주문(강제 단계 변경으로 되돌린 뒤)을
-    # 사람이 다시 넘길 때 쓴다. 단계를 옮기지 않는 stage 는 재전이가 없으므로 비운다.
-    retransition_label = ""
-    retransition_confirm = ""
-    if next_stage_code:
-        retransition_label = f"{next_stage_label} 단계로 넘기기"
-        retransition_confirm = f"이미 완료된 {done_label} 입니다.\n{next_stage_label} 단계로 다시 넘길까요?"
-        if context_line:
-            retransition_confirm += f"\n\n{context_line}"
+    # 사람이 다시 넘길 때 쓴다. 따로 이름("도면 단계로 넘기기")을 두면 같은 일을 하는 버튼이
+    # 둘로 보여서 승인 버튼과 같은 이름·확인 문장을 쓴다(2026-09-23 사용자 요청).
+    # 단계를 옮기지 않는 stage 는 재전이가 없으므로 비운다.
+    retransition_label = label if next_stage_code else ""
+    retransition_confirm = confirm if next_stage_code else ""
     return {
         "approve_label": label,
         "approve_confirm": confirm,

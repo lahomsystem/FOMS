@@ -104,12 +104,14 @@
                     {% if o.current_quest %}
                     <div class="erp-grid-quest-stack">
                       {% if o.current_quest.is_done %}
-                      <span class="badge bg-success erp-quest-done">{{ o.current_quest.done_label }}</span>
-                      {# 완료 quest 인데 단계가 그대로인 막다른 길(강제 단계 변경 뒤) — 재전이 버튼.
-                         erp-btn-approve-assignee 를 겸용해 detail-dom.js 의 기존 위임(POST {})을 탄다. #}
+                      {# 완료 quest 인데 단계가 그대로인 막다른 길(강제 단계 변경 뒤) — 승인 버튼과 같은 이름의
+                         재전이 버튼. erp-btn-approve-assignee 를 겸용해 detail-dom.js 의 기존 위임(POST {})을 탄다.
+                         같은 이름의 완료 배지는 넘길 수 없을 때만. #}
                       {% if o.current_quest.can_retransition %}
                       <button type="button" class="btn btn-sm btn-outline-primary fw-semibold erp-btn-retransition erp-btn-approve-assignee"
                         data-order-id="{{ o.id }}" data-confirm="{{ o.current_quest.retransition_confirm }}">{{ o.current_quest.retransition_label }}</button>
+                      {% else %}
+                      <span class="badge bg-success erp-quest-done">{{ o.current_quest.done_label }}</span>
                       {% endif %}
                       {% elif o.current_quest.all_approved %}
                       <span class="badge bg-success" style="font-size: 1rem; padding: 0.4em 0.7em;">완료</span>
