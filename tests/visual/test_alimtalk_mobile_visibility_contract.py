@@ -174,8 +174,8 @@ def test_send_js_reports_done_and_failure_with_levels() -> None:
     assert "erpAlimtalkSetStatus('알림톡 발송 완료', 'done');" in js
     assert js.count("'알림톡 발송 실패 · ' + erpAlimtalkReasonLabel(") == 2
     assert js.count("erpAlimtalkReasonLabel(code), 'error');") >= 2
-    # 토스트 호스트 판정은 AS 접수 선례와 같다(호스트 없으면 fomsShowToast 가 안 보인다).
-    assert "foms-alpine-toast-root" in js and "window.Alpine.store('fomsToast')" in js
+    # 토스트 판정은 AS 접수 선례와 같은 함수 — 호스트가 있어도 숨은 영역(PC)이면 alert 로 간다.
+    assert "window.erpToastVisibleHere()" in js
     # 진행 문구는 창을 띄우지 않는다(등급 없이 호출).
     assert "erpAlimtalkSetStatus('알림톡 발송 중…');" in js
 

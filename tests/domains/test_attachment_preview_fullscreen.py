@@ -32,7 +32,7 @@ PIN = "?v=20260914a"
 
 #: erp-order-shared.js 만 ADMIN-OVERRIDE-01(퀘스트 승인 거부 → 관리자 강제 진행 재시도)로
 #: 다시 바뀌었다. 나머지 두 JS 는 그때 안 바뀌었으니 핀을 따로 둔다.
-SHARED_PIN = "?v=20260923b"  # 2026-09-23: 알림톡 저장 뒤 이력 사본 유지
+SHARED_PIN = "?v=20260923c"  # 2026-09-23: PC 에서 안 보이던 토스트 대신 alert
 
 ZOOM_SRC = "attachment-preview-zoom.js') }}"
 OPEN_SRC = "erp-attachment-preview-open.js') }}"

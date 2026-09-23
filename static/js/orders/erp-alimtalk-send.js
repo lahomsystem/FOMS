@@ -98,16 +98,16 @@
     /**
      * 상태 줄이 없는 표면(모바일)에서 결과를 사용자에게 알린다.
      *
-     * 토스트는 호스트(#foms-alpine-toast-root + Alpine store)가 있어야 실제로 그려진다 —
-     * 없으면 fomsShowToast 가 아무것도 안 보이므로 alert 로 떨어진다
-     * (erp-order-shared.js erpNotifyAsReceiveResult 와 같은 판정).
+     * 토스트가 이 화면에서 실제로 그려질 때만 토스트, 아니면 alert 로 떨어진다
+     * (erp-order-shared.js erpToastVisibleHere — 호스트가 있어도 숨은 영역이면 안 보인다).
      *
      * @param {string} text 문구.
      */
     function _notifyVisible(text) {
-        const hasToastHost = !!document.getElementById('foms-alpine-toast-root')
-            && !!(window.Alpine && window.Alpine.store && window.Alpine.store('fomsToast'));
-        if (hasToastHost && typeof window.fomsShowToast === 'function') {
+        const toastVisible = typeof window.erpToastVisibleHere === 'function'
+            ? window.erpToastVisibleHere()
+            : false;
+        if (toastVisible) {
             window.fomsShowToast(text);
             return;
         }
