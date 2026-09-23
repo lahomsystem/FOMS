@@ -68,18 +68,18 @@ def _assert_shared_form_script_contract(body: str) -> None:
         < estimate_columns_idx
     )
     assert "html2canvas.min.js" not in body
-    assert "js/orders/erp-channel-push-confirm.js?v=20260821a" in body
+    assert "js/orders/erp-channel-push-confirm.js?v=20260923a" in body
     assert "js/cs/as-push-confirm.js?v=20260820a" in body
     # ADMIN-OVERRIDE-01: 퀘스트 승인 거부에 공통 재시도를 배선했으므로 핀이 올랐다.
-    assert "js/orders/erp-order-shared.js?v=20260923a" in body
+    assert "js/orders/erp-order-shared.js?v=20260923b" in body
     assert "js/cs/as-attachment-order.js?v=20260819a" in body
-    assert "js/orders/erp-alimtalk-send.js?v=20260824b" in body
+    assert "js/orders/erp-alimtalk-send.js?v=20260923a" in body
     # T15 발송 흔적: 칩 자리·이력 패널이 실제 렌더에 붙어 있어야 한다(템플릿 계약만으로는
     # 코호트 게이트가 한쪽 표면을 통째로 지워도 초록이다).
-    assert "js/orders/erp-alimtalk-trace.js?v=20260901b" in body
+    assert "js/orders/erp-alimtalk-trace.js?v=20260923a" in body
     assert "data-erp-alimtalk-trace" in body
     assert 'id="erpAlimtalkTraceModal"' in body
-    assert "js/orders/erp-share.js?v=20260901b" in body
+    assert "js/orders/erp-share.js?v=20260923a" in body
     assert "css/orders/erp-share.css?v=20260821a" in body
     assert "js/orders/erp-stage-override.js?v=20260921a" in body
     # ADMIN-OVERRIDE-01 C8: 관리자 강제 진행 재시도는 사유 시트가 있어야 동작한다.
@@ -96,7 +96,7 @@ def _assert_shared_form_script_contract(body: str) -> None:
     assert "js/orders/erp-items-master-detail.js?v=20260630c" in body
     assert "erp-items-master-detail-shell" in body
     assert 'id="erp-md-rail-list"' in body
-    assert "js/orders/estimate-preview.js?v=20260911a" in body
+    assert "js/orders/estimate-preview.js?v=20260923a" in body
 
     estimate_preview_js = (
         Path(__file__).resolve().parents[2]
