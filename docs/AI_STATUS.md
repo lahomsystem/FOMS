@@ -18,7 +18,6 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 - [2026-09-12] **도면 주문 변경 UI 재설계(운영 반영 PR #366)** — 근거 `docs/plans/2026-09-11-drawing-mobile-order-change-brief.md`. 잔여: 스테이징 실화면 확인
 - [2026-09-11] **네이버 취소·반품 부분 선택(deploy 대기 · 게이트 `FOMS_NAVER_PARTIAL_CLAIM_ENABLED`+`_COHORT`)** — 스펙 `docs/specs/2026-09-11-naver-partial-claim_SPEC.md` §11. **잔여: 스테이징 §8 ①②③ + 사용자 #2354 화면 확인**
 - [2026-09-11] **도면 마법사 캔버스 소실 사고 종결(production `5564994a6`·PR #353)** — 주문 폼 전체 저장 1회가 `drawing_wizard` 를 통째 삭제(보존 목록 누락, 감사엔 `변경 0건`). 같은 자리 6번째라 등재 대신 **비-폼 키 기본 보존**으로 뒤집음. 피해=마법사 쓴 주문 2건 전부, **둘 다 R2 스냅샷으로 복구**. 기록 `docs/plans/2026-09-11-drawing-wizard-data-loss-incident.md`
-- [2026-09-13] **탭 왕복 느림 종결 — 서버 렌더 2~5배(PR #362·#367·#370 · production `22acd17cc`)** — 원인 셋: ① `with phase()` 안 인자 식 선평가로 조회가 템플릿 시간으로 계상(진짜 Jinja 5~7ms) ② 배포 직후 첫 방문자의 템플릿 컴파일 550~590ms(4 프로세스) → 부팅 워밍 ③ `raw_snapshot` 평균 2,194B 가 TOAST 임계를 넘어 같은 스캔이 14,736버퍼·50.5ms → 249·1.5ms → 클레임 축 사본 컬럼 4개(`nvmirror_00`). **운영 백필 완료 2,393행·전수 대조 불일치 0**. 실측 이력 탭 388~1,061 → 189~297ms, 처리 탭 696~1,428 → 193~259ms. 원장 §10~§16
 
 ## 알려진 이슈
 - 차단 이슈 없음. 남은 구조 부채는 `WR-B1`/`WR-J1`/`WR-H1` 처럼 explicit future-batch 조건으로만 존재한다. `wdcalculator_scripts_config.html` Jinja 변수 주입 구간의 JS lint false-positive 는 기존과 동일.
