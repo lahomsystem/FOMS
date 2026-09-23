@@ -51,6 +51,17 @@
 .foms-board-status-badge--completed { background-color: #2e7d32; }
 .foms-board-status-badge--hold      { background-color: #8d6e63; }
 
+/* 상태 드롭다운 글자는 흰색(.status-dropdown)인데 색 규칙은 보드 전용 상태만 있었다.
+   메인 파이프라인 단계(실측·도면·컨펌·생산·시공·CS)가 들어오면 흰 바탕에 흰 글자로
+   사라졌다 — 진행 중 뱃지와 같은 회색 톤을 준다. */
+.status-dropdown.status-measure,
+.status-dropdown.status-drawing,
+.status-dropdown.status-confirm,
+.status-dropdown.status-production,
+.status-dropdown.status-construction,
+.status-dropdown.status-cs { background-color: #616161 !important; border-color: #424242; }
+
+
 /* STATE-CONTROLS-04 도면 전달 버튼(js-drawing-transfer) 전용.
    상태 셀 안에서 새 <div> 래퍼 없이 줄을 바꾸기 위해 block 으로 깐다
    (지방 대시보드 버킷 테스트의 div 깊이 정규식을 건드리지 않기 위한 계약).
