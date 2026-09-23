@@ -247,3 +247,21 @@ def test_mobile_trace_chips_share_one_row() -> None:
             ".erp-channel-push-trace)) {\n  display: none;") in css
     # 둘 다 있으면 시각을 빼서 이름이 읽히게 한다.
     assert ".erp-channel-push-trace__when) {\n  display: none;" in css
+
+
+def test_drawing_room_push_trace_survives_save_and_draft_restore() -> None:
+    """도면방 PUSH 는 주문 화면이 보내지 않는 서버 소유 기록이다 — 저장·이어쓰기 뒤에도 칩이 남아야 한다.
+
+    PUT 에 되싣는 preservedTopLevelKeys 가 아니라 화면 사본에만 옮겨 담는 목록에 둔다(실으면 마법사가
+    그 사이 쓴 기록을 덮는다). 서버는 _OPERATIONAL_TOP_LEVEL_KEYS 로 이미 지킨다.
+    """
+    shared = _read("static/js/orders/erp-order-shared.js")
+    local_only = shared.split("var ERP_LOCAL_ONLY_TRACE_KEYS = [")[1].split("]")[0]
+    assert "'channeltalk_push_drawing_room'" in local_only
+    preserved = shared.split("const preservedTopLevelKeys = [")[1].split("]")[0]
+    assert "channeltalk_push_drawing_room" not in preserved
+    server = _read("foms/api/erp_orders_structured.py")
+    assert "'channeltalk_push_drawing_room'," in server
+    autosave = _read("static/js/orders/erp-order-autosave.js")
+    restore = autosave[: autosave.index("window.__erpLastStructuredData = sd;")]
+    assert "window.erpCarryLocalOnlyKeys(sd, window.__erpLastStructuredData);" in restore[-400:]

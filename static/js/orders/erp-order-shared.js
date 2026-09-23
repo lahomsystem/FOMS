@@ -789,7 +789,10 @@ window.erpSetStatus = erpSetStatus;
  * 덮이면 같은 예약 안내가 한 번 더 나간다. 서버 쪽 보존은 _OPERATIONAL_TOP_LEVEL_KEYS 와
  * structured_form_projection.preserve_non_form_keys 가 한다(키가 빠져 오면 옛 값을 되살림).
  */
-var ERP_LOCAL_ONLY_TRACE_KEYS = ['alimtalk_measurement', 'alimtalk_share'];
+// channeltalk_push_drawing_room: 도면방 PUSH 는 도면 마법사에서만 보낸다. 주문 화면은 이 기록을
+// 바꾸지 않으므로 PUT 에 실을 이유가 없고(실으면 마법사가 그 사이 쓴 기록을 덮는다), 화면 사본에만
+// 남겨 PUSH 흔적 칩이 저장 뒤에도 사라지지 않게 한다(2026-09-23).
+var ERP_LOCAL_ONLY_TRACE_KEYS = ['alimtalk_measurement', 'alimtalk_share', 'channeltalk_push_drawing_room'];
 
 /**
  * 저장 직후 새 화면 사본(next)에 직전 사본(prev)의 서버 소유 발송 이력을 옮겨 담는다.
