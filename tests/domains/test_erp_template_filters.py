@@ -180,6 +180,11 @@ def test_spec_w300_uses_composite_total_for_shipment_units() -> None:
         # 범위 종료부 마커는 시작 시각을 뒤집지 못한다
         ("10시~오후2시", "am"),
         ("오전 10시~2시", "am"),
+        # 시작에 '시'가 없는 범위도 시작 시각으로 칠한다(체크리스트 정렬과 같은 기준).
+        ("10~2시", "am"),
+        ("11~1시", "am"),
+        ("오후 3", "pm"),
+        ("２시", "pm"),
     ],
 )
 def test_meas_daypart_classifies_free_text_time_values(value, expected) -> None:
