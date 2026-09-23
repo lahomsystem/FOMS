@@ -15,6 +15,8 @@ import datetime
 import re
 from typing import Any, Optional
 
+from foms.services.measurement_time import measurement_glance_time_key
+
 MEASUREMENT_VISITS_KEY = "measurement_visits"
 #: 날짜 키 상한 — 넘으면 가장 오래된 날짜부터 지운다(무한 증가 방지).
 MEASUREMENT_VISITS_CAP = 20
@@ -121,8 +123,21 @@ def _phone_present(phone: Any) -> bool:
     return bool(text) and text != "-"
 
 
+def _row_visit_time(row: Any) -> Any:
+    """템플릿 시간 칩(``_t``)과 같은 원천: ``structured_data.schedule.measurement.time``."""
+    sd = row.get("structured_data") if isinstance(row, dict) else None
+    schedule = sd.get("schedule") if isinstance(sd, dict) else None
+    measurement = schedule.get("measurement") if isinstance(schedule, dict) else None
+    return measurement.get("time") if isinstance(measurement, dict) else None
+
+
 def build_measurement_glance_groups(rows: list) -> list:
-    """행 순서 그대로 같은 담당자의 **연속 구간**을 묶는다(정렬하지 않는다).
+    """행 순서 그대로 같은 담당자의 **연속 구간**을 묶고, 묶음 안 행만 방문 시각 이른 순으로 정렬한다.
+
+    묶음 자체의 순서·경계는 입력(PC 표) 순서 그대로다. 묶음 안 정렬 키는
+    ``measurement_glance_time_key`` (숫자 시각 → '오전' → '오후' → 종일 → 미상, 같은 키는 원래 순서).
+    방문 시각은 **전날 17시에 확정한 계획값**이다 — 당일 바뀌어도 ERP 에 들어오지 않으므로
+    이 정렬은 계획의 표시 순서일 뿐 실제 방문 순서를 보장하지 않는다.
 
     원소: ``{key, manager_name, manager_phone, rows, done, total}``. ``manager_phone`` 은 묶음
     안에서 처음 나온 비어 있지 않은 값(번호 정규화는 템플릿이 한다). ``done`` 은 ``measurement_visit_done`` 수.
@@ -147,6 +162,9 @@ def build_measurement_glance_groups(rows: list) -> list:
         grp["total"] += 1
         if row.get("measurement_visit_done"):
             grp["done"] += 1
+    for grp in groups:
+        # sorted 는 안정 정렬 — 같은 시각 키는 PC 표 순서를 지킨다.
+        grp["rows"] = sorted(grp["rows"], key=lambda r: measurement_glance_time_key(_row_visit_time(r)))
     return groups
 
 
