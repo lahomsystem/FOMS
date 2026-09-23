@@ -26,6 +26,7 @@ ROOT = Path(__file__).resolve().parents[2]
 TRACE_JS = "static/js/orders/erp-channel-push-trace.js"
 TRACE_CSS = "static/css/orders/erp-channel-push-trace.css"
 PIN = "?v=20260923a"
+CSS_PIN = "?v=20260923b"  # 2026-09-23: 모바일 흔적 한 줄
 
 
 def _read(rel: str) -> str:
@@ -112,10 +113,11 @@ def test_mobile_tab_has_compact_push_trace_slot_in_action_bar() -> None:
 
 def test_push_trace_assets_loaded_once_on_order_js_include() -> None:
     order_js = _read("templates/orders/partials/erp_order_js.html")
-    for asset in ("css/orders/erp-channel-push-trace.css", "js/orders/erp-channel-push-trace.js"):
+    for asset, pin in (("css/orders/erp-channel-push-trace.css", CSS_PIN),
+                       ("js/orders/erp-channel-push-trace.js", PIN)):
         lines = [row for row in order_js.splitlines() if asset in row]
         assert len(lines) == 1, asset
-        assert PIN in lines[0], asset
+        assert pin in lines[0], asset
     script_line = next(r for r in order_js.splitlines() if "js/orders/erp-channel-push-trace.js" in r)
     assert "defer" in script_line
     # 전역 레이아웃에도 실으면 같은 파일이 두 번 실행된다.
@@ -168,7 +170,7 @@ def test_edit_page_renders_push_trace_slots_on_both_surfaces(
     assert "data-erp-channel-push-trace>" in legacy
     assert 'data-erp-channel-push-trace="compact"' in mobile
     assert "js/orders/erp-channel-push-trace.js" + PIN in html
-    assert "css/orders/erp-channel-push-trace.css" + PIN in html
+    assert "css/orders/erp-channel-push-trace.css" + CSS_PIN in html
 
 
 # --- JS 계약 --------------------------------------------------------------------------
@@ -224,3 +226,24 @@ def test_success_paths_pass_sent_time_but_resend_recovery_does_not() -> None:
     estimate = _read("static/js/orders/estimate-preview.js")
     assert estimate.count("erpMarkChannelPushSent('estimate', new Date().toISOString())") == 1
     assert estimate.count("erpMarkChannelPushSent('estimate');") == 1
+
+
+def test_mobile_trace_chips_share_one_row() -> None:
+    """모바일: 알림톡·PUSH 흔적이 두 줄로 쌓이지 않고 버튼 위 한 줄에 나란히 선다(2026-09-23 사용자 요청)."""
+    html = _read("templates/orders/partials/erp_order_tab_mobile.html")
+    footer = html[html.index("erp-mobile-sticky-action-bar"):]
+    bar = footer[: footer.index("</footer>")]
+    row = bar[bar.index("data-erp-mobile-trace-row"):]
+    row = row[: row.index("<button")]
+    assert 'data-erp-alimtalk-trace="compact"' in row
+    assert 'data-erp-channel-push-trace="compact"' in row
+    css = _read(TRACE_CSS)
+    block = css.split(".erp-mobile-trace-row {")[1].split("}")[0]
+    assert "flex: 1 0 100%" in block and "display: flex" in block
+    # 두 자리는 한 줄 안에서 폭을 나눠 갖는다(각자 100% 를 차지하면 다시 두 줄이 된다).
+    assert "flex: 0 1 auto" in css.split(".erp-mobile-trace-row > .erp-channel-push-trace-slot--mobile {")[1].split("}")[0]
+    # 둘 다 비면 줄째 접힌다.
+    assert (".erp-mobile-trace-row:not(:has(.erp-alimtalk-trace:not(.erp-alimtalk-trace--none), "
+            ".erp-channel-push-trace)) {\n  display: none;") in css
+    # 둘 다 있으면 시각을 빼서 이름이 읽히게 한다.
+    assert ".erp-channel-push-trace__when) {\n  display: none;" in css

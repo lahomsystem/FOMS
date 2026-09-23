@@ -486,12 +486,15 @@ ERP Order mobile-v2 tab pane.
 
             </div>
             <footer class="foms-sticky-action-bar erp-mobile-sticky-action-bar" role="group" aria-label="ERP 주문 저장 및 전송">
-                <!-- 발송 흔적: 좁은 폭이라 액션바 위에 눕는다(상태 + 시각만) -->
-                <div class="erp-alimtalk-trace-slot erp-alimtalk-trace-slot--mobile"
-                    data-erp-alimtalk-trace="compact"></div>
-                <!-- PUSH 발송 흔적: 보낸 적이 있을 때만 최근 1종(+N)을 한 줄로 -->
-                <div class="erp-channel-push-trace-slot erp-channel-push-trace-slot--mobile"
-                    data-erp-channel-push-trace="compact"></div>
+                <!-- 발송 흔적 한 줄: 알림톡·PUSH 칩을 버튼 위 한 줄에 나란히(2026-09-23 — 두 줄로 쌓이던 것을 합침) -->
+                <div class="erp-mobile-trace-row" data-erp-mobile-trace-row>
+                    <!-- 알림톡 흔적: 상태 + 시각만 -->
+                    <div class="erp-alimtalk-trace-slot erp-alimtalk-trace-slot--mobile"
+                        data-erp-alimtalk-trace="compact"></div>
+                    <!-- PUSH 흔적: 보낸 적이 있을 때만 최근 1종(+N) -->
+                    <div class="erp-channel-push-trace-slot erp-channel-push-trace-slot--mobile"
+                        data-erp-channel-push-trace="compact"></div>
+                </div>
                 <button class="foms-btn foms-btn--primary" type="button" id="erp-save-btn">
                     <i class="fas fa-save"></i> 저장
                 </button>
