@@ -76,7 +76,7 @@ def _assert_shared_form_script_contract(body: str) -> None:
     assert "js/orders/erp-alimtalk-send.js?v=20260923b" in body
     # T15 발송 흔적: 칩 자리·이력 패널이 실제 렌더에 붙어 있어야 한다(템플릿 계약만으로는
     # 코호트 게이트가 한쪽 표면을 통째로 지워도 초록이다).
-    assert "js/orders/erp-alimtalk-trace.js?v=20260923b" in body
+    assert "js/orders/erp-alimtalk-trace.js?v=20260923c" in body
     # 2026-09-23: 주문 화면 칩은 알림톡·PUSH 를 합친 발송 기록 자리 하나가 그린다.
     assert "data-erp-send-trace" in body
     assert 'id="erpAlimtalkTraceModal"' in body

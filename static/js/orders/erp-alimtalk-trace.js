@@ -451,6 +451,46 @@
         return item;
     }
 
+    //: PUSH 종류 → 주문에 남는 마지막 발송 사본 키(서버 _PUSH_KIND_CONFIG 와 같은 키).
+    const PUSH_HISTORY_KEYS = {
+        measurement: 'channeltalk_push', measure_room: 'channeltalk_push_measure_room',
+        drawing: 'channeltalk_push_drawing', drawing_room: 'channeltalk_push_drawing_room',
+        estimate: 'channeltalk_push_estimate', as: 'channeltalk_push_as',
+    };
+
+    /**
+     * 이벤트가 없는 PUSH 를 주문 사본으로 채운다. CHANNELTALK_PUSH 이벤트는 2026-08-13 부터
+     * 남아서, 그 전 PUSH 는 칩에는 나오는데 이 창에는 없었다(2026-09-23 스테이징 #4369).
+     * 같은 종류의 이벤트가 이미 있으면 채우지 않는다.
+     *
+     * @param {Array<Object>} events 서버 이벤트.
+     * @returns {Array<Object>} 채운 뒤 최근 순.
+     */
+    function _withSnapshotPushes(events) {
+        const sd = window.__erpLastStructuredData;
+        if (!sd || typeof sd !== 'object') return events;
+        const seen = {};
+        events.forEach(function (ev) {
+            if (ev.event_type === 'CHANNELTALK_PUSH' && ev.payload) seen[ev.payload.push_kind] = true;
+        });
+        const out = events.slice();
+        Object.keys(PUSH_HISTORY_KEYS).forEach(function (kind) {
+            const record = sd[PUSH_HISTORY_KEYS[kind]];
+            if (seen[kind] || !record || typeof record !== 'object' || !record.sent_at) return;
+            const log = Array.isArray(record.change_log) ? record.change_log : [];
+            const last = log.length ? log[log.length - 1] : null;
+            out.push({
+                event_type: 'CHANNELTALK_PUSH',
+                payload: { push_kind: kind, is_resend: !!record.is_modified },
+                created_at: record.sent_at,
+                created_by_name: (last && last.by) || '보낸 사람 기록 없음',
+            });
+        });
+        return out.sort(function (a, b) {
+            return String(b.created_at || '').localeCompare(String(a.created_at || ''));
+        });
+    }
+
     /** 이력 목록을 서버에서 받아 패널에 채운다. */
     function _loadHistory() {
         const list = document.getElementById('erp-alimtalk-trace-log');
@@ -472,7 +512,7 @@
             .then(function (res) { return res.json(); })
             .then(function (body) {
                 if (!body || body.success !== true) throw new Error('load failed');
-                const events = Array.isArray(body.events) ? body.events : [];
+                const events = _withSnapshotPushes(Array.isArray(body.events) ? body.events : []);
                 if (!events.length) {
                     const empty = document.createElement('li');
                     empty.className = 'erp-alimtalk-trace-log__empty';
