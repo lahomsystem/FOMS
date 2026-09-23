@@ -280,6 +280,9 @@ def queue_card_schedule_filter(order) -> dict[str, str | None]:
 
 
 # 오전/오후 판정 경계·시각 정규식은 measurement_time(SSOT)에서 import 한다(상단).
+# TODO(2026-09-23): 시작값에 '시'가 없는 범위("10~2시"·"11~1시")는 끝값(2시·1시)을 잡아 'pm' 으로
+# 칠한다(시작 10시·11시는 오전). 체크리스트 정렬 키 measurement_glance_time_key 는 이미 시작값을
+# 읽으므로 칩 색과 정렬 위치가 어긋날 수 있다 — 칩 판정 변경은 별도 작업으로 남긴다.
 
 
 def meas_daypart(value: str | None) -> str | None:
