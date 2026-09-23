@@ -245,7 +245,7 @@ def test_mobile_glance_js_forbidden_and_size():
 
 def test_measurement_entry_pin_and_chain_order():
     entry = _read(ENTRY_JS)
-    assert "MEAS_JS_V = '20260923e'" in entry
+    assert "MEAS_JS_V = '20260923f'" in entry
     assert "measurement/image-export.js" in entry
     assert "measurement/mobile-glance.js" in entry
     assert "measurement/image-save-sheet.js" in entry
@@ -258,7 +258,7 @@ def test_measurement_entry_pin_and_chain_order():
 
 def test_dashboard_scripts_pin_and_single_script():
     scripts = _read(DASHBOARD_SCRIPTS)
-    assert "measurement_js_v = '20260923e'" in scripts
+    assert "measurement_js_v = '20260923f'" in scripts
     assert scripts.count("<script src") == 1
 
 
