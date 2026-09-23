@@ -20,6 +20,7 @@ from foms.services.measurement_time import (
     format_minutes_hm,
     measurement_time_minutes_of,
 )
+from foms.services.measurement.manager_color import load_manager_color_slots
 from foms.services.measurement.visit_check import (
     build_measurement_glance_groups,
     is_visit_marked,
@@ -490,8 +491,11 @@ def erp_measurement_dashboard():
                 _o.structured_data, _visit_date
             )
             mobile_queue_rows.append(_row)
-    # 한눈 목록의 담당자 묶음: 행 순서 그대로 연속 구간만 묶고 묶음 안만 방문 시각순(새 쿼리 0).
-    mobile_glance_groups = build_measurement_glance_groups(mobile_queue_rows)
+    # 한눈 목록의 담당자 묶음: 행 순서 그대로 연속 구간만 묶고 묶음 안만 방문 시각순.
+    # 담당 색 칸(영업팀 명부 id 순)은 모바일 목록이 있을 때만 활성 사용자를 **1회** 읽는다
+    # (행 수와 무관한 상수 1쿼리 — 이미 읽은 데이터에는 팀·id 명부가 없다).
+    _mgr_color_slots = load_manager_color_slots(db) if mobile_queue_rows else {}
+    mobile_glance_groups = build_measurement_glance_groups(mobile_queue_rows, _mgr_color_slots)
 
     # v3 영업 홈 '오늘 동선'(스펙 §6.3)이 실측 카드마다 방문시각을 찍는다. 방문시각
     # SSOT(measurement_time)를 쓰고 이미 로드한 rows 만 재사용한다 — 신규 쿼리 0.

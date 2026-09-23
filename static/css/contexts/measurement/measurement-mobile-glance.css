@@ -1164,3 +1164,109 @@ html.foms-meas-sheet-open .foms-shell-fab {
 .foms-meas-sheet .foms-meas-sheet__slot .queue-card__action[data-meas-sheet-foot="handed"] > .foms-measure-done {
   order: 2; /* 예전처럼 맨 아래 한 줄(실측 완료 단추가 order 1 로 뒤로 가도 표시는 그 뒤) */
 }
+
+/* ══ 담당자 색 띠 + 번호(V1, 2026-09-24) ══════════════════════════════════
+ * 목업: scratchpad mgr-color/compare.html V1 + V3 의 묶음 간격(8 → 12px)만.
+ * 색 칸은 서버가 정한다(foms/services/measurement/manager_color.py — 영업팀 명부 id 순,
+ * 명부 밖 이름은 crc32 예비). 템플릿은 data-mgr-color="0~8" 만 단다(style= 금지).
+ * 0 = 담당 미정 → 규칙 없음(지금의 브랜드 띠 그대로). 시간 칩 색은 건드리지 않는다.
+ * 번호 칸(.foms-meas-glance__mno)은 색이 안 갈리는 사람을 위한 두 번째 단서(탭 ↔ 띠 짝).
+ */
+.foms-meas-glance--unified [data-mgr-color="1"] { --mgr: #be123c; --mgr-ink: #881337; --mgr-tint: #fff1f3; --mgr-soft: #ffe4e8; }
+.foms-meas-glance--unified [data-mgr-color="2"] { --mgr: #a21caf; --mgr-ink: #701a75; --mgr-tint: #fdf2fe; --mgr-soft: #fae8ff; }
+.foms-meas-glance--unified [data-mgr-color="3"] { --mgr: #7e22ce; --mgr-ink: #581c87; --mgr-tint: #f8f2ff; --mgr-soft: #f3e8ff; }
+.foms-meas-glance--unified [data-mgr-color="4"] { --mgr: #0f766e; --mgr-ink: #134e4a; --mgr-tint: #effcf9; --mgr-soft: #ccfbf1; }
+.foms-meas-glance--unified [data-mgr-color="5"] { --mgr: #4d7c0f; --mgr-ink: #365314; --mgr-tint: #f5fbe9; --mgr-soft: #e6f4c8; }
+.foms-meas-glance--unified [data-mgr-color="6"] { --mgr: #713f12; --mgr-ink: #4a2a0c; --mgr-tint: #fcf6ee; --mgr-soft: #f3e3cc; }
+.foms-meas-glance--unified [data-mgr-color="7"] { --mgr: #7a5245; --mgr-ink: #4e342e; --mgr-tint: #f9f4f2; --mgr-soft: #efe3de; }
+.foms-meas-glance--unified [data-mgr-color="8"] { --mgr: #475569; --mgr-ink: #1e293b; --mgr-tint: #f3f5f8; --mgr-soft: #e2e8f0; }
+/* 어두운 화면: 바탕은 담당 색을 어두운 면에 옅게 섞고, 글자는 밝게. */
+[data-theme='dark'] .foms-meas-glance--unified [data-mgr-color]:not([data-mgr-color="0"]) {
+  --mgr-ink: color-mix(in srgb, var(--mgr) 30%, #fff);
+  --mgr-tint: color-mix(in srgb, var(--mgr) 22%, var(--foms-surface-base, #111827));
+  --mgr-soft: color-mix(in srgb, var(--mgr) 38%, var(--foms-surface-base, #111827));
+}
+
+/* 묶음 사이 간격 8 → 12px(V3 에서 빌림 — 경계를 색 말고 간격으로도 본다). */
+.foms-meas-glance--unified .foms-meas-glance__grp {
+  margin-top: 12px;
+}
+
+/* 번호 칸: 담당 색 바탕 흰 숫자. */
+.foms-meas-glance__mno {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  margin-right: 6px;
+  font-size: 11.5px;
+  font-weight: 800;
+  line-height: 1;
+  color: #fff;
+  background: var(--mgr, var(--foms-color-brand-500));
+  border-radius: 6px;
+  font-variant-numeric: tabular-nums;
+}
+.foms-meas-glance__gtog > .foms-meas-glance__mno {
+  margin-right: -2px; /* 띠 안 gap 8px 와 합쳐 번호 ↔ 이름 6px */
+}
+
+/* 담당 띠: 바탕·왼쪽 5px 표지·글자·진행 막대가 담당 색(접힌 띠도 같은 색). */
+.foms-meas-glance--unified .foms-meas-glance__grp[data-mgr-color]:not([data-mgr-color="0"]) {
+  border-color: var(--mgr-soft);
+}
+.foms-meas-glance--unified .foms-meas-glance__grp[data-mgr-color]:not([data-mgr-color="0"]) .foms-meas-glance__gname,
+.foms-meas-glance--unified .foms-meas-glance__grp[data-mgr-color]:not([data-mgr-color="0"]).is-closed .foms-meas-glance__gname {
+  color: var(--mgr-ink);
+  background: var(--mgr-tint);
+  border-bottom-color: var(--mgr-soft);
+  box-shadow: inset 5px 0 0 var(--mgr);
+}
+.foms-meas-glance--unified [data-mgr-color]:not([data-mgr-color="0"]) .foms-meas-glance__gcount:not(.is-full),
+.foms-meas-glance--unified [data-mgr-color]:not([data-mgr-color="0"]) .foms-meas-glance__gchev {
+  color: var(--mgr-ink);
+}
+.foms-meas-glance--unified [data-mgr-color]:not([data-mgr-color="0"]) .foms-meas-glance__call {
+  border-color: var(--mgr-soft);
+}
+.foms-meas-glance--unified [data-mgr-color]:not([data-mgr-color="0"]) .foms-meas-glance__prog {
+  color: var(--mgr);
+  background: var(--mgr-soft);
+}
+.foms-meas-glance--unified [data-mgr-color]:not([data-mgr-color="0"]) .foms-meas-glance__prog::-webkit-progress-bar {
+  background: var(--mgr-soft);
+}
+.foms-meas-glance--unified [data-mgr-color]:not([data-mgr-color="0"]) .foms-meas-glance__prog::-webkit-progress-value {
+  background: var(--mgr);
+}
+.foms-meas-glance--unified [data-mgr-color]:not([data-mgr-color="0"]) .foms-meas-glance__prog::-moz-progress-bar {
+  background: var(--mgr);
+}
+
+/* 탭: 밑줄 4px·진행 막대·번호가 같은 담당 색. 번호 칸만큼 폭을 늘린다(106 → 118px). */
+.foms-meas-glance__tab-n {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+.foms-meas-glance__tab-t {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.foms-meas-glance--unified .foms-meas-glance__tab[data-mgr-color]:not([data-mgr-color="0"]) {
+  width: 118px;
+  color: var(--mgr-ink);
+  border-color: var(--mgr-soft);
+  box-shadow: inset 0 -4px 0 var(--mgr);
+}
+.foms-meas-glance--unified .foms-meas-glance__tab[data-mgr-color]:not([data-mgr-color="0"])[aria-selected="true"] {
+  color: var(--mgr-ink);
+  background: var(--mgr-tint);
+  border-color: var(--mgr);
+}
+.foms-meas-glance--unified .foms-meas-glance__tab[data-mgr-color]:not([data-mgr-color="0"])[aria-selected="true"]:not(.is-full) .foms-meas-glance__tab-c {
+  color: var(--mgr-ink);
+}
