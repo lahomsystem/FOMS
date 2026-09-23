@@ -28,7 +28,7 @@ SELF_TEMPLATE = TEMPLATES / "measurement/self_measurement_dashboard.html"
 REGIONAL_TEMPLATE = TEMPLATES / "measurement/regional_dashboard.html"
 TRANSFER_JS = STATIC / "js/measurement/drawing-transfer-btn.js"
 CTA_SERVICE = ROOT / "foms/services/measurement/drawing_transfer_cta.py"
-ASSET_PIN = "?v=20260914a"
+ASSET_PIN = "?v=20260923a"
 
 # --------------------------------------------------------------------------- #
 # 공용 헬퍼
