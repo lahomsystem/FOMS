@@ -1,24 +1,11 @@
 /**
- * ERP 주문 화면 발송 기록 칩 (2026-09-23 목업 제안 A 채택).
- *
- * 알림톡(실측 예약 안내·공유 링크)과 채널톡 PUSH 흔적을 **한 가지 칩 문법**으로 한 자리에 그린다.
- * 예전에는 알림톡 칩(erp-alimtalk-trace.js)과 PUSH 칩(erp-channel-push-trace.js)이 따로 그려져
- * 이름 규칙("보냄" vs "실측 PUSH 보냄")·색·정렬이 제각각이었다(2026-09-23 사용자 제보).
- *
- * 칩 문법: [보낸 길 아이콘] 무엇 · 언제
- *  - 보낸 길: 알림톡(노랑 말풍선) / 알림톡 대신 문자(파랑 휴대폰) / PUSH(보라 종이비행기) / 못 보냄(빨강 느낌표)
- *  - 언제: 오늘이면 `14:05`, 어제면 `어제 18:30`, 그 전이면 `9/21` — 정확한 시각은 이력 창에서
- *  - 다시 보낸 PUSH 는 글자 대신 ↻ 표시
- *  - 정렬: 못 보낸 것 먼저, 그다음 최근 순. 왼쪽부터 채운다.
- *
- * 표면 두 가지(`data-erp-send-trace` 값):
- *  - `wide`(PC): 칩을 전부 나열. 예약 안내를 아직 안 보냈으면 점선 칩을 끝에 둔다(T15 — 빈 자리는
- *    '확인 못 함'으로 읽힌다).
- *  - `fold`(모바일): 평소엔 요약 한 줄(실패 수 · 건수 · 최근 1건), 누르면 두 칸 격자로 펼친다.
- *    기록이 하나도 없으면 자리를 비운다(좁은 액션바를 차지하지 않게).
- *
- * 데이터는 화면이 이미 들고 있는 `window.__erpLastStructuredData` 만 읽는다(서버 왕복 0).
- * 칩을 누르면 기존 발송 이력 창(erp-alimtalk-trace.js, `data-erp-alimtalk-trace-open`)이 열린다.
+ * ERP 주문 화면 발송 기록 칩 (2026-09-23 목업 제안 A). 알림톡(예약 안내·공유 링크)과 PUSH 를
+ * 한 가지 칩 문법 "[보낸 길 아이콘] 무엇 · 언제" 로 한 자리에 그린다 — 예전엔 두 모듈이 따로 그려
+ * 이름("보냄" vs "실측 PUSH 보냄")·정렬이 제각각이었다. 시각은 짧게(오늘 14:05 · 어제 18:30 ·
+ * 그 전 9/21), 다시 보냄은 ↻, 못 보낸 것 먼저 그다음 최근 순, 왼쪽부터.
+ * 표면: `wide`(PC) 전부 나열 + 예약 안내 미발송 점선 칩(T15) / `fold`(모바일) 요약 한 줄 → 누르면
+ * 두 칸 격자, 기록이 없으면 비운다. 화면 사본(`__erpLastStructuredData`)만 읽는다(서버 왕복 0).
+ * 칩을 누르면 기존 발송 이력 창(erp-alimtalk-trace.js)이 열린다.
  */
 (function () {
     'use strict';
@@ -91,13 +78,7 @@
         };
     }
 
-    /**
-     * 칩에 쓰는 짧은 시각 — 오늘 `14:05`, 어제 `어제 18:30`, 그 전 `9/21`.
-     *
-     * @param {number} ms 발송 시각.
-     * @param {number} nowMs 기준 시각(테스트가 고정한다).
-     * @returns {string} 표시 문자열(모르면 빈 문자열).
-     */
+    /** 칩 시각: 오늘 `14:05`, 어제 `어제 18:30`, 그 전 `9/21`. nowMs 는 기준 시각(테스트가 고정). */
     function shortWhen(ms, nowMs) {
         if (!ms) return '';
         const sent = _kstParts(ms);
@@ -117,13 +98,7 @@
         return TEXT_CHANNELS.indexOf(String(channel || '').toUpperCase()) !== -1;
     }
 
-    /**
-     * 구조화 데이터 → 칩 목록(정렬 끝난 것).
-     *
-     * @param {Object|null} sd 화면이 들고 있는 structured_data.
-     * @param {number} nowMs 기준 시각.
-     * @returns {{chips: Array<Object>, measurementSent: boolean}} 칩과, 예약 안내 기록이 있는지.
-     */
+    /** 구조화 데이터 → {chips(정렬 끝남), measurementSent(예약 안내 기록이 있는지)}. */
     function buildModel(sd, nowMs) {
         const chips = [];
         const data = sd && typeof sd === 'object' ? sd : {};
@@ -189,7 +164,7 @@
         }
         node.className = 'erp-send-chip erp-send-chip--' + chip.kind;
         node.setAttribute('data-foms-no-autodismiss', '1');
-        node.insertAdjacentHTML('beforeend', ICONS[chip.kind]);
+        if (ICONS[chip.kind]) node.insertAdjacentHTML('beforeend', ICONS[chip.kind]);
         const label = document.createElement('span');
         label.className = 'erp-send-chip__label';
         label.textContent = chip.label;

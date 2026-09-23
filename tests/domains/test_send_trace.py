@@ -26,6 +26,7 @@ ROOT = Path(__file__).resolve().parents[2]
 JS = "static/js/orders/erp-send-trace.js"
 CSS = "static/css/orders/erp-send-trace.css"
 PIN = "?v=20260923a"
+JS_PIN = "?v=20260923b"  # 300줄 기준에 맞춰 주석을 줄였다
 
 _needs_node = pytest.mark.skipif(not shutil.which("node"), reason="node not on PATH")
 
@@ -58,10 +59,10 @@ def test_mobile_action_bar_has_one_fold_send_trace_slot() -> None:
 
 def test_assets_loaded_once_and_old_push_trace_removed() -> None:
     order_js = _read("templates/orders/partials/erp_order_js.html")
-    for asset in ("css/orders/erp-send-trace.css", "js/orders/erp-send-trace.js"):
+    for asset, pin in (("css/orders/erp-send-trace.css", PIN), ("js/orders/erp-send-trace.js", JS_PIN)):
         lines = [row for row in order_js.splitlines() if asset in row]
         assert len(lines) == 1, asset
-        assert PIN in lines[0], asset
+        assert pin in lines[0], asset
     assert "erp-channel-push-trace" not in order_js
     assert not (ROOT / "static/js/orders/erp-channel-push-trace.js").exists()
     assert not (ROOT / "static/css/orders/erp-channel-push-trace.css").exists()
@@ -109,7 +110,7 @@ def test_edit_page_renders_send_trace_on_both_surfaces(client, monkeypatch: pyte
     mobile = html[html.index('id="erp-order-form-mobile"'):]
     assert 'data-erp-send-trace="wide"' in legacy
     assert 'data-erp-send-trace="fold"' in mobile
-    assert "js/orders/erp-send-trace.js" + PIN in html
+    assert "js/orders/erp-send-trace.js" + JS_PIN in html
     assert "css/orders/erp-send-trace.css" + PIN in html
     assert 'id="erpAlimtalkTraceModal"' in html
 
@@ -220,6 +221,8 @@ def test_render_rules_in_source() -> None:
                  "foms:channel-push-trace-update", "foms:send-trace-refresh"):
         assert name in js, name
     assert ".style." not in js
+    # 아이콘 없는 칩(미발송 점선)은 아이콘 자리를 건너뛴다 — 없으면 "undefined" 글자가 찍힌다.
+    assert "if (ICONS[chip.kind]) node.insertAdjacentHTML('beforeend', ICONS[chip.kind]);" in js
 
 
 def test_summary_row_is_as_low_as_a_chip() -> None:
