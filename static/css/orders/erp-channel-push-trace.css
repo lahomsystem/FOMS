@@ -89,3 +89,52 @@
 .erp-channel-push-trace-slot:empty {
   display: none;
 }
+
+/* 모바일 발송 흔적 한 줄(2026-09-23 사용자 요청) — 알림톡·PUSH 칩이 두 줄로 쌓여 좁은 액션바를
+   더 밀어 올리던 것을 한 줄로 합친다. 줄은 액션바(flex-wrap)에서 버튼 위 한 줄을 통째로 차지하고,
+   안의 두 자리는 폭을 나눠 가지며 넘치면 칩 글자가 말줄임된다(시각·점은 남긴다).
+   두 자리 모두 비면(미발송) 줄째 접는다 — 빈 여백이 버튼을 밀지 않게.
+   :has 미지원 구형 브라우저는 빈 줄 여백만 남을 뿐이다(무해한 폴백). */
+.erp-mobile-trace-row {
+  flex: 1 0 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+  overflow: hidden;
+  padding-bottom: 0.15rem;
+}
+
+.erp-mobile-trace-row > .erp-alimtalk-trace-slot--mobile,
+.erp-mobile-trace-row > .erp-channel-push-trace-slot--mobile {
+  flex: 0 1 auto;
+  min-width: 0;
+  padding-bottom: 0;
+}
+
+.erp-mobile-trace-row .erp-alimtalk-trace,
+.erp-mobile-trace-row .erp-channel-push-trace {
+  min-width: 0;
+}
+
+.erp-mobile-trace-row .erp-alimtalk-trace__label,
+.erp-mobile-trace-row .erp-channel-push-trace__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.erp-mobile-trace-row:not(:has(.erp-alimtalk-trace:not(.erp-alimtalk-trace--none), .erp-channel-push-trace)) {
+  display: none;
+}
+
+/* 두 칩이 함께 있을 때: 폭을 반씩 나누고 시각을 뺀다 — 시각까지 두면 한쪽 이름이 한두 글자로
+   잘려 무엇을 보냈는지 못 읽는다. 시각은 칩을 눌러 여는 발송 이력에서 본다. */
+.erp-mobile-trace-row:has(.erp-alimtalk-trace:not(.erp-alimtalk-trace--none)):has(.erp-channel-push-trace) > .erp-alimtalk-trace-slot--mobile,
+.erp-mobile-trace-row:has(.erp-alimtalk-trace:not(.erp-alimtalk-trace--none)):has(.erp-channel-push-trace) > .erp-channel-push-trace-slot--mobile {
+  flex: 1 1 0;
+}
+
+.erp-mobile-trace-row:has(.erp-alimtalk-trace:not(.erp-alimtalk-trace--none)):has(.erp-channel-push-trace) :is(.erp-alimtalk-trace__sep, .erp-alimtalk-trace__when, .erp-alimtalk-trace__who, .erp-channel-push-trace__sep, .erp-channel-push-trace__when) {
+  display: none;
+}
