@@ -14,10 +14,11 @@
   {% set _gv_me = ((current_user.name if current_user else '') or '')|trim|lower %}
   {% set _gv_open = namespace(any_me=false, closed=0) %}{% set _gv_open_names = [] %}
   {% for g in _gv_groups %}{% if _gv_me and g.key == _gv_me %}{% set _gv_open.any_me = true %}{% endif %}{% endfor %}
-  {# 담당자 탭: 같은 담당이 두 묶음으로 갈려도 탭은 하나(숫자는 합산). #}
+  {# 담당자 탭: 같은 담당이 두 묶음으로 갈려도 탭은 하나(숫자는 합산).
+     담당 색(data-mgr-color 1~8, 담당 없음 0)·번호(order_no)는 서버가 정한다(visit_check · manager_color) — 탭과 띠가 같은 값. #}
   {% set _gv_tabs = [] %}{% set _gv_tab_names = [] %}
   {% for g in _gv_groups %}
-    {% if g.manager_name not in _gv_tab_names %}{% set _ = _gv_tab_names.append(g.manager_name) %}{% set _ = _gv_tabs.append({'name': g.manager_name, 'done': 0, 'total': 0}) %}{% endif %}
+    {% if g.manager_name not in _gv_tab_names %}{% set _ = _gv_tab_names.append(g.manager_name) %}{% set _ = _gv_tabs.append({'name': g.manager_name, 'done': 0, 'total': 0, 'slot': g.color_slot|default(0), 'no': g.order_no|default(0)}) %}{% endif %}
     {% set _tb = _gv_tabs[_gv_tab_names.index(g.manager_name)] %}{% set _ = _tb.update({'done': _tb.done + g.done, 'total': _tb.total + g.total}) %}
     {% if not (_gv_mine or (_gv_open.any_me and g.key == _gv_me) or ((not _gv_open.any_me) and loop.first)) %}{% set _gv_open.closed = _gv_open.closed + 1 %}{% elif g.manager_name not in _gv_open_names %}{% set _ = _gv_open_names.append(g.manager_name) %}{% endif %}
   {% endfor %}
@@ -36,8 +37,8 @@
         <progress class="foms-meas-glance__prog foms-meas-glance__tab-prog" value="{{ _gv_done.n }}" max="{{ _mrows|length }}" aria-hidden="true"></progress>
       </button>
       {% for t in _gv_tabs %}
-      <button type="button" role="tab" id="meas-glance-tab-{{ loop.index }}" class="foms-meas-glance__tab{% if t.done == t.total %} is-full{% endif %}" data-meas-glance-tab="{{ t.name }}" aria-selected="false" aria-controls="meas-glance-panel" tabindex="-1">
-        <span class="foms-meas-glance__tab-n">{{ t.name }}</span>
+      <button type="button" role="tab" id="meas-glance-tab-{{ loop.index }}" class="foms-meas-glance__tab{% if t.done == t.total %} is-full{% endif %}" data-meas-glance-tab="{{ t.name }}" data-mgr-color="{{ t.slot }}" aria-selected="false" aria-controls="meas-glance-panel" tabindex="-1">
+        <span class="foms-meas-glance__tab-n">{% if t.no %}<span class="foms-meas-glance__mno" aria-hidden="true">{{ t.no }}</span>{% endif %}<span class="foms-meas-glance__tab-t">{{ t.name }}</span></span>
         <span class="foms-meas-glance__tab-c" data-meas-glance-tab-count>{{ t.done }}/{{ t.total }}</span>
         <progress class="foms-meas-glance__prog foms-meas-glance__tab-prog" value="{{ t.done }}" max="{{ t.total }}" aria-hidden="true"></progress>
       </button>
@@ -55,10 +56,10 @@
       {% set _gp = (g.manager_phone or '')|replace('-', '')|replace(' ', '') %}
       {% set _is_me = _gv_me and g.key == _gv_me %}
       {% set _g_open = _gv_mine or (_gv_open.any_me and _is_me) or ((not _gv_open.any_me) and loop.first) %}
-      <div class="foms-meas-glance__grp{% if not _g_open %} is-closed{% endif %}{% if _is_me %} is-me{% endif %}" data-meas-glance-grp="{{ g.manager_name }}">
+      <div class="foms-meas-glance__grp{% if not _g_open %} is-closed{% endif %}{% if _is_me %} is-me{% endif %}" data-meas-glance-grp="{{ g.manager_name }}" data-mgr-color="{{ g.color_slot|default(0) }}">
         <div class="foms-meas-glance__gname">
           {% if _gv_mine %}<span class="foms-meas-glance__gtog">{% else %}<button type="button" class="foms-meas-glance__gtog" data-meas-glance-tog aria-expanded="{{ 'true' if _g_open else 'false' }}" aria-controls="meas-glance-rows-{{ loop.index }}">{% endif %}
-            <span class="foms-meas-glance__mgr-text">{{ g.manager_name }}</span>
+            {% if g.order_no %}<span class="foms-meas-glance__mno" aria-hidden="true">{{ g.order_no }}</span>{% endif %}<span class="foms-meas-glance__mgr-text">{{ g.manager_name }}</span>
             {% if _is_me %}<span class="foms-meas-glance__me">나</span>{% endif %}
             <progress class="foms-meas-glance__prog" value="{{ g.done }}" max="{{ g.total }}" aria-hidden="true"></progress>
             <span class="foms-meas-glance__gcount{% if g.done == g.total %} is-full{% endif %}" data-meas-glance-grp-count>실측 {{ g.done }}/{{ g.total }}</span>

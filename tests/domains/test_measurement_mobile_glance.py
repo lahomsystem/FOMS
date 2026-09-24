@@ -105,7 +105,7 @@ def test_manager_phone_normalization_matches_queue_card():
 
 def test_dashboard_main_links_glance_css_before_desktop_body():
     main = _read(DASHBOARD_MAIN)
-    link = "css/contexts/measurement/measurement-mobile-glance.css') }}?v=20260923f"
+    link = "css/contexts/measurement/measurement-mobile-glance.css') }}?v=20260924a"
     anchor = "{% set _fos_desktop_body %}"
     assert link in main
     assert anchor in main
