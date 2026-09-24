@@ -82,6 +82,7 @@
 {# 도면 수정 요청 확인창(ACTION-REQUIRED). 종 배지로는 놓쳐서 90일 21건 중 8건이 미독이었다. #}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-drawing-alert.css') }}?v=20260911b">
 <script src="{{ url_for('static', filename='js/foms/foms-drawing-alert.js') }}?v=20260923b" defer></script>
+<script src="{{ url_for('static', filename='js/foms/foms-overlay-fab.js') }}?v=20260924a" defer></script>
 {# 당일 실측 확인창 재조회는 영업(MEASURE 표기 포함)만 — 수신자 규칙 recipients.expand_team_codes('SALES'). #}
 {% set _alert_sync_target = ((current_user.team or '')|string|trim|upper) in ('SALES', 'MEASURE') %}
 <script src="{{ url_for('static', filename='js/foms/foms-alert-sync.js') }}?v=20260923a" data-alert-sync-target="{{ '1' if _alert_sync_target else '0' }}" defer></script>

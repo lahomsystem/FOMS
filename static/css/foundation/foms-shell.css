@@ -498,6 +498,12 @@
   }
 }
 
+/* 아래에서 올라오는 창(offcanvas)·팝업(modal)이 열린 동안 + 버튼을 숨긴다(foms-overlay-fab.js 가 html 에
+   foms-overlay-open 을 단다). + 버튼(1050)이 offcanvas(1045)보다 위층이라 필터 창의 날짜 칸을 가렸다(2026-09-24). */
+html.foms-overlay-open body.erp-mobile-v2-layout .foms-shell-fab {
+  display: none !important;
+}
+
 /* Non-mobile 992+: the mobile single-column queue surfaces are for phones and
    tablet-portrait only. Enumerated (no `not`): 992+ landscape / fine / none is a
    non-mobile shell (split or desktop), so hide every mobile-v2-only surface there
