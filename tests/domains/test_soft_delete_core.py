@@ -32,6 +32,7 @@ from foms.services.orders.soft_delete import (
     restore_order,
     soft_delete_order,
 )
+from foms.services.db_url_resolver import PG_SQLALCHEMY_DRIVER
 from foms.services.orders.state_axes import read_state_axes
 from tests.postgres.conftest import (
     assert_local_admin_url,
@@ -62,7 +63,7 @@ def _make_pg_engine() -> Tuple[Engine, "callable"]:
         conn.close()
 
     engine = create_engine(
-        admin_url.set(drivername="postgresql+psycopg2", database=db_name),
+        admin_url.set(drivername=f"postgresql+{PG_SQLALCHEMY_DRIVER}", database=db_name),
         connect_args={"client_encoding": "utf8"},
     )
 

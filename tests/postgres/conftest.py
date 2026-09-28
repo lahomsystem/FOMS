@@ -30,6 +30,8 @@ from sqlalchemy.engine.url import URL
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import NullPool
 
+from foms.services.db_url_resolver import PG_SQLALCHEMY_DRIVER, postgres_dbapi_connect
+
 TEST_DB_PREFIX = "foms_test_"
 LOCAL_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
 
@@ -106,24 +108,24 @@ def _admin_dsn_from_env() -> str | None:
 
 
 def _raw_connect(url: URL, dbname: str):
-    """Open an autocommit-capable psycopg2 connection for CREATE/DROP DATABASE.
+    """Open an autocommit-capable DBAPI connection for CREATE/DROP DATABASE.
 
     Args:
         url: validated local admin URL (host/port/credentials source).
         dbname: database to connect to (e.g. the ``postgres`` maintenance DB).
 
     Returns:
-        A live psycopg2 connection (caller owns closing it).
+        A live DBAPI connection from the canonical driver (caller owns closing it).
     """
-    import psycopg2
-
-    return psycopg2.connect(
-        host=url.host,
-        port=url.port or 5432,
-        user=url.username,
-        password=url.password,
-        dbname=dbname,
-        client_encoding="UTF8",
+    return postgres_dbapi_connect(
+        {
+            "host": url.host,
+            "port": url.port or 5432,
+            "user": url.username,
+            "password": url.password,
+            "dbname": dbname,
+            "client_encoding": "UTF8",
+        }
     )
 
 
@@ -151,7 +153,7 @@ def pg_test_database(pg_admin_url: URL) -> Iterator[URL]:
     workers never share a database.
 
     Yields:
-        A ``postgresql+psycopg2`` URL for the per-session test database.
+        A ``postgresql+<PG_SQLALCHEMY_DRIVER>`` URL for the per-session test database.
     """
     worker = os.environ.get("PYTEST_XDIST_WORKER", "main")
     db_name = assert_test_db_name(f"{TEST_DB_PREFIX}{worker}_{uuid.uuid4().hex[:12]}")
@@ -165,7 +167,7 @@ def pg_test_database(pg_admin_url: URL) -> Iterator[URL]:
     finally:
         conn.close()
 
-    test_url = pg_admin_url.set(drivername="postgresql+psycopg2", database=db_name)
+    test_url = pg_admin_url.set(drivername=f"postgresql+{PG_SQLALCHEMY_DRIVER}", database=db_name)
 
     engine = create_engine(test_url, connect_args={"client_encoding": "utf8"})
     try:

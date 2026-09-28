@@ -81,8 +81,8 @@ def test_prepare_database_url_env_prefers_public_url_when_requested(monkeypatch)
     assert resolved == db_url_resolver.os.environ["DATABASE_URL"]
 
 
-def test_postgresql_psycopg2_connect_kwargs_from_url_decodes_userinfo_and_query() -> None:
-    kw = db_url_resolver.postgresql_psycopg2_connect_kwargs_from_url(
+def test_postgresql_connect_kwargs_from_url_decodes_userinfo_and_query() -> None:
+    kw = db_url_resolver.postgresql_connect_kwargs_from_url(
         "postgresql+psycopg2://u:p%40x@h.example:5432/my%2Fdb?sslmode=require&connect_timeout=8"
     )
     assert kw["host"] == "h.example"
@@ -101,3 +101,33 @@ def test_prepare_database_url_env_returns_none_when_no_candidates_exist(monkeypa
 
     assert resolved is None
     assert "DATABASE_URL" not in db_url_resolver.os.environ
+
+
+def test_sqlalchemy_url_pins_canonical_driver_for_every_postgres_spelling() -> None:
+    expected = f"postgresql+{db_url_resolver.PG_SQLALCHEMY_DRIVER}://u:p@h:5432/db?sslmode=require"
+    for raw in (
+        "postgres://u:p@h:5432/db?sslmode=require",
+        "postgresql://u:p@h:5432/db?sslmode=require",
+        "postgresql+psycopg2://u:p@h:5432/db?sslmode=require",
+        "postgresql+psycopg://u:p@h:5432/db?sslmode=require",
+    ):
+        assert db_url_resolver.sqlalchemy_url(raw) == expected
+
+
+def test_sqlalchemy_url_leaves_non_postgres_urls_alone() -> None:
+    for raw in ("", "sqlite://", "sqlite:///tmp/x.sqlite", "mysql://u@h/db"):
+        assert db_url_resolver.sqlalchemy_url(raw) == raw
+
+
+def test_connect_kwargs_accept_any_driver_suffix() -> None:
+    kw = db_url_resolver.postgresql_connect_kwargs_from_url("postgresql+psycopg://u:p@h/db")
+    assert kw == {"host": "h", "dbname": "db", "user": "u", "password": "p"}
+
+
+def test_pg_error_code_reads_psycopg_sqlstate_and_psycopg2_pgcode() -> None:
+    from types import SimpleNamespace
+
+    assert db_url_resolver.pg_error_code(SimpleNamespace(orig=SimpleNamespace(sqlstate="55P03"))) == "55P03"
+    assert db_url_resolver.pg_error_code(SimpleNamespace(orig=SimpleNamespace(pgcode="55P03"))) == "55P03"
+    assert db_url_resolver.pg_error_code(SimpleNamespace(pgcode="23505")) == "23505"
+    assert db_url_resolver.pg_error_code(ValueError("not a DB error")) is None

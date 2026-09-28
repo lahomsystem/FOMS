@@ -38,13 +38,20 @@ from __future__ import annotations
 import argparse
 import logging
 import os
+import sys
 import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Optional
 
 from sqlalchemy import text
 from sqlalchemy.engine import Connection, Engine
+
+# 저장소 루트를 import 경로에 넣는다 — `python tools/ops/purge_domain_side_effect_outbox.py ...` 로 직접 부르면 tools/ops 만 들어간다.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from foms.services.db_url_resolver import sqlalchemy_url  # noqa: E402
 
 _LOGGER = logging.getLogger("purge_domain_side_effect_outbox")
 
@@ -246,8 +253,7 @@ def _make_engine() -> Engine:
     url = os.environ.get("DATABASE_URL") or os.environ.get("FOMS_TEST_DATABASE_URL")
     if not url:
         raise RuntimeError("DATABASE_URL (or FOMS_TEST_DATABASE_URL) is not set")
-    if url.startswith("postgres://"):  # Railway 표기 → SQLAlchemy 표기
-        url = "postgresql://" + url[len("postgres://"):]
+    url = sqlalchemy_url(url)  # Railway postgres:// 표기 → 정본 드라이버 URL
     engine_kwargs: dict = {"pool_pre_ping": True}
     if "sqlite" not in url:
         engine_kwargs["connect_args"] = {"connect_timeout": 10}

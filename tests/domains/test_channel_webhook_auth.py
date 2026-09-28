@@ -47,6 +47,7 @@ from models import (
     Order,
 )
 import foms.services.channel_security as cs
+from foms.services.db_url_resolver import PG_SQLALCHEMY_DRIVER
 from tests.postgres.conftest import (
     _admin_dsn_from_env,
     _raw_connect,
@@ -121,7 +122,7 @@ def _make_pg_engine() -> tuple[Engine, "callable"]:
         conn.close()
 
     engine = create_engine(
-        admin_url.set(drivername="postgresql+psycopg2", database=db_name),
+        admin_url.set(drivername=f"postgresql+{PG_SQLALCHEMY_DRIVER}", database=db_name),
         connect_args={"client_encoding": "utf8"},
     )
 

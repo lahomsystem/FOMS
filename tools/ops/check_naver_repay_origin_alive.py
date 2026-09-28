@@ -75,11 +75,12 @@ def collect(dsn: str) -> list[dict[str, Any]]:
     from sqlalchemy import create_engine
     from sqlalchemy.orm import sessionmaker
 
+    from foms.services.db_url_resolver import sqlalchemy_url
     from foms.services.integrations.naver_commerce.order_candidates import origin_facts
     from models import ExternalOrderLink, Order
 
     engine = create_engine(
-        dsn, connect_args={"options": "-c default_transaction_read_only=on"})
+        sqlalchemy_url(dsn), connect_args={"options": "-c default_transaction_read_only=on"})
     session = sessionmaker(bind=engine)()
     try:
         order_ids = [row[0] for row in session.query(ExternalOrderLink.order_id)

@@ -116,10 +116,11 @@ def main(argv: Optional[list[str]] = None) -> int:
     from sqlalchemy import create_engine
     from sqlalchemy.orm import sessionmaker
 
+    from foms.services.db_url_resolver import sqlalchemy_url
     from foms.services.integrations.naver_commerce.claim_watch import running_refresh_all
 
     try:
-        engine = create_engine(args.database_url)
+        engine = create_engine(sqlalchemy_url(args.database_url))
         session = sessionmaker(bind=engine)()
         try:
             running = running_refresh_all(session)
