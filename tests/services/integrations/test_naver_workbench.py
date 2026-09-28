@@ -231,6 +231,26 @@ def test_unknown_tab_falls_back_to_work(client, workbench_on):
     assert 'data-active-tab="work"' in body
 
 
+def test_removed_gap_tab_falls_back_to_work(client, workbench_on):
+    """대조 탭(GAP-01)은 2026-09-29 사용자 결정으로 완전 삭제했다.
+
+    옛 북마크 ``?tab=gap``(칸 ``b``·페이지 ``o`` 까지 붙은 주소)이 500 이 아니라 처리 탭으로
+    열리고, 탭 줄에서 대조 탭이 사라졌는지 고정한다. 예전에 대조 탭을 볼 수 있던
+    ADMIN 으로 연다 — 권한 때문에 떨어진 것이 아니라 탭 자체가 없어서 떨어진 것이다.
+    """
+    _login(client)
+    _collected(order_no="N-WB-GAP", product="붙박이장", amount=100000)
+
+    response = client.get(f"{TRIAGE_PATH}?tab=gap&b=missing&o=50")
+
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    assert 'data-active-tab="work"' in body
+    assert 'data-tab="gap"' not in body
+    assert "tab=gap" not in body
+    assert "수집·주문 대조" not in body
+
+
 # --------------------------------------------------------------------------- #
 # 숫자 이중 표기 (결정 3)
 # --------------------------------------------------------------------------- #
