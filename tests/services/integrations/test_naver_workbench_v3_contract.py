@@ -178,7 +178,9 @@ def test_list_length_matches_strip_tab_badge_and_all_chip(client, workbench_on):
     assert len(_rows_html(body)) == 3, "목록이 3줄이 아니다(잠긴 집도 목록에는 남는다)"
     # 2026-08-24 머리줄 통합: 집 수는 **탭 배지 한 곳**이 말한다. 스트립은 탭 배지가
     # 말할 수 없는 사실(상품주문 건수·손대지 않음)만 든다 — 같은 수를 두 번 쓰지 않는다.
-    assert "4" in strip and "건" in strip, strip
+    # 2026-09-28: 상품주문 건수도 탭 배지와 **같은 모집단**(손댈 수 있는 집 A·B = 2 + 1 = 3건)이다.
+    # 잠긴 집 C 의 1건까지 더한 4건이면 "2주문 · 상품주문 4건" 이 한 모집단처럼 읽힌다.
+    assert "<b>3</b>건" in strip, strip
     assert "주문" not in strip.replace("상품주문", ""), f"주문 수를 스트립이 또 말한다: {strip}"
     assert "1주문" in locked, locked
     assert "2주문" in work_tab, work_tab
@@ -205,6 +207,43 @@ def test_strip_and_tab_keep_the_total_while_a_chip_filters(client, workbench_on)
     assert "1주문" in body.split('data-tab="work"')[1].split("</a>")[0]
     assert "2주문" in _chip(body, "all")
     assert "1주문" in _chip(body, "claim")
+
+
+def test_head_numbers_say_which_population_they_count(client, workbench_on):
+    """탭 배지 < 칩 '전체' 일 때 화면이 그 차이를 **글자로** 말한다(2026-09-28 스테이징).
+
+    스테이징에서 "처리 216주문" 옆 칩이 "전체 292주문", 목록 머리가 "보이는 292줄" 이었다.
+    숫자는 맞았다(216 + 손대지 않음 76 = 292) — 그런데 '손대지 않음 76주문 · 목록에 있음'
+    은 **왜 탭 수가 목록보다 작은지**를 말하지 않아 두 수가 모순으로 읽혔다. 그리고
+    `상품주문 989건` 은 잠긴 76주문 몫까지 더한 292주문의 건수였다 — 216주문 옆에서.
+
+    지키는 것:
+      · 상품주문 건수 = 탭 배지와 같은 모집단(손댈 수 있는 주문)의 건수.
+      · '손대지 않음' 은 "처리 수에는 없고 목록에는 있음" 으로 두 수의 관계를 적는다.
+      · 탭·칩 '전체' 에 각자 무엇을 세는지 title 이 붙는다(데스크톱 덤 — 폰은 위 글자).
+    """
+    _login(client)
+    # 손댈 수 있는 집 1(상품주문 2건) + 잠긴 집 1(상품주문 3건).
+    _collected(order_no="N-V3-POP-A", product="정상 본품")
+    _collected(order_no="N-V3-POP-A", product="정상 구성", amount=1000)
+    for index in range(3):
+        _collected(order_no="N-V3-POP-B", product=f"취소 {index}", amount=1000 + index,
+                   claim_status="CANCEL_REQUEST", address="광주 서구 9", tel="010-9999-0009")
+
+    body = client.get(TRIAGE_PATH).get_data(as_text=True)
+    strip = body.split("wb-bar__fact")[1].split("</span>")[0]
+    locked = body.split("wb-bar__locked")[1].split("</span>")[0]
+    work_tab = body.split('data-tab="work"')[1].split("</a>")[0]
+
+    assert "1주문" in work_tab and "2주문" in _chip(body, "all"), (work_tab, _chip(body, "all"))
+    # 탭 1주문 = 상품주문 2건. 잠긴 집의 3건을 더한 5건이면 "1주문 · 5건" 이 된다.
+    assert "<b>2</b>건" in strip, strip
+    assert "<b>5</b>건" not in strip, "잠긴 집 상품주문까지 탭 배지 옆에서 센다"
+    assert "1주문" in locked and "처리 수에는 없고 목록에는 있음" in locked, locked
+    assert 'title="손댈 수 있는 주문 수입니다' in work_tab
+    assert 'title="목록의 모든 주문입니다' in _chip(body, "all")
+    # 목록 머리는 칩 '전체' 와 같은 단위(한 주문 = 한 줄)로 보이는 줄을 센다.
+    assert "보이는 2줄" in body
 
 
 # --------------------------------------------------------------------------- #

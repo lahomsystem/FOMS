@@ -2553,7 +2553,12 @@ def _render_workbench(db) -> str:
     with phase("wb_counts"):
         filter_counts_view = _filter_counts(groups)
         actionable = _actionable_count(groups)
-        pending_total = sum(int(group["count"]) for group in groups)
+        # 머리줄 `상품주문 N건` 은 탭 배지(손댈 수 있는 집)의 **같은 모집단**을 건으로 센다
+        # (결정 3 의 이중 표기 = 한 모집단의 두 단위). 예전에는 잠긴 집까지 더해서
+        # "처리 216주문 · 상품주문 989건" 의 989 가 292주문 몫이었다(2026-09-28 스테이징) —
+        # 216주문이 989건인 것처럼 읽혔다. 술어는 탭 배지와 같은 `claim` 칩 술어다.
+        pending_total = sum(int(group["count"]) for group in groups
+                            if not _group_matches_filter(group, "claim"))
     # 대조(GAP-01) — 탭에 들어왔을 때만 센다. 다른 탭에서 세면 렌더마다 쿼리가
     # 붙는다. 그래서 탭 배지에도 숫자를 달지 않는다. 인자 식을 render_template
     # 괄호 안에 두면 wb_template 으로 계상되므로 여기서 먼저 만든다(2026-09-11 교훈).
@@ -2578,6 +2583,7 @@ def _render_workbench(db) -> str:
             # 잠긴 집은 목록에는 남고 `locked_count` 로 따로 고지된다.
             actionable_count=actionable,
             locked_count=len(groups) - actionable,
+            # 탭 배지와 같은 모집단(손댈 수 있는 집)의 상품주문 건수.
             pending_count=pending_total,
             work_truncated=work_truncated,
             can_view_history=_can_view_history(),
