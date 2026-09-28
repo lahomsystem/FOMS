@@ -1317,12 +1317,12 @@ html.foms-meas-sheet-open .foms-shell-fab {
 .foms-meas-sheet .foms-meas-sheet__slot .queue-card__meta > [data-queue-card-has-note] > dd.foms-queue-card-v2__row-note {
   display: block;
   flex: 1 1 100%;
-  margin: 0 -40px 0 52px; /* dt 40 + gap 12 · 오른쪽 아이콘 자리(40)까지 넓힌다 */
+  margin: 0 0 0 52px; /* dt 40 + gap 12. 오른쪽 아이콘 자리(줄 padding 40)는 비워 둔다 — 넓히면 한 줄 연락처의 전화 아이콘을 가렸다(스테이징 #4752) */
   -webkit-line-clamp: unset;
   font-size: 14px;
 }
 .foms-meas-sheet .foms-meas-sheet__slot .queue-card__meta > [data-queue-card-has-note]::after {
-  top: 14px;
+  top: 6px;
   margin-top: 0;
 }
 .foms-meas-memo {
