@@ -370,6 +370,16 @@
             animation: layoutNavLoadingSpin 0.72s linear infinite;
         }
 
+        /* 넓은 화면(993px+)의 알림 배지는 벨 버튼 오른쪽 위 모서리를 중심으로 놓여 절반(약 20px)이
+           버튼 밖으로 나간다. 버튼 묶음 간격(gap-3 = 16px)보다 커서 옆 계정 버튼을 약 5px 덮었다
+           (2026-09-28 측정, 1280px) → 벨 버튼 오른쪽에 그만큼 여백을 더 둔다. 좁은 화면은 아래
+           모바일 규칙이 배지를 버튼 안쪽 모서리로 옮긴다. */
+        @media (min-width: 993px) {
+            .layout-header #global-notification-btn {
+                margin-right: 0.625rem;
+            }
+        }
+
         /* MOBILE LAYOUT (2026-03 ERP 최적화) */
         @media (max-width: 992px) {
             .layout-header {

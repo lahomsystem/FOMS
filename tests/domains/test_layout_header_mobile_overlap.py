@@ -83,3 +83,16 @@ def test_mobile_header_icon_buttons_are_44px_targets():
     assert "min-width: 40px;" not in phone
     # 체브론이 흐름 안으로 들어왔으니 헤더 칸 사이 간격이 0 이면 제목·체브론이 붙는다.
     assert "gap: 0;" not in _rule(phone, ".layout-header")
+
+
+def test_desktop_bell_has_room_for_overhanging_badge():
+    """993px 이상에서는 배지가 벨 버튼 모서리를 중심으로 놓여 절반이 밖으로 나간다 —
+    묶음 간격(16px)만으로는 옆 계정 버튼을 약 5px 덮었다(2026-09-28, 1280px 측정).
+    벨 버튼 오른쪽에 여백을 더 둔다."""
+    from pathlib import Path
+
+    head = (Path(__file__).resolve().parents[2]
+            / "templates/partials/shared/layout_head.html").read_text(encoding="utf-8")
+    block = head.split("@media (min-width: 993px) {", 1)[1].split("}", 2)
+    rule = block[0] + "}" + block[1]
+    assert "#global-notification-btn" in rule and "margin-right: 0.625rem" in rule
