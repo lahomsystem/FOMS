@@ -1442,6 +1442,78 @@
     markDirty();
   }
 
+  /* ---- 객체 복사 / 붙여넣기 ------------------------------------------------
+     Ctrl+C/X 는 선택 객체를 깊은 복제해 내부 클립보드(dwsClip)에 담고, 시스템 클립보드에는
+     전용 MIME 표식(+텍스트 객체면 글자)을 쓴다. Ctrl+V 때 표식이 같으면 내부 객체를 새 id 로
+     붙여넣고(시트가 달라도 가능), 아니면 외부 이미지 업로드 / 외부 글자 → 새 텍스트 객체. */
+  var DWS_CLIP_MIME = 'application/x-foms-dws';
+  var dwsClip = null;   // { tag, objs:[...], pastes:n }
+
+  function objPlainText(o) {
+    if (!o || o.type !== 'text') { return ''; }
+    if (o.runs && o.runs.length) { return o.runs.map(function (r) { return r.t || ''; }).join(''); }
+    return String(o.text || '');
+  }
+
+  function copySelectedToClip(cd) {
+    var objs = selectedIds.map(findObj).filter(Boolean);
+    if (!objs.length) { return false; }
+    var tag = rid('clip-');
+    dwsClip = { tag: tag, objs: JSON.parse(JSON.stringify(objs)), pastes: 0 };
+    try {
+      cd.setData(DWS_CLIP_MIME, tag);
+      var txt = objs.map(objPlainText).filter(function (s) { return s; }).join('\n');
+      cd.setData('text/plain', txt || tag);
+    } catch (err) { console.warn('[dws] clipboard write', err); }
+    return true;
+  }
+
+  function isOwnClip(cd) {
+    if (!dwsClip) { return false; }
+    var tag = '';
+    try { tag = cd.getData(DWS_CLIP_MIME) || ''; } catch (err) { tag = ''; }
+    if (tag) { return tag === dwsClip.tag; }
+    /* 커스텀 MIME 을 못 읽는 브라우저 폴백: 텍스트가 복사 당시와 같으면 내부 붙여넣기. */
+    var txt = cd.getData('text/plain') || '';
+    var mine = dwsClip.objs.map(objPlainText).filter(function (s) { return s; }).join('\n') || dwsClip.tag;
+    return txt === mine;
+  }
+
+  function pasteClipObjects() {
+    if (!canSave || !dwsClip || !currentSheet()) { return; }
+    recordUndo();
+    dwsClip.pastes += 1;
+    var off = 20 * dwsClip.pastes;
+    var ids = [];
+    dwsClip.objs.forEach(function (src) {
+      var o = JSON.parse(JSON.stringify(src));
+      o.id = rid('o-');
+      moveObjectBy(o, off, off);
+      currentSheet().objects.push(o);
+      ids.push(o.id);
+    });
+    markDirty();
+    rebuildAnno();
+    selectedIds = ids;
+    applySelection();
+  }
+
+  function pastePlainTextAsObject(text) {
+    text = String(text || '').replace(/\r\n?/g, '\n').replace(/\s+$/, '');
+    if (!canSave || !text) { return; }
+    if (!currentSheet()) { toast('제품을 선택해 도면을 먼저 시작하세요.'); return; }
+    recordUndo();
+    var n = currentSheet().objects.length;
+    var o = {
+      id: rid('o-'), type: 'text', x: 340 + (n % 3) * 30, y: 95 + (n % 6) * 46, w: 1,
+      text: text, size: 20, color: '#000000', bold: false, align: 'left', rotation: 0, autoWidth: true
+    };
+    currentSheet().objects.push(o);
+    markDirty();
+    rebuildAnno();
+    selectById(o.id);
+  }
+
   function moveObjectBy(o, dx, dy) {
     var isPoints = (o.type === 'arrow' || o.type === 'line' || o.type === 'pen');
     if (isPoints) {
@@ -4279,8 +4351,27 @@
           if (cf && cf.type && cf.type.indexOf('image') === 0) { blobs.push(cf); }
         }
       }
-      if (blobs.length) { e.preventDefault(); addImagesFromFiles(blobs); }
+      if (isOwnClip(cd)) { e.preventDefault(); pasteClipObjects(); return; }
+      if (blobs.length) { e.preventDefault(); addImagesFromFiles(blobs); return; }
+      var ptxt = cd.getData('text/plain');
+      if (ptxt && ptxt.trim()) { e.preventDefault(); pastePlainTextAsObject(ptxt); }
     });
+
+    // 캔버스 객체 복사/잘라내기 — 글자 편집 중이거나 화면 글자를 드래그 선택했으면 브라우저 기본.
+    function onCopyCut(e, isCut) {
+      if (!selectedIds.length) { return; }
+      var ae = document.activeElement;
+      if (ae && (ae.isContentEditable || ae.tagName === 'TEXTAREA' || ae.tagName === 'INPUT')) { return; }
+      var sel = window.getSelection && window.getSelection();
+      if (sel && !sel.isCollapsed && String(sel).trim()) { return; }
+      var cd = e.clipboardData;
+      if (!cd) { return; }
+      if (!copySelectedToClip(cd)) { return; }
+      e.preventDefault();
+      if (isCut) { deleteSelected(); }
+    }
+    document.addEventListener('copy', function (e) { onCopyCut(e, false); });
+    document.addEventListener('cut', function (e) { if (canSave) { onCopyCut(e, true); } });
 
     // 키보드: 저장 / undo·redo / 삭제 / 화살표 이동 / Esc
     document.addEventListener('keydown', function (e) {
