@@ -596,7 +596,11 @@
           chip.dataset.availNote = value && value.note ? value.note : '';
           chip.classList.toggle('erp-as-avail-chip--set', !!value);
           const labelEl = chip.querySelector('.erp-as-avail-chip__label');
-          if (labelEl) labelEl.textContent = value ? availLabel(value) : '가능시간';
+          // 모바일 v2 카드 칩만 문구가 길다('방문 가능 · 평일·오후' / '방문 가능 시간 입력') —
+          // 칩이 data-avail-label-* 로 들고 온다. 없으면 PC·회차 차트 기존 문구 그대로.
+          const prefix = chip.dataset.availLabelPrefix || '';
+          const emptyText = chip.dataset.availLabelEmpty || '가능시간';
+          if (labelEl) labelEl.textContent = value ? `${prefix}${availLabel(value)}` : emptyText;
         });
       }
 
@@ -734,9 +738,44 @@
       });
     }
 
+    /**
+     * 모바일 v2 카드의 미결 버튼은 하단 빠른 작업 줄(footer) 칩이다(서버 렌더 조건 = 방문일 있음).
+     * 방문 타일은 투명 date 입력이 통째로 덮으므로 거기에 레거시 절대배치 버튼을 붙이면
+     * 눌리지 않는다 — 방문일이 생기고 없어질 때 footer 칩을 넣고 뺀다(템플릿과 같은 마크업).
+     */
+    function syncV2FooterPendingButton(card, orderId, hasVisitDate) {
+      const actions = card.querySelector('.erp-as-mobile-card__actions');
+      if (!actions) return;
+      const existingBtn = actions.querySelector('.as-pending-btn');
+      if (hasVisitDate && !existingBtn) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'erp-as-mobile-card__action erp-as-mobile-card__action--pending erp-as-pending-btn as-pending-btn';
+        btn.dataset.asPending = '0';
+        btn.title = '미결 표시';
+        const icon = document.createElement('i');
+        icon.className = 'fas fa-circle-exclamation';
+        icon.setAttribute('aria-hidden', 'true');
+        const label = document.createElement('span');
+        label.textContent = '미결';
+        btn.appendChild(icon);
+        btn.appendChild(label);
+        // 템플릿 순서(사진 → 미결 → 전화 → 편집)를 지킨다.
+        const photosBtn = actions.querySelector('.as-photos-btn');
+        actions.insertBefore(btn, photosBtn ? photosBtn.nextSibling : actions.firstChild);
+      }
+      if (!hasVisitDate && existingBtn) {
+        existingBtn.remove();
+      }
+    }
+
     function syncVisitPendingButtons(orderId, hasVisitDate) {
       [getTableRowForOrder(orderId), getCardForOrder(orderId)].forEach((container) => {
         if (!container) return;
+        if (container.classList.contains('erp-as-mobile-card--v2')) {
+          syncV2FooterPendingButton(container, orderId, hasVisitDate);
+          return;
+        }
         const visitContainer = container.querySelector('.erp-as-visit-cell');
         if (!visitContainer) return;
         const existingBtn = visitContainer.querySelector('.as-pending-btn');
@@ -756,9 +795,106 @@
       });
     }
 
+    // ── 모바일 v2 날짜 타일(A안 2단 날짜) 표기 ─────────────────────────────
+    // 표기 규칙 SSOT = foms/services/as_dashboard_display.py build_as_mobile_date_view
+    // (첫 렌더). 여기는 저장 직후 같은 규칙으로 다시 그린다 — 한쪽만 바꾸면 새로고침 전후
+    // 글자가 달라진다. 'YYYY-MM-DD' 는 손으로 쪼갠다: new Date(iso) 는 UTC 자정으로 읽혀
+    // 기기 시간대에 따라 하루 밀린다. '오늘'은 브라우저 시계가 아니라 서버 KST 값
+    // (#as-dashboard-config[data-as-today])이다.
+    const AS_TILE_WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
+    const AS_TILE_DAY_MS = 86400000;
+
+    function parseAsIsoDate(value) {
+      const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value || '').trim());
+      if (!m) return null;
+      const y = Number(m[1]);
+      const mo = Number(m[2]);
+      const d = Number(m[3]);
+      const utc = Date.UTC(y, mo - 1, d);
+      const check = new Date(utc);
+      if (check.getUTCMonth() !== mo - 1 || check.getUTCDate() !== d) return null;
+      return { y, m: mo, d, utc };
+    }
+
+    function getAsTodayParsed() {
+      const cfg = document.getElementById('as-dashboard-config');
+      return parseAsIsoDate(cfg ? cfg.dataset.asToday : '');
+    }
+
+    function formatAsTileDate(parsed) {
+      return `${parsed.m}월 ${parsed.d}일 (${AS_TILE_WEEKDAYS[new Date(parsed.utc).getUTCDay()]})`;
+    }
+
+    // 타일 머리 오른쪽 칸: 'N일 지남' 배지가 연도 꼬리표보다 우선(좁은 칸에 둘 다 못 넣는다).
+    function renderAsTileMeta(tile, input, overdueDays, yearTag) {
+      const meta = tile.querySelector('.erp-as-date-tile__meta');
+      if (!meta) return;
+      meta.textContent = '';
+      if (overdueDays > 0) {
+        const badge = document.createElement('span');
+        badge.className = 'erp-as-date-tile__overdue';
+        badge.id = `as-visit-overdue-${orderIdOf(input)}`;
+        badge.textContent = `${overdueDays}일 지남`;
+        meta.appendChild(badge);
+        input.setAttribute('aria-describedby', badge.id);
+        return;
+      }
+      input.removeAttribute('aria-describedby');
+      if (yearTag) {
+        const tag = document.createElement('span');
+        tag.className = 'erp-as-date-tile__year';
+        tag.textContent = yearTag;
+        meta.appendChild(tag);
+      }
+    }
+
+    /**
+     * 카드 한 장의 방문·완료 타일을 다시 그린다. 완료일이 바뀌면 방문 타일의 '지남' 배지도
+     * 바뀌므로 두 타일을 함께 본다. overrideField/overrideValue = 방금 바뀐 필드의 값
+     * (응답 동기화 경로는 입력값보다 서버값이 정답이다).
+     */
+    function refreshAsCardDateTiles(card, overrideField, overrideValue) {
+      if (!card) return;
+      const today = getAsTodayParsed();
+      const inputs = {};
+      card.querySelectorAll('.erp-as-date-tile .editable-date-as').forEach((input) => {
+        inputs[input.dataset.field] = input;
+      });
+      const valueOf = (field) => {
+        if (field === overrideField) return overrideValue || '';
+        return inputs[field] ? (inputs[field].value || '') : '';
+      };
+      const hasCompleted = !!valueOf('as_completed_date');
+      ['as_visit_date', 'as_completed_date'].forEach((field) => {
+        const input = inputs[field];
+        const tile = input ? input.closest('.erp-as-date-tile') : null;
+        if (!tile) return;
+        const value = valueOf(field);
+        const parsed = parseAsIsoDate(value);
+        tile.classList.toggle('is-set', !!value);
+        tile.classList.toggle('is-empty', !value);
+        const textEl = tile.querySelector('.erp-as-date-tile__text');
+        if (textEl) textEl.textContent = value ? (parsed ? formatAsTileDate(parsed) : value) : '날짜 선택';
+        let overdueDays = 0;
+        if (field === 'as_visit_date' && parsed && today && !hasCompleted && parsed.utc < today.utc) {
+          overdueDays = Math.round((today.utc - parsed.utc) / AS_TILE_DAY_MS);
+        }
+        const yearTag = parsed && today && parsed.y !== today.y ? `${parsed.y}년` : '';
+        renderAsTileMeta(tile, input, overdueDays, yearTag);
+      });
+    }
+
     function syncDateFieldVisuals(orderId, field, value) {
       const hasValue = !!value;
+      const tileCards = [];
       getDateInputsForOrder(orderId, field).forEach((input) => {
+        // 모바일 v2 타일은 행 클래스(.erp-pro-order-card__row)가 없다 — 타일 경로로 따로 그린다.
+        const tile = input.closest('.erp-as-date-tile');
+        if (tile) {
+          const card = tile.closest('.erp-as-mobile-card');
+          if (card && tileCards.indexOf(card) === -1) tileCards.push(card);
+          return;
+        }
         const cell = input.closest('td');
         const cardRow = input.closest('.erp-pro-order-card__row');
         if (field === 'as_visit_date') {
@@ -770,6 +906,7 @@
           if (cardRow) cardRow.classList.toggle('erp-as-complete-row--set', hasValue);
         }
       });
+      tileCards.forEach((card) => refreshAsCardDateTiles(card, field, value));
       if (field === 'as_visit_date') {
         syncVisitPendingButtons(orderId, hasValue);
       }
@@ -3376,6 +3513,20 @@
         ? '완료를 되돌렸어요 — 이 주문은 «미완료» 탭으로 옮겨집니다.'
         : '잘못 남은 완료 날짜만 지웠어요. 상태는 그대로예요.');
     }
+
+    // 모바일 v2 날짜 타일: 투명 date 입력은 터치 기기에선 탭 = 피커지만, 마우스(좁은 PC 창)
+    // 로 누르면 보이지 않는 날짜 칸에 커서만 들어간다 → 정밀 포인터일 때만 피커를 직접 연다.
+    // 터치에서 부르면 iOS 가 피커를 두 번 여는 수가 있어 막는다.
+    addAsDashboardListener(document, 'click', (e) => {
+      const input = e.target && e.target.closest ? e.target.closest('.erp-as-date-tile__input') : null;
+      if (!input || typeof input.showPicker !== 'function') return;
+      if (!window.matchMedia || !window.matchMedia('(pointer: fine)').matches) return;
+      try {
+        input.showPicker();
+      } catch (err) {
+        // 사용자 동작 밖·미지원 — 포커스는 이미 들어가 키보드 입력으로 대체된다.
+      }
+    });
 
     // 안내 줄 '닫기' — 문서 위임이라 fragment 스왑·행 재렌더 뒤에도 산다.
     addAsDashboardListener(document, 'click', (e) => {

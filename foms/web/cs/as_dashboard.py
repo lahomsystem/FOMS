@@ -468,6 +468,9 @@ def erp_as_dashboard():
         # 일정찾기 지도 모달(카카오) 전용 — layout_head 의 지도 origin preconnect 게이트도 겸한다.
         kakao_js_key=KAKAO_JS_API_KEY,
         drift_banner=drift_banner,
+        # 모바일 v2 날짜 타일의 '오늘'·'N일 지남' 기준일(KST). JS 는 브라우저 시계를 믿지 않고
+        # 이 값(data-as-today)으로 저장 직후 표기를 다시 그린다.
+        as_today_iso=get_today_kst().isoformat(),
     )
     _render_ms = (time.perf_counter() - _t0) * 1000.0
     response = make_response(_body)

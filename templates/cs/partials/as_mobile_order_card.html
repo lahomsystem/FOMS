@@ -1,5 +1,5 @@
 {# AS 모바일 주문 카드 1건 — 초기 렌더 루프와 무한스크롤 청크가 공유(SSOT). 루프 변수 r 필요. #}
-{% from 'cs/partials/as_card_macros.html' import render_as_orderer_line, render_as_construction_workers, render_as_timeline, render_as_schedule_drift_badge, render_sales_delivery_cell %}
+{% from 'cs/partials/as_card_macros.html' import render_as_orderer_line, render_as_construction_workers, render_as_timeline, render_as_schedule_drift_badge, render_sales_delivery_cell, render_as_date_tile %}
 
 {% if erp_mobile_v2_enabled %}
 {# v2 compact: 현장 담당자가 스크롤 최소로 건 스캔·방문일·사진·미결 처리 #}
@@ -93,36 +93,37 @@
     </span>
   </header>
 
+  {# A안 2단 날짜(2026-09-28): 3칸 상자(접수·방문·완료)는 좁은 폰에서 날짜가 잘렸다.
+     접수 = 한 줄 캡션, 방문·완료 = 2칸 타일(타일 매크로 주석 참고), 가능시간 = 그 아래 자기 줄.
+     입력 노출 게이트는 서버 저장 게이트와 같은 술어다 — as_visit_date/as_completed_date 쓰기는
+     update_order_field 가 역할 ADMIN·MANAGER·STAFF 만 받는다(foms/api/orders/field_update.py).
+     can_edit_erp 로 좁히면 저장 가능한 STAFF 가 입력을 잃는다. #}
+  {% set dv = r.as_date_view or {} %}
+  {% set as_dates_editable = current_user and (current_user.role or '') in ('ADMIN', 'MANAGER', 'STAFF') %}
   <div class="erp-as-mobile-card__schedule">
-    <div class="erp-as-mobile-card__date erp-as-mobile-card__date--received">
-      <span class="erp-as-mobile-card__date-label">접수</span>
+    <p class="erp-as-mobile-card__received">
+      <span class="erp-as-mobile-card__received-label">접수</span>
       {# 이력 불명 건의 접수일은 실제 접수일이 아니라 레거시 전환(LEGACY_BRIDGE)이 돌아간
          시각이다 — 그대로 찍으면 화면이 거짓말을 하므로 '불명'으로 낸다(목업 2-D). #}
-      <span class="erp-as-mobile-card__date-value foms-tabular">{% if r.as_history_unknown %}<span class="erp-as-unknown-date">불명</span>{% else %}{{ r.as_received_date or '-' }}{% endif %}</span>
+      {% if r.as_history_unknown %}<span class="erp-as-unknown-date">불명</span>{% else %}<span class="foms-tabular">{{ dv.received_text or r.as_received_date or '-' }}</span>{% endif %}
+    </p>
+    <div class="erp-as-mobile-card__date-grid">
+      {{ render_as_date_tile('visit', r.as_visit_date, dv.visit_text, dv.visit_year_tag, dv.visit_overdue_days, r.id, as_dates_editable) }}
+      {{ render_as_date_tile('complete', r.as_completed_date, dv.completed_text, dv.completed_year_tag, 0, r.id, as_dates_editable) }}
     </div>
-    <div
-      class="erp-as-mobile-card__date erp-as-mobile-card__date--visit erp-as-visit-cell {% if r.as_visit_date %}erp-as-visit-row--set{% endif %}">
-      <span class="erp-as-mobile-card__date-label">방문</span>
-      <div class="erp-as-visit-cell-wrap">
-        <input type="date" class="erp-pro-input editable-date-as" value="{{ r.as_visit_date or '' }}"
-          data-field="as_visit_date" aria-label="AS 방문일">
-      </div>
-      {{ render_as_schedule_drift_badge(r.schedule_link_drift, r.id) }}
-      {# 방문 가능시간 칩 — PC와 동일 팝오버 편집 #}
-      <button type="button" class="erp-as-avail-chip{% if r.as_availability %} erp-as-avail-chip--set{% endif %}"
-        data-avail-days="{{ r.as_availability.days if r.as_availability else '' }}"
-        data-avail-time="{{ r.as_availability.time if r.as_availability else '' }}"
-        data-avail-note="{{ r.as_availability.note if r.as_availability and r.as_availability.note else '' }}"
-        aria-label="방문 가능시간">
-        <i class="far fa-clock"></i><span class="erp-as-avail-chip__label">{{ r.as_availability_label or '가능시간' }}</span>
-      </button>
-    </div>
-    <div
-      class="erp-as-mobile-card__date erp-as-mobile-card__date--complete {% if r.as_completed_date %}erp-as-complete-row--set{% endif %}">
-      <span class="erp-as-mobile-card__date-label">완료</span>
-      <input type="date" class="erp-pro-input editable-date-as" value="{{ r.as_completed_date or '' }}"
-        data-field="as_completed_date" aria-label="AS 완료일">
-    </div>
+    {# 드리프트 배지는 버튼(재적용·무시·연결 해제)을 품으므로 투명 입력이 덮는 타일 안에 둘 수 없다. #}
+    {{ render_as_schedule_drift_badge(r.schedule_link_drift, r.id) }}
+    {# 방문 가능시간 칩 — PC와 같은 클래스·data-avail-*(팝오버 위임, applyChipState 갱신).
+       data-avail-label-*: 이 표면만 문구가 길다('방문 가능 · 평일·오후'). JS 가 저장 뒤 같은 문구로 다시 쓴다. #}
+    <button type="button" class="erp-as-avail-chip erp-as-mobile-card__avail{% if r.as_availability %} erp-as-avail-chip--set{% endif %}"
+      data-avail-days="{{ r.as_availability.days if r.as_availability else '' }}"
+      data-avail-time="{{ r.as_availability.time if r.as_availability else '' }}"
+      data-avail-note="{{ r.as_availability.note if r.as_availability and r.as_availability.note else '' }}"
+      data-avail-label-prefix="방문 가능 · "
+      data-avail-label-empty="방문 가능 시간 입력"
+      aria-label="방문 가능시간">
+      <i class="far fa-clock" aria-hidden="true"></i><span class="erp-as-avail-chip__label">{% if r.as_availability and r.as_availability_label %}방문 가능 · {{ r.as_availability_label }}{% else %}방문 가능 시간 입력{% endif %}</span>
+    </button>
   </div>
 
   {# 지난 AS 한 줄(목업 2-A②). 값은 직전 종결 건의 봉인 스냅샷(as_prev_cycle)만 쓴다 —
