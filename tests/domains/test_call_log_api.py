@@ -211,12 +211,3 @@ def test_cs_no_answer_filter_renders_on_v2_dashboard(client, monkeypatch):
     assert 'data-foms-last-call="no_answer"' in body
     assert "data-foms-lastcall-filter" in body
     assert "현재 페이지 내 필터" in body
-
-
-def test_cs_no_answer_filter_markers_in_v3_persona_home():
-    """B2: v3 CS 홈에도 동일한 '부재중' 필터 칩·마지막 통화 속성·필터 스코프가 존재한다."""
-    src = (ROOT / "templates/partials/v3/persona_home_cs.html").read_text(encoding="utf-8")
-    assert "data-foms-lastcall-filter" in src
-    assert 'data-foms-last-call="{{ _lc_result }}"' in src
-    assert "data-foms-lastcall-scope" in src
-    assert "현재 페이지 내 필터" in src

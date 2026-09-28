@@ -156,17 +156,11 @@ def v2_client(app, client, monkeypatch: pytest.MonkeyPatch):
     60건인 이유: 큐 한 페이지가 50장이라 그보다 적게 심으면
     ``dashboard_mobile_v2_body.html:123`` 의 ``{% if page < total_pages %}`` 이 거짓이 되어
     **센티넬이 0건**이고, 아래 센티넬 봉쇄 테스트가 0 == 0 으로 공허하게 초록이 된다.
-
-    ``resolve_shell_variant``(foms/services/feature_flags.py:257)는 v3 자격이 있으면
-    v3 를 돌려주고, v3 에서는 모바일 v2 바디가 애초에 include 되지 않는다
-    (``dashboard_main.html:194`` 의 ``shell_variant != 'v3'``). 그래서 v3 를 명시적으로 끈다.
     """
     uid = _seed_admin(app)
     _seed_orders(app, 60)
     monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
     monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(uid))
-    monkeypatch.delenv("FOMS_SHELL_V3_ENABLED", raising=False)
-    monkeypatch.delenv("FOMS_SHELL_V3_COHORT", raising=False)
     _login(client)
     return client
 
@@ -245,8 +239,6 @@ def test_orders_tower_branch_markers_stay_inside(app, client, monkeypatch):
     _seed_orders(app, 60)
     monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
     monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(uid))
-    monkeypatch.delenv("FOMS_SHELL_V3_ENABLED", raising=False)
-    monkeypatch.delenv("FOMS_SHELL_V3_COHORT", raising=False)
     _login(client)
 
     soup = _soup(client, ORDERS_TOWER_URL)
@@ -289,8 +281,6 @@ def test_desktop_container_intact_on_tower_branch(app, client, monkeypatch):
     _seed_orders(app, 60)
     monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
     monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(uid))
-    monkeypatch.delenv("FOMS_SHELL_V3_ENABLED", raising=False)
-    monkeypatch.delenv("FOMS_SHELL_V3_COHORT", raising=False)
     _login(client)
 
     soup = _soup(client, ORDERS_TOWER_URL)

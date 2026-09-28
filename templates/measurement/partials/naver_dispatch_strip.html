@@ -14,18 +14,14 @@
   아무 말을 안 했다(운영 잔량 21묶음 중 대부분이 실측일이 지난 건이다). 다만 **불가역
   조작은 오늘로 잠근다**(`is_today`) — 다른 날 목록을 보며 오늘 것을 보내면 안 된다.
 
-  **v3 풀페이지에서는 버튼을 감춘다.** 그 셸은 페이지 스크립트를 통째로 싣지 않아
-  (`dashboard.html` 의 `shell_variant != 'v3'` 게이트), 버튼을 그리면 보이는데 안 눌린다 —
-  되돌릴 수 없는 조작에서 가장 나쁜 실패 모양이다. 목록은 그대로 보여준다(읽기는 되니까).
-
   변수: `bulk_dispatch` (없으면 아무것도 렌더하지 않는다 — 다른 화면에서 include 해도 안전),
-  `naver_bulk_dispatch_enabled` (전역 킬스위치), `shell_variant`.
+  `naver_bulk_dispatch_enabled` (전역 킬스위치).
 #}
 {% if bulk_dispatch and bulk_dispatch.show %}
 {# can_run = 오늘치 일괄 실행 버튼을 그려도 되는가. can_act = **배선**을 실어도 되는가 —
    실패한 집의 줄마다 붙는 재시도 버튼이 같은 배선을 쓰므로 보낼 집이 0이어도 실어야 한다. #}
-{% set can_run = naver_bulk_dispatch_enabled and bulk_dispatch.eligible and shell_variant != 'v3' and bulk_dispatch.is_today %}
-{% set can_act = naver_bulk_dispatch_enabled and (bulk_dispatch.eligible or bulk_dispatch.failed) and shell_variant != 'v3' and bulk_dispatch.is_today %}
+{% set can_run = naver_bulk_dispatch_enabled and bulk_dispatch.eligible and bulk_dispatch.is_today %}
+{% set can_act = naver_bulk_dispatch_enabled and (bulk_dispatch.eligible or bulk_dispatch.failed) and bulk_dispatch.is_today %}
 <details class="alert {% if bulk_dispatch.state == 'done' %}alert-success{% else %}alert-light{% endif %} border erp-naver-dispatch"
          data-foms-no-autodismiss
          data-naver-dispatch-count="{{ bulk_dispatch.count }}"

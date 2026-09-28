@@ -402,7 +402,7 @@ def _display_stage_for_order(order, structured_data):
 
 
 def _workmode_display_fields(structured_data: dict[str, Any]) -> tuple[str, str]:
-    """v3 workmode 카드용 경량 표시 필드(품목 라벨·규격) 파생. 실패 시 ''.
+    """태블릿 workmode 카드용 경량 표시 필드(품목 라벨·규격) 파생. 실패 시 ''.
 
     기존 SSOT 헬퍼만 재사용한다(신규 쿼리 없음, 이미 로드된 structured_data에서만 파생):
     - 품목 라벨: ``product_subtitle_from_sd`` (모바일 큐 카드 subtitle SSOT)
@@ -488,7 +488,7 @@ def build_construction_row_dtos(orders, att_counts, f_stage):
                 "phone": (((structured_data.get("parties") or {}).get("customer") or {}).get("phone")) or "-",
                 "as_received_date": getattr(order, "as_received_date", None) or "",
                 "as_received_done": bool((getattr(order, "as_received_date", None) or "").strip()),
-                # v3 workmode 카드용 표시 필드(파생만; 기존 소비자는 미읽음, ''는 미표시).
+                # 태블릿 workmode 카드용 표시 필드(파생만; ''는 미표시).
                 "workmode_product_label": workmode_product_label,
                 "workmode_spec_display": workmode_spec_display,
             }

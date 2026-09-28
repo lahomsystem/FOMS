@@ -1,6 +1,5 @@
 {# 시공일 변경 알림 매크로(PC 행·태블릿 그리드 행·배정 시트 공용 SSOT). #}
 {% from 'shipment/partials/shipment_change_macros.html' import render_shipment_change_badge, render_shipment_change_banner %}
-{% set _fos_desktop_body %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/shipment/shipment-dashboard-columns.css') }}?v=20260721a">
 {# foms-kv-rollout: erp_mobile_shell → kv-copy.js #}
 <div class="erp-pro erp-mobile-shell erp-dashboard-shipment" data-erp-mobile-v2="{{ 'true' if erp_mobile_v2_enabled else 'false' }}">
@@ -45,13 +44,7 @@
     </div>
   </div>
   {% else %}
-  {# v3 셸에서 이 모바일 v2 표면은 어떤 뷰포트·방향·포인터에서도 표시되지 않는 죽은 마크업이다.
-     .fos-v3-desktop-fallback 이 보이는 조건(foms-mobile-v3.css 결함G 게이트)은 광폭(≥992
-     landscape|fine|none)과 정확히 일치하고, 그 광폭에서 .foms-mobile-v2-dashboard 는
-     foms-mobile-v2-surfaces-hide.css 가 display:none !important 로 끈다. 좁은 폭·세로 coarse
-     에선 fallback 자체가 display:none 이라 내부도 미렌더 — 뷰포트가 식에서 소거되므로 리사이즈
-     재요청 배선 없이 안전하다. v2 코호트엔 이 wrapper 자체가 없어 영향 없음. #}
-  {% if erp_mobile_v2_enabled and shell_variant != 'v3' %}
+  {% if erp_mobile_v2_enabled %}
     <section class="foms-shell-body foms-mobile-v2-dashboard erp-shipment-mobile-v2" aria-label="출고 모바일 대시보드">
       {% include 'shipment/partials/shipment_mobile_controls.html' %}
       {% include 'shipment/partials/shipment_mobile_dates.html' %}
@@ -214,7 +207,7 @@
     <div class="card-body">
       {# ── 시공일 변경 배너(T4): 다른 화면에서 시공일이 바뀐 건을 목록 최상단에서 호명하고
          칩 클릭으로 그 행까지 데려다준다. 카드 상단인 이유 = 상차·팀 배정을 시작하기 전에
-         보이는 첫 정보여야 한다. 조상이 .erp-shipment-desktop-shell 이라 모바일 v2/v3
+         보이는 첫 정보여야 한다. 조상이 .erp-shipment-desktop-shell 이라 모바일 v2
          코호트에서는 통째로 은닉된다(모바일 표면은 이번 범위 밖 — 스펙 §4.2 · §7). #}
       {{ render_shipment_change_banner(shipment_change_banner) }}
       {% if not erp_mobile_v2_enabled %}
@@ -754,11 +747,3 @@
 {% if erp_mobile_v2_enabled %}
   {% include 'partials/shared/foms_attachment_preview_modal.html' %}
 {% endif %}
-{% endset %}{% if shell_variant == 'v3' %}
-<div class="fos-v3-mobile-scope">
-{# v3 셸 병렬 분기: 출고 페르소나 홈만 렌더(전체 화면 takeover). else 경로는 기존 v2/legacy 그대로. #}
-{% set fos_content_partial = 'partials/v3/persona_home_shipment.html' %}
-{% include 'partials/v3/foms_app_shell_v3.html' %}
-</div>
-<div class="fos-v3-desktop-fallback">{{ _fos_desktop_body|safe }}</div>
-{% else %}{{ _fos_desktop_body|safe }}{% endif %}{# /shell_variant == 'v3' 병렬 분기 #}

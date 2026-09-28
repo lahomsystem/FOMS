@@ -104,8 +104,8 @@
     openSheet(id);
   }, true);
 
-  // ---- 주입된 fragment(persona_order360) 아코디언 토글 — 일반 bubble --------
-  // v2 셸엔 foms-mobile-v3.js 가 없어 data-tl-toggle 가 죽으므로 여기서 위임한다.
+  // ---- 주입된 fragment(order_timeline_sheet_body) 아코디언 토글 — 일반 bubble ----
+  // data-tl-toggle 의 유일한 배선이다(시트 body 는 fetch 로 주입되므로 document 위임).
   // 시트 내부 토글은 nav 가 아니므로 stopImmediatePropagation 은 하지 않는다.
   document.addEventListener('click', function (e) {
     if (!e.target || !e.target.closest) return;

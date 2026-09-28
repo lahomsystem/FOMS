@@ -61,7 +61,6 @@ from foms.services.erp_permissions import (
     can_edit_erp,
     is_order_related_to_user,
 )
-from foms.services.feature_flags import note_shell_v3_view, resolve_shell_variant_cached
 from foms.services.orders.order_mutation_policy import team_has_capability
 from foms.services.erp_policy import STAGE_LABELS
 # namespace surface 계약(pin): 라우트 본문 미사용이어도 erp_display 재export 유지
@@ -266,10 +265,6 @@ def erp_production_dashboard():
         user.role == 'ADMIN'
         or team_has_capability(getattr(user, 'team', None), ('CS', 'SALES', 'PRODUCTION'))
     )
-    # C-D2 (g): v3 셸 진입 관측 — 같은 사용자·같은 날은 1행만 남는다(실패해도 화면 무영향).
-    if resolve_shell_variant_cached(user.id if user else None) == 'v3':
-        note_shell_v3_view(user.id if user else None, 'production')
-
     template_name = (
         'production/partials/dashboard_fragment.html'
         if wants_erp_shell_tab_body(request)

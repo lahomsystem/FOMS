@@ -414,9 +414,8 @@ def erp_dashboard():
     shell_variant = resolve_shell_variant_cached(uid)
     mobile_v2 = is_mobile_v2_shell(shell_variant)
     # split 셸 마크업은 v2 셸 전용 (context_processors.inject_foms_flags 와 동일 계약):
-    # split CSS 는 v2 전용 surfaces 번들로만 로드되므로 v3 렌더 시 비스타일 마크업이
-    # 전 폭에 노출된다 (2026-07-12 마크업↔CSS 게이트 불일치 봉합).
-    split_enabled = shell_variant == "v2" and env_bool_or_mobile_v2(
+    # split CSS 는 v2 전용 surfaces 번들로만 로드된다.
+    split_enabled = mobile_v2 and env_bool_or_mobile_v2(
         "FOMS_TABLET_SPLIT_VIEW_ENABLED",
         mobile_v2_active=mobile_v2,
     )

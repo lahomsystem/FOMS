@@ -3,7 +3,7 @@
 
 계획서: docs/plans/2026-03-02-construction-completion-dashboard-plan.md
 - 시공 완료·AS 접수 건의 사진 리뷰 및 비용 청구/정산 거점.
-- 태블릿 가로 코호트(v2∪v3): 사진 리뷰 리스트 대신 금액 그리드 + KPI + 기간/정산
+- 태블릿 가로 코호트(v2): 사진 리뷰 리스트 대신 금액 그리드 + KPI + 기간/정산
   필터 + 정산 사이드 시트 + CSV 내보내기(목업 v8 P9, spec W17/T2 완료 프레임).
 """
 import csv
@@ -367,7 +367,7 @@ def _completion_working_and_filtered(user, params: dict) -> tuple[list[dict], li
 
 
 def _build_completion_cohort_context(user, search_q: str) -> tuple[list[dict], dict]:
-    """모바일 코호트(v2∪v3) 태블릿 완료 그리드 컨텍스트(행 + 메타) 구성.
+    """모바일 코호트(v2) 태블릿 완료 그리드 컨텍스트(행 + 메타) 구성.
 
     Args:
         user: 로그인 사용자.
@@ -539,7 +539,7 @@ def _completion_sheet_context(db, order, user) -> dict:
 def erp_completion_dashboard():
     """시공 완료 대시보드: 완료·AS 건 목록 + 시공 사진 갤러리.
 
-    태블릿 금액 그리드(서버 렌더)는 모바일 코호트(v2∪v3)에서만 데이터를 적재한다
+    태블릿 금액 그리드(서버 렌더)는 모바일 코호트(v2)에서만 데이터를 적재한다
     (PC/legacy 는 기존 클라이언트 사진 리뷰 리스트만 사용 — 서버 쿼리 추가 없음).
     """
     user = getattr(g, "current_user", None)
@@ -550,7 +550,7 @@ def erp_completion_dashboard():
 
     tablet_completion_rows = None
     tablet_completion_meta = None
-    shell_variant = resolve_shell_variant_cached(user.id if user else None, request)
+    shell_variant = resolve_shell_variant_cached(user.id if user else None)
     if is_mobile_v2_shell(shell_variant):
         tablet_completion_rows, tablet_completion_meta = _build_completion_cohort_context(
             user, search_q

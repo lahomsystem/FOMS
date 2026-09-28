@@ -3,8 +3,8 @@
    소비 컨텍스트: timeline (foms.services.order_timeline_v3.load_order_timeline
      결과) — order_id, customer_name, current_code, current_label,
      stages[]{code,label,sc,state,when,who,note}.
-   v3 persona_order360.html의 구조를 v2 컨벤션(foms-tl-*, 네이티브 details)으로
-   이식 — v3 CSS(fos-*)는 로드하지 않는다(자산 배타 유지).
+   orders/partials/order_timeline_sheet_body.html(바텀시트용)의 구조를 v2 컨벤션
+   (foms-tl-*, 네이티브 details)으로 옮긴 페이지 내장판이다.
    접기/펼치기는 네이티브 <details>/<summary> — 신규 JS 없음.
    현재 단계는 open 상태로 내려간다(현장 우선 정보).
    스테이지 색은 style="--foms-sc:..." 동적 CSS 변수 주입만 사용(인라인 스타일 예외).

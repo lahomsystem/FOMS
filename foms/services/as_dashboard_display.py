@@ -807,7 +807,7 @@ def apply_as_dashboard_row_display_fields(rows, db, *, mobile_v2_active):
     thumb_flag = as_thumb_enabled(mobile_v2_active=mobile_v2_active)
     with phase("rd_thumbs"):
         thumb_urls = batch_resolve_as_thumbnail_urls(order_ids, db) if order_ids else {}
-    # 태블릿 가로 대조 표면(전/후 사진)은 코호트(v2/v3)에서만 렌더 → 코호트일 때만 추가 배치 쿼리.
+    # 태블릿 가로 대조 표면(전/후 사진)은 모바일 v2 코호트에서만 렌더 → 코호트일 때만 추가 배치 쿼리.
     compare_photos = (
         batch_resolve_as_compare_photos(rows, db)
         if (mobile_v2_active and order_ids)

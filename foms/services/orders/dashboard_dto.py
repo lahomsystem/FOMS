@@ -79,7 +79,7 @@ def build_orders_row_dtos(page_orders, page_sds, att_counts, user_map, current_u
         manager_name = manager_display_name(parties)
         enriched.append({
             'id': o.id,
-            # v3 CS 콜/접수 홈: 접수 큐 필터(status)·접수일 표시(파생값, 신규 쿼리 없음).
+            # 접수 큐 필터(status)·접수일 표시(파생값, 신규 쿼리 없음).
             'status': getattr(o, 'status', '') or '',
             'received_date': getattr(o, 'received_date', '') or '',
             'is_erp_order': o.is_erp_order,

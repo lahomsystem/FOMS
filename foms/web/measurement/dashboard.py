@@ -16,10 +16,6 @@ from foms.services.measurement.drawing_transfer_cta import build_drawing_transfe
 from foms.services.orders.complete_path_policy import build_complete_ctas
 from foms.services.orders.order_mutation_policy import POLICY_REGISTRY, evaluate_policy
 from foms.services.orders.state_axes import read_main_stage
-from foms.services.measurement_time import (
-    format_minutes_hm,
-    measurement_time_minutes_of,
-)
 from foms.services.measurement.manager_color import load_manager_color_slots
 from foms.services.measurement.site_memo import build_site_memo
 from foms.services.measurement.visit_check import (
@@ -500,13 +496,6 @@ def erp_measurement_dashboard():
     _mgr_color_slots = load_manager_color_slots(db) if mobile_queue_rows else {}
     mobile_glance_groups = build_measurement_glance_groups(mobile_queue_rows, _mgr_color_slots)
 
-    # v3 영업 홈 '오늘 동선'(스펙 §6.3)이 실측 카드마다 방문시각을 찍는다. 방문시각
-    # SSOT(measurement_time)를 쓰고 이미 로드한 rows 만 재사용한다 — 신규 쿼리 0.
-    # 템플릿이 자유 텍스트를 사전순 비교하면 "10시" < "4시" 오판이 재발한다(ROUTE-02).
-    mobile_queue_time_hm = {
-        _o.id: format_minutes_hm(measurement_time_minutes_of(_o)) for _o in rows
-    } if mobile_queue_rows else {}
-
     # 태블릿 가로 코호트 좌측 큐(W12): 스테이지 색배지 + 날짜버킷(오늘/주간/미확정) + 완료 dim.
     # 이미 로드된 rows만 재사용(신규 쿼리 0). split 표시 게이트(erp_mobile_v2_enabled +
     # coarse-landscape MQ)와 독립적으로 항상 파생한다 — 코호트 판정이 컨텍스트 프로세서(request
@@ -570,8 +559,6 @@ def erp_measurement_dashboard():
             mobile_queue_rows=mobile_queue_rows,
             mobile_glance_groups=mobile_glance_groups,
             measurement_visit_date=_visit_date or '',
-            mobile_queue_time_hm=mobile_queue_time_hm,
-            sales_delivery_by_ref=_sales_delivery_by_ref,
             tablet_card_view=tablet_card_view,
             tablet_bucket_counts=tablet_bucket_counts,
             measurement_panel_dates=measurement_panel_dates,

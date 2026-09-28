@@ -1,9 +1,12 @@
 {# =========================================================================
-   FOMS Field OS v3 — 주문 360° 8단계 수직 타임라인 (읽기/표시 전용, v3.0).
-   foms/api/fragment.py:order_timeline_fragment 가 렌더해 바텀시트 body에 주입.
-   소비 컨텍스트: timeline(build_order_timeline 결과) — order_id, customer_name,
+   주문 360° 8단계 수직 타임라인 (읽기/표시 전용) — 모바일 v2 타임라인 바텀시트 body.
+   foms/api/fragment.py:order_timeline_fragment 가 렌더해 바텀시트(.foms-tl-sheet) body에 주입.
+   소비 컨텍스트: timeline(load_order_timeline 결과) — order_id, customer_name,
      current_code, current_label, stages[]{code,label,sc,state,when,who,note}.
-   접기/펼치기는 셸 foms-mobile-v3.js 위임(data-tl-toggle) — 신규 스크립트 없음.
+   접기/펼치기는 static/js/foms/foms-order-timeline-sheet.js 위임(data-tl-toggle).
+   스타일은 static/css/components/foms-order-timeline.css 의 .foms-tl-sheet .fos-* 스코프.
+   (원래 옛 v3 셸의 persona_order360.html 이었다. v3 셸 삭제(2026-09-28) 때
+    v2 시트가 계속 쓰는 이 조각만 옮겼다 — .fos-* 클래스 이름은 그때의 흔적이다.)
    현재 단계 카드는 is-open으로 펼친 상태로 내려간다(현장 우선 정보).
    ========================================================================= #}
 {%- set _t = timeline or {} -%}
