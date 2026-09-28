@@ -2506,6 +2506,10 @@ _PAC_PARTIALS_SHARED_HTML_ALLOWLIST = frozenset(
         # 표면이 같은 시트를 불러야 해서 도메인 밖에 산다 — window.prompt 를 없애며
         # 도메인마다 시트를 따로 두면 사유 목록과 확인 문구가 화면마다 갈린다(2026-09-20).
         "foms_reason_sheet.html",
+        # 모바일 v2 대시보드 표면 생략 표식. 대시보드 6곳(주문·실측·도면·생산·시공·출고)이
+        # 같은 표식을 남겨야 erp-shell.js 되돌림이 하나의 선택자로 찾는다 — 두 벌이면 한쪽이
+        # 이름을 바꿀 때 좁은 창 화면이 빈다(2026-09-28).
+        "mobile_surface_omitted_marker.html",
         "foms_search_overlay.html",
         "foms_search_results_partial.html",
         "foms_side_tab.html",

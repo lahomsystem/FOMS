@@ -94,15 +94,16 @@ FRAGMENT_HEADERS = {
 
 #: 게이트가 흉내 내는 클라이언트 페르소나 = **광폭 마우스 PC**.
 #:
-#: 서버는 pre-paint 부트가 심는 두 쿠키로 "그 기기가 구조적으로 볼 수 없는 표면"을 렌더에서
-#: 뺀다(``wants_wide_only_surfaces`` / ``wants_coarse_pointer_surfaces``). 쿠키가 없으면
+#: 서버는 pre-paint 부트가 심는 쿠키들로 "그 기기·창이 볼 수 없는 표면"을 렌더에서
+#: 뺀다(``wants_wide_only_surfaces`` / ``wants_coarse_pointer_surfaces`` /
+#: ``wants_mobile_width_surfaces``). 쿠키가 없으면
 #: 안전 폴백으로 **전부** 렌더하므로, 쿠키를 안 싣던 예전 봇은 데스크톱 큐 + 태블릿 칸반 +
 #: 모바일 카드를 한꺼번에 받는 **실사용자에 없는 합성 최악값**을 재고 있었다
 #: (실측 2026-09-11 /erp/production/dashboard: 44,121B·dTTFB 106.5ms vs 실제 PC
 #: 36,893B·dTTFB 86.7ms — 20ms·16% 과대).
 #:
 #: 이 게이트가 재는 ``?view=fragment`` 는 셸이 이미 뜬 뒤의 탭 전환이라, 실제 클라이언트는
-#: 이 시점에 항상 두 쿠키를 갖고 있다. 쿠키 없는 첫 요청은 full document 경로이고 측정
+#: 이 시점에 항상 이 쿠키들을 갖고 있다. 쿠키 없는 첫 요청은 full document 경로이고 측정
 #: 대상이 아니다.
 #:
 #: 커버리지 공백(의도): ``foms_ptr=fine`` 이므로 coarse 전용 표면(태블릿 칸반)은 이 패스에
@@ -111,6 +112,9 @@ GATE_PERSONA = "pc-wide-fine"
 GATE_PERSONA_COOKIES = {
     "foms_scr": "1920",  # 화면 긴 변(px) — WIDE_SURFACE_MIN_PX(992) 이상 = 데스크톱 큐 렌더
     "foms_ptr": "fine",  # 마우스 기기 — coarse 전용 표면 생략
+    # 지금 창이 992 이상 — foms_ptr=fine 과 함께 광폭에서 CSS 가 끄는 모바일 v2 대시보드 표면 생략
+    # (wants_mobile_width_surfaces). 탭 전환 시점의 실제 광폭 PC 는 부트가 심은 이 쿠키를 갖고 있다.
+    "foms_vw": "wide",
 }
 
 #: 두 번째 패스가 흉내 내는 페르소나 = **터치 태블릿**(현장 기기).
@@ -127,6 +131,7 @@ COARSE_PERSONA = "tablet-coarse"
 COARSE_PERSONA_COOKIES = {
     "foms_scr": "1180",   # 태블릿 긴 변 — 992 이상이라 광폭 표면도 함께 본다
     "foms_ptr": "coarse",  # 터치 기기 — coarse 전용 표면 렌더
+    "foms_vw": "wide",  # 가로 태블릿 창 — coarse 라 모바일 v2 표면은 그대로 렌더된다
 }
 
 #: coarse 패스 라운드 수. 바이트는 결정적이라 웜업 1 + 표본 1 이면 충분하다

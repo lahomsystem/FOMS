@@ -524,6 +524,9 @@ def test_persona_cookies_are_the_wide_mouse_pc() -> None:
     assert gate.GATE_PERSONA_COOKIES["foms_ptr"] == "fine"
     # 데스크톱 큐가 보이는 폭(WIDE_SURFACE_MIN_PX=992) 이상이어야 PC 페르소나가 된다.
     assert int(gate.GATE_PERSONA_COOKIES["foms_scr"]) >= 992
+    # 지금 창이 광폭 — foms_ptr=fine 과 함께여야 광폭에서 CSS 가 끄는 모바일 v2 표면이 빠진다
+    # (wants_mobile_width_surfaces). 빠지면 실제 PC 에 없는 모바일 마크업까지 잰다.
+    assert gate.GATE_PERSONA_COOKIES["foms_vw"] == "wide"
 
 
 def test_persona_cookies_are_merged_into_the_cookie_header() -> None:

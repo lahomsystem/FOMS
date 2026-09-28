@@ -44,7 +44,10 @@
     </div>
   </div>
   {% else %}
-  {% if erp_mobile_v2_enabled %}
+  {# 광폭 마우스 PC(foms_ptr=fine + foms_vw=wide)에선 이 표면이 CSS 로 꺼지므로 렌더하지 않고
+     표식만 남긴다 — 창이 좁아지면 erp-shell.js 가 표식을 보고 화면을 다시 받는다
+     (판정 feature_flags.wants_mobile_width_surfaces, 표식 mobile_surface_omitted_marker.html). #}
+  {% if erp_mobile_v2_enabled and mobile_width_surfaces %}
     <section class="foms-shell-body foms-mobile-v2-dashboard erp-shipment-mobile-v2" aria-label="출고 모바일 대시보드">
       {% include 'shipment/partials/shipment_mobile_controls.html' %}
       {% include 'shipment/partials/shipment_mobile_dates.html' %}
@@ -53,6 +56,8 @@
         <i class="fas fa-plus" aria-hidden="true"></i>
       </a>
     </section>
+  {% elif erp_mobile_v2_enabled %}
+    {% include 'partials/shared/mobile_surface_omitted_marker.html' %}
   {% endif %}
   {# ── 태블릿 가로 pcbar (목업 06) — 선택일 출고 요약 + 밀도 토글 + AS 추천 + 출고 확정.
      base-hidden(.foms-ship-pcbar) → 코호트 가로에서만 flex(shipment-dashboard-columns.css).

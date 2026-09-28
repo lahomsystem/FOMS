@@ -106,6 +106,40 @@
       }
     })();
     </script>
+    {# Viewport-hint boot: inline before paint (SSOT copy static/js/runtime/foms-viewport-hint-boot.js,
+       실행 코드 글자 동일 — 계약 tests/domains/test_mobile_width_surfaces.py). 지금 창이 992 이상인지를
+       세션 쿠키 `foms_vw`(wide/narrow)로 남기고 경계를 넘을 때마다 다시 쓴다. foms_ptr=fine 과
+       함께일 때만 서버가 광폭에서 CSS 가 끄는 모바일 v2 대시보드 표면을 뺀다. 창이 좁아졌는데
+       표면이 빠져 있으면 erp-shell.js 가 화면을 다시 받는다. 쿠키 없음/이상값 = 전부 렌더(현행). #}
+    <script>
+    (function () {
+      var NAME = 'foms_vw';
+      try {
+        if (!window.matchMedia) return;
+        var mq = window.matchMedia('(min-width: 992px)');
+        var sync = function () {
+          try {
+            var value = mq.matches ? 'wide' : 'narrow';
+            if (document.cookie.indexOf(NAME + '=' + value) !== -1) return;
+            document.cookie =
+              NAME + '=' + value + ';path=/;SameSite=Lax' +
+              (location.protocol === 'https:' ? ';Secure' : '');
+          } catch (e) {
+            console.warn('[foms-viewport-hint-boot] viewport hint write failed:', e);
+          }
+        };
+        sync();
+        window.__fomsViewportHintSync = sync;
+        if (mq.addEventListener) {
+          mq.addEventListener('change', sync);
+        } else if (mq.addListener) {
+          mq.addListener(sync);
+        }
+      } catch (e) {
+        console.warn('[foms-viewport-hint-boot] viewport hint unavailable:', e);
+      }
+    })();
+    </script>
     {# SW 밖 최후 방어(pre-paint 인라인 부트, 테마·shell-mode 부트와 동일 지위 — src 아님이라
        G1 렌더차단 스크립트 가드와 무관). render-blocking CSS <link> 로드 실패를 1회 자동
        재시도한다. 근거: 최초 무스타일 렌더가 SW 수정 2회(53f10872 v9 캐시 purge,

@@ -19,6 +19,7 @@ from foms.services.feature_flags import (
     resolve_shell_variant_cached,
     should_render_new_order_wizard,
     wants_coarse_pointer_surfaces,
+    wants_mobile_width_surfaces,
     wants_wide_only_surfaces,
     wizard_new_order_enabled,
 )
@@ -271,6 +272,10 @@ def inject_status_list() -> dict[str, Any]:
         "erp_mobile_v2_enabled": erp_mobile_v2_enabled,
         "coarse_pointer_surfaces": wants_coarse_pointer_surfaces(),
         "wide_only_surfaces": wants_wide_only_surfaces(),
+        # 광폭 마우스 PC 면 False — 모바일 v2 대시보드 표면(광폭에서 CSS 가 끄는 것)을 생략한다.
+        # 같은 세션에서도 창 폭에 따라 바뀌므로 프래그먼트 버전 키가 같은 판정을 재료로 쓴다
+        # (fragment_revalidation._surface_hint_material).
+        "mobile_width_surfaces": wants_mobile_width_surfaces(),
         "shell_variant": shell_variant,
         "use_direct_upload": use_direct_upload,
     }

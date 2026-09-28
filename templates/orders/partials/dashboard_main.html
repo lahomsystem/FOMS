@@ -165,16 +165,15 @@
   </div>
   </div>{# /.foms-shell-desktop-only #}
 
-  {# 이 include 가 데스크톱 응답에도 무조건 들어가는 이유 — 설계다, 결함이 아니다.
-     셸 전환 기준은 뷰포트 폭(max-width: 991.98px)인데 서버는 뷰포트를 알 수 없다. 그래서
-     서버는 데스크톱 본문과 모바일 v2 바디를 둘 다 내보내고, 실제로 무엇을 보여줄지는 CSS 가
-     고른다.
+  {# 이 include 가 데스크톱 응답에도 들어가는 이유 — 셸 전환 기준은 뷰포트 폭(max-width:
+     991.98px)이고, 무엇을 보여줄지는 CSS 가 고른다. 서버는 데스크톱 본문과 모바일 v2 바디를
+     둘 다 내보낸다.
 
-     서버에서 foms_ptr / foms_scr 로 이 include 를 끄는 것은 금지한다. 근거는
-     foms/services/feature_flags.py:180-181 원문 — "뷰포트 폭 기반 표면(모바일 셸
-     max-width: 991.98px)에는 쓰면 안 된다. 그쪽은 PC 창을 좁히는 것만으로 필요해지는데
-     pointer 값은 그대로라 오판한다." 두 쿠키는 기기 고정 특성이라, 이걸로 include 를 끄면
-     PC 창을 좁힌 사용자에게 화면이 빈다.
+     단 하나의 예외 = 광폭 마우스 PC(mobile_width_surfaces 가 False). 그때만 이 바디를 빼고
+     표식을 남긴다. foms_ptr / foms_scr 같은 기기 고정 쿠키 **하나만으로** 끄는 것은 여전히
+     금지다 — PC 창을 좁히는 것만으로 모바일 바디가 필요해지는데 그 값들은 그대로라 화면이
+     빈다. 그래서 지금 창 폭 구간(foms_vw)을 함께 보고, 창이 좁아지면 erp-shell.js 가 표식을
+     보고 화면을 다시 받는 되돌림 길을 짝으로 둔다(feature_flags.wants_mobile_width_surfaces).
 
      그래서 반드시 성립해야 하는 봉쇄 불변식: 모바일 v2 마커는 전부
      .foms-mobile-v2-dashboard 의 자손이어야 한다. 그래야 은닉 CSS
@@ -187,8 +186,10 @@
      (foms-mobile-v2-surfaces-hide.css:4 주석), 자체 은닉 훅이 위 규칙에 따로 들어 있다.
 
      이 불변식은 tests/visual/test_mobile_v2_surface_containment.py 가 강제한다. #}
-  {% if erp_mobile_v2_enabled %}
+  {% if erp_mobile_v2_enabled and mobile_width_surfaces %}
     {% include 'orders/partials/dashboard_mobile_v2_body.html' %}
+  {% elif erp_mobile_v2_enabled %}
+    {% include 'partials/shared/mobile_surface_omitted_marker.html' %}
   {% endif %}
 
   {% include 'orders/partials/dashboard_modals.html' %}

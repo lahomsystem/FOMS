@@ -39,6 +39,12 @@ import uuid
 from pathlib import Path
 from typing import Any, Final, Iterable, Sequence
 
+from foms.services.feature_flags import (
+    wants_coarse_pointer_surfaces,
+    wants_mobile_width_surfaces,
+    wants_wide_only_surfaces,
+)
+
 logger = logging.getLogger(__name__)
 
 __all__ = [
@@ -196,6 +202,25 @@ def _cohort_material() -> dict[str, Any]:
         return {"_cohort": "unavailable"}
 
 
+def _surface_hint_material() -> dict[str, bool]:
+    """기기·창 힌트 쿠키 축 — 같은 사용자·같은 세션이라도 본문이 갈린다.
+
+    ``inject_status_list`` 가 주입하는 표면 게이트 세 가지(터치 전용 · 광폭 전용 · 모바일 폭)는
+    :func:`_cohort_material` 이 읽는 ``inject_foms_flags`` 에 없다. 앞의 둘은 기기 고정
+    특성이라 한 세션 안에서 안 바뀌지만, 모바일 폭 판정(``foms_vw``)은 **같은 창에서도** 창
+    크기에 따라 바뀐다. 이 축이 빠지면 광폭 창에서 받은(모바일 표면을 뺀) 본문이 좁은 창에
+    렌더 전 304 로 되살아나 모바일 화면이 빈다. 세 판정 모두 쿠키만 읽는다(쿼리 0).
+
+    Returns:
+        표면 게이트 이름 → 판정값.
+    """
+    return {
+        "coarse_pointer": wants_coarse_pointer_surfaces(),
+        "wide_only": wants_wide_only_surfaces(),
+        "mobile_width": wants_mobile_width_surfaces(),
+    }
+
+
 def _json_safe(value: Any) -> bool:
     """값이 안정적으로 직렬화되는 스칼라인지(객체 주소가 키에 섞이지 않게)."""
     return value is None or isinstance(value, (bool, int, float, str))
@@ -277,7 +302,7 @@ def build_fragment_version_key(
     """렌더 전에 만들 수 있는 프래그먼트 본문 버전 키.
 
     재료: 라우트 · 정규화된 요청 인자 · 사용자 축(id/role/team/mine) · 코호트 플래그 ·
-    KST 오늘 · 그 화면이 읽는 테이블들의 쓰기 카운터.
+    기기·창 힌트 표면 게이트 · KST 오늘 · 그 화면이 읽는 테이블들의 쓰기 카운터.
 
     Args:
         route_id: 라우트 식별자(경로별 네임스페이스).
@@ -310,6 +335,7 @@ def build_fragment_version_key(
         "team": getattr(user, "team", None) if user else None,
         "mine": bool(mine_only),
         "cohort": _cohort_material(),
+        "surfaces": _surface_hint_material(),
         "session": _session_material(),
         "release": RELEASE_ID,
         "today": get_today_kst().isoformat(),
