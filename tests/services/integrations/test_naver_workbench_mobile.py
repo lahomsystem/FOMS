@@ -164,7 +164,7 @@ def test_asset_pins_moved_together():
     """CSS·JS 를 고쳤으면 핀을 함께 올린다 — 서비스워커 캐시가 옛 파일을 준다."""
     markup = TEMPLATE.read_text(encoding="utf-8")
 
-    assert markup.count("?v=20260928d") == 2
+    assert markup.count("?v=20260929a") == 2
     assert "?v=20260914b" not in markup
 
 

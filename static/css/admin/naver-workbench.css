@@ -1698,7 +1698,7 @@ input.wb-pick:disabled,
     }
     #wb-refresh-all-idle { min-height: 44px; white-space: normal; }
 
-    /* 탭 = 폭 전체 세그먼트(처리 N / 이력 / 대조). 칸마다 44px. */
+    /* 탭 = 폭 전체 세그먼트(처리 N / 이력). 칸마다 44px. */
     .wb-tabs {
         order: 3;
         flex: 1 1 100%;
