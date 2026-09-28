@@ -39,7 +39,11 @@ from foms.services.common.erp_shell_http import (
     wants_erp_shell_tab_body,
 )
 from foms.services.common.ept_b7_profile import apply_ept_b7_render_headers
-from foms.services.feature_flags import is_mobile_v2_shell, resolve_shell_variant_cached
+from foms.services.feature_flags import (
+    is_mobile_v2_shell,
+    resolve_shell_variant_cached,
+    wants_mobile_width_surfaces,
+)
 from foms.services.shipment_dashboard_filters import parse_shipment_dashboard_filters
 from foms.services.shipment_read_model import (
     compute_shipment_panel_aggregates,
@@ -613,8 +617,12 @@ def erp_shipment_dashboard():
     mobile_v2_active = is_mobile_v2_shell(
         resolve_shell_variant_cached(current_user.id if current_user else None)
     )
-    mobile_queue_rows = build_shipment_mobile_queue_rows(
-        db, rows, current_user, mobile_v2_active=mobile_v2_active
+    # 소비처는 모바일 v2 표면(shipment_mobile_queue.html)뿐 — 광폭 마우스 PC 는 그 표면을
+    # 렌더하지 않으므로(dashboard_main.html 의 mobile_width_surfaces 게이트) 배치 조회도 건너뛴다.
+    mobile_queue_rows = (
+        build_shipment_mobile_queue_rows(db, rows, current_user, mobile_v2_active=mobile_v2_active)
+        if wants_mobile_width_surfaces()
+        else []
     )
 
     template_name = (

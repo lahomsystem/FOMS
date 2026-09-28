@@ -1,0 +1,11 @@
+{# 모바일 v2 대시보드 표면을 서버가 생략했다는 표식(내용 없는 inert <template>).
+
+   광폭 마우스 PC(foms_ptr=fine + foms_vw=wide)에서는 모바일 표면이 CSS 로 꺼지므로
+   (foms-mobile-v2-surfaces-hide.css) 서버가 렌더하지 않는다 — 판정
+   foms/services/feature_flags.py wants_mobile_width_surfaces.
+
+   창 폭은 기기 고정 특성이 아니라서 이 판정은 낡을 수 있다. 그래서 생략한 자리에 이 표식을
+   남기고, 창이 좁아져 표면이 보여야 하는데 표식이 남아 있으면 static/js/runtime/erp-shell.js
+   (recoverOmittedMobileSurface)가 지금 화면을 다시 받아 온다. 표식 이름을 바꾸면 두 곳을 함께
+   고친다(계약 tests/domains/test_mobile_width_surfaces.py). #}
+<template data-foms-mobile-surface-omitted></template>

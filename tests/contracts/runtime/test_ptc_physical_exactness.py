@@ -81,6 +81,7 @@ _PTC_RUNTIME_JS_ALLOWLIST: frozenset[str] = frozenset(
         "foms-screen-hint-boot.js",
         "foms-shell-mode-boot.js",
         "foms-theme-boot.js",
+        "foms-viewport-hint-boot.js",
         "layout-head-init.js",
         "layout-scripts-chat.js",
         "layout-scripts-core.js",

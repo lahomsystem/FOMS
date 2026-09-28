@@ -120,7 +120,10 @@
 
   <!-- 3-Panel Layout -->
   {% include 'construction/partials/styles.html' %}
-  {% if erp_mobile_v2_enabled %}
+  {# 광폭 마우스 PC(foms_ptr=fine + foms_vw=wide)에선 이 표면이 CSS 로 꺼지므로 렌더하지 않고
+     표식만 남긴다 — 창이 좁아지면 erp-shell.js 가 표식을 보고 화면을 다시 받는다
+     (판정 feature_flags.wants_mobile_width_surfaces, 표식 mobile_surface_omitted_marker.html). #}
+  {% if erp_mobile_v2_enabled and mobile_width_surfaces %}
     <section class="foms-shell-body foms-mobile-v2-dashboard erp-construction-mobile-v2" aria-label="시공 모바일 대시보드">
       {% include 'construction/partials/mobile_filters.html' %}
       {% include 'construction/partials/mobile_queue.html' %}
@@ -128,6 +131,8 @@
         <i class="fas fa-plus" aria-hidden="true"></i>
       </a>
     </section>
+  {% elif erp_mobile_v2_enabled %}
+    {% include 'partials/shared/mobile_surface_omitted_marker.html' %}
   {% endif %}
   {# 데스크톱 작업 큐는 광폭(≥992)에서만 픽셀을 차지한다 — 폰(긴 변 <992)에서는 세로·가로
      어느 방향에서도 높이 0 이다(스테이징 computed style 실측: 390·844 둘 다 h=0).

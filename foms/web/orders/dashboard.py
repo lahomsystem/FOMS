@@ -40,6 +40,7 @@ from foms.services.feature_flags import (
     env_bool_or_mobile_v2,
     is_mobile_v2_shell,
     resolve_shell_variant_cached,
+    wants_mobile_width_surfaces,
 )
 from foms.services.foms_split_view import build_split_master_cards, build_split_side_items
 from foms.services.orders.dashboard_control_tower import (
@@ -432,7 +433,10 @@ def erp_dashboard():
     _is_chunk = request.args.get('mobile_chunk') == '1'
     tower_mode = bool(mobile_v2 and not _has_drill and not _is_chunk)
     control_tower = None
-    if tower_mode:
+    # 타워 데이터의 소비처는 모바일 v2 바디(dashboard_mobile_tower.html)뿐이다. 광폭 마우스 PC 는
+    # 그 바디를 렌더하지 않으므로(dashboard_main.html 의 mobile_width_surfaces 게이트) 계산도
+    # 같은 판정으로 건너뛴다. tower_mode 자체는 모바일 헤더(내 할 일 토글)가 읽어 그대로 둔다.
+    if tower_mode and wants_mobile_width_surfaces():
         _tower_fp = {
             "v": 2,
             "user": _orders_user_visibility_fingerprint(current_user, is_admin),

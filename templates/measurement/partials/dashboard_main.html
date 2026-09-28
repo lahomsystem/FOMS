@@ -49,7 +49,10 @@
     </div>
   </div>
   {% else %}
-  {% if erp_mobile_v2_enabled %}
+  {# 광폭 마우스 PC(foms_ptr=fine + foms_vw=wide)에선 이 표면이 CSS 로 꺼지므로 렌더하지 않고
+     표식만 남긴다 — 창이 좁아지면 erp-shell.js 가 표식을 보고 화면을 다시 받는다
+     (판정 feature_flags.wants_mobile_width_surfaces, 표식 mobile_surface_omitted_marker.html). #}
+  {% if erp_mobile_v2_enabled and mobile_width_surfaces %}
     <section class="foms-shell-body foms-mobile-v2-dashboard erp-measurement-mobile-v2" aria-label="실측 모바일 대시보드">
       {% include 'measurement/partials/mobile_filters.html' %}
       {% include 'measurement/partials/mobile_dates.html' %}
@@ -58,6 +61,8 @@
         <i class="fas fa-plus" aria-hidden="true"></i>
       </a>
     </section>
+  {% elif erp_mobile_v2_enabled %}
+    {% include 'partials/shared/mobile_surface_omitted_marker.html' %}
   {% endif %}
   {# W12 — 태블릿 가로(코호트) 실측 특수형 split view. 표시는 foms-tablet-measurement.css
      의 코호트 @media 가 소유(코호트에서 desktop-shell 숨기고 split 표시; 그 외 base

@@ -22,6 +22,7 @@ __all__ = [
     "resolve_shell_variant",
     "resolve_shell_variant_cached",
     "should_render_new_order_wizard",
+    "wants_mobile_width_surfaces",
     "wants_wide_only_surfaces",
     "wizard_new_order_enabled",
 ]
@@ -223,6 +224,51 @@ def wants_wide_only_surfaces(request: "Request | None" = None) -> bool:
     if longest_px <= 0:
         return True
     return longest_px >= WIDE_SURFACE_MIN_PX
+
+
+def wants_mobile_width_surfaces(request: "Request | None" = None) -> bool:
+    """뷰포트 폭 기반 모바일 v2 대시보드 표면을 이 요청에 렌더해야 하는지 판정한다.
+
+    대상은 ``.foms-mobile-v2-dashboard``·``.foms-drawing-mobile-dashboard`` 처럼 광폭에서
+    ``foms-mobile-v2-surfaces-hide.css`` 가 ``display:none !important`` 로 끄는 표면이다. 그
+    은닉 조건은 ``(min-width: 992px)`` 이면서 ``landscape`` · ``pointer: fine`` · ``pointer: none``
+    중 하나다. 이 판정은 그중 **마우스(fine) + 지금 창이 광폭**인 경우만 골라 False 를 낸다.
+
+    왜 쿠키 둘이 다 필요한가:
+
+    - ``foms_ptr`` (기기 고정)만으로는 안 된다. PC 창을 992 아래로 좁히면 같은 마우스 기기에서도
+      모바일 표면이 필요해진다(:func:`wants_coarse_pointer_surfaces` 문서의 금지 사유).
+    - ``foms_vw`` (지금 창 폭 구간 ``wide``/``narrow``)만으로도 안 된다. 폭 992 이상 **세로
+      터치**(태블릿 세로)는 은닉 조건에 안 걸려 모바일 표면을 실제로 보여 준다.
+
+    ``foms_vw`` 는 pre-paint 부트(layout_head.html 인라인 + SSOT 사본
+    ``static/js/runtime/foms-viewport-hint-boot.js``)가 ``matchMedia('(min-width: 992px)')``
+    로 심고, 창이 경계를 넘을 때마다 다시 쓴다. 창 폭은 기기 고정 특성이 아니라 값이 낡을 수
+    있으므로 **되돌리는 길**이 짝으로 있다 — 이 판정으로 생략된 자리에는
+    ``data-foms-mobile-surface-omitted`` 표식이 남고, 창이 좁아져 표면이 보여야 하는데 표식이
+    있으면 ``static/js/runtime/erp-shell.js`` 가 지금 화면을 다시 받아 온다.
+
+    안전 폴백: 쿠키가 하나라도 없거나(첫 요청·쿠키 차단) 미지의 값이면 True — 현행대로
+    전부 렌더한다. 판정을 못 할 때 화면이 비는 대신 느려지기만 하도록 기울인다.
+
+    Args:
+        request: Flask/Werkzeug request 또는 None(활성 request context 사용).
+
+    Returns:
+        모바일 폭 표면을 렌더해야 하면 True. 광폭 마우스 PC 로 확인될 때만 False.
+    """
+    req = request
+    if req is None:
+        from flask import has_request_context
+        from flask import request as flask_request
+
+        if not has_request_context():
+            return True
+        req = flask_request
+    cookies = getattr(req, "cookies", None)
+    if cookies is None:
+        return True
+    return not (cookies.get("foms_ptr") == "fine" and cookies.get("foms_vw") == "wide")
 
 
 def resolve_shell_variant(user_id: int | None) -> str:

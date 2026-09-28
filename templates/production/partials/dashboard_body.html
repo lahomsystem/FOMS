@@ -120,7 +120,10 @@
 
   <!-- 3-Panel Layout -->
   {% include 'production/partials/styles.html' %}
-  {% if erp_mobile_v2_enabled %}
+  {# 광폭 마우스 PC(foms_ptr=fine + foms_vw=wide)에선 이 표면이 CSS 로 꺼지므로 렌더하지 않고
+     표식만 남긴다 — 창이 좁아지면 erp-shell.js 가 표식을 보고 화면을 다시 받는다
+     (판정 feature_flags.wants_mobile_width_surfaces, 표식 mobile_surface_omitted_marker.html). #}
+  {% if erp_mobile_v2_enabled and mobile_width_surfaces %}
     <section class="foms-shell-body foms-mobile-v2-dashboard erp-production-mobile-v2" aria-label="생산 모바일 대시보드">
       {% include 'production/partials/mobile_filters.html' %}
       {% include 'production/partials/mobile_queue.html' %}
@@ -128,6 +131,8 @@
         <i class="fas fa-plus" aria-hidden="true"></i>
       </a>
     </section>
+  {% elif erp_mobile_v2_enabled %}
+    {% include 'partials/shared/mobile_surface_omitted_marker.html' %}
   {% endif %}
   {# 작업 큐: 태블릿 가로 코호트에서만 칸반으로 대체(배타·은닉은
      foms-tablet-production-kanban.css 소유 — legacy 은닉과 칸반 표시가 동일 게이트 결합). #}

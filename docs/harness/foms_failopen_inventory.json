@@ -3307,7 +3307,7 @@
     },
     {
       "path": "foms/services/common/fragment_revalidation.py",
-      "lineno": 194,
+      "lineno": 200,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3316,7 +3316,7 @@
     },
     {
       "path": "foms/services/common/fragment_revalidation.py",
-      "lineno": 226,
+      "lineno": 251,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3325,7 +3325,7 @@
     },
     {
       "path": "foms/services/common/fragment_revalidation.py",
-      "lineno": 259,
+      "lineno": 284,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3334,7 +3334,7 @@
     },
     {
       "path": "foms/services/common/fragment_revalidation.py",
-      "lineno": 354,
+      "lineno": 380,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3343,7 +3343,7 @@
     },
     {
       "path": "foms/services/common/fragment_revalidation.py",
-      "lineno": 383,
+      "lineno": 409,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3352,7 +3352,7 @@
     },
     {
       "path": "foms/services/common/fragment_revalidation.py",
-      "lineno": 425,
+      "lineno": 451,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3433,7 +3433,7 @@
     },
     {
       "path": "foms/services/context_processors.py",
-      "lineno": 255,
+      "lineno": 256,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "services",
@@ -3442,7 +3442,7 @@
     },
     {
       "path": "foms/services/context_processors.py",
-      "lineno": 297,
+      "lineno": 302,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -5350,7 +5350,7 @@
     },
     {
       "path": "foms/web/measurement/dashboard.py",
-      "lineno": 835,
+      "lineno": 838,
       "handler_type": "broad_exception",
       "disposition": "INTENTIONAL",
       "owner": "web",
@@ -5359,7 +5359,7 @@
     },
     {
       "path": "foms/web/measurement/dashboard.py",
-      "lineno": 848,
+      "lineno": 851,
       "handler_type": "broad_exception",
       "disposition": "INTENTIONAL",
       "owner": "web",
@@ -5368,7 +5368,7 @@
     },
     {
       "path": "foms/web/measurement/dashboard.py",
-      "lineno": 861,
+      "lineno": 864,
       "handler_type": "broad_exception",
       "disposition": "INTENTIONAL",
       "owner": "web",
@@ -5377,7 +5377,7 @@
     },
     {
       "path": "foms/web/measurement/dashboard.py",
-      "lineno": 874,
+      "lineno": 877,
       "handler_type": "broad_exception",
       "disposition": "INTENTIONAL",
       "owner": "web",
