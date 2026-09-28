@@ -295,14 +295,13 @@ def test_change_alert_costs_exactly_one_query_regardless_of_row_count(client):
 
 
 # --------------------------------------------------------------------------- #
-# 3. 범위 경계 — 모바일 v2/v3 출고 표면에는 새지 않는다
+# 3. 범위 경계 — 모바일 v2 출고 표면에는 새지 않는다
 # --------------------------------------------------------------------------- #
 def test_mobile_surfaces_do_not_render_change_alert():
-    """모바일 큐·v3 페르소나 홈은 변경 알림 매크로를 호출하지 않는다(스펙 §7 범위 밖)."""
+    """모바일 큐는 변경 알림 매크로를 호출하지 않는다(스펙 §7 범위 밖)."""
     for rel in (
         "templates/shipment/partials/shipment_mobile_queue.html",
         "templates/shipment/partials/shipment_mobile_controls.html",
-        "templates/partials/v3/persona_home_shipment.html",
     ):
         html = _read(rel)
         assert "render_shipment_change" not in html, f"모바일 표면 누출: {rel}"

@@ -625,7 +625,8 @@
 
   /**
    * @param {string} url
-   * @param {{ fromPopState?: boolean, bypassCache?: boolean }} [opts]
+   * @param {{ fromPopState?: boolean, bypassCache?: boolean, replaceHistory?: boolean }} [opts]
+   *   replaceHistory=true 면 기록을 새로 쌓지 않고 지금 기록을 바꾼다(같은 화면 다시 받기용).
    */
   function navigateByShell(url, opts) {
     opts = opts || {};
@@ -675,11 +676,12 @@
       if (opts.fromPopState || !window.history || !window.history.pushState) {
         return;
       }
-      window.history.pushState(
-        { fomsErpShell: true },
-        '',
-        finalUrl.pathname + finalUrl.search + finalUrl.hash
-      );
+      var target = finalUrl.pathname + finalUrl.search + finalUrl.hash;
+      if (opts.replaceHistory && window.history.replaceState) {
+        window.history.replaceState(window.history.state, '', target);
+        return;
+      }
+      window.history.pushState({ fomsErpShell: true }, '', target);
     }
 
     if (!opts.bypassCache && isFragmentCacheable(canonical.href)) {
@@ -1119,6 +1121,125 @@
     );
   } else {
     window.setTimeout(scheduleIdlePrimaryPrefetch, IDLE_DELAY_MS);
+  }
+
+  /*
+   * 생략된 모바일 표면 되돌리기.
+   * 서버는 광폭 마우스 PC(foms_ptr=fine + foms_vw=wide)에 모바일 v2 대시보드 표면을 빼고
+   * [data-foms-mobile-surface-omitted] 표식만 남긴다(feature_flags.wants_mobile_width_surfaces).
+   * 창 폭은 바뀐다 — 표면이 보여야 하는 상태(아래 은닉 식 불일치)인데 표식이 남아 있으면 지금
+   * 화면을 다시 받는다. 은닉 식은 foms-mobile-v2-surfaces-hide.css 의 @media 와 같은 조건이다.
+   * 되풀이 방지: 같은 주소에서 셸 다시 받기 1회 → 그래도 표식이 남으면 전체 새로고침 1회
+   * (sessionStorage 표식, 60초) → 그래도 남으면 경고만 남기고 멈춘다(쿠키가 저장되지 않는 환경 등).
+   * 새로고침은 포인터·폭 부트를 다시 돌리므로 셸 다시 받기로 못 고치는 경우(쿠키 낡음)까지 덮는다.
+   */
+  var MOBILE_SURFACE_HIDDEN_MQ =
+    '((min-width: 992px) and (orientation: landscape)), ' +
+    '((min-width: 992px) and (pointer: fine)), ' +
+    '((min-width: 992px) and (pointer: none))';
+  var MOBILE_SURFACE_OMITTED_SELECTOR = '[data-foms-mobile-surface-omitted]';
+  var MOBILE_SURFACE_RELOAD_GUARD_KEY = 'foms_mobile_surface_reload';
+  var MOBILE_SURFACE_RELOAD_GUARD_MS = 60 * 1000;
+  var mobileSurfaceHiddenMql = window.matchMedia ? window.matchMedia(MOBILE_SURFACE_HIDDEN_MQ) : null;
+  /** 이 문서에서 셸 다시 받기를 이미 한 주소(캐시 키). 성공하면 비운다. */
+  var mobileSurfaceRefetchKey = null;
+  var mobileSurfaceStorageWarned = false;
+
+  /**
+   * 새로고침 되풀이 표식 저장소. 실패하면 undefined(1회 경고) — 호출자는 새로고침을 하지 않는다.
+   * @param {'get'|'set'|'remove'} op
+   * @param {string} [value]
+   */
+  function mobileSurfaceReloadGuard(op, value) {
+    try {
+      var store = window.sessionStorage;
+      if (op === 'get') {
+        return store.getItem(MOBILE_SURFACE_RELOAD_GUARD_KEY);
+      }
+      if (op === 'set') {
+        store.setItem(MOBILE_SURFACE_RELOAD_GUARD_KEY, value);
+        return value;
+      }
+      store.removeItem(MOBILE_SURFACE_RELOAD_GUARD_KEY);
+      return null;
+    } catch (e) {
+      if (!mobileSurfaceStorageWarned) {
+        mobileSurfaceStorageWarned = true;
+        console.warn('[erp-shell] sessionStorage 사용 불가 — 모바일 표면 새로고침 되돌림을 하지 않는다:', e);
+      }
+      return undefined;
+    }
+  }
+
+  /** 같은 주소를 60초 안에 이미 새로고침했는가(그랬는데 표식이 남았으면 되풀이하지 않는다). */
+  function mobileSurfaceReloadedRecently(guard, key) {
+    if (!guard) {
+      return false;
+    }
+    var cut = guard.lastIndexOf('|');
+    return guard.slice(0, cut) === key && Date.now() - Number(guard.slice(cut + 1)) < MOBILE_SURFACE_RELOAD_GUARD_MS;
+  }
+
+  function recoverOmittedMobileSurface() {
+    if (!mobileSurfaceHiddenMql) {
+      return;
+    }
+    var here = window.location.href;
+    var key = getCacheKey(here);
+    if (mobileSurfaceHiddenMql.matches || !document.querySelector(MOBILE_SURFACE_OMITTED_SELECTOR)) {
+      // 표면이 필요 없거나 이미 그려져 있다 = 되돌림 불필요·성공 → 되풀이 표식 정리.
+      mobileSurfaceRefetchKey = null;
+      if (mobileSurfaceReloadGuard('get')) {
+        mobileSurfaceReloadGuard('remove');
+      }
+      return;
+    }
+    // 창 여러 개가 쿠키 하나를 나눠 쓴다 — 다시 받기 직전에 이 창의 폭 구간으로 맞춘다.
+    if (typeof window.__fomsViewportHintSync === 'function') {
+      window.__fomsViewportHintSync();
+    }
+    if (mobileSurfaceRefetchKey !== key && isShellFragmentSwapUrl(here) && document.getElementById('main-content')) {
+      mobileSurfaceRefetchKey = key;
+      invalidateFragmentCache(here);
+      navigateByShell(here, { bypassCache: true, replaceHistory: true });
+      return;
+    }
+    var guard = mobileSurfaceReloadGuard('get');
+    if (guard === undefined) {
+      return;
+    }
+    if (mobileSurfaceReloadedRecently(guard, key)) {
+      console.warn('[erp-shell] 새로고침 뒤에도 모바일 표면이 빠져 있다(쿠키 저장 실패?) — 되풀이하지 않는다:', key);
+      return;
+    }
+    if (mobileSurfaceReloadGuard('set', key + '|' + Date.now()) === undefined) {
+      return;
+    }
+    window.location.reload();
+  }
+
+  if (mobileSurfaceHiddenMql) {
+    var onMobileSurfaceVisibilityChange = function () {
+      if (!mobileSurfaceHiddenMql.matches) {
+        // 광폭일 때 받아 둔 warm 캐시에는 표면이 빠져 있을 수 있다 — 통째로 버린다.
+        invalidateFragmentCache();
+      }
+      // 부트의 foms_vw 쿠키 갱신(먼저 등록된 리스너)이 끝난 뒤에 돈다.
+      window.setTimeout(recoverOmittedMobileSurface, 0);
+    };
+    if (mobileSurfaceHiddenMql.addEventListener) {
+      mobileSurfaceHiddenMql.addEventListener('change', onMobileSurfaceVisibilityChange);
+    } else if (mobileSurfaceHiddenMql.addListener) {
+      mobileSurfaceHiddenMql.addListener(onMobileSurfaceVisibilityChange);
+    }
+    document.addEventListener('foms:erp-shell-fragment-swapped', recoverOmittedMobileSurface);
+    window.addEventListener('pageshow', function (e) {
+      if (e && e.persisted) {
+        recoverOmittedMobileSurface();
+      }
+    });
+    // 전체 문서로 받은 첫 화면: 좁은 창인데 낡은 wide 쿠키로 받았을 수 있다.
+    recoverOmittedMobileSurface();
   }
 
   if (typeof window !== 'undefined') {

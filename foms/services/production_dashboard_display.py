@@ -29,9 +29,10 @@ __all__ = [
 ]
 
 
-# --- v3 셸(Field OS) 생산 홈 표시용 경량 파생 --------------------------------
-# 기존 enriched 행에 v3 카드가 소비하는 표시 필드만 추가한다(신규 쿼리 없음,
-# 이미 로드된 structured_data에서 파생). v2 카드는 이 키들을 읽지 않으므로 무해.
+# --- 태블릿 칸반 카드 표시용 경량 파생 ---------------------------------------
+# 기존 enriched 행에 카드 표시 필드만 추가한다(신규 쿼리 없음, 이미 로드된
+# structured_data에서 파생). 소비처 = production/partials/tablet_kanban_body.html.
+# 키 이름의 v3_ 접두는 옛 v3 셸(2026-09-28 삭제)에서 처음 만든 흔적이다.
 
 
 def _production_first_item(sd: dict[str, Any]) -> tuple[dict[str, Any] | None, list[Any]]:
@@ -238,7 +239,7 @@ def _enrich_one_production_order(
         'owner_team': 'PRODUCTION',
         'measurement_date': (((sd.get('schedule') or {}).get('measurement') or {}).get('date')),
         'construction_date': _construction_date,
-        # v3 셸 생산 홈 카드용 표시 필드(파생만; v2 카드는 미소비)
+        # 태블릿 칸반 카드용 표시 필드(파생만; 키 이름의 v3_ 는 역사적 접두)
         'v3_product_label': _production_product_label(_items),
         'v3_spec_display': _production_spec_display(_first_item),
         'v3_material': _production_material(_first_item),

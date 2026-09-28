@@ -1,4 +1,4 @@
-"""모바일·v3 생산/시공 카드 액션과 단계 배지 라벨 계약(C-D1·C-D2·C-D3).
+"""모바일 생산/시공 카드 액션과 단계 배지 라벨 계약(C-D1·C-D2·C-D3).
 
 화면 잣대 == 서버 잣대를 지키는지 본다 — 권한 없는 사람에게 버튼이 보이면
 "눌러도 거부당하는 버튼" 이 되고, 권한이 있는데 버튼이 없으면 막다른 길이 된다.
@@ -16,7 +16,7 @@ from werkzeug.security import generate_password_hash
 from db import db_session
 from foms.services.erp_mobile_order_display import stage_badge_label
 from foms.services.orders.erp_policy_constants import STAGE_LABELS
-from models import Order, ProductionRun, SecurityLog, User
+from models import Order, ProductionRun, User
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -41,19 +41,9 @@ def _make_user(client, username: str, team: str | None, role: str = "STAFF") -> 
 
 
 def _enable_v2(monkeypatch, user_id: int) -> None:
-    """v2 모바일 셸만 켠다(v3 게이트는 끈 채로)."""
+    """v2 모바일 셸을 켠다(코호트 env 이름은 역사적 FOMS_V3_SHELL_COHORT)."""
     monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
     monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(user_id))
-    monkeypatch.delenv("FOMS_SHELL_V3_ENABLED", raising=False)
-    monkeypatch.delenv("FOMS_SHELL_V3_COHORT", raising=False)
-
-
-def _enable_v3(monkeypatch, user_id: int) -> None:
-    """v3 셸까지 켠다(쿠키 미설정이라 variant 는 v3)."""
-    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
-    monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(user_id))
-    monkeypatch.setenv("FOMS_SHELL_V3_ENABLED", "true")
-    monkeypatch.setenv("FOMS_SHELL_V3_COHORT", str(user_id))
 
 
 def _add_order(
@@ -224,52 +214,6 @@ def test_양성_대조군_CS팀도_시공_버튼을_본다(client, monkeypatch):
     assert _count_action(queue, "openCompleteGate") == 1
 
 
-# --- v3 페르소나 홈 --------------------------------------------------------
-
-
-def test_v3_생산_홈에도_같은_data_action_이_있고_카드_링크_밖에_있다(client, monkeypatch):
-    user = _make_user(client, "mpa_prod_v3", "PRODUCTION")
-    _enable_v3(monkeypatch, user.id)
-    _seed_production_orders()
-
-    res = client.get("/erp/production/dashboard")
-    assert res.status_code == 200
-    body = res.get_data(as_text=True)
-
-    # (ㄱ) v2 와 같은 이름의 액션이 v3 문서에도 있다.
-    assert 'data-action="productionRework"' in body
-    assert 'data-action="productionCancel"' in body
-    assert 'data-action="productionUncomplete"' in body
-    # (ㄴ) 버튼은 통짜 링크 <a class="fos-queue-card"> 바깥(형제 줄)에 있다.
-    assert '<div class="fos-queue-actions' in body
-    for segment in body.split('<a class="fos-queue-card')[1:]:
-        card_html = segment.split("</a>")[0]
-        assert "erp-production-action" not in card_html
-    # (ㄷ) 기존 위임 스크립트가 같은 응답에 실려 있다.
-    assert "erp-production-action" in body
-    assert "__FOMS_PROD_SCRIPTS_BOUND" in body
-
-
-def test_v3_시공_홈에도_시공_액션이_카드_링크_밖에_있다(client, monkeypatch):
-    user = _make_user(client, "mpa_constr_v3", "CONSTRUCTION")
-    _enable_v3(monkeypatch, user.id)
-    _add_order(
-        "CONSTRUCTION", "v3 시공중 현장", construction_started=True, manager_name=user.name
-    )
-
-    res = client.get("/erp/construction/dashboard")
-    assert res.status_code == 200
-    body = res.get_data(as_text=True)
-
-    assert 'data-action="constructionFail"' in body
-    assert 'data-action="completeConstruction"' in body
-    for segment in body.split('<a class="fos-queue-card')[1:]:
-        card_html = segment.split("</a>")[0]
-        assert "erp-construction-action" not in card_html
-    # 기존 위임 스크립트(construction/dashboard.js)가 같은 응답에서 로드된다.
-    assert "js/construction/dashboard.js" in body
-
-
 # --- 사유 시트(window.prompt 전면 금지) ------------------------------------
 
 
@@ -327,39 +271,6 @@ def test_주문_상세_화면_STAGE_LABELS_가_정본을_전부_덮는다():
     )
     for code, label in STAGE_LABELS.items():
         assert f"{code}:'{label}'" in line, code
-
-
-# --- v3 코호트 관측 --------------------------------------------------------
-
-
-def test_v3_진입_기록은_같은_날_하루_한_줄이다(client, monkeypatch):
-    from foms.services import feature_flags
-
-    user = _make_user(client, "mpa_v3_observe", "PRODUCTION")
-    feature_flags._SHELL_V3_VIEW_SEEN.clear()
-    app_ctx = client.application.app_context()
-    app_ctx.push()
-
-    def _count() -> int:
-        return (
-            db_session.query(SecurityLog)
-            .filter(SecurityLog.user_id == user.id)
-            .count()
-        )
-
-    assert feature_flags.note_shell_v3_view(user.id, "production") is True
-    assert feature_flags.note_shell_v3_view(user.id, "production") is False
-    assert _count() == 1
-
-    # 날짜가 바뀌면 같은 사용자라도 새 줄이 생긴다.
-    monkeypatch.setattr(
-        "foms.services.datetime_kst.get_today_kst", lambda: date(2099, 1, 2)
-    )
-    assert feature_flags.note_shell_v3_view(user.id, "production") is True
-    assert _count() == 2
-
-    feature_flags._SHELL_V3_VIEW_SEEN.clear()
-    app_ctx.pop()
 
 
 def test_완료_요건_미충족_문구가_사람_말로_바뀌고_채우러_갈_길을_준다():

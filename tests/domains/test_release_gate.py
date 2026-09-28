@@ -97,7 +97,7 @@ def test_packet_coverage_wrong_count_is_red(tmp_path):
     assert not result.ok and result.count == 124
 
 
-# --- CI + persona (artifact/config) ------------------------------------------
+# --- CI (artifact/config) ---------------------------------------------------
 def test_ci_coverage_real_tree_ok():
     assert gate.check_ci_coverage(REPO_ROOT).ok
 
@@ -105,15 +105,6 @@ def test_ci_coverage_real_tree_ok():
 def test_ci_coverage_missing_is_red(tmp_path):
     result = gate.check_ci_coverage(tmp_path)
     assert not result.ok and result.domain == gate.DOMAIN_CONFIG and result.count == len(gate.REQUIRED_WORKFLOWS)
-
-
-def test_persona_real_tree_ok():
-    assert gate.check_persona_artifacts(REPO_ROOT).ok
-
-
-def test_persona_missing_is_red(tmp_path):
-    result = gate.check_persona_artifacts(tmp_path)
-    assert not result.ok and result.domain == gate.DOMAIN_CONFIG and result.count == len(gate.REQUIRED_PERSONAS)
 
 
 # --- enforcement flags (artifact/config) -------------------------------------

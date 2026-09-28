@@ -40,6 +40,7 @@ from foms.services.feature_flags import (
     env_bool_or_mobile_v2,
     is_mobile_v2_shell,
     resolve_shell_variant_cached,
+    wants_mobile_width_surfaces,
 )
 from foms.services.foms_split_view import build_split_master_cards, build_split_side_items
 from foms.services.orders.dashboard_control_tower import (
@@ -414,9 +415,8 @@ def erp_dashboard():
     shell_variant = resolve_shell_variant_cached(uid)
     mobile_v2 = is_mobile_v2_shell(shell_variant)
     # split 셸 마크업은 v2 셸 전용 (context_processors.inject_foms_flags 와 동일 계약):
-    # split CSS 는 v2 전용 surfaces 번들로만 로드되므로 v3 렌더 시 비스타일 마크업이
-    # 전 폭에 노출된다 (2026-07-12 마크업↔CSS 게이트 불일치 봉합).
-    split_enabled = shell_variant == "v2" and env_bool_or_mobile_v2(
+    # split CSS 는 v2 전용 surfaces 번들로만 로드된다.
+    split_enabled = mobile_v2 and env_bool_or_mobile_v2(
         "FOMS_TABLET_SPLIT_VIEW_ENABLED",
         mobile_v2_active=mobile_v2,
     )
@@ -433,7 +433,10 @@ def erp_dashboard():
     _is_chunk = request.args.get('mobile_chunk') == '1'
     tower_mode = bool(mobile_v2 and not _has_drill and not _is_chunk)
     control_tower = None
-    if tower_mode:
+    # 타워 데이터의 소비처는 모바일 v2 바디(dashboard_mobile_tower.html)뿐이다. 광폭 마우스 PC 는
+    # 그 바디를 렌더하지 않으므로(dashboard_main.html 의 mobile_width_surfaces 게이트) 계산도
+    # 같은 판정으로 건너뛴다. tower_mode 자체는 모바일 헤더(내 할 일 토글)가 읽어 그대로 둔다.
+    if tower_mode and wants_mobile_width_surfaces():
         _tower_fp = {
             "v": 2,
             "user": _orders_user_visibility_fingerprint(current_user, is_admin),

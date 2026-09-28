@@ -75,6 +75,8 @@ def _order_edit_fragment_response(order_id: int) -> Any:
     ctx["preserved_args"] = get_preserved_filter_args(request.args)
     uid = session.get("user_id")
     mobile_v2 = is_mobile_v2_shell(resolve_shell_variant_cached(uid))
+    # FOMS_V3_SHELL_COHORT 는 역사적 이름일 뿐 모바일 v2 코호트 키다(v3 셸은 삭제됨).
+    # Railway 환경변수가 이 이름으로 걸려 있어 바꾸지 않는다.
     split_v2 = mobile_v2 and is_enabled_for_user(
         "FOMS_TABLET_SPLIT_VIEW_ENABLED",
         uid,
@@ -130,7 +132,7 @@ def order_edit_fragment(order_id: int) -> Any:
 @foms_fragment_bp.route("/order/<int:order_id>/timeline", methods=["GET"])
 @login_required
 def order_timeline_fragment(order_id: int) -> Any:
-    """주문 360° 8단계 타임라인 fragment (FOMS Field OS v3 · 읽기 전용).
+    """주문 360° 8단계 타임라인 fragment (모바일 v2 타임라인 바텀시트 · 읽기 전용).
 
     로그인 사용자면 누구나 조회 가능(기존 erp_order_mobile_detail·events.py의
     주문 열람 계약과 동일). ERP 주문·미삭제 건이 아니면 404. 이벤트/생성자
@@ -152,7 +154,7 @@ def order_timeline_fragment(order_id: int) -> Any:
         abort(404)
 
     timeline = load_order_timeline(db, order)
-    body = render_template("partials/v3/persona_order360.html", timeline=timeline)
+    body = render_template("orders/partials/order_timeline_sheet_body.html", timeline=timeline)
     response = make_response(body)
     response.headers["Cache-Control"] = "no-store"
     response.headers["X-FOMS-Fragment"] = "1"

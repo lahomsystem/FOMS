@@ -249,6 +249,38 @@
 {%- endif -%}
 {%- endmacro %}
 
+{# 모바일 v2 AS 카드 날짜 타일(A안 2단 날짜 — 방문·완료). 좁은 폰에서 3칸 상자 안
+   네이티브 date 입력이 날짜를 잘라 먹던 문제의 대체: 보이는 글자는 서버가 조립한 표기
+   (as_dashboard_display.build_as_mobile_date_view)이고, 진짜 <input type="date"> 는 타일 전체를
+   투명하게 덮어 탭 = 네이티브 피커다. 입력 클래스·data-field·aria-label 은 as-dashboard.js
+   저장 배선(.editable-date-as change → saveDateField) 계약이라 바꾸면 저장이 죽는다.
+   표기 갱신(저장 직후)은 같은 파일 syncAsDateTile 이 이 마크업 구조를 그대로 다시 쓴다.
+   editable=false(서버 저장 게이트 밖 역할)는 입력 없이 값 또는 '미정'만 낸다. #}
+{% macro render_as_date_tile(kind, value, text, year_tag, overdue_days, order_id, editable) -%}
+{% set field = 'as_visit_date' if kind == 'visit' else 'as_completed_date' %}
+{% set label = '방문' if kind == 'visit' else '완료' %}
+{% set overdue_id = 'as-' ~ kind ~ '-overdue-' ~ order_id %}
+<{{ 'label' if editable else 'div' }} class="erp-as-date-tile erp-as-date-tile--{{ kind }} {{ 'is-set' if value else 'is-empty' }}{% if not editable %} is-readonly{% endif %}">
+  <span class="erp-as-date-tile__head">
+    <span class="erp-as-date-tile__label">{{ label }}</span>
+    <span class="erp-as-date-tile__meta">
+      {%- if overdue_days -%}
+      <span class="erp-as-date-tile__overdue" id="{{ overdue_id }}">{{ overdue_days }}일 지남</span>
+      {%- elif year_tag -%}
+      <span class="erp-as-date-tile__year">{{ year_tag }}</span>
+      {%- endif -%}
+    </span>
+  </span>
+  {% if editable %}
+  <span class="erp-as-date-tile__value" aria-hidden="true"><i class="fas fa-calendar-plus erp-as-date-tile__empty-icon" aria-hidden="true"></i><span class="erp-as-date-tile__text">{{ (text or value) if value else '날짜 선택' }}</span></span>
+  <input type="date" class="erp-pro-input editable-date-as erp-as-date-tile__input" value="{{ value or '' }}"
+    data-field="{{ field }}" aria-label="AS {{ label }}일"{% if overdue_days %} aria-describedby="{{ overdue_id }}"{% endif %}>
+  {% else %}
+  <span class="erp-as-date-tile__value"><span class="erp-as-date-tile__text">{{ (text or value) if value else '미정' }}</span></span>
+  {% endif %}
+</{{ 'label' if editable else 'div' }}>
+{%- endmacro %}
+
 {# 드리프트 배너 점프 칩 — "몇 건"만 알려주고 어느 건인지는 안 알려주던 배너의 보강.
    chip 은 as_dashboard_display._drift_banner_chip() 결과(그 AS 건 자신의 고객명 · id ·
    옛 기준일 → 새 기준일). 클릭 = 순수 해시 링크로 그 행/카드로 점프하고 CSS `:target`

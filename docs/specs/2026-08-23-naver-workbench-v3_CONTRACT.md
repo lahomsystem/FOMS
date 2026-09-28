@@ -103,7 +103,7 @@ filter_counts         {"all": n, "place": n, "rel": n, "claim": n}   # 필터 �
 group_count           len(전체 집)          # 목록 길이 = 칩 '전체'
 actionable_count      손댈 수 있는 집 수     # **탭 배지**·nav 뱃지 = 같은 값 (2026-08-24 개정)
 locked_count          group_count - actionable_count   # 스트립 '손대지 않음'
-pending_count         sum(count)            # 스트립 "상품주문 M건"
+pending_count         sum(count) — 손댈 수 있는 집만   # 스트립 "상품주문 M건" = 탭 배지와 같은 모집단 (2026-09-28 개정)
 work_truncated        bool
 selected              _triage_pane(...) | None
 selected_group        _group_of_link(...) 결과 (절대 규칙 2)

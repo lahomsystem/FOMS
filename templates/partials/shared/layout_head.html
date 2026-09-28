@@ -106,6 +106,40 @@
       }
     })();
     </script>
+    {# Viewport-hint boot: inline before paint (SSOT copy static/js/runtime/foms-viewport-hint-boot.js,
+       실행 코드 글자 동일 — 계약 tests/domains/test_mobile_width_surfaces.py). 지금 창이 992 이상인지를
+       세션 쿠키 `foms_vw`(wide/narrow)로 남기고 경계를 넘을 때마다 다시 쓴다. foms_ptr=fine 과
+       함께일 때만 서버가 광폭에서 CSS 가 끄는 모바일 v2 대시보드 표면을 뺀다. 창이 좁아졌는데
+       표면이 빠져 있으면 erp-shell.js 가 화면을 다시 받는다. 쿠키 없음/이상값 = 전부 렌더(현행). #}
+    <script>
+    (function () {
+      var NAME = 'foms_vw';
+      try {
+        if (!window.matchMedia) return;
+        var mq = window.matchMedia('(min-width: 992px)');
+        var sync = function () {
+          try {
+            var value = mq.matches ? 'wide' : 'narrow';
+            if (document.cookie.indexOf(NAME + '=' + value) !== -1) return;
+            document.cookie =
+              NAME + '=' + value + ';path=/;SameSite=Lax' +
+              (location.protocol === 'https:' ? ';Secure' : '');
+          } catch (e) {
+            console.warn('[foms-viewport-hint-boot] viewport hint write failed:', e);
+          }
+        };
+        sync();
+        window.__fomsViewportHintSync = sync;
+        if (mq.addEventListener) {
+          mq.addEventListener('change', sync);
+        } else if (mq.addListener) {
+          mq.addListener(sync);
+        }
+      } catch (e) {
+        console.warn('[foms-viewport-hint-boot] viewport hint unavailable:', e);
+      }
+    })();
+    </script>
     {# SW 밖 최후 방어(pre-paint 인라인 부트, 테마·shell-mode 부트와 동일 지위 — src 아님이라
        G1 렌더차단 스크립트 가드와 무관). render-blocking CSS <link> 로드 실패를 1회 자동
        재시도한다. 근거: 최초 무스타일 렌더가 SW 수정 2회(53f10872 v9 캐시 purge,
@@ -115,7 +149,7 @@
        (2) 구 SW 잔존 창(특히 iOS)엔 새 sw.js 가 활성화 전까지 무력 — SW 밖 방어선 부재.
        document 레벨 error 캡처(link 의 error 는 버블 안 됨 → capture:true)로 실패한
        stylesheet 를 원 위치 뒤에 &cssretry=1 붙여 재삽입(캐스케이드 순서 보존, 무한루프 차단).
-       v2/v3/PC 전 코호트 공통(게이트 없음 — CSS 실패는 어디서든 재앙). #}
+       v2/PC 전 코호트 공통(게이트 없음 — CSS 실패는 어디서든 재앙). #}
     <script>
     (function () {
       if (window.__fomsCssRetryBootBound) return;
@@ -175,9 +209,7 @@
     <!-- ERP Pro Dashboard Styles (Modern SaaS Design System) -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/erp-pro.css') }}?v=20260920b">
     {# Order edit (/edit/<id>) joins the erp-mobile-v2 shell cohort (see orders/layout.html),
-       so it must load the same mobile shell CSS bundle that styles the foms header + surfaces.
-       v3 셸은 아래 배타 자산(foms-mobile-v3.css)을 쓰지만, 주문 수정 모바일 폼
-       (secnav sticky·form-field)은 surfaces 번들이 정본 → v3에서도 order_edit만 추가 로드. #}
+       so it must load the same mobile shell CSS bundle that styles the foms header + surfaces. #}
     {% if shell_variant == 'v2' and (request.path.startswith('/erp') or request.endpoint == 'order_edit.edit_order') %}
     <style id="foms-mobile-v2-critical-css">
       @media (max-width: 991.98px) {
@@ -205,38 +237,22 @@
     </style>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" crossorigin="anonymous">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/foms-mobile-surfaces.css') }}?v=20260924a">
-    {% elif erp_mobile_v2_enabled and request.endpoint == 'order_edit.edit_order' %}
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/foms-mobile-surfaces.css') }}?v=20260924a">
     {% endif %}
-    {# 태블릿 T2 융합 레이어는 셸 변형과 직교 — v2·v3 공통으로 로드(2026-07-12 v3 미로드 실사고 봉합).
+    {# 태블릿 T2 융합 레이어는 셸 변형과 직교 — erp_mobile_v2_enabled 게이트로 로드(별도 번들).
        surfaces 와 별도 <link>·surfaces 직후 위치라 v2 캐스케이드 순변화 0.
        /wdcalculator 추가(2026-07-12 목업 v5 정합): 전역 레일 CSS(foms-tablet-rail.css)가
        계산기 페이지에서도 로드되도록 게이트에 포함한다. #}
     {% if erp_mobile_v2_enabled and (request.path.startswith('/erp') or request.endpoint == 'order_edit.edit_order' or request.path.startswith('/wdcalculator')) %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/foms-tablet-bundle.css') }}?v=20260727d">
     {% endif %}
-    {# 모바일 v2 서피스 광폭(≥992) 숨김 — 셸-독립 정본(v2∪v3 공통, 2026-07-13 v3 누출 봉합).
-       v3 은 원 소유 hide 규칙이 담긴 foms-shell.css(shell_variant=='v2' 게이트 @import)를 미로드하므로,
-       전 코호트 대시보드(시공·생산·출고·실측·이력·CS·도면)에서 컨트롤 타워(.foms-mobile-v2-dashboard)·
-       생성 FAB(.foms-shell-fab)·도면 갤러리(.foms-drawing-mobile-v2)가 데스크톱 그리드 아래로 누출됐다.
-       게이트는 erp_mobile_v2_enabled(v2∪v3)만 — 경로 무제한이라 모바일-v2 바디가 렌더될 수 있는 모든
+    {# 모바일 v2 서피스 광폭(≥992) 숨김 — 셸-독립 정본(2026-07-13 누출 봉합).
+       원 소유 hide 규칙이 담긴 foms-shell.css 는 /erp·주문 수정 경로에서만 @import 되므로,
+       그 밖에서 렌더된 컨트롤 타워(.foms-mobile-v2-dashboard)·생성 FAB(.foms-shell-fab)·
+       도면 갤러리(.foms-drawing-mobile-v2)가 데스크톱 그리드 아래로 누출되지 않게 한다.
+       게이트는 erp_mobile_v2_enabled 만 — 경로 무제한이라 모바일-v2 바디가 렌더될 수 있는 모든
        페이지에서 로드된다(별도 <link>·자체 ?v 캐시키). cf. AS 카메라바·주문 대시보드 동일 패턴. #}
     {% if erp_mobile_v2_enabled %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/foms-mobile-v2-surfaces-hide.css') }}?v=20260713a">
-    {% endif %}
-    {# v3 셸 자산(배타 로드): shell_variant=='v3'일 때만 v3 CSS/셸 JS 로드. v2 모바일
-       번들과 상호 배타(위 v2 critical CSS는 shell_variant=='v2' 게이트라 v3에서 미로드). #}
-    {% if shell_variant == 'v3' %}
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/v3/foms-mobile-v3.css') }}?v=20260909a">
-    <script src="{{ url_for('static', filename='js/v3/foms-mobile-v3.js') }}?v=20260909a" defer></script>
-    {# B7 sync 배지 컨트롤러: v3 앱바 [data-foms-sync-badge] 배지를 갱신한다. v2 셸은
-       foms_app_shell.html 이 로드하지만 v3 셸은 그 파샬을 include 하지 않으므로 여기서 배타 로드. #}
-    <script src="{{ url_for('static', filename='js/foms/foms-write.js') }}?v=20260725a" defer></script>
-    {% endif %}
-    {# 셸 토글 JS는 v3 자격자면(v3 활성이든, v2로 복귀해 drawer 진입점을 쓰든) 로드.
-       경량·standalone(v3 CSS 의존 없음)·singleton 가드. 비자격/legacy는 미로드. #}
-    {% if shell_v3_eligible %}
-    <script src="{{ url_for('static', filename='js/v3/foms-shell-toggle.js') }}?v=20260711c" defer></script>
     {% endif %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/foms/photo-capture.css') }}?v=20260529a">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-sticky-action-bar.css') }}?v=20260614a">
@@ -380,6 +396,36 @@
                 min-width: 0;
             }
 
+            /* 브리핑 체브론은 헤더 정중앙에 절대 배치된다. 좁은 폭에서는 그 중앙이 오른쪽 버튼
+               묶음(내 할 일·알림·계정) 위에 떨어져 버튼끼리 겹쳤다 → 흐름 안으로 되돌려 제목과
+               버튼 묶음 사이 빈 칸에 둔다(위치 유틸 클래스가 !important 라 같이 쓴다). */
+            .layout-header .layout-header__center {
+                position: static !important;
+                transform: none !important;
+                flex: 0 0 auto;
+            }
+
+            /* 알림 배지는 벨 버튼 오른쪽 위 모서리를 **중심**으로 놓여(top-0 start-100
+               translate-middle) 절반이 버튼 밖으로 나가 옆 계정 버튼을 덮었다
+               → 버튼 상자 안쪽 모서리에 붙인다. */
+            .layout-header #global-notification-badge {
+                top: 0 !important;
+                right: 0;
+                left: auto !important;
+                transform: none !important;
+                padding: 0.2em 0.4em;
+                font-size: 0.625rem !important;
+                line-height: 1;
+            }
+
+            .layout-header .d-flex.align-items-center.gap-3 .btn-link {
+                min-width: 44px;
+                min-height: 44px;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+            }
+
             .layout-nav-collapse .nav-link {
                 min-height: 44px;
                 display: flex;
@@ -398,7 +444,7 @@
             .layout-header {
                 padding-left: 0.75rem !important;
                 padding-right: 0.75rem !important;
-                gap: 0;
+                gap: 0.25rem;
             }
 
             .layout-header__title {
@@ -412,8 +458,8 @@
 
             .layout-header .d-flex.align-items-center.gap-3 .btn-link,
             .layout-header .d-flex.align-items-center.gap-3 .position-relative .btn-link {
-                min-width: 40px;
-                min-height: 40px;
+                min-width: 44px;
+                min-height: 44px;
                 padding: 0.25rem !important;
                 display: inline-flex;
                 align-items: center;

@@ -16,10 +16,10 @@ from foms.services.feature_flags import (
     env_bool_or_mobile_v2,
     is_mobile_v2_shell,
     is_naver_workbench_enabled,
-    is_shell_v3_eligible,
     resolve_shell_variant_cached,
     should_render_new_order_wizard,
     wants_coarse_pointer_surfaces,
+    wants_mobile_width_surfaces,
     wants_wide_only_surfaces,
     wizard_new_order_enabled,
 )
@@ -129,15 +129,15 @@ def _current_shell_variant() -> str:
     """현재 요청 사용자의 shell variant를 요청당 1회 캐시로 반환한다.
 
     ``g.current_user``에서 uid를 파생해 :func:`resolve_shell_variant_cached`에
-    위임한다. 3개 injector가 공유하는 단일 진입점으로, 요청당 env·쿠키 파싱을
+    위임한다. 3개 injector가 공유하는 단일 진입점으로, 요청당 env 파싱을
     1회로 줄여 중복 계산을 제거한다.
 
     Returns:
-        ``"legacy"``, ``"v2"``, 또는 ``"v3"``.
+        ``"legacy"`` 또는 ``"v2"``.
     """
     current_user = getattr(g, "current_user", None)
     uid = current_user.id if current_user else None
-    return resolve_shell_variant_cached(uid, request)
+    return resolve_shell_variant_cached(uid)
 
 
 class LazyBadgeCount:
@@ -272,6 +272,10 @@ def inject_status_list() -> dict[str, Any]:
         "erp_mobile_v2_enabled": erp_mobile_v2_enabled,
         "coarse_pointer_surfaces": wants_coarse_pointer_surfaces(),
         "wide_only_surfaces": wants_wide_only_surfaces(),
+        # 광폭 마우스 PC 면 False — 모바일 v2 대시보드 표면(광폭에서 CSS 가 끄는 것)을 생략한다.
+        # 같은 세션에서도 창 폭에 따라 바뀌므로 프래그먼트 버전 키가 같은 판정을 재료로 쓴다
+        # (fragment_revalidation._surface_hint_material).
+        "mobile_width_surfaces": wants_mobile_width_surfaces(),
         "shell_variant": shell_variant,
         "use_direct_upload": use_direct_upload,
     }
@@ -369,9 +373,6 @@ def inject_foms_flags() -> dict[str, Any]:
     return {
         "flag_mobile_v2": mobile_v2,
         "shell_variant": shell_variant,
-        # v3 셸 코호트 자격(쿠키 무관). v2 셸 drawer의 "새 모바일(v3)" 진입점을
-        # 자격자에게만 노출하기 위한 플래그(shell_variant=='v2' && shell_v3_eligible).
-        "shell_v3_eligible": is_shell_v3_eligible(uid),
         "flag_tokens_v2": env_bool("FOMS_DESIGN_TOKENS_V2_ENABLED", True),
         # wizard draft/API 활성(코호트·전역 플래그). 실제 /add 렌더·chrome 숨김은 show_new_order_wizard.
         "flag_wizard": wizard_new_order_enabled(uid),
@@ -387,10 +388,8 @@ def inject_foms_flags() -> dict[str, Any]:
         ),
         "flag_split_view": split_flag,
         # split 셸 마크업은 v2 셸 전용: 그 스타일(foms-split-view.css 기본 은닉 포함)이
-        # v2 전용 surfaces 번들(layout_head shell_variant=='v2' 게이트)로만 로드되므로,
-        # v2∪v3(mobile_v2)로 렌더하면 v3에서 비스타일 split 마크업이 전 폭에 그대로
-        # 흐른다(2026-07-12 staging 이중 레일 실사고 — 마크업↔CSS 게이트 불일치 봉합).
-        "foms_split_enabled": shell_variant == "v2" and split_flag,
+        # v2 전용 surfaces 번들(layout_head shell_variant=='v2' 게이트)로만 로드된다.
+        "foms_split_enabled": mobile_v2 and split_flag,
         "flag_rum_baseline": env_bool("FOMS_RUM_BASELINE_ENABLED", True),
         "flag_offline_sw": env_bool("FOMS_OFFLINE_SW_ENABLED"),
         "flag_bottom_nav_htmx": env_bool("FOMS_BOTTOM_NAV_HTMX_ENABLED"),

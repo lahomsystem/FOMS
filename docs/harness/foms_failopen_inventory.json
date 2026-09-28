@@ -5,14 +5,14 @@
   "overlap_api_error_01": "API-ERROR-01 owns response/stdout exposure (print_exc/str(e) -> log_handled_exception). This packet owns swallow classification. Sites that log via log_handled_exception are LOG_AND_CONTINUE here.",
   "marker_convention": "Silent-by-design catches carry an inline `# failopen: intentional: <reason>` (or `fail-closed`) marker; the scanner reads it as the justification. No bare allowlist, no lint-disable.",
   "baselines": {
-    "broad_total": 614,
+    "broad_total": 611,
     "unclassified": 0,
     "swallow_by_control_flow": 179
   },
   "disposition_counts": {
     "FAIL_CLOSED": 38,
-    "INTENTIONAL": 19,
-    "LOG_AND_CONTINUE": 378,
+    "INTENTIONAL": 17,
+    "LOG_AND_CONTINUE": 377,
     "SWALLOW_BY_CONTROL_FLOW": 179
   },
   "owner_counts": {
@@ -24,7 +24,7 @@
     "persistence": 3,
     "platform": 5,
     "runtime": 3,
-    "services": 177,
+    "services": 174,
     "storage": 21,
     "telemetry": 38,
     "web": 39
@@ -3307,7 +3307,7 @@
     },
     {
       "path": "foms/services/common/fragment_revalidation.py",
-      "lineno": 194,
+      "lineno": 200,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3316,7 +3316,7 @@
     },
     {
       "path": "foms/services/common/fragment_revalidation.py",
-      "lineno": 226,
+      "lineno": 251,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3325,7 +3325,7 @@
     },
     {
       "path": "foms/services/common/fragment_revalidation.py",
-      "lineno": 259,
+      "lineno": 284,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3334,7 +3334,7 @@
     },
     {
       "path": "foms/services/common/fragment_revalidation.py",
-      "lineno": 354,
+      "lineno": 380,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3343,7 +3343,7 @@
     },
     {
       "path": "foms/services/common/fragment_revalidation.py",
-      "lineno": 383,
+      "lineno": 409,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3352,7 +3352,7 @@
     },
     {
       "path": "foms/services/common/fragment_revalidation.py",
-      "lineno": 425,
+      "lineno": 451,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3442,7 +3442,7 @@
     },
     {
       "path": "foms/services/context_processors.py",
-      "lineno": 298,
+      "lineno": 302,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3700,33 +3700,6 @@
       "owner": "services",
       "has_logging": true,
       "justification": "logs via logger/log_handled_exception"
-    },
-    {
-      "path": "foms/services/feature_flags.py",
-      "lineno": 353,
-      "handler_type": "broad_exception",
-      "disposition": "LOG_AND_CONTINUE",
-      "owner": "services",
-      "has_logging": true,
-      "justification": "logs via logger/log_handled_exception"
-    },
-    {
-      "path": "foms/services/feature_flags.py",
-      "lineno": 358,
-      "handler_type": "broad_exception",
-      "disposition": "INTENTIONAL",
-      "owner": "services",
-      "has_logging": false,
-      "justification": "관측 전용 세션 rollback best-effort"
-    },
-    {
-      "path": "foms/services/feature_flags.py",
-      "lineno": 367,
-      "handler_type": "broad_exception",
-      "disposition": "INTENTIONAL",
-      "owner": "services",
-      "has_logging": false,
-      "justification": "관측 전용 세션 close best-effort"
     },
     {
       "path": "foms/services/image_margin_trim.py",
@@ -5098,7 +5071,7 @@
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
-      "lineno": 4992,
+      "lineno": 4998,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
@@ -5107,7 +5080,7 @@
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
-      "lineno": 5004,
+      "lineno": 5010,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
@@ -5116,7 +5089,7 @@
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
-      "lineno": 5543,
+      "lineno": 5549,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
@@ -5125,7 +5098,7 @@
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
-      "lineno": 5851,
+      "lineno": 5857,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
@@ -5134,7 +5107,7 @@
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
-      "lineno": 6323,
+      "lineno": 6329,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
@@ -5143,7 +5116,7 @@
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
-      "lineno": 6429,
+      "lineno": 6435,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
@@ -5152,7 +5125,7 @@
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
-      "lineno": 6519,
+      "lineno": 6525,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
@@ -5161,7 +5134,7 @@
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
-      "lineno": 6691,
+      "lineno": 6697,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
@@ -5377,7 +5350,7 @@
     },
     {
       "path": "foms/web/measurement/dashboard.py",
-      "lineno": 848,
+      "lineno": 838,
       "handler_type": "broad_exception",
       "disposition": "INTENTIONAL",
       "owner": "web",
@@ -5386,7 +5359,7 @@
     },
     {
       "path": "foms/web/measurement/dashboard.py",
-      "lineno": 861,
+      "lineno": 851,
       "handler_type": "broad_exception",
       "disposition": "INTENTIONAL",
       "owner": "web",
@@ -5395,7 +5368,7 @@
     },
     {
       "path": "foms/web/measurement/dashboard.py",
-      "lineno": 874,
+      "lineno": 864,
       "handler_type": "broad_exception",
       "disposition": "INTENTIONAL",
       "owner": "web",
@@ -5404,7 +5377,7 @@
     },
     {
       "path": "foms/web/measurement/dashboard.py",
-      "lineno": 887,
+      "lineno": 877,
       "handler_type": "broad_exception",
       "disposition": "INTENTIONAL",
       "owner": "web",

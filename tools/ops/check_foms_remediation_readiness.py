@@ -8,7 +8,7 @@
 검증 도메인과 exit code (report §5.2 line ~996 SSOT):
 
 * **artifact/config (exit 3)** — packet coverage(123 resolved·created_tests landed),
-  CI workflow 존재, persona artifact, enforcement flag 안전 기본(well-formed),
+  CI workflow 존재, enforcement flag 안전 기본(well-formed),
   API leak 0(str(e)/print_exc inventory baseline 무성장), unresolved/silent broad
   catch 0(failopen inventory unclassified 0).
 * **data (exit 1)** — 필수 seed/reference data 파일 존재·정상 JSON(값 노출 없이 형태만).
@@ -61,11 +61,9 @@ _PACKET_MANIFEST = Path("docs/harness/foms_bugfix_packet_tests.json")
 _FAILOPEN_INV = Path("docs/harness/foms_failopen_inventory.json")
 _API_LEAK_INV = Path("docs/harness/foms_api_error_leak_inventory.json")
 _WORKFLOWS = Path(".github/workflows")
-_PERSONA_DIR = Path("templates/partials/v3")
 
 EXPECTED_PACKETS = 122
 REQUIRED_WORKFLOWS = ("ci.yml", "harness-ci.yml", "perf-gate.yml", "postgres-lane.yml")
-REQUIRED_PERSONAS = ("construction", "cs", "drawing", "production", "sales", "shipment")
 # core seed/reference data the app loads at runtime (tracked, not the generated holidays_*).
 REQUIRED_DATA_FILES = (
     "data/products.json",
@@ -136,16 +134,6 @@ def check_ci_coverage(repo_root: Path) -> CheckResult:
     """필수 CI workflow 파일 존재(값 노출 없이 presence 만; run 상태는 ci_watch 소관)."""
     missing = sum(1 for wf in REQUIRED_WORKFLOWS if not (repo_root / _WORKFLOWS / wf).exists())
     return CheckResult("ci_coverage", DOMAIN_CONFIG, missing == 0, missing)
-
-
-def check_persona_artifacts(repo_root: Path) -> CheckResult:
-    """모바일 v3 persona home artifact(역할별) 존재 확인."""
-    missing = sum(
-        1
-        for p in REQUIRED_PERSONAS
-        if not (repo_root / _PERSONA_DIR / f"persona_home_{p}.html").exists()
-    )
-    return CheckResult("persona_artifacts", DOMAIN_CONFIG, missing == 0, missing)
 
 
 def _flag_state(env: Mapping[str, str], name: str) -> str:
@@ -288,7 +276,6 @@ def collect_results(
     results = [
         check_packet_coverage(repo_root),
         check_ci_coverage(repo_root),
-        check_persona_artifacts(repo_root),
         check_data_coverage(repo_root),
         check_enforcement_flags(env),
         check_api_leak(repo_root),

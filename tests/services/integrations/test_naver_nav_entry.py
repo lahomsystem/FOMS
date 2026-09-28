@@ -404,3 +404,45 @@ def test_nav_badge_uses_the_workbench_number_when_gate_is_on(client, workbench_o
 
     assert html.count("data-foms-nav-triage-badge") >= 2
     assert _badge_count(client) == 2
+
+
+# --------------------------------------------------------------------------- #
+# 모바일 v2 서랍 — 데스크톱 nav 가 숨는 /erp 화면에서도 '네이버 수집'에 닿는다
+# --------------------------------------------------------------------------- #
+
+def _enable_mobile_v2(monkeypatch, user: User) -> None:
+    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
+    monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(user.id))
+
+
+def _drawer_html(html: str) -> str:
+    """모바일 서랍 본문만 — 단계 타일부터 계정 칸 앞까지."""
+    assert 'id="erp-mobile-menu-drawer"' in html, "모바일 v2 서랍이 렌더되지 않았다"
+    return html.split('id="erp-mobile-menu-drawer"', 1)[1].split(
+        "erp-mobile-menu-drawer__account", 1)[0]
+
+
+@pytest.mark.parametrize("role", ["ADMIN", "MANAGER", "STAFF"])
+def test_mobile_v2_drawer_has_naver_entry_with_badge_slot(client, monkeypatch, role):
+    """v2 코호트 폰은 /erp 화면에서 데스크톱 nav 가 CSS 로 숨는다 — 서랍에 따로 있어야 찾는다
+    (2026-09-28 신고: 모바일 메뉴에 네이버 수집이 없다)."""
+    user = _login(client, username=f"nav_mobile_{role.lower()}", role=role)
+    _enable_mobile_v2(monkeypatch, user)
+
+    drawer = _drawer_html(client.get("/erp/dashboard").get_data(as_text=True))
+
+    assert drawer.count(f'href="{TRIAGE_PATH}"') == 1, "서랍 진입구는 하나"
+    assert "네이버 수집" in drawer
+    assert "foms-nav-mark--naver" in drawer, "데스크톱과 같은 채널 마크"
+    assert "data-foms-nav-triage-badge" in drawer, "확인 대기 뱃지 자리"
+
+
+def test_mobile_v2_drawer_hides_naver_entry_from_viewer(client, monkeypatch):
+    """VIEWER 는 트리아지 403 이다 — 눌러서 막히는 타일을 보여주지 않는다."""
+    user = _login(client, username="nav_mobile_viewer", role="VIEWER")
+    _enable_mobile_v2(monkeypatch, user)
+
+    drawer = _drawer_html(client.get("/erp/dashboard").get_data(as_text=True))
+
+    assert TRIAGE_PATH not in drawer
+    assert "data-foms-nav-triage-badge" not in drawer

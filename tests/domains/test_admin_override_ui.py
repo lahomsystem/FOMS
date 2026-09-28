@@ -29,8 +29,6 @@ RETRY_WIRED_TEMPLATES = [
     "templates/orders/partials/erp_order_js.html",
     "templates/construction/partials/mobile_queue.html",
     "templates/production/partials/mobile_queue.html",
-    "templates/partials/v3/persona_home_construction.html",
-    "templates/partials/v3/persona_home_production.html",
     "templates/measurement/metropolitan_dashboard.html",
     "templates/measurement/regional_dashboard.html",
     "templates/measurement/self_measurement_dashboard.html",

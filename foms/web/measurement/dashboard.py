@@ -16,10 +16,6 @@ from foms.services.measurement.drawing_transfer_cta import build_drawing_transfe
 from foms.services.orders.complete_path_policy import build_complete_ctas
 from foms.services.orders.order_mutation_policy import POLICY_REGISTRY, evaluate_policy
 from foms.services.orders.state_axes import read_main_stage
-from foms.services.measurement_time import (
-    format_minutes_hm,
-    measurement_time_minutes_of,
-)
 from foms.services.measurement.manager_color import load_manager_color_slots
 from foms.services.measurement.site_memo import build_site_memo
 from foms.services.measurement.visit_check import (
@@ -459,6 +455,7 @@ def erp_measurement_dashboard():
         is_mobile_v2_shell,
         is_naver_bulk_dispatch_enabled,
         resolve_shell_variant_cached,
+        wants_mobile_width_surfaces,
     )
     from foms.services.erp_mobile_order_display import (
         build_mobile_queue_batch_context,
@@ -471,7 +468,9 @@ def erp_measurement_dashboard():
     # 실측 방문 체크(스펙 2026-09-23): 단일 날짜 모드에서 엄격한 ISO 날짜일 때만 체크 기준일이
     # 된다. 기간 모드의 selected_date 는 검증되지 않은 값일 수 있어 체크를 모두 끈다.
     _visit_date = normalize_visit_date(selected_date) if (use_single_day and not use_range) else None
-    if mobile_v2_active:
+    # 소비처는 모바일 v2 표면(mobile_list.html)뿐 — 광폭 마우스 PC 는 그 표면을 렌더하지 않으므로
+    # (dashboard_main.html 의 mobile_width_surfaces 게이트) 배치 조회·행 조립도 건너뛴다.
+    if mobile_v2_active and wants_mobile_width_surfaces():
         # W2-3(N+1 제거): 행당 ~5쿼리(첨부/미리보기/타임라인/담당자) 대신 배치 1회 조회.
         # 출고 대시보드(build_shipment_mobile_queue_rows)와 동일 패턴. mobile_v2 비활성이면
         # 이 블록 자체가 실행되지 않아 불필요 쿼리가 없다.
@@ -499,13 +498,6 @@ def erp_measurement_dashboard():
     # (행 수와 무관한 상수 1쿼리 — 이미 읽은 데이터에는 팀·id 명부가 없다).
     _mgr_color_slots = load_manager_color_slots(db) if mobile_queue_rows else {}
     mobile_glance_groups = build_measurement_glance_groups(mobile_queue_rows, _mgr_color_slots)
-
-    # v3 영업 홈 '오늘 동선'(스펙 §6.3)이 실측 카드마다 방문시각을 찍는다. 방문시각
-    # SSOT(measurement_time)를 쓰고 이미 로드한 rows 만 재사용한다 — 신규 쿼리 0.
-    # 템플릿이 자유 텍스트를 사전순 비교하면 "10시" < "4시" 오판이 재발한다(ROUTE-02).
-    mobile_queue_time_hm = {
-        _o.id: format_minutes_hm(measurement_time_minutes_of(_o)) for _o in rows
-    } if mobile_queue_rows else {}
 
     # 태블릿 가로 코호트 좌측 큐(W12): 스테이지 색배지 + 날짜버킷(오늘/주간/미확정) + 완료 dim.
     # 이미 로드된 rows만 재사용(신규 쿼리 0). split 표시 게이트(erp_mobile_v2_enabled +
@@ -570,8 +562,6 @@ def erp_measurement_dashboard():
             mobile_queue_rows=mobile_queue_rows,
             mobile_glance_groups=mobile_glance_groups,
             measurement_visit_date=_visit_date or '',
-            mobile_queue_time_hm=mobile_queue_time_hm,
-            sales_delivery_by_ref=_sales_delivery_by_ref,
             tablet_card_view=tablet_card_view,
             tablet_bucket_counts=tablet_bucket_counts,
             measurement_panel_dates=measurement_panel_dates,

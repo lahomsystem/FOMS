@@ -21,18 +21,21 @@
           <span class="erp-mobile-menu-drawer__label">{{ item.label }}</span>
         </a>
       {% endfor %}
+      {# 네이버 수집 — 데스크톱 nav(menu_config 'naver_orders')에만 있고 모바일 서랍엔 없던 진입점.
+         _all_items 는 ERP 단계 목록(헤더 제목·하단 탭·레일과 한 쌍)이라 거기 넣지 않고 따로 둔다.
+         게이트 = 라우트 role_required(ADMIN·MANAGER·STAFF) + inject_menu 의 시공팀 제외.
+         배지는 foms-nav-triage-badge.js 가 채운다(서랍은 프래그먼트 안이라 교체 뒤 다시 칠한다). #}
+      {% if current_user and current_user.role in ['ADMIN', 'MANAGER', 'STAFF'] and (current_user.team or '') != 'CONSTRUCTION' %}
+        <a
+          class="erp-mobile-menu-drawer__link erp-mobile-menu-drawer__link--naver position-relative"
+          href="{{ url_for('admin.naver_ingest_triage') }}"
+          aria-current="false">
+          <span class="erp-mobile-menu-drawer__icon"><svg class="foms-nav-mark foms-nav-mark--naver me-0" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><rect width="24" height="24" rx="5" fill="#03C75A"/><path d="M13.6 12.3 10.2 7.2H7.2v9.6h3.2v-5.1l3.4 5.1h3v-9.6h-3.2z" fill="#fff"/></svg></span>
+          <span class="erp-mobile-menu-drawer__label">네이버 수집</span>
+          <span class="badge rounded-pill bg-danger position-absolute top-0 end-0 m-2" data-foms-nav-triage-badge hidden></span>
+        </a>
+      {% endif %}
         </div>
-        {# v3 셸 자격자가 v2로 복귀 중일 때만 노출되는 "새 모바일(v3)" 진입점.
-           foms-shell-toggle.js가 쿠키(foms_shell_pref=v3) set 후 리로드. #}
-        {% if shell_variant == 'v2' and shell_v3_eligible %}
-        <button type="button"
-                class="erp-mobile-menu-drawer__link erp-mobile-menu-drawer__link--v3"
-                data-foms-shell-toggle="v3"
-                aria-label="새 모바일(v3) 화면으로 전환">
-          <span class="erp-mobile-menu-drawer__icon"><i class="fas fa-wand-magic-sparkles" aria-hidden="true"></i></span>
-          <span class="erp-mobile-menu-drawer__label">새 모바일(v3)</span>
-        </button>
-        {% endif %}
         {% if current_user %}
         <div class="erp-mobile-menu-drawer__account">
           <div class="erp-mobile-menu-drawer__account-id">

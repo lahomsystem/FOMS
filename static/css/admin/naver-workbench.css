@@ -454,6 +454,9 @@ input.wb-pick:disabled,
     text-overflow: ellipsis;
 }
 .wb-row__line2 {
+    /* span 이라 display 가 없으면 inline — 그러면 아래 말줄임이 먹지 않고 행 끝에서 글자가
+       그냥 잘린다(2026-09-28 스테이징 390px 확인). 줄 하나짜리 블록으로 둔다. */
+    display: block;
     color: var(--wb-muted);
     /* 없으면 Bootstrap 본문 16px 을 상속해 **행에서 가장 큰 글자**가 된다 —
        고객명(13.5px)보다 제품명이 커서 위계가 뒤집히고, 같은 칸에 들어가는 글자 수가
@@ -1116,6 +1119,45 @@ input.wb-pick:disabled,
     color: var(--wb-danger, #b91c1c);
 }
 
+/* ── 주 조작 버튼(.btn-primary) — 이 화면 전체, 데스크톱·폰 공통 ─────────────
+   전역 `.btn-primary`(style-pro-max.css)는 #007AFF 에 흰 글자라 대비가 4.0:1 —
+   WCAG AA(4.5:1)에 못 미친다. 상세 액션 줄의 '+ 주문 만들기'·'발송처리', 모달의
+   확인 버튼, 벌크 바의 '발주확인 보내기' 가 전부 이 색이었다(2026-09-28).
+   전역 규칙이 !important 라 같은 무기로만 이긴다 — 범위는 이 화면(.naver-workbench)뿐이고
+   전역 스타일은 건드리지 않는다. 목업 남색 #4a55b8 = 흰 글자 대비 6.4:1.
+   상태마다 대비를 따로 맞춘다: 누름·올림 #3b4499(8.5:1) · 누르는 중 #323a85(10.1:1).
+   끈 상태는 부트스트랩이 opacity .65 로 흐리게 해서 흰 글자가 3:1 아래로 떨어진다 —
+   흐리게 하지 않고 회색 바탕 + 진회색 글자(6.1:1)로 "못 누름"을 말한다.
+   포커스 테두리는 바탕(흰색)과 3:1 이상이어야 보인다 — 같은 남색 2px 선(6.4:1). */
+.naver-workbench .btn-primary {
+    background: #4a55b8 !important;
+    color: #ffffff !important;
+}
+
+.naver-workbench .btn-primary:hover,
+.naver-workbench .btn-primary:focus-visible {
+    background: #3b4499 !important;
+    color: #ffffff !important;
+}
+
+.naver-workbench .btn-primary:active {
+    background: #323a85 !important;
+    color: #ffffff !important;
+}
+
+.naver-workbench .btn-primary:focus-visible {
+    outline: 2px solid #4a55b8;
+    outline-offset: 2px;
+    box-shadow: none;
+}
+
+.naver-workbench .btn-primary:disabled,
+.naver-workbench .btn-primary.disabled {
+    background: #e5e7eb !important;
+    color: #4b5563 !important;
+    opacity: 1;
+}
+
 /* 상세 카드 머리: 이름·배지 줄과 액션 줄이 붙어 보이지 않게. */
 .wb-detail__head {
     display: flex;
@@ -1562,4 +1604,316 @@ input.wb-pick:disabled,
 }
 @media (prefers-reduced-motion: reduce) {
   #wb-refresh-all-running { transition: none; }
+}
+
+/* ══ 폰 배치 (2026-09-28 모바일 2단계 · ≤767.98px) ══════════════════════════
+   데스크톱 화면은 **한 줄도 바꾸지 않는다** — 아래 규칙은 전부 폰 미디어 쿼리 안에 있고,
+   밖에 있는 두 줄은 폰 전용 부품(ERP 돌아가기 링크·알림 요약 띠)을 데스크톱에서 숨기는
+   것뿐이다. 요소 id·클래스·data-* 는 그대로 두고 배치만 바꾼다(JS·테스트가 문다).
+   터치 목표는 44px 이상, 글자 대비는 4.5:1 이상으로 맞춘다. */
+.wb-back { display: none; }
+.wb-pane-back { display: none; }
+.wb-alerts__toggle { display: none; }
+
+@media (max-width: 767.98px) {
+    /* ── 머리줄: ‹ ERP · 제목 · 다시 읽기(아이콘) / 탭 세그먼트 / 사실 한 줄 ──
+       sticky 는 푼다. 폰에서는 전역 nav 까지 셋이 위에 붙으면 화면 절반이 크롬이 된다. */
+    .wb-bar { position: static; }
+    .wb-bar--head { gap: 6px 8px; padding: 6px 0 8px; }
+    .wb-bar--head .wb-bar__spacer { display: none; }
+
+    .wb-back {
+        order: 0;
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        min-height: 44px;
+        padding: 0 8px 0 0;
+        color: var(--wb-accent);
+        font-size: calc(14px * var(--wb-fs, 1));
+        font-weight: 700;
+        text-decoration: none;
+    }
+    .wb-back:hover { text-decoration: none; }
+
+    /* 상세 위 '목록으로' — 긴 상세를 읽는 동안에도 위에 붙어 있다(sticky).
+       전역 nav 도 sticky(z 1000)라 top:0 이면 그 밑에 깔려 안 보였다(2026-09-28 스테이징).
+       nav 실측 높이(--wb-nav-h, syncNavOffset)만큼 내리고, 스크롤로 불러올 때도 같은 만큼 띄운다. */
+    .wb-pane-back {
+        position: sticky;
+        top: var(--wb-nav-h, 67px);
+        scroll-margin-top: var(--wb-nav-h, 67px);
+        z-index: 5;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        width: 100%;
+        min-height: 44px;
+        margin: 8px 0;
+        border: 1px solid var(--wb-line, #dde1e6);
+        border-radius: 10px;
+        background: #ffffff;
+        color: #4a55b8;
+        font-size: calc(14px * var(--wb-fs, 1));
+        font-weight: 700;
+    }
+
+    .wb-bar--head .wb-bar__title {
+        order: 1;
+        flex: 1 1 auto;
+        min-width: 0;
+        font-size: calc(17px * var(--wb-fs, 1));
+    }
+
+    /* 글자 크기 조절은 폰에서 뺀다 — 폰은 브라우저 확대가 같은 일을 하고 자리가 없다. */
+    .wb-fs { display: none; }
+
+    /* 전체 다시 읽기: 누를 수 있을 때만 44px 아이콘 버튼. 글자는 **지우지 않고** 0 크기로
+       남긴다 — 화면 읽기 프로그램이 부르는 이름이고, JS 가 진행 문구로 갈아 끼우는 자리다.
+       진행 중(disabled)·방금 다 읽음은 글자가 사실이라 그대로 보인다. */
+    #wb-refresh-all,
+    #wb-refresh-all-idle,
+    #wb-refresh-all-running { order: 2; }
+    .naver-workbench #wb-refresh-all:not(:disabled) {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 44px;
+        min-height: 44px;
+        font-size: 0;
+    }
+    .naver-workbench #wb-refresh-all:not(:disabled)::before {
+        content: "\f2f9";                    /* fa-rotate-right */
+        font-family: "Font Awesome 6 Free";
+        font-weight: 900;
+        font-size: calc(16px * var(--wb-fs, 1));
+    }
+    #wb-refresh-all:disabled,
+    #wb-refresh-all-running {
+        order: 5;
+        flex: 1 1 100%;
+        white-space: normal;
+        text-align: left;
+    }
+    #wb-refresh-all-idle { min-height: 44px; white-space: normal; }
+
+    /* 탭 = 폭 전체 세그먼트(처리 N / 이력 / 대조). 칸마다 44px. */
+    .wb-tabs {
+        order: 3;
+        flex: 1 1 100%;
+        gap: 0;
+        border: 1px solid var(--wb-line);
+        border-radius: 10px;
+        overflow: hidden;
+    }
+    .wb-tab {
+        flex: 1 1 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 44px;
+        padding: 0 6px;
+        border-bottom: 0;
+        white-space: nowrap;
+        font-size: calc(14px * var(--wb-fs, 1));
+    }
+    .wb-tab + .wb-tab { border-left: 1px solid var(--wb-line); }
+    .wb-tab[aria-selected="true"] { background: var(--wb-accent-soft); }
+
+    .wb-bar--head .wb-bar__fact,
+    .wb-bar--head .wb-bar__locked {
+        order: 4;
+        white-space: normal;
+    }
+
+    /* ── 알림 요약 띠: 띠 다섯 종을 한 줄로 접는다(누르면 펼친다) ──
+       상태는 버튼의 aria-expanded 하나다(JS 가 뒤집는다) — 보이기 규칙이 그 값을 문다. */
+    .wb-alerts { margin-bottom: 10px; }
+    .wb-alerts__toggle {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 2px 8px;
+        width: 100%;
+        min-height: 48px;
+        padding: 8px 12px;
+        border: 1px solid #f3d38c;
+        border-radius: 10px;
+        background: #fffbeb;
+        color: #b45309;                      /* #fffbeb 위 대비 4.9:1 */
+        font-size: calc(13px * var(--wb-fs, 1));
+        text-align: left;
+        cursor: pointer;
+    }
+    .wb-alerts__toggle:focus-visible { outline: 2px solid #b45309; outline-offset: 2px; }
+    .wb-alerts__head { font-weight: 700; white-space: nowrap; }
+    .wb-alerts__head b { font-variant-numeric: tabular-nums; }
+    .wb-alerts__parts { flex: 1 1 10em; min-width: 0; }
+    .wb-alerts__chev { margin-left: auto; transition: transform .15s ease; }
+    .wb-alerts__toggle[aria-expanded="true"] .wb-alerts__chev { transform: rotate(90deg); }
+    .wb-alerts__body { display: none; margin-top: 8px; }
+    .wb-alerts__toggle[aria-expanded="true"] + .wb-alerts__body { display: block; }
+
+    /* 띠 안의 표는 **자기 칸 안에서만** 가로로 민다 — 페이지 전체가 옆으로 밀리지 않게.
+       최소 폭을 주지 않으면 한글이 음절마다 꺾여 칸이 한 글자 폭으로 찌그러진다. */
+    .wb-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .wb-scroll > .wb-ghost__list { min-width: 640px; }
+    /* 실패 표는 사유 칸만 폭이 없다(나머지 칸 556px 고정) — 사유가 음절마다 꺾이지 않게 넉넉히 준다. */
+    .wb-scroll > .wb-result__list { min-width: 820px; }
+    .wb-ghost__head .btn,
+    .wb-ghost .btn-sm { min-height: 44px; }
+    .wb-bulkdispatch__linkline { overflow-wrap: anywhere; }
+
+    /* ── 도구줄: 칩 한 줄 가로 스크롤 / 정렬 세그먼트 + 찾기 ── */
+    .wb-bar--tools { gap: 8px; padding: 6px 0 8px; }
+    .wb-bar--tools .wb-bar__sep,
+    .wb-bar--tools .wb-bar__spacer,
+    .wb-tools__label { display: none; }
+    .wb-chips {
+        display: flex;
+        flex: 1 1 100%;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        min-width: 0;
+        padding-bottom: 2px;
+        scroll-snap-type: x proximity;
+        -webkit-overflow-scrolling: touch;
+    }
+    .wb-chips .wb-chip {
+        flex: none;
+        min-height: 44px;
+        white-space: nowrap;
+        scroll-snap-align: start;
+        font-size: calc(13px * var(--wb-fs, 1));
+    }
+    .wb-sort {
+        display: inline-flex;
+        align-items: center;
+        min-height: 44px;
+        padding: 0 12px;
+        font-size: calc(13px * var(--wb-fs, 1));
+    }
+    .wb-seg { flex: none; }
+    /* 찾기: 보이는 '찾기' 글자는 돋보기로 바꾼다(input 의 aria-label 이 이름을 든다).
+       글자 16px — 그보다 작으면 아이폰이 포커스 때 화면을 확대한다. */
+    .wb-bar--tools .wb-find { flex: 1 1 150px; min-width: 0; }
+    .wb-bar--tools .wb-find__label {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        white-space: nowrap;
+    }
+    .wb-bar--tools .wb-find::before {
+        content: "\f002";                    /* fa-magnifying-glass */
+        font-family: "Font Awesome 6 Free";
+        font-weight: 900;
+        color: var(--wb-muted);
+        font-size: calc(14px * var(--wb-fs, 1));
+    }
+    .wb-find__input {
+        width: 100%;
+        max-width: none;
+        min-height: 44px;
+        font-size: calc(16px * var(--wb-fs, 1));
+    }
+    .wb-find__note:empty { display: none; }
+
+    /* ── 목록 행 = 카드: 체크박스 칸 44px · 이름+시각 / 제품 / 배지 ── */
+    /* `1fr` 은 minmax(auto, 1fr) 라 넓은 자식(표·nowrap 버튼)이 칸을 화면 밖으로 민다 —
+       페이지 가로 스크롤의 뿌리라 0 하한으로 못박는다. */
+    .wb-split { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+    .wb-split > .card > .card-header label { min-height: 44px; }
+    .wb-row { gap: 4px; min-height: 64px; }
+    .wb-row__body { padding: 10px 12px 10px 0; }
+    .wb-row__when { color: var(--wb-muted); }   /* #9aa3af 는 흰 바탕 2.5:1 — 폰 글자 대비 미달 */
+    /* 체크박스는 칸 44px 전체가 눌리는 자리다. 모양은 22px 상자로 그린다(SVG 배경) —
+       기본 체크박스는 padding 을 안 받아 눌리는 자리를 키울 방법이 이것뿐이다.
+       잠긴 체크박스의 pointer-events:none(행으로 탭 넘기기)은 위 규칙 그대로다. */
+    input.wb-pick,
+    #wb-pick-all {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 44px;
+        height: 44px;
+        margin: 0;
+        border: 0;
+        border-radius: 8px;
+        background: transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 22 22'%3E%3Crect x='1' y='1' width='20' height='20' rx='4' fill='%23fff' stroke='%236b7280' stroke-width='2'/%3E%3C/svg%3E") center / 22px 22px no-repeat;
+    }
+    input.wb-pick:checked,
+    #wb-pick-all:checked {
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 22 22'%3E%3Crect x='0' y='0' width='22' height='22' rx='5' fill='%232563eb'/%3E%3Cpath d='M6 11.5l3.2 3.2L16 8' fill='none' stroke='%23fff' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    }
+    input.wb-pick:focus-visible,
+    #wb-pick-all:focus-visible { outline: 2px solid var(--wb-accent); outline-offset: -4px; }
+    .wb-row > input.wb-pick { align-self: start; margin-top: 2px; }
+
+    /* ── 벌크 바: 화면 아래에 붙는다(고른 게 있을 때만 — `.on` 규칙은 위 그대로) ──
+       목록 위에 두면 아래로 훑는 동안 바가 화면 밖으로 사라진다. 마지막 줄이 바 밑에
+       숨지 않게 목록 끝에 바 높이만큼 여백을 준다. */
+    #wb-bulk.on {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 1020;                       /* 모달 백드롭(1050) 아래 — 벌크 모달이 덮는다 */
+        margin: 0;
+        border-radius: 12px 12px 0 0;
+        padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px));
+        box-shadow: 0 -4px 16px rgba(15, 23, 42, .12);
+    }
+    .naver-workbench:has(#wb-bulk.on) .wb-split { padding-bottom: 140px; }
+    .naver-workbench #wb-bulk .btn { min-height: 44px; }
+    /* 주 조작은 폭을 채운다. 색(목업 남색)은 화면 전체 `.naver-workbench .btn-primary`
+       규칙 한 벌이 든다 — 여기서 또 칠하면 두 벌이 되어 상태별 색이 갈린다. */
+    .naver-workbench #wb-bulk-submit {
+        flex: 1 1 auto;
+    }
+
+    /* ── 상세 pane: 액션 줄 44px 줄바꿈 · 주문 단위 대조표는 세로로 쌓는다 ── */
+    #wb-pane .wb-detail { max-width: 100%; overflow-x: auto; }
+    #wb-pane .wb-acts .btn {
+        flex: 1 1 auto;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 44px;
+    }
+    /* 3열 대조표(항목 · 네이버 원본 · FOMS 현재 값)는 폰에서 한 행 = 한 덩어리.
+       이 표만 고른다(`주문 단위` 제목 바로 뒤) — 같은 .wb-cmp 를 쓰는 다른 표는 열 뜻이
+       달라서 같은 이름표를 붙이면 거짓이 된다. */
+    #wb-pane [data-cmp-section="household"] + .wb-cmp thead { display: none; }
+    #wb-pane [data-cmp-section="household"] + .wb-cmp,
+    #wb-pane [data-cmp-section="household"] + .wb-cmp tbody,
+    #wb-pane [data-cmp-section="household"] + .wb-cmp tr,
+    #wb-pane [data-cmp-section="household"] + .wb-cmp td { display: block; width: auto; }
+    #wb-pane [data-cmp-section="household"] + .wb-cmp tr {
+        padding: 8px 0;
+        border-bottom: 1px solid var(--wb-line-soft);
+    }
+    #wb-pane [data-cmp-section="household"] + .wb-cmp td {
+        padding: 2px 0;
+        border-bottom: 0;
+        overflow-wrap: anywhere;
+    }
+    #wb-pane [data-cmp-section="household"] + .wb-cmp td.wb-cmp__k {
+        font-weight: 700;
+        color: #111827;
+    }
+    #wb-pane [data-cmp-section="household"] + .wb-cmp td:nth-child(2)::before,
+    #wb-pane [data-cmp-section="household"] + .wb-cmp td:nth-child(3)::before {
+        display: block;
+        color: var(--wb-muted);
+        font-size: calc(11.5px * var(--wb-fs, 1));
+    }
+    #wb-pane [data-cmp-section="household"] + .wb-cmp td:nth-child(2)::before { content: "네이버 원본"; }
+    #wb-pane [data-cmp-section="household"] + .wb-cmp td:nth-child(3)::before { content: "FOMS 현재 값"; }
+
+    /* ── 이력 탭: 수집 상태 카드는 한 칸씩, 찾기 칸은 폭 전체 ── */
+    .wb-ingest { grid-template-columns: 1fr; }
+    .wb-filters .wb-find { flex: 1 1 100%; margin-left: 0; }
+    .wb-filters .wb-find__input { width: 100%; }
 }

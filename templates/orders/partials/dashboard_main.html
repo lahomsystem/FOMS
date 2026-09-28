@@ -10,7 +10,6 @@
    erp-shell 은 프래그먼트의 <link rel=stylesheet> 만 preload 한다(감사
    tests/domains/test_shell_fragment_css_fouc_audit.py). 풀페이지 dashboard.html:6 과 같은 핀. #}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-draft-resume.css') }}?v=20260915b">
-{% set _fos_desktop_body %}
 <div class="container-fluid erp-dashboard erp-pro erp-mobile-shell erp-dashboard-orders"
   data-user-id="{{ current_user.id }}"
   data-user-team="{{ current_user.team | default('', true) | e }}"
@@ -166,22 +165,15 @@
   </div>
   </div>{# /.foms-shell-desktop-only #}
 
-  {# v3 셸에서 이 모바일 v2 표면(.foms-mobile-v2-dashboard — 타워/큐 두 분기 모두)은 어떤
-     뷰포트·방향·포인터에서도 표시되지 않는 죽은 마크업이다. .fos-v3-desktop-fallback 이 보이는
-     조건(foms-mobile-v3.css 결함G 게이트)은 광폭(≥992 landscape|fine|none)과 정확히 일치하고,
-     그 광폭에서 foms-mobile-v2-surfaces-hide.css 가 display:none !important 로 끈다. 좁은 폭·
-     세로 coarse 에선 fallback 자체가 display:none 이라 내부도 미렌더 — 뷰포트가 식에서 소거되므로
-     리사이즈 재요청 배선 없이 안전하다. v2 코호트엔 이 wrapper 자체가 없어 영향 없음. #}
-  {# 이 include 가 데스크톱 응답에도 무조건 들어가는 이유 — 설계다, 결함이 아니다.
-     셸 전환 기준은 뷰포트 폭(max-width: 991.98px)인데 서버는 뷰포트를 알 수 없다. 그래서
-     서버는 데스크톱 본문과 모바일 v2 바디를 둘 다 내보내고, 실제로 무엇을 보여줄지는 CSS 가
-     고른다.
+  {# 이 include 가 데스크톱 응답에도 들어가는 이유 — 셸 전환 기준은 뷰포트 폭(max-width:
+     991.98px)이고, 무엇을 보여줄지는 CSS 가 고른다. 서버는 데스크톱 본문과 모바일 v2 바디를
+     둘 다 내보낸다.
 
-     서버에서 foms_ptr / foms_scr 로 이 include 를 끄는 것은 금지한다. 근거는
-     foms/services/feature_flags.py:180-181 원문 — "뷰포트 폭 기반 표면(모바일 셸
-     max-width: 991.98px)에는 쓰면 안 된다. 그쪽은 PC 창을 좁히는 것만으로 필요해지는데
-     pointer 값은 그대로라 오판한다." 두 쿠키는 기기 고정 특성이라, 이걸로 include 를 끄면
-     PC 창을 좁힌 사용자에게 화면이 빈다.
+     단 하나의 예외 = 광폭 마우스 PC(mobile_width_surfaces 가 False). 그때만 이 바디를 빼고
+     표식을 남긴다. foms_ptr / foms_scr 같은 기기 고정 쿠키 **하나만으로** 끄는 것은 여전히
+     금지다 — PC 창을 좁히는 것만으로 모바일 바디가 필요해지는데 그 값들은 그대로라 화면이
+     빈다. 그래서 지금 창 폭 구간(foms_vw)을 함께 보고, 창이 좁아지면 erp-shell.js 가 표식을
+     보고 화면을 다시 받는 되돌림 길을 짝으로 둔다(feature_flags.wants_mobile_width_surfaces).
 
      그래서 반드시 성립해야 하는 봉쇄 불변식: 모바일 v2 마커는 전부
      .foms-mobile-v2-dashboard 의 자손이어야 한다. 그래야 은닉 CSS
@@ -194,8 +186,10 @@
      (foms-mobile-v2-surfaces-hide.css:4 주석), 자체 은닉 훅이 위 규칙에 따로 들어 있다.
 
      이 불변식은 tests/visual/test_mobile_v2_surface_containment.py 가 강제한다. #}
-  {% if erp_mobile_v2_enabled and shell_variant != 'v3' %}
+  {% if erp_mobile_v2_enabled and mobile_width_surfaces %}
     {% include 'orders/partials/dashboard_mobile_v2_body.html' %}
+  {% elif erp_mobile_v2_enabled %}
+    {% include 'partials/shared/mobile_surface_omitted_marker.html' %}
   {% endif %}
 
   {% include 'orders/partials/dashboard_modals.html' %}
@@ -206,11 +200,3 @@
 
       <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/orders/dashboard-gateway-notifications.css') }}">
     </div>
-{% endset %}{% if shell_variant == 'v3' %}
-<div class="fos-v3-mobile-scope">
-{# v3 Field OS 셸: CS 콜/접수 페르소나 홈만 렌더(기존 v2/desktop 마크업·컨테이너 미로드). C4-cs. #}
-{% set fos_content_partial = 'partials/v3/persona_home_cs.html' %}
-{% include 'partials/v3/foms_app_shell_v3.html' %}
-</div>
-<div class="fos-v3-desktop-fallback">{{ _fos_desktop_body|safe }}</div>
-{% else %}{{ _fos_desktop_body|safe }}{% endif %}{# /shell_variant == 'v3' #}

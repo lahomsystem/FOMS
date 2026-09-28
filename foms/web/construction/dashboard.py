@@ -54,7 +54,6 @@ from foms.services.construction_read_model import (
 )
 from foms.services.feature_flags import (
     is_mobile_v2_shell,
-    note_shell_v3_view,
     resolve_shell_variant_cached,
 )
 from foms.services.datetime_kst import get_today_kst
@@ -223,9 +222,6 @@ def erp_construction_dashboard():
     current_user = getattr(g, "current_user", None)
     shell_variant = resolve_shell_variant_cached(current_user.id if current_user else None)
     mobile_v2_active = is_mobile_v2_shell(shell_variant)
-    # C-D2 (g): v3 셸 진입 관측 — 같은 사용자·같은 날은 1행만 남는다(실패해도 화면 무영향).
-    if shell_variant == "v3":
-        note_shell_v3_view(current_user.id if current_user else None, "construction")
     with phase("mobile_enrich"):
         enrich_construction_mobile_rows(
             enriched,
