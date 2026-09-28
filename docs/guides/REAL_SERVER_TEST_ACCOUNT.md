@@ -75,7 +75,7 @@ UPDATE users SET is_active = false WHERE username = 'claude_master';
 
 ## 비밀번호 로테이션 (환경별 독립)
 
-1. 새 비번 생성 + `werkzeug.security.generate_password_hash`.
+1. 새 비번 생성 + `foms.services.security.password_policy.hash_password` (pbkdf2:sha256 60만 회 단일 정본 — `generate_password_hash` 직접 호출은 Werkzeug 3 기본값 scrypt 로 저장된다).
 2. 해당 환경 railway 링크(위 §잠금/해제와 동일 경로, 링크는 디렉토리별 — 저장소 디렉토리 링크 오염 금지).
 3. `UPDATE users SET password=<hash>, password_policy_version=1 WHERE username='claude_master'`.
 4. 로컬 secrets 파일의 해당 환경 password만 갱신 → HTTP 302 오라클 검증(production은 해제 상태에서 검증 후 재잠금).
