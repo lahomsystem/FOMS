@@ -6,32 +6,11 @@ from sqlalchemy.orm import sessionmaker, scoped_session, declarative_base
 from flask import g
 
 from foms.services.db_url_resolver import (
-    postgresql_psycopg2_connect_kwargs_from_url,
+    postgres_dbapi_connect,
+    postgresql_connect_kwargs_from_url,
     prepare_database_url_env,
+    sqlalchemy_url,
 )
-
-
-def _normalize_postgres_url(url: str) -> str:
-    """
-    Railway 등에서 DATABASE_URL이 'postgres://'로 내려오는 경우가 있어
-    SQLAlchemy/psycopg2 호환을 위해 'postgresql://'로 정규화.
-    """
-    if not url:
-        return url
-    if url.startswith("postgres://"):
-        return "postgresql://" + url[len("postgres://"):]
-    return url
-
-
-def _ensure_psycopg2_driver(url: str) -> str:
-    """Use explicit psycopg2 driver; leave non-Postgres URLs (e.g. sqlite) unchanged."""
-    if not url or not url.startswith("postgresql"):
-        return url
-    if url.startswith("postgresql+psycopg2://"):
-        return url
-    if url.startswith("postgresql://"):
-        return "postgresql+psycopg2://" + url[len("postgresql://"):]
-    return url
 
 
 # PG* / DATABASE_URL 정렬 (db.py와 동일; 단독 import 시에도 동작)
@@ -46,15 +25,11 @@ WD_CALCULATOR_IS_SEPARATE_DB = bool(_WD_CALCULATOR_SEPARATE_DB_URL)
 
 # DB URL 결정 (환경변수 우선)
 if WD_CALCULATOR_IS_SEPARATE_DB:
-    WD_CALCULATOR_DB_URL = _ensure_psycopg2_driver(
-        _normalize_postgres_url(_WD_CALCULATOR_SEPARATE_DB_URL)
-    )
+    WD_CALCULATOR_DB_URL = sqlalchemy_url(_WD_CALCULATOR_SEPARATE_DB_URL)
 else:
-    WD_CALCULATOR_DB_URL = _ensure_psycopg2_driver(
-        _normalize_postgres_url(
-            os.getenv("DATABASE_URL")
-            or "postgresql+psycopg2://postgres:lahom@localhost/furniture_orders"
-        )
+    WD_CALCULATOR_DB_URL = sqlalchemy_url(
+        os.getenv("DATABASE_URL")
+        or "postgresql://postgres:lahom@localhost/furniture_orders"
     )
 
 _db_url_str = str(WD_CALCULATOR_DB_URL)
@@ -84,17 +59,15 @@ if "sqlite" in _db_url_str:
     engine_args["connect_args"] = {}
     wd_calculator_engine = create_engine(WD_CALCULATOR_DB_URL, **engine_args)
 elif _db_url_str.startswith("postgresql"):
-    import psycopg2
-
-    _wd_pg_kw = dict(postgresql_psycopg2_connect_kwargs_from_url(WD_CALCULATOR_DB_URL))
+    _wd_pg_kw = dict(postgresql_connect_kwargs_from_url(WD_CALCULATOR_DB_URL))
     if not WD_CALCULATOR_IS_SEPARATE_DB:
         _wd_pg_kw["options"] = f"-c search_path={WD_CALCULATOR_SCHEMA},public"
 
     def _wd_pg_creator():
-        return psycopg2.connect(**_wd_pg_kw)
+        return postgres_dbapi_connect(_wd_pg_kw)
 
     wd_calculator_engine = create_engine(
-        "postgresql+psycopg2://",
+        sqlalchemy_url("postgresql://"),
         creator=_wd_pg_creator,
         **engine_args,
     )

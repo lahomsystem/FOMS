@@ -75,12 +75,15 @@ def _read_db_states(database_url: "str | None") -> dict:
     :raises RuntimeError: DB 조회 불가(checker fail-closed).
     """
     from sqlalchemy import create_engine, text
+
+    from foms.services.db_url_resolver import sqlalchemy_url
+
     url = database_url or os.getenv("DATABASE_URL")
     if not url:
         # db.py 의 resolved engine 을 재사용(로컬/Railway env 규칙).
         from db import engine
     else:
-        engine = create_engine(url)
+        engine = create_engine(sqlalchemy_url(url))
     states: dict[str, dict] = {}
     with engine.connect() as conn:
         for family, mode in conn.execute(text("SELECT family, mode FROM feature_cutover_fences")):

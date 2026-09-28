@@ -10,7 +10,7 @@ Flask 3.1 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
-- [2026-09-28] **Flask 3.1·Werkzeug 3.1 상향(PR #431 · production `ec7e5d843`)** — 해시는 `hash_password` pbkdf2 60만 명시. 운영 로그인·조회 OK, 서비스 4종 배포 SUCCESS. 잔여 없음
+- [2026-09-28] **psycopg3 전환 단계 1 — PG 드라이버 이름을 `db_url_resolver` 한 곳으로(deploy)** — 동작 변화 0. 단계 2(드라이버 교체)·3(psycopg2 삭제)은 승인 대기, 계획 `docs/plans/2026-09-28-psycopg3-migration-plan.md`. 앞선 Flask 3.1 상향은 production `ec7e5d843` 완료
 - [2026-09-28] **실측 모바일 카드 현장 메모(deploy)** — 주소·연락처 특이사항은 그 줄 밑, 실측 특이사항·비고·네이버 배송메모는 "현장 메모" 상자, 목록 줄 "가기 전 확인 N". `foms/services/measurement/site_memo.py`. 잔여: 스테이징 실화면
 - [2026-09-23] **완료 quest 재전이 버튼 = 승인 버튼 이름 · AS 접수 완료 알림 · 발송 기록 칩 통합(PR #419·#420·#423 · production `c74ef1f5e`)** — erp-send-trace.js. 잔여: 링크 칩 실화면
 - [2026-09-23] **실측 모바일 통합 화면 운영 반영(PR #424·#425 칩 색·#426 사진 제목 중복·#427 시트 압축·#428 담당자 색 띠 · production `64058a6c1`)** — 체크리스트+카드 두 벌을 담당자 탭·접기·바텀시트 한 목록으로(16곳 1,242px). 사진첩 저장 시트·담당자별 시간순 포함. 선행: 체크리스트·긴급 알림 PR #421, 색 A안 #422. 잔여: 아이폰·안드로이드 실기기(사진첩 저장·두 단 sticky·가로 밀기)

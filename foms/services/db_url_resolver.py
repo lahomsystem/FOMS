@@ -1,10 +1,25 @@
-"""Database URL environment resolution helpers."""
+"""Database URL environment resolution helpers.
+
+This module is also the single source of the PostgreSQL DBAPI driver. A bare
+``postgresql://`` URL means psycopg2 in SQLAlchemy 2.0 but psycopg (3) in 2.1, so every
+engine in the repo goes through :func:`sqlalchemy_url` and every raw DBAPI connection
+through :func:`postgres_dbapi_connect` (plan: docs/plans/2026-09-28-psycopg3-migration-plan.md).
+"""
 
 import os
 from typing import Any
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
-__all__ = ["prepare_database_url_env", "postgresql_psycopg2_connect_kwargs_from_url"]
+__all__ = [
+    "prepare_database_url_env",
+    "postgresql_connect_kwargs_from_url",
+    "sqlalchemy_url",
+    "postgres_dbapi_connect",
+    "pg_error_code",
+    "PG_SQLALCHEMY_DRIVER",
+]
+
+PG_SQLALCHEMY_DRIVER = "psycopg2"
 
 _ALLOWED_PG_QUERY_KEYS = frozenset(
     {
@@ -31,6 +46,42 @@ def _normalize_postgres_scheme(url: str) -> str:
     if url.startswith("postgres://"):
         return "postgresql://" + url[len("postgres://"):]
     return url
+
+
+def _strip_postgres_driver(url: str) -> str:
+    """Turn ``postgres://`` / ``postgresql+<driver>://`` into plain ``postgresql://``."""
+    u = _normalize_postgres_scheme(url)
+    if u.startswith("postgresql+"):
+        _, sep, rest = u.partition("://")
+        if sep:
+            return "postgresql://" + rest
+    return u
+
+
+def sqlalchemy_url(url: str) -> str:
+    """Return ``url`` with the canonical PostgreSQL driver; other URLs (sqlite, empty) unchanged."""
+    if not url:
+        return url
+    u = _strip_postgres_driver(url)
+    if not u.startswith("postgresql://"):
+        return url
+    return f"postgresql+{PG_SQLALCHEMY_DRIVER}://" + u[len("postgresql://"):]
+
+
+def postgres_dbapi_connect(connect_kwargs: dict[str, Any]) -> Any:
+    """Open a raw DBAPI connection with the canonical driver (SQLAlchemy ``creator``, admin tools)."""
+    import psycopg2
+
+    return psycopg2.connect(**connect_kwargs)
+
+
+def pg_error_code(error: BaseException) -> str | None:
+    """Return the PostgreSQL SQLSTATE of a (SQLAlchemy-wrapped) DBAPI error, if any.
+
+    psycopg exposes it as ``sqlstate``; psycopg2 as ``pgcode`` (no ``sqlstate``).
+    """
+    orig = getattr(error, "orig", None) or error
+    return getattr(orig, "sqlstate", None) or getattr(orig, "pgcode", None)
 
 
 def _should_prefer_public_url(host: str | None) -> bool:
@@ -60,12 +111,10 @@ def _reencode_postgres_url_credentials(url: str) -> str:
     """
     Re-build postgres URL userinfo with percent-encoding.
 
-    Raw DATABASE_URL from some Windows/Railway CLI paths can trip libpq/psycopg2 UTF-8
+    Raw DATABASE_URL from some Windows/Railway CLI paths can trip libpq UTF-8
     handling when credentials contain non-ASCII or odd quoting.
     """
-    u = _normalize_postgres_scheme(url)
-    if u.startswith("postgresql+psycopg2://"):
-        u = "postgresql://" + u[len("postgresql+psycopg2://") :]
+    u = _strip_postgres_driver(url)
     if not u.startswith("postgresql://"):
         return url
     parsed = urlparse(u)
@@ -135,19 +184,17 @@ def prepare_database_url_env() -> str | None:
     return None
 
 
-def postgresql_psycopg2_connect_kwargs_from_url(url: str) -> dict[str, Any]:
+def postgresql_connect_kwargs_from_url(url: str) -> dict[str, Any]:
     """
-    Parse a postgresql(+psycopg2) URL into psycopg2.connect() keyword arguments.
+    Parse a postgresql(+driver) URL into DBAPI ``connect()`` keyword arguments.
 
     Avoids passing a single libpq connection URI through Windows paths where
-    non-ASCII credentials can trigger UnicodeDecodeError inside psycopg2/libpq.
+    non-ASCII credentials can trigger UnicodeDecodeError inside libpq.
     """
     if not url or not str(url).strip():
         raise ValueError("empty database URL")
-    u = _normalize_postgres_scheme(str(url).strip())
-    if u.startswith("postgresql+psycopg2://"):
-        u = "postgresql://" + u[len("postgresql+psycopg2://") :]
-    if not (u.startswith("postgresql://") or u.startswith("postgres://")):
+    u = _strip_postgres_driver(str(url).strip())
+    if not u.startswith("postgresql://"):
         raise ValueError("not a PostgreSQL URL")
     parsed = urlparse(u)
     kw: dict[str, Any] = {}

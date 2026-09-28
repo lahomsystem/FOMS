@@ -414,7 +414,11 @@ def test_namespaced_db_url_resolver_shim_preserves_canonical_contract() -> None:
     """The legacy services path should re-export the canonical DB URL resolver."""
     expected_public_names = [
         "prepare_database_url_env",
-        "postgresql_psycopg2_connect_kwargs_from_url",
+        "postgresql_connect_kwargs_from_url",
+        "sqlalchemy_url",
+        "postgres_dbapi_connect",
+        "pg_error_code",
+        "PG_SQLALCHEMY_DRIVER",
     ]
 
     assert namespaced_db_url_resolver.__all__ == expected_public_names

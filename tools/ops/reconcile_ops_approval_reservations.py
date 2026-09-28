@@ -21,6 +21,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from sqlalchemy import create_engine  # noqa: E402
 from sqlalchemy.orm import sessionmaker  # noqa: E402
 
+from foms.services.db_url_resolver import sqlalchemy_url  # noqa: E402
+
 from foms.services.security.ops_approval import reconcile_reservations  # noqa: E402
 
 
@@ -31,8 +33,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--apply", action="store_true", help="finalize/expire 를 commit(기본 dry-run)")
     args = parser.parse_args(argv)
 
-    primary_engine = create_engine(args.primary_url)
-    target_engine = create_engine(args.target_url)
+    primary_engine = create_engine(sqlalchemy_url(args.primary_url))
+    target_engine = create_engine(sqlalchemy_url(args.target_url))
     primary = sessionmaker(bind=primary_engine)()
     target = sessionmaker(bind=target_engine)()
     try:

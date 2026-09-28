@@ -32,6 +32,8 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..",
 from sqlalchemy import create_engine  # noqa: E402
 from sqlalchemy.orm import Session  # noqa: E402
 
+from foms.services.db_url_resolver import sqlalchemy_url  # noqa: E402
+
 from foms.services.orders.audit_as_axis_drift import (  # noqa: E402
     AS_LEGACY_STATUSES,
     SAMPLE_LIMIT,
@@ -50,7 +52,7 @@ def audit(dsn: str) -> dict[str, Any]:
     Returns:
         :func:`audit_session` 과 동일한 요약 dict.
     """
-    engine = create_engine(dsn, future=True)
+    engine = create_engine(sqlalchemy_url(dsn), future=True)
     with Session(engine) as session:
         return audit_session(session)
 

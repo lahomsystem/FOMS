@@ -7,6 +7,7 @@ import logging
 from sqlalchemy import inspect, text
 
 from db import get_db
+from foms.services.db_url_resolver import pg_error_code
 
 __all__ = [
     "apply_phase2_indexes",
@@ -43,9 +44,8 @@ def _apply_postgresql_timeouts(db) -> None:
 
 def _is_postgresql_lock_timeout(error: Exception) -> bool:
     """Return whether the DB error is a PostgreSQL lock-timeout class failure."""
-    pgcode = getattr(getattr(error, "orig", None), "pgcode", None)
     orig_name = type(getattr(error, "orig", None)).__name__
-    return pgcode == "55P03" or orig_name == "LockNotAvailable"
+    return pg_error_code(error) == "55P03" or orig_name == "LockNotAvailable"
 
 
 def _column_exists(db, table_name: str, column_name: str) -> bool:

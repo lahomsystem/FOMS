@@ -14,6 +14,8 @@ sys.path.insert(
 )
 
 from sqlalchemy import create_engine, text
+
+from foms.services.db_url_resolver import sqlalchemy_url
 from urllib.parse import urlparse, urlunparse, quote, unquote
 
 
@@ -22,15 +24,11 @@ def _get_db_url():
     if not url:
         print("DATABASE_URL 또는 RAILWAY_PUBLIC_DATABASE_URL 필요")
         sys.exit(1)
-    if url.startswith("postgres://"):
-        url = "postgresql://" + url[len("postgres://"):]
-    if "postgresql://" in url and "+psycopg2" not in url:
-        url = url.replace("postgresql://", "postgresql+psycopg2://", 1)
     return url
 
 
 def main():
-    engine = create_engine(_get_db_url())
+    engine = create_engine(sqlalchemy_url(_get_db_url()))
 
     with engine.connect() as conn:
         # 1) '이미주' 포함 주문 중 measurement 3월 16일 관련
