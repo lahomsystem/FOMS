@@ -1597,10 +1597,13 @@ input.wb-pick:disabled,
     }
     .wb-back:hover { text-decoration: none; }
 
-    /* 상세 위 '목록으로' — 긴 상세를 읽는 동안에도 위에 붙어 있다(sticky). */
+    /* 상세 위 '목록으로' — 긴 상세를 읽는 동안에도 위에 붙어 있다(sticky).
+       전역 nav 도 sticky(z 1000)라 top:0 이면 그 밑에 깔려 안 보였다(2026-09-28 스테이징).
+       nav 실측 높이(--wb-nav-h, syncNavOffset)만큼 내리고, 스크롤로 불러올 때도 같은 만큼 띄운다. */
     .wb-pane-back {
         position: sticky;
-        top: 0;
+        top: var(--wb-nav-h, 67px);
+        scroll-margin-top: var(--wb-nav-h, 67px);
         z-index: 5;
         display: flex;
         align-items: center;
