@@ -46,6 +46,7 @@ from alembic.config import Config
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine.url import URL
 
+from foms.services.db_url_resolver import PG_SQLALCHEMY_DRIVER
 from tests.postgres.conftest import _raw_connect, assert_test_db_name
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -109,7 +110,7 @@ def migration_chain_url(pg_admin_url: URL) -> Iterator[URL]:
         conn.close()
 
     try:
-        yield pg_admin_url.set(drivername="postgresql+psycopg2", database=db_name)
+        yield pg_admin_url.set(drivername=f"postgresql+{PG_SQLALCHEMY_DRIVER}", database=db_name)
     finally:
         assert_test_db_name(db_name)  # defense in depth before DROP
         conn = _raw_connect(pg_admin_url, admin_dbname)

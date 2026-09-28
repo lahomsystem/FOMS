@@ -10,6 +10,12 @@
 
 ---
 
+### [2026-09-28] PostgreSQL 드라이버 이름은 `db_url_resolver` 한 곳에서만 정한다 (psycopg3 전환 단계 1)
+- **키워드**: psycopg2, psycopg3, psycopg, driver, sqlalchemy_url, PG_SQLALCHEMY_DRIVER, postgres_dbapi_connect, pg_error_code, pgcode, sqlstate, psycogreen, alembic, sidefx, cron
+- **결정**: 모든 SQLAlchemy 엔진은 `foms.services.db_url_resolver.sqlalchemy_url()` 로 `postgresql+<PG_SQLALCHEMY_DRIVER>` 를 명시하고, 원시 연결은 `postgres_dbapi_connect()`, 오류 코드는 `pg_error_code()` 로만 읽는다. 지금 값은 `psycopg2` 그대로다(동작 변화 0). 계획 `docs/plans/2026-09-28-psycopg3-migration-plan.md`.
+- **이유**: 드라이버를 적지 않은 `postgresql://` 는 SQLAlchemy 2.0 에선 psycopg2, 2.1 에선 psycopg 로 열린다. SIDEFX·cron 3개·alembic 이 이 주소를 썼기 때문에 psycopg2 를 빼거나 SQLAlchemy 를 올리는 순간 조용히 멈추거나 드라이버가 바뀌었다. psycopg3 오류에는 `pgcode` 가 없다(`sqlstate` 만).
+- **영향**: `db.py`·`wdcalculator_db.py`·`foms/services/audit_writer.py`·`foms/services/sidefx_worker.py`·`migrations/env.py`·`alembic.ini`·`tools/cron/cleanup_order_drafts.py`·`tools/ops/purge_*.py` 3개·운영 도구 8개, `foms/services/app_init.py`·`db_indexes.py`(잠금 대기 판정), PG 레인 픽스처. 계약 `tests/domains/test_pg_driver_single_source.py`. 범위 밖: `scripts/migrations/`, psycopg2 직접 사용 도구(단계 3).
+
 ### [2026-09-28] 언어는 유지하고 Flask 3.1·Werkzeug 3.1 로 올린다 — 비밀번호 해시 방식은 한 곳에서 명시
 - **키워드**: flask3, werkzeug3, stack, language-migration, pbkdf2, scrypt, hash_password, max_form_memory_size, urlencoded
 - **결정**: 언어·프레임워크 이전(TS·Go·Java·C#·FastAPI·Django·SPA)은 하지 않고 백엔드는 같은 언어 현대화(Flask 3.1.3·Werkzeug 3.1.9·Jinja2 3.1.6)로 간다(판정 보고서 `docs/plans/2026-09-28-foms-language-migration-assessment-report.md`). 비밀번호 해시는 `foms.services.security.password_policy.hash_password` 한 곳이 `pbkdf2:sha256` 60만 회를 명시한다(사용자 결정: 지금과 같게 — Werkzeug 3 기본 scrypt 불채택). Werkzeug 3 가 뺀 urlencoded 폼 1 MiB 메모리 한도는 `FomsRequest` 가 직접 건다.

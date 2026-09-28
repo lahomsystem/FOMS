@@ -33,6 +33,7 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from foms.services.datetime_kst import now_utc_naive
+from foms.services.db_url_resolver import sqlalchemy_url
 from foms.services.sidefx_outbox import purge_retention
 from models import DomainSideEffectOutbox, SideEffectWorkerHeartbeat
 
@@ -127,8 +128,7 @@ def make_engine_from_env() -> Engine:
     url = os.environ.get("DATABASE_URL") or os.environ.get("FOMS_TEST_DATABASE_URL")
     if not url:
         raise RuntimeError("DATABASE_URL (or FOMS_TEST_DATABASE_URL) is not set")
-    if url.startswith("postgres://"):  # Railway 표기 → SQLAlchemy 표기
-        url = "postgresql://" + url[len("postgres://"):]
+    url = sqlalchemy_url(url)  # Railway postgres:// 표기 → 정본 드라이버 URL
     engine_kwargs: dict = {"pool_pre_ping": True}
     if "sqlite" not in url:
         engine_kwargs["connect_args"] = {"connect_timeout": 10}

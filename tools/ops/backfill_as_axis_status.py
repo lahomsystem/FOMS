@@ -24,6 +24,8 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..",
 from sqlalchemy import create_engine, select  # noqa: E402
 from sqlalchemy.orm import Session  # noqa: E402
 
+from foms.services.db_url_resolver import sqlalchemy_url  # noqa: E402
+
 from foms.services.orders.state_axes import derive_as_axis_status  # noqa: E402
 from models import Order  # noqa: E402
 
@@ -53,7 +55,7 @@ def run(dsn: str, *, apply: bool, batch: int) -> dict[str, Any]:
     Returns:
         {'scanned', 'changed', 'transitions'} 요약 dict.
     """
-    engine = create_engine(dsn, future=True)
+    engine = create_engine(sqlalchemy_url(dsn), future=True)
     scanned = 0
     changed = 0
     transitions: Counter[str] = Counter()

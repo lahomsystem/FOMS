@@ -12,8 +12,15 @@ from __future__ import annotations
 import argparse
 import logging
 import os
+import sys
 import time
 from datetime import datetime, timedelta
+from pathlib import Path
+
+# 저장소 루트를 import 경로에 넣는다 — `python tools/cron/cleanup_order_drafts.py ...` 로 직접 부르면 tools/cron 만 들어간다.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from foms.services.db_url_resolver import sqlalchemy_url  # noqa: E402
 
 logger = logging.getLogger("cleanup_order_drafts")
 
@@ -52,9 +59,7 @@ def _make_session():
     url = os.environ.get("DATABASE_URL")
     if not url:
         raise RuntimeError("DATABASE_URL is not set")
-    # Railway Postgres URL은 postgres:// → postgresql:// 변환 필요
-    if url.startswith("postgres://"):
-        url = "postgresql://" + url[len("postgres://"):]
+    url = sqlalchemy_url(url)  # Railway postgres:// 표기 → 정본 드라이버 URL
     engine_kwargs: dict = {"pool_pre_ping": True}
     # connect_timeout는 psycopg2 전용; pytest sqlite:// 에서는 TypeError 발생
     if "sqlite" not in url:

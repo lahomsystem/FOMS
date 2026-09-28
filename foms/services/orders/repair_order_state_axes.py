@@ -31,6 +31,7 @@ import os
 from dataclasses import dataclass
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
+from foms.services.db_url_resolver import sqlalchemy_url
 from foms.services.orders.stage_override import MAIN_PIPELINE_CODES
 from foms.services.orders.state_axes import (
     AS_VALUES,
@@ -328,7 +329,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     url = os.environ.get("DATABASE_URL")
     if not url:
         raise SystemExit("DATABASE_URL not set")
-    session = sessionmaker(bind=create_engine(url))()
+    session = sessionmaker(bind=create_engine(sqlalchemy_url(url)))()
     try:
         if args.command == "verify-csv":
             with open(args.csv_path, encoding="utf-8") as fh:

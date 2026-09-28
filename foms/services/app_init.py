@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from foms.persistence.main.db import get_db, init_db  # noqa: F401  # init_db: startup-purity spy seam (run_auto_init must NOT call it)
+from foms.services.db_url_resolver import pg_error_code
 from sqlalchemy import text
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
@@ -83,9 +84,8 @@ def _backfill_erp_flat_columns() -> None:
     except OperationalError as e:
         if "db_session" in locals():
             db_session.rollback()
-        pgcode = getattr(getattr(e, "orig", None), "pgcode", None)
         orig_name = type(getattr(e, "orig", None)).__name__
-        if pgcode == "55P03" or orig_name == "LockNotAvailable":
+        if pg_error_code(e) == "55P03" or orig_name == "LockNotAvailable":
             print("[AUTO-INIT] ERP flat-column backfill skipped due to lock timeout.")
             return
         print(f"[AUTO-INIT] ERP flat-column backfill failed: {e}")
@@ -132,9 +132,8 @@ def _verify_erp_flat_columns_ready() -> None:
         )
         print("[AUTO-INIT] ERP flat-column readiness verified.")
     except OperationalError as exc:
-        pgcode = getattr(getattr(exc, "orig", None), "pgcode", None)
         orig_name = type(getattr(exc, "orig", None)).__name__
-        if pgcode == "55P03" or orig_name == "LockNotAvailable":
+        if pg_error_code(exc) == "55P03" or orig_name == "LockNotAvailable":
             print(
                 "[AUTO-INIT] ERP flat-column readiness check skipped due to lock timeout; "
                 "continuing bounded startup policy."

@@ -94,12 +94,17 @@ def _monotonic() -> float:
 def _build_audit_engine() -> Engine:
     """전용 감사 engine 을 생성한다(sqlite 는 메인 engine 재사용).
 
-    메인 engine 과 동일한 DSN·psycopg2 creator 규약을 쓰되 풀만 소형으로 잡는다
-    (``db.py`` 가 percent-encoding 회피를 위해 creator 를 쓰므로 그대로 따른다).
+    메인 engine 과 동일한 DSN·creator 규약(드라이버 정본 ``db_url_resolver``)을 쓰되 풀만
+    소형으로 잡는다(``db.py`` 가 percent-encoding 회피를 위해 creator 를 쓰므로 그대로 따른다).
 
     :return: PostgreSQL 이면 신규 소형 engine, SQLite 면 메인 engine 그 자체.
     """
     from db import DB_URL, engine as main_engine
+    from foms.services.db_url_resolver import (
+        postgres_dbapi_connect,
+        postgresql_connect_kwargs_from_url,
+        sqlalchemy_url,
+    )
 
     url = str(DB_URL)
     if "sqlite" in url:
@@ -115,19 +120,13 @@ def _build_audit_engine() -> Engine:
         "pool_recycle": _AUDIT_POOL_RECYCLE,
     }
     if url.startswith("postgresql"):
-        import psycopg2
-
-        from foms.services.db_url_resolver import (
-            postgresql_psycopg2_connect_kwargs_from_url,
-        )
-
-        connect_kw = postgresql_psycopg2_connect_kwargs_from_url(url)
+        connect_kw = postgresql_connect_kwargs_from_url(url)
 
         def _creator():
-            return psycopg2.connect(**connect_kw)
+            return postgres_dbapi_connect(connect_kw)
 
-        return create_engine("postgresql+psycopg2://", creator=_creator, **kwargs)
-    return create_engine(url, **kwargs)
+        return create_engine(sqlalchemy_url("postgresql://"), creator=_creator, **kwargs)
+    return create_engine(sqlalchemy_url(url), **kwargs)
 
 
 def get_audit_engine() -> Engine:
