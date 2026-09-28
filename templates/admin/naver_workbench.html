@@ -19,7 +19,7 @@
 {% block title %}네이버 수집{% endblock %}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260928c">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260928d">
 {% endblock %}
 
 {% block content %}
@@ -39,7 +39,10 @@
            aria-label="ERP 대시보드로 돌아가기"><span aria-hidden="true">‹</span> ERP</a>
         <span class="wb-bar__title">네이버 수집</span>
         <nav class="wb-tabs" role="tablist">
+            {# 탭 배지는 **손댈 수 있는 주문**이다 — 탭 안 목록(칩 '전체')보다 작을 수 있다.
+               그 차이(취소·반품)는 오른쪽 '손대지 않음' 이 글자로 말한다. title 은 데스크톱 덤이다. #}
             <a class="wb-tab" role="tab" data-tab="work" aria-selected="{{ 'true' if active_tab == 'work' else 'false' }}"
+               title="손댈 수 있는 주문 수입니다 — 취소·반품 주문은 목록에는 있지만 이 수에서 뺍니다."
                href="{{ url_for('admin.naver_ingest_triage', tab='work') }}">처리<span class="wb-tab__n">{{ actionable_count }}주문</span></a>
             {# 이력은 ADMIN + 회계팀·영업팀이 본다(2026-09-07 사용자 결정, 판정 SSOT =
                `_can_view_history`) — 열 수 없는 탭은 아예 안 보인다. 탭만 숨기고 주소를
@@ -69,12 +72,17 @@
            보인다 — 어긋날 여지를 없애는 가장 확실한 방법은 한 번만 말하는 것이다.
            남는 것은 탭 배지가 말할 수 없는 사실 둘뿐이고, 둘 다 **처리 탭의 사실**이라
            이력 탭에서는 내지 않는다(그 탭의 목록과 무관한 수를 띄우면 또 두 말이 된다). #}
+        {# 세 수의 산수(2026-09-28 스테이징 "처리 216주문" vs 칩 "전체 292주문" 혼동):
+           탭 배지 216(손댈 수 있는 주문) + 손대지 않음 76 = 칩 '전체' 292(목록 줄 수).
+           예전 문구 "목록에 있음" 은 **왜 탭 수와 칩 수가 다른지**를 말하지 않았다 —
+           그래서 "처리 수에는 없고 목록에는 있음" 으로 두 수의 관계를 글자로 적는다.
+           `상품주문 N건` 도 탭 배지와 같은 모집단(손댈 수 있는 주문)이다(라우트 wb_counts). #}
         {% if active_tab == 'work' %}
         <span class="wb-bar__fact">상품주문 <b>{{ pending_count }}</b>건</span>
         {% if locked_count %}
         {# 잠금 사유·찾을 자리는 본문에 둔다 — title 만이면 터치 기기가 못 읽는다. #}
         <span class="wb-bar__locked" title="취소·반품이라 어떤 액션도 되지 않습니다.">
-            손대지 않음 <b>{{ locked_count }}주문</b> · 목록에 있음
+            손대지 않음 <b>{{ locked_count }}주문</b> · 처리 수에는 없고 목록에는 있음
         </span>
         {% endif %}
         {% endif %}
@@ -761,6 +769,8 @@
         <a class="wb-chip{{ ' wb-chip--danger' if key == 'claim' else '' }}"
            data-filter="{{ key }}"
            aria-pressed="{{ 'true' if active_filter == key else 'false' }}"
+           {# '전체' 는 목록 줄 수라 탭 배지(손댈 수 있는 주문)보다 클 수 있다 — 이유를 붙인다. #}
+           {% if key == 'all' %}title="목록의 모든 주문입니다 — 처리 수에서 뺀 취소·반품 주문도 들어 있습니다."{% endif %}
            href="{{ url_for('admin.naver_ingest_triage', tab='work', f=key) }}">
             {{ label }} <b class="wb-chip__n">{{ filter_counts.get(key, 0) }}주문</b>
         </a>
@@ -1482,5 +1492,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260928c" defer></script>
+<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260928d" defer></script>
 {% endblock %}

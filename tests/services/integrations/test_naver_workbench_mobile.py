@@ -164,7 +164,7 @@ def test_asset_pins_moved_together():
     """CSS·JS 를 고쳤으면 핀을 함께 올린다 — 서비스워커 캐시가 옛 파일을 준다."""
     markup = TEMPLATE.read_text(encoding="utf-8")
 
-    assert markup.count("?v=20260928c") == 2
+    assert markup.count("?v=20260928d") == 2
     assert "?v=20260914b" not in markup
 
 
@@ -193,7 +193,9 @@ def test_phone_css_rules_live_in_the_phone_media_query():
     bulk = phone.split("#wb-bulk.on {")[1].split("}")[0]
     assert "position: fixed" in bulk and "bottom: 0" in bulk
     assert "safe-area-inset-bottom" in bulk
-    assert "#4a55b8" in phone.split("#wb-bulk-submit {")[1].split("}")[0]
+    # 색은 화면 전체 `.naver-workbench .btn-primary` 한 벌이 든다(2026-09-28) — 폰 규칙은 폭만.
+    assert "flex: 1 1 auto" in phone.split("#wb-bulk-submit {")[1].split("}")[0]
+    assert "#4a55b8" not in phone.split("#wb-bulk-submit {")[1].split("}")[0], "색이 두 벌이 된다"
     # 알림 요약 띠 · 글자 크기 조절 · ERP 링크.
     assert '.wb-alerts__toggle[aria-expanded="true"] + .wb-alerts__body { display: block; }' in phone
     assert ".wb-alerts__body { display: none;" in phone
@@ -261,3 +263,104 @@ def test_phone_back_button_sits_below_sticky_global_nav():
     rule = phone.split(".wb-pane-back {", 1)[1].split("}", 1)[0]
     assert "top: var(--wb-nav-h" in rule
     assert "scroll-margin-top: var(--wb-nav-h" in rule
+
+
+# --------------------------------------------------------------------------- #
+# 주 조작 버튼 대비(2026-09-28) — 전역 #007AFF + 흰 글자 = 4.0:1 (AA 미달)
+# --------------------------------------------------------------------------- #
+
+def _contrast(fg: str, bg: str) -> float:
+    """WCAG 2.x 대비율."""
+    def lum(hex_color: str) -> float:
+        hex_color = hex_color.lstrip("#")
+        channels = [int(hex_color[i:i + 2], 16) / 255 for i in (0, 2, 4)]
+        lin = [c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4 for c in channels]
+        return 0.2126 * lin[0] + 0.7152 * lin[1] + 0.0722 * lin[2]
+
+    high, low = sorted((lum(fg), lum(bg)), reverse=True)
+    return (high + 0.05) / (low + 0.05)
+
+
+def _outside_media(css: str) -> str:
+    """미디어 쿼리 블록을 전부 걷어낸 나머지 — 모든 폭에 걸리는 규칙만 남는다."""
+    out, index = [], 0
+    while True:
+        start = css.find("@media", index)
+        if start == -1:
+            out.append(css[index:])
+            return "".join(out)
+        out.append(css[index:start])
+        depth = 0
+        for cursor in range(css.index("{", start), len(css)):
+            if css[cursor] == "{":
+                depth += 1
+            elif css[cursor] == "}":
+                depth -= 1
+                if depth == 0:
+                    index = cursor + 1
+                    break
+
+
+def _rule(css: str, selector: str) -> str:
+    """`selector {` 로 시작하는 첫 규칙 본문."""
+    return css.split(selector + " {")[1].split("}")[0]
+
+
+def _hex(body: str, prop: str) -> str:
+    """규칙 본문에서 `prop: #rrggbb` 값을 꺼낸다."""
+    found = re.search(prop + r":\s*(#[0-9a-fA-F]{6})", body)
+    assert found, f"{prop} 가 6자리 색으로 적혀 있지 않다: {body}"
+    return found.group(1)
+
+
+def test_primary_buttons_meet_aa_contrast_on_every_viewport():
+    """이 화면의 `.btn-primary` 는 폰·데스크톱 모두 흰 글자 대비 4.5:1 이상이다.
+
+    전역 `.btn-primary`(style-pro-max.css, !important)는 #007AFF 라 4.0:1 이다. 상세
+    액션 줄('+ 주문 만들기'·'발송처리')과 모달 확인 버튼이 그 색이었고, 폰 벌크 버튼만
+    따로 칠해져 있었다. 규칙은 **미디어 쿼리 밖**(모든 폭)에 있고 이 화면 범위에만 건다.
+    """
+    css = CSS.read_text(encoding="utf-8")
+    everywhere = _outside_media(css)
+
+    base = _rule(everywhere, ".naver-workbench .btn-primary")
+    assert "!important" in base, "전역 규칙이 !important 라 같은 무기가 아니면 진다"
+    assert _contrast(_hex(base, "color"), _hex(base, "background")) >= 4.5
+
+    hover = _rule(everywhere, ".naver-workbench .btn-primary:hover,\n"
+                              ".naver-workbench .btn-primary:focus-visible")
+    assert _contrast(_hex(hover, "color"), _hex(hover, "background")) >= 4.5
+    active = _rule(everywhere, ".naver-workbench .btn-primary:active")
+    assert _contrast(_hex(active, "color"), _hex(active, "background")) >= 4.5
+
+    # 끈 상태 — 부트스트랩 opacity .65 로 흐리면 흰 글자가 3:1 아래로 떨어진다.
+    disabled = _rule(everywhere, ".naver-workbench .btn-primary:disabled,\n"
+                                 ".naver-workbench .btn-primary.disabled")
+    assert "opacity: 1" in disabled
+    assert _contrast(_hex(disabled, "color"), _hex(disabled, "background")) >= 4.5
+
+    # 포커스 테두리는 흰 바탕과 3:1 이상(비텍스트 대비).
+    # 첫 짝은 hover 와 묶인 색 규칙이다 — 테두리는 단독 규칙(마지막 짝)에 있다.
+    focus = everywhere.split(".naver-workbench .btn-primary:focus-visible {")[-1].split("}")[0]
+    ring = re.search(r"outline:\s*2px solid (#[0-9a-fA-F]{6})", focus)
+    assert ring and _contrast(ring.group(1), "#ffffff") >= 3.0, focus
+
+
+def test_primary_button_rule_never_touches_global_selector():
+    """전역 `.btn-primary` 를 이 파일이 다시 쓰지 않는다 — 범위는 `.naver-workbench` 뿐."""
+    css = CSS.read_text(encoding="utf-8")
+    for line in css.splitlines():
+        stripped = line.strip()
+        if stripped.startswith(".btn-primary"):
+            raise AssertionError(f"범위 없는 전역 규칙: {stripped}")
+
+
+def test_pane_primary_actions_render_inside_the_scoped_root(client, workbench_on):
+    """주 조작 버튼(상세 액션 줄·벌크)이 `.naver-workbench` 안에서 그려진다 — 범위 밖이면 색이 안 닿는다."""
+    _login(client)
+    body = client.get(TRIAGE_PATH, query_string={"tab": "work"}).get_data(as_text=True)
+
+    root = body.index('class="container-fluid naver-workbench"')
+    for marker in ('id="wb-bulk-submit"', 'id="wb-bulk-confirm"'):
+        assert body.index(marker) > root, marker
+
