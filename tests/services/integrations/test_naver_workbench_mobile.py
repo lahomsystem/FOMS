@@ -164,7 +164,7 @@ def test_asset_pins_moved_together():
     """CSS·JS 를 고쳤으면 핀을 함께 올린다 — 서비스워커 캐시가 옛 파일을 준다."""
     markup = TEMPLATE.read_text(encoding="utf-8")
 
-    assert markup.count("?v=20260928a") == 2
+    assert markup.count("?v=20260928b") == 2
     assert "?v=20260914b" not in markup
 
 
@@ -224,3 +224,30 @@ def test_new_markup_adds_no_inline_style():
 
     assert 'style="' not in back
     assert 'style="' not in banner
+
+
+def test_phone_pane_has_back_to_list_outside_swapped_fragment(client, workbench_on, monkeypatch):
+    """폰은 목록 아래에 상세가 붙는다 — 292줄이면 약 32,000px 아래라 '목록으로' 없이는
+    돌아갈 길이 스크롤뿐이었다(2026-09-28 스테이징 390px 확인). 버튼은 응답으로 통째로
+    갈아 끼우는 #wb-pane **바깥**(바로 앞)에 있어야 교체 뒤에도 남는다."""
+    _empty_strips(monkeypatch)
+    _login(client)
+
+    body = client.get(TRIAGE_PATH, query_string={"tab": "work"}).get_data(as_text=True)
+
+    assert 'id="wb-pane-back"' in body
+    assert body.index('id="wb-pane-back"') < body.index('<div id="wb-pane"')
+    js = JS.read_text(encoding="utf-8").replace("\r\n", "\n")
+    assert "'wb-pane-back': backToList" in js
+    assert "a.wb-row[aria-current=\"true\"]" in js.split("function backToList(")[1][:400]
+    css = CSS.read_text(encoding="utf-8").replace("\r\n", "\n")
+    assert ".wb-pane-back { display: none; }" in css
+    assert ".wb-pane-back {" in _media_block(css, "@media (max-width: 767.98px)")
+
+
+def test_row_product_line_is_block_so_ellipsis_applies():
+    """제품명 줄은 span 이다 — inline 이면 text-overflow 가 먹지 않고 행 끝에서 글자가
+    그냥 잘린다. 말줄임이 걸리려면 block 이어야 한다."""
+    css = CSS.read_text(encoding="utf-8").replace("\r\n", "\n")
+    rule = css.split(".wb-row__line2 {", 1)[1].split("}", 1)[0]
+    assert "display: block;" in rule and "text-overflow: ellipsis;" in rule

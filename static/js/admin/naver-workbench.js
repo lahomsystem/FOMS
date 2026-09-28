@@ -137,7 +137,8 @@
         'wb-origin-return-confirm': submitOriginReturn,
         'wb-refresh-all': submitRefreshAll,
         'wb-seek-run': submitSeek,
-        'wb-alerts-toggle': toggleAlerts
+        'wb-alerts-toggle': toggleAlerts,
+        'wb-pane-back': backToList
     };
 
     /** 폰 폭(CSS `@media (max-width: 767.98px)` 의 짝). 폰 전용 동작만 이 값을 문다. */
@@ -724,9 +725,23 @@
         if (!isPhone()) {
             return;   // 데스크톱은 상세가 옆 칸에 붙어 있다 — 스크롤을 건드리지 않는다.
         }
-        var pane = document.getElementById('wb-pane');
-        if (pane && typeof pane.scrollIntoView === 'function') {
-            pane.scrollIntoView({ block: 'start', behavior: 'auto' });
+        // '목록으로' 버튼부터 보이게 내린다 — 상세 제목이 화면 위 끝에 붙어 가려지지 않고,
+        // 돌아갈 길이 첫 화면에 같이 보인다.
+        var anchor = document.getElementById('wb-pane-back') || document.getElementById('wb-pane');
+        if (anchor && typeof anchor.scrollIntoView === 'function') {
+            anchor.scrollIntoView({ block: 'start', behavior: 'auto' });
+        }
+    }
+
+    /** 폰 '목록으로' — 방금 연 행으로 되돌아간다(없으면 목록 맨 위). 초점도 그 행에 둔다. */
+    function backToList() {
+        var row = document.querySelector('a.wb-row[aria-current="true"]')
+            || document.querySelector('a.wb-row');
+        if (row && typeof row.scrollIntoView === 'function') {
+            row.scrollIntoView({ block: 'center', behavior: 'auto' });
+            try { row.focus({ preventScroll: true }); } catch (e) { row.focus(); }
+        } else {
+            window.scrollTo(0, 0);
         }
     }
 

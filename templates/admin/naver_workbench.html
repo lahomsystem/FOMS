@@ -19,7 +19,7 @@
 {% block title %}네이버 수집{% endblock %}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260928a">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260928b">
 {% endblock %}
 
 {% block content %}
@@ -927,6 +927,12 @@
 
         {# 상세 pane. 전체 렌더와 프래그먼트 응답이 이 파셜 하나를 공유한다(계약 §3.1).
            최상위 요소가 #wb-pane 이라 JS 가 응답으로 그대로 갈아 끼운다. #}
+        {# 폰 전용 '목록으로'(2026-09-28 스테이징 확인). 폰은 목록 아래에 상세가 붙어서 행을
+           누르면 수백 줄 아래로 내려간다(292줄 = 약 32,000px) — 돌아갈 길이 스크롤뿐이었다.
+           #wb-pane 은 응답으로 통째로 갈아 끼우므로 버튼은 그 바깥에 둔다. 데스크톱은 CSS 가 숨긴다. #}
+        <button type="button" class="wb-pane-back" id="wb-pane-back">
+            <i class="fas fa-chevron-up" aria-hidden="true"></i> 목록으로
+        </button>
         {{ mark('pane') }}
         {% include "admin/partials/naver_workbench_pane.html" %}
         {{ mark('pane') }}
@@ -1476,5 +1482,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260928a" defer></script>
+<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260928b" defer></script>
 {% endblock %}
