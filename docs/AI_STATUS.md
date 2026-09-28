@@ -10,7 +10,7 @@ Flask 3.1 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
-- [2026-09-28] **모바일 v3 셸 삭제 + 모바일 3건 + 광폭 PC 모바일 표면 생략 운영 반영(PR #433 · production `acf1714c1`)** — 전원 v2. `foms_vw` 쿠키+`wants_mobile_width_surfaces` 로 넓은 마우스 PC 는 대시보드 모바일 표면 생략(창 좁히면 셸 재요청). `FOMS_V3_SHELL_COHORT` 는 v2 코호트 키(삭제 금지). 잔여: 아이폰 실기기 날짜 탭
+- [2026-09-28] **모바일 v3 셸 삭제 + 모바일 3건 + 광폭 PC 모바일 표면 생략 운영 반영(PR #433 · production `acf1714c1`)** — 전원 v2. `foms_vw` 쿠키+`wants_mobile_width_surfaces` 로 넓은 마우스 PC 는 대시보드 모바일 표면 생략(창 좁히면 셸 재요청). `FOMS_V3_SHELL_COHORT` 는 v2 코호트 키(삭제 금지). 스테이징 v3 env 2종 삭제(운영엔 없었음). PC 헤더 배지 겹침 수정은 deploy `112183b8d`(운영 미승격). 잔여: 아이폰 실기기 날짜 탭
 - [2026-09-28] **psycopg3 전환 단계 1 — PG 드라이버 이름을 `db_url_resolver` 한 곳으로(deploy)** — 동작 변화 0. 단계 2(드라이버 교체)·3(psycopg2 삭제)은 승인 대기, 계획 `docs/plans/2026-09-28-psycopg3-migration-plan.md`. 앞선 Flask 3.1 상향은 production `ec7e5d843` 완료
 - [2026-09-28] **실측 모바일 카드 현장 메모(deploy)** — 주소·연락처 특이사항은 그 줄 밑, 실측 특이사항·비고·네이버 배송메모는 "현장 메모" 상자, 목록 줄 "가기 전 확인 N". `foms/services/measurement/site_memo.py`. 잔여: 스테이징 실화면
 - [2026-09-23] **완료 quest 재전이 버튼 = 승인 버튼 이름 · AS 접수 완료 알림 · 발송 기록 칩 통합(PR #419·#420·#423 · production `c74ef1f5e`)** — erp-send-trace.js. 잔여: 링크 칩 실화면
