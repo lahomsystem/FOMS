@@ -18,12 +18,17 @@
   var ENDPOINT = '/admin/naver-ingest/triage/pending-count';
   var SELECTOR = '[data-foms-nav-triage-badge]';
 
-  // ERP 셸은 프래그먼트를 갈아 끼우며 이 스크립트를 다시 평가할 수 있다. nav 는 프래그먼트
-  // 밖이라 한 번만 채우면 된다 — entry singleton 이 이 저장소의 표준(erp-dashboard-entry.js).
+  // ERP 셸은 프래그먼트를 갈아 끼우며 이 스크립트를 다시 평가할 수 있다 — entry singleton 이
+  // 이 저장소의 표준(erp-dashboard-entry.js). 데스크톱 nav 는 프래그먼트 밖이지만 모바일 서랍
+  // (erp_mobile_menu_drawer.html)은 #main-content 안이라 교체 때마다 hidden 인 새 자리가 온다.
+  // 그래서 받은 숫자를 들고 있다가 교체 이벤트마다 다시 칠한다(요청은 다시 안 보낸다).
   if (window.__FOMS_NAV_TRIAGE_BADGE_BOUND) return;
   window.__FOMS_NAV_TRIAGE_BADGE_BOUND = true;
 
+  var lastCount = null;
+
   function paint(count) {
+    lastCount = count;
     var nodes = document.querySelectorAll(SELECTOR);
     for (var i = 0; i < nodes.length; i++) {
       if (count > 0) {
@@ -50,6 +55,11 @@
         /* 뱃지는 부가 정보다 — 숨긴 채로 둔다 */
       });
   }
+
+  document.addEventListener('foms:erp-shell-fragment-swapped', function () {
+    if (lastCount === null) load();
+    else paint(lastCount);
+  });
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', load);
