@@ -10,6 +10,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
+- [2026-09-28] **실측 모바일 카드 현장 메모(deploy)** — 주소·연락처 특이사항은 그 줄 밑, 실측 특이사항·비고·네이버 배송메모는 "현장 메모" 상자, 목록 줄 "가기 전 확인 N". `foms/services/measurement/site_memo.py`. 잔여: 스테이징 실화면
 - [2026-09-23] **실측 모바일 통합 화면(구현·리뷰 수정 중)** — 체크리스트+카드 두 벌을 담당자 탭·접기·바텀시트 한 목록으로. 스펙 `docs/specs/2026-09-23-measurement-mobile-unified-list_SPEC.md`, 원장 `…-unified-findings-ledger.md`. 선행(체크리스트·긴급 알림·색 A안)은 운영 PR #421·#422, 저장 시트·시간순은 deploy. 잔여: 아이폰 실기기 사진첩 저장 확인
 - [2026-09-22] **시공일 지난 적체 주문 일괄 완료 — 운영 적용 완료(413건)** — 1차(+7일) 413 + 2차(시공일<오늘, 사용자 수동 시공일 입력 뒤) 174 = 587건. 실측 858→237 · 도면 101→48 · 완료 1451→2038. AS 탭 건 143 은 stage 만(AS 축 지문 두 차례 모두 적용 전후 동일 · AS 탭 불변). 스냅샷 `C:/tmp/foms-backlog-complete-20260922/`(rollback 가능). 잔여: 시공일 없는 건 CSV 영업 검토. 스펙 `docs/plans/2026-09-22-past-construction-bulk-complete-spec.md`
 - [2026-09-20] **고객 컨펌 승인 → 생산 단계 자동 이동 + 생산 보드 run 축 + 모바일 동기화(deploy 대기)** — 승인 완료 판정을 `check_quest_approvals_complete` 하나로(담당자 승인을 생산 게이트가 못 읽어 409). 제작 시작 = run 발급, 제작 취소 = run 종결. 원장 `docs/plans/2026-09-17-confirm-to-production-workflow-ledger.md`

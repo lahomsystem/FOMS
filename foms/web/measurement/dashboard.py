@@ -21,6 +21,7 @@ from foms.services.measurement_time import (
     measurement_time_minutes_of,
 )
 from foms.services.measurement.manager_color import load_manager_color_slots
+from foms.services.measurement.site_memo import build_site_memo
 from foms.services.measurement.visit_check import (
     build_measurement_glance_groups,
     is_visit_marked,
@@ -487,6 +488,8 @@ def erp_measurement_dashboard():
             # 큐 카드(erp_mobile_queue_card_v2.html:72)는 이미 매크로를 부른다 -
             # 이 키를 채우는 순간 실측 모바일 카드에도 마크가 뜬다(템플릿 편집 없음).
             _row['channel_source'] = getattr(_o, 'channel_source', None)
+            # 현장 메모 5종(주소·연락처·실측 특이사항·비고·네이버 고객 요청) — 카드·목록 알약이 읽는다.
+            _row.update(build_site_memo(_o))
             _row['measurement_visit_done'] = bool(_visit_date) and is_visit_marked(
                 _o.structured_data, _visit_date
             )
