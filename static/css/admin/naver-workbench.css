@@ -454,6 +454,9 @@ input.wb-pick:disabled,
     text-overflow: ellipsis;
 }
 .wb-row__line2 {
+    /* span 이라 display 가 없으면 inline — 그러면 아래 말줄임이 먹지 않고 행 끝에서 글자가
+       그냥 잘린다(2026-09-28 스테이징 390px 확인). 줄 하나짜리 블록으로 둔다. */
+    display: block;
     color: var(--wb-muted);
     /* 없으면 Bootstrap 본문 16px 을 상속해 **행에서 가장 큰 글자**가 된다 —
        고객명(13.5px)보다 제품명이 커서 위계가 뒤집히고, 같은 칸에 들어가는 글자 수가
@@ -1570,6 +1573,7 @@ input.wb-pick:disabled,
    것뿐이다. 요소 id·클래스·data-* 는 그대로 두고 배치만 바꾼다(JS·테스트가 문다).
    터치 목표는 44px 이상, 글자 대비는 4.5:1 이상으로 맞춘다. */
 .wb-back { display: none; }
+.wb-pane-back { display: none; }
 .wb-alerts__toggle { display: none; }
 
 @media (max-width: 767.98px) {
@@ -1592,6 +1596,26 @@ input.wb-pick:disabled,
         text-decoration: none;
     }
     .wb-back:hover { text-decoration: none; }
+
+    /* 상세 위 '목록으로' — 긴 상세를 읽는 동안에도 위에 붙어 있다(sticky). */
+    .wb-pane-back {
+        position: sticky;
+        top: 0;
+        z-index: 5;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        width: 100%;
+        min-height: 44px;
+        margin: 8px 0;
+        border: 1px solid var(--wb-line, #dde1e6);
+        border-radius: 10px;
+        background: #ffffff;
+        color: #4a55b8;
+        font-size: calc(14px * var(--wb-fs, 1));
+        font-weight: 700;
+    }
 
     .wb-bar--head .wb-bar__title {
         order: 1;
