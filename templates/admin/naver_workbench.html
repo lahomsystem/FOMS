@@ -19,7 +19,7 @@
 {% block title %}네이버 수집{% endblock %}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260914b">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260928a">
 {% endblock %}
 
 {% block content %}
@@ -30,6 +30,13 @@
     {# 상태 스트립 — 이름은 화면에 하나("네이버 수집"). 진입구도 하나다.
        v2 의 '수집 상태' 버튼은 제거했다: 바로 아래 이력 탭과 같은 곳을 가리키던 중복이었다. #}
     <div class="wb-bar wb-bar--head">
+        {# 폰에서 ERP 로 돌아가는 길(2026-09-28 모바일 2단계). 이 화면은 admin 레이아웃이라
+           v2 모바일 하단 탭이 없다 — 셸(erp_mobile_shell)을 여기 싣지 않은 까닭은 셸의
+           하단 탭이 HTMX 로 #main-content 를 ERP 조각으로 갈아 끼우고(/admin 화면이 통째로
+           다른 화면이 된다), 코호트 판정·전용 CSS 묶음·body 클래스가 /erp 경로에만 걸려
+           있기 때문이다. 데스크톱은 전역 nav 가 같은 일을 하므로 CSS 가 폰에서만 보인다. #}
+        <a class="wb-back" href="{{ url_for('erp_dashboard.erp_dashboard') }}"
+           aria-label="ERP 대시보드로 돌아가기"><span aria-hidden="true">‹</span> ERP</a>
         <span class="wb-bar__title">네이버 수집</span>
         <nav class="wb-tabs" role="tablist">
             <a class="wb-tab" role="tab" data-tab="work" aria-selected="{{ 'true' if active_tab == 'work' else 'false' }}"
@@ -141,6 +148,35 @@
     {# 유령 주문 띠(R-2 · 2026-08-25) — 네이버 결제가 전부 취소됐는데 살아 있는 ERP 주문.
        실패 띠 **위**에 두지 않는다: 실패는 방금 내가 누른 것의 결과라 더 급하다.
        이 띠는 쌓여 있던 사실이라 그 아래에서 조용히 기다리면 된다. #}
+    {#
+      폰 요약 띠(2026-09-28 모바일 2단계) — 폰(≤767.98px)에서는 아래 띠 다섯 종이 표째로
+      쌓여 목록이 화면 밖으로 밀려났다. 폰에서만 **한 줄 요약**으로 접고, 누르면 그 띠들을
+      그대로 펼친다(띠 자체는 손대지 않는다 — 버튼·data-* 배선이 전부 그 안에 산다).
+      데스크톱은 CSS 가 요약 버튼을 숨기고 띠를 늘 펼쳐 둔다(예전 화면 그대로).
+      숫자는 **실제로 그려지는 띠**만 센다 — 아래 각 띠의 `{% if %}` 조건과 한 벌이어야
+      요약이 없는 띠를 말하지 않는다. 숫자가 없는 띠(발송 완료 등)는 이름만 싣는다.
+    #}
+    {% set _alert_parts = [] %}
+    {% if ghosts and ghosts.count %}{% set _ = _alert_parts.append(('유령 주문', ghosts.count)) %}{% endif %}
+    {% if partial_claims and partial_claims.count %}{% set _ = _alert_parts.append(('부분 취소', partial_claims.count)) %}{% endif %}
+    {% if origin_cleanup and origin_cleanup.count %}{% set _ = _alert_parts.append(('옛 주문 정리', origin_cleanup.count)) %}{% endif %}
+    {% if bulk_dispatch and bulk_dispatch.show %}
+    {% if bulk_dispatch.state == 'done' %}{% set _ = _alert_parts.append(('오늘 발송 완료', 0)) %}
+    {% elif bulk_dispatch.state == 'none' %}{% set _ = _alert_parts.append(('오늘 발송 · 붙일 집', bulk_dispatch.unlinked or 0)) %}
+    {% else %}{% set _ = _alert_parts.append(('오늘 발송', bulk_dispatch.count or 0)) %}{% endif %}
+    {% endif %}
+    {% if failures %}{% set _ = _alert_parts.append(('처리 실패', failures|length)) %}{% endif %}
+    {% set _alert_total = _alert_parts | map(attribute=1) | sum %}
+    {% if _alert_parts %}
+    <div class="wb-alerts" data-wb-alert-sections="{{ _alert_parts|length }}" data-wb-alert-total="{{ _alert_total }}">
+        <button type="button" class="wb-alerts__toggle" id="wb-alerts-toggle"
+                aria-expanded="false" aria-controls="wb-alerts-body">
+            <span class="wb-alerts__head">{% if _alert_total %}확인 필요 <b>{{ _alert_total }}</b>건{% else %}알림{% endif %}</span>
+            <span class="wb-alerts__parts">{% for label, n in _alert_parts %}{{ label }}{% if n %} {{ n }}{% endif %}{% if not loop.last %} · {% endif %}{% endfor %}</span>
+            <i class="fas fa-chevron-right wb-alerts__chev" aria-hidden="true"></i>
+        </button>
+        <div class="wb-alerts__body" id="wb-alerts-body">
+    {% endif %}
     {% if ghosts and ghosts.count %}
     <details class="wb-ghost" data-foms-no-autodismiss>
         <summary class="wb-ghost__head">
@@ -149,6 +185,7 @@
             {# 정의는 위 제목, 행동은 `재결제 짝` 칸·버튼, 잠금은 진행 칸이 든다 — 여기는 모집단만. #}
             <span class="wb-ghost__sub">네이버가 아직 확정하지 않은 취소 요청도 함께 보입니다.</span>
         </summary>
+        <div class="wb-scroll">{# 폰에서만 가로 스크롤(표가 화면을 넘지 않게) #}
         <table class="wb-ghost__list">
             <thead>
                 <tr><th>주문</th><th>네이버 주문</th><th>진행</th><th>재결제 짝</th><th class="text-end">할 일</th></tr>
@@ -248,6 +285,7 @@
                 {% endfor %}
             </tbody>
         </table>
+        </div>
     </details>
     {% endif %}
 
@@ -264,6 +302,7 @@
             <span class="wb-ghost__sub">한 집이 통째로 취소·반품됐는데 같은 주문에 살아 있는 결제가 남아
                 있습니다 — 위 띠(전부 취소)에는 안 나옵니다. 네이버가 아직 확정하지 않은 건만 셉니다.</span>
         </summary>
+        <div class="wb-scroll">{# 폰에서만 가로 스크롤(표가 화면을 넘지 않게) #}
         <table class="wb-ghost__list">
             <thead>
                 <tr><th>주문</th><th>네이버 주문</th><th>진행</th><th>살아 있는 결제</th><th class="text-end">할 일</th></tr>
@@ -309,6 +348,7 @@
                 {% endfor %}
             </tbody>
         </table>
+        </div>
     </details>
     {% endif %}
 
@@ -330,6 +370,7 @@
             <button type="button" class="btn btn-sm btn-outline-primary ms-auto"
                     id="wb-origin-refresh-all">전부 다시 읽기</button>
         </summary>
+        <div class="wb-scroll">{# 폰에서만 가로 스크롤(표가 화면을 넘지 않게) #}
         <table class="wb-ghost__list">
             <thead>
                 <tr><th>주문</th><th>옛 네이버 주문</th><th>할 일</th><th>마지막으로 읽은 때</th><th class="text-end">열기</th></tr>
@@ -391,6 +432,7 @@
                 {% endfor %}
             </tbody>
         </table>
+        </div>
     </details>
     {% endif %}
 
@@ -549,6 +591,7 @@
         <div class="wb-bulkdispatch__status" data-naver-bulk-dispatch-status hidden></div>
         {% include 'partials/shared/naver_bulk_dispatch_button.html' %}
         {% endif %}
+        <div class="wb-scroll">{# 폰에서만 가로 스크롤(표가 화면을 넘지 않게) #}
         <table class="wb-ghost__list">
             <thead>
                 <tr><th>주문</th><th>네이버 주문</th><th>실측</th><th>발송</th><th class="text-end">열기</th></tr>
@@ -619,6 +662,7 @@
                 {% endfor %}
             </tbody>
         </table>
+        </div>
     </details>
     {% endif %}
 
@@ -628,6 +672,7 @@
             <span class="fw-semibold">네이버 처리 실패 {{ failures|length }}주문</span>
             {# 훈수는 같은 띠의 재시도 버튼·행별 사유 칸이 든다. 자동닫힘은 `data-foms-no-autodismiss` 가 보장한다. #}
         </div>
+        <div class="wb-scroll">
         <table class="wb-result__list">
             {% for row in failures %}
             <tr>
@@ -658,6 +703,7 @@
             </tr>
             {% endfor %}
         </table>
+        </div>
         <div class="wb-result__foot">
             {# 성공한 집은 대상에서 아예 뺀다 — 재시도가 성공분까지 건드리면 안 된다. #}
             {# `<링크 id>:<작업>` 쌍으로 넘긴다 — 실패한 그 작업으로 다시 보내야 한다.
@@ -687,6 +733,10 @@
             {% endif %}
         </div>
     </section>
+    {% endif %}
+    {% if _alert_parts %}
+        </div>{# /.wb-alerts__body #}
+    </div>{# /.wb-alerts #}
     {% endif %}
 
 
@@ -1426,5 +1476,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260914b" defer></script>
+<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260928a" defer></script>
 {% endblock %}
