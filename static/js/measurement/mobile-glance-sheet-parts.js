@@ -36,7 +36,8 @@
     }
 
     function placePhotos(card) {
-        var meta = card.querySelector('.queue-card__meta');
+        // 현장 메모 상자(data-meas-memo)가 있으면 그 아래로 — 주소·연락처·메모를 먼저 읽고 사진을 본다.
+        var meta = card.querySelector('[data-meas-memo]') || card.querySelector('.queue-card__meta');
         card.querySelectorAll('.queue-card__attachments').forEach(function (att) {
             var has = !!att.querySelector('img');
             att.hidden = !has;

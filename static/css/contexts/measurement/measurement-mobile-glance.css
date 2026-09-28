@@ -1270,3 +1270,160 @@ html.foms-meas-sheet-open .foms-shell-fab {
 .foms-meas-glance--unified .foms-meas-glance__tab[data-mgr-color]:not([data-mgr-color="0"])[aria-selected="true"]:not(.is-full) .foms-meas-glance__tab-c {
   color: var(--mgr-ink);
 }
+
+/* ══ 현장 메모(2026-09-28 목업 ① "종류별 색 알약") ══
+   주소·연락처 특이사항은 그 줄 바로 밑 연분홍 칸(매크로 dd.foms-queue-card-v2__row-note),
+   실측 특이사항·비고·고객 요청은 흰 상자 한 개에 줄로 — 종류는 알약 색(남색·회색·초록)과 이름 글자로 가른다.
+   분홍은 "가기 전에 볼 것" 표식(주소·연락처 메모·개수 알약)에만 쓴다. 이 팔레트에 분홍·진초록 토큰이 없어 여기서 정한다. */
+.foms-meas-glance,
+.foms-meas-sheet,
+.erp-measurement-mobile-list {
+  --foms-meas-pink-50: #fdeef3;
+  --foms-meas-pink-200: #f7cddc;
+  --foms-meas-pink-400: #ef9ab9;
+  --foms-meas-pink-700: #a8285a;
+  --foms-meas-pink-ink: #4a1a2c;
+  --foms-meas-green-100: #dcfce7;
+  --foms-meas-green-700: #047857;
+}
+.foms-queue-card-v2__row-note {
+  position: relative;
+  z-index: 1; /* 줄 전체 지도·전화 누름 칸(a::before) 위 — 메모를 눌러도 지도·전화가 열리지 않게 */
+  margin: 2px 0 0;
+  padding: 8px 10px;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--foms-meas-pink-ink);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  background: var(--foms-meas-pink-50);
+  border: 1px solid var(--foms-meas-pink-200);
+  border-radius: 10px;
+}
+.foms-queue-card-v2__row-note > b {
+  font-weight: 800;
+  color: var(--foms-meas-pink-700);
+}
+/* 시트 압축 줄(C3)은 한 줄 flex — 메모가 있는 줄만 줄바꿈하고, 메모는 값(dd) 칸 시작에 맞춘다. 지도·전화 아이콘은 첫 줄 높이에. */
+.foms-meas-sheet .foms-meas-sheet__slot .queue-card__meta > [data-queue-card-has-note] {
+  flex-wrap: wrap;
+  row-gap: 4px;
+  padding-bottom: 10px;
+}
+/* 값 칸은 기준 폭 0 — 줄바꿈을 켜도 이름표(dt)와 같은 첫 줄에 남는다(auto 면 긴 주소가 다음 줄로 밀렸다, 스테이징 #4172). */
+.foms-meas-sheet .foms-meas-sheet__slot .queue-card__meta > [data-queue-card-has-note] > dd:not(.foms-queue-card-v2__row-note) {
+  flex: 1 1 0;
+}
+.foms-meas-sheet .foms-meas-sheet__slot .queue-card__meta > [data-queue-card-has-note] > dd.foms-queue-card-v2__row-note {
+  display: block;
+  flex: 1 1 100%;
+  margin: 0 0 0 52px; /* dt 40 + gap 12. 오른쪽 아이콘 자리(줄 padding 40)는 비워 둔다 — 넓히면 한 줄 연락처의 전화 아이콘을 가렸다(스테이징 #4752) */
+  -webkit-line-clamp: unset;
+  font-size: 14px;
+}
+.foms-meas-sheet .foms-meas-sheet__slot .queue-card__meta > [data-queue-card-has-note]::after {
+  top: 6px;
+  margin-top: 0;
+}
+.foms-meas-memo {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 14px 0 0;
+}
+.foms-meas-memo__head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.foms-meas-memo__title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--foms-color-neutral-900);
+}
+.foms-meas-memo__count {
+  min-width: 20px;
+  padding: 1px 6px;
+  box-sizing: border-box;
+  font-size: 12px;
+  font-weight: 800;
+  text-align: center;
+  color: var(--foms-meas-pink-700);
+  background: var(--foms-meas-pink-50);
+  border-radius: 99px;
+}
+.foms-meas-memo__box {
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid var(--foms-color-neutral-200);
+  border-radius: 12px;
+}
+.foms-meas-memo__row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+  padding: 11px 12px;
+}
+.foms-meas-memo__row + .foms-meas-memo__row {
+  border-top: 1px solid var(--foms-color-neutral-100);
+}
+.foms-meas-memo__tag-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.foms-meas-memo__tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px 3px 7px;
+  font-size: 12.5px;
+  font-weight: 800;
+  border-radius: 99px;
+}
+.foms-meas-memo__tag--measure {
+  color: var(--foms-color-brand-700);
+  background: var(--foms-color-brand-100);
+}
+.foms-meas-memo__tag--notes {
+  color: var(--foms-color-neutral-700);
+  background: var(--foms-color-neutral-100);
+}
+.foms-meas-memo__tag--request {
+  color: var(--foms-meas-green-700);
+  background: var(--foms-meas-green-100);
+}
+.foms-meas-memo__src {
+  font-size: 12px;
+  color: var(--foms-color-neutral-500);
+}
+.foms-meas-memo__text {
+  margin: 0;
+  font-size: 15.5px;
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--foms-color-neutral-900);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+/* 목록 줄 알약: 그 주문 현장 메모 개수(빈 칸 제외). 시간 칩(2열)은 1~3행에 걸쳐 있어 4행에 놓인다. */
+.foms-meas-glance__go > .foms-meas-glance__memo {
+  justify-self: start;
+  margin-top: 4px;
+  padding: 2px 8px;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.35;
+  color: #9d2352;
+  background: var(--foms-meas-pink-50);
+  border: 1.5px solid var(--foms-meas-pink-400);
+  border-radius: 99px;
+  white-space: nowrap;
+}
+.foms-meas-glance__row.is-done .foms-meas-glance__memo {
+  color: var(--foms-color-neutral-500);
+  background: var(--foms-color-neutral-50);
+  border-color: var(--foms-color-neutral-200);
+}

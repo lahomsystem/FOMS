@@ -76,6 +76,7 @@
             <span class="foms-meas-glance__name">{{ o.customer_name or '-' }} {{ channel_mark(o.channel_source|default(none, true)) }}{% if o.measurement_completed %}<span class="foms-meas-glance__handed"><i class="fas fa-circle-check" aria-hidden="true"></i> 실측 완료</span>{% endif %}</span>
             {% if o.address and o.address != '-' %}<span class="foms-meas-glance__addr">{{ o.address }}</span>{% endif %}
             {% if o.product_subtitle %}<span class="foms-meas-glance__prod">{{ o.product_subtitle }}</span>{% endif %}
+            {% if o.site_memo_count %}<span class="foms-meas-glance__memo" data-meas-glance-memo="{{ o.site_memo_count }}">가기 전 확인 {{ o.site_memo_count }}</span>{% endif %}
             {% if _t %}<span class="foms-meas-glance__time" data-daypart="{{ _t|meas_daypart or '' }}">{{ _t }}</span>{% endif %}
             {% if _pcn %}<span class="foms-meas-glance__pc" data-meas-glance-photos="{{ _pcn }}"><i class="fas fa-camera" aria-hidden="true"></i><span class="visually-hidden">사진 </span>{{ _pcn }}<span class="visually-hidden">장</span></span>{% endif %}
             <i class="fas fa-chevron-right foms-meas-glance__chev" aria-hidden="true"></i>
@@ -147,7 +148,22 @@
           data-address="{{ o.address or '' }}"
           data-phone="{{ o.phone or '' }}"
           data-manager="{{ o.manager_name or '' }}">
-          {{ render_queue_card_v2(o, can_edit_erp|default(false), None, None, None, edit_return_to='erp_measurement_dashboard', detail_return_to='erp_measurement_dashboard') }}
+          {# 현장 메모(site_memo.build_site_memo): 주소·연락처 특이사항은 그 줄 바로 밑(매크로 옵트인),
+             실측 특이사항·비고·고객 요청은 "현장 메모" 한 상자 — 종류는 색 알약 이름표로 가른다(2026-09-28 목업 ①).
+             빈 칸은 줄을 안 그리고, 셋 다 비면 상자도 없다. 줄바꿈은 CSS pre-line. #}
+          {% set _sm = o.site_memo or {} %}
+          {% set _memo_n = (1 if _sm.measure else 0) + (1 if _sm.notes else 0) + (1 if _sm.request else 0) %}
+          {% set _memo_slot %}{% if _memo_n %}
+            <section class="foms-meas-memo" data-meas-memo aria-label="현장 메모">
+              <div class="foms-meas-memo__head"><h4 class="foms-meas-memo__title">현장 메모</h4><span class="foms-meas-memo__count">{{ _memo_n }}</span></div>
+              <div class="foms-meas-memo__box">
+                {% if _sm.measure %}<div class="foms-meas-memo__row"><span class="foms-meas-memo__tag foms-meas-memo__tag--measure"><i class="fas fa-ruler" aria-hidden="true"></i> 실측 특이사항</span><p class="foms-meas-memo__text">{{ _sm.measure }}</p></div>{% endif %}
+                {% if _sm.notes %}<div class="foms-meas-memo__row"><span class="foms-meas-memo__tag foms-meas-memo__tag--notes"><i class="fas fa-note-sticky" aria-hidden="true"></i> 비고</span><p class="foms-meas-memo__text">{{ _sm.notes }}</p></div>{% endif %}
+                {% if _sm.request %}<div class="foms-meas-memo__row"><span class="foms-meas-memo__tag-line"><span class="foms-meas-memo__tag foms-meas-memo__tag--request"><i class="fas fa-comment" aria-hidden="true"></i> 고객 요청</span><span class="foms-meas-memo__src">네이버 배송메모</span></span><p class="foms-meas-memo__text">{{ _sm.request }}</p></div>{% endif %}
+              </div>
+            </section>
+          {% endif %}{% endset %}
+          {{ render_queue_card_v2(o, can_edit_erp|default(false), None, None, None, edit_return_to='erp_measurement_dashboard', detail_return_to='erp_measurement_dashboard', detail_slot=_memo_slot, address_note=_sm.address, phone_note=_sm.phone) }}
           {% if o.measurement_completed %}
             <div class="foms-measure-done" aria-label="실측 완료"><i class="fas fa-circle-check" aria-hidden="true"></i> 실측 완료</div>
           {% endif %}
