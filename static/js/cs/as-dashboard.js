@@ -732,7 +732,10 @@
     function setAsPendingButtonState(orderId, asPending) {
       findInOrderScopes(orderId, '.as-pending-btn').forEach((btn) => {
         btn.dataset.asPending = asPending ? '1' : '0';
-        btn.textContent = asPending ? '미결 해제' : '미결';
+        // v2 하단 칩은 아이콘 + <span> 글자다 — textContent 로 덮으면 아이콘이 지워진다.
+        const label = btn.querySelector('span');
+        if (label) label.textContent = asPending ? '미결 해제' : '미결';
+        else btn.textContent = asPending ? '미결 해제' : '미결';
         btn.title = asPending ? '미결 표시 해제' : '미결 표시';
         btn.classList.toggle('erp-as-pending-btn--active', !!asPending);
       });
@@ -947,8 +950,10 @@
       if (cardBadge) {
         if (cardBadge.classList.contains('foms-stage-badge')) {
           cardBadge.textContent = badgeText;
-          cardBadge.classList.toggle('foms-stage-badge--cs', asPending);
-          cardBadge.classList.toggle('foms-stage-badge--completed', !asPending && status === 'AS_COMPLETED');
+          // 서버 규칙(as_stage_badge_modifier)과 한 벌: 완료면 --completed, 그 밖(접수·미결)은 --cs.
+          // 예전엔 미결일 때만 --cs 를 켜서 방문일 저장 직후 'AS접수' 배지가 색을 잃고 사라졌다.
+          cardBadge.classList.toggle('foms-stage-badge--cs', status !== 'AS_COMPLETED');
+          cardBadge.classList.toggle('foms-stage-badge--completed', status === 'AS_COMPLETED');
         } else {
           cardBadge.textContent = badgeText;
           cardBadge.className = `erp-pro-badge erp-as-status-badge ${badgeClass.replace('erp-pro-badge ', '')}`;

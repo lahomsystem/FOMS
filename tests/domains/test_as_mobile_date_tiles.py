@@ -233,3 +233,19 @@ def test_as_dashboard_js_v2_tile_sync_contract():
     assert "syncV2FooterPendingButton(container, orderId, hasVisitDate)" in pending
     # 가능시간 칩 문구: v2 칩이 data-avail-label-* 로 긴 문구를 들고 온다.
     assert "chip.dataset.availLabelPrefix" in js and "chip.dataset.availLabelEmpty" in js
+
+
+def test_as_dashboard_js_keeps_badge_color_and_pending_icon_after_save():
+    """방문일 저장 응답을 반영할 때 v2 카드가 모양을 잃지 않는다(2026-09-28 스테이징 확인).
+
+    ① 상태 배지: 서버(as_stage_badge_modifier)는 완료가 아니면 늘 --cs 인데, JS 가 미결일
+       때만 --cs 를 켜서 저장 직후 'AS접수' 배지가 색을 잃고 사라졌다.
+    ② 미결 칩: v2 칩은 아이콘 + <span> 이라 textContent 로 덮으면 아이콘이 지워졌다.
+    """
+    root = Path(__file__).resolve().parents[2]
+    js = (root / "static/js/cs/as-dashboard.js").read_text(encoding="utf-8").replace("\r\n", "\n")
+    apply_ui = js.split("function applyOrderUiFromResponse(")[1].split("\n    }\n")[0]
+    assert "toggle('foms-stage-badge--cs', status !== 'AS_COMPLETED')" in apply_ui
+    assert "toggle('foms-stage-badge--cs', asPending)" not in apply_ui
+    pending = js.split("function setAsPendingButtonState(")[1].split("\n    }\n")[0]
+    assert "btn.querySelector('span')" in pending
