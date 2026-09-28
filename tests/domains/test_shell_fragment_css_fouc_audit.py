@@ -164,7 +164,7 @@ def test_orders_dashboard_fragment_runtime_css(client, monkeypatch):
 
 
 def test_shipment_dashboard_fragment_runtime_css(client, monkeypatch):
-    """HTTP: shipment fragment must carry packing (+ shipment-mobile when not v3)."""
+    """HTTP: shipment fragment must carry packing + shipment-mobile."""
     from werkzeug.security import generate_password_hash
 
     from db import db_session
@@ -181,10 +181,8 @@ def test_shipment_dashboard_fragment_runtime_css(client, monkeypatch):
     )
     db_session.add(user)
     db_session.commit()
-    # v2 셸(비-v3): shipment-mobile + packing 둘 다 렌더. V2 자격=FOMS_V3_SHELL_COHORT.
+    # v2 셸: shipment-mobile + packing 둘 다 렌더. V2 자격=FOMS_V3_SHELL_COHORT(역사적 이름).
     monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(user.id))
-    monkeypatch.delenv("FOMS_SHELL_V3_ENABLED", raising=False)
-    monkeypatch.delenv("FOMS_SHELL_V3_COHORT", raising=False)
     with client.session_transaction() as sess:
         sess["user_id"] = user.id
         sess["username"] = user.username

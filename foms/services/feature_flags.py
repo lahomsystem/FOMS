@@ -2,14 +2,9 @@
 
 from __future__ import annotations
 
-import logging
 import os
 import re
 from typing import TYPE_CHECKING
-
-from foms.services import datetime_kst
-
-logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from werkzeug.wrappers import Request
@@ -23,8 +18,6 @@ __all__ = [
     "is_mobile_v2_shell",
     "is_naver_settle_sync_enabled",
     "is_naver_workbench_enabled",
-    "is_shell_v3_eligible",
-    "note_shell_v3_view",
     "prefers_mobile_wizard_client",
     "resolve_shell_variant",
     "resolve_shell_variant_cached",
@@ -143,34 +136,6 @@ def is_enabled_for_user(
     return user_id is not None and user_id in cohort
 
 
-def _read_shell_pref_cookie(request: "Request | None" = None) -> str | None:
-    """``foms_shell_pref`` 쿠키 값을 안전하게 읽는다.
-
-    명시적으로 넘어온 ``request``가 있으면 그 쿠키를, 없으면 활성 Flask
-    request context의 쿠키를 읽는다. request context가 없으면(백그라운드
-    작업·테스트 등) ``None``을 반환한다. RuntimeError를 삼키지 않고
-    ``has_request_context()``로 분기한다.
-
-    Args:
-        request: Flask/Werkzeug request 또는 None.
-
-    Returns:
-        쿠키 문자열(예: ``"v2"``/``"v3"``) 또는 미설정/컨텍스트 없음 시 None.
-    """
-    req = request
-    if req is None:
-        from flask import has_request_context
-        from flask import request as flask_request
-
-        if not has_request_context():
-            return None
-        req = flask_request
-    cookies = getattr(req, "cookies", None)
-    if cookies is None:
-        return None
-    return cookies.get("foms_shell_pref")
-
-
 def wants_coarse_pointer_surfaces(request: "Request | None" = None) -> bool:
     """터치 전용(``pointer: coarse``) 표면을 이 요청에 렌더해야 하는지 판정한다.
 
@@ -260,131 +225,29 @@ def wants_wide_only_surfaces(request: "Request | None" = None) -> bool:
     return longest_px >= WIDE_SURFACE_MIN_PX
 
 
-def resolve_shell_variant(
-    user_id: int | None,
-    request: "Request | None" = None,
-) -> str:
-    """활성 ERP 셸 variant(``legacy``/``v2``/``v3``)를 단일 기준으로 판정한다.
+def resolve_shell_variant(user_id: int | None) -> str:
+    """활성 ERP 셸 variant(``legacy``/``v2``)를 단일 기준으로 판정한다.
 
-    2층 게이트(env 코호트 자격 + 자격자 쿠키 토글)의 SSOT(스펙 §2.3).
-    v2 자격이 없으면 ``legacy``, v3 자격이 없으면 ``v2``, v3 자격자는
-    쿠키 ``foms_shell_pref``가 ``"v2"``면 v2로 복귀하고 그 외/미설정이면
-    기본 ``v3``이다. 쿠키를 위조해도 v3 코호트 밖이면 2단계에서 컷되어
-    권한 상승은 불가능하다.
+    모바일 v2 코호트 자격이 있으면 ``v2``, 없으면 ``legacy``다.
+
+    예전에는 여기에 3번째 값 ``v3``(Field OS 셸)가 있었고 ``foms_shell_pref`` 쿠키로
+    v2↔v3 를 오갔다. v3 셸은 2026-09-28 에 통째로 지웠다 — 이제 그 쿠키는 읽지 않으므로
+    옛 쿠키(``foms_shell_pref=v3``)가 남은 기기도 v2 셸을 받는다.
+
+    코호트 env 이름 ``FOMS_V3_SHELL_COHORT`` 는 역사적 이름일 뿐 **v2 모바일 코호트 키**다.
+    Railway 환경변수가 이 이름으로 걸려 있으므로 v3 삭제와 무관하게 바꾸지 않는다.
 
     Args:
         user_id: 현재 사용자 id(미인증 시 None).
-        request: Flask/Werkzeug request 또는 None(None이면 활성 request
-            context에서 쿠키를 시도, 컨텍스트 없으면 쿠키 없음 취급).
 
     Returns:
-        ``"legacy"``, ``"v2"``, 또는 ``"v3"``.
+        ``"legacy"`` 또는 ``"v2"``.
     """
-    if not is_enabled_for_user(
+    if is_enabled_for_user(
         "ERP_MOBILE_V2_ENABLED", user_id, cohort_key="FOMS_V3_SHELL_COHORT"
     ):
-        return "legacy"
-    if not is_enabled_for_user(
-        "FOMS_SHELL_V3_ENABLED", user_id, cohort_key="FOMS_SHELL_V3_COHORT"
-    ):
         return "v2"
-    if _read_shell_pref_cookie(request) == "v2":
-        return "v2"
-    return "v3"
-
-
-# v3 셸 진입 관측(C-D2 g): (user_id, KST 날짜, surface) 당 하루 1행만 남기기 위한
-# 프로세스 내 메모 집합. 워커가 여러 개면 워커마다 1행이 날 수 있지만, 목적이
-# "v3 를 실제로 쓰는 사람이 있는가" 라 그 정도 중복은 감수한다(비용 0 에 가깝게 유지).
-_SHELL_V3_VIEW_SEEN: set[tuple[int, str, str]] = set()
-_SHELL_V3_VIEW_SEEN_CAP = 5000
-
-
-def note_shell_v3_view(user_id: int | None, surface: str) -> bool:
-    """v3 셸 진입을 하루 1회 SecurityLog 에 남긴다(코호트 관측).
-
-    v3 코호트가 실제로 몇 명인지 앱에서 알 방법이 없어 생긴 관측 구멍을 메운다.
-    같은 사용자·같은 KST 날짜·같은 surface 면 프로세스가 사는 동안 한 번만 기록한다.
-    날짜는 ``date.today()``(UTC 경계)가 아니라 KST 헬퍼로 구한다 — CI(UTC)에서만
-    밤에 갈라지는 날짜 버그를 막기 위해서다.
-
-    쓰기는 **요청 세션이 아니라 엔진에서 연 짧은 별도 세션**에서 한다. 요청 세션에
-    ``commit()`` 을 걸면 그 요청이 아직 쓰는 중인 다른 변경까지 함께 확정돼, 관측 한 줄이
-    화면의 트랜잭션 경계를 바꿔 버린다.
-
-    화면을 깨뜨리면 안 되는 부가 기능이라 어떤 예외도 삼키고 ``False`` 를 돌려준다.
-    실패한 키는 메모 집합에서 빼 다음 요청이 다시 시도하게 한다(관측 구멍 최소화).
-
-    Args:
-        user_id: 현재 사용자 id(미인증 시 None → 기록하지 않는다).
-        surface: 진입 화면 이름(``"production"``·``"construction"`` 등).
-
-    Returns:
-        이번 호출이 새 감사 행을 남겼으면 True.
-    """
-    if not user_id:
-        return False
-    surface_key = (surface or "").strip() or "unknown"
-    session = None
-    key = None
-    try:
-        key = (int(user_id), datetime_kst.get_today_kst().isoformat(), surface_key)
-        if key in _SHELL_V3_VIEW_SEEN:
-            return False
-        # 메모 집합이 무한히 자라지 않게 상한에서 비운다(날짜가 바뀌면 키도 바뀐다).
-        if len(_SHELL_V3_VIEW_SEEN) >= _SHELL_V3_VIEW_SEEN_CAP:
-            _SHELL_V3_VIEW_SEEN.clear()
-        _SHELL_V3_VIEW_SEEN.add(key)
-
-        from sqlalchemy.orm import Session
-
-        from db import engine
-        from models import SecurityLog
-
-        session = Session(bind=engine)
-        session.add(
-            SecurityLog(
-                user_id=int(user_id),
-                message=f"[SHELL_V3] {surface_key} 진입",
-            )
-        )
-        session.commit()
-        return True
-    except Exception:  # noqa: BLE001 - 관측 실패가 페이지를 깨뜨리면 안 된다
-        logger.warning("[SHELL_V3] 진입 관측 기록 실패 (surface=%s)", surface_key, exc_info=True)
-        try:
-            if session is not None:
-                session.rollback()
-        except Exception:  # noqa: BLE001
-            pass  # failopen: intentional: 관측 전용 세션 rollback best-effort
-        if key is not None:
-            _SHELL_V3_VIEW_SEEN.discard(key)
-        return False
-    finally:
-        try:
-            if session is not None:
-                session.close()
-        except Exception:  # noqa: BLE001
-            pass  # failopen: intentional: 관측 전용 세션 close best-effort
-
-
-def is_shell_v3_eligible(user_id: int | None) -> bool:
-    """사용자가 v3 셸 코호트 자격을 갖는지 판정한다(쿠키 무관).
-
-    :func:`resolve_shell_variant`의 2단계 게이트(``FOMS_SHELL_V3_ENABLED`` +
-    ``FOMS_SHELL_V3_COHORT``)만 평가한다. variant는 쿠키(``foms_shell_pref``)로
-    v2로 복귀할 수 있으므로 자격(eligible)과 활성(variant)은 별개다. v2 셸에서
-    "새 모바일(v3)로 전환" 진입점을 자격자에게만 노출하기 위한 헬퍼다.
-
-    Args:
-        user_id: 현재 사용자 id(미인증 시 None).
-
-    Returns:
-        v3 코호트 자격이 있으면 True.
-    """
-    return is_enabled_for_user(
-        "FOMS_SHELL_V3_ENABLED", user_id, cohort_key="FOMS_SHELL_V3_COHORT"
-    )
+    return "legacy"
 
 
 def is_naver_workbench_enabled(user_id: int | None) -> bool:
@@ -557,52 +420,46 @@ def is_naver_settle_sync_enabled() -> bool:
 
 
 def is_mobile_v2_shell(variant: str) -> bool:
-    """shell variant가 v2 셸 계열(``v2``/``v3``)인지 판정한다.
+    """shell variant가 모바일 v2 셸인지 판정한다.
 
     기존 ``erp_mobile_v2_enabled`` / ``flag_mobile_v2`` boolean의 파생 계약이다.
-    :func:`resolve_shell_variant`는 v2 자격이 없을 때만 ``legacy``를 돌려주므로,
-    ``variant in ("v2", "v3")``는 과거
+    ``variant == "v2"``는
     ``is_enabled_for_user("ERP_MOBILE_V2_ENABLED", uid, "FOMS_V3_SHELL_COHORT")``
-    값과 100% 동일하다(v3는 v2 자격의 부분집합).
+    값과 100% 동일하다.
 
     Args:
         variant: :func:`resolve_shell_variant` 반환값.
 
     Returns:
-        v2 또는 v3 셸이 활성이면 True.
+        v2 셸이 활성이면 True.
     """
-    return variant in ("v2", "v3")
+    return variant == "v2"
 
 
-def resolve_shell_variant_cached(
-    user_id: int | None,
-    request: "Request | None" = None,
-) -> str:
+def resolve_shell_variant_cached(user_id: int | None) -> str:
     """요청 스코프(flask.g)에 user_id별 1회 캐시된 shell variant를 반환한다.
 
     context_processor 3 injector와 뷰가 한 요청 안에서
-    :func:`resolve_shell_variant`(env·쿠키 파싱)를 중복 호출하지 않도록
+    :func:`resolve_shell_variant`(env 파싱)를 중복 호출하지 않도록
     요청당 user_id마다 1회만 계산한다. request context가 없으면(백그라운드
     작업·단위 테스트) 캐시 없이 직접 위임한다.
 
     Args:
         user_id: 현재 사용자 id(미인증 시 None).
-        request: Flask/Werkzeug request 또는 None(None이면 활성 request
-            context의 쿠키를 사용).
 
     Returns:
-        ``"legacy"``, ``"v2"``, 또는 ``"v3"``.
+        ``"legacy"`` 또는 ``"v2"``.
     """
     from flask import g, has_request_context
 
     if not has_request_context():
-        return resolve_shell_variant(user_id, request)
+        return resolve_shell_variant(user_id)
     cache = getattr(g, "_foms_shell_variant_cache", None)
     if cache is None:
         cache = {}
         g._foms_shell_variant_cache = cache
     if user_id not in cache:
-        cache[user_id] = resolve_shell_variant(user_id, request)
+        cache[user_id] = resolve_shell_variant(user_id)
     return cache[user_id]
 
 

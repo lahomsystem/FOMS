@@ -4,8 +4,8 @@
      A3) 생산  templates/production/partials/mobile_queue.html   .foms-v2dh-strip
      A5) 실측  templates/measurement/partials/mobile_list.html   .foms-v2dh-hero (오늘 동선)
      A6) 시공  templates/construction/partials/mobile_queue.html .foms-v2dh-hero (오늘 배차)
-   v3 CSS(foms-mobile-v3.css)는 로드하지 않는다 — 스테이지 색은 아래 --foms-v2dh-st-*
-   토큰으로 자체 정의(v3 라이트 값과 동일). foms-mobile-surfaces / foms-shell / layout_head
+   스테이지 색은 아래 --foms-v2dh-st-* 토큰으로 자체 정의(옛 v3 셸 라이트 값과 동일,
+   v3 셸은 2026-09-28 삭제). foms-mobile-surfaces / foms-shell / layout_head
    자산은 건드리지 않는다(배타). 터치 타깃 44px+.
    ========================================================================= */
 

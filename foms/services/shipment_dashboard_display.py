@@ -180,8 +180,8 @@ def build_shipment_mobile_queue_rows(
                 "is_as": is_as_order(order),
                 "as_content_text": getattr(order, "as_content_text", "") or "",
                 "recommendation_link": getattr(order, "shipment_as_recommendation_link", None),
-                # v3 홈 표시용 파생(추가 쿼리 없음 — 이미 로드된 structured_data/scheduled_date만 사용).
-                # primary_date: 대표 시공일(AS는 as_visit 방문일) → v3 날짜 그룹 헤더 키. schedule_dates
+                # 모바일 큐·태블릿 그리드 표시용 파생(추가 쿼리 없음 — 이미 로드된 structured_data/scheduled_date만 사용).
+                # primary_date: 대표 시공일(AS는 as_visit 방문일) → 날짜 그룹 헤더 키. schedule_dates
                 # 지연로딩을 피하려 SSOT(sd.schedule.*) + scheduled_date 컬럼만 읽는다(N+1 가드 준수).
                 "primary_date": (
                     str(((sd.get("schedule") or {}).get("as_visit") or {}).get("date") or "")
@@ -190,7 +190,7 @@ def build_shipment_mobile_queue_rows(
                 ),
                 # sales_delivery(영업택배): structured_data.shipment.sales_delivery is True 계약(field_update.py와 동일).
                 "sales_delivery": shipment.get("sales_delivery") is True,
-                # D: 패킹 진행 파생(패킹 N/M 라벨·배지 SSOT — v2 큐 + v3 홈 공용).
+                # D: 패킹 진행 파생(패킹 N/M 라벨·배지 SSOT — v2 큐).
                 "packing_present": _packing_present,
                 "packing_total": len(_packing_items) if _packing_present else 0,
                 "packing_checked": (

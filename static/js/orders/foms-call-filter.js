@@ -3,8 +3,7 @@
  * - 칩 [data-foms-lastcall-filter] 토글 → 스코프([data-foms-lastcall-scope]) 안의
  *   카드([data-foms-last-call]) 중 값이 'no_answer' 가 아니면 hidden 처리.
  * - 힌트 라벨([data-foms-lastcall-hint])은 활성 시에만 표시(페이지네이션 한계 고지).
- * - v2(.foms-v2h-chip 단독 토글)·v3(.fos-chips 단일 선택)를 스코프 단위로 동시 지원.
- *   v3 형제 칩(전체/보류/재확인) 클릭 시 필터를 해제해 단일 선택과 정합을 맞춘다.
+ * - 형제 칩(.foms-v2h-chip — 전체/보류/재확인) 클릭 시 필터를 해제해 단일 선택과 정합을 맞춘다.
  * - document 위임 + __FOMS_CALL_FILTER_BOUND 싱글톤 → 셸 프래그먼트 재실행에도 중복 없음(G4).
  */
 (function () {
@@ -54,8 +53,8 @@
       return;
     }
 
-    // 형제 칩(필터 아님) 클릭 → 현재 스코프의 활성 필터 해제(v3 단일 선택 정합).
-    var sibling = ev.target.closest('.fos-chips .fos-chip, .foms-v2h-chip');
+    // 형제 칩(필터 아님) 클릭 → 현재 스코프의 활성 필터 해제(단일 선택 정합).
+    var sibling = ev.target.closest('.foms-v2h-chip');
     if (sibling && !sibling.hasAttribute('data-foms-lastcall-filter')) {
       var scope = scopeOf(sibling);
       var active = scope && scope.querySelector('[data-foms-lastcall-filter][aria-pressed="true"]');

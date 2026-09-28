@@ -77,7 +77,7 @@ def test_task_grade_marker_ssot_is_guide() -> None:
     assert "`**B` 하루" not in claude, "마커 상세가 CLAUDE.md 에 다시 들어왔다"
 
 
-INLINE_STYLE_RATCHET = 828  # 2026-09-10 실측: templates+static 의 .html/.js 안 `style="` 개수. 줄어들면 값을 낮춘다
+INLINE_STYLE_RATCHET = 820  # 2026-09-28 실측(v3 셸 삭제로 826→820): templates+static 의 .html/.js 안 `style="` 개수. 줄어들면 값을 낮춘다
 
 
 def count_inline_styles() -> int:

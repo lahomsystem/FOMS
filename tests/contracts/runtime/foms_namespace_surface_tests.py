@@ -2478,8 +2478,8 @@ _PAC_PARTIALS_SHARED_HTML_ALLOWLIST = frozenset(
         "erp_mobile_order_timeline_sheet.html",
         "erp_mobile_urgent_call_panel.html",
         "erp_mobile_queue_card_v2.html",
-        # 판매채널 출처 마크 매크로. 대시보드 라우트가 코호트별로 그리는 표면 여섯 곳
-        # (orders/ 4곳·partials/shared/ 1곳·partials/v3/ 1곳)이 같은 마크를 불러야 해서
+        # 판매채널 출처 마크 매크로. 대시보드 라우트가 코호트별로 그리는 여러 표면
+        # (orders/·partials/shared/·measurement/)이 같은 마크를 불러야 해서
         # 도메인 밖에 산다 — 두 벌로 두면 화면마다 크기·접근성 문구가 갈린다(2026-09-13).
         "channel_mark.html",
         "erp_mobile_shell.html",
@@ -2498,8 +2498,8 @@ _PAC_PARTIALS_SHARED_HTML_ALLOWLIST = frozenset(
         "foms_order_contact_kv.html",
         "foms_order_detail_fragment.html",
         "foms_p2_surface_bundle.html",
-        # C-D1 사유 입력 공용 바텀시트. 생산 모바일 큐·시공 모바일 큐·v3 페르소나 홈
-        # 세 표면이 같은 시트를 불러야 해서 도메인 밖에 산다 — window.prompt 를 없애며
+        # C-D1 사유 입력 공용 바텀시트. 생산 모바일 큐·시공 모바일 큐 등 여러
+        # 표면이 같은 시트를 불러야 해서 도메인 밖에 산다 — window.prompt 를 없애며
         # 도메인마다 시트를 따로 두면 사유 목록과 확인 문구가 화면마다 갈린다(2026-09-20).
         "foms_reason_sheet.html",
         "foms_search_overlay.html",

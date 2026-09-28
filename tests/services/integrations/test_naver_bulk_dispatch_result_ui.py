@@ -330,19 +330,20 @@ def test_button_keeps_the_irreversible_confirmation():
     assert "되돌릴 수 없습니다" in source
 
 
-def test_v3_full_page_still_hides_the_button():
-    """v3 풀페이지에서는 버튼을 안 그린다(그 셸은 페이지 스크립트를 통째로 안 싣는다).
+def test_run_button_is_gated_by_can_run():
+    """일괄 실행 버튼은 ``can_run``(킬스위치·대상·오늘) 게이트 안에서만 그려진다.
 
-    보이는데 안 눌리는 버튼은 되돌릴 수 없는 조작에서 가장 나쁜 실패 모양이다.
+    예전엔 v3 풀페이지 조건(``shell_variant != 'v3'``)도 여기 있었다 — v3 셸은
+    2026-09-28 에 삭제돼 그 조건도 함께 뺐다.
     """
     path = (_REPO_ROOT / "templates" / "measurement" / "partials"
             / "naver_dispatch_strip.html")
     source = path.read_text(encoding="utf-8")
-    assert "shell_variant != 'v3'" in source
+    assert "shell_variant" not in source
     assert "data-naver-bulk-dispatch-run" in source
     button_at = source.index("data-naver-bulk-dispatch-run")
-    gate_at = source.index("shell_variant != 'v3'")
-    assert gate_at < button_at, "게이트가 버튼보다 뒤에 있으면 v3 에서 버튼이 그려진다"
+    gate_at = source.index("{% if can_run %}")
+    assert gate_at < button_at, "게이트가 버튼보다 뒤에 있으면 조건 밖에서 버튼이 그려진다"
 
 
 # --------------------------------------------------------------------------- #
@@ -415,14 +416,14 @@ def test_retry_wiring_uses_the_existing_single_household_route():
     assert "retryConfirmText" in source
 
 
-def test_retry_button_shares_the_v3_gate_on_the_measurement_dashboard():
-    """v3 풀페이지에서는 재시도 버튼도 안 그린다(그 셸엔 배선이 없다)."""
+def test_retry_button_shares_the_can_act_gate_on_the_measurement_dashboard():
+    """재시도 버튼은 배선 게이트(``can_act``)와 같은 조건에서만 그려진다."""
     path = (_REPO_ROOT / "templates" / "measurement" / "partials"
             / "naver_dispatch_strip.html")
     source = path.read_text(encoding="utf-8")
     gate = source.split("set can_act")[1].split("%}")[0]
-    assert "shell_variant != 'v3'" in gate, "재시도 배선 게이트에 v3 조건이 빠졌다"
-    # 버튼 바로 앞에 그 게이트가 있어야 한다 — 게이트가 뒤에 있으면 v3 에서 그려진다.
+    assert "naver_bulk_dispatch_enabled" in gate and "bulk_dispatch.is_today" in gate
+    # 버튼 바로 앞에 그 게이트가 있어야 한다 — 게이트가 뒤에 있으면 배선 없이 그려진다.
     before = source.split("data-naver-dispatch-retry")[0]
     assert before.rstrip().endswith('<button type="button" class="btn btn-sm btn-outline-danger mt-1"')
     assert "{% if can_act %}" in before.split("{% elif row.state == 'failed' %}")[-1]

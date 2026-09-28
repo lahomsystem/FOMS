@@ -1,12 +1,11 @@
 /* =========================================================================
    FOMS v2 모바일 — 주문 8단계 스테이지 타임라인 (상세 인라인 + 360° 바텀시트)
-   v3 foms-mobile-v3.css의 .fos-tl-* 서브셋을 v2 자산으로 이식한 파일.
-   v3 CSS는 로드하지 않는다(v2/v3 자산 배타) — 스테이지 색은 아래
-   --foms-st-* 토큰으로 자체 정의(v3 라이트 값과 동일).
+   옛 v3 셸 CSS의 .fos-tl-* 서브셋을 v2 자산으로 이식한 파일(v3 셸은 2026-09-28 삭제 —
+   이제 .fos-* 규칙의 유일한 정본이다). 스테이지 색은 아래 --foms-st-* 토큰으로 자체 정의.
    소비처:
      1) 상세 페이지 인라인 타임라인 — orders/partials/order_detail_timeline_stages.html (.foms-tl-*)
      2) 큐 카드 360° 트리거(.foms-tl-trigger) + 바텀시트(.foms-tl-sheet):
-        시트 body에는 기존 fragment(persona_order360.html, .fos-* 클래스)가
+        시트 body에는 fragment(orders/partials/order_timeline_sheet_body.html, .fos-* 클래스)가
         주입되므로 .foms-tl-sheet 스코프 하위에만 .fos-* 서브셋을 이식한다
         (전역 오염 금지).
    ========================================================================= */
@@ -60,7 +59,7 @@
 .foms-tl-sheet__error { padding: 24px; text-align: center; color: #5F5950; font-size: 14px; }
 
 /* 로딩 스켈레톤(3행 + 텍스트 폴백) — foms-order-timeline-sheet.js buildSkeleton 주입.
-   v3 foms-mobile-v3.css 의 .fos-skeleton/.sk 를 시트 스코프로 이식(라이트 #EFECE6/#F8F6F2). */
+   옛 v3 셸의 .fos-skeleton/.sk 를 시트 스코프로 이식(라이트 #EFECE6/#F8F6F2). */
 .foms-tl-sheet .fos-skeleton-wrap { display: flex; flex-direction: column; gap: 10px; padding: 8px 0; }
 .foms-tl-sheet .fos-skeleton { background: #FFFFFF; border: 1px solid #E4E0D8; border-radius: 16px; padding: 14px; display: flex; align-items: center; gap: 12px; }
 .foms-tl-sheet .fos-skeleton__dot { flex: 0 0 auto; width: 10px; height: 10px; border-radius: 50%; background: #EFECE6; }
@@ -75,8 +74,7 @@
 .foms-tl-sheet.offcanvas-bottom { height: auto; max-height: 82vh; border-radius: 16px 16px 0 0; }
 
 /* ---- 4. 시트 body 주입 fragment(.fos-*) 스코프 이식 -----------------------
-   persona_order360.html이 쓰는 v3 변수/클래스를 .foms-tl-sheet 하위로만 정의.
-   원본: static/css/v3/foms-mobile-v3.css :70-77, 167-180, 229, 321-347. */
+   order_timeline_sheet_body.html 이 쓰는 .fos-* 변수/클래스를 .foms-tl-sheet 하위로만 정의. */
 .foms-tl-sheet {
   --fos-bg0: #F6F4F0; --fos-bg1: #FFFFFF; --fos-bg2: #EFECE6;
   --fos-tx0: #201C17; --fos-tx1: #5F5950; --fos-tx2: #8F887D; --fos-line: #E4E0D8;

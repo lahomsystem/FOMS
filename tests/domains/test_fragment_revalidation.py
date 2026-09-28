@@ -144,12 +144,12 @@ def test_key_changes_when_day_rolls_over(stable_cohort):
 
 
 def test_key_changes_with_cohort():
-    """코호트 변형(v2/v3)이 키를 가른다."""
+    """코호트 변형(legacy/v2)이 키를 가른다."""
     with patch.object(fr, "_cohort_material", return_value={"_shell_variant": "v2"}):
         v2 = _key({"q": "kim"})
-    with patch.object(fr, "_cohort_material", return_value={"_shell_variant": "v3"}):
-        v3 = _key({"q": "kim"})
-    assert v2 != v3
+    with patch.object(fr, "_cohort_material", return_value={"_shell_variant": "legacy"}):
+        legacy = _key({"q": "kim"})
+    assert v2 != legacy
 
 
 def test_key_changes_with_session(stable_cohort):

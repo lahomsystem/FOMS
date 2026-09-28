@@ -224,10 +224,11 @@ def test_cgate_ad_hoc_manual_json_parsing_removed() -> None:
 
 def test_all_four_scripts_wired_deferred_with_bumped_cachebuster() -> None:
     """4개 스크립트 모두 defer + ?v= 를 유지하고, 기존 파일 변경이라 ?v 가 구 버전에서
-    범프됐다(SW staticCacheFirst 회귀 방지, project_sw_stale_js_version_bump)."""
+    범프됐다(SW staticCacheFirst 회귀 방지, project_sw_stale_js_version_bump).
+    (layout_head 의 foms-write.js 는 v3 셸 전용 로드였다 — 2026-09-28 v3 삭제로 빠졌고,
+    v2 는 foms_app_shell.html 이 싣는다.)"""
     checks = (
         ("templates/partials/shared/foms_app_shell.html", "foms-write.js", "20260713b"),
-        ("templates/partials/shared/layout_head.html", "foms-write.js", "20260713b"),
         ("templates/production/partials/dashboard_body.html", "foms-production-steps.js", "20260713b"),
         ("templates/partials/shared/layout_scripts.html", "tablet-production-kanban.js", "20260724c"),
         ("templates/construction/dashboard.html", "foms-complete-gate.js", "20260712a"),

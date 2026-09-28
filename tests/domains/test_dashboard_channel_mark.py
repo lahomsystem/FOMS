@@ -35,7 +35,7 @@ ORDERS_LISTING = "foms/web/orders/listing.py"
 MEASUREMENT_DASHBOARD = "foms/web/measurement/dashboard.py"
 IMPORT_LINE = "{% from 'partials/shared/channel_mark.html' import channel_mark %}"
 
-# 마크를 다는 표면 전수(코호트 9/9 — 모바일 홈 CS 히어로는 2026-09-20 카드째 제거). 값은 그 표면이 매크로를 부르는 호출 문자열이다 —
+# 마크를 다는 표면 전수(코호트 8/8 — 모바일 홈 CS 히어로는 2026-09-20 카드째 제거, v3 CS 홈은 2026-09-28 셸째 삭제). 값은 그 표면이 매크로를 부르는 호출 문자열이다 —
 # 화면마다 행 DTO 이름이 달라서 호출 인자까지 같이 못박아야 전수 확인이 된다.
 # 실측 모바일 큐 카드(erp_mobile_queue_card_v2.html)는 이미 이 표에 있다: 실측 라우트가
 # 행 dict 의 channel_source 키를 채우는 것만으로 켜져서 템플릿 편집이 없었다.
@@ -43,7 +43,6 @@ SURFACES = {
     GRID: "channel_mark(o.channel_source)",
     "templates/orders/partials/tablet_dashboard_sheet.html": "channel_mark(o.channel_source)",
     "templates/partials/shared/erp_mobile_queue_card_v2.html": "channel_mark(order.channel_source|default(none, true))",
-    "templates/partials/v3/persona_home_cs.html": "channel_mark(_hero.channel_source)",
     "templates/orders/partials/tablet_workqueue_grid.html": "channel_mark(o.channel_source)",
     "templates/orders/index.html": "channel_mark(order.channel_source)",
     "templates/measurement/partials/dashboard_main.html": "channel_mark(r.channel_source|default(none, true))",
