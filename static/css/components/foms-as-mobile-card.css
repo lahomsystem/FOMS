@@ -36,7 +36,8 @@
      컨트롤(.erp-as-mobile-list__sticky)의 스크롤 컨테이너가 되어, sticky top
      오프셋이 카드 내부 기준 48px 고정 밀림(빈 공간)으로 굳고 뷰포트 고정도
      깨졌다. v2 셸에서 overflow를 풀어 sticky가 뷰포트에 붙게 한다.
-     (좌우 풀블리드는 list 좌우 padding과 sticky 음수 margin이 상쇄해 안전) */
+     (좌우 풀블리드는 list 좌우 padding과 sticky 음수 margin이 상쇄해 안전 —
+     그 padding 은 아래 .erp-as-mobile-list 규칙이 이 파일 안에서 직접 쥔다) */
   body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-pro-card {
     border: 0;
     background: transparent;
@@ -48,8 +49,15 @@
     padding: 0;
   }
 
+  /* 좌우 padding 은 아래 sticky 바의 음수 margin(space-4)과 한 쌍이다. 예전에는 이 값을
+     .foms-shell-body(foms-shell.css, v2 surfaces 묶음)에서만 받았는데, 그 묶음이 빠진
+     화면(2026-09-28 스테이징 v3 셸 판정)에서는 list padding 이 0 인데 음수 margin 만 남아
+     바가 양옆으로 16px 씩 삐져나가 가로 스크롤이 생겼다(360 폭에서 문서 폭 376).
+     쌍의 두 값을 같은 파일이 쥐어, 어느 CSS 묶음이 오든 바가 화면 폭에 딱 맞게 한다. */
   body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-mobile-list {
     min-width: 0;
+    padding-left: var(--foms-space-4, 1rem);
+    padding-right: var(--foms-space-4, 1rem);
   }
 
   body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-mobile-list__sticky {

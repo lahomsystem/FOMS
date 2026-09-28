@@ -362,6 +362,36 @@
                 min-width: 0;
             }
 
+            /* 브리핑 체브론은 헤더 정중앙에 절대 배치된다. 좁은 폭에서는 그 중앙이 오른쪽 버튼
+               묶음(내 할 일·알림·계정) 위에 떨어져 버튼끼리 겹쳤다 → 흐름 안으로 되돌려 제목과
+               버튼 묶음 사이 빈 칸에 둔다(위치 유틸 클래스가 !important 라 같이 쓴다). */
+            .layout-header .layout-header__center {
+                position: static !important;
+                transform: none !important;
+                flex: 0 0 auto;
+            }
+
+            /* 알림 배지는 벨 버튼 오른쪽 위 모서리를 **중심**으로 놓여(top-0 start-100
+               translate-middle) 절반이 버튼 밖으로 나가 옆 계정 버튼을 덮었다
+               → 버튼 상자 안쪽 모서리에 붙인다. */
+            .layout-header #global-notification-badge {
+                top: 0 !important;
+                right: 0;
+                left: auto !important;
+                transform: none !important;
+                padding: 0.2em 0.4em;
+                font-size: 0.625rem !important;
+                line-height: 1;
+            }
+
+            .layout-header .d-flex.align-items-center.gap-3 .btn-link {
+                min-width: 44px;
+                min-height: 44px;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+            }
+
             .layout-nav-collapse .nav-link {
                 min-height: 44px;
                 display: flex;
@@ -380,7 +410,7 @@
             .layout-header {
                 padding-left: 0.75rem !important;
                 padding-right: 0.75rem !important;
-                gap: 0;
+                gap: 0.25rem;
             }
 
             .layout-header__title {
@@ -394,8 +424,8 @@
 
             .layout-header .d-flex.align-items-center.gap-3 .btn-link,
             .layout-header .d-flex.align-items-center.gap-3 .position-relative .btn-link {
-                min-width: 40px;
-                min-height: 40px;
+                min-width: 44px;
+                min-height: 44px;
                 padding: 0.25rem !important;
                 display: inline-flex;
                 align-items: center;

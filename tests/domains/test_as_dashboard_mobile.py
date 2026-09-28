@@ -202,6 +202,44 @@ def test_as_dashboard_mobile_v2_wiring_contract():
     assert body_src.count("as_mobile_controls.html") == 1
 
 
+def _css_rule_body(css_src: str, selector: str) -> str:
+    """``selector {`` 로 시작하는 첫 규칙의 본문(중괄호 안)만 돌려준다."""
+    head = selector + " {"
+    assert head in css_src, selector
+    return css_src.split(head, 1)[1].split("}", 1)[0]
+
+
+def test_as_mobile_sticky_bar_bleed_is_paired_with_list_padding_in_same_file():
+    """AS 요약 바의 좌우 음수 margin 은 같은 파일의 list 좌우 padding 과 한 쌍이어야 한다.
+
+    2026-09-28 스테이징 360 폭: 요약 바(.erp-as-mobile-list__sticky)가 margin -16px 로
+    양옆에 16px 씩 삐져나가 문서 폭이 376 이 됐다(가로 스크롤). 음수 margin 을 상쇄할
+    list padding 을 .foms-shell-body(v2 surfaces 묶음)에서만 받았는데, 그 묶음이 빠진
+    화면에서는 padding 이 0 이었다. 이 파일이 두 값을 함께 쥐면 어느 묶음이 오든 맞는다.
+    """
+    root = Path(__file__).resolve().parents[2]
+    css_src = (root / "static/css/components/foms-as-mobile-card.css").read_text(encoding="utf-8")
+    scope = "body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true']"
+
+    sticky = _css_rule_body(css_src, f"{scope} .erp-as-mobile-list__sticky")
+    assert "margin: 0 calc(var(--foms-space-4, 1rem) * -1);" in sticky
+
+    listing = _css_rule_body(css_src, f"{scope} .erp-as-mobile-list")
+    assert "padding-left: var(--foms-space-4, 1rem);" in listing
+    assert "padding-right: var(--foms-space-4, 1rem);" in listing
+    # 좌우만 쥔다 — 위아래·하단 네비 여백은 셸(.foms-shell-body)이 계속 소유한다.
+    assert "padding:" not in listing
+
+    body_src = (root / "templates/cs/partials/as_dashboard_body.html").read_text(encoding="utf-8")
+    # 바와 list 가 같은 section 안(바가 list 의 직계 자식)이어야 padding 상쇄가 성립한다.
+    import re
+
+    assert re.search(
+        r'<section class="erp-as-mobile-list [^"]*">\s*<div class="erp-as-mobile-list__sticky">',
+        body_src,
+    )
+
+
 def test_as_record_input_is_explicit_save_only():
     """T10: AS 기록 입력은 자동저장이 아니라 명시 저장(버튼/단축키)만이다.
 
