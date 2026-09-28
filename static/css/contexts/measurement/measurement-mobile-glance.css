@@ -1310,6 +1310,10 @@ html.foms-meas-sheet-open .foms-shell-fab {
   row-gap: 4px;
   padding-bottom: 10px;
 }
+/* 값 칸은 기준 폭 0 — 줄바꿈을 켜도 이름표(dt)와 같은 첫 줄에 남는다(auto 면 긴 주소가 다음 줄로 밀렸다, 스테이징 #4172). */
+.foms-meas-sheet .foms-meas-sheet__slot .queue-card__meta > [data-queue-card-has-note] > dd:not(.foms-queue-card-v2__row-note) {
+  flex: 1 1 0;
+}
 .foms-meas-sheet .foms-meas-sheet__slot .queue-card__meta > [data-queue-card-has-note] > dd.foms-queue-card-v2__row-note {
   display: block;
   flex: 1 1 100%;

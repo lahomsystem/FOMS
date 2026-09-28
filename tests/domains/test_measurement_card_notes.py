@@ -102,6 +102,8 @@ def test_assets_wired():
     assert "white-space: pre-line;" in text_rule
     note_rule = css.split(".foms-queue-card-v2__row-note {", 1)[1].split("}", 1)[0]
     assert "z-index: 1;" in note_rule, "메모를 눌러도 줄 전체 지도·전화 링크가 열리면 안 된다"
+    value_rule = css.split("[data-queue-card-has-note] > dd:not(.foms-queue-card-v2__row-note) {", 1)[1].split("}", 1)[0]
+    assert "flex: 1 1 0;" in value_rule, "메모 줄에서도 주소 값이 이름표와 같은 줄에 남아야 한다(스테이징 #4172)"
     parts = _read("static/js/measurement/mobile-glance-sheet-parts.js")
     place = parts.split("function placePhotos(card) {", 1)[1].split("card.querySelectorAll", 1)[0]
     assert "card.querySelector('[data-meas-memo]') || card.querySelector('.queue-card__meta')" in place
