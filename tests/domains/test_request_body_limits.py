@@ -308,3 +308,21 @@ def test_platform_cap_above_handler_file_ceiling(path, file_ceiling):
         f"{path}: 플랫폼 캡 {cap.max_body_bytes} <= 핸들러 상한 {file_ceiling} — "
         "정상 업로드가 413 으로 막힌다"
     )
+
+
+def test_urlencoded_cap_also_holds_for_chunked_body() -> None:
+    """Werkzeug 3 는 urlencoded 본문에 max_form_memory_size 를 걸지 않는다 — FOMS 가 직접 건다.
+
+    Content-Length 가 없는(chunked) 본문도 1 MiB 를 넘으면 413 이고, 딱 1 MiB 는 통과한다.
+    """
+    from werkzeug.exceptions import RequestEntityTooLarge
+
+    from foms.platform.request_limits import _FORM_MEMORY_CAP, _read_urlencoded_within_cap
+
+    over = io.BytesIO(b"a=" + b"x" * _FORM_MEMORY_CAP)
+    with pytest.raises(RequestEntityTooLarge):
+        _read_urlencoded_within_cap(over, None, _FORM_MEMORY_CAP)
+    exact = b"x" * _FORM_MEMORY_CAP
+    assert _read_urlencoded_within_cap(io.BytesIO(exact), None, _FORM_MEMORY_CAP).read() == exact
+    with pytest.raises(RequestEntityTooLarge):
+        _read_urlencoded_within_cap(io.BytesIO(b""), _FORM_MEMORY_CAP + 1, _FORM_MEMORY_CAP)

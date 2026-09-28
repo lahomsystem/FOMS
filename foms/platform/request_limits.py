@@ -38,11 +38,13 @@ page — so programmatic callers get a structured domain error.
 
 from __future__ import annotations
 
+import io
 import re
 import uuid
 from typing import Any, Callable, NamedTuple
 
 from flask import Flask, Request, g, jsonify, request
+from werkzeug.exceptions import RequestEntityTooLarge
 from werkzeug.wsgi import LimitedStream
 
 _KIB = 1024
@@ -76,6 +78,7 @@ GLOBAL_BODY_CAP = 50 * _MIB + 256 * _KIB
 # Form-parsing limits pinned on the Request class (enforced by Werkzeug).
 _FORM_MEMORY_CAP = 1 * _MIB
 _MAX_FORM_PARTS = 1000
+_URLENCODED_MIMETYPE = "application/x-www-form-urlencoded"
 
 _BODY_METHODS = frozenset({"POST", "PUT", "PATCH"})
 
@@ -158,15 +161,50 @@ def resolve_body_cap(path: str) -> BodyCap | None:
     return _NORMAL_CAP_ENTRY
 
 
+def _read_urlencoded_within_cap(stream: Any, content_length: int | None, cap: int) -> io.BytesIO:
+    """Read a urlencoded form body into memory, refusing anything over ``cap`` bytes.
+
+    Werkzeug 2.3 rejected an oversized urlencoded body against
+    ``max_form_memory_size``; Werkzeug 3 dropped that check. This restores it for
+    both a declared ``Content-Length`` and a chunked body (read at most
+    ``cap + 1`` bytes, then stop).
+
+    Args:
+        stream: The parsing stream Werkzeug hands to ``FormDataParser.parse``.
+        content_length: Declared body length, or ``None`` for a chunked body.
+        cap: Byte ceiling for the whole urlencoded body.
+
+    Returns:
+        An in-memory stream holding the (at most ``cap``-byte) body.
+
+    Raises:
+        RequestEntityTooLarge: The body is larger than ``cap``.
+    """
+    if content_length is not None and content_length > cap:
+        raise RequestEntityTooLarge()
+    buf = bytearray()
+    while len(buf) <= cap:
+        chunk = stream.read(cap + 1 - len(buf))
+        if not chunk:
+            break
+        buf += chunk
+    if len(buf) > cap:
+        raise RequestEntityTooLarge()
+    return io.BytesIO(bytes(buf))
+
+
 class FomsRequest(Request):
     """Flask request with pinned form limits and leak-free temp-file cleanup.
 
     ``max_form_memory_size`` bounds in-memory form fields to 1 MiB and
     ``max_form_parts`` bounds multipart parts to 1000 (both enforced by
-    Werkzeug's parser). The overridden :meth:`make_form_data_parser` additionally
-    guarantees that if parsing aborts partway (e.g. the part limit trips after
-    some files already spilled to disk), every partial temp file is closed and
-    unlinked instead of lingering.
+    Werkzeug's parser for ``multipart/form-data``). Werkzeug 3 no longer applies
+    ``max_form_memory_size`` to ``application/x-www-form-urlencoded`` bodies (it
+    reads the whole stream at once and relies on ``max_content_length`` only), so
+    :meth:`make_form_data_parser` re-imposes the 1 MiB ceiling on urlencoded
+    bodies itself. It additionally guarantees that if parsing aborts partway
+    (e.g. the part limit trips after some files already spilled to disk), every
+    partial temp file is closed and unlinked instead of lingering.
     """
 
     max_form_memory_size: int | None = _FORM_MEMORY_CAP
@@ -192,9 +230,15 @@ class FomsRequest(Request):
         parser.stream_factory = _tracking_factory
         _orig_parse = parser.parse
 
-        def _guarded_parse(*args: Any, **kwargs: Any) -> Any:
+        form_memory_cap = self.max_form_memory_size
+
+        def _guarded_parse(
+            stream: Any, mimetype: str, content_length: int | None, options: Any = None
+        ) -> Any:
+            if mimetype == _URLENCODED_MIMETYPE and form_memory_cap is not None:
+                stream = _read_urlencoded_within_cap(stream, content_length, form_memory_cap)
             try:
-                return _orig_parse(*args, **kwargs)
+                return _orig_parse(stream, mimetype, content_length, options)
             except BaseException:
                 # Any partial part already spilled to a SpooledTemporaryFile /
                 # TemporaryFile is closed here; .close() unlinks the on-disk file.

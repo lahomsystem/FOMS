@@ -19,13 +19,23 @@ from werkzeug.security import generate_password_hash
 # 이름을 미리 바인딩(early-bound)한 모듈이 있어도 이 패치가 먹는다. 반대로
 # generate_password_hash 함수 자체를 교체하는 방식은 그런 모듈에 적용되지 않는다.
 #
-# 이 파일은 tests/ 전용이며 운영 코드는 import 하지 않는다. 운영 해싱 강도는
-# foms/services/security/password_policy.py 가 method= 없이 호출해 werkzeug 기본값을
-# 그대로 쓰므로 영향받지 않는다. 이 완화가 조용히 무효화되거나(werkzeug 상수명 변경)
-# 운영으로 새는 것은 tests/domains/test_password_kdf_contract.py 가 봉인한다.
+# werkzeug 3.0 부터 method 를 비우면 기본이 scrypt 다. 테스트 404 곳은 method 없이
+# 부르므로 그대로 두면 scrypt 로 바뀌어 위 완화가 통째로 무효가 된다. 함수를 바꾸지
+# 않고 **함수 객체의 기본 인자**만 pbkdf2 로 돌린다 — 미리 바인딩한 이름도 같은 함수
+# 객체를 가리키므로 먹는다.
+#
+# 운영 해싱은 foms/services/security/password_policy.py 의 hash_password 한 곳이
+# method 를 명시한다(pbkdf2:sha256, PASSWORD_PBKDF2_ITERATIONS 회). 그 반복수도 호출
+# 시점에 모듈 전역에서 읽으므로 여기서 함께 낮춘다. 이 파일은 tests/ 전용이며, 완화가
+# 조용히 무효화되거나 운영으로 새는 것은 tests/domains/test_password_kdf_contract.py 가 봉인한다.
+import foms.services.security.password_policy as _password_policy
+
 FOMS_TEST_PBKDF2_ITERATIONS = 10
-PRODUCTION_PBKDF2_ITERATIONS = _werkzeug_security.DEFAULT_PBKDF2_ITERATIONS
+PRODUCTION_PBKDF2_ITERATIONS = _password_policy.PASSWORD_PBKDF2_ITERATIONS
+_password_policy.PASSWORD_PBKDF2_ITERATIONS = FOMS_TEST_PBKDF2_ITERATIONS
 _werkzeug_security.DEFAULT_PBKDF2_ITERATIONS = FOMS_TEST_PBKDF2_ITERATIONS
+_gph_defaults = _werkzeug_security.generate_password_hash.__defaults__ or ("pbkdf2", 16)
+_werkzeug_security.generate_password_hash.__defaults__ = ("pbkdf2",) + tuple(_gph_defaults[1:])
 
 from tests.postgres_guard import assert_not_postgresql, assert_safe_for_schema_reset
 
