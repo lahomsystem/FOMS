@@ -36,6 +36,24 @@ CURRENT_POLICY_VERSION: int = POLICY_VERSION_STRONG
 #: zxcvbn 등 엔트로피 추정기로 교체(이 함수 한 곳만 바꾸면 전 경로 반영).
 MIN_STRONG_LENGTH: int = 8
 
+#: 운영 비밀번호 해시 반복수 SSOT — pbkdf2:sha256 60만 회(werkzeug 2.3 기본값과 같다).
+#: werkzeug 3.0 부터 method 를 비우면 기본이 scrypt 로 바뀌어 저장 방식이 조용히 달라진다.
+#: 그래서 방식은 :func:`hash_password` 한 곳에서만 명시한다(2026-09-28 사용자 결정: 지금과 같게).
+#: 테스트 레인은 tests/conftest.py 가 이 값을 낮추고, test_password_kdf_contract 가 봉인한다.
+PASSWORD_PBKDF2_ITERATIONS: int = 600_000
+
+
+def hash_password(plaintext: str) -> str:
+    """운영 비밀번호 해시의 유일한 생성 지점(pbkdf2:sha256, :data:`PASSWORD_PBKDF2_ITERATIONS` 회).
+
+    반복수는 호출 시점에 모듈 전역에서 읽는다 — 테스트 레인 완화가 이 함수에도 먹게 하려는 것.
+    강도 검사는 하지 않는다(사용자 비밀번호는 :func:`set_strong_password` 를 거친다).
+
+    :param plaintext: 해시할 평문. 원문은 보관하지 않는다.
+    :return: ``pbkdf2:sha256:<반복수>$<salt>$<hash>`` 형식 문자열.
+    """
+    return generate_password_hash(plaintext, method=f"pbkdf2:sha256:{PASSWORD_PBKDF2_ITERATIONS}")
+
 
 class WeakPasswordError(ValueError):
     """강도 정책을 통과하지 못한 비밀번호 설정 시도(약한 비번 거부·weak rollback 거부)."""
@@ -85,7 +103,7 @@ def set_strong_password(user: Any, plaintext: Optional[str]) -> None:
     ok, reason = validate_password_strength(plaintext)
     if not ok:
         raise WeakPasswordError(reason)
-    user.password = generate_password_hash(plaintext)
+    user.password = hash_password(plaintext)
     user.password_policy_version = POLICY_VERSION_STRONG
 
 

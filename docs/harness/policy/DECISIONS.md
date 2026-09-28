@@ -10,6 +10,12 @@
 
 ---
 
+### [2026-09-28] 언어는 유지하고 Flask 3.1·Werkzeug 3.1 로 올린다 — 비밀번호 해시 방식은 한 곳에서 명시
+- **키워드**: flask3, werkzeug3, stack, language-migration, pbkdf2, scrypt, hash_password, max_form_memory_size, urlencoded
+- **결정**: 언어·프레임워크 이전(TS·Go·Java·C#·FastAPI·Django·SPA)은 하지 않고 백엔드는 같은 언어 현대화(Flask 3.1.3·Werkzeug 3.1.9·Jinja2 3.1.6)로 간다(판정 보고서 `docs/plans/2026-09-28-foms-language-migration-assessment-report.md`). 비밀번호 해시는 `foms.services.security.password_policy.hash_password` 한 곳이 `pbkdf2:sha256` 60만 회를 명시한다(사용자 결정: 지금과 같게 — Werkzeug 3 기본 scrypt 불채택). Werkzeug 3 가 뺀 urlencoded 폼 1 MiB 메모리 한도는 `FomsRequest` 가 직접 건다.
+- **이유**: fix 표본 80건 중 다른 언어로만 막혔을 결함 0건, 사고 15건 중 0건. Flask 2.3·Werkzeug 2.x 는 24개월 내내 보안 패치 창 밖이고 FOMS 폼 한도에 걸린 CVE-2024-49767 이 있다. Werkzeug 3 는 method 를 비우면 scrypt 로 바뀌어 운영 저장 방식이 조용히 달라지므로 방식 명시가 필요했다.
+- **영향**: `requirements.txt`, `foms/services/security/password_policy.py`, 해시 호출 7곳(`naver_commerce/accounts.py`·`scripts/ops/db_admin.py`·`scripts/ops/railway_reset_admin.py`·`tools/ops/bootstrap_admin.py`), `foms/platform/request_limits.py`, `tests/conftest.py`(scrypt 기본값 차단·SSOT 반복수 완화), `tests/domains/test_password_kdf_contract.py`(방식 표류 봉인). `app.py:20-36` 옛 해시 호환 패치는 운영 해시 분포 확인 전까지 유지.
+
 ### [2026-09-23] REV-00 잠금 조회 전에 identity map 의 clean Order 를 비운다
 - **키워드**: revision, execute_order_mutation, lost update, identity map, FOR UPDATE, populate_existing, measurement_visits
 - **결정**: `foms/services/orders/revision.py` `execute_order_mutation` 이 `SELECT … FOR UPDATE` 직전에 `_expire_clean_cached_orders` 로 대상 id 의 **변경 없는(clean)** Order 만 expire 한다. dirty 객체는 건드리지 않는다. `populate_existing` 은 쓰지 않는다.

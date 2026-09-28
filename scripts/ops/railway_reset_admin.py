@@ -21,7 +21,7 @@ if not os.environ.get('DATABASE_URL') and os.environ.get('RAILWAY_PUBLIC_DATABAS
 def main():
     from db import db_session
     from models import User
-    from werkzeug.security import generate_password_hash
+    from foms.services.security.password_policy import hash_password
 
     pwd = os.environ.get('FOMS_ADMIN_DEFAULT_PASSWORD', 'admin1234')
     session = db_session()
@@ -30,7 +30,7 @@ def main():
         if not admin:
             admin = User(
                 username='admin',
-                password=generate_password_hash(pwd),
+                password=hash_password(pwd),
                 name='admin',
                 role='ADMIN',
                 is_active=True
@@ -38,7 +38,7 @@ def main():
             session.add(admin)
             print('Created admin (admin / ' + pwd + ')')
         else:
-            admin.password = generate_password_hash(pwd)
+            admin.password = hash_password(pwd)
             print('Updated admin password to: ' + pwd)
         session.commit()
         print('OK - login with admin / ' + pwd)
