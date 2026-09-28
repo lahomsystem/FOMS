@@ -136,8 +136,12 @@
         'wb-origin-cancel-confirm': submitOriginCancel,
         'wb-origin-return-confirm': submitOriginReturn,
         'wb-refresh-all': submitRefreshAll,
-        'wb-seek-run': submitSeek
+        'wb-seek-run': submitSeek,
+        'wb-alerts-toggle': toggleAlerts
     };
+
+    /** 폰 폭(CSS `@media (max-width: 767.98px)` 의 짝). 폰 전용 동작만 이 값을 문다. */
+    var PHONE_QUERY = '(max-width: 767.98px)';
 
     document.addEventListener('click', onClick);
     document.addEventListener('change', onChange);
@@ -689,6 +693,43 @@
         applyFontScale(next);
     }
 
+    /* ── 폰 배치 (2026-09-28 모바일 2단계) ──────────────────────────────
+       배치는 CSS 가 한다. 여기는 CSS 만으로 안 되는 두 가지뿐이다.
+        ① 알림 요약 띠 펼치기 — 상태는 버튼의 aria-expanded 하나(보이기 규칙이 그 값을 문다).
+        ② 행을 눌렀을 때 상세로 내려가기 — 폰에서는 상세가 목록 **아래**에 있어서, 조각을
+           갈아 끼워도 화면이 그대로면 사람은 아무 일도 안 일어난 줄 안다. */
+    function toggleAlerts(button) {
+        var open = button.getAttribute('aria-expanded') === 'true';
+        button.setAttribute('aria-expanded', open ? 'false' : 'true');
+    }
+
+    /** 전체 다시 그리기(softRefresh) 너머로 요약 띠의 펼침 상태를 옮긴다. */
+    function readAlertsOpen() {
+        var button = document.getElementById('wb-alerts-toggle');
+        return !!(button && button.getAttribute('aria-expanded') === 'true');
+    }
+
+    function applyAlertsOpen(open) {
+        var button = document.getElementById('wb-alerts-toggle');
+        if (button && open) {
+            button.setAttribute('aria-expanded', 'true');
+        }
+    }
+
+    function isPhone() {
+        return typeof window.matchMedia === 'function' && window.matchMedia(PHONE_QUERY).matches;
+    }
+
+    function revealPaneOnPhone() {
+        if (!isPhone()) {
+            return;   // 데스크톱은 상세가 옆 칸에 붙어 있다 — 스크롤을 건드리지 않는다.
+        }
+        var pane = document.getElementById('wb-pane');
+        if (pane && typeof pane.scrollIntoView === 'function') {
+            pane.scrollIntoView({ block: 'start', behavior: 'auto' });
+        }
+    }
+
     /* ── 위임 진입점 ─────────────────────────────────────────────────── */
 
     function onClick(event) {
@@ -1034,6 +1075,7 @@
         loadPane(id, href).then(function (ok) {
             if (ok) {
                 pushPaneState(id, href);
+                revealPaneOnPhone();
             }
         });
     }
@@ -1693,10 +1735,13 @@
             // 교체 **직전**에 뜬다. 응답을 기다리는 동안 사용자가 더 스크롤했거나
             // 낱말을 더 쳤을 수 있다 — 되돌릴 값은 그 최신 상태여야 한다.
             var find = captureFind();
+            var alertsOpen = readAlertsOpen();
             var scrollX = window.scrollX;
             var scrollY = window.scrollY;
             teardownModals(current);
             current.replaceWith(next);
+            // 폰 요약 띠를 펼쳐 둔 채 갱신되면 펼침을 지킨다 — 접히면 보던 띠가 사라진다.
+            applyAlertsOpen(alertsOpen);
             // 교체로 잃는 것만 되돌린다. 목록 밖 판정은 전체 렌더가 서버에서 다시
             // 내려주므로 들고 다니던 값 대신 서버 값을 읽는다(이 쪽이 더 정확하다).
             applyFontScale(readFontScale());
