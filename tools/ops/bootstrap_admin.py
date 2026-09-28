@@ -23,7 +23,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from db import db_session, init_db  # noqa: E402
 from models import User  # noqa: E402
 from sqlalchemy.orm import Session  # noqa: E402
-from werkzeug.security import generate_password_hash  # noqa: E402
+from foms.services.security.password_policy import hash_password  # noqa: E402
 
 ADMIN_USERNAME = "admin"
 
@@ -62,7 +62,7 @@ def bootstrap_admin(
     password = password_prompt()
     admin = User(
         username=ADMIN_USERNAME,
-        password=generate_password_hash(password),
+        password=hash_password(password),
         name="관리자",
         role="ADMIN",
         is_active=True,

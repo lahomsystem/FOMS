@@ -50,7 +50,7 @@
     "foms/persistence/designer/repositories.py:173",
     "foms/persistence/designer/repositories.py:211",
     "foms/persistence/designer/repositories.py:505",
-    "foms/platform/request_limits.py:198",
+    "foms/platform/request_limits.py:242",
     "foms/services/app_init.py:146",
     "foms/services/channel_client.py:309",
     "foms/services/channel_dispatch.py:59",
@@ -2974,7 +2974,7 @@
     },
     {
       "path": "foms/platform/request_limits.py",
-      "lineno": 198,
+      "lineno": 242,
       "handler_type": "base_exception",
       "disposition": "FAIL_CLOSED",
       "owner": "platform",
@@ -2983,7 +2983,7 @@
     },
     {
       "path": "foms/platform/request_limits.py",
-      "lineno": 204,
+      "lineno": 248,
       "handler_type": "broad_exception",
       "disposition": "INTENTIONAL",
       "owner": "platform",

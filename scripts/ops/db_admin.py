@@ -106,7 +106,7 @@ def init_tables():
             
         # Create Default Admin
         from models import User
-        from werkzeug.security import generate_password_hash
+        from foms.services.security.password_policy import hash_password
         session = db_session()
         try:
             admin = session.query(User).filter_by(username='admin').first()
@@ -115,7 +115,7 @@ def init_tables():
                 print("Creating default admin user (admin/***)...")
                 new_admin = User(
                     username='admin',
-                    password=generate_password_hash(pwd),
+                    password=hash_password(pwd),
                     name='관리자',
                     role='ADMIN',
                     is_active=True
@@ -145,7 +145,7 @@ def reset_admin_password(password=None):
     if password is None:
         password = _default_admin_password()
     from models import User
-    from werkzeug.security import generate_password_hash
+    from foms.services.security.password_policy import hash_password
     session = db_session()
     try:
         admin = session.query(User).filter_by(username='admin').first()
@@ -153,14 +153,14 @@ def reset_admin_password(password=None):
             print("Admin user not found. Creating admin (admin/{})...".format(password))
             admin = User(
                 username='admin',
-                password=generate_password_hash(password),
+                password=hash_password(password),
                 name='관리자',
                 role='ADMIN',
                 is_active=True
             )
             session.add(admin)
         else:
-            admin.password = generate_password_hash(password)
+            admin.password = hash_password(password)
             print("Admin password updated (username=admin, password={}).".format(password))
         session.commit()
         print("Done. You can log in with admin / {}.".format(password))

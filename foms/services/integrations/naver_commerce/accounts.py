@@ -18,12 +18,12 @@ import secrets
 from typing import Any
 
 from sqlalchemy.orm import Session
-from werkzeug.security import generate_password_hash
 
 from foms.services.integrations.naver_commerce.constants import (
     ACTOR_USERNAME,
     OWNER_USERNAME,
 )
+from foms.services.security.password_policy import hash_password
 from models import User
 
 #: 계정별 목표 상태. 여기서 벗어나면 :func:`ensure_account` 가 바로잡는다.
@@ -47,7 +47,7 @@ SPECS: tuple[dict[str, str], ...] = (
 
 def locked_password_hash() -> str:
     """아무도 모르는 난수 비밀번호의 해시(원문은 반환하지 않는다)."""
-    return generate_password_hash(secrets.token_urlsafe(48))
+    return hash_password(secrets.token_urlsafe(48))
 
 
 def ensure_account(session: Session, spec: dict, *, reset_password: bool = False) -> dict[str, Any]:
