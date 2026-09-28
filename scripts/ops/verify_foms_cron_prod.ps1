@@ -21,7 +21,7 @@ $dryRun = python tools/ops/railway_configure_cron_service.py --target production
 Write-Host $dryRun
 
 $required = @(
-    '"startCommand": "python tools/cron/cleanup_order_drafts.py --execute && python tools/ops/purge_order_mutation_receipts.py --retention-days 7 --batch-size 1000 --apply && python tools/ops/purge_audit_logs.py --apply"',
+    '"startCommand": "python tools/cron/nightly.py"',
     '"cronSchedule": "0 17 * * *"',
     '"railwayConfigFile": "railway-cron.toml"'
 )
@@ -54,4 +54,4 @@ if ($sshTry -match "scaled to zero|not running|Sleep when idle|unexpected state"
     Write-Host $sshTry
 }
 
-Write-Host "Done. Next scheduled run: UTC 17:00 (KST 02:00). Expect log: [cleanup_order_drafts] mode=execute ..." -ForegroundColor Cyan
+Write-Host "Done. Next scheduled run: UTC 17:00 (KST 02:00). Expect log: [nightly] step=... rc=0 (3 steps) then [nightly] done ... failed=none" -ForegroundColor Cyan

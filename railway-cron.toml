@@ -7,11 +7,15 @@
 # 어디에도 등록되지 않아 purge 가 한 번도 돌지 않았다(2026-09-11 운영 실측: 보존 7일짜리
 # `order_mutation_receipts` 에 7일 초과 행 6,329건 잔존). 서비스를 증설하는 대신 **이미 도는**
 # cron 에 붙여 "등록 누락"이라는 실패 모양 자체를 없앤다.
-# 실패 커플링은 명시 수용: 앞 단계가 죽으면 뒤 단계는 실행되지 않는다. 세 단계 모두 배치마다
-# commit 하는 resume 형이고 advisory lock 으로 직렬화되므로 다음 날 실행이 곧 복구다.
+# 2026-09-29: 위 체이닝(`A && B && C`)도 한 번도 purge 를 돌리지 못했다 — 이 서비스는 실제로
+# 루트 Dockerfile 로 빌드되고, Dockerfile 서비스의 startCommand 는 셸 없이 exec 되어 첫 명령만
+# 돌았다(운영 만료 receipt 2952건 잔존). 그래서 startCommand 는 셸 문법 없는 러너 한 줄이다 —
+# 단계 목록·인자·단계별 제한 시간은 tools/cron/nightly.py 의 NIGHTLY_STEPS 가 정본이다. 단계는
+# 서로 독립(앞 단계가 실패해도 다음 단계를 돈다)이고, 셋 다 배치 commit·advisory lock 이라 다음 날
+# 실행이 곧 복구다. 스펙: docs/specs/2026-09-29-nightly-cron-single-runner-spec.md
 [build]
 builder = "nixpacks"
 
 [deploy]
-startCommand = "python tools/cron/cleanup_order_drafts.py --execute && python tools/ops/purge_order_mutation_receipts.py --retention-days 7 --batch-size 1000 --apply && python tools/ops/purge_audit_logs.py --apply"
+startCommand = "python tools/cron/nightly.py"
 cronSchedule = "0 17 * * *"  # UTC 17:00 = KST 02:00

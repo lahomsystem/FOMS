@@ -12,7 +12,8 @@ Flask 3.1 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 ## 진행 중
 - [2026-09-29] **네이버 워크벤치 대조(gap) 탭 완전 삭제(deploy 대기)** — 사용자 결정. order_gap 서비스·pane 삭제, `?tab=gap` 은 처리 탭 폴백. 병행: 워크벤치 전체 모바일 목업(처리·이력·상세·관리 시트)
 - [2026-09-28] **v3 셸 삭제 + 모바일 3건 + 광폭 PC 모바일 표면 생략 + PC 배지(PR #433·#434 · production `824b2c1d3`)** — `FOMS_V3_SHELL_COHORT` 는 v2 코호트 키(삭제 금지). 잔여: 아이폰 실기기 날짜 탭
-- [2026-09-28] **psycopg3 전환 단계 1 — PG 드라이버 이름을 `db_url_resolver` 한 곳으로(deploy)** — 동작 변화 0. 단계 2(드라이버 교체)·3(psycopg2 삭제)은 승인 대기, 계획 `docs/plans/2026-09-28-psycopg3-migration-plan.md`. 앞선 Flask 3.1 상향은 production `ec7e5d843` 완료
+- [2026-09-29] **야간 purge 미실행 → 러너 `tools/cron/nightly.py`(deploy)** — cron 이 Dockerfile 빌드라 `A && B && C` 가 셸 없이 첫 명령만 돌았다(운영 만료 receipt 2952). 스테이징 하룻밤 확인 뒤 운영. 스펙 `docs/specs/2026-09-29-nightly-cron-single-runner-spec.md`
+- [2026-09-29] **psycopg3 단계 1 — 드라이버 이름 한 곳(PR #435 · production `0b356a0cb`)** — 동작 변화 0. 단계 2·3 승인 대기
 - [2026-09-28] **실측 모바일 카드 현장 메모(deploy)** — 주소·연락처 특이사항은 그 줄 밑, 실측 특이사항·비고·네이버 배송메모는 "현장 메모" 상자, 목록 줄 "가기 전 확인 N". `foms/services/measurement/site_memo.py`. 잔여: 스테이징 실화면
 - [2026-09-23] **완료 quest 재전이 버튼 = 승인 버튼 이름 · AS 접수 완료 알림 · 발송 기록 칩 통합(PR #419·#420·#423 · production `c74ef1f5e`)** — erp-send-trace.js. 잔여: 링크 칩 실화면
 - [2026-09-23] **실측 모바일 통합 화면 운영 반영(PR #424·#425 칩 색·#426 사진 제목 중복·#427 시트 압축·#428 담당자 색 띠 · production `64058a6c1`)** — 체크리스트+카드 두 벌을 담당자 탭·접기·바텀시트 한 목록으로(16곳 1,242px). 사진첩 저장 시트·담당자별 시간순 포함. 선행: 체크리스트·긴급 알림 PR #421, 색 A안 #422. 잔여: 아이폰·안드로이드 실기기(사진첩 저장·두 단 sticky·가로 밀기)
