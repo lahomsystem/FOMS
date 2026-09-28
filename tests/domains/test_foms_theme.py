@@ -186,12 +186,22 @@ def test_shipment_mobile_css_uses_tokens_for_labels():
 
 
 def test_as_schedule_equal_columns_and_no_row_class_on_dates():
+    """A안 2단 날짜: 방문·완료 2칸 균등 타일, 값은 한 줄(nowrap)로 잘리지 않게 폭을 확보한다.
+
+    옛 계약(3칸 + 값 줄바꿈 허용)은 좁은 폰에서 날짜가 잘려 폐기했다(2026-09-28).
+    행 클래스(.erp-pro-order-card__row)를 날짜 칸에 달지 않는 계약은 그대로다 — 달면 레거시
+    카드 JS·배경 규칙이 v2 타일에 새어 든다.
+    """
     css = _read("static/css/components/foms-as-mobile-card.css")
-    assert "grid-template-columns: repeat(3, minmax(0, 1fr))" in css
+    assert "grid-template-columns: repeat(2, minmax(0, 1fr))" in css
     card = _read("templates/cs/partials/as_mobile_order_card.html")
+    macros = _read("templates/cs/partials/as_card_macros.html")
     assert "erp-as-mobile-card__date--received erp-pro-order-card__row" not in card
     assert "erp-as-mobile-card__date--visit erp-pro-order-card__row" not in card
-    assert "white-space: nowrap" not in css.split("erp-as-mobile-card__date-value")[1].split("}")[0]
+    tile_macro = macros.split("macro render_as_date_tile")[1].split("endmacro")[0]
+    assert "erp-pro-order-card__row" not in tile_macro
+    value_rule = css.split(".erp-as-date-tile__value {")[1].split("}")[0]
+    assert "white-space: nowrap" in value_rule
 
 
 def test_bootstrap_input_colors_come_from_tokens_not_hardcoded_light():

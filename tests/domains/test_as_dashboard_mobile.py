@@ -189,7 +189,8 @@ def test_as_dashboard_mobile_v2_wiring_contract():
     assert "erp-as-mobile-card__thumb" in card_src
     assert "erp-as-mobile-card__contact-row" in card_src
     assert "erp-as-mobile-card__action--pending" in card_src
-    assert "grid-template-columns: repeat(3, minmax(0, 1fr))" in css_src
+    # A안 2단 날짜(2026-09-28): 방문·완료 2칸 타일(옛 3칸 상자는 좁은 폰에서 날짜가 잘렸다)
+    assert "grid-template-columns: repeat(2, minmax(0, 1fr))" in css_src
     assert "grid-template-columns: minmax(0, 1fr)" in css_src
     assert "min-width: 0;" in css_src
     # PC식 번호 페이저(무한스크롤 아님)

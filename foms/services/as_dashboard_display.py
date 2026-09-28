@@ -569,6 +569,64 @@ def _md_dow(iso_date: Any) -> str:
     return f"{parsed.month:02d}-{parsed.day:02d}({_KO_WEEKDAYS[parsed.weekday()]})"
 
 
+def _ko_md_dow(parsed: datetime.date) -> str:
+    """date → '9월 22일 (화)'(0 패딩 없음, 요일 한 글자)."""
+    return f"{parsed.month}월 {parsed.day}일 ({_KO_WEEKDAYS[parsed.weekday()]})"
+
+
+def build_as_mobile_date_view(
+    *, received: Any, visit: Any, completed: Any, today: datetime.date
+) -> dict[str, Any]:
+    """모바일 v2 AS 카드 날짜 표기(접수 한 줄 + 방문·완료 2단 타일)를 조립한다.
+
+    좁은 폰에서 3칸 날짜 상자가 잘리던 문제의 표기 SSOT. 같은 규칙을 as-dashboard.js
+    (formatAsTileDate 등)가 저장 직후 화면 갱신용으로 그대로 따라 한다 — 한쪽만 바꾸면
+    새로고침 전후 글자가 달라진다.
+
+    Args:
+        received: AS 접수일 문자열(YYYY-MM-DD) 또는 None.
+        visit: AS 방문일 문자열 또는 None.
+        completed: AS 완료일 문자열 또는 None.
+        today: 기준일(get_today_kst() 반환값, KST date). date.today() 금지(CI 는 UTC).
+
+    Returns:
+        received_text: '9월 22일 (화)' / 다른 해면 '2025년 12월 3일 (수)' / 오늘이면
+            ' · 오늘' 꼬리. 날짜로 못 읽으면 원문(빈 값이면 '').
+        visit_text / completed_text: '10월 8일 (목)'(연도 없음). 못 읽으면 원문.
+        visit_year_tag / completed_year_tag: 올해가 아니면 '2025년', 아니면 ''.
+        visit_overdue_days: 방문일이 오늘보다 앞이고 완료일이 없으면 지난 일수, 아니면 0.
+    """
+    view: dict[str, Any] = {}
+
+    rec = _parse_iso_date(received)
+    if rec is None:
+        view["received_text"] = str(received or "").strip()
+    else:
+        text = _ko_md_dow(rec)
+        if rec.year != today.year:
+            text = f"{rec.year}년 {text}"
+        if rec == today:
+            text = f"{text} · 오늘"
+        view["received_text"] = text
+
+    for key, raw in (("visit", visit), ("completed", completed)):
+        parsed = _parse_iso_date(raw)
+        if parsed is None:
+            view[f"{key}_text"] = str(raw or "").strip()
+            view[f"{key}_year_tag"] = ""
+        else:
+            view[f"{key}_text"] = _ko_md_dow(parsed)
+            view[f"{key}_year_tag"] = f"{parsed.year}년" if parsed.year != today.year else ""
+
+    visit_parsed = _parse_iso_date(visit)
+    has_completed = bool(str(completed or "").strip())
+    if visit_parsed is not None and visit_parsed < today and not has_completed:
+        view["visit_overdue_days"] = (today - visit_parsed).days
+    else:
+        view["visit_overdue_days"] = 0
+    return view
+
+
 def _collect_sales_delivery_ref_ids(rows) -> set[int]:
     """행들의 sales_delivery_link 가 참조하는 기준 실측 주문 id 집합(중복 제거).
 
@@ -801,6 +859,13 @@ def apply_as_dashboard_row_display_fields(rows, db, *, mobile_v2_active):
             as_pending=bool(r.as_pending),
         )
         r.as_visit_dday = _as_visit_dday(getattr(r, "as_visit_date", None), _today)
+        # 모바일 v2 카드 날짜 표기(접수 한 줄 + 방문·완료 2단 타일). 문자열 조립뿐(신규 쿼리 0).
+        r.as_date_view = build_as_mobile_date_view(
+            received=getattr(r, "as_received_date", None),
+            visit=getattr(r, "as_visit_date", None),
+            completed=getattr(r, "as_completed_date", None),
+            today=_today,
+        )
         # 방문 시각(태블릿 대조 표면 방문 블록용) — 이미 로드된 structured_data 재소비(신규 쿼리 0).
         # api_as_schedule 가 schedule.as_visit.time 에 저장한다(HH:MM 문자열). 없으면 빈 문자열.
         _schedule = r.structured_data.get("schedule") or {}
