@@ -164,7 +164,7 @@ def test_asset_pins_moved_together():
     """CSS·JS 를 고쳤으면 핀을 함께 올린다 — 서비스워커 캐시가 옛 파일을 준다."""
     markup = TEMPLATE.read_text(encoding="utf-8")
 
-    assert markup.count("?v=20260928b") == 2
+    assert markup.count("?v=20260928c") == 2
     assert "?v=20260914b" not in markup
 
 
@@ -251,3 +251,13 @@ def test_row_product_line_is_block_so_ellipsis_applies():
     css = CSS.read_text(encoding="utf-8").replace("\r\n", "\n")
     rule = css.split(".wb-row__line2 {", 1)[1].split("}", 1)[0]
     assert "display: block;" in rule and "text-overflow: ellipsis;" in rule
+
+
+def test_phone_back_button_sits_below_sticky_global_nav():
+    """전역 nav 도 sticky(z 1000)다 — '목록으로' 가 top:0 이면 그 밑에 깔려 안 보였다
+    (2026-09-28 스테이징 390px). nav 실측 높이(--wb-nav-h)만큼 내려 붙는다."""
+    css = CSS.read_text(encoding="utf-8").replace("\r\n", "\n")
+    phone = _media_block(css, "@media (max-width: 767.98px)")
+    rule = phone.split(".wb-pane-back {", 1)[1].split("}", 1)[0]
+    assert "top: var(--wb-nav-h" in rule
+    assert "scroll-margin-top: var(--wb-nav-h" in rule
