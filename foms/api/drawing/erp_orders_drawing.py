@@ -38,6 +38,7 @@ from foms.services.orders.drawing_transfer import (
     materialize_pending_snapshot,
     materialize_transfer_attachments,
 )
+from foms.services.orders.revision import execute_single_order_write, lock_order_row
 from foms.services.orders.upload_ticket import _file_type as attachment_file_type  # 확장자→image/video/file (첨부 정본과 같은 규칙)
 from foms.services.sidefx_outbox import enqueue_side_effect
 from foms.services.storage import get_storage
@@ -48,6 +49,9 @@ erp_orders_drawing_bp = Blueprint(
     __name__,
     url_prefix='/api/orders',
 )
+
+#: REV-00 receipt scope 용 정책 id(전달·작업실 대기 전달 공용). 버전 올림은 엔진이 한다.
+DRAWING_TRANSFER_POLICY_ID = 'DRAWING_TRANSFER'
 
 
 def perform_drawing_transfer(
@@ -60,7 +64,9 @@ def perform_drawing_transfer(
 
     drawing_current_files 갱신·drawing_status='TRANSFERRED'·전달 히스토리 append·담당자
     알림(fan_out+push+realtime)·SecurityLog·대시보드 캐시 무효화를 한 트랜잭션으로 수행하고
-    커밋한다. 호출측이 ``order``/``current_user``/``user_id`` 를 이미 로드해 전달한다.
+    커밋한다. 호출측이 ``order``/``current_user``/``user_id`` 를 이미 로드해 전달한다 —
+    ``order`` 는 :func:`lock_order_row` 로 잠가 읽은 행이어야 한다(판정·계산이 최신 값 위에서
+    돌도록). 구조화 쓰기는 REV-00 엔진 콜백 안에서 하고 ``mutation_version`` 이 1 오른다.
 
     :param files: [{key, filename}] (이미 R2에 업로드된 참조). None/[] 이면 파일 미갱신.
     :returns: ``(payload_dict, http_status)``. 성공 시 ``payload['success']=True`` (200),
@@ -255,8 +261,19 @@ def perform_drawing_transfer(
     s_data['drawing_status'] = 'TRANSFERRED'
     s_data['drawing_transferred'] = True
     s_data['last_drawing_transfer'] = transfer_info
-    order.structured_data = s_data
-    flag_modified(order, 'structured_data')
+
+    def _write_transfer(locked):
+        locked.structured_data = s_data
+        flag_modified(locked, 'structured_data')
+
+    execute_single_order_write(
+        db, order_id=int(order_id),
+        actor_user_id=actor_uid if actor_uid is not None else user_id,
+        policy_id=DRAWING_TRANSFER_POLICY_ID,
+        payload={'note': note, 'mode': mode, 'files': new_files,
+                 'replace_target_keys': replace_target_keys},
+        write=_write_transfer,
+    )
 
     manager_name = (((s_data.get('parties') or {}).get('manager') or {}).get('name') or '').strip()
     customer_name = (((s_data.get('parties') or {}).get('customer') or {}).get('name') or '').strip()
@@ -372,7 +389,8 @@ def api_order_transfer_drawing(order_id):
     try:
         data = request.get_json() or {}
         db = get_db()
-        order = db.query(Order).filter(Order.id == order_id).first()
+        # 첫 조회부터 행 잠금 — 판정·계산을 잠금 뒤 최신 값 위에서 한다(2a-1②).
+        order = lock_order_row(db, order_id)
         if not order:
             return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
 
@@ -430,7 +448,8 @@ def api_order_cancel_transfer(order_id):
         data = request.get_json(silent=True) or {}
 
         db = get_db()
-        order = db.query(Order).filter(Order.id == order_id).first()
+        # 첫 조회부터 행 잠금(FOR UPDATE) — 아래 직접 버전 올림이 이 잠금 아래에서 일어난다.
+        order = lock_order_row(db, order_id)
         if not order:
             return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
 
@@ -561,6 +580,8 @@ def api_order_cancel_transfer(order_id):
         s_data['drawing_transfer_history'] = history
         order.structured_data = s_data
         flag_modified(order, 'structured_data')
+        # 회수 파일이 없어도 버전을 올린다 — 그 전에 연 폼의 If-Match 가 409 를 받게(2a-1②).
+        order.mutation_version = (order.mutation_version or 0) + 1
         cancel_context = order_audit_context(order)
         log_access(
             describe_order_action(
@@ -593,7 +614,6 @@ def api_order_cancel_transfer(order_id):
             )
             db.add(cancel_event)
             db.flush()
-            order.mutation_version = (order.mutation_version or 0) + 1
             for object_key in sorted(storage_keys_for_outbox):
                 enqueue_side_effect(
                     db,
