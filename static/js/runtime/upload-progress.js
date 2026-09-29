@@ -392,7 +392,8 @@
     if (sortOrders != null && (!Array.isArray(sortOrders) || sortOrders.length !== files.length)) {
       return { ok: 0, total: files.length, results: [], preparedFiles: [], error: 'sortOrders 길이가 파일 수와 다릅니다.' };
     }
-    var folder = options.folder || ('orders/' + orderId + '/attachments');
+    // M10: 도면은 도면 폴더에 둔다(전달 필터가 attachments/ 를 도면으로 보지 않는다).
+    var folder = options.folder || ('orders/' + orderId + '/' + (category === 'drawing' ? 'drawing' : 'attachments'));
     var total = files.length;
     var ok = 0;
     var policy = fomsGetUploadQueuePolicy(options);

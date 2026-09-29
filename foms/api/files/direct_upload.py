@@ -39,6 +39,24 @@ def _current_user():
     return get_user_by_id(uid) if uid else None
 
 
+def _drawing_folder_for(folder, requested_category):
+    """M10: category=drawing 인데 일반 첨부 폴더를 달라면 도면 폴더로 바꾼다.
+
+    작업실 전달 창·공용 업로드 도우미(옛 캐시 JS 포함)가 ``orders/<id>/attachments`` 에
+    category=drawing 으로 세션을 요청한다. 전달 필터는 ``attachments/`` 를 도면으로 보지
+    않으므로 key 를 ``orders/<id>/drawing`` 아래로 발급한다. 다른 폴더는 손대지 않는다.
+    권한 판정은 바뀐 폴더 기준이다(호출측이 재작성 뒤 ``parse_upload_folder`` 를 부른다).
+    """
+    if not isinstance(folder, str) or not isinstance(requested_category, str):
+        return folder
+    if requested_category.strip().lower() != "drawing":
+        return folder
+    parts = folder.strip().split("/")
+    if len(parts) == 3 and parts[0] == "orders" and parts[1].isdigit() and parts[2] == "attachments":
+        return f"orders/{parts[1]}/drawing"
+    return folder
+
+
 @attachments_bp.route("/upload/session", methods=["POST"])
 @login_required
 def api_upload_session():
@@ -54,6 +72,7 @@ def api_upload_session():
         if not isinstance(filename, str):
             filename = str(filename)
 
+        folder = _drawing_folder_for(folder, data.get("category"))
         # UPLOAD-01: arbitrary folder 0 — 서버가 folder 를 완전 정규화·화이트리스트 검증한다.
         ok_folder, _order_id, norm_folder, category, folder_err = parse_upload_folder(folder)
         if not ok_folder:
@@ -108,6 +127,7 @@ def api_upload_session_batch():
         if not files or not isinstance(files, list):
             return jsonify({"success": False, "message": "files 리스트가 필요합니다."}), 400
 
+        folder = _drawing_folder_for(folder, data.get("category"))
         # UPLOAD-01: arbitrary folder 0 — 완전 정규화·화이트리스트 검증.
         ok_folder, _order_id, norm_folder, category, folder_err = parse_upload_folder(folder)
         if not ok_folder:
