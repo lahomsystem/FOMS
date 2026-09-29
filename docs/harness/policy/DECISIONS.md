@@ -10,6 +10,12 @@
 
 ---
 
+### [2026-09-29] 주문 폼 전체 저장은 도면 축·도면 배정·퀘스트·고객확인을 바꾸지 못한다
+- **키워드**: 도면, structured PUT, lock_server_owned_keys, SERVER_LOCKED_KEYS, drawing_status, drawing_current_files, drawing_assignee_user_ids, quests, blueprint, M1
+- **결정**: `PUT /api/orders/<id>/structured` 는 도면 축(`drawing`·`drawing_status`·`drawing_current_files`·`drawing_transfer_history` 등)·`drawing_wizard`·`quests`·`blueprint`·`assignments.drawing_assignee_user_ids`(+옛 `drawing_assignees`)를 클라이언트가 무엇을 보내든 저장 순간의 서버값으로 고정한다(서버에 없으면 버린다). 폼 JS 는 이 키들을 PUT 에 싣지 않고 화면 사본에서만 유지한다. 관리자 예외는 없다.
+- **이유**: 폼은 연 순간의 스냅샷을 되실어 보내고 도면 API 는 버전을 올리지 않아, 폼을 연 뒤 들어온 수정요청·재전달·담당 변경을 저장 한 번이 되돌렸다. 1차(확정 때 재계산 제거) 뒤로는 되돌려진 현재 도면이 그대로 확정본·고객 링크가 된다. 운영 측정 ①(2026-09-29): 1차 배포 뒤 실제 피해 0건.
+- **영향**: `foms/services/orders/structured_form_projection.py`, `foms/api/erp_orders_structured.py`(`_force_preserve_drawing_transfer_history` 삭제), `static/js/orders/erp-order-shared.js`. 설계서 `docs/specs/2026-09-29-drawing-defects-batch2_SPEC.md` §4.1.
+
 ### [2026-09-29] 도면 수령 확정은 파일을 지우지 않는다 — 교체된 옛 도면은 화면에서만 뺀다
 - **키워드**: 도면, 수령확정, drawing_confirm_cleanup, superseded_drawing_keys, R2, 파일삭제, C8, C8-X
 - **결정**: 수령 확정은 `drawing_current_files` 와 `CONFIRM_RECEIPT.files` 만 정한다. 스토리지·`OrderAttachment` 삭제는 없다. 이력으로 현재본을 다시 계산하지 않는다(전달 API 가 계산해 둔 `drawing_current_files` 를 그대로 쓴다). 교체된 옛 도면(TRANSFER·CONFIRM_RECEIPT 에 올랐지만 현재본에 없는 key)은 고객 링크·목록 API·생산/시공/출고 미리보기·발주 PUSH 에서 뺀다.
