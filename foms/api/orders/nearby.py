@@ -7,6 +7,7 @@ import datetime
 from flask import current_app, jsonify, request
 
 from db import get_db
+from foms.services.datetime_kst import now_utc_naive
 from foms.services.common.address_converter import FOMSAddressConverter
 from foms.services.schedule_recommendations import (
     compute_construction_nearby_fallback_payload,
@@ -79,7 +80,7 @@ def nearby_orders_response():
         ).strftime("%Y-%m-%d")
     except Exception:
         kst_tomorrow = (
-            datetime.datetime.utcnow() + datetime.timedelta(hours=9, days=1)
+            now_utc_naive() + datetime.timedelta(hours=9, days=1)
         ).strftime("%Y-%m-%d")
     ref_date = request.args.get("date", kst_tomorrow)
 

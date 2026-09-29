@@ -439,7 +439,7 @@ def test_phone_change_keeps_flat_column_and_structured_together(client):
     _post(client, order_id, {"phone": "010-9999-0000"})
 
     db_session.expire_all()
-    order = db_session.query(Order).get(order_id)
+    order = db_session.get(Order, order_id)
     assert order.phone == "010-9999-0000"
     assert order.structured_data["parties"]["customer"]["phone"] == "010-9999-0000"
 
@@ -455,7 +455,7 @@ def test_customer_name_change_lands_on_structured_path(client):
     assert row is not None, f"원장 경로: {sorted(_paths(order_id))}"
     assert (row.before_value, row.after_value) == ("원장 고객", "바뀐 고객")
     db_session.expire_all()
-    order = db_session.query(Order).get(order_id)
+    order = db_session.get(Order, order_id)
     assert order.customer_name == "바뀐 고객"
     assert order.structured_data["parties"]["customer"]["name"] == "바뀐 고객"
 
@@ -476,7 +476,7 @@ def test_partial_save_does_not_push_stale_flat_value_into_structured(client):
     _post(client, order_id, {"received_time": "11:00"})
 
     db_session.expire_all()
-    order = db_session.query(Order).get(order_id)
+    order = db_session.get(Order, order_id)
     assert order.structured_data["parties"]["customer"]["phone"] == "010-7777-8888"
     assert order.phone == "010-7777-8888"
     assert _row(order_id, "parties.customer.phone") is None

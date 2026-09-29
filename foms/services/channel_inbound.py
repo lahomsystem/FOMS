@@ -256,7 +256,7 @@ def process_inbound_job(log_id: int):
     Worker에서 실행되는 실제 처리 로직 (CT-E-03)
     """
     db = db_session
-    log = db.query(ChannelInboundEventLog).get(log_id)
+    log = db.get(ChannelInboundEventLog, log_id)
     if not log:
         logger.error(f"[Inbound] Log {log_id} not found.")
         return
