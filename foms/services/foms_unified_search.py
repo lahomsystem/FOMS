@@ -4,16 +4,21 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from sqlalchemy import and_
+from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 
-from foms.services.erp_dashboard_search import erp_order_dashboard_search_predicate
+from foms.services.erp_dashboard_search import (
+    search_query_tokens,
+    strip_order_hash,  # noqa: F401 — 이 모듈 이름으로 부르던 곳 호환
+    visible_order_search_clause,
+)
 from foms.services.erp_display import _ensure_dict, _erp_get_stage, _normalize_for_search
 from foms.services.erp_order_deeplink import build_order_queue_focus_href, resolve_order_stage_code
 from foms.services.erp_mobile_order_display import (
     format_queue_card_schedule_summary,
     resolve_queue_card_schedule,
 )
+from foms.services.erp_permissions import build_mine_sql_filter, is_order_related_to_user
 from foms.services.erp_policy import STAGE_LABELS
 from foms.services.phone_search import extract_phone_digit_query, normalize_phone_digits
 from models import Order
@@ -25,7 +30,9 @@ _CHOSUNG = "ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ"
 # 줄이기 위해 후보 폭을 넓힌다. 후보는 Python 분류기를 거치므로 trgm 인덱스 + 200ms 디바운스
 # 하에서 안전한 범위로만 상향한다.
 _MAX_SQL_ROWS = 300
-_MAX_CHOSUNG_SCAN = 400
+# 초성 검색은 이름 두 칸(컬럼 + structured_data 고객명)만 전 기간 훑는다. 맞는 주문이
+# 이보다 많으면 최신순으로 자른다(분류·관련도 정렬 뒤 묶음마다 8건만 보이므로 넉넉하다).
+_MAX_CHOSUNG_HITS = 500
 _MAX_HISTORY_FALLBACK_ROWS = 200
 
 
@@ -33,6 +40,31 @@ def _compact(text: str | None) -> str:
     """Remove whitespace for comparison."""
     normalized = _normalize_for_search(text)
     return "".join(normalized.split()).lower()
+
+
+def construction_scope_user(user: Any) -> Any:
+    """통합 검색을 자기 담당 주문으로 좁혀야 하는 사용자면 그 사용자, 아니면 None.
+
+    시공팀은 과거 이력·시공 화면에서 늘 자기 담당만 본다(``erp_mine_only_for_construction``).
+    통합 검색 미리보기만 모든 주문의 이름·전화·주소를 보여 주던 구멍을 같은 규칙으로 막는다.
+    """
+    if user is not None and getattr(user, "team", None) == "CONSTRUCTION":
+        return user
+    return None
+
+
+def _owner_scope(owner: Any):
+    """``owner`` 의 내 담당 SQL 술어(이력 화면과 같은 ``build_mine_sql_filter``)."""
+    if owner is None:
+        return None
+    conds = build_mine_sql_filter(owner)
+    return or_(*conds) if conds else (Order.id == -1)
+
+
+def _active_orders(db: Session, scope):
+    """운영 active 주문 — 호출자 가시 범위(``scope``)가 있으면 그것까지."""
+    q = db.query(Order).filter(Order.active_filter())
+    return q.filter(scope) if scope is not None else q
 
 
 def _search_tokens(query: str | None) -> list[str]:
@@ -45,6 +77,12 @@ def _search_tokens(query: str | None) -> list[str]:
     """
     normalized = _normalize_for_search(query)
     return [tok for tok in normalized.split() if tok]
+
+
+def _is_four_digit_query(query: str) -> bool:
+    """숫자 4자리 한 낱말 — 전화 끝자리 + 주문번호 정확 일치로만 찾는다."""
+    q = (query or "").strip()
+    return len(q) == 4 and q.isdigit()
 
 
 def _to_chosung(text: str) -> str:
@@ -226,7 +264,7 @@ def _history_classify_order_hit(order: Order, query: str) -> set[str]:
     return _classify_order_hit(order, query)
 
 
-def _order_id_prefilter(db: Session, query: str):
+def _order_id_prefilter(db: Session, query: str, scope=None):
     """
     주문번호 직검색: 순수 숫자 쿼리(``#`` 접두 허용)는 ``Order.id`` 단건을 직접 조회한다.
 
@@ -244,19 +282,19 @@ def _order_id_prefilter(db: Session, query: str):
     if order_id <= 0 or order_id > 2_000_000_000:
         return None
     return (
-        db.query(Order)
-        .filter(Order.active_filter(), Order.id == order_id)
+        _active_orders(db, scope)
+        .filter(Order.id == order_id)
         .limit(1)
         .all()
     )
 
 
-def _phone_digit_prefilter(db: Session, query: str):
+def _phone_digit_prefilter(db: Session, query: str, scope=None):
     """Indexed ``erp_phone_digits`` lookup for digit-heavy queries (P1-02)."""
     digits = extract_phone_digit_query(query)
     if not digits:
         return None
-    q = db.query(Order).filter(Order.active_filter(), Order.is_erp_order.is_(True))
+    q = _active_orders(db, scope).filter(Order.is_erp_order.is_(True))
     return (
         q.filter(Order.erp_phone_digits.isnot(None))
         .filter(Order.erp_phone_digits.contains(digits))
@@ -266,7 +304,7 @@ def _phone_digit_prefilter(db: Session, query: str):
     )
 
 
-def _term_prefilter(db: Session, query: str):
+def _term_prefilter(db: Session, query: str, scope=None):
     """
     가시 컬럼 + structured_data 가시 경로 ILIKE 후보.
 
@@ -276,8 +314,8 @@ def _term_prefilter(db: Session, query: str):
     tokens = _search_tokens(query)
     if not tokens:
         return []
-    q = db.query(Order).filter(Order.active_filter(), Order.is_erp_order.is_(True))
-    clauses = [erp_order_dashboard_search_predicate(f"%{tok}%") for tok in tokens]
+    q = _active_orders(db, scope).filter(Order.is_erp_order.is_(True))
+    clauses = [visible_order_search_clause(tok) for tok in tokens]
     return (
         q.filter(and_(*clauses))
         .order_by(Order.id.desc())
@@ -286,7 +324,7 @@ def _term_prefilter(db: Session, query: str):
     )
 
 
-def _base_orders_query(db: Session, query: str):
+def _base_orders_query(db: Session, query: str, scope=None):
     """
     SQL prefilter 후보를 여러 경로에서 모아 중복 제거한다.
 
@@ -305,28 +343,65 @@ def _base_orders_query(db: Session, query: str):
             candidates.append(order)
 
     # 1) 주문번호 직검색(순수 숫자) — 폰 경로보다 먼저.
-    _extend(_order_id_prefilter(db, query))
+    _extend(_order_id_prefilter(db, query, scope))
 
     # 초성 쿼리는 ILIKE term이 자모라 의미가 없으므로 별도 스캔만 수행.
     if is_chosung_query(query):
-        chosung_rows = (
-            db.query(Order)
-            .filter(Order.active_filter(), Order.is_erp_order.is_(True))
-            .order_by(Order.created_at.desc(), Order.id.desc())
-            .limit(_MAX_CHOSUNG_SCAN)
-            .all()
-        )
-        _extend(chosung_rows)
+        ids = chosung_matching_order_ids(db, query, scope=scope)
+        if ids:
+            by_id = {
+                int(order.id): order
+                for order in _active_orders(db, scope).filter(Order.id.in_(ids)).all()
+            }
+            _extend([by_id[oid] for oid in ids if oid in by_id])
         return candidates
 
-    # 2) 폰 자릿수 인덱스 경로.
-    _extend(_phone_digit_prefilter(db, query))
+    # 2) 폰 자릿수 인덱스 경로. 숫자 4자리는 이력 화면과 같은 "전화 끝자리" 규칙만 쓴다 —
+    #    여기서 가운데 자리까지 뽑으면 미리보기와 결과 화면이 또 갈린다.
+    if not _is_four_digit_query(query):
+        _extend(_phone_digit_prefilter(db, query, scope))
     # 3) 가시 필드 ILIKE 경로.
-    _extend(_term_prefilter(db, query))
+    _extend(_term_prefilter(db, query, scope))
     return candidates
 
 
-def _history_style_orders_query(db: Session, query: str) -> list[Order]:
+def chosung_matching_order_ids(
+    db: Session,
+    query: str,
+    *,
+    scope=None,
+    limit: int = _MAX_CHOSUNG_HITS,
+) -> list[int]:
+    """초성(ㅅㅈㄱ)이 고객명 초성의 앞부분과 맞는 주문 id — 최신순, 레거시 포함.
+
+    전에는 최근 ERP 주문 400건의 **전체 행**을 불러 그 안에서만 찾아, 오래된 주문과 레거시
+    주문은 초성으로 영영 안 나왔다(2026-09-29 스테이징 60건 표본 중 8건만 찾음). 과거 이력
+    화면은 초성을 아예 몰랐다. 이름 두 칸만 읽으면 전량이 싸다(스테이징 3,500건 18ms).
+    미리보기와 과거 이력 화면이 이 함수 하나를 같이 쓴다.
+    """
+    cq = _compact(query)
+    if not cq:
+        return []
+    sd_name = Order.structured_data["parties"]["customer"]["name"].as_string()
+    rows = (
+        _active_orders(db, scope)
+        .with_entities(Order.id, Order.customer_name, sd_name)
+        .order_by(Order.id.desc())
+        .all()
+    )
+    ids: list[int] = []
+    for order_id, column_name, structured_name in rows:
+        if any(
+            name and _to_chosung(_compact(name)).startswith(cq)
+            for name in (structured_name, column_name)
+        ):
+            ids.append(int(order_id))
+            if len(ids) >= limit:
+                break
+    return ids
+
+
+def _history_style_orders_query(db: Session, query: str, scope=None) -> list[Order]:
     """
     History dashboard parity: all active orders (legacy 포함) + 가시 필드 술어.
 
@@ -341,9 +416,8 @@ def _history_style_orders_query(db: Session, query: str) -> list[Order]:
         return []
 
     return (
-        db.query(Order)
-        .filter(Order.active_filter())
-        .filter(and_(*[erp_order_dashboard_search_predicate(f"%{tok}%") for tok in tokens]))
+        _active_orders(db, scope)
+        .filter(and_(*[visible_order_search_clause(tok) for tok in tokens]))
         .order_by(Order.created_at.desc(), Order.id.desc())
         .limit(_MAX_HISTORY_FALLBACK_ROWS)
         .all()
@@ -444,17 +518,22 @@ def _append_order_hits(
 
 def _relevance_rank(order: Order, trimmed: str) -> tuple[int, int]:
     """
-    후보 정렬 키(A4): 고객명 정확 > 접두 > 부분 > 기타 필드, 동순위는 최신 주문 우선.
+    후보 정렬 키(A4): 주문번호 정확 > 고객명 정확 > 접두 > 부분 > 기타 필드,
+    동순위는 최신 주문 우선.
 
     newest-N 캡 안에서 부분일치 신규 주문이 정확일치 과거 주문의 8칸을 빼앗던 문제를 막아,
-    검색어에 가장 가까운 주문이 그룹 상위에 노출되게 한다.
+    검색어에 가장 가까운 주문이 그룹 상위에 노출되게 한다. 주문번호를 그대로 친 경우도
+    같다 — "2102" 는 1순위 후보로 뽑히고도 전화·주소에 2102 가 든 최근 주문 8건에 밀려
+    잘렸다(2026-09-29 스테이징 60건 표본 2건).
     """
-    cq = _compact(trimmed)
-    name = _compact(_order_customer_name(order))
     try:
         recency = -int(order.id)
     except (TypeError, ValueError):
         recency = 0
+    if trimmed.isdigit() and trimmed == str(order.id):
+        return (-1, recency)
+    cq = _compact(trimmed)
+    name = _compact(_order_customer_name(order))
     if not cq or not name:
         return (3, recency)
     if name == cq:
@@ -471,8 +550,13 @@ def _collect_search_hits(
     query: str,
     *,
     limit_per_group: int,
+    owner: Any = None,
 ) -> dict[str, list[dict[str, Any]]]:
-    """Run ERP queue search, then history-breadth fallback when empty."""
+    """Run ERP queue search, then history-breadth fallback when empty.
+
+    ``owner`` 가 있으면 그 사람의 담당 주문만 — SQL 술어로 후보를 좁히고, 이력 화면처럼
+    ``is_order_related_to_user`` 로 한 번 더 거른다(SQL 이름 ILIKE 가 넓게 잡는 것 보정).
+    """
     buckets: dict[str, list[dict[str, Any]]] = {
         "customer": [],
         "order": [],
@@ -482,9 +566,19 @@ def _collect_search_hits(
     if not trimmed:
         return buckets
 
+    scope = _owner_scope(owner)
+    if owner is not None:
+        def _visible(order: Order) -> bool:
+            return is_order_related_to_user(order, owner)
+    else:
+        def _visible(order: Order) -> bool:
+            return True
+
     seen_ids: set[int] = set()
     primary: list[tuple[Order, set[str]]] = []
-    for order in _base_orders_query(db, trimmed):
+    for order in _base_orders_query(db, trimmed, scope):
+        if not _visible(order):
+            continue
         matched = _classify_order_hit(order, trimmed)
         if not matched:
             continue
@@ -504,8 +598,8 @@ def _collect_search_hits(
     )
     if not buckets_full:
         fallback: list[tuple[Order, set[str]]] = []
-        for order in _history_style_orders_query(db, trimmed):
-            if int(order.id) in seen_ids:
+        for order in _history_style_orders_query(db, trimmed, scope):
+            if int(order.id) in seen_ids or not _visible(order):
                 continue
             matched = _history_classify_order_hit(order, trimmed)
             if not matched:
@@ -525,15 +619,17 @@ def search_unified(
     *,
     group: SearchGroup = "all",
     limit_per_group: int = 8,
+    restrict_to_user: Any = None,
 ) -> dict[str, list[dict[str, Any]]]:
     """
     Search ERP orders into customer / order / drawing buckets.
 
     Args:
         db: SQLAlchemy session.
-        query: User search string (supports chosung prefix).
+        query: User search string (supports chosung prefix, ``#`` 주문번호).
         group: Filter to one bucket or ``all``.
         limit_per_group: Max hits per bucket.
+        restrict_to_user: 이 사용자의 담당 주문만(``construction_scope_user`` 참고).
 
     Returns:
         Dict of group id → list of result dicts.
@@ -543,11 +639,13 @@ def search_unified(
         "order": [],
         "drawing": [],
     }
-    trimmed = _normalize_for_search(query)
+    trimmed = " ".join(search_query_tokens(query))
     if not trimmed:
         return buckets
 
-    buckets = _collect_search_hits(db, trimmed, limit_per_group=limit_per_group)
+    buckets = _collect_search_hits(
+        db, trimmed, limit_per_group=limit_per_group, owner=restrict_to_user
+    )
 
     if group == "all":
         return buckets

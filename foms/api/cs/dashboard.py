@@ -9,21 +9,23 @@ from foms.services.error_logging import log_handled_exception
 import datetime
 
 from flask import Blueprint, jsonify, request, session
-from sqlalchemy import or_
+from sqlalchemy import and_, or_
 from sqlalchemy.orm.attributes import flag_modified
 
 from foms.web.auth import get_user_by_id, login_required
 from db import get_db
 from foms.api.files import build_file_download_url, build_file_view_url
 from foms.services.as_content_safety import combined_as_content_text
-from foms.services.erp_dashboard_search import erp_order_dashboard_search_predicate
+from foms.services.erp_dashboard_search import (
+    erp_order_dashboard_search_predicate,
+    search_query_tokens,
+)
 from foms.services.erp_order_deeplink import load_focus_order_only
 from foms.services.erp_display import _ensure_dict, manager_display_name
 from foms.services.common.erp_mine_filter import erp_mine_only_for_construction
 from foms.services.erp_permissions import build_mine_sql_filter, is_order_related_to_user
 from foms.services.erp_policy import ORDER_SETTLEMENT_ALERT_TARGET_STATUSES
 from foms.services.foms_unified_search import (
-    _compact,
     _matches_phone,
     _order_customer_name,
     _order_phone,
@@ -139,10 +141,15 @@ def _load_completion_orders(
                 if _completion_order_matches_query(order, trimmed_q)
             ][: _COMPLETION_SEARCH_LIMIT]
         else:
-            term = f"%{_compact(trimmed_q)}%"
-            if term.strip("%"):
+            # 낱말마다 AND(어순 무관) — 공백만 지운 한 덩어리는 "용인시 수지구" 를 늘 0건으로
+            # 만들었다(2026-09-29). 낱말 규칙은 통합 검색과 같다(search_query_tokens).
+            tokens = search_query_tokens(trimmed_q)
+            if tokens:
                 orders = (
-                    base.filter(erp_order_dashboard_search_predicate(term))
+                    base.filter(and_(*[
+                        erp_order_dashboard_search_predicate(f"%{tok}%", raw_query=tok)
+                        for tok in tokens
+                    ]))
                     .order_by(Order.id.desc())
                     .limit(_COMPLETION_SEARCH_LIMIT)
                     .all()

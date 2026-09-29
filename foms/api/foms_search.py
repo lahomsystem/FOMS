@@ -4,10 +4,14 @@ from __future__ import annotations
 
 from typing import Any
 
-from flask import Blueprint, jsonify, render_template, request
+from flask import Blueprint, g, jsonify, render_template, request
 
 from db import get_db
-from foms.services.foms_unified_search import SearchGroup, search_unified
+from foms.services.foms_unified_search import (
+    SearchGroup,
+    construction_scope_user,
+    search_unified,
+)
 from foms.web.auth import login_required
 
 foms_search_bp = Blueprint("foms_search", __name__, url_prefix="/api/foms")
@@ -27,7 +31,12 @@ def api_foms_search() -> tuple[Any, int]:
         group = "all"
 
     db = get_db()
-    data = search_unified(db, query, group=group)  # type: ignore[arg-type]
+    data = search_unified(
+        db,
+        query,
+        group=group,  # type: ignore[arg-type]
+        restrict_to_user=construction_scope_user(getattr(g, "current_user", None)),
+    )
     return jsonify({"success": True, "data": data}), 200
 
 
@@ -41,7 +50,12 @@ def api_foms_search_fragment() -> str:
         group = "all"
 
     db = get_db()
-    data = search_unified(db, query, group=group)  # type: ignore[arg-type]
+    data = search_unified(
+        db,
+        query,
+        group=group,  # type: ignore[arg-type]
+        restrict_to_user=construction_scope_user(getattr(g, "current_user", None)),
+    )
     return render_template(
         "partials/shared/foms_search_results_partial.html",
         results=data,

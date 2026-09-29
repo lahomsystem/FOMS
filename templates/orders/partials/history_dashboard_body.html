@@ -81,6 +81,7 @@
 {% if request.args.get('stage') %}{% set _ = _pager_qs.append('stage=' ~ request.args.get('stage')|urlencode) %}{% endif %}
 {% if request.args.get('date_from') %}{% set _ = _pager_qs.append('date_from=' ~ request.args.get('date_from')|urlencode) %}{% endif %}
 {% if request.args.get('date_to') %}{% set _ = _pager_qs.append('date_to=' ~ request.args.get('date_to')|urlencode) %}{% endif %}
+{% if from_search %}{% set _ = _pager_qs.append('from_search=1') %}{% endif %}
 {% set _pager_prefix = _pager_qs|join('&') %}
 {% set _history_base = url_for('erp_history.history_dashboard') %}
 
@@ -130,13 +131,14 @@
       </div>
     {% elif from_search %}
       <div class="alert alert-info py-2 mb-3" role="status">
-        통합 검색에서 운영 큐 결과가 없어 과거 이력 검색으로 이동했습니다.
+        통합 검색 결과입니다. 끝난 주문까지 전체 기간에서 찾았습니다.{% if erp_mine_only %} 지금은 내 담당 주문만 보입니다.{% endif %}
       </div>
     {% endif %}
 
     <div class="erp-pro-card erp-pro-card--filters">
       <div class="erp-pro-card__body">
         <form method="GET" action="{{ _history_base }}" class="erp-pro-filters-form">
+          {% if from_search %}<input type="hidden" name="from_search" value="1">{% endif %}
           <div class="row gx-3 gy-2 align-items-center">
             <div class="col-12 col-md-3">
               <label class="erp-pro-filters__label">검색어 (고객명, 전화번호, 주소 등)</label>
@@ -296,7 +298,7 @@
       </div>
     {% elif from_search %}
       <div class="alert alert-info py-2 mb-0" role="status">
-        통합 검색에서 운영 큐 결과가 없어 과거 이력 검색으로 이동했습니다.
+        통합 검색 결과입니다. 끝난 주문까지 전체 기간에서 찾았습니다.{% if erp_mine_only %} 지금은 내 담당 주문만 보입니다.{% endif %}
       </div>
     {% elif auto_browse_mine|default(false) %}
       <div class="alert alert-light border py-2 mb-0" role="status">
