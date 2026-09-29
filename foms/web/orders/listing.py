@@ -48,6 +48,10 @@ from foms.services.erp_dashboard_search import erp_order_dashboard_search_predic
 from foms.services.integrations.naver_commerce.constants import SOURCE_MARKER
 
 
+#: 목록 비고칸에 해피콜 상태(부재·콜백) 배지를 보이는 단계. 실측(MEASURE)부터는 숨긴다.
+HAPPY_CALL_BADGE_STAGES = frozenset({'RECEIVED', 'HAPPYCALL'})
+
+
 def _extract_orderer_from_options(options_str):
     """레거시 주문 options에서 발주사 추출. online_options_summary 내 '발주사 : X' 패턴."""
     if not options_str:
@@ -223,8 +227,12 @@ def index():
             setattr(order_display_data, 'channel_source',
                     'NAVER' if _sd_all.get('source') == SOURCE_MARKER else None)
             # 해피콜 상태(부재·콜백)는 비고 글과 따로 flags.happy_call 에 있다 — 목록 비고칸에 배지로 붙인다.
+            # 접수·해피콜 단계에서만 쓰는 정보라 실측 단계부터는 숨긴다(값은 지우지 않는다).
             _flags_all = _sd_all.get('flags') if isinstance(_sd_all.get('flags'), dict) else {}
-            setattr(order_display_data, 'happy_call', _flags_all.get('happy_call') or '')
+            _wf_all = _sd_all.get('workflow') if isinstance(_sd_all.get('workflow'), dict) else {}
+            _stage_all = str(_wf_all.get('stage') or order_db_item.status or '').upper()
+            setattr(order_display_data, 'happy_call',
+                    (_flags_all.get('happy_call') or '') if _stage_all in HAPPY_CALL_BADGE_STAGES else '')
             if order_db_item.is_erp_order and order_db_item.structured_data:  # type: ignore
                 sd = _ensure_dict(order_db_item.structured_data)
                 customer_name = ((sd.get('parties') or {}).get('customer') or {}).get('name')
