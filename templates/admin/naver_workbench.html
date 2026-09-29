@@ -19,7 +19,7 @@
 {% block title %}네이버 수집{% endblock %}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260929c">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260930a">
 {% endblock %}
 
 {% block content %}
@@ -1004,6 +1004,10 @@
                         </button>
                     </div>
                     <ul class="wb-more__list" id="wb-more-list"></ul>
+                    {# 맨 아래 엄지 자리(더보기·주 버튼 바로 위)는 늘 닫기 — 더보기를 두 번 눌러도 닫힐 뿐이다(N-01). #}
+                    <div class="wb-hsheet__foot">
+                        <button type="button" class="wb-hsheet__dismiss" id="wb-more-dismiss">닫기</button>
+                    </div>
                 </div>
             </dialog>
         </div>
@@ -1094,6 +1098,9 @@
                 </button>
             </div>
             <div class="wb-asheet__slot" id="wb-asheet-slot"></div>
+            <div class="wb-hsheet__foot">
+                <button type="button" class="wb-hsheet__dismiss" id="wb-asheet-dismiss">닫기</button>
+            </div>
         </div>
     </dialog>
     <section class="wb-ingest" id="wb-ingest-status">
@@ -1623,6 +1630,25 @@
         </div>
     </div>
 
+    {# 폰 확인 시트(2026-09-30 P0 · 감사 원장 N-01·N-13). 모달 없이 바로 나가던 조작(확인 완료·다시 읽기·
+       지금 수집·과거 긁어오기)을 한 번 묻는다. 문장·버튼 글자는 JS 가 그때 주문·기간으로 채운다(textContent).
+       탭과 상관없이 한 벌 — 처리 탭(더 할 일 시트)과 이력 탭(관리 시트)이 같이 쓴다. 층이 열리면 층 바깥을
+       inert 로 거는데 이 시트는 뺀다(setBackgroundInert). 맨 아래 엄지 자리는 늘 그만두기 쪽이다. #}
+    <dialog class="wb-hsheet wb-ask" id="wb-ask" aria-labelledby="wb-ask-title" aria-describedby="wb-ask-who wb-ask-facts" aria-modal="true">
+        <div class="wb-hsheet__in">
+            <span class="wb-hsheet__grip" aria-hidden="true"></span>
+            <div class="wb-ask__body">
+                <h2 class="wb-hsheet__title" id="wb-ask-title" tabindex="-1"></h2>
+                <p class="wb-ask__who" id="wb-ask-who"></p>
+                <ul class="wb-ask__facts" id="wb-ask-facts"></ul>
+            </div>
+            <div class="wb-hsheet__foot">
+                <button type="button" class="btn btn-primary wb-ask__go" id="wb-ask-go"></button>
+                <button type="button" class="wb-hsheet__dismiss" id="wb-ask-cancel">그만두기</button>
+            </div>
+        </div>
+    </dialog>
+
     <div class="modal fade" id="wb-modal-detail" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-lg modal-dialog-scrollable">
             <div class="modal-content">
@@ -1644,5 +1670,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260929c" defer></script>
+<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260930a" defer></script>
 {% endblock %}

@@ -236,7 +236,7 @@ def test_js_wires_open_close_step_and_proxy():
     # 시트 줄: 못 누르는 것은 숨기지 않는다 — aria-disabled + 이유(aria-describedby).
     item = _body(js, "moreItem")
     assert "btn.setAttribute('aria-disabled', 'true');" in item
-    assert "btn.setAttribute('aria-describedby', line.id);" in item and "innerHTML" not in item
+    assert "btn.setAttribute('aria-describedby', fx.id + ' ' + line.id);" in item and "innerHTML" not in item
 
 
 def test_js_phase34_state_is_declared_before_init_runs():
