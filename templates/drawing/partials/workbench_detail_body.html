@@ -2450,7 +2450,8 @@
           });
         };
         if (USE_DIRECT_UPLOAD) {
-          const folder = `orders/${orderId}/attachments`;
+          // M10: 도면은 도면 폴더에 — attachments/ 는 전달 필터가 도면으로 보지 않는다.
+          const folder = `orders/${orderId}/drawing`;
           let sessRes;
           try {
             sessRes = await fetch('/api/upload/session', {

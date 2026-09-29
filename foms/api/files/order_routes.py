@@ -353,7 +353,10 @@ def api_order_attachments_upload(order_id):
             return jsonify({"success": False, "message": sort_err}), 400
 
         storage = get_storage()
-        folder = f"orders/{order_id}/attachments"
+        # M10: 도면은 도면 폴더에 둔다 — 전달 필터(drawing_transfer._is_drawing_key)가
+        # attachments/ 를 도면으로 보지 않아 전달 창에서 올린 도면이 전달에서 빠졌다.
+        # 썸네일도 같은 folder 를 쓴다.
+        folder = f"orders/{order_id}/drawing" if category == "drawing" else f"orders/{order_id}/attachments"
         result = storage.upload_file(file, file.filename, folder)
         if not result.get("success"):
             return jsonify({"success": False, "message": "파일 업로드 실패: " + result.get("message", "알 수 없는 오류")}), 500
