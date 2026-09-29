@@ -10,6 +10,12 @@
 
 ---
 
+### [2026-09-30] 도면 탭에서 고객에게 바로 보낸다 — 보내기는 언제나, 확정은 고객 OK 뒤
+- **키워드**: 도면, 고객 보내기, customer_send, drawing_round_info, 회차, share_doc_label, FOMS_SHARE_ROUND_DOC_LABEL, round_at, pair_ids, to_phone, request-revision/edit, 고객 요청 출처
+- **결정**: 도면 작업실(PC 결정 바·모바일 도면 방)에서 기존 공유 API(create·send-alimtalk·send-sms·revoke)로 확정 전에도 고객에게 보낸다. 버튼 목록은 서버가 한 번 판정(`customer_send.bar`)하고 PC·모바일이 같은 목록을 그린다. 회차 = 1 + 마지막 전달 앞 수정요청 수(요청 없는 추가 전달은 같은 회차). 발송 이벤트에 발송 순간 회차 표지(round_at·round)와 짝 링크(pair_ids)를 싣고, 발송 전 단계 실패 링크는 곧바로 회수한다. 내 폰 문자·복사는 '보냄'이 아니라 '링크를 만들었어요'. 수정요청에 출처(고객/영업)·받은 경로를 선택 필드로 남기고, 도면팀 반영 체크 전에는 영업이 요청을 고칠 수 있다(`POST /api/orders/<id>/request-revision/edit`). 고객 OK = 수령 확정 + (권한 있으면) 고객 컨펌 승인을 차례로(2a-2 게이트 그대로). 이번 발송만 다른 번호(`to_phone`, 원문 저장 안 함)와 주문 번호 저장(인라인 필드 — 첫 조회 행 잠금). 보낸 회차의 전달 취소는 경고만 하고 영업에게 먼저 알리기(긴급 호출)를 권한다. 도면팀 PC 에도 긴급 호출 창. 고객 링크 제목은 2차부터 'N차 도면 확인'. 알림톡 #{문서종류} 회차 이름은 `FOMS_SHARE_ROUND_DOC_LABEL`(기본 꺼짐) — 운영 테스트 발송 1회 확인 뒤 켠다.
+- **이유**: 영업이 도면 확정 뒤 고객에게 보내려면 ERP 주문 화면으로 옮겨 가야 했다. 목업 v4 와 호환 점검표 C1~C21(사용자 확인).
+- **영향**: `foms/services/orders/drawing_customer_send*.py`·`drawing_revision_source.py`·`drawing_revision_edit.py`(새), `foms/api/share.py`, `foms/api/drawing/erp_orders_revision.py`, `foms/web/drawing/workbench.py`, `templates/drawing/partials/workbench_detail_body.html`·`workbench_mobile_handoff.html`, `static/js/foms/drawing-customer-send.js`·`drawing-customer-ok.js`(새), `templates/orders/share_view.html`·`share_bundle_view.html`. 설계서 `docs/specs/2026-09-29-drawing-tab-send-to-customer_SPEC.md`.
+
 ### [2026-09-29] 도면이 수령 확정된 최신본이 아니면 고객컨펌 → 생산으로 넘기지 않는다
 - **키워드**: 도면, C21, M3, M16, confirm_drawing_gate, effective_drawing_status, COMMAND_REQUIRED, DRAWING_STATUS, 제작 시작, 수정 제작, 생산 배지, 강제 변경
 - **결정**: 생산으로 넘어가는 조건은 허용 목록(`drawing_status == CONFIRMED`, 한글 단계값 '고객컨펌' 도 같게 본다). 고객 컨펌 승인·재전이·전이 엔진(CUSTOMER_CONFIRM·PRODUCTION_START) 모두 같은 술어를 잠금 아래에서 본다. 일반 상태 쓰기(단건·일괄·상태 칸)로 도면→고객컨펌·고객컨펌→생산을 넘기는 것은 막는다(409 COMMAND_REQUIRED, 사용자 결정 Q1). 생산 대기의 [제작 시작]과 제작완료의 [수정 제작]은 도면이 RETURNED·TRANSFERRED 면 막고(409 DRAWING_STATUS, Q2·추가 결정), 생산 보드·모바일 생산 카드에 '도면 수정 중' 배지를 단다. 관리자(ADMIN)는 사유를 적고 뚫으며 그 순간의 도면 상태를 기록한다. 팀장(MANAGER)의 단계 강제 변경은 허용하되 경고하고 도면 상태를 기록한다(Q5). 수정요청은 고객확인(blueprint.customer_confirmed)을 무효로 하고 그 요청을 취소하면 되살린다(M16). 도면 상태는 `effective_drawing_status` 한 함수로 읽는다(최상위 우선, 중첩은 폴백).
