@@ -1,6 +1,7 @@
 """
 ERP 주문 도면 수정 요청/체크 API. (Phase 4-5d, 4-5h)
-erp.py에서 분리: request-revision, request-revision-check, cancel-revision-request, ack-order-change.
+erp.py에서 분리: request-revision, request-revision/edit, request-revision-check, cancel-revision-request,
+ack-order-change.
 """
 import copy
 import datetime
@@ -8,6 +9,7 @@ import logging
 
 from flask import Blueprint, request, jsonify, session
 
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm.attributes import flag_modified
 
 from db import get_db
@@ -31,7 +33,13 @@ from foms.services.orders.drawing_gate_followups import (
     restore_customer_confirmation,
 )
 from foms.services.orders.drawing_revision_files import MAX_REVISION_FILES, normalize_revision_files
-from foms.services.orders.revision import execute_single_order_write, lock_order_row
+from foms.services.orders.drawing_revision_edit import apply_revision_edit, parse_revision_edit_body
+from foms.services.orders.drawing_revision_source import (
+    notification_message_prefix,
+    notification_title,
+    parse_revision_source,
+)
+from foms.services.orders.revision import RevisionError, execute_single_order_write, lock_order_row
 
 logger = logging.getLogger(__name__)
 erp_orders_revision_bp = Blueprint(
@@ -44,6 +52,7 @@ erp_orders_revision_bp = Blueprint(
 # 구조화 쓰기는 execute_single_order_write 콜백 안에서 한다(버전 +1, 2a-1②).
 DRAWING_REVISION_REQUEST_POLICY_ID = 'DRAWING_REVISION_REQUEST'
 DRAWING_REVISION_CANCEL_POLICY_ID = 'DRAWING_REVISION_CANCEL'
+DRAWING_REVISION_EDIT_POLICY_ID = 'DRAWING_REVISION_EDIT'
 DRAWING_REVISION_CHECK_POLICY_ID = 'DRAWING_REVISION_CHECK'
 DRAWING_ORDER_CHANGE_ACK_POLICY_ID = 'DRAWING_ORDER_CHANGE_ACK'
 
@@ -82,6 +91,11 @@ def api_order_request_revision(order_id):
                                 else '참고 파일 경로가 올바르지 않습니다. 파일을 다시 올려 주세요.'),
                     'error': 'INVALID_REVISION_FILE',
                 }), 400
+        # 출처·받은 경로(선택, 설계서 2026-09-29 §4.1) — 목록 밖 값은 행 잠금·쓰기 전에 400.
+        source_fields, source_err = parse_revision_source(data)
+        if source_err:
+            return jsonify({'success': False, 'code': source_err, 'error': source_err,
+                            'message': '요청 출처 값이 올바르지 않습니다.'}), 400
         target_drawing_key = (data.get('target_drawing_key') or '').strip()
         target_drawing_keys = data.get('target_drawing_keys') or []
 
@@ -146,6 +160,7 @@ def api_order_request_revision(order_id):
             'target_drawing_numbers': target_drawing_numbers if target_drawing_numbers else None,
             'target_drawing_key': target_drawing_keys[0] if len(target_drawing_keys) == 1 else None,
             'target_drawing_number': target_drawing_numbers[0] if len(target_drawing_numbers) == 1 else None,
+            **source_fields,
         })
         invalidate_customer_confirmation(s_data, history[-1])  # M16(2a-2)
         s_data['drawing_transfer_history'] = history
@@ -160,7 +175,7 @@ def api_order_request_revision(order_id):
             write=_write_revision_request,
         )
 
-        msg = f"주문 #{order_id} 도면 수정 요청이 접수되었습니다."
+        msg = notification_message_prefix(source_fields) + f"주문 #{order_id} 도면 수정 요청이 접수되었습니다."
         if target_drawing_numbers:
             if len(target_drawing_numbers) == 1:
                 msg += f" 대상: {target_drawing_numbers[0]}번 도면."
@@ -173,7 +188,7 @@ def api_order_request_revision(order_id):
             order_id=order_id,
             notification_type='DRAWING_REVISION',
             target_team='DRAWING',
-            title='도면 수정 요청',
+            title=notification_title(source_fields),
             message=msg,
             created_by_user_id=session.get('user_id'),
             created_by_name=current_user.name
@@ -234,6 +249,93 @@ def api_order_request_revision(order_id):
         db.rollback()
         logger.exception("Request Revision Error: %s", e)
         return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@erp_orders_revision_bp.route('/<int:order_id>/request-revision/edit', methods=['POST'])
+@login_required
+@erp_edit_required
+def api_order_edit_revision_request(order_id):
+    """도면팀 확인 전 수정요청 고치기(사용자 결정 Q5-③, 설계서 2026-09-29).
+
+    본문 ``{note, files, source, received_via, target_file_keys?}`` — 보내지 않은 칸은 그대로.
+    판정·항목 고치기는 :mod:`foms.services.orders.drawing_revision_edit`. 첫 조회부터 행 잠금,
+    쓰기는 REV-00 콜백 안(버전 +1). 도면팀에 수정요청 알림(제목 '수정요청 고침', 확인창 등급).
+    응답 ``{success, data: {request}, error}``.
+    """
+    def _fail(err):
+        return jsonify({'success': False, 'data': None, 'error': err.code, 'code': err.code,
+                        'message': err.message}), err.status
+
+    db = None
+    try:
+        data = request.get_json(silent=True) or {}
+        parsed, parse_err = parse_revision_edit_body(order_id, data)
+        if parse_err:
+            return _fail(parse_err)
+        db = get_db()
+        order = lock_order_row(db, order_id)
+        if not order or order.status == "DELETED" or order.deleted_at is not None:
+            return jsonify({'success': False, 'data': None, 'error': 'ORDER_NOT_FOUND',
+                            'message': '주문을 찾을 수 없습니다.'}), 404
+        current_user = get_user_by_id(session.get('user_id'))
+        if not current_user:
+            return jsonify({'success': False, 'data': None, 'error': 'USER_NOT_FOUND',
+                            'message': '사용자를 찾을 수 없습니다.'}), 401
+        s_data = copy.deepcopy(order.structured_data or {})
+        is_admin = current_user.role == 'ADMIN'
+        is_drawing_team = (getattr(current_user, 'team', None) or '').strip() == 'DRAWING'
+        sales_side = bool(is_admin or (
+            _can_modify_sales_domain(current_user, order, s_data, False, None) and not is_drawing_team))
+        entry, edit_err = apply_revision_edit(
+            s_data, parsed, user=current_user, is_admin=is_admin, sales_side=sales_side,
+            now_str=now_utc_naive().strftime('%Y-%m-%d %H:%M:%S'))
+        if edit_err:
+            return _fail(edit_err)
+
+        def _write_revision_edit(locked):
+            locked.structured_data = s_data
+            flag_modified(locked, 'structured_data')
+
+        execute_single_order_write(
+            db, order_id=order_id, actor_user_id=current_user.id,
+            policy_id=DRAWING_REVISION_EDIT_POLICY_ID, payload=data, write=_write_revision_edit,
+        )
+        notif = Notification(
+            order_id=order_id, notification_type='DRAWING_REVISION', target_team='DRAWING',
+            title=notification_title(entry, edited=True),
+            message=notification_message_prefix(entry)
+            + f"주문 #{order_id} 수정요청 내용을 고쳤습니다. 메모: {entry.get('note') or ''}",
+            created_by_user_id=current_user.id, created_by_name=current_user.name,
+        )
+        db.add(notif)
+        db.flush()
+        fan_out_new_notification(db, notif, actor_user_id=current_user.id)
+        db.add(SecurityLog(user_id=current_user.id, message=f"주문 #{order_id} 도면 수정요청 고침"))
+        db.commit()
+
+        from foms.services.common.dashboard_cache import DASHBOARD_FAMILY_DRAWING, invalidate_dashboard_families
+        from foms.services.notifications.push_sender import enqueue_push_for_notification
+        invalidate_dashboard_families(DASHBOARD_FAMILY_DRAWING)
+        enqueue_push_for_notification(notif.id, db=db)
+        recipient_user_ids = resolve_notification_recipient_user_ids(
+            db, target_team='DRAWING', target_manager_name=None, include_admin=True)
+        invalidate_badge_cache_for_user_ids(recipient_user_ids)
+        emit_erp_notification_to_users(recipient_user_ids, {
+            'notification_id': notif.id, 'order_id': order_id, 'notification_type': 'DRAWING_REVISION',
+            'title': notif.title, 'message': notif.message, 'created_by_name': current_user.name,
+            'interrupt': True,  # 수정요청과 같은 확인창 등급
+        })
+        return jsonify({'success': True, 'data': {'request': entry}, 'error': None})
+    except (RevisionError, SQLAlchemyError) as e:
+        # 좁은 예외만 — 그 밖의 예외는 앱 오류 처리기로 올라간다(failopen 기준값 유지).
+        if db is not None:
+            db.rollback()
+        logger.exception("Edit Revision Request Error: %s", e)
+        conflict = isinstance(e, RevisionError)
+        return jsonify({'success': False, 'data': None,
+                        'error': 'REVISION_CONFLICT' if conflict else 'INTERNAL_ERROR',
+                        'message': ('다른 사람이 방금 이 주문을 바꿨습니다. 새로고침 후 다시 시도하세요.' if conflict
+                                    else '수정요청을 고치지 못했습니다.')}), (409 if conflict else 500)
 
 
 def _resolve_revision_restore_status(history: list) -> str:

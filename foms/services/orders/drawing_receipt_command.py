@@ -24,6 +24,7 @@ from foms.services.orders.order_transition_service import (
     TransitionCommand,
     transition_order,
 )
+from foms.services.orders.drawing_revision_source import attach_customer_ok
 from foms.services.orders.revision import execute_single_order_write
 from foms.services.orders.state_axes import AXIS_MAIN, read_main_stage
 
@@ -102,6 +103,7 @@ def write_receipt_structured(db: Any, order: Any, s_data: dict[str, Any], *,
     커밋은 호출자 몫이다.
     """
     final_sd = copy.deepcopy(s_data)
+    attach_customer_ok(final_sd, body)  # 고객 OK 기록(선택, 설계서 2026-09-29 §4.2) — 마지막 CONFIRM_RECEIPT 에
 
     def _apply(target: Any) -> None:
         target.structured_data = final_sd
