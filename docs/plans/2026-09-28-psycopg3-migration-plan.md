@@ -98,6 +98,14 @@ SQLAlchemy 2.0 은 이 주소를 psycopg2 로 연다(공식 문서: psycopg2 가
 2. 기준선: 스테이징 대표 화면 응답 시간(`tools/perf/staging_perf_gate.py` 방법론)을 전환 전에 잰다.
 3. gevent 협력 시험의 **음성 대조군**: 로컬 PG 에서 gevent 패치 뒤 연결 8개가 `SELECT pg_sleep(0.5)` 를 동시에 돌린다. psycopg2+psycogreen 이면 약 0.5초, psycogreen 을 빼면 약 4초가 나와야 시험이 막힘을 잡아낼 수 있다는 증거가 된다.
 
+#### 단계 0 결과 (2026-09-29)
+1. **연결 중계기 없음**: 스테이징·운영 web 의 `DATABASE_URL` 호스트는 둘 다 `postgres.railway.internal:5432`(PgBouncer·pooler 아님). 준비문 문제 없음.
+2. **응답 시간 기준선**: deploy 마다 도는 `perf-gate (staging)` CI 기록을 그대로 쓴다(따로 재지 않음).
+3. **gevent 협력 시험 + 음성 대조**(로컬 PostgreSQL 17, 연결 8개 × `pg_sleep(0.5)`, 직렬이면 4초):
+   - 패치 없음 **4.09초**(줄 섬) · `app.py` 실제 패치 블록 **0.52초**(겹침) · gevent 패치만 하고 psycogreen 없음 **4.06초** → 지금은 psycogreen 이 협력을 만든다.
+   - psycopg 3.3.6 미리 보기(작업 폴더 venv 에만 설치, `ClientCursor`, psycogreen 없음): 패치 없음 4.08초 · 패치 뒤 import **0.515초**. 패치 **전** import 도 0.515초였는데, Windows 에서는 psycopg 가 C 대기 함수(`wait_c`)를 아예 안 쓰기 때문이다(`waiting.py:549` 의 `sys.platform != "win32"`) → **순서 위험은 Linux(운영·CI)에서만 재현**된다. 그래서 정적 계약으로 막는다.
+   - 영구 시험: `tests/postgres/test_gevent_db_cooperation_pg.py`(+ 자식 프로세스 `gevent_db_probe.py`, `app.py` 의 실제 패치 블록을 AST 로 꺼내 실행 — 앱 import 없음) · `tests/contracts/runtime/test_gevent_patch_runs_first.py`(`app.py` 에서 패치 블록 앞에는 `import os` 뿐). 단계 2 에서 psycogreen 을 빼도 같은 시험이 그대로 판정한다.
+
 ### 단계 1 — 한 곳으로 모으기 (드라이버는 여전히 psycopg2, 동작 변화 0)
 할 일:
 - `db_url_resolver.py` 에 `PG_SQLALCHEMY_DRIVER = "psycopg2"`, `sqlalchemy_url(url)`(드라이버를 붙이는 유일한 함수, PostgreSQL 이 아니면 그대로), `postgres_dbapi_connect(kw)`(DBAPI 연결을 여는 유일한 함수)를 둔다. `postgresql_psycopg2_connect_kwargs_from_url` → `postgresql_connect_kwargs_from_url` 로 이름을 바꾸고 표면 계약(`foms_namespace_surface_tests.py:417`)을 함께 고친다.
