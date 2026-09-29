@@ -2101,13 +2101,15 @@ input.wb-pick:disabled,
         overscroll-behavior: contain;
     }
     .wb-hsheet::backdrop { background: rgba(20, 23, 28, .55); }
-    /* 바탕 누르기 = 닫기. 안쪽 상자가 시트를 꽉 채워야 `dialog` 자신이 눌린 경우가 바탕뿐이다. */
-    .wb-hsheet__in { padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px)); }
+    /* 바탕 누르기 = 닫기. 안쪽 상자가 시트를 꽉 채워야 `dialog` 자신이 눌린 경우가 바탕뿐이다.
+       손잡이 위 여백은 안쪽 상자의 **padding** 이다 — 손잡이 margin 이면 안쪽 상자 밖으로 겹쳐 빠져(margin
+       겹침) 시트 위 8px 이 `dialog` 로 잡히고, 손잡이를 누르면 시트가 닫혔다(N-44). JS 도 좌표로 가른다. */
+    .wb-hsheet__in { padding: 8px 0 calc(12px + env(safe-area-inset-bottom, 0px)); }
     .wb-hsheet__grip {
         display: block;
         width: 40px;
         height: 4px;
-        margin: 8px auto 4px;
+        margin: 0 auto 4px;
         border-radius: 4px;
         background: #c1c7d0;
     }
@@ -2453,6 +2455,15 @@ input.wb-pick:disabled,
     }
     .wb-layer__primary[hidden] + .wb-layer__more { flex: 1 1 auto; }
     .wb-layer__more:focus-visible { outline: 2px solid #4a55b8; outline-offset: 2px; }
+    /* pane 을 불러오는 동안(N-02) — 누름은 JS 가 버리고, 모양은 잠김(보조 글자 #4b525d on #eef0f3 6.9:1).
+       주 버튼은 화면 전체 `.naver-workbench .btn-primary`(!important)를 같은 무기로 이긴다(끈 상태 규칙과 같은 꼴). */
+    .naver-workbench .wb-layer__primary[aria-disabled="true"],
+    .wb-layer__more[aria-disabled="true"] {
+        border-color: #dde1e6;
+        background: #eef0f3 !important;
+        color: #4b525d !important;
+        cursor: progress;
+    }
 
     /* ── 더 할 일 시트(모양은 상태 시트 .wb-hsheet 를 그대로 쓴다) ── */
     .wb-more__list { margin: 0; padding: 4px 0 0; list-style: none; }
@@ -2473,6 +2484,9 @@ input.wb-pick:disabled,
     }
     .wb-more__label { font-size: calc(16px * var(--wb-fs, 1)); font-weight: 700; }
     .wb-more__why { color: #4b525d; font-size: calc(13px * var(--wb-fs, 1)); line-height: 1.4; }
+    /* 결과 한 줄(N-01) — 네이버로 나가면 주의 색(흰 바탕 5.0:1), 아니면 보조 글자. */
+    .wb-more__fx { color: #4b525d; font-size: calc(13px * var(--wb-fs, 1)); font-weight: 700; }
+    .wb-more__fx--send { color: #b45309; }
     .wb-more__opt--danger .wb-more__label { color: #b91c1c; }      /* 흰 바탕 6.5:1 */
     /* 못 누르는 것은 숨기지 않고 흐리게 — 이유 줄은 그대로 읽힌다(#6b7380 = 흰 바탕 4.8:1). */
     .wb-more__opt[aria-disabled="true"] { cursor: not-allowed; }
@@ -2556,4 +2570,45 @@ input.wb-pick:disabled,
     /* 날짜 칸 16px — 아이폰이 포커스 때 화면을 키우지 않는다. */
     .wb-asheet .wb-backfill__input,
     .wb-asheet .wb-expiry__input { min-height: 44px; font-size: calc(16px * var(--wb-fs, 1)); }
+
+    /* ── P0 안전(2026-09-30): 시트 맨 아래 닫기 줄 · 확인 시트 ──
+       맨 아래 줄은 시트가 길어 안쪽이 스크롤돼도 엄지 자리에 붙어 있다(sticky). */
+    .wb-hsheet__foot {
+        position: sticky;
+        bottom: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        padding: 8px 16px 0;
+        background: #ffffff;
+    }
+    .wb-hsheet__dismiss {
+        width: 100%;
+        min-height: 52px;
+        border: 1px solid #c1c7d0;
+        border-radius: 8px;
+        background: #ffffff;
+        color: #14171c;
+        font-size: calc(16px * var(--wb-fs, 1));
+        font-weight: 700;
+    }
+    .wb-hsheet__dismiss:focus-visible { outline: 2px solid #4a55b8; outline-offset: 2px; }
+    .wb-ask__body { padding: 4px 16px 8px; }
+    .wb-ask__who { margin: 4px 0 8px; color: #4b525d; font-size: calc(14px * var(--wb-fs, 1)); font-weight: 700; }
+    .wb-ask__facts {
+        margin: 0;
+        padding-left: 18px;
+        color: #14171c;
+        font-size: calc(14px * var(--wb-fs, 1));
+        line-height: 1.5;
+        word-break: keep-all;
+        overflow-wrap: anywhere;
+    }
+    .wb-ask .wb-ask__go {
+        width: 100%;
+        min-height: 52px;
+        border-radius: 8px;
+        font-size: calc(16px * var(--wb-fs, 1));
+        font-weight: 800;
+    }
 }
