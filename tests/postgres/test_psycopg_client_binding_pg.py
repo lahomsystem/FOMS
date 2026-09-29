@@ -45,3 +45,25 @@ def test_url_built_engine_uses_client_side_binding(lane_dsn) -> None:
             assert row[0] == '{"a": 1}'
     finally:
         engine.dispose()
+
+
+def test_string_value_compared_to_integer_column_binds_like_psycopg2(lane_dsn) -> None:
+    """``filter_by(id="4445")`` must work: request JSON sends ids as strings.
+
+    SQLAlchemy's psycopg dialect renders bind casts from the *Python value* type
+    (``id = '4445'::VARCHAR`` → ``integer = character varying``), which psycopg2 never did.
+    2026-09-29 production: every AS visit-date save on /api/update_order_field was 500.
+    """
+    from sqlalchemy import Column, Integer, MetaData, Table, select
+
+    t = Table("bind_cast_probe", MetaData(), Column("id", Integer, primary_key=True))
+    engine = create_engine(sqlalchemy_url(lane_dsn))
+    try:
+        with engine.begin() as conn:
+            t.create(conn)
+            conn.execute(t.insert(), [{"id": 4445}])
+            got = conn.execute(select(t.c.id).where(t.c.id == "4445")).scalar_one()
+            assert got == 4445
+            t.drop(conn)
+    finally:
+        engine.dispose()
