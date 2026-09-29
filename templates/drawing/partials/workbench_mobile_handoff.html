@@ -187,7 +187,56 @@
             {% endfor %}
           </ul>
           {% elif event.note %}<p>{{ event.note }}</p>{% endif %}
-          {% if event.files %}<small>첨부 {{ event.files|length }}건</small>{% endif %}
+          {# 수정요청 참고사진 — 이력에 저장된 view_url 은 쓰지 않는다. 서버가 key 로 만든 URL 이고
+             이 주문 drawing_gateway 경로만 링크한다(workbench._revision_reference_files). 나머지는 개수만. #}
+          {% if event.ref_files %}
+          <div class="foms-drawing-thread__refs" data-handoff-ref-group>
+            {% for ref in event.ref_files %}
+            {% if ref.is_image %}
+            <button type="button" class="foms-drawing-thread__ref"
+              data-drawing-handoff-open="reference"
+              data-handoff-view-url="{{ ref.view_url }}"
+              data-handoff-download-url="{{ ref.download_url }}"
+              data-handoff-filename="{{ ref.filename }}"
+              data-handoff-key="{{ ref.key }}"
+              aria-label="참고사진 {{ loop.index }} 크게 보기">
+              <img src="{{ ref.view_url }}" alt="" loading="lazy" decoding="async">
+            </button>
+            {% else %}
+            <a class="foms-drawing-thread__ref foms-drawing-thread__ref--file" href="{{ ref.view_url }}"
+              target="_blank" rel="noopener" aria-label="{{ ref.filename }} 열기">
+              <i class="fas fa-file-lines" aria-hidden="true"></i><span>{{ ref.filename }}</span>
+            </a>
+            {% endif %}
+            {% endfor %}
+          </div>
+          {% endif %}
+          {% if event.files %}<small>첨부 {{ event.files|length }}건{% if event.ref_hidden_count %} · {{ event.ref_hidden_count }}건은 여기서 열 수 없음{% endif %}</small>{% endif %}
+          {# 반영 체크 — PC 요청사항 칸 토글(.js-revision-check)과 같은 API·같은 요청 식별값.
+             RETURNED 에서 미체크 요청이 남으면 수정본 전달이 막히므로 폰에서도 여기서 푼다(원장 C9). #}
+          {% if event.revision_check %}
+          {% set rc = event.revision_check %}
+          <div class="foms-drawing-thread__check{% if rc.checked %} is-checked{% endif %}">
+            <span class="foms-drawing-thread__check-state">
+              {%- if rc.checked -%}
+              <i class="fas fa-check" aria-hidden="true"></i> 반영 완료{% if rc.checked_by_name %} · {{ rc.checked_by_name }}{% endif %}{% if rc.checked_at_text %} {{ rc.checked_at_text }}{% endif %}
+              {%- else -%}
+              미완료
+              {%- endif -%}
+            </span>
+            {% if can_toggle_revision_check and rc.request_at %}
+            <button type="button" class="foms-btn foms-btn--sm"
+              data-drawing-handoff-action="revision-check"
+              data-order-id="{{ order.id }}"
+              data-request-at="{{ rc.request_at }}"
+              data-by-user-id="{{ rc.by_user_id }}"
+              data-next-checked="{{ 'false' if rc.checked else 'true' }}">
+              <i class="fas {{ 'fa-rotate-left' if rc.checked else 'fa-check' }}" aria-hidden="true"></i>
+              <span>{{ '완료 해제' if rc.checked else '반영 완료' }}</span>
+            </button>
+            {% endif %}
+          </div>
+          {% endif %}
           {# 확인 버튼은 값을 읽은 자리 바로 아래 하나뿐이다. 확인은 건별이 아니라 주문 단위다. #}
           {% if event.is_ack_target %}
           <div class="foms-drawing-thread__ack">
@@ -218,8 +267,13 @@
         <i class="fas fa-paper-plane"></i><span>{% if drawing_status == 'RETURNED' %}수정본 전달{% else %}도면 전달{% endif %}</span>
       </button>
       {% else %}
-      <button class="foms-drawing-action-bar__btn foms-drawing-action-bar__btn--primary" type="button" disabled>
+      {# 막힌 이유를 버튼 안 한 줄로 — PC 결정 바의 '미반영 수정 요청' 안내와 같은 뜻.
+         푸는 버튼은 대화 스레드의 수정요청 말풍선(반영 완료)에 있다. #}
+      <button class="foms-drawing-action-bar__btn foms-drawing-action-bar__btn--primary{% if transfer_gated_by_revision_checklist %} foms-drawing-action-bar__btn--gated{% endif %}" type="button" disabled>
         <i class="fas fa-paper-plane"></i><span>전달 대기</span>
+        {% if transfer_gated_by_revision_checklist %}
+        <small class="foms-drawing-action-bar__reason">수정요청 {% if unread_count < revision_requests|length %}{{ revision_requests|length }}건 중 {% endif %}{{ unread_count }}건 반영 체크 필요</small>
+        {% endif %}
       </button>
       {% endif %}
     {% endif %}
@@ -239,7 +293,8 @@
       <i class="fas fa-check-double"></i><span>수령 확정</span>
     </button>
     {% endif %}
-    {% if can_cancel_transfer and drawing_status != 'CONFIRMED' %}
+    {# 상태 조건(TRANSFERRED 만)은 can_cancel_transfer 안에 있다 — PC 결정 바와 같은 값. #}
+    {% if can_cancel_transfer %}
     <button class="foms-drawing-action-bar__btn" type="button" data-drawing-handoff-action="cancel">
       <i class="fas fa-xmark"></i><span>전달 취소</span>
     </button>

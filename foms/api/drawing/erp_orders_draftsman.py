@@ -381,7 +381,7 @@ def api_order_confirm_drawing_receipt(order_id):
         old_stage = read_main_stage(order)
 
         # 단계 전이는 STATE-CORE 엔진이 소유한다 — 라우트는 workflow.stage·order.status 를
-        # 직접 쓰지 않는다. 도면 축 확정과 파일 정리는 전이가 성공한 **뒤에만** 한다.
+        # 직접 쓰지 않는다. 도면 축 확정(현재본 확정, 파일 삭제 없음)은 전이가 성공한 **뒤에만** 한다.
         try:
             stage_moved = advance_receipt_stage(
                 db, order, actor_user_id=current_user.id, body=data)

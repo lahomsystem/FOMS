@@ -201,8 +201,8 @@ def perform_drawing_transfer(
             # dc81a5658) 대상 0건으로 조용히 지나갔고, 주문 '도면' 탭(정본 =
             # OrderAttachment category='drawing', foms/api/files/order_routes.py)은 전달·수령확정
             # 뒤에도 영구 공백이었다. 전달은 도면이 그 정본에 등록되는 유일한 시점이므로
-            # 여기서 행 없는 key 를 만든다(수령확정 정리 로직의 keep 목록은 전달 이력에서
-            # 재구성되므로 현재 전달본은 보존된다).
+            # 여기서 행 없는 key 를 만든다(수령 확정은 파일을 지우지 않고 이 전달이 계산한
+            # drawing_current_files 를 그대로 확정한다 — 2026-09-29).
             existing_keys = {
                 row[0] for row in db.query(OrderAttachment.storage_key).filter(
                     OrderAttachment.order_id == order_id,

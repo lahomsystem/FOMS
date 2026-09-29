@@ -33,6 +33,7 @@ from foms.api.files.common import (
 from db import get_db
 from foms.services.attachment_visibility import include_deleted
 from foms.services.datetime_kst import now_utc_naive
+from foms.services.drawing_confirm_cleanup import exclude_superseded_drawing_rows
 from foms.services.files.upload_authz import category_upload_allowed
 from foms.services.files.upload_policy import ERP_MEDIA_ALLOWED_EXTENSIONS
 from foms.services.order_attachment_thumbnail import (
@@ -273,6 +274,11 @@ def api_order_attachments_list(order_id):
         query = db.query(OrderAttachment).filter(OrderAttachment.order_id == order_id)
         if want_deleted:
             query = include_deleted(query)
+        else:
+            # 교체된 옛 도면 행은 목록에서 뺀다 — 수령 확정이 지우지 않게 된 뒤(2026-09-29)
+            # 남는 행이다. 생산·시공 대시보드의 '도면' 탭도 이 목록을 쓴다. 파일은 전달 이력
+            # 링크로 계속 열린다. 휴지통 조회(opt-in)는 그대로 전부 보여준다.
+            query = exclude_superseded_drawing_rows(query, {order_id: order.structured_data})
         if filter_category:
             query = query.filter(OrderAttachment.category == filter_category)
         if has_item_filter:

@@ -32,6 +32,7 @@ from foms.services.channel_drawing_attachments import (
     select_drawing_room_push_attachments,
 )
 from foms.services.channel_drawing_room_message import build_drawing_room_push_text
+from foms.services.drawing_confirm_cleanup import exclude_superseded_drawing_rows
 from foms.services.channel_manager_room import resolve_manager_room
 from foms.services.orders.as_log import decorate_entry
 from foms.services.channel_client import is_configured
@@ -565,8 +566,10 @@ def api_channel_push_manual():
 
         # 해당 분류 첨부파일만. AS 기본 선정은 select_as_push_attachments 가
         # sort_order(없으면 id) 순으로 돌려준다. explicit ids 는 **배열 순서 그대로**.
+        # 교체된 옛 도면 행은 뺀다 — 수령 확정이 지우지 않게 된 뒤(2026-09-29) 남는 행이라
+        # 발주 PUSH(도면 첨부 전량)가 옛 도면을 발주방으로 보내게 된다.
         attachments = (
-            db.query(OrderAttachment)
+            exclude_superseded_drawing_rows(db.query(OrderAttachment), {order.id: sd})
             .filter(
                 OrderAttachment.order_id == order.id,
                 OrderAttachment.category == kind_config['category'],
