@@ -167,3 +167,18 @@ def test_mobile_single_row_count_matches_batch_and_list(client):
     batch = mobile.build_mobile_queue_order_row(db_session, order, None, batch_ctx=ctx)
 
     assert single["attachments_count"] == batch["attachments_count"] == _list_count(client, oid) == 3
+
+
+def test_mobile_single_row_falls_back_to_raw_count_when_discount_fails(app, monkeypatch):
+    """옛 도면 빼기 조회가 실패해도 단건 행은 만들어진다 — 원래 개수로 fail-open(리뷰 P3)."""
+    oid, _keys = _seed(old_versions=1)
+    order = db_session.get(Order, oid)
+
+    def _boom(*_a, **_k):
+        raise RuntimeError("discount failed")
+
+    monkeypatch.setattr(mobile, "discount_superseded_drawing_rows", _boom)
+
+    row = mobile.build_mobile_queue_order_row(db_session, order, None, batch_ctx=None)
+
+    assert row["attachments_count"] == 4  # 옛 도면 1 포함 원래 개수
