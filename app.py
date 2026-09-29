@@ -1,16 +1,13 @@
 import os
 
-# Gunicorn / Gevent 구동 시 IO 함수(socket 등)가 worker thread를 블로킹하지 않도록 몽키 패치 적용
+# Gunicorn / Gevent 구동 시 IO 함수(socket 등)가 worker thread를 블로킹하지 않도록 몽키 패치 적용.
+# PostgreSQL 드라이버 psycopg(3)는 gevent 패치를 스스로 감지해 DB 대기 중 다른 그린렛에 양보한다
+# (psycogreen 불필요). 단 import 시점에 대기 방식을 정하므로 이 블록이 모든 import 보다 먼저 와야 한다
+# — tests/contracts/runtime/test_gevent_patch_runs_first.py, tests/postgres/test_gevent_db_cooperation_pg.py.
 if os.environ.get('SERVER_SOFTWARE', '').startswith('gunicorn') or os.environ.get('GUNICORN_CMD_ARGS'):
     try:
         import gevent.monkey  # type: ignore[import-untyped]
         _ = gevent.monkey.patch_all()
-        try:
-            import psycogreen.gevent  # type: ignore[import-untyped]
-            psycogreen.gevent.patch_psycopg()
-            print("[INFO] psycogreen patch 적용 완료 (PostgreSQL 비동기 활성화)")
-        except ImportError:
-            print("[WARN] psycogreen not installed. PostgreSQL queries may block gevent workers.")
         print("[INFO] gevent monkey patch 적용 완료 (비동기 IO 활성화)")
     except ImportError:
         print("[WARN] gevent not installed. Gunicorn gevent worker patches were not applied.")

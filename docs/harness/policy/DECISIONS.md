@@ -10,6 +10,13 @@
 
 ---
 
+### [2026-09-29] PostgreSQL 드라이버를 psycopg(3) + ClientCursor 로 바꾸고 psycogreen 을 뺀다 (psycopg3 전환 단계 2)
+- **키워드**: psycopg, psycopg3, psycopg2, psycogreen, ClientCursor, gevent, wait_c, PG_SQLALCHEMY_DRIVER, postgres_dbapi_connect
+- **결정**: `PG_SQLALCHEMY_DRIVER = "psycopg"`, 원시 연결은 `psycopg.connect(..., cursor_factory=ClientCursor)`(psycopg2 와 같은 클라이언트 쪽 바인딩, 준비문 없음). `app.py` 의 psycogreen 블록과 `requirements.txt` 의 psycogreen 삭제. psycopg2-binary 는 직접 쓰는 운영 도구(단계 3)와 되돌리기용으로 남긴다.
+- **이유**: psycogreen 은 2020-02-22 이후 새 판이 없고 psycopg2 에만 걸린다. psycopg 3.1.14+ 는 gevent 패치를 스스로 감지한다 — 단 import 시점에 대기 함수를 고르므로(`psycopg/waiting.py`) 패치보다 늦게 import 해야 한다(`app.py` 첫 블록 계약). 서버 쪽 바인딩은 `text()` 900여 곳의 차이를 SQLite 테스트가 못 잡아서 열지 않는다.
+- **첫 PG 레인에서 드러난 드라이버 차이 2건(근본 수정)**: ① URL 로 만든 엔진(SIDEFX·cron·alembic·도구·레인)은 creator 를 안 거쳐 서버 쪽 바인딩이었다 → `db_url_resolver` 의 `Engine` `connect` 이벤트가 모든 psycopg 연결에 `ClientCursor` 를 건다(`tests/postgres/test_psycopg_client_binding_pg.py`, 음성 대조 `AmbiguousParameter`). ② 마이그레이션 7개의 `execute(text("COMMIT"))` 뒤 CONCURRENTLY DDL 은 psycopg2 가 트랜잭션 상태를 추적하지 않아서만 통했다 → `op.get_context().autocommit_block()` 으로(계약: 마이그레이션에 문자열 COMMIT 금지).
+- **영향**: `foms/services/db_url_resolver.py`, `app.py`, `requirements.txt`, `migrations/versions/` 7개. 계약 `tests/domains/test_pg_driver_single_source.py`(psycogreen 부재·ClientCursor), `tests/contracts/runtime/test_gevent_patch_runs_first.py`, PG 레인 `tests/postgres/test_gevent_db_cooperation_pg.py`. 되돌리기 = 상수 `"psycopg2"` + `postgres_dbapi_connect` 의 psycopg2 분기 + psycogreen 복원.
+
 ### [2026-09-28] PostgreSQL 드라이버 이름은 `db_url_resolver` 한 곳에서만 정한다 (psycopg3 전환 단계 1)
 - **키워드**: psycopg2, psycopg3, psycopg, driver, sqlalchemy_url, PG_SQLALCHEMY_DRIVER, postgres_dbapi_connect, pg_error_code, pgcode, sqlstate, psycogreen, alembic, sidefx, cron
 - **결정**: 모든 SQLAlchemy 엔진은 `foms.services.db_url_resolver.sqlalchemy_url()` 로 `postgresql+<PG_SQLALCHEMY_DRIVER>` 를 명시하고, 원시 연결은 `postgres_dbapi_connect()`, 오류 코드는 `pg_error_code()` 로만 읽는다. 지금 값은 `psycopg2` 그대로다(동작 변화 0). 계획 `docs/plans/2026-09-28-psycopg3-migration-plan.md`.
