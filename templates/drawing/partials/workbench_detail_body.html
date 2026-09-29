@@ -1809,7 +1809,7 @@
         {# 누구 말인가요(설계서 §3.5 다) — 여는 버튼의 data-revision-source 로 drawing-customer-ok.js 가 미리 고른다.
            값은 인라인 submitRevision 이 window.fomsDrawingRevisionExtras() 로 본문에 더한다(typeof 가드). #}
         {% if drawing_status == 'CONFIRMED' %}
-        <div class="alert alert-warning py-2 small" data-revision-confirmed-warning>이미 확정한 도면이에요. 수정요청하면 도면팀과 생산팀에 변경 알림이 가요.</div>
+        <div class="alert alert-warning py-2 small" data-revision-confirmed-warning data-foms-no-autodismiss>이미 확정한 도면이에요. 수정요청하면 도면팀과 생산팀에 변경 알림이 가요.</div>
         {% endif %}
         <div class="mb-3" data-revision-source-block>
           <div class="form-label fw-bold">누구 말인가요</div>
