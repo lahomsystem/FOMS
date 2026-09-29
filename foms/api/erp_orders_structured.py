@@ -1279,6 +1279,20 @@ def _denied_flag_paths(order: Order, payload: Mapping[str, Any]) -> list[str]:
     return denied
 
 
+#: 비고 옆 드롭다운의 해피콜 상태. 비고(Order.notes)와 따로 둬서 실측·출고 화면에 안 섞이게 한다.
+HAPPY_CALL_VALUES = frozenset({'부재', '콜백'})
+
+
+def _normalize_happy_call(flags: dict) -> None:
+    """``flags.happy_call`` 을 허용값(부재·콜백)만 남긴다. 빈 값·낯선 값은 키째 뺀다."""
+    value = flags.get('happy_call')
+    value = value.strip() if isinstance(value, str) else ''
+    if value in HAPPY_CALL_VALUES:
+        flags['happy_call'] = value
+    else:
+        flags.pop('happy_call', None)
+
+
 def _restore_locked_factory2(old_sd: Mapping[str, Any], structured_data: dict) -> None:
     """저장 직전에 ``flags.factory2`` 를 기존값으로 되돌린다 (ORDER-FLAG-01).
 
@@ -1561,6 +1575,7 @@ def api_put_order_structured(order_id):
                     structured_data['workflow'] = {}
                 if not structured_data.get('flags'):
                     structured_data['flags'] = {}
+                _normalize_happy_call(structured_data['flags'])
                 if not flags_editable:
                     _restore_locked_factory2(old_sd, structured_data)
                 if not structured_data.get('assignments'):
