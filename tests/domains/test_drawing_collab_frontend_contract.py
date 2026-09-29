@@ -44,7 +44,8 @@ def test_detail_dom_cachebuster_cascade_bumped() -> None:
     layout = _read(LAYOUT_SCRIPTS)
     assert "erp-dashboard-detail-dom.js?v=20260929g" in entry
     # 도면 0장 전달 차단(2026-09-09): drawing.js 자식 핀 신설 + entry 부모 핀 범프.
-    assert "erp-dashboard-drawing.js?v=20260909a" in entry
+    # 2026-09-29 죽은 toggleRevisionChecklist 삭제(2d 리뷰)로 20260929g.
+    assert "erp-dashboard-drawing.js?v=20260929g" in entry
     # 2026-09-21 관리자 강제 진행 재시도 배선(erp-dashboard-quest.js)으로 entry 부모 핀만
     # 올렸다. 2026-09-29 제품 여러 건 목록+상세로 detail-dom 자식·entry 부모 모두 20260929a.
     assert "erp-dashboard-entry.js') }}?v=20260929g" in layout

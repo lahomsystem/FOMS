@@ -1,5 +1,7 @@
-{# 막힌 이유 줄이 있으면 하단 바가 한 줄 높아진다 — 본문 아래 여백이 그 높이를 따라가게 표시한다(R12). #}
-{% set _bar_reason = can_transfer and not can_open_transfer and transfer_gated_by_revision_checklist %}
+{# 막힌 이유 줄이 있으면 하단 바가 한 줄 높아진다 — 본문 아래 여백이 그 높이를 따라가게 표시한다(R12).
+   이유 줄은 두 갈래: 반영 체크 막힘(전달 권한자) · 담당 아닌 도면팀(M14-a). 둘은 can_transfer 로 갈려 겹치지 않는다. #}
+{% set _gate_reason = can_transfer and not can_open_transfer and transfer_gated_by_revision_checklist %}
+{% set _bar_reason = _gate_reason or show_transfer_assignee_only_hint %}
 <div class="erp-mobile-shell foms-drawing-handoff d-lg-none{% if _bar_reason %} foms-drawing-handoff--bar-reason{% endif %}"
   data-handoff-mode="{{ mobile_handoff_view }}"
   data-selected-drawing-key="{{ mobile_handoff_selected_file.key if mobile_handoff_selected_file else '' }}"
@@ -278,8 +280,10 @@
   <div class="foms-drawing-action-bar">
     {# 막힌 이유는 disabled 버튼 밖에 둔다 — 버튼 안에 있으면 탭 이동으로 못 닿는다(R12). 버튼이 aria-describedby 로 가리킨다.
        푸는 버튼은 대화 스레드의 수정요청 말풍선(반영 완료)에 있다. PC 결정 바의 '미반영 수정 요청' 안내와 같은 뜻. #}
-    {% if _bar_reason %}
+    {% if _gate_reason %}
     <p id="dw-transfer-gate-reason" class="foms-drawing-action-bar__reason">수정요청 {% if unread_count < revision_requests|length %}{{ revision_requests|length }}건 중 {% endif %}{{ unread_count }}건 반영 체크 필요</p>
+    {% elif show_transfer_assignee_only_hint %}
+    <p id="dw-transfer-gate-reason" class="foms-drawing-action-bar__reason">담당자만 전달할 수 있어요</p>
     {% endif %}
     {% if can_transfer %}
       {% if can_open_transfer %}
@@ -287,15 +291,14 @@
         <i class="fas fa-paper-plane"></i><span>{% if drawing_status == 'RETURNED' %}수정본 전달{% else %}도면 전달{% endif %}</span>
       </button>
       {% else %}
-      <button class="foms-drawing-action-bar__btn foms-drawing-action-bar__btn--primary{% if transfer_gated_by_revision_checklist %} foms-drawing-action-bar__btn--gated{% endif %}" type="button" disabled{% if _bar_reason %} aria-describedby="dw-transfer-gate-reason"{% endif %}>
+      <button class="foms-drawing-action-bar__btn foms-drawing-action-bar__btn--primary{% if transfer_gated_by_revision_checklist %} foms-drawing-action-bar__btn--gated{% endif %}" type="button" disabled{% if _gate_reason %} aria-describedby="dw-transfer-gate-reason"{% endif %}>
         <i class="fas fa-paper-plane"></i><span>전달 대기</span>
       </button>
       {% endif %}
     {% elif show_transfer_assignee_only_hint %}
-      {# 담당 아닌 도면팀 — 서버가 403 으로 막는 전달 대신 이유 한 줄(M14-a 화면 == 서버). #}
-      <button class="foms-drawing-action-bar__btn" type="button" disabled>
+      {# 담당 아닌 도면팀 — 서버가 403 으로 막는 전달 대신 이유 한 줄(M14-a 화면 == 서버). 이유는 위 버튼 밖 줄(R12). #}
+      <button class="foms-drawing-action-bar__btn" type="button" disabled aria-describedby="dw-transfer-gate-reason">
         <i class="fas fa-user-lock"></i><span>전달 불가</span>
-        <small class="foms-drawing-action-bar__reason">담당자만 전달할 수 있어요</small>
       </button>
     {% endif %}
     {% if can_request_revision and drawing_status in ['TRANSFERRED', 'CONFIRMED'] %}

@@ -234,11 +234,13 @@ def _build_drawing_turn(
 
     ``gated`` = 반영 체크가 남아 수정본 전달이 막힌 상태(``transfer_gated_by_revision_checklist``).
     그때는 전달 권한이 있어도 지금 누를 수 있는 일이 아니므로 '내 차례' 색을 쓰지 않는다(원장 M14-b).
+    라벨은 보는 사람 기준이다 — 전달 권한자에게는 할 일("수정요청 반영 체크 필요"), 그 밖의 사람(영업 등)
+    에게는 움직일 주체("도면팀 반영 체크 대기"). 목록 카드와 상세 리본이 이 함수 하나를 함께 쓴다.
     """
     status = (drawing_status or 'PENDING').upper()
     if gated:
         return {
-            'label': '수정요청 반영 체크 필요',
+            'label': '수정요청 반영 체크 필요' if can_transfer else '도면팀 반영 체크 대기',
             'sub': (f'도면팀 {transfer_round}차 전달' if transfer_round else '도면 전달 대기') + f' · 도면 {file_count}장',
             'tone': 'other',
         }
@@ -654,13 +656,20 @@ def erp_drawing_workbench_dashboard():
         can_sales = _can_modify_sales_domain(current_user, o, sd, False, None)
         # 판정 권한(순수 — 상태 미포함). 상세 라우트 can_confirm_receipt(상태 합성형)와 이름 분리.
         can_review_perm = bool(is_admin or (can_sales and not is_drawing_team))
-        can_transfer_row = bool(
-            has_assignee
-            and current_user
-            and is_drawing_workbench_participant(current_user, o)
-        )
+        # 전달 권한 = 상세 라우트·서버와 같은 술어(관리자 · 지정 도면 담당, M14-a). 목록 카드와 상세 리본이
+        # 같은 주문을 다르게 말하지 않게 막힘(gated)도 상세와 같은 판정으로 넘긴다(2d 리뷰).
+        can_transfer_row = can_transfer_drawing(current_user, o)
         can_confirm_row = bool(can_sales and drawing_status == 'TRANSFERRED')
         transfer_round = sum(1 for h in history if isinstance(h, dict) and h.get('action') == 'TRANSFER')
+        unchecked_requests = 0
+        for h in history:
+            if not isinstance(h, dict) or h.get('action') != 'REQUEST_REVISION':
+                continue
+            review_raw = h.get('review_check')
+            review = review_raw if isinstance(review_raw, dict) else {}
+            if not bool(review.get('checked')):
+                unchecked_requests += 1
+        gated_row = bool(drawing_status == 'RETURNED' and has_pending_unchecked_drawing_revision_requests(sd))
         turn = _build_drawing_turn(
             drawing_status,
             has_assignee,
@@ -668,9 +677,15 @@ def erp_drawing_workbench_dashboard():
             can_confirm_row,
             len(drawing_files),
             transfer_round,
+            gated=gated_row,
         )
+        primary_action_query = ''
         if can_confirm_row:
             primary_action = {'label': '수령 확인', 'icon': 'fa-check-double'}
+        elif can_transfer_row and gated_row:
+            # 막힌 전달 대신 지금 할 일(반영 체크) — 요청 탭 착지가 미체크 수정요청으로 데려간다(M14-c).
+            primary_action = {'label': '반영 체크', 'icon': 'fa-list-check'}
+            primary_action_query = '?tab=requests'
         elif can_transfer_row:
             primary_action = {'label': '도면 전달', 'icon': 'fa-paper-plane'}
         elif drawing_status == 'TRANSFERRED' and can_sales:
@@ -681,15 +696,6 @@ def erp_drawing_workbench_dashboard():
             (drawing_status in ('PENDING', 'RETURNED') and is_drawing_assignee)
             or (drawing_status == 'TRANSFERRED' and is_sales_owner)
         )
-
-        unchecked_requests = 0
-        for h in history:
-            if not isinstance(h, dict) or h.get('action') != 'REQUEST_REVISION':
-                continue
-            review_raw = h.get('review_check')
-            review = review_raw if isinstance(review_raw, dict) else {}
-            if not bool(review.get('checked')):
-                unchecked_requests += 1
 
         alerts = _erp_alerts(o, sd, 0)
         due_today = (alerts.get('measurement_days') == 0 or alerts.get('construction_days') == 0)
@@ -787,6 +793,7 @@ def erp_drawing_workbench_dashboard():
             'turn_tone': turn['tone'],
             'primary_action_label': primary_action['label'],
             'primary_action_icon': primary_action['icon'],
+            'primary_action_query': primary_action_query,
             'next_action': _drawing_next_action_text(drawing_status, has_assignee),
             'next_action_tone': _drawing_next_action_tone(drawing_status, has_assignee),
             'latest_event_at': (last_event or {}).get('transferred_at') or (last_event or {}).get('at') or '-',
@@ -1113,6 +1120,14 @@ def erp_drawing_workbench_detail(order_id):
         handoff_invalid_drawing_key = '선택한 도면을 찾을 수 없습니다.'
     if not selected_key and highlight_target_no and 1 <= highlight_target_no <= len(file_keys):
         selected_key = file_keys[highlight_target_no - 1]
+    # 강조된 수정요청(요청 탭 착지의 최근 미체크 · event_id)이 가리키는 도면을 연다 — 1번 도면 고정이 아니라(2d 리뷰).
+    highlighted_request = next((h for h in revision_requests if h.get('is_highlight')), None)
+    try:
+        highlighted_target_no = int((highlighted_request or {}).get('target_no') or 0)
+    except (TypeError, ValueError):
+        highlighted_target_no = 0
+    if not selected_key and 1 <= highlighted_target_no <= len(file_keys):
+        selected_key = file_keys[highlighted_target_no - 1]
     if not selected_key and (len(file_keys) == 1 or deep_link_requested):
         selected_key = file_keys[0] if file_keys else ''
     handoff_view = 'detail' if (len(file_keys) <= 1 or selected_key or deep_link_requested) else 'list'

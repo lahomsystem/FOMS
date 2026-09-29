@@ -76,7 +76,8 @@
 
 @media (max-width: 991.98px), ((min-width: 992px) and (pointer: coarse) and (orientation: portrait)) {
   /* 하단 액션 바 높이(안전 영역 제외) — 본문 아래 여백이 이 값을 따라간다. 기본 바는 버튼 한 줄(약 73px).
-     막힌 이유 줄이 있는 바(--bar-reason, 도면팀·관리자가 반영 체크 남은 RETURNED 주문을 볼 때)는 한 줄 더 높다.
+     막힌 이유 줄이 있는 바(--bar-reason — 반영 체크가 남은 RETURNED 주문을 전달 권한자가 볼 때,
+     또는 담당 아닌 도면팀이 볼 때)는 한 줄 더 높다.
      예전엔 여백이 84px 고정이라 이유 줄이 든 바(94px)가 본문 마지막 줄을 가렸다(R12). */
   body.erp-mobile-v2-layout .foms-drawing-handoff {
     --foms-drawing-action-bar-h: 4.5rem;
