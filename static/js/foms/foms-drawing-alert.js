@@ -172,8 +172,9 @@
     } else {
       q('kicker').textContent = data.title || '도면 수정 요청';
       var orderId = data.order_id || data.orderId;
-      q('title').textContent =
-        orderId ? ('주문 #' + orderId + ' 도면을 고쳐야 합니다') : '도면을 고쳐야 합니다';
+      var customer = String(data.customer_name || '').trim(); // 번호만으론 어느 집인지 모른다
+      var label = orderId ? ('주문 #' + orderId + (customer ? ' (' + customer + ')' : '') + ' ') : '';
+      q('title').textContent = label + '도면을 고쳐야 합니다';
       q('message').innerHTML = esc(data.message || '').replace(/\n/g, '<br>');
       var who = data.created_by_name || data.actor_name || '';
       q('meta').textContent = who ? (who + ' 요청') : '';
