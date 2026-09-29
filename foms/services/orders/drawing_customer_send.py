@@ -1,9 +1,11 @@
 """도면 탭 '고객에게 보내기' — 회차 함수와 작업실 화면값(설계서 2026-09-29 §4.3 · §4.4 · §4.5).
 
-S1a 뼈대: 회차 함수 ``drawing_round_info`` 와 모든 화면값 키를 빈 값으로 채운
-``empty_customer_send_view``. 상세 ctx 는 늘 ``customer_send`` 를 싣는다 — Jinja 기본
-Undefined 는 없는 변수의 속성을 읽는 순간 오류라, S2·S3 템플릿이 먼저 합쳐져도 500 이 나지 않게.
-발송·열람 판정과 버튼 목록(``bar``) 채우기는 S1 이 이 모듈에 더한다.
+회차 함수 ``drawing_round_info`` 와 모든 화면값 키를 빈 값으로 채운 ``empty_customer_send_view``
+(S1a 뼈대), 그리고 고객 문서 이름(``share_doc_label`` · ``share_round_label``)·발송 이벤트 표지
+(``send_event_tags``)·이번 발송 번호(``resolve_send_phone``, 사용자 결정 Q5-②)를 둔다. 발송·열람
+판정과 화면값 채우기는 ``drawing_customer_send_view``, 버튼 목록은 ``drawing_customer_send_bar``.
+상세 ctx 는 늘 ``customer_send`` 를 싣는다 — Jinja 기본 Undefined 는 없는 변수의 속성을 읽는
+순간 오류라 모든 키가 늘 있어야 한다.
 
 회차 규칙(사용자 결정 Q2): 전달이 없으면 0, 있으면 1 + 마지막 TRANSFER 앞의 REQUEST_REVISION 수.
 수정요청 없이 더 올린 전달은 같은 회차의 추가 전달이다. 수정요청 취소는 요청 항목을 이력에서
@@ -13,7 +15,10 @@ Undefined 는 없는 변수의 속성을 읽는 순간 오류라, S2·S3 템플�
 
 from __future__ import annotations
 
+import os
 from typing import Any, Mapping, NamedTuple
+
+from foms.services import kakao_alimtalk as ka
 
 # 버튼 목록 항목 키(PC 결정 바 · 모바일 하단 바가 같은 목록을 순회한다, §3.0 + Q5).
 BAR_KEYS: tuple[str, ...] = (
@@ -133,3 +138,78 @@ def skeleton_customer_send_view(sd: Mapping[str, Any] | None) -> dict[str, Any]:
         is_append=info.is_append,
     )
     return view
+
+
+# ── 고객 문서 이름(알림톡 ``#{문서종류}`` · 문자 본문 · 공유 화면 제목, §4.3 · Q3 · Q6) ──────────
+#: ``"1"`` 일 때만 켜진다. 없거나 다른 값이면 지금 고정 표 그대로(배포 없이 되돌리기).
+SHARE_ROUND_DOC_LABEL_ENV = "FOMS_SHARE_ROUND_DOC_LABEL"
+
+#: 스위치 꺼짐 표(``foms/api/share.py`` 옛 ``_SMS_KIND_LABEL`` 과 같은 글자).
+_FIXED_DOC_LABELS = {"drawing": _DEFAULT_DOC_LABEL_DRAWING, "estimate": "견적서",
+                     "bundle": _DEFAULT_DOC_LABEL_BUNDLE}
+
+
+def round_doc_label_enabled() -> bool:
+    """회차 이름 스위치가 켜졌나(``FOMS_SHARE_ROUND_DOC_LABEL == "1"``)."""
+    return (os.getenv(SHARE_ROUND_DOC_LABEL_ENV) or "").strip() == "1"
+
+
+def share_doc_label(sd: Mapping[str, Any] | None, kind: str) -> str:
+    """고객에게 보이는 문서 이름. 스위치가 켜지고 회차 2 이상이면 "수정 도면(N차)"."""
+    fixed = _FIXED_DOC_LABELS.get(kind, "문서")
+    if kind not in ("drawing", "bundle") or not round_doc_label_enabled():
+        return fixed
+    info = drawing_round_info(sd)
+    if info.round < 2:
+        return fixed
+    drawing = f"수정 도면({info.round}차)"
+    return drawing if kind == "drawing" else f"{drawing}·계약서"
+
+
+def share_round_label(sd: Mapping[str, Any] | None) -> str:
+    """공유 화면 제목 앞 회차("2차", Q3) — 스위치가 켜지고 회차 2 이상일 때만, 아니면 ""."""
+    if not round_doc_label_enabled():
+        return ""
+    info = drawing_round_info(sd)
+    return round_text(info.round) if info.round >= 2 else ""
+
+
+# ── 발송 이벤트 표지(§4.4) · 이번 발송 번호(Q5-②) ─────────────────────────────────────────────
+#: 발송 본문 ``source_screen`` 으로 받는 값(목록 밖이면 키를 넣지 않는다).
+SEND_SOURCE_SCREENS: tuple[str, ...] = ("drawing_tab",)
+
+#: 보내기 창에서 바꾼 번호가 틀렸을 때의 오류 코드(발송 라우트 400).
+INVALID_PHONE = "INVALID_PHONE"
+
+
+def send_event_tags(sd: Mapping[str, Any] | None, body: Any) -> dict[str, Any]:
+    """발송 선점 이벤트 payload 에 박을 회차 표지 ``{round_at, round[, source_screen]}``.
+
+    회차 경계는 이력 시각이 아니라 이 표지로 판정한다 — 전달 취소는 최신 TRANSFER 를 이력에서
+    빼기만 하므로, 시각만 비교하면 취소된 회차에 보낸 것이 앞 회차 발송으로 잡힌다.
+    """
+    info = drawing_round_info(sd)
+    tags: dict[str, Any] = {"round_at": info.round_at, "round": info.round}
+    screen = body.get("source_screen") if isinstance(body, Mapping) else None
+    if isinstance(screen, str) and screen in SEND_SOURCE_SCREENS:
+        tags["source_screen"] = screen
+    return tags
+
+
+def resolve_send_phone(sd: Mapping[str, Any] | None, body: Any) -> tuple[str | None, bool, str | None]:
+    """이번 발송 수신 번호. 본문 ``to_phone`` 이 있으면 그 번호(이번 발송에만), 없으면 주문 번호.
+
+    ``to_phone`` 은 주문 번호와 같은 정규화·검증 규칙(:func:`ka.extract_valid_phone`)으로 본다.
+
+    Returns:
+        ``(숫자만 남긴 번호, 바꾼 번호인가, 오류 코드)``. 바꾼 번호가 틀리면
+        ``(None, False, "INVALID_PHONE")``, 주문 번호가 없으면 ``(None, False, "no_valid_phone")``.
+    """
+    raw = body.get("to_phone") if isinstance(body, Mapping) else None
+    if raw is not None and not (isinstance(raw, str) and not raw.strip()):
+        if not isinstance(raw, str):
+            return None, False, INVALID_PHONE
+        phone = ka.extract_valid_phone({"parties": {"customer": {"phone": raw}}})
+        return (phone, True, None) if phone else (None, False, INVALID_PHONE)
+    phone = ka.extract_valid_phone(dict(sd or {}))
+    return (phone, False, None) if phone else (None, False, "no_valid_phone")

@@ -35,7 +35,10 @@ from foms.services.datetime_kst import (format_datetime_kst, get_today_kst,
 from foms.services.drawing_confirm_cleanup import superseded_drawing_keys
 from foms.services.erp_shipment_settings import load_erp_shipment_settings
 from foms.services.orders.audit_order_context import order_audit_context
+from foms.services.orders.drawing_customer_send import (resolve_send_phone, send_event_tags,
+                                                        share_doc_label, share_round_label)
 from foms.services.orders.drawing_transfer import _is_drawing_key
+from foms.services.orders.revision import lock_order_row
 from foms.services.sidefx_outbox import enqueue_side_effect
 from foms.services.storage import get_storage
 from foms.web.auth import log_access, login_required, role_required
@@ -487,6 +490,8 @@ def view_shared_order(token: str):
         share_zip_url=url_for('share_view.download_shared_drawings_zip', token=token),
         share_sheet_url=url_for('share_view.download_shared_drawings_sheet', token=token),
         share_is_kakao_inapp=_is_kakao_inapp(request.headers.get('User-Agent')),
+        # 제목 앞 회차("2차 도면 확인", 설계서 2026-09-29 Q3) — 스위치가 꺼졌거나 1차면 "".
+        share_round_label=share_round_label(order.structured_data),
     )
 
 
@@ -1001,7 +1006,8 @@ def api_share_history_page(snapshot_id: int):
 #: send-sms 멱등 시간버킷(초) — 같은 버킷 내 재요청은 outbox UNIQUE 가 DB 로 차단(플랜 §1).
 _SMS_BUCKET_SECONDS = 5
 
-_SMS_KIND_LABEL = {'drawing': '도면', 'estimate': '견적서', 'bundle': '도면·계약서'}
+#: 고객 문서 이름(도면·견적서·도면·계약서, 스위치가 켜지면 회차 이름)은
+#: :func:`foms.services.orders.drawing_customer_send.share_doc_label` 하나가 정한다.
 #: 문자 본문 첫 줄의 발주사 표기(알림톡 승인 템플릿 문구와 같은 표기).
 _BRAND_LABEL = {'LAHOM': '라홈', 'HAUD': '하우드'}
 
@@ -1177,7 +1183,9 @@ def api_share_send_sms(share_id: int):
     if row is None:
         return _envelope(None, 'share_not_found', 404)
 
-    token = str((request.get_json(silent=True) or {}).get('token') or '')
+    body = request.get_json(silent=True) or {}
+    body = body if isinstance(body, dict) else {}
+    token = str(body.get('token') or '')
     if not token or share_service.hash_token(token) != row.token_hash:
         # 해시-온리 저장 — 원문 없이는 URL 재구성 불가. 목록의 과거 항목은 재발급 유도.
         return _envelope(None, 'token_mismatch', 400)
@@ -1195,9 +1203,10 @@ def api_share_send_sms(share_id: int):
     if order is None:
         return _envelope(None, 'order_not_found', 404)
 
-    to_phone = ka.extract_valid_phone(order.structured_data or {})
-    if not to_phone:
-        return _envelope(None, 'no_valid_phone', 400)
+    # 보내기 창 '번호 바꾸기'(Q5-②): 본문 to_phone 은 이번 발송에만 쓰고 원문은 저장하지 않는다.
+    to_phone, phone_override, phone_err = resolve_send_phone(order.structured_data, body)
+    if phone_err:
+        return _envelope(None, phone_err, 400)
 
     actor_user_id = session.get('user_id')
     brand = ka.resolve_brand(order.structured_data or {})
@@ -1205,7 +1214,7 @@ def api_share_send_sms(share_id: int):
     if not from_phone:
         return _envelope(None, 'not_configured', 503)
 
-    kind_label = _SMS_KIND_LABEL.get(row.kind, '문서')
+    kind_label = share_doc_label(order.structured_data, row.kind)
     url = url_for('share_view.view_shared_order', token=token, _external=True)
     text = (
         f'안녕하세요. 요청하신 {kind_label} 열람 링크를 보내드립니다.\n'
@@ -1218,8 +1227,10 @@ def api_share_send_sms(share_id: int):
     event = OrderEvent(
         order_id=order.id,
         event_type='SHARE_SMS',
+        # 회차 표지(round_at·round·source_screen) — 도면 탭 상태 줄이 이번 회차 발송을 가른다.
         payload={'share_id': row.id, 'kind': row.kind, 'status': 'in_flight',
-                 'sent_by': actor_user_id},
+                 'sent_by': actor_user_id, **send_event_tags(order.structured_data, body),
+                 **({'to_phone_override': True} if phone_override else {})},
         created_by_user_id=actor_user_id,
     )
     try:
@@ -1252,7 +1263,9 @@ def api_share_send_sms(share_id: int):
     flag_modified(event, 'payload')
     outbox_row.status = 'DONE'
     outbox_row.completed_at = now_utc_naive()
-    # 발송 흔적(화면 칩) — 알림톡 경로와 같은 레코드를 채널만 달리해 남긴다.
+    # 발송 흔적(화면 칩) — 알림톡 경로와 같은 레코드를 채널만 달리해 남긴다. sd 를 통째로
+    # 되쓰므로 바로 앞에서 행을 잠근다(도면 전달·수정요청과 겹치는 lost update 방지, §4.6).
+    lock_order_row(db_session, order.id)
     last_share = ka.record_share_history(
         db_session, order, kind=row.kind, channel='sms',
         share_id=row.id, error=error, sent_by=actor_user_id)
@@ -1266,6 +1279,7 @@ def api_share_send_sms(share_id: int):
         action='SHARE_SMS_SENT', target_type='order', target_id=int(order.id),
         detail={'share_id': row.id, 'kind': row.kind, 'sent': error is None,
                 'error': error, 'to': ka._mask_phone(to_phone),
+                **({'to_phone_override': True} if phone_override else {}),
                 'sender_source': attempts[-1]['source'] if attempts else None, **context},
     )
     return _envelope({'sent': error is None, 'error': error, 'last_share': last_share}, error)
@@ -1396,7 +1410,7 @@ def _share_alimtalk_variables(order: Order, *, kind: str, token: str,
     manager_phone = _share_contact_phone(order, brand)
     return {
         '#{고객명}': customer,
-        '#{문서종류}': _SMS_KIND_LABEL.get(kind, '문서'),
+        '#{문서종류}': share_doc_label(sd, kind),
         '#{유효기간}': str(share_service.token_days()),
         '#{담당자}': manager,
         '#{담당자연락처}': manager_phone,
@@ -1488,7 +1502,9 @@ def api_share_send_alimtalk(share_id: int):
     if row is None:
         return _envelope(None, 'share_not_found', 404)
 
-    token = str((request.get_json(silent=True) or {}).get('token') or '')
+    body = request.get_json(silent=True) or {}
+    body = body if isinstance(body, dict) else {}
+    token = str(body.get('token') or '')
     if not token or share_service.hash_token(token) != row.token_hash:
         return _envelope(None, 'token_mismatch', 400)
 
@@ -1504,9 +1520,10 @@ def api_share_send_alimtalk(share_id: int):
     if order is None:
         return _envelope(None, 'order_not_found', 404)
 
-    to_phone = ka.extract_valid_phone(order.structured_data or {})
-    if not to_phone:
-        return _envelope(None, 'no_valid_phone', 400)
+    # 보내기 창 '번호 바꾸기'(Q5-②): 본문 to_phone 은 이번 발송에만 쓰고 원문은 저장하지 않는다.
+    to_phone, phone_override, phone_err = resolve_send_phone(order.structured_data, body)
+    if phone_err:
+        return _envelope(None, phone_err, 400)
 
     actor_user_id = session.get('user_id')
     brand = ka.resolve_brand(order.structured_data or {})
@@ -1538,8 +1555,10 @@ def api_share_send_alimtalk(share_id: int):
     event = OrderEvent(
         order_id=order.id,
         event_type='SHARE_ALIMTALK',
+        # 회차 표지 + 고객이 실제로 받는 짝 링크 id(통합 템플릿) — 도면 탭 상태 줄이 짝을 짓는다.
         payload={'share_id': row.id, 'kind': row.kind, 'status': 'in_flight',
-                 'sent_by': actor_user_id},
+                 'sent_by': actor_user_id, **send_event_tags(order.structured_data, body),
+                 **pair_ids, **({'to_phone_override': True} if phone_override else {})},
         created_by_user_id=actor_user_id,
     )
     try:
@@ -1575,6 +1594,8 @@ def api_share_send_alimtalk(share_id: int):
     outbox_row.status = 'DONE'
     outbox_row.completed_at = now_utc_naive()
     # 발송 흔적(화면 칩) — sd 쓰기는 정본 소유 모듈이 한다(REV-99 writer 분류는 파일 단위).
+    # sd 를 통째로 되쓰므로 바로 앞에서 행을 잠근다(§4.6).
+    lock_order_row(db_session, order.id)
     last_share = ka.record_share_history(
         db_session, order, kind=row.kind, channel='alimtalk',
         share_id=row.id, error=error, sent_by=actor_user_id)
@@ -1588,6 +1609,7 @@ def api_share_send_alimtalk(share_id: int):
         action='SHARE_ALIMTALK_SENT', target_type='order', target_id=int(order.id),
         detail={'share_id': row.id, 'kind': row.kind, 'sent': error is None,
                 'error': error, 'to': ka._mask_phone(to_phone),
+                **({'to_phone_override': True} if phone_override else {}),
                 'template': 'share_both' if use_both else 'share',
                 'sender_source': sender_source, **pair_ids, **context},
     )
