@@ -9,8 +9,9 @@ from db import get_db
 from models import Order
 from foms.web.auth import login_required
 from foms.services.orders.status_constants import STATUS
+from foms.services.erp_dashboard_search import erp_order_dashboard_search_predicate
 from foms.services.erp_order_flags import is_erp_order_record
-from sqlalchemy import or_, cast, String
+from sqlalchemy import and_, or_
 
 from foms.services.common.dashboard_cache import (
     KEY_VERSION,
@@ -59,6 +60,40 @@ _HISTORY_KEY_ARGS = (
 _HISTORY_KEY_TABLES = (
     "orders", "order_attachments", "order_schedule_dates", "users",
 )
+
+
+def _history_search_clause(raw_q: str):
+    """Build the history search predicate over on-screen fields only.
+
+    structured_data 전체 문자열 ILIKE 는 시각(``...065142``)·금액(``1865140``)·uid·
+    네이버 주문번호까지 뒤져, "6514" 검색이 전화번호와 무관한 주문 9건을 끌고 왔다
+    (2026-09-29 운영). 그래서 ERP 대시보드와 같은 가시 경로 술어를 쓴다.
+
+    숫자 4자리는 전화번호 뒷자리로 본다: 주문번호 정확 일치 + 전화번호 끝 4자리.
+    ``010-6514-1234`` 처럼 가운데 자리는 ``-`` 가 뒤따르므로 걸리지 않는다.
+
+    Args:
+        raw_q: 사용자 검색어.
+
+    Returns:
+        SQLAlchemy 술어.
+    """
+    q = raw_q.strip()
+    if len(q) == 4 and q.isdigit():
+        tail = rf"{q}($|[^0-9-])"
+        sd_phones = (
+            Order.structured_data["parties"]["customer"]["phone"].as_string(),
+            Order.structured_data["parties"]["buyer"]["phone"].as_string(),
+        )
+        return or_(
+            Order.id == int(q),
+            Order.phone.regexp_match(tail),  # perf-ok: ix_orders_phone_trgm
+            and_(
+                Order.is_erp_order == True,
+                or_(*[field.regexp_match(tail) for field in sd_phones]),  # perf-ok: history cold path
+            ),
+        )
+    return erp_order_dashboard_search_predicate(f"%{q}%", raw_query=q)
 
 
 def _fill_queue_row_column_fallbacks(row: dict[str, Any], order: Order) -> dict[str, Any]:
@@ -180,17 +215,7 @@ def history_dashboard():
             _q = _q.filter(Order.id == -1)
     
     if f_q:
-        search_term = f"%{f_q}%"
-        _q = _q.filter(
-            or_(
-                Order.id.cast(String).ilike(search_term),  # perf-ok: bounded id search admin/cold path
-                Order.customer_name.ilike(search_term),  # perf-ok: ix_orders_customer_name_trgm
-                Order.phone.ilike(search_term),  # perf-ok: ix_orders_phone_trgm
-                Order.address.ilike(search_term),  # perf-ok: ix_orders_address_trgm
-                Order.manager_name.ilike(search_term),  # perf-ok: ix_orders_manager_name_trgm
-                cast(Order.structured_data, String).ilike(search_term)  # perf-ok: ix_orders_structured_data_text_trgm
-            )
-        )
+        _q = _q.filter(_history_search_clause(f_q))
         
     if f_stage:
         # ERP: erp_stage_code / 레거시: status (값이 MEASURE·MEASURED 등으로 다를 수 있음)
@@ -225,6 +250,7 @@ def history_dashboard():
             "team": getattr(user, "team", None) if user else None,
             "mine": bool(mine_only),
             "scope": "active_all",  # 60일 창 제거 — 옛 캐시 blob 무효화 겸 스코프 표식
+            "search": "visible_v1",  # SD 전체 문자열 검색 제거 — 옛 캐시 blob 무효화
 
             "q": f_q or "",
             "stage": f_stage or "",
