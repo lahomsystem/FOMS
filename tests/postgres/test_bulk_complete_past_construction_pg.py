@@ -1,7 +1,7 @@
 """BACKLOG-COMPLETE-01 apply/rollback PostgreSQL 계약 (PGTEST-00 lane).
 
 ``tools/ops/bulk_complete_past_construction.py`` 의 쓰기 경로를 실 PostgreSQL 로 검증한다.
-스크립트는 psycopg2 로 **자기 접속**을 열므로 ``pg_session``(롤백 트랜잭션)이 아니라
+스크립트는 psycopg 로 **자기 접속**을 열므로 ``pg_session``(롤백 트랜잭션)이 아니라
 ``pg_engine`` 으로 커밋된 시드를 쓴다(모듈 종료 시 conftest 가 DB 를 초기화한다).
 
 잠그는 계약:
@@ -35,7 +35,7 @@ mod = importlib.util.module_from_spec(_spec)
 assert _spec.loader is not None
 _spec.loader.exec_module(mod)
 
-psycopg2 = pytest.importorskip("psycopg2")
+psycopg = pytest.importorskip("psycopg")
 
 ACTOR = 900001
 CUTOFF = "2026-09-15"

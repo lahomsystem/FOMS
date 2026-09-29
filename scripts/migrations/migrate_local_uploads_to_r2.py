@@ -36,6 +36,8 @@ from typing import Optional, Tuple
 
 from sqlalchemy import create_engine, text
 
+from foms.services.db_url_resolver import sqlalchemy_url
+
 from foms.services.common.table_version_counter import bump_table_versions
 
 
@@ -128,7 +130,7 @@ def main():
 
     upload_folder = os.getenv("UPLOAD_FOLDER", "static/uploads")
     local_db_url = normalize_postgres_url(
-        os.getenv("LOCAL_DB_URL") or "postgresql+psycopg2://postgres:lahom@localhost/furniture_orders"
+        os.getenv("LOCAL_DB_URL") or "postgresql://postgres:lahom@localhost/furniture_orders"
     )
 
     print("=" * 70)
@@ -151,7 +153,7 @@ def main():
         if not bucket:
             raise RuntimeError("R2_BUCKET_NAME is required when --execute is set")
 
-    engine = create_engine(local_db_url, pool_pre_ping=True)
+    engine = create_engine(sqlalchemy_url(local_db_url), pool_pre_ping=True)
 
     # 통계
     stats = {

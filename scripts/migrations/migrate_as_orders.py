@@ -5,8 +5,10 @@ _repo_root = Path(__file__).resolve().parents[2]
 if str(_repo_root) not in sys.path:
     sys.path.insert(0, str(_repo_root))
 
-import psycopg2
-from psycopg2.extras import RealDictCursor
+from psycopg.rows import dict_row
+from psycopg.types.json import Jsonb
+
+from foms.services.db_url_resolver import postgres_dbapi_connect, postgresql_connect_kwargs_from_url
 import json
 
 STAGING_URL = "postgresql://postgres:jDkSuQDkQZkGZCFmPMOnFoDaXNJebidd@maglev.proxy.rlwy.net:24958/railway"
@@ -14,7 +16,7 @@ PROD_URL = "postgresql://postgres:XMuhzNDZDeBlQStbmUQymJTGQvgIKAVq@yamanote.prox
 EXECUTE_MIGRATION = True # 실제 DB에 Insert됨
 
 def get_as_orders(conn):
-    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+    with conn.cursor(row_factory=dict_row) as cur:
         # AS 조건: status가 AS관련이거나 structured_data의 stage가 AS인 경우
         cur.execute("""
             SELECT * FROM orders 
@@ -25,13 +27,13 @@ def get_as_orders(conn):
         return cur.fetchall()
 
 def get_all_prod_orders(conn):
-    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+    with conn.cursor(row_factory=dict_row) as cur:
         cur.execute("SELECT id, customer_name, phone, address, product, status FROM orders")
         return cur.fetchall()
 
 def get_attachments_for_orders(conn, order_ids):
     if not order_ids: return []
-    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+    with conn.cursor(row_factory=dict_row) as cur:
         query = "SELECT * FROM order_attachments WHERE order_id = ANY(%s)"
         cur.execute(query, (order_ids,))
         return cur.fetchall()
@@ -42,9 +44,9 @@ def normalize_string(s):
 
 def main():
     print("Connecting to Staging...")
-    conn_stg = psycopg2.connect(STAGING_URL)
+    conn_stg = postgres_dbapi_connect(postgresql_connect_kwargs_from_url(STAGING_URL))
     print("Connecting to Production...")
-    conn_prd = psycopg2.connect(PROD_URL)
+    conn_prd = postgres_dbapi_connect(postgresql_connect_kwargs_from_url(PROD_URL))
     
     stg_as_orders = get_as_orders(conn_stg)
     print(f"Staging AS orders count: {len(stg_as_orders)}")
@@ -111,9 +113,9 @@ def main():
                 for k, v in o.items():
                     if k == 'id': continue
                     cols.append(k)
-                    # jsonb 처리를 위해 dict/list는 json 형식으로 (단 psycopg2가 dict를 처리하는 경우도 있으나 안전하게 Json 객체 사용)
+                    # jsonb 컬럼에는 dict/list 를 Jsonb 로 감싸 넣는다
                     if isinstance(v, dict) or isinstance(v, list):
-                        vals.append(psycopg2.extras.Json(v))
+                        vals.append(Jsonb(v))
                     else:
                         vals.append(v)
                 

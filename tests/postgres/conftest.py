@@ -48,7 +48,7 @@ def assert_local_admin_url(raw_url: str) -> URL:
     """Parse an admin DSN and fail unless it targets a local PostgreSQL host.
 
     Args:
-        raw_url: SQLAlchemy/psycopg2 DSN taken from the environment.
+        raw_url: SQLAlchemy/libpq DSN taken from the environment.
 
     Returns:
         The parsed SQLAlchemy URL when the host is localhost/127.0.0.1/::1.

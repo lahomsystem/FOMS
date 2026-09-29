@@ -53,7 +53,7 @@ from typing import Any
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from bulk_complete_past_construction_core import (  # noqa: E402
-    psycopg2,
+    dict_row,
     BATCH_ID,
     DEFAULT_CUTOFF_DAYS,
     DEFAULT_REASON,
@@ -152,7 +152,7 @@ def cmd_apply(args: argparse.Namespace) -> int:
         results: dict[str, int] = {}
         for start in range(0, len(items), CHUNK_SIZE):
             chunk = items[start:start + CHUNK_SIZE]
-            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            with conn.cursor(row_factory=dict_row) as cur:
                 for item in chunk:
                     outcome = apply_one(cur, item, actor_user_id=args.actor, now=now,
                                         reason=args.reason)
@@ -187,7 +187,7 @@ def cmd_rollback(args: argparse.Namespace) -> int:
         results: dict[str, int] = {}
         for start in range(0, len(rows), CHUNK_SIZE):
             chunk = rows[start:start + CHUNK_SIZE]
-            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            with conn.cursor(row_factory=dict_row) as cur:
                 for row in chunk:
                     outcome = rollback_one(cur, row, actor_user_id=args.actor, now=now)
                     key = outcome.split(":", 1)[0]

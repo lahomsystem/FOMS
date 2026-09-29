@@ -112,7 +112,7 @@ class HeartbeatWorker(HeartbeatWorkerMixin, Worker):
         """fork 직후 **자식** 진입점 — 물려받은 DB 연결을 버리고 시작한다.
 
         이 한 줄이 없으면 2026-09-08 운영 결함이 재현된다. 부모(워커 본체)가 하트비트를
-        쓰면서 SQLAlchemy 풀에 살아 있는 psycopg2 연결을 남기고, rq 는 잡마다 ``fork`` 한다.
+        쓰면서 SQLAlchemy 풀에 살아 있는 DB 연결을 남기고, rq 는 잡마다 ``fork`` 한다.
         자식은 그 풀을 그대로 물려받아 **같은 TLS 소켓**에 쓰고, 60초 뒤 부모가 다음
         하트비트를 같은 소켓에 쓰는 순간 두 프로세스의 TLS 레코드가 섞인다:
 
