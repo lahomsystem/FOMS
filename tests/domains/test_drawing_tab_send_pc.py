@@ -439,3 +439,16 @@ def test_integration_drawing_team_gets_no_sales_buttons(client, people):
     oid = _order(people["drafter"]["id"])
     keys = _bar_keys(_page(client, people["drafter"], oid))
     assert not (set(keys) & _SALES_KEYS)
+
+
+def test_sheet_alerts_survive_global_autodismiss(client, monkeypatch, people):
+    """전역 script.js 는 5초 뒤 `.alert:not([data-foms-no-autodismiss])` 를 DOM 에서 지운다 — 시트 안
+    안내·경고·오류 줄(전달 취소 경고 문구 포함)은 나중에 열리므로 전부 빠져야 한다."""
+    oid = _order(people["drafter"]["id"], status="CONFIRMED", stage="CONFIRM")
+    _inject(monkeypatch, {"bar": _bar("send", "ok", "edit_revision", "urgent_call", "rev_post"),
+                          "can_approve_after_confirm": True, "round": 2, "round_text": "2차"})
+    soup = _page(client, people["sales"], oid)
+    ids = ("#dwCustomerSendModal", "#dwCustomerOkModal", "#dwRevisionEditModal", "#dwUrgentCallModal", "#dwRevisionModal")
+    alerts = [a for mid in ids for a in soup.select(f"{mid} .alert")]
+    assert len(alerts) >= 10
+    assert [a.get_text(strip=True)[:20] for a in alerts if not a.has_attr("data-foms-no-autodismiss")] == []

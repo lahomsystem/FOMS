@@ -33,11 +33,11 @@
       </div>
       <div class="modal-body">
         {% if (cs.round|default(0)) >= 2 %}
-        <div class="alert alert-primary py-2 small mb-2">고객이 예전 링크를 눌러도 이제 {{ cs_round_label }}만 보여요.</div>
+        <div class="alert alert-primary py-2 small mb-2" data-foms-no-autodismiss>고객이 예전 링크를 눌러도 이제 {{ cs_round_label }}만 보여요.</div>
         {% else %}
-        <div class="alert alert-primary py-2 small mb-2">확정 전이어도 보내요. 고객 의견을 받은 뒤 고치거나 확정하면 돼요.</div>
+        <div class="alert alert-primary py-2 small mb-2" data-foms-no-autodismiss>확정 전이어도 보내요. 고객 의견을 받은 뒤 고치거나 확정하면 돼요.</div>
         {% endif %}
-        <div class="alert alert-warning py-2 small mb-2 d-none" data-send-again>
+        <div class="alert alert-warning py-2 small mb-2 d-none" data-send-again data-foms-no-autodismiss>
           <span data-send-again-text>{{ cs.sent_text|default('') }}</span> — 한 번 더 보낼까요? 새 링크가 가지만 예전 링크도 똑같이 최신 도면을 보여 줘요.
         </div>
         {% if cs.failed_text %}
@@ -112,8 +112,8 @@
           <div class="small border rounded p-2 bg-light" data-send-preview>문서 이름: {{ cs.doc_label_drawing|default('도면') }}</div>
         </div>
         <div class="small text-danger d-none" data-send-nophone>고객 휴대폰 번호가 없어요</div>
-        <div class="alert alert-danger py-2 small mt-2 mb-0 d-none" role="alert" data-send-error></div>
-        <div class="alert alert-success py-2 small mt-2 mb-0 d-none" role="status" data-send-status></div>
+        <div class="alert alert-danger py-2 small mt-2 mb-0 d-none" role="alert" data-send-error data-foms-no-autodismiss></div>
+        <div class="alert alert-success py-2 small mt-2 mb-0 d-none" role="status" data-send-status data-foms-no-autodismiss></div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
@@ -170,9 +170,9 @@
           {% endif %}
         </div>
         {% if cs.can_approve_after_confirm %}
-        <div class="alert alert-warning py-2 small mb-0" data-ok-approve-warning>생산팀에 알림이 가요. 되돌리기 어려워요.</div>
+        <div class="alert alert-warning py-2 small mb-0" data-ok-approve-warning data-foms-no-autodismiss>생산팀에 알림이 가요. 되돌리기 어려워요.</div>
         {% endif %}
-        <div class="alert alert-danger py-2 small mt-2 mb-0 d-none" role="alert" data-ok-error></div>
+        <div class="alert alert-danger py-2 small mt-2 mb-0 d-none" role="alert" data-ok-error data-foms-no-autodismiss></div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">아직이에요</button>
@@ -196,7 +196,7 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
       </div>
       <div class="modal-body">
-        <div class="alert alert-primary py-2 small">도면팀이 아직 확인하기 전이라 고칠 수 있어요. 고친 내용은 도면팀에 다시 알려요.</div>
+        <div class="alert alert-primary py-2 small" data-foms-no-autodismiss>도면팀이 아직 확인하기 전이라 고칠 수 있어요. 고친 내용은 도면팀에 다시 알려요.</div>
         <div class="mb-3">
           <div class="small fw-semibold text-muted mb-1">누구 말인가요</div>
           <div class="btn-group" role="group" aria-label="요청 출처">
@@ -243,7 +243,7 @@
           <label class="form-label small fw-semibold text-muted mb-1" for="dw-edit-new-files">사진·파일 더 붙이기 (선택)</label>
           <input type="file" class="form-control form-control-sm" id="dw-edit-new-files" multiple>
         </div>
-        <div class="alert alert-danger py-2 small mt-2 mb-0 d-none" role="alert" data-edit-error></div>
+        <div class="alert alert-danger py-2 small mt-2 mb-0 d-none" role="alert" data-edit-error data-foms-no-autodismiss></div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
@@ -266,8 +266,8 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
       </div>
       <div class="modal-body">
-        <div class="alert alert-warning small mb-2" data-cancel-warn-text>{{ cs.cancel_warning_text_pc or cs.cancel_warning_text_mobile }}</div>
-        <div class="alert alert-danger py-2 small mb-0 d-none" role="alert" data-cancel-warn-error></div>
+        <div class="alert alert-warning small mb-2" data-cancel-warn-text data-foms-no-autodismiss>{{ cs.cancel_warning_text_pc or cs.cancel_warning_text_mobile }}</div>
+        <div class="alert alert-danger py-2 small mb-0 d-none" role="alert" data-cancel-warn-error data-foms-no-autodismiss></div>
       </div>
       <div class="modal-footer flex-wrap">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
@@ -303,7 +303,7 @@
         <label class="form-label small fw-semibold text-muted mb-1" for="dw-urgent-message">사유 (필수 · 최대 500자)</label>
         <textarea class="form-control form-control-sm" id="dw-urgent-message" rows="2" maxlength="500"
           placeholder="예: 도면 확인이 급히 필요합니다"></textarea>
-        <div class="alert alert-danger py-2 small mt-2 mb-0 d-none" role="alert" data-dw-urgent-error></div>
+        <div class="alert alert-danger py-2 small mt-2 mb-0 d-none" role="alert" data-dw-urgent-error data-foms-no-autodismiss></div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
