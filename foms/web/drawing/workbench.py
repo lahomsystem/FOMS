@@ -36,6 +36,7 @@ from foms.services.erp_display import (
 )
 from foms.services.erp_product_items import build_product_items_for_order
 from foms.services.orders.confirm_drawing_gate import effective_drawing_status
+from foms.services.orders.drawing_customer_send import skeleton_customer_send_view
 from foms.services.orders.drawing_key_safety import is_own_order_key
 from foms.services.orders.drawing_revision_files import revision_reference_display_rows
 from foms.services.notifications.drawing_order_change import (
@@ -1288,6 +1289,8 @@ def erp_drawing_workbench_detail(order_id):
         measure_photos=measure_photos,
         common_measure_photos=common_measure_photos,
         erp_order_enabled=True,
+        # 도면 탭 고객 보내기 화면값(설계서 2026-09-29 §4.5) — 모든 키가 늘 있다(S1a 뼈대: 회차만 채움).
+        customer_send=skeleton_customer_send_view(s_data),
     )
     template_name = (
         'drawing/workbench_detail_fragment.html'
