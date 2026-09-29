@@ -15,6 +15,7 @@ import pytest
 
 from foms.services.common import dashboard_cache
 from foms.services.erp_quest_display import build_current_quest_payload
+from foms.services.order_event_display import generate_change_description
 from foms.services.orders.confirm_drawing_gate import (
     confirm_exit_block,
     effective_drawing_status,
@@ -312,6 +313,23 @@ def test_stage_override_to_production_records_drawing_status(client):
     assert event.payload["drawing_status"] == "RETURNED"
     assert event.payload["drawing_unconfirmed"] is True
     assert reload_order(oid).erp_stage_code == "PRODUCTION"
+    # 타임라인 한 줄에서도 사람이 눈으로 확인한다(리뷰 P3).
+    line = generate_change_description("STAGE_OVERRIDE", "", "고객컨펌", "생산", event.payload)
+    assert line.endswith("(도면: 수정 요청됨)"), line
+
+
+def test_override_timeline_lines_show_drawing_status_only_when_unconfirmed():
+    admin_line = generate_change_description(
+        "ADMIN_OVERRIDE_USED", "", "", "", {"reason": "r", "drawing_status": "TRANSFERRED"})
+    assert admin_line.endswith("(도면: 수령 확정 전)"), admin_line
+    assert "도면:" not in generate_change_description(
+        "ADMIN_OVERRIDE_USED", "", "", "", {"reason": "r", "drawing_status": "CONFIRMED"})
+    assert "도면:" not in generate_change_description("ADMIN_OVERRIDE_USED", "", "", "", {"reason": "r"})
+    assert "기록 없음" in generate_change_description(
+        "ADMIN_OVERRIDE_USED", "", "", "", {"reason": "r", "drawing_status": "NONE"})
+    # 역행 같은 강제 변경(drawing_unconfirmed 없음)에는 붙이지 않는다.
+    assert "도면:" not in generate_change_description(
+        "STAGE_OVERRIDE", "", "생산", "실측", {"reason": "r", "drawing_status": "RETURNED"})
 
 
 def test_stage_override_warning_text():

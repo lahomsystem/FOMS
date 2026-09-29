@@ -131,6 +131,20 @@ def _translate_drawing_status(value: Any) -> str:
     return _lookup_status_map(value, _DRAWING_STATUS_MAP)
 
 
+def _override_drawing_suffix(payload: dict[str, Any]) -> str:
+    """강제 변경·관리자 뚫기 한 줄 끝에 붙일 '넘긴 순간의 도면 상태'(2a-2 Q5).
+
+    수령 확정(CONFIRMED)이거나 기록 키가 없는 옛 이벤트면 빈 문자열.
+    """
+    if "drawing_status" not in payload:
+        return ""
+    code = str(payload.get("drawing_status") or "").strip().upper()
+    if code == "CONFIRMED":
+        return ""
+    label = {"": "기록 없음", "NONE": "기록 없음", "TRANSFERRED": "수령 확정 전"}.get(code)
+    return f" (도면: {label or _translate_drawing_status(code)})"
+
+
 def _translate_approval_status(value: Any) -> str:
     """Quest approval code → Korean label."""
     if isinstance(value, bool):
@@ -511,7 +525,9 @@ def generate_change_description(
         # 관리자가 손으로 단계를 옮긴 기록 — 사유가 있으면 같이 보여 준다.
         reason = str(payload.get("reason") or "").strip()
         text = f"진행 단계를 '{before_kr}'에서 '{after_kr}'로 강제 변경했습니다"
-        return f"{text} (사유: {reason})" if reason else text
+        text = f"{text} (사유: {reason})" if reason else text
+        # 미확정 도면으로 생산 이후에 넘긴 경우만 도면 상태를 덧붙인다(역행 등은 소음).
+        return text + _override_drawing_suffix(payload) if payload.get("drawing_unconfirmed") else text
 
     if event_type == "ADMIN_OVERRIDE_USED":
         # 관리자가 사유를 적고 업무 게이트를 건너뛴 기록. 무엇을 건너뛰었는지와
@@ -521,6 +537,7 @@ def generate_change_description(
         return (
             "관리자가 검사를 건너뛰고 진행했습니다 "
             f"(건너뛴 검사: {gates_kr or '-'}, 사유: {reason or '-'})"
+            f"{_override_drawing_suffix(payload)}"
         )
 
     if event_type == "DRAWING_ASSIGNEE_SET":
