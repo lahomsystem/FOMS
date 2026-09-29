@@ -61,7 +61,7 @@ def _make_session():
         raise RuntimeError("DATABASE_URL is not set")
     url = sqlalchemy_url(url)  # Railway postgres:// 표기 → 정본 드라이버 URL
     engine_kwargs: dict = {"pool_pre_ping": True}
-    # connect_timeout는 psycopg2 전용; pytest sqlite:// 에서는 TypeError 발생
+    # connect_timeout는 libpq(PostgreSQL) 전용; pytest sqlite:// 에서는 TypeError 발생
     if "sqlite" not in url:
         engine_kwargs["connect_args"] = {"connect_timeout": 10}
     engine = create_engine(url, **engine_kwargs)

@@ -40,10 +40,11 @@ from datetime import datetime, timezone
 from typing import Any, Iterable
 
 try:
-    import psycopg2
-    import psycopg2.extras
+    import psycopg
+    from psycopg.rows import dict_row
+    from psycopg.types.json import Jsonb
 except ImportError:  # pragma: no cover - 실행 환경 안내용
-    psycopg2 = None  # type: ignore[assignment]
+    psycopg = None  # type: ignore[assignment]
 
 AS_OVERLAY_STATUSES = ("AS", "AS_RECEIVED", "AS_COMPLETED")
 
@@ -65,16 +66,17 @@ def _connect(dsn: str, *, readonly: bool):
         readonly: True 면 세션을 읽기 전용으로 고정한다.
 
     Returns:
-        psycopg2 connection.
+        psycopg connection.
 
     Raises:
-        SystemExit: psycopg2 미설치.
+        SystemExit: psycopg 미설치.
     """
-    if psycopg2 is None:
-        raise SystemExit("psycopg2 가 필요합니다: pip install psycopg2-binary")
-    conn = psycopg2.connect(dsn)
+    if psycopg is None:
+        raise SystemExit("psycopg 가 필요합니다: pip install 'psycopg[binary]'")
+    # ClientCursor = 옛 드라이버(psycopg2)와 같은 클라이언트 쪽 바인딩 — 이 도구의 SQL 은 그 기준으로 쓰였다.
+    conn = psycopg.connect(dsn, cursor_factory=psycopg.ClientCursor)
     if readonly:
-        conn.set_session(readonly=True)
+        conn.read_only = True
     return conn
 
 
@@ -89,7 +91,7 @@ def _rows(conn, sql: str, params: dict[str, Any] | None = None) -> list[dict[str
     Returns:
         행 dict 목록.
     """
-    with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+    with conn.cursor(row_factory=dict_row) as cur:
         cur.execute(sql, params or {})
         return [dict(row) for row in cur.fetchall()]
 
@@ -458,7 +460,7 @@ def _apply_one(cur, item: dict[str, Any], *, actor_user_id: int, now: datetime, 
     """복구 1건을 적용한다(호출부가 트랜잭션·락 소유).
 
     Args:
-        cur: 커서(RealDictCursor).
+        cur: 커서(dict_row).
         item: 복구 항목.
         actor_user_id: 복구 감사행 행위자.
         now: 기록 시각(naive UTC).
@@ -484,11 +486,11 @@ def _apply_one(cur, item: dict[str, Any], *, actor_user_id: int, now: datetime, 
         UPDATE orders SET status = %s, erp_stage_code = %s, erp_stage_updated_at = %s,
                structured_data = %s WHERE id = %s
     """, (item["restore_status"], item["restore_stage"], now,
-          psycopg2.extras.Json(structured), oid))
+          Jsonb(structured), oid))
     cur.execute("""
         INSERT INTO order_events(order_id, event_type, payload, created_by_user_id, created_at)
         VALUES (%s, 'STAGE_OVERRIDE', %s, %s, %s)
-    """, (oid, psycopg2.extras.Json({
+    """, (oid, Jsonb({
         "from": item["observed_stage"], "to": item["restore_stage"], "mode": "restore",
         "manual": True, "reason": reason, "from_status": item["observed_status"],
         "restored_status": item["restore_status"], "confidence": item.get("confidence"),
@@ -500,7 +502,7 @@ def _apply_one(cur, item: dict[str, Any], *, actor_user_id: int, now: datetime, 
     """, (now, actor_user_id,
           f"주문 #{oid} ({item.get('customer_name') or ''}) — 상태 복구: "
           f"{item['observed_status']} → {item['restore_status']} ({reason})", oid,
-          psycopg2.extras.Json({
+          Jsonb({
               "field": "status", "before": item["observed_status"],
               "after": item["restore_status"], "restore": True, "reason": reason,
               "confidence": item.get("confidence"), "evidence": item.get("evidence"),
@@ -536,7 +538,7 @@ def cmd_apply(args: argparse.Namespace) -> int:
                        "rows": [{k: str(v) if v is not None else None for k, v in row.items()}
                                 for row in snapshot.values()]}, fh, ensure_ascii=False, indent=1)
         results: dict[str, int] = {}
-        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+        with conn.cursor(row_factory=dict_row) as cur:
             for item in items:
                 outcome = _apply_one(cur, item, actor_user_id=args.actor_user_id,
                                      now=now, reason=args.reason)

@@ -10,6 +10,12 @@
 
 ---
 
+### [2026-09-29] psycopg2 를 저장소에서 뺀다 (psycopg3 전환 단계 3)
+- **키워드**: psycopg2, psycopg2-binary, psycopg, dict_row, Jsonb, ensure_schema, data_doctor, bulk_complete_past_construction, pg_error_code
+- **결정**: psycopg2 를 직접 쓰던 곳을 모두 psycopg 로 옮기고 `requirements.txt` 에서 `psycopg2-binary` 를 뺀다. 도구는 `RealDictCursor` → `row_factory=dict_row`, `extras.Json` → `Jsonb`(대상 컬럼은 모두 JSONB), 연결은 `ClientCursor`(도구 SQL 이 psycopg2 바인딩 기준). `ensure_schema.py`(predeploy)·일회성 `scripts/migrations/` 는 `db_url_resolver` 정본 함수를 쓴다. `pg_error_code` 의 `pgcode` 분기는 죽은 코드라 삭제(`sqlstate` 만).
+- **이유**: 단계 2 로 앱·SIDEFX·cron·alembic 은 이미 psycopg 다. 남은 psycopg2 는 되돌리기용이었는데, 두 드라이버를 같이 두면 SQLAlchemy 2.0 의 `postgresql://` 기본값(psycopg2)이 다시 조용히 쓰일 길이 남는다.
+- **영향**: `tools/ops/{ensure_schema,data_doctor,bulk_complete_past_construction,bulk_complete_past_construction_core,naver_return_watch}.py`, `scripts/migrations/` 7개, `foms/services/db_url_resolver.py`, 테스트 4곳. 계약 `test_psycopg2_is_gone_from_code_tests_and_requirements`(tests 포함 전 저장소, 음성 대조). PG 레인이 드라이버 차이 1건을 잡았다: psycopg2 는 튜플을 `IN (a, b)` 로 풀었지만 psycopg 는 따옴표 문자열 하나로 보내 `IN %(x)s` 가 문법 오류 → 리스트 + `= ANY(%(x)s)`/`<> ALL(%(x)s)`, 계약 `test_no_tuple_placeholder_after_in`. 되돌리기 = 단계 2 커밋 이전으로(드라이버 상수만으로는 안 됨 — psycopg2 재설치 필요).
+
 ### [2026-09-29] PostgreSQL 드라이버를 psycopg(3) + ClientCursor 로 바꾸고 psycogreen 을 뺀다 (psycopg3 전환 단계 2)
 - **키워드**: psycopg, psycopg3, psycopg2, psycogreen, ClientCursor, gevent, wait_c, PG_SQLALCHEMY_DRIVER, postgres_dbapi_connect
 - **결정**: `PG_SQLALCHEMY_DRIVER = "psycopg"`, 원시 연결은 `psycopg.connect(..., cursor_factory=ClientCursor)`(psycopg2 와 같은 클라이언트 쪽 바인딩, 준비문 없음). `app.py` 의 psycogreen 블록과 `requirements.txt` 의 psycogreen 삭제. psycopg2-binary 는 직접 쓰는 운영 도구(단계 3)와 되돌리기용으로 남긴다.

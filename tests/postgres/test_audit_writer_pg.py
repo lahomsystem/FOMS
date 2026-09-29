@@ -37,7 +37,7 @@ def audit_engine_on_lane(pg_test_database, monkeypatch) -> Iterator[None]:
     """감사 헬퍼가 레인 DB 를 보도록 ``db.DB_URL`` 을 갈아끼운다(운영 코드 경로 그대로).
 
     ``_build_audit_engine`` 은 호출 시점에 ``db.DB_URL`` 을 읽으므로, 여기서 레인 DSN 을
-    주입하면 **프로덕션과 동일한 생성 경로**(psycopg2 creator + 소형 풀)로 전용 engine 이
+    주입하면 **프로덕션과 동일한 생성 경로**(``postgres_dbapi_connect`` creator + 소형 풀)로 전용 engine 이
     만들어진다. 테스트 종료 시 싱글톤을 폐기해 다른 레인으로 새지 않게 한다.
     """
     audit_writer.reset_audit_engine()

@@ -11,7 +11,7 @@ _repo_root = Path(__file__).resolve().parents[2]
 if str(_repo_root) not in sys.path:
     sys.path.insert(0, str(_repo_root))
 
-import psycopg2
+from foms.services.db_url_resolver import postgres_dbapi_connect, postgresql_connect_kwargs_from_url
 
 def get_database_url():
     """Get DATABASE_URL from user input"""
@@ -40,7 +40,7 @@ def add_team_column(database_url):
     
     try:
         # Connect to PostgreSQL
-        conn = psycopg2.connect(database_url)
+        conn = postgres_dbapi_connect(postgresql_connect_kwargs_from_url(database_url))
         cursor = conn.cursor()
         
         print("✓ Connected successfully!")

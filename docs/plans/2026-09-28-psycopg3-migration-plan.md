@@ -1,6 +1,6 @@
 # psycopg3 전환 계획 — DB 연결 부품 교체
 
-- 작성 2026-09-28 · 기준 코드 `origin/deploy` `806b2e761` · 상태: **단계 1 운영(PR #435) · 단계 2 구현(deploy, 스테이징 확인 중) · 단계 3 승인 대기**
+- 작성 2026-09-28 · 기준 코드 `origin/deploy` `806b2e761` · 상태: **단계 1 운영(PR #435) · 단계 2 운영(PR #445) · 단계 3 구현(deploy, 스테이징 확인 중)**
 - 근거: `docs/plans/2026-09-28-foms-language-migration-assessment-report.md` 판정 "백엔드 = 같은 언어 현대화 축소판(상향 + psycopg3)". Flask 3.1 상향은 끝났고(PR #431, production `ec7e5d843`), 이 문서는 남은 절반이다.
 - 이 작업은 DB 계층 코어 변경이다 → 단계마다 사용자 승인 뒤 구현.
 
@@ -152,6 +152,15 @@ SQLAlchemy 2.0 은 이 주소를 psycopg2 로 연다(공식 문서: psycopg2 가
 
 완료 기준: 단계 2 기준 + 새 빌드(4개 서비스 모두) 성공, `railway deployment list` 로 서비스 4종 SUCCESS.
 되돌리기: `psycopg2-binary` 한 줄 복원(빌드 필요).
+
+#### 단계 3 구현 기록 (2026-09-29)
+- 배포 전 단계 `tools/ops/ensure_schema.py`: 손으로 URL 을 풀던 `psycopg2.connect` → `postgres_dbapi_connect(postgresql_connect_kwargs_from_url(...))`(저장소 루트 import 경로 부트스트랩 추가). `postgres://`·`?sslmode=` 주소도 같은 키로 풀리는 것 확인.
+- 운영 도구: `data_doctor.py`·`bulk_complete_past_construction_core.py`(+ 진입 스크립트) 는 `psycopg.connect(dsn, cursor_factory=ClientCursor)` + `row_factory=dict_row` + `Jsonb`, 읽기 전용은 `conn.read_only = True`. `naver_return_watch.py` 는 `autocommit=True` + `default_transaction_read_only=on`(옛 `set_session(readonly=True, autocommit=True)`). `with conn:` 로 연결을 쓰던 곳은 없었다(psycopg 에선 연결을 닫는 차이 — 해당 없음).
+- 일회성 스크립트 `scripts/migrations/` 7개(§8-2): 보관만 하지 않고 옮겼다 — 엔진은 `sqlalchemy_url`, 직접 연결은 `postgres_dbapi_connect`.
+- `pg_error_code` 는 `sqlstate` 만 읽는다(psycopg2 `pgcode` 분기 삭제). `requirements.txt` 에서 `psycopg2-binary` 삭제.
+- 계약: `tests/domains/test_pg_driver_single_source.py::test_psycopg2_is_gone_from_code_tests_and_requirements` — `foms`·`tools`·`scripts`·`migrations`·`tests`·루트에서 `import psycopg2`·`psycopg2.connect/extras` 0건, requirements 에 없음(음성 대조 포함).
+- **PG 레인에서 1건 실패 → 근본 수정**: `test_bulk_complete_past_construction_pg` 에서 `syntax error at or near "'(COMPLETED,...)'"`. psycopg2 는 파이썬 튜플을 `IN (a, b)` 목록으로 풀었고 psycopg 는 따옴표 문자열 하나로 보낸다 → 리스트(text[]) + `= ANY(%(x)s)`/`<> ALL(%(x)s)`. 같은 모양은 저장소 전체에서 이 도구 2곳뿐(SQLAlchemy `text()` 의 `IN :x` 는 0건). 계약 `test_no_tuple_placeholder_after_in`(음성 대조 포함).
+- 결과: psycopg2·psycogreen 을 지운 가상환경에서 전체 11059 passed, PG 레인 797 passed + 수정 뒤 해당 시험 통과.
 
 ## 6. 위험
 

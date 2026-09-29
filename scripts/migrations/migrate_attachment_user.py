@@ -9,6 +9,8 @@ import os
 import urllib.parse
 from sqlalchemy import create_engine, text
 
+from foms.services.db_url_resolver import sqlalchemy_url
+
 def _normalize_postgres_url(url: str) -> str:
     url = url.strip()
     if url.startswith("postgres://"):
@@ -31,7 +33,7 @@ def migrate():
     
     try:
         # 인코딩 문제 방지를 위해 SQLAlchemy 사용
-        engine = create_engine(db_url)
+        engine = create_engine(sqlalchemy_url(db_url))
         with engine.connect() as conn:
             # 컬럼 존재 여부 확인
             check_sql = text("SELECT column_name FROM information_schema.columns WHERE table_name='order_attachments' AND column_name='user_id';")
