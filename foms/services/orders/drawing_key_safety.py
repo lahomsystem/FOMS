@@ -61,8 +61,8 @@ def history_referenced_keys(sd: Any) -> frozenset[str]:
 
     전달 취소의 **행** 보존 판정에 쓴다(§4.5): 복원 현재본이나 남은 이력이 가리키는 도면의
     첨부 행은 남긴다. 이력 중 TRANSFER ``files``·``previous_current_files``,
-    CONFIRM_RECEIPT ``files``, REQUEST_REVISION ``files``, REVISION_CANCELLED
-    ``request.files`` 를 모은다. 모르는 action 은 건너뛴다.
+    CONFIRM_RECEIPT ``files``, REQUEST_REVISION ``files``(요청 고치기 전 ``edits[].files`` 포함),
+    REVISION_CANCELLED ``request.files``(같은 규칙) 를 모은다. 모르는 action 은 건너뛴다.
 
     Args:
         sd: 주문 ``structured_data``(dict 가 아니면 빈 집합).
@@ -84,13 +84,24 @@ def history_referenced_keys(sd: Any) -> frozenset[str]:
         if action == "TRANSFER":
             keys |= _file_keys(h.get("files"))
             keys |= _file_keys(h.get("previous_current_files"))
-        elif action in ("CONFIRM_RECEIPT", "REQUEST_REVISION"):
+        elif action == "CONFIRM_RECEIPT":
             keys |= _file_keys(h.get("files"))
+        elif action == "REQUEST_REVISION":
+            keys |= _request_file_keys(h)
         elif action == "REVISION_CANCELLED":
             req = h.get("request")
             if isinstance(req, Mapping):
-                keys |= _file_keys(req.get("files"))
+                keys |= _request_file_keys(req)
     return frozenset(keys)
+
+
+def _request_file_keys(entry: Mapping) -> set[str]:
+    """수정요청 항목의 참고 파일 key — 지금 ``files`` 와 요청 고치기 전 ``edits[].files``(Q5-③)."""
+    keys = _file_keys(entry.get("files"))
+    for edit in entry.get("edits") or []:
+        if isinstance(edit, Mapping):
+            keys |= _file_keys(edit.get("files"))
+    return keys
 
 
 def drawing_keys_in_use(sd: Any) -> frozenset[str]:

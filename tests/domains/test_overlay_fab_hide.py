@@ -24,5 +24,5 @@ def test_shell_css_hides_fab_while_overlay_open_and_pins_bumped():
     css = _read("static/css/foundation/foms-shell.css")
     assert "html.foms-overlay-open body.erp-mobile-v2-layout .foms-shell-fab" in css
     assert "foms-shell.css?v=20260924a" in _read("static/css/foundation/foms-mobile-surfaces.css")
-    assert "foms-mobile-surfaces.css') }}?v=20260929g" in _read("templates/partials/shared/layout_head.html")
+    assert "foms-mobile-surfaces.css') }}?v=20260930a" in _read("templates/partials/shared/layout_head.html")
     assert "js/foms/foms-overlay-fab.js') }}?v=" in _read("templates/partials/shared/layout_scripts.html")

@@ -1,0 +1,321 @@
+{# 도면 탭 '고객에게 보내기' 시트 모음(설계서 2026-09-29 §3.5 · §3.4 · 사용자 결정 Q5) — PC·모바일 공용.
+   workbench_detail_body.html 의 기존 모달 자리(#dwRevisionModal 옆)에서 include 한다.
+   - 서버 값은 data-* 로만 넘기고 JS 는 safeJsonParse 로 읽는다. 인라인 스타일·인라인 핸들러 금지(부트스트랩 클래스만).
+   - 여는 버튼은 customer_send.bar 항목(PC 결정 바 · 모바일 하단 바)이다. 시트는 그 키가 있을 때만 그린다.
+   - 동작 JS: drawing-customer-send.js(가·라) · drawing-customer-ok.js(나 · 수정요청 출처) ·
+     drawing-revision-edit.js(요청 고치기) · drawing-urgent-call-pc.js(PC 긴급 호출). #}
+{% set cs = customer_send|default({}) %}
+{% set cs_keys = cs.bar|default([])|map(attribute='key')|list %}
+{% set cs_round_label = cs.round_text|default('') %}
+{# 상세 ctx customer_name 은 이름이 없으면 '-' 다 — '- 고객님께' 가 되지 않게 빈 값으로 본다. #}
+{% set cs_customer = '' if (customer_name or '-')|trim == '-' else customer_name %}
+{% set cs_stamp = order.structured_updated_at.strftime('%Y-%m-%d %H:%M:%S') if order.structured_updated_at else '' %}
+
+{% if 'send' in cs_keys or 'resend' in cs_keys %}
+{# (가) 고객에게 보내기 #}
+<div class="modal fade" id="dwCustomerSendModal" tabindex="-1" aria-hidden="true" aria-labelledby="dwCustomerSendTitle"
+  data-order-id="{{ order.id }}"
+  data-round="{{ cs.round|default(0) }}"
+  data-round-label="{{ cs_round_label }}"
+  data-customer-name="{{ cs_customer }}"
+  data-structured-updated-at="{{ cs_stamp }}"
+  data-has-phone="{{ 'true' if cs.has_phone else 'false' }}"
+  data-phone-masked="{{ cs.phone_masked|default('') }}"
+  data-can-change-phone="{{ 'true' if cs.can_change_phone else 'false' }}"
+  data-can-save-phone="{{ 'true' if cs.can_save_phone else 'false' }}"
+  data-sent-this-round="{{ 'true' if cs.sent_this_round else 'false' }}"
+  data-sent-text="{{ cs.sent_text|default('') }}"
+  data-doc-label-drawing="{{ cs.doc_label_drawing|default('도면') }}"
+  data-doc-label-bundle="{{ cs.doc_label_bundle|default('도면·계약서') }}"
+  data-bundle-both-template="{{ 'true' if cs.bundle_both_template else 'false' }}">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-fullscreen-sm-down">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="dwCustomerSendTitle"><i class="fas fa-paper-plane"></i>
+          {% if cs_customer %}{{ cs_customer }} {% endif %}고객님께 {{ cs_round_label }} 도면 보내기</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
+      </div>
+      <div class="modal-body">
+        {% if (cs.round|default(0)) >= 2 %}
+        <div class="alert alert-primary py-2 small mb-2" data-foms-no-autodismiss>고객이 예전 링크를 눌러도 이제 {{ cs_round_label }}만 보여요.</div>
+        {% else %}
+        <div class="alert alert-primary py-2 small mb-2" data-foms-no-autodismiss>확정 전이어도 보내요. 고객 의견을 받은 뒤 고치거나 확정하면 돼요.</div>
+        {% endif %}
+        <div class="alert alert-warning py-2 small mb-2 d-none" data-send-again data-foms-no-autodismiss>
+          <span data-send-again-text>{{ cs.sent_text|default('') }}</span> — 한 번 더 보낼까요? 새 링크가 가지만 예전 링크도 똑같이 최신 도면을 보여 줘요.
+        </div>
+        {% if cs.failed_text %}
+        <div class="small text-danger mb-2">{{ cs.failed_text }}</div>
+        {% endif %}
+
+        <div class="mb-3">
+          <div class="small fw-semibold text-muted mb-1">받는 분</div>
+          <div class="d-flex align-items-center gap-2 flex-wrap">
+            <span data-send-phone-label>{% if cs.has_phone %}{{ cs_customer or '고객' }} · {{ cs.phone_masked }}{% else %}고객 휴대폰 번호가 없어요{% endif %}</span>
+            {% if cs.can_change_phone %}
+            <button type="button" class="btn btn-link btn-sm p-0" data-send-phone-toggle aria-expanded="false">번호 바꾸기</button>
+            {% else %}
+            <a class="small" href="{{ url_for('order_edit.edit_order', order_id=order.id) }}">번호가 틀리면 주문 화면에서 고쳐요</a>
+            {% endif %}
+          </div>
+          {% if cs.can_change_phone %}
+          <div class="border rounded p-2 mt-2 d-none" data-send-phone-edit>
+            <label class="form-label small mb-1" for="dw-send-phone">이번에 보낼 번호</label>
+            <input type="tel" class="form-control form-control-sm" id="dw-send-phone" inputmode="tel" autocomplete="off"
+              maxlength="20" placeholder="010-0000-0000">
+            <div class="form-text">이번 발송에만 이 번호로 보내요.</div>
+            {% if cs.can_save_phone %}
+            <div class="form-check mt-1">
+              <input class="form-check-input" type="checkbox" id="dw-send-save-phone">
+              <label class="form-check-label small" for="dw-send-save-phone">주문 고객 번호도 이 번호로 저장</label>
+            </div>
+            {% endif %}
+          </div>
+          {% endif %}
+        </div>
+
+        <div class="mb-3">
+          <div class="small fw-semibold text-muted mb-1">보낼 것</div>
+          {% if drawing_files %}
+          <div class="d-flex gap-2 flex-wrap mb-2">
+            {% for f in drawing_files %}
+            {% set fkey = (f.get('key') if f is mapping else '') or '' %}
+            {% set fname = (f.get('filename') if f is mapping else '') or '-' %}
+            {% set lower = fname|lower %}
+            {% if fkey and (lower.endswith('.jpg') or lower.endswith('.jpeg') or lower.endswith('.png') or lower.endswith('.webp') or lower.endswith('.gif')) %}
+            <img class="img-thumbnail" src="/api/files/view/{{ fkey }}" alt="{{ loop.index }}번 도면" height="64" loading="lazy">
+            {% else %}
+            <span class="badge text-bg-light border">{{ loop.index }}번 · {{ fname }}</span>
+            {% endif %}
+            {% endfor %}
+          </div>
+          {% endif %}
+          <div class="btn-group" role="group" aria-label="보낼 것">
+            <input type="radio" class="btn-check" name="dw-send-kind" id="dw-send-kind-drawing" value="drawing" autocomplete="off" checked>
+            <label class="btn btn-outline-primary btn-sm" for="dw-send-kind-drawing">도면만</label>
+            <input type="radio" class="btn-check" name="dw-send-kind" id="dw-send-kind-bundle" value="bundle" autocomplete="off">
+            <label class="btn btn-outline-primary btn-sm" for="dw-send-kind-bundle">도면+계약서</label>
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <div class="small fw-semibold text-muted mb-1">보내는 방법</div>
+          <div class="btn-group flex-wrap" role="group" aria-label="보내는 방법">
+            <input type="radio" class="btn-check" name="dw-send-channel" id="dw-send-channel-kakao" value="kakao" autocomplete="off" checked>
+            <label class="btn btn-outline-secondary btn-sm" for="dw-send-channel-kakao">카카오 알림톡</label>
+            <input type="radio" class="btn-check" name="dw-send-channel" id="dw-send-channel-company" value="company" autocomplete="off">
+            <label class="btn btn-outline-secondary btn-sm" for="dw-send-channel-company">회사 문자</label>
+            {# 내 폰 문자는 모바일에서만(ERP 공유 창과 같은 규칙) — PC 폭에서는 숨긴다. #}
+            <input type="radio" class="btn-check" name="dw-send-channel" id="dw-send-channel-mine" value="mine" autocomplete="off">
+            <label class="btn btn-outline-secondary btn-sm d-lg-none" for="dw-send-channel-mine">내 폰 문자</label>
+          </div>
+        </div>
+
+        <div class="mb-2">
+          <div class="small fw-semibold text-muted mb-1">고객이 받는 모습</div>
+          <div class="small border rounded p-2 bg-light" data-send-preview>문서 이름: {{ cs.doc_label_drawing|default('도면') }}</div>
+        </div>
+        <div class="small text-danger d-none" data-send-nophone>고객 휴대폰 번호가 없어요</div>
+        <div class="alert alert-danger py-2 small mt-2 mb-0 d-none" role="alert" data-send-error data-foms-no-autodismiss></div>
+        <div class="alert alert-success py-2 small mt-2 mb-0 d-none" role="status" data-send-status data-foms-no-autodismiss></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
+        <button type="button" class="btn btn-primary" data-send-submit>알림톡 보내기</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% if 'ok' in cs_keys or 'ok_no_customer' in cs_keys or can_confirm_receipt %}
+{# (나) 고객 OK · 확정 — [확정](보내기 전)과 [고객 OK · 확정](보낸 뒤)이 같은 시트를 연다. #}
+<div class="modal fade" id="dwCustomerOkModal" tabindex="-1" aria-hidden="true" aria-labelledby="dwCustomerOkTitle"
+  data-order-id="{{ order.id }}"
+  data-round-label="{{ cs_round_label }}"
+  data-can-approve="{{ 'true' if cs.can_approve_after_confirm else 'false' }}"
+  data-mode="{{ 'customer' if cs.sent_this_round else 'no_customer' }}">
+  <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="dwCustomerOkTitle" data-ok-title>고객이 {{ cs_round_label }} 도면으로 OK 했나요?</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
+      </div>
+      <div class="modal-body">
+        <p class="small text-muted" data-ok-lead>확정하면 이 도면이 최종본이 돼요.</p>
+        <div class="mb-3">
+          <div class="small fw-semibold text-muted mb-1">어떻게 확인했나요 <span class="fw-normal">(선택)</span></div>
+          <div class="btn-group flex-wrap" role="group" aria-label="확인한 방법">
+            <input type="radio" class="btn-check" name="dw-ok-via" id="dw-ok-via-phone" value="phone" autocomplete="off">
+            <label class="btn btn-outline-secondary btn-sm" for="dw-ok-via-phone">전화로</label>
+            <input type="radio" class="btn-check" name="dw-ok-via" id="dw-ok-via-kakao" value="kakao" autocomplete="off">
+            <label class="btn btn-outline-secondary btn-sm" for="dw-ok-via-kakao">카톡 답장</label>
+            <input type="radio" class="btn-check" name="dw-ok-via" id="dw-ok-via-store" value="store" autocomplete="off">
+            <label class="btn btn-outline-secondary btn-sm" for="dw-ok-via-store">매장 방문</label>
+          </div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label small fw-semibold text-muted mb-1" for="dw-ok-note">메모 (선택)</label>
+          <textarea class="form-control form-control-sm" id="dw-ok-note" rows="2" maxlength="200" placeholder="예: 이대로 해 주세요"></textarea>
+        </div>
+        <div class="mb-2">
+          <div class="small fw-semibold text-muted mb-1">확정한 뒤</div>
+          {% if cs.can_approve_after_confirm %}
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="dw-ok-after" id="dw-ok-after-approve" value="approve" checked>
+            <label class="form-check-label" for="dw-ok-after-approve">고객 컨펌까지 끝내고 생산으로</label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="dw-ok-after" id="dw-ok-after-only" value="only">
+            <label class="form-check-label" for="dw-ok-after-only">확정만 하기 — 고객 컨펌은 나중에 <span class="small text-muted">(도면 탭 바에 [고객 컨펌하고 생산으로]가 남아요)</span></label>
+          </div>
+          {% else %}
+          <div class="small text-muted" data-ok-no-approve>고객 컨펌은 영업·CS 팀이 해요</div>
+          {% endif %}
+        </div>
+        {% if cs.can_approve_after_confirm %}
+        <div class="alert alert-warning py-2 small mb-0" data-ok-approve-warning data-foms-no-autodismiss>생산팀에 알림이 가요. 되돌리기 어려워요.</div>
+        {% endif %}
+        <div class="alert alert-danger py-2 small mt-2 mb-0 d-none" role="alert" data-ok-error data-foms-no-autodismiss></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">아직이에요</button>
+        <button type="button" class="btn btn-success" data-ok-submit>{% if cs.can_approve_after_confirm %}확정하고 생산으로 넘기기{% else %}도면 확정하기{% endif %}</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% if 'edit_revision' in cs_keys %}
+{# 요청 고치기(Q5-③) — 도면팀이 반영 체크하기 전의 마지막 수정요청을 고친다. POST request-revision/edit. #}
+<div class="modal fade" id="dwRevisionEditModal" tabindex="-1" aria-hidden="true" aria-labelledby="dwRevisionEditTitle"
+  data-order-id="{{ order.id }}"
+  data-drawing-count="{{ drawing_files|length if drawing_files else 0 }}"
+  data-edit-revision="{{ (cs.edit_revision or {})|tojson|forceescape }}">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable modal-fullscreen-sm-down">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="dwRevisionEditTitle"><i class="fas fa-pen"></i> 수정요청 고치기</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-primary py-2 small" data-foms-no-autodismiss>도면팀이 아직 확인하기 전이라 고칠 수 있어요. 고친 내용은 도면팀에 다시 알려요.</div>
+        <div class="mb-3">
+          <div class="small fw-semibold text-muted mb-1">누구 말인가요</div>
+          <div class="btn-group" role="group" aria-label="요청 출처">
+            <input type="radio" class="btn-check" name="dw-edit-source" id="dw-edit-source-customer" value="customer" autocomplete="off">
+            <label class="btn btn-outline-warning btn-sm" for="dw-edit-source-customer">고객 요청</label>
+            <input type="radio" class="btn-check" name="dw-edit-source" id="dw-edit-source-sales" value="sales" autocomplete="off" checked>
+            <label class="btn btn-outline-secondary btn-sm" for="dw-edit-source-sales">내 의견</label>
+          </div>
+        </div>
+        <div class="mb-3 d-none" data-edit-via-block>
+          <div class="small fw-semibold text-muted mb-1">어떻게 받았나요 <span class="fw-normal">(선택)</span></div>
+          <div class="btn-group flex-wrap" role="group" aria-label="받은 경로">
+            <input type="radio" class="btn-check" name="dw-edit-via" id="dw-edit-via-phone" value="phone" autocomplete="off">
+            <label class="btn btn-outline-secondary btn-sm" for="dw-edit-via-phone">전화로</label>
+            <input type="radio" class="btn-check" name="dw-edit-via" id="dw-edit-via-kakao" value="kakao" autocomplete="off">
+            <label class="btn btn-outline-secondary btn-sm" for="dw-edit-via-kakao">카톡 답장</label>
+            <input type="radio" class="btn-check" name="dw-edit-via" id="dw-edit-via-store" value="store" autocomplete="off">
+            <label class="btn btn-outline-secondary btn-sm" for="dw-edit-via-store">매장 방문</label>
+          </div>
+        </div>
+        {% if drawing_files and drawing_files|length > 1 %}
+        <div class="mb-3">
+          <div class="small fw-semibold text-muted mb-1">어느 도면이요? <span class="fw-normal">도면이 2장 이상이면 꼭 골라요</span></div>
+          {% for f in drawing_files %}
+          {% set fkey = (f.get('key') if f is mapping else '') or '' %}
+          {% if fkey %}
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="checkbox" name="dw-edit-target" id="dw-edit-target-{{ loop.index }}" value="{{ fkey }}">
+            <label class="form-check-label small" for="dw-edit-target-{{ loop.index }}">{{ loop.index }}번 · {{ (f.get('filename') if f is mapping else '') or '-' }}</label>
+          </div>
+          {% endif %}
+          {% endfor %}
+        </div>
+        {% endif %}
+        <div class="mb-3">
+          <label class="form-label small fw-semibold text-muted mb-1" for="dw-edit-note">요청 내용 (필수)</label>
+          <textarea class="form-control" id="dw-edit-note" rows="4"></textarea>
+        </div>
+        <div class="mb-3">
+          <div class="small fw-semibold text-muted mb-1">지금 붙어 있는 사진·파일 <span class="fw-normal">(빼려면 체크를 풀어요)</span></div>
+          <div class="small" data-edit-files></div>
+        </div>
+        <div class="mb-2">
+          <label class="form-label small fw-semibold text-muted mb-1" for="dw-edit-new-files">사진·파일 더 붙이기 (선택)</label>
+          <input type="file" class="form-control form-control-sm" id="dw-edit-new-files" multiple>
+        </div>
+        {# 올리는 동안 보이는 줄 — 공용 업로드의 진행 막대(#dw-revision-progress)는 닫힌 수정요청 창 안이라 안 보인다. #}
+        <div class="small text-primary mt-2 d-none" role="status" aria-live="polite" data-edit-status></div>
+        <div class="alert alert-danger py-2 small mt-2 mb-0 d-none" role="alert" data-edit-error data-foms-no-autodismiss></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
+        <button type="button" class="btn btn-primary" data-edit-submit>고친 요청 보내기</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% if can_cancel_transfer and (cs.cancel_warning_text_pc or cs.cancel_warning_text_mobile) %}
+{# 전달 취소 경고(§3.4 · Q4 경고만 · Q5-④) — 인라인 cancelTransfer 가 폭에 맞는 문구를 넣고 연다.
+   모바일 [전달 취소]도 PC #btn-cancel-transfer 를 대신 누르므로 같은 시트가 뜬다. #}
+<div class="modal fade" id="dwCancelWarnModal" tabindex="-1" aria-hidden="true" aria-labelledby="dwCancelWarnTitle"
+  data-order-id="{{ order.id }}">
+  <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="dwCancelWarnTitle">전달을 취소할까요?</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-warning small mb-2" data-cancel-warn-text data-foms-no-autodismiss>{{ cs.cancel_warning_text_pc or cs.cancel_warning_text_mobile }}</div>
+        <div class="alert alert-danger py-2 small mb-0 d-none" role="alert" data-cancel-warn-error data-foms-no-autodismiss></div>
+      </div>
+      <div class="modal-footer flex-wrap">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
+        <button type="button" class="btn btn-outline-danger" data-cancel-transfer-confirm>그래도 취소</button>
+        <button type="button" class="btn btn-danger" data-dw-urgent-call data-order-id="{{ order.id }}"
+          data-urgent-team="SALES"
+          data-urgent-message="고객에게 보낸 {{ cs_round_label }} 도면을 전달 취소하려고 해요. 확인 부탁드려요.">
+          <i class="fas fa-bolt"></i> 영업에게 먼저 알리기 (긴급 호출)
+        </button>
+        {# 모바일 셸이 보이는 폭이면 기존 모바일 긴급 호출 시트(urgent-call-sheet.js 위임 처리)를 이 숨은 버튼으로 연다. #}
+        <button type="button" class="d-none" data-foms-urgent-call data-order-id="{{ order.id }}" data-cancel-warn-mobile-proxy
+          tabindex="-1" aria-hidden="true"></button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% if 'urgent_call' in cs_keys or (can_cancel_transfer and (cs.cancel_warning_text_pc or cs.cancel_warning_text_mobile)) %}
+{# PC 긴급 호출 창(Q5-①) — 모바일 셸(d-lg-none) 밖이라 PC 에서 뜬다. 엔드포인트는 모바일 시트와 같다
+   (GET /erp/api/orders/<id>/urgent-targets · POST /erp/api/orders/<id>/urgent-mention). #}
+<div class="modal fade" id="dwUrgentCallModal" tabindex="-1" aria-hidden="true" aria-labelledby="dwUrgentCallTitle"
+  data-order-id="{{ order.id }}">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-fullscreen-sm-down">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title text-danger" id="dwUrgentCallTitle"><i class="fas fa-bolt"></i> 긴급 호출</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
+      </div>
+      <div class="modal-body">
+        <p class="small text-muted mb-2">호출할 담당자를 고르고 사유를 적어 주세요.</p>
+        <div class="mb-2" data-dw-urgent-targets aria-live="polite"></div>
+        <label class="form-label small fw-semibold text-muted mb-1" for="dw-urgent-message">사유 (필수 · 최대 500자)</label>
+        <textarea class="form-control form-control-sm" id="dw-urgent-message" rows="2" maxlength="500"
+          placeholder="예: 도면 확인이 급히 필요합니다"></textarea>
+        <div class="alert alert-danger py-2 small mt-2 mb-0 d-none" role="alert" data-dw-urgent-error data-foms-no-autodismiss></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
+        <button type="button" class="btn btn-danger" data-dw-urgent-send disabled><i class="fas fa-paper-plane"></i> 긴급 호출 보내기</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}

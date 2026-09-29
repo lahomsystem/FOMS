@@ -3,17 +3,17 @@
   "summary": "Order mutation writer inventory for foms/. Every persisted order mutation — flag_modified(order, 'structured_data') or a direct mutation_version bump — is classified CANONICAL (routes through REV-00 execute_order_mutation / canonical mutator) / VERSIONED_DIRECT (direct version bump under FOR UPDATE) / AUDITED_RECOVERY (OPS-APPROVAL offline apply) / EXTERNAL (direct writer with no version/If-Match contract). Release target: EXTERNAL == 0 (every order mutation carries version bump + If-Match/idempotency metadata). EXTERNAL sites below are pinned residual writers reported to their owner packet — the drift gate keeps the set from growing.",
   "scope": "foms/**.py",
   "baselines": {
-    "total": 73,
+    "total": 74,
     "external": 24
   },
   "classification_counts": {
     "AUDITED_RECOVERY": 2,
-    "CANONICAL": 42,
+    "CANONICAL": 43,
     "EXTERNAL": 24,
     "VERSIONED_DIRECT": 5
   },
   "kind_counts": {
-    "flag_modified_structured_data": 69,
+    "flag_modified_structured_data": 70,
     "mutation_version_bump": 4
   },
   "external_sites": [
@@ -263,21 +263,28 @@
     },
     {
       "path": "foms/api/drawing/erp_orders_revision.py",
-      "lineno": 155,
+      "lineno": 170,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "STATE-DRAWING-01"
     },
     {
       "path": "foms/api/drawing/erp_orders_revision.py",
-      "lineno": 336,
+      "lineno": 297,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "STATE-DRAWING-01"
     },
     {
       "path": "foms/api/drawing/erp_orders_revision.py",
-      "lineno": 490,
+      "lineno": 438,
+      "kind": "flag_modified_structured_data",
+      "classification": "CANONICAL",
+      "owner": "STATE-DRAWING-01"
+    },
+    {
+      "path": "foms/api/drawing/erp_orders_revision.py",
+      "lineno": 592,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "STATE-DRAWING-01"
@@ -312,28 +319,28 @@
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 1166,
+      "lineno": 1170,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "DATA-01"
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 1617,
+      "lineno": 1621,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "DATA-01"
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 1881,
+      "lineno": 1885,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "DATA-01"
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 2323,
+      "lineno": 2327,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "DATA-01"
@@ -585,7 +592,7 @@
     },
     {
       "path": "foms/services/orders/drawing_receipt_command.py",
-      "lineno": 108,
+      "lineno": 110,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "STATE-DRAWING-01"
