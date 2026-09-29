@@ -163,3 +163,40 @@ def test_production_bare_url_builders_pin_the_canonical_driver(monkeypatch, buil
         assert engine.url.drivername == f"postgresql+{db_url_resolver.PG_SQLALCHEMY_DRIVER}"
     finally:
         engine.dispose()
+
+
+def test_psycogreen_is_gone_because_psycopg_cooperates_with_gevent_itself() -> None:
+    """psycogreen only patched psycopg2; with psycopg (3) it is dead weight and misleading."""
+    assert "psycogreen" not in (ROOT / "requirements.txt").read_text(encoding="utf-8")
+    app_source = (ROOT / "app.py").read_text(encoding="utf-8")
+    assert not re.search(r"^\s*(import|from)\s+psycogreen", app_source, flags=re.M)
+
+
+def test_dbapi_connections_use_client_side_binding(monkeypatch) -> None:
+    """Plan decision 1: ClientCursor keeps psycopg2's binding semantics for ~900 raw text() SQL."""
+    import psycopg
+
+    seen: dict = {}
+
+    def fake_connect(**kwargs):
+        seen.update(kwargs)
+        return "connection"
+
+    monkeypatch.setattr(psycopg, "connect", fake_connect)
+    assert db_url_resolver.postgres_dbapi_connect({"host": "h", "dbname": "d"}) == "connection"
+    assert seen["cursor_factory"] is psycopg.ClientCursor
+    assert seen["host"] == "h" and seen["dbname"] == "d"
+
+
+def test_migrations_leave_the_transaction_with_autocommit_block_not_a_sql_commit() -> None:
+    """``execute(text("COMMIT"))`` then CONCURRENTLY DDL only worked because psycopg2 did not
+    track transaction state; psycopg (3) sees the COMMIT and opens a new BEGIN, so the DDL fails.
+    Migrations use ``op.get_context().autocommit_block()`` instead (driver independent)."""
+    sql_commit = re.compile(r"execute\(\s*(sa\.)?text\(\s*['\"]\s*COMMIT\s*['\"]\s*\)\s*\)")
+    assert sql_commit.search('conn.execute(sa.text("COMMIT"))')  # negative control
+    offenders = [
+        path.name
+        for path in sorted((ROOT / "migrations" / "versions").glob("*.py"))
+        if sql_commit.search(path.read_text(encoding="utf-8"))
+    ]
+    assert offenders == []

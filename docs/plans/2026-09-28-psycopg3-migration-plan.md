@@ -1,6 +1,6 @@
 # psycopg3 전환 계획 — DB 연결 부품 교체
 
-- 작성 2026-09-28 · 기준 코드 `origin/deploy` `806b2e761` · 상태: **단계 1 구현(아래 "단계 1 구현 기록"), 단계 2·3 은 승인 대기**
+- 작성 2026-09-28 · 기준 코드 `origin/deploy` `806b2e761` · 상태: **단계 1 운영(PR #435) · 단계 2 구현(deploy, 스테이징 확인 중) · 단계 3 승인 대기**
 - 근거: `docs/plans/2026-09-28-foms-language-migration-assessment-report.md` 판정 "백엔드 = 같은 언어 현대화 축소판(상향 + psycopg3)". Flask 3.1 상향은 끝났고(PR #431, production `ec7e5d843`), 이 문서는 남은 절반이다.
 - 이 작업은 DB 계층 코어 변경이다 → 단계마다 사용자 승인 뒤 구현.
 
@@ -136,6 +136,13 @@ SQLAlchemy 2.0 은 이 주소를 psycopg2 로 연다(공식 문서: psycopg2 가
 
 완료 기준: 단계 1 기준 + 스테이징에서 로그인·대표 화면 4개·시험 주문(`CLAUDE-TEST-`) 생성·첨부 올리기·삭제·Socket.IO·RQ 잡 1건·SIDEFX 한 바퀴·배포 전 단계 alembic 로그 정상, 응답 시간이 단계 0 기준선보다 나쁘지 않음. 운영 승격 뒤 1주 동안 운영 오류 로그에 psycopg 관련 새 예외 0.
 되돌리기: `PG_SQLALCHEMY_DRIVER = "psycopg2"` 한 줄 + psycogreen 블록 복원 커밋. psycopg2 가 설치돼 있으므로 빌드 변경 없음.
+
+#### 단계 2 구현 기록 (2026-09-29)
+- `PG_SQLALCHEMY_DRIVER = "psycopg"`, `postgres_dbapi_connect` = `psycopg.connect(..., cursor_factory=ClientCursor)`, `requirements.txt` 에 `psycopg[binary]==3.3.6` 추가·psycogreen 삭제(psycopg2-binary 는 유지), `app.py` psycogreen 블록 삭제.
+- **첫 PG 레인에서 2건 실패 → 근본 수정**
+  1. `test_access_log_detail_pg`: `AmbiguousParameter`(`$1` = 서버 쪽 바인딩). URL 로 만든 엔진은 creator 를 안 거쳐 ClientCursor 가 빠졌다 → `db_url_resolver` 의 `Engine` `connect` 이벤트가 모든 psycopg 연결에 `ClientCursor` 를 건다. 시험 `tests/postgres/test_psycopg_client_binding_pg.py`(음성 대조: 기본 커서는 같은 SQL 에서 `AmbiguousParameter`).
+  2. `test_migration_chain`: `DROP INDEX CONCURRENTLY cannot run inside a transaction block`. 마이그레이션 7개가 `execute(text("COMMIT"))` 뒤 DDL 을 돌렸는데, psycopg2 는 트랜잭션 상태를 추적하지 않아 통했고 psycopg 는 새 BEGIN 을 연다 → `op.get_context().autocommit_block()`. 계약: 마이그레이션에 문자열 COMMIT 금지. (운영·스테이징 DB 는 이미 적용된 파일이라 동작 변화 없음, 빈 DB 새 구축에만 영향.)
+- 결과: 전체 11038 passed, PG 레인(로컬 PostgreSQL 17) **798 passed**(gevent 협력 시험이 psycogreen 없이 통과 포함).
 
 ### 단계 3 — 정리 (psycopg2 삭제)
 할 일:

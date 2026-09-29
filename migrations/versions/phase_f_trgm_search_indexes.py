@@ -68,8 +68,10 @@ _ALL_INDEX_NAMES: list[str] = (
 
 def _run_concurrently(conn, sql: str) -> None:
     """CONCURRENTLY DDL은 트랜잭션 외부에서 실행."""
-    conn.execute(text("COMMIT"))
-    conn.execute(text(sql))
+    # 문자열 COMMIT 뒤 DDL 은 psycopg2 가 트랜잭션 상태를 추적하지 않아서만 통했다 — psycopg(3)는
+    # 서버 상태를 보고 새 BEGIN 을 열어 CONCURRENTLY 가 실패한다. alembic autocommit_block 이 정본.
+    with op.get_context().autocommit_block():
+        op.get_bind().execute(text(sql))
 
 
 def upgrade() -> None:
