@@ -31,6 +31,7 @@ from foms.services.orders.drawing_gate_followups import (
     invalidate_customer_confirmation,
     restore_customer_confirmation,
 )
+from foms.services.orders.revision import execute_single_order_write, lock_order_row
 
 logger = logging.getLogger(__name__)
 erp_orders_revision_bp = Blueprint(
@@ -38,6 +39,12 @@ erp_orders_revision_bp = Blueprint(
     __name__,
     url_prefix='/api/orders',
 )
+
+# REV-00 receipt scope 용 정책 id. 세 라우트 모두 첫 조회를 lock_order_row 로 잠그고,
+# 구조화 쓰기는 execute_single_order_write 콜백 안에서 한다(버전 +1, 2a-1②).
+DRAWING_REVISION_REQUEST_POLICY_ID = 'DRAWING_REVISION_REQUEST'
+DRAWING_REVISION_CANCEL_POLICY_ID = 'DRAWING_REVISION_CANCEL'
+DRAWING_REVISION_CHECK_POLICY_ID = 'DRAWING_REVISION_CHECK'
 
 
 @erp_orders_revision_bp.route('/<int:order_id>/request-revision', methods=['POST'])
@@ -63,7 +70,7 @@ def api_order_request_revision(order_id):
             target_drawing_keys = []
 
         db = get_db()
-        order = db.get(Order, order_id)
+        order = lock_order_row(db, order_id)
         if not order or order.status == "DELETED" or order.deleted_at is not None:
             return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
 
@@ -122,8 +129,15 @@ def api_order_request_revision(order_id):
         invalidate_customer_confirmation(s_data, history[-1])  # M16(2a-2)
         s_data['drawing_transfer_history'] = history
 
-        order.structured_data = s_data
-        flag_modified(order, 'structured_data')
+        def _write_revision_request(locked):
+            locked.structured_data = s_data
+            flag_modified(locked, 'structured_data')
+
+        execute_single_order_write(
+            db, order_id=order_id, actor_user_id=current_user.id,
+            policy_id=DRAWING_REVISION_REQUEST_POLICY_ID, payload=data,
+            write=_write_revision_request,
+        )
 
         msg = f"주문 #{order_id} 도면 수정 요청이 접수되었습니다."
         if target_drawing_numbers:
@@ -303,7 +317,7 @@ def api_order_cancel_revision_request(order_id):
     db = None
     try:
         db = get_db()
-        order = db.get(Order, order_id)
+        order = lock_order_row(db, order_id)
         if not order or order.status == "DELETED" or order.deleted_at is not None:
             return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
 
@@ -343,8 +357,16 @@ def api_order_cancel_revision_request(order_id):
         s_data['drawing_status'] = restore_status
         s_data['drawing_transfer_history'] = history
         restore_customer_confirmation(s_data, cancelled_request, history)  # M16(2a-2)
-        order.structured_data = s_data
-        flag_modified(order, 'structured_data')
+
+        def _write_revision_cancel(locked):
+            locked.structured_data = s_data
+            flag_modified(locked, 'structured_data')
+
+        execute_single_order_write(
+            db, order_id=order_id, actor_user_id=current_user.id,
+            policy_id=DRAWING_REVISION_CANCEL_POLICY_ID,
+            payload={'target_idx': target_idx}, write=_write_revision_cancel,
+        )
         db.add(SecurityLog(
             user_id=session.get('user_id'),
             message=(
@@ -442,11 +464,11 @@ def api_order_request_revision_check(order_id):
             by_user_id = None
 
         db = get_db()
-        order = db.get(Order, order_id)
+        order = lock_order_row(db, order_id)
         if not order or order.status == "DELETED" or order.deleted_at is not None:
             return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
 
-        s_data = _ensure_dict(order.structured_data)
+        s_data = copy.deepcopy(_ensure_dict(order.structured_data))
         current_user = get_user_by_id(session.get('user_id'))
         if not current_user:
             return jsonify({'success': False, 'message': '사용자를 찾을 수 없습니다.'}), 401
@@ -493,8 +515,15 @@ def api_order_request_revision_check(order_id):
         history[matched_idx] = target
         s_data['drawing_transfer_history'] = history
 
-        order.structured_data = copy.deepcopy(s_data)
-        flag_modified(order, 'structured_data')
+        def _write_revision_check(locked):
+            locked.structured_data = s_data
+            flag_modified(locked, 'structured_data')
+
+        execute_single_order_write(
+            db, order_id=order_id, actor_user_id=current_user.id,
+            policy_id=DRAWING_REVISION_CHECK_POLICY_ID, payload=data,
+            write=_write_revision_check,
+        )
 
         db.add(SecurityLog(
             user_id=session.get('user_id'),

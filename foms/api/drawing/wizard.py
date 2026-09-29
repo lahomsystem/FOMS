@@ -29,6 +29,7 @@ from foms.services.orders.revision import (
     MutationResult,
     RevisionError,
     execute_order_mutation,
+    lock_order_row,
 )
 from foms.services.orders.drawing_wizard_pending import (
     DrawingWizardPendingError,
@@ -1346,7 +1347,10 @@ def api_post_drawing_wizard_transfer_pending(order_id):
     db = None
     try:
         db = get_db()
-        order = _load_order(db, order_id)
+        # 첫 조회부터 행 잠금(2a-1②) — 활성 ERP 주문 판정(_load_order)은 잠근 최신 행 위에서.
+        order = lock_order_row(db, order_id)
+        if order is not None:
+            order = _load_order(db, order_id)
         if not order:
             return jsonify({'success': False, 'message': _MSG_NOT_FOUND}), 404
 
