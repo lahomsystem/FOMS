@@ -140,11 +140,29 @@
         'wb-alerts-toggle': toggleAlerts,
         'wb-pane-back': backToList,
         'wb-hsheet-open': openHistSheet,
-        'wb-hsheet-close': closeHistSheet
+        'wb-hsheet-close': closeHistSheet,
+        'wb-layer-prev': function (btn) { stepLayer(btn); },
+        'wb-layer-next': function (btn) { stepLayer(btn); },
+        'wb-more-open': openMoreSheet,
+        'wb-more-close': function () { closeSheet('wb-more'); },
+        'wb-asheet-open': openAdminSheet,
+        'wb-asheet-close': function () { closeSheet('wb-asheet'); }
     };
 
     /** 폰 폭(CSS `@media (max-width: 767.98px)` 의 짝). 폰 전용 동작만 이 값을 문다. */
     var PHONE_QUERY = '(max-width: 767.98px)';
+
+    /* 폰 3·4단계(2026-09-29) 상태 — **init() 보다 위에 둔다**(FONT_STEPS 와 같은 이유: defer 라
+       init 이 곧바로 돌고, 폰에서 상세를 연 채 들어오면 init 이 층을 열며 이 값들을 읽는다). */
+    /** 아래 막대 주 버튼 후보 순서(pane 원래 버튼 id). 지금 열린 첫 번째가 주 버튼이다. */
+    var PRIMARY_ORDER = ['wb-confirm', 'wb-create', 'wb-dispatch'];
+    /** 폰 아래 시트 → 여는 버튼·제목(초점 돌려주기). 2단계 상태 시트(wb-hsheet)는 따로 산다. */
+    var SHEETS = {
+        'wb-more': { opener: 'wb-more-open', title: 'wb-more-title' },
+        'wb-asheet': { opener: 'wb-asheet-open', title: 'wb-asheet-title' }
+    };
+    /** 대리 버튼으로 연 모달이 닫히면 초점을 돌려줄 곳. */
+    var proxyReturn = null;
 
     document.addEventListener('click', onClick);
     document.addEventListener('change', onChange);
@@ -158,6 +176,23 @@
     window.addEventListener('popstate', onPopState);
     // <dialog> 의 close 는 버블하지 않는다 — 캡처로 받는다(Esc·닫기 버튼·바탕 누르기 모두 여기로 온다).
     document.addEventListener('close', onHistSheetClose, true);
+    document.addEventListener('close', onSheetClose, true);
+    // 대리 버튼으로 연 모달이 닫히면 대리 버튼으로 초점을 돌려준다(원래 버튼은 폰에서 숨어 있다).
+    document.addEventListener('hidden.bs.modal', onProxyModalHidden);
+    // 폰 → 데스크톱으로 폭이 바뀌면(회전·창 크기) 층을 접는다 — 층이 걸어 둔 inert 가 남으면 목록이 죽는다.
+    if (typeof window.matchMedia === 'function') {
+        var phoneMedia = window.matchMedia(PHONE_QUERY);
+        var onPhoneMedia = function (event) {
+            if (!event.matches && layerOpen()) {
+                leaveLayer();
+            }
+        };
+        if (typeof phoneMedia.addEventListener === 'function') {
+            phoneMedia.addEventListener('change', onPhoneMedia);
+        } else if (typeof phoneMedia.addListener === 'function') {
+            phoneMedia.addListener(onPhoneMedia);
+        }
+    }
     // 폭 변화(= nav 접힘)와 nav 자체 높이 변화(메뉴 펼침·알림 줄바꿈) 둘 다 잡는다.
     window.addEventListener('resize', scheduleNavOffset);
     if (typeof window.ResizeObserver === 'function') {
@@ -185,7 +220,55 @@
         // 하는지 알 수 있어야 한다.
         var current = document.querySelector('.wb-row[aria-current="true"]');
         var id = current ? safeId(current.dataset.linkId) : '';
+        if (initLayerOnPhone()) {
+            return;   // 폰에서 상세를 연 채 들어왔다 — 기록은 initLayerOnPhone 이 세운다.
+        }
         replacePaneState(id || null);
+    }
+
+    /**
+     * 폰으로 **상세가 고른 채** 들어온 경우(주소에 link_id · 새로고침 · 이력의 `워크벤치` 링크)
+     * 전체 화면 층을 연다. 뒤로 가기는 늘 목록으로 가야 하므로(아래 층 기록 규칙), 층 기록이
+     * 아직 없으면 선택을 뺀 목록 기록을 **밑에 깔고** 그 위에 층 기록을 쌓는다.
+     *
+     * @returns {boolean} 층을 열었으면 true(기록을 이미 세웠다).
+     */
+    function initLayerOnPhone() {
+        // 주소에 link_id 가 **있을 때만** — 서버는 목록 첫 화면에서도 첫 집을 골라 pane 을 채워 둔다
+        // (데스크톱 옆 칸). 그걸 폰에서 층으로 열면 목록을 보러 온 사람이 곧장 상세에 갇힌다.
+        if (!isPhone() || !paneSelected() || !urlHasSelection()) {
+            return false;
+        }
+        var id = paneLeadId();
+        var here = window.location.href;
+        var state = window.history.state;
+        if (!(state && state.wbLayer)) {
+            replacePaneState(null, urlWithoutSelection());
+            pushPaneState(id || null, here, true);
+        }
+        openLayer();
+        return true;
+    }
+
+    function urlHasSelection() {
+        try {
+            return !!safeId(new URL(window.location.href).searchParams.get('link_id'));
+        } catch (error) {
+            return false;
+        }
+    }
+
+    /** 열린 pane 의 집 id(목록 줄의 data-link-id 와 같은 축) — 없으면 빈 문자열. */
+    function paneLeadId() {
+        var row = document.querySelector('#wb-queue a.wb-row[aria-current="true"]');
+        if (row) {
+            return safeId(row.dataset.linkId);
+        }
+        try {
+            return safeId(new URL(window.location.href).searchParams.get('link_id'));
+        } catch (error) {
+            return '';
+        }
     }
 
     /* ── 유령 주문 취소 처리 (R-2 · 2026-08-25) ──────────────────────────
@@ -701,8 +784,8 @@
     /* ── 폰 배치 (2026-09-28 모바일 2단계) ──────────────────────────────
        배치는 CSS 가 한다. 여기는 CSS 만으로 안 되는 두 가지뿐이다.
         ① 알림 요약 띠 펼치기 — 상태는 버튼의 aria-expanded 하나(보이기 규칙이 그 값을 문다).
-        ② 행을 눌렀을 때 상세로 내려가기 — 폰에서는 상세가 목록 **아래**에 있어서, 조각을
-           갈아 끼워도 화면이 그대로면 사람은 아무 일도 안 일어난 줄 안다. */
+        ② 행을 눌렀을 때 상세 보이기 — 조각을 갈아 끼워도 화면이 그대로면 사람은 아무 일도 안
+           일어난 줄 안다. 2026-09-29 폰 3단계부터는 목록 아래로 스크롤하지 않고 전체 화면 층을 연다. */
     function toggleAlerts(button) {
         var open = button.getAttribute('aria-expanded') === 'true';
         button.setAttribute('aria-expanded', open ? 'false' : 'true');
@@ -725,27 +808,441 @@
         return typeof window.matchMedia === 'function' && window.matchMedia(PHONE_QUERY).matches;
     }
 
+    /** 폰에서 행을 열었을 때. 예전(2026-09-28)에는 목록 아래 상세로 스크롤했다 — 이제 층을 연다. */
     function revealPaneOnPhone() {
         if (!isPhone()) {
             return;   // 데스크톱은 상세가 옆 칸에 붙어 있다 — 스크롤을 건드리지 않는다.
         }
-        // '목록으로' 버튼부터 보이게 내린다 — 상세 제목이 화면 위 끝에 붙어 가려지지 않고,
-        // 돌아갈 길이 첫 화면에 같이 보인다.
-        var anchor = document.getElementById('wb-pane-back') || document.getElementById('wb-pane');
-        if (anchor && typeof anchor.scrollIntoView === 'function') {
-            anchor.scrollIntoView({ block: 'start', behavior: 'auto' });
+        openLayer();
+    }
+
+    /**
+     * 폰 `‹ 목록` — 층을 닫고 방금 연 행으로 돌아간다(leaveLayer).
+     *
+     * 층을 연 기록(wbLayer)이 맨 위에 있으면 **브라우저 뒤로 가기와 같은 길**로 닫는다
+     * (history.back → onPopState → leaveLayer). 버튼과 뒤로 가기가 따로 닫으면 층 기록이 한 칸
+     * 남아, 다음 뒤로 가기가 닫힌 층을 다시 여는 헛걸음이 된다.
+     */
+    function backToList() {
+        var state = window.history.state;
+        if (layerOpen() && state && state.wbLayer) {
+            window.history.back();
+            return;
+        }
+        leaveLayer();
+    }
+
+    /* ── 폰 전체 화면 상세 층 (2026-09-29 폰 3단계) ─────────────────────
+       행을 누르면 상세가 목록 아래가 아니라 화면을 덮는 층(#wb-layer)으로 열린다. 목록은 층
+       밑에서 제자리라 닫으면 보던 자리 그대로다. 열림 상태는 body.wb-detail-open 하나다.
+
+       기록 규칙(뒤로 가기) — **상세에서 뒤로 가기 = 목록**:
+         · 목록에서 행을 열면 층 기록을 하나 쌓는다(pushState, wbLayer: true).
+         · 이전/다음은 쌓지 않고 **바꾼다**(replaceState) — 다섯 집을 넘겨 봐도 뒤로 한 번이면 목록이다.
+         · 층 기록이 아닌 우리 기록으로 돌아오면(onPopState) 층을 닫는다 — 페이지를 다시 받지 않는다.
+
+       위·아래 막대는 pane 바깥이라 pane 을 갈아 끼울 때마다 syncLayer 가 다시 채운다. 막대와
+       더보기 시트의 버튼은 pane 원래 버튼을 **대신 누른다**(proxyClick) — 조작 규칙·모달·id 는
+       원래 버튼 한 벌이고, 여기서 무엇이 열렸는지 다시 판정하지 않는다(disabled 만 읽는다). */
+
+    function layerOpen() {
+        return document.body.classList.contains('wb-detail-open');
+    }
+
+    /** pane 에 고른 집이 있는가(빈 pane 은 머리 줄이 없다). */
+    function paneSelected() {
+        var pane = document.getElementById('wb-pane');
+        return !!(pane && pane.querySelector('.wb-detail__head'));
+    }
+
+    function openLayer() {
+        var layer = document.getElementById('wb-layer');
+        if (!isPhone() || !layer || !paneSelected()) {
+            return false;
+        }
+        syncLayer();
+        layer.scrollTop = 0;
+        if (!layerOpen()) {
+            document.body.classList.add('wb-detail-open');
+            setBackgroundInert(true);
+            focusQuietly(document.getElementById('wb-layer-name'));
+        }
+        return true;
+    }
+
+    /** 층을 닫고 방금 연 행으로 초점을 돌려준다. 행이 화면 밖일 때만(이전/다음으로 넘겨 봤다) 가운데로 부른다. */
+    function leaveLayer() {
+        var sheet = document.getElementById('wb-more');
+        if (sheet && sheet.open && typeof sheet.close === 'function') {
+            sheet.close();
+        }
+        document.body.classList.remove('wb-detail-open');
+        setBackgroundInert(false);
+        var row = document.querySelector('a.wb-row[aria-current="true"]')
+            || document.querySelector('a.wb-row');
+        if (!row) {
+            return;
+        }
+        focusQuietly(row);
+        // 뒤로 가기로 닫히면 브라우저가 popstate **뒤에** 그 기록의 스크롤을 되돌린다 — 그 전에 옮기면
+        // 도로 덮인다. 한 프레임 뒤에 재고 옮긴다(목록에 있던 자리면 움직이지 않는다).
+        var settle = window.requestAnimationFrame || function (fn) { return window.setTimeout(fn, 16); };
+        settle(function () {
+            var rect = row.getBoundingClientRect();
+            var viewH = window.innerHeight || document.documentElement.clientHeight;
+            if ((rect.top < 0 || rect.bottom > viewH) && typeof row.scrollIntoView === 'function') {
+                // 전역 CSS 가 scroll-behavior: smooth 라 'auto' 는 미끄러진다 — 'instant' 로 못박는다.
+                try { row.scrollIntoView({ block: 'center', behavior: 'instant' }); } catch (e) { row.scrollIntoView(); }
+            }
+        });
+    }
+
+    function focusQuietly(el) {
+        if (!el) {
+            return;
+        }
+        try { el.focus({ preventScroll: true }); } catch (e) { el.focus(); }
+    }
+
+    /**
+     * 층이 열린 동안 층 바깥(목록·머리줄·전역 메뉴)을 inert 로 둔다 — Tab 이 보이지 않는 목록으로
+     * 새지 않고 읽기 프로그램도 층만 읽는다. 층에서 body 까지 올라가며 **형제**에만 건다(조상에 걸면
+     * 층도 같이 죽는다). 우리가 건 것만 표식(data-wb-inert)으로 푼다. 모달·백드롭·토스트는 그대로 둔다.
+     */
+    function setBackgroundInert(on) {
+        document.querySelectorAll('[data-wb-inert]').forEach(function (el) {
+            el.removeAttribute('inert');
+            el.removeAttribute('data-wb-inert');
+        });
+        var node = on ? document.getElementById('wb-layer') : null;
+        while (node && node.parentElement && node !== document.body) {
+            Array.prototype.forEach.call(node.parentElement.children, function (sib) {
+                if (sib === node || sib.hasAttribute('inert')
+                    || /^(SCRIPT|STYLE|LINK|TEMPLATE)$/.test(sib.tagName)
+                    || sib.matches('.modal, .modal-backdrop, .toast-container')) {
+                    return;
+                }
+                sib.setAttribute('inert', '');
+                sib.setAttribute('data-wb-inert', '1');
+            });
+            node = node.parentElement;
         }
     }
 
-    /** 폰 '목록으로' — 방금 연 행으로 되돌아간다(없으면 목록 맨 위). 초점도 그 행에 둔다. */
-    function backToList() {
-        var row = document.querySelector('a.wb-row[aria-current="true"]')
-            || document.querySelector('a.wb-row');
-        if (row && typeof row.scrollIntoView === 'function') {
-            row.scrollIntoView({ block: 'center', behavior: 'auto' });
-            try { row.focus({ preventScroll: true }); } catch (e) { row.focus(); }
+    /** 전체 다시 그리기(softRefresh) 뒤 — 새 루트에 inert·막대를 다시 걸고 층 안 스크롤을 돌려준다. */
+    function afterRefreshLayer(scrollTop) {
+        if (!layerOpen()) {
+            return;
+        }
+        // 확인 완료처럼 선택을 놓고(주소에서 link_id 를 뺐다) 다시 그리면 서버가 목록 첫 집을 골라
+        // pane 을 채운다 — 층에 남겨 두면 방금 끝낸 집 자리에 **다른 집**이 뜬다. 목록으로 돌아간다.
+        if (!isPhone() || !paneSelected() || !urlHasSelection()) {
+            leaveLayer();
+            return;
+        }
+        setBackgroundInert(true);
+        syncLayer();
+        var layer = document.getElementById('wb-layer');
+        if (layer) {
+            layer.scrollTop = scrollTop || 0;
+        }
+        if (!document.activeElement || document.activeElement === document.body) {
+            focusQuietly(document.getElementById('wb-layer-name'));
+        }
+    }
+
+    /** 위 막대(이름·상태·N / M·이전/다음)와 아래 막대(주 버튼)를 지금 pane·목록으로 다시 채운다. */
+    function syncLayer() {
+        if (!document.getElementById('wb-layer')) {
+            return;
+        }
+        var pane = document.getElementById('wb-pane');
+        var who = pane ? pane.querySelector('.wb-detail__title .fw-semibold') : null;
+        setText('wb-layer-name', who ? who.textContent.trim() : '');
+        setText('wb-layer-state', pane ? (pane.getAttribute('data-row-can') || '') : '');
+        syncLayerNav();
+        paintPrimary();
+    }
+
+    function syncLayerNav() {
+        var rows = Array.prototype.slice.call(document.querySelectorAll('#wb-queue a.wb-row'))
+            .filter(function (row) { return !row.hidden; });
+        var step = layerStep(rows, document.querySelector('#wb-queue a.wb-row[aria-current="true"]'));
+        setText('wb-layer-pos', step.at === -1 ? '목록 밖' : (step.at + 1) + ' / ' + step.total);
+        paintStep(document.getElementById('wb-layer-prev'), step.prev, '이전 주문');
+        paintStep(document.getElementById('wb-layer-next'), step.next, '다음 주문');
+    }
+
+    /**
+     * 지금 줄의 자리와 앞뒤 줄 — **지금 화면 목록 순서**(서버 정렬·칩 그대로, 찾기로 숨긴 줄은 뺀 목록).
+     * 목록 밖 집(이력에서 연 집)은 자리가 없다(at -1, 앞뒤 없음). 순수 함수 — Node 로 돌려 본다.
+     *
+     * @param {Array} rows 보이는 줄(화면 순서).
+     * @param {?Object} current 지금 줄.
+     * @returns {{at: number, total: number, prev: ?Object, next: ?Object}}
+     */
+    function layerStep(rows, current) {
+        var at = current ? rows.indexOf(current) : -1;
+        return {
+            at: at,
+            total: rows.length,
+            prev: at > 0 ? rows[at - 1] : null,
+            next: at !== -1 && at < rows.length - 1 ? rows[at + 1] : null
+        };
+    }
+
+    /** 이전/다음 버튼 — 끝이면 aria-disabled(초점은 받는다). 이름은 옆 사람까지 읽힌다. */
+    function paintStep(btn, row, label) {
+        if (!btn) {
+            return;
+        }
+        var name = row && row.querySelector ? row.querySelector('.wb-row__name') : null;
+        btn.setAttribute('aria-disabled', row ? 'false' : 'true');
+        btn.setAttribute('aria-label', row ? label + ': ' + (name ? name.textContent.trim() : '') : label + ' 없음');
+        btn.setAttribute('data-link-id', row ? safeId(row.getAttribute('data-link-id')) : '');
+    }
+
+    /** 이전/다음 — 옆 줄을 행 열기와 같은 길(markCurrent → loadPane)로 연다. 기록은 바꾼다(쌓지 않는다). */
+    function stepLayer(btn) {
+        if (btn.getAttribute('aria-disabled') === 'true') {
+            return;
+        }
+        var id = safeId(btn.getAttribute('data-link-id'));
+        var row = id ? document.querySelector('#wb-queue a.wb-row[data-link-id="' + id + '"]') : null;
+        if (!row) {
+            syncLayer();
+            return;
+        }
+        markCurrent(row);
+        syncLayerNav();        // 연달아 눌러도 한 칸씩 — 자리는 응답 전에 먼저 옮긴다
+        paneOfflist = false;   // 왼쪽 목록의 줄을 연 것이다.
+        var href = row.href;
+        loadPane(id, href).then(function (ok) {
+            if (ok) {
+                replacePaneState(id, href, true);
+                var layer = document.getElementById('wb-layer');
+                if (layer) {
+                    layer.scrollTop = 0;
+                }
+                syncLayer();
+            }
+        });
+    }
+
+    /**
+     * 주 버튼 id — PRIMARY_ORDER(발주확인 → 주문 만들기 → 발송처리)에서 **pane 에 있고 disabled 가
+     * 아닌** 첫 번째. 없으면 ''(주 버튼 없이 더보기만). 잠금 판정은 서버가 렌더한 disabled 뿐이다.
+     * 순수 함수 — Node 로 돌려 본다.
+     *
+     * @param {function(string): ?{disabled: boolean}} lookup id → pane 액션 버튼(없으면 null).
+     * @returns {string}
+     */
+    function pickPrimaryId(lookup) {
+        for (var index = 0; index < PRIMARY_ORDER.length; index += 1) {
+            var el = lookup(PRIMARY_ORDER[index]);
+            if (el && !el.disabled) {
+                return PRIMARY_ORDER[index];
+            }
+        }
+        return '';
+    }
+
+    /** pane 액션 줄 안의 원래 버튼만 — 같은 id 가 다른 곳에 있어도 잡지 않는다. */
+    function paneActionButton(id) {
+        var el = document.getElementById(id);
+        return el && el.closest('#wb-pane .wb-acts') ? el : null;
+    }
+
+    function buttonLabel(btn) {
+        return String((btn && btn.textContent) || '').replace(/\s+/g, ' ').trim();
+    }
+
+    function paintPrimary() {
+        var primary = document.getElementById('wb-layer-primary');
+        if (!primary) {
+            return;
+        }
+        var id = pickPrimaryId(paneActionButton);
+        if (!id) {
+            primary.hidden = true;
+            primary.removeAttribute('data-proxy-for');
+            primary.textContent = '';
+            return;
+        }
+        primary.hidden = false;
+        primary.setAttribute('data-proxy-for', id);
+        primary.textContent = buttonLabel(document.getElementById(id));
+    }
+
+    /**
+     * 대리 버튼 → 원래 버튼. 원래 버튼의 click 을 그대로 부르므로 모달 열기(data-bs-toggle)와
+     * 바로 하는 조작(ACTIONS: 다시 읽기·확인 완료)이 데스크톱과 같은 길로 간다.
+     * 원래 버튼이 그새 잠겼으면(조작 중 lockPaneActions) 누르지 않고 막대를 지금 사실로 다시 그린다.
+     */
+    function proxyClick(proxy) {
+        if (proxy.getAttribute('aria-disabled') === 'true') {
+            return;
+        }
+        var target = paneActionButton(proxy.getAttribute('data-proxy-for') || '');
+        if (!target || target.disabled) {
+            syncLayer();
+            return;
+        }
+        var inSheet = !!proxy.closest('dialog');
+        proxyReturn = target.getAttribute('data-bs-toggle') === 'modal'
+            ? (inSheet ? document.getElementById('wb-more-open') : proxy) : null;
+        if (inSheet) {
+            // 모달 <dialog> 가 열린 채면 Bootstrap 모달이 inert 밑에 뜬다 — 시트부터 닫는다.
+            closeSheet('wb-more');
+        }
+        target.click();
+    }
+
+    /** 대리 버튼으로 연 모달이 닫히면 그 대리 버튼(시트였으면 더보기)으로 초점을 돌려준다. */
+    function onProxyModalHidden() {
+        var back = proxyReturn;
+        proxyReturn = null;
+        if (back && back.isConnected && !back.hidden && back.offsetParent !== null) {
+            focusQuietly(back);
+        }
+    }
+
+    /* ── 폰 아래 시트 둘 — 더 할 일(3단계) · 수집 관리(4단계) ─────────────
+       모양·동작은 2단계 상태 시트와 같다(네이티브 <dialog>.showModal: 바깥 inert · Esc 닫힘 ·
+       Tab 이 시트 안에서만 돈다). 열 때 제목으로, 닫을 때 연 버튼으로 초점을 돌려준다. */
+
+    function showSheet(id) {
+        var sheet = document.getElementById(id);
+        var conf = SHEETS[id];
+        if (!sheet || !conf) {
+            return;
+        }
+        if (typeof sheet.showModal === 'function') {
+            if (!sheet.open) {
+                sheet.showModal();
+            }
         } else {
-            window.scrollTo(0, 0);
+            sheet.setAttribute('open', '');   // 옛 브라우저: 모달은 아니어도 내용은 보인다
+        }
+        var opener = document.getElementById(conf.opener);
+        if (opener) {
+            opener.setAttribute('aria-expanded', 'true');
+        }
+        focusQuietly(document.getElementById(conf.title));
+    }
+
+    function closeSheet(id) {
+        var sheet = document.getElementById(id);
+        if (!sheet) {
+            return;
+        }
+        if (typeof sheet.close === 'function' && sheet.open) {
+            sheet.close();                     // close 이벤트 → onSheetClose
+        } else if (sheet.hasAttribute('open')) {
+            sheet.removeAttribute('open');
+            onSheetClose({ target: sheet });
+        }
+    }
+
+    /** 어떻게 닫혔든(Esc·닫기·바탕·대리 조작) 연 버튼으로 aria-expanded·초점을 돌려준다. */
+    function onSheetClose(event) {
+        var sheet = event.target;
+        var conf = sheet && sheet.id ? SHEETS[sheet.id] : null;
+        // 전체 다시 그리기로 떨어져 나간 옛 시트는 무시한다 — 새 시트(와 옮겨 둔 카드)를 건드리지 않는다.
+        if (!conf || !sheet.isConnected) {
+            return;
+        }
+        if (sheet.id === 'wb-asheet') {
+            homeIngestCard();
+        }
+        var opener = document.getElementById(conf.opener);
+        if (opener) {
+            opener.setAttribute('aria-expanded', 'false');
+            // close 는 비동기로 온다 — 그새 층이 닫혔으면(뒤로 가기) 숨은 버튼으로 초점을 빼앗지 않는다.
+            if (opener.offsetParent !== null) {
+                focusQuietly(opener);
+            }
+        }
+    }
+
+    /**
+     * 더 할 일 시트 — 주 버튼을 뺀 pane 액션 버튼 전부를 **지금 pane 에서** 다시 만든다(대리 버튼).
+     * 못 누르는 것은 숨기지 않고 aria-disabled 로 흐리게, 원래 버튼이 든 이유(title)를 한 줄로
+     * 붙이고 aria-describedby 로 잇는다. 글자는 textContent 로만 넣는다.
+     */
+    function openMoreSheet() {
+        var list = document.getElementById('wb-more-list');
+        if (!list) {
+            return;
+        }
+        list.textContent = '';
+        var primary = document.getElementById('wb-layer-primary');
+        var skip = primary && !primary.hidden ? (primary.getAttribute('data-proxy-for') || '') : '';
+        var buttons = document.querySelectorAll('#wb-pane .wb-acts > button[id]');
+        Array.prototype.forEach.call(buttons, function (orig, index) {
+            if (orig.id !== skip) {
+                list.appendChild(moreItem(orig, index));
+            }
+        });
+        var name = document.getElementById('wb-layer-name');
+        var who = name ? name.textContent.trim() : '';
+        setText('wb-more-title', (who ? who + ' 주문 · ' : '') + '더 할 일');
+        showSheet('wb-more');
+    }
+
+    function moreItem(orig, index) {
+        var item = document.createElement('li');
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'wb-more__opt';
+        btn.setAttribute('data-proxy-for', orig.id);
+        var text = buttonLabel(orig);
+        btn.setAttribute('aria-label', text);
+        if (!orig.disabled && /\bbtn-(outline-)?danger\b/.test(orig.className)) {
+            btn.classList.add('wb-more__opt--danger');
+        }
+        var label = document.createElement('span');
+        label.className = 'wb-more__label';
+        label.textContent = text;
+        btn.appendChild(label);
+        var why = String(orig.getAttribute('title') || '').trim();
+        if (why) {
+            var line = document.createElement('span');
+            line.className = 'wb-more__why';
+            line.id = 'wb-more-why-' + index;
+            line.textContent = why;
+            btn.appendChild(line);
+            btn.setAttribute('aria-describedby', line.id);
+        }
+        if (orig.disabled) {
+            btn.setAttribute('aria-disabled', 'true');
+        }
+        item.appendChild(btn);
+        return item;
+    }
+
+    /**
+     * 수집 관리 시트 — 이력 탭의 **같은 카드**(#wb-ingest-status)를 시트 안으로 옮겨 보여 준다.
+     * 복제하지 않는다: id(지금 수집·소급·만료일)가 두 벌이 되면 핸들러가 엉뚱한 칸을 문다.
+     * 닫으면 homeIngestCard 가 제자리(시트 바로 뒤)로 돌려놓는다 — 데스크톱 배치가 그대로다.
+     */
+    function openAdminSheet() {
+        var slot = document.getElementById('wb-asheet-slot');
+        var card = document.getElementById('wb-ingest-status');
+        if (!slot || !card) {
+            return;
+        }
+        if (card.parentNode !== slot) {
+            slot.appendChild(card);
+        }
+        showSheet('wb-asheet');
+    }
+
+    function homeIngestCard() {
+        var sheet = document.getElementById('wb-asheet');
+        var card = document.getElementById('wb-ingest-status');
+        if (sheet && card && sheet.contains(card)) {
+            sheet.insertAdjacentElement('afterend', card);
         }
     }
 
@@ -816,6 +1313,10 @@
             closeHistSheet();
             return;
         }
+        if (target.tagName === 'DIALOG' && Object.prototype.hasOwnProperty.call(SHEETS, target.id)) {
+            closeSheet(target.id);
+            return;
+        }
 
         // 체크박스는 a.wb-row **안**에 있다. 먼저 가로채지 않으면 행이 열린다.
         var box = target.closest('input.wb-pick');
@@ -826,6 +1327,11 @@
 
         var btn = target.closest('button');
         if (btn) {
+            // 폰 층의 대리 버튼(주 버튼·더 할 일 시트) — pane 원래 버튼을 대신 누른다.
+            if (btn.hasAttribute('data-proxy-for')) {
+                proxyClick(btn);
+                return;
+            }
             if (Object.prototype.hasOwnProperty.call(ACTIONS, btn.id)) {
                 ACTIONS[btn.id](btn);
                 return;
@@ -1146,6 +1652,11 @@
         }
         event.preventDefault();
         if (row.getAttribute('aria-current') === 'true') {
+            // 폰: 닫아 둔 층의 그 집을 다시 누르면 층만 다시 연다(pane 은 이미 그 집이다).
+            if (isPhone() && !layerOpen() && paneSelected()) {
+                pushPaneState(id, row.href, true);
+                openLayer();
+            }
             return;
         }
         markCurrent(row);
@@ -1153,7 +1664,8 @@
         paneOfflist = false;   // 왼쪽 목록의 행을 눌러 연 집이다.
         loadPane(id, href).then(function (ok) {
             if (ok) {
-                pushPaneState(id, href);
+                // 폰은 층 기록(wbLayer)으로 쌓는다 — 뒤로 가기가 이 기록을 걷어 내며 층을 닫는다.
+                pushPaneState(id, href, isPhone());
                 revealPaneOnPhone();
             }
         });
@@ -1162,6 +1674,28 @@
     function onPopState(event) {
         var state = event.state;
         var id = state ? safeId(state.wbLinkId) : '';
+        // 폰: 우리 기록이면 층을 열거나 닫기만 한다 — 목록 기록으로 돌아올 때 페이지를 다시 받지 않는다.
+        if (isPhone()) {
+            var action = layerPopAction(state);
+            if (action === 'close') {
+                if (layerOpen()) {
+                    leaveLayer();
+                }
+                return;
+            }
+            if (action === 'open') {
+                var layerRow = document.querySelector('a.wb-row[data-link-id="' + id + '"]');
+                if (layerRow) {
+                    markCurrent(layerRow);
+                }
+                loadPane(id, window.location.href).then(function (ok) {
+                    if (ok) {
+                        openLayer();
+                    }
+                });
+                return;
+            }
+        }
         if (!id) {
             // 우리가 만들지 않은 항목(또는 선택이 없던 첫 화면)이다. 주소는 이미 바뀌었으니
             // 그 주소를 그대로 다시 받는다.
@@ -1173,6 +1707,23 @@
             markCurrent(row);
         }
         loadPane(id, window.location.href);
+    }
+
+    /**
+     * 폰 뒤로/앞으로가 층에 할 일 — 기록의 모양만 본다(순수 함수 · Node 로 돌려 본다).
+     *   · 'legacy' : 우리가 만들지 않은 기록 — 예전 길(데스크톱과 같은 처리)로 넘긴다.
+     *   · 'open'   : 층 기록(wbLayer + 집 id) — 그 집을 받아 층을 연다(앞으로 가기).
+     *   · 'close'  : 우리 목록 기록 — 층을 닫는다. 상세에서 뒤로 가기 = 목록.
+     */
+    function layerPopAction(state) {
+        if (!state || typeof state !== 'object'
+            || !Object.prototype.hasOwnProperty.call(state, 'wbLinkId')) {
+            return 'legacy';
+        }
+        if (state.wbLayer && safeId(state.wbLinkId)) {
+            return 'open';
+        }
+        return 'close';
     }
 
     /**
@@ -1447,6 +1998,8 @@
         current.replaceWith(next);
         applyOfflistFlag();
         syncRowFromPane(next);
+        // 폰 층의 위·아래 막대는 pane 바깥이다 — 새 pane 의 이름·상태·주 버튼으로 다시 채운다.
+        syncLayer();
     }
 
     function markCurrent(row) {
@@ -1460,9 +2013,18 @@
         }
     }
 
-    function pushPaneState(id, href) {
+    /** 폰 층 기록이면 wbLayer 를 단다(layerPopAction 이 이 표식으로 층을 열고 닫는다). */
+    function paneState(id, layer) {
+        var state = { wbLinkId: id };
+        if (layer) {
+            state.wbLayer = true;
+        }
+        return state;
+    }
+
+    function pushPaneState(id, href, layer) {
         try {
-            window.history.pushState({ wbLinkId: id }, '', href);
+            window.history.pushState(paneState(id, layer), '', href);
         } catch (error) {
             /* 주소만 못 바꾼다 — 화면은 이미 갱신됐다. */
         }
@@ -1475,10 +2037,11 @@
      * @param {string} [href] 주소도 함께 바꿀 때만 준다(기본은 지금 주소 유지).
      *   선택을 놓는 자리는 **새 기록을 쌓지 않는다** — pushState 로 하면 뒤로가기가
      *   방금 큐에서 뺀 집으로 되돌아간다. 그래서 push 가 아니라 replace 다.
+     * @param {boolean} [layer] 폰 층 기록(이전/다음)이면 true — 층 표식을 지킨다.
      */
-    function replacePaneState(id, href) {
+    function replacePaneState(id, href, layer) {
         try {
-            window.history.replaceState({ wbLinkId: id }, '', href || window.location.href);
+            window.history.replaceState(paneState(id, layer), '', href || window.location.href);
         } catch (error) {
             /* 같음. */
         }
@@ -1779,6 +2342,8 @@
                 btn.disabled = true;
             }
         });
+        // 폰 아래 막대의 주 버튼도 지금 사실(잠김)로 — 대리 버튼이 열린 채 남지 않게.
+        syncLayer();
     }
 
     /**
@@ -1815,6 +2380,11 @@
             // 낱말을 더 쳤을 수 있다 — 되돌릴 값은 그 최신 상태여야 한다.
             var find = captureFind();
             var alertsOpen = readAlertsOpen();
+            // 폰 층 안 스크롤·열린 수집 관리 시트 — 루트를 갈면 둘 다 처음으로 돌아간다.
+            var layerEl = document.getElementById('wb-layer');
+            var layerScroll = layerEl ? layerEl.scrollTop : 0;
+            var adminSheet = document.getElementById('wb-asheet');
+            var adminOpen = !!(adminSheet && adminSheet.open);
             var scrollX = window.scrollX;
             var scrollY = window.scrollY;
             teardownModals(current);
@@ -1829,6 +2399,12 @@
             syncRefreshRunning();
             paneOfflist = readOfflistFlag();
             restoreFind(find);
+            afterRefreshLayer(layerScroll);
+            if (adminOpen) {
+                // 지금 수집·만료일 저장 결과는 시트 안 줄(#wb-run-result·#wb-expiry-note)에 쓰인다 —
+                // 새 카드를 다시 시트로 옮겨 연다(옛 시트는 루트와 함께 떨어져 나갔다).
+                openAdminSheet();
+            }
             // 새 목록이 더 짧으면(집 하나가 큐에서 빠지면) 문서가 줄어 브라우저가 스크롤을
             // 위로 당긴다. 훑던 자리를 그대로 돌려준다 — 그게 통째 이동과의 차이다.
             // behavior 를 못박는다 — 전역 CSS 가 나중에 smooth 를 켜면 갱신마다

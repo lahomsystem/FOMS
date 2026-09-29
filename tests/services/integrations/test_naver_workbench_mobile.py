@@ -167,8 +167,9 @@ def test_asset_pins_moved_together():
     """CSS·JS 를 고쳤으면 핀을 함께 올린다 — 서비스워커 캐시가 옛 파일을 준다."""
     markup = TEMPLATE.read_text(encoding="utf-8")
 
-    assert markup.count("?v=20260929b") == 2
-    assert "?v=20260929a" not in markup, "폰 1·2단계(2026-09-29)에서 CSS·JS 를 고쳤다 — 핀도 함께"
+    assert markup.count("?v=20260929c") == 2
+    assert "?v=20260929b" not in markup, "폰 3·4단계(2026-09-29)에서 CSS·JS 를 고쳤다 — 핀도 함께"
+    assert "?v=20260929a" not in markup
     assert "?v=20260914b" not in markup
 
 
@@ -245,7 +246,8 @@ def test_phone_pane_has_back_to_list_outside_swapped_fragment(client, workbench_
     assert body.index('id="wb-pane-back"') < body.index('<div id="wb-pane"')
     js = JS.read_text(encoding="utf-8").replace("\r\n", "\n")
     assert "'wb-pane-back': backToList" in js
-    assert "a.wb-row[aria-current=\"true\"]" in js.split("function backToList(")[1][:400]
+    # 2026-09-29 폰 3단계: 버튼은 층을 닫는다(leaveLayer) — 방금 연 행으로 돌아가는 규칙은 그대로.
+    assert "a.wb-row[aria-current=\"true\"]" in js.split("function leaveLayer(")[1][:800]
     css = CSS.read_text(encoding="utf-8").replace("\r\n", "\n")
     assert ".wb-pane-back { display: none; }" in css
     assert ".wb-pane-back {" in _media_block(css, "@media (max-width: 767.98px)")
@@ -259,14 +261,16 @@ def test_row_product_line_is_block_so_ellipsis_applies():
     assert "display: block;" in rule and "text-overflow: ellipsis;" in rule
 
 
-def test_phone_back_button_sits_below_sticky_global_nav():
-    """전역 nav 도 sticky(z 1000)다 — '목록으로' 가 top:0 이면 그 밑에 깔려 안 보였다
-    (2026-09-28 스테이징 390px). nav 실측 높이(--wb-nav-h)만큼 내려 붙는다."""
+def test_phone_back_button_lives_in_the_layer_bar():
+    """2026-09-28 에는 목록 아래 상세 위에 붙은 sticky '목록으로' 였다(전역 nav 밑에 깔려 --wb-nav-h
+    만큼 내렸다). 2026-09-29 폰 3단계부터 상세는 화면을 덮는 층이고 버튼은 층 위 막대(sticky)의
+    첫 칸이다 — 층이 전역 nav 를 덮으므로 nav 높이만큼 내릴 일이 없다. 누르는 곳은 44px."""
     css = CSS.read_text(encoding="utf-8").replace("\r\n", "\n")
     phone = _media_block(css, "@media (max-width: 767.98px)")
     rule = phone.split(".wb-pane-back {", 1)[1].split("}", 1)[0]
-    assert "top: var(--wb-nav-h" in rule
-    assert "scroll-margin-top: var(--wb-nav-h" in rule
+    assert "--wb-nav-h" not in rule and "position: sticky" not in rule
+    assert "min-height: 44px;" in rule and "min-width: 44px;" in rule
+    assert "position: sticky;" in phone.split("    .wb-layer__bar {", 1)[1].split("}", 1)[0]
 
 
 # --------------------------------------------------------------------------- #

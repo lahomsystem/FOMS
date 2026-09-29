@@ -351,6 +351,8 @@ def _run_swap_pane_js(scenario: str) -> dict:
         _extract_function(source, "applyRowView"),
         _extract_function(source, "applyRowBadges"),
         _extract_function(source, "syncRowFromPane"),
+        # 폰 층 막대 채우기(2026-09-29 폰 3단계) — 층(#wb-layer)이 없는 문서에서는 그냥 돌아온다.
+        _extract_function(source, "syncLayer"),
         _extract_function(source, "swapPane"),
         _DOM_STUBS,
         _SWAP_STUBS,
