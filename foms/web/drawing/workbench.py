@@ -36,9 +36,15 @@ from foms.services.erp_display import (
 )
 from foms.services.erp_product_items import build_product_items_for_order
 from foms.services.orders.confirm_drawing_gate import effective_drawing_status
-from foms.services.orders.drawing_customer_send import skeleton_customer_send_view
+from foms.services.orders.drawing_customer_send import drawing_round_info, round_text
+from foms.services.orders.drawing_customer_send_view import build_customer_send_view
 from foms.services.orders.drawing_key_safety import is_own_order_key
 from foms.services.orders.drawing_revision_files import revision_reference_display_rows
+from foms.services.orders.drawing_revision_source import (
+    is_customer_request,
+    request_rounds,
+    revision_source_tag,
+)
 from foms.services.notifications.drawing_order_change import (
     _change_parts,
     drawing_work_started,
@@ -313,7 +319,8 @@ def _build_order_change_line(events: list[Mapping[str, Any]]) -> dict[str, Any]:
 
 def _build_handoff_files(order_id: int, drawing_files: list[Any], history: list[Mapping[str, Any]], selected_key: str) -> list[dict[str, Any]]:
     """Build drawing file rows for the mobile handoff list/detail surfaces."""
-    latest_transfer_round = 0
+    # 회차 = 설계서 2026-09-29 Q2 규칙(1 + 마지막 전달 앞 수정요청 수) — 화면의 모든 "N차" 가 같은 함수.
+    latest_transfer_round = drawing_round_info({'drawing_transfer_history': history}).round
     latest_transfer_note = ''
     revision_targets: set[int] = set()
     revision_applied: set[int] = set()
@@ -322,7 +329,6 @@ def _build_handoff_files(order_id: int, drawing_files: list[Any], history: list[
         action = (event.get('action') or '').upper()
         targets = _event_target_numbers(event)
         if action == 'TRANSFER':
-            latest_transfer_round += 1
             latest_transfer_note = event.get('note') or latest_transfer_note
             for number in targets:
                 revision_applied.add(number)
@@ -353,7 +359,7 @@ def _build_handoff_files(order_id: int, drawing_files: list[Any], history: list[
             'is_selected': bool(selected_key and key == selected_key),
             'detail_url': url_for('erp_drawing_workbench.erp_drawing_workbench_detail', order_id=order_id, drawing_key=key),
             'chip': chip,
-            'meta': f'최신 {latest_transfer_round}차 전달본' if latest_transfer_round else '전달 대기',
+            'meta': f'{latest_transfer_round}차 전달본' if latest_transfer_round else '전달 대기',
             'note': target_notes.get(number) or latest_transfer_note or '',
         })
     return rows
@@ -445,6 +451,8 @@ def _build_handoff_thread(
     ``order_id`` 가 있으면 수정요청 말풍선에 반영 체크 값과 이 주문 참고 파일 링크를 붙인다.
     """
     thread = []
+    # 수정요청 말풍선의 "고객 요청 · 1차 · 카톡 답장"(회차 = 그 요청 시점의 회차).
+    request_round_by_index = request_rounds(list(history))
     indexed_history = [
         (idx, event) for idx, event in enumerate(history) if isinstance(event, Mapping)
     ]
@@ -493,6 +501,7 @@ def _build_handoff_thread(
         }
         if action == 'REQUEST_REVISION':
             entry.update(_revision_thread_fields(event, order_id))
+            entry['source_tag'] = revision_source_tag(event, request_round_by_index.get(_event_index, 0))
         elif action == 'REVISION_CANCELLED':
             entry.update(_cancelled_revision_fields(event))
         thread.append(entry)
@@ -653,7 +662,7 @@ def erp_drawing_workbench_dashboard():
         # 같은 주문을 다르게 말하지 않게 막힘(gated)도 상세와 같은 판정으로 넘긴다(2d 리뷰).
         can_transfer_row = can_transfer_drawing(current_user, o)
         can_confirm_row = bool(can_sales and drawing_status == 'TRANSFERRED')
-        transfer_round = sum(1 for h in history if isinstance(h, dict) and h.get('action') == 'TRANSFER')
+        transfer_round = drawing_round_info(sd).round  # 회차(Q2) — 수정요청 없는 추가 전달은 같은 회차
         unchecked_requests = 0
         for h in history:
             if not isinstance(h, dict) or h.get('action') != 'REQUEST_REVISION':
@@ -695,8 +704,10 @@ def erp_drawing_workbench_dashboard():
 
         latest_request_no = None
         latest_request_note = ''
+        latest_request_is_customer = False
         for h in reversed(history):
             if isinstance(h, dict) and h.get('action') == 'REQUEST_REVISION':
+                latest_request_is_customer = is_customer_request(h)
                 try:
                     target_no_raw = h.get('target_drawing_number')
                     latest_request_no = int(target_no_raw) if target_no_raw is not None else None
@@ -704,13 +715,13 @@ def erp_drawing_workbench_dashboard():
                     pass  # failopen: intentional: 도면번호 파싱 실패 시 None 유지
                 latest_request_note = str(h.get('note') or '').strip()
                 break
-        # 최신 전달(TRANSFER) 요약 1줄: 'vN 전달 · M/D HH:MM · 이름' (이미 로드된 history 파생, 추가 쿼리 없음).
+        # 최신 전달(TRANSFER) 요약 1줄: 'N차 전달 · M/D HH:MM · 이름' (이미 로드된 history 파생, 추가 쿼리 없음).
         latest_transfer_line = ''
         for h in reversed(history):
             if isinstance(h, dict) and h.get('action') == 'TRANSFER':
                 _t_at = format_datetime_kst(_history_event_at_raw(h), '%m/%d %H:%M') or ''
                 _t_by = str(h.get('by_user_name') or '').strip()
-                _t_seg = [f'v{transfer_round} 전달' if transfer_round else '전달']
+                _t_seg = [f'{transfer_round}차 전달' if transfer_round else '전달']
                 if _t_at:
                     _t_seg.append(_t_at)
                 if _t_by:
@@ -775,6 +786,7 @@ def erp_drawing_workbench_dashboard():
             'drawing_status_label': _drawing_row_status_label(drawing_status, has_assignee),
             'file_count': len(drawing_files),
             'transfer_round': transfer_round,
+            'round_text': round_text(transfer_round),
             'pending_count': pending_count,
             'thumbnail_url': pick_row_thumbnail_url(image_files),
             # 뷰어 파일 목록(이미지만 — 비이미지 전달본은 뷰어 대상 밖, 카드 탭=시트 폴백).
@@ -798,6 +810,7 @@ def erp_drawing_workbench_dashboard():
             'latest_event_parts': latest_event_parts,
             'latest_transfer_line': latest_transfer_line,
             'latest_request_note': latest_request_note,
+            'latest_request_is_customer': latest_request_is_customer,
             'sla_level': sla_level,
             'is_overdue': sla_level == '지연',
             'due_today': due_today,
@@ -993,6 +1006,11 @@ def erp_drawing_workbench_detail(order_id):
             entry.update(_cancelled_revision_fields(h))
         history.append(entry)
 
+    # 요청사항 카드·타임라인 배지 "고객 요청 · 1차 · 카톡 답장"(revision_requests 는 같은 dict 를 공유한다).
+    request_round_by_index = request_rounds(history)
+    for h_index, h in enumerate(history):
+        if h.get('action') == 'REQUEST_REVISION':
+            h['source_tag'] = revision_source_tag(h, request_round_by_index.get(h_index, 0))
     revision_requests = [h for h in history if h.get('action') == 'REQUEST_REVISION']
     revision_requests.reverse()
     unread_count = 0
@@ -1114,7 +1132,7 @@ def erp_drawing_workbench_detail(order_id):
         {'label': '최신 전달본 확인', 'ok': bool(drawing_files)},
         {'label': '요청사항 확인', 'ok': unread_count == 0},
     ]
-    transfer_round = sum(1 for h in history if h.get('action') == 'TRANSFER')
+    transfer_round = drawing_round_info(s_data).round  # 회차(Q2)
     file_keys = [_drawing_file_key(f, idx) for idx, f in enumerate(drawing_files)]
     handoff_invalid_drawing_key = ''
     selected_key = requested_drawing_key if requested_drawing_key in file_keys else ''
@@ -1289,8 +1307,16 @@ def erp_drawing_workbench_detail(order_id):
         measure_photos=measure_photos,
         common_measure_photos=common_measure_photos,
         erp_order_enabled=True,
-        # 도면 탭 고객 보내기 화면값(설계서 2026-09-29 §4.5) — 모든 키가 늘 있다(S1a 뼈대: 회차만 채움).
-        customer_send=skeleton_customer_send_view(s_data),
+        # 도면 탭 고객 보내기 화면값(설계서 2026-09-29 §4.5) — 모든 키가 늘 있다. 조회 2번(발송 이벤트·링크).
+        customer_send=build_customer_send_view(
+            db, order, s_data, current_user, drawing_status=drawing_status,
+            sales_side=can_request_revision, can_confirm_receipt=can_confirm_receipt,
+            can_cancel_revision=can_cancel_revision_request, is_admin=is_admin,
+            is_drawing_participant=is_drawing_participant,
+            # 모바일 바에 템플릿이 따로 그리는 도면 쪽 버튼(전달·전달 취소) — 넘침([더 보기]) 판정용.
+            drawing_mobile_buttons=int(bool(can_transfer or show_transfer_assignee_only_hint))
+            + int(bool(can_cancel_transfer)),
+        ),
     )
     template_name = (
         'drawing/workbench_detail_fragment.html'
