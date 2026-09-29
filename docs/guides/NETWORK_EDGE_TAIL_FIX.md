@@ -13,7 +13,7 @@ Cloudflare를 앞단에 놓아도 **교차유저 유출 없음**이 이미 보�
 
 - 인증 fragment: `Cache-Control: no-store` — `foms/api/fragment.py:65`
 - 파일 라우트: `no-store` — `foms/api/files/routes.py:34`
-- 버전드 css/js(`?v=`): `no-cache` — `foms/platform/app_factory.py`
+- 버전드 css/js(`?v=`): `public, max-age=86400`(하루, 2026-09-11~) — 사용자와 무관한 공개 정적 파일이라 엣지에 캐시돼도 유출이 없다. 버전 없는 css/js 는 `no-cache` — `foms/platform/app_factory.py` `_versioned_static_cache_middleware`
 - 전역 after_request는 로깅만 — 허용적 캐시 없음
 
 → CF 기본 캐시레벨(origin 헤더 존중)에서 인증 콘텐츠는 자동 BYPASS. **"Cache Everything" 페이지룰 금지.**

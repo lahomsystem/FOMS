@@ -210,5 +210,10 @@ def test_erp_shared_js_pin_bumped():
     """JS 를 고쳤으면 ?v= 핀도 올려야 한다(SW staticCacheFirst 는 no-cache 헤더에 무력)."""
     from pathlib import Path
 
+    from tests.support.asset_urls import asset_url_call
+
     html = Path("templates/orders/partials/erp_order_js.html").read_text(encoding="utf-8")
+    # 2026-09-29 asset_url 시범: 핀은 파일 내용 해시라 JS 를 고치면 저절로 올라간다 —
+    # 옛 값이 없다는 것만으로는 무음 통과(핀이 통째로 사라져도 초록)라 도우미 호출을 함께 본다.
+    assert asset_url_call("js/orders/erp-order-shared.js") in html
     assert "js/orders/erp-order-shared.js') }}?v=20260901m" not in html, "핀이 옛 값 그대로다"

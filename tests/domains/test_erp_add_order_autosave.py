@@ -15,6 +15,8 @@ from pathlib import Path
 import pytest
 from werkzeug.security import generate_password_hash
 
+from tests.support.asset_urls import asset_url_call
+
 
 def _login(client, app, username: str = "autosave_user") -> None:
     from db import db_session
@@ -158,7 +160,9 @@ def test_autosave_local_storage_key_scoped_by_user(app) -> None:
     assert 'LS_KEY_PREFIX + ":u" + uid' in js
     assert "purgeLegacyLocalStorage()" in js
     assert "localStorage.removeItem(LEGACY_LS_KEY)" in js
-    assert "erp-order-autosave.js') }}?v=20260929a" in erp_js
+    # 2026-09-29 asset_url 시범: 손 날짜 핀 대신 내용 해시 URL — 파일을 고치면 ?v= 가 저절로 바뀐다.
+    assert asset_url_call("js/orders/erp-order-autosave.js") in erp_js
+    assert "erp-order-autosave.js') }}?v=" not in erp_js  # 손 핀으로 되돌아가면 안 된다
 
 
 def test_autosave_suspends_after_explicit_save() -> None:

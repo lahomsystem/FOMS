@@ -10,54 +10,54 @@
     window.ERP_SPEC_PICKER_ENABLED = {{ 'true' if flag_spec_picker else 'false' }};
     window.MY_ROLE = {{ (current_user.role if current_user is defined and current_user else '')|tojson }};
 </script>
-<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-as-attachment-order.css') }}?v=20260921a">
-<script src="{{ url_for('static', filename='js/foms/attachment-preview-zoom.js') }}?v=20260914a" defer></script>
-<link rel="stylesheet" href="{{ url_for('static', filename='css/orders/erp-autosave.css') }}?v=20260630a">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/orders/erp-items-master-detail.css') }}?v=20260701f">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/orders/erp-channel-push.css') }}?v=20260824b">
+<link rel="stylesheet" href="{{ asset_url('css/components/foms-as-attachment-order.css') }}">
+<script src="{{ asset_url('js/foms/attachment-preview-zoom.js') }}" defer></script>
+<link rel="stylesheet" href="{{ asset_url('css/orders/erp-autosave.css') }}">
+<link rel="stylesheet" href="{{ asset_url('css/orders/erp-items-master-detail.css') }}">
+<link rel="stylesheet" href="{{ asset_url('css/orders/erp-channel-push.css') }}">
 {# 발송 흔적 칩: 태블릿 실측 폼과 공용이라 별도 파일(양쪽에서 링크). #}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/orders/erp-alimtalk-trace.css') }}?v=20260923a">
-<script src="{{ url_for('static', filename='js/orders/erp-channel-push-confirm.js') }}?v=20260923a" defer></script>
+<link rel="stylesheet" href="{{ asset_url('css/orders/erp-alimtalk-trace.css') }}">
+<script src="{{ asset_url('js/orders/erp-channel-push-confirm.js') }}" defer></script>
 {# 발송 기록 칩: 알림톡·링크·PUSH 를 한 규칙으로(구조화 데이터만 읽는다 — 서버 왕복 0). #}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/orders/erp-send-trace.css') }}?v=20260923a">
-<script src="{{ url_for('static', filename='js/orders/erp-send-trace.js') }}?v=20260923b" defer></script>
-<script src="{{ url_for('static', filename='js/orders/erp-alimtalk-send.js') }}?v=20260923b" defer></script>
-<link rel="stylesheet" href="{{ url_for('static', filename='css/orders/erp-share.css') }}?v=20260821a">
-<script src="{{ url_for('static', filename='js/orders/erp-share.js') }}?v=20260923a" defer></script>
-<script src="{{ url_for('static', filename='js/cs/as-attachment-order.js') }}?v=20260819a" defer></script>
-<script src="{{ url_for('static', filename='js/cs/as-push-confirm.js') }}?v=20260820a" defer></script>
-<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-as-cycle-badge.css') }}?v=20260824a">
-<script src="{{ url_for('static', filename='js/orders/erp-order-shared.js') }}?v=20260929a" defer></script>
+<link rel="stylesheet" href="{{ asset_url('css/orders/erp-send-trace.css') }}">
+<script src="{{ asset_url('js/orders/erp-send-trace.js') }}" defer></script>
+<script src="{{ asset_url('js/orders/erp-alimtalk-send.js') }}" defer></script>
+<link rel="stylesheet" href="{{ asset_url('css/orders/erp-share.css') }}">
+<script src="{{ asset_url('js/orders/erp-share.js') }}" defer></script>
+<script src="{{ asset_url('js/cs/as-attachment-order.js') }}" defer></script>
+<script src="{{ asset_url('js/cs/as-push-confirm.js') }}" defer></script>
+<link rel="stylesheet" href="{{ asset_url('css/components/foms-as-cycle-badge.css') }}">
+<script src="{{ asset_url('js/orders/erp-order-shared.js') }}" defer></script>
 {# ORDER-REASON-00: 저장 성공 뒤 사유를 받는 표면(전체 저장=시트, 인라인=배너). #}
-<script src="{{ url_for('static', filename='js/orders/order-change-reason.js') }}?v=20260814a" defer></script>
-<script src="{{ url_for('static', filename='js/orders/erp-stage-override.js') }}?v=20260921a" defer></script>
+<script src="{{ asset_url('js/orders/order-change-reason.js') }}" defer></script>
+<script src="{{ asset_url('js/orders/erp-stage-override.js') }}" defer></script>
 {# 관리자 강제 진행 재시도(ADMIN-OVERRIDE-01 C8): 시트 include 와 두 스크립트는 반드시 세트다.
    하나라도 빠지면 재시도가 무음으로 실패한다. #}
 {% include 'partials/shared/foms_reason_sheet.html' %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-reason-sheet.css') }}?v=20260920a">
-<script src="{{ url_for('static', filename='js/foms/foms-reason-sheet.js') }}?v=20260921a" defer></script>
-<script src="{{ url_for('static', filename='js/foms/foms-admin-override.js') }}?v=20260921a" defer></script>
-<script src="{{ url_for('static', filename='js/orders/erp-items-master-detail.js') }}?v=20260630c" defer></script>
-<script src="{{ url_for('static', filename='js/orders/erp-order-autosave.js') }}?v=20260929a" defer></script>
-<script src="{{ url_for('static', filename='js/orders/erp-wdc-split.js') }}?v=20260624c" defer></script>
+<link rel="stylesheet" href="{{ asset_url('css/components/foms-reason-sheet.css') }}">
+<script src="{{ asset_url('js/foms/foms-reason-sheet.js') }}" defer></script>
+<script src="{{ asset_url('js/foms/foms-admin-override.js') }}" defer></script>
+<script src="{{ asset_url('js/orders/erp-items-master-detail.js') }}" defer></script>
+<script src="{{ asset_url('js/orders/erp-order-autosave.js') }}" defer></script>
+<script src="{{ asset_url('js/orders/erp-wdc-split.js') }}" defer></script>
 {# 네이버 원본 도크(T14-B) — 수집 주문 편집 화면 전용. 폼 무참조 additive 부품. #}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/orders/erp-naver-dock.css') }}?v=20260921d">
-<script src="{{ url_for('static', filename='js/orders/erp-naver-dock.js') }}?v=20260921a" defer></script>
+<link rel="stylesheet" href="{{ asset_url('css/orders/erp-naver-dock.css') }}">
+<script src="{{ asset_url('js/orders/erp-naver-dock.js') }}" defer></script>
 {% if flag_spec_picker %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/wdcalculator/category-picker.css') }}?v=20260623c">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/wdcalculator/multi-add-picker.css') }}?v=20260623c">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/orders/erp-spec-calc.css') }}?v=20260804a">
-<script src="{{ url_for('static', filename='js/orders/erp-spec-picker.js') }}?v=20260623d" defer></script>
-<script src="{{ url_for('static', filename='js/orders/erp-spec-calc.js') }}?v=20260804a" defer></script>
+<link rel="stylesheet" href="{{ asset_url('css/wdcalculator/category-picker.css') }}">
+<link rel="stylesheet" href="{{ asset_url('css/wdcalculator/multi-add-picker.css') }}">
+<link rel="stylesheet" href="{{ asset_url('css/orders/erp-spec-calc.css') }}">
+<script src="{{ asset_url('js/orders/erp-spec-picker.js') }}" defer></script>
+<script src="{{ asset_url('js/orders/erp-spec-calc.js') }}" defer></script>
 {% endif %}
 {% if flag_inline %}
 {% if flag_offline_sw %}
-<script src="{{ url_for('static', filename='js/foms/sync.js') }}?v=20260724a" defer></script>
+<script src="{{ asset_url('js/foms/sync.js') }}" defer></script>
 {% endif %}
-<script src="{{ url_for('static', filename='js/foms/product-item.js') }}?v=20260915j" defer></script>
-<script src="{{ url_for('static', filename='js/foms/inline-edit.js') }}?v=20260813a" defer></script>
+<script src="{{ asset_url('js/foms/product-item.js') }}" defer></script>
+<script src="{{ asset_url('js/foms/inline-edit.js') }}" defer></script>
 {% endif %}
 {# html2canvas는 견적서 내보내기 시에만 estimate-preview.js가 동적 로드(렌더 차단 + 매 페이지 CDN 다운로드 제거) #}
-<script src="{{ url_for('static', filename='js/runtime/column-resizer.js') }}?v=20260615a" defer></script>
-<script src="{{ url_for('static', filename='js/orders/estimate-preview.js') }}?v=20260923a" defer></script>
-<script src="{{ url_for('static', filename='js/orders/estimate-table-columns.js') }}?v=20260615b" defer></script>
+<script src="{{ asset_url('js/runtime/column-resizer.js') }}" defer></script>
+<script src="{{ asset_url('js/orders/estimate-preview.js') }}" defer></script>
+<script src="{{ asset_url('js/orders/estimate-table-columns.js') }}" defer></script>
