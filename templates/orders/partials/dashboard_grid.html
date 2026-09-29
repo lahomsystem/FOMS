@@ -308,6 +308,8 @@
                       {% set h_action_label = '도면 전달' %}
                       {% elif h_action == 'REQUEST_REVISION' %}
                       {% set h_action_label = '수정 요청' %}
+                      {% elif h_action == 'REVISION_CANCELLED' %}
+                      {% set h_action_label = '수정요청 취소' %}
                       {% elif h_action == 'CANCEL_TRANSFER' %}
                       {% set h_action_label = '전달 취소' %}
                       {% endif %}

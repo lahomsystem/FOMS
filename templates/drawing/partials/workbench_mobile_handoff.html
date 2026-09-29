@@ -202,6 +202,7 @@
             {% endfor %}
           </ul>
           {% elif event.note %}<p>{{ event.note }}</p>{% endif %}
+          {% if event.cancelled_request_note %}<small>원래 요청: {{ event.cancelled_request_note }}</small>{% endif %}
           {# 수정요청 참고사진 — 이력에 저장된 view_url 은 쓰지 않는다. 서버가 key 로 만든 URL 이고
              이 주문 drawing_gateway 경로만 링크한다(workbench._revision_reference_files). 나머지는 개수만. #}
           {% if event.ref_files %}

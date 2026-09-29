@@ -106,10 +106,7 @@ def _url_from_file_entry(entry: dict[str, Any]) -> str | None:
     key = (entry.get("key") or "").strip()
     if not key or not _is_image_file_entry(entry):
         return None
-    view_url = (entry.get("view_url") or "").strip()
-    if view_url:
-        return view_url
-    return build_file_view_url(key)
+    return build_file_view_url(key)  # 저장 view_url 불신(SPEC §4.3.4) — key 로만
 
 
 # drawing_current_files should hold drawings, but the transfer API accepts
