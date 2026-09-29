@@ -7,18 +7,6 @@
             <h1 class="mb-0 h3 layout-header__title">가구 주문 관리 시스템</h1>
 
             {% if current_user %}
-            <!-- 브리핑 보드: 화면 최상단 중앙, 슬라이딩 드롭다운(아래 방향 체브론) -->
-            <div class="position-absolute start-50 translate-middle-x top-0 bottom-0 d-flex align-items-center layout-header__center"
-                style="z-index: 2;">
-                <button class="btn personal-briefing-chevron-btn" id="personal-briefing-toggle" type="button"
-                    data-bs-toggle="offcanvas" data-bs-target="#personal-briefing-offcanvas"
-                    aria-controls="personal-briefing-offcanvas" title="내 브리핑 보드 (아래로 펼치기)" aria-label="브리핑 보드 열기">
-                    <i class="fas fa-chevron-down personal-briefing-chevron" aria-hidden="true"></i>
-                </button>
-            </div>
-            {% endif %}
-
-            {% if current_user %}
             <div class="d-flex align-items-center gap-3">
                 <!-- Global "내 할 일" filter: 시공팀 이외만 표시 (시공팀은 출고/시공 대시보드에서 항상 본인 주문만 표시) -->
                 {% if (current_user.team or '') != 'CONSTRUCTION' %}
@@ -130,28 +118,6 @@
             </div>
             {% endif %}
         </header>
-
-        <!-- Personal Briefing Board (offcanvas-top, ~50% viewport) -->
-        {% if current_user %}
-        <div class="offcanvas offcanvas-top" id="personal-briefing-offcanvas" tabindex="-1"
-            aria-labelledby="personal-briefing-title" style="height: 55vh; max-height: 55vh;">
-            <div class="offcanvas-header border-bottom py-2">
-                <h5 class="offcanvas-title" id="personal-briefing-title">
-                    <i class="fas fa-th-large me-2"></i>내 브리핑 보드
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="닫기"></button>
-            </div>
-            <div class="offcanvas-body p-3 overflow-auto" id="personal-briefing-body">
-                <!-- 긴급 알림 배너 영역 -->
-                <div id="urgent-banner-area" class="d-none mb-2"></div>
-                <div class="text-center text-muted py-4" id="personal-briefing-placeholder">
-                    <i class="fas fa-spinner fa-spin fa-2x mb-2"></i>
-                    <p class="mb-0">로딩 중...</p>
-                </div>
-                <div class="row g-2 d-none" id="personal-briefing-widgets"></div>
-            </div>
-        </div>
-        {% endif %}
 
         {% if current_user %}
         {% set suppress_global_nav_erp_v2 = erp_mobile_v2_enabled and request.path.startswith('/erp') %}

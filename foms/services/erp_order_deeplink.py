@@ -1,4 +1,4 @@
-"""Stage-aware queue deep links (search, briefing board, notifications)."""
+"""Stage-aware queue deep links (search, notifications)."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from models import Order
 from foms.services.erp_display import _ensure_dict, _erp_get_stage
 from foms.services.erp_policy import STAGE_NAME_TO_CODE
 
-# 단계별 큐 대시보드 (personal_board STAGE_DASHBOARD_URL SSOT)
+# 단계별 큐 대시보드 (STAGE_DASHBOARD_URL SSOT)
 STAGE_DASHBOARD_URL: dict[str, str] = {
     "RECEIVED": "/erp/dashboard",
     "MEASURE": "/erp/measurement",
@@ -85,7 +85,7 @@ def build_order_queue_focus_href(
     search_query: str | None = None,
 ) -> str:
     """
-    Build mobile search / briefing deep link to the stage queue with card focus.
+    Build mobile search deep link to the stage queue with card focus.
 
     Lands on the same queue-card surfaces as each workflow tab (not ``/edit``).
 

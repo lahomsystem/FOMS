@@ -7,10 +7,13 @@
  * Phase 1B activates the sheet write actions (all via window.FOMSNotificationWrite
  * so the same-origin write header is attached): tapping an unread item marks it
  * read *before* navigating (await, but navigation proceeds even on failure), a
- * header "모두 읽음"/"모두 보관" pair calls read-all/archive-all, and each item has
- * a single archive button. Phase 2 adds an "확인(ack)" button to pinned urgent
- * items; ack'd urgent items drop out of the pinned section (pinned = is_urgent &&
- * !ack_at, not the Phase 1A is_urgent && !is_read).
+ * header "모두 읽음"/"모두 삭제" pair calls read-all/archive-all, and each item has
+ * a "확인"(read, no navigation) button while unread plus a delete button.
+ * "삭제" is the per-user archive endpoint — the shared Notification row stays
+ * (other recipients still see it); archived items are never listed again.
+ * Phase 2 adds an "확인(ack)" button to pinned urgent items; ack'd urgent items
+ * drop out of the pinned section (pinned = is_urgent && !ack_at, not the
+ * Phase 1A is_urgent && !is_read).
  *
  * Badge count SSOT: window.FOMSNotificationBadge (defined inline in
  * layout_scripts.html). This module only *subscribes* to that shared pub/sub for
@@ -158,11 +161,18 @@
         + ' data-foms-notif-ack data-foms-notif-id="' + esc(id) + '">'
         + '<i class="fas fa-check" aria-hidden="true"></i> 확인</button>';
     }
+    if (!pinned && unread && id != null) {
+      // 이동 없이 읽음만 처리한다(항목 본문 탭은 읽음 + 이동).
+      actions += '<button type="button" class="erp-mobile-notif-item__act erp-mobile-notif-item__act--read"'
+        + ' data-foms-notif-read-item data-foms-notif-id="' + esc(id) + '"'
+        + ' aria-label="이 알림 확인(읽음)" title="확인">'
+        + '<i class="fas fa-check" aria-hidden="true"></i> 확인</button>';
+    }
     if (id != null) {
       actions += '<button type="button" class="erp-mobile-notif-item__act erp-mobile-notif-item__act--archive"'
         + ' data-foms-notif-archive-item data-foms-notif-id="' + esc(id) + '"'
-        + ' aria-label="이 알림 보관" title="보관">'
-        + '<i class="fas fa-box-archive" aria-hidden="true"></i></button>';
+        + ' aria-label="이 알림 삭제" title="삭제">'
+        + '<i class="fas fa-trash-can" aria-hidden="true"></i></button>';
     }
 
     return '<div class="' + cls + '" data-foms-notif-row'
@@ -264,6 +274,28 @@
       .finally(function () { navigateTo(href); });
   }
 
+  function onReadItem(btn) {
+    var id = btn.getAttribute('data-foms-notif-id');
+    if (id == null) return;
+    if (btn.disabled) return;
+    btn.disabled = true;
+    postWrite('/erp/api/notifications/' + encodeURIComponent(id) + '/read')
+      .then(function () {
+        var row = btn.closest('[data-foms-notif-row]');
+        if (row) {
+          row.classList.remove('is-unread');
+          row.removeAttribute('data-foms-notif-unread');
+        }
+        if (btn.parentNode) btn.parentNode.removeChild(btn);
+        refreshBadge();
+      })
+      .catch(function (err) {
+        console.error('notification read error:', err);
+        btn.disabled = false;
+        toast('알림 확인에 실패했습니다.');
+      });
+  }
+
   function onArchiveItem(btn) {
     var id = btn.getAttribute('data-foms-notif-id');
     if (id == null) return;
@@ -278,7 +310,7 @@
       .catch(function (err) {
         console.error('notification archive error:', err);
         btn.disabled = false;
-        toast('알림 보관에 실패했습니다.');
+        toast('알림 삭제에 실패했습니다.');
       });
   }
 
@@ -313,13 +345,13 @@
 
   function onArchiveAll(btn) {
     if (btn && btn.disabled) return;
-    if (!window.confirm('모든 알림을 보관하시겠습니까?')) return;
+    if (!window.confirm('모든 알림을 삭제할까요?')) return;
     if (btn) btn.disabled = true;
     postWrite('/erp/api/notifications/archive-all')
       .then(function () { refreshBadge(); loadList(); })
       .catch(function (err) {
         console.error('notification archive-all error:', err);
-        toast('모두 보관에 실패했습니다.');
+        toast('모두 삭제에 실패했습니다.');
       })
       .finally(function () { if (btn) btn.disabled = false; });
   }
@@ -389,6 +421,9 @@
 
     var ackBtn = e.target.closest('[data-foms-notif-ack]');
     if (ackBtn) { e.preventDefault(); e.stopImmediatePropagation(); onAck(ackBtn); return; }
+
+    var readBtn = e.target.closest('[data-foms-notif-read-item]');
+    if (readBtn) { e.preventDefault(); e.stopImmediatePropagation(); onReadItem(readBtn); return; }
 
     var archiveBtn = e.target.closest('[data-foms-notif-archive-item]');
     if (archiveBtn) { e.preventDefault(); e.stopImmediatePropagation(); onArchiveItem(archiveBtn); return; }
