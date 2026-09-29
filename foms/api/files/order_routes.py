@@ -57,6 +57,7 @@ from foms.services.order_attachment_permissions import (
 )
 from foms.services.sidefx_outbox import enqueue_side_effect
 from foms.services.storage import get_storage
+from foms.services.storage_delete_handler import SKIPPED_STILL_REFERENCED
 from models import DomainSideEffectOutbox, Order, OrderAttachment, OrderEvent
 
 #: 첨부 수명주기 이벤트 타입(라벨은 foms/services/order_event_display.py 소유).
@@ -758,7 +759,15 @@ def api_order_attachments_restore(order_id, attachment_id):
             )
 
         purge_rows = _attachment_purge_rows(db, attachment)
-        if not purge_rows and _last_delete_retained_file(db, attachment):
+        # 유예 안에 같은 key 가 다시 쓰여 핸들러가 모든 예약을 건너뛰었으면(DONE 이지만 안 지움)
+        # 파일은 남아 있다 — 파일 보존 휴지통 행과 같이 저장소를 확인해 되살린다.
+        purge_all_skipped = bool(purge_rows) and all(
+            row.status == "DONE"
+            and isinstance(row.payload, dict)
+            and row.payload.get(SKIPPED_STILL_REFERENCED)
+            for row in purge_rows
+        )
+        if purge_all_skipped or (not purge_rows and _last_delete_retained_file(db, attachment)):
             # 파일을 남긴 휴지통 행(교체된 옛 도면 등) — 예약이 없는 것이 정상이다.
             # 파일이 실제로 있을 때만 되살린다(읽기 1회). 없으면 사실대로 거절.
             if not attachment.storage_key or not get_storage().object_exists(attachment.storage_key):

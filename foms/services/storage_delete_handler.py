@@ -14,7 +14,8 @@ SIDEFX outbox 의 ``STORAGE_DELETE`` 행을 처리하는 **단일 공용 handler
   만들지 않는다 — child-only).
 * ``ORDER_EVENT`` + payload ``order_id``: 지우기 직전에 **다시 확인**한다(M7, 2b). 예약 뒤
   유예 기간 사이에 그 key 가 다시 도면 기록(현재본·이력·마법사)이나 살아 있는 첨부 행에
-  쓰이게 됐으면 지우지 않고 정상 반환(DONE)한다. 주문이 없으면(하드 삭제) 지금처럼 지운다.
+  쓰이게 됐으면 지우지 않고 payload 에 ``skipped_still_referenced`` 를 남긴 뒤 정상 반환(DONE)한다
+  (첨부 복구 API 가 이 표시로 "파일이 남아 있다" 를 안다). 주문이 없으면(하드 삭제) 지금처럼 지운다.
 * **그 밖의 도메인**: child terminal 은 producer(각 도메인 cleanup)가 enqueue 시점에 이미
   마크했으므로 handler 는 ``object_key`` R2 삭제만 한다. ``object_key`` 가 없으면 안전 skip +
   로그(미지원 payload — DEAD 로 몰지 않음).
@@ -41,6 +42,9 @@ _LOGGER = logging.getLogger("sidefx_storage_delete")
 WIZARD_PENDING = "WIZARD_PENDING"
 #: 주문 이벤트가 예약한 삭제(첨부 purge·전달 취소 회수·도면 이미지 교체 등) — 지우기 전 재확인.
 ORDER_EVENT = "ORDER_EVENT"
+#: 재확인에서 "아직 쓰인다" 로 건너뛴 행의 payload 표시. 첨부 복구 API 가 이 표시를 보고
+#: 파일이 남아 있는지 저장소로 확인한다(DONE 이어도 실제로는 안 지웠다).
+SKIPPED_STILL_REFERENCED = "skipped_still_referenced"
 
 
 class StorageDeleteError(RuntimeError):
@@ -87,6 +91,9 @@ def handle_storage_delete(row: DomainSideEffectOutbox) -> None:
     if row.source_domain == ORDER_EVENT and _still_referenced(row, object_key):
         _LOGGER.info(
             "[storage-delete] still referenced — skip (id=%s key=%s)", row.id, object_key)
+        # JSON 컬럼은 제자리 수정을 못 알아채므로 새 dict 로 재대입한다(worker 의 DONE 과 같은 tx).
+        row.payload = {**(row.payload if isinstance(row.payload, dict) else {}),
+                       SKIPPED_STILL_REFERENCED: True}
         return
     _delete_object(object_key)
 
