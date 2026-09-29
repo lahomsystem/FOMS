@@ -175,3 +175,23 @@ def test_cancel_guidance_no_longer_claims_files_are_deleted():
     assert "erp-dashboard-entry.js') }}?v=20260929l" in _read("templates/partials/shared/layout_scripts.html")
     grid = _read("templates/orders/partials/dashboard_grid.html")
     assert "REVISION_CANCELLED" in grid and "수정요청 취소" in grid
+
+
+def test_detail_summary_latest_event_labels_cover_cancel_and_confirm():
+    """ERP 상세 '도면 창구 요약' 최근 이벤트 라벨이 수정요청 취소·수령 확정·주문 변경을 안다(2b 리뷰 P3).
+
+    수정요청 취소는 이력 끝에 REVISION_CANCELLED 를 붙이므로, 라벨 표에 없으면 취소한
+    주문마다 '이력 없음 · <취소자>' 로 잘못 보인다.
+    """
+    js = _read("static/js/orders/dashboard/erp-dashboard-detail-dom.js")
+    block = js[js.index("const latestEvent = drawHistory"):js.index("const latestWho")]
+    for action, label in (
+        ("TRANSFER", "도면 전달"),
+        ("REQUEST_REVISION", "수정 요청"),
+        ("CANCEL_TRANSFER", "전달 취소"),
+        ("REVISION_CANCELLED", "수정요청 취소"),
+        ("CONFIRM_RECEIPT", "수령 확정"),
+        ("ERP_ORDER_CHANGED", "주문 변경"),
+    ):
+        assert f"{action}: '{label}'" in block, action
+    assert "erp-dashboard-detail-dom.js?v=20260929e" in _read("static/js/orders/erp-dashboard-entry.js")
