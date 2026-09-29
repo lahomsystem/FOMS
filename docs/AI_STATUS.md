@@ -12,7 +12,7 @@ Flask 3.1 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 ## 진행 중
 - [2026-09-29] **네이버 워크벤치 모바일(deploy)** — 대조 탭 삭제 · 폰 상단 한 줄+탭 2 · 이력 카드+상태 시트. 남음: 전체 화면 상세, 관리 시트
 - [2026-09-28] **v3 셸 삭제 + 모바일 3건 + 광폭 PC 모바일 표면 생략 + PC 배지(PR #433·#434 · production `824b2c1d3`)** — `FOMS_V3_SHELL_COHORT` 는 v2 코호트 키(삭제 금지). 잔여: 아이폰 실기기 날짜 탭
-- [2026-09-29] **야간 purge 미실행 → 러너 `tools/cron/nightly.py`(deploy)** — cron 이 Dockerfile 빌드라 `A && B && C` 가 셸 없이 첫 명령만 돌았다(운영 만료 receipt 2952). 스테이징 하룻밤 확인 뒤 운영. 스펙 `docs/specs/2026-09-29-nightly-cron-single-runner-spec.md`
+- [2026-09-29] **야간 purge 미실행 → 러너 `tools/cron/nightly.py`(PR #436 · production `59afb4c33`)** — cron 이 Dockerfile 빌드라 `A && B && C` 가 첫 명령만 돌았다. 두 환경 대시보드 명령 갱신 뒤 즉시 실행: 운영 만료 receipt 2998 삭제(활성 454 보존), 스테이징 368. 잔여 없음
 - [2026-09-29] **psycopg3 단계 1 — 드라이버 이름 한 곳(PR #435 · production `0b356a0cb`)** — 동작 변화 0. 단계 2·3 승인 대기
 - [2026-09-28] **실측 모바일 카드 현장 메모(deploy)** — 주소·연락처 특이사항은 그 줄 밑, 실측 특이사항·비고·네이버 배송메모는 "현장 메모" 상자, 목록 줄 "가기 전 확인 N". `foms/services/measurement/site_memo.py`. 잔여: 스테이징 실화면
 - [2026-09-23] **완료 quest 재전이 버튼 = 승인 버튼 이름 · AS 접수 완료 알림 · 발송 기록 칩 통합(PR #419·#420·#423 · production `c74ef1f5e`)** — erp-send-trace.js. 잔여: 링크 칩 실화면
