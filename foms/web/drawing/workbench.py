@@ -34,6 +34,7 @@ from foms.services.erp_display import (
     manager_display_name,
 )
 from foms.services.erp_product_items import build_product_items_for_order
+from foms.services.files.upload_authz import validate_upload_key
 from foms.services.notifications.drawing_order_change import (
     _change_parts,
     drawing_work_started,
@@ -365,8 +366,79 @@ def _build_handoff_viewer_files(handoff_files: list[Mapping[str, Any]]) -> list[
     return viewer_files
 
 
-def _build_handoff_thread(history: list[Mapping[str, Any]]) -> list[dict[str, Any]]:
-    """Build chat-like mobile timeline entries from order-level drawing history."""
+def _revision_reference_files(order_id: int | None, files: Any) -> tuple[list[dict[str, Any]], int]:
+    """수정요청 참고 파일 중 이 주문 도면 창구 경로의 것만 열람 행으로 만든다.
+
+    이력의 ``view_url``·``download_url`` 은 요청 본문을 검증 없이 저장한 값이라(원장 M5)
+    화면에 싣지 않는다. URL 은 key 로 서버가 다시 만들고, key 는
+    ``orders/<이 주문 id>/drawing_gateway/`` 아래 정본 경로(``validate_upload_key`` —
+    정규화·안전 문자·주문 일치)만 통과시킨다. 그 URL 은 ``/api/files/view`` 가 key 의
+    주문 읽기 권한으로 한 번 더 검사한다.
+
+    Args:
+        order_id: 이 화면의 주문 id. ``None`` 이면 어떤 파일도 링크하지 않는다.
+        files: REQUEST_REVISION 이력의 ``files`` 값.
+
+    Returns:
+        ``(열 수 있는 파일 행 목록, 열 수 없어 개수만 세는 파일 수)``.
+        행은 ``{key, filename, view_url, download_url, is_image}``.
+    """
+    if not isinstance(files, list):
+        return [], 0
+    prefix = f'orders/{order_id}/drawing_gateway/' if order_id else ''
+    rows: list[dict[str, Any]] = []
+    hidden = 0
+    for file_obj in files:
+        key = file_obj.get('key') if isinstance(file_obj, Mapping) else None
+        if not (
+            prefix
+            and isinstance(key, str)
+            and key == key.strip()
+            and key.startswith(prefix)
+            and validate_upload_key(key, order_id)[0]
+        ):
+            hidden += 1
+            continue
+        filename = str(file_obj.get('filename') or '').strip() or key.rsplit('/', 1)[-1]
+        rows.append({
+            'key': key,
+            'filename': filename,
+            'view_url': f'/api/files/view/{key}',
+            'download_url': f'/api/files/download/{key}',
+            'is_image': _is_drawing_image(key),
+        })
+    return rows, hidden
+
+
+def _revision_thread_fields(event: Mapping[str, Any], order_id: int | None) -> dict[str, Any]:
+    """수정요청 말풍선 전용 값 — 반영 체크 상태·요청 식별값·열 수 있는 참고 파일.
+
+    요청 식별값(``request_at``·``by_user_id``)은 PC 요청사항 칸의 토글(``.js-revision-check``)이
+    ``POST /api/orders/<id>/request-revision-check`` 에 보내는 두 값과 같은 규칙으로 만든다.
+    """
+    review_raw = event.get('review_check')
+    review = review_raw if isinstance(review_raw, Mapping) else {}
+    ref_files, ref_hidden_count = _revision_reference_files(order_id, event.get('files'))
+    return {
+        'revision_check': {
+            'request_at': str(event.get('at') or event.get('transferred_at') or '').strip(),
+            'by_user_id': event.get('by_user_id') or '',
+            'checked': bool(review.get('checked')),
+            'checked_by_name': str(review.get('checked_by_name') or '').strip(),
+            'checked_at_text': format_datetime_kst(review.get('checked_at'), '%m-%d %H:%M') or '',
+        },
+        'ref_files': ref_files,
+        'ref_hidden_count': ref_hidden_count,
+    }
+
+
+def _build_handoff_thread(
+    history: list[Mapping[str, Any]], order_id: int | None = None
+) -> list[dict[str, Any]]:
+    """Build chat-like mobile timeline entries from order-level drawing history.
+
+    ``order_id`` 가 있으면 수정요청 말풍선에 반영 체크 값과 이 주문 참고 파일 링크를 붙인다.
+    """
     thread = []
     indexed_history = [
         (idx, event) for idx, event in enumerate(history) if isinstance(event, Mapping)
@@ -404,7 +476,7 @@ def _build_handoff_thread(history: list[Mapping[str, Any]]) -> list[dict[str, An
             )
             if not changes:
                 continue  # 최초 입력 줄만 있던 이벤트 — 타임라인에서도 뺀다(note 는 소음 원문).
-        thread.append({
+        entry = {
             **event,
             'side': side,
             'tag': event.get('action_label') or action_labels.get(action) or action or '-',
@@ -412,7 +484,10 @@ def _build_handoff_thread(history: list[Mapping[str, Any]]) -> list[dict[str, An
             'files': list(event.get('files') or []) if isinstance(event.get('files'), list) else [],
             'changes': changes if changes is not None else event.get('changes'),
             'acked_at_text': format_datetime_kst(event.get('acked_at'), '%m-%d %H:%M') or '',
-        })
+        }
+        if action == 'REQUEST_REVISION':
+            entry.update(_revision_thread_fields(event, order_id))
+        thread.append(entry)
     return thread
 
 
@@ -978,7 +1053,11 @@ def erp_drawing_workbench_detail(order_id):
                 pass  # failopen: intentional: 전달취소 권한 파싱 실패 시 False 유지
     # 전달취소는 표시상 도면팀+관리자로 한정 — self-cancel 레거시 분기(by_user_id 일치)가
     # 팀 무관하게 통과시키던 문제를 최종 게이트로 봉합(과거 데이터 호환은 위 분기가 유지).
-    can_cancel_transfer = bool(can_cancel_transfer and is_transfer_authorized_team)
+    # 서버(cancel-transfer)는 TRANSFERRED 에서만 받는다 — 수정요청(RETURNED)·확정(CONFIRMED)
+    # 에서 버튼을 그리면 누르는 순간 400 이다(원장 M11). PC·모바일 두 표면이 이 값 하나만 본다.
+    can_cancel_transfer = bool(
+        can_cancel_transfer and is_transfer_authorized_team and drawing_status == 'TRANSFERRED'
+    )
 
     customer_name = (((s_data.get('parties') or {}).get('customer') or {}).get('name')) or '-'
     manager_name = manager_display_name(s_data.get('parties')) or (order.manager_name or '-') or '-'
@@ -1028,7 +1107,7 @@ def erp_drawing_workbench_detail(order_id):
         len(handoff_files),
         transfer_round,
     )
-    handoff_thread = _build_handoff_thread(history)
+    handoff_thread = _build_handoff_thread(history, order_id=order.id)
 
     product_items = build_product_items_for_order(db, order)
     order_change_pending = is_order_change_pending(s_data)

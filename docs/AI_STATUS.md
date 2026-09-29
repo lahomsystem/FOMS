@@ -31,7 +31,7 @@ Flask 3.1 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 
 ## 아키텍처 요약
 - 파일 업로드: 브라우저→R2 Presigned PUT 직접 (배치+병렬, UUID키)
-- 도면 생명주기: 발송(보존)→취소(신규만삭제)→확정(구버전정리)
+- 도면 생명주기: 발송(보존)→취소(신규만삭제)→확정(삭제없음)
 - 지도: 카카오 SDK 클라 렌더(head 조기 부팅)+folium 폴백, pending만 계단 폴링
 - 성능/조회: `OrderScheduleDate`(날짜정규화), Partial Indexes, `Order.active_filter()` / `dashboard_active_filter(days=60)` 병행 계약 존재
 - 권한: CONSTRUCTION팀 출고/시공만, 도면팀 발송/취소

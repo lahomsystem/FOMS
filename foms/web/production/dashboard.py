@@ -403,10 +403,11 @@ def _prod_sheet_load_md(value: Any) -> str:
 
 
 def _prod_sheet_drawing_thumb(sd: dict[str, Any]) -> dict[str, str] | None:
-    """도면 전달본 썸네일: resolve_final_drawing_files(전달 SSOT)의 첫 이미지.
+    """도면 전달본 썸네일: resolve_final_drawing_files(수령 확정과 같은 함수)의 첫 이미지.
 
-    전달 이력을 정본으로 재구성한 최종 도면 파일(view_url/download_url same-origin)을
-    쓴다. 이미지 파일을 우선 정렬해 <img> 렌더가 가능한 항목을 앞세운다.
+    전달 API 가 계산해 둔 현재 도면 목록(``drawing_current_files``, view_url/download_url
+    same-origin)을 쓴다 — 수령 확정본과 같은 답이다. 이미지 파일을 우선 정렬해 <img> 렌더가
+    가능한 항목을 앞세운다.
     """
     files = resolve_final_drawing_files(sd)
     ordered = sorted(

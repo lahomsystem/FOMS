@@ -10,6 +10,13 @@
 
 ---
 
+### [2026-09-29] 도면 수령 확정은 파일을 지우지 않는다 — 교체된 옛 도면은 화면에서만 뺀다
+- **키워드**: 도면, 수령확정, drawing_confirm_cleanup, superseded_drawing_keys, R2, 파일삭제, C8, C8-X
+- **결정**: 수령 확정은 `drawing_current_files` 와 `CONFIRM_RECEIPT.files` 만 정한다. 스토리지·`OrderAttachment` 삭제는 없다. 이력으로 현재본을 다시 계산하지 않는다(전달 API 가 계산해 둔 `drawing_current_files` 를 그대로 쓴다). 교체된 옛 도면(TRANSFER·CONFIRM_RECEIPT 에 올랐지만 현재본에 없는 key)은 고객 링크·목록 API·생산/시공/출고 미리보기·발주 PUSH 에서 뺀다.
+- **이유**: 수정요청 참고사진·첨부 탭 업로드가 R2 에서 삭제됐고(C8, 운영 2장 손실), 재계산이 전달 API 와 다르게 풀려 옛 도면을 되살렸다(C8-X). 근거 원장 `docs/plans/2026-09-29-drawing-defects-verification-ledger.md`.
+- **영향**: `foms/services/drawing_confirm_cleanup.py`, `foms/api/share.py`, `foms/api/files/order_routes.py`, `foms/api/channel/channel_integration.py`, `foms/services/construction_dashboard_display.py`, `foms/services/erp_mobile_order_display.py`.
+- **대체**: `docs/evolution/EVOLUTION_DECISIONS.md` [2026-02-27] 도면 파일 생명주기.
+
 ### [2026-09-29] psycopg2 를 저장소에서 뺀다 (psycopg3 전환 단계 3)
 - **키워드**: psycopg2, psycopg2-binary, psycopg, dict_row, Jsonb, ensure_schema, data_doctor, bulk_complete_past_construction, pg_error_code
 - **결정**: psycopg2 를 직접 쓰던 곳을 모두 psycopg 로 옮기고 `requirements.txt` 에서 `psycopg2-binary` 를 뺀다. 도구는 `RealDictCursor` → `row_factory=dict_row`, `extras.Json` → `Jsonb`(대상 컬럼은 모두 JSONB), 연결은 `ClientCursor`(도구 SQL 이 psycopg2 바인딩 기준). `ensure_schema.py`(predeploy)·일회성 `scripts/migrations/` 는 `db_url_resolver` 정본 함수를 쓴다. `pg_error_code` 의 `pgcode` 분기는 죽은 코드라 삭제(`sqlstate` 만).
