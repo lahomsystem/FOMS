@@ -32,6 +32,17 @@ def _assert_bar_shape(cs):
         assert item["key"] in BAR_KEYS
         assert item["slot"] in ("main", "more")
         assert item["label"]
+        assert "내 의견" not in item["label"], item
+        if item["key"] in ("rev_customer", "rev_sales", "rev_post"):
+            assert item["label"] == "수정 요청", item
+
+
+def test_revision_labels_are_unified_no_source_split():
+    """수정 요청은 "고객 요청"·"내 의견"으로 나누지 않는다 — 세 키 모두 같은 라벨 "수정 요청"."""
+    from foms.services.orders.drawing_customer_send_bar import _LABELS
+
+    assert {_LABELS[k][0] for k in ("rev_customer", "rev_sales", "rev_post")} == {"수정 요청"}
+    assert not any("내 의견" in label or "고객 요청" in label for label, _tone in _LABELS.values())
 
 
 def test_bar_transferred_unsent(app, client):

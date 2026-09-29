@@ -2,7 +2,9 @@
  * 도면 탭 '요청 고치기' 창(#dwRevisionEditModal) — 사용자 결정 Q5-③.
  *
  * 도면팀이 반영 체크하기 전의 마지막 수정요청(RETURNED)을 영업이 고친다.
- * POST /api/orders/<id>/request-revision/edit  본문 {note, files, source, received_via, target_file_keys?}
+ * POST /api/orders/<id>/request-revision/edit  본문 {note, files, target_file_keys?}
+ * - 수정요청은 출처(고객·영업)를 나누지 않는다 — source·received_via 는 보내지 않는다
+ *   (서버 edit 는 보낸 칸만 고치므로 예전 값은 그대로 남는다).
  * - files 는 수정요청 files 계약(2b, drawing_revision_files) 그대로: 남길 기존 항목 + 새로 올린 항목 전체 목록.
  *   새 파일은 작업실 인라인 스크립트의 업로드 경로(window.fomsDrawingUploadRevisionFiles)로 올린다 —
  *   같은 drawing_gateway/revisions 폴더·같은 완료 라우트라 서버 검사를 그대로 통과한다.
@@ -32,21 +34,12 @@
   }
   function q(root, sel) { return root ? root.querySelector(sel) : null; }
   function attr(el, name) { return el ? String(el.getAttribute(name) || '') : ''; }
-  function checked(root, name) {
-    var el = q(root, 'input[name="' + name + '"]:checked');
-    return el ? el.value : '';
-  }
   function show(el, text) {
     if (!el) return;
     el.textContent = text || '';
     el.classList.toggle('d-none', !text);
   }
   function list(v) { return Array.isArray(v) ? v : []; }
-
-  function refreshSource(root) {
-    var via = q(root, '[data-edit-via-block]');
-    if (via) via.classList.toggle('d-none', checked(root, 'dw-edit-source') !== 'customer');
-  }
 
   /** 지금 붙어 있는 파일 목록 — 이름은 textContent 로만 넣는다(저장 값 신뢰 금지). */
   function renderFiles(root) {
@@ -81,12 +74,6 @@
   function reset(root) {
     busy = false;
     prefill = safeJsonParse(attr(root, 'data-edit-revision'), {});
-    var source = prefill.source === 'customer' ? 'customer' : 'sales';
-    var radio = q(root, '#dw-edit-source-' + source);
-    if (radio) radio.checked = true;
-    Array.prototype.forEach.call(root.querySelectorAll('input[name="dw-edit-via"]'), function (el) {
-      el.checked = !!prefill.received_via && el.value === prefill.received_via;
-    });
     var targets = list(prefill.target_file_keys).length ? list(prefill.target_file_keys) : list(prefill.target_drawing_keys);
     Array.prototype.forEach.call(root.querySelectorAll('input[name="dw-edit-target"]'), function (el) {
       el.checked = targets.indexOf(el.value) !== -1;
@@ -99,7 +86,6 @@
     if (btn) btn.disabled = false;
     show(q(root, '[data-edit-error]'), '');
     renderFiles(root);
-    refreshSource(root);
   }
 
   function keptFiles(root) {
@@ -147,10 +133,7 @@
       if (newFiles.length && list(uploaded).length !== newFiles.length) {
         throw new Error('일부 파일을 올리지 못했어요. 다시 해 주세요.');
       }
-      var source = checked(root, 'dw-edit-source') === 'customer' ? 'customer' : 'sales';
-      var body = { note: note, files: kept.concat(list(uploaded)), source: source };
-      var via = checked(root, 'dw-edit-via');
-      if (source === 'customer' && via) body.received_via = via;
+      var body = { note: note, files: kept.concat(list(uploaded)) };
       if (targets.length) body.target_file_keys = targets;
       var res = await fetch('/api/orders/' + encodeURIComponent(orderId) + '/request-revision/edit', {
         method: 'POST',
@@ -177,9 +160,6 @@
 
   document.addEventListener('show.bs.modal', function (e) {
     if (e.target && e.target.id === MODAL_ID) reset(e.target);
-  });
-  document.addEventListener('change', function (e) {
-    if (e.target && e.target.name === 'dw-edit-source') refreshSource(document.getElementById(MODAL_ID));
   });
   document.addEventListener('click', function (e) {
     var t = e.target && e.target.closest ? e.target.closest('[data-edit-submit]') : null;

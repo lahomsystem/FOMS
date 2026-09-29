@@ -13,6 +13,8 @@ Jinja 로 쓰면 반드시 한쪽이 어긋난다(2차 M14 사례).
   나머지 목록 순서. 영업 쪽 주 버튼 하나는 늘 ``main`` 이다. PC 결정 바는 세로라 slot 을 무시한다.
 * ``urgent_call`` 은 도면 쪽(도면 담당·도면팀·관리자) PC 전용이다. 모바일 바는 긴급 호출을 이미
   자기 블록(``[data-foms-urgent-call]``)으로 그리므로 이 항목을 건너뛴다. slot 은 늘 ``main``.
+* 수정 요청은 "고객 요청"·"내 의견"으로 나누지 않는다(2026-09-30 사용자 결정). ``rev_customer`` ·
+  ``rev_sales`` · ``rev_post`` 는 키·톤만 다르고 라벨은 모두 "수정 요청"이다. 키는 표면 계약이라 남긴다.
 """
 from __future__ import annotations
 
@@ -24,11 +26,11 @@ from foms.services.orders.confirm_drawing_gate import normalize_stage_code
 _LABELS: dict[str, tuple[str, str]] = {
     "send": ("고객에게 보내기", "primary"),
     "resend": ("다시 보내기", "secondary"),
-    "rev_customer": ("고객이 고쳐 달래요", "warning"),
-    "rev_sales": ("내 의견", "secondary"),
+    "rev_customer": ("수정 요청", "warning"),
+    "rev_sales": ("수정 요청", "secondary"),
     "ok": ("고객 OK · 확정", "success"),
     "ok_no_customer": ("확정", "secondary"),
-    "rev_post": ("고객이 또 바꿔 달래요", "warning"),
+    "rev_post": ("수정 요청", "warning"),
     "approve_confirm": ("고객 컨펌하고 생산으로", "success"),
     "production": ("생산 현황 보기", "link"),
     "cancel_revision": ("수정요청 취소", "secondary"),

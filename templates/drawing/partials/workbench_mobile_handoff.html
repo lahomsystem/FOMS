@@ -33,7 +33,7 @@
 {% macro cs_bar_attrs(item, order_id, selected_key) -%}
 data-bar-key="{{ item.key }}"
 {%- if item.key in ('send', 'resend') %} data-bs-toggle="modal" data-bs-target="#dwCustomerSendModal" data-order-id="{{ order_id }}" data-customer-send-mode="{{ 'again' if item.key == 'resend' else 'first' }}"
-{%- elif item.key in ('rev_customer', 'rev_post', 'rev_sales') %} data-bs-toggle="modal" data-bs-target="#dwRevisionModal" data-revision-source="{{ 'sales' if item.key == 'rev_sales' else 'customer' }}" data-drawing-handoff-action="revision" data-drawing-key="{{ selected_key }}"
+{%- elif item.key in ('rev_customer', 'rev_post', 'rev_sales') %} data-bs-toggle="modal" data-bs-target="#dwRevisionModal" data-drawing-handoff-action="revision" data-drawing-key="{{ selected_key }}"
 {%- elif item.key in ('ok', 'ok_no_customer') %} data-bs-toggle="modal" data-bs-target="#dwCustomerOkModal" data-order-id="{{ order_id }}" data-customer-ok-mode="{{ 'no_customer' if item.key == 'ok_no_customer' else 'customer' }}"
 {%- elif item.key == 'approve_confirm' %} data-customer-approve data-order-id="{{ order_id }}"
 {%- elif item.key == 'cancel_revision' %} data-drawing-handoff-action="cancel-revision"
