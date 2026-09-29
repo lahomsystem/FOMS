@@ -752,20 +752,39 @@
     konvaStage.on('mousedown', onStageMouseDown);
     konvaStage.on('pointerdown', onStagePointerDown);   // 펜슬/마우스 프리핸드 + 입력종류 추적(팜 리젝션)
     konvaStage.on('dblclick', onStageDblClick);
+    konvaStage.on('mousemove', onStageAltHover);
     wireTransformerGroup();
+  }
+
+  /* Alt 를 누른 채 객체(또는 다중 선택 박스) 위에 있으면 복사 커서 — Alt+드래그 복제 신호.
+     리사이즈/회전 앵커는 제외(Alt 로 복제되지 않는다). Alt 누름/뗌은 keydown/keyup 이 다시 맞춘다. */
+  var altHoverAnno = false;
+  function onStageAltHover(e) {
+    var t = e.target;
+    var p = t && t.getParent ? t.getParent() : null;
+    altHoverAnno = !!(t && t !== konvaStage && (t.hasName('anno') || (p && p.hasName('anno')) ||
+      (p === transformer && t.hasName('back'))));
+    syncAltCopyCursor(!!(e.evt && e.evt.altKey));
+  }
+  function syncAltCopyCursor(altDown) {
+    if (!els.anno) { return; }
+    els.anno.classList.toggle('dws-alt-copy', !!(canSave && altDown && altHoverAnno && annoMode === 'select'));
   }
 
   /** 다중 선택(그룹) 이동/변형 배선 — 단일 선택은 노드별 핸들러(wireNode) 소관.
      shouldOverdrawWholeArea(true) 로 그룹 bbox 영역 드래그=전체 함께 이동, 코너 앵커=그룹 리사이즈/회전.
      각 핸들러는 isMultiSelect() 게이트로 단일 선택 경로(노드 핸들러)와 이중 처리를 회피한다. */
   function wireTransformerGroup() {
-    transformer.on('dragstart', function () {
+    transformer.on('dragstart', function (e) {
       if (!isMultiSelect()) { return; }
       if (lastPointerType === 'touch') { transformer.stopDrag(); return; }   // 손가락 그룹 드래그 금지(팜 리젝션)
-      dragActive = true; recordUndo();
+      dragActive = true;
+      if (e && e.evt && e.evt.altKey) { startAltDuplicate(selectedIds.slice()); }   // Alt+드래그 = 제자리 복제
+      else { recordUndo(); }
     });
     transformer.on('dragmove', function () { if (!isMultiSelect()) { return; } positionAlignToolbar(); });
     transformer.on('dragend', function () {
+      altDupArmed = false;
       if (!isMultiSelect()) { return; }
       dragActive = false;
       selectedNodes().forEach(commitNode);   // commitNode 내부 markDirty
@@ -1020,15 +1039,17 @@
       else { selectSingle(id); }
     });
     // 아래 드래그/변형 핸들러는 단일 선택 전용 — 다중(그룹)은 transformer 레벨 핸들러가 처리.
-    node.on('dragstart', function () {
+    node.on('dragstart', function (e) {
       if (annoMode !== 'select') { node.stopDrag(); return; }
       if (lastPointerType === 'touch') { node.stopDrag(); return; }   // 손가락 드래그 금지(팜 리젝션 — 손가락=이동/핀치 전용)
-      if (isMultiSelect()) { return; }
+      var alt = !!(e && e.evt && e.evt.altKey);
+      if (isMultiSelect()) { if (alt) { startAltDuplicate(selectedIds.slice()); } return; }
       dragActive = true;
-      recordUndo();
+      if (alt) { startAltDuplicate([node.getAttr('objId')]); }   // Alt+드래그 = 제자리 복제(포토샵)
+      else { recordUndo(); }
     });
     node.on('dragmove', function () { if (isMultiSelect()) { return; } positionMiniToolbar(); });
-    node.on('dragend', function () { if (isMultiSelect()) { return; } dragActive = false; commitNode(node); });
+    node.on('dragend', function () { altDupArmed = false; if (isMultiSelect()) { return; } dragActive = false; commitNode(node); });
     node.on('transformstart', function () { if (isMultiSelect()) { return; } dragActive = true; recordUndo(); });
     node.on('transform', function () { if (isMultiSelect()) { return; } applyLiveTransform(node); positionMiniToolbar(); });
     node.on('transformend', function () { if (isMultiSelect()) { return; } dragActive = false; commitNode(node); });
@@ -1496,6 +1517,42 @@
     rebuildAnno();
     selectedIds = ids;
     applySelection();
+  }
+
+  /* ---- Alt+드래그 복제(포토샵 방식) -----------------------------------------
+     Alt(맥 Option)를 누른 채 객체(텍스트·이미지·도형 전부)를 끌기 시작하면 제자리에 복제본을
+     남기고, 끄는 쪽은 그대로 이동한다. 끄는 노드는 원본 id 를 유지하고 복제본은 한 층 아래에
+     놓이므로 화면·저장 결과는 포토샵 Alt+드래그와 같다. recordUndo 를 복제 전에 한 번만
+     찍어 Ctrl+Z 한 번에 복제+이동이 함께 되돌려진다. 다중 선택은 노드·transformer dragstart 가
+     같은 제스처에서 둘 다 올 수 있어 altDupArmed 로 한 번만 처리하고 dragend 에서 푼다. */
+  var altDupArmed = false;
+
+  function startAltDuplicate(ids) {
+    if (altDupArmed) { return; }
+    altDupArmed = true;
+    recordUndo();
+    var cs = currentSheet();
+    if (!cs) { return; }
+    var objs = cs.objects || (cs.objects = []);
+    if (objs.length + ids.length > 200) { toast('한 시트의 객체가 200개를 넘어 복제할 수 없습니다.'); return; }
+    ids.forEach(function (id) {
+      var node = nodeById[id];
+      var idx = -1;
+      for (var i = 0; i < objs.length; i++) { if (objs[i].id === id) { idx = i; break; } }
+      if (idx === -1 || !node) { return; }
+      var o = JSON.parse(JSON.stringify(objs[idx]));   // state 는 드래그 전 위치 그대로
+      o.id = rid('o-');
+      objs.splice(idx, 0, o);   // 원본 바로 아래 층
+      var n = buildNode(o);
+      if (!n) { return; }
+      konvaLayer.add(n);
+      n.zIndex(node.zIndex());   // 끄는 원본이 위로 한 칸 밀려 복제본 위에 보인다
+      n.draggable(canSave);
+      nodeById[o.id] = n;
+    });
+    transformer.moveToTop();
+    konvaLayer.batchDraw();
+    markDirty();
   }
 
   function pastePlainTextAsObject(text) {
@@ -4508,7 +4565,10 @@
     // e.key==='Alt' 단독일 때만 — Alt+화살표(뒤로/앞으로) 등 조합키는 e.key 가 달라 영향 없다.
     window.addEventListener('keydown', function (e) {
       if (e.key === 'Alt' && !e.ctrlKey && !e.shiftKey && !e.metaKey) { e.preventDefault(); }
+      if (e.key === 'Alt') { syncAltCopyCursor(true); }
     });
+    window.addEventListener('keyup', function (e) { if (e.key === 'Alt') { syncAltCopyCursor(false); } });
+    window.addEventListener('blur', function () { syncAltCopyCursor(false); });
 
     /* 손가락 네비게이션(태블릿) — 1지 드래그=팬, 2지=핀치 확대(중점 고정).
        touch-action:none 이라 네이티브 스크롤/줌은 꺼져 있고 여기서 전량 구현한다.

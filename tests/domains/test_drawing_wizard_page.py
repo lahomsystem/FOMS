@@ -124,3 +124,19 @@ def test_wizard_image_toolbar_exposes_trim_button(client):
     assert "여백 자르기" in body
     # 내용이 바뀐 wizard.js 는 SW staticCacheFirst 스테일 봉합 핀을 함께 올린다.
     assert "js/drawing/wizard.js') }}?v=20260908b" not in body
+
+
+def test_wizard_alt_drag_duplicates_in_place():
+    """포토샵처럼 Alt+드래그 = 제자리 복제. 단일(노드)·다중(transformer) 두 드래그 경로가
+    모두 dragstart 의 altKey 로 startAltDuplicate 를 부르고, 한 제스처 한 번만(altDupArmed)."""
+    from pathlib import Path
+
+    js = Path("static/js/drawing/wizard.js").read_text(encoding="utf-8")
+    assert "function startAltDuplicate(ids)" in js
+    assert js.count("e.evt.altKey") >= 2
+    assert js.count("startAltDuplicate(") >= 4  # 정의 1 + 단일 1 + 다중 노드 1 + transformer 1
+    assert js.count("altDupArmed = false;") >= 3  # 선언 1 + 노드·transformer dragend 해제
+    # Alt 누른 채 객체 위 = 복사 커서(앵커 제외), CSS 는 wizard.css 에만(인라인 금지).
+    assert "function syncAltCopyCursor(altDown)" in js
+    css = Path("static/css/contexts/drawing/wizard.css").read_text(encoding="utf-8")
+    assert ".dws-anno.dws-alt-copy canvas { cursor: copy; }" in css
