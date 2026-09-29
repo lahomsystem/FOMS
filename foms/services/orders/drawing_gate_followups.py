@@ -13,6 +13,14 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
+from foms.services.common.dashboard_cache import (
+    ATTACHMENT_DASHBOARD_FAMILIES,
+    DASHBOARD_FAMILY_CONSTRUCTION,
+    DASHBOARD_FAMILY_DRAWING,
+    DASHBOARD_FAMILY_PRODUCTION,
+    invalidate_dashboard_families,
+    invalidate_order_dashboard_families,
+)
 from foms.services.datetime_kst import now_utc_naive
 
 __all__ = [
@@ -79,13 +87,6 @@ def restore_customer_confirmation(sd: dict, cancelled_entry: Optional[dict], rem
 
 def invalidate_after_drawing_revision(order: Any) -> None:
     """수정요청·수정요청 취소 커밋 뒤 — 주문 단계 family + 생산·시공 family 를 비운다."""
-    from foms.services.common.dashboard_cache import (
-        DASHBOARD_FAMILY_CONSTRUCTION,
-        DASHBOARD_FAMILY_DRAWING,
-        DASHBOARD_FAMILY_PRODUCTION,
-        invalidate_order_dashboard_families,
-    )
-
     invalidate_order_dashboard_families(
         order,
         extra=(DASHBOARD_FAMILY_DRAWING, DASHBOARD_FAMILY_PRODUCTION, DASHBOARD_FAMILY_CONSTRUCTION),
@@ -94,9 +95,4 @@ def invalidate_after_drawing_revision(order: Any) -> None:
 
 def invalidate_after_drawing_transfer() -> None:
     """전달·전달 취소 커밋 뒤 — 첨부 행과 개수가 바뀌므로 첨부를 읽는 family 전부를 비운다."""
-    from foms.services.common.dashboard_cache import (
-        ATTACHMENT_DASHBOARD_FAMILIES,
-        invalidate_dashboard_families,
-    )
-
     invalidate_dashboard_families(*sorted(ATTACHMENT_DASHBOARD_FAMILIES))
