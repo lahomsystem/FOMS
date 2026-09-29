@@ -91,7 +91,7 @@
 
 ### 삭제된 내용 (원본)
 ```python
-STAGING_URL = 'postgresql://postgres:jDkSuQDkQZkGZCFmPMOnFoDaXNJebidd@...'
+STAGING_URL = 'postgresql://postgres:<비밀번호>@...'
 conn_stg = psycopg2.connect(STAGING_URL)
 # Staging DB 조회 스크립트
 ```

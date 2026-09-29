@@ -178,14 +178,20 @@ def test_dbapi_connections_use_client_side_binding(monkeypatch) -> None:
 
     seen: dict = {}
 
+    class FakeConnection:
+        server_cursor_factory = psycopg.ServerCursor
+
     def fake_connect(**kwargs):
         seen.update(kwargs)
-        return "connection"
+        return FakeConnection()
 
     monkeypatch.setattr(psycopg, "connect", fake_connect)
-    assert db_url_resolver.postgres_dbapi_connect({"host": "h", "dbname": "d"}) == "connection"
+    conn = db_url_resolver.postgres_dbapi_connect({"host": "h", "dbname": "d"})
     assert seen["cursor_factory"] is psycopg.ClientCursor
     assert seen["host"] == "h" and seen["dbname"] == "d"
+    # Named cursors (yield_per / stream_results) must not fall back to server-side binding.
+    assert conn.server_cursor_factory is not psycopg.ServerCursor
+    assert issubclass(conn.server_cursor_factory, psycopg.ServerCursor)
 
 
 def test_canonical_dialect_keeps_sql_compilation_cache_and_plain_binds() -> None:
