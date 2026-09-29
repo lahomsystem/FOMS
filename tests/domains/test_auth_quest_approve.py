@@ -19,6 +19,7 @@ from werkzeug.security import generate_password_hash
 from db import db_session
 from foms.services.datetime_kst import now_utc_naive
 from models import Order, OrderAssignment, OrderEvent, User
+from tests.support.confirm_seed import drawing_for_stage
 
 
 def _make_user(*, role: str, team: str, username: str) -> User:
@@ -92,7 +93,7 @@ def _create_order(*, stage: str, quests: list[dict], status: str | None = None) 
         product="붙박이장",
         status=status or stage,
         is_erp_order=True,
-        structured_data={"workflow": {"stage": stage}, "quests": quests},
+        structured_data={"workflow": {"stage": stage}, "quests": quests, **drawing_for_stage(stage)},
     )
     db_session.add(order)
     db_session.commit()

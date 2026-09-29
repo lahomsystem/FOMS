@@ -16,6 +16,7 @@ from db import db_session
 from foms.services.erp_quest_display import resolve_current_quest
 from foms.services.production_dashboard_display import build_production_enriched_rows
 from models import Order, OrderEvent, ProductionRun, User
+from tests.support.confirm_seed import drawing_for_stage
 
 
 def _make_user(username: str, *, role: str = "ADMIN", team: str = "SALES") -> User:
@@ -67,7 +68,7 @@ def _create_order(*, stage: str, sd: dict) -> Order:
         product="붙박이장",
         status=stage,
         is_erp_order=True,
-        structured_data=sd,
+        structured_data={**drawing_for_stage(stage), **sd},
         erp_stage_code=stage,
     )
     db_session.add(order)

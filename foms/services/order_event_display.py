@@ -44,7 +44,7 @@ _ADMIN_OVERRIDE_GATE_LABELS: dict[str, str] = {
     "HOLD_ACTIVE": "보류",
     "EVIDENCE_MISSING": "시공 증빙",
     "INVALID_STAGE": "단계 전제",
-    "COMMAND_REQUIRED": "도면 전용 경로",
+    "COMMAND_REQUIRED": "전용 버튼 경로",
     "DRAWING_STATUS": "도면 수령 전제",
     "AS_ACTIVE": "진행 중 AS",
     "OVERRIDE_BLOCK": "역행·건너뛰기 차단",

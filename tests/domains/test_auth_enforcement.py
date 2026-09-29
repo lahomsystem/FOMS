@@ -30,6 +30,7 @@ from foms.services.orders.order_mutation_policy import (
     POLICY_REGISTRY,
     load_policy_manifest,
 )
+from tests.support.confirm_seed import drawing_for_stage
 
 _MUTATION_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 
@@ -83,7 +84,7 @@ def _login(client, user_or_creds):
 
 def _make_order(stage_code="RECEIVED", *, quests=None):
     """ERP 주문 1건 생성. ``quests`` 를 주면 structured_data.quests 로 함께 저장한다."""
-    sd = {"workflow": {"stage": stage_code}}
+    sd = {"workflow": {"stage": stage_code}, **drawing_for_stage(stage_code)}
     if quests is not None:
         sd["quests"] = quests
     order = Order(

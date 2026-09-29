@@ -20,6 +20,10 @@ from sqlalchemy.orm.attributes import flag_modified
 
 from foms.services.erp_order_flags import is_erp_order_record
 from foms.services.erp_sync_columns import sync_erp_flat_columns
+from foms.services.orders.confirm_drawing_gate import (
+    effective_drawing_status,
+    stage_override_drawing_warning,
+)
 from foms.services.orders.erp_policy_constants import STAGE_LABELS, STAGE_NAME_TO_CODE
 from models import Order, OrderEvent
 
@@ -73,6 +77,15 @@ AS_TARGET_TO_AXIS: dict[str, str] = {
 OVERRIDE_ALLOWED_ROLES: frozenset[str] = frozenset({"ADMIN", "MANAGER"})
 OVERRIDE_BLOCK_MESSAGE = (
     "단계 역행/건너뛰기는 「단계 강제 변경」에서 사유·확인 후 진행하세요."
+)
+
+#: 일반 상태 쓰기(단건·일괄·필드)가 하지 않는 인접 전진 — 전용 버튼만 쓴다(Q1, 2a-2).
+DEDICATED_COMMAND_MOVES: frozenset[tuple[str, str]] = frozenset(
+    {("DRAWING", "CONFIRM"), ("CONFIRM", "PRODUCTION")}
+)
+DEDICATED_COMMAND_MESSAGE = (
+    "이 단계 이동은 전용 버튼(도면 수령 확정 / 고객 컨펌 완료)으로만 합니다. "
+    "관리자는 주문 상세의 그 버튼에서 사유를 적고 진행할 수 있습니다."
 )
 
 #: AS overlay 상태 집합. AS 대시보드(미완료/완료 탭)는 이 status 로만 주문을 찾으므로,
@@ -187,6 +200,16 @@ def requires_privileged_override(from_stage: Any, to_stage: Any) -> bool:
         return False
     mode = classify_stage_move(from_code, to_code)
     return mode in ("regress", "skip", "jump")
+
+
+def requires_dedicated_command(from_stage: Any, to_stage: Any) -> bool:
+    """정규화 후(한글 단계값 포함) DRAWING→CONFIRM 또는 CONFIRM→PRODUCTION 이면 True.
+
+    이 두 이동은 도면 수령·고객 컨펌을 확인하는 전용 버튼만 한다. 일반 상태 쓰기로 넘기면
+    도면 게이트·퀘스트 게이트를 통째로 건너뛴다(C21 반박 정정 3).
+    """
+    pair = (normalize_main_stage(from_stage), normalize_main_stage(to_stage))
+    return pair in DEDICATED_COMMAND_MOVES
 
 
 def current_stage_for_order(order: Order) -> str:
@@ -336,6 +359,10 @@ def apply_stage_override(
     # (2026-08-14: payload from 이 MEASURE 라 AS 상태를 이벤트로 되짚을 수 없었다).
     status_before = str(getattr(order, "status", None) or "").strip()
     overlay_cleared = as_overlay_status(order)
+    # Q5(2a-2): 넘긴 순간의 도면 상태를 항상 남긴다(생산 이후로 미확정 도면을 넘긴 빈도 측정).
+    sd_before = getattr(order, "structured_data", None)
+    drawing_status_before = effective_drawing_status(sd_before)
+    drawing_warning = stage_override_drawing_warning(sd_before, to_code)
     quest_reopened: Optional[str] = None
 
     order.status = to_code
@@ -376,7 +403,10 @@ def apply_stage_override(
         "reason": reason_clean,
         "manual": True,
         "from_status": status_before,
+        "drawing_status": drawing_status_before,
     }
+    if drawing_warning:
+        payload["drawing_unconfirmed"] = True
     if overlay_cleared:
         payload["as_overlay_cleared"] = overlay_cleared
     if quest_reopened:
@@ -401,6 +431,9 @@ __all__ = [
     "normalize_override_target",
     "OVERRIDE_ALLOWED_ROLES",
     "OVERRIDE_BLOCK_MESSAGE",
+    "DEDICATED_COMMAND_MESSAGE",
+    "DEDICATED_COMMAND_MOVES",
+    "requires_dedicated_command",
     "override_pins_stage",
     "structured_measurement_date",
     "STAGE_FORWARD_RANK",

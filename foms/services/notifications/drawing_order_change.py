@@ -20,6 +20,7 @@ from sqlalchemy.orm.attributes import flag_modified
 from models import Notification, Order
 from foms.services.geocode_helpers import extract_address_from_structured_data
 from foms.services.orders.erp_policy_constants import STAGE_LABELS, STAGE_NAME_TO_CODE
+from foms.services.orders.confirm_drawing_gate import effective_drawing_status
 from foms.services.erp_policy import get_assignee_ids
 
 logger = logging.getLogger(__name__)
@@ -103,10 +104,8 @@ def _stage_code(sd: dict) -> str:
 
 
 def _drawing_status(sd: dict) -> str:
-    """drawing.status / drawing_status 정규화."""
-    drawing = (sd or {}).get("drawing") if isinstance((sd or {}).get("drawing"), dict) else {}
-    raw = (drawing.get("status") or (sd or {}).get("drawing_status") or "PENDING")
-    return str(raw or "PENDING").strip().upper()
+    """도면 상태 — 판정 정본(최상위 우선, 없으면 옛 중첩 drawing.status, 둘 다 없으면 PENDING)."""
+    return effective_drawing_status(sd, default="PENDING")
 
 
 def should_alert_drawing_team(order: Order, sd: dict) -> bool:

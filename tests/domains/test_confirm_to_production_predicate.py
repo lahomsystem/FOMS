@@ -17,6 +17,7 @@ from foms.services.orders.erp_policy_quests import (
 )
 from foms.services.orders.quest_transition_service import _stage_quest_complete
 from models import Order, User
+from tests.support.confirm_seed import drawing_for_stage
 
 _CONFIRM_TEAMS = ["CS", "SALES"]
 
@@ -175,7 +176,7 @@ def _make_order(stage_code: str, quests: list[dict]) -> Order:
         status=stage_code,
         manager_name="Bob",
         is_erp_order=True,
-        structured_data={"workflow": {"stage": stage_code}, "quests": quests},
+        structured_data={"workflow": {"stage": stage_code}, "quests": quests, **drawing_for_stage(stage_code)},
         erp_stage_code=stage_code,
     )
     db_session.add(order)

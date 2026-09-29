@@ -20,6 +20,7 @@ from werkzeug.security import generate_password_hash
 from db import db_session
 from models import Order, OrderEvent, ProductionRun, User
 from tests.support.quest_seed import confirm_quest_completed
+from tests.support.confirm_seed import drawing_for_stage
 
 _CONFIRM_STAGES = ("CONFIRM", "고객컨펌")
 
@@ -63,7 +64,7 @@ def _make_order(stage_code: str, *, quests: list[dict] | None = None) -> Order:
 
     ``quests`` 가 None 이면 CONFIRM 단계에 한해 승인 완료 quest 를 자동 시드한다(``_default_quests``).
     """
-    sd: dict = {"workflow": {"stage": stage_code}}
+    sd: dict = {"workflow": {"stage": stage_code}, **drawing_for_stage(stage_code)}
     seeded = _default_quests(stage_code, quests)
     if seeded is not None:
         sd["quests"] = seeded
@@ -101,6 +102,7 @@ def _make_order_with_hold(stage_code: str, *, reason: str = "자재 입고 지�
         is_erp_order=True,
         structured_data={
             **sd_extra,
+            **drawing_for_stage(stage_code),
             "workflow": {"stage": stage_code},
             "production": {
                 "hold": {

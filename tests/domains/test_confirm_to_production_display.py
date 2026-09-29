@@ -17,6 +17,7 @@ from werkzeug.security import generate_password_hash
 from db import db_session
 from foms.services.erp_display import get_today_kst
 from models import Order, User
+from tests.support.confirm_seed import drawing_for_stage
 
 
 def _make_user(username: str, *, team: str = "SALES", role: str = "ADMIN") -> User:
@@ -80,6 +81,7 @@ def _create_order(*, quests: list[dict], customer_name: str = "표면 고객") -
             "workflow": {"stage": "CONFIRM"},
             "parties": {"customer": {"name": customer_name, "phone": "010-1234-5678"}},
             "quests": quests,
+            **drawing_for_stage("CONFIRM"),
         },
         erp_stage_code="CONFIRM",
     )
@@ -215,6 +217,7 @@ def test_pc_grid_open_quest_has_no_done_badge(client):
 # --------------------------------------------------------------------------- #
 def _confirm_sd_for_display() -> dict:
     return {
+        **drawing_for_stage("CONFIRM"),
         "workflow": {"stage": "CONFIRM"},
         "parties": {"manager": {"name": "다른 사람"}},
         "assignments": {},

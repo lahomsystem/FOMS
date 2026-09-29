@@ -41,11 +41,13 @@ from foms.services.orders.status_constants import AS_OVERLAY_PRESERVE_WORKFLOW_S
 from foms.services.orders.stage_override import (
     AS_OVERLAY_BLOCK_MESSAGE,
     AS_OVERLAY_STATUSES,
+    DEDICATED_COMMAND_MESSAGE,
     MAIN_PIPELINE_CODES,
     OVERRIDE_BLOCK_MESSAGE,
     as_overlay_status,
     current_stage_for_order,
     normalize_main_stage,
+    requires_dedicated_command,
     requires_privileged_override,
 )
 from foms.services.orders.order_transition_service import (
@@ -363,6 +365,14 @@ def update_order_status_response(
                 return jsonify({"success": False, "message": OVERRIDE_BLOCK_MESSAGE}), 403
             punched.append("OVERRIDE_BLOCK")
 
+        # Q1(2a-2): DRAWING→CONFIRM·CONFIRM→PRODUCTION 인접 전진은 전용 버튼만 — 일반 쓰기는
+        # 도면·퀘스트 게이트를 통째로 건너뛴다. 관리자 뚫기는 끝의 공통 기록 흐름이 남긴다.
+        if is_erp_order_record(order) and requires_dedicated_command(from_stage, new_status):
+            if override is None:
+                return jsonify({"success": False, "code": "COMMAND_REQUIRED",
+                                "message": DEDICATED_COMMAND_MESSAGE}), 409
+            punched.append("COMMAND_REQUIRED")
+
         # C-B2: 메인 파이프라인 ERP 주문의 최종 완료는 cs/complete 한 길만 쓴다.
         # field_update 와 **같은 술어·같은 문구**를 쓴다(complete_path_policy 한 곳에서 만든다).
         # 다른 축 상태 쓰기(출고·AS)는 술어가 value=='COMPLETED' 에서 끊겨 들어오지 않는다.
@@ -576,6 +586,8 @@ def bulk_update_order_status_response(
         blocked_as_orders: list[dict[str, Any]] = []
         # C-B2: 완료는 cs/complete 한 길만 쓴다 — 일괄 경로는 막고 200 으로 보고한다.
         blocked_use_cs_complete: list[int] = []
+        # Q1(2a-2): 전용 버튼만 하는 인접 전진(DRAWING→CONFIRM·CONFIRM→PRODUCTION).
+        blocked_command_required: list[int] = []
 
         valid_ids = []
         for order_id in order_ids:
@@ -614,6 +626,11 @@ def bulk_update_order_status_response(
                     blocked_override_required.append(int(order.id))
                     continue
                 punched.append("OVERRIDE_BLOCK")
+            if is_erp_order_record(order) and requires_dedicated_command(from_stage, new_status):
+                if override is None:
+                    blocked_command_required.append(int(order.id))
+                    continue
+                punched.append("COMMAND_REQUIRED")
 
             # 단건 라우트와 같은 술어 — 메인 파이프라인 주문의 COMPLETED 직접 저장만 걸린다.
             if rejects_completed_field_write(order, new_status):
@@ -683,7 +700,9 @@ def bulk_update_order_status_response(
             updated += 1
 
         db.commit()
-        success = updated > 0 or not (blocked_override_required or blocked_as_orders)
+        success = updated > 0 or not (
+            blocked_override_required or blocked_as_orders or blocked_command_required
+        )
         message = None
         if blocked_override_required and updated == 0:
             success = False
@@ -702,6 +721,11 @@ def bulk_update_order_status_response(
                 "주문의 [완료] 버튼(CS 완료)으로 처리하세요."
             )
             message = f"{message} {cs_note}" if message else cs_note
+        if blocked_command_required:
+            cmd_note = (
+                f"{len(blocked_command_required)}건은 전용 버튼으로만 넘길 수 있어 바꾸지 않았습니다."
+            )
+            message = f"{message} {cmd_note}" if message else cmd_note
         payload: dict[str, Any] = {
             "success": success,
             "updated": updated,
@@ -710,10 +734,13 @@ def bulk_update_order_status_response(
             "blocked_override_required": blocked_override_required,
             "blocked_as_orders": blocked_as_orders,
             "blocked_use_cs_complete": blocked_use_cs_complete,
+            "blocked_command_required": blocked_command_required,
         }
         if message:
             payload["message"] = message
         status_code = 200 if success else 403
+        if not success and blocked_command_required and not blocked_override_required:
+            status_code = 409  # 경로 충돌이지 권한 문제가 아니다(전용 버튼 대상)
         return jsonify(payload), status_code
     except Exception as exc:
         db = get_db()
