@@ -229,7 +229,7 @@ def test_p1_shell_hides_desktop_chrome_on_mobile_v2() -> None:
     assert ".layout-header" in head
     assert ".layout-global-nav--erp-v2-suppressed" in head
     assert 'erp-dashboard\\00002d layout' in head
-    assert "foms-mobile-surfaces.css') }}?v=20260924a" in head
+    assert "foms-mobile-surfaces.css') }}?v=20260929a" in head
     assert head.index("foms-mobile-v2-critical-css") < head.index("foms-mobile-surfaces.css")
 
 
@@ -449,7 +449,7 @@ def test_p1_drawing_handoff_mobile_v2_mockup_selectors() -> None:
         assert selector in queue, selector
     for selector in ("data-drawing-handoff-open", "data-drawing-handoff-action"):
         assert selector in body, selector
-    assert "padding: 0.5rem 0.75rem 5.25rem;" in css
+    assert "padding: 0.5rem 0.75rem calc(5.25rem + env(safe-area-inset-bottom, 0px));" in css
     assert "body.erp-mobile-v2-layout .foms-drawing-action-bar__btn span" in css
     assert "white-space: nowrap;" in css
     assert "GlobalImageViewer.open" in js

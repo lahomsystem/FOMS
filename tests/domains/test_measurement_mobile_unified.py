@@ -6,7 +6,8 @@
 고정하는 회귀축:
 - 담당자 탭 줄·모두 펼치기·담당 띠 접기·줄 → 시트(카드 노드 이동)의 표식
 - 옛 카드 칸은 숨은 원본 칸(hidden)이고, 카드 id·실측 완료 버튼 표식은 그대로
-- 처음에는 내 묶음만 펼침(없으면 첫 묶음), mine 모드는 탭·모두 펼치기 없음
+- 처음에는 전부 접힘(내 묶음도 — is-me·"나" 배지는 유지, 2026-09-29), 펼침 상태는 화면 안에서만(localStorage 없음),
+  mine 모드는 탭·모두 펼치기 없이 전부 펼침
 - 줄의 📷 n = 이미지 미리보기 수(PDF 제외), 넘긴 주문은 "실측 완료" 알약
 - CSS 는 덧붙이기만(기존 규칙 원문 해시 고정), 탭·시트 JS 는 await 없이 즉시 동작
 - erp-quest-approve.js 는 복원 직전 이벤트 하나만 더 쏜다
@@ -117,7 +118,7 @@ def test_template_has_unified_hooks():
 
 # ------------------------------------------------------------ B. HTTP 렌더
 
-def test_unified_render_tabs_first_group_open_and_card_origin_hidden(client, monkeypatch):
+def test_unified_render_tabs_all_groups_closed_and_card_origin_hidden(client, monkeypatch):
     today = _prepare(client, monkeypatch)
     ids = _seed_three(today)
     body = _get(client)
@@ -131,11 +132,12 @@ def test_unified_render_tabs_first_group_open_and_card_origin_hidden(client, mon
     assert "담당 <b>2</b>명" in glance
     assert "3곳 · 실측 1 · 넘김 0" in glance
 
-    # 보는 사람이 담당자가 아니면 첫 묶음만 펼친다.
+    # 처음에는 전부 접는다(첫 묶음도).
     groups = _group_tags(glance)
     assert len(groups) == 2
-    assert "is-closed" not in groups[0]
-    assert "is-closed" in groups[1]
+    assert all("is-closed" in t for t in groups)
+    assert "펼침 <b data-meas-glance-open-count>0</b>" in glance
+    assert 'data-meas-glance-all="open"' in glance
     assert "foms-meas-glance__me" not in glance
 
     # 옛 카드 칸은 숨은 원본 칸으로 남고 카드 id 는 한 번씩만.
@@ -145,13 +147,13 @@ def test_unified_render_tabs_first_group_open_and_card_origin_hidden(client, mon
     assert body.count("data-meas-sheet ") == 1
 
 
-def test_unified_viewer_group_expanded_with_me_badge(client, monkeypatch):
+def test_unified_viewer_group_closed_but_keeps_me_badge(client, monkeypatch):
     today = _prepare(client, monkeypatch, username="최진호")
     _seed_three(today)
     glance = _glance(_get(client))
     choi = [t for t in _group_tags(glance) if 'data-meas-glance-grp="최진호"' in t][0]
     kim = [t for t in _group_tags(glance) if 'data-meas-glance-grp="김도윤"' in t][0]
-    assert "is-closed" not in choi and "is-me" in choi
+    assert "is-closed" in choi and "is-me" in choi, "내 묶음도 처음에는 접는다(표식은 유지)"
     assert "is-closed" in kim
     assert '<span class="foms-meas-glance__me">나</span>' in glance
 
@@ -243,7 +245,6 @@ def test_tabs_js_contract():
         "[data-meas-visit-toggle], .foms-meas-glance__call",
         "searchParams.set('mgr', name)",
         "history.replaceState",
-        "localStorage",
         "is-solo",
         "foms:quest-approve:before-restore",
         "__fomsQuestApproveRestore",
@@ -252,9 +253,8 @@ def test_tabs_js_contract():
     ]
     assert _missing(js, required) == []
     assert "await" not in js and "jQuery" not in js and "innerHTML" not in js
-    # localStorage 는 전부 try 안에서만 만진다.
-    for m in re.finditer(r"localStorage\.", js):
-        assert "try {" in js[max(0, m.start() - 80):m.start()], js[m.start() - 80:m.start() + 20]
+    # 펼침 상태는 이 화면 안에서만 — 셸 탭 복귀·새로고침에 되살리지 않는다(2026-09-29).
+    assert "localStorage" not in js and "STORE_KEY" not in js
     assert len(js.splitlines()) < 300
 
 
@@ -407,17 +407,17 @@ def _render_split(app, *, mine: bool) -> str:
         )
 
 
-def test_split_manager_groups_one_tab_summed_and_both_expanded_for_me(app):
+def test_split_manager_groups_one_tab_summed_and_all_closed(app):
     html = _render_split(app, mine=False)
     groups = _group_tags(html)
     assert [re.search(r'grp="([^"]*)"', t).group(1) for t in groups] == ["최진호", "김도윤", "최진호"]
     assert html.count('data-meas-glance-tab="최진호"') == 1, "한 담당은 탭 하나"
     assert re.search(r'data-meas-glance-tab="최진호"[^>]*>.*?data-meas-glance-tab-count>1/2<', html, re.S)
     choi = [t for t in groups if "최진호" in t]
-    assert all("is-closed" not in t and "is-me" in t for t in choi), "내 묶음은 둘 다 펼침"
+    assert len(choi) == 2 and all("is-closed" in t and "is-me" in t for t in choi), "내 묶음도 둘 다 접힘"
     assert "is-closed" in [t for t in groups if "김도윤" in t][0]
-    # B9: 펼침 수는 서버 렌더에서 센다(담당 이름 기준 — 두 묶음이어도 1명).
-    assert "펼침 <b data-meas-glance-open-count>1</b>" in html
+    # B9: 펼침 수는 서버 렌더에서 센다(처음에는 전부 접혀 0).
+    assert "펼침 <b data-meas-glance-open-count>0</b>" in html
     assert 'data-meas-glance-all="open"' in html
 
 
