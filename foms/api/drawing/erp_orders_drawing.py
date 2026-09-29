@@ -58,7 +58,7 @@ def perform_drawing_transfer(
     db, order, order_id, current_user, user_id, *,
     note='', mode='', files=None, is_retransfer=False,
     replace_target_key='', replace_target_keys=None,
-    emergency_override=False, override_reason='',
+    emergency_override=False, override_reason='', prepare_structured=None,
 ):
     """도면 전달 핵심 처리 — ``transfer-drawing`` 및 작업실 ``transfer-pending`` 공용.
 
@@ -69,6 +69,10 @@ def perform_drawing_transfer(
     돌도록). 구조화 쓰기는 REV-00 엔진 콜백 안에서 하고 ``mutation_version`` 이 1 오른다.
 
     :param files: [{key, filename}] (이미 R2에 업로드된 참조). None/[] 이면 파일 미갱신.
+    :param prepare_structured: 검증을 모두 통과한 뒤, 구조화 쓰기 **직전에** 전달이 만든
+        ``s_data``(잠근 최신 행의 deepcopy)를 받아 같은 쓰기에 실을 변경을 더하는 콜러블.
+        작업실 대기 시트 스냅샷(``wizard.stage_pending_snapshot``)이 쓴다 — 전달 커밋 뒤에 따로
+        잠금 없이 되쓰면 그 사이 커밋된 남의 쓰기를 지운다(리뷰 P2). 행 잠금을 쥔 채 불린다.
     :returns: ``(payload_dict, http_status)``. 성공 시 ``payload['success']=True`` (200),
         검증 실패 시 해당 오류 payload 와 상태코드. 예외는 발생시키지 않고 호출측
         ``try/except`` 가 롤백한다.
@@ -261,6 +265,8 @@ def perform_drawing_transfer(
     s_data['drawing_status'] = 'TRANSFERRED'
     s_data['drawing_transferred'] = True
     s_data['last_drawing_transfer'] = transfer_info
+    if prepare_structured is not None:
+        prepare_structured(s_data)
 
     def _write_transfer(locked):
         locked.structured_data = s_data
@@ -398,8 +404,8 @@ def api_order_transfer_drawing(order_id):
 
         # 도면 마법사 [저장]본(pending) 병합 — 재업로드 없이 저장된 대기 도면을 함께 전달.
         # pending_sheet_ids 가 오면 해당 대기 시트의 {key, filename} 을 파일 목록에 병합하고,
-        # 전달 성공 후 그 sheet_id 들만 스냅샷 저장 + pending 제거(없으면 기존 동작 100% 불변).
-        from foms.api.drawing.wizard import snapshot_and_clear_pending
+        # 그 sheet_id 들만 스냅샷 저장 + pending 제거를 전달 쓰기에 싣는다(없으면 기존 동작 불변).
+        from foms.api.drawing.wizard import delete_stale_version_files, stage_pending_snapshot
         pending_sheet_ids = [str(x) for x in (data.get('pending_sheet_ids') or []) if str(x)]
         manual_files = list(data.get('files') or [])
         pending_files = []
@@ -412,6 +418,12 @@ def api_order_transfer_drawing(order_id):
             ]
         # 저장된 대기 도면(primary)을 앞에, 직접 올린 파일(supplementary)을 뒤에 둔다.
         files = pending_files + manual_files
+        stale_keys = []
+        prepare = None
+        if pending_sheet_ids:
+            def prepare(sd):
+                stage_pending_snapshot(sd, order_id, current_user,
+                                       sheet_ids=pending_sheet_ids, stale_keys=stale_keys)
 
         payload, status = perform_drawing_transfer(
             db, order, order_id, current_user, session.get('user_id'),
@@ -423,9 +435,10 @@ def api_order_transfer_drawing(order_id):
             replace_target_keys=data.get('replace_target_keys') or [],
             emergency_override=bool(data.get('emergency_override')),
             override_reason=data.get('override_reason') or '',
+            prepare_structured=prepare,
         )
-        if payload.get('success') and pending_sheet_ids:
-            snapshot_and_clear_pending(db, order, order_id, current_user, sheet_ids=pending_sheet_ids)
+        if payload.get('success') and stale_keys:
+            delete_stale_version_files(stale_keys)  # 커밋 뒤에만
         return jsonify(payload), status
     except Exception as e:
         if db is not None:
