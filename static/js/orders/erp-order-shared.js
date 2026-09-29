@@ -4354,7 +4354,14 @@ function erpBuildAttachmentFullscreenPayload(attachmentId) {
     // 갤러리는 measurement→drawing→construction→as 로 묶어 그린다(erpRenderAttachments).
     // 화살표 순서가 화면 순서와 어긋나면 사용자가 본 적 없는 순서로 넘어가므로 같은 순서로 세운다.
     const order = ['measurement', 'drawing', 'construction', 'as'];
-    const images = (Array.isArray(__erpAttachments) ? __erpAttachments : []).filter(erpAttachmentIsImage);
+    const all = Array.isArray(__erpAttachments) ? __erpAttachments : [];
+    // 뷰어에는 '교체됨' 표시가 없다 — 누른 첨부와 같은 무리(현재 / 교체된 옛 도면)만 넘김 목록에
+    // 담아 표시 없이 옛 도면으로 넘어가지 않게 한다(R4).
+    const clicked = all.find(function (a) { return Number(a.id) === targetId; });
+    const superseded = !!(clicked && clicked.is_superseded);
+    const images = all.filter(function (a) {
+        return erpAttachmentIsImage(a) && !!a.is_superseded === superseded;
+    });
     const sorted = images
         .map(function (a, i) { return { a: a, i: i, rank: order.indexOf(erpNormalizeAttachmentCategory(a.category)) }; })
         .sort(function (x, y) {
@@ -4398,13 +4405,13 @@ function erpOpenAttachmentPreview(attachmentId) {
 <div class="ratio ratio-16x9 bg-dark rounded" style="overflow:hidden;">
 <video src="${viewUrl}" controls autoplay style="width:100%;height:100%;"></video>
 </div>
-<div class="small text-muted mt-2 erp-attachment-preview-caption">${escapeHtml(a.filename || '')}</div>
+<div class="small text-muted mt-2 erp-attachment-preview-caption">${erpSupersededBadgeHtml(a)}${escapeHtml(a.filename || '')}</div>
 `;
     } else if (a.file_type === 'file') {
         body.innerHTML = `
 <div class="d-flex flex-column align-items-center justify-content-center text-center p-4" style="min-height: 280px;">
 <i class="fas fa-file-alt text-secondary mb-3" style="font-size: 3rem;"></i>
-<div class="fw-semibold mb-2">${escapeHtml(a.filename || '파일')}</div>
+<div class="fw-semibold mb-2">${erpSupersededBadgeHtml(a)}${escapeHtml(a.filename || '파일')}</div>
 <div class="small text-muted mb-3">문서 파일은 미리보기를 지원하지 않습니다.</div>
 <a class="btn btn-primary" href="${downloadUrl}" target="_blank" rel="noopener">
     <i class="fas fa-download"></i> 다운로드
@@ -4414,7 +4421,7 @@ function erpOpenAttachmentPreview(attachmentId) {
     } else {
         body.innerHTML = `
 <img src="${viewUrl}" alt="${escapeHtml(a.filename || '')}" class="img-fluid rounded erp-attachment-preview-img" draggable="false">
-<div class="small text-muted mt-2 erp-attachment-preview-caption">${escapeHtml(a.filename || '')}</div>
+<div class="small text-muted mt-2 erp-attachment-preview-caption">${erpSupersededBadgeHtml(a)}${escapeHtml(a.filename || '')}</div>
 `;
         erpBindAttachmentPreviewImageZoom(body, a.id);
     }

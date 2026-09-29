@@ -151,3 +151,9 @@
   left: 4px;
   margin: 0;
 }
+
+/* 주문 수정 화면 미리보기 창 캡션 — 파일 이름 앞에 한 줄로. */
+#erp-attachment-preview-body .erp-attachment-superseded-badge {
+  margin: 0 6px 0 0;
+  vertical-align: middle;
+}

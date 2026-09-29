@@ -306,6 +306,10 @@ def api_order_attachments_list(order_id):
             old_keys = superseded_drawing_keys(order.structured_data)
             for attachment, item in zip(attachments, items):
                 item["is_superseded"] = is_superseded_drawing_row(attachment, old_keys)
+                if item["is_superseded"]:
+                    # 2b(옛 도면은 행만 휴지통·파일 보존) 전에는 삭제가 7일 뒤 파일 purge 를 예약해
+                    # 전달 이력 링크·비교 탭이 쓰는 파일을 지운다. R4 전처럼 화면에서 삭제 길을 닫는다.
+                    item["can_delete"] = False
         return jsonify({"success": True, "attachments": items})
     except Exception as e:
         log_handled_exception()

@@ -1,15 +1,23 @@
 // 주문의 첨부 파일 미리보기 (첨부 배지 클릭 시) - 좌우 네비게이션 지원
         async function openAttachmentsPreview(orderId, initialCategory = 'measurement') {
           try {
-            // ERP 내부 첨부 탭은 교체된 옛 도면도 '교체됨' 으로 보여 준다(R4 — include_superseded).
-            // 공용 캐시(__attachmentsCache)는 상세 펼침·생산·시공과 같은 "옛 도면 뺀" 목록이라
-            // 이 창은 늘 새로 받고, 캐시에는 옛 도면을 뺀 목록만 넣는다(다른 소비자 규칙 유지).
-            const res = await fetch(`/api/orders/${orderId}/attachments?include_superseded=1`);
-            const data = await res.json();
-            if (!data || !data.success) throw new Error((data && data.message) || '첨부 목록 조회 실패');
-            const aList = orderAttachmentsCurrentFirst(data.attachments || []);
-            __attachmentsCache[orderId] = aList.filter((a) => !a.is_superseded);
-            __attachmentsCacheAt[orderId] = Date.now();
+            // 주문 대시보드 첨부 창은 교체된 옛 도면도 '교체됨' 으로 보여 준다(R4 — include_superseded).
+            // 켜는 쪽은 페이지다(루트 data-attachments-show-superseded="1"). 생산·시공 대시보드에도 이
+            // 번들이 실려 이 전역 함수가 그쪽 함수를 덮어쓰므로, 표시가 없으면 지금처럼 숨긴다.
+            // 공용 캐시(__attachmentsCache)는 상세 펼침·생산·시공과 같은 "옛 도면 뺀" 목록이다.
+            const showSuperseded = attachmentsShowSupersededOnPage();
+            let aList = (!showSuperseded && __attachmentsCache[orderId]) || null;
+            if (!aList) {
+              const url = showSuperseded
+                ? `/api/orders/${orderId}/attachments?include_superseded=1`
+                : `/api/orders/${orderId}/attachments`;
+              const res = await fetch(url);
+              const data = await res.json();
+              if (!data || !data.success) throw new Error((data && data.message) || '첨부 목록 조회 실패');
+              aList = orderAttachmentsCurrentFirst(data.attachments || []);
+              __attachmentsCache[orderId] = aList.filter((a) => !a.is_superseded);
+              __attachmentsCacheAt[orderId] = Date.now();
+            }
 
             if (aList.length > 0) {
               __attachmentsByCategory = { measurement: [], drawing: [], construction: [], as: [] };
@@ -44,6 +52,11 @@
             console.error('첨부 파일 로드 실패:', err);
             showErpToast('첨부 파일을 불러올 수 없습니다.', 'error');
           }
+        }
+
+        // R4 페이지 표시 — 주문 대시보드 루트에만 있다(생산·시공·기타 화면은 없음 = 숨김).
+        function attachmentsShowSupersededOnPage() {
+          return !!document.querySelector('[data-attachments-show-superseded="1"]');
         }
 
         // 교체된 옛 도면(is_superseded)은 같은 분류 안에서 뒤로 보낸다(원래 순서 유지).

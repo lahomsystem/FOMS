@@ -933,9 +933,9 @@
               }
             }
 
-            // 첨부파일 미리보기 버튼
+            // 첨부파일 미리보기 버튼 — 생산·시공 페이지는 자기 처리기가 있어 비킨다(한 클릭에 한 번만).
             const attBtn = e.target.closest('.erp-btn-attachments-preview');
-            if (attBtn) {
+            if (attBtn && !document.querySelector('.erp-dashboard-production, .erp-construction-dashboard')) {
               const orderId = attBtn.dataset.orderId;
               if (typeof openAttachmentsPreview === 'function') {
                 openAttachmentsPreview(Number(orderId));

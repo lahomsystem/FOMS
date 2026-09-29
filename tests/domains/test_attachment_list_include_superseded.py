@@ -101,6 +101,22 @@ def test_include_superseded_returns_old_drawing_marked(client):
     assert {a["storage_key"] for a in drawing} == {keys["v1"], keys["v2"], keys["sketch"]}
 
 
+def test_superseded_rows_carry_no_delete_until_2b(client):
+    """2b(옛 도면은 행만 휴지통·파일 보존) 전에는 옛 도면 행에 삭제 권한을 싣지 않는다(리뷰 P2).
+
+    지금 삭제 API 는 휴지통 뒤 7일 purge 를 예약해 전달 이력 링크·비교 탭이 쓰는 파일을 지운다.
+    R4 전에는 옛 도면 행이 화면에 없어 이 길이 닫혀 있었다 — 관리자라도 옛 도면 행은 can_delete=False.
+    """
+    oid, keys = _seed()
+    _login(client, role="ADMIN", team="SALES", username="r4_admin_delete")
+
+    items = _get(client, f"/api/orders/{oid}/attachments?include_superseded=1")
+
+    can_delete = {a["storage_key"]: a["can_delete"] for a in items}
+    assert can_delete[keys["v1"]] is False
+    assert can_delete[keys["v2"]] is True and can_delete[keys["sketch"]] is True
+
+
 def test_include_superseded_needs_no_manage_permission(client):
     """휴지통과 달리 목록을 볼 수 있는 사람이면 누구나(관리 권한 없는 직원도 200)."""
     oid, keys = _seed()
@@ -133,7 +149,11 @@ def test_internal_attachment_tabs_opt_in(rel):
     "foms/api/share.py",
 ])
 def test_production_construction_customer_paths_never_opt_in(rel):
-    """생산·시공 도면 탭, 세 대시보드 공용 상세 펼침, 고객 공유는 계속 숨김(인자 없음)."""
+    """생산·시공 도면 탭, 세 대시보드 공용 상세 펼침, 고객 공유는 계속 숨김(인자 없음).
+
+    이 정적 검사만으로는 생산·시공에 함께 실리는 ERP 번들 경로를 못 잡는다 — 그 경로는
+    test_attachment_superseded_page_scope.py 가 실제 렌더 + node VM 으로 고정한다.
+    """
     assert "include_superseded" not in _read(rel)
 
 
@@ -154,6 +174,9 @@ def test_changed_assets_are_pinned():
     entry = _read("static/js/orders/erp-dashboard-entry.js")
     assert f"erp-dashboard-attachments.js?v={PIN}" in entry
     assert f"erp-dashboard-core.js?v={PIN}" in entry
+    # 리뷰 P1 수정: 첨부 미리보기 클릭을 페이지마다 한 번만(detail-dom·시공 dashboard.js 도 바뀜).
+    assert f"erp-dashboard-detail-dom.js?v={PIN}" in entry
+    assert f"js/construction/dashboard.js') }}}}?v={PIN}" in _read("templates/construction/partials/scripts.html")
     assert f"erp-dashboard-entry.js') }}}}?v={PIN}" in _read("templates/partials/shared/layout_scripts.html")
     assert f"erp-order-shared.js') }}}}?v={PIN}" in _read("templates/orders/partials/erp_order_js.html")
     assert f"erp-pro.css') }}}}?v={PIN}" in _read("templates/partials/shared/layout_head.html")

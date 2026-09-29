@@ -1311,8 +1311,9 @@
         }
       }
 
+      // 시공 페이지에서만 — 셸로 주문 대시보드에 가도 이 위임은 남아 같은 클릭에 두 창이 경쟁했다.
       const attBtn = e.target.closest('.erp-btn-attachments-preview');
-      if (attBtn) {
+      if (attBtn && document.querySelector('.erp-construction-dashboard')) {
         const orderId = attBtn.dataset.orderId;
         if (typeof openAttachmentsPreview === 'function') {
           openAttachmentsPreview(Number(orderId));

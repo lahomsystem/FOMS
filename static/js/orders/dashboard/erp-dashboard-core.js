@@ -357,9 +357,14 @@
 
         function openAttachmentFromCategory(category, index) {
           const key = normalizeAttachmentCategory(category);
-          const list = __attachmentsByCategory[key] || [];
-          if (!list.length) return;
+          const all = __attachmentsByCategory[key] || [];
+          if (!all.length) return;
+          // 전체화면 뷰어에는 '교체됨' 표시가 없다 — 누른 첨부와 같은 무리(현재 / 교체된 옛 도면)만
+          // 넘김 목록에 담아, 표시 없이 옛 도면으로 넘어가지 않게 한다(R4).
+          const clicked = all[index];
+          const superseded = !!(clicked && clicked.is_superseded);
+          const list = all.filter((a) => !!(a && a.is_superseded) === superseded);
           __activeAttachmentCategory = key;
           __currentAttachmentList = list;
-          showAttachmentAtIndex(index);
+          showAttachmentAtIndex(Math.max(0, list.indexOf(clicked)));
         }
