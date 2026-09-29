@@ -44,11 +44,12 @@ CANCEL_WARN_JS = ROOT / "static/js/foms/drawing-cancel-warn-mobile.js"
 OPENERS = {
     "send": {"data-bs-toggle": "modal", "data-bs-target": "#dwCustomerSendModal", "data-customer-send-mode": "first"},
     "resend": {"data-bs-toggle": "modal", "data-bs-target": "#dwCustomerSendModal", "data-customer-send-mode": "again"},
-    "rev_customer": {"data-bs-target": "#dwRevisionModal", "data-revision-source": "customer",
+    # 수정 요청은 출처(고객·내 의견)로 나누지 않는다 — 여는 버튼은 출처 속성을 달지 않는다(None).
+    "rev_customer": {"data-bs-target": "#dwRevisionModal", "data-revision-source": None,
                      "data-drawing-handoff-action": "revision"},
-    "rev_post": {"data-bs-target": "#dwRevisionModal", "data-revision-source": "customer",
+    "rev_post": {"data-bs-target": "#dwRevisionModal", "data-revision-source": None,
                  "data-drawing-handoff-action": "revision"},
-    "rev_sales": {"data-bs-target": "#dwRevisionModal", "data-revision-source": "sales",
+    "rev_sales": {"data-bs-target": "#dwRevisionModal", "data-revision-source": None,
                   "data-drawing-handoff-action": "revision"},
     "ok": {"data-bs-target": "#dwCustomerOkModal", "data-customer-ok-mode": "customer"},
     "ok_no_customer": {"data-bs-target": "#dwCustomerOkModal", "data-customer-ok-mode": "no_customer"},
@@ -59,14 +60,14 @@ OPENERS = {
 # §3.0 상태별 영업 쪽 버튼 — 키·라벨·tone 은 S1 빌더(drawing_customer_send_bar._LABELS) 어휘 그대로다.
 # (예전엔 'warn'·'line' 을 지어내 넣어서 S1 과 어휘가 어긋나도 초록이었다 — S3 리뷰 P3.)
 STATE_BARS = {
-    "transferred_unsent": [("rev_sales", "내 의견", "secondary"), ("send", "고객에게 보내기", "primary"),
+    "transferred_unsent": [("rev_sales", "수정 요청", "secondary"), ("send", "고객에게 보내기", "primary"),
                            ("ok_no_customer", "확정", "secondary")],
-    "transferred_sent": [("resend", "다시 보내기", "secondary"), ("rev_customer", "고객이 고쳐 달래요", "warning"),
+    "transferred_sent": [("resend", "다시 보내기", "secondary"), ("rev_customer", "수정 요청", "warning"),
                          ("ok", "고객 OK · 확정", "success")],
     "returned": [("edit_revision", "요청 고치기", "secondary"), ("cancel_revision", "수정요청 취소", "secondary")],
-    "confirmed_approve": [("rev_post", "고객이 또 바꿔 달래요", "warning"), ("send", "고객에게 보내기", "secondary"),
+    "confirmed_approve": [("rev_post", "수정 요청", "warning"), ("send", "고객에게 보내기", "secondary"),
                           ("approve_confirm", "고객 컨펌하고 생산으로", "success")],
-    "confirmed_other": [("rev_post", "고객이 또 바꿔 달래요", "warning"), ("send", "고객에게 보내기", "secondary"),
+    "confirmed_other": [("rev_post", "수정 요청", "warning"), ("send", "고객에게 보내기", "secondary"),
                         ("production", "생산 현황 보기", "link")],
 }
 URGENT_CALL = ("urgent_call", "긴급 호출", "urgent")  # S1: 도면 쪽(도면팀·관리자)에게 늘 slot=main 으로 붙는다
@@ -122,7 +123,7 @@ def test_bar_iterates_server_list_in_order_with_openers(client, monkeypatch, sta
 
 
 def test_urgent_after_sent_leaves_bar_and_returns_before_sending(client, monkeypatch):
-    """목업: 보내기 전 바는 [내 의견][보내기][확정][긴급] 4개, 보낸 뒤는 3개(긴급 빠짐)."""
+    """목업: 보내기 전 바는 [수정 요청][보내기][확정][긴급] 4개, 보낸 뒤는 3개(긴급 빠짐)."""
     drafter = _user("s3_urg_d", role="STAFF", team="DRAWING")
     sales = _user("s3_urg_s", role="MANAGER", team="SALES")
     oid = _order(drafter["id"])
@@ -182,7 +183,7 @@ def test_admin_overflow_goes_to_more_dropup(client, monkeypatch):
     assert len(more.select(".dropdown-menu [data-foms-urgent-call]")) == 1
     # 여는 속성은 [더 보기] 안에서도 같다.
     item = more.select_one('[data-bar-key="rev_sales"]')
-    assert item.get("data-revision-source") == "sales" and item.get("data-bs-target") == "#dwRevisionModal"
+    assert not item.has_attr("data-revision-source") and item.get("data-bs-target") == "#dwRevisionModal"
     assert len(_urgent_buttons(handoff)) == 1
 
 
@@ -265,7 +266,7 @@ def test_sales_sees_round_steps_inside_order_summary_without_new_block(client, m
     oid = _order(drafter["id"], files=1)
     baseline = _top_block_count(_handoff(_page(client, monkeypatch, sales, oid)))
 
-    _inject(monkeypatch, cs={"steps": STEPS, "prev_summary": "1차 · 보냄 · 고객 요청 1건",
+    _inject(monkeypatch, cs={"steps": STEPS, "prev_summary": "1차 · 보냄 · 수정요청 1건",
                              "status_line": "영업 → 고객 · 1차 보냄 14:03 알림톡 · 링크 열림 2번"})
     handoff = _handoff(_page(client, monkeypatch, sales, oid))
     order_box = handoff.select_one("section.foms-drawing-handoff__order")
@@ -274,7 +275,7 @@ def test_sales_sees_round_steps_inside_order_summary_without_new_block(client, m
     assert "is-now" in steps[2]["class"]
     assert "링크 열림" in steps[2].get_text(" ", strip=True) and "16:40" in steps[2].get_text(" ", strip=True)
     prev = order_box.select_one("p.foms-drawing-send-steps__prev")
-    assert prev is not None and "고객 요청 1건" in prev.get_text()
+    assert prev is not None and "수정요청 1건" in prev.get_text()
     # 영업 쪽에는 기록 줄이 상태 한 줄을 대신한다.
     assert order_box.select_one(".foms-drawing-handoff__send-status") is None
     assert _top_block_count(handoff) == baseline == 5

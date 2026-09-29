@@ -163,13 +163,18 @@ def test_list_view_keeps_the_change_signal(client, monkeypatch):
     assert "1번 도면에서 보기" in body
 
 
-def test_sales_viewer_sees_state_but_no_ack_button(client, monkeypatch):
-    """확인 권한이 없는 영업 시점에는 버튼 대신 상태만 보인다(옛 배너는 403 을 만들었다)."""
+def test_sales_viewer_sees_no_order_change_at_all(client, monkeypatch):
+    """영업 아이디는 주문 변경을 도면 화면에서 보지 않는다(2026-09-30 사용자 결정).
+
+    음성 대조: 같은 주문을 관리자로 그리면 줄·값이 나온다(test_turn_line_names_the_change…).
+    """
     user = _login(client, role="USER", team="SALES", username="dw_change_sales", name="최진호")
     body = _render(client, _order(), monkeypatch, user)
 
-    assert 'id="dwOrderChangeLine"' in body
-    assert "도면팀 확인 대기" in body
+    assert 'id="dwOrderChangeLine"' not in body
+    assert "도면팀 확인 대기" not in body
+    assert "1165*620*2311" not in body
+    assert "주문 변경" not in body
     assert "data-dw-order-change-ack" not in body
 
 
@@ -266,7 +271,7 @@ def test_desktop_feed_shows_who_acked(client, monkeypatch):
 def test_measurement_staff_cannot_see_ack_button_mobile_and_desktop(
     client, monkeypatch, role, username
 ):
-    """실측 담당(영업팀) 은 변경 값을 읽기 전용으로만 보고, 확인 버튼은 어디에도 없다."""
+    """실측 담당(영업팀) 에게는 변경 값도 확인 버튼도 어디에도 없다(2026-09-30 이후 이력 자체를 숨긴다)."""
     user = _login(client, role=role, team="SALES", username=username, name="실측 담당")
     order = _order()
     body = _render_full(client, order, monkeypatch, user)
@@ -274,7 +279,7 @@ def test_measurement_staff_cannot_see_ack_button_mobile_and_desktop(
     # 한 응답에 모바일 핸드오프와 데스크톱 본문(변경 이력 카드)이 함께 들어 있어야
     # "모바일·데스크톱 둘 다 없다"는 단언이 의미를 가진다.
     assert "erp-mobile-shell foms-drawing-handoff" in body
-    assert 'id="dwOrderChangeFeed"' in body
+    assert 'id="dwOrderChangeFeed"' not in body
 
     # 버튼·버튼 문구는 응답 전체 어디에도 없다(모바일 타임라인·데스크톱 카드 모두).
     assert "data-dw-order-change-ack" not in body
@@ -282,11 +287,10 @@ def test_measurement_staff_cannot_see_ack_button_mobile_and_desktop(
     assert 'class="dw-order-change-ack-row"' not in body
 
     mobile = _render(client, order, monkeypatch, user)
-    # 칩은 권한 없는 쪽 문구, 변경 값은 기록으로 읽기 전용 노출.
-    assert "도면팀 확인 대기" in mobile
-    assert "1165*620*2311" in mobile
-    feed_at = body.index('id="dwOrderChangeFeed"')
-    assert "1165*620*2311" in body[feed_at:]
+    # 2026-09-30 사용자 결정: 영업 아이디에는 변경 줄·값·이력 카드가 아예 없다.
+    assert "도면팀 확인 대기" not in mobile
+    assert "1165*620*2311" not in mobile
+    assert "1165*620*2311" not in body
 
 
 def test_ack_api_forbidden_for_measurement_staff_keeps_pending(client, monkeypatch):
@@ -327,3 +331,4 @@ def test_drawing_team_non_assignee_sees_ack_button(client, monkeypatch):
     assert body.count("data-dw-order-change-ack") == 1
     assert "이 주문 변경 2줄 확인" in body
     assert "도면팀 확인 대기" not in body
+

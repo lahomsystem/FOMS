@@ -303,19 +303,16 @@ def test_bar_approve_asks_first(answer, expect_call):
     assert any(a.startswith("CONFIRM:고객 컨펌을 승인하고 생산으로") for a in r["alerts"])
 
 
-@pytest.mark.parametrize("source,via,expected", [
-    ("customer", "kakao", {"source": "customer", "received_via": "kakao"}),
-    ("sales", "kakao", {"source": "sales"}),
-    ("", "", {}),
-])
-def test_revision_extras(source, via, expected):
+@pytest.mark.parametrize("source,via", [("customer", "kakao"), ("sales", ""), ("", "")])
+def test_revision_extras_always_empty(source, via):
+    """수정요청은 출처를 나누지 않는다 — 옛 라디오가 남아 있어도 extras 는 늘 빈 객체(본문에 source 안 실음)."""
     driver = (
         "const rev = makeEl({ id: 'dwRevisionModal' });\n"
         + (f"rev._sel['input[name=\"dw-revision-source\"]:checked'] = makeEl({{ value: {source!r} }});\n" if source else "")
         + (f"rev._sel['input[name=\"dw-revision-via\"]:checked'] = makeEl({{ value: {via!r} }});\n" if via else "")
         + "loadSources(); out({ extras: window.fomsDrawingRevisionExtras() });"
     )
-    assert run_js([OK_JS], driver)["extras"] == expected
+    assert run_js([OK_JS], driver)["extras"] == {}
 
 
 # --------------------------------------------------------------------------- 요청 고치기 · 긴급 호출 · 전달 취소
@@ -334,8 +331,7 @@ const keepA = makeEl({ checked: true, attrs: { 'data-edit-keep-index': '0' } });
 const keepB = makeEl({ checked: false, attrs: { 'data-edit-keep-index': '1' } });
 const filesInput = makeEl({ files: ['NEWFILE'] });
 Object.assign(edit._sel, { '[data-edit-submit]': btn, '[data-edit-error]': makeEl({ cls: ['d-none'] }),
-  '#dw-edit-note': note, '#dw-edit-new-files': filesInput, '[data-edit-files]': makeEl({}),
-  '#dw-edit-source-customer': makeEl({}), '[data-edit-via-block]': makeEl({}) });
+  '#dw-edit-note': note, '#dw-edit-new-files': filesInput, '[data-edit-files]': makeEl({}) });
 const editStatus = makeEl({ cls: ['d-none'] }); edit._sel['[data-edit-status]'] = editStatus;
 let statusDuringUpload = '';
 window.fomsDrawingUploadRevisionFiles = async function (files) {
@@ -348,6 +344,7 @@ fire('show.bs.modal', edit);
 note.value = '고친 내용';
 edit._all['[data-edit-keep-index]'] = [keepA, keepB];
 edit._all['input[name="dw-edit-target"]:checked'] = [makeEl({ value: 'orders/77/drawing/plan-2.png' })];
+// 옛 출처 라디오가 남아 있어도 읽지 않는다(수정요청은 출처 구분 없음).
 edit._sel['input[name="dw-edit-source"]:checked'] = makeEl({ value: 'customer' });
 edit._sel['input[name="dw-edit-via"]:checked'] = makeEl({ value: 'phone' });
 fire('click', btn); await flush(); out({ note: note.value, during: statusDuringUpload });
@@ -359,9 +356,9 @@ fire('click', btn); await flush(); out({ note: note.value, during: statusDuringU
         "note": "고친 내용",
         "files": [{"key": "orders/77/drawing_gateway/revisions/a.png", "filename": "a.png"},
                   {"key": "orders/77/drawing_gateway/revisions/new.png", "filename": "new.png"}],
-        "source": "customer", "received_via": "phone",
         "target_file_keys": ["orders/77/drawing/plan-2.png"],
     }
+    assert "source" not in r["calls"][0]["body"] and "received_via" not in r["calls"][0]["body"]
     assert r["href"] == "/erp/drawing-workbench/77?tab=requests"
 
 
@@ -409,25 +406,18 @@ fire('click', b); fire('click', b); await flush(); out({});
     assert r["href"] == "/erp/drawing-workbench/77?tab=timeline"
 
 
-@pytest.mark.parametrize("opener_source,expect", [("customer", "customer"), ("", "sales")])
-def test_revision_sheet_preselects_source_from_opener(opener_source, expect):
-    """[고객이 고쳐 달래요]는 '고객 요청'을, 출처 없는 옛 버튼은 '내 의견'(지금 동작)을 미리 고른다."""
+def test_revision_sheet_open_touches_no_source_state():
+    """수정요청 창을 열어도 출처 속성을 붙이거나 제목·메모 칸 글자를 바꾸지 않는다(늘 '수정 요청')."""
     driver = (
         "const rev = makeEl({ id: 'dwRevisionModal' });\n"
-        "const rc = makeEl({ value: 'customer' }); const rs = makeEl({ value: 'sales' });\n"
-        "const via = makeEl({ cls: ['d-none'] }); const hint = makeEl({ cls: ['d-none'] });\n"
-        "Object.assign(rev._sel, { '#dw-revision-source-customer': rc, '#dw-revision-source-sales': rs,\n"
-        "  '[data-revision-via-block]': via, '[data-revision-note-hint]': hint, '[data-revision-title]': makeEl({}),\n"
-        "  '[data-revision-note-label]': makeEl({}) });\n"
+        "const title = makeEl({}); title.textContent = '수정 요청';\n"
+        "const label = makeEl({}); label.textContent = '수정 요청 메모 (필수)';\n"
+        "Object.assign(rev._sel, { '[data-revision-title]': title, '[data-revision-note-label]': label });\n"
         "loadSources();\n"
-        f"const opener = makeEl({{ attrs: {{ 'data-revision-source': {opener_source!r} }} }});\n"
-        "const origQ = rev.querySelector;\n"
-        "rev.querySelector = function (s) { if (s === 'input[name=\"dw-revision-source\"]:checked') {"
-        " return rc.checked ? rc : (rs.checked ? rs : null); } return origQ(s); };\n"
+        "const opener = makeEl({ attrs: { 'data-revision-source': 'customer' } });\n"
         "fire('show.bs.modal', rev, { relatedTarget: opener });\n"
-        "out({ customer: rc.checked, sales: rs.checked, viaShown: !hidden(via),"
-        " attr: rev.getAttribute('data-revision-source') });"
+        "out({ attr: rev.getAttribute('data-revision-source'), title: title.textContent, label: label.textContent });"
     )
     r = run_js([OK_JS], driver)
-    assert r["attr"] == expect
-    assert r["customer"] is (expect == "customer") and r["viaShown"] is (expect == "customer")
+    assert not r["attr"]
+    assert r["title"] == "수정 요청" and r["label"] == "수정 요청 메모 (필수)"

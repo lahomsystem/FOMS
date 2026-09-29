@@ -1,5 +1,5 @@
 /**
- * 도면 탭 '고객 OK · 확정' 시트(#dwCustomerOkModal) · 바의 [고객 컨펌하고 생산으로] · 수정요청 시트 출처.
+ * 도면 탭 '고객 OK · 확정' 시트(#dwCustomerOkModal) · 바의 [고객 컨펌하고 생산으로].
  * 설계서 docs/specs/2026-09-29-drawing-tab-send-to-customer_SPEC.md §3.5(나·다) · §3.6.
  *
  * - 확정(POST confirm-drawing-receipt) → "컨펌까지"를 골랐고 new_stage === 'CONFIRM' 일 때만 승인(POST quest/approve).
@@ -7,8 +7,8 @@
  * - 어느 경우든 도면 탭에 머문다(/erp/drawing-workbench/<id>?tab=timeline, C14).
  * - 승인 응답 판정: auto_transitioned·next_stage → 생산으로 · all_approved=false → 남은 팀 · 409 ALREADY_TRANSITIONED → 성공.
  * - 관리자 뚫기(FomsAdminOverride)는 붙이지 않는다 — 도면 탭의 확정·컨펌은 정식 경로만.
- * - 수정요청 시트: 여는 버튼의 data-revision-source 로 출처를 미리 고르고,
- *   window.fomsDrawingRevisionExtras() 가 {source, received_via} 를 내놓는다(인라인 submitRevision 이 typeof 가드로 싣는다).
+ * - 수정요청은 출처(고객·영업)를 나누지 않는다(하나의 '수정 요청'). window.fomsDrawingRevisionExtras() 는
+ *   빈 객체만 돌려준다 — 인라인 submitRevision 의 typeof 가드가 부르는 자리를 남겨 둔 것.
  */
 (function () {
   'use strict';
@@ -16,7 +16,6 @@
   window.__FOMS_DRAWING_CUSTOMER_OK_BOUND = true;
 
   var OK_ID = 'dwCustomerOkModal';
-  var REV_ID = 'dwRevisionModal';
   var busy = false;
 
   function q(root, sel) { return root ? root.querySelector(sel) : null; }
@@ -177,50 +176,18 @@
     window.location.href = stayUrl(orderId);
   }
 
-  // ---- 수정요청 시트 출처(§3.5 다) ------------------------------------------
-  function refreshRevision(root) {
-    var customer = checked(root, 'dw-revision-source') === 'customer';
-    root.setAttribute('data-revision-source', customer ? 'customer' : 'sales');
-    var via = q(root, '[data-revision-via-block]');
-    if (via) via.classList.toggle('d-none', !customer);
-    var title = q(root, '[data-revision-title]');
-    if (title) title.textContent = customer ? '고객이 뭐라고 했나요?' : '수정 요청';
-    var noteLabel = q(root, '[data-revision-note-label]');
-    if (noteLabel) noteLabel.textContent = customer ? '고객이 뭐라고 했나요? (필수)' : '수정 요청 메모 (필수)';
-    var hint = q(root, '[data-revision-note-hint]');
-    if (hint) hint.classList.toggle('d-none', !customer);
-  }
-
-  function resetRevision(root, opener) {
-    var source = attr(opener, 'data-revision-source') === 'customer' ? 'customer' : 'sales';
-    var radio = q(root, '#dw-revision-source-' + source);
-    if (radio) radio.checked = true;
-    Array.prototype.forEach.call(root.querySelectorAll('input[name="dw-revision-via"]'), function (el) { el.checked = false; });
-    refreshRevision(root);
-  }
-
-  /** 인라인 submitRevision 이 본문에 더하는 값. 출처 칸이 없으면 빈 객체(지금 본문 그대로). */
-  window.fomsDrawingRevisionExtras = function () {
-    var root = document.getElementById(REV_ID);
-    var source = checked(root, 'dw-revision-source');
-    if (source !== 'customer' && source !== 'sales') return {};
-    var extras = { source: source };
-    var via = checked(root, 'dw-revision-via');
-    if (source === 'customer' && via) extras.received_via = via;
-    return extras;
-  };
+  /** 인라인 submitRevision 이 본문에 더하는 값. 수정요청은 출처 구분 없이 하나라 늘 빈 객체다(typeof 가드 호환용). */
+  window.fomsDrawingRevisionExtras = function () { return {}; };
 
   document.addEventListener('show.bs.modal', function (e) {
     var root = e.target;
     if (!root) return;
     if (root.id === OK_ID) resetOk(root, e.relatedTarget);
-    else if (root.id === REV_ID) resetRevision(root, e.relatedTarget);
   });
   document.addEventListener('change', function (e) {
     var t = e.target;
     if (!t || !t.name) return;
     if (t.name === 'dw-ok-after') refreshOk(document.getElementById(OK_ID));
-    else if (t.name === 'dw-revision-source') refreshRevision(document.getElementById(REV_ID));
   });
   document.addEventListener('click', function (e) {
     var t = e.target && e.target.closest ? e.target : null;

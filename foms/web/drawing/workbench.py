@@ -1227,6 +1227,25 @@ def erp_drawing_workbench_detail(order_id):
         else:
             if fallback_ack_event is not None:
                 fallback_ack_event['is_ack_target'] = True
+    # 주문 변경 이력은 도면 쪽(도면 작업 참여자 + 관리자)만 본다 — 영업 아이디는 자기가 바꾼
+    # 주문을 도면 화면에서 다시 읽을 까닭이 없다(2026-09-30 사용자 결정). 확인 권한과 같은 축.
+    history_for_view = history
+    history_json_for_view = history_raw
+    if not can_ack_order_change:
+        history_json_for_view = [
+            h for h in history_raw
+            if not (isinstance(h, Mapping) and (h.get('action') or '').upper() == 'ERP_ORDER_CHANGED')
+        ]
+        handoff_thread = [
+            e for e in handoff_thread if (e.get('action') or '').upper() != 'ERP_ORDER_CHANGED'
+        ]
+        history_for_view = [
+            h for h in history if (h.get('action') or '').upper() != 'ERP_ORDER_CHANGED'
+        ]
+        order_change_pending = False
+        latest_order_change_note = ''
+        order_change_events = []
+        order_change_line = _build_order_change_line([])
 
     # 도면 상세 전용: 공통 실측 이미지(항목에 매핑되지 않은 첨부) 수집
     common_measure_photos = []
@@ -1262,7 +1281,7 @@ def erp_drawing_workbench_detail(order_id):
         assignee_text=assignee_text,
         drawing_files=drawing_files,
         drawing_pending=drawing_pending,
-        history=history,
+        history=history_for_view,
         revision_requests=revision_requests,
         latest_transfer=latest_transfer,
         prev_transfer=prev_transfer,
@@ -1302,7 +1321,7 @@ def erp_drawing_workbench_detail(order_id):
         my_role=current_user.role if current_user else '',
         my_team=current_user.team if current_user else '',
         my_name=current_user.name if current_user else '',
-        history_json=history_raw,
+        history_json=history_json_for_view,
         product_items=product_items,
         measure_photos=measure_photos,
         common_measure_photos=common_measure_photos,

@@ -115,7 +115,7 @@ def test_prev_summary_counts_legacy_untagged_send_in_prev_window(app, client):
     _to_round2(oid)
     cs = _cs(app, client, oid)
     assert cs["round"] == 2
-    assert cs["prev_summary"] == "1차 · 보냄 · 고객 요청 1건"
+    assert cs["prev_summary"] == "1차 · 보냄 · 수정요청 1건"
 
 
 def test_prev_summary_legacy_send_outside_window_is_not_sent(app, client):
@@ -124,7 +124,7 @@ def test_prev_summary_legacy_send_outside_window_is_not_sent(app, client):
     oid = _order()
     _legacy_sent(oid, datetime.datetime(2026, 9, 19, 5, 0, 0))
     _to_round2(oid)
-    assert _cs(app, client, oid)["prev_summary"] == "1차 · 안 보냄 · 고객 요청 1건"
+    assert _cs(app, client, oid)["prev_summary"] == "1차 · 안 보냄 · 수정요청 1건"
 
 
 # ── 마지막 시도 결과(기계용) ─────────────────────────────────────────────────

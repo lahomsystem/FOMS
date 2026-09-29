@@ -2,7 +2,7 @@
    workbench_detail_body.html 의 기존 모달 자리(#dwRevisionModal 옆)에서 include 한다.
    - 서버 값은 data-* 로만 넘기고 JS 는 safeJsonParse 로 읽는다. 인라인 스타일·인라인 핸들러 금지(부트스트랩 클래스만).
    - 여는 버튼은 customer_send.bar 항목(PC 결정 바 · 모바일 하단 바)이다. 시트는 그 키가 있을 때만 그린다.
-   - 동작 JS: drawing-customer-send.js(가·라) · drawing-customer-ok.js(나 · 수정요청 출처) ·
+   - 동작 JS: drawing-customer-send.js(가·라) · drawing-customer-ok.js(나) ·
      drawing-revision-edit.js(요청 고치기) · drawing-urgent-call-pc.js(PC 긴급 호출). #}
 {% set cs = customer_send|default({}) %}
 {% set cs_keys = cs.bar|default([])|map(attribute='key')|list %}
@@ -201,26 +201,6 @@
       </div>
       <div class="modal-body">
         <div class="alert alert-primary py-2 small" data-foms-no-autodismiss>도면팀이 아직 확인하기 전이라 고칠 수 있어요. 고친 내용은 도면팀에 다시 알려요.</div>
-        <div class="mb-3">
-          <div class="small fw-semibold text-muted mb-1">누구 말인가요</div>
-          <div class="btn-group" role="group" aria-label="요청 출처">
-            <input type="radio" class="btn-check" name="dw-edit-source" id="dw-edit-source-customer" value="customer" autocomplete="off">
-            <label class="btn btn-outline-warning btn-sm" for="dw-edit-source-customer">고객 요청</label>
-            <input type="radio" class="btn-check" name="dw-edit-source" id="dw-edit-source-sales" value="sales" autocomplete="off" checked>
-            <label class="btn btn-outline-secondary btn-sm" for="dw-edit-source-sales">내 의견</label>
-          </div>
-        </div>
-        <div class="mb-3 d-none" data-edit-via-block>
-          <div class="small fw-semibold text-muted mb-1">어떻게 받았나요 <span class="fw-normal">(선택)</span></div>
-          <div class="btn-group flex-wrap" role="group" aria-label="받은 경로">
-            <input type="radio" class="btn-check" name="dw-edit-via" id="dw-edit-via-phone" value="phone" autocomplete="off">
-            <label class="btn btn-outline-secondary btn-sm" for="dw-edit-via-phone">전화로</label>
-            <input type="radio" class="btn-check" name="dw-edit-via" id="dw-edit-via-kakao" value="kakao" autocomplete="off">
-            <label class="btn btn-outline-secondary btn-sm" for="dw-edit-via-kakao">카톡 답장</label>
-            <input type="radio" class="btn-check" name="dw-edit-via" id="dw-edit-via-store" value="store" autocomplete="off">
-            <label class="btn btn-outline-secondary btn-sm" for="dw-edit-via-store">매장 방문</label>
-          </div>
-        </div>
         {% if drawing_files and drawing_files|length > 1 %}
         <div class="mb-3">
           <div class="small fw-semibold text-muted mb-1">어느 도면이요? <span class="fw-normal">도면이 2장 이상이면 꼭 골라요</span></div>

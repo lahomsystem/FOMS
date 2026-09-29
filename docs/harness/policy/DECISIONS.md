@@ -10,6 +10,12 @@
 
 ---
 
+### [2026-09-30] 도면 수정 요청은 출처로 나누지 않는다 · 주문 변경 이력은 도면 쪽만 본다
+- **키워드**: 도면, 수정 요청, rev_sales, rev_customer, rev_post, source, received_via, 내 의견, 고객 요청, ERP_ORDER_CHANGED, 주문 변경, can_ack_order_change
+- **결정**: ① 수정 요청 버튼·시트·요청 고치기에서 "누구 말인가요(고객 요청/내 의견)"와 "어떻게 받았나요"를 없애고 라벨은 모두 "수정 요청". 새 화면은 `source`·`received_via` 를 보내지 않는다(API 는 옛 호환으로 계속 받는다, 옛 기록의 "고객 요청 · N차" 표시는 남긴다). 지난 회차 요약은 "수정요청 N건" 하나. ② 도면 작업실의 주문 변경 이력(모바일 분홍 말풍선·상태 줄, PC 변경 이력 카드·타임라인 항목·JSON 내려받기)은 도면 작업 참여자 + 관리자(`can_ack_order_change`)만 본다 — 영업 아이디에는 그리지 않는다.
+- **이유**: 사용자 결정(2026-09-30) — 출처 구분은 쓰는 사람에게 짐이었고, 주문 변경은 영업이 스스로 바꾼 것이라 도면 화면에서 다시 볼 까닭이 없다. 2026-09-29 T2 의 "영업은 읽기 전용으로 본다"를 대체한다.
+- **영향**: `foms/services/orders/drawing_customer_send_bar.py`·`drawing_customer_send_view.py`, `foms/web/drawing/workbench.py`, `templates/drawing/partials/workbench_detail_body.html`·`workbench_mobile_handoff.html`·`workbench_customer_send_modals.html`, `static/js/foms/drawing-customer-ok.js`·`drawing-revision-edit.js`(핀 20260930b).
+
 ### [2026-09-30] 도면 탭에서 고객에게 바로 보낸다 — 보내기는 언제나, 확정은 고객 OK 뒤
 - **키워드**: 도면, 고객 보내기, customer_send, drawing_round_info, 회차, share_doc_label, FOMS_SHARE_ROUND_DOC_LABEL, round_at, pair_ids, to_phone, request-revision/edit, 고객 요청 출처
 - **결정**: 도면 작업실(PC 결정 바·모바일 도면 방)에서 기존 공유 API(create·send-alimtalk·send-sms·revoke)로 확정 전에도 고객에게 보낸다. 버튼 목록은 서버가 한 번 판정(`customer_send.bar`)하고 PC·모바일이 같은 목록을 그린다. 회차 = 1 + 마지막 전달 앞 수정요청 수(요청 없는 추가 전달은 같은 회차). 발송 이벤트에 발송 순간 회차 표지(round_at·round)와 짝 링크(pair_ids)를 싣고, 발송 전 단계 실패 링크는 곧바로 회수한다. 내 폰 문자·복사는 '보냄'이 아니라 '링크를 만들었어요'. 수정요청에 출처(고객/영업)·받은 경로를 선택 필드로 남기고, 도면팀 반영 체크 전에는 영업이 요청을 고칠 수 있다(`POST /api/orders/<id>/request-revision/edit`). 고객 OK = 수령 확정 + (권한 있으면) 고객 컨펌 승인을 차례로(2a-2 게이트 그대로). 이번 발송만 다른 번호(`to_phone`, 원문 저장 안 함)와 주문 번호 저장(인라인 필드 — 첫 조회 행 잠금). 보낸 회차의 전달 취소는 경고만 하고 영업에게 먼저 알리기(긴급 호출)를 권한다. 도면팀 PC 에도 긴급 호출 창. 고객 링크 제목은 2차부터 'N차 도면 확인'. 알림톡 #{문서종류} 회차 이름은 `FOMS_SHARE_ROUND_DOC_LABEL`(기본 꺼짐) — 운영 테스트 발송 1회 확인 뒤 켠다.
