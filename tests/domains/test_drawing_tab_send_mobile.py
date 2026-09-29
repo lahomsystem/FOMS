@@ -76,10 +76,14 @@ URGENT_CALL = ("urgent_call", "긴급 호출", "urgent")  # S1: 도면 쪽(도�
 
 
 def test_default_customer_send_draws_no_bar_items_and_keeps_urgent(client, monkeypatch):
-    """S1a 기본값(빈 bar): 새 버튼 0개 · 옛 수정요청/수령 확정/수정요청 취소 블록도 없다 · 긴급 호출은 그대로."""
+    """S1a 기본값(빈 bar): 새 버튼 0개 · 옛 수정요청/수령 확정/수정요청 취소 블록도 없다 · 긴급 호출은 그대로.
+
+    빈 값을 직접 넣는다 — S1 을 합치면 라우트가 실제 목록을 채우므로, 주입 없이는 '빈 값' 경로를 못 본다.
+    """
     drafter = _user("s3_def_drafter", role="STAFF", team="DRAWING")
     sales = _user("s3_def_sales", role="MANAGER", team="SALES")
     oid = _order(drafter["id"])
+    _inject(monkeypatch, cs=empty_customer_send_view())
     handoff = _handoff(_page(client, monkeypatch, sales, oid))
     bar = handoff.select_one(".foms-drawing-action-bar")
     assert _mobile_bar_keys(handoff) == []
@@ -295,6 +299,7 @@ def test_empty_status_draws_nothing_in_order_summary(client, monkeypatch):
     drafter = _user("s3_empty_d", role="STAFF", team="DRAWING")
     sales = _user("s3_empty_s", role="MANAGER", team="SALES")
     oid = _order(drafter["id"], files=1)
+    _inject(monkeypatch, cs=empty_customer_send_view())  # S1 합친 뒤에도 빈 값 경로를 본다
     for who in (drafter, sales):
         order_box = _handoff(_page(client, monkeypatch, who, oid)).select_one("section.foms-drawing-handoff__order")
         assert order_box.select(".foms-drawing-send-steps, .foms-drawing-handoff__send-status, "
@@ -305,6 +310,7 @@ def test_sales_turn_hint_replaces_ribbon_sub(client, monkeypatch):
     drafter = _user("s3_hint_d", role="STAFF", team="DRAWING")
     sales = _user("s3_hint_s", role="MANAGER", team="SALES")
     oid = _order(drafter["id"], files=1)
+    _inject(monkeypatch, cs=empty_customer_send_view())  # 부제 기준값 = 빈 turn_hint
     plain_sub = _handoff(_page(client, monkeypatch, sales, oid)).select_one("section.foms-drawing-turn p").get_text()
     _inject(monkeypatch, cs={"turn_hint": "1차 초안 도착 · 고객에게 보여 줄 차례"})
     turn = _handoff(_page(client, monkeypatch, sales, oid)).select_one("section.foms-drawing-turn")
@@ -348,10 +354,12 @@ def test_thread_without_source_tag_keeps_old_revision_label(client, monkeypatch)
 # 시트 본문 = 무엇이 일어나는지만(S1 _cancel_warnings 의 base + 결과 문장). 무엇을 누를지는 시트가 말한다.
 WARN = ("영업이 이 1차 도면을 고객에게 이미 보냈어요(11:52 알림톡 · 링크 열림 1번). "
         "취소하면 고객 화면에서도 도면이 사라져요.")
+# S1 이 지금 모바일 문구 끝에 붙이는 확인창용 안내 — 시트는 이 부분을 잘라 낸다(버튼 이름과 어긋남).
+CONFIRM_SUFFIX = " 영업에게 먼저 알리려면 [취소]를 누르고 긴급 호출을 쓰세요. 그래도 전달을 취소할까요?"
 def test_mobile_cancel_transfer_opens_warning_sheet_when_sent(client, monkeypatch):
     drafter = _user("s3_cw_d", role="STAFF", team="DRAWING")
     oid = _order(drafter["id"], files=1)
-    _inject(monkeypatch, cs={"cancel_warning_text_mobile": WARN, "cancel_warning_text_pc": "PC 문구",
+    _inject(monkeypatch, cs={"cancel_warning_text_mobile": WARN + CONFIRM_SUFFIX, "cancel_warning_text_pc": "PC 문구",
                              "round_text": "1차"})
     handoff = _handoff(_page(client, monkeypatch, drafter, oid))
     cancel = handoff.select_one(".foms-drawing-action-bar [data-dw-cancel-warn]")
@@ -362,7 +370,8 @@ def test_mobile_cancel_transfer_opens_warning_sheet_when_sent(client, monkeypatc
 
     sheet = handoff.select_one("#dwCancelWarnMobileModal")
     assert sheet is not None and sheet.get("data-order-id") == str(oid)
-    assert WARN in sheet.get_text(" ", strip=True)
+    assert sheet.select_one(".foms-drawing-cancel-warn__text").get_text(strip=True) == WARN
+    assert "그래도 전달을 취소할까요" not in sheet.get_text(" ", strip=True)
     assert_sheet_names_only_its_own_buttons(sheet)
     urgent = sheet.select_one("[data-dw-cancel-warn-urgent]")
     assert urgent is not None and "영업에게 먼저 알리기" in urgent.get_text()

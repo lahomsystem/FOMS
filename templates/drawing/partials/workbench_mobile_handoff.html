@@ -447,9 +447,11 @@ data-bar-key="{{ item.key }}"
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
         </div>
         <div class="modal-body">
-          {# 본문(서버 cancel_warning_text_mobile) = 무엇이 일어나는지만. 무엇을 누를지는 이 시트의 버튼 이름으로
-             여기서 말한다 — 확인창용 '[취소]를 누르세요'가 [그래도 취소] 옆에 오면 반대 동작을 부른다(S3 리뷰 P2). #}
-          <p class="foms-drawing-cancel-warn__text">{{ cs.cancel_warning_text_mobile }}</p>
+          {# 본문 = 무엇이 일어나는지만(서버 문구의 '보냈어요 · 취소하면 …' 까지). 무엇을 누를지는 아래 줄이 이 시트의
+             버튼 이름으로 말한다. 서버 문구 끝의 확인창용 안내('영업에게 먼저 알리려면 [취소]를 누르고 …
+             그래도 전달을 취소할까요?')는 [그래도 취소] 옆에서 반대 동작을 부르므로 여기서 잘라 낸다(S3 리뷰 P2).
+             서버가 그 안내를 빼고 보내면 split 은 아무것도 안 한다. 합친 뒤 테스트가 실제 문구로 지킨다. #}
+          <p class="foms-drawing-cancel-warn__text">{{ (cs.cancel_warning_text_mobile.split(' 영업에게 먼저')|first)|trim }}</p>
           <p class="foms-drawing-cancel-warn__hint">영업에게 먼저 알리려면 아래 [영업에게 먼저 알리기]를 누르세요.</p>
           <p class="foms-drawing-cancel-warn__error" role="alert" data-dw-cancel-warn-error hidden></p>
         </div>
