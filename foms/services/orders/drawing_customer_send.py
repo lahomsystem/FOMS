@@ -1,7 +1,7 @@
 """도면 탭 '고객에게 보내기' — 회차 함수와 작업실 화면값(설계서 2026-09-29 §4.3 · §4.4 · §4.5).
 
-회차 함수 ``drawing_round_info`` 와 모든 화면값 키를 빈 값으로 채운 ``empty_customer_send_view``
-(S1a 뼈대), 그리고 고객 문서 이름(``share_doc_label`` · ``share_round_label``)·발송 이벤트 표지
+회차 함수 ``drawing_round_info`` 와 모든 화면값 키를 빈 값으로 채운 ``empty_customer_send_view``,
+그리고 고객 문서 이름(``share_doc_label`` · ``share_round_label``)·발송 이벤트 표지
 (``send_event_tags``)·이번 발송 번호(``resolve_send_phone``, 사용자 결정 Q5-②)를 둔다. 발송·열람
 판정과 화면값 채우기는 ``drawing_customer_send_view``, 버튼 목록은 ``drawing_customer_send_bar``.
 상세 ctx 는 늘 ``customer_send`` 를 싣는다 — Jinja 기본 Undefined 는 없는 변수의 속성을 읽는
@@ -99,6 +99,10 @@ def empty_customer_send_view() -> dict[str, Any]:
         # 이번 회차 발송·열람(§4.4)
         "sent_this_round": False,
         "sent_text": "",
+        # 추가 전달 뒤: 같은 회차 앞 전달분을 보낸 시각·경로("11:52 알림톡"). 없으면 "".
+        "sent_earlier_text": "",
+        # 이번 회차 마지막 시도 결과 — "sent" | "failed" | "unsure"(network·보내는 중) | ""(시도 없음).
+        "last_attempt_state": "",
         "link_only_text": "",
         "failed_text": "",
         "views": 0,
@@ -125,19 +129,6 @@ def empty_customer_send_view() -> dict[str, Any]:
 
 
 CUSTOMER_SEND_KEYS: tuple[str, ...] = tuple(empty_customer_send_view())
-
-
-def skeleton_customer_send_view(sd: Mapping[str, Any] | None) -> dict[str, Any]:
-    """빈 화면값 + 회차 값만(S1a). S1 의 build_customer_send_view 가 이 자리를 대신한다."""
-    view = empty_customer_send_view()
-    info = drawing_round_info(sd)
-    view.update(
-        round=info.round,
-        round_text=round_text(info.round),
-        round_at=info.round_at,
-        is_append=info.is_append,
-    )
-    return view
 
 
 # ── 고객 문서 이름(알림톡 ``#{문서종류}`` · 문자 본문 · 공유 화면 제목, §4.3 · Q3 · Q6) ──────────

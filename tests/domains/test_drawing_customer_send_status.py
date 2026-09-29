@@ -182,8 +182,9 @@ def test_alimtalk_success_this_round(app, client, ata):
     assert "알림톡" in cs["status_line"]
     assert cs["link_only_text"] == ""  # 발송에 쓰인 링크는 '링크만 만듦' 이 아니다
     assert cs["cancel_warning_text_pc"] and cs["cancel_warning_text_mobile"]
-    assert "긴급 호출" not in cs["cancel_warning_text_pc"]
-    assert "긴급 호출" in cs["cancel_warning_text_mobile"]
+    # Q5-④: PC·모바일 둘 다 전달 취소 창에 [영업에게 먼저 알리기] 버튼이 있어 문구가 같다.
+    assert cs["cancel_warning_text_pc"] == cs["cancel_warning_text_mobile"]
+    assert "[영업에게 먼저 알리기]" in cs["cancel_warning_text_pc"]
     assert "1차" in cs["cancel_warning_text_pc"]
     assert [s["state"] for s in cs["steps"]][:3] == ["done", "done", "now"]
 

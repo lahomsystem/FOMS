@@ -6,6 +6,9 @@
 판정 규칙
 * **이번 회차 발송** = 발송 이벤트 payload 의 ``round_at`` 이 지금 회차(``drawing_round_info``)의
   ``round_at`` 과 같음. 표지 없는 옛 이벤트만 ``created_at ≥ round_at`` 시각 비교로 대신한다.
+* **같은 회차 앞 발송**(추가 전달 뒤) = 표지 ``round_at`` 이 지금 회차의 앞 전달 시각 중 하나, 또는
+  표지 없이 지금 회차 첫 전달 ~ ``round_at`` 사이. '보냄'으로 치지 않고(추가분은 안 보냈다) 따로 보인다.
+* **앞 회차 요약** = 표지 ``round`` 가 앞 회차, 또는 표지 없이 앞 회차 첫 전달 ~ 지금 회차 첫 전달 사이.
 * **보냄** = ``status == 'sent'``(벤더 접수 — 고객 폰 도착이 아니다). 내 폰 문자·링크 복사·카카오
   공유는 보냄이 아니다(Q1) — **링크만 만듦**: 이번 회차 도착 뒤 직원이 발급했고(``created_by`` 있음)
   회수되지 않았으며 어떤 발송 이벤트와도 짝이 아닌 링크.
@@ -71,6 +74,7 @@ class _Send(NamedTuple):
     at: datetime.datetime | None
     this_round: bool
     tagged_round: int | None
+    tagged_round_at: str | None
     link_ids: frozenset[int]
 
 
@@ -162,6 +166,7 @@ def _sends(events: list[Any], tokens: list[Any], info: RoundInfo,
             error=str(payload.get("error") or ""),
             at=at, this_round=this_round,
             tagged_round=_int_or_none(payload.get("round")) if tagged else None,
+            tagged_round_at=str(payload.get("round_at") or "") if tagged else None,
             link_ids=frozenset(ids),
         ))
     return out
@@ -186,6 +191,48 @@ def _failed_text(attempt: _Send | None) -> str:
     return f"{when} {attempt.channel} 실패 · {_ERROR_LABELS.get(attempt.error, attempt.error or '사유 모름')}"
 
 
+def _attempt_state(attempt: _Send | None) -> str:
+    """화면이 기계적으로 읽는 마지막 시도 결과(두 통 방지 경고용)."""
+    if attempt is None:
+        return ""
+    if attempt.status == "sent":
+        return "sent"
+    return "unsure" if attempt.status == "in_flight" or attempt.error == "network" else "failed"
+
+
+def _round_transfer_times(sd: Mapping[str, Any]) -> dict[int, list[str]]:
+    """회차 → 그 회차 전달 시각들(이력 순서). 회차 규칙은 ``drawing_round_info`` 와 같다."""
+    out: dict[int, list[str]] = {}
+    requests_seen = 0
+    for h in sd.get("drawing_transfer_history") or []:
+        if not isinstance(h, Mapping):
+            continue
+        if h.get("action") == "REQUEST_REVISION":
+            requests_seen += 1
+        elif h.get("action") == "TRANSFER":
+            out.setdefault(1 + requests_seen, []).append(
+                str(h.get("transferred_at") or h.get("at") or "").strip())
+    return out
+
+
+def _in_window(at: datetime.datetime | None, lo: str, hi: datetime.datetime | None) -> bool:
+    lo_dt = _utc(lo) if lo else None
+    return bool(at and lo_dt and hi and lo_dt <= at < hi)
+
+
+def _earlier_send(sends: list[_Send], times: list[str], round_dt: datetime.datetime | None) -> _Send | None:
+    """추가 전달 뒤 같은 회차의 앞 전달분에 보낸 가장 최근 성공 발송."""
+    earlier = set(times[:-1])
+    if not earlier:
+        return None
+    for s in sends:
+        if s.status != "sent" or s.this_round:
+            continue
+        if (s.tagged_round_at in earlier) if s.tagged_round_at is not None else _in_window(s.at, times[0], round_dt):
+            return s
+    return None
+
+
 def _history_without_last_transfer(sd: Mapping[str, Any]) -> dict[str, Any]:
     history = [h for h in (sd.get("drawing_transfer_history") or []) if isinstance(h, Mapping)]
     idx = max((i for i, h in enumerate(history) if h.get("action") == "TRANSFER"), default=None)
@@ -204,19 +251,25 @@ def _cancel_warnings(sd: Mapping[str, Any], info: RoundInfo, detail: str) -> tup
     else:
         consequence = f"취소하면 고객 화면에서도 {rt}가 사라지고 {round_text(after.round)}가 다시 보여요."
     base = f"영업이 이 {rt} 도면을 고객에게 이미 보냈어요({detail}). {consequence} "
-    return (base + "영업에게 먼저 연락하려면 [취소]를 누르세요. 그래도 전달을 취소할까요?",
-            base + "영업에게 먼저 알리려면 [취소]를 누르고 긴급 호출을 쓰세요. 그래도 전달을 취소할까요?")
+    # Q5-④: PC·모바일 둘 다 전달 취소 창에 [영업에게 먼저 알리기](긴급 호출 창) 버튼이 있다.
+    text = base + "영업에게 먼저 알리려면 [영업에게 먼저 알리기]를 누르세요. 그래도 전달을 취소할까요?"
+    return text, text
 
 
-def _prev_summary(sd: Mapping[str, Any], info: RoundInfo, sends: list[_Send]) -> str:
+def _prev_summary(sd: Mapping[str, Any], info: RoundInfo, sends: list[_Send],
+                  times: dict[int, list[str]], round_dt: datetime.datetime | None) -> str:
     if info.round < 2:
         return ""
     prev = info.round - 1
+    prev_times = times.get(prev) or [""]
+    cur_times = times.get(info.round) or []
+    hi = (_utc(cur_times[0]) if cur_times and cur_times[0] else None) or round_dt
     history = [h if isinstance(h, Mapping) else {} for h in (sd.get("drawing_transfer_history") or [])]
     rounds = request_rounds(history)
     customer = sum(1 for i, r in rounds.items() if r == prev and is_customer_request(history[i]))
     other = sum(1 for i, r in rounds.items() if r == prev and not is_customer_request(history[i]))
-    sent = any(s.status == "sent" and s.tagged_round == prev for s in sends)
+    sent = any(s.status == "sent" and (s.tagged_round == prev if s.tagged_round_at is not None
+                                       else _in_window(s.at, prev_times[0], hi)) for s in sends)
     parts = [f"{prev}차", "보냄" if sent else "안 보냄"]
     if customer:
         parts.append(f"고객 요청 {customer}건")
@@ -227,7 +280,8 @@ def _prev_summary(sd: Mapping[str, Any], info: RoundInfo, sends: list[_Send]) ->
 
 def _steps(*, arrival_label: str, file_count: int, round_dt: datetime.datetime | None,
            sent: _Send | None, link_only_at: datetime.datetime | None, views: int,
-           last_viewed: datetime.datetime | None, drawing_status: str) -> list[dict[str, str]]:
+           last_viewed: datetime.datetime | None, drawing_status: str,
+           earlier: _Send | None = None) -> list[dict[str, str]]:
     answered = drawing_status in ("RETURNED", "CONFIRMED")
     delivered = sent is not None or link_only_at is not None
     steps = [{"label": arrival_label, "sub": f"도면 {file_count}장", "when": _when(round_dt), "state": "done"}]
@@ -237,7 +291,9 @@ def _steps(*, arrival_label: str, file_count: int, round_dt: datetime.datetime |
         steps.append({"label": "링크를 만들었어요", "sub": "직접 보낸 경우 보냈는지는 기록되지 않아요",
                       "when": _when(link_only_at), "state": "done"})
     else:
-        steps.append({"label": "고객에게 보내기", "sub": "아직 안 보냄", "when": "",
+        sub = (f"추가 전달분 아직 안 보냄 · 앞 전달분 {_when(earlier.at)} {earlier.channel} 보냄" if earlier
+               else "아직 안 보냄")
+        steps.append({"label": "고객에게 보내기", "sub": sub, "when": "",
                       "state": "wait" if answered else "now"})
     view_sub = (f"{views}번 · 마지막 {_when(last_viewed)}" if views and last_viewed
                 else (f"{views}번" if views else (f"마지막 {_when(last_viewed)}" if last_viewed else "")))
@@ -299,14 +355,19 @@ def build_customer_send_view(
             last_viewed = None
         views_part = _views_part(views, last_viewed)
         latest_attempt = this_round[0] if this_round else None
+        times = _round_transfer_times(sd)
+        earlier = None if sent is not None else _earlier_send(sends, times.get(info.round) or [], round_dt)
         view.update(
             sent_this_round=sent is not None, views=views,
+            sent_earlier_text=f"{_when(earlier.at)} {earlier.channel}" if earlier else "",
+            last_attempt_state=_attempt_state(latest_attempt),
             last_viewed_text=_when(last_viewed),
             link_only_text=f"{_when(link_only_at)} {LINK_ONLY_NOTE}" if link_only_at else "",
             failed_text=_failed_text(latest_attempt),
-            prev_summary=_prev_summary(sd, info, sends),
+            prev_summary=_prev_summary(sd, info, sends, times, round_dt),
             steps=_steps(arrival_label=arrival_label, file_count=file_count, round_dt=round_dt, sent=sent,
-                         link_only_at=link_only_at, views=views, last_viewed=last_viewed, drawing_status=status),
+                         link_only_at=link_only_at, views=views, last_viewed=last_viewed, drawing_status=status,
+                         earlier=earlier),
         )
         if sent is not None:
             detail = f"{_when(sent.at)} {sent.channel}{views_part}"
@@ -319,6 +380,12 @@ def build_customer_send_view(
                 view["cancel_warning_text_pc"], view["cancel_warning_text_mobile"] = _cancel_warnings(sd, info, detail)
         elif latest_attempt is not None:
             view["status_line"] = f"영업 → 고객 · {rt} {_failed_text(latest_attempt)}"
+        elif earlier is not None:
+            view["status_line"] = (f"영업 → 고객 · {rt} 보냄 {_when(earlier.at)} {earlier.channel}{views_part}"
+                                   " · 추가 전달분은 아직 안 보냄")
+            if status == "TRANSFERRED":
+                view["cancel_warning_text_pc"], view["cancel_warning_text_mobile"] = _cancel_warnings(
+                    sd, info, f"{_when(earlier.at)} {earlier.channel}{views_part}")
         elif link_only_at is not None:
             view["status_line"] = f"영업 → 고객 · {rt} 링크만 만듦 {_when(link_only_at)}{views_part}"
         else:
