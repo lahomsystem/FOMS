@@ -1009,7 +1009,8 @@ def api_production_rework(order_id: int):
     """
     db = get_db()
     try:
-        order = db.get(Order, order_id)
+        # 첫 조회부터 행 잠금 — 도면·보류 게이트를 잠금 아래 sd 로 판정한다(제작 시작과 같다).
+        order = lock_order_row(db, order_id)
         if not order or order.status == "DELETED" or order.deleted_at is not None:
             return jsonify({"success": False, "message": "주문을 찾을 수 없습니다."}), 404
 
@@ -1048,6 +1049,14 @@ def api_production_rework(order_id: int):
             punched.append("INVALID_STAGE")
 
         sd = _ensure_dict(order.structured_data)
+
+        # 사용자 결정(2026-09-29): 수정 제작도 도면이 수정 중(RETURNED·TRANSFERRED)이면 막는다 —
+        # 옛 도면으로 다시 만들지 않게. [제작 시작] (a) 와 같은 판정. 보류 해제(쓰기)보다 먼저 본다.
+        drawing_gate = _punch_or_return(
+            _drawing_block_response(db, order, sd, revision_in_flight_block),
+            "DRAWING_STATUS", override, punched)
+        if drawing_gate is not None:
+            return drawing_gate
 
         hold_gate = _punch_or_return(
             _apply_production_hold_gate(
