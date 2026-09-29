@@ -1482,17 +1482,14 @@
         pending.run();
     }
 
-    /** 폰 관리 시트의 버튼이면 확인 시트를 거친다(N-13). 데스크톱 카드는 예전처럼 바로 간다. */
+    /** 폰 관리 시트 안의 버튼인가 — 확인 문장의 `시트` 말을 고른다. 확인은 폰·PC 모두 거친다(N-13 · PC 다듬기). */
     function inAdminSheet(btn) {
         return !!(btn && btn.closest && btn.closest('#wb-asheet'));
     }
 
-    /** `지금 수집` — 폰 관리 시트에서는 무엇을 받아오는지 먼저 묻는다(N-13). */
+    /** `지금 수집` — 무엇을 받아오는지 먼저 묻는다(폰 N-13 · PC 는 2026-09-29 사용자 결정 ③). */
     function askRunNow(btn) {
-        if (!inAdminSheet(btn)) {
-            submitRunNow(btn);
-            return;
-        }
+        var inSheet = inAdminSheet(btn);
         var cell = btn.closest('.wb-ingest__cell');
         var since = cell ? cell.querySelector('.wb-ingest__phone') : null;
         openAsk({
@@ -1500,21 +1497,23 @@
             who: since ? since.textContent.trim() : '',
             // 스윕은 조회만 한다(ingest.sync_naver_orders: 변경 목록·상세 조회). 새 취소·반품 알림은 스윕이 만든다.
             facts: ['네이버에는 아무것도 보내지 않아요.',
-                    '시트를 닫아도 계속 받아요. 끝나면 이 시트에 결과가 보여요.',
+                    // PC 는 결과가 버튼 아래 안내 줄(setRunNote)에 나온다.
+                    inSheet ? '시트를 닫아도 계속 받아요. 끝나면 이 시트에 결과가 보여요.'
+                        : '끝나면 버튼 아래 줄에 결과가 보여요.',
                     '처음 보는 취소·반품이 있으면 담당자·관리자에게 알림이 가요.'],
             go: '지금 받아오기', cancel: '그만두기', linkId: '', back: btn,
             run: function () { submitRunNow(btn); }
         }) || submitRunNow(btn);
     }
 
-    /** `과거 긁어오기` — 폰 관리 시트에서는 기간·일수·걸리는 시간을 먼저 말하고 묻는다(N-13). */
+    /** `과거 긁어오기` — 기간·일수·걸리는 시간을 먼저 말하고 묻는다(폰 N-13 · PC 는 사용자 결정 ③). */
     function askBackfill(btn) {
         var from = document.getElementById('wb-backfill-from');
         var to = document.getElementById('wb-backfill-to');
         var fromValue = from ? String(from.value || '') : '';
         var toValue = to ? String(to.value || '') : '';
         // 빈 칸이면 묻지 않는다 — submitBackfill 이 그 자리에서 안내한다(규칙 한 벌).
-        if (!inAdminSheet(btn) || !fromValue || !toValue) {
+        if (!fromValue || !toValue) {
             submitBackfill(btn);
             return;
         }
@@ -1524,7 +1523,8 @@
             who: fromValue + ' ~ ' + toValue + (days > 0 ? ' · ' + days + '일' : ''),
             // 셋 다 코드가 지키는 사실이다 — 관리 시트 확인 줄(wb-backfill__confirm)과 같은 근거.
             facts: ['이미 받은 주문은 건너뛰어요 — 두 번 들어오지 않아요.',
-                    '하루씩 훑어서 몇 분 걸려요. 시트를 닫아도 계속돼요.',
+                    inAdminSheet(btn) ? '하루씩 훑어서 몇 분 걸려요. 시트를 닫아도 계속돼요.'
+                        : '하루씩 훑어서 몇 분 걸려요. 진행은 버튼 아래 줄에 보여요.',
                     '‘받아온 시각’은 바뀌지 않아요.',
                     '네이버에는 아무것도 보내지 않아요.'],
             go: days > 0 ? days + '일치 가져오기' : '지난 주문 가져오기', cancel: '그만두기', linkId: '', back: btn,

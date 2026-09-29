@@ -311,7 +311,8 @@ process.stdout.write(JSON.stringify({ran: ran, closed: closed.length, left: askP
 # --------------------------------------------------------------------------- #
 
 @_needs_node
-def test_admin_sheet_buttons_ask_first_desktop_card_goes_straight():
+def test_admin_card_buttons_ask_first_on_phone_and_pc():
+    """확인 단계는 폰 관리 시트와 PC 카드 모두(PC 는 2026-09-29 사용자 결정 ③). 문장만 자리에 맞게 갈린다."""
     result = _run(("inAdminSheet", "askRunNow", "askBackfill", "rangeDays"), FAKE_DOM + """
 var asked = [], runs = [], fills = [];
 function openAsk(spec) { asked.push(spec); return true; }
@@ -325,30 +326,35 @@ function btn(inSheet) {
   }};
 }
 askRunNow(btn(false));
-var desk = runs.length;
 askRunNow(btn(true));
-var phone = runs.length;
+var runsBefore = runs.length;
 asked[0].run();
 els['wb-backfill-from'].value = '2026-07-01'; els['wb-backfill-to'].value = '2026-09-28';
 askBackfill(btn(false));
 askBackfill(btn(true));
-var fillPhone = fills.length;
+var fillsBefore = fills.length;
 els['wb-backfill-from'].value = '';
 askBackfill(btn(true));
-out({desk: desk, phone: phone, runsAfter: runs.length, run: asked[0], fill: asked[1], fillDesk: 1,
-     fillPhone: fillPhone, fillEmpty: fills.length, n: asked.length,
+out({runsBefore: runsBefore, runsAfter: runs.length, runDesk: asked[0], runPhone: asked[1],
+     fillDesk: asked[2], fillPhone: asked[3], fillsBefore: fillsBefore, fillEmpty: fills.length, n: asked.length,
      days: [rangeDays('2026-07-01', '2026-09-28'), rangeDays('2026-09-28', '2026-09-28'),
             rangeDays('2026-09-28', '2026-07-01'), rangeDays('', '2026-09-28')]});""")
-    assert result["desk"] == 1 and result["phone"] == 1, "데스크톱은 바로, 폰 시트는 묻기만"
-    assert result["runsAfter"] == 2
-    assert result["run"]["title"] == "지금 새 주문을 받아올까요?"
-    assert result["run"]["who"].endswith("뒤에 들어온 주문을 바로 받아와요.")
-    assert result["fillPhone"] == 1, "폰 시트의 과거 긁어오기는 확인 전 POST 0건(데스크톱 1건만)"
-    assert result["fillEmpty"] == 2 and result["n"] == 2, "빈 날짜는 묻지 않고 기존 안내로 간다"
-    assert result["fill"]["title"] == "과거 주문 90일치를 가져올까요?"
-    assert result["fill"]["who"] == "2026-07-01 ~ 2026-09-28 · 90일" and result["fill"]["go"] == "90일치 가져오기"
+    assert result["runsBefore"] == 0, "PC·폰 모두 묻기만 — 확인 전 POST 0건"
+    assert result["runsAfter"] == 1
+    assert result["fillsBefore"] == 0
+    assert result["fillEmpty"] == 1 and result["n"] == 4, "빈 날짜는 묻지 않고 기존 안내로 간다"
+    for spec in (result["runDesk"], result["runPhone"]):
+        assert spec["title"] == "지금 새 주문을 받아올까요?"
+        assert spec["who"].endswith("뒤에 들어온 주문을 바로 받아와요.")
+    assert "끝나면 버튼 아래 줄에 결과가 보여요." in result["runDesk"]["facts"]
+    assert "시트를 닫아도 계속 받아요. 끝나면 이 시트에 결과가 보여요." in result["runPhone"]["facts"]
+    for spec in (result["fillDesk"], result["fillPhone"]):
+        assert spec["title"] == "과거 주문 90일치를 가져올까요?"
+        assert spec["who"] == "2026-07-01 ~ 2026-09-28 · 90일" and spec["go"] == "90일치 가져오기"
+    assert "하루씩 훑어서 몇 분 걸려요. 진행은 버튼 아래 줄에 보여요." in result["fillDesk"]["facts"]
+    assert "하루씩 훑어서 몇 분 걸려요. 시트를 닫아도 계속돼요." in result["fillPhone"]["facts"]
     assert result["days"] == [90, 1, 0, 0]
-    for spec in (result["run"], result["fill"]):
+    for spec in (result["runDesk"], result["runPhone"], result["fillDesk"], result["fillPhone"]):
         assert "네이버에는 아무것도 보내지 않아요." in spec["facts"] and spec["cancel"] == "그만두기"
 
 
