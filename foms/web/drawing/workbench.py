@@ -166,21 +166,73 @@ def _drawing_next_action_tone(drawing_status: str, has_assignee: bool) -> str:
     return 'mine' if (drawing_status or 'PENDING').upper() in ('PENDING', 'RETURNED') else 'other'
 
 
-def _drawing_row_status_label(drawing_status: str, has_assignee: bool) -> str:
-    """목록 행 상태 라벨: PENDING 을 담당 지정 여부로 대기중/작업중 분리.
+# 파이프라인 bar 의 열린 큐 네 칸. '전체' = 이 네 칸의 합(누적 완료는 따로 뗀 칸).
+WORKBENCH_OPEN_BUCKETS = ('WAITING', 'IN_PROGRESS', 'RETURNED', 'TRANSFERRED')
+
+_WORKBENCH_BUCKET_LABELS = {'WAITING': '대기중', 'IN_PROGRESS': '작업중'}
+
+
+def _drawing_wizard_has_saved_work(sd: Mapping[str, Any]) -> bool:
+    """도면 마법사에 저장된 작업이 있는가(담당 지정 없이 그리기만 시작한 주문 판별).
+
+    Args:
+        sd: 주문 structured_data.
+
+    Returns:
+        ``drawing_wizard.pending``(전달 대기 시트)이 비어 있지 않거나, ``drawing_wizard.sheets``
+        중 객체(``objects``)가 하나라도 있는 시트가 있으면 ``True``. 빈 캔버스만 저장된 경우는
+        작업으로 보지 않는다.
+    """
+    wizard = sd.get('drawing_wizard') if isinstance(sd, Mapping) else None
+    if not isinstance(wizard, Mapping):
+        return False
+    if wizard.get('pending'):
+        return True
+    sheets = wizard.get('sheets')
+    if not isinstance(sheets, list):
+        return False
+    return any(isinstance(sheet, Mapping) and sheet.get('objects') for sheet in sheets)
+
+
+def _workbench_bucket(row: Mapping[str, Any]) -> str:
+    """작업실 행의 파이프라인 칸 — 타일 숫자·상태 필터·행 상태 라벨이 함께 쓰는 단일 판정.
+
+    - ``RETURNED``(수정요청) / ``TRANSFERRED``(확정대기) / ``CONFIRMED``(누적 완료)는 그대로.
+    - ``PENDING``·레거시 ``IN_PROGRESS`` 는 도면 담당 지정 **또는** 마법사 저장 작업이 있으면
+      ``IN_PROGRESS``(작업중), 둘 다 없으면 ``WAITING``(대기중).
+    - 그 밖의 모르는 상태값은 ``WAITING`` — 열린 큐 네 칸의 합이 항상 '전체'와 같게 한다.
+
+    Args:
+        row: ``drawing_status``·``no_assignee``·``has_saved_work`` 를 가진 행 dict.
+
+    Returns:
+        ``WAITING`` / ``IN_PROGRESS`` / ``RETURNED`` / ``TRANSFERRED`` / ``CONFIRMED`` 중 하나.
+    """
+    status = str(row.get('drawing_status') or '').strip().upper()
+    if status in ('RETURNED', 'TRANSFERRED', 'CONFIRMED'):
+        return status
+    if status in ('PENDING', 'IN_PROGRESS') and (
+        not row.get('no_assignee') or row.get('has_saved_work')
+    ):
+        return 'IN_PROGRESS'
+    return 'WAITING'
+
+
+def _drawing_row_status_label(bucket: str, drawing_status: str) -> str:
+    """목록 행 상태 라벨: 파이프라인 칸(``_workbench_bucket``)과 같은 말을 한다.
 
     ``_drawing_status_label`` 은 다른 소비처(상세·퀘스트) 계약이라 무변경으로 두고,
     작업실 행 레벨에서만 오버라이드한다.
 
     Args:
-        drawing_status: 도면 상태 코드.
-        has_assignee: 도면 담당자 지정 여부.
+        bucket: ``_workbench_bucket`` 결과.
+        drawing_status: 도면 상태 코드(열린 두 칸 밖의 라벨 폴백용).
 
     Returns:
         표시용 상태 라벨.
     """
-    if (drawing_status or '').upper() == 'PENDING':
-        return '작업중' if has_assignee else '대기중'
+    if bucket in _WORKBENCH_BUCKET_LABELS:
+        return _WORKBENCH_BUCKET_LABELS[bucket]
     return _drawing_status_label(drawing_status)
 
 
@@ -625,8 +677,14 @@ def erp_drawing_workbench_dashboard():
         drawing_status = effective_drawing_status(sd, default='PENDING')  # 판정 정본(2a-2)
         is_drawing_stage = (stage_code == 'DRAWING')
         is_active_revision = (drawing_status == 'RETURNED')
-        is_confirmed_included = include_confirmed and drawing_status == 'CONFIRMED'
-        if not (is_drawing_stage or is_active_revision or is_confirmed_included):
+        is_confirmed = (drawing_status == 'CONFIRMED')
+        # 수령확정 주문은 도면 단계에 남아 있어도(전달·수령확정은 stage 를 안 바꾼다) 기본 목록에서
+        # 뺀다 — '전체' 타일(열린 큐 합)과 '전체' 목록 건수가 같은 모집단을 보게 한다.
+        # 컨펌 포함(토글·완료 칸·검색)일 때만 단계와 무관하게 넣는다.
+        if is_confirmed:
+            if not include_confirmed:
+                continue
+        elif not (is_drawing_stage or is_active_revision):
             continue
 
         customer_name = (((sd.get('parties') or {}).get('customer') or {}).get('name')) or '-'
@@ -636,6 +694,7 @@ def erp_drawing_workbench_dashboard():
         # 이미 로드된 sd 에서 계산(추가 쿼리 없음). 작업실 일괄 전송 UI의 행 배지/판별 소스.
         drawing_wizard = sd.get('drawing_wizard') or {}
         pending_count = len(drawing_wizard.get('pending') or {})
+        has_saved_work = _drawing_wizard_has_saved_work(sd)
         history = list(sd.get('drawing_transfer_history', []) or [])
         last_event = history[-1] if history else {}
         assignees = list(sd.get('drawing_assignees', []) or [])
@@ -651,6 +710,11 @@ def erp_drawing_workbench_dashboard():
 
         draw_assignee_ids = get_assignee_ids(o, 'DRAWING_DOMAIN')
         has_assignee = bool(draw_assignee_ids)
+        bucket = _workbench_bucket({
+            'drawing_status': drawing_status,
+            'no_assignee': not has_assignee,
+            'has_saved_work': has_saved_work,
+        })
         user_id = current_user.id if current_user else None
         is_drawing_assignee = bool(user_id and user_id in draw_assignee_ids)
         is_sales_owner = is_order_related_to_user(o, current_user, scope='sales')
@@ -783,7 +847,9 @@ def erp_drawing_workbench_dashboard():
             'no_assignee': not has_assignee,
             'measurement_assignee_text': measurement_assignee_text,
             'drawing_status': drawing_status,
-            'drawing_status_label': _drawing_row_status_label(drawing_status, has_assignee),
+            'has_saved_work': has_saved_work,
+            'bucket': bucket,
+            'drawing_status_label': _drawing_row_status_label(bucket, drawing_status),
             'file_count': len(drawing_files),
             'transfer_round': transfer_round,
             'round_text': round_text(transfer_round),
@@ -826,14 +892,17 @@ def erp_drawing_workbench_dashboard():
         })
 
     # 프로세스 맵 카운트는 목록 필터와 무관하게 전체 큐 기준(파이프라인 bar SSOT).
-    stats = {'total': len(rows), 'WAITING': 0, 'IN_PROGRESS': 0, 'RETURNED': 0, 'TRANSFERRED': 0, 'CONFIRMED': 0, 'overdue': 0, 'unread': 0, 'd3': 0, 'pending_transfer': 0}
+    # '전체' = 열린 큐 네 칸(대기중·작업중·수정요청·확정대기)의 합. 칸은 _workbench_bucket
+    # 하나로 가르므로 네 칸 합이 늘 '전체'와 같다. 수령확정(CONFIRMED) 행은 컨펌 포함 모드
+    # (토글·완료 칸·검색)에서만 rows 에 들어오므로 '전체'·보조 칸(지연·미확인·D-3·전달 대기)
+    # 에서 빼야 모드에 따라 숫자가 흔들리지 않는다.
+    stats = {'total': 0, 'WAITING': 0, 'IN_PROGRESS': 0, 'RETURNED': 0, 'TRANSFERRED': 0, 'CONFIRMED': 0, 'overdue': 0, 'unread': 0, 'd3': 0, 'pending_transfer': 0}
     for r in rows:
-        status = (r.get('drawing_status') or 'WAITING').upper()
-        # 대기중 = PENDING && 담당 미지정 / 작업중 = PENDING && 담당 지정(미전달 작업분).
-        if status == 'PENDING':
-            status = 'WAITING' if r.get('no_assignee') else 'IN_PROGRESS'
-        if status in stats:
-            stats[status] += 1
+        bucket = r.get('bucket') or _workbench_bucket(r)
+        if bucket not in WORKBENCH_OPEN_BUCKETS:
+            continue
+        stats['total'] += 1
+        stats[bucket] += 1
         if r.get('is_overdue'):
             stats['overdue'] += 1
         if r.get('unread_count', 0) > 0:
@@ -844,10 +913,10 @@ def erp_drawing_workbench_dashboard():
         if int(r.get('pending_count') or 0) > 0:
             stats['pending_transfer'] += 1
 
-    # 컨펌 주문은 기본 모집단에서 빠지므로 rows 만으로는 '완료'가 늘 0 이다.
-    # 포함 모드가 아니면 캐시된 전체 큐 카운트로 채운다(구 캐시 블롭이면 0 폴백).
-    if not include_confirmed:
-        stats['CONFIRMED'] = int(_seed_blob.get('confirmed_count') or 0)
+    # '누적 완료' 칸은 열린 큐와 따로 뗀 칸이다. 단계와 무관한 전체 컨펌 수를 캐시된 SQL
+    # 카운트로 읽는다(목록과 같은 최상위 우선 판정). 컨펌 포함 모드에서도 같은 값을 써서
+    # 토글·검색에 따라 숫자가 바뀌지 않게 한다(구 캐시 블롭이면 0 폴백).
+    stats['CONFIRMED'] = int(_seed_blob.get('confirmed_count') or 0)
 
     if focus_order_id:
         # 검색 카드 딥링크: 단건만 착지시키고 목록 필터·페이지는 적용하지 않는다.
@@ -874,13 +943,8 @@ def erp_drawing_workbench_dashboard():
 
         if status_filter:
             def _match_status(row: dict[str, Any]) -> bool:
-                """WAITING/IN_PROGRESS 는 PENDING 을 담당 지정 여부로 갈라 매칭한다."""
-                s = (row.get('drawing_status') or '').upper()
-                if status_filter == 'WAITING':
-                    return s == 'WAITING' or (s == 'PENDING' and bool(row.get('no_assignee')))
-                if status_filter == 'IN_PROGRESS':
-                    return s == 'IN_PROGRESS' or (s == 'PENDING' and not row.get('no_assignee'))
-                return s == status_filter
+                """타일 숫자와 같은 판정(_workbench_bucket)으로 거른다 — 칸을 누르면 그 숫자만큼 나온다."""
+                return (row.get('bucket') or _workbench_bucket(row)) == status_filter
             rows = [r for r in rows if _match_status(r)]
 
     rows.sort(key=lambda r: (

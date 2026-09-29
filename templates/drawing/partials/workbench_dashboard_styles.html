@@ -50,6 +50,14 @@
   .dw-process-map .erp-pro-pipeline__connector {
     opacity: 0.45;
   }
+  /* 누적 완료: 열린 큐(전체)에 더하지 않는 칸 — 점선 테두리로 흐름 밖임을 보인다. */
+  .dw-process-map .erp-pro-pipeline__stage--detached {
+    border-style: dashed;
+    border-color: var(--erp-border);
+  }
+  .dw-process-map .erp-pro-pipeline__stage--detached.erp-pro-pipeline__stage--active {
+    border-color: var(--erp-primary);
+  }
   
   /* Phase 5: 모바일 카드 레이아웃 */
   .erp-drawing-mobile-list__summary {
