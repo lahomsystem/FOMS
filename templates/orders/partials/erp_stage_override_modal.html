@@ -49,6 +49,10 @@
                          role="alert" data-foms-no-autodismiss
                          data-warning-as="본공정 단계는 그대로 두고 AS 건만 엽니다."
                          data-warning-deleted="휴지통으로 보냅니다. 복구할 수 있습니다."></div>
+                    {# Q5(2a-2): 생산 이후로 넘기는데 도면이 수령 확정 전이면 경고(허용 + 기록). 문구·토글은 JS
+                       (erp-stage-override.js drawingWarningText — 서버 stage_override_drawing_warning 과 같은 글자). #}
+                    <div class="alert alert-warning py-2 mt-2 d-none" id="erp-stage-override-drawing-warning"
+                         role="alert" data-foms-no-autodismiss></div>
                 </div>
                 {# 일괄 강제 변경에서만 보인다 — AS 접수·완료 상태 주문을 함께 바꿀지 고른다. #}
                 <div class="form-check mb-2 d-none" id="erp-stage-override-include-as-row">

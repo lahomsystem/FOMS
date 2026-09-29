@@ -74,6 +74,48 @@
     return String(window.MY_ROLE || '').toUpperCase() === 'ADMIN';
   }
 
+  // Q5(2차 묶음 2a-2): 생산 이후로 강제 변경할 때 도면이 수령 확정(CONFIRMED)이 아니면 경고 한 줄.
+  // 문구는 서버 stage_override_drawing_warning(foms/services/orders/confirm_drawing_gate.py)과
+  // 같은 글자다. 서버는 넘긴 순간의 도면 상태를 STAGE_OVERRIDE 기록에 남긴다(막지는 않는다).
+  var DRAWING_STATUS_WORDS = { RETURNED: '수정 중', TRANSFERRED: '수령 전' };
+  var PRODUCTION_AND_AFTER = { PRODUCTION: true, CONSTRUCTION: true, CS: true, COMPLETED: true };
+  var DRAWING_UNKNOWN_WARNING =
+    '도면이 확정되지 않은 주문이면 옛 도면으로 생산될 수 있어요. 도면 수령 확정 여부를 먼저 확인하세요.';
+
+  function drawingWarningText(status, to) {
+    if (!PRODUCTION_AND_AFTER[String(to || '').trim()]) return '';
+    if (status === null || status === undefined || status === '') return DRAWING_UNKNOWN_WARNING;
+    var s = String(status).trim().toUpperCase();
+    if (s === 'CONFIRMED') return '';
+    var word = DRAWING_STATUS_WORDS[s] || '기록 없음';
+    return '도면이 아직 확정되지 않았어요(지금 상태: ' + word + '). 옛 도면으로 생산될 수 있어요.';
+  }
+
+  // 한 건이면 그 주문의 여는 버튼(data-drawing-status, 서버 판정 정본 필터)에서 읽는다. 모르면 null.
+  function resolveDrawingStatus(opts, orderIds) {
+    if (opts && opts.drawingStatus !== undefined && opts.drawingStatus !== null) {
+      return String(opts.drawingStatus);
+    }
+    if (!orderIds || orderIds.length !== 1) return null;
+    var btns = document.querySelectorAll('[data-erp-stage-override-open][data-drawing-status]');
+    for (var i = 0; i < btns.length; i += 1) {
+      if (Number(btns[i].getAttribute('data-order-id')) === orderIds[0]) {
+        return btns[i].getAttribute('data-drawing-status');
+      }
+    }
+    return null;
+  }
+
+  function syncDrawingWarning(to) {
+    var modalEl = document.getElementById('erpStageOverrideModal');
+    var box = document.getElementById('erp-stage-override-drawing-warning');
+    if (!modalEl || !box) return;
+    var known = modalEl.getAttribute('data-drawing-known') === '1';
+    var msg = drawingWarningText(known ? modalEl.getAttribute('data-drawing-status') : null, to);
+    box.textContent = msg;
+    box.classList.toggle('d-none', !msg);
+  }
+
   var BLOCK_MSG =
     '단계 역행/건너뛰기는 「단계 강제 변경」에서 사유·확인 후 진행하세요.';
 
@@ -231,6 +273,7 @@
     var mode = classifyMove(from, to);
     var kind = adminTargetKind(to);
     hint.textContent = kind ? '' : modeHint(mode);
+    syncDrawingWarning(kind ? '' : to);
     // AS·삭제를 고르면 무슨 일이 일어나는지 한 줄로 띄운다.
     var warn = document.getElementById('erp-stage-override-target-warning');
     if (warn) {
@@ -318,6 +361,9 @@
     var isBulkOpen = !!opts.bulk || orderIds.length > 1;
     if (includeAsEl) includeAsEl.checked = false;
     if (includeAsRow) includeAsRow.classList.toggle('d-none', !isBulkOpen);
+    var drawingStatus = isBulkOpen ? null : resolveDrawingStatus(opts, orderIds);
+    modalEl.setAttribute('data-drawing-known', drawingStatus === null ? '0' : '1');
+    modalEl.setAttribute('data-drawing-status', drawingStatus === null ? '' : drawingStatus);
     showError('');
     syncModeHint();
 
@@ -522,7 +568,10 @@
       }
       btn.classList.remove('d-none');
       btn.addEventListener('click', function () {
-        openModal({ orderId: btn.getAttribute('data-order-id') || null });
+        openModal({
+          orderId: btn.getAttribute('data-order-id') || null,
+          drawingStatus: btn.getAttribute('data-drawing-status')
+        });
       });
     });
 
@@ -692,6 +741,7 @@
     noteCurrentStage: noteCurrentStage,
     noteServerStage: noteServerStage,
     confirmForceMove: confirmForceMove,
+    drawingWarningText: drawingWarningText,
     wireUi: wireUi
   };
 
