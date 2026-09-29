@@ -65,5 +65,8 @@ def test_string_value_compared_to_integer_column_binds_like_psycopg2(lane_dsn) -
             got = conn.execute(select(t.c.id).where(t.c.id == "4445")).scalar_one()
             assert got == 4445
             t.drop(conn)
+        # A dialect subclass that forgets this runs with SQL compilation caching off.
+        assert engine.dialect.supports_statement_cache is True
+        assert engine.dialect.bind_typing.name == "NONE"
     finally:
         engine.dispose()
