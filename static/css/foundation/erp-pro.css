@@ -116,3 +116,38 @@
   color: var(--foms-text-secondary, #6b7280);
   word-break: keep-all;
 }
+
+/* R4(2026-09-29) — ERP 내부 첨부 탭(주문 수정 화면·대시보드 첨부 창)의 교체된 옛 도면.
+   목록 API include_superseded 가 is_superseded 를 싣는다. 흐리게 + '교체됨' 배지로 현재 도면과
+   가른다. 생산·시공·고객 화면에는 이 행이 오지 않는다. */
+.erp-attachment-card--superseded,
+.erp-attachment-tile--superseded {
+  opacity: 0.55;
+}
+
+.erp-attachment-card--superseded:hover,
+.erp-attachment-card--superseded:focus-within,
+.erp-attachment-tile--superseded:hover,
+.erp-attachment-tile--superseded:focus-visible {
+  opacity: 0.85;
+}
+
+.erp-attachment-superseded-badge {
+  display: inline-block;
+  margin-bottom: 4px;
+  padding: 1px 8px;
+  border: 1px solid var(--foms-border-subtle, #e5e7eb);
+  border-radius: 999px;
+  background: var(--foms-surface-muted, #f3f4f6);
+  color: var(--foms-text-secondary, #6b7280);
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.erp-attachment-tile--superseded .erp-attachment-superseded-badge {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  margin: 0;
+}

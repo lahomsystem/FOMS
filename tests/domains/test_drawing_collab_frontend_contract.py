@@ -48,7 +48,10 @@ def test_detail_dom_cachebuster_cascade_bumped() -> None:
     assert "erp-dashboard-drawing.js?v=20260929g" in entry
     # 2026-09-21 관리자 강제 진행 재시도 배선(erp-dashboard-quest.js)으로 entry 부모 핀만
     # 올렸다. 2026-09-29 제품 여러 건 목록+상세로 detail-dom 자식·entry 부모 모두 20260929a.
-    assert "erp-dashboard-entry.js') }}?v=20260929g" in layout
+    # 2026-09-29 R4: core·attachments 자식 핀 신설(20260929h). 2d·R4 를 합치며 entry 부모 핀 20260929j.
+    assert "erp-dashboard-core.js?v=20260929h" in entry
+    assert "erp-dashboard-attachments.js?v=20260929h" in entry
+    assert "erp-dashboard-entry.js') }}?v=20260929j" in layout
 
 
 def test_workbench_include_confirmed_toggle() -> None:

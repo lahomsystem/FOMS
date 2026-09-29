@@ -430,8 +430,9 @@ def test_asset_pins_bumped_to_20260920b():
     """
     # erp-quest-approve.js 는 2026-09-23 실측 통합 화면(복원 직전 이벤트)으로 다시 올라갔다.
     assert "erp-quest-approve.js') }}?v=20260923e" in _read("templates/partials/shared/layout_scripts.html")
-    assert "erp-dashboard-entry.js') }}?v=20260929g" in _read("templates/partials/shared/layout_scripts.html")
-    assert "erp-pro.css') }}?v=20260920b" in _read("templates/partials/shared/layout_head.html")
+    # 2026-09-29 2c-2 R4 + 2d 를 합치며 entry 부모 핀 20260929j, erp-pro.css 20260929h.
+    assert "erp-dashboard-entry.js') }}?v=20260929j" in _read("templates/partials/shared/layout_scripts.html")
+    assert "erp-pro.css') }}?v=20260929h" in _read("templates/partials/shared/layout_head.html")
     assert "04-filter-table-badges-buttons.css?v=20260920b" in _read("static/css/foundation/erp-pro.css")
     entry = _read("static/js/orders/erp-dashboard-entry.js")
     assert "erp-dashboard-quest.js?v=20260921a" in entry

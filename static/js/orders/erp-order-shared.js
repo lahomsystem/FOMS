@@ -3803,13 +3803,26 @@ function erpBuildAttachmentTile(a, options = {}) {
     const name = escapeHtml(a.filename || '첨부');
     const itemIndex = erpParseAttachmentItemIndex(a.item_index);
     const badge = options.showItemBadge && itemIndex !== null ? `<span class="erp-attachment-tile__badge">항목 ${itemIndex + 1}</span>` : '';
+    const superseded = a.is_superseded ? ' erp-attachment-tile--superseded' : '';
     return `
-<button type="button" class="erp-attachment-tile" data-erp-attachment-id="${escapeHtml(String(a.id))}"
+<button type="button" class="erp-attachment-tile${superseded}" data-erp-attachment-id="${escapeHtml(String(a.id))}"
     title="${name}" onclick="erpOpenAttachmentPreview('${a.id}')">
     ${erpBuildAttachmentMediaTile(a)}
     <span class="erp-attachment-tile__name">${name}</span>
     ${badge}
+    ${erpSupersededBadgeHtml(a)}
 </button>`;
+}
+
+// R4: 새 도면으로 교체된 옛 도면 표시(목록 API include_superseded 가 is_superseded 를 싣는다).
+function erpSupersededBadgeHtml(a) {
+    return a && a.is_superseded
+        ? '<span class="erp-attachment-superseded-badge" title="새 도면으로 교체된 옛 도면입니다">교체됨</span>'
+        : '';
+}
+
+function erpCountCurrentAttachments(list) {
+    return (list || []).filter((a) => !a.is_superseded).length;
 }
 
 function erpApplyAttachmentPermissionsFromBootstrap(data) {
@@ -4132,7 +4145,7 @@ function erpRenderAttachments() {
             return `
 <div class="erp-attachment-group-header">
     <div class="fw-semibold">${label}</div>
-    <span class="badge bg-primary">${list.length}</span>
+    <span class="badge bg-primary">${erpCountCurrentAttachments(list)}</span>
 </div>
 ${list.map((a) => erpBuildAttachmentTile(a, { showItemBadge: erpAttachmentSupportsItemLink(a) })).join('')}
 `;
@@ -4164,8 +4177,9 @@ style="height: 220px;">
 
         return `
 <div class="col-md-4 col-sm-6 col-12">
-<div class="card h-100">
+<div class="card h-100${a.is_superseded ? ' erp-attachment-card--superseded' : ''}">
     <div class="card-body p-2">
+        ${erpSupersededBadgeHtml(a)}
         ${mediaHtml}
         ${erpAttachmentSupportsItemLink(a) ? `
         <div class="mt-2">
@@ -4217,7 +4231,7 @@ style="height: 220px;">
 <div class="col-12">
 <div class="d-flex justify-content-between align-items-center mb-1 mt-2">
     <div class="fw-semibold">${label}</div>
-    <span class="badge bg-primary">${list.length}</span>
+    <span class="badge bg-primary">${erpCountCurrentAttachments(list)}</span>
 </div>
 </div>
 ${list.map(renderCard).join('')}
@@ -4236,10 +4250,13 @@ async function erpLoadAttachments() {
             fileInput.value = '';
         }
 
-        const res = await fetch(`/api/orders/${ORDER_ID}/attachments`);
+        // R4: 내부 첨부 탭은 교체된 옛 도면도 받아 '교체됨' 으로 흐리게 보인다(생산·시공·고객은 숨김).
+        const res = await fetch(`/api/orders/${ORDER_ID}/attachments?include_superseded=1`);
         const data = await res.json();
         if (!data.success) throw new Error(data.message || '첨부 목록 조회 실패');
-        __erpAttachments = data.attachments || [];
+        const loaded = data.attachments || [];
+        // 옛 도면은 뒤로(원래 순서 유지) — 갤러리·전체화면 넘김 순서가 같게 배열 자체를 정렬한다.
+        __erpAttachments = loaded.filter((a) => !a.is_superseded).concat(loaded.filter((a) => a.is_superseded));
         erpRenderAttachments();
         erpExpandMobileAttachmentSections();
     } catch (e) {

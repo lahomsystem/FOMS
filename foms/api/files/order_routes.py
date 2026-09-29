@@ -33,7 +33,11 @@ from foms.api.files.common import (
 from db import get_db
 from foms.services.attachment_visibility import include_deleted
 from foms.services.datetime_kst import now_utc_naive
-from foms.services.drawing_confirm_cleanup import exclude_superseded_drawing_rows
+from foms.services.drawing_confirm_cleanup import (
+    exclude_superseded_drawing_rows,
+    is_superseded_drawing_row,
+    superseded_drawing_keys,
+)
 from foms.services.files.upload_authz import category_upload_allowed
 from foms.services.files.upload_policy import ERP_MEDIA_ALLOWED_EXTENSIONS
 from foms.services.order_attachment_thumbnail import (
@@ -244,6 +248,11 @@ def api_order_attachments_list(order_id):
 
     기본은 살아있는 첨부만 반환한다(전역 tombstone 필터). ``?include_deleted=1`` 은
     휴지통 조회용 opt-in 으로, 첨부 관리 권한(관리자/담당자)이 있을 때만 허용한다.
+
+    교체된 옛 도면 행은 기본으로 뺀다(생산·시공 '도면' 탭·고객 공유와 같은 규칙).
+    ``?include_superseded=1`` 은 ERP 내부 첨부 탭용 opt-in(R4) — 옛 도면 행도 돌려주고 각
+    항목에 ``is_superseded`` 를 싣는다. 삭제가 아니라 교체라서 목록을 볼 수 있는 사람이면 누구나
+    쓸 수 있다(휴지통 같은 관리 권한 불필요).
     """
     try:
         db = get_db()
@@ -253,6 +262,7 @@ def api_order_attachments_list(order_id):
 
         current_user = _current_user()
         want_deleted = (request.args.get("include_deleted") or "").strip().lower() in _TRUTHY
+        want_superseded = (request.args.get("include_superseded") or "").strip().lower() in _TRUTHY
         if want_deleted and not can_manage_order_attachments(current_user, order):
             return jsonify({"success": False, "message": "삭제된 첨부를 조회할 권한이 없습니다."}), 403
 
@@ -274,7 +284,7 @@ def api_order_attachments_list(order_id):
         query = db.query(OrderAttachment).filter(OrderAttachment.order_id == order_id)
         if want_deleted:
             query = include_deleted(query)
-        else:
+        elif not want_superseded:
             # 교체된 옛 도면 행은 목록에서 뺀다 — 수령 확정이 지우지 않게 된 뒤(2026-09-29)
             # 남는 행이다. 생산·시공 대시보드의 '도면' 탭도 이 목록을 쓴다. 파일은 전달 이력
             # 링크로 계속 열린다. 휴지통 조회(opt-in)는 그대로 전부 보여준다.
@@ -292,6 +302,10 @@ def api_order_attachments_list(order_id):
             serialize_attachment(attachment, order=order, user=current_user)
             for attachment in attachments
         ]
+        if want_superseded:
+            old_keys = superseded_drawing_keys(order.structured_data)
+            for attachment, item in zip(attachments, items):
+                item["is_superseded"] = is_superseded_drawing_row(attachment, old_keys)
         return jsonify({"success": True, "attachments": items})
     except Exception as e:
         log_handled_exception()
