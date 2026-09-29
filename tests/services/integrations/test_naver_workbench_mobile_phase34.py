@@ -357,7 +357,7 @@ def test_admin_card_is_one_row_with_manage_sheet(client, workbench_on, monkeypat
 def test_admin_card_says_failure_unregistered_and_due(client, workbench_on, monkeypatch):
     """실패면 빨간 `실패`, 만료일이 없으면 `미등록`, 7일 이하면 경고 색. 정상 카드에는 셋 다 없다."""
     card = _card(_history(client, monkeypatch, error="네이버 401", expires_on=None, days_left=None))
-    assert "wb-icard--err" in card and ">실패<" in card and "인증 만료일 미등록" in card
+    assert "wb-icard--err" in card and ">실패<" in card and '인증 만료일 <span class="wb-dk">미등록</span>' in card
     assert "wb-icard--due" not in card
 
     _patch_ingest(monkeypatch, days_left=5, expires_on="2026-10-04")

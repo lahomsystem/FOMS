@@ -23,7 +23,7 @@
    불러와서 효과가 없었다. media 가 폰 폭이라 PC 는 이 시트를 늦게 받아도 쓰지 않고, 글꼴 파일은 폰에서만 내려온다
    (PC 뿌리 글꼴에는 Pretendard 가 없다). 주소는 layout_head 의 /erp 셸과 같은 한 벌. #}
 <link rel="stylesheet" media="(max-width: 767.98px)" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" crossorigin="anonymous">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260930d">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260930e">
 {% endblock %}
 
 {% block content %}
@@ -996,6 +996,10 @@
                 <p class="wb-reread__note" id="wb-reread-note">{{ refresh_all.eta }} 걸려요 · 네이버에는 아무것도 보내지 않아요 · 처음 보는 취소·반품은 알림이 가요</p>
             </div>
             {% endif %}
+            {# 폰(감사 원장 N-06) — 300줄 목록을 한 화면 반 넘게 내리면 `맨 위로`. 데스크톱은 CSS 가 숨긴다. #}
+            <button type="button" class="wb-totop" id="wb-totop" aria-label="목록 맨 위로" hidden>
+                <i class="fas fa-arrow-up" aria-hidden="true"></i>
+            </button>
         </section>
 
         {# 상세 pane. 전체 렌더와 프래그먼트 응답이 이 파셜 하나를 공유한다(계약 §3.1).
@@ -1017,6 +1021,8 @@
                     <h2 class="wb-layer__name" id="wb-layer-name" tabindex="-1"></h2>
                     {# 정렬 이름(감사 원장 N-11) — 기한순으로 연 주문은 위치(N / M)가 그 순서라는 것을 말한다. #}
                     <p class="wb-layer__sub"><span id="wb-layer-state"></span><span class="wb-layer__pos" id="wb-layer-pos"></span>{% if active_sort == 'due' %}<span class="wb-layer__sort"> · 기한순</span>{% endif %}</p>
+                    {# 감사 원장 N-43 — 머리에 합계 금액 · 발송기한(JS 가 pane 의 data-amount-total · 배지 글자로 채운다). #}
+                    <p class="wb-layer__meta" id="wb-layer-meta"></p>
                 </div>
                 <button type="button" class="wb-layer__step" id="wb-layer-prev"
                         aria-label="이전 주문" aria-disabled="true">
@@ -1128,7 +1134,7 @@
         {# 두 사실은 각자 한 줄이다 — 390px 에서 한 문장으로 이으면 `인증 만 / 료` 처럼 말 중간에서 꺾인다. #}
         <span class="wb-icard__text">
             <span class="wb-icard__seg">마지막 수집 {{ wm.last_run_at_text[5:] if wm.last_run_at_text else '아직 없음' }}</span>
-            <span class="wb-icard__seg">인증 만료{% if not ex.expires_on %}일{% endif %} {% if ex.expires_on %}{{ ex.expires_on }}{% if ex.days_left is not none %} ({{ ex.days_left if ex.days_left > 0 else 0 }}일){% endif %}{% else %}미등록{% endif %}</span>
+            <span class="wb-icard__seg">인증 만료{% if not ex.expires_on %}일{% endif %} {% if ex.expires_on %}{{ ex.expires_on }}{% if ex.days_left is not none %} ({{ ex.days_left if ex.days_left > 0 else 0 }}일){% endif %}{% else %}<span class="wb-dk">미등록</span><span class="wb-ph">미입력</span>{% endif %}</span>
         </span>
         <button type="button" class="wb-icard__manage" id="wb-asheet-open"
                 aria-haspopup="dialog" aria-expanded="false" aria-controls="wb-asheet">관리</button>
@@ -1193,7 +1199,8 @@
             {% else %}
             {# `wb-expiry-unset` — 폰 관리 시트에서 연노랑 상자 + 진한 주황 글자(감사 원장 N-10, 1.63:1 → 4.8:1).
                데스크톱 카드는 그대로다. #}
-            <div class="wb-ingest__v text-warning wb-expiry-unset">미등록</div>
+            {# 폰은 `미입력`(감사 원장 N-16·N-39 — 등록할 곳이 없는 값이 아니라 아직 적지 않은 값). #}
+            <div class="wb-ingest__v text-warning wb-expiry-unset"><span class="wb-dk">미등록</span><span class="wb-ph">미입력</span></div>
             <div class="wb-ingest__sub">만료일을 모르면 만료 경고를 보낼 수 없습니다.</div>
             {% endif %}
             {# 값은 API 로 못 읽는다 — 커머스API센터의 `인증 기한` 끝 날짜를 사람이 보고
@@ -1738,5 +1745,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260930d" defer></script>
+<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260930e" defer></script>
 {% endblock %}
