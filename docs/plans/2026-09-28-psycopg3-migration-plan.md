@@ -64,7 +64,7 @@ SQLAlchemy 2.0 은 이 주소를 psycopg2 로 연다(공식 문서: psycopg2 가
 - `yield_per`(서버 쪽 커서) 약 20곳: SQLAlchemy psycopg 방언도 지원한다. 2단계에서 PG 레인으로 확인한다.
 - `SET LOCAL lock_timeout/statement_timeout` (`app_init.py:46-47`, `db_indexes.py:40-41`): 값이 SQL 문자열 안에 들어 있어 바인딩 방식과 무관하다.
 - `:값 IS NULL` 꼴 SQL: 줄 단위 검색 0건. (여러 줄 SQL 은 이 검색이 못 잡는다 → 결정 1 로 막는다.)
-- SQLAlchemy 2.0.24~2.0.54 변경 기록의 psycopg3 수정 3건(2상 커밋 2건, JSONB `path_match`/`path_exists` 1건)은 FOMS 가 쓰지 않는 기능이다(사용 0). **SQLAlchemy 2.0.23 은 그대로 둔다.**
+- SQLAlchemy 2.0.24~2.0.54 변경 기록의 psycopg3 수정 3건(2상 커밋 2건, JSONB `path_match`/`path_exists` 1건)은 FOMS 가 쓰지 않는 기능이다(사용 0). **SQLAlchemy 2.0.23 은 그대로 둔다.** → 2026-09-29 별도 작업으로 2.0.54 상향(전 변경 기록 대조: `docs/plans/2026-09-29-sqlalchemy-2-0-54-upgrade-plan.md`).
 - CI 워크플로·`foms/build_compatibility.json` 의 psycopg 언급 0. PG 레인 테스트 파일 75개.
 
 ## 3. 외부 사실 (확인 2026-09-28)

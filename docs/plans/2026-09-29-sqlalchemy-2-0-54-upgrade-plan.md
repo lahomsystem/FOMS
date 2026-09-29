@@ -1,6 +1,6 @@
 # SQLAlchemy 2.0.23 → 2.0.54 상향 계획
 
-- 작성 2026-09-29 · 기준 `origin/deploy` · 상태: **승인 대기**
+- 작성 2026-09-29 · 기준 `origin/deploy` · 상태: **승인(2026-09-29) → 구현(deploy)**
 - 종류: DB 계층 코어 변경 → 계획 승인 뒤 구현.
 
 ## 0. 쉬운 요약
@@ -52,6 +52,11 @@ DB 도구(SQLAlchemy)를 같은 2.0 줄의 최신판 2.0.54(2026-09-15)로 올�
 ## 4. 되돌리기
 
 `requirements.txt` 한 줄(빌드 필요). DB 변경 없음.
+
+## 4-1. 구현 기록 (2026-09-29)
+- `requirements.txt` `SQLAlchemy==2.0.54`. 계약 `tests/domains/test_sqlalchemy_pin_and_rendering.py`(정확한 `==2.0.N` 고정 1줄, PG17 방언에서 JSON 경로가 `->`/`->>` — designer `JSON_PG_JSONB` 칸 포함). PG 레인 `tests/postgres/test_orm_hook_yield_per_pg.py`(`do_orm_execute` 첨부 필터 + `yield_per` 서버 커서, 조인·반복·음성 대조).
+- DISTINCT ON 4곳의 PG 레인 시험은 **없음을 확인** — 로그인 라우트를 거쳐야 해 이번 상향 범위보다 커서 후속(2.1 상향 때 `postgresql.distinct_on()` 교체와 함께)으로 남긴다.
+- 2.0.54 새 가상환경에서 PG 레인 776 passed, 전체 11198 passed(실패 2건은 가상환경 폴더를 저장소 안에 둬서 파일 크기 래칫이 site-packages 를 센 환경 문제 — 폴더를 밖으로 옮김). 경고 요약이 2.0.23 과 같다(DISTINCT ON 3·sqlite 날짜 어댑터 2, 새 경고 0).
 
 ## 5. 사용자가 정할 것
 
