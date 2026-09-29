@@ -46,7 +46,17 @@
            — can_act_production = ADMIN 또는 team capability CS/SALES/PRODUCTION
            (foms/api/production/orders.py 의 _PRODUCTION_STEPS_EDIT_TEAMS 와 같은 답). #}
         {% set _can_prod = can_act_production|default(false) %}
-        {% if o.stage == '제작대기' and o.is_sales_approved %}
+        {% set _gate_slot = None %}
+        {% if o.stage == '제작대기' and o.is_sales_approved and o.production_start_blocked %}
+          {# 도면 게이트(Q2, 2a-2): 제작 시작 라우트와 같은 판정. 비관리자는 버튼 대신 배지+이유,
+             관리자는 경고 모양 버튼(409 → 사유 시트 재시도)+이유. #}
+          {% set _gate_slot %}<p class="foms-gate-blocked-reason" data-production-start-blocked>{{ o.production_start_block_reason }}</p>{% endset %}
+          {% if _can_prod and is_admin %}
+            {% set task_action = {'label': '제작 시작(관리자)', 'icon': 'fas fa-triangle-exclamation', 'data_action': 'startProduction', 'button_class': 'erp-production-action foms-btn--warning'} %}
+          {% else %}
+            {% set task_action = {'label': '도면 확정 대기', 'icon': 'fas fa-pen-ruler', 'badge_only': true, 'button_class': 'foms-production-status'} %}
+          {% endif %}
+        {% elif o.stage == '제작대기' and o.is_sales_approved %}
           {# 제작 시작·완료도 되돌리기와 같은 데코레이터(_production_steps_edit_required)를
              지난다 — 권한이 없으면 버튼 대신 배지만 남긴다(거부당할 버튼 0). #}
           {% if _can_prod %}
@@ -76,7 +86,7 @@
             {% set task_action = {'label': '제작 완료', 'icon': 'fas fa-check-circle', 'badge_only': true, 'button_class': 'foms-production-status'} %}
           {% endif %}
         {% endif %}
-        {{ render_queue_card_v2(o, can_edit_erp|default(false), task_action, '--production', o.stage, task_actions=task_actions) }}
+        {{ render_queue_card_v2(o, can_edit_erp|default(false), task_action, '--production', o.stage, task_actions=task_actions, detail_slot=_gate_slot) }}
         {# B3: 카드당 서버 렌더는 '공정 N/5' 배지 버튼 1줄만(enriched 행 sd 파생, 신규 쿼리 없음).
            체크 5행 UI 는 페이지 공용 바텀시트 1개에서 GET lazy 로드 — 카드마다 인라인
            반복 렌더 금지(fragment 전송 바이트 예산). 권한 게이트는 서버 SSOT(403 폴백). #}

@@ -28,6 +28,7 @@ __all__ = [
     "normalize_stage_code",
     "production_block_reason",
     "production_drawing_badge",
+    "production_start_block",
     "revision_in_flight_block",
     "stage_override_drawing_warning",
 ]
@@ -128,6 +129,20 @@ def production_drawing_badge(sd: Any) -> Optional[dict[str, str]]:
         "title": _BADGE_TITLES[block.drawing_status],
         "drawing_status": block.drawing_status,
     }
+
+
+def production_start_block(stage_raw: Any, sd: Any) -> Optional[GateBlock]:
+    """[제작 시작] 이 도면 게이트에 막히는가 — 제작 시작 라우트와 같은 단계 분기(화면 == 서버).
+
+    생산 단계(진행 중 run 없음 = 제작 대기)는 (a) :func:`revision_in_flight_block`, 고객컨펌
+    호환 경로는 (b) :func:`confirm_exit_block`(허용 목록). 그 밖의 단계는 막지 않는다.
+    """
+    stage = normalize_stage_code(stage_raw)
+    if stage == "PRODUCTION":
+        return revision_in_flight_block(sd)
+    if stage == "CONFIRM":
+        return confirm_exit_block(sd)
+    return None
 
 
 def production_block_reason(block: GateBlock, sales_names: Iterable[str] = ()) -> str:
