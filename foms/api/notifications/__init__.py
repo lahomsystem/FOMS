@@ -18,6 +18,7 @@ from foms.web.auth import log_access, login_required
 from foms.services.audit_message_display import describe_action, describe_order_action
 from foms.services.orders.audit_order_context import order_audit_context
 from foms.services.datetime_kst import format_datetime_kst, now_utc_naive
+from foms.services.notifications.measure_same_day_payload import measure_same_day_link
 from foms.services.notifications.recipients import fan_out_new_notification
 from foms.services.request_write_guard import require_same_origin_write
 from foms.services.sidefx_outbox import enqueue_side_effect
@@ -170,6 +171,15 @@ def _resolve_notification_deep_link(notification, order_structured_data):
             "deep_event_id": None,
             "deep_target_no": None,
             "deep_link_url": shipment_change_deep_link(order_structured_data),
+        }
+
+    if n_type == "MEASURE_SAME_DAY_ADDED" and oid:
+        # 알림 벨 목록도 폰 알림과 같은 곳(그날 실측 목록의 그 줄)으로 연다.
+        return {
+            "deep_tab": None,
+            "deep_event_id": None,
+            "deep_target_no": None,
+            "deep_link_url": measure_same_day_link(oid, getattr(notification, "created_at", None)),
         }
 
     if n_type not in ("DRAWING_TRANSFERRED", "DRAWING_REVISION", "ERP_ORDER_CHANGED") or not oid:

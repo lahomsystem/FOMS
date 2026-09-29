@@ -218,7 +218,9 @@ def test_put_full_save_to_today_creates_single_alert(client, clock, captured, sa
     assert payload["area"] == "서울 강남구"
     assert payload["time"] == "14시"
     assert payload["manager"] == "김영업"
-    assert payload["order_url"] == f"/erp/orders/{order_id}"
+    # 알림을 누르면 주문 수정 화면이 아니라 그날 실측 목록의 그 줄로 간다.
+    assert payload["order_url"].startswith("/erp/measurement?date=")
+    assert payload["order_url"].endswith(f"&focus_order={order_id}")
 
 
 def test_patch_field_to_today_creates_alert(client, clock, captured, sales, inline_enabled):

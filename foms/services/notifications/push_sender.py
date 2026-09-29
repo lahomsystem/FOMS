@@ -16,6 +16,7 @@ from __future__ import annotations
 import datetime as _dt
 
 from foms.services.datetime_kst import format_datetime_kst, now_utc_naive
+from foms.services.notifications.measure_same_day_payload import measure_same_day_link
 from foms.services.orders.order_mutation_policy import normalize_team
 import hashlib
 import json
@@ -183,6 +184,9 @@ def _deep_link(notif: Notification) -> str:
             # 생산 칸반이 이 알림의 작업 화면이다(주문 상세가 아니라). 출고와 같은 이유로
             # 파라미터는 붙이지 않는다 — payload 는 generic 규약.
             return "/erp/production/dashboard"
+        if ntype == "MEASURE_SAME_DAY_ADDED":
+            # 실측 기사의 작업 화면은 오늘 실측 목록이다 — 그 줄로 스크롤해 카드 시트를 연다.
+            return measure_same_day_link(oid, notif.created_at)
         return f"/erp/orders/{oid}"
     return "/erp"
 
