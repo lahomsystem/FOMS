@@ -9,25 +9,40 @@ purge 도구·보존기간·전용 config 파일은 2026-08 에 다 만들어졌
 startCommand 안에 있다"** 이다. 같은 문자열이 세 곳(config-as-code 정본 · GraphQL 사본 ·
 검증 스크립트 needle)에 흩어져 있으므로 셋의 일치도 함께 고정한다 — 어긋나면 어느 쪽이
 도는지 알 수 없고, 그게 이번 실패의 모양이었다.
+
+2026-09-29: 문자열 계약만으로는 부족했다. purge 가 ``A && B && C`` 로 **적혀** 있었지만
+FOMS-cron 은 실제로 루트 Dockerfile 로 빌드되고, Dockerfile 서비스의 startCommand 는 셸 없이
+exec 되어 **첫 명령만** 돌았다(운영 만료 receipt 2952건 잔존). 그래서 startCommand 는
+``python tools/cron/nightly.py`` 한 줄이고, 단계 목록은 ``tools.cron.nightly.NIGHTLY_STEPS`` 가
+정본이며, 모든 Railway startCommand 에서 셸 연산자를 금지한다
+(docs/specs/2026-09-29-nightly-cron-single-runner-spec.md).
 """
 
 from __future__ import annotations
 
+import re
 import tomllib
 from pathlib import Path
+
+from tools.cron.nightly import NIGHTLY_STEPS
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 _CRON_TOML = _REPO_ROOT / "railway-cron.toml"
 _CONFIGURE_TOOL = _REPO_ROOT / "tools" / "ops" / "railway_configure_cron_service.py"
 _VERIFY_SCRIPT = _REPO_ROOT / "scripts" / "ops" / "verify_foms_cron_prod.ps1"
 
-#: startCommand 안에 반드시 있어야 하는 조각. ``--apply`` 까지 포함한다 — 이게 빠지면
-#: dry-run 이라 매일 "성공"하면서 한 행도 안 지운다(가장 눈치채기 어려운 실패).
-_REQUIRED_FRAGMENTS = (
-    "tools/cron/cleanup_order_drafts.py --execute",
-    "tools/ops/purge_order_mutation_receipts.py",
-    "tools/ops/purge_audit_logs.py --apply",
+_NIGHTLY_START_COMMAND = "python tools/cron/nightly.py"
+
+#: 러너가 반드시 도는 (스크립트, 필수 인자). ``--execute``/``--apply`` 까지 포함한다 — 이게
+#: 빠지면 dry-run 이라 매일 "성공"하면서 한 행도 안 지운다(가장 눈치채기 어려운 실패).
+_REQUIRED_STEPS = (
+    ("tools/cron/cleanup_order_drafts.py", "--execute"),
+    ("tools/ops/purge_order_mutation_receipts.py", "--apply"),
+    ("tools/ops/purge_audit_logs.py", "--apply"),
 )
+
+#: 셸이 없으면 뜻을 잃는 문법. Dockerfile 서비스는 startCommand 를 셸 없이 exec 한다.
+_SHELL_SYNTAX = re.compile(r"&&|\|\||[;|<>$`]")
 
 
 def _cron_start_command() -> str:
@@ -36,24 +51,46 @@ def _cron_start_command() -> str:
         return tomllib.load(handle)["deploy"]["startCommand"]
 
 
-def test_cron_start_command_runs_both_purges() -> None:
-    """매일 도는 cron 이 receipt purge 와 감사 원장 purge 를 모두 실행한다."""
-    command = _cron_start_command()
-    missing = [piece for piece in _REQUIRED_FRAGMENTS if piece not in command]
+def test_cron_start_command_is_the_nightly_runner() -> None:
+    """cron 은 셸 문법 없는 러너 한 줄을 실행한다."""
+    assert _cron_start_command() == _NIGHTLY_START_COMMAND
+
+
+def test_nightly_runner_runs_cleanup_and_both_purges() -> None:
+    """러너 단계에 cleanup 과 purge 2종이 실제 모드(--execute/--apply)로 있다."""
+    steps = {step.script: step.args for step in NIGHTLY_STEPS}
+    missing = [
+        (script, flag) for script, flag in _REQUIRED_STEPS
+        if flag not in steps.get(script, ())
+    ]
     assert not missing, (
-        "railway-cron.toml 의 startCommand 에서 purge 배선이 빠졌다 — 이게 빠지면 원장이 "
-        f"무한 증식한다.\n  missing={missing}\n  startCommand={command!r}"
+        "tools/cron/nightly.py 의 NIGHTLY_STEPS 에서 purge 배선이 빠졌다 — 이게 빠지면 원장이 "
+        f"무한 증식한다.\n  missing={missing}"
     )
+    for step in NIGHTLY_STEPS:
+        assert (_REPO_ROOT / step.script).is_file(), step.script
 
 
-def test_receipt_purge_runs_with_apply() -> None:
-    """영수증 purge 가 ``--apply`` 로 돈다 — dry-run 은 매일 성공하면서 0건을 지운다."""
-    command = _cron_start_command()
-    receipt_step = next(
-        part for part in command.split("&&")
-        if "purge_order_mutation_receipts.py" in part
+def test_shell_syntax_detector_catches_the_old_chained_command() -> None:
+    """음성 대조: 2026-09-29 까지 쓰던 체이닝 명령을 검출기가 잡는다."""
+    old = (
+        "python tools/cron/cleanup_order_drafts.py --execute && python "
+        "tools/ops/purge_order_mutation_receipts.py --retention-days 7 --batch-size 1000 "
+        "--apply && python tools/ops/purge_audit_logs.py --apply"
     )
-    assert "--apply" in receipt_step, receipt_step.strip()
+    assert _SHELL_SYNTAX.search(old)
+    assert not _SHELL_SYNTAX.search(_NIGHTLY_START_COMMAND)
+
+
+def test_no_railway_start_command_relies_on_a_shell() -> None:
+    """모든 railway*.toml startCommand 에 셸 연산자가 없다(셸 없이 exec 돼도 뜻이 같다)."""
+    offenders = []
+    for toml_path in sorted(_REPO_ROOT.glob("railway*.toml")):
+        with toml_path.open("rb") as handle:
+            command = tomllib.load(handle).get("deploy", {}).get("startCommand", "")
+        if _SHELL_SYNTAX.search(command):
+            offenders.append(f"{toml_path.name}: {command}")
+    assert not offenders, offenders
 
 
 def test_configure_tool_command_matches_config_as_code() -> None:

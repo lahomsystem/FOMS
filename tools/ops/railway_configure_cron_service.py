@@ -17,7 +17,7 @@ CONFIG_PATH = "railway-cron.toml"
 # railway-cron.toml 의 startCommand 와 **글자까지 같아야** 한다(config-as-code 가 정본,
 # 이 상수는 GraphQL 로 대시보드 필드를 맞추는 사본). 어긋나면 어느 쪽이 도는지 모른다.
 CRON_START_COMMAND = (
-    "python tools/cron/cleanup_order_drafts.py --execute && python tools/ops/purge_order_mutation_receipts.py --retention-days 7 --batch-size 1000 --apply && python tools/ops/purge_audit_logs.py --apply"
+    "python tools/cron/nightly.py"
 )
 CRON_SCHEDULE = "0 17 * * *"
 
