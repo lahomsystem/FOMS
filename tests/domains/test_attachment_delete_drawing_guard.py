@@ -14,8 +14,10 @@ from types import SimpleNamespace
 import pytest
 
 import foms.api.files.order_routes as order_routes
+import foms.services.storage_delete_handler as handler_mod
 from db import db_session
 from foms.services.attachment_visibility import include_deleted
+from foms.services.storage_delete_handler import handle_storage_delete
 from models import DomainSideEffectOutbox, Order, OrderAttachment, OrderEvent, User
 
 _n = itertools.count(1)
@@ -171,6 +173,56 @@ def test_unmarked_trash_row_without_purge_rows_keeps_old_refusal(app, storage):
         db_session.delete(row)  # 끝난 outbox 가 30일 뒤 정리된 모양
     db_session.commit()
     storage.existing.add(att.storage_key)
+    res = c.post(f"/api/orders/{oid}/attachments/{att.id}/restore")
+    assert res.status_code == 409
+    assert "유예 기간이 지나" in res.get_json()["message"]
+
+
+def _run_purges_as_worker(monkeypatch):
+    """유예가 지나 worker 가 예약을 처리한 모양: 핸들러 실행 뒤 DONE. 실제로 지운 key 를 돌려준다."""
+    deleted = []
+    monkeypatch.setattr(handler_mod, "get_storage",
+                        lambda: SimpleNamespace(delete_file=lambda k: deleted.append(k) or True))
+    for row in _outbox():
+        handle_storage_delete(row)
+        row.status = "DONE"  # sidefx_worker 의 finalize 와 같은 결과
+    db_session.commit()
+    return deleted
+
+
+def test_purge_skipped_because_key_reused_restores_when_file_exists(app, storage, monkeypatch):
+    """삭제 뒤 유예 안에 같은 key 를 다른 첨부 행이 다시 쓰면 핸들러가 건너뛴다(2b 리뷰 P3).
+
+    파일이 남아 있으니 복구 API 가 '이미 삭제되었습니다' 라고 거짓 거절하면 안 된다 —
+    건너뛴 사실을 보고 저장소를 확인해 되살린다. 끝난 예약 행도 지워 다시 지울 때 dedupe 가 풀린다.
+    """
+    user = _admin()
+    oid, _, _ = _order_with_drawings()
+    key = f"orders/{oid}/attachments/reuse.jpg"
+    att = _att(oid, key, category="measurement")
+    c = _client(app, user)
+    assert c.delete(f"/api/orders/{oid}/attachments/{att.id}").status_code == 200
+    _att(oid, key, category="measurement")  # 같은 본체·썸네일 key 를 쓰는 살아 있는 행
+    assert _run_purges_as_worker(monkeypatch) == []
+    storage.existing.add(key)
+    res = c.post(f"/api/orders/{oid}/attachments/{att.id}/restore")
+    assert res.status_code == 200, res.get_data(as_text=True)
+    db_session.expire_all()
+    assert db_session.get(OrderAttachment, att.id).deleted_at is None
+    assert _outbox() == []
+
+
+def test_purge_partly_deleted_keeps_truthful_refusal(app, storage, monkeypatch):
+    """썸네일은 실제로 지워졌으면(본체만 건너뜀) 복구는 지금처럼 거절한다."""
+    user = _admin()
+    oid, _, _ = _order_with_drawings()
+    key = f"orders/{oid}/attachments/half.jpg"
+    att = _att(oid, key, category="measurement")
+    c = _client(app, user)
+    assert c.delete(f"/api/orders/{oid}/attachments/{att.id}").status_code == 200
+    _att(oid, key, category="measurement", thumb=False)  # 본체만 다시 쓴다
+    assert _run_purges_as_worker(monkeypatch) == [att.thumbnail_key]
+    storage.existing.add(key)
     res = c.post(f"/api/orders/{oid}/attachments/{att.id}/restore")
     assert res.status_code == 409
     assert "유예 기간이 지나" in res.get_json()["message"]
