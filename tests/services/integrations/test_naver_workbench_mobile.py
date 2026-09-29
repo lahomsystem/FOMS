@@ -102,9 +102,9 @@ def test_summary_banner_counts_only_rendered_strips(client, workbench_on, monkey
     banner = _banner(body)
     assert 'aria-expanded="false"' in banner, "폰에서는 접힌 채로 시작한다"
     assert 'aria-controls="wb-alerts-body"' in banner
-    assert re.search(r"확인 필요 <b>4</b>건", banner)
+    assert re.search(r"확인할 주문 <b>4</b>건", banner)  # 2026-09-30 P2 N-15·N-16: `확인 필요` 는 이력 상태 이름과 겹쳤다
     parts = re.sub(r"\s+", " ", banner.split('class="wb-alerts__parts">')[1].split("</span>")[0])
-    assert parts == "유령 주문 2 · 부분 취소 1 · 처리 실패 1"
+    assert parts == "결제가 다 취소된 주문 2 · 부분 취소 1 · 처리 실패 1"
     assert "옛 주문 정리" not in banner and "오늘 발송" not in banner
     # 띠 자체는 요약 띠의 펼침 자리 **안**에 그대로 있다(데스크톱은 CSS 가 늘 펼친다).
     body_at = body.index('id="wb-alerts-body"')
@@ -114,7 +114,7 @@ def test_summary_banner_counts_only_rendered_strips(client, workbench_on, monkey
 
 def test_summary_banner_names_countless_strip_without_inflating_total(client, workbench_on,
                                                                      monkeypatch):
-    """발송 완료 띠는 숫자 없이 이름만 — 합계에 0 을 더한다(`확인 필요` 대신 `알림`)."""
+    """발송 완료 띠는 숫자 없이 이름만 — 합계에 0 을 더한다(`확인할 주문` 대신 `알림`)."""
     _empty_strips(monkeypatch)
     monkeypatch.setattr(naver_ingest, "_bulk_dispatch_view",
                         lambda db: {"show": True, "state": "done", "date": "2026-09-28",
@@ -127,7 +127,7 @@ def test_summary_banner_names_countless_strip_without_inflating_total(client, wo
     assert 'data-wb-alert-sections="1"' in body
     assert 'data-wb-alert-total="0"' in body
     banner = _banner(body)
-    assert "확인 필요" not in banner
+    assert "확인할 주문" not in banner
     assert "알림" in banner and "오늘 발송 완료" in banner
 
 
@@ -167,7 +167,7 @@ def test_asset_pins_moved_together():
     """CSS·JS 를 고쳤으면 핀을 함께 올린다 — 서비스워커 캐시가 옛 파일을 준다."""
     markup = TEMPLATE.read_text(encoding="utf-8")
 
-    assert markup.count("?v=20260930b") == 2
+    assert markup.count("?v=20260930c") == 2
     assert "?v=20260929b" not in markup, "폰 3·4단계(2026-09-29)에서 CSS·JS 를 고쳤다 — 핀도 함께"
     assert "?v=20260929a" not in markup
     assert "?v=20260914b" not in markup

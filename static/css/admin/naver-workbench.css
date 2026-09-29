@@ -1658,6 +1658,12 @@ input.wb-pick:disabled,
    숨기고(번호는 늘 펼친 채 · 예전처럼 칸 첫 줄), 금액 뒤 `원` 은 표 머리 `금액` 이 말하므로 숨긴다. */
 .wb-mno__sum,
 .wb-won { display: none; }
+/* P2(2026-09-30) 폰 전용 말·부품 — 데스크톱에서는 없는 것과 같다. 말이 두 벌인 자리는 `wb-dk`(데스크톱 글자)와
+   `wb-ph`(폰 글자) 두 span 이고, 데스크톱은 `wb-ph` 만 숨긴다(폰 규칙은 아래 미디어 쿼리 끝 'P2 나머지' 절). */
+.wb-ph,
+.wb-reread,
+.wb-find__clear,
+.wb-cmp__nofoms { display: none; }
 
 /* 빈 처리 목록 — "할 일 없음" 을 먼저, 다음에 볼 곳(이력)으로 가는 길을 준다(모든 폭 같은 문구). */
 .wb-empty--done { display: flex; flex-direction: column; align-items: center; gap: 6px; }
@@ -2961,4 +2967,375 @@ input.wb-pick:disabled,
     .wb-hist tbody tr[data-find] .wb-st__b--st-collected,
     .wb-hist tbody tr[data-find] .wb-st__b--rel-new,
     .wb-hist tbody tr[data-find] .wb-hist__nofoms { display: none; }
+
+    /* ══ P2 나머지 (2026-09-30 · 감사 원장 N-03·N-11·N-12·N-15~N-34·N-37~N-43) ══════════════════
+       데스크톱은 이 절의 영향을 받지 않는다(폰 미디어 쿼리 안). 앞 절의 규칙은 지우지 않고 **뒤에서 덮는다**
+       — 앞 단계 계약(테스트)이 그 규칙 글자를 문다. 값은 명세 토큰만 쓴다: 글자 #14171c·#4b525d, 주 색 #4a55b8
+       (옅게 #f3f4ff), 선 #dde1e6, 입력 테두리 #c1c7d0, 모서리 8(버튼·입력)/12(카드)/16(시트). */
+
+    /* ── 말 두 벌(N-16): 폰은 wb-ph, 데스크톱 글자(wb-dk)는 숨긴다 ── */
+    .naver-workbench .wb-dk { display: none; }
+    .naver-workbench .wb-ph { display: revert; }
+
+    /* ── N-20 색 · N-27 줄바꿈 · N-42 글꼴: 화면 뿌리에서 한 번 ──
+       파랑 3종(#2563eb 칩·탭·링크, #0d6efd 부트스트랩, #4a55b8 주 버튼) → 주 색 하나. 보조 글자 #6b7280 → #4b525d.
+       한국어는 낱말 중간에서 꺾지 않는다(keep-all) — 넘칠 때만 끊는다(break-word 는 칸 최소 폭을 줄이지 않는다).
+       글꼴은 Pretendard 를 앞으로(안드로이드가 -apple-system 다음 후보로 떨어지지 않게). */
+    .naver-workbench {
+        --wb-accent: #4a55b8;
+        --wb-accent-soft: #f3f4ff;
+        --wb-accent-line: #4a55b8;
+        --wb-muted: #4b525d;
+        --bs-link-color: #4a55b8;
+        --bs-link-color-rgb: 74, 85, 184;
+        --bs-link-hover-color: #3b4499;
+        --bs-link-hover-color-rgb: 59, 68, 153;
+        font-family: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo",
+                     "Noto Sans KR", "Malgun Gothic", sans-serif;
+        word-break: keep-all;
+        overflow-wrap: break-word;
+    }
+    .naver-workbench .btn-outline-primary {
+        border-color: #4a55b8 !important;
+        color: #4a55b8 !important;
+    }
+    .naver-workbench .btn-outline-primary:hover,
+    .naver-workbench .btn-outline-primary:active {
+        background: #f3f4ff !important;
+        color: #3b4499 !important;
+    }
+    /* 상세 머리의 `주문 #N` 채움 배지 → 옅은 바탕 라벨(채움 파랑은 버튼에만 — N-08 과 같은 규칙). */
+    .naver-workbench .wb-detail__title .badge.bg-primary {
+        background-color: #f3f4ff !important;
+        color: #4a55b8 !important;
+    }
+    input.wb-pick:checked,
+    #wb-pick-all:checked {
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 22 22'%3E%3Crect x='0' y='0' width='22' height='22' rx='5' fill='%234a55b8'/%3E%3Cpath d='M6 11.5l3.2 3.2L16 8' fill='none' stroke='%23fff' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    }
+    /* 모서리: 나란히 붙은 아래 막대 두 버튼 모두 8 · 버튼 8 · 카드 12. */
+    .wb-pane-back,
+    .wb-layer__step,
+    .naver-workbench .wb-layer__primary,
+    .wb-layer__more,
+    .wb-icard__manage,
+    .wb-pager a,
+    .wb-empty__go,
+    .wb-asheet #wb-run-now,
+    .wb-asheet #wb-backfill-run { border-radius: 8px; }
+    .wb-alerts__toggle { border-radius: 12px; }
+
+    /* ── N-19 글자: 폰에서 11px 이하 금지(12 · 14 · 16 · 18 중심). 측정으로 찾은 작은 글자만 올린다 ── */
+    .naver-workbench .badge,
+    .wb-row__when,
+    .wb-can,
+    .wb-hist__when,
+    .wb-cmp th,
+    .naver-workbench .small,
+    .naver-workbench small { font-size: max(12px, calc(12px * var(--wb-fs, 1))); }
+    .wb-row__line2 { font-size: calc(14px * var(--wb-fs, 1)); }
+    .wb-tab__n,
+    .wb-bar--head .wb-bar__locked { font-size: calc(12px * var(--wb-fs, 1)); }
+    .wb-chips .wb-chip,
+    .wb-sort,
+    .wb-alerts__toggle { font-size: calc(14px * var(--wb-fs, 1)); }
+    .wb-tab,
+    .wb-row__name { font-size: calc(16px * var(--wb-fs, 1)); }
+    /* 모서리 8(라벨·입력·보기 버튼) · 12(카드) — 6·7·10·18·999px 를 걷는다. 배지·카드는 전역 규칙이
+       `!important` 라(style-pro-max) 같은 무기로 이 화면 안에서만 덮는다. */
+    .naver-workbench .badge { border-radius: 8px !important; }
+    .wb-split > .card { border-radius: 12px !important; }
+    .wb-tab__n,
+    .wb-bar--head .wb-bar__locked,
+    .wb-chips .wb-chip,
+    .wb-seg,
+    .wb-find__input { border-radius: 8px; }
+    /* 상세(층·pane): 글자 12 · 14 · 16 · 18 로 모은다. */
+    .wb-layer__name { font-size: calc(18px * var(--wb-fs, 1)); }
+    .wb-layer__sub,
+    .wb-cmp-title__sub { font-size: calc(12px * var(--wb-fs, 1)); }
+    .wb-pane-back,
+    #wb-pane .wb-detail__title .fw-semibold { font-size: calc(16px * var(--wb-fs, 1)); }
+    #wb-pane [data-cmp-section="household"] + .wb-cmp td,
+    #wb-pane .wb-relation__why,
+    #wb-pane .wb-seek__label,
+    #wb-pane .wb-cmp--members .wb-cmp__option,
+    #wb-pane .wb-mno__sum,
+    #wb-pane .wb-coupon,
+    #wb-pane .wb-cmp--members tbody td:nth-child(3),
+    #wb-pane .wb-cmp--members tbody td:nth-child(4) { font-size: calc(14px * var(--wb-fs, 1)); }
+    #wb-pane .wb-cmp--members tfoot td:nth-child(1) { font-size: calc(16px * var(--wb-fs, 1)); }
+    #wb-pane .wb-cmp--members .wb-cmp-title__sub { font-size: calc(12px * var(--wb-fs, 1)); }
+    /* 이력 카드·상태 카드: 12 · 14 · 16 으로 모은다(시각·단계 라벨 12 굵게, 금액·버튼 16). */
+    .wb-icard__seg,
+    .wb-hist tbody tr[data-find] .wb-hist__when,
+    .wb-hist tbody tr[data-find] .wb-hist-open { font-size: calc(14px * var(--wb-fs, 1)); }
+    .wb-hist tbody tr[data-find] .wb-pipe__s { font-size: calc(12px * var(--wb-fs, 1)); border-radius: 8px; }
+    .wb-icard__manage,
+    .wb-hsheet-open,
+    .wb-hist tbody tr[data-find] > td:nth-child(5) { font-size: calc(16px * var(--wb-fs, 1)); }
+    .naver-workbench > .card { border-radius: 12px !important; }
+    /* 상세 모서리: 카드·경고 상자 12, 입력 8. 카드·경고는 전역 `!important` 를 같은 무기로 덮는다. */
+    #wb-pane.card,
+    #wb-pane .card,
+    #wb-pane .alert,
+    #wb-pane .wb-relation { border-radius: 12px !important; }
+    #wb-pane .form-control { border-radius: 8px !important; }
+    #wb-pane [data-cmp-section="household"] + .wb-cmp td:nth-child(2)::before,
+    #wb-pane [data-cmp-section="household"] + .wb-cmp td:nth-child(3)::before { font-size: calc(12px * var(--wb-fs, 1)); }
+
+    /* ── N-41 상세 위 막대 이전/다음: 52×52 · 글자 12px ── */
+    .wb-layer__step { width: 52px; min-height: 52px; }
+    .wb-layer__step-t { font-size: calc(12px * var(--wb-fs, 1)); }
+
+    /* ── N-03 다시 읽기: 머리줄 ↻ 아이콘은 숨기고 목록 끝 글자 버튼(원래 버튼을 누른다) ── */
+    .naver-workbench #wb-refresh-all:not(:disabled) { display: none; }
+    .wb-reread { display: block; padding: 12px; border-top: 1px solid #dde1e6; }
+    .wb-reread__btn {
+        width: 100%;
+        min-height: 48px;
+        padding: 8px 12px;
+        border: 1px solid #c1c7d0;
+        border-radius: 8px;
+        background: #ffffff;
+        color: #14171c;
+        font-size: calc(16px * var(--wb-fs, 1));
+        font-weight: 700;
+    }
+    .wb-reread__btn:focus-visible { outline: 2px solid #4a55b8; outline-offset: 2px; }
+    .wb-reread__note { margin: 6px 0 0; color: #4b525d; font-size: calc(14px * var(--wb-fs, 1)); line-height: 1.45; }
+
+    /* ── N-15 · N-17 머리: `상품주문 N건`(다른 기준의 넷째 숫자) 줄은 폰에서 뺀다 — 손대지 않음 줄은 남긴다 ── */
+    .wb-bar--head .wb-bar__fact:not(.wb-bar__fact--quiet) { display: none; }
+
+    /* ── N-39 이력 탭: `마지막 수집` 은 상태 카드 한 곳에서만(제목 밑 줄을 뺀다) ── */
+    .naver-workbench:has(.wb-icard) .wb-bar__sub { display: none; }
+
+    /* ── N-32 칩 줄: 끝까지 밀리지 않았으면 오른쪽 끝을 흐리게(칩이 더 있다) — 끝 판정은 JS ── */
+    .wb-chips:not(.wb-chips--end) {
+        -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent);
+        mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent);
+    }
+
+    /* ── N-33 줄 왼쪽 색 막대: 색만으로 뜻을 전하지 않는다 — 종류는 줄 셋째 줄 글자(wb-can)가 말한다 ── */
+    .wb-row__bar { visibility: hidden; }
+
+    /* ── N-34 `N주문 모두 고르기` — 고를 줄이 없으면 칸째 뺀다 ── */
+    .wb-split > .card > .card-header .wb-pickall--none { display: none !important; }
+
+    /* ── N-37 일괄 막대 한 줄: `N주문` · [발주확인 보내기 16px] · × ── */
+    #wb-bulk.on { flex-wrap: nowrap; align-items: center; gap: 8px; }
+    #wb-bulk .wb-bulk__n { flex: none; color: #14171c; font-size: calc(16px * var(--wb-fs, 1)); font-weight: 800; white-space: nowrap; }
+    .naver-workbench #wb-bulk #wb-bulk-submit { min-height: 48px; font-size: calc(16px * var(--wb-fs, 1)); font-weight: 800; }
+    .naver-workbench #wb-bulk #wb-bulk-clear {
+        flex: none;
+        width: 48px;
+        min-height: 48px;
+        padding: 0;
+        border-radius: 8px;
+        font-size: calc(22px * var(--wb-fs, 1));
+        line-height: 1;
+    }
+    #wb-bulk .wb-bulk__note:empty,
+    #wb-bulk .wb-bulk__spacer { display: none; }
+
+    /* ── N-21 상세 주문 단위: FOMS 값이 없는 칸은 네이버 값 한 줄 · 이름표는 현장 말 ── */
+    #wb-pane [data-cmp-section="household"] + .wb-cmp td:nth-child(2)::before { content: "네이버 값"; }
+    #wb-pane [data-cmp-section="household"] + .wb-cmp td:nth-child(3)::before { content: "FOMS 값"; }
+    #wb-pane .wb-cmp__row--nofoms td:nth-child(3),
+    #wb-pane [data-cmp-section="household"] + .wb-cmp tr.wb-cmp__row--nofoms td:nth-child(2)::before { display: none; }
+    #wb-pane .wb-cmp__nofoms {
+        display: block;
+        margin-top: 2px;
+        color: #4b525d;
+        font-size: calc(14px * var(--wb-fs, 1));
+        font-weight: 600;
+    }
+    /* 잠긴 주문은 `주문을 직접 찾아 붙이기` 입력을 접는다. */
+    #wb-pane .wb-seek--locked { display: none; }
+
+    /* ── N-22 잠긴 상세 경고: 한 상자(옅은 빨강) — 뒤따르는 안내 줄도 같은 상자에 붙는다 ── */
+    #wb-pane .wb-acts__why--locked,
+    #wb-pane .wb-acts__why--locked ~ .wb-acts__why:not([hidden]) {
+        margin-top: 0;
+        padding: 10px 12px;
+        background: #fef2f2;
+        color: #b91c1c;                      /* #fef2f2 위 5.9:1 */
+        font-size: calc(14px * var(--wb-fs, 1));
+        font-weight: 600;
+    }
+    #wb-pane .wb-acts__why--locked { margin-top: 8px; border-radius: 12px; }
+    #wb-pane .wb-acts__why--locked:has(~ .wb-acts__why:not([hidden])) { border-radius: 12px 12px 0 0; }
+    #wb-pane .wb-acts__why--locked ~ .wb-acts__why:not([hidden]) { border-radius: 0 0 12px 12px; padding-top: 0; }
+
+    /* ── N-43 상세 머리: 16자리 번호는 머리 맨 끝 줄로 ── */
+    #wb-pane .wb-detail__no { order: 99; flex-basis: 100%; }
+
+    /* ── N-28 누르는 곳 44px 이상: 모달 닫기 X · ERP 뒤로 · 관계 찾기(72×48) · 계정 ── */
+    .naver-workbench .modal .btn-close {
+        box-sizing: content-box;
+        width: 16px;
+        height: 16px;
+        padding: 14px;
+        margin: -10px -10px -10px auto;
+    }
+    .wb-back { min-width: 44px; }
+    #wb-pane .wb-seek__q { min-height: 48px; font-size: calc(16px * var(--wb-fs, 1)); }
+    #wb-pane #wb-seek-run { flex: none; min-width: 72px; min-height: 48px; font-size: calc(16px * var(--wb-fs, 1)); }
+    body:has(.naver-workbench) #userDropdown { min-height: 44px; }
+
+    /* ── N-29 모달 발바닥 고정: 긴 모달(취소처리 1,104px)도 보내기·닫기가 늘 화면 아래에 ── */
+    .naver-workbench .modal-footer {
+        position: sticky;
+        bottom: 0;
+        z-index: 2;
+        background: #ffffff;
+        box-shadow: 0 -4px 12px -8px rgba(20, 23, 28, .3);
+    }
+    .naver-workbench .modal-footer .btn { min-height: 44px; }
+
+    /* ── N-23 전체 메뉴 = 위에 덮는 층(문서를 밀지 않는다) ──
+       예전에는 숨긴 전역 머리줄 + 메뉴(528px)가 문서 맨 위에 **끼어들어** 화면 전체가 650px 밀렸다.
+       이제 둘 다 fixed 로 위에 뜨고, 뒤는 어둡게 덮는다(바탕을 누르면 JS 가 접는다). 머리줄 높이는 JS 가 잰다. */
+    body:has(.naver-workbench):has(#navbarNav.show),
+    body:has(.naver-workbench):has(#navbarNav.collapsing) { overflow: hidden; }
+    body:has(.naver-workbench):has(#navbarNav.show) .layout-header,
+    body:has(.naver-workbench):has(#navbarNav.collapsing) .layout-header {
+        position: fixed !important;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 1062;
+        background: #ffffff !important;
+    }
+    body:has(.naver-workbench):has(#navbarNav.show) .layout-global-nav,
+    body:has(.naver-workbench):has(#navbarNav.collapsing) .layout-global-nav {
+        position: fixed !important;
+        top: var(--wb-menu-top, 60px);
+        left: 0;
+        right: 0;
+        z-index: 1062;
+        max-height: calc(100vh - var(--wb-menu-top, 60px));
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        background: #ffffff !important;
+        box-shadow: 0 12px 24px rgba(20, 23, 28, .18);
+    }
+    body:has(.naver-workbench):has(#navbarNav.show)::after {
+        content: "";
+        position: fixed;
+        inset: 0;
+        z-index: 1061;
+        background: rgba(20, 23, 28, .55);
+    }
+
+    /* ── N-24 이력 카드: 누를 수 있다는 표시(오른쪽 › · 누름 바탕) · `처리 탭에서 열기` 6.4:1 ── */
+    .wb-hist tbody tr[data-find] { padding-right: 28px; }
+    .wb-hist tbody tr[data-find]:active { background: #f3f4ff; }
+    .wb-hist tbody tr[data-find] .wb-hist-detail::before {
+        content: "\203A";
+        position: absolute;
+        top: 50%;
+        right: 10px;
+        transform: translateY(-50%);
+        color: #4b525d;
+        font-size: calc(22px * var(--wb-fs, 1));
+        line-height: 1;
+    }
+    .wb-hist tbody tr[data-find] .wb-hist-open,
+    .wb-hist tbody tr.wb-hist--muted .wb-hist-open {
+        color: #4a55b8;                      /* 흰 바탕 6.4:1 · #fafbfc 위 6.2:1 */
+        font-weight: 700;
+        white-space: nowrap;
+    }
+
+    /* ── N-25 이력 결과 없음: 한 칸 전체(반쪽 밑줄 없음) ── */
+    .wb-hist tbody tr.wb-hist__none,
+    .wb-hist tbody tr.wb-hist__none > td { display: block; width: 100%; border: 0; }
+
+    /* 결과 없음 상자가 같은 말을 하므로 찾기 칸 밑 `찾은 주문 없음` 한 줄은 폰에서 접는다(두 번 말하지 않기). */
+    .wb-filters:has(+ .table-responsive .wb-empty--find) .wb-find__note { display: none; }
+
+    /* ── N-30 추가결제 상품: 수량(금액 단위)을 접는다 — 관계 배지 `추가결제` 가 말한다 ── */
+    .wb-hist tbody tr[data-find] > td.wb-hist__qty--addon { display: none; }
+
+    /* ── N-38 이력 찾기 지우기(×) ── */
+    .wb-find__clear {
+        display: inline-grid;
+        place-items: center;
+        flex: none;
+        width: 44px;
+        height: 44px;
+        border-radius: 8px;
+        color: #4b525d;
+        font-size: calc(22px * var(--wb-fs, 1));
+        text-decoration: none;
+    }
+    .wb-find__clear:focus-visible { outline: 2px solid #4a55b8; outline-offset: -2px; }
+
+    /* ── N-26 이력 원본 = 전체 화면 읽기 전용(처리 탭 상세와 같은 모양) · 표는 세로로 ── */
+    #wb-modal-detail .modal-dialog { width: 100%; max-width: none; min-height: 100%; margin: 0; }
+    #wb-modal-detail .modal-content { min-height: 100vh; min-height: 100dvh; border: 0; border-radius: 0; }
+    #wb-modal-detail .modal-body { overflow-x: hidden; }
+    #wb-modal-detail .modal-footer .btn {
+        width: 100%;
+        border: 1px solid #c1c7d0;
+        border-radius: 8px;
+        background: #ffffff;
+        color: #14171c;
+        font-size: calc(16px * var(--wb-fs, 1));
+        font-weight: 700;
+    }
+    #wb-detail-body .wb-cmp { width: 100%; min-width: 0; }
+    #wb-detail-body [data-cmp-section="household"] + .wb-cmp thead,
+    #wb-detail-body .wb-cmp:has(thead .wb-cmp__num) thead { display: none; }
+    #wb-detail-body [data-cmp-section="household"] + .wb-cmp,
+    #wb-detail-body [data-cmp-section="household"] + .wb-cmp tbody,
+    #wb-detail-body [data-cmp-section="household"] + .wb-cmp tr,
+    #wb-detail-body [data-cmp-section="household"] + .wb-cmp td { display: block; width: auto; }
+    #wb-detail-body [data-cmp-section="household"] + .wb-cmp tr { padding: 8px 0; border-bottom: 1px solid #eef0f3; }
+    #wb-detail-body [data-cmp-section="household"] + .wb-cmp td { padding: 2px 0; border: 0; overflow-wrap: anywhere; }
+    #wb-detail-body [data-cmp-section="household"] + .wb-cmp td.wb-cmp__k { color: #14171c; font-weight: 700; }
+    #wb-detail-body [data-cmp-section="household"] + .wb-cmp td:nth-child(2)::before,
+    #wb-detail-body [data-cmp-section="household"] + .wb-cmp td:nth-child(3)::before {
+        display: block;
+        color: #4b525d;
+        font-size: calc(12px * var(--wb-fs, 1));
+    }
+    #wb-detail-body [data-cmp-section="household"] + .wb-cmp td:nth-child(2)::before { content: "네이버 값"; }
+    #wb-detail-body [data-cmp-section="household"] + .wb-cmp td:nth-child(3)::before { content: "FOMS 값"; }
+    #wb-detail-body .wb-cmp:has(thead .wb-cmp__num),
+    #wb-detail-body .wb-cmp:has(thead .wb-cmp__num) tbody,
+    #wb-detail-body .wb-cmp:has(thead .wb-cmp__num) tfoot { display: block; }
+    #wb-detail-body .wb-cmp:has(thead .wb-cmp__num) tr {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 2px 8px;
+        padding: 10px 0;
+        border-bottom: 1px solid #eef0f3;
+    }
+    #wb-detail-body .wb-cmp:has(thead .wb-cmp__num) td { display: block; padding: 0; border: 0; min-width: 0; }
+    #wb-detail-body .wb-cmp:has(thead .wb-cmp__num) tbody td:nth-child(1) {
+        grid-row: 3;
+        grid-column: 1 / -1;
+        color: #4b525d;
+        font-size: calc(12px * var(--wb-fs, 1));
+        font-weight: 400;
+        font-variant-numeric: tabular-nums;
+    }
+    #wb-detail-body .wb-cmp:has(thead .wb-cmp__num) tbody td:nth-child(2) { grid-row: 1 / 3; grid-column: 1; }
+    #wb-detail-body .wb-cmp:has(thead .wb-cmp__num) tbody td:nth-child(3) { grid-row: 2; grid-column: 2; text-align: right; }
+    #wb-detail-body .wb-cmp:has(thead .wb-cmp__num) tbody td:nth-child(3)::before { content: "수량 "; color: #4b525d; }
+    #wb-detail-body .wb-cmp:has(thead .wb-cmp__num) tbody td:nth-child(4),
+    #wb-detail-body .wb-cmp:has(thead .wb-cmp__num) tfoot td:nth-child(3) {
+        grid-row: 1;
+        grid-column: 2;
+        text-align: right;
+        white-space: nowrap;
+        font-weight: 800;
+    }
+    #wb-detail-body .wb-cmp:has(thead .wb-cmp__num) tbody td:nth-child(4)::after,
+    #wb-detail-body .wb-cmp:has(thead .wb-cmp__num) tfoot td:nth-child(3)::after { content: "원"; }
+    #wb-detail-body .wb-cmp:has(thead .wb-cmp__num) tfoot td:nth-child(1) { grid-row: 1; grid-column: 1; font-weight: 800; }
+    #wb-detail-body .wb-cmp:has(thead .wb-cmp__num) tfoot td:nth-child(2) { display: none; }
 }

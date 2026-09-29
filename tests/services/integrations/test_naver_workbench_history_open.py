@@ -75,7 +75,8 @@ def test_every_history_row_offers_the_work_tab_link(client, workbench_on):
     for row in rows:
         assert "tab=work" in row and "link_id=" in row, row
         # 글자도 못박는다 — 칸 이름이 '열기'라 링크는 이름만 말한다(`원본 보기` · `워크벤치`).
-        assert "워크벤치</a>" in row, row
+        # 폰은 현장 말(`처리 탭에서 열기`)을 쓴다(2026-09-30 P2 N-16·N-24) — 데스크톱 글자는 그대로.
+        assert '<span class="wb-dk">워크벤치</span><span class="wb-ph">처리 탭에서 열기</span></a>' in row, row
     for link in (gone, pending, claim):
         assert f"tab=work&amp;link_id={link.id}" in tbody, f"link {link.id} 로 가는 길이 없다"
 
