@@ -772,12 +772,16 @@
     line-height: 1;
   }
 
+  /* 390px 폭에서 긴 이름('고객이 또 바꿔 달래요')이 잘리지 않게 두 줄까지 접는다(2026-09-30 스테이징 캡처). */
   body.erp-mobile-v2-layout .foms-drawing-action-bar__btn span {
-    display: block;
+    display: -webkit-box;
     max-width: 100%;
     overflow: hidden;
-    text-overflow: clip;
-    white-space: nowrap;
+    white-space: normal;
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
   }
 
   body.erp-mobile-v2-layout .foms-drawing-action-bar__btn--primary {
