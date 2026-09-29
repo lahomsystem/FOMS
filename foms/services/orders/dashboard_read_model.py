@@ -15,6 +15,7 @@ from sqlalchemy.orm import aliased
 from models import Order, OrderScheduleDate, User
 from foms.services.erp_display import get_today_kst, _erp_get_stage
 from foms.services.datetime_kst import now_utc_naive
+from foms.services.drawing_confirm_cleanup import discount_superseded_drawing_rows
 from foms.services.common.business_calendar import business_days_until
 from foms.services.erp_policy import (
     STAGE_NAME_TO_CODE,
@@ -396,6 +397,8 @@ def compute_orders_attachment_assignee_maps(db, page_orders, page_sds):
                      .group_by(OrderAttachment.order_id).all()
             for r in rows:
                 att_counts[int(r.order_id)] = int(r.cnt)
+            # R3: 교체된 옛 도면 행은 목록 API 처럼 세지 않는다(📎N == 눌러 연 목록).
+            discount_superseded_drawing_rows(db, att_counts, {o.id: page_sds.get(o.id) for o in page_orders})
         except Exception as e:
             import logging
             logging.getLogger(__name__).warning("att_counts query failed: %s", e)
