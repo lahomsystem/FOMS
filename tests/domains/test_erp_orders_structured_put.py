@@ -1233,3 +1233,22 @@ def test_structured_put_keeps_happy_call_separate_from_notes(client, monkeypatch
     assert _put("아무값").status_code == 200
     db_session.expire_all()
     assert "happy_call" not in db_session.get(Order, order_id).structured_data["flags"]
+
+
+def test_order_list_shows_happy_call_badge_only_before_measurement(auth_client):
+    """주문 관리 목록 비고칸: 부재·콜백 배지는 접수·해피콜 단계에서만 보이고 실측부터는 숨는다."""
+    received = _structured_payload("서울 강남대로 1")
+    received["flags"] = {"happy_call": "부재"}
+    measure = _structured_payload("서울 강남대로 2")
+    measure["workflow"] = {"stage": "MEASURE"}
+    measure["flags"] = {"happy_call": "콜백"}
+    _create_order(structured_data=received)
+    _create_order(structured_data=measure)
+
+    resp = auth_client.get("/", follow_redirects=False)
+
+    assert resp.status_code == 200
+    body = resp.get_data(as_text=True)
+    assert body.count('data-happy-call="부재"') == 1
+    # 음성 대조군: 실측 단계 주문의 콜백은 목록에 나오면 안 된다.
+    assert 'data-happy-call="콜백"' not in body
