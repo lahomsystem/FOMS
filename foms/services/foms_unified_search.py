@@ -8,6 +8,7 @@ from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 
 from foms.services.erp_dashboard_search import (
+    erp_order_dashboard_search_predicate,
     search_query_tokens,
     strip_order_hash,  # noqa: F401 — 이 모듈 이름으로 부르던 곳 호환
     visible_order_search_clause,
@@ -80,9 +81,21 @@ def _search_tokens(query: str | None) -> list[str]:
 
 
 def _is_four_digit_query(query: str) -> bool:
-    """숫자 4자리 한 낱말 — 전화 끝자리 + 주문번호 정확 일치로만 찾는다."""
+    """숫자 4자리 한 낱말인지."""
     q = (query or "").strip()
     return len(q) == 4 and q.isdigit()
+
+
+def _unified_token_clause(tok: str):
+    """통합 검색 낱말 술어 — 숫자 4자리만 과거 이력 화면과 다르다.
+
+    과거 이력은 숫자 4자리를 전화 끝자리로만 찾지만, 통합 검색은 번호 일부만 기억날
+    때도 찾도록 가운데 자리(``010-6514-...``)까지 잡는다(2026-09-29 사용자 결정).
+    어느 쪽이든 structured_data 전체 문자열은 보지 않는다.
+    """
+    if _is_four_digit_query(tok):
+        return erp_order_dashboard_search_predicate(f"%{tok}%", raw_query=tok)
+    return visible_order_search_clause(tok)
 
 
 def _to_chosung(text: str) -> str:
@@ -315,7 +328,7 @@ def _term_prefilter(db: Session, query: str, scope=None):
     if not tokens:
         return []
     q = _active_orders(db, scope).filter(Order.is_erp_order.is_(True))
-    clauses = [visible_order_search_clause(tok) for tok in tokens]
+    clauses = [_unified_token_clause(tok) for tok in tokens]
     return (
         q.filter(and_(*clauses))
         .order_by(Order.id.desc())
@@ -356,10 +369,8 @@ def _base_orders_query(db: Session, query: str, scope=None):
             _extend([by_id[oid] for oid in ids if oid in by_id])
         return candidates
 
-    # 2) 폰 자릿수 인덱스 경로. 숫자 4자리는 이력 화면과 같은 "전화 끝자리" 규칙만 쓴다 —
-    #    여기서 가운데 자리까지 뽑으면 미리보기와 결과 화면이 또 갈린다.
-    if not _is_four_digit_query(query):
-        _extend(_phone_digit_prefilter(db, query, scope))
+    # 2) 폰 자릿수 인덱스 경로(숫자 4자리도 가운데 자리까지 — _unified_token_clause 참고).
+    _extend(_phone_digit_prefilter(db, query, scope))
     # 3) 가시 필드 ILIKE 경로.
     _extend(_term_prefilter(db, query, scope))
     return candidates
@@ -417,7 +428,7 @@ def _history_style_orders_query(db: Session, query: str, scope=None) -> list[Ord
 
     return (
         _active_orders(db, scope)
-        .filter(and_(*[visible_order_search_clause(tok) for tok in tokens]))
+        .filter(and_(*[_unified_token_clause(tok) for tok in tokens]))
         .order_by(Order.created_at.desc(), Order.id.desc())
         .limit(_MAX_HISTORY_FALLBACK_ROWS)
         .all()
