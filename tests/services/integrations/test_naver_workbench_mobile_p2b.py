@@ -33,7 +33,7 @@ def test_history_cards_say_open_in_work_tab_and_show_a_chevron(client, workbench
     _login(client)
     _collected(order_no="N-P2-H1", product="이력 집", amount=100000, place_status="")
     body = _hist(client)
-    assert '<span class="wb-dk">워크벤치</span><span class="wb-ph">처리 탭에서 열기</span></a>' in body
+    assert '<span class="wb-dk">워크벤치</span><span class="wb-ph">처리 탭으로</span></a>' in body
     p2 = _p2()
     chevron = _rule(p2, "    .wb-hist tbody tr[data-find] .wb-hist-detail::before")
     assert 'content: "\\203A";' in chevron and "position: absolute;" in chevron
@@ -154,9 +154,9 @@ def test_status_card_says_expiry_date_and_title_time_is_not_repeated(client, wor
 # 자산 핀
 # --------------------------------------------------------------------------- #
 
-def test_workbench_pins_moved_to_20260930c():
+def test_workbench_pins_moved_to_20260930d():
     markup = TEMPLATE.read_text(encoding="utf-8")
-    assert markup.count("?v=20260930c") == 2
+    assert markup.count("?v=20260930d") == 2
     assert "?v=20260930b" not in markup and "?v=20260930a" not in markup
     assert 'style="' not in markup.split("{% block content %}")[1].split("{% endblock %}")[0].replace(
         'style="{{', ""), "인라인 스타일 금지"

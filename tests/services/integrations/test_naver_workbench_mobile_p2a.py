@@ -232,7 +232,7 @@ def test_locked_detail_folds_the_attach_box_and_numbers_move_down(client, workbe
 
 @_needs_node
 def test_more_sheet_says_a_blocked_reason_once_and_uses_the_phone_name():
-    result = _node(("buttonLabel", "moreItem"), """
+    result = _node(("buttonLabel", "moreItem", "moreWhy"), """
 var NAVER_SEND_IDS = ['wb-confirm', 'wb-dispatch'];
 var MORE_FX_SEND = 'S', MORE_FX_QUIET = 'Q';
 function isDangerButton() { return false; }
@@ -252,7 +252,8 @@ var c = moreItem(orig('wb-review-done', '안내', false, '확인 완료 — 할 
 process.stdout.write(JSON.stringify({a: a.children.length, b: b.children.length, bDesc: b.attrs['aria-describedby'],
   c: c.children[0].textContent}));
 """)
-    assert result == {"a": 3, "b": 2, "bDesc": "wb-more-fx-1 wb-more-why-0", "c": "확인 완료 — 할 일에서 빼기"}, result
+    # 재감사 R-05(2026-09-29): 누를 수 없는 줄에는 결과 줄(fx)을 달지 않는다 — a 는 이름+이유, b 는 이름뿐.
+    assert result == {"a": 2, "b": 1, "bDesc": "wb-more-why-0", "c": "확인 완료 — 할 일에서 빼기"}, result
 
 
 # --------------------------------------------------------------------------- #

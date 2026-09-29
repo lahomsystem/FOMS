@@ -272,7 +272,7 @@ def test_history_rows_carry_phone_card_parts(client, workbench_on, monkeypatch):
     rows = ["<tr" + chunk for chunk in tbody.split("<tr")[1:] if "data-find=" in chunk.split(">")[0]]
     assert len(rows) == 3
     for row in rows:
-        assert re.search(r'<span class="wb-hist__when" aria-hidden="true">\d\d-\d\d \d\d:\d\d 받음</span>',
+        assert re.search(r'<span class="wb-hist__when" aria-hidden="true">\d\d-\d\d \d\d:\d\d</span>',
                          row)
         assert 'class="wb-hist-detail"' in row
         assert 'style="' not in row

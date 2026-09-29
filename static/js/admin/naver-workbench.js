@@ -176,6 +176,9 @@
     /** 시트가 열린 뒤 이 시간 동안은 시트 안 조작 버튼 누름을 버린다 — 더보기를 두 번 누르면 둘째
         누름이 그 자리에 막 뜬 항목을 누르던 자리(N-01). 닫기 버튼은 늘 산다. */
     var SHEET_ARM_MS = 350;
+    /** 확인 시트(wb-ask)는 더 길게 잠근다 — 여는 버튼과 `가져오기`·`표시` 가 같은 자리에 뜬다. "안 눌렸나?" 하고
+        0.4~0.6초 뒤 한 번 더 누르면 350ms 잠금이 이미 풀려 되돌릴 수 없는 일이 시작됐다(재감사 R-02). */
+    var ASK_ARM_MS = 1000;
     /** 시트 id → 연 시각(ms). */
     var sheetShownAt = {};
     /** 확인 시트가 기다리는 조작: {run, linkId}. linkId 가 있으면 그 주문이 그대로일 때만 누른다. */
@@ -193,7 +196,7 @@
         확인 완료를 무르는 라우트는 없다(되돌리기 토스트를 만들지 않은 이유). */
     var ASK_COPY = {
         'wb-review-done': {
-            title: '확인 완료로 표시할까요?', go: '확인 완료로 표시', cancel: '그대로 두기',
+            title: '확인 완료로 표시할까요?', go: '확인 완료로 표시', cancel: '그만두기',
             facts: ['네이버에는 아무것도 보내지 않아요.',
                     '이 주문을 ‘확인함’으로 표시해요. 발주확인이 남아 있으면 목록에는 계속 보여요.',
                     '표시한 뒤에는 이 화면에서 되돌릴 수 없어요.']
@@ -1480,14 +1483,15 @@
     }
 
     /**
-     * 시트가 열린 뒤 SHEET_ARM_MS 가 지났나. 연 적이 없으면 지난 것으로 본다. 순수 함수 — Node 로 돌려 본다.
+     * 시트가 열린 뒤 잠금 시간(기본 SHEET_ARM_MS)이 지났나. 연 적이 없으면 지난 것으로 본다. 순수 함수 — Node 로 돌려 본다.
      *
      * @param {number|undefined} shownAt 연 시각(ms).
      * @param {number} now 지금(ms).
+     * @param {number=} armMs 잠금 시간(ms). 없으면 SHEET_ARM_MS.
      * @returns {boolean}
      */
-    function sheetArmed(shownAt, now) {
-        return !shownAt || now - shownAt >= SHEET_ARM_MS;
+    function sheetArmed(shownAt, now, armMs) {
+        return !shownAt || now - shownAt >= (armMs || SHEET_ARM_MS);
     }
 
     /** 시트 안 조작 버튼을 시트가 막 열린 뒤에 눌렀나(닫기·그만두기 줄은 늘 산다). */
@@ -1497,7 +1501,7 @@
             || btn.matches('.wb-hsheet__close, .wb-hsheet__dismiss')) {
             return false;
         }
-        return !sheetArmed(sheetShownAt[sheet.id], Date.now());
+        return !sheetArmed(sheetShownAt[sheet.id], Date.now(), sheet.id === 'wb-ask' ? ASK_ARM_MS : SHEET_ARM_MS);
     }
 
     /**
@@ -1720,16 +1724,21 @@
         label.textContent = text;
         btn.appendChild(label);
         // 결과 한 줄 — 네이버로 나가는지(N-01). 이유 줄(title)보다 먼저 읽힌다.
+        // 누를 수 없는 줄에는 달지 않는다 — 흐린 줄이 `되돌릴 수 없음` 을 외치면 시트만 길고 시끄럽다(재감사 R-05).
         var sends = NAVER_SEND_IDS.indexOf(orig.id) !== -1;
-        var fx = document.createElement('span');
-        fx.className = sends ? 'wb-more__fx wb-more__fx--send' : 'wb-more__fx';
-        fx.id = 'wb-more-fx-' + index;
-        fx.textContent = sends ? MORE_FX_SEND : MORE_FX_QUIET;
-        btn.appendChild(fx);
-        var why = String(orig.getAttribute('title') || '').trim();
+        var fx = null;
+        if (!orig.disabled) {
+            fx = document.createElement('span');
+            fx.className = sends ? 'wb-more__fx wb-more__fx--send' : 'wb-more__fx';
+            fx.id = 'wb-more-fx-' + index;
+            fx.textContent = sends ? MORE_FX_SEND : MORE_FX_QUIET;
+            btn.appendChild(fx);
+        }
+        var fxRef = fx ? fx.id + ' ' : '';
+        var why = moreWhy(String(orig.getAttribute('title') || '').trim(), sends);
         var repeatId = why && orig.disabled && seenWhy ? seenWhy[why] : '';
         if (repeatId) {
-            btn.setAttribute('aria-describedby', fx.id + ' ' + repeatId);
+            btn.setAttribute('aria-describedby', fxRef + repeatId);
         } else if (why) {
             if (orig.disabled && seenWhy) {
                 seenWhy[why] = 'wb-more-why-' + index;
@@ -1739,8 +1748,8 @@
             line.id = 'wb-more-why-' + index;
             line.textContent = why;
             btn.appendChild(line);
-            btn.setAttribute('aria-describedby', fx.id + ' ' + line.id);
-        } else {
+            btn.setAttribute('aria-describedby', fxRef + line.id);
+        } else if (fx) {
             btn.setAttribute('aria-describedby', fx.id);
         }
         if (orig.disabled) {
@@ -1748,6 +1757,22 @@
         }
         item.appendChild(btn);
         return item;
+    }
+
+    /**
+     * 더 할 일 시트 이유 줄 — 네이버에 안 보내는 줄은 결과 줄(`네이버에 안 보냄`)이 이미 말한 첫 마디
+     * (`네이버에(는) 아무것도 보내지 않습니다(조회만) — `)를 뗀다(재감사 R-04). 원래 버튼 title 은 그대로다
+     * (데스크톱 툴팁). 순수 함수 — Node 로 돌려 본다.
+     *
+     * @param {string} why 원래 버튼 title.
+     * @param {boolean} sends 네이버로 나가는 버튼인가.
+     * @returns {string}
+     */
+    function moreWhy(why, sends) {
+        if (sends) {
+            return why;
+        }
+        return why.replace(/^네이버에는? 아무것도 보내지 않습니다(\(조회만\))?\s*[—-]\s*/, '');
     }
 
     /**
