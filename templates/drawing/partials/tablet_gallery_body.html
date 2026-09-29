@@ -134,7 +134,7 @@
           {% else %}
           <span class="foms-drawing-gallery-card__thumb-empty">도면 없음</span>
           {% endif %}
-          <span class="foms-drawing-gallery-card__thumb-label">시트 {{ r.file_count }}{% if r.transfer_round %} · v{{ r.transfer_round }}{% endif %} · {% if r.drawing_status in ('TRANSFERRED', 'CONFIRMED') %}전달본{% elif r.pending_count %}전달 대기{% else %}{{ r.drawing_status_label }}{% endif %}</span>
+          <span class="foms-drawing-gallery-card__thumb-label">시트 {{ r.file_count }}{% set _round_text = r.round_text|default(('%d차' % r.transfer_round) if r.transfer_round else '') %}{% if _round_text %} · {{ _round_text }}{% endif %} · {% if r.drawing_status in ('TRANSFERRED', 'CONFIRMED') %}전달본{% elif r.pending_count %}전달 대기{% else %}{{ r.drawing_status_label }}{% endif %}</span>
         </div>
         <div class="foms-drawing-gallery-card__meta">
           <div class="foms-drawing-gallery-card__top">
