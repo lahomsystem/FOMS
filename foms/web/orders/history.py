@@ -215,7 +215,10 @@ def history_dashboard():
             _q = _q.filter(Order.id == -1)
     
     if f_q:
-        _q = _q.filter(_history_search_clause(f_q))
+        # 낱말을 공백으로 나눠 모두 포함(AND·어순 무관) — 통합 검색 미리보기와 같은 규칙.
+        # 통째 ILIKE 는 "수지구 용인시" 처럼 순서가 DB 값과 다르면 0건이었다(2026-09-29
+        # 스테이징 60건 표본: 미리보기 55건 찾음, 이 화면 0건). 한 낱말이면 전과 같다.
+        _q = _q.filter(and_(*[_history_search_clause(tok) for tok in f_q.split()]))
         
     if f_stage:
         # ERP: erp_stage_code / 레거시: status (값이 MEASURE·MEASURED 등으로 다를 수 있음)
@@ -250,7 +253,7 @@ def history_dashboard():
             "team": getattr(user, "team", None) if user else None,
             "mine": bool(mine_only),
             "scope": "active_all",  # 60일 창 제거 — 옛 캐시 blob 무효화 겸 스코프 표식
-            "search": "visible_v1",  # SD 전체 문자열 검색 제거 — 옛 캐시 blob 무효화
+            "search": "visible_v2",  # v1: SD 전체 문자열 검색 제거 · v2: 낱말 AND
 
             "q": f_q or "",
             "stage": f_stage or "",
