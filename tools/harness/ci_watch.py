@@ -163,11 +163,16 @@ def gh_ready() -> tuple[bool, str]:
 # ---------------------------------------------------------------------------
 # 워크플로 조회·폴링
 # ---------------------------------------------------------------------------
-def list_runs(branch: str, sha_short: str) -> list[dict]:
+def list_runs(branch: str, sha_short: str) -> list[dict] | None:
     """대상 브랜치의 최근 run 중 headSha 가 sha_short 로 시작하는 것만 반환한다.
 
     --limit 은 20(구 8) — 연속 푸시로 최근 목록이 다른 커밋 run 으로 채워질 때
     대상 SHA run 이 조회창 밖으로 밀려 "워크플로 없음 → green" 오판하는 것을 막는다.
+
+    **조회 실패는 ``None``** 이다(gh 비정상 종료·빈 출력·JSON 아님). 빈 목록 ``[]`` 은
+    "gh 는 성공했고 대상 run 이 정말 없다"는 뜻으로만 쓴다 — 예전에는 실패도 ``[]`` 로
+    돌려 "워크플로 없음 → green" 으로 흘렀다(2026-09-29 b86f4c5d3: run 4개가 진행 중인데
+    exit 0).
     """
     rc, out, _err = run_gh(
         [
@@ -176,13 +181,13 @@ def list_runs(branch: str, sha_short: str) -> list[dict]:
         ]
     )
     if rc != 0 or not out.strip():
-        return []
+        return None
     try:
         data = json.loads(out)
     except ValueError:
-        return []
+        return None
     if not isinstance(data, list):
-        return []
+        return None
     return [r for r in data if str(r.get("headSha", "")).startswith(sha_short)]
 
 
@@ -225,12 +230,17 @@ def poll_completion(
     max_polls: int = MAX_POLLS,
     register_retry_interval: int = REGISTER_RETRY_INTERVAL_SEC,
     register_max_wait: int = REGISTER_MAX_WAIT_SEC,
-) -> list[dict]:
+) -> list[dict] | None:
     """워크플로가 전부 completed 될 때까지 폴링하고 최종 run 목록을 반환한다.
 
     고정 초기 대기 없이 즉시 1차 조회한다(반응속도 개선). 워크플로가 아직
-    미등록(runs 비어 있음)이면 register_retry_interval 간격으로 register_max_wait 까지
-    재시도하고, 등록 후에는 interval 간격으로 전부 완료될 때까지 폴링한다.
+    미등록(runs 비어 있음)이거나 조회가 실패하면 register_retry_interval 간격으로
+    register_max_wait 까지 재시도하고, 등록 후에는 interval 간격으로 전부 완료될 때까지
+    폴링한다.
+
+    반환 ``None`` = 끝까지 한 번도 조회에 성공하지 못함(판정 불가 — green 아님).
+    등록 뒤 중간 조회가 실패하거나 목록에서 run 이 사라지면(있던 run 은 사라지지 않는다)
+    직전 결과를 유지하고 계속 폴링한다.
     """
     runs = list_runs(branch, sha_short)
     waited = 0
@@ -242,7 +252,9 @@ def poll_completion(
         if not runs or all_completed(runs):
             break
         sleep_fn(interval)
-        runs = list_runs(branch, sha_short)
+        latest = list_runs(branch, sha_short)
+        if latest:
+            runs = latest
     return runs
 
 
@@ -400,6 +412,9 @@ def watch_once(
     sha_short = sha[:8]
     printer(f"[ci-watch] target={sha_short} branch={branch}")
     runs = poll_completion(branch, sha_short, sleep_fn=sleep_fn)
+    if runs is None:
+        printer("[ci-watch] gh run 조회 실패 — 판정 불가(green 아님), 재시도 필요")
+        return 4
     if not runs:
         printer("[ci-watch] 대상 커밋의 워크플로 없음(paths-ignore 등) — green 취급")
         return 0
@@ -517,6 +532,9 @@ def watch_quick(
     sha_short = sha[:8]
     printer(f"[ci-watch:quick] target={sha_short} branch={branch}")
     runs = list_runs(branch, sha_short)
+    if runs is None:
+        printer("[ci-watch:quick] gh run 조회 실패 — 판정 불가(green 아님), 다시 확인")
+        return 4
     if not runs:
         printer("[ci-watch:quick] 대상 커밋의 워크플로 없음/미등록 — green 취급")
         return 0

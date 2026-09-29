@@ -1,7 +1,11 @@
 """FOMS Brain AX Designer – SQLAlchemy ORM models.
 
-Uses JSON type for cross-DB compatibility (PostgreSQL uses JSONB via dialect
-type coercion; SQLite uses JSON for tests).
+JSON columns follow the production column type exactly. SQLAlchemy never turns ``JSON``
+into ``jsonb`` by itself: the tables whose migrations created ``jsonb`` columns use
+``JSON_PG_JSONB`` (JSONB on PostgreSQL, JSON on SQLite), the rest stay ``JSON`` because
+production has ``json`` there. With psycopg the bound value carries that type
+(``'...'::jsonb`` vs ``'...'::json``), so a mismatch breaks comparisons. Snapshot contract:
+``tests/domains/test_designer_json_column_types.py``.
 """
 
 from __future__ import annotations
@@ -20,9 +24,13 @@ from sqlalchemy import (
     String,
     Text,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from db import Base
+
+# JSONB on PostgreSQL (matches the migrations that created these columns), JSON on SQLite.
+JSON_PG_JSONB = JSON().with_variant(JSONB, "postgresql")
 
 
 def _now() -> datetime:
@@ -56,9 +64,9 @@ class DesignerProjectVersion(Base):
     project_id: Mapped[int] = mapped_column(Integer, ForeignKey("designer_projects.id"), nullable=False)
     version_no: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     ontology_version_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("designer_ontology_versions.id"), nullable=True)
-    design_json: Mapped[dict] = mapped_column(JSON, nullable=False)
-    validation_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
-    bom_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    design_json: Mapped[dict] = mapped_column(JSON_PG_JSONB, nullable=False)
+    validation_json: Mapped[dict | None] = mapped_column(JSON_PG_JSONB, nullable=True)
+    bom_json: Mapped[dict | None] = mapped_column(JSON_PG_JSONB, nullable=True)
     created_by_user_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("users.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, nullable=False)
 
@@ -78,7 +86,7 @@ class DesignerOntologyVersion(Base):
         nullable=False,
         default="draft",
     )
-    rules_json: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    rules_json: Mapped[dict] = mapped_column(JSON_PG_JSONB, nullable=False, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, nullable=False)
 
 
@@ -109,9 +117,9 @@ class DesignerAIRun(Base):
         nullable=False,
         default="queued",
     )
-    input_json: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
-    state_json: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
-    output_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    input_json: Mapped[dict] = mapped_column(JSON_PG_JSONB, nullable=False, default=dict)
+    state_json: Mapped[dict] = mapped_column(JSON_PG_JSONB, nullable=False, default=dict)
+    output_json: Mapped[dict | None] = mapped_column(JSON_PG_JSONB, nullable=True)
     error_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_by_user_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("users.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, nullable=False)
@@ -127,8 +135,8 @@ class DesignerCorrection(Base):
     project_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("designer_projects.id"), nullable=True)
     project_version_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("designer_project_versions.id"), nullable=True)
     ai_run_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("designer_ai_runs.id"), nullable=True)
-    before_json: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
-    after_json: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    before_json: Mapped[dict] = mapped_column(JSON_PG_JSONB, nullable=False, default=dict)
+    after_json: Mapped[dict] = mapped_column(JSON_PG_JSONB, nullable=False, default=dict)
     reason_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_by_user_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("users.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, nullable=False)
@@ -140,9 +148,9 @@ class DesignerRuleCandidate(Base):
     __tablename__ = "designer_rule_candidates"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    source_correction_ids: Mapped[dict] = mapped_column(JSON, nullable=False, default=list)
-    candidate_json: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
-    replay_report_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    source_correction_ids: Mapped[dict] = mapped_column(JSON_PG_JSONB, nullable=False, default=list)
+    candidate_json: Mapped[dict] = mapped_column(JSON_PG_JSONB, nullable=False, default=dict)
+    replay_report_json: Mapped[dict | None] = mapped_column(JSON_PG_JSONB, nullable=True)
     status: Mapped[str] = mapped_column(
         Enum("draft", "approved", "rejected", "promoted", name="designer_rule_candidate_status", native_enum=False),
         nullable=False,
@@ -161,7 +169,7 @@ class DesignerEmbedding(Base):
     owner_id: Mapped[int] = mapped_column(Integer, nullable=False)
     text: Mapped[str] = mapped_column(Text, nullable=False)
     # embedding column added in separate pgvector migration (B7)
-    metadata_json: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    metadata_json: Mapped[dict] = mapped_column(JSON_PG_JSONB, nullable=False, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, nullable=False)
 
 

@@ -38,6 +38,8 @@ tests/visual/*.sqlite.stale.*
 # 환경 변수 파일
 .env
 .env.yaml
+# 비밀값 백업 사본(.env.bak-YYYYMMDD 등) — 커밋 금지. .env.example 은 영향 없음.
+.env.bak*
 
 # 로그 파일
 *.log

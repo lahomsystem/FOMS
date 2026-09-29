@@ -28,6 +28,8 @@ from foms.services.orders.order_create import create_order
 from models import ExternalOrderLink, Order, User
 from werkzeug.security import generate_password_hash
 
+from tests.support.asset_urls import asset_url_call
+
 _REPO_ROOT = pathlib.Path(__file__).resolve().parents[3]
 _DOCK_JS = _REPO_ROOT / "static" / "js" / "orders" / "erp-naver-dock.js"
 _DOCK_CSS = _REPO_ROOT / "static" / "css" / "orders" / "erp-naver-dock.css"
@@ -311,12 +313,13 @@ def test_dock_asset_pin_moved_for_household_split():
     """CSS·JS 를 고쳤으니 ``?v`` 핀이 움직였다.
 
     SW 가 ``staticCacheFirst`` 라 핀을 안 올리면 옛 자산이 계속 서빙되어 배포해도
-    사람 화면은 그대로다. 핀 값은 2026-09-10 사용자 지시(예약금 카드 설명문 폐기)로
-    ``20260910a`` 가 됐다.
+    사람 화면은 그대로다. 2026-09-29 부터 핀은 ``asset_url`` 이 파일 내용 해시로 만든다.
     """
     tpl = _ORDER_JS_TPL.read_text(encoding="utf-8")
-    assert "js/orders/erp-naver-dock.js') }}?v=20260921a" in tpl
-    assert "css/orders/erp-naver-dock.css') }}?v=20260921d" in tpl
+    # 2026-09-29 asset_url 시범: erp_order_js.html 의 핀은 파일 내용 해시라 고치면 저절로 움직인다.
+    for rel in ("js/orders/erp-naver-dock.js", "css/orders/erp-naver-dock.css"):
+        assert asset_url_call(rel) in tpl, rel
+        assert f"{rel}') }}}}?v=" not in tpl, f"손 날짜 핀이 되살아났다: {rel}"
 
 
 # ------------------------------------------- 확인 완료 게이트가 죽은 주문을 안 센다

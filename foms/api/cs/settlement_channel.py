@@ -29,7 +29,7 @@ from typing import Any, Optional
 from flask import Blueprint, Response, g, jsonify, request, stream_with_context
 
 from db import get_db
-from foms.services.datetime_kst import get_today_kst
+from foms.services.datetime_kst import get_today_kst, now_utc_naive
 from foms.services.settlement_channel import (
     BASES,
     DEFAULT_BASIS,
@@ -434,7 +434,7 @@ def api_settlement_channel_sync_progress():
     stats = row.stats if isinstance(row.stats, dict) else {}
     progress = stats.get("progress") if isinstance(stats.get("progress"), dict) else None
     finished = row.finished_at
-    elapsed = ((finished or datetime.datetime.utcnow()) - row.started_at).total_seconds()
+    elapsed = ((finished or now_utc_naive()) - row.started_at).total_seconds()
     return jsonify({"success": True, "error": None, "data": {
         "run_id": int(row.id),
         "status": row.status,

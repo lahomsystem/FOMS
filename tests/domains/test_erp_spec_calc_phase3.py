@@ -22,6 +22,7 @@ from werkzeug.security import generate_password_hash
 
 from foms.services.context_processors import inject_foms_flags
 from models import User
+from tests.support.asset_urls import asset_url_call
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -232,9 +233,12 @@ def test_order_js_template_lazy_includes_module_only_when_flag_on() -> None:
     tpl = _read(ORDER_JS_TPL)
     assert "{% if flag_spec_picker %}" in tpl
     assert "js/orders/erp-spec-calc.js" in tpl
-    # 로컬 + defer (perf 계약 G1/G2)
-    assert "erp-spec-calc.js') }}?v=" in tpl
+    # 로컬 + defer (perf 계약 G1/G2). 2026-09-29 asset_url 시범: 버전(?v=)은 도우미가 내용 해시로 붙인다.
+    assert asset_url_call("js/orders/erp-spec-calc.js") in tpl
     spec_line = next(line for line in tpl.splitlines() if "erp-spec-calc.js" in line)
+    # 플래그가 켜졌을 때만 싣는다 — 모듈 줄이 {% if flag_spec_picker %} 블록 안에 있어야 한다.
+    block = tpl.split("{% if flag_spec_picker %}", 1)[1].split("{% endif %}", 1)[0]
+    assert spec_line in block
     assert "defer" in spec_line
     assert "http://" not in spec_line and "https://" not in spec_line
 

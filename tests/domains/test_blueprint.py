@@ -223,16 +223,16 @@ def test_backfill_exact_ambiguous_coverage_idempotent(client):
     dry = apply_blueprint_backfill(db_session, apply=False)
     assert dry.total == 2 and dry.exact == 1 and dry.ambiguous == 1 and dry.projected == 2
     assert dry.applied is False
-    assert get_current_blueprint(db_session.query(Order).get(oe.id)) is None  # 무쓰기
+    assert get_current_blueprint(db_session.get(Order, oe.id)) is None  # 무쓰기
 
     res = apply_blueprint_backfill(db_session, apply=True)
     db_session.commit()
     assert res.projected == 2 and res.applied is True
 
-    ce = get_current_blueprint(db_session.query(Order).get(oe.id))
+    ce = get_current_blueprint(db_session.get(Order, oe.id))
     assert ce["object_key"] == f"orders/{oe.id}/blueprint/plan.png"
     assert ce["provenance"] == "migration_backfill"
-    ca = get_current_blueprint(db_session.query(Order).get(oa.id))
+    ca = get_current_blueprint(db_session.get(Order, oa.id))
     assert ca["object_key"] is None and ca["ambiguous"] is True  # auto-map 금지
     assert ca["view_url"] == "https://cdn.example.com/legacy-plan.png"  # 원문 무손실
 
@@ -250,13 +250,13 @@ def test_backfill_does_not_touch_scalar_and_downgrade_removes_only_backfill(clie
     apply_blueprint_backfill(db_session, apply=True)
     db_session.commit()
     db_session.expire_all()
-    order = db_session.query(Order).get(o.id)
+    order = db_session.get(Order, o.id)
     assert order.blueprint_image_url == "https://cdn.example.com/p.png"  # scalar 불변
 
     removed = remove_backfill_projection(db_session)
     db_session.commit()
     assert removed == 1
-    assert get_current_blueprint(db_session.query(Order).get(o.id)) is None
+    assert get_current_blueprint(db_session.get(Order, o.id)) is None
 
 
 def test_backfill_preserves_other_blueprint_subkeys(client):
@@ -270,7 +270,7 @@ def test_backfill_preserves_other_blueprint_subkeys(client):
     apply_blueprint_backfill(db_session, apply=True)
     db_session.commit()
     db_session.expire_all()
-    bp = db_session.query(Order).get(o.id).structured_data["blueprint"]
+    bp = db_session.get(Order, o.id).structured_data["blueprint"]
     assert bp["customer_confirmed"] is True and bp["confirmed_by"] == "김담당"
     assert "current" in bp
 

@@ -36,6 +36,7 @@ from foms.services.loop_heartbeat import (  # noqa: E402
     capture_exception,
     emit_heartbeat,
     init_sentry_once,
+    safe_metadata,
 )
 from foms.services.sidefx_worker import WORKER_KIND_NAVER_ORDER_SYNC  # noqa: E402
 
@@ -136,9 +137,15 @@ def _beat(result: Optional[dict], declared_interval: int,
         None. 기록 실패는 :func:`emit_heartbeat` 가 경고 로그 + Sentry 로 남기고 삼킨다
         (관측 배선이 수집을 멈추면 더 나쁜 실패다).
     """
-    emit_heartbeat(engine, HEARTBEAT_WORKER_KIND,
-                   metadata=_heartbeat_metadata(result, declared_interval, outcome),
-                   logger=_LOGGER)
+    # 조립은 가드 안에서 한다(2026-09-10 정산 루프 사고와 같은 모양 — 조립 결함이 루프를 죽였다).
+    metadata = safe_metadata(
+        lambda: _heartbeat_metadata(result, declared_interval, outcome),
+        {"interval_seconds": int(declared_interval or 0),
+         "outcome": outcome or ("ok" if result is not None else "sweep_failed"),
+         "changed": 0, "candidates": 0, "created": 0, "pending_review": 0},
+        logger=_LOGGER, label="naver-order-sync",
+    )
+    emit_heartbeat(engine, HEARTBEAT_WORKER_KIND, metadata=metadata, logger=_LOGGER)
 
 
 def _sleep_with_heartbeats(interval: int, result: Optional[dict],

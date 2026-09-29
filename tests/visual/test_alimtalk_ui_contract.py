@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from tests.support.asset_urls import ASSET_URL_PILOT_TEMPLATE, asset_url_call
+
 ROOT = Path(__file__).resolve().parents[2]
 
 BUTTON_CLASS = "erp-alimtalk-send-btn"
@@ -92,7 +94,8 @@ def test_send_js_wired_in_erp_order_script_chain_with_version() -> None:
     chain = _read("templates/orders/partials/erp_order_js.html")
     line = next(ln for ln in chain.splitlines() if SEND_JS in ln)
     assert "defer" in line
-    assert "?v=" in line
+    # 2026-09-29 asset_url 시범: ?v=<파일 내용 해시> 는 도우미가 붙인다(손 핀 없음).
+    assert asset_url_call(SEND_JS) in line
     assert chain.index("js/orders/erp-channel-push-confirm.js") < chain.index(SEND_JS)
 
 
@@ -381,16 +384,19 @@ def test_share_trace_assets_pinned_together() -> None:
     같은 날짜 핀을 쓰는 순간 빨개진다 — 날짜 핀은 여러 세션이 같은 날 같은 값을 고르므로
     필연이다(2026-09-01: `erp-order-shared.js` 가 같은 핀을 달자 계약이 3 != 2 로 터졌고,
     고친 쪽과 무관한 커밋까지 함께 빨개졌다).
+
+    2026-09-29 asset_url 시범: 주문 화면 include(erp_order_js.html)는 손 핀 대신 파일 내용
+    해시 URL 이라 자산이 바뀌면 저절로 따라 움직인다. 손 핀을 쓰는 나머지 표면은 그대로 본다.
     """
     pin = "?v=20260923a"  # 2026-09-23: 단독 링크 흔적·모바일 이력 노출로 함께 올렸다
     css_pin = pin
     assert pin in _read("templates/partials/shared/layout_scripts.html")
-    order_js = _read("templates/orders/partials/erp_order_js.html")
-    for asset, want in (("css/orders/erp-alimtalk-trace.css", css_pin),
-                        ("js/orders/erp-share.js", pin)):
+    order_js = _read(ASSET_URL_PILOT_TEMPLATE)
+    for asset in ("css/orders/erp-alimtalk-trace.css", "js/orders/erp-share.js"):
         line = next((row for row in order_js.splitlines() if asset in row), "")
         assert line, f"{asset} 선언이 사라졌다"
-        assert want in line, f"{asset} 핀이 함께 안 올라갔다"
+        assert asset_url_call(asset) in line, f"{asset} 가 내용 해시 URL 로 안 실린다"
+        assert "?v=" not in line, f"{asset}: 시범 파일에 손 핀이 되살아났다"
     for surface in ("templates/measurement/dashboard.html",
                     "templates/measurement/partials/dashboard_fragment.html"):
         line = next((row for row in _read(surface).splitlines()

@@ -18,6 +18,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from tests.support.asset_urls import ASSET_URL_PILOT_TEMPLATE, asset_url_call
+
 ROOT = Path(__file__).resolve().parents[2]
 
 ZOOM_JS = "static/js/foms/attachment-preview-zoom.js"
@@ -30,9 +32,8 @@ MOBILE_DETAIL_JS = "static/js/foms/mobile-detail-attachments.js"
 
 PIN = "?v=20260914a"
 
-#: erp-order-shared.js 만 ADMIN-OVERRIDE-01(퀘스트 승인 거부 → 관리자 강제 진행 재시도)로
-#: 다시 바뀌었다. 나머지 두 JS 는 그때 안 바뀌었으니 핀을 따로 둔다.
-SHARED_PIN = "?v=20260929a"  # 2026-09-29: 비고 옆 해피콜 상태(부재·콜백) 드롭다운
+#: erp-order-shared.js 는 erp_order_js.html 에서만 싣는다. 그 include 는 2026-09-29 부터
+#: asset_url(내용 해시 ?v=) 시범이라 손 핀 상수가 없다.
 
 ZOOM_SRC = "attachment-preview-zoom.js') }}"
 OPEN_SRC = "erp-attachment-preview-open.js') }}"
@@ -159,9 +160,15 @@ def test_asset_pins_bumped_together() -> None:
     assert ZOOM_SRC + PIN in object_html
     assert OPEN_SRC + PIN in object_html
 
-    erp_order_js = _read("templates/orders/partials/erp_order_js.html")
-    assert ZOOM_SRC + PIN in erp_order_js
-    assert SHARED_SRC + SHARED_PIN in erp_order_js
+    # 2026-09-29 asset_url 시범: 이 include 는 손 날짜 핀 대신 내용 해시 URL 을 쓴다 — 파일을
+    # 고치면 ?v= 가 저절로 바뀌므로 "같은 값으로 올렸나" 대신 "도우미로 싣나" 를 본다
+    # (렌더 값 = 파일 내용 해시는 tests/contracts/assets/test_asset_manifest.py 가 전수로 본다).
+    erp_order_js = _read(ASSET_URL_PILOT_TEMPLATE)
+    assert asset_url_call("js/foms/attachment-preview-zoom.js") in erp_order_js
+    assert asset_url_call("js/orders/erp-order-shared.js") in erp_order_js
+    # 음성 대조: 손 핀 모양(`… }}?v=날짜`)이 되살아나면 안 된다.
+    assert ZOOM_SRC + "?v=" not in erp_order_js
+    assert SHARED_SRC + "?v=" not in erp_order_js
 
     wizard_shell = _read("templates/orders/wizard/wizard_shell.html")
     assert ZOOM_SRC + PIN in wizard_shell

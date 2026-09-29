@@ -1,6 +1,7 @@
 """rq worker 를 DB 하트비트와 함께 띄운다 (OPS-HEARTBEAT-01, 후속 F-6).
 
-``start.sh`` 는 워커 컨테이너의 마지막 줄에서 ``exec rq worker`` 로 자기를 대체해 왔다.
+``start.sh`` 는 워커 컨테이너의 마지막 줄에서 ``exec rq worker`` 로 자기를 대체해 왔다
+(지금은 ``tools/ops/worker_supervisor.py`` 가 이 러너를 띄우고 죽으면 다시 띄운다).
 그 프로세스는 **자기 생존을 어디에도 남기지 않았다** — Redis 쪽 rq 하트비트는 rq 대시보드
 전용이고, FOMS 의 감시 표(``side_effect_worker_heartbeats``)에는 아무 행도 없었다. 큐 소비가
 멎어도(2026-02 워커 offline) 표만 봐서는 알 수 없었다.

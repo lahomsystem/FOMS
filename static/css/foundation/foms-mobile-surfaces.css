@@ -1,6 +1,6 @@
 /* P1–P3 mobile surface components — ERP mobile v2 shell only (layout_head cohort gate).
    미버전 @import는 no-cache 재검증 왕복을 만든다(첫 로딩 지연, Wave 4-B). ?v= 를 붙이면
-   app_factory 미들웨어가 max-age=3600으로 재작성. 대가는 미버전 배포 시 최대 1h staleness이나,
+   app_factory 미들웨어가 max-age=86400(하루, 2026-09-11~)으로 재작성. 대가는 핀을 안 올린 배포 시 최대 하루 staleness이나,
    해당 자식 편집 시 여기 ?v= 를 함께 올리면 새 URL=캐시 미스로 즉시 반영된다(신선도 계약). */
 @import url("../foundation/foms-shell.css?v=20260924a");
 @import url("../components/foms-buttons.css?v=20260703a");

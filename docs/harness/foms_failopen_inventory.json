@@ -5,14 +5,14 @@
   "overlap_api_error_01": "API-ERROR-01 owns response/stdout exposure (print_exc/str(e) -> log_handled_exception). This packet owns swallow classification. Sites that log via log_handled_exception are LOG_AND_CONTINUE here.",
   "marker_convention": "Silent-by-design catches carry an inline `# failopen: intentional: <reason>` (or `fail-closed`) marker; the scanner reads it as the justification. No bare allowlist, no lint-disable.",
   "baselines": {
-    "broad_total": 601,
+    "broad_total": 602,
     "unclassified": 0,
     "swallow_by_control_flow": 172
   },
   "disposition_counts": {
     "FAIL_CLOSED": 38,
     "INTENTIONAL": 17,
-    "LOG_AND_CONTINUE": 374,
+    "LOG_AND_CONTINUE": 375,
     "SWALLOW_BY_CONTROL_FLOW": 172
   },
   "owner_counts": {
@@ -24,7 +24,7 @@
     "persistence": 3,
     "platform": 5,
     "runtime": 3,
-    "services": 172,
+    "services": 173,
     "storage": 21,
     "telemetry": 38,
     "web": 39
@@ -2101,7 +2101,7 @@
     },
     {
       "path": "foms/api/orders/nearby.py",
-      "lineno": 80,
+      "lineno": 81,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "api",
@@ -2110,7 +2110,7 @@
     },
     {
       "path": "foms/api/orders/nearby.py",
-      "lineno": 120,
+      "lineno": 121,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2344,7 +2344,7 @@
     },
     {
       "path": "foms/api/share.py",
-      "lineno": 378,
+      "lineno": 379,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2353,7 +2353,7 @@
     },
     {
       "path": "foms/api/share.py",
-      "lineno": 1055,
+      "lineno": 1056,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2362,7 +2362,7 @@
     },
     {
       "path": "foms/api/share.py",
-      "lineno": 1139,
+      "lineno": 1140,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2371,7 +2371,7 @@
     },
     {
       "path": "foms/api/share.py",
-      "lineno": 1566,
+      "lineno": 1567,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -3361,7 +3361,7 @@
     },
     {
       "path": "foms/services/context_processors.py",
-      "lineno": 256,
+      "lineno": 257,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "services",
@@ -3370,7 +3370,7 @@
     },
     {
       "path": "foms/services/context_processors.py",
-      "lineno": 302,
+      "lineno": 303,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -4234,7 +4234,16 @@
     },
     {
       "path": "foms/services/loop_heartbeat.py",
-      "lineno": 125,
+      "lineno": 118,
+      "handler_type": "broad_exception",
+      "disposition": "LOG_AND_CONTINUE",
+      "owner": "services",
+      "has_logging": true,
+      "justification": "logs via logger/log_handled_exception"
+    },
+    {
+      "path": "foms/services/loop_heartbeat.py",
+      "lineno": 155,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",

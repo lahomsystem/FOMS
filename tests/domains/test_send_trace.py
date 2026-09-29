@@ -21,12 +21,14 @@ from werkzeug.security import generate_password_hash
 
 from db import db_session
 from models import Order, User
+from tests.support.asset_urls import asset_url_call, hashed_asset_ref
 
 ROOT = Path(__file__).resolve().parents[2]
 JS = "static/js/orders/erp-send-trace.js"
 CSS = "static/css/orders/erp-send-trace.css"
-PIN = "?v=20260923a"
-JS_PIN = "?v=20260923b"  # 300줄 기준에 맞춰 주석을 줄였다
+# 두 자산은 erp_order_js.html 에서만 싣고, 그 include 는 2026-09-29 부터 asset_url(내용 해시 ?v=)
+# 시범이라 손 날짜 핀 상수가 없다 — 파일을 고치면 ?v= 가 저절로 바뀐다.
+ASSETS = ("css/orders/erp-send-trace.css", "js/orders/erp-send-trace.js")
 
 _needs_node = pytest.mark.skipif(not shutil.which("node"), reason="node not on PATH")
 
@@ -59,10 +61,11 @@ def test_mobile_action_bar_has_one_fold_send_trace_slot() -> None:
 
 def test_assets_loaded_once_and_old_push_trace_removed() -> None:
     order_js = _read("templates/orders/partials/erp_order_js.html")
-    for asset, pin in (("css/orders/erp-send-trace.css", PIN), ("js/orders/erp-send-trace.js", JS_PIN)):
+    for asset in ASSETS:
         lines = [row for row in order_js.splitlines() if asset in row]
         assert len(lines) == 1, asset
-        assert pin in lines[0], asset
+        assert asset_url_call(asset) in lines[0], asset
+        assert "?v=" not in lines[0], f"손 핀이 되살아났다: {lines[0].strip()}"
     assert "erp-channel-push-trace" not in order_js
     assert not (ROOT / "static/js/orders/erp-channel-push-trace.js").exists()
     assert not (ROOT / "static/css/orders/erp-channel-push-trace.css").exists()
@@ -110,8 +113,8 @@ def test_edit_page_renders_send_trace_on_both_surfaces(client, monkeypatch: pyte
     mobile = html[html.index('id="erp-order-form-mobile"'):]
     assert 'data-erp-send-trace="wide"' in legacy
     assert 'data-erp-send-trace="fold"' in mobile
-    assert "js/orders/erp-send-trace.js" + JS_PIN in html
-    assert "css/orders/erp-send-trace.css" + PIN in html
+    for asset in ASSETS:
+        assert hashed_asset_ref(asset) in html, asset
     assert 'id="erpAlimtalkTraceModal"' in html
 
 

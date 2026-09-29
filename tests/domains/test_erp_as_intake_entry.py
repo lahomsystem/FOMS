@@ -16,6 +16,8 @@ from pathlib import Path
 
 import pytest
 
+from tests.support.asset_urls import asset_url_call
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PC_TPL = REPO_ROOT / "templates" / "orders" / "partials" / "erp_order_tab.html"
 MOBILE_TPL = REPO_ROOT / "templates" / "orders" / "partials" / "erp_order_tab_mobile.html"
@@ -81,9 +83,15 @@ def test_stage_dropdown_has_no_as_options() -> None:
 
 
 def test_shared_js_pin_moved_past_the_removal_commit() -> None:
-    """JS 를 고쳤으면 ``?v`` 핀이 올라가야 한다(SW staticCacheFirst 가 낡은 파일을 준다)."""
+    """JS 를 고쳤으면 ``?v`` 핀이 올라가야 한다(SW staticCacheFirst 가 낡은 파일을 준다).
+
+    2026-09-29 asset_url 시범부터 이 include 는 손 날짜 핀 대신 내용 해시 URL 을 쓴다 —
+    파일이 바뀌면 ``?v=`` 가 저절로 바뀌므로 "도우미를 쓰는가"와 "렌더 값이 지금 파일
+    내용 해시인가"(tests/contracts/assets/test_asset_manifest.py)로 같은 뜻을 지킨다.
+    """
     include = _read(JS_INCLUDE)
     assert "erp-order-shared.js" in include
     line = next(l for l in include.splitlines() if "erp-order-shared.js" in l)
-    pin = line.split("?v=")[1].split('"')[0]
-    assert pin > "20260904c", f"핀이 안 올라갔다: {pin}"
+    assert asset_url_call("js/orders/erp-order-shared.js") in line, line
+    # 음성 대조: 손 날짜 핀(옛 모양)으로 되돌아가면 안 된다 — 그 경우 옛 비교 규칙이 다시 필요하다.
+    assert "?v=" not in line, f"손 핀이 되살아났다: {line.strip()}"

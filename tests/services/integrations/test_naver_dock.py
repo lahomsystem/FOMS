@@ -34,6 +34,7 @@ from foms.services.integrations.naver_commerce.dock import (
 )
 from foms.services.orders.order_create import create_order
 from models import ExternalOrderLink, Order, SecurityLog, User
+from tests.support.asset_urls import asset_url_call
 
 _SEQ = [0]
 
@@ -785,10 +786,10 @@ def test_dock_js_says_repay_separately_and_asset_pin_moved():
     assert "extraPaymentRepay: extraPaymentBucket(payload, 'repay')" in source
 
     tpl = _ORDER_JS_TPL.read_text(encoding="utf-8")
-    # 핀은 R2(워크벤치 링크)에서 다시 움직였고, 2026-09-10 사용자 지시(예약금 카드 → 관계 낱말+금액
-    # 두 줄)로 한 번 더 움직였다 — 값은 ``test_dock_js_renders_workbench_anchor_and_asset_pin_moved`` 가 못박는다.
-    assert "js/orders/erp-naver-dock.js') }}?v=20260921a" in tpl
-    assert "css/orders/erp-naver-dock.css') }}?v=20260921d" in tpl
+    # 2026-09-29 asset_url 시범: erp_order_js.html 의 핀은 파일 내용 해시라 고치면 저절로 움직인다.
+    for rel in ("js/orders/erp-naver-dock.js", "css/orders/erp-naver-dock.css"):
+        assert asset_url_call(rel) in tpl, rel
+        assert f"{rel}') }}}}?v=" not in tpl, f"손 날짜 핀이 되살아났다: {rel}"
 
 
 # --------------------------------------------------------------------------- #
@@ -960,8 +961,7 @@ def test_dock_js_renders_workbench_anchor_and_asset_pin_moved():
     """도크 JS 가 앵커(버튼 아님)를 그리고, 고쳤으니 ``?v`` 핀이 움직였다.
 
     SW 가 ``staticCacheFirst`` 라 핀을 안 올리면 옛 JS 가 계속 서빙되어 링크가 배포돼도
-    사람 화면에는 영영 안 뜬다. 핀 값은 2026-09-10 사용자 지시(예약금 카드 설명문 폐기)로
-    ``20260910a`` 가 됐다.
+    사람 화면에는 영영 안 뜬다. 2026-09-29 부터 핀은 ``asset_url`` 이 파일 내용 해시로 만든다.
     """
     source = _squash(_DOCK_JS.read_text(encoding="utf-8"))
     assert "var wb = el('a', 'naver-dock-wb', '워크벤치에서 열기 ↗');" in source
@@ -970,5 +970,7 @@ def test_dock_js_renders_workbench_anchor_and_asset_pin_moved():
     assert "workbenchUrl: payload.workbench_url || ''," in source
 
     tpl = _ORDER_JS_TPL.read_text(encoding="utf-8")
-    assert "js/orders/erp-naver-dock.js') }}?v=20260921a" in tpl
-    assert "css/orders/erp-naver-dock.css') }}?v=20260921d" in tpl
+    # 2026-09-29 asset_url 시범: erp_order_js.html 의 핀은 파일 내용 해시라 고치면 저절로 움직인다.
+    for rel in ("js/orders/erp-naver-dock.js", "css/orders/erp-naver-dock.css"):
+        assert asset_url_call(rel) in tpl, rel
+        assert f"{rel}') }}}}?v=" not in tpl, f"손 날짜 핀이 되살아났다: {rel}"

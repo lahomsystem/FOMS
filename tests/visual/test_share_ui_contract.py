@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from tests.support.asset_urls import asset_url_call
+
 ROOT = Path(__file__).resolve().parents[2]
 
 BUTTON_CLASS = "erp-share-open-btn"
@@ -93,7 +95,8 @@ def test_share_js_wired_in_erp_order_script_chain_with_version() -> None:
     chain = _read("templates/orders/partials/erp_order_js.html")
     line = next(ln for ln in chain.splitlines() if SHARE_JS in ln)
     assert "defer" in line
-    assert "?v=" in line
+    # 2026-09-29 asset_url 시범: ?v=<파일 내용 해시> 는 도우미가 붙인다(손 핀 없음).
+    assert asset_url_call(SHARE_JS) in line
     assert chain.index("js/orders/erp-alimtalk-send.js") < chain.index(SHARE_JS)
 
 

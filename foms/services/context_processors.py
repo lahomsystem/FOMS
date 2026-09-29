@@ -23,6 +23,7 @@ from foms.services.feature_flags import (
     wants_wide_only_surfaces,
     wizard_new_order_enabled,
 )
+from foms.services.asset_urls import asset_url
 from foms.services.datetime_kst import format_datetime_kst
 from foms.services.dashboard_counts import get_nav_badge_counts
 from foms.services.integrations.naver_commerce.triage_count import get_triage_pending_count
@@ -485,7 +486,7 @@ def inject_tablet_rail_helper() -> dict[str, Any]:
 
 def register_context_processors(app) -> None:
     """Register all template filters and context processors on the Flask app."""
-    app.jinja_env.globals["mark"] = template_mark  # 계측 전용(셸 파셜이 모든 페이지에서 쓴다)
+    app.jinja_env.globals.update(mark=template_mark, asset_url=asset_url)  # mark=계측 전용 · asset_url=내용 해시 ?v=
     app.add_template_filter(parse_json_string_filter, "parse_json_string")
     app.add_template_filter(format_datetime_kst, "format_datetime_kst")
     app.context_processor(inject_statuses)

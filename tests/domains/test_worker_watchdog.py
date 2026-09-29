@@ -339,11 +339,14 @@ def test_watchdog_runs_in_sidefx_not_in_the_worker_container():
     assert "run_watchdog_once" in runner, "SIDEFX 루프가 감시자를 안 부른다"
     assert "next_watchdog" in runner, "감시가 주기로 안 돈다"
 
-    start_sh = _START_SH.read_text(encoding="utf-8")
-    worker_branch = (start_sh.split('if [ "$USE_RQ_WORKER" = "1" ]; then', 1)[1]
-                     .split("\nelse\n", 1)[0])
-    assert "worker_watchdog" not in worker_branch, \
+    from tests.support.worker_jobs import jobs, worker_branch_of_start_sh
+
+    assert "worker_watchdog" not in worker_branch_of_start_sh(), (
         "감시자를 WORKER 컨테이너에 배선하면 감시 대상과 함께 죽는다"
+    )
+    assert not any("watchdog" in part for job in jobs(all_enabled=True) for part in job.argv), (
+        "WORKER 감독자 작업 목록에 감시자가 들어가면 감시 대상과 함께 죽는다"
+    )
 
 
 def test_watchdog_is_gated_off_by_default():

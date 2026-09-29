@@ -18,6 +18,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from tests.support.asset_urls import asset_url_call
+
 ROOT = Path(__file__).resolve().parents[2]
 
 SPEC_CALC_JS = ROOT / "static/js/orders/erp-spec-calc.js"
@@ -210,12 +212,21 @@ def test_shared_integration_script_is_cache_busted() -> None:
     """erp-order-shared.js가 enhanceItemRow를 호출하는 통합 진입점인데, <script>에
     ?v= 버전이 없으면 과거 immutable 캐시본이 영구히 stale로 남아 spec-calc가 통째로
     dormant가 된다(라이브 콘솔에서 'flag ON·스크립트 로드됨'인데 트리거 전무로 입증).
-    버전 쿼리 부재 재발을 구조적으로 차단한다."""
+    버전 쿼리 부재 재발을 구조적으로 차단한다.
+
+    2026-09-29 asset_url 시범부터 이 include 는 ``asset_url`` 이 ``?v=<내용 해시>`` 를 붙인다
+    (렌더 값 전수 검증은 tests/contracts/assets/test_asset_manifest.py). 버전 없는
+    ``url_for('static', …) }}"`` 모양은 여전히 금지다."""
     tpl = _read(ORDER_JS_TPL)
-    assert "js/orders/erp-order-shared.js') }}?v=" in tpl
-    # spec-calc 자산도 동일하게 버전으로 신선화(휴면 호출자 갱신과 한 묶음)
-    assert "js/orders/erp-spec-calc.js') }}?v=" in tpl
-    assert "js/orders/erp-spec-picker.js') }}?v=" in tpl
+    for rel in (
+        "js/orders/erp-order-shared.js",
+        # spec-calc 자산도 동일하게 버전으로 신선화(휴면 호출자 갱신과 한 묶음)
+        "js/orders/erp-spec-calc.js",
+        "js/orders/erp-spec-picker.js",
+    ):
+        assert asset_url_call(rel) in tpl, rel
+        # 음성 대조: 버전 쿼리 없는 url_for 태그(이 가드가 막으려던 원래 결함 모양)가 없어야 한다.
+        assert f"filename='{rel}') }}}}\"" not in tpl, rel
 
 
 def test_form_field_css_chain_cache_busted_for_redesign() -> None:

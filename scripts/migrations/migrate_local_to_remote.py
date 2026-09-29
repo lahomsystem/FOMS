@@ -105,7 +105,7 @@ def migrate_orders():
             # but for restoration, preserving ID is ideal if remote is empty.
             # If remote already has data, IDs might clash.
             
-            existing = remote_session.query(Order).get(local_order.id)
+            existing = remote_session.get(Order, local_order.id)
             if existing:
                 print(f"  - Skipping existing order ID: {local_order.id}")
                 continue

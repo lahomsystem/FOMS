@@ -1,6 +1,8 @@
 # Worker 서비스 전용 Railway Config
 # Railway 대시보드 > Worker 서비스 > Settings > Config Path: railway-worker.toml
 [build]
+# 참고(2026-09-29): 실제 빌드는 루트 Dockerfile 이다 — Railway 가 자동 감지하고 배포 manifest 의
+# build.builder = DOCKERFILE(운영·스테이징 네 서비스 모두). 아래 builder 줄은 쓰이지 않는다.
 builder = "nixpacks"
 
 [deploy]

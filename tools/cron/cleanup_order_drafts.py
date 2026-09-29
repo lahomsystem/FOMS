@@ -20,6 +20,7 @@ from pathlib import Path
 # 저장소 루트를 import 경로에 넣는다 — `python tools/cron/cleanup_order_drafts.py ...` 로 직접 부르면 tools/cron 만 들어간다.
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from foms.services.datetime_kst import now_utc_naive  # noqa: E402
 from foms.services.db_url_resolver import sqlalchemy_url  # noqa: E402
 
 logger = logging.getLogger("cleanup_order_drafts")
@@ -85,7 +86,7 @@ def run(*, execute: bool = False, session=None) -> tuple[int, int]:
     engine = None
     if owns_session:
         session, engine = _make_session()
-    now = datetime.utcnow()
+    now = now_utc_naive()
     try:
         scanned_row = session.execute(
             text("SELECT COUNT(*) FROM order_drafts WHERE expires_at < :now"),
@@ -156,10 +157,7 @@ def run_erp_draft_orders(
             # 선별 기준(now/threshold)과 기준축이 다르다 — deleted_at 은
             # naive UTC 고정폭 규약(soft_delete._DELETED_AT_FORMAT)을 따라야
             # 읽는 쪽(format_datetime_kst)과 문자열 desc 정렬이 맞는다.
-            # 이 파일은 저장소 루트가 sys.path 에 없는 채 스크립트로 돌아
-            # foms.* 를 물면 ModuleNotFoundError 로 죽는다 — stdlib 로 같은 값을 만든다
-            # (now_utc_naive() == datetime.now(timezone.utc).replace(tzinfo=None) == utcnow()).
-            deleted_stamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+            deleted_stamp = now_utc_naive().strftime("%Y-%m-%d %H:%M:%S")
             result = session.execute(
                 text(
                     f"UPDATE orders SET status='DELETED', original_status='DRAFT', "
