@@ -1,6 +1,6 @@
 # 화면 파일(CSS·JS) 버전 자동 표시 — 계획 (시범: 주문 화면 한 파일)
 
-- 작성 2026-09-29 · 기준 `origin/deploy` · 상태: **승인 대기**
+- 작성 2026-09-29 · 기준 `origin/deploy` · 상태: **승인(2026-09-29, 한 파일 시범) → 구현(deploy)**
 - 근거: 언어 이전 분석 보고서 ⑧ 권고 3 — 앞단 fix 수정의 27.1% 가 버전 핀(`?v=날짜`)만 바꾸는 일이었다.
 
 ## 0. 쉬운 요약
@@ -44,6 +44,13 @@
 ## 6. 부수 정리
 
 낡은 설명 고치기: `static/css/foundation/erp-pro.css:3`·`foms-mobile-surfaces.css:3`("1시간" → 하루), `docs/guides/NETWORK_EDGE_TAIL_FIX.md:16`.
+
+## 6-1. 구현 기록 (2026-09-29)
+- `foms/services/asset_urls.py`(`asset_url`, 프로세스 캐시·DEBUG 수정 시각 감시·시험/개발 모드 없는 파일 오류·운영 경고 후 쿼리 없는 URL), Jinja 전역 등록. `erp_order_js.html` 37개 전환.
+- 계약 `tests/contracts/assets/test_asset_manifest.py`(14 — 한 바이트 → URL 변경, 같은 내용 → 같은 URL, 없는 파일, 렌더된 37개가 실제 파일 해시와 일치, 해시 URL 에도 하루 캐시, 음성 대조). 날짜 핀을 글자로 박던 시험 13개를 "내용 해시 URL" 단언으로(기대값은 `tests/support/asset_urls.py` 가 구현을 거치지 않고 hashlib 로 계산).
+- 알려진 부작용: `static/js/foms/fragment-loader.js` 는 쿼리까지 포함한 URL 로 "이미 실행한 스크립트" 를 가려서, 날짜 핀으로 이미 실린 공용 스크립트 14개가 편집 조각에서 한 번 더 받아지고 실행된다. 확인한 스크립트는 중복 실행 방지(`__FOMS_*_BOUND`)가 있거나 전역 객체만 정의 — 동작 문제 없음, 확대 때 사라짐.
+- 해시는 파일 바이트 기준이라 윈도우(CRLF)와 리눅스(LF) 값이 다르다(환경 안에서는 일관).
+- 검증: 전체 11234 passed, visual 계약 39 passed. 구현은 격리 작업 폴더의 에이전트가 하고 diff·시험을 직접 확인한 뒤 반영.
 
 ## 7. 사용자가 정할 것
 
