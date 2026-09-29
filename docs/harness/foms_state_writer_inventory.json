@@ -27,21 +27,21 @@
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 994,
+      "lineno": 979,
       "axis": "MAIN",
       "kind": "attr_status",
       "owner": "STATE-FORM"
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 2342,
+      "lineno": 2327,
       "axis": "MAIN",
       "kind": "attr_status",
       "owner": "STATE-FORM"
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 2415,
+      "lineno": 2400,
       "axis": "MAIN",
       "kind": "attr_status",
       "owner": "STATE-FORM"
@@ -156,7 +156,7 @@
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 994,
+      "lineno": 979,
       "kind": "attr_status",
       "axis": "MAIN",
       "classification": "EXTERNAL",
@@ -164,7 +164,7 @@
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 2342,
+      "lineno": 2327,
       "kind": "attr_status",
       "axis": "MAIN",
       "classification": "EXTERNAL",
@@ -172,7 +172,7 @@
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 2415,
+      "lineno": 2400,
       "kind": "attr_status",
       "axis": "MAIN",
       "classification": "EXTERNAL",

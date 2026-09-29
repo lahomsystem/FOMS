@@ -463,22 +463,6 @@ def _should_auto_regress_to_received(order: Order, had_measurement_date: bool) -
     return True
 
 
-def _force_preserve_drawing_transfer_history(old_sd: dict, structured_data: dict) -> None:
-    """drawing_transfer_history 는 누적 감사 로그 — 폼 stale 배열로 덮어쓰지 않음.
-
-    서버(old) 이력을 기본으로 두고, 클라이언트 이력이 더 길 때만(신규 append) 수용한다.
-    같은 길이 stale 스냅샷이 ack 플래그를 되돌리는 것을 막는다.
-    """
-    if not isinstance(old_sd, dict) or not isinstance(structured_data, dict):
-        return
-    old_hist = old_sd.get("drawing_transfer_history")
-    if not isinstance(old_hist, list) or not old_hist:
-        return
-    new_hist = structured_data.get("drawing_transfer_history")
-    if not isinstance(new_hist, list) or len(new_hist) <= len(old_hist):
-        structured_data["drawing_transfer_history"] = copy.deepcopy(old_hist)
-
-
 # shipment 하위 AS 서버 전용 키 — 폼은 렌더하지 않고 AS 전용 API 만 쓴다.
 _AS_SERVER_OWNED_SHIPMENT_KEYS = (
     'as_billing', 'as_log',
@@ -565,7 +549,8 @@ def _preserve_operational_structured_state(old_sd: dict, structured_data: dict) 
     if 'quests' not in structured_data and old_sd.get('quests') is not None:
         structured_data['quests'] = copy.deepcopy(old_sd.get('quests'))
 
-    _force_preserve_drawing_transfer_history(old_sd, structured_data)
+    # 도면 축(이력 포함)·도면 배정·퀘스트·고객확인은 project_structured_form 의
+    # lock_server_owned_keys 가 폼 값과 무관하게 서버값으로 고정한다(도면 결함 2차 M1).
     # 폼 저장의 암묵 전이 0(STATE-FORM-01): 단계는 서버값으로 고정하고, AS 전용 API 소관
     # 키(as_billing·as_log·as_lifecycle)는 폼 스냅샷이 되돌리지 못하게 서버값으로 되돌린다.
     _pin_form_stage_to_server(old_sd, structured_data)

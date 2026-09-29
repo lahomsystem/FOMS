@@ -65,6 +65,80 @@ FORM_INTRODUCED_KEYS = frozenset(PROVENANCE_KEYS | {
 #: (``grep -n "structured_data.pop\|del structured_data" foms/api/erp_orders_structured.py``).
 SERVER_OWNED_REMOVABLE_KEYS = frozenset({"as_lifecycle"})
 
+#: 폼 전체 저장이 **값을 보내도** 바꾸지 못하는 최상위 키(old-wins, 도면 결함 2차 M1).
+#: 도면 축은 전용 도면 API(전달·수정요청·반영 체크·수령 확정)와 단계 강제 변경만 바꾼다.
+#: 폼은 페이지를 연 순간의 스냅샷을 되실어 보내므로(태블릿 폼은 If-Match 도 없다), 그 사이
+#: 도면팀이 바꾼 상태·현재 도면을 한 번의 저장으로 되돌렸다 — 1차(확정 때 재계산 제거) 뒤로는
+#: 되돌려진 현재 도면이 그대로 확정본·고객 링크·생산 탭이 된다. ``quests``·``blueprint``
+#: (고객확인)도 같은 스냅샷 복사로 되돌아가므로 함께 잠근다.
+SERVER_LOCKED_KEYS = frozenset({
+    "drawing",
+    "drawing_status",
+    "drawing_transferred",
+    "drawing_confirmed_at",
+    "drawing_confirmed_by",
+    "drawing_current_files",
+    "drawing_transfer_history",
+    "last_drawing_transfer",
+    "drawing_assignees",
+    "drawing_wizard",
+    "blueprint",
+    "quests",
+})
+
+#: 부모 키 안에서 잠그는 하위 키. 도면 배정은 도면 전달 권한의 기준값이고(도면 담당 지정 API 만
+#: 쓴다), ``assignments`` 의 나머지 하위 키(영업 담당 등)는 지금처럼 폼 값이 들어간다.
+SERVER_LOCKED_SUBKEYS = {
+    "assignments": ("drawing_assignee_user_ids", "drawing_assignees"),
+}
+
+
+def _lock_mapping(old: dict, new: dict, keys, prefix: str) -> list[str]:
+    changed: list[str] = []
+    for key in keys:
+        client_has = key in new
+        if key in old:
+            if not client_has or new[key] != old[key]:
+                if client_has:
+                    changed.append(prefix + key)
+                new[key] = copy.deepcopy(old[key])
+        elif client_has:
+            changed.append(prefix + key)
+            del new[key]
+    return changed
+
+
+def lock_server_owned_keys(old_sd: dict, structured_data: dict) -> list[str]:
+    """서버 소유 키를 저장 순간의 서버값으로 고정한다(in-place). 폼 값이 무시된 키 경로를 반환한다.
+
+    규칙: ``old_sd`` 에 있으면 그 값의 사본으로 덮고, 없으면 폼이 보낸 값을 버린다(하위 키도 같다).
+    ``old_sd`` 는 저장 트랜잭션이 행 잠금 아래에서 읽은 값이다. 같은 저장이 서버에서 새로 붙이는
+    도면 이력(주문 변경 알림)은 이 함수 **뒤**에 붙으므로 지워지지 않는다.
+
+    Args:
+        old_sd: 저장 전 서버 structured_data.
+        structured_data: in-place 로 잠길 projection 대상 dict.
+
+    Returns:
+        폼이 다른 값을 보냈거나 새로 만들려 해서 무시된 키 경로 목록.
+    """
+    if not isinstance(structured_data, dict):
+        return []
+    existing = old_sd if isinstance(old_sd, dict) else {}
+    ignored = _lock_mapping(existing, structured_data, sorted(SERVER_LOCKED_KEYS), "")
+    for parent, subkeys in SERVER_LOCKED_SUBKEYS.items():
+        old_parent = existing.get(parent) if isinstance(existing.get(parent), dict) else {}
+        new_parent = structured_data.get(parent)
+        if not isinstance(new_parent, dict):
+            if not any(sub in old_parent for sub in subkeys):
+                continue
+            new_parent = {}
+            structured_data[parent] = new_parent
+        ignored.extend(_lock_mapping(old_parent, new_parent, subkeys, parent + "."))
+    if ignored:
+        logger.warning("[DATA-01] ignored client values for server-locked keys: %s", ignored)
+    return ignored
+
 
 def preserve_non_form_keys(old_sd: dict, structured_data: dict) -> list[str]:
     """폼이 안 보낸 서버 소유 최상위 키를 old_sd 에서 되살린다(in-place). 복원 키를 반환한다.
@@ -224,7 +298,8 @@ def project_structured_form(old_sd: dict, structured_data: dict) -> list[str]:
     호출 전제: 호출자가 이미 old_sd 운영상태 병합
     (``_preserve_operational_structured_state``)을 끝낸 ``structured_data`` 를 넘긴다. 이
     함수는 그 위에 (0) 비-폼 키 복원 → (1) allowlist strip → (2) provenance lock →
-    (3) server pricing 을 순서대로 적용한다.
+    (2') 서버 소유 키 잠금(:func:`lock_server_owned_keys` — 도면 축·도면 배정·퀘스트·고객확인)
+    → (3) server pricing 을 순서대로 적용한다.
 
     (0)은 :func:`preserve_non_form_keys` 다 — 폼이 보내지 않은 서버 소유 최상위 키를 old_sd
     에서 되살린다. allowlist 앞에 둬야 복원된 키가 "old_sd 에 이미 있는 키"로 판정돼 그대로
@@ -240,6 +315,7 @@ def project_structured_form(old_sd: dict, structured_data: dict) -> list[str]:
     preserve_non_form_keys(old_sd, structured_data)
     stripped = enforce_form_allowlist(structured_data, old_sd)
     lock_provenance(old_sd, structured_data)
+    lock_server_owned_keys(old_sd, structured_data)
     recompute_totals(structured_data)
     return stripped
 
@@ -248,9 +324,12 @@ __all__ = [
     "PROVENANCE_KEYS",
     "FORM_INTRODUCED_KEYS",
     "SERVER_OWNED_REMOVABLE_KEYS",
+    "SERVER_LOCKED_KEYS",
+    "SERVER_LOCKED_SUBKEYS",
     "preserve_non_form_keys",
     "enforce_form_allowlist",
     "lock_provenance",
+    "lock_server_owned_keys",
     "recompute_totals",
     "project_structured_form",
 ]
