@@ -29,6 +29,7 @@ from foms.services.erp_quest_display import (
     load_assignee_user_map_batch,
     resolve_order_role_assignees,
 )
+from foms.services.error_logging import log_handled_exception
 from foms.services.estimate_service import (
     _balance_after_payments,
     _overpaid_after_payments,
@@ -686,6 +687,20 @@ def _attachment_count(db, order_id: int) -> int:
         return 0
 
 
+def _single_attachment_count(db, order_id: int, sd: dict[str, Any]) -> int:
+    """단건 첨부 개수 — R3: 배치처럼 교체된 옛 도면 행을 빼고 센다(배치 == 단건).
+
+    옛 도면 빼기 조회가 실패하면 원래 개수로 넘어간다(fail-open) — 개수 하나 때문에 행 전체가
+    500 이 되지 않게 한다. ``_attachment_count`` 가 실패하면 0 을 돌려주는 것과 같은 결.
+    """
+    raw = _attachment_count(db, order_id)
+    try:
+        return discount_superseded_drawing_rows(db, {order_id: raw}, {order_id: sd}).get(order_id, 0)
+    except Exception:
+        log_handled_exception("mobile queue row: superseded drawing discount failed")
+        return raw
+
+
 def resolve_manager_phone_for_queue(
     parties: dict[str, Any] | None,
     *,
@@ -880,10 +895,7 @@ def build_mobile_queue_order_row(db, order, current_user=None, *, batch_ctx=None
     cnt = (
         batch_ctx.attachment_counts.get(order.id, 0)
         if batch_ctx is not None
-        # R3: 단건도 배치처럼 교체된 옛 도면 행을 빼고 센다(배치 == 단건).
-        else discount_superseded_drawing_rows(
-            db, {order.id: _attachment_count(db, order.id)}, {order.id: sd}
-        ).get(order.id, 0)
+        else _single_attachment_count(db, order.id, sd)
     )
     stage = _erp_get_stage(order, sd)
     stage_key = stage if isinstance(stage, str) else ""
