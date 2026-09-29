@@ -1852,6 +1852,8 @@
     const drawingStatus = String(_cfg.drawing_status);
     const drawingFiles = _cfg.drawing_files;
     const historyJson = _cfg.history_json;
+    // 서버 drawing_revision_files.MAX_REVISION_FILES 와 같은 값 — 올리기 전에 막아 고아 파일을 만들지 않는다.
+    const MAX_REVISION_FILES = 20;
     const qs = new URLSearchParams(window.location.search);
     const focusEventId = String(qs.get('event_id') || '').trim();
 
@@ -2108,6 +2110,9 @@
 
     window.handleRevisionFilesChange = function (input) {
       const files = input.files;
+      if (files && files.length > MAX_REVISION_FILES) {
+        showWorkbenchToast(`참고 파일은 ${MAX_REVISION_FILES}개까지 올릴 수 있습니다. 지금 ${files.length}개를 골랐습니다.`, 'error');
+      }
       renderFilePreview(files, 'dw-revision-preview', 'dw-revision-files');
     };
 
@@ -2720,6 +2725,10 @@
 
       if (!note) {
         showWorkbenchToast('수정 요청 메모를 입력해주세요.', 'error');
+        return;
+      }
+      if (files.length > MAX_REVISION_FILES) {
+        showWorkbenchToast(`참고 파일은 ${MAX_REVISION_FILES}개까지 올릴 수 있습니다. 파일을 줄여 주세요.`, 'error');
         return;
       }
 

@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 from datetime import date
+from pathlib import Path
 
 import pytest
 from werkzeug.security import generate_password_hash
@@ -155,7 +156,39 @@ def test_too_many_files_are_rejected(client, quiet):
     _login(client, sales)
     files = [{"key": _gw(oid, f"20260929_1010{i:02d}_ab12cd34_r.jpg")} for i in range(21)]
     res = client.post(f"/api/orders/{oid}/request-revision", json={"note": "x", "files": files})
-    _assert_rejected(res, oid)
+    assert res.status_code == 400, res.get_data(as_text=True)
+    body = res.get_json()
+    assert body["success"] is False and body["code"] == "INVALID_REVISION_FILE"
+    # 개수 초과는 경로 오류 문구가 아니라 실제 이유를 알려 준다(2b 리뷰 P3).
+    assert "20개까지" in body["message"]
+    assert "경로가 올바르지 않습니다" not in body["message"]
+    sd = _sd(oid)
+    assert sd["drawing_status"] == "TRANSFERRED"
+    assert _revision_entries(sd) == []
+
+
+def _function_body(text, start_marker):
+    start = text.index(start_marker)
+    return text[start:start + 2500]
+
+
+def test_screens_block_too_many_revision_files_before_upload():
+    """PC 작업실·ERP 상세 수정요청은 파일을 R2 에 올리기 전에 20개 상한을 막는다(고아 파일 방지)."""
+    from foms.services.orders.drawing_revision_files import MAX_REVISION_FILES
+
+    root = Path(__file__).resolve().parents[2]
+    pc = (root / "templates/drawing/partials/workbench_detail_body.html").read_text(encoding="utf-8")
+    erp = (root / "static/js/orders/dashboard/erp-dashboard-drawing.js").read_text(encoding="utf-8")
+    for text, marker in ((pc, "async function submitRevision()"),
+                         (erp, "async function submitDrawingRevision()")):
+        assert f"MAX_REVISION_FILES = {MAX_REVISION_FILES}" in text
+        body = _function_body(text, marker)
+        guard = body.index("files.length > MAX_REVISION_FILES")
+        assert guard < body.index("uploadRevisionGatewayFiles("), marker
+    pc_change = _function_body(pc, "window.handleRevisionFilesChange")
+    assert "MAX_REVISION_FILES" in pc_change[:600]
+    entry = (root / "static/js/orders/erp-dashboard-entry.js").read_text(encoding="utf-8")
+    assert "erp-dashboard-drawing.js?v=20260929e" in entry
 
 
 def test_valid_gateway_key_is_saved_with_server_built_urls(client, quiet):

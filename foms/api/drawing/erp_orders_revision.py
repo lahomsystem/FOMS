@@ -30,7 +30,7 @@ from foms.services.orders.drawing_gate_followups import (
     invalidate_customer_confirmation,
     restore_customer_confirmation,
 )
-from foms.services.orders.drawing_revision_files import normalize_revision_files
+from foms.services.orders.drawing_revision_files import MAX_REVISION_FILES, normalize_revision_files
 from foms.services.orders.revision import execute_single_order_write, lock_order_row
 
 logger = logging.getLogger(__name__)
@@ -74,10 +74,12 @@ def api_order_request_revision(order_id):
         if raw_files is not None:
             files, rejects = normalize_revision_files(order_id, raw_files)
             if rejects:
+                too_many = isinstance(raw_files, list) and len(raw_files) > MAX_REVISION_FILES
                 return jsonify({
                     'success': False,
                     'code': 'INVALID_REVISION_FILE',
-                    'message': '참고 파일 경로가 올바르지 않습니다. 파일을 다시 올려 주세요.',
+                    'message': (f'참고 파일은 {MAX_REVISION_FILES}개까지 올릴 수 있습니다.' if too_many
+                                else '참고 파일 경로가 올바르지 않습니다. 파일을 다시 올려 주세요.'),
                     'error': 'INVALID_REVISION_FILE',
                 }), 400
         target_drawing_key = (data.get('target_drawing_key') or '').strip()
