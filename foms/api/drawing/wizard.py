@@ -33,6 +33,12 @@ from foms.services.orders.revision import (
     lock_order_row,
 )
 from foms.services.orders.drawing_key_safety import split_deletable_keys
+from foms.services.orders.drawing_assignee_write import maybe_auto_assign_wizard_saver
+from foms.services.common.dashboard_cache import (
+    DASHBOARD_FAMILY_DRAWING,
+    DASHBOARD_FAMILY_ORDERS,
+    invalidate_dashboard_families,
+)
 from foms.services.orders.drawing_wizard_pending import (
     DrawingWizardPendingError,
     mark_delete_pending,
@@ -189,6 +195,26 @@ def _can_save_wizard(current_user, order) -> bool:
         current_user
         and (current_user.role == 'ADMIN' or is_drawing_workbench_participant(current_user, order))
     )
+
+
+def _audit_auto_assign(order, assigned: dict | None) -> None:
+    """마법사 저장이 도면 담당을 자동 지정했으면 수동 지정과 같은 감사 행위로 남긴다(커밋은 호출자)."""
+    if not assigned:
+        return
+    _audit_wizard(order, "DRAFTSMAN_ASSIGNED", note="1명 배정 (마법사 저장 자동)", extra={
+        "assignee_user_ids": [assigned['user_id']], "bulk": False, "auto": True,
+        "change_method": "WIZARD_AUTO",
+    })
+
+
+def _invalidate_after_auto_assign(assigned: dict | None) -> None:
+    """자동 지정이 커밋됐으면 수동 지정 API 와 같이 도면·주문 목록 캐시를 비운다(best-effort)."""
+    if not assigned:
+        return
+    try:
+        invalidate_dashboard_families(DASHBOARD_FAMILY_DRAWING, DASHBOARD_FAMILY_ORDERS)
+    except Exception as err:  # fail-open: 캐시는 TTL 로 결국 맞춰진다
+        logger.warning("wizard auto-assign cache invalidate failed: %s", err, exc_info=True)
 
 
 def _parse_item_index(raw) -> int | None:
@@ -724,7 +750,8 @@ def api_put_drawing_wizard(order_id):
         if error:
             return jsonify({'success': False, 'message': error}), 400
 
-        captured: dict = {'updated_at': None, 'sheets_before': None, 'objects_before': None}
+        captured: dict = {'updated_at': None, 'sheets_before': None, 'objects_before': None,
+                          'auto_assigned': None}
 
         def _mutate(sess: Session, orders: list) -> dict:
             """FOR UPDATE 락 아래: 최신 상태 재조회 → stale 확인 → projection → updated_* 기록."""
@@ -757,9 +784,14 @@ def api_put_drawing_wizard(order_id):
             projected['updated_by'] = current_user.id
             projected['updated_by_name'] = current_user.name
             sd['drawing_wizard'] = projected
+            # 담당 미지정 주문을 도면팀이 저장하면 그 사람을 담당으로(2026-09-30 사용자 결정) —
+            # 잠근 최신 sd 위에서, 같은 트랜잭션·같은 버전 +1 로.
+            captured['auto_assigned'] = maybe_auto_assign_wizard_saver(sess, o.id, sd, current_user)
             o.structured_data = sd
             flag_modified(o, 'structured_data')
             captured['updated_at'] = projected['updated_at']
+            if captured['auto_assigned']:
+                return {o.id: ['ORDERS_INDEX', f'ORDER_DETAIL:{o.id}']}
             return {o.id: [f'ORDER_DETAIL:{o.id}']}
 
         try:
@@ -778,6 +810,7 @@ def api_put_drawing_wizard(order_id):
                     for s in (state.get('sheets') or []) if isinstance(s, dict)
                 ),
             })
+            _audit_auto_assign(order, captured['auto_assigned'])
             db.commit()
         except _WizardStaleError as stale:
             db.rollback()
@@ -798,10 +831,12 @@ def api_put_drawing_wizard(order_id):
                 'message': str(rev),
             }), rev.status_code
 
+        _invalidate_after_auto_assign(captured['auto_assigned'])
         resources = outcome.body.get('resources') or [{}]
         resp = jsonify({
             'success': True,
-            'data': {'updated_at': captured['updated_at']},
+            'data': {'updated_at': captured['updated_at'],
+                     'auto_assigned': captured['auto_assigned']},
             'mutation_receipt': outcome.read_receipt_id,
             'mutation_version': resources[0].get('resulting_version'),
         })
@@ -1058,11 +1093,15 @@ def api_post_drawing_wizard_sheet_png(order_id):
         }
         # 옛 대기 파일은 지금 어떤 도면 기록(전달된 현재본·이력·버전)도 안 쓸 때만 지운다(§10-14).
         stale = _deletable_after(db, order_id, sd, [old_key] if old_key and old_key != key else [])
+        # 담당 미지정이면 저장한 도면팀 사용자를 담당으로 — 같은 잠금 쓰기(버전 +1 한 번)에 싣는다.
+        auto_assigned = maybe_auto_assign_wizard_saver(db, order_id, sd, current_user)
         _write_structured(db, order_id, current_user.id, DRAWING_WIZARD_SHEET_PNG_POLICY_ID,
                           {'sheet_id': sheet_id, 'key': key}, sd)
         _audit_wizard(order, "DRAWING_WIZARD_SHEET_SAVED", note=sheet_name,
                       extra={"sheet_name": sheet_name, "storage_key": key})
+        _audit_auto_assign(order, auto_assigned)
         db.commit()
+        _invalidate_after_auto_assign(auto_assigned)
 
         for stale_key in stale:
             try:
@@ -1070,7 +1109,7 @@ def api_post_drawing_wizard_sheet_png(order_id):
             except Exception as del_err:
                 logger.warning("sheet-png pending stale delete failed (%s): %s", stale_key, del_err)
 
-        return jsonify({'success': True, 'data': {'key': key}})
+        return jsonify({'success': True, 'data': {'key': key, 'auto_assigned': auto_assigned}})
     except Exception as e:
         if db is not None:
             try:

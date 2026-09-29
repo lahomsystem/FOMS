@@ -29,6 +29,7 @@ from foms.services.orders.drawing_receipt_command import (
 from foms.services.orders.order_transition_service import TransitionError
 from foms.services.orders.revision import RevisionError, lock_order_row
 from foms.services.orders.state_axes import read_main_stage
+from foms.services.orders.drawing_assignee_write import apply_drawing_assignees
 from foms.services.orders.admin_override import (
     admin_override_error, log_admin_override_denied,
     record_admin_override_event, resolve_admin_override)
@@ -105,7 +106,6 @@ def api_orders_batch_assign_draftsman():
         if len(assigned_users) != len(user_ids):
             return jsonify({'success': False, 'message': '일부 사용자를 찾을 수 없거나 비활성 계정입니다.'}), 400
 
-        assignee_list = [{'id': u.id, 'name': u.name, 'team': u.team} for u in assigned_users]
         assignee_names = ", ".join([u.name for u in assigned_users])
 
         orders = db.query(Order).filter(Order.id.in_(order_ids)).all()  # perf-ok: request-scoped id.in_ batch
@@ -119,26 +119,11 @@ def api_orders_batch_assign_draftsman():
             try:
                 s_data: dict = _ensure_dict(order.structured_data)
 
-                if 'assignments' not in s_data:
-                    s_data['assignments'] = {}
-                s_data['assignments']['drawing_assignee_user_ids'] = user_ids
-
-                s_data['drawing_assignees'] = assignee_list
-
-                shipment: dict = s_data.get('shipment') or {}
-                shipment['drawing_managers'] = [u.name for u in assigned_users]
-                s_data['shipment'] = shipment
-
-                wf: dict = s_data.get('workflow') or {}
-                hist: list = wf.get('history') or []
-                hist.append({
-                    'stage': wf.get('stage', 'DRAWING'),
-                    'updated_at': datetime.now().isoformat(),
-                    'updated_by': current_user.name if current_user else 'Unknown',
-                    'note': f'도면 담당자 일괄 지정: {assignee_names}'
-                })
-                wf['history'] = hist
-                s_data['workflow'] = wf
+                apply_drawing_assignees(
+                    s_data, assigned_users, user_ids=user_ids,
+                    actor_name=current_user.name if current_user else 'Unknown',
+                    note=f'도면 담당자 일괄 지정: {assignee_names}',
+                )
 
                 order.structured_data = copy.deepcopy(s_data)
                 flag_modified(order, "structured_data")
@@ -245,39 +230,16 @@ def api_order_assign_draftsman(order_id):
         if len(assigned_users) != len(user_ids):
             return jsonify({'success': False, 'message': '일부 사용자를 찾을 수 없거나 비활성 계정입니다.'}), 400
 
-        assignee_list = [{'id': u.id, 'name': u.name, 'team': u.team} for u in assigned_users]
 
         s_data: dict = _ensure_dict(order.structured_data)
-
-        old_assignees = s_data.get('drawing_assignees', [])
-        old_names = [a.get('name', '') for a in old_assignees if isinstance(a, dict)]
-        
-        assignments_dict = s_data.get('assignments', {})
-        old_ids = assignments_dict.get('drawing_assignee_user_ids', []) if isinstance(assignments_dict, dict) else []
-
-        if not isinstance(s_data.get('assignments'), dict):
-            s_data['assignments'] = {}
-        s_data['assignments']['drawing_assignee_user_ids'] = user_ids
-
-        s_data['drawing_assignees'] = assignee_list
-
-        shipment: dict = s_data.get('shipment', {})
-        if not isinstance(shipment, dict):
-            shipment = {}
-        shipment['drawing_managers'] = [u.name for u in assigned_users]
-        s_data['shipment'] = shipment
-
-        wf: dict = s_data.get('workflow') or {}
-        hist: list = wf.get('history') or []
-        names = ", ".join([u.name for u in assigned_users])
-        hist.append({
-            'stage': wf.get('stage', 'DRAWING'),
-            'updated_at': datetime.now().isoformat(),
-            'updated_by': current_user.name if current_user else 'Unknown',
-            'note': f'도면 담당자 지정: {names}'
-        })
-        wf['history'] = hist
-        s_data['workflow'] = wf
+        before = apply_drawing_assignees(
+            s_data, assigned_users, user_ids=user_ids,
+            actor_name=current_user.name if current_user else 'Unknown',
+            note=f"도면 담당자 지정: {', '.join([u.name for u in assigned_users])}",
+        )
+        old_names = before['old_names']
+        old_ids = before['old_ids']
+        names = before['names']
 
         order.structured_data = copy.deepcopy(s_data)
         flag_modified(order, "structured_data")

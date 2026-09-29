@@ -59,11 +59,12 @@
           <div class="erp-pro-pipeline__count">{{ stats.TRANSFERRED }}</div>
           <div class="erp-pro-pipeline__label">확정대기</div>
         </div>
-        <div class="erp-pro-pipeline__connector"><i class="fas fa-chevron-right"></i></div>
 
-        <div class="erp-pro-pipeline__stage {% if (filters.get('status') or '') == 'CONFIRMED' %}erp-pro-pipeline__stage--active{% endif %}" data-status="CONFIRMED" role="button" tabindex="0" title="완료만 보기">
+        {# 누적 완료는 열린 큐(전체 = 대기중+작업중+수정요청+확정대기)와 따로 뗀 칸 — 화살표 없이
+           간격(ms-2)으로 떨어뜨린다. 숫자는 단계와 무관한 전체 수령확정 수라 '전체'에 더하지 않는다. #}
+        <div class="erp-pro-pipeline__stage erp-pro-pipeline__stage--detached ms-2 {% if (filters.get('status') or '') == 'CONFIRMED' %}erp-pro-pipeline__stage--active{% endif %}" data-status="CONFIRMED" role="button" tabindex="0" title="누적 완료만 보기(전체에 포함되지 않음)">
           <div class="erp-pro-pipeline__count">{{ stats.CONFIRMED }}</div>
-          <div class="erp-pro-pipeline__label">완료</div>
+          <div class="erp-pro-pipeline__label">누적 완료</div>
         </div>
 
         <div class="erp-pro-pipeline__stage ms-2" data-filter="overdue" role="button" tabindex="0" title="지연만 보기">
