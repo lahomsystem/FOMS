@@ -2015,6 +2015,8 @@ async function erpLoadStructured(bootstrapData, options) {
     }
     const erpNotesEl = document.getElementById('erp-notes');
     if (erpNotesEl) erpNotesEl.value = data.notes || '';
+    const erpHappyCallEl = document.getElementById('erp-happy-call');
+    if (erpHappyCallEl) erpHappyCallEl.value = sd?.flags?.happy_call || '';
     document.getElementById('erp-urgent-flag').checked = !!sd?.flags?.urgent;
     document.getElementById('erp-urgent-reason').value = sd?.flags?.urgent_reason || '';
     const factory2El = document.getElementById('erp-factory2');
@@ -2315,7 +2317,9 @@ function erpCollectStructured() {
         flags: {
             urgent: getCheck('erp-urgent-flag'),
             urgent_reason: getVal('erp-urgent-reason'),
-            factory2: getCheck('erp-factory2')
+            factory2: getCheck('erp-factory2'),
+            // 해피콜 상태(부재·콜백). 비고(Order.notes)와 따로 둬야 실측 화면에 안 섞인다.
+            happy_call: getVal('erp-happy-call')
         },
         payment: (function () {
             const prev = window.__erpLastStructuredData ? _erpNormalizePaymentData(window.__erpLastStructuredData) : _erpNormalizePaymentData({});
