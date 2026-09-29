@@ -1622,6 +1622,14 @@ input.wb-pick:disabled,
 .wb-hsheet-open { display: none; }
 .wb-hist__when,
 .wb-hist__nofoms { display: none; }
+/* 폰 3·4단계(2026-09-29) 부품 — 데스크톱에서는 없는 것과 같다. 상세 층은 `contents` 라 pane 이
+   예전처럼 격자(.wb-split)의 둘째 칸으로 서고, 층의 위·아래 막대 · 한 줄 수집 카드 · 시트 전용
+   줄(사람 말 워터마크·확인 줄)은 숨는다. 두 시트(<dialog>)는 닫혀 있어 브라우저가 이미 숨긴다. */
+.wb-layer { display: contents; }
+.wb-layer__bar,
+.wb-layer__acts { display: none; }
+.wb-icard { display: none; }
+.wb-ingest__phone { display: none; }
 
 /* 빈 처리 목록 — "할 일 없음" 을 먼저, 다음에 볼 곳(이력)으로 가는 길을 준다(모든 폭 같은 문구). */
 .wb-empty--done { display: flex; flex-direction: column; align-items: center; gap: 6px; }
@@ -1664,26 +1672,22 @@ input.wb-pick:disabled,
     }
     .wb-back:hover { text-decoration: none; }
 
-    /* 상세 위 '목록으로' — 긴 상세를 읽는 동안에도 위에 붙어 있다(sticky).
-       전역 nav 도 sticky(z 1000)라 top:0 이면 그 밑에 깔려 안 보였다(2026-09-28 스테이징).
-       nav 실측 높이(--wb-nav-h, syncNavOffset)만큼 내리고, 스크롤로 불러올 때도 같은 만큼 띄운다. */
+    /* 상세 층 위 막대의 `‹ 목록`(2026-09-29 폰 3단계). 예전에는 목록 아래 상세 위에 붙은 sticky
+       '⌃ 목록으로' 였다 — 이제 상세가 화면을 덮는 층이라 막대(층 안 sticky) 첫 칸에 선다.
+       전역 nav 는 층이 덮으므로(z 1056) nav 높이만큼 내릴 일이 없다. */
     .wb-pane-back {
-        position: sticky;
-        top: var(--wb-nav-h, 67px);
-        scroll-margin-top: var(--wb-nav-h, 67px);
-        z-index: 5;
-        display: flex;
+        display: inline-flex;
+        flex: none;
         align-items: center;
-        justify-content: center;
-        gap: 6px;
-        width: 100%;
+        gap: 4px;
+        min-width: 44px;
         min-height: 44px;
-        margin: 8px 0;
-        border: 1px solid var(--wb-line, #dde1e6);
+        padding: 0 8px;
+        border: 0;
         border-radius: 10px;
-        background: #ffffff;
-        color: #4a55b8;
-        font-size: calc(14px * var(--wb-fs, 1));
+        background: transparent;
+        color: #4a55b8;                      /* 흰 바탕 6.4:1 */
+        font-size: calc(15px * var(--wb-fs, 1));
         font-weight: 700;
     }
 
@@ -2330,4 +2334,226 @@ input.wb-pick:disabled,
         font-weight: 700;
     }
     .wb-pager__cur { font-size: calc(14px * var(--wb-fs, 1)); }
+
+    /* ══ 폰 3·4단계 (2026-09-29 목업 · ≤767.98px) ═══════════════════════════════
+       3단계 — 전체 화면 상세 층: 행을 누르면 상세가 목록 **아래**가 아니라 화면을 덮는 층으로 열린다.
+       목록은 제자리(스크롤 그대로)라 `‹ 목록` 이 같은 자리로 돌려놓는다. 층 = #wb-layer(fixed, 자기 스크롤),
+       열림 상태는 body.wb-detail-open 하나다 — 전체 다시 그리기(softRefresh)가 루트를 갈아도 body 는 남는다.
+       z-index 는 모달 백드롭(1050)보다 위다: fixed 층은 쌓임 맥락을 만들어 pane 안 불가역 모달이 그 안에
+       갇히는데, 층이 백드롭보다 아래면 백드롭이 모달을 덮어 단건 조작이 전부 막힌다(2026-08-23 치명-2 와
+       같은 함정). 대신 백드롭이 층 뒤로 숨으므로 어둡게 하기는 층 안 모달이 맡는다.
+       4단계 — 이력 탭 ADMIN 수집 상태: 한 줄 카드 + [관리] 시트(같은 카드를 시트 안으로 옮긴다). */
+    .wb-layer { display: none; }
+    body.wb-detail-open { overflow: hidden; }
+    body.wb-detail-open .wb-layer {
+        position: fixed;
+        inset: 0;
+        z-index: 1056;
+        display: flex;
+        flex-direction: column;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        background: #f7f8fa;
+    }
+    .wb-layer .modal.show { background: rgba(20, 23, 28, .55); }
+
+    /* ── 위 막대: ‹ 목록 · 이름 / 상태 · N / M · 이전 · 다음 ── */
+    .wb-layer__bar {
+        position: sticky;
+        top: 0;
+        z-index: 3;
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        min-height: 56px;
+        padding: env(safe-area-inset-top, 0px) 4px 0;
+        border-bottom: 1px solid #dde1e6;
+        background: #ffffff;
+    }
+    .wb-layer__who { flex: 1 1 auto; min-width: 0; padding: 0 4px; }
+    .wb-layer__name {
+        margin: 0;
+        overflow: hidden;
+        color: #14171c;
+        font-size: calc(17px * var(--wb-fs, 1));
+        font-weight: 800;
+        line-height: 1.25;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+    }
+    .wb-layer__name:focus { outline: none; }
+    .wb-layer__sub {
+        margin: 0;
+        overflow: hidden;
+        color: #4b525d;                      /* 흰 바탕 7.9:1 */
+        font-size: calc(13px * var(--wb-fs, 1));
+        white-space: nowrap;
+        text-overflow: ellipsis;
+    }
+    .wb-layer__pos { font-variant-numeric: tabular-nums; }
+    #wb-layer-state:not(:empty) + .wb-layer__pos:not(:empty)::before { content: " · "; }
+    .wb-layer__step {
+        display: inline-flex;
+        flex: none;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        width: 48px;
+        min-height: 48px;
+        padding: 0;
+        border: 0;
+        border-radius: 10px;
+        background: transparent;
+        color: #4a55b8;
+        font-size: calc(15px * var(--wb-fs, 1));
+        line-height: 1.1;
+    }
+    .wb-layer__step-t { order: 1; font-size: calc(11px * var(--wb-fs, 1)); font-weight: 700; }   /* 두 버튼 모두 화살표 아래 글자 */
+    .wb-layer__step[aria-disabled="true"] { color: #6b7380; cursor: default; }
+    .wb-pane-back:focus-visible,
+    .wb-layer__step:focus-visible { outline: 2px solid #4a55b8; outline-offset: -2px; }
+
+    /* ── 본문: pane 그대로(요약 → 경고 → 대조 → 상품주문 순서는 파셜이 이미 그렇다) ──
+       액션 줄의 **버튼만** 숨긴다. 원래 버튼은 문서에 그대로 있고 아래 막대·시트의 대리 버튼이
+       누른다(id·모달·핸들러 한 벌). 액션 줄 안의 경고 띠와 ERP 규격 입력 링크, 이유 줄은 남는다. */
+    body.wb-detail-open .wb-layer > #wb-pane { flex: 1 0 auto; padding: 8px; }
+    #wb-pane .wb-acts > button,
+    #wb-pane .wb-acts > button.btn { display: none; }   /* 위 `#wb-pane .wb-acts .btn`(inline-flex)보다 세다 */
+
+    /* ── 아래 고정 막대: 주 버튼 하나 + 더보기 ── */
+    .wb-layer__acts {
+        position: sticky;
+        bottom: 0;
+        z-index: 3;
+        display: flex;
+        gap: 8px;
+        padding: 12px 12px calc(12px + env(safe-area-inset-bottom, 0px));
+        border-top: 1px solid #dde1e6;
+        background: #ffffff;
+        box-shadow: 0 -4px 16px rgba(15, 23, 42, .08);
+    }
+    .naver-workbench .wb-layer__primary {
+        flex: 1 1 auto;
+        min-height: 52px;
+        border-radius: 12px;
+        font-size: calc(16px * var(--wb-fs, 1));
+        font-weight: 800;
+    }
+    .wb-layer__more {
+        flex: 0 0 auto;
+        min-width: 96px;
+        min-height: 52px;
+        padding: 0 16px;
+        border: 1px solid #6b7380;           /* 흰 바탕 4.8:1 — 누르는 곳 테두리 */
+        border-radius: 12px;
+        background: #ffffff;
+        color: #14171c;
+        font-size: calc(16px * var(--wb-fs, 1));
+        font-weight: 700;
+    }
+    .wb-layer__primary[hidden] + .wb-layer__more { flex: 1 1 auto; }
+    .wb-layer__more:focus-visible { outline: 2px solid #4a55b8; outline-offset: 2px; }
+
+    /* ── 더 할 일 시트(모양은 상태 시트 .wb-hsheet 를 그대로 쓴다) ── */
+    .wb-more__list { margin: 0; padding: 4px 0 0; list-style: none; }
+    .wb-more__opt {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        justify-content: center;
+        gap: 2px;
+        width: 100%;
+        min-height: 56px;
+        padding: 10px 16px;
+        border: 0;
+        border-top: 1px solid #eef0f3;
+        background: transparent;
+        color: #14171c;
+        text-align: left;
+    }
+    .wb-more__label { font-size: calc(16px * var(--wb-fs, 1)); font-weight: 700; }
+    .wb-more__why { color: #4b525d; font-size: calc(13px * var(--wb-fs, 1)); line-height: 1.4; }
+    .wb-more__opt--danger .wb-more__label { color: #b91c1c; }      /* 흰 바탕 6.5:1 */
+    /* 못 누르는 것은 숨기지 않고 흐리게 — 이유 줄은 그대로 읽힌다(#6b7380 = 흰 바탕 4.8:1). */
+    .wb-more__opt[aria-disabled="true"] { cursor: not-allowed; }
+    .wb-more__opt[aria-disabled="true"] .wb-more__label { color: #6b7380; font-weight: 600; }
+    .wb-more__opt:focus-visible { outline: 2px solid #4a55b8; outline-offset: -2px; }
+
+    /* ── 4단계: 이력 탭 수집 상태 = 한 줄 카드 + [관리] ── */
+    .wb-icard {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 10px 12px 0;
+        padding: 8px 8px 8px 12px;
+        border: 1px solid #dde1e6;
+        border-radius: 12px;
+        background: #ffffff;
+    }
+    .wb-icard__state {
+        flex: none;
+        padding: 2px 8px;
+        border-radius: 8px;
+        background: #ecfdf5;
+        color: #047857;                      /* 5.2:1 */
+        font-size: calc(12px * var(--wb-fs, 1));
+        font-weight: 800;
+    }
+    .wb-icard--err .wb-icard__state { background: #fef2f2; color: #b91c1c; }
+    .wb-icard__text {
+        flex: 1 1 auto;
+        min-width: 0;
+        color: #4b525d;
+        font-size: calc(13px * var(--wb-fs, 1));
+        line-height: 1.35;
+    }
+    .wb-icard__seg { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .wb-icard--due .wb-icard__text { color: #b91c1c; }
+    .wb-icard__manage {
+        flex: none;
+        min-width: 64px;
+        min-height: 44px;
+        padding: 0 14px;
+        border: 1px solid #6b7380;
+        border-radius: 12px;
+        background: #ffffff;
+        color: #14171c;
+        font-size: calc(15px * var(--wb-fs, 1));
+        font-weight: 700;
+    }
+    .wb-icard__manage:focus-visible { outline: 2px solid #4a55b8; outline-offset: 2px; }
+
+    /* 카드(칸 5개)는 제자리에서 숨고, 시트가 열리면 JS 가 시트 안으로 옮긴 같은 카드가 보인다. */
+    #wb-ingest-status { display: none; }
+    .wb-asheet #wb-ingest-status {
+        display: block;
+        margin: 0;
+        padding: 0 16px 8px;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+    }
+    .wb-asheet__who { margin-left: 6px; color: #4b525d; font-size: calc(12px * var(--wb-fs, 1)); font-weight: 700; }
+    .wb-asheet .wb-ingest__cell { padding: 12px 0; border-top: 1px solid #eef0f3; }
+    .wb-asheet .wb-ingest__k,
+    .wb-asheet .wb-ingest__sub { opacity: 1; color: #4b525d; font-size: calc(13px * var(--wb-fs, 1)); }
+    .wb-asheet .wb-ingest__v { color: #14171c; font-size: calc(16px * var(--wb-fs, 1)); }
+    .wb-asheet .wb-ingest__desk { display: none; }
+    .wb-asheet .wb-ingest__phone { display: block; }
+    .wb-asheet .wb-ingest__edit { min-height: 44px; padding: 0 8px; font-size: calc(14px * var(--wb-fs, 1)); }
+    /* 지금 수집 — 폰에서는 큰 초록 대신 연한 보라 테두리(목업). 되돌릴 일이 없는 조작이라 주 버튼이 아니다. */
+    .wb-asheet #wb-run-now {
+        min-height: 44px;
+        padding: 0 20px;
+        border: 1px solid #4a55b8;
+        border-radius: 12px;
+        background: #f3f4ff;
+        color: #4a55b8;                      /* 5.9:1 */
+        font-size: calc(15px * var(--wb-fs, 1));
+        font-weight: 800;
+    }
+    .wb-asheet #wb-backfill-run { min-height: 44px; padding: 0 16px; border-radius: 12px; font-size: calc(15px * var(--wb-fs, 1)); }
+    /* 날짜 칸 16px — 아이폰이 포커스 때 화면을 키우지 않는다. */
+    .wb-asheet .wb-backfill__input,
+    .wb-asheet .wb-expiry__input { min-height: 44px; font-size: calc(16px * var(--wb-fs, 1)); }
 }

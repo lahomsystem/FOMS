@@ -19,7 +19,7 @@
 {% block title %}네이버 수집{% endblock %}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260929b">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260929c">
 {% endblock %}
 
 {% block content %}
@@ -956,15 +956,57 @@
 
         {# 상세 pane. 전체 렌더와 프래그먼트 응답이 이 파셜 하나를 공유한다(계약 §3.1).
            최상위 요소가 #wb-pane 이라 JS 가 응답으로 그대로 갈아 끼운다. #}
-        {# 폰 전용 '목록으로'(2026-09-28 스테이징 확인). 폰은 목록 아래에 상세가 붙어서 행을
-           누르면 수백 줄 아래로 내려간다(292줄 = 약 32,000px) — 돌아갈 길이 스크롤뿐이었다.
-           #wb-pane 은 응답으로 통째로 갈아 끼우므로 버튼은 그 바깥에 둔다. 데스크톱은 CSS 가 숨긴다. #}
-        <button type="button" class="wb-pane-back" id="wb-pane-back">
-            <i class="fas fa-chevron-up" aria-hidden="true"></i> 목록으로
-        </button>
-        {{ mark('pane') }}
-        {% include "admin/partials/naver_workbench_pane.html" %}
-        {{ mark('pane') }}
+        {# 폰 전체 화면 상세 층(2026-09-29 폰 3단계 목업). 폰은 목록 아래에 상세가 붙어서 행을
+           누르면 수백 줄 아래로 내려갔다(292줄 = 약 32,000px). 이제 행을 누르면 이 층이 화면을
+           덮고(목록은 제자리), `‹ 목록`·뒤로 가기가 층을 닫는다.
+           #wb-pane 은 응답으로 통째로 갈아 끼우므로 위 막대·아래 막대·더보기 시트는 그 **바깥**
+           (이 층 안)에 둔다 — 값은 JS 가 갈아 끼운 pane 에서 읽어 채운다(syncLayer).
+           데스크톱은 층이 `display: contents` 라 없는 것과 같고(pane 이 예전처럼 격자의 둘째 칸),
+           막대 둘은 CSS 가 숨긴다. 막대 안 버튼은 전부 **원래 버튼을 대신 누르는** 대리 버튼이다
+           (data-proxy-for) — 조작 규칙·모달·id 는 pane 의 원래 버튼 한 벌이다. #}
+        <div class="wb-layer" id="wb-layer">
+            <div class="wb-layer__bar">
+                <button type="button" class="wb-pane-back" id="wb-pane-back" aria-label="목록으로 돌아가기">
+                    <i class="fas fa-chevron-left" aria-hidden="true"></i> 목록
+                </button>
+                <div class="wb-layer__who" aria-live="polite">
+                    <h2 class="wb-layer__name" id="wb-layer-name" tabindex="-1"></h2>
+                    <p class="wb-layer__sub"><span id="wb-layer-state"></span><span class="wb-layer__pos" id="wb-layer-pos"></span></p>
+                </div>
+                <button type="button" class="wb-layer__step" id="wb-layer-prev"
+                        aria-label="이전 주문" aria-disabled="true">
+                    <i class="fas fa-chevron-left" aria-hidden="true"></i><span class="wb-layer__step-t">이전</span>
+                </button>
+                <button type="button" class="wb-layer__step" id="wb-layer-next"
+                        aria-label="다음 주문" aria-disabled="true">
+                    <span class="wb-layer__step-t">다음</span><i class="fas fa-chevron-right" aria-hidden="true"></i>
+                </button>
+            </div>
+            {{ mark('pane') }}
+            {% include "admin/partials/naver_workbench_pane.html" %}
+            {{ mark('pane') }}
+            {# 아래 고정 막대 — 주 버튼 하나(발주확인 → 주문 만들기 → 발송처리 중 **지금 열린 첫 번째**)
+               + 더보기. 무엇이 열렸는지는 pane 의 원래 버튼(disabled)이 정한다 — 여기서 다시 판정하지 않는다. #}
+            <div class="wb-layer__acts">
+                <button type="button" class="btn btn-primary wb-layer__primary" id="wb-layer-primary" hidden></button>
+                <button type="button" class="wb-layer__more" id="wb-more-open"
+                        aria-haspopup="dialog" aria-expanded="false" aria-controls="wb-more">더보기</button>
+            </div>
+            {# 더 할 일 시트 — 주 버튼을 뺀 pane 액션 버튼 전부. 못 누르는 것은 숨기지 않고 흐리게,
+               원래 버튼이 든 이유(title)를 한 줄로 붙인다. 줄은 열 때마다 JS 가 지금 pane 에서 다시 만든다. #}
+            <dialog class="wb-hsheet wb-more" id="wb-more" aria-labelledby="wb-more-title" aria-modal="true">
+                <div class="wb-hsheet__in">
+                    <span class="wb-hsheet__grip" aria-hidden="true"></span>
+                    <div class="wb-hsheet__head">
+                        <h2 class="wb-hsheet__title" id="wb-more-title" tabindex="-1">더 할 일</h2>
+                        <button type="button" class="wb-hsheet__close" id="wb-more-close" aria-label="닫기">
+                            <i class="fas fa-xmark" aria-hidden="true"></i>
+                        </button>
+                    </div>
+                    <ul class="wb-more__list" id="wb-more-list"></ul>
+                </div>
+            </dialog>
+        </div>
     </div>
 
     {# 결정 6: 불가역 액션 4종 세트 — 벌크 쪽. 집 수·상품주문 건수·이름은 선택에 따라
@@ -1021,10 +1063,46 @@
       ④ "지금 수집"(큐에 넣기만 한다 — 네이버 HTTP 는 WORKER 에서만 나간다).
     #}
     {% if ingest_status %}
+    {# 폰 4단계(2026-09-29 목업) — 폰은 아래 카드(칸 5개)를 한 줄 카드 + [관리] 시트로 접는다.
+       시트는 **같은 카드(#wb-ingest-status)를 JS 가 시트 안으로 옮겨** 보여 준다(id·핸들러 한 벌 —
+       복제하면 id 가 두 벌이 된다). 닫으면 제자리(시트 바로 뒤)로 돌려놓는다. 데스크톱은 한 줄
+       카드를 숨기고 시트를 열 일이 없어 예전 카드 그대로다.
+       워터마크 원문(`2026-09-29T08:25:57.924513+09:00`)은 사람 말 시각으로 편다 — 같은 값을
+       KST 로 바꿔 쪼갤 뿐 조회를 더하지 않는다(`format_datetime_kst` 는 앱 전역 필터).
+       월·일 앞 0 은 `int` 로 뗀다(`%-m` 은 Windows strftime 에 없다). #}
+    {% set wm = ingest_status.watermark %}
+    {% set ex = ingest_status.expiry %}
+    {% set wm_bits = ((wm.last_success_to | format_datetime_kst('%m %d %H:%M:%S')) or '').split(' ') if wm.last_success_to else [] %}
+    {% set wm_human = (wm_bits[0] | int) ~ '월 ' ~ (wm_bits[1] | int) ~ '일 ' ~ wm_bits[2] if wm_bits | length == 3 else '' %}
+    <div class="wb-icard{{ ' wb-icard--err' if wm.last_error else '' }}{{ ' wb-icard--due' if (ex.days_left is not none and ex.days_left <= 7) else '' }}">
+        <span class="wb-icard__state">{{ '실패' if wm.last_error else '정상' }}</span>
+        {# 두 사실은 각자 한 줄이다 — 390px 에서 한 문장으로 이으면 `인증 만 / 료` 처럼 말 중간에서 꺾인다. #}
+        <span class="wb-icard__text">
+            <span class="wb-icard__seg">마지막 수집 {{ wm.last_run_at_text[5:] if wm.last_run_at_text else '아직 없음' }}</span>
+            <span class="wb-icard__seg">인증 만료 {% if ex.expires_on %}{{ ex.expires_on }}{% if ex.days_left is not none %} ({{ ex.days_left if ex.days_left > 0 else 0 }}일){% endif %}{% else %}미등록{% endif %}</span>
+        </span>
+        <button type="button" class="wb-icard__manage" id="wb-asheet-open"
+                aria-haspopup="dialog" aria-expanded="false" aria-controls="wb-asheet">관리</button>
+    </div>
+    <dialog class="wb-hsheet wb-asheet" id="wb-asheet" aria-labelledby="wb-asheet-title" aria-modal="true">
+        <div class="wb-hsheet__in">
+            <span class="wb-hsheet__grip" aria-hidden="true"></span>
+            <div class="wb-hsheet__head">
+                <h2 class="wb-hsheet__title" id="wb-asheet-title" tabindex="-1">수집 관리 <span class="wb-asheet__who">관리자만</span></h2>
+                <button type="button" class="wb-hsheet__close" id="wb-asheet-close" aria-label="닫기">
+                    <i class="fas fa-xmark" aria-hidden="true"></i>
+                </button>
+            </div>
+            <div class="wb-asheet__slot" id="wb-asheet-slot"></div>
+        </div>
+    </dialog>
     <section class="wb-ingest" id="wb-ingest-status">
         <div class="wb-ingest__cell">
-            <div class="wb-ingest__k">마지막 성공 구간 끝(워터마크)</div>
-            <div class="wb-ingest__v">{{ ingest_status.watermark.last_success_to or '아직 없음' }}</div>
+            <div class="wb-ingest__k wb-ingest__desk">마지막 성공 구간 끝(워터마크)</div>
+            <div class="wb-ingest__v wb-ingest__desk">{{ ingest_status.watermark.last_success_to or '아직 없음' }}</div>
+            {# 폰 시트 전용 두 줄(데스크톱은 CSS 가 숨긴다) — 같은 값의 사람 말 꼴. #}
+            <div class="wb-ingest__k wb-ingest__phone">받은 곳까지</div>
+            <div class="wb-ingest__v wb-ingest__phone wb-ingest__human">{{ wm_human ~ '까지 받음' if wm_human else '아직 없음' }}</div>
             <div class="wb-ingest__sub">마지막 실행 {{ ingest_status.watermark.last_run_at_text or '아직 없음' }}</div>
         </div>
         <div class="wb-ingest__cell">
@@ -1075,6 +1153,10 @@
         </div>
         <div class="wb-ingest__cell wb-ingest__cell--action">
             <button type="button" class="btn btn-success btn-sm" id="wb-run-now">지금 수집</button>
+            {# 폰 시트 전용 한 줄 — 수집 한 바퀴는 워터마크에서 시작한다(watermark.resolve_window). #}
+            {% if wm_human %}
+            <div class="wb-ingest__sub wb-ingest__phone">{{ wm_human }} 뒤에 들어온 주문을 바로 받아와요.</div>
+            {% endif %}
             <div class="wb-ingest__sub" id="wb-run-result" data-foms-no-autodismiss></div>
         </div>
         {# 과거 주문 소급 수집(백필) — 워터마크는 앞으로만 간다. 첫 수집(2026-08-25) 이전
@@ -1092,6 +1174,10 @@
                        value="{{ backfill_defaults.end }}" max="{{ backfill_defaults.end }}"
                        aria-label="소급 수집 종료일">
             </div>
+            {# 폰 시트 전용 확인 줄. 셋 다 코드가 지키는 사실이다 — 상한 90일 = backfill.MAX_RANGE
+               (테스트가 값을 맞춘다), 이미 받은 주문은 멱등 skip(사전 조회 + UNIQUE(channel,
+               external_id) — backfill 설계 규칙 2), 워터마크는 건드리지 않는다(설계 규칙 1). #}
+            <div class="wb-ingest__sub wb-ingest__phone wb-backfill__confirm">최대 90일 · 이미 받은 주문은 건너뜀 · ‘받은 곳까지’ 시각은 바뀌지 않아요</div>
             <button type="button" class="btn btn-outline-secondary btn-sm" id="wb-backfill-run">과거 긁어오기</button>
             <div class="wb-ingest__sub" id="wb-backfill-note" role="status" aria-live="polite"
                  data-foms-no-autodismiss></div>
@@ -1558,5 +1644,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260929b" defer></script>
+<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260929c" defer></script>
 {% endblock %}
