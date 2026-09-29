@@ -6,6 +6,8 @@
 
 from __future__ import annotations
 
+import re
+
 import pytest
 from werkzeug.security import generate_password_hash
 
@@ -100,3 +102,77 @@ def test_history_search_accepts_hash_order_number(client):
         headers={"X-FOMS-ERP-SHELL": "1"},
     ).get_data(as_text=True)
     assert f'data-order-id="{target}"' in body
+
+
+def _login_as(client, username: str, team: str, name: str) -> int:
+    user = User(
+        username=username,
+        password=generate_password_hash("x"),
+        role="STAFF",
+        team=team,
+        name=name,
+        is_active=True,
+    )
+    db_session.add(user)
+    db_session.commit()
+    with client.session_transaction() as sess:
+        sess["user_id"] = user.id
+        sess["username"] = user.username
+        sess["role"] = user.role
+    return int(user.id)
+
+
+def _seed_managed(name: str, manager: str) -> int:
+    order_id = _seed_search_order(name, "010-4545-6767")
+    order = db_session.get(Order, order_id)
+    order.manager_name = manager
+    db_session.commit()
+    return order_id
+
+
+def test_unified_search_results_ignore_mine_cookie(client, monkeypatch):
+    """통합 검색 결과는 '내 담당만 보기'와 상관없이 전체(2026-09-29 사용자 결정).
+
+    이력 화면 자체 검색은 전처럼 쿠키를 따른다(대조군). 결과 안에서 단계·검색을 바꿔도
+    표식(from_search)이 이어져야 다시 좁혀지지 않는다.
+    """
+    uid = _login_as(client, "mine_cookie_cs", "CS", "쿠키담당")
+    mine = _seed_managed("쿠키고객", "쿠키담당")
+    others = _seed_managed("쿠키고객", "다른담당")
+    client.set_cookie("erp_mine_only", "1")
+
+    def body(**args):
+        return client.get(
+            "/erp/history/", query_string={"view": "fragment", "q": "쿠키고객", **args},
+            headers={"X-FOMS-ERP-SHELL": "1"},
+        ).get_data(as_text=True)
+
+    plain = body()
+    assert f'data-order-id="{mine}"' in plain
+    assert f'data-order-id="{others}"' not in plain, "대조군: 쿠키가 이력 화면 검색을 좁혀야 한다"
+
+    unified = body(from_search="1")
+    assert f'data-order-id="{mine}"' in unified
+    assert f'data-order-id="{others}"' in unified, "통합 검색 결과가 내 담당으로 좁혀짐"
+
+    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
+    monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(uid))
+    page = client.get(
+        "/erp/history/", query_string={"q": "쿠키고객", "from_search": "1"}
+    ).get_data(as_text=True)
+    chips = re.findall(r'href="([^"]*stage=MEASURE[^"]*)"', page)
+    assert chips and all("from_search=1" in href for href in chips), chips
+    assert '<input type="hidden" name="from_search" value="1">' in page
+
+
+def test_unified_search_results_keep_construction_team_scope(client):
+    """시공팀은 통합 검색 결과에서도 자기 담당만(권한)."""
+    _login_as(client, "mine_cookie_con", "CONSTRUCTION", "시공담당")
+    mine = _seed_managed("시공쿠키", "시공담당")
+    others = _seed_managed("시공쿠키", "남의담당")
+    body = client.get(
+        "/erp/history/", query_string={"view": "fragment", "q": "시공쿠키", "from_search": "1"},
+        headers={"X-FOMS-ERP-SHELL": "1"},
+    ).get_data(as_text=True)
+    assert f'data-order-id="{mine}"' in body
+    assert f'data-order-id="{others}"' not in body

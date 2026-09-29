@@ -81,6 +81,7 @@
 {% if request.args.get('stage') %}{% set _ = _pager_qs.append('stage=' ~ request.args.get('stage')|urlencode) %}{% endif %}
 {% if request.args.get('date_from') %}{% set _ = _pager_qs.append('date_from=' ~ request.args.get('date_from')|urlencode) %}{% endif %}
 {% if request.args.get('date_to') %}{% set _ = _pager_qs.append('date_to=' ~ request.args.get('date_to')|urlencode) %}{% endif %}
+{% if from_search %}{% set _ = _pager_qs.append('from_search=1') %}{% endif %}
 {% set _pager_prefix = _pager_qs|join('&') %}
 {% set _history_base = url_for('erp_history.history_dashboard') %}
 
@@ -137,6 +138,7 @@
     <div class="erp-pro-card erp-pro-card--filters">
       <div class="erp-pro-card__body">
         <form method="GET" action="{{ _history_base }}" class="erp-pro-filters-form">
+          {% if from_search %}<input type="hidden" name="from_search" value="1">{% endif %}
           <div class="row gx-3 gy-2 align-items-center">
             <div class="col-12 col-md-3">
               <label class="erp-pro-filters__label">검색어 (고객명, 전화번호, 주소 등)</label>

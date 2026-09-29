@@ -19,10 +19,15 @@
 {% if _h_q %}{% set _ = _h_keep.append('q=' ~ _h_q|urlencode) %}{% endif %}
 {% if _h_date_from %}{% set _ = _h_keep.append('date_from=' ~ _h_date_from|urlencode) %}{% endif %}
 {% if _h_date_to %}{% set _ = _h_keep.append('date_to=' ~ _h_date_to|urlencode) %}{% endif %}
+{# 통합 검색 결과 안에서 단계·검색을 바꿔도 '내 담당만 보기'에 좁혀지지 않게 표식을 이어 간다. #}
+{% if from_search %}{% set _ = _h_keep.append('from_search=1') %}{% endif %}
 {% set _h_keep_qs = _h_keep|join('&') %}
 
 <section class="erp-history-mobile-filters erp-mobile-queue-filters foms-mobile-filter-bar" aria-label="이력 모바일 필터">
   <form method="get" action="{{ _h_base }}" class="foms-mobile-filter-bar__toolbar erp-mobile-queue-filters__search">
+    {% if from_search %}
+      <input type="hidden" name="from_search" value="1">
+    {% endif %}
     {% if _h_stage %}
       <input type="hidden" name="stage" value="{{ _h_stage }}">
     {% endif %}
@@ -76,6 +81,9 @@
     </div>
     <div class="offcanvas-body">
       <form method="get" action="{{ _h_base }}" class="erp-mobile-queue-filters__form">
+        {% if from_search %}
+          <input type="hidden" name="from_search" value="1">
+        {% endif %}
         <div class="erp-mobile-queue-filters__field">
           <label for="erp-history-mobile-search-drawer">검색어</label>
           <input

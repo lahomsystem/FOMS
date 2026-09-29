@@ -159,7 +159,12 @@ def history_dashboard():
     f_date_to = (request.args.get('date_to') or '').strip()
     from_dashboard = (request.args.get('from_dashboard') or '') == '1'
     from_search = (request.args.get('from_search') or '') == '1'
-    mine_only = erp_mine_only_for_construction(request, user)
+    # 통합 검색 결과(검색 키·최근 검색·"전체 결과 보기")는 '내 담당만 보기'와 상관없이 전체에서
+    # 찾는다(2026-09-29 사용자 결정 — 미리보기와 같은 폭). 시공팀은 권한상 늘 자기 담당만.
+    if from_search and not is_construction_team:
+        mine_only = False
+    else:
+        mine_only = erp_mine_only_for_construction(request, user)
     
     has_filter = bool(f_q or f_stage or f_date_from or f_date_to)
     auto_browse_mine = mine_only and not has_filter
