@@ -259,7 +259,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-mobile-select.css') }}?v=20260716a">
     {# 알림 센터 시트 전역 스타일 — 시트 partial 이 layout_scripts 에서 전 페이지
        include 되므로 CSS 도 셸 변형 무관 전역 로드(SSOT, foms-shell.css 에서 이관). #}
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-notification-center.css') }}?v=20260806a">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-notification-center.css') }}?v=20260929a">
     {# ORDER-REASON-00: 사유 시트/배너는 PC·태블릿·모바일 모두에서 뜬다 — 전역 로드. #}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-change-reason.css') }}?v=20260813a">
     {# 판매채널 출처 마크 — 대시보드 밖(전체 주문 목록 `/` · 실측 `/erp/measurement`)에도
@@ -406,15 +406,6 @@
                 min-width: 0;
             }
 
-            /* 브리핑 체브론은 헤더 정중앙에 절대 배치된다. 좁은 폭에서는 그 중앙이 오른쪽 버튼
-               묶음(내 할 일·알림·계정) 위에 떨어져 버튼끼리 겹쳤다 → 흐름 안으로 되돌려 제목과
-               버튼 묶음 사이 빈 칸에 둔다(위치 유틸 클래스가 !important 라 같이 쓴다). */
-            .layout-header .layout-header__center {
-                position: static !important;
-                transform: none !important;
-                flex: 0 0 auto;
-            }
-
             /* 알림 배지는 벨 버튼 오른쪽 위 모서리를 **중심**으로 놓여(top-0 start-100
                translate-middle) 절반이 버튼 밖으로 나가 옆 계정 버튼을 덮었다
                → 버튼 상자 안쪽 모서리에 붙인다. */
@@ -517,102 +508,6 @@
             }
         }
 
-        /* 브리핑 보드: 최상단 중앙 슬라이딩 드롭다운 버튼 (아래 방향 체브론) */
-        .personal-briefing-chevron-btn {
-            width: 44px;
-            height: 44px;
-            padding: 0;
-            border: 2px solid #dee2e6;
-            border-radius: 10px;
-            background: #fff;
-            color: #212529;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            transition: background 0.2s, border-color 0.2s, transform 0.2s;
-        }
-
-        .personal-briefing-chevron-btn:hover {
-            background: #f8f9fa;
-            border-color: #adb5bd;
-            color: #212529;
-        }
-
-        .personal-briefing-chevron-btn:focus {
-            box-shadow: 0 0 0 0.2rem rgba(0, 0, 0, 0.1);
-        }
-
-        .personal-briefing-chevron {
-            font-size: 1.35rem;
-            font-weight: 700;
-            line-height: 1;
-        }
-
-        @media (max-width: 576px) {
-            .personal-briefing-chevron-btn {
-                width: 38px;
-                height: 38px;
-            }
-
-            .personal-briefing-chevron {
-                font-size: 1.1rem;
-            }
-        }
-
-        /* 긴급 알림 강제 인지 애니메이션 */
-        @keyframes urgentPulseBorder {
-            0% {
-                box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.8);
-                border-color: #dc3545;
-            }
-
-            70% {
-                box-shadow: 0 0 0 15px rgba(220, 53, 69, 0);
-                border-color: #dc3545;
-            }
-
-            100% {
-                box-shadow: 0 0 0 0 rgba(220, 53, 69, 0);
-                border-color: rgba(220, 53, 69, 0.5);
-            }
-        }
-
-        @keyframes urgentShake {
-
-            0%,
-            100% {
-                transform: translateX(0) translateY(0);
-            }
-
-            20% {
-                transform: translateX(-3px) rotate(-5deg);
-            }
-
-            40% {
-                transform: translateX(3px) rotate(5deg);
-            }
-
-            60% {
-                transform: translateX(-3px) rotate(-5deg);
-            }
-
-            80% {
-                transform: translateX(3px) rotate(5deg);
-            }
-        }
-
-        .urgent-alert-active {
-            animation: urgentPulseBorder 1s infinite, urgentShake 0.5s infinite;
-            background-color: #fff0f0 !important;
-            color: #dc3545 !important;
-            border: 2px solid #dc3545 !important;
-            z-index: 1055;
-        }
-
-        .urgent-alert-active i {
-            color: #dc3545 !important;
-        }
-
         @media (max-width: 991.98px) {
         [data-theme='dark'] .layout-global-nav,
         [data-theme='dark'] .layout-header {
@@ -623,17 +518,6 @@
 
         [data-theme='dark'] .layout-global-nav .nav-link {
             color: var(--foms-text-secondary) !important;
-        }
-
-        [data-theme='dark'] .personal-briefing-chevron-btn {
-            background: var(--foms-surface-raised);
-            color: var(--foms-text-primary);
-            border-color: var(--foms-border-default);
-        }
-
-        [data-theme='dark'] .personal-briefing-chevron-btn:hover {
-            background: var(--foms-interactive-secondary);
-            color: var(--foms-text-primary);
         }
 
         [data-theme='dark'] .table {
@@ -1019,25 +903,7 @@
                     osc.stop(ctx.currentTime + 0.3);
                 } catch (e) { console.error('Audio 처리 실패:', e); }
 
-                // 2. 브리핑 보드 버튼 애니메이션 (붉은 점멸)
-                const btn = document.getElementById('personal-briefing-toggle');
-                if (btn) {
-                    btn.classList.add('urgent-alert-active');
-                    const icon = btn.querySelector('i');
-                    if (icon) {
-                        icon.setAttribute('data-orig-class', icon.className);
-                        icon.className = 'fas fa-exclamation-triangle personal-briefing-chevron';
-                    }
-                    // 10초 후 자동 해제 (또는 열었을 때 해제되도록 함)
-                    setTimeout(() => {
-                        btn.classList.remove('urgent-alert-active');
-                        if (icon && icon.getAttribute('data-orig-class')) {
-                            icon.className = icon.getAttribute('data-orig-class');
-                        }
-                    }, 10000);
-                }
-
-                // 3. 거대한 긴급 알람 오버레이 (클릭 전까지 안 사라짐)
+                // 2. 거대한 긴급 알람 오버레이 (클릭 전까지 안 사라짐)
                 let overlay = document.getElementById('urgent-fullscreen-overlay');
                 if (!overlay) {
                     overlay = document.createElement('div');

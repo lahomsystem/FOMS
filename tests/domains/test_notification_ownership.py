@@ -423,20 +423,3 @@ def test_send_creates_states(client, db):
         .first()
     )
     assert state is not None
-
-
-# ---------------------------------------------------------------------------
-# personal_board unread 가 user_states 기준
-# ---------------------------------------------------------------------------
-
-def test_personal_board_unread_uses_states(db):
-    from foms.api.personal_board import _unread_notifications_count
-
-    user = _mk_user("pb_u", "PB", team="cs")
-    n1 = _mk_notification(target_type="TEAM", target_team="CS")
-    n2 = _mk_notification(target_type="TEAM", target_team="CS")
-    _mk_state(n1, user)  # unread
-    _mk_state(n2, user, read_at=datetime.datetime.now())  # read
-    db.flush()
-
-    assert _unread_notifications_count(db, user, user.id) == 1

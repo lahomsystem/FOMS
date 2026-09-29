@@ -37,7 +37,7 @@
   color: var(--foms-text-primary);
 }
 
-/* 헤더 액션(1B): 모두 읽음 / 모두 보관. */
+/* 헤더 액션(1B): 모두 읽음 / 모두 삭제. */
 .erp-mobile-notif-sheet__actions {
   display: flex;
   align-items: center;
@@ -146,6 +146,12 @@
 .erp-mobile-notif-item__act--ack {
   border-color: var(--foms-status-danger, #dc3545);
   color: var(--foms-status-danger, #dc3545);
+  font-weight: var(--foms-font-weight-bold);
+}
+
+.erp-mobile-notif-item__act--read {
+  border-color: var(--foms-interactive-primary);
+  color: var(--foms-interactive-primary);
   font-weight: var(--foms-font-weight-bold);
 }
 

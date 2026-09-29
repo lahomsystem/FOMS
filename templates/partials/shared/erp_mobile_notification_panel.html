@@ -1,5 +1,6 @@
 {# 모바일 알림 센터 시트 (Phase 1A + 1B + 2) — 벨 탭 → bottom sheet 알림 목록 + unread badge + deep link.
-   1B: 헤더 모두읽음/모두보관 + 항목 보관, 항목 tap 시 read. 2: 긴급 pinned 항목 ack.
+   1B: 헤더 모두읽음/모두삭제 + 항목 확인(읽음만)·삭제, 항목 tap 시 read+이동.
+   삭제 = 사용자별 archive(공유 알림 행은 남고 다시 목록에 안 나온다). 2: 긴급 pinned 항목 ack.
    모든 write 는 mobile-notification.js 가 window.FOMSNotificationWrite 로 POST (위임 JS 처리 · 인라인 핸들러 금지).
    Fixed overlay 이므로 .erp-mobile-shell-chrome(display:contents) 밖에 렌더한다. #}
 <div
@@ -17,7 +18,7 @@
         <i class="fas fa-check-double" aria-hidden="true"></i> 모두 읽음
       </button>
       <button type="button" class="erp-mobile-notif-sheet__action" data-foms-notif-archive-all>
-        <i class="fas fa-box-archive" aria-hidden="true"></i> 모두 보관
+        <i class="fas fa-trash-can" aria-hidden="true"></i> 모두 삭제
       </button>
       <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="알림 닫기"></button>
     </div>

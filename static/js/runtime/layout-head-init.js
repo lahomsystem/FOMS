@@ -184,25 +184,7 @@
                     osc.stop(ctx.currentTime + 0.3);
                 } catch (e) { console.error('Audio 처리 실패:', e); }
 
-                // 2. 브리핑 보드 버튼 애니메이션 (붉은 점멸)
-                const btn = document.getElementById('personal-briefing-toggle');
-                if (btn) {
-                    btn.classList.add('urgent-alert-active');
-                    const icon = btn.querySelector('i');
-                    if (icon) {
-                        icon.setAttribute('data-orig-class', icon.className);
-                        icon.className = 'fas fa-exclamation-triangle personal-briefing-chevron';
-                    }
-                    // 10초 후 자동 해제 (또는 열었을 때 해제되도록 함)
-                    setTimeout(() => {
-                        btn.classList.remove('urgent-alert-active');
-                        if (icon && icon.getAttribute('data-orig-class')) {
-                            icon.className = icon.getAttribute('data-orig-class');
-                        }
-                    }, 10000);
-                }
-
-                // 3. 거대한 긴급 알람 오버레이 (클릭 전까지 안 사라짐)
+                // 2. 거대한 긴급 알람 오버레이 (클릭 전까지 안 사라짐)
                 let overlay = document.getElementById('urgent-fullscreen-overlay');
                 if (!overlay) {
                     overlay = document.createElement('div');
