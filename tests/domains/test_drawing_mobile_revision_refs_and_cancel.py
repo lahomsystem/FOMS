@@ -25,12 +25,30 @@ from bs4 import BeautifulSoup
 from werkzeug.security import generate_password_hash
 
 import foms.api.drawing.erp_orders_revision as revision_api
+import foms.services.storage as storage_module
 from db import db_session
+from foms.services import audit_writer
 from foms.services.datetime_kst import get_today_kst
 from foms.web.drawing.workbench import _revision_reference_files
 from models import Order, User
 
 SALES_NAME = "영업담당M12"
+
+
+class _R2Storage:
+    """열람 라우트(`/api/files/view`)가 302 로 넘길 r2 대역 — test_share_hides_superseded_drawings 의 방식.
+
+    로컬 스토리지 대역이면 파일이 없어 404 가 나고, 예전 단언(`not in (400, 403)`)은 404·500 도 통과시켰다.
+    """
+
+    storage_type = "r2"
+
+    def __init__(self) -> None:
+        self.presigned: list[str] = []
+
+    def get_download_url(self, key, expires_in=3600, response_content_disposition=None):
+        self.presigned.append(key)
+        return f"https://r2.example/{key}?exp={expires_in}"
 
 
 def _user(username: str, *, role: str, team: str, name: str) -> dict:
@@ -185,9 +203,16 @@ def test_phone_thread_opens_reference_photos_with_server_built_urls(client, monk
     count = bubble.find("small", string=lambda s: bool(s) and "첨부" in s)
     assert count is not None and "첨부 5건" in count.get_text() and "3건은 여기서 열 수 없음" in count.get_text()
 
-    # 링크 대상 라우트가 이 key 를 이 사용자에게 허용한다(권한 403·경로 400 이 아님).
+    # 링크 대상 라우트가 이 key 를 이 사용자에게 허용하고 실제로 저장소 주소로 넘긴다(2차 R11 —
+    # 예전 단언은 404·500 도 통과시켰다). 권한 403·경로 400·파일 없음 404 가 모두 여기서 걸린다.
+    fake = _R2Storage()
+    monkeypatch.setattr(storage_module, "_storage_instance", fake)
+    audit_writer.reset_dedupe_cache()
     viewed = client.get(f"/api/files/view/{ok_img}")
-    assert viewed.status_code not in (400, 403), viewed.get_data(as_text=True)
+    assert viewed.status_code == 302, viewed.get_data(as_text=True)
+    assert viewed.headers["Location"].startswith(f"https://r2.example/{ok_img}")
+    assert fake.presigned == [ok_img]
+    audit_writer.reset_dedupe_cache()
 
 
 def test_revision_reference_files_accepts_only_this_orders_gateway_keys():

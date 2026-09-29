@@ -349,6 +349,22 @@ def test_sales_sees_check_state_but_no_toggle(client, monkeypatch):
     assert handoff.select_one(".foms-drawing-thread__check") is not None
     assert handoff.select_one('[data-drawing-handoff-action="revision-check"]') is None
 
+    # 노출 == 서버 허용(반대쪽): 도면팀 버튼이 싣는 것과 같은 본문을 영업이 직접 보내도 403 이고
+    # 체크는 바뀌지 않는다(2차 R11 — 화면에서 숨기기만 하고 서버가 받아 주면 안 된다).
+    db_session.expire_all()
+    history = db_session.get(Order, order_id).structured_data["drawing_transfer_history"]
+    request = [h for h in history if h.get("action") == "REQUEST_REVISION"][0]
+    denied = client.post(
+        f"/api/orders/{order_id}/request-revision-check",
+        json={"request_at": request["at"], "by_user_id": request.get("by_user_id"), "checked": True},
+    )
+    assert denied.status_code == 403, denied.get_data(as_text=True)
+    assert (denied.get_json() or {}).get("success") is False
+    db_session.expire_all()
+    history = db_session.get(Order, order_id).structured_data["drawing_transfer_history"]
+    request = [h for h in history if h.get("action") == "REQUEST_REVISION"][0]
+    assert not (request.get("review_check") or {}).get("checked")
+
 
 def test_handoff_js_sends_the_pc_toggle_contract():
     """모바일 토글 JS 가 PC 토글과 같은 엔드포인트·본문 키를 쓰고, 실패를 삼키지 않는다."""
