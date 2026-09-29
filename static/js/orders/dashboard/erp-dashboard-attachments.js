@@ -1,17 +1,15 @@
 // 주문의 첨부 파일 미리보기 (첨부 배지 클릭 시) - 좌우 네비게이션 지원
         async function openAttachmentsPreview(orderId, initialCategory = 'measurement') {
           try {
-            // 캐시 확인
-            let aList = null;
-            if (__attachmentsCache[orderId]) {
-              aList = __attachmentsCache[orderId];
-            } else {
-              const res = await fetch(`/api/orders/${orderId}/attachments`);
-              const data = await res.json();
-              aList = (data && data.attachments) || [];
-              __attachmentsCache[orderId] = aList;
-              __attachmentsCacheAt[orderId] = Date.now();
-            }
+            // ERP 내부 첨부 탭은 교체된 옛 도면도 '교체됨' 으로 보여 준다(R4 — include_superseded).
+            // 공용 캐시(__attachmentsCache)는 상세 펼침·생산·시공과 같은 "옛 도면 뺀" 목록이라
+            // 이 창은 늘 새로 받고, 캐시에는 옛 도면을 뺀 목록만 넣는다(다른 소비자 규칙 유지).
+            const res = await fetch(`/api/orders/${orderId}/attachments?include_superseded=1`);
+            const data = await res.json();
+            if (!data || !data.success) throw new Error((data && data.message) || '첨부 목록 조회 실패');
+            const aList = orderAttachmentsCurrentFirst(data.attachments || []);
+            __attachmentsCache[orderId] = aList.filter((a) => !a.is_superseded);
+            __attachmentsCacheAt[orderId] = Date.now();
 
             if (aList.length > 0) {
               __attachmentsByCategory = { measurement: [], drawing: [], construction: [], as: [] };
@@ -46,6 +44,11 @@
             console.error('첨부 파일 로드 실패:', err);
             showErpToast('첨부 파일을 불러올 수 없습니다.', 'error');
           }
+        }
+
+        // 교체된 옛 도면(is_superseded)은 같은 분류 안에서 뒤로 보낸다(원래 순서 유지).
+        function orderAttachmentsCurrentFirst(list) {
+          return list.filter((a) => !a.is_superseded).concat(list.filter((a) => a.is_superseded));
         }
 
         // GlobalImageViewer로 연결하는 레거시 호환 함수

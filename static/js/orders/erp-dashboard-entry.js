@@ -5,9 +5,9 @@
 (function () {
   var CHAIN = [
     '/static/js/orders/order-detail-fragment.js?v=20260804a',
-    '/static/js/orders/dashboard/erp-dashboard-core.js',
+    '/static/js/orders/dashboard/erp-dashboard-core.js?v=20260929h',
     '/static/js/orders/dashboard/erp-dashboard-gateway.js',
-    '/static/js/orders/dashboard/erp-dashboard-attachments.js',
+    '/static/js/orders/dashboard/erp-dashboard-attachments.js?v=20260929h',
     '/static/js/orders/dashboard/erp-dashboard-drawing.js?v=20260929g',
     '/static/js/orders/dashboard/erp-dashboard-quest.js?v=20260921a',
     '/static/js/orders/dashboard/erp-dashboard-detail-dom.js?v=20260929g',
