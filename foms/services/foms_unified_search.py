@@ -7,7 +7,11 @@ from typing import Any, Literal
 from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 
-from foms.services.erp_dashboard_search import erp_order_dashboard_search_predicate
+from foms.services.erp_dashboard_search import (
+    search_query_tokens,
+    strip_order_hash,  # noqa: F401 — 이 모듈 이름으로 부르던 곳 호환
+    visible_order_search_clause,
+)
 from foms.services.erp_display import _ensure_dict, _erp_get_stage, _normalize_for_search
 from foms.services.erp_order_deeplink import build_order_queue_focus_href, resolve_order_stage_code
 from foms.services.erp_mobile_order_display import (
@@ -34,19 +38,6 @@ def _compact(text: str | None) -> str:
     """Remove whitespace for comparison."""
     normalized = _normalize_for_search(text)
     return "".join(normalized.split()).lower()
-
-
-def strip_order_hash(token: str) -> str:
-    """``#5335`` → ``5335``. 카드에 주문번호가 ``#5335`` 로 찍혀 있어 그대로 치는 경우다.
-
-    ``#`` 뒤가 숫자일 때만 벗긴다 — 그 밖의 ``#`` 은 검색어의 일부다. 벗기지 않으면
-    후보는 뽑혀도 분류기가 ``"#5335" in "5335"`` 로 비교해 버렸다(2026-09-29 스테이징
-    60건 표본: 미리보기·이력 화면 모두 0건).
-    """
-    text = (token or "").strip()
-    if text.startswith("#") and text[1:].strip().isdigit():
-        return text[1:].strip()
-    return text
 
 
 def construction_scope_user(user: Any) -> Any:
@@ -84,6 +75,12 @@ def _search_tokens(query: str | None) -> list[str]:
     """
     normalized = _normalize_for_search(query)
     return [tok for tok in normalized.split() if tok]
+
+
+def _is_four_digit_query(query: str) -> bool:
+    """숫자 4자리 한 낱말 — 전화 끝자리 + 주문번호 정확 일치로만 찾는다."""
+    q = (query or "").strip()
+    return len(q) == 4 and q.isdigit()
 
 
 def _to_chosung(text: str) -> str:
@@ -316,7 +313,7 @@ def _term_prefilter(db: Session, query: str, scope=None):
     if not tokens:
         return []
     q = _active_orders(db, scope).filter(Order.is_erp_order.is_(True))
-    clauses = [erp_order_dashboard_search_predicate(f"%{tok}%") for tok in tokens]
+    clauses = [visible_order_search_clause(tok) for tok in tokens]
     return (
         q.filter(and_(*clauses))
         .order_by(Order.id.desc())
@@ -358,8 +355,10 @@ def _base_orders_query(db: Session, query: str, scope=None):
         _extend(chosung_rows)
         return candidates
 
-    # 2) 폰 자릿수 인덱스 경로.
-    _extend(_phone_digit_prefilter(db, query, scope))
+    # 2) 폰 자릿수 인덱스 경로. 숫자 4자리는 이력 화면과 같은 "전화 끝자리" 규칙만 쓴다 —
+    #    여기서 가운데 자리까지 뽑으면 미리보기와 결과 화면이 또 갈린다.
+    if not _is_four_digit_query(query):
+        _extend(_phone_digit_prefilter(db, query, scope))
     # 3) 가시 필드 ILIKE 경로.
     _extend(_term_prefilter(db, query, scope))
     return candidates
@@ -381,7 +380,7 @@ def _history_style_orders_query(db: Session, query: str, scope=None) -> list[Ord
 
     return (
         _active_orders(db, scope)
-        .filter(and_(*[erp_order_dashboard_search_predicate(f"%{tok}%") for tok in tokens]))
+        .filter(and_(*[visible_order_search_clause(tok) for tok in tokens]))
         .order_by(Order.created_at.desc(), Order.id.desc())
         .limit(_MAX_HISTORY_FALLBACK_ROWS)
         .all()
@@ -603,7 +602,7 @@ def search_unified(
         "order": [],
         "drawing": [],
     }
-    trimmed = " ".join(strip_order_hash(tok) for tok in _search_tokens(query))
+    trimmed = " ".join(search_query_tokens(query))
     if not trimmed:
         return buckets
 
