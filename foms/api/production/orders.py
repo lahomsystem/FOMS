@@ -883,6 +883,7 @@ def api_production_start(order_id):
                 request_hash=_request_hash(body), idempotency_key=idem_key,
                 emergency_override=bool(override),
                 reason=(override.reason if override is not None else None),
+                drawing_gate_waived=("DRAWING_STATUS" in punched),
             )
         except (TransitionError, RevisionError) as exc:
             db.rollback()

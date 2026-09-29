@@ -31,6 +31,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
 from foms.services.datetime_kst import now_utc_naive
+from foms.services.orders.confirm_drawing_gate import DRAWING_GATED_COMMANDS, confirm_exit_block
 from foms.services.orders.revision import MutationResult, execute_order_mutation
 from foms.services.orders.state_axes import (
     AXIS_CONSTRUCTION,
@@ -90,6 +91,13 @@ class StageConflictError(TransitionError):
         self.axis = axis
         self.expected = expected
         self.actual = actual
+
+
+class DrawingGateBlockedError(TransitionError):
+    """고객컨펌→생산 전이인데 도면이 수령 확정(CONFIRMED)이 아님 — 잠금 아래 방어선(2a-2). 409."""
+
+    status_code = 409
+    error_code = "DRAWING_STATUS"
 
 
 # --------------------------------------------------------------------------- #
@@ -310,6 +318,7 @@ def transition_order(
     reason: Optional[str] = None,
     source_screen: Optional[str] = None,
     emergency_override: bool = False,
+    drawing_gate_waived: bool = False,
     now: Optional[datetime.datetime] = None,
 ) -> TransitionResult:
     """order 를 registry command 로 원자 전이한다(상태 변경의 유일한 경로).
@@ -337,6 +346,8 @@ def transition_order(
         source_screen: 요청 화면(event payload 에 보존, 선택).
         emergency_override: True 면 from_values 인접성 검사를 건너뛴다(비인접 전이).
             reason 필수. role(ADMIN/MANAGER) 검증은 하류 endpoint 몫이다.
+        drawing_gate_waived: 관리자가 도면 게이트(DRAWING_STATUS)를 실제로 뚫었을 때만 True.
+            False 면 CUSTOMER_CONFIRM·PRODUCTION_START 를 잠금 아래에서 도면 게이트로 다시 본다.
         now: 테스트용 시각 주입(기본 now_utc_naive()).
 
     Returns:
@@ -379,6 +390,10 @@ def transition_order(
         actual_from = _axis_value(axes_before, command.axis)
         if actual_from != expected_from:
             raise StageConflictError(command.axis, expected_from, actual_from)
+        if command_id in DRAWING_GATED_COMMANDS and not drawing_gate_waived:
+            block = confirm_exit_block(order.structured_data)
+            if block is not None:
+                raise DrawingGateBlockedError(block.reason)
 
         # 2) axis canonical write(copy.deepcopy + flag_modified) + legacy projection 재계산.
         sd = copy.deepcopy(order.structured_data or {})
@@ -465,6 +480,7 @@ __all__ = [
     "UnknownTransitionCommandError",
     "InvalidTransitionError",
     "StageConflictError",
+    "DrawingGateBlockedError",
     "TransitionCommand",
     "TransitionResult",
     "COMMAND_REGISTRY",
