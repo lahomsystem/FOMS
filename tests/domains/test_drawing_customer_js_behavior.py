@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import pytest
 
-from tests.support.drawing_customer_js_harness import run_js
+from tests.support.drawing_customer_js_harness import ROOT, run_js
 
 SEND_JS = "static/js/foms/drawing-customer-send.js"
 OK_JS = "static/js/foms/drawing-customer-ok.js"
@@ -23,7 +23,7 @@ SEND_DOM = r"""
 const root = makeEl({ id: 'dwCustomerSendModal', attrs: {
   'data-order-id': '77', 'data-round-label': '2차', 'data-customer-name': '홍길동', 'data-has-phone': 'true',
   'data-sent-text': '', 'data-doc-label-drawing': '도면', 'data-doc-label-bundle': '도면·계약서',
-  'data-bundle-both-template': 'false' } });
+  'data-bundle-both-template': 'false', 'data-structured-updated-at': '2026-09-29 10:11:12' } });
 const submitBtn = makeEl({ attrs: { 'data-send-submit': '' } });
 submitBtn._closest['[data-send-submit]'] = submitBtn;
 const errEl = makeEl({ cls: ['d-none'] });
@@ -53,14 +53,18 @@ fire('show.bs.modal', root, { relatedTarget: makeEl({ attrs: { 'data-customer-se
 """
 
 
-def _send(send_route: str, *, channel: str = "kakao", override: str = "", save: bool = False, clicks: int = 1) -> dict:
+def _send(send_route: str, *, channel: str = "kakao", override: str = "", save: bool = False, clicks: int = 1,
+          create_route: str = "", then_hide: bool = False) -> dict:
     driver = (
         f"const CHANNEL = {channel!r}; const OVERRIDE = {override!r}; const SAVE = {str(save).lower()};\n"
+        + (create_route + "\n" if create_route else "")
         + SEND_DOM
         + send_route
         + "\nfor (let i = 0; i < " + str(clicks) + "; i += 1) fire('click', submitBtn);\nawait flush();\n"
+        + "const disabledBeforeHide = submitBtn.disabled;\n"
+        + ("fire('hidden.bs.modal', root);\n" if then_hide else "")
         + "out({ err: hidden(errEl) ? '' : errEl.textContent, status: hidden(statusEl) ? '' : statusEl.textContent,"
-        + " disabled: submitBtn.disabled });"
+        + " disabled: disabledBeforeHide });"
     )
     return run_js([SEND_JS], driver)
 
@@ -103,6 +107,37 @@ def test_connection_drop_keeps_lock_without_revoke():
     assert r["disabled"] is True and "확실하지 않아요" in r["err"] and r["reloaded"] == 0
 
 
+def test_unknown_vendor_error_keeps_lock_like_network():
+    """'unknown'(벤더 예외를 분류 못 함)은 접수됐는지 모른다 — 잠금 유지 · 회수 없음 · 닫으면 새로고침(두 통 방지)."""
+    r = _send("route('/api/share/send-alimtalk/501', function () {"
+              " return Resp(200, { success: false, data: { sent: false, error: 'unknown' }, error: 'unknown' }); });",
+              then_hide=True)
+    assert _urls(r) == ["/api/share/create/77", "/api/share/send-alimtalk/501"]
+    assert r["disabled"] is True and "확실하지 않아요" in r["err"] and r["reloaded"] == 1
+
+
+@pytest.mark.parametrize("code,text", [("template_mismatch", "템플릿"), ("length_exceeded", "1,000자")])
+def test_vendor_reject_codes_have_korean_labels(code, text):
+    r = _send("route('/api/share/send-alimtalk/501', function () {"
+              f" return Resp(200, {{ success: false, data: {{ sent: false, error: '{code}' }}, error: '{code}' }}); }});")
+    assert r["disabled"] is False and text in r["err"] and code not in r["err"]
+
+
+def test_create_connection_drop_is_unsure_and_reloads_on_close():
+    """링크 만들기 요청이 끊기면 서버엔 링크가 생겼을 수 있다 — '확실하지 않아요' + 잠금 + 닫으면 새로고침."""
+    r = _send("", create_route="route('/api/share/create/77', function () { throw new Error('offline'); });",
+              then_hide=True)
+    assert _urls(r) == ["/api/share/create/77"]
+    assert "만들었는지 확실하지 않아요" in r["err"] and r["disabled"] is True and r["reloaded"] == 1
+
+
+def test_create_server_reject_unlocks_without_reload():
+    """대조군: 서버가 만들기를 거절(403 등)하면 링크가 없다 — 잠금 풀고 새로고침도 안 한다."""
+    r = _send("", create_route="route('/api/share/create/77', function () {"
+              " return Resp(403, { success: false, data: null, error: 'forbidden' }); });", then_hide=True)
+    assert r["disabled"] is False and "링크를 만들지 못했어요" in r["err"] and r["reloaded"] == 0
+
+
 def test_vendor_reject_unlocks_without_revoke():
     r = _send("route('/api/share/send-sms/501', function () {"
               " return Resp(200, { success: false, data: { sent: false, error: 'balance' }, error: 'balance' }); });",
@@ -124,8 +159,21 @@ def test_changed_number_goes_to_this_send_only_and_saves_when_checked():
     assert r["calls"][1]["body"]["to_phone"] == "01033334444"
     patch = r["calls"][2]
     assert patch["method"] == "PATCH" and patch["url"] == "/api/orders/77/structured/fields"
-    assert patch["body"] == {"field": "parties.customer.phone", "value": "01033334444"}
+    # 기존 번호 형식(하이픈)으로 저장 · 먼저 열어 둔 다른 저장과 겹치면 서버가 409 로 막게 X-If-Match 를 싣는다.
+    assert patch["body"] == {"field": "parties.customer.phone", "value": "010-3333-4444"}
+    assert patch["headers"].get("X-If-Match") == "2026-09-29 10:11:12"
     assert r["reloaded"] == 1
+
+
+def test_save_phone_conflict_explains_and_keeps_sent_result():
+    """주문이 그새 바뀌었으면(409 CONFLICT) 발송은 그대로 두고 '주문 번호 저장은 못 했어요' 를 알린다."""
+    r = _send("route('/api/share/send-alimtalk/501', function () {"
+              " return Resp(200, { success: true, data: { sent: true, error: null }, error: null }); });"
+              "routes.unshift({ match: '/structured/fields', fn: function () {"
+              " return Resp(409, { success: false, error: 'CONFLICT' }); } });",
+              override="01033334444", save=True)
+    assert "주문 번호 저장은 못 했어요" in r["status"] and "다른 곳에서 먼저 바뀌었어요" in r["status"]
+    assert r["reloaded"] == 0
 
 
 def test_changed_number_without_save_does_not_patch_order():
@@ -288,7 +336,10 @@ const filesInput = makeEl({ files: ['NEWFILE'] });
 Object.assign(edit._sel, { '[data-edit-submit]': btn, '[data-edit-error]': makeEl({ cls: ['d-none'] }),
   '#dw-edit-note': note, '#dw-edit-new-files': filesInput, '[data-edit-files]': makeEl({}),
   '#dw-edit-source-customer': makeEl({}), '[data-edit-via-block]': makeEl({}) });
+const editStatus = makeEl({ cls: ['d-none'] }); edit._sel['[data-edit-status]'] = editStatus;
+let statusDuringUpload = '';
 window.fomsDrawingUploadRevisionFiles = async function (files) {
+  statusDuringUpload = hidden(editStatus) ? '' : editStatus.textContent;
   return files.map(function () { return { key: 'orders/77/drawing_gateway/revisions/new.png', filename: 'new.png' }; });
 };
 route('/request-revision/edit', function () { return Resp(200, { success: true, data: { request: {} } }); });
@@ -299,9 +350,10 @@ edit._all['[data-edit-keep-index]'] = [keepA, keepB];
 edit._all['input[name="dw-edit-target"]:checked'] = [makeEl({ value: 'orders/77/drawing/plan-2.png' })];
 edit._sel['input[name="dw-edit-source"]:checked'] = makeEl({ value: 'customer' });
 edit._sel['input[name="dw-edit-via"]:checked'] = makeEl({ value: 'phone' });
-fire('click', btn); await flush(); out({ note: note.value });
+fire('click', btn); await flush(); out({ note: note.value, during: statusDuringUpload });
 """
     r = run_js([EDIT_JS], driver)
+    assert "올리는 중" in r["during"]  # 공용 진행 막대는 닫힌 창 안이라 이 창에 따로 보인다
     assert _urls(r) == ["/api/orders/77/request-revision/edit"]
     assert r["calls"][0]["body"] == {
         "note": "고친 내용",
@@ -379,3 +431,120 @@ def test_revision_sheet_preselects_source_from_opener(opener_source, expect):
     r = run_js([OK_JS], driver)
     assert r["attr"] == expect
     assert r["customer"] is (expect == "customer") and r["viaShown"] is (expect == "customer")
+
+
+# --------------------------------------------------------------------------- 전달 취소 경고 갈래(리뷰 P2)
+
+WARN_DOM = r"""
+const warn = makeEl({ id: 'dwCancelWarnModal', attrs: { 'data-order-id': '77' } });
+const warnText = makeEl({});
+warn._sel['[data-cancel-warn-text]'] = warnText;
+const cancelBtn = makeEl({ id: 'btn-cancel-transfer', attrs: ATTRS });
+window.matchMedia = function (q) { return { matches: NARROW && q === '(max-width: 991.98px)' }; };
+"""
+
+
+def _warn(attrs: dict, *, narrow: bool = False, with_modal: bool = True) -> dict:
+    driver = (
+        f"const ATTRS = {attrs!r}; const NARROW = {str(narrow).lower()};\n" + WARN_DOM
+        + ("" if with_modal else "delete byId['dwCancelWarnModal'];\n")
+        + "loadSources();\n"
+        + "const handled = window.fomsDrawingCancelWarn(cancelBtn);\n"
+        + "out({ handled: handled, text: warnText.textContent });"
+    )
+    return run_js([URGENT_JS], driver)
+
+
+PC_TEXT = {"data-customer-sent-text-pc": "보냈어요(PC)", "data-customer-sent-text-mobile": "보냈어요(모바일)"}
+
+
+@pytest.mark.parametrize("narrow,expect", [(False, "보냈어요(PC)"), (True, "보냈어요(모바일)")])
+def test_cancel_warn_picks_text_by_width_and_opens_sheet_without_confirm(narrow, expect):
+    r = _warn(PC_TEXT, narrow=narrow)
+    assert r["handled"] is True and r["text"] == expect
+    assert ["show", "dwCancelWarnModal"] in r["modalOps"]
+    assert not [a for a in r["alerts"] if a.startswith("CONFIRM:")] and r["calls"] == []
+
+
+def test_cancel_warn_without_text_leaves_plain_confirm_path():
+    r = _warn({})
+    assert r["handled"] is False and r["modalOps"] == []
+
+
+def test_cancel_warn_without_sheet_falls_back():
+    r = _warn(PC_TEXT, with_modal=False)
+    assert r["handled"] is False and r["modalOps"] == []
+
+
+def _inline_fn(signature: str) -> str:
+    """작업실 인라인 스크립트의 함수 본문을 그대로 떼어 낸다(문자열 단언이 아니라 실행하려고)."""
+    body = (ROOT / "templates/drawing/partials/workbench_detail_body.html").read_text(encoding="utf-8")
+    start = body.index(signature)
+    depth, i = 0, body.index("{", start)
+    while True:
+        ch = body[i]
+        depth += 1 if ch == "{" else -1 if ch == "}" else 0
+        i += 1
+        if depth == 0:
+            return body[start:i]
+
+
+def _run_inline(attrs: dict, *, helper: str, confirm: bool = True) -> dict:
+    driver = (
+        f"const ATTRS = {attrs!r}; const NARROW = false;\n" + WARN_DOM
+        + "const orderId = 77; const shown = [];\n"
+        + "function showWorkbenchToast(m) { shown.push(m); }\n"
+        + f"window.__confirmAnswer = {str(confirm).lower()};\n"
+        + "route('/cancel-transfer', function () { return Resp(200, { success: true }); });\n"
+        + helper + "\n"
+        + _inline_fn("async function cancelTransfer() {") + "\n"
+        + "await cancelTransfer(); await flush();\n"
+        + "out({ helperCalls: window.__helperCalls || 0 });"
+    )
+    return run_js([], driver)
+
+
+def test_inline_cancel_transfer_uses_warn_sheet_when_js_loaded():
+    r = _run_inline(PC_TEXT, helper="window.__FOMS_DRAWING_URGENT_PC_BOUND = true;"
+                    " window.fomsDrawingCancelWarn = function () { window.__helperCalls = (window.__helperCalls || 0) + 1;"
+                    " return true; };")
+    assert r["helperCalls"] == 1
+    assert r["calls"] == [] and not [a for a in r["alerts"] if a.startswith("CONFIRM:")]
+
+
+def test_inline_cancel_transfer_falls_back_to_confirm_with_warning_when_js_missing():
+    """새 JS 가 핀·캐시 문제로 안 떴으면 경고 문구를 확인창으로 보이고, 예를 누르면 전달 취소가 된다(막히지 않는다)."""
+    r = _run_inline(PC_TEXT, helper="")
+    assert "CONFIRM:보냈어요(PC)" in r["alerts"]
+    assert _urls(r) == ["/api/orders/77/cancel-transfer"] and r["href"] == "/erp/drawing-workbench/77?tab=timeline"
+
+
+def test_inline_cancel_transfer_without_warning_keeps_old_confirm():
+    r = _run_inline({}, helper="window.fomsDrawingCancelWarn = function () { return false; };", confirm=False)
+    assert [a for a in r["alerts"] if a.startswith("CONFIRM:")] == [
+        "CONFIRM:전달 취소 시 최신 전달본 파일과 이력이 함께 정리됩니다. 진행할까요?"]
+    assert r["calls"] == []
+
+
+@pytest.mark.parametrize("attr,flag,loaded", [
+    ("data-ok-submit", "__FOMS_DRAWING_CUSTOMER_OK_BOUND", False),
+    ("data-send-submit", "__FOMS_DRAWING_CUSTOMER_SEND_BOUND", False),
+    ("data-edit-submit", "__FOMS_DRAWING_REVISION_EDIT_BOUND", False),
+    ("data-ok-submit", "__FOMS_DRAWING_CUSTOMER_OK_BOUND", True),
+])
+def test_inline_warns_when_sheet_js_missing(attr, flag, loaded):
+    """시트 JS 가 안 떴으면 주 버튼을 눌렀을 때 새로고침 안내가 뜬다. 떴으면(대조군) 아무 말도 안 한다."""
+    driver = (
+        "const shown = []; function showWorkbenchToast(m) { shown.push(m); }\n"
+        + (f"window.{flag} = true;\n" if loaded else "")
+        + _inline_fn("function warnIfSheetJsMissing(e) {") + "\n"
+        + f"const b = makeEl({{ attrs: {{ {attr!r}: '' }} }});\n"
+        + "b._closest['[data-ok-submit], [data-send-submit], [data-edit-submit]'] = b;\n"
+        + "warnIfSheetJsMissing({ target: b });\n"
+        + "out({ shown: shown });"
+    )
+    r = run_js([], driver)
+    if loaded:
+        assert r["shown"] == []
+    else:
+        assert len(r["shown"]) == 1 and "새로고침" in r["shown"][0]

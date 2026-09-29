@@ -7,6 +7,9 @@
 {% set cs = customer_send|default({}) %}
 {% set cs_keys = cs.bar|default([])|map(attribute='key')|list %}
 {% set cs_round_label = cs.round_text|default('') %}
+{# 상세 ctx customer_name 은 이름이 없으면 '-' 다 — '- 고객님께' 가 되지 않게 빈 값으로 본다. #}
+{% set cs_customer = '' if (customer_name or '-')|trim == '-' else customer_name %}
+{% set cs_stamp = order.structured_updated_at.strftime('%Y-%m-%d %H:%M:%S') if order.structured_updated_at else '' %}
 
 {% if 'send' in cs_keys or 'resend' in cs_keys %}
 {# (가) 고객에게 보내기 #}
@@ -14,7 +17,8 @@
   data-order-id="{{ order.id }}"
   data-round="{{ cs.round|default(0) }}"
   data-round-label="{{ cs_round_label }}"
-  data-customer-name="{{ customer_name or '' }}"
+  data-customer-name="{{ cs_customer }}"
+  data-structured-updated-at="{{ cs_stamp }}"
   data-has-phone="{{ 'true' if cs.has_phone else 'false' }}"
   data-phone-masked="{{ cs.phone_masked|default('') }}"
   data-can-change-phone="{{ 'true' if cs.can_change_phone else 'false' }}"
@@ -28,7 +32,7 @@
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title" id="dwCustomerSendTitle"><i class="fas fa-paper-plane"></i>
-          {{ customer_name or '고객' }} 고객님께 {{ cs_round_label }} 도면 보내기</h5>
+          {% if cs_customer %}{{ cs_customer }} {% endif %}고객님께 {{ cs_round_label }} 도면 보내기</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
       </div>
       <div class="modal-body">
@@ -47,7 +51,7 @@
         <div class="mb-3">
           <div class="small fw-semibold text-muted mb-1">받는 분</div>
           <div class="d-flex align-items-center gap-2 flex-wrap">
-            <span data-send-phone-label>{% if cs.has_phone %}{{ customer_name or '고객' }} · {{ cs.phone_masked }}{% else %}고객 휴대폰 번호가 없어요{% endif %}</span>
+            <span data-send-phone-label>{% if cs.has_phone %}{{ cs_customer or '고객' }} · {{ cs.phone_masked }}{% else %}고객 휴대폰 번호가 없어요{% endif %}</span>
             {% if cs.can_change_phone %}
             <button type="button" class="btn btn-link btn-sm p-0" data-send-phone-toggle aria-expanded="false">번호 바꾸기</button>
             {% else %}
@@ -243,6 +247,8 @@
           <label class="form-label small fw-semibold text-muted mb-1" for="dw-edit-new-files">사진·파일 더 붙이기 (선택)</label>
           <input type="file" class="form-control form-control-sm" id="dw-edit-new-files" multiple>
         </div>
+        {# 올리는 동안 보이는 줄 — 공용 업로드의 진행 막대(#dw-revision-progress)는 닫힌 수정요청 창 안이라 안 보인다. #}
+        <div class="small text-primary mt-2 d-none" role="status" aria-live="polite" data-edit-status></div>
         <div class="alert alert-danger py-2 small mt-2 mb-0 d-none" role="alert" data-edit-error data-foms-no-autodismiss></div>
       </div>
       <div class="modal-footer">

@@ -139,8 +139,11 @@
     busy = true;
     if (btn) btn.disabled = true;
     show(errEl, '');
+    var statusEl = q(root, '[data-edit-status]');
+    show(statusEl, newFiles.length ? '사진·파일 ' + newFiles.length + '개 올리는 중이에요…' : '');
     try {
       var uploaded = newFiles.length ? await window.fomsDrawingUploadRevisionFiles(newFiles) : [];
+      show(statusEl, '');
       if (newFiles.length && list(uploaded).length !== newFiles.length) {
         throw new Error('일부 파일을 올리지 못했어요. 다시 해 주세요.');
       }
@@ -165,6 +168,7 @@
       }
       window.location.href = '/erp/drawing-workbench/' + encodeURIComponent(orderId) + '?tab=requests';
     } catch (err) {
+      show(statusEl, '');
       show(errEl, (err && err.message) || '고치는 중 오류가 났어요. 잠시 뒤 다시 해 주세요.');
       busy = false;
       if (btn) btn.disabled = false;
