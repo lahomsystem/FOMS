@@ -112,6 +112,32 @@ def test_cancel_same_key_twice_keeps_restored_current_file_and_row(client, stora
     assert "0개" in res.get_json()["message"]
 
 
+def _drop_rows(oid, key):
+    """첨부 행이 없는 옛 전달 이력 모양 — 그 key 의 첨부 행을 지운다(도면 기록 판정만 남긴다)."""
+    db_session.query(OrderAttachment).filter_by(order_id=oid, storage_key=key).delete()
+    db_session.commit()
+
+
+@pytest.mark.parametrize("folder", ["drawing", "drawing_wizard/exports"])
+def test_cancel_keeps_restored_current_file_by_record_alone(client, storage, folder):
+    """P6 변형 — 첨부 행이 없어도 복원 현재본이 가리키는 key 는 도면 기록 판정만으로 보존된다.
+
+    살아 있는 첨부 행 판정이 가리지 못하게 행을 지운 뒤 취소한다(2b 리뷰 P3: 두 벌 P6 는
+    행 판정만으로도 초록이라 drawing_keys_in_use 가 따로 고정되지 않았다).
+    """
+    sales, dr = _people(f"p6r{folder[:3]}")
+    oid = _order(sales, dr)
+    v1 = f"orders/{oid}/{folder}/v1.png"
+    _as(client, dr)
+    _transfer(client, oid, v1)
+    _transfer(client, oid, v1)
+    _drop_rows(oid, v1)
+    res = client.post(f"/api/orders/{oid}/cancel-transfer", json={})
+    assert res.status_code == 200, res.get_json()
+    assert [f["key"] for f in _sd(oid)["drawing_current_files"]] == [v1]
+    assert v1 not in _outbox_keys(), "첨부 행이 없다고 복원 현재본 파일을 삭제 예약했다"
+
+
 def test_cancel_reclaims_unused_new_drawing_after_seven_days(client, storage):
     """``drawing/`` 새 key 1개 보통 회수: 행 0 · 본체+썸네일 예약 · available_at ≥ 지금+7일."""
     sales, dr = _people("m7n")
@@ -182,6 +208,25 @@ def test_handler_skips_key_that_became_current_again(client, storage):
     assert v2 in [f["key"] for f in _sd(oid)["drawing_current_files"]]
     handle_storage_delete(db_session.get(DomainSideEffectOutbox, row_id))
     assert storage.deleted_keys == [], "다시 현재본이 된 key 를 핸들러가 지웠다"
+
+
+def test_handler_skips_by_record_alone_without_attachment_row(client, storage):
+    """핸들러 재확인 변형 — 다시 현재본이 된 key 의 첨부 행이 없어도 기록 판정만으로 건너뛴다."""
+    sales, dr = _people("m7r")
+    oid = _order(sales, dr)
+    v1, v2 = f"orders/{oid}/drawing/v1.png", f"orders/{oid}/drawing/v2.png"
+    _as(client, dr)
+    _transfer(client, oid, v1)
+    _transfer(client, oid, v2)
+    assert client.post(f"/api/orders/{oid}/cancel-transfer", json={}).status_code == 200
+    row_id = _outbox_keys()[v2].id
+    _transfer(client, oid, v2, mode="APPEND")
+    _drop_rows(oid, v2)
+    assert v2 in [f["key"] for f in _sd(oid)["drawing_current_files"]]
+    handle_storage_delete(db_session.get(DomainSideEffectOutbox, row_id))
+    assert storage.deleted_keys == [], "첨부 행이 없다고 다시 현재본이 된 key 를 지웠다"
+    assert db_session.get(DomainSideEffectOutbox, row_id).payload.get(
+        handler_mod.SKIPPED_STILL_REFERENCED) is True
 
 
 def test_handler_deletes_when_order_is_gone(client, storage):
