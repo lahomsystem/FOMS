@@ -321,3 +321,28 @@ def test_transfer_pending_prunes_stale_version_files_after_commit(client, storag
     _, sd = _state(oid)
     versions = sd["drawing_wizard"]["versions"]
     assert len(versions) == 30 and versions[0]["v"] == 2 and versions[-1]["v"] == 31
+
+
+def test_ack_order_change_bumps_version_once(client, storage):
+    """리뷰 P3 — 주문 변경 확인(ack)도 도면 축 쓰기다: +1·오래된 폼 409, 다시 누르면 불변."""
+    admin = _user("vb8_admin", "ADMIN", "CS")
+    sales = _user("vb8_sales", "STAFF", "SALES")
+    drafter = _user("vb8_draw", "STAFF", "DRAWING")
+    oid = _order(sales[0], drafter[0], stage="DRAWING", drawing_status="IN_PROGRESS", extra={
+        "drawing": {"order_change_pending": True},
+        "drawing_transfer_history": [{"action": "ERP_ORDER_CHANGED", "at": "2026-09-28 10:00:00",
+                                      "acked": False, "note": "수량 변경"}],
+    })
+    before, _ = _state(oid)
+    _as(client, drafter)
+    r = client.post(f"/api/orders/{oid}/drawing/ack-order-change", json={})
+    assert (r.get_json() or {}).get("acked") is True, r.get_json()
+    sd = _assert_bumped_and_stale_put_conflicts(client, admin, oid, before, r)
+    assert sd["drawing"]["order_change_pending"] is False
+    assert sd["drawing_transfer_history"][-1]["acked"] is True
+
+    before, _ = _state(oid)
+    _as(client, drafter)
+    r2 = client.post(f"/api/orders/{oid}/drawing/ack-order-change", json={})
+    assert r2.status_code == 200 and r2.get_json()["acked"] is False
+    assert _state(oid)[0] == before  # 바꿀 것이 없으면 버전도 그대로
