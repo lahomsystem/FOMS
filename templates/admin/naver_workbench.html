@@ -19,7 +19,7 @@
 {% block title %}네이버 수집{% endblock %}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260929a">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260929b">
 {% endblock %}
 
 {% block content %}
@@ -37,7 +37,25 @@
            있기 때문이다. 데스크톱은 전역 nav 가 같은 일을 하므로 CSS 가 폰에서만 보인다. #}
         <a class="wb-back" href="{{ url_for('erp_dashboard.erp_dashboard') }}"
            aria-label="ERP 대시보드로 돌아가기"><span aria-hidden="true">‹</span> ERP</a>
-        <span class="wb-bar__title">네이버 수집</span>
+        {# 제목 상자(2026-09-29 폰 1단계) — 폰은 제목 밑에 `마지막 수집` 한 줄을 붙여 56px 한 줄에
+           담는다. 데스크톱은 상자가 `display: contents` 라 제목이 예전처럼 머리줄의 한 칸이다.
+           시각은 서버가 이미 실어 준 값(이력 탭 · ADMIN 의 ingest_status)만 쓴다 — 처리 탭에서
+           이 한 줄을 위해 조회를 더하지 않는다(없으면 안 그린다). 날짜를 떼지 않는다:
+           어제 시각을 `08:26` 으로만 쓰면 "방금" 으로 읽힌다. #}
+        <span class="wb-bar__titlebox">
+            <span class="wb-bar__title">네이버 수집</span>
+            {% if ingest_status and ingest_status.watermark and ingest_status.watermark.last_run_at_text %}
+            <span class="wb-bar__sub">마지막 수집 {{ ingest_status.watermark.last_run_at_text[5:] }}</span>
+            {% endif %}
+        </span>
+        {# 전체 메뉴(폰 전용) — 폰에서는 전역 머리줄(제목·알림·계정)과 메뉴 버튼 줄을 CSS 가
+           접는다. 이 버튼이 **같은 전역 메뉴**(#navbarNav collapse)를 연다 — 메뉴를 두 벌
+           만들지 않는다. 메뉴가 열려 있는 동안에는 접었던 두 줄이 그대로 돌아와 알림·계정
+           (내 정보·로그아웃)에 닿는다. aria-expanded 는 Bootstrap collapse 가 뒤집는다. #}
+        <button type="button" class="wb-menu" data-bs-toggle="collapse" data-bs-target="#navbarNav"
+                aria-controls="navbarNav" aria-expanded="false" aria-label="전체 메뉴">
+            <i class="fas fa-bars" aria-hidden="true"></i>
+        </button>
         <nav class="wb-tabs" role="tablist">
             {# 탭 배지는 **손댈 수 있는 주문**이다 — 탭 안 목록(칩 '전체')보다 작을 수 있다.
                그 차이(취소·반품)는 오른쪽 '손대지 않음' 이 글자로 말한다. title 은 데스크톱 덤이다. #}
@@ -916,11 +934,21 @@
                     </span>
                 </a>
                 {% else %}
-                <div class="wb-empty">
-                    {# `전체` 칩이 숫자를 달고 바로 위에 있다 — 사용법은 말하지 않는다. #}
-                    {% if active_filter == 'all' %}확인할 주문이 없습니다.
-                    {% else %}이 필터에 해당하는 주문이 없습니다.{% endif %}
+                {# `전체` 칩이 숫자를 달고 바로 위에 있다 — 사용법은 말하지 않는다.
+                   빈 처리 목록(2026-09-29 폰 1단계 목업)은 "할 일이 없다" 를 먼저 말하고, 사람이
+                   다음에 볼 곳(이력)으로 가는 길을 준다. 이력을 못 여는 사람에게는 길을 안 그린다.
+                   `마지막 수집` 시각은 처리 탭에 실린 값이 없어 여기서는 말하지 않는다(조회 추가 금지). #}
+                {% if active_filter == 'all' %}
+                <div class="wb-empty wb-empty--done">
+                    <p class="wb-empty__title">지금 처리할 주문이 없어요</p>
+                    <p class="wb-empty__sub">새 주문이 들어오면 여기에 바로 보여요.</p>
+                    {% if can_view_history %}
+                    <a class="wb-empty__go" href="{{ url_for('admin.naver_ingest_triage', tab='all') }}">이력 보기</a>
+                    {% endif %}
                 </div>
+                {% else %}
+                <div class="wb-empty">이 필터에 해당하는 주문이 없습니다.</div>
+                {% endif %}
                 {% endfor %}
                 {{ mark('work_rows') }}
             </div>
@@ -1077,58 +1105,108 @@
         </div>
 
         {# 이력 표 필터. 처리 탭 칩과 생김새는 같지만 거르는 대상이 다르다(이력 행 vs 집 목록)
-           — JS·테스트는 data-filter 로 둘을 가른다. 여기 칩에는 data-filter 를 달지 않는다. #}
+           — JS·테스트는 data-filter 로 둘을 가른다. 여기 칩에는 data-filter 를 달지 않는다.
+           필터 파라미터가 넷이다(status·place·dispatch·rel). 칩 8개·폰 상태 시트·페이저 두 링크가
+           **네 개를 전부** 들고 가야 한다 — 하나라도 빠지면 그 링크를 누른 순간
+           필터가 조용히 풀린다(선행 결함 #8 과 같은 모양).
+           칩 8개와 폰 상태 시트(2026-09-29 폰 2단계)는 **아래 목록 한 벌**(`hist_filters`)에서
+           그린다 — 주소·켜짐·숫자를 두 곳에서 따로 계산하면 폰과 데스크톱이 다른 필터를 건다. #}
+        {% set h_status = history.status or None %}
+        {% set h_place = 'PENDING' if history.place_pending else None %}
+        {% set h_dispatch = 'PENDING' if history.dispatch_pending else None %}
+        {% set h_rel = 'ADDON_REPAY' if history.relation_filter else None %}
+        {% set h_q = history.find or None %}
+        {% set h_any = h_status or h_place or h_dispatch or h_rel or h_q %}
+        {% set hist_filters = [] %}
+        {# `전체` — 필터가 걸리면 history.total 은 '걸러진 총계'다 — 그걸 "전체" 라고 말하면
+           거짓말이 된다(옛 이력 화면도 같은 가드를 쓴다). 그래서 숫자를 비운다(none). #}
+        {% set _ = hist_filters.append({
+            'group': 'stage', 'label': '전체', 'on': not h_any,
+            'n': none if h_any else history.total,
+            'href': url_for('admin.naver_ingest_triage', tab='all', q=h_q)}) %}
+        {# 칩 라벨은 행 배지 낱말로 **시작**하고 뒤에 모집단 꼬리만 붙는다 — 칩이 '생성됨',
+           배지가 '주문 만듦' 이면 한 화면에서 같은 것을 두 이름으로 부르게 된다.
+           라벨에 `주문` 을 쓰지 않는다: 뒤에 붙는 `N주문`(세는 단위)과 두 뜻이 인접해
+           읽기 부담이 된다. #}
+        {% for key, label in history.status_chips %}
+        {% set _ = hist_filters.append({
+            'group': 'stage', 'label': label, 'on': history.status == key,
+            'n': history.counts.get(key, 0),
+            'href': url_for('admin.naver_ingest_triage', tab='all', status=key,
+                            place=h_place, dispatch=h_dispatch, rel=h_rel, q=h_q)}) %}
+        {% endfor %}
+        {# 처리 탭의 '발주확인 할 차례' 칩은 **작업 대상**(취소·반품 제외)이고 이 칩은 이력
+           표를 거르는 술어라 취소 집도 포함한다. 같은 라벨을 쓰면 같은 화면에서 두
+           숫자가 어긋나 보인다 — 모집단을 라벨에 적는다. #}
+        {% set _ = hist_filters.append({
+            'group': 'naver', 'label': '발주확인 남음 · 취소 포함', 'on': history.place_pending,
+            'n': history.place_pending_count,
+            'href': url_for('admin.naver_ingest_triage', tab='all', status=h_status,
+                            place=None if history.place_pending else 'PENDING',
+                            dispatch=h_dispatch, rel=h_rel, q=h_q)}) %}
+        {# 술어가 컬럼·JSONB 경로만 보므로 취소 집을 뺄 수 없다 — 옆 칩과 같은 이유로
+           같은 꼬리를 단다(꼬리를 떼면 성질이 같은 두 칩이 다른 말을 하게 된다). #}
+        {% set _ = hist_filters.append({
+            'group': 'naver', 'label': '발송처리 남음 · 취소 포함', 'on': history.dispatch_pending,
+            'n': history.dispatch_pending_count,
+            'href': url_for('admin.naver_ingest_triage', tab='all', status=h_status, place=h_place,
+                            dispatch=None if history.dispatch_pending else 'PENDING', rel=h_rel, q=h_q)}) %}
+        {# 가운뎃점 표기는 처리 탭 칩('추가결제·재결제')과 맞춘다 — 같은 화면에서
+           같은 것을 두 표기로 쓰지 않는다. #}
+        {% set _ = hist_filters.append({
+            'group': 'naver', 'label': '추가결제·재결제', 'on': history.relation_filter,
+            'n': history.relation_count,
+            'href': url_for('admin.naver_ingest_triage', tab='all', status=h_status, place=h_place,
+                            dispatch=h_dispatch, rel=None if history.relation_filter else 'ADDON_REPAY',
+                            q=h_q)}) %}
+
+        {# ── 폰 상태 시트(2026-09-29 폰 2단계) ─────────────────────────────
+           폰에서는 칩 8개가 가로로 밀려 화면 밖으로 나갔다 — 켜진 것 + 숫자를 말하는 버튼 하나로
+           접고, 누르면 아래에서 시트가 올라와 8개를 두 묶음으로 보여 준다. 시트의 줄은 **칩과 같은
+           주소**의 평범한 링크다(누르면 바로 그 주소로 간다 — 네이버 쪽 셋은 켜고 끄는 칩이라
+           라디오 + [확인] 으로 바꾸면 조합 규칙이 달라진다). 데스크톱은 CSS 가 버튼을 숨기고 칩을 둔다.
+           버튼 숫자는 지금 보이는 목록의 총계다 — 찾기 낱말이 걸려 있으면 `전체` 칩처럼 비운다. #}
+        {% set h_on = hist_filters | selectattr('on') | rejectattr('label', 'equalto', '전체') | map(attribute='label') | list %}
+        <button type="button" class="wb-hsheet-open" id="wb-hsheet-open"
+                aria-haspopup="dialog" aria-expanded="false" aria-controls="wb-hsheet">
+            <span class="wb-hsheet-open__k">상태:</span>
+            <span class="wb-hsheet-open__v">{{ h_on | join(' + ') if h_on else '전체' }}</span>
+            {% if not h_q %}<b class="wb-hsheet-open__n">{{ history.total }}</b>{% endif %}
+            <i class="fas fa-chevron-down" aria-hidden="true"></i>
+        </button>
+        <dialog class="wb-hsheet" id="wb-hsheet" aria-labelledby="wb-hsheet-title" aria-modal="true">
+            <div class="wb-hsheet__in">
+                <span class="wb-hsheet__grip" aria-hidden="true"></span>
+                <div class="wb-hsheet__head">
+                    <h2 class="wb-hsheet__title" id="wb-hsheet-title" tabindex="-1">상태로 거르기</h2>
+                    <button type="button" class="wb-hsheet__close" id="wb-hsheet-close" aria-label="닫기">
+                        <i class="fas fa-xmark" aria-hidden="true"></i>
+                    </button>
+                </div>
+                {% for group_key, group_label in [('stage', '받은 뒤 단계'), ('naver', '네이버에 남은 일')] %}
+                <section class="wb-hsheet__group" aria-labelledby="wb-hsheet-g-{{ group_key }}">
+                    <h3 class="wb-hsheet__legend" id="wb-hsheet-g-{{ group_key }}">{{ group_label }}</h3>
+                    <ul class="wb-hsheet__list">
+                        {% for f in hist_filters if f.group == group_key %}
+                        <li><a class="wb-hsheet__opt" href="{{ f.href }}"{% if f.on %} aria-current="true"{% endif %}>
+                            <span class="wb-hsheet__dot" aria-hidden="true"></span>
+                            <span class="wb-hsheet__label">{{ f.label }}</span>
+                            {% if f.n is not none %}<span class="wb-hsheet__n">{{ f.n }}</span>{% endif %}
+                        </a></li>
+                        {% endfor %}
+                    </ul>
+                </section>
+                {% endfor %}
+            </div>
+        </dialog>
+
+        {# `.wb-filters` 안에는 `<div>` 를 두지 않는다: 자리 계약 테스트가 첫 `</div>`
+           까지를 칩 줄로 보고 자른다. #}
         <div class="wb-filters">
-            {# 필터 파라미터가 넷이다(status·place·dispatch·rel). 칩 8개와 페이저 두 링크가
-               **네 개를 전부** 들고 가야 한다 — 하나라도 빠지면 그 링크를 누른 순간
-               필터가 조용히 풀린다(선행 결함 #8 과 같은 모양).
-               `.wb-filters` 안에는 `<div>` 를 두지 않는다: 자리 계약 테스트가 첫 `</div>`
-               까지를 칩 줄로 보고 자른다. #}
-            {% set h_status = history.status or None %}
-            {% set h_place = 'PENDING' if history.place_pending else None %}
-            {% set h_dispatch = 'PENDING' if history.dispatch_pending else None %}
-            {% set h_rel = 'ADDON_REPAY' if history.relation_filter else None %}
-            {% set h_q = history.find or None %}
-            {% set h_any = h_status or h_place or h_dispatch or h_rel or h_q %}
-            <a class="wb-chip" aria-pressed="{{ 'false' if h_any else 'true' }}"
-               {# 필터가 걸리면 history.total 은 '걸러진 총계'다 — 그걸 "전체" 라고 말하면
-                  거짓말이 된다(옛 이력 화면도 같은 가드를 쓴다). #}
-               href="{{ url_for('admin.naver_ingest_triage', tab='all', q=h_q) }}">전체 {{ (history.total ~ '주문') if not h_any else '' }}</a>
-            {# 칩 라벨은 행 배지 낱말로 **시작**하고 뒤에 모집단 꼬리만 붙는다 — 칩이 '생성됨',
-               배지가 '주문 만듦' 이면 한 화면에서 같은 것을 두 이름으로 부르게 된다.
-               라벨에 `주문` 을 쓰지 않는다: 뒤에 붙는 `N주문`(세는 단위)과 두 뜻이 인접해
-               읽기 부담이 된다. #}
-            {% for key, label in history.status_chips %}
-            <a class="wb-chip" aria-pressed="{{ 'true' if history.status == key else 'false' }}"
-               href="{{ url_for('admin.naver_ingest_triage', tab='all', status=key,
-                                place=h_place, dispatch=h_dispatch, rel=h_rel, q=h_q) }}">
-                {{ label }} {{ history.counts.get(key, 0) }}주문
-            </a>
+            {% for f in hist_filters %}
+            <a class="wb-chip" aria-pressed="{{ 'true' if f.on else 'false' }}"
+               href="{{ f.href }}">{{ f.label }} {{ (f.n ~ '주문') if f.n is not none else '' }}</a>
             {% endfor %}
-            <a class="wb-chip" aria-pressed="{{ 'true' if history.place_pending else 'false' }}"
-               href="{{ url_for('admin.naver_ingest_triage', tab='all', status=h_status,
-                                place=None if history.place_pending else 'PENDING',
-                                dispatch=h_dispatch, rel=h_rel, q=h_q) }}">
-                {# 처리 탭의 '발주확인 할 차례' 칩은 **작업 대상**(취소·반품 제외)이고 이 칩은 이력
-                   표를 거르는 술어라 취소 집도 포함한다. 같은 라벨을 쓰면 같은 화면에서 두
-                   숫자가 어긋나 보인다 — 모집단을 라벨에 적는다. #}
-                발주확인 남음 · 취소 포함 {{ history.place_pending_count }}주문
-            </a>
-            <a class="wb-chip" aria-pressed="{{ 'true' if history.dispatch_pending else 'false' }}"
-               href="{{ url_for('admin.naver_ingest_triage', tab='all', status=h_status, place=h_place,
-                                dispatch=None if history.dispatch_pending else 'PENDING', rel=h_rel, q=h_q) }}">
-                {# 술어가 컬럼·JSONB 경로만 보므로 취소 집을 뺄 수 없다 — 옆 칩과 같은 이유로
-                   같은 꼬리를 단다(꼬리를 떼면 성질이 같은 두 칩이 다른 말을 하게 된다). #}
-                발송처리 남음 · 취소 포함 {{ history.dispatch_pending_count }}주문
-            </a>
-            <a class="wb-chip" aria-pressed="{{ 'true' if history.relation_filter else 'false' }}"
-               href="{{ url_for('admin.naver_ingest_triage', tab='all', status=h_status, place=h_place,
-                                dispatch=h_dispatch, rel=None if history.relation_filter else 'ADDON_REPAY',
-                                q=h_q) }}">
-                {# 가운뎃점 표기는 처리 탭 칩('추가결제·재결제')과 맞춘다 — 같은 화면에서
-                   같은 것을 두 표기로 쓰지 않는다. #}
-                추가결제·재결제 {{ history.relation_count }}주문
-            </a>
             {# 찾기는 **서버**가 한다(2026-09-02). 화면 필터로 두면 칸이 닿는 범위가 지금
                페이지뿐이라, 16쪽짜리 이력에서 이름을 쳐도 "0주문"이 나왔다(사용자 보고).
                좁힌 결과가 total·쪽수와 같은 술어에서 나오도록 쿼리스트링 `q` 로 보낸다.
@@ -1178,7 +1256,9 @@
                        글자로 없어서 여기서만 검색 대상이 된다. #}
                     <tr class="{{ 'wb-hist--muted' if row.claim_blocking else '' }}"
                         data-find="{{ (row.customer_name ~ ' ' ~ (row.external_order_no or '') ~ ' ' ~ (row.product or '') ~ ' ' ~ ('주문 ' ~ row.order_id if row.order_id else ''))|lower }}">
-                        <td class="wb-cmp__k">{{ row.created_at }}</td>
+                        {# 폰 카드(2026-09-29 폰 2단계)는 `09-28 23:52 받음` 짧은 꼴을 쓴다 — 데스크톱은
+                           CSS 가 짧은 꼴을 숨긴다. 짧은 꼴은 읽기 프로그램에 한 번 더 읽히지 않게 숨긴다. #}
+                        <td class="wb-cmp__k">{{ row.created_at }}{% if row.created_at %}<span class="wb-hist__when" aria-hidden="true">{{ row.created_at[5:16] }} 받음</span>{% endif %}</td>
                         <td>{{ row.customer_name }}</td>
                         <td>
                             {{ row.product }}
@@ -1189,8 +1269,9 @@
                             <div class="wb-cmp__option text-danger">{{ row.failure_reason }}</div>
                             {% endif %}
                         </td>
-                        <td class="wb-cmp__num">{{ row.quantity if row.quantity is not none else '–' }}</td>
-                        <td class="wb-cmp__num">{{ '{:,}'.format(row.amount) if row.amount is not none else '–' }}</td>
+                        {# `wb-hist__na` 는 값이 없는 칸 — 폰 카드는 `· –개`·`–원` 을 쓰지 않고 칸을 접는다. #}
+                        <td class="wb-cmp__num{{ ' wb-hist__na' if row.quantity is none else '' }}">{{ row.quantity if row.quantity is not none else '–' }}</td>
+                        <td class="wb-cmp__num{{ ' wb-hist__na' if row.amount is none else '' }}">{{ '{:,}'.format(row.amount) if row.amount is not none else '–' }}</td>
                         {# 상태 칸 — 축마다 한 줄(FOMS · 네이버 · 취소·반품).
                            예외 줄은 **값이 있을 때만** 낸다: 빈 칸이나 '–' 로 채우면
                            "값이 없다"와 "우리가 모른다"가 화면에서 같은 모양이 된다.
@@ -1290,6 +1371,9 @@
                                여기에만 두면 주문이 이미 생긴 집·취소 집에는 길이 없다. #}
                             <span class="small text-danger">취소·반품 진행 중 — 주문을 만들 수 없습니다.</span>
                             {% endif %}
+                            {# 폰 카드 셋째 줄 오른쪽(`FOMS #번호 ›` 자리)의 빈 꼴. 데스크톱은 CSS 가 숨긴다
+                               — 표에서는 빈 칸이 같은 뜻이다. #}
+                            {% if not row.order_id %}<span class="wb-hist__nofoms">FOMS 주문 없음</span>{% endif %}
                         </td>
                         {# 큐에서 빠진 집의 **네이버 원본**을 그 자리에서 연다. 지금까지는
                            ERP 주문 편집기를 새 탭으로 여는 길뿐이었는데, 거기에는 원본이
@@ -1474,5 +1558,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260929a" defer></script>
+<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260929b" defer></script>
 {% endblock %}

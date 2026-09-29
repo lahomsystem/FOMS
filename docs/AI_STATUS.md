@@ -10,7 +10,7 @@ Flask 3.1 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
-- [2026-09-29] **네이버 워크벤치 대조(gap) 탭 완전 삭제(deploy 대기)** — 사용자 결정. order_gap 서비스·pane 삭제, `?tab=gap` 은 처리 탭 폴백. 병행: 워크벤치 전체 모바일 목업(처리·이력·상세·관리 시트)
+- [2026-09-29] **네이버 워크벤치 모바일(deploy)** — 대조 탭 삭제 · 폰 상단 한 줄+탭 2 · 이력 카드+상태 시트. 남음: 전체 화면 상세, 관리 시트
 - [2026-09-28] **v3 셸 삭제 + 모바일 3건 + 광폭 PC 모바일 표면 생략 + PC 배지(PR #433·#434 · production `824b2c1d3`)** — `FOMS_V3_SHELL_COHORT` 는 v2 코호트 키(삭제 금지). 잔여: 아이폰 실기기 날짜 탭
 - [2026-09-29] **야간 purge 미실행 → 러너 `tools/cron/nightly.py`(deploy)** — cron 이 Dockerfile 빌드라 `A && B && C` 가 셸 없이 첫 명령만 돌았다(운영 만료 receipt 2952). 스테이징 하룻밤 확인 뒤 운영. 스펙 `docs/specs/2026-09-29-nightly-cron-single-runner-spec.md`
 - [2026-09-29] **psycopg3 단계 1 — 드라이버 이름 한 곳(PR #435 · production `0b356a0cb`)** — 동작 변화 0. 단계 2·3 승인 대기
