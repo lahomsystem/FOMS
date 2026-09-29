@@ -13,7 +13,7 @@ from sqlalchemy.orm.attributes import flag_modified
 logger = logging.getLogger(__name__)
 
 from db import get_db
-from models import Order, OrderAttachment, Notification, OrderEvent
+from models import Order, OrderAttachment, Notification, OrderEvent, User
 from foms.web.auth import login_required, get_user_by_id, log_access
 from foms.services.audit_message_display import describe_order_action
 from foms.services.common.table_version_counter import mark_tables_dirty
@@ -56,6 +56,27 @@ erp_orders_drawing_bp = Blueprint(
 
 #: REV-00 receipt scope 용 정책 id(전달·작업실 대기 전달 공용). 버전 올림은 엔진이 한다.
 DRAWING_TRANSFER_POLICY_ID = 'DRAWING_TRANSFER'
+
+
+def _drawing_notice_target(db, manager_name):
+    """도면 전달·전달취소 알림의 수신 대상 ``(target_team, target_manager_name)``.
+
+    라홈 → CS 팀, 하우드 → HAUDD 팀. 그 밖은 **담당 영업 본인만** 받는다 — 팀과 이름을
+    함께 넣으면 수신자 resolver 가 합집합을 만들어 영업팀 전원에게 퍼진다. 담당자 이름이
+    비었거나 활성 사용자와 맞지 않으면 알림이 사라지지 않도록 영업팀 전체로 되돌린다.
+    """
+    name = (manager_name or '').strip()
+    if '라홈' in name:
+        return 'CS', None
+    if '하우드' in name:
+        return 'HAUDD', None
+    if name:
+        matched = db.query(User.id).filter(
+            User.name == name, User.is_active == True  # noqa: E712
+        ).first()
+        if matched is not None:
+            return None, name
+    return 'SALES', None
 
 
 def perform_drawing_transfer(
@@ -287,21 +308,13 @@ def perform_drawing_transfer(
 
     manager_name = (((s_data.get('parties') or {}).get('manager') or {}).get('name') or '').strip()
     customer_name = (((s_data.get('parties') or {}).get('customer') or {}).get('name') or '').strip()
-    target_team = None
-    target_manager_name = None
+    target_team, target_manager_name = _drawing_notice_target(db, manager_name)
     notification_message = f"주문 #{order_id}"
     if customer_name:
         notification_message += f" ({customer_name})"
     notification_message += f" 도면이 준비되었습니다."
     if note:
         notification_message += f" 메모: {note}"
-    if '라홈' in manager_name:
-        target_team = 'CS'
-    elif '하우드' in manager_name:
-        target_team = 'HAUDD'
-    else:
-        target_team = 'SALES'
-        target_manager_name = manager_name if manager_name else None
 
     new_notification = Notification(
         order_id=order_id,
@@ -658,13 +671,7 @@ def api_order_cancel_transfer(order_id):
         try:
             _mgr = (((s_data.get('parties') or {}).get('manager') or {}).get('name') or '').strip()
             _cust = (((s_data.get('parties') or {}).get('customer') or {}).get('name') or '').strip()
-            if '라홈' in _mgr:
-                cancel_target_team = 'CS'
-            elif '하우드' in _mgr:
-                cancel_target_team = 'HAUDD'
-            else:
-                cancel_target_team = 'SALES'
-                cancel_target_manager = _mgr or None
+            cancel_target_team, cancel_target_manager = _drawing_notice_target(db, _mgr)
             _msg = f"주문 #{order_id}" + (f" ({_cust})" if _cust else "") + " 도면 전달이 취소되었습니다."
             cancel_notif = Notification(
                 order_id=order_id,

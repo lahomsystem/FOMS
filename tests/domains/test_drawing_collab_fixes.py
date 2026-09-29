@@ -1,7 +1,7 @@
 """도면 협업 수정 6건 — 백엔드(B) 계약.
 
 - 수령확정 상태 가드(TRANSFERRED 외 400, 전원 적용).
-- 전달취소 알림(DRAWING_TRANSFER_CANCELLED → 영업 매니저 라우팅 + fan_out).
+- 전달·전달취소 알림(→ 담당 영업 본인만, 이름 불일치면 영업팀 폴백 + fan_out).
 - 수정요청취소 알림(DRAWING_REVISION_CANCELLED → 도면팀 + fan_out).
 - Blueprint V3 죽은 라우트 404.
 - 워크벤치 include_confirmed 필터 + no_assignee 플래그.
@@ -119,12 +119,23 @@ def _transferred_order(manager_name):
     )
 
 
-def test_cancel_transfer_notifies_sales(client):
+def _state_user_ids(notif_id):
+    return {
+        uid
+        for (uid,) in db_session.query(NotificationUserState.user_id).filter(
+            NotificationUserState.notification_id == notif_id
+        )
+    }
+
+
+def test_cancel_transfer_notifies_owner_sales_only(client):
+    """담당 영업 본인만 받는다 — 같은 팀 다른 영업에게 퍼지지 않는다."""
     admin = _make_user("ct_admin1", role="ADMIN")
-    sales = _make_user("ct_sales", role="STAFF", team="SALES", name="영업원")
-    sales_id = sales.id
+    owner = _make_user("ct_owner", role="STAFF", team="SALES", name="영업김")
+    other = _make_user("ct_sales", role="STAFF", team="SALES", name="영업원")
+    owner_id, other_id = owner.id, other.id
     _login(client, admin)
-    order = _transferred_order("영업김")  # 라홈/하우드 아님 → SALES
+    order = _transferred_order("영업김")  # 라홈/하우드 아님 → 담당 영업
     oid = order.id
 
     res = client.post(f"/api/orders/{oid}/cancel-transfer")
@@ -137,13 +148,69 @@ def test_cancel_transfer_notifies_sales(client):
     )
     assert len(notifs) == 1
     n = notifs[0]
-    assert n.target_team == "SALES"
+    assert n.target_team is None
     assert n.target_manager_name == "영업김"
-    # fan_out: SALES 팀 유저 state 생성.
-    states = db_session.query(NotificationUserState).filter(
-        NotificationUserState.notification_id == n.id, NotificationUserState.user_id == sales_id
-    ).all()
-    assert len(states) == 1
+    recipients = _state_user_ids(n.id)
+    assert owner_id in recipients
+    assert other_id not in recipients
+
+
+def test_cancel_transfer_falls_back_to_sales_team_when_owner_unknown(client):
+    """담당자 이름이 활성 사용자와 안 맞으면 알림이 사라지지 않게 영업팀 전체로."""
+    admin = _make_user("ct_admin3", role="ADMIN")
+    sales = _make_user("ct_sales3", role="STAFF", team="SALES", name="영업원3")
+    sales_id = sales.id
+    _login(client, admin)
+    order = _transferred_order("퇴사한영업")
+    oid = order.id
+
+    res = client.post(f"/api/orders/{oid}/cancel-transfer")
+    assert res.status_code == 200 and res.get_json()["success"] is True
+
+    n = (
+        db_session.query(Notification)
+        .filter(Notification.order_id == oid, Notification.notification_type == "DRAWING_TRANSFER_CANCELLED")
+        .one()
+    )
+    assert n.target_team == "SALES"
+    assert n.target_manager_name is None
+    assert sales_id in _state_user_ids(n.id)
+
+
+def test_transfer_notifies_owner_sales_only(client):
+    """도면 전달 알림도 담당 영업 본인만 받는다."""
+    admin = _make_user("tr_admin", role="ADMIN")
+    owner = _make_user("tr_owner", role="STAFF", team="SALES", name="영업박")
+    other = _make_user("tr_sales", role="STAFF", team="SALES", name="영업최")
+    owner_id, other_id = owner.id, other.id
+    _login(client, admin)
+    order = _make_order(
+        manager_name="영업박",
+        sd={
+            "parties": {"customer": {"name": "홍길동"}, "manager": {"name": "영업박"}},
+            "workflow": {"stage": "DRAWING"},
+            "assignments": {"drawing_assignee_user_ids": [admin.id]},
+        },
+    )
+    oid = order.id
+
+    res = client.post(
+        f"/api/orders/{oid}/transfer-drawing",
+        json={"note": "", "mode": "APPEND",
+              "files": [{"key": f"orders/{oid}/drawing_gateway/revisions/a.png", "filename": "a.png"}]},
+    )
+    assert res.status_code == 200, res.get_json()
+
+    n = (
+        db_session.query(Notification)
+        .filter(Notification.order_id == oid, Notification.notification_type == "DRAWING_TRANSFERRED")
+        .one()
+    )
+    assert n.target_team is None
+    assert n.target_manager_name == "영업박"
+    recipients = _state_user_ids(n.id)
+    assert owner_id in recipients
+    assert other_id not in recipients
 
 
 def test_cancel_transfer_routes_cs_for_lahom_manager(client):
