@@ -388,7 +388,7 @@
                   }
                 } else if (canEdit && (isAdmin || ((isSalesTeam || isManager) && !isDrawingTeam))) {
                   // 수정요청을 낸 영업측: 요청 철회(전달취소의 대칭축) 가능.
-                  mainBtn = '<button class="btn btn-outline-warning" onclick="cancelDrawingRevisionRequest(' + orderId + ')"><i class="fas fa-rotate-left"></' + 'i> 수정요청 취소</' + 'button><div class="text-muted small mt-1"><i class="fas fa-info-circle"></' + 'i> 요청 시 첨부한 참고 파일이 삭제되고 <span class="text-danger fw-bold">도면 전달 상태로 복귀</span>합니다.</div>';
+                  mainBtn = '<button class="btn btn-outline-warning" onclick="cancelDrawingRevisionRequest(' + orderId + ')"><i class="fas fa-rotate-left"></' + 'i> 수정요청 취소</' + 'button><div class="text-muted small mt-1"><i class="fas fa-info-circle"></' + 'i> 취소해도 요청 기록과 참고 파일은 남고, 도면 전달 상태로 돌아갑니다.</div>';
                 } else {
                   mainBtn = '<button class="btn btn-secondary" disabled>수정 작업 대기중</button>';
                 }

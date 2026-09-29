@@ -204,7 +204,7 @@ showErpToast('오류가 발생했습니다.', 'error');
 }
 
 async function cancelDrawingRevisionRequest(orderId) {
-if (!confirm('수정 요청을 취소하시겠습니까?\n요청 시 첨부한 참고 파일이 함께 삭제되며, 도면 전달 상태로 복귀합니다.')) return;
+if (!confirm('수정 요청을 취소하시겠습니까?\n요청 기록과 참고 파일은 남고, 도면 전달 상태로 돌아갑니다.')) return;
 
 try {
 const res = await fetch(`/api/orders/${orderId}/cancel-revision-request`, { method: 'POST' });

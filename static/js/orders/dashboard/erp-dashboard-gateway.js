@@ -2,6 +2,7 @@ function drawingActionLabel(action) {
           const map = {
             TRANSFER: '도면 전달',
             REQUEST_REVISION: '수정 요청',
+            REVISION_CANCELLED: '수정요청 취소',
             CANCEL_TRANSFER: '전달 취소'
           };
           return map[action] || (action || '기타');
@@ -32,12 +33,13 @@ function drawingActionLabel(action) {
           return String((f && f.filename) || '첨부파일');
         }
 
+        // 저장된 URL 은 믿지 않는다(검증 없이 저장된 옛 값 — javascript: 가능). key 로만 만든다.
         function gatewayViewUrl(f) {
-          return String((f && f.view_url) || ((f && f.key) ? `/api/files/view/${f.key}` : '#'));
+          return (f && f.key) ? `/api/files/view/${f.key}` : '';
         }
 
         function gatewayDownloadUrl(f) {
-          return String((f && f.download_url) || ((f && f.key) ? `/api/files/download/${f.key}` : '#'));
+          return (f && f.key) ? `/api/files/download/${f.key}` : '';
         }
 
         function isGatewayImageFile(f) {
@@ -300,6 +302,9 @@ function drawingActionLabel(action) {
 
         function renderGatewayFiles(files, groupKey) {
           if (!Array.isArray(files) || files.length === 0) return '';
+          // key 가 없는 항목은 링크를 그리지 않고 개수만 알린다.
+          const hiddenCount = files.filter(f => !(f && f.key)).length;
+          files = files.filter(f => f && f.key);
 
           const imageFiles = files.filter(isGatewayImageFile);
           __drawingGatewayImageGroups[groupKey] = imageFiles;
@@ -336,11 +341,13 @@ function drawingActionLabel(action) {
             `;
           }).join('');
 
+          const hiddenNote = hiddenCount ? `<div class="small text-muted">첨부 ${hiddenCount}건은 여기서 열 수 없음</div>` : '';
           return `
             <div class="d-flex flex-wrap mt-1">
               ${imageItems}
               ${fileItems}
             </div>
+            ${hiddenNote}
           `;
         }
 
@@ -354,13 +361,18 @@ function drawingActionLabel(action) {
             const action = drawingActionLabel(h.action);
             const byName = escapeHtml(h.by_user_name || '알 수 없음');
             const when = escapeHtml(h.transferred_at || h.at || '');
-            const note = escapeHtml(h.note || '');
+            const note = escapeHtml(h.action === 'REVISION_CANCELLED'
+              ? (h.reason ? `취소 이유: ${h.reason}` : '')
+              : (h.note || ''));
+            const cancelledReq = (h.action === 'REVISION_CANCELLED' && h.request) ? h.request : null;
+            const cancelledNote = cancelledReq && cancelledReq.note ? escapeHtml(`원래 요청: ${cancelledReq.note}`) : '';
             const targetLabel = escapeHtml(drawingTargetLabel(h));
             const groupKey = `gateway_${idx}_${String(h.transferred_at || h.at || '').replace(/[^0-9A-Za-z]/g, '')}`;
             const filesHtml = renderGatewayFiles(h.files || [], groupKey);
             const badgeClass = h.action === 'REQUEST_REVISION'
               ? 'bg-danger'
-              : (h.action === 'TRANSFER' ? 'bg-primary' : 'bg-secondary');
+              : (h.action === 'TRANSFER' ? 'bg-primary'
+                : (h.action === 'REVISION_CANCELLED' ? 'bg-warning text-dark' : 'bg-secondary'));
             return `
               <div class="border rounded p-2 mb-2 bg-white">
                 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
@@ -372,6 +384,7 @@ function drawingActionLabel(action) {
                   <span class="small text-muted">${when}</span>
                 </div>
                 ${note ? `<div class="small mt-1">${note}</div>` : ''}
+                ${cancelledNote ? `<div class="small text-muted mt-1">${cancelledNote}</div>` : ''}
                 ${filesHtml}
               </div>
             `;

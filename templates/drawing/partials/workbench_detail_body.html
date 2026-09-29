@@ -33,8 +33,10 @@
     {% for f in files %}
     {% set fkey = (f.get('key') if f is mapping else '') or '' %}
     {% set fname = (f.get('filename') if f is mapping else '') or '파일' %}
-    {% set view_url = (f.get('view_url') if f is mapping else '') or ('/api/files/view/' ~ fkey) %}
-    {% set download_url = (f.get('download_url') if f is mapping else '') or ('/api/files/download/' ~ fkey) %}
+    {# 저장된 view_url·download_url 은 믿지 않는다(검증 없이 저장된 옛 값 — javascript: 가능, SPEC §4.3.4).
+       URL 은 key 로만 만들고 key 가 없으면 링크를 그리지 않는다. #}
+    {% set view_url = ('/api/files/view/' ~ fkey) if fkey else '' %}
+    {% set download_url = ('/api/files/download/' ~ fkey) if fkey else '' %}
     {% set lower = fname|lower %}
     {% set is_image = lower.endswith('.jpg') or lower.endswith('.jpeg') or lower.endswith('.png') or
     lower.endswith('.gif') or lower.endswith('.webp') or lower.endswith('.bmp') or lower.endswith('.svg') or
@@ -45,7 +47,7 @@
       <span class="badge bg-danger position-absolute top-0 start-0 m-1 shadow-sm"
         style="font-size: 0.65rem; z-index: 5; opacity: 0.9;">수정완료</span>
       {% endif %}
-      {% if is_image %}
+      {% if is_image and view_url %}
       <div class="drawing-gateway-thumb" data-group-key="{{ group_key }}" data-index="{{ loop.index0 }}"
         data-view-url="{{ view_url }}" data-download-url="{{ download_url }}" data-filename="{{ fname }}"
         data-key="{{ fkey }}"
@@ -59,9 +61,11 @@
       </div>
       {% endif %}
       <div class="small text-truncate mt-1" title="{{ fname }}" style="max-width: 110px;">{{ fname }}</div>
+      {% if download_url %}
       <a href="{{ download_url }}" target="_blank" rel="noopener" class="small text-muted">
         <i class="fas fa-download"></i>
       </a>
+      {% endif %}
     </div>
     {% endfor %}
   </div>
@@ -1326,6 +1330,7 @@
                   {% set action_badge = 'bg-secondary' %}
                   {% if h.action == 'TRANSFER' %}{% set action_badge = 'bg-primary' %}{% endif %}
                   {% if h.action == 'REQUEST_REVISION' %}{% set action_badge = 'bg-danger' %}{% endif %}
+                  {% if h.action == 'REVISION_CANCELLED' %}{% set action_badge = 'bg-warning text-dark' %}{% endif %}
                   {% if h.action == 'CONFIRM_RECEIPT' %}{% set action_badge = 'bg-success' %}{% endif %}
                   {% if h.action == 'ERP_ORDER_CHANGED' %}{% set action_badge = 'dw-order-change-badge' %}{% endif %}
                   <span class="badge {{ action_badge }}">{{ h.action_label }}</span>
@@ -1354,9 +1359,15 @@
               {% elif h.note %}
               <div class="small mt-1">{{ h.note }}</div>
               {% endif %}
-              {% if h.files %}
-              {{ render_gateway_file_gallery(h.files, 'timeline_' ~ loop.index0 ~ '_' ~ (h.event_key|replace(':','_')))
+              {% if h.cancelled_request_note %}
+              <div class="small text-muted mt-1">원래 요청: {{ h.cancelled_request_note }}</div>
+              {% endif %}
+              {% if h.gallery_files %}
+              {{ render_gateway_file_gallery(h.gallery_files, 'timeline_' ~ loop.index0 ~ '_' ~ (h.event_key|replace(':','_')))
               }}
+              {% endif %}
+              {% if h.gallery_hidden_count %}
+              <div class="small text-muted mt-1">첨부 {{ h.gallery_hidden_count }}건은 여기서 열 수 없음</div>
               {% endif %}
             </div>
             {% endfor %}
@@ -1652,7 +1663,7 @@
             {% for f in drawing_files %}
             {% set fkey = (f.get('key') if f is mapping else '') or '' %}
             {% set fname = (f.get('filename') if f is mapping else '') or '-' %}
-            {% set view_url = (f.get('view_url') if f is mapping else '') or ('/api/files/view/' ~ fkey) %}
+            {% set view_url = ('/api/files/view/' ~ fkey) if fkey else '' %}
             {% set lower = fname|lower %}
             {% set is_image = lower.endswith('.jpg') or lower.endswith('.jpeg') or lower.endswith('.png') or
             lower.endswith('.gif') or lower.endswith('.webp') %}
@@ -1662,7 +1673,7 @@
                 <input type="checkbox" class="drawing-target-checkbox d-none" value="{{ fkey }}">
                 <div class="drawing-target-preview mb-2"
                   style="height: 80px; overflow: hidden; border-radius: 6px; background: #f8f9fa;">
-                  {% if is_image %}
+                  {% if is_image and view_url %}
                   <img src="{{ view_url }}" alt="{{ fname }}" style="width: 100%; height: 100%; object-fit: cover;" {%
                     if fkey %} data-storage-key="{{ fkey }}" {% endif %}>
                   {% else %}
@@ -1742,7 +1753,7 @@
             {% for f in drawing_files %}
             {% set fkey = (f.get('key') if f is mapping else '') or '' %}
             {% set fname = (f.get('filename') if f is mapping else '') or '-' %}
-            {% set view_url = (f.get('view_url') if f is mapping else '') or ('/api/files/view/' ~ fkey) %}
+            {% set view_url = ('/api/files/view/' ~ fkey) if fkey else '' %}
             {% set lower = fname|lower %}
             {% set is_image = lower.endswith('.jpg') or lower.endswith('.jpeg') or lower.endswith('.png') or
             lower.endswith('.gif') or lower.endswith('.webp') %}
@@ -1753,7 +1764,7 @@
                 <input type="checkbox" class="revision-target-checkbox d-none" value="{{ fkey }}">
                 <div class="drawing-target-preview mb-2"
                   style="height: 80px; overflow: hidden; border-radius: 6px; background: #f8f9fa;">
-                  {% if is_image %}
+                  {% if is_image and view_url %}
                   <img src="{{ view_url }}" alt="{{ fname }}" style="width: 100%; height: 100%; object-fit: cover;" {%
                     if fkey %} data-storage-key="{{ fkey }}" {% endif %}>
                   {% else %}
@@ -2840,7 +2851,7 @@
     }
 
     async function cancelRevisionRequest() {
-      if (!confirm('수정 요청을 취소하시겠습니까?\n요청 시 첨부한 참고 파일이 함께 삭제되며, 도면 전달 상태로 복귀합니다.')) return;
+      if (!confirm('수정 요청을 취소하시겠습니까?\n요청 기록과 참고 파일은 남고, 도면 전달 상태로 돌아갑니다.')) return;
       try {
         const res = await fetch(`/api/orders/${orderId}/cancel-revision-request`, { method: 'POST' });
         const data = await res.json();

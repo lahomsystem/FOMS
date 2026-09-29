@@ -432,14 +432,13 @@ def test_asset_pins_bumped_to_20260920b():
     """
     # erp-quest-approve.js 는 2026-09-23 실측 통합 화면(복원 직전 이벤트)으로 다시 올라갔다.
     assert "erp-quest-approve.js') }}?v=20260923e" in _read("templates/partials/shared/layout_scripts.html")
-    # 2026-09-29 도면 게이트 2a-2: erp-pro.css 에 막힌 이유·경고 버튼 규칙을 더해 부모 핀,
-    # detail-dom 일괄 알림으로 entry 핀을 20260929k 로 올렸다(04 자식은 그대로).
-    assert "erp-dashboard-entry.js') }}?v=20260929k" in _read("templates/partials/shared/layout_scripts.html")
+    # 2026-09-29 2c-2 R4·2d·2a-2·2b 를 합치며 erp-pro.css 는 20260929k, detail-dom·entry 는 20260929l.
+    assert "erp-dashboard-entry.js') }}?v=20260929l" in _read("templates/partials/shared/layout_scripts.html")
     assert "erp-pro.css') }}?v=20260929k" in _read("templates/partials/shared/layout_head.html")
     assert "04-filter-table-badges-buttons.css?v=20260920b" in _read("static/css/foundation/erp-pro.css")
     entry = _read("static/js/orders/erp-dashboard-entry.js")
     assert "erp-dashboard-quest.js?v=20260921a" in entry
-    assert "erp-dashboard-detail-dom.js?v=20260929k" in entry
+    assert "erp-dashboard-detail-dom.js?v=20260929l" in entry
     for rel in ("templates/orders/dashboard.html", "templates/orders/partials/dashboard_main.html"):
         assert "foms-v2-cs-hero.css') }}?v=20260921a" in _read(rel)
     assert ".erp-btn-retransition" in _read("static/css/foundation/erp-pro/04-filter-table-badges-buttons.css")

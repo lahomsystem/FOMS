@@ -71,8 +71,9 @@ def _normalize_file_entry(entry: dict[str, Any]) -> dict[str, str]:
     return {
         "key": key,
         "filename": filename,
-        "view_url": (entry.get("view_url") or f"/api/files/view/{key}").strip(),
-        "download_url": (entry.get("download_url") or f"/api/files/download/{key}").strip(),
+        # 저장 URL 은 믿지 않는다(SPEC §4.3.4 — 검증 없이 저장된 옛 값). key 로만 만든다.
+        "view_url": f"/api/files/view/{key}" if key else "",
+        "download_url": f"/api/files/download/{key}" if key else "",
     }
 
 
