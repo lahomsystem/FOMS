@@ -97,14 +97,16 @@ def test_menu_button_opens_the_existing_global_menu(client, workbench_on, monkey
 
 
 def test_phone_top_bar_is_one_56px_row_with_menu_last():
-    """56px 한 줄: ‹ ERP(0) · 제목 상자(1) · 다시 읽기(2) · ☰(3) → 탭(4) → 사실(5)."""
+    """56px 한 줄: ‹ ERP(0) · 제목 상자(1) · 다시 읽기(2) · ☰(3) → 사실(5) → 탭(7).
+
+    탭이 맨 아래 줄인 까닭(2026-09-30 P1 · N-06): 머리줄이 음수 top 으로 붙어 탭 줄만 화면에 남는다."""
     phone, everywhere = _phone_css()
 
     assert "min-height: 56px" in _rule(phone, "    .naver-workbench .wb-bar--head")
     assert "order: 1;" in _rule(phone, "    .wb-bar__titlebox")
     menu = _rule(phone, "    .wb-menu")
     assert "order: 3;" in menu and "width: 44px;" in menu and "height: 44px;" in menu
-    assert "order: 4;" in phone.split("    .wb-tabs {")[-1].split("}")[0]
+    assert "order: 7;" in phone.split("    .wb-tabs {")[-1].split("}")[0]
     # 데스크톱: 제목 상자는 없는 것과 같다(contents) — 제목이 예전처럼 머리줄의 한 칸.
     assert ".wb-bar__titlebox { display: contents; }" in everywhere
     assert ".wb-bar__sub { display: none; }" in everywhere

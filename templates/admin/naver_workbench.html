@@ -19,7 +19,7 @@
 {% block title %}네이버 수집{% endblock %}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260930a">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260930b">
 {% endblock %}
 
 {% block content %}
@@ -236,7 +236,8 @@
                         <div class="wb-ghost__dim">{{ row.discard_block }}</div>
                         {% endif %}
                     </td>
-                    <td>
+                    {# `data-label` — 폰 카드(표 머리 없음)에서 이 칸의 이름표. 데스크톱 표는 쓰지 않는다. #}
+                    <td data-label="재결제 연결">
                         {% if row.repay_candidates %}
                         {% for cand in row.repay_candidates[:2] %}
                         <div><a href="{{ url_for('admin.naver_ingest_triage', tab='work', link_id=cand.link_id) }}">{{ cand.external_order_no }}</a></div>
@@ -248,11 +249,14 @@
                         {% endif %}
                     </td>
                     <td class="text-end">
+                        {# 이 칸의 버튼은 줄마다 나온다 — id 대신 클래스 + data-order-id 로 문다(감사 원장 N-35:
+                           같은 id 가 5번씩 겹쳐 스크린리더·자동화가 첫 줄만 가리켰다). pane 의 같은 버튼은
+                           한 벌이라 id 를 그대로 둔다. JS 는 클래스로 같은 핸들러를 부른다. #}
                         {% if row.repay_expected %}
                         {# 표시가 있으면 휴지통을 잠근다(사용자 결정 2026-09-14). 되돌릴 수 있는 표시라
                            문턱은 휴지통보다 낮다 — 이 화면을 쓰는 사람 누구나 풀 수 있다. #}
                         <span class="wb-ghost__repay">재결제 기다림</span>
-                        <button type="button" class="btn btn-sm btn-outline-secondary" id="wb-ghost-repay-expected"
+                        <button type="button" class="btn btn-sm btn-outline-secondary wb-ghost-repay-expected"
                                 data-order-id="{{ row.order_id }}"
                                 data-customer="{{ row.customer_name }}"
                                 data-expected="0">표시 풀기</button>
@@ -262,7 +266,7 @@
                         {# 접수 이후 단계도 접히되 **관리자가 사유를 적어야** 한다(2026-09-02).
                            `data-needs-reason` 이 있으면 JS 가 확인창 대신 사유 입력을 띄우고,
                            라우트도 같은 조건으로 막는다 — 한쪽만 좁히면 열린 버튼이 400 을 받는다. #}
-                        <button type="button" class="btn btn-sm btn-outline-danger" id="wb-ghost-discard"
+                        <button type="button" class="btn btn-sm btn-outline-danger wb-ghost-discard"
                                 data-order-id="{{ row.order_id }}"
                                 data-customer="{{ row.customer_name }}"
                                 data-stage="{{ row.status_label }}"
@@ -273,7 +277,7 @@
                         {# 바로 위 버튼이 `휴지통으로 보내기` — 한 칸에서 같은 낱말을 두 번 쓰지 않는다. #}
                         <div class="wb-ghost__dim">복구 가능</div>
                         {% endif %}
-                        <button type="button" class="btn btn-sm btn-outline-secondary" id="wb-ghost-repay-expected"
+                        <button type="button" class="btn btn-sm btn-outline-secondary wb-ghost-repay-expected"
                                 data-order-id="{{ row.order_id }}"
                                 data-customer="{{ row.customer_name }}"
                                 data-expected="1">재결제 예정</button>
@@ -290,7 +294,7 @@
                         {# 확정 전 건이야말로 재결제 예정이 가장 흔하다 — 라우트도 확정 전을
                            명시적으로 허용한다. 이 갈래에 표시 버튼이 없으면 pane 에서만 열려
                            같은 기능이 두 화면에서 다른 조건으로 서게 된다. #}
-                        <button type="button" class="btn btn-sm btn-outline-secondary" id="wb-ghost-repay-expected"
+                        <button type="button" class="btn btn-sm btn-outline-secondary wb-ghost-repay-expected"
                                 data-order-id="{{ row.order_id }}"
                                 data-customer="{{ row.customer_name }}"
                                 data-expected="1">재결제 예정</button>
@@ -410,7 +414,7 @@
                         <span class="wb-ghost__claim">{% if row.dispatched %}반품{% else %}취소{% endif %}</span>
                         <div class="wb-ghost__dim">{% if row.dispatched %}이미 발송 처리된 주문{% else %}발송 전{% endif %}</div>
                     </td>
-                    <td>
+                    <td data-label="마지막으로 읽은 때">
                         {% if row.stale %}
                         <span class="wb-ghost__claim wb-ghost__claim--pending">새 결제 뒤로 확인 안 함</span>
                         <div class="wb-ghost__dim">그 사이 고객이 스스로 취소했을 수 있습니다.</div>
@@ -871,6 +875,31 @@
                 {% set row_kind = group.row_kind %}
                 {# 벌크는 '아직 발주확인 안 된, 손대도 되는 집' 에만 연다(계약 §2.2 place 술어와 같다). #}
                 {% set can_pick = group.can_pick %}
+                {# 줄 상자(2026-09-30 P1 · 감사 원장 N-07·N-36) — 체크박스를 줄 링크(`a.wb-row`) **밖**
+                   형제로 뺐다. 링크 안에 있으면 대화형 요소가 겹치고(스크린리더 혼란), 폰에서 흐린
+                   체크박스를 누른 손가락이 링크에 닿아 상세가 열렸다. 링크(`a.wb-row`)의 클래스·
+                   data-*·href 는 그대로다 — JS·테스트가 그 줄을 문다. 상자는 배치와 찾기 숨김만 맡는다.
+                   고를 수 없는 줄의 체크박스는 데스크톱에서 예전처럼 흐리게 보이고(왜 못 고르는지
+                   title), 폰에서는 그리지 않는다(CSS). `--pick` 이 폰에서 체크 칸(52px)을 연다. #}
+                <div class="wb-rowbox{{ ' wb-rowbox--pick' if can_pick else '' }}">
+                {# 선택은 집 단위다 — 상품주문마다 체크박스를 두면 같은 집을 여러 번 고른다.
+                   data-count 는 모달 재진술("N집 · 상품주문 M건")의 M 을 JS 가 더하는 값이다.
+                   **집 전체에서 발주확인이 남은 건수**를 쓴다.
+                    · group.count(화면 모집단)는 확인이 끝난 형제가 있으면 워커가 처리할
+                      수보다 **작다** — "1건 보냅니다" 라고 읽고 3건이 나간다(리뷰 H2).
+                    · household_count(집 전체)는 반대로 **크다** — 서버
+                      confirm_place_order 가 이미 확인된 형제를 빼기 때문이다
+                      (계약 §0-2, 2026-08-23 CEO 검수). 술어는 fulfillment.is_place_pending. #}
+                <label class="wb-pickbox{{ '' if can_pick else ' wb-pickbox--off' }}">
+                    <input type="checkbox" class="wb-pick"
+                           data-group-id="{{ group.id }}"
+                           data-name="{{ group.customer_name }}"
+                           data-count="{{ group.household_place_pending or group.household_count or group.count }}"
+                           {% if not can_pick %}disabled
+                           title="{% if group.claim_blocking %}취소·반품 주문은 고를 수 없습니다{% elif group.canceled %}취소한 주문은 고를 수 없습니다{% else %}이미 발주확인이 끝났습니다{% endif %}"
+                           {% else %}title="여러 주문을 한 번에 발주확인"{% endif %}
+                           aria-label="{{ group.customer_name }} 선택">
+                </label>
                 {# 찾기 대상 텍스트를 행이 직접 들고 있는다. JS 가 여러 자식 요소를 훑어
                    조립하면 마크업이 바뀔 때마다 조용히 안 걸린다. 주문번호는 행 어디에도
                    글자로 없어서(배지는 '주문 #N' = FOMS 주문) 여기서만 검색 대상이 된다. #}
@@ -889,22 +918,8 @@
                                              or group.id in selected_group.link_ids) %}aria-current="true"{% endif %}
                    href="{{ url_for('admin.naver_ingest_triage', tab='work', f=active_filter, link_id=group.id) }}">
                     <span class="wb-row__bar"></span>
-                    {# 선택은 집 단위다 — 상품주문마다 체크박스를 두면 같은 집을 여러 번 고른다.
-                       data-count 는 모달 재진술("N집 · 상품주문 M건")의 M 을 JS 가 더하는 값이다.
-                       **집 전체에서 발주확인이 남은 건수**를 쓴다.
-                        · group.count(화면 모집단)는 확인이 끝난 형제가 있으면 워커가 처리할
-                          수보다 **작다** — "1건 보냅니다" 라고 읽고 3건이 나간다(리뷰 H2).
-                        · household_count(집 전체)는 반대로 **크다** — 서버
-                          confirm_place_order 가 이미 확인된 형제를 빼기 때문이다
-                          (계약 §0-2, 2026-08-23 CEO 검수). 술어는 fulfillment.is_place_pending. #}
-                    <input type="checkbox" class="wb-pick"
-                           data-group-id="{{ group.id }}"
-                           data-name="{{ group.customer_name }}"
-                           data-count="{{ group.household_place_pending or group.household_count or group.count }}"
-                           {% if not can_pick %}disabled
-                           title="{% if group.claim_blocking %}취소·반품 주문은 고를 수 없습니다{% elif group.canceled %}취소한 주문은 고를 수 없습니다{% else %}이미 발주확인이 끝났습니다{% endif %}"
-                           {% else %}title="여러 주문을 한 번에 발주확인"{% endif %}
-                           aria-label="{{ group.customer_name }} 선택">
+                    {# 체크박스가 서던 칸(데스크톱 15px) — 체크박스는 링크 밖 형제(위 label)가 이 칸 위에 선다. #}
+                    <span class="wb-row__pickslot" aria-hidden="true"></span>
                     <span class="wb-row__body">
                         <span class="wb-row__line1">
                             <span class="wb-row__name">{{ group.customer_name }}</span>
@@ -933,6 +948,7 @@
                         </span>
                     </span>
                 </a>
+                </div>
                 {% else %}
                 {# `전체` 칩이 숫자를 달고 바로 위에 있다 — 사용법은 말하지 않는다.
                    빈 처리 목록(2026-09-29 폰 1단계 목업)은 "할 일이 없다" 를 먼저 말하고, 사람이
@@ -1146,7 +1162,9 @@
             <div class="wb-ingest__sub">{{ ingest_status.expiry.days_left }}일 남음</div>
             {% endif %}
             {% else %}
-            <div class="wb-ingest__v text-warning">미등록</div>
+            {# `wb-expiry-unset` — 폰 관리 시트에서 연노랑 상자 + 진한 주황 글자(감사 원장 N-10, 1.63:1 → 4.8:1).
+               데스크톱 카드는 그대로다. #}
+            <div class="wb-ingest__v text-warning wb-expiry-unset">미등록</div>
             <div class="wb-ingest__sub">만료일을 모르면 만료 경고를 보낼 수 없습니다.</div>
             {% endif %}
             {# 값은 API 로 못 읽는다 — 커머스API센터의 `인증 기한` 끝 날짜를 사람이 보고
@@ -1396,11 +1414,13 @@
                                     <div class="wb-st__v">
                                         {# 추가결제·재결제 집이 대표가 붙은 그 주문을 가리키면 `주문 만듦` 은 접는다
                                            (2026-09-10 사용자 지시) — 판정은 서버(`row.foms_badge_hidden`), 여기는 분기뿐. #}
+                                        {# `--st-<상태>`·`--rel-new` 는 폰 카드가 "거의 모든 카드에 똑같이 붙는" 두 배지
+                                           (받아옴 · 신규 결제)를 접는 손잡이다(감사 원장 N-14). 색은 여전히 tone 클래스가 든다. #}
                                         {% if not row.foms_badge_hidden %}
-                                        <span class="wb-st__b wb-st__b--{{ foms_tone }}">{{ row.foms_label }}</span>
+                                        <span class="wb-st__b wb-st__b--{{ foms_tone }} wb-st__b--st-{{ row.foms_state }}">{{ row.foms_label }}</span>
                                         {% endif %}
                                         {% if row.relation == 'NEW' %}
-                                        <span class="wb-st__b wb-st__b--ghost">{{ row.relation_label }}</span>
+                                        <span class="wb-st__b wb-st__b--ghost wb-st__b--rel-new">{{ row.relation_label }}</span>
                                         {% elif row.relation in ('ADDON', 'REPAY') %}
                                         {# 상대 주문번호가 없으면 화살표와 번호를 **아예 안 낸다** —
                                            `→ #None` 은 사람이 눌러 볼 수 있는 거짓말이 된다. #}
@@ -1670,5 +1690,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260930a" defer></script>
+<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260930b" defer></script>
 {% endblock %}

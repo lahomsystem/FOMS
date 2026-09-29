@@ -381,11 +381,30 @@
     color: inherit;
 }
 
-/* 체크박스를 .wb-row 의 직계 자식으로 놓을 때만 칸을 하나 더 연다.
-   .wb-row__line1 안에 넣는 기존 마크업은 이 규칙 없이도 그대로 동작한다. */
+/* 체크박스 칸을 하나 더 연다. 체크박스는 2026-09-30(P1 · N-36)부터 줄 링크 **밖** 형제(label)라
+   링크 안에는 같은 폭(15px)의 빈 칸(.wb-row__pickslot)만 남는다 — 데스크톱 화면은 예전과 같다. */
 .wb-row--pick { grid-template-columns: 5px auto 1fr; }
-/* :has() 미지원 브라우저에서 선택자 목록이 통째로 죽지 않게 규칙을 나눠 둔다. */
-.wb-row:has(> input.wb-pick) { grid-template-columns: 5px auto 1fr; }
+.wb-row__pickslot { width: 15px; }
+
+/* 줄 상자 = [체크 label] + [줄 링크]. 체크 label 은 링크의 빈 칸 위에 겹쳐 선다(예전 자리 그대로:
+   색띠 5 + 틈 10 = 왼쪽 15px, 윗 여백 12px). 찾기로 숨길 때는 상자째 숨는다(JS applyFind). */
+.wb-rowbox { position: relative; }
+.wb-rowbox[hidden] { display: none; }
+.wb-pickbox {
+    position: absolute;
+    top: 12px;
+    left: 15px;
+    z-index: 1;
+    display: flex;
+    margin: 0;
+    line-height: 0;
+}
+/* 잠긴 체크박스 칸은 누름을 **줄에게 넘긴다**(아래 `.wb-pick:disabled` 와 같은 규칙) —
+   label 이 링크 밖이 되었으므로 label 도 함께 비켜야 같은 탭이 a.wb-row 에 닿는다. */
+.wb-pickbox--off { pointer-events: none; }
+/* 체크 칸 위에 손을 올려도 줄이 함께 밝아진다(예전에는 체크박스가 링크 안이라 저절로 그랬다). */
+.wb-pickbox:hover + .wb-row { background: var(--wb-surface-soft); }
+.wb-pickbox:hover + .wb-row[aria-current="true"] { background: var(--wb-accent-soft, #eaf1ff); }
 
 .wb-row:hover { background: var(--wb-surface-soft); color: inherit; text-decoration: none; }
 .wb-row[aria-current="true"] { background: var(--wb-accent-soft, #eaf1ff); }
@@ -439,9 +458,6 @@ input.wb-pick,
     vertical-align: middle;
 }
 
-/* .wb-row 직계 자식으로 놓였을 때 첫 줄 글자 높이에 맞춘다. */
-.wb-row > input.wb-pick { align-self: start; margin-top: 12px; }
-
 input.wb-pick:disabled,
 #wb-pick-all:disabled { cursor: not-allowed; opacity: .45; }
 /* 이름이 길면 날짜를 칸 밖으로 밀어낸다 — 밀리는 쪽은 이름이어야 한다. */
@@ -476,6 +492,14 @@ input.wb-pick:disabled,
    한 줄을 넘겼다 — 정보를 지우지 않고 폭만 되찾는다(2026-08-23 실측: 이 세 손질로
    58행이 전부 같은 높이가 됐다). 상세·모달 배지는 그대로 둔다. */
 .wb-row__line3 .badge { padding: 4px 7px; font-size: calc(11px * var(--wb-fs, 1)); }
+/* '주문 만들기'·'규격 입력' 배지(서버 `_row_badges` 의 bg-primary) — 파란 채움은 버튼처럼 보이는데
+   누를 수 없었다(2026-09-30 P1 · 감사 원장 N-08). 모든 폭에서 옅은 바탕 라벨로 낮춘다: 채움 색은
+   실제 버튼에만. 글자 #4a55b8 on #f3f4ff = 5.85:1. `!important` 는 Bootstrap `.bg-primary` 를 이기는
+   같은 무기다(`.wb-badge--done` 과 같은 꼴). 서버 클래스는 그대로(pane 값으로 다시 그리는 JS 가 같은 이름을 쓴다). */
+.naver-workbench .wb-row__line3 .badge.bg-primary {
+    background-color: #f3f4ff !important;
+    color: #4a55b8 !important;
+}
 /* 접수시각은 배지 줄이 아니라 **이름 줄 오른쪽**에 산다. 배지 줄에 두면 날짜가
    폭을 먹어 배지 한 개가 아래로 밀리고, 그 행만 한 줄 더 높아진다(사용자 지적).
    이름 줄은 오른쪽이 통째로 비어 있어 날짜가 들어갈 자리가 이미 있다. */
@@ -1630,6 +1654,10 @@ input.wb-pick:disabled,
 .wb-layer__acts { display: none; }
 .wb-icard { display: none; }
 .wb-ingest__phone { display: none; }
+/* P1(2026-09-30) 폰 상품 카드 부품 — 데스크톱 표에서는 없는 것과 같다. 상품주문번호를 여닫는 줄(summary)은
+   숨기고(번호는 늘 펼친 채 · 예전처럼 칸 첫 줄), 금액 뒤 `원` 은 표 머리 `금액` 이 말하므로 숨긴다. */
+.wb-mno__sum,
+.wb-won { display: none; }
 
 /* 빈 처리 목록 — "할 일 없음" 을 먼저, 다음에 볼 곳(이력)으로 가는 길을 준다(모든 폭 같은 문구). */
 .wb-empty--done { display: flex; flex-direction: column; align-items: center; gap: 6px; }
@@ -1790,9 +1818,7 @@ input.wb-pick:disabled,
     /* 띠 안의 표는 **자기 칸 안에서만** 가로로 민다 — 페이지 전체가 옆으로 밀리지 않게.
        최소 폭을 주지 않으면 한글이 음절마다 꺾여 칸이 한 글자 폭으로 찌그러진다. */
     .wb-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-    .wb-scroll > .wb-ghost__list { min-width: 640px; }
-    /* 실패 표는 사유 칸만 폭이 없다(나머지 칸 556px 고정) — 사유가 음절마다 꺾이지 않게 넉넉히 준다. */
-    .wb-scroll > .wb-result__list { min-width: 820px; }
+    /* 띠 표의 폰 모양(주문마다 카드)은 아래 'P1 과업' 절이 든다 — 예전 640·820px 최소 폭은 걷었다(N-04). */
     .wb-ghost__head .btn,
     .wb-ghost .btn-sm { min-height: 44px; }
     .wb-bulkdispatch__linkline { overflow-wrap: anywhere; }
@@ -1881,7 +1907,6 @@ input.wb-pick:disabled,
     }
     input.wb-pick:focus-visible,
     #wb-pick-all:focus-visible { outline: 2px solid var(--wb-accent); outline-offset: -4px; }
-    .wb-row > input.wb-pick { align-self: start; margin-top: 2px; }
 
     /* ── 벌크 바: 화면 아래에 붙는다(고른 게 있을 때만 — `.on` 규칙은 위 그대로) ──
        목록 위에 두면 아래로 훑는 동안 바가 화면 밖으로 사라진다. 마지막 줄이 바 밑에
@@ -2013,14 +2038,15 @@ input.wb-pick:disabled,
     }
     .wb-menu[aria-expanded="true"] { background: #eef0f3; color: #14171c; }
     .wb-menu:focus-visible { outline: 2px solid #4a55b8; outline-offset: -2px; }
-    /* 줄 순서: 한 줄(0~3) → 탭(4) → 사실(5) → 글자 버튼(진행·방금 다 읽음, 6). */
+    /* 줄 순서: 한 줄(0~3) → 사실(5) → 글자 버튼(진행·방금 다 읽음, 6) → 탭(7, 머리 고정 때 남는 줄). */
     #wb-refresh-all-idle,
     #wb-refresh-all:disabled,
     #wb-refresh-all-running { order: 6; flex: 1 1 100%; }
 
-    /* ── 탭: 두 칸 세그먼트(바탕 회색, 고른 칸 흰색) · 칸 44px ── */
+    /* ── 탭: 두 칸 세그먼트(바탕 회색, 고른 칸 흰색) · 칸 44px ──
+       탭은 머리줄의 **맨 아래 줄**이다(P1 · N-06): 머리줄이 음수 top 으로 붙어 탭 줄만 화면에 남는다. */
     .wb-tabs {
-        order: 4;
+        order: 7;
         gap: 4px;
         padding: 4px;
         border: 0;
@@ -2611,4 +2637,328 @@ input.wb-pick:disabled,
         font-size: calc(16px * var(--wb-fs, 1));
         font-weight: 800;
     }
+
+    /* ══ P1 과업 (2026-09-30 · 감사 원장 N-04·N-05·N-06·N-07·N-09·N-10·N-14·N-36) ══════════════
+       데스크톱은 이 절의 영향을 받지 않는다(폰 미디어 쿼리 안). N-08(채움 배지)만 모든 폭 규칙이다(위). */
+
+    /* ── N-06 머리 고정: 탭 줄 + 도구줄(보기 칩 · 정렬 · 찾기)이 스크롤을 따라온다 ──
+       머리줄은 음수 top(--wb-head-stick)으로 붙어 제목·사실 줄은 올라가고 탭 줄만 남는다. 도구줄은
+       그 밑(--wb-tools-top)에 붙는다. 두 값은 JS(syncStickyHead)가 줄 높이를 재서 넣는다 — 사실 줄·진행
+       문구가 있으면 높이가 달라진다. 목록 채우기(줄 수·순서)는 건드리지 않는다. */
+    .naver-workbench .wb-bar--head {
+        position: sticky;
+        top: var(--wb-head-stick, 0px);
+        z-index: 4;
+    }
+    .naver-workbench .wb-bar--tools {
+        position: sticky;
+        top: var(--wb-tools-top, 0px);
+        z-index: 3;
+        box-shadow: 0 4px 8px -6px rgba(20, 23, 28, .25);
+    }
+    /* 360 폭에서 정렬 + 찾기가 한 줄에 서게 찾기 칸 하한을 낮춘다(고정 머리 높이를 줄인다). */
+    .wb-bar--tools .wb-find { flex: 1 1 120px; }
+
+    /* ── N-07 · N-36 체크 칸: 고를 수 있는 줄에만, 링크 밖 52px 칸 ──
+       고를 수 없는 줄은 체크박스를 그리지 않고(흐린 체크박스 0개) 내용이 줄 폭 전체를 쓴다.
+       고를 수 있는 줄은 색띠 오른쪽 52px 칸 전체(줄 높이 전체)가 체크 칸이다 — 누르면 체크될 뿐
+       상세가 열리지 않는다(체크 칸은 링크 밖 형제라 링크에 닿지 않는다). */
+    .wb-row,
+    .wb-row--pick { grid-template-columns: 5px minmax(0, 1fr); }
+    .wb-row__pickslot { display: none; }
+    .wb-pickbox { display: none; }
+    .wb-rowbox:not(.wb-rowbox--pick) .wb-row__body { padding-left: 8px; }
+    .wb-rowbox--pick > .wb-row { grid-template-columns: 5px 52px minmax(0, 1fr); }
+    .wb-rowbox--pick > .wb-row > .wb-row__pickslot { display: block; width: 52px; }
+    .wb-rowbox--pick > .wb-pickbox {
+        top: 0;
+        bottom: 1px;                         /* 줄 아래 선은 남긴다 */
+        left: 5px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 60px;                         /* 틈 4 + 칸 52 + 틈 4 — 줄 높이 전체가 누르는 자리 */
+        cursor: pointer;
+    }
+
+    /* ── N-09 잠긴 줄 대비: 흐림(opacity .62, 2.40:1) 대신 옅은 면 + 보조 글자 ──
+       #4b525d on #f7f8fa = 7.3:1. 상태 배지는 채움 대신 옅은 바탕 라벨(위험 #b91c1c on #fef2f2 5.91:1,
+       회색 #4b525d on #eef0f3 6.9:1). 끊긴 띠 · 이름 취소선 · '손대지 않음' 글자는 그대로다. */
+    .wb-row--stop .wb-row__body,
+    .wb-row--locked .wb-row__body { opacity: 1; }
+    .wb-row--stop,
+    .wb-row--locked { background: #f7f8fa; }
+    .wb-row--locked:hover { background: #f7f8fa; }
+    .wb-row--stop .wb-row__name,
+    .wb-row--locked .wb-row__name,
+    .wb-row--stop .wb-row__line2,
+    .wb-row--locked .wb-row__line2,
+    .wb-row--stop .wb-row__when,
+    .wb-row--locked .wb-row__when { color: #4b525d; }
+    .wb-can--stop { color: #4b525d; }
+    .naver-workbench .wb-row__line3 .badge.bg-danger {
+        background-color: #fef2f2 !important;
+        color: #b91c1c !important;
+    }
+    .naver-workbench .wb-row__line3 .badge.bg-secondary {
+        background-color: #eef0f3 !important;
+        color: #4b525d !important;
+    }
+
+    /* ── N-04 · N-35 경고 띠 표 → 주문마다 카드 ──
+       요약 띠를 펼치면 안의 띠도 함께 펴진다(접기 한 번 · JS openAlertStrips). 표 칸은 위에서 아래로
+       쌓이고, 마지막 칸(할 일·열기)의 버튼은 한 줄에 반씩(44px) — 가로 스크롤 없이 늘 보인다. */
+    .wb-scroll > .wb-ghost__list,
+    .wb-scroll > .wb-result__list { display: block; min-width: 0; }
+    .wb-ghost__list thead { display: none; }
+    .wb-ghost__list tbody,
+    .wb-result__list tbody { display: flex; flex-direction: column; }
+    .wb-ghost__list tr,
+    .wb-result__list tr {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        padding: 12px;
+        border-top: 1px solid #dde1e6;
+    }
+    .wb-ghost__list td,
+    .wb-result__list td {
+        display: block;
+        padding: 0;
+        border: 0;
+        overflow-wrap: anywhere;
+        word-break: keep-all;
+        font-size: calc(14px * var(--wb-fs, 1));
+    }
+    .wb-ghost__list td:first-child,
+    .wb-result__list td:first-child {
+        color: #14171c;
+        font-size: calc(16px * var(--wb-fs, 1));
+        font-weight: 800;
+    }
+    .wb-ghost__list td:first-child .wb-ghost__dim { font-weight: 700; }
+    .wb-ghost__list .wb-ghost__dim,
+    .wb-ghost__list .wb-ghost__meas { font-size: calc(13px * var(--wb-fs, 1)); }
+    .wb-ghost__dim { color: #4b525d; }
+    .wb-ghost__list td:last-child,
+    .wb-result__list td:last-child {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+        margin-top: 6px;
+        text-align: left !important;         /* `.text-end`(!important) 를 이긴다 — 카드는 왼쪽부터 */
+    }
+    .wb-ghost__list td:last-child > .btn,
+    .wb-result__list td:last-child > .btn {
+        flex: 1 1 0;
+        min-width: calc(50% - 4px);
+        min-height: 44px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: calc(14px * var(--wb-fs, 1));
+        line-height: 1.25;
+    }
+    .wb-ghost__list td:last-child > :not(.btn) { order: 1; flex: 1 1 100%; }
+    /* 표 머리가 없는 카드에서 뜻이 빈 칸(예: `없음`)에만 이름표를 붙인다(`data-label`). */
+    .wb-ghost__list td[data-label]::before {
+        content: attr(data-label) " · ";
+        color: #4b525d;
+        font-weight: 700;
+    }
+
+    /* ── N-05 상세 상품주문 표 → 상품 카드(잘리는 칸 0) ──
+       1줄 제품명(16px) + 금액 오른쪽 · 옵션 원문 상자 · 2줄 본품/추가구성 · 수량 · 클레임 ·
+       접어 둔 상품주문번호(누르면 펼침). 합계는 끝에 한 장 더. 같은 표 마크업을 CSS 로 편다. */
+    #wb-pane .wb-cmp--members { display: block; min-width: 0; }
+    #wb-pane .wb-cmp--members thead { display: none; }
+    #wb-pane .wb-cmp--members tbody,
+    #wb-pane .wb-cmp--members tfoot { display: flex; flex-direction: column; gap: 8px; }
+    #wb-pane .wb-cmp--members tfoot { margin-top: 8px; }
+    #wb-pane .wb-cmp--members tr {
+        display: grid;
+        grid-template-columns: auto auto minmax(0, 1fr) auto;
+        align-items: start;
+        gap: 6px 8px;
+        padding: 12px;
+        border: 1px solid #dde1e6;
+        border-radius: 12px;
+        background: #ffffff;
+    }
+    #wb-pane .wb-cmp--members td {
+        display: block;
+        width: auto;
+        min-width: 0;
+        padding: 0;
+        border: 0;
+        text-align: left;
+        color: #14171c;
+        font-size: calc(14px * var(--wb-fs, 1));
+    }
+    /* 1줄: 제품 · 옵션 원문 | 금액 */
+    #wb-pane .wb-cmp--members tbody td:nth-child(2) { grid-row: 1; grid-column: 1 / 4; }
+    #wb-pane .wb-cmp--members tbody td:nth-child(2) > .fw-semibold {
+        font-size: calc(16px * var(--wb-fs, 1));
+        font-weight: 800;
+        line-height: 1.35;
+        overflow-wrap: anywhere;
+        word-break: keep-all;
+    }
+    #wb-pane .wb-cmp--members .wb-cmp__option {
+        margin-top: 6px;
+        padding: 6px 8px;
+        border-radius: 8px;
+        background: #f7f8fa;
+        color: #4b525d;                      /* #f7f8fa 위 7.3:1 */
+        font-size: calc(13px * var(--wb-fs, 1));
+        overflow-wrap: anywhere;
+    }
+    #wb-pane .wb-cmp--members tbody td:nth-child(5) {
+        grid-row: 1;
+        grid-column: 4;
+        text-align: right;
+        white-space: nowrap;
+        font-size: calc(16px * var(--wb-fs, 1));
+        font-weight: 800;
+    }
+    #wb-pane .wb-cmp--members .wb-cmp__coupon,
+    #wb-pane .wb-cmp--members .wb-cmp__remain {
+        color: #4b525d;
+        font-size: calc(12px * var(--wb-fs, 1));
+        font-weight: 600;
+    }
+    /* 2줄: 본품/추가구성 라벨 · 수량 · 클레임(칸째 오른쪽 나머지) */
+    #wb-pane .wb-cmp--members td.wb-cmp__k { display: contents; }
+    #wb-pane .wb-cmp--members td.wb-cmp__k > div:first-of-type {
+        grid-row: 2;
+        grid-column: 1;
+        align-self: start;
+        padding: 2px 8px;
+        border-radius: 8px;
+        background: #eef0f3;
+        color: #4b525d !important;           /* `.text-muted`(!important) 를 이긴다 — #eef0f3 위 6.9:1 */
+        font-size: calc(12px * var(--wb-fs, 1));
+        font-weight: 800;
+        white-space: nowrap;
+    }
+    #wb-pane .wb-cmp--members td.wb-cmp__k > div.text-warning:first-of-type {
+        background: #fffbeb;
+        color: #b45309 !important;           /* 구성 미상 — #fffbeb 위 4.84:1 */
+    }
+    #wb-pane .wb-cmp--members td.wb-cmp__k > div + div {
+        grid-row: 3;
+        grid-column: 1 / -1;
+        color: #4b525d !important;
+        font-size: calc(12px * var(--wb-fs, 1));
+    }
+    #wb-pane .wb-cmp--members tbody td:nth-child(4) {
+        grid-row: 2;
+        grid-column: 2;
+        white-space: nowrap;
+        font-size: calc(13px * var(--wb-fs, 1));
+        font-weight: 700;
+        line-height: 1.6;
+    }
+    #wb-pane .wb-cmp--members tbody td:nth-child(4)::before { content: "수량 "; color: #4b525d; font-weight: 600; }
+    #wb-pane .wb-cmp--members tbody td:nth-child(3) {
+        grid-row: 2;
+        grid-column: 3 / 5;
+        white-space: normal !important;      /* `.text-nowrap` — 카드 폭 안에서 접는다 */
+        font-size: calc(13px * var(--wb-fs, 1));
+        line-height: 1.6;
+    }
+    #wb-pane .wb-cmp--members tbody td:nth-child(3) .small { font-size: calc(12px * var(--wb-fs, 1)); }
+    #wb-pane .wb-cmp--members tbody td:nth-child(3) .text-muted { color: #4b525d !important; }
+    /* 접은 상품주문번호 — 누르는 줄 44px, 펼치면 번호가 한 줄(길게 눌러 복사). */
+    #wb-pane .wb-mno { grid-row: 4; grid-column: 1 / -1; margin-top: 2px; border-top: 1px solid #eef0f3; }
+    #wb-pane .wb-mno__sum {
+        display: flex;
+        align-items: center;
+        min-height: 44px;
+        color: #4a55b8;                      /* 흰 바탕 6.4:1 */
+        font-size: calc(13px * var(--wb-fs, 1));
+        font-weight: 700;
+        list-style: none;
+        cursor: pointer;
+    }
+    #wb-pane .wb-mno__sum::-webkit-details-marker { display: none; }
+    #wb-pane .wb-mno__sum::after { content: "\203A"; margin-left: 6px; }
+    #wb-pane .wb-mno .wb-mno__hide,
+    #wb-pane .wb-mno[open] .wb-mno__show { display: none; }
+    #wb-pane .wb-mno[open] .wb-mno__hide { display: inline; }
+    #wb-pane .wb-mno__v {
+        display: block;
+        padding-bottom: 4px;
+        color: #14171c;
+        font-size: calc(14px * var(--wb-fs, 1));
+        font-variant-numeric: tabular-nums;
+        user-select: all;
+    }
+    #wb-pane .wb-won { display: inline; }
+    /* 합계 카드: 합계 · 상품주문 N건 | 금액(수량 합계 칸은 접는다 — 줄마다 수량이 이미 있다). */
+    #wb-pane .wb-cmp--members tfoot tr { background: #f7f8fa; }
+    #wb-pane .wb-cmp--members tfoot td:nth-child(1) {
+        grid-row: 1;
+        grid-column: 1 / 4;
+        font-size: calc(15px * var(--wb-fs, 1));
+        font-weight: 800;
+    }
+    #wb-pane .wb-cmp--members tfoot td:nth-child(2) { display: none; }
+    #wb-pane .wb-cmp--members tfoot td:nth-child(3) {
+        grid-row: 1;
+        grid-column: 4;
+        text-align: right;
+        font-size: calc(16px * var(--wb-fs, 1));
+        font-weight: 800;
+    }
+    #wb-pane .wb-cmp--members .wb-cmp-title__sub { color: #4b525d; font-size: calc(13px * var(--wb-fs, 1)); }
+    #wb-pane .wb-coupon {
+        flex-wrap: wrap;
+        gap: 2px 8px;
+        font-size: calc(13px * var(--wb-fs, 1));
+    }
+
+    /* ── N-10 관리 시트 '미등록' — #ffc107 on 흰색 1.63:1 → 연노랑 상자 + #b45309(4.84:1) ── */
+    .wb-asheet .wb-expiry-unset {
+        display: inline-block;
+        padding: 2px 10px;
+        border-radius: 8px;
+        background: #fffbeb;
+        color: #b45309 !important;           /* `.text-warning`(!important) 를 이긴다 */
+        font-weight: 800;
+    }
+
+    /* ── N-14 이력 카드: 네이버 진행 단계를 둘째 줄로 되살린다 ──
+       예전에는 파이프를 0×0 으로 숨기고 거의 모든 카드에 같은 '받아옴 · 신규 결제 · FOMS 주문 없음'을
+       붙였다. 이제 둘째 줄 = 네이버 단계(발주확인 → 발송처리 + 기한), 같은 배지 셋은 폰에서 접는다
+       (FOMS 는 주문이 붙었을 때 셋째 줄 `FOMS #번호 ›` 가 말한다). 제품 줄 · 시각 줄은 한 칸씩 내려간다. */
+    .wb-hist tbody tr[data-find] .wb-st > .wb-st__v:nth-child(4) {
+        display: flex;
+        grid-row: 2;
+        grid-column: 1 / -1;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 4px 8px;
+    }
+    .wb-hist tbody tr[data-find] .wb-pipe__s {
+        padding: 3px 10px;
+        font-size: calc(13px * var(--wb-fs, 1));
+        font-weight: 700;
+        color: #4b525d;                      /* 할 일 칸 — 흰 바탕 7.9:1(예전 #a7aeb8 은 2.2:1) */
+    }
+    .wb-hist tbody tr[data-find] .wb-pipe__s--done { color: var(--wb-green); }
+    .wb-hist tbody tr[data-find] .wb-pipe__s--now { color: #92400e; }   /* #fef6e0 위 6.6:1 */
+    .wb-hist tbody tr[data-find] .wb-pipe__s--skip { color: var(--wb-slate); }
+    .wb-hist tbody tr[data-find] .wb-pipe__s--bad { color: var(--wb-danger); }
+    .wb-hist tbody tr[data-find] .wb-pipe__s--place.wb-pipe__s--done { color: #1d4ed8; }   /* #eaf1ff 위 6.0:1 */
+    .wb-hist tbody tr[data-find] .wb-st__when { color: #4b525d; font-size: calc(13px * var(--wb-fs, 1)); }
+    .wb-hist tbody tr[data-find] > td:nth-child(3),
+    .wb-hist tbody tr[data-find] > td:nth-child(4) { grid-row: 3; }
+    .wb-hist tbody tr[data-find] > td:nth-child(1),
+    .wb-hist tbody tr[data-find] > td:nth-child(7),
+    .wb-hist tbody tr[data-find] > td:nth-child(8) { grid-row: 4; }
+    .wb-hist tbody tr[data-find] .wb-st__b--st-collected,
+    .wb-hist tbody tr[data-find] .wb-st__b--rel-new,
+    .wb-hist tbody tr[data-find] .wb-hist__nofoms { display: none; }
 }

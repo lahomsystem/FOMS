@@ -368,7 +368,8 @@ def test_bulk_count_excludes_already_confirmed_siblings(client, workbench_on):
     _sibling(lead, product="이미 확인된 구성", amount=3000, place_status="OK")
 
     body = client.get(f"{TRIAGE_PATH}?tab=work&f=place").get_data(as_text=True)
-    row = body.split('<a class="wb-row')[1].split("</a>")[0]
+    # 체크박스는 줄 링크 밖 형제(2026-09-30 P1 · N-36) — 줄 상자에서 잰다.
+    row = body.split('<div class="wb-rowbox')[1].split("</a>")[0]
     assert 'data-count="2"' in row, row
 
 

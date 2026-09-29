@@ -250,6 +250,7 @@
         applyFontScale(readFontScale());
         syncNavOffset();
         syncBulk();
+        foldMemberNos(document);
         // 서버가 "남이 돌리는 중" 이라 그렸으면 여기서도 따라간다 — 끝나면 스스로 새로 그린다.
         syncRefreshRunning();
         // 서버가 전체 렌더에서 내린 "목록 밖 집" 판정을 첫 화면에서 읽어 둔다 —
@@ -751,6 +752,36 @@
         // getBoundingClientRect 는 sticky 여도 **높이**는 스크롤과 무관하게 같은 값을 준다.
         var height = nav ? Math.round(nav.getBoundingClientRect().height) : 0;
         root.style.setProperty('--wb-nav-h', height + 'px');
+        syncStickyHead(root);
+    }
+
+    /**
+     * 폰 머리 고정(2026-09-30 P1 · 감사 원장 N-06) — 3,000px 내려가도 탭·보기(칩)·정렬·찾기가 화면에 있다.
+     *
+     * 폰 머리줄은 [‹ ERP · 제목 · ☰] → 사실 줄 → 탭 순서로 쌓인다(탭이 맨 아래 — CSS order). 머리줄은
+     * `top` 을 **음수**로 붙어 위쪽(제목·사실)은 스크롤과 함께 올라가고 탭 줄만 남는다. 도구줄은 그
+     * 바로 밑에 붙는다. 두 값은 줄 높이(사실 줄·진행 문구가 있을 때 달라진다)를 재서 CSS 변수로 흘린다.
+     * 데스크톱은 두 변수를 쓰지 않는다(전역 nav 높이 규칙 그대로) — 폰이 아니면 지운다.
+     *
+     * @param {Element} [root] 화면 루트(없으면 찾는다).
+     */
+    function syncStickyHead(root) {
+        root = root || document.querySelector('.naver-workbench');
+        if (!root || !root.style) {
+            return;
+        }
+        var head = root.querySelector('.wb-bar--head');
+        var tabs = head ? head.querySelector('.wb-tabs') : null;
+        if (!head || !tabs || !isPhone()) {
+            root.style.removeProperty('--wb-head-stick');
+            root.style.removeProperty('--wb-tools-top');
+            return;
+        }
+        var headBox = head.getBoundingClientRect();
+        // 탭 위 4px 은 남긴다(탭 회색 상자가 화면 끝에 붙지 않게).
+        var above = Math.max(0, Math.round(tabs.getBoundingClientRect().top - headBox.top) - 4);
+        root.style.setProperty('--wb-head-stick', (-above) + 'px');
+        root.style.setProperty('--wb-tools-top', Math.max(0, Math.round(headBox.height) - above) + 'px');
     }
 
     /** nav 자체가 커지는 경우(햄버거 메뉴 펼침 등)는 resize 가 안 온다 — 직접 지켜본다. */
@@ -828,6 +859,24 @@
     function toggleAlerts(button) {
         var open = button.getAttribute('aria-expanded') === 'true';
         button.setAttribute('aria-expanded', open ? 'false' : 'true');
+        if (!open) {
+            openAlertStrips();
+        }
+    }
+
+    /**
+     * 요약 띠를 펼치면 안의 띠(<details>)도 함께 편다 — 접기는 한 번이다(감사 원장 N-04).
+     * 예전에는 요약을 누르고 띠 제목을 한 번 더 눌러야 카드가 보였다. 요약 버튼은 폰에만
+     * 보이므로(데스크톱은 CSS 가 숨긴다) 데스크톱 띠의 접힘은 그대로다.
+     */
+    function openAlertStrips() {
+        var body = document.getElementById('wb-alerts-body');
+        if (!body) {
+            return;
+        }
+        Array.prototype.forEach.call(body.querySelectorAll('details.wb-ghost'), function (strip) {
+            strip.open = true;
+        });
     }
 
     /** 전체 다시 그리기(softRefresh) 너머로 요약 띠의 펼침 상태를 옮긴다. */
@@ -840,7 +889,23 @@
         var button = document.getElementById('wb-alerts-toggle');
         if (button && open) {
             button.setAttribute('aria-expanded', 'true');
+            openAlertStrips();
         }
+    }
+
+    /**
+     * 폰 상품 카드의 16자리 상품주문번호를 접는다(감사 원장 N-05) — 서버는 늘 펼친 채(`open`) 준다.
+     * 데스크톱은 펼친 채 여닫는 줄을 CSS 가 숨기므로 여기서 손대지 않는다.
+     *
+     * @param {Document|Element} scope pane(조각 교체 뒤) 또는 문서 전체(첫 화면).
+     */
+    function foldMemberNos(scope) {
+        if (!scope || !scope.querySelectorAll || !isPhone()) {
+            return;
+        }
+        Array.prototype.forEach.call(scope.querySelectorAll('details.wb-mno[open]'), function (item) {
+            item.open = false;
+        });
     }
 
     function isPhone() {
@@ -1669,6 +1734,16 @@
                 submitAck(btn);
                 return;
             }
+            // 유령 띠의 줄 버튼(휴지통·재결제 예정) — 줄마다 나와 id 대신 클래스로 문다(감사 원장 N-35).
+            // pane 의 같은 버튼은 한 벌이라 id 로 위 ACTIONS 가 맡는다. 핸들러는 같은 함수다.
+            if (btn.classList.contains('wb-ghost-discard')) {
+                submitGhostDiscard(btn);
+                return;
+            }
+            if (btn.classList.contains('wb-ghost-repay-expected')) {
+                submitGhostRepayExpected(btn);
+                return;
+            }
 
             // 후보 버튼은 후보 수만큼 나온다 — id 를 달면 문서에 중복이 생긴다(절대 규칙 1).
             // R-3 부터 이 버튼은 바로 붙이지 않고 **정리 계획 카드**를 연다.
@@ -1864,6 +1939,11 @@
             var hit = !needle || hay.indexOf(needle) !== -1;
             // hidden 은 CSS 없이도 먹는다 — 이 화면 CSS 가 늦게 와도 목록이 안 어긋난다.
             row.hidden = !hit;
+            // 체크박스는 줄 링크 밖 형제다(N-36) — 줄 상자째 숨겨야 체크 칸만 떠 있지 않는다.
+            var box = row.parentNode;
+            if (box && box.classList && box.classList.contains('wb-rowbox')) {
+                box.hidden = !hit;
+            }
             if (hit) {
                 shown += 1;
             }
@@ -1880,7 +1960,7 @@
 
     /** 찾기로 숨겨진 행의 체크를 푼다 — 벌크 대상은 **화면에 보이는 집**의 부분집합이다. */
     function clearHiddenPicks() {
-        var boxes = document.querySelectorAll('#wb-queue a.wb-row[hidden] input.wb-pick:checked');
+        var boxes = document.querySelectorAll('#wb-queue .wb-rowbox[hidden] input.wb-pick:checked');
         Array.prototype.forEach.call(boxes, function (box) {
             box.checked = false;
         });
@@ -2330,6 +2410,7 @@
         current.replaceWith(next);
         applyOfflistFlag();
         syncRowFromPane(next);
+        foldMemberNos(next);
         // 폰 층의 위·아래 막대는 pane 바깥이다 — 새 pane 의 이름·상태·주 버튼으로 다시 채운다.
         syncLayer();
         // 더 할 일 시트가 그래도 열려 있으면 새 pane 으로 다시 채운다 — 제목·줄은 늘 지금 주문(N-02).
@@ -2732,6 +2813,8 @@
             // 내려주므로 들고 다니던 값 대신 서버 값을 읽는다(이 쪽이 더 정확하다).
             applyFontScale(readFontScale());
             syncBulk();
+            // 새 루트에는 머리 고정 값이 없다 — 다시 잰다(N-06).
+            syncStickyHead(next);
             // 새로 받은 화면에 진행 띠가 있으면 폴링을 다시 건다(교체로 끊긴다).
             syncRefreshRunning();
             paneOfflist = readOfflistFlag();

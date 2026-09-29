@@ -590,7 +590,10 @@ def test_work_list_keeps_claimed_households_but_locks_the_row(client, workbench_
     assert "취소된 붙박이장" in body, "잠글지언정 목록에서 없애지 않는다"
     locked = _row_of(body, "취소된 붙박이장")
     assert "wb-row--locked" in locked, locked
-    assert "disabled" in locked, "잠긴 집이 벌크로 선택된다"
+    # 체크박스는 줄 링크 밖 형제(2026-09-30 P1 · N-36) — 줄 상자에서 잰다. 폰은 이 칸을 그리지 않는다.
+    locked_box = next(chunk for chunk in body.split('<div class="wb-rowbox')[1:]
+                      if "취소된 붙박이장" in chunk.split("</a>")[0])
+    assert "wb-pickbox--off" in locked_box and "disabled" in locked_box, "잠긴 집이 벌크로 선택된다"
     assert "손대지 않음" in locked, "색만으로는 못 읽는다 — 글자 라벨이 함께 있어야 한다"
     # 멀쩡한 집은 그대로 고를 수 있다(잠금이 목록 전체로 번지지 않는다).
     assert "wb-row--locked" not in _row_of(body, "정상 붙박이장")

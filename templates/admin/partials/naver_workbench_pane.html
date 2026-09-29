@@ -881,7 +881,13 @@
                 {% for row in member_rows %}
                 <tr>
                     <td class="wb-cmp__k">
-                        {{ row.external_id }}
+                        {# 16자리 번호(2026-09-30 P1 · 감사 원장 N-05) — 폰 상품 카드에서는 접어 두고 `상품주문번호 보기` 로
+                           편다(JS 가 폰에서만 `open` 을 걷는다). 데스크톱은 늘 펼친 채 여닫는 줄(summary)을 숨긴다 —
+                           예전처럼 번호가 칸 첫 줄이다. JS 가 없으면 펼친 채로 남는다(번호를 잃지 않는다). #}
+                        <details class="wb-mno" open>
+                            <summary class="wb-mno__sum"><span class="wb-mno__show">상품주문번호 보기</span><span class="wb-mno__hide">번호 접기</span></summary>
+                            <span class="wb-mno__v">{{ row.external_id }}</span>
+                        </details>
                         {# 본품/추가구성상품은 장식이 아니다 — 클레임 호출 순서를 가르는 축이고
                            (추가상품 먼저, `fulfillment.claim_call_order`), 이 집이 왜 순서에
                            민감한지 사람이 표에서 바로 읽어야 한다. #}
@@ -959,7 +965,8 @@
                         {% endif %}
                     </td>
                     <td class="wb-cmp__num">
-                        {{ '{:,}'.format(row.amount) if row.amount is not none else '–' }}
+                        {# `원` 은 폰 카드에서만 보인다(머리줄 `금액` 이 없는 카드) — 데스크톱 표는 CSS 가 숨긴다. #}
+                        {{ '{:,}'.format(row.amount) if row.amount is not none else '–' }}{% if row.amount is not none %}<span class="wb-won">원</span>{% endif %}
                         {% if row.coupon_known and row.coupon_count %}
                         <div class="wb-cmp__coupon">쿠폰 −{{ '{:,}'.format(row.coupon_discount) }}</div>
                         {% endif %}
@@ -985,7 +992,7 @@
                     <td class="wb-cmp__num">{{ amount_summary.quantity_total }}</td>
                     <td class="wb-cmp__num">
                         {% if amount_summary.known %}
-                        {{ '{:,}'.format(amount_summary.total) }}
+                        {{ '{:,}'.format(amount_summary.total) }}<span class="wb-won">원</span>
                         {% if amount_summary.has_remain %}
                         <div class="wb-cmp__remain">남은 {{ '{:,}'.format(amount_summary.remain_total) }}</div>
                         {% endif %}
