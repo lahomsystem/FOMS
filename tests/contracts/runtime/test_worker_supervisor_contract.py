@@ -1,85 +1,85 @@
-"""WORKER 컨테이너의 rq 감시 루프 계약 (2026-09-08 운영 사고 근본 수정).
+"""WORKER 컨테이너 감독 구조 계약 (2026-09-08 · 2026-09-10 운영 사고 근본 수정).
 
-사고: 운영 승격 배포로 WORKER 와 Redis 가 함께 재기동하다 Redis 가 뒤늦게 내려갔고,
-rq 가 ``Redis connection timeout, quitting...`` 으로 스스로 종료했다. 큐 소비 러너
-(``tools/ops/run_rq_worker.py``)가 ``exec`` 로 PID 1 을 잡고 있어 컨테이너째 죽었고,
-Railway 재시작 정책(ON_FAILURE)이 그 종료를 실패로 보지 않아 워커가 영구 정지했다.
-발주확인 6건이 큐에 11분 넘게 갇혔다.
+2026-09-08: 큐 소비 러너(``tools/ops/run_rq_worker.py``)가 ``exec`` 로 PID 1 을 잡고 있어, 운행 중
+Redis 재시작에 rq 가 스스로 끝나자 컨테이너째 멈췄다(Railway ON_FAILURE 는 정상 종료를 실패로
+안 본다). 발주확인 6건이 큐에 11분 넘게 갇혔다. → 셸 감시 루프.
 
-부팅 레이스는 ``wait_for_redis`` 가 이미 막지만 **운행 중 Redis 재시작은 못 막는다**.
-그래서 PID 1 은 감시 루프가 잡고, rq 가 어떤 종료 코드로 죽든 다시 띄운다. 이 계약은
-그 구조가 조용히 원복되지 않게 못 박는다 — 되돌아가면 다음 Redis 재시작에 또 멈춘다.
+2026-09-10: 그 감시 루프는 rq **하나만** 지켰다. ``&`` 로 한 번 띄운 네이버 정산 루프가 매일
+05:31 에 죽고 다음 배포까지 멈춰 있었다. → 모든 배경 작업을 파이썬 감독자
+(``tools/ops/worker_supervisor.py``)가 PID 1 로 지킨다(설계서
+``docs/specs/2026-09-29-worker-loop-supervisor-spec.md``).
+
+이 계약은 그 구조가 조용히 원복되지 않게 못 박는다. 감독자의 실제 동작(재시작·대기·신호)은
+``test_worker_supervisor_process.py`` 가 실행으로 확인한다.
 """
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
+from tests.support.worker_jobs import jobs, load_supervisor, worker_branch_of_start_sh
+
 _REPO_ROOT = Path(__file__).resolve().parents[3]
-_START_SH = _REPO_ROOT / "start.sh"
 _WORKER_TOML = _REPO_ROOT / "railway-worker.toml"
 _PROCFILE = _REPO_ROOT / "Procfile"
 
 
-def _worker_branch() -> str:
-    """start.sh 의 ``USE_RQ_WORKER=1`` 분기 본문만 잘라 돌려준다.
-
-    Returns:
-        WORKER 분기 안의 셸 스크립트 본문(주석 포함).
-    """
-    text = _START_SH.read_text(encoding="utf-8")
-    return text.split('if [ "$USE_RQ_WORKER" = "1" ]; then', 1)[1].split("\nelse\n", 1)[0]
+def _code_lines(text: str) -> list[str]:
+    return [line.strip() for line in text.splitlines() if line.strip() and not line.strip().startswith("#")]
 
 
-def test_queue_consumer_is_not_pid_one() -> None:
-    """큐 소비자를 ``exec`` 로 띄우면 그 종료 = 컨테이너 종료라 사고가 재현된다."""
-    branch = _worker_branch()
-    for line in branch.splitlines():
-        stripped = line.strip()
-        if stripped.startswith("#"):
-            continue  # 사고 경위를 적은 주석에는 exec 표기가 남아 있다.
-        assert not stripped.startswith("exec "), (
-            "큐 소비자를 exec 로 띄우면 안 된다 — 감시 루프가 PID 1 을 잡아야 한다"
-        )
-
-
-def test_supervisor_loop_restarts_rq_and_rewaits_redis() -> None:
-    """감시 루프가 rq 를 백그라운드로 띄우고, 죽으면 Redis 를 다시 기다렸다 재기동한다."""
-    branch = _worker_branch()
-    assert "while true; do" in branch, "감시 루프가 없다"
-    assert 'python tools/ops/run_rq_worker.py --url "$REDIS_URL" --queues default &' in branch, (
-        "러너는 백그라운드로 띄우고 wait 로 지켜봐야 트랩이 걸린다. rq CLI 를 직접 부르면 "
-        "RQ_WORKER 하트비트가 사라져 감시 표가 다시 눈을 잃는다"
+def test_worker_branch_waits_for_redis_then_hands_pid_one_to_the_supervisor() -> None:
+    lines = _code_lines(worker_branch_of_start_sh())
+    assert lines[0].startswith("python tools/ops/wait_for_redis.py"), lines
+    assert lines[-1] == "exec python tools/ops/worker_supervisor.py", (
+        "PID 1 은 감독자가 잡아야 한다 — 큐 소비자나 루프를 exec 하면 그 종료 = 컨테이너 종료다"
     )
-    assert 'wait "$RQ_PID"' in branch, "러너 종료를 wait 로 감지해야 한다"
-    loop = branch.split("while true; do", 1)[1]
-    assert "wait_for_redis.py" in loop, (
+
+
+def test_nothing_in_the_worker_branch_is_started_unsupervised() -> None:
+    """``&`` 로 띄운 프로세스는 감독자 밖이다 — 2026-09-10 사고의 모양."""
+    for line in _code_lines(worker_branch_of_start_sh()):
+        assert not re.search(r"&\s*$", line), f"감독자 밖에서 뜬다: {line}"
+        assert not (line.startswith("exec ") and "worker_supervisor.py" not in line), line
+    assert re.search(r"&\s*$", "python scripts/maintenance/run_x.py --loop &")  # negative control
+
+
+def test_queue_consumer_is_supervised_with_a_redis_wait_before_every_start() -> None:
+    rq = [job for job in jobs() if job.name == "rq_worker"]
+    assert len(rq) == 1, "큐 소비자는 켜짐 조건 없이 항상 감독 대상이다"
+    job = rq[0]
+    assert job.argv[1:] == ("tools/ops/run_rq_worker.py", "--url", "", "--queues", "default"), (
+        "rq CLI 를 직접 부르면 RQ_WORKER 하트비트가 사라져 감시 표가 다시 눈을 잃는다"
+    )
+    assert job.pre_argv is not None and "tools/ops/wait_for_redis.py" in job.pre_argv, (
         "재기동 전에 Redis PING 을 다시 기다려야 한다 — 안 그러면 즉사 루프가 된다"
     )
-    assert "[rq-supervisor]" in loop, "재기동 사실이 로그에 남아야 사후 추적이 된다"
 
 
-def test_supervisor_forwards_sigterm_for_graceful_stop() -> None:
-    """Railway 정지·재배포(SIGTERM)를 러너에 넘겨야 진행 중 잡이 정상 종료된다."""
-    branch = _worker_branch()
-    assert "trap _rq_forward_term TERM INT" in branch, "SIGTERM 트랩이 없다"
-    assert 'kill -TERM "$RQ_PID"' in branch, "트랩이 러너에 신호를 넘겨야 한다"
+def test_backoff_doubles_to_sixty_and_resets_after_a_healthy_run() -> None:
+    mod = load_supervisor()
+    assert mod.next_backoff(5, 1) == 10
+    assert mod.next_backoff(40, 1) == 60, "상한이 없으면 무한히 늘어난다"
+    assert mod.next_backoff(60, 1) == 60
+    assert mod.next_backoff(60, 61) == 5, "오래 살다 죽었으면 일시 장애 — 되돌린다"
 
 
-def test_supervisor_backs_off_on_hot_crash_loop() -> None:
-    """즉사가 반복되면 재시도 간격을 늘려 로그 폭주를 막는다(상한 60초)."""
-    branch = _worker_branch()
-    assert "RQ_BACKOFF=$(( RQ_BACKOFF * 2 ))" in branch
-    assert "RQ_BACKOFF=60" in branch, "backoff 상한이 없으면 무한히 늘어난다"
+def test_supervisor_installs_term_and_int_handlers(monkeypatch) -> None:
+    """Railway 정지·재배포(SIGTERM)는 자식에 넘겨 진행 중 잡을 정상 종료시켜야 한다."""
+    mod = load_supervisor()
+    installed = {}
+    monkeypatch.setattr(mod.signal, "signal", lambda sig, handler: installed.setdefault(sig, handler))
+    monkeypatch.setattr(mod.Supervisor, "run", lambda self: 0)
+    monkeypatch.setattr(mod.sys, "argv", ["worker_supervisor.py"])
+    assert mod.main([]) == 0
+    assert mod.signal.SIGTERM in installed and mod.signal.SIGINT in installed
 
 
 def test_no_deploy_entrypoint_bypasses_start_sh() -> None:
-    """rq 를 직접 부르는 시작 명령이 남아 있으면 그 경로만 감시 없이 뜬다."""
+    """rq 를 직접 부르는 시작 명령이 남아 있으면 그 경로만 감독 없이 뜬다."""
     for path in (_WORKER_TOML, _PROCFILE):
-        for line in path.read_text(encoding="utf-8").splitlines():
-            stripped = line.strip()
-            if stripped.startswith("#"):
-                continue
-            assert "rq worker" not in stripped, (
-                f"{path.name} 이 rq 를 직접 띄운다 — start.sh 를 거쳐야 감시 루프가 붙는다"
+        for line in _code_lines(path.read_text(encoding="utf-8")):
+            assert "rq worker" not in line, (
+                f"{path.name} 이 rq 를 직접 띄운다 — start.sh 를 거쳐야 감독자가 붙는다"
             )

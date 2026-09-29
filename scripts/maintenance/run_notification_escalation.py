@@ -33,6 +33,7 @@ from foms.services.loop_heartbeat import (  # noqa: E402
     capture_exception,
     emit_heartbeat,
     init_sentry_once,
+    safe_metadata,
 )
 from foms.services.notifications.escalation import (  # noqa: E402
     escalate_overdue_urgent,
@@ -144,8 +145,14 @@ def _run_loop(interval: int, dry_run: bool, as_json: bool) -> int:
             traceback.print_exc()
             capture_exception()
         # 스윕이 터진 tick 도 하트비트를 남긴다 — "죽었다" 와 "이번 스윕만 실패" 를 가른다.
-        emit_heartbeat(engine, HEARTBEAT_WORKER_KIND,
-                       metadata=_heartbeat_metadata(result, interval), logger=_LOGGER)
+        # 조립은 가드 안에서 한다(2026-09-10 정산 루프 사고와 같은 모양 — 조립 결함이 루프를 죽였다).
+        metadata = safe_metadata(
+            lambda: _heartbeat_metadata(result, interval),
+            {"interval_seconds": interval, "outcome": "ok" if result is not None else "sweep_failed",
+             "checked": 0, "escalated": 0, "operator_escalated": 0, "pushed": 0},
+            logger=_LOGGER, label="escalation",
+        )
+        emit_heartbeat(engine, HEARTBEAT_WORKER_KIND, metadata=metadata, logger=_LOGGER)
         time.sleep(interval)
 
 

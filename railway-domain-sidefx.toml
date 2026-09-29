@@ -6,6 +6,8 @@
 # service/env provisioning·등록은 오케스트레이터 몫. delivery handler 배포 전에는
 # delivery 가 NoHandler 로 재시도/DEAD 되므로 관련 mode 를 ENFORCED/TICKET 으로 올리지 않는다.
 [build]
+# 참고(2026-09-29): 실제 빌드는 루트 Dockerfile 이다 — Railway 가 자동 감지하고 배포 manifest 의
+# build.builder = DOCKERFILE(운영·스테이징 네 서비스 모두). 아래 builder 줄은 쓰이지 않는다.
 builder = "nixpacks"
 
 [deploy]

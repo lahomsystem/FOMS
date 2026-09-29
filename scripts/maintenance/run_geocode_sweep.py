@@ -54,7 +54,7 @@ from foms.services.datetime_kst import now_utc_naive  # noqa: E402
 from foms.services.geocode_candidates import build_missing_geocode_query  # noqa: E402
 from foms.services import geocode_retry  # noqa: E402
 from foms.services.geocode_helpers import extract_address_from_order  # noqa: E402
-from foms.services.loop_heartbeat import capture_exception, init_sentry_once  # noqa: E402
+from foms.services.loop_heartbeat import capture_exception, init_sentry_once, safe_metadata  # noqa: E402
 from foms.services.sidefx_worker import WORKER_KIND_GEOCODE_SWEEP  # noqa: E402
 from models import Order  # noqa: E402
 
@@ -109,14 +109,21 @@ def _emit_heartbeat(result: Optional[dict], interval: int = 0) -> None:
     """
     from foms.services.sidefx_worker import upsert_heartbeat
 
-    metadata = {
-        # 판정부가 예산을 잡는 근거 — 간격이 env 로 바뀌어도 감시가 따라온다.
-        "interval_seconds": int(interval or 0),
-        "outcome": "ok" if result is not None else "round_failed",
-        "enqueued": int((result or {}).get("enqueued") or 0),
-        "failed": int((result or {}).get("failed") or 0),
-        "scanned": int((result or {}).get("scanned") or 0),
-    }
+    outcome = "ok" if result is not None else "round_failed"
+    # 조립은 가드 안에서 한다(2026-09-10 정산 루프 사고와 같은 모양 — 조립 결함이 루프를 죽였다).
+    metadata = safe_metadata(
+        lambda: {
+            # 판정부가 예산을 잡는 근거 — 간격이 env 로 바뀌어도 감시가 따라온다.
+            "interval_seconds": int(interval or 0),
+            "outcome": outcome,
+            "enqueued": int((result or {}).get("enqueued") or 0),
+            "failed": int((result or {}).get("failed") or 0),
+            "scanned": int((result or {}).get("scanned") or 0),
+        },
+        {"interval_seconds": interval if isinstance(interval, int) else 0, "outcome": outcome,
+         "enqueued": 0, "failed": 0, "scanned": 0},
+        label="geocode-sweep",
+    )
     try:
         upsert_heartbeat(engine, HEARTBEAT_WORKER_KIND, metadata=metadata)
     except (SQLAlchemyError, OSError, RuntimeError, ValueError):
@@ -384,7 +391,7 @@ def _run_loop(*, interval: int, batch: int, include_failed: bool, as_json: bool)
             print_result(result, as_json)
             if result['failed']:
                 _log_error(f"enqueue 실패 {result['failed']}건 (Redis 상태 확인 필요)")
-        except (SQLAlchemyError, OSError, ValueError, RuntimeError):
+        except Exception:  # noqa: BLE001 - 라운드 1회 결함(KeyError·TypeError 포함)이 루프를 죽이면 안 된다
             _log_error("round failed:")
             traceback.print_exc()
             capture_exception()

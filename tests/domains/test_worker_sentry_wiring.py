@@ -27,21 +27,15 @@ _RQ_RUNNER = _REPO_ROOT / "tools" / "ops" / "run_rq_worker.py"
 
 
 def _loop_runners_in_start_sh() -> list:
-    """``start.sh`` 가 ``--loop`` 로 띄우는 러너 파일 이름들(중복 제거·정렬).
+    """WORKER 감독자가 ``--loop`` 로 띄울 수 있는 러너 파일 이름들(정렬).
 
-    모집단을 코드가 아니라 ``start.sh`` 에서 읽는 것이 핵심이다 — 새 루프를 배선하면서
-    Sentry 를 빠뜨리면 그 순간 이 파일이 빨개진다.
+    모집단을 코드가 아니라 **배선의 정본**에서 읽는 것이 핵심이다 — 새 루프를 배선하면서
+    Sentry 를 빠뜨리면 그 순간 이 파일이 빨개진다. 정본은 2026-09-29 부터
+    ``tools/ops/worker_supervisor.py`` 의 ``worker_jobs`` 다(예전 ``start.sh`` 의 ``&`` 줄).
     """
-    text = _START_SH.read_text(encoding="utf-8")
-    found = set()
-    for line in text.splitlines():
-        stripped = line.strip()
-        if stripped.startswith("#") or "--loop" not in stripped:
-            continue
-        match = re.search(r"scripts/maintenance/([A-Za-z0-9_]+)\.py", stripped)
-        if match:
-            found.add(match.group(1))
-    return sorted(found)
+    from tests.support.worker_jobs import loop_runner_names
+
+    return loop_runner_names()
 
 
 def _load(path: pathlib.Path):

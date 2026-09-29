@@ -753,7 +753,7 @@ def test_row_builder_copies_the_element_into_raw_snapshot():
 
 
 # --------------------------------------------------------------------------- #
-# 러너 · start.sh 배선 (test_naver_auto_dispatch.py 와 같은 방식)
+# 러너 · WORKER 감독자 배선 (test_naver_auto_dispatch.py 와 같은 방식)
 # --------------------------------------------------------------------------- #
 
 def _repo_file(relative: str) -> str:
@@ -803,26 +803,36 @@ def test_runner_exposes_expected_cli_flags():
         assert f'"{flag}"' in source, f"러너에 {flag} 가 없다"
 
 
-def test_start_sh_gate_is_off_by_default_and_inside_worker_branch():
-    """정산 동기화 루프는 WORKER 분기 안에서, 게이트가 1일 때만 뜬다."""
-    text = _repo_file("start.sh")
-    assert 'if [ "$FOMS_NAVER_SETTLE_SYNC_ENABLED" = "1" ]; then' in text
+def test_worker_job_gate_is_off_by_default_and_worker_only():
+    """정산 동기화 루프는 WORKER 감독자 작업 목록에만 있고, 게이트가 1일 때만 켜진다.
 
-    marker = 'if [ "$USE_RQ_WORKER" = "1" ]; then'
-    separator = chr(10) + "else" + chr(10)
-    worker_branch = text.split(marker, 1)[1].split(separator, 1)[0]
-    assert "run_naver_settle_sync.py" in worker_branch
-    # web(gunicorn) 분기에는 없어야 한다 — 네이버 호출 IP 단일 출구 계약.
-    assert "run_naver_settle_sync.py" not in text.split(separator, 1)[1]
+    배선의 정본은 ``tools/ops/worker_supervisor.py`` 의 ``worker_jobs`` 다(2026-09-29, 예전 ``start.sh``
+    의 ``&`` 줄). 감독자는 ``start.sh`` WORKER 분기에서만 뜨고 web(gunicorn) 분기에는 없다 —
+    네이버 호출 IP 단일 출구 계약.
+    """
+    from tests.support.worker_jobs import job_by_script, web_branch_of_start_sh, worker_branch_of_start_sh
+
+    assert job_by_script("run_naver_settle_sync") is None, "기본은 꺼져 있어야 한다"
+    assert job_by_script("run_naver_settle_sync", {"FOMS_NAVER_SETTLE_SYNC_ENABLED": "0"}) is None
+    assert job_by_script("run_naver_settle_sync", {"FOMS_NAVER_SETTLE_SYNC_ENABLED": "1"}) is not None
+    assert "worker_supervisor.py" in worker_branch_of_start_sh()
+    web = web_branch_of_start_sh()
+    assert "worker_supervisor.py" not in web and "run_naver_settle_sync.py" not in web
 
 
-def test_start_sh_loop_runs_in_background_with_time_defaults():
-    """백그라운드(&)로 띄우고, 시각·창 기본값을 env 로 바꿀 수 있어야 한다."""
-    text = _repo_file("start.sh")
-    block = text.split("run_naver_settle_sync.py", 1)[1].split("fi", 1)[0]
-    assert "--loop" in block and block.rstrip().endswith("&")
-    assert "${FOMS_NAVER_SETTLE_SYNC_AT:-05:30}" in block
-    assert "${FOMS_NAVER_SETTLE_SYNC_WINDOW_MINUTES:-10}" in block
+def test_worker_job_runs_as_a_loop_with_env_defaults():
+    """감독자가 ``--loop`` 로 띄우고, 기본값을 env 로 바꿀 수 있어야 한다(비었으면 기본값)."""
+    from tests.support.worker_jobs import job_by_script
+
+    argv = list(job_by_script("run_naver_settle_sync", {"FOMS_NAVER_SETTLE_SYNC_ENABLED": "1"}).argv)
+    assert "--loop" in argv
+    assert argv[argv.index("--at") + 1] == "05:30"
+    assert argv[argv.index("--window") + 1] == "10"
+    argv = list(job_by_script("run_naver_settle_sync", {"FOMS_NAVER_SETTLE_SYNC_ENABLED": "1",
+                                                         "FOMS_NAVER_SETTLE_SYNC_AT": "04:10",
+                                                         "FOMS_NAVER_SETTLE_SYNC_WINDOW_MINUTES": ""}).argv)
+    assert argv[argv.index("--at") + 1] == "04:10"
+    assert argv[argv.index("--window") + 1] == "10"
 
 
 def test_feature_flag_defaults_to_off(monkeypatch: pytest.MonkeyPatch):
