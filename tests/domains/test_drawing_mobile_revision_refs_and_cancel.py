@@ -132,6 +132,24 @@ def _request_revision(client, sales: dict, order_id: int, files: list | None = N
     assert res.status_code == 200, res.get_data(as_text=True)
 
 
+def _seed_legacy_revision(order_id: int, sales: dict, files: list) -> None:
+    """검증 전 API 가 남긴 모양 그대로의 수정요청 이력(RETURNED)을 심는다."""
+    order = db_session.get(Order, order_id)
+    sd = dict(order.structured_data)
+    sd["drawing_status"] = "RETURNED"
+    sd["drawing_transfer_history"] = list(sd["drawing_transfer_history"]) + [{
+        "action": "REQUEST_REVISION",
+        "by_user_id": sales["id"],
+        "by_user_name": SALES_NAME,
+        "at": "2026-09-22 01:00:00",
+        "note": "손잡이 위치 변경",
+        "files": files,
+        "files_count": len(files),
+    }]
+    order.structured_data = sd
+    db_session.commit()
+
+
 def _phone_page(client, monkeypatch, who: dict, order_id: int) -> BeautifulSoup:
     _login(client, who)
     monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
@@ -166,7 +184,8 @@ def test_phone_thread_opens_reference_photos_with_server_built_urls(client, monk
     traversal = f"orders/{oid}/drawing_gateway/../measurement/secret.jpg"
     measurement = f"orders/{oid}/measurement/20260929_101013_22cc33dd_site.jpg"
     files = [
-        # 수정요청 API 는 이 값을 검증 없이 저장한다(M5) — 화면은 이 URL 을 쓰면 안 된다.
+        # 2b 전의 수정요청 API 는 이 값을 검증 없이 저장했다(M5) — 옛 이력에 남아 있으므로
+        # 화면은 이 URL 을 쓰면 안 된다. 지금 API 는 이런 본문을 400 으로 거절하므로 옛 이력을 직접 심는다.
         {"key": ok_img, "filename": "ref.jpg",
          "view_url": "javascript:alert(1)", "download_url": "https://evil.example/steal"},
         {"key": ok_pdf, "filename": "spec.pdf"},
@@ -174,7 +193,7 @@ def test_phone_thread_opens_reference_photos_with_server_built_urls(client, monk
         {"key": traversal, "filename": "secret.jpg", "view_url": f"/api/files/view/{traversal}"},
         {"key": measurement, "filename": "site.jpg", "view_url": f"/api/files/view/{measurement}"},
     ]
-    _request_revision(client, sales, oid, files)
+    _seed_legacy_revision(oid, sales, files)
 
     soup = _phone_page(client, monkeypatch, drafter, oid)
     handoff = soup.select_one(".erp-mobile-shell.foms-drawing-handoff")

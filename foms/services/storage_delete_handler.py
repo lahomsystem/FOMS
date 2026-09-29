@@ -12,6 +12,9 @@ SIDEFX outbox 의 ``STORAGE_DELETE`` 행을 처리하는 **단일 공용 handler
   (이미 ``DELETED`` 면 재삭제 없이 즉시 반환 — retry idempotent, 중복 삭제 0). child 전이는
   outbox ``DONE`` 과 **같은 worker tx** 로 commit 된다(worker 는 Order JSON/version/event 를
   만들지 않는다 — child-only).
+* ``ORDER_EVENT`` + payload ``order_id``: 지우기 직전에 **다시 확인**한다(M7, 2b). 예약 뒤
+  유예 기간 사이에 그 key 가 다시 도면 기록(현재본·이력·마법사)이나 살아 있는 첨부 행에
+  쓰이게 됐으면 지우지 않고 정상 반환(DONE)한다. 주문이 없으면(하드 삭제) 지금처럼 지운다.
 * **그 밖의 도메인**: child terminal 은 producer(각 도메인 cleanup)가 enqueue 시점에 이미
   마크했으므로 handler 는 ``object_key`` R2 삭제만 한다. ``object_key`` 가 없으면 안전 skip +
   로그(미지원 payload — DEAD 로 몰지 않음).
@@ -35,6 +38,8 @@ _LOGGER = logging.getLogger("sidefx_storage_delete")
 
 #: WIZARD_PENDING 도메인만 child(drawing_wizard_pending) terminal 전이를 handler 가 소유한다.
 WIZARD_PENDING = "WIZARD_PENDING"
+#: 주문 이벤트가 예약한 삭제(첨부 purge·전달 취소 회수·도면 이미지 교체 등) — 지우기 전 재확인.
+ORDER_EVENT = "ORDER_EVENT"
 
 
 class StorageDeleteError(RuntimeError):
@@ -78,7 +83,34 @@ def handle_storage_delete(row: DomainSideEffectOutbox) -> None:
             "[storage-delete] no object_key (domain=%s id=%s) — safe skip",
             row.source_domain, row.id)
         return
+    if row.source_domain == ORDER_EVENT and _still_referenced(row, object_key):
+        _LOGGER.info(
+            "[storage-delete] still referenced — skip (id=%s key=%s)", row.id, object_key)
+        return
     _delete_object(object_key)
+
+
+def _still_referenced(row: DomainSideEffectOutbox, object_key: str) -> bool:
+    """ORDER_EVENT 예약 key 가 지금 그 주문에서 다시 쓰이는지(주문이 없으면 False).
+
+    경로 모양은 보지 않는다 — producer 가 예약 때 이미 판정했다. 여기서는 "그 사이 다시
+    쓰이게 됐는가"만 본다(:func:`~foms.services.orders.drawing_key_safety.referenced_keys`).
+    """
+    payload = row.payload if isinstance(row.payload, dict) else {}
+    try:
+        order_id = int(payload.get("order_id"))
+    except (TypeError, ValueError):
+        return False
+    session = Session.object_session(row)
+    if session is None:  # dispatch 는 항상 attach 된 row 를 준다 — 방어적 fail-closed.
+        raise StorageDeleteError(f"outbox row {row.id} is not attached to a session")
+    from foms.services.orders.drawing_key_safety import referenced_keys
+    from models import Order
+
+    order = session.get(Order, order_id)
+    if order is None:
+        return False
+    return bool(referenced_keys(session, order_id, order.structured_data, [object_key]))
 
 
 def _handle_wizard_pending(row: DomainSideEffectOutbox) -> None:

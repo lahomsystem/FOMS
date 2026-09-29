@@ -17,6 +17,7 @@ from models import Order, OrderAttachment, Notification, OrderEvent
 from foms.web.auth import login_required, get_user_by_id, log_access
 from foms.services.audit_message_display import describe_order_action
 from foms.services.common.table_version_counter import mark_tables_dirty
+from foms.services.error_logging import log_handled_exception
 from foms.services.orders.audit_order_context import order_audit_context
 from foms.services.datetime_kst import now_utc_naive
 from foms.api.notifications import (
@@ -38,6 +39,8 @@ from foms.services.orders.drawing_transfer import (
     materialize_pending_snapshot,
     materialize_transfer_attachments,
 )
+from foms.services.orders.drawing_key_safety import history_referenced_keys, split_deletable_keys
+from foms.services.orders.drawing_revision_files import is_revision_reference_key
 from foms.services.orders.revision import execute_single_order_write, lock_order_row
 from foms.services.orders.upload_ticket import _file_type as attachment_file_type  # 확장자→image/video/file (첨부 정본과 같은 규칙)
 from foms.services.sidefx_outbox import enqueue_side_effect
@@ -453,8 +456,13 @@ def api_order_transfer_drawing(order_id):
 @login_required
 def api_order_cancel_transfer(order_id):
     """도면 전달 취소 (도면팀/관리자)
-    수정 요청 후 재전달한 경우, 이번 전달에서 '새로 올린 파일'만 삭제하고
+    수정 요청 후 재전달한 경우, 이번 전달에서 '새로 올린 파일'만 회수하고
     이전 상태(RETURNED 또는 PENDING)로 복원한다.
+
+    행과 파일을 따로 판정한다(M7): 새로 들여온 key 의 첨부 **행**은 복원 현재본·남은 이력이
+    가리키지 않으면 지우고(고객 링크·생산 화면에서 숨김), **파일**은 공통 판정
+    (:func:`split_deletable_keys`, scope='drawing')이 지워도 된다고 한 것만 7일 유예로
+    STORAGE_DELETE 예약한다. 실제 삭제 때 핸들러가 한 번 더 확인한다.
     """
     db = None
     try:
@@ -519,32 +527,7 @@ def api_order_cancel_transfer(order_id):
                     if k:
                         newly_uploaded_keys.add(k)
 
-        # ── 3. 삭제 대상 결정 ──────────────────────────────────────────────────
-        # 이번 전달에서 새로 올린 파일(newly_uploaded_keys)만 회수 대상.
-        # 기존 파일들은 1차 전달 이력 등 타임라인에서 계속 참조되므로 절대 삭제 금지.
-        # OrderAttachment DB row 는 이 트랜잭션에서 제거하고, 실제 R2 blob 삭제는
-        # STORAGE_DELETE outbox 로 예약한다(동기 R2 삭제 금지 — 아래 6.5 참조).
-        keys_to_delete = newly_uploaded_keys
-        storage_keys_for_outbox = set()  # 삭제 예약할 R2 object key(원본 + 썸네일)
-        if keys_to_delete:
-            rows = db.query(OrderAttachment).filter(
-                OrderAttachment.order_id == order_id,
-                OrderAttachment.storage_key.in_(list(keys_to_delete))
-            ).all()
-            handled = set()
-            for row in rows:
-                if row.storage_key:
-                    storage_keys_for_outbox.add(row.storage_key)
-                    handled.add(row.storage_key)
-                if row.thumbnail_key:
-                    storage_keys_for_outbox.add(row.thumbnail_key)
-                db.delete(row)
-            for key in keys_to_delete:
-                if key not in handled:
-                    storage_keys_for_outbox.add(key)
-        deleted_files_count = len(keys_to_delete)
-
-        # ── 4. drawing_current_files 복원 ──────────────────────────────────────
+        # ── 3. drawing_current_files 복원 ──────────────────────────────────────
         # transfer_info에 저장된 previous_current_files로 정확히 복원.
         # (이전 버전 호환: 없으면 APPEND 모드에서는 새 파일만 제거하는 방식으로 폴백)
         if latest_transfer_entry and isinstance(latest_transfer_entry.get('previous_current_files'), list):
@@ -557,13 +540,13 @@ def api_order_cancel_transfer(order_id):
         else:
             restored_files = []
 
-        # ── 5. 히스토리에서 최신 TRANSFER 제거 ──────────────────────────────────
+        # ── 4. 히스토리에서 최신 TRANSFER 제거 ──────────────────────────────────
         removed_transfer = False
         if latest_transfer_idx is not None:
             history.pop(latest_transfer_idx)
             removed_transfer = True
 
-        # ── 6. 이전 상태로 복원 ──────────────────────────────────────────────────
+        # ── 5. 이전 상태로 복원 ──────────────────────────────────────────────────
         # 취소한 TRANSFER 를 뺀 이력을 역순 스캔해 그 직전 상태로 되돌린다.
         # 남은 최신 액션이 TRANSFER 면 **이전 전달본이 그대로 살아있다**(복원된
         # drawing_current_files 에도 그 파일이 남는다) — 예전에 여기서 PENDING 을 넘겨
@@ -591,6 +574,32 @@ def api_order_cancel_transfer(order_id):
         s_data['drawing_current_files'] = restored_files
         s_data['last_drawing_transfer'] = restored_transfer
         s_data['drawing_transfer_history'] = history
+
+        # ── 6. 회수 대상: 행과 파일을 따로 판정(M7) ──────────────────────────────
+        # 행: 새로 들여온 key 중 복원 현재본에도 남은 이력에도 없는 것의 첨부 행만 지운다
+        #     (남은 이력만 가리키는 행은 superseded 규칙으로 이미 숨는다).
+        # 파일: 취소 뒤(s_data)에도 아무도 안 쓰는 것만 — 마법사 pending·versions·다른 살아
+        #     있는 첨부 행이 쓰면 보존. 이번에 지우는 행은 "쓰는 행"으로 치지 않는다.
+        still_referenced = history_referenced_keys(s_data)
+        row_delete_keys = {k for k in newly_uploaded_keys if k not in still_referenced}
+        rows_to_delete = []
+        if row_delete_keys:
+            rows_to_delete = db.query(OrderAttachment).filter(
+                OrderAttachment.order_id == order_id,
+                OrderAttachment.storage_key.in_(sorted(row_delete_keys)),
+            ).all()
+        file_candidates = set(newly_uploaded_keys)
+        for row in rows_to_delete:
+            if row.thumbnail_key:
+                file_candidates.add(row.thumbnail_key)
+        storage_keys_for_outbox, _retained = split_deletable_keys(
+            db, order_id, s_data, file_candidates, scope='drawing',
+            exclude_attachment_ids=[row.id for row in rows_to_delete],
+        )
+        for row in rows_to_delete:
+            db.delete(row)
+        deleted_files_count = len(storage_keys_for_outbox & newly_uploaded_keys)
+
         order.structured_data = s_data
         flag_modified(order, 'structured_data')
         # 회수 파일이 없어도 버전을 올린다 — 그 전에 연 폼의 If-Match 가 409 를 받게(2a-1②).
@@ -610,11 +619,13 @@ def api_order_cancel_transfer(order_id):
                     "history_cleaned": bool(removed_transfer), **cancel_context},
         )
 
-        # ── 6.5 회수 파일 R2 blob 삭제를 STORAGE_DELETE outbox 로 예약 ────────────
+        # ── 7. 회수 파일 R2 blob 삭제를 STORAGE_DELETE outbox 로 예약 ────────────
         # 동기 R2 삭제 금지 — sidefx worker/handler 가 소비한다(이 핸들러는 enqueue 만).
         # ORDER_EVENT 를 source 로 두어 one-of FK 매트릭스를 만족하고, business tx 가
         # rollback 되면 event·outbox 도 함께 rollback 된다(원자성).
         if storage_keys_for_outbox:
+            from foms.api.files.order_routes import ATTACHMENT_PURGE_GRACE
+            purge_now = now_utc_naive()
             cancel_event = OrderEvent(
                 order_id=order_id,
                 event_type='DRAWING_TRANSFER_CANCELLED',
@@ -635,6 +646,9 @@ def api_order_cancel_transfer(order_id):
                     effect_type='STORAGE_DELETE',
                     payload={'object_key': object_key, 'order_id': order_id},
                     dedupe_key=f'drawing_cancel:{order_id}:{object_key}',
+                    # 첨부 삭제와 같은 7일 유예 — 그 안에 다시 쓰이면 핸들러가 건너뛴다.
+                    available_at=purge_now + ATTACHMENT_PURGE_GRACE,
+                    now=purge_now,
                 )
 
         # 전달취소 알림 → 영업(전달 알림과 동일 매니저 라우팅). 실패해도 취소는 진행(로그만).
@@ -703,9 +717,11 @@ def api_order_cancel_transfer(order_id):
         status_label = '수정 요청 상태' if restore_status == 'RETURNED' else '작업중 상태'
         return jsonify({
             'success': True,
-            'message': f'도면 전달이 취소되었습니다. ({status_label}로 복귀, 신규 업로드 파일 {deleted_files_count}개 삭제)'
+            'message': (f'도면 전달이 취소되었습니다. ({status_label}로 복귀, '
+                        f'신규 업로드 파일 {deleted_files_count}개 회수 — 7일 뒤 삭제)')
         })
     except Exception as e:
+        log_handled_exception("cancel-transfer")
         if db is not None:
             db.rollback()
         return jsonify({'success': False, 'message': str(e)}), 500
@@ -790,8 +806,9 @@ def api_drawing_gateway_complete(order_id):
         if not key or not filename:
             return jsonify({'success': False, 'message': 'key, filename 필수가 필요합니다.'}), 400
 
-        expected = f"orders/{order_id}/drawing_gateway"
-        if expected not in key or '..' in key:
+        # 부분 문자열 검사(`expected in key`)는 `foo/orders/<id>/drawing_gateway/…` 로 우회됐다.
+        # 수정요청 저장과 같은 판정 함수 하나로 답한다(M5).
+        if not is_revision_reference_key(order_id, key):
             return jsonify({'success': False, 'message': '유효하지 않은 key 경로입니다.'}), 400
 
         storage = get_storage()
@@ -820,4 +837,5 @@ def api_drawing_gateway_complete(order_id):
             }
         })
     except Exception as e:
+        log_handled_exception("drawing-gateway/complete")
         return jsonify({'success': False, 'message': str(e)}), 500

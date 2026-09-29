@@ -11,12 +11,11 @@ from flask import Blueprint, request, jsonify, session
 from sqlalchemy.orm.attributes import flag_modified
 
 from db import get_db
-from models import Order, OrderAttachment, Notification, SecurityLog
+from models import Order, Notification, SecurityLog
 from foms.web.auth import login_required, get_user_by_id, log_access
 from foms.services.audit_message_display import describe_order_action
 from foms.services.orders.audit_order_context import order_audit_context
 from foms.services.datetime_kst import format_datetime_kst, now_utc_naive
-from foms.services.storage import get_storage
 from foms.api.notifications import (
     resolve_notification_recipient_user_ids,
     invalidate_badge_cache_for_user_ids,
@@ -31,6 +30,7 @@ from foms.services.orders.drawing_gate_followups import (
     invalidate_customer_confirmation,
     restore_customer_confirmation,
 )
+from foms.services.orders.drawing_revision_files import normalize_revision_files
 from foms.services.orders.revision import execute_single_order_write, lock_order_row
 
 logger = logging.getLogger(__name__)
@@ -47,6 +47,9 @@ DRAWING_REVISION_CANCEL_POLICY_ID = 'DRAWING_REVISION_CANCEL'
 DRAWING_REVISION_CHECK_POLICY_ID = 'DRAWING_REVISION_CHECK'
 DRAWING_ORDER_CHANGE_ACK_POLICY_ID = 'DRAWING_ORDER_CHANGE_ACK'
 
+#: 수정요청 취소 이유(선택 본문 필드) 최대 길이.
+REVISION_CANCEL_REASON_MAX = 200
+
 
 @erp_orders_revision_bp.route('/<int:order_id>/request-revision', methods=['POST'])
 @login_required
@@ -59,9 +62,24 @@ def api_order_request_revision(order_id):
     - target_drawing_key (단일): 호환성 유지
     """
     try:
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
+        if not isinstance(data, dict):
+            data = {}
         note = data.get('note', '')
-        files = data.get('files', []) if isinstance(data.get('files', []), list) else []
+        # 참고 파일 입력 계약(M5): 키가 없거나 null 이면 빈 목록(태블릿 도면 검토 화면은
+        # {note, target_drawing_keys} 만 보낸다). 키가 있는데 목록이 아니거나 이 주문
+        # drawing_gateway/ 정본 key 가 아닌 항목이 하나라도 있으면 조용히 버리지 않고 400.
+        raw_files = data.get('files')
+        files = []
+        if raw_files is not None:
+            files, rejects = normalize_revision_files(order_id, raw_files)
+            if rejects:
+                return jsonify({
+                    'success': False,
+                    'code': 'INVALID_REVISION_FILE',
+                    'message': '참고 파일 경로가 올바르지 않습니다. 파일을 다시 올려 주세요.',
+                    'error': 'INVALID_REVISION_FILE',
+                }), 400
         target_drawing_key = (data.get('target_drawing_key') or '').strip()
         target_drawing_keys = data.get('target_drawing_keys') or []
 
@@ -216,66 +234,6 @@ def api_order_request_revision(order_id):
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
-def _revision_reference_keys(files) -> set:
-    """수정요청 이력 항목의 files에서 참고 파일 storage_key 집합을 추출.
-
-    Args:
-        files: REQUEST_REVISION 이력의 files 값(dict 리스트, 이번 요청 신규 업로드분).
-    Returns:
-        공백 제거된 storage_key 문자열 집합(빈 값 제외).
-    """
-    keys = set()
-    for f in (files or []):
-        if isinstance(f, dict):
-            k = (f.get('key') or '').strip()
-            if k:
-                keys.add(k)
-    return keys
-
-
-def _delete_revision_reference_files(db, order_id: int, keys: set) -> int:
-    """수정요청에서 새로 올린 참고 파일만 스토리지+DB에서 삭제.
-
-    도면 원본(drawing_current_files)이나 타 이력 파일은 대상이 아니다.
-
-    Args:
-        db: SQLAlchemy 세션.
-        order_id: 주문 ID.
-        keys: 삭제 대상 storage_key 집합(이번 요청 신규 업로드분).
-    Returns:
-        실제로 삭제된 파일 수.
-    """
-    if not keys:
-        return 0
-    storage = get_storage()
-    rows = db.query(OrderAttachment).filter(
-        OrderAttachment.order_id == order_id,
-        OrderAttachment.storage_key.in_(list(keys)),
-    ).all()
-    deleted = 0
-    handled = set()
-    for row in rows:
-        try:
-            if row.storage_key:
-                if storage.delete_file(row.storage_key):
-                    deleted += 1
-                handled.add(row.storage_key)
-            if row.thumbnail_key:
-                storage.delete_file(row.thumbnail_key)
-        except Exception:
-            logger.warning("cancel-revision: file delete failed key=%s", row.storage_key, exc_info=True)
-        db.delete(row)
-    for key in keys:
-        if key in handled:
-            continue
-        try:
-            if storage.delete_file(key):
-                deleted += 1
-        except Exception:
-            logger.warning("cancel-revision: orphan key delete failed key=%s", key, exc_info=True)
-    return deleted
-
-
 def _resolve_revision_restore_status(history: list) -> str:
     """수정요청 취소 후 복원할 drawing_status 결정.
 
@@ -305,10 +263,14 @@ def _resolve_revision_restore_status(history: list) -> str:
 def api_order_cancel_revision_request(order_id):
     """도면 수정요청 취소 (영업측/관리자)
 
-    영업팀이 접수한 도면 수정요청을 철회하고, 그 요청에서 새로 올린 참고
-    파일만 삭제한 뒤 이전 상태(TRANSFERRED 또는 CONFIRMED)로 복원한다.
-    도면 원본(drawing_current_files)과 타 이력 파일은 건드리지 않는다.
+    영업팀이 접수한 도면 수정요청을 철회하고 이전 상태(TRANSFERRED 또는 CONFIRMED)로
+    복원한다. 열린 요청을 세는 소비자들이 바뀌지 않게 REQUEST_REVISION 항목은 이력에서
+    빼되, 이력 끝에 ``REVISION_CANCELLED``(원래 요청 전체 복사·취소자·시각·이유)를 붙여
+    "이 단계에서 수정요청이 있었다"가 남게 한다(M2). **파일은 지우지 않는다** — 예전에는
+    참고 파일을 커밋 전에 R2 에서 지워 커밋이 실패하면 파일만 사라졌다.
+    도면팀이 '반영 완료'를 누르고 작업 중이어도 취소할 수 있다(Q3 추천안 — 기록·알림으로 남김).
     권한은 전달취소(도면팀)와 대칭으로 영업측+관리자(도면팀 제외) 전용.
+    본문은 선택 ``{reason}`` 이고 본문·Content-Type 이 없어도 된다(지금 화면 두 곳).
 
     Args:
         order_id: 주문 ID(URL 경로).
@@ -317,6 +279,9 @@ def api_order_cancel_revision_request(order_id):
     """
     db = None
     try:
+        body = request.get_json(silent=True) or {}
+        reason_raw = body.get('reason') if isinstance(body, dict) else None
+        reason = (reason_raw.strip() if isinstance(reason_raw, str) else '')[:REVISION_CANCEL_REASON_MAX]
         db = get_db()
         order = lock_order_row(db, order_id)
         if not order or order.status == "DELETED" or order.deleted_at is not None:
@@ -349,11 +314,16 @@ def api_order_cancel_revision_request(order_id):
         if target_idx is None:
             return jsonify({'success': False, 'message': '취소할 수정 요청 이력을 찾을 수 없습니다.'}), 404
 
-        deleted_count = _delete_revision_reference_files(
-            db, order_id, _revision_reference_keys((history[target_idx] or {}).get('files'))
-        )
-        cancelled_request = history.pop(target_idx)
+        cancelled_request = copy.deepcopy(history.pop(target_idx))
         restore_status = _resolve_revision_restore_status(history)
+        history.append({
+            'action': 'REVISION_CANCELLED',
+            'at': now_utc_naive().strftime('%Y-%m-%d %H:%M:%S'),
+            'by_user_id': session.get('user_id'),
+            'by_user_name': current_user.name,
+            'reason': reason,
+            'request': cancelled_request,
+        })
 
         s_data['drawing_status'] = restore_status
         s_data['drawing_transfer_history'] = history
@@ -366,14 +336,11 @@ def api_order_cancel_revision_request(order_id):
         execute_single_order_write(
             db, order_id=order_id, actor_user_id=current_user.id,
             policy_id=DRAWING_REVISION_CANCEL_POLICY_ID,
-            payload={'target_idx': target_idx}, write=_write_revision_cancel,
+            payload={'target_idx': target_idx, 'reason': reason}, write=_write_revision_cancel,
         )
         db.add(SecurityLog(
             user_id=session.get('user_id'),
-            message=(
-                f"주문 #{order_id} 도면 수정요청 취소 → {restore_status} 복귀 "
-                f"(참고파일 {deleted_count}개 삭제)"
-            )
+            message=f"주문 #{order_id} 도면 수정요청 취소 → {restore_status} 복귀",
         ))
 
         # 수정요청취소 알림 → 도면팀. 실패해도 취소는 진행(로그만).
