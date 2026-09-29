@@ -44,7 +44,6 @@ class _Storage:
 @pytest.fixture
 def storage(monkeypatch):
     fake = _Storage()
-    monkeypatch.setattr(revision_api, "get_storage", lambda: fake)
     monkeypatch.setattr(wizard_api, "get_storage", lambda: fake)
     monkeypatch.setattr(revision_api, "emit_erp_notification_to_users", lambda *a, **k: None)
     return fake

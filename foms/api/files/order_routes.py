@@ -39,6 +39,11 @@ from foms.services.drawing_confirm_cleanup import (
     superseded_drawing_keys,
 )
 from foms.services.files.upload_authz import category_upload_allowed
+from foms.services.orders.drawing_key_safety import (
+    RETAIN_DRAWING_HISTORY,
+    drawing_keys_in_use,
+    split_deletable_keys,
+)
 from foms.services.files.upload_policy import ERP_MEDIA_ALLOWED_EXTENSIONS
 from foms.services.order_attachment_thumbnail import (
     schedule_order_attachment_thumbnail_generation,
@@ -181,7 +186,8 @@ def _delete_dedupe_key(attachment_id: int, object_key: str) -> str:
 
 
 def _enqueue_attachment_purge(
-    db: Any, attachment: OrderAttachment, event_id: int, *, now: datetime.datetime
+    db: Any, attachment: OrderAttachment, event_id: int, *, now: datetime.datetime,
+    only_keys: Optional[set] = None,
 ) -> None:
     """첨부 blob 삭제를 유예 후 ``STORAGE_DELETE`` outbox 로 예약한다(동기 R2 삭제 금지).
 
@@ -194,9 +200,12 @@ def _enqueue_attachment_purge(
         attachment: tombstone 된 첨부.
         event_id: source 로 삼을 ``ATTACHMENT_DELETED`` 이벤트 id.
         now: 기준 시각(유예 계산 기준).
+        only_keys: 주면 그 안의 key 만 예약한다(공통 판정이 지워도 된다고 한 것).
     """
     available_at = now + ATTACHMENT_PURGE_GRACE
     for object_key in _attachment_object_keys(attachment):
+        if only_keys is not None and object_key not in only_keys:
+            continue
         enqueue_side_effect(
             db,
             source_domain="ORDER_EVENT",
@@ -229,6 +238,28 @@ def _attachment_purge_rows(db: Any, attachment: OrderAttachment) -> list:
         )
         .all()
     )
+
+
+def _last_delete_retained_file(db: Any, attachment: OrderAttachment) -> bool:
+    """이 첨부의 마지막 ``ATTACHMENT_DELETED`` 이벤트가 ``file_retained: true`` 인지.
+
+    주문의 삭제 이벤트를 id 역순으로 읽어 이 attachment_id 의 첫 것을 본다(payload JSON 을
+    방언마다 다르게 거르지 않으려고 파이썬에서 고른다 — 주문당 삭제 이벤트는 적다).
+    """
+    events = (
+        db.query(OrderEvent)
+        .filter(
+            OrderEvent.order_id == attachment.order_id,
+            OrderEvent.event_type == ATTACHMENT_DELETED,
+        )
+        .order_by(OrderEvent.id.desc())
+        .all()
+    )
+    for event in events:
+        payload = event.payload if isinstance(event.payload, dict) else {}
+        if payload.get("attachment_id") == attachment.id:
+            return bool(payload.get("file_retained"))
+    return False
 
 
 def _invalidate_attachment_caches() -> None:
@@ -643,13 +674,42 @@ def api_order_attachments_delete(order_id, attachment_id):
                 403,
             )
 
+        sd = order.structured_data if order is not None and isinstance(order.structured_data, dict) else {}
+        storage_key = (attachment.storage_key or "").strip()
+        current_keys = {
+            (f.get("key") or "").strip()
+            for f in (sd.get("drawing_current_files") or []) if isinstance(f, dict)
+        }
+        if storage_key and storage_key in current_keys:
+            # 뚫기 게이트가 아니다(관리자도 같은 답) — 교체·전달 취소가 올바른 길이다.
+            return jsonify({
+                "success": False,
+                "code": "DRAWING_IN_USE",
+                "error": "DRAWING_IN_USE",
+                "message": "지금 전달된 도면이라 첨부 탭에서 지울 수 없습니다. "
+                           "도면 작업실에서 교체하거나 전달을 취소해 주세요.",
+            }), 409
+
+        # 공통 판정: 이력에만 남은 교체된 옛 도면·참고사진 등은 행만 휴지통으로, 파일은 남긴다.
+        reasons: dict[str, str] = {}
+        purge_keys, _retained = split_deletable_keys(
+            db, order_id, sd, _attachment_object_keys(attachment),
+            scope="any", exclude_attachment_ids=[attachment.id], reasons_out=reasons,
+        )
+        file_retained = bool(storage_key) and storage_key not in purge_keys
         now = now_utc_naive()
+        extra: dict = {"deleted_at": now.isoformat()}
+        if file_retained:
+            extra["file_retained"] = True
+            extra["retained_reason"] = (
+                RETAIN_DRAWING_HISTORY if storage_key in drawing_keys_in_use(sd)
+                else reasons.get(storage_key, RETAIN_DRAWING_HISTORY)
+            )
         attachment.deleted_at = now
         attachment.deleted_by_user_id = _actor_user_id()
-        event = emit_attachment_event(
-            db, attachment, ATTACHMENT_DELETED, extra={"deleted_at": now.isoformat()}
-        )
-        _enqueue_attachment_purge(db, attachment, event.id, now=now)
+        event = emit_attachment_event(db, attachment, ATTACHMENT_DELETED, extra=extra)
+        if not file_retained:
+            _enqueue_attachment_purge(db, attachment, event.id, now=now, only_keys=purge_keys)
         db.commit()
         _invalidate_attachment_caches()
         return jsonify({"success": True})
@@ -700,7 +760,15 @@ def api_order_attachments_restore(order_id, attachment_id):
             )
 
         purge_rows = _attachment_purge_rows(db, attachment)
-        if not purge_rows or any(row.status != "PENDING" for row in purge_rows):
+        if not purge_rows and _last_delete_retained_file(db, attachment):
+            # 파일을 남긴 휴지통 행(교체된 옛 도면 등) — 예약이 없는 것이 정상이다.
+            # 파일이 실제로 있을 때만 되살린다(읽기 1회). 없으면 사실대로 거절.
+            if not attachment.storage_key or not get_storage().object_exists(attachment.storage_key):
+                return jsonify({
+                    "success": False,
+                    "message": "파일이 저장소에 없어 복구할 수 없습니다.",
+                }), 409
+        elif not purge_rows or any(row.status != "PENDING" for row in purge_rows):
             return (
                 jsonify(
                     {

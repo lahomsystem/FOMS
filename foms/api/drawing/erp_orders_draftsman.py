@@ -489,6 +489,7 @@ def api_order_confirm_drawing_receipt(order_id):
         })
 
     except Exception as e:
+        log_handled_exception("confirm-drawing-receipt")
         if db is not None:
             db.rollback()
         return jsonify({'success': False, 'message': str(e)}), 500
