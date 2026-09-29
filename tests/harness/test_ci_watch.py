@@ -581,3 +581,58 @@ def test_all_green_check_mark_safe_on_cp949_console(mod, monkeypatch) -> None:
     sys.stdout.flush()
     assert code == 0
     assert "ALL GREEN" in raw_out.getvalue().decode("utf-8")
+
+
+# ---------------------------------------------------------------------------
+# gh 조회 실패는 green 이 아니다 (2026-09-29 b86f4c5d3 거짓 초록)
+# ---------------------------------------------------------------------------
+_PENDING = {"headSha": "abc12345x", "status": "in_progress", "conclusion": None,
+            "databaseId": 1, "workflowName": "FOMS CI"}
+_DONE = {"headSha": "abc12345x", "status": "completed", "conclusion": "success",
+         "databaseId": 1, "workflowName": "FOMS CI"}
+
+
+@pytest.mark.parametrize(
+    "gh_result",
+    [(1, "", "HTTP 502"), (0, "", ""), (0, "not json", ""), (0, '{"a": 1}', ""), (124, "", "timeout")],
+    ids=["rc-nonzero", "empty-output", "not-json", "not-a-list", "timeout"],
+)
+def test_list_runs_lookup_failure_is_none_not_empty(mod, monkeypatch, gh_result) -> None:
+    monkeypatch.setattr(mod, "run_gh", lambda *_a, **_k: gh_result)
+    assert mod.list_runs("deploy", "abc12345") is None
+
+
+def test_list_runs_success_without_target_is_empty(mod, monkeypatch) -> None:
+    """Negative control: gh succeeded and the SHA simply has no runs → [] (paths-ignore)."""
+    monkeypatch.setattr(mod, "run_gh", lambda *_a, **_k: (0, '[{"headSha": "ffff0000"}]', ""))
+    assert mod.list_runs("deploy", "abc12345") == []
+
+
+def test_poll_keeps_last_runs_when_a_mid_poll_lookup_fails(mod, monkeypatch) -> None:
+    """Runs seen once never vanish: a failed (None) or empty lookup mid-poll keeps polling."""
+    seq = iter([[_PENDING], None, [], [_DONE]])
+    monkeypatch.setattr(mod, "list_runs", lambda *_a, **_k: next(seq))
+    runs = mod.poll_completion("deploy", "abc12345", sleep_fn=_NOOP_SLEEP)
+    assert runs == [_DONE]
+
+
+def test_watch_once_persistent_lookup_failure_is_not_green(mod, monkeypatch) -> None:
+    monkeypatch.setattr(mod, "list_runs", lambda *_a, **_k: None)
+    code = mod.watch_once("abc12345", "deploy", "http://hz", set(), sleep_fn=_NOOP_SLEEP, printer=_SINK)
+    assert code == 4
+
+
+def test_watch_once_mid_poll_failure_does_not_end_as_green(mod, monkeypatch) -> None:
+    """The exact 2026-09-29 shape: runs in progress, then one failed lookup."""
+    seq = iter([[_PENDING], None] + [[_PENDING]] * 3 + [[_DONE]])
+    monkeypatch.setattr(mod, "list_runs", lambda *_a, **_k: next(seq))
+    lines: list[str] = []
+    code = mod.watch_once("abc12345", "deploy", "http://hz", set(), sleep_fn=_NOOP_SLEEP, printer=lines.append)
+    assert code == 0
+    assert any("ALL GREEN" in line for line in lines)
+    assert not any("워크플로 없음" in line for line in lines)
+
+
+def test_quick_lookup_failure_is_not_green(mod, monkeypatch) -> None:
+    monkeypatch.setattr(mod, "list_runs", lambda *_a, **_k: None)
+    assert mod.watch_quick("abc12345", "deploy", "http://hz", printer=_SINK) == 4
