@@ -8,6 +8,11 @@
 고칠 수 있는 요청: ``drawing_status == RETURNED`` 이고 이력의 **마지막** ``REQUEST_REVISION`` 이
 도면팀 반영 체크(``review_check.checked``) 전. 요청 식별값(``at``·``by_user_id`` — 반영 체크
 토글이 보내는 두 값)은 바꾸지 않는다. 고치기 전 내용은 항목 안 ``edits`` 목록에 남긴다.
+
+본문 규칙: 보내지 않은 칸(키 없음·null·빈 문자열)은 그대로다. 출처(``source``)와 받은 경로
+(``received_via``)는 따로 본다 — 경로만 오면 출처는 두고(고객 요청일 때만 경로를 바꾼다), 출처만
+오면 경로는 둔다(영업 의견으로 바꿀 때만 지운다). 메모는 공백만이면 400, 바뀐 칸이 하나도 없으면
+400 ``NOTHING_TO_EDIT``(쓰기·버전·알림 없음).
 """
 from __future__ import annotations
 
@@ -22,7 +27,10 @@ from foms.services.orders.drawing_revision_files import (
 )
 from foms.services.orders.drawing_revision_source import (
     INVALID_REVISION_SOURCE,
-    parse_revision_source,
+    RECEIVED_VIA_LABELS,
+    REVISION_SOURCES,
+    SOURCE_CUSTOMER,
+    SOURCE_SALES,
 )
 
 #: 고치기 전 내용으로 ``edits`` 에 남기는 필드(출처 필드는 있을 때만).
@@ -40,11 +48,19 @@ class EditError(NamedTuple):
 
 
 class RevisionEditRequest(NamedTuple):
-    """검사를 통과한 본문. ``None`` 인 칸은 '보내지 않음 = 그대로'."""
+    """검사를 통과한 본문. ``None`` 인 칸은 '보내지 않음 = 그대로'.
+
+    ``source_fields`` 는 **보낸 칸만** 담는다(``source``·``received_via`` 따로). 키가 없거나
+    null·빈 문자열이면 그 칸은 그대로다 — 수정요청 라우트의 '키 없음 = 지금과 같음'과 같은 뜻.
+    """
     note: str | None
     files: list[dict] | None
     source_fields: dict[str, str] | None
     target_keys: list[str] | None
+
+
+#: 바뀐 것이 하나도 없는 고치기(빈 본문·같은 값) — 쓰기·버전·알림 없이 400.
+NOTHING_TO_EDIT = "NOTHING_TO_EDIT"
 
 
 def editable_revision_request(sd: Any) -> tuple[int | None, dict | None]:
@@ -85,6 +101,9 @@ def parse_revision_edit_body(order_id: int, data: Any) -> tuple[RevisionEditRequ
     note = body.get("note")
     if note is not None and not isinstance(note, str):
         return None, EditError("INVALID_REVISION_NOTE", "요청 내용이 올바르지 않습니다.", 400)
+    if isinstance(note, str) and not note.strip():
+        # 수정요청 창의 '메모 필수'와 같다 — 요청 내용을 빈칸으로 만들 수 없다.
+        return None, EditError("INVALID_REVISION_NOTE", "요청 내용을 적어 주세요.", 400)
     files = None
     raw_files = body.get("files")
     if raw_files is not None:
@@ -97,11 +116,9 @@ def parse_revision_edit_body(order_id: int, data: Any) -> tuple[RevisionEditRequ
                  else "참고 파일 경로가 올바르지 않습니다. 파일을 다시 올려 주세요."),
                 400,
             )
-    source_fields = None
-    if "source" in body or "received_via" in body:
-        source_fields, err = parse_revision_source(body)
-        if err:
-            return None, EditError(INVALID_REVISION_SOURCE, "요청 출처 값이 올바르지 않습니다.", 400)
+    source_fields, source_err = _parse_source_fields(body)
+    if source_err:
+        return None, source_err
     raw_targets = body.get("target_file_keys")
     if raw_targets is None:
         raw_targets = body.get("target_drawing_keys")
@@ -112,6 +129,44 @@ def parse_revision_edit_body(order_id: int, data: Any) -> tuple[RevisionEditRequ
         target_keys = list(dict.fromkeys(k.strip() for k in raw_targets))
     return RevisionEditRequest(note=note, files=files, source_fields=source_fields,
                                target_keys=target_keys), None
+
+
+def _parse_source_fields(body: Mapping[str, Any]) -> tuple[dict[str, str] | None, EditError | None]:
+    """출처·받은 경로를 **따로** 읽는다(보낸 칸만). 목록 밖 값은 수정요청과 같은 엄격 400."""
+    fields: dict[str, str] = {}
+    for key, allowed in (("source", REVISION_SOURCES), ("received_via", tuple(RECEIVED_VIA_LABELS))):
+        value = body.get(key)
+        if value is None or (isinstance(value, str) and not value.strip()):
+            continue
+        if not isinstance(value, str) or value.strip() not in allowed:
+            return None, EditError(INVALID_REVISION_SOURCE, "요청 출처 값이 올바르지 않습니다.", 400)
+        fields[key] = value.strip()
+    return (fields or None), None
+
+
+def _apply_source_fields(target: dict, fields: Mapping[str, str]) -> None:
+    """보낸 칸만 반영한다. 받은 경로는 고객 요청에만 뜻이 있다(영업 의견·옛 항목이면 버린다)."""
+    source = fields.get("source") or target.get("source")
+    if source == SOURCE_SALES:
+        target["source"] = SOURCE_SALES
+        target.pop("received_via", None)
+    elif source == SOURCE_CUSTOMER:
+        target["source"] = SOURCE_CUSTOMER
+        if fields.get("received_via"):
+            target["received_via"] = fields["received_via"]
+
+
+def _file_keys(files: Any) -> list[str]:
+    return [str((f or {}).get("key") or "") for f in (files or []) if isinstance(f, Mapping)]
+
+
+def _changed(before: Mapping[str, Any], after: Mapping[str, Any]) -> bool:
+    """고친 칸이 하나라도 실제로 바뀌었나(참고 파일은 key 목록으로 비교)."""
+    if _file_keys(before.get("files")) != _file_keys(after.get("files")):
+        return True
+    if list(before.get("target_drawing_keys") or []) != list(after.get("target_drawing_keys") or []):
+        return True
+    return any(before.get(k) != after.get(k) for k in ("note", *_SOURCE_FIELDS))
 
 
 def _resolve_targets(current_files: list, keys: list[str]) -> tuple[list[str], list[int]] | EditError:
@@ -176,10 +231,10 @@ def apply_revision_edit(
     if req.files is not None:
         target["files"] = req.files
         target["files_count"] = len(req.files)
-    if req.source_fields is not None:
-        for k in _SOURCE_FIELDS:
-            target.pop(k, None)
-        target.update(req.source_fields)
+    if req.source_fields:
+        _apply_source_fields(target, req.source_fields)
+    if not _changed(entry, target):
+        return None, EditError(NOTHING_TO_EDIT, "바뀐 내용이 없어요.", 400)
     target["edits"] = [*list(entry.get("edits") or []), snapshot]
     target["edited_at"] = now_str
     target["edited_by_user_id"] = getattr(user, "id", None)
@@ -209,6 +264,7 @@ def edit_revision_prefill(order_id: int, entry: Any) -> dict[str, Any]:
 
 
 __all__ = [
+    "NOTHING_TO_EDIT",
     "EditError",
     "RevisionEditRequest",
     "apply_revision_edit",
