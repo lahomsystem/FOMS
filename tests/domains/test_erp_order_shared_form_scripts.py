@@ -1779,7 +1779,7 @@ def test_measurement_dashboard_consumes_focus_order_deeplink() -> None:
     idx_today = dash.index("todayEl.scrollIntoView")
     idx_focus = dash.index("focus_order")
     assert idx_today < idx_focus  # today 스크롤보다 뒤 = 우선권
-    assert "/^\d+$/.test(focusOrder)" in dash
+    assert r"/^\d+$/.test(focusOrder)" in dash
     assert "tr.scrollIntoView({ block: 'center' })" in dash
 
     # 헬퍼가 실측 복귀 URL에 focus_order 를 부여한다

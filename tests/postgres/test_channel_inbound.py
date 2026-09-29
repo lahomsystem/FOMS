@@ -475,7 +475,7 @@ def test_worker_exact_conservation_and_idempotent(pg_engine, monkeypatch):
         assert [r.created_order_id for r in rows2] == order_ids  # 동일 주문(중복 생성 0)
 
         # 실제 Order 필드 검증.
-        order = s.query(Order).get(order_ids[0])
+        order = s.get(Order, order_ids[0])
         assert order.customer_name == "홍길동" and order.is_erp_order is True
     finally:
         s.close()
@@ -552,7 +552,7 @@ def test_worker_two_commit_zero_atomic_rollback(pg_engine, monkeypatch):
         finally:
             s2.close()
         # 별 세션에서 확인: order 없음, receipt 는 여전히 ACCEPTED.
-        assert s.query(Order).get(oid) is None
+        assert s.get(Order, oid) is None
         s.expire_all()
         assert s.query(ChannelInboundEventLog).filter_by(id=receipt.id).one().receipt_state == "ACCEPTED"
     finally:

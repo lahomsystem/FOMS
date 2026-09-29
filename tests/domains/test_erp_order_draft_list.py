@@ -69,7 +69,9 @@ def _make_draft(
     from db import db_session
     from models import OrderDraft
 
-    now = datetime.datetime.utcnow()
+    from foms.services.datetime_kst import now_utc_naive
+
+    now = now_utc_naive()
     items = [
         {"product_name": "부엌가구", "attachments": [{"tmp_key": "a"}, {"tmp_key": "b"}]},
         {"product_name": "아일랜드", "attachments": []},

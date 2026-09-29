@@ -76,7 +76,7 @@ def test_field_update_saves_availability_and_logs(auth_client):
     })
     assert resp.status_code == 200, resp.get_data(as_text=True)
     db_session.expire_all()
-    fresh = db_session.query(Order).get(order.id)
+    fresh = db_session.get(Order, order.id)
     assert get_as_availability(fresh.structured_data) == {
         "days": "weekend", "time": "pm", "note": "경비실"}
     assert _last_as_log_text(fresh) == "가능시간: 주말·오후 (경비실)"
@@ -87,7 +87,7 @@ def test_field_update_saves_availability_and_logs(auth_client):
     })
     assert resp.status_code == 200, resp.get_data(as_text=True)
     db_session.expire_all()
-    fresh = db_session.query(Order).get(order.id)
+    fresh = db_session.get(Order, order.id)
     assert get_as_availability(fresh.structured_data) is None
     assert _last_as_log_text(fresh) == "가능시간 초기화"
 
@@ -101,5 +101,5 @@ def test_field_update_rejects_invalid_availability(auth_client):
     })
     assert resp.status_code == 409
     db_session.expire_all()
-    fresh = db_session.query(Order).get(oid)
+    fresh = db_session.get(Order, oid)
     assert get_as_availability(fresh.structured_data) is None
