@@ -196,12 +196,6 @@ class _Storage:
         return True
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason="2b 복구 보강(예약 없는 file_retained 행 복구)이 이 브랜치에 아직 없다(지금 복구 API 는 409). "
-    "2b 병합 뒤 이 테스트가 통과하면 strict 라 XPASS 로 빨개진다 — 그때 이 표시를 지운다.",
-)
 def test_restore_api_revives_orphan_tombstone(seeded, client, monkeypatch):
     """적용한 (가) 행을 휴지통 복구 API 가 되살린다(2b 복구 보강과 같은 규약)."""
     triage.run(db_session, apply_ids=[seeded["a"]])

@@ -20,7 +20,7 @@
   "sites": [
     {
       "path": "foms/api/drawing/erp_orders_drawing.py",
-      "lineno": 192,
+      "lineno": 206,
       "kind": "query_bulk_update",
       "func": "perform_drawing_transfer",
       "signal": "MARKED",
