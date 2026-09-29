@@ -1000,8 +1000,11 @@
       const items = (sd.items || []) || [];
       let itemsHtml = '';
       if (items.length > 0) {
-        let gridHtml = '<div class="erp-product-items-grid mt-3">';
-        items.forEach(item => {
+        // 2건 이상이면 erporder 와 같은 목록+상세(공용 static/js/foms/order-items-md.js). 도우미가 없으면 예전 2열 카드.
+        const itemsMd = window.FomsOrderItemsMD;
+        const multiItems = items.length > 1 && !!itemsMd;
+        const cards = [];
+        items.forEach((item, idx) => {
           let specW = item.spec_width || '';
           let specD = item.spec_depth || '';
           let specH = item.spec_height || '';
@@ -1024,7 +1027,7 @@
             return String(val).trim() || '-';
           };
 
-          gridHtml += `<div class="erp-product-items-card">
+          cards.push(`<div class="erp-product-items-card">${multiItems ? `<div class="od-md-cardhead"><div class="od-md-cardhead__name">${esc(safeValue(item.product_name || item.name))}</div>${itemsMd.nav(idx, items.length)}</div>` : ''}
         <div class="erp-product-items-row">
           <span class="erp-product-items-label">제품명:</span>
           <span class="erp-product-items-value">${esc(safeValue(item.product_name || item.name))}</span>
@@ -1061,10 +1064,11 @@
           <span class="erp-product-items-label">금액:</span>
           <span class="erp-product-items-value">${esc(priceText)}</span>
         </div>
-      </div>`;
+      </div>`);
         });
-        gridHtml += '</div>';
-        itemsHtml = gridHtml;
+        itemsHtml = multiItems
+          ? itemsMd.render(items, cards)
+          : '<div class="erp-product-items-grid mt-3">' + cards.join('') + '</div>';
       } else {
         itemsHtml = '<div class="text-muted mt-3" style="font-size: 1rem;">제품 항목 없음</div>';
       }

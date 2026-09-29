@@ -1,0 +1,205 @@
+/* 주문 상세 펼침 — 제품 여러 건 목록+상세(erporder 와 같은 모양).
+   주문·생산·시공 대시보드 공용. 마크업은 static/js/foms/order-items-md.js 가 그린다. */
+.erp-order-detail .dw-items-md {
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  margin-top: 0.5rem;
+}
+.erp-order-detail .item-rail {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #dfe7f3;
+  border-radius: 10px;
+  background: #fff;
+  overflow: hidden;
+}
+.erp-order-detail .item-rail__head {
+  padding: 10px 12px;
+  border-bottom: 1px solid #e8eef8;
+  background: #f7faff;
+}
+.erp-order-detail .item-rail__title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #234579;
+}
+.erp-order-detail .item-rail__count {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #1d4ed8;
+  background: #e8f0ff;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+.erp-order-detail .item-rail__list {
+  max-height: 520px;
+  overflow-y: auto;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.erp-order-detail .rail-item {
+  appearance: none;
+  font: inherit;
+  text-align: left;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  min-height: 44px;
+  border-radius: 8px;
+  border: 1px solid #e1e7f0;
+  border-left: 3px solid transparent;
+  background: #f8fafc;
+  cursor: pointer;
+  transition: background .15s, border-color .15s, box-shadow .15s;
+}
+.erp-order-detail .rail-item:hover {
+  background: #eef3fb;
+  border-color: #cdd8e8;
+}
+.erp-order-detail .rail-item.is-selected {
+  background: #fff;
+  border-color: #0d6efd;
+  border-left-color: #0d6efd;
+  box-shadow: 0 0 0 2px rgba(13, 110, 253, 0.14);
+}
+.erp-order-detail .rail-item__index {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #1d4ed8;
+  background: #e8f0ff;
+  border-radius: 999px;
+  font-variant-numeric: tabular-nums;
+}
+.erp-order-detail .rail-item.is-selected .rail-item__index {
+  background: #0d6efd;
+  color: #fff;
+}
+.erp-order-detail .rail-item__main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.erp-order-detail .rail-item__name {
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: #1f2d3f;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+  line-height: 1.3;
+}
+.erp-order-detail .rail-item__spec {
+  font-size: 0.74rem;
+  color: #6c7f99;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.25;
+}
+.erp-order-detail .rail-item__price {
+  flex-shrink: 0;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: #2d3f56;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.erp-order-detail .item-rail__foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  border-top: 1px solid #e8eef8;
+  font-size: 0.82rem;
+  color: #5b6b82;
+}
+.erp-order-detail .item-rail__foot strong {
+  font-size: 0.95rem;
+  color: #0f2a52;
+  font-variant-numeric: tabular-nums;
+}
+.erp-order-detail .dw-item-detail {
+  min-width: 0;
+}
+.erp-order-detail .dw-item-detail .dw-product-main-card {
+  margin-bottom: 0;
+}
+.erp-order-detail .od-item-nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.erp-order-detail .od-item-nav__pos {
+  min-width: 3.2rem;
+  text-align: center;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #475a74;
+  font-variant-numeric: tabular-nums;
+}
+/* 생산·시공 글자 카드 머리(제품 이름 + ‹ n / N ›) */
+.erp-order-detail .od-md-cardhead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 0.5rem;
+  margin-bottom: 0.25rem;
+  border-bottom: 1px solid #e8eef8;
+}
+.erp-order-detail .od-md-cardhead__name {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #0f2a52;
+  min-width: 0;
+}
+/* 주문 대시보드: 출고가·예약금·잔금 한 번만 */
+.erp-order-detail .od-amount-row {
+  max-width: 16rem;
+}
+@media (max-width: 767px) {
+  /* 폰: 목록을 위에 가로로 밀어 보는 줄로, 상세는 그 아래 */
+  .erp-order-detail .dw-items-md {
+    grid-template-columns: 1fr;
+  }
+  .erp-order-detail .item-rail__head,
+  .erp-order-detail .item-rail__foot {
+    display: none;
+  }
+  .erp-order-detail .item-rail__list {
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+    max-height: none;
+  }
+  .erp-order-detail .rail-item {
+    flex: 0 0 auto;
+    width: auto;
+    max-width: 220px;
+  }
+}
+/* 생산·시공 글자 카드: 이름 칸 70px 에 "추가 입력:" 이 안 들어가 값과 겹쳤다 */
+.erp-order-detail .erp-product-items-row {
+  grid-template-columns: 92px minmax(0, 1fr) !important;
+}
