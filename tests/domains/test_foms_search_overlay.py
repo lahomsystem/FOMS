@@ -801,3 +801,113 @@ def test_search_fragment_all_tab_shows_each_order_once(client, app) -> None:
         as_text=True
     )
     assert drawing_tab.count("data-search-result") == 1
+
+
+def test_unified_search_exact_order_number_ranks_first(app) -> None:
+    """주문번호를 그대로 치면 그 주문이 맨 위 — 번호가 섞인 최근 주문 8건에 밀려 잘리면 안 된다."""
+    from db import db_session
+    from foms.services.foms_unified_search import search_unified
+    from models import Order
+
+    with app.app_context():
+        target = Order(
+            received_date="2026-01-01",
+            customer_name="번호대상",
+            phone="010-0000-0000",
+            address="서울",
+            product="장",
+            status="RECEIVED",
+            is_erp_order=True,
+            structured_data={"parties": {"customer": {"name": "번호대상"}}},
+        )
+        db_session.add(target)
+        db_session.commit()
+        number = str(target.id)
+        for i in range(10):
+            db_session.add(
+                Order(
+                    received_date="2026-02-01",
+                    customer_name=f"번호주변{i}",
+                    phone="010-0000-0000",
+                    address=f"서울 {number}번길 {i}",
+                    product="장",
+                    status="RECEIVED",
+                    is_erp_order=True,
+                    structured_data={"parties": {"customer": {"name": f"번호주변{i}"}}},
+                )
+            )
+        db_session.commit()
+
+        for query in (number, f"#{number}"):
+            hits = search_unified(db_session, query)
+            assert hits["order"], query
+            assert hits["order"][0]["order_id"] == target.id, query
+
+
+def test_unified_search_construction_team_sees_only_own_orders(app, client) -> None:
+    """시공팀은 이력 화면처럼 자기 담당 주문만 — 미리보기가 모든 고객 연락처를 보여 주던 구멍."""
+    from db import db_session
+    from foms.services.foms_unified_search import construction_scope_user, search_unified
+    from models import Order, User
+
+    with app.app_context():
+        worker = User(
+            username="search_construction_user",
+            password=generate_password_hash("admin"),
+            role="STAFF",
+            team="CONSTRUCTION",
+            name="시공김기사",
+        )
+        cs_user = User(
+            username="search_cs_scope_user",
+            password=generate_password_hash("admin"),
+            role="STAFF",
+            team="CS",
+            name="상담이",
+        )
+        mine = Order(
+            received_date="2026-03-01",
+            customer_name="권한고객",
+            phone="010-0000-0000",
+            address="서울",
+            product="장",
+            manager_name="시공김기사",
+            status="CONSTRUCTION",
+            is_erp_order=True,
+            structured_data={"parties": {"customer": {"name": "권한고객"}}},
+        )
+        others = Order(
+            received_date="2026-03-02",
+            customer_name="권한고객",
+            phone="010-0000-0000",
+            address="서울",
+            product="장",
+            manager_name="영업박",
+            status="CONSTRUCTION",
+            is_erp_order=True,
+            structured_data={"parties": {"customer": {"name": "권한고객"}}},
+        )
+        db_session.add_all([worker, cs_user, mine, others])
+        db_session.commit()
+        mine_id, others_id = mine.id, others.id
+
+        def ids(buckets):
+            return {hit["order_id"] for group in buckets.values() for hit in group}
+
+        # 대조군: 제한 없이는 둘 다.
+        assert ids(search_unified(db_session, "권한고객")) >= {mine_id, others_id}
+        assert construction_scope_user(cs_user) is None
+        scoped = search_unified(
+            db_session, "권한고객", restrict_to_user=construction_scope_user(worker)
+        )
+        assert mine_id in ids(scoped)
+        assert others_id not in ids(scoped)
+
+    client.post(
+        "/login",
+        data={"username": "search_construction_user", "password": "admin"},
+        follow_redirects=True,
+    )
+    body = client.get("/api/foms/search/fragment?q=권한고객&group=all").get_data(as_text=True)
+    assert f"focus_order={mine_id}" in body
+    assert f"focus_order={others_id}" not in body
