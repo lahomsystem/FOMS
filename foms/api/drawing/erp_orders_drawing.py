@@ -27,6 +27,7 @@ from foms.api.notifications import (
 from foms.services.notifications.realtime_notifications import emit_erp_notification_to_users
 from foms.services.notifications.recipients import fan_out_new_notification
 from foms.services.erp_permissions import erp_edit_required
+from foms.services.files.purge_policy import ATTACHMENT_PURGE_GRACE
 from foms.services.erp_policy import (
     can_modify_domain,
     can_transfer_drawing,
@@ -624,7 +625,6 @@ def api_order_cancel_transfer(order_id):
         # ORDER_EVENT 를 source 로 두어 one-of FK 매트릭스를 만족하고, business tx 가
         # rollback 되면 event·outbox 도 함께 rollback 된다(원자성).
         if storage_keys_for_outbox:
-            from foms.api.files.order_routes import ATTACHMENT_PURGE_GRACE
             purge_now = now_utc_naive()
             cancel_event = OrderEvent(
                 order_id=order_id,
