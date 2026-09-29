@@ -257,3 +257,71 @@ def test_cancel_after_edit_keeps_edits(client, quiet):
     cancelled = [h for h in sd["drawing_transfer_history"] if h.get("action") == "REVISION_CANCELLED"][-1]
     assert cancelled["request"]["edits"][0]["note"] == "오른쪽 문짝 폭 줄여 주세요"
     assert _gw(oid, "a.jpg") in history_referenced_keys(sd)
+
+
+# ── 리뷰 반영(2026-09-30): 보내지 않은 칸은 그대로 · 빈 고치기 막기 ──────────────────────
+def _notif_count(oid):
+    return db_session.query(Notification).filter(Notification.order_id == oid).count()
+
+
+def test_received_via_only_keeps_customer_source(client, quiet):
+    """받은 경로만 보내면 출처(고객 요청)는 그대로고 경로만 바뀐다. 알림 제목도 고객 요청."""
+    _login(client, _user("ed_l"))
+    oid, keys = _order()
+    _request(client, oid, keys)
+    res = _edit(client, oid, received_via="phone")
+    assert res.status_code == 200, res.get_json()
+    entry = _last_request(_sd(oid))
+    assert entry["source"] == "customer" and entry["received_via"] == "phone"
+    assert entry["note"] == "오른쪽 문짝 폭 줄여 주세요"
+    assert quiet[-1]["title"] == "고객 요청 · 수정요청 고침"
+
+
+def test_source_only_keeps_received_via(client, quiet):
+    """출처만 다시 보내면(고객 그대로) 받은 경로는 지우지 않는다."""
+    _login(client, _user("ed_m"))
+    oid, keys = _order()
+    _request(client, oid, keys)
+    assert _edit(client, oid, source="customer", note="출처 그대로 메모만").status_code == 200
+    entry = _last_request(_sd(oid))
+    assert entry["source"] == "customer" and entry["received_via"] == "kakao"
+
+
+def test_received_via_on_sales_request_is_ignored(client, quiet):
+    """영업 의견에 받은 경로만 보내면 뜻이 없어 버린다 — 다른 칸도 없으면 바뀐 것 없음(400)."""
+    _login(client, _user("ed_n"))
+    oid, keys = _order()
+    _request(client, oid, keys, source="sales", received_via=None)
+    before = _version(oid)
+    res = _edit(client, oid, received_via="phone")
+    assert res.status_code == 400 and res.get_json()["error"] == "NOTHING_TO_EDIT"
+    assert _version(oid) == before
+    assert _edit(client, oid, received_via="phone", note="메모도 고침").status_code == 200
+    entry = _last_request(_sd(oid))
+    assert entry["source"] == "sales" and "received_via" not in entry
+
+
+def test_empty_or_same_edit_is_400_without_write_or_notification(client, quiet):
+    _login(client, _user("ed_o"))
+    oid, keys = _order()
+    _request(client, oid, keys)
+    before, notifs, emitted = _version(oid), _notif_count(oid), len(quiet)
+    for body in ({}, {"note": "오른쪽 문짝 폭 줄여 주세요"},
+                 {"source": "customer", "received_via": "kakao", "target_file_keys": [keys[0]]},
+                 {"files": [{"key": _gw(oid, "a.jpg"), "filename": "a.jpg"}]}):
+        res = _edit(client, oid, **body)
+        assert res.status_code == 400, (body, res.get_json())
+        assert res.get_json()["error"] == "NOTHING_TO_EDIT"
+    assert _version(oid) == before and _notif_count(oid) == notifs and len(quiet) == emitted
+    assert "edits" not in _last_request(_sd(oid))
+
+
+def test_blank_note_is_400(client, quiet):
+    _login(client, _user("ed_p"))
+    oid, keys = _order()
+    _request(client, oid, keys)
+    before = _version(oid)
+    for note in ("", "   "):
+        res = _edit(client, oid, note=note)
+        assert res.status_code == 400 and res.get_json()["error"] == "INVALID_REVISION_NOTE"
+    assert _version(oid) == before

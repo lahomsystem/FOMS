@@ -127,3 +127,38 @@ def test_bar_pure_function_primary_first_in_slots():
     assert [b["key"] for b in bar] == ["resend", "rev_customer", "ok"]
     slots = {b["key"]: b["slot"] for b in bar}
     assert slots["ok"] == "main" and slots["resend"] == "main" and slots["rev_customer"] == "more"
+
+
+def test_bar_edit_revision_for_requester_outside_sales_side():
+    """담당이 바뀌어 영업 쪽이 아닌 요청자도 서버는 고치기를 허용한다 — 버튼도 같은 조건으로 준다."""
+    bar = build_customer_send_bar(
+        drawing_status="RETURNED", sales_side=False, can_send=False, sent_this_round=False,
+        can_confirm_receipt=False, can_cancel_revision=False, can_edit_revision=True,
+        can_approve_after_confirm=False, stage_code="DRAWING", show_urgent_call=False,
+        drawing_mobile_buttons=0,
+    )
+    assert [(b["key"], b["slot"]) for b in bar] == [("edit_revision", "main")]
+    # 대조군: 같은 사람이라도 반영 체크 뒤(고치기 불가)면 아무 버튼도 없다.
+    none = build_customer_send_bar(
+        drawing_status="RETURNED", sales_side=False, can_send=False, sent_this_round=False,
+        can_confirm_receipt=False, can_cancel_revision=False, can_edit_revision=False,
+        can_approve_after_confirm=False, stage_code="DRAWING", show_urgent_call=False,
+        drawing_mobile_buttons=0,
+    )
+    assert none == []
+
+
+def test_bar_requester_after_manager_change_sees_edit_button(app, client):
+    requester = _user("bar_i", name="옛담당")
+    _login(client, requester)
+    oid = _order(drawing_status="RETURNED")
+
+    def _req(sd):
+        sd["drawing_transfer_history"].append(
+            {"action": "REQUEST_REVISION", "at": "2026-09-21 01:00:00", "by_user_id": requester.id,
+             "note": "폭 줄여 주세요", "files": []})
+        sd["parties"]["manager"] = {"name": "새담당"}
+    _mutate_sd(oid, _req)
+    cs = _cs(app, client, oid)
+    assert cs["edit_revision"]["note"] == "폭 줄여 주세요"
+    assert "edit_revision" in _keys(cs)

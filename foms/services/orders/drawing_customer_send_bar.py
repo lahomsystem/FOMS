@@ -120,6 +120,7 @@ def build_customer_send_bar(
         can_confirm_receipt: 지금 화면의 수령 확정 판정(상태 TRANSFERRED 포함).
         can_cancel_revision: 수정요청 취소 권한(상태는 여기서 RETURNED 로 본다).
         can_edit_revision: 요청 고치기 가능(RETURNED · 반영 체크 전 · 요청자/배정 영업/관리자).
+            영업 쪽이 아니어도 참이면(담당이 바뀐 요청자) ``edit_revision`` 하나만 준다.
         can_approve_after_confirm: 확정 뒤 고객 컨펌 승인 예측(승인 라우트와 같은 quest 고르기).
         show_urgent_call: 도면 쪽 PC 긴급 호출을 보이나.
         drawing_mobile_buttons: 모바일 바에 템플릿이 따로 그리는 도면 쪽 버튼 수(전달·전달 취소).
@@ -136,6 +137,10 @@ def build_customer_send_bar(
             can_approve_after_confirm=can_approve_after_confirm,
         )
         _assign_slots(items, primary, drawing_mobile_buttons)
+    elif can_edit_revision and (drawing_status or "").upper() == "RETURNED":
+        # 담당이 바뀌어 영업 쪽이 아닌 요청자 본인 — 서버·미리 채움과 같은 조건(요청 고치기만).
+        items = [_item("edit_revision")]
+        _assign_slots(items, "edit_revision", drawing_mobile_buttons)
     if show_urgent_call:
         items.append(_item("urgent_call"))
     return items
