@@ -1334,6 +1334,7 @@
                   {% if h.action == 'CONFIRM_RECEIPT' %}{% set action_badge = 'bg-success' %}{% endif %}
                   {% if h.action == 'ERP_ORDER_CHANGED' %}{% set action_badge = 'dw-order-change-badge' %}{% endif %}
                   <span class="badge {{ action_badge }}">{{ h.action_label }}</span>
+                  {% if h.source_tag %}<span class="badge text-bg-warning ms-1" data-source-tag>{{ h.source_tag }}</span>{% endif %}
                   <span class="small text-muted ms-2">{{ h.by_text }}</span>
                 </div>
                 <span class="small text-muted">{{ h.at_text }}</span>
@@ -1392,6 +1393,7 @@
               id="request-{{ r.event_key|replace(':','-') }}">
               <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <div class="small text-muted">
+                  {% if r.source_tag %}<span class="badge text-bg-warning me-1" data-source-tag>{{ r.source_tag }}</span>{% endif %}
                   {{ r.at_text }} · {{ r.by_text }}
                   {% if r.target_no %}<span class="badge bg-info text-dark ms-1">{{ r.target_no }}번 대상</span>{% endif %}
                 </div>
@@ -1476,6 +1478,28 @@
           {% else %}
           <div class="small text-muted mb-2">등록된 도면이 없습니다.</div>
           {% endif %}
+          {# 영업 → 고객 상태 한 줄(설계서 2026-09-29 §3.2·§3.4) — 서버 읽기 모델 값만 그린다(읽기 전용). #}
+          {% set cs = customer_send|default({}) %}
+          {% set cs_bar = cs.bar|default([]) %}
+          {% set cs_bar_keys = cs_bar|map(attribute='key')|list %}
+          {% if cs.status_line %}
+          <div class="small text-muted border rounded p-2 bg-light mt-2" data-customer-send-status>
+            {{ cs.status_line }}{% if cs.views or cs.last_viewed_text %} <span class="text-secondary">(직원이 연 것도 셀 수 있어요)</span>{% endif %}
+            {% if cs.failed_text %}<div class="text-danger mt-1">{{ cs.failed_text }}</div>{% endif %}
+            {% if cs.link_only_text %}<div class="mt-1">{{ cs.link_only_text }}</div>{% endif %}
+          </div>
+          {% endif %}
+          {% if cs.steps and cs_bar %}
+          <ol class="list-unstyled small mt-2 mb-0" data-customer-send-steps>
+            {% for st in cs.steps %}
+            <li class="{% if st.state == 'done' %}text-success{% elif st.state == 'now' %}text-primary fw-semibold{% else %}text-muted{% endif %}">
+              <i class="fas {% if st.state == 'done' %}fa-check-circle{% elif st.state == 'now' %}fa-circle-dot{% else %}fa-circle{% endif %}"></i>
+              {{ st.label }}{% if st.sub %} · {{ st.sub }}{% endif %}{% if st.when %} <span class="text-muted">{{ st.when }}</span>{% endif %}
+            </li>
+            {% endfor %}
+            {% if cs.prev_summary %}<li class="text-muted">{{ cs.prev_summary }}</li>{% endif %}
+          </ol>
+          {% endif %}
 
           <hr />
           <div class="fw-semibold mb-2"><i class="fas fa-bolt text-primary"></i> 결정 바</div>
@@ -1497,25 +1521,61 @@
             {% elif show_transfer_assignee_only_hint %}
             <div class="small text-muted"><i class="fas fa-user-lock"></i> 담당자만 전달할 수 있어요.</div>
             {% endif %}
-            {% if can_request_revision and drawing_status in ['TRANSFERRED', 'CONFIRMED'] %}
-            <button class="btn btn-warning btn-sm" type="button" data-bs-toggle="modal"
-              data-bs-target="#dwRevisionModal">
-              <i class="fas fa-undo"></i> 수정 요청
+            {# 영업 쪽 버튼 — 서버가 한 번 판정한 customer_send.bar 를 순회만 한다(§3.0 · 모바일 바와 같은 목록).
+               예전 [수정 요청]·[수령 확정]·[수정요청 취소] 블록은 bar 가 대신 그린다(두 번 그리지 않게).
+               id 유지: ok/ok_no_customer → #btn-confirm-receipt, cancel_revision → #btn-cancel-revision
+               (drawing-handoff.js 대신 누르기 표·인라인 등록이 이 id 에 기댄다). #}
+            {% set bar_ns = namespace(ok_id=false) %}
+            {% for item in cs_bar if item.key != 'urgent_call' %}
+            {% set k = item.key %}
+            {% if k in ('send', 'resend') %}
+            <button class="btn {% if k == 'resend' or item.tone == 'primary' %}btn-primary{% else %}btn-outline-primary{% endif %} btn-sm" type="button"
+              data-bar-key="{{ k }}" data-bs-toggle="modal" data-bs-target="#dwCustomerSendModal"
+              data-customer-send-mode="{{ 'again' if k == 'resend' else 'first' }}">
+              <i class="fas fa-paper-plane"></i> {{ item.label or ('다시 보내기' if k == 'resend' else '고객에게 보내기') }}
+            </button>
+            {% elif k in ('rev_customer', 'rev_post', 'rev_sales') %}
+            <button class="btn {% if k == 'rev_sales' %}btn-outline-secondary{% else %}btn-outline-warning{% endif %} btn-sm" type="button"
+              data-bar-key="{{ k }}" data-bs-toggle="modal" data-bs-target="#dwRevisionModal"
+              data-revision-source="{{ 'sales' if k == 'rev_sales' else 'customer' }}">
+              <i class="fas fa-undo"></i> {% if k == 'rev_sales' %}내 의견으로 수정요청{% else %}{{ item.label or ('고객이 또 바꿔 달래요' if k == 'rev_post' else '고객이 고쳐 달래요') }}{% endif %}
+            </button>
+            {% elif k in ('ok', 'ok_no_customer') %}
+            <button class="btn {% if k == 'ok' %}btn-success{% else %}btn-outline-success{% endif %} btn-sm" type="button"
+              {% if not bar_ns.ok_id %}id="btn-confirm-receipt"{% set bar_ns.ok_id = true %}{% endif %}
+              data-bar-key="{{ k }}" data-bs-toggle="modal" data-bs-target="#dwCustomerOkModal"
+              data-customer-ok-mode="{{ 'customer' if k == 'ok' else 'no_customer' }}">
+              <i class="fas fa-check-double"></i> {% if k == 'ok_no_customer' %}확정 (고객 답 없이){% else %}{{ item.label or '고객 OK · 확정' }}{% endif %}
+            </button>
+            {% elif k == 'approve_confirm' %}
+            <button class="btn btn-success btn-sm" type="button" data-bar-key="{{ k }}"
+              data-customer-approve data-order-id="{{ order.id }}">
+              <i class="fas fa-industry"></i> {{ item.label or '고객 컨펌하고 생산으로' }}
+            </button>
+            {% elif k == 'production' %}
+            <a class="btn btn-outline-secondary btn-sm" data-bar-key="{{ k }}"
+              href="{{ url_for('erp_dashboard.erp_dashboard') }}?focus_order={{ order.id }}">
+              <i class="fas fa-arrow-right"></i> {{ item.label or '생산 현황 보기' }}
+            </a>
+            {% if drawing_status == 'CONFIRMED' and stage == '고객컨펌' and not cs.can_approve_after_confirm %}
+            <div class="small text-muted" data-approve-role-hint>고객 컨펌은 영업·CS 팀이 해요</div>
+            {% endif %}
+            {% elif k == 'cancel_revision' %}
+            <button class="btn btn-outline-warning btn-sm" type="button" id="btn-cancel-revision" data-bar-key="{{ k }}">
+              <i class="fas fa-rotate-left"></i> {{ item.label or '수정요청 취소' }}
+            </button>
+            {% elif k == 'edit_revision' %}
+            <button class="btn btn-outline-primary btn-sm" type="button" data-bar-key="{{ k }}"
+              data-bs-toggle="modal" data-bs-target="#dwRevisionEditModal">
+              <i class="fas fa-pen"></i> {{ item.label or '요청 고치기' }}
             </button>
             {% endif %}
-            {% if can_confirm_receipt %}
-            <button class="btn btn-success btn-sm" type="button" id="btn-confirm-receipt">
-              <i class="fas fa-check-double"></i> 수령 확정
-            </button>
-            {% endif %}
+            {% endfor %}
             {% if can_cancel_transfer %}
-            <button class="btn btn-outline-danger btn-sm" type="button" id="btn-cancel-transfer">
+            <button class="btn btn-outline-danger btn-sm" type="button" id="btn-cancel-transfer"
+              {% if cs.cancel_warning_text_pc %}data-customer-sent-text-pc="{{ cs.cancel_warning_text_pc }}"{% endif %}
+              {% if cs.cancel_warning_text_mobile %}data-customer-sent-text-mobile="{{ cs.cancel_warning_text_mobile }}"{% endif %}>
               <i class="fas fa-times"></i> 전달 취소
-            </button>
-            {% endif %}
-            {% if can_cancel_revision_request and drawing_status == 'RETURNED' %}
-            <button class="btn btn-outline-warning btn-sm" type="button" id="btn-cancel-revision">
-              <i class="fas fa-rotate-left"></i> 수정요청 취소
             </button>
             {% endif %}
             {# 도면방 PUSH — 현재 전달본 도면 전부를 도면방으로. 권한 축은 새로 만들지 않고
@@ -1524,6 +1584,14 @@
             <button class="btn btn-outline-info btn-sm" type="button" id="dw-btn-drawing-room-push"
               {% if not drawing_files %}disabled title="전달된 도면이 없습니다. 도면을 먼저 전달해주세요."{% endif %}>
               <i class="fas fa-comment-dots"></i> 도면방 PUSH
+            </button>
+            {% endif %}
+            {# 도면팀 PC 긴급 호출(Q5-①) — 모바일 시트([data-foms-urgent-call])는 모바일 셸 안이라 PC 에서 안 뜬다.
+               PC 창 #dwUrgentCallModal 을 연다(같은 엔드포인트, drawing-urgent-call-pc.js). #}
+            {% if 'urgent_call' in cs_bar_keys %}
+            <button class="btn btn-outline-danger btn-sm" type="button" data-bar-key="urgent_call"
+              data-dw-urgent-call data-order-id="{{ order.id }}">
+              <i class="fas fa-bolt"></i> 긴급 호출
             </button>
             {% endif %}
           </div>
@@ -1584,7 +1652,8 @@
   </button>
   {% endif %}
   {% if can_confirm_receipt %}
-  <button class="btn btn-success" type="button" id="btn-confirm-receipt-mobile">
+  <button class="btn btn-success" type="button" id="btn-confirm-receipt-mobile" data-bs-toggle="modal"
+    data-bs-target="#dwCustomerOkModal" data-customer-ok-mode="{{ 'customer' if cs.sent_this_round else 'no_customer' }}">
     <i class="fas fa-check-double"></i> 확정
   </button>
   {% endif %}
@@ -1728,14 +1797,40 @@
   </div>
 </div>
 
-<div class="modal fade" id="dwRevisionModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-xl modal-dialog-centered">
+<div class="modal fade" id="dwRevisionModal" tabindex="-1" aria-hidden="true"
+  data-revision-source="sales" data-confirmed="{{ 'true' if drawing_status == 'CONFIRMED' else 'false' }}">
+  <div class="modal-dialog modal-xl modal-dialog-centered modal-fullscreen-sm-down">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title"><i class="fas fa-undo"></i> 수정 요청</h5>
+        <h5 class="modal-title"><i class="fas fa-undo"></i> <span data-revision-title>수정 요청</span></h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
+        {# 누구 말인가요(설계서 §3.5 다) — 여는 버튼의 data-revision-source 로 drawing-customer-ok.js 가 미리 고른다.
+           값은 인라인 submitRevision 이 window.fomsDrawingRevisionExtras() 로 본문에 더한다(typeof 가드). #}
+        {% if drawing_status == 'CONFIRMED' %}
+        <div class="alert alert-warning py-2 small" data-revision-confirmed-warning>이미 확정한 도면이에요. 수정요청하면 도면팀과 생산팀에 변경 알림이 가요.</div>
+        {% endif %}
+        <div class="mb-3" data-revision-source-block>
+          <div class="form-label fw-bold">누구 말인가요</div>
+          <div class="btn-group" role="group" aria-label="요청 출처">
+            <input type="radio" class="btn-check" name="dw-revision-source" id="dw-revision-source-customer" value="customer" autocomplete="off">
+            <label class="btn btn-outline-warning btn-sm" for="dw-revision-source-customer">고객 요청</label>
+            <input type="radio" class="btn-check" name="dw-revision-source" id="dw-revision-source-sales" value="sales" autocomplete="off" checked>
+            <label class="btn btn-outline-secondary btn-sm" for="dw-revision-source-sales">내 의견</label>
+          </div>
+        </div>
+        <div class="mb-3 d-none" data-revision-via-block>
+          <div class="form-label fw-bold">어떻게 받았나요 <span class="small text-muted fw-normal">(선택)</span></div>
+          <div class="btn-group flex-wrap" role="group" aria-label="받은 경로">
+            <input type="radio" class="btn-check" name="dw-revision-via" id="dw-revision-via-phone" value="phone" autocomplete="off">
+            <label class="btn btn-outline-secondary btn-sm" for="dw-revision-via-phone">전화로</label>
+            <input type="radio" class="btn-check" name="dw-revision-via" id="dw-revision-via-kakao" value="kakao" autocomplete="off">
+            <label class="btn btn-outline-secondary btn-sm" for="dw-revision-via-kakao">카톡 답장</label>
+            <input type="radio" class="btn-check" name="dw-revision-via" id="dw-revision-via-store" value="store" autocomplete="off">
+            <label class="btn btn-outline-secondary btn-sm" for="dw-revision-via-store">매장 방문</label>
+          </div>
+        </div>
         <div class="mb-3">
           <label class="form-label fw-bold">대상 도면 선택 (다중 선택 가능)</label>
           <div id="dw-revision-drawing-preview" class="dw-revision-drawing-preview mb-2">
@@ -1783,11 +1878,12 @@
             <i class="fas fa-check-square"></i> 전체 선택
           </button>
           <div class="form-text">
-            여러 도면이 있는 경우 수정이 필요한 도면을 선택하세요. 선택하지 않으면 자동으로 최신본이 선택됩니다.
+            수정이 필요한 도면을 선택하세요. 도면이 2장 이상이면 꼭 골라요.
           </div>
         </div>
         <div class="mb-3">
-          <label class="form-label fw-bold">수정 요청 메모 (필수)</label>
+          <label class="form-label fw-bold" for="dw-revision-note" data-revision-note-label>수정 요청 메모 (필수)</label>
+          <div class="form-text mt-0 mb-1 d-none" data-revision-note-hint>적은 내용이 그대로 도면팀 수정요청이 돼요. 고객에게는 안 나가요.</div>
           <textarea id="dw-revision-note" class="form-control" rows="4" placeholder="예: 거실장 높이 2400으로 변경 필요"></textarea>
         </div>
         <div class="mb-3">
@@ -1816,6 +1912,9 @@
     </div>
   </div>
 </div>
+
+{# 도면 탭 고객 보내기 시트(설계서 2026-09-29 §3.5 + Q5) — PC·모바일 공용. 모달 본문은 따로 둔다. #}
+{% include 'drawing/partials/workbench_customer_send_modals.html' %}
 
 </div>
 </div>
@@ -2518,6 +2617,7 @@
       return results.filter(Boolean);
     }
 
+    window.fomsDrawingUploadRevisionFiles = (files) => uploadRevisionGatewayFiles(files);
     async function uploadRevisionGatewayFiles(files) {
       const progressWrap = document.getElementById('dw-revision-progress');
       const progressBar = document.getElementById('dw-revision-progress-bar');
@@ -2752,6 +2852,7 @@
           note: note,
           files: uploadedFiles,
           target_drawing_keys: targetKeys.length > 0 ? targetKeys : null,
+          ...(typeof window.fomsDrawingRevisionExtras === 'function' ? window.fomsDrawingRevisionExtras() : {}),
         };
         const res = await fetch(`/api/orders/${orderId}/request-revision`, {
           method: 'POST',
@@ -2771,29 +2872,19 @@
       }
     }
 
-    async function confirmReceipt() {
-      if (!confirm('도면 수령을 확정하고 다음 단계로 이동하시겠습니까?')) return;
-      try {
-        const res = await fetch(`/api/orders/${orderId}/confirm-drawing-receipt`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({})
-        });
-        const data = await res.json();
-        if (!data.success) {
-          showWorkbenchToast(data.message || '수령 확정 실패', 'error');
-          return;
-        }
-        showWorkbenchToast(data.message || '수령 확정 완료', 'success');
-        window.location.href = `/erp/dashboard?focus_order=${orderId}&open_quest=true`;
-      } catch (e) {
-        console.error(e);
-        showWorkbenchToast('수령 확정 중 오류가 발생했습니다.', 'error');
-      }
-    }
-
     async function cancelTransfer() {
-      if (!confirm('전달 취소 시 최신 전달본 파일과 이력이 함께 정리됩니다. 진행할까요?')) return;
+      // 고객에게 보낸 회차면 서버가 싣는 경고(폭별 문구)를 시트로 보인다 — 막지는 않는다(Q4). 시트가 없으면 확인창.
+      const cancelBtn = document.getElementById('btn-cancel-transfer');
+      const narrow = !!(window.matchMedia && window.matchMedia('(max-width: 991.98px)').matches);
+      const warnText = cancelBtn ? String(cancelBtn.getAttribute(narrow ? 'data-customer-sent-text-mobile' : 'data-customer-sent-text-pc') || cancelBtn.getAttribute('data-customer-sent-text-pc') || '') : '';
+      const warnModal = document.getElementById('dwCancelWarnModal');
+      if (warnText && warnModal && window.bootstrap && window.bootstrap.Modal) {
+        const warnEl = warnModal.querySelector('[data-cancel-warn-text]');
+        if (warnEl) warnEl.textContent = warnText;
+        window.bootstrap.Modal.getOrCreateInstance(warnModal).show();
+        return;
+      }
+      if (!confirm(warnText || '전달 취소 시 최신 전달본 파일과 이력이 함께 정리됩니다. 진행할까요?')) return;
       try {
         const res = await fetch(`/api/orders/${orderId}/cancel-transfer`, { method: 'POST' });
         const data = await res.json();
@@ -2906,8 +2997,6 @@
 
     document.getElementById('btn-submit-transfer')?.addEventListener('click', submitTransfer);
     document.getElementById('btn-submit-revision')?.addEventListener('click', submitRevision);
-    document.getElementById('btn-confirm-receipt')?.addEventListener('click', confirmReceipt);
-    document.getElementById('btn-confirm-receipt-mobile')?.addEventListener('click', confirmReceipt); // Phase 3: 모바일
     document.getElementById('btn-cancel-transfer')?.addEventListener('click', cancelTransfer);
     document.getElementById('btn-cancel-revision')?.addEventListener('click', cancelRevisionRequest);
     document.getElementById('btn-cancel-revision-mobile')?.addEventListener('click', cancelRevisionRequest); // 모바일 하단바
@@ -3046,6 +3135,11 @@
   })();
 </script>
 <script src="{{ url_for('static', filename='js/drawing/order-change-banner.js') }}?v=20260913a" defer></script>
+{# 도면 탭 고객 보내기 시트 JS(설계서 2026-09-29 §3.6 + Q5) — PC 에서도 시트가 동작해야 하므로 v2 조건 블록 밖. #}
+<script src="{{ url_for('static', filename='js/foms/drawing-customer-send.js') }}?v=20260929n" defer></script>
+<script src="{{ url_for('static', filename='js/foms/drawing-customer-ok.js') }}?v=20260929n" defer></script>
+<script src="{{ url_for('static', filename='js/foms/drawing-revision-edit.js') }}?v=20260929n" defer></script>
+<script src="{{ url_for('static', filename='js/foms/drawing-urgent-call-pc.js') }}?v=20260929n" defer></script>
 {% if erp_mobile_v2_enabled %}
 <script src="{{ url_for('static', filename='js/foms/drawing-handoff.js') }}?v=20260929g" defer></script>
 {% endif %}
