@@ -194,4 +194,4 @@ def test_detail_summary_latest_event_labels_cover_cancel_and_confirm():
         ("ERP_ORDER_CHANGED", "주문 변경"),
     ):
         assert f"{action}: '{label}'" in block, action
-    assert "erp-dashboard-detail-dom.js?v=20260929e" in _read("static/js/orders/erp-dashboard-entry.js")
+    assert "erp-dashboard-detail-dom.js?v=20260929l" in _read("static/js/orders/erp-dashboard-entry.js")

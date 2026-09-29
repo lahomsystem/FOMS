@@ -3,17 +3,17 @@
   "summary": "Order mutation writer inventory for foms/. Every persisted order mutation — flag_modified(order, 'structured_data') or a direct mutation_version bump — is classified CANONICAL (routes through REV-00 execute_order_mutation / canonical mutator) / VERSIONED_DIRECT (direct version bump under FOR UPDATE) / AUDITED_RECOVERY (OPS-APPROVAL offline apply) / EXTERNAL (direct writer with no version/If-Match contract). Release target: EXTERNAL == 0 (every order mutation carries version bump + If-Match/idempotency metadata). EXTERNAL sites below are pinned residual writers reported to their owner packet — the drift gate keeps the set from growing.",
   "scope": "foms/**.py",
   "baselines": {
-    "total": 74,
-    "external": 28
+    "total": 73,
+    "external": 24
   },
   "classification_counts": {
     "AUDITED_RECOVERY": 2,
-    "CANONICAL": 39,
-    "EXTERNAL": 28,
+    "CANONICAL": 42,
+    "EXTERNAL": 24,
     "VERSIONED_DIRECT": 5
   },
   "kind_counts": {
-    "flag_modified_structured_data": 70,
+    "flag_modified_structured_data": 69,
     "mutation_version_bump": 4
   },
   "external_sites": [
@@ -40,30 +40,6 @@
       "lineno": 283,
       "kind": "flag_modified_structured_data",
       "owner": "STATE-DRAWING-01"
-    },
-    {
-      "path": "foms/api/drawing/erp_orders_draftsman.py",
-      "lineno": 437,
-      "kind": "flag_modified_structured_data",
-      "owner": "STATE-DRAWING-01"
-    },
-    {
-      "path": "foms/api/drawing/erp_orders_revision.py",
-      "lineno": 126,
-      "kind": "flag_modified_structured_data",
-      "owner": "DRAWING-REVISION-BACKFILL-00"
-    },
-    {
-      "path": "foms/api/drawing/erp_orders_revision.py",
-      "lineno": 347,
-      "kind": "flag_modified_structured_data",
-      "owner": "DRAWING-REVISION-BACKFILL-00"
-    },
-    {
-      "path": "foms/api/drawing/erp_orders_revision.py",
-      "lineno": 497,
-      "kind": "flag_modified_structured_data",
-      "owner": "DRAWING-REVISION-BACKFILL-00"
     },
     {
       "path": "foms/api/events.py",
@@ -151,7 +127,7 @@
     },
     {
       "path": "foms/services/notifications/drawing_order_change.py",
-      "lineno": 1291,
+      "lineno": 1309,
       "kind": "flag_modified_structured_data",
       "owner": "STATE-DRAWING-01"
     },
@@ -265,85 +241,71 @@
       "owner": "STATE-DRAWING-01"
     },
     {
-      "path": "foms/api/drawing/erp_orders_draftsman.py",
-      "lineno": 437,
-      "kind": "flag_modified_structured_data",
-      "classification": "EXTERNAL",
-      "owner": "STATE-DRAWING-01"
-    },
-    {
       "path": "foms/api/drawing/erp_orders_drawing.py",
-      "lineno": 259,
+      "lineno": 277,
       "kind": "flag_modified_structured_data",
       "classification": "VERSIONED_DIRECT",
       "owner": "WIZ-TRANSFER-01"
     },
     {
       "path": "foms/api/drawing/erp_orders_drawing.py",
-      "lineno": 563,
+      "lineno": 605,
       "kind": "flag_modified_structured_data",
       "classification": "VERSIONED_DIRECT",
       "owner": "WIZ-TRANSFER-01"
     },
     {
       "path": "foms/api/drawing/erp_orders_drawing.py",
-      "lineno": 596,
+      "lineno": 607,
       "kind": "mutation_version_bump",
       "classification": "VERSIONED_DIRECT",
       "owner": "WIZ-TRANSFER-01"
     },
     {
       "path": "foms/api/drawing/erp_orders_revision.py",
-      "lineno": 126,
+      "lineno": 155,
       "kind": "flag_modified_structured_data",
-      "classification": "EXTERNAL",
-      "owner": "DRAWING-REVISION-BACKFILL-00"
+      "classification": "CANONICAL",
+      "owner": "STATE-DRAWING-01"
     },
     {
       "path": "foms/api/drawing/erp_orders_revision.py",
-      "lineno": 347,
+      "lineno": 336,
       "kind": "flag_modified_structured_data",
-      "classification": "EXTERNAL",
-      "owner": "DRAWING-REVISION-BACKFILL-00"
+      "classification": "CANONICAL",
+      "owner": "STATE-DRAWING-01"
     },
     {
       "path": "foms/api/drawing/erp_orders_revision.py",
-      "lineno": 497,
+      "lineno": 490,
       "kind": "flag_modified_structured_data",
-      "classification": "EXTERNAL",
-      "owner": "DRAWING-REVISION-BACKFILL-00"
+      "classification": "CANONICAL",
+      "owner": "STATE-DRAWING-01"
     },
     {
       "path": "foms/api/drawing/wizard.py",
-      "lineno": 724,
+      "lineno": 725,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "WIZ-01"
     },
     {
       "path": "foms/api/drawing/wizard.py",
-      "lineno": 1010,
+      "lineno": 1011,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "WIZ-01"
     },
     {
       "path": "foms/api/drawing/wizard.py",
-      "lineno": 1147,
+      "lineno": 1330,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "WIZ-01"
     },
     {
       "path": "foms/api/drawing/wizard.py",
-      "lineno": 1313,
-      "kind": "flag_modified_structured_data",
-      "classification": "CANONICAL",
-      "owner": "WIZ-01"
-    },
-    {
-      "path": "foms/api/drawing/wizard.py",
-      "lineno": 1447,
+      "lineno": 1469,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "WIZ-01"
@@ -567,7 +529,7 @@
     },
     {
       "path": "foms/services/notifications/drawing_order_change.py",
-      "lineno": 1291,
+      "lineno": 1309,
       "kind": "flag_modified_structured_data",
       "classification": "EXTERNAL",
       "owner": "STATE-DRAWING-01"
@@ -620,6 +582,13 @@
       "kind": "flag_modified_structured_data",
       "classification": "EXTERNAL",
       "owner": "STATE-CONST-CS-01"
+    },
+    {
+      "path": "foms/services/orders/drawing_receipt_command.py",
+      "lineno": 108,
+      "kind": "flag_modified_structured_data",
+      "classification": "CANONICAL",
+      "owner": "STATE-DRAWING-01"
     },
     {
       "path": "foms/services/orders/field_restore.py",
