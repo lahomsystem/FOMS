@@ -116,10 +116,10 @@ def resolve_row_image_list(
 
     for entry in entries:
         key = entry["key"]
-        if not entry["view_url"]:
-            entry["view_url"] = build_file_view_url(key)
-        if not entry["download_url"]:
-            entry["download_url"] = build_file_download_url(key)
+        # 저장 URL 은 믿지 않는다(SPEC §4.3.4). 위 조회 여부만 저장 URL 유무로 정하고(기존 동작),
+        # 화면에 싣는 URL 은 늘 key 로 만든다.
+        entry["view_url"] = build_file_view_url(key)
+        entry["download_url"] = build_file_download_url(key)
         attachment = attachments_by_key.get(key)
         thumb_key = (
             (attachment.thumbnail_key or "").strip() if attachment is not None else ""

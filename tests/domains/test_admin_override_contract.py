@@ -184,7 +184,7 @@ def test_admin_override_opens_as_cycle_and_keeps_main_stage(client):
 
 
 def test_admin_override_event_payload_keys(client):
-    """ADMIN_OVERRIDE_USED payload 키 9종이 계약 그대로다."""
+    """ADMIN_OVERRIDE_USED payload 키 10종이 계약 그대로다(2a-2: 그 순간의 도면 상태 스냅샷 추가)."""
     user = _login(client, "ovc_payload", role="ADMIN")
     user_id, user_name = user.id, user.name  # 요청 뒤 detach 회피용 primitive 캡처
     order_id = _make_order(status="MEASURE").id
@@ -202,7 +202,9 @@ def test_admin_override_event_payload_keys(client):
     payload = event.payload
     assert set(payload) == {
         "gate", "gates", "route", "axis", "from", "to", "reason", "actor", "bulk",
+        "drawing_status",
     }
+    assert payload["drawing_status"] == "NONE"  # 도면 기록 없는 주문
     assert payload["gate"] == "OVERRIDE_TARGET" and payload["gates"] == ["OVERRIDE_TARGET"]
     assert payload["axis"] == "AS" and payload["to"] == "AS_RECEIVED"
     assert payload["reason"] == "AS 접수를 강제로 연다" and payload["bulk"] is False

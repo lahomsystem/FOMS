@@ -399,6 +399,7 @@ ERP Order mobile-v2 tab pane.
                                     <button type="button" class="foms-btn foms-btn--ghost erp-mobile-stage-row__btn erp-mobile-stage-row__btn--override"
                                         data-erp-stage-override-open
                                         data-order-id="{{ order.id if order is defined and order else 0 }}"
+                                        data-drawing-status="{{ (order.structured_data if order is defined and order else none) | effective_drawing_status }}"
                                         title="역행·건너뛰기 강제 변경" aria-label="단계 강제 변경">
                                         <i class="fas fa-exchange-alt" aria-hidden="true"></i>
                                     </button>

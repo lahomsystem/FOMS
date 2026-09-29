@@ -120,7 +120,19 @@
       "path": "foms/api/drawing/erp_orders_drawing.py",
       "classification": "VERSIONED_DIRECT",
       "owner": "WIZ-TRANSFER-01",
-      "reason": "도면 전달 취소 — OrderEvent 를 source 로 outbox 예약하는 business tx 안에서 mutation_version 을 직접 bump 한다(REV-00 계약 동등 metadata)."
+      "reason": "도면 전달·작업실 대기 전달(perform_drawing_transfer)은 lock_order_row 로 첫 조회를 잠그고 REV-00 execute_order_mutation 콜백(execute_single_order_write) 안에서 쓴다. 전달 취소는 같은 FOR UPDATE 잠금 아래에서 mutation_version 을 직접 bump 한다(회수 파일 유무와 무관, OrderEvent source outbox 예약과 같은 business tx — REV-00 계약 동등 metadata)."
+    },
+    {
+      "path": "foms/api/drawing/erp_orders_revision.py",
+      "classification": "CANONICAL",
+      "owner": "STATE-DRAWING-01",
+      "reason": "수정요청·취소·반영 체크를 REV-00 execute_order_mutation 경유로 수행한다 — 세 라우트 모두 첫 조회를 lock_order_row(FOR UPDATE)로 잠그고, structured_data 재대입·flag_modified 는 execute_single_order_write 콜백 안에서만 한다(version bump + receipt)."
+    },
+    {
+      "path": "foms/services/orders/drawing_receipt_command.py",
+      "classification": "CANONICAL",
+      "owner": "STATE-DRAWING-01",
+      "reason": "도면 수령 확정 쓰기(write_receipt_structured) — 단계 유지면 REV-00 execute_order_mutation 콜백 안에서 쓰고(version bump), 단계 이동이면 transition_order(→ execute_order_mutation) 반환 직후 같은 트랜잭션에서만 쓴다(FOR UPDATE 잠금 유지·버전 이미 bump, 선례 foms/api/cs/complete.py)."
     },
     {
       "path": "foms/services/order_geocode.py",

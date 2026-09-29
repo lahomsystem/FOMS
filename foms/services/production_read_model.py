@@ -17,6 +17,10 @@ from sqlalchemy import (
 from sqlalchemy.orm import Query
 
 from models import Order, ProductionRun
+from foms.services.drawing_confirm_cleanup import (
+    discount_superseded_drawing_rows,
+    load_structured_data_by_order,
+)
 from foms.services.erp_display import _ensure_dict, _erp_alerts, _erp_get_stage
 
 PRODUCTION_DASHBOARD_PAGE_SIZE = 50
@@ -248,6 +252,8 @@ def fetch_production_attachment_counts(db: Any, page_rows: list[Any]) -> dict[in
         rows = db.execute(stmt).fetchall()
         for r in rows:
             att_counts[int(r.order_id)] = int(r.cnt)
+        # R3: 교체된 옛 도면 행은 '도면' 탭 목록처럼 세지 않는다(identity map 의 structured_data).
+        discount_superseded_drawing_rows(db, att_counts, load_structured_data_by_order(db, order_ids))
     except Exception as e:
         logging.getLogger(__name__).warning("att_counts query failed: %s", e)
     return att_counts

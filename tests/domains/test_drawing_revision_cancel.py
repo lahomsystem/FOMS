@@ -2,8 +2,8 @@
 
 전달취소(도면팀)의 대칭축인 수정요청 취소(영업측/관리자)를 검증한다.
 - 정상 취소 시 drawing_status가 이전 상태(TRANSFERRED/CONFIRMED)로 복귀하고
-  REQUEST_REVISION 이력이 제거되는지.
-- 이번 요청에서 올린 참고 파일만 삭제되고 도면 원본은 보존되는지.
+  REQUEST_REVISION 이력이 빠지는 대신 REVISION_CANCELLED(원래 요청 전체·취소자·이유)가 붙는지.
+- 취소는 아무 파일도 지우지 않는지(M2 — 예전에는 참고 파일을 커밋 전에 R2 에서 지웠다).
 - 팀 상호배타 게이트(도면팀 403) 및 상태 전제조건(RETURNED 아니면 400).
 """
 
@@ -93,7 +93,7 @@ def test_cancel_revision_by_sales_restores_transferred(client):
     assert order.structured_data["drawing_status"] == "TRANSFERRED"
     actions = [h.get("action") for h in order.structured_data["drawing_transfer_history"]]
     assert "REQUEST_REVISION" not in actions
-    assert actions == ["TRANSFER"]
+    assert actions == ["TRANSFER", "REVISION_CANCELLED"]
 
 
 def test_cancel_revision_restores_confirmed_when_prior_confirm(client):
@@ -132,67 +132,88 @@ def test_cancel_revision_by_admin_allowed(client):
     assert order.structured_data["drawing_status"] == "TRANSFERRED"
 
 
-def test_cancel_revision_deletes_reference_files_only(client, monkeypatch):
-    """이번 요청에서 올린 참고 파일만 삭제하고 도면 원본은 보존한다."""
+def test_cancel_revision_keeps_files_and_records_cancellation(client, monkeypatch):
+    """취소는 아무 파일도 지우지 않고, REVISION_CANCELLED 에 원래 요청과 사진 key 가 남는다."""
     storage = _FakeStorage()
-    monkeypatch.setattr(revision_api, "get_storage", lambda: storage)
+    monkeypatch.setattr(revision_api, "get_storage", lambda: storage, raising=False)
 
     sales = _make_user("rev_cancel_sales3", role="MANAGER", team="SALES", name="영업담당3")
     _login(client, sales)
 
-    ref_key = "orders/rc3/ref1.jpg"
+    ref_key = "orders/rc3/drawing_gateway/revisions/ref1.jpg"
     original_key = "orders/rc3/original.pdf"
+    request_entry = {
+        "action": "REQUEST_REVISION", "at": "2026-09-29 02:00:00", "note": "손잡이 위치",
+        "by_user_id": sales.id, "by_user_name": "영업담당3",
+        "files": [{"key": ref_key, "filename": "ref1.jpg"}],
+        "target_drawing_keys": [original_key],
+        "review_check": {"checked": True, "checked_by_name": "도면팀"},
+    }
     order = _make_returned_order(
         manager_name="영업담당3",
         current_files=[{"key": original_key, "filename": "original.pdf"}],
         history=[
             {"action": "TRANSFER", "mode": "APPEND", "files": [{"key": original_key, "filename": "original.pdf"}]},
-            {"action": "REQUEST_REVISION", "files": [{"key": ref_key, "filename": "ref1.jpg"}]},
+            request_entry,
         ],
     )
     order_id = order.id
 
-    ref_att = OrderAttachment(
-        order_id=order_id,
-        filename="ref1.jpg",
-        file_type="file",
-        category="drawing_gateway",
-        storage_key=ref_key,
-        thumbnail_key="orders/rc3/thumb_ref1.png",
-    )
-    original_att = OrderAttachment(
-        order_id=order_id,
-        filename="original.pdf",
-        file_type="file",
-        category="drawing",
-        storage_key=original_key,
-    )
-    db_session.add(ref_att)
-    db_session.add(original_att)
+    for key, category in ((ref_key, "drawing_gateway"), (original_key, "drawing")):
+        db_session.add(OrderAttachment(
+            order_id=order_id, filename=key.rsplit("/", 1)[-1], file_type="file",
+            category=category, storage_key=key,
+        ))
     db_session.commit()
 
+    # 지금 화면 두 곳처럼 본문·Content-Type 없이 POST 한다(415/400 이 나면 안 된다).
     res = client.post(f"/api/orders/{order_id}/cancel-revision-request")
-    assert res.status_code == 200
+    assert res.status_code == 200, res.get_data(as_text=True)
 
-    # 참고 파일만 스토리지에서 삭제, 도면 원본 키는 삭제되지 않음.
-    assert ref_key in storage.deleted_keys
-    assert "orders/rc3/thumb_ref1.png" in storage.deleted_keys
-    assert original_key not in storage.deleted_keys
+    assert storage.deleted_keys == [], "수정요청 취소가 스토리지 파일을 지웠다"
+    remaining_keys = {
+        row.storage_key
+        for row in db_session.query(OrderAttachment).filter(OrderAttachment.order_id == order_id)
+    }
+    assert remaining_keys == {ref_key, original_key}, "수정요청 취소가 첨부 행을 지웠다"
 
-    remaining = (
-        db_session.query(OrderAttachment)
-        .filter(OrderAttachment.order_id == order_id)
-        .all()
-    )
-    remaining_keys = {row.storage_key for row in remaining}
-    assert ref_key not in remaining_keys
-    assert original_key in remaining_keys
+    db_session.expire_all()
+    sd = db_session.get(Order, order_id).structured_data
+    assert sd["drawing_current_files"] == [{"key": original_key, "filename": "original.pdf"}]
+    cancelled = [h for h in sd["drawing_transfer_history"] if h.get("action") == "REVISION_CANCELLED"]
+    assert len(cancelled) == 1
+    entry = cancelled[0]
+    assert entry["request"] == request_entry  # 메모·대상·참고사진·반영 체크 전부 그대로
+    assert entry["by_user_id"] == sales.id and entry["by_user_name"] == "영업담당3"
+    assert entry["at"] and entry["reason"] == ""
+    assert sd["drawing_transfer_history"][-1]["action"] == "REVISION_CANCELLED"
 
-    # 도면 원본(drawing_current_files)은 손대지 않는다.
-    order = db_session.get(Order, order_id)
-    assert order.structured_data["drawing_current_files"] == [
-        {"key": original_key, "filename": "original.pdf"}
-    ]
+
+def test_cancel_revision_records_reason_from_body(client):
+    """선택 본문 ``{reason}`` 이 이력에 남는다(200자까지)."""
+    sales = _make_user("rev_cancel_reason", role="MANAGER", team="SALES", name="영업담당R")
+    _login(client, sales)
+    order = _make_returned_order(manager_name="영업담당R")
+    order_id = order.id
+
+    res = client.post(f"/api/orders/{order_id}/cancel-revision-request",
+                      json={"reason": "  고객이 요청을 거둬들임  " + "가" * 300})
+    assert res.status_code == 200, res.get_data(as_text=True)
+    db_session.expire_all()
+    entry = db_session.get(Order, order_id).structured_data["drawing_transfer_history"][-1]
+    assert entry["action"] == "REVISION_CANCELLED"
+    assert entry["reason"].startswith("고객이 요청을 거둬들임")
+    assert len(entry["reason"]) == 200
+
+
+def test_cancel_revision_with_non_json_body_still_succeeds(client):
+    """Content-Type 이 JSON 이 아닌 본문이어도 취소는 된다(get_json(silent=True))."""
+    sales = _make_user("rev_cancel_form", role="MANAGER", team="SALES", name="영업담당F")
+    _login(client, sales)
+    order = _make_returned_order(manager_name="영업담당F")
+    res = client.post(f"/api/orders/{order.id}/cancel-revision-request", data="reason=abc",
+                      content_type="application/x-www-form-urlencoded")
+    assert res.status_code == 200, res.get_data(as_text=True)
 
 
 def test_cancel_revision_forbidden_for_drawing_team(client):

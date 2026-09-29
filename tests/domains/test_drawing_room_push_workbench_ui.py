@@ -107,11 +107,12 @@ def test_drawing_room_push_does_not_move_static_asset_pins():
 
     2026-09-13: focusTimeline 가시성 결함 수정 + 리본 CSS 반영을 위해 범프.
     2026-09-29: 모바일 수정요청 말풍선 반영 체크·참고사진 묶음 보기로 drawing-handoff.js 범프.
+    2026-09-29(2차 2d): v2 모바일 '도면방 보내기'를 대신 누르기 표에 더해 다시 범프(M13).
     """
     text = _template_text()
 
     assert "filename='js/drawing/order-change-banner.js') }}?v=20260913a" in text
-    assert "filename='js/foms/drawing-handoff.js') }}?v=20260929a" in text
+    assert "filename='js/foms/drawing-handoff.js') }}?v=20260929g" in text
 
 
 def _login_drawing_admin(client) -> User:

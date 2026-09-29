@@ -337,7 +337,6 @@
               const isAdmin = (MY_ROLE === 'ADMIN');
               const canDrawingAssign = canEdit || isDrawingTeam || isAdmin;
               const canDrawingWork = (isDrawingTeam || isAssigned || isAdmin) && hasAssignee;
-              const canToggleRevisionCheck = isDrawingTeam || isAssigned || isAdmin;
 
               // P0-21: User.name(자기수정 가능) 이 innerHTML 로 들어가므로 escape.
               const assigneeNames = escapeHtml(
@@ -389,7 +388,7 @@
                   }
                 } else if (canEdit && (isAdmin || ((isSalesTeam || isManager) && !isDrawingTeam))) {
                   // 수정요청을 낸 영업측: 요청 철회(전달취소의 대칭축) 가능.
-                  mainBtn = '<button class="btn btn-outline-warning" onclick="cancelDrawingRevisionRequest(' + orderId + ')"><i class="fas fa-rotate-left"></' + 'i> 수정요청 취소</' + 'button><div class="text-muted small mt-1"><i class="fas fa-info-circle"></' + 'i> 요청 시 첨부한 참고 파일이 삭제되고 <span class="text-danger fw-bold">도면 전달 상태로 복귀</span>합니다.</div>';
+                  mainBtn = '<button class="btn btn-outline-warning" onclick="cancelDrawingRevisionRequest(' + orderId + ')"><i class="fas fa-rotate-left"></' + 'i> 수정요청 취소</' + 'button><div class="text-muted small mt-1"><i class="fas fa-info-circle"></' + 'i> 취소해도 요청 기록과 참고 파일은 남고, 도면 전달 상태로 돌아갑니다.</div>';
                 } else {
                   mainBtn = '<button class="btn btn-secondary" disabled>수정 작업 대기중</button>';
                 }
@@ -407,34 +406,6 @@
                 }
               }
               const gatewayHistoryHtml = renderDrawingGatewayTimeline(drawHistory);
-              const requestTabHtml = revisionRequests.length
-                ? revisionRequests.slice(0, 8).map((h, idx) => {
-                  const when = escapeHtml(h.transferred_at || h.at || '-');
-                  const requestAtRaw = String(h.at || h.transferred_at || '');
-                  const requestAtEnc = encodeURIComponent(requestAtRaw);
-                  const by = escapeHtml(h.by_user_name || '-');
-                  const byUserId = Number(h.by_user_id || 0) || '';
-                  const note = escapeHtml(h.note || '요청 메모 없음');
-                  const targetNo = Number(h.target_drawing_number || 0);
-                  const targetBadge = targetNo > 0 ? '<span class="badge bg-info text-dark ms-1">' + targetNo + '번 대상</span>' : '';
-                  const reviewCheck = (h.review_check && typeof h.review_check === 'object') ? h.review_check : {};
-                  const isChecked = !!reviewCheck.checked;
-                  const checkedBy = escapeHtml(reviewCheck.checked_by_name || '-');
-                  const checkedAt = escapeHtml(reviewCheck.checked_at || '-');
-                  const pinBadge = idx === 0 ? '<span class="badge bg-danger ms-1">최신 요청</span>' : '';
-                  const checkBadge = isChecked
-                    ? '<span class="badge bg-success ms-1">반영 완료</span>'
-                    : '<span class="badge bg-secondary ms-1">미완료</span>';
-                  const onclickToggle = 'toggleRevisionChecklist(' + orderId + ', \'' + requestAtEnc + '\', \'' + String(byUserId) + '\', ' + (isChecked ? 'false' : 'true') + ')';
-                  const toggleBtn = canToggleRevisionCheck
-                    ? ('<button class="btn btn-sm ' + (isChecked ? 'btn-outline-secondary' : 'btn-outline-success') + ' mt-2" onclick="' + onclickToggle + '"><i class="fas ' + (isChecked ? 'fa-rotate-left' : 'fa-check') + '"></' + 'i>' + (isChecked ? '완료 해제' : '반영 완료') + '</' + 'button>')
-                    : '';
-                  const checkMeta = isChecked
-                    ? '<div class="small text-success mt-1"><i class="fas fa-user-check"></' + 'i> ' + checkedBy + ' · ' + checkedAt + '</div>'
-                    : '';
-                  return '<div class="border rounded p-2 mb-2 bg-white"><div class="small text-muted mb-1">' + when + ' · ' + by + ' ' + pinBadge + ' ' + checkBadge + ' ' + targetBadge + '</div><div class="small dw-revision-note-text">' + note + '</div>' + checkMeta + toggleBtn + '</div>';
-                }).join('')
-                : '<div class="text-muted small">수정 요청 이력이 없습니다.</div>';
 
               const transferEvents = drawHistory.filter(h => h && h.action === 'TRANSFER');
               const latestTransfer = transferEvents.length ? transferEvents[transferEvents.length - 1] : null;
@@ -467,11 +438,9 @@
 
               const latestEvent = drawHistory.length ? drawHistory[drawHistory.length - 1] : null;
               const latestAction = (latestEvent && latestEvent.action) || '';
-              const latestActionLabel = latestAction === 'TRANSFER'
-                ? '도면 전달'
-                : (latestAction === 'REQUEST_REVISION'
-                  ? '수정 요청'
-                  : (latestAction === 'CANCEL_TRANSFER' ? '전달 취소' : '이력 없음'));
+              const latestActionLabels = { TRANSFER: '도면 전달', REQUEST_REVISION: '수정 요청', CANCEL_TRANSFER: '전달 취소',
+                REVISION_CANCELLED: '수정요청 취소', CONFIRM_RECEIPT: '수령 확정', ERP_ORDER_CHANGED: '주문 변경' };
+              const latestActionLabel = latestActionLabels[latestAction] || '이력 없음';
               const latestWho = latestEvent ? escapeHtml(latestEvent.by_user_name || '-') : '-';
               const latestWhen = latestEvent ? escapeHtml(latestEvent.transferred_at || latestEvent.at || '-') : '-';
               const requestSummary = uncheckedRequestCount > 0
@@ -962,9 +931,9 @@
               }
             }
 
-            // 첨부파일 미리보기 버튼
+            // 첨부파일 미리보기 버튼 — 생산·시공 페이지는 자기 처리기가 있어 비킨다(한 클릭에 한 번만).
             const attBtn = e.target.closest('.erp-btn-attachments-preview');
-            if (attBtn) {
+            if (attBtn && !document.querySelector('.erp-dashboard-production, .erp-construction-dashboard')) {
               const orderId = attBtn.dataset.orderId;
               if (typeof openAttachmentsPreview === 'function') {
                 openAttachmentsPreview(Number(orderId));
@@ -1063,6 +1032,11 @@
                     if (data.success) {
                       if (data.blocked_override_required && data.blocked_override_required.length) {
                         alert((data.message || '') + '\n차단 ID: ' + data.blocked_override_required.join(', '));
+                      }
+                      // 도면→고객컨펌·고객컨펌→생산은 전용 버튼만(2a-2 Q1) — 일부만 막혀도 막힌 ID 를 알린다.
+                      if (data.blocked_command_required && data.blocked_command_required.length) {
+                        alert('전용 버튼(도면 수령 확정 / 고객 컨펌 완료)으로만 넘길 수 있어 바꾸지 않은 주문 '
+                          + data.blocked_command_required.length + '건: #' + data.blocked_command_required.join(', #'));
                       }
                       // AS 접수/완료 주문은 일괄 변경에서 제외된다 — 조용히 넘기면
                       // "바꿨는데 왜 그대로냐"가 되므로 제외 ID를 반드시 알린다.

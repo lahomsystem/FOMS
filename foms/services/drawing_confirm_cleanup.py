@@ -36,12 +36,15 @@ from sqlalchemy.orm.util import identity_key
 from models import Order, OrderAttachment
 
 __all__ = [
+    "discount_superseded_drawing_rows",
     "drop_superseded_drawing_rows",
     "exclude_superseded_drawing_rows",
     "finalize_drawing_files_on_confirm",
+    "is_superseded_drawing_row",
     "load_structured_data_by_order",
     "resolve_final_drawing_files",
     "superseded_drawing_keys",
+    "superseded_drawing_row_counts",
 ]
 
 #: 도면 교체를 판정할 전달 이력 항목과 그 안의 파일 목록 필드. 수정요청(REQUEST_REVISION)의
@@ -68,8 +71,9 @@ def _normalize_file_entry(entry: dict[str, Any]) -> dict[str, str]:
     return {
         "key": key,
         "filename": filename,
-        "view_url": (entry.get("view_url") or f"/api/files/view/{key}").strip(),
-        "download_url": (entry.get("download_url") or f"/api/files/download/{key}").strip(),
+        # 저장 URL 은 믿지 않는다(SPEC §4.3.4 — 검증 없이 저장된 옛 값). key 로만 만든다.
+        "view_url": f"/api/files/view/{key}" if key else "",
+        "download_url": f"/api/files/download/{key}" if key else "",
     }
 
 
@@ -121,10 +125,26 @@ def superseded_drawing_keys(structured_data: Any) -> frozenset[str]:
     return frozenset(transferred - current)
 
 
-def _is_superseded_row(row: Any, keys: frozenset[str]) -> bool:
+def is_superseded_drawing_row(row: Any, keys: frozenset[str]) -> bool:
+    """첨부 행이 교체된 옛 도면인가 — ``category='drawing'`` 이고 key 가 ``keys`` 에 있다."""
     category = str(getattr(row, "category", "") or "").strip().lower()
     storage_key = str(getattr(row, "storage_key", "") or "").strip()
     return category == _DRAWING_CATEGORY and storage_key in keys
+
+
+def _superseded_row_clause(structured_data_by_order: Mapping[int, Any]) -> Any:
+    """``도면 AND 주문별 옛 key`` SQL 조건 — 옛 key 가 있는 주문이 없으면 None."""
+    per_order = []
+    for order_id, sd in structured_data_by_order.items():
+        keys = superseded_drawing_keys(sd)
+        if keys:
+            per_order.append(and_(
+                OrderAttachment.order_id == int(order_id),
+                OrderAttachment.storage_key.in_(sorted(keys)),
+            ))
+    if not per_order:
+        return None
+    return and_(func.lower(OrderAttachment.category) == _DRAWING_CATEGORY, or_(*per_order))
 
 
 def exclude_superseded_drawing_rows(query: Any, structured_data_by_order: Mapping[int, Any]) -> Any:
@@ -137,21 +157,53 @@ def exclude_superseded_drawing_rows(query: Any, structured_data_by_order: Mappin
     Returns:
         뺄 행이 없으면 받은 쿼리 그대로, 있으면 ``NOT (도면 AND 주문별 옛 key)`` 를 건 쿼리.
     """
-    per_order = []
-    for order_id, sd in structured_data_by_order.items():
-        keys = superseded_drawing_keys(sd)
-        if keys:
-            per_order.append(and_(
-                OrderAttachment.order_id == int(order_id),
-                OrderAttachment.storage_key.in_(sorted(keys)),
-            ))
-    if not per_order:
+    clause = _superseded_row_clause(structured_data_by_order)
+    if clause is None:
         return query
     # category·storage_key 는 NOT NULL 이라 NOT(...) 이 NULL 로 새지 않는다.
-    return query.filter(~and_(
-        func.lower(OrderAttachment.category) == _DRAWING_CATEGORY,
-        or_(*per_order),
-    ))
+    return query.filter(~clause)
+
+
+def superseded_drawing_row_counts(db: Any, structured_data_by_order: Mapping[int, Any]) -> dict[int, int]:
+    """주문별로 살아 있는 교체된 옛 도면 행 수(R3 — 개수 쿼리가 목록과 같은 수를 내게).
+
+    옛 key 가 있는 주문만 모아 ``GROUP BY order_id`` 쿼리 1회. 옛 key 가 없으면 쿼리 0회.
+    ORM 조회라 전역 tombstone 필터(``deleted_at IS NULL``)를 받는다.
+
+    Args:
+        db: SQLAlchemy 세션.
+        structured_data_by_order: ``{order_id: structured_data}``.
+
+    Returns:
+        ``{order_id: 옛 도면 행 수}`` — 0 인 주문은 빠진다.
+    """
+    clause = _superseded_row_clause(structured_data_by_order)
+    if clause is None:
+        return {}
+    rows = (
+        db.query(OrderAttachment.order_id, func.count(OrderAttachment.id))
+        .filter(clause)
+        .group_by(OrderAttachment.order_id)
+        .all()
+    )
+    return {int(oid): int(cnt or 0) for oid, cnt in rows}
+
+
+def discount_superseded_drawing_rows(
+    db: Any, counts: dict[int, int], structured_data_by_order: Mapping[int, Any]
+) -> dict[int, int]:
+    """전체 첨부 개수 ``counts`` 에서 옛 도면 행 수를 뺀다(제자리 수정 후 같은 dict 반환).
+
+    생산·시공 raw SQL·주문 대시보드 ORM·모바일 단건 개수(R3 네 곳)가 기존 카운트 뒤에 부른다.
+    0 이 되면 키를 지운다(원래 GROUP BY 결과처럼 "행 없음").
+    """
+    for oid, n in superseded_drawing_row_counts(db, structured_data_by_order).items():
+        left = int(counts.get(oid, 0)) - n
+        if left > 0:
+            counts[oid] = left
+        else:
+            counts.pop(oid, None)
+    return counts
 
 
 def load_structured_data_by_order(db: Any, order_ids: Iterable[int]) -> dict[int, Any]:
@@ -218,7 +270,7 @@ def drop_superseded_drawing_rows(
     keys_by_order = {oid: superseded_drawing_keys(known.get(oid)) for oid in drawing_order_ids}
     return [
         r for r in rows
-        if not _is_superseded_row(r, keys_by_order.get(int(r.order_id), frozenset()))
+        if not is_superseded_drawing_row(r, keys_by_order.get(int(r.order_id), frozenset()))
     ]
 
 

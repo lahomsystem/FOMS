@@ -10,6 +10,30 @@
 
 ---
 
+### [2026-09-29] 도면이 수령 확정된 최신본이 아니면 고객컨펌 → 생산으로 넘기지 않는다
+- **키워드**: 도면, C21, M3, M16, confirm_drawing_gate, effective_drawing_status, COMMAND_REQUIRED, DRAWING_STATUS, 제작 시작, 수정 제작, 생산 배지, 강제 변경
+- **결정**: 생산으로 넘어가는 조건은 허용 목록(`drawing_status == CONFIRMED`, 한글 단계값 '고객컨펌' 도 같게 본다). 고객 컨펌 승인·재전이·전이 엔진(CUSTOMER_CONFIRM·PRODUCTION_START) 모두 같은 술어를 잠금 아래에서 본다. 일반 상태 쓰기(단건·일괄·상태 칸)로 도면→고객컨펌·고객컨펌→생산을 넘기는 것은 막는다(409 COMMAND_REQUIRED, 사용자 결정 Q1). 생산 대기의 [제작 시작]과 제작완료의 [수정 제작]은 도면이 RETURNED·TRANSFERRED 면 막고(409 DRAWING_STATUS, Q2·추가 결정), 생산 보드·모바일 생산 카드에 '도면 수정 중' 배지를 단다. 관리자(ADMIN)는 사유를 적고 뚫으며 그 순간의 도면 상태를 기록한다. 팀장(MANAGER)의 단계 강제 변경은 허용하되 경고하고 도면 상태를 기록한다(Q5). 수정요청은 고객확인(blueprint.customer_confirmed)을 무효로 하고 그 요청을 취소하면 되살린다(M16). 도면 상태는 `effective_drawing_status` 한 함수로 읽는다(최상위 우선, 중첩은 폴백).
+- **이유**: 수정요청 중(RETURNED)에도 고객컨펌 승인·제작 시작이 통과해 옛 도면으로 생산될 수 있었다(C21). 운영 측정 ②(2026-09-29): 지금 고객컨펌·생산 단계 주문 0건이라 반영 즉시 막히는 주문은 없다.
+- **영향**: `foms/services/orders/confirm_drawing_gate.py`(새), `drawing_gate_followups.py`(새), `foms/api/quest.py`, `foms/api/production/orders.py`, `foms/api/orders/status.py`·`field_update.py`, `foms/services/orders/order_transition_service.py`·`stage_override.py`·`admin_override.py`·`quest_approve_cta.py`, 생산 보드·주문 대시보드·모바일·태블릿 템플릿. 설계서 `docs/specs/2026-09-29-drawing-defects-batch2_SPEC.md` §4.2.
+
+### [2026-09-29] 도면 파일을 지우는 길은 "지워도 되는 키" 판정 하나를 거친다 — 수정요청 취소는 파일을 지우지 않는다
+- **키워드**: 도면, M5, M2, M7, drawing_key_safety, drawing_revision_files, INVALID_REVISION_FILE, REVISION_CANCELLED, DRAWING_IN_USE, file_retained, ATTACHMENT_PURGE_GRACE
+- **결정**: 수정요청 files 는 이 주문 `drawing_gateway/` 정본 key 만 받고 그 밖은 400 INVALID_REVISION_FILE(files 없으면 빈 목록 200, 상한 20). 전달 취소 회수·첨부 삭제·STORAGE_DELETE 핸들러는 `drawing_key_safety` 로 자기 주문 서버 폴더이면서 도면 기록·마법사·도면 이미지 현재값·살아 있는 첨부 행이 쓰지 않는 key 만 지운다. 전달 취소 회수 파일은 7일 뒤 지우고 그때 다시 확인한다. 수정요청 취소는 `REVISION_CANCELLED`(원래 요청·취소자·이유)로 남기고 참고사진을 지우지 않는다(Q3 추천안: 도면팀 반영 중에도 취소 허용). 첨부 탭에서 지금 전달된 도면은 삭제 409 DRAWING_IN_USE, 교체된 옛 도면은 행만 휴지통·파일 보존(file_retained)이고 복구 API 가 저장소를 확인해 되살린다. 화면은 저장된 파일 URL 을 믿지 않고 key 로 다시 만든다. 도면 라우트 7개와 주문 변경 확인은 첫 조회를 행 잠금(`lock_order_row`)으로 하고 쓰기는 `execute_single_order_write`(mutation_version +1)로 한다.
+- **이유**: 클라이언트가 보낸 key 로 남의 주문 파일을 지울 수 있었고(M5), 수정요청 취소가 기록과 참고사진을 지웠으며(M2), 전달 취소가 아직 쓰는 파일을 지웠다(M7). 동시에 누르면 한쪽 쓰기가 사라졌다. 운영 측정 ②: 저장된 도면 파일 key 중 남의 주문 경로 0건.
+- **영향**: `foms/services/orders/drawing_key_safety.py`(새), `drawing_revision_files.py`(새), `foms/services/orders/revision.py`, `foms/api/drawing/erp_orders_revision.py`·`erp_orders_drawing.py`·`erp_orders_draftsman.py`·`wizard.py`, `foms/api/files/order_routes.py`, `foms/services/storage_delete_handler.py`, `foms/services/files/purge_policy.py`.
+
+### [2026-09-29] 도면 분류 업로드는 서버가 `orders/<id>/drawing/` 에 둔다 · 내부 첨부 탭만 교체된 옛 도면을 '교체됨'으로 보인다
+- **키워드**: 도면, M10, M14-a, R3, R4, R1, include_superseded, can_transfer_drawing, triage_orphan_drawing_uploads
+- **결정**: category=drawing 업로드(multipart·direct)는 서버가 `orders/<id>/drawing/` 폴더로 저장해 전달에서 빠지지 않는다. 전달 버튼 권한은 서버와 같은 술어 하나(`can_transfer_drawing`). 첨부 개수는 교체된 옛 도면을 빼고 센다. ERP 내부 첨부 탭은 목록 API `include_superseded` 로 옛 도면을 '교체됨' 배지로 흐리게 보이고, 고객 링크·생산·시공은 계속 숨긴다. 전달 못 된 고아 업로드 정리는 `tools/ops/triage_orphan_drawing_uploads.py`(dry-run 기본, 적용은 고른 행만·파일 보존·별도 승인).
+- **이유**: 작업실·ERP 전달 창에서 직접 올린 도면이 `attachments/` 로 가 전달 필터에 걸려 400 이 났다(M10, 8~9월 고아 53개). 담당 아닌 도면팀에게 전달 버튼이 켜졌다(M14-a).
+- **영향**: `foms/api/files/direct_upload.py`·`order_routes.py`, `foms/web/drawing/workbench.py`, `static/js/orders/dashboard/erp-dashboard-attachments.js`·`erp-dashboard-core.js`, `static/js/orders/erp-order-shared.js`.
+
+### [2026-09-29] 주문 폼 전체 저장은 도면 축·도면 배정·퀘스트·고객확인을 바꾸지 못한다
+- **키워드**: 도면, structured PUT, lock_server_owned_keys, SERVER_LOCKED_KEYS, drawing_status, drawing_current_files, drawing_assignee_user_ids, quests, blueprint, M1
+- **결정**: `PUT /api/orders/<id>/structured` 는 도면 축(`drawing`·`drawing_status`·`drawing_current_files`·`drawing_transfer_history` 등)·`drawing_wizard`·`quests`·`blueprint`·`assignments.drawing_assignee_user_ids`(+옛 `drawing_assignees`)를 클라이언트가 무엇을 보내든 저장 순간의 서버값으로 고정한다(서버에 없으면 버린다). 폼 JS 는 이 키들을 PUT 에 싣지 않고 화면 사본에서만 유지한다. 관리자 예외는 없다.
+- **이유**: 폼은 연 순간의 스냅샷을 되실어 보내고 도면 API 는 버전을 올리지 않아, 폼을 연 뒤 들어온 수정요청·재전달·담당 변경을 저장 한 번이 되돌렸다. 1차(확정 때 재계산 제거) 뒤로는 되돌려진 현재 도면이 그대로 확정본·고객 링크가 된다. 운영 측정 ①(2026-09-29): 1차 배포 뒤 실제 피해 0건.
+- **영향**: `foms/services/orders/structured_form_projection.py`, `foms/api/erp_orders_structured.py`(`_force_preserve_drawing_transfer_history` 삭제), `static/js/orders/erp-order-shared.js`. 설계서 `docs/specs/2026-09-29-drawing-defects-batch2_SPEC.md` §4.1.
+
 ### [2026-09-29] 도면 수령 확정은 파일을 지우지 않는다 — 교체된 옛 도면은 화면에서만 뺀다
 - **키워드**: 도면, 수령확정, drawing_confirm_cleanup, superseded_drawing_keys, R2, 파일삭제, C8, C8-X
 - **결정**: 수령 확정은 `drawing_current_files` 와 `CONFIRM_RECEIPT.files` 만 정한다. 스토리지·`OrderAttachment` 삭제는 없다. 이력으로 현재본을 다시 계산하지 않는다(전달 API 가 계산해 둔 `drawing_current_files` 를 그대로 쓴다). 교체된 옛 도면(TRANSFER·CONFIRM_RECEIPT 에 올랐지만 현재본에 없는 key)은 고객 링크·목록 API·생산/시공/출고 미리보기·발주 PUSH 에서 뺀다.

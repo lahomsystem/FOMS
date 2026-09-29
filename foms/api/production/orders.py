@@ -21,7 +21,7 @@ from foms.services.audit_message_display import describe_order_action
 from foms.services.orders.audit_order_context import order_audit_context
 from foms.services.erp_permissions import erp_edit_required  # noqa: F401  # AUTH-01(P0-9): start/complete/rework 는 _production_steps_edit_required 로 전환됐으나 namespace surface 계약이 재노출을 요구해 유지
 from db import get_db
-from models import Order, OrderEvent, OrderMutationReceipt, ProductionRun
+from models import Order, OrderEvent, OrderMutationReceipt, ProductionRun, User
 from foms.services.erp_display import _ensure_dict
 from foms.services.erp_sync_columns import sync_erp_flat_columns
 from foms.services.orders.order_transition_service import (
@@ -36,7 +36,14 @@ from foms.services.orders.revision import (
     READ_RECEIPT_TTL,
     RevisionError,
     execute_order_mutation,
+    lock_order_row,
 )
+from foms.services.orders.confirm_drawing_gate import (
+    confirm_exit_block,
+    production_block_reason,
+    revision_in_flight_block,
+)
+from foms.services.orders.erp_policy_permissions import get_assignee_ids
 from foms.services.orders.state_axes import AXIS_MAIN, read_logistics, read_main_stage
 from foms.services.orders.admin_override import (
     admin_override_error,
@@ -376,6 +383,24 @@ def _hold_block_response(sd: dict[str, Any], release_hold: bool):
     if reason:
         message += f" (사유: {reason})"
     return jsonify({"success": False, "code": "HOLD_ACTIVE", "message": message, "hold": hold}), 409
+
+
+def _drawing_block_response(db: Any, order: Order, sd: dict[str, Any], predicate: Callable[[Any], Any]):
+    """도면 게이트(2a-2)에 막히면 409 DRAWING_STATUS 튜플(생산팀용 문구), 아니면 None.
+
+    ``predicate`` 는 ``confirm_drawing_gate`` 의 판정 함수 — CONFIRM 호환 (b) 는 허용 목록
+    (:func:`confirm_exit_block`), 생산 단계 run 시작 (a) 는 수정 진행 중(:func:`revision_in_flight_block`).
+    영업 담당 이름은 막힐 때만 조회한다(쿼리 1회).
+    """
+    block = predicate(sd)
+    if block is None:
+        return None
+    ids = get_assignee_ids(order, "SALES_DOMAIN")
+    names = [n for (n,) in db.query(User.name).filter(User.id.in_(ids)).limit(20).all()] if ids else []
+    return jsonify({
+        "success": False, "code": block.code,
+        "message": production_block_reason(block, names), "drawing_status": block.drawing_status,
+    }), 409
 
 
 def _stage_quest_block(sd: dict[str, Any], stage_code: str, stage_label: str, *, require_quest: bool = False):
@@ -739,7 +764,8 @@ def api_production_start(order_id):
     """
     db = get_db()
     try:
-        order = db.get(Order, order_id)
+        # 첫 조회부터 행 잠금 — 보류·퀘스트·도면 게이트를 모두 잠금 아래 sd 로 판정한다(2a-2).
+        order = lock_order_row(db, order_id)
         if not order or order.status == "DELETED" or order.deleted_at is not None:
             return jsonify({"success": False, "message": "주문을 찾을 수 없습니다."}), 404
 
@@ -776,6 +802,12 @@ def api_production_start(order_id):
                     _hold_block_response(sd, release_hold), "HOLD_ACTIVE", override, punched)
                 if blocked is not None:
                     return blocked
+                # Q2(2a-2): 제작 대기인데 도면 수정 중(RETURNED·TRANSFERRED)이면 막는다.
+                blocked = _punch_or_return(
+                    _drawing_block_response(db, order, sd, revision_in_flight_block),
+                    "DRAWING_STATUS", override, punched)
+                if blocked is not None:
+                    return blocked
             elif stage in ("고객컨펌", "CONFIRM"):
                 blocked = _punch_or_return(
                     _hold_block_response(sd, release_hold), "HOLD_ACTIVE", override, punched)
@@ -784,6 +816,12 @@ def api_production_start(order_id):
                 blocked = _punch_or_return(
                     _stage_quest_block(sd, "CONFIRM", "고객컨펌", require_quest=True),
                     "QUEST_INCOMPLETE", override, punched)
+                if blocked is not None:
+                    return blocked
+                # C21(2a-2): 고객컨펌 → 생산은 도면 수령 확정(CONFIRMED)일 때만(허용 목록).
+                blocked = _punch_or_return(
+                    _drawing_block_response(db, order, sd, confirm_exit_block),
+                    "DRAWING_STATUS", override, punched)
                 if blocked is not None:
                     return blocked
             elif override is None:
@@ -797,6 +835,9 @@ def api_production_start(order_id):
                 _punch_or_return(
                     _stage_quest_block(sd, "CONFIRM", "고객컨펌", require_quest=True),
                     "QUEST_INCOMPLETE", override, punched)
+                _punch_or_return(
+                    _drawing_block_response(db, order, sd, confirm_exit_block),
+                    "DRAWING_STATUS", override, punched)
 
         if run_only_path:
             # (a) 단계 무변경 — run 발급만 mutation 으로 감싼다(row lock·version++·receipt).
@@ -842,6 +883,7 @@ def api_production_start(order_id):
                 request_hash=_request_hash(body), idempotency_key=idem_key,
                 emergency_override=bool(override),
                 reason=(override.reason if override is not None else None),
+                drawing_gate_waived=("DRAWING_STATUS" in punched),
             )
         except (TransitionError, RevisionError) as exc:
             db.rollback()
@@ -967,7 +1009,8 @@ def api_production_rework(order_id: int):
     """
     db = get_db()
     try:
-        order = db.get(Order, order_id)
+        # 첫 조회부터 행 잠금 — 도면·보류 게이트를 잠금 아래 sd 로 판정한다(제작 시작과 같다).
+        order = lock_order_row(db, order_id)
         if not order or order.status == "DELETED" or order.deleted_at is not None:
             return jsonify({"success": False, "message": "주문을 찾을 수 없습니다."}), 404
 
@@ -1006,6 +1049,14 @@ def api_production_rework(order_id: int):
             punched.append("INVALID_STAGE")
 
         sd = _ensure_dict(order.structured_data)
+
+        # 사용자 결정(2026-09-29): 수정 제작도 도면이 수정 중(RETURNED·TRANSFERRED)이면 막는다 —
+        # 옛 도면으로 다시 만들지 않게. [제작 시작] (a) 와 같은 판정. 보류 해제(쓰기)보다 먼저 본다.
+        drawing_gate = _punch_or_return(
+            _drawing_block_response(db, order, sd, revision_in_flight_block),
+            "DRAWING_STATUS", override, punched)
+        if drawing_gate is not None:
+            return drawing_gate
 
         hold_gate = _punch_or_return(
             _apply_production_hold_gate(

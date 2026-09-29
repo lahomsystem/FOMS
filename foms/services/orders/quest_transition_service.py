@@ -210,6 +210,7 @@ def advance_stage_on_quest_completion(
     reason: Optional[str] = None,
     source_screen: Optional[str] = None,
     now: Optional[datetime.datetime] = None,
+    drawing_gate_waived: bool = False,
 ) -> Optional[TransitionResult]:
     """현 stage quest 의 최종 승인이 stage 전이를 유발하면 :func:`transition_order` 로 전이한다.
 
@@ -230,6 +231,7 @@ def advance_stage_on_quest_completion(
         reason: 전이 사유(event payload 보존, 선택).
         source_screen: 요청 화면(event payload 보존, 선택).
         now: 테스트용 시각 주입(기본 now_utc_naive()).
+        drawing_gate_waived: 전이 엔진 도면 방어선에 그대로 넘긴다(관리자가 뚫었을 때만 True).
 
     Returns:
         stage 를 advance 했으면 :class:`TransitionResult`, prerequisite-only stage 면 None.
@@ -278,6 +280,7 @@ def advance_stage_on_quest_completion(
         reason=reason,
         source_screen=source_screen,
         now=now,
+        drawing_gate_waived=drawing_gate_waived,
     )
     if make_next_quest and not result.replayed:
         _append_next_stage_quest(order, target_value, actor_user_id)

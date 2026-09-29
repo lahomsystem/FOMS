@@ -34,9 +34,11 @@ REV-00 은 이 helper 를 **실제 mutation route 에 적용하지 않는다**(S
 from __future__ import annotations
 
 import datetime
+import hashlib
+import json
 import uuid
 from dataclasses import dataclass
-from typing import Callable, Mapping, Optional, Sequence
+from typing import Any, Callable, Mapping, Optional, Sequence
 
 from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.exc import IntegrityError
@@ -234,6 +236,55 @@ def _expire_clean_cached_orders(session: Session, order_ids: Sequence[int]) -> N
         if session.is_modified(obj):
             continue
         session.expire(obj)
+
+
+def lock_order_row(session: Session, order_id: int) -> Optional[Order]:
+    """라우트의 **첫** 주문 조회 — ``FOR UPDATE`` 로 잠근 최신 행(없으면 None).
+
+    읽기·권한 검사·상태 검사·deepcopy 를 모두 이 잠금 **뒤에** 하게 해 lost update 를
+    막는다. 잠그기 전에 읽은 값으로 판정·계산하면, 잠금을 기다리는 사이 커밋된 남의 쓰기를
+    못 본 채 옛 dict 를 되쓴다(엔진은 clean 객체만 비우므로 콜백 전에 dirty 로 만든 값은
+    못 고친다). ``populate_existing`` 은 identity map 의 낡은 값을 최신 행으로 덮는다.
+    SQLite 레인에서는 ``FOR UPDATE`` 가 무시된다(단일 writer). 선례:
+    ``erp_orders_structured._lock_draft_row``.
+    """
+    return (
+        session.query(Order)
+        .filter(Order.id == order_id)
+        .populate_existing()
+        .with_for_update()
+        .first()
+    )
+
+
+def execute_single_order_write(
+    session: Session,
+    *,
+    order_id: int,
+    actor_user_id: int,
+    policy_id: str,
+    payload: Any,
+    write: Callable[[Order], None],
+) -> MutationResult:
+    """이미 :func:`lock_order_row` 로 잠근 주문 1건의 쓰기를 엔진 콜백 안에서 한다.
+
+    ``write(locked_order)`` 가 실제 ``structured_data`` 재대입·``flag_modified`` 를 하고,
+    엔진이 버전을 1 올린다. If-Match·idempotency key 는 쓰지 않는다(도면 라우트는 받지
+    않는다). scope/request 해시는 정책 id·주문 id·요청 본문에서 만든다. 커밋은 호출자 몫.
+    """
+    scope_hash = hashlib.sha256(f"{policy_id}:{order_id}".encode("utf-8")).hexdigest()
+    body = json.dumps(payload or {}, sort_keys=True, ensure_ascii=False, default=str)
+    request_hash = hashlib.sha256(body.encode("utf-8")).hexdigest()
+
+    def _mutate(_session: Session, orders: "list[Order]"):
+        write(orders[0])
+        return {orders[0].id: ["ORDERS_INDEX", f"ORDER_DETAIL:{orders[0].id}"]}
+
+    return execute_order_mutation(
+        session, actor_user_id=actor_user_id, policy_id=policy_id,
+        order_ids=[order_id], scope_hash=scope_hash, request_hash=request_hash,
+        mutation=_mutate,
+    )
 
 
 def execute_order_mutation(

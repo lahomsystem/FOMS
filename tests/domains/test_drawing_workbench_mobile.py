@@ -76,42 +76,45 @@ def _drawing_order(structured_data=None):
 
 
 def _multi_drawing_order():
-    return _drawing_order(
+    """도면 2장 주문. key 는 실제 모양(``orders/<id>/drawing/…``)이어야 한다 — 모바일 도면 방은
+    이 주문 폴더 key 가 아니면 URL 을 비운다(저장 URL 불신, 2b SPEC §4.3.4)."""
+    order = _drawing_order(
         {
             "drawing": {"status": "TRANSFERRED"},
             "drawing_status": "TRANSFERRED",
-            "drawing_current_files": [
-                {
-                    "key": "drawings/living.png",
-                    "filename": "living.png",
-                    "view_url": "/api/files/view/drawings/living.png",
-                },
-                {
-                    "key": "drawings/kitchen.png",
-                    "filename": "kitchen.png",
-                    "view_url": "/api/files/view/drawings/kitchen.png",
-                },
-            ],
-            "drawing_transfer_history": [
-                {
-                    "action": "TRANSFER",
-                    "at": "2026-06-01 10:00:00",
-                    "by_user_name": "도면팀A",
-                    "note": "1차 전달",
-                    "files": [],
-                },
-                {
-                    "action": "REQUEST_REVISION",
-                    "at": "2026-06-02 11:00:00",
-                    "by_user_name": "영업A",
-                    "note": "2번 높이 수정",
-                    "target_drawing_keys": ["drawings/kitchen.png"],
-                    "target_drawing_numbers": [2],
-                    "target_drawing_number": 2,
-                },
-            ],
         }
     )
+    living, kitchen = _multi_keys(order)
+    sd = dict(order.structured_data)
+    sd["drawing_current_files"] = [
+        {"key": living, "filename": "living.png", "view_url": f"/api/files/view/{living}"},
+        {"key": kitchen, "filename": "kitchen.png", "view_url": f"/api/files/view/{kitchen}"},
+    ]
+    sd["drawing_transfer_history"] = [
+        {
+            "action": "TRANSFER",
+            "at": "2026-06-01 10:00:00",
+            "by_user_name": "도면팀A",
+            "note": "1차 전달",
+            "files": [],
+        },
+        {
+            "action": "REQUEST_REVISION",
+            "at": "2026-06-02 11:00:00",
+            "by_user_name": "영업A",
+            "note": "2번 높이 수정",
+            "target_drawing_keys": [kitchen],
+            "target_drawing_numbers": [2],
+            "target_drawing_number": 2,
+        },
+    ]
+    order.structured_data = sd
+    db_session.commit()
+    return order
+
+
+def _multi_keys(order):
+    return f"orders/{order.id}/drawing/living.png", f"orders/{order.id}/drawing/kitchen.png"
 
 
 def test_drawing_thumb_enabled_respects_env(monkeypatch):
@@ -489,16 +492,17 @@ def test_drawing_workbench_valid_drawing_key_opens_mobile_detail(client, monkeyp
     user = _login_drawing_admin(client)
     monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(user.id))
     order = _multi_drawing_order()
+    _living, kitchen = _multi_keys(order)
 
-    response = client.get(f"/erp/drawing-workbench/{order.id}?drawing_key=drawings/kitchen.png")
+    response = client.get(f"/erp/drawing-workbench/{order.id}?drawing_key={kitchen}")
     assert response.status_code == 200
     body = response.get_data(as_text=True)
     assert 'data-handoff-mode="detail"' in body
     assert "foms-drawing-handoff-detail" in body
     assert "도면 2 / 2" in body
-    assert "data-selected-drawing-key=\"drawings/kitchen.png\"" in body
+    assert f"data-selected-drawing-key=\"{kitchen}\"" in body
     assert "foms-drawing-viewer__download" in body
-    assert "/api/files/download/drawings/kitchen.png" in body
+    assert f"/api/files/download/{kitchen}" in body
 
 
 def test_drawing_workbench_mobile_viewer_carries_every_drawing(client, monkeypatch):
@@ -511,8 +515,9 @@ def test_drawing_workbench_mobile_viewer_carries_every_drawing(client, monkeypat
     user = _login_drawing_admin(client)
     monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(user.id))
     order = _multi_drawing_order()
+    living, kitchen = _multi_keys(order)
 
-    response = client.get(f"/erp/drawing-workbench/{order.id}?drawing_key=drawings/kitchen.png")
+    response = client.get(f"/erp/drawing-workbench/{order.id}?drawing_key={kitchen}")
     assert response.status_code == 200
     body = response.get_data(as_text=True)
 
@@ -520,9 +525,9 @@ def test_drawing_workbench_mobile_viewer_carries_every_drawing(client, monkeypat
     assert marker in body
     raw = body.split(marker, 1)[1].split("'", 1)[0]
     files = json.loads(html.unescape(raw))
-    assert [f["key"] for f in files] == ["drawings/living.png", "drawings/kitchen.png"]
-    assert files[1]["view_url"] == "/api/files/view/drawings/kitchen.png"
-    assert files[1]["download_url"] == "/api/files/download/drawings/kitchen.png"
+    assert [f["key"] for f in files] == [living, kitchen]
+    assert files[1]["view_url"] == f"/api/files/view/{kitchen}"
+    assert files[1]["download_url"] == f"/api/files/download/{kitchen}"
 
 
 def test_drawing_handoff_js_opens_viewer_with_the_whole_list():

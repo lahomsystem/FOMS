@@ -61,6 +61,10 @@
                   </td>
                   <td data-label="단계">
                     <span class="badge bg-secondary erp-grid-badge-stage">{{ o.stage }}</span>
+                    {# 도면 수정 중 배지(Q2, 2a-2): 제작 시작 게이트와 같은 판정(RETURNED·TRANSFERRED). 대기·진행 중 모두. #}
+                    {% if o.drawing_badge %}
+                    <span class="badge bg-danger foms-drawing-revision-badge" data-drawing-revision-badge title="{{ o.drawing_badge.title }}"><i class="fas fa-pen-ruler" aria-hidden="true"></i> {{ o.drawing_badge.label }}</span>
+                    {% endif %}
                     {# 보류/재제작 운영 배지(P8): structured_data 직접 접근(제품 셀 패턴) + row hold_days 소비. #}
                     {% set _prod = (o.structured_data.get('production') if o.structured_data else none) or {} %}
                     {% set _hold = (_prod.get('hold') if _prod else none) or {} %}
@@ -82,6 +86,16 @@
                       {% if not o.is_sales_approved %}
                         <!-- 담당자 승인 전: '고객 컨펌 전' 텍스트 표시 -->
                         <span class="badge bg-secondary erp-grid-badge-sm">고객 컨펌 전</span>
+                      {% elif o.production_start_blocked and not is_admin %}
+                        {# 도면 게이트(Q2, 2a-2): 서버가 409 로 막을 버튼은 그리지 않고 이유를 보인다. #}
+                        <span class="badge bg-warning text-dark erp-grid-badge-sm">도면 확정 대기</span>
+                        <span class="foms-gate-blocked-reason" data-production-start-blocked>{{ o.production_start_block_reason }}</span>
+                      {% elif o.production_start_blocked %}
+                        {# 관리자: 경고 모양 버튼 → 409 DRAWING_STATUS → 사유 시트(FomsAdminOverride.retry)로 1회 재시도. #}
+                        <button type="button" class="btn btn-warning fw-bold erp-production-action erp-grid-btn-quest" data-order-id="{{ o.id }}" data-action="startProduction">
+                          <i class="fas fa-triangle-exclamation me-1"></i> 제작 시작(관리자)
+                        </button>
+                        <span class="foms-gate-blocked-reason" data-production-start-blocked>{{ o.production_start_block_reason }}</span>
                       {% else %}
                         <!-- 담당자 승인 후: '제작 시작' 버튼 표시 -->
                         <button type="button" class="btn btn-primary fw-bold erp-production-action erp-grid-btn-quest" data-order-id="{{ o.id }}" data-action="startProduction">

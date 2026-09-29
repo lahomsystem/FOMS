@@ -22,7 +22,8 @@
     2. 도면팀이 들어오는 세 경로(직접 · 웹푸시 딥링크 · 알림 벨 딥링크) 모두, 폰 폭에서 보이는
        영역에 반영 체크 컨트롤이 있다.
     3. 그 버튼이 싣는 값 그대로 API 를 부르면 체크가 저장되고, 다시 연 화면의 하단 바가
-       '수정본 전달' 로 풀리며, 실제 전달 API 가 200 이다(끝까지 한 번).
+       '수정본 전달' 로 풀리며, 전달 창의 실제 업로드 경로로 올린 수정본을 전달 API 가
+       200 으로 받는다(끝까지 한 번 — 합성 key 가 아니라 업로드가 돌려준 key).
 
 왜 문자열 검색이 아니라 파서인가:
     같은 응답에 숨은 PC 마크업(`.js-revision-check`)이 그대로 남아 있어 전체 HTML 검색은 오탐이다.
@@ -40,6 +41,7 @@
 
 from __future__ import annotations
 
+import io
 from pathlib import Path
 
 import pytest
@@ -48,6 +50,8 @@ from werkzeug.security import generate_password_hash
 
 import foms.api.drawing.erp_orders_drawing as drawing_routes
 import foms.api.drawing.erp_orders_revision as revision_api
+import foms.api.files.order_routes as order_routes
+import foms.services.storage as storage_module
 from db import db_session
 from foms.api.notifications import _resolve_notification_deep_link
 from foms.services.datetime_kst import get_today_kst
@@ -123,6 +127,20 @@ def _transferred_order(drawing_assignee_id: int) -> Order:
     db_session.add(order)
     db_session.commit()
     return order
+
+
+class _UploadStorage:
+    """전달 창 업로드(POST /api/orders/<id>/attachments)만 받는 스토리지 대역."""
+
+    def upload_file(self, file_obj, filename, folder="uploads"):
+        key = f"{folder}/c9_{filename}"
+        return {"success": True, "key": key, "url": f"/fake/{key}", "filename": key.rsplit("/", 1)[-1]}
+
+    def get_file_type(self, filename):
+        return "image"
+
+    def _generate_thumbnail(self, *a, **k):
+        return None
 
 
 def _hidden_on_phone(tag) -> bool:
@@ -221,8 +239,11 @@ def test_drawing_team_can_check_revision_on_phone_when_returned(client, monkeypa
     assert primary is not None
     assert primary.has_attr("disabled")
     assert "전달 대기" in primary.get_text(" ", strip=True)
-    reason = primary.select_one(".foms-drawing-action-bar__reason")
+    # 이유 줄은 disabled 버튼 밖(탭 이동으로 닿게)에 있고 버튼이 aria-describedby 로 가리킨다(2차 R12).
+    reason = handoff.select_one(".foms-drawing-action-bar #dw-transfer-gate-reason")
     assert reason is not None, "막힌 이유 한 줄이 없다"
+    assert reason.find_parent("button") is None
+    assert primary.get("aria-describedby") == "dw-transfer-gate-reason"
     assert "1건 반영 체크 필요" in reason.get_text(" ", strip=True)
 
     # 전제 C: 서버도 같은 이유로 막는다 — 막기 정책 자체는 바뀌지 않았다.
@@ -289,8 +310,19 @@ def test_phone_check_unblocks_retransfer_end_to_end(client, monkeypatch):
     undo = check_row.select_one('[data-drawing-handoff-action="revision-check"]')
     assert undo is not None and undo["data-next-checked"] == "false"
 
-    # 실제 전달 API(전달 모달이 부르는 것)도 이제 통과한다.
-    new_key = f"orders/{order_id}/drawing/plan-2.png"
+    # 실제 전달 모달 흐름(1차 리뷰 R2): 수정본 파일을 전달 창 업로드 경로로 올리고, 그
+    # 업로드가 돌려준 key 로 전달 API 를 부른다. 합성 key 를 쓰면 M10(업로드가 전달에서 빠짐)이
+    # 가려진다 — 이 흐름은 2c-1(M10) 전까지 400 이었다.
+    monkeypatch.setattr(storage_module, "_storage_instance", _UploadStorage())
+    monkeypatch.setattr(order_routes, "ASYNC_ATTACHMENT_THUMBNAIL", False)
+    uploaded = client.post(
+        f"/api/orders/{order_id}/attachments",
+        data={"file": (io.BytesIO(b"PNG-v2"), "plan-2.png"), "category": "drawing",
+              "note": "[도면 전달 첨부] 수정본"},
+        content_type="multipart/form-data",
+    )
+    assert uploaded.status_code == 200, uploaded.get_data(as_text=True)
+    new_key = uploaded.get_json()["attachment"]["storage_key"]
     transferred = client.post(
         f"/api/orders/{order_id}/transfer-drawing",
         json={"files": [{"key": new_key, "filename": "plan-2.png"}], "is_retransfer": True},
@@ -316,6 +348,22 @@ def test_sales_sees_check_state_but_no_toggle(client, monkeypatch):
     assert handoff is not None
     assert handoff.select_one(".foms-drawing-thread__check") is not None
     assert handoff.select_one('[data-drawing-handoff-action="revision-check"]') is None
+
+    # 노출 == 서버 허용(반대쪽): 도면팀 버튼이 싣는 것과 같은 본문을 영업이 직접 보내도 403 이고
+    # 체크는 바뀌지 않는다(2차 R11 — 화면에서 숨기기만 하고 서버가 받아 주면 안 된다).
+    db_session.expire_all()
+    history = db_session.get(Order, order_id).structured_data["drawing_transfer_history"]
+    request = [h for h in history if h.get("action") == "REQUEST_REVISION"][0]
+    denied = client.post(
+        f"/api/orders/{order_id}/request-revision-check",
+        json={"request_at": request["at"], "by_user_id": request.get("by_user_id"), "checked": True},
+    )
+    assert denied.status_code == 403, denied.get_data(as_text=True)
+    assert (denied.get_json() or {}).get("success") is False
+    db_session.expire_all()
+    history = db_session.get(Order, order_id).structured_data["drawing_transfer_history"]
+    request = [h for h in history if h.get("action") == "REQUEST_REVISION"][0]
+    assert not (request.get("review_check") or {}).get("checked")
 
 
 def test_handoff_js_sends_the_pc_toggle_contract():

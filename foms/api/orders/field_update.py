@@ -611,9 +611,11 @@ def update_order_field_response(
         if field == "status" and is_erp_order:
             from foms.services.orders.status_constants import is_logistics_board_status
             from foms.services.orders.stage_override import (
+                DEDICATED_COMMAND_MESSAGE,
                 OVERRIDE_BLOCK_MESSAGE,
                 current_stage_for_order,
                 normalize_main_stage,
+                requires_dedicated_command,
                 requires_privileged_override,
             )
 
@@ -625,6 +627,19 @@ def update_order_field_response(
                             {"success": False, "message": OVERRIDE_BLOCK_MESSAGE}
                         ), 403
                     punched.append("OVERRIDE_BLOCK")
+                    record_admin_override_event(
+                        db, order, override=override, gates=list(punched),
+                        route="orders.update_order_field", axis="MAIN",
+                        from_value=current_stage_for_order(order), to_value=value,
+                    )
+                # Q1(2a-2): 인접 전진 DRAWING→CONFIRM·CONFIRM→PRODUCTION 은 전용 버튼만.
+                # 이 파일에는 끝의 공통 기록 흐름이 없어 뚫기 기록을 분기 안에서 바로 남긴다
+                # (역행·건너뛰기 분기와 겹치지 않으므로 이중 기록 없음).
+                elif requires_dedicated_command(current_stage_for_order(order), value):
+                    if override is None:
+                        return jsonify({"success": False, "code": "COMMAND_REQUIRED",
+                                        "message": DEDICATED_COMMAND_MESSAGE}), 409
+                    punched.append("COMMAND_REQUIRED")
                     record_admin_override_event(
                         db, order, override=override, gates=list(punched),
                         route="orders.update_order_field", axis="MAIN",

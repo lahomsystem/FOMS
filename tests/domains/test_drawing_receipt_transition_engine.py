@@ -112,7 +112,9 @@ def test_대조군_도면_단계가_아니면_단계를_되돌리지_않고_도�
     assert saved.structured_data["workflow"]["stage"] == "PRODUCTION"  # 역행 0
     assert saved.erp_stage_code == "PRODUCTION"
     assert saved.structured_data["drawing_status"] == "CONFIRMED"
-    assert saved.mutation_version == 1  # 전이 없음 = 버전 불변(기본 1)
+    # 전이는 없지만 도면 축 쓰기가 REV-00 엔진 콜백 안에서 일어나 버전이 1 오른다(2a-1② —
+    # 그 전에 연 주문 폼의 If-Match 가 409 를 받게). 예전 단언은 "버전 불변(1)"이었다.
+    assert saved.mutation_version == 2
     assert _events(oid, "DRAWING_RECEIPT_CONFIRMED") == 0
     assert _events(oid, "DRAWING_STATUS_CHANGED") == 1
     assert any("단계 유지" in (row.message or "")

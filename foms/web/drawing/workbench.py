@@ -19,6 +19,7 @@ from foms.services.erp_permissions import (
 from foms.services.erp_quest_display import load_assignee_user_map_batch, resolve_order_role_assignees
 from foms.services.erp_policy import (
     STAGE_NAME_TO_CODE,
+    can_transfer_drawing,
     get_assignee_ids,
     has_pending_unchecked_drawing_revision_requests,
     is_drawing_workbench_participant,
@@ -34,7 +35,9 @@ from foms.services.erp_display import (
     manager_display_name,
 )
 from foms.services.erp_product_items import build_product_items_for_order
-from foms.services.files.upload_authz import validate_upload_key
+from foms.services.orders.confirm_drawing_gate import effective_drawing_status
+from foms.services.orders.drawing_key_safety import is_own_order_key
+from foms.services.orders.drawing_revision_files import revision_reference_display_rows
 from foms.services.notifications.drawing_order_change import (
     _change_parts,
     drawing_work_started,
@@ -227,9 +230,22 @@ def _build_drawing_turn(
     can_confirm_receipt: bool,
     file_count: int,
     transfer_round: int,
+    gated: bool = False,
 ) -> dict[str, str]:
-    """Build order-level turn ribbon copy for the mobile handoff UI."""
+    """Build order-level turn ribbon copy for the mobile handoff UI.
+
+    ``gated`` = 반영 체크가 남아 수정본 전달이 막힌 상태(``transfer_gated_by_revision_checklist``).
+    그때는 전달 권한이 있어도 지금 누를 수 있는 일이 아니므로 '내 차례' 색을 쓰지 않는다(원장 M14-b).
+    라벨은 보는 사람 기준이다 — 전달 권한자에게는 할 일("수정요청 반영 체크 필요"), 그 밖의 사람(영업 등)
+    에게는 움직일 주체("도면팀 반영 체크 대기"). 목록 카드와 상세 리본이 이 함수 하나를 함께 쓴다.
+    """
     status = (drawing_status or 'PENDING').upper()
+    if gated:
+        return {
+            'label': '수정요청 반영 체크 필요' if can_transfer else '도면팀 반영 체크 대기',
+            'sub': (f'도면팀 {transfer_round}차 전달' if transfer_round else '도면 전달 대기') + f' · 도면 {file_count}장',
+            'tone': 'other',
+        }
     if status == 'TRANSFERRED':
         label = '영업 확인 차례'
     elif status == 'RETURNED':
@@ -319,8 +335,11 @@ def _build_handoff_files(order_id: int, drawing_files: list[Any], history: list[
         file_map = file_obj if isinstance(file_obj, Mapping) else {}
         key = _drawing_file_key(file_obj, idx)
         filename = str(file_map.get('filename') or key.rsplit('/', 1)[-1] or f'{idx + 1}번 도면')
-        view_url = str(file_map.get('view_url') or (f'/api/files/view/{key}' if key else ''))
-        download_url = str(file_map.get('download_url') or (f'/api/files/download/{key}' if key else ''))
+        # 저장된 view_url·download_url 은 쓰지 않는다(SPEC §4.3.4) — key 로만 만들고,
+        # 이 주문 폴더 key 가 아니면 비운다(템플릿은 빈 값이면 링크·이미지를 그리지 않는다).
+        own = is_own_order_key(order_id, key)
+        view_url = f'/api/files/view/{key}' if own else ''
+        download_url = f'/api/files/download/{key}' if own else ''
         number = idx + 1
         chip = '수정 반영' if number in revision_applied else ('수정요청 대상' if number in revision_targets else '')
         rows.append({
@@ -369,45 +388,13 @@ def _build_handoff_viewer_files(handoff_files: list[Mapping[str, Any]]) -> list[
 def _revision_reference_files(order_id: int | None, files: Any) -> tuple[list[dict[str, Any]], int]:
     """수정요청 참고 파일 중 이 주문 도면 창구 경로의 것만 열람 행으로 만든다.
 
-    이력의 ``view_url``·``download_url`` 은 요청 본문을 검증 없이 저장한 값이라(원장 M5)
-    화면에 싣지 않는다. URL 은 key 로 서버가 다시 만들고, key 는
-    ``orders/<이 주문 id>/drawing_gateway/`` 아래 정본 경로(``validate_upload_key`` —
-    정규화·안전 문자·주문 일치)만 통과시킨다. 그 URL 은 ``/api/files/view`` 가 key 의
-    주문 읽기 권한으로 한 번 더 검사한다.
-
-    Args:
-        order_id: 이 화면의 주문 id. ``None`` 이면 어떤 파일도 링크하지 않는다.
-        files: REQUEST_REVISION 이력의 ``files`` 값.
+    판정 정본은 :func:`~foms.services.orders.drawing_revision_files.revision_reference_display_rows`
+    (수정요청 저장과 같은 ``is_revision_reference_key``)다. 이력의 저장 URL 은 쓰지 않는다.
 
     Returns:
         ``(열 수 있는 파일 행 목록, 열 수 없어 개수만 세는 파일 수)``.
-        행은 ``{key, filename, view_url, download_url, is_image}``.
     """
-    if not isinstance(files, list):
-        return [], 0
-    prefix = f'orders/{order_id}/drawing_gateway/' if order_id else ''
-    rows: list[dict[str, Any]] = []
-    hidden = 0
-    for file_obj in files:
-        key = file_obj.get('key') if isinstance(file_obj, Mapping) else None
-        if not (
-            prefix
-            and isinstance(key, str)
-            and key == key.strip()
-            and key.startswith(prefix)
-            and validate_upload_key(key, order_id)[0]
-        ):
-            hidden += 1
-            continue
-        filename = str(file_obj.get('filename') or '').strip() or key.rsplit('/', 1)[-1]
-        rows.append({
-            'key': key,
-            'filename': filename,
-            'view_url': f'/api/files/view/{key}',
-            'download_url': f'/api/files/download/{key}',
-            'is_image': _is_drawing_image(key),
-        })
-    return rows, hidden
+    return revision_reference_display_rows(order_id, files)
 
 
 def _revision_thread_fields(event: Mapping[str, Any], order_id: int | None) -> dict[str, Any]:
@@ -432,6 +419,23 @@ def _revision_thread_fields(event: Mapping[str, Any], order_id: int | None) -> d
     }
 
 
+def _cancelled_revision_fields(event: Mapping[str, Any]) -> dict[str, Any]:
+    """수정요청 취소 기록(``REVISION_CANCELLED``) 표시값 — 취소 이유 + 원래 요청 메모(흐리게).
+
+    원래 요청의 참고 파일은 다시 싣지 않는다(요청 말풍선이 이미 사라졌으므로 개수만 남긴다).
+    """
+    request_raw = event.get('request')
+    request_entry = request_raw if isinstance(request_raw, Mapping) else {}
+    reason = str(event.get('reason') or '').strip()
+    targets = _event_target_numbers(request_entry)
+    return {
+        'note': f'취소 이유: {reason}' if reason else '',
+        'cancelled_request_note': str(request_entry.get('note') or '').strip(),
+        'target_text': f"{', '.join(str(n) for n in targets)}번 대상" if targets else '',
+        'files': [],
+    }
+
+
 def _build_handoff_thread(
     history: list[Mapping[str, Any]], order_id: int | None = None
 ) -> list[dict[str, Any]]:
@@ -451,6 +455,7 @@ def _build_handoff_thread(
     action_labels = {
         'TRANSFER': '도면 전달',
         'REQUEST_REVISION': '수정 요청',
+        'REVISION_CANCELLED': '수정요청 취소',
         'CANCEL_TRANSFER': '전달 취소',
         'CONFIRM_RECEIPT': '수령 확정',
         'ERP_ORDER_CHANGED': '주문 변경',
@@ -487,6 +492,8 @@ def _build_handoff_thread(
         }
         if action == 'REQUEST_REVISION':
             entry.update(_revision_thread_fields(event, order_id))
+        elif action == 'REVISION_CANCELLED':
+            entry.update(_cancelled_revision_fields(event))
         thread.append(entry)
     return thread
 
@@ -605,8 +612,7 @@ def erp_drawing_workbench_dashboard():
         sd = _ensure_dict(o.structured_data)
         stage_raw = _erp_get_stage(o, sd)
         stage_code = STAGE_NAME_TO_CODE.get(stage_raw or '', stage_raw or '')
-        drawing_obj = sd.get('drawing') or {}
-        drawing_status = (drawing_obj.get('status') or sd.get('drawing_status') or 'PENDING').upper()
+        drawing_status = effective_drawing_status(sd, default='PENDING')  # 판정 정본(2a-2)
         is_drawing_stage = (stage_code == 'DRAWING')
         is_active_revision = (drawing_status == 'RETURNED')
         is_confirmed_included = include_confirmed and drawing_status == 'CONFIRMED'
@@ -642,13 +648,20 @@ def erp_drawing_workbench_dashboard():
         can_sales = _can_modify_sales_domain(current_user, o, sd, False, None)
         # 판정 권한(순수 — 상태 미포함). 상세 라우트 can_confirm_receipt(상태 합성형)와 이름 분리.
         can_review_perm = bool(is_admin or (can_sales and not is_drawing_team))
-        can_transfer_row = bool(
-            has_assignee
-            and current_user
-            and is_drawing_workbench_participant(current_user, o)
-        )
+        # 전달 권한 = 상세 라우트·서버와 같은 술어(관리자 · 지정 도면 담당, M14-a). 목록 카드와 상세 리본이
+        # 같은 주문을 다르게 말하지 않게 막힘(gated)도 상세와 같은 판정으로 넘긴다(2d 리뷰).
+        can_transfer_row = can_transfer_drawing(current_user, o)
         can_confirm_row = bool(can_sales and drawing_status == 'TRANSFERRED')
         transfer_round = sum(1 for h in history if isinstance(h, dict) and h.get('action') == 'TRANSFER')
+        unchecked_requests = 0
+        for h in history:
+            if not isinstance(h, dict) or h.get('action') != 'REQUEST_REVISION':
+                continue
+            review_raw = h.get('review_check')
+            review = review_raw if isinstance(review_raw, dict) else {}
+            if not bool(review.get('checked')):
+                unchecked_requests += 1
+        gated_row = bool(drawing_status == 'RETURNED' and has_pending_unchecked_drawing_revision_requests(sd))
         turn = _build_drawing_turn(
             drawing_status,
             has_assignee,
@@ -656,9 +669,15 @@ def erp_drawing_workbench_dashboard():
             can_confirm_row,
             len(drawing_files),
             transfer_round,
+            gated=gated_row,
         )
+        primary_action_query = ''
         if can_confirm_row:
             primary_action = {'label': '수령 확인', 'icon': 'fa-check-double'}
+        elif can_transfer_row and gated_row:
+            # 막힌 전달 대신 지금 할 일(반영 체크) — 요청 탭 착지가 미체크 수정요청으로 데려간다(M14-c).
+            primary_action = {'label': '반영 체크', 'icon': 'fa-list-check'}
+            primary_action_query = '?tab=requests'
         elif can_transfer_row:
             primary_action = {'label': '도면 전달', 'icon': 'fa-paper-plane'}
         elif drawing_status == 'TRANSFERRED' and can_sales:
@@ -669,15 +688,6 @@ def erp_drawing_workbench_dashboard():
             (drawing_status in ('PENDING', 'RETURNED') and is_drawing_assignee)
             or (drawing_status == 'TRANSFERRED' and is_sales_owner)
         )
-
-        unchecked_requests = 0
-        for h in history:
-            if not isinstance(h, dict) or h.get('action') != 'REQUEST_REVISION':
-                continue
-            review_raw = h.get('review_check')
-            review = review_raw if isinstance(review_raw, dict) else {}
-            if not bool(review.get('checked')):
-                unchecked_requests += 1
 
         alerts = _erp_alerts(o, sd, 0)
         due_today = (alerts.get('measurement_days') == 0 or alerts.get('construction_days') == 0)
@@ -709,6 +719,7 @@ def erp_drawing_workbench_dashboard():
         h_action = (last_event or {}).get('action') or ''
         h_action_label = {
             'TRANSFER': '도면 전달', 'REQUEST_REVISION': '수정 요청',
+            'REVISION_CANCELLED': '수정요청 취소',
             'CANCEL_TRANSFER': '전달 취소', 'CONFIRM_RECEIPT': '수령 확정',
             'ERP_ORDER_CHANGED': '주문 변경',
         }.get(h_action, h_action or '-')
@@ -775,6 +786,7 @@ def erp_drawing_workbench_dashboard():
             'turn_tone': turn['tone'],
             'primary_action_label': primary_action['label'],
             'primary_action_icon': primary_action['icon'],
+            'primary_action_query': primary_action_query,
             'next_action': _drawing_next_action_text(drawing_status, has_assignee),
             'next_action_tone': _drawing_next_action_tone(drawing_status, has_assignee),
             'latest_event_at': (last_event or {}).get('transferred_at') or (last_event or {}).get('at') or '-',
@@ -943,7 +955,7 @@ def erp_drawing_workbench_detail(order_id):
     from foms.api.drawing.wizard import _pending_list
     drawing_pending = _pending_list(s_data)
     stage = _erp_get_stage(order, s_data)
-    drawing_status = ((s_data.get('drawing') or {}).get('status') or s_data.get('drawing_status') or 'PENDING').upper()
+    drawing_status = effective_drawing_status(s_data, default='PENDING')  # 판정 정본(2a-2)
     drawing_files = list(s_data.get('drawing_current_files', []) or [])
     history_raw = list(s_data.get('drawing_transfer_history', []) or [])
     requested_drawing_key = (request.args.get('drawing_key') or '').strip()
@@ -954,12 +966,13 @@ def erp_drawing_workbench_detail(order_id):
             continue
         h_action = (h.get('action') or '').strip()
         event_key = f"{idx}:{h_action}:{_history_event_at_raw(h)}:{h.get('by_user_id') or ''}"
-        history.append({
+        entry = {
             **h,
             'event_key': event_key,
             'action_label': {
                 'TRANSFER': '도면 전달',
                 'REQUEST_REVISION': '수정 요청',
+                'REVISION_CANCELLED': '수정요청 취소',
                 'CANCEL_TRANSFER': '전달 취소',
                 'CONFIRM_RECEIPT': '수령 확정',
                 'ERP_ORDER_CHANGED': '주문 변경',
@@ -968,7 +981,16 @@ def erp_drawing_workbench_detail(order_id):
             'by_text': h.get('by_user_name') or '-',
             'target_no': h.get('target_drawing_number') or h.get('replace_target_number'),
             'files': list(h.get('files') or []) if isinstance(h.get('files'), list) else [],
-        })
+        }
+        # PC 타임라인 갤러리 — 수정요청 참고 파일은 이 주문 창구 key 만 링크(저장 URL 불신),
+        # 나머지는 개수만. 'files' 는 모바일 스레드가 원본 개수를 세므로 그대로 둔다.
+        entry['gallery_files'], entry['gallery_hidden_count'] = (
+            _revision_reference_files(order_id, h.get('files')) if h_action == 'REQUEST_REVISION'
+            else (entry['files'], 0)
+        )
+        if h_action == 'REVISION_CANCELLED':
+            entry.update(_cancelled_revision_fields(h))
+        history.append(entry)
 
     revision_requests = [h for h in history if h.get('action') == 'REQUEST_REVISION']
     revision_requests.reverse()
@@ -1003,6 +1025,17 @@ def erp_drawing_workbench_detail(order_id):
         h['is_highlight'] = bool(highlight_event_id) and h.get('event_key') == highlight_event_id
     for h in revision_requests:
         h['is_highlight'] = (bool(highlight_event_id) and h.get('event_key') == highlight_event_id) or (highlight_target_no and int(h.get('target_no') or 0) == int(highlight_target_no))
+    # 알림 착지(`?tab=requests` — 웹푸시·실시간 창)는 어느 요청인지 안 싣는다. 그 뜻은 "수정요청을 봐라"
+    # 이므로 가장 최근 미체크 요청을 강조한다(원장 M14-c). 명시 강조(event_id·target_no)가 있으면 그것만.
+    requests_tab_landing = active_tab == 'requests'
+    if requests_tab_landing and not any(h.get('is_highlight') for h in revision_requests):
+        first_unchecked = next(
+            (h for h in revision_requests
+             if not bool((h.get('review_check') if isinstance(h.get('review_check'), dict) else {}).get('checked'))),
+            None,
+        )
+        if first_unchecked is not None:
+            first_unchecked['is_highlight'] = True
 
     draw_assignee_ids = get_assignee_ids(order, 'DRAWING_DOMAIN')
     has_assignee = bool(draw_assignee_ids)
@@ -1017,9 +1050,12 @@ def erp_drawing_workbench_detail(order_id):
     is_drawing_team = bool(
         current_user and (getattr(current_user, 'team', None) or '').strip() == 'DRAWING'
     )
-    # 전달 버튼은 도면팀+관리자 전용. 배정 로직은 그대로 두고 팀 조건을 추가로 AND.
+    # 전달 버튼 = 서버 전달 권한과 같은 술어(관리자 · 지정 도면 담당, M14-a 화면 == 서버).
+    # 담당 아닌 도면팀은 버튼 대신 "담당자만 전달할 수 있어요" 한 줄.
+    can_transfer = can_transfer_drawing(current_user, order)
+    # 전달 취소 표시는 도면팀+관리자로 한정(아래 최종 게이트) — 전달 버튼과 별개 축.
     is_transfer_authorized_team = bool(is_admin or is_drawing_team)
-    can_transfer = bool(has_assignee and is_drawing_participant and is_transfer_authorized_team)
+    show_transfer_assignee_only_hint = bool(is_drawing_team and not is_admin and not can_transfer)
     transfer_gated_by_revision_checklist = bool(
         drawing_status == 'RETURNED'
         and has_pending_unchecked_drawing_revision_requests(s_data)
@@ -1081,11 +1117,20 @@ def erp_drawing_workbench_detail(order_id):
     file_keys = [_drawing_file_key(f, idx) for idx, f in enumerate(drawing_files)]
     handoff_invalid_drawing_key = ''
     selected_key = requested_drawing_key if requested_drawing_key in file_keys else ''
-    deep_link_requested = bool(highlight_event_id or highlight_target_no)
+    # 모바일 스레드는 상세 보기에만 있다 — 요청 탭 착지도 딥링크로 봐야 여러 장 주문에서 스레드가 보인다.
+    deep_link_requested = bool(highlight_event_id or highlight_target_no or requests_tab_landing)
     if requested_drawing_key and requested_drawing_key not in file_keys:
         handoff_invalid_drawing_key = '선택한 도면을 찾을 수 없습니다.'
     if not selected_key and highlight_target_no and 1 <= highlight_target_no <= len(file_keys):
         selected_key = file_keys[highlight_target_no - 1]
+    # 강조된 수정요청(요청 탭 착지의 최근 미체크 · event_id)이 가리키는 도면을 연다 — 1번 도면 고정이 아니라(2d 리뷰).
+    highlighted_request = next((h for h in revision_requests if h.get('is_highlight')), None)
+    try:
+        highlighted_target_no = int((highlighted_request or {}).get('target_no') or 0)
+    except (TypeError, ValueError):
+        highlighted_target_no = 0
+    if not selected_key and 1 <= highlighted_target_no <= len(file_keys):
+        selected_key = file_keys[highlighted_target_no - 1]
     if not selected_key and (len(file_keys) == 1 or deep_link_requested):
         selected_key = file_keys[0] if file_keys else ''
     handoff_view = 'detail' if (len(file_keys) <= 1 or selected_key or deep_link_requested) else 'list'
@@ -1106,6 +1151,7 @@ def erp_drawing_workbench_detail(order_id):
         can_confirm_receipt,
         len(handoff_files),
         transfer_round,
+        gated=transfer_gated_by_revision_checklist,
     )
     handoff_thread = _build_handoff_thread(history, order_id=order.id)
 
@@ -1224,6 +1270,7 @@ def erp_drawing_workbench_detail(order_id):
         mobile_handoff_invalid_drawing_key=handoff_invalid_drawing_key,
         mobile_handoff_active=mobile_v2_active,
         can_transfer=can_transfer,
+        show_transfer_assignee_only_hint=show_transfer_assignee_only_hint,
         can_open_transfer=can_open_transfer,
         transfer_gated_by_revision_checklist=transfer_gated_by_revision_checklist,
         can_toggle_revision_check=can_toggle_revision_check,

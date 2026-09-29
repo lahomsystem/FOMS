@@ -20,6 +20,7 @@ from foms.services.orders.quest_approve_authz import (
     authorize_quest_approve,
     quest_approve_allowed,
 )
+from tests.support.confirm_seed import drawing_for_stage
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -113,7 +114,7 @@ def test_confirm_completed_in_korean_storage_offers_production_retransition():
     """한글 저장형(고객컨펌) COMPLETED 도 재전이 대상 — 승인 버튼과 같은 '고객 컨펌 완료'."""
     quest = {"stage": "고객컨펌", "title": "고객 컨펌", "status": "COMPLETED", "approval_mode": "assignee",
              "assignee_approval": {"approved": True}, "completed_at": "2026-09-16T10:00:00"}
-    sd = {"workflow": {"stage": "CONFIRM"}, "quests": [quest]}
+    sd = {"workflow": {"stage": "CONFIRM"}, "quests": [quest], **drawing_for_stage("CONFIRM")}
     payload = _payload(sd, "고객컨펌", "CONFIRM", _user("CS"))
     assert payload["can_retransition"] is True
     assert payload["retransition_label"] == "고객 컨펌 완료"
@@ -236,6 +237,7 @@ def _db_order_with_assignee_quest(stage_code: str, customer_name: str, required:
 
     order = _db_order(stage_code, customer_name)
     order.structured_data = {
+        **drawing_for_stage(stage_code),
         "workflow": {"stage": stage_code},
         "quests": [{
             "stage": stage_code,
@@ -430,12 +432,13 @@ def test_asset_pins_bumped_to_20260920b():
     """
     # erp-quest-approve.js 는 2026-09-23 실측 통합 화면(복원 직전 이벤트)으로 다시 올라갔다.
     assert "erp-quest-approve.js') }}?v=20260923e" in _read("templates/partials/shared/layout_scripts.html")
-    assert "erp-dashboard-entry.js') }}?v=20260929a" in _read("templates/partials/shared/layout_scripts.html")
-    assert "erp-pro.css') }}?v=20260920b" in _read("templates/partials/shared/layout_head.html")
+    # 2026-09-29 2c-2 R4·2d·2a-2·2b 를 합치며 erp-pro.css 는 20260929k, detail-dom·entry 는 20260929l.
+    assert "erp-dashboard-entry.js') }}?v=20260929l" in _read("templates/partials/shared/layout_scripts.html")
+    assert "erp-pro.css') }}?v=20260929k" in _read("templates/partials/shared/layout_head.html")
     assert "04-filter-table-badges-buttons.css?v=20260920b" in _read("static/css/foundation/erp-pro.css")
     entry = _read("static/js/orders/erp-dashboard-entry.js")
     assert "erp-dashboard-quest.js?v=20260921a" in entry
-    assert "erp-dashboard-detail-dom.js?v=20260929a" in entry
+    assert "erp-dashboard-detail-dom.js?v=20260929l" in entry
     for rel in ("templates/orders/dashboard.html", "templates/orders/partials/dashboard_main.html"):
         assert "foms-v2-cs-hero.css') }}?v=20260921a" in _read(rel)
     assert ".erp-btn-retransition" in _read("static/css/foundation/erp-pro/04-filter-table-badges-buttons.css")

@@ -25,12 +25,30 @@ from bs4 import BeautifulSoup
 from werkzeug.security import generate_password_hash
 
 import foms.api.drawing.erp_orders_revision as revision_api
+import foms.services.storage as storage_module
 from db import db_session
+from foms.services import audit_writer
 from foms.services.datetime_kst import get_today_kst
 from foms.web.drawing.workbench import _revision_reference_files
 from models import Order, User
 
 SALES_NAME = "영업담당M12"
+
+
+class _R2Storage:
+    """열람 라우트(`/api/files/view`)가 302 로 넘길 r2 대역 — test_share_hides_superseded_drawings 의 방식.
+
+    로컬 스토리지 대역이면 파일이 없어 404 가 나고, 예전 단언(`not in (400, 403)`)은 404·500 도 통과시켰다.
+    """
+
+    storage_type = "r2"
+
+    def __init__(self) -> None:
+        self.presigned: list[str] = []
+
+    def get_download_url(self, key, expires_in=3600, response_content_disposition=None):
+        self.presigned.append(key)
+        return f"https://r2.example/{key}?exp={expires_in}"
 
 
 def _user(username: str, *, role: str, team: str, name: str) -> dict:
@@ -114,6 +132,24 @@ def _request_revision(client, sales: dict, order_id: int, files: list | None = N
     assert res.status_code == 200, res.get_data(as_text=True)
 
 
+def _seed_legacy_revision(order_id: int, sales: dict, files: list) -> None:
+    """검증 전 API 가 남긴 모양 그대로의 수정요청 이력(RETURNED)을 심는다."""
+    order = db_session.get(Order, order_id)
+    sd = dict(order.structured_data)
+    sd["drawing_status"] = "RETURNED"
+    sd["drawing_transfer_history"] = list(sd["drawing_transfer_history"]) + [{
+        "action": "REQUEST_REVISION",
+        "by_user_id": sales["id"],
+        "by_user_name": SALES_NAME,
+        "at": "2026-09-22 01:00:00",
+        "note": "손잡이 위치 변경",
+        "files": files,
+        "files_count": len(files),
+    }]
+    order.structured_data = sd
+    db_session.commit()
+
+
 def _phone_page(client, monkeypatch, who: dict, order_id: int) -> BeautifulSoup:
     _login(client, who)
     monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
@@ -148,7 +184,8 @@ def test_phone_thread_opens_reference_photos_with_server_built_urls(client, monk
     traversal = f"orders/{oid}/drawing_gateway/../measurement/secret.jpg"
     measurement = f"orders/{oid}/measurement/20260929_101013_22cc33dd_site.jpg"
     files = [
-        # 수정요청 API 는 이 값을 검증 없이 저장한다(M5) — 화면은 이 URL 을 쓰면 안 된다.
+        # 2b 전의 수정요청 API 는 이 값을 검증 없이 저장했다(M5) — 옛 이력에 남아 있으므로
+        # 화면은 이 URL 을 쓰면 안 된다. 지금 API 는 이런 본문을 400 으로 거절하므로 옛 이력을 직접 심는다.
         {"key": ok_img, "filename": "ref.jpg",
          "view_url": "javascript:alert(1)", "download_url": "https://evil.example/steal"},
         {"key": ok_pdf, "filename": "spec.pdf"},
@@ -156,7 +193,7 @@ def test_phone_thread_opens_reference_photos_with_server_built_urls(client, monk
         {"key": traversal, "filename": "secret.jpg", "view_url": f"/api/files/view/{traversal}"},
         {"key": measurement, "filename": "site.jpg", "view_url": f"/api/files/view/{measurement}"},
     ]
-    _request_revision(client, sales, oid, files)
+    _seed_legacy_revision(oid, sales, files)
 
     soup = _phone_page(client, monkeypatch, drafter, oid)
     handoff = soup.select_one(".erp-mobile-shell.foms-drawing-handoff")
@@ -185,9 +222,16 @@ def test_phone_thread_opens_reference_photos_with_server_built_urls(client, monk
     count = bubble.find("small", string=lambda s: bool(s) and "첨부" in s)
     assert count is not None and "첨부 5건" in count.get_text() and "3건은 여기서 열 수 없음" in count.get_text()
 
-    # 링크 대상 라우트가 이 key 를 이 사용자에게 허용한다(권한 403·경로 400 이 아님).
+    # 링크 대상 라우트가 이 key 를 이 사용자에게 허용하고 실제로 저장소 주소로 넘긴다(2차 R11 —
+    # 예전 단언은 404·500 도 통과시켰다). 권한 403·경로 400·파일 없음 404 가 모두 여기서 걸린다.
+    fake = _R2Storage()
+    monkeypatch.setattr(storage_module, "_storage_instance", fake)
+    audit_writer.reset_dedupe_cache()
     viewed = client.get(f"/api/files/view/{ok_img}")
-    assert viewed.status_code not in (400, 403), viewed.get_data(as_text=True)
+    assert viewed.status_code == 302, viewed.get_data(as_text=True)
+    assert viewed.headers["Location"].startswith(f"https://r2.example/{ok_img}")
+    assert fake.presigned == [ok_img]
+    audit_writer.reset_dedupe_cache()
 
 
 def test_revision_reference_files_accepts_only_this_orders_gateway_keys():

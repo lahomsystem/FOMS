@@ -49,6 +49,11 @@
       {% for alert in primary_alerts[:2] %}
         <span class="foms-badge {{ alert.class }}">{{ alert.label }}</span>
       {% endfor %}
+      {#- 도면 수정 중 배지(Q2, 2a-2) — 생산 행 DTO(attach_production_drawing_gate)만 채운다.
+          다른 도메인 행에는 키가 없어 렌더 바이트 무변경. -#}
+      {% if order.drawing_badge %}
+        <span class="foms-badge foms-badge--alert foms-drawing-revision-badge" data-drawing-revision-badge title="{{ order.drawing_badge.title }}">{{ order.drawing_badge.label }}</span>
+      {% endif %}
       {% if _last_call %}
         {% set _lc_labels = {'connected': '통화됨', 'no_answer': '부재중', 'callback': '콜백', 'schedule_confirmed': '일정확정'} %}
         {% set _lc_md = (_last_call.at[5:7]|int ~ '/' ~ _last_call.at[8:10]|int) if (_last_call.at and _last_call.at|length >= 10) else '' %}
@@ -264,6 +269,11 @@
     {% set workflow_actionable = quest_actionable or drawing_actionable %}
     {% set detail_href = url_for('erp_dashboard.erp_order_mobile_detail', order_id=order.id, return_to=detail_return_to) if detail_return_to else url_for('erp_dashboard.erp_order_mobile_detail', order_id=order.id) %}
     {%- if aux_slot and aux_slot|trim %}{{ aux_slot }}{% endif %}
+    {#- 도면 게이트(2a-2): 고객컨펌 승인이 도면 수령 확정 전이라 막히면 이유 한 줄(서버와 같은 판정).
+        비관리자는 버튼이 빠지고, 관리자는 아래 경고 모양 버튼 → 409 → 사유 시트로 뚫는다. -#}
+    {% if (not action_list) and quest and quest.approve_blocked %}
+    <p class="foms-gate-blocked-reason" data-quest-approve-blocked>{{ quest.approve_blocked_reason }}</p>
+    {% endif %}
     {#- 카드 통합 후속(2026-07-15): footer_extra_slot 사용 도메인(출고)은 푸터 본줄을
         [상세 · ERP 편집 · 슬롯 버튼] 3개로 고정하고, 조건부 워크플로 버튼(리스크 CTA ·
         task_actions · 퀘스트 승인 · 도면 창구)을 전부 푸터 아래 전용 줄(workflow-row)로
@@ -300,7 +310,7 @@
       {% if quest_inline_approve %}
         <button
           type="button"
-          class="foms-btn foms-btn--primary foms-btn--sm erp-queue-card__quest-approve"
+          class="foms-btn foms-btn--primary{% if quest.approve_blocked %} foms-btn--warning{% endif %} foms-btn--sm erp-queue-card__quest-approve"
           data-order-id="{{ order.id }}"
           {% if quest.approval_mode != 'assignee' and quest.approvable_teams %}data-team="{{ quest.approvable_teams[0] }}"{% endif %}
           data-approve-label="{{ quest.approve_label }}"
@@ -310,7 +320,7 @@
         </button>
       {% elif quest_actionable %}
         <a
-          class="foms-btn foms-btn--primary foms-btn--sm erp-queue-card__quest-approve"
+          class="foms-btn foms-btn--primary{% if quest.approve_blocked %} foms-btn--warning{% endif %} foms-btn--sm erp-queue-card__quest-approve"
           href="{{ detail_href }}#foms-detail-quest"
           aria-label="{{ quest.title }} — {{ quest.approve_label }}">
           <i class="fas fa-check-circle" aria-hidden="true"></i> {{ quest.approve_label }}
@@ -329,7 +339,7 @@
         {% if quest.can_retransition %}
         <button
           type="button"
-          class="foms-btn foms-btn--primary foms-btn--sm erp-queue-card__quest-retransition"
+          class="foms-btn foms-btn--primary{% if quest.approve_blocked %} foms-btn--warning{% endif %} foms-btn--sm erp-queue-card__quest-retransition"
           data-order-id="{{ order.id }}"
           data-approve-label="{{ quest.retransition_label }}"
           data-confirm="{{ quest.retransition_confirm }}"

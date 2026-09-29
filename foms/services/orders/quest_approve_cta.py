@@ -9,13 +9,14 @@ from __future__ import annotations
 
 from typing import Any
 
+from foms.services.orders.confirm_drawing_gate import confirm_exit_block, normalize_stage_code
 from foms.services.orders.erp_policy_constants import STAGE_LABELS
 from foms.services.orders.quest_transition_service import (
     is_command_required_stage,
     stage_advance_target,
 )
 
-__all__ = ["build_approve_cta"]
+__all__ = ["approve_blocked_for", "build_approve_cta"]
 
 
 # stage 코드 → 승인 버튼 문구. 한 이름("퀘스트 승인")으로 묶으면 눌렀을 때 무엇이 되는지
@@ -58,7 +59,17 @@ def _order_confirm_context(order: Any) -> str:
     return " / ".join(parts)
 
 
-def build_approve_cta(stage_code: str | None, order: Any) -> dict[str, Any]:
+def approve_blocked_for(user: Any, cta: dict[str, Any]) -> bool:
+    """도면 게이트에 막힌 CTA 에서 이 사용자의 버튼을 숨길까 — 비관리자면 True.
+
+    ADMIN 은 버튼을 유지한다(경고 모양 버튼 → 409 → 사유 시트로 뚫기, 2a-2 화면 규칙).
+    """
+    if not cta.get("approve_blocked"):
+        return False
+    return str(getattr(user, "role", "") or "").strip().upper() != "ADMIN"
+
+
+def build_approve_cta(stage_code: str | None, order: Any, *, sd: Any = None) -> dict[str, Any]:
     """승인 버튼 문구·확인 문장·단계 이동 여부를 한 곳에서 만든다.
 
     문구가 약속하는 결과와 실제 전이 규칙이 갈라지지 않도록 다음 stage 판정은
@@ -66,12 +77,19 @@ def build_approve_cta(stage_code: str | None, order: Any) -> dict[str, Any]:
 
     :param stage_code: 영문 stage 코드.
     :param order: 확인 문구에 넣을 고객명/주문번호 출처 Order.
+    :param sd: 도면 게이트 판정용 structured_data. 고객컨펌(한글 단계 포함)이고 도면이 수령
+        확정이 아니면 ``approve_blocked=True``·``approve_blocked_reason`` 을 더한다(서버 승인
+        라우트와 같은 :func:`confirm_exit_block`). ``None`` 이면 막지 않는다(확인 문구만 쓰는 호출).
     :returns: ``approve_label`` (없으면 None = 버튼 미노출), ``approve_confirm``,
         ``advances_stage``, ``next_stage_label``, ``command_required``,
         ``done_label`` (승인이 끝난 quest 의 완료 배지 문구 — 항상 채운다),
         ``retransition_label``·``retransition_confirm`` (완료 quest 를 다음 단계로 다시
         넘기는 버튼 문구·확인 문장 — 승인 버튼과 같다. 단계를 옮기지 않는 stage 는 빈 문자열).
     """
+    gated = sd is not None and normalize_stage_code(stage_code) == "CONFIRM"
+    block = confirm_exit_block(sd) if gated else None
+    gate = {"approve_blocked": block is not None,
+            "approve_blocked_reason": block.reason if block is not None else ""}
     command_required = is_command_required_stage(stage_code)
     label = None if command_required else _QUEST_APPROVE_LABELS.get(stage_code or "")
     stage_label = STAGE_LABELS.get(stage_code or "", stage_code or "")
@@ -86,6 +104,7 @@ def build_approve_cta(stage_code: str | None, order: Any) -> dict[str, Any]:
             "done_label": done_label,
             "retransition_label": "",
             "retransition_confirm": "",
+            **gate,
         }
 
     next_stage_code = stage_advance_target(stage_code)
@@ -117,4 +136,5 @@ def build_approve_cta(stage_code: str | None, order: Any) -> dict[str, Any]:
         "done_label": done_label,
         "retransition_label": retransition_label,
         "retransition_confirm": retransition_confirm,
+        **gate,
     }

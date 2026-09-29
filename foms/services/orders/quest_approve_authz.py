@@ -199,6 +199,9 @@ def display_team_axes(
     """
     is_done = bool(quest.get("is_done"))
     is_synth = bool(quest.get("is_synthesized"))
+    # 도면 게이트에 막힌 CTA(2a-2)는 비관리자에게 팀 버튼·재전이 버튼을 내밀지 않는다.
+    if cta.get("approve_blocked") and str(getattr(user, "role", "") or "").strip().upper() != "ADMIN":
+        return [], False
     if is_done or approval_mode != "team" or (is_synth and stage_code not in ("RECEIVED", "CS")):
         approvable: list[str] = []
     else:

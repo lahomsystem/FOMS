@@ -17,7 +17,6 @@ from foms.services.audit_message_display import describe_order_action
 from foms.services.orders.audit_order_context import order_audit_context
 from foms.services.datetime_kst import now_utc_naive
 from foms.services.erp_permissions import erp_edit_required
-from foms.services.erp_sync_columns import sync_erp_flat_columns
 from foms.services.erp_display import _ensure_dict
 from foms.services.erp_policy import can_modify_domain
 from foms.api.drawing.draftsman_receipt_authz import can_confirm_drawing_receipt
@@ -25,9 +24,10 @@ from foms.services.drawing_confirm_cleanup import finalize_drawing_files_on_conf
 from foms.services.orders.drawing_receipt_command import (
     advance_receipt_stage,
     receipt_transition_error,
+    write_receipt_structured,
 )
 from foms.services.orders.order_transition_service import TransitionError
-from foms.services.orders.revision import RevisionError
+from foms.services.orders.revision import RevisionError, lock_order_row
 from foms.services.orders.state_axes import read_main_stage
 from foms.services.orders.admin_override import (
     admin_override_error, log_admin_override_denied,
@@ -334,7 +334,7 @@ def api_order_confirm_drawing_receipt(order_id):
         override_reason = str(data.get('override_reason', '') or '').strip()
 
         db = get_db()
-        order = db.query(Order).filter(Order.id == order_id).first()
+        order = lock_order_row(db, order_id)  # 첫 조회부터 행 잠금(2a-1②)
         if not order:
             return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
 
@@ -433,9 +433,9 @@ def api_order_confirm_drawing_receipt(order_id):
         draw_history[-1]['files_count'] = len(final_files)
         s_data['drawing_transfer_history'] = draw_history
 
-        order.structured_data = copy.deepcopy(s_data)
-        flag_modified(order, "structured_data")
-        sync_erp_flat_columns(order, s_data)
+        # 단계 유지면 REV-00 콜백 안에서 쓰고 버전 +1, 단계 이동이면 전이 직후 같은 tx(2a-1②).
+        write_receipt_structured(db, order, s_data, actor_user_id=current_user.id,
+                                 stage_moving=stage_moved, body=data)
 
         event_payload = {
             'domain': 'SALES_DOMAIN',
@@ -489,6 +489,7 @@ def api_order_confirm_drawing_receipt(order_id):
         })
 
     except Exception as e:
+        log_handled_exception("confirm-drawing-receipt")
         if db is not None:
             db.rollback()
         return jsonify({'success': False, 'message': str(e)}), 500

@@ -41,7 +41,8 @@ from foms.services.orders.quest_transition_service import (
     stage_advance_target,
 )
 from foms.services.orders.regional_checklist import mark_checklist_flag
-from foms.services.orders.revision import RevisionError
+from foms.services.orders.revision import RevisionError, lock_order_row
+from foms.services.orders.confirm_drawing_gate import confirm_exit_block, normalize_stage_code
 from foms.services.orders.admin_override import (
     admin_override_error,
     log_admin_override_denied,
@@ -318,7 +319,9 @@ def api_order_quest_approve(order_id):
     """팀별/담당자 Quest 승인 (권한 게이트 + 승인 기록). 상태 전이는 STATE-QUEST-01 하류."""
     try:
         db = get_db()
-        order = db.query(Order).filter(Order.id == order_id).first()
+        # 첫 조회부터 행 잠금 — 판정(도면 게이트 포함)·승인 기록·전이가 모두 같은 잠금 아래다.
+        # 잠그기 전에 읽은 sd 로 판정하면 승인 도중 커밋된 수정요청(RETURNED)을 덮는다(2a-2).
+        order = lock_order_row(db, order_id)
         if not order:
             return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
 
@@ -366,6 +369,20 @@ def api_order_quest_approve(order_id):
                     ),
                 }), 409
             punched.append('COMMAND_REQUIRED')
+
+        # 고객컨펌 → 생산 도면 게이트(C21·M3, 2a-2): 도면이 수령 확정(CONFIRMED)이 아니면
+        # 일반 승인·재전이 모두 막는다. 단계값은 한글('고객컨펌')도 정규화해 본다. 관리자는
+        # admin_override(사유)로만 뚫고, 그때만 전이 엔진 방어선을 waive 한다.
+        current_stage_norm = normalize_stage_code(current_stage_code)
+        drawing_block = confirm_exit_block(sd) if current_stage_norm == 'CONFIRM' else None
+        if drawing_block is not None:
+            if admin_override is None:
+                return jsonify({
+                    'success': False, 'code': drawing_block.code,
+                    'message': drawing_block.reason, 'drawing_status': drawing_block.drawing_status,
+                }), 409
+            punched.append(drawing_block.code)
+        drawing_gate_waived = 'DRAWING_STATUS' in punched
 
         CODE_TO_STAGE_NAME = {v: k for k, v in STAGE_NAME_TO_CODE.items()}
         current_stage_name = CODE_TO_STAGE_NAME.get(current_stage_code, current_stage_code)
@@ -431,6 +448,7 @@ def api_order_quest_approve(order_id):
                     reason=f'{current_stage_name} 재전이(완료 quest, 강제 단계 변경 뒤)',
                     source_screen='erp_dashboard',
                     now=now,
+                    drawing_gate_waived=drawing_gate_waived,
                 )
             except (TransitionError, RevisionError) as exc:
                 db.rollback()
@@ -560,7 +578,7 @@ def api_order_quest_approve(order_id):
 
         # 고객컨펌 최종 승인 = 고객 컨펌 완료 사실. quest 종결과 같은 tx 로 blueprint 에 남긴다
         # (도면 revision 감사가 ``blueprint.customer_confirmed`` 를 고객확인 축으로 읽는다).
-        if is_complete and current_stage_code == 'CONFIRM':
+        if is_complete and current_stage_norm == 'CONFIRM':
             blueprint = sd.get("blueprint")
             if not isinstance(blueprint, dict):
                 blueprint = {}
@@ -594,6 +612,7 @@ def api_order_quest_approve(order_id):
                     reason=f'{current_stage_name} 최종 승인',
                     source_screen='erp_dashboard',
                     now=now,
+                    drawing_gate_waived=drawing_gate_waived,
                 )
             except (TransitionError, RevisionError) as exc:
                 db.rollback()

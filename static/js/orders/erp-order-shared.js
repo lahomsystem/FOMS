@@ -792,7 +792,12 @@ window.erpSetStatus = erpSetStatus;
 // channeltalk_push_drawing_room: 도면방 PUSH 는 도면 마법사에서만 보낸다. 주문 화면은 이 기록을
 // 바꾸지 않으므로 PUT 에 실을 이유가 없고(실으면 마법사가 그 사이 쓴 기록을 덮는다), 화면 사본에만
 // 남겨 PUSH 흔적 칩이 저장 뒤에도 사라지지 않게 한다(2026-09-23).
-var ERP_LOCAL_ONLY_TRACE_KEYS = ['alimtalk_measurement', 'alimtalk_share', 'channeltalk_push_drawing_room'];
+// 도면 축·퀘스트·고객확인(2026-09-29 도면 결함 2차 M1): 서버가 폼 저장에서 잠그는 키라 PUT 에 싣지
+// 않는다(실으면 폼을 연 뒤 도면팀이 바꾼 상태를 낡은 사본으로 되돌리려 한다). 화면 사본에서만 유지한다.
+var ERP_LOCAL_ONLY_TRACE_KEYS = ['alimtalk_measurement', 'alimtalk_share', 'channeltalk_push_drawing_room',
+    'quests', 'drawing', 'blueprint', 'drawing_status', 'drawing_transferred', 'drawing_confirmed_at',
+    'drawing_confirmed_by', 'drawing_current_files', 'drawing_transfer_history', 'last_drawing_transfer',
+    'drawing_assignees'];
 
 /**
  * 저장 직후 새 화면 사본(next)에 직전 사본(prev)의 서버 소유 발송 이력을 옮겨 담는다.
@@ -2204,21 +2209,13 @@ function erpCollectStructured() {
     const prevSd = (window.__erpLastStructuredData && typeof window.__erpLastStructuredData === 'object')
         ? window.__erpLastStructuredData
         : {};
+    // 도면 축·퀘스트·고객확인(blueprint)은 싣지 않는다 — 서버가 폼 값과 무관하게 저장 순간의
+    // 서버값으로 고정한다(structured_form_projection.lock_server_owned_keys). 화면 사본에는
+    // ERP_LOCAL_ONLY_TRACE_KEYS 로 옮겨 담는다.
     const preservedTopLevelKeys = [
         'shipment',
         'assignments',
-        'quests',
         'meta',
-        'drawing',
-        'blueprint',
-        'drawing_status',
-        'drawing_transferred',
-        'drawing_confirmed_at',
-        'drawing_confirmed_by',
-        'drawing_current_files',
-        'drawing_transfer_history',
-        'last_drawing_transfer',
-        'drawing_assignees',
         'estimate_preview',
         'channeltalk_push',
         'channeltalk_push_drawing',
@@ -2871,7 +2868,8 @@ async function erpSaveStructuredOnce(opts = {}) {
             const wantsOverwrite = confirm(
                 '다른 사용자가 이 주문을 먼저 수정했습니다.\n' +
                 '내 입력으로 덮어쓸까요?\n\n' +
-                '(취소하면 저장하지 않고 입력한 내용을 그대로 둡니다)'
+                '(취소하면 저장하지 않고 입력한 내용을 그대로 둡니다)\n' +
+                '(도면·퀘스트·고객확인 정보는 서버가 지키므로 덮어써도 바뀌지 않습니다)'
             );
             if (!wantsOverwrite) {
                 erpSetStatus('저장하지 않았습니다. 입력한 내용은 그대로 남아 있습니다.', true);
@@ -3805,13 +3803,26 @@ function erpBuildAttachmentTile(a, options = {}) {
     const name = escapeHtml(a.filename || '첨부');
     const itemIndex = erpParseAttachmentItemIndex(a.item_index);
     const badge = options.showItemBadge && itemIndex !== null ? `<span class="erp-attachment-tile__badge">항목 ${itemIndex + 1}</span>` : '';
+    const superseded = a.is_superseded ? ' erp-attachment-tile--superseded' : '';
     return `
-<button type="button" class="erp-attachment-tile" data-erp-attachment-id="${escapeHtml(String(a.id))}"
+<button type="button" class="erp-attachment-tile${superseded}" data-erp-attachment-id="${escapeHtml(String(a.id))}"
     title="${name}" onclick="erpOpenAttachmentPreview('${a.id}')">
     ${erpBuildAttachmentMediaTile(a)}
     <span class="erp-attachment-tile__name">${name}</span>
     ${badge}
+    ${erpSupersededBadgeHtml(a)}
 </button>`;
+}
+
+// R4: 새 도면으로 교체된 옛 도면 표시(목록 API include_superseded 가 is_superseded 를 싣는다).
+function erpSupersededBadgeHtml(a) {
+    return a && a.is_superseded
+        ? '<span class="erp-attachment-superseded-badge" title="새 도면으로 교체된 옛 도면입니다">교체됨</span>'
+        : '';
+}
+
+function erpCountCurrentAttachments(list) {
+    return (list || []).filter((a) => !a.is_superseded).length;
 }
 
 function erpApplyAttachmentPermissionsFromBootstrap(data) {
@@ -4134,7 +4145,7 @@ function erpRenderAttachments() {
             return `
 <div class="erp-attachment-group-header">
     <div class="fw-semibold">${label}</div>
-    <span class="badge bg-primary">${list.length}</span>
+    <span class="badge bg-primary">${erpCountCurrentAttachments(list)}</span>
 </div>
 ${list.map((a) => erpBuildAttachmentTile(a, { showItemBadge: erpAttachmentSupportsItemLink(a) })).join('')}
 `;
@@ -4166,8 +4177,9 @@ style="height: 220px;">
 
         return `
 <div class="col-md-4 col-sm-6 col-12">
-<div class="card h-100">
+<div class="card h-100${a.is_superseded ? ' erp-attachment-card--superseded' : ''}">
     <div class="card-body p-2">
+        ${erpSupersededBadgeHtml(a)}
         ${mediaHtml}
         ${erpAttachmentSupportsItemLink(a) ? `
         <div class="mt-2">
@@ -4219,7 +4231,7 @@ style="height: 220px;">
 <div class="col-12">
 <div class="d-flex justify-content-between align-items-center mb-1 mt-2">
     <div class="fw-semibold">${label}</div>
-    <span class="badge bg-primary">${list.length}</span>
+    <span class="badge bg-primary">${erpCountCurrentAttachments(list)}</span>
 </div>
 </div>
 ${list.map(renderCard).join('')}
@@ -4238,10 +4250,13 @@ async function erpLoadAttachments() {
             fileInput.value = '';
         }
 
-        const res = await fetch(`/api/orders/${ORDER_ID}/attachments`);
+        // R4: 내부 첨부 탭은 교체된 옛 도면도 받아 '교체됨' 으로 흐리게 보인다(생산·시공·고객은 숨김).
+        const res = await fetch(`/api/orders/${ORDER_ID}/attachments?include_superseded=1`);
         const data = await res.json();
         if (!data.success) throw new Error(data.message || '첨부 목록 조회 실패');
-        __erpAttachments = data.attachments || [];
+        const loaded = data.attachments || [];
+        // 옛 도면은 뒤로(원래 순서 유지) — 갤러리·전체화면 넘김 순서가 같게 배열 자체를 정렬한다.
+        __erpAttachments = loaded.filter((a) => !a.is_superseded).concat(loaded.filter((a) => a.is_superseded));
         erpRenderAttachments();
         erpExpandMobileAttachmentSections();
     } catch (e) {
@@ -4339,7 +4354,14 @@ function erpBuildAttachmentFullscreenPayload(attachmentId) {
     // 갤러리는 measurement→drawing→construction→as 로 묶어 그린다(erpRenderAttachments).
     // 화살표 순서가 화면 순서와 어긋나면 사용자가 본 적 없는 순서로 넘어가므로 같은 순서로 세운다.
     const order = ['measurement', 'drawing', 'construction', 'as'];
-    const images = (Array.isArray(__erpAttachments) ? __erpAttachments : []).filter(erpAttachmentIsImage);
+    const all = Array.isArray(__erpAttachments) ? __erpAttachments : [];
+    // 뷰어에는 '교체됨' 표시가 없다 — 누른 첨부와 같은 무리(현재 / 교체된 옛 도면)만 넘김 목록에
+    // 담아 표시 없이 옛 도면으로 넘어가지 않게 한다(R4).
+    const clicked = all.find(function (a) { return Number(a.id) === targetId; });
+    const superseded = !!(clicked && clicked.is_superseded);
+    const images = all.filter(function (a) {
+        return erpAttachmentIsImage(a) && !!a.is_superseded === superseded;
+    });
     const sorted = images
         .map(function (a, i) { return { a: a, i: i, rank: order.indexOf(erpNormalizeAttachmentCategory(a.category)) }; })
         .sort(function (x, y) {
@@ -4383,13 +4405,13 @@ function erpOpenAttachmentPreview(attachmentId) {
 <div class="ratio ratio-16x9 bg-dark rounded" style="overflow:hidden;">
 <video src="${viewUrl}" controls autoplay style="width:100%;height:100%;"></video>
 </div>
-<div class="small text-muted mt-2 erp-attachment-preview-caption">${escapeHtml(a.filename || '')}</div>
+<div class="small text-muted mt-2 erp-attachment-preview-caption">${erpSupersededBadgeHtml(a)}${escapeHtml(a.filename || '')}</div>
 `;
     } else if (a.file_type === 'file') {
         body.innerHTML = `
 <div class="d-flex flex-column align-items-center justify-content-center text-center p-4" style="min-height: 280px;">
 <i class="fas fa-file-alt text-secondary mb-3" style="font-size: 3rem;"></i>
-<div class="fw-semibold mb-2">${escapeHtml(a.filename || '파일')}</div>
+<div class="fw-semibold mb-2">${erpSupersededBadgeHtml(a)}${escapeHtml(a.filename || '파일')}</div>
 <div class="small text-muted mb-3">문서 파일은 미리보기를 지원하지 않습니다.</div>
 <a class="btn btn-primary" href="${downloadUrl}" target="_blank" rel="noopener">
     <i class="fas fa-download"></i> 다운로드
@@ -4399,7 +4421,7 @@ function erpOpenAttachmentPreview(attachmentId) {
     } else {
         body.innerHTML = `
 <img src="${viewUrl}" alt="${escapeHtml(a.filename || '')}" class="img-fluid rounded erp-attachment-preview-img" draggable="false">
-<div class="small text-muted mt-2 erp-attachment-preview-caption">${escapeHtml(a.filename || '')}</div>
+<div class="small text-muted mt-2 erp-attachment-preview-caption">${erpSupersededBadgeHtml(a)}${escapeHtml(a.filename || '')}</div>
 `;
         erpBindAttachmentPreviewImageZoom(body, a.id);
     }

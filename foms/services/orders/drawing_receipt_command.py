@@ -6,11 +6,17 @@ additive 로 등록해(엔진 파일은 import 만 — 무편집) 라우트가
 :func:`~foms.services.orders.order_transition_service.transition_order` 한 경로만 타게 한다.
 
 ``erp_orders_draftsman.py`` 가 500줄 래칫에 가까워 등록·해시 헬퍼를 이 모듈로 분리했다.
+확정 때의 구조화 쓰기(:func:`write_receipt_structured`)도 같은 이유로 여기 있다(2a-1②).
 """
 
+import copy
 import hashlib
 import json
 from typing import Any
+
+from sqlalchemy.orm.attributes import flag_modified
+
+from foms.services.erp_sync_columns import sync_erp_flat_columns
 
 from foms.services.orders.order_transition_service import (
     COMMAND_REGISTRY,
@@ -18,6 +24,7 @@ from foms.services.orders.order_transition_service import (
     TransitionCommand,
     transition_order,
 )
+from foms.services.orders.revision import execute_single_order_write
 from foms.services.orders.state_axes import AXIS_MAIN, read_main_stage
 
 #: 도면 수령 확정 command id(registry key).
@@ -25,6 +32,9 @@ DRAWING_RECEIPT_CONFIRM = "DRAWING_RECEIPT_CONFIRM"
 
 #: REV-00 receipt idempotency scope 식별자(POLICY_REGISTRY 와 무관 — STATE-PROD 관례).
 POLICY_DRAWING_RECEIPT_CONFIRM = "STATE_DRAWING_RECEIPT_CONFIRM"
+
+#: 단계를 옮기지 않는 확정(단계 유지)의 receipt scope 식별자. 전이 엔진을 타지 않는다.
+POLICY_DRAWING_RECEIPT_KEEP_STAGE = "DRAWING_RECEIPT_CONFIRM_KEEP_STAGE"
 
 COMMAND_REGISTRY.setdefault(
     DRAWING_RECEIPT_CONFIRM,
@@ -78,6 +88,36 @@ def advance_receipt_stage(db: Any, order: Any, *, actor_user_id: int,
     return True
 
 
+def write_receipt_structured(db: Any, order: Any, s_data: dict[str, Any], *,
+                             actor_user_id: int, stage_moving: bool,
+                             body: dict[str, Any] | None = None) -> None:
+    """수령 확정의 도면 축 쓰기(``structured_data`` 재대입 + flat 컬럼 동기화).
+
+    * 단계가 옮겨진 경우(``stage_moving``): :func:`advance_receipt_stage` 의 전이가 방금
+      ``execute_order_mutation`` 으로 행을 잠그고 버전을 올렸다. 같은 트랜잭션에서 곧바로
+      반영한다 — 버전을 한 번 더 올리지 않는다(선례 ``foms/api/cs/complete.py``).
+    * 단계 유지: 전이가 없으므로 REV-00 엔진 콜백 안에서 쓰고 버전을 1 올린다. 호출자는
+      주문을 :func:`~foms.services.orders.revision.lock_order_row` 로 먼저 잠가 읽는다.
+
+    커밋은 호출자 몫이다.
+    """
+    final_sd = copy.deepcopy(s_data)
+
+    def _apply(target: Any) -> None:
+        target.structured_data = final_sd
+        flag_modified(target, "structured_data")
+        sync_erp_flat_columns(target, final_sd)
+
+    if stage_moving:
+        _apply(order)
+        return
+    execute_single_order_write(
+        db, order_id=int(order.id), actor_user_id=actor_user_id,
+        policy_id=POLICY_DRAWING_RECEIPT_KEEP_STAGE, payload=body or {},
+        write=_apply,
+    )
+
+
 def receipt_transition_error(exc: Exception) -> tuple[str, int]:
     """전이 예외를 (오류 코드, HTTP 상태)로 매핑한다(단계 불일치는 INVALID_STAGE)."""
     code = ("INVALID_STAGE" if isinstance(exc, StageConflictError)
@@ -88,8 +128,10 @@ def receipt_transition_error(exc: Exception) -> tuple[str, int]:
 __all__ = [
     "DRAWING_RECEIPT_CONFIRM",
     "POLICY_DRAWING_RECEIPT_CONFIRM",
+    "POLICY_DRAWING_RECEIPT_KEEP_STAGE",
     "advance_receipt_stage",
     "receipt_transition_error",
     "receipt_scope_hash",
     "receipt_request_hash",
+    "write_receipt_structured",
 ]

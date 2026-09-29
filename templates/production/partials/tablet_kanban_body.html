@@ -192,6 +192,17 @@
           {% endfor %}
         </div>
         {% endif %}
+        {# ── 도면 수정 중 스트립(Q2, 2a-2): 제작 시작 게이트와 같은 판정(RETURNED·TRANSFERRED).
+           변경 스트립의 drawing kind 색 문법을 그대로 쓴다. 수령 확정되면 다음 새로고침에 사라진다. #}
+        {% if o.drawing_badge %}
+        <div class="foms-kanban-card__alert" role="status">
+          <div class="foms-kanban-card__alert-row foms-kanban-card__alert-row--drawing foms-kanban-card__alert-row--drawing-revision" data-drawing-revision-badge title="{{ o.drawing_badge.title }}">
+            <i class="fas fa-pen-ruler" aria-hidden="true"></i>
+            <span class="foms-kanban-card__alert-label">{{ o.drawing_badge.label }}</span>
+            {% if o.production_start_blocked %}<span class="foms-kanban-card__alert-detail" data-production-start-blocked>{{ o.production_start_block_reason }}</span>{% endif %}
+          </div>
+        </div>
+        {% endif %}
         {# ── 보류/재제작 사유 스트립: 변경 스트립과 동일 문법(좌보더+틴트) 재사용. HMI 색 예외
            (보류=앰버 --hold, 재제작=블루 --rework). detail=사유(보류 미입력 시 '사유 미입력'). #}
         {% if _hold.get('active') or _rework.get('active') %}
@@ -306,8 +317,11 @@
           </span>
           {% endif %}
           {% if col.move == 'start' %}
-            {% if o.is_sales_approved %}
-            <button type="button" class="foms-kanban-move-btn" data-order-id="{{ o.id }}" data-kanban-action="start">
+            {% if o.is_sales_approved and o.production_start_blocked and not is_admin %}
+            {# 도면 게이트(Q2): 서버가 409 로 막을 버튼 대신 칩 — 이유는 title 과 위 스트립. #}
+            <span class="foms-kanban-chip is-muted" data-production-start-blocked title="{{ o.production_start_block_reason }}">도면 확정 대기</span>
+            {% elif o.is_sales_approved %}
+            <button type="button" class="foms-kanban-move-btn{% if o.production_start_blocked %} foms-kanban-move-btn--warn{% endif %}" data-order-id="{{ o.id }}" data-kanban-action="start">
               <i class="fas {{ col.move_icon }}" aria-hidden="true"></i> {{ col.move_label }}
             </button>
             {% else %}

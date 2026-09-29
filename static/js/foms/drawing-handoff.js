@@ -67,11 +67,14 @@
     });
   }
 
+  // 대신 누르기 표 — 모바일 버튼은 같은 응답의 숨은 PC 버튼을 누른다(그 버튼의 확인창·API·토스트를 그대로 쓴다).
+  // 도면방 보내기는 PC #dw-btn-drawing-room-push 의 pushDrawingRoom(workbench_detail_body.html) 을 탄다.
   function proxyLegacyAction(action) {
     const target = {
       confirm: 'btn-confirm-receipt',
       cancel: 'btn-cancel-transfer',
-      'cancel-revision': 'btn-cancel-revision'
+      'cancel-revision': 'btn-cancel-revision',
+      'drawing-room-push': 'dw-btn-drawing-room-push'
     }[action];
     if (!target) return;
     document.getElementById(target)?.click();
@@ -120,6 +123,22 @@
       notify('반영 체크 저장 중 오류가 발생했습니다. 잠시 후 다시 눌러 주세요.');
       button.disabled = false;
     }
+  }
+
+  /**
+   * 알림 착지(?tab=requests · event_id)로 강조된 수정요청 말풍선은 도면·제작 자료 아래 화면 밖에 있다.
+   * 폰 표면에서 그 말풍선까지 스크롤한다. PC(숨은 표면)에서는 offsetParent 가 없어 건너뛴다.
+   */
+  function scrollToHighlightedRequest() {
+    const target = document.querySelector('.foms-drawing-handoff .foms-drawing-thread__msg.is-highlight');
+    if (!target || !target.offsetParent) return;
+    target.scrollIntoView({ block: 'center' });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', scrollToHighlightedRequest, { once: true });
+  } else {
+    scrollToHighlightedRequest();
   }
 
   document.addEventListener('click', function (event) {

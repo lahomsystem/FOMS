@@ -20,6 +20,7 @@ from sqlalchemy.orm.attributes import flag_modified
 from models import Notification, Order
 from foms.services.geocode_helpers import extract_address_from_structured_data
 from foms.services.orders.erp_policy_constants import STAGE_LABELS, STAGE_NAME_TO_CODE
+from foms.services.orders.confirm_drawing_gate import effective_drawing_status
 from foms.services.erp_policy import get_assignee_ids
 
 logger = logging.getLogger(__name__)
@@ -103,10 +104,8 @@ def _stage_code(sd: dict) -> str:
 
 
 def _drawing_status(sd: dict) -> str:
-    """drawing.status / drawing_status 정규화."""
-    drawing = (sd or {}).get("drawing") if isinstance((sd or {}).get("drawing"), dict) else {}
-    raw = (drawing.get("status") or (sd or {}).get("drawing_status") or "PENDING")
-    return str(raw or "PENDING").strip().upper()
+    """도면 상태 — 판정 정본(최상위 우선, 없으면 옛 중첩 drawing.status, 둘 다 없으면 PENDING)."""
+    return effective_drawing_status(sd, default="PENDING")
 
 
 def should_alert_drawing_team(order: Order, sd: dict) -> bool:
@@ -1248,6 +1247,24 @@ def finalize_drawing_order_change_alert(
             "title": notification.title,
             "message": notification.message,
         },
+    )
+
+
+def order_change_ack_needed(sd: object) -> bool:
+    """확인(ack)하면 바뀌는 것이 있는가 — pending 플래그가 켜졌거나 미확인 변경 이력이 있다.
+
+    라우트가 행 잠금 뒤 이것으로 먼저 가려, 바꿀 것이 없으면 버전을 올리지 않는다.
+    :func:`ack_drawing_order_change` 의 쓰기 조건과 같다.
+    """
+    if not isinstance(sd, dict):
+        return False
+    if is_order_change_pending(sd):
+        return True
+    return any(
+        isinstance(entry, dict)
+        and entry.get("action") == HISTORY_ACTION
+        and not bool(entry.get("acked"))
+        for entry in (sd.get("drawing_transfer_history") or [])
     )
 
 

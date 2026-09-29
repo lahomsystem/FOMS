@@ -204,7 +204,7 @@ showErpToast('오류가 발생했습니다.', 'error');
 }
 
 async function cancelDrawingRevisionRequest(orderId) {
-if (!confirm('수정 요청을 취소하시겠습니까?\n요청 시 첨부한 참고 파일이 함께 삭제되며, 도면 전달 상태로 복귀합니다.')) return;
+if (!confirm('수정 요청을 취소하시겠습니까?\n요청 기록과 참고 파일은 남고, 도면 전달 상태로 돌아갑니다.')) return;
 
 try {
 const res = await fetch(`/api/orders/${orderId}/cancel-revision-request`, { method: 'POST' });
@@ -323,6 +323,9 @@ async function uploadRevisionGatewayFiles(orderId, files) {
   }
 }
 
+// 서버 drawing_revision_files.MAX_REVISION_FILES 와 같은 값 — 올리기 전에 막아 고아 파일을 만들지 않는다.
+const MAX_REVISION_FILES = 20;
+
 async function submitDrawingRevision() {
 if (!__currentRevisionOrderId) return;
 const note = document.getElementById('drawing-revision-note').value.trim();
@@ -337,6 +340,10 @@ return;
 }
 if (currentFiles.length > 1 && !targetKey) {
 showErpToast('수정할 도면 번호를 선택해주세요.', 'info');
+return;
+}
+if (files.length > MAX_REVISION_FILES) {
+showErpToast(`참고 사진은 ${MAX_REVISION_FILES}개까지 올릴 수 있습니다. 사진을 줄여 주세요.`, 'info');
 return;
 }
 
@@ -395,33 +402,6 @@ showErpToast('오류: ' + (data.message || `HTTP ${res.status}`), 'error');
 } catch (err) {
 console.error('Drawing confirm error:', err);
 showErpToast('도면 확정 중 오류가 발생했습니다.', 'error');
-}
-}
-
-async function toggleRevisionChecklist(orderId, requestAtEnc, byUserId, nextChecked) {
-try {
-const requestAt = decodeURIComponent(String(requestAtEnc || ''));
-const payload = {
-request_at: requestAt,
-by_user_id: byUserId ? Number(byUserId) : null,
-checked: !!nextChecked,
-};
-const res = await fetch(`/api/orders/${orderId}/request-revision-check`, {
-method: 'POST',
-headers: { 'Content-Type': 'application/json' },
-body: JSON.stringify(payload),
-});
-const data = await res.json();
-if (!data.success) {
-showErpToast(data.message || '요청 반영 체크 저장 실패', 'error');
-return;
-}
-
-showErpToast(data.message || '요청 반영 체크가 저장되었습니다.', 'success');
-await loadOrderDetail(orderId);
-} catch (e) {
-console.error(e);
-showErpToast('요청 반영 체크 저장 중 오류가 발생했습니다.', 'error');
 }
 }
 

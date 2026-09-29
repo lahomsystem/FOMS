@@ -271,7 +271,8 @@
           const keys = ['measurement', 'drawing', 'construction', 'as'];
           tabsEl.innerHTML = keys.map((key) => {
             const meta = ATTACHMENT_CATEGORY_META[key];
-            const count = (__attachmentsByCategory[key] || []).length;
+            // 교체된 옛 도면('교체됨')은 개수에 넣지 않는다 — 목록 📎N 과 같은 수(R3·R4).
+            const count = (__attachmentsByCategory[key] || []).filter((a) => !a.is_superseded).length;
             const isActive = key === __activeAttachmentCategory;
             const activeCls = isActive ? 'btn-primary' : 'btn-outline-primary';
             return `
@@ -304,6 +305,10 @@
             const thumb = a.thumbnail_view_url || a.view_url || '#';
             const viewUrl = a.view_url || '#';
             const downloadUrl = a.download_url || '#';
+            const supersededCls = a.is_superseded ? ' erp-attachment-card--superseded' : '';
+            const supersededBadge = a.is_superseded
+              ? '<span class="erp-attachment-superseded-badge" title="새 도면으로 교체된 옛 도면입니다">교체됨</span>'
+              : '';
 
             const mediaHtml = (type === 'video')
               ? `<div class="ratio ratio-16x9 bg-dark rounded" style="overflow:hidden;">
@@ -321,8 +326,9 @@
 
             return `
               <div class="col-md-4 col-sm-6 col-12">
-                <div class="card h-100">
+                <div class="card h-100${supersededCls}">
                   <div class="card-body p-2">
+                    ${supersededBadge}
                     ${mediaHtml}
                     <div class="d-flex justify-content-between align-items-center mt-2">
                       <div class="small text-truncate" title="${name}" style="max-width: 70%;">${name}</div>
@@ -351,9 +357,14 @@
 
         function openAttachmentFromCategory(category, index) {
           const key = normalizeAttachmentCategory(category);
-          const list = __attachmentsByCategory[key] || [];
-          if (!list.length) return;
+          const all = __attachmentsByCategory[key] || [];
+          if (!all.length) return;
+          // 전체화면 뷰어에는 '교체됨' 표시가 없다 — 누른 첨부와 같은 무리(현재 / 교체된 옛 도면)만
+          // 넘김 목록에 담아, 표시 없이 옛 도면으로 넘어가지 않게 한다(R4).
+          const clicked = all[index];
+          const superseded = !!(clicked && clicked.is_superseded);
+          const list = all.filter((a) => !!(a && a.is_superseded) === superseded);
           __activeAttachmentCategory = key;
           __currentAttachmentList = list;
-          showAttachmentAtIndex(index);
+          showAttachmentAtIndex(Math.max(0, list.indexOf(clicked)));
         }

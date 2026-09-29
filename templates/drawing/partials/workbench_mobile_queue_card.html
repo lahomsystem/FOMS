@@ -68,7 +68,7 @@
         <span class="foms-drawing-queue-card__action-label">ERP수정</span>
       </a>
       {% endif %}
-      <a href="{{ url_for('erp_drawing_workbench.erp_drawing_workbench_detail', order_id=r.id) }}"
+      <a href="{{ url_for('erp_drawing_workbench.erp_drawing_workbench_detail', order_id=r.id) }}{{ r.primary_action_query|default('') }}"
         class="foms-btn foms-btn--primary foms-btn--sm foms-drawing-queue-card__open-work">
         <i class="fas {{ r.primary_action_icon }}" aria-hidden="true"></i>
         <span class="foms-drawing-queue-card__action-label">{{ r.primary_action_label }}</span>

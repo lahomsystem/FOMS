@@ -25,6 +25,7 @@ from werkzeug.security import generate_password_hash
 from db import db_session
 from models import Order, OrderAttachment, SecurityLog, User
 from tests.support.quest_seed import confirm_quest_completed
+from tests.support.confirm_seed import drawing_for_stage
 
 _REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 _counter = itertools.count(1)
@@ -49,7 +50,7 @@ def _login(client, user_id: int) -> None:
 
 def _make_order(*, stage: str = "RECEIVED", customer_name: str = "홍길동",
                 structured_data: dict | None = None) -> Order:
-    sd = {"workflow": {"stage": stage}}
+    sd = {"workflow": {"stage": stage}, **drawing_for_stage(stage)}
     if structured_data:
         sd = {**sd, **structured_data}
         sd.setdefault("workflow", {})["stage"] = stage

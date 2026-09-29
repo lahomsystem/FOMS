@@ -57,6 +57,7 @@ from foms.services.production_change_alerts import (
     collect_production_change_alerts,
     collect_production_tombstones,
 )
+from foms.services.production_drawing_gate_display import attach_production_drawing_gate
 from foms.services.erp_permissions import (
     can_edit_erp,
     is_order_related_to_user,
@@ -234,6 +235,8 @@ def erp_production_dashboard():
         _r["has_changes"] = bool(_rc["alerts"])
         _r["change_history"] = _rc["history"]      # 진입 이후 전체(확인 후에도 남는 상설 이력)
         _r["has_change_history"] = bool(_rc["history"])
+    # 도면 수정 중 배지·[제작 시작] 막힘(Q2, 2a-2) — 제작 시작 라우트와 같은 판정 함수.
+    attach_production_drawing_gate(db, _enriched_all, _orders_by_id)
     _by_eid = {_r["id"]: _r for _r in _enriched_all}
 
     kanban_enriched = [_by_eid[o.id] for o in kanban_rows if o.id in _by_eid]
@@ -482,9 +485,11 @@ def erp_production_tablet_sheet(order_id: int):
         'stage': stage_label,
         'is_sales_approved': bool(is_sales_approved),
     }
+    attach_production_drawing_gate(db, [sheet], {order.id: order})
     _sc = collect_production_change_alerts(db, [order], user.id if user else None).get(order.id) or {"alerts": [], "history": []}
     sheet['change_alerts'] = _sc['alerts']
     sheet['has_changes'] = bool(_sc['alerts'])
     sheet['change_history'] = _sc['history']
     sheet['has_change_history'] = bool(_sc['history'])
-    return render_template('production/partials/tablet_sheet.html', order=sheet)
+    return render_template('production/partials/tablet_sheet.html', order=sheet,
+                           is_admin=bool(user and user.role == 'ADMIN'))

@@ -362,7 +362,8 @@ def test_confirm_receipt_keeps_attachment_tab_drawing_upload(client, storage):
     )
     assert res.status_code == 200, res.get_json()
     sketch_key = res.get_json()["attachment"]["storage_key"]
-    assert sketch_key.startswith(f"orders/{order_id}/attachments/")
+    # M10(2c-1): category=drawing 업로드는 도면 폴더에 저장된다(전에는 attachments/).
+    assert sketch_key.startswith(f"orders/{order_id}/drawing/")
 
     res = _confirm(client, order_id)
     assert res.status_code == 200, res.get_json()

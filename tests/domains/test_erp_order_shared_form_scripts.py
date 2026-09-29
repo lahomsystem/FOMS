@@ -564,30 +564,47 @@ def test_shared_erp_order_js_links_drawing_attachments_to_items() -> None:
     assert "${erpAttachmentSupportsItemLink(a) ? `" in render_block
 
 
-def test_shared_erp_order_js_preserves_drawing_operational_state() -> None:
-    """ERP Order full-form save must not drop drawing timeline/files/assignees from the last snapshot."""
+def test_shared_erp_order_js_does_not_resend_server_locked_keys() -> None:
+    """폼 전체 저장은 도면 축·퀘스트·고객확인을 되실어 보내지 않는다(도면 결함 2차 M1).
+
+    서버가 이 키들을 저장 순간의 서버값으로 잠그므로(lock_server_owned_keys), 폼이 연 순간의
+    스냅샷을 실으면 그 사이 도면팀이 바꾼 상태를 되돌리려는 요청이 될 뿐이다. 화면 사본에는
+    ERP_LOCAL_ONLY_TRACE_KEYS 로 옮겨 담아 저장 뒤에도 남긴다. 서버가 잠그지 않는 키
+    (estimate_preview·channeltalk_push*)는 지금처럼 싣는다(비목표).
+    """
     root = Path(__file__).resolve().parents[2]
     text = (root / "static/js/orders/erp-order-shared.js").read_text(encoding="utf-8")
 
     collect_start = text.index("function erpCollectStructured()")
     collect_end = text.index("async function erpSaveStructured", collect_start)
     collect_block = text[collect_start:collect_end]
+    preserved = text.split("const preservedTopLevelKeys = [")[1].split("]")[0]
+    local_only = text.split("var ERP_LOCAL_ONLY_TRACE_KEYS = [")[1].split("]")[0]
 
     for key in (
+        "quests",
+        "drawing",
+        "blueprint",
         "drawing_status",
         "drawing_transferred",
+        "drawing_confirmed_at",
+        "drawing_confirmed_by",
         "drawing_current_files",
         "drawing_transfer_history",
         "last_drawing_transfer",
         "drawing_assignees",
-        "blueprint",
+    ):
+        assert f"'{key}'" not in preserved, key
+        assert f"'{key}'" in local_only, key
+    for key in (
+        "assignments",
         "estimate_preview",
         "channeltalk_push",
         "channeltalk_push_drawing",
         "channeltalk_push_estimate",
         "channeltalk_push_as",
     ):
-        assert f"'{key}'" in collect_block
+        assert f"'{key}'" in preserved, key
 
     workflow_start = collect_block.index("workflow: (function ()")
     workflow_end = collect_block.index("flags:", workflow_start)
@@ -1426,7 +1443,7 @@ def test_mobile_attachment_preview_uses_viewport_sized_modal() -> None:
     assert ".erp-order-mobile-form .erp-attachment-preview-actions .btn" not in css_text
     assert "max-width: min(92vw, 36rem)" not in css_text
     assert "../components/foms-form-field.css?v=20260921c" in mobile_bundle
-    assert "foms-mobile-surfaces.css') }}?v=20260929b" in layout_head
+    assert "foms-mobile-surfaces.css') }}?v=20260929g" in layout_head
 
 
 def test_mobile_erp_autosize_textarea_overrides_80px_floor() -> None:

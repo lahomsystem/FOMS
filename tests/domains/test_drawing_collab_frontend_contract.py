@@ -42,12 +42,15 @@ def test_detail_dom_cachebuster_cascade_bumped() -> None:
     승인 확인창·연타 잠금 20260920a → 같은 날 완료 quest 재전이 토스트로 20260920b."""
     entry = _read(ENTRY_JS)
     layout = _read(LAYOUT_SCRIPTS)
-    assert "erp-dashboard-detail-dom.js?v=20260929a" in entry
-    # 도면 0장 전달 차단(2026-09-09): drawing.js 자식 핀 신설 + entry 부모 핀 범프.
-    assert "erp-dashboard-drawing.js?v=20260909a" in entry
-    # 2026-09-21 관리자 강제 진행 재시도 배선(erp-dashboard-quest.js)으로 entry 부모 핀만
-    # 올렸다. 2026-09-29 제품 여러 건 목록+상세로 detail-dom 자식·entry 부모 모두 20260929a.
-    assert "erp-dashboard-entry.js') }}?v=20260929a" in layout
+    # 2026-09-29 2c-2 R4·2d·2a-2·2b(수정요청 취소 안내)를 한 브랜치에 합치며 detail-dom·drawing.js
+    # 자식 핀과 entry 부모 핀을 20260929l 로 올렸다. core·attachments 는 R4(20260929h),
+    # gateway 는 2b(20260929e) 에서 새로 붙었다.
+    assert "erp-dashboard-detail-dom.js?v=20260929l" in entry
+    assert "erp-dashboard-drawing.js?v=20260929l" in entry
+    assert "erp-dashboard-core.js?v=20260929h" in entry
+    assert "erp-dashboard-attachments.js?v=20260929h" in entry
+    assert "erp-dashboard-gateway.js?v=20260929e" in entry
+    assert "erp-dashboard-entry.js') }}?v=20260929l" in layout
 
 
 def test_workbench_include_confirmed_toggle() -> None:
