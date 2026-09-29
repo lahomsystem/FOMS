@@ -3520,7 +3520,8 @@ input.wb-pick:disabled,
     /* 이력 상태 칸 이름(FOMS · 네이버 2.55:1) · 아직인 단계(발송처리 2.24:1) */
     .wb-st__k { color: #555e6b; }
     .wb-pipe__s:not(.wb-pipe__s--done):not(.wb-pipe__s--now):not(.wb-pipe__s--skip):not(.wb-pipe__s--bad) { color: #555e6b; }
-    .wb-st__b--green { color: #166534; }
+    /* 초록 글자(#15803d 옅은 초록 바탕 4.49:1 — `주문 만듦`·`발송처리 완료`) → #166534 6.4:1. 토큰을 PC 에서만 한 단계 진하게. */
+    .naver-workbench { --wb-green: #166534; }
     /* 이력 취소 줄(#9aa3af 2.46:1) → 회색은 유지하되 5.2:1 */
     .wb-hist--muted td,
     .wb-hist--muted a:not(.btn) { color: #636b78; }
