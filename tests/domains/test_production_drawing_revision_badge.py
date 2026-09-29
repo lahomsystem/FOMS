@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import re
+from pathlib import Path
 
 from db import db_session
 from models import ProductionRun
@@ -244,3 +245,18 @@ def test_v2_board_does_not_duplicate_reason_sheet_from_scripts(client, monkeypat
     body = _board(client)
     # 모바일 큐·칸반이 이미 실었다(기존 2벌) — scripts.html 이 3벌째를 더하지 않는다.
     assert len(re.findall(r"<div class=\"foms-reason-sheet\"", body)) == 2
+
+
+def test_shell_does_not_hold_production_board_for_primary_ttl():
+    """셸 탭 이동도 배지 신선도를 지킨다(리뷰 P2).
+
+    서버 생산 보드는 캐시가 없지만, 셸이 조각을 primary TTL(5분) 동안 쥐고 있으면 탭 이동으로
+    돌아왔을 때 수령 확정 뒤에도 배지·'도면 확정 대기'가 남는다. 생산 보드는 홈 대시보드와 같은
+    fresh 경로(60초·하트비트 50초·복귀 재수혈)에 있어야 한다.
+    """
+    root = Path(__file__).resolve().parents[2]
+    js = (root / "static/js/runtime/erp-shell.js").read_text(encoding="utf-8")
+    fresh_block = js.split("var FRESH_TTL_PATHS = [", 1)[1].split("];", 1)[0]
+    assert "'/erp/production/dashboard'" in fresh_block
+    layout = (root / "templates/partials/shared/layout_scripts.html").read_text(encoding="utf-8")
+    assert "js/runtime/erp-shell.js') }}?v=20260929i" in layout

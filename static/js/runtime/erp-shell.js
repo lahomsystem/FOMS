@@ -47,6 +47,9 @@
     // 실측: 날짜 민감(타 사용자·기기가 행을 바꿈). 하트비트로 만료 전 갱신 + focus/bfcache 재수혈로 신선도 유지.
     // (과거엔 NO_FRAGMENT_CACHE 로 매 스왑 refetch → 5.8s. 이제 fragment 안에 마크업만 남아 warm-cache 가능.)
     '/erp/measurement',
+    // 생산 보드: '도면 수정 중' 배지·[제작 시작] 막힘이 다른 사람의 수정요청·수령 확정으로 바뀐다(Q2).
+    // 5분 primary 캐시면 수령 확정 뒤에도 배지가 남으므로 fresh(60s·하트비트 50s)+복귀 재수혈로 둔다.
+    '/erp/production/dashboard',
   ];
   var IDLE_PREFETCH_MAX = 3;
   var HOVER_DEBOUNCE_MS = 180;
