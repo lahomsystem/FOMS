@@ -10,6 +10,7 @@ Flask 3.1 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
+- [2026-09-29] **도면 결함 1차(PR #451 · production `287782ce3`)** — 확정 때 파일 삭제 중단·옛 도면 부활 제거·도면팀 폰 반영 체크. 2차(C21·M1·M5·M10) 설계서 작성 중 — 원장 `docs/plans/2026-09-29-drawing-defects-*`
 - [2026-09-29] **통합 검색 입구 통일(PR #444 운영)** — AI_CHANGELOG
 - [2026-09-29] **네이버 워크벤치 모바일(deploy)** — 1~4단계+감사 44건 P0·P1, P2 진행. 운영 미승격
 - [2026-09-28] **v3 셸 삭제 + 모바일 3건 + 광폭 PC 모바일 표면 생략 + PC 배지(PR #433·#434 · production `824b2c1d3`)** — `FOMS_V3_SHELL_COHORT` 는 v2 코호트 키(삭제 금지). 잔여: 아이폰 실기기 날짜 탭
