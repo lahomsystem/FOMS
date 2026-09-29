@@ -67,6 +67,9 @@ def test_pc_faint_text_reaches_aa_contrast():
     warn = re.search(r"\.naver-workbench \.text-warning \{ color: (#[0-9a-f]{6}) !important; \}", pc).group(1)
     assert _ratio(warn, "#ffffff") >= 4.5 and _ratio(warn, "#eef0f3") >= 4.5, "`미등록`·`구성 미상`"
     assert _ratio("#b91c1c", "#fafbfc") >= 4.5 and "#b91c1c !important" in pc
+    # 스테이징 실데이터에서 찾은 것: 초록 글자(`발송처리 완료`·`주문 만듦`) 4.49:1 → 토큰을 PC 에서만 진하게.
+    green = re.search(r"\.naver-workbench \{ --wb-green: (#[0-9a-f]{6}); \}", pc).group(1)
+    assert _ratio(green, "#e7f6ec") >= 4.5 and _ratio("#15803d", "#e7f6ec") < 4.5, "예전 값은 미달(대조군)"
 
 
 def test_pc_pipe_grey_only_touches_the_not_yet_step():
@@ -78,4 +81,4 @@ def test_pc_pipe_grey_only_touches_the_not_yet_step():
     css = CSS.read_text(encoding="utf-8").replace("\r\n", "\n")
     assert css.count("@media (max-width: 767.98px)") == 1, "폰 블록은 하나(대조군)"
     page = TEMPLATE.read_text(encoding="utf-8")
-    assert page.count("?v=20260930f") == 2 and "?v=20260930e" not in page
+    assert page.count("?v=20260930g") == 2 and "?v=20260930f" not in page
