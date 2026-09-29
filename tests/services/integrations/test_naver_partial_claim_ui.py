@@ -274,5 +274,5 @@ def test_workbench_pins_moved_to_20260930b():
     """CSS·JS 를 고쳤으면 ``?v`` 핀이 함께 움직인다(SW staticCacheFirst) — 2026-09-14 재결제 예정 표시·부분 클레임 발송."""
     markup = WORKBENCH_TEMPLATE.read_text(encoding="utf-8")
 
-    assert markup.count("?v=20260930e") == 2
+    assert markup.count("?v=20260930f") == 2
     assert "?v=20260914b" not in markup
