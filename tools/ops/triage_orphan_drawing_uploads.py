@@ -24,7 +24,12 @@ key 가 없는 행.
 ``file_retained: true, retained_reason: 'ORPHAN_UPLOAD'`` 를 싣는다. 2b 의 복구 API 는 예약 행이 없고
 이 표시가 있으면 파일 존재를 확인한 뒤 되살린다 — 그래서 이 스크립트의 적용은 휴지통 복구로
 되돌릴 수 있다. **2b 가 운영에 있기 전에는 적용하지 않는다**(그 전의 복구 API 는 예약 행이 없으면
-409 로 거절한다).
+409 로 거절한다) — 그래서 ``--apply`` 는 ``--confirm-restore-ready`` 를 함께 줘야 돈다(운영자가 2b 복구
+보강 배포를 확인했다는 표시).
+
+휴지통 행은 전역 tombstone 필터에 기대지 않고 쿼리가 직접 뺀다(``deleted_at IS NULL``). 그 필터는
+``import app`` 의 run_auto_init 이 등록하는데, 앞 단계가 실패하면 예외를 삼켜 필터가 빠질 수 있다.
+적용 직전에도 행이 아직 살아 있는지 다시 본다(``deleted_at`` 덮어쓰기·이벤트 중복 방지).
 
 시각: TRANSFER ``transferred_at`` 은 ``now_utc_naive`` 문자열, 첨부 ``created_at`` 은 서버 현지 시각
 (운영 Railway = UTC)이라 naive 끼리 비교한다. 로컬 dev DB 의 옛 행은 KST 가 섞여 있을 수 있다.
@@ -37,7 +42,7 @@ key 가 없는 행.
 
     python tools/ops/triage_orphan_drawing_uploads.py                    # dry-run
     python tools/ops/triage_orphan_drawing_uploads.py --since 2026-07-27 --dry-run
-    python tools/ops/triage_orphan_drawing_uploads.py --apply --ids 101,102 --actor-user-id 1
+    python tools/ops/triage_orphan_drawing_uploads.py --apply --ids 101,102 --actor-user-id 1 --confirm-restore-ready
 """
 from __future__ import annotations
 
@@ -130,6 +135,7 @@ def find_orphan_uploads(session: Session, *, since: datetime.datetime = DEFAULT_
             func.lower(OrderAttachment.category) == "drawing",
             OrderAttachment.storage_key.like("orders/%/attachments/%"),
             OrderAttachment.created_at >= since,
+            OrderAttachment.deleted_at.is_(None),
             Order.not_deleted_filter(),
         )
         .order_by(OrderAttachment.id)
@@ -231,6 +237,9 @@ def run(session: Session, *, since: datetime.datetime = DEFAULT_SINCE,
             summary["skipped"].append({"attachment_id": att_id, "reason": f"{row['bucket']} 는 숨기지 않는다"})
             continue
         att = session.get(OrderAttachment, att_id)
+        if att is None or att.deleted_at is not None:
+            summary["skipped"].append({"attachment_id": att_id, "reason": "이미 휴지통(적용 직전 재확인)"})
+            continue
         event = _tombstone_retained(session, att, actor_user_id=actor_user_id, now=now)
         summary["applied"].append({**row, "event_id": int(event.id)})
     if summary["applied"]:
@@ -259,6 +268,9 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                         help="Only uploads created at/after this date (YYYY-MM-DD).")
     parser.add_argument("--actor-user-id", type=int, default=None,
                         help="User id recorded as deleted_by / event actor.")
+    parser.add_argument("--confirm-restore-ready", action="store_true",
+                        help="Required with --apply: confirms the 2b restore path (file_retained rows) "
+                             "is deployed, so applied rows can be restored from the trash.")
     return parser.parse_args(argv)
 
 
@@ -271,6 +283,9 @@ def main(argv: list[str] | None = None) -> int:
     ids = _parse_ids(args.ids) if args.ids else []
     if args.apply and not ids:
         print("[ERROR] --apply needs --ids (pick rows from the dry-run list)")
+        return 1
+    if args.apply and not args.confirm_restore_ready:
+        print("[ERROR] --apply needs --confirm-restore-ready (deploy the 2b restore path first)")
         return 1
     since = datetime.datetime.fromisoformat(args.since)
 
