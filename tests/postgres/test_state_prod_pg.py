@@ -35,6 +35,7 @@ from models import (
     ProductionRun,
     User,
 )
+from tests.support.confirm_seed import drawing_for_stage
 
 _H = "a" * 64
 _SEQ = [0]
@@ -57,7 +58,8 @@ def _make_actor(session) -> User:
 def _make_order(session, stage="CONFIRM") -> Order:
     o = Order(received_date="2026-07-24", customer_name="홍길동", phone="010-0000-0000",
               address="서울", product="침대", is_erp_order=True, status=stage,
-              erp_stage_code=stage, structured_data={"workflow": {"stage": stage}})
+              erp_stage_code=stage,
+              structured_data={"workflow": {"stage": stage}, **drawing_for_stage(stage)})
     session.add(o)
     session.commit()
     return o

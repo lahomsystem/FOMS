@@ -372,7 +372,7 @@ def api_order_quest_approve(order_id):
 
         # 고객컨펌 → 생산 도면 게이트(C21·M3, 2a-2): 도면이 수령 확정(CONFIRMED)이 아니면
         # 일반 승인·재전이 모두 막는다. 단계값은 한글('고객컨펌')도 정규화해 본다. 관리자는
-        # admin_override(사유)로만 뚫는다.
+        # admin_override(사유)로만 뚫고, 그때만 전이 엔진 방어선을 waive 한다.
         current_stage_norm = normalize_stage_code(current_stage_code)
         drawing_block = confirm_exit_block(sd) if current_stage_norm == 'CONFIRM' else None
         if drawing_block is not None:
@@ -382,6 +382,7 @@ def api_order_quest_approve(order_id):
                     'message': drawing_block.reason, 'drawing_status': drawing_block.drawing_status,
                 }), 409
             punched.append(drawing_block.code)
+        drawing_gate_waived = 'DRAWING_STATUS' in punched
 
         CODE_TO_STAGE_NAME = {v: k for k, v in STAGE_NAME_TO_CODE.items()}
         current_stage_name = CODE_TO_STAGE_NAME.get(current_stage_code, current_stage_code)
@@ -447,6 +448,7 @@ def api_order_quest_approve(order_id):
                     reason=f'{current_stage_name} 재전이(완료 quest, 강제 단계 변경 뒤)',
                     source_screen='erp_dashboard',
                     now=now,
+                    drawing_gate_waived=drawing_gate_waived,
                 )
             except (TransitionError, RevisionError) as exc:
                 db.rollback()
@@ -610,6 +612,7 @@ def api_order_quest_approve(order_id):
                     reason=f'{current_stage_name} 최종 승인',
                     source_screen='erp_dashboard',
                     now=now,
+                    drawing_gate_waived=drawing_gate_waived,
                 )
             except (TransitionError, RevisionError) as exc:
                 db.rollback()
