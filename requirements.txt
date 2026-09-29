@@ -64,6 +64,8 @@ platformdirs==4.3.7
 pluggy==1.5.0
 proxy_tools==0.1.0
 
+psycopg[binary]==3.3.6
+# psycopg2 는 psycopg2 를 직접 쓰는 운영 도구(단계 3 에서 이전)와 되돌리기용으로 남긴다.
 psycopg2-binary==2.9.9
 pyasn1==0.4.8
 pycparser==2.22
@@ -113,7 +115,6 @@ python-Levenshtein>=0.21.0
 flask-socketio>=5.3.6
 python-socketio>=5.10.0
 gevent>=24.10.1
-psycogreen>=1.0
 
 boto3>=1.28.0  # 클라우드 스토리지 지원 (Quest 2)
 holidays==0.42  # 영업일(주말/공휴일 제외) 계산용

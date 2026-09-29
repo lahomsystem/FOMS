@@ -10,6 +10,9 @@ import os
 from typing import Any
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
+from sqlalchemy import event
+from sqlalchemy.engine import Engine
+
 __all__ = [
     "prepare_database_url_env",
     "postgresql_connect_kwargs_from_url",
@@ -19,7 +22,9 @@ __all__ = [
     "PG_SQLALCHEMY_DRIVER",
 ]
 
-PG_SQLALCHEMY_DRIVER = "psycopg2"
+#: psycopg (3). Rollback to psycopg2 = set "psycopg2" here and restore the psycopg2 branch of
+#: postgres_dbapi_connect (psycopg2-binary stays installed until plan step 3).
+PG_SQLALCHEMY_DRIVER = "psycopg"
 
 _ALLOWED_PG_QUERY_KEYS = frozenset(
     {
@@ -69,10 +74,34 @@ def sqlalchemy_url(url: str) -> str:
 
 
 def postgres_dbapi_connect(connect_kwargs: dict[str, Any]) -> Any:
-    """Open a raw DBAPI connection with the canonical driver (SQLAlchemy ``creator``, admin tools)."""
-    import psycopg2
+    """Open a raw DBAPI connection with the canonical driver (SQLAlchemy ``creator``, admin tools).
 
-    return psycopg2.connect(**connect_kwargs)
+    ``ClientCursor`` keeps psycopg2's client-side parameter binding: the app has ~900 raw
+    ``text()`` statements and most tests run on SQLite, so server-side binding differences
+    (``:x IS NULL``, parameters in ``SET``, multi-statement strings) would not be caught.
+    Client-side cursors also never create prepared statements. psycopg is imported here —
+    after app.py's gevent patch — because it picks its wait function at import time.
+    """
+    import psycopg
+
+    return psycopg.connect(**connect_kwargs, cursor_factory=psycopg.ClientCursor)
+
+
+@event.listens_for(Engine, "connect")
+def _psycopg_client_side_binding(dbapi_connection: Any, _connection_record: Any) -> None:
+    """Give every psycopg connection a ``ClientCursor`` — URL-built engines included.
+
+    ``creator`` engines already get it from :func:`postgres_dbapi_connect`, but engines made
+    from :func:`sqlalchemy_url` (SIDEFX, cron, alembic, ops tools, the PG test lane) connect
+    through SQLAlchemy's own dialect, which would default to server-side binding.
+    """
+    module = type(dbapi_connection).__module__
+    if not module.startswith("psycopg"):
+        return
+    import psycopg
+
+    if isinstance(dbapi_connection, psycopg.Connection):
+        dbapi_connection.cursor_factory = psycopg.ClientCursor
 
 
 def pg_error_code(error: BaseException) -> str | None:

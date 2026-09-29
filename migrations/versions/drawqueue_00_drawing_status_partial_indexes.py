@@ -55,8 +55,10 @@ def _run_concurrently(conn, sql: str) -> None:
     startup_schema_00 과 동일 패턴. env.py 의 세션 advisory lock 이 내부 COMMIT 을 넘어
     유지되므로 다중 replica 동시 인덱스 빌드가 직렬화된다.
     """
-    conn.execute(sa.text("COMMIT"))
-    conn.execute(sa.text(sql))
+    # 문자열 COMMIT 뒤 DDL 은 psycopg2 가 트랜잭션 상태를 추적하지 않아서만 통했다 — psycopg(3)는
+    # 서버 상태를 보고 새 BEGIN 을 열어 CONCURRENTLY 가 실패한다. alembic autocommit_block 이 정본.
+    with op.get_context().autocommit_block():
+        op.get_bind().execute(sa.text(sql))
 
 
 def upgrade() -> None:
