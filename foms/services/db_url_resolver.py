@@ -11,7 +11,10 @@ from typing import Any
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
 from sqlalchemy import event
+from sqlalchemy.dialects import registry
+from sqlalchemy.dialects.postgresql.psycopg import PGDialect_psycopg
 from sqlalchemy.engine import Engine
+from sqlalchemy.engine.interfaces import BindTyping
 
 __all__ = [
     "prepare_database_url_env",
@@ -101,6 +104,25 @@ def _psycopg_client_side_binding(dbapi_connection: Any, _connection_record: Any)
 
     if isinstance(dbapi_connection, psycopg.Connection):
         dbapi_connection.cursor_factory = psycopg.ClientCursor
+
+
+class PGDialect_psycopg_plain_binds(PGDialect_psycopg):
+    """The psycopg (3) dialect, rendering plain placeholders like psycopg2 did.
+
+    SQLAlchemy's psycopg dialect appends casts chosen from the *Python value* type, so
+    ``filter_by(id="4445")`` became ``orders.id = '4445'::VARCHAR`` → ``integer = character
+    varying`` (2026-09-29 production: AS visit-date saves 500). The app was written against
+    psycopg2, which sent untyped literals that PostgreSQL coerces to the column type. With
+    ``ClientCursor`` the values are interpolated client-side either way, so dropping the
+    casts restores psycopg2's SQL exactly.
+    """
+
+    bind_typing = BindTyping.NONE
+
+
+# Under the built-in name so every engine (``creator`` or URL-built) gets it — the dialect
+# registry is consulted before SQLAlchemy's own dialect modules.
+registry.register("postgresql.psycopg", __name__, "PGDialect_psycopg_plain_binds")
 
 
 def pg_error_code(error: BaseException) -> str | None:
