@@ -438,11 +438,9 @@
 
               const latestEvent = drawHistory.length ? drawHistory[drawHistory.length - 1] : null;
               const latestAction = (latestEvent && latestEvent.action) || '';
-              const latestActionLabel = latestAction === 'TRANSFER'
-                ? '도면 전달'
-                : (latestAction === 'REQUEST_REVISION'
-                  ? '수정 요청'
-                  : (latestAction === 'CANCEL_TRANSFER' ? '전달 취소' : '이력 없음'));
+              const latestActionLabels = { TRANSFER: '도면 전달', REQUEST_REVISION: '수정 요청', CANCEL_TRANSFER: '전달 취소',
+                REVISION_CANCELLED: '수정요청 취소', CONFIRM_RECEIPT: '수령 확정', ERP_ORDER_CHANGED: '주문 변경' };
+              const latestActionLabel = latestActionLabels[latestAction] || '이력 없음';
               const latestWho = latestEvent ? escapeHtml(latestEvent.by_user_name || '-') : '-';
               const latestWhen = latestEvent ? escapeHtml(latestEvent.transferred_at || latestEvent.at || '-') : '-';
               const requestSummary = uncheckedRequestCount > 0
