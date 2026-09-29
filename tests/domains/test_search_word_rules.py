@@ -26,7 +26,7 @@ def _reset_cache_runtime(monkeypatch):
     dc.reset_dashboard_cache_runtime_for_tests()
 
 
-def _login_admin(client) -> None:
+def _login_admin(client) -> int:
     user = User(
         username="search_word_rules_admin",
         password=generate_password_hash("x"),
@@ -41,6 +41,7 @@ def _login_admin(client) -> None:
         sess["user_id"] = user.id
         sess["username"] = user.username
         sess["role"] = user.role
+    return int(user.id)
 
 
 def _seed(name: str, phone: str) -> int:
@@ -182,3 +183,23 @@ def test_chosung_finds_legacy_orders_in_both(client, app) -> None:
         assert f'data-order-id="{oid}"' in history, oid
     assert other_id not in preview
     assert f'data-order-id="{other_id}"' not in history
+
+
+def test_measurement_mobile_search_keeps_date_and_offers_all_dates(client, app, monkeypatch) -> None:
+    """실측 화면 검색은 고른 날짜만 본다 — 그 사실을 알리고 전 기간 결과로 가는 길을 둔다.
+
+    검색창 폼에 날짜가 없어 다른 날을 보다가 검색하면 오늘로 튀던 것도 막는다.
+    """
+    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
+    uid = _login_admin(client)
+    monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(uid))
+
+    body = client.get(
+        "/erp/measurement", query_string={"date": "2026-09-20", "q": "홍길동"}
+    ).get_data(as_text=True)
+    assert '<input type="hidden" name="date" value="2026-09-20">' in body
+    assert "2026-09-20 실측에서만 찾았습니다" in body
+    assert "모든 날짜에서 찾기" in body
+
+    plain = client.get("/erp/measurement", query_string={"date": "2026-09-20"}).get_data(as_text=True)
+    assert "실측에서만 찾았습니다" not in plain
