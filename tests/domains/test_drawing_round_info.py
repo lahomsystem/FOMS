@@ -158,7 +158,7 @@ def test_empty_view_has_every_contract_key():
         "failed_text", "views", "last_viewed_text", "status_line", "turn_hint", "steps", "prev_summary",
         "doc_label_drawing", "doc_label_bundle", "bundle_both_template", "can_customer_ok",
         "can_approve_after_confirm", "bar", "cancel_warning_text_pc", "cancel_warning_text_mobile",
-        "can_change_phone", "can_save_phone", "edit_revision",
+        "can_change_phone", "can_save_phone", "edit_revision", "sent_earlier_text", "last_attempt_state",
     ):
         assert key in view, key
 
@@ -174,7 +174,8 @@ def test_empty_view_values_hide_new_buttons():
                 "is_append"):
         assert view[key] is False, key
     for key in ("sent_text", "link_only_text", "failed_text", "status_line", "turn_hint",
-                "cancel_warning_text_pc", "cancel_warning_text_mobile", "phone_masked"):
+                "cancel_warning_text_pc", "cancel_warning_text_mobile", "phone_masked",
+                "sent_earlier_text", "last_attempt_state"):
         assert view[key] == "", key
     # 스위치 꺼짐 = 지금 고정 표 이름(share.py _SMS_KIND_LABEL).
     assert view["doc_label_drawing"] == "도면"
