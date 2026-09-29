@@ -19,13 +19,14 @@
 {% block title %}네이버 수집{% endblock %}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260930b">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260930c">
 {% endblock %}
 
 {% block content %}
 {{ mark('wb_head_region') }}
 <div class="container-fluid naver-workbench"
-     data-active-tab="{{ active_tab }}" data-active-filter="{{ active_filter }}">
+     data-active-tab="{{ active_tab }}" data-active-filter="{{ active_filter }}"
+     data-active-sort="{{ active_sort or 'new' }}">
 
     {# 상태 스트립 — 이름은 화면에 하나("네이버 수집"). 진입구도 하나다.
        v2 의 '수집 상태' 버튼은 제거했다: 바로 아래 이력 탭과 같은 곳을 가리키던 중복이었다. #}
@@ -91,7 +92,8 @@
         {% if locked_count %}
         {# 잠금 사유·찾을 자리는 본문에 둔다 — title 만이면 터치 기기가 못 읽는다. #}
         <span class="wb-bar__locked" title="취소·반품이라 어떤 액션도 되지 않습니다.">
-            손대지 않음 <b>{{ locked_count }}주문</b> · 처리 수에는 없고 목록에는 있음
+            {# 폰 P2(감사 원장 N-16) — 폰은 현장 말(`판매자센터에서 처리`)로. 데스크톱 문장은 그대로. #}
+            손대지 않음 <b>{{ locked_count }}주문</b> · <span class="wb-dk">처리 수에는 없고 목록에는 있음</span><span class="wb-ph">판매자센터에서 처리</span>
         </span>
         {% endif %}
         {% endif %}
@@ -174,7 +176,7 @@
       요약이 없는 띠를 말하지 않는다. 숫자가 없는 띠(발송 완료 등)는 이름만 싣는다.
     #}
     {% set _alert_parts = [] %}
-    {% if ghosts and ghosts.count %}{% set _ = _alert_parts.append(('유령 주문', ghosts.count)) %}{% endif %}
+    {% if ghosts and ghosts.count %}{% set _ = _alert_parts.append(('결제가 다 취소된 주문', ghosts.count)) %}{% endif %}
     {% if partial_claims and partial_claims.count %}{% set _ = _alert_parts.append(('부분 취소', partial_claims.count)) %}{% endif %}
     {% if origin_cleanup and origin_cleanup.count %}{% set _ = _alert_parts.append(('옛 주문 정리', origin_cleanup.count)) %}{% endif %}
     {% if bulk_dispatch and bulk_dispatch.show %}
@@ -188,7 +190,7 @@
     <div class="wb-alerts" data-wb-alert-sections="{{ _alert_parts|length }}" data-wb-alert-total="{{ _alert_total }}">
         <button type="button" class="wb-alerts__toggle" id="wb-alerts-toggle"
                 aria-expanded="false" aria-controls="wb-alerts-body">
-            <span class="wb-alerts__head">{% if _alert_total %}확인 필요 <b>{{ _alert_total }}</b>건{% else %}알림{% endif %}</span>
+            <span class="wb-alerts__head">{% if _alert_total %}확인할 주문 <b>{{ _alert_total }}</b>건{% else %}알림{% endif %}</span>
             <span class="wb-alerts__parts">{% for label, n in _alert_parts %}{{ label }}{% if n %} {{ n }}{% endif %}{% if not loop.last %} · {% endif %}{% endfor %}</span>
             <i class="fas fa-chevron-right wb-alerts__chev" aria-hidden="true"></i>
         </button>
@@ -243,7 +245,7 @@
                         <div><a href="{{ url_for('admin.naver_ingest_triage', tab='work', link_id=cand.link_id) }}">{{ cand.external_order_no }}</a></div>
                         {% endfor %}
                         {# 위 줄 주문번호가 그 pane 링크다 — 사용법을 다시 말하지 않는다. #}
-                        <div class="wb-ghost__dim">큐에 대기</div>
+                        <div class="wb-ghost__dim"><span class="wb-dk">큐에 대기</span><span class="wb-ph">처리 목록에 있어요</span></div>
                         {% else %}
                         <span class="wb-ghost__dim">없음</span>
                         {% endif %}
@@ -792,13 +794,14 @@
         <span class="wb-bar__sep" aria-hidden="true"></span>
         <span class="wb-tools__label">정렬</span>
         <span class="wb-seg" role="group" aria-label="정렬">
-        {% for key, label, hint in [
-            ('new', '접수순', '최근에 들어온 주문부터'),
-            ('due', '발송기한 임박순', '기한이 가까운 주문부터 — 기한을 넘기면 네이버가 자동 취소할 수 있다')] %}
+        {# 폰 P2(감사 원장 N-18) — 폰은 짧은 이름(`기한순`)을 써서 360 폭에서도 정렬과 찾기가 한 줄에 선다. #}
+        {% for key, label, short, hint in [
+            ('new', '접수순', '접수순', '최근에 들어온 주문부터'),
+            ('due', '발송기한 임박순', '기한순', '기한이 가까운 주문부터 — 기한을 넘기면 네이버가 자동 취소할 수 있다')] %}
         <a class="wb-sort" data-sort="{{ key }}"
            aria-pressed="{{ 'true' if active_sort == key else 'false' }}"
            title="{{ hint }}"
-           href="{{ url_for('admin.naver_ingest_triage', tab='work', f=active_filter, s=key) }}">{{ label }}</a>
+           href="{{ url_for('admin.naver_ingest_triage', tab='work', f=active_filter, s=key) }}">{% if short != label %}<span class="wb-dk">{{ label }}</span><span class="wb-ph">{{ short }}</span>{% else %}{{ label }}{% endif %}</a>
         {% endfor %}
         </span>
         <span class="wb-bar__spacer"></span>
@@ -808,6 +811,7 @@
             <span class="wb-find__label">찾기</span>
             <input type="search" id="wb-find" class="wb-find__input" autocomplete="off"
                    placeholder="이 목록에서 · 고객명 · 주문번호 · 제품"
+                   data-phone-placeholder="이름·주문번호·제품"
                    aria-label="이 목록에서 찾기">
         </label>
         <span class="wb-find__note" id="wb-find-note" role="status" aria-live="polite"></span>
@@ -820,12 +824,14 @@
       '전부 선택' 은 여기 두지 않는다: 0집일 때 이 바가 숨으면 전부 선택에 손이 닿지 않는다.
     #}
     <div class="wb-bulk" id="wb-bulk">
-        <span><b id="wb-bulk-n">0</b>주문 선택됨</span>
+        {# 폰 P2(감사 원장 N-37·N-16) — 폰은 한 줄(`N주문` · [발주확인 보내기] · ×). 데스크톱 글자는 그대로. #}
+        <span class="wb-bulk__n"><b id="wb-bulk-n">0</b>주문<span class="wb-dk"> 선택됨</span></span>
         <button type="button" class="btn btn-primary btn-sm" id="wb-bulk-submit"
                 data-bs-toggle="modal" data-bs-target="#wb-modal-bulk">
-            선택한 주문 발주확인 보내기
+            <span class="wb-dk">선택한 주문 </span>발주확인 보내기
         </button>
-        <button type="button" class="btn btn-outline-secondary btn-sm" id="wb-bulk-clear">선택 해제</button>
+        <button type="button" class="btn btn-outline-secondary btn-sm" id="wb-bulk-clear"
+                aria-label="고른 것 모두 풀기"><span class="wb-dk">선택 해제</span><span class="wb-ph" aria-hidden="true">×</span></button>
         {# 벌크는 폴링하지 않는다(집 수만큼 조회가 곱해진다) — 진행을 여기서 말로 남기고
            잠시 뒤 화면을 한 번 다시 받는다. 비어 있으면 자리를 차지하지 않는다. #}
         <span class="wb-bulk__note" id="wb-bulk-note" role="status" aria-live="polite"></span>
@@ -841,10 +847,15 @@
                 <span class="small fw-semibold">처리할 주문</span>
                 {# 스트립은 '손댈 수 있는 집'을 말하고 여기는 **지금 보이는 줄 수**다(칩으로
                    좁히면 줄어든다). 둘 다 "N집"이면 같은 말로 읽혀서 라벨을 갈랐다. #}
-                <span class="small text-muted">한 주문이 한 줄 · 보이는 {{ work_groups|length }}줄</span>
-                {# 절대 규칙 5: 전부 선택은 **지금 필터로 보이는 행**만 고른다. #}
-                <label class="small text-muted mb-0 ms-auto d-flex align-items-center gap-1">
-                    <input type="checkbox" id="wb-pick-all"> 전부 선택
+                {# 폰 P2(감사 원장 N-12) — 찾기로 좁히면 JS(applyFind)가 `보이는 N줄` 을 찾은 수로 바꾼다
+                   (찾기 칸 아래 숫자와 머리 숫자가 따로 놀지 않게). N-17: 폰은 설명 앞말을 뺀다. #}
+                <span class="small text-muted"><span class="wb-dk">한 주문이 한 줄 · </span><span id="wb-visible">보이는 {{ work_groups|length }}줄</span></span>
+                {# 절대 규칙 5: 전부 선택은 **지금 필터로 보이는 행**만 고른다.
+                   폰 P2(감사 원장 N-34) — 이름이 "전부"인데 실제로는 고를 수 있는 줄만 고른다. 폰은 그 수를
+                   이름에 적는다(`N주문 모두 고르기`). 찾기로 좁히면 JS 가 수를 다시 센다. #}
+                {% set pickable_n = work_groups | selectattr('can_pick') | list | length %}
+                <label class="small text-muted mb-0 ms-auto d-flex align-items-center gap-1 wb-pickall{{ ' wb-pickall--none' if not pickable_n else '' }}">
+                    <input type="checkbox" id="wb-pick-all"> <span class="wb-dk">전부 선택</span><span class="wb-ph"><span id="wb-pick-all-n">{{ pickable_n }}</span>주문 모두 고르기</span>
                 </label>
             </div>
 
@@ -916,7 +927,9 @@
                       갱신 대신 전체 리로드로 떨어진다(리뷰 M3). 집이 같은지는 링크 포함으로 본다. #}
                    {% if selected_group and (selected_group.id in group.link_ids
                                              or group.id in selected_group.link_ids) %}aria-current="true"{% endif %}
-                   href="{{ url_for('admin.naver_ingest_triage', tab='work', f=active_filter, link_id=group.id) }}">
+                   {# 폰 P2(감사 원장 N-11) — 정렬(`s`)을 주소에 남긴다. 빠지면 기한순에서 연 주문을 새로
+                      고침할 때 순서가 접수순으로 돌아가 N / M·이전/다음이 바뀌었다. 기본(접수순)은 싣지 않는다. #}
+                   href="{{ url_for('admin.naver_ingest_triage', tab='work', f=active_filter, s=(active_sort if active_sort and active_sort != 'new' else None), link_id=group.id) }}">
                     <span class="wb-row__bar"></span>
                     {# 체크박스가 서던 칸(데스크톱 15px) — 체크박스는 링크 밖 형제(위 label)가 이 칸 위에 선다. #}
                     <span class="wb-row__pickslot" aria-hidden="true"></span>
@@ -968,6 +981,17 @@
                 {% endfor %}
                 {{ mark('work_rows') }}
             </div>
+            {# 폰 P2(감사 원장 N-03) — 머리줄의 ↻ 아이콘은 "화면 새로고침"으로 읽혔는데 실제로는 N주문을 네이버에서
+               2~3분 다시 읽고 알림까지 보내는 조작이었다. 폰은 아이콘을 숨기고 목록 끝에 **무엇을 하는지 적힌**
+               글자 버튼을 둔다. 누르면 머리줄의 원래 버튼(#wb-refresh-all)을 누른다 — 확인창·진행 표시·권한은
+               그 버튼 한 벌이다. 원래 버튼이 없으면(비ADMIN·0주문·도는 중) 이 줄도 없다. 데스크톱은 CSS 가 숨긴다. #}
+            {% if refresh_all and refresh_all.count and not (refresh_running and refresh_running.running) %}
+            <div class="wb-reread">
+                <button type="button" class="wb-reread__btn" id="wb-refresh-all-phone"
+                        aria-describedby="wb-reread-note">네이버에서 목록 전체 다시 읽기 · {{ refresh_all.count }}주문</button>
+                <p class="wb-reread__note" id="wb-reread-note">{{ refresh_all.eta }} 걸려요 · 네이버에는 아무것도 보내지 않아요 · 처음 보는 취소·반품은 알림이 가요</p>
+            </div>
+            {% endif %}
         </section>
 
         {# 상세 pane. 전체 렌더와 프래그먼트 응답이 이 파셜 하나를 공유한다(계약 §3.1).
@@ -987,7 +1011,8 @@
                 </button>
                 <div class="wb-layer__who" aria-live="polite">
                     <h2 class="wb-layer__name" id="wb-layer-name" tabindex="-1"></h2>
-                    <p class="wb-layer__sub"><span id="wb-layer-state"></span><span class="wb-layer__pos" id="wb-layer-pos"></span></p>
+                    {# 정렬 이름(감사 원장 N-11) — 기한순으로 연 주문은 위치(N / M)가 그 순서라는 것을 말한다. #}
+                    <p class="wb-layer__sub"><span id="wb-layer-state"></span><span class="wb-layer__pos" id="wb-layer-pos"></span>{% if active_sort == 'due' %}<span class="wb-layer__sort"> · 기한순</span>{% endif %}</p>
                 </div>
                 <button type="button" class="wb-layer__step" id="wb-layer-prev"
                         aria-label="이전 주문" aria-disabled="true">
@@ -1099,7 +1124,7 @@
         {# 두 사실은 각자 한 줄이다 — 390px 에서 한 문장으로 이으면 `인증 만 / 료` 처럼 말 중간에서 꺾인다. #}
         <span class="wb-icard__text">
             <span class="wb-icard__seg">마지막 수집 {{ wm.last_run_at_text[5:] if wm.last_run_at_text else '아직 없음' }}</span>
-            <span class="wb-icard__seg">인증 만료 {% if ex.expires_on %}{{ ex.expires_on }}{% if ex.days_left is not none %} ({{ ex.days_left if ex.days_left > 0 else 0 }}일){% endif %}{% else %}미등록{% endif %}</span>
+            <span class="wb-icard__seg">인증 만료{% if not ex.expires_on %}일{% endif %} {% if ex.expires_on %}{{ ex.expires_on }}{% if ex.days_left is not none %} ({{ ex.days_left if ex.days_left > 0 else 0 }}일){% endif %}{% else %}미등록{% endif %}</span>
         </span>
         <button type="button" class="wb-icard__manage" id="wb-asheet-open"
                 aria-haspopup="dialog" aria-expanded="false" aria-controls="wb-asheet">관리</button>
@@ -1124,8 +1149,8 @@
             <div class="wb-ingest__k wb-ingest__desk">마지막 성공 구간 끝(워터마크)</div>
             <div class="wb-ingest__v wb-ingest__desk">{{ ingest_status.watermark.last_success_to or '아직 없음' }}</div>
             {# 폰 시트 전용 두 줄(데스크톱은 CSS 가 숨긴다) — 같은 값의 사람 말 꼴. #}
-            <div class="wb-ingest__k wb-ingest__phone">받은 곳까지</div>
-            <div class="wb-ingest__v wb-ingest__phone wb-ingest__human">{{ wm_human ~ '까지 받음' if wm_human else '아직 없음' }}</div>
+            <div class="wb-ingest__k wb-ingest__phone">받아온 시각</div>
+            <div class="wb-ingest__v wb-ingest__phone wb-ingest__human">{{ wm_human ~ '까지 받았어요' if wm_human else '아직 없음' }}</div>
             <div class="wb-ingest__sub">마지막 실행 {{ ingest_status.watermark.last_run_at_text or '아직 없음' }}</div>
         </div>
         <div class="wb-ingest__cell">
@@ -1148,7 +1173,7 @@
                열리고, 날짜를 고르는 순간 저장된다(저장 버튼 없음). 카드 한 칸에 라벨·값·
                입력줄·버튼을 다 늘어놓으면 상태 카드가 폼이 된다. #}
             <div class="wb-ingest__k">
-                커머스API 인증 만료일
+                <span class="wb-dk">커머스API 인증 만료일</span><span class="wb-ph">네이버 연결 만료일</span>
                 <button type="button" class="wb-ingest__edit" id="wb-expiry-edit"
                         aria-controls="wb-expiry-input" aria-expanded="false"
                         title="커머스API센터의 `인증 기한` 끝 날짜를 적습니다">{{ '수정' if ingest_status.expiry.expires_on else '등록' }}</button>
@@ -1177,7 +1202,7 @@
                  data-foms-no-autodismiss></div>
         </div>
         <div class="wb-ingest__cell wb-ingest__cell--action">
-            <button type="button" class="btn btn-success btn-sm" id="wb-run-now">지금 수집</button>
+            <button type="button" class="btn btn-success btn-sm" id="wb-run-now"><span class="wb-dk">지금 수집</span><span class="wb-ph">지금 받아오기</span></button>
             {# 폰 시트 전용 한 줄 — 수집 한 바퀴는 워터마크에서 시작한다(watermark.resolve_window). #}
             {% if wm_human %}
             <div class="wb-ingest__sub wb-ingest__phone">{{ wm_human }} 뒤에 들어온 주문을 바로 받아와요.</div>
@@ -1189,7 +1214,7 @@
            붙이기로 못 메우고 과거를 한 번 긁어와야만 닫힌다.
            **운영자가 1회 실행하는 자리**다 — 상시 동작이 아니다. 실행은 큐에 넣기만 한다. #}
         <div class="wb-ingest__cell wb-ingest__cell--action">
-            <div class="wb-ingest__k">과거 주문 소급 수집</div>
+            <div class="wb-ingest__k"><span class="wb-dk">과거 주문 소급 수집</span><span class="wb-ph">지난 주문 가져오기</span></div>
             <div class="wb-backfill__range">
                 <input type="date" class="wb-backfill__input" id="wb-backfill-from"
                        value="{{ backfill_defaults.start }}" max="{{ backfill_defaults.end }}"
@@ -1202,8 +1227,8 @@
             {# 폰 시트 전용 확인 줄. 셋 다 코드가 지키는 사실이다 — 상한 90일 = backfill.MAX_RANGE
                (테스트가 값을 맞춘다), 이미 받은 주문은 멱등 skip(사전 조회 + UNIQUE(channel,
                external_id) — backfill 설계 규칙 2), 워터마크는 건드리지 않는다(설계 규칙 1). #}
-            <div class="wb-ingest__sub wb-ingest__phone wb-backfill__confirm">최대 90일 · 이미 받은 주문은 건너뜀 · ‘받은 곳까지’ 시각은 바뀌지 않아요</div>
-            <button type="button" class="btn btn-outline-secondary btn-sm" id="wb-backfill-run">과거 긁어오기</button>
+            <div class="wb-ingest__sub wb-ingest__phone wb-backfill__confirm">최대 90일 · 이미 받은 주문은 건너뜀 · ‘받아온 시각’은 바뀌지 않아요</div>
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="wb-backfill-run"><span class="wb-dk">과거 긁어오기</span><span class="wb-ph">지난 주문 가져오기</span></button>
             <div class="wb-ingest__sub" id="wb-backfill-note" role="status" aria-live="polite"
                  data-foms-no-autodismiss></div>
         </div>
@@ -1336,9 +1361,14 @@
                 {% if h_rel %}<input type="hidden" name="rel" value="{{ h_rel }}">{% endif %}
                 <label class="wb-find__label" for="wb-find">찾기</label>
                 <input type="search" id="wb-find" name="q" class="wb-find__input" autocomplete="off"
-                       value="{{ history.find }}"
+                       value="{{ history.find }}" enterkeyhint="search"
                        placeholder="이력 전체에서 · 고객명 · 주문번호 · 전화"
                        aria-label="이력 전체에서 찾기">
+                {# 폰 P2(감사 원장 N-38) — 찾는 낱말이 있으면 지우기(×). 같은 필터에서 낱말만 뺀 평범한 링크다. #}
+                {% if history.find %}
+                <a class="wb-find__clear" aria-label="찾기 지우기"
+                   href="{{ url_for('admin.naver_ingest_triage', tab='all', status=h_status, place=h_place, dispatch=h_dispatch, rel=h_rel) }}"><span aria-hidden="true">×</span></a>
+                {% endif %}
             </form>
             {# 서버가 좁힌 결과를 말한다 — 빈 결과일 때 "다른 쪽에 있을 수 있다"는 이제
                거짓이다(찾기가 전체를 본다). 0이면 그냥 없다. #}
@@ -1381,7 +1411,9 @@
                             {% endif %}
                         </td>
                         {# `wb-hist__na` 는 값이 없는 칸 — 폰 카드는 `· –개`·`–원` 을 쓰지 않고 칸을 접는다. #}
-                        <td class="wb-cmp__num{{ ' wb-hist__na' if row.quantity is none else '' }}">{{ row.quantity if row.quantity is not none else '–' }}</td>
+                        {# `wb-hist__qty--addon` — 추가결제(관계 ADDON, 서버 판정)는 수량이 금액 단위라(3,564개) 폰 카드가
+                           수량을 접는다(감사 원장 N-30). `추가결제` 라벨은 같은 카드의 관계 배지가 이미 말한다. #}
+                        <td class="wb-cmp__num{{ ' wb-hist__na' if row.quantity is none else '' }}{{ ' wb-hist__qty--addon' if row.relation == 'ADDON' else '' }}">{{ row.quantity if row.quantity is not none else '–' }}</td>
                         <td class="wb-cmp__num{{ ' wb-hist__na' if row.amount is none else '' }}">{{ '{:,}'.format(row.amount) if row.amount is not none else '–' }}</td>
                         {# 상태 칸 — 축마다 한 줄(FOMS · 네이버 · 취소·반품).
                            예외 줄은 **값이 있을 때만** 낸다: 빈 칸이나 '–' 로 채우면
@@ -1516,12 +1548,22 @@
                                '주문 만들기'이고, pane 대조표가 그 링크 기준으로 그려진다. #}
                             <a class="wb-hist-open"
                                href="{{ url_for('admin.naver_ingest_triage', tab='work',
-                                                link_id=row.pending_link_id or row.id) }}">워크벤치</a>
+                                                link_id=row.pending_link_id or row.id) }}"><span class="wb-dk">워크벤치</span><span class="wb-ph">처리 탭에서 열기</span></a>
                             </span>
                         </td>
                     </tr>
                     {% else %}
-                    <tr><td colspan="8" class="wb-empty">수집 이력이 없습니다.</td></tr>
+                    {# 폰 P2(감사 원장 N-25) — 찾기 결과가 0 이면 "수집 이력이 없습니다" 는 거짓이다(수집은 된다).
+                       찾는 말 · 다음에 해 볼 것 · 지우기 길을 준다. 찾기가 없을 때만 예전 문장. #}
+                    {% if history.find %}
+                    <tr class="wb-hist__none"><td colspan="8" class="wb-empty"><div class="wb-empty--done wb-empty--find">
+                        <p class="wb-empty__title">‘{{ history.find }}’(으)로 찾은 주문이 없어요</p>
+                        <p class="wb-empty__sub">이름 · 전화 뒷자리 4개 · 주문번호로 찾아 보세요.</p>
+                        <a class="wb-empty__go" href="{{ url_for('admin.naver_ingest_triage', tab='all', status=h_status, place=h_place, dispatch=h_dispatch, rel=h_rel) }}">찾기 지우기</a>
+                    </div></td></tr>
+                    {% else %}
+                    <tr class="wb-hist__none"><td colspan="8" class="wb-empty">수집 이력이 없습니다.</td></tr>
+                    {% endif %}
                     {% endfor %}
                     {{ mark('hist_rows') }}
                 </tbody>
@@ -1673,7 +1715,7 @@
         <div class="modal-dialog modal-lg modal-dialog-scrollable">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">네이버 원본 — <span id="wb-detail-who"></span></h5>
+                    <h5 class="modal-title"><span class="wb-dk">네이버 원본 — </span><span class="wb-ph">네이버 값 · 읽기 전용 — </span><span id="wb-detail-who"></span></h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
                 </div>
                 <div class="modal-body" id="wb-detail-body" aria-busy="false">
@@ -1690,5 +1732,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260930b" defer></script>
+<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260930c" defer></script>
 {% endblock %}

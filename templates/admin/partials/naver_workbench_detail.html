@@ -203,7 +203,10 @@
             <tr><td class="wb-cmp__k">결제수단</td><td>{{ detail.payment.means }}</td></tr>
             {% endif %}
             {% if detail.payment.paid_at %}
-            <tr><td class="wb-cmp__k">결제일시</td><td>{{ detail.payment.paid_at }}</td></tr>
+            {# 폰 P2(감사 원장 N-26) — 폰은 원문 ISO(`2026-09-29T11:57:49.022+09:00`) 대신 `09-29 11:57`.
+               같은 값을 KST 로 바꿔 쪼갤 뿐이다(`format_datetime_kst` 앱 전역 필터). 데스크톱은 그대로. #}
+            {% set paid_human = detail.payment.paid_at | format_datetime_kst('%m-%d %H:%M') %}
+            <tr><td class="wb-cmp__k">결제일시</td><td>{% if paid_human %}<span class="wb-dk">{{ detail.payment.paid_at }}</span><span class="wb-ph">{{ paid_human }}</span>{% else %}{{ detail.payment.paid_at }}{% endif %}</td></tr>
             {% endif %}
             {# 카드사 프로모션은 쿠폰과 다른 축이다 — 카드사가 부담해 상품 금액은 안 깎이지만,
                "왜 이 금액인가"를 물을 때 쿠폰만 보여 주면 답이 안 나온다. #}

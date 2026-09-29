@@ -357,7 +357,7 @@ def test_admin_card_is_one_row_with_manage_sheet(client, workbench_on, monkeypat
 def test_admin_card_says_failure_unregistered_and_due(client, workbench_on, monkeypatch):
     """실패면 빨간 `실패`, 만료일이 없으면 `미등록`, 7일 이하면 경고 색. 정상 카드에는 셋 다 없다."""
     card = _card(_history(client, monkeypatch, error="네이버 401", expires_on=None, days_left=None))
-    assert "wb-icard--err" in card and ">실패<" in card and "인증 만료 미등록" in card
+    assert "wb-icard--err" in card and ">실패<" in card and "인증 만료일 미등록" in card
     assert "wb-icard--due" not in card
 
     _patch_ingest(monkeypatch, days_left=5, expires_on="2026-10-04")
@@ -372,7 +372,7 @@ def test_watermark_reads_as_human_kst_time(client, workbench_on, monkeypatch, ra
     body = _history(client, monkeypatch, success_to=raw)
     section = body[body.index('id="wb-ingest-status"'):body.index("</section>", body.index('id="wb-ingest-status"'))]
 
-    assert '<div class="wb-ingest__v wb-ingest__phone wb-ingest__human">9월 29일 08:25:57까지 받음</div>' in section
+    assert '<div class="wb-ingest__v wb-ingest__phone wb-ingest__human">9월 29일 08:25:57까지 받았어요</div>' in section
     assert "9월 29일 08:25:57 뒤에 들어온 주문을 바로 받아와요." in section
     assert f'<div class="wb-ingest__v wb-ingest__desk">{raw}</div>' in section, "데스크톱 원문 줄은 그대로"
 
@@ -391,7 +391,7 @@ def test_backfill_confirm_line_matches_the_code(client, workbench_on, monkeypatc
     line = body[body.index('wb-backfill__confirm">'):]
     line = line[len('wb-backfill__confirm">'):line.index("</div>")]
     assert line == (f"최대 {backfill.MAX_RANGE.days}일 · 이미 받은 주문은 건너뜀 · "
-                    "‘받은 곳까지’ 시각은 바뀌지 않아요")
+                    "‘받아온 시각’은 바뀌지 않아요")
     assert body.index("wb-backfill__confirm") < body.index('id="wb-backfill-run"'), "날짜 칸 아래 · 버튼 위"
     assert "skipped: int = 0            # 이미 있던 건(멱등 skip)" in pathlib.Path(backfill.__file__).read_text(
         encoding="utf-8")
