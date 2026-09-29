@@ -1685,6 +1685,9 @@ input.wb-pick:disabled,
 }
 .wb-empty__go:hover { background: #f3f4ff; color: #3a4490; text-decoration: none; }
 
+/* 폰 `맨 위로`(감사 원장 N-06)는 폰 미디어 쿼리 안에서만 보인다. */
+.wb-totop { display: none; }
+
 @media (max-width: 767.98px) {
     /* ── 머리줄: ‹ ERP · 제목 · 다시 읽기(아이콘) / 탭 세그먼트 / 사실 한 줄 ──
        sticky 는 푼다. 폰에서는 전역 nav 까지 셋이 위에 붙으면 화면 절반이 크롬이 된다. */
@@ -1729,7 +1732,7 @@ input.wb-pick:disabled,
         order: 1;
         flex: 1 1 auto;
         min-width: 0;
-        font-size: calc(17px * var(--wb-fs, 1));
+        font-size: calc(18px * var(--wb-fs, 1));
     }
 
     /* 글자 크기 조절은 폰에서 뺀다 — 폰은 브라우저 확대가 같은 일을 하고 자리가 없다. */
@@ -2146,7 +2149,7 @@ input.wb-pick:disabled,
         background: #c1c7d0;
     }
     .wb-hsheet__head { display: flex; align-items: center; padding: 0 4px 0 16px; }
-    .wb-hsheet__title { flex: 1; margin: 0; font-size: calc(17px * var(--wb-fs, 1)); font-weight: 800; }
+    .wb-hsheet__title { flex: 1; margin: 0; font-size: calc(18px * var(--wb-fs, 1)); font-weight: 800; }
     .wb-hsheet__title:focus { outline: none; }
     .wb-hsheet__close {
         display: grid;
@@ -2409,7 +2412,7 @@ input.wb-pick:disabled,
         margin: 0;
         overflow: hidden;
         color: #14171c;
-        font-size: calc(17px * var(--wb-fs, 1));
+        font-size: calc(18px * var(--wb-fs, 1));
         font-weight: 800;
         line-height: 1.25;
         white-space: nowrap;
@@ -3390,4 +3393,72 @@ input.wb-pick:disabled,
 
     /* ── R-11 시트 맨 아래 고정 줄이 안쪽 내용을 덮을 때 "더 있다" 표시(모달 발바닥과 같은 그림자) ── */
     .wb-hsheet__foot { box-shadow: 0 -4px 12px -8px rgba(20, 23, 28, .3); }
+
+    /* ══ 일부 항목 마무리(2026-09-29 · 재감사 '부분' 판정) ══════════════════════════════ */
+
+    /* ── N-21 · N-26 이력 원본 창 주문 단위: 처리 탭 상세와 같은 꼴 ──
+       FOMS 값이 없는 칸은 네이버 값 한 줄(이름표도 뗀다), 셋 다 없으면 제목 줄에 안내 한 번. */
+    #wb-detail-body .wb-cmp__row--nofoms td:nth-child(3),
+    #wb-detail-body [data-cmp-section="household"] + .wb-cmp tr.wb-cmp__row--nofoms td:nth-child(2)::before { display: none; }
+    #wb-detail-body .wb-cmp__nofoms {
+        display: block;
+        margin-top: 2px;
+        color: #4b525d;
+        font-size: calc(14px * var(--wb-fs, 1));
+        font-weight: 600;
+    }
+
+    /* ── N-19 이력 원본 창에 남은 11.5·10.5px(옵션 원문 · 쿠폰) → 12px ── */
+    #wb-detail-body .wb-cmp__option,
+    #wb-detail-body .wb-cmp__coupon,
+    #wb-detail-body .wb-coupon span { font-size: calc(12px * var(--wb-fs, 1)); }
+
+    /* ── N-29 취소처리·반품 접수 창 상품 줄: 구성 · 제품 · 금액이 앞, 16자리 번호는 작게 맨 뒤 ── */
+    .naver-workbench .wb-scope__row .form-check-label { display: flex; flex-wrap: wrap; column-gap: 6px; }
+    .naver-workbench .wb-scope__main { order: 1; flex: 1 1 100%; font-weight: 600; }
+    .naver-workbench .wb-scope__lead { display: none; }
+    .naver-workbench .wb-scope__note { order: 2; flex: 1 1 100%; font-size: calc(12px * var(--wb-fs, 1)); }
+    .naver-workbench .wb-scope__no {
+        order: 3;
+        color: #4b525d;
+        font-size: calc(12px * var(--wb-fs, 1));
+        font-weight: 400;
+        font-variant-numeric: tabular-nums;
+    }
+
+    /* ── N-43 층 머리 셋째 줄: 합계 금액 · 발송기한 ── */
+    .wb-layer__meta {
+        margin: 0;
+        overflow: hidden;
+        color: #14171c;
+        font-size: calc(12px * var(--wb-fs, 1));
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+    }
+    .wb-layer__meta:empty { display: none; }
+    .wb-layer__who:has(.wb-layer__meta:not(:empty)) { padding-top: 4px; padding-bottom: 4px; line-height: 1.3; }
+    .wb-layer__bar { flex-shrink: 0; }                /* 층(세로 flex)이 막대를 56px 로 눌러 셋째 줄이 넘쳤다 */
+
+    /* ── N-06 목록 `맨 위로`: 한 화면 반 넘게 내리면 오른쪽 아래(일괄 막대가 있으면 그 위) ── */
+    .wb-totop:not([hidden]) {
+        position: fixed;
+        right: 16px;
+        bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+        z-index: 1015;                       /* 일괄 막대(1020) 아래 */
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 48px;
+        height: 48px;
+        border: 1px solid #c1c7d0;
+        border-radius: 12px;
+        background: #ffffff;
+        color: #14171c;
+        font-size: calc(18px * var(--wb-fs, 1));
+        box-shadow: 0 4px 12px rgba(15, 23, 42, .15);
+    }
+    .naver-workbench:has(#wb-bulk.on) .wb-totop { bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
+    body.wb-detail-open .wb-totop { display: none; }
 }

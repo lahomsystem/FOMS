@@ -193,7 +193,8 @@ def test_unset_expiry_is_readable_in_the_admin_sheet(client, workbench_on, monke
     _patch_ingest(monkeypatch, expires_on=None, days_left=None)
     _login(client)
     body = client.get(TRIAGE_PATH, query_string={"tab": "all"}).get_data(as_text=True)
-    assert '<div class="wb-ingest__v text-warning wb-expiry-unset">미등록</div>' in body
+    assert ('<div class="wb-ingest__v text-warning wb-expiry-unset"><span class="wb-dk">미등록</span>'
+            '<span class="wb-ph">미입력</span></div>') in body  # 폰 말은 `미입력`(N-16·N-39)
 
     phone, _ = _css()
     fg, bg = _hex_pair(_rule(phone, "    .wb-asheet .wb-expiry-unset"))
@@ -374,6 +375,6 @@ def test_history_cards_show_the_naver_stage_and_fold_repeated_badges(client, wor
 
 def test_workbench_pins_moved_to_20260930b():
     markup = TEMPLATE.read_text(encoding="utf-8")
-    assert markup.count("?v=20260930d") == 2
+    assert markup.count("?v=20260930e") == 2
     assert "?v=20260930a" not in markup
     assert PANE.exists()
