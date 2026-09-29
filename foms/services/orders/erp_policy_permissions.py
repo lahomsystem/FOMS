@@ -106,6 +106,28 @@ def is_drawing_workbench_participant(user, order) -> bool:
     return False
 
 
+def can_transfer_drawing(user, order) -> bool:
+    """도면 전달(첫 전달·수정본 전달·마법사 전달 대기) 권한 술어 — 화면과 서버가 함께 쓴다.
+
+    ADMIN 또는 지정 도면 담당만 참이다. 도면 담당이 한 명도 없으면 누구도 참이 아니다
+    (서버가 담당 미지정 400 으로 막는다). 도면팀 소속만으로는 전달할 수 없다(M14-a).
+    MANAGER 의 사유 있는 긴급 오버라이드는 서버 ``perform_drawing_transfer`` 에만 있다 —
+    화면 버튼은 켜지 않는다.
+    """
+    if not user or not order:
+        return False
+    assignee_ids = get_assignee_ids(order, "DRAWING_DOMAIN")
+    if not assignee_ids:
+        return False
+    if getattr(user, "role", None) == "ADMIN":
+        return True
+    try:
+        uid = int(user.id)
+    except (TypeError, ValueError):
+        return False
+    return uid in assignee_ids
+
+
 def has_pending_unchecked_drawing_revision_requests(structured_data: object) -> bool:
     """REQUEST_REVISION 이벤트 중 review_check.checked가 아직 False인 항목이 있으면 True."""
     if not isinstance(structured_data, dict):
@@ -121,6 +143,7 @@ def has_pending_unchecked_drawing_revision_requests(structured_data: object) -> 
 
 __all__ = [
     "can_modify_by_team_policy",
+    "can_transfer_drawing",
     "can_modify_domain",
     "get_assignee_ids",
     "is_drawing_workbench_participant",

@@ -94,6 +94,8 @@
             {% if not has_pending %}disabled title="전달할 저장 시트가 없습니다"{% endif %}>
       <i class="fas fa-paper-plane" aria-hidden="true"></i> 시트 전달
     </button>
+    {% elif show_transfer_assignee_only_hint %}
+    <span class="foms-drawing-sheet__muted">담당자만 전달할 수 있어요</span>
     {% endif %}
     <a class="foms-drawing-sheet__btn foms-drawing-sheet__btn--primary" href="{{ wizard_url }}">
       마법사 열기 <span aria-hidden="true">↗</span>
