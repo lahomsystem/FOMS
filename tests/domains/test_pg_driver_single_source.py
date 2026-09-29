@@ -5,8 +5,8 @@
 드라이버로 붙지 않도록, 모든 엔진은 ``sqlalchemy_url()`` 을 거쳐 ``PG_SQLALCHEMY_DRIVER`` 를
 명시한다(계획: docs/plans/2026-09-28-psycopg3-migration-plan.md 단계 1).
 
-범위 밖: ``tests/``(레인 픽스처는 상수를 직접 쓴다), ``scripts/migrations/``(일회성 이관
-스크립트 — 계획 §8-2 결정 대기).
+범위 밖: ``tests/``(레인 픽스처는 상수를 직접 쓴다). 단계 3 에서 psycopg2 를 뺐으므로 psycopg2 사용은
+``tests/`` 를 포함한 저장소 전체에서 0 이어야 한다.
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ import foms.services.db_url_resolver as db_url_resolver
 ROOT = Path(__file__).resolve().parents[2]
 RESOLVER = Path("foms/services/db_url_resolver.py")
 _SCAN_DIRS = ("foms", "tools", "scripts", "migrations")
-_EXCLUDED_PREFIXES = ("scripts/migrations/",)
+_EXCLUDED_PREFIXES: tuple[str, ...] = ()
 
 _DRIVER_LITERAL = re.compile(r"postgresql\+psycopg")
 _ENGINE_CALL = re.compile(r"\b(create_engine|engine_from_config)\(")
@@ -198,5 +198,40 @@ def test_migrations_leave_the_transaction_with_autocommit_block_not_a_sql_commit
         path.name
         for path in sorted((ROOT / "migrations" / "versions").glob("*.py"))
         if sql_commit.search(path.read_text(encoding="utf-8"))
+    ]
+    assert offenders == []
+
+
+_PSYCOPG2_USE = re.compile(r"^\s*(import|from)\s+psycopg2\b|\bpsycopg2\.(connect|extras)", re.M)
+
+
+def test_psycopg2_is_gone_from_code_tests_and_requirements() -> None:
+    """Plan step 3: every direct psycopg2 user moved to psycopg; the package is not installed."""
+    assert _PSYCOPG2_USE.search("import psycopg2\n")  # negative control
+    assert _PSYCOPG2_USE.search("conn = psycopg2.connect(dsn)")
+    paths = [p for d in (*_SCAN_DIRS, "tests") for p in (ROOT / d).rglob("*.py")] + list(ROOT.glob("*.py"))
+    offenders = sorted(
+        path.relative_to(ROOT).as_posix()
+        for path in set(paths)
+        if "__pycache__" not in path.parts
+        and path.resolve() != Path(__file__).resolve()
+        and _PSYCOPG2_USE.search(path.read_text(encoding="utf-8"))
+    )
+    assert offenders == []
+    assert "psycopg2" not in (ROOT / "requirements.txt").read_text(encoding="utf-8")
+
+
+_TUPLE_IN_PLACEHOLDER = re.compile(r"\bIN\s+%(\(\w+\))?s\b", re.I)
+
+
+def test_no_tuple_placeholder_after_in() -> None:
+    """psycopg2 expanded a Python tuple into ``IN (a, b)``; psycopg sends it as one quoted
+    literal, so ``IN %(x)s`` is a syntax error at runtime. Pass a list with ``= ANY(%(x)s)``
+    or ``<> ALL(%(x)s)`` instead (found by the PG lane in plan step 3)."""
+    assert _TUPLE_IN_PLACEHOLDER.search("WHERE s NOT IN %(closed)s")  # negative control
+    assert _TUPLE_IN_PLACEHOLDER.search("WHERE id in %s")
+    assert not _TUPLE_IN_PLACEHOLDER.search("WHERE s = ANY(%(closed)s)")
+    offenders = [
+        rel.as_posix() for rel, text in _in_scope_sources() if _TUPLE_IN_PLACEHOLDER.search(text)
     ]
     assert offenders == []

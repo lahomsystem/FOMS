@@ -11,15 +11,17 @@ if str(_repo_root) not in sys.path:
 
 from sqlalchemy import create_engine, text
 
+from foms.services.db_url_resolver import sqlalchemy_url
+
 # 로컬 DB URL (db.py 기본값 사용)
-LOCAL_DB_URL = "postgresql+psycopg2://postgres:lahom@localhost/furniture_orders"
+LOCAL_DB_URL = "postgresql://postgres:lahom@localhost/furniture_orders"
 
 def migrate_local():
     print("=== 로컬 DB 마이그레이션 시작 ===")
     print(f"연결 대상: {LOCAL_DB_URL}")
     
     try:
-        engine = create_engine(LOCAL_DB_URL)
+        engine = create_engine(sqlalchemy_url(LOCAL_DB_URL))
         with engine.connect() as conn:
             # 컬럼 존재 여부 확인
             check_sql = text("""

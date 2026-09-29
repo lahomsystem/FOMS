@@ -7,6 +7,8 @@ _repo_root = Path(__file__).resolve().parents[2]
 if str(_repo_root) not in sys.path:
     sys.path.insert(0, str(_repo_root))
 from sqlalchemy import create_engine, inspect
+
+from foms.services.db_url_resolver import sqlalchemy_url
 from sqlalchemy.orm import sessionmaker
 import datetime
 
@@ -26,7 +28,7 @@ def _runtime_output_root() -> Path:
 _local_sqlite = _runtime_output_root() / "localdb" / "furniture_orders.db"
 _local_sqlite.parent.mkdir(parents=True, exist_ok=True)
 LOCAL_DB_URL = f"sqlite:///{_local_sqlite.resolve().as_posix()}"
-local_engine = create_engine(LOCAL_DB_URL, echo=False)
+local_engine = create_engine(sqlalchemy_url(LOCAL_DB_URL), echo=False)
 LocalSession = sessionmaker(bind=local_engine)
 
 # 2. Remote Database Connection (Postgres)
@@ -41,7 +43,7 @@ if not REMOTE_DB_URL:
 if REMOTE_DB_URL.startswith("postgres://"):
     REMOTE_DB_URL = REMOTE_DB_URL.replace("postgres://", "postgresql://", 1)
 
-remote_engine = create_engine(REMOTE_DB_URL, echo=False)
+remote_engine = create_engine(sqlalchemy_url(REMOTE_DB_URL), echo=False)
 RemoteSession = sessionmaker(bind=remote_engine)
 
 def migrate_users():

@@ -28,7 +28,7 @@ class _FakeReadinessSession:
         if self.fail_mode == "missing" and "SELECT" in sql:
             raise RuntimeError("missing-flat-columns")
         if self.fail_mode == "lock_timeout" and "SELECT" in sql:
-            orig = SimpleNamespace(pgcode="55P03")
+            orig = SimpleNamespace(sqlstate="55P03")
             raise OperationalError(sql, None, orig)
         return None
 
@@ -177,7 +177,7 @@ def test_backfill_erp_flat_columns_skips_lock_timeout(monkeypatch, capsys):
         def execute(self, statement):
             sql = str(statement)
             if "SELECT" in sql:
-                orig = SimpleNamespace(pgcode="55P03")
+                orig = SimpleNamespace(sqlstate="55P03")
                 raise OperationalError(sql, None, orig)
             return None
 

@@ -2,7 +2,7 @@
 
 The web server is ``gunicorn -k gevent`` (``start.sh``): one worker serves many requests on
 greenlets, so a DB call that blocks the whole process would make every other request wait.
-Today ``app.py`` installs psycogreen for psycopg2; psycopg 3 detects gevent by itself but
+psycopg 3 detects gevent by itself (psycogreen, which only patched psycopg2, is gone) but
 only if it is imported **after** the monkey patch (it picks its wait function at import,
 ``psycopg/waiting.py``). This test measures the real ``app.py`` patch block, so it stays
 valid across the driver switch (docs/plans/2026-09-28-psycopg3-migration-plan.md step 2).

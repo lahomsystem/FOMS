@@ -120,7 +120,7 @@ def test_queue_consumer_runs_through_the_heartbeat_runner():
 def test_rq_runner_drops_inherited_db_connections_in_the_child(monkeypatch):
     """fork 자식이 부모의 DB 연결을 물려받아 같이 쓰면 TLS 가 깨진다(2026-09-08 운영 결함).
 
-    부모는 하트비트 때문에 psycopg2 연결을 풀에 살려 두고, rq 는 잡마다 ``fork`` 한다.
+    부모는 하트비트 때문에 DB 연결을 풀에 살려 두고, rq 는 잡마다 ``fork`` 한다.
     자식이 그 소켓을 그대로 쓰면 60초 뒤 부모의 다음 하트비트와 레코드가 섞여
     ``SSL error: decryption failed or bad record mac`` → 잡이 통째로 실패한다.
     실측: 정산 동기화 run 28·29 가 두 번 다 정확히 60초에 죽었다.

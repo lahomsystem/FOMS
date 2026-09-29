@@ -124,10 +124,9 @@ def test_connect_kwargs_accept_any_driver_suffix() -> None:
     assert kw == {"host": "h", "dbname": "db", "user": "u", "password": "p"}
 
 
-def test_pg_error_code_reads_psycopg_sqlstate_and_psycopg2_pgcode() -> None:
+def test_pg_error_code_reads_the_psycopg_sqlstate() -> None:
     from types import SimpleNamespace
 
     assert db_url_resolver.pg_error_code(SimpleNamespace(orig=SimpleNamespace(sqlstate="55P03"))) == "55P03"
-    assert db_url_resolver.pg_error_code(SimpleNamespace(orig=SimpleNamespace(pgcode="55P03"))) == "55P03"
-    assert db_url_resolver.pg_error_code(SimpleNamespace(pgcode="23505")) == "23505"
+    assert db_url_resolver.pg_error_code(SimpleNamespace(sqlstate="23505")) == "23505"
     assert db_url_resolver.pg_error_code(ValueError("not a DB error")) is None

@@ -1,7 +1,7 @@
 """BACKLOG-COMPLETE-01 핵심 — 판정·plan 조립·행 단위 apply/rollback (CLI 는 bulk_complete_past_construction.py).
 
 설계·안전 규율·사용법은 CLI 모듈 docstring 과 스펙
-``docs/plans/2026-09-22-past-construction-bulk-complete-spec.md`` 참조. 이 모듈은 psycopg2 커서와
+``docs/plans/2026-09-22-past-construction-bulk-complete-spec.md`` 참조. 이 모듈은 psycopg 커서와
 순수 함수만 담고 argparse·파일 입출력을 모른다(순수 계약 테스트가 DB 없이 붙는 자리).
 """
 
@@ -15,17 +15,18 @@ from typing import Any, Iterable
 
 __all__ = [
     "BATCH_ID", "DEFAULT_REASON", "DEFAULT_CUTOFF_DAYS", "CHUNK_SIZE", "MAIN_STAGE_CODES",
-    "AS_OVERLAY_STATUSES", "OPEN_CLAIM_STATUSES", "OLD_CONSTRUCTION_BEFORE", "psycopg2",
+    "AS_OVERLAY_STATUSES", "OPEN_CLAIM_STATUSES", "OLD_CONSTRUCTION_BEFORE", "dict_row",
     "_connect", "_rows", "today_kst", "cutoff_iso", "assert_env_fingerprint",
     "fetch_candidates", "fetch_no_construction", "classify_row", "build_plan",
     "completed_workflow", "_snapshot_rows", "apply_one", "rollback_one",
 ]
 
 try:
-    import psycopg2
-    import psycopg2.extras
+    import psycopg
+    from psycopg.rows import dict_row
+    from psycopg.types.json import Jsonb
 except ImportError:  # pragma: no cover - 실행 환경 안내용
-    psycopg2 = None  # type: ignore[assignment]
+    psycopg = None  # type: ignore[assignment]
 
 BATCH_ID = "2026-09-22-backlog"
 DEFAULT_REASON = "2026-09 실측·도면 적체 정리(시공일 경과)"
@@ -64,22 +65,23 @@ def _connect(dsn: str, *, readonly: bool):
         readonly: True 면 세션을 읽기 전용으로 고정한다.
 
     Returns:
-        psycopg2 connection.
+        psycopg connection.
 
     Raises:
-        SystemExit: psycopg2 미설치.
+        SystemExit: psycopg 미설치.
     """
-    if psycopg2 is None:
-        raise SystemExit("psycopg2 가 필요합니다: pip install psycopg2-binary")
-    conn = psycopg2.connect(dsn)
+    if psycopg is None:
+        raise SystemExit("psycopg 가 필요합니다: pip install 'psycopg[binary]'")
+    # ClientCursor = 옛 드라이버(psycopg2)와 같은 클라이언트 쪽 바인딩 — 이 도구의 SQL 은 그 기준으로 쓰였다.
+    conn = psycopg.connect(dsn, cursor_factory=psycopg.ClientCursor)
     if readonly:
-        conn.set_session(readonly=True)
+        conn.read_only = True
     return conn
 
 
 def _rows(conn, sql: str, params: dict[str, Any] | None = None) -> list[dict[str, Any]]:
     """딕셔너리 커서로 조회한다."""
-    with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+    with conn.cursor(row_factory=dict_row) as cur:
         cur.execute(sql, params or {})
         return [dict(row) for row in cur.fetchall()]
 
@@ -125,10 +127,10 @@ SELECT o.id, o.customer_name, o.status, o.is_erp_order, o.erp_stage_code,
        (SELECT count(*) FROM jsonb_array_elements(
             CASE WHEN jsonb_typeof(o.structured_data->'quests') = 'array'
                  THEN o.structured_data->'quests' ELSE '[]'::jsonb END) q
-         WHERE upper(coalesce(q->>'status','')) NOT IN %(closed_quest)s) AS open_quests,
+         WHERE upper(coalesce(q->>'status','')) <> ALL(%(closed_quest)s)) AS open_quests,
        EXISTS (SELECT 1 FROM external_order_links l
                 WHERE l.order_id = o.id
-                  AND upper(coalesce(l.triage_state->'claim_sync'->>'last_status','')) IN %(open_claim)s
+                  AND upper(coalesce(l.triage_state->'claim_sync'->>'last_status','')) = ANY(%(open_claim)s)
               ) AS naver_claim_open
   FROM orders o
  WHERE o.deleted_at IS NULL
@@ -153,10 +155,11 @@ def fetch_candidates(conn, *, cutoff: str) -> list[dict[str, Any]]:
     Returns:
         행 dict 목록(id 오름차순).
     """
+    # psycopg 는 튜플을 ``IN (...)`` 목록으로 풀지 않는다 — 리스트(text[]) + ``ANY``/``ALL`` 로 넘긴다.
     return _rows(conn, _CANDIDATE_SQL, {
         "cutoff": cutoff,
-        "closed_quest": CLOSED_QUEST_STATUSES,
-        "open_claim": OPEN_CLAIM_STATUSES,
+        "closed_quest": list(CLOSED_QUEST_STATUSES),
+        "open_claim": list(OPEN_CLAIM_STATUSES),
     })
 
 
@@ -321,7 +324,7 @@ def apply_one(cur, item: dict[str, Any], *, actor_user_id: int, now: datetime,
     """항목 1건을 적용한다(호출부가 트랜잭션 소유).
 
     Args:
-        cur: RealDictCursor.
+        cur: dict_row 커서.
         item: plan 항목.
         actor_user_id: 이벤트·감사행 행위자.
         now: 기록 시각(naive UTC).
@@ -350,19 +353,19 @@ def apply_one(cur, item: dict[str, Any], *, actor_user_id: int, now: datetime,
                    erp_stage_updated_at = %s, structured_data = %s,
                    mutation_version = mutation_version + 1
              WHERE id = %s
-        """, (now, psycopg2.extras.Json(structured), oid))
+        """, (now, Jsonb(structured), oid))
     else:  # as_stage_only — status·AS 축은 손대지 않는다
         cur.execute("""
             UPDATE orders SET erp_stage_code = 'COMPLETED',
                    erp_stage_updated_at = %s, structured_data = %s,
                    mutation_version = mutation_version + 1
              WHERE id = %s
-        """, (now, psycopg2.extras.Json(structured), oid))
+        """, (now, Jsonb(structured), oid))
     to_status = "COMPLETED" if mode == "main" else item["observed_status"]
     cur.execute("""
         INSERT INTO order_events(order_id, event_type, payload, created_by_user_id, created_at)
         VALUES (%s, 'STAGE_OVERRIDE', %s, %s, %s)
-    """, (oid, psycopg2.extras.Json({
+    """, (oid, Jsonb({
         "from": item["observed_stage"], "to": "COMPLETED", "mode": "skip",
         "manual": False, "batch": BATCH_ID, "reason": reason, "apply_mode": mode,
         "from_status": item["observed_status"], "to_status": to_status,
@@ -375,7 +378,7 @@ def apply_one(cur, item: dict[str, Any], *, actor_user_id: int, now: datetime,
           f"주문 #{oid} ({item.get('customer_name') or ''}) — 일괄 완료: "
           f"{item['observed_stage']} → COMPLETED / status {item['observed_status']} → {to_status}"
           f" ({reason})", oid,
-          psycopg2.extras.Json({
+          Jsonb({
               "field": "status", "before": item["observed_status"], "after": to_status,
               "stage_before": item["observed_stage"], "stage_after": "COMPLETED",
               "batch": BATCH_ID, "apply_mode": mode, "reason": reason,
@@ -405,11 +408,11 @@ def rollback_one(cur, row: dict[str, Any], *, actor_user_id: int, now: datetime)
                structured_data = %s, mutation_version = mutation_version + 1
          WHERE id = %s
     """, (row["status"], row.get("erp_stage_code"), stage_updated,
-          psycopg2.extras.Json(structured), oid))
+          Jsonb(structured), oid))
     cur.execute("""
         INSERT INTO order_events(order_id, event_type, payload, created_by_user_id, created_at)
         VALUES (%s, 'STAGE_OVERRIDE', %s, %s, %s)
-    """, (oid, psycopg2.extras.Json({
+    """, (oid, Jsonb({
         "from": "COMPLETED", "to": row.get("erp_stage_code"), "mode": "restore",
         "manual": True, "batch": BATCH_ID, "reason": f"{BATCH_ID} 되돌리기",
         "from_status": cur_row["status"], "restored_status": row["status"],

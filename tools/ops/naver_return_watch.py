@@ -72,10 +72,11 @@ def collect(url: str) -> dict:
     Returns:
         ``{"links": [...], "never_seen": {...}, "total_rows": int}``.
     """
-    import psycopg2
+    import psycopg
 
-    conn = psycopg2.connect(url)
-    conn.set_session(readonly=True, autocommit=True)
+    # 읽기 전용 자동 커밋 세션(옛 set_session(readonly=True, autocommit=True) 과 같은 뜻).
+    conn = psycopg.connect(url, autocommit=True, cursor_factory=psycopg.ClientCursor,
+                           options="-c default_transaction_read_only=on")
     try:
         cur = conn.cursor()
         found: list[dict] = []

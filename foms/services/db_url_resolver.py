@@ -22,8 +22,7 @@ __all__ = [
     "PG_SQLALCHEMY_DRIVER",
 ]
 
-#: psycopg (3). Rollback to psycopg2 = set "psycopg2" here and restore the psycopg2 branch of
-#: postgres_dbapi_connect (psycopg2-binary stays installed until plan step 3).
+#: psycopg (3). psycopg2 was removed in plan step 3 (docs/plans/2026-09-28-psycopg3-migration-plan.md).
 PG_SQLALCHEMY_DRIVER = "psycopg"
 
 _ALLOWED_PG_QUERY_KEYS = frozenset(
@@ -76,7 +75,7 @@ def sqlalchemy_url(url: str) -> str:
 def postgres_dbapi_connect(connect_kwargs: dict[str, Any]) -> Any:
     """Open a raw DBAPI connection with the canonical driver (SQLAlchemy ``creator``, admin tools).
 
-    ``ClientCursor`` keeps psycopg2's client-side parameter binding: the app has ~900 raw
+    ``ClientCursor`` keeps the client-side parameter binding the app was written against (psycopg2): the app has ~900 raw
     ``text()`` statements and most tests run on SQLite, so server-side binding differences
     (``:x IS NULL``, parameters in ``SET``, multi-statement strings) would not be caught.
     Client-side cursors also never create prepared statements. psycopg is imported here —
@@ -105,12 +104,9 @@ def _psycopg_client_side_binding(dbapi_connection: Any, _connection_record: Any)
 
 
 def pg_error_code(error: BaseException) -> str | None:
-    """Return the PostgreSQL SQLSTATE of a (SQLAlchemy-wrapped) DBAPI error, if any.
-
-    psycopg exposes it as ``sqlstate``; psycopg2 as ``pgcode`` (no ``sqlstate``).
-    """
+    """Return the PostgreSQL SQLSTATE of a (SQLAlchemy-wrapped) psycopg error, if any."""
     orig = getattr(error, "orig", None) or error
-    return getattr(orig, "sqlstate", None) or getattr(orig, "pgcode", None)
+    return getattr(orig, "sqlstate", None)
 
 
 def _should_prefer_public_url(host: str | None) -> bool:

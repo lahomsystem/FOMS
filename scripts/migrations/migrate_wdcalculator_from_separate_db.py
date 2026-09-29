@@ -16,9 +16,16 @@ from __future__ import annotations
 
 import os
 import json
+import sys
+from pathlib import Path
 from typing import Optional, Tuple
 
 from sqlalchemy import create_engine, text
+
+# 저장소 루트를 import 경로에 넣는다 — `python scripts/migrations/...` 로 직접 부르면 그 폴더만 들어간다.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from foms.services.db_url_resolver import sqlalchemy_url  # noqa: E402
 
 
 def _normalize_postgres_url(url: str) -> str:
@@ -159,8 +166,8 @@ def main():
     if not dst_url:
         raise SystemExit("DATABASE_URL 환경변수가 필요합니다(현재 통합 Postgres DB URL).")
 
-    src_engine = create_engine(src_url, pool_pre_ping=True)
-    dst_engine = create_engine(dst_url, pool_pre_ping=True)
+    src_engine = create_engine(sqlalchemy_url(src_url), pool_pre_ping=True)
+    dst_engine = create_engine(sqlalchemy_url(dst_url), pool_pre_ping=True)
 
     with src_engine.begin() as src_conn, dst_engine.begin() as dst_conn:
         src_schema = _find_table_schema(src_conn, "estimates") or "public"

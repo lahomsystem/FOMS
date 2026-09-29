@@ -5,22 +5,22 @@ alembic_version 상태와 무관하게 실행되므로, alembic_version이 앞�
 """
 import os
 import sys
-import psycopg2
-from urllib.parse import urlparse
+from pathlib import Path
+
+# 저장소 루트를 import 경로에 넣는다 — predeploy.sh 가 `python tools/ops/ensure_schema.py` 로 부른다.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from foms.services.db_url_resolver import (  # noqa: E402
+    postgres_dbapi_connect,
+    postgresql_connect_kwargs_from_url,
+)
 
 db_url = os.environ.get("DATABASE_URL", "")
 if not db_url:
     print("[SCHEMA] DATABASE_URL 없음 — 스킵")
     sys.exit(0)
 
-p = urlparse(db_url)
-conn = psycopg2.connect(
-    host=p.hostname,
-    port=p.port or 5432,
-    dbname=p.path.lstrip("/"),
-    user=p.username,
-    password=p.password,
-)
+conn = postgres_dbapi_connect(postgresql_connect_kwargs_from_url(db_url))
 conn.autocommit = False
 cur = conn.cursor()
 
