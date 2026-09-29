@@ -97,8 +97,11 @@ def test_spaced_phone_number_found_in_both(client, app) -> None:
     assert f'data-order-id="{target}"' in _history_ids(client, "010 3030 4040")
 
 
-def test_four_digit_rule_same_in_both(client, app) -> None:
-    """숫자 4자리 = 전화 끝자리. 미리보기만 가운데 자리까지 잡으면 결과 화면과 갈린다."""
+def test_four_digit_rule_history_tail_unified_wide(client, app) -> None:
+    """숫자 4자리: 과거 이력은 전화 끝자리만, 통합 검색은 가운데 자리까지.
+
+    2026-09-29 사용자 결정 — 통합 검색은 번호 일부만 기억날 때도 찾도록 넓게 둔다.
+    """
     _login_admin(client)
     tail = _seed("끝자리", "010-8201-6514")
     middle = _seed("가운데", "010-6514-3333")
@@ -107,7 +110,7 @@ def test_four_digit_rule_same_in_both(client, app) -> None:
     history = _history_ids(client, "6514")
     assert tail in preview
     assert f'data-order-id="{tail}"' in history
-    assert middle not in preview, "미리보기가 가운데 자리까지 잡음"
+    assert middle in preview, "통합 검색이 가운데 자리를 놓침"
     assert f'data-order-id="{middle}"' not in history
 
 
