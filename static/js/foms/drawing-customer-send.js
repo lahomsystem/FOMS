@@ -5,10 +5,10 @@
  * - 서버는 기존 /api/share/* 를 그대로 부른다(create → send-alimtalk | send-sms, 내 폰 문자는 sms: 딥링크).
  * - 버튼은 응답이 올 때까지 잠근다. 도면 탭은 누를 때마다 새 링크라 서버 5초 중복 막기가 안 걸린다(§2.1).
  * - 발송 전 단계 실패(400·404·409·410·503)면 방금 만든 링크를 곧바로 회수한다(고아 링크가 '링크만 만듦'으로 안 보이게).
- * - 'network'·연결 끊김은 실제로 나갔을 수 있다 → 회수하지 않고 버튼을 잠근 채 둔다(두 통 방지).
+ * - 'network'·'unknown'·연결 끊김은 실제로 나갔을 수 있다 → 회수하지 않고 버튼을 잠근 채 둔다(두 통 방지).
  * - 토큰 원문은 이 함수 안 변수에만 둔다(저장소에 쓰지 않는다).
- * - window.FomsCustomerSend.savePhone(orderId, phone): 번호 바꾸기의 '주문 고객 번호도 저장'(Q5-②) —
- *   기존 인라인 필드 수정 라우트 PATCH /api/orders/<id>/structured/fields (parties.customer.phone) 를 쓴다.
+ * - window.FomsCustomerSend.savePhone(orderId, phone): '주문 고객 번호도 저장'(Q5-②) — 기존 인라인 라우트
+ *   PATCH /api/orders/<id>/structured/fields(parties.customer.phone), 하이픈 형식, X-If-Match=structured_updated_at.
  */
 (function () {
   'use strict';
@@ -28,8 +28,9 @@
     no_valid_phone: '고객 휴대폰 번호가 올바르지 않습니다',
     not_configured: '문자 발신 설정이 없습니다 — 관리자에게 문의하세요',
     duplicate_send: '방금 발송을 시도했습니다 — 잠시 후 다시 시도해 주세요',
-    invalid_phone: '수신 번호가 올바르지 않습니다',
-    INVALID_PHONE: '수신 번호가 올바르지 않습니다',
+    invalid_phone: '수신 번호가 올바르지 않습니다', INVALID_PHONE: '수신 번호가 올바르지 않습니다',
+    template_mismatch: '승인된 템플릿과 본문이 일치하지 않습니다', length_exceeded: '본문이 1,000자를 넘었습니다',
+    unknown: '보냈는지 확인되지 않는 오류가 났습니다',
     snapshot_too_large: '보낼 내용이 너무 큽니다',
     auth: '문자 인증 정보가 올바르지 않습니다',
     balance: '문자 잔액이 부족합니다',
@@ -59,6 +60,7 @@
     var digits = String(raw || '').replace(/[^0-9]/g, '');
     return /^01[016789][0-9]{7,8}$/.test(digits) ? digits : '';
   }
+  function hyphenPhone(d) { var m = d.length - 4; return d.slice(0, 3) + '-' + d.slice(3, m) + '-' + d.slice(m); }
 
   function overridePhone(root) {
     var box = q(root, '[data-send-phone-edit]');
@@ -151,15 +153,18 @@
    * @returns {Promise<{ok: boolean, error: string}>}
    */
   async function savePhone(orderId, phone) {
+    var digits = normalizePhone(phone);
+    var headers = { 'Content-Type': 'application/json', Accept: 'application/json' };
+    var stamp = attr(modal(), 'data-structured-updated-at');
+    if (stamp) headers['X-If-Match'] = stamp; // 그새 주문이 바뀌었으면 서버가 409 CONFLICT
     try {
       var res = await fetch('/api/orders/' + encodeURIComponent(orderId) + '/structured/fields', {
-        method: 'PATCH',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ field: 'parties.customer.phone', value: String(phone || '') }),
+        method: 'PATCH', credentials: 'same-origin', headers: headers,
+        body: JSON.stringify({ field: 'parties.customer.phone', value: digits ? hyphenPhone(digits) : String(phone || '') }),
       });
       var data = await res.json();
       if (res.ok && data && data.success) return { ok: true, error: '' };
+      if (data && data.error === 'CONFLICT') return { ok: false, error: '주문이 다른 곳에서 먼저 바뀌었어요 — 주문 화면에서 고쳐 주세요' };
       if (data && data.error === 'INLINE_DISABLED') return { ok: false, error: '주문 번호 저장은 주문 화면에서 해 주세요' };
       return { ok: false, error: (data && (data.message || data.error)) || ('HTTP ' + res.status) };
     } catch (_) {
@@ -200,6 +205,8 @@
     lockButtons(root, true);
     show(q(root, '[data-send-error]'), '');
     var created = await postJson('/api/share/create/' + encodeURIComponent(orderId), { kind: kind });
+    // 만들기 요청이 끊김 — 서버엔 링크가 생겼을 수 있다. 바로 다시 누르면 링크가 둘 → 잠그고 닫으면 새로고침.
+    if (created.thrown) { settle(root, '링크를 만들었는지 확실하지 않아요 — 닫으면 새로고침해 상태 줄을 확인해요', true); return; }
     var data = created.data;
     if (!data || !data.success || !data.data) {
       settle(root, '링크를 만들지 못했어요 — ' + label((data && data.error) || 'network'), false);
@@ -208,8 +215,8 @@
     var shareId = data.data.share_id;
     var token = data.data.token;
     var roundLabel = attr(root, 'data-round-label');
-    var doneText = (attr(root, 'data-customer-name') || '고객') + ' 고객님께 '
-      + (roundLabel ? roundLabel + ' ' : '') + '도면을 보냈어요.';
+    var customerName = attr(root, 'data-customer-name');
+    var doneText = (customerName ? customerName + ' ' : '') + '고객님께 ' + (roundLabel ? roundLabel + ' ' : '') + '도면을 보냈어요.';
 
     if (channel === 'mine') {
       var to = ov.phone || data.data.to_phone || '';
@@ -246,13 +253,13 @@
       return;
     }
     var code = result.error || sd.error || '';
-    if (sent.status === 200 && code && code !== 'network') {
+    if (sent.status === 200 && code && code !== 'network' && code !== 'unknown') {
       // 벤더가 접수를 거절 — 고객에게 안 갔다. 이벤트가 실패로 남으므로 회수하지 않는다.
       state.reloadOnHide = true;
       settle(root, CHANNEL_LABELS[channel] + '이 접수되지 않았어요 — ' + label(code), false);
       return;
     }
-    // 'network' 또는 알 수 없는 응답 — 실제로 나갔을 수 있다. 회수 금지 · 잠금 유지.
+    // 'network'·'unknown'(분류 못 한 예외) 또는 알 수 없는 응답 — 실제로 나갔을 수 있다. 회수 금지 · 잠금 유지.
     settle(root, UNSURE, true);
   }
 

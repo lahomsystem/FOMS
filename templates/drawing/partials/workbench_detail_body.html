@@ -1482,6 +1482,8 @@
           {% set cs = customer_send|default({}) %}
           {% set cs_bar = cs.bar|default([]) %}
           {% set cs_bar_keys = cs_bar|map(attribute='key')|list %}
+          {# 영업 쪽 항목(도면팀 PC 긴급 호출 urgent_call 제외) — 회차 기록 줄은 영업 쪽에만(§3.3·§3.4). #}
+          {% set cs_sales_bar = cs_bar|rejectattr('key', 'equalto', 'urgent_call')|list %}
           {% if cs.status_line %}
           <div class="small text-muted border rounded p-2 bg-light mt-2" data-customer-send-status>
             {{ cs.status_line }}{% if cs.views or cs.last_viewed_text %} <span class="text-secondary">(직원이 연 것도 셀 수 있어요)</span>{% endif %}
@@ -1489,7 +1491,7 @@
             {% if cs.link_only_text %}<div class="mt-1">{{ cs.link_only_text }}</div>{% endif %}
           </div>
           {% endif %}
-          {% if cs.steps and cs_bar %}
+          {% if cs.steps and cs_sales_bar %}
           <ol class="list-unstyled small mt-2 mb-0" data-customer-send-steps>
             {% for st in cs.steps %}
             <li class="{% if st.state == 'done' %}text-success{% elif st.state == 'now' %}text-primary fw-semibold{% else %}text-muted{% endif %}">
@@ -1525,8 +1527,21 @@
                예전 [수정 요청]·[수령 확정]·[수정요청 취소] 블록은 bar 가 대신 그린다(두 번 그리지 않게).
                id 유지: ok/ok_no_customer → #btn-confirm-receipt, cancel_revision → #btn-cancel-revision
                (drawing-handoff.js 대신 누르기 표·인라인 등록이 이 id 에 기댄다). #}
+            {# 대체(리뷰 P2): bar 에 같은 역할 키가 없고 옛 블록 조건이 참이면 옛 버튼을 같은 id 로 그린다 — S1 읽기 모델
+               없이 S2 만 올라가도 결정 바·모바일 대신 누르기가 끊기지 않게. S1 bar(drawing_customer_send_bar)는 이 세 조건이
+               참이면 늘 rev_*·ok*·cancel_revision 을 담으므로, S1 이 있으면 아래 대체는 붙지 않는다(테스트가 고정). #}
+            {% set bar_items = cs_sales_bar %}
+            {% if can_request_revision and drawing_status in ['TRANSFERRED', 'CONFIRMED'] and not (cs_bar_keys|select('in', ['rev_customer', 'rev_post', 'rev_sales'])|list) %}
+            {% set bar_items = bar_items + [{'key': 'rev_sales', 'label': '수정 요청', 'legacy': true}] %}
+            {% endif %}
+            {% if can_confirm_receipt and not (cs_bar_keys|select('in', ['ok', 'ok_no_customer'])|list) %}
+            {% set bar_items = bar_items + [{'key': 'ok_no_customer', 'label': '수령 확정', 'legacy': true}] %}
+            {% endif %}
+            {% if can_cancel_revision_request and drawing_status == 'RETURNED' and 'cancel_revision' not in cs_bar_keys %}
+            {% set bar_items = bar_items + [{'key': 'cancel_revision', 'label': '수정요청 취소', 'legacy': true}] %}
+            {% endif %}
             {% set bar_ns = namespace(ok_id=false) %}
-            {% for item in cs_bar if item.key != 'urgent_call' %}
+            {% for item in bar_items %}
             {% set k = item.key %}
             {% if k in ('send', 'resend') %}
             <button class="btn {% if k == 'resend' or item.tone == 'primary' %}btn-primary{% else %}btn-outline-primary{% endif %} btn-sm" type="button"
@@ -1536,16 +1551,16 @@
             </button>
             {% elif k in ('rev_customer', 'rev_post', 'rev_sales') %}
             <button class="btn {% if k == 'rev_sales' %}btn-outline-secondary{% else %}btn-outline-warning{% endif %} btn-sm" type="button"
-              data-bar-key="{{ k }}" data-bs-toggle="modal" data-bs-target="#dwRevisionModal"
+              data-bar-key="{{ k }}" data-bs-toggle="modal" data-bs-target="#dwRevisionModal"{% if item.legacy %} data-bar-legacy{% endif %}
               data-revision-source="{{ 'sales' if k == 'rev_sales' else 'customer' }}">
-              <i class="fas fa-undo"></i> {% if k == 'rev_sales' %}내 의견으로 수정요청{% else %}{{ item.label or ('고객이 또 바꿔 달래요' if k == 'rev_post' else '고객이 고쳐 달래요') }}{% endif %}
+              <i class="fas fa-undo"></i> {% if item.legacy %}{{ item.label }}{% elif k == 'rev_sales' %}내 의견으로 수정요청{% else %}{{ item.label or ('고객이 또 바꿔 달래요' if k == 'rev_post' else '고객이 고쳐 달래요') }}{% endif %}
             </button>
             {% elif k in ('ok', 'ok_no_customer') %}
             <button class="btn {% if k == 'ok' %}btn-success{% else %}btn-outline-success{% endif %} btn-sm" type="button"
               {% if not bar_ns.ok_id %}id="btn-confirm-receipt"{% set bar_ns.ok_id = true %}{% endif %}
-              data-bar-key="{{ k }}" data-bs-toggle="modal" data-bs-target="#dwCustomerOkModal"
+              data-bar-key="{{ k }}" data-bs-toggle="modal" data-bs-target="#dwCustomerOkModal"{% if item.legacy %} data-bar-legacy{% endif %}
               data-customer-ok-mode="{{ 'customer' if k == 'ok' else 'no_customer' }}">
-              <i class="fas fa-check-double"></i> {% if k == 'ok_no_customer' %}확정 (고객 답 없이){% else %}{{ item.label or '고객 OK · 확정' }}{% endif %}
+              <i class="fas fa-check-double"></i> {% if item.legacy %}{{ item.label }}{% elif k == 'ok_no_customer' %}확정 (고객 답 없이){% else %}{{ item.label or '고객 OK · 확정' }}{% endif %}
             </button>
             {% elif k == 'approve_confirm' %}
             <button class="btn btn-success btn-sm" type="button" data-bar-key="{{ k }}"
@@ -1561,7 +1576,7 @@
             <div class="small text-muted" data-approve-role-hint>고객 컨펌은 영업·CS 팀이 해요</div>
             {% endif %}
             {% elif k == 'cancel_revision' %}
-            <button class="btn btn-outline-warning btn-sm" type="button" id="btn-cancel-revision" data-bar-key="{{ k }}">
+            <button class="btn btn-outline-warning btn-sm" type="button" id="btn-cancel-revision" data-bar-key="{{ k }}"{% if item.legacy %} data-bar-legacy{% endif %}>
               <i class="fas fa-rotate-left"></i> {{ item.label or '수정요청 취소' }}
             </button>
             {% elif k == 'edit_revision' %}
@@ -2873,17 +2888,12 @@
     }
 
     async function cancelTransfer() {
-      // 고객에게 보낸 회차면 서버가 싣는 경고(폭별 문구)를 시트로 보인다 — 막지는 않는다(Q4). 시트가 없으면 확인창.
+      // 고객에게 보낸 회차면 경고 시트(폭별 문구 · [그래도 취소] · 영업에게 먼저 알리기)를 연다 — 막지는 않는다(Q4).
+      // 시트의 동작은 drawing-urgent-call-pc.js 에만 있으니, 그 JS 가 떴을 때만 시트로 간다. 아니면 경고 문구 확인창.
       const cancelBtn = document.getElementById('btn-cancel-transfer');
-      const narrow = !!(window.matchMedia && window.matchMedia('(max-width: 991.98px)').matches);
-      const warnText = cancelBtn ? String(cancelBtn.getAttribute(narrow ? 'data-customer-sent-text-mobile' : 'data-customer-sent-text-pc') || cancelBtn.getAttribute('data-customer-sent-text-pc') || '') : '';
-      const warnModal = document.getElementById('dwCancelWarnModal');
-      if (warnText && warnModal && window.bootstrap && window.bootstrap.Modal) {
-        const warnEl = warnModal.querySelector('[data-cancel-warn-text]');
-        if (warnEl) warnEl.textContent = warnText;
-        window.bootstrap.Modal.getOrCreateInstance(warnModal).show();
-        return;
-      }
+      if (window.__FOMS_DRAWING_URGENT_PC_BOUND && typeof window.fomsDrawingCancelWarn === 'function'
+        && window.fomsDrawingCancelWarn(cancelBtn)) return;
+      const warnText = cancelBtn ? String(cancelBtn.getAttribute('data-customer-sent-text-pc') || cancelBtn.getAttribute('data-customer-sent-text-mobile') || '') : '';
       if (!confirm(warnText || '전달 취소 시 최신 전달본 파일과 이력이 함께 정리됩니다. 진행할까요?')) return;
       try {
         const res = await fetch(`/api/orders/${orderId}/cancel-transfer`, { method: 'POST' });
@@ -2995,6 +3005,18 @@
       }
     }
 
+    // 새 시트 JS(보내기·고객 OK·요청 고치기)가 핀·캐시 문제로 안 떴으면 시트의 주 버튼이 조용히 죽는다 — 새로고침을 알린다.
+    function warnIfSheetJsMissing(e) {
+      const t = e.target && e.target.closest ? e.target.closest('[data-ok-submit], [data-send-submit], [data-edit-submit]') : null;
+      if (!t) return;
+      const flag = t.hasAttribute('data-ok-submit') ? '__FOMS_DRAWING_CUSTOMER_OK_BOUND'
+        : (t.hasAttribute('data-send-submit') ? '__FOMS_DRAWING_CUSTOMER_SEND_BOUND' : '__FOMS_DRAWING_REVISION_EDIT_BOUND');
+      if (!window[flag]) showWorkbenchToast('화면 파일을 아직 못 받았어요 — 새로고침한 뒤 다시 눌러 주세요.', 'error');
+    }
+    // 전역 리스너를 늘리지 않는다(프래그먼트 재실행 · perf 가드 G4) — 시트 요소에만 단다.
+    ['dwCustomerSendModal', 'dwCustomerOkModal', 'dwRevisionEditModal'].forEach((id) => {
+      document.getElementById(id)?.addEventListener('click', warnIfSheetJsMissing);
+    });
     document.getElementById('btn-submit-transfer')?.addEventListener('click', submitTransfer);
     document.getElementById('btn-submit-revision')?.addEventListener('click', submitRevision);
     document.getElementById('btn-cancel-transfer')?.addEventListener('click', cancelTransfer);
