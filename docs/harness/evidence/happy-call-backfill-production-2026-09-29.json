@@ -1,0 +1,437 @@
+{
+  "candidates": 86,
+  "written": 86,
+  "kept_existing_happy_call": 0,
+  "moved": [
+    {
+      "id": 1159,
+      "old_notes": "부재",
+      "stage": "MEASURED"
+    },
+    {
+      "id": 1165,
+      "old_notes": "부재",
+      "stage": "MEASURED"
+    },
+    {
+      "id": 1178,
+      "old_notes": "부재",
+      "stage": "MEASURED"
+    },
+    {
+      "id": 2675,
+      "old_notes": "부재",
+      "stage": "COMPLETED"
+    },
+    {
+      "id": 2695,
+      "old_notes": "부재",
+      "stage": "COMPLETED"
+    },
+    {
+      "id": 2696,
+      "old_notes": "부재",
+      "stage": "COMPLETED"
+    },
+    {
+      "id": 2859,
+      "old_notes": "부재",
+      "stage": "COMPLETED"
+    },
+    {
+      "id": 2948,
+      "old_notes": "부재",
+      "stage": "COMPLETED"
+    },
+    {
+      "id": 2997,
+      "old_notes": "부재",
+      "stage": "COMPLETED"
+    },
+    {
+      "id": 3049,
+      "old_notes": "부재",
+      "stage": "COMPLETED"
+    },
+    {
+      "id": 3057,
+      "old_notes": "부재",
+      "stage": "AS_COMPLETED"
+    },
+    {
+      "id": 3086,
+      "old_notes": "부재",
+      "stage": "COMPLETED"
+    },
+    {
+      "id": 3088,
+      "old_notes": "부재",
+      "stage": "COMPLETED"
+    },
+    {
+      "id": 3123,
+      "old_notes": "부재",
+      "stage": "COMPLETED"
+    },
+    {
+      "id": 3215,
+      "old_notes": "부재",
+      "stage": "AS_COMPLETED"
+    },
+    {
+      "id": 3268,
+      "old_notes": "부재",
+      "stage": "COMPLETED"
+    },
+    {
+      "id": 3376,
+      "old_notes": "부재",
+      "stage": "COMPLETED"
+    },
+    {
+      "id": 3383,
+      "old_notes": "부재",
+      "stage": "COMPLETED"
+    },
+    {
+      "id": 3403,
+      "old_notes": "부재",
+      "stage": "COMPLETED"
+    },
+    {
+      "id": 3404,
+      "old_notes": "부재",
+      "stage": "COMPLETED"
+    },
+    {
+      "id": 3423,
+      "old_notes": "부재",
+      "stage": "AS_COMPLETED"
+    },
+    {
+      "id": 3447,
+      "old_notes": "부재",
+      "stage": "COMPLETED"
+    },
+    {
+      "id": 3484,
+      "old_notes": "부재",
+      "stage": "COMPLETED"
+    },
+    {
+      "id": 3502,
+      "old_notes": "부재",
+      "stage": "COMPLETED"
+    },
+    {
+      "id": 3518,
+      "old_notes": "부재",
+      "stage": "COMPLETED"
+    },
+    {
+      "id": 3527,
+      "old_notes": "부재",
+      "stage": "COMPLETED"
+    },
+    {
+      "id": 3534,
+      "old_notes": "부재",
+      "stage": "COMPLETED"
+    },
+    {
+      "id": 3536,
+      "old_notes": "부재",
+      "stage": "COMPLETED"
+    },
+    {
+      "id": 3557,
+      "old_notes": "부재",
+      "stage": "COMPLETED"
+    },
+    {
+      "id": 3593,
+      "old_notes": "부재",
+      "stage": "COMPLETED"
+    },
+    {
+      "id": 3605,
+      "old_notes": "부재",
+      "stage": "COMPLETED"
+    },
+    {
+      "id": 3611,
+      "old_notes": "부재",
+      "stage": "AS_COMPLETED"
+    },
+    {
+      "id": 3633,
+      "old_notes": "부재",
+      "stage": "COMPLETED"
+    },
+    {
+      "id": 3646,
+      "old_notes": "부재",
+      "stage": "COMPLETED"
+    },
+    {
+      "id": 3688,
+      "old_notes": "부재",
+      "stage": "COMPLETED"
+    },
+    {
+      "id": 3710,
+      "old_notes": "부재",
+      "stage": "AS_RECEIVED"
+    },
+    {
+      "id": 3762,
+      "old_notes": "부재",
+      "stage": "COMPLETED"
+    },
+    {
+      "id": 3781,
+      "old_notes": "부재",
+      "stage": "COMPLETED"
+    },
+    {
+      "id": 3892,
+      "old_notes": "부재",
+      "stage": "COMPLETED"
+    },
+    {
+      "id": 3893,
+      "old_notes": "부재",
+      "stage": "COMPLETED"
+    },
+    {
+      "id": 3894,
+      "old_notes": "부재",
+      "stage": "COMPLETED"
+    },
+    {
+      "id": 3927,
+      "old_notes": "부재",
+      "stage": "COMPLETED"
+    },
+    {
+      "id": 3984,
+      "old_notes": "콜백",
+      "stage": "COMPLETED"
+    },
+    {
+      "id": 4014,
+      "old_notes": "부재",
+      "stage": "AS_COMPLETED"
+    },
+    {
+      "id": 4017,
+      "old_notes": "부재",
+      "stage": "COMPLETED"
+    },
+    {
+      "id": 4026,
+      "old_notes": "부재",
+      "stage": "COMPLETED"
+    },
+    {
+      "id": 4047,
+      "old_notes": "부재",
+      "stage": "COMPLETED"
+    },
+    {
+      "id": 4057,
+      "old_notes": "부재",
+      "stage": "AS_COMPLETED"
+    },
+    {
+      "id": 4086,
+      "old_notes": "부재",
+      "stage": "COMPLETED"
+    },
+    {
+      "id": 4164,
+      "old_notes": "콜백",
+      "stage": "COMPLETED"
+    },
+    {
+      "id": 4188,
+      "old_notes": "부재",
+      "stage": "COMPLETED"
+    },
+    {
+      "id": 4190,
+      "old_notes": "부재",
+      "stage": "COMPLETED"
+    },
+    {
+      "id": 4298,
+      "old_notes": "부재",
+      "stage": "COMPLETED"
+    },
+    {
+      "id": 4299,
+      "old_notes": "부재",
+      "stage": "COMPLETED"
+    },
+    {
+      "id": 4302,
+      "old_notes": "부재",
+      "stage": "COMPLETED"
+    },
+    {
+      "id": 4316,
+      "old_notes": "콜백",
+      "stage": "COMPLETED"
+    },
+    {
+      "id": 4342,
+      "old_notes": "부재",
+      "stage": "COMPLETED"
+    },
+    {
+      "id": 4371,
+      "old_notes": "부재",
+      "stage": "COMPLETED"
+    },
+    {
+      "id": 4437,
+      "old_notes": "부재",
+      "stage": "COMPLETED"
+    },
+    {
+      "id": 4502,
+      "old_notes": "부재",
+      "stage": "COMPLETED"
+    },
+    {
+      "id": 4575,
+      "old_notes": "부재",
+      "stage": "COMPLETED"
+    },
+    {
+      "id": 4595,
+      "old_notes": "부재",
+      "stage": "COMPLETED"
+    },
+    {
+      "id": 4602,
+      "old_notes": "부재",
+      "stage": "COMPLETED"
+    },
+    {
+      "id": 4606,
+      "old_notes": "부재",
+      "stage": "COMPLETED"
+    },
+    {
+      "id": 4612,
+      "old_notes": "부재",
+      "stage": "COMPLETED"
+    },
+    {
+      "id": 4660,
+      "old_notes": "부재",
+      "stage": "COMPLETED"
+    },
+    {
+      "id": 4758,
+      "old_notes": "부재",
+      "stage": "COMPLETED"
+    },
+    {
+      "id": 4772,
+      "old_notes": "부재",
+      "stage": "COMPLETED"
+    },
+    {
+      "id": 4783,
+      "old_notes": "부재",
+      "stage": "COMPLETED"
+    },
+    {
+      "id": 4860,
+      "old_notes": "부재",
+      "stage": "COMPLETED"
+    },
+    {
+      "id": 4881,
+      "old_notes": "부재",
+      "stage": "COMPLETED"
+    },
+    {
+      "id": 4911,
+      "old_notes": "부재",
+      "stage": "COMPLETED"
+    },
+    {
+      "id": 4963,
+      "old_notes": "부재",
+      "stage": "COMPLETED"
+    },
+    {
+      "id": 5158,
+      "old_notes": "부재",
+      "stage": "MEASURE"
+    },
+    {
+      "id": 5162,
+      "old_notes": "부재",
+      "stage": "MEASURE"
+    },
+    {
+      "id": 5175,
+      "old_notes": "부재",
+      "stage": "MEASURE"
+    },
+    {
+      "id": 5211,
+      "old_notes": "부재",
+      "stage": "COMPLETED"
+    },
+    {
+      "id": 5266,
+      "old_notes": "부재",
+      "stage": "COMPLETED"
+    },
+    {
+      "id": 5293,
+      "old_notes": "부재",
+      "stage": "MEASURE"
+    },
+    {
+      "id": 5306,
+      "old_notes": "부재",
+      "stage": "DRAWING"
+    },
+    {
+      "id": 5315,
+      "old_notes": "부재",
+      "stage": "MEASURE"
+    },
+    {
+      "id": 5316,
+      "old_notes": "부재",
+      "stage": "MEASURE"
+    },
+    {
+      "id": 5321,
+      "old_notes": "부재",
+      "stage": "MEASURE"
+    },
+    {
+      "id": 5339,
+      "old_notes": "부재",
+      "stage": "DRAWING"
+    },
+    {
+      "id": 5361,
+      "old_notes": "부재",
+      "stage": "MEASURE"
+    },
+    {
+      "id": 5395,
+      "old_notes": "부재",
+      "stage": "MEASURE"
+    }
+  ]
+}
