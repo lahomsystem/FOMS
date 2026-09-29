@@ -500,9 +500,14 @@ def test_locked_row_cannot_be_bulk_selected(client, workbench_on):
     locked = next(row for row in _rows_html(body) if "잠긴 집" in row)
     open_row = next(row for row in _rows_html(body) if "열린 집" in row)
 
-    assert "disabled" in locked, locked
     assert "wb-row--locked" in locked
-    assert "disabled" not in open_row, open_row
+    # 체크박스는 줄 링크 밖 형제다(2026-09-30 P1 · N-36) — 줄 상자(체크 label + 링크)에서 잰다.
+    boxes = [chunk.split("</a>")[0] for chunk in body.split('<div class="wb-rowbox')[1:]]
+    locked_box = next(box for box in boxes if "잠긴 집" in box)
+    open_box = next(box for box in boxes if "열린 집" in box)
+    assert "disabled" in locked_box, locked_box
+    assert "disabled" not in open_box, open_box
+    assert 'class="wb-pick"' not in locked, "체크박스가 다시 줄 링크 안으로 들어갔다(N-36)"
 
 
 # --------------------------------------------------------------------------- #

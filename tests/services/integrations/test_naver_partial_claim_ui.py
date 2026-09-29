@@ -141,8 +141,9 @@ def _list_row(client, order_no: str) -> str:
     줄의 ``data-find`` 에 소문자로만 들어 있어 소문자로 맞춘다.
     """
     body = client.get(f"{TRIAGE_PATH}?tab=work").get_data(as_text=True)
-    for chunk in body.split('<a class="wb-row')[1:]:
-        row = '<a class="wb-row' + chunk.split("</a>")[0]
+    # 체크박스는 2026-09-30(P1 · N-36)부터 줄 링크 **밖** 형제다 — 줄 상자(체크 label + 링크)째 자른다.
+    for chunk in body.split('<div class="wb-rowbox')[1:]:
+        row = '<div class="wb-rowbox' + chunk.split("</a>")[0]
         if order_no.lower() in row:
             return row
     raise AssertionError(f"목록에 '{order_no}' 집의 줄이 없다")
@@ -269,9 +270,9 @@ def test_js_sends_product_order_ids_and_locks_more_buttons():
     assert "innerHTML" not in block, "새 함수 블록이 innerHTML 을 쓴다(XSS) — textContent 만"
 
 
-def test_workbench_pins_moved_to_20260930a():
+def test_workbench_pins_moved_to_20260930b():
     """CSS·JS 를 고쳤으면 ``?v`` 핀이 함께 움직인다(SW staticCacheFirst) — 2026-09-14 재결제 예정 표시·부분 클레임 발송."""
     markup = WORKBENCH_TEMPLATE.read_text(encoding="utf-8")
 
-    assert markup.count("?v=20260930a") == 2
+    assert markup.count("?v=20260930b") == 2
     assert "?v=20260914b" not in markup

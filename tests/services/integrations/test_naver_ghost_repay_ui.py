@@ -30,11 +30,16 @@ def test_both_ghost_screens_carry_the_repay_button():
     이 버튼이 표시를 켜는 유일한 입구다. 템플릿에서 사라져도 라우트는 살아 있어 서버
     테스트가 전부 초록이고 화면에서만 기능이 죽는다 — 글자로 못박는 수밖에 없다.
     """
-    for path in (BAND_TEMPLATE, PANE_TEMPLATE):
+    # 띠는 줄마다 버튼이 나와 id 대신 클래스로 문다(2026-09-30 P1 · 감사 원장 N-35 — 같은 id 5번 중복).
+    # pane 은 한 벌이라 id 그대로다.
+    for path, hook in ((BAND_TEMPLATE, 'wb-ghost-repay-expected"'),
+                       (PANE_TEMPLATE, 'id="wb-ghost-repay-expected"')):
         markup = path.read_text(encoding="utf-8")
-        for needle in ('id="wb-ghost-repay-expected"', "data-expected=",
+        for needle in (hook, "data-expected=",
                        "재결제 기다림", "표시 풀기", "재결제 예정"):
             assert needle in markup, f"{path} 에 {needle} 가 없다"
+    assert 'id="wb-ghost-repay-expected"' not in BAND_TEMPLATE.read_text(encoding="utf-8"), \
+        "띠에 줄마다 같은 id 가 다시 생겼다(N-35)"
 
 
 def test_the_js_registers_the_repay_handler():
@@ -46,6 +51,7 @@ def test_the_js_registers_the_repay_handler():
     js = WORKBENCH_JS.read_text(encoding="utf-8")
 
     for needle in ("'wb-ghost-repay-expected': submitGhostRepayExpected",
+                   "btn.classList.contains('wb-ghost-repay-expected')",
                    "/repay-expected", "softRefresh()"):
         assert needle in js, f"{needle} 가 JS 에 없다"
 
