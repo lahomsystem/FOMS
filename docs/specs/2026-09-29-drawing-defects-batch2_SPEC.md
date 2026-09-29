@@ -1087,7 +1087,7 @@ powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1; echo EXIT=$?        
 11. `drawing_wizard.versions` 항목이 산출 PNG key 를 가리키는지(§4.3.5 `drawing_keys_in_use` 범위).
 12. 모바일 큐 카드·태블릿 시트 화면에 `foms-admin-override.js`·사유 시트가 실려 있는지(없으면 싣는다).
 13. 강제 변경 창을 여는 템플릿이 도면 상태를 넘길 수 있는 위치(§4.2.8).
-14. 마법사 시트 재저장이 옛 pending key 를 커밋 뒤 동기 삭제한다(`foms/api/drawing/wizard.py:1015-1019`). pending 을 비우지 않고 그 key 를 전달한 경우(API 로 files 에 직접 넣기) 현재 도면 파일이 지워질 수 있다 — 원장 밖, 코드 추정. 재현되면 공통 판정 적용 대상.
+14. 마법사 시트 재저장이 옛 pending key 를 커밋 뒤 동기 삭제한다(`foms/api/drawing/wizard.py:1015-1019`). pending 을 비우지 않고 그 key 를 전달한 경우(API 로 files 에 직접 넣기) 현재 도면 파일이 지워질 수 있다 — 원장 밖, 코드 추정. 재현되면 공통 판정 적용 대상. → **2026-09-30 반영**: 재저장·스냅샷 가지치기의 옛 파일 삭제가 `split_deletable_keys(scope='drawing')` 를 거치고, 마법사 부가 쓰기 3곳이 행 잠금 + 버전 +1 로 바뀜(DECISIONS 2026-09-30).
 
 ---
 

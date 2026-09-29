@@ -29,8 +29,10 @@ from foms.services.orders.revision import (
     MutationResult,
     RevisionError,
     execute_order_mutation,
+    execute_single_order_write,
     lock_order_row,
 )
+from foms.services.orders.drawing_key_safety import split_deletable_keys
 from foms.services.orders.drawing_wizard_pending import (
     DrawingWizardPendingError,
     mark_delete_pending,
@@ -118,6 +120,10 @@ _CLIENT_OWNED_STATE_KEYS = ('v', 'sheets')
 #: REV-00 receipt·idempotency scope 용 정책 id. authz POLICY_REGISTRY 의 DRAWING_ASSIGNED
 #: (route 권한 판정)와는 별개이며 receipt 저장 scope 만 식별한다.
 DRAWING_WIZARD_PUT_POLICY_ID = 'DRAWING_WIZARD_PUT'
+# 마법사 부가 쓰기 3곳(시트 PNG 대기 등록 · 대기 삭제 · 버전 스냅샷) — 행 잠금 + 버전 +1(2026-09-30).
+DRAWING_WIZARD_SHEET_PNG_POLICY_ID = 'DRAWING_WIZARD_SHEET_PNG'
+DRAWING_WIZARD_PENDING_DELETE_POLICY_ID = 'DRAWING_WIZARD_PENDING_DELETE'
+DRAWING_WIZARD_SNAPSHOT_POLICY_ID = 'DRAWING_WIZARD_SNAPSHOT'
 
 
 def _load_order(db, order_id):
@@ -140,6 +146,36 @@ def _load_structured_data(order) -> dict:
         except (ValueError, TypeError):
             return {}
     return {}
+
+
+def _lock_active_order(db, order_id):
+    """첫 조회를 행 잠금으로(2a-1② 패턴) — 활성 ERP 주문 판정은 잠근 최신 행 위에서. 없으면 None."""
+    order = lock_order_row(db, order_id)
+    if order is None:
+        return None
+    return _load_order(db, order_id)
+
+
+def _write_structured(db, order_id: int, actor_user_id: int, policy_id: str, payload: dict,
+                      sd: dict) -> None:
+    """잠근 주문에 ``sd`` 를 재대입·``flag_modified`` 하고 엔진이 버전을 1 올린다(커밋은 호출자)."""
+    def _write(locked):
+        locked.structured_data = sd
+        flag_modified(locked, 'structured_data')
+
+    execute_single_order_write(
+        db, order_id=int(order_id), actor_user_id=actor_user_id,
+        policy_id=policy_id, payload=payload, write=_write,
+    )
+
+
+def _deletable_after(db, order_id: int, sd_after: dict, keys) -> list:
+    """커밋 뒤 지울 후보 중 "지워도 되는 key"만(공통 판정 drawing_key_safety, 스코프 drawing)."""
+    cands = [k for k in (keys or []) if isinstance(k, str) and k]
+    if not cands:
+        return []
+    deletable, _retained = split_deletable_keys(db, order_id, sd_after, cands, scope='drawing')
+    return [k for k in cands if k in deletable]
 
 
 def _versions_prefix(order_id: int) -> str:
@@ -986,6 +1022,19 @@ def api_post_drawing_wizard_sheet_png(order_id):
             return jsonify({'success': False, 'message': '파일 업로드에 실패했습니다.'}), 500
         key = result.get('key')
 
+        # 업로드(느린 외부 호출)는 잠금 밖에서, 기록은 잠근 최신 행 위에서(2026-09-30 — 예전에는
+        # 잠금 없이 읽은 옛 dict 를 되써서 그 사이 커밋된 전달·수정요청을 지웠다).
+        order = _lock_active_order(db, order_id)
+        if order is None or not _can_save_wizard(current_user, order):
+            db.rollback()
+            try:
+                storage.delete_file(key)
+            except Exception as del_err:
+                logger.warning("sheet-png orphan upload delete failed (%s): %s", key, del_err)
+            if order is None:
+                return jsonify({'success': False, 'message': _MSG_NOT_FOUND}), 404
+            return jsonify({'success': False, 'message': _MSG_FORBIDDEN}), 403
+
         # 전달 대기함(pending)에 기록 — deepcopy(_load_structured_data) + flag_modified.
         sd = _load_structured_data(order)
         wiz = sd.get('drawing_wizard')
@@ -1007,17 +1056,19 @@ def api_post_drawing_wizard_sheet_png(order_id):
             'at': now_kst().strftime('%Y-%m-%d %H:%M'),
             'sheet_name': sheet_name,
         }
-        order.structured_data = sd
-        flag_modified(order, 'structured_data')
+        # 옛 대기 파일은 지금 어떤 도면 기록(전달된 현재본·이력·버전)도 안 쓸 때만 지운다(§10-14).
+        stale = _deletable_after(db, order_id, sd, [old_key] if old_key and old_key != key else [])
+        _write_structured(db, order_id, current_user.id, DRAWING_WIZARD_SHEET_PNG_POLICY_ID,
+                          {'sheet_id': sheet_id, 'key': key}, sd)
         _audit_wizard(order, "DRAWING_WIZARD_SHEET_SAVED", note=sheet_name,
                       extra={"sheet_name": sheet_name, "storage_key": key})
         db.commit()
 
-        if old_key and old_key != key:
+        for stale_key in stale:
             try:
-                storage.delete_file(old_key)
+                storage.delete_file(stale_key)
             except Exception as del_err:
-                logger.warning("sheet-png pending stale delete failed (%s): %s", old_key, del_err)
+                logger.warning("sheet-png pending stale delete failed (%s): %s", stale_key, del_err)
 
         return jsonify({'success': True, 'data': {'key': key}})
     except Exception as e:
@@ -1285,7 +1336,8 @@ def api_delete_drawing_wizard_pending(order_id: int, sheet_id: str):
     db = None
     try:
         db = get_db()
-        order = _load_order(db, order_id)
+        # 첫 조회부터 행 잠금(2026-09-30) — 판정·deepcopy 는 잠근 최신 행 위에서.
+        order = _lock_active_order(db, order_id)
         if not order:
             return jsonify({'success': False, 'message': _MSG_NOT_FOUND}), 404
 
@@ -1326,8 +1378,8 @@ def api_delete_drawing_wizard_pending(order_id: int, sheet_id: str):
         pending.pop(sheet_id, None)
 
         sd['drawing_wizard'] = dw
-        order.structured_data = sd
-        flag_modified(order, 'structured_data')
+        _write_structured(db, order_id, current_user.id, DRAWING_WIZARD_PENDING_DELETE_POLICY_ID,
+                          {'sheet_id': str(sheet_id)}, sd)
         _audit_wizard(order, "DRAWING_WIZARD_PENDING_DELETED", note=str(sheet_id),
                       extra={"sheet_id": str(sheet_id), "deleted_key": deleted_key})
         db.commit()
@@ -1427,7 +1479,8 @@ def api_post_drawing_wizard_version_snapshot(order_id):
     db = None
     try:
         db = get_db()
-        order = _load_order(db, order_id)
+        # 첫 조회부터 행 잠금(2026-09-30) — 버전 번호·30개 가지치기를 잠근 최신 목록 위에서 계산한다.
+        order = _lock_active_order(db, order_id)
         if not order:
             return jsonify({'success': False, 'message': _MSG_NOT_FOUND}), 404
 
@@ -1457,19 +1510,24 @@ def api_post_drawing_wizard_version_snapshot(order_id):
             versions = []
 
         storage = get_storage()
+        stale_keys: list = []
         next_v = _append_sheet_version(
-            storage, order_id, sheet, sheet_id, sheet_name, versions, current_user
+            storage, order_id, sheet, sheet_id, sheet_name, versions, current_user,
+            stale_keys=stale_keys,
         )
         if next_v is None:
+            db.rollback()
             return jsonify({'success': False, 'message': '버전 저장에 실패했습니다.'}), 500
 
         dw['versions'] = versions
         sd['drawing_wizard'] = dw
-        order.structured_data = sd
-        flag_modified(order, 'structured_data')
+        stale = _deletable_after(db, order_id, sd, stale_keys)
+        _write_structured(db, order_id, current_user.id, DRAWING_WIZARD_SNAPSHOT_POLICY_ID,
+                          {'sheet_id': sheet_id, 'v': next_v}, sd)
         _audit_wizard(order, "DRAWING_WIZARD_SNAPSHOT_SAVED", note=f"v{next_v}",
                       extra={"version": next_v})
         db.commit()
+        delete_stale_version_files(stale, storage)  # 커밋 뒤에만
 
         return jsonify({'success': True, 'data': {'v': next_v}})
     except Exception as e:
