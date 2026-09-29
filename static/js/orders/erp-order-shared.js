@@ -792,7 +792,12 @@ window.erpSetStatus = erpSetStatus;
 // channeltalk_push_drawing_room: 도면방 PUSH 는 도면 마법사에서만 보낸다. 주문 화면은 이 기록을
 // 바꾸지 않으므로 PUT 에 실을 이유가 없고(실으면 마법사가 그 사이 쓴 기록을 덮는다), 화면 사본에만
 // 남겨 PUSH 흔적 칩이 저장 뒤에도 사라지지 않게 한다(2026-09-23).
-var ERP_LOCAL_ONLY_TRACE_KEYS = ['alimtalk_measurement', 'alimtalk_share', 'channeltalk_push_drawing_room'];
+// 도면 축·퀘스트·고객확인(2026-09-29 도면 결함 2차 M1): 서버가 폼 저장에서 잠그는 키라 PUT 에 싣지
+// 않는다(실으면 폼을 연 뒤 도면팀이 바꾼 상태를 낡은 사본으로 되돌리려 한다). 화면 사본에서만 유지한다.
+var ERP_LOCAL_ONLY_TRACE_KEYS = ['alimtalk_measurement', 'alimtalk_share', 'channeltalk_push_drawing_room',
+    'quests', 'drawing', 'blueprint', 'drawing_status', 'drawing_transferred', 'drawing_confirmed_at',
+    'drawing_confirmed_by', 'drawing_current_files', 'drawing_transfer_history', 'last_drawing_transfer',
+    'drawing_assignees'];
 
 /**
  * 저장 직후 새 화면 사본(next)에 직전 사본(prev)의 서버 소유 발송 이력을 옮겨 담는다.
@@ -2204,21 +2209,13 @@ function erpCollectStructured() {
     const prevSd = (window.__erpLastStructuredData && typeof window.__erpLastStructuredData === 'object')
         ? window.__erpLastStructuredData
         : {};
+    // 도면 축·퀘스트·고객확인(blueprint)은 싣지 않는다 — 서버가 폼 값과 무관하게 저장 순간의
+    // 서버값으로 고정한다(structured_form_projection.lock_server_owned_keys). 화면 사본에는
+    // ERP_LOCAL_ONLY_TRACE_KEYS 로 옮겨 담는다.
     const preservedTopLevelKeys = [
         'shipment',
         'assignments',
-        'quests',
         'meta',
-        'drawing',
-        'blueprint',
-        'drawing_status',
-        'drawing_transferred',
-        'drawing_confirmed_at',
-        'drawing_confirmed_by',
-        'drawing_current_files',
-        'drawing_transfer_history',
-        'last_drawing_transfer',
-        'drawing_assignees',
         'estimate_preview',
         'channeltalk_push',
         'channeltalk_push_drawing',
@@ -2871,7 +2868,8 @@ async function erpSaveStructuredOnce(opts = {}) {
             const wantsOverwrite = confirm(
                 '다른 사용자가 이 주문을 먼저 수정했습니다.\n' +
                 '내 입력으로 덮어쓸까요?\n\n' +
-                '(취소하면 저장하지 않고 입력한 내용을 그대로 둡니다)'
+                '(취소하면 저장하지 않고 입력한 내용을 그대로 둡니다)\n' +
+                '(도면·퀘스트·고객확인 정보는 서버가 지키므로 덮어써도 바뀌지 않습니다)'
             );
             if (!wantsOverwrite) {
                 erpSetStatus('저장하지 않았습니다. 입력한 내용은 그대로 남아 있습니다.', true);
