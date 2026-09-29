@@ -2,6 +2,39 @@
    이유 줄은 두 갈래: 반영 체크 막힘(전달 권한자) · 담당 아닌 도면팀(M14-a). 둘은 can_transfer 로 갈려 겹치지 않는다. #}
 {% set _gate_reason = can_transfer and not can_open_transfer and transfer_gated_by_revision_checklist %}
 {% set _bar_reason = _gate_reason or show_transfer_assignee_only_hint %}
+{# 도면 탭 고객 보내기(설계서 2026-09-29 §3.0·§3.1·§3.3) — 버튼·문구는 서버가 한 번 판정한 customer_send 를
+   읽기만 한다(PC 결정 바와 같은 목록). 빈 값이면 새 버튼·줄은 하나도 안 보인다. #}
+{% set cs = customer_send|default({}) %}
+{% set _cs_bar = cs.bar|default([]) %}
+{% set _cs_keys = _cs_bar|map(attribute='key')|list %}
+{% set _cs_main = _cs_bar|rejectattr('slot', 'equalto', 'more')|list %}
+{% set _cs_more = _cs_bar|selectattr('slot', 'equalto', 'more')|list %}
+{# 영업 쪽 = 수정요청 버튼과 같은 술어(workbench.py can_request_revision). 도면팀은 기록 줄 대신 상태 한 줄. #}
+{% set _cs_sales_side = can_request_revision %}
+{# 모바일 전용 [긴급](PC 결정 바에는 없다) — 보낸 뒤·확정 뒤 영업 바에서는 빠진다(목업: 바 버튼 3개).
+   서버 목록에 urgent_call(도면팀)이 있으면 그것으로 그린다 — 두 번 그리지 않는다. #}
+{% set _cs_full_bar_keys = ['resend', 'ok', 'rev_post', 'approve_confirm', 'production'] %}
+{% set _show_fixed_urgent = ('urgent_call' not in _cs_keys) and not (_cs_keys|select('in', _cs_full_bar_keys)|list) %}
+{% set _cs_selected_key = mobile_handoff_selected_file.key if mobile_handoff_selected_file else '' %}
+{# 버튼 키 → 여는 시트·모양. 시트 본문과 그 JS 는 workbench_detail_body.html(PC·모바일 공용)에 있다. #}
+{% set _cs_icons = {'send': 'fa-paper-plane', 'resend': 'fa-paper-plane', 'rev_customer': 'fa-pen',
+  'rev_post': 'fa-pen', 'rev_sales': 'fa-undo', 'ok': 'fa-check', 'ok_no_customer': 'fa-check',
+  'approve_confirm': 'fa-check-double', 'production': 'fa-industry', 'cancel_revision': 'fa-rotate-left',
+  'edit_revision': 'fa-pen-to-square', 'urgent_call': 'fa-bolt'} %}
+{% set _cs_widths = {'resend': 'slim', 'rev_sales': 'slim', 'ok_no_customer': 'slim', 'rev_customer': 'mid',
+  'ok': 'mid', 'production': 'wide'} %}
+{% set _cs_tones = ['primary', 'success', 'warn', 'line', 'urgent'] %}
+{% macro cs_bar_attrs(item, order_id, selected_key) -%}
+data-cs-bar-key="{{ item.key }}"
+{%- if item.key in ('send', 'resend') %} data-bs-toggle="modal" data-bs-target="#dwCustomerSendModal" data-order-id="{{ order_id }}" data-customer-send-mode="{{ 'again' if item.key == 'resend' else 'first' }}"
+{%- elif item.key in ('rev_customer', 'rev_post', 'rev_sales') %} data-bs-toggle="modal" data-bs-target="#dwRevisionModal" data-revision-source="{{ 'sales' if item.key == 'rev_sales' else 'customer' }}" data-drawing-handoff-action="revision" data-drawing-key="{{ selected_key }}"
+{%- elif item.key in ('ok', 'ok_no_customer') %} data-bs-toggle="modal" data-bs-target="#dwCustomerOkModal" data-order-id="{{ order_id }}" data-customer-ok-mode="{{ 'no_customer' if item.key == 'ok_no_customer' else 'customer' }}"
+{%- elif item.key == 'approve_confirm' %} data-customer-approve data-order-id="{{ order_id }}"
+{%- elif item.key == 'cancel_revision' %} data-drawing-handoff-action="cancel-revision"
+{%- elif item.key == 'edit_revision' %} data-bs-toggle="modal" data-bs-target="#dwRevisionEditModal" data-order-id="{{ order_id }}"
+{%- elif item.key == 'urgent_call' %} data-foms-urgent-call data-order-id="{{ order_id }}"
+{%- endif %}
+{%- endmacro %}
 <div class="erp-mobile-shell foms-drawing-handoff d-lg-none{% if _bar_reason %} foms-drawing-handoff--bar-reason{% endif %}"
   data-handoff-mode="{{ mobile_handoff_view }}"
   data-selected-drawing-key="{{ mobile_handoff_selected_file.key if mobile_handoff_selected_file else '' }}"
@@ -20,7 +53,8 @@
       <span class="foms-drawing-turn__dot" aria-hidden="true"></span>
       <div>
         <h2>{{ mobile_handoff_turn.label }}</h2>
-        <p>{{ mobile_handoff_turn.sub }}</p>
+        {# 영업 쪽 부제는 고객 쪽 진행(turn_hint)으로 — label 은 도면팀·목록 카드가 같이 쓰므로 그대로 둔다(§3.1-1). #}
+        <p>{{ cs.turn_hint if (_cs_sales_side and cs.turn_hint) else mobile_handoff_turn.sub }}</p>
       </div>
       {# 주문 변경 신호는 이 한 줄뿐이다. 값(이전 → 이후)은 타임라인 말풍선 한 곳에만 둔다.
          이 섹션은 목록/상세 분기 바깥이라 도면 목록 화면에도 그대로 따라온다. #}
@@ -52,6 +86,22 @@
         <span>#{{ order.id }} · {{ order.address or '-' }}</span>
       </div>
       <p>주문 담당 {{ manager_name }} · 도면 담당 {{ assignee_text }}</p>
+      {# 회차 기록 줄·상태 한 줄은 새 <section>·<details> 를 만들지 않고 이 칸 안에 둔다(상단 블록 수 고정). #}
+      {% if _cs_sales_side and cs.steps %}
+      <ol class="foms-drawing-send-steps" aria-label="도면 회차 기록{% if cs.round_text %} · {{ cs.round_text }}{% endif %}">
+        {% for step in cs.steps[:4] %}
+        <li class="foms-drawing-send-steps__item is-{{ step.state }}" data-step-state="{{ step.state }}">
+          <span class="foms-drawing-send-steps__dot" aria-hidden="true">{% if step.state == 'done' %}<i class="fas fa-check"></i>{% else %}{{ loop.index }}{% endif %}</span>
+          <span class="foms-drawing-send-steps__text"><b>{{ step.label }}</b>{% if step.sub %}<small>{{ step.sub }}</small>{% endif %}</span>
+          {% if step.when %}<time class="foms-drawing-send-steps__when">{{ step.when }}</time>{% endif %}
+        </li>
+        {% endfor %}
+      </ol>
+      {% if cs.prev_summary %}<p class="foms-drawing-send-steps__prev">{{ cs.prev_summary }}</p>{% endif %}
+      {% elif cs.status_line %}
+      {# 영업 → 고객 상태(읽기 전용) — 도면팀이 고객에게 보냈는지·링크가 열렸는지 본다(C18). #}
+      <p class="foms-drawing-handoff__send-status"><i class="fas fa-paper-plane" aria-hidden="true"></i> {{ cs.status_line }}</p>
+      {% endif %}
     </section>
 
     {% if mobile_handoff_invalid_drawing_key %}
@@ -191,7 +241,12 @@
       <article class="foms-drawing-thread__msg foms-drawing-thread__msg--{{ event.side }}{% if event.is_highlight %} is-highlight{% endif %}{% if event.action == 'ERP_ORDER_CHANGED' and event.acked %} is-acked{% endif %}">
         <div class="foms-drawing-thread__who">{{ event.by_text }}</div>
         <div class="foms-drawing-thread__bubble">
+          {# 고객 요청(출처 customer)이면 "고객 요청 · 1차 · 카톡 답장" — 서버가 만든 source_tag 를 그대로(§4.5). #}
+          {% if event.source_tag %}
+          <span class="foms-drawing-thread__tag foms-drawing-thread__tag--customer">{{ event.source_tag }}{% if event.target_text %} · {{ event.target_text }}{% endif %}</span>
+          {% else %}
           <span class="foms-drawing-thread__tag">{{ event.tag }}{% if event.target_text %} · {{ event.target_text }}{% endif %}</span>
+          {% endif %}
           {% if event.action == 'ERP_ORDER_CHANGED' and event.changes %}
           <ul class="foms-drawing-thread__changes">
             {% for c in event.changes %}
@@ -302,31 +357,103 @@
         <i class="fas fa-user-lock"></i><span>전달 불가</span>
       </button>
     {% endif %}
-    {% if can_request_revision and drawing_status in ['TRANSFERRED', 'CONFIRMED'] %}
-    <button class="foms-drawing-action-bar__btn" type="button" data-bs-toggle="modal" data-bs-target="#dwRevisionModal"
-      data-drawing-handoff-action="revision" data-drawing-key="{{ mobile_handoff_selected_file.key if mobile_handoff_selected_file else '' }}">
-      <i class="fas fa-undo"></i><span>수정요청</span>
-    </button>
-    {% endif %}
-    {% if can_cancel_revision_request and drawing_status == 'RETURNED' %}
-    <button class="foms-drawing-action-bar__btn" type="button" data-drawing-handoff-action="cancel-revision">
-      <i class="fas fa-rotate-left"></i><span>수정요청 취소</span>
-    </button>
-    {% endif %}
-    {% if can_confirm_receipt %}
-    <button class="foms-drawing-action-bar__btn foms-drawing-action-bar__btn--primary" type="button" data-drawing-handoff-action="confirm">
-      <i class="fas fa-check-double"></i><span>수령 확정</span>
-    </button>
-    {% endif %}
-    {# 상태 조건(TRANSFERRED 만)은 can_cancel_transfer 안에 있다 — PC 결정 바와 같은 값. #}
+    {# 상태 조건(TRANSFERRED 만)은 can_cancel_transfer 안에 있다 — PC 결정 바와 같은 값.
+       이번 회차를 영업이 고객에게 보냈으면(서버 경고 문구가 있으면) 대신 누르기 대신 경고 시트를 연다(Q5-④). #}
     {% if can_cancel_transfer %}
-    <button class="foms-drawing-action-bar__btn" type="button" data-drawing-handoff-action="cancel">
-      <i class="fas fa-xmark"></i><span>전달 취소</span>
+      {% if cs.cancel_warning_text_mobile %}
+      <button class="foms-drawing-action-bar__btn" type="button" data-dw-cancel-warn
+        data-bs-toggle="modal" data-bs-target="#dwCancelWarnMobileModal">
+        <i class="fas fa-xmark"></i><span>전달 취소</span>
+      </button>
+      {% else %}
+      <button class="foms-drawing-action-bar__btn" type="button" data-drawing-handoff-action="cancel">
+        <i class="fas fa-xmark"></i><span>전달 취소</span>
+      </button>
+      {% endif %}
+    {% endif %}
+    {# 영업 쪽·도면팀 버튼 = 서버 목록(customer_send.bar) 순회. 조건은 서버에만 있다 — 여기는 모양만. #}
+    {% for item in _cs_main %}
+      {% set _w = _cs_widths.get(item.key, 'wide' if (item.key == 'send' and item.tone == 'primary') else '') %}
+      {% set _cls = 'foms-drawing-action-bar__btn'
+        ~ ((' foms-drawing-action-bar__btn--' ~ item.tone) if item.tone in _cs_tones else '')
+        ~ ((' foms-drawing-action-bar__btn--' ~ _w) if _w else '') %}
+      {% if item.key == 'production' %}
+      <a class="{{ _cls }}" href="/erp/dashboard?focus_order={{ order.id }}" {{ cs_bar_attrs(item, order.id, _cs_selected_key) }}>
+        <i class="fas {{ _cs_icons.get(item.key, 'fa-circle') }}" aria-hidden="true"></i><span>{{ item.label }}</span>
+      </a>
+      {% else %}
+      <button class="{{ _cls }}" type="button" {{ cs_bar_attrs(item, order.id, _cs_selected_key) }}>
+        <i class="fas {{ _cs_icons.get(item.key, 'fa-circle') }}" aria-hidden="true"></i><span>{{ item.label }}</span>
+      </button>
+      {% endif %}
+    {% endfor %}
+    {% if _show_fixed_urgent and not _cs_more %}
+    <button class="foms-drawing-action-bar__btn foms-drawing-action-bar__btn--urgent{% if _cs_main %} foms-drawing-action-bar__btn--slim{% endif %}" type="button"
+      data-foms-urgent-call data-order-id="{{ order.id }}">
+      <i class="fas fa-bolt"></i><span>{% if _cs_main %}긴급{% else %}긴급 호출{% endif %}</span>
     </button>
     {% endif %}
-    <button class="foms-drawing-action-bar__btn foms-drawing-action-bar__btn--urgent" type="button"
-      data-foms-urgent-call data-order-id="{{ order.id }}">
-      <i class="fas fa-bolt"></i><span>긴급 호출</span>
-    </button>
+    {# 넘치는 버튼(slot=more)은 [더 보기] — 바는 한 줄(390px)을 넘기지 않는다(§3.0). Bootstrap dropup, 새 JS 없음. #}
+    {% if _cs_more %}
+    <div class="dropup foms-drawing-action-bar__more">
+      <button class="foms-drawing-action-bar__btn foms-drawing-action-bar__btn--slim" type="button"
+        data-bs-toggle="dropdown" aria-expanded="false">
+        <i class="fas fa-ellipsis" aria-hidden="true"></i><span>더 보기</span>
+      </button>
+      <ul class="dropdown-menu dropdown-menu-end foms-drawing-action-bar__menu">
+        {% for item in _cs_more %}
+        <li>
+          {% if item.key == 'production' %}
+          <a class="dropdown-item" href="/erp/dashboard?focus_order={{ order.id }}" {{ cs_bar_attrs(item, order.id, _cs_selected_key) }}>
+            <i class="fas {{ _cs_icons.get(item.key, 'fa-circle') }}" aria-hidden="true"></i> {{ item.label }}
+          </a>
+          {% else %}
+          <button class="dropdown-item" type="button" {{ cs_bar_attrs(item, order.id, _cs_selected_key) }}>
+            <i class="fas {{ _cs_icons.get(item.key, 'fa-circle') }}" aria-hidden="true"></i> {{ item.label }}
+          </button>
+          {% endif %}
+        </li>
+        {% endfor %}
+        {% if _show_fixed_urgent %}
+        <li>
+          <button class="dropdown-item foms-drawing-action-bar__menu-urgent" type="button"
+            data-foms-urgent-call data-order-id="{{ order.id }}">
+            <i class="fas fa-bolt" aria-hidden="true"></i> 긴급 호출
+          </button>
+        </li>
+        {% endif %}
+      </ul>
+    </div>
+    {% endif %}
   </div>
+
+  {# 전달 취소 경고(Q5-④ · 모바일) — 고객에게 이미 보낸 회차면 멈추고 영업에게 먼저 알릴 길을 준다.
+     막지는 않는다(Q4). [영업에게 먼저 알리기]는 이 시트를 닫은 뒤 기존 긴급 호출 시트를 연다,
+     [그래도 취소]는 전달 취소 API 를 한 번만 부른다(PC 확인창을 다시 띄우지 않는다).
+     처리: static/js/foms/drawing-cancel-warn-mobile.js (drawing-handoff.js 는 손대지 않는다). #}
+  {% if can_cancel_transfer and cs.cancel_warning_text_mobile %}
+  <div class="modal fade foms-drawing-cancel-warn" id="dwCancelWarnMobileModal" tabindex="-1"
+    aria-labelledby="dwCancelWarnMobileTitle" aria-hidden="true" data-order-id="{{ order.id }}">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="dwCancelWarnMobileTitle">전달을 취소할까요?</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
+        </div>
+        <div class="modal-body">
+          <p class="foms-drawing-cancel-warn__text">{{ cs.cancel_warning_text_mobile }}</p>
+          <p class="foms-drawing-cancel-warn__error" role="alert" data-dw-cancel-warn-error hidden></p>
+        </div>
+        <div class="modal-footer foms-drawing-cancel-warn__actions">
+          <button type="button" class="btn btn-primary" data-dw-cancel-warn-urgent>
+            <i class="fas fa-bolt" aria-hidden="true"></i> 영업에게 먼저 알리기 (긴급 호출)
+          </button>
+          <button type="button" class="btn btn-outline-danger" data-dw-cancel-warn-confirm>그래도 취소</button>
+          <button type="button" class="btn btn-link" data-bs-dismiss="modal">닫기</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script src="{{ url_for('static', filename='js/foms/drawing-cancel-warn-mobile.js') }}?v=20260929o" defer></script>
+  {% endif %}
 </div>
