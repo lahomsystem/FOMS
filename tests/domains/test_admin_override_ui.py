@@ -14,6 +14,7 @@ import pytest
 from flask import render_template
 
 from foms.services import order_event_display, order_timeline_v3
+from tests.support.asset_urls import ASSET_URL_PILOT_TEMPLATE, asset_url_call
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 MODAL_TEMPLATE = "orders/partials/erp_stage_override_modal.html"
@@ -144,6 +145,12 @@ def test_재시도_배선_페이지는_시트와_두_스크립트를_세트로_�
 @pytest.mark.parametrize("rel", RETRY_WIRED_TEMPLATES)
 def test_재시도_배선_페이지의_자산_핀이_올라가_있다(rel):
     body = (REPO_ROOT / rel).read_text(encoding="utf-8")
+    if rel == ASSET_URL_PILOT_TEMPLATE:
+        # 2026-09-29 asset_url 시범: 이 include 만 손 날짜 핀 대신 내용 해시 URL 이다 —
+        # 파일이 바뀌면 ?v= 가 저절로 바뀐다(렌더 값 전수는 tests/contracts/assets 가 본다).
+        assert asset_url_call("js/foms/foms-admin-override.js") in body
+        assert "js/foms/foms-admin-override.js') }}?v=" not in body, "시범 파일에 손 핀이 되살아났다"
+        return
     assert "js/foms/foms-admin-override.js') }}?v=20260921a" in body
 
 
@@ -219,24 +226,62 @@ def test_재시도를_배선한_JS_는_전부_새_핀으로_실린다():
     호출부 JS 는 화면마다 다른 템플릿이 싣는다 — 한 줄이라도 옛 핀이면 그 화면의
     관리자는 거부 문구만 보고 끝난다.
     """
-    import re as _re
-
     missed = []
+    content_hashed = []
     for rel in RETRY_CALLER_SCRIPTS:
         # basename 으로 찾으면 다른 dashboard.js 까지 걸린다 — static/ 뒤 전체 경로로 짚는다.
         name = rel[len("static/"):]
         for tpl in (REPO_ROOT / "templates").rglob("*.html"):
+            tpl_rel = tpl.relative_to(REPO_ROOT).as_posix()
             for line in tpl.read_text(encoding="utf-8").splitlines():
-                if name not in line or "?v=" not in line:
-                    continue
-                # 계약은 "재시도 배선 이후의 핀" 이다 — 같은 값이 아니라 **그보다 낡지 않은**
-                # 값. 리터럴 동일성으로 재면 그 뒤 정당한 범프(2026-09-21 AS 접수 머무름,
-                # erp-order-shared.js 20260921b)마다 무관한 커밋이 빨개진다. 날짜+접미 핀은
-                # 사전순이 시간순이다.
-                found = _re.search(r"\?v=([0-9]{8}[a-z]?)", line)
-                if not found or found.group(1) < RETRY_ASSET_PIN:
-                    missed.append(f"{tpl.relative_to(REPO_ROOT).as_posix()}: {line.strip()}")
+                verdict = _retry_pin_verdict(line, name)
+                if verdict == "stale":
+                    missed.append(f"{tpl_rel}: {line.strip()}")
+                elif verdict == "content-hash":
+                    content_hashed.append(f"{tpl_rel}: {name}")
     assert not missed, "재시도 배선 JS 인데 핀이 안 올라간 곳: " + "; ".join(missed)
+    # asset_url 시범 파일의 두 호출부도 건너뛰지 않고 실제로 판정했는지 못박는다(무음 통과 방지).
+    assert f"{ASSET_URL_PILOT_TEMPLATE}: js/orders/erp-order-shared.js" in content_hashed
+    assert f"{ASSET_URL_PILOT_TEMPLATE}: js/orders/erp-stage-override.js" in content_hashed
+
+
+def _retry_pin_verdict(line: str, name: str) -> str | None:
+    """템플릿 한 줄이 재시도 배선 JS ``name`` 을 싣는 방식을 판정한다.
+
+    Returns:
+        ``None``(이 JS 를 버전 붙여 싣는 줄이 아님) · ``"content-hash"``(asset_url — 내용
+        해시라 낡을 수 없다) · ``"fresh"``(재시도 배선 이후 날짜 핀) · ``"stale"``(그보다
+        낡았거나 날짜 모양이 아닌 핀).
+    """
+    import re as _re
+
+    if name not in line:
+        return None
+    if asset_url_call(name) in line:
+        return "content-hash"
+    if "?v=" not in line:
+        return None
+    # 계약은 "재시도 배선 이후의 핀" 이다 — 같은 값이 아니라 **그보다 낡지 않은**
+    # 값. 리터럴 동일성으로 재면 그 뒤 정당한 범프(2026-09-21 AS 접수 머무름,
+    # erp-order-shared.js 20260921b)마다 무관한 커밋이 빨개진다. 날짜+접미 핀은
+    # 사전순이 시간순이다.
+    found = _re.search(r"\?v=([0-9]{8}[a-z]?)", line)
+    if not found or found.group(1) < RETRY_ASSET_PIN:
+        return "stale"
+    return "fresh"
+
+
+def test_재시도_핀_판정기_음성_대조():
+    """판정기가 옛 날짜 핀·모양 틀린 핀을 실제로 잡는다 — asset_url 허용이 검사를 약하게 만들지 않았다."""
+    name = "js/orders/erp-stage-override.js"
+    tag = "<script src=\"{{{{ url_for('static', filename='{n}') }}}}?v={v}\" defer></script>"
+    assert _retry_pin_verdict(tag.format(n=name, v="20260920z"), name) == "stale"
+    assert _retry_pin_verdict(tag.format(n=name, v="deadbeef1234"), name) == "stale"
+    assert _retry_pin_verdict(tag.format(n=name, v=RETRY_ASSET_PIN), name) == "fresh"
+    hashed = "<script src=\"{{ asset_url('%s') }}\" defer></script>" % name
+    assert _retry_pin_verdict(hashed, name) == "content-hash"
+    # 다른 JS 를 asset_url 로 싣는 줄은 이 JS 판정과 무관하다.
+    assert _retry_pin_verdict("{{ asset_url('js/orders/erp-share.js') }}", name) is None
 
 
 def test_출고_파샬은_스크립트_2개_상한을_그대로_지킨다():

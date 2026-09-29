@@ -8,6 +8,7 @@ import pytest
 
 from db import db_session
 from models import Order, User
+from tests.support.asset_urls import hashed_asset_ref
 
 
 @pytest.fixture
@@ -68,36 +69,39 @@ def _assert_shared_form_script_contract(body: str) -> None:
         < estimate_columns_idx
     )
     assert "html2canvas.min.js" not in body
-    assert "js/orders/erp-channel-push-confirm.js?v=20260923a" in body
-    assert "js/cs/as-push-confirm.js?v=20260820a" in body
-    # ADMIN-OVERRIDE-01: 퀘스트 승인 거부에 공통 재시도를 배선했으므로 핀이 올랐다.
-    assert "js/orders/erp-order-shared.js?v=20260929a" in body
-    assert "js/cs/as-attachment-order.js?v=20260819a" in body
-    assert "js/orders/erp-alimtalk-send.js?v=20260923b" in body
+    # 2026-09-29 asset_url 시범: erp_order_js.html 의 자산은 손 날짜 핀 대신 파일 내용 해시
+    # URL(?v=<sha256 12자리>)이다 — 파일을 고치면 값이 저절로 바뀌므로 "핀을 올렸나" 대신
+    # "지금 파일 내용과 맞는 URL 이 렌더됐나" 를 본다(기대값은 tests/support/asset_urls.py).
+    assert hashed_asset_ref("js/orders/erp-channel-push-confirm.js") in body
+    assert hashed_asset_ref("js/cs/as-push-confirm.js") in body
+    # ADMIN-OVERRIDE-01: 퀘스트 승인 거부에 공통 재시도를 배선한 공용 폼 스크립트.
+    assert hashed_asset_ref("js/orders/erp-order-shared.js") in body
+    assert hashed_asset_ref("js/cs/as-attachment-order.js") in body
+    assert hashed_asset_ref("js/orders/erp-alimtalk-send.js") in body
     # T15 발송 흔적: 칩 자리·이력 패널이 실제 렌더에 붙어 있어야 한다(템플릿 계약만으로는
     # 코호트 게이트가 한쪽 표면을 통째로 지워도 초록이다).
     assert "js/orders/erp-alimtalk-trace.js?v=20260923c" in body
     # 2026-09-23: 주문 화면 칩은 알림톡·PUSH 를 합친 발송 기록 자리 하나가 그린다.
     assert "data-erp-send-trace" in body
     assert 'id="erpAlimtalkTraceModal"' in body
-    assert "js/orders/erp-share.js?v=20260923a" in body
-    assert "css/orders/erp-share.css?v=20260821a" in body
-    assert "js/orders/erp-stage-override.js?v=20260921a" in body
+    assert hashed_asset_ref("js/orders/erp-share.js") in body
+    assert hashed_asset_ref("css/orders/erp-share.css") in body
+    assert hashed_asset_ref("js/orders/erp-stage-override.js") in body
     # ADMIN-OVERRIDE-01 C8: 관리자 강제 진행 재시도는 사유 시트가 있어야 동작한다.
     # 시트 include 와 두 스크립트는 세트여야 하고, 하나라도 빠지면 무음 실패다.
     assert "data-foms-reason-sheet" in body
-    assert "js/foms/foms-reason-sheet.js?v=20260921a" in body
-    assert "js/foms/foms-admin-override.js?v=20260921a" in body
+    assert hashed_asset_ref("js/foms/foms-reason-sheet.js") in body
+    assert hashed_asset_ref("js/foms/foms-admin-override.js") in body
     assert "erp_stage_override_modal.html" not in body  # include renders modal markup, not path
     assert 'id="erpStageOverrideModal"' in body
     assert 'id="asPushConfirmModal"' in body
     assert "(8자 이상)" not in body
-    assert "css/orders/erp-channel-push.css?v=20260824b" in body
-    assert "css/orders/erp-items-master-detail.css?v=20260701f" in body
-    assert "js/orders/erp-items-master-detail.js?v=20260630c" in body
+    assert hashed_asset_ref("css/orders/erp-channel-push.css") in body
+    assert hashed_asset_ref("css/orders/erp-items-master-detail.css") in body
+    assert hashed_asset_ref("js/orders/erp-items-master-detail.js") in body
     assert "erp-items-master-detail-shell" in body
     assert 'id="erp-md-rail-list"' in body
-    assert "js/orders/estimate-preview.js?v=20260923a" in body
+    assert hashed_asset_ref("js/orders/estimate-preview.js") in body
 
     estimate_preview_js = (
         Path(__file__).resolve().parents[2]
@@ -255,7 +259,7 @@ def test_erp_order_edit_renders_pc_wdc_split_contract(erp_editor_client) -> None
     assert 'id="erpWdcSplitFrame"' in body
     assert "embedded=1" in body
     assert f"order_id={order.id}" in body
-    assert "js/orders/erp-wdc-split.js?v=20260624c" in body
+    assert hashed_asset_ref("js/orders/erp-wdc-split.js") in body
     assert "css/orders/erp-wdc-split.css" in body
     assert "js/wdcalculator/pricing-core.js" not in body
 
