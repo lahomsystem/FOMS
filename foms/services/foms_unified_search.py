@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-import json
 from typing import Any, Literal
 
-from sqlalchemy import String, and_, cast, or_
+from sqlalchemy import and_
 from sqlalchemy.orm import Session
 
 from foms.services.erp_dashboard_search import erp_order_dashboard_search_predicate
@@ -219,21 +218,12 @@ def _classify_order_hit(order: Order, query: str) -> set[str]:
 
 
 def _history_classify_order_hit(order: Order, query: str) -> set[str]:
-    """History fallback: visible fields first, then structured_data blob substring."""
-    matched = _classify_order_hit(order, query)
-    if matched:
-        return matched
-    sd = _ensure_dict(order.structured_data)
-    if not sd:
-        return set()
-    try:
-        blob_text = json.dumps(sd, ensure_ascii=False)
-    except (TypeError, ValueError):
-        blob_text = str(sd)
-    tokens = _search_tokens(query) or [query]
-    if all(matches_query(blob_text, tok) for tok in tokens):
-        return {"customer"}
-    return set()
+    """History fallback: same on-screen fields as the primary classifier.
+
+    structured_data 전체 문자열 매칭은 시각·금액·uid·네이버 주문번호에 걸려 전화번호와
+    무관한 주문을 끌고 왔다(2026-09-29 운영 "6514"). 가시 필드만 본다.
+    """
+    return _classify_order_hit(order, query)
 
 
 def _order_id_prefilter(db: Session, query: str):
@@ -338,9 +328,10 @@ def _base_orders_query(db: Session, query: str):
 
 def _history_style_orders_query(db: Session, query: str) -> list[Order]:
     """
-    History dashboard parity: all active orders + structured_data blob ilike.
+    History dashboard parity: all active orders (legacy 포함) + 가시 필드 술어.
 
-    PC ``/erp/dashboard`` zero-hit → ``/erp/history`` redirect와 동일한 폭.
+    1차 스캔은 ERP 주문만 보므로 레거시 주문은 여기서만 잡힌다. structured_data 전체
+    문자열 ILIKE 는 쓰지 않는다(`_history_classify_order_hit` 참고).
     """
     trimmed = _normalize_for_search(query)
     if not trimmed or is_chosung_query(trimmed):
@@ -349,21 +340,10 @@ def _history_style_orders_query(db: Session, query: str) -> list[Order]:
     if not tokens:
         return []
 
-    def _token_clause(tok: str):
-        term = f"%{tok}%"
-        return or_(
-            Order.id.cast(String).ilike(term),  # perf-ok: bounded id search admin/cold path
-            Order.customer_name.ilike(term),  # perf-ok: ix_orders_customer_name_trgm
-            Order.phone.ilike(term),  # perf-ok: ix_orders_phone_trgm
-            Order.address.ilike(term),  # perf-ok: ix_orders_address_trgm
-            Order.manager_name.ilike(term),  # perf-ok: ix_orders_manager_name_trgm
-            cast(Order.structured_data, String).ilike(term),  # perf-ok: ix_orders_structured_data_text_trgm
-        )
-
     return (
         db.query(Order)
         .filter(Order.active_filter())
-        .filter(and_(*[_token_clause(tok) for tok in tokens]))
+        .filter(and_(*[erp_order_dashboard_search_predicate(f"%{tok}%") for tok in tokens]))
         .order_by(Order.created_at.desc(), Order.id.desc())
         .limit(_MAX_HISTORY_FALLBACK_ROWS)
         .all()

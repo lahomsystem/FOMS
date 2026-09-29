@@ -397,6 +397,54 @@ def test_unified_search_history_fallback_finds_non_erp_order(app) -> None:
         assert hits["customer"][0]["href"].startswith(f"/edit/{order.id}")
 
 
+def test_unified_search_ignores_hidden_structured_data_text(app) -> None:
+    """회귀 차단: 폴백이 화면에 없는 structured_data 값(시각·금액·uid)에 걸리면 안 된다.
+
+    2026-09-29 운영: "6514" 가 sent_at ``...065142``·금액 ``1865140``·uid 에 걸린
+    주문들을 끌고 왔다. 레거시 주문의 전화번호 매치는 그대로 남아야 한다.
+    """
+    from db import db_session
+    from foms.services.foms_unified_search import search_unified
+    from models import Order
+
+    with app.app_context():
+        legacy = Order(
+            received_date="2025-10-16",
+            customer_name="유레거시",
+            phone="010-8201-6514",
+            address="고양시",
+            product="여닫이",
+            status="COMPLETED",
+            is_erp_order=False,
+        )
+        hidden = Order(
+            received_date="2026-09-22",
+            customer_name="숨은값",
+            phone="010-1111-2222",
+            address="인천",
+            product="붙박이장",
+            status="COMPLETED",
+            is_erp_order=True,
+            erp_stage_code="COMPLETED",
+            structured_data={
+                "parties": {"customer": {"name": "숨은값", "phone": "010-1111-2222"}},
+                "meta": {"sent_at": "2026-09-22T01:57:42.565142"},
+                "totals": {"items_total": 1865140},
+            },
+        )
+        db_session.add_all([legacy, hidden])
+        db_session.commit()
+        legacy_id, hidden_id = legacy.id, hidden.id
+
+        def _ids(hits):
+            return {h["order_id"] for group in hits.values() for h in group}
+
+        found = _ids(search_unified(db_session, "6514"))
+        assert legacy_id in found
+        assert hidden_id not in found
+        assert hidden_id not in _ids(search_unified(db_session, "1865140"))
+
+
 def test_relevance_rank_orders_exact_before_partial() -> None:
     """관련도 정렬(A4): 고객명 정확 > 접두 > 부분 > 기타."""
     from foms.services.foms_unified_search import _relevance_rank

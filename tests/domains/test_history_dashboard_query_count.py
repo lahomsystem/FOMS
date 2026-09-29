@@ -416,3 +416,60 @@ def test_history_tablet_sheet_document_nav_redirects_to_edit(client):
     )
     assert resp.status_code in (301, 302)
     assert f"/order" in resp.headers.get("Location", "") or "edit" in resp.headers.get("Location", "")
+
+
+def _seed_search_order(name: str, phone: str, *, sd_extra: dict | None = None) -> int:
+    order = Order(
+        received_date="2026-09-01",
+        customer_name=name,
+        phone=phone,
+        address="서울시 검색구 1",
+        product="붙박이장",
+        status="COMPLETED",
+        manager_name="이력담당",
+        is_erp_order=True,
+        erp_stage_code="COMPLETED",
+        structured_data={
+            "workflow": {"stage": "COMPLETED"},
+            "parties": {"customer": {"name": name, "phone": phone}},
+            **(sd_extra or {}),
+        },
+    )
+    db_session.add(order)
+    db_session.commit()
+    return int(order.id)
+
+
+def test_history_search_ignores_hidden_structured_data_text(client):
+    """회귀 차단: 검색이 화면에 없는 structured_data 값(시각·금액·uid)에 걸리면 안 된다.
+
+    2026-09-29 운영: "6514" 검색에 sent_at ``...065142``, 금액 ``1865140``, uid
+    ``...796514a8e`` 를 가진 주문 9건이 전화번호 ``010-8201-6514`` 한 건과 함께 나왔다.
+    숫자 4자리는 전화번호 끝자리로만 찾는다(가운데 자리 ``010-6514-...`` 도 제외).
+    """
+    _login_admin(client)
+    target = _seed_search_order("뒷자리고객", "010-8201-6514")
+    hidden = _seed_search_order(
+        "숨은값고객",
+        "010-1111-2222",
+        sd_extra={
+            "meta": {"sent_at": "2026-09-22T01:57:42.565142"},
+            "totals": {"items_total": 1865140},
+            "items": [{"uid": "16ccc1b4-e2d0-4278-a727-424796514a8e", "product_name": "붙박이장"}],
+        },
+    )
+    middle = _seed_search_order("가운데고객", "010-6514-3333")
+
+    body = client.get(
+        "/erp/history/?view=fragment&q=6514",
+        headers={"X-FOMS-ERP-SHELL": "1"},
+    ).get_data(as_text=True)
+    assert f'data-order-id="{target}"' in body, "전화번호 끝 4자리 주문이 빠짐"
+    assert f'data-order-id="{hidden}"' not in body, "숨은 structured_data 값에 걸림"
+    assert f'data-order-id="{middle}"' not in body, "전화번호 가운데 자리에 걸림"
+
+    body = client.get(
+        "/erp/history/?view=fragment&q=1865140",
+        headers={"X-FOMS-ERP-SHELL": "1"},
+    ).get_data(as_text=True)
+    assert f'data-order-id="{hidden}"' not in body, "화면에 없는 금액 값에 걸림"
