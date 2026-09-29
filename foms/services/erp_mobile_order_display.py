@@ -8,6 +8,7 @@ from typing import Any
 
 from foms.api.files.routes import build_file_download_url, build_file_view_url
 from foms.services.drawing_confirm_cleanup import (
+    discount_superseded_drawing_rows,
     drop_superseded_drawing_rows,
     exclude_superseded_drawing_rows,
     load_structured_data_by_order,
@@ -879,7 +880,10 @@ def build_mobile_queue_order_row(db, order, current_user=None, *, batch_ctx=None
     cnt = (
         batch_ctx.attachment_counts.get(order.id, 0)
         if batch_ctx is not None
-        else _attachment_count(db, order.id)
+        # R3: 단건도 배치처럼 교체된 옛 도면 행을 빼고 센다(배치 == 단건).
+        else discount_superseded_drawing_rows(
+            db, {order.id: _attachment_count(db, order.id)}, {order.id: sd}
+        ).get(order.id, 0)
     )
     stage = _erp_get_stage(order, sd)
     stage_key = stage if isinstance(stage, str) else ""
