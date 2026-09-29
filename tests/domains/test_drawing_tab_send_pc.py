@@ -43,8 +43,9 @@ def test_sales_transferred_not_sent_bar(client, monkeypatch, people):
     assert "btn-primary" in send["class"] and send["data-bs-target"] == "#dwCustomerSendModal"
     assert send["data-customer-send-mode"] == "first" and "고객에게 보내기" in send.get_text()
     rev = pc.select_one('[data-bar-key="rev_sales"]')
-    assert rev["data-bs-target"] == "#dwRevisionModal" and rev["data-revision-source"] == "sales"
-    assert "내 의견으로 수정요청" in rev.get_text()
+    assert rev["data-bs-target"] == "#dwRevisionModal" and not rev.has_attr("data-revision-source")
+    assert rev.get_text(strip=True) == "수정 요청"  # 출처 구분 없이 하나의 '수정 요청'
+    assert "내 의견" not in pc.get_text()
     ok = soup.select("#btn-confirm-receipt")
     assert len(ok) == 1, "확정 버튼 id 는 한 번만"
     assert ok[0]["data-bar-key"] == "ok_no_customer" and ok[0]["data-bs-target"] == "#dwCustomerOkModal"
@@ -62,7 +63,8 @@ def test_sales_after_send_bar(client, monkeypatch, people):
     assert "다시 보내기" in pc.select_one('[data-bar-key="resend"]').get_text()
     assert pc.select_one('[data-bar-key="resend"]')["data-customer-send-mode"] == "again"
     rc = pc.select_one('[data-bar-key="rev_customer"]')
-    assert rc["data-revision-source"] == "customer" and "고객이 고쳐 달래요" in rc.get_text()
+    assert not rc.has_attr("data-revision-source") and rc.get_text(strip=True) == "수정 요청"
+    assert "고객이 고쳐 달래요" not in pc.get_text()
     ok = soup.select("#btn-confirm-receipt")
     assert len(ok) == 1 and ok[0]["data-customer-ok-mode"] == "customer" and "고객 OK · 확정" in ok[0].get_text()
     modal = soup.select_one("#dwCustomerSendModal")
@@ -87,6 +89,10 @@ def test_returned_bar_has_cancel_and_edit_but_no_send(client, monkeypatch, peopl
     assert json.loads(modal["data-edit-revision"]) == prefill  # data-* JSON 이 그대로 되읽힌다
     assert modal["data-drawing-count"] == "2"
     assert len(modal.select('input[name="dw-edit-target"]')) == 2
+    # 수정요청은 출처를 나누지 않는다 — 고치기 창에도 '누구 말인가요'·'어떻게 받았나요' 칸이 없다.
+    assert modal.select('input[name="dw-edit-source"]') == [] and modal.select('input[name="dw-edit-via"]') == []
+    assert modal.select_one("[data-edit-via-block]") is None
+    assert "누구 말인가요" not in modal.get_text() and "내 의견" not in modal.get_text()
 
 
 def test_confirmed_bar_approve_and_send_as_secondary(client, monkeypatch, people):
@@ -98,7 +104,8 @@ def test_confirmed_bar_approve_and_send_as_secondary(client, monkeypatch, people
     approve = pc.select_one('[data-bar-key="approve_confirm"]')
     assert approve.has_attr("data-customer-approve") and approve["data-order-id"] == str(oid)
     assert "고객 컨펌하고 생산으로" in approve.get_text()
-    assert pc.select_one('[data-bar-key="rev_post"]')["data-revision-source"] == "customer"
+    rev_post = pc.select_one('[data-bar-key="rev_post"]')
+    assert not rev_post.has_attr("data-revision-source") and rev_post.get_text(strip=True) == "수정 요청"
     assert soup.select_one("[data-approve-role-hint]") is None
 
 
@@ -256,15 +263,24 @@ def test_send_modal_phone_change_without_save_power(client, monkeypatch, people)
     assert modal.select_one("#dw-send-save-phone") is None
 
 
-def test_revision_modal_source_fields_and_hint(client, monkeypatch, people):
+def test_revision_modal_has_no_source_or_via_fields(client, monkeypatch, people):
+    """수정요청은 '고객 요청'·'내 의견'으로 나누지 않는다 — 출처·받은 경로 칸이 없고 제목·메모 칸은 하나."""
     oid = _order(people["drafter"]["id"])
     _inject(monkeypatch, {"bar": _bar("rev_customer")})
     soup = _page(client, people["sales"], oid)
     modal = soup.select_one("#dwRevisionModal")
-    values = [i["value"] for i in modal.select('input[name="dw-revision-source"]')]
-    assert values == ["customer", "sales"]
-    assert modal.select_one("#dw-revision-source-sales").has_attr("checked")  # 기본 = 지금 동작(영업)
-    assert [i["value"] for i in modal.select('input[name="dw-revision-via"]')] == ["phone", "kakao", "store"]
+    assert not modal.has_attr("data-revision-source")
+    assert modal.select('input[name="dw-revision-source"]') == []
+    assert modal.select('input[name="dw-revision-via"]') == []
+    assert modal.select_one("[data-revision-source-block]") is None
+    assert modal.select_one("[data-revision-via-block]") is None
+    assert modal.select_one("[data-revision-note-hint]") is None
+    assert modal.select_one("[data-revision-title]").get_text(strip=True) == "수정 요청"
+    assert modal.select_one("[data-revision-note-label]").get_text(strip=True) == "수정 요청 메모 (필수)"
+    for gone in ("누구 말인가요", "어떻게 받았나요", "내 의견"):
+        assert gone not in modal.get_text()
+    assert soup.select('input[name="dw-edit-source"]') == [] and soup.select('input[name="dw-edit-via"]') == []
+    assert soup.select("[data-revision-source]") == []
     assert "선택하지 않으면 자동으로 최신본이 선택됩니다" not in modal.get_text()
     assert "도면이 2장 이상이면 꼭 골라요" in modal.get_text()
     assert modal["data-confirmed"] == "false" and modal.select_one("[data-revision-confirmed-warning]") is None

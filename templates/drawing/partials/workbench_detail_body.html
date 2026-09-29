@@ -1551,9 +1551,8 @@
             </button>
             {% elif k in ('rev_customer', 'rev_post', 'rev_sales') %}
             <button class="btn {% if k == 'rev_sales' %}btn-outline-secondary{% else %}btn-outline-warning{% endif %} btn-sm" type="button"
-              data-bar-key="{{ k }}" data-bs-toggle="modal" data-bs-target="#dwRevisionModal"{% if item.legacy %} data-bar-legacy{% endif %}
-              data-revision-source="{{ 'sales' if k == 'rev_sales' else 'customer' }}">
-              <i class="fas fa-undo"></i> {% if item.legacy %}{{ item.label }}{% elif k == 'rev_sales' %}내 의견으로 수정요청{% else %}{{ item.label or ('고객이 또 바꿔 달래요' if k == 'rev_post' else '고객이 고쳐 달래요') }}{% endif %}
+              data-bar-key="{{ k }}" data-bs-toggle="modal" data-bs-target="#dwRevisionModal"{% if item.legacy %} data-bar-legacy{% endif %}>
+              <i class="fas fa-undo"></i> 수정 요청
             </button>
             {% elif k in ('ok', 'ok_no_customer') %}
             <button class="btn {% if k == 'ok' %}btn-success{% else %}btn-outline-success{% endif %} btn-sm" type="button"
@@ -1813,7 +1812,7 @@
 </div>
 
 <div class="modal fade" id="dwRevisionModal" tabindex="-1" aria-hidden="true"
-  data-revision-source="sales" data-confirmed="{{ 'true' if drawing_status == 'CONFIRMED' else 'false' }}">
+  data-confirmed="{{ 'true' if drawing_status == 'CONFIRMED' else 'false' }}">
   <div class="modal-dialog modal-xl modal-dialog-centered modal-fullscreen-sm-down">
     <div class="modal-content">
       <div class="modal-header">
@@ -1821,31 +1820,11 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
-        {# 누구 말인가요(설계서 §3.5 다) — 여는 버튼의 data-revision-source 로 drawing-customer-ok.js 가 미리 고른다.
-           값은 인라인 submitRevision 이 window.fomsDrawingRevisionExtras() 로 본문에 더한다(typeof 가드). #}
+        {# 수정요청은 출처(고객·영업)를 나누지 않는다 — 제목·메모 칸은 늘 '수정 요청' 하나.
+           인라인 submitRevision 의 window.fomsDrawingRevisionExtras()(typeof 가드)는 빈 객체를 돌려준다. #}
         {% if drawing_status == 'CONFIRMED' %}
         <div class="alert alert-warning py-2 small" data-revision-confirmed-warning data-foms-no-autodismiss>이미 확정한 도면이에요. 수정요청하면 도면팀과 생산팀에 변경 알림이 가요.</div>
         {% endif %}
-        <div class="mb-3" data-revision-source-block>
-          <div class="form-label fw-bold">누구 말인가요</div>
-          <div class="btn-group" role="group" aria-label="요청 출처">
-            <input type="radio" class="btn-check" name="dw-revision-source" id="dw-revision-source-customer" value="customer" autocomplete="off">
-            <label class="btn btn-outline-warning btn-sm" for="dw-revision-source-customer">고객 요청</label>
-            <input type="radio" class="btn-check" name="dw-revision-source" id="dw-revision-source-sales" value="sales" autocomplete="off" checked>
-            <label class="btn btn-outline-secondary btn-sm" for="dw-revision-source-sales">내 의견</label>
-          </div>
-        </div>
-        <div class="mb-3 d-none" data-revision-via-block>
-          <div class="form-label fw-bold">어떻게 받았나요 <span class="small text-muted fw-normal">(선택)</span></div>
-          <div class="btn-group flex-wrap" role="group" aria-label="받은 경로">
-            <input type="radio" class="btn-check" name="dw-revision-via" id="dw-revision-via-phone" value="phone" autocomplete="off">
-            <label class="btn btn-outline-secondary btn-sm" for="dw-revision-via-phone">전화로</label>
-            <input type="radio" class="btn-check" name="dw-revision-via" id="dw-revision-via-kakao" value="kakao" autocomplete="off">
-            <label class="btn btn-outline-secondary btn-sm" for="dw-revision-via-kakao">카톡 답장</label>
-            <input type="radio" class="btn-check" name="dw-revision-via" id="dw-revision-via-store" value="store" autocomplete="off">
-            <label class="btn btn-outline-secondary btn-sm" for="dw-revision-via-store">매장 방문</label>
-          </div>
-        </div>
         <div class="mb-3">
           <label class="form-label fw-bold">대상 도면 선택 (다중 선택 가능)</label>
           <div id="dw-revision-drawing-preview" class="dw-revision-drawing-preview mb-2">
@@ -1898,7 +1877,6 @@
         </div>
         <div class="mb-3">
           <label class="form-label fw-bold" for="dw-revision-note" data-revision-note-label>수정 요청 메모 (필수)</label>
-          <div class="form-text mt-0 mb-1 d-none" data-revision-note-hint>적은 내용이 그대로 도면팀 수정요청이 돼요. 고객에게는 안 나가요.</div>
           <textarea id="dw-revision-note" class="form-control" rows="4" placeholder="예: 거실장 높이 2400으로 변경 필요"></textarea>
         </div>
         <div class="mb-3">
@@ -3159,8 +3137,8 @@
 <script src="{{ url_for('static', filename='js/drawing/order-change-banner.js') }}?v=20260913a" defer></script>
 {# 도면 탭 고객 보내기 시트 JS(설계서 2026-09-29 §3.6 + Q5) — PC 에서도 시트가 동작해야 하므로 v2 조건 블록 밖. #}
 <script src="{{ url_for('static', filename='js/foms/drawing-customer-send.js') }}?v=20260929n" defer></script>
-<script src="{{ url_for('static', filename='js/foms/drawing-customer-ok.js') }}?v=20260929n" defer></script>
-<script src="{{ url_for('static', filename='js/foms/drawing-revision-edit.js') }}?v=20260929n" defer></script>
+<script src="{{ url_for('static', filename='js/foms/drawing-customer-ok.js') }}?v=20260930b" defer></script>
+<script src="{{ url_for('static', filename='js/foms/drawing-revision-edit.js') }}?v=20260930b" defer></script>
 <script src="{{ url_for('static', filename='js/foms/drawing-urgent-call-pc.js') }}?v=20260929n" defer></script>
 {% if erp_mobile_v2_enabled %}
 <script src="{{ url_for('static', filename='js/foms/drawing-handoff.js') }}?v=20260929g" defer></script>

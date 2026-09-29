@@ -41,7 +41,7 @@ from foms.services.orders.drawing_revision_edit import (
     edit_revision_prefill,
     editable_revision_request,
 )
-from foms.services.orders.drawing_revision_source import is_customer_request, request_rounds
+from foms.services.orders.drawing_revision_source import request_rounds
 from foms.services.orders.quest_approve_authz import quest_approve_allowed
 from foms.services.orders.quest_transition_service import find_stage_quest_for_approve
 from models import OrderEvent, OrderShareToken
@@ -266,15 +266,13 @@ def _prev_summary(sd: Mapping[str, Any], info: RoundInfo, sends: list[_Send],
     hi = (_utc(cur_times[0]) if cur_times and cur_times[0] else None) or round_dt
     history = [h if isinstance(h, Mapping) else {} for h in (sd.get("drawing_transfer_history") or [])]
     rounds = request_rounds(history)
-    customer = sum(1 for i, r in rounds.items() if r == prev and is_customer_request(history[i]))
-    other = sum(1 for i, r in rounds.items() if r == prev and not is_customer_request(history[i]))
+    # 수정 요청은 출처(고객·영업)로 나누지 않고 한 줄로 센다(2026-09-30 사용자 결정).
+    requests = sum(1 for r in rounds.values() if r == prev)
     sent = any(s.status == "sent" and (s.tagged_round == prev if s.tagged_round_at is not None
                                        else _in_window(s.at, prev_times[0], hi)) for s in sends)
     parts = [f"{prev}차", "보냄" if sent else "안 보냄"]
-    if customer:
-        parts.append(f"고객 요청 {customer}건")
-    if other:
-        parts.append(f"내 의견 {other}건")
+    if requests:
+        parts.append(f"수정요청 {requests}건")
     return " · ".join(parts)
 
 
