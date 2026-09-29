@@ -19,7 +19,11 @@
 {% block title %}네이버 수집{% endblock %}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260930c">
+{# 폰 글꼴 Pretendard(감사 원장 N-42 · 재감사 R-06) — 폰 규칙이 글꼴 순서만 바꾸고 글꼴 파일은 /erp 셸만
+   불러와서 효과가 없었다. media 가 폰 폭이라 PC 는 이 시트를 늦게 받아도 쓰지 않고, 글꼴 파일은 폰에서만 내려온다
+   (PC 뿌리 글꼴에는 Pretendard 가 없다). 주소는 layout_head 의 /erp 셸과 같은 한 벌. #}
+<link rel="stylesheet" media="(max-width: 767.98px)" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" crossorigin="anonymous">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260930d">
 {% endblock %}
 
 {% block content %}
@@ -1087,7 +1091,7 @@
                     </p>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">취소</button>
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">그만두기</button>
                     <button type="button" class="btn btn-primary" id="wb-bulk-confirm">보내기</button>
                 </div>
             </div>
@@ -1363,6 +1367,7 @@
                 <input type="search" id="wb-find" name="q" class="wb-find__input" autocomplete="off"
                        value="{{ history.find }}" enterkeyhint="search"
                        placeholder="이력 전체에서 · 고객명 · 주문번호 · 전화"
+                       data-phone-placeholder="이름·주문번호·전화"
                        aria-label="이력 전체에서 찾기">
                 {# 폰 P2(감사 원장 N-38) — 찾는 낱말이 있으면 지우기(×). 같은 필터에서 낱말만 뺀 평범한 링크다. #}
                 {% if history.find %}
@@ -1397,9 +1402,10 @@
                        글자로 없어서 여기서만 검색 대상이 된다. #}
                     <tr class="{{ 'wb-hist--muted' if row.claim_blocking else '' }}"
                         data-find="{{ (row.customer_name ~ ' ' ~ (row.external_order_no or '') ~ ' ' ~ (row.product or '') ~ ' ' ~ ('주문 ' ~ row.order_id if row.order_id else ''))|lower }}">
-                        {# 폰 카드(2026-09-29 폰 2단계)는 `09-28 23:52 받음` 짧은 꼴을 쓴다 — 데스크톱은
-                           CSS 가 짧은 꼴을 숨긴다. 짧은 꼴은 읽기 프로그램에 한 번 더 읽히지 않게 숨긴다. #}
-                        <td class="wb-cmp__k">{{ row.created_at }}{% if row.created_at %}<span class="wb-hist__when" aria-hidden="true">{{ row.created_at[5:16] }} 받음</span>{% endif %}</td>
+                        {# 폰 카드(2026-09-29 폰 2단계)는 `09-28 23:52` 짧은 꼴을 쓴다 — 데스크톱은
+                           CSS 가 짧은 꼴을 숨긴다. 짧은 꼴은 읽기 프로그램에 한 번 더 읽히지 않게 숨긴다.
+                           `받음` 꼬리는 뗐다 — 셋째 줄 링크와 붙거나 360 에서 포개졌다(재감사 R-08). #}
+                        <td class="wb-cmp__k">{{ row.created_at }}{% if row.created_at %}<span class="wb-hist__when" aria-hidden="true">{{ row.created_at[5:16] }}</span>{% endif %}</td>
                         <td>{{ row.customer_name }}</td>
                         <td>
                             {{ row.product }}
@@ -1548,7 +1554,7 @@
                                '주문 만들기'이고, pane 대조표가 그 링크 기준으로 그려진다. #}
                             <a class="wb-hist-open"
                                href="{{ url_for('admin.naver_ingest_triage', tab='work',
-                                                link_id=row.pending_link_id or row.id) }}"><span class="wb-dk">워크벤치</span><span class="wb-ph">처리 탭에서 열기</span></a>
+                                                link_id=row.pending_link_id or row.id) }}"><span class="wb-dk">워크벤치</span><span class="wb-ph">처리 탭으로</span></a>
                             </span>
                         </td>
                     </tr>
@@ -1732,5 +1738,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260930c" defer></script>
+<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260930d" defer></script>
 {% endblock %}

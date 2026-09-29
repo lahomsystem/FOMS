@@ -3229,7 +3229,7 @@ input.wb-pick:disabled,
         background: rgba(20, 23, 28, .55);
     }
 
-    /* ── N-24 이력 카드: 누를 수 있다는 표시(오른쪽 › · 누름 바탕) · `처리 탭에서 열기` 6.4:1 ── */
+    /* ── N-24 이력 카드: 누를 수 있다는 표시(오른쪽 › · 누름 바탕) · `처리 탭으로`(예전 `처리 탭에서 열기`) 6.4:1 ── */
     .wb-hist tbody tr[data-find] { padding-right: 28px; }
     .wb-hist tbody tr[data-find]:active { background: #f3f4ff; }
     .wb-hist tbody tr[data-find] .wb-hist-detail::before {
@@ -3338,4 +3338,56 @@ input.wb-pick:disabled,
     #wb-detail-body .wb-cmp:has(thead .wb-cmp__num) tfoot td:nth-child(3)::after { content: "원"; }
     #wb-detail-body .wb-cmp:has(thead .wb-cmp__num) tfoot td:nth-child(1) { grid-row: 1; grid-column: 1; font-weight: 800; }
     #wb-detail-body .wb-cmp:has(thead .wb-cmp__num) tfoot td:nth-child(2) { display: none; }
+
+    /* ══ 재감사 수정(2026-09-29 · 스테이징 f325a418 재감사 원장 R-xx) ══════════════════════ */
+
+    /* ── R-03 도면 알림 쪽지(전역 .foms-drawing-notices, 오른쪽 아래 18px)가 아래 막대를 덮었다 ──
+       일괄 막대(70px)·상세 아래 막대(76px) 자리를 누르면 쪽지의 `주문 열기` 가 눌려 다른 주문이 열렸다.
+       이 화면에서만 쪽지를 막대 위로 띄우고 폭을 채운다. 쪽지 버튼은 44px. */
+    body:has(.naver-workbench) .foms-drawing-notices {
+        left: 8px;
+        right: 8px;
+        bottom: calc(88px + env(safe-area-inset-bottom, 0px));
+        max-width: none;
+    }
+    body:has(.naver-workbench) .foms-drawing-notice__btn { min-height: 44px; }
+
+    /* ── R-07 이력 원본 모달 상품 카드: 금액 뒤 `원` 이 쿠폰 줄 밑으로 떨어졌다 ──
+       칸을 줄바꿈 flex 로 펴서 `원`(::after)을 금액 글자 바로 뒤에 두고, 쿠폰·남은 금액 줄은 그 아래 한 줄씩. */
+    #wb-detail-body .wb-cmp:has(thead .wb-cmp__num) tbody td:nth-child(4) {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+    }
+    #wb-detail-body .wb-cmp:has(thead .wb-cmp__num) tbody td:nth-child(4)::after { order: 1; }
+    #wb-detail-body .wb-cmp:has(thead .wb-cmp__num) tbody td:nth-child(4) > div {
+        order: 2;
+        flex: 0 0 100%;
+        text-align: right;
+        font-weight: 400;
+    }
+
+    /* ── R-08 이력 카드 셋째 줄: 시각과 처리 탭 링크가 붙거나(390) 39px 포개졌다(360) ──
+       셋째 줄 칸 폭이 첫 줄(고객 이름·배지·금액) 칸 폭을 따라가서, 이름·금액이 길면 링크 자리가 모자랐다.
+       셋째 줄 셋(시각 · 처리 탭으로 · FOMS #번호)을 카드 폭 전체 한 칸에 겹쳐 두고 시작·끝으로 가른다.
+       링크는 시각 글자 폭(숫자 10자, `09-29 14:30`)만큼 띄운다. 폰 글자는 `처리 탭으로`(8글자 → 6글자). */
+    .wb-hist tbody tr[data-find] > td:nth-child(1),
+    .wb-hist tbody tr[data-find] > td:nth-child(7),
+    .wb-hist tbody tr[data-find] > td:nth-child(8) { grid-column: 1 / -1; }
+    .wb-hist tbody tr[data-find] > td:nth-child(8) { justify-self: start; }
+    .wb-hist tbody tr[data-find] .wb-hist-open { margin-left: 10ch; }
+
+    /* ── R-09 44px 미만 누름 자리 4곳 ── */
+    .wb-ghost__list td:first-child > a {
+        display: inline-flex;
+        align-items: center;
+        min-width: 44px;
+        min-height: 44px;
+    }
+    .wb-asheet .wb-ingest__edit { min-width: 44px; }
+    #wb-detail-body .wb-detail__links .btn { min-height: 44px; display: inline-flex; align-items: center; }
+    body:has(.naver-workbench) .navbar-toggler { min-width: 44px; min-height: 44px; }
+
+    /* ── R-11 시트 맨 아래 고정 줄이 안쪽 내용을 덮을 때 "더 있다" 표시(모달 발바닥과 같은 그림자) ── */
+    .wb-hsheet__foot { box-shadow: 0 -4px 12px -8px rgba(20, 23, 28, .3); }
 }

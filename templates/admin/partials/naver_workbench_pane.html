@@ -1603,7 +1603,7 @@
                 </p>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">취소</button>
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">그만두기</button>
                 <button type="button" class="btn btn-primary" id="wb-create-order"
                         data-link-id="{{ create_target_id }}">주문 만들기</button>
             </div>
@@ -1647,7 +1647,7 @@
                 </p>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">취소</button>
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">그만두기</button>
                 <button type="button" class="btn btn-primary" id="wb-confirm-submit"
                         data-link-id="{{ target_id }}">발주확인 보내기</button>
             </div>
@@ -1730,7 +1730,7 @@
                 </p>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">취소</button>
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">그만두기</button>
                 <button type="button" class="btn btn-primary" id="wb-dispatch-confirm"
                         data-link-id="{{ target_id }}">
                     발송처리 보내기
@@ -1841,7 +1841,7 @@
                 </p>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">닫기</button>
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">그만두기</button>
                 {# 서버 계획이 `ok` 가 아니면(빈 선택·범위 규격·불가 행) 닫힌 채 그린다 — JS 가
                    미리보기마다 `disabled = !plan.ok` 로 다시 맞춘다. #}
                 <button type="button" class="btn btn-danger" id="wb-cancel-confirm"
@@ -1985,7 +1985,7 @@
                 </p>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">닫기</button>
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">그만두기</button>
                 <button type="button" class="btn btn-danger" id="wb-return-confirm"
                         data-link-id="{{ target_id }}"
                         {% if partial_claim_enabled and return_plan and not return_plan.ok %}disabled{% endif %}>반품 접수 보내기</button>
@@ -2169,7 +2169,7 @@
                 </p>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">취소</button>
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">그만두기</button>
                 <button type="button" class="btn btn-danger" id="wb-reject-confirm"
                         data-link-id="{{ target_id }}">반품 거부 보내기</button>
             </div>
