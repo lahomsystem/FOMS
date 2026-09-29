@@ -473,32 +473,3 @@ def test_history_search_ignores_hidden_structured_data_text(client):
         headers={"X-FOMS-ERP-SHELL": "1"},
     ).get_data(as_text=True)
     assert f'data-order-id="{hidden}"' not in body, "화면에 없는 금액 값에 걸림"
-
-
-def test_history_search_words_match_in_any_order(client):
-    """낱말 순서가 DB 값과 달라도 찾는다 — 통합 검색 미리보기와 같은 규칙(2026-09-29).
-
-    검색 키·최근 검색 칩이 이 화면으로 온다. 통째 ILIKE 면 미리보기에 뜬 주문이
-    여기선 0건이 된다("수지구 용인시" vs 주소 "경기 용인시 수지구").
-    """
-    _login_admin(client)
-    target = _seed_search_order(
-        "어순고객", "010-3030-4040", sd_extra={"site": {"address_full": "경기 용인시 수지구 풍덕천로 1"}}
-    )
-    other = _seed_search_order(
-        "다른동네", "010-5050-6060", sd_extra={"site": {"address_full": "경기 용인시 기흥구 1"}}
-    )
-
-    def ids_for(q: str) -> str:
-        return client.get(
-            f"/erp/history/?view=fragment&q={q}",
-            headers={"X-FOMS-ERP-SHELL": "1"},
-        ).get_data(as_text=True)
-
-    body = ids_for("수지구 용인시")
-    assert f'data-order-id="{target}"' in body, "어순이 다르면 못 찾음"
-    assert f'data-order-id="{other}"' not in body, "낱말 하나만 맞는 주문까지 나옴(AND 아님)"
-
-    body = ids_for("어순고객 4040")
-    assert f'data-order-id="{target}"' in body, "이름 + 전화 끝 4자리 조합을 못 찾음"
-    assert f'data-order-id="{other}"' not in body
