@@ -47,11 +47,6 @@ _HOLD_SECONDS = 1.0
 _SEQ = [0]
 
 
-class _Storage:
-    def delete_file(self, key):
-        return True
-
-
 def _arm_plain(monkeypatch, module, mode):
     """mode=plain 이면 ``module.lock_order_row`` 를 잠그지 않는 일반 조회로 바꾼다.
 
@@ -82,7 +77,6 @@ def pg_app(pg_engine, monkeypatch):
     db_session.remove()
     db_session.configure(bind=pg_engine)
     flask_app.config["TESTING"] = True
-    monkeypatch.setattr(revision_api, "get_storage", lambda: _Storage())
     monkeypatch.setattr(revision_api, "emit_erp_notification_to_users", lambda *a, **k: None)
     # 마지막 접속 기록은 전역 기본 엔진에 따로 붙어(SQLite, 테이블 없음) 로그만 시끄럽다 — 끈다.
     monkeypatch.setattr(platform_http, "touch_last_seen", lambda user: False)
