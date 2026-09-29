@@ -436,7 +436,7 @@ def test_asset_pins_bumped_to_20260920b():
     assert "04-filter-table-badges-buttons.css?v=20260920b" in _read("static/css/foundation/erp-pro.css")
     entry = _read("static/js/orders/erp-dashboard-entry.js")
     assert "erp-dashboard-quest.js?v=20260921a" in entry
-    assert "erp-dashboard-detail-dom.js?v=20260929g" in entry
+    assert "erp-dashboard-detail-dom.js?v=20260929j" in entry
     for rel in ("templates/orders/dashboard.html", "templates/orders/partials/dashboard_main.html"):
         assert "foms-v2-cs-hero.css') }}?v=20260921a" in _read(rel)
     assert ".erp-btn-retransition" in _read("static/css/foundation/erp-pro/04-filter-table-badges-buttons.css")

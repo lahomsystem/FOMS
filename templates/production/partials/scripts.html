@@ -926,9 +926,9 @@
           }
         }
 
-        // 첨부파일 미리보기 버튼
+        // 첨부파일 미리보기 버튼 — 생산 페이지에서만(셸 이동 뒤 다른 탭에서 함께 돌지 않게).
         const attBtn = e.target.closest('.erp-btn-attachments-preview');
-        if (attBtn) {
+        if (attBtn && document.querySelector('.erp-dashboard-production')) {
           const orderId = attBtn.dataset.orderId;
           if (typeof openAttachmentsPreview === 'function') {
             openAttachmentsPreview(Number(orderId));
