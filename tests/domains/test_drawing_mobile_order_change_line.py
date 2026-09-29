@@ -246,3 +246,84 @@ def test_desktop_feed_shows_who_acked(client, monkeypatch):
     assert "최상용 확인 · 09-11 14:32" in head
     assert "미확인" not in head
     assert "data-dw-order-change-ack" not in body
+
+
+# ── 실측 담당자(영업팀) 확인 범위 고정 ─────────────────────────────────────────
+# 실측 단계 담당 팀은 SALES 다(erp_policy_constants.py STAGE_TEAM "MEASURE": "SALES").
+# 확인(ack) 은 주문 단위로 미확인 변경을 전부 닫고 pending 을 해제한다 — 모두의 배지가
+# 사라지므로, 도면 작업 참여자(ADMIN · DRAWING_DOMAIN 배정자 · team DRAWING)가 아닌 실측
+# 담당자에게는 화면에도 API 에도 대신 누를 길이 없어야 한다. 도면 담당 배정 API 는
+# 도면팀이 아닌 사람을 400 으로 거절하므로 영업팀은 배정으로도 참여자가 될 수 없다.
+# 음성 대조: 아래에서 "없다"고 단언하는 문자열(data-dw-order-change-ack · "이 주문 변경")은
+# ADMIN 렌더에서 실제로 나타난다 — test_ack_button_sits_below_the_values(모바일) 와
+# test_desktop_banner_is_gone_and_ack_lives_in_the_feed(모바일 1 + 데스크톱 1 = 2) 가 고정한다.
+
+
+@pytest.mark.parametrize(
+    "role,username",
+    [("USER", "dw_meas_sales_user"), ("MANAGER", "dw_meas_sales_manager")],
+)
+def test_measurement_staff_cannot_see_ack_button_mobile_and_desktop(
+    client, monkeypatch, role, username
+):
+    """실측 담당(영업팀) 은 변경 값을 읽기 전용으로만 보고, 확인 버튼은 어디에도 없다."""
+    user = _login(client, role=role, team="SALES", username=username, name="실측 담당")
+    order = _order()
+    body = _render_full(client, order, monkeypatch, user)
+
+    # 한 응답에 모바일 핸드오프와 데스크톱 본문(변경 이력 카드)이 함께 들어 있어야
+    # "모바일·데스크톱 둘 다 없다"는 단언이 의미를 가진다.
+    assert "erp-mobile-shell foms-drawing-handoff" in body
+    assert 'id="dwOrderChangeFeed"' in body
+
+    # 버튼·버튼 문구는 응답 전체 어디에도 없다(모바일 타임라인·데스크톱 카드 모두).
+    assert "data-dw-order-change-ack" not in body
+    assert "이 주문 변경" not in body
+    assert 'class="dw-order-change-ack-row"' not in body
+
+    mobile = _render(client, order, monkeypatch, user)
+    # 칩은 권한 없는 쪽 문구, 변경 값은 기록으로 읽기 전용 노출.
+    assert "도면팀 확인 대기" in mobile
+    assert "1165*620*2311" in mobile
+    feed_at = body.index('id="dwOrderChangeFeed"')
+    assert "1165*620*2311" in body[feed_at:]
+
+
+def test_ack_api_forbidden_for_measurement_staff_keeps_pending(client, monkeypatch):
+    """영업팀이 API 를 직접 불러도 403 — 미확인 변경과 pending 은 그대로 남는다(대신 처리 불가)."""
+    from foms.services.notifications.drawing_order_change import is_order_change_pending
+
+    _login(client, role="USER", team="SALES", username="dw_meas_api_sales", name="실측 담당")
+    order = _order()
+    order_id = order.id
+
+    response = client.post(f"/api/orders/{order_id}/drawing/ack-order-change", json={})
+    assert response.status_code == 403
+    data = response.get_json()
+    assert data["success"] is False
+
+    db_session.expire_all()
+    fresh = db_session.get(Order, order_id)
+    sd = fresh.structured_data
+    events = [
+        e for e in sd.get("drawing_transfer_history") or [] if e.get("action") == "ERP_ORDER_CHANGED"
+    ]
+    assert events, "ERP_ORDER_CHANGED 이력이 사라지면 안 된다"
+    assert all(not e.get("acked") for e in events)
+    assert all("acked_by_name" not in e for e in events)
+    assert sd["drawing"]["order_change_pending"] is True
+    assert is_order_change_pending(sd) is True
+
+
+def test_drawing_team_non_assignee_sees_ack_button(client, monkeypatch):
+    """양성 대조군 — 배정되지 않은 도면팀 USER 도 참여자라 버튼이 하나 보인다."""
+    user = _login(
+        client, role="USER", team="DRAWING", username="dw_team_non_assignee", name="도면팀 비배정"
+    )
+    order = _order()
+    assert order.structured_data["drawing_assignees"] == []
+    body = _render(client, order, monkeypatch, user)
+
+    assert body.count("data-dw-order-change-ack") == 1
+    assert "이 주문 변경 2줄 확인" in body
+    assert "도면팀 확인 대기" not in body
