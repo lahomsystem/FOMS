@@ -3462,3 +3462,71 @@ input.wb-pick:disabled,
     .naver-workbench:has(#wb-bulk.on) .wb-totop { bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
     body.wb-detail-open .wb-totop { display: none; }
 }
+
+/* ══ PC 다듬기(2026-09-29 · 사용자 결정: 확인 단계 + 흐린 글자) ══════════════════════════════
+   폰 미디어 쿼리 밖 PC 폭에서만. 모양·배치는 그대로 두고 **색만** 4.5:1(큰 글자 3:1) 이상으로 올린다.
+   잰 값은 1280 에서 대비 계산(opacity 곱)으로 — 감사 원장 "## PC 다듬기" 절. 폰 규칙과 겹치지 않게 폭으로 가른다. */
+@media (min-width: 768px) {
+    /* 확인 창(wb-ask) — 폰은 아래 시트, PC 는 가운데 작은 창. [그만두기][실행] 을 오른쪽 끝에. */
+    .wb-ask[open] {
+        width: min(440px, calc(100vw - 32px));
+        padding: 0;
+        border: 1px solid #dde1e6;
+        border-radius: 12px;
+        box-shadow: 0 16px 40px rgba(15, 23, 42, .2);
+    }
+    .wb-ask::backdrop { background: rgba(20, 23, 28, .45); }
+    .wb-ask .wb-hsheet__grip { display: none; }
+    .wb-ask .wb-ask__body { padding: 20px 20px 8px; }
+    .wb-ask .wb-hsheet__title { margin: 0; color: #14171c; font-size: calc(18px * var(--wb-fs, 1)); font-weight: 800; }
+    .wb-ask .wb-ask__who { margin: 4px 0 8px; color: #4b525d; font-size: calc(14px * var(--wb-fs, 1)); font-weight: 700; }
+    .wb-ask .wb-ask__facts { margin: 0; padding-left: 18px; color: #14171c; font-size: calc(14px * var(--wb-fs, 1)); }
+    .wb-ask .wb-hsheet__foot {
+        display: flex;
+        flex-direction: row-reverse;
+        gap: 8px;
+        padding: 12px 20px 20px;
+    }
+    .wb-ask .wb-hsheet__dismiss {
+        min-height: 38px;
+        padding: 0 16px;
+        border: 1px solid #c1c7d0;
+        border-radius: 8px;
+        background: #ffffff;
+        color: #14171c;
+        font-weight: 700;
+    }
+    .wb-ask .wb-ask__go { min-height: 38px; }
+
+    /* 목록 줄: 시각 #9aa3af 2.55:1 → 6.6:1, 제품 줄(선택 줄 바탕 4.26:1) → 5.7:1 */
+    .wb-row__when { color: #555e6b; }
+    .wb-row__line2 { color: #555e6b; }
+    /* 잠긴 줄: 몸통 opacity .62(1.96~3.38:1) 대신 옅은 면 + 보조 글자(폰 N-09 와 같은 값). 취소선은 그대로. */
+    .wb-row--stop .wb-row__body,
+    .wb-row--locked .wb-row__body { opacity: 1; }
+    .wb-row--stop,
+    .wb-row--locked { background: #f7f8fa; }
+    .wb-row--stop .wb-row__name,
+    .wb-row--locked .wb-row__name,
+    .wb-row--stop .wb-row__line2,
+    .wb-row--locked .wb-row__line2,
+    .wb-row--stop .wb-row__when,
+    .wb-row--locked .wb-row__when,
+    .wb-can--stop { color: #4b525d; }
+    /* 노랑 경고 글자(#ffc107 흰 바탕 1.63:1 — `미등록` 1.43:1 · `구성 미상`) → 짙은 호박색 5.9:1 */
+    .naver-workbench .text-warning { color: #8a5a00 !important; }
+    /* 상세 `찾기`(4.23:1) */
+    .wb-seek__bar .btn-outline-primary { border-color: #0a58ca; color: #0a58ca; }
+    /* 이력 상태 칸 이름(FOMS · 네이버 2.55:1) · 아직인 단계(발송처리 2.24:1) */
+    .wb-st__k { color: #555e6b; }
+    .wb-pipe__s:not(.wb-pipe__s--done):not(.wb-pipe__s--now):not(.wb-pipe__s--skip):not(.wb-pipe__s--bad) { color: #555e6b; }
+    /* 초록 글자(#15803d 옅은 초록 바탕 4.49:1 — `주문 만듦`·`발송처리 완료`) → #166534 6.4:1. 토큰을 PC 에서만 한 단계 진하게. */
+    .naver-workbench { --wb-green: #166534; }
+    /* 이력 취소 줄(#9aa3af 2.46:1) → 회색은 유지하되 5.2:1 */
+    .wb-hist--muted td,
+    .wb-hist--muted a:not(.btn) { color: #636b78; }
+    .wb-hist--muted .text-danger { color: #b91c1c !important; }
+    /* 수집 상태 칸 이름(opacity .7 → `등록` 3.47:1) · 기간 물결표(4.23:1) */
+    .wb-ingest__k { opacity: 1; color: #4b525d; }
+    .wb-backfill__tilde { color: #4b525d; }
+}
