@@ -8,7 +8,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from sqlalchemy import bindparam, case as sql_case, text
+from sqlalchemy import and_, bindparam, case as sql_case, text
 from sqlalchemy.orm import Query
 
 from models import Order
@@ -18,8 +18,10 @@ from foms.services.erp_display import (
     self_measurement_four_checks_done,
 )
 from foms.services.construction_dashboard_display import _display_stage_for_order
-from foms.services.erp_dashboard_search import erp_order_dashboard_search_predicate
-from foms.services.foms_unified_search import _compact
+from foms.services.erp_dashboard_search import (
+    erp_order_dashboard_search_predicate,
+    search_query_tokens,
+)
 
 CONSTRUCTION_DASHBOARD_PAGE_SIZE = 50
 CONSTRUCTION_BROWSE_CAP = 300
@@ -214,8 +216,15 @@ def build_construction_process_steps(step_stats: dict[str, dict[str, int]]) -> l
 
 
 def apply_construction_search_filter(list_query: Query, f_q: str) -> Query:
-    """Search predicate on list query."""
-    term = f"%{_compact(f_q)}%"
-    if term.strip("%"):
-        return list_query.filter(erp_order_dashboard_search_predicate(term))
-    return list_query
+    """Search predicate on list query — 낱말마다 걸고 AND(어순 무관).
+
+    전에는 검색어의 공백만 지우고(``_compact``) DB 값은 그대로 비교해 "용인시 수지구" 가
+    "%용인시수지구%" 가 되어 늘 0건이었다(2026-09-29). 낱말 규칙은 통합 검색과 같다 —
+    띄어 친 전화번호는 한 낱말, ``#5335`` 는 5335.
+    """
+    tokens = search_query_tokens(f_q)
+    if not tokens:
+        return list_query
+    return list_query.filter(
+        and_(*[erp_order_dashboard_search_predicate(f"%{tok}%", raw_query=tok) for tok in tokens])
+    )

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import unicodedata
 from typing import Any, Iterable
 
 from sqlalchemy import String, and_, cast, func, or_
@@ -205,6 +206,70 @@ def erp_order_dashboard_search_predicate(
             )
         )
     return or_(*clauses)
+
+
+def strip_order_hash(token: str) -> str:
+    """``#5335`` → ``5335``. 카드에 주문번호가 ``#5335`` 로 찍혀 있어 그대로 치는 경우다.
+
+    ``#`` 뒤가 숫자일 때만 벗긴다 — 그 밖의 ``#`` 은 검색어의 일부다. 벗기지 않으면
+    후보는 뽑혀도 분류기가 ``"#5335" in "5335"`` 로 비교해 버렸다(2026-09-29 스테이징
+    60건 표본: 미리보기·이력 화면 모두 0건).
+    """
+    text = (token or "").strip()
+    if text.startswith("#") and text[1:].strip().isdigit():
+        return text[1:].strip()
+    return text
+
+
+def search_query_tokens(raw_q: str | None) -> list[str]:
+    """검색어 → 낱말 목록(낱말끼리는 AND·어순 무관으로 쓴다).
+
+    - 숫자·하이픈·공백만으로 된 검색어는 전화번호를 띄어 친 것이라 **한 낱말로 붙인다**.
+      나누면 "010 8201 6514" 의 "8201" 이 4자리 규칙(전화 끝자리)에 걸려 0건이 된다
+      (2026-09-29 스테이징에서 확인한 회귀).
+    - ``#5335`` 는 ``5335`` 로(:func:`strip_order_hash`).
+    """
+    text = unicodedata.normalize("NFC", str(raw_q or "")).strip()
+    compact = "".join(text.split())
+    if not compact:
+        return []
+    if any(ch.isdigit() for ch in compact) and all(ch.isdigit() or ch == "-" for ch in compact):
+        return [compact]
+    return [tok for tok in (strip_order_hash(part) for part in text.split()) if tok]
+
+
+def visible_order_search_clause(raw_q: str):
+    """화면에 보이는 필드만 보는 한 낱말 검색 술어 — 과거 이력·통합 검색이 같이 쓴다.
+
+    structured_data 전체 문자열 ILIKE 는 시각(``...065142``)·금액(``1865140``)·uid·
+    네이버 주문번호까지 뒤져, "6514" 검색이 전화번호와 무관한 주문 9건을 끌고 왔다
+    (2026-09-29 운영). 그래서 ERP 대시보드와 같은 가시 경로 술어를 쓴다.
+
+    숫자 4자리는 전화번호 뒷자리로 본다: 주문번호 정확 일치 + 전화번호 끝 4자리.
+    ``010-6514-1234`` 처럼 가운데 자리는 ``-`` 가 뒤따르므로 걸리지 않는다.
+
+    Args:
+        raw_q: 낱말 하나(:func:`search_query_tokens` 결과).
+
+    Returns:
+        SQLAlchemy 술어.
+    """
+    q = raw_q.strip()
+    if len(q) == 4 and q.isdigit():
+        tail = rf"{q}($|[^0-9-])"
+        sd_phones = (
+            Order.structured_data["parties"]["customer"]["phone"].as_string(),
+            Order.structured_data["parties"]["buyer"]["phone"].as_string(),
+        )
+        return or_(
+            Order.id == int(q),
+            Order.phone.regexp_match(tail),  # perf-ok: ix_orders_phone_trgm
+            and_(
+                Order.is_erp_order == True,
+                or_(*[field.regexp_match(tail) for field in sd_phones]),  # perf-ok: history cold path
+            ),
+        )
+    return erp_order_dashboard_search_predicate(f"%{q}%", raw_query=q)
 
 
 # 출고 검색 포커스 날짜: OrderScheduleDate 후보 범위 (오늘 기준 ±일수)

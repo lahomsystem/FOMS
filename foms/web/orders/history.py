@@ -9,9 +9,8 @@ from db import get_db
 from models import Order
 from foms.web.auth import login_required
 from foms.services.orders.status_constants import STATUS
-from foms.services.erp_dashboard_search import erp_order_dashboard_search_predicate
+from foms.services.erp_dashboard_search import search_query_tokens, visible_order_search_clause
 from foms.services.erp_order_flags import is_erp_order_record
-from foms.services.foms_unified_search import strip_order_hash
 from sqlalchemy import and_, or_
 
 from foms.services.common.dashboard_cache import (
@@ -61,40 +60,6 @@ _HISTORY_KEY_ARGS = (
 _HISTORY_KEY_TABLES = (
     "orders", "order_attachments", "order_schedule_dates", "users",
 )
-
-
-def _history_search_clause(raw_q: str):
-    """Build the history search predicate over on-screen fields only.
-
-    structured_data 전체 문자열 ILIKE 는 시각(``...065142``)·금액(``1865140``)·uid·
-    네이버 주문번호까지 뒤져, "6514" 검색이 전화번호와 무관한 주문 9건을 끌고 왔다
-    (2026-09-29 운영). 그래서 ERP 대시보드와 같은 가시 경로 술어를 쓴다.
-
-    숫자 4자리는 전화번호 뒷자리로 본다: 주문번호 정확 일치 + 전화번호 끝 4자리.
-    ``010-6514-1234`` 처럼 가운데 자리는 ``-`` 가 뒤따르므로 걸리지 않는다.
-
-    Args:
-        raw_q: 사용자 검색어.
-
-    Returns:
-        SQLAlchemy 술어.
-    """
-    q = raw_q.strip()
-    if len(q) == 4 and q.isdigit():
-        tail = rf"{q}($|[^0-9-])"
-        sd_phones = (
-            Order.structured_data["parties"]["customer"]["phone"].as_string(),
-            Order.structured_data["parties"]["buyer"]["phone"].as_string(),
-        )
-        return or_(
-            Order.id == int(q),
-            Order.phone.regexp_match(tail),  # perf-ok: ix_orders_phone_trgm
-            and_(
-                Order.is_erp_order == True,
-                or_(*[field.regexp_match(tail) for field in sd_phones]),  # perf-ok: history cold path
-            ),
-        )
-    return erp_order_dashboard_search_predicate(f"%{q}%", raw_query=q)
 
 
 def _fill_queue_row_column_fallbacks(row: dict[str, Any], order: Order) -> dict[str, Any]:
@@ -219,9 +184,9 @@ def history_dashboard():
         # 낱말을 공백으로 나눠 모두 포함(AND·어순 무관) — 통합 검색 미리보기와 같은 규칙.
         # 통째 ILIKE 는 "수지구 용인시" 처럼 순서가 DB 값과 다르면 0건이었다(2026-09-29
         # 스테이징 60건 표본: 미리보기 55건 찾음, 이 화면 0건). 한 낱말이면 전과 같다.
-        # "#5335" 는 카드에 찍힌 그대로 친 주문번호라 "5335" 로 본다(미리보기와 같은 규칙).
+        # 낱말 규칙(띄어 친 전화번호는 한 낱말, "#5335" 는 5335)은 미리보기와 한 곳에서 정한다.
         _q = _q.filter(
-            and_(*[_history_search_clause(strip_order_hash(tok)) for tok in f_q.split()])
+            and_(*[visible_order_search_clause(tok) for tok in search_query_tokens(f_q)])
         )
         
     if f_stage:
@@ -257,7 +222,7 @@ def history_dashboard():
             "team": getattr(user, "team", None) if user else None,
             "mine": bool(mine_only),
             "scope": "active_all",  # 60일 창 제거 — 옛 캐시 blob 무효화 겸 스코프 표식
-            "search": "visible_v3",  # v1: SD 전체 문자열 검색 제거 · v2: 낱말 AND · v3: #번호
+            "search": "visible_v4",  # v1: SD 전체 문자열 제거 · v2: 낱말 AND · v3: #번호 · v4: 띄어 친 전화
 
             "q": f_q or "",
             "stage": f_stage or "",
