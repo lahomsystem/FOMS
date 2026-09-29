@@ -32,6 +32,7 @@ from foms.services.audit_message_display import describe_order_action
 from foms.services.audit_writer import record_file_access
 from foms.services.datetime_kst import (format_datetime_kst, get_today_kst,
                                         now_utc_naive)
+from foms.services.drawing_confirm_cleanup import superseded_drawing_keys
 from foms.services.erp_shipment_settings import load_erp_shipment_settings
 from foms.services.orders.audit_order_context import order_audit_context
 from foms.services.orders.drawing_transfer import _is_drawing_key
@@ -179,6 +180,12 @@ def _collect_drawing_files(order: Order) -> list[dict[str, str]]:
     ``_is_drawing_key`` **allow-list 만** 통과시킨다(타 주문·실측 첨부 유출 차단 —
     deny-list 단독 금지, 플랜 T2). key 기준 dedupe.
 
+    첨부 쪽에서는 **교체된 옛 도면**(전달 이력에 올랐지만 지금 현재본에 없는 key —
+    :func:`superseded_drawing_keys`)을 뺀다. 수령 확정이 옛 도면을 지우지 않게 된 뒤
+    (2026-09-29) 이 행들이 남기 때문이다. 확정 전 재전달 직후에 1차·2차가 섞여 보이던
+    것도 같은 규칙으로 사라진다. 전달 이력에 오른 적 없는 도면 행(첨부 탭 업로드, M10 때문에
+    전달에 실패한 모달 업로드)은 확정 전·뒤 모두 보인다 — 예전에는 확정 때 지워졌다(원장 1차 리뷰 R1, 2차 M10).
+
     Args:
         order: 대상 주문(활성 검증은 호출자 소관).
 
@@ -187,6 +194,7 @@ def _collect_drawing_files(order: Order) -> list[dict[str, str]]:
     """
     files: list[dict[str, str]] = []
     seen: set[str] = set()
+    superseded = superseded_drawing_keys(order.structured_data)
     attachments = (
         db_session.query(OrderAttachment)
         .filter(OrderAttachment.order_id == order.id,
@@ -196,7 +204,7 @@ def _collect_drawing_files(order: Order) -> list[dict[str, str]]:
     )
     for att in attachments:
         key = (att.storage_key or '').strip()
-        if not key or key in seen:
+        if not key or key in seen or key in superseded:
             continue
         seen.add(key)
         files.append({'key': key,

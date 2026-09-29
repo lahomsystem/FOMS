@@ -10,6 +10,13 @@
 
 ---
 
+### [2026-09-29] 도면 수령 확정은 파일을 지우지 않는다 — 교체된 옛 도면은 화면에서만 뺀다
+- **키워드**: 도면, 수령확정, drawing_confirm_cleanup, superseded_drawing_keys, R2, 파일삭제, C8, C8-X
+- **결정**: 수령 확정은 `drawing_current_files` 와 `CONFIRM_RECEIPT.files` 만 정한다. 스토리지·`OrderAttachment` 삭제는 없다. 이력으로 현재본을 다시 계산하지 않는다(전달 API 가 계산해 둔 `drawing_current_files` 를 그대로 쓴다). 교체된 옛 도면(TRANSFER·CONFIRM_RECEIPT 에 올랐지만 현재본에 없는 key)은 고객 링크·목록 API·생산/시공/출고 미리보기·발주 PUSH 에서 뺀다.
+- **이유**: 수정요청 참고사진·첨부 탭 업로드가 R2 에서 삭제됐고(C8, 운영 2장 손실), 재계산이 전달 API 와 다르게 풀려 옛 도면을 되살렸다(C8-X). 근거 원장 `docs/plans/2026-09-29-drawing-defects-verification-ledger.md`.
+- **영향**: `foms/services/drawing_confirm_cleanup.py`, `foms/api/share.py`, `foms/api/files/order_routes.py`, `foms/api/channel/channel_integration.py`, `foms/services/construction_dashboard_display.py`, `foms/services/erp_mobile_order_display.py`.
+- **대체**: `docs/evolution/EVOLUTION_DECISIONS.md` [2026-02-27] 도면 파일 생명주기.
+
 ### [2026-09-29] PostgreSQL 드라이버를 psycopg(3) + ClientCursor 로 바꾸고 psycogreen 을 뺀다 (psycopg3 전환 단계 2)
 - **키워드**: psycopg, psycopg3, psycopg2, psycogreen, ClientCursor, gevent, wait_c, PG_SQLALCHEMY_DRIVER, postgres_dbapi_connect
 - **결정**: `PG_SQLALCHEMY_DRIVER = "psycopg"`, 원시 연결은 `psycopg.connect(..., cursor_factory=ClientCursor)`(psycopg2 와 같은 클라이언트 쪽 바인딩, 준비문 없음). `app.py` 의 psycogreen 블록과 `requirements.txt` 의 psycogreen 삭제. psycopg2-binary 는 직접 쓰는 운영 도구(단계 3)와 되돌리기용으로 남긴다.

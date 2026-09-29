@@ -2,10 +2,16 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
 from foms.api.files.routes import build_file_download_url, build_file_view_url
+from foms.services.drawing_confirm_cleanup import (
+    drop_superseded_drawing_rows,
+    exclude_superseded_drawing_rows,
+    load_structured_data_by_order,
+)
 from foms.services.erp_display import (
     _ensure_dict,
     manager_display_name,
@@ -175,12 +181,18 @@ def batch_resolve_queue_attachment_preview_items(
     *,
     limit_per_order: int = _MAX_QUEUE_PREVIEW_COUNT,
     categories: frozenset[str] | None = None,
+    structured_data_by_order: Mapping[int, Any] | None = None,
 ) -> dict[int, list[dict[str, str]]]:
     """Batch-resolve thumb + full-view preview items for mobile v2 queue cards.
+
+    교체된 옛 도면 행(수령 확정이 지우지 않게 된 뒤 남는 행)은 뺀다 — 생산 목록·출고·시공
+    카드가 이 미리보기를 쓴다(:func:`drop_superseded_drawing_rows`).
 
     Args:
         categories: When set, only include attachments whose category is in the set
             (e.g. ``frozenset({\"drawing\"})`` for 시공/출고 도면 전용 미리보기).
+        structured_data_by_order: 호출자가 이미 가진 ``{order_id: structured_data}``.
+            없는 주문은 세션 identity map → ``in_`` 1회로 읽는다(도면 행이 있을 때만).
     """
     if not order_ids:
         return {}
@@ -198,6 +210,9 @@ def batch_resolve_queue_attachment_preview_items(
         ).all()
     except Exception:
         return {}
+    rows = drop_superseded_drawing_rows(
+        db, rows, structured_data_by_order=structured_data_by_order
+    )
 
     out: dict[int, list[dict[str, str]]] = {oid: [] for oid in order_ids}
     for att in rows:
@@ -477,13 +492,23 @@ def _mobile_attachment_item_dict(att) -> dict[str, Any]:
     }
 
 
-def mobile_attachment_items(db, order_id: int, *, limit: int = 8) -> list[dict[str, Any]]:
-    """Attachment summary rows for mobile detail attach grid."""
+def mobile_attachment_items(
+    db, order_id: int, *, limit: int = 8, structured_data: Any = None
+) -> list[dict[str, Any]]:
+    """Attachment summary rows for mobile detail attach grid.
+
+    교체된 옛 도면 행은 SQL 에서 뺀다(limit 이 옛 도면에 먹히지 않게). ``structured_data`` 가
+    없으면 그 주문 것을 읽는다.
+    """
+    if structured_data is None:
+        structured_data = load_structured_data_by_order(db, [order_id]).get(order_id)
     try:
         from models import OrderAttachment
 
         rows = (
-            db.query(OrderAttachment)
+            exclude_superseded_drawing_rows(
+                db.query(OrderAttachment), {order_id: structured_data}
+            )
             .filter(OrderAttachment.order_id == order_id)
             .order_by(OrderAttachment.created_at.desc())
             .limit(limit)
@@ -707,12 +732,20 @@ class MobileQueueBatchContext:
 
 
 def _batch_attachment_counts(
-    db, order_ids: list[int], *, categories: frozenset[str] | None = None
+    db,
+    order_ids: list[int],
+    *,
+    categories: frozenset[str] | None = None,
+    structured_data_by_order: Mapping[int, Any] | None = None,
 ) -> dict[int, int]:
     """주문별 첨부 총 개수(1회 GROUP BY) — _attachment_count의 배치판.
 
+    교체된 옛 도면 행은 세지 않는다 — 카드의 +N 이 미리보기와 어긋나지 않게.
+
     Args:
         categories: When set, count only attachments in those categories.
+        structured_data_by_order: ``{order_id: structured_data}`` — 옛 도면 판정용.
+            배치 컨텍스트가 늘 넘긴다(없으면 빼지 않는다 — 개수만 쓰는 곳에 JSONB 를 더 읽지 않게).
     """
     counts: dict[int, int] = {}
     if not order_ids:
@@ -721,9 +754,10 @@ def _batch_attachment_counts(
         from models import OrderAttachment
         from sqlalchemy import func
 
-        q = db.query(OrderAttachment.order_id, func.count(OrderAttachment.id)).filter(
-            OrderAttachment.order_id.in_(order_ids)
-        )
+        q = exclude_superseded_drawing_rows(
+            db.query(OrderAttachment.order_id, func.count(OrderAttachment.id)),
+            structured_data_by_order or {},
+        ).filter(OrderAttachment.order_id.in_(order_ids))
         if categories is not None:
             q = q.filter(func.lower(OrderAttachment.category).in_(sorted(categories)))
         rows = q.group_by(OrderAttachment.order_id).all()
@@ -735,11 +769,16 @@ def _batch_attachment_counts(
 
 
 def _batch_mobile_attachment_items(
-    db, order_ids: list[int], *, limit_per_order: int = 50
+    db,
+    order_ids: list[int],
+    *,
+    limit_per_order: int = 50,
+    structured_data_by_order: Mapping[int, Any] | None = None,
 ) -> dict[int, list[dict[str, Any]]]:
     """주문별 첨부 그리드 항목(1회 in_ 조회) — mobile_attachment_items의 배치판.
 
     주문 내 정렬(created_at desc)·항목당 limit을 per-row 경로와 동일하게 유지한다.
+    교체된 옛 도면 행은 limit 을 세기 전에 뺀다(per-row 경로의 SQL 제외와 같은 결과).
     """
     out: dict[int, list[dict[str, Any]]] = {oid: [] for oid in order_ids}
     if not order_ids:
@@ -755,6 +794,9 @@ def _batch_mobile_attachment_items(
         )
     except Exception:
         return out
+    rows = drop_superseded_drawing_rows(
+        db, rows, structured_data_by_order=structured_data_by_order
+    )
     for att in rows:
         bucket = out.get(int(att.order_id))
         if bucket is None or len(bucket) >= limit_per_order:
@@ -805,14 +847,20 @@ def build_mobile_queue_batch_context(
     """
     order_ids = [o.id for o in orders]
     sds = [_ensure_dict(getattr(o, "structured_data", None)) for o in orders]
+    # 교체된 옛 도면 판정용 — 이미 읽은 structured_data 를 넘겨 다시 읽지 않는다.
+    sd_by_order = dict(zip(order_ids, sds))
     preview_categories = _QUEUE_DRAWING_CATEGORIES if drawing_preview_only else None
     return MobileQueueBatchContext(
         attachment_counts=_batch_attachment_counts(
-            db, order_ids, categories=preview_categories
+            db, order_ids, categories=preview_categories,
+            structured_data_by_order=sd_by_order,
         ),
-        attachments_by_order=_batch_mobile_attachment_items(db, order_ids, limit_per_order=50),
+        attachments_by_order=_batch_mobile_attachment_items(
+            db, order_ids, limit_per_order=50, structured_data_by_order=sd_by_order
+        ),
         preview_items_by_order=batch_resolve_queue_attachment_preview_items(
-            db, order_ids, categories=preview_categories
+            db, order_ids, categories=preview_categories,
+            structured_data_by_order=sd_by_order,
         ),
         timeline_by_order=_batch_mobile_timeline_events(db, order_ids),
         user_map=load_assignee_user_map_batch(db, sds),
@@ -852,14 +900,16 @@ def build_mobile_queue_order_row(db, order, current_user=None, *, batch_ctx=None
     preview_items = (
         batch_ctx.preview_items_by_order.get(order.id, [])
         if batch_ctx is not None
-        else batch_resolve_queue_attachment_preview_items(db, [order.id]).get(order.id, [])
+        else batch_resolve_queue_attachment_preview_items(
+            db, [order.id], structured_data_by_order={order.id: sd}
+        ).get(order.id, [])
     )
     previews = [item["view"] for item in preview_items if item.get("view")]
     received = schedule.get("received") or {}
     attachments = (
         batch_ctx.attachments_by_order.get(order.id, [])
         if batch_ctx is not None
-        else mobile_attachment_items(db, order.id, limit=50)
+        else mobile_attachment_items(db, order.id, limit=50, structured_data=sd)
     )
     product_items = mobile_product_items(sd, attachments)
     _, common_attachments = _group_attachments_by_item_index(

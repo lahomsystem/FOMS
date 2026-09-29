@@ -629,6 +629,83 @@
     outline-offset: 2px;
   }
 
+  /* 수정요청 참고사진 — 말풍선 안 작은 썸네일, 누르면 GlobalImageViewer 로 크게. */
+  body.erp-mobile-v2-layout .foms-drawing-thread__refs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.375rem;
+    margin: 0.5rem 0 0.25rem;
+  }
+
+  body.erp-mobile-v2-layout .foms-drawing-thread__ref {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 3.5rem;
+    height: 3.5rem;
+    padding: 0;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.7);
+    border-radius: 6px;
+    background: var(--foms-surface-base, #fff);
+    color: var(--foms-text-primary, #14171c);
+  }
+
+  body.erp-mobile-v2-layout .foms-drawing-thread__ref img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  body.erp-mobile-v2-layout .foms-drawing-thread__ref--file {
+    gap: 0.3rem;
+    width: auto;
+    max-width: 100%;
+    height: 2.25rem;
+    padding: 0 0.5rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-decoration: none;
+  }
+
+  body.erp-mobile-v2-layout .foms-drawing-thread__ref--file span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* 수정요청 반영 체크 줄 — 상태 글자 + 토글 버튼(PC 요청사항 칸과 같은 API). */
+  body.erp-mobile-v2-layout .foms-drawing-thread__check {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.4rem 0.5rem;
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.35);
+  }
+
+  body.erp-mobile-v2-layout .foms-drawing-thread__check-state {
+    font-size: 0.72rem;
+    font-weight: 800;
+  }
+
+  body.erp-mobile-v2-layout .foms-drawing-thread__check .foms-btn {
+    flex: 0 0 auto;
+    border-color: #fff;
+    background: var(--foms-surface-base, #fff);
+    color: var(--foms-color-brand-700, #3a4490);
+    font-weight: 800;
+  }
+
+  body.erp-mobile-v2-layout .foms-drawing-thread__check.is-checked .foms-btn {
+    border-color: rgba(255, 255, 255, 0.7);
+    background: transparent;
+    color: #fff;
+  }
+
   body.erp-mobile-v2-layout .foms-drawing-action-bar {
     position: fixed;
     left: 0;
@@ -685,5 +762,25 @@
 
   body.erp-mobile-v2-layout .foms-drawing-action-bar__btn:disabled {
     opacity: 0.55;
+  }
+
+  /* 수정요청 반영 체크로 막힌 '전달 대기' — 흐린 회색(opacity) 대신 읽히는 경고색으로 이유를 보인다. */
+  body.erp-mobile-v2-layout .foms-drawing-action-bar__btn--gated:disabled {
+    border-color: var(--foms-color-warning-500, #f59e0b);
+    background: var(--foms-color-warning-50, #fffbeb);
+    color: var(--foms-color-warning-700, #b45309);
+    opacity: 1;
+  }
+
+  /* '전달 대기' 아래 막힌 이유 한 줄 — 좁은 버튼이라 줄바꿈을 허용한다. */
+  body.erp-mobile-v2-layout .foms-drawing-action-bar__reason {
+    display: block;
+    max-width: 100%;
+    font-size: 0.62rem;
+    font-weight: 700;
+    line-height: 1.15;
+    white-space: normal;
+    word-break: keep-all;
+    overflow-wrap: break-word;
   }
 }

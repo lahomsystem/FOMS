@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from foms.api.files import build_file_view_url
+from foms.services.drawing_confirm_cleanup import exclude_superseded_drawing_rows
 from foms.services.feature_flags import env_bool_or_mobile_v2
 from foms.services.erp_display import (
     manager_display_name,
@@ -323,8 +324,10 @@ def build_construction_preview_attachments_map(
     out: dict[int, list[OrderAttachment]] = {oid: [] for oid in order_ids}
     if not order_ids:
         return out
+    # 교체된 옛 도면 행은 뺀다(확정이 지우지 않게 된 뒤 남는다 — drawing_confirm_cleanup).
+    sd_by_order = {int(r["id"]): r.get("structured_data") for r in rows if r.get("id")}
     attachments = (
-        db.query(OrderAttachment)
+        exclude_superseded_drawing_rows(db.query(OrderAttachment), sd_by_order)
         .filter(
             OrderAttachment.order_id.in_(order_ids),
             OrderAttachment.category.in_(sorted(categories)),
