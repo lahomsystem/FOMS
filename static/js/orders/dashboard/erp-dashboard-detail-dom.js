@@ -337,7 +337,6 @@
               const isAdmin = (MY_ROLE === 'ADMIN');
               const canDrawingAssign = canEdit || isDrawingTeam || isAdmin;
               const canDrawingWork = (isDrawingTeam || isAssigned || isAdmin) && hasAssignee;
-              const canToggleRevisionCheck = isDrawingTeam || isAssigned || isAdmin;
 
               // P0-21: User.name(자기수정 가능) 이 innerHTML 로 들어가므로 escape.
               const assigneeNames = escapeHtml(
@@ -407,34 +406,6 @@
                 }
               }
               const gatewayHistoryHtml = renderDrawingGatewayTimeline(drawHistory);
-              const requestTabHtml = revisionRequests.length
-                ? revisionRequests.slice(0, 8).map((h, idx) => {
-                  const when = escapeHtml(h.transferred_at || h.at || '-');
-                  const requestAtRaw = String(h.at || h.transferred_at || '');
-                  const requestAtEnc = encodeURIComponent(requestAtRaw);
-                  const by = escapeHtml(h.by_user_name || '-');
-                  const byUserId = Number(h.by_user_id || 0) || '';
-                  const note = escapeHtml(h.note || '요청 메모 없음');
-                  const targetNo = Number(h.target_drawing_number || 0);
-                  const targetBadge = targetNo > 0 ? '<span class="badge bg-info text-dark ms-1">' + targetNo + '번 대상</span>' : '';
-                  const reviewCheck = (h.review_check && typeof h.review_check === 'object') ? h.review_check : {};
-                  const isChecked = !!reviewCheck.checked;
-                  const checkedBy = escapeHtml(reviewCheck.checked_by_name || '-');
-                  const checkedAt = escapeHtml(reviewCheck.checked_at || '-');
-                  const pinBadge = idx === 0 ? '<span class="badge bg-danger ms-1">최신 요청</span>' : '';
-                  const checkBadge = isChecked
-                    ? '<span class="badge bg-success ms-1">반영 완료</span>'
-                    : '<span class="badge bg-secondary ms-1">미완료</span>';
-                  const onclickToggle = 'toggleRevisionChecklist(' + orderId + ', \'' + requestAtEnc + '\', \'' + String(byUserId) + '\', ' + (isChecked ? 'false' : 'true') + ')';
-                  const toggleBtn = canToggleRevisionCheck
-                    ? ('<button class="btn btn-sm ' + (isChecked ? 'btn-outline-secondary' : 'btn-outline-success') + ' mt-2" onclick="' + onclickToggle + '"><i class="fas ' + (isChecked ? 'fa-rotate-left' : 'fa-check') + '"></' + 'i>' + (isChecked ? '완료 해제' : '반영 완료') + '</' + 'button>')
-                    : '';
-                  const checkMeta = isChecked
-                    ? '<div class="small text-success mt-1"><i class="fas fa-user-check"></' + 'i> ' + checkedBy + ' · ' + checkedAt + '</div>'
-                    : '';
-                  return '<div class="border rounded p-2 mb-2 bg-white"><div class="small text-muted mb-1">' + when + ' · ' + by + ' ' + pinBadge + ' ' + checkBadge + ' ' + targetBadge + '</div><div class="small dw-revision-note-text">' + note + '</div>' + checkMeta + toggleBtn + '</div>';
-                }).join('')
-                : '<div class="text-muted small">수정 요청 이력이 없습니다.</div>';
 
               const transferEvents = drawHistory.filter(h => h && h.action === 'TRANSFER');
               const latestTransfer = transferEvents.length ? transferEvents[transferEvents.length - 1] : null;

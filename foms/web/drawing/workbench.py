@@ -228,9 +228,20 @@ def _build_drawing_turn(
     can_confirm_receipt: bool,
     file_count: int,
     transfer_round: int,
+    gated: bool = False,
 ) -> dict[str, str]:
-    """Build order-level turn ribbon copy for the mobile handoff UI."""
+    """Build order-level turn ribbon copy for the mobile handoff UI.
+
+    ``gated`` = 반영 체크가 남아 수정본 전달이 막힌 상태(``transfer_gated_by_revision_checklist``).
+    그때는 전달 권한이 있어도 지금 누를 수 있는 일이 아니므로 '내 차례' 색을 쓰지 않는다(원장 M14-b).
+    """
     status = (drawing_status or 'PENDING').upper()
+    if gated:
+        return {
+            'label': '수정요청 반영 체크 필요',
+            'sub': (f'도면팀 {transfer_round}차 전달' if transfer_round else '도면 전달 대기') + f' · 도면 {file_count}장',
+            'tone': 'other',
+        }
     if status == 'TRANSFERRED':
         label = '영업 확인 차례'
     elif status == 'RETURNED':
@@ -1004,6 +1015,17 @@ def erp_drawing_workbench_detail(order_id):
         h['is_highlight'] = bool(highlight_event_id) and h.get('event_key') == highlight_event_id
     for h in revision_requests:
         h['is_highlight'] = (bool(highlight_event_id) and h.get('event_key') == highlight_event_id) or (highlight_target_no and int(h.get('target_no') or 0) == int(highlight_target_no))
+    # 알림 착지(`?tab=requests` — 웹푸시·실시간 창)는 어느 요청인지 안 싣는다. 그 뜻은 "수정요청을 봐라"
+    # 이므로 가장 최근 미체크 요청을 강조한다(원장 M14-c). 명시 강조(event_id·target_no)가 있으면 그것만.
+    requests_tab_landing = active_tab == 'requests'
+    if requests_tab_landing and not any(h.get('is_highlight') for h in revision_requests):
+        first_unchecked = next(
+            (h for h in revision_requests
+             if not bool((h.get('review_check') if isinstance(h.get('review_check'), dict) else {}).get('checked'))),
+            None,
+        )
+        if first_unchecked is not None:
+            first_unchecked['is_highlight'] = True
 
     draw_assignee_ids = get_assignee_ids(order, 'DRAWING_DOMAIN')
     has_assignee = bool(draw_assignee_ids)
@@ -1085,7 +1107,8 @@ def erp_drawing_workbench_detail(order_id):
     file_keys = [_drawing_file_key(f, idx) for idx, f in enumerate(drawing_files)]
     handoff_invalid_drawing_key = ''
     selected_key = requested_drawing_key if requested_drawing_key in file_keys else ''
-    deep_link_requested = bool(highlight_event_id or highlight_target_no)
+    # 모바일 스레드는 상세 보기에만 있다 — 요청 탭 착지도 딥링크로 봐야 여러 장 주문에서 스레드가 보인다.
+    deep_link_requested = bool(highlight_event_id or highlight_target_no or requests_tab_landing)
     if requested_drawing_key and requested_drawing_key not in file_keys:
         handoff_invalid_drawing_key = '선택한 도면을 찾을 수 없습니다.'
     if not selected_key and highlight_target_no and 1 <= highlight_target_no <= len(file_keys):
@@ -1110,6 +1133,7 @@ def erp_drawing_workbench_detail(order_id):
         can_confirm_receipt,
         len(handoff_files),
         transfer_round,
+        gated=transfer_gated_by_revision_checklist,
     )
     handoff_thread = _build_handoff_thread(history, order_id=order.id)
 

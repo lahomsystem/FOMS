@@ -67,11 +67,14 @@
     });
   }
 
+  // 대신 누르기 표 — 모바일 버튼은 같은 응답의 숨은 PC 버튼을 누른다(그 버튼의 확인창·API·토스트를 그대로 쓴다).
+  // 도면방 보내기는 PC #dw-btn-drawing-room-push 의 pushDrawingRoom(workbench_detail_body.html) 을 탄다.
   function proxyLegacyAction(action) {
     const target = {
       confirm: 'btn-confirm-receipt',
       cancel: 'btn-cancel-transfer',
-      'cancel-revision': 'btn-cancel-revision'
+      'cancel-revision': 'btn-cancel-revision',
+      'drawing-room-push': 'dw-btn-drawing-room-push'
     }[action];
     if (!target) return;
     document.getElementById(target)?.click();

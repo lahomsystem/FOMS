@@ -85,13 +85,15 @@
   </section>
 
   {# ── m-foot: 시트 전달 + 마법사 열기 ↗ ── #}
+  {# 시트 전달은 교체 대상 없이 보낸다 — 서버가 400 으로 거절할 상태(반영 체크 남음 · RETURNED 이고
+     현재본 2장 이상)면 끄고 이유를 보인다(tablet_sheet._sheet_transfer_block_reason, 원장 M14-d). #}
   <div class="foms-drawing-sheet__foot">
     {% if can_transfer %}
     <button type="button"
             class="foms-drawing-sheet__btn foms-drawing-sheet__btn--ghost foms-drawing-sheet__transfer"
             data-foms-drawing-transfer
             data-order-id="{{ order_id }}"
-            {% if not has_pending %}disabled title="전달할 저장 시트가 없습니다"{% endif %}>
+            {% if transfer_block_reason %}disabled aria-describedby="dw-sheet-transfer-reason"{% elif not has_pending %}disabled title="전달할 저장 시트가 없습니다"{% endif %}>
       <i class="fas fa-paper-plane" aria-hidden="true"></i> 시트 전달
     </button>
     {% elif show_transfer_assignee_only_hint %}
@@ -101,5 +103,8 @@
       마법사 열기 <span aria-hidden="true">↗</span>
     </a>
   </div>
+  {% if can_transfer and transfer_block_reason %}
+  <p class="foms-drawing-sheet__muted" id="dw-sheet-transfer-reason">{{ transfer_block_reason }}</p>
+  {% endif %}
 </div>
 {% endif %}
