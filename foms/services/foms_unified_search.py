@@ -30,7 +30,9 @@ _CHOSUNG = "ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ"
 # 줄이기 위해 후보 폭을 넓힌다. 후보는 Python 분류기를 거치므로 trgm 인덱스 + 200ms 디바운스
 # 하에서 안전한 범위로만 상향한다.
 _MAX_SQL_ROWS = 300
-_MAX_CHOSUNG_SCAN = 400
+# 초성 검색은 이름 두 칸(컬럼 + structured_data 고객명)만 전 기간 훑는다. 맞는 주문이
+# 이보다 많으면 최신순으로 자른다(분류·관련도 정렬 뒤 묶음마다 8건만 보이므로 넉넉하다).
+_MAX_CHOSUNG_HITS = 500
 _MAX_HISTORY_FALLBACK_ROWS = 200
 
 
@@ -345,14 +347,13 @@ def _base_orders_query(db: Session, query: str, scope=None):
 
     # 초성 쿼리는 ILIKE term이 자모라 의미가 없으므로 별도 스캔만 수행.
     if is_chosung_query(query):
-        chosung_rows = (
-            _active_orders(db, scope)
-            .filter(Order.is_erp_order.is_(True))
-            .order_by(Order.created_at.desc(), Order.id.desc())
-            .limit(_MAX_CHOSUNG_SCAN)
-            .all()
-        )
-        _extend(chosung_rows)
+        ids = chosung_matching_order_ids(db, query, scope=scope)
+        if ids:
+            by_id = {
+                int(order.id): order
+                for order in _active_orders(db, scope).filter(Order.id.in_(ids)).all()
+            }
+            _extend([by_id[oid] for oid in ids if oid in by_id])
         return candidates
 
     # 2) 폰 자릿수 인덱스 경로. 숫자 4자리는 이력 화면과 같은 "전화 끝자리" 규칙만 쓴다 —
@@ -362,6 +363,42 @@ def _base_orders_query(db: Session, query: str, scope=None):
     # 3) 가시 필드 ILIKE 경로.
     _extend(_term_prefilter(db, query, scope))
     return candidates
+
+
+def chosung_matching_order_ids(
+    db: Session,
+    query: str,
+    *,
+    scope=None,
+    limit: int = _MAX_CHOSUNG_HITS,
+) -> list[int]:
+    """초성(ㅅㅈㄱ)이 고객명 초성의 앞부분과 맞는 주문 id — 최신순, 레거시 포함.
+
+    전에는 최근 ERP 주문 400건의 **전체 행**을 불러 그 안에서만 찾아, 오래된 주문과 레거시
+    주문은 초성으로 영영 안 나왔다(2026-09-29 스테이징 60건 표본 중 8건만 찾음). 과거 이력
+    화면은 초성을 아예 몰랐다. 이름 두 칸만 읽으면 전량이 싸다(스테이징 3,500건 18ms).
+    미리보기와 과거 이력 화면이 이 함수 하나를 같이 쓴다.
+    """
+    cq = _compact(query)
+    if not cq:
+        return []
+    sd_name = Order.structured_data["parties"]["customer"]["name"].as_string()
+    rows = (
+        _active_orders(db, scope)
+        .with_entities(Order.id, Order.customer_name, sd_name)
+        .order_by(Order.id.desc())
+        .all()
+    )
+    ids: list[int] = []
+    for order_id, column_name, structured_name in rows:
+        if any(
+            name and _to_chosung(_compact(name)).startswith(cq)
+            for name in (structured_name, column_name)
+        ):
+            ids.append(int(order_id))
+            if len(ids) >= limit:
+                break
+    return ids
 
 
 def _history_style_orders_query(db: Session, query: str, scope=None) -> list[Order]:

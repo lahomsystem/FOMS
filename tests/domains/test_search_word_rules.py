@@ -147,3 +147,38 @@ def test_completion_search_words_in_any_order(client, app) -> None:
     for q in ("용인시 수지구", "수지구 완료어순"):
         hits = client.get("/api/orders/completion", query_string={"q": q}).get_json()["orders"]
         assert order.id in {row["id"] for row in hits}, q
+
+
+def test_chosung_finds_legacy_orders_in_both(client, app) -> None:
+    """초성: 전에는 최근 ERP 400건만 봐서 레거시·오래된 주문이 안 나왔고, 결과 화면은 0건이었다."""
+    _login_admin(client)
+    erp = _seed("성진규", "010-9090-1010")
+    legacy = Order(
+        received_date="2020-01-01",
+        customer_name="서장군",
+        phone="010-9191-2020",
+        address="서울",
+        product="장",
+        status="COMPLETED",
+        is_erp_order=False,
+    )
+    other = Order(
+        received_date="2020-01-01",
+        customer_name="김초성",
+        phone="010-9292-3030",
+        address="서울",
+        product="장",
+        status="COMPLETED",
+        is_erp_order=False,
+    )
+    db_session.add_all([legacy, other])
+    db_session.commit()
+    legacy_id, other_id = legacy.id, other.id
+
+    preview = _preview_ids("ㅅㅈㄱ")
+    history = _history_ids(client, "ㅅㅈㄱ")
+    for oid in (erp, legacy_id):
+        assert oid in preview, oid
+        assert f'data-order-id="{oid}"' in history, oid
+    assert other_id not in preview
+    assert f'data-order-id="{other_id}"' not in history

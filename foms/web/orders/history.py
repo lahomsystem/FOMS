@@ -10,6 +10,7 @@ from models import Order
 from foms.web.auth import login_required
 from foms.services.orders.status_constants import STATUS
 from foms.services.erp_dashboard_search import search_query_tokens, visible_order_search_clause
+from foms.services.foms_unified_search import chosung_matching_order_ids, is_chosung_query
 from foms.services.erp_order_flags import is_erp_order_record
 from sqlalchemy import and_, or_
 
@@ -185,9 +186,13 @@ def history_dashboard():
         # 통째 ILIKE 는 "수지구 용인시" 처럼 순서가 DB 값과 다르면 0건이었다(2026-09-29
         # 스테이징 60건 표본: 미리보기 55건 찾음, 이 화면 0건). 한 낱말이면 전과 같다.
         # 낱말 규칙(띄어 친 전화번호는 한 낱말, "#5335" 는 5335)은 미리보기와 한 곳에서 정한다.
-        _q = _q.filter(
-            and_(*[visible_order_search_clause(tok) for tok in search_query_tokens(f_q)])
-        )
+        if is_chosung_query(f_q):
+            # 초성(ㅅㅈㄱ)은 ILIKE 로 못 찾는다 — 미리보기와 같은 이름 초성 스캔 결과로 좁힌다.
+            _q = _q.filter(Order.id.in_(chosung_matching_order_ids(db, f_q) or [-1]))
+        else:
+            _q = _q.filter(
+                and_(*[visible_order_search_clause(tok) for tok in search_query_tokens(f_q)])
+            )
         
     if f_stage:
         # ERP: erp_stage_code / 레거시: status (값이 MEASURE·MEASURED 등으로 다를 수 있음)
@@ -222,7 +227,7 @@ def history_dashboard():
             "team": getattr(user, "team", None) if user else None,
             "mine": bool(mine_only),
             "scope": "active_all",  # 60일 창 제거 — 옛 캐시 blob 무효화 겸 스코프 표식
-            "search": "visible_v4",  # v1: SD 전체 문자열 제거 · v2: 낱말 AND · v3: #번호 · v4: 띄어 친 전화
+            "search": "visible_v5",  # v1: SD 전체 문자열 제거 · v2: 낱말 AND · v3: #번호 · v4: 띄어 친 전화 · v5: 초성
 
             "q": f_q or "",
             "stage": f_stage or "",
