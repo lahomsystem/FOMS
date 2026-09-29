@@ -86,12 +86,41 @@ def postgres_dbapi_connect(connect_kwargs: dict[str, Any]) -> Any:
     """
     import psycopg
 
-    return psycopg.connect(**connect_kwargs, cursor_factory=psycopg.ClientCursor)
+    conn = psycopg.connect(**connect_kwargs, cursor_factory=psycopg.ClientCursor)
+    conn.server_cursor_factory = _client_bound_server_cursor()
+    return conn
+
+
+_CLIENT_BOUND_SERVER_CURSOR: Any = None
+
+
+def _client_bound_server_cursor() -> Any:
+    """``ServerCursor`` that interpolates parameters client-side, like psycopg2 named cursors.
+
+    ``yield_per`` / ``stream_results`` open a *named* cursor, which psycopg builds from
+    ``server_cursor_factory`` — not ``cursor_factory`` — and binds server-side. The query is
+    rendered with ``ClientCursor.mogrify`` first (``%%`` unescaped as with any parameters) and
+    declared without parameters. Built lazily: psycopg must be imported after the gevent patch.
+    """
+    global _CLIENT_BOUND_SERVER_CURSOR
+    if _CLIENT_BOUND_SERVER_CURSOR is None:
+        import psycopg
+
+        class ClientBoundServerCursor(psycopg.ServerCursor):
+            def execute(self, query: Any, params: Any = None, **kwargs: Any) -> Any:
+                if params is not None:
+                    with psycopg.ClientCursor(self.connection) as renderer:
+                        query = renderer.mogrify(query, params)
+                    params = None
+                return super().execute(query, params, **kwargs)
+
+        _CLIENT_BOUND_SERVER_CURSOR = ClientBoundServerCursor
+    return _CLIENT_BOUND_SERVER_CURSOR
 
 
 @event.listens_for(Engine, "connect")
 def _psycopg_client_side_binding(dbapi_connection: Any, _connection_record: Any) -> None:
-    """Give every psycopg connection a ``ClientCursor`` — URL-built engines included.
+    """Give every psycopg connection client-side binding — URL-built engines included.
 
     ``creator`` engines already get it from :func:`postgres_dbapi_connect`, but engines made
     from :func:`sqlalchemy_url` (SIDEFX, cron, alembic, ops tools, the PG test lane) connect
@@ -104,6 +133,7 @@ def _psycopg_client_side_binding(dbapi_connection: Any, _connection_record: Any)
 
     if isinstance(dbapi_connection, psycopg.Connection):
         dbapi_connection.cursor_factory = psycopg.ClientCursor
+        dbapi_connection.server_cursor_factory = _client_bound_server_cursor()
 
 
 class PGDialect_psycopg_plain_binds(PGDialect_psycopg):

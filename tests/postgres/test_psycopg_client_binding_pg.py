@@ -70,3 +70,29 @@ def test_string_value_compared_to_integer_column_binds_like_psycopg2(lane_dsn) -
         assert engine.dialect.bind_typing.name == "NONE"
     finally:
         engine.dispose()
+
+
+def test_streaming_server_cursor_binds_client_side(lane_dsn) -> None:
+    """``yield_per`` / ``stream_results`` open a *named* cursor.
+
+    psycopg builds those from ``server_cursor_factory`` (``ServerCursor``, server-side binding),
+    not ``cursor_factory`` — so the ``ClientCursor`` setup above never reached them, and the
+    SQL that ``test_url_built_engine_uses_client_side_binding`` proves fine would fail with
+    ``AmbiguousParameter`` only on streaming paths. psycopg2 named cursors bound client-side.
+    """
+    engine = create_engine(sqlalchemy_url(lane_dsn))
+    try:
+        with engine.connect() as conn:
+            rows = conn.execution_options(stream_results=True, max_row_buffer=10).execute(
+                text("SELECT :d, CAST(:d AS JSONB), 'a%b' FROM generate_series(1, 25)"),
+                {"d": '{"a": 1}'},
+            ).all()
+            assert len(rows) == 25
+            assert rows[0][0] == '{"a": 1}' and rows[0][1] == {"a": 1} and rows[0][2] == "a%b"
+            # No parameters: a literal % must survive too.
+            got = conn.execution_options(stream_results=True).execute(
+                text("SELECT 'x%y'")
+            ).scalar_one()
+            assert got == "x%y"
+    finally:
+        engine.dispose()
