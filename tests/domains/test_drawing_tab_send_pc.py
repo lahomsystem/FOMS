@@ -3,8 +3,8 @@
 PC 결정 바는 서버가 만든 ``customer_send.bar`` 를 **순회만** 한다(§3.0). 버튼 판정은 S1 읽기 모델의 몫이라,
 이 파일의 모양 테스트는 실제 상세 라우트를 타되 ``render_template`` 직전에 ``customer_send`` 를 **빈 값에서 시작해**
 주어진 값만 채운다(``_inject``). 그래서 S1 이 판정 본문·실제 값을 바꿔도 이 테스트는 "주어진 목록을 어떻게 그리나"만 본다.
-S1 이 합쳐진 뒤에만 도는 상태별 통합 테스트는 맨 아래 — 상세 라우트(workbench)가 ``build_customer_send_view`` 를
-실제로 불러 쓰는지로 판정한다(모듈 이름이 아니라 연결을 본다).
+빈 bar 대체·회차 기록 줄·S1 합친 뒤 통합 테스트는 test_drawing_tab_send_pc_s1_link.py, 공용 도우미는
+tests/support/drawing_tab_send_pc_helpers.py.
 """
 
 from __future__ import annotations
@@ -15,161 +15,17 @@ import re
 from pathlib import Path
 
 import pytest
-from bs4 import BeautifulSoup
-from werkzeug.security import generate_password_hash
 
-import foms.web.drawing.workbench as workbench_module
 from db import db_session
-from foms.services.datetime_kst import get_today_kst
-from foms.services.orders import drawing_customer_send as cs_module
-from models import Order, User
+from models import Order
+from tests.support.drawing_tab_send_pc_helpers import _bar, _bar_keys, _inject, _order, _page, _pc, make_people
 
 ROOT = Path(__file__).resolve().parents[2]
-SALES_NAME = "영업담당S2"
-
-
-def _user(username: str, *, role: str, team: str, name: str) -> dict:
-    user = User(
-        username=username, password=generate_password_hash("pw"), role=role, team=team,
-        name=name, is_active=True,
-    )
-    db_session.add(user)
-    db_session.commit()
-    return {"id": user.id, "username": user.username, "role": user.role}
-
-
-def _login(client, who: dict) -> None:
-    with client.session_transaction() as sess:
-        sess["user_id"] = who["id"]
-        sess["username"] = who["username"]
-        sess["role"] = who["role"]
-
-
-def _order(drafter_id: int, *, status: str = "TRANSFERRED", stage: str = "DRAWING", files: int = 2) -> int:
-    history = [{
-        "action": "TRANSFER", "by_user_id": drafter_id, "by_user_name": "도면담당S2",
-        "at": "2026-09-20 01:00:00", "transferred_at": "2026-09-20 01:00:00", "note": "1차 전달", "files": [],
-    }]
-    if status == "RETURNED":
-        history.append({
-            "action": "REQUEST_REVISION", "by_user_name": SALES_NAME, "at": "2026-09-21 01:00:00",
-            "note": "문짝 폭 줄여 주세요", "files": [],
-        })
-    current = [{"key": f"orders/s2/drawing/plan-{i}.png", "filename": f"plan-{i}.png"} for i in range(1, files + 1)]
-    order = Order(
-        received_date=get_today_kst().strftime("%Y-%m-%d"), customer_name="S2 고객", phone="010-0000-0022",
-        address="서울 강동구", product="붙박이장", status="DRAWING", manager_name=SALES_NAME, is_erp_order=True,
-        structured_data={
-            "parties": {"customer": {"name": "S2 고객"}, "manager": {"name": SALES_NAME}},
-            "workflow": {"stage": stage},
-            "drawing_status": status,
-            "assignments": {"drawing_assignee_user_ids": [drafter_id]},
-            "drawing_current_files": current,
-            "drawing_transfer_history": history,
-        },
-    )
-    db_session.add(order)
-    db_session.commit()
-    return order.id
-
-
-def _bar(*keys: str, tone: dict | None = None) -> list[dict]:
-    tone = tone or {}
-    return [{"key": k, "label": "", "tone": tone.get(k, ""), "slot": "main"} for k in keys]
-
-
-def _inject(monkeypatch, cs: dict | None = None, ctx_patch=None) -> None:
-    """상세 라우트가 렌더 직전에 만든 ctx 의 customer_send 를 덮어쓴다(판정은 S1 몫 — 모양만 본다)."""
-    real = workbench_module.render_template
-
-    def fake(template_name, **ctx):
-        if template_name in ("drawing/workbench_detail.html", "drawing/workbench_detail_fragment.html"):
-            if cs is not None:
-                # 늘 빈 값에서 시작한다 — 실제 ctx(S1 값: can_change_phone 등)가 모양 테스트에 새지 않게.
-                merged = cs_module.empty_customer_send_view()
-                merged.update(cs)
-                ctx["customer_send"] = merged
-            if ctx_patch is not None:
-                ctx_patch(ctx)
-        return real(template_name, **ctx)
-
-    monkeypatch.setattr(workbench_module, "render_template", fake)
-
-
-def _page(client, who: dict, order_id: int) -> BeautifulSoup:
-    _login(client, who)
-    res = client.get(f"/erp/drawing-workbench/{order_id}")
-    assert res.status_code == 200, res.get_data(as_text=True)[:500]
-    return BeautifulSoup(res.get_data(as_text=True), "html.parser")
-
-
-def _pc(soup: BeautifulSoup):
-    pc = soup.select_one(".dw-legacy-detail .dw-sidebar-actions")
-    assert pc is not None
-    return pc
-
-
-def _bar_keys(soup: BeautifulSoup) -> list[str]:
-    return [el["data-bar-key"] for el in _pc(soup).select("[data-bar-key]")]
 
 
 @pytest.fixture
 def people():
-    return {
-        "drafter": _user("s2_drafter", role="STAFF", team="DRAWING", name="도면담당S2"),
-        "sales": _user("s2_sales", role="MANAGER", team="SALES", name=SALES_NAME),
-    }
-
-
-# --------------------------------------------------------------------------- 빈 bar(S1 읽기 모델 없음) 대체
-
-
-def _legacy(soup: BeautifulSoup) -> list[str]:
-    return [el["data-bar-key"] for el in _pc(soup).select("[data-bar-legacy]")]
-
-
-def test_empty_bar_draws_legacy_buttons_as_fallback(client, monkeypatch, people):
-    """bar 가 빈 값이면(S2 만 올라가 S1 읽기 모델이 없을 때) 옛 [수정 요청]·[수령 확정] 을 같은 id 로 대신 그린다.
-
-    이게 없으면 PC 결정 바에서 두 버튼이 사라지고, 모바일 바의 [수령 확정] 대신 누르기(#btn-confirm-receipt)가
-    조용히 아무 일도 안 한다(리뷰 P2). 새 버튼·보내기 시트는 여전히 안 보인다."""
-    oid = _order(people["drafter"]["id"])
-    _inject(monkeypatch, {})
-    soup = _page(client, people["sales"], oid)
-    assert _legacy(soup) == ["rev_sales", "ok_no_customer"]
-    ok = soup.select("#btn-confirm-receipt")
-    assert len(ok) == 1 and ok[0]["data-bs-target"] == "#dwCustomerOkModal" and "수령 확정" in ok[0].get_text()
-    assert soup.select_one("#dwCustomerOkModal") is not None
-    rev = _pc(soup).select_one('[data-bar-legacy][data-bar-key="rev_sales"]')
-    assert rev["data-bs-target"] == "#dwRevisionModal" and "수정 요청" in rev.get_text()
-    assert soup.select_one("#dwCustomerSendModal") is None
-    assert soup.select_one("#dwRevisionEditModal") is None
-    assert soup.select_one("#dwUrgentCallModal") is None
-
-
-def test_empty_bar_returned_draws_legacy_cancel_revision(client, monkeypatch, people):
-    oid = _order(people["drafter"]["id"], status="RETURNED")
-    _inject(monkeypatch, {})
-    soup = _page(client, people["sales"], oid)
-    assert _legacy(soup) == ["cancel_revision"]
-    assert len(soup.select("#btn-cancel-revision")) == 1
-    assert soup.select_one("#btn-confirm-receipt") is None
-
-
-def test_empty_bar_drawing_team_gets_no_legacy_sales_buttons(client, monkeypatch, people):
-    """대조군: 도면팀은 옛 블록 조건(영업 쪽)이 거짓이라 대체 버튼도 없다."""
-    oid = _order(people["drafter"]["id"])
-    _inject(monkeypatch, {})
-    soup = _page(client, people["drafter"], oid)
-    assert _legacy(soup) == [] and soup.select_one("#btn-confirm-receipt") is None
-
-
-def test_bar_with_sales_keys_never_adds_legacy(client, monkeypatch, people):
-    """bar 에 같은 역할 키가 있으면 대체는 절대 붙지 않는다(두 번 그리지 않게 · 확정 id 한 번)."""
-    oid = _order(people["drafter"]["id"])
-    _inject(monkeypatch, {"bar": _bar("rev_sales", "send", "ok_no_customer")})
-    soup = _page(client, people["sales"], oid)
-    assert _legacy(soup) == [] and len(soup.select("#btn-confirm-receipt")) == 1
+    return make_people()
 
 
 # --------------------------------------------------------------------------- 영업 결정 바
@@ -280,33 +136,6 @@ def test_drawing_team_sees_status_line_and_pc_urgent_call_only(client, monkeypat
     modal = soup.select_one("#dwUrgentCallModal")
     assert modal is not None and modal.find_parent(class_="d-lg-none") is None
     assert modal.select_one("[data-dw-urgent-send]").has_attr("disabled")
-
-
-def test_status_line_absent_when_empty(client, monkeypatch, people):
-    oid = _order(people["drafter"]["id"])
-    _inject(monkeypatch, {})
-    soup = _page(client, people["drafter"], oid)
-    assert soup.select_one("[data-customer-send-status]") is None
-
-
-_STEPS = [{"label": "1차 도착", "sub": "", "when": "09-20 10:00", "state": "done"},
-          {"label": "고객에게 보내기", "sub": "", "when": "", "state": "now"}]
-
-
-def test_steps_hidden_for_drawing_team_urgent_only_bar(client, monkeypatch, people):
-    """도면팀 bar=[urgent_call] 이어도 영업용 회차 기록 줄은 안 보인다(§3.3·§3.4 — 상태 한 줄만)."""
-    oid = _order(people["drafter"]["id"])
-    _inject(monkeypatch, {"bar": _bar("urgent_call"), "steps": _STEPS, "status_line": "영업 → 고객 · 1차 아직 안 보냄"})
-    soup = _page(client, people["drafter"], oid)
-    assert soup.select_one("[data-customer-send-steps]") is None
-    assert soup.select_one("[data-customer-send-status]") is not None
-
-
-def test_steps_shown_for_sales_bar(client, monkeypatch, people):
-    oid = _order(people["drafter"]["id"])
-    _inject(monkeypatch, {"bar": _bar("rev_sales", "send"), "steps": _STEPS})
-    soup = _page(client, people["sales"], oid)
-    assert len(soup.select("[data-customer-send-steps] li")) == 2
 
 
 # --------------------------------------------------------------------------- 전달 취소 경고(§3.4 · Q4 · Q5-④)
@@ -496,54 +325,6 @@ def test_new_sheets_have_no_inline_style_or_handlers():
     text = (ROOT / "templates/drawing/partials/workbench_customer_send_modals.html").read_text(encoding="utf-8")
     assert 'style="' not in text
     assert not re.search(r"\son[a-z]+=", text)
-
-
-# --------------------------------------------------------------------------- S1 합친 뒤 통합(상태 → bar → PC)
-
-# 연결 판정: S1 의 상세 라우트는 ``from ...drawing_customer_send_view import build_customer_send_view`` 로 이 이름을
-# workbench 모듈에 들인다. S1a(뼈대)만 있으면 이 이름이 없다 — 모듈 존재가 아니라 실제로 쓰는지를 본다.
-_S1_MERGED = callable(getattr(workbench_module, "build_customer_send_view", None))
-_SALES_KEYS = {"send", "resend", "rev_customer", "rev_sales", "ok", "ok_no_customer", "rev_post",
-               "approve_confirm", "production", "cancel_revision", "edit_revision"}
-
-
-@pytest.mark.skipif(not _S1_MERGED, reason="S1 읽기 모델(build_customer_send_view)이 아직 합쳐지지 않았다")
-def test_integration_sales_transferred_not_sent(client, people):
-    oid = _order(people["drafter"]["id"])
-    soup = _page(client, people["sales"], oid)
-    keys = _bar_keys(soup)
-    assert {"send", "ok_no_customer", "rev_sales"} <= set(keys)
-    assert "resend" not in keys and "ok" not in keys
-    assert keys.count("ok_no_customer") == 1
-    assert _legacy(soup) == []  # S1 이 있으면 옛 블록 대체는 붙지 않는다
-    assert soup.select_one("[data-customer-send-steps]") is not None
-
-
-@pytest.mark.skipif(not _S1_MERGED, reason="S1 읽기 모델(build_customer_send_view)이 아직 합쳐지지 않았다")
-def test_integration_drawing_team_status_line_not_sent_without_steps(client, people):
-    """S1 합친 뒤 기대값: 도면팀도 '영업 → 고객 · 1차 아직 안 보냄' 한 줄은 보고, 영업용 회차 기록 줄은 안 본다."""
-    oid = _order(people["drafter"]["id"])
-    soup = _page(client, people["drafter"], oid)
-    line = soup.select_one("[data-customer-send-status]")
-    assert line is not None and "아직 안 보냄" in line.get_text()
-    assert soup.select_one("[data-customer-send-steps]") is None
-
-
-@pytest.mark.skipif(not _S1_MERGED, reason="S1 읽기 모델(build_customer_send_view)이 아직 합쳐지지 않았다")
-def test_integration_returned_has_no_send(client, people):
-    oid = _order(people["drafter"]["id"], status="RETURNED")
-    soup = _page(client, people["sales"], oid)
-    keys = _bar_keys(soup)
-    assert "cancel_revision" in keys and "send" not in keys and "resend" not in keys
-    assert len(soup.select("#btn-cancel-revision")) == 1
-    assert _legacy(soup) == []
-
-
-@pytest.mark.skipif(not _S1_MERGED, reason="S1 읽기 모델(build_customer_send_view)이 아직 합쳐지지 않았다")
-def test_integration_drawing_team_gets_no_sales_buttons(client, people):
-    oid = _order(people["drafter"]["id"])
-    keys = _bar_keys(_page(client, people["drafter"], oid))
-    assert not (set(keys) & _SALES_KEYS)
 
 
 def test_sheet_alerts_survive_global_autodismiss(client, monkeypatch, people):
