@@ -19,6 +19,9 @@
       {% if order.hold_active %}
       <span class="foms-prod-sheet__hold-badge" data-tablet-sheet-hold-badge>보류</span>
       {% endif %}
+      {% if order.drawing_badge %}
+      <span class="foms-prod-sheet__hold-badge foms-drawing-revision-badge" data-drawing-revision-badge title="{{ order.drawing_badge.title }}">{{ order.drawing_badge.label }}</span>
+      {% endif %}
       {% if order.rework_active %}
       <span class="foms-prod-sheet__rework-badge" data-tablet-sheet-rework-badge>재제작{% if order.rework_count %} {{ order.rework_count }}회{% endif %}</span>
       {% endif %}
@@ -166,6 +169,10 @@
   {# ── m-foot: 보류 토글 + 생산 완료(pri). 보류는 표시 전용 플래그 토글(워크플로 전이 없음).
      활성 시 "보류 해제", 비활성 시 "보류"로 라벨을 서버 렌더하고, 클릭 배선/사유 prompt 는
      tablet-domain-sheets.js(document 위임)가 소유한다. ── #}
+  {# 도면 게이트(Q2, 2a-2): [제작 시작] 이 막힌 이유(서버 409 와 같은 판정·문구). 관리자는 경고 버튼으로 뚫는다. #}
+  {% if order.production_start_blocked %}
+  <p class="foms-gate-blocked-reason" data-production-start-blocked>{{ order.production_start_block_reason }}</p>
+  {% endif %}
   <div class="foms-prod-sheet__foot">
     <button type="button"
             class="foms-prod-sheet__btn foms-prod-sheet__btn--hold{% if order.hold_active %} is-active{% endif %}"
@@ -174,8 +181,11 @@
             data-hold-active="{{ 1 if order.hold_active else 0 }}"
             data-hold-reason="{{ order.hold_reason }}">{{ '보류 해제' if order.hold_active else '보류' }}</button>
     {% if order.stage == '제작대기' %}
-      {% if order.is_sales_approved %}
-      <button type="button" class="foms-prod-sheet__btn foms-prod-sheet__btn--pri"
+      {% if order.is_sales_approved and order.production_start_blocked and not is_admin %}
+      {# 도면 게이트(Q2, 2a-2): 제작 시작 라우트와 같은 판정 — 막힐 버튼 대신 이유. #}
+      <span class="foms-prod-sheet__muted" data-tablet-sheet-muted>도면 확정 대기</span>
+      {% elif order.is_sales_approved %}
+      <button type="button" class="foms-prod-sheet__btn foms-prod-sheet__btn--pri{% if order.production_start_blocked %} foms-prod-sheet__btn--warn{% endif %}"
               data-tablet-sheet-action="production-start" data-order-id="{{ order.id }}">제작 시작</button>
       {% else %}
       <span class="foms-prod-sheet__muted" data-tablet-sheet-muted>고객 컨펌 전</span>

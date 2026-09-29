@@ -248,15 +248,39 @@
       return { status: res.status, data: data || {} };
     }
 
+    // 업무 게이트 거부(DRAWING_STATUS·QUEST_INCOMPLETE 등)를 관리자 강제 진행으로 한 번만 다시 보낸다
+    // (ADMIN-OVERRIDE-01 · 도면 게이트 2a-2). 관리자가 아니거나 취소하면 원래 결과를 돌려주고,
+    // 호출부가 서버 문구(생산팀용 막힘 이유)를 그대로 띄운다. 태블릿 칸반 punchOrAlert 와 같은 모양.
+    async function punchProductionTransition(orderId, path, payload, result) {
+      const ctl = window.FomsAdminOverride;
+      if (!ctl || typeof ctl.retry !== 'function') return result;
+      const data = result.data || {};
+      const again = await ctl.retry({
+        url: `/api/orders/${orderId}${path}`,
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: payload,
+        code: data.code || '',
+        message: data.message || ''
+      });
+      if (!again || !again.retried) return result;
+      return { status: again.status, data: again.data || data };
+    }
+
     // 전이 실행 — 409 HOLD_ACTIVE(보류 중) 면 해제 confirm 후 {release_hold:true} 로 1회 재시도.
     // body 는 선택 인자다(사유가 있는 되돌리기 전이가 넘긴다). 재시도 때도 그 값을 유지한다.
     async function submitProductionTransition(orderId, path, body) {
       const payload = body || {};
       try {
-        let result = await postProductionTransition(orderId, path, payload);
+        let sent = payload;
+        let result = await postProductionTransition(orderId, path, sent);
         if (result.status === 409 && result.data.code === 'HOLD_ACTIVE') {
           if (!confirm(prodHoldConfirmText(result.data.hold))) return;
-          result = await postProductionTransition(orderId, path, Object.assign({}, payload, { release_hold: true }));
+          sent = Object.assign({}, payload, { release_hold: true });
+          result = await postProductionTransition(orderId, path, sent);
+        }
+        if (!result.data.success) {
+          result = await punchProductionTransition(orderId, path, sent, result);
         }
         if (result.data.success) {
           alert(result.data.message);
