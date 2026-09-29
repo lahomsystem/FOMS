@@ -72,6 +72,7 @@ from foms.services.orders.revision import (
     RevisionConflictError,
     RevisionError,
     execute_order_mutation,
+    lock_order_row,
 )
 from foms.services.orders.structured_form_projection import project_structured_form
 
@@ -1097,8 +1098,11 @@ def api_patch_order_structured_fields(order_id: int):
 
     db = get_db()
     try:
-        order = db.query(Order).filter(Order.id == order_id, Order.not_deleted_filter()).first()
-        if not order:
+        # 첫 조회부터 행 잠금 — 아래에서 structured_data 를 통째로 되쓰므로, 잠금 없이 읽으면 그사이
+        # 커밋된 도면 전달·수정요청 이력을 옛 dict 로 덮는다. X-If-Match(structured_updated_at)는
+        # 도면 쓰기가 올리지 않아 이 경합을 못 막는다(도면 탭 번호 저장, 설계서 2026-09-29 Q5-②).
+        order = lock_order_row(db, order_id)
+        if not order or order.status == 'DELETED' or order.deleted_at is not None:
             return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
 
         payload = request.get_json(silent=True) or {}
