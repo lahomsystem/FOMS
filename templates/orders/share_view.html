@@ -8,14 +8,16 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex, nofollow">
-  <title>도면 확인</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-drawing-mobile.css') }}?v=20260929g">
+  {# 2차부터 제목에 회차를 붙인다(사용자 결정 Q3) — 값·스위치는 서버(share_round_label, 1차면 ""). #}
+  {% set _round_label = share_round_label|default('') %}
+  <title>{% if _round_label %}{{ _round_label }} {% endif %}도면 확인</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-drawing-mobile.css') }}?v=20260929o">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-lightbox.css') }}?v=20260811a">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/orders/foms-share-view.css') }}?v=20260831d">
 </head>
 <body class="foms-share-view">
   <header class="foms-share-view__header">
-    <h1 class="foms-share-view__title">도면 확인</h1>
+    <h1 class="foms-share-view__title">{% if _round_label %}{{ _round_label }} {% endif %}도면 확인</h1>
     <p class="foms-share-view__hint">이미지를 누르면 크게 볼 수 있습니다.</p>
   </header>
   <main class="foms-share-view__main">
