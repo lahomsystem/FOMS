@@ -244,3 +244,80 @@ def test_wizard_transfer_pending_bumps_version(client, storage):
     sd = _assert_bumped_and_stale_put_conflicts(client, admin, oid, before, r)
     assert sd["drawing_status"] == "TRANSFERRED"
     assert [f["key"] for f in sd["drawing_current_files"]] == [_key(oid, "p1.png")]
+
+
+def _seed_wizard_pending(oid, *, versions=None):
+    """작업실 대기 시트 1장(s-1)과 선택적 기존 버전 포인터를 직접 심는다(버전 불변)."""
+    import copy
+
+    from sqlalchemy.orm.attributes import flag_modified
+    order = db_session.get(Order, oid)
+    sd = copy.deepcopy(order.structured_data)
+    sd["drawing_wizard"] = {
+        "sheets": [{"id": "s-1", "name": "시트1", "objects": []}],
+        "pending": {"s-1": {"key": _key(oid, "p1.png"), "filename": "p1.png",
+                            "sheet_name": "시트1"}},
+        "versions": list(versions or []),
+    }
+    order.structured_data = sd
+    flag_modified(order, "structured_data")
+    db_session.commit()
+
+
+def test_transfer_pending_snapshot_is_part_of_transfer_write(client, storage, monkeypatch):
+    """리뷰 P2 — 대기 시트 스냅샷(R2 업로드)이 전달 쓰기 **안에서**(커밋 전) 일어난다.
+
+    예전에는 전달이 커밋(잠금 해제)된 뒤 잠금 없이 다시 읽고 업로드한 다음 structured_data
+    를 통째로 되써서, 그 사이 커밋된 남의 쓰기를 지웠다. 업로드 순간 주문이 아직 전달 전
+    상태(PENDING)여야 스냅샷과 전달이 한 트랜잭션 한 번의 +1 이다.
+    """
+    admin = _user("vb6_admin", "ADMIN", "CS")
+    sales = _user("vb6_sales", "STAFF", "SALES")
+    drafter = _user("vb6_draw", "STAFF", "DRAWING")
+    oid = _order(sales[0], drafter[0], stage="CONFIRM", drawing_status="PENDING")
+    _seed_wizard_pending(oid)
+    seen = []
+    orig_upload = storage.upload_file
+
+    def _upload(file_obj, filename, folder="uploads"):
+        seen.append((db_session.get(Order, oid).structured_data or {}).get("drawing_status"))
+        return orig_upload(file_obj, filename, folder)
+
+    monkeypatch.setattr(storage, "upload_file", _upload)
+
+    before, _ = _state(oid)
+    _as(client, drafter)
+    r = client.post(f"/api/orders/{oid}/drawing-wizard/transfer-pending", json={})
+    sd = _assert_bumped_and_stale_put_conflicts(client, admin, oid, before, r)
+    assert seen == ["PENDING"], f"스냅샷 업로드가 전달 커밋 뒤에 일어났다: {seen}"
+    dw = sd["drawing_wizard"]
+    assert dw["pending"] == {}
+    assert [v["sheet_id"] for v in dw["versions"]] == ["s-1"]
+    assert sd["drawing_status"] == "TRANSFERRED"
+
+
+def test_transfer_pending_prunes_stale_version_files_after_commit(client, storage, monkeypatch):
+    """버전 30개 초과분의 R2 삭제는 커밋 **뒤**에 한다(롤백되면 포인터만 남고 파일이 사라지지 않게)."""
+    sales = _user("vb7_sales", "STAFF", "SALES")
+    drafter = _user("vb7_draw", "STAFF", "DRAWING")
+    oid = _order(sales[0], drafter[0], stage="CONFIRM", drawing_status="PENDING")
+    old = [{"v": i, "sheet_id": "s-1", "sheet_name": "시트1",
+            "key": f"orders/{oid}/drawing_wizard/versions/v{i}_s-1.json"} for i in range(1, 31)]
+    _seed_wizard_pending(oid, versions=old)
+    at_delete = []
+    orig_delete = storage.delete_file
+
+    def _delete(key):
+        db_session.expire_all()
+        at_delete.append((db_session.get(Order, oid).structured_data or {}).get("drawing_status"))
+        return orig_delete(key)
+
+    monkeypatch.setattr(storage, "delete_file", _delete)
+    _as(client, drafter)
+    r = client.post(f"/api/orders/{oid}/drawing-wizard/transfer-pending", json={})
+    assert r.status_code == 200, r.get_json()
+    assert storage.deleted == [old[0]["key"]]
+    assert at_delete == ["TRANSFERRED"]
+    _, sd = _state(oid)
+    versions = sd["drawing_wizard"]["versions"]
+    assert len(versions) == 30 and versions[0]["v"] == 2 and versions[-1]["v"] == 31

@@ -1056,11 +1056,15 @@ def _pending_list(sd: dict) -> list[dict]:
 
 
 def _append_sheet_version(storage, order_id: int, sheet: dict, sheet_id: str,
-                          sheet_name: str, versions: list, current_user) -> int | None:
+                          sheet_name: str, versions: list, current_user,
+                          stale_keys: list | None = None) -> int | None:
     """검증된 시트 1장을 버전 스냅샷 파일로 업로드하고 ``versions`` 포인터 리스트에 append한다.
 
-    ``versions`` 를 in-place 로 갱신하며(30개 초과분은 오래된 것부터 R2 삭제), 새 버전
+    ``versions`` 를 in-place 로 갱신하며(30개 초과분은 오래된 것부터 포인터 제거), 새 버전
     번호를 반환한다. 업로드 실패 시 ``versions`` 를 건드리지 않고 ``None`` 을 반환한다.
+    제거한 포인터의 R2 파일은 ``stale_keys`` 가 주어지면 거기에 모아 호출자가 **커밋 뒤**
+    지우게 하고(트랜잭션이 롤백되면 포인터는 남는데 파일만 사라지는 일을 막는다), 없으면
+    바로 지운다(삭제 실패는 로그만).
     """
     next_v = max([p.get('v', 0) for p in versions if isinstance(p, dict)], default=0) + 1
     payload = json.dumps(sheet, ensure_ascii=False).encode('utf-8')
@@ -1077,34 +1081,49 @@ def _append_sheet_version(storage, order_id: int, sheet: dict, sheet_id: str,
         'at': now_kst().strftime('%Y-%m-%d %H:%M'),
         'by_name': current_user.name if current_user else '',
     })
-    # 30개 초과분(가장 오래된 것부터) 포인터 제거 + R2 파일 삭제(삭제 실패는 로그만).
     while len(versions) > _MAX_VERSIONS:
         stale = versions.pop(0)
         stale_key = stale.get('key') if isinstance(stale, dict) else None
-        if stale_key:
-            try:
-                storage.delete_file(stale_key)
-            except Exception as del_err:
-                logger.warning("version-snapshot stale delete failed (%s): %s", stale_key, del_err)
+        if not stale_key:
+            continue
+        if stale_keys is not None:
+            stale_keys.append(stale_key)
+        else:
+            delete_stale_version_files([stale_key], storage)
     return next_v
 
 
-def snapshot_and_clear_pending(db, order, order_id, current_user, sheet_ids=None):
-    """전달 성공 후 대기(pending) 시트를 버전 스냅샷으로 저장하고 pending 에서 제거한다(공용).
+def delete_stale_version_files(keys, storage=None) -> None:
+    """버전 포인터에서 빠진 스냅샷 파일을 R2 에서 지운다(실패는 로그만 — 고아 파일일 뿐)."""
+    if not keys:
+        return
+    storage = storage or get_storage()
+    for stale_key in keys:
+        try:
+            storage.delete_file(stale_key)
+        except Exception as del_err:
+            logger.warning("version-snapshot stale delete failed (%s): %s", stale_key, del_err)
 
-    ``perform_drawing_transfer`` 가 이미 커밋한 뒤 호출되며, 이 함수가 별도 커밋한다.
-    대상 각 대기 시트의 현재 상태를 ``_append_sheet_version`` 으로 버전 스냅샷하고 pending
-    에서 비운다. ``structured_data`` 는 ``copy.deepcopy`` + ``flag_modified`` 로 갱신한다.
+
+def stage_pending_snapshot(sd: dict, order_id, current_user, sheet_ids=None,
+                           stale_keys: list | None = None) -> int:
+    """대기(pending) 시트를 버전 스냅샷으로 올리고 pending 에서 빼는 변경을 ``sd`` 에 담는다(공용).
+
+    도면 전달(``perform_drawing_transfer`` 의 ``prepare_structured``)이 행 잠금을 쥔 채,
+    구조화 쓰기 **직전에** 부른다. ``sd`` 는 전달이 잠근 최신 행에서 deepcopy 한 dict 이고,
+    전달의 REV-00 엔진 쓰기가 이것을 재대입·``flag_modified`` 하므로 스냅샷과 전달이 한
+    트랜잭션·버전 +1 한 번이다. 예전에는 전달 커밋(잠금 해제) 뒤 잠금 없이 다시 읽고 R2 에
+    올린 다음 통째로 되써서, 그 사이 커밋된 남의 쓰기(수정요청·폼 저장)를 지웠다(리뷰 P2).
+    여기서는 커밋하지 않는다. 30개를 넘겨 빠진 옛 스냅샷 파일 key 는 ``stale_keys`` 에 모아
+    호출자가 커밋 뒤 :func:`delete_stale_version_files` 로 지운다.
 
     :param sheet_ids: ``None`` 이면 전체 pending 을 스냅샷+초기화(작업실 일괄 transfer-pending
         동작 그대로). 리스트면 해당 ``sheet_id`` 들만 스냅샷하고 pending 에서 제거(부분 전달).
-    :returns: 스냅샷한 대기 시트 수(int).
+    :returns: 스냅샷 대상 대기 시트 수(int).
     """
-    sd_after = copy.deepcopy(order.structured_data or {})
-    dw = sd_after.get('drawing_wizard')
+    dw = sd.get('drawing_wizard')
     if not isinstance(dw, dict):
         dw = {}
-        sd_after['drawing_wizard'] = dw
 
     sheets_by_id = {}
     for s in (dw.get('sheets') or []):
@@ -1115,7 +1134,7 @@ def snapshot_and_clear_pending(db, order, order_id, current_user, sheet_ids=None
         versions = []
 
     # 스냅샷 대상 = pending 유효 목록(_pending_list) 중 sheet_ids 필터.
-    pending_items = _pending_list(sd_after)
+    pending_items = _pending_list(sd)
     if sheet_ids is not None:
         wanted = {str(sid) for sid in sheet_ids}
         pending_items = [p for p in pending_items if p['sheet_id'] in wanted]
@@ -1126,7 +1145,7 @@ def snapshot_and_clear_pending(db, order, order_id, current_user, sheet_ids=None
         if isinstance(sheet, dict):
             _append_sheet_version(
                 storage, order_id, sheet, item['sheet_id'], item['sheet_name'],
-                versions, current_user,
+                versions, current_user, stale_keys=stale_keys,
             )
     dw['versions'] = versions
 
@@ -1143,10 +1162,7 @@ def snapshot_and_clear_pending(db, order, order_id, current_user, sheet_ids=None
         else:
             dw['pending'] = {}
 
-    sd_after['drawing_wizard'] = dw
-    order.structured_data = sd_after
-    flag_modified(order, 'structured_data')
-    db.commit()
+    sd['drawing_wizard'] = dw
     return len(pending_items)
 
 
@@ -1369,15 +1385,17 @@ def api_post_drawing_wizard_transfer_pending(order_id):
             return jsonify({'success': False, 'message': '전달할 대기 도면이 없습니다.'}), 400
 
         files = [{'key': p['key'], 'filename': p['filename']} for p in pending_items]
+        # 대기 시트 전체의 버전 스냅샷 + pending 비움을 전달 쓰기에 실어 한 트랜잭션으로(리뷰 P2).
+        stale_keys: list = []
         payload, status = perform_drawing_transfer(
             db, order, order_id, current_user, session.get('user_id'),
             note=note, mode=mode, files=files,
+            prepare_structured=lambda sd: stage_pending_snapshot(
+                sd, order_id, current_user, sheet_ids=None, stale_keys=stale_keys),
         )
         if not payload.get('success'):
             return jsonify(payload), status
-
-        # 전달 성공(perform_drawing_transfer 가 커밋함) → 대기 시트 전체를 버전 스냅샷 저장 + pending 비움.
-        snapshot_and_clear_pending(db, order, order_id, current_user, sheet_ids=None)
+        delete_stale_version_files(stale_keys)  # 커밋 뒤에만
 
         count = len(files)
         return jsonify({
