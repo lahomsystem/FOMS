@@ -20,7 +20,7 @@ from db import get_db
 from models import Order
 from foms.web.auth import login_required
 from foms.services.erp_display import _ensure_dict
-from foms.services.erp_policy import is_drawing_workbench_participant
+from foms.services.erp_policy import can_transfer_drawing
 from foms.services.drawing_wizard_defaults import build_wizard_defaults
 from foms.web.drawing.workbench import (
     erp_drawing_workbench_bp,
@@ -118,16 +118,14 @@ def erp_drawing_workbench_tablet_sheet(order_id: int) -> Any:
         'logo': (defaults.get('logo') or '').upper() or '-',
     }
 
-    # 전달 버튼은 도면팀+관리자 전용 — is_drawing_workbench_participant(워크벤치 접근 참여자 판정,
-    # 배정된 비도면팀 직원도 True인 더 넓은 개념)와 별개 축. 팀 조건을 추가로 AND.
-    is_transfer_authorized_team = bool(
+    # '시트 전달'(마법사 transfer-pending → perform_drawing_transfer)은 서버 전달 권한과 같은
+    # 술어를 쓴다(관리자 · 지정 도면 담당, M14-a 화면 == 서버). 담당 아닌 도면팀은 이유 한 줄.
+    can_transfer = can_transfer_drawing(current_user, order)
+    show_transfer_assignee_only_hint = bool(
         current_user
-        and (current_user.role == 'ADMIN' or (getattr(current_user, 'team', None) or '').strip() == 'DRAWING')
-    )
-    can_transfer = bool(
-        current_user
-        and is_drawing_workbench_participant(current_user, order)
-        and is_transfer_authorized_team
+        and not can_transfer
+        and current_user.role != 'ADMIN'
+        and (getattr(current_user, 'team', None) or '').strip() == 'DRAWING'
     )
 
     return render_template(
@@ -142,6 +140,7 @@ def erp_drawing_workbench_tablet_sheet(order_id: int) -> Any:
         timeline=_build_version_timeline(pending, versions),
         has_pending=bool(pending),
         can_transfer=can_transfer,
+        show_transfer_assignee_only_hint=show_transfer_assignee_only_hint,
         wizard_url=url_for('erp_drawing_workbench.erp_drawing_workbench_wizard', order_id=order.id),
         detail_url=url_for('erp_drawing_workbench.erp_drawing_workbench_detail', order_id=order.id) + '?tab=timeline',
     )

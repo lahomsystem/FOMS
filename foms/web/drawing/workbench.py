@@ -19,6 +19,7 @@ from foms.services.erp_permissions import (
 from foms.services.erp_quest_display import load_assignee_user_map_batch, resolve_order_role_assignees
 from foms.services.erp_policy import (
     STAGE_NAME_TO_CODE,
+    can_transfer_drawing,
     get_assignee_ids,
     has_pending_unchecked_drawing_revision_requests,
     is_drawing_workbench_participant,
@@ -1017,9 +1018,12 @@ def erp_drawing_workbench_detail(order_id):
     is_drawing_team = bool(
         current_user and (getattr(current_user, 'team', None) or '').strip() == 'DRAWING'
     )
-    # 전달 버튼은 도면팀+관리자 전용. 배정 로직은 그대로 두고 팀 조건을 추가로 AND.
+    # 전달 버튼 = 서버 전달 권한과 같은 술어(관리자 · 지정 도면 담당, M14-a 화면 == 서버).
+    # 담당 아닌 도면팀은 버튼 대신 "담당자만 전달할 수 있어요" 한 줄.
+    can_transfer = can_transfer_drawing(current_user, order)
+    # 전달 취소 표시는 도면팀+관리자로 한정(아래 최종 게이트) — 전달 버튼과 별개 축.
     is_transfer_authorized_team = bool(is_admin or is_drawing_team)
-    can_transfer = bool(has_assignee and is_drawing_participant and is_transfer_authorized_team)
+    show_transfer_assignee_only_hint = bool(is_drawing_team and not is_admin and not can_transfer)
     transfer_gated_by_revision_checklist = bool(
         drawing_status == 'RETURNED'
         and has_pending_unchecked_drawing_revision_requests(s_data)
@@ -1224,6 +1228,7 @@ def erp_drawing_workbench_detail(order_id):
         mobile_handoff_invalid_drawing_key=handoff_invalid_drawing_key,
         mobile_handoff_active=mobile_v2_active,
         can_transfer=can_transfer,
+        show_transfer_assignee_only_hint=show_transfer_assignee_only_hint,
         can_open_transfer=can_open_transfer,
         transfer_gated_by_revision_checklist=transfer_gated_by_revision_checklist,
         can_toggle_revision_check=can_toggle_revision_check,

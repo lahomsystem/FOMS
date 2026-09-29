@@ -31,6 +31,7 @@ from foms.services.orders.erp_policy_data_access import (
 from foms.services.orders.erp_policy_permissions import (
     can_modify_by_team_policy,
     can_modify_domain,
+    can_transfer_drawing,
     get_assignee_ids,
     has_pending_unchecked_drawing_revision_requests,
     is_drawing_workbench_participant,
@@ -76,6 +77,7 @@ __all__ = [
     "get_assignee_ids",
     "can_modify_domain",
     "can_modify_by_team_policy",
+    "can_transfer_drawing",
     "is_drawing_workbench_participant",
     "has_pending_unchecked_drawing_revision_requests",
 ]

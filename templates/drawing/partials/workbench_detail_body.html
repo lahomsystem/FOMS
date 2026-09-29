@@ -1483,6 +1483,8 @@
             </button>
             <div class="small text-danger"><i class="fas fa-exclamation-triangle"></i> 미반영 수정 요청이 있어 전달할 수 없습니다. 요청사항에서 반영 완료를 먼저 눌러주세요.</div>
             {% endif %}
+            {% elif show_transfer_assignee_only_hint %}
+            <div class="small text-muted"><i class="fas fa-user-lock"></i> 담당자만 전달할 수 있어요.</div>
             {% endif %}
             {% if can_request_revision and drawing_status in ['TRANSFERRED', 'CONFIRMED'] %}
             <button class="btn btn-warning btn-sm" type="button" data-bs-toggle="modal"
@@ -1560,6 +1562,10 @@
     <i class="fas fa-paper-plane"></i> {% if drawing_status == 'RETURNED' %}수정본{% else %}전달{% endif %}
   </button>
   {% endif %}
+  {% elif show_transfer_assignee_only_hint %}
+  <button class="btn btn-outline-secondary" type="button" disabled title="담당자만 전달할 수 있어요.">
+    <i class="fas fa-user-lock"></i> 담당자만 전달
+  </button>
   {% endif %}
   {% if can_request_revision and drawing_status in ['TRANSFERRED', 'CONFIRMED'] %}
   <button class="btn btn-warning" type="button" data-bs-toggle="modal" data-bs-target="#dwRevisionModal">

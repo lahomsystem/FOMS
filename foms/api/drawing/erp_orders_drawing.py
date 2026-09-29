@@ -28,6 +28,7 @@ from foms.services.notifications.recipients import fan_out_new_notification
 from foms.services.erp_permissions import erp_edit_required
 from foms.services.erp_policy import (
     can_modify_domain,
+    can_transfer_drawing,
     get_assignee_ids,
     has_pending_unchecked_drawing_revision_requests,
 )
@@ -100,13 +101,11 @@ def perform_drawing_transfer(
     except (TypeError, ValueError):
         actor_uid = None
     # explicit assignment 만 쓰기 허용 — 도면팀 소속(team-only write)만으로는 전달 불가.
-    # (지정 담당자 · 관리자 · 사유 있는 매니저 긴급 오버라이드만.)
-    if current_user.role == 'ADMIN':
-        can_do_transfer = True
-    elif current_user.role == 'MANAGER' and emergency_override and override_reason:
-        can_do_transfer = True
-    else:
-        can_do_transfer = actor_uid is not None and actor_uid in draw_assignee_ids
+    # 술어(관리자 · 지정 담당자)는 작업실·태블릿 시트 전달 버튼과 같은 함수다(M14-a 화면 == 서버).
+    # 사유 있는 매니저 긴급 오버라이드는 서버에만 있다.
+    can_do_transfer = can_transfer_drawing(current_user, order) or (
+        current_user.role == 'MANAGER' and emergency_override and override_reason
+    )
     if not can_do_transfer:
         msg = '도면 전달 권한이 없습니다. (지정된 도면 담당자 또는 관리자만 가능)'
         if current_user.role == 'MANAGER':

@@ -276,6 +276,12 @@
         {% endif %}
       </button>
       {% endif %}
+    {% elif show_transfer_assignee_only_hint %}
+      {# 담당 아닌 도면팀 — 서버가 403 으로 막는 전달 대신 이유 한 줄(M14-a 화면 == 서버). #}
+      <button class="foms-drawing-action-bar__btn" type="button" disabled>
+        <i class="fas fa-user-lock"></i><span>전달 불가</span>
+        <small class="foms-drawing-action-bar__reason">담당자만 전달할 수 있어요</small>
+      </button>
     {% endif %}
     {% if can_request_revision and drawing_status in ['TRANSFERRED', 'CONFIRMED'] %}
     <button class="foms-drawing-action-bar__btn" type="button" data-bs-toggle="modal" data-bs-target="#dwRevisionModal"
