@@ -63,6 +63,24 @@ def _message(order: Any, added_by: str) -> str:
     return " · ".join(parts) or "오늘 실측이 긴급 추가됐어요"
 
 
+def measure_same_day_link(order_id: int, added_at: Optional[_dt.datetime]) -> str:
+    """알림을 누르면 여는 곳 — 그날 실측 목록의 그 주문 줄(``?focus_order=``).
+
+    날짜는 알림이 만들어진 KST 날짜로 박는다. 다음 날 눌러도 그날 목록이 열린다
+    (주소창에만 들어가고 잠금화면 글자에는 없다).
+
+    Args:
+        order_id: 대상 주문 id.
+        added_at: 알림 생성 시각(UTC naive). None 이면 날짜 없이(= 오늘 목록).
+
+    Returns:
+        same-origin 상대 경로.
+    """
+    date_iso = format_datetime_kst(added_at, "%Y-%m-%d") if added_at else None
+    query = f"date={date_iso}&focus_order={int(order_id)}" if date_iso else f"focus_order={int(order_id)}"
+    return f"/erp/measurement?{query}"
+
+
 def build_measure_same_day_payload(
     order: Any,
     *,
@@ -100,5 +118,5 @@ def build_measure_same_day_payload(
         "manager": _manager(order),
         "added_by": added_by,
         "added_at": format_datetime_kst(added_at) if added_at else None,
-        "order_url": f"/erp/orders/{order_id}",
+        "order_url": measure_same_day_link(order_id, added_at),
     }

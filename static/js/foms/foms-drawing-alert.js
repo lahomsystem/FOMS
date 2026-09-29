@@ -167,7 +167,7 @@
       // 빈 칸은 빼고 잇는다 — 담당이 비면 "· 담당" 글자만 남았다(스테이징 실화면 2026-09-23).
       q('message').textContent = [data.area, data.manager ? '담당 ' + data.manager : ''].filter(Boolean).join(' · ');
       q('meta').textContent = [data.added_by ? data.added_by + ' 추가' : '', shortTime(data.added_at)].filter(Boolean).join(' · ');
-      openLink.textContent = '주문 열기';
+      openLink.textContent = '실측 카드 열기';
       href = safeOrderUrl(data.order_url);
     } else {
       q('kicker').textContent = data.title || '도면 수정 요청';
