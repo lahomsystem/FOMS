@@ -977,6 +977,14 @@
     line-height: 1.5;
   }
 
+  /* 무엇을 누를지(시트 버튼 이름) — 본문과 떨어져 한 줄. */
+  body.erp-mobile-v2-layout .foms-drawing-cancel-warn__hint {
+    margin: 0.5rem 0 0;
+    color: var(--foms-text-secondary, #4b525d);
+    font-size: 0.82rem;
+    font-weight: 600;
+  }
+
   body.erp-mobile-v2-layout .foms-drawing-cancel-warn__error {
     margin: 0.5rem 0 0;
     color: var(--foms-color-danger-600, #dc2626);

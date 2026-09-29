@@ -5,34 +5,39 @@
 {# 도면 탭 고객 보내기(설계서 2026-09-29 §3.0·§3.1·§3.3) — 버튼·문구는 서버가 한 번 판정한 customer_send 를
    읽기만 한다(PC 결정 바와 같은 목록). 빈 값이면 새 버튼·줄은 하나도 안 보인다. #}
 {% set cs = customer_send|default({}) %}
-{% set _cs_bar = cs.bar|default([]) %}
+{# urgent_call(도면 쪽 긴급 호출)은 PC 전용 항목이다(S1 bar docstring · Q5-①) — 모바일은 순회에서 빼고
+   아래 고정 [긴급] 한 벌로만 그린다. 서버 칸 수(MOBILE_BAR_MAIN_SLOTS)도 이 항목을 세지 않는다. #}
+{% set _cs_bar = cs.bar|default([])|rejectattr('key', 'equalto', 'urgent_call')|list %}
 {% set _cs_keys = _cs_bar|map(attribute='key')|list %}
 {% set _cs_main = _cs_bar|rejectattr('slot', 'equalto', 'more')|list %}
 {% set _cs_more = _cs_bar|selectattr('slot', 'equalto', 'more')|list %}
 {# 영업 쪽 = 수정요청 버튼과 같은 술어(workbench.py can_request_revision). 도면팀은 기록 줄 대신 상태 한 줄. #}
 {% set _cs_sales_side = can_request_revision %}
-{# 모바일 전용 [긴급](PC 결정 바에는 없다) — 보낸 뒤·확정 뒤 영업 바에서는 빠진다(목업: 바 버튼 3개).
-   서버 목록에 urgent_call(도면팀)이 있으면 그것으로 그린다 — 두 번 그리지 않는다. #}
+{# 모바일 [긴급] — 보낸 뒤·확정 뒤 영업 바에서는 빠지고(목업: 바 버튼 3개), [더 보기]가 있으면 그 안으로.
+   도면팀 단독(영업 쪽 버튼 없음)이면 늘 보인다. 관리자 겸 도면 담당도 같은 규칙(§3.0·§3.1). #}
 {% set _cs_full_bar_keys = ['resend', 'ok', 'rev_post', 'approve_confirm', 'production'] %}
-{% set _show_fixed_urgent = ('urgent_call' not in _cs_keys) and not (_cs_keys|select('in', _cs_full_bar_keys)|list) %}
+{% set _show_fixed_urgent = not (_cs_keys|select('in', _cs_full_bar_keys)|list) %}
 {% set _cs_selected_key = mobile_handoff_selected_file.key if mobile_handoff_selected_file else '' %}
 {# 버튼 키 → 여는 시트·모양. 시트 본문과 그 JS 는 workbench_detail_body.html(PC·모바일 공용)에 있다. #}
 {% set _cs_icons = {'send': 'fa-paper-plane', 'resend': 'fa-paper-plane', 'rev_customer': 'fa-pen',
   'rev_post': 'fa-pen', 'rev_sales': 'fa-undo', 'ok': 'fa-check', 'ok_no_customer': 'fa-check',
   'approve_confirm': 'fa-check-double', 'production': 'fa-industry', 'cancel_revision': 'fa-rotate-left',
-  'edit_revision': 'fa-pen-to-square', 'urgent_call': 'fa-bolt'} %}
+  'edit_revision': 'fa-pen-to-square'} %}
 {% set _cs_widths = {'resend': 'slim', 'rev_sales': 'slim', 'ok_no_customer': 'slim', 'rev_customer': 'mid',
   'ok': 'mid', 'production': 'wide'} %}
-{% set _cs_tones = ['primary', 'success', 'warn', 'line', 'urgent'] %}
+{# 서버 tone 어휘(S1 _LABELS: primary·success·warning·secondary·link·urgent) → 모바일 모양 클래스.
+   secondary 는 기본 모양(수식 없음). [확정](고객 답 없이)은 목업의 파란 테두리(line) — 키로 정한다. #}
+{% set _cs_tone_class = {'primary': 'primary', 'success': 'success', 'warning': 'warn', 'link': 'primary',
+  'urgent': 'urgent'} %}
+{% set _cs_key_class = {'ok_no_customer': 'line'} %}
 {% macro cs_bar_attrs(item, order_id, selected_key) -%}
-data-cs-bar-key="{{ item.key }}"
+data-bar-key="{{ item.key }}"
 {%- if item.key in ('send', 'resend') %} data-bs-toggle="modal" data-bs-target="#dwCustomerSendModal" data-order-id="{{ order_id }}" data-customer-send-mode="{{ 'again' if item.key == 'resend' else 'first' }}"
 {%- elif item.key in ('rev_customer', 'rev_post', 'rev_sales') %} data-bs-toggle="modal" data-bs-target="#dwRevisionModal" data-revision-source="{{ 'sales' if item.key == 'rev_sales' else 'customer' }}" data-drawing-handoff-action="revision" data-drawing-key="{{ selected_key }}"
 {%- elif item.key in ('ok', 'ok_no_customer') %} data-bs-toggle="modal" data-bs-target="#dwCustomerOkModal" data-order-id="{{ order_id }}" data-customer-ok-mode="{{ 'no_customer' if item.key == 'ok_no_customer' else 'customer' }}"
 {%- elif item.key == 'approve_confirm' %} data-customer-approve data-order-id="{{ order_id }}"
 {%- elif item.key == 'cancel_revision' %} data-drawing-handoff-action="cancel-revision"
 {%- elif item.key == 'edit_revision' %} data-bs-toggle="modal" data-bs-target="#dwRevisionEditModal" data-order-id="{{ order_id }}"
-{%- elif item.key == 'urgent_call' %} data-foms-urgent-call data-order-id="{{ order_id }}"
 {%- endif %}
 {%- endmacro %}
 <div class="erp-mobile-shell foms-drawing-handoff d-lg-none{% if _bar_reason %} foms-drawing-handoff--bar-reason{% endif %}"
@@ -374,8 +379,9 @@ data-cs-bar-key="{{ item.key }}"
     {# 영업 쪽·도면팀 버튼 = 서버 목록(customer_send.bar) 순회. 조건은 서버에만 있다 — 여기는 모양만. #}
     {% for item in _cs_main %}
       {% set _w = _cs_widths.get(item.key, 'wide' if (item.key == 'send' and item.tone == 'primary') else '') %}
+      {% set _tone = _cs_key_class.get(item.key) or _cs_tone_class.get(item.tone, '') %}
       {% set _cls = 'foms-drawing-action-bar__btn'
-        ~ ((' foms-drawing-action-bar__btn--' ~ item.tone) if item.tone in _cs_tones else '')
+        ~ ((' foms-drawing-action-bar__btn--' ~ _tone) if _tone else '')
         ~ ((' foms-drawing-action-bar__btn--' ~ _w) if _w else '') %}
       {% if item.key == 'production' %}
       <a class="{{ _cls }}" href="/erp/dashboard?focus_order={{ order.id }}" {{ cs_bar_attrs(item, order.id, _cs_selected_key) }}>
@@ -441,11 +447,15 @@ data-cs-bar-key="{{ item.key }}"
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
         </div>
         <div class="modal-body">
+          {# 본문(서버 cancel_warning_text_mobile) = 무엇이 일어나는지만. 무엇을 누를지는 이 시트의 버튼 이름으로
+             여기서 말한다 — 확인창용 '[취소]를 누르세요'가 [그래도 취소] 옆에 오면 반대 동작을 부른다(S3 리뷰 P2). #}
           <p class="foms-drawing-cancel-warn__text">{{ cs.cancel_warning_text_mobile }}</p>
+          <p class="foms-drawing-cancel-warn__hint">영업에게 먼저 알리려면 아래 [영업에게 먼저 알리기]를 누르세요.</p>
           <p class="foms-drawing-cancel-warn__error" role="alert" data-dw-cancel-warn-error hidden></p>
         </div>
         <div class="modal-footer foms-drawing-cancel-warn__actions">
-          <button type="button" class="btn btn-primary" data-dw-cancel-warn-urgent>
+          <button type="button" class="btn btn-primary" data-dw-cancel-warn-urgent
+            data-urgent-message="고객에게 보낸 {% if cs.round_text %}{{ cs.round_text }} {% endif %}도면을 전달 취소하려고 해요. 확인 부탁드려요.">
             <i class="fas fa-bolt" aria-hidden="true"></i> 영업에게 먼저 알리기 (긴급 호출)
           </button>
           <button type="button" class="btn btn-outline-danger" data-dw-cancel-warn-confirm>그래도 취소</button>
