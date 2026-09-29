@@ -616,6 +616,7 @@
     set("erp-received-date", p.received_date);
     set("erp-received-time", p.received_time);
     set("erp-notes", p.notes);
+    set("erp-happy-call", (sd.flags && sd.flags.happy_call) || "");
     var cust = (sd.parties && sd.parties.customer) || {};
     set("erp-customer-name", cust.name);
     set("erp-customer-phone", cust.phone);

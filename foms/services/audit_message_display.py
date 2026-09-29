@@ -343,6 +343,7 @@ PATH_LABELS: dict[str, str] = {
     "flags.urgent": "긴급",
     "flags.urgent_reason": "긴급 사유",
     "flags.factory2": "라홈시스템(2공장)",
+    "flags.happy_call": "해피콜 상태",
     # 평면 컬럼이라 structured 경로가 없다. 원장에는 컬럼명을 그대로 경로로 싣는다
     # (drawing_order_change 의 변경 리스트도 같은 bare 키 규약을 쓴다).
     "is_regional": "지방 주문",

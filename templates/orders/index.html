@@ -1058,6 +1058,7 @@
                                 {% endif %}
                             </td>
                             <td class="th-notes td-notes notes-cell" data-label="비고">
+                                {% if order.happy_call %}<span class="badge bg-warning text-dark me-1" data-happy-call="{{ order.happy_call }}">{{ order.happy_call }}</span>{% endif %}
                                 {% if order.notes %}
                                 {% set notes_content = order.notes | string %}
                                 {# 비고가 있으면 항상 버튼 표시 (간단하게 변경) #}
@@ -1073,8 +1074,6 @@
                                 <div id="notes-full-{{ order.id }}" class="notes-full-content" style="display: none;">
                                     <div class="notes-content-text">{{ notes_content }}</div>
                                 </div>
-                                {% else %}
-                                ''
                                 {% endif %}
                             </td>
                             <td class="td-payment-amount" data-label="결제금액">

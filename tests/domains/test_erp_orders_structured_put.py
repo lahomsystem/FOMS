@@ -1194,3 +1194,42 @@ def test_identity_flat_sync_helper_keeps_existing_value_when_structured_lacks_it
     for real in ("02-123-4567", "0502-2681-1527", "010-9621-5670"):
         _sync_identity_flat_columns(order, {"parties": {"customer": {"phone": real}}})
         assert order.phone == real
+
+
+def test_structured_put_keeps_happy_call_separate_from_notes(client, monkeypatch):
+    """비고 옆 드롭다운의 부재·콜백은 flags.happy_call 에만 저장되고 Order.notes 에 섞이지 않는다.
+
+    실측 모바일 카드(site_memo)는 Order.notes 만 읽으므로, 이 분리가 곧 "실측 화면에 부재·콜백
+    안 보임 / 직접 입력한 비고는 항상 보임" 의 정본이다. 허용값 밖의 값은 버린다.
+    """
+    from foms.services.measurement.site_memo import build_site_memo
+
+    _login_as_admin(client, username="erp-happy-call")
+    order = _create_order()
+    order_id = order.id
+    db_session.commit()
+
+    monkeypatch.setattr(erp_orders_structured, "_record_structured_events", lambda *a, **k: None)
+    monkeypatch.setattr(erp_orders_structured, "_apply_structured_side_effects", lambda *a, **k: None)
+    monkeypatch.setattr(erp_orders_structured, "_finalize_draft_state", lambda *a, **k: False)
+    monkeypatch.setattr(erp_orders_structured, "sync_erp_flat_columns", lambda *a, **k: None)
+    monkeypatch.setattr(erp_orders_structured, "enqueue_geocode_order_address", lambda *a, **k: None)
+
+    def _put(happy_call):
+        sd = copy.deepcopy(db_session.get(Order, order_id).structured_data)
+        sd.setdefault("flags", {})["happy_call"] = happy_call
+        return client.put(
+            f"/api/orders/{order_id}/structured",
+            json={"structured_data": sd, "structured_schema_version": 1, "notes": "엘리베이터 없음"},
+        )
+
+    assert _put("부재").status_code == 200
+    db_session.expire_all()
+    saved = db_session.get(Order, order_id)
+    assert saved.structured_data["flags"]["happy_call"] == "부재"
+    assert saved.notes == "엘리베이터 없음"
+    assert build_site_memo(saved)["site_memo"]["notes"] == "엘리베이터 없음"
+
+    assert _put("아무값").status_code == 200
+    db_session.expire_all()
+    assert "happy_call" not in db_session.get(Order, order_id).structured_data["flags"]

@@ -239,7 +239,16 @@ ERP Order Tab Pane (shared between add_order and edit_order)
                         </div>
                         <div class="col-md-8">
                             <label class="form-label mb-1">비고</label>
-                            <input type="text" class="form-control form-control-sm" id="erp-notes" placeholder="주문 비고 (대시보드·주문편집과 동일)" autocomplete="off" lang="ko">
+                            {# 해피콜 상태(부재·콜백)는 비고 글과 따로 flags.happy_call 에 저장한다 —
+                               실측·출고 화면은 Order.notes 만 읽으므로 직접 입력한 글만 보인다. #}
+                            <div class="input-group input-group-sm">
+                                <select class="form-select form-select-sm flex-grow-0 w-auto" id="erp-happy-call" autocomplete="off" aria-label="해피콜 상태">
+                                    <option value="">직접입력</option>
+                                    <option value="부재">부재</option>
+                                    <option value="콜백">콜백</option>
+                                </select>
+                                <input type="text" class="form-control form-control-sm" id="erp-notes" placeholder="주문 비고 (대시보드·주문편집과 동일)" autocomplete="off" lang="ko">
+                            </div>
                         </div>
                         <div class="col-12">
                             <div class="d-flex align-items-center gap-2 mb-1">

@@ -222,6 +222,9 @@ def index():
             _sd_all = _ensure_dict(order_db_item.structured_data) if order_db_item.structured_data else {}
             setattr(order_display_data, 'channel_source',
                     'NAVER' if _sd_all.get('source') == SOURCE_MARKER else None)
+            # 해피콜 상태(부재·콜백)는 비고 글과 따로 flags.happy_call 에 있다 — 목록 비고칸에 배지로 붙인다.
+            _flags_all = _sd_all.get('flags') if isinstance(_sd_all.get('flags'), dict) else {}
+            setattr(order_display_data, 'happy_call', _flags_all.get('happy_call') or '')
             if order_db_item.is_erp_order and order_db_item.structured_data:  # type: ignore
                 sd = _ensure_dict(order_db_item.structured_data)
                 customer_name = ((sd.get('parties') or {}).get('customer') or {}).get('name')
