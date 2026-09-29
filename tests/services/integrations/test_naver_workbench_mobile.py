@@ -9,6 +9,9 @@
   `@media (max-width: 767.98px)` 안에 있고, 폰 전용 부품은 데스크톱에서 숨는다.
 * ERP 로 돌아가는 길 — admin 레이아웃이라 v2 하단 탭이 없어서 머리줄에 `‹ ERP` 링크를 둔다.
 * 핀 — CSS·JS 를 고쳤으므로 ``?v`` 가 함께 움직였다(SW staticCacheFirst).
+
+폰 1·2단계(2026-09-29 목업)는 ``test_naver_workbench_mobile_phase12.py`` 가 문다(파일 크기 래칫
+500줄 때문에 나눴다).
 """
 
 from __future__ import annotations
@@ -164,7 +167,8 @@ def test_asset_pins_moved_together():
     """CSS·JS 를 고쳤으면 핀을 함께 올린다 — 서비스워커 캐시가 옛 파일을 준다."""
     markup = TEMPLATE.read_text(encoding="utf-8")
 
-    assert markup.count("?v=20260929a") == 2
+    assert markup.count("?v=20260929b") == 2
+    assert "?v=20260929a" not in markup, "폰 1·2단계(2026-09-29)에서 CSS·JS 를 고쳤다 — 핀도 함께"
     assert "?v=20260914b" not in markup
 
 
@@ -363,4 +367,3 @@ def test_pane_primary_actions_render_inside_the_scoped_root(client, workbench_on
     root = body.index('class="container-fluid naver-workbench"')
     for marker in ('id="wb-bulk-submit"', 'id="wb-bulk-confirm"'):
         assert body.index(marker) > root, marker
-

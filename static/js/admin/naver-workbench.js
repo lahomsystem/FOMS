@@ -138,7 +138,9 @@
         'wb-refresh-all': submitRefreshAll,
         'wb-seek-run': submitSeek,
         'wb-alerts-toggle': toggleAlerts,
-        'wb-pane-back': backToList
+        'wb-pane-back': backToList,
+        'wb-hsheet-open': openHistSheet,
+        'wb-hsheet-close': closeHistSheet
     };
 
     /** 폰 폭(CSS `@media (max-width: 767.98px)` 의 짝). 폰 전용 동작만 이 값을 문다. */
@@ -154,6 +156,8 @@
     // 맞춘다(체크 상태와 모달 문장이 어긋난 채 열리는 자리를 막는다).
     document.addEventListener('show.bs.modal', onModalShow);
     window.addEventListener('popstate', onPopState);
+    // <dialog> 의 close 는 버블하지 않는다 — 캡처로 받는다(Esc·닫기 버튼·바탕 누르기 모두 여기로 온다).
+    document.addEventListener('close', onHistSheetClose, true);
     // 폭 변화(= nav 접힘)와 nav 자체 높이 변화(메뉴 펼침·알림 줄바꿈) 둘 다 잡는다.
     window.addEventListener('resize', scheduleNavOffset);
     if (typeof window.ResizeObserver === 'function') {
@@ -745,11 +749,71 @@
         }
     }
 
+    /* ── 폰 이력 상태 시트 (2026-09-29 폰 2단계) ────────────────────────
+       칩 8개를 접은 `상태:` 버튼이 여는 아래 시트. 네이티브 <dialog>.showModal() 이라
+       바깥은 조작이 막히고(inert) Esc 는 브라우저가 닫는다. 시트 안의 줄은 칩과 같은 주소의
+       평범한 링크라 가로채지 않는다 — 누르면 그 주소로 간다(필터 규칙은 서버·칩과 한 벌). */
+    var histSheetOpener = null;
+
+    function openHistSheet(button) {
+        var sheet = document.getElementById('wb-hsheet');
+        if (!sheet) {
+            return;
+        }
+        histSheetOpener = button;
+        if (typeof sheet.showModal === 'function') {
+            if (!sheet.open) {
+                sheet.showModal();
+            }
+        } else {
+            sheet.setAttribute('open', '');   // 옛 브라우저: 모달은 아니어도 목록은 보인다
+        }
+        button.setAttribute('aria-expanded', 'true');
+        // 열 때 첫 제목으로 — 읽기 프로그램이 "상태로 거르기" 부터 읽는다.
+        var title = document.getElementById('wb-hsheet-title');
+        if (title) {
+            try { title.focus({ preventScroll: true }); } catch (e) { title.focus(); }
+        }
+    }
+
+    function closeHistSheet() {
+        var sheet = document.getElementById('wb-hsheet');
+        if (!sheet) {
+            return;
+        }
+        if (typeof sheet.close === 'function' && sheet.open) {
+            sheet.close();                     // close 이벤트 → onHistSheetClose
+        } else {
+            sheet.removeAttribute('open');
+            onHistSheetClose({ target: sheet });
+        }
+    }
+
+    /** 어떻게 닫혔든(Esc·닫기·바탕) 연 버튼으로 포커스와 aria-expanded 를 돌려준다. */
+    function onHistSheetClose(event) {
+        if (!event.target || event.target.id !== 'wb-hsheet') {
+            return;
+        }
+        var opener = histSheetOpener || document.getElementById('wb-hsheet-open');
+        histSheetOpener = null;
+        if (opener) {
+            opener.setAttribute('aria-expanded', 'false');
+            try { opener.focus({ preventScroll: true }); } catch (e) { opener.focus(); }
+        }
+    }
+
     /* ── 위임 진입점 ─────────────────────────────────────────────────── */
 
     function onClick(event) {
         var target = event.target;
         if (!target || !target.closest) {
+            return;
+        }
+
+        // 시트 바탕(뒤 어두운 곳)을 누르면 닫는다 — 시트 안쪽 상자가 시트를 꽉 채우므로
+        // `dialog` 자신이 눌린 경우는 바탕(::backdrop)뿐이다.
+        if (target.id === 'wb-hsheet') {
+            closeHistSheet();
             return;
         }
 
