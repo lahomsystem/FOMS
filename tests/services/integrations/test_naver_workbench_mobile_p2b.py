@@ -143,7 +143,7 @@ def test_admin_sheet_speaks_field_words_on_phone_only(client, workbench_on, monk
 
 def test_status_card_says_expiry_date_and_title_time_is_not_repeated(client, workbench_on, monkeypatch):
     card = _card(_history(client, monkeypatch, expires_on=None, days_left=None))
-    assert "인증 만료일 미등록" in card
+    assert '인증 만료일 <span class="wb-dk">미등록</span><span class="wb-ph">미입력</span>' in card
     _patch_ingest(monkeypatch)
     known = _card(client.get(TRIAGE_PATH, query_string={"tab": "all"}).get_data(as_text=True))
     assert "인증 만료 2027-02-23" in known, "음성 대조군: 날짜가 있으면 예전 꼴"
@@ -154,9 +154,9 @@ def test_status_card_says_expiry_date_and_title_time_is_not_repeated(client, wor
 # 자산 핀
 # --------------------------------------------------------------------------- #
 
-def test_workbench_pins_moved_to_20260930d():
+def test_workbench_pins_moved_to_20260930e():
     markup = TEMPLATE.read_text(encoding="utf-8")
-    assert markup.count("?v=20260930d") == 2
+    assert markup.count("?v=20260930e") == 2
     assert "?v=20260930b" not in markup and "?v=20260930a" not in markup
     assert 'style="' not in markup.split("{% block content %}")[1].split("{% endblock %}")[0].replace(
         'style="{{', ""), "인라인 스타일 금지"

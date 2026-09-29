@@ -152,7 +152,9 @@
         'wb-ask-go': runAsk,
         'wb-ask-cancel': function () { closeSheet('wb-ask'); },
         // 폰 목록 끝 글자 버튼(P2 · N-03) — 머리줄의 원래 버튼(확인창·진행 표시 한 벌)을 누른다.
-        'wb-refresh-all-phone': function () { clickOriginal('wb-refresh-all'); }
+        'wb-refresh-all-phone': function () { clickOriginal('wb-refresh-all'); },
+        // 폰 목록 `맨 위로`(감사 원장 N-06). 초점은 옮기지 않는다 — 찾기 칸에 주면 아이폰 자판이 올라온다.
+        'wb-totop': function () { window.scrollTo({ top: 0, behavior: 'smooth' }); }
     };
 
     /** 폰 폭(CSS `@media (max-width: 767.98px)` 의 짝). 폰 전용 동작만 이 값을 문다. */
@@ -220,6 +222,8 @@
     window.addEventListener('popstate', onPopState);
     // 폰 칩 줄 오른쪽 끝 흐림(P2 · N-32) — scroll 은 버블하지 않아 캡처로 받는다.
     document.addEventListener('scroll', onChipsScroll, true);
+    // 폰 목록 `맨 위로`(N-06) — 한 화면 반 넘게 내렸을 때만 보인다. 프레임당 한 번만 잰다.
+    window.addEventListener('scroll', onToTopScroll, { passive: true });
     // 폰 전체 메뉴(P2 · N-23) — 펼칠 때 머리줄 높이를 재서 메뉴 층을 그 밑에 붙인다.
     document.addEventListener('shown.bs.collapse', syncMenuTop);
     // <dialog> 의 close 는 버블하지 않는다 — 캡처로 받는다(Esc·닫기 버튼·바탕 누르기 모두 여기로 온다).
@@ -1208,8 +1212,67 @@
         var who = pane ? pane.querySelector('.wb-detail__title .fw-semibold') : null;
         setText('wb-layer-name', who ? who.textContent.trim() : '');
         setText('wb-layer-state', pane ? (pane.getAttribute('data-row-can') || '') : '');
+        setText('wb-layer-meta', pane ? layerMeta(pane.getAttribute('data-amount-total'),
+                                                   pane.getAttribute('data-row-badges')) : '');
         syncLayerNav();
         paintPrimary();
+    }
+
+    var toTopQueued = false;
+
+    function onToTopScroll() {
+        if (toTopQueued) {
+            return;
+        }
+        toTopQueued = true;
+        window.requestAnimationFrame(function () {
+            toTopQueued = false;
+            var btn = document.getElementById('wb-totop');
+            if (btn) {
+                btn.hidden = !toTopVisible(isPhone(), window.scrollY || 0, window.innerHeight || 0);
+            }
+        });
+    }
+
+    /**
+     * `맨 위로` 를 보일까(N-06) — 폰이고, 한 화면 반(1.5 × 화면 높이)을 넘게 내렸을 때만. 순수 함수 — Node 로 돌려 본다.
+     *
+     * @param {boolean} phone 폰 폭인가.
+     * @param {number} scrollY 내린 거리(px).
+     * @param {number} viewH 화면 높이(px).
+     * @returns {boolean}
+     */
+    function toTopVisible(phone, scrollY, viewH) {
+        return !!phone && viewH > 0 && scrollY > viewH * 1.5;
+    }
+
+    /**
+     * 층 머리 셋째 줄(감사 원장 N-43) — `합계 금액 · 발송기한 MM-DD`. 금액은 pane 의 합계(모든 줄 금액을 읽었을
+     * 때만 서버가 싣는다), 기한은 서버가 정한 목록 배지 글자를 그대로 옮긴다(잠김·발송 끝남이면 배지가 없다).
+     * 순수 함수 — Node 로 돌려 본다.
+     *
+     * @param {?string} total data-amount-total(빈 값이면 모름).
+     * @param {?string} badgesJson data-row-badges.
+     * @returns {string}
+     */
+    function layerMeta(total, badgesJson) {
+        var parts = [];
+        if (total && /^\d+$/.test(total)) {
+            parts.push(Number(total).toLocaleString('ko-KR') + '원');
+        }
+        var badges = [];
+        try {
+            badges = JSON.parse(badgesJson || '[]') || [];
+        } catch (err) {
+            badges = [];
+        }
+        var due = badges.filter(function (badge) {
+            return badge && typeof badge.text === 'string' && badge.text.indexOf('발송기한 ') === 0;
+        })[0];
+        if (due) {
+            parts.push(due.text);
+        }
+        return parts.join(' · ');
     }
 
     function syncLayerNav() {
