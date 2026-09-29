@@ -188,6 +188,39 @@ def test_dbapi_connections_use_client_side_binding(monkeypatch) -> None:
     assert seen["host"] == "h" and seen["dbname"] == "d"
 
 
+def test_canonical_dialect_keeps_sql_compilation_cache_and_plain_binds() -> None:
+    """The registered psycopg dialect subclass must (a) keep SQLAlchemy's compiled-SQL cache
+    and (b) render no Python-type bind casts.
+
+    SQLAlchemy reads ``supports_statement_cache`` from the class's own ``__dict__``; the
+    2026-09-29 hotfix subclass (bind_typing NONE) omitted it, so web/worker/SIDEFX recompiled
+    every statement (warning ``cprf``; local compile x300: 300ms vs 100ms with the cache).
+    """
+    import warnings
+
+    from sqlalchemy import Column, Integer, MetaData, Table, create_engine, select, exc
+
+    class _NoFlag(db_url_resolver.PGDialect_psycopg_plain_binds.__mro__[1]):  # negative control
+        pass
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", exc.SAWarning)
+        assert _NoFlag()._supports_statement_cache is False
+
+    engine = create_engine(db_url_resolver.sqlalchemy_url("postgres://u:p@127.0.0.1:1/foms"))
+    try:
+        dialect = engine.dialect
+        assert isinstance(dialect, db_url_resolver.PGDialect_psycopg_plain_binds)
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", exc.SAWarning)
+            assert dialect._supports_statement_cache is True
+        t = Table("probe", MetaData(), Column("id", Integer, primary_key=True))
+        sql = str(select(t.c.id).where(t.c.id == "4445").compile(dialect=dialect))
+        assert "::" not in sql
+    finally:
+        engine.dispose()
+
+
 def test_migrations_leave_the_transaction_with_autocommit_block_not_a_sql_commit() -> None:
     """``execute(text("COMMIT"))`` then CONCURRENTLY DDL only worked because psycopg2 did not
     track transaction state; psycopg (3) sees the COMMIT and opens a new BEGIN, so the DDL fails.
