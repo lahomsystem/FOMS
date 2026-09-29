@@ -398,33 +398,6 @@ showErpToast('도면 확정 중 오류가 발생했습니다.', 'error');
 }
 }
 
-async function toggleRevisionChecklist(orderId, requestAtEnc, byUserId, nextChecked) {
-try {
-const requestAt = decodeURIComponent(String(requestAtEnc || ''));
-const payload = {
-request_at: requestAt,
-by_user_id: byUserId ? Number(byUserId) : null,
-checked: !!nextChecked,
-};
-const res = await fetch(`/api/orders/${orderId}/request-revision-check`, {
-method: 'POST',
-headers: { 'Content-Type': 'application/json' },
-body: JSON.stringify(payload),
-});
-const data = await res.json();
-if (!data.success) {
-showErpToast(data.message || '요청 반영 체크 저장 실패', 'error');
-return;
-}
-
-showErpToast(data.message || '요청 반영 체크가 저장되었습니다.', 'success');
-await loadOrderDetail(orderId);
-} catch (e) {
-console.error(e);
-showErpToast('요청 반영 체크 저장 중 오류가 발생했습니다.', 'error');
-}
-}
-
 var __currentAssignOrderId = null;
 var __drawingUsersCache = null;
 

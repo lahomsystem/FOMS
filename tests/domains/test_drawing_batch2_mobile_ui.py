@@ -314,3 +314,122 @@ def test_css_reason_font_and_body_padding_follow_bar_height():
     assert "var(--foms-drawing-action-bar-h" in body
     tall = _rule(css, "body.erp-mobile-v2-layout .foms-drawing-handoff--bar-reason")
     assert "--foms-drawing-action-bar-h" in tall
+
+
+# ── 2d 리뷰 후속: 목록 카드 == 상세 리본 · 보는 사람별 라벨 · 담당 아닌 도면팀 이유 줄 · 착지 도면 ──
+
+
+def _queue_card(client, monkeypatch, who: dict, oid: int):
+    _login(client, who)
+    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
+    monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(who["id"]))
+    res = client.get("/erp/drawing-workbench")
+    assert res.status_code == 200
+    card = BeautifulSoup(res.get_data(as_text=True), "html.parser").select_one(
+        f'.foms-drawing-queue-card[data-order-id="{oid}"]'
+    )
+    assert card is not None, "목록에 모바일 큐 카드가 없다"
+    return card
+
+
+def _card_tone(card) -> str:
+    return next(c for c in card["class"] if c.startswith("foms-drawing-queue-card--"))
+
+
+def _assert_card_matches_detail(client, monkeypatch, who: dict, oid: int, *, tone: str, label: str) -> None:
+    card = _queue_card(client, monkeypatch, who, oid)
+    assert _card_tone(card) == f"foms-drawing-queue-card--{tone}", card["class"]
+    assert label in card.select_one(".foms-drawing-queue-card__turn").get_text(" ", strip=True)
+    turn = _phone(client, monkeypatch, who, f"/erp/drawing-workbench/{oid}").select_one("section.foms-drawing-turn")
+    assert f"foms-drawing-turn--{tone}" in turn["class"], turn["class"]
+    assert label in turn.get_text(" ", strip=True)
+
+
+def test_queue_card_matches_detail_ribbon_when_gated(client, monkeypatch):
+    """반영 체크가 남은 RETURNED 주문: 목록 카드도 상세 리본처럼 '내 차례' 가 아니다(같은 주문, 같은 말)."""
+    drafter = _user("b2d_card_gated", role="STAFF", team="DRAWING")
+    oid = _order(drafter["id"], files=1)
+    _assert_card_matches_detail(client, monkeypatch, drafter, oid, tone="other", label="수정요청 반영 체크 필요")
+    card = _queue_card(client, monkeypatch, drafter, oid)
+    action = card.select_one(".foms-drawing-queue-card__open-work")
+    assert "반영 체크" in action.get_text(" ", strip=True)
+    assert "도면 전달" not in action.get_text(" ", strip=True)
+    assert action["href"].endswith("?tab=requests")
+
+
+def test_queue_card_matches_detail_ribbon_when_not_gated(client, monkeypatch):
+    """대조: 반영 체크가 끝나면 목록·상세 모두 내 차례이고 버튼은 '도면 전달' 그대로."""
+    drafter = _user("b2d_card_open", role="STAFF", team="DRAWING")
+    oid = _order(drafter["id"], files=1, checked=True)
+    _assert_card_matches_detail(client, monkeypatch, drafter, oid, tone="mine", label="도면팀 수정 차례")
+    action = _queue_card(client, monkeypatch, drafter, oid).select_one(".foms-drawing-queue-card__open-work")
+    assert "도면 전달" in action.get_text(" ", strip=True)
+    assert "tab=requests" not in action["href"]
+
+
+def test_queue_card_matches_detail_for_non_assignee_drawing_team(client, monkeypatch):
+    """담당 아닌 도면팀: 상세는 전달 권한이 없다(M14-a) — 목록 카드도 내 차례·'도면 전달' 이 아니다."""
+    drafter = _user("b2d_card_owner", role="STAFF", team="DRAWING")
+    other = _user("b2d_card_other", role="STAFF", team="DRAWING")
+    oid = _order(drafter["id"], status="IN_PROGRESS", files=1)
+    _assert_card_matches_detail(client, monkeypatch, other, oid, tone="other", label="도면팀 작업 차례")
+    action = _queue_card(client, monkeypatch, other, oid).select_one(".foms-drawing-queue-card__open-work")
+    assert "도면 전달" not in action.get_text(" ", strip=True)
+
+
+def test_gated_ribbon_names_drawing_team_for_viewer_without_transfer_right(client, monkeypatch):
+    """반영 체크를 할 수 없는 영업에게는 누가 움직일 차례인지 드러나는 라벨."""
+    assert _build_drawing_turn("RETURNED", True, False, False, 1, 1, gated=True) == {
+        "label": "도면팀 반영 체크 대기", "sub": "도면팀 1차 전달 · 도면 1장", "tone": "other",
+    }
+    drafter = _user("b2d_label_drafter", role="STAFF", team="DRAWING")
+    sales = _user("b2d_label_sales", role="MANAGER", team="SALES")
+    oid = _order(drafter["id"], files=1)
+    turn = _phone(client, monkeypatch, sales, f"/erp/drawing-workbench/{oid}").select_one("section.foms-drawing-turn")
+    assert "foms-drawing-turn--other" in turn["class"]
+    text = turn.get_text(" ", strip=True)
+    assert "도면팀 반영 체크 대기" in text and "수정요청 반영 체크 필요" not in text
+
+
+def test_assignee_only_hint_is_reason_line_outside_disabled_button(client, monkeypatch):
+    """담당 아닌 도면팀의 '담당자만 전달할 수 있어요'(M14-a)도 R12 모양: 버튼 밖 이유 줄 + 높은 바 여백."""
+    drafter = _user("b2d_hint_owner", role="STAFF", team="DRAWING")
+    other = _user("b2d_hint_other", role="STAFF", team="DRAWING")
+    oid = _order(drafter["id"], status="IN_PROGRESS", files=1)
+    handoff = _phone(client, monkeypatch, other, f"/erp/drawing-workbench/{oid}")
+    bar = handoff.select_one(".foms-drawing-action-bar")
+    reason = bar.select_one("#dw-transfer-gate-reason")
+    assert reason is not None and reason.name == "p"
+    assert "담당자만 전달할 수 있어요" in reason.get_text(" ", strip=True)
+    assert reason.find_parent("button") is None
+    assert bar.select("button .foms-drawing-action-bar__reason") == []
+    locked = [b for b in bar.select("button[disabled]") if "전달 불가" in b.get_text(" ", strip=True)]
+    assert len(locked) == 1 and locked[0].get("aria-describedby") == "dw-transfer-gate-reason"
+    assert "foms-drawing-handoff--bar-reason" in handoff["class"]
+
+    # 대조: 담당자 본인(막힘 없음)에게는 이유 줄도, 높은 바 표시도 없다.
+    mine = _phone(client, monkeypatch, drafter, f"/erp/drawing-workbench/{oid}")
+    assert mine.select_one("#dw-transfer-gate-reason") is None
+    assert "foms-drawing-handoff--bar-reason" not in mine["class"]
+
+
+def test_requests_tab_lands_on_highlighted_requests_target_drawing(client, monkeypatch):
+    """`?tab=requests` 착지: 강조된 수정요청이 가리키는 도면(2번)을 연다 — 1번 도면이 아니라."""
+    drafter = _user("b2d_tab_target", role="STAFF", team="DRAWING")
+    oid = _order(drafter["id"], files=2)  # 수정요청 대상 = 2번 도면
+    handoff = _phone(client, monkeypatch, drafter, f"/erp/drawing-workbench/{oid}?tab=requests")
+    assert handoff["data-handoff-mode"] == "detail"
+    assert handoff["data-selected-drawing-key"].endswith("plan-2.png"), handoff["data-selected-drawing-key"]
+
+
+def test_handoff_js_scrolls_highlighted_request_into_view():
+    """강조 말풍선은 도면·자료 아래 화면 밖에 있다 — 폰 스크립트가 그 말풍선으로 스크롤한다."""
+    source = HANDOFF_JS.read_text(encoding="utf-8")
+    assert ".foms-drawing-handoff .foms-drawing-thread__msg.is-highlight" in source
+    assert "scrollIntoView" in source
+
+
+def test_dashboard_drawing_js_has_no_dead_revision_checklist_toggle():
+    """M14-e 뒤 toggleRevisionChecklist 는 부르는 곳이 없다(유일한 호출처 requestTabHtml 삭제)."""
+    source = (ROOT / "static/js/orders/dashboard/erp-dashboard-drawing.js").read_text(encoding="utf-8")
+    assert "toggleRevisionChecklist" not in source

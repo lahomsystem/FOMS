@@ -125,6 +125,22 @@
     }
   }
 
+  /**
+   * 알림 착지(?tab=requests · event_id)로 강조된 수정요청 말풍선은 도면·제작 자료 아래 화면 밖에 있다.
+   * 폰 표면에서 그 말풍선까지 스크롤한다. PC(숨은 표면)에서는 offsetParent 가 없어 건너뛴다.
+   */
+  function scrollToHighlightedRequest() {
+    const target = document.querySelector('.foms-drawing-handoff .foms-drawing-thread__msg.is-highlight');
+    if (!target || !target.offsetParent) return;
+    target.scrollIntoView({ block: 'center' });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', scrollToHighlightedRequest, { once: true });
+  } else {
+    scrollToHighlightedRequest();
+  }
+
   document.addEventListener('click', function (event) {
     const viewer = event.target.closest('[data-drawing-handoff-open]');
     if (viewer) {
