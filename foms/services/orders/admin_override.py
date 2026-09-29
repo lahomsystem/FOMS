@@ -30,6 +30,7 @@ from flask import jsonify
 from sqlalchemy.exc import SQLAlchemyError
 
 from foms.services.audit_writer import normalize_security_detail
+from foms.services.orders.confirm_drawing_gate import effective_drawing_status
 from models import OrderEvent, SecurityLog
 
 #: 뚫기에 성공했을 때만 남기는 주문 이벤트 종류(실패한 시도는 SecurityLog 만).
@@ -243,6 +244,8 @@ def record_admin_override_event(
             "role": override.actor_role,
         },
         "bulk": bool(bulk),
+        # 그 순간의 도면 상태(2a-2) — 게이트 코드가 COMMAND_REQUIRED 뿐이어도 "도면 수정 중" 이 남는다.
+        "drawing_status": effective_drawing_status(getattr(order, "structured_data", None)),
     }
     db.add(
         OrderEvent(

@@ -27,6 +27,7 @@ from models import (
     OrderMutationReceipt,
     User,
 )
+from tests.support.confirm_seed import drawing_for_stage
 
 _H = "b" * 64  # scope/request hash 자리(내용 무관, 64-hex)
 
@@ -122,7 +123,7 @@ def _make_order(*, stage: str, quests: list[dict]) -> Order:
         is_erp_order=True,
         status=stage,
         erp_stage_code=stage,
-        structured_data={"workflow": {"stage": stage}, "quests": quests},
+        structured_data={"workflow": {"stage": stage}, "quests": quests, **drawing_for_stage(stage)},
     )
     db_session.add(order)
     db_session.commit()

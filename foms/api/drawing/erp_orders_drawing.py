@@ -32,6 +32,8 @@ from foms.services.erp_policy import (
     get_assignee_ids,
     has_pending_unchecked_drawing_revision_requests,
 )
+from foms.services.orders.confirm_drawing_gate import effective_drawing_status
+from foms.services.orders.drawing_gate_followups import invalidate_after_drawing_transfer
 from foms.services.orders.drawing_transfer import (
     materialize_pending_snapshot,
     materialize_transfer_attachments,
@@ -112,7 +114,7 @@ def perform_drawing_transfer(
             msg += ' (긴급 시 사유와 함께 오버라이드를 사용하세요.)'
         return {'success': False, 'message': msg}, 403
 
-    drawing_status = ((s_data.get('drawing') or {}).get('status') or s_data.get('drawing_status') or 'PENDING').upper()
+    drawing_status = effective_drawing_status(s_data, default='PENDING')  # 판정 정본(2a-2)
     if not is_retransfer:
         is_retransfer = drawing_status == 'RETURNED'
     if (
@@ -320,6 +322,7 @@ def perform_drawing_transfer(
     )
 
     invalidate_dashboard_families(DASHBOARD_FAMILY_DRAWING, DASHBOARD_FAMILY_ORDERS)
+    invalidate_after_drawing_transfer()  # 2a-2: 첨부 개수·생산/시공 패널도 같은 답
 
     # 커밋 후 Web Push enqueue(P1 유형: DRAWING_TRANSFERRED).
     from foms.services.notifications.push_sender import enqueue_push_for_notification
@@ -644,6 +647,7 @@ def api_order_cancel_transfer(order_id):
         )
 
         invalidate_dashboard_families(DASHBOARD_FAMILY_DRAWING, DASHBOARD_FAMILY_ORDERS)
+        invalidate_after_drawing_transfer()  # 2a-2: 첨부 개수·생산/시공 패널도 같은 답
 
         # 커밋 후: push/badge/realtime(전달 알림 finalize 미러). 실패해도 취소 결과 불침해.
         if cancel_notif is not None:

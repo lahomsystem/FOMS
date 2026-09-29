@@ -20,7 +20,7 @@ from foms.services.erp_policy import (
 from foms.services.orders.erp_policy_quests import resolve_required_approval_teams
 from foms.services.orders.order_mutation_policy import team_has_capability
 from foms.services.orders.quest_approve_authz import display_team_axes
-from foms.services.orders.quest_approve_cta import build_approve_cta
+from foms.services.orders.quest_approve_cta import approve_blocked_for, build_approve_cta
 
 __all__ = [
     "ACTIVE_QUEST_STATUSES",
@@ -399,7 +399,8 @@ def build_current_quest_payload(
     can_assignee_approve = _compute_can_assignee_approve(
         current_user, order, sd, stage_code_key, current_quest
     )
-    cta = build_approve_cta(stage_code_key, order)
+    cta = build_approve_cta(stage_code_key, order, sd=sd)  # 도면 게이트 == 승인 라우트(2a-2)
+    can_assignee_approve = can_assignee_approve and not approve_blocked_for(current_user, cta)
     approvable_teams, can_retransition = display_team_axes(
         current_user, order, stage_code_key, current_quest, required_teams,
         approval_mode=approval_mode, cta=cta,

@@ -10,6 +10,7 @@ from werkzeug.security import generate_password_hash
 
 from db import db_session
 from models import Order, OrderEvent, User
+from tests.support.confirm_seed import drawing_for_stage
 
 
 def _make_user(username: str, *, role: str = "ADMIN", team: str | None = "SALES") -> User:
@@ -42,7 +43,7 @@ def _create_order(*, stage: str, sd: dict) -> Order:
         product="붙박이장",
         status=stage,
         is_erp_order=True,
-        structured_data=sd,
+        structured_data={**drawing_for_stage(stage), **sd},
         erp_stage_code=stage,
     )
     db_session.add(order)

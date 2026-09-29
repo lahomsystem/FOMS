@@ -15,6 +15,7 @@ from werkzeug.security import generate_password_hash
 from db import db_session
 from models import Order, OrderEvent, ProductionRun, User
 from tests.support.quest_seed import confirm_quest_completed, confirm_quest_open
+from tests.support.confirm_seed import drawing_for_stage
 
 
 def _make_user(username: str, *, role: str = "STAFF", team: str = "PRODUCTION") -> User:
@@ -45,7 +46,7 @@ def _login_as(client, user_id: int, username: str, role: str) -> None:
 
 def _make_order(stage_code: str, quests: list[dict] | None) -> Order:
     """ERP 주문 1건. ``quests`` 가 None 이면 structured_data 에 quests 키 자체를 넣지 않는다."""
-    sd: dict = {"workflow": {"stage": stage_code}}
+    sd: dict = {"workflow": {"stage": stage_code}, **drawing_for_stage(stage_code)}
     if quests is not None:
         sd["quests"] = quests
     order = Order(

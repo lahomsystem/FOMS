@@ -33,6 +33,7 @@ from models import (
     User,
 )
 from tests.support.quest_seed import confirm_quest_completed
+from tests.support.confirm_seed import drawing_for_stage
 
 # 2026-09-20 F2: 생산 시작의 CONFIRM 호환 경로는 승인 완료된 CONFIRM quest 를 요구한다.
 _CONFIRM_DONE = {"quests": [confirm_quest_completed()]}
@@ -61,7 +62,7 @@ def _login(client, user: User) -> None:
 
 def _make_order(stage_code: str, *, structured_data: dict | None = None) -> Order:
     """지정 erp_stage_code 로 ERP 주문 1건 생성(workflow.stage 동기화, 추가 sd 병합)."""
-    sd = {"workflow": {"stage": stage_code}}
+    sd = {"workflow": {"stage": stage_code}, **drawing_for_stage(stage_code)}
     if structured_data:
         sd = {**sd, **structured_data}
         sd.setdefault("workflow", {})["stage"] = stage_code

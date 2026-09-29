@@ -26,6 +26,11 @@ from foms.services.notifications.recipients import fan_out_new_notification
 from foms.services.erp_permissions import erp_edit_required
 from foms.services.erp_display import _can_modify_sales_domain, _ensure_dict
 from foms.services.erp_policy import is_drawing_workbench_participant
+from foms.services.orders.drawing_gate_followups import (
+    invalidate_after_drawing_revision,
+    invalidate_customer_confirmation,
+    restore_customer_confirmation,
+)
 
 logger = logging.getLogger(__name__)
 erp_orders_revision_bp = Blueprint(
@@ -114,6 +119,7 @@ def api_order_request_revision(order_id):
             'target_drawing_key': target_drawing_keys[0] if len(target_drawing_keys) == 1 else None,
             'target_drawing_number': target_drawing_numbers[0] if len(target_drawing_numbers) == 1 else None,
         })
+        invalidate_customer_confirmation(s_data, history[-1])  # M16(2a-2)
         s_data['drawing_transfer_history'] = history
 
         order.structured_data = s_data
@@ -165,6 +171,7 @@ def api_order_request_revision(order_id):
             include_admin=True,
         )
         invalidate_badge_cache_for_user_ids(recipient_user_ids)
+        invalidate_after_drawing_revision(order)  # 2a-2: CONFIRM·생산 패널이 게이트와 같은 답
         emit_erp_notification_to_users(
             recipient_user_ids,
             {
@@ -330,11 +337,12 @@ def api_order_cancel_revision_request(order_id):
         deleted_count = _delete_revision_reference_files(
             db, order_id, _revision_reference_keys((history[target_idx] or {}).get('files'))
         )
-        history.pop(target_idx)
+        cancelled_request = history.pop(target_idx)
         restore_status = _resolve_revision_restore_status(history)
 
         s_data['drawing_status'] = restore_status
         s_data['drawing_transfer_history'] = history
+        restore_customer_confirmation(s_data, cancelled_request, history)  # M16(2a-2)
         order.structured_data = s_data
         flag_modified(order, 'structured_data')
         db.add(SecurityLog(
@@ -377,6 +385,7 @@ def api_order_cancel_revision_request(order_id):
         )
 
         invalidate_dashboard_families(DASHBOARD_FAMILY_DRAWING, DASHBOARD_FAMILY_ORDERS)
+        invalidate_after_drawing_revision(order)  # 2a-2: CONFIRM·생산 패널이 게이트와 같은 답
 
         # 커밋 후: push/badge/realtime(수정요청 알림 finalize 미러). 실패해도 취소 결과 불침해.
         if cancel_notif is not None:

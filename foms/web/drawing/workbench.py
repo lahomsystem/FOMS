@@ -36,6 +36,7 @@ from foms.services.erp_display import (
 )
 from foms.services.erp_product_items import build_product_items_for_order
 from foms.services.files.upload_authz import validate_upload_key
+from foms.services.orders.confirm_drawing_gate import effective_drawing_status
 from foms.services.notifications.drawing_order_change import (
     _change_parts,
     drawing_work_started,
@@ -619,8 +620,7 @@ def erp_drawing_workbench_dashboard():
         sd = _ensure_dict(o.structured_data)
         stage_raw = _erp_get_stage(o, sd)
         stage_code = STAGE_NAME_TO_CODE.get(stage_raw or '', stage_raw or '')
-        drawing_obj = sd.get('drawing') or {}
-        drawing_status = (drawing_obj.get('status') or sd.get('drawing_status') or 'PENDING').upper()
+        drawing_status = effective_drawing_status(sd, default='PENDING')  # 판정 정본(2a-2)
         is_drawing_stage = (stage_code == 'DRAWING')
         is_active_revision = (drawing_status == 'RETURNED')
         is_confirmed_included = include_confirmed and drawing_status == 'CONFIRMED'
@@ -962,7 +962,7 @@ def erp_drawing_workbench_detail(order_id):
     from foms.api.drawing.wizard import _pending_list
     drawing_pending = _pending_list(s_data)
     stage = _erp_get_stage(order, s_data)
-    drawing_status = ((s_data.get('drawing') or {}).get('status') or s_data.get('drawing_status') or 'PENDING').upper()
+    drawing_status = effective_drawing_status(s_data, default='PENDING')  # 판정 정본(2a-2)
     drawing_files = list(s_data.get('drawing_current_files', []) or [])
     history_raw = list(s_data.get('drawing_transfer_history', []) or [])
     requested_drawing_key = (request.args.get('drawing_key') or '').strip()

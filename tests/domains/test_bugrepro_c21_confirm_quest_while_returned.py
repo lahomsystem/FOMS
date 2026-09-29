@@ -23,9 +23,8 @@
 
 음성 대조군: 수정요청이 없는(CONFIRMED) 주문은 같은 승인으로 PRODUCTION 까지 간다(초록이어야 한다).
 
-C21 은 2차 설계서 몫이다(1차 묶음 브리프 2026-09-29). 빨간 재현 테스트 7개는 고칠 때까지
-``strict=True`` xfail 로 둔다 — 누가 먼저 고치면 XPASS 가 실패로 드러나 표시를 떼게 된다.
-음성 대조군은 표시 없이 그대로 초록이어야 한다.
+2차 묶음 2a-2(도면 게이트 ``confirm_drawing_gate``)가 고쳤다 — xfail 표시를 모두 뗐다.
+음성 대조군은 그대로 초록이어야 한다.
 """
 from __future__ import annotations
 
@@ -35,12 +34,6 @@ from werkzeug.security import generate_password_hash
 from db import db_session
 from foms.services.erp_quest_display import build_current_quest_payload
 from models import Order, OrderEvent, User
-
-_C21_PENDING = pytest.mark.xfail(
-    strict=True,
-    reason="2차 설계서: C21 — 원장 2026-09-29-drawing-defects-verification-ledger.md",
-)
-
 
 class _Actor:
     """요청 사이에 세션이 닫혀도(teardown) 안전한 사용자 식별값 묶음."""
@@ -179,7 +172,6 @@ def _assert_still_confirm_and_unconfirmed(order_id: int, resp, entry: str) -> No
 # --------------------------------------------------------------------------- #
 # C21 본 주장 — 고객컨펌 승인(PC·모바일 공용 라우트)
 # --------------------------------------------------------------------------- #
-@_C21_PENDING
 def test_c21_confirm_approve_rejected_while_drawing_returned(client):
     order_id, _sales = _walk_to_returned(client, "main")
 
@@ -238,7 +230,6 @@ def _walk_to_completed_confirm_quest_then_returned(client, tag: str) -> tuple[in
     return order_id, sales
 
 
-@_C21_PENDING
 def test_c21_retransition_rejected_while_drawing_returned(client):
     """완료 quest + stage CONFIRM 의 [고객 컨펌 완료](재전이)도 RETURNED 면 막혀야 한다."""
     order_id, _sales = _walk_to_completed_confirm_quest_then_returned(client, "retr")
@@ -249,7 +240,6 @@ def test_c21_retransition_rejected_while_drawing_returned(client):
     assert _events(order_id, "CUSTOMER_CONFIRMED") == []
 
 
-@_C21_PENDING
 def test_c21_production_start_compat_rejected_while_drawing_returned(client):
     """생산 탭 [제작 시작] CONFIRM 호환 경로(b)도 RETURNED 면 막혀야 한다."""
     order_id, _sales = _walk_to_completed_confirm_quest_then_returned(client, "pstart")
@@ -273,7 +263,6 @@ def test_c21_production_start_compat_rejected_while_drawing_returned(client):
     ],
     ids=["bulk", "single", "field"],
 )
-@_C21_PENDING
 def test_c21_generic_status_advance_keeps_confirm_while_drawing_returned(
     client, entry, path, body_for,
 ):
@@ -297,7 +286,6 @@ def test_c21_generic_status_advance_keeps_confirm_while_drawing_returned(
     assert (sd.get("workflow") or {}).get("stage") == "CONFIRM", observed
 
 
-@_C21_PENDING
 def test_c21_confirm_cta_not_offered_while_drawing_returned(client):
     """화면 SSOT(PC 그리드·모바일 큐 카드·모바일 상세가 읽는 payload)도 버튼을 내밀면 안 된다."""
     order_id, sales = _walk_to_returned(client, "cta")

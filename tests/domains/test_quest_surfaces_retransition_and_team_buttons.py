@@ -20,6 +20,7 @@ from foms.services.orders.quest_approve_authz import (
     authorize_quest_approve,
     quest_approve_allowed,
 )
+from tests.support.confirm_seed import drawing_for_stage
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -113,7 +114,7 @@ def test_confirm_completed_in_korean_storage_offers_production_retransition():
     """한글 저장형(고객컨펌) COMPLETED 도 재전이 대상 — 승인 버튼과 같은 '고객 컨펌 완료'."""
     quest = {"stage": "고객컨펌", "title": "고객 컨펌", "status": "COMPLETED", "approval_mode": "assignee",
              "assignee_approval": {"approved": True}, "completed_at": "2026-09-16T10:00:00"}
-    sd = {"workflow": {"stage": "CONFIRM"}, "quests": [quest]}
+    sd = {"workflow": {"stage": "CONFIRM"}, "quests": [quest], **drawing_for_stage("CONFIRM")}
     payload = _payload(sd, "고객컨펌", "CONFIRM", _user("CS"))
     assert payload["can_retransition"] is True
     assert payload["retransition_label"] == "고객 컨펌 완료"
@@ -236,6 +237,7 @@ def _db_order_with_assignee_quest(stage_code: str, customer_name: str, required:
 
     order = _db_order(stage_code, customer_name)
     order.structured_data = {
+        **drawing_for_stage(stage_code),
         "workflow": {"stage": stage_code},
         "quests": [{
             "stage": stage_code,
