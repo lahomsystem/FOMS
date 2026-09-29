@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import datetime
 import importlib.util
-import inspect
 from pathlib import Path
 
 import pytest
@@ -152,14 +151,56 @@ def test_cli_refuses_apply_without_ids_and_mixed_flags():
     assert triage.main(["--apply", "--dry-run", "--ids", "1"]) == 1
 
 
+def test_cli_apply_needs_restore_ready_confirmation():
+    """2b 복구 보강이 운영에 있다는 확인 플래그 없이는 --apply 를 거절한다(DB 에 닿기 전, 리뷰 P3)."""
+    assert triage.main(["--apply", "--ids", "1"]) == 1
+
+
+class _NoTombstoneFilterSession:
+    """전역 tombstone 필터가 등록되지 않은 상황 재현(run_auto_init 이 앞 단계에서 실패해 삼킨 경우)."""
+
+    def __init__(self, session):
+        self._session = session
+
+    def query(self, *entities):
+        return include_deleted(self._session.query(*entities))
+
+    def get(self, entity, ident):
+        return include_deleted(self._session.query(entity)).filter_by(id=ident).one_or_none()
+
+    def __getattr__(self, name):
+        return getattr(self._session, name)
+
+
+def test_already_trashed_rows_stay_out_without_global_filter(seeded):
+    """휴지통 행은 전역 필터에 기대지 않고도 목록·적용에서 빠진다 — deleted_at 덮어쓰기·이벤트 중복 없음."""
+    trashed_at = _DT(2026, 9, 20, 9)
+    att = db_session.get(OrderAttachment, seeded["a"])
+    att.deleted_at = trashed_at
+    db_session.commit()
+    events_before = db_session.query(OrderEvent).count()
+    bare = _NoTombstoneFilterSession(db_session)
+
+    summary = triage.run(bare, apply_ids=[seeded["a"]])
+
+    assert seeded["a"] not in _by_id(summary)
+    assert summary["applied"] == []
+    db_session.expire_all()
+    row = include_deleted(db_session.query(OrderAttachment).filter_by(id=seeded["a"])).one()
+    assert row.deleted_at == trashed_at
+    assert db_session.query(OrderEvent).count() == events_before
+
+
 class _Storage:
     def object_exists(self, key):
         return True
 
 
-@pytest.mark.skipif(
-    "file_retained" not in inspect.getsource(order_routes),
-    reason="2b 복구 보강(예약 없는 file_retained 행 복구)이 이 브랜치에 아직 없다 — 병합 뒤 실행된다",
+@pytest.mark.xfail(
+    strict=True,
+    raises=AssertionError,
+    reason="2b 복구 보강(예약 없는 file_retained 행 복구)이 이 브랜치에 아직 없다(지금 복구 API 는 409). "
+    "2b 병합 뒤 이 테스트가 통과하면 strict 라 XPASS 로 빨개진다 — 그때 이 표시를 지운다.",
 )
 def test_restore_api_revives_orphan_tombstone(seeded, client, monkeypatch):
     """적용한 (가) 행을 휴지통 복구 API 가 되살린다(2b 복구 보강과 같은 규약)."""
