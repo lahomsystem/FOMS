@@ -19,13 +19,18 @@
 {% block title %}네이버 수집{% endblock %}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260928d">
+{# 폰 글꼴 Pretendard(감사 원장 N-42 · 재감사 R-06) — 폰 규칙이 글꼴 순서만 바꾸고 글꼴 파일은 /erp 셸만
+   불러와서 효과가 없었다. media 가 폰 폭이라 PC 는 이 시트를 늦게 받아도 쓰지 않고, 글꼴 파일은 폰에서만 내려온다
+   (PC 뿌리 글꼴에는 Pretendard 가 없다). 주소는 layout_head 의 /erp 셸과 같은 한 벌. #}
+<link rel="stylesheet" media="(max-width: 767.98px)" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" crossorigin="anonymous">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/naver-workbench.css') }}?v=20260930d">
 {% endblock %}
 
 {% block content %}
 {{ mark('wb_head_region') }}
 <div class="container-fluid naver-workbench"
-     data-active-tab="{{ active_tab }}" data-active-filter="{{ active_filter }}">
+     data-active-tab="{{ active_tab }}" data-active-filter="{{ active_filter }}"
+     data-active-sort="{{ active_sort or 'new' }}">
 
     {# 상태 스트립 — 이름은 화면에 하나("네이버 수집"). 진입구도 하나다.
        v2 의 '수집 상태' 버튼은 제거했다: 바로 아래 이력 탭과 같은 곳을 가리키던 중복이었다. #}
@@ -37,7 +42,25 @@
            있기 때문이다. 데스크톱은 전역 nav 가 같은 일을 하므로 CSS 가 폰에서만 보인다. #}
         <a class="wb-back" href="{{ url_for('erp_dashboard.erp_dashboard') }}"
            aria-label="ERP 대시보드로 돌아가기"><span aria-hidden="true">‹</span> ERP</a>
-        <span class="wb-bar__title">네이버 수집</span>
+        {# 제목 상자(2026-09-29 폰 1단계) — 폰은 제목 밑에 `마지막 수집` 한 줄을 붙여 56px 한 줄에
+           담는다. 데스크톱은 상자가 `display: contents` 라 제목이 예전처럼 머리줄의 한 칸이다.
+           시각은 서버가 이미 실어 준 값(이력 탭 · ADMIN 의 ingest_status)만 쓴다 — 처리 탭에서
+           이 한 줄을 위해 조회를 더하지 않는다(없으면 안 그린다). 날짜를 떼지 않는다:
+           어제 시각을 `08:26` 으로만 쓰면 "방금" 으로 읽힌다. #}
+        <span class="wb-bar__titlebox">
+            <span class="wb-bar__title">네이버 수집</span>
+            {% if ingest_status and ingest_status.watermark and ingest_status.watermark.last_run_at_text %}
+            <span class="wb-bar__sub">마지막 수집 {{ ingest_status.watermark.last_run_at_text[5:] }}</span>
+            {% endif %}
+        </span>
+        {# 전체 메뉴(폰 전용) — 폰에서는 전역 머리줄(제목·알림·계정)과 메뉴 버튼 줄을 CSS 가
+           접는다. 이 버튼이 **같은 전역 메뉴**(#navbarNav collapse)를 연다 — 메뉴를 두 벌
+           만들지 않는다. 메뉴가 열려 있는 동안에는 접었던 두 줄이 그대로 돌아와 알림·계정
+           (내 정보·로그아웃)에 닿는다. aria-expanded 는 Bootstrap collapse 가 뒤집는다. #}
+        <button type="button" class="wb-menu" data-bs-toggle="collapse" data-bs-target="#navbarNav"
+                aria-controls="navbarNav" aria-expanded="false" aria-label="전체 메뉴">
+            <i class="fas fa-bars" aria-hidden="true"></i>
+        </button>
         <nav class="wb-tabs" role="tablist">
             {# 탭 배지는 **손댈 수 있는 주문**이다 — 탭 안 목록(칩 '전체')보다 작을 수 있다.
                그 차이(취소·반품)는 오른쪽 '손대지 않음' 이 글자로 말한다. title 은 데스크톱 덤이다. #}
@@ -51,15 +74,6 @@
             {% if can_view_history %}
             <a class="wb-tab" role="tab" data-tab="all" aria-selected="{{ 'true' if active_tab == 'all' else 'false' }}"
                href="{{ url_for('admin.naver_ingest_triage', tab='all') }}">이력{% if history and history.total is defined and not history.find %}<span class="wb-tab__n">{{ history.total }}주문</span>{% endif %}</a>
-            {% endif %}
-            {# 대조 — 수집분 중 주문이 없는 것을 사유별로 본다. 권한은 이력과 같은
-               판정(`_can_view_history`)이다: 회계팀은 정산 대조, 영업팀은 자기 주문을
-               좇는 자리라 같은 사람들이 본다.
-               **숫자 배지를 달지 않는다** — 배지를 달면 처리·이력 탭을 그릴 때마다
-               대조 스캔이 한 번 더 돈다. 숫자는 들어와야 보인다. #}
-            {% if can_view_history %}
-            <a class="wb-tab" role="tab" data-tab="gap" aria-selected="{{ 'true' if active_tab == 'gap' else 'false' }}"
-               href="{{ url_for('admin.naver_ingest_triage', tab='gap') }}">대조</a>
             {% endif %}
         </nav>
         {# 결정 3: 숫자 이중 표기(집 · 상품주문)는 화면에서 여기 한 곳만 한다.
@@ -82,7 +96,8 @@
         {% if locked_count %}
         {# 잠금 사유·찾을 자리는 본문에 둔다 — title 만이면 터치 기기가 못 읽는다. #}
         <span class="wb-bar__locked" title="취소·반품이라 어떤 액션도 되지 않습니다.">
-            손대지 않음 <b>{{ locked_count }}주문</b> · 처리 수에는 없고 목록에는 있음
+            {# 폰 P2(감사 원장 N-16) — 폰은 현장 말(`판매자센터에서 처리`)로. 데스크톱 문장은 그대로. #}
+            손대지 않음 <b>{{ locked_count }}주문</b> · <span class="wb-dk">처리 수에는 없고 목록에는 있음</span><span class="wb-ph">판매자센터에서 처리</span>
         </span>
         {% endif %}
         {% endif %}
@@ -165,7 +180,7 @@
       요약이 없는 띠를 말하지 않는다. 숫자가 없는 띠(발송 완료 등)는 이름만 싣는다.
     #}
     {% set _alert_parts = [] %}
-    {% if ghosts and ghosts.count %}{% set _ = _alert_parts.append(('유령 주문', ghosts.count)) %}{% endif %}
+    {% if ghosts and ghosts.count %}{% set _ = _alert_parts.append(('결제가 다 취소된 주문', ghosts.count)) %}{% endif %}
     {% if partial_claims and partial_claims.count %}{% set _ = _alert_parts.append(('부분 취소', partial_claims.count)) %}{% endif %}
     {% if origin_cleanup and origin_cleanup.count %}{% set _ = _alert_parts.append(('옛 주문 정리', origin_cleanup.count)) %}{% endif %}
     {% if bulk_dispatch and bulk_dispatch.show %}
@@ -179,7 +194,7 @@
     <div class="wb-alerts" data-wb-alert-sections="{{ _alert_parts|length }}" data-wb-alert-total="{{ _alert_total }}">
         <button type="button" class="wb-alerts__toggle" id="wb-alerts-toggle"
                 aria-expanded="false" aria-controls="wb-alerts-body">
-            <span class="wb-alerts__head">{% if _alert_total %}확인 필요 <b>{{ _alert_total }}</b>건{% else %}알림{% endif %}</span>
+            <span class="wb-alerts__head">{% if _alert_total %}확인할 주문 <b>{{ _alert_total }}</b>건{% else %}알림{% endif %}</span>
             <span class="wb-alerts__parts">{% for label, n in _alert_parts %}{{ label }}{% if n %} {{ n }}{% endif %}{% if not loop.last %} · {% endif %}{% endfor %}</span>
             <i class="fas fa-chevron-right wb-alerts__chev" aria-hidden="true"></i>
         </button>
@@ -227,23 +242,27 @@
                         <div class="wb-ghost__dim">{{ row.discard_block }}</div>
                         {% endif %}
                     </td>
-                    <td>
+                    {# `data-label` — 폰 카드(표 머리 없음)에서 이 칸의 이름표. 데스크톱 표는 쓰지 않는다. #}
+                    <td data-label="재결제 연결">
                         {% if row.repay_candidates %}
                         {% for cand in row.repay_candidates[:2] %}
                         <div><a href="{{ url_for('admin.naver_ingest_triage', tab='work', link_id=cand.link_id) }}">{{ cand.external_order_no }}</a></div>
                         {% endfor %}
                         {# 위 줄 주문번호가 그 pane 링크다 — 사용법을 다시 말하지 않는다. #}
-                        <div class="wb-ghost__dim">큐에 대기</div>
+                        <div class="wb-ghost__dim"><span class="wb-dk">큐에 대기</span><span class="wb-ph">처리 목록에 있어요</span></div>
                         {% else %}
                         <span class="wb-ghost__dim">없음</span>
                         {% endif %}
                     </td>
                     <td class="text-end">
+                        {# 이 칸의 버튼은 줄마다 나온다 — id 대신 클래스 + data-order-id 로 문다(감사 원장 N-35:
+                           같은 id 가 5번씩 겹쳐 스크린리더·자동화가 첫 줄만 가리켰다). pane 의 같은 버튼은
+                           한 벌이라 id 를 그대로 둔다. JS 는 클래스로 같은 핸들러를 부른다. #}
                         {% if row.repay_expected %}
                         {# 표시가 있으면 휴지통을 잠근다(사용자 결정 2026-09-14). 되돌릴 수 있는 표시라
                            문턱은 휴지통보다 낮다 — 이 화면을 쓰는 사람 누구나 풀 수 있다. #}
                         <span class="wb-ghost__repay">재결제 기다림</span>
-                        <button type="button" class="btn btn-sm btn-outline-secondary" id="wb-ghost-repay-expected"
+                        <button type="button" class="btn btn-sm btn-outline-secondary wb-ghost-repay-expected"
                                 data-order-id="{{ row.order_id }}"
                                 data-customer="{{ row.customer_name }}"
                                 data-expected="0">표시 풀기</button>
@@ -253,7 +272,7 @@
                         {# 접수 이후 단계도 접히되 **관리자가 사유를 적어야** 한다(2026-09-02).
                            `data-needs-reason` 이 있으면 JS 가 확인창 대신 사유 입력을 띄우고,
                            라우트도 같은 조건으로 막는다 — 한쪽만 좁히면 열린 버튼이 400 을 받는다. #}
-                        <button type="button" class="btn btn-sm btn-outline-danger" id="wb-ghost-discard"
+                        <button type="button" class="btn btn-sm btn-outline-danger wb-ghost-discard"
                                 data-order-id="{{ row.order_id }}"
                                 data-customer="{{ row.customer_name }}"
                                 data-stage="{{ row.status_label }}"
@@ -264,7 +283,7 @@
                         {# 바로 위 버튼이 `휴지통으로 보내기` — 한 칸에서 같은 낱말을 두 번 쓰지 않는다. #}
                         <div class="wb-ghost__dim">복구 가능</div>
                         {% endif %}
-                        <button type="button" class="btn btn-sm btn-outline-secondary" id="wb-ghost-repay-expected"
+                        <button type="button" class="btn btn-sm btn-outline-secondary wb-ghost-repay-expected"
                                 data-order-id="{{ row.order_id }}"
                                 data-customer="{{ row.customer_name }}"
                                 data-expected="1">재결제 예정</button>
@@ -281,7 +300,7 @@
                         {# 확정 전 건이야말로 재결제 예정이 가장 흔하다 — 라우트도 확정 전을
                            명시적으로 허용한다. 이 갈래에 표시 버튼이 없으면 pane 에서만 열려
                            같은 기능이 두 화면에서 다른 조건으로 서게 된다. #}
-                        <button type="button" class="btn btn-sm btn-outline-secondary" id="wb-ghost-repay-expected"
+                        <button type="button" class="btn btn-sm btn-outline-secondary wb-ghost-repay-expected"
                                 data-order-id="{{ row.order_id }}"
                                 data-customer="{{ row.customer_name }}"
                                 data-expected="1">재결제 예정</button>
@@ -401,7 +420,7 @@
                         <span class="wb-ghost__claim">{% if row.dispatched %}반품{% else %}취소{% endif %}</span>
                         <div class="wb-ghost__dim">{% if row.dispatched %}이미 발송 처리된 주문{% else %}발송 전{% endif %}</div>
                     </td>
-                    <td>
+                    <td data-label="마지막으로 읽은 때">
                         {% if row.stale %}
                         <span class="wb-ghost__claim wb-ghost__claim--pending">새 결제 뒤로 확인 안 함</span>
                         <div class="wb-ghost__dim">그 사이 고객이 스스로 취소했을 수 있습니다.</div>
@@ -779,13 +798,14 @@
         <span class="wb-bar__sep" aria-hidden="true"></span>
         <span class="wb-tools__label">정렬</span>
         <span class="wb-seg" role="group" aria-label="정렬">
-        {% for key, label, hint in [
-            ('new', '접수순', '최근에 들어온 주문부터'),
-            ('due', '발송기한 임박순', '기한이 가까운 주문부터 — 기한을 넘기면 네이버가 자동 취소할 수 있다')] %}
+        {# 폰 P2(감사 원장 N-18) — 폰은 짧은 이름(`기한순`)을 써서 360 폭에서도 정렬과 찾기가 한 줄에 선다. #}
+        {% for key, label, short, hint in [
+            ('new', '접수순', '접수순', '최근에 들어온 주문부터'),
+            ('due', '발송기한 임박순', '기한순', '기한이 가까운 주문부터 — 기한을 넘기면 네이버가 자동 취소할 수 있다')] %}
         <a class="wb-sort" data-sort="{{ key }}"
            aria-pressed="{{ 'true' if active_sort == key else 'false' }}"
            title="{{ hint }}"
-           href="{{ url_for('admin.naver_ingest_triage', tab='work', f=active_filter, s=key) }}">{{ label }}</a>
+           href="{{ url_for('admin.naver_ingest_triage', tab='work', f=active_filter, s=key) }}">{% if short != label %}<span class="wb-dk">{{ label }}</span><span class="wb-ph">{{ short }}</span>{% else %}{{ label }}{% endif %}</a>
         {% endfor %}
         </span>
         <span class="wb-bar__spacer"></span>
@@ -795,6 +815,7 @@
             <span class="wb-find__label">찾기</span>
             <input type="search" id="wb-find" class="wb-find__input" autocomplete="off"
                    placeholder="이 목록에서 · 고객명 · 주문번호 · 제품"
+                   data-phone-placeholder="이름·주문번호·제품"
                    aria-label="이 목록에서 찾기">
         </label>
         <span class="wb-find__note" id="wb-find-note" role="status" aria-live="polite"></span>
@@ -807,12 +828,14 @@
       '전부 선택' 은 여기 두지 않는다: 0집일 때 이 바가 숨으면 전부 선택에 손이 닿지 않는다.
     #}
     <div class="wb-bulk" id="wb-bulk">
-        <span><b id="wb-bulk-n">0</b>주문 선택됨</span>
+        {# 폰 P2(감사 원장 N-37·N-16) — 폰은 한 줄(`N주문` · [발주확인 보내기] · ×). 데스크톱 글자는 그대로. #}
+        <span class="wb-bulk__n"><b id="wb-bulk-n">0</b>주문<span class="wb-dk"> 선택됨</span></span>
         <button type="button" class="btn btn-primary btn-sm" id="wb-bulk-submit"
                 data-bs-toggle="modal" data-bs-target="#wb-modal-bulk">
-            선택한 주문 발주확인 보내기
+            <span class="wb-dk">선택한 주문 </span>발주확인 보내기
         </button>
-        <button type="button" class="btn btn-outline-secondary btn-sm" id="wb-bulk-clear">선택 해제</button>
+        <button type="button" class="btn btn-outline-secondary btn-sm" id="wb-bulk-clear"
+                aria-label="고른 것 모두 풀기"><span class="wb-dk">선택 해제</span><span class="wb-ph" aria-hidden="true">×</span></button>
         {# 벌크는 폴링하지 않는다(집 수만큼 조회가 곱해진다) — 진행을 여기서 말로 남기고
            잠시 뒤 화면을 한 번 다시 받는다. 비어 있으면 자리를 차지하지 않는다. #}
         <span class="wb-bulk__note" id="wb-bulk-note" role="status" aria-live="polite"></span>
@@ -828,10 +851,15 @@
                 <span class="small fw-semibold">처리할 주문</span>
                 {# 스트립은 '손댈 수 있는 집'을 말하고 여기는 **지금 보이는 줄 수**다(칩으로
                    좁히면 줄어든다). 둘 다 "N집"이면 같은 말로 읽혀서 라벨을 갈랐다. #}
-                <span class="small text-muted">한 주문이 한 줄 · 보이는 {{ work_groups|length }}줄</span>
-                {# 절대 규칙 5: 전부 선택은 **지금 필터로 보이는 행**만 고른다. #}
-                <label class="small text-muted mb-0 ms-auto d-flex align-items-center gap-1">
-                    <input type="checkbox" id="wb-pick-all"> 전부 선택
+                {# 폰 P2(감사 원장 N-12) — 찾기로 좁히면 JS(applyFind)가 `보이는 N줄` 을 찾은 수로 바꾼다
+                   (찾기 칸 아래 숫자와 머리 숫자가 따로 놀지 않게). N-17: 폰은 설명 앞말을 뺀다. #}
+                <span class="small text-muted"><span class="wb-dk">한 주문이 한 줄 · </span><span id="wb-visible">보이는 {{ work_groups|length }}줄</span></span>
+                {# 절대 규칙 5: 전부 선택은 **지금 필터로 보이는 행**만 고른다.
+                   폰 P2(감사 원장 N-34) — 이름이 "전부"인데 실제로는 고를 수 있는 줄만 고른다. 폰은 그 수를
+                   이름에 적는다(`N주문 모두 고르기`). 찾기로 좁히면 JS 가 수를 다시 센다. #}
+                {% set pickable_n = work_groups | selectattr('can_pick') | list | length %}
+                <label class="small text-muted mb-0 ms-auto d-flex align-items-center gap-1 wb-pickall{{ ' wb-pickall--none' if not pickable_n else '' }}">
+                    <input type="checkbox" id="wb-pick-all"> <span class="wb-dk">전부 선택</span><span class="wb-ph"><span id="wb-pick-all-n">{{ pickable_n }}</span>주문 모두 고르기</span>
                 </label>
             </div>
 
@@ -862,6 +890,31 @@
                 {% set row_kind = group.row_kind %}
                 {# 벌크는 '아직 발주확인 안 된, 손대도 되는 집' 에만 연다(계약 §2.2 place 술어와 같다). #}
                 {% set can_pick = group.can_pick %}
+                {# 줄 상자(2026-09-30 P1 · 감사 원장 N-07·N-36) — 체크박스를 줄 링크(`a.wb-row`) **밖**
+                   형제로 뺐다. 링크 안에 있으면 대화형 요소가 겹치고(스크린리더 혼란), 폰에서 흐린
+                   체크박스를 누른 손가락이 링크에 닿아 상세가 열렸다. 링크(`a.wb-row`)의 클래스·
+                   data-*·href 는 그대로다 — JS·테스트가 그 줄을 문다. 상자는 배치와 찾기 숨김만 맡는다.
+                   고를 수 없는 줄의 체크박스는 데스크톱에서 예전처럼 흐리게 보이고(왜 못 고르는지
+                   title), 폰에서는 그리지 않는다(CSS). `--pick` 이 폰에서 체크 칸(52px)을 연다. #}
+                <div class="wb-rowbox{{ ' wb-rowbox--pick' if can_pick else '' }}">
+                {# 선택은 집 단위다 — 상품주문마다 체크박스를 두면 같은 집을 여러 번 고른다.
+                   data-count 는 모달 재진술("N집 · 상품주문 M건")의 M 을 JS 가 더하는 값이다.
+                   **집 전체에서 발주확인이 남은 건수**를 쓴다.
+                    · group.count(화면 모집단)는 확인이 끝난 형제가 있으면 워커가 처리할
+                      수보다 **작다** — "1건 보냅니다" 라고 읽고 3건이 나간다(리뷰 H2).
+                    · household_count(집 전체)는 반대로 **크다** — 서버
+                      confirm_place_order 가 이미 확인된 형제를 빼기 때문이다
+                      (계약 §0-2, 2026-08-23 CEO 검수). 술어는 fulfillment.is_place_pending. #}
+                <label class="wb-pickbox{{ '' if can_pick else ' wb-pickbox--off' }}">
+                    <input type="checkbox" class="wb-pick"
+                           data-group-id="{{ group.id }}"
+                           data-name="{{ group.customer_name }}"
+                           data-count="{{ group.household_place_pending or group.household_count or group.count }}"
+                           {% if not can_pick %}disabled
+                           title="{% if group.claim_blocking %}취소·반품 주문은 고를 수 없습니다{% elif group.canceled %}취소한 주문은 고를 수 없습니다{% else %}이미 발주확인이 끝났습니다{% endif %}"
+                           {% else %}title="여러 주문을 한 번에 발주확인"{% endif %}
+                           aria-label="{{ group.customer_name }} 선택">
+                </label>
                 {# 찾기 대상 텍스트를 행이 직접 들고 있는다. JS 가 여러 자식 요소를 훑어
                    조립하면 마크업이 바뀔 때마다 조용히 안 걸린다. 주문번호는 행 어디에도
                    글자로 없어서(배지는 '주문 #N' = FOMS 주문) 여기서만 검색 대상이 된다. #}
@@ -878,24 +931,12 @@
                       갱신 대신 전체 리로드로 떨어진다(리뷰 M3). 집이 같은지는 링크 포함으로 본다. #}
                    {% if selected_group and (selected_group.id in group.link_ids
                                              or group.id in selected_group.link_ids) %}aria-current="true"{% endif %}
-                   href="{{ url_for('admin.naver_ingest_triage', tab='work', f=active_filter, link_id=group.id) }}">
+                   {# 폰 P2(감사 원장 N-11) — 정렬(`s`)을 주소에 남긴다. 빠지면 기한순에서 연 주문을 새로
+                      고침할 때 순서가 접수순으로 돌아가 N / M·이전/다음이 바뀌었다. 기본(접수순)은 싣지 않는다. #}
+                   href="{{ url_for('admin.naver_ingest_triage', tab='work', f=active_filter, s=(active_sort if active_sort and active_sort != 'new' else None), link_id=group.id) }}">
                     <span class="wb-row__bar"></span>
-                    {# 선택은 집 단위다 — 상품주문마다 체크박스를 두면 같은 집을 여러 번 고른다.
-                       data-count 는 모달 재진술("N집 · 상품주문 M건")의 M 을 JS 가 더하는 값이다.
-                       **집 전체에서 발주확인이 남은 건수**를 쓴다.
-                        · group.count(화면 모집단)는 확인이 끝난 형제가 있으면 워커가 처리할
-                          수보다 **작다** — "1건 보냅니다" 라고 읽고 3건이 나간다(리뷰 H2).
-                        · household_count(집 전체)는 반대로 **크다** — 서버
-                          confirm_place_order 가 이미 확인된 형제를 빼기 때문이다
-                          (계약 §0-2, 2026-08-23 CEO 검수). 술어는 fulfillment.is_place_pending. #}
-                    <input type="checkbox" class="wb-pick"
-                           data-group-id="{{ group.id }}"
-                           data-name="{{ group.customer_name }}"
-                           data-count="{{ group.household_place_pending or group.household_count or group.count }}"
-                           {% if not can_pick %}disabled
-                           title="{% if group.claim_blocking %}취소·반품 주문은 고를 수 없습니다{% elif group.canceled %}취소한 주문은 고를 수 없습니다{% else %}이미 발주확인이 끝났습니다{% endif %}"
-                           {% else %}title="여러 주문을 한 번에 발주확인"{% endif %}
-                           aria-label="{{ group.customer_name }} 선택">
+                    {# 체크박스가 서던 칸(데스크톱 15px) — 체크박스는 링크 밖 형제(위 label)가 이 칸 위에 선다. #}
+                    <span class="wb-row__pickslot" aria-hidden="true"></span>
                     <span class="wb-row__body">
                         <span class="wb-row__line1">
                             <span class="wb-row__name">{{ group.customer_name }}</span>
@@ -924,28 +965,97 @@
                         </span>
                     </span>
                 </a>
-                {% else %}
-                <div class="wb-empty">
-                    {# `전체` 칩이 숫자를 달고 바로 위에 있다 — 사용법은 말하지 않는다. #}
-                    {% if active_filter == 'all' %}확인할 주문이 없습니다.
-                    {% else %}이 필터에 해당하는 주문이 없습니다.{% endif %}
                 </div>
+                {% else %}
+                {# `전체` 칩이 숫자를 달고 바로 위에 있다 — 사용법은 말하지 않는다.
+                   빈 처리 목록(2026-09-29 폰 1단계 목업)은 "할 일이 없다" 를 먼저 말하고, 사람이
+                   다음에 볼 곳(이력)으로 가는 길을 준다. 이력을 못 여는 사람에게는 길을 안 그린다.
+                   `마지막 수집` 시각은 처리 탭에 실린 값이 없어 여기서는 말하지 않는다(조회 추가 금지). #}
+                {% if active_filter == 'all' %}
+                <div class="wb-empty wb-empty--done">
+                    <p class="wb-empty__title">지금 처리할 주문이 없어요</p>
+                    <p class="wb-empty__sub">새 주문이 들어오면 여기에 바로 보여요.</p>
+                    {% if can_view_history %}
+                    <a class="wb-empty__go" href="{{ url_for('admin.naver_ingest_triage', tab='all') }}">이력 보기</a>
+                    {% endif %}
+                </div>
+                {% else %}
+                <div class="wb-empty">이 필터에 해당하는 주문이 없습니다.</div>
+                {% endif %}
                 {% endfor %}
                 {{ mark('work_rows') }}
             </div>
+            {# 폰 P2(감사 원장 N-03) — 머리줄의 ↻ 아이콘은 "화면 새로고침"으로 읽혔는데 실제로는 N주문을 네이버에서
+               2~3분 다시 읽고 알림까지 보내는 조작이었다. 폰은 아이콘을 숨기고 목록 끝에 **무엇을 하는지 적힌**
+               글자 버튼을 둔다. 누르면 머리줄의 원래 버튼(#wb-refresh-all)을 누른다 — 확인창·진행 표시·권한은
+               그 버튼 한 벌이다. 원래 버튼이 없으면(비ADMIN·0주문·도는 중) 이 줄도 없다. 데스크톱은 CSS 가 숨긴다. #}
+            {% if refresh_all and refresh_all.count and not (refresh_running and refresh_running.running) %}
+            <div class="wb-reread">
+                <button type="button" class="wb-reread__btn" id="wb-refresh-all-phone"
+                        aria-describedby="wb-reread-note">네이버에서 목록 전체 다시 읽기 · {{ refresh_all.count }}주문</button>
+                <p class="wb-reread__note" id="wb-reread-note">{{ refresh_all.eta }} 걸려요 · 네이버에는 아무것도 보내지 않아요 · 처음 보는 취소·반품은 알림이 가요</p>
+            </div>
+            {% endif %}
         </section>
 
         {# 상세 pane. 전체 렌더와 프래그먼트 응답이 이 파셜 하나를 공유한다(계약 §3.1).
            최상위 요소가 #wb-pane 이라 JS 가 응답으로 그대로 갈아 끼운다. #}
-        {# 폰 전용 '목록으로'(2026-09-28 스테이징 확인). 폰은 목록 아래에 상세가 붙어서 행을
-           누르면 수백 줄 아래로 내려간다(292줄 = 약 32,000px) — 돌아갈 길이 스크롤뿐이었다.
-           #wb-pane 은 응답으로 통째로 갈아 끼우므로 버튼은 그 바깥에 둔다. 데스크톱은 CSS 가 숨긴다. #}
-        <button type="button" class="wb-pane-back" id="wb-pane-back">
-            <i class="fas fa-chevron-up" aria-hidden="true"></i> 목록으로
-        </button>
-        {{ mark('pane') }}
-        {% include "admin/partials/naver_workbench_pane.html" %}
-        {{ mark('pane') }}
+        {# 폰 전체 화면 상세 층(2026-09-29 폰 3단계 목업). 폰은 목록 아래에 상세가 붙어서 행을
+           누르면 수백 줄 아래로 내려갔다(292줄 = 약 32,000px). 이제 행을 누르면 이 층이 화면을
+           덮고(목록은 제자리), `‹ 목록`·뒤로 가기가 층을 닫는다.
+           #wb-pane 은 응답으로 통째로 갈아 끼우므로 위 막대·아래 막대·더보기 시트는 그 **바깥**
+           (이 층 안)에 둔다 — 값은 JS 가 갈아 끼운 pane 에서 읽어 채운다(syncLayer).
+           데스크톱은 층이 `display: contents` 라 없는 것과 같고(pane 이 예전처럼 격자의 둘째 칸),
+           막대 둘은 CSS 가 숨긴다. 막대 안 버튼은 전부 **원래 버튼을 대신 누르는** 대리 버튼이다
+           (data-proxy-for) — 조작 규칙·모달·id 는 pane 의 원래 버튼 한 벌이다. #}
+        <div class="wb-layer" id="wb-layer">
+            <div class="wb-layer__bar">
+                <button type="button" class="wb-pane-back" id="wb-pane-back" aria-label="목록으로 돌아가기">
+                    <i class="fas fa-chevron-left" aria-hidden="true"></i> 목록
+                </button>
+                <div class="wb-layer__who" aria-live="polite">
+                    <h2 class="wb-layer__name" id="wb-layer-name" tabindex="-1"></h2>
+                    {# 정렬 이름(감사 원장 N-11) — 기한순으로 연 주문은 위치(N / M)가 그 순서라는 것을 말한다. #}
+                    <p class="wb-layer__sub"><span id="wb-layer-state"></span><span class="wb-layer__pos" id="wb-layer-pos"></span>{% if active_sort == 'due' %}<span class="wb-layer__sort"> · 기한순</span>{% endif %}</p>
+                </div>
+                <button type="button" class="wb-layer__step" id="wb-layer-prev"
+                        aria-label="이전 주문" aria-disabled="true">
+                    <i class="fas fa-chevron-left" aria-hidden="true"></i><span class="wb-layer__step-t">이전</span>
+                </button>
+                <button type="button" class="wb-layer__step" id="wb-layer-next"
+                        aria-label="다음 주문" aria-disabled="true">
+                    <span class="wb-layer__step-t">다음</span><i class="fas fa-chevron-right" aria-hidden="true"></i>
+                </button>
+            </div>
+            {{ mark('pane') }}
+            {% include "admin/partials/naver_workbench_pane.html" %}
+            {{ mark('pane') }}
+            {# 아래 고정 막대 — 주 버튼 하나(발주확인 → 주문 만들기 → 발송처리 중 **지금 열린 첫 번째**)
+               + 더보기. 무엇이 열렸는지는 pane 의 원래 버튼(disabled)이 정한다 — 여기서 다시 판정하지 않는다. #}
+            <div class="wb-layer__acts">
+                <button type="button" class="btn btn-primary wb-layer__primary" id="wb-layer-primary" hidden></button>
+                <button type="button" class="wb-layer__more" id="wb-more-open"
+                        aria-haspopup="dialog" aria-expanded="false" aria-controls="wb-more">더보기</button>
+            </div>
+            {# 더 할 일 시트 — 주 버튼을 뺀 pane 액션 버튼 전부. 못 누르는 것은 숨기지 않고 흐리게,
+               원래 버튼이 든 이유(title)를 한 줄로 붙인다. 줄은 열 때마다 JS 가 지금 pane 에서 다시 만든다. #}
+            <dialog class="wb-hsheet wb-more" id="wb-more" aria-labelledby="wb-more-title" aria-modal="true">
+                <div class="wb-hsheet__in">
+                    <span class="wb-hsheet__grip" aria-hidden="true"></span>
+                    <div class="wb-hsheet__head">
+                        <h2 class="wb-hsheet__title" id="wb-more-title" tabindex="-1">더 할 일</h2>
+                        <button type="button" class="wb-hsheet__close" id="wb-more-close" aria-label="닫기">
+                            <i class="fas fa-xmark" aria-hidden="true"></i>
+                        </button>
+                    </div>
+                    <ul class="wb-more__list" id="wb-more-list"></ul>
+                    {# 맨 아래 엄지 자리(더보기·주 버튼 바로 위)는 늘 닫기 — 더보기를 두 번 눌러도 닫힐 뿐이다(N-01). #}
+                    <div class="wb-hsheet__foot">
+                        <button type="button" class="wb-hsheet__dismiss" id="wb-more-dismiss">닫기</button>
+                    </div>
+                </div>
+            </dialog>
+        </div>
     </div>
 
     {# 결정 6: 불가역 액션 4종 세트 — 벌크 쪽. 집 수·상품주문 건수·이름은 선택에 따라
@@ -981,21 +1091,12 @@
                     </p>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">취소</button>
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">그만두기</button>
                     <button type="button" class="btn btn-primary" id="wb-bulk-confirm">보내기</button>
                 </div>
             </div>
         </div>
     </div>
-
-    {% elif active_tab == 'gap' %}
-    {# ══ 대조 ════════════════════════════════════════════════════════
-       수집분 중 **주문이 없는 것**을 사유별로 가른다. 읽기 전용이다 —
-       행에 액션 버튼·data-link-id 를 두지 않는다(이력 탭과 같은 규율:
-       불가역 mutation 라우트가 STAFF 까지 열려 있어서, 누를 수 있게
-       만들면 과거 주문 전체에 그 버튼을 주는 셈이다).
-       숫자는 서버가 센 값을 그대로 낸다. #}
-    {% include 'admin/partials/naver_gap_pane.html' %}
 
     {% else %}
     {# ══ 이력 (ADMIN 전용) ═══════════════════════════════════════════
@@ -1011,10 +1112,49 @@
       ④ "지금 수집"(큐에 넣기만 한다 — 네이버 HTTP 는 WORKER 에서만 나간다).
     #}
     {% if ingest_status %}
+    {# 폰 4단계(2026-09-29 목업) — 폰은 아래 카드(칸 5개)를 한 줄 카드 + [관리] 시트로 접는다.
+       시트는 **같은 카드(#wb-ingest-status)를 JS 가 시트 안으로 옮겨** 보여 준다(id·핸들러 한 벌 —
+       복제하면 id 가 두 벌이 된다). 닫으면 제자리(시트 바로 뒤)로 돌려놓는다. 데스크톱은 한 줄
+       카드를 숨기고 시트를 열 일이 없어 예전 카드 그대로다.
+       워터마크 원문(`2026-09-29T08:25:57.924513+09:00`)은 사람 말 시각으로 편다 — 같은 값을
+       KST 로 바꿔 쪼갤 뿐 조회를 더하지 않는다(`format_datetime_kst` 는 앱 전역 필터).
+       월·일 앞 0 은 `int` 로 뗀다(`%-m` 은 Windows strftime 에 없다). #}
+    {% set wm = ingest_status.watermark %}
+    {% set ex = ingest_status.expiry %}
+    {% set wm_bits = ((wm.last_success_to | format_datetime_kst('%m %d %H:%M:%S')) or '').split(' ') if wm.last_success_to else [] %}
+    {% set wm_human = (wm_bits[0] | int) ~ '월 ' ~ (wm_bits[1] | int) ~ '일 ' ~ wm_bits[2] if wm_bits | length == 3 else '' %}
+    <div class="wb-icard{{ ' wb-icard--err' if wm.last_error else '' }}{{ ' wb-icard--due' if (ex.days_left is not none and ex.days_left <= 7) else '' }}">
+        <span class="wb-icard__state">{{ '실패' if wm.last_error else '정상' }}</span>
+        {# 두 사실은 각자 한 줄이다 — 390px 에서 한 문장으로 이으면 `인증 만 / 료` 처럼 말 중간에서 꺾인다. #}
+        <span class="wb-icard__text">
+            <span class="wb-icard__seg">마지막 수집 {{ wm.last_run_at_text[5:] if wm.last_run_at_text else '아직 없음' }}</span>
+            <span class="wb-icard__seg">인증 만료{% if not ex.expires_on %}일{% endif %} {% if ex.expires_on %}{{ ex.expires_on }}{% if ex.days_left is not none %} ({{ ex.days_left if ex.days_left > 0 else 0 }}일){% endif %}{% else %}미등록{% endif %}</span>
+        </span>
+        <button type="button" class="wb-icard__manage" id="wb-asheet-open"
+                aria-haspopup="dialog" aria-expanded="false" aria-controls="wb-asheet">관리</button>
+    </div>
+    <dialog class="wb-hsheet wb-asheet" id="wb-asheet" aria-labelledby="wb-asheet-title" aria-modal="true">
+        <div class="wb-hsheet__in">
+            <span class="wb-hsheet__grip" aria-hidden="true"></span>
+            <div class="wb-hsheet__head">
+                <h2 class="wb-hsheet__title" id="wb-asheet-title" tabindex="-1">수집 관리 <span class="wb-asheet__who">관리자만</span></h2>
+                <button type="button" class="wb-hsheet__close" id="wb-asheet-close" aria-label="닫기">
+                    <i class="fas fa-xmark" aria-hidden="true"></i>
+                </button>
+            </div>
+            <div class="wb-asheet__slot" id="wb-asheet-slot"></div>
+            <div class="wb-hsheet__foot">
+                <button type="button" class="wb-hsheet__dismiss" id="wb-asheet-dismiss">닫기</button>
+            </div>
+        </div>
+    </dialog>
     <section class="wb-ingest" id="wb-ingest-status">
         <div class="wb-ingest__cell">
-            <div class="wb-ingest__k">마지막 성공 구간 끝(워터마크)</div>
-            <div class="wb-ingest__v">{{ ingest_status.watermark.last_success_to or '아직 없음' }}</div>
+            <div class="wb-ingest__k wb-ingest__desk">마지막 성공 구간 끝(워터마크)</div>
+            <div class="wb-ingest__v wb-ingest__desk">{{ ingest_status.watermark.last_success_to or '아직 없음' }}</div>
+            {# 폰 시트 전용 두 줄(데스크톱은 CSS 가 숨긴다) — 같은 값의 사람 말 꼴. #}
+            <div class="wb-ingest__k wb-ingest__phone">받아온 시각</div>
+            <div class="wb-ingest__v wb-ingest__phone wb-ingest__human">{{ wm_human ~ '까지 받았어요' if wm_human else '아직 없음' }}</div>
             <div class="wb-ingest__sub">마지막 실행 {{ ingest_status.watermark.last_run_at_text or '아직 없음' }}</div>
         </div>
         <div class="wb-ingest__cell">
@@ -1037,7 +1177,7 @@
                열리고, 날짜를 고르는 순간 저장된다(저장 버튼 없음). 카드 한 칸에 라벨·값·
                입력줄·버튼을 다 늘어놓으면 상태 카드가 폼이 된다. #}
             <div class="wb-ingest__k">
-                커머스API 인증 만료일
+                <span class="wb-dk">커머스API 인증 만료일</span><span class="wb-ph">네이버 연결 만료일</span>
                 <button type="button" class="wb-ingest__edit" id="wb-expiry-edit"
                         aria-controls="wb-expiry-input" aria-expanded="false"
                         title="커머스API센터의 `인증 기한` 끝 날짜를 적습니다">{{ '수정' if ingest_status.expiry.expires_on else '등록' }}</button>
@@ -1051,7 +1191,9 @@
             <div class="wb-ingest__sub">{{ ingest_status.expiry.days_left }}일 남음</div>
             {% endif %}
             {% else %}
-            <div class="wb-ingest__v text-warning">미등록</div>
+            {# `wb-expiry-unset` — 폰 관리 시트에서 연노랑 상자 + 진한 주황 글자(감사 원장 N-10, 1.63:1 → 4.8:1).
+               데스크톱 카드는 그대로다. #}
+            <div class="wb-ingest__v text-warning wb-expiry-unset">미등록</div>
             <div class="wb-ingest__sub">만료일을 모르면 만료 경고를 보낼 수 없습니다.</div>
             {% endif %}
             {# 값은 API 로 못 읽는다 — 커머스API센터의 `인증 기한` 끝 날짜를 사람이 보고
@@ -1064,7 +1206,11 @@
                  data-foms-no-autodismiss></div>
         </div>
         <div class="wb-ingest__cell wb-ingest__cell--action">
-            <button type="button" class="btn btn-success btn-sm" id="wb-run-now">지금 수집</button>
+            <button type="button" class="btn btn-success btn-sm" id="wb-run-now"><span class="wb-dk">지금 수집</span><span class="wb-ph">지금 받아오기</span></button>
+            {# 폰 시트 전용 한 줄 — 수집 한 바퀴는 워터마크에서 시작한다(watermark.resolve_window). #}
+            {% if wm_human %}
+            <div class="wb-ingest__sub wb-ingest__phone">{{ wm_human }} 뒤에 들어온 주문을 바로 받아와요.</div>
+            {% endif %}
             <div class="wb-ingest__sub" id="wb-run-result" data-foms-no-autodismiss></div>
         </div>
         {# 과거 주문 소급 수집(백필) — 워터마크는 앞으로만 간다. 첫 수집(2026-08-25) 이전
@@ -1072,7 +1218,7 @@
            붙이기로 못 메우고 과거를 한 번 긁어와야만 닫힌다.
            **운영자가 1회 실행하는 자리**다 — 상시 동작이 아니다. 실행은 큐에 넣기만 한다. #}
         <div class="wb-ingest__cell wb-ingest__cell--action">
-            <div class="wb-ingest__k">과거 주문 소급 수집</div>
+            <div class="wb-ingest__k"><span class="wb-dk">과거 주문 소급 수집</span><span class="wb-ph">지난 주문 가져오기</span></div>
             <div class="wb-backfill__range">
                 <input type="date" class="wb-backfill__input" id="wb-backfill-from"
                        value="{{ backfill_defaults.start }}" max="{{ backfill_defaults.end }}"
@@ -1082,7 +1228,11 @@
                        value="{{ backfill_defaults.end }}" max="{{ backfill_defaults.end }}"
                        aria-label="소급 수집 종료일">
             </div>
-            <button type="button" class="btn btn-outline-secondary btn-sm" id="wb-backfill-run">과거 긁어오기</button>
+            {# 폰 시트 전용 확인 줄. 셋 다 코드가 지키는 사실이다 — 상한 90일 = backfill.MAX_RANGE
+               (테스트가 값을 맞춘다), 이미 받은 주문은 멱등 skip(사전 조회 + UNIQUE(channel,
+               external_id) — backfill 설계 규칙 2), 워터마크는 건드리지 않는다(설계 규칙 1). #}
+            <div class="wb-ingest__sub wb-ingest__phone wb-backfill__confirm">최대 90일 · 이미 받은 주문은 건너뜀 · ‘받아온 시각’은 바뀌지 않아요</div>
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="wb-backfill-run"><span class="wb-dk">과거 긁어오기</span><span class="wb-ph">지난 주문 가져오기</span></button>
             <div class="wb-ingest__sub" id="wb-backfill-note" role="status" aria-live="polite"
                  data-foms-no-autodismiss></div>
         </div>
@@ -1095,58 +1245,108 @@
         </div>
 
         {# 이력 표 필터. 처리 탭 칩과 생김새는 같지만 거르는 대상이 다르다(이력 행 vs 집 목록)
-           — JS·테스트는 data-filter 로 둘을 가른다. 여기 칩에는 data-filter 를 달지 않는다. #}
+           — JS·테스트는 data-filter 로 둘을 가른다. 여기 칩에는 data-filter 를 달지 않는다.
+           필터 파라미터가 넷이다(status·place·dispatch·rel). 칩 8개·폰 상태 시트·페이저 두 링크가
+           **네 개를 전부** 들고 가야 한다 — 하나라도 빠지면 그 링크를 누른 순간
+           필터가 조용히 풀린다(선행 결함 #8 과 같은 모양).
+           칩 8개와 폰 상태 시트(2026-09-29 폰 2단계)는 **아래 목록 한 벌**(`hist_filters`)에서
+           그린다 — 주소·켜짐·숫자를 두 곳에서 따로 계산하면 폰과 데스크톱이 다른 필터를 건다. #}
+        {% set h_status = history.status or None %}
+        {% set h_place = 'PENDING' if history.place_pending else None %}
+        {% set h_dispatch = 'PENDING' if history.dispatch_pending else None %}
+        {% set h_rel = 'ADDON_REPAY' if history.relation_filter else None %}
+        {% set h_q = history.find or None %}
+        {% set h_any = h_status or h_place or h_dispatch or h_rel or h_q %}
+        {% set hist_filters = [] %}
+        {# `전체` — 필터가 걸리면 history.total 은 '걸러진 총계'다 — 그걸 "전체" 라고 말하면
+           거짓말이 된다(옛 이력 화면도 같은 가드를 쓴다). 그래서 숫자를 비운다(none). #}
+        {% set _ = hist_filters.append({
+            'group': 'stage', 'label': '전체', 'on': not h_any,
+            'n': none if h_any else history.total,
+            'href': url_for('admin.naver_ingest_triage', tab='all', q=h_q)}) %}
+        {# 칩 라벨은 행 배지 낱말로 **시작**하고 뒤에 모집단 꼬리만 붙는다 — 칩이 '생성됨',
+           배지가 '주문 만듦' 이면 한 화면에서 같은 것을 두 이름으로 부르게 된다.
+           라벨에 `주문` 을 쓰지 않는다: 뒤에 붙는 `N주문`(세는 단위)과 두 뜻이 인접해
+           읽기 부담이 된다. #}
+        {% for key, label in history.status_chips %}
+        {% set _ = hist_filters.append({
+            'group': 'stage', 'label': label, 'on': history.status == key,
+            'n': history.counts.get(key, 0),
+            'href': url_for('admin.naver_ingest_triage', tab='all', status=key,
+                            place=h_place, dispatch=h_dispatch, rel=h_rel, q=h_q)}) %}
+        {% endfor %}
+        {# 처리 탭의 '발주확인 할 차례' 칩은 **작업 대상**(취소·반품 제외)이고 이 칩은 이력
+           표를 거르는 술어라 취소 집도 포함한다. 같은 라벨을 쓰면 같은 화면에서 두
+           숫자가 어긋나 보인다 — 모집단을 라벨에 적는다. #}
+        {% set _ = hist_filters.append({
+            'group': 'naver', 'label': '발주확인 남음 · 취소 포함', 'on': history.place_pending,
+            'n': history.place_pending_count,
+            'href': url_for('admin.naver_ingest_triage', tab='all', status=h_status,
+                            place=None if history.place_pending else 'PENDING',
+                            dispatch=h_dispatch, rel=h_rel, q=h_q)}) %}
+        {# 술어가 컬럼·JSONB 경로만 보므로 취소 집을 뺄 수 없다 — 옆 칩과 같은 이유로
+           같은 꼬리를 단다(꼬리를 떼면 성질이 같은 두 칩이 다른 말을 하게 된다). #}
+        {% set _ = hist_filters.append({
+            'group': 'naver', 'label': '발송처리 남음 · 취소 포함', 'on': history.dispatch_pending,
+            'n': history.dispatch_pending_count,
+            'href': url_for('admin.naver_ingest_triage', tab='all', status=h_status, place=h_place,
+                            dispatch=None if history.dispatch_pending else 'PENDING', rel=h_rel, q=h_q)}) %}
+        {# 가운뎃점 표기는 처리 탭 칩('추가결제·재결제')과 맞춘다 — 같은 화면에서
+           같은 것을 두 표기로 쓰지 않는다. #}
+        {% set _ = hist_filters.append({
+            'group': 'naver', 'label': '추가결제·재결제', 'on': history.relation_filter,
+            'n': history.relation_count,
+            'href': url_for('admin.naver_ingest_triage', tab='all', status=h_status, place=h_place,
+                            dispatch=h_dispatch, rel=None if history.relation_filter else 'ADDON_REPAY',
+                            q=h_q)}) %}
+
+        {# ── 폰 상태 시트(2026-09-29 폰 2단계) ─────────────────────────────
+           폰에서는 칩 8개가 가로로 밀려 화면 밖으로 나갔다 — 켜진 것 + 숫자를 말하는 버튼 하나로
+           접고, 누르면 아래에서 시트가 올라와 8개를 두 묶음으로 보여 준다. 시트의 줄은 **칩과 같은
+           주소**의 평범한 링크다(누르면 바로 그 주소로 간다 — 네이버 쪽 셋은 켜고 끄는 칩이라
+           라디오 + [확인] 으로 바꾸면 조합 규칙이 달라진다). 데스크톱은 CSS 가 버튼을 숨기고 칩을 둔다.
+           버튼 숫자는 지금 보이는 목록의 총계다 — 찾기 낱말이 걸려 있으면 `전체` 칩처럼 비운다. #}
+        {% set h_on = hist_filters | selectattr('on') | rejectattr('label', 'equalto', '전체') | map(attribute='label') | list %}
+        <button type="button" class="wb-hsheet-open" id="wb-hsheet-open"
+                aria-haspopup="dialog" aria-expanded="false" aria-controls="wb-hsheet">
+            <span class="wb-hsheet-open__k">상태:</span>
+            <span class="wb-hsheet-open__v">{{ h_on | join(' + ') if h_on else '전체' }}</span>
+            {% if not h_q %}<b class="wb-hsheet-open__n">{{ history.total }}</b>{% endif %}
+            <i class="fas fa-chevron-down" aria-hidden="true"></i>
+        </button>
+        <dialog class="wb-hsheet" id="wb-hsheet" aria-labelledby="wb-hsheet-title" aria-modal="true">
+            <div class="wb-hsheet__in">
+                <span class="wb-hsheet__grip" aria-hidden="true"></span>
+                <div class="wb-hsheet__head">
+                    <h2 class="wb-hsheet__title" id="wb-hsheet-title" tabindex="-1">상태로 거르기</h2>
+                    <button type="button" class="wb-hsheet__close" id="wb-hsheet-close" aria-label="닫기">
+                        <i class="fas fa-xmark" aria-hidden="true"></i>
+                    </button>
+                </div>
+                {% for group_key, group_label in [('stage', '받은 뒤 단계'), ('naver', '네이버에 남은 일')] %}
+                <section class="wb-hsheet__group" aria-labelledby="wb-hsheet-g-{{ group_key }}">
+                    <h3 class="wb-hsheet__legend" id="wb-hsheet-g-{{ group_key }}">{{ group_label }}</h3>
+                    <ul class="wb-hsheet__list">
+                        {% for f in hist_filters if f.group == group_key %}
+                        <li><a class="wb-hsheet__opt" href="{{ f.href }}"{% if f.on %} aria-current="true"{% endif %}>
+                            <span class="wb-hsheet__dot" aria-hidden="true"></span>
+                            <span class="wb-hsheet__label">{{ f.label }}</span>
+                            {% if f.n is not none %}<span class="wb-hsheet__n">{{ f.n }}</span>{% endif %}
+                        </a></li>
+                        {% endfor %}
+                    </ul>
+                </section>
+                {% endfor %}
+            </div>
+        </dialog>
+
+        {# `.wb-filters` 안에는 `<div>` 를 두지 않는다: 자리 계약 테스트가 첫 `</div>`
+           까지를 칩 줄로 보고 자른다. #}
         <div class="wb-filters">
-            {# 필터 파라미터가 넷이다(status·place·dispatch·rel). 칩 8개와 페이저 두 링크가
-               **네 개를 전부** 들고 가야 한다 — 하나라도 빠지면 그 링크를 누른 순간
-               필터가 조용히 풀린다(선행 결함 #8 과 같은 모양).
-               `.wb-filters` 안에는 `<div>` 를 두지 않는다: 자리 계약 테스트가 첫 `</div>`
-               까지를 칩 줄로 보고 자른다. #}
-            {% set h_status = history.status or None %}
-            {% set h_place = 'PENDING' if history.place_pending else None %}
-            {% set h_dispatch = 'PENDING' if history.dispatch_pending else None %}
-            {% set h_rel = 'ADDON_REPAY' if history.relation_filter else None %}
-            {% set h_q = history.find or None %}
-            {% set h_any = h_status or h_place or h_dispatch or h_rel or h_q %}
-            <a class="wb-chip" aria-pressed="{{ 'false' if h_any else 'true' }}"
-               {# 필터가 걸리면 history.total 은 '걸러진 총계'다 — 그걸 "전체" 라고 말하면
-                  거짓말이 된다(옛 이력 화면도 같은 가드를 쓴다). #}
-               href="{{ url_for('admin.naver_ingest_triage', tab='all', q=h_q) }}">전체 {{ (history.total ~ '주문') if not h_any else '' }}</a>
-            {# 칩 라벨은 행 배지 낱말로 **시작**하고 뒤에 모집단 꼬리만 붙는다 — 칩이 '생성됨',
-               배지가 '주문 만듦' 이면 한 화면에서 같은 것을 두 이름으로 부르게 된다.
-               라벨에 `주문` 을 쓰지 않는다: 뒤에 붙는 `N주문`(세는 단위)과 두 뜻이 인접해
-               읽기 부담이 된다. #}
-            {% for key, label in history.status_chips %}
-            <a class="wb-chip" aria-pressed="{{ 'true' if history.status == key else 'false' }}"
-               href="{{ url_for('admin.naver_ingest_triage', tab='all', status=key,
-                                place=h_place, dispatch=h_dispatch, rel=h_rel, q=h_q) }}">
-                {{ label }} {{ history.counts.get(key, 0) }}주문
-            </a>
+            {% for f in hist_filters %}
+            <a class="wb-chip" aria-pressed="{{ 'true' if f.on else 'false' }}"
+               href="{{ f.href }}">{{ f.label }} {{ (f.n ~ '주문') if f.n is not none else '' }}</a>
             {% endfor %}
-            <a class="wb-chip" aria-pressed="{{ 'true' if history.place_pending else 'false' }}"
-               href="{{ url_for('admin.naver_ingest_triage', tab='all', status=h_status,
-                                place=None if history.place_pending else 'PENDING',
-                                dispatch=h_dispatch, rel=h_rel, q=h_q) }}">
-                {# 처리 탭의 '발주확인 할 차례' 칩은 **작업 대상**(취소·반품 제외)이고 이 칩은 이력
-                   표를 거르는 술어라 취소 집도 포함한다. 같은 라벨을 쓰면 같은 화면에서 두
-                   숫자가 어긋나 보인다 — 모집단을 라벨에 적는다. #}
-                발주확인 남음 · 취소 포함 {{ history.place_pending_count }}주문
-            </a>
-            <a class="wb-chip" aria-pressed="{{ 'true' if history.dispatch_pending else 'false' }}"
-               href="{{ url_for('admin.naver_ingest_triage', tab='all', status=h_status, place=h_place,
-                                dispatch=None if history.dispatch_pending else 'PENDING', rel=h_rel, q=h_q) }}">
-                {# 술어가 컬럼·JSONB 경로만 보므로 취소 집을 뺄 수 없다 — 옆 칩과 같은 이유로
-                   같은 꼬리를 단다(꼬리를 떼면 성질이 같은 두 칩이 다른 말을 하게 된다). #}
-                발송처리 남음 · 취소 포함 {{ history.dispatch_pending_count }}주문
-            </a>
-            <a class="wb-chip" aria-pressed="{{ 'true' if history.relation_filter else 'false' }}"
-               href="{{ url_for('admin.naver_ingest_triage', tab='all', status=h_status, place=h_place,
-                                dispatch=h_dispatch, rel=None if history.relation_filter else 'ADDON_REPAY',
-                                q=h_q) }}">
-                {# 가운뎃점 표기는 처리 탭 칩('추가결제·재결제')과 맞춘다 — 같은 화면에서
-                   같은 것을 두 표기로 쓰지 않는다. #}
-                추가결제·재결제 {{ history.relation_count }}주문
-            </a>
             {# 찾기는 **서버**가 한다(2026-09-02). 화면 필터로 두면 칸이 닿는 범위가 지금
                페이지뿐이라, 16쪽짜리 이력에서 이름을 쳐도 "0주문"이 나왔다(사용자 보고).
                좁힌 결과가 total·쪽수와 같은 술어에서 나오도록 쿼리스트링 `q` 로 보낸다.
@@ -1165,9 +1365,15 @@
                 {% if h_rel %}<input type="hidden" name="rel" value="{{ h_rel }}">{% endif %}
                 <label class="wb-find__label" for="wb-find">찾기</label>
                 <input type="search" id="wb-find" name="q" class="wb-find__input" autocomplete="off"
-                       value="{{ history.find }}"
+                       value="{{ history.find }}" enterkeyhint="search"
                        placeholder="이력 전체에서 · 고객명 · 주문번호 · 전화"
+                       data-phone-placeholder="이름·주문번호·전화"
                        aria-label="이력 전체에서 찾기">
+                {# 폰 P2(감사 원장 N-38) — 찾는 낱말이 있으면 지우기(×). 같은 필터에서 낱말만 뺀 평범한 링크다. #}
+                {% if history.find %}
+                <a class="wb-find__clear" aria-label="찾기 지우기"
+                   href="{{ url_for('admin.naver_ingest_triage', tab='all', status=h_status, place=h_place, dispatch=h_dispatch, rel=h_rel) }}"><span aria-hidden="true">×</span></a>
+                {% endif %}
             </form>
             {# 서버가 좁힌 결과를 말한다 — 빈 결과일 때 "다른 쪽에 있을 수 있다"는 이제
                거짓이다(찾기가 전체를 본다). 0이면 그냥 없다. #}
@@ -1196,7 +1402,10 @@
                        글자로 없어서 여기서만 검색 대상이 된다. #}
                     <tr class="{{ 'wb-hist--muted' if row.claim_blocking else '' }}"
                         data-find="{{ (row.customer_name ~ ' ' ~ (row.external_order_no or '') ~ ' ' ~ (row.product or '') ~ ' ' ~ ('주문 ' ~ row.order_id if row.order_id else ''))|lower }}">
-                        <td class="wb-cmp__k">{{ row.created_at }}</td>
+                        {# 폰 카드(2026-09-29 폰 2단계)는 `09-28 23:52` 짧은 꼴을 쓴다 — 데스크톱은
+                           CSS 가 짧은 꼴을 숨긴다. 짧은 꼴은 읽기 프로그램에 한 번 더 읽히지 않게 숨긴다.
+                           `받음` 꼬리는 뗐다 — 셋째 줄 링크와 붙거나 360 에서 포개졌다(재감사 R-08). #}
+                        <td class="wb-cmp__k">{{ row.created_at }}{% if row.created_at %}<span class="wb-hist__when" aria-hidden="true">{{ row.created_at[5:16] }}</span>{% endif %}</td>
                         <td>{{ row.customer_name }}</td>
                         <td>
                             {{ row.product }}
@@ -1207,8 +1416,11 @@
                             <div class="wb-cmp__option text-danger">{{ row.failure_reason }}</div>
                             {% endif %}
                         </td>
-                        <td class="wb-cmp__num">{{ row.quantity if row.quantity is not none else '–' }}</td>
-                        <td class="wb-cmp__num">{{ '{:,}'.format(row.amount) if row.amount is not none else '–' }}</td>
+                        {# `wb-hist__na` 는 값이 없는 칸 — 폰 카드는 `· –개`·`–원` 을 쓰지 않고 칸을 접는다. #}
+                        {# `wb-hist__qty--addon` — 추가결제(관계 ADDON, 서버 판정)는 수량이 금액 단위라(3,564개) 폰 카드가
+                           수량을 접는다(감사 원장 N-30). `추가결제` 라벨은 같은 카드의 관계 배지가 이미 말한다. #}
+                        <td class="wb-cmp__num{{ ' wb-hist__na' if row.quantity is none else '' }}{{ ' wb-hist__qty--addon' if row.relation == 'ADDON' else '' }}">{{ row.quantity if row.quantity is not none else '–' }}</td>
+                        <td class="wb-cmp__num{{ ' wb-hist__na' if row.amount is none else '' }}">{{ '{:,}'.format(row.amount) if row.amount is not none else '–' }}</td>
                         {# 상태 칸 — 축마다 한 줄(FOMS · 네이버 · 취소·반품).
                            예외 줄은 **값이 있을 때만** 낸다: 빈 칸이나 '–' 로 채우면
                            "값이 없다"와 "우리가 모른다"가 화면에서 같은 모양이 된다.
@@ -1240,11 +1452,13 @@
                                     <div class="wb-st__v">
                                         {# 추가결제·재결제 집이 대표가 붙은 그 주문을 가리키면 `주문 만듦` 은 접는다
                                            (2026-09-10 사용자 지시) — 판정은 서버(`row.foms_badge_hidden`), 여기는 분기뿐. #}
+                                        {# `--st-<상태>`·`--rel-new` 는 폰 카드가 "거의 모든 카드에 똑같이 붙는" 두 배지
+                                           (받아옴 · 신규 결제)를 접는 손잡이다(감사 원장 N-14). 색은 여전히 tone 클래스가 든다. #}
                                         {% if not row.foms_badge_hidden %}
-                                        <span class="wb-st__b wb-st__b--{{ foms_tone }}">{{ row.foms_label }}</span>
+                                        <span class="wb-st__b wb-st__b--{{ foms_tone }} wb-st__b--st-{{ row.foms_state }}">{{ row.foms_label }}</span>
                                         {% endif %}
                                         {% if row.relation == 'NEW' %}
-                                        <span class="wb-st__b wb-st__b--ghost">{{ row.relation_label }}</span>
+                                        <span class="wb-st__b wb-st__b--ghost wb-st__b--rel-new">{{ row.relation_label }}</span>
                                         {% elif row.relation in ('ADDON', 'REPAY') %}
                                         {# 상대 주문번호가 없으면 화살표와 번호를 **아예 안 낸다** —
                                            `→ #None` 은 사람이 눌러 볼 수 있는 거짓말이 된다. #}
@@ -1308,6 +1522,9 @@
                                여기에만 두면 주문이 이미 생긴 집·취소 집에는 길이 없다. #}
                             <span class="small text-danger">취소·반품 진행 중 — 주문을 만들 수 없습니다.</span>
                             {% endif %}
+                            {# 폰 카드 셋째 줄 오른쪽(`FOMS #번호 ›` 자리)의 빈 꼴. 데스크톱은 CSS 가 숨긴다
+                               — 표에서는 빈 칸이 같은 뜻이다. #}
+                            {% if not row.order_id %}<span class="wb-hist__nofoms">FOMS 주문 없음</span>{% endif %}
                         </td>
                         {# 큐에서 빠진 집의 **네이버 원본**을 그 자리에서 연다. 지금까지는
                            ERP 주문 편집기를 새 탭으로 여는 길뿐이었는데, 거기에는 원본이
@@ -1337,12 +1554,22 @@
                                '주문 만들기'이고, pane 대조표가 그 링크 기준으로 그려진다. #}
                             <a class="wb-hist-open"
                                href="{{ url_for('admin.naver_ingest_triage', tab='work',
-                                                link_id=row.pending_link_id or row.id) }}">워크벤치</a>
+                                                link_id=row.pending_link_id or row.id) }}"><span class="wb-dk">워크벤치</span><span class="wb-ph">처리 탭으로</span></a>
                             </span>
                         </td>
                     </tr>
                     {% else %}
-                    <tr><td colspan="8" class="wb-empty">수집 이력이 없습니다.</td></tr>
+                    {# 폰 P2(감사 원장 N-25) — 찾기 결과가 0 이면 "수집 이력이 없습니다" 는 거짓이다(수집은 된다).
+                       찾는 말 · 다음에 해 볼 것 · 지우기 길을 준다. 찾기가 없을 때만 예전 문장. #}
+                    {% if history.find %}
+                    <tr class="wb-hist__none"><td colspan="8" class="wb-empty"><div class="wb-empty--done wb-empty--find">
+                        <p class="wb-empty__title">‘{{ history.find }}’(으)로 찾은 주문이 없어요</p>
+                        <p class="wb-empty__sub">이름 · 전화 뒷자리 4개 · 주문번호로 찾아 보세요.</p>
+                        <a class="wb-empty__go" href="{{ url_for('admin.naver_ingest_triage', tab='all', status=h_status, place=h_place, dispatch=h_dispatch, rel=h_rel) }}">찾기 지우기</a>
+                    </div></td></tr>
+                    {% else %}
+                    <tr class="wb-hist__none"><td colspan="8" class="wb-empty">수집 이력이 없습니다.</td></tr>
+                    {% endif %}
                     {% endfor %}
                     {{ mark('hist_rows') }}
                 </tbody>
@@ -1471,11 +1698,30 @@
         </div>
     </div>
 
+    {# 폰 확인 시트(2026-09-30 P0 · 감사 원장 N-01·N-13). 모달 없이 바로 나가던 조작(확인 완료·다시 읽기·
+       지금 수집·과거 긁어오기)을 한 번 묻는다. 문장·버튼 글자는 JS 가 그때 주문·기간으로 채운다(textContent).
+       탭과 상관없이 한 벌 — 처리 탭(더 할 일 시트)과 이력 탭(관리 시트)이 같이 쓴다. 층이 열리면 층 바깥을
+       inert 로 거는데 이 시트는 뺀다(setBackgroundInert). 맨 아래 엄지 자리는 늘 그만두기 쪽이다. #}
+    <dialog class="wb-hsheet wb-ask" id="wb-ask" aria-labelledby="wb-ask-title" aria-describedby="wb-ask-who wb-ask-facts" aria-modal="true">
+        <div class="wb-hsheet__in">
+            <span class="wb-hsheet__grip" aria-hidden="true"></span>
+            <div class="wb-ask__body">
+                <h2 class="wb-hsheet__title" id="wb-ask-title" tabindex="-1"></h2>
+                <p class="wb-ask__who" id="wb-ask-who"></p>
+                <ul class="wb-ask__facts" id="wb-ask-facts"></ul>
+            </div>
+            <div class="wb-hsheet__foot">
+                <button type="button" class="btn btn-primary wb-ask__go" id="wb-ask-go"></button>
+                <button type="button" class="wb-hsheet__dismiss" id="wb-ask-cancel">그만두기</button>
+            </div>
+        </div>
+    </dialog>
+
     <div class="modal fade" id="wb-modal-detail" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-lg modal-dialog-scrollable">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">네이버 원본 — <span id="wb-detail-who"></span></h5>
+                    <h5 class="modal-title"><span class="wb-dk">네이버 원본 — </span><span class="wb-ph">네이버 값 · 읽기 전용 — </span><span id="wb-detail-who"></span></h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
                 </div>
                 <div class="modal-body" id="wb-detail-body" aria-busy="false">
@@ -1492,5 +1738,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260928d" defer></script>
+<script src="{{ url_for('static', filename='js/admin/naver-workbench.js') }}?v=20260930d" defer></script>
 {% endblock %}

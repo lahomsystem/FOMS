@@ -262,7 +262,8 @@ def test_band_shows_pending_row_without_a_button(app, client, workbench_on):
     assert "wb-ghost__claim--pending" in body, "확정 전인데 확정과 같은 색으로 칠했다"
     # 띠에는 폐기 버튼이 **없다**. 2026-09-04 부터 집 pane 에도 같은 판정의 버튼이 서므로
     # `data-order-id` 만으로는 두 자리가 안 갈린다 — 띠의 버튼 id 로 잰다.
-    assert 'id="wb-ghost-discard"' not in body, "확정 전인데 띠에 폐기 버튼이 떴다"
+    # 띠 버튼은 2026-09-30(P1 · N-35)부터 id 대신 클래스다.
+    assert 'wb-ghost-discard"' not in body, "확정 전인데 띠에 폐기 버튼이 떴다"
     # pane 쪽은 **숨기지 않고 잠근다**(사용자 결정) — 숨기면 담당자가 관문 없는
     # 주문 목록 휴지통으로 간다.
     assert is_disabled(body, "wb-pane-ghost-discard"), "확정 전인데 pane 버튼이 열렸다"

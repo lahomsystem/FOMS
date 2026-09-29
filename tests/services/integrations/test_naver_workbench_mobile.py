@@ -9,6 +9,9 @@
   `@media (max-width: 767.98px)` 안에 있고, 폰 전용 부품은 데스크톱에서 숨는다.
 * ERP 로 돌아가는 길 — admin 레이아웃이라 v2 하단 탭이 없어서 머리줄에 `‹ ERP` 링크를 둔다.
 * 핀 — CSS·JS 를 고쳤으므로 ``?v`` 가 함께 움직였다(SW staticCacheFirst).
+
+폰 1·2단계(2026-09-29 목업)는 ``test_naver_workbench_mobile_phase12.py`` 가 문다(파일 크기 래칫
+500줄 때문에 나눴다).
 """
 
 from __future__ import annotations
@@ -99,9 +102,9 @@ def test_summary_banner_counts_only_rendered_strips(client, workbench_on, monkey
     banner = _banner(body)
     assert 'aria-expanded="false"' in banner, "폰에서는 접힌 채로 시작한다"
     assert 'aria-controls="wb-alerts-body"' in banner
-    assert re.search(r"확인 필요 <b>4</b>건", banner)
+    assert re.search(r"확인할 주문 <b>4</b>건", banner)  # 2026-09-30 P2 N-15·N-16: `확인 필요` 는 이력 상태 이름과 겹쳤다
     parts = re.sub(r"\s+", " ", banner.split('class="wb-alerts__parts">')[1].split("</span>")[0])
-    assert parts == "유령 주문 2 · 부분 취소 1 · 처리 실패 1"
+    assert parts == "결제가 다 취소된 주문 2 · 부분 취소 1 · 처리 실패 1"
     assert "옛 주문 정리" not in banner and "오늘 발송" not in banner
     # 띠 자체는 요약 띠의 펼침 자리 **안**에 그대로 있다(데스크톱은 CSS 가 늘 펼친다).
     body_at = body.index('id="wb-alerts-body"')
@@ -111,7 +114,7 @@ def test_summary_banner_counts_only_rendered_strips(client, workbench_on, monkey
 
 def test_summary_banner_names_countless_strip_without_inflating_total(client, workbench_on,
                                                                      monkeypatch):
-    """발송 완료 띠는 숫자 없이 이름만 — 합계에 0 을 더한다(`확인 필요` 대신 `알림`)."""
+    """발송 완료 띠는 숫자 없이 이름만 — 합계에 0 을 더한다(`확인할 주문` 대신 `알림`)."""
     _empty_strips(monkeypatch)
     monkeypatch.setattr(naver_ingest, "_bulk_dispatch_view",
                         lambda db: {"show": True, "state": "done", "date": "2026-09-28",
@@ -124,7 +127,7 @@ def test_summary_banner_names_countless_strip_without_inflating_total(client, wo
     assert 'data-wb-alert-sections="1"' in body
     assert 'data-wb-alert-total="0"' in body
     banner = _banner(body)
-    assert "확인 필요" not in banner
+    assert "확인할 주문" not in banner
     assert "알림" in banner and "오늘 발송 완료" in banner
 
 
@@ -164,7 +167,9 @@ def test_asset_pins_moved_together():
     """CSS·JS 를 고쳤으면 핀을 함께 올린다 — 서비스워커 캐시가 옛 파일을 준다."""
     markup = TEMPLATE.read_text(encoding="utf-8")
 
-    assert markup.count("?v=20260928d") == 2
+    assert markup.count("?v=20260930d") == 2
+    assert "?v=20260929b" not in markup, "폰 3·4단계(2026-09-29)에서 CSS·JS 를 고쳤다 — 핀도 함께"
+    assert "?v=20260929a" not in markup
     assert "?v=20260914b" not in markup
 
 
@@ -241,7 +246,8 @@ def test_phone_pane_has_back_to_list_outside_swapped_fragment(client, workbench_
     assert body.index('id="wb-pane-back"') < body.index('<div id="wb-pane"')
     js = JS.read_text(encoding="utf-8").replace("\r\n", "\n")
     assert "'wb-pane-back': backToList" in js
-    assert "a.wb-row[aria-current=\"true\"]" in js.split("function backToList(")[1][:400]
+    # 2026-09-29 폰 3단계: 버튼은 층을 닫는다(leaveLayer) — 방금 연 행으로 돌아가는 규칙은 그대로.
+    assert "a.wb-row[aria-current=\"true\"]" in js.split("function leaveLayer(")[1][:800]
     css = CSS.read_text(encoding="utf-8").replace("\r\n", "\n")
     assert ".wb-pane-back { display: none; }" in css
     assert ".wb-pane-back {" in _media_block(css, "@media (max-width: 767.98px)")
@@ -255,14 +261,16 @@ def test_row_product_line_is_block_so_ellipsis_applies():
     assert "display: block;" in rule and "text-overflow: ellipsis;" in rule
 
 
-def test_phone_back_button_sits_below_sticky_global_nav():
-    """전역 nav 도 sticky(z 1000)다 — '목록으로' 가 top:0 이면 그 밑에 깔려 안 보였다
-    (2026-09-28 스테이징 390px). nav 실측 높이(--wb-nav-h)만큼 내려 붙는다."""
+def test_phone_back_button_lives_in_the_layer_bar():
+    """2026-09-28 에는 목록 아래 상세 위에 붙은 sticky '목록으로' 였다(전역 nav 밑에 깔려 --wb-nav-h
+    만큼 내렸다). 2026-09-29 폰 3단계부터 상세는 화면을 덮는 층이고 버튼은 층 위 막대(sticky)의
+    첫 칸이다 — 층이 전역 nav 를 덮으므로 nav 높이만큼 내릴 일이 없다. 누르는 곳은 44px."""
     css = CSS.read_text(encoding="utf-8").replace("\r\n", "\n")
     phone = _media_block(css, "@media (max-width: 767.98px)")
     rule = phone.split(".wb-pane-back {", 1)[1].split("}", 1)[0]
-    assert "top: var(--wb-nav-h" in rule
-    assert "scroll-margin-top: var(--wb-nav-h" in rule
+    assert "--wb-nav-h" not in rule and "position: sticky" not in rule
+    assert "min-height: 44px;" in rule and "min-width: 44px;" in rule
+    assert "position: sticky;" in phone.split("    .wb-layer__bar {", 1)[1].split("}", 1)[0]
 
 
 # --------------------------------------------------------------------------- #
@@ -363,4 +371,3 @@ def test_pane_primary_actions_render_inside_the_scoped_root(client, workbench_on
     root = body.index('class="container-fluid naver-workbench"')
     for marker in ('id="wb-bulk-submit"', 'id="wb-bulk-confirm"'):
         assert body.index(marker) > root, marker
-

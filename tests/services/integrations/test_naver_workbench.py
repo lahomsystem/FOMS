@@ -231,6 +231,26 @@ def test_unknown_tab_falls_back_to_work(client, workbench_on):
     assert 'data-active-tab="work"' in body
 
 
+def test_removed_gap_tab_falls_back_to_work(client, workbench_on):
+    """대조 탭(GAP-01)은 2026-09-29 사용자 결정으로 완전 삭제했다.
+
+    옛 북마크 ``?tab=gap``(칸 ``b``·페이지 ``o`` 까지 붙은 주소)이 500 이 아니라 처리 탭으로
+    열리고, 탭 줄에서 대조 탭이 사라졌는지 고정한다. 예전에 대조 탭을 볼 수 있던
+    ADMIN 으로 연다 — 권한 때문에 떨어진 것이 아니라 탭 자체가 없어서 떨어진 것이다.
+    """
+    _login(client)
+    _collected(order_no="N-WB-GAP", product="붙박이장", amount=100000)
+
+    response = client.get(f"{TRIAGE_PATH}?tab=gap&b=missing&o=50")
+
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    assert 'data-active-tab="work"' in body
+    assert 'data-tab="gap"' not in body
+    assert "tab=gap" not in body
+    assert "수집·주문 대조" not in body
+
+
 # --------------------------------------------------------------------------- #
 # 숫자 이중 표기 (결정 3)
 # --------------------------------------------------------------------------- #
@@ -570,7 +590,10 @@ def test_work_list_keeps_claimed_households_but_locks_the_row(client, workbench_
     assert "취소된 붙박이장" in body, "잠글지언정 목록에서 없애지 않는다"
     locked = _row_of(body, "취소된 붙박이장")
     assert "wb-row--locked" in locked, locked
-    assert "disabled" in locked, "잠긴 집이 벌크로 선택된다"
+    # 체크박스는 줄 링크 밖 형제(2026-09-30 P1 · N-36) — 줄 상자에서 잰다. 폰은 이 칸을 그리지 않는다.
+    locked_box = next(chunk for chunk in body.split('<div class="wb-rowbox')[1:]
+                      if "취소된 붙박이장" in chunk.split("</a>")[0])
+    assert "wb-pickbox--off" in locked_box and "disabled" in locked_box, "잠긴 집이 벌크로 선택된다"
     assert "손대지 않음" in locked, "색만으로는 못 읽는다 — 글자 라벨이 함께 있어야 한다"
     # 멀쩡한 집은 그대로 고를 수 있다(잠금이 목록 전체로 번지지 않는다).
     assert "wb-row--locked" not in _row_of(body, "정상 붙박이장")

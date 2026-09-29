@@ -55,6 +55,13 @@ WORKBENCH_TABS = ("work", "all")          # place·claim 제거
 - `?tab=claim` → `"work"` + 필터 `claim`.
 - `all` 은 기존대로 ADMIN 아니면 `work`.
 
+> **대조 탭(`gap`, GAP-01) — 2026-09-29 사용자 결정으로 완전 삭제.** 2026-09-14 에
+> 세 번째 탭 `대조`(수집분 중 ERP 주문이 없는 것을 사유별로 보는 읽기 전용 화면)가
+> 붙었으나 "전혀 필요 없다"는 사용자 결정으로 탭 링크·본문 partial(`naver_gap_pane.html`)·
+> 집계 서비스(`order_gap.py`·`order_gap_rules.py`)·테스트를 모두 걷어냈다. 탭은 다시
+> `("work", "all")` 둘이다. 옛 주소 `?tab=gap`(`b`·`o` 인자 포함)은 모르는 탭 값 규칙으로
+> `work` 에 떨어진다(회귀 테스트 `test_removed_gap_tab_falls_back_to_work`).
+
 ### 2.2 필터
 
 ```python
