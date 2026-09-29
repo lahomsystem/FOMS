@@ -70,10 +70,10 @@
         {% for o in g.rows %}
         {% set _t = (((o.structured_data or {}).get('schedule') or {}).get('measurement') or {}).get('time') %}
         {% set _pcn = (o.attachment_preview_items or [])|length %}
-        <div class="foms-meas-glance__row{% if o.measurement_visit_done %} is-done{% endif %}" data-meas-glance-row="{{ o.id }}"{% if o.measurement_completed %} data-meas-glance-handed{% endif %}>
+        <div class="foms-meas-glance__row{% if o.measurement_visit_done %} is-done{% endif %}{% if o.same_day_mark %} is-same-day{% endif %}" data-meas-glance-row="{{ o.id }}"{% if o.measurement_completed %} data-meas-glance-handed{% endif %}>
           <button type="button" class="foms-meas-glance__check" data-meas-visit-toggle="{{ o.id }}" data-meas-visit-date="{{ _gv_date }}" aria-pressed="{{ 'true' if o.measurement_visit_done else 'false' }}" aria-label="{{ o.customer_name or '고객' }} 실측 체크"{% if not _gv_can %} disabled{% endif %}><i class="fas fa-check" aria-hidden="true"></i></button>
           <a class="foms-meas-glance__go{% if _pcn %} has-pc{% endif %}" href="#meas-card-{{ o.id }}" data-meas-glance-go="{{ o.id }}" aria-haspopup="dialog" aria-controls="meas-sheet">
-            <span class="foms-meas-glance__name">{{ o.customer_name or '-' }} {{ channel_mark(o.channel_source|default(none, true)) }}{% if o.measurement_completed %}<span class="foms-meas-glance__handed"><i class="fas fa-circle-check" aria-hidden="true"></i> 실측 완료</span>{% endif %}</span>
+            <span class="foms-meas-glance__name">{{ o.customer_name or '-' }} {{ channel_mark(o.channel_source|default(none, true)) }}{% if o.same_day_mark %}<span class="foms-meas-sameday" data-meas-same-day><i class="fas fa-bolt" aria-hidden="true"></i> 당일<span class="visually-hidden"> 긴급 추가</span></span>{% endif %}{% if o.measurement_completed %}<span class="foms-meas-glance__handed"><i class="fas fa-circle-check" aria-hidden="true"></i> 실측 완료</span>{% endif %}</span>
             {% if o.address and o.address != '-' %}<span class="foms-meas-glance__addr">{{ o.address }}</span>{% endif %}
             {% if o.product_subtitle %}<span class="foms-meas-glance__prod">{{ o.product_subtitle }}</span>{% endif %}
             {% if o.site_memo_count %}<span class="foms-meas-glance__memo" data-meas-glance-memo="{{ o.site_memo_count }}">가기 전 확인 {{ o.site_memo_count }}</span>{% endif %}
@@ -148,6 +148,10 @@
           data-address="{{ o.address or '' }}"
           data-phone="{{ o.phone or '' }}"
           data-manager="{{ o.manager_name or '' }}">
+          {# 당일 긴급 추가(same_day_mark.load_same_day_marks): 시트에서 "왜 생긴 건지" 한 줄. #}
+          {% if o.same_day_mark %}
+            <p class="foms-meas-sameday-why" data-meas-same-day-why><i class="fas fa-bolt" aria-hidden="true"></i> <b>당일 {{ o.same_day_mark.at }} 긴급 추가</b>{% if o.same_day_mark.by %}<span> · 추가 {{ o.same_day_mark.by }}</span>{% endif %}</p>
+          {% endif %}
           {# 현장 메모(site_memo.build_site_memo): 주소·연락처 특이사항은 그 줄 바로 밑(매크로 옵트인),
              실측 특이사항·비고·고객 요청은 "현장 메모" 한 상자 — 종류는 색 알약 이름표로 가른다(2026-09-28 목업 ①).
              빈 칸은 줄을 안 그리고, 셋 다 비면 상자도 없다. 줄바꿈은 CSS pre-line. #}

@@ -18,6 +18,7 @@ from foms.services.orders.order_mutation_policy import POLICY_REGISTRY, evaluate
 from foms.services.orders.state_axes import read_main_stage
 from foms.services.measurement.manager_color import load_manager_color_slots
 from foms.services.measurement.site_memo import build_site_memo
+from foms.services.measurement.same_day_mark import load_same_day_marks
 from foms.services.measurement.visit_check import (
     build_measurement_glance_groups,
     is_visit_marked,
@@ -493,6 +494,11 @@ def erp_measurement_dashboard():
                 _o.structured_data, _visit_date
             )
             mobile_queue_rows.append(_row)
+        # 당일 표시: 보는 날짜에 긴급 추가된 주문(목록 전체 1쿼리). 날짜가 없으면(기간 모드) 끈다.
+        if _visit_date and mobile_queue_rows:
+            _marks = load_same_day_marks(db, (r.get('id') for r in mobile_queue_rows), _visit_date)
+            for _row in mobile_queue_rows:
+                _row['same_day_mark'] = _marks.get(_row.get('id'))
     # 한눈 목록의 담당자 묶음: 행 순서 그대로 연속 구간만 묶고 묶음 안만 방문 시각순.
     # 담당 색 칸(영업팀 명부 id 순)은 모바일 목록이 있을 때만 활성 사용자를 **1회** 읽는다
     # (행 수와 무관한 상수 1쿼리 — 이미 읽은 데이터에는 팀·id 명부가 없다).
