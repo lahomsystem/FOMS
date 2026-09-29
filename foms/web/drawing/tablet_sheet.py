@@ -20,7 +20,10 @@ from db import get_db
 from models import Order
 from foms.web.auth import login_required
 from foms.services.erp_display import _ensure_dict
-from foms.services.erp_policy import can_transfer_drawing
+from foms.services.erp_policy import (
+    can_transfer_drawing,
+    has_pending_unchecked_drawing_revision_requests,
+)
 from foms.services.drawing_wizard_defaults import build_wizard_defaults
 from foms.web.drawing.workbench import (
     erp_drawing_workbench_bp,
@@ -40,6 +43,30 @@ def _to_month_day(normalized_dates: str) -> str:
             except (TypeError, ValueError):
                 continue
     return ', '.join(out)
+
+
+SHEET_TRANSFER_BLOCKED_TEXT = '작업실에서 반영 체크/교체할 도면을 고른 뒤 전달하세요.'
+
+
+def _sheet_transfer_block_reason(sd: dict) -> str:
+    """'시트 전달'(transfer-pending, 교체 대상 없이 APPEND)이 서버에서 400 이 될 상태면 이유를 돌려준다.
+
+    작업실 상세와 같은 판정이다(원장 M14-d): RETURNED 에서 반영 체크 안 된 수정요청이 남았거나
+    (``perform_drawing_transfer`` 반영 체크 게이트), RETURNED 이고 현재본이 2장 이상이면 교체할 도면
+    번호가 필요하다(같은 함수의 "교체할 도면 번호" 400). 시트에는 교체 대상을 고르는 칸이 없다.
+
+    Returns:
+        막히면 안내 문구, 아니면 빈 문자열.
+    """
+    drawing_status = ((sd.get('drawing') or {}).get('status') or sd.get('drawing_status') or 'PENDING').upper()
+    if drawing_status != 'RETURNED':
+        return ''
+    current_files = sd.get('drawing_current_files')
+    if has_pending_unchecked_drawing_revision_requests(sd) or (
+        isinstance(current_files, list) and len(current_files) > 1
+    ):
+        return SHEET_TRANSFER_BLOCKED_TEXT
+    return ''
 
 
 def _build_version_timeline(pending: list[dict], versions: list) -> list[dict]:
@@ -141,6 +168,7 @@ def erp_drawing_workbench_tablet_sheet(order_id: int) -> Any:
         has_pending=bool(pending),
         can_transfer=can_transfer,
         show_transfer_assignee_only_hint=show_transfer_assignee_only_hint,
+        transfer_block_reason=_sheet_transfer_block_reason(sd),
         wizard_url=url_for('erp_drawing_workbench.erp_drawing_workbench_wizard', order_id=order.id),
         detail_url=url_for('erp_drawing_workbench.erp_drawing_workbench_detail', order_id=order.id) + '?tab=timeline',
     )

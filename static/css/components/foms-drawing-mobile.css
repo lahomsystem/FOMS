@@ -75,15 +75,23 @@
 }
 
 @media (max-width: 991.98px), ((min-width: 992px) and (pointer: coarse) and (orientation: portrait)) {
+  /* 하단 액션 바 높이(안전 영역 제외) — 본문 아래 여백이 이 값을 따라간다. 기본 바는 버튼 한 줄(약 73px).
+     막힌 이유 줄이 있는 바(--bar-reason, 도면팀·관리자가 반영 체크 남은 RETURNED 주문을 볼 때)는 한 줄 더 높다.
+     예전엔 여백이 84px 고정이라 이유 줄이 든 바(94px)가 본문 마지막 줄을 가렸다(R12). */
   body.erp-mobile-v2-layout .foms-drawing-handoff {
+    --foms-drawing-action-bar-h: 4.5rem;
     min-height: 100svh;
     background: var(--foms-surface-overlay, #eef0f3);
+  }
+
+  body.erp-mobile-v2-layout .foms-drawing-handoff--bar-reason {
+    --foms-drawing-action-bar-h: 6rem;
   }
 
   body.erp-mobile-v2-layout .foms-drawing-handoff__body {
     display: grid;
     gap: 0.75rem;
-    padding: 0.5rem 0.75rem calc(5.25rem + env(safe-area-inset-bottom, 0px));
+    padding: 0.5rem 0.75rem calc(var(--foms-drawing-action-bar-h, 4.5rem) + 0.75rem + env(safe-area-inset-bottom, 0px));
   }
 
   body.erp-mobile-v2-layout .foms-drawing-turn,
@@ -405,6 +413,22 @@
     object-fit: contain;
   }
 
+  /* 현재 도면 칸 아래 도구 줄 — 도면방 보내기(M13). 하단 바가 아니라 여기 둔다. */
+  body.erp-mobile-v2-layout .foms-drawing-viewer__tools {
+    display: flex;
+    justify-content: flex-end;
+    padding: 0.5rem 0.75rem;
+    border-top: 1px solid var(--foms-border-subtle, #dde1e6);
+  }
+
+  body.erp-mobile-v2-layout .foms-drawing-viewer__push {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    min-height: 2.25rem;
+    font-weight: 800;
+  }
+
   body.erp-mobile-v2-layout .foms-drawing-material {
     padding: 0;
   }
@@ -713,6 +737,7 @@
     bottom: 0;
     z-index: var(--foms-z-action-bar, 1040);
     display: flex;
+    flex-wrap: wrap;
     gap: 0.5rem;
     padding: 0.625rem 0.75rem calc(0.875rem + env(safe-area-inset-bottom));
     border-top: 1px solid var(--foms-border-subtle, #dde1e6);
@@ -772,13 +797,15 @@
     opacity: 1;
   }
 
-  /* '전달 대기' 아래 막힌 이유 한 줄 — 좁은 버튼이라 줄바꿈을 허용한다. */
+  /* 막힌 이유 한 줄 — 버튼 밖(탭 이동으로 닿게), 바 맨 위 전체 폭. 버튼 줄은 그 아래 그대로 한 줄. */
   body.erp-mobile-v2-layout .foms-drawing-action-bar__reason {
-    display: block;
-    max-width: 100%;
-    font-size: 0.62rem;
+    flex: 1 0 100%;
+    margin: 0;
+    color: var(--foms-color-warning-700, #b45309);
+    font-size: 0.72rem;
     font-weight: 700;
     line-height: 1.15;
+    text-align: center;
     white-space: normal;
     word-break: keep-all;
     overflow-wrap: break-word;

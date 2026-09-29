@@ -1,4 +1,6 @@
-<div class="erp-mobile-shell foms-drawing-handoff d-lg-none"
+{# 막힌 이유 줄이 있으면 하단 바가 한 줄 높아진다 — 본문 아래 여백이 그 높이를 따라가게 표시한다(R12). #}
+{% set _bar_reason = can_transfer and not can_open_transfer and transfer_gated_by_revision_checklist %}
+<div class="erp-mobile-shell foms-drawing-handoff d-lg-none{% if _bar_reason %} foms-drawing-handoff--bar-reason{% endif %}"
   data-handoff-mode="{{ mobile_handoff_view }}"
   data-selected-drawing-key="{{ mobile_handoff_selected_file.key if mobile_handoff_selected_file else '' }}"
   data-foms-drawing-handoff-files='{{ (mobile_handoff_viewer_files or [])|tojson }}'>
@@ -145,6 +147,17 @@
         <div class="foms-drawing-viewer__empty">등록된 도면이 없습니다.</div>
         {% endif %}
       </div>
+      {# 도면방 보내기 — PC 버튼(#dw-btn-drawing-room-push)과 같은 조건, 누르면 그 버튼을 대신 누른다
+         (drawing-handoff.js 대신 누르기 표). 하단 바에는 더하지 않는다(바 높이를 키우지 않기, M13). #}
+      {% if can_toggle_revision_check %}
+      <div class="foms-drawing-viewer__tools">
+        <button type="button" class="foms-btn foms-btn--sm foms-drawing-viewer__push"
+          data-drawing-handoff-action="drawing-room-push"
+          {% if not drawing_files %}disabled title="전달된 도면이 없습니다. 도면을 먼저 전달해주세요."{% endif %}>
+          <i class="fas fa-comment-dots" aria-hidden="true"></i><span>도면방 보내기</span>
+        </button>
+      </div>
+      {% endif %}
     </section>
 
     <details class="foms-drawing-material" open>
@@ -227,6 +240,8 @@
             {% if can_toggle_revision_check and rc.request_at %}
             <button type="button" class="foms-btn foms-btn--sm"
               data-drawing-handoff-action="revision-check"
+              aria-label="{{ event.at_text }} 수정요청 {{ '반영 완료 해제' if rc.checked else '반영 완료 표시' }}"
+              aria-pressed="{{ 'true' if rc.checked else 'false' }}"
               data-order-id="{{ order.id }}"
               data-request-at="{{ rc.request_at }}"
               data-by-user-id="{{ rc.by_user_id }}"
@@ -261,19 +276,19 @@
   </main>
 
   <div class="foms-drawing-action-bar">
+    {# 막힌 이유는 disabled 버튼 밖에 둔다 — 버튼 안에 있으면 탭 이동으로 못 닿는다(R12). 버튼이 aria-describedby 로 가리킨다.
+       푸는 버튼은 대화 스레드의 수정요청 말풍선(반영 완료)에 있다. PC 결정 바의 '미반영 수정 요청' 안내와 같은 뜻. #}
+    {% if _bar_reason %}
+    <p id="dw-transfer-gate-reason" class="foms-drawing-action-bar__reason">수정요청 {% if unread_count < revision_requests|length %}{{ revision_requests|length }}건 중 {% endif %}{{ unread_count }}건 반영 체크 필요</p>
+    {% endif %}
     {% if can_transfer %}
       {% if can_open_transfer %}
       <button class="foms-drawing-action-bar__btn foms-drawing-action-bar__btn--primary" type="button" data-bs-toggle="modal" data-bs-target="#dwTransferModal">
         <i class="fas fa-paper-plane"></i><span>{% if drawing_status == 'RETURNED' %}수정본 전달{% else %}도면 전달{% endif %}</span>
       </button>
       {% else %}
-      {# 막힌 이유를 버튼 안 한 줄로 — PC 결정 바의 '미반영 수정 요청' 안내와 같은 뜻.
-         푸는 버튼은 대화 스레드의 수정요청 말풍선(반영 완료)에 있다. #}
-      <button class="foms-drawing-action-bar__btn foms-drawing-action-bar__btn--primary{% if transfer_gated_by_revision_checklist %} foms-drawing-action-bar__btn--gated{% endif %}" type="button" disabled>
+      <button class="foms-drawing-action-bar__btn foms-drawing-action-bar__btn--primary{% if transfer_gated_by_revision_checklist %} foms-drawing-action-bar__btn--gated{% endif %}" type="button" disabled{% if _bar_reason %} aria-describedby="dw-transfer-gate-reason"{% endif %}>
         <i class="fas fa-paper-plane"></i><span>전달 대기</span>
-        {% if transfer_gated_by_revision_checklist %}
-        <small class="foms-drawing-action-bar__reason">수정요청 {% if unread_count < revision_requests|length %}{{ revision_requests|length }}건 중 {% endif %}{{ unread_count }}건 반영 체크 필요</small>
-        {% endif %}
       </button>
       {% endif %}
     {% elif show_transfer_assignee_only_hint %}

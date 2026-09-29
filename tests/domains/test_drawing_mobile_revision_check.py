@@ -239,8 +239,11 @@ def test_drawing_team_can_check_revision_on_phone_when_returned(client, monkeypa
     assert primary is not None
     assert primary.has_attr("disabled")
     assert "전달 대기" in primary.get_text(" ", strip=True)
-    reason = primary.select_one(".foms-drawing-action-bar__reason")
+    # 이유 줄은 disabled 버튼 밖(탭 이동으로 닿게)에 있고 버튼이 aria-describedby 로 가리킨다(2차 R12).
+    reason = handoff.select_one(".foms-drawing-action-bar #dw-transfer-gate-reason")
     assert reason is not None, "막힌 이유 한 줄이 없다"
+    assert reason.find_parent("button") is None
+    assert primary.get("aria-describedby") == "dw-transfer-gate-reason"
     assert "1건 반영 체크 필요" in reason.get_text(" ", strip=True)
 
     # 전제 C: 서버도 같은 이유로 막는다 — 막기 정책 자체는 바뀌지 않았다.
