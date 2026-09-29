@@ -10,17 +10,17 @@
   {% set _gv_can = (can_mark_measurement_visit|default(false)) and _gv_date %}
   {% set _gv_mine = erp_mine_only|default(false) %}
   {% set _gv_done = namespace(n=0, h=0) %}{% for _o in _mrows %}{% if _o.measurement_visit_done %}{% set _gv_done.n = _gv_done.n + 1 %}{% endif %}{% if _o.measurement_completed %}{% set _gv_done.h = _gv_done.h + 1 %}{% endif %}{% endfor %}
-  {# 내 묶음 = 보는 사람 이름과 같은 담당 키(visit_check._manager_key 와 같은 trim·lower). 없으면 첫 묶음만 펼친다. #}
+  {# 처음에는 전부 접는다(mine 모드 제외) — 내 묶음(is-me·"나" 배지)도 접는다(2026-09-29 사용자 요구).
+     내 묶음 = 보는 사람 이름과 같은 담당 키(visit_check._manager_key 와 같은 trim·lower). #}
   {% set _gv_me = ((current_user.name if current_user else '') or '')|trim|lower %}
-  {% set _gv_open = namespace(any_me=false, closed=0) %}{% set _gv_open_names = [] %}
-  {% for g in _gv_groups %}{% if _gv_me and g.key == _gv_me %}{% set _gv_open.any_me = true %}{% endif %}{% endfor %}
+  {% set _gv_open = namespace(closed=0) %}{% set _gv_open_names = [] %}
   {# 담당자 탭: 같은 담당이 두 묶음으로 갈려도 탭은 하나(숫자는 합산).
      담당 색(data-mgr-color 1~8, 담당 없음 0)·번호(order_no)는 서버가 정한다(visit_check · manager_color) — 탭과 띠가 같은 값. #}
   {% set _gv_tabs = [] %}{% set _gv_tab_names = [] %}
   {% for g in _gv_groups %}
     {% if g.manager_name not in _gv_tab_names %}{% set _ = _gv_tab_names.append(g.manager_name) %}{% set _ = _gv_tabs.append({'name': g.manager_name, 'done': 0, 'total': 0, 'slot': g.color_slot|default(0), 'no': g.order_no|default(0)}) %}{% endif %}
     {% set _tb = _gv_tabs[_gv_tab_names.index(g.manager_name)] %}{% set _ = _tb.update({'done': _tb.done + g.done, 'total': _tb.total + g.total}) %}
-    {% if not (_gv_mine or (_gv_open.any_me and g.key == _gv_me) or ((not _gv_open.any_me) and loop.first)) %}{% set _gv_open.closed = _gv_open.closed + 1 %}{% elif g.manager_name not in _gv_open_names %}{% set _ = _gv_open_names.append(g.manager_name) %}{% endif %}
+    {% if not _gv_mine %}{% set _gv_open.closed = _gv_open.closed + 1 %}{% elif g.manager_name not in _gv_open_names %}{% set _ = _gv_open_names.append(g.manager_name) %}{% endif %}
   {% endfor %}
   <section class="foms-meas-glance foms-meas-glance--unified{% if _gv_mine %} is-mine{% endif %}" data-meas-glance aria-label="실측 한눈 목록" data-meas-glance-date="{{ _gv_date }}">
     <div class="foms-meas-glance__head">
@@ -55,7 +55,7 @@
       {% for g in _gv_groups %}
       {% set _gp = (g.manager_phone or '')|replace('-', '')|replace(' ', '') %}
       {% set _is_me = _gv_me and g.key == _gv_me %}
-      {% set _g_open = _gv_mine or (_gv_open.any_me and _is_me) or ((not _gv_open.any_me) and loop.first) %}
+      {% set _g_open = _gv_mine %}
       <div class="foms-meas-glance__grp{% if not _g_open %} is-closed{% endif %}{% if _is_me %} is-me{% endif %}" data-meas-glance-grp="{{ g.manager_name }}" data-mgr-color="{{ g.color_slot|default(0) }}">
         <div class="foms-meas-glance__gname">
           {% if _gv_mine %}<span class="foms-meas-glance__gtog">{% else %}<button type="button" class="foms-meas-glance__gtog" data-meas-glance-tog aria-expanded="{{ 'true' if _g_open else 'false' }}" aria-controls="meas-glance-rows-{{ loop.index }}">{% endif %}

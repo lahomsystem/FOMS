@@ -4,7 +4,7 @@
  *
  * - 탭: `전체` + 담당자. 담당자 탭이면 그 담당 묶음만 보이고 접기가 없다(is-solo). 선택은 ?mgr= 로 replaceState.
  * - 목록을 좌우로 밀면(가로 60px 초과 · 세로의 1.5배 초과) 옆 탭. 체크 칸·전화에서 시작한 밀기는 무시.
- * - 전체 탭의 펼침 상태는 localStorage(날짜별 1벌, try/catch) — 저장이 막혀도 서버가 그린 처음 상태로 동작.
+ * - 펼침 상태는 이 화면 안에서만(첫 진입·새로고침·셸 탭 복귀는 서버가 그린 전부 접힘, 2026-09-29).
  * - 실측 완료 뒤 새로 읽기: erp-quest-approve.js 가 `foms:quest-approve:before-restore` 를 쏘고 같은 값을
  *   window.__fomsQuestApproveRestore 에 남긴다. 실측 번들은 그 뒤에 실리므로 init 에서 받아 줄을 찾아 간다.
  * 전역 가드 1회 + document 위임 리스너 → 프래그먼트 스왑에도 재바인딩 불필요. 섹션별 init 만 다시 돈다.
@@ -14,7 +14,6 @@
     if (window.__FOMS_MEAS_GLANCE_TABS_BOUND) return;
     window.__FOMS_MEAS_GLANCE_TABS_BOUND = true;
 
-    var STORE_KEY = 'foms:meas-glance:open';
     var SWIPE_MIN = 60;
     var SWIPE_RATIO = 1.5;
     var FLASH_MS = 1800;
@@ -30,13 +29,6 @@
         return t ? t.getAttribute('data-meas-glance-tab') : '';
     }
 
-    function readOpen(sec) {
-        try {
-            var v = JSON.parse(window.localStorage.getItem(STORE_KEY) || 'null');
-            if (!v || v.d !== sec.getAttribute('data-meas-glance-date') || !Array.isArray(v.open)) return null;
-            return v.open;
-        } catch (e) { return null; }
-    }
     function openNames(sec) {
         var names = [];
         groupsOf(sec).forEach(function (g) {
@@ -44,14 +36,6 @@
         });
         return names;
     }
-    function saveOpen(sec) {
-        try {
-            window.localStorage.setItem(STORE_KEY, JSON.stringify({
-                d: sec.getAttribute('data-meas-glance-date'), open: openNames(sec)
-            }));
-        } catch (e) { /* 저장 차단(사생활 모드 등): 이번 화면에서만 유지 */ }
-    }
-
     function syncToggle(grp) {
         var tog = grp.querySelector('[data-meas-glance-tog]');
         if (!tog) return;
@@ -163,7 +147,6 @@
         if (grp && grp.classList.contains('is-closed') && !grp.classList.contains('is-solo')) {
             setOpen(grp, true);
             syncCtl(sec);
-            saveOpen(sec);
         }
         if (opts.scroll !== false) row.scrollIntoView({ block: 'center' });
         if (opts.flash) flash(row);
@@ -185,8 +168,6 @@
         sec.__fomsMeasTabsInit = true;
         var strip = sec.querySelector('[data-meas-glance-tabs]');
         if (strip) {
-            var stored = readOpen(sec);
-            if (stored) groupsOf(sec).forEach(function (g) { setOpen(g, stored.indexOf(nameOf(g)) >= 0); });
             var mgr = '';
             try { mgr = new URLSearchParams(window.location.search).get('mgr') || ''; } catch (e) { mgr = ''; }
             if (!selectTab(sec, mgr, { noScroll: true, noUrl: true })) selectTab(sec, '', { noScroll: true });
@@ -214,7 +195,6 @@
             if (!grp || grp.classList.contains('is-solo')) return;
             setOpen(grp, grp.classList.contains('is-closed'));
             syncCtl(sec);
-            saveOpen(sec);
             return;
         }
         var all = t.closest('[data-meas-glance-all]');
@@ -222,7 +202,6 @@
             var open = all.getAttribute('data-meas-glance-all') === 'open';
             groupsOf(sec).forEach(function (g) { setOpen(g, open); });
             syncCtl(sec);
-            saveOpen(sec);
         }
     });
 
