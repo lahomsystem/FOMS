@@ -45,6 +45,7 @@ erp_orders_revision_bp = Blueprint(
 DRAWING_REVISION_REQUEST_POLICY_ID = 'DRAWING_REVISION_REQUEST'
 DRAWING_REVISION_CANCEL_POLICY_ID = 'DRAWING_REVISION_CANCEL'
 DRAWING_REVISION_CHECK_POLICY_ID = 'DRAWING_REVISION_CHECK'
+DRAWING_ORDER_CHANGE_ACK_POLICY_ID = 'DRAWING_ORDER_CHANGE_ACK'
 
 
 @erp_orders_revision_bp.route('/<int:order_id>/request-revision', methods=['POST'])
@@ -545,12 +546,21 @@ def api_order_request_revision_check(order_id):
 @erp_orders_revision_bp.route('/<int:order_id>/drawing/ack-order-change', methods=['POST'])
 @login_required
 def api_ack_drawing_order_change(order_id):
-    """도면 작업실 — ERP 주문 변경 배지/배너 확인(ack)."""
-    from foms.services.notifications.drawing_order_change import ack_drawing_order_change
+    """도면 작업실 — ERP 주문 변경 배지/배너 확인(ack).
+
+    도면 축(``drawing_transfer_history`` acked·pending 플래그) 쓰기라 다른 도면 라우트처럼
+    첫 조회부터 행 잠금, 쓰기는 REV-00 엔진 콜백 안에서 한다(버전 +1). 바꿀 것이 없으면
+    쓰지도 버전을 올리지도 않는다(리뷰 P3 — 예전엔 잠금 없이 읽고 통째로 되써 동시 수정요청을
+    지웠고, 그 전에 연 폼이 409 를 받지 않았다).
+    """
+    from foms.services.notifications.drawing_order_change import (
+        ack_drawing_order_change,
+        order_change_ack_needed,
+    )
 
     db = get_db()
     try:
-        order = db.get(Order, order_id)
+        order = lock_order_row(db, order_id)
         if not order or order.status == "DELETED" or order.deleted_at is not None:
             return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
 
@@ -560,12 +570,23 @@ def api_ack_drawing_order_change(order_id):
         if not is_drawing_workbench_participant(current_user, order) and current_user.role != 'ADMIN':
             return jsonify({'success': False, 'message': '도면 작업 참여자만 확인할 수 있습니다.'}), 403
 
-        changed = ack_drawing_order_change(
-            db,
-            order,
-            actor_user_id=session.get('user_id'),
-            actor_name=current_user.name or '',
-        )
+        changed = False
+        if order_change_ack_needed(order.structured_data):
+            acked = {}
+
+            def _write_ack(locked):
+                acked['changed'] = ack_drawing_order_change(
+                    db,
+                    locked,
+                    actor_user_id=session.get('user_id'),
+                    actor_name=current_user.name or '',
+                )
+
+            execute_single_order_write(
+                db, order_id=order_id, actor_user_id=current_user.id,
+                policy_id=DRAWING_ORDER_CHANGE_ACK_POLICY_ID, payload={}, write=_write_ack,
+            )
+            changed = bool(acked.get('changed'))
         # 모바일 리본 한 줄이 '확인함 · 누가 언제'로 바뀌려면 이 두 값이 필요하다.
         # commit 뒤에는 속성이 만료되므로 커밋 전에 읽는다.
         acked_at_text = ''

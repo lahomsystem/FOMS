@@ -15,6 +15,8 @@
 * 수령 확정(B) 대 전달 취소(A) — A 는 CONFIRMED 를 보고 400, B 의 확정이 남는다.
 * 수정요청(B) 대 재전달(A) — A 는 반영 체크 안 된 RETURNED 를 보고 400.
 * 반영 체크(B) 대 수정요청 취소(A) — 두 동작 모두 남는다.
+* 수정요청(B) 대 주문 변경 확인 ack(A) — 두 동작 모두 남는다.
+* 작업실 대기 전달의 스냅샷 쓰기 경합은 ``test_drawing_transfer_pending_snapshot_pg.py``.
 
 음성 대조(``mode="plain"``): 라우트의 첫 조회를 잠금 도우미 대신 일반 조회로 바꾸면 같은
 시나리오에서 B 의 쓰기가 사라진다(lost update)는 것을 **같은 테스트가** 단언한다 — 시나리오가
@@ -379,3 +381,40 @@ def test_cancel_revision_waits_for_concurrent_revision_check(pg_engine, pg_app, 
     assert sd["drawing_transfer_history"][1]["review_check"]["checked"] is True
     assert sd["drawing_status"] == "TRANSFERRED"
     assert version == 3
+
+
+@pytest.mark.parametrize("mode", ["lock", "plain"])
+def test_ack_order_change_waits_for_concurrent_revision_request(pg_engine, pg_app, monkeypatch,
+                                                                mode):
+    """B=수정요청 · A=주문 변경 확인(ack) → 두 동작 모두 남고 버전은 둘 다 올린다.
+
+    ack 는 확인 표시 계산 자체를 엔진 콜백 안에서(엔진이 다시 잠가 읽은 최신 행 위에서) 하므로
+    첫 조회를 일반 조회로 바꿔도(plain) B 가 남는다 — 첫 조회는 "바꿀 것이 있나" 판정에만 쓴다.
+    이 경로의 음성 대조는 고치기 전 코드(db.get 후 잠금·버전 없이 통째로 되쓰기)로 돌려 lock
+    모드가 빨갛던 것이다(B 의 REQUEST_REVISION 이 사라짐).
+    """
+    history = [
+        {"action": "TRANSFER", "transferred_at": "2026-09-28 10:00:00", "files": []},
+        {"action": "ERP_ORDER_CHANGED", "at": "2026-09-28 11:00:00", "acked": False,
+         "note": "수량 변경"},
+    ]
+    oid, _sales, drafter = _seed(pg_engine, stage="CONFIRM", drawing_status="TRANSFERRED",
+                                 history=history)
+    a_read = _arm_plain(monkeypatch, revision_api, mode)
+
+    def _b_revision(sd):
+        sd["drawing_status"] = "RETURNED"
+        sd["drawing_transfer_history"].append(
+            {"action": "REQUEST_REVISION", "at": "2026-09-29 09:00:00", "note": "B", "files": []})
+
+    out = _race(pg_engine, pg_app, oid, _b_revision, drafter,
+                f"/api/orders/{oid}/drawing/ack-order-change", {}, a_read)
+    assert out["status"] == 200, out
+    sd, version = _final(pg_engine, oid)
+    if mode == "lock":
+        assert out["elapsed"] >= _HOLD_SECONDS * 0.5, out
+    assert _actions(sd) == ["TRANSFER", "ERP_ORDER_CHANGED", "REQUEST_REVISION"]
+    assert sd["drawing_transfer_history"][1]["acked"] is True
+    assert sd["drawing_status"] == "RETURNED"
+    assert version == 3
+
