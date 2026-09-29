@@ -62,6 +62,11 @@
     </div>
   </div>
 
+  {# 도면 게이트(2a-2): 고객컨펌 승인이 도면 수령 확정 전이라 막힌 이유 — 서버 409 와 같은 판정·문구.
+     title 툴팁은 태블릿에서 안 뜨므로 한 줄로 보인다. 관리자는 경고 모양 버튼 → 사유 시트로 뚫는다. #}
+  {% if q and q.approve_blocked %}
+  <p class="foms-gate-blocked-reason" data-quest-approve-blocked>{{ q.approve_blocked_reason }}</p>
+  {% endif %}
   {# m-foot: 전화(tel:) · ERP 편집(edit 이동) · 퀘스트 승인(pri, 기존 승인 API 배선) #}
   <div class="foms-tsheet-foot">
     {# 전화 = 아이콘 전용(목업 정합, flex 1). ERP 편집 = flex 1.4, 퀘스트 승인(--pri) = flex 1.6. #}
@@ -80,18 +85,18 @@
     </button>
     {% elif q and q.approval_mode == 'assignee' %}
       {% if q.can_assignee_approve %}
-      <button type="button" class="foms-tsheet-foot__btn foms-tsheet-foot__btn--pri erp-btn-approve-assignee"
+      <button type="button" class="foms-tsheet-foot__btn foms-tsheet-foot__btn--pri erp-btn-approve-assignee{% if q.approve_blocked %} foms-tsheet-foot__btn--warn{% endif %}"
         data-order-id="{{ o.id }}"><i class="fas fa-check"></i> 퀘스트 승인</button>
       {% else %}
       <button type="button" class="foms-tsheet-foot__btn foms-tsheet-foot__btn--pri" disabled
-        title="지정 담당자만 승인할 수 있습니다.">퀘스트 승인</button>
+        title="{% if q.approve_blocked %}{{ q.approve_blocked_reason }}{% else %}지정 담당자만 승인할 수 있습니다.{% endif %}">퀘스트 승인</button>
       {% endif %}
     {% elif q and (q.approvable_teams or []) %}
-    <button type="button" class="foms-tsheet-foot__btn foms-tsheet-foot__btn--pri erp-btn-approve-team"
+    <button type="button" class="foms-tsheet-foot__btn foms-tsheet-foot__btn--pri erp-btn-approve-team{% if q.approve_blocked %} foms-tsheet-foot__btn--warn{% endif %}"
       data-order-id="{{ o.id }}" data-team="{{ q.approvable_teams[0] }}"><i class="fas fa-check"></i> 퀘스트 승인</button>
     {% else %}
     <button type="button" class="foms-tsheet-foot__btn foms-tsheet-foot__btn--pri" disabled
-      title="{% if not q %}현재 단계 퀘스트가 없습니다.{% else %}승인 권한이 없습니다.{% endif %}">퀘스트 승인</button>
+      title="{% if not q %}현재 단계 퀘스트가 없습니다.{% elif q.approve_blocked %}{{ q.approve_blocked_reason }}{% else %}승인 권한이 없습니다.{% endif %}">퀘스트 승인</button>
     {% endif %}
   </div>
 </div>

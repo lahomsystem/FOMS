@@ -266,6 +266,11 @@
           <h2 class="foms-detail-section__title" id="foms-detail-quest-title">현재 작업</h2>
         </div>
         <p class="mb-0">{{ order.current_quest.title }}</p>
+        {# 도면 게이트(2a-2): 고객컨펌 승인이 도면 수령 확정 전이라 막힌 이유 — 서버 409 와 같은 판정·문구.
+           비관리자는 버튼이 빠지고, 관리자는 경고 모양 버튼 → 사유 시트(FomsAdminOverride)로 뚫는다. #}
+        {% if order.current_quest.approve_blocked %}
+          <p class="foms-gate-blocked-reason" data-quest-approve-blocked>{{ order.current_quest.approve_blocked_reason }}</p>
+        {% endif %}
         {# 승인 버튼 노출은 approve_label 이 SSOT — 전용 command 단계(도면)와 완료 단계는
            서버가 label 을 비워 보내고, 그 단계에서 승인 API 는 409 로 거부한다(막다른 길 방지).
            고객컨펌은 2026-09-17 부터 라벨 "고객 컨펌 완료" 가 오고 승인이 생산 단계로 넘긴다.
@@ -283,7 +288,7 @@
             <div class="foms-detail-action-stack mt-3">
               <button
                 type="button"
-                class="foms-btn foms-btn--primary foms-btn--full erp-mobile-quest-retransition"
+                class="foms-btn foms-btn--primary foms-btn--full erp-mobile-quest-retransition{% if order.current_quest.approve_blocked %} foms-btn--warning{% endif %}"
                 data-order-id="{{ order.id }}"
                 data-approve-label="{{ order.current_quest.retransition_label }}"
                 data-confirm="{{ order.current_quest.retransition_confirm }}"
@@ -305,7 +310,7 @@
               {% else %}
                 <button
                   type="button"
-                  class="foms-btn foms-btn--primary foms-btn--full erp-mobile-quest-approve-assignee"
+                  class="foms-btn foms-btn--primary foms-btn--full erp-mobile-quest-approve-assignee{% if order.current_quest.approve_blocked %} foms-btn--warning{% endif %}"
                   data-order-id="{{ order.id }}"
                   data-approve-label="{{ quest_approve_label }}"
                   data-confirm="{{ order.current_quest.approve_confirm }}"
@@ -329,7 +334,7 @@
                 {% else %}
                   <button
                     type="button"
-                    class="foms-btn foms-btn--primary foms-btn--full erp-mobile-quest-approve-team"
+                    class="foms-btn foms-btn--primary foms-btn--full erp-mobile-quest-approve-team{% if order.current_quest.approve_blocked %} foms-btn--warning{% endif %}"
                     data-order-id="{{ order.id }}"
                     data-team="{{ team }}"
                     data-approve-label="{{ team }} {{ quest_approve_label }}"
@@ -411,7 +416,7 @@
     {% if sticky_quest_approve %}
       <button
         type="button"
-        class="foms-btn foms-btn--primary foms-btn--full erp-mobile-quest-approve-assignee"
+        class="foms-btn foms-btn--primary foms-btn--full erp-mobile-quest-approve-assignee{% if order.current_quest.approve_blocked %} foms-btn--warning{% endif %}"
         data-order-id="{{ order.id }}"
         data-approve-label="{{ quest_approve_label }}"
         data-confirm="{{ order.current_quest.approve_confirm }}"

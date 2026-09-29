@@ -156,4 +156,33 @@
 #erp-attachment-preview-body .erp-attachment-superseded-badge {
   margin: 0 6px 0 0;
   vertical-align: middle;
+
+/* 도면 게이트(2차 묶음 2a-2) — 고객컨펌·[제작 시작] 이 도면 수령 확정 전이라 막힌 이유 한 줄,
+   생산 카드 "도면 수정 중" 배지, 관리자 경고 모양 버튼. 판정은 서버와 같은 함수
+   (foms/services/orders/confirm_drawing_gate.py). 인라인 style 금지 — 여기에만 둔다. */
+.foms-gate-blocked-reason {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  font-weight: 600;
+  color: var(--foms-color-warning-600, #b45309);
+  word-break: keep-all;
+}
+.foms-drawing-revision-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.foms-tsheet-foot__btn.foms-tsheet-foot__btn--warn:not(:disabled),
+.foms-prod-sheet__btn.foms-prod-sheet__btn--warn,
+body.erp-mobile-v2-layout .foms-kanban-move-btn.foms-kanban-move-btn--warn {
+  background: var(--foms-color-warning-500, #f59e0b);
+  border-color: var(--foms-color-warning-500, #f59e0b);
+  color: #1f2937;
+}
+.foms-kanban-card__alert-row--drawing-revision {
+  font-weight: 700;
 }

@@ -1035,6 +1035,11 @@
                       if (data.blocked_override_required && data.blocked_override_required.length) {
                         alert((data.message || '') + '\n차단 ID: ' + data.blocked_override_required.join(', '));
                       }
+                      // 도면→고객컨펌·고객컨펌→생산은 전용 버튼만(2a-2 Q1) — 일부만 막혀도 막힌 ID 를 알린다.
+                      if (data.blocked_command_required && data.blocked_command_required.length) {
+                        alert('전용 버튼(도면 수령 확정 / 고객 컨펌 완료)으로만 넘길 수 있어 바꾸지 않은 주문 '
+                          + data.blocked_command_required.length + '건: #' + data.blocked_command_required.join(', #'));
+                      }
                       // AS 접수/완료 주문은 일괄 변경에서 제외된다 — 조용히 넘기면
                       // "바꿨는데 왜 그대로냐"가 되므로 제외 ID를 반드시 알린다.
                       if (data.blocked_as_orders && data.blocked_as_orders.length) {
