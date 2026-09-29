@@ -88,13 +88,48 @@ if (!prevented || assigned !== "/erp/history/?q=%EC%9C%A0%EC%B2%AD&from_search=1
 listeners.search(event("search"));
 if (assignCalls !== 1) throw new Error(`duplicate navigation: ${assignCalls}`);
 
+const HISTORY_HREF = "/erp/history/?q=%EC%9C%A0%EC%B2%AD&from_search=1";
+
+// 어느 범주 탭에 있든 검색 키는 전체 기준 결과 화면으로 간다(2026-09-29).
 for (const groupValue of ["customer", "order", "drawing"]) {
   resetSearch(groupValue);
   listeners.keydown(event("keydown"));
   listeners.search(event("search"));
-  if (prevented || assigned !== null) {
-    throw new Error(`${groupValue} tab must not redirect`);
+  if (!prevented || assigned !== HISTORY_HREF || assignCalls !== 1) {
+    throw new Error(`${groupValue} tab must search all: ${assigned} x${assignCalls}`);
   }
+}
+
+// 다시 열면 지난번 범주 탭이 남지 않고 전체로 돌아간다.
+group.value = "drawing";
+listeners.click({
+  target: { closest: (selector) => selector === "[data-foms-search-open]" ? {} : null },
+  preventDefault: () => {},
+});
+if (group.value !== "all") throw new Error(`reopen kept group: ${group.value}`);
+
+function clickOn(matchSelector, node) {
+  listeners.click({
+    target: { closest: (selector) => selector === matchSelector ? node : null },
+    preventDefault: () => { prevented = true; },
+  });
+}
+
+// 최근 검색 칩 = 검색 키와 같은 전체 결과 화면.
+resetSearch("order");
+input.value = "";
+clickOn("[data-foms-search-recent-term]", {
+  getAttribute: (name) => name === "data-foms-search-recent-term" ? "유청" : null,
+});
+if (!prevented || assigned !== HISTORY_HREF || assignCalls !== 1) {
+  throw new Error(`recent chip must match Enter: ${assigned} x${assignCalls}`);
+}
+
+// 미리보기 아래 "전체 결과 보기"도 같은 곳.
+resetSearch("customer");
+clickOn("[data-search-history-fallback]", {});
+if (!prevented || assigned !== HISTORY_HREF || assignCalls !== 1) {
+  throw new Error(`history link must match Enter: ${assigned} x${assignCalls}`);
 }
 
 resetSearch("all");

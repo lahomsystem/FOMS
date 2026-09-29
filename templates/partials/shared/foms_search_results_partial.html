@@ -22,28 +22,39 @@
 {%- endmacro %}
 
 {% if active_group == 'all' %}
+  {# 전체 탭: 한 주문이 고객·주문·도면 세 묶음에 겹쳐 세 줄로 보이던 것을 한 줄로.
+     앞 묶음이 이긴다(고객 → 주문 → 도면). 줄마다 #번호·단계가 붙어 정보는 남는다. #}
+  {% set _seen = namespace(ids=[], any=false) %}
   {% for group_id, label in [('customer', '고객'), ('order', '주문'), ('drawing', '도면')] %}
-    {% set items = results.get(group_id, []) %}
+    {% set items = [] %}
+    {% for item in results.get(group_id, []) %}
+      {% if item.order_id not in _seen.ids %}
+        {% set _ = items.append(item) %}
+        {% set _seen.ids = _seen.ids + [item.order_id] %}
+      {% endif %}
+    {% endfor %}
     {% if items %}
+      {% set _seen.any = true %}
       <section class="foms-search-overlay__group" data-group="{{ group_id }}">
         <h4 class="foms-search-overlay__group-title">{{ label }}</h4>
         <ul class="foms-search-overlay__items">{{ _items(items) }}</ul>
       </section>
     {% endif %}
   {% endfor %}
-  {% if not results.get('customer') and not results.get('order') and not results.get('drawing') %}
-    <p class="foms-search-overlay__empty">운영 큐에서 결과가 없습니다.</p>
-    {% if query %}
-      <a
-        class="foms-search-overlay__link foms-search-overlay__history-fallback"
-        href="{{ url_for('erp_history.history_dashboard', q=query, from_search=1) }}"
-        data-foms-erp-no-shell="1"
-        data-search-history-fallback>
-        <span class="foms-search-overlay__link-title">과거 이력에서 검색</span>
-        <span class="foms-search-overlay__link-sub">{{ query }}</span>
-      </a>
-    {% endif %}
+  {% if not _seen.any %}
+    <p class="foms-search-overlay__empty">검색 결과가 없습니다.</p>
   {% endif %}
 {% else %}
   <ul class="foms-search-overlay__items">{{ _items(results.get(active_group, [])) }}</ul>
+{% endif %}
+{# 미리보기는 묶음마다 8건까지다. 검색 키·최근 검색과 같은 전체 결과 화면으로 가는 입구. #}
+{% if query %}
+  <a
+    class="foms-search-overlay__link foms-search-overlay__history-fallback"
+    href="{{ url_for('erp_history.history_dashboard', q=query, from_search=1) }}"
+    data-foms-erp-no-shell="1"
+    data-search-history-fallback>
+    <span class="foms-search-overlay__link-title">전체 결과 보기</span>
+    <span class="foms-search-overlay__link-sub">{{ query }} · 끝난 주문 포함</span>
+  </a>
 {% endif %}
