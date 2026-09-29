@@ -345,3 +345,118 @@ def test_ack_order_change_bumps_version_once(client, storage):
     r2 = client.post(f"/api/orders/{oid}/drawing/ack-order-change", json={})
     assert r2.status_code == 200 and r2.get_json()["acked"] is False
     assert _state(oid)[0] == before  # 바꿀 것이 없으면 버전도 그대로
+
+
+# ── 2026-09-30: 마법사 부가 쓰기 3곳(시트 PNG 대기 등록·대기 삭제·버전 스냅샷) ──────────
+
+_SHEET = {"id": "s-1", "name": "시트1", "form": {}, "objects": []}
+
+
+def _png(name="sheet.png"):
+    import io
+    return (io.BytesIO(b"\x89PNG\r\n\x1a\nfake"), name)
+
+
+def _post_png(client, oid, name="sheet.png", sheet_id="s-1"):
+    return client.post(f"/api/orders/{oid}/drawing-wizard/sheet-png",
+                       data={"file": _png(name), "sheet_id": sheet_id, "sheet_name": "시트1"},
+                       content_type="multipart/form-data")
+
+
+def test_wizard_sheet_png_bumps_version(client, storage):
+    """시트 PNG 대기 등록(첫 저장·재저장 모두) → 매번 +1·오래된 폼 409."""
+    admin = _user("vb9_admin", "ADMIN", "CS")
+    sales = _user("vb9_sales", "STAFF", "SALES")
+    drafter = _user("vb9_draw", "STAFF", "DRAWING")
+    oid = _order(sales[0], drafter[0], stage="DRAWING", drawing_status="IN_PROGRESS")
+
+    before, _ = _state(oid)
+    _as(client, drafter)
+    r = _post_png(client, oid, "a.png")
+    sd = _assert_bumped_and_stale_put_conflicts(client, admin, oid, before, r)
+    assert sd["drawing_wizard"]["pending"]["s-1"]["key"] == _key(oid, "a.png")
+
+    before, _ = _state(oid)
+    _as(client, drafter)
+    r = _post_png(client, oid, "b.png")
+    sd = _assert_bumped_and_stale_put_conflicts(client, admin, oid, before, r)
+    assert sd["drawing_wizard"]["pending"]["s-1"]["key"] == _key(oid, "b.png")
+
+
+def test_wizard_pending_delete_bumps_version(client, storage):
+    """대기 도면 삭제 → +1·오래된 폼 409, pending 에서 빠진다."""
+    admin = _user("vb10_admin", "ADMIN", "CS")
+    sales = _user("vb10_sales", "STAFF", "SALES")
+    drafter = _user("vb10_draw", "STAFF", "DRAWING")
+    oid = _order(sales[0], drafter[0], stage="DRAWING", drawing_status="IN_PROGRESS")
+    _seed_wizard_pending(oid)
+
+    before, _ = _state(oid)
+    _as(client, drafter)
+    r = client.delete(f"/api/orders/{oid}/drawing-wizard/pending/s-1")
+    sd = _assert_bumped_and_stale_put_conflicts(client, admin, oid, before, r)
+    assert "s-1" not in sd["drawing_wizard"]["pending"]
+    assert r.get_json()["data"]["deleted_key"] == _key(oid, "p1.png")
+
+
+def test_wizard_version_snapshot_bumps_version(client, storage):
+    """버전 스냅샷 → +1·오래된 폼 409, 포인터가 한 개 붙는다."""
+    admin = _user("vb11_admin", "ADMIN", "CS")
+    sales = _user("vb11_sales", "STAFF", "SALES")
+    drafter = _user("vb11_draw", "STAFF", "DRAWING")
+    oid = _order(sales[0], drafter[0], stage="DRAWING", drawing_status="IN_PROGRESS")
+
+    before, _ = _state(oid)
+    _as(client, drafter)
+    r = client.post(f"/api/orders/{oid}/drawing-wizard/version-snapshot",
+                    json={"sheet": _SHEET, "sheet_id": "s-1", "sheet_name": "시트1"})
+    sd = _assert_bumped_and_stale_put_conflicts(client, admin, oid, before, r)
+    assert r.get_json()["data"]["v"] == 1
+    assert [v["sheet_id"] for v in sd["drawing_wizard"]["versions"]] == ["s-1"]
+
+
+def test_wizard_routes_forbidden_non_participant_no_bump(client, storage):
+    """참여자가 아닌 영업 담당 → 세 라우트 모두 403, 버전·sd 불변, 업로드·삭제 없음."""
+    sales = _user("vb12_sales", "STAFF", "SALES")
+    drafter = _user("vb12_draw", "STAFF", "DRAWING")
+    oid = _order(sales[0], drafter[0], stage="DRAWING", drawing_status="IN_PROGRESS")
+    _seed_wizard_pending(oid)
+    before, sd_before = _state(oid)
+
+    _as(client, sales)
+    assert _post_png(client, oid, "x.png").status_code == 403
+    assert client.delete(f"/api/orders/{oid}/drawing-wizard/pending/s-1").status_code == 403
+    assert client.post(f"/api/orders/{oid}/drawing-wizard/version-snapshot",
+                       json={"sheet": _SHEET, "sheet_id": "s-1"}).status_code == 403
+
+    after, sd_after = _state(oid)
+    assert after == before
+    assert sd_after == sd_before
+    assert storage.deleted == []
+
+
+def test_wizard_sheet_png_forbidden_after_upload_deletes_orphan(client, storage, monkeypatch):
+    """업로드 뒤 잠근 행에서 권한이 사라지면(첫 판정 통과·재판정 실패) 403·올린 파일 삭제·버전 불변.
+
+    라우트는 업로드 전에 한 번, 잠근 뒤에 한 번 권한을 본다. 두 판정 사이에 담당이 빠지는
+    경합을 ``_can_save_wizard`` 가 두 번째 호출에서 False 를 내도록 흉내 낸다.
+    """
+    sales = _user("vb13_sales", "STAFF", "SALES")
+    drafter = _user("vb13_draw", "STAFF", "DRAWING")
+    oid = _order(sales[0], drafter[0], stage="DRAWING", drawing_status="IN_PROGRESS")
+    before, sd_before = _state(oid)
+    calls = []
+
+    def _flaky(user, order):
+        calls.append(1)
+        return len(calls) == 1
+
+    monkeypatch.setattr(wizard_api, "_can_save_wizard", _flaky)
+    _as(client, drafter)
+    r = _post_png(client, oid, "orphan.png")
+    assert r.status_code == 403, r.get_json()
+    assert len(calls) == 2
+    assert storage.deleted == [_key(oid, "orphan.png")]
+    after, sd_after = _state(oid)
+    assert after == before
+    assert sd_after == sd_before
