@@ -30,9 +30,10 @@ from typing import Optional
 
 from sqlalchemy.orm import Session
 
+from foms.services.orders.drawing_key_safety import referenced_keys
 from foms.services.orders.drawing_wizard_pending import get_pending, mark_deleted
 from foms.services.storage import get_storage
-from models import DomainSideEffectOutbox
+from models import DomainSideEffectOutbox, Order
 
 _LOGGER = logging.getLogger("sidefx_storage_delete")
 
@@ -104,9 +105,6 @@ def _still_referenced(row: DomainSideEffectOutbox, object_key: str) -> bool:
     session = Session.object_session(row)
     if session is None:  # dispatch 는 항상 attach 된 row 를 준다 — 방어적 fail-closed.
         raise StorageDeleteError(f"outbox row {row.id} is not attached to a session")
-    from foms.services.orders.drawing_key_safety import referenced_keys
-    from models import Order
-
     order = session.get(Order, order_id)
     if order is None:
         return False

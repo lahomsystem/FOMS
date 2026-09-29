@@ -64,15 +64,13 @@ def _file_type(name: str) -> str:
 
 
 def _view_url(key: str) -> str:
-    from foms.api.files import build_file_view_url  # lazy — api 패키지 import 순환 회피
-
-    return build_file_view_url(key)
+    # api 레이어(foms.api.files.build_file_view_url)를 부르지 않고 같은 모양을 직접 만든다 —
+    # services → api import 금지(레이어 의존 래칫). drawing_confirm_cleanup 과 같은 규칙.
+    return f"/api/files/view/{key}"
 
 
 def _download_url(key: str) -> str:
-    from foms.api.files import build_file_download_url
-
-    return build_file_download_url(key)
+    return f"/api/files/download/{key}"
 
 
 def normalize_revision_files(order_id: Any, files: Any) -> tuple[list[dict], list[str]]:

@@ -44,6 +44,7 @@ from foms.services.orders.drawing_key_safety import (
     drawing_keys_in_use,
     split_deletable_keys,
 )
+from foms.services.files.purge_policy import ATTACHMENT_PURGE_GRACE
 from foms.services.files.upload_policy import ERP_MEDIA_ALLOWED_EXTENSIONS
 from foms.services.order_attachment_thumbnail import (
     schedule_order_attachment_thumbnail_generation,
@@ -67,9 +68,6 @@ ATTACHMENT_RESTORED = "ATTACHMENT_RESTORED"
 #: SIDEFX outbox effect_type(공용 handler: foms/services/storage_delete_handler.py).
 STORAGE_DELETE = "STORAGE_DELETE"
 
-#: tombstone 후 R2 blob 을 실제로 지우기까지의 유예. 이 기간 안에는 복구 API 가 outbox
-#: 예약을 취소하고 첨부를 되살릴 수 있다(유예가 지나 worker 가 집어가면 복구 불가).
-ATTACHMENT_PURGE_GRACE = datetime.timedelta(days=7)
 
 _TRUTHY = ("1", "true", "yes", "on")
 
