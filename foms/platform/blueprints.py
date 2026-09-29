@@ -79,7 +79,6 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
         settlement_api_bp,
         settlement_channel_api_bp,
     )
-    from foms.api.personal_board import personal_board_bp
     from foms.web.admin import storage_dashboard_bp
     from foms.api.wdcalculator import wdcalculator_bp
     from foms.web.admin import admin_bp, ops_ingest_bp
@@ -142,7 +141,6 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
     app.register_blueprint(erp_orders_cs_bp)
     app.register_blueprint(erp_orders_as_bp)
     app.register_blueprint(erp_orders_completion_bp)
-    app.register_blueprint(personal_board_bp)
     # Storage UI, chat (Socket.IO handler binding imported with chat_bp), WD calculator
     app.register_blueprint(storage_dashboard_bp)
     app.register_blueprint(channel_chat_pages_bp)

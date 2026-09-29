@@ -3,9 +3,8 @@
 2026-09-28 스테이징 390 폭 관리자 화면(/admin/naver-ingest/triage): 헤더 오른쪽 버튼들이
 서로 겹쳤다. 원인 두 가지(로컬 렌더 실측, 390 폭):
 
-1. 브리핑 체브론(#personal-briefing-toggle)이 헤더 정중앙에 절대 배치(position-absolute
-   start-50 translate-middle-x)라, 좁은 폭에서 중앙(x=195)이 오른쪽 버튼 묶음 위에 떨어졌다
-   (내 할 일 버튼 146~186 · 체브론 175~215 · 벨 192~232).
+1. 브리핑 체브론이 헤더 정중앙에 절대 배치돼 좁은 폭에서 오른쪽 버튼 묶음 위에 떨어졌다
+   (2026-09-29 브리핑 보드 자체를 지워 사라졌다).
 2. 알림 배지(#global-notification-badge)가 벨 오른쪽 위 모서리를 **중심**으로 놓여
    (top-0 start-100 translate-middle) 절반이 버튼 밖으로 나가 옆 계정 버튼을 덮었다
    (배지 212~253 · 계정 버튼 238~).
@@ -47,21 +46,14 @@ def _rule(block: str, selector: str) -> str:
     return m.group(1)
 
 
-def test_nav_markup_keeps_absolute_center_chevron_and_corner_badge():
-    """고침은 CSS 쪽이다 — 데스크톱 배치를 만드는 마크업(유틸 클래스)은 그대로 둔다."""
+def test_nav_markup_keeps_corner_badge_and_no_briefing_board():
+    """고침은 CSS 쪽이다 — 데스크톱 배지 배치를 만드는 마크업(유틸 클래스)은 그대로 둔다.
+    브리핑 보드(체브론·offcanvas)는 2026-09-29 통째로 지웠다 — 되살아나면 안 된다."""
     nav = _NAV.read_text(encoding="utf-8")
-    assert "position-absolute start-50 translate-middle-x" in nav
-    assert "layout-header__center" in nav
+    assert "personal-briefing" not in nav
+    assert "layout-header__center" not in nav
     assert 'id="global-notification-badge"' in nav
     assert "position-absolute top-0 start-100 translate-middle badge" in nav
-
-
-def test_mobile_header_chevron_joins_flow_instead_of_absolute_center():
-    block = _media_block(_HEAD.read_text(encoding="utf-8"), "(max-width: 992px)")
-    body = _rule(block, ".layout-header .layout-header__center")
-    # 유틸 클래스(.position-absolute/.start-50/.translate-middle-x)가 !important 라 같이 이겨야 한다.
-    assert "position: static !important;" in body
-    assert "transform: none !important;" in body
 
 
 def test_mobile_header_badge_stays_inside_bell_button_box():
@@ -81,8 +73,6 @@ def test_mobile_header_icon_buttons_are_44px_targets():
     phone = _media_block(src, "(max-width: 576px)")
     assert "min-width: 44px;" in phone
     assert "min-width: 40px;" not in phone
-    # 체브론이 흐름 안으로 들어왔으니 헤더 칸 사이 간격이 0 이면 제목·체브론이 붙는다.
-    assert "gap: 0;" not in _rule(phone, ".layout-header")
 
 
 def test_desktop_bell_has_room_for_overhanging_badge():

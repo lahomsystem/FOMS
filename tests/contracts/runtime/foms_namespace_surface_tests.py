@@ -1729,18 +1729,12 @@ def test_erp_display_lazy_callers_use_canonical_import_paths() -> None:
     from foms.api import erp_map
     from foms.api import measurement as erp_measurement
     from foms.api import orders as orders_api
-    from foms.api import personal_board
 
     history_source = inspect.getsource(erp_history_page.history_dashboard)
     assert (
         "from foms.services.erp_display import _ensure_dict, _erp_get_stage, apply_erp_display_fields"
         in history_source
     )
-
-    order_card_source = inspect.getsource(personal_board._order_card)
-    schedule_source = inspect.getsource(personal_board._schedule_today_tomorrow)
-    assert "from foms.services.erp_display import _erp_get_stage" in order_card_source
-    assert "from foms.services.erp_display import _erp_get_stage" in schedule_source
 
     query_map_orders_source = inspect.getsource(erp_map._query_map_orders)
     api_map_data_source = inspect.getsource(erp_map.api_map_data)
@@ -1863,35 +1857,6 @@ def test_erp_display_canonical_module_uses_canonical_erp_policy_import() -> None
     module_source = inspect.getsource(namespaced_erp_display)
 
     assert "from foms.services.erp_policy import (" in module_source
-
-
-def test_personal_board_uses_canonical_erp_policy_imports() -> None:
-    """Personal board API should use canonical erp_policy in module and lazy imports."""
-    from foms.api import personal_board
-
-    assert personal_board.DEFAULT_OWNER_TEAM_BY_STAGE is namespaced_erp_policy.DEFAULT_OWNER_TEAM_BY_STAGE
-
-    order_card_source = inspect.getsource(personal_board._order_card)
-    assert "from foms.services.erp_policy import STAGE_NAME_TO_CODE" in order_card_source
-
-    schedule_source = inspect.getsource(personal_board._schedule_today_tomorrow)
-    assert "from foms.services.erp_policy import STAGE_NAME_TO_CODE, STAGE_LABELS" in schedule_source
-
-
-def test_wr_p1_personal_board_adapter_shell_retired() -> None:
-    """WR-P1: personal board Blueprint shell should live on the canonical module only."""
-    from foms.api import personal_board
-
-    assert personal_board.personal_board_bp is not None
-    assert find_spec_or_none("apps.api.personal_board") is None
-
-    route_source = inspect.getsource(personal_board.api_summary)
-    assert '@personal_board_bp.route("/summary", methods=["GET"])' in route_source
-    assert "@login_required" in route_source
-
-    registry_source = (_REPO_ROOT / "foms" / "platform" / "blueprints.py").read_text(encoding="utf-8")
-    assert "from foms.api.personal_board import personal_board_bp" in registry_source
-    assert "from apps.api.personal_board import personal_board_bp" not in registry_source
 
 
 def test_wave8_erp_completion_page_legacy_bridge_retired_canonical_smoke() -> None:
