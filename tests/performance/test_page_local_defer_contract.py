@@ -130,6 +130,23 @@ def test_drawing_handoff_script_is_deferred() -> None:
     _assert_deferred(html, "js/foms/drawing-handoff.js")
 
 
+def test_drawing_customer_send_scripts_are_deferred_outside_v2_block() -> None:
+    """도면 탭 고객 보내기 시트 JS(설계서 2026-09-29 §3.6 + Q5)는 defer 이고 v2 조건 블록 밖이다.
+
+    블록 안에 두면 PC(v2 아님)에서 시트가 동작하지 않는다.
+    """
+    html = _read("templates/drawing/partials/workbench_detail_body.html")
+    v2_block = html.index("{% if erp_mobile_v2_enabled %}\n<script")
+    for needle in (
+        "js/foms/drawing-customer-send.js",
+        "js/foms/drawing-customer-ok.js",
+        "js/foms/drawing-revision-edit.js",
+        "js/foms/drawing-urgent-call-pc.js",
+    ):
+        _assert_deferred(html, needle)
+        assert html.index(needle) < v2_block, needle
+
+
 def test_mobile_order_detail_zoom_helper_is_deferred_before_mobile_bundles() -> None:
     html = _read("templates/orders/mobile_order_detail.html")
 
