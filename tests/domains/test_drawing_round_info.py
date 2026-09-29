@@ -243,8 +243,8 @@ def test_detail_ctx_carries_empty_customer_send(app, client):
     assert detail, "상세 ctx 에 customer_send 가 없다"
     cs = detail[0]["customer_send"]
     assert set(cs) == set(CUSTOMER_SEND_KEYS)
-    # S1a 는 회차만 채운다 — 나머지는 빈 값(새 버튼 안 보임).
     assert cs["round"] == 1
     assert cs["round_text"] == "1차"
     assert cs["round_at"] == "2026-09-01T02:00:00Z"
-    assert cs["bar"] == []
+    # S1 이 채운 버튼 목록 — 관리자는 영업 쪽이면서 도면 쪽(긴급 호출)이다.
+    assert [b["key"] for b in cs["bar"]] == ["rev_sales", "send", "ok_no_customer", "urgent_call"]
