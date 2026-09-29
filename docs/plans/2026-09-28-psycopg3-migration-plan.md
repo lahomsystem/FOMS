@@ -143,6 +143,7 @@ SQLAlchemy 2.0 은 이 주소를 psycopg2 로 연다(공식 문서: psycopg2 가
   1. `test_access_log_detail_pg`: `AmbiguousParameter`(`$1` = 서버 쪽 바인딩). URL 로 만든 엔진은 creator 를 안 거쳐 ClientCursor 가 빠졌다 → `db_url_resolver` 의 `Engine` `connect` 이벤트가 모든 psycopg 연결에 `ClientCursor` 를 건다. 시험 `tests/postgres/test_psycopg_client_binding_pg.py`(음성 대조: 기본 커서는 같은 SQL 에서 `AmbiguousParameter`).
   2. `test_migration_chain`: `DROP INDEX CONCURRENTLY cannot run inside a transaction block`. 마이그레이션 7개가 `execute(text("COMMIT"))` 뒤 DDL 을 돌렸는데, psycopg2 는 트랜잭션 상태를 추적하지 않아 통했고 psycopg 는 새 BEGIN 을 연다 → `op.get_context().autocommit_block()`. 계약: 마이그레이션에 문자열 COMMIT 금지. (운영·스테이징 DB 는 이미 적용된 파일이라 동작 변화 없음, 빈 DB 새 구축에만 영향.)
 - 결과: 전체 11038 passed, PG 레인(로컬 PostgreSQL 17) **798 passed**(gevent 협력 시험이 psycogreen 없이 통과 포함).
+- **운영에서 놓친 차이 (2026-09-29, 핫픽스 `41dc29b62`·PR #446)**: SQLAlchemy psycopg 방언은 기본이 `BindTyping.RENDER_CASTS` 라 바인드마다 *파이썬 값 형* cast 를 붙인다(`orders.id = '4445'::VARCHAR` → `integer = character varying`, AS 방문일 저장 500). `ClientCursor` 는 드라이버 층이라 이걸 못 막는다 — 결정 1 의 빈틈이고, 레인 시험이 정수 id 만 써서 못 잡았다. 수정은 `bind_typing = NONE` 하위 방언을 `postgresql.psycopg` 이름으로 등록. 그 하위 클래스에 `supports_statement_cache = True` 가 빠져 SQL 컴파일 캐시가 꺼졌던 것(경고 `cprf`, 로컬 컴파일 300회 300ms→100ms)은 `671e9a2e7` 이 고쳤다. DB 없이 도는 계약 `test_canonical_dialect_keeps_sql_compilation_cache_and_plain_binds`(캐시 + 바인드 cast 없음, 음성 대조)를 더했다.
 
 ### 단계 3 — 정리 (psycopg2 삭제)
 할 일:
