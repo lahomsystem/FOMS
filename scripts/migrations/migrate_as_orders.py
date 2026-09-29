@@ -10,9 +10,10 @@ from psycopg.types.json import Jsonb
 
 from foms.services.db_url_resolver import postgres_dbapi_connect, postgresql_connect_kwargs_from_url
 import json
+import os
 
-STAGING_URL = "postgresql://postgres:jDkSuQDkQZkGZCFmPMOnFoDaXNJebidd@maglev.proxy.rlwy.net:24958/railway"
-PROD_URL = "postgresql://postgres:XMuhzNDZDeBlQStbmUQymJTGQvgIKAVq@yamanote.proxy.rlwy.net:34306/railway"
+STAGING_URL = os.environ["STAGING_DATABASE_URL"]  # 비밀번호를 코드에 두지 않는다
+PROD_URL = os.environ["PROD_DATABASE_URL"]
 EXECUTE_MIGRATION = True # 실제 DB에 Insert됨
 
 def get_as_orders(conn):

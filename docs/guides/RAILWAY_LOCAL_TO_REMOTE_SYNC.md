@@ -35,7 +35,7 @@
    - 이 URL 안에 **비밀번호가 이미 포함**되어 있으므로, 비밀번호를 따로 찾을 필요 없다. 복사한 그대로 붙여넣으면 된다.
    - (Public URL이어야 함 — 호스트가 `roundhouse.proxy.rlwy.net` 같은 형태. `postgres://` 로 시작해도 스크립트가 `postgresql://` 로 바꿔 쓴다.)
    ```powershell
-   $env:RAILWAY_PUBLIC_DATABASE_URL = "postgresql://postgres:XMuhzNDZDeBlQStbmUQymJTGQvgIKAVq@yamanote.proxy.rlwy.net:34306/railway"
+   $env:RAILWAY_PUBLIC_DATABASE_URL = "postgresql://postgres:<비밀번호>@<호스트>:<포트>/railway"
    ```
 
 3. **스크립트 실행**: 한 줄 실행 후, 프롬프트에 `y` 또는 `yes` 입력.
