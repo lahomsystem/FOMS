@@ -119,6 +119,8 @@ class PGDialect_psycopg_plain_binds(PGDialect_psycopg):
     """
 
     bind_typing = BindTyping.NONE
+    # A subclass must re-declare this, or SQLAlchemy silently turns off statement caching.
+    supports_statement_cache = True
 
 
 # Under the built-in name so every engine (``creator`` or URL-built) gets it — the dialect
