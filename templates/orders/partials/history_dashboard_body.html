@@ -130,7 +130,7 @@
       </div>
     {% elif from_search %}
       <div class="alert alert-info py-2 mb-3" role="status">
-        통합 검색에서 운영 큐 결과가 없어 과거 이력 검색으로 이동했습니다.
+        통합 검색 결과입니다. 끝난 주문까지 전체 기간에서 찾았습니다.{% if erp_mine_only %} 지금은 내 담당 주문만 보입니다.{% endif %}
       </div>
     {% endif %}
 
@@ -296,7 +296,7 @@
       </div>
     {% elif from_search %}
       <div class="alert alert-info py-2 mb-0" role="status">
-        통합 검색에서 운영 큐 결과가 없어 과거 이력 검색으로 이동했습니다.
+        통합 검색 결과입니다. 끝난 주문까지 전체 기간에서 찾았습니다.{% if erp_mine_only %} 지금은 내 담당 주문만 보입니다.{% endif %}
       </div>
     {% elif auto_browse_mine|default(false) %}
       <div class="alert alert-light border py-2 mb-0" role="status">

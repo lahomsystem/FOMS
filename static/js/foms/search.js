@@ -100,13 +100,16 @@
       dialog.setAttribute('open', 'open');
     }
     renderRecent();
-    setResultsVisible(false);
+    clearSearchResults();
     historyNavigationStarted = false;
     var input = getInput();
     if (input) {
       input.value = '';
       window.setTimeout(function () { input.focus(); }, 0);
     }
+    // 어느 화면·탭에서 열든 전체 기준으로 시작한다. 지난번 범주 탭(고객/주문/도면)이
+    // 남아 있으면 같은 검색어라도 결과가 좁아진다.
+    setActiveTab('all');
   }
 
   function closeDialog() {
@@ -169,13 +172,10 @@
     return url.pathname + url.search;
   }
 
-  function isAllSearchGroup() {
-    var groupInput = getGroupInput();
-    return !groupInput || groupInput.value === 'all';
-  }
-
+  // 검색 키·최근 검색·"전체 결과 보기"는 모두 여기 한 곳으로 간다 — 범주 탭과 무관하게
+  // 전체 기준 결과 화면. 입구마다 결과가 달라 보이던 문제(2026-09-29)를 막는다.
   function navigateToHistorySearch(input) {
-    if (historyNavigationStarted || !input.value.trim()) {
+    if (!input || historyNavigationStarted || !input.value.trim()) {
       return;
     }
     historyNavigationStarted = true;
@@ -295,8 +295,15 @@
       var recentInput = getInput();
       if (recentInput && term) {
         recentInput.value = term;
-        recentInput.dispatchEvent(new Event('input', { bubbles: true }));
+        navigateToHistorySearch(recentInput);
       }
+      return;
+    }
+
+    var historyLink = event.target.closest('[data-search-history-fallback]');
+    if (historyLink && dialog.contains(historyLink)) {
+      event.preventDefault();
+      navigateToHistorySearch(getInput());
       return;
     }
 
@@ -319,7 +326,7 @@
     if (!event.target || event.target.id !== 'foms-search-input') {
       return;
     }
-    if (isAllSearchGroup() && event.target.value.trim()) {
+    if (event.target.value.trim()) {
       event.preventDefault();
       navigateToHistorySearch(event.target);
     }
@@ -337,7 +344,7 @@
     if (event.key === 'Enter' && (event.isComposing || event.keyCode === 229)) {
       return;
     }
-    if (event.key === 'Enter' && activeIndex < 0 && isAllSearchGroup() && input.value.trim()) {
+    if (event.key === 'Enter' && activeIndex < 0 && input.value.trim()) {
       event.preventDefault();
       navigateToHistorySearch(input);
       return;

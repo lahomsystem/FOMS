@@ -710,7 +710,9 @@ def test_search_fragment_shows_history_fallback_link(client, app) -> None:
     )
     response = client.get("/api/foms/search/fragment?q=missing-customer-xyz&group=all")
     body = response.get_data(as_text=True)
-    assert "과거 이력에서 검색" in body
+    assert "검색 결과가 없습니다" in body
+    assert "운영 큐" not in body  # 미리보기도 끝난 주문까지 전체 기간을 뒤진다
+    assert "전체 결과 보기" in body
     assert "from_search=1" in body
 
 
@@ -737,4 +739,65 @@ def test_history_from_search_banner(client, app) -> None:
     )
     response = client.get("/erp/history/?q=test&from_search=1")
     body = response.get_data(as_text=True)
-    assert "통합 검색에서 운영 큐 결과가 없어" in body
+    # 검색 키로 오면 결과가 있어도 이 화면이다 — "결과가 없어 이동" 은 거짓 안내였다(2026-09-29).
+    assert "통합 검색 결과입니다" in body
+    assert "운영 큐 결과가 없어" not in body
+
+
+def test_search_fragment_all_tab_shows_each_order_once(client, app) -> None:
+    """전체 탭: 고객명·주문자명·도면 단계가 모두 맞는 주문도 한 줄만 나온다."""
+    from db import db_session
+    from models import Order, User
+
+    with app.app_context():
+        user = User(
+            username="search_dedupe_user",
+            password=generate_password_hash("admin"),
+            role="ADMIN",
+            team="CS",
+            name="Dedupe User",
+        )
+        order = Order(
+            received_date="2026-09-01",
+            customer_name="겹침고객",
+            phone="010-0000-0000",
+            address="경기도 하남시",
+            product="슬라이딩",
+            status="DRAWING",
+            erp_stage_code="DRAWING",
+            is_erp_order=True,
+            structured_data={
+                "parties": {
+                    "customer": {"name": "겹침고객", "phone": "010-0000-0000"},
+                    "orderer": {"name": "겹침고객"},
+                },
+                "workflow": {"stage": "DRAWING"},
+            },
+        )
+        db_session.add_all([user, order])
+        db_session.commit()
+        order_id = order.id
+
+    client.post(
+        "/login",
+        data={"username": "search_dedupe_user", "password": "admin"},
+        follow_redirects=True,
+    )
+    with app.app_context():
+        from foms.services.foms_unified_search import search_unified
+
+        buckets = search_unified(db_session, "겹침고객")
+        # 대조군: 서비스는 세 묶음 모두에 이 주문을 넣는다(범주 탭용).
+        assert all(
+            any(hit["order_id"] == order_id for hit in buckets[group])
+            for group in ("customer", "order", "drawing")
+        )
+
+    body = client.get("/api/foms/search/fragment?q=겹침고객&group=all").get_data(as_text=True)
+    assert body.count(f'focus_order={order_id}"') == 1
+    assert body.count("data-search-result") == 1
+
+    drawing_tab = client.get("/api/foms/search/fragment?q=겹침고객&group=drawing").get_data(
+        as_text=True
+    )
+    assert drawing_tab.count("data-search-result") == 1
