@@ -430,12 +430,12 @@ def test_asset_pins_bumped_to_20260920b():
     """
     # erp-quest-approve.js 는 2026-09-23 실측 통합 화면(복원 직전 이벤트)으로 다시 올라갔다.
     assert "erp-quest-approve.js') }}?v=20260923e" in _read("templates/partials/shared/layout_scripts.html")
-    assert "erp-dashboard-entry.js') }}?v=20260921a" in _read("templates/partials/shared/layout_scripts.html")
+    assert "erp-dashboard-entry.js') }}?v=20260929a" in _read("templates/partials/shared/layout_scripts.html")
     assert "erp-pro.css') }}?v=20260920b" in _read("templates/partials/shared/layout_head.html")
     assert "04-filter-table-badges-buttons.css?v=20260920b" in _read("static/css/foundation/erp-pro.css")
     entry = _read("static/js/orders/erp-dashboard-entry.js")
     assert "erp-dashboard-quest.js?v=20260921a" in entry
-    assert "erp-dashboard-detail-dom.js?v=20260920b" in entry
+    assert "erp-dashboard-detail-dom.js?v=20260929a" in entry
     for rel in ("templates/orders/dashboard.html", "templates/orders/partials/dashboard_main.html"):
         assert "foms-v2-cs-hero.css') }}?v=20260921a" in _read(rel)
     assert ".erp-btn-retransition" in _read("static/css/foundation/erp-pro/04-filter-table-badges-buttons.css")

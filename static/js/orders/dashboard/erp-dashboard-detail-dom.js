@@ -142,17 +142,21 @@
             __attachmentsCache[orderId] = attachmentsPending ? [] : aList;
             if (!attachmentsPending) __attachmentsCacheAt[orderId] = Date.now();
 
-            // 제품 항목: dw-product-main-card 구조 (헤더 + 폼 + 첨부 패널)
+            // 제품 항목: erporder 와 같은 목록+상세(Master-Detail). 왼쪽 목록에서 고르면 오른쪽에 그 제품만 보인다.
+            // 1건이면 목록 없이 상세 카드만. 금액(출고가·예약금·잔금)은 주문 합계라 제품마다 반복하지 않고 한 번만 둔다.
             const items = (sd.items || []) || [];
             let itemsHtml = '';
             const safeValue = (val) => {
               if (val === null || val === undefined || val === '') return '';
               return String(val).trim();
             };
+            // 목록+상세는 공용 도우미(static/js/foms/order-items-md.js). 없으면(로드 실패) 예전처럼 세로로 쌓는다.
+            const itemsMd = window.FomsOrderItemsMD;
+            const multiItems = items.length > 1 && !!itemsMd;
             if (items.length > 0) {
               if (typeof __orderDetailImageGroups === 'undefined') window.__orderDetailImageGroups = {};
               __orderDetailImageGroups[orderId] = [];
-              let gridHtml = '<div class="mt-3">';
+              const cards = [];
               items.forEach((item, idx) => {
                 let specW = item.spec_width || '';
                 let specD = item.spec_depth || '';
@@ -177,13 +181,15 @@
                   attachPanelHtml = buildDwAttachPanelHtml(orderId, idx, itemAtts);
                 }
 
-                gridHtml += `
+                const navHtml = multiItems
+                  ? itemsMd.nav(idx, items.length)
+                  : `<span class="badge bg-light text-dark border">항목 ${idx + 1}</span>`;
+
+                cards.push(`
             <div class="dw-product-main-card">
               <div class="dw-product-main-head">
                 <div class="dw-product-main-name">${productName}</div>
-                <div class="d-flex align-items-center gap-1">
-                  <span class="badge bg-light text-dark border">항목 ${idx + 1}</span>
-                </div>
+                ${navHtml}
               </div>
               <div class="dw-product-split">
                 <div class="dw-product-info-form">
@@ -233,33 +239,31 @@
                       <textarea class="form-control form-control-sm" rows="3" readonly title="클릭하면 값이 복사됩니다.">${escapeHtml(safeValue(item.extra_input))}</textarea>
                     </div>
                   </div>
-                  <div class="d-flex flex-column align-items-end gap-2 mt-2 erp-amount-block">
-                    <div class="d-flex justify-content-between justify-content-md-end align-items-center gap-2 w-100" style="max-width: 16rem;">
-                      <span class="fw-bold text-nowrap">출고가</span>
-                      <div class="badge bg-primary text-end erp-amount-value" id="erp-items-total-${orderId}-${idx}">0원</div>
-                    </div>
-                    <div id="erp-deposit-section-${orderId}-${idx}" class="d-flex justify-content-between justify-content-md-end align-items-center gap-2 w-100" style="max-width: 16rem;">
-                      <label for="erp-deposit-amount-${orderId}-${idx}" class="form-label mb-0 fw-bold text-nowrap">예약금(선금)</label>
-                      <input type="text" id="erp-deposit-amount-${orderId}-${idx}" inputmode="numeric" placeholder="0원" maxlength="24" readonly class="erp-amount-value erp-amount-value--deposit" title="숫자 입력 시 1,000단위 쉼표가 적용됩니다.">
-                    </div>
-                    <div id="erp-discount-section-${orderId}-${idx}" class="d-flex justify-content-between justify-content-md-end align-items-center gap-2 w-100" style="max-width: 16rem; display: none;">
-                      <label for="erp-discount-amount-${orderId}-${idx}" class="form-label mb-0 fw-bold text-nowrap">할인</label>
-                      <input type="text" id="erp-discount-amount-${orderId}-${idx}" inputmode="numeric" placeholder="0원" maxlength="24" readonly class="erp-amount-value erp-amount-value--discount" title="숫자 입력 시 1,000단위 쉼표가 적용됩니다.">
-                    </div>
-                    <div id="erp-remaining-section-${orderId}-${idx}" class="d-flex justify-content-between justify-content-md-end align-items-center gap-2 w-100" style="max-width: 16rem; display: none;">
-                      <label class="form-label mb-0 fw-bold text-nowrap">잔금</label>
-                      <div class="erp-amount-value erp-amount-value--balance text-end" id="erp-remaining-amount-${orderId}-${idx}">0원</div>
-                    </div>
-                  </div>
                 </div>
                 ${attachPanelHtml}
               </div>
-            </div>`;
+            </div>`);
               });
-              gridHtml += '</div>';
-              itemsHtml = gridHtml;
+
+              const amountHtml = `
+                  <div class="d-flex flex-column align-items-end gap-2 mt-3 erp-amount-block">
+                    <div class="d-flex justify-content-between justify-content-md-end align-items-center gap-2 w-100 od-amount-row">
+                      <span class="fw-bold text-nowrap">출고가</span>
+                      <div class="badge bg-primary text-end erp-amount-value" id="erp-items-total-${orderId}">0원</div>
+                    </div>
+                    <div class="d-flex justify-content-between justify-content-md-end align-items-center gap-2 w-100 od-amount-row">
+                      <label for="erp-deposit-amount-${orderId}" class="form-label mb-0 fw-bold text-nowrap">예약금(선금)</label>
+                      <input type="text" id="erp-deposit-amount-${orderId}" inputmode="numeric" placeholder="0원" maxlength="24" readonly class="erp-amount-value erp-amount-value--deposit">
+                    </div>
+                    <div id="erp-remaining-section-${orderId}" class="d-none justify-content-between justify-content-md-end align-items-center gap-2 w-100 od-amount-row">
+                      <label class="form-label mb-0 fw-bold text-nowrap">잔금</label>
+                      <div class="erp-amount-value erp-amount-value--balance text-end" id="erp-remaining-amount-${orderId}">0원</div>
+                    </div>
+                  </div>`;
+
+              itemsHtml = (multiItems ? itemsMd.render(items, cards) : `<div class="mt-2">${cards.join('')}</div>`) + amountHtml;
             } else {
-              itemsHtml = '<div class="text-muted mt-3" style="font-size: 1rem;">제품 항목 없음</div>';
+              itemsHtml = '<div class="text-muted mt-3">제품 항목 없음</div>';
             }
 
             let attachmentsHtml = '';
@@ -631,21 +635,18 @@
                 remainAmt = Math.max(0, itemsTotal + freeInputAmt - depositAmt - discountAmt);
               }
               const fmtKRW = (n) => n > 0 ? n.toLocaleString('ko-KR') + '원' : '0원';
-              items.forEach((_, i) => {
-                const totalEl = document.getElementById(`erp-items-total-${orderId}-${i}`);
-                const depositEl = document.getElementById(`erp-deposit-amount-${orderId}-${i}`);
-                const discountEl = document.getElementById(`erp-discount-amount-${orderId}-${i}`);
-                const remainEl = document.getElementById(`erp-remaining-amount-${orderId}-${i}`);
-                const discountSection = document.getElementById(`erp-discount-section-${orderId}-${i}`);
-                const remainSection = document.getElementById(`erp-remaining-section-${orderId}-${i}`);
-                if (totalEl) totalEl.textContent = fmtKRW(shippingPrice);
-                if (depositEl) depositEl.value = depositAmt > 0 ? fmtKRW(depositAmt) : '';
-                if (discountEl) discountEl.value = discountAmt > 0 ? fmtKRW(discountAmt) : '';
-                if (remainEl) remainEl.textContent = fmtKRW(remainAmt);
-                // 읽기전용 상세: 할인은 출고가에 흡수 — 별도 할인 라인 항상 숨김.
-                if (discountSection) discountSection.style.display = 'none';
-                if (remainSection) remainSection.style.display = itemsTotal > 0 ? 'flex' : 'none';
-              });
+              const totalEl = document.getElementById(`erp-items-total-${orderId}`);
+              const depositEl = document.getElementById(`erp-deposit-amount-${orderId}`);
+              const remainEl = document.getElementById(`erp-remaining-amount-${orderId}`);
+              const remainSection = document.getElementById(`erp-remaining-section-${orderId}`);
+              if (totalEl) totalEl.textContent = fmtKRW(shippingPrice);
+              if (depositEl) depositEl.value = depositAmt > 0 ? fmtKRW(depositAmt) : '';
+              if (remainEl) remainEl.textContent = fmtKRW(remainAmt);
+              // 읽기전용 상세: 할인은 출고가에 흡수 — 별도 할인 줄은 그리지 않는다.
+              if (remainSection) {
+                remainSection.classList.toggle('d-flex', itemsTotal > 0);
+                remainSection.classList.toggle('d-none', !(itemsTotal > 0));
+              }
             })();
 
             // 이미지 뷰어용 그룹 등록 (첨부 2단 완료 후 다시 호출됨)
