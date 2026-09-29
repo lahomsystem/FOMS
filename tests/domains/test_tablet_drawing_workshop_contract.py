@@ -100,9 +100,11 @@ def test_gallery_card_carries_sheet_url_and_order_id() -> None:
     # 상세 앵커(비-코호트/무 JS fallback) 보존.
     assert "erp_drawing_workbench.erp_drawing_workbench_detail" in body
     assert "tab=timeline" in body
-    # tlabel 버전 인지(프레임 03): 시트 N · v{전달회차} · 전달본/전달 대기/상태.
+    # tlabel 버전 인지(프레임 03): 시트 N · N차 · 전달본/전달 대기/상태.
+    # 2026-09-29 도면 탭 고객 보내기 §4.5(C15): 'vN' 표기를 회차 함수의 "N차"(r.round_text)로 통일.
     assert "시트 {{ r.file_count }}" in body
-    assert "· v{{ r.transfer_round }}" in body
+    assert "· {{ _round_text }}" in body and "r.round_text" in body
+    assert "v{{ r.transfer_round }}" not in body
     assert "in ('TRANSFERRED', 'CONFIRMED') %}전달본" in body
     assert "{% elif r.pending_count %}전달 대기" in body
     assert "{{ r.drawing_status_label }}" in body

@@ -48,7 +48,10 @@
 
       <div class="foms-drawing-queue-card__chips">
         {% if r.drawing_status_label %}<span class="foms-drawing-queue-card__chip foms-drawing-queue-card__chip--status">{{ r.drawing_status_label }}</span>{% endif %}
-        {% if r.transfer_round and r.transfer_round > 0 %}<span class="foms-drawing-queue-card__chip foms-drawing-queue-card__chip--version">v{{ r.transfer_round }}</span>{% endif %}
+        {# 회차 표기는 "N차" 하나(설계서 2026-09-29 §4.5 C15). round_text 는 서버 회차 함수 값 — 아직 없는 응답은 전달 수로 대신한다. #}
+        {% set _round_text = r.round_text|default(('%d차' % r.transfer_round) if (r.transfer_round and r.transfer_round > 0) else '') %}
+        {% if _round_text %}<span class="foms-drawing-queue-card__chip foms-drawing-queue-card__chip--version">{{ _round_text }}</span>{% endif %}
+        {% if r.latest_request_is_customer|default(false) %}<span class="foms-drawing-queue-card__chip is-warn is-customer">고객 요청</span>{% endif %}
         {% if r.target_no %}<span class="foms-drawing-queue-card__chip">대상 {{ r.target_no }}번</span>{% endif %}
         <span class="foms-drawing-queue-card__chip">도면 {{ r.file_count }}장</span>
         {% if r.unread_count > 0 %}<span class="foms-drawing-queue-card__chip is-alert">미확인 {{ r.unread_count }}</span>{% endif %}
