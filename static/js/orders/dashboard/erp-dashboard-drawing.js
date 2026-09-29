@@ -323,6 +323,9 @@ async function uploadRevisionGatewayFiles(orderId, files) {
   }
 }
 
+// 서버 drawing_revision_files.MAX_REVISION_FILES 와 같은 값 — 올리기 전에 막아 고아 파일을 만들지 않는다.
+const MAX_REVISION_FILES = 20;
+
 async function submitDrawingRevision() {
 if (!__currentRevisionOrderId) return;
 const note = document.getElementById('drawing-revision-note').value.trim();
@@ -337,6 +340,10 @@ return;
 }
 if (currentFiles.length > 1 && !targetKey) {
 showErpToast('수정할 도면 번호를 선택해주세요.', 'info');
+return;
+}
+if (files.length > MAX_REVISION_FILES) {
+showErpToast(`참고 사진은 ${MAX_REVISION_FILES}개까지 올릴 수 있습니다. 사진을 줄여 주세요.`, 'info');
 return;
 }
 
