@@ -1,12 +1,12 @@
 """워커 컨테이너의 모든 루프가 생존 신호를 남기는지 못박는다 (OPS-HEARTBEAT-01, F-5·F-6).
 
-``start.sh`` 는 백그라운드 루프 여러 개를 ``&`` 로 띄우고 마지막에 큐 소비 본체로 자기를
-대체한다. wait/trap/supervisor 가 0 이라 **아무도 죽음을 알리지 않는다** — 2026-02 워커
-offline, 2026-08-31 SIDEFX 미배포를 두 번 다 사용자가 화면에서 먼저 발견했다.
+배경 루프가 죽어도 **아무도 죽음을 알리지 않았다** — 2026-02 워커 offline, 2026-08-31 SIDEFX
+미배포를 두 번 다 사용자가 화면에서 먼저 발견했다. 2026-09-29 부터 감독자
+(``tools/ops/worker_supervisor.py``)가 다시 띄우지만, 즉사 반복·정지는 하트비트로만 보인다.
 
 여기서 지키는 계약:
 
-* ``start.sh`` 가 띄우는 모든 ``--loop`` 러너는 등록부 상수로 자기 kind 를 선언한다.
+* 감독자가 띄우는 모든 ``--loop`` 러너(배선 정본 ``worker_jobs``)는 등록부 상수로 자기 kind 를 선언한다.
   새 루프를 하트비트 없이 배선하면 이 테스트가 빨강이 된다(F-9 이 정확히 이 드리프트였다).
 * 큐 소비 본체는 하트비트를 남기는 러너로 뜬다(맨 rq worker 는 자기 생존을 안 남겼다).
 * 스윕이 터진 tick 도 하트비트를 남긴다 — "죽었다" 와 "이번 스윕만 실패" 가 갈려야 한다.
@@ -59,17 +59,14 @@ def _load(path: pathlib.Path):
 
 
 def _loop_runners_in_start_sh() -> list:
-    """``start.sh`` 가 ``--loop`` 로 띄우는 러너 파일 이름들(중복 제거·정렬)."""
-    text = _START_SH.read_text(encoding="utf-8")
-    found = set()
-    for line in text.splitlines():
-        stripped = line.strip()
-        if stripped.startswith("#") or "--loop" not in stripped:
-            continue
-        match = re.search(r"scripts/maintenance/([A-Za-z0-9_]+)\.py", stripped)
-        if match:
-            found.add(match.group(1))
-    return sorted(found)
+    """WORKER 감독자가 ``--loop`` 로 띄울 수 있는 러너 파일 이름들(정렬).
+
+    배선의 정본은 2026-09-29 부터 ``tools/ops/worker_supervisor.py`` 의 ``worker_jobs`` 다
+    (예전 ``start.sh`` 의 ``&`` 줄). 켜짐 조건을 모두 켠 목록을 모집단으로 쓴다.
+    """
+    from tests.support.worker_jobs import loop_runner_names
+
+    return loop_runner_names()
 
 
 def _heartbeat_rows(kind: str) -> list:
@@ -109,12 +106,15 @@ def test_queue_consumer_runs_through_the_heartbeat_runner():
     (PID 1 은 루프가 잡는다 — ``test_worker_supervisor_contract.py``). 여기서 지키는 것은
     그대로다: 큐 소비자는 **반드시 러너를 거친다**.
     """
+    from tests.support.worker_jobs import jobs
+
+    rq = [job for job in jobs() if "tools/ops/run_rq_worker.py" in job.argv]
+    assert len(rq) == 1, "큐 소비자는 감독자가 러너로 띄운다"
     text = _START_SH.read_text(encoding="utf-8")
     code_lines = [ln.strip() for ln in text.splitlines() if not ln.strip().startswith("#")]
-    runner_lines = [ln for ln in code_lines if "run_rq_worker.py" in ln]
-    assert len(runner_lines) == 1, runner_lines
-    assert runner_lines[0].endswith("&"), "러너는 백그라운드로 띄워야 감시 루프가 wait 로 지킨다"
-    assert not any(ln.startswith("exec rq worker") for ln in code_lines),         "맨 rq CLI 로 돌아가면 RQ_WORKER 하트비트가 사라진다"
+    assert not any("rq worker" in ln for ln in code_lines), (
+        "맨 rq CLI 로 돌아가면 RQ_WORKER 하트비트가 사라진다"
+    )
 
 
 def test_rq_runner_drops_inherited_db_connections_in_the_child(monkeypatch):

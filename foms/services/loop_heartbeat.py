@@ -1,9 +1,9 @@
 """무감독 백그라운드 루프의 생존 신호 공통 배선 (OPS-HEARTBEAT-01).
 
-``start.sh`` 는 워커 컨테이너에서 백그라운드 루프 여러 개를 ``&`` 로 띄우고 셸은
-``exec rq worker`` 로 자기를 대체한다. wait/trap/supervisor 가 0 이라 루프가 죽어도 아무도
-모른다 — 2026-02 워커 offline, 2026-08-31 SIDEFX 미배포를 **두 번 다 사용자가 화면에서
-먼저 발견**했다.
+워커 컨테이너의 배경 루프는 한때 ``start.sh`` 가 ``&`` 로 띄우고 감독자가 없어 죽어도 아무도
+몰랐다 — 2026-02 워커 offline, 2026-08-31 SIDEFX 미배포를 **두 번 다 사용자가 화면에서
+먼저 발견**했다. 2026-09-29 부터는 ``tools/ops/worker_supervisor.py`` 가 죽은 루프를 다시
+띄운다. 그래도 "다시 뜨는 중"·"매번 즉사" 는 하트비트로만 보이므로 이 배선은 그대로 필요하다.
 
 각 루프는 tick 마다 :func:`emit_heartbeat` 로 ``side_effect_worker_heartbeats`` 에 자기
 ``worker_kind`` 행을 남기고, 판정은 :mod:`foms.services.sidefx_worker` 의 등록부
@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 from sqlalchemy.engine import Engine
 
@@ -89,6 +89,36 @@ def capture_exception(message: Optional[str] = None) -> None:
         sentry_sdk.capture_exception()
     else:
         sentry_sdk.capture_message(message)
+
+
+def safe_metadata(
+    build: Callable[[], dict[str, Any]],
+    fallback: dict[str, Any],
+    *,
+    logger: Optional[logging.Logger] = None,
+    label: str = "",
+) -> dict[str, Any]:
+    """하트비트 metadata 를 조립한다. 조립이 터지면 **같은 키**의 ``fallback`` 을 돌려준다.
+
+    2026-09-10 사고: 정산 러너의 조립(``int(dict)``)이 루프의 예외 가드 **밖**에서 터져 루프
+    프로세스가 매일 죽었다. 조립 결함은 생존 신호를 막으면 안 된다 — 경고 로그 + Sentry 로
+    남기고, 감시 표·키 계약이 그대로 읽을 수 있는 최소 metadata 를 싣는다.
+
+    Args:
+        build: 실제 조립 함수(인자 없음).
+        fallback: 조립 실패 때 쓸 metadata(집계값 0, 키는 ``build`` 결과와 같게).
+        logger: 경고를 남길 로거. 생략하면 이 모듈 로거.
+        label: 경고에 붙일 루프 이름.
+
+    Returns:
+        ``build()`` 결과, 실패하면 ``fallback`` 사본.
+    """
+    try:
+        return build()
+    except Exception:  # noqa: BLE001 - 조립 결함이 생존 신호를 막으면 안 된다
+        (logger or _FALLBACK_LOGGER).warning("heartbeat metadata failed loop=%s", label, exc_info=True)
+        capture_exception()
+        return dict(fallback)
 
 
 def emit_heartbeat(

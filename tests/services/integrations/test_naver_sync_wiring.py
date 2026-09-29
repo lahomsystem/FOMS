@@ -81,27 +81,36 @@ def test_worker_task_is_registered_for_rq():
 
 
 # --------------------------------------------------------------------------- #
-# start.sh 게이트
+# WORKER 감독자 게이트
 # --------------------------------------------------------------------------- #
 
-def test_start_sh_gate_is_off_by_default_and_inside_worker_branch():
-    """수집 루프는 WORKER 분기 안에서, 환경변수 게이트가 1일 때만 뜬다."""
-    text = _START_SH.read_text(encoding="utf-8")
-    assert 'if [ "$FOMS_NAVER_SYNC_ENABLED" = "1" ]; then' in text, "게이트 없이 항상 뜨면 안 된다"
+def test_worker_job_gate_is_off_by_default_and_worker_only():
+    """주문 수집 루프는 WORKER 감독자 작업 목록에만 있고, 게이트가 1일 때만 켜진다.
 
-    worker_branch = text.split('if [ "$USE_RQ_WORKER" = "1" ]; then', 1)[1].split("\nelse\n", 1)[0]
-    assert "run_naver_order_sync.py" in worker_branch, "수집 루프는 WORKER 분기 안에 있어야 한다"
-    # gunicorn(web) 분기에는 없어야 한다.
-    web_branch = text.split("\nelse\n", 1)[1]
-    assert "run_naver_order_sync.py" not in web_branch
+    배선의 정본은 ``tools/ops/worker_supervisor.py`` 의 ``worker_jobs`` 다(2026-09-29, 예전 ``start.sh``
+    의 ``&`` 줄). 감독자는 ``start.sh`` WORKER 분기에서만 뜨고 web(gunicorn) 분기에는 없다 —
+    네이버 호출 IP 단일 출구 계약.
+    """
+    from tests.support.worker_jobs import job_by_script, web_branch_of_start_sh, worker_branch_of_start_sh
+
+    assert job_by_script("run_naver_order_sync") is None, "기본은 꺼져 있어야 한다"
+    assert job_by_script("run_naver_order_sync", {"FOMS_NAVER_SYNC_ENABLED": "0"}) is None
+    assert job_by_script("run_naver_order_sync", {"FOMS_NAVER_SYNC_ENABLED": "1"}) is not None
+    assert "worker_supervisor.py" in worker_branch_of_start_sh()
+    web = web_branch_of_start_sh()
+    assert "worker_supervisor.py" not in web and "run_naver_order_sync.py" not in web
 
 
-def test_start_sh_loop_runs_in_background_with_interval_default():
-    """루프는 백그라운드 서브셸(&)로 띄워 rq worker 본체를 막지 않는다. 기본 간격 300초."""
-    text = _START_SH.read_text(encoding="utf-8")
-    block = text.split("run_naver_order_sync.py", 1)[1].split("fi", 1)[0]
-    assert "--loop" in block and block.rstrip().endswith("&")
-    assert "${FOMS_NAVER_SYNC_INTERVAL_SECONDS:-300}" in block
+def test_worker_job_runs_as_a_loop_with_env_defaults():
+    """감독자가 ``--loop`` 로 띄우고, 기본값을 env 로 바꿀 수 있어야 한다(비었으면 기본값)."""
+    from tests.support.worker_jobs import job_by_script
+
+    argv = list(job_by_script("run_naver_order_sync", {"FOMS_NAVER_SYNC_ENABLED": "1"}).argv)
+    assert "--loop" in argv
+    assert argv[argv.index("--interval") + 1] == "300"
+    argv = list(job_by_script("run_naver_order_sync", {"FOMS_NAVER_SYNC_ENABLED": "1",
+                                                        "FOMS_NAVER_SYNC_INTERVAL_SECONDS": "1800"}).argv)
+    assert argv[argv.index("--interval") + 1] == "1800"
 
 
 def test_runner_exposes_expected_cli_flags():

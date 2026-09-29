@@ -1,6 +1,6 @@
 # WORKER 배경 루프 감독 통일 — 설계서
 
-- 작성 2026-09-29 · 기준 `origin/deploy` · 상태: **승인 대기**
+- 작성 2026-09-29 · 기준 `origin/deploy` · 상태: **승인(2026-09-29, 선택 A + C + 스테이징 실험 허용) → 구현(deploy)**
 - 근거: 언어 이전 분석 보고서 ⑧ 권고 2(`docs/plans/2026-09-28-foms-language-migration-assessment-report.md`), 사고 `docs/incidents/2026-09-10-settle-loop-dies-after-success-tick.md`.
 - 종류: 배포·런타임 코어 변경 → 이 설계서 승인 뒤 구현.
 
