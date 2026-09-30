@@ -231,9 +231,13 @@ def send_push_for_notification_task(notification_id):
     if not notification_id:
         return
     try:
-        from foms.services.notifications.push_sender import send_push_for_notification
+        from foms.services.notifications.push_sender import (
+            QUEUED_PUSH_STALE_AFTER,
+            send_push_for_notification,
+        )
 
-        send_push_for_notification(int(notification_id))
+        # worker 가 멈춘 사이 쌓인 job 은 오래된 알림이면 보내지 않는다.
+        send_push_for_notification(int(notification_id), max_age=QUEUED_PUSH_STALE_AFTER)
     except Exception as e:
         logger.error(
             f"[RQ] send_push_for_notification_task error id={notification_id}: {e}",

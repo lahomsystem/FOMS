@@ -63,20 +63,20 @@
     "foms/services/jobs/tasks.py:132",
     "foms/services/jobs/tasks.py:166",
     "foms/services/jobs/tasks.py:220",
-    "foms/services/jobs/tasks.py:237",
-    "foms/services/jobs/tasks.py:268",
-    "foms/services/jobs/tasks.py:274",
-    "foms/services/jobs/tasks.py:509",
-    "foms/services/jobs/tasks.py:527",
-    "foms/services/jobs/tasks.py:562",
-    "foms/services/jobs/tasks.py:569",
-    "foms/services/jobs/tasks.py:604",
-    "foms/services/jobs/tasks.py:610",
-    "foms/services/jobs/tasks.py:643",
-    "foms/services/jobs/tasks.py:649",
-    "foms/services/jobs/tasks.py:693",
-    "foms/services/jobs/tasks.py:699",
-    "foms/services/notifications/push_sender.py:616",
+    "foms/services/jobs/tasks.py:241",
+    "foms/services/jobs/tasks.py:272",
+    "foms/services/jobs/tasks.py:278",
+    "foms/services/jobs/tasks.py:513",
+    "foms/services/jobs/tasks.py:531",
+    "foms/services/jobs/tasks.py:566",
+    "foms/services/jobs/tasks.py:573",
+    "foms/services/jobs/tasks.py:608",
+    "foms/services/jobs/tasks.py:614",
+    "foms/services/jobs/tasks.py:647",
+    "foms/services/jobs/tasks.py:653",
+    "foms/services/jobs/tasks.py:697",
+    "foms/services/jobs/tasks.py:703",
+    "foms/services/notifications/push_sender.py:635",
     "foms/web/auth/routes.py:124",
     "foms/web/orders/trash.py:147",
     "wdcalculator_db.py:152"
@@ -4054,7 +4054,7 @@
     },
     {
       "path": "foms/services/jobs/tasks.py",
-      "lineno": 237,
+      "lineno": 241,
       "handler_type": "broad_exception",
       "disposition": "FAIL_CLOSED",
       "owner": "services",
@@ -4063,88 +4063,7 @@
     },
     {
       "path": "foms/services/jobs/tasks.py",
-      "lineno": 268,
-      "handler_type": "broad_exception",
-      "disposition": "FAIL_CLOSED",
-      "owner": "services",
-      "has_logging": false,
-      "justification": "re-raises"
-    },
-    {
-      "path": "foms/services/jobs/tasks.py",
-      "lineno": 274,
-      "handler_type": "broad_exception",
-      "disposition": "FAIL_CLOSED",
-      "owner": "services",
-      "has_logging": true,
-      "justification": "re-raises"
-    },
-    {
-      "path": "foms/services/jobs/tasks.py",
-      "lineno": 305,
-      "handler_type": "broad_exception",
-      "disposition": "LOG_AND_CONTINUE",
-      "owner": "services",
-      "has_logging": true,
-      "justification": "logs via logger/log_handled_exception"
-    },
-    {
-      "path": "foms/services/jobs/tasks.py",
-      "lineno": 350,
-      "handler_type": "broad_exception",
-      "disposition": "LOG_AND_CONTINUE",
-      "owner": "services",
-      "has_logging": true,
-      "justification": "logs via logger/log_handled_exception"
-    },
-    {
-      "path": "foms/services/jobs/tasks.py",
-      "lineno": 359,
-      "handler_type": "broad_exception",
-      "disposition": "LOG_AND_CONTINUE",
-      "owner": "services",
-      "has_logging": true,
-      "justification": "logs via logger/log_handled_exception"
-    },
-    {
-      "path": "foms/services/jobs/tasks.py",
-      "lineno": 409,
-      "handler_type": "broad_exception",
-      "disposition": "LOG_AND_CONTINUE",
-      "owner": "services",
-      "has_logging": true,
-      "justification": "logs via logger/log_handled_exception"
-    },
-    {
-      "path": "foms/services/jobs/tasks.py",
-      "lineno": 509,
-      "handler_type": "broad_exception",
-      "disposition": "FAIL_CLOSED",
-      "owner": "services",
-      "has_logging": true,
-      "justification": "re-raises"
-    },
-    {
-      "path": "foms/services/jobs/tasks.py",
-      "lineno": 520,
-      "handler_type": "broad_exception",
-      "disposition": "LOG_AND_CONTINUE",
-      "owner": "services",
-      "has_logging": true,
-      "justification": "logs via logger/log_handled_exception"
-    },
-    {
-      "path": "foms/services/jobs/tasks.py",
-      "lineno": 527,
-      "handler_type": "broad_exception",
-      "disposition": "FAIL_CLOSED",
-      "owner": "services",
-      "has_logging": true,
-      "justification": "re-raises"
-    },
-    {
-      "path": "foms/services/jobs/tasks.py",
-      "lineno": 562,
+      "lineno": 272,
       "handler_type": "broad_exception",
       "disposition": "FAIL_CLOSED",
       "owner": "services",
@@ -4153,7 +4072,7 @@
     },
     {
       "path": "foms/services/jobs/tasks.py",
-      "lineno": 569,
+      "lineno": 278,
       "handler_type": "broad_exception",
       "disposition": "FAIL_CLOSED",
       "owner": "services",
@@ -4162,16 +4081,43 @@
     },
     {
       "path": "foms/services/jobs/tasks.py",
-      "lineno": 604,
+      "lineno": 309,
       "handler_type": "broad_exception",
-      "disposition": "FAIL_CLOSED",
+      "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
-      "has_logging": false,
-      "justification": "re-raises"
+      "has_logging": true,
+      "justification": "logs via logger/log_handled_exception"
     },
     {
       "path": "foms/services/jobs/tasks.py",
-      "lineno": 610,
+      "lineno": 354,
+      "handler_type": "broad_exception",
+      "disposition": "LOG_AND_CONTINUE",
+      "owner": "services",
+      "has_logging": true,
+      "justification": "logs via logger/log_handled_exception"
+    },
+    {
+      "path": "foms/services/jobs/tasks.py",
+      "lineno": 363,
+      "handler_type": "broad_exception",
+      "disposition": "LOG_AND_CONTINUE",
+      "owner": "services",
+      "has_logging": true,
+      "justification": "logs via logger/log_handled_exception"
+    },
+    {
+      "path": "foms/services/jobs/tasks.py",
+      "lineno": 413,
+      "handler_type": "broad_exception",
+      "disposition": "LOG_AND_CONTINUE",
+      "owner": "services",
+      "has_logging": true,
+      "justification": "logs via logger/log_handled_exception"
+    },
+    {
+      "path": "foms/services/jobs/tasks.py",
+      "lineno": 513,
       "handler_type": "broad_exception",
       "disposition": "FAIL_CLOSED",
       "owner": "services",
@@ -4180,16 +4126,16 @@
     },
     {
       "path": "foms/services/jobs/tasks.py",
-      "lineno": 643,
+      "lineno": 524,
       "handler_type": "broad_exception",
-      "disposition": "FAIL_CLOSED",
+      "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
-      "has_logging": false,
-      "justification": "re-raises"
+      "has_logging": true,
+      "justification": "logs via logger/log_handled_exception"
     },
     {
       "path": "foms/services/jobs/tasks.py",
-      "lineno": 649,
+      "lineno": 531,
       "handler_type": "broad_exception",
       "disposition": "FAIL_CLOSED",
       "owner": "services",
@@ -4198,7 +4144,7 @@
     },
     {
       "path": "foms/services/jobs/tasks.py",
-      "lineno": 693,
+      "lineno": 566,
       "handler_type": "broad_exception",
       "disposition": "FAIL_CLOSED",
       "owner": "services",
@@ -4207,7 +4153,61 @@
     },
     {
       "path": "foms/services/jobs/tasks.py",
-      "lineno": 699,
+      "lineno": 573,
+      "handler_type": "broad_exception",
+      "disposition": "FAIL_CLOSED",
+      "owner": "services",
+      "has_logging": true,
+      "justification": "re-raises"
+    },
+    {
+      "path": "foms/services/jobs/tasks.py",
+      "lineno": 608,
+      "handler_type": "broad_exception",
+      "disposition": "FAIL_CLOSED",
+      "owner": "services",
+      "has_logging": false,
+      "justification": "re-raises"
+    },
+    {
+      "path": "foms/services/jobs/tasks.py",
+      "lineno": 614,
+      "handler_type": "broad_exception",
+      "disposition": "FAIL_CLOSED",
+      "owner": "services",
+      "has_logging": true,
+      "justification": "re-raises"
+    },
+    {
+      "path": "foms/services/jobs/tasks.py",
+      "lineno": 647,
+      "handler_type": "broad_exception",
+      "disposition": "FAIL_CLOSED",
+      "owner": "services",
+      "has_logging": false,
+      "justification": "re-raises"
+    },
+    {
+      "path": "foms/services/jobs/tasks.py",
+      "lineno": 653,
+      "handler_type": "broad_exception",
+      "disposition": "FAIL_CLOSED",
+      "owner": "services",
+      "has_logging": true,
+      "justification": "re-raises"
+    },
+    {
+      "path": "foms/services/jobs/tasks.py",
+      "lineno": 697,
+      "handler_type": "broad_exception",
+      "disposition": "FAIL_CLOSED",
+      "owner": "services",
+      "has_logging": false,
+      "justification": "re-raises"
+    },
+    {
+      "path": "foms/services/jobs/tasks.py",
+      "lineno": 703,
       "handler_type": "broad_exception",
       "disposition": "FAIL_CLOSED",
       "owner": "services",
@@ -4360,7 +4360,7 @@
     },
     {
       "path": "foms/services/notifications/push_sender.py",
-      "lineno": 288,
+      "lineno": 293,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "telemetry",
@@ -4369,7 +4369,7 @@
     },
     {
       "path": "foms/services/notifications/push_sender.py",
-      "lineno": 518,
+      "lineno": 523,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "telemetry",
@@ -4378,7 +4378,7 @@
     },
     {
       "path": "foms/services/notifications/push_sender.py",
-      "lineno": 616,
+      "lineno": 635,
       "handler_type": "broad_exception",
       "disposition": "FAIL_CLOSED",
       "owner": "telemetry",
@@ -4387,7 +4387,7 @@
     },
     {
       "path": "foms/services/notifications/push_sender.py",
-      "lineno": 694,
+      "lineno": 715,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "telemetry",
@@ -4396,7 +4396,7 @@
     },
     {
       "path": "foms/services/notifications/push_sender.py",
-      "lineno": 750,
+      "lineno": 771,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "telemetry",

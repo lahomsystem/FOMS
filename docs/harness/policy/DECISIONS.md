@@ -10,6 +10,12 @@
 
 ---
 
+### [2026-09-30] 웹푸시 enqueue 는 worker 가 0대여도 Redis 에 넣는다 · 꺼낸 job 은 30분 넘은 알림이면 버린다
+- **키워드**: Web Push, enqueue_push_for_notification, queue_unavailable, worker_count, waiting_for_worker, QUEUED_PUSH_STALE_AFTER, WORKER 재배포, rq
+- **결정**: Redis 가 닿으면 worker 수와 상관없이 push job 을 enqueue 한다(확실히 0대면 reason `waiting_for_worker`). Redis 가 없거나 닿지 않거나 enqueue 가 실패할 때만 queue_unavailable 로 표기한다. rq 진입점(`send_push_for_notification_task`)은 `max_age=QUEUED_PUSH_STALE_AFTER`(30분)로 불러 오래된 알림은 reason `stale` 로 보내지 않는다(SIDEFX outbox 경로 STALE_AFTER 와 같은 값).
+- **이유**: 2026-08-26 결정("worker 가 확실히 0대면 막는다", `test_enqueue_known_zero_workers_still_marks_unavailable`)은 WORKER 재배포 중 약 1분 동안 생긴 알림의 폰 배너를 재시도 없이 버렸다 — 2026-09-30 운영 시험 알림 801 이 `push_queue_unavailable` 로 사라졌다. job 은 Redis 에 남아 있다가 worker 가 뜨면 나가므로 막을 이유가 없다. 대신 worker 가 오래 멈췄다 돌아올 때 밀린 배너가 쏟아지지 않게 30분 상한을 둔다. 긴 정지는 WORKER_STALLED 감시자가 따로 알린다.
+- **영향**: `foms/services/notifications/push_sender.py`, `foms/services/jobs/tasks.py`, tests `test_push_sender.py`(0대 계약 테스트를 대체).
+
 ### [2026-09-30] 주문 알림의 휴대폰 배너(Web Push)에 고객 이름을 싣는다 · 도면 전달 취소도 배너로
 - **키워드**: Web Push, push_sender, _build_payload, _order_customer_name, 고객 이름, 잠금화면, generic payload, DRAWING_TRANSFERRED, DRAWING_REVISION, DRAWING_TRANSFER_CANCELLED, MEASURE_SAME_DAY_ADDED, P1
 - **결정**: ① 주문에 걸린 알림의 배너는 고객 이름(최대 20자)과 주문번호를 싣는다 — 도면 도착 "도면 도착 · {고객}" / "주문 #N ({고객}) 도면이 준비됐어요", 수정 요청 "도면 수정 요청 · {고객}", 전달 취소 "도면 전달 취소 · {고객}", 당일 실측은 제목 그대로 본문 "{고객} 실측이 오늘 긴급 추가됐어요", 그 밖의 주문 유형은 일반 제목 뒤 " · {고객}" + 본문 앞 "주문 #N ({고객})". 이름은 워커가 알림 1건당 주문을 한 번 읽어 얻는다(structured_data 고객 이름 → 없으면 customer_name 칸). 알림 row 의 title/message(주소·사유·메모)는 계속 싣지 않는다. 주문이 없거나 이름을 못 찾으면 예전 일반 문구, 워커 건강 알림은 그대로. ② `DRAWING_TRANSFER_CANCELLED` 를 P1 push 유형에 넣는다.

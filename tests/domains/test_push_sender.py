@@ -592,13 +592,11 @@ def test_enqueue_unknown_worker_count_still_attempts_enqueue(db, monkeypatch):
     assert state.last_delivery_status != NotificationDeliveryStatus.QUEUE_UNAVAILABLE
 
 
-def test_enqueue_known_zero_workers_still_marks_unavailable(db, monkeypatch):
-    """worker 가 확실히 0대(worker_count_known=True)일 때는 좁힌 판정 이후에도 예전 그대로
-    미보장으로 막아야 한다.
+def test_enqueue_known_zero_workers_waits_in_queue(db, monkeypatch):
+    """Redis 는 닿는데 worker 가 확실히 0대여도 enqueue 한다 — job 은 worker 가 뜨면 나간다.
 
-    이번 수정은 "못 셌다"만 새로 풀어주는 것이지, "진짜로 워커가 하나도 없다"는 판정까지
-    같이 느슨해지면 안 된다(못을 빼면 안 된다). worker_count_known 을 명시적으로 True 로
-    줘서 이 경계가 살아 있는지 확인한다.
+    WORKER 재배포 중 약 1분은 worker 가 0대다. 예전에는 여기서 queue_unavailable 로 막아
+    그 사이 알림의 폰 배너가 재시도 없이 버려졌다(2026-09-30 운영 시험 알림 801).
     """
     monkeypatch.setenv(FLAG_ENV, "1")
     import foms.services.jobs.queue as qmod
@@ -609,7 +607,6 @@ def test_enqueue_known_zero_workers_still_marks_unavailable(db, monkeypatch):
 
         def enqueue(self, path, *args, **kwargs):
             self.enqueued.append((path, args, kwargs))
-            raise AssertionError("worker 0대가 확실하면 enqueue 를 시도하면 안 된다")
 
     fake_q = _FakeQueue()
     monkeypatch.setattr(qmod, "get_rq_queue", lambda: fake_q)
@@ -624,11 +621,68 @@ def test_enqueue_known_zero_workers_still_marks_unavailable(db, monkeypatch):
     state = _mk_state(notif, u)
 
     result = enqueue_push_for_notification(notif.id, db=db)
-    assert result["enqueued"] is False
-    assert result["reason"] == "queue_unavailable"
-    assert fake_q.enqueued == []
+    assert result["enqueued"] is True
+    assert result["reason"] == "waiting_for_worker"
+    assert len(fake_q.enqueued) == 1
+    assert _events(notif.id, NotificationEventType.PUSH_QUEUE_UNAVAILABLE) == []
+    db.refresh(state)
+    assert state.last_delivery_status != NotificationDeliveryStatus.QUEUE_UNAVAILABLE
+
+
+def test_enqueue_unreachable_redis_still_marks_unavailable(db, monkeypatch):
+    """Redis 자체가 안 닿으면 넣을 곳이 없다 — 예전처럼 미보장으로 표기한다."""
+    monkeypatch.setenv(FLAG_ENV, "1")
+    import foms.services.jobs.queue as qmod
+
+    class _FakeQueue:
+        def enqueue(self, *args, **kwargs):
+            raise AssertionError("Redis 가 안 닿으면 enqueue 를 시도하면 안 된다")
+
+    monkeypatch.setattr(qmod, "get_rq_queue", lambda: _FakeQueue())
+    monkeypatch.setattr(
+        qmod,
+        "get_rq_runtime_status",
+        lambda: {"state": "unreachable", "worker_count": 0, "worker_count_known": True},
+    )
+
+    u = _mk_user("q_unreach", "A")
+    notif = _mk_notification(is_urgent=True)
+    state = _mk_state(notif, u)
+
+    result = enqueue_push_for_notification(notif.id, db=db)
+    assert result == {"enqueued": False, "reason": "queue_unavailable"}
     db.refresh(state)
     assert state.last_delivery_status == NotificationDeliveryStatus.QUEUE_UNAVAILABLE
+
+
+def test_queued_push_skips_stale_notification(db, monkeypatch):
+    """worker 가 오래 멈췄다 돌아와 꺼낸 job 이 30분 넘은 알림이면 보내지 않는다."""
+    from foms.services.jobs.tasks import send_push_for_notification_task
+    import foms.services.notifications.push_sender as ps
+
+    rec = _Recorder()
+    _install_pywebpush(monkeypatch, rec)
+    u = _mk_user("q_stale", "A")
+    old = _mk_notification(
+        is_urgent=True, created_at=ps._now() - ps.QUEUED_PUSH_STALE_AFTER - datetime.timedelta(minutes=1)
+    )
+    _mk_state(old, u)
+    _mk_sub(u, "https://fcm.googleapis.com/send/stale")
+
+    result = send_push_for_notification(old.id, db=db, max_age=ps.QUEUED_PUSH_STALE_AFTER)
+    assert result["reason"] == "stale"
+    assert rec.calls == []
+
+    fresh = _mk_notification(is_urgent=True)
+    _mk_state(fresh, u)
+    result = send_push_for_notification(fresh.id, db=db, max_age=ps.QUEUED_PUSH_STALE_AFTER)
+    assert result["sent"] == 1
+
+    # rq 진입점이 실제로 max_age 를 넘긴다.
+    seen = {}
+    monkeypatch.setattr(ps, "send_push_for_notification", lambda nid, **kw: seen.update(kw))
+    send_push_for_notification_task(fresh.id)
+    assert seen.get("max_age") == ps.QUEUED_PUSH_STALE_AFTER
 
 
 # ---------------------------------------------------------------------------
