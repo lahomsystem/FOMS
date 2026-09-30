@@ -56,8 +56,17 @@ PUSH_TTL_SECONDS = 86400
 
 #: 긴급(is_urgent)이 아니어도 push 서비스에 ``Urgency: high`` 로 보내는 유형.
 #: 절전 중인 안드로이드는 normal 을 몇 분~몇 시간 미룬다 — 당일 실측 긴급 추가는
-#: 몇 시간 뒤에 닿으면 의미가 없다.
-_HIGH_URGENCY_TYPES = frozenset({"MEASURE_SAME_DAY_ADDED"})
+#: 몇 시간 뒤에 닿으면 의미가 없다. 도면 도착·수정 요청·전달 취소도 같다 — normal 로
+#: 보낸 도면 배너는 같은 안드로이드 폰에 뜨지 않았고 high 인 당일 실측만 떴다(2026-09-30
+#: 운영 시험, 두 유형 모두 FCM 이 받아 감).
+_HIGH_URGENCY_TYPES = frozenset(
+    {
+        "MEASURE_SAME_DAY_ADDED",
+        "DRAWING_TRANSFERRED",
+        "DRAWING_REVISION",
+        "DRAWING_TRANSFER_CANCELLED",
+    }
+)
 
 # 비긴급 알림 중 push 를 발송하는 P1 유형 기본 집합(env 로 override 가능).
 _DEFAULT_P1_TYPES = frozenset(
