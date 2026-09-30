@@ -154,7 +154,11 @@ def test_push_ttl_constant_is_one_day():
         ("MEASURE_SAME_DAY_ADDED", False, "high"),
         ("URGENT_MENTION", True, "high"),
         ("SHIPMENT_ORDER_CHANGED", False, "normal"),
-        ("DRAWING_TRANSFERRED", False, "normal"),
+        # 도면 3종은 절전 중인 안드로이드에도 바로 닿도록 high(2026-09-30 운영 시험).
+        ("DRAWING_TRANSFERRED", False, "high"),
+        ("DRAWING_REVISION", False, "high"),
+        ("DRAWING_TRANSFER_CANCELLED", False, "high"),
+        ("ERP_ORDER_CHANGED", False, "normal"),
     ],
 )
 def test_webpush_gets_ttl_and_urgency_header(db, rec, ntype, is_urgent, expected):
