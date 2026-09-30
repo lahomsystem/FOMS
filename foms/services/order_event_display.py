@@ -7,6 +7,7 @@ from typing import Any
 
 from foms.services.datetime_kst import format_datetime_kst
 from foms.services.erp_policy import STAGE_LABELS, STAGE_NAME_TO_CODE
+from foms.services.orders.team_labels import TEAM_LABELS
 
 __all__ = [
     "TEAM_LABELS",
@@ -21,16 +22,6 @@ __all__ = [
     "format_timeline_description",
     "translate_admin_override_gates",
 ]
-
-TEAM_LABELS: dict[str, str] = {
-    "CS": "상담팀",
-    "SALES": "영업팀",
-    "MEASURE": "실측팀",
-    "DRAWING": "도면팀",
-    "PRODUCTION": "생산팀",
-    "CONSTRUCTION": "시공팀",
-    "SHIPMENT": "출고팀",
-}
 
 _STAGE_EVENT_TYPES = frozenset(
     {"STAGE_CHANGED", "STAGE_AUTO_TRANSITIONED", "STAGE_MANUAL_OVERRIDE", "STAGE_OVERRIDE"}

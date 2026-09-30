@@ -87,15 +87,13 @@ def test_measure_completed_quest_offers_retransition_only_to_teams_the_server_al
 
 
 def test_retransition_label_and_confirm_name_the_next_stage_and_the_order():
-    """재전이 버튼은 승인 버튼과 같은 이름·확인창을 쓴다 — 같은 일을 하는 버튼이 둘로 보이지 않게
-    (2026-09-23 사용자 요청: "도면 단계로 넘기기" 를 따로 두지 말고 "실측 완료" 하나로)."""
+    """재전이 버튼은 승인 버튼과 같은 이름·확인창을 쓴다."""
     sd = {"workflow": {"stage": "MEASURE"}, "quests": [_measure_completed_quest()]}
     payload = _payload(sd, "실측", "MEASURE", _user("SALES"))
-    assert payload["retransition_label"] == payload["approve_label"] == "실측 완료"
+    assert payload["retransition_label"] == payload["approve_label"] == "도면 단계로 넘기기"
     assert payload["retransition_confirm"] == payload["approve_confirm"]
     assert "실측을 완료하고 도면 단계로 넘길까요?" in payload["retransition_confirm"]
     assert "이영아 / #4382" in payload["retransition_confirm"]
-    assert "넘기기" not in payload["retransition_label"]
 
 
 def test_no_user_means_no_retransition():
@@ -111,13 +109,13 @@ def test_already_advanced_order_has_no_quest_payload_at_all():
 
 
 def test_confirm_completed_in_korean_storage_offers_production_retransition():
-    """한글 저장형(고객컨펌) COMPLETED 도 재전이 대상 — 승인 버튼과 같은 '고객 컨펌 완료'."""
+    """한글 저장형(고객컨펌) COMPLETED 도 재전이 대상 — 승인 버튼과 같은 '생산 단계로 넘기기'."""
     quest = {"stage": "고객컨펌", "title": "고객 컨펌", "status": "COMPLETED", "approval_mode": "assignee",
              "assignee_approval": {"approved": True}, "completed_at": "2026-09-16T10:00:00"}
     sd = {"workflow": {"stage": "CONFIRM"}, "quests": [quest], **drawing_for_stage("CONFIRM")}
     payload = _payload(sd, "고객컨펌", "CONFIRM", _user("CS"))
     assert payload["can_retransition"] is True
-    assert payload["retransition_label"] == "고객 컨펌 완료"
+    assert payload["retransition_label"] == "생산 단계로 넘기기"
 
 
 def test_production_completed_team_quest_does_not_retransition():
@@ -253,7 +251,7 @@ def _db_order_with_assignee_quest(stage_code: str, customer_name: str, required:
 
 
 def test_대조군_수정권한만_있고_담당자_승인권한이_없으면_승인_버튼이_없다(client):
-    """PC 그리드 — can_edit_erp=True·can_assignee_approve=False 는 버튼 0 + '(승인 권한 없음)'.
+    """PC 그리드 — can_edit_erp=True·can_assignee_approve=False 는 버튼 0 + '(담당자만 누를 수 있어요)'.
 
     승인 팀이 생산팀인 담당자 quest 는 CS 팀이 눌러도 서버가 403 을 준다. 예전 술어
     (``can_edit_erp or can_assignee_approve``)는 이 사람에게 버튼을 그려 줬다.
@@ -265,7 +263,7 @@ def test_대조군_수정권한만_있고_담당자_승인권한이_없으면_�
     html = _grid_html(client, user, "고객컨펌")
     assert f"quest-collapse-{order_id}" in html
     assert html.count("erp-btn-approve-assignee") == 0
-    assert "(승인 권한 없음)" in html
+    assert "(담당자만 누를 수 있어요)" in html
 
 
 def test_대조군_담당자_승인권한만_있으면_수정권한이_없어도_승인_버튼이_있다(client):
@@ -277,28 +275,65 @@ def test_대조군_담당자_승인권한만_있으면_수정권한이_없어도
     html = _grid_html(client, user, "고객컨펌")
     assert f"quest-collapse-{order_id}" in html
     assert html.count("erp-btn-approve-assignee") == 1
-    assert "(승인 권한 없음)" not in html
+    assert "(담당자만 누를 수 있어요)" not in html
+
+
+def _quest_cell(html: str, order_id: int):
+    from bs4 import BeautifulSoup
+
+    cell = BeautifulSoup(html, "html.parser").find(id=f"quest-collapse-{order_id}")
+    assert cell is not None
+    return cell
+
+
+def test_pc_grid_renders_pass_on_labels(client):
+    """PC 그리드 — 넘기기 버튼 글자를 실제로 그린다. 담당자 방식은 접수 단계에 버튼이 없어
+    (SALES/DRAWING 영역만) 실측으로 보고, 접수는 팀 방식 버튼으로 본다."""
+    user = _db_user("grid_names_admin", role="ADMIN", team="CS")
+    measure_id = _db_order_with_assignee_quest("MEASURE", "이름 실측", ["SALES"]).id
+    received_id = _db_order("RECEIVED", "이름 접수").id
+
+    html = _grid_html(client, user, "실측")
+    buttons = _quest_cell(html, measure_id).select(".erp-btn-approve-assignee")
+    assert [b.get_text(" ", strip=True) for b in buttons] == ["도면 단계로 넘기기"]
+    assert "할 일" in html and "현재 작업" in html
+    assert all(">승인<" not in str(b) for b in buttons)
+
+    html = _grid_html(client, user, "주문접수")
+    buttons = _quest_cell(html, received_id).select(".erp-btn-approve-team")
+    assert [b.get_text(" ", strip=True) for b in buttons] == ["실측 단계로 넘기기"]
+    assert all(">승인<" not in str(b) for b in buttons)
+
+
+def test_대조군_cs_단계_버튼은_넘기기가_아니라_cs_확인(client):
+    """대조군 — CS 단계는 단계를 넘기지 않으니 버튼 글자가 'CS 확인' 이다."""
+    user = _db_user("grid_names_cs", role="ADMIN", team="CS")
+    order_id = _db_order("CS", "이름 CS").id
+
+    html = _grid_html(client, user, "CS")
+    buttons = _quest_cell(html, order_id).select(".erp-btn-approve-team")
+    assert [b.get_text(" ", strip=True) for b in buttons] == ["CS 확인"]
 
 
 def test_pc_grid_says_board_not_permission_for_synthesized_production_quest(client):
-    """PC 그리드 — 생산 합성 quest 는 ADMIN 에게도 '(승인 권한 없음)' 이 아니라 '(보드에서 진행)' 을 보인다."""
+    """PC 그리드 — 생산 합성 quest 는 ADMIN 에게도 '(담당자만 누를 수 있어요)' 이 아니라 '(보드에서 진행)' 을 보인다."""
     user = _db_user("grid_synth_admin", role="ADMIN", team="SALES")
     order = _db_order("PRODUCTION", "합성 생산")
 
     html = _grid_html(client, user, "생산")
     assert f'quest-collapse-{order.id}' in html
-    assert html.count("(승인 권한 없음)") == 0
+    assert html.count("(담당자만 누를 수 있어요)") == 0
     assert html.count("(보드에서 진행)") >= 1
 
 
 def test_pc_grid_keeps_permission_note_for_synthesized_received_quest_without_rights(client):
-    """대조군 — 접수 합성 quest 에 도면팀 STAFF 는 여전히 '(승인 권한 없음)' 이다(전이 단계라 버튼 축)."""
+    """대조군 — 접수 합성 quest 에 도면팀 STAFF 는 여전히 '(담당자만 누를 수 있어요)' 이다(전이 단계라 버튼 축)."""
     user = _db_user("grid_synth_drawing", role="STAFF", team="DRAWING")
     order = _db_order("RECEIVED", "합성 접수")
 
     html = _grid_html(client, user, "주문접수")
     assert f'quest-collapse-{order.id}' in html
-    assert "(승인 권한 없음)" in html
+    assert "(담당자만 누를 수 있어요)" in html
     assert "(보드에서 진행)" not in html
 
 
@@ -388,7 +423,7 @@ def test_pc_grid_has_retransition_button_and_team_gate_uses_approvable_teams():
     assert "team in (o.current_quest.approvable_teams or [])" in grid
     # 옛 팀 버튼 게이트(can_edit_erp 단독)가 남아 있으면 서버가 403 을 줄 버튼이 다시 뜬다.
     assert "can_edit_erp|default(false) %}\n                  {% set order_id_approve" not in grid.replace("\r\n", "\n")
-    assert "(승인 권한 없음)" in grid
+    assert "(담당자만 누를 수 있어요)" in grid
 
 
 def test_mobile_card_has_retransition_button_and_team_axis():
@@ -407,7 +442,7 @@ def test_mobile_detail_has_retransition_button_and_team_buttons_reachable():
     assert 'data-refresh-anchor="#foms-detail-quest"' in detail
     assert "order.current_quest.can_assignee_approve or approvable_teams" in detail
     assert "team not in approvable_teams" in detail
-    assert "{{ team }} 대기" in detail
+    assert "{{ team|team_label }} 대기" in detail
 
 
 def test_js_handles_retransition_buttons_and_response_key():
@@ -422,23 +457,17 @@ def test_js_handles_retransition_buttons_and_response_key():
     assert pc.index("data.retransitioned", assignee_fn) < pc.index("data.auto_transitioned", assignee_fn)
 
 
-def test_asset_pins_bumped_to_20260920b():
-    """JS·CSS 를 바꿨으니 핀을 올린다 — 안 올리면 SW 캐시로 옛 파일이 산다.
-
-    erp-quest-approve.js·erp-dashboard-quest.js 는 ADMIN-OVERRIDE-01(관리자 강제 진행 재시도
-    배선)로 다시 바뀌어 핀이 20260921a 로 올라갔다. 모듈 핀을 품은 erp-dashboard-entry.js 도
-    함께 바뀌었으므로 그 핀도 올린다 — 안 올리면 옛 entry 가 옛 모듈 핀을 계속 부른다.
-    나머지 자산은 그때 안 바뀌었으니 20260920b 그대로다.
-    """
-    # erp-quest-approve.js 는 2026-09-23 실측 통합 화면(복원 직전 이벤트)으로 다시 올라갔다.
-    assert "erp-quest-approve.js') }}?v=20260923e" in _read("templates/partials/shared/layout_scripts.html")
-    # 2026-09-29 2c-2 R4·2d·2a-2·2b 를 합치며 erp-pro.css 는 20260929k, detail-dom·entry 는 20260929l.
-    assert "erp-dashboard-entry.js') }}?v=20260929l" in _read("templates/partials/shared/layout_scripts.html")
+def test_asset_pins_current():
+    """고친 자산은 핀을 올린다 — 안 올리면 SW 캐시로 옛 파일이 산다."""
+    # 2026-09-30 이름 정리로 erp-quest-approve.js 는 20260930b, entry·quest 모듈은 20260930a.
+    assert "erp-quest-approve.js') }}?v=20260930b" in _read("templates/partials/shared/layout_scripts.html")
+    # erp-pro.css 는 20260929k, detail-dom 은 도면 창구 버튼 글자로 20260930a.
+    assert "erp-dashboard-entry.js') }}?v=20260930a" in _read("templates/partials/shared/layout_scripts.html")
     assert "erp-pro.css') }}?v=20260929k" in _read("templates/partials/shared/layout_head.html")
     assert "04-filter-table-badges-buttons.css?v=20260920b" in _read("static/css/foundation/erp-pro.css")
     entry = _read("static/js/orders/erp-dashboard-entry.js")
-    assert "erp-dashboard-quest.js?v=20260921a" in entry
-    assert "erp-dashboard-detail-dom.js?v=20260929l" in entry
+    assert "erp-dashboard-quest.js?v=20260930a" in entry
+    assert "erp-dashboard-detail-dom.js?v=20260930a" in entry
     for rel in ("templates/orders/dashboard.html", "templates/orders/partials/dashboard_main.html"):
         assert "foms-v2-cs-hero.css') }}?v=20260921a" in _read(rel)
     assert ".erp-btn-retransition" in _read("static/css/foundation/erp-pro/04-filter-table-badges-buttons.css")

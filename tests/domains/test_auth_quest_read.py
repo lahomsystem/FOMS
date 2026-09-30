@@ -130,7 +130,7 @@ def test_quest_get_returns_existing_quest_without_mutation(client):
     assert response.status_code == 200
     data = response.get_json()
     assert data["success"] is True
-    assert data["quest"]["title"] == "기존 퀘스트"
+    assert data["quest"]["title"] == "접수 확인"
     assert data["quest"]["owner_person"] == "테스트담당"
 
     db_session.expire_all()

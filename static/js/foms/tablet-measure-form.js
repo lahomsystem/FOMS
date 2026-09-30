@@ -383,7 +383,7 @@
       b.classList.toggle("is-active", on);
       b.setAttribute("aria-selected", on ? "true" : "false");
     });
-    // "실측 완료 → 도면 전달"은 실측 단계 주문에서만 노출(라벨-동작 일치).
+    // "도면 단계로 넘기기"는 실측 단계 주문에서만 노출(라벨-동작 일치).
     setCompleteVisible(isMeasureStage());
   }
 
@@ -458,7 +458,7 @@
     return POST_DRAWING_STAGES.indexOf(String(workflowStage()).toUpperCase()) !== -1;
   }
   // 좌측 큐에는 실측 외 단계 주문도 섞인다. quest/approve 는 "현재 단계" 퀘스트를 승인하므로
-  // 비-MEASURE 주문에서 누르면 라벨("도면 전달")과 다른 단계로 전진한다 → 완료 버튼 게이트.
+  // 비-MEASURE 주문에서 누르면 라벨("도면 단계로 넘기기")과 다른 단계로 전진한다 → 완료 버튼 게이트.
   function isMeasureStage() {
     return String(workflowStage()).toUpperCase() === "MEASURE";
   }
@@ -1638,7 +1638,7 @@
   // 만들지 않는다(도면은 전용 command 소관).
   // (클라이언트가 stage 를 직접 세팅하던 반쪽 전환 폐기 — 단계 전환 SSOT 는 서버 하나.)
   function approveMeasureQuest(orderId) {
-    setStatus("도면 전달 중…", "saving");
+    setStatus("도면 단계로 넘기는 중…", "saving");
     // MEASURE 는 approval_mode="assignee" → 팀 지정 없는 빈 body.
     return fetch("/api/orders/" + encodeURIComponent(orderId) + "/quest/approve", {
       method: "POST",
@@ -1654,18 +1654,18 @@
       .then(function (result) {
         if (!result.ok || !result.data.success) {
           // 저장은 이미 성공했으므로 롤백하지 않는다(입력 데이터 보존 우선).
-          setStatus(result.data.message || result.data.error || "도면 전달 실패", "error");
+          setStatus(result.data.message || result.data.error || "넘기지 못했습니다", "error");
           return;
         }
         markCardCompleted();
         if (!state || state.orderId !== orderId) return;
         // 새 단계(DRAWING) 를 폼 전체에 반영 — 기존 리프레시 수단(load) 재사용.
         return load(orderId, state.ctx).then(function () {
-          setStatus("실측 완료 — 도면 단계로 전달됨", "saved");
+          setStatus("도면 단계로 넘겼습니다", "saved");
         });
       })
       .catch(function () {
-        setStatus("네트워크 오류 — 도면 전달 실패(입력 내용은 저장됨)", "error");
+        setStatus("네트워크 오류 — 넘기지 못했습니다(입력 내용은 저장됨)", "error");
       });
   }
 

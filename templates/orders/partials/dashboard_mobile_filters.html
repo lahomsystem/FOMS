@@ -81,7 +81,7 @@
           <label for="erp-dashboard-mobile-team">팀</label>
           <select id="erp-dashboard-mobile-team" class="form-select" name="team">
             <option value="">전체</option>
-            <option value="CS" {% if filters.get('team') == 'CS' %}selected{% endif %}>라홈팀</option>
+            <option value="CS" {% if filters.get('team') == 'CS' %}selected{% endif %}>CS팀</option>
             <option value="SALES" {% if filters.get('team') == 'SALES' %}selected{% endif %}>영업팀</option>
             <option value="MEASURE" {% if filters.get('team') == 'MEASURE' %}selected{% endif %}>실측팀</option>
             <option value="DRAWING" {% if filters.get('team') == 'DRAWING' %}selected{% endif %}>도면팀</option>

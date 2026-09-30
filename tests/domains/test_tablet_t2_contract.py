@@ -1353,16 +1353,16 @@ WORKQUEUE_GRID_PARTIAL = "templates/orders/partials/tablet_workqueue_grid.html"
 
 
 def test_tqgrid_partial_exists_with_mockup_columns_in_order() -> None:
-    """클린 그리드 파샬: 목업 8열 헤더가 정확한 순서([체크박스]·단계·고객·다음 할 일·제품·
+    """클린 그리드 파샬: 목업 8열 헤더가 정확한 순서([체크박스]·단계·고객·현재 작업·제품·
     실측일·시공일·담당·첨부)로 존재하고, 경보 열/PC data-col-key 는 없다."""
     body = _read(WORKQUEUE_GRID_PARTIAL)
     # 헤더 라벨은 순서대로(>LABEL</th> 는 헤더에만 매치 — 상단 주석/셀 주석 불매치).
-    order = ["단계", "고객", "다음 할 일", "제품", "실측일", "시공일", "담당", "첨부"]
+    order = ["단계", "고객", "현재 작업", "제품", "실측일", "시공일", "담당", "첨부"]
     # 실측일/시공일은 정렬 헤더 매크로 호출로 렌더되므로 `>라벨</th>` 리터럴이 아니다.
     # 계약의 본질은 thead 안 컬럼 순서이므로 thead 구간에서 라벨 위치만 비교한다.
     thead = body[body.index("<thead>"):body.index("</thead>")]
     idxs = [thead.index(label) for label in order]
-    assert idxs == sorted(idxs), "목업 컬럼 순서 불일치(단계·고객·다음할일·제품·실측일·시공일·담당·첨부)"
+    assert idxs == sorted(idxs), "목업 컬럼 순서 불일치(단계·고객·현재작업·제품·실측일·시공일·담당·첨부)"
     # 경보 열 없음(PC 그리드 data-col-key/경보 th 부재).
     assert ">경보</th>" not in body
     assert "data-col-key" not in body
@@ -1372,13 +1372,13 @@ def test_tqgrid_partial_exists_with_mockup_columns_in_order() -> None:
 
 def test_tqgrid_rows_are_plain_no_inputs_buttons_logos_paybadges() -> None:
     """셀 plain 계약: 날짜 input·퀘스트 collapse 버튼·라홈 로고·결제 코인 뱃지가 없다
-    (목업: 모든 셀 plain 텍스트/배지). 다음 할 일은 현재 퀘스트 title 을 쓴다."""
+    (목업: 모든 셀 plain 텍스트/배지). 현재 작업은 현재 퀘스트 title 을 쓴다."""
     body = _read(WORKQUEUE_GRID_PARTIAL)
     assert 'type="date"' not in body, "실측/시공일에 날짜 input 잔존(목업: plain 텍스트)"
     assert 'data-bs-toggle="collapse"' not in body, "퀘스트 collapse 버튼 잔존(목업: plain 텍스트)"
     assert "lahom-logo" not in body, "고객 셀에 라홈 로고 잔존(목업: 이름+긴급칩만)"
     assert "pay-coin" not in body, "고객 셀에 결제 코인 뱃지 잔존(목업: 이름+긴급칩만)"
-    # 다음 할 일 = 현재 퀘스트 title(허구 텍스트 금지 — 실 DTO 필드).
+    # 현재 작업 = 현재 퀘스트 title(허구 텍스트 금지 — 실 DTO 필드).
     assert "o.current_quest.title" in body
     # 긴급 칩은 urgent 알림일 때만.
     assert "foms-tqchip-urgent" in body

@@ -176,9 +176,9 @@ def test_changed_assets_are_pinned():
     assert f"erp-dashboard-core.js?v={PIN}" in entry
     # 리뷰 P1 수정: 첨부 미리보기 클릭을 페이지마다 한 번만(detail-dom·시공 dashboard.js 도 바뀜).
     # 2d·2a-2(같은 날 detail-dom·erp-pro.css 수정)와 합치며 erp-pro.css 는 20260929k, 2b 까지 합친 detail-dom·entry 는 20260929l.
-    assert "erp-dashboard-detail-dom.js?v=20260929l" in entry
+    assert "erp-dashboard-detail-dom.js?v=20260930a" in entry
     assert f"js/construction/dashboard.js') }}}}?v={PIN}" in _read("templates/construction/partials/scripts.html")
-    assert "erp-dashboard-entry.js') }}?v=20260929l" in _read("templates/partials/shared/layout_scripts.html")
+    assert "erp-dashboard-entry.js') }}?v=20260930a" in _read("templates/partials/shared/layout_scripts.html")
     # erp-order-shared.js 는 asset_url(내용 해시) 시범 — 손 핀 없이 파일이 바뀌면 URL 이 저절로 바뀐다.
     assert "asset_url('js/orders/erp-order-shared.js')" in _read("templates/orders/partials/erp_order_js.html")
     assert "erp-pro.css') }}?v=20260929k" in _read("templates/partials/shared/layout_head.html")

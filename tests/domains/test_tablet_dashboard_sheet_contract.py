@@ -189,7 +189,8 @@ def test_dashboard_sheet_template_has_mockup_composition() -> None:
     assert "o.stage_badge_label" in body
     # mini-quest.
     assert "foms-tsheet-quest" in body
-    assert "다음 할 일" in body
+    assert "현재 작업" in body
+    assert "(승인:" not in body
     # 요약 카드 필드.
     for label in ("연락처", "현장 주소", "제품", "실측 일정", "시공 일정"):
         assert label in body, f"missing summary field: {label}"
@@ -240,10 +241,11 @@ def test_담당자_승인_버튼은_수정권한이_아니라_승인자격으로
             "owner_team": "CS"}
     denied = _render_sheet(q=dict(base, can_assignee_approve=False), can_edit_erp=True)
     assert "erp-btn-approve-assignee" not in denied, "수정 권한만으로 승인 버튼이 나왔다"
-    assert "지정 담당자만 승인할 수 있습니다." in denied
+    assert "담당자만 누를 수 있어요." in denied
 
-    allowed = _render_sheet(q=dict(base, can_assignee_approve=True), can_edit_erp=False)
+    allowed = _render_sheet(q=dict(base, can_assignee_approve=True, approve_label="실측 단계로 넘기기"), can_edit_erp=False)
     assert "erp-btn-approve-assignee" in allowed
+    assert "실측 단계로 넘기기" in allowed
 
 
 def test_팀_승인_버튼은_서버가_계산한_approvable_teams_로만_나온다() -> None:

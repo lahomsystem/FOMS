@@ -28,6 +28,7 @@ from foms.services.erp_permissions import (
     is_order_related_to_user,
 )
 from foms.services.erp_policy import STAGE_LABELS
+from foms.services.orders.team_labels import TEAM_LABELS
 # namespace surface 계약(pin): 라우트 본문 미사용이어도 erp_display 재export 유지
 from foms.services.erp_display import (
     _ensure_dict,
@@ -60,15 +61,6 @@ from foms.services.datetime_kst import get_today_kst
 from models import Order
 
 erp_construction_page_bp = Blueprint("erp_construction_page", __name__, url_prefix="/erp")
-
-TEAM_LABELS = {
-    "CS": "라홈팀",
-    "SALES": "영업팀",
-    "MEASURE": "실측팀",
-    "DRAWING": "도면팀",
-    "PRODUCTION": "생산팀",
-    "CONSTRUCTION": "시공팀",
-}
 
 
 @erp_construction_page_bp.route("/construction/dashboard")

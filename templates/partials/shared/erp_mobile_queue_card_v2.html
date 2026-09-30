@@ -250,11 +250,8 @@
     {% endif %}
 
     {% set quest = order.current_quest %}
-    {# approve_label 이 승인 CTA 노출의 SSOT — 전용 command 단계(도면)와 완료 단계는
-       서버가 비워 보낸다. 고객컨펌은 2026-09-17 부터 승인 API 가 단계를 넘기므로(CONFIRM→PRODUCTION)
-       라벨 "고객 컨펌 완료" 가 오고 카드에서 바로 승인한다. 이미 끝난 quest(is_done)는 승인 대신
-       완료 배지를 그린다 — can_assignee_approve 가 True 를 내도 배지가 먼저다.
-       팀 모드(접수·생산·시공·CS)는 approvable_teams(서버 권한 술어와 같은 답)가 비지 않을 때만. #}
+    {# approve_label 이 비면 버튼 없음(도면·완료 단계). 끝난 작업은 완료 배지.
+       팀 방식은 누를 수 있는 팀(approvable_teams)이 있을 때만. #}
     {% set quest_actionable = (not action_list) and quest and quest.title
         and quest.approve_label
         and (not quest.all_approved)
@@ -315,14 +312,14 @@
           {% if quest.approval_mode != 'assignee' and quest.approvable_teams %}data-team="{{ quest.approvable_teams[0] }}"{% endif %}
           data-approve-label="{{ quest.approve_label }}"
           data-confirm="{{ quest.approve_confirm }}"
-          aria-label="{{ quest.approve_label }} — {{ quest.next_stage_label }} 단계로 넘김">
+          aria-label="{{ quest.approve_label }}">
           <i class="fas fa-check-circle" aria-hidden="true"></i> {{ quest.approve_label }}
         </button>
       {% elif quest_actionable %}
         <a
           class="foms-btn foms-btn--primary{% if quest.approve_blocked %} foms-btn--warning{% endif %} foms-btn--sm erp-queue-card__quest-approve"
           href="{{ detail_href }}#foms-detail-quest"
-          aria-label="{{ quest.title }} — {{ quest.approve_label }}">
+          aria-label="{{ quest.approve_label }}">
           <i class="fas fa-check-circle" aria-hidden="true"></i> {{ quest.approve_label }}
         </a>
       {% elif drawing_actionable %}
@@ -343,7 +340,7 @@
           data-order-id="{{ order.id }}"
           data-approve-label="{{ quest.retransition_label }}"
           data-confirm="{{ quest.retransition_confirm }}"
-          aria-label="{{ quest.retransition_label }} — {{ quest.next_stage_label }} 단계로 넘김">
+          aria-label="{{ quest.retransition_label }}">
           <i class="fas fa-check-circle" aria-hidden="true"></i> {{ quest.retransition_label }}
         </button>
         {% else %}
