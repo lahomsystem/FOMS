@@ -6,10 +6,14 @@ from datetime import datetime
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
+import pytest
+
 from foms.services import erp_mobile_order_display as mobile_display
+
 from foms.services.order_event_display import (
     format_timeline_description,
     format_timeline_meta,
+    generate_change_description,
     translate_event_type_to_korean,
     translate_payload_field,
     translate_value_to_korean,
@@ -150,3 +154,20 @@ def test_mobile_timeline_drawing_status_korean_meta() -> None:
     items = mobile_display.mobile_timeline_events(mock_db, 1, limit=5)
     assert items[0]["title"] == "도면 상태 변경"
     assert "확정 대기 → 완료" in items[0]["meta"]
+
+
+_QUEST_APPROVAL_CASES = [
+    ({"team": "CS", "stage": "RECEIVED", "target": "quest.team_approvals.CS"}, "CS팀이 주문접수 단계를 확인했습니다"),
+    ({"target": "quest.team_approvals.SALES", "domain": "CONFIRM_DOMAIN"}, "영업팀이 고객컨펌 단계를 확인했습니다"),
+    ({"target": "quest.team_approvals.CS", "domain": "고객컨펌_DOMAIN"}, "CS팀이 고객컨펌 단계를 확인했습니다"),
+    ({"target": "quest.assignee_approval", "stage": "MEASURE"}, "담당자가 실측 단계를 확인했습니다"),
+    ({"target": "quest.assignee_approval", "domain": "SALES_DOMAIN"}, "담당자가 현재 작업을 확인했습니다"),
+    ({}, "현재 작업을 확인했습니다"),
+]
+
+
+@pytest.mark.parametrize(("payload", "expected"), _QUEST_APPROVAL_CASES)
+def test_quest_approval_description_names_team_and_stage(payload, expected) -> None:
+    """새 기록(team·stage)과 옛 기록(target·domain) 모두 누가 어느 단계를 확인했는지 말한다."""
+    text = generate_change_description("QUEST_APPROVAL_CHANGED", "", "", "", payload)
+    assert text == expected

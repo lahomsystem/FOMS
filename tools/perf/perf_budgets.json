@@ -54,7 +54,7 @@
     },
     "/erp/shipment?view=fragment": {
       "ttfb_delta_min_ms": 291,
-      "body_bytes_max": 16775
+      "body_bytes_max": 11648
     },
     "/erp/as?view=fragment": {
       "ttfb_delta_min_ms": 168,
@@ -62,7 +62,7 @@
     },
     "/erp/construction/dashboard?view=fragment": {
       "ttfb_delta_min_ms": 147,
-      "body_bytes_max": 34514
+      "body_bytes_max": 23812
     },
     "/erp/completion?view=fragment": {
       "ttfb_delta_min_ms": 107,

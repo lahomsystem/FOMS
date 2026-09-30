@@ -457,7 +457,7 @@ def test_route_reports_mismatch_when_body_changes_without_a_counter_bump(client,
     with patch.object(tvc, "get_table_versions", return_value=versions), \
             patch.object(dc, "get_dashboard_redis", return_value=fake):
         first = client.get(
-            "/erp/history/?view=fragment&q=FRAGVER-MISMATCH",
+            "/erp/history/?view=fragment&q=FRAGVER-MISMATCH&from_dashboard=1",
             headers={"X-FOMS-ERP-SHELL": "1"},
         )
         db_session.add(Order(
@@ -472,7 +472,7 @@ def test_route_reports_mismatch_when_body_changes_without_a_counter_bump(client,
         ))
         db_session.commit()
         second = client.get(
-            "/erp/history/?view=fragment&q=FRAGVER-MISMATCH",
+            "/erp/history/?view=fragment&q=FRAGVER-MISMATCH&from_dashboard=1",
             headers={"X-FOMS-ERP-SHELL": "1"},
         )
 

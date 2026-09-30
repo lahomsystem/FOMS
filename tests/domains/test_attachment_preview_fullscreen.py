@@ -48,7 +48,6 @@ OLD_PINS = (
 
 # 핀을 올려야 하는 템플릿 전수(무관 파일로 범프가 번졌는지도 이 목록으로만 갈린다).
 PIN_TEMPLATES = (
-    "templates/orders/object.html",
     "templates/orders/partials/erp_order_js.html",
     "templates/orders/wizard/wizard_shell.html",
     "templates/orders/mobile_order_detail.html",
@@ -156,10 +155,6 @@ def test_asset_pins_bumped_together() -> None:
     """편집한 JS 3개를 참조하는 템플릿 전수의 핀(?v=)이 같은 값으로 올라야 한다 — 하나라도
     빠지면 그 표면만 옛 파일을 캐시로 받아 전체화면이 안 열린다. 옛 핀이 사라졌는지도 같이 본다
     (범프가 무관 파일로 번졌는지는 이 전수 목록으로만 갈린다)."""
-    object_html = _read("templates/orders/object.html")
-    assert ZOOM_SRC + PIN in object_html
-    assert OPEN_SRC + PIN in object_html
-
     # 2026-09-29 asset_url 시범: 이 include 는 손 날짜 핀 대신 내용 해시 URL 을 쓴다 — 파일을
     # 고치면 ?v= 가 저절로 바뀌므로 "같은 값으로 올렸나" 대신 "도우미로 싣나" 를 본다
     # (렌더 값 = 파일 내용 해시는 tests/contracts/assets/test_asset_manifest.py 가 전수로 본다).

@@ -1985,10 +1985,10 @@ def test_strict_canonical_drawing_workbench_templates() -> None:
     assert "erp_drawing_workbench_detail.html" not in detail_src
 
 
-def test_strict_canonical_orders_object_standalone_template() -> None:
-    """§2.2.1: legacy root erp_object.html → templates/orders/object.html (no active route in repo)."""
-    assert (_REPO_ROOT / "templates" / "orders" / "object.html").is_file()
-    assert not (_REPO_ROOT / "templates" / "erp_object.html").is_file()
+def test_strict_canonical_orders_object_template_removed() -> None:
+    """§2.2.1: 라우트 없던 ERP 주문 상세(orders/object.html)는 지웠다 — 옛 루트 이름으로도 되살아나지 않는다."""
+    assert not (_REPO_ROOT / "templates" / "orders" / "object.html").exists()
+    assert not (_REPO_ROOT / "templates" / "erp_object.html").exists()
 
 
 def test_strict_canonical_templates_root_has_no_html_files() -> None:

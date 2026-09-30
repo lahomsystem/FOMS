@@ -123,7 +123,11 @@ def _ci_gate_message(branch: str) -> str:
         f"run_in_background 로 `{command}`를 실행하거나 `{command} --quick`로 즉시 상태만 확인하고 "
         "작업을 계속하라(exit 0=green, 4=진행 중). "
         "exit 1이면 실패 로그를 분석해 근본 수정 후 pre_push_smoke→재푸시까지 완료해야 한다. "
-        "이 게이트는 생략 금지."
+        "이 게이트는 생략 금지. "
+        "CI green 뒤에는 `python tools/ops/check_deploy_drift.py` 로 Railway 가 그 커밋을 "
+        "실제로 배포했는지도 확인하라 — CI green 과 배포 반영은 다른 질문이다"
+        "(2026-09-22: PR #414 머지 이벤트를 Railway 가 흘려 1시간 13분간 운영이 옛 코드였다). "
+        "exit 1=누락, 2=판정 불가."
     )
 
 

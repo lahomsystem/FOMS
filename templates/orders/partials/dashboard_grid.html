@@ -216,9 +216,6 @@
                                     data-order-id="{{ order_id_approve }}" data-team="{{ team_name }}"
                                     data-confirm="{{ o.current_quest.approve_confirm or '' }}"
                                     style="font-size: 0.9rem; padding: 0.3rem 0.6rem;">{{ o.current_quest.approve_label or '확인' }}</button>
-                                  {% elif o.current_quest.is_synthesized and o.stage_code not in ('RECEIVED', 'CS') %}
-                                  {# 저장되지 않은 합성 quest 는 보드 명령이 실제 액션 — 권한 문제가 아니다. #}
-                                  <span class="text-muted small ms-2">(보드에서 진행)</span>
                                   {% else %}
                                   <span class="text-muted small ms-2">{% if o.current_quest.approve_blocked %}(도면 수령 확정 전){% else %}(담당자만 누를 수 있어요){% endif %}</span>
                                   {% endif %}

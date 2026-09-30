@@ -2,6 +2,11 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
+
+from foms.services.orders.board_state_display import build_board_state
+from foms.services.orders.erp_policy_data_access import get_quest_templates
+from foms.services.orders.erp_policy_quests import create_quest_from_template
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -161,9 +166,7 @@ def test_board_grids_use_phase1_names():
 
 def test_dead_quest_surfaces_removed_and_stage_select_plain():
     assert "o.current_quest" not in _read("templates/construction/partials/filters_grid.html")
-    obj = _read("templates/orders/object.html")
-    assert "loadQuest" not in obj
-    assert "라홈팀" not in obj
+    assert not (ROOT / "templates/orders/object.html").exists()
     for rel in ("templates/orders/partials/erp_order_tab.html",
                 "templates/orders/partials/erp_stage_override_modal.html"):
         body = _read(rel)
@@ -171,3 +174,28 @@ def test_dead_quest_surfaces_removed_and_stage_select_plain():
         assert ">H. CS<" not in body, rel
         assert '<option value="RECEIVED"' in body, rel
         assert ">주문접수<" in body, rel
+    for rel in ("static/js/construction/dashboard.js",
+                "templates/production/partials/scripts.html"):
+        body = _read(rel)
+        assert "approveQuestTeam" not in body, rel
+        assert "loadQuestDetail" not in body, rel
+        assert ".erp-btn-approve-team" not in body, rel
+        for gone in ("var TEAM_LABELS", "var STAGE_LABELS", "function label("):
+            assert gone not in body, (rel, gone)
+    assert ".erp-btn-approve-team" in _read("static/js/orders/dashboard/erp-dashboard-detail-dom.js")
+    assert "(보드에서 진행)" not in _read("templates/orders/partials/dashboard_grid.html")
+
+
+def test_합성_팀_방식_quest_는_주문접수_CS_말고_모두_보드_배지를_받는다():
+    """dashboard_grid 의 '(보드에서 진행)' 갈래를 지운 근거 — 그 조건에 닿는 단계는 모두 배지로 빠진다."""
+    covered = []
+    for stage_code in (get_quest_templates().get("stages") or {}):
+        quest = create_quest_from_template(stage_code, None, {})
+        if not quest or quest.get("approval_mode") != "team" or stage_code in ("RECEIVED", "CS"):
+            continue
+        order = SimpleNamespace(id=1)
+        sd = {"workflow": {"stage": stage_code}}
+        state = build_board_state(order, sd, stage_code, current_quest={**quest, "is_synthesized": True})
+        assert state is not None, stage_code
+        covered.append(stage_code)
+    assert "PRODUCTION" in covered and "CONSTRUCTION" in covered, covered

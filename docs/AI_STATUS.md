@@ -1,26 +1,32 @@
 # FOMS 현재 상태
-> 자동 업데이트: 2026-09-22
-> 최신: **deploy 전체 운영 승격(PR #414 · production `7ac1ee0e0`)** — 도면 전달이 실측완료 표시까지 켠다(quest 전이와 같은 tx, 지방·자가실측만). 두 브랜치 트리 동일. 백필 대상 0건. 스펙 `docs/plans/2026-09-22-drawing-transfer-marks-measurement-complete-spec.md`
-> 직전: **모바일 주문 삭제 운영 반영(PR #411 · production `3d09e1a38`)** — ⋯ 메뉴 → 확인 시트(사유 칩·길게 눌러 1.5초) → 5초 되돌리기. 정책 `ORDER_SOFT_DELETE`
+> 자동 업데이트: 2026-09-30
+> 최신: **도면 알림 수신자·폰 배너 고객명·배너 누락 2건(PR #460·#462·#464·#465·#466 · production `2dc1509c0`)** — 전달·취소는 담당 본인만, 양산은 관리자도. 확인창·배너에 고객명. 도면 배너 Urgency high(절전 안드로이드), worker 0대여도 enqueue(재배포 유실). 폰 실기기 확인. 영업 폰 구독 4/11
+> 직전: **psycopg3 후속 핫픽스·DB 비번 교체(PR #446·#447·#452 · production `023c70087`)**
 > 이 파일 상단 40줄이 세션 시작 컨텍스트의 전부다(hygiene 계약으로 강제). 상세 이력은 "## 최근 완료"·"## 기록 보관".
 
 
 ## 스택
-Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
+Flask 3.1 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
-- [2026-09-30] **도면 탭 고객 보내기(PR 운영 반영 중)** — 보내기·다시 보내기·고객 요청·고객 OK 확정·요청 고치기·번호 바꾸기·PC 긴급 호출. 알림톡 회차 이름은 스위치 꺼짐 — 운영 테스트 1회 뒤 켬. 설계서 `docs/specs/2026-09-29-drawing-tab-send-*`
-- [2026-09-29] **도면 결함 2차(PR #457 · production `9cd99254`)** — 폼 저장 도면 잠금·행 잠금·남의 파일 삭제 차단·고객컨펌/제작 시작 게이트·생산 배지. 잔여: 고아 도면 51개 정리(승인 대기) · wizard 쓰기 3곳은 09-30 막음
+- [2026-09-30] **PC 퀘스트 이름 = 휴대폰 이름(1·2단계 운영 PR #468·#471 · 3단계 deploy)** — 버튼 '{다음} 단계로 넘기기', CS팀, 보드 상태 줄, 태블릿·설정 파일 정리. 잔여: 3단계 운영
+- [2026-09-30] **도면 후속 운영 반영(PR #459·#463 · production `f7dbff71`)** — 수정 요청 하나로·주문 변경 이력은 도면 쪽만·마법사 저장 틈 3곳·미리보기 크게·진행 막대(전체=열린 일, 누적 완료 따로)·마법사 저장 담당 자동 지정. 잔여: 고아 도면 51개 정리(승인 대기)
+- [2026-09-29] **할 일 묶음 운영 반영(PR #454 · production `1554f917f`)** — 워커 감독자·SQLAlchemy 2.0.54·파일 버전 시범·ci_watch. 잔여: 정지 감시 재가동 결정, 시범 측정
+- [2026-09-29] **통합 검색 입구 통일(PR #444 운영)** — AI_CHANGELOG
+- [2026-09-29] **네이버 워크벤치 모바일·PC(PR #453·#455·#456 운영)** — 폰 1~4단계·감사·재감사·PC 대비. 잔여: 실기기
+- [2026-09-28] **v3 셸 삭제 + 모바일 3건 + 광폭 PC 모바일 표면 생략 + PC 배지(PR #433·#434 · production `824b2c1d3`)** — `FOMS_V3_SHELL_COHORT` 는 v2 코호트 키(삭제 금지). 잔여: 아이폰 실기기 날짜 탭
+- [2026-09-29] **야간 purge 미실행 수정 — `tools/cron/nightly.py`(PR #436 · production `59afb4c33`)** — 운영 만료 receipt 2998 삭제. 잔여 없음
+- [2026-09-29] **psycopg3 전환 완료 — 단계 3 psycopg2 삭제 운영(PR #448 · production `52b978b2f`)** — 운영 시뮬레이션(스키마 사본 predeploy·SQL 동등성) 뒤 승격, 서비스 4종 SUCCESS
 - [2026-09-28] **실측 모바일 카드 현장 메모(deploy)** — 주소·연락처 특이사항은 그 줄 밑, 실측 특이사항·비고·네이버 배송메모는 "현장 메모" 상자, 목록 줄 "가기 전 확인 N". `foms/services/measurement/site_memo.py`. 잔여: 스테이징 실화면
-- [2026-09-23] **실측 모바일 통합 화면(구현·리뷰 수정 중)** — 체크리스트+카드 두 벌을 담당자 탭·접기·바텀시트 한 목록으로. 스펙 `docs/specs/2026-09-23-measurement-mobile-unified-list_SPEC.md`, 원장 `…-unified-findings-ledger.md`. 선행(체크리스트·긴급 알림·색 A안)은 운영 PR #421·#422, 저장 시트·시간순은 deploy. 잔여: 아이폰 실기기 사진첩 저장 확인
-- [2026-09-22] **시공일 지난 적체 주문 일괄 완료 — 운영 적용 완료(413건)** — 1차(+7일) 413 + 2차(시공일<오늘, 사용자 수동 시공일 입력 뒤) 174 = 587건. 실측 858→237 · 도면 101→48 · 완료 1451→2038. AS 탭 건 143 은 stage 만(AS 축 지문 두 차례 모두 적용 전후 동일 · AS 탭 불변). 스냅샷 `C:/tmp/foms-backlog-complete-20260922/`(rollback 가능). 잔여: 시공일 없는 건 CSV 영업 검토. 스펙 `docs/plans/2026-09-22-past-construction-bulk-complete-spec.md`
+- [2026-09-23] **완료 quest 재전이 버튼 = 승인 버튼 이름 · AS 접수 완료 알림 · 발송 기록 칩 통합(PR #419·#420·#423 · production `c74ef1f5e`)** — erp-send-trace.js. 잔여: 링크 칩 실화면
+- [2026-09-23] **실측 모바일 통합 화면 운영 반영(PR #424·#425 칩 색·#426 사진 제목 중복·#427 시트 압축·#428 담당자 색 띠 · production `64058a6c1`)** — 체크리스트+카드 두 벌을 담당자 탭·접기·바텀시트 한 목록으로(16곳 1,242px). 사진첩 저장 시트·담당자별 시간순 포함. 선행: 체크리스트·긴급 알림 PR #421, 색 A안 #422. 잔여: 아이폰·안드로이드 실기기(사진첩 저장·두 단 sticky·가로 밀기)
+- [2026-09-23] **CS 단계 완료 자리 2건(PR #417 · production `889d22503`)** — ① 자가실측 보드 CS 단계 주문이 진행 중에 남아 [완료] 버튼 없음(#5220) → 설치예정 = SCHEDULED ∪ stage CS ② 주문 대시보드 파이프라인 막대 완료·CS 순서 뒤바뀜(`process_steps` 손 목록) → `MAIN_PIPELINE_CODES` 순. 스테이징 실화면·CLAUDE-TEST 완료 클릭 확인. ③ 상태 드롭다운 진행 단계(실측~CS) 흰 바탕 흰 글자 → 회색(PR #418 · production `93ed406cc`). 참고: perf-gate `/erp/as` 가 예산 경계(168/168ms)에서 흔들린다
 - [2026-09-20] **고객 컨펌 승인 → 생산 단계 자동 이동 + 생산 보드 run 축 + 모바일 동기화(deploy 대기)** — 승인 완료 판정을 `check_quest_approvals_complete` 하나로(담당자 승인을 생산 게이트가 못 읽어 409). 제작 시작 = run 발급, 제작 취소 = run 종결. 원장 `docs/plans/2026-09-17-confirm-to-production-workflow-ledger.md`
 - [2026-09-13] **네이버 주문 마크 — 고객 이름 옆(deploy 대기)** — 판정 축은 출처(`source == SOURCE_MARKER`), `naver_linked` 아님. 대시보드 코호트 6곳 전수. 원장 `docs/plans/2026-09-13-naver-channel-mark-impl-brief.md`
 - [2026-09-13] **도면 모바일 제보 3건 수정(deploy 대기)** — 근거 `docs/plans/2026-09-13-drawing-mobile-change-line-fixes-brief.md`. 잔여: 실기기 확인
 - [2026-09-12] **도면 주문 변경 UI 재설계(운영 반영 PR #366)** — 근거 `docs/plans/2026-09-11-drawing-mobile-order-change-brief.md`. 잔여: 스테이징 실화면 확인
 - [2026-09-11] **네이버 취소·반품 부분 선택(deploy 대기 · 게이트 `FOMS_NAVER_PARTIAL_CLAIM_ENABLED`+`_COHORT`)** — 스펙 `docs/specs/2026-09-11-naver-partial-claim_SPEC.md` §11. **잔여: 스테이징 §8 ①②③ + 사용자 #2354 화면 확인**
-- [2026-09-11] **도면 마법사 캔버스 소실 사고 종결(production `5564994a6`·PR #353)** — 주문 폼 전체 저장 1회가 `drawing_wizard` 를 통째 삭제(보존 목록 누락, 감사엔 `변경 0건`). 같은 자리 6번째라 등재 대신 **비-폼 키 기본 보존**으로 뒤집음. 피해=마법사 쓴 주문 2건 전부, **둘 다 R2 스냅샷으로 복구**. 기록 `docs/plans/2026-09-11-drawing-wizard-data-loss-incident.md`
 
 ## 알려진 이슈
 - 차단 이슈 없음. 남은 구조 부채는 `WR-B1`/`WR-J1`/`WR-H1` 처럼 explicit future-batch 조건으로만 존재한다. `wdcalculator_scripts_config.html` Jinja 변수 주입 구간의 JS lint false-positive 는 기존과 동일.
@@ -48,6 +54,7 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 
 
 ## 최근 완료 (최대 5개)
+- [2026-09-29] **과거 이력 검색이 숨은 JSON 값에 걸리던 문제(PR #439 · production `3038c5276`)** — "6514" 검색에 발송 시각·금액·uid·네이버 주문번호에 숫자가 든 주문 9건이 섞였다. 원인은 `cast(structured_data, String).ilike`. 가시 필드만 + 숫자 4자리는 전화 끝자리·주문번호 정확 일치, 통합 검색 폴백도 JSON 전체 매칭 제거. 운영 실측 6514→2건(1223·5449), 1865140→0건
 - [2026-09-13] **탭 왕복 느림 종결 — 서버 렌더 2~5배(PR #362·#367·#370 · production `22acd17cc`)** — 원인 셋: ① `with phase()` 안 인자 식 선평가로 조회가 템플릿 시간으로 계상(진짜 Jinja 5~7ms) ② 배포 직후 첫 방문자의 템플릿 컴파일 550~590ms(4 프로세스) → 부팅 워밍 ③ `raw_snapshot` 평균 2,194B 가 TOAST 임계를 넘어 같은 스캔이 14,736버퍼·50.5ms → 249·1.5ms → 클레임 축 사본 컬럼 4개(`nvmirror_00`). **운영 백필 완료 2,393행·전수 대조 불일치 0**. 실측 이력 탭 388~1,061 → 189~297ms, 처리 탭 696~1,428 → 193~259ms. 원장 §10~§16
 - [2026-09-09] **매일 자동 점검 반쪽 판정 종결(deploy `69586ee0c`)** — 하트비트 축만 봐 큐 적체·DEAD 를 못 봤다. 결론을 `evaluate_readiness` 에 위임. 잔여: 운영 승격
 - [2026-09-10] **운영 대기분 선별 승격(PR #339 · production `3888da9ab`)** — 원장 `docs/plans/2026-09-09-production-pending-triage.md`. 지난 날짜 발송 띠·ACL·백필 갈래 철회·drift 924·perf 18466·하네스/문서 동기화. **로그인 잠금(`40d25bb1b`)만 deploy 잔류(사용자 보류)**
@@ -186,6 +193,11 @@ Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 - [2026-04-15] **Strict final canonical tree `SFC-B11B` slice 2 (`dashboards`, §6.16):** 구현을 `foms/web/dashboards/routes.py`로 이전; `foms/web/dashboards/__init__.py`는 `routes`만 import; `apps/dashboards.py`는 `foms.web.dashboards` 재노출 shim. 검증: `APP_OK`, `verify_result.py --json`, `pytest tests` **586 passed**. 근거: batch11b **§Slice B11B-2**.
 
 ## 기록 보관 (strict canonical / 이전 배치 요약)
+- [2026-09-30] **도면 탭 고객 보내기(PR #458 · production `eb181215`)** — 보내기·고객 요청·고객 OK 확정·요청 고치기·번호 바꾸기·PC 긴급 호출. 운영 알림톡 테스트 1회 수신 확인 뒤 회차 이름 스위치 켬(FOMS_SHARE_ROUND_DOC_LABEL=1)
+- [2026-09-29] **도면 결함 2차(PR #457 · production `9cd99254`)** — 폼 저장 도면 잠금·행 잠금·남의 파일 삭제 차단·고객컨펌/제작 시작 게이트·생산 배지. 잔여: 고아 도면 51개 정리(승인 대기) · wizard 쓰기 3곳은 09-30 막음
+- [2026-09-22] **시공일 지난 적체 주문 일괄 완료 — 운영 적용 완료(413건)** — 1차(+7일) 413 + 2차(시공일<오늘, 사용자 수동 시공일 입력 뒤) 174 = 587건. 실측 858→237 · 도면 101→48 · 완료 1451→2038. AS 탭 건 143 은 stage 만(AS 축 지문 두 차례 모두 적용 전후 동일 · AS 탭 불변). 스냅샷 `C:/tmp/foms-backlog-complete-20260922/`(rollback 가능). 잔여: 시공일 없는 건 CSV 영업 검토. 스펙 `docs/plans/2026-09-22-past-construction-bulk-complete-spec.md`
+- [2026-09-11] **도면 마법사 캔버스 소실 사고 종결(production `5564994a6`·PR #353)** — 주문 폼 전체 저장 1회가 `drawing_wizard` 를 통째 삭제(보존 목록 누락, 감사엔 `변경 0건`). 같은 자리 6번째라 등재 대신 **비-폼 키 기본 보존**으로 뒤집음. 피해=마법사 쓴 주문 2건 전부, **둘 다 R2 스냅샷으로 복구**. 기록 `docs/plans/2026-09-11-drawing-wizard-data-loss-incident.md`
+- [2026-09-13] **탭 왕복 느림 종결 — 서버 렌더 2~5배(PR #362·#367·#370 · production `22acd17cc`)** — 원인 셋: ① `with phase()` 안 인자 식 선평가로 조회가 템플릿 시간으로 계상(진짜 Jinja 5~7ms) ② 배포 직후 첫 방문자의 템플릿 컴파일 550~590ms(4 프로세스) → 부팅 워밍 ③ `raw_snapshot` 평균 2,194B 가 TOAST 임계를 넘어 같은 스캔이 14,736버퍼·50.5ms → 249·1.5ms → 클레임 축 사본 컬럼 4개(`nvmirror_00`). **운영 백필 완료 2,393행·전수 대조 불일치 0**. 실측 이력 탭 388~1,061 → 189~297ms, 처리 탭 696~1,428 → 193~259ms. 원장 §10~§16
 
 ### 2026-09-08 상단 정리 — 진행 중에서 이관
 - [2026-09-07] **삭제 축 통일 운영 반영(PR #309 · production `5f195e0ea`)** — 휴지통 낱말 한 벌: `read_order_trash` 를 `orders/soft_delete.py` 로 옮겨 pane 머리줄·유령 블록·후보 표·검색 표가 한 함수를 읽는다(후보 표 시각 `09-07 08:41` 형식으로 바뀜, 템플릿 무변경). 저장 규약 한 벌: 일괄 삭제(KST)·드래프트 폐기(ISO)·cron 초안 정리 3자리를 naive UTC 고정폭으로. 인벤토리 게이트로 회귀 차단
