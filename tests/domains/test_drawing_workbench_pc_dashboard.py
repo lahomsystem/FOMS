@@ -176,27 +176,63 @@ def test_rows_expose_next_action_tone_and_template_applies_class() -> None:
 
 
 def test_pending_split_into_waiting_and_in_progress_labels() -> None:
+    """행 상태 라벨은 파이프라인 칸(_workbench_bucket)과 같은 말을 한다."""
     route = _read(WORKBENCH)
-    assert "def _drawing_row_status_label(" in route
-    assert "return '작업중' if has_assignee else '대기중'" in route
+    assert "def _drawing_row_status_label(bucket: str, drawing_status: str)" in route
+    assert "_WORKBENCH_BUCKET_LABELS = {'WAITING': '대기중', 'IN_PROGRESS': '작업중'}" in route
     # 전역 _drawing_status_label 은 무변경(행 레벨 오버라이드만).
-    assert "'drawing_status_label': _drawing_row_status_label(drawing_status, has_assignee)," in route
+    assert "'drawing_status_label': _drawing_row_status_label(bucket, drawing_status)," in route
     display = _read(ERP_DISPLAY)
     assert "'PENDING': '작업중'," in display
 
 
-def test_stats_split_waiting_and_in_progress() -> None:
+def test_stats_use_single_bucket_predicate_and_open_queue_total() -> None:
+    """타일 숫자는 _workbench_bucket 한 판정으로 세고, '전체' = 열린 큐 네 칸의 합."""
     route = _read(WORKBENCH)
-    assert "status = 'WAITING' if r.get('no_assignee') else 'IN_PROGRESS'" in route
-    assert "'WAITING': 0, 'IN_PROGRESS': 0" in route
+    assert "WORKBENCH_OPEN_BUCKETS = ('WAITING', 'IN_PROGRESS', 'RETURNED', 'TRANSFERRED')" in route
+    stats_block = route.split("    # 프로세스 맵 카운트는")[1].split("    if focus_order_id:")[0]
+    assert "stats = {'total': 0, 'WAITING': 0, 'IN_PROGRESS': 0" in stats_block
+    assert "bucket = r.get('bucket') or _workbench_bucket(r)" in stats_block
+    assert "if bucket not in WORKBENCH_OPEN_BUCKETS:" in stats_block
+    assert "stats['total'] += 1" in stats_block
+    # 음성 대조: 옛 len(rows) 기반 전체·PENDING 담당 분기 집계가 돌아오면 안 된다.
+    assert "'total': len(rows)" not in route
+    assert "status = 'WAITING' if r.get('no_assignee') else 'IN_PROGRESS'" not in route
+    # 누적 완료는 모드와 무관하게 SQL 카운트 한 가지(include_confirmed 분기 없음).
+    assert "stats['CONFIRMED'] = int(_seed_blob.get('confirmed_count') or 0)" in stats_block
+    assert "if not include_confirmed:" not in stats_block
 
 
 def test_status_filter_matches_split_buckets() -> None:
+    """상태 필터는 타일과 같은 판정 함수를 쓴다 — 칸을 누르면 그 숫자만큼 나온다."""
     route = _read(WORKBENCH)
-    assert "if status_filter == 'WAITING':" in route
-    assert "return s == 'WAITING' or (s == 'PENDING' and bool(row.get('no_assignee')))" in route
-    assert "if status_filter == 'IN_PROGRESS':" in route
-    assert "return s == 'IN_PROGRESS' or (s == 'PENDING' and not row.get('no_assignee'))" in route
+    fn = route.split("def _match_status(row: dict[str, Any]) -> bool:")[1].split("rows = [r for r in rows if _match_status(r)]")[0]
+    assert "_workbench_bucket(row)) == status_filter" in fn
+    assert "no_assignee" not in fn, "필터가 담당 여부를 따로 판정하면 타일 숫자와 어긋난다"
+
+
+def test_bucket_predicate_counts_wizard_work_as_in_progress() -> None:
+    route = _read(WORKBENCH)
+    fn = route.split("def _workbench_bucket(")[1].split("\ndef ")[0]
+    assert "if status in ('RETURNED', 'TRANSFERRED', 'CONFIRMED'):" in fn
+    assert "if status in ('PENDING', 'IN_PROGRESS') and (" in fn
+    assert "not row.get('no_assignee') or row.get('has_saved_work')" in fn
+    assert fn.rstrip().endswith("return 'WAITING'"), "모르는 상태값은 대기중으로 떨어진다"
+    assert "has_saved_work = _drawing_wizard_has_saved_work(sd)" in route
+
+
+def test_confirmed_tile_detached_and_labeled_cumulative() -> None:
+    body = _read(BODY)
+    pipeline = body.split('<div class="erp-pro-pipeline">')[1].split('data-filter="overdue"')[0]
+    confirmed = pipeline.split('data-status="TRANSFERRED"')[1]
+    # 확정대기 뒤에 화살표(connector) 없이 간격으로 뗀다.
+    assert "erp-pro-pipeline__connector" not in confirmed
+    assert 'erp-pro-pipeline__stage--detached ms-2' in confirmed
+    assert 'data-status="CONFIRMED"' in confirmed
+    assert '<div class="erp-pro-pipeline__label">누적 완료</div>' in confirmed
+    assert '<div class="erp-pro-pipeline__label">완료</div>' not in body
+    css = _read(STYLES)
+    assert ".dw-process-map .erp-pro-pipeline__stage--detached {" in css
 
 
 def test_pipeline_tiles_keep_waiting_and_in_progress_data_status() -> None:

@@ -13,7 +13,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from sqlalchemy import or_
+from sqlalchemy import and_, or_
 
 from models import Order
 
@@ -51,10 +51,18 @@ def count_confirmed_drawing_orders(base_query) -> int:
         base_query: 목록과 같은 base scope(active·ERP·mine) 가 적용된 ``Order`` 쿼리.
 
     Returns:
-        컨펌 상태 주문 수(중첩/flat 두 키 중 하나라도 ``CONFIRMED``).
+        컨펌 상태 주문 수. 목록 행 판정(``effective_drawing_status``)과 같은 순서로 읽는다 —
+        최상위 ``drawing_status`` 가 있으면 그 값, 비었을 때만 중첩 ``drawing.status``.
+        두 키 중 하나라도 ``CONFIRMED`` 면 세던 옛 식은 최상위가 ``RETURNED`` 인데 중첩이
+        ``CONFIRMED`` 로 남은 주문을 수정요청과 완료 양쪽에 이중으로 셌다.
     """
     nested, flat = _drawing_status_exprs()
-    return base_query.filter(or_(nested == 'CONFIRMED', flat == 'CONFIRMED')).count()
+    return base_query.filter(
+        or_(
+            flat == 'CONFIRMED',
+            and_(or_(flat.is_(None), flat == ''), nested == 'CONFIRMED'),
+        )
+    ).count()
 
 
 def build_drawing_queue_filter(*, include_confirmed: bool = False):

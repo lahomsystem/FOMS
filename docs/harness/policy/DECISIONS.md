@@ -10,6 +10,18 @@
 
 ---
 
+### [2026-09-30] 도면 작업실 진행 막대 — 전체는 열린 일만 · 누적 완료는 따로 · 저장만 해도 작업중 · 마법사 저장이 담당 자동 지정
+- **키워드**: 도면 작업실, pipeline, 대기중, 작업중, 확정대기, 누적 완료, _workbench_bucket, count_confirmed_drawing_orders, 담당자 자동 지정, drawing_assignee_write, WIZARD_AUTO
+- **결정**: ① 전체 = 대기중+작업중+수정요청+확정대기(토글·검색과 무관), 완료는 떨어진 "누적 완료" 칸(최상위 drawing_status 우선). 기본 목록에서 완료 주문은 빠진다(토글·완료 칸·검색 때만). ② 한 판정 함수 `_workbench_bucket` 이 칸 숫자·칸 클릭 목록·행 이름표를 함께 정한다 — 담당자 id 가 있거나 마법사 저장 작업(pending 또는 objects 있는 시트)이 있으면 작업중, 모르는 상태값은 대기중. ③ 도면 담당이 없는 주문을 도면팀 활성 사용자가 마법사로 저장(PUT·시트 PNG)하면 같은 잠금 쓰기 안에서 그 사람을 담당으로 넣는다(이력 "도면 담당자 자동 지정: 이름 (마법사 저장)", OrderEvent change_method WIZARD_AUTO, 알림 없음 — 수동 지정과 같음). 도면팀 아닌 관리자는 넣지 않는다.
+- **이유**: 운영 측정(읽기 전용) — 칸 합 122 대 전체 84(완료가 전 단계 누적이라 다른 모집단), 저장만 한 주문(5361)이 대기중. 사용자 결정 2026-09-30.
+- **영향**: `foms/web/drawing/workbench.py`, `foms/services/drawing_workbench_read_model.py`, `foms/services/orders/drawing_assignee_write.py`(새), `foms/api/drawing/erp_orders_draftsman.py`·`wizard.py`, `templates/drawing/partials/workbench_dashboard_body.html`·`workbench_dashboard_styles.html`.
+
+### [2026-09-30] 도면 마법사 부가 쓰기 3곳도 행 잠금 + 버전 +1 · 옛 파일 삭제는 공통 판정
+- **키워드**: 도면 마법사, wizard, sheet-png, pending delete, version-snapshot, lock_order_row, execute_single_order_write, mutation_version, drawing_key_safety, split_deletable_keys, lost update
+- **결정**: 시트 PNG 대기 등록·대기 삭제·버전 스냅샷 라우트는 첫 조회를 `lock_order_row` 로 잠그고(시트 PNG 는 업로드를 잠금 밖에서 한 뒤 잠근다), 쓰기는 `execute_single_order_write`(정책 `DRAWING_WIZARD_SHEET_PNG`·`DRAWING_WIZARD_PENDING_DELETE`·`DRAWING_WIZARD_SNAPSHOT`)로 버전을 1 올린다. 시트 재저장의 옛 대기 파일과 30개 넘는 옛 스냅샷 파일은 커밋 뒤 `split_deletable_keys(scope='drawing')` 가 지워도 된다고 한 것만 지운다.
+- **이유**: 세 곳이 잠금 없이 읽은 옛 dict 를 통째로 되써서 그 사이 커밋된 수정요청·전달을 지웠다(PG 두 세션 음성 대조로 세 곳 모두 재현). 도면 결함 2차 설계서 §10-14(재저장이 전달된 현재 도면 파일을 지울 수 있음)도 함께 닫는다. 2차에서 승인한 2a-1② 패턴의 연장.
+- **영향**: `foms/api/drawing/wizard.py`, tests `test_drawing_route_version_bump.py`·`test_drawing_wizard_sheet_png_key_safety.py`(새)·`tests/postgres/test_drawing_wizard_writes_row_lock_pg.py`(새), 인벤토리 3종.
+
 ### [2026-09-30] 도면 수정 요청은 출처로 나누지 않는다 · 주문 변경 이력은 도면 쪽만 본다
 - **키워드**: 도면, 수정 요청, rev_sales, rev_customer, rev_post, source, received_via, 내 의견, 고객 요청, ERP_ORDER_CHANGED, 주문 변경, can_ack_order_change
 - **결정**: ① 수정 요청 버튼·시트·요청 고치기에서 "누구 말인가요(고객 요청/내 의견)"와 "어떻게 받았나요"를 없애고 라벨은 모두 "수정 요청". 새 화면은 `source`·`received_via` 를 보내지 않는다(API 는 옛 호환으로 계속 받는다, 옛 기록의 "고객 요청 · N차" 표시는 남긴다). 지난 회차 요약은 "수정요청 N건" 하나. ② 도면 작업실의 주문 변경 이력(모바일 분홍 말풍선·상태 줄, PC 변경 이력 카드·타임라인 항목·JSON 내려받기)은 도면 작업 참여자 + 관리자(`can_ack_order_change`)만 본다 — 영업 아이디에는 그리지 않는다.

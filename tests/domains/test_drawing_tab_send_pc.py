@@ -354,3 +354,18 @@ def test_sheet_alerts_survive_global_autodismiss(client, monkeypatch, people):
     alerts = [a for mid in ids for a in soup.select(f"{mid} .alert")]
     assert len(alerts) >= 10
     assert [a.get_text(strip=True)[:20] for a in alerts if not a.has_attr("data-foms-no-autodismiss")] == []
+
+
+def test_revision_preview_opens_viewer_on_image_click(client, monkeypatch, people):
+    """수정요청 시트 도면 미리보기 — 파일명 줄·[전체화면] 버튼 없이 이미지를 누르면 공용 뷰어로 연다."""
+    oid = _order(people["drafter"]["id"])
+    _inject(monkeypatch, {"bar": _bar("rev_customer")})
+    soup = _page(client, people["sales"], oid)
+    modal = soup.select_one("#dwRevisionModal")
+    assert modal.select_one("#dw-revision-drawing-preview-stage") is not None
+    assert modal.select_one("#dw-revision-drawing-preview-expand") is None
+    assert modal.select_one("#dw-revision-drawing-preview-label") is None
+    html = str(soup)
+    assert "data-revision-preview-focus" in html
+    assert "getElementById('dw-revision-drawing-preview-stage')?.addEventListener('click'" in html
+    assert "window.GlobalImageViewer.open(files, index)" in html

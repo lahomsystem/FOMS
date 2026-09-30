@@ -186,6 +186,7 @@
       max-width: 100%;
       max-height: 42vh;
       object-fit: contain;
+      cursor: zoom-in;
     }
 
     /* 실행판 상단 헤더: 오른쪽(상태·미확인) 잘림 방지 */
@@ -1831,12 +1832,6 @@
             <div id="dw-revision-drawing-preview-stage" class="dw-revision-drawing-preview__stage">
               <div class="text-muted small py-4 text-center">아래 도면을 선택하면 크게 표시됩니다.</div>
             </div>
-            <div class="d-flex justify-content-between align-items-center mt-2 gap-2 flex-wrap">
-              <span id="dw-revision-drawing-preview-label" class="small fw-semibold text-primary"></span>
-              <button type="button" class="btn btn-sm btn-outline-primary" id="dw-revision-drawing-preview-expand" disabled>
-                <i class="fas fa-expand"></i> 전체화면
-              </button>
-            </div>
           </div>
           <div id="dw-revision-target-cards" class="row g-2 mb-2">
             {% for f in drawing_files %}
@@ -2076,13 +2071,10 @@
 
     function previewRevisionTargetCard(card) {
       const stage = document.getElementById('dw-revision-drawing-preview-stage');
-      const label = document.getElementById('dw-revision-drawing-preview-label');
-      const expandBtn = document.getElementById('dw-revision-drawing-preview-expand');
       if (!stage || !card) return;
 
       const viewUrl = String(card.dataset.viewUrl || '');
       const filename = String(card.dataset.filename || '도면');
-      const num = String(card.dataset.drawingNum || '');
       const key = String(card.dataset.key || '');
       const isImage = dwIsDrawingImageFilename(filename);
 
@@ -2092,6 +2084,8 @@
         img.src = viewUrl;
         img.alt = filename;
         if (key) img.dataset.storageKey = key;
+        img.dataset.revisionPreviewFocus = key;
+        img.title = '눌러서 크게 보기';
         stage.appendChild(img);
         if (window.erpReplaceThumbnailsWithPresigned) window.erpReplaceThumbnailsWithPresigned(stage);
       } else if (viewUrl) {
@@ -2115,12 +2109,6 @@
         empty.className = 'text-muted small py-4 text-center';
         empty.textContent = '미리보기를 사용할 수 없습니다.';
         stage.appendChild(empty);
-      }
-
-      if (label) label.textContent = num ? (num + '번 · ' + filename) : filename;
-      if (expandBtn) {
-        expandBtn.disabled = !(viewUrl && isImage);
-        expandBtn.dataset.focusKey = key;
       }
     }
 
@@ -2154,8 +2142,11 @@
 
     if (!window.__DW_REVISION_PREVIEW_EXPAND_BOUND) {
       window.__DW_REVISION_PREVIEW_EXPAND_BOUND = true;
-      document.getElementById('dw-revision-drawing-preview-expand')?.addEventListener('click', function () {
-        openDwRevisionDrawingViewer(this.dataset.focusKey || '');
+      // 미리보기 이미지를 누르면 FOMS 공용 뷰어(GlobalImageViewer)로 크게 — 따로 [전체화면] 버튼은 두지 않는다.
+      document.getElementById('dw-revision-drawing-preview-stage')?.addEventListener('click', function (e) {
+        const img = e.target && e.target.closest ? e.target.closest('img[data-revision-preview-focus]') : null;
+        if (!img) return;
+        openDwRevisionDrawingViewer(img.dataset.revisionPreviewFocus || '');
       });
     }
 
