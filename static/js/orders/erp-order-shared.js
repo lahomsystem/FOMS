@@ -4250,8 +4250,9 @@ async function erpLoadAttachments() {
             fileInput.value = '';
         }
 
-        // R4: 내부 첨부 탭은 교체된 옛 도면도 받아 '교체됨' 으로 흐리게 보인다(생산·시공·고객은 숨김).
-        const res = await fetch(`/api/orders/${ORDER_ID}/attachments?include_superseded=1`);
+        // 교체된 옛 도면은 받지 않는다 — 주문 화면은 최종 도면만(2026-09-30 사용자 결정, 주문 5331).
+        // 옛 도면 이력은 도면 작업실 타임라인에서 본다. 채널톡 발주방 PUSH·고객 링크도 최종본만.
+        const res = await fetch(`/api/orders/${ORDER_ID}/attachments`);
         const data = await res.json();
         if (!data.success) throw new Error(data.message || '첨부 목록 조회 실패');
         const loaded = data.attachments || [];

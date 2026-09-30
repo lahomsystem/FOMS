@@ -131,15 +131,13 @@ def _read(rel: str) -> str:
     return (_ROOT / rel).read_text(encoding="utf-8")
 
 
-@pytest.mark.parametrize("rel", [
-    "static/js/orders/erp-order-shared.js",
-    "static/js/orders/dashboard/erp-dashboard-attachments.js",
-])
-def test_internal_attachment_tabs_opt_in(rel):
-    """ERP 내부 첨부 탭 두 곳만 인자를 붙이고 is_superseded 로 흐린 표시를 건다."""
-    text = _read(rel)
-    assert "/attachments?include_superseded=1" in text
-    assert "is_superseded" in text
+def test_order_edit_attachment_tab_shows_final_drawings_only():
+    """주문 화면 첨부 탭은 옛 도면을 받지 않는다(2026-09-30 사용자 결정 — 최종 도면만).
+
+    주문 대시보드 첨부 창은 페이지 표시가 있을 때만 인자를 붙이는 장치를 남겨 두지만, 그 표시를
+    뺐으므로 역시 숨긴다(test_attachment_superseded_page_scope.py 가 실제 렌더로 고정).
+    """
+    assert "include_superseded=1" not in _read("static/js/orders/erp-order-shared.js")
 
 
 @pytest.mark.parametrize("rel", [
