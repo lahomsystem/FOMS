@@ -1815,3 +1815,39 @@ def test_history_find_survives_chips_and_pager(client, workbench_on):
 
     assert chips.count("q=N-FIND-KEEP") >= 7, \
         f"칩 8개가 전부 찾기 낱말을 들고 가야 한다: {chips.count('q=N-FIND-KEEP')}"
+
+
+def test_household_title_shows_our_manager_only_when_assigned(client, workbench_on):
+    """우리 담당자는 `주문 단위` 제목 줄 칩으로 나온다 — 지정 안 된 주문은 칩이 없다.
+
+    담당자는 네이버 원본이 없는 FOMS 전용 값이라 대조표 줄이 아니라 제목 줄에 둔다
+    (표 줄로 넣으면 네이버 칸이 늘 빈다). 빈 칩("담당 없음")은 소음이라 내지 않는다.
+    """
+    _login(client)
+    order = Order(received_date="2026-09-30", customer_name="하무정",
+                  phone="010-3803-2215", address="서울 양천구 1", product="붙박이장",
+                  status="RECEIVED", manager_name="홍담당")
+    bare = Order(received_date="2026-09-30", customer_name="무담당",
+                 phone="010-3803-2216", address="서울 양천구 2", product="붙박이장",
+                 status="RECEIVED", manager_name="  ")
+    db_session.add_all([order, bare])
+    db_session.commit()
+    links = []
+    for no, target in (("N-WB-OWNER", order), ("N-WB-NOOWNER", bare)):
+        link = _collected(order_no=no, product="붙박이장", amount=100000)
+        row = db_session.get(ExternalOrderLink, int(link.id))
+        row.order_id = int(target.id)
+        row.sync_status = "LINKED"
+        links.append(row)
+    db_session.commit()
+
+    body = client.get(f"{TRIAGE_PATH}?link_id={links[0].id}").get_data(as_text=True)
+    title = body.split('data-cmp-section="household"')[1].split("</div>")[0]
+    assert 'class="wb-owner"' in title, title
+    assert "홍담당" in title
+    table = body.split('data-cmp-section="household"')[1].split("<table")[1].split("</table>")[0]
+    assert "홍담당" not in table, "대조표 줄로 들어가면 네이버 칸이 빈다"
+
+    body = client.get(f"{TRIAGE_PATH}?link_id={links[1].id}").get_data(as_text=True)
+    title = body.split('data-cmp-section="household"')[1].split("</div>")[0]
+    assert "wb-owner" not in title, "공백뿐인 담당자는 지정 안 된 것이다"
