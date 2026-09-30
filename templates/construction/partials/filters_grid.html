@@ -9,7 +9,7 @@
           <div class="d-flex justify-content-between align-items-center mb-3">
             <div>
               <h5 class="mb-0 fw-bold text-dark"><i class="fas fa-table text-primary"></i> 작업 큐</h5>
-              <small class="text-muted">주문 처리 및 퀘스트 관리</small>
+              <small class="text-muted">주문별 현재 작업</small>
             </div>
             <div>
               <span class="badge bg-primary fs-6 px-3 py-2">표시: <strong>{{ orders|length }}</strong>건</span>
@@ -22,7 +22,7 @@
                 <tr>
                   <th class="erp-grid-th">경보</th>
                   <th class="erp-grid-th">단계</th>
-                  <th class="erp-grid-th">퀘스트</th>
+                  <th class="erp-grid-th">현재 작업</th>
                   <th class="erp-grid-th">고객</th>
                   <th class="erp-grid-th">연락처</th>
                   <th class="erp-grid-th">주소</th>
@@ -66,7 +66,7 @@
                   </td>
                   <td data-label="단계"><span class="badge bg-secondary erp-c-stage-badge"
                       >{{ o.stage }}</span></td>
-                  <td data-label="퀘스트" class="erp-quest-cell erp-wrap">
+                  <td data-label="현재 작업" class="erp-quest-cell erp-wrap">
                     {% if o.stage == '시공대기' %}
                     <div class="erp-grid-quest-stack">
                       <button type="button" class="btn btn-outline-primary btn-sm erp-construction-action" data-order-id="{{ o.id }}" data-action="startConstruction">
@@ -99,7 +99,7 @@
                       {% if o.current_quest.all_approved %}
                       <span class="badge bg-success" style="font-size: 1rem; padding: 0.4em 0.7em;">완료</span>
                       {% else %}
-                      <span class="badge bg-warning" style="font-size: 1rem; padding: 0.4em 0.7em;">진행중</span>
+                      <span class="badge bg-warning" style="font-size: 1rem; padding: 0.4em 0.7em;">할 일</span>
                       {% endif %}
                       <button class="btn btn-sm btn-outline-info fw-semibold" type="button" data-bs-toggle="collapse"
                         data-bs-target="#quest-collapse-{{ o.id }}" aria-expanded="false"
@@ -114,7 +114,7 @@
                     <div class="collapse mt-2" id="quest-collapse-{{ o.id }}">
                       <div class="card card-body border-0 bg-light">
                         <div class="fw-bold mb-3" style="font-size: 1.05rem;"><i
-                            class="fas fa-flag-checkered text-primary"></i> 현재 단계 퀘스트</div>
+                            class="fas fa-flag-checkered text-primary"></i> 현재 작업</div>
 
                         <div class="card mb-3 shadow-sm">
                           <div class="card-body">
@@ -127,7 +127,7 @@
                               <span
                                 class="badge {% if o.current_quest.all_approved %}bg-success{% else %}bg-warning{% endif %}"
                                 style="font-size: 0.9rem; padding: 0.4em 0.6em;">
-                                {% if o.current_quest.all_approved %}완료{% else %}진행중{% endif %}
+                                {% if o.current_quest.all_approved %}완료{% else %}할 일{% endif %}
                               </span>
                             </div>
                             <div class="mb-3">
@@ -136,7 +136,7 @@
                                 team_labels.get(o.current_quest.owner_team, o.current_quest.owner_team) }}</div>
                             </div>
                             <div class="mb-3">
-                              <div class="text-muted mb-2 fw-semibold" style="font-size: 0.9rem;">팀별 승인</div>
+                              <div class="text-muted mb-2 fw-semibold" style="font-size: 0.9rem;">담당</div>
                               <div id="quest-approvals-{{ o.id }}">
                                 {% for team in o.current_quest.required_approvals %}
                                 {% set approved = o.current_quest.team_approvals.get(team, False) %}
@@ -145,13 +145,13 @@
                                     }}</span>
                                   {% if approved %}
                                   <span class="badge bg-success ms-2"
-                                    style="font-size: 0.9rem; padding: 0.3em 0.6em;">승인완료</span>
+                                    style="font-size: 0.9rem; padding: 0.3em 0.6em;">완료</span>
                                   {% else %}
                                   {% set order_id_approve = o.id %}
                                   {% set team_name = team %}
                                   <button class="btn btn-primary fw-semibold ms-2 erp-btn-approve-team"
                                     data-order-id="{{ order_id_approve }}" data-team="{{ team_name }}"
-                                    style="font-size: 0.9rem; padding: 0.3rem 0.6rem;">승인</button>
+                                    style="font-size: 0.9rem; padding: 0.3rem 0.6rem;">{{ o.current_quest.approve_label or '확인' }}</button>
                                   {% endif %}
                                 </div>
                                 {% endfor %}

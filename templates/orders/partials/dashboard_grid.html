@@ -101,7 +101,13 @@
                   <td data-col-key="stage" data-label="단계"><span class="badge bg-secondary"
                       style="font-size: 1.1rem; padding: 0.5em 0.7em;">{{ o.stage }}</span></td>
                   <td data-col-key="quest" data-label="현재 작업" class="erp-quest-cell erp-wrap">
-                    {% if o.current_quest %}
+                    {% if o.board_state %}{% set bs = o.board_state %}
+                    <div class="erp-board-state">
+                      <span class="badge {{ {'soft': 'bg-light text-dark border', 'ok': 'bg-success', 'warn': 'bg-warning'}[bs.tone] }}">{{ bs.label }}</span>
+                      {% if bs.title %}<strong>{{ bs.title }}</strong>{% endif %}
+                      {% if bs.link_endpoint %}<a class="btn btn-sm btn-outline-primary" href="{{ url_for(bs.link_endpoint, **bs.link_params) }}">{{ bs.link_label }}</a>{% endif %}
+                    </div>
+                    {% elif o.current_quest %}
                     <div class="erp-grid-quest-stack">
                       {% if o.current_quest.is_done %}
                       {# 완료 quest 인데 단계가 그대로인 막다른 길(강제 단계 변경 뒤) — 승인 버튼과 같은 이름의
@@ -211,7 +217,7 @@
                                     data-confirm="{{ o.current_quest.approve_confirm or '' }}"
                                     style="font-size: 0.9rem; padding: 0.3rem 0.6rem;">{{ o.current_quest.approve_label or '확인' }}</button>
                                   {% elif o.current_quest.is_synthesized and o.stage_code not in ('RECEIVED', 'CS') %}
-                                  {# 저장되지 않은 합성 quest(생산·시공 등)는 보드 명령이 실제 액션 — 권한 문제가 아니다. #}
+                                  {# 저장되지 않은 합성 quest 는 보드 명령이 실제 액션 — 권한 문제가 아니다. #}
                                   <span class="text-muted small ms-2">(보드에서 진행)</span>
                                   {% else %}
                                   <span class="text-muted small ms-2">{% if o.current_quest.approve_blocked %}(도면 수령 확정 전){% else %}(담당자만 누를 수 있어요){% endif %}</span>
@@ -330,9 +336,6 @@
                         </a>
                       </div>
                     </div>
-                    {% elif o.stage in ['생산', 'PRODUCTION'] %}
-                    <!-- 생산 단계: '생산 중' 텍스트 표시 -->
-                    <span class="badge bg-info" style="font-size: 1rem; padding: 0.4em 0.7em;">생산 중</span>
                     {% else %}
                     <span class="text-muted" style="font-size: 1.1rem;">-</span>
                     {% endif %}

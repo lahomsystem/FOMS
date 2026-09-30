@@ -430,9 +430,9 @@
             html += `<div class="mb-2">`;
             html += `<span class="fw-semibold" style="font-size: 1rem;">${escapeHtml(teamLabel)}</span>`;
             if (approved) {
-              html += `<span class="badge bg-success ms-2" style="font-size: 1rem; padding: 0.4em 0.7em;">승인완료</span>`;
+              html += `<span class="badge bg-success ms-2" style="font-size: 1rem; padding: 0.4em 0.7em;">완료</span>`;
             } else {
-              html += `<button class="btn btn-primary fw-semibold ms-2" onclick="approveQuestTeam(${orderId}, '${escapeHtml(team)}')" style="font-size: 1rem; padding: 0.4rem 0.75rem;">승인</button>`;
+              html += `<button class="btn btn-primary fw-semibold ms-2" onclick="approveQuestTeam(${orderId}, '${escapeHtml(team)}')" style="font-size: 1rem; padding: 0.4rem 0.75rem;">확인</button>`;
             }
             html += `</div>`;
           }
