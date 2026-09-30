@@ -10,6 +10,13 @@
 
 ---
 
+### [2026-09-30] 시공·생산 보드의 팀 승인 코드 삭제는 버그 수정이다 — 셸 전환 뒤 확인창 없이 두 번 승인되던 것 · 핀은 올리지 않는다
+- **키워드**: approveQuestTeam, erp-btn-approve-team, __FOMS_CONSTR_SCRIPTS_BOUND, construction/dashboard.js, production/partials/scripts.html, erp-dashboard-detail-dom.js, 셸 전환, 이중 승인, ?v= 핀, max-age 86400, TEAM_LABELS, STAGE_LABELS
+- **결정**: 시공 `static/js/construction/dashboard.js` 와 생산 인라인 `templates/production/partials/scripts.html` 의 `approveQuestTeam`·`.erp-btn-approve-team` body 위임·`loadQuestDetail` 과 이제 쓰지 않는 전역 `TEAM_LABELS`·`STAGE_LABELS`·`label()` 을 지운다. 시공 `scripts.html` 의 `?v=` 핀은 올리지 않는다(선택지 a).
+- **이유**: 이것은 "죽은 코드 정리"가 아니다. 두 파일 모두 전역 classic script 다. 주문 대시보드 체인(`erp-dashboard-entry.js`)은 최초 1회만 실리지만 시공 `dashboard.js` 는 화면을 바꿀 때마다 다시 실행된다. 그래서 주문 대시보드 → 시공 → 주문 대시보드로 돌아오면 ① 시공판 전역 `approveQuestTeam`(확인창 없음, 버튼 인자 없음)이 주문 대시보드판을 덮어쓰고 ② 시공의 body 위임(`__FOMS_CONSTR_SCRIPTS_BOUND` 로 한 번만 묶임)이 `erp-dashboard-detail-dom.js:863` 위임과 함께 불려, 확인창 없이 승인 POST 가 두 번 나갔다. 같은 이름 전역 `TEAM_LABELS`·`STAGE_LABELS`·`label` 도 같은 방식으로 주문 대시보드 전역을 덮어썼다. 브리프(`docs/plans/2026-09-30-pc-quest-followups-brief.md` F3)의 "옛 파일도 동작 같아 무해" 전제는 틀렸다 — 옛 파일이 바로 이 버그다. 핀을 올리지 않는 까닭: 이 삭제는 이미 있던 버그를 고치는 것이라 새 회귀가 아니고, `?v=` 자산의 max-age 가 86400(`foms/platform/app_factory.py:144`)이라 옛 캐시 기기도 최대 1일 안에 고친 파일을 받는다. 핀을 올리려면(선택지 b) 성능 가드의 "script 3개" 빚을 먼저 갚아야 해서 범위 밖이다.
+- **남는 위험**: 핀을 올리지 않아 옛 파일을 캐시한 기기는 최대 1일 동안 기존 동작(셸 전환 뒤 이중 승인)을 그대로 겪는다. 새로 생기는 위험은 없다.
+- **영향**: `static/js/construction/dashboard.js`, `templates/production/partials/scripts.html`, tests `test_pc_board_state_grid.py`(삭제 계약).
+
 ### [2026-09-30] 웹푸시 enqueue 는 worker 가 0대여도 Redis 에 넣는다 · 꺼낸 job 은 30분 넘은 알림이면 버린다
 - **키워드**: Web Push, enqueue_push_for_notification, queue_unavailable, worker_count, waiting_for_worker, QUEUED_PUSH_STALE_AFTER, WORKER 재배포, rq
 - **결정**: Redis 가 닿으면 worker 수와 상관없이 push job 을 enqueue 한다(확실히 0대면 reason `waiting_for_worker`). Redis 가 없거나 닿지 않거나 enqueue 가 실패할 때만 queue_unavailable 로 표기한다. rq 진입점(`send_push_for_notification_task`)은 `max_age=QUEUED_PUSH_STALE_AFTER`(30분)로 불러 오래된 알림은 reason `stale` 로 보내지 않는다(SIDEFX outbox 경로 STALE_AFTER 와 같은 값).

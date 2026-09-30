@@ -69,7 +69,7 @@ ADMIN_HANDLED_TARGET_ROLE = 'ADMIN'
 def _drawing_notice_target(db, manager_name):
     """도면 전달·전달취소 알림의 수신 대상 ``(target_team, target_manager_name, target_role)``.
 
-    라홈 → CS 팀, 하우드 → HAUDD 팀. 그 밖은 **담당 영업 본인만** 받는다 — 팀과 이름을
+    라홈·하우드 → CS 팀(TEAMS 의 CS = 라홈팀/하우드팀). 그 밖은 **담당 영업 본인만** 받는다 — 팀과 이름을
     함께 넣으면 수신자 resolver 가 합집합을 만들어 영업팀 전원에게 퍼진다. 담당자 이름이
     비었거나 활성 사용자와 맞지 않으면 알림이 사라지지 않도록 영업팀 전체로 되돌린다.
 
@@ -78,10 +78,8 @@ def _drawing_notice_target(db, manager_name):
     관리자가 이미 받으므로 이름이 안 맞아도 영업팀 전체로 되돌리지 않는다.
     """
     name = (manager_name or '').strip()
-    if '라홈' in name:
+    if '라홈' in name or '하우드' in name:
         return 'CS', None, None
-    if '하우드' in name:
-        return 'HAUDD', None, None
     admin_handled = ADMIN_HANDLED_MANAGER_KEYWORD in name
     role = ADMIN_HANDLED_TARGET_ROLE if admin_handled else None
     if name:
@@ -416,10 +414,8 @@ def perform_drawing_transfer(
         logger.warning("production change finalize (transfer) failed: %s", e, exc_info=True)
 
     target_info = team_label(target_team) if target_team == 'CS' else (
-        "하우드팀" if target_team == 'HAUDD' else (
-            f"영업팀 - {target_manager_name}" if target_manager_name else (
-                "관리자" if target_role else "영업팀"
-            )
+        f"영업팀 - {target_manager_name}" if target_manager_name else (
+            "관리자" if target_role else "영업팀"
         )
     )
     if target_role and target_manager_name:
