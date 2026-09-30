@@ -1851,3 +1851,25 @@ def test_household_title_shows_our_manager_only_when_assigned(client, workbench_
     body = client.get(f"{TRIAGE_PATH}?link_id={links[1].id}").get_data(as_text=True)
     title = body.split('data-cmp-section="household"')[1].split("</div>")[0]
     assert "wb-owner" not in title, "공백뿐인 담당자는 지정 안 된 것이다"
+
+
+def test_relation_candidate_shows_its_manager(client, workbench_on):
+    """주문이 아직 없는 새 수집분은 담당자가 없다 — 관계 칸 후보 주문 옆에 그 주문의 담당자를 낸다.
+
+    실화(2026-09-30): 사용자가 새 수집분 상세에서 담당자를 찾았는데 칩이 없었다. 이 집은
+    FOMS 주문이 없어 `주문 단위` 칩이 나올 수 없고, 물어볼 사람은 기존 주문의 담당자다.
+    """
+    _login(client)
+    order = Order(received_date="2026-09-04", customer_name="이수취", phone="010-7777-8888",
+                  erp_phone_digits="01077778888", address="서울 강남구 1 101호",
+                  product="붙박이장", status="RECEIVED", manager_name="박후보")
+    db_session.add(order)
+    db_session.commit()
+    link = _collected(order_no="N-WB-CANDMGR", product="붙박이장", amount=100000,
+                      tel="010-7777-8888")
+
+    body = client.get(f"{TRIAGE_PATH}?link_id={link.id}").get_data(as_text=True)
+
+    assert f"#{order.id}" in body, "후보 주문이 관계 칸에 떠야 이 테스트가 성립한다"
+    assert 'class="wb-owner wb-owner--inline"' in body
+    assert "박후보" in body

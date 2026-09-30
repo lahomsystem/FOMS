@@ -81,4 +81,4 @@ def test_pc_pipe_grey_only_touches_the_not_yet_step():
     css = CSS.read_text(encoding="utf-8").replace("\r\n", "\n")
     assert css.count("@media (max-width: 767.98px)") == 1, "폰 블록은 하나(대조군)"
     page = TEMPLATE.read_text(encoding="utf-8")
-    assert page.count("?v=20260930h") == 2 and "?v=20260930f" not in page
+    assert page.count("?v=20260930i") == 2 and "?v=20260930f" not in page
