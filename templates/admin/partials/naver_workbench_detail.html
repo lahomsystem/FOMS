@@ -51,6 +51,10 @@
     {% endif %}
 
     <div class="wb-cmp-title" data-cmp-section="household">
+        {# 우리 담당자 칩 — pane 과 같은 꼴·같은 값(`_triage_pane` foms.manager_name). #}
+        {% if detail.foms.manager_name %}
+        <span class="wb-owner" title="FOMS 주문 담당자"><span class="wb-owner__k">담당</span>{{ detail.foms.manager_name }}</span>
+        {% endif %}
         주문 단위 <span class="wb-cmp-title__sub">한 주문에 하나뿐인 값</span>
         {# 폰(감사 원장 N-21·N-26) — 처리 탭 상세와 같은 꼴: FOMS 값이 없는 칸(`wb-cmp__row--nofoms`)은 네이버 값
            한 줄만, 셋 다 없으면 그 사실을 제목 줄에서 한 번만 말한다. 데스크톱 표는 그대로(`.wb-cmp__nofoms` 숨김). #}
