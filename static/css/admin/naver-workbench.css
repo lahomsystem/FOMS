@@ -521,6 +521,23 @@ input.wb-pick:disabled,
 /* 결정 7: 집 단위와 상품주문 행 단위는 단위가 달라 한 표에 섞지 않는다. */
 .wb-cmp-title { font-weight: 700; margin: 16px 0 6px; }
 .wb-cmp-title__sub { font-weight: 500; color: var(--wb-muted); font-size: calc(11.5px * var(--wb-fs, 1)); }
+/* 우리 담당자 칩(2026-09-30) — FOMS 전용 값이라 대조표 밖, `주문 단위` 제목 줄 오른쪽.
+   이름만 진하게, "담당" 이름표는 흐리게 — 제목보다 튀지 않게 옅은 바탕 한 겹만 쓴다. */
+.wb-owner {
+    float: right;
+    display: inline-flex;
+    align-items: baseline;
+    gap: 5px;
+    padding: 1px 9px;
+    border: 1px solid var(--wb-line);
+    border-radius: 999px;
+    background: var(--wb-surface-soft);
+    color: #111827;
+    font-weight: 600;
+    font-size: calc(12px * var(--wb-fs, 1));
+    line-height: 1.6;
+}
+.wb-owner__k { color: var(--wb-muted); font-weight: 500; }
 .wb-cmp { width: 100%; border-collapse: collapse; font-size: calc(13px * var(--wb-fs, 1)); }
 
 /* 표는 **칸을 꽉 채운다**. 한때 `max-width: 860px` 로 상한을 뒀는데(금액 열이 화면 끝까지

@@ -1635,6 +1635,9 @@ def _triage_pane(db, link: ExternalOrderLink, *,
             "product": getattr(order, "product", None),
             "options": getattr(order, "options", None),
             "payment_amount": getattr(order, "payment_amount", None),
+            # 우리 담당자(2026-09-30). 네이버에는 없는 FOMS 전용 값이라 대조표 줄이 아니라
+            # `주문 단위` 제목 줄 칩으로 낸다. 지정 안 된 주문은 칩을 내지 않는다.
+            "manager_name": (getattr(order, "manager_name", None) or "").strip() or None,
         },
     }
 
