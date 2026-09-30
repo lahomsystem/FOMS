@@ -6,6 +6,8 @@ from flask import Blueprint, abort, flash, make_response, redirect, render_templ
 from db import get_db
 from models import Order
 from foms.web.auth import login_required
+from foms.services.erp_dashboard_search import search_query_tokens, visible_order_search_clause
+from foms.services.foms_unified_search import is_chosung_query
 from sqlalchemy import text
 from foms.services.erp_permissions import can_edit_erp
 from foms.services.orders.mobile_delete_guard import build_mobile_delete_context
@@ -87,6 +89,19 @@ def _redirect_to_history_for_dashboard_search(f_q: str):
         target_args["view"] = "fragment"
     flash("ERP 대시보드에서 결과가 없어 과거 이력 검색으로 이동했습니다.", "info")
     return redirect(url_for("erp_history.history_dashboard", **target_args))
+
+
+def _history_more_link(db, f_q: str, dashboard_total: int):
+    """Return {count, href} when history search finds orders the dashboard does not show."""
+    if is_chosung_query(f_q):
+        return None
+    token_clauses = [visible_order_search_clause(tok) for tok in search_query_tokens(f_q)]
+    history_total = db.query(Order.id).filter(Order.active_filter(), *token_clauses).count()
+    extra = history_total - dashboard_total
+    if extra <= 0:
+        return None
+    target_args = {"q": f_q, "from_dashboard": "1"}
+    return {"count": extra, "href": url_for("erp_history.history_dashboard", **target_args)}
 
 
 def _orders_user_visibility_fingerprint(current_user, is_admin: bool) -> dict:
@@ -175,6 +190,14 @@ def erp_dashboard():
         and not _dashboard_search_history_redirect_blocked(f_team, f_urgent, f_has_alert, f_alert_type)
     ):
         return _redirect_to_history_for_dashboard_search(f_q)
+
+    # 대시보드 범위 밖(오래된 완료 등) 이력 검색 결과 수 — 결과 위에 '과거 이력에 N건 더' 링크.
+    history_more = (
+        _history_more_link(db, f_q, total_orders)
+        if f_q and page == 1 and not focus_order_id and not f_risk
+        and not _dashboard_search_history_redirect_blocked(f_team, f_urgent, f_has_alert, f_alert_type)
+        else None
+    )
 
     orders = _q.offset((page - 1) * per_page).limit(per_page).all()
 
@@ -510,6 +533,7 @@ def erp_dashboard():
         mobile_shell_mytasks_active=f_tower_mine,
         mobile_shell_mytasks_href=_mytasks_href,
         risk_frame=risk_frame,
+        history_more=history_more,
         filters={
             'stage': effective_stage,
             'urgent': f_urgent,
