@@ -17,9 +17,9 @@
   data-user-role="{{ current_user.role | default('', true) | e }}"
   data-can-edit-erp="{{ 'true' if can_edit_erp|default(false) else 'false' }}"
   data-erp-mobile-v2="{{ 'true' if erp_mobile_v2_enabled else 'false' }}"
-  {# R4: 교체된 옛 도면을 '교체됨' 으로 보이는 페이지 표시. 생산·시공 루트에는 두지 않는다 —
-     같은 ERP 번들이 실려도 첨부 창은 이 표시가 있을 때만 include_superseded 를 붙인다. #}
-  data-attachments-show-superseded="1">
+  {# R4 표시(data-attachments-show-superseded="1")는 2026-09-30 사용자 결정으로 뺐다 — ERP 화면은
+     최종 도면만 보이고 옛 도면 이력은 도면 작업실에서 본다. 첨부 창은 표시가 없으면 옛 도면을 숨긴다. #}
+  >
   {% if erp_mobile_v2_enabled %}
     {% include 'partials/shared/erp_mobile_shell.html' %}
   {% endif %}
