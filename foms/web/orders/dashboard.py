@@ -27,6 +27,7 @@ from foms.services.erp_mobile_order_display import (
 )
 from foms.services.erp_order_deeplink import resolve_edit_return_back_endpoint
 from foms.services.orders.status_constants import BULK_ACTION_STATUS
+from foms.services.orders.team_labels import TEAM_LABELS
 from foms.services.orders.dashboard_filters import parse_orders_dashboard_filters
 from foms.services.orders.dashboard_dto import build_orders_row_dtos
 from foms.services.orders.dashboard_read_model import (
@@ -185,15 +186,6 @@ def erp_dashboard():
         )
         if focus_o is not None:
             orders = [focus_o] + orders
-
-    TEAM_LABELS = {
-        'CS': '라홈팀',
-        'SALES': '영업팀',
-        'MEASURE': '실측팀',
-        'DRAWING': '도면팀',
-        'PRODUCTION': '생산팀',
-        'CONSTRUCTION': '시공팀',
-    }
 
     # AS 파이프라인: 'AS처리' 클릭 시 AS접수·AS처리 표시 ('AS완료'는 '완료' 타일로 이동)
     AS_STAGE_GROUP = ('AS접수', 'AS처리')
@@ -596,15 +588,10 @@ def erp_dashboard_tablet_sheet(order_id: int):
         db, [order.id]
     ).get(order.id, [])
 
-    # 대시보드 그리드와 동일 팀 라벨(라홈팀 등) — 목업 미니 퀘스트 "승인: 팀" 표시용.
-    team_labels = {
-        'CS': '라홈팀', 'SALES': '영업팀', 'MEASURE': '실측팀',
-        'DRAWING': '도면팀', 'PRODUCTION': '생산팀', 'CONSTRUCTION': '시공팀',
-    }
     body = render_template(
         'orders/partials/tablet_dashboard_sheet.html',
         o=row,
-        team_labels=team_labels,
+        team_labels=TEAM_LABELS,
         can_edit_erp=can_edit_erp(current_user),
     )
     response = make_response(body)

@@ -64,6 +64,7 @@ from foms.services.erp_permissions import (
 )
 from foms.services.orders.order_mutation_policy import team_has_capability
 from foms.services.erp_policy import STAGE_LABELS
+from foms.services.orders.team_labels import TEAM_LABELS
 # namespace surface 계약(pin): 라우트 본문 미사용이어도 erp_display 재export 유지
 from foms.services.erp_display import (
     _ensure_dict,
@@ -80,16 +81,6 @@ erp_production_page_bp = Blueprint(
 )
 
 logger = logging.getLogger(__name__)
-
-
-TEAM_LABELS = {
-    'CS': '라홈팀',
-    'SALES': '영업팀',
-    'MEASURE': '실측팀',
-    'DRAWING': '도면팀',
-    'PRODUCTION': '생산팀',
-    'CONSTRUCTION': '시공팀',
-}
 
 
 @erp_production_page_bp.route('/production/dashboard')

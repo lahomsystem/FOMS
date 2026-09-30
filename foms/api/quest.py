@@ -19,6 +19,8 @@ from foms.services.audit_message_display import describe_field_change, describe_
 from foms.services.orders.audit_order_context import order_audit_context
 from foms.services.erp_sync_columns import sync_erp_flat_columns
 from foms.services.orders.order_mutation_policy import normalize_team
+from foms.services.orders.quest_approve_cta import display_quest_title
+from foms.services.orders.team_labels import team_label
 from foms.services.orders.quest_approve_authz import (
     approval_slot_team as _approval_slot_team,
     authorize_quest_approve as _authorize_quest_approve,
@@ -123,6 +125,8 @@ def api_order_quest_get(order_id):
             if quest_tpl:
                 owner_person = session.get('username') or ''
                 current_quest = create_quest_from_template(current_stage_code, owner_person, sd)
+        if current_quest:
+            current_quest = {**current_quest, "title": display_quest_title(current_stage_code, current_quest.get("title"))}
 
         return jsonify({
             'success': True,
@@ -680,6 +684,7 @@ def api_order_quest_approve(order_id):
             'quest': current_quest,
             'all_approved': is_complete,
             'missing_teams': missing_teams,
+            'missing_team_labels': [team_label(t) for t in missing_teams],
             'auto_transitioned': auto_transitioned,
             'retransitioned': False,
             'next_stage': next_stage_for_response,

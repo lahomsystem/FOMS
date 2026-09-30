@@ -159,7 +159,7 @@ def test_cta_visible_for_measure_stage(app) -> None:
 
     assert set(cta) == CTA_KEYS
     assert cta["visible"] is True
-    assert cta["label"] == DRAWING_TRANSFER_LABEL == "도면 전달"
+    assert cta["label"] == DRAWING_TRANSFER_LABEL == "도면 단계로 넘기기"
     assert cta["confirm"].strip() != ""
 
 

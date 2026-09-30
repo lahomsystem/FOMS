@@ -2281,16 +2281,7 @@
     },
     {
       "path": "foms/api/quest.py",
-      "lineno": 133,
-      "handler_type": "broad_exception",
-      "disposition": "LOG_AND_CONTINUE",
-      "owner": "api",
-      "has_logging": true,
-      "justification": "logs via logger/log_handled_exception"
-    },
-    {
-      "path": "foms/api/quest.py",
-      "lineno": 195,
+      "lineno": 137,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2308,7 +2299,7 @@
     },
     {
       "path": "foms/api/quest.py",
-      "lineno": 687,
+      "lineno": 203,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2317,7 +2308,7 @@
     },
     {
       "path": "foms/api/quest.py",
-      "lineno": 691,
+      "lineno": 692,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2326,7 +2317,7 @@
     },
     {
       "path": "foms/api/quest.py",
-      "lineno": 782,
+      "lineno": 696,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2335,7 +2326,16 @@
     },
     {
       "path": "foms/api/quest.py",
-      "lineno": 786,
+      "lineno": 787,
+      "handler_type": "broad_exception",
+      "disposition": "LOG_AND_CONTINUE",
+      "owner": "api",
+      "has_logging": true,
+      "justification": "logs via logger/log_handled_exception"
+    },
+    {
+      "path": "foms/api/quest.py",
+      "lineno": 791,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -3361,7 +3361,7 @@
     },
     {
       "path": "foms/services/context_processors.py",
-      "lineno": 257,
+      "lineno": 256,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "services",
@@ -3370,7 +3370,7 @@
     },
     {
       "path": "foms/services/context_processors.py",
-      "lineno": 303,
+      "lineno": 302,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3586,7 +3586,7 @@
     },
     {
       "path": "foms/services/erp_quest_display.py",
-      "lineno": 470,
+      "lineno": 474,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",

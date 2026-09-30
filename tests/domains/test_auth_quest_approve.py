@@ -332,7 +332,7 @@ def test_final_approval_advances_stage_via_canonical_engine(client):
 
 
 def test_measure_assignee_approval_advances_to_drawing(client):
-    """실측 담당자 승인('실측 완료 → 도면 전달')은 MEASURE→DRAWING 전이를 일으킨다."""
+    """실측 담당자 승인('도면 단계로 넘기기')은 MEASURE→DRAWING 전이를 일으킨다."""
     user = _make_user(role="STAFF", team="SALES", username="sales-measure")
     _login(client, user)
     order = _create_order(stage="MEASURE", quests=[_assignee_quest("MEASURE")], status="MEASURE")

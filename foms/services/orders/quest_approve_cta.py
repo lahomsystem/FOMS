@@ -16,13 +16,11 @@ from foms.services.orders.quest_transition_service import (
     stage_advance_target,
 )
 
-__all__ = ["approve_blocked_for", "build_approve_cta"]
+__all__ = ["approve_blocked_for", "build_approve_cta", "display_quest_title"]
 
 
-# stage 코드 → 승인 버튼 문구. 한 이름("퀘스트 승인")으로 묶으면 눌렀을 때 무엇이 되는지
-# 화면이 말해 주지 못한다. DRAWING 은 전용 command 단계라 여기에 없다(버튼 미노출).
-# COMPLETED 도 없다 — 다음 단계가 없어 승인이 아무것도 바꾸지 않는다.
-_QUEST_APPROVE_LABELS: dict[str, str] = {
+# stage 코드 → 현재 작업 이름(퀘스트 제목). 단계를 넘기는 stage 의 버튼은 '{다음 단계} 단계로 넘기기'.
+_QUEST_TASK_LABELS: dict[str, str] = {
     "RECEIVED": "접수 확인",
     "MEASURE": "실측 완료",
     "CONFIRM": "고객 컨펌 완료",
@@ -41,10 +39,15 @@ _QUEST_APPROVE_CONFIRM_HEADS: dict[str, str] = {
 
 
 def _done_label(label: str | None, stage_label: str) -> str:
-    """승인이 끝난 quest 에 붙는 완료 배지 문구. 버튼 문구가 이미 '완료' 로 끝나면 그대로 쓴다."""
+    """승인이 끝난 quest 에 붙는 완료 배지 문구. 작업 이름이 이미 '완료' 로 끝나면 그대로 쓴다."""
     if label and label.endswith("완료"):
         return label
     return f"{label or stage_label} 완료"
+
+
+def display_quest_title(stage_code: str | None, stored_title: str | None) -> str:
+    """화면 제목 — 이름표가 있으면 그것, 없으면 저장된 title(빈 문자열로 떨어뜨리지 않는다)."""
+    return _QUEST_TASK_LABELS.get(stage_code or "") or (stored_title or "")
 
 
 def _order_confirm_context(order: Any) -> str:
@@ -80,7 +83,8 @@ def build_approve_cta(stage_code: str | None, order: Any, *, sd: Any = None) -> 
     :param sd: 도면 게이트 판정용 structured_data. 고객컨펌(한글 단계 포함)이고 도면이 수령
         확정이 아니면 ``approve_blocked=True``·``approve_blocked_reason`` 을 더한다(서버 승인
         라우트와 같은 :func:`confirm_exit_block`). ``None`` 이면 막지 않는다(확인 문구만 쓰는 호출).
-    :returns: ``approve_label`` (없으면 None = 버튼 미노출), ``approve_confirm``,
+    :returns: ``task_label`` (현재 작업 이름, 없으면 None), ``approve_label`` (없으면 None =
+        버튼 미노출), ``approve_confirm``,
         ``advances_stage``, ``next_stage_label``, ``command_required``,
         ``done_label`` (승인이 끝난 quest 의 완료 배지 문구 — 항상 채운다),
         ``retransition_label``·``retransition_confirm`` (완료 quest 를 다음 단계로 다시
@@ -91,11 +95,12 @@ def build_approve_cta(stage_code: str | None, order: Any, *, sd: Any = None) -> 
     gate = {"approve_blocked": block is not None,
             "approve_blocked_reason": block.reason if block is not None else ""}
     command_required = is_command_required_stage(stage_code)
-    label = None if command_required else _QUEST_APPROVE_LABELS.get(stage_code or "")
+    label = None if command_required else _QUEST_TASK_LABELS.get(stage_code or "")
     stage_label = STAGE_LABELS.get(stage_code or "", stage_code or "")
     done_label = _done_label(label, stage_label)
     if not label:
         return {
+            "task_label": None,
             "approve_label": None,
             "approve_confirm": "",
             "advances_stage": False,
@@ -109,6 +114,7 @@ def build_approve_cta(stage_code: str | None, order: Any, *, sd: Any = None) -> 
 
     next_stage_code = stage_advance_target(stage_code)
     next_stage_label = STAGE_LABELS.get(next_stage_code, next_stage_code or "")
+    approve_label = f"{next_stage_label} 단계로 넘기기" if next_stage_code else label
 
     if next_stage_code:
         head = _QUEST_APPROVE_CONFIRM_HEADS.get(
@@ -121,14 +127,12 @@ def build_approve_cta(stage_code: str | None, order: Any, *, sd: Any = None) -> 
     context_line = _order_confirm_context(order)
     confirm = f"{head}\n\n{context_line}" if context_line else head
 
-    # 재전이 문구 — 완료 quest 인데 단계가 그대로인 주문(강제 단계 변경으로 되돌린 뒤)을
-    # 사람이 다시 넘길 때 쓴다. 따로 이름("도면 단계로 넘기기")을 두면 같은 일을 하는 버튼이
-    # 둘로 보여서 승인 버튼과 같은 이름·확인 문장을 쓴다(2026-09-23 사용자 요청).
-    # 단계를 옮기지 않는 stage 는 재전이가 없으므로 비운다.
-    retransition_label = label if next_stage_code else ""
+    # 재전이 버튼 = 승인 버튼과 같은 이름·확인창(2026-09-23). 단계를 옮기지 않는 stage 는 비운다.
+    retransition_label = approve_label if next_stage_code else ""
     retransition_confirm = confirm if next_stage_code else ""
     return {
-        "approve_label": label,
+        "task_label": label,
+        "approve_label": approve_label,
         "approve_confirm": confirm,
         "advances_stage": bool(next_stage_code),
         "next_stage_label": next_stage_label,

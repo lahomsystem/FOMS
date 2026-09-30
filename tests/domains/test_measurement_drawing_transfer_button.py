@@ -52,7 +52,7 @@ def _cta_dict(**overrides) -> dict:
     base = {
         "visible": True,
         "enabled": True,
-        "label": "도면 전달",
+        "label": "도면 단계로 넘기기",
         "confirm": "실측을 완료하고 도면 단계로 넘길까요?",
         "blocked_reason": "",
     }
@@ -76,7 +76,7 @@ def test_macro_renders_enabled_button() -> None:
     assert "btn btn-sm btn-outline-primary" in html
     assert 'data-order-id="4552"' in html
     assert "data-confirm=" in html
-    assert "도면 전달" in html
+    assert "도면 단계로 넘기기" in html
     assert "disabled" not in html
     assert "<div" not in html, "버튼 하나뿐 — 새 div 래퍼는 버킷 정규식을 깬다"
 

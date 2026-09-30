@@ -303,7 +303,7 @@ def test_quest_approve_announces_before_restore_scroll():
     body = js.split("function restorePlace()", 1)[1].split("\n  }\n", 1)[0]
     assert body.index("announceRestore(saved)") < body.index("card.scrollIntoView")
     assert js.count("dispatchEvent(") == 1
-    assert "erp-quest-approve.js') }}?v=20260923e" in _read(LAYOUT_SCRIPTS)
+    assert "erp-quest-approve.js') }}?v=20260930b" in _read(LAYOUT_SCRIPTS)
 
 
 def test_erp_shell_popstate_skips_overlay_entries():

@@ -235,7 +235,8 @@ def _payload_for_stage(stage: str, stage_code: str) -> dict:
 def test_approve_cta_names_the_stage_and_promises_the_move() -> None:
     """단계를 실제로 옮기는 stage 는 다음 단계까지 문구가 말한다(승인 문구 SSOT)."""
     measure = _payload_for_stage("실측", "MEASURE")
-    assert measure["approve_label"] == "실측 완료"
+    assert measure["approve_label"] == "도면 단계로 넘기기"
+    assert measure["task_label"] == "실측 완료"
     assert measure["advances_stage"] is True
     assert measure["next_stage_label"] == "도면"
     assert "도면 단계로 넘길까요?" in measure["approve_confirm"]
@@ -243,7 +244,8 @@ def test_approve_cta_names_the_stage_and_promises_the_move() -> None:
     assert "홍길동 / #4385" in measure["approve_confirm"]
 
     received = _payload_for_stage("주문접수", "RECEIVED")
-    assert received["approve_label"] == "접수 확인"
+    assert received["approve_label"] == "실측 단계로 넘기기"
+    assert received["task_label"] == "접수 확인"
     assert received["advances_stage"] is True
     assert received["next_stage_label"] == "실측"
 
@@ -272,7 +274,8 @@ def test_command_required_stage_exposes_no_approve_button() -> None:
     assert drawing["command_required"] is True
 
     confirm = cta_mod.build_approve_cta("CONFIRM", order)
-    assert confirm["approve_label"] == "고객 컨펌 완료"
+    assert confirm["approve_label"] == "생산 단계로 넘기기"
+    assert confirm["task_label"] == "고객 컨펌 완료"
     assert confirm["advances_stage"] is True
     assert confirm["next_stage_label"] == "생산"
     assert confirm["command_required"] is False
@@ -381,7 +384,7 @@ def test_build_payload_exposes_is_done_and_done_label() -> None:
     assert payload["all_approved"] is True
     # current_user 없이 만든 payload 는 재전이 버튼을 내밀지 않는다(권한 주체가 없다).
     assert payload["can_retransition"] is False
-    assert payload["retransition_label"] == "고객 컨펌 완료"
+    assert payload["retransition_label"] == "생산 단계로 넘기기"
 
     open_payload = _payload_for_stage("고객컨펌", "CONFIRM")
     assert open_payload["is_done"] is False

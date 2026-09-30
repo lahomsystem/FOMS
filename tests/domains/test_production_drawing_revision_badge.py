@@ -188,7 +188,7 @@ def test_badge_shows_while_in_progress_but_does_not_block(client):
     login_as(client, prod)
 
     row = _row(_pc_grid(_board(client)), running)
-    assert _BADGE in row and "생산 중" in row
+    assert _BADGE in row and "제작중" in row
     assert _BLOCKED not in row
 
 

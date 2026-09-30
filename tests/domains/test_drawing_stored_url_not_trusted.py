@@ -170,9 +170,9 @@ def test_cancel_guidance_no_longer_claims_files_are_deleted():
     assert "요청 기록과 참고 파일은 남고, 도면 전달 상태로 돌아갑니다." in drawing_js
     assert "요청 기록과 참고 파일은 남고, 도면 전달 상태로 돌아갑니다." in body
     entry = _read("static/js/orders/erp-dashboard-entry.js")
-    assert "erp-dashboard-detail-dom.js?v=20260929l" in entry
+    assert "erp-dashboard-detail-dom.js?v=20260930a" in entry
     assert "erp-dashboard-drawing.js?v=20260929l" in entry
-    assert "erp-dashboard-entry.js') }}?v=20260929l" in _read("templates/partials/shared/layout_scripts.html")
+    assert "erp-dashboard-entry.js') }}?v=20260930a" in _read("templates/partials/shared/layout_scripts.html")
     grid = _read("templates/orders/partials/dashboard_grid.html")
     assert "REVISION_CANCELLED" in grid and "수정요청 취소" in grid
 
@@ -194,4 +194,4 @@ def test_detail_summary_latest_event_labels_cover_cancel_and_confirm():
         ("ERP_ORDER_CHANGED", "주문 변경"),
     ):
         assert f"{action}: '{label}'" in block, action
-    assert "erp-dashboard-detail-dom.js?v=20260929l" in _read("static/js/orders/erp-dashboard-entry.js")
+    assert "erp-dashboard-detail-dom.js?v=20260930a" in _read("static/js/orders/erp-dashboard-entry.js")

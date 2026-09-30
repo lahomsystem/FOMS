@@ -204,6 +204,7 @@ def test_team_mode_partial_approval_does_not_transition(client):
     body = first.get_json()
     assert body["all_approved"] is False
     assert body["missing_teams"] == ["SALES"]
+    assert body["missing_team_labels"] == ["영업팀"]  # 휴대폰 안내가 쓰는 한글 팀 이름
     assert body["auto_transitioned"] is False
     db_session.expire_all()
     assert db_session.get(Order, order_id).erp_stage_code == "CONFIRM"

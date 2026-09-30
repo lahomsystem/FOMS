@@ -78,7 +78,7 @@ def test_pc_grid_non_admin_sees_reason_instead_of_approve_button(client):
     cell = _grid_row_block(html, blocked)
     assert _REASON_ATTR in cell and _RETURNED_REASON in cell
     assert "erp-btn-approve-assignee" not in cell
-    assert "(도면 수령 확정 전)" in cell and "(승인 권한 없음)" not in cell
+    assert "(도면 수령 확정 전)" in cell and "(담당자만 누를 수 있어요)" not in cell
     # 대조군: 같은 사람·CONFIRMED 주문은 보통 버튼, 이유 줄 없음.
     control = _grid_row_block(html, ok)
     assert _REASON_ATTR not in control
@@ -214,8 +214,8 @@ def test_asset_pins_bumped_to_20260929i():
     """CSS·JS 를 바꿨으니 부모 번들까지 핀을 올린다(SW 캐시로 옛 파일이 살지 않게)."""
     assert "erp-pro.css') }}?v=20260929k" in _read("templates/partials/shared/layout_head.html")
     assert ".foms-gate-blocked-reason" in _read("static/css/foundation/erp-pro.css")
-    assert "erp-dashboard-entry.js') }}?v=20260929l" in _read("templates/partials/shared/layout_scripts.html")
-    assert "erp-dashboard-detail-dom.js?v=20260929l" in _read("static/js/orders/erp-dashboard-entry.js")
+    assert "erp-dashboard-entry.js') }}?v=20260930a" in _read("templates/partials/shared/layout_scripts.html")
+    assert "erp-dashboard-detail-dom.js?v=20260930a" in _read("static/js/orders/erp-dashboard-entry.js")
     for rel in ("templates/orders/dashboard.html", "templates/channel/chat.html",
                 "templates/measurement/metropolitan_dashboard.html",
                 "templates/measurement/regional_dashboard.html"):
