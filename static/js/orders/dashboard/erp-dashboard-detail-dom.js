@@ -476,7 +476,7 @@
                   </div>
                   <div class="d-flex flex-wrap gap-2">
                     <a class="btn btn-primary" href="${workbenchUrl}">
-                      <i class="fas fa-comments"></i> 별도 작업실 열기
+                      <i class="fas fa-comments"></i> 도면 창구 열기
                     </a>
                     ${drawingStatus === 'RETURNED'
                       ? `<a class="btn btn-outline-danger" href="/erp/drawing-workbench/${orderId}?tab=requests">

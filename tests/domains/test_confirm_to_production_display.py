@@ -1,12 +1,12 @@
 """고객컨펌 승인 CTA·완료 배지 3표면 렌더(2026-09-17) — 실제 라우트로 그린다(합성 DOM 주입 금지).
 
-* 모바일 큐 카드: CONFIRM 미승인 → ``<button … erp-queue-card__quest-approve data-approve-label="고객 컨펌 완료">``,
+* 모바일 큐 카드: CONFIRM 미승인 → ``<button … erp-queue-card__quest-approve data-approve-label="생산 단계로 넘기기">``,
   옛 상세 링크 ``erp-queue-card__confirm-open`` 없음. 완료 quest → ``erp-queue-card__quest-done`` + "고객 컨펌 완료".
 * 모바일 상세: 완료 quest → ``erp-quest-done`` 배지.
 * PC 그리드: 완료 quest → ``erp-quest-done`` 배지.
 
-2026-09-23: 완료 quest 인데 단계가 그대로이고 넘길 권한이 있으면 완료 배지 대신 승인 버튼과
-같은 이름("고객 컨펌 완료")의 재전이 버튼만 그린다 — 따로 이름("생산 단계로 넘기기")을 두지 않는다.
+완료 quest 인데 단계가 그대로이고 넘길 권한이 있으면 완료 배지 대신 승인 버튼과 같은
+이름("생산 단계로 넘기기")의 재전이 버튼만 그린다.
 """
 from __future__ import annotations
 
@@ -109,7 +109,7 @@ def test_queue_card_renders_confirm_approve_button(client, monkeypatch):
     assert f'data-order-id="{order.id}"' in html
     assert 'data-erp-mobile-v2="true"' in html
     assert "erp-queue-card__quest-approve" in html
-    assert 'data-approve-label="고객 컨펌 완료"' in html
+    assert 'data-approve-label="생산 단계로 넘기기"' in html
     assert "erp-queue-card__confirm-open" not in html
     # 승인 CTA 는 <a> 가 아니라 <button> 이어야 erp-quest-approve.js 가 잡는다.
     btn_at = html.index("erp-queue-card__quest-approve")
@@ -132,8 +132,7 @@ def test_queue_card_renders_retransition_not_done_badge_when_it_can_advance(clie
     # 완료 quest 인데 단계가 CONFIRM 그대로 → 승인 버튼과 같은 이름의 재전이 버튼(ADMIN 은 서버도 200).
     # 같은 이름의 완료 배지는 넘길 수 있을 때 겹쳐 그리지 않는다.
     assert "erp-queue-card__quest-retransition" in html
-    assert 'data-approve-label="고객 컨펌 완료"' in html
-    assert "넘기기" not in html
+    assert 'data-approve-label="생산 단계로 넘기기"' in html
     assert "erp-queue-card__quest-done" not in html
 
 
@@ -165,13 +164,13 @@ def test_mobile_detail_renders_retransition_not_done_badge_when_it_can_advance(c
     assert "고객 컨펌 완료" in html
     assert "erp-mobile-quest-approve-assignee" not in html
     assert "erp-mobile-quest-retransition" in html
-    assert "생산 단계로 넘기기" not in html
+    assert "생산 단계로 넘기기" in html
     # 넘길 수 있으면 같은 이름의 완료 배지는 겹쳐 그리지 않는다.
     assert "erp-quest-done" not in html
 
 
 def test_mobile_detail_renders_approve_button_for_open_quest(client, monkeypatch):
-    """음성 대조군 — 미승인이면 배지 대신 승인 버튼(고객 컨펌 완료)."""
+    """음성 대조군 — 미승인이면 배지 대신 승인 버튼(생산 단계로 넘기기)."""
     user = _make_user("disp_detail_open")
     _login(client, user)
     _enable_mobile_v2(monkeypatch, user)
@@ -179,7 +178,7 @@ def test_mobile_detail_renders_approve_button_for_open_quest(client, monkeypatch
 
     html = client.get(f"/erp/orders/{order.id}/mobile").get_data(as_text=True)
     assert "erp-quest-done" not in html
-    assert 'data-approve-label="고객 컨펌 완료"' in html
+    assert 'data-approve-label="생산 단계로 넘기기"' in html
 
 
 # --------------------------------------------------------------------------- #
@@ -196,7 +195,7 @@ def test_pc_grid_renders_retransition_not_done_badge_when_it_can_advance(client)
     assert f'quest-collapse-{order.id}' in html
     assert "고객 컨펌 완료" in html
     assert "erp-btn-retransition erp-btn-approve-assignee" in html
-    assert "생산 단계로 넘기기" not in html
+    assert "생산 단계로 넘기기" in html
     # 셀의 완료 배지는 넘길 수 있을 때 겹쳐 그리지 않는다.
     assert "erp-quest-done" not in html
 
@@ -231,7 +230,7 @@ def _confirm_sd_for_display() -> dict:
 
 @pytest.mark.parametrize("team,expected", [("CS", True), ("SALES", True), ("PRODUCTION", False), ("DRAWING", False)])
 def test_confirm_mobile_button_follows_server_team_rule(team, expected):
-    """담당자 이름이 비었거나 다른 사람이어도 CS·SALES 면 모바일에 [고객 컨펌 완료] 가 뜬다 — 서버가 200 을 주는 조합.
+    """담당자 이름이 비었거나 다른 사람이어도 CS·SALES 면 모바일에 [생산 단계로 넘기기] 가 뜬다 — 서버가 200 을 주는 조합.
     PRODUCTION·DRAWING 은 서버가 403 이므로 버튼도 없다."""
     from types import SimpleNamespace
     from foms.services.erp_quest_display import build_current_quest_payload
@@ -242,4 +241,4 @@ def test_confirm_mobile_button_follows_server_team_rule(team, expected):
     payload = build_current_quest_payload(sd=sd, stage="고객컨펌", stage_code="CONFIRM", order=order, current_user=user, user_map={})
     assert payload is not None
     assert payload["can_assignee_approve"] is expected
-    assert payload["approve_label"] == "고객 컨펌 완료"
+    assert payload["approve_label"] == "생산 단계로 넘기기"

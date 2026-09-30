@@ -96,7 +96,7 @@
 <script src="{{ url_for('static', filename='js/foms/fragment-loader.js') }}?v=20260711b" defer></script>
 <script src="{{ url_for('static', filename='js/foms/tablet-side-sheet.js') }}?v=20260727a" defer></script>
 <script src="{{ url_for('static', filename='js/foms/tablet-density-toggle.js') }}?v=20260713a" defer></script>
-<script src="{{ url_for('static', filename='js/foms/tablet-measure-form.js') }}?v=20260826a" defer></script>
+<script src="{{ url_for('static', filename='js/foms/tablet-measure-form.js') }}?v=20260930a" defer></script>
 {# 알림톡 발송 흔적 칩: ERP 주문(PC·모바일)과 태블릿 실측 폼이 같이 쓴다. 태블릿 대시보드는
    셸 변형에 따라 페이지 스크립트 블록이 통째로 빠지는 경로가 있어 전역 1곳에서 싣는다. #}
 <script src="{{ url_for('static', filename='js/orders/erp-alimtalk-trace.js') }}?v=20260923c" defer></script>
@@ -1629,9 +1629,9 @@
     {% endif %}
     {% if request.path.startswith('/erp/') %}
     <script src="{{ url_for('static', filename='js/foms/erp-mine-only.js') }}" defer></script>
-    <script src="{{ url_for('static', filename='js/foms/erp-quest-approve.js') }}?v=20260923e" defer></script>
+    <script src="{{ url_for('static', filename='js/foms/erp-quest-approve.js') }}?v=20260930b" defer></script>
     <script src="{{ url_for('static', filename='js/runtime/erp-shell.js') }}?v=20260929i" defer></script>
-    <script src="{{ url_for('static', filename='js/orders/erp-dashboard-entry.js') }}?v=20260929l" defer></script>
+    <script src="{{ url_for('static', filename='js/orders/erp-dashboard-entry.js') }}?v=20260930a" defer></script>
     {# 주문·생산·시공 상세 펼침의 제품 여러 건 목록+상세 공용 도우미. 조각(fragment)에 두면 탭 전환마다 다시 읽혀 여기서 한 번만 싣는다. #}
     <script src="{{ url_for('static', filename='js/foms/order-items-md.js') }}?v=20260929a" defer></script>
     <script src="{{ url_for('static', filename='js/foms/draft_resume.js') }}?v=20260915a" defer></script>

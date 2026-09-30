@@ -36,7 +36,7 @@
 
     <select class="form-select form-select-sm" name="team" style="width: auto; min-width: 110px;" onchange="this.form.submit()">
       <option value="">팀: 전체</option>
-      <option value="CS" {% if filters.get('team')=='CS' %}selected{% endif %}>라홈팀</option>
+      <option value="CS" {% if filters.get('team')=='CS' %}selected{% endif %}>CS팀</option>
       <option value="SALES" {% if filters.get('team')=='SALES' %}selected{% endif %}>영업팀</option>
       <option value="MEASURE" {% if filters.get('team')=='MEASURE' %}selected{% endif %}>실측팀</option>
       <option value="DRAWING" {% if filters.get('team')=='DRAWING' %}selected{% endif %}>도면팀</option>

@@ -49,15 +49,15 @@
         </div>
         <div class="erp-pro-pipeline__connector"><i class="fas fa-chevron-right"></i></div>
 
-        <div class="erp-pro-pipeline__stage {% if (filters.get('status') or '') == 'RETURNED' %}erp-pro-pipeline__stage--active{% endif %}" data-status="RETURNED" role="button" tabindex="0" title="수정요청만 보기">
+        <div class="erp-pro-pipeline__stage {% if (filters.get('status') or '') == 'RETURNED' %}erp-pro-pipeline__stage--active{% endif %}" data-status="RETURNED" role="button" tabindex="0" title="수정 요청만 보기">
           <div class="erp-pro-pipeline__count">{{ stats.RETURNED }}</div>
-          <div class="erp-pro-pipeline__label">수정요청</div>
+          <div class="erp-pro-pipeline__label">수정 요청됨</div>
         </div>
         <div class="erp-pro-pipeline__connector"><i class="fas fa-chevron-right"></i></div>
 
-        <div class="erp-pro-pipeline__stage {% if (filters.get('status') or '') == 'TRANSFERRED' %}erp-pro-pipeline__stage--active{% endif %}" data-status="TRANSFERRED" role="button" tabindex="0" title="확정대기만 보기">
+        <div class="erp-pro-pipeline__stage {% if (filters.get('status') or '') == 'TRANSFERRED' %}erp-pro-pipeline__stage--active{% endif %}" data-status="TRANSFERRED" role="button" tabindex="0" title="확정 대기만 보기">
           <div class="erp-pro-pipeline__count">{{ stats.TRANSFERRED }}</div>
-          <div class="erp-pro-pipeline__label">확정대기</div>
+          <div class="erp-pro-pipeline__label">확정 대기</div>
         </div>
 
         {# 누적 완료는 열린 큐(전체 = 대기중+작업중+수정요청+확정대기)와 따로 뗀 칸 — 화살표 없이

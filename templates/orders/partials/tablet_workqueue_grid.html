@@ -5,7 +5,7 @@
    퀘스트 버튼/날짜 input/로고/결제 뱃지가 그대로 남음). CSS 로는 열 재정렬·버튼→plain
    텍스트 변환이 불가하므로, 목업 정합 클린 그리드를 템플릿 레벨로 신설한다.
 
-   목업 컬럼(좌→우): [체크박스] 단계 · 고객 · 다음 할 일(퀘스트) · 제품 · 실측일 ·
+   목업 컬럼(좌→우): [체크박스] 단계 · 고객 · 현재 작업 · 제품 · 실측일 ·
    시공일 · 담당 · 첨부(우측정렬). 경보 열 없음. 모든 셀 plain(입력/버튼/로고/결제뱃지 없음).
 
    데이터: PC 그리드와 동일한 표시 DTO(build_orders_row_dtos)의 `orders` 를 재소비한다
@@ -32,7 +32,7 @@
         <th scope="col" class="foms-tqgrid__chk"><span class="visually-hidden">선택</span></th>
         <th scope="col">단계</th>
         <th scope="col">고객</th>
-        <th scope="col">다음 할 일</th>
+        <th scope="col">현재 작업</th>
         <th scope="col">제품</th>
         <th scope="col">{{ erp_sort_header('measure_date', '실측일') }}</th>
         <th scope="col">{{ erp_sort_header('construction_date', '시공일') }}</th>
@@ -60,7 +60,7 @@
           {{ channel_mark(o.channel_source) }}
           {% if o.alerts.urgent %}<span class="foms-tqchip-urgent">긴급</span>{% endif %}
         </td>
-        {# 다음 할 일: 현재 퀘스트의 다음 액션(plain 텍스트, 버튼 없음). 퀘스트 부재 행
+        {# 현재 작업: 현재 퀘스트 제목(plain 텍스트, 버튼 없음). 퀘스트 부재 행
            (도면/생산/완료 등)은 무채 단계 라벨로 폴백(허구 텍스트 생성 금지 — 실데이터만). #}
         <td class="foms-tqcell-quest">
           {% if o.current_quest and o.current_quest.title %}{{ o.current_quest.title }}{% else %}<span class="foms-tqcell-muted">{{ o.stage or '-' }}</span>{% endif %}

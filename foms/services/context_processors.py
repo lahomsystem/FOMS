@@ -33,6 +33,7 @@ from foms.services.common.geocode_config import KAKAO_JS_API_KEY
 from foms.services.orders.order_flag_permissions import can_toggle_order_flags
 from foms.web.auth import ROLES
 from foms.services.orders.status_constants import BULK_ACTION_STATUS, STATUS
+from foms.services.orders.team_labels import team_label
 from foms.persistence.main.db import get_db
 from foms.persistence.main.models import User
 from foms.services.erp_shipment_settings import load_erp_shipment_settings
@@ -52,10 +53,8 @@ __all__ = [
 ]
 
 
-# ADMIN "다른 사용자로 전환" 드롭다운 유저 목록 마이크로 캐시.
-# inject_status_list는 ADMIN이 여는 모든 전체페이지 렌더마다 활성 유저 전체를 조회했다.
-# 목록은 거의 불변이므로 프로세스별 60s 캐시로 매 렌더 쿼리를 제거한다(멀티프로세스 각자
-# 최대 60s stale 수용 — 관리자 드롭다운 특성상 안전).
+# ADMIN "다른 사용자로 전환" 드롭다운 유저 목록 — 프로세스별 60s 캐시(매 렌더 전체 조회 제거).
+# 목록은 거의 불변이라 최대 60s stale 은 안전하다.
 _ADMIN_SWITCH_USERS_TTL_SEC = 60.0
 _ADMIN_SWITCH_USERS_CACHE: dict[str, Any] = {"ts": 0.0, "users": []}
 
@@ -489,6 +488,7 @@ def register_context_processors(app) -> None:
     app.jinja_env.globals.update(mark=template_mark, asset_url=asset_url)  # mark=계측 전용 · asset_url=내용 해시 ?v=
     app.add_template_filter(parse_json_string_filter, "parse_json_string")
     app.add_template_filter(format_datetime_kst, "format_datetime_kst")
+    app.add_template_filter(team_label, "team_label")
     app.context_processor(inject_statuses)
     app.context_processor(inject_status_list)
     app.context_processor(utility_processor)

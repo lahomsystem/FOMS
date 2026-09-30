@@ -44,20 +44,14 @@
     }
   }
 
-  /** 승인 후 결과 문장 — 단계가 옮겨졌는지 서버 응답으로만 말한다(추정 금지). */
-  function resultMessage(data, btn) {
-    if (data.retransitioned && data.next_stage) {
+  /** 승인 후 결과 문장 — 단계가 옮겨졌는지 서버 응답으로만 말한다. */
+  function resultMessage(data) {
+    if ((data.retransitioned || data.auto_transitioned) && data.next_stage) {
       return data.next_stage + ' 단계로 넘겼습니다.';
     }
-    if (data.auto_transitioned && data.next_stage) {
-      return '승인 완료 — ' + data.next_stage + ' 단계로 넘어갔습니다.';
-    }
-    var label = btn.getAttribute('data-approve-label') || '승인';
-    if (data.all_approved) {
-      return label + ' 기록 완료.';
-    }
-    var missing = (data.missing_teams || []).join(', ');
-    return missing ? '승인 완료 — 남은 팀: ' + missing : '승인 완료.';
+    var missing = data.missing_team_labels || [];
+    if (missing.length) return '기록했습니다 — 남은 팀: ' + missing.join(', ');
+    return '기록했습니다.';
   }
 
   /**
@@ -194,17 +188,17 @@
           var failed = (again && again.data) || data;
           // 서버 code(COMMAND_REQUIRED·QUEST_INCOMPLETE·전이 충돌)까지 노출해야 원인 파악이 된다.
           var detail = failed.code ? ' (' + failed.code + ')' : '';
-          throw new Error((failed.message || failed.error || '승인 실패') + detail);
+          throw new Error((failed.message || failed.error || '처리하지 못했습니다') + detail);
         }
       }
       invalidateShellCache();
-      toast(resultMessage(data, btn));
+      toast(resultMessage(data));
       // 목록(앵커 없음)에서만 자리 복원 — 상세는 앵커가 자리를 잡는다.
       if (!anchor) rememberPlace(orderId);
       refreshAfterApprove(anchor);
     } catch (error) {
       btn.disabled = false;
-      alert(String((error && error.message) || error || '승인 중 오류가 발생했습니다.'));
+      alert(String((error && error.message) || error || '처리 중 오류가 발생했습니다.'));
     }
   }
 

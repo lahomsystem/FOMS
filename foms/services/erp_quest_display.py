@@ -20,7 +20,11 @@ from foms.services.erp_policy import (
 from foms.services.orders.erp_policy_quests import resolve_required_approval_teams
 from foms.services.orders.order_mutation_policy import team_has_capability
 from foms.services.orders.quest_approve_authz import display_team_axes
-from foms.services.orders.quest_approve_cta import approve_blocked_for, build_approve_cta
+from foms.services.orders.quest_approve_cta import (
+    approve_blocked_for,
+    build_approve_cta,
+    display_quest_title,
+)
 
 __all__ = [
     "ACTIVE_QUEST_STATUSES",
@@ -407,7 +411,7 @@ def build_current_quest_payload(
     )
 
     return {
-        "title": current_quest.get("title", ""),
+        "title": display_quest_title(stage_code_key, current_quest.get("title")),
         "description": current_quest.get("description", ""),
         "owner_team": current_quest.get("owner_team", ""),
         "status": current_quest.get("status", "OPEN"),

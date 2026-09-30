@@ -39,7 +39,7 @@ function renderBadges(alerts) {
         function failQuestApprove(btn, data) {
           if (btn) btn.disabled = false;
           const detail = data && data.code ? ' (' + data.code + ')' : '';
-          alert('승인 실패: ' + ((data && (data.message || data.error)) || '알 수 없는 오류') + detail);
+          alert('처리하지 못했습니다: ' + ((data && (data.message || data.error)) || '알 수 없는 오류') + detail);
         }
 
         async function approveQuestTeam(orderId, team, btn) {
@@ -66,27 +66,21 @@ function renderBadges(alerts) {
             }
 
             let _toastMsg;
-            if (data.retransitioned && data.next_stage) {
-              // 완료 quest 재전이(강제 단계 변경 뒤 막다른 길) — 담당자 함수와 같은 우선순위.
-              const nextStageLabel = label(STAGE_LABELS, data.next_stage, data.next_stage);
-              _toastMsg = '↩ ' + nextStageLabel + ' 단계로 넘겼습니다';
-            } else if (data.auto_transitioned && data.next_stage) {
-              const nextStageLabel = label(STAGE_LABELS, data.next_stage, data.next_stage);
-              _toastMsg = '✅ 승인 완료 — ' + nextStageLabel + ' 단계로 이동';
+            if ((data.retransitioned || data.auto_transitioned) && data.next_stage) {
+              _toastMsg = label(STAGE_LABELS, data.next_stage, data.next_stage) + ' 단계로 넘겼습니다';
             } else if (data.all_approved) {
-              _toastMsg = '✅ 모든 팀 승인 완료';
+              _toastMsg = '기록했습니다';
             } else {
               const missingTeams = data.missing_teams.map(t => label(TEAM_LABELS, t, t)).join(', ');
-              _toastMsg = '승인 완료 — 남은 팀: ' + missingTeams;
+              _toastMsg = '기록했습니다 — 남은 팀: ' + missingTeams;
             }
             if (window.fomsFlashToast) { window.fomsFlashToast(_toastMsg); } else { alert(_toastMsg); }
 
-            await loadQuestDetail(orderId);
             window.location.reload();
           } catch (err) {
             if (btn) btn.disabled = false;
             console.error('승인 실패:', err);
-            alert('승인 중 오류가 발생했습니다.');
+            alert('처리 중 오류가 발생했습니다.');
           }
         }
 
@@ -114,15 +108,10 @@ function renderBadges(alerts) {
             }
 
             let _toastMsg;
-            if (data.retransitioned && data.next_stage) {
-              // 완료 quest 재전이(강제 단계 변경 뒤 막다른 길) — 승인 기록은 그대로, 단계만 넘어갔다.
-              const nextStageLabel = label(STAGE_LABELS, data.next_stage, data.next_stage);
-              _toastMsg = '↩ ' + nextStageLabel + ' 단계로 넘겼습니다';
-            } else if (data.auto_transitioned && data.next_stage) {
-              const nextStageLabel = label(STAGE_LABELS, data.next_stage, data.next_stage);
-              _toastMsg = '✅ 담당자 승인 완료 — ' + nextStageLabel + ' 단계로 이동';
+            if ((data.retransitioned || data.auto_transitioned) && data.next_stage) {
+              _toastMsg = label(STAGE_LABELS, data.next_stage, data.next_stage) + ' 단계로 넘겼습니다';
             } else if (data.all_approved) {
-              _toastMsg = '✅ 담당자 승인 완료';
+              _toastMsg = '기록했습니다';
             }
             if (_toastMsg) {
               if (window.fomsFlashToast) { window.fomsFlashToast(_toastMsg); } else { alert(_toastMsg); }
@@ -132,46 +121,6 @@ function renderBadges(alerts) {
           } catch (err) {
             if (btn) btn.disabled = false;
             console.error('승인 실패:', err);
-            alert('승인 중 오류가 발생했습니다.');
-          }
-        }
-
-        async function loadQuestDetail(orderId) {
-          try {
-            const res = await fetch(`/api/orders/${orderId}/quest`);
-            const data = await res.json();
-            if (data.error) {
-              console.error('Quest 로드 실패:', data.error);
-              return;
-            }
-            const questContainer = document.querySelector(`#quest-collapse-${orderId} #quest-approvals-${orderId}`);
-            if (questContainer) {
-              const quest = data.quest || {};
-              const requiredTeams = quest.required_approvals || [];
-              const teamApprovalsRaw = quest.team_approvals || {};
-
-              let html = '';
-              for (const team of requiredTeams) {
-                const approvalData = teamApprovalsRaw[team];
-                let approved = false;
-                if (typeof approvalData === 'object' && approvalData !== null) {
-                  approved = approvalData.approved === true;
-                } else {
-                  approved = Boolean(approvalData);
-                }
-                const teamLabel = label(TEAM_LABELS, team, team);
-                html += `<div class="mb-2">`;
-                html += `<span class="fw-semibold" style="font-size: 1rem;">${escapeHtml(teamLabel)}</span>`;
-                if (approved) {
-                  html += `<span class="badge bg-success ms-2" style="font-size: 1rem; padding: 0.4em 0.7em;">승인완료</span>`;
-                } else {
-                  html += `<button class="btn btn-primary fw-semibold ms-2" onclick="approveQuestTeam(${orderId}, '${escapeHtml(team)}')" style="font-size: 1rem; padding: 0.4rem 0.75rem;">승인</button>`;
-                }
-                html += `</div>`;
-              }
-              questContainer.innerHTML = html;
-            }
-          } catch (err) {
-            console.error('Quest 상세 로드 실패:', err);
+            alert('처리 중 오류가 발생했습니다.');
           }
         }

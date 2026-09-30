@@ -31,10 +31,8 @@ __all__ = [
 ]
 
 
-DRAWING_TRANSFER_LABEL = "도면 전달"
-TEAM_MODE_BLOCKED_REASON = (
-    "이 주문의 실측 퀘스트는 팀 승인 방식이라 여기서 도면 단계로 넘길 수 없습니다."
-)
+DRAWING_TRANSFER_LABEL = "도면 단계로 넘기기"
+TEAM_MODE_BLOCKED_REASON = "이 주문은 주문 목록의 현재 작업 칸에서 '도면 단계로 넘기기'를 눌러 주세요."
 
 # AS 축이 열려 있는 동안은 단계를 옮기지 않는다. AS 전이는 workflow.stage 를 건드리지
 # 않으므로 MEASURE 에서 AS 가 접수된 주문은 stage=MEASURE 로 남고, 상차 예정 알림 버킷은
