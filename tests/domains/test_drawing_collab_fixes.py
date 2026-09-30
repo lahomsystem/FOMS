@@ -213,6 +213,132 @@ def test_transfer_notifies_owner_sales_only(client):
     assert other_id not in recipients
 
 
+# --- 양산지사 건은 관리자도 받는다 (2026-09-30) -----------------------------
+
+
+def _yangsan_users(prefix):
+    """관리자(이시영 역할)·양산지사 계정·관계없는 영업 1명을 만든다."""
+    admin = _make_user(f"{prefix}_admin", role="ADMIN", team="SALES", name="관리자")
+    branch = _make_user(f"{prefix}_branch", role="STAFF", team="SALES", name="양산지사")
+    other = _make_user(f"{prefix}_sales", role="STAFF", team="SALES", name="영업무관")
+    actor = _make_user(f"{prefix}_actor", role="STAFF", team="DRAWING", name="도면원")
+    return admin.id, branch.id, other.id, actor
+
+
+def test_transfer_yangsan_order_also_notifies_admin(client):
+    """양산지사 담당 주문의 도면 전달 알림은 관리자와 양산지사 계정 둘 다 받는다."""
+    admin_id, branch_id, other_id, actor = _yangsan_users("ys_tr")
+    _login(client, actor)
+    order = _make_order(
+        manager_name="양산지사",
+        sd={
+            "parties": {"customer": {"name": "홍길동"}, "manager": {"name": "양산지사"}},
+            "workflow": {"stage": "DRAWING"},
+            "assignments": {"drawing_assignee_user_ids": [actor.id]},
+        },
+    )
+    oid = order.id
+
+    res = client.post(
+        f"/api/orders/{oid}/transfer-drawing",
+        json={"note": "", "mode": "APPEND",
+              "files": [{"key": f"orders/{oid}/drawing_gateway/revisions/a.png", "filename": "a.png"}]},
+    )
+    assert res.status_code == 200, res.get_json()
+
+    n = (
+        db_session.query(Notification)
+        .filter(Notification.order_id == oid, Notification.notification_type == "DRAWING_TRANSFERRED")
+        .one()
+    )
+    assert n.target_team is None
+    assert n.target_manager_name == "양산지사"
+    assert n.target_role == "ADMIN"
+    recipients = _state_user_ids(n.id)
+    assert admin_id in recipients
+    assert branch_id in recipients
+    assert other_id not in recipients
+
+
+def test_cancel_transfer_yangsan_order_also_notifies_admin(client):
+    """전달취소 알림도 같은 규칙 — 관리자와 양산지사 계정만, 다른 영업은 아니다."""
+    admin_id, branch_id, other_id, _actor = _yangsan_users("ys_ct")
+    login_admin = _make_user("ys_ct_login", role="ADMIN", name="로그인관리자")
+    _login(client, login_admin)
+    oid = _transferred_order("양산지사").id
+
+    res = client.post(f"/api/orders/{oid}/cancel-transfer")
+    assert res.status_code == 200 and res.get_json()["success"] is True
+
+    n = (
+        db_session.query(Notification)
+        .filter(Notification.order_id == oid, Notification.notification_type == "DRAWING_TRANSFER_CANCELLED")
+        .one()
+    )
+    assert n.target_manager_name == "양산지사"
+    assert n.target_role == "ADMIN"
+    recipients = _state_user_ids(n.id)
+    assert admin_id in recipients
+    assert branch_id in recipients
+    assert other_id not in recipients
+
+
+def test_cancel_transfer_yangsan_short_name_goes_to_admin_not_sales_team(client):
+    """담당자가 '양산'처럼 계정과 안 맞아도 영업팀 전체로 퍼지지 않고 관리자가 받는다."""
+    admin_id, branch_id, other_id, _actor = _yangsan_users("ys_short")
+    login_admin = _make_user("ys_short_login", role="ADMIN", name="로그인관리자2")
+    _login(client, login_admin)
+    oid = _transferred_order("양산").id
+
+    res = client.post(f"/api/orders/{oid}/cancel-transfer")
+    assert res.status_code == 200 and res.get_json()["success"] is True
+
+    n = (
+        db_session.query(Notification)
+        .filter(Notification.order_id == oid, Notification.notification_type == "DRAWING_TRANSFER_CANCELLED")
+        .one()
+    )
+    assert n.target_team is None
+    assert n.target_manager_name is None
+    assert n.target_role == "ADMIN"
+    recipients = _state_user_ids(n.id)
+    assert admin_id in recipients
+    assert other_id not in recipients
+
+
+def test_transfer_normal_order_does_not_add_admin_role(client):
+    """양산이 아닌 주문은 예전 그대로 — 관리자 역할 경로를 붙이지 않는다(대조군)."""
+    admin_id, _branch_id, other_id, actor = _yangsan_users("ys_ctrl")
+    owner = _make_user("ys_ctrl_owner", role="STAFF", team="SALES", name="영업정")
+    owner_id = owner.id
+    _login(client, actor)
+    order = _make_order(
+        manager_name="영업정",
+        sd={
+            "parties": {"customer": {"name": "홍길동"}, "manager": {"name": "영업정"}},
+            "workflow": {"stage": "DRAWING"},
+            "assignments": {"drawing_assignee_user_ids": [actor.id]},
+        },
+    )
+    oid = order.id
+    res = client.post(
+        f"/api/orders/{oid}/transfer-drawing",
+        json={"note": "", "mode": "APPEND",
+              "files": [{"key": f"orders/{oid}/drawing_gateway/revisions/a.png", "filename": "a.png"}]},
+    )
+    assert res.status_code == 200, res.get_json()
+    n = (
+        db_session.query(Notification)
+        .filter(Notification.order_id == oid, Notification.notification_type == "DRAWING_TRANSFERRED")
+        .one()
+    )
+    assert n.target_role is None
+    recipients = _state_user_ids(n.id)
+    assert owner_id in recipients
+    assert admin_id not in recipients
+    assert other_id not in recipients
+
+
 def test_cancel_transfer_routes_cs_for_lahom_manager(client):
     admin = _make_user("ct_admin2", role="ADMIN")
     _login(client, admin)

@@ -58,25 +58,40 @@ erp_orders_drawing_bp = Blueprint(
 DRAWING_TRANSFER_POLICY_ID = 'DRAWING_TRANSFER'
 
 
+#: 담당자 이름에 이 글자가 들어간 주문(양산지사·양산)은 관리자가 직접 처리한다 — 담당자 경로에
+#: 더해 관리자 역할 전원에게도 알림을 보낸다(2026-09-30 사용자 확정, 이시영).
+ADMIN_HANDLED_MANAGER_KEYWORD = '양산'
+#: 위 주문의 알림에 합집합으로 붙이는 역할(``Notification.target_role``).
+ADMIN_HANDLED_TARGET_ROLE = 'ADMIN'
+
+
 def _drawing_notice_target(db, manager_name):
-    """도면 전달·전달취소 알림의 수신 대상 ``(target_team, target_manager_name)``.
+    """도면 전달·전달취소 알림의 수신 대상 ``(target_team, target_manager_name, target_role)``.
 
     라홈 → CS 팀, 하우드 → HAUDD 팀. 그 밖은 **담당 영업 본인만** 받는다 — 팀과 이름을
     함께 넣으면 수신자 resolver 가 합집합을 만들어 영업팀 전원에게 퍼진다. 담당자 이름이
     비었거나 활성 사용자와 맞지 않으면 알림이 사라지지 않도록 영업팀 전체로 되돌린다.
+
+    담당자 이름에 :data:`ADMIN_HANDLED_MANAGER_KEYWORD`('양산')가 들어가면 관리자가 처리하는
+    건이라 ``target_role='ADMIN'`` 을 함께 넣는다(담당 계정도 계속 받는 합집합). 이 경우엔
+    관리자가 이미 받으므로 이름이 안 맞아도 영업팀 전체로 되돌리지 않는다.
     """
     name = (manager_name or '').strip()
     if '라홈' in name:
-        return 'CS', None
+        return 'CS', None, None
     if '하우드' in name:
-        return 'HAUDD', None
+        return 'HAUDD', None, None
+    admin_handled = ADMIN_HANDLED_MANAGER_KEYWORD in name
+    role = ADMIN_HANDLED_TARGET_ROLE if admin_handled else None
     if name:
         matched = db.query(User.id).filter(
             User.name == name, User.is_active == True  # noqa: E712
         ).first()
         if matched is not None:
-            return None, name
-    return 'SALES', None
+            return None, name, role
+    if admin_handled:
+        return None, None, role
+    return 'SALES', None, None
 
 
 def perform_drawing_transfer(
@@ -308,7 +323,7 @@ def perform_drawing_transfer(
 
     manager_name = (((s_data.get('parties') or {}).get('manager') or {}).get('name') or '').strip()
     customer_name = (((s_data.get('parties') or {}).get('customer') or {}).get('name') or '').strip()
-    target_team, target_manager_name = _drawing_notice_target(db, manager_name)
+    target_team, target_manager_name, target_role = _drawing_notice_target(db, manager_name)
     notification_message = f"주문 #{order_id}"
     if customer_name:
         notification_message += f" ({customer_name})"
@@ -321,6 +336,7 @@ def perform_drawing_transfer(
         notification_type='DRAWING_TRANSFERRED',
         target_team=target_team,
         target_manager_name=target_manager_name,
+        target_role=target_role,
         title='도면 전달됨',
         message=notification_message,
         created_by_user_id=user_id,
@@ -348,7 +364,8 @@ def perform_drawing_transfer(
         auto_commit=False,
         action="DRAWING_DELIVERED", target_type="order", target_id=int(order_id),
         detail={"note": note or None, "target_team": target_team,
-                "target_manager_name": target_manager_name, **context},
+                "target_manager_name": target_manager_name,
+                "target_role": target_role, **context},
         db=db,  # 호출자 소유 세션 — get_db() 를 부르면 teardown 이 호출자 인스턴스를 detach 한다.
     )
     db.commit()
@@ -394,9 +411,13 @@ def perform_drawing_transfer(
 
     target_info = "라홈팀" if target_team == 'CS' else (
         "하우드팀" if target_team == 'HAUDD' else (
-            f"영업팀 - {target_manager_name}" if target_manager_name else "영업팀"
+            f"영업팀 - {target_manager_name}" if target_manager_name else (
+                "관리자" if target_role else "영업팀"
+            )
         )
     )
+    if target_role and target_manager_name:
+        target_info += " · 관리자"
     return {
         'success': True,
         'message': f'도면이 전달되었습니다. [{target_info}]에 알림이 전송되었습니다. (확정 대기 상태)',
@@ -668,16 +689,18 @@ def api_order_cancel_transfer(order_id):
         cancel_notif = None
         cancel_target_team = None
         cancel_target_manager = None
+        cancel_target_role = None
         try:
             _mgr = (((s_data.get('parties') or {}).get('manager') or {}).get('name') or '').strip()
             _cust = (((s_data.get('parties') or {}).get('customer') or {}).get('name') or '').strip()
-            cancel_target_team, cancel_target_manager = _drawing_notice_target(db, _mgr)
+            cancel_target_team, cancel_target_manager, cancel_target_role = _drawing_notice_target(db, _mgr)
             _msg = f"주문 #{order_id}" + (f" ({_cust})" if _cust else "") + " 도면 전달이 취소되었습니다."
             cancel_notif = Notification(
                 order_id=order_id,
                 notification_type='DRAWING_TRANSFER_CANCELLED',
                 target_team=cancel_target_team,
                 target_manager_name=cancel_target_manager,
+                target_role=cancel_target_role,
                 title='도면 전달 취소',
                 message=_msg,
                 created_by_user_id=session.get('user_id'),
