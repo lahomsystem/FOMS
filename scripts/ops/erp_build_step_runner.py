@@ -15,6 +15,7 @@ from flask import Flask
 from app import app  # noqa
 from db import get_db
 from foms.services.common.table_version_counter import mark_tables_dirty
+from foms.services.orders.erp_policy_constants import _TEMPLATES_PATH
 
 
 STEP_SCHEMA = "ERP_ORDER_STEP_1_SCHEMA"
@@ -580,7 +581,7 @@ def step_12_policy_json(db):
 
 
 def step_13_templates_json(db):
-    """Step 13: data/erp_task_templates.json 존재 보장(없으면 기본 파일 생성)"""
+    """Step 13: data/erp_task_templates.json 존재 확인"""
     _ensure_build_steps_table(db)
     existing = _get_step_status(db, STEP_TEMPLATES_JSON)
     if existing and existing.get("status") == "COMPLETED":
@@ -590,39 +591,8 @@ def step_13_templates_json(db):
     started_at = datetime.datetime.now()
     _upsert_step(db, STEP_TEMPLATES_JSON, "RUNNING", message="Ensuring data/erp_task_templates.json", started_at=started_at)
     try:
-        import os
-        import json as _json
-        data_dir = os.path.join(os.path.dirname(__file__), "data")
-        os.makedirs(data_dir, exist_ok=True)
-        path = os.path.join(data_dir, "erp_task_templates.json")
-        if not os.path.exists(path):
-            payload = {
-                "version": 1,
-                "stages": {
-                    "RECEIVED": [
-                        {"key": "VERIFY_INFO", "title": "주문 정보 확인(고객/연락처/주소)", "owner_team": "SALES"}
-                    ],
-                    "MEASURE": [
-                        {"key": "MEASURE_CONFIRM", "title": "실측 진행 및 결과 정리", "owner_team": "MEASURE", "due": {"type": "measurement_date", "offset_business_days": 0}}
-                    ],
-                    "DRAWING": [
-                        {"key": "DRAWING_CREATE", "title": "도면 작성/업로드", "owner_team": "DRAWING", "due": {"type": "blueprint_sla", "offset_hours": 48}},
-                        {"key": "REQUEST_CONFIRM", "title": "고객 컨펌 요청/추적", "owner_team": "CS", "due": {"type": "construction_date", "offset_business_days": -3}}
-                    ],
-                    "CONFIRM": [
-                        {"key": "FINAL_CONFIRM", "title": "최종 컨펌 수집/기록", "owner_team": "CS", "due": {"type": "construction_date", "offset_business_days": -3}}
-                    ],
-                    "PRODUCTION": [
-                        {"key": "PRODUCTION_PLAN", "title": "생산 착수/일정 확정", "owner_team": "PRODUCTION", "due": {"type": "construction_date", "offset_business_days": -2}}
-                    ],
-                    "CONSTRUCTION": [
-                        {"key": "CONSTRUCTION_PREP", "title": "시공 준비/자재/인력 확인", "owner_team": "CONSTRUCTION", "due": {"type": "construction_date", "offset_business_days": -1}},
-                        {"key": "CONSTRUCTION_DONE", "title": "시공 완료 처리/사진 정리", "owner_team": "CONSTRUCTION", "due": {"type": "construction_date", "offset_business_days": 0}}
-                    ]
-                }
-            }
-            with open(path, "w", encoding="utf-8") as f:
-                _json.dump(payload, f, ensure_ascii=False, indent=2)
+        if not Path(_TEMPLATES_PATH).is_file():
+            raise FileNotFoundError(_TEMPLATES_PATH)
 
         completed_at = datetime.datetime.now()
         _upsert_step(db, STEP_TEMPLATES_JSON, "COMPLETED", message="erp_task_templates.json ready", completed_at=completed_at)

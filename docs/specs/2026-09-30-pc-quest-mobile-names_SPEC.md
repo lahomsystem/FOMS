@@ -1,6 +1,6 @@
 # PC 퀘스트 이름을 휴대폰 이름으로 — Spec (2026-09-30)
 
-- 상태: **1단계 운영 반영(PR #468) · 2단계 구현(2026-09-30)** · 3단계 승인 대기
+- 상태: **1단계 운영(PR #468) · 2단계 운영(PR #471) · 3단계 구현(2026-09-30)**
 - 근거: 검토 보고서 `docs/plans/2026-09-30-pc-quest-mobile-process-names-review.md`(§7 사용자 결정), 목업 v2 https://claude.ai/artifact/Pxd7cWsqa42ZjfQi5z3VBH
 - 기준 HEAD: `c19afa6ad` (deploy)
 

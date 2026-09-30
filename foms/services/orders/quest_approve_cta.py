@@ -25,7 +25,6 @@ _QUEST_TASK_LABELS: dict[str, str] = {
     "MEASURE": "실측 완료",
     "CONFIRM": "고객 컨펌 완료",
     "PRODUCTION": "생산 확인",
-    "CONSTRUCTION": "시공 확인",
     "CS": "CS 확인",
     "AS": "AS 확인",
 }
@@ -121,7 +120,7 @@ def build_approve_cta(stage_code: str | None, order: Any, *, sd: Any = None) -> 
             stage_code or "", f"{stage_label} 확인을 마치고 {next_stage_label} 단계로 넘길까요?"
         )
     else:
-        # 단계를 옮기지 않는 stage(생산·시공·CS·AS): 승인 기록만 남는다는 사실을 그대로 말한다.
+        # 단계를 옮기지 않는 stage(생산·CS·AS): 승인 기록만 남는다는 사실을 그대로 말한다.
         head = f"{stage_label} 확인을 기록할까요?\n단계는 '{stage_label}' 그대로 유지됩니다."
 
     context_line = _order_confirm_context(order)

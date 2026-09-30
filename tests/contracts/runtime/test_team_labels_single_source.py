@@ -71,11 +71,6 @@ def test_team_labels_table() -> None:
     }
 
 
-def test_js_team_labels_match_canon() -> None:
+def test_js_has_no_team_labels_copy() -> None:
     src = (ROOT / "static" / "js" / "orders" / "erp-order-shared.js").read_text(encoding="utf-8")
-    start = src.index("const ERP_TEAM_LABELS = {")
-    block = src[start:src.index("}", start)]
-    js = dict(re.findall(r"(\w+):\s*'([^']+)'", block))
-    diff = {k: (v, TEAM_LABELS[k]) for k, v in js.items() if k in TEAM_LABELS and v != TEAM_LABELS[k]}
-    assert diff == {}, diff
-    assert set(TEAM_LABELS) <= set(js), sorted(set(TEAM_LABELS) - set(js))
+    assert "ERP_TEAM_LABELS" not in src

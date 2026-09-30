@@ -157,3 +157,17 @@ def test_board_grids_use_phase1_names():
         body = _read(rel)
         for old in ("퀘스트", "진행중", "팀별 승인", "승인완료"):
             assert old not in body, (rel, old)
+
+
+def test_dead_quest_surfaces_removed_and_stage_select_plain():
+    assert "o.current_quest" not in _read("templates/construction/partials/filters_grid.html")
+    obj = _read("templates/orders/object.html")
+    assert "loadQuest" not in obj
+    assert "라홈팀" not in obj
+    for rel in ("templates/orders/partials/erp_order_tab.html",
+                "templates/orders/partials/erp_stage_override_modal.html"):
+        body = _read(rel)
+        assert ">A. 주문접수<" not in body, rel
+        assert ">H. CS<" not in body, rel
+        assert '<option value="RECEIVED"' in body, rel
+        assert ">주문접수<" in body, rel

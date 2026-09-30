@@ -4,7 +4,7 @@
     "RECEIVED": [
       {
         "key": "VERIFY_INFO",
-        "title": "주문 정보 확인(고객/연락처/주소)",
+        "title": "접수 확인(고객/연락처/주소)",
         "owner_team": "SALES"
       }
     ],

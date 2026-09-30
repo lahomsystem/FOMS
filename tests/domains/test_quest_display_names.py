@@ -8,7 +8,8 @@ from types import SimpleNamespace
 import pytest
 
 from foms.services.erp_quest_display import build_current_quest_payload
-from foms.services.orders.quest_approve_cta import build_approve_cta, display_quest_title
+from foms.services.orders.erp_policy_quests import create_quest_from_template, get_quest_template_for_stage
+from foms.services.orders.quest_approve_cta import _QUEST_TASK_LABELS, build_approve_cta, display_quest_title
 from foms.services.orders.team_labels import team_label
 
 
@@ -34,7 +35,7 @@ def test_payload_title_uses_name_tag_and_keeps_stored_title() -> None:
         ("CONFIRM", "고객 컨펌 완료", "생산 단계로 넘기기", "생산 단계로 넘기기", "고객 컨펌 완료"),
         ("CS", "CS 확인", "CS 확인", "", "CS 확인 완료"),
         ("PRODUCTION", "생산 확인", "생산 확인", "", "생산 확인 완료"),
-        ("CONSTRUCTION", "시공 확인", "시공 확인", "", "시공 확인 완료"),
+        ("CONSTRUCTION", None, None, "", "시공 완료"),
         ("AS", "AS 확인", "AS 확인", "", "AS 확인 완료"),
         ("DRAWING", None, None, "", None),
     ],
@@ -58,3 +59,18 @@ def test_team_label() -> None:
     assert team_label("CS") == "CS팀"
     assert team_label("ZZ") == "ZZ"
     assert team_label(None) == ""
+
+
+@pytest.mark.parametrize(
+    "code", ["RECEIVED", "MEASURE", "DRAWING", "CONFIRM", "PRODUCTION", "CONSTRUCTION", "CS", "COMPLETED", "AS"]
+)
+def test_quest_template_keys_and_title_match_name_tag(code) -> None:
+    tpl = get_quest_template_for_stage(code)
+    assert tpl is not None
+    assert set(tpl) <= {"title", "description", "owner_team", "required_approvals", "next_stage"}
+    if code in _QUEST_TASK_LABELS:
+        assert tpl["title"] == _QUEST_TASK_LABELS[code]
+
+
+def test_new_received_quest_stores_name_tag_title() -> None:
+    assert create_quest_from_template("RECEIVED", "", {})["title"] == "접수 확인"
