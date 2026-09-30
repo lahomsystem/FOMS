@@ -45,14 +45,7 @@
   }
 
   var _cfg = document.getElementById('erp-dashboard-config');
-  var TEAM_LABELS = _cfg ? safeJsonParse(_cfg.getAttribute('data-team-labels'), {}) : {};
-  var STAGE_LABELS = _cfg ? safeJsonParse(_cfg.getAttribute('data-stage-labels'), {}) : {};
   var CURRENT_USER_ID = _cfg ? (parseInt(_cfg.getAttribute('data-current-user-id'), 10) || null) : null;
-
-  function label(map, code, fallback = '-') {
-    if (!code) return fallback;
-    return map[code] || code;
-  }
 
   async function safeJsonFetch(url, fallback) {
     const r = await fetch(url);
@@ -826,85 +819,6 @@
     return out.join('') || '<span class="text-muted small">경보 없음</span>';
   }
 
-  async function approveQuestTeam(orderId, team) {
-    try {
-      const res = await fetch(`/api/orders/${orderId}/quest/approve`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ team: team })
-      });
-      let data = await res.json();
-
-      if (!data.success) {
-        const again = await askAdminOverride(
-          `/api/orders/${orderId}/quest/approve`, { team: team }, data);
-        if (again && again.data) data = again.data;
-      }
-      if (!data || !data.success) {
-        alert('승인 실패: ' + ((data && (data.message || data.error)) || '알 수 없는 오류'));
-        return;
-      }
-
-      if (data.auto_transitioned && data.next_stage) {
-        const nextStageLabel = label(STAGE_LABELS, data.next_stage, data.next_stage);
-        alert('✅ 모든 팀 승인 완료! 다음 단계(' + nextStageLabel + ')로 자동 전환되었습니다.');
-      } else if (data.all_approved) {
-        alert('✅ 모든 팀 승인 완료!');
-      } else {
-        const missingTeams = data.missing_teams.map(t => label(TEAM_LABELS, t, t)).join(', ');
-        alert('승인 완료. 남은 팀: ' + missingTeams);
-      }
-
-      await loadQuestDetail(orderId);
-      window.location.reload();
-    } catch (err) {
-      console.error('승인 실패:', err);
-      alert('승인 중 오류가 발생했습니다.');
-    }
-  }
-
-  async function loadQuestDetail(orderId) {
-    try {
-      const res = await fetch(`/api/orders/${orderId}/quest`);
-      const data = await res.json();
-      if (data.error) {
-        console.error('Quest 로드 실패:', data.error);
-        return;
-      }
-      const questContainer = document.querySelector(`#quest-collapse-${orderId} #quest-approvals-${orderId}`);
-      if (questContainer) {
-        const quest = data.quest || {};
-        const requiredTeams = quest.required_approvals || [];
-        const teamApprovalsRaw = quest.team_approvals || {};
-
-        let html = '';
-        for (const team of requiredTeams) {
-          const approvalData = teamApprovalsRaw[team];
-          let approved = false;
-          if (typeof approvalData === 'object' && approvalData !== null) {
-            approved = approvalData.approved === true;
-          } else {
-            approved = Boolean(approvalData);
-          }
-          const teamLabel = label(TEAM_LABELS, team, team);
-          html += `<div class="mb-2">`;
-          html += `<span class="fw-semibold" style="font-size: 1rem;">${esc(teamLabel)}</span>`;
-          if (approved) {
-            html += `<span class="badge bg-success ms-2" style="font-size: 1rem; padding: 0.4em 0.7em;">승인완료</span>`;
-          } else {
-            const teamEsc = escapeHtml(team).replace(/'/g, "\\'");
-            const onclickVal = "approveQuestTeam(" + orderId + ", '" + teamEsc + "')";
-            html += '<button class="btn btn-primary fw-semibold ms-2" onclick="' + onclickVal + '" style="font-size: 1rem; padding: 0.4rem 0.75rem;">승인</button>';
-          }
-          html += `</div>`;
-        }
-        questContainer.innerHTML = html;
-      }
-    } catch (err) {
-      console.error('Quest 상세 로드 실패:', err);
-    }
-  }
-
   async function loadOrderDetail(orderId) {
     const container = document.getElementById(`order-detail-content-${orderId}`);
     if (!container) return;
@@ -1300,17 +1214,6 @@
     window.__FOMS_CONSTR_SCRIPTS_BOUND = true;
 
     document.body.addEventListener('click', function (e) {
-      const approveBtn = e.target.closest('.erp-btn-approve-team');
-      if (approveBtn) {
-        const orderId = approveBtn.dataset.orderId;
-        const team = approveBtn.dataset.team;
-        if (typeof approveQuestTeam === 'function') {
-          approveQuestTeam(Number(orderId), team);
-        } else {
-          console.warn('approveQuestTeam is not defined');
-        }
-      }
-
       // 시공 페이지에서만 — 셸로 주문 대시보드에 가도 이 위임은 남아 같은 클릭에 두 창이 경쟁했다.
       const attBtn = e.target.closest('.erp-btn-attachments-preview');
       if (attBtn && document.querySelector('.erp-construction-dashboard')) {
