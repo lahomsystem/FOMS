@@ -53,7 +53,6 @@ RETRY_CALLER_SCRIPTS = [
     "static/js/construction/dashboard.js",
     "static/js/foms/tablet-domain-sheets.js",
     "static/js/foms/tablet-production-kanban.js",
-    "static/js/orders/erp-order-shared.js",
     "static/js/orders/dashboard/erp-dashboard-quest.js",
     "static/js/orders/erp-stage-override.js",
 ]
@@ -240,8 +239,7 @@ def test_재시도를_배선한_JS_는_전부_새_핀으로_실린다():
                 elif verdict == "content-hash":
                     content_hashed.append(f"{tpl_rel}: {name}")
     assert not missed, "재시도 배선 JS 인데 핀이 안 올라간 곳: " + "; ".join(missed)
-    # asset_url 시범 파일의 두 호출부도 건너뛰지 않고 실제로 판정했는지 못박는다(무음 통과 방지).
-    assert f"{ASSET_URL_PILOT_TEMPLATE}: js/orders/erp-order-shared.js" in content_hashed
+    # asset_url 시범 파일의 호출부도 건너뛰지 않고 실제로 판정했는지 못박는다(무음 통과 방지).
     assert f"{ASSET_URL_PILOT_TEMPLATE}: js/orders/erp-stage-override.js" in content_hashed
 
 

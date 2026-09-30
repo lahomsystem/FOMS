@@ -221,14 +221,14 @@ def test_dashboard_sheet_thumb_is_60x46() -> None:
 # --------------------------------------------------------------------------- #
 # C-A2 승인 버튼 술어 — 화면 잣대 == 서버 잣대(거부당할 버튼 0)
 # --------------------------------------------------------------------------- #
-def _render_sheet(*, q: dict, can_edit_erp: bool) -> str:
+def _render_sheet(*, q: dict | None, can_edit_erp: bool, board_state: dict | None = None) -> str:
     """시트 파셜만 실제로 렌더한다 — 문자열 검사가 아니라 나온 HTML 로 판정."""
     import app as _app
     from types import SimpleNamespace
 
     order = SimpleNamespace(
         id=1, customer_name="홍길동", phone="010-1234-5678", address="서울 테헤란로 123",
-        product="붙박이장", stage_badge_label="접수", current_quest=q,
+        product="붙박이장", stage_badge_label="접수", current_quest=q, board_state=board_state,
     )
     with _app.app.test_request_context("/"):
         template = _app.app.jinja_env.get_template("orders/partials/tablet_dashboard_sheet.html")
@@ -258,3 +258,125 @@ def test_팀_승인_버튼은_서버가_계산한_approvable_teams_로만_나온
     allowed = _render_sheet(q=dict(base, approvable_teams=["SALES"]), can_edit_erp=False)
     assert "erp-btn-approve-team" in allowed
     assert 'data-team="SALES"' in allowed
+
+
+# --------------------------------------------------------------------------- #
+# 3단계: board_state 가 있으면 주문 목록과 같은 글자, 하단 주 버튼은 보드 링크
+# --------------------------------------------------------------------------- #
+_SYNTH_Q = {"title": "생산 확인", "owner_team": "PRODUCTION", "all_approved": False,
+            "approval_mode": "team", "approvable_teams": ["PRODUCTION"], "can_assignee_approve": False}
+
+
+def _pri_button(html: str):
+    from bs4 import BeautifulSoup
+
+    return BeautifulSoup(html, "html.parser").select_one(".foms-tsheet-foot__btn--pri")
+
+
+def _quest_title(html: str) -> str:
+    from bs4 import BeautifulSoup
+
+    return BeautifulSoup(html, "html.parser").select_one(".foms-tsheet-quest__title").get_text(strip=True)
+
+
+def test_보드_상태면_보드_링크가_주_버튼이고_승인_버튼은_없다() -> None:
+    bs = {"kind": "production", "label": "제작중", "tone": "soft", "title": "",
+          "link_label": "생산 보드 열기",
+          "link_endpoint": "erp_production_page.erp_production_dashboard",
+          "link_params": {"focus_order": 1}}
+    html = _render_sheet(q=_SYNTH_Q, can_edit_erp=True, board_state=bs)
+    btn = _pri_button(html)
+    assert btn.name == "a"
+    assert btn["href"] == "/erp/production/dashboard?focus_order=1"
+    assert btn.get_text(strip=True) == "생산 보드 열기"
+    assert _quest_title(html) == "제작중"
+    assert "erp-btn-approve-team" not in html
+    assert "생산 확인" not in html
+
+
+def test_보드_상태_완료는_꺼진_완료_버튼() -> None:
+    bs = {"kind": "completed", "label": "완료", "tone": "ok", "title": "",
+          "link_label": "", "link_endpoint": "", "link_params": {}}
+    html = _render_sheet(q=None, can_edit_erp=True, board_state=bs)
+    btn = _pri_button(html)
+    assert btn.name == "button"
+    assert btn.has_attr("disabled")
+    assert btn.get_text(strip=True) == "완료"
+    assert _quest_title(html) == "완료"
+
+
+def test_보드_상태_AS는_제목과_AS_화면_링크() -> None:
+    bs = {"kind": "as", "label": "할 일", "tone": "warn", "title": "AS 확인",
+          "link_label": "AS 화면 열기", "link_endpoint": "erp_as_page.erp_as_dashboard",
+          "link_params": {"focus_order": 1}}
+    html = _render_sheet(q=None, can_edit_erp=True, board_state=bs)
+    assert _quest_title(html) == "AS 확인"
+    assert _pri_button(html)["href"] == "/erp/as?focus_order=1"
+
+
+def test_대조군_보드_상태가_없으면_기존_승인_버튼() -> None:
+    html = _render_sheet(q=_SYNTH_Q, can_edit_erp=True, board_state=None)
+    btn = _pri_button(html)
+    assert "erp-btn-approve-team" in btn["class"]
+    assert btn["data-team"] == "PRODUCTION"
+    assert _quest_title(html) == "생산 확인"
+
+
+def _sheet_html(client, order_id: int) -> str:
+    from werkzeug.security import generate_password_hash
+
+    from db import db_session
+    from models import User
+
+    user = User(username=f"tsheet_admin_{order_id}", password=generate_password_hash("pw"),
+                role="ADMIN", team="CS", name="시트 관리자", is_active=True)
+    db_session.add(user)
+    db_session.commit()
+    with client.session_transaction() as sess:
+        sess["user_id"] = user.id
+        sess["username"] = user.username
+        sess["role"] = user.role
+    resp = client.get(f"/erp/dashboard/tablet-sheet/{order_id}")
+    assert resp.status_code == 200
+    return resp.get_data(as_text=True)
+
+
+def _db_production_order(*, with_run: bool) -> int:
+    from db import db_session
+    from foms.services.erp_display import get_today_kst
+    from models import Order, ProductionRun
+
+    order = Order(
+        received_date=get_today_kst().isoformat(), customer_name="시트 생산", phone="010-0000-0000",
+        address="Seoul", product="붙박이장", status="PRODUCTION", manager_name="Bob",
+        is_erp_order=True, structured_data={"workflow": {"stage": "PRODUCTION"}},
+        erp_stage_code="PRODUCTION",
+    )
+    db_session.add(order)
+    db_session.commit()
+    if with_run:
+        db_session.add(ProductionRun(order_id=order.id, status="IN_PROGRESS", steps=[], defects=[],
+                                     is_current=True))
+        db_session.commit()
+    return order.id
+
+
+def test_시트_라우트는_생산_run_으로_제작중과_보드_링크를_그린다(client) -> None:
+    import app as _app
+    from flask import url_for
+
+    order_id = _db_production_order(with_run=True)
+    html = _sheet_html(client, order_id)
+    with _app.app.test_request_context("/"):
+        href = url_for("erp_production_page.erp_production_dashboard", focus_order=order_id)
+    assert _quest_title(html) == "제작중"
+    btn = _pri_button(html)
+    assert btn["href"] == href
+    assert btn.get_text(strip=True) == "생산 보드 열기"
+    assert "erp-btn-approve-team" not in html
+
+
+def test_대조군_시트_라우트_생산_run_이_없으면_제작대기(client) -> None:
+    order_id = _db_production_order(with_run=False)
+    html = _sheet_html(client, order_id)
+    assert _quest_title(html) == "제작대기"

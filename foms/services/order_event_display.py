@@ -93,7 +93,7 @@ _APPROVAL_STATUS_MAP: dict[str, str] = {
     "rejected": "반려됨",
 }
 
-_APPROVAL_EVENT_TYPES = frozenset({"QUEST_APPROVAL_CHANGED", "QUEST_ASSIGNEE_APPROVED"})
+_APPROVAL_EVENT_TYPES = frozenset({"QUEST_APPROVAL_CHANGED"})
 _ASSIGNEE_EVENT_TYPES = frozenset({"DRAWING_ASSIGNEE_SET", "ASSIGNMENT_CHANGED", "manager_changed"})
 
 
@@ -174,7 +174,6 @@ def translate_event_type_to_korean(event_type: str | None) -> str:
     """이벤트 타입 영문 코드를 한글 라벨로 변환."""
     labels = {
         "QUEST_APPROVAL_CHANGED": "퀘스트 승인",
-        "QUEST_ASSIGNEE_APPROVED": "담당자 승인",
         "QUEST_CREATED": "퀘스트 생성",
         "QUEST_UPDATED": "퀘스트 수정",
         "QUEST_COMPLETED": "퀘스트 완료",
@@ -500,11 +499,6 @@ def generate_change_description(
         team = payload.get("team", "")
         team_kr = TEAM_LABELS.get(team, team)
         return f"{team_kr}이 퀘스트를 승인했습니다"
-
-    if event_type == "QUEST_ASSIGNEE_APPROVED":
-        approved_by = payload.get("approved_by_name", "담당자")
-        quest_title = payload.get("quest_title", "")
-        return f"{approved_by}님이 '{quest_title}' 퀘스트를 승인했습니다"
 
     if event_type == "STAGE_CHANGED":
         return f"진행 단계를 '{before_kr}'에서 '{after_kr}'로 변경했습니다"

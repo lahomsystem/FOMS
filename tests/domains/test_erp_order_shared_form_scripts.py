@@ -985,25 +985,11 @@ def test_shared_erp_order_js_sends_if_match_and_preserves_input_on_conflict() ->
     assert "window.__erpLastMutationVersion =" in success_block
 
 
-def test_shared_erp_order_js_guards_quest_auto_transition_reload_on_dirty() -> None:
-    """Quest 전팀 승인 자동전환은 dirty(미저장 입력)일 때 폼 재조회를 건너뛰고 알린다."""
+def test_shared_erp_order_js_has_no_quest_card() -> None:
     root = Path(__file__).resolve().parents[2]
     text = (root / "static/js/orders/erp-order-shared.js").read_text(encoding="utf-8")
-
-    approve_start = text.index("async function erpApproveQuestTeam(team)")
-    approve_end = text.index("async function erpUpdateQuestStatus()", approve_start)
-    approve_block = text[approve_start:approve_end]
-
-    assert "setTimeout(async () => {" in approve_block
-    dirty_idx = approve_block.index(
-        "var _erpDirty = _autosave && typeof _autosave.isDirty === 'function'"
-    )
-    reload_idx = approve_block.index("await erpLoadStructured();")
-    assert dirty_idx < reload_idx
-    assert "if (!_erpDirty) {" in approve_block
-    assert "_autosave.recaptureBaseline();" in approve_block
-    # dirty 스킵은 조용히 넘어가지 않는다.
-    assert "미저장 입력이 있어 화면 새로고침을 건너뛰었습니다" in approve_block
+    for name in ("erpLoadQuest", "erpRenderQuest", "erpApproveQuestTeam"):
+        assert name not in text, name
 
 
 def test_shared_erp_order_js_syncs_stage_from_measurement_date() -> None:

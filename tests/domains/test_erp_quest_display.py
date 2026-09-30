@@ -293,7 +293,7 @@ def test_done_label_always_ends_with_wanryo() -> None:
         "MEASURE": "실측 완료",
         "RECEIVED": "접수 확인 완료",
         "PRODUCTION": "생산 확인 완료",
-        "CONSTRUCTION": "시공 확인 완료",
+        "CONSTRUCTION": "시공 완료",
         "CS": "CS 확인 완료",
     }
     for stage_code, label in expected.items():

@@ -535,7 +535,7 @@ function erpApplyAsStageDisplay(force) {
     if (!active) return;
     var asLabel = (stageEl.dataset.erpAsLabel || '').trim() || '접수';
     var current = stageEl.selectedIndex >= 0 ? stageEl.options[stageEl.selectedIndex] : null;
-    var mainLabel = current ? (current.textContent || '').replace(/^[A-H]\.\s*/, '').trim() : '';
+    var mainLabel = current ? (current.textContent || '').trim() : '';
     if (mainLabel === '-') mainLabel = '';  // 빈 선택 placeholder 는 본공정이 아니다
     var opt = document.createElement('option');
     opt.value = '';
@@ -2121,7 +2121,7 @@ async function erpLoadStructured(bootstrapData, options) {
 
     // 첨부는 편집 본문(first paint)과 별개의 부가 패널이다.
     // 초기 active ERP 탭에서는 구조화 필드만 먼저 채운 뒤 surface를 공개하고,
-    // 첨부/Quest는 후속 비동기로 붙여 흰 화면 체류 시간을 줄인다.
+    // 첨부는 후속 비동기로 붙여 흰 화면 체류 시간을 줄인다.
     if (!deferAttachments && typeof erpLoadAttachments === 'function') {
         await erpLoadAttachments();
     }
@@ -5533,9 +5533,6 @@ function _erpLoadDeferredSurfaceDecorations() {
     if (!ERP_ORDER_ENABLED || !ORDER_ID) {
         return;
     }
-    if (typeof erpLoadQuest === 'function') {
-        void erpLoadQuest();
-    }
     if (typeof erpLoadAttachments === 'function') {
         void (async () => {
             await erpLoadAttachments();
@@ -5994,7 +5991,6 @@ function fomsMountErpOrderSurface() {
                     _autosave.recaptureBaseline();
                 }
             }
-            erpLoadQuest();
             loadMeasurementPanel();
         }
     });
@@ -6015,262 +6011,3 @@ if (!window.__erpOrderMainContentSwapListenerBound) {
         }
     });
 }
-
-// ============================================
-// ERP Order: Quest System (단계별 명확한 퀘스트)
-// ============================================
-let __erpQuest = null;
-
-const ERP_TEAM_LABELS = {
-    CS: 'CS팀',
-    LAHOME: '라홈팀',
-    HAUDD: '하우드팀',
-    SALES: '영업팀',
-    MEASURE: '실측팀',
-    DRAWING: '도면팀',
-    PRODUCTION: '생산팀',
-    CONSTRUCTION: '시공팀',
-    SHIPMENT: '출고팀',
-};
-
-const ERP_QUEST_STATUS_LABELS = {
-    OPEN: '오픈',
-    IN_PROGRESS: '진행중',
-    COMPLETED: '완료',
-};
-
-const ERP_STAGE_LABELS = {
-    RECEIVED: 'A. 주문접수',
-    MEASURE: 'C. 실측',
-    DRAWING: 'D. 도면',
-    CONFIRM: 'E. 고객컨펌',
-    PRODUCTION: 'F. 생산',
-    CONSTRUCTION: 'G. 시공',
-    CS: 'H. CS',
-    AS_RECEIVED: 'AS접수',
-    AS_COMPLETED: 'AS완료',
-    COMPLETED: '완료',
-    AS: 'AS처리',
-};
-
-function erpLabel(map, code, fallback = '-') {
-    if (!code) return fallback;
-    return map[code] || code;
-}
-
-function erpSetQuestStatus(text, isError = false) {
-    const el = document.getElementById('erp-quest-status-text');
-    if (!el) return;
-    el.textContent = text || '';
-    el.classList.toggle('text-danger', !!isError);
-    el.classList.toggle('text-muted', !isError);
-}
-
-function erpRenderQuest() {
-    const quest = __erpQuest;
-    const container = document.getElementById('erp-quest-container');
-    if (!container) return;
-
-    if (!quest) {
-        container.innerHTML = '<div class="alert alert-secondary">현재 단계의 Quest가 없습니다. Quest는 자동으로 생성됩니다.</div>';
-        return;
-    }
-
-    const titleEl = document.getElementById('erp-quest-title');
-    const descEl = document.getElementById('erp-quest-description');
-    const statusBadgeEl = document.getElementById('erp-quest-status-badge');
-    const ownerTeamEl = document.getElementById('erp-quest-owner-team');
-    const approvalsEl = document.getElementById('erp-quest-approvals');
-
-    if (titleEl) titleEl.textContent = quest.title || '-';
-    if (descEl) descEl.textContent = quest.description || '-';
-
-    const status = quest.status || 'OPEN';
-    const statusLabel = erpLabel(ERP_QUEST_STATUS_LABELS, status, status);
-    if (statusBadgeEl) {
-        let badgeClass = 'bg-secondary';
-        if (status === 'COMPLETED') badgeClass = 'bg-success';
-        else if (status === 'IN_PROGRESS') badgeClass = 'bg-primary';
-        statusBadgeEl.className = `badge ${badgeClass}`;
-        statusBadgeEl.textContent = statusLabel;
-    }
-
-    if (ownerTeamEl) {
-        ownerTeamEl.textContent = erpLabel(ERP_TEAM_LABELS, quest.owner_team, quest.owner_team || '-');
-    }
-
-    // 팀별 승인 표시
-    if (approvalsEl) {
-        const teamApprovals = quest.team_approvals || {};
-        const requiredTeams = Object.keys(teamApprovals);
-
-        if (requiredTeams.length === 0) {
-            approvalsEl.innerHTML = '<div class="text-muted small">승인 필요 팀이 없습니다.</div>';
-        } else {
-            approvalsEl.innerHTML = requiredTeams.map(team => {
-                const approval = teamApprovals[team] || {};
-                const isApproved = approval.approved === true;
-                const approvedBy = escapeHtml(approval.approved_by_name || approval.approved_by || '-');
-                const approvedAt = approval.approved_at ? new Date(approval.approved_at).toLocaleString('ko-KR') : '-';
-                const teamLabel = escapeHtml(erpLabel(ERP_TEAM_LABELS, team, team));
-                const teamEscaped = escapeHtml(team);
-
-                return `
-<div class="d-flex justify-content-between align-items-center mb-2 p-2 border rounded">
-    <div>
-        <div class="fw-bold">${teamLabel}</div>
-        ${isApproved ? `<small class="text-success">승인 완료 (${approvedBy}, ${approvedAt})</small>` :
-                        `<small class="text-muted">승인 대기</small>`}
-    </div >
-                        <div>
-                            ${!isApproved ? `
-        <button class="btn btn-sm btn-success" type="button" onclick="erpApproveQuestTeam('${teamEscaped}')">
-            <i class="fas fa-check"></i> 승인
-        </button>
-        ` : `
-        <span class="badge bg-success"><i class="fas fa-check-circle"></i> 승인됨</span>
-        `}
-                        </div>
-</div >
-                        `;
-            }).join('');
-        }
-    }
-}
-
-async function erpLoadQuest() {
-    if (!ERP_ORDER_ENABLED || !ORDER_ID) return;
-    // 퀘스트 마크업이 없는 화면에서는 응답을 그릴 곳이 없다 — 헛요청을 보내지 않는다.
-    // (템플릿에 #erp-quest-container 가 다시 붙으면 이 가드가 자동으로 풀린다.)
-    if (!document.getElementById('erp-quest-container')) return;
-    try {
-        const res = await fetch(`/api/orders/${ORDER_ID}/quest`);
-        const data = await res.json();
-        if (!data.success) throw new Error(data.message || 'Quest 조회 실패');
-        __erpQuest = data.quest;
-        erpRenderQuest();
-
-        // 자동 전환 알림
-        if (data.auto_transitioned && data.next_stage) {
-            const nextStageLabel = erpLabel(ERP_STAGE_LABELS, data.next_stage, data.next_stage);
-            erpSetQuestStatus(`✅ 모든 팀 승인 완료! 다음 단계(${nextStageLabel})로 자동 전환되었습니다.`);
-            setTimeout(() => {
-                erpLoadQuest(); // 새 Quest 로드
-            }, 1000);
-        }
-    } catch (e) {
-        console.error(e);
-        erpSetQuestStatus('Quest 조회 실패', true);
-    }
-}
-
-async function erpApproveQuestTeam(team) {
-    if (!ERP_ORDER_ENABLED || !ORDER_ID) return;
-    if (!confirm(`${erpLabel(ERP_TEAM_LABELS, team, team)} 승인을 진행하시겠습니까?`)) return;
-
-    erpSetQuestStatus('승인 처리 중...');
-    try {
-        const questUrl = `/api/orders/${ORDER_ID}/quest/approve`;
-        const questHeaders = { 'Content-Type': 'application/json' };
-        const questBody = { team };
-        const res = await fetch(questUrl, {
-            method: 'POST',
-            headers: questHeaders,
-            body: JSON.stringify(questBody)
-        });
-        let data = await res.json();
-        if (!data.success) {
-            // 관리자면 사유를 받아 권한 축만 실어 1회 재시도한다(ADMIN-OVERRIDE-01).
-            // 컨트롤러가 없는 화면에서는 원래 거부 문구를 그대로 띄운다.
-            const ctl = window.FomsAdminOverride;
-            const again = (ctl && typeof ctl.retry === 'function')
-                ? await ctl.retry({
-                    url: questUrl, method: 'POST', headers: questHeaders, body: questBody,
-                    code: data.code || '', message: data.message || data.error || ''
-                })
-                : null;
-            if (again && again.ok && again.data && again.data.success) {
-                data = again.data;
-            } else {
-                const failed = (again && again.data) || data;
-                erpSetQuestStatus(failed.message || failed.error || '승인 실패', true);
-                return;
-            }
-        }
-
-        if (window.FOMS_ERP_SHELL && typeof window.FOMS_ERP_SHELL.invalidatePrimaryNavFragmentCache === 'function') {
-            window.FOMS_ERP_SHELL.invalidatePrimaryNavFragmentCache();
-        }
-
-        __erpQuest = data.quest;
-        erpRenderQuest();
-
-        if (data.all_approved) {
-            if (data.auto_transitioned && data.next_stage) {
-                const nextStageLabel = erpLabel(ERP_STAGE_LABELS, data.next_stage, data.next_stage);
-                erpSetQuestStatus(`✅ 모든 팀 승인 완료! 다음 단계(${nextStageLabel})로 자동 전환되었습니다.`);
-                setTimeout(async () => {
-                    erpLoadQuest(); // 새 Quest 로드(폼을 건드리지 않으므로 무조건)
-                    // 미저장 편집이 있으면 서버 재조회로 DOM(사용자 입력)을 덮어쓰지 않는다.
-                    // dirty가 아닐 때만 structured_data를 새로고침(탭 복귀 가드와 동일 패턴).
-                    var _autosave = window.fomsErpAutosave;
-                    var _erpDirty = _autosave && typeof _autosave.isDirty === 'function'
-                        ? _autosave.isDirty() : false;
-                    if (!_erpDirty) {
-                        await erpLoadStructured();
-                        if (_autosave && typeof _autosave.recaptureBaseline === 'function') {
-                            _autosave.recaptureBaseline();
-                        }
-                    } else {
-                        erpSetQuestStatus('미저장 입력이 있어 화면 새로고침을 건너뛰었습니다. 저장 후 새로고침하세요.', true);
-                    }
-                }, 1500);
-            } else {
-                erpSetQuestStatus('✅ 모든 팀 승인 완료!');
-            }
-        } else {
-            const missingTeams = data.missing_teams.map(t => erpLabel(ERP_TEAM_LABELS, t, t)).join(', ');
-            erpSetQuestStatus(`승인 완료. 남은 팀: ${missingTeams}`);
-        }
-    } catch (e) {
-        console.error(e);
-        erpSetQuestStatus('승인 처리 실패', true);
-    }
-}
-
-async function erpUpdateQuestStatus() {
-    if (!ERP_ORDER_ENABLED || !ORDER_ID) return;
-    if (!__erpQuest) return;
-
-    const currentStatus = __erpQuest.status || 'OPEN';
-    const statuses = ['OPEN', 'IN_PROGRESS', 'COMPLETED'];
-    const currentIndex = statuses.indexOf(currentStatus);
-    const nextIndex = (currentIndex + 1) % statuses.length;
-    const nextStatus = statuses[nextIndex];
-
-    erpSetQuestStatus('상태 업데이트 중...');
-    try {
-        const res = await fetch(`/api/orders/${ORDER_ID}/quest/status`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ status: nextStatus })
-        });
-        const data = await res.json();
-        if (!data.success) {
-            erpSetQuestStatus(data.message || '상태 업데이트 실패', true);
-            return;
-        }
-
-        __erpQuest = data.quest;
-        erpRenderQuest();
-        erpSetQuestStatus('상태 업데이트 완료');
-    } catch (e) {
-        console.error(e);
-        erpSetQuestStatus('상태 업데이트 실패', true);
-    }
-}
-
-document.addEventListener('DOMContentLoaded', function () {
-    if (!ERP_ORDER_ENABLED) return;
-    document.getElementById('erp-quest-status-btn')?.addEventListener('click', erpUpdateQuestStatus);
-});
