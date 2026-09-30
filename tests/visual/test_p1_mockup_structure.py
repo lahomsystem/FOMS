@@ -909,7 +909,7 @@ def test_p1_history_search_renders_measure_queue_card(
     db_session.add(order)
     db_session.commit()
 
-    resp = client.get("/erp/history/?q=%EA%B9%80%EA%B8%B8%EC%9D%80")
+    resp = client.get("/erp/history/?q=%EA%B9%80%EA%B8%B8%EC%9D%80&from_dashboard=1")
     assert resp.status_code == 200
     html = resp.get_data(as_text=True)
     assert "foms-queue-card-v2" in html

@@ -1,6 +1,6 @@
 # psycopg3 전환 계획 — DB 연결 부품 교체
 
-- 작성 2026-09-28 · 기준 코드 `origin/deploy` `806b2e761` · 상태: **단계 1 운영(PR #435) · 단계 2 운영(PR #445) · 단계 3 구현(deploy, 스테이징 확인 중)**
+- 작성 2026-09-28 · 기준 코드 `origin/deploy` `806b2e761` · 상태: **완료 — 단계 1 운영(PR #435) · 단계 2 운영(PR #445, 핫픽스 #446·#447) · 단계 3 운영(PR #448 · production `52b978b2f`)**
 - 근거: `docs/plans/2026-09-28-foms-language-migration-assessment-report.md` 판정 "백엔드 = 같은 언어 현대화 축소판(상향 + psycopg3)". Flask 3.1 상향은 끝났고(PR #431, production `ec7e5d843`), 이 문서는 남은 절반이다.
 - 이 작업은 DB 계층 코어 변경이다 → 단계마다 사용자 승인 뒤 구현.
 
@@ -162,6 +162,13 @@ SQLAlchemy 2.0 은 이 주소를 psycopg2 로 연다(공식 문서: psycopg2 가
 - 계약: `tests/domains/test_pg_driver_single_source.py::test_psycopg2_is_gone_from_code_tests_and_requirements` — `foms`·`tools`·`scripts`·`migrations`·`tests`·루트에서 `import psycopg2`·`psycopg2.connect/extras` 0건, requirements 에 없음(음성 대조 포함).
 - **PG 레인에서 1건 실패 → 근본 수정**: `test_bulk_complete_past_construction_pg` 에서 `syntax error at or near "'(COMPLETED,...)'"`. psycopg2 는 파이썬 튜플을 `IN (a, b)` 목록으로 풀었고 psycopg 는 따옴표 문자열 하나로 보낸다 → 리스트(text[]) + `= ANY(%(x)s)`/`<> ALL(%(x)s)`. 같은 모양은 저장소 전체에서 이 도구 2곳뿐(SQLAlchemy `text()` 의 `IN :x` 는 0건). 계약 `test_no_tuple_placeholder_after_in`(음성 대조 포함).
 - 결과: psycopg2·psycogreen 을 지운 가상환경에서 전체 11059 passed, PG 레인 797 passed + 수정 뒤 해당 시험 통과.
+
+#### 단계 3 운영 시뮬레이션 → 승격 (2026-09-29, PR #448)
+psycopg2 를 빼면 되돌리기에 빌드가 필요하므로 승격 전에 운영 상태를 재현해 확인했다. 시험 트리 = `origin/production` + 단계 3 커밋, `requirements.txt` 만으로 만든 새 venv.
+- predeploy: 운영 스키마 사본(`pg_dump --schema-only`, 읽기 전용. pgvector 칸만 로컬 대체)에서 현재 운영 코드와 새 코드가 exit 0·같은 출력·같은 결과 스키마(0줄 차이). 운영 배포 로그도 같은 출력.
+- SQL 동등성: PG 레인의 모든 문장 최종 SQL(`mogrify`)을 psycopg2·psycopg 로 녹화해 비교(짝 10,232). 표기 차이뿐 — 시각 `T`/공백, UUID·NULL cast 없음, 정수 목록 `'{..}'::int4[]`, JSON 값 `::jsonb`/`::json`. designer 13칸은 모델 `JSON`·운영 `jsonb` 인데 `json→jsonb` 가 대입 cast 라 저장 OK, 비교 코드 없음.
+- `yield_per`(psycopg `ServerCursor` = 서버 쪽 바인딩) 12곳 46변형을 운영 스키마 사본에서 실행. 서버 바인딩은 None 을 두 형 문맥에 쓸 때만 다르다(해당 코드 0).
+- 잠금 대기 초과(55P03) 실측 판정, 운영 도구 읽기 전용 old/new 출력 동일, 스테이징 쓰기 흐름(문자열 id 날짜 저장)·야간 즉시 실행, 되돌리기 리허설.
 
 ## 6. 위험
 

@@ -74,7 +74,7 @@ def _preview_ids(query: str) -> set[int]:
 def _history_ids(client, query: str) -> str:
     return client.get(
         "/erp/history/",
-        query_string={"view": "fragment", "q": query},
+        query_string={"view": "fragment", "q": query, "from_dashboard": "1"},
         headers={"X-FOMS-ERP-SHELL": "1"},
     ).get_data(as_text=True)
 

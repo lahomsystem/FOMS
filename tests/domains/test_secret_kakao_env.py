@@ -9,6 +9,7 @@ calling Kakao with a bogus ``KakaoAK None`` header.
 
 from __future__ import annotations
 
+import hashlib
 import re
 from pathlib import Path
 
@@ -18,14 +19,19 @@ from foms.services.common import geocode_config
 
 ROOT = Path(__file__).resolve().parents[2]
 
-# The leaked literal must never reappear in tracked source (git history aside).
-_LEAKED_KEY = "6b616f811df2a8aeb3ab12ee71152952"
+# The leaked key must never reappear in tracked source (git history aside). Only its
+# SHA-256 is kept here — a test that stores the literal leaks it again.
+_LEAKED_KEY_SHA256 = "0c045bfc60d6dd545846e39af1d6977c5492514b7a35f68fa3c985ff94657d56"
+_HEX32 = re.compile(r"\b[0-9a-f]{32}\b")
 
 
 def test_no_hardcoded_rest_key_in_source() -> None:
     offenders: list[str] = []
     for path in list((ROOT / "foms").rglob("*.py")) + list((ROOT / "SCheduler").rglob("*.py")):
-        if _LEAKED_KEY in path.read_text(encoding="utf-8"):
+        text = path.read_text(encoding="utf-8")
+        if any(
+            hashlib.sha256(m.encode()).hexdigest() == _LEAKED_KEY_SHA256 for m in _HEX32.findall(text)
+        ):
             offenders.append(path.relative_to(ROOT).as_posix())
     assert not offenders, f"hardcoded Kakao REST key present: {offenders}"
 

@@ -1,0 +1,167 @@
+{
+  "moved": [
+    {
+      "id": 1116,
+      "old_notes": "예약금 진행/ 실측일 추후 통보 준다함 / 10.13 부재",
+      "new_notes": "예약금 진행/ 실측일 추후 통보 준다함",
+      "happy_call": "부재"
+    },
+    {
+      "id": 1172,
+      "old_notes": "부재\r\n",
+      "new_notes": null,
+      "happy_call": "부재"
+    },
+    {
+      "id": 1177,
+      "old_notes": "부재 / 부재",
+      "new_notes": null,
+      "happy_call": "부재"
+    },
+    {
+      "id": 1229,
+      "old_notes": "사이즈 실수로 취소 요청 - 취소 없이 추가 결제로 안내 / 부재",
+      "new_notes": "사이즈 실수로 취소 요청 - 취소 없이 추가 결제로 안내",
+      "happy_call": "부재"
+    },
+    {
+      "id": 1463,
+      "old_notes": "부재 문자발송",
+      "new_notes": null,
+      "happy_call": "부재"
+    },
+    {
+      "id": 1842,
+      "old_notes": "부재 문자 발송",
+      "new_notes": null,
+      "happy_call": "부재"
+    },
+    {
+      "id": 1859,
+      "old_notes": "부재 문자발송",
+      "new_notes": null,
+      "happy_call": "부재"
+    },
+    {
+      "id": 2440,
+      "old_notes": "부재 문자발송",
+      "new_notes": null,
+      "happy_call": "부재"
+    },
+    {
+      "id": 2447,
+      "old_notes": "부재 문자발송",
+      "new_notes": null,
+      "happy_call": "부재"
+    },
+    {
+      "id": 2470,
+      "old_notes": "부재 문자발송",
+      "new_notes": null,
+      "happy_call": "부재"
+    },
+    {
+      "id": 2503,
+      "old_notes": "부재 문자발송",
+      "new_notes": null,
+      "happy_call": "부재"
+    },
+    {
+      "id": 2504,
+      "old_notes": "부재 문자발송",
+      "new_notes": null,
+      "happy_call": "부재"
+    },
+    {
+      "id": 2566,
+      "old_notes": "부재 문자발송",
+      "new_notes": null,
+      "happy_call": "부재"
+    },
+    {
+      "id": 2604,
+      "old_notes": "부재 문자 발송",
+      "new_notes": null,
+      "happy_call": "부재"
+    },
+    {
+      "id": 2750,
+      "old_notes": "부재 문자발송",
+      "new_notes": null,
+      "happy_call": "부재"
+    },
+    {
+      "id": 2754,
+      "old_notes": "부재 문자발송",
+      "new_notes": null,
+      "happy_call": "부재"
+    },
+    {
+      "id": 2766,
+      "old_notes": "부재중",
+      "new_notes": null,
+      "happy_call": "부재"
+    },
+    {
+      "id": 2767,
+      "old_notes": "부재중",
+      "new_notes": null,
+      "happy_call": "부재"
+    },
+    {
+      "id": 2769,
+      "old_notes": "부재중",
+      "new_notes": null,
+      "happy_call": "부재"
+    },
+    {
+      "id": 2836,
+      "old_notes": "부재중",
+      "new_notes": null,
+      "happy_call": "부재"
+    },
+    {
+      "id": 2900,
+      "old_notes": "부재중",
+      "new_notes": null,
+      "happy_call": "부재"
+    },
+    {
+      "id": 3659,
+      "old_notes": "부재 - 자가실측 안내",
+      "new_notes": "자가실측 안내",
+      "happy_call": "부재"
+    },
+    {
+      "id": 4348,
+      "old_notes": "고객 부재중",
+      "new_notes": null,
+      "happy_call": "부재"
+    },
+    {
+      "id": 4424,
+      "old_notes": "부재중",
+      "new_notes": null,
+      "happy_call": "부재"
+    },
+    {
+      "id": 4508,
+      "old_notes": "고객 부재중, 문자 완료",
+      "new_notes": null,
+      "happy_call": "부재"
+    },
+    {
+      "id": 4534,
+      "old_notes": "고객 부재중(문자 발송 완)",
+      "new_notes": null,
+      "happy_call": "부재"
+    },
+    {
+      "id": 4573,
+      "old_notes": "고객 부재중(문자 발송 완료)",
+      "new_notes": null,
+      "happy_call": "부재"
+    }
+  ],
+  "skipped": []
+}
