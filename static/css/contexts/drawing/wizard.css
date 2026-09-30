@@ -1376,6 +1376,9 @@ html, body {
 /* 지우개 모드: 굵은 셀 포인터로 "문질러 지움" 표현(crosshair 대신 cell) */
 .dws-anno.dws-erasing,
 .dws-anno.dws-erasing canvas { cursor: cell; }
+/* Alt+드래그 복제(포토샵 방식): Alt 누른 채 객체 위 = 복사 커서 */
+.dws-anno.dws-alt-copy,
+.dws-anno.dws-alt-copy canvas { cursor: copy; }
 
 /* Konva 텍스트 인라인 편집 오버레이 — contenteditable div (위치/폰트/색은 JS 인라인 지정).
    리치 편집: 글자 단위 span 색/굵기 유지. wrap 미지원(명시 개행만) → white-space: pre. */
