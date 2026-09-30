@@ -1734,9 +1734,9 @@
         <div class="mb-3">
           <label class="form-label fw-bold">전달 모드</label>
           <select class="form-select" id="dw-transfer-mode" onchange="toggleTransferTargetCards()">
-            <option value="APPEND" {% if drawing_status !='RETURNED' %}selected{% endif %}>추가 (Append)</option>
+            <option value="APPEND" {% if drawing_status not in ('RETURNED', 'TRANSFERRED') %}selected{% endif %}>추가 (Append)</option>
             <option value="REPLACE" {% if drawing_status=='RETURNED' %}selected{% endif %}>교체 (Replace)</option>
-            <option value="REPLACE_ALL">전체 교체 (Replace All)</option>
+            <option value="REPLACE_ALL" {% if drawing_status=='TRANSFERRED' %}selected{% endif %}>전체 교체 (Replace All)</option>
           </select>
         </div>
 

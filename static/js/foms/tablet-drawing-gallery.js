@@ -106,7 +106,8 @@
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ note: "", mode: "APPEND" }),
+          // mode 미지정 — 서버가 상태로 정한다(확정 전 재전달은 전체 교체).
+          body: JSON.stringify({ note: "" }),
         }
       );
       var data = await res.json();

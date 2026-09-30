@@ -1444,7 +1444,7 @@ def api_delete_drawing_wizard_pending(order_id: int, sheet_id: str):
 def api_post_drawing_wizard_transfer_pending(order_id):
     """전달 대기 도면을 담당자에게 전달한다(transfer-drawing 과 동일 효과 + 스냅샷 + pending 비움).
 
-    body ``{note, mode}`` (mode in APPEND/REPLACE_ALL, 기본 APPEND). pending 각 항목을
+    body ``{note, mode}`` (mode in APPEND/REPLACE_ALL, 미지정이면 상태로 결정). pending 각 항목을
     ``files=[{key, filename}]`` 로 조립해 공용 전달 처리(``perform_drawing_transfer``)를
     호출한다(알림·drawing_current_files·status·히스토리 SSOT 재사용). 전달 성공 후 각 대기
     시트 상태를 버전 스냅샷으로 저장하고 pending 을 비운다. 응답 ``{success, data:{count, message}}``.
@@ -1467,9 +1467,10 @@ def api_post_drawing_wizard_transfer_pending(order_id):
 
         data = request.get_json(silent=True) or {}
         note = data.get('note') or ''
-        mode = (data.get('mode') or 'APPEND').upper()
+        # 미지정('')이면 perform_drawing_transfer 가 상태로 정한다(확정 전 재전달 = 전체 교체).
+        mode = (data.get('mode') or '').upper()
         if mode not in ('APPEND', 'REPLACE_ALL'):
-            mode = 'APPEND'
+            mode = ''
 
         pending_items = _pending_list(_load_structured_data(order))
         if not pending_items:
