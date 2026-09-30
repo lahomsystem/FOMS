@@ -186,3 +186,18 @@ body.erp-mobile-v2-layout .foms-kanban-move-btn.foms-kanban-move-btn--warn {
 .foms-kanban-card__alert-row--drawing-revision {
   font-weight: 700;
 }
+
+/* 대시보드 검색: 과거 이력에 더 있는 주문 링크 (dashboard_history_more.html) */
+.erp-history-more {
+  display: block;
+  margin: 8px 0;
+  padding: 10px 14px;
+  border: 1px solid var(--erp-border, #d0d7e2);
+  border-radius: 8px;
+  background: var(--erp-surface-muted, #f5f7fb);
+  color: var(--erp-link, #2f5fd0);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.erp-history-more:hover { text-decoration: underline; }

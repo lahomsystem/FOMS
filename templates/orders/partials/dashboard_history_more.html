@@ -1,0 +1,7 @@
+{# 검색 결과 중 대시보드 범위 밖(오래된 완료 등) 주문이 과거 이력에 더 있을 때의 링크.
+   입력: history_more = {count, href} (foms.web.orders.dashboard._history_more_link). #}
+{% if history_more %}
+<a class="erp-history-more" href="{{ history_more.href }}" data-erp-history-more>
+  과거 이력에 {{ history_more.count }}건 더 있어요 · 보기 →
+</a>
+{% endif %}
