@@ -102,6 +102,11 @@ _DEFAULT_P1_TYPES = frozenset(
     }
 )
 
+#: rq 로 꺼낸 push job 이 이보다 오래된 알림이면 보내지 않는다. worker 가 0대여도 enqueue
+#: 하므로, worker 가 오래 멈췄다 돌아오면 밀린 배너가 한꺼번에 잠금화면에 쏟아질 수 있다.
+#: SIDEFX outbox 경로(notification_push_delivery.STALE_AFTER)와 같은 30분.
+QUEUED_PUSH_STALE_AFTER = _dt.timedelta(minutes=30)
+
 #: 배너에 싣는 고객 이름 최대 글자 수(넘으면 잘라 "…" 를 붙인다).
 _CUSTOMER_NAME_MAX = 20
 
@@ -525,7 +530,11 @@ def _deliver_one(
 
 
 def _send_push_impl(
-    db: Any, notification_id: int, *, skip_attempted: bool = False
+    db: Any,
+    notification_id: int,
+    *,
+    skip_attempted: bool = False,
+    max_age: Optional[_dt.timedelta] = None,
 ) -> Dict[str, Any]:
     """실제 발송 로직(주어진 세션 사용, commit 은 호출자 책임).
 
@@ -546,6 +555,9 @@ def _send_push_impl(
         return {"sent": 0, "failed": 0, "revoked": 0, "reason": "notification_not_found"}
     if not _should_push(notif):
         return {"sent": 0, "failed": 0, "revoked": 0, "reason": "severity_skipped"}
+    if max_age is not None and notif.created_at is not None and notif.created_at < _now() - max_age:
+        logger.info("[push] 알림 %s 이 %s 넘게 지나 보내지 않음", notif.id, max_age)
+        return {"sent": 0, "failed": 0, "revoked": 0, "reason": "stale"}
 
     states = _pending_states(db, notif.id)
     if skip_attempted:
@@ -592,7 +604,11 @@ def _send_push_impl(
 
 
 def send_push_for_notification(
-    notification_id: int, db: Any = None, *, skip_attempted: bool = False
+    notification_id: int,
+    db: Any = None,
+    *,
+    skip_attempted: bool = False,
+    max_age: Optional[_dt.timedelta] = None,
 ) -> Dict[str, Any]:
     """알림 1건을 대상 수신자들에게 Web Push 발송(RQ task 진입점).
 
@@ -603,13 +619,16 @@ def send_push_for_notification(
     :param notification_id: 발송 대상 알림 id
     :param db: 테스트/재사용용 세션(기본 None → worker db_session 자체 관리)
     :param skip_attempted: True 면 이미 PUSH_ATTEMPTED 인 수신자는 다시 보내지 않는다
+    :param max_age: 주면 알림이 이보다 오래됐을 때 보내지 않는다(reason ``stale``)
     :return: {sent, failed, revoked, reason} 요약
     """
     owns_session = db is None
     if owns_session:
         db = db_session()
     try:
-        result = _send_push_impl(db, int(notification_id), skip_attempted=skip_attempted)
+        result = _send_push_impl(
+            db, int(notification_id), skip_attempted=skip_attempted, max_age=max_age
+        )
         if owns_session:
             db.commit()
         return result
@@ -654,15 +673,14 @@ def enqueue_push_for_notification(
     """알림 생성 커밋 이후 push job 을 enqueue.
 
     - flag off → 조용히 skip(이벤트 없음).
-    - 큐 없음/worker **확실히** 0대(``worker_count_known`` True) → 대상 state 를
-      queue_unavailable 로 표시하고 이벤트를 남긴다(조용히 버리지 않음). 호출측 API 는
-      이 reason 으로 os_push 미보장을 노출할 수 있다.
-    - worker 수를 **못 센** 경우(``worker_count_known`` False)는 막지 않고 그대로
-      enqueue 를 시도한다 — ping 은 통했는데 그 직후 ``Worker.count`` 조회만 실패하는
-      짧은 창이 실재하고, 그걸 "워커 0대"로 읽으면 멀쩡한 큐에 알림이 안 들어간다.
-      진짜로 큐가 죽었다면 아래 ``q.enqueue`` 가 예외를 내고, 그 예외를 잡는 기존
-      ``except`` 가 같은 queue_unavailable 로 정확히 처리한다(자기교정,
-      ``naver_ingest_run_now`` 와 같은 판정 규율).
+    - 큐 없음·Redis 닿지 않음 → 대상 state 를 queue_unavailable 로 표시하고 이벤트를
+      남긴다(조용히 버리지 않음). 호출측 API 는 이 reason 으로 os_push 미보장을 노출할 수 있다.
+    - Redis 는 닿는데 worker 가 0대(확실히 0대든 못 셌든) → **그래도 enqueue 한다**. job 은
+      Redis 에 남아 있다가 worker 가 뜨면 나간다. WORKER 재배포 중 약 1분은 worker 가 0대라,
+      예전처럼 여기서 막으면 그 사이 알림의 폰 배너가 재시도 없이 버려졌다(2026-09-30 운영
+      시험 알림 801). 너무 늦게 꺼낸 job 은 :data:`QUEUED_PUSH_STALE_AFTER` 가 버린다.
+      진짜로 큐가 죽었다면 아래 ``q.enqueue`` 가 예외를 내고, 그 예외를 잡는 ``except`` 가
+      같은 queue_unavailable 로 처리한다(자기교정).
     - 정상 → RQ 문자열 경로로 enqueue.
 
     :param notification_id: enqueue 대상 알림 id
@@ -679,18 +697,21 @@ def enqueue_push_for_notification(
 
     q = get_rq_queue()
     status = get_rq_runtime_status()
-    worker_count = int(status.get("worker_count", 0) or 0)
-    # "0대"와 "못 셌다"를 가른다. worker_count_known 이 없는 status(구 테스트 더블 등)는
-    # True 로 간주해 기존 동작을 그대로 유지한다.
-    worker_count_known = bool(status.get("worker_count_known", True))
-    if q is None or (worker_count_known and worker_count == 0):
+    # state 가 없는 status(구 테스트 더블 등)는 닿는 것으로 본다.
+    if q is None or status.get("state", "reachable") in ("disabled", "unreachable"):
         _mark_queue_unavailable(db, int(notification_id))
         db.commit()
         return {"enqueued": False, "reason": "queue_unavailable"}
+    # "0대"와 "못 셌다"를 가른다 — 못 센 것은 0대로 적지 않는다.
+    no_live_worker = bool(status.get("worker_count_known", True)) and (
+        int(status.get("worker_count", 0) or 0) == 0
+    )
 
     try:
         q.enqueue(_PUSH_TASK, int(notification_id), job_timeout="2m")
-        return {"enqueued": True, "reason": None}
+        if no_live_worker:
+            logger.info("[push] worker 0대 — Redis 에 대기 enqueue id=%s", notification_id)
+        return {"enqueued": True, "reason": "waiting_for_worker" if no_live_worker else None}
     except Exception as exc:  # noqa: BLE001 - enqueue 실패도 미보장으로 표기
         logger.error("[push] enqueue failed id=%s: %s", notification_id, exc, exc_info=True)
         _mark_queue_unavailable(db, int(notification_id))
