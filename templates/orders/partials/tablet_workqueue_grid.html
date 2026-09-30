@@ -60,10 +60,9 @@
           {{ channel_mark(o.channel_source) }}
           {% if o.alerts.urgent %}<span class="foms-tqchip-urgent">긴급</span>{% endif %}
         </td>
-        {# 현재 작업: 현재 퀘스트 제목(plain 텍스트, 버튼 없음). 퀘스트 부재 행
-           (도면/생산/완료 등)은 무채 단계 라벨로 폴백(허구 텍스트 생성 금지 — 실데이터만). #}
+        {# 현재 작업: 보드 상태 → 퀘스트 제목 → 단계 라벨(plain 텍스트). #}
         <td class="foms-tqcell-quest">
-          {% if o.current_quest and o.current_quest.title %}{{ o.current_quest.title }}{% else %}<span class="foms-tqcell-muted">{{ o.stage or '-' }}</span>{% endif %}
+          {% if o.board_state %}{{ o.board_state.title or o.board_state.label }}{% elif o.current_quest and o.current_quest.title %}{{ o.current_quest.title }}{% else %}<span class="foms-tqcell-muted">{{ o.stage or '-' }}</span>{% endif %}
         </td>
         {# 제품: plain 텍스트. ERP 주문은 품목별 product_name, 그 외는 product_subtitle 요약. #}
         <td class="foms-tqcell-product">

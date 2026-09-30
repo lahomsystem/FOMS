@@ -1378,7 +1378,8 @@ def test_tqgrid_rows_are_plain_no_inputs_buttons_logos_paybadges() -> None:
     assert 'data-bs-toggle="collapse"' not in body, "퀘스트 collapse 버튼 잔존(목업: plain 텍스트)"
     assert "lahom-logo" not in body, "고객 셀에 라홈 로고 잔존(목업: 이름+긴급칩만)"
     assert "pay-coin" not in body, "고객 셀에 결제 코인 뱃지 잔존(목업: 이름+긴급칩만)"
-    # 현재 작업 = 현재 퀘스트 title(허구 텍스트 금지 — 실 DTO 필드).
+    # 현재 작업 = 보드 상태 → 현재 퀘스트 title(허구 텍스트 금지 — 실 DTO 필드).
+    assert "o.board_state" in body
     assert "o.current_quest.title" in body
     # 긴급 칩은 urgent 알림일 때만.
     assert "foms-tqchip-urgent" in body
@@ -1544,3 +1545,11 @@ def test_drawing_detail_css_not_loaded_via_mobile_surfaces() -> None:
     (로드는 오직 foms-tablet-bundle.css @import 경유)."""
     surfaces = _read(MOBILE_SURFACES_CSS)
     assert "foms-tablet-drawing-detail" not in surfaces
+
+
+def test_measure_form_stage_options_have_no_letter_prefix() -> None:
+    """단계 select 글자는 STAGE_LABELS·휴대폰 폼과 같다(A.~H. 접두 없음, 코드 값 그대로)."""
+    js = _read(MEASURE_FORM_JS)
+    assert '["RECEIVED", "주문접수"]' in js
+    assert "A. 주문접수" not in js
+    assert "tablet-measure-form.js') }}?v=20260930f" in _read(LAYOUT_SCRIPTS)

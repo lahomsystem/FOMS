@@ -560,7 +560,7 @@ def erp_dashboard_tablet_sheet(order_id: int):
 
     tablet-side-sheet.js 가 그리드 행의 data-foms-sheet-url 로 이 URL을 시트 본문에 로드한다
     (edit fragment 대체). 요약 데이터는 대시보드 그리드와 동일한 표시 DTO
-    (build_orders_row_dtos)로 단건 파생 — 신규 쿼리 경로/집계 없음. 파이프라인은 시트
+    (build_orders_row_dtos)로 단건 파생 — 생산 단계일 때만 run 조회 1회. 파이프라인은 시트
     크롬(JS)이 행 data-stage 로 렌더하므로 이 fragment 는 포함하지 않는다.
 
     Args:
@@ -587,7 +587,8 @@ def erp_dashboard_tablet_sheet(order_id: int):
     _maps = compute_orders_attachment_assignee_maps(db, [order], page_sds)
     att_counts = {int(k): int(v) for k, v in (_maps.get("att_counts") or {}).items()}
     user_map = {int(k): str(v) for k, v in (_maps.get("user_map") or {}).items()}
-    rows = build_orders_row_dtos([order], page_sds, att_counts, user_map, current_user)
+    rows = build_orders_row_dtos([order], page_sds, att_counts, user_map, current_user,
+                                 production_run_ids=production_run_ids_for(db, [order], page_sds))
     row = rows[0]
     row["attachment_preview_items"] = batch_resolve_queue_attachment_preview_items(
         db, [order.id]

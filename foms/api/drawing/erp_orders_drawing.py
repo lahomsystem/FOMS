@@ -36,6 +36,7 @@ from foms.services.erp_policy import (
 )
 from foms.services.orders.confirm_drawing_gate import effective_drawing_status
 from foms.services.orders.drawing_gate_followups import invalidate_after_drawing_transfer
+from foms.services.orders.team_labels import team_label
 from foms.services.orders.drawing_transfer import (
     materialize_pending_snapshot,
     materialize_transfer_attachments,
@@ -414,7 +415,7 @@ def perform_drawing_transfer(
     except Exception as e:
         logger.warning("production change finalize (transfer) failed: %s", e, exc_info=True)
 
-    target_info = "라홈팀" if target_team == 'CS' else (
+    target_info = team_label(target_team) if target_team == 'CS' else (
         "하우드팀" if target_team == 'HAUDD' else (
             f"영업팀 - {target_manager_name}" if target_manager_name else (
                 "관리자" if target_role else "영업팀"

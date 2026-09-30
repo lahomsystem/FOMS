@@ -250,7 +250,7 @@
     {% endif %}
 
     {% set quest = order.current_quest %}
-    {# approve_label 이 비면 버튼 없음(도면·완료 단계). 끝난 작업은 완료 배지.
+    {# approve_label 이 비면 버튼 없음(도면·시공·완료 단계). 끝난 작업은 완료 배지.
        팀 방식은 누를 수 있는 팀(approvable_teams)이 있을 때만. #}
     {% set quest_actionable = (not action_list) and quest and quest.title
         and quest.approve_label
