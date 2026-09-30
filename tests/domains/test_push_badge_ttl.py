@@ -24,6 +24,7 @@ from models import (
     NotificationPushSubscription,
     NotificationRecipientSource,
     NotificationUserState,
+    Order,
     User,
 )
 from foms.services.notifications import push_sender
@@ -266,6 +267,35 @@ def test_measure_same_day_is_p1_and_payload_has_no_customer(db, rec):
     assert "requireInteraction" not in payload
     for secret in ("홍길동", "강남", "14:00"):
         assert secret not in body
+
+
+def test_measure_same_day_payload_names_customer_when_order_known(db, rec):
+    """주문이 걸린 당일 실측 배너는 고객 이름을 싣는다(2026-09-30 사용자 결정).
+
+    제목·tag·Urgency 는 그대로이고, 알림 row 의 주소·시간(message)은 여전히 싣지 않는다.
+    """
+    order = Order(
+        received_date="2026-09-30", customer_name="칸이름", phone="010-0000-0000",
+        address="서울시 강남구 1", product="붙박이장",
+        structured_data={"parties": {"customer": {"name": "이실측"}}},
+    )
+    db_session.add(order)
+    db_session.flush()
+    u = _mk_user("meas_named", "영업", team="SALES")
+    notif = _mk_notification("MEASURE_SAME_DAY_ADDED", order_id=order.id)
+    _mk_state(notif, u)
+    _mk_sub(u, "https://fcm.googleapis.com/send/meas-named")
+
+    send_push_for_notification(notif.id, db=db)
+
+    call = rec.calls[0]
+    payload = json.loads(call["data"])
+    assert payload["title"] == "긴급 실측 추가"
+    assert payload["body"] == "이실측 실측이 오늘 긴급 추가됐어요"
+    assert payload["tag"] == f"foms-meas-{notif.id}"
+    assert call["headers"] == {"Urgency": "high"}
+    for secret in ("강남", "14:00"):
+        assert secret not in call["data"]
 
 
 def test_push_attempt_event_recorded_for_admin_table(db, rec):

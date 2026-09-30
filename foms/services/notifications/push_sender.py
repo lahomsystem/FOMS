@@ -5,8 +5,11 @@ enqueue 하는 헬퍼를 제공한다. 설계 원칙:
 
 - job payload 에는 ``notification_id`` 만 싣는다. endpoint/p256dh/auth 같은 구독 비밀은
   worker 가 DB 에서 재조회하며, 절대 payload·로그·이벤트에 원문을 남기지 않는다(sha256 hex 만).
-- payload 본문은 **generic**: 고객명·주문번호·현장정보·사유를 담지 않는다. 상세는 앱을
-  열어 확인한다. deep_link 는 same-origin ``/erp/...`` 경로만 담는다.
+- 주문에 걸린 알림은 배너에 **고객 이름**(최대 20자)과 주문번호를 싣는다 — 일반 문구만으로는
+  영업이 어느 주문 이야기인지 알 수 없었다(사용자 결정 2026-09-30, 잠금화면 노출 감수,
+  DECISIONS.md). 고객 이름은 워커가 알림 1건당 주문을 한 번 읽어 얻는다. 알림 row 의
+  title/message(현장 주소·사유·메모가 들어 있다)는 여전히 읽지 않는다. 주문이 없거나 이름을
+  못 찾으면 예전 일반 문구로 보낸다. deep_link 는 same-origin ``/erp/...`` 경로만 담는다.
 - severity 게이트: 긴급(is_urgent)=P0 항상 발송, 지정된 P1 유형만 발송, 그 외 P2 는 no-op.
 - ``pywebpush`` 는 lazy import(함수 내부) 한다 — 미설치 환경에서 app import 가 죽지 않게 한다.
 """
@@ -34,6 +37,7 @@ from models import (
     NotificationEventType,
     NotificationPushSubscription,
     NotificationUserState,
+    Order,
     User,
 )
 
@@ -60,6 +64,8 @@ _DEFAULT_P1_TYPES = frozenset(
     {
         "DRAWING_TRANSFERRED",
         "DRAWING_REVISION",
+        # 전달 취소도 영업 휴대폰에 알린다 — 받은 도면을 그대로 들고 고객에게 가면 안 된다.
+        "DRAWING_TRANSFER_CANCELLED",
         "QUEST_ASSIGNED",
         "ERP_ORDER_CHANGED",
         # 시공일 이동은 상차·차량·팀 배정을 즉시 무효로 만든다 — 화면을 안 보고 있어도 알린다.
@@ -86,6 +92,9 @@ _DEFAULT_P1_TYPES = frozenset(
         "MEASURE_SAME_DAY_ADDED",
     }
 )
+
+#: 배너에 싣는 고객 이름 최대 글자 수(넘으면 잘라 "…" 를 붙인다).
+_CUSTOMER_NAME_MAX = 20
 
 #: 워커 건강(멎음·복구) push 를 한 자리에 접는 OS 알림 tag. 두 유형이 같은 문자열을 쓰는
 #: 것이 핵심이다 — id 를 붙이면 알림이 20건 쌓이던 2026-09-08 사건이 그대로 돌아온다.
@@ -176,13 +185,12 @@ def _deep_link(notif: Notification) -> str:
             tab = "timeline" if ntype == "DRAWING_TRANSFERRED" else "requests"
             return f"/erp/drawing-workbench/{oid}?tab={tab}"
         if ntype == "SHIPMENT_ORDER_CHANGED":
-            # 날짜는 붙이지 않는다 — push payload 는 generic 규약이고 Notification 모델에도
-            # 날짜 컬럼이 없다. 대시보드는 오늘로 열리며, 정확한 날짜 링크는 벨 목록 API
+            # 날짜는 붙이지 않는다 — Notification 모델에 날짜 컬럼이 없다. 대시보드는 오늘로 열리며, 정확한 날짜 링크는 벨 목록 API
             # (`_resolve_notification_deep_link`)가 주문 현재 시공일에서 파생해 준다.
             return "/erp/shipment"
         if ntype == "PRODUCTION_ORDER_CHANGED":
             # 생산 칸반이 이 알림의 작업 화면이다(주문 상세가 아니라). 출고와 같은 이유로
-            # 파라미터는 붙이지 않는다 — payload 는 generic 규약.
+            # 파라미터는 붙이지 않는다.
             return "/erp/production/dashboard"
         if ntype == "MEASURE_SAME_DAY_ADDED":
             # 실측 기사의 작업 화면은 오늘 실측 목록이다 — 그 줄로 스크롤해 카드 시트를 연다.
@@ -192,17 +200,19 @@ def _deep_link(notif: Notification) -> str:
 
 
 def _generic_title(urgent: bool, ntype: str) -> str:
-    """유형별 일반 제목(민감정보 없음)."""
+    """유형별 일반 제목(주문·고객 이름을 모를 때 쓰는 문구)."""
     if urgent:
         return "긴급 알림"
     if ntype == "ERP_ORDER_CHANGED":
         return "도면·주문 변경"
     if ntype in ("DRAWING_TRANSFERRED", "DRAWING_REVISION"):
         return "도면 알림"
+    if ntype == "DRAWING_TRANSFER_CANCELLED":
+        return "도면 전달 취소"
     if ntype == "SHIPMENT_ORDER_CHANGED":
         return "출고 일정 변경"
     if ntype == "PRODUCTION_ORDER_CHANGED":
-        # 시공일/도면/취소 세 종류를 묶는 제목 — 고객명·주문번호·사유는 넣지 않는다.
+        # 시공일/도면/취소 세 종류를 묶는 제목 — 사유는 넣지 않는다(고객 이름은 뒤에 붙는다).
         return "생산 주문 변경"
     if ntype == "QUEST_ASSIGNED":
         return "업무 배정 알림"
@@ -218,11 +228,10 @@ def _generic_title(urgent: bool, ntype: str) -> str:
 
 
 def _generic_body(urgent: bool, ntype: str) -> str:
-    """유형별 일반 본문(민감정보 없음).
+    """유형별 일반 본문(주문·고객 이름을 모를 때 쓰는 문구).
 
-    워커 건강 두 유형은 kind 이름도 경과 분도 넣지 않는다 — generic payload 규약에
-    예외를 파지 않기 위해서다. 몇 분째 어느 루프인지는 알림 센터 message 에 이미 있고,
-    push 의 임무는 "앱을 열어라" 까지다.
+    워커 건강 두 유형은 kind 이름도 경과 분도 넣지 않는다. 몇 분째 어느 루프인지는
+    알림 센터 message 에 이미 있고, push 의 임무는 "앱을 열어라" 까지다.
 
     :param urgent: 긴급 알림 여부
     :param ntype: 대문자 정규화된 notification_type
@@ -233,7 +242,7 @@ def _generic_body(urgent: bool, ntype: str) -> str:
     if ntype == "URGENT_ESCALATION":
         return "미확인 긴급 알림이 에스컬레이션되었습니다."
     if ntype == "MEASURE_SAME_DAY_ADDED":
-        # 고객명·주소·시간은 넣지 않는다(잠금화면 노출). 상세는 앱의 확인창에서 본다.
+        # 주소·시간은 넣지 않는다. 고객 이름을 알면 _order_bound_text 가 대신 쓴다.
         return "오늘 실측이 긴급 추가됐어요"
     if ntype == "WORKER_STALLED":
         return "발주확인·발송처리 같은 자동 처리가 멈췄습니다. 앱을 열어 확인하세요."
@@ -242,13 +251,82 @@ def _generic_body(urgent: bool, ntype: str) -> str:
     return "확인이 필요한 새 알림이 있습니다."
 
 
-def _build_payload(notif: Notification) -> Dict[str, Any]:
-    """generic push payload 구성(고객명/주문번호/사유 금지)."""
+def _clean_customer_name(raw: Any) -> str:
+    """배너용 고객 이름: 공백을 한 칸으로 접고 최대 ``_CUSTOMER_NAME_MAX`` 자로 자른다."""
+    text = " ".join(str(raw or "").split())
+    if len(text) > _CUSTOMER_NAME_MAX:
+        text = text[: _CUSTOMER_NAME_MAX - 1] + "…"
+    return text
+
+
+def _order_customer_name(db: Any, notif: Any) -> str:
+    """알림이 걸린 주문의 고객 이름(없으면 빈 문자열).
+
+    알림 1건당 한 번만 부른다(구독·수신자 루프 밖). structured_data 의
+    ``parties.customer.name`` 이 정본이고, 비어 있으면 ``Order.customer_name`` 칸을 쓴다.
+    조회가 실패해도 발송은 일반 문구로 계속한다.
+    """
+    oid = getattr(notif, "order_id", None)
+    ntype = (getattr(notif, "notification_type", "") or "").strip().upper()
+    if not oid or ntype in _WORKER_HEALTH_TYPES:
+        return ""
+    try:
+        row = (
+            db.query(Order.structured_data, Order.customer_name)
+            .filter(Order.id == int(oid))
+            .first()
+        )
+    except Exception as exc:  # noqa: BLE001 - 이름이 없어도 배너는 나가야 한다
+        logger.warning("[push] customer name lookup failed order=%s: %s", oid, exc)
+        return ""
+    if row is None:
+        return ""
+    sd, column_name = row
+    sd = sd if isinstance(sd, dict) else {}
+    name = ((sd.get("parties") or {}).get("customer") or {}).get("name")
+    return _clean_customer_name(name) or _clean_customer_name(column_name)
+
+
+def _order_bound_text(
+    urgent: bool, ntype: str, order_id: int, name: str
+) -> Tuple[str, str]:
+    """고객 이름을 아는 주문 알림의 (제목, 본문).
+
+    도면·당일 실측은 전용 문구, 그 밖의 유형은 일반 제목 뒤에 `` · 고객명`` 을 붙이고
+    본문 앞에 ``주문 #N (고객명)`` 을 붙인다.
+    """
+    label = f"주문 #{order_id} ({name})"
+    if not urgent:
+        if ntype == "DRAWING_TRANSFERRED":
+            return f"도면 도착 · {name}", f"{label} 도면이 준비됐어요"
+        if ntype == "DRAWING_REVISION":
+            return f"도면 수정 요청 · {name}", f"{label} 도면 수정 요청이 들어왔어요"
+        if ntype == "DRAWING_TRANSFER_CANCELLED":
+            return f"도면 전달 취소 · {name}", f"{label} 도면 전달이 취소됐어요"
+        if ntype == "MEASURE_SAME_DAY_ADDED":
+            return "긴급 실측 추가", f"{name} 실측이 오늘 긴급 추가됐어요"
+    return (
+        f"{_generic_title(urgent, ntype)} · {name}",
+        f"{label} {_generic_body(urgent, ntype)}",
+    )
+
+
+def _build_payload(notif: Notification, customer_name: str = "") -> Dict[str, Any]:
+    """push payload 구성. 알림 row 의 title/message(주소·사유·메모)는 읽지 않는다.
+
+    :param notif: 알림 row
+    :param customer_name: ``_order_customer_name`` 결과. 비어 있거나 주문이 없으면 일반 문구.
+    """
     urgent = bool(notif.is_urgent)
     ntype = (notif.notification_type or "").strip().upper()
+    name = _clean_customer_name(customer_name)
+    if name and notif.order_id and ntype not in _WORKER_HEALTH_TYPES:
+        title, body = _order_bound_text(urgent, ntype, int(notif.order_id), name)
+    else:
+        title, body = _generic_title(urgent, ntype), _generic_body(urgent, ntype)
     payload: Dict[str, Any] = {
-        "title": _generic_title(urgent, ntype),
-        "body": _generic_body(urgent, ntype),
+        "title": title,
+        "body": body,
         "data": {"notification_id": int(notif.id), "deep_link": _deep_link(notif)},
     }
     if urgent:
@@ -475,7 +553,7 @@ def _send_push_impl(
         logger.error("[push] pywebpush 미설치 - 발송 불가")
         return {"sent": 0, "failed": 0, "revoked": 0, "reason": "pywebpush_unavailable"}
 
-    base_payload = _build_payload(notif)
+    base_payload = _build_payload(notif, _order_customer_name(db, notif))
     urgency = _urgency(notif)
     unread_by_user = _unread_counts(db, (s.user_id for s in states))
     sent = failed = revoked = 0
