@@ -19,8 +19,8 @@
 (``FOMS_ESCALATION_EXEMPT_TYPES``). 긴급 뱃지·푸시는 그대로 유지된다.
 
 본문: in-app 알림 message 에는 원본 제목·담당자·경과·원본 본문 요약을 담는다(수신자가
-무슨 일인지 알 수 있어야 한다). push/realtime payload 는 Spec D2 대로 generic 유지 —
-``_build_payload`` 는 ``notification.message`` 를 읽지 않는다.
+무슨 일인지 알 수 있어야 한다). push payload 는 이 message 를 읽지 않는다 —
+``_build_payload`` 는 주문이 걸려 있으면 주문에서 고객 이름만 가져온다(2026-09-30 결정).
 
 배달(badge/realtime/push)은 ``finalize_escalation_delivery`` — 호출자가 **commit 이후**
 실행한다(멘션/도면 finalize 패턴과 동일).

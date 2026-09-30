@@ -10,6 +10,12 @@
 
 ---
 
+### [2026-09-30] 주문 알림의 휴대폰 배너(Web Push)에 고객 이름을 싣는다 · 도면 전달 취소도 배너로
+- **키워드**: Web Push, push_sender, _build_payload, _order_customer_name, 고객 이름, 잠금화면, generic payload, DRAWING_TRANSFERRED, DRAWING_REVISION, DRAWING_TRANSFER_CANCELLED, MEASURE_SAME_DAY_ADDED, P1
+- **결정**: ① 주문에 걸린 알림의 배너는 고객 이름(최대 20자)과 주문번호를 싣는다 — 도면 도착 "도면 도착 · {고객}" / "주문 #N ({고객}) 도면이 준비됐어요", 수정 요청 "도면 수정 요청 · {고객}", 전달 취소 "도면 전달 취소 · {고객}", 당일 실측은 제목 그대로 본문 "{고객} 실측이 오늘 긴급 추가됐어요", 그 밖의 주문 유형은 일반 제목 뒤 " · {고객}" + 본문 앞 "주문 #N ({고객})". 이름은 워커가 알림 1건당 주문을 한 번 읽어 얻는다(structured_data 고객 이름 → 없으면 customer_name 칸). 알림 row 의 title/message(주소·사유·메모)는 계속 싣지 않는다. 주문이 없거나 이름을 못 찾으면 예전 일반 문구, 워커 건강 알림은 그대로. ② `DRAWING_TRANSFER_CANCELLED` 를 P1 push 유형에 넣는다.
+- **이유**: 사용자 요청(2026-09-30) — 영업이 휴대폰·태블릿 배너만 보고 어느 주문(고객)의 도면인지 알 수 없었다("도면 알림 / 확인이 필요한 새 알림이 있습니다"). 잠금화면에 고객 이름이 보이는 것은 사용자가 감수했다. Phase 3C 이래의 "push payload 는 generic(고객명·주문번호 금지)" 규칙을 이 범위(고객 이름·주문번호)만큼 대체한다.
+- **영향**: `foms/services/notifications/push_sender.py`, `foms/services/notifications/escalation.py`(설명), tests `test_push_sender.py`·`test_push_badge_ttl.py`·`test_measure_same_day_card_link.py`. `static/sw.js` 는 title/body 를 그대로 보여 주므로 변경 없음.
+
 ### [2026-09-30] 도면 작업실 진행 막대 — 전체는 열린 일만 · 누적 완료는 따로 · 저장만 해도 작업중 · 마법사 저장이 담당 자동 지정
 - **키워드**: 도면 작업실, pipeline, 대기중, 작업중, 확정대기, 누적 완료, _workbench_bucket, count_confirmed_drawing_orders, 담당자 자동 지정, drawing_assignee_write, WIZARD_AUTO
 - **결정**: ① 전체 = 대기중+작업중+수정요청+확정대기(토글·검색과 무관), 완료는 떨어진 "누적 완료" 칸(최상위 drawing_status 우선). 기본 목록에서 완료 주문은 빠진다(토글·완료 칸·검색 때만). ② 한 판정 함수 `_workbench_bucket` 이 칸 숫자·칸 클릭 목록·행 이름표를 함께 정한다 — 담당자 id 가 있거나 마법사 저장 작업(pending 또는 objects 있는 시트)이 있으면 작업중, 모르는 상태값은 대기중. ③ 도면 담당이 없는 주문을 도면팀 활성 사용자가 마법사로 저장(PUT·시트 PNG)하면 같은 잠금 쓰기 안에서 그 사람을 담당으로 넣는다(이력 "도면 담당자 자동 지정: 이름 (마법사 저장)", OrderEvent change_method WIZARD_AUTO, 알림 없음 — 수동 지정과 같음). 도면팀 아닌 관리자는 넣지 않는다.
