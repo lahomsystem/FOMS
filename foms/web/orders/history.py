@@ -113,6 +113,18 @@ def _build_history_queue_rows(db, orders: list[Order], user) -> dict[int, dict[s
     return out
 
 
+def _dashboard_has_search_results(db, user) -> bool:
+    """Return True when the ERP dashboard search (same predicate/scope) has any row."""
+    from foms.services.orders.dashboard_filters import parse_orders_dashboard_filters
+    from foms.services.orders.dashboard_read_model import build_orders_dashboard_queries
+
+    is_admin = bool(user and getattr(user, "role", None) == "ADMIN")
+    dash_q, _stats, _today, _iso = build_orders_dashboard_queries(
+        db, user, is_admin, parse_orders_dashboard_filters(request)
+    )
+    return dash_q.limit(1).first() is not None
+
+
 def _observe_fragment_version(response, user, mine_only: bool) -> None:
     """HB-S2a: 렌더 전 304 용 키가 정말 본문을 결정하는지 관측만 한다.
 
@@ -168,6 +180,22 @@ def history_dashboard():
     
     has_filter = bool(f_q or f_stage or f_date_from or f_date_to)
     auto_browse_mine = mine_only and not has_filter
+
+    # 검색어만 있고 ERP 대시보드에 결과가 있으면 대시보드 결과로 보낸다.
+    # 대시보드는 0건일 때만 여기로 오고(from_dashboard=1), 우리는 from_history=1 로 되돌려
+    # 보내므로 왕복 루프가 없다.
+    if (
+        f_q
+        and not (f_stage or f_date_from or f_date_to)
+        and not from_dashboard
+        and not mine_only
+        and request.args.get('page', 1, type=int) <= 1
+        and _dashboard_has_search_results(db, user)
+    ):
+        target_args = {"q": f_q, "from_history": "1"}
+        if wants_erp_shell_tab_body(request):
+            target_args["view"] = "fragment"
+        return redirect(url_for("erp_dashboard.erp_dashboard", **target_args))
 
     # soft-delete 제외한 활성 주문 전체 (레거시 + ERP Order).
     # ERP Order는 DB 컬럼이 초안 플레이스홀더('ERP Order', 000-…)인 채로 두고 실제 값이 structured_data에만

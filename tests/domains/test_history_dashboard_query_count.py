@@ -461,7 +461,7 @@ def test_history_search_ignores_hidden_structured_data_text(client):
     middle = _seed_search_order("가운데고객", "010-6514-3333")
 
     body = client.get(
-        "/erp/history/?view=fragment&q=6514",
+        "/erp/history/?view=fragment&q=6514&from_dashboard=1",
         headers={"X-FOMS-ERP-SHELL": "1"},
     ).get_data(as_text=True)
     assert f'data-order-id="{target}"' in body, "전화번호 끝 4자리 주문이 빠짐"
@@ -469,7 +469,7 @@ def test_history_search_ignores_hidden_structured_data_text(client):
     assert f'data-order-id="{middle}"' not in body, "전화번호 가운데 자리에 걸림"
 
     body = client.get(
-        "/erp/history/?view=fragment&q=1865140",
+        "/erp/history/?view=fragment&q=1865140&from_dashboard=1",
         headers={"X-FOMS-ERP-SHELL": "1"},
     ).get_data(as_text=True)
     assert f'data-order-id="{hidden}"' not in body, "화면에 없는 금액 값에 걸림"
