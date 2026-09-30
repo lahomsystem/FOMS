@@ -40,6 +40,7 @@ from foms.services.estimate_service import (
     resolve_manager_phone_from_map,
     resolve_manager_phone_from_measurement_settings,
 )
+from foms.services.orders.board_state_display import build_board_state, production_run_ids_for
 from foms.services.order_event_display import (
     format_timeline_meta,
     translate_event_type_to_korean,
@@ -745,6 +746,7 @@ class MobileQueueBatchContext:
     user_map: dict[int, str] = field(default_factory=dict)
     manager_phone_map: dict[str, str] = field(default_factory=dict)
     drawing_preview_only: bool = False
+    production_run_ids: set[int] = field(default_factory=set)
 
 
 def _batch_attachment_counts(
@@ -882,6 +884,7 @@ def build_mobile_queue_batch_context(
         user_map=load_assignee_user_map_batch(db, sds),
         manager_phone_map=build_measurement_manager_phone_map(),
         drawing_preview_only=drawing_preview_only,
+        production_run_ids=production_run_ids_for(db, orders, sd_by_order),
     )
 
 
@@ -938,6 +941,11 @@ def build_mobile_queue_order_row(db, order, current_user=None, *, batch_ctx=None
         if batch_ctx is not None
         else mobile_timeline_events(db, order.id)
     )
+    run_ids = (
+        batch_ctx.production_run_ids
+        if batch_ctx is not None
+        else production_run_ids_for(db, [order], {order.id: sd})
+    )
 
     return {
         "id": order.id,
@@ -983,6 +991,10 @@ def build_mobile_queue_order_row(db, order, current_user=None, *, batch_ctx=None
         "structured_data": sd,
         "role_assignees": resolve_order_role_assignees(sd, order=order, user_map=user_map),
         "current_quest": current_quest_payload,
+        "board_state": build_board_state(
+            order, sd, stage_code,
+            has_current_run=order.id in run_ids, current_quest=current_quest_payload,
+        ),
         "drawing_preview_only": bool(
             batch_ctx is not None and batch_ctx.drawing_preview_only
         ),

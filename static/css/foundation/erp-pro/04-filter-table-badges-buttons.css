@@ -450,6 +450,25 @@
   padding: 0.4em 0.7em;
 }
 
+/* 생산·시공·완료·AS 줄 — dashboard_grid.html board_state */
+.erp-board-state {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem;
+  min-width: 0;
+}
+
+.erp-board-state .badge {
+  font-size: 1rem;
+  padding: 0.4em 0.7em;
+}
+
+.erp-board-state .btn {
+  font-size: 0.9rem;
+  padding: 0.3rem 0.6rem;
+}
+
 /* 완료 배지 옆 재전이 버튼(막다른 길 해소) — 배지와 같은 줄에 놓이므로 배지보다 살짝 작게. */
 .erp-btn-retransition {
   font-size: 0.9rem;

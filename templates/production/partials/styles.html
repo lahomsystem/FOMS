@@ -992,13 +992,13 @@
       }
 
       /* 모바일: 퀘스트 컬럼 - grid 유지, 값 2열 정렬 */
-      .erp-dashboard #erp-grid tbody tr.erp-main-row td[data-label="퀘스트"] {
+      .erp-dashboard #erp-grid tbody tr.erp-main-row td.erp-quest-cell {
         display: grid !important;
         grid-template-columns: 80px minmax(0, 1fr) !important;
         gap: 8px !important;
       }
 
-      .erp-dashboard #erp-grid tbody tr.erp-main-row td[data-label="퀘스트"] .erp-grid-quest-stack {
+      .erp-dashboard #erp-grid tbody tr.erp-main-row td.erp-quest-cell .erp-grid-quest-stack {
         grid-column: 2 !important;
         justify-self: start;
         margin-left: 0 !important;
@@ -1066,7 +1066,7 @@
       }
 
       /* 모바일: 퀘스트 셀 - grid 유지, 값 정렬 */
-      #erp-grid tbody tr.erp-main-row td[data-label="퀘스트"]::before {
+      #erp-grid tbody tr.erp-main-row td.erp-quest-cell::before {
         grid-column: 1;
         align-self: start;
       }
@@ -1226,14 +1226,14 @@
       }
 
       /* 모바일: 퀘스트 셀을 flex로 변경하여 헤더와 버튼을 같은 줄에 배치 - 576px 이하 */
-      #erp-grid tbody tr.erp-main-row td[data-label="퀘스트"] {
+      #erp-grid tbody tr.erp-main-row td.erp-quest-cell {
         display: flex !important;
         align-items: center !important;
         gap: 8px !important;
         grid-template-columns: none !important;
       }
 
-      #erp-grid tbody tr.erp-main-row td[data-label="퀘스트"]::before {
+      #erp-grid tbody tr.erp-main-row td.erp-quest-cell::before {
         flex-shrink: 0 !important;
         margin-right: 0 !important;
       }

@@ -256,7 +256,8 @@
         and quest.approve_label
         and (not quest.all_approved)
         and (not quest.is_done)
-        and (quest.can_assignee_approve or quest.approvable_teams) %}
+        and (quest.can_assignee_approve or quest.approvable_teams)
+        and (not order.board_state) %}
     {# 접수·실측만 카드에서 바로 승인한다(단계가 실제로 넘어가고, 판단에 필요한 정보가 카드에 있다).
        나머지 단계는 지금처럼 상세로 보내 맥락·권한을 다시 확인하게 한다. #}
     {% set quest_inline_approve = quest_actionable and quest.advances_stage %}
@@ -329,7 +330,7 @@
           aria-label="도면 창구 열기">
           <i class="fas fa-drafting-compass" aria-hidden="true"></i> 도면 창구
         </a>
-      {% elif quest and quest.is_done %}
+      {% elif quest and quest.is_done and not order.board_state %}
         {# 완료 quest 인데 단계가 그대로인 막다른 길 — 승인 버튼과 같은 모양·이름으로 다시 넘긴다
            (서버는 재전이 경로로 승인 기록을 건드리지 않고 전이만 건다). 완료 배지는 같은 이름이
            둘로 보이지 않게 넘길 수 없을 때만. #}

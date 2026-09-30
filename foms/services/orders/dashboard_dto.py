@@ -20,11 +20,12 @@ from foms.services.erp_mobile_order_display import (
     stage_badge_modifier,
 )
 from foms.services.estimate_service import build_measurement_manager_phone_map
+from foms.services.orders.board_state_display import build_board_state
 from foms.services.integrations.naver_commerce.constants import SOURCE_MARKER
 
 
 def build_orders_row_dtos(page_orders, page_sds, att_counts, user_map, current_user,
-                          unassigned_intake_ids=None):
+                          unassigned_intake_ids=None, production_run_ids=None):
     """page_orders를 템플릿 표시용 row dict 리스트로 조립 (구 route enriched 루프).
 
     Args:
@@ -38,11 +39,13 @@ def build_orders_row_dtos(page_orders, page_sds, att_counts, user_map, current_u
             미지정이면 뱃지 없음 — 기존 호출자 동작 보존.
             주문담당자(``parties.manager.name``)가 적혀 있으면 이 집합에 들어 있어도
             뱃지를 걷는다 — 화면 '담당' 칸이 읽는 값이 곧 배정 표시이기 때문이다.
+        production_run_ids: current 생산 run 이 있는 주문 id 집합(제작중 판정).
 
     Returns:
         list[dict]: 원본 enriched와 동일 구조 + ``is_unassigned_intake``.
     """
     unassigned_ids = unassigned_intake_ids or set()
+    run_ids = production_run_ids or set()
     # N+1 제거: 행마다 resolve_manager_phone_for_queue가 load_erp_shipment_settings를
     # 재조회(=행당 SELECT system_settings)하던 것을, 출고 설정 실측담당자 연락처 map을
     # 요청당 1회 로드해 전달한다(construction/production DTO와 동일 배치 패턴).
@@ -109,6 +112,9 @@ def build_orders_row_dtos(page_orders, page_sds, att_counts, user_map, current_u
             'attachments_count': cnt,
             'recommended_owner_team': recommend_owner_team(sd) or None,
             'current_quest': quest_payload,
+            'board_state': build_board_state(
+                o, sd, stage_code, has_current_run=o.id in run_ids, current_quest=quest_payload
+            ),
             'stage_badge_modifier': stage_badge_modifier(stage),
             'stage_badge_label': stage_badge_label(stage),
             'product_subtitle': product_subtitle_from_sd(sd),
