@@ -182,11 +182,12 @@ def history_dashboard():
 
     # 검색어만 있고 ERP 대시보드에 결과가 있으면 대시보드 결과로 보낸다.
     # 대시보드는 0건일 때만 여기로 오고(from_dashboard=1), 우리는 from_history=1 로 되돌려
-    # 보내므로 왕복 루프가 없다.
+    # 보내므로 왕복 루프가 없다. 통합검색(from_search=1)은 일부러 이력으로 오는 경로라 제외.
     if (
         f_q
         and not (f_stage or f_date_from or f_date_to)
         and not from_dashboard
+        and not from_search
         and not mine_only
         and request.args.get('page', 1, type=int) <= 1
         and _dashboard_has_search_results(db, user)

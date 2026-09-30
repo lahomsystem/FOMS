@@ -80,7 +80,7 @@ def test_history_search_words_match_in_any_order(client):
 
     def ids_for(q: str) -> str:
         return client.get(
-            f"/erp/history/?view=fragment&q={q}",
+            f"/erp/history/?view=fragment&q={q}&from_dashboard=1",
             headers={"X-FOMS-ERP-SHELL": "1"},
         ).get_data(as_text=True)
 
@@ -98,7 +98,7 @@ def test_history_search_accepts_hash_order_number(client):
     _login_admin(client)
     target = _seed_search_order("샵번호고객", "010-7070-8080")
     body = client.get(
-        f"/erp/history/?view=fragment&q=%23{target}",
+        f"/erp/history/?view=fragment&q=%23{target}&from_dashboard=1",
         headers={"X-FOMS-ERP-SHELL": "1"},
     ).get_data(as_text=True)
     assert f'data-order-id="{target}"' in body
@@ -143,7 +143,7 @@ def test_unified_search_results_ignore_mine_cookie(client, monkeypatch):
 
     def body(**args):
         return client.get(
-            "/erp/history/", query_string={"view": "fragment", "q": "쿠키고객", **args},
+            "/erp/history/", query_string={"view": "fragment", "q": "쿠키고객", "from_dashboard": "1", **args},
             headers={"X-FOMS-ERP-SHELL": "1"},
         ).get_data(as_text=True)
 
