@@ -66,13 +66,17 @@ def _page(client, path: str) -> str:
     return res.get_data(as_text=True)
 
 
-def test_only_orders_dashboard_root_opts_in(client, monkeypatch):
-    """실제 렌더: 주문 대시보드만 표시가 있고, 생산·시공은 ERP 번들을 싣지만 표시가 없다."""
+def test_no_dashboard_root_opts_in(client, monkeypatch):
+    """실제 렌더: 어느 대시보드에도 표시가 없다 — ERP 화면은 최종 도면만(2026-09-30 사용자 결정).
+
+    생산·시공은 ERP 번들을 싣지만 표시가 없다. 주문 대시보드도 표시를 뺐다.
+    """
     monkeypatch.delenv("REDIS_URL", raising=False)
     _login_admin(client)
 
     orders = _page(client, "/erp/dashboard")
-    assert "erp-dashboard-orders" in orders and MARKER in orders
+    assert "erp-dashboard-orders" in orders
+    assert "data-attachments-show-superseded" not in orders
 
     for path, root_cls in (("/erp/production/dashboard", "erp-dashboard-production"),
                            ("/erp/construction/dashboard", "erp-construction-dashboard")):
