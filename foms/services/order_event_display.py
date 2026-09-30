@@ -485,6 +485,31 @@ def _describe_naver_claim_approve(event_type: str, payload: dict[str, Any]) -> s
     return f"{head} — 환불이 확정됩니다"
 
 
+_TEAM_APPROVAL_TARGET_PREFIX = "quest.team_approvals."
+
+
+def _describe_quest_approval(payload: dict[str, Any]) -> str:
+    """퀘스트 승인 이력 문장. 옛 기록(team·stage 없음)은 target·domain 에서 되살린다."""
+    target = str(payload.get("target") or "")
+    team = str(payload.get("team") or "").strip()
+    if not team and target.startswith(_TEAM_APPROVAL_TARGET_PREFIX):
+        team = target[len(_TEAM_APPROVAL_TARGET_PREFIX):].strip()
+    stage = str(payload.get("stage") or "").strip()
+    domain = str(payload.get("domain") or "")
+    # 옛 담당자 방식의 domain 은 SALES_DOMAIN 처럼 단계가 아니라 팀 방식에서만 읽는다.
+    if not stage and team and domain.endswith("_DOMAIN"):
+        stage = domain[: -len("_DOMAIN")]
+    stage_kr = STAGE_LABELS.get(STAGE_NAME_TO_CODE.get(stage, stage), "")
+    if team:
+        who = f"{TEAM_LABELS.get(team, team)}이 "
+    elif target == "quest.assignee_approval":
+        who = "담당자가 "
+    else:
+        who = ""
+    what = f"{stage_kr} 단계를 확인했습니다" if stage_kr else "현재 작업을 확인했습니다"
+    return f"{who}{what}"
+
+
 def generate_change_description(
     event_type: str,
     target_kr: str,
@@ -496,9 +521,7 @@ def generate_change_description(
     payload = payload or {}
 
     if event_type == "QUEST_APPROVAL_CHANGED":
-        team = payload.get("team", "")
-        team_kr = TEAM_LABELS.get(team, team)
-        return f"{team_kr}이 퀘스트를 승인했습니다"
+        return _describe_quest_approval(payload)
 
     if event_type == "STAGE_CHANGED":
         return f"진행 단계를 '{before_kr}'에서 '{after_kr}'로 변경했습니다"

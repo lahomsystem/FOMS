@@ -473,7 +473,7 @@ def test_p1_fragment_scripts_are_redeclaration_safe() -> None:
             "let notificationPanelOpen",
         ):
             assert forbidden not in src, f"{rel}: {forbidden}"
-        assert "var TEAM_LABELS" in src
+        assert "var __selectedOrderId" in src
 
 
 def test_p1_global_image_viewer_touch_pan_after_pinch() -> None:

@@ -263,14 +263,17 @@ def test_CS_단계_배지가_AS_가_아니라_CS_다():
     assert stage_badge_label("MEASURE") == "실측"
 
 
-def test_주문_상세_화면_STAGE_LABELS_가_정본을_전부_덮는다():
-    """object.html 의 JS 상수표가 erp_policy_constants.STAGE_LABELS 와 같은 값인지."""
-    src = (ROOT / "templates/orders/object.html").read_text(encoding="utf-8")
-    line = next(
-        ln for ln in src.splitlines() if "const STAGE_LABELS" in ln
-    )
-    for code, label in STAGE_LABELS.items():
-        assert f"{code}:'{label}'" in line, code
+def test_강제_단계_변경_화면_LABELS_가_정본과_같다():
+    """erp-stage-override.js 의 단계 이름표가 erp_policy_constants.STAGE_LABELS 와 같은 값인지."""
+    src = (ROOT / "static/js/orders/erp-stage-override.js").read_text(encoding="utf-8")
+    rank_block = src.split("var RANK = {", 1)[1].split("};", 1)[0]
+    label_block = src.split("var LABELS = {", 1)[1].split("};", 1)[0]
+    rank_codes = re.findall(r"^\s*([A-Z_]+)\s*:", rank_block, re.M)
+    labels = dict(re.findall(r"^\s*([A-Z_]+)\s*:\s*'([^']*)'", label_block, re.M))
+    assert len(rank_codes) >= 8
+    assert set(labels) == set(rank_codes)
+    for code in rank_codes:
+        assert labels[code] == STAGE_LABELS[code], code
 
 
 def test_완료_요건_미충족_문구가_사람_말로_바뀌고_채우러_갈_길을_준다():

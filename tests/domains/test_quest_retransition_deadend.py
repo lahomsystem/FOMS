@@ -257,6 +257,29 @@ def test_normal_open_approval_response_carries_retransitioned_false(client):
     assert "retransitioned" in body and body["retransitioned"] is False
     assert body["auto_transitioned"] is True
     assert len(_events(order_id, "QUEST_APPROVAL_CHANGED")) == 1
+    ev = _events(order_id, "QUEST_APPROVAL_CHANGED")[0]
+    assert ev.payload["stage"] == "MEASURE"
+    assert "team" not in ev.payload, "담당자 방식 승인은 팀 이름을 남기지 않는다"
+
+
+def test_team_mode_open_approval_event_records_team_and_stage(client):
+    """팀 방식 정상 승인 — 이력 문장이 팀·단계를 말하도록 payload 에 team·stage 를 남긴다."""
+    _login(client, _make_user("dead_team_open_cs", role="STAFF", team="CS"))
+    sd = {
+        "workflow": {"stage": "RECEIVED"},
+        "quests": [{
+            "stage": "RECEIVED", "title": "접수 확인", "status": "OPEN", "approval_mode": "team",
+            "required_approvals": ["CS"], "team_approvals": {}, "created_at": "2026-09-20T10:00:00",
+        }],
+    }
+    order_id = _create_order(stage="RECEIVED", sd=sd).id
+
+    resp = client.post(f"/api/orders/{order_id}/quest/approve", json={"team": "CS"})
+    assert resp.status_code == 200, resp.get_json()
+    events = _events(order_id, "QUEST_APPROVAL_CHANGED")
+    assert len(events) == 1
+    assert events[0].payload["team"] == "CS"
+    assert events[0].payload["stage"] == "RECEIVED"
 
 
 # --------------------------------------------------------------------------- #

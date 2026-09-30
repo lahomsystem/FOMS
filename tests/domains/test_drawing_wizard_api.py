@@ -1757,7 +1757,7 @@ def test_versions_get_requires_login(client):
 
 
 def _order_with_assignee(user_id, *, extra=None):
-    """도면 담당자(drawing_assignee_user_ids)를 지정한 ERP 주문(매니저=하우드 → HAUDD 팀)."""
+    """도면 담당자(drawing_assignee_user_ids)를 지정한 ERP 주문(매니저=하우드 → CS 팀)."""
     sd = {
         "parties": {
             "customer": {"name": "서으뜸"},
