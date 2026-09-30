@@ -1731,6 +1731,13 @@
           <strong>교체:</strong> 선택한 도면만 새 파일로 교체 (다중 선택 가능)<br>
           <strong>전체 교체:</strong> 기존 도면 전부 삭제 후 새 파일로 대체
         </div>
+        {% if drawing_status == 'TRANSFERRED' and drawing_files %}
+        <div class="alert alert-warning small mb-3 dw-transfer-latest-notice" role="note">
+          <i class="fas fa-sync" aria-hidden="true"></i>
+          영업이 아직 수령 확정을 하지 않았습니다. 지금 보내면 이전 도면 {{ drawing_files|length }}장은 빠지고
+          <strong>이번 도면이 최신 도면으로 교체</strong>됩니다. 다른 제품 도면을 한 장 더 보탤 때만 '추가'를 고르세요.
+        </div>
+        {% endif %}
         <div class="mb-3">
           <label class="form-label fw-bold">전달 모드</label>
           <select class="form-select" id="dw-transfer-mode" onchange="toggleTransferTargetCards()">
@@ -2745,7 +2752,9 @@
 
       let confirmMsg = '';
       if (mode === 'REPLACE_ALL') {
-        confirmMsg = `기존 도면 ${drawingFiles.length}개를 전부 삭제하고 새 도면 ${totalNew}장으로 교체합니다. 진행할까요?`;
+        confirmMsg = drawingStatus === 'TRANSFERRED'
+          ? `이전 도면 ${drawingFiles.length}장은 빠지고 새 도면 ${totalNew}장이 최신 도면으로 교체됩니다. 진행할까요?`
+          : `기존 도면 ${drawingFiles.length}개를 전부 삭제하고 새 도면 ${totalNew}장으로 교체합니다. 진행할까요?`;
       } else if (mode === 'REPLACE') {
         if (replaceTargetKeys.length === 1) {
           const targetNo = drawingFiles.findIndex(f => f.key === replaceTargetKeys[0]) + 1;

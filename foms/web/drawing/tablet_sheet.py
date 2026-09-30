@@ -69,6 +69,19 @@ def _sheet_transfer_block_reason(sd: dict) -> str:
     return ''
 
 
+def _sheet_transfer_replaced_count(sd: dict) -> int:
+    """'시트 전달'이 이전 도면을 최신 도면으로 교체하면 교체될 장수를, 아니면 0 을 돌려준다.
+
+    영업 수령 확정 전(TRANSFERRED)에 mode 없이 다시 보내면 ``perform_drawing_transfer`` 가
+    REPLACE_ALL 로 처리한다(2026-09-30 주문 5331). 시트에 그 사실을 미리 적어 보인다.
+    """
+    drawing_status = ((sd.get('drawing') or {}).get('status') or sd.get('drawing_status') or 'PENDING').upper()
+    if drawing_status != 'TRANSFERRED':
+        return 0
+    current_files = sd.get('drawing_current_files')
+    return len(current_files) if isinstance(current_files, list) else 0
+
+
 def _build_version_timeline(pending: list[dict], versions: list) -> list[dict]:
     """버전 이력 타임라인을 구성한다: 미전달 자동저장(최신) → 전달 스냅샷(최신 먼저).
 
@@ -169,6 +182,7 @@ def erp_drawing_workbench_tablet_sheet(order_id: int) -> Any:
         can_transfer=can_transfer,
         show_transfer_assignee_only_hint=show_transfer_assignee_only_hint,
         transfer_block_reason=_sheet_transfer_block_reason(sd),
+        transfer_replaced_count=_sheet_transfer_replaced_count(sd),
         wizard_url=url_for('erp_drawing_workbench.erp_drawing_workbench_wizard', order_id=order.id),
         detail_url=url_for('erp_drawing_workbench.erp_drawing_workbench_detail', order_id=order.id) + '?tab=timeline',
     )
