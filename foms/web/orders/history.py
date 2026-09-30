@@ -41,6 +41,8 @@ from foms.services.history_read_model import (
     compute_history_page_blob,
     fetch_history_orders_by_ids,
 )
+from foms.services.orders.dashboard_filters import parse_orders_dashboard_filters
+from foms.services.orders.dashboard_read_model import build_orders_dashboard_queries
 from foms.services.request_utils import get_search_query_arg
 
 erp_history_bp = Blueprint('erp_history', __name__, url_prefix='/erp/history')
@@ -115,9 +117,6 @@ def _build_history_queue_rows(db, orders: list[Order], user) -> dict[int, dict[s
 
 def _dashboard_has_search_results(db, user) -> bool:
     """Return True when the ERP dashboard search (same predicate/scope) has any row."""
-    from foms.services.orders.dashboard_filters import parse_orders_dashboard_filters
-    from foms.services.orders.dashboard_read_model import build_orders_dashboard_queries
-
     is_admin = bool(user and getattr(user, "role", None) == "ADMIN")
     dash_q, _stats, _today, _iso = build_orders_dashboard_queries(
         db, user, is_admin, parse_orders_dashboard_filters(request)
