@@ -538,6 +538,8 @@ input.wb-pick:disabled,
     line-height: 1.6;
 }
 .wb-owner__k { color: var(--wb-muted); font-weight: 500; }
+/* 관계 칸 후보 주문 옆 — 고객명 뒤에 붙는 같은 칩(오른쪽 띄우기 없이). */
+.wb-owner--inline { float: none; margin-left: 4px; padding: 0 7px; font-size: calc(11px * var(--wb-fs, 1)); }
 .wb-cmp { width: 100%; border-collapse: collapse; font-size: calc(13px * var(--wb-fs, 1)); }
 
 /* 표는 **칸을 꽉 채운다**. 한때 `max-width: 860px` 로 상한을 뒀는데(금액 열이 화면 끝까지
