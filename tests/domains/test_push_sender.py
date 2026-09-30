@@ -4,6 +4,7 @@ DB fixture 는 tests/conftest.py 의 `app`(in-memory sqlite) + `client` 를 사�
 ``pywebpush`` 는 미설치이므로 가짜 모듈을 sys.modules 에 주입해 발송 경로를 검증한다.
 """
 import datetime
+import json
 import sys
 import types
 
@@ -18,6 +19,7 @@ from models import (
     NotificationPushSubscription,
     NotificationRecipientSource,
     NotificationUserState,
+    Order,
     User,
 )
 from foms.services.notifications.escalation import (
@@ -201,6 +203,94 @@ def test_send_payload_is_generic_and_leaks_nothing(db, monkeypatch):
     assert "fcm.googleapis.com" not in sent
     # 구독 비밀은 transport(subscription_info)로만 전달된다.
     assert rec.calls[0]["subscription_info"]["keys"]["p256dh"] == "TOPSECRETKEY"
+
+
+# ---------------------------------------------------------------------------
+# 주문 알림 배너의 고객 이름(2026-09-30 사용자 결정 — 일반 문구로는 어느 주문인지 모른다)
+# ---------------------------------------------------------------------------
+
+def _mk_order(customer="김고객", column_name="칸이름"):
+    order = Order(
+        received_date="2026-09-30", customer_name=column_name, phone="010-0000-0000",
+        address="서울시 강남구 비밀로 1", product="붙박이장",
+        structured_data={"parties": {"customer": {"name": customer}}} if customer else {},
+    )
+    db_session.add(order)
+    db_session.flush()
+    return order
+
+
+def _sent_payload(monkeypatch, ntype, order, username):
+    """주문 알림 1건을 실제 발송 경로로 보내고, 기기에 간 payload dict 를 돌려준다."""
+    rec = _Recorder()
+    _install_pywebpush(monkeypatch, rec)
+    u = _mk_user(username, "영업")
+    notif = _mk_notification(
+        is_urgent=False, ntype=ntype, order_id=order.id if order else None,
+    )
+    _mk_state(notif, u)
+    _mk_sub(u, f"https://fcm.googleapis.com/send/{username}")
+    result = send_push_for_notification(notif.id, db=db_session)
+    assert result["sent"] == 1
+    return json.loads(rec.calls[0]["data"])
+
+
+@pytest.mark.parametrize(
+    "ntype, title, body_tail",
+    [
+        ("DRAWING_TRANSFERRED", "도면 도착 · 김고객", "도면이 준비됐어요"),
+        ("DRAWING_REVISION", "도면 수정 요청 · 김고객", "도면 수정 요청이 들어왔어요"),
+        ("DRAWING_TRANSFER_CANCELLED", "도면 전달 취소 · 김고객", "도면 전달이 취소됐어요"),
+    ],
+)
+def test_drawing_push_banner_names_the_customer(db, monkeypatch, ntype, title, body_tail):
+    order = _mk_order()
+    payload = _sent_payload(monkeypatch, ntype, order, f"cust_{ntype.lower()}")
+    assert payload["title"] == title
+    assert payload["body"] == f"주문 #{order.id} (김고객) {body_tail}"
+    # 알림 row 의 title/message(주소·메모)는 여전히 배너에 싣지 않는다.
+    blob = json.dumps(payload, ensure_ascii=False)
+    assert "홍길동" not in blob and "강남" not in blob
+
+
+def test_measure_same_day_push_banner_names_the_customer(db, monkeypatch):
+    order = _mk_order()
+    payload = _sent_payload(monkeypatch, "MEASURE_SAME_DAY_ADDED", order, "cust_meas")
+    assert payload["title"] == "긴급 실측 추가"
+    assert payload["body"] == "김고객 실측이 오늘 긴급 추가됐어요"
+
+
+def test_drawing_transfer_cancelled_is_p1(db):
+    notif = _mk_notification(is_urgent=False, ntype="DRAWING_TRANSFER_CANCELLED")
+    assert _should_push(notif) is True
+
+
+def test_other_order_types_append_customer_to_generic_text(db, monkeypatch):
+    order = _mk_order()
+    payload = _sent_payload(monkeypatch, "SHIPMENT_ORDER_CHANGED", order, "cust_ship")
+    assert payload["title"] == "출고 일정 변경 · 김고객"
+    assert payload["body"] == f"주문 #{order.id} (김고객) 확인이 필요한 새 알림이 있습니다."
+
+
+def test_customer_name_falls_back_to_column_and_is_trimmed(db, monkeypatch):
+    order = _mk_order(customer=None, column_name="  아주  긴 이름을 가진 고객님의 회사 법인 이름  ")
+    payload = _sent_payload(monkeypatch, "DRAWING_TRANSFERRED", order, "cust_long")
+    name = payload["title"].split(" · ", 1)[1]
+    assert name.startswith("아주 긴 이름을")
+    assert len(name) == 20 and name.endswith("…")
+
+
+def test_push_without_order_keeps_generic_text(db, monkeypatch):
+    payload = _sent_payload(monkeypatch, "DRAWING_TRANSFERRED", None, "cust_none")
+    assert payload["title"] == "도면 알림"
+    assert payload["body"] == "확인이 필요한 새 알림이 있습니다."
+
+
+def test_worker_health_push_ignores_order_customer(db, monkeypatch):
+    order = _mk_order()
+    notif = _mk_notification(is_urgent=False, ntype="WORKER_STALLED", order_id=order.id)
+    payload = _build_payload(notif, "김고객")
+    assert "김고객" not in json.dumps(payload, ensure_ascii=False)
 
 
 # ---------------------------------------------------------------------------

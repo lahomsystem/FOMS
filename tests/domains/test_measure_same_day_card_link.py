@@ -39,7 +39,7 @@ def test_push_deep_link_goes_to_measurement_card():
     )
     payload = _build_payload(notif)
     assert payload["data"]["deep_link"] == "/erp/measurement?date=2026-09-29&focus_order=42"
-    # 잠금화면 글자는 그대로 generic.
+    # 고객 이름을 넘기지 않으면(주문 조회 전) 일반 문구.
     assert payload["body"] == "오늘 실측이 긴급 추가됐어요"
 
 
