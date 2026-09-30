@@ -10,9 +10,8 @@ Flask 3.1 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
+- [2026-09-30] **도면 후속 운영 반영(PR #459·#463 · production `f7dbff71`)** — 수정 요청 하나로·주문 변경 이력은 도면 쪽만·마법사 저장 틈 3곳·미리보기 크게·진행 막대(전체=열린 일, 누적 완료 따로)·마법사 저장 담당 자동 지정. 잔여: 고아 도면 51개 정리(승인 대기)
 - [2026-09-29] **할 일 묶음 운영 반영(PR #454 · production `1554f917f`)** — 워커 감독자·SQLAlchemy 2.0.54·파일 버전 시범·ci_watch. 잔여: 정지 감시 재가동 결정, 시범 측정
-- [2026-09-30] **도면 탭 고객 보내기(PR #458 · production `eb181215`)** — 보내기·고객 요청·고객 OK 확정·요청 고치기·번호 바꾸기·PC 긴급 호출. 운영 알림톡 테스트 1회 수신 확인 뒤 회차 이름 스위치 켬(FOMS_SHARE_ROUND_DOC_LABEL=1)
-- [2026-09-29] **도면 결함 2차(PR #457 · production `9cd99254`)** — 폼 저장 도면 잠금·행 잠금·남의 파일 삭제 차단·고객컨펌/제작 시작 게이트·생산 배지. 잔여: 고아 도면 51개 정리(승인 대기) · wizard 쓰기 3곳은 09-30 막음
 - [2026-09-29] **통합 검색 입구 통일(PR #444 운영)** — AI_CHANGELOG
 - [2026-09-29] **네이버 워크벤치 모바일·PC(PR #453·#455·#456 운영)** — 폰 1~4단계·감사·재감사·PC 대비. 잔여: 실기기
 - [2026-09-28] **v3 셸 삭제 + 모바일 3건 + 광폭 PC 모바일 표면 생략 + PC 배지(PR #433·#434 · production `824b2c1d3`)** — `FOMS_V3_SHELL_COHORT` 는 v2 코호트 키(삭제 금지). 잔여: 아이폰 실기기 날짜 탭
@@ -193,6 +192,8 @@ Flask 3.1 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 - [2026-04-15] **Strict final canonical tree `SFC-B11B` slice 2 (`dashboards`, §6.16):** 구현을 `foms/web/dashboards/routes.py`로 이전; `foms/web/dashboards/__init__.py`는 `routes`만 import; `apps/dashboards.py`는 `foms.web.dashboards` 재노출 shim. 검증: `APP_OK`, `verify_result.py --json`, `pytest tests` **586 passed**. 근거: batch11b **§Slice B11B-2**.
 
 ## 기록 보관 (strict canonical / 이전 배치 요약)
+- [2026-09-30] **도면 탭 고객 보내기(PR #458 · production `eb181215`)** — 보내기·고객 요청·고객 OK 확정·요청 고치기·번호 바꾸기·PC 긴급 호출. 운영 알림톡 테스트 1회 수신 확인 뒤 회차 이름 스위치 켬(FOMS_SHARE_ROUND_DOC_LABEL=1)
+- [2026-09-29] **도면 결함 2차(PR #457 · production `9cd99254`)** — 폼 저장 도면 잠금·행 잠금·남의 파일 삭제 차단·고객컨펌/제작 시작 게이트·생산 배지. 잔여: 고아 도면 51개 정리(승인 대기) · wizard 쓰기 3곳은 09-30 막음
 - [2026-09-22] **시공일 지난 적체 주문 일괄 완료 — 운영 적용 완료(413건)** — 1차(+7일) 413 + 2차(시공일<오늘, 사용자 수동 시공일 입력 뒤) 174 = 587건. 실측 858→237 · 도면 101→48 · 완료 1451→2038. AS 탭 건 143 은 stage 만(AS 축 지문 두 차례 모두 적용 전후 동일 · AS 탭 불변). 스냅샷 `C:/tmp/foms-backlog-complete-20260922/`(rollback 가능). 잔여: 시공일 없는 건 CSV 영업 검토. 스펙 `docs/plans/2026-09-22-past-construction-bulk-complete-spec.md`
 - [2026-09-11] **도면 마법사 캔버스 소실 사고 종결(production `5564994a6`·PR #353)** — 주문 폼 전체 저장 1회가 `drawing_wizard` 를 통째 삭제(보존 목록 누락, 감사엔 `변경 0건`). 같은 자리 6번째라 등재 대신 **비-폼 키 기본 보존**으로 뒤집음. 피해=마법사 쓴 주문 2건 전부, **둘 다 R2 스냅샷으로 복구**. 기록 `docs/plans/2026-09-11-drawing-wizard-data-loss-incident.md`
 - [2026-09-13] **탭 왕복 느림 종결 — 서버 렌더 2~5배(PR #362·#367·#370 · production `22acd17cc`)** — 원인 셋: ① `with phase()` 안 인자 식 선평가로 조회가 템플릿 시간으로 계상(진짜 Jinja 5~7ms) ② 배포 직후 첫 방문자의 템플릿 컴파일 550~590ms(4 프로세스) → 부팅 워밍 ③ `raw_snapshot` 평균 2,194B 가 TOAST 임계를 넘어 같은 스캔이 14,736버퍼·50.5ms → 249·1.5ms → 클레임 축 사본 컬럼 4개(`nvmirror_00`). **운영 백필 완료 2,393행·전수 대조 불일치 0**. 실측 이력 탭 388~1,061 → 189~297ms, 처리 탭 696~1,428 → 193~259ms. 원장 §10~§16
