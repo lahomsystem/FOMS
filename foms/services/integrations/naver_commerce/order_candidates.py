@@ -1052,6 +1052,9 @@ def _order_view(order: Order, *, score: int, reason: str,
     return {
         "order_id": int(order.id),
         "customer_name": order.customer_name,
+        # 우리 담당자(2026-09-30) — 새 수집분은 주문이 없어 담당자가 없다. 붙일 후보 주문의
+        # 담당자가 "누구에게 물어볼지"를 말한다. 공백뿐이면 지정 안 된 것.
+        "manager_name": (getattr(order, "manager_name", None) or "").strip() or None,
         "phone": order.phone,
         "address": order.address,
         "product": order.product,

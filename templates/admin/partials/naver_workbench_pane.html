@@ -1182,6 +1182,9 @@
                         </td>
                         <td>
                             {{ cand.customer_name }}
+                            {% if cand.manager_name %}
+                            <span class="wb-owner wb-owner--inline" title="이 주문의 FOMS 담당자"><span class="wb-owner__k">담당</span>{{ cand.manager_name }}</span>
+                            {% endif %}
                             <div class="wb-relation__reason">{{ cand.address[:24] }}</div>
                         </td>
                         <td>
