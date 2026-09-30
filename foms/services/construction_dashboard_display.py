@@ -11,7 +11,6 @@ from foms.services.erp_display import (
     manager_display_name,
     _ensure_dict,
     _erp_alerts,
-    _erp_get_stage,
     _erp_has_media,
     self_measurement_four_checks_done,
 )
@@ -20,6 +19,7 @@ from foms.services.erp_mobile_order_display import (
     resolve_manager_phone_for_queue,
 )
 from foms.services.estimate_service import build_measurement_manager_phone_map
+from foms.services.orders.board_state_display import construction_display_stage as _display_stage_for_order
 from foms.services.production_dashboard_display import (
     _production_first_item,
     _production_spec_display,
@@ -386,19 +386,6 @@ def enrich_construction_mobile_rows(
                 drawing_only=True,
                 preloaded_count=(len(preloaded) if preloaded is not None else None),
             )
-
-
-def _display_stage_for_order(order, structured_data):
-    stage = _erp_get_stage(order, structured_data)
-    history = (structured_data.get("workflow") or {}).get("history") or []
-    is_started = any(str(entry.get("note")).strip() == "시공 시작" for entry in history)
-    if stage in ("CONSTRUCTION", "시공"):
-        return "시공중" if is_started else "시공대기"
-    if stage in ("COMPLETED", "완료", "AS_WAIT") or stage == "CS":
-        return "시공완료"
-    if stage == "CONSTRUCTING":
-        return "시공중"
-    return None
 
 
 def _workmode_display_fields(structured_data: dict[str, Any]) -> tuple[str, str]:

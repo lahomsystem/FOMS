@@ -30,6 +30,7 @@ from foms.services.orders.status_constants import BULK_ACTION_STATUS
 from foms.services.orders.team_labels import TEAM_LABELS
 from foms.services.orders.dashboard_filters import parse_orders_dashboard_filters
 from foms.services.orders.dashboard_dto import build_orders_row_dtos
+from foms.services.orders.board_state_display import production_run_ids_for
 from foms.services.orders.dashboard_read_model import (
     build_orders_dashboard_queries,
     compute_orders_summary_slice,
@@ -60,7 +61,7 @@ from foms.services.common.erp_shell_http import (
     apply_erp_shell_fragment_headers,
     wants_erp_shell_tab_body,
 )
-from foms.services.common.ept_b7_profile import apply_ept_b7_render_headers
+from foms.services.common.ept_b7_profile import apply_ept_b7_render_headers, phase
 from foms.services.common.erp_mine_filter import erp_tower_mine_from_request
 
 
@@ -355,8 +356,12 @@ def erp_dashboard():
     # '담당 미지정' 뱃지: 보류함 owner 는 배정 즉시 풀려야 하므로 캐시 blob 밖에서 계산한다.
     # 수집 주문이 없는 페이지에서는 쿼리를 내지 않는다(평상시 추가 비용 0).
     _unassigned_intake_ids = compute_unassigned_intake_order_ids(db, page_orders, page_sds)
-    enriched = build_orders_row_dtos(page_orders, page_sds, att_counts, user_map, current_user,
-                                     unassigned_intake_ids=_unassigned_intake_ids)
+    with phase("board_run_ids"):
+        _run_ids = production_run_ids_for(db, page_orders, page_sds)
+    with phase("row_dtos"):
+        enriched = build_orders_row_dtos(page_orders, page_sds, att_counts, user_map, current_user,
+                                         unassigned_intake_ids=_unassigned_intake_ids,
+                                         production_run_ids=_run_ids)
 
     paginated_orders = enriched
 

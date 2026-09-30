@@ -315,15 +315,17 @@ def test_대조군_cs_단계_버튼은_넘기기가_아니라_cs_확인(client):
     assert [b.get_text(" ", strip=True) for b in buttons] == ["CS 확인"]
 
 
-def test_pc_grid_says_board_not_permission_for_synthesized_production_quest(client):
-    """PC 그리드 — 생산 합성 quest 는 ADMIN 에게도 '(담당자만 누를 수 있어요)' 이 아니라 '(보드에서 진행)' 을 보인다."""
+def test_pc_grid_shows_board_state_for_production(client):
+    """PC 그리드 — 생산 줄은 합성 quest 대신 '제작대기' 배지와 '생산 보드 열기' 링크다."""
     user = _db_user("grid_synth_admin", role="ADMIN", team="SALES")
     order = _db_order("PRODUCTION", "합성 생산")
 
     html = _grid_html(client, user, "생산")
-    assert f'quest-collapse-{order.id}' in html
-    assert html.count("(담당자만 누를 수 있어요)") == 0
-    assert html.count("(보드에서 진행)") >= 1
+    assert f'quest-collapse-{order.id}' not in html
+    assert "(보드에서 진행)" not in html
+    assert "(담당자만 누를 수 있어요)" not in html
+    assert "제작대기" in html
+    assert f'href="/erp/production/dashboard?focus_order={order.id}">생산 보드 열기</a>' in html
 
 
 def test_pc_grid_keeps_permission_note_for_synthesized_received_quest_without_rights(client):
@@ -461,10 +463,10 @@ def test_asset_pins_current():
     """고친 자산은 핀을 올린다 — 안 올리면 SW 캐시로 옛 파일이 산다."""
     # 2026-09-30 이름 정리로 erp-quest-approve.js 는 20260930b, entry·quest 모듈은 20260930a.
     assert "erp-quest-approve.js') }}?v=20260930b" in _read("templates/partials/shared/layout_scripts.html")
-    # erp-pro.css 는 20260929k, detail-dom 은 도면 창구 버튼 글자로 20260930a.
+    # erp-pro.css·04 자식은 board_state 줄로 20260930c, detail-dom 은 도면 창구 버튼 글자로 20260930a.
     assert "erp-dashboard-entry.js') }}?v=20260930a" in _read("templates/partials/shared/layout_scripts.html")
-    assert "erp-pro.css') }}?v=20260929k" in _read("templates/partials/shared/layout_head.html")
-    assert "04-filter-table-badges-buttons.css?v=20260920b" in _read("static/css/foundation/erp-pro.css")
+    assert "erp-pro.css') }}?v=20260930c" in _read("templates/partials/shared/layout_head.html")
+    assert "04-filter-table-badges-buttons.css?v=20260930c" in _read("static/css/foundation/erp-pro.css")
     entry = _read("static/js/orders/erp-dashboard-entry.js")
     assert "erp-dashboard-quest.js?v=20260930a" in entry
     assert "erp-dashboard-detail-dom.js?v=20260930a" in entry

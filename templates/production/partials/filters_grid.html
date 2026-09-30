@@ -9,7 +9,7 @@
           <div class="d-flex justify-content-between align-items-center mb-3">
             <div>
               <h5 class="mb-0 fw-bold text-dark"><i class="fas fa-table text-primary"></i> 작업 큐</h5>
-              <small class="text-muted">주문 처리 및 퀘스트 관리</small>
+              <small class="text-muted">주문별 현재 작업</small>
             </div>
             <div>
               <span class="badge bg-primary fs-6 px-3 py-2">표시: <strong>{{ orders|length }}</strong>건</span>
@@ -22,7 +22,7 @@
                 <tr>
                   <th class="erp-grid-th"><div class="d-flex align-items-center gap-1 flex-nowrap">{% if can_edit_erp %}<input type="checkbox" class="form-check-input mt-0" id="erp-grid-select-all" title="전체 선택" aria-label="전체 선택">{% endif %}<span>경보</span></div><div class="erp-col-resizer"></div></th>
                   <th class="erp-grid-th">단계<div class="erp-col-resizer"></div></th>
-                  <th class="erp-grid-th">퀘스트<div class="erp-col-resizer"></div></th>
+                  <th class="erp-grid-th">현재 작업<div class="erp-col-resizer"></div></th>
                   <th class="erp-grid-th">고객<div class="erp-col-resizer"></div></th>
                   <th class="erp-grid-th">연락처<div class="erp-col-resizer"></div></th>
                   <th class="erp-grid-th">주소<div class="erp-col-resizer"></div></th>
@@ -81,7 +81,7 @@
                     <span class="badge bg-light text-secondary border" title="재제작 이력">재제작 {{ o.rework_count }}회</span>
                     {% endif %}
                   </td>
-                  <td data-label="퀘스트" class="erp-quest-cell erp-wrap">
+                  <td data-label="현재 작업" class="erp-quest-cell erp-wrap">
                     {% if o.stage == '제작대기' %}
                       {% if not o.is_sales_approved %}
                         <!-- 담당자 승인 전: '고객 컨펌 전' 텍스트 표시 -->
