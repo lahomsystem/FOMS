@@ -129,3 +129,57 @@ def test_transfer_does_not_create_rows_for_non_drawing_keys(app):
     keys = {r.storage_key for r in _drawing_attachments(oid)}
     assert drawing_key in keys
     assert measurement_key not in keys
+
+
+def _transfer(app, order, user, key: str, **kwargs):
+    with app.test_request_context():
+        return perform_drawing_transfer(
+            db_session, order, order.id, user, user.id,
+            files=[{"key": key, "filename": key.rsplit("/", 1)[-1]}], **kwargs,
+        )
+
+
+def test_retransfer_before_confirm_without_mode_replaces_all(app):
+    """영업 확정 전 재전달에 방식 미지정이면 전체 교체 — 확정 후 최종본 1장만 남는다.
+
+    운영 2026-09-30 주문 5331: 확정 전 3회 전달(모두 APPEND) → 도면 칸에 3장 누적.
+    """
+    from foms.services.drawing_confirm_cleanup import (
+        resolve_final_drawing_files,
+        superseded_drawing_keys,
+    )
+
+    user = _make_user("dws_att_rt_default")
+    order = _make_order(user.id)
+    oid = order.id
+    first = f"orders/{oid}/drawing_wizard/exports/v1.png"
+    second = f"orders/{oid}/drawing_wizard/exports/v2.png"
+
+    assert _transfer(app, order, user, first)[1] == 200
+    payload, status = _transfer(app, order, user, second)
+
+    assert status == 200 and payload["success"] is True
+    db_session.expire_all()
+    sd = db_session.get(Order, oid).structured_data
+    assert sd["drawing_transfer_history"][-1]["mode"] == "REPLACE_ALL"
+    assert [f["key"] for f in sd["drawing_current_files"]] == [second]
+    assert [f["key"] for f in resolve_final_drawing_files(sd)] == [second]
+    assert first in superseded_drawing_keys(sd), "이전 회차 도면이 도면 칸에 계속 보인다"
+
+
+def test_retransfer_before_confirm_explicit_append_keeps_both(app):
+    """방식을 APPEND 로 직접 고르면 한 장 더 보태기 — 기존 도면을 남긴다."""
+    user = _make_user("dws_att_rt_append")
+    order = _make_order(user.id)
+    oid = order.id
+    first = f"orders/{oid}/drawing_wizard/exports/a.png"
+    second = f"orders/{oid}/drawing_wizard/exports/b.png"
+
+    assert _transfer(app, order, user, first)[1] == 200
+    payload, status = _transfer(app, order, user, second, mode="APPEND")
+
+    assert status == 200 and payload["success"] is True
+    db_session.expire_all()
+    sd = db_session.get(Order, oid).structured_data
+    assert sd["drawing_transfer_history"][-1]["mode"] == "APPEND"
+    assert [f["key"] for f in sd["drawing_current_files"]] == [first, second]

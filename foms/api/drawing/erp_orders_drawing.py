@@ -165,6 +165,11 @@ def perform_drawing_transfer(
         return {'success': False, 'message': msg}, 403
 
     drawing_status = effective_drawing_status(s_data, default='PENDING')  # 판정 정본(2a-2)
+    # 영업 수령 확정 전(TRANSFERRED)에 다시 보내면서 방식을 고르지 않았으면 전체 교체로 본다.
+    # 예전엔 APPEND 로 쌓여 확정 뒤 도면 칸에 이전 회차가 전부 남았다(2026-09-30 주문 5331,
+    # 3회 전달 → 3장). 한 장 더 보태려면 호출측이 mode='APPEND' 를 명시해야 한다.
+    if not mode and not replace_target_keys and not is_retransfer and drawing_status == 'TRANSFERRED':
+        mode = 'REPLACE_ALL'
     if not is_retransfer:
         is_retransfer = drawing_status == 'RETURNED'
     if (
