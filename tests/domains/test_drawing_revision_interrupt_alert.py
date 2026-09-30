@@ -102,6 +102,9 @@ def test_revision_realtime_payload_carries_interrupt_grade(client, monkeypatch):
     assert payload["interrupt"] is True
     assert payload["order_id"] == order_id
     assert payload["created_by_name"] == "영업담당"
+    # 번호만으로는 어느 집인지 모른다 — 고객 이름이 payload·본문에 함께 실린다.
+    assert payload["customer_name"] == "고객"
+    assert f"주문 #{order_id} (고객) 도면 수정 요청이 접수되었습니다." in payload["message"]
     # 긴급 호출(P0) 과는 다른 등급이다 — 전체화면 빨강을 타지 않아야 한다.
     assert payload.get("urgent") in (None, False)
 
@@ -203,3 +206,10 @@ def test_cancel_realtime_payload_carries_notice_grade(client, monkeypatch):
     assert payload["notice"] is True
     assert payload.get("interrupt") in (None, False)
     assert payload["created_by_name"] == "영업취소"
+
+
+def test_dialog_title_shows_customer_name():
+    """확인창 제목은 주문 번호 옆에 고객 이름을 붙인다(payload customer_name)."""
+    js = (ROOT / "static/js/foms/foms-drawing-alert.js").read_text(encoding="utf-8")
+    assert "data.customer_name" in js
+    assert "'도면을 고쳐야 합니다'" in js

@@ -60,6 +60,16 @@ DRAWING_ORDER_CHANGE_ACK_POLICY_ID = 'DRAWING_ORDER_CHANGE_ACK'
 REVISION_CANCEL_REASON_MAX = 200
 
 
+def _order_customer_name(s_data) -> str:
+    """structured_data 의 고객 이름(없으면 빈 문자열)."""
+    return (((s_data.get('parties') or {}).get('customer') or {}).get('name') or '').strip()
+
+
+def _order_label(order_id, customer_name) -> str:
+    """알림 문구의 주문 표기 — 번호만으로는 어느 집인지 몰라 고객 이름을 붙인다."""
+    return f"주문 #{order_id}" + (f" ({customer_name})" if customer_name else "")
+
+
 @erp_orders_revision_bp.route('/<int:order_id>/request-revision', methods=['POST'])
 @login_required
 @erp_edit_required
@@ -175,7 +185,9 @@ def api_order_request_revision(order_id):
             write=_write_revision_request,
         )
 
-        msg = notification_message_prefix(source_fields) + f"주문 #{order_id} 도면 수정 요청이 접수되었습니다."
+        customer_name = _order_customer_name(s_data)
+        msg = (notification_message_prefix(source_fields) + _order_label(order_id, customer_name)
+               + " 도면 수정 요청이 접수되었습니다.")
         if target_drawing_numbers:
             if len(target_drawing_numbers) == 1:
                 msg += f" 대상: {target_drawing_numbers[0]}번 도면."
@@ -231,6 +243,7 @@ def api_order_request_revision(order_id):
                 'title': new_notification.title,
                 'message': new_notification.message,
                 'created_by_name': current_user.name,
+                'customer_name': customer_name,
                 # ACTION-REQUIRED 등급: 도면팀 화면에 확인을 눌러야 닫히는 창을 띄운다.
                 # 등급 판정은 서버가 한다(프런트는 이 키만 본다). 긴급 호출(P0, urgent)과 달리
                 # 전체화면 빨강이 아니라 중앙 확인창이다 — 2026-09-11 알림 개편.
@@ -304,7 +317,8 @@ def api_order_edit_revision_request(order_id):
             order_id=order_id, notification_type='DRAWING_REVISION', target_team='DRAWING',
             title=notification_title(entry, edited=True),
             message=notification_message_prefix(entry)
-            + f"주문 #{order_id} 수정요청 내용을 고쳤습니다. 메모: {entry.get('note') or ''}",
+            + _order_label(order_id, _order_customer_name(s_data))
+            + f" 수정요청 내용을 고쳤습니다. 메모: {entry.get('note') or ''}",
             created_by_user_id=current_user.id, created_by_name=current_user.name,
         )
         db.add(notif)
@@ -323,6 +337,7 @@ def api_order_edit_revision_request(order_id):
         emit_erp_notification_to_users(recipient_user_ids, {
             'notification_id': notif.id, 'order_id': order_id, 'notification_type': 'DRAWING_REVISION',
             'title': notif.title, 'message': notif.message, 'created_by_name': current_user.name,
+            'customer_name': _order_customer_name(s_data),
             'interrupt': True,  # 수정요청과 같은 확인창 등급
         })
         return jsonify({'success': True, 'data': {'request': entry}, 'error': None})
@@ -450,8 +465,7 @@ def api_order_cancel_revision_request(order_id):
         # 수정요청취소 알림 → 도면팀. 실패해도 취소는 진행(로그만).
         cancel_notif = None
         try:
-            _cust = (((s_data.get('parties') or {}).get('customer') or {}).get('name') or '').strip()
-            _msg = f"주문 #{order_id}" + (f" ({_cust})" if _cust else "") + " 도면 수정요청이 취소되었습니다."
+            _msg = _order_label(order_id, _order_customer_name(s_data)) + " 도면 수정요청이 취소되었습니다."
             cancel_notif = Notification(
                 order_id=order_id,
                 notification_type='DRAWING_REVISION_CANCELLED',
