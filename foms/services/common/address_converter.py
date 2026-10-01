@@ -53,6 +53,11 @@ _geocode_cache_lock = threading.Lock()
 #: 429 는 쿼터, 5xx 는 카카오 장애다. 셋 다 주소와 무관하다.
 _TRANSIENT_STATUS_CODES = frozenset({401, 403, 408, 429})
 
+#: 카카오 길찾기 HTTP 상한(초). 호출자가 timeout 을 안 주면(또는 None 을 주면) 이 값을 쓴다.
+#: 예전에는 None = 무한 대기였고, 웹 요청(``/api/calculate_route``·시공 근처 추천)이 DB 연결을
+#: 쥔 채 카카오 응답을 끝없이 기다릴 수 있었다(2026-10-01 전체 성능 검사). 주소 변환과 같은 10초.
+DEFAULT_ROUTE_TIMEOUT_SECONDS = 10
+
 
 class FOMSAddressConverter:
     """FOMS 시스템용 주소 변환 클래스"""
@@ -503,8 +508,8 @@ class FOMSAddressConverter:
         """두 좌표 간의 차량 경로 및 소요시간 계산.
 
         Args:
-            timeout: Optional seconds for the HTTP request. When omitted, behavior
-                matches historical calls (no explicit requests timeout).
+            timeout: HTTP 요청 상한(초). 생략하거나 None 이면
+                ``DEFAULT_ROUTE_TIMEOUT_SECONDS`` — 무한 대기는 없다.
         """
         try:
             # 카카오 내비게이션 API 사용
@@ -518,10 +523,12 @@ class FOMSAddressConverter:
                 'alternatives': 'false'
             }
 
-            req_kwargs = {}
-            if timeout is not None:
-                req_kwargs["timeout"] = timeout
-            response = requests.get(url, params=params, headers=kakao_rest_headers(), **req_kwargs)
+            response = requests.get(
+                url,
+                params=params,
+                headers=kakao_rest_headers(),
+                timeout=DEFAULT_ROUTE_TIMEOUT_SECONDS if timeout is None else timeout,
+            )
             
             if response.status_code == 200:
                 data = response.json()

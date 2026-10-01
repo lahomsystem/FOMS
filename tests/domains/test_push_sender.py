@@ -62,7 +62,7 @@ class _Recorder:
         self._exc = exc
 
     def __call__(self, subscription_info, data, vapid_private_key=None, vapid_claims=None,
-                 ttl=0, headers=None):
+                 ttl=0, headers=None, timeout=None):
         self.calls.append(
             {
                 "subscription_info": subscription_info,
@@ -71,6 +71,7 @@ class _Recorder:
                 "vapid_claims": vapid_claims,
                 "ttl": ttl,
                 "headers": headers,
+                "timeout": timeout,
             }
         )
         if self._exc is not None:

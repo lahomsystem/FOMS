@@ -67,3 +67,44 @@ def test_factory_warms_only_on_deployed() -> None:
     tail = gate.rstrip().splitlines()[-1]
     assert "is_production or is_railway" in tail, (
         f"워밍이 배포 게이트 밖에 있다 — 직전 줄: {tail!r}")
+
+
+def test_worker_children_skip_warm_via_env() -> None:
+    """WORKER 자식은 HTML 을 그리지 않는다 — 감독자가 심은 env 로 워밍을 건너뛴다.
+
+    자식 6개가 각자 워밍까지 하느라 재배포 때 rq 준비가 p50 20초 걸렸다(2026-10-01 실측).
+    감독자는 앱을 import 하지 않아 env 이름을 글자로 들고 있다 — 두 글자가 갈라지면 조용히 무효.
+    """
+    from foms.services.common.template_warm import SKIP_ENV, warm_skipped
+    from tools.ops import worker_supervisor
+
+    assert worker_supervisor.TEMPLATE_WARM_SKIP_ENV == SKIP_ENV
+    assert warm_skipped({SKIP_ENV: "1"}) is True
+    assert warm_skipped({}) is False
+    assert warm_skipped({SKIP_ENV: "0"}) is False
+
+    factory = (_REPO_ROOT / "foms/platform/app_factory.py").read_text(encoding="utf-8")
+    gate = factory.split("warm_templates(app)")[0].rstrip().splitlines()[-1]
+    assert "not warm_skipped()" in gate, f"워밍 게이트에 건너뛰기 판정이 없다 — {gate!r}"
+
+    supervisor_src = (_REPO_ROOT / "tools/ops/worker_supervisor.py").read_text(encoding="utf-8")
+    assert "os.environ.setdefault(TEMPLATE_WARM_SKIP_ENV" in supervisor_src
+
+
+def test_warm_list_covers_erp_tab_bodies() -> None:
+    """ERP 9탭 본문 파셜이 목록에서 빠지면 탭 첫 방문자가 컴파일을 다시 치른다.
+
+    예전 목록은 9탭 트리 컴파일 1,536ms 중 125ms 만 덮었다(2026-10-01 전체 성능 검사).
+    """
+    tab_bodies = {
+        "orders/partials/dashboard_grid.html",
+        "measurement/partials/dashboard_main.html",
+        "drawing/partials/workbench_dashboard_body.html",
+        "production/partials/dashboard_body.html",
+        "shipment/partials/dashboard_main.html",
+        "cs/partials/as_dashboard_body.html",
+        "orders/partials/history_dashboard_body.html",
+    }
+    missing = sorted(tab_bodies - set(WARM_TEMPLATES))
+    assert not missing, f"워밍 목록에 없는 9탭 본문: {missing}"
+    assert len(set(WARM_TEMPLATES)) == len(WARM_TEMPLATES), "워밍 목록에 중복이 있다"

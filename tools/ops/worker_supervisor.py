@@ -39,6 +39,11 @@ BACKOFF_START_SECONDS = 5
 BACKOFF_MAX_SECONDS = 60
 HEALTHY_RUN_SECONDS = 60
 STOP_GRACE_ENV = "FOMS_SUPERVISOR_STOP_GRACE_SECONDS"
+#: 자식에게 "부팅 템플릿 워밍을 건너뛰라" 고 알리는 env. 정본은
+#: ``foms.services.common.template_warm.SKIP_ENV`` — 감독자는 앱을 import 하지 않으므로 글자로 둔다
+#: (같은 글자임을 tests/performance/test_template_warm.py 가 지킨다). 자식들은 HTML 을 그리지 않는데
+#: 각자 워밍까지 하느라 재배포 때 rq 준비가 늦어졌다(2026-10-01 운영 실측 p50 20초).
+TEMPLATE_WARM_SKIP_ENV = "FOMS_SKIP_TEMPLATE_WARM"
 DEFAULT_STOP_GRACE_SECONDS = 25
 TICK_SECONDS = 0.5
 
@@ -273,6 +278,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         grace = float(os.environ.get(STOP_GRACE_ENV) or DEFAULT_STOP_GRACE_SECONDS)
     except ValueError:
         grace = DEFAULT_STOP_GRACE_SECONDS
+    # 자식은 Popen 기본값대로 이 프로세스의 env 를 물려받는다.
+    os.environ.setdefault(TEMPLATE_WARM_SKIP_ENV, "1")
     supervisor = Supervisor(jobs, stop_grace=grace)
     signal.signal(signal.SIGTERM, supervisor.request_stop)
     signal.signal(signal.SIGINT, supervisor.request_stop)

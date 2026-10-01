@@ -54,6 +54,8 @@ DASHBOARDS = [
      ("시공 모바일 대시보드",)),
     ("/erp/shipment", "templates/shipment/partials/dashboard_main.html",
      ("출고 모바일 대시보드",)),
+    ("/erp/as", "templates/cs/partials/as_dashboard_body.html",
+     ("AS 모바일 대시보드",)),
 ]
 
 
