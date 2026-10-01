@@ -375,6 +375,6 @@ def test_history_cards_show_the_naver_stage_and_fold_repeated_badges(client, wor
 
 def test_workbench_pins_moved_to_20260930b():
     markup = TEMPLATE.read_text(encoding="utf-8")
-    assert markup.count("?v=20261001a") == 2
+    assert markup.count("?v=20261001b") == 2
     assert "?v=20260930a" not in markup
     assert PANE.exists()
