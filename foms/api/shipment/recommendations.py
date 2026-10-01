@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from typing import Any
 
 from copy import deepcopy
@@ -13,6 +14,7 @@ from sqlalchemy.orm import load_only
 from db import get_db
 from foms.api.shipment.settings import erp_shipment_bp
 from foms.services.common.address_converter import FOMSAddressConverter
+from foms.services.common.ept_b7_profile import apply_ept_b7_render_headers, phase
 from foms.services.erp_permissions import erp_edit_required
 from foms.services.geocode_helpers import get_order_display_address
 from foms.services.schedule_recommendations import (
@@ -25,7 +27,9 @@ from foms.services.shipment_as_recommendation_cache import (
     get_or_compute_candidate_pool,
     invalidate_shipment_as_recommendation_cache,
     make_route_provider,
+    release_target_lock,
     set_cached_target,
+    try_acquire_target_lock,
 )
 from foms.services.common.dashboard_cache import (
     DASHBOARD_FAMILY_ORDERS,
@@ -94,25 +98,45 @@ def _build_targets_for_order_ids(db, order_ids: list[int]) -> list[dict[str, Any
     return targets_in
 
 
+def _release_db_connection(db) -> None:
+    """외부 호출(카카오) 직전에 이 요청의 DB 트랜잭션을 끝내 연결을 풀에 돌려준다.
+
+    추천·예열은 읽기만 하므로 끝낼 방법은 rollback 이다(요청 끝 ``close_db`` 도 commit 없이
+    닫는다). 예전에는 카카오 응답을 기다리는 수 초 동안 연결을 쥐고 있었다 — 운영 예열 p50 7.9초,
+    한 인스턴스에서 최대 7개 동시(프로세스당 풀 5+5). 이후 DB 를 다시 쓰면(모달 응답의 연결 목록·
+    타임라인) 세션이 새 연결을 자동으로 빌린다. 미리 읽어 둔 값은 전부 dict 라 만료 영향이 없다.
+    """
+    try:
+        db.rollback()
+    except Exception:  # noqa: BLE001 - 반납 실패는 예전 동작(쥔 채 진행)과 같다
+        logger.warning("[AS-REC] DB 연결 반납 실패(계속 진행)", exc_info=True)
+
+
 def _compute_recommendation_payload(
     *,
     db,
     order_ids: list[int],
     selected_date: str | None,
     return_targets: bool,
+    singleflight: bool = False,
 ) -> dict[str, Any]:
     """
     Shared core for GET-like recommendation + prewarm.
     Candidate pool cache + per-target cache + route_provider injection.
+
+    ``singleflight`` (예열 전용): 같은 타깃을 다른 요청이 계산 중이면 건너뛴다.
+    ``return_targets`` 가 False(예열)면 화면용 조립(연결 목록·타임라인)을 하지 않는다 —
+    결과를 버리기 때문이다.
     """
     converter = FOMSAddressConverter()
-    pool, pool_stats = get_or_compute_candidate_pool(
-        db,
-        converter,
-        source_value=SHREC_SOURCE,
-        as_statuses=AS_STATUSES,
-        log_warning=logger.warning,
-    )
+    with phase("asrec_pool"):
+        pool, pool_stats = get_or_compute_candidate_pool(
+            db,
+            converter,
+            source_value=SHREC_SOURCE,
+            as_statuses=AS_STATUSES,
+            log_warning=logger.warning,
+        )
     link_as_to_shipment = {}
     raw_link = pool.get("link_as_to_shipment") or {}
     for k, v in raw_link.items():
@@ -124,7 +148,8 @@ def _compute_recommendation_payload(
     candidates_in = pool.get("candidates") or []
     pool_version = str(pool.get("pool_version") or "")
 
-    targets_in = _build_targets_for_order_ids(db, order_ids)
+    with phase("asrec_targets"):
+        targets_in = _build_targets_for_order_ids(db, order_ids)
     cache_meta: dict[str, Any] = {
         "candidate_pool_hit": bool(pool_stats.get("candidate_pool_hit")),
         "candidate_count": int(pool_stats.get("candidate_count") or 0),
@@ -132,6 +157,7 @@ def _compute_recommendation_payload(
         "target_misses": 0,
         "route_hits": 0,
         "route_misses": 0,
+        "target_inflight_skips": 0,
         "prewarmed": False,
     }
 
@@ -151,32 +177,52 @@ def _compute_recommendation_payload(
             miss_list.append(tgt)
             cache_meta["target_misses"] += 1
 
+    held_locks: list[tuple[str, str]] = []
+    if singleflight and miss_list:
+        mine: list[dict[str, Any]] = []
+        for tgt in miss_list:
+            lock_ck = build_target_cache_key(tgt, pool_version, RULE_VERSION)
+            acquired, token = try_acquire_target_lock(lock_ck)
+            if acquired:
+                mine.append(tgt)
+                held_locks.append((lock_ck, token))
+            else:
+                cache_meta["target_inflight_skips"] += 1
+        miss_list = mine
+
     merged_miss: dict[int, dict[str, Any]] = {}
     partial_all = False
     warnings_all: list[str] = []
 
-    if miss_list:
-        chunk_size = 5
-        for i in range(0, len(miss_list), chunk_size):
-            chunk = miss_list[i : i + chunk_size]
-            batch = recommend_nearby_schedules_for_targets(
-                converter=converter,
-                targets=chunk,
-                candidates=candidates_in,
-                route_provider=route_provider,
-                reference_date=selected_date,
-                include_workers=True,
-                log_warning=logger.warning,
-            )
-            partial_all = partial_all or bool(batch.get("partial"))
-            warnings_all.extend(list(batch.get("warnings") or []))
-            for src_tgt, tgt_row in zip(chunk, batch.get("targets") or []):
-                oid = int(tgt_row["order_id"])
-                merged_miss[oid] = tgt_row
-                ck = build_target_cache_key(src_tgt, pool_version, RULE_VERSION)
-                to_store = deepcopy(tgt_row)
-                to_store.pop("linked_as_schedules", None)
-                set_cached_target(ck, to_store)
+    try:
+        if miss_list:
+            # 여기부터 카카오(지오코딩·길찾기)를 부른다. 필요한 DB 값은 위에서 dict 로 다 읽었다.
+            _release_db_connection(db)
+            with phase("asrec_recommend"):
+                chunk_size = 5
+                for i in range(0, len(miss_list), chunk_size):
+                    chunk = miss_list[i : i + chunk_size]
+                    batch = recommend_nearby_schedules_for_targets(
+                        converter=converter,
+                        targets=chunk,
+                        candidates=candidates_in,
+                        route_provider=route_provider,
+                        reference_date=selected_date,
+                        include_workers=True,
+                        log_warning=logger.warning,
+                    )
+                    partial_all = partial_all or bool(batch.get("partial"))
+                    warnings_all.extend(list(batch.get("warnings") or []))
+                    for src_tgt, tgt_row in zip(chunk, batch.get("targets") or []):
+                        oid = int(tgt_row["order_id"])
+                        merged_miss[oid] = tgt_row
+                        ck = build_target_cache_key(src_tgt, pool_version, RULE_VERSION)
+                        to_store = deepcopy(tgt_row)
+                        to_store.pop("linked_as_schedules", None)
+                        set_cached_target(ck, to_store)
+    finally:
+        for lock_ck, lock_token in held_locks:
+            release_target_lock(lock_ck, lock_token)
 
     cache_meta["route_hits"] = int(route_stats.get("route_hits") or 0)
     cache_meta["route_misses"] = int(route_stats.get("route_misses") or 0)
@@ -204,16 +250,27 @@ def _compute_recommendation_payload(
     for tgt in final_targets:
         tgt.pop("linked_as_schedules", None)
 
-    _enrich_recommendations(
-        final_targets, link_as_to_shipment, db=db, render_timeline=return_targets
-    )
-    linked_by = _build_linked_schedules_for_targets(db, order_ids, link_as_to_shipment)
+    if not return_targets:
+        # 예열: 캐시만 채우고 결과는 버린다. 연결 목록·타임라인 조립(DB 재조회)은 할 이유가 없다.
+        return {
+            "targets": [],
+            "targets_len": len(final_targets),
+            "partial": partial_all,
+            "warnings": warnings_all,
+            "cache": cache_meta,
+        }
+
+    with phase("asrec_enrich"):
+        _enrich_recommendations(
+            final_targets, link_as_to_shipment, db=db, render_timeline=return_targets
+        )
+    with phase("asrec_linked"):
+        linked_by = _build_linked_schedules_for_targets(db, order_ids, link_as_to_shipment)
     for tgt in final_targets:
         tgt["linked_as_schedules"] = linked_by.get(int(tgt["order_id"]), [])
 
-    out_targets = final_targets if return_targets else []
     return {
-        "targets": out_targets,
+        "targets": final_targets,
         "targets_len": len(final_targets),
         "partial": partial_all,
         "warnings": warnings_all,
@@ -414,13 +471,26 @@ def _enrich_recommendations(
             rec.pop("as_content_text", None)
 
 
-def _worker_names(db, worker_ids: list) -> list[str]:
-    """crew worker_id 목록을 display_name 으로 해석한다(연결 표시용)."""
-    ids = [int(w) for w in worker_ids if w is not None]
+def _worker_name_map(db, worker_ids: list) -> dict[int, str]:
+    """crew worker_id 들을 **한 번에** display_name 으로 해석한다(연결 표시용).
+
+    예전에는 연결된 추천 1건마다 따로 조회했다(N+1, 2026-10-01 성능 검사 P1-4).
+    """
+    ids = sorted({int(w) for w in worker_ids if w is not None})
     if not ids:
-        return []
-    rows = db.query(InstallationWorker).filter(InstallationWorker.id.in_(ids)).all()
-    name_by_id = {w.id: w.display_name for w in rows}
+        return {}
+    rows = (
+        db.query(InstallationWorker)
+        .options(load_only(InstallationWorker.id, InstallationWorker.display_name))
+        .filter(InstallationWorker.id.in_(ids))
+        .all()
+    )
+    return {w.id: w.display_name for w in rows}
+
+
+def _worker_names(name_by_id: dict[int, str], worker_ids: list) -> list[str]:
+    """crew worker_id 목록을 순서대로 이름으로 바꾼다(없는 id 는 뺀다)."""
+    ids = [int(w) for w in worker_ids if w is not None]
     return [name_by_id[i] for i in ids if i in name_by_id]
 
 
@@ -456,6 +526,15 @@ def _build_linked_schedules_for_targets(
         per_ship_recs[sid] = recs
         as_ids.extend(int(r["as_order_id"]) for r in recs)
     as_orders = _load_orders_map(db, as_ids)
+    name_by_id = _worker_name_map(
+        db,
+        [
+            wid
+            for recs in per_ship_recs.values()
+            for rec in recs
+            for wid in (rec.get("applied_crew_ids") or [])
+        ],
+    )
     by_shipment: dict[int, list[dict[str, Any]]] = {sid: [] for sid in shipment_ids}
     for sid in shipment_ids:
         for rec in per_ship_recs.get(sid, []):
@@ -469,7 +548,7 @@ def _build_linked_schedules_for_targets(
                     "customer_name": get_order_display_customer_name(as_order),
                     "as_info_id": rec.get("as_cycle_id"),
                     "applied_date": str(rec.get("applied_visit_date") or ""),
-                    "applied_workers": _worker_names(db, rec.get("applied_crew_ids") or []),
+                    "applied_workers": _worker_names(name_by_id, rec.get("applied_crew_ids") or []),
                     "can_cancel_link": True,
                 }
             )
@@ -498,13 +577,15 @@ def api_shipment_as_recommendations():
         return jsonify({"success": False, "message": "order_ids 형식이 올바르지 않습니다."}), 400
 
     db = get_db()
+    t0 = time.perf_counter()
     body = _compute_recommendation_payload(
         db=db,
         order_ids=order_ids,
         selected_date=selected_date,
         return_targets=True,
     )
-    return jsonify(
+    t_ser = time.perf_counter()
+    response = jsonify(
         {
             "success": True,
             "per_target_limit": 2,
@@ -515,6 +596,15 @@ def api_shipment_as_recommendations():
             "targets": body["targets"],
         }
     )
+    _finish_asrec_response(
+        response,
+        route_id="shipment_asrec_batch",
+        started=t0,
+        serialize_started=t_ser,
+        order_count=len(order_ids),
+        cache=body["cache"],
+    )
+    return response
 
 
 @erp_shipment_bp.route("/api/erp/shipment/as-recommendations/prewarm", methods=["POST"])
@@ -539,16 +629,65 @@ def api_shipment_as_recommendations_prewarm():
         return jsonify({"success": False, "message": "order_ids 형식이 올바르지 않습니다."}), 400
 
     db = get_db()
+    t0 = time.perf_counter()
     body = _compute_recommendation_payload(
         db=db,
         order_ids=order_ids,
         selected_date=selected_date,
         return_targets=False,
+        singleflight=True,
     )
     warmed = int(body.get("targets_len") or 0)
     cache = dict(body["cache"])
     cache["prewarmed"] = True
-    return jsonify({"success": True, "warmed_targets": warmed, **cache})
+    t_ser = time.perf_counter()
+    response = jsonify({"success": True, "warmed_targets": warmed, **cache})
+    _finish_asrec_response(
+        response,
+        route_id="shipment_asrec_prewarm",
+        started=t0,
+        serialize_started=t_ser,
+        order_count=len(order_ids),
+        cache=cache,
+    )
+    return response
+
+
+def _finish_asrec_response(
+    response: Any,
+    *,
+    route_id: str,
+    started: float,
+    serialize_started: float,
+    order_count: int,
+    cache: dict[str, Any],
+) -> None:
+    """구간 헤더(EPT-B7)와 캐시 통계 한 줄 로그를 남긴다(진단 전용, 실패 무시).
+
+    추천·예열은 HTML 이 아니라 ``render_ms`` 자리에 JSON 직렬화 시간을 넣는다. 캐시 통계
+    (``route_misses`` 등)는 응답 본문에만 있어 운영에서 볼 수 없었다 — 로그로도 남긴다.
+    """
+    try:
+        now = time.perf_counter()
+        apply_ept_b7_render_headers(
+            response, route_id=route_id, render_ms=(now - serialize_started) * 1000.0
+        )
+        logger.info(
+            "[AS-REC] route=%s orders=%d total_ms=%.0f pool_hit=%s candidates=%s "
+            "target_hits=%s target_misses=%s inflight_skips=%s route_hits=%s route_misses=%s",
+            route_id,
+            order_count,
+            (now - started) * 1000.0,
+            cache.get("candidate_pool_hit"),
+            cache.get("candidate_count"),
+            cache.get("target_hits"),
+            cache.get("target_misses"),
+            cache.get("target_inflight_skips"),
+            cache.get("route_hits"),
+            cache.get("route_misses"),
+        )
+    except Exception:  # noqa: BLE001 - 계측 실패가 응답을 깨선 안 된다
+        logger.debug("[AS-REC] timing header skipped", exc_info=True)
 
 
 def _shipment_edit_decision() -> tuple[Any, Any]:

@@ -1326,6 +1326,13 @@ var __shipDashSelectedDate = (__shipDashCfgEl && __shipDashCfgEl.dataset.selecte
         try {
           if (sessionStorage.getItem(key) === '1') return;
         } catch (e) { /* ignore */ }
+        // 진행 중 표식: 한 화면에서 이 함수가 두 번 불린다(탭 스왑마다 이 파일이 다시 실행되며 맨 끝에서
+        // 한 번, 스왑 리스너가 또 한 번). 완료 표식(sessionStorage)은 마지막 청크 뒤에야 찍히므로 그 사이
+        // 같은 예열이 나란히 돌았다 — 운영 30일 예열 835건 중 653건이 다른 예열과 1.5초 안에 함께 시작.
+        // 파일이 다시 실행돼도 남도록 window 에 둔다.
+        var inflight = window.__shipmentAsRecPrewarmInflight || (window.__shipmentAsRecPrewarmInflight = {});
+        if (inflight[key]) return;
+        inflight[key] = true;
         function run() {
           var chunks = [];
           for (var i = 0; i < ids.length; i += CHUNK) {
@@ -1334,6 +1341,7 @@ var __shipDashSelectedDate = (__shipDashCfgEl && __shipDashCfgEl.dataset.selecte
           var idx = 0;
           function next() {
             if (idx >= chunks.length) {
+              delete inflight[key];
               try {
                 sessionStorage.setItem(key, '1');
               } catch (e) { /* ignore */ }

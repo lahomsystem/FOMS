@@ -190,10 +190,15 @@ def api_order_quest_create(order_id):
         _audit_quest(order, "QUEST_CREATED", session.get('user_id'), note=stage,
                      extra={"stage": stage, "owner": owner_person})
         db.commit()
-        # Tier A(broad): quest 생성/전환은 stage 전환을 유발해 탭 간 이동이 일어남.
-        from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
+        # P1-2: quest 생성은 structured_data.quests 에 한 줄을 더할 뿐 단계를 바꾸지 않는다.
+        # quests 는 7 family 캐시 DTO 어디에도 없다(퀘스트 배지는 캐시 밖 행 DTO 가 만든다).
+        # broad 대신 orders 만 여유로 비운다.
+        from foms.services.common.dashboard_cache import (
+            DASHBOARD_FAMILY_ORDERS,
+            invalidate_dashboard_families,
+        )
 
-        invalidate_all_dashboard_slice_caches()
+        invalidate_dashboard_families(DASHBOARD_FAMILY_ORDERS)
 
         return jsonify({'success': True, 'quest': new_quest})
     except Exception as e:
@@ -463,9 +468,15 @@ def api_order_quest_approve(order_id):
                     route='quest.api_order_quest_approve', axis='QUEST',
                     from_value='', to_value='')
             db.commit()
-            from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
+            # P1-2: 재전이는 transition_order → execute_order_mutation 이라 MUT-CACHE-01 리스너가
+            # 커밋 직후 떠난/도착한 단계 family 를 비운다(도메인 탭 없는 단계가 끼면 broad).
+            # 승인 기록은 건드리지 않으므로 여기서는 orders 만 여유로 비운다.
+            from foms.services.common.dashboard_cache import (
+                DASHBOARD_FAMILY_ORDERS,
+                invalidate_dashboard_families,
+            )
 
-            invalidate_all_dashboard_slice_caches()
+            invalidate_dashboard_families(DASHBOARD_FAMILY_ORDERS)
             next_code = order.erp_stage_code
             return jsonify({
                 'success': True,
@@ -652,10 +663,17 @@ def api_order_quest_approve(order_id):
                 checklist_change_set = None
 
         db.commit()
-        # quest 승인 기록은 배지/카운트에 반영되므로 대시보드 슬라이스 캐시를 무효화한다.
-        from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
+        # P1-2: 승인 기록(quests·blueprint.customer_confirmed)은 7 family 캐시 DTO 에 없다 —
+        # 승인 배지·고객확인 표시는 캐시 밖 행 DTO 가 만든다. 최종 승인이 단계를 옮기면 그 전이는
+        # transition_order → execute_order_mutation 이라 MUT-CACHE-01 리스너가 떠난/도착한 단계
+        # family 를 비우고(실측→도면이면 실측완료 체크도 떠난 실측 family 로 함께 비워진다),
+        # 도메인 탭 없는 단계가 끼면 broad 로 비운다. 그래서 여기서는 orders 만 여유로 비운다.
+        from foms.services.common.dashboard_cache import (
+            DASHBOARD_FAMILY_ORDERS,
+            invalidate_dashboard_families,
+        )
 
-        invalidate_all_dashboard_slice_caches()
+        invalidate_dashboard_families(DASHBOARD_FAMILY_ORDERS)
 
         if checklist_change_set:
             # 원장과 같은 change_set 으로 묶어야 관리자 감사 화면이 조인한다(AUDIT-GAP-01).
@@ -781,10 +799,14 @@ def api_order_quest_update_status(order_id):
         _audit_quest(order, "QUEST_STATUS_CHANGED", user_id, note=status,
                      extra={"status": status, "reason": reason})
         db.commit()
-        # Tier A(broad): quest 상태 변경은 stage 전환으로 이어질 수 있어 탭 간 이동 발생.
-        from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
+        # P1-2: 이 경로는 quests[i] 의 status·owner_person 만 바꾸고 단계는 그대로다(전이는
+        # approve 라우트 몫). quests 는 7 family 캐시 DTO 에 없으므로 orders 만 여유로 비운다.
+        from foms.services.common.dashboard_cache import (
+            DASHBOARD_FAMILY_ORDERS,
+            invalidate_dashboard_families,
+        )
 
-        invalidate_all_dashboard_slice_caches()
+        invalidate_dashboard_families(DASHBOARD_FAMILY_ORDERS)
 
         return jsonify({'success': True, 'quest': new_q})
     except Exception as e:
