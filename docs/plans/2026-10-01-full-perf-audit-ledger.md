@@ -171,4 +171,5 @@
 - 2026-10-01: PR #485(production `a51c7ae1`) 운영 반영 — 캐시 범위 축소·출고 예열·설계서/도구. 승격 의존 `4c849ca0f` 는 생성 인벤토리만 겹쳐 승격 트리에서 재생성, 문서 3개는 운영 쪽 유지. perf-gate `/erp/completion` 이 예산 경계(135·100 vs 107ms)에서 흔들려 재실행 통과.
 - 2026-10-01: 사용자 결정 — 출고 예열 PC 전용(`isWideMousePc`, 핀 20261001b), 검색 설계 추천안 승인 → `search_trgm_00` 인덱스 5개(PG 레인 음성 대조 5/5). 합성 데이터에서 플래너가 trgm 대신 ERP 활성 부분 인덱스를 고른 사례가 있어 **스테이징 EXPLAIN 확인 뒤 운영**.
 - 2026-10-02: deploy `70d600a5`(인덱스·PC 예열) CI 4종 green(Harness 포함 — 다른 세션이 context_processors 래칫 복구). **스테이징 검증(§9-2·3, 실데이터 읽기 전용)**: alembic `search_trgm_00`, 새 인덱스 5개 indisvalid=true(24~248kB). 이력 "박성수" 184→0.46ms · 통합 "박성수" 184→0.57ms · 통합 "5678" 165→0.41ms · 이력 "5678" 47→0.15ms, 모두 BitmapOr·Seq Scan 없음. 1글자·11자리는 그대로(설계서 예상대로). 운영 승격은 사용자 요청 대기.
+- 2026-10-02: PR #488(production `564e48d6`) 운영 반영 — 검색 인덱스·출고 예열 PC 전용. 사전 확인(읽기 전용): alembic nvmirror_00·pg_trgm 1.6·오래 열린 트랜잭션 0·주문 4,523. 반영 뒤: alembic `search_trgm_00`, 인덱스 5개 indisvalid=true(48~296kB), web Traceback 0. 남은 일: 운영 HTTP 로그로 `/api/foms/search/fragment`·`/erp/history`·`/erp/measurement`·`/erp/as`·prewarm 전후 비교(`tools/perf/prod_route_latency_compare.py`, 분할 07:25Z·11:31Z·15:30Z).
 
