@@ -45,7 +45,8 @@ _INVENTORY_PATH = _REPO_ROOT / "docs" / "harness" / "foms_failopen_inventory.jso
 #: 그 안의 무로깅 broad catch 1건이 함께 사라졌다. 줄어든 값으로 잠근다.
 #: 179 → 172 (2026-09-29): 브리핑 보드 API ``foms/api/personal_board.py`` 삭제로 7건이 사라졌다.
 #: 172 → 169 (2026-09-29 도면 2b M9): 수령 확정·전달 취소·창구 업로드 완료 마지막 catch 에 로거를 달았다.
-_SWALLOW_BASELINE = 169
+#: 169 → 168 (2026-10-01 성능 P1-4): 출고 AS 추천 후보 풀의 직렬 지오코딩(로거 없는 catch)을 없앴다.
+_SWALLOW_BASELINE = 168
 
 
 def _load_scanner():

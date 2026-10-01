@@ -19,6 +19,7 @@ from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session, load_only, selectinload
 
 from foms.services.common.address_converter import FOMSAddressConverter
+from foms.services.common.ept_b7_profile import phase
 from foms.services.datetime_kst import get_today_kst
 from foms.services.geocode_helpers import get_order_display_address
 from foms.services.erp_display import normalize_manager_name
@@ -590,19 +591,51 @@ def _batch_geocode_unique_addresses(
     return out
 
 
-def _entity_lat_lng(
-    entity: dict[str, Any], geo_map: dict[str, tuple[float | None, float | None]]
-) -> tuple[float | None, float | None]:
-    """Prefer DB cache on entity, else geo_map by address."""
+def _cached_lat_lng(entity: dict[str, Any]) -> tuple[float, float] | None:
+    """행에 실린 DB 좌표(``cached_lat``/``cached_lng``). 없거나 숫자가 아니면 None."""
     clat = entity.get("cached_lat")
     clng = entity.get("cached_lng")
     if clat is not None and clng is not None:
         try:
             return float(clat), float(clng)
         except (TypeError, ValueError):
-            pass
+            return None
+    return None
+
+
+def _entity_lat_lng(
+    entity: dict[str, Any], geo_map: dict[str, tuple[float | None, float | None]]
+) -> tuple[float | None, float | None]:
+    """Prefer DB cache on entity, else geo_map by address."""
+    cached = _cached_lat_lng(entity)
+    if cached is not None:
+        return cached
     addr = (entity.get("address") or "").strip()
     return geo_map.get(addr, (None, None))
+
+
+def _addresses_needing_geocode(
+    targets: list[dict[str, Any]], candidates: list[dict[str, Any]]
+) -> set[str]:
+    """지오코딩이 실제로 필요한 주소만 모은다.
+
+    :func:`_entity_lat_lng` 는 DB 좌표가 있으면 ``geo_map`` 을 보지 않고, 방문일이 이미 잡힌
+    후보는 순위·대체 추천 어디에도 들어가지 않는다. 그 둘을 빼도 결과는 같다. 예전에는 후보
+    전원(최대 800건)의 주소를 매 요청 변환했다 — 프로세스 캐시가 비는 재배포 직후엔 그만큼
+    카카오 호출이 났다(로컬 재현: 후보 120건, 빈 캐시에서 이 단계 4.2초 → 0.7초).
+    """
+    out: set[str] = set()
+    for row in targets:
+        addr = (row.get("address") or "").strip()
+        if addr and _cached_lat_lng(row) is None:
+            out.add(addr)
+    for row in candidates:
+        if (row.get("current_visit_date") or "").strip():
+            continue
+        addr = (row.get("address") or "").strip()
+        if addr and _cached_lat_lng(row) is None:
+            out.add(addr)
+    return out
 
 
 def _token_overlap_score(addr_a: str, addr_b: str) -> int:
@@ -638,15 +671,10 @@ def recommend_nearby_schedules_for_targets(
             f"출고 기준 건이 {max_targets_per_request}건을 초과하여 앞선 {max_targets_per_request}건만 처리했습니다."
         )
 
-    addr_set: set[str] = set()
-    for row in active:
-        if (row.get("address") or "").strip():
-            addr_set.add(row["address"].strip())
-    for row in candidates:
-        if (row.get("address") or "").strip():
-            addr_set.add(row["address"].strip())
+    addr_set = _addresses_needing_geocode(active, candidates)
 
-    geo_map = _batch_geocode_unique_addresses(addr_set, converter, warn)
+    with phase("asrec_geocode"):
+        geo_map = _batch_geocode_unique_addresses(addr_set, converter, warn)
 
     jobs: list[tuple[int, dict[str, Any], float, float, float, float, float]] = []
     budget = max_route_calls_per_request
@@ -700,7 +728,7 @@ def recommend_nearby_schedules_for_targets(
 
     if jobs:
         workers = min(route_worker_concurrency, len(jobs))
-        with ThreadPoolExecutor(max_workers=max(workers, 1)) as executor:
+        with phase("asrec_routes"), ThreadPoolExecutor(max_workers=max(workers, 1)) as executor:
             futs = [executor.submit(run_route, j) for j in jobs]
             for fut in as_completed(futs):
                 try:

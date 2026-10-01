@@ -8,6 +8,7 @@ import logging
 import os
 import threading
 import time
+from collections import OrderedDict
 from datetime import datetime, timezone
 from typing import Any, Callable
 
@@ -30,6 +31,23 @@ TTL_ROUTE_SUCCESS_SECONDS = 7 * 24 * 60 * 60
 TTL_ROUTE_FAILURE_SECONDS = 60
 TTL_LOCK_SECONDS = 30
 
+#: 길찾기 결과 키 접두어. ``KEY_PREFIX`` 밖에 둔다 — 길찾기 결과는 두 좌표만으로 정해지는 값이라
+#: AS 수정 무효화(:func:`invalidate_shipment_as_recommendation_cache`, 운영 하루 약 33회)가 지울
+#: 이유가 없다. 같은 접두어 아래 있던 시절에는 7일 TTL 이 사실상 몇십 분이었고, 예열 요청마다
+#: 카카오 길찾기를 최대 50번 새로 불렀다(2026-10-01 성능 검사 P1-4).
+ROUTE_KEY_PREFIX = "foms:asrec-route:v1"
+
+#: 예열 single-flight 락 수명(초). 운영 예열 최대 23.6초보다 넉넉히 길게 — 계산 중 만료되면
+#: 같은 타깃을 한 번 더 계산할 뿐(예전 동작)이라 안전 쪽 실패다.
+TTL_TARGET_LOCK_SECONDS = 60
+
+#: Redis 를 못 쓸 때만 쓰는 프로세스 길찾기 캐시 상한(건). 무효화가 더는 비우지 않으므로 상한이 필요하다.
+_PROC_ROUTE_MAX_ENTRIES = 2000
+
+#: 캐시·반환에서 뺄 길찾기 필드. 경로 좌표 목록은 한 건에 10~20KB 인데 추천 계산은
+#: 상태·거리·시간만 쓴다(스테이징 ``/api/calculate_route`` 실측 응답 10.8~20.0KB).
+_ROUTE_DROP_FIELDS = ("route_coords",)
+
 _ENV_DISABLE = "FOMS_SHIPMENT_AS_REC_CACHE_ENABLED"
 
 _redis_warn_lock = threading.Lock()
@@ -38,7 +56,7 @@ _last_redis_warn_ts: float = 0.0
 _proc_lock = threading.RLock()
 _proc_candidate_pool: dict[str, Any] | None = None
 _proc_candidate_expires: float = 0.0
-_proc_route: dict[str, tuple[float, dict[str, Any]]] = {}
+_proc_route: "OrderedDict[str, tuple[float, dict[str, Any]]]" = OrderedDict()
 _proc_target: dict[str, tuple[float, dict[str, Any]]] = {}
 _proc_lock_keys: set[str] = set()
 
@@ -200,7 +218,11 @@ def _build_candidate_pool_payload(
     as_statuses: tuple[str, ...],
     log_warning: Callable[..., None] | None,
 ) -> dict[str, Any]:
-    warn = log_warning or logger.warning
+    """AS 후보 풀(DB 읽기만)을 만든다. 카카오는 부르지 않는다.
+
+    ``converter``·``log_warning`` 은 호출 계약 유지용이다(예전에는 좌표 없는 후보를 여기서 변환).
+    """
+    del converter, log_warning
     cand_query = (
         db.query(Order)
         .options(
@@ -261,14 +283,10 @@ def _build_candidate_pool_payload(
         if order.lat and order.lng and order.geocode_status == "success":
             row["cached_lat"] = float(order.lat)
             row["cached_lng"] = float(order.lng)
-        else:
-            try:
-                lat, lng, _, _ = converter.analyze_address(addr)
-                if lat and lng:
-                    row["cached_lat"] = float(lat)
-                    row["cached_lng"] = float(lng)
-            except Exception as exc:
-                warn("[AS-REC] analyze_address for candidate pool failed order=%s: %s", order.id, exc)
+        # DB 좌표가 없는 후보는 여기서 변환하지 않는다. 추천 계산
+        # (``recommend_nearby_schedules_for_targets``)이 같은 변환기로 같은 주소를 다시 변환하므로
+        # 결과 좌표는 같다. 예전에는 여기서 한 건씩 **직렬로** 카카오를 부르며 DB 연결을 쥐고
+        # 있었다 — 로컬 재현(후보 120건 중 좌표 없는 20건)에서 풀 계산 8.9초가 거의 전부 이 대기였다.
 
         candidates_in.append(row)
 
@@ -407,6 +425,28 @@ def get_or_compute_candidate_pool(
                     _proc_lock_keys.discard(lock_key)
 
 
+def _route_cache_key(slat: float, slng: float, elat: float, elng: float) -> str:
+    """좌표 쌍 → 길찾기 캐시 키(무효화 대상 밖, :data:`ROUTE_KEY_PREFIX`)."""
+    coord_fp = build_hash(
+        {
+            "slat": round(float(slat), 6),
+            "slng": round(float(slng), 6),
+            "elat": round(float(elat), 6),
+            "elng": round(float(elng), 6),
+        }
+    )
+    return f"{ROUTE_KEY_PREFIX}:{coord_fp}"
+
+
+def _proc_route_put(route_key: str, ttl: int, dto: dict[str, Any]) -> None:
+    """Redis 를 못 쓸 때의 프로세스 길찾기 캐시 저장(상한 :data:`_PROC_ROUTE_MAX_ENTRIES`)."""
+    with _proc_lock:
+        _proc_route[route_key] = (time.monotonic() + ttl, dto)
+        _proc_route.move_to_end(route_key)
+        while len(_proc_route) > _PROC_ROUTE_MAX_ENTRIES:
+            _proc_route.popitem(last=False)
+
+
 def make_route_provider(
     converter: Any,
     stats: dict[str, Any],
@@ -416,20 +456,14 @@ def make_route_provider(
     """
     반환 callable:
       route_provider(slat, slng, elat, elng, timeout=None) -> dict
+
+    반환 dict 에는 경로 좌표(``route_coords``)가 없다 — 추천 계산은 상태·거리·시간만 쓴다.
     """
 
     warn = log_warning or logger.warning
 
     def provider(slat: float, slng: float, elat: float, elng: float, timeout: float | None = None) -> dict[str, Any]:
-        coord_fp = build_hash(
-            {
-                "slat": round(float(slat), 6),
-                "slng": round(float(slng), 6),
-                "elat": round(float(elat), 6),
-                "elng": round(float(elng), 6),
-            }
-        )
-        route_key = f"{KEY_PREFIX}:route:{coord_fp}"
+        route_key = _route_cache_key(slat, slng, elat, elng)
 
         if is_asrec_cache_enabled():
             r = get_dashboard_redis()
@@ -454,7 +488,7 @@ def make_route_provider(
             warn("[AS-REC] calculate_route exception: %s", exc, exc_info=True)
             info = {"status": "error", "message": str(exc)}
 
-        dto = dict(info)
+        dto = {k: v for k, v in dict(info).items() if k not in _ROUTE_DROP_FIELDS}
         ttl = TTL_ROUTE_SUCCESS_SECONDS if dto.get("status") == "success" else TTL_ROUTE_FAILURE_SECONDS
         dto["computed_at"] = _now_iso()
         dto["provider"] = "kakao_directions"
@@ -467,18 +501,70 @@ def make_route_provider(
                 warn("[AS-REC] route dto not serializable, skip cache: %s", exc)
                 return dto
 
+            stored = False
             r = get_dashboard_redis()
             if r is not None:
                 try:
                     r.setex(route_key, ttl, serial)
+                    stored = True
                 except Exception as exc:
                     _redis_log_throttled("[AS-REC] route redis set failed: %s", exc, exc_info=True)
-            with _proc_lock:
-                _proc_route[route_key] = (time.monotonic() + ttl, json.loads(serial))
+            if not stored:
+                _proc_route_put(route_key, ttl, json.loads(serial))
 
         return dto
 
     return provider
+
+
+def try_acquire_target_lock(cache_key: str) -> tuple[bool, str]:
+    """예열 전용 타깃 single-flight 락을 잡는다(실패는 fail-open).
+
+    같은 출고건을 다른 요청이 계산 중이면 ``(False, "")`` — 예열은 그 타깃을 건너뛴다(결과를
+    화면에 돌려주지 않으므로 잃는 것이 없다). 운영 30일 예열 835건 중 653건이 다른 예열과
+    1.5초 안에 함께 시작했다(같은 화면의 중복 예열 + 여러 탭·사용자).
+
+    Args:
+        cache_key: :func:`build_target_cache_key` 값.
+
+    Returns:
+        ``(획득 여부, 해제 토큰)``. Redis 오류 등으로 락을 못 쓰면 ``(True, "")`` — 락 없이 계산한다.
+    """
+    if not is_asrec_cache_enabled():
+        return True, ""
+    lock_key = f"{cache_key}:sf"
+    token = os.urandom(8).hex()
+    r = get_dashboard_redis()
+    if r is not None:
+        try:
+            if r.set(lock_key, token, nx=True, ex=TTL_TARGET_LOCK_SECONDS):
+                return True, token
+            return False, ""
+        except Exception as exc:
+            logger.warning("[AS-REC] target lock redis failed, 락 없이 계산: %s", exc, exc_info=True)
+            return True, ""
+    with _proc_lock:
+        if lock_key in _proc_lock_keys:
+            return False, ""
+        _proc_lock_keys.add(lock_key)
+    return True, token
+
+
+def release_target_lock(cache_key: str, token: str) -> None:
+    """:func:`try_acquire_target_lock` 로 잡은 락을 토큰이 맞을 때만 푼다(best-effort)."""
+    if not token:
+        return
+    lock_key = f"{cache_key}:sf"
+    r = get_dashboard_redis()
+    if r is not None:
+        try:
+            if r.get(lock_key) == token:
+                r.delete(lock_key)
+        except Exception as exc:
+            logger.warning("[AS-REC] target lock release failed(TTL 로 만료): %s", exc, exc_info=True)
+        return
+    with _proc_lock:
+        _proc_lock_keys.discard(lock_key)
 
 
 def get_cached_target(cache_key: str) -> dict[str, Any] | None:
@@ -541,7 +627,11 @@ def build_target_cache_key(target: dict[str, Any], pool_version: str, rule_versi
 
 
 def invalidate_shipment_as_recommendation_cache(*, reason: str = "") -> int:
-    """foms:asrec:v1:* 전체 삭제. Redis/process cache 모두 제거."""
+    """``KEY_PREFIX`` 아래(후보 풀·타깃·락) 전체 삭제. Redis/process cache 모두 제거.
+
+    길찾기 캐시(:data:`ROUTE_KEY_PREFIX`)는 지우지 않는다 — 좌표 쌍만으로 정해지는 값이라 AS
+    수정과 무관하고, 7일 TTL 로 스스로 만료된다.
+    """
     deleted = 0
     if reason:
         logger.info("[AS-REC] invalidate reason=%s", reason)
@@ -550,7 +640,6 @@ def invalidate_shipment_as_recommendation_cache(*, reason: str = "") -> int:
         global _proc_candidate_pool, _proc_candidate_expires
         _proc_candidate_pool = None
         _proc_candidate_expires = 0.0
-        _proc_route.clear()
         _proc_target.clear()
         _proc_lock_keys.clear()
 
@@ -576,18 +665,22 @@ def invalidate_shipment_as_recommendation_cache(*, reason: str = "") -> int:
 
 
 def reset_asrec_cache_runtime_for_tests() -> None:
-    """테스트에서 프로세스 로컬 캐시 초기화."""
+    """테스트에서 프로세스 로컬 캐시 초기화(무효화가 남기는 길찾기 캐시까지)."""
     invalidate_shipment_as_recommendation_cache(reason="test_reset")
+    with _proc_lock:
+        _proc_route.clear()
 
 
 __all__ = [
     "KEY_PREFIX",
     "KEY_VERSION",
+    "ROUTE_KEY_PREFIX",
     "TTL_CANDIDATE_POOL_SECONDS",
     "TTL_TARGET_SECONDS",
     "TTL_ROUTE_SUCCESS_SECONDS",
     "TTL_ROUTE_FAILURE_SECONDS",
     "TTL_LOCK_SECONDS",
+    "TTL_TARGET_LOCK_SECONDS",
     "build_hash",
     "build_target_cache_key",
     "get_cached_target",
@@ -595,6 +688,8 @@ __all__ = [
     "invalidate_shipment_as_recommendation_cache",
     "is_asrec_cache_enabled",
     "make_route_provider",
+    "release_target_lock",
     "reset_asrec_cache_runtime_for_tests",
     "set_cached_target",
+    "try_acquire_target_lock",
 ]
