@@ -24,7 +24,7 @@ from .sentry_setup import init_sentry
 from .request_limits import FomsRequest, GLOBAL_BODY_CAP, register_request_limits
 
 from foms.services.common.html_whitespace import install_html_indentation_trimmer
-from foms.services.common.template_warm import warm_templates
+from foms.services.common.template_warm import warm_skipped, warm_templates
 from foms.services.context_processors import register_context_processors
 from foms.services.rate_limit import init_limiter
 from foms.services.request_write_guard import register_write_guard
@@ -307,7 +307,8 @@ def build_app(*, socketio_available: bool) -> AppFactoryResult:
     # 한 번 컴파일하므로, 재배포 직후 각 프로세스의 **첫 방문자**가 그 값을 혼자 치른다
     # (2026-09-12 운영 실측 `wb_template` 594ms / 9ms / 551ms). dev 는 건너뛴다 —
     # TEMPLATES_AUTO_RELOAD 가 켜져 있어 파일을 고치면 어차피 다시 컴파일한다.
-    if is_production or is_railway:
+    # HTML 을 그리지 않는 WORKER 자식들도 건너뛴다(감독자가 SKIP_ENV 를 심는다).
+    if (is_production or is_railway) and not warm_skipped():
         warm_templates(app)
 
     return AppFactoryResult(app=app, socketio=realtime_bindings.socketio)

@@ -254,8 +254,12 @@ def erp_measurement_dashboard():
 
     list_query = query
 
+    # 선택 날짜는 키에 넣지 않는다. 패널 범위(오늘~14일)·카운트는 날짜칩과 무관하고, 선택
+    # 표시(is_selected) 하나만 달라진다 — 키에 넣으면 날짜칩을 처음 누를 때마다 패널 전체를 다시
+    # 계산했다(스테이징 실측 첫 클릭 801~886ms, 다시 누르면 160~175ms, 2026-10-01 전체 성능 검사).
+    # 선택 표시는 아래에서 캐시 밖으로 입힌다.
     _panel_fp = {
-        "v": 3,
+        "v": 4,
         "user": _measurement_user_visibility_fingerprint(current_user),
         "filters": {
             "q": search_q,
@@ -263,7 +267,6 @@ def erp_measurement_dashboard():
             "range_start": range_start_str,
             "range_end": range_end_str,
             "panel_anchor": today_date,
-            "selected_date": selected_date,
         },
     }
     # 실행 계획 §3.1.1 measurement: panel rows + panel summary/stat + (below) fallback/product slices
@@ -277,13 +280,17 @@ def erp_measurement_dashboard():
         _panel_key,
         TTL_PANEL_ROWS,
         lambda: compute_measurement_panel_assembly(
-            base_query, current_user, mine_filter_active, selected_date,
+            base_query, current_user, mine_filter_active, '',
             range_start, range_end, range_start_str, range_end_str,
         ),
         page="measurement",
         slice_name="measurement_panel_assembly",
     )
-    measurement_panel_dates = _panel_blob["panel_summary_stat_cards"]
+    # 캐시 값은 여러 요청이 나눠 쓴다 — 고쳐 쓰지 말고 새 dict 로 선택 표시를 입힌다.
+    measurement_panel_dates = [
+        {**item, "is_selected": item.get("date") == selected_date}
+        for item in _panel_blob["panel_summary_stat_cards"]
+    ]
 
     focus_order_id = request.args.get('focus_order', type=int)
     _main_fp = {
