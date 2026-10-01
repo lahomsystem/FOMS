@@ -316,7 +316,7 @@
     },
     {
       "path": "foms/services/orders/order_transition_service.py",
-      "lineno": 125,
+      "lineno": 128,
       "kind": "subscript_logistics",
       "axis": "LOGISTICS",
       "classification": "CANONICAL",
@@ -324,7 +324,7 @@
     },
     {
       "path": "foms/services/orders/order_transition_service.py",
-      "lineno": 135,
+      "lineno": 138,
       "kind": "subscript_hold",
       "axis": "HOLD",
       "classification": "CANONICAL",
@@ -332,7 +332,7 @@
     },
     {
       "path": "foms/services/orders/order_transition_service.py",
-      "lineno": 142,
+      "lineno": 145,
       "kind": "subscript_hold",
       "axis": "HOLD",
       "classification": "CANONICAL",
@@ -340,7 +340,7 @@
     },
     {
       "path": "foms/services/orders/order_transition_service.py",
-      "lineno": 406,
+      "lineno": 409,
       "kind": "attr_status",
       "axis": "MAIN",
       "classification": "CANONICAL",
