@@ -825,6 +825,11 @@
       "policy_id": "SEND_URGENT_CALL",
       "rule": "/erp/api/orders/<int:order_id>/urgent-mention"
     },
+    "notifications.api_urgent_call": {
+      "mode": "guard",
+      "policy_id": "SEND_URGENT_CALL",
+      "rule": "/erp/api/urgent-call"
+    },
     "notifications_push.push_event": {
       "mode": "guard",
       "policy_id": "OWN_PUSH_SELF",

@@ -97,7 +97,8 @@ def init_realtime_bootstrap(
         if view is not None:
             app.view_functions[endpoint] = limiter.limit(notification_read_limit)(view)
 
-    # 주문 문맥형 긴급 호출(멘션) rate limit.
+    # 주문 문맥형 긴급 호출(멘션) rate limit. 맨 위 줄 ⚡ 의 /erp/api/urgent-call 에는 걸지 않는다 —
+    # 주문 없는 호출은 제한 없음(사용자 결정 2026-10-01). 주문을 고른 호출은 route 가 주문당 5회/시간을 센다.
     urgent_mention_limit = os.environ.get(
         "ERP_URGENT_MENTION_RATE_LIMIT",
         "30 per hour",

@@ -211,7 +211,8 @@ def test_notifications_api_uses_canonical_realtime_notification_lazy_imports() -
     from foms.api import notifications
 
     send_source = inspect.getsource(notifications.api_notifications_send)
-    urgent_source = inspect.getsource(notifications.api_order_urgent_mention)
+    # 긴급 호출 본문은 주문·주문 없는 라우트 공용 helper 에 있다(SPEC 2026-10-01).
+    urgent_source = inspect.getsource(notifications._send_urgent_call)
 
     expected_import = (
         "from foms.services.notifications.realtime_notifications import emit_erp_notification_to_users"
