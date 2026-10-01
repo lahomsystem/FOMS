@@ -167,7 +167,7 @@ def test_asset_pins_moved_together():
     """CSS·JS 를 고쳤으면 핀을 함께 올린다 — 서비스워커 캐시가 옛 파일을 준다."""
     markup = TEMPLATE.read_text(encoding="utf-8")
 
-    assert markup.count("?v=20260930i") == 2
+    assert markup.count("?v=20261001a") == 2
     assert "?v=20260929b" not in markup, "폰 3·4단계(2026-09-29)에서 CSS·JS 를 고쳤다 — 핀도 함께"
     assert "?v=20260929a" not in markup
     assert "?v=20260914b" not in markup

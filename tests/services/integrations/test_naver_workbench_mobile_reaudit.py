@@ -165,4 +165,4 @@ def test_pretendard_is_loaded_for_phone_width_only_and_pins_moved():
     assert link.group(1) == "(max-width: 767.98px)"
     assert "pretendardvariable-dynamic-subset.min.css" in link.group(2)
     assert styles.index("pretendard") < styles.index("naver-workbench.css")
-    assert page.count("?v=20260930i") == 2 and "?v=20260930c" not in page
+    assert page.count("?v=20261001a") == 2 and "?v=20260930c" not in page

@@ -77,7 +77,9 @@ __all__ = ["find_ghost_orders", "find_partial_claim_orders", "judge_order_discar
            "PARTIAL_PENDING_PHASES", "DISCARDABLE_STATUSES", "GHOST_CLAIM_KINDS",
            "GHOST_PROJECTION_BLOCK_KEYS",
            "REPAY_EXPECTED_SD_KEY", "REPAY_EXPECTED_BLOCK_TEXT",
-           "read_repay_expected", "set_repay_expected", "clear_repay_expected"]
+           "read_repay_expected", "set_repay_expected", "clear_repay_expected",
+           "REPAY_SETTLED_SD_KEY", "read_repay_settled", "set_repay_settled",
+           "clear_repay_settled"]
 
 #: 유령 모집단에 넣는 단계. ``rejected``(거부·철회)는 주문이 살아 있다는 뜻이라 뺀다.
 GHOST_CLAIM_PHASES = (CLAIM_PHASE_DONE, CLAIM_PHASE_REQUESTED, CLAIM_PHASE_PROGRESS)
@@ -125,6 +127,14 @@ REPAY_EXPECTED_NOTE_MAX = 200
 #: 마침표를 찍지 않는다 — pane 템플릿이 ``{{ ghost_discard.discard_block }}.`` 로 붙인다
 #: (다른 갈래와 같은 규칙).
 REPAY_EXPECTED_BLOCK_TEXT = "재결제 예정으로 표시돼 있습니다 — 결제가 들어오면 저절로 풀립니다"
+
+#: 재결제를 **사람이 손으로 끝냈다**는 기록이 사는 ``structured_data`` 키 (2026-10-01).
+#:
+#: 네이버 취소 뒤 회사 계좌로 직접 받은 주문은 재결제가 네이버 큐에 영영 안 들어온다 —
+#: '재결제 예정' 표시가 저절로 풀릴 날이 없어 띠에 영원히 남았다(#5374). 사용자 결정
+#: 2026-10-01: 재결제 예정 표시를 **거친 주문만** 사람이 메모(필수)를 적고 끝낸다. 끝낸
+#: 주문은 띠 모집단에서 빠지고, pane 에 기록과 되돌리기가 남는다.
+REPAY_SETTLED_SD_KEY = "naver_repay_settled"
 
 
 #: 유령 스캔의 축소 스냅샷이 남기는 **클레임 블록 키**. 손으로 적지 않고
@@ -293,6 +303,76 @@ def clear_repay_expected(order) -> bool:
         return False
     new = copy.deepcopy(data)
     new.pop(REPAY_EXPECTED_SD_KEY, None)
+    order.structured_data = new
+    flag_modified(order, "structured_data")
+    return True
+
+
+def read_repay_settled(order) -> Optional[dict[str, Any]]:
+    """손으로 끝낸 재결제 기록 — 있으면 ``{"at","by","by_name","note"}`` dict, 없으면 ``None``.
+
+    :func:`read_repay_expected` 와 같은 규칙으로 **모르면 없는 것으로 읽는다** — 깨진 값이
+    행을 띠에서 숨기면 되돌리는 길이 없어진다.
+
+    Args:
+        order: ERP 주문 ORM 인스턴스.
+
+    Returns:
+        기록 dict 또는 ``None``.
+    """
+    data = getattr(order, "structured_data", None)
+    if not isinstance(data, dict):
+        return None
+    mark = data.get(REPAY_SETTLED_SD_KEY)
+    return mark if isinstance(mark, dict) else None
+
+
+def set_repay_settled(order, *, actor_user_id: int, actor_name: str = "",
+                      note: str) -> dict[str, Any]:
+    """재결제를 손으로 끝냈다고 기록한다 — 제자리 수정, **커밋은 호출자**.
+
+    '재결제 예정' 표시는 **지우지 않는다** — 되돌리면 그 표시로 띠에 다시 서야 한다.
+    ``at`` 은 :func:`set_repay_expected` 와 같은 KST 표시 문자열이다.
+
+    Args:
+        order: ERP 주문 ORM 인스턴스.
+        actor_user_id: 끝낸 사람의 사용자 id.
+        actor_name: 끝낸 사람의 이름(화면에 그대로 나간다).
+        note: 메모 한 줄(예: 계좌 입금일·입금자). 앞뒤 공백을 떼고
+            :data:`REPAY_EXPECTED_NOTE_MAX` 로 자른다. 비었는지는 호출자가 막는다.
+
+    Returns:
+        저장한 기록 dict 그대로.
+    """
+    mark = {
+        "at": now_kst().strftime("%Y-%m-%d %H:%M"),
+        "by": int(actor_user_id),
+        "by_name": str(actor_name or ""),
+        "note": str(note or "").strip()[:REPAY_EXPECTED_NOTE_MAX],
+    }
+    data = copy.deepcopy(order.structured_data or {})
+    data[REPAY_SETTLED_SD_KEY] = mark
+    order.structured_data = data
+    flag_modified(order, "structured_data")
+    return mark
+
+
+def clear_repay_settled(order) -> bool:
+    """손으로 끝낸 기록을 지운다 — 지울 게 있었으면 ``True``.
+
+    :func:`clear_repay_expected` 와 같이 지울 게 없으면 ``structured_data`` 를 건드리지 않는다.
+
+    Args:
+        order: ERP 주문 ORM 인스턴스.
+
+    Returns:
+        지웠으면 ``True``, 기록이 없었으면 ``False``.
+    """
+    data = getattr(order, "structured_data", None)
+    if not isinstance(data, dict) or REPAY_SETTLED_SD_KEY not in data:
+        return False
+    new = copy.deepcopy(data)
+    new.pop(REPAY_SETTLED_SD_KEY, None)
     order.structured_data = new
     flag_modified(order, "structured_data")
     return True
@@ -478,6 +558,11 @@ def find_ghost_orders(session, *, limit: int = GHOST_LIST_LIMIT) -> dict[str, An
         # 사람이 켠 '재결제 예정' 표시. **모집단에서 빼지 않는다**(사용자 결정 2026-09-14:
         # 숨기지 않는다) — 행은 띠에 그대로 남고 휴지통 버튼만 잠긴다.
         repay = read_repay_expected(order)
+        # 사람이 손으로 끝낸 주문(계좌 입금 등)은 **띠에서 뺀다**(사용자 결정 2026-10-01).
+        # 재결제 예정 표시가 있을 때만 끝낼 수 있으므로 표시 없는 기록은 무시한다 —
+        # 표시를 푼 주문이 옛 기록 때문에 숨으면 안 된다.
+        if repay and read_repay_settled(order):
+            continue
         views.append({
             "order_id": int(order.id),
             "customer_name": order.customer_name or "",
@@ -861,7 +946,7 @@ def judge_order_discard(session, order_id: int, *, group_key: str = "") -> dict[
     # 사실을 말한다.
     blank = {"applicable": False, "can_discard": False, "discard_needs_reason": False,
              "discard_block": "", "repay_candidates": [], "repay_expected": None,
-             "in_ghost_band": False,
+             "repay_settled": None, "in_ghost_band": False,
              "trashed": False, "trashed_at_text": "", "trashed_note": ""}
     if not rows:
         return blank
@@ -903,6 +988,7 @@ def judge_order_discard(session, order_id: int, *, group_key: str = "") -> dict[
     status = str(order.status or "")
     # 띠와 **같은 값·같은 함수**. 표시가 있으면 판정이 잠기고 문구가 바뀐다.
     repay = read_repay_expected(order)
+    settled = read_repay_settled(order) if repay else None
     verdict = _discard_verdict(bucket, status, repay_expected=bool(repay))
     trash = read_order_trash(order)
     whole = bucket["canceled"] == bucket["link_count"]
@@ -943,11 +1029,14 @@ def judge_order_discard(session, order_id: int, *, group_key: str = "") -> dict[
         # 사람이 켠 재결제 예정 표시 — 띠와 같은 키·같은 모양. 없으면 ``None`` 이다
         # (모양이 갈리면 pane 이 없는 값을 읽는다).
         "repay_expected": repay,
+        # 손으로 끝낸 재결제 기록(2026-10-01) — 있으면 띠에서 빠지고 pane 이 되돌리기를 연다.
+        "repay_settled": settled,
         # 이 주문이 지금 유령 띠 모집단에 들어 있는가 — 라우트(:func:`find_ghost_orders`:
         # 링크가 있고 전부 취소이며 휴지통이 아닌 주문)와 **같은 술어**를 서버가 한 벌로
         # 내려 준다. 화면이 ``link_count == canceled_count`` 를 손으로 다시 세면 판정 축이
         # 두 벌이 되어 pane 버튼이 라우트와 다른 말을 하게 된다.
-        "in_ghost_band": bool(bucket["link_count"]) and whole and not trash["trashed"],
+        "in_ghost_band": (bool(bucket["link_count"]) and whole and not trash["trashed"]
+                          and not settled),
         # 표기 전용 사실을 먼저 깔고 **판정 키를 마지막에** 싣는다(기존 모양 유지).
         **trash,
         **verdict,
