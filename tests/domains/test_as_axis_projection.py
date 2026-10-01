@@ -292,3 +292,28 @@ def test_non_erp_as_complete_moves_out_of_incomplete_tab(client):
     assert "AXISNONERP" not in client.get("/erp/as").get_data(as_text=True), \
         "완료 처리했는데 미완료 탭에 남아 있다(운영 #1315·#1119·#1706)"
     assert "AXISNONERP" in client.get("/erp/as?tab=completed").get_data(as_text=True)
+
+
+def test_edit_form_status_to_as_fills_projection_for_non_erp_order(client):
+    """**운영 사고 재현** — 주문수정 폼으로 비ERP 주문을 'AS접수' 로 바꾸면 투영이 채워진다.
+
+    운영 #846(2026-09-08, is_erp_order=False·structured_data 없음): 폼이 status 만
+    AS_RECEIVED 로 바꾸고 ``sync_erp_flat_columns`` 는 ERP 게이트 안에서만 불러
+    as_axis_status 가 NULL 로 남았다. AS 대시보드에서 빠지고 drift-audit-daily 가 매일 red.
+    """
+    _login(client, "axis_admin_edit_form")
+    order = _order(is_erp_order=False, status="MEASURED", customer_name="AXISEDITFORM 고객",
+                   structured_data=None)
+    order_id = order.id
+    assert order.as_axis_status is None
+
+    resp = client.post(f"/edit/{order_id}", data={
+        "status": "AS_RECEIVED", "as_received_date": "2026-09-08",
+    }, follow_redirects=False)
+    assert resp.status_code in (200, 302), resp.get_data(as_text=True)[:500]
+
+    db_session.expire_all()
+    saved = db_session.get(Order, order_id)
+    assert saved.status == "AS_RECEIVED"
+    assert saved.as_axis_status == "RECEIVED", "투영이 NULL 이면 AS 대시보드에서 빠진다"
+    assert saved.as_axis_status == derive_as_axis_status(saved)
