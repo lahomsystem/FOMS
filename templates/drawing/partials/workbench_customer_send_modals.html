@@ -286,9 +286,11 @@
       <div class="modal-body">
         <p class="small text-muted mb-2">호출할 담당자를 고르고 사유를 적어 주세요.</p>
         <div class="mb-2" data-dw-urgent-targets aria-live="polite"></div>
+        <p class="foms-urgent-picked d-none" data-dw-urgent-picked aria-live="polite"></p>
         <label class="form-label small fw-semibold text-muted mb-1" for="dw-urgent-message">사유 (필수 · 최대 500자)</label>
         <textarea class="form-control form-control-sm" id="dw-urgent-message" rows="2" maxlength="500"
           placeholder="예: 도면 확인이 급히 필요합니다"></textarea>
+        <div class="small text-muted mt-1" data-dw-urgent-hint>받을 사람을 먼저 눌러 주세요.</div>
         <div class="alert alert-danger py-2 small mt-2 mb-0 d-none" role="alert" data-dw-urgent-error data-foms-no-autodismiss></div>
       </div>
       <div class="modal-footer">
