@@ -39,6 +39,16 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+_MISSING_OBJECT_CODES = frozenset({"404", "NoSuchKey", "NotFound"})
+
+
+def _is_missing_object_error(exc: BaseException) -> bool:
+    """버킷에 그 키가 없다는 응답(404)인가 — 썸네일 재사용 확인에서는 정상 경로다."""
+    if not BOTO3_AVAILABLE or not isinstance(exc, ClientError):
+        return False
+    code = str(((exc.response or {}).get("Error") or {}).get("Code", ""))
+    return code in _MISSING_OBJECT_CODES
+
 
 class StorageAdapter:
     """스토리지 추상화 - 로컬 또는 클라우드 스토리지 사용 (자동 감지)"""
@@ -272,8 +282,11 @@ class StorageAdapter:
                         "thumbnail_key": thumbnail_key,
                         "thumbnail_url": f"/static/uploads/{thumbnail_key}",
                     }
-        except Exception:
-            log_handled_exception("thumbnail generation")
+        except Exception as exc:
+            # 썸네일이 아직 없으면(404) 아래에서 만든다. 이 정상 경로를 traceback 으로 남기면
+            # 운영 WORKER 오류 로그의 대부분이 이것이 된다(30일 1,801건, 2026-10-01 실측).
+            if not _is_missing_object_error(exc):
+                log_handled_exception("thumbnail generation")
 
         try:
             if self.storage_type in ["r2", "s3"]:
