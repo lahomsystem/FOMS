@@ -12,6 +12,7 @@ from __future__ import annotations
 from tests.support.drawing_customer_js_harness import run_js
 
 JS = "static/js/foms/urgent-call.js"
+ORDER_JS = "static/js/foms/urgent-call-order.js"  # 주문 줄 — layout_scripts 에서 먼저 싣는다
 
 DOM = r"""
 const root = makeEl({ id: 'fomsUrgentCallModal' });
@@ -72,7 +73,7 @@ const s1 = { send: el.send.textContent, locked: el.send.disabled, danger: el.sen
 fire('click', el.send); await flush();
 out({ s0: s0, s1: s1, posts: posts });
 """
-    r = run_js([JS], driver)
+    r = run_js([ORDER_JS, JS], driver)
     assert [c["url"] for c in r["calls"]] == ["/erp/api/urgent-targets"]  # 라벨을 실었으니 검색 안 함
     assert r["s0"] == {
         "label": "#4491 CLAUDE-TEST", "pickedShown": True, "addShown": False,
@@ -100,7 +101,7 @@ const ready = el.send.textContent;
 fire('click', el.send); await flush();
 out({ afterClear: afterClear, noReason: noReason, ready: ready, posts: posts });
 """
-    r = run_js([JS], driver)
+    r = run_js([ORDER_JS, JS], driver)
     assert r["afterClear"] == {"pickedShown": False, "addShown": True}
     assert r["noReason"] == {"send": "사유를 적어 주세요", "locked": True}
     assert r["ready"] == "김한비에게 보내기"
@@ -115,7 +116,7 @@ const bolt = makeEl({}); bolt._closest['[data-foms-urgent-open]'] = bolt;
 fire('click', bolt); await flush();
 out({ label: el.label.textContent, pickedShown: !hidden(el.picked) });
 """
-    r = run_js([JS], driver)
+    r = run_js([ORDER_JS, JS], driver)
     urls = [c["url"] for c in r["calls"]]
     assert "/api/foms/search?group=all&q=4491" in urls  # 고객명을 몰라 번호로 찾아 채운다
     assert r["label"] == "#4491 CLAUDE-TEST"
@@ -129,7 +130,7 @@ const bolt = makeEl({}); bolt._closest['[data-foms-urgent-open]'] = bolt;
 fire('click', bolt); await flush();
 out({ pickedShown: !hidden(el.picked), addShown: !hidden(el.add) });
 """
-    r = run_js([JS], driver)
+    r = run_js([ORDER_JS, JS], driver)
     assert r["pickedShown"] is False and r["addShown"] is True
     assert [c["url"] for c in r["calls"]] == ["/erp/api/urgent-targets"]
 
@@ -149,7 +150,7 @@ const hits = el.results.children.map(function (b) { return [b.getAttribute('data
 clickRendered(el.results.children[1], '[data-foms-urgent-order-hit]');
 out({ searchShown: searchShown, afterOne: afterOne, hits: hits, label: el.label.textContent, pickedShown: !hidden(el.picked) });
 """
-    r = run_js([JS], driver)
+    r = run_js([ORDER_JS, JS], driver)
     assert r["searchShown"] is True
     assert r["afterOne"] == 0  # 한 글자는 검색하지 않는다
     assert "/api/foms/search?group=all&q=0000" in [c["url"] for c in r["calls"]]
@@ -169,7 +170,27 @@ clickRendered(person(20), '[data-foms-urgent-target]');
 fire('click', el.send); await flush();
 out({ error: el.error.textContent, errorShown: !hidden(el.error), locked: el.send.disabled });
 """
-    r = run_js([JS], driver)
+    r = run_js([ORDER_JS, JS], driver)
     assert r["error"] == "긴급 호출은 주문당 시간당 5회까지만 보낼 수 있습니다."
     assert r["errorShown"] is True and r["locked"] is False  # 다시 누를 수 있다
     assert ["hide", "fomsUrgentCallModal"] not in r["modalOps"]
+
+
+def test_unknown_team_codes_and_no_team_merge_into_one_etc_tab_at_end():
+    """스테이징 실화면 결함(2026-10-01): 팀 코드 ADMIN(팀 표에 없음)과 팀 없음이 '기타' 탭 두 개로 갈렸다."""
+    driver = DOM + r"""
+routes.length = 0;
+route('/erp/api/urgent-targets', function () { return Resp(200, { success: true, targets: [
+  { id: 20, name: '김세연', team: 'CS', team_label: 'CS(라홈팀/하우드팀)' },
+  { id: 57, name: 'QA Claude', team: 'ADMIN', team_label: '기타' },
+  { id: 56, name: '성능게이트봇', team: null, team_label: '기타' },
+  { id: 52, name: '구범진', team: 'DRAWING', team_label: '도면팀' }] }); });
+loadSources();
+window.fomsUrgentCall.open({}); await flush();
+const tabs = teamButtons().slice(-3);
+clickRendered(el.teams.children[2], '[data-foms-urgent-team]');
+out({ tabs: tabs, etc: el.people.children.slice(-2).map(function (b) { return b.textContent; }) });
+"""
+    r = run_js([ORDER_JS, JS], driver)
+    assert r["tabs"] == [["CS", "CS", True], ["DRAWING", "도면", False], ["_ETC", "기타", False]]
+    assert r["etc"] == ["QA Claude", "성능게이트봇"]

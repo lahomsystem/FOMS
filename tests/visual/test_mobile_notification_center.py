@@ -229,7 +229,8 @@ def test_urgent_call_js_is_replay_safe_and_uses_write_helper() -> None:
     assert "window.__FOMS_URGENT_CALL_BOUND" in js
     assert "/erp/api/urgent-targets" in js
     assert "/erp/api/urgent-call" in js
-    assert "/api/foms/search?group=all" in js
+    order_js = (ROOT / "static/js/foms/urgent-call-order.js").read_text(encoding="utf-8")
+    assert "/api/foms/search?group=all" in order_js and "window.fomsUrgentOrder" in order_js
     assert "FOMSNotificationWrite" in js
     assert "500" in js
     assert "data-foms-urgent-open" in js
@@ -245,6 +246,8 @@ def test_layout_scripts_wires_urgent_call_once_with_deferred_script() -> None:
     assert scripts.count("partials/shared/urgent_call.html") == 1
     line = next(l for l in scripts.splitlines() if "js/foms/urgent-call.js" in l)
     assert "defer" in line
+    # 주문 줄 모듈이 창 JS 보다 먼저 실린다(defer 는 문서 순서대로 실행).
+    assert 0 <= scripts.index("js/foms/urgent-call-order.js") < scripts.index("js/foms/urgent-call.js")
     shell = (ROOT / "templates/partials/shared/foms_app_shell.html").read_text(encoding="utf-8")
     assert "urgent-call-sheet.js" not in shell
     assert "erp_mobile_urgent_call_panel.html" not in shell
