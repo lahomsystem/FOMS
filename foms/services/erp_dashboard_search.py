@@ -29,7 +29,7 @@ def _strip_ilike_pattern(pattern: str) -> str:
 
 def _phone_search_clause(raw: str, search_term: str) -> Any:
     """
-    전화번호 검색 — digit-heavy 입력은 ``erp_phone_digits`` btree 인덱스 사용.
+    전화번호 검색 — digit-heavy 입력은 ``erp_phone_digits`` 부분 일치(trgm 인덱스) 사용.
 
     Args:
         raw: 사용자 원문 검색어.
@@ -43,7 +43,7 @@ def _phone_search_clause(raw: str, search_term: str) -> Any:
         return or_(
             and_(
                 Order.erp_phone_digits.isnot(None),
-                Order.erp_phone_digits.contains(digits),  # perf-ok: ix_orders_erp_phone_digits
+                Order.erp_phone_digits.contains(digits),  # perf-ok: ix_orders_erp_phone_digits_trgm
             ),
             Order.phone.ilike(search_term),  # perf-ok: ix_orders_phone_trgm
         )
@@ -58,7 +58,7 @@ def _order_id_match_clause(raw: str, search_term: str) -> Any:
             return Order.id == order_id
     except ValueError:
         pass
-    return Order.id.cast(String).ilike(search_term)  # perf-ok: bounded id search admin/cold path
+    return Order.id.cast(String).ilike(search_term)  # perf-ok: ix_orders_id_text_trgm
 
 
 def erp_measurement_main_search_predicate(search_term: str) -> Any:
@@ -152,49 +152,54 @@ def erp_order_dashboard_search_predicate(
     """
     raw = (raw_query or _strip_ilike_pattern(search_term)).strip()
     if customer_contact_only:
+        # 가지마다 trgm 인덱스가 있어야 BitmapOr 가 된다 — 경로 옆 주석이 그 인덱스다
+        # (tests/performance/test_search_trgm_index_contract.py 가 식을 대조한다).
         structured_visible_fields = [
-            Order.structured_data["parties"]["customer"]["name"].as_string(),
-            Order.structured_data["parties"]["customer"]["phone"].as_string(),
-            Order.structured_data["site"]["address_full"].as_string(),
-            Order.structured_data["site"]["address_main"].as_string(),
+            Order.structured_data["parties"]["customer"]["name"].as_string(),  # ix_orders_sd_customer_name_trgm
+            Order.structured_data["parties"]["customer"]["phone"].as_string(),  # ix_orders_sd_customer_phone_trgm
+            Order.structured_data["site"]["address_full"].as_string(),  # ix_orders_sd_site_address_full_trgm
+            Order.structured_data["site"]["address_main"].as_string(),  # ix_orders_sd_site_address_main_trgm
         ]
         clauses = [
             Order.customer_name.ilike(search_term),  # perf-ok: ix_orders_customer_name_trgm
             _phone_search_clause(raw, search_term),
             Order.address.ilike(search_term),  # perf-ok: ix_orders_address_trgm
             *[
-                and_(Order.is_erp_order == True, field.ilike(search_term))  # perf-ok: ix_orders_sd_customer_name_trgm
+                and_(Order.is_erp_order == True, field.ilike(search_term))  # perf-ok: 경로 옆 주석의 trgm 인덱스
                 for field in structured_visible_fields
             ],
         ]
     else:
+        # 가지마다 trgm 인덱스가 있어야 BitmapOr 가 된다 — 경로 옆 주석이 그 인덱스다.
+        # 가지를 더하면 같은 식의 인덱스도 마이그레이션·models 에 더한다(계약 테스트가 대조한다).
+        # manager 는 ``->>`` 식 전용 인덱스다(``-> 'name'`` 식의 ix_orders_sd_manager_name_trgm 은 못 쓴다).
         structured_visible_fields = [
-            Order.structured_data["parties"]["customer"]["name"].as_string(),
-            Order.structured_data["parties"]["customer"]["phone"].as_string(),
-            Order.structured_data["parties"]["manager"]["name"].as_string(),
-            Order.structured_data["parties"]["orderer"]["name"].as_string(),
+            Order.structured_data["parties"]["customer"]["name"].as_string(),  # ix_orders_sd_customer_name_trgm
+            Order.structured_data["parties"]["customer"]["phone"].as_string(),  # ix_orders_sd_customer_phone_trgm
+            Order.structured_data["parties"]["manager"]["name"].as_string(),  # ix_orders_sd_manager_name_text_trgm
+            Order.structured_data["parties"]["orderer"]["name"].as_string(),  # ix_orders_sd_orderer_name_trgm
             # 주문한 사람(ORDERER-AXIS-01). 발주사 자리에서 갈라져 나온 값이라, 여기에
             # 없으면 수집 주문을 주문자 이름·번호로 찾던 동작이 조용히 사라진다.
-            Order.structured_data["parties"]["buyer"]["name"].as_string(),
-            Order.structured_data["parties"]["buyer"]["phone"].as_string(),
-            Order.structured_data["site"]["address_full"].as_string(),
-            Order.structured_data["site"]["address_main"].as_string(),
-            Order.structured_data["items"][0]["product_name"].as_string(),
-            Order.structured_data["items"][0]["name"].as_string(),
-            Order.structured_data["schedule"]["measurement"]["date"].as_string(),
-            Order.structured_data["schedule"]["measurement"]["time"].as_string(),
-            Order.structured_data["schedule"]["construction"]["date"].as_string(),
+            Order.structured_data["parties"]["buyer"]["name"].as_string(),  # ix_orders_sd_buyer_name_trgm
+            Order.structured_data["parties"]["buyer"]["phone"].as_string(),  # ix_orders_sd_buyer_phone_trgm
+            Order.structured_data["site"]["address_full"].as_string(),  # ix_orders_sd_site_address_full_trgm
+            Order.structured_data["site"]["address_main"].as_string(),  # ix_orders_sd_site_address_main_trgm
+            Order.structured_data["items"][0]["product_name"].as_string(),  # ix_orders_sd_items0_product_name_trgm
+            Order.structured_data["items"][0]["name"].as_string(),  # ix_orders_sd_items0_name_trgm
+            Order.structured_data["schedule"]["measurement"]["date"].as_string(),  # ix_orders_sd_meas_date_trgm
+            Order.structured_data["schedule"]["measurement"]["time"].as_string(),  # ix_orders_sd_meas_time_trgm
+            Order.structured_data["schedule"]["construction"]["date"].as_string(),  # ix_orders_sd_construction_date_trgm
         ]
 
         clauses = [
-            Order.id.cast(String).ilike(search_term),  # perf-ok: bounded id search admin/cold path
+            Order.id.cast(String).ilike(search_term),  # perf-ok: ix_orders_id_text_trgm
             Order.customer_name.ilike(search_term),  # perf-ok: ix_orders_customer_name_trgm
             _phone_search_clause(raw, search_term),
             Order.address.ilike(search_term),  # perf-ok: ix_orders_address_trgm
             Order.product.ilike(search_term),  # perf-ok: ix_orders_product_trgm
             Order.manager_name.ilike(search_term),  # perf-ok: ix_orders_manager_name_trgm
             *[
-                and_(Order.is_erp_order == True, field.ilike(search_term))  # perf-ok: ix_orders_sd_customer_name_trgm
+                and_(Order.is_erp_order == True, field.ilike(search_term))  # perf-ok: 경로 옆 주석의 trgm 인덱스
                 for field in structured_visible_fields
             ],
         ]
@@ -258,15 +263,15 @@ def visible_order_search_clause(raw_q: str):
     if len(q) == 4 and q.isdigit():
         tail = rf"{q}($|[^0-9-])"
         sd_phones = (
-            Order.structured_data["parties"]["customer"]["phone"].as_string(),
-            Order.structured_data["parties"]["buyer"]["phone"].as_string(),
+            Order.structured_data["parties"]["customer"]["phone"].as_string(),  # ix_orders_sd_customer_phone_trgm
+            Order.structured_data["parties"]["buyer"]["phone"].as_string(),  # ix_orders_sd_buyer_phone_trgm
         )
         return or_(
             Order.id == int(q),
             Order.phone.regexp_match(tail),  # perf-ok: ix_orders_phone_trgm
             and_(
                 Order.is_erp_order == True,
-                or_(*[field.regexp_match(tail) for field in sd_phones]),  # perf-ok: history cold path
+                or_(*[field.regexp_match(tail) for field in sd_phones]),  # perf-ok: 경로 옆 주석의 trgm 인덱스(정규식도 탄다)
             ),
         )
     return erp_order_dashboard_search_predicate(f"%{q}%", raw_query=q)
