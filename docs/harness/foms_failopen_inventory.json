@@ -5,21 +5,21 @@
   "overlap_api_error_01": "API-ERROR-01 owns response/stdout exposure (print_exc/str(e) -> log_handled_exception). This packet owns swallow classification. Sites that log via log_handled_exception are LOG_AND_CONTINUE here.",
   "marker_convention": "Silent-by-design catches carry an inline `# failopen: intentional: <reason>` (or `fail-closed`) marker; the scanner reads it as the justification. No bare allowlist, no lint-disable.",
   "baselines": {
-    "broad_total": 605,
+    "broad_total": 608,
     "unclassified": 0,
-    "swallow_by_control_flow": 169
+    "swallow_by_control_flow": 168
   },
   "disposition_counts": {
     "FAIL_CLOSED": 38,
     "INTENTIONAL": 17,
-    "LOG_AND_CONTINUE": 381,
-    "SWALLOW_BY_CONTROL_FLOW": 169
+    "LOG_AND_CONTINUE": 385,
+    "SWALLOW_BY_CONTROL_FLOW": 168
   },
   "owner_counts": {
-    "api": 237,
+    "api": 239,
     "audit": 2,
     "auth": 16,
-    "cache": 28,
+    "cache": 29,
     "channel": 37,
     "persistence": 3,
     "platform": 5,
@@ -32,7 +32,7 @@
   "swallow_by_control_flow_owner_counts": {
     "api": 48,
     "auth": 6,
-    "cache": 15,
+    "cache": 14,
     "channel": 6,
     "platform": 3,
     "runtime": 1,
@@ -2416,7 +2416,7 @@
     },
     {
       "path": "foms/api/shipment/recommendations.py",
-      "lineno": 59,
+      "lineno": 63,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2425,7 +2425,7 @@
     },
     {
       "path": "foms/api/shipment/recommendations.py",
-      "lineno": 69,
+      "lineno": 73,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2434,7 +2434,7 @@
     },
     {
       "path": "foms/api/shipment/recommendations.py",
-      "lineno": 622,
+      "lineno": 111,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2443,7 +2443,25 @@
     },
     {
       "path": "foms/api/shipment/recommendations.py",
-      "lineno": 673,
+      "lineno": 689,
+      "handler_type": "broad_exception",
+      "disposition": "LOG_AND_CONTINUE",
+      "owner": "api",
+      "has_logging": true,
+      "justification": "logs via logger/log_handled_exception"
+    },
+    {
+      "path": "foms/api/shipment/recommendations.py",
+      "lineno": 761,
+      "handler_type": "broad_exception",
+      "disposition": "LOG_AND_CONTINUE",
+      "owner": "api",
+      "has_logging": true,
+      "justification": "logs via logger/log_handled_exception"
+    },
+    {
+      "path": "foms/api/shipment/recommendations.py",
+      "lineno": 812,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -4693,7 +4711,7 @@
     },
     {
       "path": "foms/services/schedule_recommendations.py",
-      "lineno": 406,
+      "lineno": 407,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "services",
@@ -4702,7 +4720,7 @@
     },
     {
       "path": "foms/services/schedule_recommendations.py",
-      "lineno": 445,
+      "lineno": 446,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "services",
@@ -4711,7 +4729,7 @@
     },
     {
       "path": "foms/services/schedule_recommendations.py",
-      "lineno": 508,
+      "lineno": 509,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "services",
@@ -4720,7 +4738,7 @@
     },
     {
       "path": "foms/services/schedule_recommendations.py",
-      "lineno": 579,
+      "lineno": 580,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "services",
@@ -4729,7 +4747,7 @@
     },
     {
       "path": "foms/services/schedule_recommendations.py",
-      "lineno": 588,
+      "lineno": 589,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "services",
@@ -4738,7 +4756,7 @@
     },
     {
       "path": "foms/services/schedule_recommendations.py",
-      "lineno": 696,
+      "lineno": 724,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "services",
@@ -4747,7 +4765,7 @@
     },
     {
       "path": "foms/services/schedule_recommendations.py",
-      "lineno": 708,
+      "lineno": 736,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "services",
@@ -4774,7 +4792,7 @@
     },
     {
       "path": "foms/services/shipment_as_recommendation_cache.py",
-      "lineno": 270,
+      "lineno": 363,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "cache",
@@ -4783,7 +4801,7 @@
     },
     {
       "path": "foms/services/shipment_as_recommendation_cache.py",
-      "lineno": 345,
+      "lineno": 377,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "cache",
@@ -4792,7 +4810,7 @@
     },
     {
       "path": "foms/services/shipment_as_recommendation_cache.py",
-      "lineno": 359,
+      "lineno": 397,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "cache",
@@ -4801,7 +4819,7 @@
     },
     {
       "path": "foms/services/shipment_as_recommendation_cache.py",
-      "lineno": 379,
+      "lineno": 412,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "cache",
@@ -4810,7 +4828,7 @@
     },
     {
       "path": "foms/services/shipment_as_recommendation_cache.py",
-      "lineno": 394,
+      "lineno": 421,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "cache",
@@ -4819,7 +4837,7 @@
     },
     {
       "path": "foms/services/shipment_as_recommendation_cache.py",
-      "lineno": 403,
+      "lineno": 476,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "cache",
@@ -4828,7 +4846,7 @@
     },
     {
       "path": "foms/services/shipment_as_recommendation_cache.py",
-      "lineno": 442,
+      "lineno": 487,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "cache",
@@ -4837,34 +4855,7 @@
     },
     {
       "path": "foms/services/shipment_as_recommendation_cache.py",
-      "lineno": 453,
-      "handler_type": "broad_exception",
-      "disposition": "SWALLOW_BY_CONTROL_FLOW",
-      "owner": "cache",
-      "has_logging": false,
-      "justification": "swallow-and-continue via control flow; no logger wired"
-    },
-    {
-      "path": "foms/services/shipment_as_recommendation_cache.py",
-      "lineno": 466,
-      "handler_type": "broad_exception",
-      "disposition": "SWALLOW_BY_CONTROL_FLOW",
-      "owner": "cache",
-      "has_logging": false,
-      "justification": "swallow-and-continue via control flow; no logger wired"
-    },
-    {
-      "path": "foms/services/shipment_as_recommendation_cache.py",
-      "lineno": 474,
-      "handler_type": "broad_exception",
-      "disposition": "SWALLOW_BY_CONTROL_FLOW",
-      "owner": "cache",
-      "has_logging": false,
-      "justification": "swallow-and-continue via control flow; no logger wired"
-    },
-    {
-      "path": "foms/services/shipment_as_recommendation_cache.py",
-      "lineno": 494,
+      "lineno": 500,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "cache",
@@ -4875,6 +4866,15 @@
       "path": "foms/services/shipment_as_recommendation_cache.py",
       "lineno": 510,
       "handler_type": "broad_exception",
+      "disposition": "SWALLOW_BY_CONTROL_FLOW",
+      "owner": "cache",
+      "has_logging": false,
+      "justification": "swallow-and-continue via control flow; no logger wired"
+    },
+    {
+      "path": "foms/services/shipment_as_recommendation_cache.py",
+      "lineno": 543,
+      "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "cache",
       "has_logging": true,
@@ -4882,7 +4882,16 @@
     },
     {
       "path": "foms/services/shipment_as_recommendation_cache.py",
-      "lineno": 519,
+      "lineno": 563,
+      "handler_type": "broad_exception",
+      "disposition": "LOG_AND_CONTINUE",
+      "owner": "cache",
+      "has_logging": true,
+      "justification": "logs via logger/log_handled_exception"
+    },
+    {
+      "path": "foms/services/shipment_as_recommendation_cache.py",
+      "lineno": 580,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "cache",
@@ -4891,7 +4900,7 @@
     },
     {
       "path": "foms/services/shipment_as_recommendation_cache.py",
-      "lineno": 570,
+      "lineno": 596,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "cache",
@@ -4900,7 +4909,25 @@
     },
     {
       "path": "foms/services/shipment_as_recommendation_cache.py",
-      "lineno": 572,
+      "lineno": 605,
+      "handler_type": "broad_exception",
+      "disposition": "SWALLOW_BY_CONTROL_FLOW",
+      "owner": "cache",
+      "has_logging": false,
+      "justification": "swallow-and-continue via control flow; no logger wired"
+    },
+    {
+      "path": "foms/services/shipment_as_recommendation_cache.py",
+      "lineno": 659,
+      "handler_type": "broad_exception",
+      "disposition": "LOG_AND_CONTINUE",
+      "owner": "cache",
+      "has_logging": true,
+      "justification": "logs via logger/log_handled_exception"
+    },
+    {
+      "path": "foms/services/shipment_as_recommendation_cache.py",
+      "lineno": 661,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "cache",

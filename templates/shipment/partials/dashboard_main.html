@@ -739,7 +739,7 @@
   {# 지도 모듈은 shipment-dashboard.js 보다 먼저(defer 는 문서 순서 유지) — 실제 호출은 클릭 시점이라
      순서 의존은 없지만, 프래그먼트 경로에서도 함께 실려야 지도 버튼이 죽지 않는다. #}
   <script src="{{ url_for('static', filename='js/common/foms-schedule-map.js') }}?v=20260730g" defer></script>
-  <script src="{{ url_for('static', filename='js/shipment/shipment-dashboard.js') }}?v=20260730g" defer></script>
+  <script src="{{ url_for('static', filename='js/shipment/shipment-dashboard.js') }}?v=20261001a" defer></script>
   {# 시공일 변경 [확인](ack) 클라이언트 — 여기(dashboard_main)에 두는 이유: 인접
      dashboard_scripts.html 은 이미 <script src> 2개라 그 파일을 건드리면 perf_scan 의
      fragment-multi-script 가 deploy veto 를 낸다(구조적 부채는 별건). 이 블록은 같은
