@@ -13,7 +13,7 @@ from flask_compress import Compress
 from whitenoise import WhiteNoise
 
 from foms.services.files.storage_paths import UPLOAD_FOLDER
-from db import close_db
+from db import close_db, engine as main_db_engine
 from wdcalculator_db import close_wdcalculator_db
 
 from .blueprints import register_blueprints
@@ -24,6 +24,7 @@ from .sentry_setup import init_sentry
 from .request_limits import FomsRequest, GLOBAL_BODY_CAP, register_request_limits
 
 from foms.services.common.html_whitespace import install_html_indentation_trimmer
+from foms.services.common.request_phase_profile import install_request_phase_profile
 from foms.services.common.template_warm import warm_skipped, warm_templates
 from foms.services.context_processors import register_context_processors
 from foms.services.rate_limit import init_limiter
@@ -310,5 +311,10 @@ def build_app(*, socketio_available: bool) -> AppFactoryResult:
     # HTML 을 그리지 않는 WORKER 자식들도 건너뛴다(감독자가 SKIP_ENV 를 심는다).
     if (is_production or is_railway) and not warm_skipped():
         warm_templates(app)
+
+    # REQ-DIAG-01: 모든 요청의 공통 구간(before_request·컨텍스트 프로세서·렌더·템플릿 컴파일·
+    # SQL·새 DB 연결·CPU·전체 GC)을 잰다. 400ms 넘는 요청의 req_duration 로그와 HTML 응답
+    # 헤더에 실린다(진단 전용). 2026-09-09 부터 HTML 에만 생긴 꼬리를 가르기 위한 것이다.
+    install_request_phase_profile(app, engine=main_db_engine)
 
     return AppFactoryResult(app=app, socketio=realtime_bindings.socketio)
