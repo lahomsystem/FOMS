@@ -232,3 +232,185 @@ body.erp-mobile-v2-layout .foms-kanban-move-btn.foms-kanban-move-btn--warn {
   font-weight: 700;
   color: #b02a37;
 }
+
+/* 긴급 호출 공용 창 (templates/partials/shared/urgent_call.html · static/js/foms/urgent-call.js,
+   SPEC 2026-10-01). 넓은 화면 = 가운데 창(420px), 992px 미만 = 아래에서 올라오는 시트. */
+.foms-urgent-modal .modal-dialog {
+  max-width: 420px;
+}
+.foms-urgent-modal .modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+@media (max-width: 991.98px) {
+  .foms-urgent-modal .modal-dialog,
+  .foms-urgent-modal .modal-dialog.modal-dialog-centered {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    max-width: none;
+    min-height: 0;
+    height: auto;
+    margin: 0;
+    display: block;
+    transform: translateY(100%);
+    transition: transform 0.25s ease-out;
+  }
+  .foms-urgent-modal.show .modal-dialog,
+  .foms-urgent-modal.show .modal-dialog.modal-dialog-centered {
+    transform: none;
+  }
+  .foms-urgent-modal .modal-content {
+    border: 0;
+    border-radius: 16px 16px 0 0;
+    max-height: 90vh;
+    overflow-y: auto;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+}
+.foms-urgent-order__picked {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--erp-border, #d0d7e2);
+  border-radius: 10px;
+  background: #f8f9fa;
+  font-weight: 600;
+}
+.foms-urgent-order__picked .fa-file-alt {
+  color: #6c757d;
+}
+.foms-urgent-order__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.foms-urgent-order__clear {
+  margin-left: auto;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 16px;
+  background: transparent;
+  color: #6c757d;
+}
+.foms-urgent-order__clear:hover {
+  background: #e9ecef;
+}
+.foms-urgent-order__add {
+  width: 100%;
+  min-height: 40px;
+  padding: 6px 12px;
+  border: 1px dashed #c3cad6;
+  border-radius: 10px;
+  background: #fff;
+  color: #4b5563;
+  font-size: 14px;
+  text-align: left;
+}
+.foms-urgent-order__add:hover {
+  border-color: #dc3545;
+  color: #b02a37;
+}
+.foms-urgent-order__optional {
+  font-size: 12px;
+  color: #6b7280;
+}
+.foms-urgent-order__results {
+  margin-top: 4px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+.foms-urgent-order__results:empty {
+  display: none;
+}
+.foms-urgent-order__hit-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.foms-urgent-order__hit-name {
+  font-weight: 600;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.foms-urgent-order__hit-top .badge {
+  margin-left: auto;
+  font-weight: 500;
+}
+.foms-urgent-order__hit-sub {
+  font-size: 12px;
+  color: #6b7280;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.foms-urgent-teams {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e5e7eb;
+}
+.foms-urgent-teams .btn {
+  flex: 1 1 0;
+  min-width: 56px;
+  min-height: 36px;
+}
+.foms-urgent-people {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-height: 34px;
+  font-size: 14px;
+  color: #6b7280;
+}
+.foms-urgent-send {
+  min-height: 44px;
+  font-weight: 700;
+}
+
+/* 맨 위 줄 ⚡ — PC(layout_nav.html) 는 옆 아이콘과 같은 크기, 빨간색. */
+.foms-urgent-header-btn,
+.foms-urgent-header-btn i {
+  color: #dc3545 !important;
+}
+
+/* 모바일 셸 머리줄 ⚡ (erp_mobile_shell_header.html, has-urgent) — 내 할 일 왼쪽에 칸 하나 추가.
+   foms-shell.css 의 칼럼 규칙(기본 4칸 · has-mytasks 5칸 · has-more +1칸)보다 구체적으로 덮는다. */
+body.erp-mobile-v2-layout header.erp-mobile-shell-header.has-urgent {
+  grid-template-columns: 44px 1fr 44px 44px 44px;
+}
+body.erp-mobile-v2-layout header.erp-mobile-shell-header.has-urgent.has-mytasks,
+body.erp-mobile-v2-layout header.erp-mobile-shell-header.has-urgent.has-more {
+  grid-template-columns: 44px 1fr 44px 44px 44px 44px;
+}
+body.erp-mobile-v2-layout header.erp-mobile-shell-header.has-urgent.has-mytasks.has-more {
+  grid-template-columns: 44px 1fr 44px 44px 44px 44px 44px;
+}
+body.erp-mobile-v2-layout .erp-mobile-shell-header.has-urgent .erp-mobile-shell-header__urgent {
+  grid-column: 3;
+  color: #dc3545;
+}
+body.erp-mobile-v2-layout .erp-mobile-shell-header.has-urgent .erp-mobile-shell-header__search {
+  grid-column: 4;
+}
+body.erp-mobile-v2-layout .erp-mobile-shell-header.has-urgent .erp-mobile-shell-header__notify {
+  grid-column: 5;
+}
+body.erp-mobile-v2-layout .erp-mobile-shell-header.has-urgent.has-mytasks .erp-mobile-shell-header__mytasks {
+  grid-column: 4;
+}
+body.erp-mobile-v2-layout .erp-mobile-shell-header.has-urgent.has-mytasks .erp-mobile-shell-header__search {
+  grid-column: 5;
+}
+body.erp-mobile-v2-layout .erp-mobile-shell-header.has-urgent.has-mytasks .erp-mobile-shell-header__notify {
+  grid-column: 6;
+}

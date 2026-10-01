@@ -70,7 +70,8 @@ def test_detail_dom_keeps_phase2_accessibility_and_perf_contracts() -> None:
     assert "order-detail-attach-loading" in text
     assert "dw-attach-panel--loading" in text
     assert "visually-hidden" in text
-    assert "mention urgent-targets fetch 실패:" in text
+    # 대시보드 상세 '동료 호출' 줄은 지웠다 — 맨 위 줄 ⚡ 공용 창이 펼친 주문을 미리 고른다(SPEC 2026-10-01).
+    assert "mention urgent-targets fetch 실패:" not in text and "mention-target-" not in text
     assert "const isImageFile = (a) =>" not in text
     assert '<div class="text-warning small">상세 정보를 불러올 수 없습니다.' not in text
     assert "text-warning small\">첨부를 불러오지 못했습니다." not in text

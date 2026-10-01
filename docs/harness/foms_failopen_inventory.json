@@ -5,14 +5,14 @@
   "overlap_api_error_01": "API-ERROR-01 owns response/stdout exposure (print_exc/str(e) -> log_handled_exception). This packet owns swallow classification. Sites that log via log_handled_exception are LOG_AND_CONTINUE here.",
   "marker_convention": "Silent-by-design catches carry an inline `# failopen: intentional: <reason>` (or `fail-closed`) marker; the scanner reads it as the justification. No bare allowlist, no lint-disable.",
   "baselines": {
-    "broad_total": 604,
+    "broad_total": 605,
     "unclassified": 0,
     "swallow_by_control_flow": 169
   },
   "disposition_counts": {
     "FAIL_CLOSED": 38,
     "INTENTIONAL": 17,
-    "LOG_AND_CONTINUE": 380,
+    "LOG_AND_CONTINUE": 381,
     "SWALLOW_BY_CONTROL_FLOW": 169
   },
   "owner_counts": {
@@ -26,7 +26,7 @@
     "runtime": 3,
     "services": 174,
     "storage": 21,
-    "telemetry": 39,
+    "telemetry": 40,
     "web": 39
   },
   "swallow_by_control_flow_owner_counts": {
@@ -1840,7 +1840,7 @@
     },
     {
       "path": "foms/api/notifications/__init__.py",
-      "lineno": 804,
+      "lineno": 809,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "telemetry",
@@ -1849,7 +1849,7 @@
     },
     {
       "path": "foms/api/notifications/__init__.py",
-      "lineno": 919,
+      "lineno": 826,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "telemetry",
@@ -1858,7 +1858,7 @@
     },
     {
       "path": "foms/api/notifications/__init__.py",
-      "lineno": 924,
+      "lineno": 942,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "telemetry",
@@ -1867,7 +1867,7 @@
     },
     {
       "path": "foms/api/notifications/__init__.py",
-      "lineno": 1096,
+      "lineno": 947,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "telemetry",
@@ -1876,7 +1876,16 @@
     },
     {
       "path": "foms/api/notifications/__init__.py",
-      "lineno": 1101,
+      "lineno": 1138,
+      "handler_type": "broad_exception",
+      "disposition": "LOG_AND_CONTINUE",
+      "owner": "telemetry",
+      "has_logging": true,
+      "justification": "logs via logger/log_handled_exception"
+    },
+    {
+      "path": "foms/api/notifications/__init__.py",
+      "lineno": 1143,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "telemetry",
@@ -2893,7 +2902,7 @@
     },
     {
       "path": "foms/platform/realtime.py",
-      "lineno": 237,
+      "lineno": 238,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "platform",

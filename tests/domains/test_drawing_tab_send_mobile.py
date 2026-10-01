@@ -382,7 +382,7 @@ def test_mobile_cancel_transfer_opens_warning_sheet_when_sent(client, monkeypatc
     assert sheet.select_one('[data-bs-dismiss="modal"]') is not None
     scripts = [s for s in handoff.select("script[src]") if "drawing-cancel-warn-mobile.js" in s["src"]]
     assert len(scripts) == 1 and scripts[0].has_attr("defer")
-    assert "?v=20260929o" in scripts[0]["src"]
+    assert "?v=20261001a" in scripts[0]["src"]
 
 
 def test_mobile_cancel_transfer_without_warning_keeps_proxy(client, monkeypatch):
@@ -402,10 +402,12 @@ def test_cancel_warn_js_contract():
     assert "jQuery" not in source and "$(" not in source
     assert "/cancel-transfer" in source and "/erp/drawing-workbench/" in source
     assert "data.success" in source
-    assert "data-foms-urgent-call" in source and "hidden.bs.modal" in source
+    # 공용 긴급 호출 창(urgent-call.js)을 이 주문 · 영업팀 · 미리 쓴 사유로 연다(SPEC 2026-10-01).
+    assert "window.fomsUrgentCall.open" in source and "hidden.bs.modal" in source
+    assert "team: 'SALES'" in source and "data-foms-urgent-call" not in source
     # 열리는 중에 누르면 hide() 가 무시된다 — 다 열린 뒤 다시 닫고, 기다리는 동안 버튼을 잠근다(리뷰 P3).
     assert "shown.bs.modal" in source and "__fomsAskPending" in source
-    assert "data-urgent-message" in source and "[data-foms-urgent-message]" in source
+    assert "data-urgent-message" in source
     for fetch_at in [m.start() for m in re.finditer(r"\bfetch\(", source)]:
         try_at = source.rfind("try {", 0, fetch_at)
         assert try_at != -1 and "catch" not in source[try_at:fetch_at], "fetch 가 try 블록 밖이다"

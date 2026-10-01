@@ -45,12 +45,12 @@ def test_detail_dom_cachebuster_cascade_bumped() -> None:
     # 2026-09-29 2c-2 R4·2d·2a-2·2b(수정요청 취소 안내)를 한 브랜치에 합치며 detail-dom·drawing.js
     # 자식 핀과 entry 부모 핀을 20260929l 로 올렸다. core·attachments 는 R4(20260929h),
     # gateway 는 2b(20260929e) 에서 새로 붙었다.
-    assert "erp-dashboard-detail-dom.js?v=20260930a" in entry
+    assert "erp-dashboard-detail-dom.js?v=20261001a" in entry
     assert "erp-dashboard-drawing.js?v=20260929l" in entry
     assert "erp-dashboard-core.js?v=20260929h" in entry
     assert "erp-dashboard-attachments.js?v=20260929h" in entry
     assert "erp-dashboard-gateway.js?v=20260929e" in entry
-    assert "erp-dashboard-entry.js') }}?v=20260930a" in layout
+    assert "erp-dashboard-entry.js') }}?v=20261001a" in layout
 
 
 def test_workbench_include_confirmed_toggle() -> None:

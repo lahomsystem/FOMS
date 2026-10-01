@@ -824,6 +824,7 @@ def api_urgent_targets():
             return jsonify({"success": False, "message": "사용자 정보를 찾을 수 없습니다."}), 404
         return jsonify({"success": True, "targets": _urgent_targets_payload(db, session.get("user_id"))})
     except Exception as e:
+        log_handled_exception()
         return jsonify({"success": False, "message": str(e)}), 500
 
 

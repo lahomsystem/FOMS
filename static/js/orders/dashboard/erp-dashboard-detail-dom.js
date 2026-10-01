@@ -537,27 +537,6 @@
                 </div>
               </div>
             </div>
-            <div class="col-12">
-              <div class="card border-danger">
-                <div class="card-body py-2">
-                  <div class="d-flex align-items-center gap-2 flex-wrap">
-                    <span class="fw-semibold text-danger" style="font-size:0.85rem"><i class="fas fa-bell"></i> 동료 호출</span>
-                    <div class="d-none d-lg-flex align-items-center gap-2 flex-wrap">
-                      <select class="form-select form-select-sm" id="mention-target-${orderId}" style="max-width:180px">
-                        <option value="">-- 대상 선택 --</option>
-                      </select>
-                      <input type="text" class="form-control form-control-sm" id="mention-msg-${orderId}" placeholder="메시지 (선택)" style="max-width:220px">
-                      <button class="btn btn-danger btn-sm" type="button" data-order-id="${orderId}">
-                        <i class="fas fa-paper-plane"></i> 긴급 호출
-                      </button>
-                    </div>
-                    <button class="btn btn-danger btn-sm d-lg-none" type="button" data-foms-urgent-call data-order-id="${orderId}">
-                      <i class="fas fa-bolt"></i> 긴급 호출
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
           </div>
         `;
             try { performance.mark('erp-detail-shell:' + orderId); } catch (e) {}
@@ -621,30 +600,7 @@
             // 이미지 뷰어용 그룹 등록 (첨부 2단 완료 후 다시 호출됨)
             registerOrderDetailDrawingViewerGroups(orderId);
 
-            // 긴급 호출 버튼 클릭 바인딩 (inline onclick 대신 data-order-id + 리스너로 린터 회피)
-            var mentionBtn = container.querySelector('button[data-order-id]');
-            if (mentionBtn) {
-              mentionBtn.addEventListener('click', function() {
-                sendUrgentMention(parseInt(mentionBtn.getAttribute('data-order-id'), 10));
-              });
-            }
-            // 동료 호출 대상 사용자 목록 로드
-            const mentionSelect = document.getElementById(`mention-target-${orderId}`);
-            if (mentionSelect && !mentionSelect.dataset.loaded) {
-              fetch('/erp/api/orders/' + orderId + '/urgent-targets', { credentials: 'same-origin' })
-                .then(function(r) { return r.json(); })
-                .then(function(d) {
-                  if (!d.success || !d.targets) return;
-                  d.targets.forEach(function(u) {
-                    var o = document.createElement('option');
-                    o.value = u.id;
-                    o.textContent = u.name + (u.team ? ' (' + u.team + ')' : '');
-                    mentionSelect.appendChild(o);
-                  });
-                  mentionSelect.dataset.loaded = '1';
-                })
-                .catch(function(e) { console.warn('mention urgent-targets fetch 실패:', e); });
-            }
+            // 긴급 호출은 맨 위 줄 ⚡ 공용 창(urgent-call.js)이 펼쳐 둔 이 주문을 미리 고른다(SPEC 2026-10-01).
 
             if (attachmentsPending) {
               container.dataset.shellLoaded = '1';
@@ -659,34 +615,6 @@
             console.error('주문 상세 로드 실패:', err);
             container.innerHTML = '<div class="text-danger small">로드 실패: ' + escapeHtml(err.message) + '</div>';
           }
-        }
-
-        function sendUrgentMention(orderId) {
-          var sel = document.getElementById('mention-target-' + orderId);
-          var msgInput = document.getElementById('mention-msg-' + orderId);
-          if (!sel) return;
-          var targetId = sel.value;
-          if (!targetId) { alert('호출 대상을 선택해주세요.'); return; }
-          var msg = msgInput ? msgInput.value.trim() : '';
-
-          if (!confirm('선택한 동료에게 긴급 호출을 보내시겠습니까?')) return;
-
-          window.FOMSNotificationWrite.fetch('/erp/api/orders/' + orderId + '/urgent-mention', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ target_user_id: parseInt(targetId), message: msg })
-          })
-          .then(function(r) { return r.json(); })
-          .then(function(data) {
-            if (data.success) {
-              alert(data.message || '긴급 멘션을 보냈습니다.');
-              sel.value = '';
-              if (msgInput) msgInput.value = '';
-            } else {
-              alert(data.message || '발송 실패');
-            }
-          })
-          .catch(function() { alert('긴급 멘션 발송 중 오류가 발생했습니다.'); });
         }
 
         function initErpDashboardBoundaryResize() {
