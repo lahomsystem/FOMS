@@ -29,7 +29,7 @@
 ## 3. 서버 변경
 
 ### 3.1 서비스 한 곳으로 모으기
-`foms/services/notifications/urgent_call.py` (신규) — `send_urgent_call(db, sender, target_user_id, message, order=None) -> Result`.
+`foms/api/notifications/__init__.py` 안의 `_send_urgent_call(db, sender, data, order=None) -> (body, status)` (구현 때 조정: 기존 테스트가 이 모듈의 `enqueue_side_effect` 를 바꿔 끼워 원자성을 검사하므로 같은 모듈에 둔다).
 지금 `api_order_urgent_mention` 본문(검증 · 한 tx 알림+수신자 상태+이벤트+SIDEFX outbox · 감사 로그 · 배지 캐시 · 실시간 표시)을 그대로 옮긴다. 차이는 `order=None` 일 때뿐:
 
 | | 주문 있음 (지금과 같음) | 주문 없음 (신규) |

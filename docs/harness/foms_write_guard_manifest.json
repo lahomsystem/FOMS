@@ -668,6 +668,10 @@
       "mode": "guard",
       "rule": "/erp/api/orders/<int:order_id>/urgent-mention"
     },
+    "notifications.api_urgent_call": {
+      "mode": "guard",
+      "rule": "/erp/api/urgent-call"
+    },
     "notifications_push.push_event": {
       "mode": "exempt",
       "rule": "/erp/api/notifications/push/event",
