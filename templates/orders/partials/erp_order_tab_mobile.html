@@ -349,8 +349,8 @@ ERP Order mobile-v2 tab pane.
                                 </label>
                                 {# ORDER-FLAG-01: 비활성만 하고 제거하지 않는다 — DOM 에서 빼면
                                    폼 수집기가 false 를 실어 보내 저장 한 번에 값이 지워진다. #}
-                                <label class="erp-mobile-check" for="erp-factory2"{% if not can_toggle_order_flags %} title="라홈시스템은 라홈팀(CS)·관리자만 변경할 수 있습니다."{% endif %}>
-                                    <input type="checkbox" class="form-check-input" id="erp-factory2" autocomplete="off"{% if not can_toggle_order_flags %} disabled{% endif %}>
+                                <label class="erp-mobile-check" for="erp-factory2"{% if not can_toggle_factory2_flag %} title="라홈시스템은 라홈팀(CS)·영업팀·관리자만 변경할 수 있습니다."{% endif %}>
+                                    <input type="checkbox" class="form-check-input" id="erp-factory2" autocomplete="off"{% if not can_toggle_factory2_flag %} disabled{% endif %}>
                                     <span>라홈시스템</span>
                                 </label>
                             </div>
