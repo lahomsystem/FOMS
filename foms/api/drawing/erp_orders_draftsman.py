@@ -436,11 +436,23 @@ def api_order_confirm_drawing_receipt(order_id):
                 to_value='CONFIRMED')
 
         db.commit()
-        # Tier A(broad): 도면 수령 확인은 workflow.stage DRAWING→CONFIRM 전환 +
-        # order.status 변경 → 여러 탭(도면 이탈, 고객컨펌/생산 진입)에 걸쳐 전체 무효화.
-        from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
+        # P1-2: 바뀌는 것은 도면 상태(CONFIRMED)·현재 도면 목록(drawing_current_files)·단계
+        # DRAWING→CONFIRM 이다. 단계 전이는 transition_order → execute_order_mutation 이라
+        # MUT-CACHE-01 리스너가 떠난/도착한 단계 family 를 비운다. 도면 상태는 도면 큐 소속,
+        # 현재 도면 목록은 orders·시공·생산 첨부 개수의 '교체된 옛 도면 빼기'
+        # (discount_superseded_drawing_rows)가 읽는다 — 수정요청(invalidate_after_drawing_revision)
+        # 과 같은 범위다. 실측·출고·이력 캐시는 이 값들을 담지 않는다. 단계를 모르면 broad.
+        from foms.services.common.dashboard_cache import (
+            DASHBOARD_FAMILY_CONSTRUCTION,
+            DASHBOARD_FAMILY_DRAWING,
+            DASHBOARD_FAMILY_PRODUCTION,
+            invalidate_order_dashboard_families,
+        )
 
-        invalidate_all_dashboard_slice_caches()
+        invalidate_order_dashboard_families(
+            order,
+            extra=(DASHBOARD_FAMILY_DRAWING, DASHBOARD_FAMILY_PRODUCTION, DASHBOARD_FAMILY_CONSTRUCTION),
+        )
 
         return jsonify({
             'success': True,

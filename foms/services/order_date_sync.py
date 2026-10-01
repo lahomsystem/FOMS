@@ -8,6 +8,12 @@ from datetime import datetime
 from typing import Any
 
 from db import get_db
+from foms.services.common.dashboard_cache import (
+    ALL_DASHBOARD_FAMILIES,
+    dashboard_families_for_schedule_change,
+    invalidate_all_dashboard_slice_caches,
+    invalidate_dashboard_families,
+)
 from foms.services.erp_order_flags import (
     is_erp_draft_structured_data,
     is_erp_order_draft,
@@ -27,6 +33,13 @@ __all__ = [
 _CONSTRUCTION_EVENT_GUARD = "foms_construction_date_event_in_flush"
 #: 트랜잭션 단위 시공일 이벤트 합치기 상태 키(``Session.info``).
 _CONSTRUCTION_EVENT_STATE = "foms_construction_date_event_state"
+#: 커밋 뒤 비울 대시보드 family 모음(``Session.info``). 값은 family 문자열 집합, ``"*"`` 는 전부.
+_DASHCACHE_DATES_KEY = "foms_dashcache_order_dates"
+#: 이번 트랜잭션에서 주문의 탭 소속 축(status·삭제·ERP·단계·초안)이 바뀌었는가(``Session.info``).
+_DASHCACHE_MEMBERSHIP_KEY = "foms_dashcache_order_membership_changed"
+_DASHCACHE_ALL = "*"
+#: 탭 소속을 가르는 평면 컬럼 — 모든 family 기준 쿼리의 active/draft 필터와 단계 범위.
+_MEMBERSHIP_COLUMNS = ("status", "deleted_at", "is_erp_order", "erp_stage_code")
 
 
 def _normalize_date_str(s: Any) -> Any:
@@ -347,6 +360,96 @@ def _committed_is_draft(order: Any) -> bool:
     return is_erp_draft_structured_data(old_sd)
 
 
+def _workflow_stage(structured_data: Any) -> str:
+    """structured_data 의 ``workflow.stage`` 원문(없으면 빈 문자열)."""
+    if not isinstance(structured_data, dict):
+        return ""
+    workflow = structured_data.get("workflow")
+    return str((workflow or {}).get("stage") or "") if isinstance(workflow, dict) else ""
+
+
+def _order_membership_changed(order: Any) -> bool:
+    """이번 flush 에서 주문의 탭 소속을 가르는 값이 바뀌었는가(SQLAlchemy 속성 기록으로 본다).
+
+    status·삭제·ERP 여부·단계 코드·초안 표식·``workflow.stage`` 중 하나라도 바뀌면 True.
+    이런 전이와 날짜 변경이 한 트랜잭션에 섞이면 주문이 어느 탭에 새로 나타나거나
+    사라지는지 날짜만으로는 모른다 — 커밋 뒤 전부 비운다(예전 동작 그대로).
+
+    Args:
+        order: flush 대상 주문(영속 상태).
+
+    Returns:
+        소속 축이 바뀌었으면 True. 신규(미영속) 주문이면 False(호출자가 따로 다룬다).
+    """
+    if getattr(order, "id", None) is None:
+        return False
+    from sqlalchemy import inspect as sa_inspect
+
+    attrs = sa_inspect(order).attrs
+    for name in _MEMBERSHIP_COLUMNS:
+        if getattr(attrs, name).history.has_changes():
+            return True
+    if _committed_is_draft(order) != is_erp_order_draft(order):
+        return True
+    sd_hist = attrs.structured_data.history
+    old_values = list(sd_hist.deleted) or list(sd_hist.unchanged)
+    if not sd_hist.has_changes() or not old_values:
+        # 옛 값을 기록에서 못 읽으면(만료 뒤 재대입) 단계 비교를 하지 않는다 — 단계 전이는
+        # 단계 코드 컬럼(sync_erp_flat_columns)과 MUT-CACHE-01 리스너가 따로 잡는다.
+        return False
+    return _workflow_stage(old_values[0]) != _workflow_stage(getattr(order, "structured_data", None))
+
+
+def _collect_dashcache_scope(
+    session: Any,
+    order: Any,
+    *,
+    is_new: bool,
+    schedule_changed: bool,
+    before_signature: tuple[tuple[str, str, str, Any], ...],
+) -> None:
+    """커밋 뒤 비울 대시보드 범위를 이 주문 몫만큼 ``session.info`` 에 모은다(P1-2).
+
+    예전에는 일정 행이 하나라도 바뀌거나 새 주문이 생기면 7 family 를 전부 비웠다. 지금은
+    바뀐 일정 **종류**가 읽히는 family 만 모은다(``dashboard_families_for_schedule_change``).
+    전부 비우는 경우는 그대로 둔다 — 새 비초안 주문(모든 탭에 새로 나타날 수 있다), 같은
+    트랜잭션의 소속 축 변화(:func:`_order_membership_changed`), 모르는 일정 종류.
+    초안은 어느 대시보드에도 없으므로(모든 family 기준 쿼리가 ``active_filter`` 로 뺀다)
+    새 초안·초안끼리의 날짜 변경은 아무것도 모으지 않는다.
+
+    Args:
+        session: 현재 flush 중인 세션.
+        order: 대상 주문.
+        is_new: 이번 flush 에서 처음 영속되는 주문인가.
+        schedule_changed: 이번 flush 에서 일정 행이 재빌드됐는가.
+        before_signature: 재빌드 전 일정 행 서명(:func:`_schedule_date_signature`).
+    """
+    if is_new:
+        if not is_erp_order_draft(order):
+            session.info.setdefault(_DASHCACHE_DATES_KEY, set()).add(_DASHCACHE_ALL)
+        return
+    if _order_membership_changed(order):
+        session.info[_DASHCACHE_MEMBERSHIP_KEY] = True
+    if not schedule_changed:
+        return
+    if is_erp_order_draft(order) and _committed_is_draft(order):
+        return
+    # 출처(source)만 바뀐 행(평면 컬럼 동기화로 legacy_column ↔ beta_schedule)은 날짜가 같아
+    # 어느 캐시 DTO 도 바꾸지 않는다 — (종류, 날짜, 품목 위치)로만 비교한다.
+    def _dated(signature):
+        return {(kind, date, item_index) for kind, date, _source, item_index in signature}
+
+    changed_rows = _dated(before_signature) ^ _dated(
+        _schedule_date_signature(getattr(order, "schedule_dates", []))
+    )
+    if not changed_rows:
+        return
+    kinds = {row[0] for row in changed_rows}
+    item_level = any(row[2] is not None for row in changed_rows)
+    families = dashboard_families_for_schedule_change(kinds, item_level=item_level)
+    session.info.setdefault(_DASHCACHE_DATES_KEY, set()).update(families)
+
+
 def _join_construction_dates(dates: set[str]) -> str:
     """시공일 집합을 안정 정렬 콤마 문자열로 만든다.
 
@@ -558,7 +661,7 @@ def _run_date_sync_flush(session: Any, order_cls: Any) -> None:
         order_cls: ``Order`` 모델 클래스(모듈 최상위 import 순환 회피용 주입).
 
     Returns:
-        None. 재빌드가 있었으면 dashcache 무효화 플래그를 ``session.info`` 에 남긴다.
+        None. 커밋 뒤 비울 대시보드 범위를 ``session.info`` 에 모은다(:func:`_collect_dashcache_scope`).
     """
     changed_orders = [
         obj for obj in session.new.union(session.dirty) if isinstance(obj, order_cls)
@@ -567,7 +670,6 @@ def _run_date_sync_flush(session: Any, order_cls: Any) -> None:
     reentrant = bool(session.info.get(_CONSTRUCTION_EVENT_GUARD))
     session.info[_CONSTRUCTION_EVENT_GUARD] = True
     try:
-        schedule_changed = False
         for order in changed_orders:
             is_new = order in session.new or getattr(order, "id", None) is None
             # 생성(신규·미영속)은 "이전 값"이 없으므로 시공일 이벤트 대상이 아니다.
@@ -580,17 +682,23 @@ def _run_date_sync_flush(session: Any, order_cls: Any) -> None:
                 else set()
             )
             was_draft = _committed_is_draft(order) if allow_measure and not is_new else False
-            schedule_changed = (
-                _sync_order_and_emit_event(session, order, allow_event=allow_event)
-                or schedule_changed
+            before_signature = (
+                () if is_new else _schedule_date_signature(getattr(order, "schedule_dates", []))
+            )
+            order_schedule_changed = _sync_order_and_emit_event(
+                session, order, allow_event=allow_event
             )
             if allow_measure:
                 _detect_measure_same_day(session, order, measure_before, was_draft)
+            _collect_dashcache_scope(
+                session,
+                order,
+                is_new=is_new,
+                schedule_changed=order_schedule_changed,
+                before_signature=before_signature,
+            )
     finally:
         session.info[_CONSTRUCTION_EVENT_GUARD] = reentrant
-
-    if schedule_changed or any(order in session.new for order in changed_orders):
-        session.info["foms_dashcache_order_dates"] = True
 
 
 def register_date_sync_listener() -> None:
@@ -621,17 +729,21 @@ def register_date_sync_listener() -> None:
     @event.listens_for(Session, "after_commit")
     def _dashcache_after_commit_schedule_sync(session):
         session.info.pop(_CONSTRUCTION_EVENT_STATE, None)
-        if not session.info.pop("foms_dashcache_order_dates", None):
+        scope = session.info.pop(_DASHCACHE_DATES_KEY, None)
+        membership_changed = session.info.pop(_DASHCACHE_MEMBERSHIP_KEY, None)
+        if not scope:
             return
         try:
-            # 날짜는 실측/출고만의 축이 아니다: 시공일은 시공 숫자판·도면 SLA, 완료일은
-            # 완료(이력) 목록, 단계 이동을 동반하면 주문 단계별 건수까지 흔든다. 실측·출고만
-            # 비우면 나머지 탭이 TTL(300초)만큼 옛 숫자를 보여준다(2026-08-10 조사).
-            from foms.services.common.dashboard_cache import (
-                invalidate_all_dashboard_slice_caches,
-            )
-
-            invalidate_all_dashboard_slice_caches()
+            # 날짜는 실측/출고만의 축이 아니다(2026-08-10 조사): 시공일은 시공 D-3·생산 D-2
+            # 숫자판, 실측일은 orders·생산 D-4 숫자판도 흔든다 — 종류별 범위가 그걸 담는다
+            # (dashboard_cache._SCHEDULE_KIND_FAMILIES). 도면 큐(접수순 id)·이력(검색·접수일)
+            # 캐시는 일정 날짜를 담지 않는다. 단계 이동·삭제·초안 승격 같은 소속 변화가 같은
+            # 트랜잭션에 섞이면 어느 탭이 바뀔지 모르므로 예전처럼 전부 비운다.
+            families = tuple(f for f in ALL_DASHBOARD_FAMILIES if f in scope)
+            if _DASHCACHE_ALL in scope or membership_changed or families == ALL_DASHBOARD_FAMILIES:
+                invalidate_all_dashboard_slice_caches()
+            else:
+                invalidate_dashboard_families(*families)
         except Exception as exc:
             logger.warning(
                 "[DashCache] after_commit invalidate failed (non-fatal): %s",
