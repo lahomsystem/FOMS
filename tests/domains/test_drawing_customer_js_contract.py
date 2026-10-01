@@ -31,7 +31,7 @@ JS_PIN_LOCK = {
     "static/js/foms/drawing-customer-send.js": ("3a626f85a177", "20260929n"),
     "static/js/foms/drawing-customer-ok.js": ("624445c27786", "20260930b"),
     "static/js/foms/drawing-revision-edit.js": ("43d3ee5cb418", "20260930b"),
-    "static/js/foms/drawing-urgent-call-pc.js": ("8a5a9a1d2dce", "20261001a"),
+    "static/js/foms/drawing-urgent-call-pc.js": ("7bda3b35784c", "20261001b"),
 }
 
 
@@ -133,12 +133,15 @@ def test_edit_limit_matches_server_and_contract_route():
 
 
 def test_pc_urgent_does_not_hijack_mobile_sheet_opener():
-    """PC 창은 [data-dw-urgent-call] 만 연다 — 모바일 [data-foms-urgent-call] 위임 처리와 겹치지 않게."""
+    """PC 버튼은 [data-dw-urgent-call] 만 받는다 — 공용 창의 [data-foms-urgent-call] 위임 처리와 겹치지 않게.
+
+    도면 전용 창(엔드포인트·목록 그리기)은 지웠고, 공용 창(window.fomsUrgentCall.open)을 연다(SPEC 2026-10-01).
+    """
     text = _read(JS_FILES["urgent"])
     assert "closest('[data-dw-urgent-call]')" in text
     assert "closest('[data-foms-urgent-call]')" not in text
-    assert "/urgent-targets" in text and "/urgent-mention" in text and "FOMSNotificationWrite" in text
-    assert "Number.isInteger" in text and "textContent" in text
+    assert "window.fomsUrgentCall.open" in text
+    assert "'/erp/api/" not in text and "getElementById(MODAL_ID)" not in text
 
 
 def test_scripts_are_deferred_outside_v2_block_with_pin():

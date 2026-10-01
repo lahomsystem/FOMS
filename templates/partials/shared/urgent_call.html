@@ -1,0 +1,46 @@
+{# 긴급 호출 공용 창 — 맨 위 줄 ⚡(PC·모바일) · 도면 작업실 · 주문 화면이 모두 이 창 하나를 연다
+   (SPEC docs/specs/2026-10-01-urgent-call-global_SPEC.md §4.1). layout_scripts.html 에서 로그인 시 1회 include.
+   폭 992px 이상은 가운데 창, 좁으면 아래에서 올라오는 시트(.foms-urgent-modal CSS, erp-pro.css).
+   동작은 static/js/foms/urgent-call.js(document 위임 · window.fomsUrgentCall.open). 인라인 스타일·핸들러 금지. #}
+<div class="modal fade foms-urgent-modal" id="fomsUrgentCallModal" tabindex="-1" aria-hidden="true"
+  aria-labelledby="fomsUrgentCallTitle" data-foms-urgent-modal>
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header border-0 pb-0">
+        <h5 class="modal-title text-danger" id="fomsUrgentCallTitle"><i class="fas fa-bolt" aria-hidden="true"></i> 긴급 호출</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
+      </div>
+      <div class="modal-body">
+        <div class="foms-urgent-order">
+          <div class="foms-urgent-order__picked d-none" data-foms-urgent-order-picked>
+            <i class="fas fa-file-alt" aria-hidden="true"></i>
+            <span class="foms-urgent-order__label" data-foms-urgent-order-label></span>
+            <button type="button" class="foms-urgent-order__clear" data-foms-urgent-order-clear aria-label="주문 빼기">
+              <i class="fas fa-times" aria-hidden="true"></i>
+            </button>
+          </div>
+          <button type="button" class="foms-urgent-order__add" data-foms-urgent-order-add>
+            <i class="fas fa-plus" aria-hidden="true"></i> 주문 추가 <span class="foms-urgent-order__optional">(안 해도 돼요)</span>
+          </button>
+          <div class="foms-urgent-order__search d-none" data-foms-urgent-order-search>
+            <div class="input-group">
+              <span class="input-group-text"><i class="fas fa-search" aria-hidden="true"></i></span>
+              <input type="search" class="form-control" data-foms-urgent-order-q placeholder="이름, 전화, 주소 등 입력"
+                autocomplete="off" aria-label="주문 찾기">
+            </div>
+            <div class="list-group foms-urgent-order__results" data-foms-urgent-order-results aria-live="polite"></div>
+          </div>
+        </div>
+        <div class="foms-urgent-teams" role="group" aria-label="팀" data-foms-urgent-teams></div>
+        <div class="foms-urgent-people" data-foms-urgent-people aria-live="polite"></div>
+        <label class="visually-hidden" for="foms-urgent-message">사유</label>
+        <textarea class="form-control" id="foms-urgent-message" rows="3" maxlength="500" placeholder="사유"
+          data-foms-urgent-message></textarea>
+        <div class="alert alert-danger py-2 small mt-2 mb-0 d-none" role="alert" data-foms-urgent-error data-foms-no-autodismiss></div>
+      </div>
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn btn-secondary w-100 foms-urgent-send" data-foms-urgent-send disabled>받을 사람을 골라 주세요</button>
+      </div>
+    </div>
+  </div>
+</div>

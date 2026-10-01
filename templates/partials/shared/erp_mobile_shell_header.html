@@ -3,7 +3,7 @@
 {% set _shell_mytasks_active = (request.args.get('mine') == '1') or (request.args.get('tower_mine') == '1') or ((request.cookies.get('erp_mine_only') or '').strip() == '1') %}
 {% set _shell_mytasks_href = mobile_shell_mytasks_href|default(request.full_path, true) %}
 {% set _shell_show_more = mobile_shell_more|default(false) %}
-<header class="erp-mobile-shell-header foms-shell-header{% if _shell_show_mytasks %} has-mytasks{% endif %}{% if _shell_show_more %} has-more{% endif %}" aria-label="ERP 모바일 셸">
+<header class="erp-mobile-shell-header foms-shell-header has-urgent{% if _shell_show_mytasks %} has-mytasks{% endif %}{% if _shell_show_more %} has-more{% endif %}" aria-label="ERP 모바일 셸">
   <div class="erp-mobile-shell-header__inner">
     {% if _shell_show_back %}
     <button
@@ -30,6 +30,16 @@
       {# B7 sync 배지: 헤더 그리드 칼럼 무변경 — 타이틀 옆 인라인 소형 배지(foms-write.js 제어). #}
       <span class="foms-sync-badge" data-foms-sync-badge hidden aria-live="polite" aria-label="동기화 대기 상태"></span>
     </div>
+    {# 긴급 호출 ⚡ — 내 할 일 왼쪽(SPEC 2026-10-01). 칸 배치는 erp-pro.css 의 has-urgent 규칙. #}
+    <button
+      class="erp-mobile-shell-header__urgent foms-icon-btn"
+      type="button"
+      data-foms-urgent-open
+      aria-label="긴급 호출"
+      aria-haspopup="dialog"
+      aria-controls="fomsUrgentCallModal">
+      <i class="fas fa-bolt" aria-hidden="true"></i>
+    </button>
     {% if _shell_show_mytasks %}
     <a
       class="erp-mobile-shell-header__mytasks foms-icon-btn{% if _shell_mytasks_active %} is-active{% endif %}"

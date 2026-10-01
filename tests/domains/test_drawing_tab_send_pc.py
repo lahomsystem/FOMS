@@ -138,11 +138,13 @@ def test_drawing_team_sees_status_line_and_pc_urgent_call_only(client, monkeypat
     line = soup.select_one("[data-customer-send-status]").get_text()
     assert "영업 → 고객" in line and "직원이 연 것도 셀 수 있어요" in line
     urgent = _pc(soup).select_one('[data-bar-key="urgent_call"]')
-    # 모바일 시트([data-foms-urgent-call])가 아니라 PC 창을 여는 표지 — 모바일 위임 처리가 가로채지 않게.
+    # PC 버튼은 drawing-urgent-call-pc.js 가 받아 공용 긴급 호출 창을 이 주문으로 연다(SPEC 2026-10-01).
     assert urgent.has_attr("data-dw-urgent-call") and not urgent.has_attr("data-foms-urgent-call")
-    modal = soup.select_one("#dwUrgentCallModal")
+    assert urgent["data-order-id"] == str(oid)
+    assert soup.select_one("#dwUrgentCallModal") is None  # 도면 전용 창은 지웠다
+    modal = soup.select_one("#fomsUrgentCallModal")  # 공용 창(layout_scripts.html)
     assert modal is not None and modal.find_parent(class_="d-lg-none") is None
-    assert modal.select_one("[data-dw-urgent-send]").has_attr("disabled")
+    assert modal.select_one("[data-foms-urgent-send]").has_attr("disabled")
 
 
 # --------------------------------------------------------------------------- 전달 취소 경고(§3.4 · Q4 · Q5-④)
@@ -161,8 +163,11 @@ def test_cancel_transfer_warning_only_when_sent_this_round(client, monkeypatch, 
     assert warn is not None and warn.select_one("[data-cancel-transfer-confirm]") is not None
     ping = warn.select_one("[data-dw-urgent-call]")
     assert ping["data-urgent-team"] == "SALES" and "영업에게 먼저 알리기" in ping.get_text()
-    assert warn.select_one("[data-foms-urgent-call][data-cancel-warn-mobile-proxy]") is not None
-    assert soup.select_one("#dwUrgentCallModal") is not None
+    assert ping["data-order-id"] == str(oid)
+    # 모바일 프록시·도면 전용 창 없이 공용 창 하나를 연다(SPEC 2026-10-01).
+    assert warn.select_one("[data-cancel-warn-mobile-proxy]") is None
+    assert soup.select_one("#dwUrgentCallModal") is None
+    assert soup.select_one("#fomsUrgentCallModal") is not None
 
 
 def test_cancel_transfer_without_send_keeps_plain_confirm(client, people):
@@ -350,7 +355,7 @@ def test_sheet_alerts_survive_global_autodismiss(client, monkeypatch, people):
     _inject(monkeypatch, {"bar": _bar("send", "ok", "edit_revision", "urgent_call", "rev_post"),
                           "can_approve_after_confirm": True, "round": 2, "round_text": "2차"})
     soup = _page(client, people["sales"], oid)
-    ids = ("#dwCustomerSendModal", "#dwCustomerOkModal", "#dwRevisionEditModal", "#dwUrgentCallModal", "#dwRevisionModal")
+    ids = ("#dwCustomerSendModal", "#dwCustomerOkModal", "#dwRevisionEditModal", "#fomsUrgentCallModal", "#dwRevisionModal")
     alerts = [a for mid in ids for a in soup.select(f"{mid} .alert")]
     assert len(alerts) >= 10
     assert [a.get_text(strip=True)[:20] for a in alerts if not a.has_attr("data-foms-no-autodismiss")] == []

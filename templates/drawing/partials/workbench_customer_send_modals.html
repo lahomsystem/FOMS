@@ -3,7 +3,7 @@
    - 서버 값은 data-* 로만 넘기고 JS 는 safeJsonParse 로 읽는다. 인라인 스타일·인라인 핸들러 금지(부트스트랩 클래스만).
    - 여는 버튼은 customer_send.bar 항목(PC 결정 바 · 모바일 하단 바)이다. 시트는 그 키가 있을 때만 그린다.
    - 동작 JS: drawing-customer-send.js(가·라) · drawing-customer-ok.js(나) ·
-     drawing-revision-edit.js(요청 고치기) · drawing-urgent-call-pc.js(PC 긴급 호출). #}
+     drawing-revision-edit.js(요청 고치기) · drawing-urgent-call-pc.js(PC 긴급 호출 버튼 → 공용 창 · 전달 취소 경고). #}
 {% set cs = customer_send|default({}) %}
 {% set cs_keys = cs.bar|default([])|map(attribute='key')|list %}
 {% set cs_round_label = cs.round_text|default('') %}
@@ -263,41 +263,10 @@
           data-urgent-message="고객에게 보낸 {{ cs_round_label }} 도면을 전달 취소하려고 해요. 확인 부탁드려요.">
           <i class="fas fa-bolt"></i> 영업에게 먼저 알리기 (긴급 호출)
         </button>
-        {# 모바일 셸이 보이는 폭이면 기존 모바일 긴급 호출 시트(urgent-call-sheet.js 위임 처리)를 이 숨은 버튼으로 연다. #}
-        <button type="button" class="d-none" data-foms-urgent-call data-order-id="{{ order.id }}" data-cancel-warn-mobile-proxy
-          tabindex="-1" aria-hidden="true"></button>
       </div>
     </div>
   </div>
 </div>
 {% endif %}
 
-{% if 'urgent_call' in cs_keys or (can_cancel_transfer and (cs.cancel_warning_text_pc or cs.cancel_warning_text_mobile)) %}
-{# PC 긴급 호출 창(Q5-①) — 모바일 셸(d-lg-none) 밖이라 PC 에서 뜬다. 엔드포인트는 모바일 시트와 같다
-   (GET /erp/api/orders/<id>/urgent-targets · POST /erp/api/orders/<id>/urgent-mention). #}
-<div class="modal fade" id="dwUrgentCallModal" tabindex="-1" aria-hidden="true" aria-labelledby="dwUrgentCallTitle"
-  data-order-id="{{ order.id }}">
-  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-fullscreen-sm-down">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title text-danger" id="dwUrgentCallTitle"><i class="fas fa-bolt"></i> 긴급 호출</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
-      </div>
-      <div class="modal-body">
-        <p class="small text-muted mb-2">호출할 담당자를 고르고 사유를 적어 주세요.</p>
-        <div class="mb-2" data-dw-urgent-targets aria-live="polite"></div>
-        <p class="foms-urgent-picked d-none" data-dw-urgent-picked aria-live="polite"></p>
-        <label class="form-label small fw-semibold text-muted mb-1" for="dw-urgent-message">사유 (필수 · 최대 500자)</label>
-        <textarea class="form-control form-control-sm" id="dw-urgent-message" rows="2" maxlength="500"
-          placeholder="예: 도면 확인이 급히 필요합니다"></textarea>
-        <div class="small text-muted mt-1" data-dw-urgent-hint>받을 사람을 먼저 눌러 주세요.</div>
-        <div class="alert alert-danger py-2 small mt-2 mb-0 d-none" role="alert" data-dw-urgent-error data-foms-no-autodismiss></div>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
-        <button type="button" class="btn btn-danger" data-dw-urgent-send disabled><i class="fas fa-paper-plane"></i> 긴급 호출 보내기</button>
-      </div>
-    </div>
-  </div>
-</div>
-{% endif %}
+{# PC 긴급 호출 창(#dwUrgentCallModal)은 지웠다 — [data-dw-urgent-call] 은 공용 긴급 호출 창(partials/shared/urgent_call.html)을 연다(SPEC 2026-10-01). #}
