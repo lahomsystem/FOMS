@@ -159,3 +159,8 @@
 - 2026-10-01: 쉬운 수정 5건 `a86754a2c` — P1-5 AS 탭 생략 표식, P2-7 timeout 2곳, P2-4② 결제 아이콘 673→51KB(120px), P2-5 예열 목록 9탭 29개 추가·WORKER 자식 예열 생략, P1-1③ 패널 캐시 키에서 selected_date 제거. 음성 대조군·smoke 통과. 스테이징 실측 전.
 - 2026-10-01: 실측 탭 P1-1① blob ILIKE 보충 가지 제거 + ⑤ EPT 헤더·phase(panel·main_rows·hydrate·sales_delivery·naver_preview)·DASH-SLICES. 근거: 스테이징 주문 3,520건 중 "정식 실측일이 일정표에 없는 주문" 0건(검출기 음성 대조군 3/3 검출, 3건 모두 평평한 컬럼 안전망에 걸림). 운영 데이터 확인(사용자 승인 1회, 읽기 전용, `tools/perf/measurement_osd_gap_check.py`): 주문 4,517건 · 일정표 있는 주문 3,786건 중 누락 **0건**. P1-1② 네이버 미리보기 캐시는 **하지 않기로** — 스테이징 캡처에서 미리보기 쿼리 합 약 6ms 라 이득이 작고, 발송 직후 옛 상태를 보여 줄 위험(불가역 조작)이 더 크다. 배포 후 `naver_preview` 구간 실측으로 다시 판단.
 - 곁가지 발견(미조치): "내 담당" 필터 `erp_permissions.py:268` `_json_like_condition` 도 structured_data 통째 LIKE 다 — mine 필터를 켠 모든 대시보드에 해당, 실측 후 판단.
+- 2026-10-01: 운영 반영 PR #483(production `920db1973`, 16:25 KST 배포, `check_deploy_drift` 일치). 배포 후 web Traceback 0. web 4 프로세스 예열 40개 각 1.08~1.26초(예산 4초 안), WORKER 예열 로그 0.
+  - **운영 실측(Railway 로그 `[DashCache] slice=measurement_panel_assembly result=miss compute_ms`)**: 수정 전 중앙값 1,361ms(n=2,162, 최대 4,182) → 수정 후 46.5ms(n=12, 최대 77). 약 29배.
+  - 운영 첫 구간 값(`[EPT-B7] route=erp_measurement_dashboard`): panel 1~61 · main_rows 1~37 · hydrate 7~28 · sales_delivery 14~15 · **naver_preview 34~68ms**. 캐시가 맞을 때 가장 큰 구간이 네이버 미리보기다 — 캐시를 넣으려면 발송·연결·수집 시 무효화가 같이 있어야 한다(다음 후보).
+  - 남은 확인: 하루 뒤 HTTP 로그로 `/erp/measurement`·`/erp/as` p50/p95 를 수정 전 30일(531/2,229ms · 129/586ms)과 비교.
+
