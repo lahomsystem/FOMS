@@ -163,4 +163,9 @@
   - **운영 실측(Railway 로그 `[DashCache] slice=measurement_panel_assembly result=miss compute_ms`)**: 수정 전 중앙값 1,361ms(n=2,162, 최대 4,182) → 수정 후 46.5ms(n=12, 최대 77). 약 29배.
   - 운영 첫 구간 값(`[EPT-B7] route=erp_measurement_dashboard`): panel 1~61 · main_rows 1~37 · hydrate 7~28 · sales_delivery 14~15 · **naver_preview 34~68ms**. 캐시가 맞을 때 가장 큰 구간이 네이버 미리보기다 — 캐시를 넣으려면 발송·연결·수집 시 무효화가 같이 있어야 한다(다음 후보).
   - 남은 확인: 하루 뒤 HTTP 로그로 `/erp/measurement`·`/erp/as` p50/p95 를 수정 전 30일(531/2,229ms · 129/586ms)과 비교.
+- 2026-10-01: 운영 첫 비교(`tools/perf/prod_route_latency_compare.py`, 배포 뒤 0.8시간, 예비): `/erp/measurement` p50 593→267ms · p95 2,445→1,438ms, `/erp/as` p95 같은 시간대 1,162→323ms.
+- 2026-10-01: 후속 3건(사용자 "전부 다") — 병렬 에이전트 3 + 감독 diff 검토. deploy 반영, 운영 승격은 사용자 요청 시.
+  - P1-2 캐시: 운영 7일 무효화 로그 4,500줄을 요청 ID 로 묶어 원천 순위(PUT /structured 34% · 첨부 complete 10%(대상 밖) · payment-confirm 7% · quest 승인 5%). 13곳 판정 표대로 범위 축소, AS 전이·copy·field_update·삭제는 broad 유지. 날짜 동기화는 바뀐 일정 종류의 탭만(08-10 "날짜 = 전부" 를 뒤집음 — 근거: 도면 큐는 접수순 id, 이력은 날짜 미보관). 남은 위험: 엔진 밖에서 단계 코드 없이 workflow.stage 와 날짜를 함께 바꾸면 최대 300초 옛 숫자.
+  - P1-4 예열: 원인 1순위는 길찾기 캐시가 AS 추천 무효화(하루 33회)에 같이 지워진 것. 30일 모달 열기·적용 호출 0건 — **예열이 아무도 안 읽는 캐시를 채운다**(자동 예열 끄기는 제품 판단, 사용자 결정 대기).
+  - P1-3 설계서 `docs/specs/2026-10-01-search-index-perf_SPEC.md`: 막는 가지는 4개가 아니라 5개(전화 숫자 포함). 스테이징에만 있는 `131f0c3b4` 는 대시보드 검색마다 182ms 를 더한다 — 인덱스가 운영에 깔리기 전 승격 금지.
 
