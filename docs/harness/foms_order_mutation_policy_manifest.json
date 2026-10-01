@@ -65,6 +65,11 @@
       "policy_id": "STAFF_MUTATION",
       "rule": "/admin/naver-ingest/ghost/<int:order_id>/repay-expected"
     },
+    "admin.naver_ingest_ghost_repay_settled": {
+      "mode": "guard",
+      "policy_id": "STAFF_MUTATION",
+      "rule": "/admin/naver-ingest/ghost/<int:order_id>/repay-settled"
+    },
     "admin.naver_ingest_mark_reviewed": {
       "mode": "guard",
       "policy_id": "STAFF_MUTATION",

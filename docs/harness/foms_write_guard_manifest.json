@@ -53,6 +53,10 @@
       "mode": "guard",
       "rule": "/admin/naver-ingest/ghost/<int:order_id>/repay-expected"
     },
+    "admin.naver_ingest_ghost_repay_settled": {
+      "mode": "guard",
+      "rule": "/admin/naver-ingest/ghost/<int:order_id>/repay-settled"
+    },
     "admin.naver_ingest_mark_reviewed": {
       "mode": "guard",
       "rule": "/admin/naver-ingest/<int:link_id>/review"
