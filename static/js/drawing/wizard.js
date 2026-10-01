@@ -3447,13 +3447,16 @@
         if (changed) { dirty = true; }   // 값이 실제로 바뀌면 저장 유도(dirty 표시)
       }
       // 제품별 시트의 페이지 번호가 비어있으면(과거 저장분) 제품 번호(1-base)로 자동 채움.
-      // 사용자가 이미 값을 넣었으면 유지.
+      // 제품 1개 주문은 번호 대신 '-'(과거 자동 채움 '1' 도 '-' 로). 사용자가 넣은 다른 값은 유지.
       (function () {
         var numbered = false;
+        var single = products.length <= 1;
         state.sheets.forEach(function (s) {
           if (!s.form || !isFiniteNum(s.product_index)) { return; }
           var cur = String(s.form.page_no == null ? '' : s.form.page_no).trim();
-          if (cur === '' || cur === '-') { s.form.page_no = String(s.product_index + 1); numbered = true; }
+          if (single) {
+            if (cur === '' || cur === '1') { s.form.page_no = '-'; numbered = true; }
+          } else if (cur === '' || cur === '-') { s.form.page_no = String(s.product_index + 1); numbered = true; }
         });
         // 사용자가 하지 않은 변경을 사용자 대신 서버에 써 넣지 않는다(저장 버튼은 켜되 자동저장은 하지 않는다).
         if (numbered) { dirty = true; }
