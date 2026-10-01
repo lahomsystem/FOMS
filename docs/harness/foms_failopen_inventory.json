@@ -4297,7 +4297,7 @@
     },
     {
       "path": "foms/services/measurement_read_model.py",
-      "lineno": 332,
+      "lineno": 336,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "services",
@@ -5296,7 +5296,7 @@
     },
     {
       "path": "foms/web/measurement/dashboard.py",
-      "lineno": 851,
+      "lineno": 872,
       "handler_type": "broad_exception",
       "disposition": "INTENTIONAL",
       "owner": "web",
@@ -5305,7 +5305,7 @@
     },
     {
       "path": "foms/web/measurement/dashboard.py",
-      "lineno": 864,
+      "lineno": 885,
       "handler_type": "broad_exception",
       "disposition": "INTENTIONAL",
       "owner": "web",
@@ -5314,7 +5314,7 @@
     },
     {
       "path": "foms/web/measurement/dashboard.py",
-      "lineno": 877,
+      "lineno": 898,
       "handler_type": "broad_exception",
       "disposition": "INTENTIONAL",
       "owner": "web",
@@ -5323,7 +5323,7 @@
     },
     {
       "path": "foms/web/measurement/dashboard.py",
-      "lineno": 890,
+      "lineno": 911,
       "handler_type": "broad_exception",
       "disposition": "INTENTIONAL",
       "owner": "web",
