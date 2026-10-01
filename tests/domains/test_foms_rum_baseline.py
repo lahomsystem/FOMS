@@ -58,3 +58,14 @@ def test_rum_report_admin_reaches_redis_check(auth_client) -> None:
     body = resp.get_json()
     assert body["success"] is False
     assert body["error"] == "redis_unavailable"
+
+
+def test_inp_sends_worst_interaction_once_per_screen() -> None:
+    """INP 를 이벤트 항목마다 보내면 글자 입력마다 요청이 나가 운영 web 요청의 40% 를
+    차지했다(2026-10-01). 최댓값만 들고 있다가 화면을 떠날 때 한 번 보낸다."""
+    js = (ROOT / "static/js/foms/rum-baseline.js").read_text(encoding="utf-8")
+    observer = js.split("type: 'event'")[0].rsplit("new PerformanceObserver", 1)[1]
+    assert "sendMetric(" not in observer
+    assert "worstInp" in observer
+    for trigger in ("'visibilitychange'", "'pagehide'", "'foms:erp-shell-fragment-swapped', flushInp"):
+        assert trigger in js
