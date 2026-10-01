@@ -1319,7 +1319,22 @@ var __shipDashSelectedDate = (__shipDashCfgEl && __shipDashCfgEl.dataset.selecte
         });
       }
 
+      // 광폭 마우스 PC 인가 — 서버 feature_flags.wants_mobile_width_surfaces 가 False 를 내는 조건
+      // (foms_ptr=fine 이면서 foms_vw=wide)과 같은 뜻이다. 두 쿠키를 심는 부트(layout_head.html,
+      // 사본 static/js/runtime/foms-pointer-hint-boot.js·foms-viewport-hint-boot.js)가 묻는 식을
+      // 그대로 묻는다. 쿠키를 읽지 않는 까닭: foms_vw 는 창 여러 개가 나눠 쓰는 값이라 이 창 폭과
+      // 어긋날 수 있다. matchMedia 가 없으면 판정을 못 하니 PC 가 아닌 쪽(예열 안 함)으로 둔다.
+      function isWideMousePc() {
+        if (!window.matchMedia) return false;
+        return !window.matchMedia('(pointer: coarse)').matches &&
+          window.matchMedia('(min-width: 992px)').matches;
+      }
+
+      // 자동 예열은 광폭 마우스 PC 에서만 돈다(2026-10-01 사용자 결정). 운영 30일 동안 추천 창
+      // 열기·적용은 0건인데 예열은 835건(61% 휴대폰)이 돌았다. 추천 창을 직접 여는 경로
+      // (loadRecommendations)는 이 판정 없이 그때 계산한다.
       function scheduleShipmentAsRecPrewarm() {
+        if (!isWideMousePc()) return;
         var ids = collectTargetOrderIds();
         if (!ids.length) return;
         var key = 'shipment-asrec-prewarm:' + window.location.pathname + window.location.search + ':' + ids.join(',');
