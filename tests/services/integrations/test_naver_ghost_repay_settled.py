@@ -52,6 +52,7 @@ def test_a_settled_order_leaves_the_band_and_the_pane_keeps_it(app):
     assert view["repay_settled"]["note"] == "10-01 계좌 입금"
     assert AT_SHAPE.match(view["repay_settled"]["at"])
     assert view["in_ghost_band"] is False
+    assert "받음 처리" in view["discard_block"], "잠금 문장이 '저절로 풀립니다' 로 남았다"
 
 
 def test_a_settled_record_without_the_mark_does_not_hide_the_row(app):
@@ -133,7 +134,10 @@ def test_the_buttons_are_wired():
     band = pathlib.Path(BAND_TEMPLATE).read_text(encoding="utf-8")
     pane = pathlib.Path(PANE_TEMPLATE).read_text(encoding="utf-8")
     js = pathlib.Path(WORKBENCH_JS).read_text(encoding="utf-8")
-    assert 'id="wb-ghost-repay-settled"' in band and 'data-settled="1"' in band
+    # 띠는 행마다 버튼이 서므로 id 가 아니라 클래스다(문서에 같은 id 중복 금지).
+    assert 'id="wb-ghost-repay-settled"' not in band
+    assert "wb-ghost-repay-settled" in band and 'data-settled="1"' in band
+    assert "classList.contains('wb-ghost-repay-settled')" in js
     assert 'data-settled="0"' in pane and "ghost_discard.repay_settled" in pane
     assert "'wb-ghost-repay-settled': submitGhostRepaySettled" in js
     assert "/repay-settled" in js

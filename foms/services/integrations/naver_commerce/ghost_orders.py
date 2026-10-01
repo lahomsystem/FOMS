@@ -996,6 +996,9 @@ def judge_order_discard(session, order_id: int, *, group_key: str = "") -> dict[
         # 여기서만 문장을 사실로 다시 쓴다. **판정은 바꾸지 않는다.**
         verdict["discard_block"] = _partial_discard_text(
             alive=alive, house_keys=house_keys, group_key=group_key, bucket=bucket)
+    if settled:
+        # 받음 처리한 주문에 "결제가 들어오면 저절로 풀립니다" 가 남으면 거짓말이다.
+        verdict["discard_block"] = "재결제를 받음 처리했습니다 — 되돌리면 다시 재결제 기다림이 됩니다"
     if trash["trashed"]:
         # 휴지통 사실이 가장 먼저 읽혀야 한다. 이 덮어쓰기는 **좁히기만** 한다(True→False):
         # 라우트(``naver_ingest_ghost_discard``)는 이미 휴지통을 뺀 모집단으로 막고 있었고,
