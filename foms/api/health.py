@@ -12,9 +12,11 @@
 
 from __future__ import annotations
 
+import json
 import os
+import time
 
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, session
 
 health_bp = Blueprint("health", __name__)
 
@@ -36,3 +38,30 @@ def healthz() -> tuple[object, int]:
         jsonify({"status": "ok", "commit": os.environ.get("RAILWAY_GIT_COMMIT_SHA", "")}),
         200,
     )
+
+
+#: 보정 작업량. 바꾸면 perf_budgets.json 의 cpu_calib_ref_ms 를 다시 시드해야 한다.
+CPU_CALIB_ROUNDS = 400
+_CPU_CALIB_PAYLOAD = [{"id": i, "name": f"row-{i}", "tags": ["a", "b", str(i)]} for i in range(50)]
+
+
+@health_bp.route("/healthz/cpu", methods=["GET"])
+def healthz_cpu() -> tuple[object, int]:
+    """늘 같은 순수 계산을 돌려 이 순간 컨테이너의 CPU 빠르기를 잰다 (PERF-GATE-ST).
+
+    Railway 공유 호스트는 이웃이 바쁘면 같은 렌더도 2배 느려진다(2026-10-02 실측: 서비스
+    CPU 5% 인데 대시보드 서버 시간 100→190ms). 성능 게이트가 이 값으로 예산을 보정해
+    "기계가 느린 날"과 "코드가 느려진 날"을 가른다. DB·Redis 는 건드리지 않는다.
+    로그인 사용자만 — 무인증으로 열면 공짜 CPU 소모 엔드포인트가 된다.
+
+    Returns:
+        (JSON, 200) ``{"success": True, "data": {"cpu_ms": <float>}}``, 비로그인이면 403.
+    """
+    if not session.get("user_id"):
+        return jsonify({"success": False, "data": None, "error": "login required"}), 403
+    t0 = time.perf_counter()
+    acc = 0
+    for _ in range(CPU_CALIB_ROUNDS):
+        acc += len(json.dumps(_CPU_CALIB_PAYLOAD, sort_keys=True))
+    cpu_ms = (time.perf_counter() - t0) * 1000
+    return jsonify({"success": True, "data": {"cpu_ms": round(cpu_ms, 2), "work": acc}, "error": None}), 200

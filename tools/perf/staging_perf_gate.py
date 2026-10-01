@@ -19,6 +19,9 @@ fragment 경로와 실측 날짜칩 hot path 를 반복 측정 → 커밋된 예
     min 이 7표본 안에서 134~258ms 로 흔들려, 절대 TTFB 가 같아도 델타가 부풀어 4연속 오탐한
     실사례(2026-10-01 PR #487)의 근본 수정. 예산·헤더가 있으면 TTFB 델타는 정보용, 없으면
     예전 TTFB 델타 판정으로 폴백한다(배포·게이트 순서가 엇갈려도 안전).
+  - **기계 빠르기 보정**: Railway 공유 호스트는 이웃이 바쁘면 서버 시간도 2배가 된다(같은 날
+    100→190ms, 서비스 CPU 5%). 런마다 로그인 ``GET /healthz/cpu``(늘 같은 순수 계산) min 을
+    재서 ``_global.cpu_calib_ref_ms`` 대비 느린 만큼만 서버 시간 예산을 늘린다(줄이지는 않음).
   - p95/최댓값은 **판정에 절대 넣지 않는다**(정보용). 정밀 서버 회귀는 render_ms·바이트·
     쿼리 계약이 잡는다.
   - render_ms 도 **min 으로 판정**(TTFB 와 동일 tail 면역). 진짜 render 회귀(N+1·무거운
@@ -268,6 +271,14 @@ def delta_ttfb_ms(summary: dict[str, Any], base_ttfb_ms: int) -> int:
     return max(0, int(summary["min_ttfb_ms"]) - int(base_ttfb_ms))
 
 
+def cpu_scale_factor(global_budget: dict[str, Any], calib_ms: float | None) -> float:
+    """이 런의 CPU 보정 배수 = max(1, 측정 / 기준). 기준·측정이 없으면 1(보정 안 함)."""
+    ref = global_budget.get("cpu_calib_ref_ms")
+    if not ref or calib_ms is None or calib_ms <= 0:
+        return 1.0
+    return max(1.0, float(calib_ms) / float(ref))
+
+
 def judge_path(
     path: str,
     summary: dict[str, Any],
@@ -275,6 +286,7 @@ def judge_path(
     budget: dict[str, Any],
     global_budget: dict[str, Any],
     base_ttfb_ms: int,
+    cpu_scale: float = 1.0,
 ) -> dict[str, Any]:
     """단일 경로 판정 — **delta-min TTFB·wire bytes 만** 예산과 비교(median/p95·해압은 정보용).
 
@@ -297,7 +309,8 @@ def judge_path(
     if summary.get("login_redirected"):
         reasons.append("/login 리다이렉트 응답 (인증 소실 — 로그인 페이지를 잰 무효 측정)")
     delta_budget = budget.get("ttfb_delta_min_ms")
-    server_budget = budget.get("server_ms_min_max")
+    server_budget_raw = budget.get("server_ms_min_max")
+    server_budget = None if server_budget_raw is None else int(round(server_budget_raw * cpu_scale))
     min_server_ms = summary.get("min_server_ms")
     # v3: 서버 시간 예산과 측정이 둘 다 있으면 TTFB 델타는 정보용으로 내린다.
     judge_by_server = server_budget is not None and min_server_ms is not None
@@ -309,7 +322,8 @@ def judge_path(
     if judge_by_server and min_server_ms > server_budget:
         reasons.append(
             f"server min {min_server_ms}ms > budget {server_budget}ms "
-            f"(Server-Timing app;dur — 네트워크 무관 서버 처리 회귀)"
+            f"(Server-Timing app;dur — 네트워크 무관 서버 처리 회귀; "
+            f"기준 {server_budget_raw}ms × 기계 보정 {cpu_scale:.2f})"
         )
     if not judge_by_server and delta_budget is not None and delta > delta_budget:
         reasons.append(
@@ -345,6 +359,8 @@ def judge_path(
         "budget_delta_ttfb_ms": delta_budget,
         "min_server_ms": min_server_ms,
         "budget_server_ms": server_budget,
+        "budget_server_ms_raw": server_budget_raw,
+        "cpu_scale": round(cpu_scale, 3),
         "judged_by": "server" if judge_by_server else "ttfb_delta",
         "p95_ttfb_delta_ms": p95_delta,
         "budget_p95_ttfb_delta_ms": p95_delta_budget,
@@ -493,6 +509,22 @@ def measure_healthz_base(session: requests.Session, base: str, rounds: int = HEA
     return int(min(ttfbs)) if ttfbs else 0
 
 
+def measure_cpu_calib(session: requests.Session, base: str, rounds: int = HEALTHZ_ROUNDS) -> float | None:
+    """로그인 ``GET {base}/healthz/cpu`` 를 rounds 회 → ``cpu_ms`` min. 실패(옛 배포 404 등)면 None."""
+    url = base.rstrip("/") + "/healthz/cpu"
+    values: list[float] = []
+    for _ in range(rounds):
+        try:
+            resp = session.get(url, headers={"Accept": "application/json"}, timeout=30)
+            if resp.status_code != 200:
+                return None
+            values.append(float(resp.json()["data"]["cpu_ms"]))
+        except (requests.RequestException, ValueError, KeyError, TypeError):
+            return None
+        time.sleep(SLEEP_S)
+    return min(values) if values else None
+
+
 def measurement_date_fragment_path(date_str: str) -> str:
     """날짜칩 클릭 경로를 shell fragment 측정 경로로 정규화."""
     return f"/erp/measurement?date={date_str}&view=fragment"
@@ -548,6 +580,8 @@ def run_gate(base: str, user: str, password: str, budgets: dict[str, Any]) -> di
     path_budgets = budgets.get("paths", {})
     # 창 무관 판정의 핵심: 런 시작 시 그 창의 네트워크 베이스 RTT 를 확정한다.
     base_ttfb_ms = measure_healthz_base(session, base)
+    cpu_calib_ms = measure_cpu_calib(session, base)
+    cpu_scale = cpu_scale_factor(global_budget, cpu_calib_ms)
 
     rows: list[dict[str, Any]] = []
     raw: list[dict[str, Any]] = []
@@ -561,11 +595,11 @@ def run_gate(base: str, user: str, password: str, budgets: dict[str, Any]) -> di
         measured = measure_path(session, base, path)
         raw.append(measured)
         summary = summarize_samples(measured["warm"])
-        row = judge_path(path, summary, measured["cond_304_ok"], budget, global_budget, base_ttfb_ms)
+        row = judge_path(path, summary, measured["cond_304_ok"], budget, global_budget, base_ttfb_ms, cpu_scale)
         # 재측정 방어(v2 에선 발동 확률 낮음): delta "만" 위반이면 1회 재측정 후 재판정.
         # min 은 tail 면역이라 이제 tail 뭉침으로는 거의 안 뚫리지만, 순간적 서버 hiccup
         # (경로 min 이 그 창에서만 높음)을 걸러낸다. bytes/ETag/304 위반은 결정적이라 재측정 없음.
-        ttfb_only = row["reasons"] and all("TTFB" in r for r in row["reasons"])
+        ttfb_only = row["reasons"] and all(("TTFB" in r) or r.startswith("server min") for r in row["reasons"])
         if not row["passed"] and ttfb_only:
             time.sleep(2.0)
             remeasured = measure_path(session, base, path)
@@ -573,10 +607,13 @@ def run_gate(base: str, user: str, password: str, budgets: dict[str, Any]) -> di
             if (
                 resummary["min_ttfb_ms"] < summary["min_ttfb_ms"]
                 or resummary["p95_ttfb_ms"] < summary["p95_ttfb_ms"]
+                or (resummary.get("min_server_ms") or 0) < (summary.get("min_server_ms") or 0)
             ):
                 raw.append(remeasured)
                 summary = resummary
-                row = judge_path(path, summary, remeasured["cond_304_ok"], budget, global_budget, base_ttfb_ms)
+                row = judge_path(
+                    path, summary, remeasured["cond_304_ok"], budget, global_budget, base_ttfb_ms, cpu_scale
+                )
                 row["retried"] = True
         row["_summary"] = summary
         rows.append(row)
@@ -593,6 +630,8 @@ def run_gate(base: str, user: str, password: str, budgets: dict[str, Any]) -> di
         "persona": GATE_PERSONA,
         "persona_cookies": dict(GATE_PERSONA_COOKIES),
         "base_ttfb_ms": base_ttfb_ms,
+        "cpu_calib_ms": cpu_calib_ms,
+        "cpu_scale": cpu_scale,
         "rows": rows,
         "raw": raw,
     }
@@ -903,6 +942,7 @@ def main() -> int:
     if args.json:
         print(json.dumps(result, ensure_ascii=False, indent=2))
     else:
+        print(f"cpu calib: {result.get('cpu_calib_ms')}ms  scale x{result.get('cpu_scale', 1.0):.2f} (srv 예산에 곱함)")
         print(render_table(result["rows"], result.get("base_ttfb_ms")))
         if result.get("coarse_rows"):
             print(render_coarse_table(result["coarse_rows"]))

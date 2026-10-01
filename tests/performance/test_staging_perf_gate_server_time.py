@@ -110,3 +110,51 @@ def test_app_sets_server_timing_only_for_authenticated(client):
 
     header = client.get("/healthz").headers.get("Server-Timing")
     assert gate.parse_server_timing_app_ms(header) is not None
+
+
+# --------------------------------------------------------------------------
+# 기계 빠르기 보정 (Railway 공유 호스트 — 같은 코드가 시간대마다 100→190ms)
+# --------------------------------------------------------------------------
+def test_cpu_scale_only_loosens_never_tightens():
+    g = {"cpu_calib_ref_ms": 20}
+    assert gate.cpu_scale_factor(g, 40.0) == 2.0
+    assert gate.cpu_scale_factor(g, 10.0) == 1.0, "빠른 날 예산을 조이면 정상 코드가 오탐한다"
+    assert gate.cpu_scale_factor(g, None) == 1.0, "옛 배포(보정 엔드포인트 없음)는 보정 안 함"
+    assert gate.cpu_scale_factor({}, 40.0) == 1.0
+
+
+def test_slow_host_day_passes_with_scale_but_real_regression_still_fails():
+    budget = {"ttfb_delta_min_ms": 100, "server_ms_min_max": 150, "body_bytes_max": 5000}
+    slow_day = gate.summarize_samples([_sample(400, 190.0), _sample(410, 195.0)])
+    row = gate.judge_path("/x", slow_day, True, budget, GLOBAL_BUDGET, base_ttfb_ms=200, cpu_scale=1.9)
+    assert row["passed"] is True, row["reasons"]
+    assert row["budget_server_ms"] == 285
+
+    regressed = gate.summarize_samples([_sample(500, 320.0), _sample(510, 330.0)])
+    row = gate.judge_path("/x", regressed, True, budget, GLOBAL_BUDGET, base_ttfb_ms=200, cpu_scale=1.9)
+    assert row["passed"] is False
+    assert any("기계 보정 1.90" in r for r in row["reasons"])
+
+
+def test_cpu_calib_endpoint_requires_login(client):
+    assert client.get("/healthz/cpu").status_code == 403
+
+    user = User(
+        username="perfgate-cpu-user",
+        password=generate_password_hash("pw"),
+        role="STAFF",
+        team="CS",
+        name="perfgate-cpu-user",
+        is_active=True,
+    )
+    db_session.add(user)
+    db_session.commit()
+    with client.session_transaction() as sess:
+        sess["user_id"] = user.id
+        sess["username"] = user.username
+        sess["role"] = user.role
+
+    res = client.get("/healthz/cpu")
+    assert res.status_code == 200
+    body = res.get_json()
+    assert body["success"] is True and body["data"]["cpu_ms"] > 0
