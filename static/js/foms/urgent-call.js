@@ -9,7 +9,7 @@
  *
  * 창: 주문 한 줄(골라짐 `#번호 고객명 ×` / 없으면 `+ 주문 추가 (안 해도 돼요)` → 검색) · 팀 버튼 · 사람 이름 ·
  * 사유 · 맨 아래 버튼 하나(받을 사람을 골라 주세요 / 사유를 적어 주세요 / ○○에게 보내기).
- * 주문 검색은 통합 검색 GET /api/foms/search?group=all(이름·전화 일부·주소·주문번호).
+ * 주문 줄(골라짐·검색)은 urgent-call-order.js(window.fomsUrgentOrder)가 맡는다 — 이 파일보다 먼저 싣는다.
  * 보내기는 POST /erp/api/urgent-call(window.FOMSNotificationWrite — same-origin 쓰기 헤더). 주문은 없어도 된다.
  *
  * 사람 이름 등 서버 문자열은 textContent 로만 넣는다. 리스너는 document 위임 + 한 번 가드(perf guard G4).
@@ -21,22 +21,16 @@
 
   var MODAL_ID = 'fomsUrgentCallModal';
   var MAX_MESSAGE = 500;
-  var SEARCH_MIN = 2;
-  var SEARCH_DEBOUNCE_MS = 200;
-  var SEARCH_LIMIT = 8;
   var TEAM_SHORT = {
     CS: 'CS', SALES: '영업', DRAWING: '도면', PRODUCTION: '생산',
     CONSTRUCTION: '시공', SHIPMENT: '출고', ACCOUNTING: '회계'
   };
 
   var state = {
-    order: null,        // { id, label } | null
     team: '',
     targetId: null,
     targetName: '',
     targets: null,      // 서버 목록 캐시(창을 열 때마다 새로 받는다)
-    searchSeq: 0,
-    searchTimer: null,
     sending: false
   };
 
@@ -58,12 +52,12 @@
     var el = q('[data-foms-urgent-message]');
     return el ? String(el.value || '').trim() : '';
   }
-  function teamKey(u) { return String((u && u.team) || '') || '_ETC'; }
-  function teamText(key, label) {
-    if (TEAM_SHORT[key]) return TEAM_SHORT[key];
-    if (key === '_ETC') return '기타';
-    return String(label || key).replace(/팀$/, '');
+  // 팀 표에 없는 코드(ADMIN 등)와 팀 없음은 모두 '기타' 하나로 묶는다 — 서버 team_label 도 둘 다 '기타'다.
+  function teamKey(u) {
+    var code = String((u && u.team) || '');
+    return TEAM_SHORT[code] ? code : '_ETC';
   }
+  function teamText(key) { return TEAM_SHORT[key] || '기타'; }
 
   // ---- 보내기 버튼 ---------------------------------------------------------
   function syncSend() {
@@ -80,142 +74,8 @@
     btn.classList.toggle('btn-secondary', !ready);
   }
 
-  // ---- 주문 줄 -------------------------------------------------------------
-  function renderOrder() {
-    var picked = q('[data-foms-urgent-order-picked]');
-    var add = q('[data-foms-urgent-order-add]');
-    var search = q('[data-foms-urgent-order-search]');
-    var label = q('[data-foms-urgent-order-label]');
-    if (state.order) {
-      if (label) label.textContent = state.order.label || ('#' + state.order.id);
-      toggle(picked, true); toggle(add, false); toggle(search, false);
-    } else {
-      toggle(picked, false); toggle(add, true); toggle(search, false);
-    }
-  }
-
-  function orderLabel(id, name) {
-    var n = String(name || '').replace(/^#\d+\s*·\s*/, '').trim();
-    return '#' + id + (n ? ' ' + n : '');
-  }
-
-  /** 미리 고른 주문의 고객명을 모르면 통합 검색으로 번호를 찾아 채운다(못 찾으면 #번호 그대로). */
-  function resolveOrderLabel(id) {
-    fetch('/api/foms/search?group=all&q=' + encodeURIComponent(String(id)), {
-      headers: { Accept: 'application/json' }, credentials: 'same-origin'
-    })
-      .then(function (res) { return res.json(); })
-      .then(function (data) {
-        var hits = collectHits(data);
-        for (var i = 0; i < hits.length; i += 1) {
-          if (String(hits[i].order_id) === String(id) && state.order && String(state.order.id) === String(id)) {
-            state.order.label = orderLabel(id, hits[i].title);
-            renderOrder();
-            return;
-          }
-        }
-      })
-      .catch(function () { /* #번호 그대로 둔다 */ });
-  }
-
-  function collectHits(data) {
-    var groups = (data && data.data) || {};
-    var all = [].concat(groups.customer || [], groups.order || [], groups.drawing || []);
-    var seen = {};
-    var out = [];
-    all.forEach(function (h) {
-      if (!h || h.order_id == null || seen[h.order_id]) return;
-      seen[h.order_id] = true;
-      out.push(h);
-    });
-    return out.slice(0, SEARCH_LIMIT);
-  }
-
-  function openSearch() {
-    toggle(q('[data-foms-urgent-order-add]'), false);
-    toggle(q('[data-foms-urgent-order-search]'), true);
-    var input = q('[data-foms-urgent-order-q]');
-    if (input) { input.value = ''; if (typeof input.focus === 'function') input.focus(); }
-    var box = q('[data-foms-urgent-order-results]');
-    if (box) box.textContent = '';
-  }
-
-  function renderResults(hits, query) {
-    var box = q('[data-foms-urgent-order-results]');
-    if (!box) return;
-    box.textContent = '';
-    if (!hits.length) {
-      var empty = document.createElement('div');
-      empty.className = 'list-group-item small text-muted';
-      empty.textContent = '"' + query + '" 에 맞는 주문이 없어요.';
-      box.appendChild(empty);
-      return;
-    }
-    hits.forEach(function (h) {
-      var b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'list-group-item list-group-item-action foms-urgent-order__hit';
-      b.setAttribute('data-foms-urgent-order-hit', String(Number(h.order_id)));
-      b.setAttribute('data-order-label', orderLabel(h.order_id, h.title));
-      var top = document.createElement('div');
-      top.className = 'foms-urgent-order__hit-top';
-      var name = document.createElement('span');
-      name.className = 'foms-urgent-order__hit-name';
-      name.textContent = String(h.title || '').replace(/^#\d+\s*·\s*/, '') || ('주문 #' + h.order_id);
-      top.appendChild(name);
-      if (h.stage_label) {
-        var stage = document.createElement('span');
-        stage.className = 'badge bg-light text-dark border';
-        stage.textContent = String(h.stage_label);
-        top.appendChild(stage);
-      }
-      var sub = document.createElement('div');
-      sub.className = 'foms-urgent-order__hit-sub';
-      sub.textContent = ['#' + h.order_id, h.phone, h.address].filter(Boolean).join(' · ');
-      b.appendChild(top);
-      b.appendChild(sub);
-      box.appendChild(b);
-    });
-  }
-
-  function runSearch(query) {
-    var seq = ++state.searchSeq;
-    fetch('/api/foms/search?group=all&q=' + encodeURIComponent(query), {
-      headers: { Accept: 'application/json' }, credentials: 'same-origin'
-    })
-      .then(function (res) {
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        return res.json();
-      })
-      .then(function (data) {
-        if (seq !== state.searchSeq) return; // 늦게 온 옛 결과는 버린다
-        if (!data || data.success === false) throw new Error('search error');
-        renderResults(collectHits(data), query);
-      })
-      .catch(function () {
-        if (seq !== state.searchSeq) return;
-        var box = q('[data-foms-urgent-order-results]');
-        if (box) {
-          box.textContent = '';
-          var err = document.createElement('div');
-          err.className = 'list-group-item small text-danger';
-          err.textContent = '주문을 찾지 못했어요. 잠시 뒤 다시 적어 주세요.';
-          box.appendChild(err);
-        }
-      });
-  }
-
-  function onSearchInput(input) {
-    var query = String(input.value || '').trim();
-    if (state.searchTimer) clearTimeout(state.searchTimer);
-    if (query.length < SEARCH_MIN) {
-      state.searchSeq += 1;
-      var box = q('[data-foms-urgent-order-results]');
-      if (box) box.textContent = '';
-      return;
-    }
-    state.searchTimer = setTimeout(function () { runSearch(query); }, SEARCH_DEBOUNCE_MS);
-  }
+  // ---- 주문 줄: urgent-call-order.js(window.fomsUrgentOrder) ---------------
+  function orderApi() { return window.fomsUrgentOrder || null; }
 
   // ---- 팀·사람 -------------------------------------------------------------
   function groups() {
@@ -224,9 +84,11 @@
     (state.targets || []).forEach(function (u) {
       if (!u || !Number.isInteger(Number(u.id))) return;
       var key = teamKey(u);
-      if (!byKey[key]) { byKey[key] = { key: key, label: teamText(key, u.team_label), members: [] }; order.push(byKey[key]); }
+      if (!byKey[key]) { byKey[key] = { key: key, label: teamText(key), members: [] }; order.push(byKey[key]); }
       byKey[key].members.push(u);
     });
+    var etc = byKey._ETC;
+    if (etc) { order.splice(order.indexOf(etc), 1); order.push(etc); }
     return order;
   }
 
@@ -302,8 +164,6 @@
       return false;
     }
     opts = opts || {};
-    var oid = opts.orderId != null && String(opts.orderId) !== '' ? String(opts.orderId) : '';
-    state.order = oid && /^\d+$/.test(oid) ? { id: oid, label: opts.orderLabel ? String(opts.orderLabel) : '' } : null;
     state.team = String(opts.team || '');
     state.targetId = null;
     state.targetName = '';
@@ -311,12 +171,8 @@
     var msg = q('[data-foms-urgent-message]');
     if (msg) msg.value = String(opts.message || '').slice(0, MAX_MESSAGE);
     showError('');
-    renderOrder();
-    if (state.order && !state.order.label) {
-      state.order.label = '#' + state.order.id;
-      renderOrder();
-      resolveOrderLabel(state.order.id);
-    }
+    var oa = orderApi();
+    if (oa) oa.set(opts.orderId != null && String(opts.orderId) !== '' ? { id: opts.orderId, label: opts.orderLabel } : null);
     syncSend();
     api.getOrCreateInstance(r).show();
     loadTargets();
@@ -333,7 +189,8 @@
       return;
     }
     var body = { target_user_id: state.targetId, message: message };
-    if (state.order) body.order_id = Number(state.order.id);
+    var order = orderApi() ? orderApi().get() : null;
+    if (order) body.order_id = Number(order.id);
     state.sending = true;
     syncSend();
     showError('');
@@ -364,7 +221,7 @@
     var t = e.target;
     if (!t || !t.closest || !t.closest('#' + MODAL_ID)) return;
     if (t.hasAttribute('data-foms-urgent-message')) { syncSend(); return; }
-    if (t.hasAttribute('data-foms-urgent-order-q')) onSearchInput(t);
+    if (t.hasAttribute('data-foms-urgent-order-q') && orderApi()) orderApi().onInput(t);
   });
 
   document.addEventListener('click', function (e) {
@@ -407,16 +264,11 @@
       return;
     }
 
-    if (t.closest('[data-foms-urgent-order-add]')) { e.preventDefault(); openSearch(); return; }
-    if (t.closest('[data-foms-urgent-order-clear]')) { e.preventDefault(); state.order = null; renderOrder(); return; }
-
+    var oa = orderApi();
+    if (oa && t.closest('[data-foms-urgent-order-add]')) { e.preventDefault(); oa.openSearch(); return; }
+    if (oa && t.closest('[data-foms-urgent-order-clear]')) { e.preventDefault(); oa.clear(); return; }
     var hit = t.closest('[data-foms-urgent-order-hit]');
-    if (hit) {
-      e.preventDefault();
-      state.order = { id: hit.getAttribute('data-foms-urgent-order-hit'), label: hit.getAttribute('data-order-label') || '' };
-      renderOrder();
-      return;
-    }
+    if (oa && hit) { e.preventDefault(); oa.pick(hit); return; }
 
     if (t.closest('[data-foms-urgent-send]')) { e.preventDefault(); send(); }
   });

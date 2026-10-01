@@ -81,7 +81,8 @@
 <script src="{{ url_for('static', filename='js/foms/mobile-notification.js') }}?v=20260929a" defer></script>
 {# 긴급 호출 공용 창: 맨 위 줄 ⚡(PC·모바일)·도면·주문 화면 공통(SPEC 2026-10-01). #}
 {% include 'partials/shared/urgent_call.html' %}
-<script src="{{ url_for('static', filename='js/foms/urgent-call.js') }}?v=20261001a" defer></script>
+<script src="{{ url_for('static', filename='js/foms/urgent-call-order.js') }}?v=20261001a" defer></script>
+<script src="{{ url_for('static', filename='js/foms/urgent-call.js') }}?v=20261001b" defer></script>
 {# 도면 수정 요청 확인창(ACTION-REQUIRED). 종 배지로는 놓쳐서 90일 21건 중 8건이 미독이었다. #}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-drawing-alert.css') }}?v=20260911b">
 <script src="{{ url_for('static', filename='js/foms/foms-drawing-alert.js') }}?v=20260930a" defer></script>
