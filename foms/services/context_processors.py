@@ -30,10 +30,7 @@ from foms.services.integrations.naver_commerce.triage_count import get_triage_pe
 from foms.services.common.ept_b7_profile import phase, template_mark
 from foms.services.common.erp_mine_filter import erp_mine_only_from_request
 from foms.services.common.geocode_config import KAKAO_JS_API_KEY
-from foms.services.orders.order_flag_permissions import (
-    can_toggle_factory2_flag,
-    can_toggle_order_flags,
-)
+from foms.services.orders.order_flag_permissions import can_toggle_factory2_flag, can_toggle_order_flags
 from foms.web.auth import ROLES
 from foms.services.orders.status_constants import BULK_ACTION_STATUS, STATUS
 from foms.services.orders.team_labels import team_label
@@ -269,10 +266,8 @@ def inject_status_list() -> dict[str, Any]:
         "impersonating_from_id": impersonating_from_id,
         "naver_triage_pending": naver_triage_pending,
         "erp_order_enabled": erp_order_enabled,
-        # ORDER-FLAG-01: 라홈시스템·지방주문 체크박스 활성 여부. 서버 게이트와 **같은 판정**을
-        # 써야 UI 와 저장 결과가 어긋나지 않는다(화면에서 켤 수 있는데 서버가 무시하면 회귀).
+        # ORDER-FLAG-01: 체크박스 활성 여부 — 서버 게이트와 같은 판정(라홈시스템은 영업도).
         "can_toggle_order_flags": can_toggle_order_flags(current_user),
-        # 라홈시스템은 영업도 바꾼다(2026-10-01) — 지방주문과 따로 판정한다.
         "can_toggle_factory2_flag": can_toggle_factory2_flag(current_user),
         "erp_mobile_v2_enabled": erp_mobile_v2_enabled,
         "coarse_pointer_surfaces": wants_coarse_pointer_surfaces(),
