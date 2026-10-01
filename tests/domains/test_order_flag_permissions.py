@@ -3,6 +3,7 @@
 고정하는 것 4가지.
 
 * **권한 판정**: ADMIN 또는 CS(라홈팀/하우드팀)만 켜고 끈다. 팀이 다른 MANAGER 는 못 바꾼다.
+  라홈시스템만은 영업팀(SALES)도 켜고 끈다(2026-10-01).
 * **거부가 아니라 무시**: 무권한 저장은 403 이 아니라 200 이고, 두 값만 기존값으로 남는다
   (이 PUT 은 견적 미리보기·알림톡 발송도 태우므로 403 이면 정상 저장 전체가 막힌다).
 * **체크박스 제거 금지**: 폼이 ``factory2: false`` 를 실어 보내도 기존 ``true`` 가 살아남는다.
@@ -17,7 +18,10 @@ from werkzeug.security import generate_password_hash
 from db import db_session
 from models import Order, OrderFieldChange, User
 from foms.services.audit_message_display import PATH_LABELS, path_label
-from foms.services.orders.order_flag_permissions import can_toggle_order_flags
+from foms.services.orders.order_flag_permissions import (
+    can_toggle_factory2_flag,
+    can_toggle_order_flags,
+)
 from foms.services.orders.structured_diff import SCALAR_PATHS
 
 
@@ -128,6 +132,18 @@ def test_viewer_and_anonymous_cannot_toggle():
     assert can_toggle_order_flags(None) is False
 
 
+def test_sales_can_toggle_factory2_but_not_regional():
+    """라홈시스템은 영업도 바꾼다(2026-10-01). 지방주문은 여전히 CS·관리자만."""
+    assert can_toggle_factory2_flag(_FakeUser(role="STAFF", team="SALES")) is True
+    assert can_toggle_factory2_flag(_FakeUser(role="MANAGER", team="SALES")) is True
+    assert can_toggle_factory2_flag(_FakeUser(role="STAFF", team="CS")) is True
+    assert can_toggle_factory2_flag(_FakeUser(role="ADMIN", team=None)) is True
+    assert can_toggle_factory2_flag(_FakeUser(role="STAFF", team="DRAWING")) is False
+    assert can_toggle_factory2_flag(_FakeUser(role="VIEWER", team="SALES")) is False
+    assert can_toggle_factory2_flag(None) is False
+    assert can_toggle_order_flags(_FakeUser(role="STAFF", team="SALES")) is False
+
+
 # --------------------------------------------------------------------------
 # 2. 감사 경로 등재 (라벨 미등재는 화면에 raw 경로를 띄운다)
 # --------------------------------------------------------------------------
@@ -153,7 +169,7 @@ def test_unauthorized_save_succeeds_but_keeps_both_values(client):
         is_regional=True,
         construction_type="협력사 시공",
     )
-    _login(client, "flag-sales-manager", "MANAGER", "SALES")
+    _login(client, "flag-drawing-manager", "MANAGER", "DRAWING")
 
     sd = _valid_sd(flags={"urgent": False, "urgent_reason": "", "factory2": False})
     res = _put(client, oid, structured_data=sd, is_regional=False, construction_type="")
@@ -164,6 +180,26 @@ def test_unauthorized_save_succeeds_but_keeps_both_values(client):
     assert order.structured_data["flags"]["factory2"] is True, "무권한 요청이 2공장을 껐다"
     assert order.is_regional is True, "무권한 요청이 지방주문을 껐다"
     assert order.construction_type == "협력사 시공"
+
+
+def test_sales_save_toggles_factory2_but_keeps_regional(client):
+    """영업 저장은 라홈시스템만 반영하고 지방주문은 기존값으로 남긴다."""
+    oid = _create_order(
+        structured_data=_valid_sd(flags={"urgent": False, "urgent_reason": "", "factory2": True}),
+        is_regional=True,
+        construction_type="협력사 시공",
+    )
+    _login(client, "flag-sales-manager", "MANAGER", "SALES")
+
+    sd = _valid_sd(flags={"urgent": False, "urgent_reason": "", "factory2": False})
+    res = _put(client, oid, structured_data=sd, is_regional=False, construction_type="")
+
+    assert res.status_code == 200, res.get_data(as_text=True)
+    order = _fresh(oid)
+    assert order.structured_data["flags"]["factory2"] is False, "영업이 라홈시스템을 못 껐다"
+    assert order.is_regional is True, "영업 요청이 지방주문을 껐다"
+    assert order.construction_type == "협력사 시공"
+    assert len(_ledger(oid, "flags.factory2")) == 1
 
 
 def test_unauthorized_save_does_not_write_flag_ledger_rows(client):
@@ -281,7 +317,8 @@ def test_edit_page_renders_disabled_checkboxes_for_unauthorized(client):
 
     assert 'id="erp-factory2"' in body, "체크박스를 DOM 에서 빼면 저장 시 값이 지워진다"
     assert 'id="erp-regional-order"' in body
-    assert 'id="erp-factory2" autocomplete="off" disabled' in squashed
+    # 라홈시스템은 영업도 바꾼다(2026-10-01) — 지방주문만 비활성.
+    assert 'id="erp-factory2" autocomplete="off" disabled' not in squashed
     assert 'id="erp-regional-order" autocomplete="off" disabled' in squashed
 
 
@@ -305,4 +342,6 @@ def test_structured_get_exposes_permission_flag(client):
     assert client.get(f"/api/orders/{oid}/structured").get_json()["can_toggle_order_flags"] is True
 
     _login(client, "flag-sales-tablet", "STAFF", "SALES")
-    assert client.get(f"/api/orders/{oid}/structured").get_json()["can_toggle_order_flags"] is False
+    data = client.get(f"/api/orders/{oid}/structured").get_json()
+    assert data["can_toggle_order_flags"] is False
+    assert data["can_toggle_factory2_flag"] is True

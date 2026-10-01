@@ -39,7 +39,10 @@ from foms.services.integrations.naver_commerce.auto_assign import (
 from foms.services.orders.audit_order_context import order_audit_context
 from foms.services.orders.structured_item_uid import ensure_item_uids
 from foms.services.orders.order_field_change_writer import record_field_changes
-from foms.services.orders.order_flag_permissions import can_toggle_order_flags
+from foms.services.orders.order_flag_permissions import (
+    can_toggle_factory2_flag,
+    can_toggle_order_flags,
+)
 from foms.services.orders.change_reason import is_reason_required
 from foms.services.orders.structured_diff import MAX_CHANGES, DiffResult, diff_structured
 from foms.services.datetime_kst import now_kst, now_utc_naive
@@ -1030,6 +1033,8 @@ def api_get_order_structured(order_id):
             # ORDER-FLAG-01: 라홈시스템·지방주문 편집 가능 여부. 화면이 서버와 **같은 판정**을
             # 쓰게 내려준다 — 켤 수 있어 보이는데 저장이 무시되면 그게 더 나쁜 회귀다.
             'can_toggle_order_flags': can_toggle_order_flags(getattr(g, 'current_user', None)),
+            # 라홈시스템은 영업도 바꾼다 — 지방주문과 판정이 갈라져 따로 내려준다.
+            'can_toggle_factory2_flag': can_toggle_factory2_flag(getattr(g, 'current_user', None)),
             # 지방주문 AS 재상차 모달 prefill용(flat 컬럼, structured_data에는 없음).
             'shipping_scheduled_date': getattr(order, 'shipping_scheduled_date', None) or '',
             # AS 재접수 모달의 'N번째 AS' 제목·지난 건 요약용 투영
@@ -1249,7 +1254,13 @@ def api_patch_order_structured_fields(order_id: int):
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
-def _denied_flag_paths(order: Order, payload: Mapping[str, Any]) -> list[str]:
+def _denied_flag_paths(
+    order: Order,
+    payload: Mapping[str, Any],
+    *,
+    regional_locked: bool = True,
+    factory2_locked: bool = True,
+) -> list[str]:
     """무권한 요청이 실제로 바꾸려 한 플래그 경로만 골라낸다 (ORDER-FLAG-01).
 
     폼은 저장할 때마다 세 값을 늘 함께 보낸다 — 값이 그대로인 요청까지 감사에 남기면
@@ -1257,20 +1268,22 @@ def _denied_flag_paths(order: Order, payload: Mapping[str, Any]) -> list[str]:
 
     :param order: 대상 주문(현재 저장값 비교 기준).
     :param payload: 요청 JSON.
+    :param regional_locked: 지방주문·시공 구분이 잠겼는지.
+    :param factory2_locked: 라홈시스템이 잠겼는지.
     :return: 실제로 달라진 경로 목록(``is_regional``·``construction_type``·``flags.factory2``).
     """
     denied: list[str] = []
     incoming_regional = payload.get('is_regional')
-    if incoming_regional is not None and bool(incoming_regional) != bool(getattr(order, 'is_regional', False)):
+    if regional_locked and incoming_regional is not None and bool(incoming_regional) != bool(getattr(order, 'is_regional', False)):
         denied.append('is_regional')
     incoming_ct = payload.get('construction_type')
-    if incoming_ct is not None:
+    if regional_locked and incoming_ct is not None:
         normalized_ct = normalize_regional_construction_type(incoming_ct) or None
         if normalized_ct != (getattr(order, 'construction_type', None) or None):
             denied.append('construction_type')
     structured = payload.get('structured_data')
     incoming_flags = structured.get('flags') if isinstance(structured, dict) else None
-    if isinstance(incoming_flags, dict) and 'factory2' in incoming_flags:
+    if factory2_locked and isinstance(incoming_flags, dict) and 'factory2' in incoming_flags:
         stored_sd = order.structured_data if isinstance(order.structured_data, dict) else {}
         stored_flags = stored_sd.get('flags') if isinstance(stored_sd.get('flags'), dict) else {}
         if bool(incoming_flags.get('factory2')) != bool(stored_flags.get('factory2')):
@@ -1416,11 +1429,19 @@ def api_put_order_structured(order_id):
         # 발송이 함께 태우므로, 403 으로 만들면 무권한 사용자의 정상 저장 전체가 막힌다.
         # 지방주문 구분(construction_type)은 체크박스와 한 몸이라 함께 잠근다 — 여기만
         # 열어두면 is_regional 을 떨어뜨린 뒤 아래 검증이 400 을 낸다.
+        # 라홈시스템은 영업도 바꿀 수 있어 판정을 따로 둔다(2026-10-01).
         flags_editable = can_toggle_order_flags(getattr(g, 'current_user', None))
-        if not flags_editable:
-            denied_flag_paths = _denied_flag_paths(order, payload)
-            is_regional = None
-            construction_type = None
+        factory2_editable = can_toggle_factory2_flag(getattr(g, 'current_user', None))
+        if not flags_editable or not factory2_editable:
+            denied_flag_paths = _denied_flag_paths(
+                order,
+                payload,
+                regional_locked=not flags_editable,
+                factory2_locked=not factory2_editable,
+            )
+            if not flags_editable:
+                is_regional = None
+                construction_type = None
             if denied_flag_paths:
                 record_access_denied(
                     f"권한 없는 주문 플래그 변경 시도(주문 {order_id}): {', '.join(denied_flag_paths)}",
@@ -1579,7 +1600,7 @@ def api_put_order_structured(order_id):
                 if not structured_data.get('flags'):
                     structured_data['flags'] = {}
                 _normalize_happy_call(structured_data['flags'])
-                if not flags_editable:
+                if not factory2_editable:
                     _restore_locked_factory2(old_sd, structured_data)
                 if not structured_data.get('assignments'):
                     structured_data['assignments'] = {}
