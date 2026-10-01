@@ -132,6 +132,7 @@
         'wb-ghost-discard': submitGhostDiscard,
         'wb-pane-ghost-discard': submitPaneGhostDiscard,
         'wb-ghost-repay-expected': submitGhostRepayExpected,
+        'wb-ghost-repay-settled': submitGhostRepaySettled,
         'wb-origin-refresh-all': submitOriginRefreshAll,
         'wb-origin-cancel-confirm': submitOriginCancel,
         'wb-origin-return-confirm': submitOriginReturn,
@@ -741,6 +742,47 @@
         button.disabled = true;
         const result = await postJson(BASE + 'ghost/' + orderId + '/repay-expected',
             { expected: expected, note: note });
+        if (!result.ok) {
+            button.disabled = false;
+            window.alert(result.error);
+            return;
+        }
+        await softRefresh();
+    }
+
+    /**
+     * 재결제 예정 주문을 손으로 끝내거나 되돌린다 (2026-10-01).
+     * 계좌 입금처럼 FOMS 가 볼 수 없는 재결제용이다. 끝낼 때는 메모가 꼭 있어야 한다.
+     * @param {HTMLButtonElement} button - `data-order-id`·`data-settled` 를 가진 버튼
+     * @returns {Promise<void>}
+     */
+    async function submitGhostRepaySettled(button) {
+        var orderId = safeId(button.dataset.orderId);
+        if (!orderId) {
+            return;
+        }
+        var settled = button.dataset.settled === '1';
+        var who = button.dataset.customer || '';
+        var head = '주문 #' + orderId + (who ? ' (' + who + ')' : '');
+        var note = '';
+        if (settled) {
+            note = window.prompt(head + ' 의 재결제를 받은 것으로 끝냅니다.\n'
+                + '끝내면 이 목록에서 빠집니다. 되돌리기는 오른쪽 상세 칸에서 합니다.\n'
+                + '어떻게 받았는지 적어 주세요 (예: 10-01 계좌 입금, 입금자 이름).', '');
+            if (note === null) {
+                return;
+            }
+            note = String(note).trim();
+            if (!note) {
+                window.alert('메모를 적어야 끝낼 수 있습니다.');
+                return;
+            }
+        } else if (!window.confirm(head + ' 의 받음 처리를 되돌립니다. 목록에 다시 나타납니다.')) {
+            return;
+        }
+        button.disabled = true;
+        const result = await postJson(BASE + 'ghost/' + orderId + '/repay-settled',
+            { settled: settled, note: note });
         if (!result.ok) {
             button.disabled = false;
             window.alert(result.error);
