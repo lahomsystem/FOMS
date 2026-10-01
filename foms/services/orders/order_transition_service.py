@@ -114,6 +114,9 @@ def _apply_main(
     workflow["stage_updated_at"] = now.isoformat()
     order.erp_stage_code = value
     order.erp_stage_updated_at = now
+    # 두 flat 컬럼 모두 workflow.stage_updated_at 사본이다(sync_erp_flat_columns 와 같은 정의).
+    # 한쪽만 쓰면 매일 드리프트 감사가 SAFE 로 센다.
+    order.erp_drawing_updated_at = now
 
 
 def _apply_logistics(

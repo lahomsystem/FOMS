@@ -118,6 +118,27 @@ def test_normal_transition_applies_axis_version_receipt_event(db):
     assert outbox[0].id == result.outbox_id
 
 
+def test_main_transition_keeps_flat_columns_clean(db):
+    """main 전이가 두 stage 시각 사본(erp_stage_updated_at·erp_drawing_updated_at)을 같이
+    쓴다 — 한쪽만 쓰면 매일 드리프트 감사가 SAFE 로 세어 운영 경보가 빨개졌다(2026-10-01)."""
+    from foms.services.orders.erp_flat_audit import CLEAN, classify_order
+
+    actor = _make_actor()
+    order = _make_order("RECEIVED")
+    transition_order(
+        db, command_id="REQUEST_MEASUREMENT", order_id=order.id,
+        actor_user_id=actor.id, expected_from="RECEIVED", target_value="MEASURE",
+        expected_version=1, scope_hash=_H, request_hash=_H,
+    )
+    db.commit()
+    db.refresh(order)
+
+    assert order.erp_drawing_updated_at == order.erp_stage_updated_at is not None
+    audit = classify_order(order)
+    assert "erp_drawing_updated_at" not in audit.drift_columns
+    assert "erp_stage_updated_at" not in audit.drift_columns
+
+
 # --------------------------------------------------------------------------- #
 # 2. expected-from mismatch → 거부, actual 불변
 # --------------------------------------------------------------------------- #

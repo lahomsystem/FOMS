@@ -350,17 +350,19 @@ def apply_one(cur, item: dict[str, Any], *, actor_user_id: int, now: datetime,
     if mode == "main":
         cur.execute("""
             UPDATE orders SET status = 'COMPLETED', erp_stage_code = 'COMPLETED',
-                   erp_stage_updated_at = %s, structured_data = %s,
+                   erp_stage_updated_at = %s, erp_drawing_updated_at = %s,
+                   structured_data = %s,
                    mutation_version = mutation_version + 1
              WHERE id = %s
-        """, (now, Jsonb(structured), oid))
+        """, (now, now, Jsonb(structured), oid))
     else:  # as_stage_only — status·AS 축은 손대지 않는다
         cur.execute("""
             UPDATE orders SET erp_stage_code = 'COMPLETED',
-                   erp_stage_updated_at = %s, structured_data = %s,
+                   erp_stage_updated_at = %s, erp_drawing_updated_at = %s,
+                   structured_data = %s,
                    mutation_version = mutation_version + 1
              WHERE id = %s
-        """, (now, Jsonb(structured), oid))
+        """, (now, now, Jsonb(structured), oid))
     to_status = "COMPLETED" if mode == "main" else item["observed_status"]
     cur.execute("""
         INSERT INTO order_events(order_id, event_type, payload, created_by_user_id, created_at)
@@ -405,9 +407,10 @@ def rollback_one(cur, row: dict[str, Any], *, actor_user_id: int, now: datetime)
     stage_updated = row.get("erp_stage_updated_at")
     cur.execute("""
         UPDATE orders SET status = %s, erp_stage_code = %s, erp_stage_updated_at = %s,
+               erp_drawing_updated_at = %s,
                structured_data = %s, mutation_version = mutation_version + 1
          WHERE id = %s
-    """, (row["status"], row.get("erp_stage_code"), stage_updated,
+    """, (row["status"], row.get("erp_stage_code"), stage_updated, stage_updated,
           Jsonb(structured), oid))
     cur.execute("""
         INSERT INTO order_events(order_id, event_type, payload, created_by_user_id, created_at)
