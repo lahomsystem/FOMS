@@ -2311,7 +2311,7 @@ def _ghost_discard_view(db, link: Optional[ExternalOrderLink]) -> dict[str, Any]
         # 표기 키만 더한 것이라 판정 축은 그대로다.
         return {"applicable": False, "can_discard": False,
                 "discard_needs_reason": False, "discard_block": "",
-                "repay_candidates": [], "repay_expected": None,
+                "repay_candidates": [], "repay_expected": None, "repay_settled": None,
                 "trashed": False, "trashed_at_text": "", "trashed_note": ""}
     view = judge_order_discard(db, int(link.order_id),
                                group_key=_history_group_key(link))
@@ -5612,6 +5612,73 @@ def naver_ingest_ghost_repay_expected(order_id: int):
     )
     return jsonify({"success": True,
                     "data": {"order_id": int(order_id), "repay_expected": mark},
+                    "error": None})
+
+
+@admin_bp.route("/admin/naver-ingest/ghost/<int:order_id>/repay-settled", methods=["POST"])
+@login_required
+@role_required(["ADMIN", "MANAGER", "STAFF"])
+def naver_ingest_ghost_repay_settled(order_id: int):
+    """재결제 예정 주문을 **사람이 손으로 끝낸다** (2026-10-01).
+
+    네이버 취소 뒤 회사 계좌로 직접 받은 주문은 재결제가 네이버 큐에 영영 안 들어와
+    '재결제 예정' 표시가 저절로 풀리지 않는다 — 띠에 영원히 남았다(#5374). 시스템이
+    확인할 수 없는 사실이라 사람이 메모(필수)를 남기고 끝낸다(사용자 결정 2026-10-01).
+
+    * 끝내기(``settled=true``)는 **재결제 예정 표시가 있는 주문만** 받는다. 순서를
+      하나로 정해 두면 "표시 → 끝냄" 두 기록이 늘 함께 남는다.
+    * 되돌리기(``settled=false``)는 관문 없이 받는다 — 끝낸 주문은 띠에서 빠지므로
+      pane 에서만 풀 수 있고, 푸는 것은 파괴적이지 않다.
+    """
+    from foms.services.feature_flags import is_naver_workbench_enabled
+    from foms.services.integrations.naver_commerce.ghost_orders import (
+        clear_repay_settled,
+        read_repay_expected,
+        set_repay_settled,
+    )
+    from models import User
+
+    if not is_naver_workbench_enabled(session.get("user_id")):
+        return jsonify({"success": False, "data": None,
+                        "error": "이 화면에서는 재결제 받음 처리를 할 수 없습니다."}), 403
+
+    db = get_db()
+    payload = request.get_json(silent=True) or {}
+    settled = bool(payload.get("settled"))
+    note = str(payload.get("note") or "").strip()[:200]
+
+    order = db.get(Order, int(order_id))
+    if order is None:
+        return jsonify({"success": False, "data": None,
+                        "error": "주문을 찾을 수 없습니다."}), 400
+
+    if settled:
+        if not read_repay_expected(order):
+            return jsonify({"success": False, "data": None,
+                            "error": "재결제 예정으로 표시된 주문만 받음 처리할 수 있습니다."}), 400
+        if not note:
+            return jsonify({"success": False, "data": None,
+                            "error": "어떻게 받았는지 한 줄 적어 주세요 (예: 10-01 계좌 입금, 입금자 이름)."}), 400
+        user = db.get(User, int(session.get("user_id") or 0))
+        mark = set_repay_settled(order,
+                                 actor_user_id=int(session.get("user_id") or 0),
+                                 actor_name=str(getattr(user, "name", "")
+                                                or session.get("username") or ""),
+                                 note=note)
+    else:
+        clear_repay_settled(order)
+        mark = None
+    db.commit()
+
+    log_access(
+        f"네이버 유령 주문 재결제 {'받음 처리' if settled else '받음 되돌리기'} (order {order_id})",
+        session.get("user_id"),
+        action="NAVER_INGEST_GHOST_REPAY_SETTLED",
+        target_type="order", target_id=int(order_id),
+        detail={"order_id": int(order_id), "settled": settled, "note": note},
+    )
+    return jsonify({"success": True,
+                    "data": {"order_id": int(order_id), "repay_settled": mark},
                     "error": None})
 
 

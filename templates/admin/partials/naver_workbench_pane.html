@@ -616,7 +616,18 @@
                누르면 `목록에 없습니다` 400 이 온다 — 눌러야만 알 수 있는 죽은 버튼이다.
                서버가 라우트와 같은 술어로 내려 주는 `in_ghost_band` 를 그대로 읽는다.
                표시가 이미 켜진 주문은 모집단을 벗어나도 푸는 길이 남아야 한다. #}
-            {% if ghost_discard.in_ghost_band or ghost_discard.repay_expected %}
+            {% if ghost_discard.repay_settled %}
+            {# 손으로 끝낸 재결제(2026-10-01) — 띠에서 빠진 주문이라 되돌리는 길은 여기뿐이다. #}
+            <div class="w-100">
+                <span class="wb-ghost__repay">재결제 받음 처리됨</span>
+                <span class="wb-ghost__dim">{{ ghost_discard.repay_settled.at }}{% if ghost_discard.repay_settled.by_name %} · {{ ghost_discard.repay_settled.by_name }}{% endif %}</span>
+                {% if ghost_discard.repay_settled.note %}<div class="wb-ghost__dim">{{ ghost_discard.repay_settled.note }}</div>{% endif %}
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="wb-ghost-repay-settled"
+                    data-order-id="{{ ghost_discard.order_id }}"
+                    data-customer="{{ ghost_discard.customer_name }}"
+                    data-settled="0">되돌리기</button>
+            {% elif ghost_discard.in_ghost_band or ghost_discard.repay_expected %}
             {% if ghost_discard.repay_expected %}
             <div class="w-100">
                 <span class="wb-ghost__repay">재결제 기다림</span>
@@ -628,6 +639,12 @@
                     data-order-id="{{ ghost_discard.order_id }}"
                     data-customer="{{ ghost_discard.customer_name }}"
                     data-expected="{{ '0' if ghost_discard.repay_expected else '1' }}">{{ '표시 풀기' if ghost_discard.repay_expected else '재결제 예정' }}</button>
+            {% if ghost_discard.repay_expected %}
+            <button type="button" class="btn btn-sm btn-outline-primary" id="wb-ghost-repay-settled"
+                    data-order-id="{{ ghost_discard.order_id }}"
+                    data-customer="{{ ghost_discard.customer_name }}"
+                    data-settled="1">받음 처리</button>
+            {% endif %}
             {% endif %}
 
             <button type="button"
