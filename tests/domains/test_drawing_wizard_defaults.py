@@ -222,6 +222,12 @@ def test_defaults_page_no_auto_numbers_by_product_index():
     assert build_wizard_defaults(_order(), sd, _user(), item_index=2)["page_no"] == "3"
 
 
+def test_defaults_page_no_dash_when_single_product():
+    """제품이 1개뿐인 주문은 제품 시트여도 page_no 가 '-'."""
+    sd = {"items": [{"product_name": "A"}]}
+    assert build_wizard_defaults(_order(), sd, _user(), item_index=0)["page_no"] == "-"
+
+
 def test_defaults_item_index_out_of_range_falls_back_to_first():
     """범위를 벗어난 item_index는 items[0]으로 폴백하되, 단일 제품 모드(조인 안 함)를 유지한다."""
     sd = {"items": [{"product_name": "장A", "color": "화이트"}, {"product_name": "장B"}]}
