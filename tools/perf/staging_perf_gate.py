@@ -14,6 +14,11 @@ fragment 경로와 실측 날짜칩 hot path 를 반복 측정 → 커밋된 예
     베이스 RTT**. 판정값 = ``ttfb_min(path) − ttfb_min(healthz)`` = **서버+페이로드 델타**로,
     시간대별 베이스 RTT 분산(창 분산)을 상쇄해 빠른 창에 시드한 예산이 정상 창을
     오탐하던 실전 결함을 근본 제거한다.
+  - **서버 처리시간 판정(v3, 2026-10-02)**: 인증 응답의 ``Server-Timing: app;dur=`` min 을
+    경로별 ``server_ms_min_max`` 예산과 비교한다. 네트워크 RTT 가 아예 안 섞인다 — healthz
+    min 이 7표본 안에서 134~258ms 로 흔들려, 절대 TTFB 가 같아도 델타가 부풀어 4연속 오탐한
+    실사례(2026-10-01 PR #487)의 근본 수정. 예산·헤더가 있으면 TTFB 델타는 정보용, 없으면
+    예전 TTFB 델타 판정으로 폴백한다(배포·게이트 순서가 엇갈려도 안전).
   - p95/최댓값은 **판정에 절대 넣지 않는다**(정보용). 정밀 서버 회귀는 render_ms·바이트·
     쿼리 계약이 잡는다.
   - render_ms 도 **min 으로 판정**(TTFB 와 동일 tail 면역). 진짜 render 회귀(N+1·무거운
@@ -82,6 +87,7 @@ SEED_ROUNDS = 13  # 첫 회 버림 → warm 표본 12(min 이 창의 최상 서�
 HEALTHZ_ROUNDS = 7  # 무인증 /healthz 반복 → min = 그 창의 네트워크 베이스 RTT(델타 차감용)
 SLEEP_S = 0.3
 SEED_MARGIN = 0.30  # 델타 실측 + 30% 여유(상대)
+SEED_SERVER_FLOOR_MS = 50  # 서버 시간은 네트워크가 없어 델타보다 덜 흔들린다 → 하한 마진도 작게
 SEED_DELTA_FLOOR_MS = 80  # 델타는 값이 작아(수십~수백ms) 상대 30%가 빡빡 → 절대 하한 마진
 
 # fragment GET 공통 헤더 (shell 요청 계약).
@@ -197,6 +203,17 @@ def percentile(values: list[float], pct: float) -> float:
     return float(ordered[idx])
 
 
+_SERVER_TIMING_APP_RE = re.compile(r"(?:^|,)\s*app;dur=([0-9]+(?:\.[0-9]+)?)")
+
+
+def parse_server_timing_app_ms(header: str | None) -> float | None:
+    """``Server-Timing`` 헤더에서 ``app;dur=`` 값(ms)만 꺼낸다. 없으면 None."""
+    if not header:
+        return None
+    m = _SERVER_TIMING_APP_RE.search(header)
+    return float(m.group(1)) if m else None
+
+
 def summarize_samples(warm_samples: list[dict[str, Any]]) -> dict[str, Any]:
     """warm 표본(첫 회 제외 후) → min/median/p95 TTFB·median wire/해압 bytes·render/etag 요약.
 
@@ -217,7 +234,10 @@ def summarize_samples(warm_samples: list[dict[str, Any]]) -> dict[str, Any]:
     byts = [int(s["bytes"]) for s in warm_samples]
     wires = [int(s.get("wire_bytes", s["bytes"])) for s in warm_samples]
     renders = [float(s["render_ms"]) for s in warm_samples if s.get("render_ms") is not None]
+    servers = [float(s["server_ms"]) for s in warm_samples if s.get("server_ms") is not None]
     return {
+        # 서버 처리시간 판정값(v3). 표본 전부에 헤더가 있을 때만 유효(일부 누락=옛 배포 혼재).
+        "min_server_ms": int(min(servers)) if servers and len(servers) == len(warm_samples) else None,
         "min_ttfb_ms": int(min(ttfbs)) if ttfbs else 0,
         "median_ttfb_ms": int(statistics.median(ttfbs)) if ttfbs else 0,
         "p95_ttfb_ms": int(percentile(ttfbs, 95)) if ttfbs else 0,
@@ -277,12 +297,21 @@ def judge_path(
     if summary.get("login_redirected"):
         reasons.append("/login 리다이렉트 응답 (인증 소실 — 로그인 페이지를 잰 무효 측정)")
     delta_budget = budget.get("ttfb_delta_min_ms")
+    server_budget = budget.get("server_ms_min_max")
+    min_server_ms = summary.get("min_server_ms")
+    # v3: 서버 시간 예산과 측정이 둘 다 있으면 TTFB 델타는 정보용으로 내린다.
+    judge_by_server = server_budget is not None and min_server_ms is not None
     p95_delta_budget = budget.get("p95_ttfb_delta_ms")
     bytes_budget = budget.get("body_bytes_max")
     delta = delta_ttfb_ms(summary, base_ttfb_ms)
     p95_delta = max(0, int(summary["p95_ttfb_ms"]) - int(base_ttfb_ms))
 
-    if delta_budget is not None and delta > delta_budget:
+    if judge_by_server and min_server_ms > server_budget:
+        reasons.append(
+            f"server min {min_server_ms}ms > budget {server_budget}ms "
+            f"(Server-Timing app;dur — 네트워크 무관 서버 처리 회귀)"
+        )
+    if not judge_by_server and delta_budget is not None and delta > delta_budget:
         reasons.append(
             f"TTFB delta-min {delta}ms > budget {delta_budget}ms "
             f"(min {summary['min_ttfb_ms']}ms − healthz base {base_ttfb_ms}ms; 서버+페이로드 회귀)"
@@ -314,6 +343,9 @@ def judge_path(
         "path": path,
         "delta_ttfb_ms": delta,
         "budget_delta_ttfb_ms": delta_budget,
+        "min_server_ms": min_server_ms,
+        "budget_server_ms": server_budget,
+        "judged_by": "server" if judge_by_server else "ttfb_delta",
         "p95_ttfb_delta_ms": p95_delta,
         "budget_p95_ttfb_delta_ms": p95_delta_budget,
         "min_ttfb_ms": summary["min_ttfb_ms"],
@@ -350,10 +382,14 @@ def seed_budget(
     """
     delta = delta_ttfb_ms(summary, base_ttfb_ms)
     delta_budget = max(int(round(delta * (1 + margin))), delta + floor_ms)
-    return {
+    out = {
         "ttfb_delta_min_ms": delta_budget,
         "body_bytes_max": int(round(summary["median_wire_bytes"] * (1 + margin))),
     }
+    server = summary.get("min_server_ms")
+    if server is not None:
+        out["server_ms_min_max"] = max(int(round(server * (1 + margin))), server + SEED_SERVER_FLOOR_MS)
+    return out
 
 
 def reconcile_seed_budget(
@@ -415,6 +451,7 @@ def measure_path(session: requests.Session, base: str, path: str, rounds: int = 
         wire_bytes = int(cl) if (cl is not None and cl.isdigit()) else len(body)
         wire_measured = bool(cl is not None and cl.isdigit())
         render = resp.headers.get("X-FOMS-EPT-B7-RENDER-MS")
+        server_ms = parse_server_timing_app_ms(resp.headers.get("Server-Timing"))
         samples.append({
             "round": i + 1,
             "status": resp.status_code,
@@ -424,6 +461,7 @@ def measure_path(session: requests.Session, base: str, path: str, rounds: int = 
             "wire_bytes": wire_bytes,
             "wire_measured": wire_measured,
             "render_ms": float(render) if render not in (None, "") else None,
+            "server_ms": server_ms,
             "content_encoding": resp.headers.get("Content-Encoding"),
             "etag_present": bool(resp.headers.get("ETag")),
             # 세션이 죽으면 fragment GET 은 /login 으로 리다이렉트되고 requests 가 그것을
@@ -651,8 +689,8 @@ def run_seed(base: str, user: str, password: str, prev: dict[str, Any]) -> dict[
         new_budget, preserved = reconcile_seed_budget(new_budget, old_budget, on_ci)
         if preserved:
             preserved_paths.append(path)
-        for k in ("ttfb_delta_min_ms", "body_bytes_max"):
-            if old_budget.get(k) is not None and new_budget[k] > old_budget[k]:
+        for k in ("ttfb_delta_min_ms", "body_bytes_max", "server_ms_min_max"):
+            if old_budget.get(k) is not None and new_budget.get(k) is not None and new_budget[k] > old_budget[k]:
                 loosened.append(f"{path} {k}: {old_budget[k]} -> {new_budget[k]}")
         paths[path] = new_budget
     # coarse 패스 바이트 예산도 같은 시드에서 만든다 — 따로 시드하면 두 패스의 기준 창이
@@ -740,7 +778,8 @@ def render_table(rows: list[dict[str, Any]], base_ttfb_ms: int | None = None) ->
     """
     header = (
         f"{'PATH':<40} {'dTTFB':>6} {'budget':>7} {'min':>6} "
-        f"{'medTTFB':>8} {'p95':>6} {'wire':>8} {'budget':>8} {'raw':>8} {'304':>4} {'RESULT':>6}"
+        f"{'medTTFB':>8} {'p95':>6} {'srv':>5} {'budget':>6} "
+        f"{'wire':>8} {'budget':>8} {'raw':>8} {'304':>4} {'RESULT':>6}"
     )
     lines: list[str] = []
     # 페르소나를 안 찍으면 수치가 왜 이동했는지 표만 보고는 알 수 없다.
@@ -754,12 +793,16 @@ def render_table(rows: list[dict[str, Any]], base_ttfb_ms: int | None = None) ->
         lines.append(
             "바이트 판정값 = wire(전송 압축 바이트) = 실사용 다운로드 비용. raw = 해압 바이트(정보용)."
         )
+        lines.append(
+            "srv = Server-Timing app;dur min(서버 처리시간). srv 예산이 있으면 srv 로 판정하고 dTTFB 는 정보용."
+        )
         lines.append("")
     lines.extend([header, "-" * len(header)])
     for r in rows:
         lines.append(
             f"{r['path']:<40} {r['delta_ttfb_ms']:>6} {str(r['budget_delta_ttfb_ms']):>7} "
             f"{r['min_ttfb_ms']:>6} {r['median_ttfb_ms']:>8} {r['p95_ttfb_ms']:>6} "
+            f"{str(r.get('min_server_ms', '-')):>5} {str(r.get('budget_server_ms', '-')):>6} "
             f"{r['median_wire_bytes']:>8} {str(r['budget_bytes']):>8} {r['median_bytes']:>8} "
             f"{('OK' if r['cond_304'] else 'NO'):>4} {('PASS' if r['passed'] else 'FAIL'):>6}"
         )
