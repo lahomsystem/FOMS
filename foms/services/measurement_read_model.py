@@ -12,7 +12,7 @@ from __future__ import annotations
 import datetime
 import logging
 
-from sqlalchemy import or_, and_, cast, String
+from sqlalchemy import or_, and_
 from sqlalchemy.orm import load_only, selectinload
 
 from models import Order, OrderScheduleDate
@@ -216,6 +216,16 @@ def hydrate_measurement_main_rows(
 
 
 def _build_measurement_raw_match_filter(date_values):
+    """일정표(order_schedule_dates) 밖에서 실측일을 찾는 보충 술어 — 평평한 컬럼만 본다.
+
+    예전에는 ``CAST(structured_data AS VARCHAR) ILIKE '%날짜%'`` 가지도 있었다(2026-03, 날짜
+    정규화 이전의 ERP 베타 주문용). 그 가지는 행마다 큰 JSON 을 풀어 읽어 스테이징에서 패널 보충
+    486ms·목록 보충 117ms(실측 화면 DB 시간 609ms 중 99%)를 썼고, 걸린 것도 created_at·sent_at
+    같은 기록 시각이었다 — 호출자가 :func:`extract_all_measurement_dates` 로 다시 걸러 버린다.
+    그 가지가 실제로 더해 줄 수 있는 것은 "정식 실측일이 일정표에 빠진 주문" 뿐인데, 스테이징
+    주문 3,520건 중 0건이었다(2026-10-01 전체 성능 검사). 그런 주문도 평평한 컬럼
+    (``measurement_date``·``erp_measurement_date``)에는 날짜가 있어 아래 술어가 잡는다.
+    """
     values = [str(v).strip() for v in date_values if str(v or '').strip()]
     if not values:
         return None
@@ -224,12 +234,6 @@ def _build_measurement_raw_match_filter(date_values):
     for value in values:
         conditions.append(Order.measurement_date.ilike(f'%{value}%'))  # perf-ok: bounded measurement date filter cold path
         conditions.append(Order.erp_measurement_date == value)
-        conditions.append(
-            and_(
-                Order.is_erp_order == True,
-                cast(Order.structured_data, String).ilike(f'%{value}%')  # perf-ok: ix_orders_structured_data_text_trgm
-            )
-        )
     return or_(*conditions) if conditions else None
 
 

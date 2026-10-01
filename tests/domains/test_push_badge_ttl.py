@@ -29,6 +29,7 @@ from models import (
 )
 from foms.services.notifications import push_sender
 from foms.services.notifications.push_sender import (
+    PUSH_HTTP_TIMEOUT_SECONDS,
     PUSH_TTL_SECONDS,
     send_push_for_notification,
     send_test_push,
@@ -220,6 +221,25 @@ def test_test_push_also_uses_ttl_and_normal_urgency(db, rec):
     assert result["sent"] is True
     assert rec.calls[0]["ttl"] == 86400
     assert rec.calls[0]["headers"] == {"Urgency": "normal"}
+
+
+def test_both_send_paths_cap_push_http_wait(db, rec):
+    """pywebpush 기본 timeout=None 은 무한 대기다 — 두 발송 경로 모두 상한을 넘긴다.
+
+    push 서비스 하나가 응답을 안 주면 그 발송을 도는 루프(SIDEFX 전달·하트비트)가 통째로
+    멈춘다(2026-10-01 전체 성능 검사에서 발견).
+    """
+    u = _mk_user("timeout_both_paths", "영업", team="SALES")
+    notif = _mk_notification("MEASURE_SAME_DAY_ADDED")
+    _mk_state(notif, u)
+    sub = _mk_sub(u, "https://fcm.googleapis.com/send/timeout-both")
+
+    send_push_for_notification(notif.id, db=db)
+    send_test_push(sub.id, db=db)
+
+    assert len(rec.calls) == 2
+    assert 0 < PUSH_HTTP_TIMEOUT_SECONDS <= 30
+    assert [c["timeout"] for c in rec.calls] == [PUSH_HTTP_TIMEOUT_SECONDS] * 2
 
 
 # ---------------------------------------------------------------------------

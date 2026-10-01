@@ -54,6 +54,11 @@ _TRUTHY = frozenset({"1", "true", "yes", "on"})
 #: 알림이 전부 사라졌다(2026-09-23 설치 소스로 확인). 하루면 다음 날 아침까지 닿는다.
 PUSH_TTL_SECONDS = 86400
 
+#: push 서비스 HTTP 호출 상한(초). pywebpush 2.0.0 ``webpush(timeout=None)`` 기본값은 무한
+#: 대기라, push 서비스 하나가 응답을 안 주면 그 발송을 도는 루프(SIDEFX 전달·하트비트)가
+#: 통째로 멈춘다. 정상 응답은 p99 2초 안이다(2026-10-01 운영 30일 웹푸시 잡 실측).
+PUSH_HTTP_TIMEOUT_SECONDS = 10
+
 #: 긴급(is_urgent)이 아니어도 push 서비스에 ``Urgency: high`` 로 보내는 유형.
 #: 절전 중인 안드로이드는 normal 을 몇 분~몇 시간 미룬다 — 당일 실측 긴급 추가는
 #: 몇 시간 뒤에 닿으면 의미가 없다. 도면 도착·수정 요청·전달 취소도 같다 — normal 로
@@ -507,6 +512,7 @@ def _deliver_one(
             vapid_claims={"sub": _vapid_claims_sub()},
             ttl=PUSH_TTL_SECONDS,
             headers={"Urgency": urgency},
+            timeout=PUSH_HTTP_TIMEOUT_SECONDS,
         )
     except web_push_exc as exc:  # 구독 만료/유효성 실패
         code = getattr(getattr(exc, "response", None), "status_code", None)
@@ -757,6 +763,7 @@ def _send_test_impl(db: Any, subscription_id: int, owns: bool) -> Dict[str, Any]
             vapid_claims={"sub": _vapid_claims_sub()},
             ttl=PUSH_TTL_SECONDS,
             headers={"Urgency": "normal"},
+            timeout=PUSH_HTTP_TIMEOUT_SECONDS,
         )
     except web_push_exc as exc:
         code = getattr(getattr(exc, "response", None), "status_code", None)

@@ -432,7 +432,11 @@
       </div>
 
       <!-- Mobile Card View -->
-      {% if erp_mobile_v2_enabled %}
+      {# 광폭 마우스 PC(foms_ptr=fine + foms_vw=wide)에선 이 목록이 d-md-none 으로 꺼지므로 렌더하지
+         않고 표식만 남긴다 — 숨은 채로 프래그먼트의 절반(스테이징 실측 279KB·DOM 3,643개)을 차지해
+         AS 탭 전환이 9탭 중 가장 느렸다(2026-10-01 성능 검사). 창이 좁아지면 erp-shell.js 가 표식을
+         보고 화면을 다시 받는다(판정 feature_flags.wants_mobile_width_surfaces). #}
+      {% if erp_mobile_v2_enabled and mobile_width_surfaces %}
       {% from 'partials/shared/mobile_queue_pager.html' import render_mobile_pager %}
       {% set _as_ctx = [] %}
       {% if as_tab %}{% set _ = _as_ctx.append('tab=' ~ as_tab|urlencode) %}{% endif %}
@@ -442,7 +446,7 @@
       {% if search_q %}{% set _ = _as_ctx.append('q=' ~ search_q|urlencode) %}{% endif %}
       {% if sort_dir %}{% set _ = _as_ctx.append('sort_dir=' ~ sort_dir|urlencode) %}{% endif %}
       {% if erp_mine_only %}{% set _ = _as_ctx.append('mine=1') %}{% endif %}
-      <section class="erp-as-mobile-list foms-shell-body d-md-none">
+      <section class="erp-as-mobile-list foms-shell-body d-md-none" aria-label="AS 모바일 대시보드">
         <div class="erp-as-mobile-list__sticky">
           {% include 'cs/partials/as_mobile_summary.html' %}
         </div>
@@ -463,6 +467,8 @@
           </div>
         {% endif %}
       </section>
+      {% elif erp_mobile_v2_enabled %}
+      {% include 'partials/shared/mobile_surface_omitted_marker.html' %}
       {% else %}
       <div class="erp-pro-order-cards d-md-none">
         {% if rows %}

@@ -235,7 +235,8 @@ def test_as_mobile_sticky_bar_bleed_is_paired_with_list_padding_in_same_file():
     import re
 
     assert re.search(
-        r'<section class="erp-as-mobile-list [^"]*">\s*<div class="erp-as-mobile-list__sticky">',
+        # 뒤에 다른 속성(aria-label — 광폭 PC 생략 계약의 표면 표식)이 붙어도 직계 자식 관계만 본다.
+        r'<section class="erp-as-mobile-list [^"]*"[^>]*>\s*<div class="erp-as-mobile-list__sticky">',
         body_src,
     )
 
