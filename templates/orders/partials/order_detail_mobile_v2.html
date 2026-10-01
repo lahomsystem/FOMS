@@ -91,6 +91,8 @@
 {%- endmacro %}
 
 <div class="foms-detail-page">
+  {# 맨 위 줄 ⚡ 긴급 호출이 이 주문을 미리 고르는 표지(urgent-call.js contextOrder). #}
+  <span hidden data-urgent-context-order-id="{{ order.id }}" data-urgent-context-order-label="{{ ('#' ~ order.id ~ ' ' ~ order.customer_name) if order.customer_name else '' }}"></span>
   <div class="foms-shell-body">
     {# AS 기준 일정 드리프트 — hero 위(상세 최상단). 편집 페이지와 같은 매크로/판정/자산. #}
     {{ render_as_schedule_drift_banner(as_schedule_drift, order.id) }}

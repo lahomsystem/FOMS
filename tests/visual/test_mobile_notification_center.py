@@ -201,72 +201,70 @@ def test_notification_js_pins_urgent_by_ack_not_read() -> None:
 # --- Phase 2: 긴급 호출 진입점 + 대상 picker 시트 + ack --------------------------
 
 
-def test_urgent_call_panel_partial_structure() -> None:
-    """긴급 호출 시트 partial: offcanvas + 대상/사유/전송 훅, 인라인 script/onclick 금지."""
-    panel = (
-        ROOT / "templates/partials/shared/erp_mobile_urgent_call_panel.html"
-    ).read_text(encoding="utf-8")
+def test_urgent_call_partial_structure() -> None:
+    """긴급 호출 공용 창 partial: 모달 + 주문·팀·사람·사유·보내기 훅, 인라인 script/onclick/style 금지."""
+    panel = (ROOT / "templates/partials/shared/urgent_call.html").read_text(encoding="utf-8")
     for token in (
-        'id="erp-mobile-urgent-call-sheet"',
-        "offcanvas offcanvas-bottom",
-        "data-foms-urgent-sheet",
-        "data-foms-urgent-targets",
+        'id="fomsUrgentCallModal"',
+        "modal fade foms-urgent-modal",
+        "data-foms-urgent-order-add",
+        "data-foms-urgent-order-q",
+        'placeholder="이름, 전화, 주소 등 입력"',
+        "data-foms-urgent-teams",
+        "data-foms-urgent-people",
         "data-foms-urgent-message",
         "data-foms-urgent-send",
         'maxlength="500"',
-        'data-bs-dismiss="offcanvas"',
+        'data-bs-dismiss="modal"',
     ):
         assert token in panel, token
     assert "onclick" not in panel
     assert "<script" not in panel
+    assert "style=" not in panel
 
 
 def test_urgent_call_js_is_replay_safe_and_uses_write_helper() -> None:
-    """긴급 호출 JS: singleton 가드 + urgent-targets GET + urgent-mention write helper."""
-    js = (ROOT / "static/js/foms/urgent-call-sheet.js").read_text(encoding="utf-8")
+    """긴급 호출 JS: singleton 가드 + 주문 없는 대상 목록·보내기 + write helper + 통합 검색."""
+    js = (ROOT / "static/js/foms/urgent-call.js").read_text(encoding="utf-8")
     assert "window.__FOMS_URGENT_CALL_BOUND" in js
-    assert "urgent-targets" in js
-    assert "urgent-mention" in js
+    assert "/erp/api/urgent-targets" in js
+    assert "/erp/api/urgent-call" in js
+    order_js = (ROOT / "static/js/foms/urgent-call-order.js").read_text(encoding="utf-8")
+    assert "/api/foms/search?group=all" in order_js and "window.fomsUrgentOrder" in order_js
     assert "FOMSNotificationWrite" in js
-    # 사유 500자 client-side 제한.
     assert "500" in js
-    # 위임 진입점 훅.
+    assert "data-foms-urgent-open" in js
     assert "data-foms-urgent-call" in js
-    assert "data-foms-urgent-target" in js
-    # 외부 CDN fetch 금지 + 에러 처리.
     assert "fetch('http" not in js
     assert 'fetch("http' not in js
     assert ".catch(" in js
-    assert "data.success" in js
 
 
-def test_app_shell_wires_urgent_call_panel_and_deferred_script() -> None:
-    """foms_app_shell 이 긴급 호출 시트 include + defer 스크립트를 로드한다."""
-    shell = (ROOT / "templates/partials/shared/foms_app_shell.html").read_text(
-        encoding="utf-8"
-    )
-    assert "erp_mobile_urgent_call_panel.html" in shell
-    assert "js/foms/urgent-call-sheet.js" in shell
-    for line in shell.splitlines():
-        if "urgent-call-sheet.js" in line:
-            assert "defer" in line, line
-            break
-    else:  # pragma: no cover
-        pytest.fail("urgent-call-sheet.js script tag missing")
+def test_layout_scripts_wires_urgent_call_once_with_deferred_script() -> None:
+    """긴급 호출 창은 layout_scripts.html 이 로그인 시 1회 include + defer 스크립트(앱 셸이 아니라)."""
+    scripts = (ROOT / "templates/partials/shared/layout_scripts.html").read_text(encoding="utf-8")
+    assert scripts.count("partials/shared/urgent_call.html") == 1
+    line = next(l for l in scripts.splitlines() if "js/foms/urgent-call.js" in l)
+    assert "defer" in line
+    # 주문 줄 모듈이 창 JS 보다 먼저 실린다(defer 는 문서 순서대로 실행).
+    assert 0 <= scripts.index("js/foms/urgent-call-order.js") < scripts.index("js/foms/urgent-call.js")
+    shell = (ROOT / "templates/partials/shared/foms_app_shell.html").read_text(encoding="utf-8")
+    assert "urgent-call-sheet.js" not in shell
+    assert "erp_mobile_urgent_call_panel.html" not in shell
 
 
-def test_urgent_call_entry_points_exist_in_order_and_drawing_surfaces() -> None:
-    """긴급 호출 진입점: 주문 상세 카드(모바일) + 도면 workbench 모바일 toolbar."""
-    order_detail_js = (
-        ROOT / "static/js/orders/dashboard/erp-dashboard-detail-dom.js"
-    ).read_text(encoding="utf-8")
-    drawing = (
-        ROOT / "templates/drawing/partials/workbench_mobile_handoff.html"
-    ).read_text(encoding="utf-8")
+def test_urgent_call_entry_points_header_and_drawing_surfaces() -> None:
+    """긴급 호출 진입점: PC·모바일 맨 위 줄 ⚡ + 도면 workbench 모바일 toolbar(주문 문맥).
 
-    # 주문 상세: 모바일 전용(d-lg-none) 긴급 호출 버튼 + order 문맥 (라이브 static JS 아일랜드).
-    assert "data-foms-urgent-call" in order_detail_js
-    assert 'data-order-id="${orderId}"' in order_detail_js
-    # 도면 workbench 모바일 액션바: order.id 문맥.
+    대시보드 주문 상세 '동료 호출' 줄은 지웠다 — 맨 위 줄 ⚡ 가 펼쳐 둔 주문을 미리 고른다.
+    """
+    nav = (ROOT / "templates/partials/shared/layout_nav.html").read_text(encoding="utf-8")
+    header = (ROOT / "templates/partials/shared/erp_mobile_shell_header.html").read_text(encoding="utf-8")
+    assert "data-foms-urgent-open" in nav
+    assert "data-foms-urgent-open" in header and "has-urgent" in header
+    order_detail_js = (ROOT / "static/js/orders/dashboard/erp-dashboard-detail-dom.js").read_text(encoding="utf-8")
+    assert "mention-target-" not in order_detail_js
+    assert "urgent-mention" not in order_detail_js
+    drawing = (ROOT / "templates/drawing/partials/workbench_mobile_handoff.html").read_text(encoding="utf-8")
     assert "data-foms-urgent-call" in drawing
     assert 'data-order-id="{{ order.id }}"' in drawing

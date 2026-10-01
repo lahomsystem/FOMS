@@ -8,6 +8,14 @@
 
             {% if current_user %}
             <div class="d-flex align-items-center gap-3">
+                {# 긴급 호출 ⚡ — 모든 직원(SPEC 2026-10-01). 창은 layout_scripts.html 의 urgent_call.html. #}
+                <div class="position-relative">
+                    <button class="btn btn-link p-0 border-0 position-relative foms-urgent-header-btn" type="button"
+                        data-foms-urgent-open title="긴급 호출" aria-label="긴급 호출" aria-haspopup="dialog"
+                        aria-controls="fomsUrgentCallModal">
+                        <i class="fas fa-bolt fa-2x" aria-hidden="true"></i>
+                    </button>
+                </div>
                 <!-- Global "내 할 일" filter: 시공팀 이외만 표시 (시공팀은 출고/시공 대시보드에서 항상 본인 주문만 표시) -->
                 {% if (current_user.team or '') != 'CONSTRUCTION' %}
                 <div class="position-relative">

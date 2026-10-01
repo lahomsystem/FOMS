@@ -8,11 +8,11 @@
     "log_access"
   ],
   "baselines": {
-    "total": 215,
+    "total": 216,
     "unaudited": 0
   },
   "classification_counts": {
-    "AUDITED": 185,
+    "AUDITED": 186,
     "EXEMPT": 30,
     "UNAUDITED": 0
   },
@@ -968,7 +968,7 @@
     {
       "path": "foms/api/notifications/__init__.py",
       "endpoint": "api_notifications_send",
-      "lineno": 811,
+      "lineno": 834,
       "methods": [
         "POST"
       ],
@@ -977,7 +977,16 @@
     {
       "path": "foms/api/notifications/__init__.py",
       "endpoint": "api_order_urgent_mention",
-      "lineno": 936,
+      "lineno": 1151,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/notifications/__init__.py",
+      "endpoint": "api_urgent_call",
+      "lineno": 1163,
       "methods": [
         "POST"
       ],

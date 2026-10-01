@@ -3,10 +3,9 @@
  *
  * 영업이 이번 회차를 고객에게 이미 보냈으면 서버가 경고 문구를 싣고, 모바일 [전달 취소]는
  * PC 버튼 대신 누르기 대신 #dwCancelWarnMobileModal 을 연다(workbench_mobile_handoff.html).
- *  - [영업에게 먼저 알리기 (긴급 호출)] → 시트를 닫은 뒤 기존 긴급 호출 시트(urgent-call-sheet.js 의
- *    [data-foms-urgent-call] 위임 처리)를 열고 사유 칸을 버튼의 data-urgent-message 로 채운다.
- *    두 창이 겹쳐 초점을 다투지 않게 닫힘을 기다린다. 대상은 사용자가 고른다(모바일 시트에는 팀 미리
- *    고르기가 없다).
+ *  - [영업에게 먼저 알리기 (긴급 호출)] → 시트를 닫은 뒤 공용 긴급 호출 창(urgent-call.js ·
+ *    window.fomsUrgentCall.open)을 이 주문 · 영업팀 · 버튼의 data-urgent-message 사유로 연다.
+ *    두 창이 겹쳐 초점을 다투지 않게 닫힘을 기다린다. 받는 사람은 사용자가 고른다.
  *  - [그래도 취소] → POST /api/orders/<id>/cancel-transfer 한 번(확인창을 다시 띄우지 않는다, 막지 않음 Q4).
  *
  * 화면 조각 교체(erp-shell)로 다시 실행돼도 document 위임은 한 번만 건다(window.__…_BOUND).
@@ -17,7 +16,7 @@
   window.__FOMS_DW_CANCEL_WARN_BOUND = true;
 
   var MODAL_ID = 'dwCancelWarnMobileModal';
-  var MAX_MESSAGE = 500; // urgent-call-sheet.js 와 같은 사유 길이 상한
+  var MAX_MESSAGE = 500; // urgent-call.js 와 같은 사유 길이 상한
 
   function notify(message, tone) {
     if (typeof window.fomsShowToast === 'function') {
@@ -43,27 +42,18 @@
   }
 
   /**
-   * 긴급 호출 시트를 연다 — 위임 처리가 받도록 문서 안에 잠깐 붙인 여는 버튼을 누른다.
-   * 시트는 열 때 사유 칸을 비우므로(urgent-call-sheet.js openSheet) 사유는 연 다음에 채운다.
+   * 공용 긴급 호출 창(urgent-call.js · window.fomsUrgentCall)을 이 주문 · 영업팀 · 미리 쓴 사유로 연다.
    */
   function openUrgentCall(orderId, message) {
-    if (!window.__FOMS_URGENT_CALL_BOUND) {
+    if (!window.fomsUrgentCall || typeof window.fomsUrgentCall.open !== 'function') {
       notify('긴급 호출 창을 열 수 없어요. 화면을 새로고침한 뒤 다시 눌러 주세요.', 'error');
       return;
     }
-    var opener = document.createElement('button');
-    opener.type = 'button';
-    opener.hidden = true;
-    opener.setAttribute('data-foms-urgent-call', '');
-    opener.setAttribute('data-order-id', orderId);
-    document.body.appendChild(opener);
-    try {
-      opener.click();
-    } finally {
-      opener.remove();
-    }
-    var msg = document.querySelector('[data-foms-urgent-message]');
-    if (msg && message) msg.value = String(message).slice(0, MAX_MESSAGE);
+    window.fomsUrgentCall.open({
+      orderId: orderId,
+      team: 'SALES',
+      message: String(message || '').slice(0, MAX_MESSAGE)
+    });
   }
 
   /**

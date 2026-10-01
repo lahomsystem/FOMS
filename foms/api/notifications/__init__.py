@@ -757,15 +757,39 @@ def api_users_list_for_mention():
         return jsonify({"success": False, "message": str(e)}), 500
 
 
+def _urgent_targets_payload(db, user_id):
+    """긴급 호출 후보 목록 — 활성 사용자 전원(자기 자신 제외), 팀 표시순→이름순.
+
+    주문 문맥(``/orders/<id>/urgent-targets``)과 주문 없는 문맥(``/urgent-targets``)이
+    같은 목록을 쓴다. 각 항목에 team_label(팀 라벨, 팀 미등록/미상=기타)을 붙인다.
+    """
+    # 팀 표시순·라벨은 auth 사용자관리와 동일한 TEAMS SSOT 를 따른다.
+    # (지연 import 로 auth↔notifications 순환 의존 회피)
+    from foms.web.auth import TEAMS
+
+    # 활성 사용자 1회 조회(N+1 없음), 자기 자신만 제외하고 등록 인원 전체를 후보로 연다.
+    # 운영 규모상 상한 500 으로 bound(users/list 와 동일 상한).
+    active_users = db.query(User).filter(User.is_active == True).limit(500).all()  # perf-ok: bounded active-user candidate scan
+    targets = [
+        {**_urgent_target_payload(u), "team_label": TEAMS.get(u.team) or "기타"}
+        for u in active_users
+        if u.id != user_id
+    ]
+    # 팀 미등록/미상(=기타)은 TEAMS 뒤로, 같은 팀은 이름순. JS 는 이 순서대로 그룹핑한다.
+    team_index = {code: idx for idx, code in enumerate(TEAMS)}
+    targets.sort(key=lambda t: (
+        team_index.get(t["team"], len(team_index)),
+        str(t["name"] or ""),
+    ))
+    return targets
+
+
 @notifications_bp.route("/orders/<int:order_id>/urgent-targets", methods=["GET"])
 @login_required
 def api_order_urgent_targets(order_id):
-    """주문 문맥형 긴급 호출 후보 목록.
+    """주문 문맥형 긴급 호출 후보 목록(호환 — 새 화면은 ``/urgent-targets``).
 
-    호출자는 주문 관련자이거나 ADMIN/MANAGER 여야 한다(아니면 403 — sender 게이트).
-    후보는 활성 사용자 전원(자기 자신·inactive 제외)이며, 팀 드롭다운 UI 가 등록 인원을
-    팀별로 묶어 노출한다. 정렬은 팀 표시순(auth TEAMS SSOT)→이름순이고, 각 항목에
-    team_label(팀 라벨, 팀 미등록/미상=기타)을 포함한다.
+    호출자는 주문 read scope 여야 한다(아니면 403 — sender 게이트).
     """
     try:
         db = get_db()
@@ -781,27 +805,26 @@ def api_order_urgent_targets(order_id):
         if not _user_can_access_order_urgent(user, order):
             return jsonify({"success": False, "message": "권한이 없습니다."}), 403
 
-        # 팀 표시순·라벨은 auth 사용자관리와 동일한 TEAMS SSOT 를 따른다.
-        # (지연 import 로 auth↔notifications 순환 의존 회피)
-        from foms.web.auth import TEAMS
-
-        # 활성 사용자 1회 조회(N+1 없음), 자기 자신만 제외하고 등록 인원 전체를 후보로 연다.
-        # 운영 규모상 상한 500 으로 bound(users/list 와 동일 상한).
-        active_users = db.query(User).filter(User.is_active == True).limit(500).all()  # perf-ok: bounded active-user candidate scan
-        targets = [
-            {**_urgent_target_payload(u), "team_label": TEAMS.get(u.team) or "기타"}
-            for u in active_users
-            if u.id != user_id
-        ]
-        # 팀 미등록/미상(=기타)은 TEAMS 뒤로, 같은 팀은 이름순. JS 는 이 순서대로 그룹핑한다.
-        team_index = {code: idx for idx, code in enumerate(TEAMS)}
-        targets.sort(key=lambda t: (
-            team_index.get(t["team"], len(team_index)),
-            str(t["name"] or ""),
-        ))
-
-        return jsonify({"success": True, "targets": targets})
+        return jsonify({"success": True, "targets": _urgent_targets_payload(db, user_id)})
     except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@notifications_bp.route("/urgent-targets", methods=["GET"])
+@login_required
+def api_urgent_targets():
+    """주문 없는 긴급 호출 후보 목록 — 맨 위 줄 ⚡ 창(SPEC 2026-10-01 §3.2).
+
+    로그인한 활성 사용자면 누구나 받는다(⚡ 는 모든 직원에게 보인다 — 사용자 결정 2).
+    """
+    try:
+        db = get_db()
+        user = getattr(g, "current_user", None)
+        if not user:
+            return jsonify({"success": False, "message": "사용자 정보를 찾을 수 없습니다."}), 404
+        return jsonify({"success": True, "targets": _urgent_targets_payload(db, session.get("user_id"))})
+    except Exception as e:
+        log_handled_exception()
         return jsonify({"success": False, "message": str(e)}), 500
 
 
@@ -927,73 +950,57 @@ def api_notifications_send():
 
 
 # 긴급 호출 rate: actor+order 당 시간당 상한(URGENT-CALL-01, report line 157).
+# 주문 없는 호출은 제한하지 않는다(사용자 결정 2026-10-01, SPEC §5-1).
 URGENT_MENTION_RATE_PER_HOUR = 5
 
 
-@notifications_bp.route("/orders/<int:order_id>/urgent-mention", methods=["POST"])
-@login_required
-@notification_write_guard
-def api_order_urgent_mention(order_id):
-    """주문 상세에서 특정 동료를 긴급 호출(멘션) — URGENT-CALL-01 canonical.
-
-    Body: ``{ target_user_id: int, message: str(trim 1..500) }``.
+def _send_urgent_call(db, sender, data, order=None):
+    """긴급 호출 한 건을 보낸다 — 주문 문맥·주문 없는 문맥 공용(SPEC 2026-10-01 §3.1).
 
     계약(report line 157):
-      * sender: Order read scope(participant incl VIEWER) — CHANNEL-AUTH-01
-        ``user_can_read_order``. 관련 주문을 조회할 수 있는 VIEWER 도 통과한다.
       * target: active FOMS user(주문 참여자일 필요 없음). 비활성 422·미존재 404.
       * message: trim 후 1..500자(빈 사유·초과는 400).
-      * rate: actor+order 당 5회/시간 초과는 429.
+      * rate: 주문이 있으면 actor+order 당 5회/시간 초과는 429. 주문이 없으면 제한 없음.
       * one transaction: notification + recipient urgent state(child receipt) +
         urgent-call ``NotificationEvent`` + ``source_domain=NOTIFICATION_EVENT``
         domain side-effect row(SIDEFX-00 outbox, 별도 notification worker 재구현 없음)를
         **한 commit** 으로 원자화한다. 중간 실패는 전체 롤백(부분 배달 0).
       * Order 는 mutate 하지 않는다(notification 전용).
+
+    sender 게이트(주문 read scope)는 부르는 쪽(``_urgent_call_response``)이 먼저 검사한다.
+
+    :return: ``(body_dict, http_status)``
     """
-    db = None
+    sender_id = sender.id
+    order_id = order.id if order is not None else None
+
+    target_uid_raw = data.get("target_user_id")
+    if not target_uid_raw:
+        return {"success": False, "message": "호출 대상을 선택해주세요."}, 400
+
     try:
-        db = get_db()
-        sender_id = session.get("user_id")
-        sender = db.query(User).filter(User.id == sender_id).first()
-        if not sender:
-            return jsonify({"success": False, "message": "사용자 정보를 찾을 수 없습니다."}), 404
+        target_uid = int(target_uid_raw)
+    except (TypeError, ValueError):
+        return {"success": False, "message": "올바르지 않은 사용자입니다."}, 400
 
-        order = db.query(Order).filter(Order.id == order_id).first()
-        if not order:
-            return jsonify({"success": False, "message": "주문을 찾을 수 없습니다."}), 404
+    if target_uid == sender_id:
+        return {"success": False, "message": "자기 자신은 호출할 수 없습니다."}, 400
 
-        # sender 게이트: Order read scope(participant incl VIEWER). read scope 밖(비활성/
-        # role 부재)은 403 — 정상 로그인 active 사용자는 전역 read 로 통과한다.
-        if not _user_can_access_order_urgent(sender, order):
-            return jsonify({"success": False, "message": "이 주문의 긴급 호출 권한이 없습니다."}), 403
+    # message: trim 1..500(빈 사유·초과 400).
+    msg = (data.get("message") or "").strip()
+    if not msg:
+        return {"success": False, "message": "호출 사유를 입력해주세요."}, 400
+    if len(msg) > 500:
+        return {"success": False, "message": "메시지는 500자 이내여야 합니다."}, 400
 
-        data = request.get_json(silent=True) or {}
-        target_uid_raw = data.get("target_user_id")
-        if not target_uid_raw:
-            return jsonify({"success": False, "message": "호출 대상을 선택해주세요."}), 400
+    # target: active FOMS user(참여자 제한 없음). 미존재 404·비활성 422.
+    target_user = db.query(User).filter(User.id == target_uid).first()
+    if not target_user:
+        return {"success": False, "message": "대상 사용자를 찾을 수 없습니다."}, 404
+    if not target_user.is_active:
+        return {"success": False, "message": "비활성 사용자에게는 호출할 수 없습니다."}, 422
 
-        try:
-            target_uid = int(target_uid_raw)
-        except (TypeError, ValueError):
-            return jsonify({"success": False, "message": "올바르지 않은 사용자입니다."}), 400
-
-        if target_uid == sender_id:
-            return jsonify({"success": False, "message": "자기 자신은 호출할 수 없습니다."}), 400
-
-        # message: trim 1..500(빈 사유·초과 400).
-        msg = (data.get("message") or "").strip()
-        if not msg:
-            return jsonify({"success": False, "message": "호출 사유를 입력해주세요."}), 400
-        if len(msg) > 500:
-            return jsonify({"success": False, "message": "메시지는 500자 이내여야 합니다."}), 400
-
-        # target: active FOMS user(참여자 제한 없음). 미존재 404·비활성 422.
-        target_user = db.query(User).filter(User.id == target_uid).first()
-        if not target_user:
-            return jsonify({"success": False, "message": "대상 사용자를 찾을 수 없습니다."}), 404
-        if not target_user.is_active:
-            return jsonify({"success": False, "message": "비활성 사용자에게는 호출할 수 없습니다."}), 422
-
+    if order is not None:
         # rate: actor+order 당 5회/시간(같은 sender·order 의 URGENT_MENTION 카운트).
         window_start = now_utc_naive() - dt_mod.timedelta(hours=1)
         recent = (
@@ -1008,62 +1015,64 @@ def api_order_urgent_mention(order_id):
             or 0
         )
         if recent >= URGENT_MENTION_RATE_PER_HOUR:
-            return jsonify({
+            return {
                 "success": False,
                 "message": f"긴급 호출은 주문당 시간당 {URGENT_MENTION_RATE_PER_HOUR}회까지만 보낼 수 있습니다.",
-            }), 429
-
+            }, 429
         customer = order.customer_name or f"#{order_id}"
         title = f"[긴급 멘션] {sender.name}님이 #{order_id} {customer} 주문에서 호출했습니다"
+    else:
+        title = f"[긴급 호출] {sender.name}님이 호출했습니다"
 
-        # --- 한 transaction: notification + child receipt state + created event +
-        #     source_domain=NOTIFICATION_EVENT side-effect row(부분 배달 0). ---
-        notif = Notification(
-            order_id=order_id,
-            notification_type="URGENT_MENTION",
-            target_type="USER",
-            target_user_id=target_uid,
-            is_urgent=True,
-            title=title,
-            message=msg,
-            created_by_user_id=sender_id,
-            created_by_name=str(sender.name or ""),
-            is_read=False,
+    # --- 한 transaction: notification + child receipt state + created event +
+    #     source_domain=NOTIFICATION_EVENT side-effect row(부분 배달 0). ---
+    notif = Notification(
+        order_id=order_id,
+        notification_type="URGENT_MENTION",
+        target_type="USER",
+        target_user_id=target_uid,
+        is_urgent=True,
+        title=title,
+        message=msg,
+        created_by_user_id=sender_id,
+        created_by_name=str(sender.name or ""),
+        is_read=False,
+    )
+    db.add(notif)
+    db.flush()
+    # child receipt: recipient urgent state + 'created' NotificationEvent(같은 tx).
+    fan_out_new_notification(db, notif, actor_user_id=sender_id)
+    # urgent-call NotificationEvent(child receipt 의 created event)를 side-effect 의
+    # one-of source(notification_event_id)로 참조한다.
+    created_event = (
+        db.query(NotificationEvent)
+        .filter(
+            NotificationEvent.notification_id == notif.id,
+            NotificationEvent.recipient_user_id == target_uid,
+            NotificationEvent.event_type == NotificationEventType.CREATED,
         )
-        db.add(notif)
-        db.flush()
-        # child receipt: recipient urgent state + 'created' NotificationEvent(같은 tx).
-        fan_out_new_notification(db, notif, actor_user_id=sender_id)
-        # urgent-call NotificationEvent(child receipt 의 created event)를 side-effect 의
-        # one-of source(notification_event_id)로 참조한다.
-        created_event = (
-            db.query(NotificationEvent)
-            .filter(
-                NotificationEvent.notification_id == notif.id,
-                NotificationEvent.recipient_user_id == target_uid,
-                NotificationEvent.event_type == NotificationEventType.CREATED,
-            )
-            .order_by(NotificationEvent.id.desc())
-            .first()
-        )
-        if created_event is None:
-            # target 을 active 로 검증했으므로 fan-out 은 반드시 state+event 를 만든다.
-            raise RuntimeError("urgent-call recipient receipt was not created")
-        # 배달(urgent push/realtime)을 domain side-effect outbox 에 같은 tx enqueue한다.
-        # 별도 notification outbox/worker 재구현 없이 SIDEFX-00 을 재사용한다.
-        enqueue_side_effect(
-            db,
-            source_domain="NOTIFICATION_EVENT",
-            source_id=created_event.id,
-            effect_type="NOTIFICATION",
-            payload={
-                "notification_id": notif.id,
-                "recipient_user_id": target_uid,
-                "order_id": order_id,
-                "kind": "URGENT_MENTION",
-            },
-            dedupe_key=f"urgent_mention:{notif.id}",
-        )
+        .order_by(NotificationEvent.id.desc())
+        .first()
+    )
+    if created_event is None:
+        # target 을 active 로 검증했으므로 fan-out 은 반드시 state+event 를 만든다.
+        raise RuntimeError("urgent-call recipient receipt was not created")
+    # 배달(urgent push/realtime)을 domain side-effect outbox 에 같은 tx enqueue한다.
+    # 별도 notification outbox/worker 재구현 없이 SIDEFX-00 을 재사용한다.
+    enqueue_side_effect(
+        db,
+        source_domain="NOTIFICATION_EVENT",
+        source_id=created_event.id,
+        effect_type="NOTIFICATION",
+        payload={
+            "notification_id": notif.id,
+            "recipient_user_id": target_uid,
+            "order_id": order_id,
+            "kind": "URGENT_MENTION",
+        },
+        dedupe_key=f"urgent_mention:{notif.id}",
+    )
+    if order is not None:
         log_access(
             describe_order_action(order_id=order_id, action="URGENT_MENTION_SENT",
                                   **order_audit_context(order)),
@@ -1073,26 +1082,59 @@ def api_order_urgent_mention(order_id):
             detail={"target_user_id": int(target_uid), "notification_id": int(notif.id),
                     **order_audit_context(order)},
         )
-        db.commit()  # 원자 커밋: notification+state+event+outbox(부분 배달 0)
+    else:
+        log_access(
+            describe_action("URGENT_MENTION_SENT", target_label=f"{target_user.name}님"),
+            sender_id,
+            auto_commit=False,
+            action="URGENT_MENTION_SENT", target_type="user", target_id=int(target_uid),
+            detail={"target_user_id": int(target_uid), "notification_id": int(notif.id)},
+        )
+    db.commit()  # 원자 커밋: notification+state+event+outbox(부분 배달 0)
 
-        invalidate_badge_cache_for_user_ids([target_uid])
+    invalidate_badge_cache_for_user_ids([target_uid])
 
-        # best-effort 실시간 표시(비내구 — 내구 배달은 위 outbox row 가 담당).
-        from foms.services.notifications.realtime_notifications import emit_erp_notification_to_users
-        payload = {
-            "title": title,
-            "message": msg,
-            "urgent": True,
-            "notification_type": "URGENT_MENTION",
-            "order_id": order_id,
-            "created_by_name": str(sender.name or ""),
-        }
-        emit_erp_notification_to_users([target_uid], payload)
+    # best-effort 실시간 표시(비내구 — 내구 배달은 위 outbox row 가 담당).
+    from foms.services.notifications.realtime_notifications import emit_erp_notification_to_users
+    payload = {
+        "title": title,
+        "message": msg,
+        "urgent": True,
+        "notification_type": "URGENT_MENTION",
+        "order_id": order_id,
+        "created_by_name": str(sender.name or ""),
+    }
+    emit_erp_notification_to_users([target_uid], payload)
 
-        return jsonify({
-            "success": True,
-            "message": f"{target_user.name}님에게 긴급 멘션을 보냈습니다.",
-        })
+    return {"success": True, "message": f"{target_user.name}님에게 긴급 호출을 보냈습니다."}, 200
+
+
+def _urgent_call_response(order_id, *, require_order):
+    """두 라우트 공용 껍데기 — 보낸 사람·주문 조회, sender 게이트, 예외 시 롤백.
+
+    ``order_id`` 가 None 이고 ``require_order`` 가 거짓이면 주문 없는 호출이다.
+    """
+    db = None
+    try:
+        db = get_db()
+        sender_id = session.get("user_id")
+        sender = db.query(User).filter(User.id == sender_id).first()
+        if not sender:
+            return jsonify({"success": False, "message": "사용자 정보를 찾을 수 없습니다."}), 404
+
+        order = None
+        if require_order or order_id is not None:
+            order = db.query(Order).filter(Order.id == order_id).first()
+            if not order:
+                return jsonify({"success": False, "message": "주문을 찾을 수 없습니다."}), 404
+            # sender 게이트: Order read scope(participant incl VIEWER). read scope 밖(비활성/
+            # role 부재)은 403 — 정상 로그인 active 사용자는 전역 read 로 통과한다.
+            if not _user_can_access_order_urgent(sender, order):
+                return jsonify({"success": False, "message": "이 주문의 긴급 호출 권한이 없습니다."}), 403
+
+        data = request.get_json(silent=True) or {}
+        body, status = _send_urgent_call(db, sender, data, order=order)
+        return jsonify(body), status
     except Exception as e:
         log_handled_exception()
         if db is not None:
@@ -1101,6 +1143,39 @@ def api_order_urgent_mention(order_id):
             except Exception:
                 log_handled_exception("notifications rollback")
         return jsonify({"success": False, "message": str(e)}), 500
+
+
+@notifications_bp.route("/orders/<int:order_id>/urgent-mention", methods=["POST"])
+@login_required
+@notification_write_guard
+def api_order_urgent_mention(order_id):
+    """주문 문맥 긴급 호출 — URGENT-CALL-01(호환 — 새 화면은 ``/urgent-call``).
+
+    Body: ``{ target_user_id: int, message: str(trim 1..500) }``. 계약은 ``_send_urgent_call``.
+    sender: Order read scope(participant incl VIEWER) — CHANNEL-AUTH-01 ``user_can_read_order``.
+    """
+    return _urgent_call_response(order_id, require_order=True)
+
+
+@notifications_bp.route("/urgent-call", methods=["POST"])
+@login_required
+@notification_write_guard
+def api_urgent_call():
+    """맨 위 줄 ⚡ 긴급 호출 — 주문은 골라도 되고 안 골라도 된다(SPEC 2026-10-01 §3.2).
+
+    Body: ``{ target_user_id: int, message: str(trim 1..500), order_id?: int }``.
+    order_id 가 있으면 주문 문맥 규칙(read scope 게이트·주문당 5회/시간), 없으면
+    로그인 사용자 누구나·횟수 제한 없음.
+    """
+    data = request.get_json(silent=True) or {}
+    raw = data.get("order_id")
+    order_id = None
+    if raw not in (None, ""):
+        try:
+            order_id = int(raw)
+        except (TypeError, ValueError):
+            return jsonify({"success": False, "message": "올바르지 않은 주문입니다."}), 400
+    return _urgent_call_response(order_id, require_order=False)
 
 
 __all__ = [
@@ -1117,6 +1192,8 @@ __all__ = [
     "api_notifications_delete_all",
     "api_users_list_for_mention",
     "api_order_urgent_targets",
+    "api_urgent_targets",
     "api_notifications_send",
     "api_order_urgent_mention",
+    "api_urgent_call",
 ]

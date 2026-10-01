@@ -362,33 +362,44 @@ fire('click', btn); await flush(); out({ note: note.value, during: statusDuringU
     assert r["href"] == "/erp/drawing-workbench/77?tab=requests"
 
 
-def test_pc_urgent_call_loads_same_endpoints_and_sends_int_target():
+def test_pc_urgent_button_opens_shared_window_with_order_team_message():
+    """PC [긴급 호출]·전달 취소 경고의 '영업에게 먼저 알리기' → 공용 창(window.fomsUrgentCall.open).
+
+    도면 전용 창은 지웠다(SPEC 2026-10-01). 열린 경고 시트가 있으면 닫힌 뒤 연다(창 겹침 금지).
+    """
     driver = r"""
-const m = makeEl({ id: 'dwUrgentCallModal', attrs: { 'data-order-id': '77' } });
-const box = makeEl({}); const msg = makeEl({ id: 'dw-urgent-message' }); const send = makeEl({ disabled: true });
-send._closest['[data-dw-urgent-send]'] = send;
-Object.assign(m._sel, { '[data-dw-urgent-targets]': box, '#dw-urgent-message': msg, '[data-dw-urgent-send]': send,
-  '[data-dw-urgent-error]': makeEl({ cls: ['d-none'] }) });
-const writes = [];
-window.FOMSNotificationWrite = { fetch: async function (url, opts) { writes.push([url, JSON.parse(opts.body)]);
-  return Resp(200, { success: true, message: '보냄' }); } };
-route('/urgent-targets', function () { return Resp(200, { success: true, targets: [
-  { id: 5, name: '영업이', team: 'SALES', team_label: '영업팀', role: 'STAFF' }] }); });
+const opened = [];
+window.fomsUrgentCall = { open: function (o) { opened.push(Object.assign({ hidesBefore: modalOps.length }, o)); return true; } };
 loadSources();
-const opener = makeEl({ attrs: { 'data-order-id': '77', 'data-urgent-message': '확인 부탁' } });
-opener._closest['[data-dw-urgent-call]'] = opener;
-fire('click', opener); await flush();
-const target = makeEl({ attrs: { 'data-dw-urgent-target': '5' } });
-target._closest['[data-dw-urgent-target]'] = target; m._inside.push(target);
-fire('click', target);
-fire('click', send); await flush();
-out({ writes: writes, prefilled: msg.value, rendered: box.children.length });
+const bar = makeEl({ attrs: { 'data-order-id': '77' } });
+bar._closest['[data-dw-urgent-call]'] = bar;
+fire('click', bar);
+const warn = makeEl({ id: 'dwCancelWarnModal', cls: ['modal', 'show'], attrs: { 'data-order-id': '77' } });
+const ping = makeEl({ attrs: { 'data-order-id': '77', 'data-urgent-team': 'SALES', 'data-urgent-message': '확인 부탁' } });
+ping._closest['[data-dw-urgent-call]'] = ping; ping._closest['.modal.show'] = warn;
+fire('click', ping);
+await flush();
+out({ opened: opened });
 """
     r = run_js([URGENT_JS], driver)
-    assert _urls(r) == ["/erp/api/orders/77/urgent-targets"]
-    assert r["writes"] == [["/erp/api/orders/77/urgent-mention", {"target_user_id": 5, "message": "확인 부탁"}]]
-    assert r["prefilled"] == "확인 부탁" and r["rendered"] == 1
-    assert ["show", "dwUrgentCallModal"] in r["modalOps"] and ["hide", "dwUrgentCallModal"] in r["modalOps"]
+    assert r["opened"][0] == {"hidesBefore": 0, "orderId": "77", "team": "", "message": ""}
+    # 경고 시트를 먼저 닫고(hidden.bs.modal) 그 뒤에 연다.
+    assert r["modalOps"] == [["hide", "dwCancelWarnModal"]]
+    assert r["opened"][1] == {"hidesBefore": 1, "orderId": "77", "team": "SALES", "message": "확인 부탁"}
+    assert _urls(r) == []  # 도면 JS 는 더 이상 긴급 호출 API 를 직접 부르지 않는다
+
+
+def test_pc_urgent_pick_selected_state_beats_global_button_css():
+    """고른 상태는 erp-pro.css 의 전용 규칙(!important)으로 그린다 — style-pro-max.css 보다 뒤에 로드된다."""
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    css = (root / "static/css/foundation/erp-pro.css").read_text(encoding="utf-8")
+    assert ".btn.foms-urgent-pick.is-selected {" in css
+    block = css.split(".btn.foms-urgent-pick.is-selected {", 1)[1].split("}", 1)[0]
+    assert "background: #dc3545 !important" in block
+    head = (root / "templates/partials/shared/layout_head.html").read_text(encoding="utf-8")
+    assert head.index("style-pro-max.css") < head.index("foundation/erp-pro.css")
 
 
 def test_cancel_warn_confirm_calls_cancel_once_and_stays():

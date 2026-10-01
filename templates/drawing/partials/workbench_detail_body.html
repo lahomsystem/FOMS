@@ -1,3 +1,5 @@
+{# 맨 위 줄 ⚡ 긴급 호출이 이 주문을 미리 고르는 표지(urgent-call.js contextOrder). #}
+<span hidden data-urgent-context-order-id="{{ order.id }}" data-urgent-context-order-label="{{ ('#' ~ order.id ~ ' ' ~ order.customer_name) if order.customer_name else '' }}"></span>
 {% if erp_mobile_v2_enabled %}
   {% include 'drawing/partials/workbench_mobile_handoff.html' %}
 {% endif %}
@@ -1601,8 +1603,7 @@
               <i class="fas fa-comment-dots"></i> 도면방 PUSH
             </button>
             {% endif %}
-            {# 도면팀 PC 긴급 호출(Q5-①) — 모바일 시트([data-foms-urgent-call])는 모바일 셸 안이라 PC 에서 안 뜬다.
-               PC 창 #dwUrgentCallModal 을 연다(같은 엔드포인트, drawing-urgent-call-pc.js). #}
+            {# 도면팀 PC 긴급 호출(Q5-①) — 공용 긴급 호출 창을 이 주문으로 연다(drawing-urgent-call-pc.js → window.fomsUrgentCall). #}
             {% if 'urgent_call' in cs_bar_keys %}
             <button class="btn btn-outline-danger btn-sm" type="button" data-bar-key="urgent_call"
               data-dw-urgent-call data-order-id="{{ order.id }}">
@@ -3139,7 +3140,7 @@
 <script src="{{ url_for('static', filename='js/foms/drawing-customer-send.js') }}?v=20260929n" defer></script>
 <script src="{{ url_for('static', filename='js/foms/drawing-customer-ok.js') }}?v=20260930b" defer></script>
 <script src="{{ url_for('static', filename='js/foms/drawing-revision-edit.js') }}?v=20260930b" defer></script>
-<script src="{{ url_for('static', filename='js/foms/drawing-urgent-call-pc.js') }}?v=20260929n" defer></script>
+<script src="{{ url_for('static', filename='js/foms/drawing-urgent-call-pc.js') }}?v=20261001b" defer></script>
 {% if erp_mobile_v2_enabled %}
 <script src="{{ url_for('static', filename='js/foms/drawing-handoff.js') }}?v=20260929g" defer></script>
 {% endif %}
