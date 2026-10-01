@@ -2026,6 +2026,10 @@
                 submitGhostRepayExpected(btn);
                 return;
             }
+            if (btn.classList.contains('wb-ghost-repay-settled')) {
+                submitGhostRepaySettled(btn);
+                return;
+            }
 
             // 후보 버튼은 후보 수만큼 나온다 — id 를 달면 문서에 중복이 생긴다(절대 규칙 1).
             // R-3 부터 이 버튼은 바로 붙이지 않고 **정리 계획 카드**를 연다.

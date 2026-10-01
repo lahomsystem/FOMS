@@ -151,4 +151,4 @@ def test_to_top_button_is_wired_hidden_by_default_and_desktop_never_shows_it():
     shown = _rule(_tail(), "    .wb-totop:not([hidden])")
     assert "position: fixed;" in shown and "width: 48px;" in shown and "height: 48px;" in shown
     assert "    body.wb-detail-open .wb-totop { display: none; }" in phone
-    assert page.count("?v=20261001a") == 2 and "?v=20260930d" not in page
+    assert page.count("?v=20261001b") == 2 and "?v=20260930d" not in page
