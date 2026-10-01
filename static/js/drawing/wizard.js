@@ -39,7 +39,9 @@
   var MAX_ASSET_BYTES = 10 * 1024 * 1024;
   var STAGE_W = 1478;
   var STAGE_H = 1040;
-  var ALLOWED_SIZES = [14, 17, 20, 24, 28];
+  var ALLOWED_SIZES = [14, 17, 20, 24, 28, 32, 36, 40];
+  // 이 컴퓨터에서 마지막으로 고른 글자 크기 — 새 텍스트의 기본값(브라우저마다 따로 저장).
+  var TEXT_SIZE_STORAGE_KEY = 'foms.drawingWizard.textSize';
   var ALLOWED_STROKES = [1, 2, 3];
   var SHAPE_TYPES = ['rect', 'ellipse', 'arrow', 'line'];
   /* 프리핸드 펜(손그림) — 팔레트 굵기 후보 + 허용 범위, 스트로크 좌표 상한(백엔드 _PEN_MAX_POINTS 정합). */
@@ -128,6 +130,13 @@
 
   /* 주석 필드 정규화 헬퍼(직렬화·역직렬화·노드 생성 공용) */
   function sizeOrDefault(s) { return (ALLOWED_SIZES.indexOf(s) >= 0) ? s : 20; }
+  function loadPreferredTextSize() {
+    try { return sizeOrDefault(parseInt(window.localStorage.getItem(TEXT_SIZE_STORAGE_KEY), 10)); } catch (e) { return 20; }
+  }
+  function savePreferredTextSize(size) {
+    if (ALLOWED_SIZES.indexOf(size) < 0) { return; }
+    try { window.localStorage.setItem(TEXT_SIZE_STORAGE_KEY, String(size)); } catch (e) { /* 저장 불가 브라우저는 무시 */ }
+  }
   function colorOrDefault(c) { return /^#[0-9a-fA-F]{6}$/.test(c) ? c : '#000000'; }
   function strokeOrDefault(s) { return (ALLOWED_STROKES.indexOf(s) >= 0) ? s : 2; }
   function clampCoord(v) { return clamp(Math.round(num(v)), -2000, 4000); }
@@ -1563,7 +1572,7 @@
     var n = currentSheet().objects.length;
     var o = {
       id: rid('o-'), type: 'text', x: 340 + (n % 3) * 30, y: 95 + (n % 6) * 46, w: 1,
-      text: text, size: 20, color: '#000000', bold: false, align: 'left', rotation: 0, autoWidth: true
+      text: text, size: loadPreferredTextSize(), color: '#000000', bold: false, align: 'left', rotation: 0, autoWidth: true
     };
     currentSheet().objects.push(o);
     markDirty();
@@ -2064,7 +2073,7 @@
     recordUndo();
     var o = {
       id: rid('o-'), type: 'text', x: Math.round(x), y: Math.round(y), w: 1,
-      text: '', size: 20, color: '#000000', bold: false, align: 'left', rotation: 0, autoWidth: true
+      text: '', size: loadPreferredTextSize(), color: '#000000', bold: false, align: 'left', rotation: 0, autoWidth: true
     };
     currentSheet().objects.push(o);
     markDirty();
@@ -2080,7 +2089,7 @@
     var n = currentSheet().objects.length;
     var o = {
       id: rid('o-'), type: 'text', x: 340 + (n % 3) * 30, y: 95 + (n % 6) * 46, w: 1,
-      text: String(text || ''), size: 20, color: '#000000', bold: !!bold, align: 'left', rotation: 0, autoWidth: true
+      text: String(text || ''), size: loadPreferredTextSize(), color: '#000000', bold: !!bold, align: 'left', rotation: 0, autoWidth: true
     };
     currentSheet().objects.push(o);
     markDirty();
@@ -4307,6 +4316,7 @@
     });
     els.mtSize.addEventListener('change', function () {
       var size = parseInt(els.mtSize.value, 10);
+      savePreferredTextSize(size);
       if (editCtx) { setEditFontSize(size); } else { updateSelectedText({ size: size }); }
     });
     Array.prototype.forEach.call(els.mtText.querySelectorAll('.dws-swatch'), function (sw) {
