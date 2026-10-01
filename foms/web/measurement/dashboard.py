@@ -8,9 +8,11 @@ from models import Order, OrderScheduleDate
 from foms.web.auth import login_required
 import datetime
 import logging
+import time
 from datetime import date, timedelta
 from sqlalchemy import String, cast, or_, and_, func
 
+from foms.services.common.ept_b7_profile import apply_ept_b7_render_headers, phase
 from foms.services.common.erp_mine_filter import erp_mine_only_from_request
 from foms.services.measurement.drawing_transfer_cta import build_drawing_transfer_ctas
 from foms.services.orders.complete_path_policy import build_complete_ctas
@@ -48,6 +50,7 @@ from foms.services.common.dashboard_cache import (
     TTL_PANEL_ROWS,
     TTL_PAYLOAD_ASSEMBLY,
     build_dashboard_cache_key,
+    format_slice_observations,
     get_or_compute_dashboard_slice,
 )
 from foms.services.common.erp_shell_http import (
@@ -276,16 +279,17 @@ def erp_measurement_dashboard():
 
     # Batch 3: panel assembly compute는 compute_measurement_panel_assembly(read-model)로 분리(동작 보존).
     # cache 키(_panel_key)·fingerprint(_panel_fp)·get_or_compute는 라우트가 유지 → cache hit/miss 불변.
-    _panel_blob = get_or_compute_dashboard_slice(
-        _panel_key,
-        TTL_PANEL_ROWS,
-        lambda: compute_measurement_panel_assembly(
-            base_query, current_user, mine_filter_active, '',
-            range_start, range_end, range_start_str, range_end_str,
-        ),
-        page="measurement",
-        slice_name="measurement_panel_assembly",
-    )
+    with phase("panel"):
+        _panel_blob = get_or_compute_dashboard_slice(
+            _panel_key,
+            TTL_PANEL_ROWS,
+            lambda: compute_measurement_panel_assembly(
+                base_query, current_user, mine_filter_active, '',
+                range_start, range_end, range_start_str, range_end_str,
+            ),
+            page="measurement",
+            slice_name="measurement_panel_assembly",
+        )
     # 캐시 값은 여러 요청이 나눠 쓴다 — 고쳐 쓰지 말고 새 dict 로 선택 표시를 입힌다.
     measurement_panel_dates = [
         {**item, "is_selected": item.get("date") == selected_date}
@@ -308,38 +312,40 @@ def erp_measurement_dashboard():
         "focus_order": focus_order_id,
     }
     _main_key = build_dashboard_cache_key("measurement", "main_rows", _main_fp)
-    _main_blob = get_or_compute_dashboard_slice(
-        _main_key,
-        TTL_PANEL_ROWS,
-        lambda: compute_measurement_main_rows_blob(
-            db,
-            list_base_query,
-            list_query,
-            current_user,
-            mine_filter_active,
-            selected_date,
-            use_range,
-            use_single_day,
-            date_from,
-            date_to,
-            focus_order_id,
-        ),
-        page="measurement",
-        slice_name="main_rows",
-    )
+    with phase("main_rows"):
+        _main_blob = get_or_compute_dashboard_slice(
+            _main_key,
+            TTL_PANEL_ROWS,
+            lambda: compute_measurement_main_rows_blob(
+                db,
+                list_base_query,
+                list_query,
+                current_user,
+                mine_filter_active,
+                selected_date,
+                use_range,
+                use_single_day,
+                date_from,
+                date_to,
+                focus_order_id,
+            ),
+            page="measurement",
+            slice_name="main_rows",
+        )
     # 표시 상한(300) 발동 여부 — 캐시 blob 이 상한 적용 전 모집단을 들고 있다.
     # 조용한 축소 금지: 잘렸으면 화면에 그 사실을 남긴다(생산 칸반과 같은 규율).
     main_rows_total = int(_main_blob.get("total_count") or 0)
     main_rows_truncated = main_rows_total > MEASUREMENT_MAIN_DISPLAY_CAP
-    rows, row_fallback_added_ids = hydrate_measurement_main_rows(
-        list_base_query,
-        _main_blob,
-        selected_date=selected_date,
-        use_range=use_range,
-        use_single_day=use_single_day,
-        date_from=date_from,
-        date_to=date_to,
-    )
+    with phase("hydrate"):
+        rows, row_fallback_added_ids = hydrate_measurement_main_rows(
+            list_base_query,
+            _main_blob,
+            selected_date=selected_date,
+            use_range=use_range,
+            use_single_day=use_single_day,
+            date_from=date_from,
+            date_to=date_to,
+        )
 
     # 판매채널 출처 마크(A안). 판정 축은 출처 하나 - structured_data['source'].
     # hydrate 가 이미 structured_data 를 dict 로 만들어 실어 놨다 -> 추가 쿼리 0.
@@ -447,9 +453,10 @@ def erp_measurement_dashboard():
 
     # 동행 전달(스펙 §6.2): AS 영업/택배 전달 건 -> 기준 실측 주문 역방향 맵을 **1회** 읽어
     # 렌더되는 행에 그대로 붙인다. 캐시 슬라이스 키(_panel_fp/_main_fp)에는 넣지 않는다.
-    _sales_delivery_map = build_sales_delivery_by_ref(
-        db, cap=MEASUREMENT_SALES_DELIVERY_CAP
-    )
+    with phase("sales_delivery"):
+        _sales_delivery_map = build_sales_delivery_by_ref(
+            db, cap=MEASUREMENT_SALES_DELIVERY_CAP
+        )
     _sales_delivery_by_ref = _sales_delivery_map["by_ref"]
     for o in rows:
         o.sales_delivery_items = _sales_delivery_by_ref.get(o.id, [])
@@ -559,6 +566,10 @@ def erp_measurement_dashboard():
         if wants_erp_shell_tab_body(request)
         else 'measurement/dashboard.html'
     )
+    # render_template 인자로 바로 부르면 그 시간이 템플릿 구간에 섞인다(인자 선평가) — 먼저 잰다.
+    with phase("naver_preview"):
+        _bulk_dispatch = _naver_dispatch_preview(selected_date, today_date)
+    _t0 = time.perf_counter()
     response = make_response(
         render_template(
             template_name,
@@ -589,10 +600,20 @@ def erp_measurement_dashboard():
             # 체크 버튼 활성 = 체크 API 와 같은 정책(ERP_EDIT). can_edit_erp 와 규칙이 달라 따로 넘긴다.
             can_mark_measurement_visit=evaluate_policy(POLICY_REGISTRY['ERP_EDIT'], current_user).allowed,
             erp_mine_only=mine_filter_active,
-            bulk_dispatch=_naver_dispatch_preview(selected_date, today_date),
+            bulk_dispatch=_bulk_dispatch,
             naver_bulk_dispatch_enabled=is_naver_bulk_dispatch_enabled(),
         )
     )
+    # 이 라우트는 계측이 없어 운영 실사용 1위(p95 2.2초)인데도 어느 구간이 큰지 갈라 볼 수 없었다
+    # (2026-10-01 전체 성능 검사). 대시보드·시공과 같은 헤더로 나란히 읽힌다.
+    apply_ept_b7_render_headers(
+        response,
+        route_id="erp_measurement_dashboard",
+        render_ms=(time.perf_counter() - _t0) * 1000,
+    )
+    _slice_obs = format_slice_observations()
+    if _slice_obs:
+        response.headers["X-FOMS-DASH-SLICES"] = _slice_obs
     apply_erp_shell_fragment_headers(response, request)
     return response
 

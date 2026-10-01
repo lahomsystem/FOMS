@@ -81,3 +81,17 @@ def test_two_dates_share_one_panel_compute_and_mark_their_own_chip(client, monke
     # 공유 캐시 값은 그대로다(요청마다 새 dict 로 선택을 입힌다).
     blob = next(v for k, v in store.items() if k == panel_computes[0])
     assert not any(item.get("is_selected") for item in blob["panel_summary_stat_cards"])
+
+
+def test_measurement_route_reports_server_phases(client):
+    """실측 화면은 운영 실사용 1위인데 계측이 없어 구간을 갈라 볼 수 없었다 — 이제 헤더로 남긴다."""
+    _login(client)
+
+    response = client.get("/erp/measurement")
+
+    assert response.status_code == 200
+    assert response.headers.get("X-FOMS-EPT-B7-ROUTE") == "erp_measurement_dashboard"
+    assert float(response.headers["X-FOMS-EPT-B7-RENDER-MS"]) >= 0
+    phases = response.headers.get("X-FOMS-EPT-B7-PHASES", "")
+    for name in ("panel", "main_rows", "hydrate", "sales_delivery", "naver_preview"):
+        assert f"{name}=" in phases, f"{name} 구간이 없다: {phases!r}"
