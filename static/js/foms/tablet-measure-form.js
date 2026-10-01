@@ -658,13 +658,17 @@
   //: 라홈시스템·지방주문 확인 문구 (ORDER-FLAG-01).
   var ORDER_FLAG_LABELS = { regional: "지방 주문", factory2: "라홈시스템(2공장)" };
 
-  function orderFlagsEditable() {
-    return !state || state.canToggleFlags !== false;
+  function orderFlagsEditable(field) {
+    if (!state) return true;
+    // 라홈시스템은 영업도 바꾼다 — 지방주문과 판정이 다르다(2026-10-01).
+    if (field === "factory2") return state.canToggleFactory2 !== false;
+    return state.canToggleFlags !== false;
   }
 
   function orderFlagLock(field) {
-    if (orderFlagsEditable()) return {};
-    return { disabled: true, title: "라홈팀(CS)·관리자만 변경할 수 있습니다." };
+    if (orderFlagsEditable(field)) return {};
+    var who = field === "factory2" ? "라홈팀(CS)·영업팀·관리자" : "라홈팀(CS)·관리자";
+    return { disabled: true, title: who + "만 변경할 수 있습니다." };
   }
 
   function confirmOrderFlagToggle(field, input) {
@@ -2306,6 +2310,7 @@
           // ORDER-FLAG-01: 서버 판정을 그대로 쓴다. 값이 없는 옛 응답은 허용으로 본다 —
           // 진짜 게이트는 서버이고, 여기서 잠그면 정상 사용자가 막힌다.
           canToggleFlags: data.can_toggle_order_flags !== false,
+          canToggleFactory2: data.can_toggle_factory2_flag !== false,
           topBaseline: topBase,
           top: {
             received_date: topBase.received_date,

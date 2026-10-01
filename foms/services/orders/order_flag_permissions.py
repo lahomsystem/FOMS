@@ -2,7 +2,8 @@
 
 두 값은 업무 축을 가른다 — ``structured_data['flags']['factory2']`` 는 견적서 공급자와
 입금 계좌를, ``Order.is_regional`` 은 지방 대시보드·지도·체크리스트의 모집단을 정한다.
-그래서 접수를 맡는 CS(라홈팀/하우드팀)와 관리자만 켜고 끈다.
+그래서 접수를 맡는 CS(라홈팀/하우드팀)와 관리자만 켜고 끈다. 라홈시스템은 2026-10-01
+결정으로 영업팀(SALES)도 켜고 끈다(``can_toggle_factory2_flag``).
 
 **거부(403)가 아니라 무시(기존값 유지)** 로 강제한다. 전체 저장 PUT 은 사용자가 저장을
 누를 때만 발화하지 않는다 — 견적 미리보기·알림톡 발송도 같은 PUT 을 태운다. 403 으로
@@ -20,6 +21,8 @@ from foms.services.orders.order_mutation_policy import team_has_capability
 __all__ = [
     "ORDER_FLAG_ALLOWED_ROLES",
     "ORDER_FLAG_ALLOWED_TEAMS",
+    "FACTORY2_FLAG_ALLOWED_TEAMS",
+    "can_toggle_factory2_flag",
     "can_toggle_order_flags",
 ]
 
@@ -28,6 +31,9 @@ ORDER_FLAG_ALLOWED_ROLES = frozenset({"ADMIN"})
 
 #: 팀으로 통과하는 집합. ``CS`` = 라홈팀/하우드팀 (foms/web/auth/routes.py ``TEAMS``).
 ORDER_FLAG_ALLOWED_TEAMS = frozenset({"CS"})
+
+#: 라홈시스템(2공장)만 넓힌 집합. 영업이 견적 공급자·계좌를 직접 고른다(2026-10-01).
+FACTORY2_FLAG_ALLOWED_TEAMS = frozenset({"CS", "SALES"})
 
 
 def can_toggle_order_flags(user: Any) -> bool:
@@ -47,3 +53,19 @@ def can_toggle_order_flags(user: Any) -> bool:
     if role in ORDER_FLAG_ALLOWED_ROLES:
         return True
     return team_has_capability(getattr(user, "team", None), ORDER_FLAG_ALLOWED_TEAMS)
+
+
+def can_toggle_factory2_flag(user: Any) -> bool:
+    """기존 주문의 라홈시스템(2공장) 체크박스를 바꿀 수 있는지 판정한다.
+
+    :param user: 현재 사용자(``role``·``team`` 속성). ``None`` 이면 거부.
+    :return: 관리자(ADMIN)이거나 CS·영업(SALES) 소속이면 ``True``.
+    """
+    if not user:
+        return False
+    role = (getattr(user, "role", None) or "").strip().upper()
+    if role == "VIEWER":
+        return False
+    if role in ORDER_FLAG_ALLOWED_ROLES:
+        return True
+    return team_has_capability(getattr(user, "team", None), FACTORY2_FLAG_ALLOWED_TEAMS)
