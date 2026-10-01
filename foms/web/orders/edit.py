@@ -23,7 +23,7 @@ from foms.web.auth import login_required, role_required, log_access, get_user_by
 from foms.services.erp_permissions import can_edit_erp
 from foms.services.erp_display import _ensure_dict
 from foms.services.erp_order_flags import is_erp_order_record
-from foms.services.erp_sync_columns import sync_erp_flat_columns
+from foms.services.erp_sync_columns import sync_as_axis_column, sync_erp_flat_columns
 from db import get_db
 from models import Order
 from foms.services.audit_message_display import FIELD_LABELS as AUDIT_FIELD_LABELS
@@ -491,6 +491,11 @@ def edit_order(order_id):
                     sync_erp_flat_columns(order, sd)
                     # 원장에는 전량을 싣는다(상한은 화면용 detail 에만 거는 값이다).
                     sd_ledger_changes = diff_structured(audit_old_sd, sd, max_changes=-1).changes
+            else:
+                # AS 축은 ERP 여부와 직교한다(AS-AXIS-01). 위 게이트 안에서만 동기화하던 동안
+                # 비ERP 주문을 이 폼으로 'AS접수' 로 바꾸면 status 만 바뀌고 투영 컬럼은 NULL 로
+                # 남아 AS 대시보드에서 빠졌다(2026-09-08 운영 #846 — drift-audit-daily 매일 red).
+                sync_as_axis_column(order, _sd if isinstance(_sd, dict) else {})
             if site_address_jsonb_changed and 'address' not in changes:
                 clear_order_geocode_coords(order)
             # AUDIT-GAP-01: 체크리스트 6종은 changes dict 에 안 담기고 setattr 만 된다 —
