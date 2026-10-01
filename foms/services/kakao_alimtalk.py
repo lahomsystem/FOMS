@@ -897,6 +897,10 @@ ALIMTALK_CHANNEL_PROBE_DELAY_SEC = 60
 #: 벤더 조회 결과 ``type`` 이 이 집합이면 카톡이 실패해 문자로 대체발송된 것이다.
 _TEXT_CHANNELS = frozenset({"SMS", "LMS", "MMS"})
 
+#: Solapi 그룹 id 접두(메시지 id 는 ``M4V``). 이력의 ``message_id`` 칸에 그룹 id 가 들어 있으면
+#: 조회도 그룹 기준으로 해야 한다.
+_SOLAPI_GROUP_ID_PREFIX = "G4V"
+
 
 def _solapi_lookup_channel(message_id: str) -> str | None:
     """벤더에 메시지 1건을 조회해 실제 나간 채널(``type``)을 돌려준다.
@@ -905,7 +909,8 @@ def _solapi_lookup_channel(message_id: str) -> str | None:
     (:func:`_solapi_send` 선례).
 
     Args:
-        message_id: 발송 시 받은 벤더 message id.
+        message_id: 발송 시 저장한 벤더 id. 발송 응답에 메시지 목록이 없으면
+            ``_solapi_send`` 가 그룹 id(``G4V…``)를 대신 남기므로 둘 다 올 수 있다.
 
     Returns:
         ``'ATA'``(카톡) · ``'SMS'``/``'LMS'``(문자 대체발송) 등 벤더 type. 벤더가 그
@@ -915,7 +920,13 @@ def _solapi_lookup_channel(message_id: str) -> str | None:
     from solapi.model.request.messages.get_messages import GetMessagesRequest
 
     service = SolapiMessageService(_env("SOLAPI_API_KEY"), _env("SOLAPI_API_SECRET"))
-    response = service.get_messages(GetMessagesRequest(message_id=message_id))
+    # 그룹 id 를 messageId 로 물으면 벤더가 ValidationError 로 거절한다(2026-08-19~10-01
+    # 운영 164건 전부 실패). 측정 알림톡은 그룹당 수신자 1명이라 그룹 조회 = 그 1건이다.
+    if message_id.startswith(_SOLAPI_GROUP_ID_PREFIX):
+        request = GetMessagesRequest(group_id=message_id)
+    else:
+        request = GetMessagesRequest(message_id=message_id)
+    response = service.get_messages(request)
     for item in (getattr(response, "message_list", None) or {}).values():
         kind = getattr(item, "type", None)
         if kind:
