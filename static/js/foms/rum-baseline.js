@@ -44,17 +44,31 @@
       }).observe({ type: 'largest-contentful-paint', buffered: true });
     } catch (e) { /* unsupported */ }
 
+    // INP 는 화면 하나에서 가장 느린 상호작용 1건이다. 이벤트 항목마다 보내면 글자 입력 한
+    // 번에 keydown·keyup·input 이 각각 나가 운영 web 요청의 40% 를 차지했고 서버 한도(429)에
+    // 걸렸다(2026-10-01 실측). 최댓값만 들고 있다가 화면을 떠날 때·탭 전환 때 한 번 보낸다.
+    var worstInp = null;
+    function flushInp() {
+      if (!worstInp) { return; }
+      var payload = worstInp;
+      worstInp = null;
+      sendMetric(payload);
+    }
     try {
       new PerformanceObserver(function (list) {
         list.getEntries().forEach(function (entry) {
-          if (entry.interactionId) {
-            sendMetric(Object.assign(basePayload(), {
-              metric: 'INP',
-              value: Math.round(entry.duration),
-            }));
-          }
+          if (!entry.interactionId) { return; }
+          var value = Math.round(entry.duration);
+          if (worstInp && worstInp.value >= value) { return; }
+          worstInp = Object.assign(basePayload(), { metric: 'INP', value: value });
         });
       }).observe({ type: 'event', buffered: true, durationThreshold: 40 });
+      document.addEventListener('visibilitychange', function () {
+        if (document.visibilityState === 'hidden') { flushInp(); }
+      });
+      window.addEventListener('pagehide', flushInp);
+      // ERP 셸은 새로고침 없이 화면을 갈아 끼운다 — 앞 화면 몫을 그 화면 경로로 마감한다.
+      document.addEventListener('foms:erp-shell-fragment-swapped', flushInp);
     } catch (e) { /* unsupported */ }
   }
 
