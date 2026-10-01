@@ -116,4 +116,11 @@
   } else {
     init();
   }
+
+  // ERP 셸에서는 문서당 한 번만 실행된다(erp-shell.js data-foms-run-once). 탭 스왑으로 들어온
+  // 새 검색 입력칸에는 이 이벤트에서 마이크를 붙인다(attachMic 은 같은 칸에 두 번 붙이지 않는다).
+  if (!window.__FOMS_VOICE_INPUT_SWAP_BOUND) {
+    window.__FOMS_VOICE_INPUT_SWAP_BOUND = true;
+    document.addEventListener("foms:main-content-swapped", init);
+  }
 })();

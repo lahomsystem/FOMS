@@ -309,10 +309,63 @@
     });
   }
 
+  /**
+   * 셸 공용 스크립트(data-foms-run-once)는 문서당 한 번만 실행한다.
+   * 9탭 조각마다 셸 머리·하단 탭·검색이 함께 들어 있어, 예전엔 탭을 바꿀 때마다 공용 스크립트
+   * 19개(약 200KB)와 인라인 1개를 다시 실행했다. Alpine·htmx 는 다시 실행될 때마다 새 인스턴스를
+   * 띄우고 옛 인스턴스의 문서 관찰자·리스너를 남긴다(2026-10-01 성능 검사 P2-3).
+   * 이미 실행된 것은 건너뛰고, 새 DOM 연결은 각 스크립트의 foms:main-content-swapped 리스너·
+   * processHtmxIn·Alpine 문서 관찰자가 맡는다.
+   * 키: 외부 = 절대 src(?v= 포함 — 배포로 핀이 바뀌면 새 파일로 보고 한 번 실행),
+   *     인라인 = 'inline:' + 속성 값.
+   */
+  var RUN_ONCE_ATTR = 'data-foms-run-once';
+  /** @type {Object<string, boolean>|null} 첫 스왑 직전에 만든다. */
+  var executedScriptKeys = null;
+
+  function runOnceScriptKey(el) {
+    if (el.src) {
+      return el.src;
+    }
+    var tag = el.getAttribute(RUN_ONCE_ATTR);
+    return tag ? 'inline:' + tag : '';
+  }
+
+  /** 첫 스왑 직전 한 번: 지금 문서에 있는(파서가 이미 실행했거나 곧 실행할) 스크립트를 등록한다. */
+  function ensureExecutedScriptRegistry() {
+    if (executedScriptKeys) {
+      return;
+    }
+    executedScriptKeys = Object.create(null);
+    document.querySelectorAll('script[src], script[' + RUN_ONCE_ATTR + ']').forEach(function (el) {
+      var key = runOnceScriptKey(el);
+      if (key) {
+        executedScriptKeys[key] = true;
+      }
+    });
+  }
+
   function activateScripts(container) {
     var nodes = container.querySelectorAll('script');
     nodes.forEach(function (old) {
+      var runOnceKey = old.hasAttribute(RUN_ONCE_ATTR) ? runOnceScriptKey(old) : '';
+      if (runOnceKey && executedScriptKeys && executedScriptKeys[runOnceKey]) {
+        // innerHTML 로 들어온 <script> 는 실행되지 않는 빈 껍데기라 그대로 두어도 된다.
+        return;
+      }
       var s = document.createElement('script');
+      if (runOnceKey) {
+        s.setAttribute(RUN_ONCE_ATTR, old.getAttribute(RUN_ONCE_ATTR));
+        if (executedScriptKeys) {
+          executedScriptKeys[runOnceKey] = true;
+          if (old.src) {
+            // 받기 실패면 등록을 지워 다음 스왑에서 다시 시도한다.
+            s.addEventListener('error', function () {
+              delete executedScriptKeys[runOnceKey];
+            });
+          }
+        }
+      }
       if (old.id) {
         s.id = old.id;
       }
@@ -404,6 +457,60 @@
   }
 
   /**
+   * 바꿔 끼울 영역 안 요소에 붙은 Bootstrap 인스턴스를 열림 여부와 무관하게 모두 정리한다.
+   * Bootstrap 은 인스턴스를 전역 Map(요소 → 인스턴스)에 강하게 쥔다. 정리하지 않으면 요소가 문서에서
+   * 빠진 뒤에도 Map 이 그 요소를, 요소는 부모 사슬로 옛 화면 DOM 통째를 붙잡는다.
+   * 실측(2026-10-02 힙 스냅샷): 셸 메뉴 서랍(#erp-mobile-menu-drawer — erp-mobile-shell.js 가 스왑마다
+   * Offcanvas.getOrCreateInstance)이 탭을 바꿀 때마다 옛 화면 하나씩을 붙잡았다. 완료 탭은 사진 목록이
+   * 커서 가장 크게 보였을 뿐 같은 경로다.
+   */
+  var BOOTSTRAP_DISPOSE_SELECTOR =
+    '.modal, .offcanvas, .collapse, .collapsing, .toast, [data-bs-toggle="dropdown"], [data-bs-original-title]';
+  var BOOTSTRAP_DISPOSE_COMPONENTS = ['Modal', 'Offcanvas', 'Collapse', 'Toast', 'Dropdown', 'Tooltip', 'Popover'];
+
+  function disposeBootstrapInstances(container) {
+    var bs = window.bootstrap;
+    if (!container || !bs) {
+      return;
+    }
+    var ctors = BOOTSTRAP_DISPOSE_COMPONENTS.map(function (name) {
+      return bs[name];
+    }).filter(function (Ctor) {
+      return Ctor && typeof Ctor.getInstance === 'function';
+    });
+    container.querySelectorAll(BOOTSTRAP_DISPOSE_SELECTOR).forEach(function (el) {
+      ctors.forEach(function (Ctor) {
+        var instance = Ctor.getInstance(el);
+        if (!instance) {
+          return;
+        }
+        try {
+          instance.dispose();
+        } catch (e) {
+          /* ignore */
+        }
+      });
+    });
+  }
+
+  /**
+   * 새 조각의 hx-* 속성(통합 검색 입력칸 hx-get 등)을 htmx 에 연결한다. 예전엔 htmx.min.js 가
+   * 스왑마다 다시 실행되며 body 전체를 다시 훑었다 — 이제 한 번만 실행하므로 여기서 새 영역만 연결한다.
+   * htmx 가 아직 없으면(셸 스크립트 첫 실행 중) htmx 자신의 시작 처리가 body 를 훑는다.
+   */
+  function processHtmxIn(container) {
+    var htmx = window.htmx;
+    if (!container || !htmx || typeof htmx.process !== 'function') {
+      return;
+    }
+    try {
+      htmx.process(container);
+    } catch (e) {
+      console.warn('[erp-shell] htmx.process 실패:', e);
+    }
+  }
+
+  /**
    * 지금 #main-content 에 그려진 화면의 캐시 키. 겹층 기록(fomsShellKeep) 건너뛰기는 이 키가 지금 주소와
    * 같을 때만 한다 — 다른 화면으로 갔다가 뒤로 와서 그 기록에 닿으면 다시 그려야 하기 때문이다.
    * 화면 안에서 replaceState 로 주소만 바꾸는 쪽(실측 탭 ?mgr=)은 syncRenderedUrl() 로 알린다.
@@ -424,11 +531,15 @@
       return false;
     }
     teardownOpenOverlays(main);
+    disposeBootstrapInstances(main);
+    // innerHTML 이 옛 셸 <script> 를 지우기 전에 등록해야 첫 스왑에서도 건너뛸 수 있다.
+    ensureExecutedScriptRegistry();
     main.innerHTML = html;
     if (typeof swapUrl === 'string' && swapUrl) {
       lastRenderedKey = getCacheKey(swapUrl);
     }
     activateScripts(main);
+    processHtmxIn(main);
     if (typeof swapUrl === 'string' && swapUrl) {
       finishErpShellFragmentSwap(swapUrl);
     }

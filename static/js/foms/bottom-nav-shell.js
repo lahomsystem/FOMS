@@ -219,6 +219,8 @@
   function onFragmentSwapped(ev) {
     var shell = document.querySelector("[data-erp-mobile-shell]");
     if (!shell) return;
+    // 하단 탭은 셸 조각 안에 있어 스왑마다 새로 들어온다 — 누름 반응도 새 탭 막대에 다시 단다.
+    initBottomNavTapFeedback();
     var url = (ev && ev.detail && ev.detail.url) || window.location.href;
     var pathname = "";
     try {

@@ -259,4 +259,4 @@ def test_shell_does_not_hold_production_board_for_primary_ttl():
     fresh_block = js.split("var FRESH_TTL_PATHS = [", 1)[1].split("];", 1)[0]
     assert "'/erp/production/dashboard'" in fresh_block
     layout = (root / "templates/partials/shared/layout_scripts.html").read_text(encoding="utf-8")
-    assert "js/runtime/erp-shell.js') }}?v=20260929i" in layout
+    assert "js/runtime/erp-shell.js') }}?v=20261002a" in layout

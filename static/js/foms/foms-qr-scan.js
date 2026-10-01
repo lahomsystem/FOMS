@@ -165,4 +165,7 @@
   });
 
   revealTriggers();
+  // 진입 버튼은 검색 오버레이(셸 조각) 안에 있어 탭 스왑마다 [hidden] 상태로 새로 들어온다.
+  // 이 파일은 문서당 한 번만 실행되므로(가드 + erp-shell.js data-foms-run-once) 스왑 때 다시 드러낸다.
+  document.addEventListener('foms:main-content-swapped', revealTriggers);
 })();
