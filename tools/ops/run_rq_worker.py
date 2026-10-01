@@ -16,6 +16,14 @@
 :func:`foms.services.sidefx_worker.effective_heartbeat_budget` 이며 운영값은
 max(등록부 900, 405 x 3) = **1215초**다 — 등록부 900 은 신고가 없을 때의 바닥값이다.
 
+재배포 공백 줄이기(2026-10-02, 성능 원장 P2-6)
+-----------------------------------------------
+- 큐를 듣기 시작하면(rq 의 ``*** Listening on``) ``FOMS_RQ_READY_FILE`` 경로에 표식 파일을 만든다.
+  감독자는 그것을 보고 미뤄 둔 루프 5개를 켠다 — 그 전까지 rq 가 CPU 를 혼자 쓴다.
+- 듣기 전에 잡 모듈을 부모에서 미리 연다. rq ``Worker`` 는 잡마다 ``fork`` 하고 자식이 잡 함수를
+  import 하므로, 부모가 열어 둔 모듈은 자식이 공짜로 물려받는다. 썸네일 잡은 그동안 잡마다
+  저장소 모듈을 열고 boto3 를 처음부터 데웠다(로컬 실측 약 0.25초, 로그의 R2 활성화 줄).
+
 사용::
 
     python tools/ops/run_rq_worker.py --url "$REDIS_URL" --queues default
@@ -24,11 +32,12 @@ from __future__ import annotations
 
 import argparse
 import datetime
+import importlib
 import logging
 import os
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import Mapping, Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
@@ -48,6 +57,70 @@ HEARTBEAT_WORKER_KIND = WORKER_KIND_RQ_WORKER
 #: DB 하트비트 최소 간격(초). rq 는 잡 하나마다도 ``heartbeat()`` 를 부르므로, 바쁜 워커가
 #: 잡마다 DB 를 때리지 않게 여기서 조인다. 놀 때의 주기(405초)보다 훨씬 짧아 무해하다.
 DEFAULT_HEARTBEAT_INTERVAL_SECONDS = 60
+
+#: 큐를 듣기 시작하면 표식 파일을 만들 경로를 담은 env. 감독자(``tools/ops/worker_supervisor.py``
+#: 의 ``RQ_READY_FILE_ENV``)가 심는다. 없으면 표식을 만들지 않는다(단독 실행).
+READY_FILE_ENV = "FOMS_RQ_READY_FILE"
+
+#: "0" 이면 잡 모듈을 미리 열지 않는다(되돌리기 스위치). 기본은 연다.
+PRELOAD_ENV = "FOMS_RQ_PRELOAD_JOBS"
+
+#: 미리 열 잡 모듈. 큐에 넣는 잡 함수는 전부 여기 산다(``foms.services.jobs.queue`` 의
+#: ``_TASK_PATH_PREFIX``·푸시의 ``_PUSH_TASK`` — 같은 이름임을 시험이 지킨다).
+PRELOAD_MODULES = ("foms.services.jobs.tasks", "foms.services.storage")
+
+
+def mark_ready(env: Mapping[str, str]) -> bool:
+    """감독자에게 "큐를 듣고 있다" 고 알리는 표식 파일을 만든다. 실패해도 워커는 계속 돈다.
+
+    Args:
+        env: ``READY_FILE_ENV`` 를 찾을 env.
+
+    Returns:
+        표식을 만들었으면 True. 경로가 없거나 쓰기에 실패했으면 False(감독자는 기한이 지나면
+        어차피 루프를 켠다).
+    """
+    path = (env.get(READY_FILE_ENV) or "").strip()
+    if not path:
+        return False
+    try:
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(str(os.getpid()))
+        return True
+    except OSError as exc:
+        _LOGGER.warning("rq 준비 표식을 못 만들었다(%s): %s", path, exc)
+        return False
+
+
+def preload_job_modules(env: Mapping[str, str]) -> list[str]:
+    """잡 자식들이 물려받도록 부모에서 잡 모듈을 미리 연다.
+
+    저장소는 모듈만이 아니라 boto3 기본 세션도 데운다 — 버려지는 어댑터를 한 번 만들면 서비스
+    모델 JSON 이 세션 캐시에 올라가, 자식의 ``get_storage()`` 가 약 0.2초에서 수 ms 로 준다
+    (로컬 실측). 어댑터 인스턴스 자체는 부모에 남기지 않는다 — 자식마다 자기 것을 만들어야
+    한 번의 생성 실패(로컬 저장소 폴백)가 그 뒤 모든 잡으로 번지지 않는다.
+
+    미리 열기가 실패해도 워커는 뜬다 — 잡마다 여는 예전 방식으로 돌아갈 뿐이다.
+
+    Args:
+        env: ``PRELOAD_ENV`` 를 볼 env.
+
+    Returns:
+        미리 연 모듈 이름 목록(끈 경우 빈 목록).
+    """
+    if (env.get(PRELOAD_ENV) or "1").strip() == "0":
+        return []
+    done: list[str] = []
+    for name in PRELOAD_MODULES:
+        try:
+            module = importlib.import_module(name)
+            if name == "foms.services.storage":
+                module.StorageAdapter()  # 세션 데우기용 — 버린다(위 설명)
+        except Exception as exc:  # noqa: BLE001 - 미리 열기 실패가 워커 기동을 막으면 안 된다
+            _LOGGER.warning("잡 모듈 미리 열기 실패(%s) — 잡마다 여는 방식으로 계속: %s", name, exc)
+            continue
+        done.append(name)
+    return done
 
 
 class HeartbeatWorkerMixin:
@@ -108,6 +181,12 @@ class HeartbeatWorkerMixin:
 
 class HeartbeatWorker(HeartbeatWorkerMixin, Worker):
     """``rq worker`` 본체 + FOMS 감시 표 하트비트."""
+
+    def bootstrap(self, *args, **kwargs):
+        """rq 가 등록·구독을 마치고 ``*** Listening on`` 을 남긴 직후 감독자에게 알린다."""
+        result = super().bootstrap(*args, **kwargs)
+        mark_ready(os.environ)
+        return result
 
     def main_work_horse(self, *args, **kwargs):
         """fork 직후 **자식** 진입점 — 물려받은 DB 연결을 버리고 시작한다.
@@ -172,8 +251,10 @@ def main(argv: Optional[list[str]] = None) -> int:
     queues = [Queue(name, connection=connection) for name in queue_names]
     worker = HeartbeatWorker(queues, connection=connection)
     worker.db_heartbeat_interval = max(1, int(args.heartbeat_interval))
+    preloaded = preload_job_modules(os.environ)
     print(f"[run-rq-worker] started (queues={','.join(queue_names)} "
-          f"heartbeat_interval={worker.db_heartbeat_interval}s)", flush=True)
+          f"heartbeat_interval={worker.db_heartbeat_interval}s "
+          f"preloaded={','.join(preloaded) or '-'})", flush=True)
     worker.work(logging_level=args.logging_level)
     return 0
 

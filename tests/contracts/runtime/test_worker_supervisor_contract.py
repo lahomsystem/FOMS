@@ -72,6 +72,7 @@ def test_supervisor_installs_term_and_int_handlers(monkeypatch) -> None:
     monkeypatch.setattr(mod.signal, "signal", lambda sig, handler: installed.setdefault(sig, handler))
     monkeypatch.setattr(mod.Supervisor, "run", lambda self: 0)
     monkeypatch.setattr(mod.sys, "argv", ["worker_supervisor.py"])
+    monkeypatch.delenv(mod.RQ_READY_FILE_ENV, raising=False)  # main() 이 심는 경로가 다른 시험으로 새지 않게
     assert mod.main([]) == 0
     assert mod.signal.SIGTERM in installed and mod.signal.SIGINT in installed
 
