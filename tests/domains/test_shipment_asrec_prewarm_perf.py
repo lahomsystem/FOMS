@@ -9,13 +9,21 @@
 * 후보 풀은 카카오를 부르지 않고, 지오코딩은 DB 좌표가 없는 대상만 한다(결과 좌표는 같다).
 * 같은 타깃을 다른 요청이 계산 중이면 예열은 건너뛴다(single-flight).
 * 화면 쪽 예열은 진행 중 표식으로 같은 예열을 나란히 두 번 보내지 않는다.
+* 자동 예열은 광폭 마우스 PC 에서만 돈다(2026-10-01 사용자 결정 — 30일 추천 창 열기·적용 0건,
+  예열 835건 중 61% 휴대폰). 판정은 서버 wants_mobile_width_surfaces 와 같은 뜻, 추천 창 경로는 판정 없음.
 """
 
 from __future__ import annotations
 
+import json
+import shutil
+import subprocess
+import tempfile
 from datetime import date
 from pathlib import Path
 from typing import Any
+
+import pytest
 
 from sqlalchemy import event
 from werkzeug.security import generate_password_hash
@@ -23,6 +31,7 @@ from werkzeug.security import generate_password_hash
 import foms.api.shipment.recommendations as shipment_rec_api
 import foms.services.shipment_as_recommendation_cache as asrec_cache
 from db import db_session, engine
+from foms.services import feature_flags
 from foms.services.schedule_recommendations import recommend_nearby_schedules_for_targets
 from models import InstallationWorker, Order, User
 
@@ -344,4 +353,104 @@ def test_client_prewarm_has_inflight_guard_before_run() -> None:
     assert guard < body.index("inflight[key] = true;") < body.index("function run()")
     assert "delete inflight[key];" in body  # 끝나면 표식을 지운다(완료 표식은 sessionStorage)
     tpl = (ROOT / "templates/shipment/partials/dashboard_main.html").read_text(encoding="utf-8")
-    assert "js/shipment/shipment-dashboard.js') }}?v=20261001a" in tpl
+    assert "js/shipment/shipment-dashboard.js') }}?v=20261001b" in tpl
+
+
+# --- 자동 예열은 광폭 마우스 PC 에서만 ------------------------------------------------------------
+
+_SHIP_JS = ROOT / "static/js/shipment/shipment-dashboard.js"
+_PTR_BOOT = ROOT / "static/js/runtime/foms-pointer-hint-boot.js"
+_VW_BOOT = ROOT / "static/js/runtime/foms-viewport-hint-boot.js"
+_PC_GUARD = "if (!isWideMousePc()) return;"
+
+
+def _js_function(js: str, name: str) -> str:
+    """IIFE 안(6칸 들여쓰기) 함수 하나의 원문 — 선언부터 같은 들여쓰기의 닫는 괄호까지."""
+    start = js.index(f"      function {name}(")
+    closing = "\n      }\n"
+    end = js.index(closing, start) + len(closing) - 1
+    return js[start:end]
+
+
+def test_client_prewarm_checks_wide_mouse_pc_before_anything() -> None:
+    """예열 함수의 첫 문장이 PC 판정이다 — 대상 수집·sessionStorage·진행 중 표식·fetch 보다 먼저."""
+    js = _SHIP_JS.read_text(encoding="utf-8")
+    start = js.index("function scheduleShipmentAsRecPrewarm() {")
+    body = js[start:js.index("scheduleShipmentAsRecPrewarm();", start)]
+    first_stmt = body.split("{", 1)[1].strip().splitlines()[0].strip()
+    assert first_stmt == _PC_GUARD, first_stmt
+    guard = body.index(_PC_GUARD)
+    for later in ("collectTargetOrderIds()", "sessionStorage.getItem(key)", "inflight[key] = true;",
+                  "/api/erp/shipment/as-recommendations/prewarm"):
+        assert guard < body.index(later), later
+
+
+def test_modal_path_does_not_go_through_pc_check() -> None:
+    """추천 창을 직접 여는 경로(버튼 클릭 → loadRecommendations)는 판정 없이 그때 계산한다.
+
+    판정 함수는 정의 1곳 + 예열 1곳에서만 쓰인다.
+    """
+    js = _SHIP_JS.read_text(encoding="utf-8")
+    assert js.count("isWideMousePc(") == 2
+    assert js.count(_PC_GUARD) == 1
+    load = js[js.index("function loadRecommendations()"):js.index("function parseJsonResponse(")]
+    assert "isWideMousePc" not in load
+    assert "fetch('/api/erp/shipment/as-recommendations'" in load
+    click = js[js.index("var openBtn = ev.target.closest"):]
+    click = click[:click.index("return;")]
+    assert "loadRecommendations();" in click
+    assert "isWideMousePc" not in click
+
+
+_PC_HARNESS = r"""
+var window = {};
+var cases = __CASES__;
+__FUNC__
+var out = cases.map(function (c) {
+  if (c.no_mm) {
+    delete window.matchMedia;
+  } else {
+    window.matchMedia = function (q) {
+      if (q === '(pointer: coarse)') return { matches: c.coarse };
+      if (q === '(min-width: 992px)') return { matches: c.wide };
+      throw new Error('부트와 다른 미디어 쿼리: ' + q);
+    };
+  }
+  return isWideMousePc();
+});
+process.stdout.write(JSON.stringify(out));
+"""
+
+
+@pytest.mark.skipif(not shutil.which("node"), reason="node not on PATH")
+def test_client_pc_check_matches_server_wants_mobile_width_surfaces() -> None:
+    """JS 판정 == not 서버 판정. 같은 기기 상태에서 부트가 심을 쿠키로 서버 함수를 부른다.
+
+    부트(SSOT 사본)가 묻는 미디어 쿼리 문자열만 스텁이 답한다 — 다른 식을 쓰면 실행이 깨진다.
+    """
+    assert "window.matchMedia('(pointer: coarse)')" in _PTR_BOOT.read_text(encoding="utf-8")
+    assert "window.matchMedia('(min-width: 992px)')" in _VW_BOOT.read_text(encoding="utf-8")
+    cases = [{"no_mm": False, "coarse": c, "wide": w} for c in (False, True) for w in (False, True)]
+    cases.append({"no_mm": True, "coarse": False, "wide": True})
+    func = _js_function(_SHIP_JS.read_text(encoding="utf-8"), "isWideMousePc")
+    script = _PC_HARNESS.replace("__CASES__", json.dumps(cases)).replace("__FUNC__", func)
+    with tempfile.TemporaryDirectory(prefix="asrec-pc-") as tmp:
+        path = Path(tmp) / "pc_check.js"
+        path.write_text(script, encoding="utf-8")
+        proc = subprocess.run([shutil.which("node"), str(path)], capture_output=True, text=True,
+                              encoding="utf-8", timeout=60)
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    got = json.loads(proc.stdout)
+
+    class _Req:
+        def __init__(self, cookies: dict[str, str]) -> None:
+            self.cookies = cookies
+
+    for case, js_pc in zip(cases, got):
+        cookies = {} if case["no_mm"] else {
+            "foms_ptr": "coarse" if case["coarse"] else "fine",
+            "foms_vw": "wide" if case["wide"] else "narrow",
+        }
+        server_pc = not feature_flags.wants_mobile_width_surfaces(_Req(cookies))
+        assert js_pc is server_pc, (case, cookies, js_pc, server_pc)
+    assert got == [False, True, False, False, False]  # 광폭 마우스 PC 한 칸만 예열
