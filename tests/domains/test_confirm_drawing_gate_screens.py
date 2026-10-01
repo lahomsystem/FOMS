@@ -212,7 +212,7 @@ def test_timeline_label_does_not_call_confirm_punch_a_drawing_punch():
 
 def test_asset_pins_bumped_to_20260929i():
     """CSS·JS 를 바꿨으니 부모 번들까지 핀을 올린다(SW 캐시로 옛 파일이 살지 않게)."""
-    assert "erp-pro.css') }}?v=20261001a" in _read("templates/partials/shared/layout_head.html")
+    assert "erp-pro.css') }}?v=20261001b" in _read("templates/partials/shared/layout_head.html")
     assert ".foms-gate-blocked-reason" in _read("static/css/foundation/erp-pro.css")
     assert "erp-dashboard-entry.js') }}?v=20260930a" in _read("templates/partials/shared/layout_scripts.html")
     assert "erp-dashboard-detail-dom.js?v=20260930a" in _read("static/js/orders/erp-dashboard-entry.js")

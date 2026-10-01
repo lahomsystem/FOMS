@@ -391,6 +391,60 @@ out({ writes: writes, prefilled: msg.value, rendered: box.children.length });
     assert ["show", "dwUrgentCallModal"] in r["modalOps"] and ["hide", "dwUrgentCallModal"] in r["modalOps"]
 
 
+def test_pc_urgent_pick_shows_selection_and_why_send_is_locked():
+    """2026-10-01 결함: 사람을 눌러도 표시가 안 났다(전역 .btn-outline-secondary 가 .active 를 덮음).
+
+    사람 버튼은 전용 .foms-urgent-pick 이고, 고르면 .is-selected + '받는 사람' 줄이 뜨고,
+    사유가 비면 보내기는 잠긴 채 그 이유를 글로 보여 준다.
+    """
+    driver = r"""
+const m = makeEl({ id: 'dwUrgentCallModal', attrs: { 'data-order-id': '77' } });
+const box = makeEl({}); const msg = makeEl({ id: 'dw-urgent-message' }); const send = makeEl({ disabled: true });
+const picked = makeEl({ cls: ['d-none'] }); const hint = makeEl({});
+Object.assign(m._sel, { '[data-dw-urgent-targets]': box, '#dw-urgent-message': msg, '[data-dw-urgent-send]': send,
+  '[data-dw-urgent-error]': makeEl({ cls: ['d-none'] }), '[data-dw-urgent-picked]': picked,
+  '[data-dw-urgent-hint]': hint });
+route('/urgent-targets', function () { return Resp(200, { success: true, targets: [
+  { id: 52, name: '구범진', team: 'DRAWING', team_label: '도면팀', role: 'STAFF' }] }); });
+loadSources();
+const opener = makeEl({ attrs: { 'data-order-id': '77' } });
+opener._closest['[data-dw-urgent-call]'] = opener;
+fire('click', opener); await flush();
+const before = { hint: hint.textContent, pickedHidden: hidden(picked) };
+const rendered = box.children[0].children[1].children[0];
+const target = makeEl({ attrs: { 'data-dw-urgent-target': '52', 'data-target-name': '구범진' } });
+target._closest['[data-dw-urgent-target]'] = target; m._inside.push(target);
+m._all['[data-dw-urgent-target]'] = [target];
+fire('click', target);
+const afterPick = { hint: hint.textContent, picked: picked.textContent, pickedHidden: hidden(picked),
+  selected: target.classList.contains('is-selected'), pressed: target.getAttribute('aria-pressed'),
+  locked: send.disabled };
+msg.value = '확인 부탁'; fire('input', msg);
+out({ before: before, afterPick: afterPick, cls: rendered.className, name: rendered.getAttribute('data-target-name'),
+  afterMsg: { hint: hint.textContent, locked: send.disabled } });
+"""
+    r = run_js([URGENT_JS], driver)
+    assert "foms-urgent-pick" in r["cls"] and "btn-outline-secondary" not in r["cls"]
+    assert r["name"] == "구범진"
+    assert r["before"] == {"hint": "받을 사람을 먼저 눌러 주세요.", "pickedHidden": True}
+    assert r["afterPick"] == {"hint": "사유를 적으면 보낼 수 있어요.", "picked": "받는 사람: 구범진",
+                              "pickedHidden": False, "selected": True, "pressed": "true", "locked": True}
+    assert r["afterMsg"] == {"hint": "", "locked": False}
+
+
+def test_pc_urgent_pick_selected_state_beats_global_button_css():
+    """고른 상태는 erp-pro.css 의 전용 규칙(!important)으로 그린다 — style-pro-max.css 보다 뒤에 로드된다."""
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    css = (root / "static/css/foundation/erp-pro.css").read_text(encoding="utf-8")
+    assert ".btn.foms-urgent-pick.is-selected {" in css
+    block = css.split(".btn.foms-urgent-pick.is-selected {", 1)[1].split("}", 1)[0]
+    assert "background: #dc3545 !important" in block
+    head = (root / "templates/partials/shared/layout_head.html").read_text(encoding="utf-8")
+    assert head.index("style-pro-max.css") < head.index("foundation/erp-pro.css")
+
+
 def test_cancel_warn_confirm_calls_cancel_once_and_stays():
     driver = r"""
 const w = makeEl({ id: 'dwCancelWarnModal', attrs: { 'data-order-id': '77' } });

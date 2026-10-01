@@ -11,6 +11,9 @@
  * - window.fomsDrawingCancelWarn(btn): 경고 시트 열기(폭별 문구 고르기). 인라인 cancelTransfer 가 이 JS 가 떴을 때만
  *   부르고, 안 떴으면 경고 문구 확인창으로 간다(시트만 열리고 [그래도 취소]가 죽는 일이 없게).
  * - 사람 이름은 textContent 로만 넣고, id 는 정수만 받는다.
+ * - 사람 버튼은 .foms-urgent-pick(+ .is-selected) — 전역 style-pro-max.css 의 .btn-outline-secondary
+ *   (background !important)가 Bootstrap .active 를 덮어 눌러도 표시가 안 나던 결함(2026-10-01)을 피한다.
+ *   고른 사람은 [data-dw-urgent-picked] 줄에, 보내기가 잠긴 이유는 [data-dw-urgent-hint] 에 글로 보여 준다.
  */
 (function () {
   'use strict';
@@ -20,7 +23,7 @@
   var MODAL_ID = 'dwUrgentCallModal';
   var WARN_ID = 'dwCancelWarnModal';
   var MAX_MESSAGE = 500;
-  var current = { orderId: '', targetId: null, team: '', loading: false };
+  var current = { orderId: '', targetId: null, targetName: '', team: '', loading: false };
 
   function q(root, sel) { return root ? root.querySelector(sel) : null; }
   function attr(el, name) { return el ? String(el.getAttribute(name) || '') : ''; }
@@ -39,6 +42,13 @@
     var btn = q(root, '[data-dw-urgent-send]');
     var msg = String((q(root, '#dw-urgent-message') || {}).value || '').trim();
     if (btn) btn.disabled = !(current.targetId !== null && msg);
+    var picked = q(root, '[data-dw-urgent-picked]');
+    show(picked, current.targetId !== null ? '받는 사람: ' + current.targetName : '');
+    var hint = q(root, '[data-dw-urgent-hint]');
+    if (hint) {
+      hint.textContent = current.targetId === null ? '받을 사람을 먼저 눌러 주세요.'
+        : (msg ? '' : '사유를 적으면 보낼 수 있어요.');
+    }
   }
 
   function renderTargets(root, targets) {
@@ -70,10 +80,11 @@
       g.members.forEach(function (u) {
         var b = document.createElement('button');
         b.type = 'button';
-        b.className = 'btn btn-outline-secondary btn-sm';
+        b.className = 'btn btn-sm foms-urgent-pick';
         b.setAttribute('data-dw-urgent-target', String(Number(u.id)));
+        b.setAttribute('data-target-name', String(u.name || '').trim());
         b.setAttribute('aria-pressed', 'false');
-        b.textContent = String(u.name || '') + (u.role ? ' · ' + String(u.role) : '');
+        b.textContent = String(u.name || '').trim() + (u.role ? ' · ' + String(u.role) : '');
         row.appendChild(b);
       });
       det.appendChild(row);
@@ -104,9 +115,10 @@
   function selectTarget(root, btn) {
     current.targetId = Number(btn.getAttribute('data-dw-urgent-target'));
     if (!Number.isInteger(current.targetId)) current.targetId = null;
+    current.targetName = current.targetId === null ? '' : attr(btn, 'data-target-name');
     Array.prototype.forEach.call(root.querySelectorAll('[data-dw-urgent-target]'), function (el) {
       var on = el === btn;
-      el.classList.toggle('active', on);
+      el.classList.toggle('is-selected', on);
       el.setAttribute('aria-pressed', on ? 'true' : 'false');
     });
     syncSend(root);
@@ -150,6 +162,7 @@
     current.orderId = attr(opener, 'data-order-id') || attr(root, 'data-order-id');
     current.team = attr(opener, 'data-urgent-team');
     current.targetId = null;
+    current.targetName = '';
     var msg = q(root, '#dw-urgent-message');
     if (msg) msg.value = attr(opener, 'data-urgent-message').slice(0, MAX_MESSAGE);
     show(q(root, '[data-dw-urgent-error]'), '');

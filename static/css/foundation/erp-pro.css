@@ -156,6 +156,7 @@
 #erp-attachment-preview-body .erp-attachment-superseded-badge {
   margin: 0 6px 0 0;
   vertical-align: middle;
+}
 
 /* 도면 게이트(2차 묶음 2a-2) — 고객컨펌·[제작 시작] 이 도면 수령 확정 전이라 막힌 이유 한 줄,
    생산 카드 "도면 수정 중" 배지, 관리자 경고 모양 버튼. 판정은 서버와 같은 함수
@@ -201,3 +202,33 @@ body.erp-mobile-v2-layout .foms-kanban-move-btn.foms-kanban-move-btn--warn {
   text-decoration: none;
 }
 .erp-history-more:hover { text-decoration: underline; }
+
+/* 긴급 호출 받는 사람 고르기 버튼 (drawing-urgent-call-pc.js) — 전역 style-pro-max.css 의
+   .btn{border:none !important} 와 .btn-outline-secondary{background:white !important} 가
+   Bootstrap .active 를 덮어 눌러도 표시가 안 났다. 그래서 전용 클래스 + !important 로 고른 상태를 그린다. */
+.btn.foms-urgent-pick {
+  padding: 4px 10px !important;
+  border: 1px solid var(--erp-border, #d0d7e2) !important;
+  background: #fff !important;
+  color: #1f2937 !important;
+  font-weight: 500 !important;
+}
+.btn.foms-urgent-pick:hover {
+  border-color: #dc3545 !important;
+  background: #fff5f5 !important;
+}
+.btn.foms-urgent-pick.is-selected {
+  border-color: #dc3545 !important;
+  background: #dc3545 !important;
+  color: #fff !important;
+  font-weight: 700 !important;
+}
+.btn.foms-urgent-pick.is-selected::before {
+  content: "\2713\00a0";
+}
+.foms-urgent-picked {
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #b02a37;
+}

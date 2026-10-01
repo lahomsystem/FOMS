@@ -465,7 +465,7 @@ def test_asset_pins_current():
     assert "erp-quest-approve.js') }}?v=20260930b" in _read("templates/partials/shared/layout_scripts.html")
     # erp-pro.css·04 자식은 board_state 줄로 20260930c, detail-dom 은 도면 창구 버튼 글자로 20260930a.
     assert "erp-dashboard-entry.js') }}?v=20260930a" in _read("templates/partials/shared/layout_scripts.html")
-    assert "erp-pro.css') }}?v=20261001a" in _read("templates/partials/shared/layout_head.html")
+    assert "erp-pro.css') }}?v=20261001b" in _read("templates/partials/shared/layout_head.html")
     assert "04-filter-table-badges-buttons.css?v=20260930c" in _read("static/css/foundation/erp-pro.css")
     entry = _read("static/js/orders/erp-dashboard-entry.js")
     assert "erp-dashboard-quest.js?v=20260930a" in entry
