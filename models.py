@@ -127,6 +127,38 @@ class Order(Base):
         Index('ix_orders_erp_order_active', 'id', postgresql_where=(and_(status != 'DELETED', deleted_at.is_(None), is_erp_order == True))),
         # AS 행만 담는 부분 인덱스(AS 이력 없는 대다수 행은 NULL 이라 인덱스에 안 들어간다).
         Index('ix_orders_as_axis_status', 'as_axis_status', postgresql_where=(as_axis_status.isnot(None))),
+        # SEARCH-TRGM-00: 검색 술어(erp_dashboard_search)의 가지 중 인덱스가 없던 5개.
+        # 마이그레이션 search_trgm_00 과 이름·식이 글자 단위로 같아야 한다 — 식이 한 글자라도
+        # 다르면 플래너가 인덱스를 못 쓰고 BitmapOr 전체가 Seq Scan 으로 떨어진다
+        # (tests/performance/test_search_trgm_index_contract.py 가 대조한다).
+        # text 식에는 postgresql_ops 를 걸 수 없어 연산자 클래스를 식 뒤에 함께 적는다.
+        # trgm 은 PostgreSQL 전용이라 SQLite 레인에서는 만들지 않는다(ddl_if).
+        Index(
+            'ix_orders_sd_buyer_name_trgm',
+            text("(CAST(((structured_data -> 'parties') -> 'buyer') ->> 'name' AS VARCHAR)) gin_trgm_ops"),
+            postgresql_using='gin',
+        ).ddl_if(dialect='postgresql'),
+        Index(
+            'ix_orders_sd_buyer_phone_trgm',
+            text("(CAST(((structured_data -> 'parties') -> 'buyer') ->> 'phone' AS VARCHAR)) gin_trgm_ops"),
+            postgresql_using='gin',
+        ).ddl_if(dialect='postgresql'),
+        Index(
+            'ix_orders_sd_manager_name_text_trgm',
+            text("(CAST(((structured_data -> 'parties') -> 'manager') ->> 'name' AS VARCHAR)) gin_trgm_ops"),
+            postgresql_using='gin',
+        ).ddl_if(dialect='postgresql'),
+        Index(
+            'ix_orders_erp_phone_digits_trgm',
+            erp_phone_digits,
+            postgresql_using='gin',
+            postgresql_ops={'erp_phone_digits': 'gin_trgm_ops'},
+        ).ddl_if(dialect='postgresql'),
+        Index(
+            'ix_orders_id_text_trgm',
+            text("(CAST(id AS VARCHAR)) gin_trgm_ops"),
+            postgresql_using='gin',
+        ).ddl_if(dialect='postgresql'),
     )
 
     @classmethod
@@ -227,6 +259,16 @@ class Order(Base):
             else:
                 payload[c.name] = value
         return payload
+
+
+# SEARCH-TRGM-00: Order 의 trgm 인덱스(gin_trgm_ops)는 pg_trgm 확장이 있어야 만들어진다.
+# 운영·스테이징은 phase_d 마이그레이션이 이미 깔았다. create_all 로 새 DB 를 만드는 레인
+# (PG 테스트 레인·로컬 신규 DB)은 orders 를 만들기 직전에 확장부터 만든다.
+event.listen(
+    Order.__table__,
+    'before_create',
+    DDL('CREATE EXTENSION IF NOT EXISTS pg_trgm').execute_if(dialect='postgresql'),
+)
 
 
 class OrderScheduleDate(Base):
