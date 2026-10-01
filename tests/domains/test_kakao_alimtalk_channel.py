@@ -317,3 +317,40 @@ def test_confirm_route_not_configured_is_503(client, db, monkeypatch, stub_looku
 
     assert response.status_code == 503
     assert response.get_json()["error"] == "not_configured"
+
+
+# --- 벤더 조회 호출부 -------------------------------------------------------------
+
+
+class _FakeSolapiService:
+    """``SolapiMessageService`` 대역 — 받은 조회 요청을 기록하고 type 하나를 돌려준다."""
+
+    requests: list = []
+
+    def __init__(self, *_args):
+        pass
+
+    def get_messages(self, request):
+        type(self).requests.append(request)
+        item = type("Item", (), {"type": "lms"})()
+        return type("Resp", (), {"message_list": {"M4V-1": item}})()
+
+
+@pytest.mark.parametrize(
+    ("stored_id", "field"),
+    [("G4V20260930150644ABCDEFGHIJ", "group_id"), ("M4V20260930150644ABCDEFGHIJ", "message_id")],
+)
+def test_lookup_uses_group_query_for_group_ids(monkeypatch, solapi_env, stored_id, field):
+    """발송 응답에 메시지 목록이 없으면 그룹 id 가 저장된다 — 그 id 를 messageId 로 물으면
+    벤더가 ValidationError 로 거절한다(운영 164건 전부 실패). 그룹 id 는 groupId 로 묻는다."""
+    import solapi
+
+    _FakeSolapiService.requests = []
+    monkeypatch.setattr(solapi, "SolapiMessageService", _FakeSolapiService)
+
+    assert ka._solapi_lookup_channel(stored_id) == "LMS"
+
+    (request,) = _FakeSolapiService.requests
+    other = "message_id" if field == "group_id" else "group_id"
+    assert getattr(request, field) == stored_id
+    assert getattr(request, other) is None
