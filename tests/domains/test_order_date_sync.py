@@ -172,7 +172,7 @@ def test_register_date_sync_listener_syncs_only_changed_orders(monkeypatch):
     assert sync_calls == [(order, session)]
 
 
-def test_date_sync_listener_invalidates_every_dashboard_on_real_change(monkeypatch):
+def test_date_sync_listener_invalidates_every_dashboard_for_new_order(monkeypatch):
     captured = {"listeners": {}}
     invalidated = []
 
@@ -199,6 +199,6 @@ def test_date_sync_listener_invalidates_every_dashboard_on_real_change(monkeypat
     captured["listeners"]["before_flush"](session, None, None)
     captured["listeners"]["after_commit"](session)
 
-    # 날짜 변경은 실측·출고만의 축이 아니다: 시공일은 시공 숫자판·도면 SLA, 완료일은
-    # 완료(이력) 목록을 바꾼다. 좁게 잡아 두면 나머지 탭이 TTL(300초)만큼 stale 이었다.
+    # 아직 id 가 없는 새(비초안) 주문은 어느 탭에 새로 나타날지 모른다 → 전부 비운다.
+    # 기존 주문의 날짜 변경은 바뀐 일정 종류만 비운다(P1-2, test_dashboard_cache_save_scope).
     assert invalidated == list(ALL_DASHBOARD_FAMILIES)

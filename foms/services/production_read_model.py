@@ -35,6 +35,10 @@ PRODUCTION_KANBAN_MAX_ROWS = 300
 _BUCKET_WAIT_STAGES = ['고객컨펌', 'CONFIRM']
 _BUCKET_PROD_STAGES = ['생산', 'PRODUCTION']
 _BUCKET_DONE_STAGES = ['시공', 'CONSTRUCTION']
+# 생산 대시보드 모집단(숫자판·칸반) 단계. 한글 값(고객컨펌/생산/시공)은 운영에 없으나 sync 가
+# 원문 복사라 미래 방어로 유지. 캐시 무효화 범위(dashboard_cache.PRODUCTION_SUMMARY_STAGE_CODES)가
+# 이 목록과 같아야 한다 — 계약 테스트가 고정한다.
+PRODUCTION_BASE_STAGE_CODES = ('고객컨펌', '생산', '시공', 'CONFIRM', 'PRODUCTION', 'CONSTRUCTION')
 
 
 def current_production_run_exists() -> Any:
@@ -65,8 +69,7 @@ def build_production_orders_query(
     한글 값(고객컨펌/생산/시공)은 운영에 없으나 sync가 원문 복사라 미래 방어로 유지(비용 0).
     """
     _q = db.query(Order).filter(Order.active_filter(), Order.is_erp_order.is_(True))
-    base_stages = ['고객컨펌', '생산', '시공', 'CONFIRM', 'PRODUCTION', 'CONSTRUCTION']
-    _q = _q.filter(Order.erp_stage_code.in_(base_stages))
+    _q = _q.filter(Order.erp_stage_code.in_(list(PRODUCTION_BASE_STAGE_CODES)))
 
     if f_stage:
         run = current_production_run_exists()

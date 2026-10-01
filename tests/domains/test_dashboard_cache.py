@@ -156,37 +156,89 @@ def test_invalidate_all_dashboard_slice_caches_calls_seven_families():
     ]
 
 
-def test_invalidate_dashboard_family_deletes_matching_keys():
-    store = {
-        "foms:dashcache:v1:orders:a:1": "1",
-        "foms:dashcache:v1:orders:b:2": "2",
-        "foms:dashcache:v1:measurement:x:3": "3",
-    }
+def _fake_invalidate_redis(store: dict, *, with_unlink: bool = True):
+    """SCAN·UNLINK/DELETE 왕복 횟수를 세는 가짜 Redis(값 저장소 ``store`` 를 직접 고친다)."""
+    import fnmatch
+
+    calls: dict[str, list] = {"unlink": [], "delete": []}
 
     class FakeRedis:
         def scan_iter(self, match: str, count: int = 500):
-            import fnmatch
-
             for k in list(store):
                 if fnmatch.fnmatch(k, match):
                     yield k
 
-        def delete(self, k: str):
-            store.pop(k, None)
+        def delete(self, *keys: str):
+            calls["delete"].append(keys)
+            return sum(1 for k in keys if store.pop(k, None) is not None)
 
         def ping(self):
             return True
 
-    fake = FakeRedis()
+    if with_unlink:
+        def _unlink(self, *keys: str):
+            calls["unlink"].append(keys)
+            return sum(1 for k in keys if store.pop(k, None) is not None)
+
+        FakeRedis.unlink = _unlink
+    return FakeRedis(), calls
+
+
+def _run_invalidate(fake, family: str) -> int:
     with patch.dict(
         os.environ,
         {"REDIS_URL": "redis://localhost:6379/0", "FOMS_DASHBOARD_MICRO_CACHE_ENABLED": "yes"},
         clear=False,
     ):
         with patch.object(dc, "get_dashboard_redis", return_value=fake):
-            n = dc.invalidate_dashboard_family("orders")
+            return dc.invalidate_dashboard_family(family)
+
+
+def test_invalidate_dashboard_family_deletes_matching_keys():
+    store = {
+        "foms:dashcache:v1:orders:a:1": "1",
+        "foms:dashcache:v1:orders:b:2": "2",
+        "foms:dashcache:v1:measurement:x:3": "3",
+    }
+    fake, calls = _fake_invalidate_redis(store)
+
+    n = _run_invalidate(fake, "orders")
+
     assert n == 2
     assert "foms:dashcache:v1:measurement:x:3" in store
+    assert not any(k.startswith("foms:dashcache:v1:orders:") for k in store)
+
+
+def test_invalidate_dashboard_family_deletes_in_one_round_trip_per_batch():
+    """P1-2: 키마다 DELETE 를 보내던 것을 묶음 UNLINK 로 — 1,200키 = 왕복 3회(500·500·200).
+
+    수정 전 코드는 키 수만큼(1,200번) DELETE 를 보냈다. 지우는 키 집합은 같다.
+    """
+    store = {f"foms:dashcache:v1:measurement:s:{i}": "x" for i in range(1200)}
+    store["foms:dashcache:v1:orders:keep:1"] = "keep"
+    fake, calls = _fake_invalidate_redis(store)
+
+    n = _run_invalidate(fake, "measurement")
+
+    assert n == 1200
+    assert [len(batch) for batch in calls["unlink"]] == [500, 500, 200]
+    assert calls["delete"] == []
+    assert list(store) == ["foms:dashcache:v1:orders:keep:1"]
+
+
+def test_invalidate_dashboard_family_falls_back_to_multi_key_delete_without_unlink():
+    """UNLINK 가 없는 클라이언트면 다건 DELETE 한 번으로 같은 키를 지운다."""
+    store = {
+        "foms:dashcache:v1:drawing:a:1": "1",
+        "foms:dashcache:v1:drawing:b:2": "2",
+    }
+    fake, calls = _fake_invalidate_redis(store, with_unlink=False)
+
+    n = _run_invalidate(fake, "drawing")
+
+    assert n == 2
+    assert calls["delete"] == [("foms:dashcache:v1:drawing:a:1", "foms:dashcache:v1:drawing:b:2")]
+    assert store == {}
 
 
 def test_get_dashboard_redis_none_without_redis_url():

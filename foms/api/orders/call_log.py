@@ -224,11 +224,19 @@ def log_call_response(order_id: int) -> Any:
         logger.exception("[ORDERS] call-log 오류: %s", exc)
         return jsonify({"success": False, "error": str(exc)}), 500
 
-    # 실측일/스케줄 변경이 대시보드 슬라이스에 반영되도록 캐시 무효화(payment-confirm 준용).
+    # P1-2: 통화 기록(sd.calls)은 7 family 캐시 DTO 어디에도 없다. 이 저장은 execute_order_mutation
+    # 을 타므로 MUT-CACHE-01 리스너가 커밋 직후 orders + 현재 단계 family 를 이미 비운다. 실측일을
+    # 함께 고친 경우만 실측 family 를 더 비운다(실측일이 단계와 무관하게 실측 패널·목록 소속을
+    # 정한다. 일정 행 변화는 날짜 동기화 리스너도 종류별로 비운다).
     try:
-        from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
+        from foms.services.common.dashboard_cache import (
+            DASHBOARD_FAMILY_MEASUREMENT,
+            DASHBOARD_FAMILY_ORDERS,
+            invalidate_dashboard_families,
+        )
 
-        invalidate_all_dashboard_slice_caches()
+        if measurement_date:
+            invalidate_dashboard_families(DASHBOARD_FAMILY_ORDERS, DASHBOARD_FAMILY_MEASUREMENT)
     except Exception as cache_exc:  # noqa: BLE001 - 캐시 무효화 실패는 로깅만
         logger.warning("[ORDERS] call-log 캐시 무효화 실패: %s", cache_exc, exc_info=True)
 

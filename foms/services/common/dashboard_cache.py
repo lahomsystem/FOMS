@@ -10,14 +10,19 @@ Key: ``foms:dashcache:v1:<page>:<slice>:<fp_hash>``
 
 from __future__ import annotations
 
+import datetime
 import hashlib
 import json
 import logging
 import os
+import re
 import threading
 import time
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from typing import Any, Callable, Final, TypeVar
+
+from foms.services.datetime_kst import get_today_kst
+from foms.services.erp_order_flags import is_erp_draft_structured_data
 
 # AUDIT-LOG T1: 과거 이 자리에 있던 모듈 전용 stderr 핸들러(국소 우회)는 제거됐다.
 # root 로깅은 foms.platform.logging_setup.configure_logging이 전역으로 구성하므로
@@ -48,6 +53,11 @@ TTL_PAYLOAD_ASSEMBLY: Final[int] = 90
 _SINGLEFLIGHT_LOCK_TTL_S: Final[int] = 10
 _SINGLEFLIGHT_WAIT_MAX_S: Final[float] = 3.0
 _SINGLEFLIGHT_POLL_S: Final[float] = 0.05
+
+# family 무효화: SCAN 한 번에 훑는 힌트 수 · UNLINK 한 번에 지우는 키 수 · 한 family 상한.
+_INVALIDATE_SCAN_COUNT: Final[int] = 500
+_INVALIDATE_DELETE_BATCH: Final[int] = 500
+_INVALIDATE_MAX_KEYS: Final[int] = 10000
 
 _ENV_FLAG: Final[str] = "FOMS_DASHBOARD_MICRO_CACHE_ENABLED"
 _REDIS_URL_ENV: Final[str] = "REDIS_URL"
@@ -155,6 +165,13 @@ __all__ = [
     "stage_code_to_dashboard_family",
     "invalidate_all_dashboard_slice_caches",
     "invalidate_dashboard_caches_after_delete_transition",
+    "order_dashboard_cache_axes",
+    "dashboard_families_for_order_save",
+    "invalidate_dashboard_families_for_order_save",
+    "dashboard_families_for_schedule_change",
+    "CONSTRUCTION_SUMMARY_STAGE_CODES",
+    "PRODUCTION_SUMMARY_STAGE_CODES",
+    "DASHBOARD_DATE_WINDOW_DAYS",
     "dashboard_families_for_mutation_intent",
     "register_dashboard_cache_invalidation_listener",
     "MUTATION_CACHE_INTENT_KEY",
@@ -492,23 +509,42 @@ def invalidate_dashboard_family(family: str) -> int:
         return 0
 
     pattern = f"{CACHE_KEY_PREFIX}:{family_n}:*"
+    # 키마다 DELETE 를 보내면 저장 요청 하나가 Redis 를 키 수만큼 왕복했다(P1-2, 2026-10-01).
+    # SCAN 으로 모은 키를 묶음째 UNLINK(값 해제는 Redis 가 백그라운드로) 한 번에 지운다.
+    # 무엇을 지우는지는 그대로다 — 같은 패턴, 같은 상한.
     deleted = 0
+    scanned = 0
+    batch: list[str] = []
+
+    def _flush_batch() -> None:
+        nonlocal deleted
+        if not batch:
+            return
+        keys = list(batch)
+        batch.clear()
+        try:
+            unlink = getattr(r, "unlink", None)
+            removed = unlink(*keys) if callable(unlink) else r.delete(*keys)
+            deleted += removed if isinstance(removed, int) else len(keys)
+        except Exception as exc:
+            logger.warning(
+                "[DashCache] delete batch failed during invalidate: %s",
+                exc,
+                exc_info=True,
+            )
+
     try:
-        for key in r.scan_iter(match=pattern, count=500):
-            try:
-                r.delete(key)
-                deleted += 1
-                if deleted >= 10000:
-                    logger.warning(
-                        "[DashCache] invalidate_family cap reached for %s", family_n
-                    )
-                    break
-            except Exception as exc:
+        for key in r.scan_iter(match=pattern, count=_INVALIDATE_SCAN_COUNT):
+            batch.append(key)
+            scanned += 1
+            if len(batch) >= _INVALIDATE_DELETE_BATCH:
+                _flush_batch()
+            if scanned >= _INVALIDATE_MAX_KEYS:
                 logger.warning(
-                    "[DashCache] delete key failed during invalidate: %s",
-                    exc,
-                    exc_info=True,
+                    "[DashCache] invalidate_family cap reached for %s", family_n
                 )
+                break
+        _flush_batch()
     except Exception as exc:
         logger.warning(
             "[DashCache] scan/invalidate failed: %s",
@@ -615,6 +651,312 @@ def invalidate_dashboard_caches_after_delete_transition(reason: str) -> int:
 
     invalidate_shipment_as_recommendation_cache(reason=reason)
     return total
+
+
+# --- 단건 주문 저장 → 무효화 범위 (P1-2, 2026-10-01) ----------------------------------
+# 저장 경로 13곳이 손으로 broad(7 family 전부)를 불러 운영 하루 500~1,300번 캐시가 통째로
+# 비워졌다(적중률 38~53%). 판정 기준은 하나다: **그 family 의 캐시된 slice DTO 가 이
+# 주문의 바뀐 값을 담을 수 있는가.** 주문이 담기는 자리는 단계만으로 정해지지 않는다 —
+# 실측·출고 패널은 날짜 창으로 담고(단계 무관), 시공·생산 숫자판은 자기 탭 밖 단계(완료·
+# 시공)도 함께 센다. 그래서 단계 family 에 더해 날짜·단계 범위·검색/담당 필드를 저장 전후로
+# 비교한다. 소속 자체가 바뀌는 전이(삭제·초안 승격·status 변경·미지의 단계)는 broad 그대로다.
+#
+# 남는 틈(의도): 지난 날짜를 직접 골라 연 실측 목록의 품목 내용(TTL 90초)은 날짜 창 밖이라
+# 비우지 않는다. 검색어·'내 것' 필터 소속은 history 만 비운다(다른 탭의 검색 결과는 날짜 창·
+# 단계 범위 안 주문이면 위 규칙으로 함께 비워진다).
+
+#: 시공 숫자판(summary_counts)이 세는 단계. 정본은
+#: ``construction_read_model.CONSTRUCTION_ALL_STAGE_CODES`` — 계약 테스트가 같음을 고정한다.
+CONSTRUCTION_SUMMARY_STAGE_CODES: Final[frozenset[str]] = frozenset(
+    {"CONSTRUCTION", "시공", "CONSTRUCTING", "COMPLETED", "완료", "AS_WAIT", "CS"}
+)
+#: 생산 숫자판(summary_counts)이 세는 단계. 정본은
+#: ``production_read_model.PRODUCTION_BASE_STAGE_CODES`` — 계약 테스트가 같음을 고정한다.
+PRODUCTION_SUMMARY_STAGE_CODES: Final[frozenset[str]] = frozenset(
+    {"고객컨펌", "생산", "시공", "CONFIRM", "PRODUCTION", "CONSTRUCTION"}
+)
+#: 실측 패널·실측 기본 목록·출고 패널이 담는 날짜 창(오늘 ~ 오늘+14일, KST). 정본은
+#: ``measurement_dashboard_filters.parse_measurement_dashboard_filters`` 와 출고 대시보드.
+DASHBOARD_DATE_WINDOW_DAYS: Final[int] = 14
+#: 도메인 탭이 없고 orders 탭(주문접수)에만 나타나는 단계. 그 밖의 미매핑 단계는 broad.
+_ORDERS_ONLY_STAGE_CODES: Final[frozenset[str]] = frozenset({"", "RECEIVED"})
+_ISO_DATE_PREFIX_RE = re.compile(r"^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})")
+
+
+def _as_dict(value: Any) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
+
+
+def _norm_stage(value: Any) -> str:
+    """단계 값 정규화(대문자·공백·JSON 따옴표 제거). 없으면 빈 문자열."""
+    return str(value or "").strip().strip('"').strip().upper()
+
+
+def _norm_date(raw: str) -> str:
+    """``2026-9-3``·``2026/09/03`` → ``2026-09-03``. 날짜 꼴이 아니면 원문."""
+    m = _ISO_DATE_PREFIX_RE.match(raw)
+    if not m:
+        return raw
+    return f"{int(m.group(1)):04d}-{int(m.group(2)):02d}-{int(m.group(3)):02d}"
+
+
+def _date_tuple(*raws: Any) -> tuple[str, ...]:
+    """콤마 다중 날짜를 포함한 값들 → 정규화된 날짜 정렬 튜플(중복 제거)."""
+    out: set[str] = set()
+    for raw in raws:
+        for chunk in str(raw or "").split(","):
+            chunk = chunk.strip()
+            if chunk:
+                out.add(_norm_date(chunk))
+    return tuple(sorted(out))
+
+
+def _frozen(value: Any) -> str:
+    """비교용 정본 문자열. 저장 전 스냅샷이 뒤의 제자리 수정에 끌려가지 않게 값을 굳힌다."""
+    return json.dumps(value, sort_keys=True, ensure_ascii=False, default=str)
+
+
+def _any_date_in_window(dates: Iterable[str], today: datetime.date) -> bool:
+    """날짜 중 하나라도 오늘~오늘+14일 창에 들면 True(날짜 꼴이 아니면 건너뛴다)."""
+    end = today + datetime.timedelta(days=DASHBOARD_DATE_WINDOW_DAYS)
+    for value in dates:
+        try:
+            day = datetime.date.fromisoformat(value[:10])
+        except (TypeError, ValueError):
+            continue
+        if today <= day <= end:
+            return True
+    return False
+
+
+def order_dashboard_cache_axes(order: Any) -> dict[str, Any]:
+    """주문 1건에서 대시보드 캐시 소속·내용을 가르는 값만 떠 둔 스냅샷.
+
+    저장 **전**(잠근 직후)과 **후**에 한 번씩 떠서 :func:`dashboard_families_for_order_save`
+    에 넘긴다. 값은 문자열로 굳혀 두므로 저장 도중 structured_data 를 제자리에서 고쳐도
+    전 스냅샷은 변하지 않는다.
+
+    축과 근거(캐시 compute 가 읽는 값):
+      * core — status·삭제·ERP 여부·초안. 모든 family 기준 쿼리의 active/draft 필터.
+      * stages — ``erp_stage_code``·``workflow.stage``. 단계 family·시공/생산 숫자판 범위.
+      * measurement_dates/measurement_flags — 실측 패널·목록 소속(날짜)과 지방/자가실측 집계
+        (``measurement_read_model.compute_measurement_panel_assembly``).
+      * shipment_dates — 출고 패널 소속(시공일·AS 방문일, ``shipment/dashboard.py`` panel_query).
+      * drawing — 도면 큐 소속(``build_drawing_queue_filter`` 의 도면 상태·도면 담당).
+      * identity — 과거 이력 검색·'내 것' 필드(``erp_order_dashboard_search_predicate``·
+        ``build_mine_sql_filter``). history page_rows 는 단계 무관 전체 주문의 검색 결과다.
+    """
+    sd = _as_dict(getattr(order, "structured_data", None))
+    schedule = _as_dict(sd.get("schedule"))
+    raw_items = sd.get("items")
+    items = [it for it in raw_items if isinstance(it, dict)] if isinstance(raw_items, list) else []
+    first_item = items[0] if items else {}
+    workflow = _as_dict(sd.get("workflow"))
+    parties = _as_dict(sd.get("parties"))
+    site = _as_dict(sd.get("site"))
+    assignments = _as_dict(sd.get("assignments"))
+    shipment = _as_dict(sd.get("shipment"))
+    status = str(getattr(order, "status", "") or "")
+    is_draft = status.upper() == "DRAFT" or is_erp_draft_structured_data(sd)
+    return {
+        "core": _frozen((
+            status,
+            getattr(order, "deleted_at", None) is not None,
+            bool(getattr(order, "is_erp_order", False)),
+            is_draft,
+        )),
+        "stages": (
+            _norm_stage(getattr(order, "erp_stage_code", None)),
+            _norm_stage(workflow.get("stage")),
+        ),
+        "measurement_dates": _date_tuple(
+            getattr(order, "measurement_date", None),
+            getattr(order, "erp_measurement_date", None),
+            _as_dict(schedule.get("measurement")).get("date"),
+            *[it.get("measurement_date") for it in items],
+        ),
+        "measurement_flags": _frozen((
+            getattr(order, "is_regional", None),
+            getattr(order, "is_self_measurement", None),
+            getattr(order, "measurement_completed", None),
+            getattr(order, "regional_sales_order_upload", None),
+            getattr(order, "regional_blueprint_sent", None),
+            getattr(order, "regional_order_upload", None),
+        )),
+        "shipment_dates": _date_tuple(
+            getattr(order, "scheduled_date", None),
+            getattr(order, "erp_construction_date", None),
+            _as_dict(schedule.get("construction")).get("date"),
+            _as_dict(schedule.get("as_visit")).get("date"),
+            *[it.get("construction_date") for it in items],
+        ),
+        "drawing": _frozen((
+            sd.get("drawing_status"),
+            _as_dict(sd.get("drawing")).get("status"),
+            sd.get("drawing_assignees"),
+            assignments.get("drawing_assignees"),
+            assignments.get("drawing_assignee_user_ids"),
+        )),
+        "identity": _frozen((
+            getattr(order, "customer_name", None),
+            getattr(order, "phone", None),
+            getattr(order, "address", None),
+            getattr(order, "product", None),
+            getattr(order, "manager_name", None),
+            _as_dict(parties.get("customer")).get("name"),
+            _as_dict(parties.get("customer")).get("phone"),
+            _as_dict(parties.get("manager")).get("name"),
+            _as_dict(parties.get("orderer")).get("name"),
+            _as_dict(parties.get("buyer")).get("name"),
+            _as_dict(parties.get("buyer")).get("phone"),
+            site.get("address_full"),
+            site.get("address_main"),
+            first_item.get("product_name"),
+            first_item.get("name"),
+            _as_dict(schedule.get("measurement")).get("date"),
+            _as_dict(schedule.get("measurement")).get("time"),
+            _as_dict(schedule.get("construction")).get("date"),
+            _as_dict(workflow.get("current_quest")).get("owner_person"),
+            shipment.get("construction_workers"),
+            assignments.get("sales_assignee_user_ids"),
+        )),
+    }
+
+
+def dashboard_families_for_order_save(
+    before: Mapping[str, Any] | None,
+    after: Mapping[str, Any] | None,
+    *,
+    today: datetime.date | None = None,
+) -> tuple[str, ...]:
+    """저장 전/후 스냅샷 → 비워야 할 family 튜플(정의 순서). broad 면 7개 전부.
+
+    규칙(과소무효화보다 과무효화가 안전):
+      * 스냅샷이 없거나 core(status·삭제·ERP·초안)가 바뀌면 → 전부(탭 소속 자체가 바뀐다).
+      * 전/후 단계 중 매핑도 orders 전용도 아닌 값이 있거나, 단계가 바뀌었는데 한쪽이 매핑
+        없는 단계면 → 전부(어느 탭인지 모른다. MUT-CACHE-01 리스너와 같은 규칙).
+      * 그 밖: orders + 전/후 단계 family(단계가 바뀌었으면 history 도), 그리고
+        - measurement: 실측일·지방/자가실측 값이 바뀌었거나, 전/후 실측일이 날짜 창 안.
+        - shipment: 시공일·AS 방문일이 바뀌었거나, 전/후 그 날짜가 날짜 창 안.
+        - construction / production: 전/후 단계가 그 숫자판이 세는 단계.
+        - drawing: 도면 상태·도면 담당이 바뀜.
+        - history: 검색·'내 것' 필드가 바뀜.
+
+    Args:
+        before: 저장 전 :func:`order_dashboard_cache_axes` (없으면 None → broad).
+        after: 저장 후 스냅샷.
+        today: 날짜 창 기준일(테스트 주입용). 생략하면 KST 오늘.
+
+    Returns:
+        무효화할 family 튜플.
+    """
+    if not before or not after or before.get("core") != after.get("core"):
+        return ALL_DASHBOARD_FAMILIES
+    stages = {*before.get("stages", ()), *after.get("stages", ())}
+    stage_moved = set(before.get("stages", ())) != set(after.get("stages", ()))
+    families = {DASHBOARD_FAMILY_ORDERS}
+    for stage in stages:
+        family = stage_code_to_dashboard_family(stage)
+        if family is not None:
+            families.add(family)
+        elif stage_moved or stage not in _ORDERS_ONLY_STAGE_CODES:
+            # 단계 이동의 한쪽이 도메인 탭 없는 단계면 어느 탭이 바뀔지 모른다 — MUT-CACHE-01
+            # 리스너(dashboard_families_for_mutation_intent)와 같은 규칙.
+            return ALL_DASHBOARD_FAMILIES
+    if stage_moved:
+        # 과거 이력의 단계 필터 결과가 바뀐다.
+        families.add(DASHBOARD_FAMILY_HISTORY)
+    day = today or get_today_kst()
+    m_before, m_after = before.get("measurement_dates", ()), after.get("measurement_dates", ())
+    if (
+        m_before != m_after
+        or before.get("measurement_flags") != after.get("measurement_flags")
+        or _any_date_in_window((*m_before, *m_after), day)
+    ):
+        families.add(DASHBOARD_FAMILY_MEASUREMENT)
+    s_before, s_after = before.get("shipment_dates", ()), after.get("shipment_dates", ())
+    if s_before != s_after or _any_date_in_window((*s_before, *s_after), day):
+        families.add(DASHBOARD_FAMILY_SHIPMENT)
+    if stages & CONSTRUCTION_SUMMARY_STAGE_CODES:
+        families.add(DASHBOARD_FAMILY_CONSTRUCTION)
+    if stages & PRODUCTION_SUMMARY_STAGE_CODES:
+        families.add(DASHBOARD_FAMILY_PRODUCTION)
+    if before.get("drawing") != after.get("drawing"):
+        families.add(DASHBOARD_FAMILY_DRAWING)
+    if before.get("identity") != after.get("identity"):
+        families.add(DASHBOARD_FAMILY_HISTORY)
+    return tuple(f for f in ALL_DASHBOARD_FAMILIES if f in families)
+
+
+def invalidate_dashboard_families_for_order_save(
+    before: Mapping[str, Any] | None,
+    after: Mapping[str, Any] | None,
+) -> int:
+    """단건 주문 저장 커밋 뒤 :func:`dashboard_families_for_order_save` 범위만 비운다.
+
+    DB commit이 성공한 뒤에만 호출할 것.
+
+    Returns:
+        삭제한 키 개수 합(대략치).
+    """
+    families = dashboard_families_for_order_save(before, after)
+    if families == ALL_DASHBOARD_FAMILIES:
+        return invalidate_all_dashboard_slice_caches()
+    return invalidate_dashboard_families(*families)
+
+
+#: 일정 종류(``OrderScheduleDate.kind``) → 그 날짜를 읽는 캐시 family.
+#: 근거: 실측일 = 실측 패널·목록, orders/생산 숫자판 D-4(``_erp_alerts`` measurement_d4).
+#: 시공일 = 출고 패널, 시공 D-3·생산 D-2 숫자판, orders 숫자판·관제탑. AS 방문일 = 출고 패널
+#: (AS 상태 주문), orders 관제탑. 시공 숫자판은 날짜 표시단계를 쓰므로 세 종류 모두에 넣는다.
+#: 실측일·시공일 문자열은 과거 이력 검색 대상이기도 하다(``erp_order_dashboard_search_predicate``
+#: 의 schedule.*.date) → history. 도면 캐시(접수순 id 목록)는 일정 날짜를 담지 않는다.
+_SCHEDULE_KIND_FAMILIES: Final[dict[str, tuple[str, ...]]] = {
+    "measurement": (
+        DASHBOARD_FAMILY_ORDERS,
+        DASHBOARD_FAMILY_MEASUREMENT,
+        DASHBOARD_FAMILY_CONSTRUCTION,
+        DASHBOARD_FAMILY_HISTORY,
+        DASHBOARD_FAMILY_PRODUCTION,
+    ),
+    "construction": (
+        DASHBOARD_FAMILY_ORDERS,
+        DASHBOARD_FAMILY_SHIPMENT,
+        DASHBOARD_FAMILY_CONSTRUCTION,
+        DASHBOARD_FAMILY_HISTORY,
+        DASHBOARD_FAMILY_PRODUCTION,
+    ),
+    "as_visit": (
+        DASHBOARD_FAMILY_ORDERS,
+        DASHBOARD_FAMILY_SHIPMENT,
+        DASHBOARD_FAMILY_CONSTRUCTION,
+    ),
+}
+
+
+def dashboard_families_for_schedule_change(
+    kinds: Iterable[str], *, item_level: bool = False
+) -> tuple[str, ...]:
+    """바뀐 일정 종류 → 비워야 할 family 튜플. 모르는 종류가 섞이면 전부.
+
+    Args:
+        kinds: 바뀐 ``OrderScheduleDate.kind`` 들.
+        item_level: 품목별 날짜(``item_index`` 있는 행)가 바뀌었는가. 품목 날짜는 품목
+            dict 안에 있고, 실측 제품 목록 DTO(``measurement_product_items_build``)가 품목
+            dict 를 통째로 싣는다 → 실측 family 도 비운다.
+
+    Returns:
+        무효화할 family 튜플(정의 순서).
+    """
+    families: set[str] = set()
+    for kind in kinds:
+        mapped = _SCHEDULE_KIND_FAMILIES.get(str(kind or ""))
+        if mapped is None:
+            return ALL_DASHBOARD_FAMILIES
+        families.update(mapped)
+    if item_level and families:
+        families.add(DASHBOARD_FAMILY_MEASUREMENT)
+    return tuple(f for f in ALL_DASHBOARD_FAMILIES if f in families)
 
 
 # --- canonical mutation 자동 무효화 (MUT-CACHE-01) --------------------------------

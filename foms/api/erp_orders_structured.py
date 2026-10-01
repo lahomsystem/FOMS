@@ -43,6 +43,12 @@ from foms.services.orders.order_flag_permissions import can_toggle_order_flags
 from foms.services.orders.change_reason import is_reason_required
 from foms.services.orders.structured_diff import MAX_CHANGES, DiffResult, diff_structured
 from foms.services.datetime_kst import now_kst, now_utc_naive
+from foms.services.common.dashboard_cache import (
+    DASHBOARD_FAMILY_ORDERS,
+    invalidate_dashboard_families,
+    invalidate_dashboard_families_for_order_save,
+    order_dashboard_cache_axes,
+)
 from foms.services.erp_order_flags import (
     is_erp_draft_structured_data,
     is_erp_order_draft,
@@ -1126,6 +1132,8 @@ def api_patch_order_structured_fields(order_id: int):
                         },
                     }), 409
 
+        # P1-2: 대시보드 캐시 무효화 범위 판정용 저장 전 스냅샷(잠근 행, 수정 전).
+        cache_axes_before = order_dashboard_cache_axes(order)
         old_sd = order.structured_data if isinstance(order.structured_data, dict) else {}
         old_notes = getattr(order, 'notes', None)
         old_is_regional = getattr(order, 'is_regional', None)
@@ -1208,10 +1216,12 @@ def api_patch_order_structured_fields(order_id: int):
         )
         db.commit()
 
-        # Tier A(broad): 주문 구조(structured_data) 수정은 workflow.stage/order.status를
-        # 포함해 탭 간 이동이 실제로 일어나므로 전체 무효화를 유지한다.
-        from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
-        invalidate_all_dashboard_slice_caches()
+        # P1-2: 인라인 수정은 엔진(MUT-CACHE-01 리스너) 밖이라 여기서 직접 비운다. 범위는 저장
+        # 전/후 비교로 정한다 — 단계·status·초안이 바뀌거나 단계를 모르면 broad, 아니면 orders +
+        # 단계 family + 날짜 창 + 숫자판 단계 범위 + 검색/담당 필드(dashboard_families_for_order_save).
+        invalidate_dashboard_families_for_order_save(
+            cache_axes_before, order_dashboard_cache_axes(order)
+        )
         finalize_drawing_order_change_alert(db, drawing_notif, created_new=drawing_notif_created)
         try:
             finalize_production_change_alert(db, prod_notif, created_new=prod_notif_created)
@@ -1515,11 +1525,15 @@ def api_put_order_structured(order_id):
             'drawing_notif_created': False,
             'prod_notif': None,
             'prod_notif_created': False,
+            # P1-2: 저장 전 캐시 축 스냅샷. replay(같은 키 재요청)면 _mutate 가 안 돌아 None → broad.
+            'cache_axes_before': None,
         }
 
         def _mutate(sess: Session, orders: List[Order]) -> Mapping[int, List[str]]:
             """FOR UPDATE 락 아래에서 폼 저장 전체(컬럼·structured projection·side-effect)."""
             o = orders[0]
+            # P1-2: 대시보드 캐시 무효화 범위 판정용 저장 전 스냅샷(잠근 행, 수정 전).
+            captured['cache_axes_before'] = order_dashboard_cache_axes(o)
             _sd_raw: Any = o.structured_data
             old_sd = _sd_raw if isinstance(_sd_raw, dict) else {}
             # ORDER-DIFF-00: 아래 보존/projection 단계가 old_sd 를 참조하며 값을 옮기므로,
@@ -1770,10 +1784,14 @@ def api_put_order_structured(order_id):
                     order_id, auto_target, auto_stage_error[1],
                 )
 
-        # Tier A(broad): 주문 저장(PUT structured)은 stage/status 변경을 포함 → 탭 이동.
-        from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
-
-        invalidate_all_dashboard_slice_caches()
+        # P1-2: 폼 저장은 단계를 바꾸지 않는다(STATE-FORM-01 — 실측일 자동 전진·복귀는 위의 별도
+        # 전이가 MUT-CACHE-01 리스너로 비운다). 그래서 7 family 를 다 비우던 broad 대신, 이 주문의
+        # 바뀐 값이 실제로 담길 수 있는 family 만 비운다(단계 family + 날짜 창 + 숫자판 단계 범위 +
+        # 검색/담당 필드, 판정 dashboard_cache.dashboard_families_for_order_save). 저장 전
+        # 스냅샷이 없으면(replay) broad 다.
+        invalidate_dashboard_families_for_order_save(
+            captured['cache_axes_before'], order_dashboard_cache_axes(order)
+        )
         finalize_drawing_order_change_alert(
             db, captured['drawing_notif'], created_new=captured['drawing_notif_created']
         )
@@ -1898,10 +1916,10 @@ def api_payment_confirm(order_id):
         )
 
         db.commit()
-        # Tier A(broad): 결제/구조 필드 patch도 structured_data 전반을 갱신 → 탭 이동 가능.
-        from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
-
-        invalidate_all_dashboard_slice_caches()
+        # P1-2: 이 경로가 바꾸는 값은 payment.{deposit,balance}_confirmed(_at/_by/_by_user_id)
+        # 뿐이고 단계·날짜·검색 필드는 그대로다. 7 family 캐시 DTO 어디에도 결제 확인 값이 없다
+        # (읽는 곳은 정산·알림톡·완료 대시보드 — 모두 캐시 밖). broad 대신 orders 만 여유로 비운다.
+        invalidate_dashboard_families(DASHBOARD_FAMILY_ORDERS)
 
         ret_payment = {
             'deposit': payment_obj.get('deposit', 0),
@@ -1985,10 +2003,9 @@ def api_erp_create_draft():
         # draft 생성 감사(ORDER_DRAFT_CREATED): 같은 트랜잭션 동승 — 생성이 롤백되면 함께 사라진다.
         _emit_draft_created_event(db, order.id, structured['meta']['created_via'])
         db.commit()
-        # Tier A(broad): 신규 초안 생성은 새 주문이 목록/단계 집계에 진입 → 전체 무효화.
-        from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
-
-        invalidate_all_dashboard_slice_caches()
+        # P1-2: 초안(status=DRAFT·meta.draft)은 어느 대시보드에도 없다 — 7 family 기준 쿼리가
+        # 모두 Order.active_filter/dashboard_active_filter 로 초안을 뺀다. 그래서 생성만으로는
+        # 비울 캐시가 없다. 탭에 나타나는 순간은 초안 승격이고, 그 무효화는 승격 경로 몫이다.
         db.refresh(order)
 
         session['erp_draft_order_id'] = order.id

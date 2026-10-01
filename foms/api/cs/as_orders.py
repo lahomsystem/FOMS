@@ -106,16 +106,33 @@ POLICY_AS_SCHEDULE_LINK = "STATE_AS_SCHEDULE_LINK"
 POLICY_AS_SALES_DELIVERY = "STATE_AS_SALES_DELIVERY"
 
 
-def _invalidate_shipment_asrec_caches(reason: str) -> None:
+def _invalidate_shipment_asrec_caches(
+    reason: str, *, record_only: bool = False, shipment: bool = False
+) -> None:
     """Dashboard + shipment AS recommendation cache bust (commit-after, best-effort).
 
-    Tier A(broad): AS 전이는 order.status(AS↔CS↔AS_RECEIVED)와 stage projection 을 바꿔
-    여러 탭(주문/시공/완료/출고 추천) 사이 이동을 유발하므로 전체 무효화를 유지한다.
+    * 전이(접수·일정·일정 취소·시작·완료·재개봉, ``record_only=False``) — Tier A(broad):
+      order.status 투영(AS↔CS↔AS_RECEIVED)과 AS 방문일이 바뀌어 출고 패널(AS 상태+방문일
+      소속)·이력 단계 필터·시공 탭 사이 이동이 일어나므로 전체 무효화를 유지한다.
+    * 기록(분류·비용·타임라인·판정·기준일정 링크·전달 링크, ``record_only=True``) — P1-2:
+      대시보드 캐시를 손으로 비우지 않는다. 모두 ``_run_sd_mutation``/as_cycle_service →
+      ``execute_order_mutation`` 이라 MUT-CACHE-01 리스너가 커밋 직후 orders + 현재 단계
+      family 를 비운다. 바뀌는 값(as_log·as_billing·cycle 분류·링크)은 7 family 캐시 DTO
+      어디에도 없다. ``shipment=True``(분류·전달)는 ``shipment.*`` 투영을 바꾸므로 출고
+      family 를 더 비운다(field_update 의 sales_delivery 선례).
+    * AS 추천 캐시(별도 캐시)는 두 경우 모두 비운다.
     """
     try:
-        from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
+        from foms.services.common.dashboard_cache import (
+            DASHBOARD_FAMILY_SHIPMENT,
+            invalidate_all_dashboard_slice_caches,
+            invalidate_dashboard_families,
+        )
 
-        invalidate_all_dashboard_slice_caches()
+        if not record_only:
+            invalidate_all_dashboard_slice_caches()
+        elif shipment:
+            invalidate_dashboard_families(DASHBOARD_FAMILY_SHIPMENT)
     except Exception:
         logger.warning("[AS-REC] dashboard cache invalidate failed (%s)", reason, exc_info=True)
     try:
@@ -963,7 +980,7 @@ def api_as_classification(order_id):
     _audit_as(order, "AS_CATEGORY_CHANGED", user_id, note=f"{field}: {value}",
               extra={"field": field, "value": value})
     db.commit()
-    _invalidate_shipment_asrec_caches("api_as_classification")
+    _invalidate_shipment_asrec_caches("api_as_classification", record_only=True, shipment=True)
     shipment = (order.structured_data or {}).get("shipment") or {}
     return jsonify({
         "success": True,
@@ -1074,7 +1091,7 @@ def api_as_billing(order_id: int):
     _audit_as(order, "AS_BILLING_DECIDED", user_id, note=new_type,
               extra={"billing_type": new_type, "reason": reason or None})
     db.commit()
-    _invalidate_shipment_asrec_caches("api_as_billing")
+    _invalidate_shipment_asrec_caches("api_as_billing", record_only=True)
     return jsonify({
         "success": True,
         "billing": billing,
@@ -1162,7 +1179,7 @@ def api_as_log_append(order_id: int):
     entry = captured["entry"]
     html = _render_as_log_entry(entry)
     db.commit()
-    _invalidate_shipment_asrec_caches("api_as_log_append")
+    _invalidate_shipment_asrec_caches("api_as_log_append", record_only=True)
     return jsonify({"success": True, "entry": entry, "html": html})
 
 
@@ -1224,7 +1241,7 @@ def api_as_verdict(order_id: int):
     entry = captured["entry"]
     html = _render_as_log_entry(entry)  # commit 앞 렌더(append 와 동일 이유)
     db.commit()
-    _invalidate_shipment_asrec_caches("api_as_verdict")
+    _invalidate_shipment_asrec_caches("api_as_verdict", record_only=True)
     return jsonify({
         "success": True, "entry": entry, "html": html,
         "current_round": captured["current_round"],
@@ -1282,7 +1299,7 @@ def api_as_log_patch(order_id: int, log_id: str):
     entry = captured["entry"]
     html = _render_as_log_entry(entry)  # commit 앞 렌더(append와 동일 이유)
     db.commit()
-    _invalidate_shipment_asrec_caches("api_as_log_patch")
+    _invalidate_shipment_asrec_caches("api_as_log_patch", record_only=True)
     return jsonify({"success": True, "entry": entry, "html": html})
 
 
@@ -1353,7 +1370,7 @@ def api_as_log_delete(order_id: int, log_id: str):
     _audit_as(order, "AS_LOG_DELETED", user_id, extra={"log_id": str(log_id)})
     cell_html = _render_as_timeline_cell(order_id, captured["sd"])  # commit 앞 렌더
     db.commit()
-    _invalidate_shipment_asrec_caches("api_as_log_delete")
+    _invalidate_shipment_asrec_caches("api_as_log_delete", record_only=True)
     return jsonify({"success": True, "cell_html": cell_html})
 
 
@@ -1557,7 +1574,7 @@ def api_as_schedule_link(order_id: int):
               note=_SCHEDULE_LINK_ACTION_LABELS[action],
               extra={"link_action": action, "ref_order_id": ref_id, "ref_date": ref_date})
     db.commit()
-    _invalidate_shipment_asrec_caches("api_as_schedule_link")
+    _invalidate_shipment_asrec_caches("api_as_schedule_link", record_only=True)
     return jsonify(_schedule_link_payload(
         action=action, link=captured["link"], cleared=captured["cleared"],
         ref_date=ref_date, as_visit_date=captured["as_visit_date"]))
@@ -1895,7 +1912,7 @@ def api_as_sales_delivery(order_id: int):
               extra={"delivery_action": action, "ref_order_id": ref_id, "ref_date": ref_date})
     payload = _sales_delivery_payload(captured["sd"], ref_current)  # commit 앞 조립
     db.commit()
-    _invalidate_shipment_asrec_caches("api_as_sales_delivery")
+    _invalidate_shipment_asrec_caches("api_as_sales_delivery", record_only=True, shipment=True)
     return jsonify(payload)
 
 
