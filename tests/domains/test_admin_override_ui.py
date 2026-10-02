@@ -40,9 +40,9 @@ RETRY_WIRED_TEMPLATES = [
 ]
 
 # 출고는 파샬(templates/shipment/partials/dashboard_scripts.html)이 아니라 **셸**
-# (templates/shipment/layout.html)에 한 번만 싣는다 — 그 파샬은 <script src> 2개 상한이
-# perf_scan fragment-multi-script veto 로 고정돼 있다
-# (tests/domains/test_shipment_change_alert_render.py). 파샬은 무변경이어야 한다.
+# (templates/shipment/layout.html)에 한 번만 싣는다 — 그 파샬은 shipment-entry.js 1개만 두는
+# 자리라 하나라도 더 얹으면 perf_scan fragment-multi-script veto 가 난다
+# (tests/domains/test_shipment_change_alert_render.py).
 
 # 거부 응답을 공통 재시도 컨트롤러로 넘기는 호출부. 한 곳이라도 빠지면 그 화면의
 # 관리자는 거부 문구만 보고 끝난다(서버는 뚫을 수 있는데 화면에 길이 없다).
@@ -282,11 +282,11 @@ def test_재시도_핀_판정기_음성_대조():
     assert _retry_pin_verdict("{{ asset_url('js/orders/erp-share.js') }}", name) is None
 
 
-def test_출고_파샬은_스크립트_2개_상한을_그대로_지킨다():
-    """음성 대조군 — 배선은 셸에만 올린다. 파샬을 건드리면 perf_scan veto 가 난다."""
+def test_출고_파샬은_엔트리_스크립트_1개만_싣는다():
+    """음성 대조군 — 배선은 셸에만 올린다. 파샬에 스크립트를 더 얹으면 perf_scan veto 가 난다."""
     body = (REPO_ROOT / "templates" / "shipment" / "partials"
             / "dashboard_scripts.html").read_text(encoding="utf-8")
-    assert body.count("<script src=") == 2
+    assert body.count("<script src=") == 1
     assert "foms-admin-override.js" not in body
     assert "foms_reason_sheet.html" not in body
 

@@ -91,7 +91,7 @@ def test_order_detail_fragment_scripts_are_deferred_but_keep_include_order() -> 
 
 
 def test_shipment_dashboard_uses_single_deferred_entry_not_inline_bundles() -> None:
-    """출고 fragment 는 entry 1개(defer)만 로드하고, 번들 <script src>는 fragment 밖(entry가 순차 로드).
+    """출고 fragment 는 entry 1개(defer)만 로드하고, 번들 <script src>는 fragment 밖(entry가 한꺼번에 받고 순서대로 실행).
 
     과거엔 여러 개가 fragment 안에 있어 erp-shell activateScripts()가 매 스왑 재파싱·재실행(실측탭 5.8s 병).
     이제 shipment-entry.js 가 head.appendChild 로 load-once + foms:erp-shell-fragment-swapped 재init.
@@ -105,11 +105,12 @@ def test_shipment_dashboard_uses_single_deferred_entry_not_inline_bundles() -> N
     bundled = [
         "js/shipment/image-export.js",
         "js/shipment/dashboard-columns.js",
+        "js/foms/tablet-domain-sheets.js",
     ]
     for needle in bundled:
         assert needle not in html, f"{needle} 는 shipment-entry.js 가 로드해야 함(fragment 재실행 방지)"
 
-    # entry 의 CHAIN 이 번들을 순차 로드(image-export 가 dashboard-columns 앞)
+    # entry 의 CHAIN 순서 = 실행 순서(image-export 가 dashboard-columns 앞)
     entry = _read("static/js/shipment/shipment-entry.js")
     order = [
         "shipment/image-export.js",

@@ -741,8 +741,8 @@
   <script src="{{ url_for('static', filename='js/common/foms-schedule-map.js') }}?v=20260730g" defer></script>
   <script src="{{ url_for('static', filename='js/shipment/shipment-dashboard.js') }}?v=20261001b" defer></script>
   {# 시공일 변경 [확인](ack) 클라이언트 — 여기(dashboard_main)에 두는 이유: 인접
-     dashboard_scripts.html 은 이미 <script src> 2개라 그 파일을 건드리면 perf_scan 의
-     fragment-multi-script 가 deploy veto 를 낸다(구조적 부채는 별건). 이 블록은 같은
+     dashboard_scripts.html 은 entry 1개만 두는 자리라 거기 얹으면 perf_scan 의
+     fragment-multi-script 가 deploy veto 를 낸다. 이 블록은 같은
      프래그먼트 안 기존 defer 스크립트 자리이고, 모듈 자체가 문서 위임 + 싱글턴
      가드(__FOMS_SHIPMENT_CHANGE_ALERT_BOUND)라 스왑 재실행이 무해하다(G1 defer · G4). #}
   <script src="{{ url_for('static', filename='js/shipment/shipment-change-alert.js') }}?v=20260814a" defer></script>

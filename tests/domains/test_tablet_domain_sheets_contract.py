@@ -6,7 +6,8 @@
   - templates/production/partials/tablet_kanban_body.html : 시트 URL soruce + 도메인 시트 JS
     include(defer/?v=) + 필터 바 attr + KPI 타일 클래스.
   - templates/shipment/partials/dashboard_main.html : 시트 URL source + 출고 KPI 스트립.
-  - templates/shipment/partials/dashboard_scripts.html : 도메인 시트 JS include(defer/?v=).
+  - static/js/shipment/shipment-entry.js : 출고 쪽 도메인 시트 JS 를 entry CHAIN 으로 1회 로드(?v=).
+    (2026-10-02 전엔 dashboard_scripts.html 의 defer 태그였다 — 파샬은 이제 entry 1개만.)
   - 라우트: erp_production_page.erp_production_tablet_sheet /
             erp_shipment_page.erp_shipment_tablet_sheet 등록.
 
@@ -26,6 +27,7 @@ DOMAIN_SHEETS_JS = "static/js/foms/tablet-domain-sheets.js"
 KANBAN_BODY = "templates/production/partials/tablet_kanban_body.html"
 SHIPMENT_DASHBOARD_MAIN = "templates/shipment/partials/dashboard_main.html"
 SHIPMENT_DASHBOARD_SCRIPTS = "templates/shipment/partials/dashboard_scripts.html"
+SHIPMENT_ENTRY_JS = "static/js/shipment/shipment-entry.js"
 
 CORE_MEDIA_QUERY = (
     "(min-width: 992px) and (orientation: landscape) and (pointer: coarse)"
@@ -146,12 +148,18 @@ def test_shipment_dashboard_main_has_sheet_source_and_kpis() -> None:
 
 
 def test_shipment_dashboard_scripts_wires_domain_sheets_deferred() -> None:
-    """출고 대시보드 scripts 가 도메인 시트 JS 를 defer + ?v 로 로드한다.
-    (형제 워커: 출고 대시보드 — 랜딩 전까지 pending.)"""
+    """출고 대시보드는 도메인 시트 JS 를 shipment-entry.js CHAIN 으로 ?v 붙여 1회 로드한다.
+
+    파샬(dashboard_scripts.html)에는 entry(defer) 1개만 둔다 — 동적 삽입이라 렌더를 막지 않고(G1),
+    셸 스왑마다 다시 실행되지 않는다(fragment-multi-script)."""
     html = _read(SHIPMENT_DASHBOARD_SCRIPTS)
-    tag = _script_tag(html, "js/foms/tablet-domain-sheets.js")
-    assert SCRIPT_CACHEBUSTER in tag, "도메인 시트 스크립트 ?v 캐시버스터 부재"
-    assert "defer" in tag, "도메인 시트 스크립트 defer 부재(perf G1)"
+    assert "js/foms/tablet-domain-sheets.js" not in html, "도메인 시트는 entry CHAIN 이 싣는다"
+    entry_tag = _script_tag(html, "js/shipment/shipment-entry.js")
+    assert "defer" in entry_tag, "출고 entry 스크립트 defer 부재(perf G1)"
+    entry = _read(SHIPMENT_ENTRY_JS)
+    assert "'/static/js/foms/tablet-domain-sheets.js" + SCRIPT_CACHEBUSTER + "'" in entry, (
+        "entry CHAIN 에 도메인 시트(?v 캐시버스터 포함)가 없다"
+    )
 
 
 # --- (4) 라우트 등록 (형제 대기) ----------------------------------------------
