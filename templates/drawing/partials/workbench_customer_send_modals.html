@@ -38,8 +38,6 @@
       <div class="modal-body">
         {% if (cs.round|default(0)) >= 2 %}
         <div class="alert alert-primary py-2 small mb-2" data-foms-no-autodismiss>고객이 예전 링크를 눌러도 이제 {{ cs_round_label }}만 보여요.</div>
-        {% else %}
-        <div class="alert alert-primary py-2 small mb-2" data-foms-no-autodismiss>확정 전이어도 보내요. 고객 의견을 받은 뒤 고치거나 확정하면 돼요.</div>
         {% endif %}
         <div class="alert alert-warning py-2 small mb-2 d-none" data-send-again data-foms-no-autodismiss>
           <span data-send-again-text>{{ cs.sent_text|default('') }}</span> — 한 번 더 보낼까요? 새 링크가 가지만 예전 링크도 똑같이 최신 도면을 보여 줘요.
@@ -103,8 +101,6 @@
           <div class="btn-group flex-wrap" role="group" aria-label="보내는 방법">
             <input type="radio" class="btn-check" name="dw-send-channel" id="dw-send-channel-kakao" value="kakao" autocomplete="off" checked>
             <label class="btn btn-outline-secondary btn-sm" for="dw-send-channel-kakao">카카오 알림톡</label>
-            <input type="radio" class="btn-check" name="dw-send-channel" id="dw-send-channel-company" value="company" autocomplete="off">
-            <label class="btn btn-outline-secondary btn-sm" for="dw-send-channel-company">회사 문자</label>
             {# 내 폰 문자는 모바일에서만(ERP 공유 창과 같은 규칙) — PC 폭에서는 숨긴다. #}
             <input type="radio" class="btn-check" name="dw-send-channel" id="dw-send-channel-mine" value="mine" autocomplete="off">
             <label class="btn btn-outline-secondary btn-sm d-lg-none" for="dw-send-channel-mine">내 폰 문자</label>
