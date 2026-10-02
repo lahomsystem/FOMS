@@ -109,6 +109,7 @@
                     if (window.FOMS_DEBUG) console.log('[Global Socket.IO] 연결 상태:', globalSocket.connected);
                     refreshErpNotificationUI({ reason: 'socket-connect' });
                     if (window.FOMSAlertSync && typeof window.FOMSAlertSync.resync === 'function') { window.FOMSAlertSync.resync('socket-connect'); }
+                    if (window.FOMSUrgentAlert) { window.FOMSUrgentAlert.resync('socket-connect'); }
                 },
                 onConnectError: function (error) {
                     console.error('[Global Socket.IO] ❌ 연결 오류:', error);
@@ -153,8 +154,9 @@
                 onErpNotification: function (data) {
                     if (window.FOMS_DEBUG) console.log('[Global Socket.IO] ERP 알림 수신:', data);
                     refreshErpNotificationUI({ force: true, reason: 'erp-notification' });
-                    if (data && data.urgent) {
-                        triggerUrgentBriefingAlert(data);
+                    if (data && data.urgent && window.FOMSUrgentAlert) {
+                        // 긴급(P0) 전체화면 빨간 창 — 공용 모듈 SSOT(static/js/foms/foms-urgent-alert.js).
+                        window.FOMSUrgentAlert.handle(data);
                     } else if (data && window.FOMSDrawingAlert) {
                         // 등급별 표시: interrupt=중앙 확인창(도면 수정 요청),
                         // notice=오른쪽 아래 쪽지(수정 요청 취소). 판정은 서버 payload 가 한다.
@@ -163,119 +165,6 @@
                 }
             };
             window.__globalSocketHandlers = globalHandlers;
-
-            // 긴급 알림 발생 시 시각적/청각적 강제 인지 함수
-            window.triggerUrgentBriefingAlert = function (data) {
-                console.warn('[URGENT] 긴급 이벤트 수신, 강제 인지 처리:', data);
-
-                // 1. 청각 알림 (비프음)
-                try {
-                    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-                    const osc = ctx.createOscillator();
-                    const gain = ctx.createGain();
-                    osc.connect(gain);
-                    gain.connect(ctx.destination);
-                    osc.type = 'square';
-                    osc.frequency.setValueAtTime(880, ctx.currentTime);
-                    osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.1);
-                    gain.gain.setValueAtTime(0.1, ctx.currentTime);
-                    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
-                    osc.start();
-                    osc.stop(ctx.currentTime + 0.3);
-                } catch (e) { console.error('Audio 처리 실패:', e); }
-
-                // 2. 거대한 긴급 알람 오버레이 (클릭 전까지 안 사라짐)
-                let overlay = document.getElementById('urgent-fullscreen-overlay');
-                if (!overlay) {
-                    overlay = document.createElement('div');
-                    overlay.id = 'urgent-fullscreen-overlay';
-                    overlay.style.cssText = 'position: fixed; inset: 0; background-color: rgba(220, 53, 69, 0.95); z-index: 106000; display: flex; flex-direction: column; align-items: center; justify-content: center; backdrop-filter: blur(10px); text-align: center;';
-
-                    const bellIcon = document.createElement('i');
-                    bellIcon.className = 'fas fa-bell bell-active';
-                    bellIcon.style.cssText = 'font-size: 50vh; color: #fff; text-shadow: 0 0 30px rgba(0,0,0,0.5); margin-bottom: 30px;';
-
-                    const titleText = document.createElement('h1');
-                    titleText.style.cssText = 'color: #fff; font-weight: 800; font-size: 3rem; text-shadow: 0 2px 10px rgba(0,0,0,0.3); margin-bottom: 10px; max-width: 90%; word-break: keep-all;';
-
-                    const msgText = document.createElement('h3');
-                    msgText.style.cssText = 'color: #fff; font-weight: 500; max-width: 80%; word-break: keep-all; line-height: 1.4;';
-
-                    const clickBtn = document.createElement('button');
-                    clickBtn.innerHTML = '알림 확인완료';
-                    clickBtn.style.cssText = 'margin-top: 40px; padding: 15px 40px; border: 3px solid white; border-radius: 50px; font-weight: bold; font-size: 1.5rem; background: rgba(0,0,0,0.3); color: #fff; cursor: pointer; transition: all 0.2s;';
-                    clickBtn.onmouseover = () => { clickBtn.style.background = 'rgba(0,0,0,0.5)'; clickBtn.style.transform = 'scale(1.05)'; };
-                    clickBtn.onmouseleave = () => { clickBtn.style.background = 'rgba(0,0,0,0.3)'; clickBtn.style.transform = 'scale(1)'; };
-
-                    overlay.appendChild(bellIcon);
-                    overlay.appendChild(titleText);
-                    overlay.appendChild(msgText);
-                    overlay.appendChild(clickBtn);
-
-                    clickBtn.addEventListener('click', function (e) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        // 클릭 시 한 번 더 물어보기 기능 ('닫기'는 ack 가 아님 — 창만 닫는다).
-                        if (confirm('알림 내용을 충분히 확인하셨나요?\n\n[확인]을 누르시면 긴급 알람 창이 닫힙니다.')) {
-                            overlay.remove();
-                        }
-                    });
-
-                    // ack 버튼: notification id 가 payload 에 있을 때만 노출(P0 처리 인수).
-                    const ackBtn = document.createElement('button');
-                    ackBtn.id = 'urgent-overlay-ack-btn';
-                    ackBtn.type = 'button';
-                    ackBtn.innerHTML = '<i class="fas fa-check"></i> 확인(ack) 처리';
-                    ackBtn.hidden = true;
-                    ackBtn.style.cssText = 'margin-top: 16px; padding: 12px 32px; border: 2px solid rgba(255,255,255,0.85); border-radius: 50px; font-weight: bold; font-size: 1.1rem; background: rgba(255,255,255,0.18); color: #fff; cursor: pointer;';
-                    ackBtn.addEventListener('click', function (e) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        const nid = ackBtn.dataset.notificationId;
-                        if (!nid || !window.FOMSNotificationWrite) return;
-                        ackBtn.disabled = true;
-                        window.FOMSNotificationWrite.fetch('/erp/api/notifications/' + encodeURIComponent(nid) + '/ack', {
-                            method: 'POST', headers: { 'Accept': 'application/json' }
-                        })
-                            .then(function (r) { return r.json(); })
-                            .then(function (d) {
-                                if (d && d.success) {
-                                    if (window.FOMSNotificationBadge && window.FOMSNotificationBadge.refresh) {
-                                        window.FOMSNotificationBadge.refresh({ force: true });
-                                    }
-                                    overlay.remove();
-                                } else {
-                                    ackBtn.disabled = false;
-                                    alert((d && d.message) || '확인 처리에 실패했습니다.');
-                                }
-                            })
-                            .catch(function () { ackBtn.disabled = false; alert('확인 처리 중 오류가 발생했습니다.'); });
-                    });
-                    overlay.appendChild(ackBtn);
-
-                    document.body.appendChild(overlay);
-                }
-
-                const safeTitle = data.title ? String(data.title).replace(/</g, "&lt;").replace(/>/g, "&gt;") : '🚨 긴급 알람 🚨';
-                const safeMsg = data.message ? String(data.message).replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, '<br>') : '상세 내용은 알림 패널을 확인하세요.';
-
-                overlay.querySelector('h1').innerHTML = safeTitle;
-                overlay.querySelector('h3').innerHTML = safeMsg;
-
-                // 매 이벤트마다 ack 버튼 상태 갱신: id 있으면 노출, 없으면 숨김.
-                const ackBtnRef = overlay.querySelector('#urgent-overlay-ack-btn');
-                if (ackBtnRef) {
-                    const notifId = (data.notification_id != null) ? data.notification_id : data.id;
-                    if (notifId != null && notifId !== '') {
-                        ackBtnRef.dataset.notificationId = String(notifId);
-                        ackBtnRef.disabled = false;
-                        ackBtnRef.hidden = false;
-                    } else {
-                        ackBtnRef.hidden = true;
-                        delete ackBtnRef.dataset.notificationId;
-                    }
-                }
-            };
 
             globalSocket.off('connect', globalHandlers.onConnect);
             globalSocket.off('connect_error', globalHandlers.onConnectError);

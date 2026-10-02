@@ -124,7 +124,7 @@ def test_shared_layout_routes_grades_to_dialog():
     for text in (head, init_js):
         assert "window.FOMSDrawingAlert.handle(data)" in text
         # 긴급(P0)은 여전히 전체화면 오버레이가 먼저 잡는다.
-        assert "triggerUrgentBriefingAlert(data)" in text
+        assert "window.FOMSUrgentAlert.handle(data)" in text  # 공용 모듈 위임(2026-10-02)
     assert "js/foms/foms-drawing-alert.js" in scripts
     assert "css/components/foms-drawing-alert.css" in scripts
 

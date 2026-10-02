@@ -1,0 +1,142 @@
+/* 긴급 알림 전체화면 빨간 창 (P0 등급) — static/js/foms/foms-urgent-alert.js 짝.
+ *
+ * 도면 확인창(105500)보다 위, 모든 모달 위(106000). "확인" 버튼 하나로만 닫힌다.
+ * Bootstrap·FontAwesome 없는 standalone 화면(도면 마법사·실측 지도)에서도 같은 모양이어야
+ * 하므로 외부 클래스·아이콘 폰트에 기대지 않는다.
+ * 자산 핀: 이 파일을 고치면 이 CSS 를 싣는 모든 템플릿의 ?v= 를 함께 올린다.
+ */
+
+.foms-urgent-alert {
+  position: fixed;
+  inset: 0;
+  z-index: 106000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  box-sizing: border-box;
+  overflow-y: auto;
+  background-color: rgba(220, 53, 69, 0.95);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: #fff;
+  text-align: center;
+  font-family: inherit;
+}
+
+.foms-urgent-alert__box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 960px;
+  margin: auto;
+}
+
+.foms-urgent-alert__icon {
+  font-size: min(30vh, 220px);
+  line-height: 1;
+  margin-bottom: 24px;
+  text-shadow: 0 0 30px rgba(0, 0, 0, 0.5);
+  animation: foms-urgent-alert-ring 1s ease-in-out infinite;
+}
+
+.foms-urgent-alert__count {
+  margin-bottom: 8px;
+  padding: 4px 14px;
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  border-radius: 999px;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.foms-urgent-alert__title {
+  margin: 0 0 12px;
+  max-width: 90%;
+  color: #fff;
+  font-size: clamp(1.75rem, 5vw, 3rem);
+  font-weight: 800;
+  line-height: 1.25;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+}
+
+.foms-urgent-alert__message {
+  margin: 0;
+  max-width: 80%;
+  color: #fff;
+  font-size: clamp(1.1rem, 2.6vw, 1.75rem);
+  font-weight: 500;
+  line-height: 1.4;
+  white-space: pre-line;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.foms-urgent-alert__sender {
+  margin: 16px 0 0;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.foms-urgent-alert__error {
+  margin: 16px 0 0;
+  padding: 8px 16px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.35);
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.foms-urgent-alert__count[hidden],
+.foms-urgent-alert__sender[hidden],
+.foms-urgent-alert__error[hidden] {
+  display: none;
+}
+
+.foms-urgent-alert__btn {
+  margin-top: 36px;
+  min-width: 200px;
+  min-height: 56px;
+  padding: 14px 48px;
+  border: 3px solid #fff;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.3);
+  color: #fff;
+  font: inherit;
+  font-size: 1.5rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 0.2s, transform 0.2s;
+}
+
+.foms-urgent-alert__btn:hover,
+.foms-urgent-alert__btn:focus-visible {
+  background: rgba(0, 0, 0, 0.5);
+  transform: scale(1.05);
+}
+
+.foms-urgent-alert__btn:focus-visible {
+  outline: 3px solid #fff;
+  outline-offset: 4px;
+}
+
+.foms-urgent-alert__btn:disabled {
+  cursor: progress;
+  opacity: 0.7;
+  transform: none;
+}
+
+@keyframes foms-urgent-alert-ring {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-12deg); }
+  75% { transform: rotate(12deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .foms-urgent-alert__icon { animation: none; }
+  .foms-urgent-alert__btn { transition: none; }
+}
