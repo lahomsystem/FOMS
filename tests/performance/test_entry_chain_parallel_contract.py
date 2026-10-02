@@ -1,4 +1,4 @@
-"""엔트리 체인(실측·주문 대시보드)은 번들을 한꺼번에 넣고 순서대로 실행한다 (원장 P2-4 ①).
+"""엔트리 체인(실측·주문 대시보드·출고)은 번들을 한꺼번에 넣고 순서대로 실행한다 (원장 P2-4 ①).
 
 왜: 예전에는 파일 하나의 onload 를 기다린 뒤 다음 파일을 넣어 왕복이 파일 수만큼 줄을 섰다
 (스테이징 콜드 실측 12개 약 1.3초, 대시보드 9개 약 1.0초). 동적 script 를 async=false 로 넣으면
@@ -11,8 +11,9 @@
   - 받는 중 스왑해도 겹쳐 넣지 않는지, 하나가 실패한 뒤 재시도는 실패한 파일만 다시 넣는지
 음성 대조군: 같은 검사기로 옛 순차 루프·async=true·재사용 가드 제거본을 돌려 각각 잡히는지 본다.
 
-출고(shipment-entry.js)는 아직 순차다: 엔트리 핀을 올리려면 출고 scripts 파샬을 고쳐야 하는데 그 파샬은
-<script src> 2개라 perf_scan fragment-multi-script 가 막는다(구조 부채, 원장 P2-4 남은 일).
+출고(shipment-entry.js)는 2026-10-02 에 합류했다. 엔트리 핀을 올리려면 출고 scripts 파샬을 고쳐야 하는데
+그 파샬은 <script src> 2개(엔트리 + tablet-domain-sheets.js)라 perf_scan fragment-multi-script 가 막았다.
+도메인 시트를 엔트리 CHAIN 으로 옮겨 파샬을 엔트리 1개로 줄였다(가드가 권하는 처방 그대로, 가드는 무변경).
 """
 
 from __future__ import annotations
@@ -44,6 +45,12 @@ ENTRIES = {
         "__fomsErpDashboardBundleLoaded",
         "__fomsErpDashboardBundlePromise",
         False,
+    ),
+    "shipment": (
+        "static/js/shipment/shipment-entry.js",
+        "__fomsShipmentBundleLoaded",
+        "__fomsShipmentBundlePromise",
+        True,
     ),
 }
 
@@ -221,3 +228,37 @@ def test_negative_control_reinsert_on_retry_is_caught(name: str) -> None:
     )
     probs = _problems(name, source)
     assert any(p.startswith("retry:") for p in probs), probs
+
+
+SHIP_PARTIAL = "templates/shipment/partials/dashboard_scripts.html"
+KANBAN_BODY = "templates/production/partials/tablet_kanban_body.html"
+
+
+def _shipment_wiring_problems(partial: str, entry: str, kanban: str) -> list[str]:
+    """출고 파샬은 엔트리 1개(defer)만, 도메인 시트는 엔트리 CHAIN 이 생산 칸반과 같은 핀으로 싣는다."""
+    probs: list[str] = []
+    tags = re.findall(r"<script\b[^>]*\bsrc\s*=[^>]*>", partial)
+    if len(tags) != 1 or "js/shipment/shipment-entry.js" not in tags[0] or "defer" not in tags[0]:
+        probs.append(f"partial: 엔트리 defer 1개만이어야 한다({len(tags)}개)")
+    pin = re.search(r"tablet-domain-sheets\.js'\) }}\?v=([0-9a-z]+)", kanban)
+    if not pin:
+        probs.append("kanban: 생산 칸반의 도메인 시트 태그를 못 찾았다")
+    elif f"'/static/js/foms/tablet-domain-sheets.js?v={pin.group(1)}'" not in entry:
+        probs.append(f"pin: 엔트리 CHAIN 의 도메인 시트 핀이 생산 칸반({pin.group(1)})과 다르다")
+    return probs
+
+
+def test_shipment_partial_single_entry_and_domain_sheets_pin_lockstep() -> None:
+    """파샬에 <script src> 가 2개면 셸 스왑마다 전부 다시 실행되고 perf_scan fragment-multi-script 가 막는다.
+    도메인 시트 핀이 두 곳에서 갈리면 같은 파일을 두 벌 받고 한쪽은 옛 캐시본을 문다."""
+    assert _shipment_wiring_problems(_read(SHIP_PARTIAL), _read(ENTRIES["shipment"][0]), _read(KANBAN_BODY)) == []
+
+
+def test_negative_control_shipment_wiring_is_caught() -> None:
+    """도메인 시트 태그를 파샬로 되돌리거나 한쪽 핀만 올리면 검사에 걸린다."""
+    partial, entry, kanban = _read(SHIP_PARTIAL), _read(ENTRIES["shipment"][0]), _read(KANBAN_BODY)
+    two_tags = partial + "\n<script src=\"{{ url_for('static', filename='js/foms/tablet-domain-sheets.js') }}\" defer></script>"
+    assert any(p.startswith("partial:") for p in _shipment_wiring_problems(two_tags, entry, kanban))
+    drifted = re.sub(r"(tablet-domain-sheets\.js'\) }}\?v=)[0-9a-z]+", r"\g<1>29991231z", kanban)
+    assert drifted != kanban
+    assert any(p.startswith("pin:") for p in _shipment_wiring_problems(partial, entry, drifted))
