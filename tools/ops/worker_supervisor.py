@@ -20,6 +20,12 @@
 - TERM/INT: 모든 자식에 TERM → 최대 ``FOMS_SUPERVISOR_STOP_GRACE_SECONDS``(기본 25)초 기다림 →
   남은 자식 KILL → exit 0. rq 는 TERM 에 진행 중 잡을 마치고 끝난다.
 - PID 1 이면 떠돌이 손자 프로세스(rq 작업 자식 등)도 거둬 좀비가 쌓이지 않게 한다.
+- 부팅 순서: 큐 소비자(rq)를 **혼자 먼저** 켜고, 나머지 루프(``Job.deferred``)는 rq 가 큐를 듣기
+  시작했다는 표식 파일이 생기거나 ``FOMS_SUPERVISOR_DEFER_LOOPS_SECONDS``(기본 30)초가 지나면 켠다.
+  재배포 때 Railway 는 새 컨테이너 시작 약 7초 뒤 옛 컨테이너를 내리는데, 자식 6개가 CPU 1개를
+  나눠 앱을 import 하느라 새 rq 준비가 p50 20초 걸려 그 사이 큐를 처리하는 프로세스가 0개였다
+  (2026-10-01 운영 실측 30일 157회, 합계 44분). 값 0 이면 예전처럼 모두 동시에 켠다. 한 번 열린
+  문은 다시 닫지 않는다 — 운행 중 rq 재시작이 다른 루프를 멈추지 않는다.
 """
 from __future__ import annotations
 
@@ -28,8 +34,9 @@ import os
 import signal
 import subprocess
 import sys
+import tempfile
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Callable, Mapping, Optional, Sequence
 
@@ -44,6 +51,15 @@ STOP_GRACE_ENV = "FOMS_SUPERVISOR_STOP_GRACE_SECONDS"
 #: (같은 글자임을 tests/performance/test_template_warm.py 가 지킨다). 자식들은 HTML 을 그리지 않는데
 #: 각자 워밍까지 하느라 재배포 때 rq 준비가 늦어졌다(2026-10-01 운영 실측 p50 20초).
 TEMPLATE_WARM_SKIP_ENV = "FOMS_SKIP_TEMPLATE_WARM"
+#: 부팅 때 미룬 루프(``Job.deferred``)를 rq 준비까지 기다려 줄 최대 초. 0 이하면 미루지 않는다.
+DEFER_LOOPS_ENV = "FOMS_SUPERVISOR_DEFER_LOOPS_SECONDS"
+#: 기본 30초 — 지금 rq 준비 p90(약 30초)를 덮고, 루프 쪽 시각 창(자동발송·정산 10분, 수집 간격
+#: 30분, 알림 재촉 60초)에 비해 충분히 짧다. rq 가 일찍 준비되면 그때 바로 연다.
+DEFAULT_DEFER_LOOPS_SECONDS = 30.0
+#: rq 러너에게 "큐를 듣기 시작하면 이 경로에 파일을 만들라" 고 알리는 env. 정본은
+#: ``tools/ops/run_rq_worker.py`` 의 ``READY_FILE_ENV`` — 감독자는 앱을 import 하지 않으므로 글자로
+#: 둔다(같은 글자임을 tests/contracts/runtime/test_worker_boot_order.py 가 지킨다).
+RQ_READY_FILE_ENV = "FOMS_RQ_READY_FILE"
 DEFAULT_STOP_GRACE_SECONDS = 25
 TICK_SECONDS = 0.5
 
@@ -56,11 +72,13 @@ class Job:
         name: 로그에 쓰는 이름.
         argv: 실행 명령(저장소 루트 기준 상대 경로).
         pre_argv: 켜기 **전마다** 먼저 돌릴 명령(끝날 때까지 기다리고, 실패해도 본 명령을 켠다).
+        deferred: 부팅 때 큐 소비자가 준비될 때까지(최대 ``defer_seconds``) 켜지 않는다.
     """
 
     name: str
     argv: tuple[str, ...]
     pre_argv: Optional[tuple[str, ...]] = None
+    deferred: bool = False
 
 
 def _env(env: Mapping[str, str], key: str, default: str) -> str:
@@ -76,7 +94,8 @@ def worker_jobs(env: Mapping[str, str], python: str = sys.executable) -> list[Jo
         python: 자식 프로세스에 쓸 파이썬.
 
     Returns:
-        켤 작업 목록. 큐 소비자(``rq_worker``)는 항상 마지막에 있다.
+        켤 작업 목록. 큐 소비자(``rq_worker``)는 항상 마지막에 있고, 그 앞의 루프는 모두
+        ``deferred`` 다(새 루프를 배선해도 자동으로 rq 뒤에 켜진다).
     """
     jobs: list[Job] = []
 
@@ -119,6 +138,10 @@ def worker_jobs(env: Mapping[str, str], python: str = sys.executable) -> list[Jo
 
     # 큐 소비 본체. `rq worker` CLI 대신 러너를 쓰는 이유: rq 하트비트 자리에서 RQ_WORKER 행을
     # side_effect_worker_heartbeats 에 함께 남긴다(2026-02 워커 offline 을 표만 봐서 몰랐다).
+    # 루프는 전부 rq 뒤로 미룬다. 수집·정산은 같은 결과, 자동발송은 DB 로 하루 1회가 막혀 있어
+    # 몇 초 늦게 켜도 안전하다. 큐 소비가 멎는 쪽이 사용자에게 바로 보인다(버튼 무반응).
+    jobs = [replace(job, deferred=True) for job in jobs]
+
     redis_url = env.get("REDIS_URL", "")
     jobs.append(Job(
         "rq_worker",
@@ -159,7 +182,15 @@ class Supervisor:
         log: Callable[[str], None] = lambda line: print(line, flush=True),
         stop_grace: float = DEFAULT_STOP_GRACE_SECONDS,
         reap_orphans: Optional[bool] = None,
+        defer_seconds: float = 0.0,
+        ready_probe: Optional[Callable[[], bool]] = None,
     ) -> None:
+        """
+        Args:
+            defer_seconds: 부팅 때 ``deferred`` 작업을 붙잡아 둘 최대 초. 0 이하면 처음부터 연다.
+            ready_probe: 큐 소비자가 준비됐는지 묻는 함수. 참이면 기한 전이라도 연다.
+                없으면 기한만 본다.
+        """
         self.slots = [_Slot(job) for job in jobs]
         self._spawn = spawn or self._default_spawn
         self._clock = clock
@@ -168,6 +199,10 @@ class Supervisor:
         self._stop_grace = stop_grace
         self._reap = (os.name == "posix" and os.getpid() == 1) if reap_orphans is None else reap_orphans
         self.stopping = False
+        self._defer_seconds = defer_seconds
+        self._ready_probe = ready_probe
+        self._boot_at: Optional[float] = None
+        self._gate_open = False
 
     @staticmethod
     def _default_spawn(argv: Sequence[str]) -> subprocess.Popen:
@@ -183,9 +218,10 @@ class Supervisor:
         """끝난 자식을 거두고, 때가 된 작업을 켠다."""
         now = self._clock()
         self._reap_orphans()
+        gate_open = self._boot_gate_open(now)
         for slot in self.slots:
             if slot.proc is None:
-                if now >= slot.next_start:
+                if now >= slot.next_start and (gate_open or not slot.job.deferred):
                     self._start(slot, now)
                 continue
             rc = slot.proc.poll()
@@ -199,6 +235,36 @@ class Supervisor:
             self._log(f"[supervisor] {slot.job.name} exited rc={rc} after {int(ran)}s "
                       f"- restarting in {slot.backoff}s")
             slot.proc, slot.phase, slot.next_start = None, "idle", now + slot.backoff
+
+    def _boot_gate_open(self, now: float) -> bool:
+        """부팅 문 — 미룬 작업을 켜도 되는가. 한 번 열리면 다시 닫지 않는다."""
+        if self._gate_open:
+            return True
+        deferred = [s.job.name for s in self.slots if s.job.deferred]
+        if not deferred or self._defer_seconds <= 0:
+            self._gate_open = True
+            return True
+        if self._boot_at is None:
+            self._boot_at = now
+            self._log(f"[supervisor] deferring {', '.join(deferred)} until the queue consumer is ready "
+                      f"(max {self._defer_seconds:g}s)")
+        if self._probe_ready():
+            reason = "queue consumer ready"
+        elif now - self._boot_at >= self._defer_seconds:
+            reason = "queue consumer not ready yet"
+        else:
+            return False
+        self._gate_open = True
+        self._log(f"[supervisor] {reason} after {now - self._boot_at:.1f}s - starting deferred jobs")
+        return True
+
+    def _probe_ready(self) -> bool:
+        if self._ready_probe is None:
+            return False
+        try:
+            return bool(self._ready_probe())
+        except OSError:
+            return False
 
     def _start(self, slot: _Slot, now: float) -> None:
         if slot.job.pre_argv:
@@ -260,6 +326,38 @@ class Supervisor:
         return 0
 
 
+def _float_env(env: Mapping[str, str], key: str, default: float) -> float:
+    """숫자 env. 없거나 숫자가 아니면 기본값(잘못된 값으로 감독자가 죽으면 안 된다)."""
+    try:
+        return float(env.get(key) or default)
+    except ValueError:
+        return default
+
+
+def prepare_ready_file(env: Any) -> str:
+    """rq 준비 표식 파일 경로를 정해 자식 env 에 심고, 남아 있던 옛 표식을 지운다.
+
+    env 에 이미 경로가 있으면 그것을 쓴다. 옛 표식을 지우지 않으면 같은 컨테이너의 재시작에서
+    그것을 보고 rq 가 준비되기 전에 문을 연다.
+
+    Args:
+        env: 자식이 물려받을 env(``os.environ``). 경로를 여기에 심는다.
+
+    Returns:
+        표식 파일 경로.
+    """
+    path = env.get(RQ_READY_FILE_ENV) or os.path.join(
+        tempfile.gettempdir(), f"foms-rq-ready-{os.getpid()}")
+    env[RQ_READY_FILE_ENV] = path
+    try:
+        os.remove(path)
+    except FileNotFoundError:
+        pass
+    except OSError as exc:
+        print(f"[supervisor] could not clear stale ready file: {exc}", flush=True)
+    return path
+
+
 def main(argv: Optional[Sequence[str]] = None) -> int:
     """CLI 진입점. ``--print-jobs`` 는 켤 작업 목록만 출력한다(확인용)."""
     parser = argparse.ArgumentParser(description="WORKER background job supervisor")
@@ -274,13 +372,13 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                     shown[i + 1] = "<redacted>"  # REDIS_URL 에 비밀번호가 들어 있다
             print(f"{job.name}: {' '.join(shown)}")
         return 0
-    try:
-        grace = float(os.environ.get(STOP_GRACE_ENV) or DEFAULT_STOP_GRACE_SECONDS)
-    except ValueError:
-        grace = DEFAULT_STOP_GRACE_SECONDS
+    grace = _float_env(os.environ, STOP_GRACE_ENV, DEFAULT_STOP_GRACE_SECONDS)
+    defer = _float_env(os.environ, DEFER_LOOPS_ENV, DEFAULT_DEFER_LOOPS_SECONDS)
     # 자식은 Popen 기본값대로 이 프로세스의 env 를 물려받는다.
     os.environ.setdefault(TEMPLATE_WARM_SKIP_ENV, "1")
-    supervisor = Supervisor(jobs, stop_grace=grace)
+    ready_file = prepare_ready_file(os.environ)
+    supervisor = Supervisor(jobs, stop_grace=grace, defer_seconds=defer,
+                            ready_probe=lambda: os.path.exists(ready_file))
     signal.signal(signal.SIGTERM, supervisor.request_stop)
     signal.signal(signal.SIGINT, supervisor.request_stop)
     return supervisor.run()

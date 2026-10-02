@@ -112,6 +112,8 @@ _PTC_FOMS_SERVICES_COMMON_ALLOWLIST: frozenset[str] = frozenset(
         "table_version_counter.py",
         # TEMPLATE-WARM-01: 부팅 때 무거운 Jinja 템플릿 선컴파일(배포 직후 첫 방문자 몫)
         "template_warm.py",
+        # REQ-DIAG-01: 모든 요청 공통 구간 계측(느린 요청 로그·HTML 진단 헤더)
+        "request_phase_profile.py",
     }
 )
 

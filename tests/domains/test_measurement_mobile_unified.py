@@ -315,7 +315,7 @@ def test_erp_shell_popstate_skips_overlay_entries():
     js = _read(ERP_SHELL_JS)
     handler = js.split("window.addEventListener('popstate', function (e) {", 1)[1].split("\n  });", 1)[0]
     assert handler.index("shouldKeepOnPop(e && e.state)") < handler.index("navigateByShell(url, { fromPopState: true })")
-    assert "js/runtime/erp-shell.js') }}?v=20260929i" in _read(LAYOUT_SCRIPTS)
+    assert "js/runtime/erp-shell.js') }}?v=20261002a" in _read(LAYOUT_SCRIPTS)
 
 
 def test_sheet_parts_js_contract():

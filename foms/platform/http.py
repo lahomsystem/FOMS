@@ -10,6 +10,8 @@ from typing import Any, Callable
 
 from werkzeug.exceptions import HTTPException
 
+from foms.services.common.ept_b7_profile import format_phases
+from foms.services.common.request_phase_profile import HEADER_REQ_DIAG, format_request_diag
 from foms.services.datetime_kst import get_today_kst
 from foms.services.error_logging import install_protected_logging
 from foms.services.user_activity import touch_last_seen
@@ -322,8 +324,17 @@ def register_http_bootstrap(
 
     @app.after_request
     def _log_request_duration(response: Any) -> Any:
-        if hasattr(g, "_request_start"):
-            duration_ms = (time.perf_counter() - g._request_start) * 1000
+        # REQ-DIAG-01: 공통 구간 한 줄(foms/services/common/request_phase_profile.py). HTML 은
+        # 헤더로도 싣는다 — 스테이징에서 로그 없이 읽기 위한 진단 전용 값이다. 폴링 같은
+        # 빠른 JSON 응답에서는 문자열을 만들지도 않는다.
+        is_html = response.mimetype == "text/html"
+        duration_ms = (
+            (time.perf_counter() - g._request_start) * 1000 if hasattr(g, "_request_start") else None
+        )
+        diag = format_request_diag() if (is_html or (duration_ms or 0) > 400) else ""
+        if diag and is_html:
+            response.headers[HEADER_REQ_DIAG] = diag
+        if duration_ms is not None:
             endpoint = request.endpoint or request.path
             # PERF-GATE-ST: 인증된 응답에만 서버 처리시간을 싣는다. 게이트가 네트워크 RTT
             # 잡음 없이 이 값으로 판정한다(무인증 요청에는 내부 시간을 노출하지 않는다).
@@ -332,11 +343,14 @@ def register_http_bootstrap(
                 prior = response.headers.get("Server-Timing")
                 response.headers["Server-Timing"] = f"{prior}, {timing}" if prior else timing
             if duration_ms > 400:
+                # 앞 세 칸(endpoint·duration_ms·status)은 기존 파서가 읽는 순서 그대로 둔다.
                 current_app.logger.info(
-                    "req_duration endpoint=%s duration_ms=%s status=%s",
+                    "req_duration endpoint=%s duration_ms=%s status=%s diag=%s phases=%s",
                     endpoint,
                     int(duration_ms),
                     response.status_code,
+                    diag or "-",
+                    format_phases() or "-",
                 )
         return response
 
