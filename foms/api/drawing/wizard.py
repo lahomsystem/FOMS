@@ -90,7 +90,7 @@ _ASSET_RAW_MIMETYPES = {
     '.webp': 'image/webp',
     '.gif': 'image/gif',
 }
-_ALLOWED_TEXT_SIZES = (14, 17, 20, 24, 28)
+_ALLOWED_TEXT_SIZES = (14, 17, 20, 24, 28, 32, 36, 40)
 _ALLOWED_ALIGNS = ('left', 'center')
 _ALLOWED_OBJECT_TYPES = ('text', 'image', 'rect', 'ellipse', 'arrow', 'line', 'pen')
 _ALLOWED_STROKE_WIDTHS = (1, 2, 3)
