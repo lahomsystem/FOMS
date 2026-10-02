@@ -160,6 +160,8 @@ def test_offlist_household_says_it_is_not_in_the_list(client, workbench_on):
     offlist.reviewed_at = datetime(2026, 8, 23, 0, 0, 0)
     db_session.add(offlist)
     db_session.commit()
+    # id 는 요청 **전에** 읽어 둔다 — 요청이 끝나면 세션이 닫혀 만료된 인스턴스를 못 읽는다.
+    listed_id = int(listed.id)
 
     # 문구는 **항상 렌더**되고 `hidden` 으로 접힌다(조각 교체 뒤 JS 가 되살릴 수 있게).
     # 그래서 "글자가 있나" 가 아니라 "접혀 있나" 를 본다.
@@ -167,7 +169,7 @@ def test_offlist_household_says_it_is_not_in_the_list(client, workbench_on):
     assert "목록에 없는 집" not in body.split('id="wb-pane"')[0], "모집단이 바뀌었다(전제 확인)"
     assert not has_attribute(_pane(body), "wb-offlist", "hidden"), "목록 밖 집인데 경고가 접혀 있다"
 
-    body = client.get(f"{TRIAGE_PATH}?tab=work&link_id={listed.id}").get_data(as_text=True)
+    body = client.get(f"{TRIAGE_PATH}?tab=work&link_id={listed_id}").get_data(as_text=True)
     assert has_attribute(_pane(body), "wb-offlist", "hidden"), "목록에 있는 집에 경고가 펼쳐졌다"
 
 

@@ -551,10 +551,12 @@ def test_fragment_ids_never_collide_with_the_shell_that_stays(client, workbench_
     """
     _login(client)
     lead = _collected(order_no="N-V3-DUP-SWAP", product="본품", amount=500000, place_status="")
+    # id 는 요청 **전에** 읽어 둔다 — 요청이 끝나면 세션이 닫혀 만료된 인스턴스를 못 읽는다.
+    lead_id = int(lead.id)
 
     # 관계 칩에는 이 집이 없다 → pane 이 빈 껍데기 = 교체 후에도 남는 셸 쪽 id 전부.
     shell_only = client.get(f"{TRIAGE_PATH}?tab=work&f=rel").get_data(as_text=True)
-    fragment = client.get(f"{PANE_PATH}?link_id={lead.id}").get_data(as_text=True)
+    fragment = client.get(f"{PANE_PATH}?link_id={lead_id}").get_data(as_text=True)
     shell_ids = set(_WB_ID_RE.findall(shell_only))
     fragment_ids = set(_WB_ID_RE.findall(fragment))
 

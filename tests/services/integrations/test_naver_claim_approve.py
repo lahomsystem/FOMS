@@ -607,9 +607,11 @@ def test_pane_hides_both_buttons_while_the_gates_are_off(client, monkeypatch):
     _login(client)
     cancel_link = _link(claim="CANCEL_REQUEST")
     return_link = _link(claim="RETURN_REQUEST")
+    # id 는 요청 **전에** 읽어 둔다 — 요청이 끝나면 세션이 닫혀 만료된 인스턴스를 못 읽는다.
+    cancel_id, return_id = int(cancel_link.id), int(return_link.id)
 
-    cancel_body = client.get(PANE_PATH.format(link_id=cancel_link.id)).get_data(as_text=True)
-    return_body = client.get(PANE_PATH.format(link_id=return_link.id)).get_data(as_text=True)
+    cancel_body = client.get(PANE_PATH.format(link_id=cancel_id)).get_data(as_text=True)
+    return_body = client.get(PANE_PATH.format(link_id=return_id)).get_data(as_text=True)
 
     assert CANCEL_BTN not in cancel_body
     assert CANCEL_CONFIRM not in cancel_body
@@ -632,9 +634,11 @@ def test_one_gate_does_not_open_the_other(client, monkeypatch):
     _login(client)
     cancel_link = _link(claim="CANCEL_REQUEST")
     return_link = _link(claim="RETURN_REQUEST")
+    # id 는 요청 **전에** 읽어 둔다 — 요청이 끝나면 세션이 닫혀 만료된 인스턴스를 못 읽는다.
+    cancel_id, return_id = int(cancel_link.id), int(return_link.id)
 
-    cancel_body = client.get(PANE_PATH.format(link_id=cancel_link.id)).get_data(as_text=True)
-    return_body = client.get(PANE_PATH.format(link_id=return_link.id)).get_data(as_text=True)
+    cancel_body = client.get(PANE_PATH.format(link_id=cancel_id)).get_data(as_text=True)
+    return_body = client.get(PANE_PATH.format(link_id=return_id)).get_data(as_text=True)
 
     assert CANCEL_BTN in cancel_body
     assert RETURN_BTN not in return_body
@@ -677,9 +681,11 @@ def test_pane_hides_the_buttons_from_staff(client, workbench_on):
     _login(client, role="STAFF")
     cancel_link = _link(claim="CANCEL_REQUEST")
     return_link = _link(claim="RETURN_REQUEST")
+    # id 는 요청 **전에** 읽어 둔다 — 요청이 끝나면 세션이 닫혀 만료된 인스턴스를 못 읽는다.
+    cancel_id, return_id = int(cancel_link.id), int(return_link.id)
 
-    cancel_body = client.get(PANE_PATH.format(link_id=cancel_link.id)).get_data(as_text=True)
-    return_body = client.get(PANE_PATH.format(link_id=return_link.id)).get_data(as_text=True)
+    cancel_body = client.get(PANE_PATH.format(link_id=cancel_id)).get_data(as_text=True)
+    return_body = client.get(PANE_PATH.format(link_id=return_id)).get_data(as_text=True)
 
     assert CANCEL_BTN not in cancel_body
     assert RETURN_BTN not in return_body
@@ -735,9 +741,11 @@ def test_pane_hides_the_buttons_when_naver_put_the_claim_on_hold(client, workben
     _login(client)
     cancel_link = _link(claim="CANCEL_REQUEST", holdback="HOLDBACK")
     return_link = _link(claim="RETURN_REQUEST", holdback="HOLDBACK")
+    # id 는 요청 **전에** 읽어 둔다 — 요청이 끝나면 세션이 닫혀 만료된 인스턴스를 못 읽는다.
+    cancel_id, return_id = int(cancel_link.id), int(return_link.id)
 
-    cancel_body = client.get(PANE_PATH.format(link_id=cancel_link.id)).get_data(as_text=True)
-    return_body = client.get(PANE_PATH.format(link_id=return_link.id)).get_data(as_text=True)
+    cancel_body = client.get(PANE_PATH.format(link_id=cancel_id)).get_data(as_text=True)
+    return_body = client.get(PANE_PATH.format(link_id=return_id)).get_data(as_text=True)
 
     assert CANCEL_BTN not in cancel_body
     assert RETURN_BTN not in return_body
@@ -750,9 +758,11 @@ def test_pane_hides_the_buttons_once_we_have_approved(client, workbench_on):
                         state={"cancel": {"approved_at": "2026-09-01T00:00:00"}})
     return_link = _link(claim="RETURN_REQUEST",
                         state={"return": {"approved_at": "2026-09-01T00:00:00"}})
+    # id 는 요청 **전에** 읽어 둔다 — 요청이 끝나면 세션이 닫혀 만료된 인스턴스를 못 읽는다.
+    cancel_id, return_id = int(cancel_link.id), int(return_link.id)
 
-    cancel_body = client.get(PANE_PATH.format(link_id=cancel_link.id)).get_data(as_text=True)
-    return_body = client.get(PANE_PATH.format(link_id=return_link.id)).get_data(as_text=True)
+    cancel_body = client.get(PANE_PATH.format(link_id=cancel_id)).get_data(as_text=True)
+    return_body = client.get(PANE_PATH.format(link_id=return_id)).get_data(as_text=True)
 
     assert CANCEL_BTN not in cancel_body
     assert RETURN_BTN not in return_body

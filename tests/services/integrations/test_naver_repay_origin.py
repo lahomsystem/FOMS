@@ -272,12 +272,14 @@ def test_screen_points_to_the_old_household(client, workbench_on):
                 order_id=int(order.id))
     new = _link(order_no="N-ORG-12-NEW", tel="010-9200-0012", amount=1_400_000,
                 order_id=int(order.id), relation="REPAY")
+    # id 는 요청 **전에** 읽어 둔다 — 요청이 끝나면 세션이 닫혀 만료된 인스턴스를 못 읽는다.
+    old_id = int(old.id)
 
     block = _origin_block(_body(client, link_id=int(new.id)))
 
     assert "네이버 옛 주문이 아직 살아 있습니다" in block
     assert "N-ORG-12-OLD" in block
-    assert f"link_id={old.id}" in block, "옛 집 pane 으로 가는 주소가 없다"
+    assert f"link_id={old_id}" in block, "옛 집 pane 으로 가는 주소가 없다"
 
 
 def test_screen_sends_a_dispatched_household_to_return(client, workbench_on):

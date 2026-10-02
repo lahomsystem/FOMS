@@ -1844,15 +1844,18 @@ def test_household_title_shows_our_manager_only_when_assigned(client, workbench_
         row.sync_status = "LINKED"
         links.append(row)
     db_session.commit()
+    # id 는 요청 **전에** 읽어 둔다 — 요청이 끝나면 세션이 닫혀 만료된 인스턴스를 못 읽는다
+    # (처리 목록이 ORM 인스턴스를 다시 채우던 부수 효과에 기대지 않는다, P2-2 ④).
+    link_ids = [int(row.id) for row in links]
 
-    body = client.get(f"{TRIAGE_PATH}?link_id={links[0].id}").get_data(as_text=True)
+    body = client.get(f"{TRIAGE_PATH}?link_id={link_ids[0]}").get_data(as_text=True)
     title = body.split('data-cmp-section="household"')[1].split("</div>")[0]
     assert 'class="wb-owner"' in title, title
     assert "홍담당" in title
     table = body.split('data-cmp-section="household"')[1].split("<table")[1].split("</table>")[0]
     assert "홍담당" not in table, "대조표 줄로 들어가면 네이버 칸이 빈다"
 
-    body = client.get(f"{TRIAGE_PATH}?link_id={links[1].id}").get_data(as_text=True)
+    body = client.get(f"{TRIAGE_PATH}?link_id={link_ids[1]}").get_data(as_text=True)
     title = body.split('data-cmp-section="household"')[1].split("</div>")[0]
     assert "wb-owner" not in title, "공백뿐인 담당자는 지정 안 된 것이다"
 
