@@ -8,6 +8,9 @@
 
   <title>{% block title %}FOMS WAM{% endblock %}</title>
 
+  {# 토큰(--foms-*)은 erp-pro 번들 바로 앞 링크로 싣는다 — erp-pro/01-intro-tokens.css 의 @import 를
+     걷어낸 뒤(2026-10-02) 이 줄이 없으면 이 화면에서 토큰이 빠진다. 핀은 layout_head.html 과 같은 값. #}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/foms-tokens.css') }}?v=20260915a">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/erp-pro.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/channel/tokens.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/channel/base.css') }}">

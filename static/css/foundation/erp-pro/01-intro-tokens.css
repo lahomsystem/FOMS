@@ -1,7 +1,9 @@
-/* foms-tokens.css는 layout_head.html에서 이미 top-level ?v= 링크로 로드되어(=max-age)
-   그 경로의 재검증 비용이 없다. 여기 nested @import는 무버전 유지 — 버전을 붙이면 top-level과
-   다른 캐시 엔트리로 중복 fetch가 되고, 토큰 브리지 계약(test_token_alias_bridge)도 깨진다. */
-@import url("../foms-tokens.css");
+/* foms-tokens.css(--foms-*)는 여기서 @import 하지 않는다(2026-10-02).
+   erp-pro.css 를 싣는 레이아웃(layout_head.html·channel/wam/layout.html)이 erp-pro.css <link>
+   **바로 앞**에 ?v= 붙은 <link> 로 한 번만 싣는다 — 옛 @import 자리(erp-pro 첫 규칙 앞)와 같은
+   캐스케이드 순서다. 여기 무버전 @import 를 되살리면 ?v= 링크와 URL 이 달라 같은 파일을
+   두 번 받고 CSS 직렬 사슬이 한 단 더 길어진다(test_token_alias_bridge·
+   test_foms_tokens_fetched_once_per_page 가 막는다). */
 
 /* ============================================
    FOMS ERP Pro Dashboard - Modern SaaS Design System
