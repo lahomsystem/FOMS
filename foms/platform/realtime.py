@@ -142,9 +142,15 @@ def init_realtime_bootstrap(
             push_event_limit
         )(push_event_view)
 
-    # 익명 RUM 수집(무인증 POST) rate limit — canonical client(remote_addr, PROXY-01)
-    # 기준. 신뢰 불가 X-Forwarded-For 로 버킷을 우회할 수 없다(rate_limit_key 는
-    # 원시 XFF 를 읽지 않는다).
+    # 익명 RUM 수집(무인증 POST) rate limit — 기본 rate_limit_key 버킷(로그인 사용자 id →
+    # 세션 쿠키 → canonical client remote_addr, PROXY-01). 신뢰 불가 X-Forwarded-For 로
+    # 버킷을 우회할 수 없다(rate_limit_key 는 원시 XFF 를 읽지 않는다).
+    # 이 라우트 전용 한도가 기본 한도(FLASK_DEFAULT_RATE_LIMITS)를 **대신한다** — RUM 요청은
+    # 이 버킷 하나만 깎는다(Redis 1회, 계약 tests/domains/test_rum_ingest.py).
+    # 크기 근거: rum-baseline.js 는 화면 하나에 LCP 후보마다 1(보통 1~2)·LOAD 1·INP 최대 1·
+    # SWAP 10% 표본을 보낸다. 2026-09 운영 429(30일 67,836건)는 INP 를 입력마다 보내던 시절
+    # 것이고, 화면당 1건으로 바꾼 뒤(7d364d525, 운영 10-01) 운영 1,478건 중 429 는 0건, 전체
+    # 사용자 합계로도 분당 최대 30건이었다 — 사용자 하나당 120 은 4배 이상 여유다.
     rum_ingest_limit = os.environ.get(
         "FOMS_RUM_INGEST_RATE_LIMIT",
         "120 per minute",

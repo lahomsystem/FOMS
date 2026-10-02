@@ -2929,7 +2929,7 @@
     },
     {
       "path": "foms/platform/realtime.py",
-      "lineno": 238,
+      "lineno": 244,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "platform",
@@ -3127,7 +3127,7 @@
     },
     {
       "path": "foms/services/common/dashboard_cache.py",
-      "lineno": 240,
+      "lineno": 266,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "cache",
@@ -3136,7 +3136,7 @@
     },
     {
       "path": "foms/services/common/dashboard_cache.py",
-      "lineno": 299,
+      "lineno": 329,
       "handler_type": "broad_exception",
       "disposition": "INTENTIONAL",
       "owner": "cache",
@@ -3145,7 +3145,7 @@
     },
     {
       "path": "foms/services/common/dashboard_cache.py",
-      "lineno": 324,
+      "lineno": 354,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "cache",
@@ -3154,7 +3154,7 @@
     },
     {
       "path": "foms/services/common/dashboard_cache.py",
-      "lineno": 341,
+      "lineno": 371,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "cache",
@@ -3163,7 +3163,7 @@
     },
     {
       "path": "foms/services/common/dashboard_cache.py",
-      "lineno": 401,
+      "lineno": 431,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "cache",
@@ -3172,7 +3172,7 @@
     },
     {
       "path": "foms/services/common/dashboard_cache.py",
-      "lineno": 407,
+      "lineno": 437,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "cache",
@@ -3181,7 +3181,7 @@
     },
     {
       "path": "foms/services/common/dashboard_cache.py",
-      "lineno": 419,
+      "lineno": 449,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "cache",
@@ -3190,7 +3190,7 @@
     },
     {
       "path": "foms/services/common/dashboard_cache.py",
-      "lineno": 433,
+      "lineno": 463,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "cache",
@@ -3199,7 +3199,7 @@
     },
     {
       "path": "foms/services/common/dashboard_cache.py",
-      "lineno": 446,
+      "lineno": 476,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "cache",
@@ -3208,7 +3208,7 @@
     },
     {
       "path": "foms/services/common/dashboard_cache.py",
-      "lineno": 484,
+      "lineno": 514,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "cache",
@@ -3217,7 +3217,7 @@
     },
     {
       "path": "foms/services/common/dashboard_cache.py",
-      "lineno": 529,
+      "lineno": 559,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "cache",
@@ -3226,7 +3226,7 @@
     },
     {
       "path": "foms/services/common/dashboard_cache.py",
-      "lineno": 548,
+      "lineno": 578,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "cache",
@@ -3235,7 +3235,7 @@
     },
     {
       "path": "foms/services/common/dashboard_cache.py",
-      "lineno": 1026,
+      "lineno": 1056,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "cache",
@@ -3343,7 +3343,7 @@
     },
     {
       "path": "foms/services/common/table_version_counter.py",
-      "lineno": 108,
+      "lineno": 109,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3352,7 +3352,7 @@
     },
     {
       "path": "foms/services/common/table_version_counter.py",
-      "lineno": 144,
+      "lineno": 145,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3361,7 +3361,7 @@
     },
     {
       "path": "foms/services/common/table_version_counter.py",
-      "lineno": 167,
+      "lineno": 168,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3370,7 +3370,7 @@
     },
     {
       "path": "foms/services/common/table_version_counter.py",
-      "lineno": 282,
+      "lineno": 283,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
