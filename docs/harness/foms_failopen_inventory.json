@@ -5,14 +5,14 @@
   "overlap_api_error_01": "API-ERROR-01 owns response/stdout exposure (print_exc/str(e) -> log_handled_exception). This packet owns swallow classification. Sites that log via log_handled_exception are LOG_AND_CONTINUE here.",
   "marker_convention": "Silent-by-design catches carry an inline `# failopen: intentional: <reason>` (or `fail-closed`) marker; the scanner reads it as the justification. No bare allowlist, no lint-disable.",
   "baselines": {
-    "broad_total": 611,
+    "broad_total": 614,
     "unclassified": 0,
     "swallow_by_control_flow": 168
   },
   "disposition_counts": {
     "FAIL_CLOSED": 38,
     "INTENTIONAL": 17,
-    "LOG_AND_CONTINUE": 388,
+    "LOG_AND_CONTINUE": 391,
     "SWALLOW_BY_CONTROL_FLOW": 168
   },
   "owner_counts": {
@@ -24,7 +24,7 @@
     "persistence": 3,
     "platform": 5,
     "runtime": 3,
-    "services": 176,
+    "services": 179,
     "storage": 21,
     "telemetry": 41,
     "web": 39
@@ -3901,7 +3901,34 @@
     },
     {
       "path": "foms/services/integrations/naver_commerce/triage_count.py",
-      "lineno": 154,
+      "lineno": 167,
+      "handler_type": "broad_exception",
+      "disposition": "LOG_AND_CONTINUE",
+      "owner": "services",
+      "has_logging": true,
+      "justification": "logs via logger/log_handled_exception"
+    },
+    {
+      "path": "foms/services/integrations/naver_commerce/triage_count.py",
+      "lineno": 224,
+      "handler_type": "broad_exception",
+      "disposition": "LOG_AND_CONTINUE",
+      "owner": "services",
+      "has_logging": true,
+      "justification": "logs via logger/log_handled_exception"
+    },
+    {
+      "path": "foms/services/integrations/naver_commerce/triage_count.py",
+      "lineno": 239,
+      "handler_type": "broad_exception",
+      "disposition": "LOG_AND_CONTINUE",
+      "owner": "services",
+      "has_logging": true,
+      "justification": "logs via logger/log_handled_exception"
+    },
+    {
+      "path": "foms/services/integrations/naver_commerce/triage_count.py",
+      "lineno": 268,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -5071,7 +5098,7 @@
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
-      "lineno": 4959,
+      "lineno": 5029,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
@@ -5080,7 +5107,7 @@
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
-      "lineno": 4971,
+      "lineno": 5041,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
@@ -5089,7 +5116,7 @@
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
-      "lineno": 5510,
+      "lineno": 5580,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
@@ -5098,7 +5125,7 @@
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
-      "lineno": 5885,
+      "lineno": 5955,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
@@ -5107,7 +5134,7 @@
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
-      "lineno": 6357,
+      "lineno": 6427,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
@@ -5116,7 +5143,7 @@
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
-      "lineno": 6463,
+      "lineno": 6533,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
@@ -5125,7 +5152,7 @@
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
-      "lineno": 6553,
+      "lineno": 6623,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
@@ -5134,7 +5161,7 @@
     },
     {
       "path": "foms/web/admin/naver_ingest.py",
-      "lineno": 6725,
+      "lineno": 6795,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
