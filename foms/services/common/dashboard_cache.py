@@ -62,6 +62,13 @@ _INVALIDATE_MAX_KEYS: Final[int] = 10000
 _ENV_FLAG: Final[str] = "FOMS_DASHBOARD_MICRO_CACHE_ENABLED"
 _REDIS_URL_ENV: Final[str] = "REDIS_URL"
 
+#: Redis 클라이언트 초기화가 실패한 뒤 다시 시도하기까지 기다리는 시간(초).
+#: 예전에는 한 번 실패하면 그 프로세스가 재시작될 때까지 캐시·표 버전 카운터를 영영
+#: 쓰지 않았다(2026-09-30 운영 워커에서 Redis 연결 실패 3.5분 — 그 사이 뜬 프로세스는
+#: 회복 뒤에도 무효화·버전 올리기를 계속 건너뛴다). 기다리는 동안은 연결을 시도하지 않고
+#: 바로 None 을 돌려준다 — 장애 중 요청마다 연결 상한 2초를 물지 않게 하려는 것이다.
+REDIS_INIT_RETRY_SECONDS: Final[float] = 60.0
+
 # 슬라이스 관측(진단) — 요청 하나가 어떤 슬라이스를 hit/miss 했고 재계산에 몇 ms 를
 # 썼는지 모은다. 로그만으로는 배포 환경별 로그 접근 권한에 막혀 확인이 어려워, 라우트가
 # 이 값을 진단 헤더로 노출할 수 있게 한다(EPT-B7 render_ms 와 같은 성격: 진단용이며
@@ -142,8 +149,11 @@ _STAGE_CODE_TO_FAMILY: Final[dict[str, str]] = {
 }
 
 _redis_lock = threading.Lock()
-# None: 미초기화, False: 연결 실패(프로세스 내 재시도 안 함), 그 외: redis.Redis
+# None: 아직 없음(미초기화 또는 실패 후 재시도 대기), False: REDIS_URL 없음(프로세스 내
+# 바뀌지 않으므로 고정), 그 외: redis.Redis
 _redis_client: Any | None = None
+# 초기화 실패 뒤 다음 시도가 허용되는 time.monotonic() 시각. 0.0 = 실패 기록 없음.
+_redis_retry_at: float = 0.0
 
 __all__ = [
     "KEY_VERSION",
@@ -210,14 +220,27 @@ def get_dashboard_redis() -> Any | None:
     대시보드 micro-cache 전용 Redis 클라이언트.
 
     연결 실패 시 경고 로그 후 None (호출부는 compute로 fallback).
-    프로세스당 최초 1회 성공 시 클라이언트 캐시; 실패 시 이후 None 고정.
+    성공하면 프로세스당 클라이언트 하나를 계속 쓴다. 실패하면
+    :data:`REDIS_INIT_RETRY_SECONDS` 동안은 연결을 시도하지 않고 바로 None 을 주고, 그 뒤
+    첫 호출이 다시 시도한다(경고 로그도 그 시도 때만 1건). 이미 만든 클라이언트는 Redis 가
+    잠깐 끊겨도 명령마다 다시 연결하므로 여기서 다시 만들 일이 없다.
     """
-    global _redis_client
+    global _redis_client, _redis_retry_at
     if _redis_client is not None:
         return None if _redis_client is False else _redis_client
-    with _redis_lock:
+    if _redis_retry_at and time.monotonic() < _redis_retry_at:
+        return None
+    retrying = bool(_redis_retry_at)
+    # 재시도 중에 다른 요청이 들어오면 기다리게 하지 않는다(장애 중이면 연결 상한 2초를
+    # 줄줄이 물게 된다) — 직전까지와 같은 답(None)을 준다. 첫 초기화는 지금처럼 기다린다:
+    # 정상 기동 직후 표 버전 올리기가 None 때문에 빠지면 안 되기 때문이다.
+    if not _redis_lock.acquire(blocking=not retrying):
+        return None
+    try:
         if _redis_client is not None:
             return None if _redis_client is False else _redis_client
+        if _redis_retry_at and time.monotonic() < _redis_retry_at:
+            return None
         redis_url = (os.environ.get(_REDIS_URL_ENV) or "").strip()
         if not redis_url:
             _redis_client = False
@@ -236,21 +259,28 @@ def get_dashboard_redis() -> Any | None:
             # 연결 확인 (lazy 연결 대비 ping)
             client.ping()
             _redis_client = client
+            _redis_retry_at = 0.0
+            if retrying:
+                logger.info("[DashCache] Redis client recovered after init failure")
             return client
         except Exception as exc:
             logger.warning(
-                "[DashCache] Redis client init failed, cache bypass: %s",
+                "[DashCache] Redis client init failed, cache bypass (retry in %ss): %s",
+                int(REDIS_INIT_RETRY_SECONDS),
                 exc,
                 exc_info=True,
             )
-            _redis_client = False
+            _redis_retry_at = time.monotonic() + REDIS_INIT_RETRY_SECONDS
             return None
+    finally:
+        _redis_lock.release()
 
 
 def reset_dashboard_cache_runtime_for_tests() -> None:
-    """단위 테스트 전용: Redis 클라이언트 캐시 초기화."""
-    global _redis_client
+    """단위 테스트 전용: Redis 클라이언트 캐시와 재시도 대기 시각을 초기화."""
+    global _redis_client, _redis_retry_at
     _redis_client = None
+    _redis_retry_at = 0.0
 
 
 def _fingerprint_hash(fingerprint: dict[str, Any]) -> str:

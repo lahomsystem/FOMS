@@ -177,6 +177,46 @@ def test_rate_limit_429_after_exceeding_limit(rum_client):
     assert hit_429, "expected 429 after exceeding the per-minute limit"
 
 
+def _spy_limiter_charges(app, monkeypatch):
+    """limiter 저장소에 보내는 hit/test 호출을 (한도 문자열, 범위) 로 모은다."""
+    charges: list[tuple[str, str]] = []
+    for lim in app.extensions.get("limiter", set()):
+        inner = lim.limiter
+        for name in ("hit", "test"):
+            original = getattr(inner, name)
+
+            def _spy(item, *identifiers, _orig=original, **kwargs):
+                charges.append((str(item), identifiers[-1] if identifiers else ""))
+                return _orig(item, *identifiers, **kwargs)
+
+            monkeypatch.setattr(inner, name, _spy)
+    return charges
+
+
+def test_rum_charges_only_its_own_limit_not_default_limits(app, rum_client, monkeypatch):
+    """P3-3: RUM 은 전용 한도 버킷 하나만 깎는다(요청당 저장소 1회) — 기본 한도와 섞이지 않는다.
+
+    대조군: 기본 한도가 걸리는 다른 라우트(GET /login)는 기본 한도 두 개를 깎는다 — 스파이가
+    기본 한도를 실제로 잡는다는 증거다. 이 대조가 없으면 "RUM 이 기본 한도를 안 깎는다"는
+    스파이가 아무것도 못 잡아서 통과하는 것과 구별되지 않는다.
+    """
+    charges = _spy_limiter_charges(app, monkeypatch)
+    default_limits = {
+        value.strip()
+        for value in os.environ.get("FLASK_DEFAULT_RATE_LIMITS", "5000 per day,1200 per hour").split(",")
+        if value.strip()
+    }
+
+    assert rum_client.post(RUM_URL, json=_valid_payload()).status_code == 200
+    assert charges == [(f"{_RUM_RATE_LIMIT} per 1 minute", "foms_rum.ingest_rum_event")]
+
+    charges.clear()
+    assert rum_client.get("/login").status_code == 200
+    charged = {limit for limit, _scope in charges}
+    assert len(charges) == len(default_limits) >= 1
+    assert f"{_RUM_RATE_LIMIT} per 1 minute" not in charged
+
+
 def test_untrusted_xff_cannot_bypass_rate_limit(rum_client):
     # Exhaust the bucket for the canonical client (remote_addr 127.0.0.1, no XFF).
     for _ in range(_RUM_RATE_LIMIT + 5):

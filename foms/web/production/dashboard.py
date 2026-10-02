@@ -63,6 +63,9 @@ from foms.services.erp_permissions import (
     is_order_related_to_user,
 )
 from foms.services.orders.order_mutation_policy import team_has_capability
+from foms.services.feature_flags import (
+    is_mobile_v2_shell, resolve_shell_variant_cached, wants_coarse_pointer_surfaces,
+)
 from foms.services.erp_policy import STAGE_LABELS
 from foms.services.orders.team_labels import TEAM_LABELS
 # namespace surface 계약(pin): 라우트 본문 미사용이어도 erp_display 재export 유지
@@ -150,9 +153,17 @@ def erp_production_dashboard():
     total_pages = (total_orders + per_page - 1) // per_page
     offset = (page - 1) * per_page
 
-    kanban_rows = _q.limit(PRODUCTION_KANBAN_MAX_ROWS).all()
-    kanban_capped = total_orders > PRODUCTION_KANBAN_MAX_ROWS
-    if kanban_capped:
+    # 칸반은 dashboard_body.html 의 `erp_mobile_v2_enabled and coarse_pointer_surfaces` 일 때만
+    # 그린다. 안 그리는 요청(마우스 PC·옛 셸, 하트비트 포함)은 전량(최대 300행)을 건너뛰고 페이지
+    # 행만 읽는다. 칸반 값(kanban_*·changed_count·tombstones·tablet_prod_kpis)은 그 칸반만 읽는다.
+    kanban_wanted = is_mobile_v2_shell(resolve_shell_variant_cached(
+        user.id if user else None)) and wants_coarse_pointer_surfaces(request)
+
+    kanban_rows = _q.limit(PRODUCTION_KANBAN_MAX_ROWS).all() if kanban_wanted else []
+    kanban_capped = kanban_wanted and total_orders > PRODUCTION_KANBAN_MAX_ROWS
+    if not kanban_wanted:
+        _, _, page_rows = paginate_production_rows(_q, _pf.page, total_orders)
+    elif kanban_capped:
         # silent 축소 금지 — 캡 발동을 로그로 남긴다.
         logger.warning(
             "[production] 칸반 캡 발동: total=%s > cap=%s — 정렬 상위 %s건만 렌더",
@@ -244,12 +255,12 @@ def erp_production_dashboard():
         _r["attachment_preview_items"] = items
         _r["attachment_previews"] = [item["view"] for item in items if item.get("view")]
 
-    # 취소 묘비와 변경 카운트는 칸반(보드 전체) 기준 — 모달·칩 카운트가 보드와 일치.
-    tombstones = collect_production_tombstones(db, user, erp_mine_only)
+    # 취소 묘비와 변경 카운트는 칸반(보드 전체) 기준 — 모달·칩 카운트가 보드와 일치(칸반 없으면 생략).
+    tombstones = collect_production_tombstones(db, user, erp_mine_only) if kanban_wanted else []
     changed_count = sum(1 for _r in kanban_enriched if _r.get("has_changes")) + len(tombstones)
     process_steps = build_production_process_steps(step_stats)
     # 태블릿 칸반 상단 KPI 4종: 칸반이 소비하는 전량 셋 기준(신규 쿼리 없음).
-    tablet_prod_kpis = _compute_tablet_prod_kpis(kanban_enriched)
+    tablet_prod_kpis = _compute_tablet_prod_kpis(kanban_enriched) if kanban_wanted else {}
     # detail_payload eager 조립 제거: 템플릿 preload가 lazy fetch(/api/orders/<id>/
     # detail-payload)로 전환되어 이 서버측 계산은 미사용이었다(매 요청 N행 낭비).
 

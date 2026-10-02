@@ -96,7 +96,8 @@ def _redis() -> Any | None:
     """대시보드 캐시와 **같은** Redis 클라이언트(프로세스당 1개)를 돌려준다.
 
     새 저장소·새 연결 풀을 만들지 않는다. 클라이언트 초기화 실패 시 ``None``
-    (`dashboard_cache.get_dashboard_redis` 가 경고 로그 후 고정 ``None``).
+    (`dashboard_cache.get_dashboard_redis` 가 경고 로그 후 ``REDIS_INIT_RETRY_SECONDS``
+    동안 ``None``, 그 뒤 다시 시도한다).
 
     Returns:
         Redis 클라이언트 또는 ``None``.
