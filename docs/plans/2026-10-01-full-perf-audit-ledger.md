@@ -178,4 +178,8 @@
   - P2-6 워커 공백: 예열 생략(10-01) 뒤에도 rq 준비 중앙값 17초·공백 13초(5회). 감독자가 rq 먼저, 루프는 rq Listening 표식 또는 30초 뒤(`FOMS_SUPERVISOR_DEFER_LOOPS_SECONDS`), rq 부모가 잡·저장소 모듈 미리 import(boto3 150~215→4ms). CPU 1개 로컬 재현 rq 준비 37~39→7~9초. Railway OVERLAP·CPU 2 는 보류 권고(배포 뒤 재측정).
   - 스테이징 실화면 검증(`35181b9b`, Playwright, 쓰기 0): 셸 재실행 45전환 모두 0, 이력↔완료 100전환 heap 69.6→4.2MB·document 리스너 335→142·옛 DOM 39,771→2, 다음 페인트 AS 398→286~303 · 대시보드 241→237 · 시공 181→164 · 생산 137→129ms. 데스크톱+모바일 동작 40/40, 새 오류 0(기존: 시공 `CONSTRUCTION_GATE_MISSING_LABELS` 중복 선언, 서랍 링크 이동 시 Bootstrap null.classList). `X-FOMS-REQ-DIAG` HTML 에만 붙음 확인.
 - 2026-10-02: PR #490(production `76d4210c`) 운영 반영 — 탭 전환 재실행·누수 차단, 워커 rq 먼저, 꼬리 진단 계측. perf-gate 가 다른 세션의 perf-gate 개편(기계 보정·예산 시드) 중 AS·생산에서 4~7ms 초과로 2회 실패 → 사용자 "조금 뒤 다시" → 10:09 KST 재실행 통과(healthz base 246ms). 배포 뒤: web·WORKER Traceback 0, **WORKER `queue consumer ready after 4.5s`**(이전 rq 준비 중앙값 17~20초) 뒤 루프 5개 기동. 꼬리 `req_duration diag` 는 업무시간 하루치 뒤 판정.
+- 2026-10-02: 3차 묶음(사용자 "다른 후보 더") → deploy `b5784e1d`, CI 4종 green.
+  - P2-4 첫 로드: 실측·대시보드 엔트리 체인 병렬 다운로드·순서 실행(로컬 RTT 100ms 모사 콜드 load 실측 3,056→1,895 · 대시보드 2,777→1,991ms, 웜 손해 없음). 출고 체인은 다중 script 가드, foms-tokens 이중 다운로드는 `test_token_alias_bridge`·WAM 레이아웃 의존이라 보류(계약 변경 승인 필요, 추정 70~100ms).
+  - P2-2 네이버 작업대: 이력 탭 처리 목록 생략·형제 재읽기 제거(원천=형제 1,233행)·배지 Redis 공유. **스테이징 실측: 이력 탭 render 650→165~181ms**. 처리 탭은 918·824·1017·763(수정 전 642·885·690·815) — wg_sibling 178→62 로 줄었으나 손대지 않은 wg_fetch 148→199·wg_group_queue 92→147 이 올라 판정 보류(흔들림/데이터 증가). raw_snapshot 투영은 필드 누락 위험으로 보류.
+  - P3-4 생산 칸반 PC 생략(HTML 바이트 동일), P3-8 Redis 초기화 60초 재시도, P3-3 RUM 429 는 원장 전제 오류 — 원인(INP 입력마다 전송)은 PR #481 에서 해소, 반영 뒤 운영 429 0건(계약만 추가).
 
