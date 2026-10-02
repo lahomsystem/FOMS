@@ -50,7 +50,7 @@ def test_detail_dom_cachebuster_cascade_bumped() -> None:
     assert "erp-dashboard-core.js?v=20260929h" in entry
     assert "erp-dashboard-attachments.js?v=20260929h" in entry
     assert "erp-dashboard-gateway.js?v=20260929e" in entry
-    assert "erp-dashboard-entry.js') }}?v=20261001a" in layout
+    assert "erp-dashboard-entry.js') }}?v=20261002p" in layout
 
 
 def test_workbench_include_confirmed_toggle() -> None:
