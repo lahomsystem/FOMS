@@ -325,6 +325,12 @@ def register_http_bootstrap(
         if hasattr(g, "_request_start"):
             duration_ms = (time.perf_counter() - g._request_start) * 1000
             endpoint = request.endpoint or request.path
+            # PERF-GATE-ST: 인증된 응답에만 서버 처리시간을 싣는다. 게이트가 네트워크 RTT
+            # 잡음 없이 이 값으로 판정한다(무인증 요청에는 내부 시간을 노출하지 않는다).
+            if getattr(g, "current_user", None) is not None:
+                timing = f"app;dur={duration_ms:.1f}"
+                prior = response.headers.get("Server-Timing")
+                response.headers["Server-Timing"] = f"{prior}, {timing}" if prior else timing
             if duration_ms > 400:
                 current_app.logger.info(
                     "req_duration endpoint=%s duration_ms=%s status=%s",

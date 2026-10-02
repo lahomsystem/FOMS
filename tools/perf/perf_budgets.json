@@ -28,54 +28,65 @@
       "body_bytes_max": 9330
     }
   },
-  "_comment": "스테이징 성능 게이트 예산 v2(SSOT: tools/perf/staging_perf_gate.py). 판정값 ttfb_delta_min_ms = min(warm path TTFB) − min(healthz TTFB): min 은 tail(2~9s) 오염 면역, healthz 델타는 시간대별 베이스 RTT(창 분산)를 상쇄한다. body_bytes_max = 전송(wire, 압축) 바이트 상한(실사용 다운로드 비용; 해압은 정보용, 결정적 min 성격). 정밀 서버 회귀는 render_ms_max·bytes·쿼리 계약이 잡는다. --seed 는 의도된 성능 변화 때만 실행하고 diff 를 리뷰한다.",
+  "_comment": "스테이징 성능 게이트 예산 v2(SSOT: tools/perf/staging_perf_gate.py). 판정값 ttfb_delta_min_ms = min(warm path TTFB) − min(healthz TTFB): min 은 tail(2~9s) 오염 면역, healthz 델타는 시간대별 베이스 RTT(창 분산)를 상쇄한다. body_bytes_max = 전송(wire, 압축) 바이트 상한(실사용 다운로드 비용; 해압은 정보용, 결정적 min 성격). 정밀 서버 회귀는 render_ms_max·bytes·쿼리 계약이 잡는다. --seed 는 의도된 성능 변화 때만 실행하고 diff 를 리뷰한다. v3(2026-10-02): server_ms_min_max = Server-Timing app;dur min 상한. 있으면 이것으로 판정하고 ttfb_delta_min_ms 는 정보용(헤더 없으면 폴백). 시드 = max(관측 3런 최대*1.3, +50ms). 기계 보정: _global.cpu_calib_ref_ms(시드 시 /healthz/cpu min 중앙값) 대비 런의 배수 max(1,측정/기준)를 server_ms_min_max 에 곱한다.",
   "_global": {
     "schema": 2,
     "render_ms_max": 500,
     "etag_required": true,
-    "conditional_304_required": true
+    "conditional_304_required": true,
+    "cpu_calib_ref_ms": 10.67
   },
   "paths": {
     "/erp/dashboard?view=fragment": {
       "ttfb_delta_min_ms": 167,
-      "body_bytes_max": 26827
+      "body_bytes_max": 26827,
+      "server_ms_min_max": 145
     },
     "/erp/measurement?view=fragment": {
       "ttfb_delta_min_ms": 140,
-      "body_bytes_max": 17485
+      "body_bytes_max": 17485,
+      "server_ms_min_max": 93
     },
     "/erp/drawing-workbench?view=fragment": {
       "ttfb_delta_min_ms": 124,
-      "body_bytes_max": 17497
+      "body_bytes_max": 17497,
+      "server_ms_min_max": 91
     },
     "/erp/production/dashboard?view=fragment": {
       "ttfb_delta_min_ms": 133,
-      "body_bytes_max": 47960
+      "body_bytes_max": 47960,
+      "server_ms_min_max": 113
     },
     "/erp/shipment?view=fragment": {
       "ttfb_delta_min_ms": 291,
-      "body_bytes_max": 11648
+      "body_bytes_max": 11648,
+      "server_ms_min_max": 81
     },
     "/erp/as?view=fragment": {
       "ttfb_delta_min_ms": 168,
-      "body_bytes_max": 46032
+      "body_bytes_max": 46032,
+      "server_ms_min_max": 132
     },
     "/erp/construction/dashboard?view=fragment": {
       "ttfb_delta_min_ms": 147,
-      "body_bytes_max": 23812
+      "body_bytes_max": 23812,
+      "server_ms_min_max": 114
     },
     "/erp/completion?view=fragment": {
       "ttfb_delta_min_ms": 107,
-      "body_bytes_max": 12507
+      "body_bytes_max": 12507,
+      "server_ms_min_max": 117
     },
     "/erp/history/?view=fragment": {
       "ttfb_delta_min_ms": 99,
-      "body_bytes_max": 9330
+      "body_bytes_max": 9330,
+      "server_ms_min_max": 61
     },
     "/erp/measurement?date=*&view=fragment": {
       "ttfb_delta_min_ms": 200,
       "p95_ttfb_delta_ms": 1500,
-      "body_bytes_max": 50000
+      "body_bytes_max": 50000,
+      "server_ms_min_max": 95
     }
   }
 }
