@@ -1,8 +1,15 @@
 """수집 확인 대기 건수 — nav 뱃지용 (NAVER-INGEST-01 잔여).
 
 nav 는 **모든 페이지**에서 렌더되므로 요청마다 COUNT 를 새로 내면 안 된다. 30초 TTL
-인메모리 캐시를 둔다(``dashboard_counts`` 의 nav 뱃지와 같은 규약). 캐시가 비어도
+캐시를 둔다(``dashboard_counts`` 의 nav 뱃지와 같은 규약). 캐시가 비어도
 쿼리는 부분 인덱스 ``(channel, created_at) WHERE reviewed_at IS NULL`` 로 풀린다.
+
+**캐시는 Redis 공유가 기본이다**(2026-10-02, 성능 원장 P2-2). 프로세스 메모리 캐시만 있던
+때는 운영 web 4개 프로세스(2 replica × gunicorn 2)가 30초마다 **각자** 콜드 계산을 했다 —
+스테이징 콜드 674~757ms. 대시보드 캐시의 Redis 클라이언트(:func:`get_dashboard_redis`)를
+그대로 쓰고, Redis 가 없거나 오류면 예전처럼 프로세스 캐시로 돈다(fail-open).
+신선도 약속은 그대로 **최대 30초**다 — 무효화 지점은 예전에도 없었고(TTL 만), 지금도 없다.
+처리 탭 렌더가 같은 정의로 센 값은 :func:`remember_triage_pending_count` 로 바로 넣는다.
 
 **모집단이 두 벌인 이유**: 워크벤치 v3 게이트가 켜진 사용자는 링크를 누르면 처리 탭
 목록(``_work_groups``)을 본다 — 확인 큐 ∪ 발주확인 전 집. 게이트가 꺼진 사용자는 옛
@@ -21,12 +28,18 @@ from typing import Any
 
 from sqlalchemy.exc import SQLAlchemyError
 
+from foms.services.common.dashboard_cache import get_dashboard_redis
 from foms.services.integrations.naver_commerce.constants import CHANNEL
 
 logger = logging.getLogger(__name__)
 
 #: nav 뱃지 캐시 수명(초). dashboard_counts.NAV_BADGE_CACHE_TTL_SEC 와 같은 값.
 TRIAGE_COUNT_CACHE_TTL_SEC = 30
+
+#: 공유 캐시 키 머리. 대시보드 슬라이스 캐시 접두사(``foms:dashcache:v1:``) **밖에** 둔다 —
+#: 그 접두사는 주문 저장 경로들이 SCAN 으로 통째 비우는 자리라, 거기 두면 주문 저장마다
+#: 배지가 콜드로 돌아간다(이 값은 주문 저장과 무관하다).
+SHARED_KEY_PREFIX = "foms:naver-triage-count:v1:"
 
 #: 캐시 dict 보호용. **짧게만** 잡는다 — 여기서 계산까지 하면 캐시 히트 요청까지 줄을 선다.
 _lock = Lock()
@@ -184,17 +197,76 @@ def get_triage_pending_count(db: Any, *, workbench: bool = False) -> int:
         if cached is not None:
             return cached
         value = compute_triage_pending_count(db, workbench=workbench)
-        with _lock:
-            _cache[key] = (time.monotonic() + TRIAGE_COUNT_CACHE_TTL_SEC, value)
+        _write_cache(key, value)
         return value
 
 
+def remember_triage_pending_count(value: int, *, workbench: bool) -> None:
+    """**같은 정의로 이미 센** 값을 캐시에 넣는다 — 다음 배지 요청이 다시 세지 않게.
+
+    처리 탭 렌더는 :func:`_workbench_group_count` 와 같은 함수(``_work_groups`` →
+    ``_actionable_count``)로 같은 수를 이미 셌다. 그 직후 nav 배지 요청
+    (``/triage/pending-count``)이 캐시가 비었다는 이유로 같은 계산을 처음부터 다시
+    도는 것을 막는다. 부르는 쪽이 정의가 같다는 것을 보장한다(정렬이 캡을 바꾸는 경우 등은
+    부르지 않는다).
+
+    Args:
+        value: 손댈 수 있는 집 수.
+        workbench: 워크벤치 v3 모집단인가(캐시 칸).
+    """
+    _write_cache(_cache_key(workbench), int(value))
+
+
+def _shared_redis() -> Any | None:
+    """대시보드 캐시와 같은 Redis 클라이언트(없거나 연결 실패면 None)."""
+    try:
+        return get_dashboard_redis()
+    except Exception:  # noqa: BLE001 - 캐시 장애가 배지를 죽이지 않는다
+        logger.debug("[NAVER] 배지 공유 캐시 클라이언트 없음", exc_info=True)
+        return None
+
+
 def _read_cache(key: str) -> int | None:
-    """살아 있는 캐시 값(없거나 만료면 None)."""
+    """살아 있는 캐시 값(없거나 만료면 None).
+
+    Redis 가 있으면 **Redis 만** 본다 — 프로세스 칸까지 보면 다른 프로세스가 갱신한 값보다
+    낡은 값을 돌려줄 수 있다. Redis 오류일 때만 프로세스 칸으로 내려간다.
+    """
+    client = _shared_redis()
+    if client is not None:
+        try:
+            raw = client.get(SHARED_KEY_PREFIX + key)
+        except Exception as exc:  # noqa: BLE001 - 공유 캐시 장애는 프로세스 칸으로
+            logger.warning("[NAVER] 배지 공유 캐시 읽기 실패(프로세스 캐시로): %s", exc)
+        else:
+            if raw is None:
+                return None
+            try:
+                return int(raw)
+            except (TypeError, ValueError):
+                return None
     now = time.monotonic()
     with _lock:
         entry = _cache.get(key)
         return entry[1] if entry and entry[0] > now else None
+
+
+def _write_cache(key: str, value: int) -> None:
+    """값을 공유 캐시와 프로세스 칸 **둘 다**에 넣는다.
+
+    프로세스 칸은 Redis 가 잠깐 오류일 때 내려가는 자리다 — 늘 함께 채워 둬야 그때
+    곧바로 콜드 계산으로 떨어지지 않는다.
+    """
+    with _lock:
+        _cache[key] = (time.monotonic() + TRIAGE_COUNT_CACHE_TTL_SEC, value)
+    client = _shared_redis()
+    if client is None:
+        return
+    try:
+        client.setex(SHARED_KEY_PREFIX + key, max(int(TRIAGE_COUNT_CACHE_TTL_SEC), 1),
+                     str(int(value)))
+    except Exception as exc:  # noqa: BLE001 - 공유 캐시 장애가 배지를 죽이지 않는다
+        logger.warning("[NAVER] 배지 공유 캐시 쓰기 실패(프로세스 캐시만): %s", exc)
 
 
 def _compute_lock(key: str) -> Lock:
@@ -212,14 +284,20 @@ def _compute_lock(key: str) -> Lock:
 
 
 def reset_triage_count_cache_for_tests() -> None:
-    """테스트 격리용 캐시 초기화."""
+    """테스트 격리용 캐시 초기화 — **프로세스 칸만** 비운다.
+
+    공유 칸(Redis)은 건드리지 않는다. 테스트가 환경변수의 실제 Redis 에 붙어 키를 지우는
+    일이 없게 하기 위해서다 — 공유 칸을 쓰는 테스트는 가짜 클라이언트를 직접 꽂는다.
+    """
     with _lock:
         _cache.clear()
 
 
 __all__ = [
+    "SHARED_KEY_PREFIX",
     "TRIAGE_COUNT_CACHE_TTL_SEC",
     "compute_triage_pending_count",
     "get_triage_pending_count",
+    "remember_triage_pending_count",
     "reset_triage_count_cache_for_tests",
 ]

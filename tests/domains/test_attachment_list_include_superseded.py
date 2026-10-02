@@ -176,7 +176,7 @@ def test_changed_assets_are_pinned():
     # erp-pro.css 는 이후 board_state 줄로 20260930c, 2b 까지 합친 detail-dom·entry 는 20260929l.
     assert "erp-dashboard-detail-dom.js?v=20261001a" in entry
     assert f"js/construction/dashboard.js') }}}}?v={PIN}" in _read("templates/construction/partials/scripts.html")
-    assert "erp-dashboard-entry.js') }}?v=20261001a" in _read("templates/partials/shared/layout_scripts.html")
+    assert "erp-dashboard-entry.js') }}?v=20261002p" in _read("templates/partials/shared/layout_scripts.html")
     # erp-order-shared.js 는 asset_url(내용 해시) 시범 — 손 핀 없이 파일이 바뀌면 URL 이 저절로 바뀐다.
     assert "asset_url('js/orders/erp-order-shared.js')" in _read("templates/orders/partials/erp_order_js.html")
     assert "erp-pro.css') }}?v=20261001d" in _read("templates/partials/shared/layout_head.html")

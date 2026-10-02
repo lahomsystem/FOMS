@@ -172,7 +172,7 @@ def test_cancel_guidance_no_longer_claims_files_are_deleted():
     entry = _read("static/js/orders/erp-dashboard-entry.js")
     assert "erp-dashboard-detail-dom.js?v=20261001a" in entry
     assert "erp-dashboard-drawing.js?v=20260929l" in entry
-    assert "erp-dashboard-entry.js') }}?v=20261001a" in _read("templates/partials/shared/layout_scripts.html")
+    assert "erp-dashboard-entry.js') }}?v=20261002p" in _read("templates/partials/shared/layout_scripts.html")
     grid = _read("templates/orders/partials/dashboard_grid.html")
     assert "REVISION_CANCELLED" in grid and "수정요청 취소" in grid
 

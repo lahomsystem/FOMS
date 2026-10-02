@@ -40,6 +40,7 @@ from foms.services.integrations.naver_commerce.constants import SELLER_CENTER_UR
 # triage_count 는 web 을 상단에서 import 하지 않으므로(자기 함수 안에서만 부른다) 순환이 아니다.
 from foms.services.integrations.naver_commerce.triage_count import (
     get_triage_pending_count,
+    remember_triage_pending_count,
 )
 from foms.services.integrations.naver_commerce.fulfillment import CLOSE_NOW_RELATIONS
 from foms.services.integrations.naver_commerce.mapping import (
@@ -2506,15 +2507,34 @@ def _render_workbench(db) -> str:
     active_tab = _active_tab()
     active_filter = _active_filter()
     active_sort = _active_sort()
-    with phase("wb_work_groups"):
-        groups, work_truncated = _work_groups(db, sort=active_sort)
+    if active_tab == "work":
+        with phase("wb_work_groups"):
+            groups, work_truncated = _work_groups(db, sort=active_sort)
+        actionable = _actionable_count(groups)
+        # 이 수는 nav 배지(`_workbench_group_count`)와 **같은 정의**다 — 배지는 기본 정렬로
+        # 세므로 기본 정렬일 때만 넣는다(다른 정렬은 캡이 자르는 집이 달라 수가 다를 수 있다).
+        # 이 화면을 연 직후 브라우저가 배지 숫자를 따로 물으면(`/triage/pending-count`)
+        # 같은 계산을 처음부터 다시 돌던 것이 캐시 적중이 된다.
+        if active_sort == "new":
+            remember_triage_pending_count(actionable, workbench=True)
+    else:
+        # 이력 탭은 처리 목록·칩·pane 을 **그리지 않는다**(템플릿의 `active_tab == 'work'`
+        # 블록 밖). 그런데도 처리 목록 전체를 계산해 이력 탭 render 의 대부분을 썼다
+        # (2026-10-02 스테이징 실측 wb_work_groups 511~603ms, render 650~747ms).
+        # 이 탭에서 처리 목록이 남기는 값은 탭 배지 `처리 N주문` 하나뿐이고, 그 수는 nav 배지와
+        # 같은 정의라 배지 캐시(최대 30초)를 그대로 쓴다. 캐시가 비었으면 얇은 경로로 센다.
+        groups, work_truncated = [], False
+        with phase("wb_tab_count"):
+            # 이 함수는 게이트가 켜진 사용자에게만 불린다(`naver_ingest_triage`) — 모집단은
+            # 언제나 워크벤치 쪽이다.
+            actionable = int(get_triage_pending_count(db, workbench=True))
     # nav 뱃지(`inject_status_list` → `get_triage_pending_count`)는 **템플릿 렌더 중**
     # 돌면서 같은 `_work_groups` 를 한 번 더 계산한다. 30초 캐시가 콜드면 그 두 번째
     # 계산이 통째로 더해진다 — 스테이징 실측 콜드 render 1,387ms 중 nvbadge 가 428ms
     # (wb_work_groups 436ms 와 거의 같은 값 = 같은 일을 두 번 한 것).
     # 이 요청은 답을 이미 알고 있으므로 여기 남겨 배지가 재사용하게 한다. 요청 스코프라
     # 신선도 문제가 없고(같은 요청·같은 트랜잭션), `_work_groups` 자체는 순수하게 둔다.
-    g.wb_actionable_count = _actionable_count(groups)
+    g.wb_actionable_count = actionable
     visible = [group for group in groups if _group_matches_filter(group, active_filter)]
     # 수집 상태(워터마크·인증 만료일)는 이력 탭에 함께 싣는다. 게이트가 켜지면 옛 수집
     # 화면이 리다이렉트로 닫히는데, 그 화면에만 있던 값이라 여기 없으면 수집이 조용히
@@ -2547,7 +2567,9 @@ def _render_workbench(db) -> str:
                                 else {"running": False})
     with phase("wb_counts"):
         filter_counts_view = _filter_counts(groups)
-        actionable = _actionable_count(groups)
+        # 잠긴 집 수는 처리 목록이 있을 때만 뜻이 있다. 이력 탭은 목록을 안 만들었으므로
+        # 0 으로 둔다(템플릿도 처리 탭에서만 그린다) — `0 - 배지 수` 로 음수를 싣지 않는다.
+        locked_total = len(groups) - actionable if active_tab == "work" else 0
         # 머리줄 `상품주문 N건` 은 탭 배지(손댈 수 있는 집)의 **같은 모집단**을 건으로 센다
         # (결정 3 의 이중 표기 = 한 모집단의 두 단위). 예전에는 잠긴 집까지 더해서
         # "처리 216주문 · 상품주문 989건" 의 989 가 292주문 몫이었다(2026-09-28 스테이징) —
@@ -2555,7 +2577,10 @@ def _render_workbench(db) -> str:
         pending_total = sum(int(group["count"]) for group in groups
                             if not _group_matches_filter(group, "claim"))
     with phase("wb_pane_ctx"):
-        pane_context = _pane_context(db, _selected_link(db, visible), visible=visible)
+        # 상세 pane 도 처리 탭에만 있다. 이력 탭은 빈 pane 컨텍스트(키는 같고 선택 없음)를
+        # 싣는다 — 그 탭이 읽는 것은 취소·반품 사유 목록(모달)뿐이고 그것은 상수다.
+        pane_link = _selected_link(db, visible) if active_tab == "work" else None
+        pane_context = _pane_context(db, pane_link, visible=visible)
     with phase("wb_template"):
         return render_template(
             "admin/naver_workbench.html",
@@ -2569,7 +2594,7 @@ def _render_workbench(db) -> str:
             # 스트립·탭 배지·nav 뱃지가 말하는 수 — 손댈 수 있는 집만(계약 §2.4).
             # 잠긴 집은 목록에는 남고 `locked_count` 로 따로 고지된다.
             actionable_count=actionable,
-            locked_count=len(groups) - actionable,
+            locked_count=locked_total,
             # 탭 배지와 같은 모집단(손댈 수 있는 집)의 상품주문 건수.
             pending_count=pending_total,
             work_truncated=work_truncated,
@@ -3583,8 +3608,10 @@ def _work_groups(db, *, display: bool = True,
     pending = [row for row in source if row.reviewed_at is None]
     place_links = [row for row in source if _row_place_pending(row)]
     # 형제 판정은 여기서 **한 벌만** 만든다 — 아래 세 곳이 같은 색인을 나눠 쓴다.
+    # 원천 행은 방금 읽었으므로 넘겨서 재사용한다 — 원천 밖 형제만 새로 읽는다(`_sibling_rows`).
+    order_nos = _source_order_nos(source)
     with phase("wg_sibling"):
-        sibling = _build_sibling_index(db, _source_order_nos(source), display=display)
+        sibling = _build_sibling_index(db, order_nos, display=display, loaded=source)
     # 주문 표는 **한 번만** 읽는다 — 확인 큐·발주확인 전 목록·집 전체 규격이 나눠 쓴다.
     with phase("wg_orders"):
         orders = _attach_household_orders(db, sibling, source, display=display)
@@ -3899,13 +3926,61 @@ def _source_order_nos(links: list[Any]) -> set:
     return order_nos
 
 
-def _build_sibling_index(db, order_nos: set, *, display: bool) -> _SiblingIndex:
+def _sibling_rows(db, order_nos: set, *, display: bool,
+                  loaded: Optional[list[Any]] = None) -> list[Any]:
+    """주문번호 집합의 형제 행 전부 — **이미 읽은 행은 다시 읽지 않는다**.
+
+    형제 모집단은 언제나 ``channel = 'NAVER' AND external_order_no IN (주문번호들)`` 이다.
+    처리 탭은 바로 앞에서 원천(:func:`_work_source_links`)을 읽었고, 그 행 대부분이 곧 이
+    형제다 — 2026-10-02 스테이징 실측에서 원천 1,233행과 형제 1,233행이 **같은 집합**이었다
+    (원천 밖 형제 0행). 그런데도 같은 행을 ``raw_snapshot`` 째(2.8MB) 한 번 더 읽어
+    ``wg_sibling`` 이 160~210ms 였다.
+
+    그래서 원천 행 중 형제 조건에 맞는 것은 그대로 쓰고, **원천 밖 형제만** id 로 빼서 읽는다.
+    행 집합은 옛 조회와 같다:
+
+    - 재사용 행은 ``external_order_no`` 가 집합에 **글자 그대로** 있는 것만 고른다. SQL 의
+      ``IN`` 은 공백을 털지 않으므로, 털어서 비교하면 옛 조회가 안 읽던 행이 섞인다.
+    - 채널 조건은 호출자가 보장한다 — ``loaded`` 는 ``channel = 'NAVER'`` 로 읽은 행이어야
+      한다(얇은 행에는 채널 속성이 없어 여기서 다시 거를 수 없다).
+    - 나머지는 ``id NOT IN (재사용 id)`` 로 읽는다. 술어를 뒤집어 쓰지 않는 까닭은 두
+      조회 사이에 상태가 바뀐 행이 양쪽에 다 걸려 두 번 세어지는 일을 막기 위해서다.
+
+    두 표시 모드는 각자 자기 모드로 읽은 행을 재사용한다 — 얇은 경로는 얇은 행, 표시
+    경로는 ORM 행. 표시 경로의 ORM 행은 옛 조회도 식별자 지도에서 **같은 객체**를 돌려줬으므로
+    값까지 같다(:func:`_work_groups` 의 두 모드 동일 결과 규칙 그대로).
+
+    Args:
+        db: 요청 스코프 DB 세션.
+        order_nos: 기준 주문번호 집합(:func:`_source_order_nos`).
+        display: 표시용 스냅샷까지 싣는가(:func:`_fetch_links`).
+        loaded: 이미 같은 모드로 읽어 둔 ``NAVER`` 채널 링크(없으면 형제를 통째로 읽는다).
+
+    Returns:
+        형제 링크 행 목록(순서 무의미 — 색인은 순서와 무관하게 센다).
+    """
+    criteria = (ExternalOrderLink.channel == "NAVER",
+                ExternalOrderLink.external_order_no.in_(sorted(order_nos)))
+    if not loaded:
+        return _fetch_links(db, *criteria, display=display)
+    reused = [row for row in loaded if row.external_order_no in order_nos]
+    if not reused:
+        return _fetch_links(db, *criteria, display=display)
+    reused_ids = sorted({int(row.id) for row in reused})
+    rest = _fetch_links(db, *criteria, ExternalOrderLink.id.notin_(reused_ids),
+                        display=display)
+    return reused + rest
+
+
+def _build_sibling_index(db, order_nos: set, *, display: bool,
+                         loaded: Optional[list[Any]] = None) -> _SiblingIndex:
     """주문번호 집합의 형제 행을 **한 번 읽어** 집 단위 판정을 전부 만든다.
 
     Args:
         db: 요청 스코프 DB 세션.
         order_nos: 기준 주문번호 집합(:func:`_source_order_nos`).
         display: 표시용 스냅샷까지 싣는가(:func:`_fetch_links`).
+        loaded: 이미 읽어 둔 원천 링크(:func:`_sibling_rows` — 그 행은 다시 읽지 않는다).
 
     Returns:
         :class:`_SiblingIndex`. 주문번호가 없으면 빈 색인.
@@ -3920,12 +3995,7 @@ def _build_sibling_index(db, order_nos: set, *, display: bool) -> _SiblingIndex:
     index = _SiblingIndex()
     if not order_nos:
         return index
-    rows = _fetch_links(
-        db,
-        ExternalOrderLink.channel == "NAVER",
-        ExternalOrderLink.external_order_no.in_(sorted(order_nos)),
-        display=display,
-    )
+    rows = _sibling_rows(db, order_nos, display=display, loaded=loaded)
     dispatched_counts: dict[Any, int] = {}
     for row in rows:
         hkey = household_key(row)
