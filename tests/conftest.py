@@ -143,6 +143,14 @@ def app(_schema):
     # 비우므로, app fixture 를 쓰지 않는 테스트가 중간에 무엇을 남겨도 출발선이
     # 같다.
     _reset_database_to_fresh()
+    # DB 를 비웠으면 DB 에서 센 값을 들고 있는 프로세스 캐시도 비운다. 네이버 처리 대기 수
+    # (30초 캐시)는 처리 탭 렌더가 채우고 이력 탭·nav 배지가 읽는다 — 안 비우면 앞 테스트의
+    # 수가 다음 테스트 화면에 실려 실행 순서에 따라 결과가 갈린다.
+    from foms.services.integrations.naver_commerce.triage_count import (
+        reset_triage_count_cache_for_tests,
+    )
+
+    reset_triage_count_cache_for_tests()
 
     yield flask_app
 

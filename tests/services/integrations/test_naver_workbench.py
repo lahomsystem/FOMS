@@ -1717,6 +1717,10 @@ def test_history_find_reaches_rows_that_are_not_on_the_first_page(client, workbe
     # 가장 먼저 만든 집이 가장 오래된 집 — 정렬이 최신순이라 뒤쪽 쪽으로 간다.
     target = _collected(order_no="N-FIND-DEEP", product="깊은 붙박이장",
                         amount=100000, tel="010-7777-8888")
+    # id 는 요청 **전에** 잡는다. 요청이 끝나면 세션이 닫혀 이 객체는 분리되고, 커밋으로
+    # 만료된 속성은 다시 못 읽는다. 예전에는 이력 탭도 처리 목록을 통째로 읽어 같은 세션에
+    # 이 행을 우연히 다시 채워 줬다(2026-10-02 이력 탭은 처리 목록을 안 읽는다).
+    target_id = int(target.id)
     _page_of_noise(PAGE_SIZE + 5)
 
     first_page = _history_rows(client, "")
@@ -1727,7 +1731,7 @@ def test_history_find_reaches_rows_that_are_not_on_the_first_page(client, workbe
 
     assert "깊은 붙박이장" in found, "1쪽 밖의 집을 주문번호로 못 찾았다"
     assert "딴 제품" not in found, "찾기가 안 걸리고 전체 목록이 그대로 왔다"
-    assert target.id  # 픽스처가 살아 있음을 명시
+    assert target_id  # 픽스처가 살아 있음을 명시
 
 
 def test_history_find_matches_customer_name_of_a_linked_order(client, workbench_on):
