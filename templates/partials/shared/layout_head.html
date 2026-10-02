@@ -710,6 +710,13 @@
         }
     </style>
     {% endif %}
+    {# 긴급(P0) 전체화면 빨간 창 공용 모듈 — 소켓 로더보다 먼저 두어(defer 실행 순서)
+       onConnect/onErpNotification 이 부를 때 window.FOMSUrgentAlert 가 이미 있다.
+       standalone 화면(도면 마법사·실측 지도)은 자기 템플릿에서 같은 파일을 싣는다 — 핀을 함께 올린다. #}
+    {% if current_user %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-urgent-alert.css') }}?v=20261002a">
+    <script src="{{ url_for('static', filename='js/foms/foms-urgent-alert.js') }}?v=20261002a" defer></script>
+    {% endif %}
     <!-- 전역 Socket.IO 초기화 (서버가 Socket.IO 제공 시 로드. 로컬 socketio.run / 원격 gunicorn gevent) -->
     {% if current_user and (not request.endpoint or (request.endpoint != 'admin' and not
     request.endpoint.startswith('admin_'))) and config.get('SOCKETIO_AVAILABLE') %}
@@ -828,6 +835,7 @@
                     if (window.FOMS_DEBUG) console.log('[Global Socket.IO] 연결 상태:', globalSocket.connected);
                     refreshErpNotificationUI({ reason: 'socket-connect' });
                     if (window.FOMSAlertSync && typeof window.FOMSAlertSync.resync === 'function') { window.FOMSAlertSync.resync('socket-connect'); }
+                    if (window.FOMSUrgentAlert) { window.FOMSUrgentAlert.resync('socket-connect'); }
                 },
                 onConnectError: function (error) {
                     console.error('[Global Socket.IO] ❌ 연결 오류:', error);
@@ -872,8 +880,9 @@
                 onErpNotification: function (data) {
                     if (window.FOMS_DEBUG) console.log('[Global Socket.IO] ERP 알림 수신:', data);
                     refreshErpNotificationUI({ force: true, reason: 'erp-notification' });
-                    if (data && data.urgent) {
-                        triggerUrgentBriefingAlert(data);
+                    if (data && data.urgent && window.FOMSUrgentAlert) {
+                        // 긴급(P0) 전체화면 빨간 창 — 공용 모듈 SSOT(static/js/foms/foms-urgent-alert.js).
+                        window.FOMSUrgentAlert.handle(data);
                     } else if (data && window.FOMSDrawingAlert) {
                         // 등급별 표시: interrupt=중앙 확인창(도면 수정 요청),
                         // notice=오른쪽 아래 쪽지(수정 요청 취소). 판정은 서버 payload 가 한다.
@@ -882,73 +891,6 @@
                 }
             };
             window.__globalSocketHandlers = globalHandlers;
-
-            // 긴급 알림 발생 시 시각적/청각적 강제 인지 함수
-            window.triggerUrgentBriefingAlert = function (data) {
-                console.warn('[URGENT] 긴급 이벤트 수신, 강제 인지 처리:', data);
-
-                // 1. 청각 알림 (비프음)
-                try {
-                    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-                    const osc = ctx.createOscillator();
-                    const gain = ctx.createGain();
-                    osc.connect(gain);
-                    gain.connect(ctx.destination);
-                    osc.type = 'square';
-                    osc.frequency.setValueAtTime(880, ctx.currentTime);
-                    osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.1);
-                    gain.gain.setValueAtTime(0.1, ctx.currentTime);
-                    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
-                    osc.start();
-                    osc.stop(ctx.currentTime + 0.3);
-                } catch (e) { console.error('Audio 처리 실패:', e); }
-
-                // 2. 거대한 긴급 알람 오버레이 (클릭 전까지 안 사라짐)
-                let overlay = document.getElementById('urgent-fullscreen-overlay');
-                if (!overlay) {
-                    overlay = document.createElement('div');
-                    overlay.id = 'urgent-fullscreen-overlay';
-                    overlay.style.cssText = 'position: fixed; inset: 0; background-color: rgba(220, 53, 69, 0.95); z-index: 106000; display: flex; flex-direction: column; align-items: center; justify-content: center; backdrop-filter: blur(10px); text-align: center;';
-
-                    const bellIcon = document.createElement('i');
-                    bellIcon.className = 'fas fa-bell bell-active';
-                    bellIcon.style.cssText = 'font-size: 50vh; color: #fff; text-shadow: 0 0 30px rgba(0,0,0,0.5); margin-bottom: 30px;';
-
-                    const titleText = document.createElement('h1');
-                    titleText.style.cssText = 'color: #fff; font-weight: 800; font-size: 3rem; text-shadow: 0 2px 10px rgba(0,0,0,0.3); margin-bottom: 10px; max-width: 90%; word-break: keep-all;';
-
-                    const msgText = document.createElement('h3');
-                    msgText.style.cssText = 'color: #fff; font-weight: 500; max-width: 80%; word-break: keep-all; line-height: 1.4;';
-
-                    const clickBtn = document.createElement('button');
-                    clickBtn.innerHTML = '알림 확인완료';
-                    clickBtn.style.cssText = 'margin-top: 40px; padding: 15px 40px; border: 3px solid white; border-radius: 50px; font-weight: bold; font-size: 1.5rem; background: rgba(0,0,0,0.3); color: #fff; cursor: pointer; transition: all 0.2s;';
-                    clickBtn.onmouseover = () => { clickBtn.style.background = 'rgba(0,0,0,0.5)'; clickBtn.style.transform = 'scale(1.05)'; };
-                    clickBtn.onmouseleave = () => { clickBtn.style.background = 'rgba(0,0,0,0.3)'; clickBtn.style.transform = 'scale(1)'; };
-
-                    overlay.appendChild(bellIcon);
-                    overlay.appendChild(titleText);
-                    overlay.appendChild(msgText);
-                    overlay.appendChild(clickBtn);
-
-                    clickBtn.addEventListener('click', function (e) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        // 클릭 시 한 번 더 물어보기 기능
-                        if (confirm('알림 내용을 충분히 확인하셨나요?\n\n[확인]을 누르시면 긴급 알람 창이 닫힙니다.')) {
-                            overlay.remove();
-                        }
-                    });
-
-                    document.body.appendChild(overlay);
-                }
-
-                const safeTitle = data.title ? String(data.title).replace(/</g, "&lt;").replace(/>/g, "&gt;") : '🚨 긴급 알람 🚨';
-                const safeMsg = data.message ? String(data.message).replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, '<br>') : '상세 내용은 알림 패널을 확인하세요.';
-
-                overlay.querySelector('h1').innerHTML = safeTitle;
-                overlay.querySelector('h3').innerHTML = safeMsg;
-            };
 
             globalSocket.off('connect', globalHandlers.onConnect);
             globalSocket.off('connect_error', globalHandlers.onConnectError);

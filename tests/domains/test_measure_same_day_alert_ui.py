@@ -235,7 +235,7 @@ def test_socket_connect_resyncs_in_both_layout_branches():
         # 기존 배지 갱신·등급 분기는 그대로.
         assert "refreshErpNotificationUI({ reason: 'socket-connect' });" in text
         assert "window.FOMSDrawingAlert.handle(data)" in text
-        assert "triggerUrgentBriefingAlert(data)" in text
+        assert "window.FOMSUrgentAlert.handle(data)" in text  # 공용 모듈 위임(2026-10-02)
 
 
 def test_alert_sync_module_contract():

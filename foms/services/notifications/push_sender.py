@@ -349,6 +349,8 @@ def _build_payload(notif: Notification, customer_name: str = "") -> Dict[str, An
         "data": {"notification_id": int(notif.id), "deep_link": _deep_link(notif)},
     }
     if urgent:
+        # sw.js notificationclick 이 이 표지를 보고 창을 다시 읽지 않고 빨간 창을 띄운다.
+        payload["data"]["urgent"] = True
         payload["requireInteraction"] = True
         payload["tag"] = f"foms-urgent-{int(notif.id)}"
         payload["renotify"] = True

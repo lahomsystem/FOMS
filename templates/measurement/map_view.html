@@ -1322,6 +1322,8 @@
          foms-as-timeline.css, 차트 골격은 foms-as-round-chart.css 소유(대시보드와 동일 SSOT). -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-as-timeline.css') }}?v=20260806a">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-as-round-chart.css') }}?v=20260828a">
+    <!-- 긴급 알림 빨간 창(SPEC 2026-10-02 urgent-alert-everywhere) — standalone 지도에서도 띄운다. -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-urgent-alert.css') }}?v=20261002a">
 </head>
 
 <body>
@@ -1551,6 +1553,12 @@
     <!-- 모바일 바텀시트/상세 풀시트 컨트롤러. defer 라 아래 인라인 스크립트(파싱 중 실행)가
          전역(loadOrderDetail 등)을 정의한 뒤에 실행된다 — 감싸기 전제. -->
     <script src="{{ url_for('static', filename='js/measurement/map-mobile-sheet.js') }}?v=20260720a" defer></script>
+    <!-- 긴급 알림 배선: 소켓 → 빨간 창. 이 화면은 원래 소켓이 없다. G1/G2: 전부 defer(렌더 비차단).
+         write helper 는 확인(ack) POST 의 same-origin 헤더용. -->
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js" defer></script>
+    <script src="{{ url_for('static', filename='js/foms/notification-write.js') }}?v=20260704a" defer></script>
+    <script src="{{ url_for('static', filename='js/foms/foms-urgent-alert.js') }}?v=20261002a" defer></script>
+    <script src="{{ url_for('static', filename='js/measurement/map-urgent-bridge.js') }}?v=20261002a" defer></script>
 
     <script>
         let currentOrders = [];

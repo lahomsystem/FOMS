@@ -141,4 +141,4 @@ def test_sw_cross_origin_opaque_guard_intact() -> None:
 def test_sw_cache_version_bumped_v10() -> None:
     """PII 봉쇄 배포와 함께 CACHE_VERSION bump(구 v9-api PII 캐시 activate purge)."""
     sw = _read(SW)
-    assert 'CACHE_VERSION = "foms-p2-v10"' in sw
+    assert 'CACHE_VERSION = "foms-p2-v11"' in sw
