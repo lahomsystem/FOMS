@@ -8,6 +8,9 @@
  * 여기서는 상단바를 들이지 않고(캔버스 단축키·레이아웃 충돌) **소켓 연결과 확인창 바인딩만**
  * 한다. 등급 판정은 서버 payload 의 `interrupt` 가 하고, 표시·확인 처리는
  * `foms-drawing-alert.js` 가 한다.
+ *
+ * 2026-10-02: 긴급 멘션·공지(`urgent:true`)는 `foms-urgent-alert.js` 가 빨간 창으로 띄운다.
+ * 같은 소켓에 `FOMSUrgentAlert.bindSocket` 도 붙인다(재연결 때 놓친 긴급 재조회 포함).
  */
 (function () {
   'use strict';
@@ -18,7 +21,7 @@
 
   function connect() {
     tries += 1;
-    if (typeof window.io === 'undefined' || !window.FOMSDrawingAlert) {
+    if (typeof window.io === 'undefined' || (!window.FOMSDrawingAlert && !window.FOMSUrgentAlert)) {
       if (tries < MAX_TRIES) {
         window.setTimeout(connect, RETRY_MS);
       } else if (window.FOMS_DEBUG) {
@@ -43,7 +46,8 @@
       return;
     }
     window.__wizardAlertSocket = socket;
-    window.FOMSDrawingAlert.bindSocket(socket);
+    if (window.FOMSDrawingAlert) window.FOMSDrawingAlert.bindSocket(socket);
+    if (window.FOMSUrgentAlert) window.FOMSUrgentAlert.bindSocket(socket);
     if (window.FOMS_DEBUG) {
       socket.on('connect', function () { console.log('[wizard-alert] 소켓 연결'); });
     }

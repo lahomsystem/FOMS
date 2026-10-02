@@ -494,6 +494,57 @@ def api_notifications_pending_interrupts():
         return jsonify({"success": False, "data": None, "error": str(e)}), 500
 
 
+# 끊긴 동안·창이 닫힌 동안 온 긴급(is_urgent) 알림을 다시 띄우기 위한 재조회 범위.
+_PENDING_URGENT_LIMIT = 5
+_PENDING_URGENT_WINDOW = dt_mod.timedelta(hours=24)
+
+
+@notifications_bp.route("/notifications/pending-urgent", methods=["GET"])
+@login_required
+def api_notifications_pending_urgent():
+    """내(본인) 미확인 긴급 알림 — 재연결·화면 복귀·PC 팝업 클릭 때 빨간 창을 다시 띄운다.
+
+    조건: 본인 state, ack·보관 안 됨, ``is_urgent``, 최근 24시간, 오래된 것부터 최대 5건.
+    """
+    try:
+        user_id = session.get("user_id")
+        if user_id is None:
+            return jsonify({"success": True, "data": {"items": []}, "error": None})
+
+        since = now_utc_naive() - _PENDING_URGENT_WINDOW
+        db = get_db()
+        notifications = (
+            db.query(Notification)
+            .join(NotificationUserState, NotificationUserState.notification_id == Notification.id)
+            .filter(
+                NotificationUserState.user_id == user_id,
+                NotificationUserState.ack_at.is_(None),
+                NotificationUserState.archived_at.is_(None),
+                Notification.is_urgent.is_(True),
+                Notification.created_at >= since,
+            )
+            .order_by(Notification.created_at.asc(), Notification.id.asc())
+            .limit(_PENDING_URGENT_LIMIT)
+            .all()
+        )
+        items = [
+            {
+                "urgent": True,
+                "notification_id": int(n.id),
+                "notification_type": n.notification_type,
+                "title": n.title or "",
+                "message": n.message or "",
+                "order_id": int(n.order_id) if n.order_id else None,
+                "created_by_name": n.created_by_name or "",
+            }
+            for n in notifications
+        ]
+        return jsonify({"success": True, "data": {"items": items}, "error": None})
+    except Exception as e:
+        log_handled_exception()
+        return jsonify({"success": False, "data": None, "error": str(e)}), 500
+
+
 @notifications_bp.route("/notifications/<int:notification_id>/read", methods=["POST"])
 @login_required
 @notification_write_guard
@@ -881,6 +932,7 @@ def api_notifications_send():
         # target_type 을 'USER' 로 저장해, 브리핑 보드 등에서 target_user_id 로 1건만 조회되게 함.
         stored_target_type = "USER" if target_type in ("ALL", "TEAM", "USER") else target_type
         created_notif_ids = []
+        notif_id_by_uid = {}
         for uid in recipient_ids:
             notif = Notification(
                 order_id=int(order_id_val) if order_id_val else None,
@@ -900,6 +952,7 @@ def api_notifications_send():
             # 같은 트랜잭션에서 수신자 state + 'created' 이벤트 생성(고아 알림 방지).
             fan_out_new_notification(db, notif, actor_user_id=user_id)
             created_notif_ids.append(notif.id)
+            notif_id_by_uid[uid] = notif.id
 
         log_access(
             describe_action("NOTIFICATION_SENT", target_label="알림 발송", note=title),
@@ -927,7 +980,14 @@ def api_notifications_send():
             "order_id": int(order_id_val) if order_id_val else None,
             "created_by_name": str(user.name or ""),
         }
-        realtime_sent = emit_erp_notification_to_users(list(recipient_ids), payload)
+        if is_urgent:
+            # 수신자마다 자기 Notification row 가 있다 — 각자 자기 id 로 ack 하도록 따로 보낸다.
+            realtime_sent = 0
+            for uid in recipient_ids:
+                personal = dict(payload, notification_id=int(notif_id_by_uid[uid]))
+                realtime_sent += emit_erp_notification_to_users([uid], personal)
+        else:
+            realtime_sent = emit_erp_notification_to_users(list(recipient_ids), payload)
 
         msg = f"{len(recipient_ids)}명에게 알림을 발송했습니다."
         if realtime_sent < len(recipient_ids) and len(recipient_ids) > 0:
@@ -1103,6 +1163,8 @@ def _send_urgent_call(db, sender, data, order=None):
         "notification_type": "URGENT_MENTION",
         "order_id": order_id,
         "created_by_name": str(sender.name or ""),
+        # 받는 쪽 빨간 창의 "확인" 이 이 id 로 ack 를 기록한다.
+        "notification_id": int(notif.id),
     }
     emit_erp_notification_to_users([target_uid], payload)
 
@@ -1184,6 +1246,7 @@ __all__ = [
     "resolve_notification_recipient_user_ids",
     "api_notifications_list",
     "api_notifications_badge",
+    "api_notifications_pending_urgent",
     "api_notification_mark_read",
     "api_notifications_mark_all_read",
     "api_notification_archive",

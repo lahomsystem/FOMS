@@ -24,7 +24,12 @@
    activate 시 구 foms-p2-v9-api(=이전 PII 스냅샷) 캐시를 전량 purge 한다. offline mutation
    은 계속 OFF(쓰기 큐 미도입). rollback: CACHE_VERSION 을 "foms-p2-v9" 로 되돌리고 본 커밋
    revert. */
-var CACHE_VERSION = "foms-p2-v10";
+/* v11: 긴급 알림 PC 팝업 클릭(SPEC 2026-10-02 urgent-alert-everywhere) — 긴급(data.urgent)
+   클릭은 열린 창을 navigate 하지 않는다(navigate 가 메모리에만 있던 빨간 창과 마법사 작업을
+   지웠다). 보이는 창을 focus 하고 모든 창에 postMessage({type:'foms-urgent-open'}) 를 보낸다.
+   열린 창이 없을 때만 대시보드를 새로 연다(새 창은 로드 때 pending-urgent 재조회).
+   CACHE_VERSION bump 은 새 SW 가 깔리게 하는 용도. rollback: "foms-p2-v10" + 본 커밋 revert. */
+var CACHE_VERSION = "foms-p2-v11";
 var STATIC_CACHE = CACHE_VERSION + "-static";
 var API_CACHE = CACHE_VERSION + "-api";
 
@@ -382,7 +387,9 @@ self.addEventListener("push", function (event) {
     data: {
       notification_id: notificationId,
       deep_link: deepLink,
-      unread_count: Number.isFinite(unread) ? unread : null
+      unread_count: Number.isFinite(unread) ? unread : null,
+      // 긴급(push_sender._build_payload 의 data.urgent) — 클릭 시 navigate 대신 빨간 창.
+      urgent: pushData.urgent === true
     }
   };
 
@@ -447,10 +454,65 @@ function reportPushEvent(notificationId, eventName) {
     });
 }
 
+// 긴급 판정: 새 payload 는 data.urgent, 구 payload 는 tag 'foms-urgent-*' 로 판정한다.
+function isUrgentPushNotification(notification, data) {
+  if (data && data.urgent === true) return true;
+  var tag = (notification && notification.tag) || "";
+  return typeof tag === "string" && tag.indexOf("foms-urgent-") === 0;
+}
+
+// 긴급 클릭: navigate 하지 않는다. 보이는 창(focused > visible > 첫 창)을 focus 하고
+// 모든 창에 'foms-urgent-open' 을 보내 빨간 창을 띄우게 한다(foms-urgent-alert.js 가 수신).
+// 열린 창이 없을 때만 대시보드를 연다 — 새 창은 로드 때 pending-urgent 재조회로 띄운다.
+function handleUrgentNotificationClick(data) {
+  return clients.matchAll({ type: "window", includeUncontrolled: true }).then(function (clientList) {
+    if (!clientList || clientList.length === 0) {
+      var opened = clients.openWindow ? clients.openWindow(PUSH_FALLBACK_DEEP_LINK) : null;
+      return Promise.resolve(opened).then(function () {
+        return reportPushEvent(data.notification_id, "opened");
+      });
+    }
+    var target = null;
+    var i;
+    for (i = 0; i < clientList.length && !target; i++) {
+      if (clientList[i].focused) target = clientList[i];
+    }
+    for (i = 0; i < clientList.length && !target; i++) {
+      if (clientList[i].visibilityState === "visible") target = clientList[i];
+    }
+    if (!target) target = clientList[0];
+    var focusJob = Promise.resolve();
+    if (target && "focus" in target) {
+      try {
+        focusJob = Promise.resolve(target.focus()).catch(function (err) {
+          console.debug("[foms-sw] urgent focus skipped", err);
+        });
+      } catch (e) {
+        /* focus 실패해도 postMessage 는 보낸다 */
+      }
+    }
+    var message = { type: "foms-urgent-open", notification_id: data.notification_id };
+    for (i = 0; i < clientList.length; i++) {
+      try {
+        clientList[i].postMessage(message);
+      } catch (e) {
+        /* 한 창 실패가 나머지 창 통지를 막지 않는다 */
+      }
+    }
+    return focusJob.then(function () {
+      return reportPushEvent(data.notification_id, "opened");
+    });
+  });
+}
+
 self.addEventListener("notificationclick", function (event) {
   var notification = event.notification;
   notification.close();
   var data = notification.data || {};
+  if (isUrgentPushNotification(notification, data)) {
+    event.waitUntil(handleUrgentNotificationClick(data));
+    return;
+  }
   var url = sanitizePushDeepLink(data.deep_link);
 
   event.waitUntil(
