@@ -252,10 +252,12 @@ def test_strip_sends_people_to_the_old_household_pane(client, workbench_on):
     order = _order()
     origin = _link(order_no=f"N-ORIG-I-{_uid()}", order_id=int(order.id), relation="NEW")
     _link(order_no=f"N-REPAY-I-{_uid()}", order_id=int(order.id), relation="REPAY")
+    # id 는 요청 **전에** 읽어 둔다 — 요청이 끝나면 세션이 닫혀 만료된 인스턴스를 못 읽는다.
+    origin_id = int(origin.id)
 
     body = client.get(TRIAGE_PATH, query_string={"tab": "work"}).get_data(as_text=True)
 
-    assert f"link_id={origin.id}" in body
+    assert f"link_id={origin_id}" in body
 
 
 # --------------------------------------------------------------------------- #
@@ -268,11 +270,13 @@ def test_strip_offers_cancel_before_dispatch(client, workbench_on):
     order = _order(name="띠취소")
     origin = _link(order_no=f"N-ORIG-J-{_uid()}", order_id=int(order.id), relation="NEW")
     _link(order_no=f"N-REPAY-J-{_uid()}", order_id=int(order.id), relation="REPAY")
+    # id 는 요청 **전에** 읽어 둔다 — 요청이 끝나면 세션이 닫혀 만료된 인스턴스를 못 읽는다.
+    origin_id = int(origin.id)
 
     body = client.get(TRIAGE_PATH, query_string={"tab": "work"}).get_data(as_text=True)
 
     assert "wb-origin-act" in body
-    assert f'data-link-id="{origin.id}"' in body
+    assert f'data-link-id="{origin_id}"' in body
     assert 'data-kind="cancel"' in body
 
 

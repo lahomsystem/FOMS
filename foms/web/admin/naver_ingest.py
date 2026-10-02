@@ -58,6 +58,7 @@ from foms.services.integrations.naver_commerce.promotion import (
 )
 from foms.services.jobs.queue import (enqueue_naver_backfill, enqueue_naver_order_sync,
                                      get_rq_runtime_status)
+from foms.web.admin.naver_list_snapshot import fetch_list_links
 from foms.web.admin.routes import admin_bp
 from foms.web.auth import log_access, login_required, role_required
 from models import ExternalOrderLink, Order, OrderEvent
@@ -1772,23 +1773,34 @@ def _snapshot_projection(db):
     )
 
 
-def _fetch_links(db, *criteria, display: bool, order_by=None, limit=None):
+def _fetch_links(db, *criteria, display: bool, order_by=None, limit=None, orm: bool = False):
     """링크 행을 읽는다 — ``display`` 가 문서의 두께만 정한다.
 
-    술어·정렬·상한은 두 모드가 **같다**. 다른 것은 ``raw_snapshot`` 자리에 무엇이
-    실리느냐뿐이다(:func:`_snapshot_projection`).
+    술어·정렬·상한은 모든 모드가 **같다**. 다른 것은 ``raw_snapshot`` 자리에 무엇이
+    실리느냐뿐이다:
+
+    - ``display=False`` — 판정 경로만 담은 축소 문서(:func:`_snapshot_projection`, nav 뱃지).
+    - ``display=True`` — 처리 목록이 읽는 경로만 담은 목록 문서
+      (:mod:`foms.web.admin.naver_list_snapshot`). 2026-10-02 까지는 ORM 인스턴스째
+      (스냅샷 통째, 스테이징 1,241행 출력 5.5MB) 읽었다. 남긴 경로 안에서는 원본과 키·값·순서가
+      같아서 목록 결과가 그대로다 — 추적 계약 테스트가 "목록이 읽는 경로 ⊆ 투영"을 잡는다.
+    - ``orm=True`` — ORM 인스턴스(스냅샷 통째). 행이 목록 밖(pane)으로 나가는 옛 화면
+      (:func:`_queue_links` 게이트 OFF 경로)만 쓴다.
 
     Args:
         db: 요청 스코프 DB 세션.
         *criteria: WHERE 조건.
-        display: True 면 ORM 인스턴스(스냅샷 통째), False 면 :class:`_ThinLink`.
+        display: True 면 목록용 :class:`naver_list_snapshot.ListLink`, False 면 :class:`_ThinLink`.
         order_by: 정렬식 튜플(없으면 정렬 없음).
         limit: 조회 상한(없으면 없음).
+        orm: True 면 ``display`` 와 무관하게 ORM 인스턴스를 준다.
 
     Returns:
         링크 행 목록.
     """
-    if display:
+    if display and not orm:
+        return fetch_list_links(db, *criteria, order_by=order_by, limit=limit)
+    if orm:
         query = db.query(ExternalOrderLink).filter(*criteria)
     else:
         query = db.query(*_THIN_COLUMNS,
@@ -1798,7 +1810,7 @@ def _fetch_links(db, *criteria, display: bool, order_by=None, limit=None):
     if limit is not None:
         query = query.limit(limit)
     rows = query.all()
-    return rows if display else [_ThinLink(*row) for row in rows]
+    return rows if orm else [_ThinLink(*row) for row in rows]
 
 
 def _queue_links(db, *, display: bool = True) -> tuple[list[Any], bool]:
@@ -1809,7 +1821,8 @@ def _queue_links(db, *, display: bool = True) -> tuple[list[Any], bool]:
 
     Args:
         db: 요청 스코프 DB 세션.
-        display: 표시용 스냅샷까지 싣는가(:func:`_fetch_links`).
+        display: True 면 ORM 인스턴스(스냅샷 통째) — 게이트 OFF 화면이 이 행을 그대로
+            :func:`_triage_pane` 에 넘기므로 목록 문서로 줄이면 안 된다. False 면 얇은 행.
 
     Returns:
         ``(링크 목록(최신순), 조회 상한에 걸렸는지)``.
@@ -1820,6 +1833,7 @@ def _queue_links(db, *, display: bool = True) -> tuple[list[Any], bool]:
         ExternalOrderLink.sync_status.in_(("COLLECTED", "LINKED")),
         ExternalOrderLink.reviewed_at.is_(None),
         display=display,
+        orm=display,
         order_by=(ExternalOrderLink.created_at.desc(), ExternalOrderLink.id.desc()),
         limit=QUEUE_LINK_FETCH_LIMIT,
     )
@@ -3947,8 +3961,8 @@ def _sibling_rows(db, order_nos: set, *, display: bool,
       조회 사이에 상태가 바뀐 행이 양쪽에 다 걸려 두 번 세어지는 일을 막기 위해서다.
 
     두 표시 모드는 각자 자기 모드로 읽은 행을 재사용한다 — 얇은 경로는 얇은 행, 표시
-    경로는 ORM 행. 표시 경로의 ORM 행은 옛 조회도 식별자 지도에서 **같은 객체**를 돌려줬으므로
-    값까지 같다(:func:`_work_groups` 의 두 모드 동일 결과 규칙 그대로).
+    경로는 목록 행(:class:`naver_list_snapshot.ListLink`). 재사용 행과 새로 읽은 행이 **같은
+    투영**으로 읽혔으므로 값까지 같다(:func:`_work_groups` 의 두 모드 동일 결과 규칙 그대로).
 
     Args:
         db: 요청 스코프 DB 세션.
