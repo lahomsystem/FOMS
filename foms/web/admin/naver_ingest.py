@@ -58,7 +58,7 @@ from foms.services.integrations.naver_commerce.promotion import (
 )
 from foms.services.jobs.queue import (enqueue_naver_backfill, enqueue_naver_order_sync,
                                      get_rq_runtime_status)
-from foms.web.admin.naver_list_snapshot import fetch_list_links
+from foms.web.admin.naver_list_snapshot import fetch_list_links, thin_snapshot_statement
 from foms.web.admin.routes import admin_bp
 from foms.web.auth import log_access, login_required, role_required
 from models import ExternalOrderLink, Order, OrderEvent
@@ -1724,7 +1724,7 @@ SNAPSHOT_PROJECTION_BLOCK_KEYS = tuple(dict.fromkeys(
 SNAPSHOT_PROJECTION_KEYS = ("order", "productOrder", "delivery") + SNAPSHOT_PROJECTION_BLOCK_KEYS
 
 
-def _snapshot_projection(db):
+def _snapshot_projection(db, raw=None):
     """판정에 필요한 경로만 담은 **축소 스냅샷 문서**를 만드는 SQL 식.
 
     이 문서를 그대로 ``raw_snapshot`` 자리에 넣으면 뒤따르는 파이썬 코드가 **한 줄도
@@ -1741,6 +1741,9 @@ def _snapshot_projection(db):
 
     Args:
         db: 요청 스코프 DB 세션(방언 판정용).
+        raw: 원본 jsonb 식. 기본은 ``raw_snapshot`` 컬럼이다. :func:`_fetch_links` 는 행마다
+            한 번만 풀린 사본(``naver_list_snapshot.thin_snapshot_statement``)을 넘긴다 —
+            이 식은 원본을 20번 넘게 참조해서, 컬럼에 바로 걸면 참조마다 TOAST 를 다시 푼다.
 
     Returns:
         SQL 식. PostgreSQL 이 아니면 ``raw_snapshot`` 컬럼 그대로 — 결과는 같고 비용만
@@ -1751,7 +1754,7 @@ def _snapshot_projection(db):
     bind = db.get_bind()
     if getattr(getattr(bind, "dialect", None), "name", "") != "postgresql":
         return ExternalOrderLink.raw_snapshot
-    raw = ExternalOrderLink.raw_snapshot
+    raw = ExternalOrderLink.raw_snapshot if raw is None else raw
     return func.jsonb_build_object(
         "order", func.jsonb_build_object(
             "orderId", raw["order"]["orderId"],
@@ -1802,6 +1805,11 @@ def _fetch_links(db, *criteria, display: bool, order_by=None, limit=None, orm: b
         return fetch_list_links(db, *criteria, order_by=order_by, limit=limit)
     if orm:
         query = db.query(ExternalOrderLink).filter(*criteria)
+    elif getattr(db.get_bind().dialect, "name", "") == "postgresql":
+        statement = thin_snapshot_statement(
+            _THIN_COLUMNS, lambda raw: _snapshot_projection(db, raw), criteria,
+            order_by=order_by, limit=limit)
+        return [_ThinLink(*row) for row in db.execute(statement).all()]
     else:
         query = db.query(*_THIN_COLUMNS,
                          _snapshot_projection(db).label("raw_snapshot")).filter(*criteria)
