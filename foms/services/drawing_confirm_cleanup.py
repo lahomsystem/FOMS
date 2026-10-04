@@ -34,6 +34,7 @@ from sqlalchemy import and_, func, inspect as sa_inspect, or_
 from sqlalchemy.orm.util import identity_key
 
 from models import Order, OrderAttachment
+from foms.services.orders.drawing_transfer import clean_sheet_id
 
 __all__ = [
     "discount_superseded_drawing_rows",
@@ -68,13 +69,19 @@ def _normalize_file_entry(entry: dict[str, Any]) -> dict[str, str]:
     """structured_data 에 저장할 도면 파일 항목 모양으로 맞춘다."""
     key = _file_key(entry)
     filename = (entry.get("filename") or key.rsplit("/", 1)[-1]).strip()
-    return {
+    out = {
         "key": key,
         "filename": filename,
         # 저장 URL 은 믿지 않는다(SPEC §4.3.4 — 검증 없이 저장된 옛 값). key 로만 만든다.
         "view_url": f"/api/files/view/{key}" if key else "",
         "download_url": f"/api/files/download/{key}" if key else "",
     }
+    # 마법사 시트 신원은 확정 뒤에도 남긴다 — 확정 뒤 같은 시트 재전달이 옛 판을 찾는 축이다
+    # (replace_same_sheet_files, 2026-10-04 주문 5407).
+    sheet_id = clean_sheet_id(entry.get("sheet_id"))
+    if sheet_id:
+        out["sheet_id"] = sheet_id
+    return out
 
 
 def resolve_final_drawing_files(structured_data: Any) -> list[dict[str, str]]:

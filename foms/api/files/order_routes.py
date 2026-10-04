@@ -39,6 +39,7 @@ from foms.services.drawing_confirm_cleanup import (
     superseded_drawing_keys,
 )
 from foms.services.files.upload_authz import category_upload_allowed
+from foms.services.files.drawing_upload_guard import ACK_FIELD as DRAWING_ACK_FIELD, drawing_final_ack_block
 from foms.services.orders.drawing_key_safety import (
     RETAIN_DRAWING_HISTORY,
     drawing_keys_in_use,
@@ -271,6 +272,29 @@ def _invalidate_attachment_caches() -> None:
     invalidate_dashboard_families(*ATTACHMENT_DASHBOARD_FAMILIES)
 
 
+def _annotate_drawing_final_rank(attachments, items, structured_data):
+    """도면팀 최종본(``drawing_current_files``) 행에 순번을 싣는다(2026-10-04).
+
+    주문 화면 '도면' 칸이 최종본을 맨 앞에 "최종 N" 으로, 나머지 도면 행(전달을 거치지 않은
+    직접 업로드)은 뒤에 둔다. 최종본이 없는 주문은 아무것도 싣지 않는다.
+    """
+    sd = structured_data if isinstance(structured_data, dict) else {}
+    rank_by_key = {}
+    for entry in sd.get("drawing_current_files") or []:
+        key = str((entry or {}).get("key") or "").strip() if isinstance(entry, dict) else ""
+        if key and key not in rank_by_key:
+            rank_by_key[key] = len(rank_by_key) + 1
+    if not rank_by_key:
+        return
+    for attachment, item in zip(attachments, items):
+        if str(getattr(attachment, "category", "") or "").strip().lower() != "drawing":
+            continue
+        item["drawing_final_total"] = len(rank_by_key)
+        rank = rank_by_key.get(str(getattr(attachment, "storage_key", "") or "").strip())
+        if rank:
+            item["drawing_final_rank"] = rank
+
+
 @attachments_bp.route("/orders/<int:order_id>/attachments", methods=["GET"])
 @login_required
 def api_order_attachments_list(order_id):
@@ -332,6 +356,7 @@ def api_order_attachments_list(order_id):
             serialize_attachment(attachment, order=order, user=current_user)
             for attachment in attachments
         ]
+        _annotate_drawing_final_rank(attachments, items, order.structured_data)
         if want_superseded:
             old_keys = superseded_drawing_keys(order.structured_data)
             for attachment, item in zip(attachments, items):
@@ -386,6 +411,9 @@ def api_order_attachments_upload(order_id):
         order = db.query(Order).filter(Order.id == order_id).first()
         if not order:
             return jsonify({"success": False, "message": "주문을 찾을 수 없습니다."}), 404
+        blocked = drawing_final_ack_block(_current_user(), order, category, request.form.get(DRAWING_ACK_FIELD))
+        if blocked:
+            return jsonify(blocked[0]), blocked[1]
 
         # AS-FRESH-01: 어느 AS 기록의 파일인지(선택). 주문 로드 후에 검증한다 —
         # 항목 존재 확인이 structured_data 를 필요로 한다.

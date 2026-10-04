@@ -20,6 +20,7 @@ from db import get_db
 from models import Order
 from foms.web.auth import login_required
 from foms.services.erp_display import _ensure_dict
+from foms.services.orders.drawing_transfer import replace_same_sheet_files
 from foms.services.erp_policy import (
     can_transfer_drawing,
     has_pending_unchecked_drawing_revision_requests,
@@ -76,10 +77,22 @@ def _sheet_transfer_replaced_count(sd: dict) -> int:
     REPLACE_ALL 로 처리한다(2026-09-30 주문 5331). 시트에 그 사실을 미리 적어 보인다.
     """
     drawing_status = ((sd.get('drawing') or {}).get('status') or sd.get('drawing_status') or 'PENDING').upper()
-    if drawing_status != 'TRANSFERRED':
-        return 0
     current_files = sd.get('drawing_current_files')
-    return len(current_files) if isinstance(current_files, list) else 0
+    current_files = current_files if isinstance(current_files, list) else []
+    if drawing_status == 'TRANSFERRED':
+        return len(current_files)
+    # 그 밖의 상태도 같은 시트의 옛 판은 바뀐다(replace_same_sheet_files, 2026-10-04 주문 5407).
+    dw = sd.get('drawing_wizard')
+    pending = dw.get('pending') if isinstance(dw, dict) else None
+    pending_files = [
+        {'key': (entry or {}).get('key'), 'sheet_id': sheet_id}
+        for sheet_id, entry in (pending.items() if isinstance(pending, dict) else [])
+        if isinstance(entry, dict) and entry.get('key')
+    ]
+    if not pending_files or not current_files:
+        return 0
+    _base, _rest, replaced = replace_same_sheet_files(current_files, pending_files, sd)
+    return len(replaced)
 
 
 def _build_version_timeline(pending: list[dict], versions: list) -> list[dict]:

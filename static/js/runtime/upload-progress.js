@@ -31,7 +31,11 @@
             reject(new Error('응답 파싱 실패'));
           }
         } else {
-          reject(new Error('HTTP ' + xhr.status));
+          // 서버가 JSON 으로 이유를 준 실패(예: 409 DRAWING_FINAL_EXISTS)는 본문을 함께 싣는다.
+          var httpErr = new Error('HTTP ' + xhr.status);
+          httpErr.status = xhr.status;
+          try { httpErr.body = JSON.parse(xhr.responseText); } catch (_) { httpErr.body = null; }
+          reject(httpErr);
         }
       });
 
@@ -362,7 +366,8 @@
           };
         }),
         folder: options.folder,
-        category: options.category
+        category: options.category,
+        ack_drawing_final: options.ackDrawingFinal ? 1 : 0
       })
     });
     var data = await response.json();
@@ -389,6 +394,9 @@
     var asLogId = options.asLogId || null;
     // AS-SORT-01: 미리보기 순서. files 와 같은 길이여야 하며 0 도 유효값이다.
     var sortOrders = options.sortOrders;
+    // 도면팀 최종본이 있는 주문의 '도면' 업로드는 확인 창을 거친 뒤에만 서버가 받는다
+    // (DRAWING_FINAL_EXISTS 409, foms/services/files/drawing_upload_guard.py).
+    var ackDrawingFinal = options.ackDrawingFinal ? 1 : 0;
     if (sortOrders != null && (!Array.isArray(sortOrders) || sortOrders.length !== files.length)) {
       return { ok: 0, total: files.length, results: [], preparedFiles: [], error: 'sortOrders 길이가 파일 수와 다릅니다.' };
     }
@@ -407,6 +415,7 @@
       if (itemIndex != null) formData.append('item_index', String(itemIndex));
       if (asLogId) formData.append('as_log_id', asLogId);
       if (sortOrders) formData.append('sort_order', String(sortOrders[uploadIndex]));
+      if (ackDrawingFinal) formData.append('ack_drawing_final', '1');
       if (typeof uploadWithProgress !== 'undefined') {
         return uploadWithProgress('/api/orders/' + orderId + '/attachments', formData, {
           onProgress: function (p) {
@@ -422,7 +431,7 @@
 
     if (options.useDirectUpload) {
       try {
-        sessionMap = await fomsRequestUploadSessions(preparedFiles, { folder: folder, category: category });
+        sessionMap = await fomsRequestUploadSessions(preparedFiles, { folder: folder, category: category, ackDrawingFinal: ackDrawingFinal });
       } catch (_) {
         sessionMap = {};
       }
@@ -438,12 +447,16 @@
             var sessRes = await fetch('/api/upload/session', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ filename: entry.file.name, size: entry.file.size, folder: folder, category: category })
+              body: JSON.stringify({ filename: entry.file.name, size: entry.file.size, folder: folder, category: category, ack_drawing_final: ackDrawingFinal })
             });
             session = await sessRes.json();
           } catch (_) {
             session = null;
           }
+        }
+        // 확인이 필요한 도면 업로드는 폼 업로드로 돌려도 같은 409 라 그대로 돌려준다.
+        if (session && session.error === 'DRAWING_FINAL_EXISTS') {
+          result = session;
         }
 
         if (session && session.upload_url) {
@@ -464,7 +477,8 @@
                   item_index: itemIndex,
                   as_log_id: asLogId,
                   sort_order: sortOrders ? sortOrders[index] : null,
-                  size: entry.file.size
+                  size: entry.file.size,
+                  ack_drawing_final: ackDrawingFinal
                 })
               });
               result = await completeRes.json();
@@ -475,11 +489,11 @@
         }
       }
 
-      if (!result || !result.success) {
+      if ((!result || !result.success) && !(result && result.error === 'DRAWING_FINAL_EXISTS')) {
         try {
           result = await fallbackFormUpload(entry, index);
         } catch (err) {
-          result = {
+          result = (err && err.body && err.body.error) ? err.body : {
             success: false,
             message: err && err.message ? err.message : '업로드 실패'
           };

@@ -170,13 +170,17 @@ def test_superseded_style_lives_in_css_file_not_inline():
 def test_changed_assets_are_pinned():
     """바뀐 자산마다 새 핀 — 부모 번들(entry·layout·erp-pro.css)까지 연쇄로."""
     entry = _read("static/js/orders/erp-dashboard-entry.js")
-    assert f"erp-dashboard-attachments.js?v={PIN}" in entry
+    # 뒤 작업이 정당하게 올린다(2026-10-04 도면 최종본 순서로 20261004a) — "이 작업 핀보다 오래되지 않았다".
+    att_pin = entry.split("erp-dashboard-attachments.js?v=", 1)[1].split("'", 1)[0]
+    assert att_pin >= PIN, att_pin
     assert f"erp-dashboard-core.js?v={PIN}" in entry
     # 리뷰 P1 수정: 첨부 미리보기 클릭을 페이지마다 한 번만(detail-dom·시공 dashboard.js 도 바뀜).
     # erp-pro.css 는 이후 board_state 줄로 20260930c, 2b 까지 합친 detail-dom·entry 는 20260929l.
     assert "erp-dashboard-detail-dom.js?v=20261001a" in entry
     assert f"js/construction/dashboard.js') }}}}?v={PIN}" in _read("templates/construction/partials/scripts.html")
-    assert "erp-dashboard-entry.js') }}?v=20261002p" in _read("templates/partials/shared/layout_scripts.html")
+    entry_pin = _read("templates/partials/shared/layout_scripts.html").split(
+        "erp-dashboard-entry.js') }}?v=", 1)[1].split('"', 1)[0]
+    assert entry_pin >= "20261002p", entry_pin
     # erp-order-shared.js 는 asset_url(내용 해시) 시범 — 손 핀 없이 파일이 바뀌면 URL 이 저절로 바뀐다.
     assert "asset_url('js/orders/erp-order-shared.js')" in _read("templates/orders/partials/erp_order_js.html")
     # erp-pro.css 핀은 뒤 작업이 정당하게 올린다(2026-10-02 토큰 @import 제거로 20261002t) —

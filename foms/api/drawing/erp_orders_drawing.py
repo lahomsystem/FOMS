@@ -40,6 +40,7 @@ from foms.services.orders.team_labels import team_label
 from foms.services.orders.drawing_transfer import (
     materialize_pending_snapshot,
     materialize_transfer_attachments,
+    replace_same_sheet_files,
 )
 from foms.services.orders.drawing_key_safety import history_referenced_keys, split_deletable_keys
 from foms.services.orders.drawing_revision_files import is_revision_reference_key
@@ -91,6 +92,30 @@ def _drawing_notice_target(db, manager_name):
     if admin_handled:
         return None, None, role
     return 'SALES', None, None
+
+
+#: 발주 PUSH 이력(``channeltalk_push_drawing``)에 남기는 "그 뒤 도면이 바뀜" 시각 필드.
+#: 다음 발주 PUSH 가 이력 dict 를 새로 만들므로 다시 보내면 저절로 사라진다.
+ORDER_PUSH_STALE_FIELD = 'stale_drawing_at'
+
+
+def _mark_order_push_stale(s_data, old_files, updated_files, now_str):
+    """발주 PUSH 뒤에 현재 도면 목록이 바뀌었으면 PUSH 이력에 바뀐 시각을 남긴다.
+
+    발주 PUSH 는 그때의 도면 첨부를 공장 방에 보낸다. 그 뒤 재전달로 목록이 바뀌어도
+    아무 표시가 없어 공장이 옛 도면으로 일했다(2026-10-02 주문 5407). 주문 화면의 발주 PUSH
+    흔적 칩이 이 필드를 읽어 "도면 바뀜 — 다시 보내기"를 띄운다.
+    """
+    push = s_data.get('channeltalk_push_drawing')
+    if not isinstance(push, dict) or not push.get('pushed'):
+        return
+    old_keys = [((f or {}).get('key') or '').strip() for f in old_files]
+    new_keys = [((f or {}).get('key') or '').strip() for f in updated_files]
+    if old_keys == new_keys:
+        return
+    marked = dict(push)
+    marked[ORDER_PUSH_STALE_FIELD] = now_str
+    s_data['channeltalk_push_drawing'] = marked
 
 
 def perform_drawing_transfer(
@@ -202,6 +227,7 @@ def perform_drawing_transfer(
         return {'success': False,
                 'message': '전달할 도면이 없습니다. 도면 파일을 먼저 업로드해주세요.'}, 400
 
+    sheet_replaced_numbers = []
     if new_files:
         if mode == 'REPLACE_ALL':
             # 기존 파일은 타임라인 히스토리에서 계속 참조되므로 R2에서 삭제하지 않음.
@@ -209,34 +235,50 @@ def perform_drawing_transfer(
             for idx, old_file in enumerate(old_files):
                 replaced_target_numbers.append(idx + 1)
             updated_files = list(new_files)
-        elif replace_target_keys:
-            indices_to_replace = []
-            for target_key in replace_target_keys:
-                for i, f in enumerate(old_files):
-                    if ((f or {}).get('key') or '').strip() == target_key:
-                        indices_to_replace.append((i, target_key))
-                        break
-            if len(indices_to_replace) != len(replace_target_keys):
-                return {'success': False, 'message': '일부 교체 대상 도면을 찾을 수 없습니다. 목록을 새로고침 후 다시 시도해주세요.'}, 400
-            indices_to_replace.sort(key=lambda x: x[0], reverse=True)
-            for idx, target_key in indices_to_replace:
-                replaced_target_numbers.append(idx + 1)
-                # 교체 대상 파일도 히스토리 참조를 위해 R2에서 삭제하지 않음.
-                updated_files.pop(idx)
-            first_index = min([x[0] for x in indices_to_replace])
-            for offset, nf in enumerate(new_files):
-                updated_files.insert(first_index + offset, nf)
-            replaced_target_numbers.sort()
         else:
-            if is_retransfer and len(old_files) > 1:
-                return {'success': False, 'message': '수정본 재전송 시 교체할 도면 번호를 선택해주세요.'}, 400
-            if is_retransfer:
+            # 마법사 시트가 같은 옛 판은 상태·mode 와 상관없이 그 자리에서 바꾼다(2026-10-04,
+            # 주문 5407 — 영업 확정 뒤 같은 시트 2판이 APPEND 로 쌓였다). 시트로 자리를 못 찾은
+            # 새 파일(직접 올린 파일·새 시트)만 아래 기존 규칙으로 간다.
+            base_files, rest_files, sheet_replaced_numbers = replace_same_sheet_files(
+                old_files, new_files, s_data)
+            replaced_target_numbers.extend(sheet_replaced_numbers)
+            base_keys = {((f or {}).get('key') or '').strip() for f in base_files}
+            # 교체 대상으로 고른 옛 판이 이미 시트 교체로 빠졌으면 대상에서 지운다.
+            target_keys = [
+                k for k in replace_target_keys
+                if k in base_keys or not sheet_replaced_numbers
+            ]
+            updated_files = list(base_files)
+            if not rest_files:
+                pass
+            elif target_keys:
+                indices_to_replace = []
+                for target_key in target_keys:
+                    for i, f in enumerate(base_files):
+                        if ((f or {}).get('key') or '').strip() == target_key:
+                            indices_to_replace.append((i, target_key))
+                            break
+                if len(indices_to_replace) != len(target_keys):
+                    return {'success': False, 'message': '일부 교체 대상 도면을 찾을 수 없습니다. 목록을 새로고침 후 다시 시도해주세요.'}, 400
+                indices_to_replace.sort(key=lambda x: x[0], reverse=True)
+                for idx, target_key in indices_to_replace:
+                    replaced_target_numbers.append(idx + 1)
+                    # 교체 대상 파일도 히스토리 참조를 위해 R2에서 삭제하지 않음.
+                    updated_files.pop(idx)
+                first_index = min([x[0] for x in indices_to_replace])
+                for offset, nf in enumerate(rest_files):
+                    updated_files.insert(first_index + offset, nf)
+            elif is_retransfer and not sheet_replaced_numbers:
+                if len(base_files) > 1:
+                    return {'success': False, 'message': '수정본 재전송 시 교체할 도면 번호를 선택해주세요.'}, 400
                 # 수정 재전달 APPEND는 단일 도면일 때 교체로 처리 (이전본 누적 방지)
-                updated_files = list(new_files)
+                updated_files = list(rest_files)
             else:
-                updated_files = list(old_files) + list(new_files)
+                updated_files = list(base_files) + list(rest_files)
+            replaced_target_numbers = sorted(set(replaced_target_numbers))
 
         s_data['drawing_current_files'] = updated_files
+        _mark_order_push_stale(s_data, old_files, updated_files, now_str)
         new_keys = [((f or {}).get('key') or '').strip() for f in new_files]
         new_keys = [k for k in new_keys if k]
         if new_keys:
@@ -292,8 +334,9 @@ def perform_drawing_transfer(
         'previous_current_files': old_files,  # 취소 시 복원용
         'mode': (
             'REPLACE'
-            if is_retransfer and not replace_target_keys and (mode or 'APPEND').upper() == 'APPEND' and len(old_files) <= 1
-            else (mode if mode else ('REPLACE' if replace_target_keys else 'APPEND'))
+            if (is_retransfer and not replace_target_keys and (mode or 'APPEND').upper() == 'APPEND' and len(old_files) <= 1)
+            or (sheet_replaced_numbers and (mode or 'APPEND').upper() == 'APPEND')
+            else (mode if mode else ('REPLACE' if replace_target_keys or sheet_replaced_numbers else 'APPEND'))
         ),
         'replace_target_keys': replace_target_keys if replace_target_keys else None,
         'replace_target_numbers': replaced_target_numbers if replaced_target_numbers else None,
@@ -452,7 +495,7 @@ def api_order_transfer_drawing(order_id):
         if pending_sheet_ids:
             wanted = set(pending_sheet_ids)
             pending_files = [
-                {'key': p['key'], 'filename': p['filename']}
+                {'key': p['key'], 'filename': p['filename'], 'sheet_id': p['sheet_id']}
                 for p in materialize_pending_snapshot(order)
                 if p['sheet_id'] in wanted
             ]

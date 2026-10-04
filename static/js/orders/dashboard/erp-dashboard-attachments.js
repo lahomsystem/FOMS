@@ -59,9 +59,13 @@
           return !!document.querySelector('[data-attachments-show-superseded="1"]');
         }
 
-        // 교체된 옛 도면(is_superseded)은 같은 분류 안에서 뒤로 보낸다(원래 순서 유지).
+        // 도면팀 최종본(drawing_final_rank)은 전달 순번대로 맨 앞, 교체된 옛 도면(is_superseded)은
+        // 뒤로 보낸다(나머지는 원래 순서 유지 — 주문 화면 erpLoadAttachments 와 같은 규칙).
         function orderAttachmentsCurrentFirst(list) {
-          return list.filter((a) => !a.is_superseded).concat(list.filter((a) => a.is_superseded));
+          const finals = list.filter((a) => !a.is_superseded && a.drawing_final_rank)
+            .sort((x, y) => x.drawing_final_rank - y.drawing_final_rank);
+          const others = list.filter((a) => !a.is_superseded && !a.drawing_final_rank);
+          return finals.concat(others, list.filter((a) => a.is_superseded));
         }
 
         // GlobalImageViewer로 연결하는 레거시 호환 함수

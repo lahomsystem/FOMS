@@ -1405,6 +1405,9 @@
     var failed = 0;
     setStatus("사진 업로드 중… (0/" + total + ")", "saving");
 
+    // 도면팀 최종본이 있는 주문의 '도면' 업로드는 서버가 409 로 확인을 요구한다 — 한 번 묻고
+    // 승인하면 남은 파일까지 확인 플래그를 싣는다(drawing_upload_guard).
+    var ackDrawingFinal = false;
     function uploadOne(i) {
       if (i >= files.length) {
         input.value = "";
@@ -1418,6 +1421,7 @@
       fd.append("file", files[i]);
       fd.append("category", category);
       if (itemIndex != null) fd.append("item_index", String(itemIndex));
+      if (ackDrawingFinal) fd.append("ack_drawing_final", "1");
       fetch(attachmentsUploadUrl(orderId), { method: "POST", credentials: "same-origin", body: fd })
         .then(function (res) {
           return res.json().then(function (d) {
@@ -1425,6 +1429,14 @@
           });
         })
         .then(function (r) {
+          if (r.data && r.data.error === "DRAWING_FINAL_EXISTS" && !ackDrawingFinal) {
+            var askText = (r.data.message || "도면팀 최종 도면이 이미 있습니다.") + " 그래도 올릴까요?";
+            if (window.confirm(askText)) {
+              ackDrawingFinal = true;
+              uploadOne(i);
+              return;
+            }
+          }
           if (!r.data || !r.data.success) failed += 1;
           done += 1;
           if (state && state.orderId === orderId) {

@@ -285,4 +285,4 @@ def test_upload_progress_default_folder_follows_drawing_category_and_pin():
     src = (ROOT / "static/js/runtime/upload-progress.js").read_text(encoding="utf-8")
     assert re.search(r"category === 'drawing' \? 'drawing' : 'attachments'", src), "기본 폴더가 category 를 모른다"
     layout = (ROOT / "templates/partials/shared/layout_scripts.html").read_text(encoding="utf-8")
-    assert "js/runtime/upload-progress.js') }}?v=20260929f" in layout
+    assert "js/runtime/upload-progress.js') }}?v=20261004a" in layout
