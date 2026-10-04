@@ -266,24 +266,76 @@ def list_snapshot_statement(criteria: tuple, order_by: Optional[tuple] = None,
     Returns:
         ``LIST_COLUMNS`` 순서의 컬럼 + ``raw_snapshot``(투영 문서)을 내는 select.
     """
-    detoasted = ExternalOrderLink.raw_snapshot.op("#>", return_type=JSONB)(
-        literal_column("'{}'::text[]"))
-    inner = select(*LIST_COLUMNS, detoasted.label("r")).where(*criteria)
-    if order_by:
-        inner = inner.order_by(*order_by)
-    inner = inner.limit(limit).offset(0).subquery("wb_list_src")
+    inner, outer_order = fenced_snapshot_source(LIST_COLUMNS, criteria, order_by, limit,
+                                                name="wb_list_src")
     parts = (select(inner.c.r["productOrder"].label("po"), inner.c.r["order"].label("o"))
              .correlate(inner).offset(0).lateral("wb_list_parts"))
     root = _pick(inner.c.r, LIST_SNAPSHOT_SPEC,
                  prepared={"productOrder": parts.c.po, "order": parts.c.o})
     document = case((func.jsonb_typeof(inner.c.r) == "object", root),
                     else_=cast(inner.c.r, PG_JSON))
-    adapter = ClauseAdapter(inner)
     statement = (select(*[inner.c[column.key] for column in LIST_COLUMNS],
                         document.label("raw_snapshot"))
                  .select_from(inner.join(parts, true())))
+    if outer_order:
+        statement = statement.order_by(*outer_order)
+    return statement
+
+
+def fenced_snapshot_source(columns: tuple, criteria: tuple, order_by: Optional[tuple] = None,
+                           limit: Optional[int] = None, *, name: str) -> tuple[Any, tuple]:
+    """원본 스냅샷을 **행마다 한 번만** 푼 안쪽 조회와, 그 위에서 쓸 정렬식을 만든다.
+
+    ``raw_snapshot #> '{}'`` 는 원본과 같은 값의 풀린 사본이고, ``OFFSET 0`` 울타리가 이
+    조회를 바깥으로 끌어올리지 못하게 막는다. 바깥 식이 ``r`` 을 몇 번 참조해도 다시
+    풀지 않는다(원본 컬럼에 바로 걸면 참조마다 TOAST 를 다시 푼다).
+
+    Args:
+        columns: 함께 읽을 ``ExternalOrderLink`` 컬럼(정렬식이 쓰는 컬럼을 포함해야 한다).
+        criteria: WHERE 조건.
+        order_by: 정렬식(안쪽은 상한을 위해, 바깥은 결과 순서를 위해 같은 순서로 정렬한다).
+        limit: 조회 상한.
+        name: 안쪽 조회 별칭.
+
+    Returns:
+        ``(안쪽 subquery — 컬럼 + 풀린 원본 r, 바깥용 정렬식 튜플)``.
+    """
+    detoasted = ExternalOrderLink.raw_snapshot.op("#>", return_type=JSONB)(
+        literal_column("'{}'::text[]"))
+    inner = select(*columns, detoasted.label("r")).where(*criteria)
     if order_by:
-        statement = statement.order_by(*[adapter.traverse(expr) for expr in order_by])
+        inner = inner.order_by(*order_by)
+    inner = inner.limit(limit).offset(0).subquery(name)
+    adapter = ClauseAdapter(inner)
+    outer_order = tuple(adapter.traverse(expr) for expr in order_by) if order_by else ()
+    return inner, outer_order
+
+
+def thin_snapshot_statement(columns: tuple, build_document: Any, criteria: tuple,
+                            order_by: Optional[tuple] = None,
+                            limit: Optional[int] = None) -> Any:
+    """얇은 행(nav 뱃지·판정 경로) + 축소 문서를 읽는 PostgreSQL 문장.
+
+    축소 문서 식(``naver_ingest._snapshot_projection``)은 원본을 20번 넘게 참조한다. 원본
+    컬럼에 바로 걸면 참조마다 다시 풀려 스테이징 1,241행에서 155~176ms 였다(통째 읽기 39ms).
+    :func:`fenced_snapshot_source` 위에서 같은 식을 만들면 행마다 한 번만 푼다.
+
+    Args:
+        columns: 얇은 행 컬럼(``naver_ingest._THIN_COLUMNS``).
+        build_document: 원본 jsonb 식을 받아 축소 문서 식을 돌려주는 함수.
+        criteria: WHERE 조건.
+        order_by: 정렬식.
+        limit: 조회 상한.
+
+    Returns:
+        ``columns`` 순서의 컬럼 + ``raw_snapshot``(축소 문서)을 내는 select.
+    """
+    inner, outer_order = fenced_snapshot_source(columns, criteria, order_by, limit,
+                                                name="wb_thin_src")
+    statement = select(*[inner.c[column.key] for column in columns],
+                       build_document(inner.c.r).label("raw_snapshot"))
+    if outer_order:
+        statement = statement.order_by(*outer_order)
     return statement
 
 

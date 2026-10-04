@@ -198,3 +198,41 @@ def test_population_matches_across_modes_with_the_real_projection(pg_session):
                       "place_pending_count", "dispatched_count",
                       "dispatch_pending_count", "in_queue"):
             assert left[field] == right[field], f"{field} 가 모드에 따라 갈렸다"
+
+
+def test_thin_fetch_unpacks_once_and_matches_the_column_projection(pg_session, pg_engine):
+    """``_fetch_links(display=False)`` 가 울타리 문장으로 읽고, 결과는 컬럼 투영과 같다.
+
+    2026-10-04: 투영 식을 원본 컬럼에 바로 걸면 참조마다 TOAST 를 다시 풀었다(스테이징
+    2,835행 실행 412ms → 울타리 103ms, 행·순서 동일). 여기서는 배선(문장 1개·원본 참조 1회)과
+    값(행마다 같은 축소 문서·같은 순서)을 함께 잰다.
+    """
+    from foms.web.admin.naver_ingest import _THIN_COLUMNS, _fetch_links, _snapshot_projection
+
+    for index, (name, shape) in enumerate(sorted(SNAPSHOT_SHAPES.items())):
+        _insert(pg_session, f"THINFENCE-{index}", shape)
+    pg_session.flush()
+    criteria = (ExternalOrderLink.external_id.like("THINFENCE-%"),)
+    order = (ExternalOrderLink.created_at.desc(), ExternalOrderLink.id.desc())
+    expected = [tuple(row) for row in pg_session.execute(
+        select(*_THIN_COLUMNS, _snapshot_projection(pg_session).label("raw_snapshot"))
+        .where(*criteria).order_by(*order)).all()]
+
+    seen: list[str] = []
+
+    def _record(conn, cursor, statement, parameters, context, executemany):
+        seen.append(statement)
+
+    event.listen(pg_engine, "before_cursor_execute", _record)
+    try:
+        links = _fetch_links(pg_session, *criteria, display=False, order_by=order)
+    finally:
+        event.remove(pg_engine, "before_cursor_execute", _record)
+
+    got = [tuple(getattr(link, column.key) for column in _THIN_COLUMNS) + (link.raw_snapshot,)
+           for link in links]
+    assert len(expected) == len(SNAPSHOT_SHAPES)
+    assert got == expected, "울타리 문장이 컬럼 투영과 다른 행·문서·순서를 냈다"
+    fetches = [sql for sql in seen if "external_order_links" in sql]
+    assert len(fetches) == 1, fetches
+    assert fetches[0].count("external_order_links.raw_snapshot") == 1, "원본을 참조마다 다시 푼다"

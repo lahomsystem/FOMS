@@ -181,3 +181,42 @@ def test_thin_path_does_not_load_orders(app, monkeypatch):
 
     naver_ingest._work_groups(db_session, display=True)
     assert calls, "표시 경로는 주문을 읽어야 한다(고객명·다음 할 일)"
+
+
+class _PostgresBindStub:
+    """``_snapshot_projection`` 의 방언 판정만 PostgreSQL 로 속이는 세션 대역(실행하지 않는다)."""
+
+    def get_bind(self) -> Any:
+        from types import SimpleNamespace
+
+        return SimpleNamespace(dialect=SimpleNamespace(name="postgresql"))
+
+
+def test_thin_statement_unpacks_the_snapshot_once():
+    """얇은 경로 SQL 은 원본 컬럼을 **한 번만** 참조한다(2026-10-04).
+
+    축소 문서 식은 원본을 20번 넘게 참조하고, TOAST 에 있는 jsonb 는 참조마다 다시 풀린다 —
+    컬럼에 바로 걸었을 때 스테이징 2,835행 실행 412ms, 울타리 안에서 한 번 풀면 103ms
+    (공유 버퍼 적중 133,301 → 8,788, 행·순서 동일). 음성 대조: 컬럼에 바로 건 옛 식은 여러 번
+    참조한다. 바깥 정렬이 안쪽 별칭을 써야 원본 표와 엇갈려 곱해지지 않는다.
+    """
+    from sqlalchemy import select
+    from sqlalchemy.dialects import postgresql
+
+    from foms.web.admin.naver_ingest import _THIN_COLUMNS, _snapshot_projection
+    from foms.web.admin.naver_list_snapshot import thin_snapshot_statement
+
+    stub = _PostgresBindStub()
+    order = (ExternalOrderLink.created_at.desc(), ExternalOrderLink.id.desc())
+    fenced = thin_snapshot_statement(
+        _THIN_COLUMNS, lambda raw: _snapshot_projection(stub, raw),
+        (ExternalOrderLink.id > 0,), order_by=order, limit=500)
+    sql = " ".join(str(fenced.compile(dialect=postgresql.dialect())).split())
+
+    assert sql.count("external_order_links.raw_snapshot") == 1, sql
+    assert "OFFSET" in sql, "울타리가 없으면 플래너가 안쪽 조회를 펴서 참조마다 다시 푼다"
+    assert sql.endswith("ORDER BY wb_thin_src.created_at DESC, wb_thin_src.id DESC"), sql
+
+    column = select(*_THIN_COLUMNS, _snapshot_projection(stub).label("raw_snapshot"))
+    old_sql = str(column.compile(dialect=postgresql.dialect()))
+    assert old_sql.count("external_order_links.raw_snapshot") > 10, "음성 대조가 성립하지 않는다"
