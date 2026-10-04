@@ -1,3 +1,4 @@
-{# 출고 대시보드 JS는 shipment-entry.js 가 순차 로드 (fragment 재실행 시 스크립트 이중 실행 방지). PNG 캡처 라이브러리는 image-export.js 가 사용 시점 lazy 로드. #}
-<script src="{{ url_for('static', filename='js/shipment/shipment-entry.js') }}?v=20260730e" defer></script>
-<script src="{{ url_for('static', filename='js/foms/tablet-domain-sheets.js') }}?v=20260921a" defer></script>
+{# 출고 대시보드 JS는 shipment-entry.js 가 한꺼번에 받고 순서대로 실행 (fragment 재실행 시 스크립트 이중 실행 방지). PNG 캡처 라이브러리는 image-export.js 가 사용 시점 lazy 로드.
+   태블릿 도메인 시트(tablet-domain-sheets.js)도 entry CHAIN 이 싣는다 — 이 파샬은 <script src> 1개만 둔다
+   (2개면 셸 스왑마다 전부 다시 실행되고 perf_scan fragment-multi-script 가 막는다). #}
+<script src="{{ url_for('static', filename='js/shipment/shipment-entry.js') }}?v=20261002x" defer></script>

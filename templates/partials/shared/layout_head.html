@@ -203,11 +203,13 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Custom CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/style-pro-max.css') }}?v=20260915a">
-    <!-- P0-07: FOMS tokens (before legacy erp-pro) -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/foms-tokens.css') }}?v=20260915a">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-theme-toggle.css') }}?v=20260626a">
+    {# P0-07 토큰(--foms-*)은 아래 erp-pro 번들 링크 바로 앞 이 한 줄로만 싣는다(2026-10-02). 예전엔
+       erp-pro/01-intro-tokens.css 가 무버전 @import 로 한 번 더 받아(URL 이 달라 이중 다운로드)
+       erp-pro 첫 규칙 앞에 다시 깔았다 — 이 자리가 그 순서를 그대로 잇는다. 핀은 WAM 레이아웃과 같은 값. #}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/foms-tokens.css') }}?v=20260915a">
     <!-- ERP Pro Dashboard Styles (Modern SaaS Design System) -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/erp-pro.css') }}?v=20261001d">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/erp-pro.css') }}?v=20261002t">
     {# Order edit (/edit/<id>) joins the erp-mobile-v2 shell cohort (see orders/layout.html),
        so it must load the same mobile shell CSS bundle that styles the foms header + surfaces. #}
     {% if shell_variant == 'v2' and (request.path.startswith('/erp') or request.endpoint == 'order_edit.edit_order') %}

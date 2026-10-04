@@ -14,6 +14,9 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+from urllib.parse import urljoin, urlsplit
+
+from flask import render_template
 
 ROOT = Path(__file__).resolve().parents[2]
 ERP_PRO_CSS = ROOT / "static" / "css" / "foundation" / "erp-pro.css"
@@ -151,3 +154,71 @@ def test_weak_etag_revalidation_returns_304(client) -> None:
         f"weak ETag {weak!r} 재검증이 304 가 아니다(status={again.status_code}, "
         f"{len(again.data)}바이트) — 재검증마다 전량 재다운로드가 된다")
     assert not again.data
+
+
+_STYLESHEET_HREF_RE = re.compile(
+    r"""<link\b(?=[^>]*\brel=["']stylesheet["'])[^>]*\bhref=["']([^"']+)["']""", re.I
+)
+_ANY_IMPORT_RE = re.compile(r"""@import\s+url\(\s*["']?([^"')]+)["']?\s*\)""", re.I)
+
+
+def _stylesheet_fetches(html: str) -> list[str]:
+    """렌더된 HTML 이 받는 stylesheet URL 을 받는 순서대로(같은 URL 은 한 번) 돌려준다.
+
+    top-level <link> 를 순서대로 따라가며 로컬 /static/ CSS 의 @import 를 깊이 우선으로 편다.
+    브라우저는 한 문서 안에서 **같은 URL** 은 한 번만 받지만 쿼리(`?v=`)가 다르면 다른 자원이다.
+    """
+    fetched: list[str] = []
+
+    def visit(url: str) -> None:
+        if url in fetched:
+            return
+        fetched.append(url)
+        path = urlsplit(url).path
+        if urlsplit(url).netloc or not path.startswith("/static/"):
+            return
+        css = ROOT / path.lstrip("/")
+        if not css.is_file():
+            return
+        code = re.sub(r"/\*.*?\*/", "", css.read_text(encoding="utf-8"), flags=re.S)
+        for child in _ANY_IMPORT_RE.findall(code):
+            visit(urljoin(url, child))
+
+    for href in _STYLESHEET_HREF_RE.findall(html):
+        visit(href)
+    return fetched
+
+
+def test_foms_tokens_fetched_once_per_page(app, client) -> None:
+    """foms-tokens.css 를 페이지마다 한 번만, erp-pro.css 보다 먼저 받는다(이중 다운로드 회귀 방지).
+
+    2026-10-01 성능 원장 P2 첫 로드 ③: layout_head 의 `foms-tokens.css?v=` 링크와
+    `erp-pro/01-intro-tokens.css` 의 무버전 `@import url("../foms-tokens.css")` 가 URL 이 달라
+    같은 파일을 두 번 받았고, 두 번째는 HTML → erp-pro → 01-intro-tokens → foms-tokens 직렬
+    사슬의 넷째 단이었다(스테이징 407→528→662→793ms). 실제 렌더 결과로 잰다:
+    erp-pro 를 싣는 두 레이아웃(공용 layout_head 화면, 채널톡 WAM 레이아웃) 모두에서
+    ① 어떤 로컬 CSS 파일도 서로 다른 URL 로 두 번 받지 않고 ② 토큰은 정확히 한 번
+    ③ erp-pro.css 보다 먼저 받는다.
+    """
+    resp = client.get("/login")
+    assert resp.status_code == 200, f"/login 렌더 실패: {resp.status_code}"
+    pages = {"layout_head(/login)": resp.get_data(as_text=True)}
+    with app.test_request_context("/channel/wam/"):
+        pages["channel/wam/layout.html"] = render_template("channel/wam/layout.html")
+
+    for name, html in pages.items():
+        fetched = _stylesheet_fetches(html)
+        by_path: dict[str, list[str]] = {}
+        for url in fetched:
+            if url.startswith("/static/"):
+                by_path.setdefault(urlsplit(url).path, []).append(url)
+        dupes = {p: urls for p, urls in by_path.items() if len(urls) > 1}
+        assert not dupes, f"{name}: 같은 CSS 를 다른 URL 로 두 번 받는다 — {dupes}"
+
+        tokens = by_path.get("/static/css/foundation/foms-tokens.css", [])
+        assert len(tokens) == 1, f"{name}: foms-tokens.css 를 {len(tokens)}번 받는다 — {fetched}"
+        erp_pro = by_path.get("/static/css/foundation/erp-pro.css", [])
+        assert erp_pro, f"{name}: erp-pro.css 를 못 찾았다 — {fetched}"
+        assert fetched.index(tokens[0]) < fetched.index(erp_pro[0]), (
+            f"{name}: 토큰이 erp-pro.css 보다 늦게 온다 — {fetched}"
+        )

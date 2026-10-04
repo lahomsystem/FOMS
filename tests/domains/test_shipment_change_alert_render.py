@@ -347,12 +347,12 @@ def test_macro_file_has_no_inline_style_and_carries_ack_hooks():
 # --------------------------------------------------------------------------- #
 # 5. ack 클라이언트 — defer · 싱글턴 · 무음 실패 금지 · 리로드 금지
 # --------------------------------------------------------------------------- #
-def test_ack_client_script_is_deferred_and_keeps_scripts_partial_untouched():
+def test_ack_client_script_is_deferred_and_keeps_scripts_partial_single_entry():
     """ack 스크립트는 dashboard_main 의 기존 defer 블록에 싣는다(G1: 동기 스크립트 0).
 
-    dashboard_scripts.html 에 얹지 않는 이유: 그 파샬은 이미 <script src> 2개라
-    perf_scan 의 fragment-multi-script(high) 가 deploy veto 를 낸다. 그 구조적 부채는
-    별건이므로 여기서 건드리지 않고, 파샬이 무변경임을 함께 잠근다.
+    dashboard_scripts.html 에 얹지 않는 이유: 그 파샬은 shipment-entry.js 1개만 두는 자리다.
+    <script src> 가 2개가 되면 perf_scan 의 fragment-multi-script(high) 가 deploy veto 를 낸다
+    (2026-10-02 tablet-domain-sheets.js 를 entry CHAIN 으로 옮겨 2개 -> 1개로 줄였다).
     """
     main = _read(DASHBOARD_MAIN)
     tag = re.search(r"<script[^>]*shipment-change-alert\.js[^>]*>", main)
@@ -361,8 +361,8 @@ def test_ack_client_script_is_deferred_and_keeps_scripts_partial_untouched():
 
     scripts_partial = _read(DASHBOARD_SCRIPTS)
     assert "shipment-change-alert.js" not in scripts_partial
-    assert len(re.findall(r"<script[^>]*src=", scripts_partial)) == 2, (
-        "dashboard_scripts.html 의 <script src> 수가 바뀌었다 — perf_scan "
+    assert len(re.findall(r"<script[^>]*src=", scripts_partial)) == 1, (
+        "dashboard_scripts.html 의 <script src> 가 entry 1개가 아니다 — perf_scan "
         "fragment-multi-script veto 를 확인하라"
     )
 
@@ -467,8 +467,12 @@ def test_touched_asset_pins_are_unique_repo_wide():
         assert len(pins) == 1, f"{asset} 핀 불일치(동시 범프 누락): {sorted(pins)}"
 
 
-def test_shipment_entry_chain_untouched():
-    """shipment-entry.js CHAIN·버전은 건드리지 않았다(위 fragment-multi-script 회피 근거)."""
+def test_shipment_entry_chain_keeps_pin_and_excludes_ack_client():
+    """ack 클라이언트는 entry CHAIN 이 아니라 dashboard_main defer 블록 소관이다.
+
+    체인 파일(image-export·dashboard-columns)은 안 바뀌어 SHIP_JS_V 도 그대로다.
+    (2026-10-02 병렬 로드 전환은 entry 자체 핀만 dashboard_scripts.html 에서 올렸다.)
+    """
     entry = _read(SHIP_ENTRY_JS)
     assert "SHIP_JS_V = '20260730e'" in entry
     assert "shipment-change-alert.js" not in entry

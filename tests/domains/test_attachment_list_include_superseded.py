@@ -179,4 +179,7 @@ def test_changed_assets_are_pinned():
     assert "erp-dashboard-entry.js') }}?v=20261002p" in _read("templates/partials/shared/layout_scripts.html")
     # erp-order-shared.js 는 asset_url(내용 해시) 시범 — 손 핀 없이 파일이 바뀌면 URL 이 저절로 바뀐다.
     assert "asset_url('js/orders/erp-order-shared.js')" in _read("templates/orders/partials/erp_order_js.html")
-    assert "erp-pro.css') }}?v=20261001d" in _read("templates/partials/shared/layout_head.html")
+    # erp-pro.css 핀은 뒤 작업이 정당하게 올린다(2026-10-02 토큰 @import 제거로 20261002t) —
+    # 리터럴 대신 "이 작업 핀보다 오래되지 않았다"로 본다(핀은 YYYYMMDD+접미사라 문자열 비교=시간 비교).
+    erp_pro_pin = _read("templates/partials/shared/layout_head.html").split("erp-pro.css') }}?v=", 1)[1].split('"', 1)[0]
+    assert erp_pro_pin >= "20261001d", erp_pro_pin
