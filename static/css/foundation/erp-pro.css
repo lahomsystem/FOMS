@@ -152,6 +152,35 @@
   margin: 0;
 }
 
+/* 도면 칸 — 도면팀 최종본은 "최종 N", 전달을 거치지 않은 도면은 "직접 업로드"(2026-10-04 주문 5407).
+   최종본이 있는 주문에서만 붙는다(목록 API drawing_final_rank / drawing_final_total). */
+.erp-attachment-final-badge {
+  display: inline-block;
+  margin: 0 4px 4px 0;
+  padding: 1px 8px;
+  border: 1px solid var(--foms-primary, #2563eb);
+  border-radius: 999px;
+  background: var(--foms-primary-soft, #eff6ff);
+  color: var(--foms-primary, #2563eb);
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.erp-attachment-final-badge--manual {
+  border-color: var(--foms-border-subtle, #e5e7eb);
+  background: var(--foms-surface-muted, #f3f4f6);
+  color: var(--foms-text-secondary, #6b7280);
+  font-weight: 600;
+}
+
+.erp-attachment-tile .erp-attachment-final-badge {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  margin: 0;
+}
+
 /* 주문 수정 화면 미리보기 창 캡션 — 파일 이름 앞에 한 줄로. */
 #erp-attachment-preview-body .erp-attachment-superseded-badge {
   margin: 0 6px 0 0;

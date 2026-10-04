@@ -854,7 +854,9 @@ def test_erp_as_gallery_upload_binds_anchor_before_batch() -> None:
     block = text[start:start + 9000]
     assert "fomsEnsureAsUploadAnchor" in block
     assert "asLogId: asLogId" in block
-    assert "sortOrders: sortOrders" in block
+    # 도면 최종본 확인(2026-10-04)으로 일괄 업로드를 runBatch 로 감쌌다 — 정렬 순서는 그대로 싣는다.
+    assert "sortOrders: batchSortOrders" in block
+    assert "runBatch(files, sortOrders, ackDrawingFinal)" in block
     ensure_idx = block.index("fomsEnsureAsUploadAnchor")
     optimistic_idx = block.index("Optimistic UI Start")
     assert ensure_idx < optimistic_idx

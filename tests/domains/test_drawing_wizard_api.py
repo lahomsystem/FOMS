@@ -1813,6 +1813,8 @@ def test_transfer_pending_transfers_and_clears(client, monkeypatch):
     files = sd.get("drawing_current_files") or []
     assert len(files) == 1
     assert files[0]["key"] == f"orders/{order_id}/drawing_wizard/exports/1_a.png"
+    # 시트 신원이 현재본까지 간다 — 다음 전달이 같은 시트 옛 판을 찾는 축(2026-10-04).
+    assert files[0].get("sheet_id") == "s-1"
     assert sd.get("drawing_status") == "TRANSFERRED"
     # pending 비워짐, 버전 스냅샷 1건 기록.
     assert (sd.get("drawing_wizard") or {}).get("pending") == {}

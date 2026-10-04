@@ -133,6 +133,11 @@
             const spec = PUSH_KINDS[i];
             const record = data[spec.key];
             if (!record || typeof record !== 'object' || (!record.pushed && !record.sent_at)) continue;
+            // 발주 PUSH 뒤 도면 재전달(서버 _mark_order_push_stale, 주문 5407) — 다시 보내면 사라진다.
+            if (record.stale_drawing_at) {
+                chips.push({ kind: 'fail', label: spec.label + ' · 도면 바뀜', meta: '다시 보내기', ms: _ms(record.stale_drawing_at), resent: false });
+                continue;
+            }
             chips.push({
                 kind: 'push',
                 label: spec.label,

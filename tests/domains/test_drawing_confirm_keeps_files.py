@@ -356,8 +356,9 @@ def test_confirm_receipt_keeps_attachment_tab_drawing_upload(client, storage):
     _act_as(client, sales)
     res = client.post(
         f"/api/orders/{order_id}/attachments",
+        # 도면팀 최종본이 있는 주문이라 확인(ack)을 싣는다(drawing_upload_guard, 2026-10-04).
         data={"file": (io.BytesIO(b"\xff\xd8\xff\xe0 sketch"), "site_sketch.jpg"),
-              "category": "drawing"},
+              "category": "drawing", "ack_drawing_final": "1"},
         content_type="multipart/form-data",
     )
     assert res.status_code == 200, res.get_json()

@@ -188,7 +188,7 @@ def test_screens_block_too_many_revision_files_before_upload():
     pc_change = _function_body(pc, "window.handleRevisionFilesChange")
     assert "MAX_REVISION_FILES" in pc_change[:600]
     entry = (root / "static/js/orders/erp-dashboard-entry.js").read_text(encoding="utf-8")
-    assert "erp-dashboard-drawing.js?v=20260929l" in entry
+    assert "erp-dashboard-drawing.js?v=20261004a" in entry
 
 
 def test_valid_gateway_key_is_saved_with_server_built_urls(client, quiet):

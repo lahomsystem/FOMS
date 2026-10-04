@@ -464,7 +464,7 @@ def test_asset_pins_current():
     # 2026-09-30 이름 정리로 erp-quest-approve.js 는 20260930b, entry·quest 모듈은 20260930a.
     assert "erp-quest-approve.js') }}?v=20260930b" in _read("templates/partials/shared/layout_scripts.html")
     # erp-pro.css·04 자식은 board_state 줄로 20260930c, detail-dom 은 도면 창구 버튼 글자로 20260930a.
-    assert "erp-dashboard-entry.js') }}?v=20261002p" in _read("templates/partials/shared/layout_scripts.html")
+    assert "erp-dashboard-entry.js') }}?v=20261004a" in _read("templates/partials/shared/layout_scripts.html")
     # erp-pro.css 핀은 뒤 작업이 올릴 수 있다(2026-10-02 20261002t) — 이 작업 핀보다 오래되지만 않으면 된다.
     erp_pro_pin = _read("templates/partials/shared/layout_head.html").split("erp-pro.css') }}?v=", 1)[1].split('"', 1)[0]
     assert erp_pro_pin >= "20261001d", erp_pro_pin
