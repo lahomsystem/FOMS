@@ -3811,6 +3811,7 @@ function erpBuildAttachmentTile(a, options = {}) {
     <span class="erp-attachment-tile__name">${name}</span>
     ${badge}
     ${erpSupersededBadgeHtml(a)}
+    ${erpDrawingFinalBadgeHtml(a)}
 </button>`;
 }
 
@@ -3819,6 +3820,17 @@ function erpSupersededBadgeHtml(a) {
     return a && a.is_superseded
         ? '<span class="erp-attachment-superseded-badge" title="새 도면으로 교체된 옛 도면입니다">교체됨</span>'
         : '';
+}
+
+// 도면팀 최종본이 있는 주문의 '도면' 행 표시 — 최종본은 "최종 N", 나머지는 "직접 업로드"(2026-10-04).
+function erpDrawingFinalBadgeHtml(a) {
+    if (!a || a.is_superseded || !a.drawing_final_total) return '';
+    if (a.drawing_final_rank) {
+        const label = a.drawing_final_total > 1 ? `최종 ${a.drawing_final_rank}` : '최종';
+        return `<span class="erp-attachment-final-badge" title="도면팀이 전달한 최종 도면입니다">${label}</span>`;
+    }
+    return '<span class="erp-attachment-final-badge erp-attachment-final-badge--manual"'
+        + ' title="도면 전달을 거치지 않고 직접 올린 파일입니다">직접 업로드</span>';
 }
 
 function erpCountCurrentAttachments(list) {
@@ -4180,6 +4192,7 @@ style="height: 220px;">
 <div class="card h-100${a.is_superseded ? ' erp-attachment-card--superseded' : ''}">
     <div class="card-body p-2">
         ${erpSupersededBadgeHtml(a)}
+        ${erpDrawingFinalBadgeHtml(a)}
         ${mediaHtml}
         ${erpAttachmentSupportsItemLink(a) ? `
         <div class="mt-2">
@@ -4257,7 +4270,11 @@ async function erpLoadAttachments() {
         if (!data.success) throw new Error(data.message || '첨부 목록 조회 실패');
         const loaded = data.attachments || [];
         // 옛 도면은 뒤로(원래 순서 유지) — 갤러리·전체화면 넘김 순서가 같게 배열 자체를 정렬한다.
-        __erpAttachments = loaded.filter((a) => !a.is_superseded).concat(loaded.filter((a) => a.is_superseded));
+        // 도면팀 최종본은 전달 순번대로 맨 앞에(목록 API drawing_final_rank), 나머지는 서버 순서 그대로.
+        const finals = loaded.filter((a) => !a.is_superseded && a.drawing_final_rank)
+            .sort((x, y) => x.drawing_final_rank - y.drawing_final_rank);
+        const others = loaded.filter((a) => !a.is_superseded && !a.drawing_final_rank);
+        __erpAttachments = finals.concat(others, loaded.filter((a) => a.is_superseded));
         erpRenderAttachments();
         erpExpandMobileAttachmentSections();
     } catch (e) {
@@ -4535,6 +4552,21 @@ async function erpUploadSelectedAttachments(source) {
     input.value = '';
 }
 
+/** 화면 사본 기준 도면팀 전달본(drawing_current_files) 장수. */
+function erpDrawingFinalCount() {
+    const sd = window.__erpLastStructuredData;
+    const list = sd && Array.isArray(sd.drawing_current_files) ? sd.drawing_current_files : [];
+    return list.filter((f) => f && String(f.key || '').trim()).length;
+}
+
+/** 도면팀 최종본이 있는 주문에 '도면'을 올리기 전 확인 문구(서버 drawing_upload_guard 와 같은 뜻). */
+function erpDrawingFinalConfirmText(count) {
+    return `도면팀 최종 도면이 이미 ERP 에 있습니다(${count}장).\n`
+        + "고객 컨펌은 '도면 수령 확인'으로 끝나고, 발주 PUSH 에도 자동으로 들어갑니다.\n"
+        + "도면을 고쳐야 하면 '수정 요청'을 쓰세요.\n\n"
+        + '그래도 올릴까요?';
+}
+
 async function erpUploadCommonAttachmentFiles(files, options = {}) {
     if (!ERP_ORDER_ENABLED) return;
     if (!Array.isArray(files) || files.length === 0) {
@@ -4564,6 +4596,20 @@ async function erpUploadCommonAttachmentFiles(files, options = {}) {
         } catch (err) {
             erpAttachmentsSetStatus(String((err && err.message) || err || 'AS 첨부 위치를 만들지 못했습니다.'), true);
             return;
+        }
+    }
+
+    // 도면팀 최종본이 있는 주문에 '도면'을 올리면 먼저 확인받는다(서버도 확인 없이는 409).
+    // 09-28 전에는 채널톡 도면을 내려받아 여기 올렸고, 그 습관이 전달본 옆에 같은 도면을 붙인다.
+    let ackDrawingFinal = false;
+    if (category === 'drawing') {
+        const finalCount = erpDrawingFinalCount();
+        if (finalCount > 0) {
+            if (!window.confirm(erpDrawingFinalConfirmText(finalCount))) {
+                erpAttachmentsSetStatus('도면 업로드를 취소했습니다.');
+                return;
+            }
+            ackDrawingFinal = true;
         }
     }
 
@@ -4613,13 +4659,14 @@ async function erpUploadCommonAttachmentFiles(files, options = {}) {
     const totalFiles = files.length;
 
     let ok = 0;
-    const uploadResult = await window.fomsUploadOrderAttachmentsBatch({
+    const runBatch = (batchFiles, batchSortOrders, ack) => window.fomsUploadOrderAttachmentsBatch({
         orderId: ORDER_ID,
-        files: files,
+        files: batchFiles,
         folder: `orders/${ORDER_ID}/${category || 'attachments'}`,
         category: category,
         asLogId: asLogId,
-        sortOrders: sortOrders,
+        sortOrders: batchSortOrders,
+        ackDrawingFinal: ack,
         useDirectUpload: (typeof USE_DIRECT_UPLOAD !== 'undefined' && USE_DIRECT_UPLOAD),
         onPrepareProgress: function (info) {
             erpAttachmentsSetStatus(`이미지 최적화 중... (${info.done}/${info.total})`);
@@ -4639,7 +4686,24 @@ async function erpUploadCommonAttachmentFiles(files, options = {}) {
             }
         }
     });
+    const uploadResult = await runBatch(files, sortOrders, ackDrawingFinal);
     ok = uploadResult.ok;
+    // 화면 사본이 낡아(열어 둔 사이 도면팀이 전달) 서버가 확인을 요구한 파일은 한 번 더 묻는다.
+    const needAck = [];
+    (uploadResult.results || []).forEach((res, idx) => {
+        if (res && res.error === 'DRAWING_FINAL_EXISTS') needAck.push(idx);
+    });
+    if (!ackDrawingFinal && needAck.length) {
+        const serverCount = Number((uploadResult.results[needAck[0]].data || {}).count) || 1;
+        if (window.confirm(erpDrawingFinalConfirmText(serverCount))) {
+            const retryResult = await runBatch(
+                needAck.map((idx) => files[idx]),
+                sortOrders ? needAck.map((idx) => sortOrders[idx]) : sortOrders,
+                true
+            );
+            ok += retryResult.ok;
+        }
+    }
 
     if (progressWrap) progressWrap.classList.add('d-none');
     if (progressBar) { progressBar.style.width = '0%'; progressBar.textContent = '0%'; }

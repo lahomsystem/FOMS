@@ -128,7 +128,9 @@ def _transfer(client, order_id: int, key: str, **extra) -> None:
 def _upload_attachment_tab_drawing(client, order_id: int) -> str:
     res = client.post(
         f"/api/orders/{order_id}/attachments",
-        data={"file": (io.BytesIO(b"\x89PNG sketch"), "site_sketch.png"), "category": "drawing"},
+        # 도면팀 최종본이 있으면 확인(ack)이 필요하다(drawing_upload_guard, 2026-10-04).
+        data={"file": (io.BytesIO(b"\x89PNG sketch"), "site_sketch.png"), "category": "drawing",
+              "ack_drawing_final": "1"},
         content_type="multipart/form-data",
     )
     assert res.status_code == 200, res.get_json()

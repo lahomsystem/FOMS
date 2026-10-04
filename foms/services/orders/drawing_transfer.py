@@ -27,7 +27,94 @@ from __future__ import annotations
 
 import copy
 import json
+import re
 from typing import Any
+
+#: 마법사 시트 id 로 받아 줄 모양. 클라이언트가 보낸 값도 섞이므로 저장 전에 거른다.
+_SHEET_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+
+#: 마법사 산출물(시트 PNG) key 의 경로 조각 — sheet_id 없는 옛 엔트리의 시트 추정에 쓴다.
+_WIZARD_EXPORT_SEGMENT = "/drawing_wizard/exports/"
+
+
+def clean_sheet_id(value: Any) -> str:
+    """도면 파일 엔트리의 ``sheet_id`` 를 검증해 돌려준다(모양이 다르면 빈 문자열)."""
+    text = str(value or "").strip()
+    return text if _SHEET_ID_RE.match(text) else ""
+
+
+def _wizard_sheet_ids(structured_data: Any) -> list[str]:
+    """``drawing_wizard.sheets`` 의 시트 id 목록(순서 유지, 모양이 다른 항목은 건너뜀)."""
+    sd = structured_data if isinstance(structured_data, dict) else {}
+    dw = sd.get("drawing_wizard")
+    sheets = dw.get("sheets") if isinstance(dw, dict) else None
+    out: list[str] = []
+    for sheet in sheets if isinstance(sheets, list) else []:
+        sid = clean_sheet_id(sheet.get("id")) if isinstance(sheet, dict) else ""
+        if sid and sid not in out:
+            out.append(sid)
+    return out
+
+
+def replace_same_sheet_files(
+    old_files: list, new_files: list, structured_data: Any,
+) -> tuple[list[dict], list[dict], list[int]]:
+    """새 파일 중 마법사 시트가 같은 옛 엔트리를 **그 자리에서** 바꾼다(순수 계산).
+
+    도면팀이 마지막에 저장·전달한 판이 시트(제품)별 1순위다(2026-10-04 사용자 결정, 주문
+    5407: 영업 수령 확정 뒤 같은 시트 2판을 APPEND 로 보내 1판·2판이 함께 남았다). 상태와
+    상관없이 같다. 다른 시트 도면은 건드리지 않는다 — 주문 전체 교체는 제품이 여럿인 주문에서
+    고치지 않은 도면까지 지운다.
+
+    옛 엔트리의 시트는 ``sheet_id`` 로 판정한다. ``sheet_id`` 가 없는 옛 엔트리(2026-10-04
+    이전 전달)는 마법사 시트가 정확히 1개이고 key 가 마법사 산출물 경로일 때만 그 시트로 본다.
+    같은 시트 옛 엔트리가 여럿이면(예전 APPEND 누적) 첫 자리에 새 판을 넣고 나머지는 뺀다.
+
+    Args:
+        old_files: 현재 ``drawing_current_files``.
+        new_files: 이번 전달 파일(``materialize_transfer_attachments`` 결과).
+        structured_data: 주문 ``structured_data``(마법사 시트 목록을 읽는다).
+
+    Returns:
+        ``(base_files, rest_new_files, replaced_numbers)`` — 시트 교체를 마친 목록, 시트로
+        자리를 찾지 못한 새 파일(호출측이 기존 mode 규칙으로 처리), 바뀐 옛 엔트리의 1-기준
+        번호(오름차순).
+    """
+    sheets = _wizard_sheet_ids(structured_data)
+    sole_sheet = sheets[0] if len(sheets) == 1 else ""
+
+    def _old_sheet(entry: Any) -> str:
+        if not isinstance(entry, dict):
+            return ""
+        sid = clean_sheet_id(entry.get("sheet_id"))
+        if sid:
+            return sid
+        key = str(entry.get("key") or "")
+        return sole_sheet if sole_sheet and _WIZARD_EXPORT_SEGMENT in key else ""
+
+    old_sheets = [_old_sheet(f) for f in old_files]
+    slot_new: dict[int, dict] = {}
+    dropped: set[int] = set()
+    rest: list[dict] = []
+    for nf in new_files:
+        sid = clean_sheet_id((nf or {}).get("sheet_id"))
+        positions = [
+            i for i, s in enumerate(old_sheets)
+            if sid and s == sid and i not in slot_new and i not in dropped
+        ]
+        if not positions:
+            rest.append(nf)
+            continue
+        slot_new[positions[0]] = nf
+        dropped.update(positions[1:])
+
+    base: list[dict] = []
+    for i, entry in enumerate(old_files):
+        if i in dropped:
+            continue
+        base.append(slot_new.get(i, entry))
+    replaced = sorted(i + 1 for i in (set(slot_new) | dropped))
+    return base, rest, replaced
 
 
 def _normalize_structured_data(order: Any) -> dict:
@@ -99,8 +186,8 @@ def _is_drawing_key(order_id: int, key: str) -> bool:
 def materialize_transfer_attachments(order_id: int, files: Any) -> list[dict]:
     """전달 대상 파일 참조를 도면 key 로 필터해 ``drawing_current_files`` 엔트리로 materialize.
 
-    입력 각 항목 ``{key, filename?}`` 중 **도면 key 경로**(``_is_drawing_key``)만 통과시켜
-    ``{key, filename, view_url, download_url}`` 로 materialize 한다. 실측/일반/타 주문 첨부
+    입력 각 항목 ``{key, filename?, sheet_id?}`` 중 **도면 key 경로**(``_is_drawing_key``)만
+    통과시켜 ``{key, filename, view_url, download_url[, sheet_id]}`` 로 materialize 한다. 실측/일반/타 주문 첨부
     key 는 유출을 막기 위해 제외한다(construction_card drawing_current_files leak 함정).
     URL 은 same-origin(``/api/files/...``)으로만 만든다. DB 조회·commit/flush·version·event·
     outbox 없이 순수 계산만 한다.
@@ -119,10 +206,15 @@ def materialize_transfer_attachments(order_id: int, files: Any) -> list[dict]:
         if not _is_drawing_key(order_id, key):
             continue
         filename = (f.get("filename") or key.rsplit("/", 1)[-1]).strip()
-        out.append({
+        entry = {
             "key": key,
             "filename": filename,
             "view_url": f"/api/files/view/{key}",
             "download_url": f"/api/files/download/{key}",
-        })
+        }
+        # 마법사 시트 신원 — 다음 전달에서 같은 시트 옛 판을 찾는 축(replace_same_sheet_files).
+        sheet_id = clean_sheet_id(f.get("sheet_id"))
+        if sheet_id:
+            entry["sheet_id"] = sheet_id
+        out.append(entry)
     return out

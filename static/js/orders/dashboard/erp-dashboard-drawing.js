@@ -104,6 +104,8 @@ let file = entry.file;
 const formData = new FormData();
 formData.append('file', file);
 formData.append('category', 'drawing');
+// 전달 창 업로드는 곧바로 전달된다 — 도면 최종본 확인(drawing_upload_guard) 대상이 아니다.
+formData.append('ack_drawing_final', '1');
 formData.append('note', '[도면 전달 첨부] ' + note);
 
 if (typeof uploadWithProgress !== 'undefined') {

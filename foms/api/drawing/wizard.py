@@ -1476,7 +1476,8 @@ def api_post_drawing_wizard_transfer_pending(order_id):
         if not pending_items:
             return jsonify({'success': False, 'message': '전달할 대기 도면이 없습니다.'}), 400
 
-        files = [{'key': p['key'], 'filename': p['filename']} for p in pending_items]
+        files = [{'key': p['key'], 'filename': p['filename'], 'sheet_id': p['sheet_id']}
+                 for p in pending_items]
         # 대기 시트 전체의 버전 스냅샷 + pending 비움을 전달 쓰기에 실어 한 트랜잭션으로(리뷰 P2).
         stale_keys: list = []
         payload, status = perform_drawing_transfer(

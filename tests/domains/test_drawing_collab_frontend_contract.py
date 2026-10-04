@@ -46,11 +46,11 @@ def test_detail_dom_cachebuster_cascade_bumped() -> None:
     # 자식 핀과 entry 부모 핀을 20260929l 로 올렸다. core·attachments 는 R4(20260929h),
     # gateway 는 2b(20260929e) 에서 새로 붙었다.
     assert "erp-dashboard-detail-dom.js?v=20261001a" in entry
-    assert "erp-dashboard-drawing.js?v=20260929l" in entry
+    assert "erp-dashboard-drawing.js?v=20261004a" in entry
     assert "erp-dashboard-core.js?v=20260929h" in entry
-    assert "erp-dashboard-attachments.js?v=20260929h" in entry
+    assert "erp-dashboard-attachments.js?v=20261004a" in entry  # 2026-10-04 도면 최종본 순서
     assert "erp-dashboard-gateway.js?v=20260929e" in entry
-    assert "erp-dashboard-entry.js') }}?v=20261002p" in layout
+    assert "erp-dashboard-entry.js') }}?v=20261004a" in layout
 
 
 def test_workbench_include_confirmed_toggle() -> None:

@@ -24,6 +24,7 @@ from foms.services.files.upload_authz import (
     parse_upload_folder,
     validate_upload_key,
 )
+from foms.services.files.drawing_upload_guard import ACK_FIELD as DRAWING_ACK_FIELD, drawing_final_ack_block
 from foms.services.files.upload_policy import DIRECT_UPLOAD_ALLOWED_CONTENT_TYPES
 from db import get_db
 from foms.services.order_attachment_thumbnail import (
@@ -57,6 +58,16 @@ def _drawing_folder_for(folder, requested_category):
     return folder
 
 
+def _drawing_final_block_for_session(order_id, category, ack):
+    """업로드 세션 발급 단계의 도면 최종본 확인(:func:`drawing_final_ack_block`). 주문이 없으면 통과."""
+    if category != "drawing" or not order_id:
+        return None
+    order = get_db().query(Order).filter(Order.id == int(order_id)).first()
+    if order is None:
+        return None
+    return drawing_final_ack_block(_current_user(), order, category, ack)
+
+
 @attachments_bp.route("/upload/session", methods=["POST"])
 @login_required
 def api_upload_session():
@@ -80,6 +91,10 @@ def api_upload_session():
         # UPLOAD-01: VIEWER 403 + 용도별 role/team (AUTH-01 정책 재사용).
         if not category_upload_allowed(_current_user(), category):
             return jsonify({"success": False, "message": "이 업로드를 수행할 권한이 없습니다."}), 403
+        # R2 에 올리기 전에 확인한다 — complete 에서야 막으면 올린 파일이 고아로 남는다.
+        blocked = _drawing_final_block_for_session(_order_id, category, data.get(DRAWING_ACK_FIELD))
+        if blocked:
+            return jsonify(blocked[0]), blocked[1]
 
         storage = get_storage()
         key = storage.generate_direct_upload_key(filename, norm_folder)
@@ -135,6 +150,10 @@ def api_upload_session_batch():
         # UPLOAD-01: VIEWER 403 + 용도별 role/team (AUTH-01 정책 재사용).
         if not category_upload_allowed(_current_user(), category):
             return jsonify({"success": False, "message": "이 업로드를 수행할 권한이 없습니다."}), 403
+        # R2 에 올리기 전에 확인한다 — complete 에서야 막으면 올린 파일이 고아로 남는다.
+        blocked = _drawing_final_block_for_session(_order_id, category, data.get(DRAWING_ACK_FIELD))
+        if blocked:
+            return jsonify(blocked[0]), blocked[1]
 
         storage = get_storage()
         sessions = []
@@ -222,6 +241,9 @@ def api_order_attachments_complete(order_id):
         order = db.query(Order).filter(Order.id == order_id).first()
         if not order:
             return jsonify({"success": False, "message": "주문을 찾을 수 없습니다."}), 404
+        blocked = drawing_final_ack_block(_current_user(), order, key_category, data.get(DRAWING_ACK_FIELD))
+        if blocked:
+            return jsonify(blocked[0]), blocked[1]
 
         # AS-FRESH-01: form 업로드와 같은 검증을 direct 경로에도 건다(경로별 결합 갈림 방지).
         ok_log, as_log_id, log_err = bind_as_log_id_for_upload(

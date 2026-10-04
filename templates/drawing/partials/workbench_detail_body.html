@@ -1730,7 +1730,8 @@
         <div class="mb-3 small text-muted">
           <strong>추가:</strong> 기존 도면 유지, 새 도면 추가<br>
           <strong>교체:</strong> 선택한 도면만 새 파일로 교체 (다중 선택 가능)<br>
-          <strong>전체 교체:</strong> 기존 도면 전부 삭제 후 새 파일로 대체
+          <strong>전체 교체:</strong> 기존 도면 전부 삭제 후 새 파일로 대체<br>
+          <strong>도면 마법사 시트:</strong> 방식과 상관없이 같은 시트의 옛 판은 이번 판으로 바뀝니다. 다른 시트 도면은 그대로 남습니다.
         </div>
         {% if drawing_status == 'TRANSFERRED' and drawing_files %}
         <div class="alert alert-warning small mb-3 dw-transfer-latest-notice" role="note">
@@ -2529,6 +2530,7 @@
           const formData = new FormData();
           formData.append('file', file);
           formData.append('category', 'drawing');
+          formData.append('ack_drawing_final', '1');  // 전달 창 업로드는 곧바로 전달된다(drawing_upload_guard)
           formData.append('note', noteText || '');
           return new Promise((resolve, reject) => {
             const xhr = new XMLHttpRequest();
@@ -2564,7 +2566,7 @@
             sessRes = await fetch('/api/upload/session', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ filename: file.name, size: file.size, folder: folder, category: 'drawing' })
+              body: JSON.stringify({ filename: file.name, size: file.size, folder: folder, category: 'drawing', ack_drawing_final: 1 })
             });
           } catch (_) { return fallbackXHR(); }
           const sess = await sessRes.json();
@@ -2582,7 +2584,7 @@
           const completeRes = await fetch(`/api/orders/${orderId}/attachments/complete`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ key: sess.key, filename: file.name, category: 'drawing', size: file.size })
+            body: JSON.stringify({ key: sess.key, filename: file.name, category: 'drawing', size: file.size, ack_drawing_final: 1 })
           });
           const data = await completeRes.json();
           if (!data.success || !data.attachment) {
@@ -2637,7 +2639,8 @@
             body: JSON.stringify({
               files: preparedFiles.map(entry => ({ client_id: entry.clientId, filename: entry.file.name, size: entry.file.size })),
               folder: folder,
-              category: 'drawing'
+              category: 'drawing',
+              ack_drawing_final: 1
             })
           });
           const bData = await bRes.json();

@@ -20,6 +20,7 @@ from db import get_db
 from foms.api.files.blueprint import attachments_bp
 from foms.api.files.common import parse_attachment_item_index, resolve_attachment_category
 from foms.services.files.upload_authz import category_upload_allowed
+from foms.services.files.drawing_upload_guard import ACK_FIELD as DRAWING_ACK_FIELD, drawing_final_ack_block
 from foms.services.orders.upload_ticket import (
     UploadTicketError,
     UploadTicketForbidden,
@@ -78,8 +79,12 @@ def api_issue_upload_ticket(order_id):
         # in-handler evaluate_policy(기존 category 정책 재사용) — VIEWER/무권한 403.
         if not category_upload_allowed(user, category):
             return jsonify({"success": False, "data": None, "error": "이 업로드를 수행할 권한이 없습니다."}), 403
-        if db.query(Order).filter(Order.id == order_id).first() is None:
+        order = db.query(Order).filter(Order.id == order_id).first()
+        if order is None:
             return jsonify({"success": False, "data": None, "error": "주문을 찾을 수 없습니다."}), 404
+        blocked = drawing_final_ack_block(user, order, category, data.get(DRAWING_ACK_FIELD))
+        if blocked:
+            return jsonify(blocked[0]), blocked[1]
 
         ticket = issue_ticket(
             db, order_id=order_id, filename=filename, file_size=file_size,
