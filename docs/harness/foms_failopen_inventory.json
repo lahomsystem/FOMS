@@ -5,14 +5,14 @@
   "overlap_api_error_01": "API-ERROR-01 owns response/stdout exposure (print_exc/str(e) -> log_handled_exception). This packet owns swallow classification. Sites that log via log_handled_exception are LOG_AND_CONTINUE here.",
   "marker_convention": "Silent-by-design catches carry an inline `# failopen: intentional: <reason>` (or `fail-closed`) marker; the scanner reads it as the justification. No bare allowlist, no lint-disable.",
   "baselines": {
-    "broad_total": 614,
+    "broad_total": 615,
     "unclassified": 0,
     "swallow_by_control_flow": 168
   },
   "disposition_counts": {
     "FAIL_CLOSED": 38,
     "INTENTIONAL": 17,
-    "LOG_AND_CONTINUE": 391,
+    "LOG_AND_CONTINUE": 392,
     "SWALLOW_BY_CONTROL_FLOW": 168
   },
   "owner_counts": {
@@ -25,7 +25,7 @@
     "platform": 5,
     "runtime": 3,
     "services": 179,
-    "storage": 21,
+    "storage": 22,
     "telemetry": 41,
     "web": 39
   },
@@ -5086,6 +5086,15 @@
       "owner": "storage",
       "has_logging": false,
       "justification": "print only, no logger (API-ERROR-01 owns stdout->logger migration)"
+    },
+    {
+      "path": "foms/services/storage.py",
+      "lineno": 683,
+      "handler_type": "broad_exception",
+      "disposition": "LOG_AND_CONTINUE",
+      "owner": "storage",
+      "has_logging": true,
+      "justification": "logs via logger/log_handled_exception"
     },
     {
       "path": "foms/services/user_activity.py",

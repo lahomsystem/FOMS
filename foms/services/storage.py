@@ -621,6 +621,9 @@ class StorageAdapter:
 # 전역 인스턴스
 _storage_instance = None
 
+#: 부모가 만들어 자식(rq 잡)에게 물려줄 수 있는 저장소 종류. 로컬 폴백은 넣지 않는다.
+_SHAREABLE_STORAGE_TYPES = ("r2", "s3")
+
 
 def get_storage():
     """스토리지 인스턴스 가져오기 (싱글톤 패턴)"""
@@ -630,9 +633,64 @@ def get_storage():
     return _storage_instance
 
 
+def prime_shared_storage() -> bool:
+    """rq 부모에서 클라우드 어댑터를 **한 번** 만들어 전역 싱글톤으로 남긴다(성능 원장 P3-7).
+
+    rq 는 잡마다 ``fork`` 하고, 자식의 :func:`get_storage` 는 부모의 전역을 그대로 물려받는다.
+    그래서 부모가 한 번 만들어 두면 썸네일 잡이 잡마다 어댑터를 새로 만들지 않는다(로컬 실측:
+    물려받은 싱글톤 0.1us, 데운 세션에서 새로 만들기 약 5ms + 활성화 로그 2줄, 차가운 세션
+    260~860ms).
+
+    fork 를 건너도 안전한 이유: boto3 클라이언트는 **첫 요청 전에는 소켓을 열지 않는다**.
+    부모(rq 본체)는 잡을 직접 돌리지 않으므로 이 클라이언트로 요청을 내지 않고, 자식은 빈
+    연결 풀을 물려받아 자기 연결을 새로 연다. 그래도 부모가 언젠가 요청을 내게 되면 연결이
+    섞일 수 있으므로(2026-09-08 DB 소켓 공유 결함과 같은 모양) 자식 진입점이
+    :func:`drop_inherited_connections` 로 물려받은 풀을 비운다.
+
+    **클라우드 연결이 만들어졌을 때만 남긴다.** 생성이 실패해 로컬 저장소로 폴백한 어댑터를
+    남기면 그 한 번의 실패가 그 뒤 모든 잡으로 번진다 — 그때는 남기지 않고, 자식이 잡마다
+    예전처럼 스스로 만든다.
+
+    Returns:
+        클라우드 어댑터를 전역으로 남겼으면 True, 버렸으면(로컬·폴백) False.
+    """
+    global _storage_instance
+    adapter = StorageAdapter()
+    shareable = (getattr(adapter, "storage_type", "") in _SHAREABLE_STORAGE_TYPES
+                 and getattr(adapter, "client", None) is not None)
+    if shareable:
+        _storage_instance = adapter
+    return shareable
+
+
+def drop_inherited_connections() -> bool:
+    """fork 직후 **자식**에서 부른다 — 물려받은 클라우드 클라이언트의 HTTP 연결 풀을 비운다.
+
+    보통은 빈 풀이라 아무 일도 하지 않는다(부모는 요청을 내지 않는다). 풀을 비운 뒤에도
+    클라이언트는 그대로 쓸 수 있고, 다음 요청이 새 연결을 연다. 닫기는 자식 쪽 파일 기술자만
+    닫고 TLS 종료 신호를 보내지 않으므로 부모 쪽 연결을 끊지 않는다.
+
+    Returns:
+        비울 클라이언트가 있어 비웠으면 True. 인스턴스·클라이언트가 없거나 실패하면 False
+        (실패는 로그만 — 잡을 막지 않는다).
+    """
+    client = getattr(_storage_instance, "client", None)
+    close = getattr(client, "close", None)
+    if not callable(close):
+        return False
+    try:
+        close()
+    except Exception as exc:  # noqa: BLE001 - 연결 정리 실패가 잡을 죽이면 안 된다
+        logger.warning("[storage] 물려받은 연결 풀 비우기 실패(무시): %s", exc)
+        return False
+    return True
+
+
 __all__ = [
     "BOTO3_AVAILABLE",
     "PILLOW_AVAILABLE",
     "StorageAdapter",
+    "drop_inherited_connections",
     "get_storage",
+    "prime_shared_storage",
 ]
