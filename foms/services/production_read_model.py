@@ -17,6 +17,8 @@ from sqlalchemy import (
 from sqlalchemy.orm import Query
 
 from models import Order, ProductionRun
+from foms.services.common.dashboard_cache import KEY_VERSION as DASHBOARD_CACHE_KEY_VERSION
+from foms.services.common.dashboard_cache import build_dashboard_cache_key
 from foms.services.drawing_confirm_cleanup import (
     discount_superseded_drawing_rows,
     load_structured_data_by_order,
@@ -290,3 +292,58 @@ def paginate_production_rows(
     total_pages = (total_orders + per_page - 1) // per_page
     page_rows = _q.offset((page - 1) * per_page).limit(per_page).all()
     return page, total_pages, page_rows
+
+
+def apply_production_dashboard_sort(_q: Query, sort: str, sort_dir: str) -> Query:
+    """생산 대시보드 목록 정렬(렌더와 렌더 전 304 키가 같은 순서를 쓴다).
+
+    기본은 시공일 빠른 순(YYYY-MM-DD String(10) 사전순=시간순, index 있음) — 미정(NULL)은 뒤로,
+    동률/미정은 created_at 최신 순. 사용자가 실측일/시공일 헤더를 눌렀을 때만 그 컬럼·방향으로
+    갈아탄다(ERP 작업 큐와 동일한 sort/dir 규약). 빈 문자열도 미정 취급이라 항상 뒤로 보낸다.
+    """
+    sort_column = {
+        'measure_date': Order.erp_measurement_date,
+        'construction_date': Order.erp_construction_date,
+    }.get(sort)
+    if sort_column is None:
+        return _q.order_by(Order.erp_construction_date.asc().nulls_last(), Order.created_at.desc())
+    blank_last = sql_case((sort_column.is_(None), 1), ((sort_column == ''), 1), else_=0)
+    return _q.order_by(
+        blank_last.asc(),
+        sort_column.desc() if sort_dir == 'desc' else sort_column.asc(),
+        Order.created_at.desc(),
+    )
+
+
+def production_summary_slice_key(user: Any, f_stage: str, f_q: str, erp_mine_only: bool) -> str:
+    """숫자판 조각(``production/summary_counts``) 캐시 키 — 렌더와 렌더 전 304 키가 같은 키를 읽는다."""
+    fingerprint = {
+        "v": DASHBOARD_CACHE_KEY_VERSION,
+        "uid": user.id if user else None,
+        "role": getattr(user, "role", None) if user else None,
+        "mine": bool(erp_mine_only),
+        "stage": f_stage or "",
+        "q": f_q or "",
+    }
+    return build_dashboard_cache_key("production", "summary_counts", fingerprint)
+
+
+def production_attachment_slice_key(
+    user: Any, f_stage: str, f_q: str, erp_mine_only: bool, order_ids: list[int]
+) -> str:
+    """첨부 수 조각(``production/attachment_counts``) 캐시 키 — 그리는 행 id 집합에 묶인다."""
+    fingerprint = {
+        "v": DASHBOARD_CACHE_KEY_VERSION,
+        "uid": user.id if user else None,
+        "mine": bool(erp_mine_only),
+        "stage": f_stage or "",
+        "q": f_q or "",
+        "ids": sorted(order_ids),
+    }
+    return build_dashboard_cache_key("production", "attachment_counts", fingerprint)
+
+
+def production_attachment_slice_value(db: Any, rows: list[Any]) -> dict[str, int]:
+    """첨부 수 조각 값(JSON DTO). ``rows`` 는 ``id`` 만 있으면 된다."""
+    raw = fetch_production_attachment_counts(db, rows)
+    return {str(k): int(v) for k, v in raw.items()}
