@@ -442,16 +442,21 @@ ERP Order mobile-v2 tab pane.
                             <span class="erp-mobile-collapse-hint" aria-hidden="true"></span>
                         </button>
                         <div class="collapse" id="erp-mobile-collapse-received-body">
-                        <div class="field-grid-2">
-                            <div class="field erp-mobile-inline">
+                        {# 접수 3칸(접수인 | 접수일 | 접수시간) — 라벨은 위, 한 줄을 3등분한다. #}
+                        <div class="erp-received-trio">
+                            <div class="field erp-received-trio__cell">
+                                <span class="field__label" id="erp-received-by-label">접수인</span>
+                                {% include "orders/partials/erp_received_by.html" %}
+                            </div>
+                            <div class="field erp-received-trio__cell">
                                 <label class="field__label" for="erp-received-date">접수일</label>
                                 <input type="date" class="foms-input foms-tabular" id="erp-received-date" autocomplete="off">
                             </div>
-                            <div class="field erp-mobile-inline">
+                            <div class="field erp-received-trio__cell">
                                 <label class="field__label" for="erp-received-time-select">접수시간</label>
                                 <div class="erp-mobile-time-inline" id="erp-received-time-control">
                                     <select class="foms-select foms-tabular" id="erp-received-time-select" autocomplete="off">
-                                        <option value="">시간 선택</option>
+                                        <option value="">선택</option>
                                         <option value="오전">오전</option>
                                         <option value="오후">오후</option>
                                         <option value="__direct__">직접 입력</option>

@@ -101,17 +101,27 @@ ERP Order Tab Pane (shared between add_order and edit_order)
                     </div>
 
                     <div class="row g-2">
-                        <div class="col-md-4">
-                            <label class="form-label mb-1">접수일</label>
-                            <input type="date" class="form-control form-control-sm" id="erp-received-date"
-                                autocomplete="off">
+                        {# 접수 3칸(접수인 | 접수일 | 접수시간)은 예전 접수일+접수시간 자리(8/12)를 3등분한다.
+                           1200px 미만은 1/3 칸에 날짜가 잘려서 한 줄 전체를 쓰고 긴급 칸은 아랫줄로 간다. #}
+                        <div class="col-xl-8">
+                            <div class="erp-received-trio">
+                                <div class="erp-received-trio__cell">
+                                    <span class="form-label mb-1 d-block" id="erp-received-by-label">접수인</span>
+                                    {% include "orders/partials/erp_received_by.html" %}
+                                </div>
+                                <div class="erp-received-trio__cell">
+                                    <label class="form-label mb-1" for="erp-received-date">접수일</label>
+                                    <input type="date" class="form-control form-control-sm" id="erp-received-date"
+                                        autocomplete="off">
+                                </div>
+                                <div class="erp-received-trio__cell">
+                                    <label class="form-label mb-1" for="erp-received-time">접수시간</label>
+                                    <input type="time" class="form-control form-control-sm" id="erp-received-time"
+                                        autocomplete="off">
+                                </div>
+                            </div>
                         </div>
-                        <div class="col-md-4">
-                            <label class="form-label mb-1">접수시간</label>
-                            <input type="time" class="form-control form-control-sm" id="erp-received-time"
-                                autocomplete="off">
-                        </div>
-                        <div class="col-md-4">
+                        <div class="col-xl-4">
                             <div class="d-flex align-items-center gap-2 mb-1 flex-wrap">
                                 <label class="form-label mb-0">긴급 발주</label>
                                 <div class="form-check mb-0">

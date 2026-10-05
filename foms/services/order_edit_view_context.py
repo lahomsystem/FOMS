@@ -5,8 +5,32 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from models import Order
+from models import Order, OrderEvent, User
+from foms.services.datetime_kst import format_datetime_kst
 from foms.services.erp_order_flags import is_erp_order_record
+from foms.services.orders.order_create import CREATED_EVENT
+
+
+def build_order_creator(db: Any, order_id: int) -> dict[str, str] | None:
+    """최초 주문 생성자(접수인)를 ``ORDER_CREATED`` 이벤트 author 에서 읽는다.
+
+    ``create_order`` 가 모든 생성 경로(폼·ERP·복사·채널·네이버 수집)에서 이 이벤트를
+    남긴다. 그 전에 만들어진 옛 주문은 이벤트가 없어 None — 추정하지 않는다.
+    """
+    row = (
+        db.query(User.name, User.username, OrderEvent.created_at)
+        .join(User, User.id == OrderEvent.created_by_user_id)
+        .filter(OrderEvent.order_id == order_id, OrderEvent.event_type == CREATED_EVENT)
+        .order_by(OrderEvent.id.asc())
+        .first()
+    )
+    if row is None:
+        return None
+    name, username, created_at = row
+    return {
+        "name": (name or username or "").strip() or "이름 없음",
+        "created_at": format_datetime_kst(created_at, "%Y-%m-%d %H:%M") if created_at else "",
+    }
 
 
 def build_order_edit_get_context(order: Order, user: Any | None = None) -> dict[str, Any]:
@@ -109,6 +133,7 @@ def build_order_edit_get_context(order: Order, user: Any | None = None) -> dict[
         "direct_options": direct_options,
         "erp_bootstrap": erp_bootstrap,
         "erp_order_active": bool(is_erp_order_record(order)),
+        "order_creator": build_order_creator(get_db(), order.id),
         "as_schedule_drift": build_schedule_link_drift(
             getattr(order, "structured_data", None), get_db()
         ),
