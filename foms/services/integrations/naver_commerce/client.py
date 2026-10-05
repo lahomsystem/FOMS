@@ -23,9 +23,10 @@ import hashlib
 import json
 import logging
 import os
+import threading
 import time
 from datetime import date, datetime, timedelta, timezone
-from typing import Any, Iterator, Optional, Protocol, Sequence
+from typing import Any, Callable, Iterator, Optional, Protocol, Sequence
 
 import bcrypt
 
@@ -94,11 +95,74 @@ DEFAULT_MAX_RETRIES = 3
 BACKOFF_BASE_SECONDS = 1.0
 BACKOFF_CAP_SECONDS = 30.0
 
+#: 커머스API 게이트웨이 호출 한도(초당). 자사 스토어 앱은 전 API 2 RPS 고정이다
+#: (앱·API 단위 Token Bucket — 위 ``RATE_LIMIT_*`` 헤더 설명 참고).
+RATE_LIMIT_RPS = 2.0
+
 #: 429 를 맞은 **불가역 클레임 호출**이 한 번 더 보내기 전에 쉬는 시간(초).
 #: 지수 백오프가 아니라 고정값인 이유: 게이트웨이 한도가 2 RPS 고정이라 창 하나가 1초다
 #: (:data:`RATE_LIMIT_RPS`). 그 창 하나를 통째로 비우면 되고, 그보다 길게 쉬면 담당자가
 #: 버튼 앞에서 기다린다.
 RATE_LIMIT_RETRY_DELAY_SECONDS = 1.0
+
+#: 클레임 호출(취소·반품의 요청·승인·거부 5종)이 **미리** 지키는 초당 호출 수(성능 원장 P3-7).
+#: 집 하나의 상품주문 여러 건을 돌며 같은 클레임 API 를 연달아 부르면 한도를 넘겨 429 를
+#: 맞았다(운영 2건, 그중 반품 승인 실패 1건). 429 뒤 1회 재전송은 사후 복구이고, 이것은
+#: 그 전에 간격을 벌려 두는 사전 조절이다. 게이트웨이 한도와 같은 값을 쓴다.
+CLAIM_CALLS_PER_SECOND = RATE_LIMIT_RPS
+
+
+class CallSpacer:
+    """프로세스 전역 호출 간격 조절기 — 다음 호출이 나갈 수 있는 가장 이른 시각을 **예약**한다.
+
+    초당 ``calls_per_second`` 회를 넘지 않도록 호출 사이를 ``1 / calls_per_second`` 초 벌린다.
+    게이트웨이의 Token Bucket 은 버스트를 조금 허용하지만 그 크기에 기대지 않는다 — 고른
+    간격은 버스트가 1이어도 한도 안이다.
+
+    스레드·gevent 안전: 잠금 안에서는 시각 계산만 하고 **잠은 잠금 밖에서** 잔다
+    (:meth:`reserve` 는 기다릴 초만 돌려준다). 그래서 기다리는 쪽이 잠금을 쥔 채 다른
+    스레드·greenlet 을 막지 않고, 동시에 들어온 호출은 서로 다른 칸을 받는다.
+
+    프로세스 전역이라는 범위: rq 는 잡마다 fork 하므로 한 잡(집 하나의 클레임 처리) 안의
+    연속 호출을 조절한다. 다른 프로세스(수집 루프·다른 잡)와는 나누지 않는다 — 그쪽은
+    429 뒤 1회 재전송(:meth:`NaverCommerceClient._request`)이 그대로 받친다.
+    """
+
+    def __init__(self, calls_per_second: float, *,
+                 clock: Callable[[], float] = time.monotonic) -> None:
+        """조절기를 만든다.
+
+        Args:
+            calls_per_second: 초당 최대 호출 수(0보다 커야 한다).
+            clock: 단조 시계(테스트는 가짜 시계를 넣는다).
+
+        Raises:
+            ValueError: ``calls_per_second`` 가 0 이하일 때.
+        """
+        rate = float(calls_per_second)
+        if rate <= 0:
+            raise ValueError(f"초당 호출 수는 0보다 커야 합니다(받은 값: {calls_per_second!r}).")
+        self.interval = 1.0 / rate
+        self._clock = clock
+        self._lock = threading.Lock()
+        self._next_at: Optional[float] = None
+
+    def reserve(self) -> float:
+        """다음 칸을 예약하고, 그 칸까지 기다려야 할 초를 돌려준다(바로 나가도 되면 0).
+
+        Returns:
+            0 이상의 대기 초. 호출자가 그만큼 잔 뒤 요청을 보낸다.
+        """
+        with self._lock:
+            now = self._clock()
+            slot = now if self._next_at is None or self._next_at <= now else self._next_at
+            self._next_at = slot + self.interval
+        return max(0.0, slot - now)
+
+
+#: 클레임 호출이 공유하는 프로세스 전역 조절기. 클라이언트 인스턴스가 잡·호출마다 새로
+#: 만들어져도 같은 프로세스 안에서는 이 하나를 나눠 쓴다.
+CLAIM_CALL_SPACER = CallSpacer(CLAIM_CALLS_PER_SECOND)
 
 
 class NaverCommerceError(Exception):
@@ -335,6 +399,7 @@ class NaverCommerceClient:
         timeout: int = DEFAULT_TIMEOUT_SECONDS,
         max_retries: int = DEFAULT_MAX_RETRIES,
         sleep: Any = time.sleep,
+        claim_spacer: Optional[CallSpacer] = None,
     ) -> None:
         """자격증명은 인자 우선, 없으면 환경변수에서 읽는다(저장소에 두지 않는다).
 
@@ -346,7 +411,9 @@ class NaverCommerceClient:
             transport: ``request(method, url, **kwargs)`` 를 가진 객체(기본 ``requests.Session``).
             timeout: 요청 타임아웃(초).
             max_retries: 재시도 횟수(첫 시도 제외).
-            sleep: 백오프 대기 함수(테스트 주입용).
+            sleep: 백오프·간격 조절 대기 함수(테스트 주입용).
+            claim_spacer: 클레임 호출 간격 조절기. 기본은 프로세스 전역
+                :data:`CLAIM_CALL_SPACER`(테스트는 가짜 시계를 쓴 것을 넣는다).
         """
         self.client_id = client_id if client_id is not None else os.environ.get("NAVER_COMMERCE_CLIENT_ID", "")
         self._client_secret = (
@@ -359,6 +426,7 @@ class NaverCommerceClient:
         self._timeout = timeout
         self._max_retries = max_retries
         self._sleep = sleep
+        self._claim_spacer = claim_spacer if claim_spacer is not None else CLAIM_CALL_SPACER
         #: 마지막 응답의 시간당 할당 헤더(``gncp-gw-quota-limit``). **관측 전용**이다 —
         #: 값이 있으면 벌칙성 제한이 걸린 것이라 순회 호출자(정산 동기화)가 그 자리에서
         #: 멈추고 워터마크를 전진시키지 않는다. 헤더가 없는 응답이면 ``None`` 으로 돌아간다.
@@ -611,6 +679,8 @@ class NaverCommerceClient:
             # 429 만 예외로 1회 재전송한다(2026-09-08) — 게이트웨이가 본체에 넘기기 전에
             # 끊은 것이라 클레임이 만들어졌을 리가 없다. 판단은 ``_request`` 안에 있다.
             retry=False,
+            # 연달아 부를 때 한도를 넘지 않게 미리 간격을 벌린다(:data:`CLAIM_CALLS_PER_SECOND`).
+            throttle=True,
         )
 
     def approve_cancel_product_order(self, product_order_id: str) -> dict:
@@ -675,6 +745,8 @@ class NaverCommerceClient:
             # 429 만 예외로 1회 재전송한다(2026-09-08) — 게이트웨이가 본체에 넘기기 전에
             # 끊은 것이라 클레임이 만들어졌을 리가 없다. 판단은 ``_request`` 안에 있다.
             retry=False,
+            # 연달아 부를 때 한도를 넘지 않게 미리 간격을 벌린다(:data:`CLAIM_CALLS_PER_SECOND`).
+            throttle=True,
         )
 
     def request_return_product_order(self, product_order_id: str, *, reason: str,
@@ -735,6 +807,8 @@ class NaverCommerceClient:
             # 429 만 예외로 1회 재전송한다(2026-09-08) — 게이트웨이가 본체에 넘기기 전에
             # 끊은 것이라 클레임이 만들어졌을 리가 없다. 판단은 ``_request`` 안에 있다.
             retry=False,
+            # 연달아 부를 때 한도를 넘지 않게 미리 간격을 벌린다(:data:`CLAIM_CALLS_PER_SECOND`).
+            throttle=True,
         )
 
     def approve_return_product_order(self, product_order_id: str) -> dict:
@@ -771,6 +845,8 @@ class NaverCommerceClient:
             # 429 만 예외로 1회 재전송한다(2026-09-08) — 게이트웨이가 본체에 넘기기 전에
             # 끊은 것이라 클레임이 만들어졌을 리가 없다. 판단은 ``_request`` 안에 있다.
             retry=False,
+            # 연달아 부를 때 한도를 넘지 않게 미리 간격을 벌린다(:data:`CLAIM_CALLS_PER_SECOND`).
+            throttle=True,
         )
 
     def reject_return_product_order(self, product_order_id: str, *, reason: str) -> dict:
@@ -826,6 +902,8 @@ class NaverCommerceClient:
             # 429 만 예외로 1회 재전송한다(2026-09-08) — 게이트웨이가 본체에 넘기기 전에
             # 끊은 것이라 클레임이 만들어졌을 리가 없다. 판단은 ``_request`` 안에 있다.
             retry=False,
+            # 연달아 부를 때 한도를 넘지 않게 미리 간격을 벌린다(:data:`CLAIM_CALLS_PER_SECOND`).
+            throttle=True,
         )
 
     # -- 정산(pay-settle) --------------------------------------------------- #
@@ -1128,7 +1206,7 @@ class NaverCommerceClient:
     def _request(self, method: str, path: str, *, params: Optional[dict] = None,
                  data: Optional[dict] = None, json_body: Optional[dict] = None,
                  headers: Optional[dict] = None, authenticated: bool = True,
-                 retry: bool = True) -> dict:
+                 retry: bool = True, throttle: bool = False) -> dict:
         """재시도·토큰 갱신을 포함한 단일 API 호출. 파싱된 JSON dict를 돌려준다.
 
         429/5xx·네트워크 오류는 지수 백오프로 재시도하고, 401은 토큰을 강제 재발급해
@@ -1150,6 +1228,12 @@ class NaverCommerceClient:
         쉬고 **딱 한 번** 다시 보낸다. 두 번은 안 보낸다 — 두 번째까지 429 면 창이
         비어 있지 않다는 뜻이고, 그때는 사람이 나중에 누르는 편이 맞다.
 
+        ``throttle=True`` (클레임 5종)는 **보낼 때마다**(첫 전송·401 복구·429 재전송 모두)
+        프로세스 전역 조절기(:class:`CallSpacer`)에서 칸을 받아, 앞 클레임 호출과
+        ``1 / CLAIM_CALLS_PER_SECOND`` 초 이상 벌어진 뒤에 보낸다(2026-10-05, 원장 P3-7).
+        429 재전송은 이미 1초를 쉬었으므로 보통 더 기다리지 않는다. 토큰 발급·읽기 호출은
+        조절하지 않는다.
+
         Raises:
             NaverCommerceHTTPError: 재시도 소진 또는 재시도 대상이 아닌 오류 응답.
             NaverCommerceAuthError: 토큰 재발급 후에도 401.
@@ -1163,6 +1247,8 @@ class NaverCommerceClient:
         while True:
             if authenticated:
                 request_headers["Authorization"] = f"Bearer {self.get_access_token()}"
+            if throttle:
+                self._wait_for_claim_slot(method, path)
             try:
                 response = self._session().request(
                     method, url, params=params, data=data, json=json_body,
@@ -1206,6 +1292,22 @@ class NaverCommerceClient:
             if status == 401:
                 raise NaverCommerceAuthError(f"{method} {url} 인증 실패(401): {body[:300]}")
             raise NaverCommerceHTTPError(status, body, url=url)
+
+    def _wait_for_claim_slot(self, method: str, path: str) -> float:
+        """클레임 호출 칸을 예약하고 그 칸까지 잔다(잠은 조절기 잠금 밖에서).
+
+        Args:
+            method: HTTP 메서드(로그 식별용).
+            path: 호출 경로(로그 식별용).
+
+        Returns:
+            실제로 기다린 초(바로 나갔으면 0).
+        """
+        delay = self._claim_spacer.reserve()
+        if delay > 0:
+            logger.info("[NAVER] 클레임 호출 간격 조절 %.2fs 대기 (%s %s)", delay, method, path)
+            self._sleep(delay)
+        return delay
 
     def _log_rate_limit(self, response: Any, *, method: str, path: str,
                         status: int) -> None:
@@ -1272,6 +1374,9 @@ class NaverCommerceClient:
 
 __all__ = [
     "BASE_URL",
+    "CLAIM_CALLS_PER_SECOND",
+    "CLAIM_CALL_SPACER",
+    "CallSpacer",
     "KST",
     "MAX_WINDOW",
     "QUOTA_LIMIT_HEADER",

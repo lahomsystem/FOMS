@@ -14,8 +14,10 @@ import bcrypt
 import pytest
 
 from foms.services.integrations.naver_commerce.client import (
+    CLAIM_CALLS_PER_SECOND,
     DETAIL_BATCH_SIZE,
     KST,
+    CallSpacer,
     LAST_CHANGED_MAX_PAGES,
     MemoryTokenCache,
     NaverCommerceAuthError,
@@ -75,15 +77,36 @@ def token_response(expires_in: int = 10799) -> FakeResponse:
     return FakeResponse(200, {"access_token": "tok-abc", "expires_in": expires_in})
 
 
+class FakeClock:
+    """가짜 단조 시계 — 가짜 sleep 만큼만 흐른다(클레임 간격 조절기 주입용)."""
+
+    def __init__(self) -> None:
+        self.now = 0.0
+
+    def __call__(self) -> float:
+        return self.now
+
+
 def make_client(routes: dict[str, list[FakeResponse]], **kwargs) -> tuple[NaverCommerceClient, FakeTransport, list]:
-    """전송·캐시·sleep 을 모두 주입한 클라이언트를 만든다(네트워크·실대기 없음)."""
+    """전송·캐시·sleep 을 모두 주입한 클라이언트를 만든다(네트워크·실대기 없음).
+
+    클레임 간격 조절기도 클라이언트마다 새로 주고, 그 시계는 가짜 sleep 만큼만 흐른다.
+    프로세스 전역 조절기를 쓰면 앞 테스트가 예약한 칸이 다음 테스트의 ``slept`` 에 섞인다.
+    """
     transport = FakeTransport(routes)
     slept: list[float] = []
+    clock = kwargs.pop("clock", None) or FakeClock()
+
+    def fake_sleep(seconds: float) -> None:
+        slept.append(seconds)
+        clock.now += seconds
+
     client = NaverCommerceClient(
         CLIENT_ID, SECRET,
         transport=transport,
         token_cache=kwargs.pop("token_cache", MemoryTokenCache()),
-        sleep=slept.append,
+        sleep=fake_sleep,
+        claim_spacer=kwargs.pop("claim_spacer", None) or CallSpacer(CLAIM_CALLS_PER_SECOND, clock=clock),
         **kwargs,
     )
     return client, transport, slept
