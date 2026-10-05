@@ -237,16 +237,108 @@ def test_preload_covers_the_module_every_enqueued_job_lives_in() -> None:
     assert "foms.services.storage" in runner.PRELOAD_MODULES  # 썸네일 잡의 R2 초기화
 
 
-def test_preload_warms_storage_without_keeping_an_adapter(monkeypatch) -> None:
+class _FakeCloudClient:
+    def __init__(self) -> None:
+        self.closed = 0
+
+    def close(self) -> None:
+        self.closed += 1
+
+
+def _fake_adapter(storage_type: str, with_client: bool = True):
+    return SimpleNamespace(storage_type=storage_type,
+                           client=_FakeCloudClient() if with_client else None)
+
+
+def test_preload_keeps_one_cloud_adapter_for_every_job_child(monkeypatch) -> None:
+    """P3-7: 부모가 만든 R2 어댑터가 전역에 남아, fork 된 잡 자식의 get_storage() 가 새로 안 만든다."""
     import foms.services.storage as storage
 
     runner = _load_runner()
     made = []
-    monkeypatch.setattr(storage, "StorageAdapter", lambda: made.append(1))
+    adapter = _fake_adapter("r2")
+    monkeypatch.setattr(storage, "StorageAdapter", lambda: made.append(1) or adapter)
     monkeypatch.setattr(storage, "_storage_instance", None)
     assert runner.preload_job_modules({}) == list(runner.PRELOAD_MODULES)
     assert made == [1]
-    assert storage._storage_instance is None, "부모가 어댑터를 쥐면 모든 잡 자식이 그것을 나눠 쓴다"
+    assert storage._storage_instance is adapter
+    assert storage.get_storage() is adapter and made == [1], "자식이 어댑터를 다시 만들면 안 된다"
+
+
+@pytest.mark.parametrize("storage_type, with_client", [("local", False), ("r2", False)])
+def test_preload_never_keeps_a_fallback_adapter(monkeypatch, storage_type, with_client) -> None:
+    """음성 대조: 로컬 폴백(또는 클라이언트 없는 어댑터)을 남기면 한 번의 실패가 모든 잡으로 번진다."""
+    import foms.services.storage as storage
+
+    runner = _load_runner()
+    monkeypatch.setattr(storage, "StorageAdapter", lambda: _fake_adapter(storage_type, with_client))
+    monkeypatch.setattr(storage, "_storage_instance", None)
+    assert runner.preload_job_modules({}) == list(runner.PRELOAD_MODULES)
+    assert storage._storage_instance is None
+
+
+def test_preload_switched_off_keeps_no_adapter(monkeypatch) -> None:
+    import foms.services.storage as storage
+
+    runner = _load_runner()
+    monkeypatch.setattr(storage, "StorageAdapter", lambda: pytest.fail("꺼졌는데 만들었다"))
+    monkeypatch.setattr(storage, "_storage_instance", None)
+    assert runner.preload_job_modules({runner.PRELOAD_ENV: "0"}) == []
+    assert storage._storage_instance is None
+
+
+def test_job_child_empties_the_inherited_storage_pool_next_to_the_db_dispose(monkeypatch) -> None:
+    """fork 직후 자식 진입점이 DB 풀과 함께 물려받은 R2 연결 풀도 비운다."""
+    import foms.services.storage as storage
+
+    runner = _load_runner()
+    adapter = _fake_adapter("r2")
+    monkeypatch.setattr(storage, "_storage_instance", adapter)
+    order = []
+    monkeypatch.setattr(runner.engine, "dispose", lambda close=True: order.append(("db", close)))
+    monkeypatch.setattr(runner.Worker, "main_work_horse",
+                        lambda self, *a, **k: order.append(("job", adapter.client.closed)),
+                        raising=False)
+    worker = runner.HeartbeatWorker.__new__(runner.HeartbeatWorker)
+    runner.HeartbeatWorker.main_work_horse(worker, "job", "queue")
+    assert order == [("db", False), ("job", 1)], "잡이 돌기 전에 물려받은 풀을 비워야 한다"
+
+
+def test_storage_pool_drop_is_quiet_without_an_adapter_and_survives_errors(monkeypatch) -> None:
+    import foms.services.storage as storage
+
+    runner = _load_runner()
+    monkeypatch.setattr(storage, "_storage_instance", None)
+    assert runner.drop_inherited_storage_connections() is False
+    monkeypatch.setattr(storage, "_storage_instance", _fake_adapter("local", with_client=False))
+    assert runner.drop_inherited_storage_connections() is False
+
+    class _Broken:
+        def close(self) -> None:
+            raise OSError("socket")
+
+    monkeypatch.setattr(storage, "_storage_instance", SimpleNamespace(storage_type="r2", client=_Broken()))
+    assert runner.drop_inherited_storage_connections() is False
+
+
+def test_storage_pool_drop_never_imports_storage_when_the_parent_did_not(monkeypatch) -> None:
+    runner = _load_runner()
+    monkeypatch.delitem(sys.modules, runner.STORAGE_MODULE, raising=False)
+    assert runner.drop_inherited_storage_connections() is False
+    assert runner.STORAGE_MODULE not in sys.modules
+
+
+def test_real_boto3_client_survives_a_pool_drop(monkeypatch) -> None:
+    """실물 boto3 클라이언트: 풀을 비운 뒤에도 같은 객체로 요청을 만들 수 있다(네트워크 없이 서명만)."""
+    boto3 = pytest.importorskip("boto3")
+    import foms.services.storage as storage
+
+    client = boto3.client("s3", endpoint_url="https://example.invalid", region_name="auto",
+                          aws_access_key_id="k", aws_secret_access_key="s")
+    monkeypatch.setattr(storage, "_storage_instance", SimpleNamespace(storage_type="r2", client=client))
+    assert storage.drop_inherited_connections() is True
+    url = client.generate_presigned_url("get_object", Params={"Bucket": "b", "Key": "x"}, ExpiresIn=60)
+    assert url.startswith("https://example.invalid/b/x?")
 
 
 def test_preload_can_be_switched_off_and_never_raises(monkeypatch) -> None:

@@ -23,6 +23,9 @@ max(등록부 900, 405 x 3) = **1215초**다 — 등록부 900 은 신고가 없
 - 듣기 전에 잡 모듈을 부모에서 미리 연다. rq ``Worker`` 는 잡마다 ``fork`` 하고 자식이 잡 함수를
   import 하므로, 부모가 열어 둔 모듈은 자식이 공짜로 물려받는다. 썸네일 잡은 그동안 잡마다
   저장소 모듈을 열고 boto3 를 처음부터 데웠다(로컬 실측 약 0.25초, 로그의 R2 활성화 줄).
+- 저장소 어댑터도 부모가 한 번 만들어 둔다(2026-10-05, 성능 원장 P3-7). 10-02 판은 세션만
+  데우고 어댑터는 버려서 잡마다 약 5ms + 활성화 로그 2줄이 남았다(135잡 135줄). 클라우드
+  어댑터일 때만 남기고, 자식은 시작할 때 물려받은 연결 풀을 비운다(:meth:`main_work_horse`).
 
 사용::
 
@@ -69,6 +72,29 @@ PRELOAD_ENV = "FOMS_RQ_PRELOAD_JOBS"
 #: ``_TASK_PATH_PREFIX``·푸시의 ``_PUSH_TASK`` — 같은 이름임을 시험이 지킨다).
 PRELOAD_MODULES = ("foms.services.jobs.tasks", "foms.services.storage")
 
+#: 어댑터까지 부모에서 만들어 두는 저장소 모듈(자식은 :func:`drop_inherited_storage_connections`).
+STORAGE_MODULE = "foms.services.storage"
+
+
+def drop_inherited_storage_connections() -> bool:
+    """자식이 물려받은 저장소 클라이언트의 연결 풀을 비운다 — 저장소를 연 적 없으면 아무것도 안 한다.
+
+    부모가 저장소 모듈을 안 열었으면(미리 열기 꺼짐) ``sys.modules`` 에 없으므로 여기서 새로
+    import 하지 않는다 — 비울 것이 없는데 모듈을 여는 비용만 생긴다.
+
+    Returns:
+        비웠으면 True. 저장소 미적재·클라이언트 없음·실패는 False(잡은 그대로 돈다).
+    """
+    module = sys.modules.get(STORAGE_MODULE)
+    drop = getattr(module, "drop_inherited_connections", None)
+    if not callable(drop):
+        return False
+    try:
+        return bool(drop())
+    except Exception as exc:  # noqa: BLE001 - 정리 실패가 잡을 막으면 안 된다
+        _LOGGER.warning("물려받은 저장소 연결 정리 실패(무시): %s", exc)
+        return False
+
 
 def mark_ready(env: Mapping[str, str]) -> bool:
     """감독자에게 "큐를 듣고 있다" 고 알리는 표식 파일을 만든다. 실패해도 워커는 계속 돈다.
@@ -95,10 +121,10 @@ def mark_ready(env: Mapping[str, str]) -> bool:
 def preload_job_modules(env: Mapping[str, str]) -> list[str]:
     """잡 자식들이 물려받도록 부모에서 잡 모듈을 미리 연다.
 
-    저장소는 모듈만이 아니라 boto3 기본 세션도 데운다 — 버려지는 어댑터를 한 번 만들면 서비스
-    모델 JSON 이 세션 캐시에 올라가, 자식의 ``get_storage()`` 가 약 0.2초에서 수 ms 로 준다
-    (로컬 실측). 어댑터 인스턴스 자체는 부모에 남기지 않는다 — 자식마다 자기 것을 만들어야
-    한 번의 생성 실패(로컬 저장소 폴백)가 그 뒤 모든 잡으로 번지지 않는다.
+    저장소는 모듈만이 아니라 어댑터까지 만든다(:func:`foms.services.storage.prime_shared_storage`).
+    클라우드 어댑터면 전역 싱글톤으로 남아 자식의 ``get_storage()`` 가 새로 만들지 않고(로컬
+    실측 약 5ms + 로그 2줄 → 0), 생성이 로컬 저장소로 폴백했으면 남기지 않는다 — 한 번의
+    생성 실패가 그 뒤 모든 잡으로 번지면 안 된다. 그 경우에도 boto3 세션은 이미 데워졌다.
 
     미리 열기가 실패해도 워커는 뜬다 — 잡마다 여는 예전 방식으로 돌아갈 뿐이다.
 
@@ -114,8 +140,8 @@ def preload_job_modules(env: Mapping[str, str]) -> list[str]:
     for name in PRELOAD_MODULES:
         try:
             module = importlib.import_module(name)
-            if name == "foms.services.storage":
-                module.StorageAdapter()  # 세션 데우기용 — 버린다(위 설명)
+            if name == STORAGE_MODULE:
+                module.prime_shared_storage()  # 클라우드면 남기고 폴백이면 버린다(위 설명)
         except Exception as exc:  # noqa: BLE001 - 미리 열기 실패가 워커 기동을 막으면 안 된다
             _LOGGER.warning("잡 모듈 미리 열기 실패(%s) — 잡마다 여는 방식으로 계속: %s", name, exc)
             continue
@@ -205,8 +231,13 @@ class HeartbeatWorker(HeartbeatWorkerMixin, Worker):
 
         ``dispose(close=False)`` 는 풀에서 참조만 버리고 소켓을 닫지 않는다 — 닫으면 그
         소켓의 진짜 주인인 **부모의 연결까지** 끊긴다.
+
+        저장소(R2) 클라이언트도 부모가 만들어 물려준다(:func:`preload_job_modules`). 그 풀은
+        보통 비어 있지만, 같은 모양의 공유가 생기지 않게 자식 쪽 풀을 비운다 — HTTP/TLS 소켓은
+        닫아도 종료 신호를 보내지 않아 DB 와 달리 부모 연결을 끊지 않는다.
         """
         engine.dispose(close=False)
+        drop_inherited_storage_connections()
         # 자식은 자기 시각으로 다시 센다(부모가 방금 썼다는 표식을 물려받으면 안 된다).
         self._last_db_heartbeat_at = None
         return super().main_work_horse(*args, **kwargs)

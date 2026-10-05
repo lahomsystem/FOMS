@@ -1085,6 +1085,8 @@
             }
         }
 
+        /* 종은 안 읽은 알림이 있는 동안 계속 흔든다 — 사용자 결정(2026-10-05). 3번만 흔드는 안은 유휴 메인
+           스레드를 AS 탭 70→22ms·대시보드 28→14ms 로 줄였지만(성능 원장 P3-8), 눈길을 끄는 쪽을 택했다. */
         .bell-active {
             animation: bell-shake 2.5s infinite;
             color: #ffc107 !important;

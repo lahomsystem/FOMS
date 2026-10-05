@@ -1,11 +1,11 @@
 """Auth blueprint and helpers (canonical; SFC-B11B)."""
 
-from flask import Blueprint, render_template, request, redirect, url_for, flash, session, current_app, g, abort
+from flask import Blueprint, render_template, request, redirect, url_for, flash, session, current_app, g, abort, has_request_context
 from functools import wraps
 from datetime import datetime, timezone
 import logging
 import re
-from sqlalchemy import case
+from sqlalchemy import case, inspect as sa_inspect
 from sqlalchemy.exc import IntegrityError
 from werkzeug.security import check_password_hash
 
@@ -244,6 +244,30 @@ def get_user_by_id(user_id):
     db = get_db()
     return db.query(User).filter(User.id == user_id).first()
 
+
+def get_request_user(user_id):
+    """:func:`get_user_by_id` 와 같은 사용자를 돌려주되, 이 요청의 before_request
+    (``_set_current_user``)가 이미 읽은 ``g.current_user`` 가 **같은 사용자이고 아직 세션에
+    붙어 있으면** 다시 조회하지 않는다(원장 P3-8 — 요청마다 같은 사용자를 2~4번 읽었다).
+
+    예전 조회도 세션 identity map 의 같은 객체를 돌려줬으므로 결과는 같다. 만료(expired)된
+    인스턴스는 그대로 쓴다 — 속성에 닿을 때 같은 세션이 PK 로 다시 읽는데, 그 횟수는 예전
+    조회와 같다. id 가 다르거나(요청 중 사용자 전환), 세션에서 떨어졌거나(detached·삭제),
+    판정이 실패하면 예전처럼 조회한다.
+    """
+    user = getattr(g, 'current_user', None) if has_request_context() else None
+    if user is not None and user_id is not None:
+        state = sa_inspect(user, raiseerr=False)
+        try:
+            same_user = bool(
+                state is not None and state.persistent and state.identity == (int(user_id),)
+            )
+        except (TypeError, ValueError):  # id 모양이 이상하면 판정하지 않고 예전처럼 조회
+            same_user = False
+        if same_user:
+            return user
+    return get_user_by_id(user_id)
+
 def update_last_login(user_id):
     """Update the last login timestamp for a user as UTC-naive DB time."""
     try:
@@ -300,7 +324,7 @@ def role_required(roles):
                 flash('로그인이 필요합니다.', 'error')
                 return redirect(url_for('auth.login', next=request.url))
             
-            user = get_user_by_id(session['user_id'])
+            user = get_request_user(session['user_id'])
             if not user:
                 session.clear()
                 flash('사용자를 찾을 수 없습니다. 다시 로그인해주세요.', 'error')

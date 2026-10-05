@@ -7,6 +7,9 @@ from __future__ import annotations
 import json
 import os
 
+from flask import g, has_request_context
+from sqlalchemy import event
+
 from foms.persistence.main.db import db_session
 from foms.persistence.main.models import SystemSetting
 from foms.services.erp_display import manager_display_name
@@ -200,8 +203,73 @@ def _project_loaded_settings(data):
     }
 
 
+# --- 요청당 캐시 -------------------------------------------------------------
+#
+# 출고 설정은 한 요청 안에서 1~3번 읽힌다(화면 본체 + 템플릿 담당자 후보 + 견적 연락처 등,
+# 원장 P3-8). 값은 요청 사이에 바뀔 수 있으므로 **요청 하나 안에서만** 기억한다(flask.g —
+# 요청이 끝나면 버려진다). 요청 밖(워커·스크립트)에서는 기억하지 않는다 — 앱 컨텍스트가
+# 여러 잡에 걸쳐 오래 살 수 있다.
+#
+# 기억하는 것은 **DB 에서 읽은 저장 값 그 자체**(``setting_value``)이고, 투영
+# (:func:`_project_loaded_settings`)은 예전처럼 호출마다 한다. 예전에도 같은 요청의 두 번째
+# 조회는 세션 identity map 의 같은 행 객체를 돌려줬으므로 호출부가 받는 모양·공유 관계는
+# 그대로다 — 줄어드는 것은 DB 왕복뿐이고 사본 복사 비용도 새로 생기지 않는다.
+#
+# 같은 요청 안에서 이 행을 고치면 기억을 지운다: 값 대입·flag_modified(속성 이벤트),
+# flush 된 insert/update/delete(매퍼 이벤트), 세션 롤백. 그래서 저장 직후 다시 읽으면
+# 예전처럼 새 값이 나온다.
+_REQUEST_CACHE_ATTR = "_foms_erp_shipment_settings_raw"
+#: "저장된 설정 없음(기본값)" 을 기억하는 표식 — ``None`` 은 "아직 안 읽음" 이다.
+_NO_SAVED_SETTINGS = object()
+
+
+def _request_cached_raw():
+    if not has_request_context():
+        return None
+    return getattr(g, _REQUEST_CACHE_ATTR, None)
+
+
+def _remember_for_request(raw) -> None:
+    if has_request_context():
+        setattr(g, _REQUEST_CACHE_ATTR, raw)
+
+
+def _forget_for_request() -> None:
+    if has_request_context():
+        g.pop(_REQUEST_CACHE_ATTR, None)
+
+
+def _is_shipment_settings_row(target) -> bool:
+    return getattr(target, "setting_key", None) == ERP_SHIPMENT_SETTINGS_KEY
+
+
+def _on_row_written(mapper, connection, target) -> None:  # noqa: ARG001 - SQLAlchemy 서명
+    if _is_shipment_settings_row(target):
+        _forget_for_request()
+
+
+def _on_value_changed(target, *_args) -> None:
+    if _is_shipment_settings_row(target):
+        _forget_for_request()
+
+
+def _on_session_rollback(session, previous_transaction=None) -> None:  # noqa: ARG001
+    _forget_for_request()
+
+
+for _row_event in ("after_insert", "after_update", "after_delete"):
+    event.listen(SystemSetting, _row_event, _on_row_written)
+event.listen(SystemSetting.setting_value, "set", _on_value_changed)
+event.listen(SystemSetting.setting_value, "modified", _on_value_changed)
+event.listen(db_session, "after_soft_rollback", _on_session_rollback)
+
+
 def load_erp_shipment_settings():
-    """ERP 출고 설정(시공시간/도면담당자/시공자/현장주소) DB에서 로드. (이전 JSON 파일 대체)"""
+    """ERP 출고 설정(시공시간/도면담당자/시공자/현장주소) DB에서 로드. (이전 JSON 파일 대체)
+
+    같은 요청 안의 두 번째 호출부터는 DB 를 다시 읽지 않는다(위 "요청당 캐시").
+    """
+    cached_raw = _request_cached_raw()
     default_settings = {
         'construction_time': [],
         'drawing_manager': [],
@@ -210,9 +278,14 @@ def load_erp_shipment_settings():
         'construction_workers': [],
         'site_extra': []
     }
+    if cached_raw is _NO_SAVED_SETTINGS:
+        return default_settings
+    if cached_raw is not None:
+        return _project_loaded_settings(cached_raw)
     try:
         setting = db_session.query(SystemSetting).filter_by(setting_key=ERP_SHIPMENT_SETTINGS_KEY).first()
         if setting and setting.setting_value:
+            _remember_for_request(setting.setting_value)
             return _project_loaded_settings(setting.setting_value)
 
         # Migration from JSON if DB is empty
@@ -229,8 +302,10 @@ def load_erp_shipment_settings():
                 db_session.add(new_setting)
                 db_session.commit()
 
+                _remember_for_request(data)
                 return _project_loaded_settings(data)
 
+        _remember_for_request(_NO_SAVED_SETTINGS)
         return default_settings
     except Exception as e:
         db_session.rollback()

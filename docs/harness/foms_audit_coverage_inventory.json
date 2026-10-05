@@ -392,7 +392,7 @@
     {
       "path": "foms/api/drawing/erp_orders_drawing.py",
       "endpoint": "api_drawing_gateway_complete",
-      "lineno": 832,
+      "lineno": 875,
       "methods": [
         "POST"
       ],
@@ -401,7 +401,7 @@
     {
       "path": "foms/api/drawing/erp_orders_drawing.py",
       "endpoint": "api_drawing_gateway_upload",
-      "lineno": 787,
+      "lineno": 830,
       "methods": [
         "POST"
       ],
@@ -410,7 +410,7 @@
     {
       "path": "foms/api/drawing/erp_orders_drawing.py",
       "endpoint": "api_order_cancel_transfer",
-      "lineno": 494,
+      "lineno": 537,
       "methods": [
         "POST"
       ],
@@ -419,7 +419,7 @@
     {
       "path": "foms/api/drawing/erp_orders_drawing.py",
       "endpoint": "api_order_transfer_drawing",
-      "lineno": 432,
+      "lineno": 475,
       "methods": [
         "POST"
       ],
@@ -500,7 +500,7 @@
     {
       "path": "foms/api/drawing/wizard.py",
       "endpoint": "api_post_drawing_wizard_presets",
-      "lineno": 1701,
+      "lineno": 1702,
       "methods": [
         "POST"
       ],
@@ -527,7 +527,7 @@
     {
       "path": "foms/api/drawing/wizard.py",
       "endpoint": "api_post_drawing_wizard_version_snapshot",
-      "lineno": 1509,
+      "lineno": 1510,
       "methods": [
         "POST"
       ],
@@ -761,7 +761,7 @@
     {
       "path": "foms/api/files/direct_upload.py",
       "endpoint": "api_order_attachments_complete",
-      "lineno": 186,
+      "lineno": 205,
       "methods": [
         "POST"
       ],
@@ -770,7 +770,7 @@
     {
       "path": "foms/api/files/direct_upload.py",
       "endpoint": "api_upload_session",
-      "lineno": 62,
+      "lineno": 73,
       "methods": [
         "POST"
       ],
@@ -779,7 +779,7 @@
     {
       "path": "foms/api/files/direct_upload.py",
       "endpoint": "api_upload_session_batch",
-      "lineno": 121,
+      "lineno": 136,
       "methods": [
         "POST"
       ],
@@ -788,7 +788,7 @@
     {
       "path": "foms/api/files/order_routes.py",
       "endpoint": "api_order_attachments_delete",
-      "lineno": 646,
+      "lineno": 674,
       "methods": [
         "DELETE"
       ],
@@ -797,7 +797,7 @@
     {
       "path": "foms/api/files/order_routes.py",
       "endpoint": "api_order_attachments_patch",
-      "lineno": 472,
+      "lineno": 500,
       "methods": [
         "PATCH"
       ],
@@ -806,7 +806,7 @@
     {
       "path": "foms/api/files/order_routes.py",
       "endpoint": "api_order_attachments_reorder",
-      "lineno": 571,
+      "lineno": 599,
       "methods": [
         "POST"
       ],
@@ -815,7 +815,7 @@
     {
       "path": "foms/api/files/order_routes.py",
       "endpoint": "api_order_attachments_restore",
-      "lineno": 729,
+      "lineno": 757,
       "methods": [
         "POST"
       ],
@@ -824,7 +824,7 @@
     {
       "path": "foms/api/files/order_routes.py",
       "endpoint": "api_order_attachments_upload",
-      "lineno": 351,
+      "lineno": 376,
       "methods": [
         "POST"
       ],
@@ -860,7 +860,7 @@
     {
       "path": "foms/api/files/upload_ticket_routes.py",
       "endpoint": "api_complete_upload_ticket",
-      "lineno": 102,
+      "lineno": 107,
       "methods": [
         "POST"
       ],
@@ -869,7 +869,7 @@
     {
       "path": "foms/api/files/upload_ticket_routes.py",
       "endpoint": "api_issue_upload_ticket",
-      "lineno": 60,
+      "lineno": 61,
       "methods": [
         "POST"
       ],
@@ -1554,7 +1554,7 @@
     {
       "path": "foms/web/admin/naver_ingest.py",
       "endpoint": "naver_ingest_attach_order",
-      "lineno": 6401,
+      "lineno": 6409,
       "methods": [
         "POST"
       ],
@@ -1563,7 +1563,7 @@
     {
       "path": "foms/web/admin/naver_ingest.py",
       "endpoint": "naver_ingest_backfill",
-      "lineno": 6973,
+      "lineno": 6981,
       "methods": [
         "POST"
       ],
@@ -1572,7 +1572,7 @@
     {
       "path": "foms/web/admin/naver_ingest.py",
       "endpoint": "naver_ingest_bulk_dispatch",
-      "lineno": 5462,
+      "lineno": 5470,
       "methods": [
         "POST"
       ],
@@ -1581,7 +1581,7 @@
     {
       "path": "foms/web/admin/naver_ingest.py",
       "endpoint": "naver_ingest_cancel",
-      "lineno": 5780,
+      "lineno": 5788,
       "methods": [
         "POST"
       ],
@@ -1590,7 +1590,7 @@
     {
       "path": "foms/web/admin/naver_ingest.py",
       "endpoint": "naver_ingest_cancel_approve",
-      "lineno": 6179,
+      "lineno": 6187,
       "methods": [
         "POST"
       ],
@@ -1599,7 +1599,7 @@
     {
       "path": "foms/web/admin/naver_ingest.py",
       "endpoint": "naver_ingest_create_order",
-      "lineno": 5031,
+      "lineno": 5039,
       "methods": [
         "POST"
       ],
@@ -1608,7 +1608,7 @@
     {
       "path": "foms/web/admin/naver_ingest.py",
       "endpoint": "naver_ingest_detach_order",
-      "lineno": 6619,
+      "lineno": 6627,
       "methods": [
         "POST"
       ],
@@ -1617,7 +1617,7 @@
     {
       "path": "foms/web/admin/naver_ingest.py",
       "endpoint": "naver_ingest_dock_state",
-      "lineno": 6696,
+      "lineno": 6704,
       "methods": [
         "POST"
       ],
@@ -1626,7 +1626,7 @@
     {
       "path": "foms/web/admin/naver_ingest.py",
       "endpoint": "naver_ingest_fulfillment",
-      "lineno": 5384,
+      "lineno": 5392,
       "methods": [
         "POST"
       ],
@@ -1635,7 +1635,7 @@
     {
       "path": "foms/web/admin/naver_ingest.py",
       "endpoint": "naver_ingest_fulfillment_clear",
-      "lineno": 6224,
+      "lineno": 6232,
       "methods": [
         "POST"
       ],
@@ -1644,7 +1644,7 @@
     {
       "path": "foms/web/admin/naver_ingest.py",
       "endpoint": "naver_ingest_ghost_discard",
-      "lineno": 5531,
+      "lineno": 5539,
       "methods": [
         "POST"
       ],
@@ -1653,7 +1653,7 @@
     {
       "path": "foms/web/admin/naver_ingest.py",
       "endpoint": "naver_ingest_ghost_repay_expected",
-      "lineno": 5627,
+      "lineno": 5635,
       "methods": [
         "POST"
       ],
@@ -1662,7 +1662,7 @@
     {
       "path": "foms/web/admin/naver_ingest.py",
       "endpoint": "naver_ingest_ghost_repay_settled",
-      "lineno": 5713,
+      "lineno": 5721,
       "methods": [
         "POST"
       ],
@@ -1671,7 +1671,7 @@
     {
       "path": "foms/web/admin/naver_ingest.py",
       "endpoint": "naver_ingest_mark_reviewed",
-      "lineno": 6666,
+      "lineno": 6674,
       "methods": [
         "POST"
       ],
@@ -1680,7 +1680,7 @@
     {
       "path": "foms/web/admin/naver_ingest.py",
       "endpoint": "naver_ingest_origin_cleanup_refresh",
-      "lineno": 5319,
+      "lineno": 5327,
       "methods": [
         "POST"
       ],
@@ -1689,7 +1689,7 @@
     {
       "path": "foms/web/admin/naver_ingest.py",
       "endpoint": "naver_ingest_refresh",
-      "lineno": 5086,
+      "lineno": 5094,
       "methods": [
         "POST"
       ],
@@ -1698,7 +1698,7 @@
     {
       "path": "foms/web/admin/naver_ingest.py",
       "endpoint": "naver_ingest_refresh_all",
-      "lineno": 5145,
+      "lineno": 5153,
       "methods": [
         "POST"
       ],
@@ -1707,7 +1707,7 @@
     {
       "path": "foms/web/admin/naver_ingest.py",
       "endpoint": "naver_ingest_repay_reconcile",
-      "lineno": 6474,
+      "lineno": 6482,
       "methods": [
         "POST"
       ],
@@ -1716,7 +1716,7 @@
     {
       "path": "foms/web/admin/naver_ingest.py",
       "endpoint": "naver_ingest_return",
-      "lineno": 5849,
+      "lineno": 5857,
       "methods": [
         "POST"
       ],
@@ -1725,7 +1725,7 @@
     {
       "path": "foms/web/admin/naver_ingest.py",
       "endpoint": "naver_ingest_return_approve",
-      "lineno": 6203,
+      "lineno": 6211,
       "methods": [
         "POST"
       ],
@@ -1734,7 +1734,7 @@
     {
       "path": "foms/web/admin/naver_ingest.py",
       "endpoint": "naver_ingest_return_reject",
-      "lineno": 5995,
+      "lineno": 6003,
       "methods": [
         "POST"
       ],
@@ -1743,7 +1743,7 @@
     {
       "path": "foms/web/admin/naver_ingest.py",
       "endpoint": "naver_ingest_run_now",
-      "lineno": 6871,
+      "lineno": 6879,
       "methods": [
         "POST"
       ],
@@ -1752,7 +1752,7 @@
     {
       "path": "foms/web/admin/naver_ingest.py",
       "endpoint": "naver_ingest_save_reject_templates",
-      "lineno": 5933,
+      "lineno": 5941,
       "methods": [
         "POST"
       ],
@@ -1761,7 +1761,7 @@
     {
       "path": "foms/web/admin/naver_ingest.py",
       "endpoint": "naver_ingest_set_app_expiry",
-      "lineno": 7094,
+      "lineno": 7102,
       "methods": [
         "POST"
       ],
@@ -1770,7 +1770,7 @@
     {
       "path": "foms/web/admin/naver_ingest.py",
       "endpoint": "naver_ingest_set_assignee",
-      "lineno": 6778,
+      "lineno": 6786,
       "methods": [
         "POST"
       ],
@@ -1806,7 +1806,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "add_user",
-      "lineno": 730,
+      "lineno": 754,
       "methods": [
         "POST"
       ],
@@ -1815,7 +1815,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "approve_user",
-      "lineno": 1005,
+      "lineno": 1029,
       "methods": [
         "POST"
       ],
@@ -1824,7 +1824,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "delete_user",
-      "lineno": 929,
+      "lineno": 953,
       "methods": [
         "POST"
       ],
@@ -1833,7 +1833,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "edit_user",
-      "lineno": 792,
+      "lineno": 816,
       "methods": [
         "POST"
       ],
@@ -1842,7 +1842,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "handle_reset_request",
-      "lineno": 1094,
+      "lineno": 1118,
       "methods": [
         "POST"
       ],
@@ -1851,7 +1851,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "login",
-      "lineno": 358,
+      "lineno": 382,
       "methods": [
         "POST"
       ],
@@ -1860,7 +1860,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "logout",
-      "lineno": 449,
+      "lineno": 473,
       "methods": [
         "POST"
       ],
@@ -1869,7 +1869,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "password_reset_request",
-      "lineno": 642,
+      "lineno": 666,
       "methods": [
         "POST"
       ],
@@ -1878,7 +1878,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "profile",
-      "lineno": 1142,
+      "lineno": 1166,
       "methods": [
         "POST"
       ],
@@ -1887,7 +1887,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "register",
-      "lineno": 537,
+      "lineno": 561,
       "methods": [
         "POST"
       ],
@@ -1896,7 +1896,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "reject_user",
-      "lineno": 1058,
+      "lineno": 1082,
       "methods": [
         "POST"
       ],
@@ -1905,7 +1905,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "switch_back",
-      "lineno": 512,
+      "lineno": 536,
       "methods": [
         "POST"
       ],
@@ -1914,7 +1914,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "switch_user",
-      "lineno": 464,
+      "lineno": 488,
       "methods": [
         "POST"
       ],
@@ -1950,7 +1950,7 @@
     {
       "path": "foms/web/orders/trash.py",
       "endpoint": "delete_order",
-      "lineno": 178,
+      "lineno": 209,
       "methods": [
         "POST"
       ],
@@ -1959,7 +1959,7 @@
     {
       "path": "foms/web/orders/trash.py",
       "endpoint": "restore_orders",
-      "lineno": 293,
+      "lineno": 326,
       "methods": [
         "POST"
       ],
