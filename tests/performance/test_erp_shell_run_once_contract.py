@@ -35,7 +35,7 @@ EXPECTED_SHELL_SCRIPTS = {
     "js/foms/lightbox.js",
     "js/foms/voice-input.js",
     "js/foms/haptic.js",
-    "js/foms/sync.js",
+    # sync.js 는 셸이 아니라 layout_scripts.html 이 전 페이지에 1회 싣는다(P3-8, 이중 실행 제거).
     "js/foms/bottom-nav-shell.js",
     "js/foms/search.js",
     "js/foms/kv-copy.js",
