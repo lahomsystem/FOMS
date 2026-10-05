@@ -42,9 +42,11 @@ from foms.services.production_read_model import fetch_production_current_run_ids
 
 __all__ = [
     "PROD_STAGES",
+    "PRODUCTION_CHANGE_EVENT_TYPES",
     "collect_production_change_alerts",
     "collect_production_tombstones",
     "compute_window_start",
+    "production_tombstone_criteria",
 ]
 
 PROD_STAGES: frozenset[str] = frozenset(
@@ -58,6 +60,8 @@ _RELEVANT_EVENT_TYPES = (
     "STAGE_CHANGED",
     "CONSTRUCTION_DATE_CHANGED",
 )
+#: 변경 감지가 읽는 이벤트 종류 — 렌더 전 304 키(production_fragment_version)가 같은 필터로 지문을 뜬다.
+PRODUCTION_CHANGE_EVENT_TYPES = _RELEVANT_EVENT_TYPES
 
 
 def _date_to_md(value: Any) -> str:
@@ -255,6 +259,21 @@ def collect_production_change_alerts(
     return result
 
 
+def production_tombstone_criteria() -> list[Any]:
+    """묘비 후보 조건 — 최근 14일 안에 취소(soft delete)된 생산 파이프라인 ERP 주문.
+
+    렌더(:func:`collect_production_tombstones`)와 렌더 전 304 키의 지문이 **같은 조건**을 쓴다.
+    """
+    cutoff = (get_today_kst() - datetime.timedelta(days=_TOMBSTONE_DAYS)).isoformat()
+    return [
+        Order.status == "DELETED",
+        Order.deleted_at.isnot(None),
+        Order.deleted_at >= cutoff,
+        Order.is_erp_order.is_(True),
+        Order.erp_stage_code.in_(sorted(PROD_STAGES)),
+    ]
+
+
 def collect_production_tombstones(
     db: Any, user: Any, erp_mine_only: bool
 ) -> list[dict[str, Any]]:
@@ -274,16 +293,9 @@ def collect_production_tombstones(
     Returns:
         ``[{'id','customer_name','bucket','deleted_md','product_label'}, ...]``.
     """
-    cutoff = (get_today_kst() - datetime.timedelta(days=_TOMBSTONE_DAYS)).isoformat()
     candidates = (
         db.query(Order)
-        .filter(
-            Order.status == "DELETED",
-            Order.deleted_at.isnot(None),
-            Order.deleted_at >= cutoff,
-            Order.is_erp_order.is_(True),
-            Order.erp_stage_code.in_(list(PROD_STAGES)),
-        )
+        .filter(*production_tombstone_criteria())
         .all()
     )
     if erp_mine_only and user:

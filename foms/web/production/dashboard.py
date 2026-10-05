@@ -11,7 +11,6 @@ import time
 from typing import Any
 
 from flask import Blueprint, abort, make_response, render_template, request, g
-from sqlalchemy import case as sql_case
 
 from db import get_db
 from models import Order, ProductionRun
@@ -26,15 +25,20 @@ from foms.services.erp_template_filters import (
 
 from foms.services.production_dashboard_filters import parse_production_dashboard_filters
 from foms.services.production_read_model import (
+    apply_production_dashboard_sort,
     build_production_orders_query,
     production_stage_bucket_expr,
     compute_production_summary_blob,
-    fetch_production_attachment_counts,
     fetch_production_current_run_ids,
     paginate_production_rows,
+    production_attachment_slice_key,
+    production_attachment_slice_value,
+    production_summary_slice_key,
     PRODUCTION_DASHBOARD_PAGE_SIZE,
     PRODUCTION_KANBAN_MAX_ROWS,
 )
+from foms.services.common.fragment_prerender import observe_shadow, shadow_requested
+from foms.services.production_fragment_version import ROUTE_ID as FRAGVER_ROUTE_ID, compute_production_key
 from foms.services.production_dashboard_display import (
     build_production_enriched_rows,
     build_production_process_steps,
@@ -42,10 +46,8 @@ from foms.services.production_dashboard_display import (
     _production_stage_label_from_stage,
 )
 from foms.services.common.dashboard_cache import (
-    KEY_VERSION,
     TTL_ATTACHMENT_COUNT_MAP,
     TTL_SUMMARY_COUNTS,
-    build_dashboard_cache_key,
     get_or_compute_dashboard_slice,
 )
 from foms.services.common.ept_b7_profile import apply_ept_b7_render_headers
@@ -90,6 +92,7 @@ logger = logging.getLogger(__name__)
 @login_required
 def erp_production_dashboard():
     """생산 대시보드"""
+    _t_view = time.perf_counter()
     db = get_db()
     user = getattr(g, 'current_user', None)
     is_admin = user and user.role == 'ADMIN'
@@ -102,18 +105,18 @@ def erp_production_dashboard():
     # 단계 필터/버킷은 build_production_orders_query·production_stage_bucket_expr가
     # flat 컬럼 Order.erp_stage_code(index=True)를 직접 참조한다(JSONB path cast 제거).
     _q = build_production_orders_query(db, user, f_stage, f_q, erp_mine_only)
-
-    _summary_fp = {
-        "v": KEY_VERSION,
-        "uid": user.id if user else None,
-        "role": getattr(user, "role", None) if user else None,
-        "mine": bool(erp_mine_only),
-        "stage": f_stage or "",
-        "q": f_q or "",
-    }
-    _summary_key = build_dashboard_cache_key("production", "summary_counts", _summary_fp)
-    _summary_blob = get_or_compute_dashboard_slice(
-        _summary_key,
+    # 칸반은 dashboard_body.html 의 `erp_mobile_v2_enabled and coarse_pointer_surfaces` 일 때만
+    # 그린다. 안 그리는 요청(마우스 PC·옛 셸, 하트비트 포함)은 전량(최대 300행)을 건너뛰고 페이지
+    # 행만 읽는다. 칸반 값(kanban_*·changed_count·tombstones·tablet_prod_kpis)은 그 칸반만 읽는다.
+    kanban_wanted = is_mobile_v2_shell(resolve_shell_variant_cached(
+        user.id if user else None)) and wants_coarse_pointer_surfaces(request)
+    # 렌더 전 304 1단계(그림자): 뒤에서 도는 재검증에서만 키를 렌더 **전**에 만든다. 응답은 그대로이고,
+    # 키 단계가 읽은 조각 값은 렌더가 넘겨받는다(다시 읽지 않는다). 켜는 법은 fragment_prerender 참조.
+    _shadow = shadow_requested(request, FRAGVER_ROUTE_ID)
+    _fv, _fv_abandon = compute_production_key(db, request, user, _pf, kanban_wanted) if _shadow else (None, "")
+    _reuse = _fv.reuse if _fv else {}
+    _summary_blob = _reuse["summary"] if "summary" in _reuse else get_or_compute_dashboard_slice(
+        production_summary_slice_key(user, f_stage, f_q, erp_mine_only),
         TTL_SUMMARY_COUNTS,
         lambda: compute_production_summary_blob(_q),
         page="production",
@@ -122,26 +125,8 @@ def erp_production_dashboard():
     step_stats = _summary_blob["step_stats"]
     kpis = _summary_blob["kpis"]
     total_orders = int(_summary_blob["total_orders"])
-    # 시공일 빠른 순 정렬(YYYY-MM-DD String(10) 사전순=시간순, index 있음). 미정(NULL)은
-    # 뒤로, 동률/미정은 created_at 최신 순. PC 리스트에도 동일 적용(의도됨).
-    # 사용자가 실측일/시공일 헤더를 눌렀을 때만 그 컬럼·방향으로 갈아탄다(ERP 작업 큐와
-    # 동일한 sort/dir 규약). 빈 문자열도 미정 취급이라 항상 뒤로 보낸다.
-    _sort_column = {
-        'measure_date': Order.erp_measurement_date,
-        'construction_date': Order.erp_construction_date,
-    }.get(_pf.sort)
-    if _sort_column is not None:
-        _blank_last = sql_case((_sort_column.is_(None), 1), ((_sort_column == ''), 1), else_=0)
-        _q = _q.order_by(
-            _blank_last.asc(),
-            _sort_column.desc() if _pf.sort_dir == 'desc' else _sort_column.asc(),
-            Order.created_at.desc(),
-        )
-    else:
-        _q = _q.order_by(
-            Order.erp_construction_date.asc().nulls_last(),
-            Order.created_at.desc(),
-        )
+    # 시공일 빠른 순(기본) 또는 실측일/시공일 헤더 정렬 — PC 리스트에도 동일 적용(의도됨).
+    _q = apply_production_dashboard_sort(_q, _pf.sort, _pf.sort_dir)
 
     # 태블릿 칸반은 페이지 윈도가 아니라 정렬된 전량(캡 PRODUCTION_KANBAN_MAX_ROWS)을 렌더한다.
     # R1 시공일 정렬 도입 후 시공일 변경으로 rank>page_size 가 된 카드가 page1 윈도에서
@@ -152,12 +137,6 @@ def erp_production_dashboard():
     per_page = PRODUCTION_DASHBOARD_PAGE_SIZE
     total_pages = (total_orders + per_page - 1) // per_page
     offset = (page - 1) * per_page
-
-    # 칸반은 dashboard_body.html 의 `erp_mobile_v2_enabled and coarse_pointer_surfaces` 일 때만
-    # 그린다. 안 그리는 요청(마우스 PC·옛 셸, 하트비트 포함)은 전량(최대 300행)을 건너뛰고 페이지
-    # 행만 읽는다. 칸반 값(kanban_*·changed_count·tombstones·tablet_prod_kpis)은 그 칸반만 읽는다.
-    kanban_wanted = is_mobile_v2_shell(resolve_shell_variant_cached(
-        user.id if user else None)) and wants_coarse_pointer_surfaces(request)
 
     kanban_rows = _q.limit(PRODUCTION_KANBAN_MAX_ROWS).all() if kanban_wanted else []
     kanban_capped = kanban_wanted and total_orders > PRODUCTION_KANBAN_MAX_ROWS
@@ -194,24 +173,11 @@ def erp_production_dashboard():
     _kanban_ids = {o.id for o in kanban_rows}
     _all_rows = kanban_rows + [o for o in page_rows if o.id not in _kanban_ids]
 
-    _att_fp = {
-        "v": KEY_VERSION,
-        "uid": user.id if user else None,
-        "mine": bool(erp_mine_only),
-        "stage": f_stage or "",
-        "q": f_q or "",
-        "ids": sorted(o.id for o in _all_rows),
-    }
-    _att_key = build_dashboard_cache_key("production", "attachment_counts", _att_fp)
-
-    def _compute_att() -> dict[str, int]:
-        raw = fetch_production_attachment_counts(db, _all_rows)
-        return {str(k): int(v) for k, v in raw.items()}
-
-    _att_blob = get_or_compute_dashboard_slice(
+    _att_key = production_attachment_slice_key(user, f_stage, f_q, erp_mine_only, [o.id for o in _all_rows])
+    _att_blob = _reuse["att"] if _reuse.get("att_key") == _att_key else get_or_compute_dashboard_slice(
         _att_key,
         TTL_ATTACHMENT_COUNT_MAP,
-        _compute_att,
+        lambda: production_attachment_slice_value(db, _all_rows),
         page="production",
         slice_name="attachment_counts",
     )
@@ -307,6 +273,12 @@ def erp_production_dashboard():
         render_ms=(time.perf_counter() - _t0) * 1000,
     )
     apply_erp_shell_fragment_headers(response, request)
+    if _shadow:
+        observe_shadow(
+            route_id=FRAGVER_ROUTE_ID, req=request, response=response, user_id=user.id if user else None,
+            result=_fv, view_ms=(time.perf_counter() - _t_view) * 1000, abandon=_fv_abandon,
+            recheck=lambda: compute_production_key(db, request, user, _pf, kanban_wanted)[0],
+        )
     return response
 
 
