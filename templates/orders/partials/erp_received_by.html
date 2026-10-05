@@ -1,0 +1,21 @@
+{# 접수인 = 최초 주문 생성자(ORDER_CREATED 이벤트 author, order_edit_view_context.build_order_creator).
+   읽기 전용이다 — 저장 payload 에 들어가지 않는다. PC·모바일 폼이 같이 쓴다. #}
+{% if order_creator %}
+<div class="erp-received-by" role="note" aria-labelledby="erp-received-by-label"
+    title="주문 처음 등록 {{ order_creator.created_at }}">
+    <i class="fas fa-user-pen erp-received-by__ico" aria-hidden="true"></i>
+    <span class="erp-received-by__name">{{ order_creator.name }}</span>
+</div>
+{% elif order is not defined or not order %}
+<div class="erp-received-by is-pending" role="note" aria-labelledby="erp-received-by-label"
+    title="저장하면 접수인으로 기록돼요">
+    <i class="fas fa-user-pen erp-received-by__ico" aria-hidden="true"></i>
+    <span class="erp-received-by__name">{{ (current_user.name if current_user else '') or '나' }}</span>
+</div>
+{% else %}
+<div class="erp-received-by is-empty" role="note" aria-labelledby="erp-received-by-label"
+    title="예전 주문이라 등록한 사람 기록이 없어요">
+    <i class="fas fa-user-slash erp-received-by__ico" aria-hidden="true"></i>
+    <span class="erp-received-by__name">기록 없음</span>
+</div>
+{% endif %}

@@ -244,6 +244,93 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-attachment-controls
   grid-template-columns: minmax(6rem, 9rem) minmax(0, 1fr);
 }
 
+/* ── 접수 3칸(접수인 | 접수일 | 접수시간) — 2026-10-05 ──
+   라벨은 위, 한 줄을 3등분한다(인라인 72px 라벨 행이면 1/3 칸에 입력이 안 들어간다).
+   좌우 여백을 줄여 1/3 칸에서도 'YYYY-MM-DD'·'오전/오후' 가 잘리지 않게 한다.
+   기본 모양(바탕·아이콘·말줄임)은 erp-pro.css 의 .erp-received-by 가 정본. */
+.erp-order-mobile-form .erp-received-trio {
+  /* 폰(본문 ~300px)에선 균등 3칸이 97px 라 날짜(아이폰 확대 방지 16px 글자)가 빠듯하다 —
+     날짜 칸만 조금 넓게 1 : 1.2 : 1 로 나눈다. */
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) minmax(0, 1fr);
+  gap: 6px;
+  margin-bottom: var(--foms-space-3);
+}
+
+/* .field 는 기본이 내용 폭 grid 라 날짜 입력이 칸 밖으로 밀려 옆 칸과 겹쳤다. */
+.erp-order-mobile-form .erp-received-trio > .field {
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+  margin-bottom: 0;
+}
+
+/* 세 칸 높이를 터치 높이 하나로 맞춘다(날짜 45·셀렉트 42·접수인 48px 로 들쭉날쭉했다). */
+.erp-order-mobile-form .erp-received-trio .foms-input,
+.erp-order-mobile-form .erp-received-trio .foms-select,
+.erp-order-mobile-form .erp-received-trio .erp-received-by {
+  box-sizing: border-box;
+  height: var(--foms-touch-target-min);
+  min-height: var(--foms-touch-target-min);
+}
+
+.erp-order-mobile-form .erp-received-trio .foms-input,
+.erp-order-mobile-form .erp-received-trio .foms-select {
+  min-width: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  padding-left: 6px;
+  padding-right: 6px;
+}
+
+.erp-order-mobile-form .erp-received-by {
+  min-height: var(--foms-touch-target-min);
+  gap: 4px;
+  padding: 0 6px;
+  font-size: var(--foms-font-size-sm);
+  border-radius: var(--foms-radius-md);
+}
+
+/* 셀렉트 화살표 자리(v2 규칙 32px)가 1/3 칸에서 '14:30' 을 가린다 — 화살표를 오른쪽 끝으로
+   붙이고 자리를 22px 로 줄인다. v2 규칙(body.erp-mobile-v2-layout …)보다 강해야 해서 같은
+   접두를 붙인다. */
+.erp-order-mobile-form .erp-received-trio .foms-select,
+body.erp-mobile-v2-layout .erp-order-mobile-form .erp-received-trio .foms-select {
+  padding-left: 6px;
+  padding-right: 22px;
+  background-position: right 4px center;
+  background-size: 14px 14px;
+}
+
+/* 374px 이하는 안드로이드 폭뿐이다(아이폰은 375px 부터 — 16px 미만이면 확대되는 문제와
+   무관). 이 폭에선 날짜·시간 글자를 15px 로 줄여 1/3 칸 안에 다 들어가게 한다. */
+@media (max-width: 374.98px) {
+  .erp-order-mobile-form .erp-received-trio .foms-input,
+  body.erp-mobile-v2-layout .erp-order-mobile-form .erp-received-trio .foms-select {
+    font-size: 15px;
+  }
+}
+
+/* 크롬 계열의 달력 아이콘이 1/3 칸에서 날짜 끝을 가린다 — 아이콘을 칸 전체에 투명하게
+   펼쳐 칸 어디를 눌러도 달력이 열리게 하고 글자 자리를 돌려받는다(사파리는 아이콘이 없다). */
+.erp-order-mobile-form .erp-received-trio input[type="date"] {
+  position: relative;
+}
+
+.erp-order-mobile-form .erp-received-trio input[type="date"]::-webkit-calendar-picker-indicator {
+  position: absolute;
+  inset: 0;
+  width: auto;
+  height: auto;
+  margin: 0;
+  padding: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+/* 접수시간 직접 입력: 시간 칸만 한 줄 전체로 펼친다(접수인·접수일은 윗줄 그대로). */
+.erp-order-mobile-form .erp-received-trio > .field:has(.erp-mobile-time-inline.is-direct) {
+  grid-column: 1 / -1;
+}
+
 .erp-mobile-time-inline .foms-input,
 .erp-mobile-time-inline .foms-select {
   min-width: 0;

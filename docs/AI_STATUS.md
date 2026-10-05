@@ -10,8 +10,8 @@ Flask 3.1 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
+- [2026-10-05] **주문 수정 접수인·접수 3칸(deploy)** — 잔여: 스테이징 실화면
 - [2026-10-01] **긴급 호출 맨 위 줄 ⚡(PR #484 · production `427fd0c10`)** — 주문 선택·주문 없이. 잔여: 옛 주문 라우트 2개 정리
-- [2026-10-01] **운영 로그 후속 4건(PR #481 운영)** — 드리프트 감사 초록(10-01)
 - [2026-09-30] **PC 퀘스트 이름 = 휴대폰 이름 1~3단계 + 후속 운영(PR #468·#471·#473·#476)** — 하우드 도면 알림 0명·이중 승인 수정 포함. 잔여 없음
 - [2026-09-30] **도면 후속 운영 반영(PR #459·#463 · production `f7dbff71`)** — 잔여: 고아 도면 51개 정리(승인 대기)
 - [2026-09-29] **할 일 묶음 운영 반영(PR #454 · production `1554f917f`)** — 워커 감독자·SQLAlchemy 2.0.54·파일 버전 시범·ci_watch. 잔여: 정지 감시 재가동 결정, 시범 측정
@@ -195,6 +195,7 @@ Flask 3.1 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 - [2026-04-15] **Strict final canonical tree `SFC-B11B` slice 2 (`dashboards`, §6.16):** 구현을 `foms/web/dashboards/routes.py`로 이전; `foms/web/dashboards/__init__.py`는 `routes`만 import; `apps/dashboards.py`는 `foms.web.dashboards` 재노출 shim. 검증: `APP_OK`, `verify_result.py --json`, `pytest tests` **586 passed**. 근거: batch11b **§Slice B11B-2**.
 
 ## 기록 보관 (strict canonical / 이전 배치 요약)
+- [2026-10-01] **운영 로그 후속 4건(PR #481 운영)** — 드리프트 감사 초록(10-01)
 - [2026-09-30] **도면 탭 고객 보내기(PR #458 · production `eb181215`)** — 보내기·고객 요청·고객 OK 확정·요청 고치기·번호 바꾸기·PC 긴급 호출. 운영 알림톡 테스트 1회 수신 확인 뒤 회차 이름 스위치 켬(FOMS_SHARE_ROUND_DOC_LABEL=1)
 - [2026-09-29] **도면 결함 2차(PR #457 · production `9cd99254`)** — 폼 저장 도면 잠금·행 잠금·남의 파일 삭제 차단·고객컨펌/제작 시작 게이트·생산 배지. 잔여: 고아 도면 51개 정리(승인 대기) · wizard 쓰기 3곳은 09-30 막음
 - [2026-09-22] **시공일 지난 적체 주문 일괄 완료 — 운영 적용 완료(413건)** — 1차(+7일) 413 + 2차(시공일<오늘, 사용자 수동 시공일 입력 뒤) 174 = 587건. 실측 858→237 · 도면 101→48 · 완료 1451→2038. AS 탭 건 143 은 stage 만(AS 축 지문 두 차례 모두 적용 전후 동일 · AS 탭 불변). 스냅샷 `C:/tmp/foms-backlog-complete-20260922/`(rollback 가능). 잔여: 시공일 없는 건 CSV 영업 검토. 스펙 `docs/plans/2026-09-22-past-construction-bulk-complete-spec.md`
