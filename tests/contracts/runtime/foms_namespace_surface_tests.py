@@ -1421,7 +1421,10 @@ def test_wr_s2_legacy_storage_shim_retired() -> None:
         "BOTO3_AVAILABLE",
         "PILLOW_AVAILABLE",
         "StorageAdapter",
+        # rq 부모가 클라우드 어댑터를 한 번 만들어 잡 자식에 물려주는 쌍(2026-10-05, 성능 원장 P3-7).
+        "drop_inherited_connections",
         "get_storage",
+        "prime_shared_storage",
     ]
 
     assert namespaced_storage.__all__ == expected_public_names
