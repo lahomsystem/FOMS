@@ -65,6 +65,7 @@ from foms.services.orders.admin_override import (
     resolve_admin_override,
 )
 from foms.services.orders.cs_complete_service import complete_order_as_cs
+from foms.services.orders.draft_guard import draft_not_promoted_body, is_unpromoted_draft
 from foms.services.orders.trash_mirror import (
     invalidate_trash_caches,
     soft_delete_with_trash_mirror,
@@ -326,6 +327,10 @@ def update_order_status_response(
         order = db.query(Order).filter(Order.id == order_id).first()
         if not order:
             return jsonify({"success": False, "message": "주문을 찾을 수 없습니다."}), 404
+        # 승격 전 초안의 status 를 쓰면 표식만 남은 숨은 주문이 된다(draft_guard). 관리자
+        # 뚫기 판정보다 먼저 막는다 — 뚫기로도 못 넘는다. 저장(승격)이 유일한 길이다.
+        if is_unpromoted_draft(order):
+            return jsonify(draft_not_promoted_body(order.id)), 409
 
         old_status = getattr(order, "status", None) or ""
 
@@ -588,6 +593,8 @@ def bulk_update_order_status_response(
         blocked_use_cs_complete: list[int] = []
         # Q1(2a-2): 전용 버튼만 하는 인접 전진(DRAWING→CONFIRM·CONFIRM→PRODUCTION).
         blocked_command_required: list[int] = []
+        # 승격 전 초안(draft_guard) — 뚫기와 무관하게 건너뛴다.
+        blocked_unpromoted_draft: list[int] = []
 
         valid_ids = []
         for order_id in order_ids:
@@ -612,6 +619,9 @@ def bulk_update_order_status_response(
         include_as = data.get("include_as") is True
         orders = db.query(Order).filter(Order.id.in_(valid_ids)).all()  # perf-ok: request bulk order id batch
         for order in orders:
+            if is_unpromoted_draft(order):
+                blocked_unpromoted_draft.append(int(order.id))
+                continue
             old_status = getattr(order, "status", None) or ""
             overlay = as_overlay_status(order)
             if overlay and not include_as and new_status not in AS_OVERLAY_STATUSES:
@@ -702,6 +712,7 @@ def bulk_update_order_status_response(
         db.commit()
         success = updated > 0 or not (
             blocked_override_required or blocked_as_orders or blocked_command_required
+            or blocked_unpromoted_draft
         )
         message = None
         if blocked_override_required and updated == 0:
@@ -726,6 +737,11 @@ def bulk_update_order_status_response(
                 f"{len(blocked_command_required)}건은 전용 버튼으로만 넘길 수 있어 바꾸지 않았습니다."
             )
             message = f"{message} {cmd_note}" if message else cmd_note
+        if blocked_unpromoted_draft:
+            draft_note = (
+                f"{len(blocked_unpromoted_draft)}건은 아직 저장하지 않은 초안이라 바꾸지 않았습니다."
+            )
+            message = f"{message} {draft_note}" if message else draft_note
         payload: dict[str, Any] = {
             "success": success,
             "updated": updated,
@@ -735,12 +751,14 @@ def bulk_update_order_status_response(
             "blocked_as_orders": blocked_as_orders,
             "blocked_use_cs_complete": blocked_use_cs_complete,
             "blocked_command_required": blocked_command_required,
+            "blocked_unpromoted_draft": blocked_unpromoted_draft,
         }
         if message:
             payload["message"] = message
         status_code = 200 if success else 403
-        if not success and blocked_command_required and not blocked_override_required:
-            status_code = 409  # 경로 충돌이지 권한 문제가 아니다(전용 버튼 대상)
+        if (not success and (blocked_command_required or blocked_unpromoted_draft)
+                and not blocked_override_required):
+            status_code = 409  # 경로 충돌이지 권한 문제가 아니다(전용 버튼·승격 전 초안)
         return jsonify(payload), status_code
     except Exception as exc:
         db = get_db()
