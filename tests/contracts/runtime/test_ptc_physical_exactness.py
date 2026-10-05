@@ -105,6 +105,8 @@ _PTC_FOMS_SERVICES_COMMON_ALLOWLIST: frozenset[str] = frozenset(
         "erp_shell_http.py",
         # HB-S2a: 프래그먼트 버전 키 + 그림자 관측(렌더 전 304 의 선행 검증)
         "fragment_revalidation.py",
+        # 하트비트 1단계(2026-10-05): 렌더 전 304 버전 키 공용 재료 + 그림자 관측
+        "fragment_prerender.py",
         "geocode_config.py",
         "html_whitespace.py",
         # PERF P3-6: jsonb 투영 공용 조각(네이버 처리 목록·정산 모집단이 같이 쓴다)
