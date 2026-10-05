@@ -24,6 +24,7 @@ from foms.services.orders.confirm_drawing_gate import (
     effective_drawing_status,
     stage_override_drawing_warning,
 )
+from foms.services.orders.draft_guard import ensure_order_promoted
 from foms.services.orders.erp_policy_constants import STAGE_LABELS, STAGE_NAME_TO_CODE
 from models import Order, OrderEvent
 
@@ -336,7 +337,9 @@ def apply_stage_override(
 
     :returns: {from, to, mode, reason, from_status[, as_overlay_cleared][, quest_reopened]}
     :raises ValueError: 검증 실패(메시지 한글)
+    :raises DraftNotPromotedError: 아직 승격하지 않은 초안(잠금 아래 백스톱 — 409)
     """
+    ensure_order_promoted(order)
     to_code = normalize_main_stage(to_stage)
     if to_code is None or to_code not in MAIN_PIPELINE_CODES:
         raise ValueError(

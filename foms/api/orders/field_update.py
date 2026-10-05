@@ -29,6 +29,7 @@ from foms.services.orders.admin_override import (
     resolve_admin_override,
 )
 from foms.services.orders.cs_complete_service import complete_order_as_cs
+from foms.services.orders.draft_guard import draft_not_promoted_body, is_unpromoted_draft
 from foms.services.orders.complete_path_policy import (
     rejects_completed_field_write,
     use_cs_complete_response_body,
@@ -524,6 +525,10 @@ def update_order_field_response(
     if override is not None and getattr(order, "deleted_at", None) is not None:
         return jsonify({"success": False, "code": "NOT_FOUND",
                         "message": "삭제된 주문입니다. 휴지통에서 먼저 복구하세요."}), 404
+    # 승격 전 초안의 status 칸 쓰기는 표식만 남은 숨은 주문을 만든다(draft_guard) — 뚫기로도
+    # 못 넘는다. 초안 작성 중 다른 칸(담당자·날짜 등) 수정은 그대로 둔다.
+    if field == "status" and is_unpromoted_draft(order):
+        return jsonify(draft_not_promoted_body(order.id)), 409
     punched: list[str] = []
 
     # AS 완료/취소는 상태축 전이라 generic 쓰기 경로로 내려보내지 않는다(STATE-AS-01).

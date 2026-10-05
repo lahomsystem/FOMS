@@ -177,6 +177,7 @@ def extended_bulk_response(
     skipped_as: Optional[list] = None,
     route: str = "orders.bulk_stage_override",
     audit_sink: Optional[Callable[..., Any]] = None,
+    skipped_draft: Optional[list] = None,
 ):
     """확장 목표 일괄 요청을 처리한다 — 한 건이라도 실패하면 전체 롤백(부분 반영 0).
 
@@ -230,6 +231,7 @@ def extended_bulk_response(
             "results": results,
             "skipped_same": skipped_same,
             "skipped_as": list(skipped_as or []),
+            "skipped_draft": list(skipped_draft or []),
             "not_found": not_found,
             "mutation_receipt": None,
             **({"warning": AS_OVERLAY_BLOCK_MESSAGE} if skipped_as else {}),

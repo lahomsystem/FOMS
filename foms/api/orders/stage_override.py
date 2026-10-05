@@ -28,6 +28,7 @@ from foms.services.orders.revision import (
 )
 from foms.services.audit_message_display import describe_field_change
 from foms.services.orders.audit_order_context import order_audit_context
+from foms.services.orders.draft_guard import draft_not_promoted_body, is_unpromoted_draft
 from foms.api.orders.stage_override_admin import (
     extended_bulk_response,
     extended_single_response,
@@ -116,6 +117,9 @@ def stage_override_response(order_id: int):
         if order.deleted_at is not None or str(order.status or "") == "DELETED":
             # 삭제된 주문은 강제 변경으로도 되살아나지 않는다(휴지통에서 조용히 사라진다).
             return jsonify({"success": False, "error": "주문을 찾을 수 없습니다."}), 404
+        if is_unpromoted_draft(order):
+            # 승격 전 초안은 어느 목표로도 못 바꾼다(관리자 뚫기 포함) — 저장(승격)이 먼저다.
+            return jsonify(draft_not_promoted_body(order_id)), 409
 
         # AS·삭제·완료 목표는 각자 mutation 을 소유한 서비스가 처리한다(중첩 금지).
         to_code, kind = classify_override_target(to_stage)
@@ -372,6 +376,7 @@ def _execute_bulk_override(
 def _bulk_override_success(
     outcome, results: list[dict[str, Any]], skipped_same: list[int], not_found: list[int],
     reason: str, user_id: int, skipped_as: list[dict[str, Any]] | None = None,
+    skipped_draft: list[int] | None = None,
 ):
     """일괄 강제 변경 성공 JSON + no-store 헤더."""
     to_code = results[0]["to"] if results else ""
@@ -389,6 +394,7 @@ def _bulk_override_success(
         "results": [{k: v for k, v in item.items() if k != "order"} for item in results],
         "skipped_same": skipped_same,
         "skipped_as": skipped_as,
+        "skipped_draft": list(skipped_draft or []),
         "not_found": not_found,
         "mutation_receipt": outcome.read_receipt_id,
     }
@@ -434,7 +440,11 @@ def bulk_stage_override_response():
         if order.deleted_at is None and str(order.status or "") != "DELETED"
     }
     not_found = [oid for oid in order_ids if oid not in found_map]
-    ordered = [found_map[oid] for oid in order_ids if oid in found_map]
+    # 승격 전 초안은 일괄에서 빼고 번호만 알린다(일괄 전체를 깨지 않는다, draft_guard).
+    skipped_draft = [
+        oid for oid in order_ids if oid in found_map and is_unpromoted_draft(found_map[oid])
+    ]
+    ordered = [found_map[oid] for oid in order_ids if oid in found_map and oid not in skipped_draft]
     change, skipped_same, skipped_as = split_override_targets(
         ordered, to_code, kind, include_as=data.get("include_as") is True,
     )
@@ -443,6 +453,8 @@ def bulk_stage_override_response():
             return _json_error(AS_OVERLAY_BLOCK_MESSAGE, 400)
         if skipped_same and not not_found:
             return _json_error("현재와 동일한 단계로는 변경할 수 없습니다.", 400)
+        if skipped_draft:
+            return jsonify(draft_not_promoted_body(skipped_draft[0])), 409
         return _json_error("주문을 찾을 수 없습니다.", 404)
     user_id = int(user.id)
     if kind != KIND_MAIN or to_code == "COMPLETED":
@@ -450,6 +462,7 @@ def bulk_stage_override_response():
             db, change, kind=kind, to_code=to_code, override=override, data=data,
             user=user, user_id=user_id, skipped_same=skipped_same,
             skipped_as=skipped_as, not_found=not_found, audit_sink=log_access,
+            skipped_draft=skipped_draft,
         )
     captured: dict[str, Any] = {"results": []}
     outcome, mut_err = _execute_bulk_override(
@@ -465,7 +478,7 @@ def bulk_stage_override_response():
         return mut_err
     return _bulk_override_success(
         outcome, captured["results"], skipped_same, not_found, reason, user_id,
-        skipped_as=skipped_as,
+        skipped_as=skipped_as, skipped_draft=skipped_draft,
     )
 
 
