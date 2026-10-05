@@ -23,30 +23,52 @@ acq   DB 연결 얻기(풀 checkout·pre-ping·새 연결 포함) / 횟수      
 conn  이 요청 동안 새로 만든 DB 연결 수                                  회
 cpu   요청 동안 프로세스 CPU 시간(다른 greenlet 몫 포함)                 ms
 gc2   요청 동안 일어난 전체(2세대) GC / 그 시간                         회/ms
+ctxp  컨텍스트 프로세서 **하나하나**의 시간 / 그 안에서 기다린 SQL        이름:ms/ms,…
 ====  =============================================================  ===========
+
+``ctxp`` 는 맨 끝에 붙는 선택 칸이다 — 이 요청에서 합계 5ms 이상 걸린 프로세서만 오래 걸린
+순서로 적고(``ctxp=inject_status_list:612/598,inject_menu:7/6``), 그런 프로세서가 없으면 칸
+자체를 붙이지 않는다(앞 열 칸의 모양은 그대로). 2026-10-02 운영 diag 판정에서 아침 피크의
+느린 HTML 은 ``ctx`` 안에서 SQL 을 650ms 기다렸는데, ``ctx`` 는 프로세서 전체 합이라 어느
+것인지 이름을 댈 수 없었다(원장 P3-1). 이름은 함수 ``__qualname__`` 에서 ``<locals>`` 를 뺀
+것이고(람다는 ``register_write_guard.lambda`` 처럼 등록한 함수 이름), 블루프린트 몫은 앞에
+블루프린트 이름이 붙는다. ``naver_triage_pending`` 같은 지연 값(LazyBadgeCount)은 렌더 도중
+계산되므로 ``ctxp`` 가 아니라 ``sqlr``·``tpl`` 쪽에 잡힌다 — 계측이 값을 미리 계산시키지 않는다.
 
 읽는 법: ``wall`` 이 큰데 ``cpu`` 가 작으면 무언가를 **기다린** 것이다 — ``sql`` 이 그 몫을
 덮으면 DB(렌더 안이면 ``sqlr``), ``acq`` 가 크면 풀 고갈·연결 생성, 셋 다 아니면 Redis·외부
 호출·잠금 대기다.
 ``cpu`` 가 ``wall`` 에 가까우면 계산이고, ``tpl``·``cmp``·``gc2`` 가 그 안에서 몫을 가른다.
 
-오버헤드: 요청당 ``perf_counter``·``process_time`` 몇 번과 SQL 문장마다 두 번. 렌더 결과나
-권한 판정에는 절대 쓰지 않는다. 계측이 실패해도 요청은 그대로 간다(예외는 debug 로그만).
+오버헤드: 요청당 ``perf_counter``·``process_time`` 몇 번과 SQL 문장마다 두 번, 컨텍스트
+프로세서 호출마다 두 번(렌더 1회에 약 10개). 렌더 결과나 권한 판정에는 절대 쓰지 않는다.
+계측이 실패해도 요청은 그대로 간다(예외는 debug 로그만).
 """
 
 from __future__ import annotations
 
+import functools
 import gc
+import inspect
 import logging
+import re
 import time
-from typing import Any, Final
+from typing import Any, Callable, Final
 
-from flask import Flask, before_render_template, g, has_request_context, template_rendered
+from flask import (
+    Flask,
+    before_render_template,
+    g,
+    has_request_context,
+    request,
+    template_rendered,
+)
 from sqlalchemy import event
 
 logger = logging.getLogger(__name__)
 
 __all__ = [
+    "CTXP_MIN_MS",
     "HEADER_REQ_DIAG",
     "format_request_diag",
     "install_request_phase_profile",
@@ -58,6 +80,15 @@ HEADER_REQ_DIAG: Final[str] = "X-FOMS-REQ-DIAG"
 
 _G_KEY: Final[str] = "_foms_req_diag"
 _INSTALLED_ATTR: Final[str] = "_foms_req_diag_installed"
+
+#: ``ctxp`` 칸에 올리는 최소 합계 시간(ms). 이보다 짧은 프로세서는 줄을 길게 할 뿐이다.
+CTXP_MIN_MS: Final[float] = 5.0
+#: 감싼 프로세서에 붙이는 표식(값 = 이름). 이미 감싼 것을 다시 감싸지 않는 데 쓴다.
+_CTXP_LABEL_ATTR: Final[str] = "_foms_req_diag_ctxp_label"
+#: 앱별 이름 → 감싼 원래 함수. 이름이 겹치면 뒤에 ``#2`` 를 붙여 몫이 섞이지 않게 한다.
+_CTXP_LABELS_ATTR: Final[str] = "_foms_req_diag_ctxp_labels"
+#: 로그 한 줄의 칸 구분자(``;`` ``,`` ``:`` ``/`` 공백)와 겹치지 않는 글자만 이름에 남긴다.
+_CTXP_UNSAFE_RE: Final[re.Pattern[str]] = re.compile(r"[^A-Za-z0-9_.#-]")
 
 #: 프로세스 전체 GC(2세대) 누적. 요청은 시작·끝 값의 차이만 본다(다른 greenlet 이 일으킨
 #: GC 라도 이 요청을 멈춰 세웠다면 이 요청의 몫이다).
@@ -98,7 +129,8 @@ def format_request_diag() -> str:
 
     Returns:
         ``pre=3;ctx=1/2;tpl=640/1;cmp=0/0;sql=35/14;sqlr=0/0;acq=1/2;conn=0;cpu=120;gc2=0/0``
-        형태.
+        형태. 5ms 이상 걸린 컨텍스트 프로세서가 있으면 끝에
+        ``;ctxp=inject_status_list:612/598,inject_menu:7/6`` 이 붙는다(없으면 붙지 않는다).
         요청 밖이거나 기준점이 없으면 빈 문자열.
     """
     try:
@@ -119,10 +151,111 @@ def format_request_diag() -> str:
             f";conn={d.get('conn_n', 0)}"
             f";cpu={cpu_ms:.0f}"
             f";gc2={gc_n}/{gc_ms:.0f}"
-        )
+        ) + _format_ctxp(d)
     except Exception:  # noqa: BLE001 - 진단 실패가 응답을 깨선 안 된다
         logger.debug("[REQ-DIAG] format skipped", exc_info=True)
         return ""
+
+
+def _format_ctxp(d: dict[str, Any]) -> str:
+    """``;ctxp=이름:ms/sqlms,…`` 꼬리(5ms 이상만, 오래 걸린 순). 해당 없으면 빈 문자열."""
+    slots = d.get("_ctxp")
+    if not slots:
+        return ""
+    slow = sorted(
+        ((label, ms, sql_ms) for label, (ms, sql_ms) in slots.items() if ms >= CTXP_MIN_MS),
+        key=lambda item: item[1],
+        reverse=True,
+    )
+    if not slow:
+        return ""
+    return ";ctxp=" + ",".join(f"{label}:{ms:.0f}/{sql_ms:.0f}" for label, ms, sql_ms in slow)
+
+
+# --- 컨텍스트 프로세서 하나하나 -------------------------------------------------
+
+
+def _ctxp_label(key: str | None, func: Callable[..., Any]) -> str:
+    """프로세서의 안정된 이름(로그 칸 구분자와 겹치는 글자는 ``_``)."""
+    raw = (
+        getattr(func, "__qualname__", None)
+        or getattr(func, "__name__", None)
+        or type(func).__name__
+    )
+    label = str(raw).replace(".<locals>", "").replace("<lambda>", "lambda")
+    if key is not None:
+        label = f"{key}.{label}"
+    return _CTXP_UNSAFE_RE.sub("_", label) or "anon"
+
+
+def _record_ctxp(d: dict[str, Any], label: str, ms: float, sql_ms: float) -> None:
+    slots = d.get("_ctxp")
+    if slots is None:
+        slots = d["_ctxp"] = {}
+    slot = slots.get(label)
+    if slot is None:
+        slots[label] = [ms, sql_ms]
+    else:
+        slot[0] += ms
+        slot[1] += sql_ms
+
+
+def _timed_context_processor(func: Callable[..., Any], label: str) -> Callable[..., Any]:
+    """프로세서 하나를 감싼다 — 돌려주는 값은 손대지 않고 앞뒤 시각과 SQL 누적만 본다."""
+
+    def _timed(*args: Any, **kwargs: Any) -> Any:
+        d = _diag()
+        if d is None:
+            return func(*args, **kwargs)
+        t0 = time.perf_counter()
+        sql0 = d.get("sql", 0.0)
+        try:
+            return func(*args, **kwargs)
+        finally:
+            try:
+                _record_ctxp(
+                    d, label, (time.perf_counter() - t0) * 1000.0, d.get("sql", 0.0) - sql0
+                )
+            except Exception:  # noqa: BLE001 - 계측이 프로세서 결과를 바꾸면 안 된다
+                logger.debug("[REQ-DIAG] ctxp record skipped", exc_info=True)
+
+    functools.update_wrapper(_timed, func)
+    setattr(_timed, _CTXP_LABEL_ATTR, label)
+    return _timed
+
+
+def _wrap_context_processors(app: Flask, keys: Any = None) -> None:
+    """``app.template_context_processors`` 를 감싼다(``keys`` 가 없으면 앱·블루프린트 **모든 키**).
+
+    배선 뒤에 등록된 프로세서도 잡도록 :func:`install_request_phase_profile` 끝(모든 키)과 매
+    렌더의 ``update_template_context`` 앞(그 렌더가 실제로 부를 키 — 앱 + 현재 요청의
+    블루프린트들)에서 부른다. 이미 감싼 것은 표식으로 건너뛰므로 두 번째부터는 프로세서 수만큼의
+    속성 조회뿐이다. 코루틴 프로세서는 감싸지 않는다(동기 래퍼가 ``ensure_sync`` 판정을 바꾼다).
+    """
+    labels: dict[str, Any] | None = app.__dict__.get(_CTXP_LABELS_ATTR)
+    if labels is None:
+        labels = {}
+        setattr(app, _CTXP_LABELS_ATTR, labels)
+    registry = app.template_context_processors
+    if keys is None:
+        pairs = list(registry.items())
+    else:
+        # ``in`` 으로만 본다 — defaultdict 에 빈 키를 만들지 않는다(Flask 와 같은 방식).
+        pairs = [(key, registry[key]) for key in keys if key in registry]
+    for key, funcs in pairs:
+        for index, func in enumerate(funcs):
+            if getattr(func, _CTXP_LABEL_ATTR, None) is not None:
+                continue
+            if inspect.iscoroutinefunction(func):
+                continue
+            base = _ctxp_label(key, func)
+            label = base
+            suffix = 2
+            while label in labels and labels[label] is not func:
+                label = f"{base}#{suffix}"
+                suffix += 1
+            labels[label] = func
+            funcs[index] = _timed_context_processor(func, label)
 
 
 # --- 훅 ---------------------------------------------------------------------
@@ -232,6 +365,15 @@ def install_request_phase_profile(app: Flask, *, engine: Any = None) -> None:
     def _timed_update_template_context(context: dict[str, Any]) -> None:
         t0 = time.perf_counter()
         try:
+            # 배선 뒤에 등록된 프로세서도 ctxp 로 이름이 나오게(이미 감싼 것은 건너뛴다).
+            # Flask 가 이번 렌더에 부를 키만 본다: 앱(None) + 현재 요청의 블루프린트들.
+            keys: tuple[Any, ...] = (None,)
+            if has_request_context():
+                keys = (None, *request.blueprints)
+            _wrap_context_processors(app, keys)
+        except Exception:  # noqa: BLE001
+            logger.debug("[REQ-DIAG] ctxp wrap skipped", exc_info=True)
+        try:
             original_update_ctx(context)
         finally:
             _add("ctx", (time.perf_counter() - t0) * 1000.0, "ctx_n")
@@ -255,6 +397,10 @@ def install_request_phase_profile(app: Flask, *, engine: Any = None) -> None:
     before_render_template.connect(_on_before_render, app, weak=False)
     template_rendered.connect(_on_rendered, app, weak=False)
     _hook_sql(engine)
+    try:
+        _wrap_context_processors(app)
+    except Exception:  # noqa: BLE001
+        logger.debug("[REQ-DIAG] ctxp wrap skipped", exc_info=True)
     if not _gc_hooked:
         gc.callbacks.append(_gc_callback)
         _gc_hooked = True
