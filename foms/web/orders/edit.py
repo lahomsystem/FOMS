@@ -19,7 +19,7 @@ from flask import (
 )
 from sqlalchemy.orm.attributes import flag_modified
 
-from foms.web.auth import login_required, role_required, log_access, get_user_by_id
+from foms.web.auth import login_required, role_required, log_access, get_request_user, get_user_by_id
 from foms.services.erp_permissions import can_edit_erp
 from foms.services.erp_display import _ensure_dict
 from foms.services.erp_order_flags import is_erp_order_record
@@ -251,7 +251,7 @@ def edit_order(order_id):
         return redirect(url_for('order_pages.index'))
 
     if is_erp_order_record(order):
-        user = get_user_by_id(session['user_id'])
+        user = get_request_user(session['user_id'])
         if not can_edit_erp(user):
             flash('ERP Order 주문 수정 권한이 없습니다. (관리자, CS, 영업팀만 가능)', 'error')
             return redirect(url_for('order_pages.index'))
@@ -652,7 +652,7 @@ def edit_order(order_id):
             return resp_err
 
     preserved_args = get_preserved_filter_args(request.args)
-    ctx = build_order_edit_get_context(order, user=get_user_by_id(session.get("user_id")))
+    ctx = build_order_edit_get_context(order, user=get_request_user(session.get("user_id")))
     return_to = (request.args.get('return_to') or '').strip()
     if return_to:
         mobile_shell_back_href = url_for(resolve_edit_return_back_endpoint(return_to))
