@@ -1130,8 +1130,9 @@
   }
 
   /**
-   * primary 9 nav(현재 경로 제외)을 순차(600ms 간격) force refresh — 만료 전 웜 유지.
-   * 동시 9발 대신 setTimeout 체인 스태거로 주기 jank 를 없앤다(대부분 304, tail 만 200).
+   * primary 9 nav(현재 경로·fresh 경로 제외)을 순차(600ms 간격) force refresh — 만료 전 웜 유지.
+   * fresh 경로는 50초 스윕(runFreshHeartbeat)이 이미 갱신하므로 여기서 다시 부르면 거의 늘 304 인
+   * 중복 요청이 된다 — 경로마다 갱신 일정은 하나뿐이다.
    */
   function runPrimaryHeartbeat() {
     if (primaryHeartbeatSweeping) {
@@ -1140,7 +1141,7 @@
     lastPrimaryHeartbeatTs = Date.now();
     var cur = pathOnly(window.location.href);
     var targets = PRIMARY_NAV_PATHS.filter(function (p) {
-      return p !== cur;
+      return p !== cur && FRESH_TTL_PATHS.indexOf(p) === -1;
     });
     if (!targets.length) {
       return;
@@ -1165,7 +1166,7 @@
     step();
   }
 
-  /** fresh 경로(2개)를 순차(300ms 간격) force refresh — FRESH_TTL(60s) 앞선 50s 주기로 항상 웜. */
+  /** fresh 경로(3개)를 순차(300ms 간격) force refresh — FRESH_TTL(60s) 앞선 50s 주기로 항상 웜. */
   function runFreshHeartbeat() {
     if (freshHeartbeatSweeping) {
       return;
