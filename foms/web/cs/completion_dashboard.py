@@ -8,11 +8,13 @@
 """
 import csv
 import io
+import time
 
 from flask import Blueprint, g, make_response, render_template, request, url_for
 from db import get_db
 from foms.api.files import build_file_view_url
 from foms.web.auth import login_required
+from foms.services.common.ept_b7_profile import apply_ept_b7_render_headers, phase
 from foms.services.common.erp_mine_filter import erp_mine_only_for_construction
 from foms.services.common.erp_shell_http import apply_erp_shell_fragment_headers, wants_erp_shell_tab_body
 from foms.services.datetime_kst import get_today_kst
@@ -552,15 +554,18 @@ def erp_completion_dashboard():
     tablet_completion_meta = None
     shell_variant = resolve_shell_variant_cached(user.id if user else None)
     if is_mobile_v2_shell(shell_variant):
-        tablet_completion_rows, tablet_completion_meta = _build_completion_cohort_context(
-            user, search_q
-        )
+        with phase("cohort_grid"):
+            tablet_completion_rows, tablet_completion_meta = _build_completion_cohort_context(
+                user, search_q
+            )
 
     template_name = (
         'cs/partials/completion_dashboard_fragment.html'
         if wants_erp_shell_tab_body(request)
         else 'cs/completion_dashboard.html'
     )
+    # EPT-B7(원장 P3-2): 다른 탭과 같은 서버 시간 헤더 — 이 화면만 계측이 없었다.
+    _t0 = time.perf_counter()
     response = make_response(
         render_template(
             template_name,
@@ -572,6 +577,11 @@ def erp_completion_dashboard():
             tablet_completion_rows=tablet_completion_rows,
             tablet_completion_meta=tablet_completion_meta,
         )
+    )
+    apply_ept_b7_render_headers(
+        response,
+        route_id="erp_completion_dashboard",
+        render_ms=(time.perf_counter() - _t0) * 1000,
     )
     apply_erp_shell_fragment_headers(response, request)
     return response
