@@ -3,9 +3,9 @@ import uuid
 from sqlalchemy import (
     Column, Integer, BigInteger, String, Text, Boolean, Date, DateTime, Float,
     Numeric, ForeignKey, func, JSON, UniqueConstraint, Index, CheckConstraint,
-    DDL, event, text,
+    DDL, event, select, text,
 )
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import aliased, relationship
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PG_UUID
 
 # Portable UUID: native ``uuid`` on PostgreSQL, ``VARCHAR(36)`` on SQLite/others.
@@ -17,6 +17,15 @@ UUIDColumn = PG_UUID(as_uuid=False).with_variant(String(36), 'sqlite')
 JSONColumn = JSON().with_variant(JSONB, 'postgresql')
 from db import Base
 from foms.services.datetime_kst import format_datetime_kst, now_utc_naive
+
+# DRAFTIDX-00 (P2-1): 초안 표식(``meta.draft``)이 켜진 주문 번호만 담는 부분 인덱스.
+# 조건 글자는 앱이 그리는 번호 목록 서브쿼리 조건(별칭 접두 ``orders_meta_draft.`` 만 뺀 것)과
+# 마이그레이션 ``draftidx_00`` 리터럴과 글자 단위로 같아야 한다 — 조건이 어긋나면 플래너가
+# 인덱스를 못 쓰고 서브쿼리가 표 전체를 한 번 푼다(tests/performance/test_meta_draft_index_contract.py).
+META_DRAFT_INDEX_NAME = 'ix_orders_meta_draft_true'
+META_DRAFT_INDEX_WHERE = "CAST((structured_data #>> '{meta, draft}') AS BOOLEAN) IS true"
+META_DRAFT_ALIAS = 'orders_meta_draft'
+
 
 class Order(Base):
     __tablename__ = 'orders'
@@ -159,6 +168,14 @@ class Order(Base):
             text("(CAST(id AS VARCHAR)) gin_trgm_ops"),
             postgresql_using='gin',
         ).ddl_if(dialect='postgresql'),
+        # DRAFTIDX-00: 초안 표식이 켜진 행의 id 만 담는다(스테이징 39행). 초안 술어의 번호 목록
+        # 서브쿼리(:meth:`_meta_draft_order_ids`)가 이 인덱스만 읽는다. 마이그레이션 draftidx_00 과
+        # 같은 DDL — SQLite 레인에서는 만들지 않는다(ddl_if, 술어는 인덱스 없이도 같은 결과).
+        Index(
+            META_DRAFT_INDEX_NAME,
+            'id',
+            postgresql_where=text(META_DRAFT_INDEX_WHERE),
+        ).ddl_if(dialect='postgresql'),
     )
 
     @classmethod
@@ -166,6 +183,29 @@ class Order(Base):
         """Soft-delete 제외 필터. Draft 조회/승격처럼 숨김 주문도 다뤄야 할 때 사용한다."""
         from sqlalchemy import and_
         return and_(cls.status != 'DELETED', cls.deleted_at.is_(None))
+
+    @classmethod
+    def _meta_draft_order_ids(cls):
+        """초안 표식(``meta.draft``)이 켜진 주문 번호 목록 서브쿼리 — 바깥 행이 JSON 을 풀지 않게 한다.
+
+        예전 술어는 ERP 이고 status 가 DRAFT 가 아닌 행마다 ``structured_data`` 를 풀어(TOAST)
+        표식을 읽었다. 대시보드 한 번에 약 2,000행이다(스펙 2026-10-05 P2-1 §1.2). 이 서브쿼리는
+        조건이 부분 인덱스 ``ix_orders_meta_draft_true`` 와 같아서 플래너가 그 작은 인덱스만 읽고
+        번호를 해시 목록으로 한 번 만든 뒤(hashed SubPlan) 바깥 행마다 번호만 대조한다.
+
+        뜻은 예전 ``structured_data[("meta", "draft")].as_boolean().is_(True)`` 와 같다 — 같은 식을
+        같은 행에서 계산하고, ``id`` 는 기본 키라 NULL 이 없어 ``IN`` 이 참·거짓만 낸다(``IS true``
+        와 세 값 논리까지 같다).
+
+        별칭(``orders_meta_draft``)을 쓰는 이유: 서브쿼리 안팎의 ``orders`` 이름이 겹치지 않아
+        안쪽이 바깥 행에 묶일(상관) 여지가 없고, 그린 SQL 에서 "바깥 ``orders.structured_data`` 를
+        읽지 않는다"를 글자로 검사할 수 있다. 조건 글자는 :data:`META_DRAFT_INDEX_WHERE`(별칭
+        접두만 뺀 것)와 같아야 한다 — 계약 테스트가 대조한다.
+        """
+        flagged = aliased(cls, name=META_DRAFT_ALIAS)
+        return select(flagged.id).where(
+            flagged.structured_data[("meta", "draft")].as_boolean().is_(True)
+        )
 
     @classmethod
     def erp_draft_filter(cls):
@@ -176,7 +216,7 @@ class Order(Base):
             cls.is_erp_order.is_(True),
             or_(
                 cls.status == 'DRAFT',
-                cls.structured_data[("meta", "draft")].as_boolean().is_(True),
+                cls.id.in_(cls._meta_draft_order_ids()),
             ),
         )
 
@@ -193,7 +233,7 @@ class Order(Base):
             cls.is_erp_order.is_(True),
             or_(
                 cls.status == 'DRAFT',
-                cls.structured_data[("meta", "draft")].as_boolean().is_(True),
+                cls.id.in_(cls._meta_draft_order_ids()),
             ),
         )
 
