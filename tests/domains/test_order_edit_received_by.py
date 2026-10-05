@@ -130,8 +130,21 @@ def test_pc_and_mobile_split_received_row_in_three():
     # 예전 접수일+접수시간 두 칸 자리(8/12)를 3등분한다. 1200px 미만은 한 줄 전체(1/3 칸이면
     # 날짜가 잘린다) — 긴급 칸도 같은 경계(col-xl-4)로 아랫줄에 간다.
     assert '<div class="col-xl-8">\n                            <div class="erp-received-trio">' in pc
-    assert '<div class="col-xl-4">\n                            <div class="d-flex align-items-center gap-2 mb-1 flex-wrap">\n                                <label class="form-label mb-0">긴급 발주</label>' in pc
+    assert '<div class="col-xl-4 erp-urgent-col">' in pc[pc.index("erp-received-trio"):pc.index('id="erp-urgent-flag"')]
     css = (ROOT / "static/css/foundation/erp-pro.css").read_text(encoding="utf-8")
     assert re.search(
         r"\.erp-received-trio \{[^}]*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)", css
     )
+
+
+def test_urgent_head_is_one_nowrap_row_of_three_checks():
+    """긴급 칸 라벨 줄 = 체크 3개(긴급·자가실측·지방주문) 한 줄, '긴급 발주' 글자 없음.
+    글자까지 있으면 좁은 칸에서 지방주문이 둘째 줄로 넘어가 긴급 사유 칸이 접수 입력 줄보다
+    아래로 밀렸다(2026-10-05 사용자 제보·결정)."""
+    pc = (ROOT / "templates/orders/partials/erp_order_tab.html").read_text(encoding="utf-8")
+    head = pc[pc.index('<div class="erp-urgent-head">'):pc.index('id="erp-urgent-reason"')]
+    ids = re.findall(r'id="(erp-urgent-flag|erp-self-measurement|erp-regional-order)"', head)
+    assert ids == ["erp-urgent-flag", "erp-self-measurement", "erp-regional-order"]
+    assert "긴급 발주" not in head
+    css = (ROOT / "static/css/foundation/erp-pro.css").read_text(encoding="utf-8")
+    assert re.search(r"\.erp-urgent-head \{[^}]*white-space: nowrap", css)

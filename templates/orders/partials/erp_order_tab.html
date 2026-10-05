@@ -121,9 +121,11 @@ ERP Order Tab Pane (shared between add_order and edit_order)
                                 </div>
                             </div>
                         </div>
-                        <div class="col-xl-4">
-                            <div class="d-flex align-items-center gap-2 mb-1 flex-wrap">
-                                <label class="form-label mb-0">긴급 발주</label>
+                        <div class="col-xl-4 erp-urgent-col">
+                            {# 라벨 줄 = 체크 3개(긴급·자가실측·지방주문) 한 줄. 왼쪽 접수 3칸 라벨과 같은 높이라
+                               긴급 사유 칸이 접수 입력과 한 줄에 선다. 줄바꿈 금지 — 넘치면 사유 칸이 밀린다
+                               (전에는 '긴급 발주' 글자까지 있어 지방주문이 둘째 줄로 넘어갔다). #}
+                            <div class="erp-urgent-head">
                                 <div class="form-check mb-0">
                                     <input class="form-check-input" type="checkbox" id="erp-urgent-flag"
                                         autocomplete="off">
