@@ -10,10 +10,11 @@
 주석의 같은 이유).
 
 성능(SPEC §4.1): **날짜 술어를 SQL 에 걸지 않는다.** 미수·aging 이 기간 무관 지표라
-어차피 전량이 필요하고, 운영 실측 모집단이 2,168행/1.9MB·파이썬 커널 0.016초라 전량
-로드가 저렴하다. 기간은 파이썬 버킷 단계에서만 적용한다. 로드 컬럼은
-``id/status/structured_data`` 로 최소화하고 ``apply_erp_display_fields``(행마다 User
-쿼리 = N+1)는 부르지 않는다.
+어차피 전량이 필요하다. 기간은 파이썬 버킷 단계에서만 적용한다. 로드 컬럼은
+``id/status/manager_name/as_axis_status`` + **얇은** ``structured_data``
+(:mod:`foms.services.settlement_source` — 판정이 읽는 경로만, 2026-10-05 스테이징 1,586행
+출력 3,675kB → 801kB)로 최소화하고 ``apply_erp_display_fields``(행마다 User 쿼리 = N+1)는
+부르지 않는다.
 
 이 모듈은 읽기 전용이다 — 커밋·flag_modified·Order 속성 대입을 하지 않는다.
 """
@@ -49,6 +50,7 @@ from foms.services.estimate_service import (
     _balance_after_payments,
     _overpaid_after_payments,
 )
+from foms.services.settlement_source import fetch_settlement_rows
 # 완료 대시보드 파생 SSOT 를 재구현하지 않고 그대로 쓴다(비트 단위 파리티).
 # SETTLEMENT_DEPARTMENT_OPTIONS 는 `foms.api.cs.dashboard.SETTLEMENT_DEPARTMENTS` 와
 # 같은 5종·같은 순서에 라벨이 붙은 형태다(그 모듈 주석의 "API 와 정합" 선언).
@@ -517,6 +519,7 @@ def _load_rows(db: Any) -> list[dict]:
 
     담당자(``manager_name``)·AS 축(``as_axis_status``)은 **같은 쿼리에 컬럼으로만** 더
     붙인다. 별도 쿼리나 행별 조회로 가져오면 모듈 docstring 이 금지한 N+1 이 된다.
+    ``structured_data`` 는 판정이 읽는 경로만 남긴 투영이다(:func:`fetch_settlement_rows`).
 
     Args:
         db: SQLAlchemy Session.
@@ -525,16 +528,10 @@ def _load_rows(db: Any) -> list[dict]:
         ``_settlement_row`` 파생 dict 리스트.
     """
     channels = _channel_map(db)
-    orders = (
-        db.query(
-            Order.id,
-            Order.status,
-            Order.manager_name,
-            Order.as_axis_status,
-            Order.structured_data,
-        )
-        .filter(*_population_filters())
-        .all()
+    orders = fetch_settlement_rows(
+        db,
+        (Order.id, Order.status, Order.manager_name, Order.as_axis_status),
+        _population_filters(),
     )
     return [
         _settlement_row(order, channels.get(int(order.id), _DEFAULT_CHANNEL))
@@ -930,25 +927,25 @@ def _build_stages(db: Any) -> list[dict]:
     Returns:
         [{"stage", "label", "count", "amount"}] — STAGE_LABELS 선언 순.
     """
-    rows = (
-        db.query(Order.erp_stage_code, Order.structured_data)
-        .filter(
+    rows = fetch_settlement_rows(
+        db,
+        (Order.erp_stage_code,),
+        (
             Order.active_filter(),
             Order.is_erp_order.is_(True),
             Order.erp_stage_code.isnot(None),
             ~Order.erp_stage_code.in_(_COMPLETED_STAGE_CODES),
-        )
-        .all()
+        ),
     )
     stats: dict[str, dict] = {}
-    for stage_code, structured_data in rows:
-        code = str(stage_code)
+    for row in rows:
+        code = str(row.erp_stage_code)
         entry = stats.setdefault(
             code,
             {"stage": code, "label": STAGE_LABELS.get(code, code), "count": 0, "amount": 0},
         )
         entry["count"] += 1
-        price = erp_shipping_price_from_structured(_ensure_dict(structured_data))
+        price = erp_shipping_price_from_structured(_ensure_dict(row.structured_data))
         if isinstance(price, int):
             entry["amount"] += price
     return [stats[code] for code in sorted(stats, key=_stage_sort_index)]

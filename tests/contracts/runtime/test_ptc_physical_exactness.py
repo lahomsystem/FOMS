@@ -107,6 +107,8 @@ _PTC_FOMS_SERVICES_COMMON_ALLOWLIST: frozenset[str] = frozenset(
         "fragment_revalidation.py",
         "geocode_config.py",
         "html_whitespace.py",
+        # PERF P3-6: jsonb 투영 공용 조각(네이버 처리 목록·정산 모집단이 같이 쓴다)
+        "jsonb_projection.py",
         "map_generator.py",
         # HB-S1: 테이블 단위 쓰기 버전 카운터(세션 훅 신호원, 읽는 쪽은 S2)
         "table_version_counter.py",
