@@ -1,7 +1,8 @@
 """P3-8 작은 프런트 성능 4건 재발 방지(2026-10-01 성능 원장 P3-8).
 
-1. 알림 종(.bell-active) 흔들기는 끝이 있다. infinite 면 가만히 둔 화면에서도 메인 스레드를 계속 쓴다
-   (스테이징 헤드리스 A/B 2026-10-05, 중앙값 n=6: 3초 유휴 동안 AS 탭 70→22ms · 대시보드 28→14ms).
+1. 알림 종(.bell-active)은 안 읽은 알림이 있는 동안 계속 흔든다 — 사용자 결정(2026-10-05). 3번만 흔드는
+   안(유휴 메인 스레드 AS 70→22ms · 대시보드 28→14ms)은 성능 이득을 알고도 택하지 않았으니, 다음 성능
+   점검이 묻지 않고 다시 바꾸지 않게 잠근다.
 2. erp-mobile-shell.js 는 광폭 마우스 PC 에서 하단 탭 높이(offsetHeight)를 읽지 않는다 — 그 화면에서
    하단 탭은 늘 숨어 있어 값이 0 이고, 읽기만 해도 레이아웃을 강제로 한 번 더 돌린다
    (같은 A/B: 이 파일의 로드 때 호출 34→1ms, 로드 스타일 계산 합 AS 133→108ms · 대시보드 146→108ms).
@@ -48,23 +49,23 @@ def _bell_animation(html: str) -> str:
     return re.search(r"animation:\s*([^;]+);", block).group(1).strip()
 
 
-def _is_finite_shake(animation: str) -> bool:
-    return "bell-shake" in animation and "infinite" not in animation
+def _is_endless_shake(animation: str) -> bool:
+    return "bell-shake" in animation and "infinite" in animation
 
 
-def test_bell_shake_runs_a_finite_number_of_times() -> None:
+def test_bell_keeps_shaking_by_user_decision() -> None:
     html = _read(LAYOUT_SCRIPTS)
-    assert _is_finite_shake(_bell_animation(html)), _bell_animation(html)
+    assert _is_endless_shake(_bell_animation(html)), _bell_animation(html)
     # 움직임 줄이기 설정이면 아예 흔들지 않는다(기존 규칙 유지).
     reduced = html.split("@media (prefers-reduced-motion: reduce)", 1)[1].split("</style>", 1)[0]
     assert ".bell-active" in reduced and "animation: none" in reduced
 
 
 def test_bell_shake_checker_negative_control() -> None:
-    assert not _is_finite_shake("bell-shake 2.5s infinite")
-    assert not _is_finite_shake("none")
-    assert _is_finite_shake("bell-shake 2.5s 3")
-    assert _bell_animation(".bell-active {\n  animation: bell-shake 1s infinite;\n}") == "bell-shake 1s infinite"
+    assert _is_endless_shake("bell-shake 2.5s infinite")
+    assert not _is_endless_shake("bell-shake 2.5s 3")
+    assert not _is_endless_shake("none")
+    assert _bell_animation(".bell-active {\n  animation: bell-shake 1s 3;\n}") == "bell-shake 1s 3"
 
 
 # --- 2. 광폭 마우스 PC 에서 하단 탭 높이를 읽지 않기 ---------------------------------------------
