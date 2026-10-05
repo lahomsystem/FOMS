@@ -32,6 +32,7 @@ from sqlalchemy.orm.attributes import flag_modified
 
 from foms.services.datetime_kst import now_utc_naive
 from foms.services.orders.confirm_drawing_gate import DRAWING_GATED_COMMANDS, confirm_exit_block
+from foms.services.orders.draft_guard import ensure_order_promoted
 from foms.services.orders.revision import MutationResult, execute_order_mutation
 from foms.services.orders.state_axes import (
     AXIS_CONSTRUCTION,
@@ -362,6 +363,7 @@ def transition_order(
             인데 reason 누락(409).
         StageConflictError: actual axis 값이 expected_from 과 불일치(409, 상태 불변).
         RevisionConflictError: If-Match(mutation_version) 불일치(409, helper 가 던짐).
+        DraftNotPromotedError: 대상이 아직 승격하지 않은 ERP 초안(409 ``DRAFT_NOT_PROMOTED``).
     """
     command = get_command(command_id)
     now = now or now_utc_naive()
@@ -387,6 +389,8 @@ def transition_order(
     def _mutate(sess: Session, orders: List[Order]) -> Mapping[int, List[str]]:
         """row lock 아래에서 전이 본체를 수행하고 changed cache family 를 돌려준다."""
         order = orders[0]
+        # 0) 승격 전 초안은 어떤 축으로도 전이하지 않는다(숨은 주문 방지, draft_guard — 409).
+        ensure_order_promoted(order)
 
         # 1) actual-before snapshot + expected-from 재확인(lock 아래라 race-free).
         axes_before = read_state_axes(order)

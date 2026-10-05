@@ -36,6 +36,7 @@ from foms.services.erp_policy import (
     check_quest_approvals_complete,
     get_next_stage_for_completed_quest,
 )
+from foms.services.orders.draft_guard import draft_not_promoted_body, is_unpromoted_draft
 from foms.services.orders.order_transition_service import TransitionError
 from foms.services.orders.quest_transition_service import (
     advance_stage_on_quest_completion,
@@ -356,6 +357,10 @@ def api_order_quest_approve(order_id):
                 route='quest.api_order_quest_approve', user=user)
             return admin_err
         admin_override = resolve_admin_override(user, payload)
+        # 승격 전 초안: 승인 기록부터 초안 sd 에 쓰므로 전이 백스톱만으로는 늦다(draft_guard).
+        # 관리자 뚫기로도 못 넘는다 — 저장(승격)이 먼저다.
+        if is_unpromoted_draft(order):
+            return jsonify(draft_not_promoted_body(order_id)), 409
         punched: list = []
 
         sd = order.structured_data or {}
