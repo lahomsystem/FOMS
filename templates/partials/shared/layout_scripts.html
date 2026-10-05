@@ -1085,8 +1085,11 @@
             }
         }
 
+        /* 종 흔들기는 3번(약 7.5초)만 하고 멈춘다. 끝없이(infinite) 돌면 가만히 둔 화면에서도 메인 스레드를
+           계속 썼다(2026-10-01 성능 원장 P3-8). 스테이징 헤드리스 A/B(10-05)에서 3초 유휴 동안 메인 스레드
+           AS 탭 70→22ms·대시보드 28→14ms. 안 읽은 알림 표시는 아래 노란 색·빛과 빨간 숫자 배지로 계속 남는다. */
         .bell-active {
-            animation: bell-shake 2.5s infinite;
+            animation: bell-shake 2.5s 3;
             color: #ffc107 !important;
             text-shadow: 0 0 10px rgba(255, 193, 7, 0.4);
         }
