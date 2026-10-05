@@ -7,7 +7,7 @@ from flask import Blueprint, make_response, render_template, request, redirect, 
 from markupsafe import Markup, escape
 from sqlalchemy import or_, String
 
-from foms.web.auth import login_required, role_required, log_access, get_user_by_id
+from foms.web.auth import login_required, role_required, log_access, get_request_user, get_user_by_id
 from foms.services.audit_message_display import describe_field_change
 from foms.services.orders.audit_order_context import order_audit_context
 from db import get_db
@@ -274,7 +274,7 @@ def index():
                     setattr(order_display_data, 'orderer_name', orderer_name)
             processed_orders.append(order_display_data)
 
-        user = get_user_by_id(session['user_id']) if 'user_id' in session else None
+        user = get_request_user(session['user_id']) if 'user_id' in session else None
         parent = gnav_orders_layout_parent()
         html = render_template(
             'orders/index.html',
