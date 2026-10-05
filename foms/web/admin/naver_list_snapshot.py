@@ -59,11 +59,15 @@ from typing import Any, Optional
 from sqlalchemy import case, cast, func, literal_column, select, true
 from sqlalchemy.dialects.postgresql import JSON as PG_JSON
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.ext.compiler import compiles
-from sqlalchemy.sql.functions import FunctionElement
 from sqlalchemy.sql.util import ClauseAdapter
-from sqlalchemy.types import NullType
 
+# 투영 조각은 정산 모집단(`foms.services.settlement_source`)과 같이 쓴다 — 서비스 계층이 이 웹
+# 패키지를 import 하지 않게 공용 모듈로 옮겼다. 옛 이름은 그대로 남긴다.
+from foms.services.common.jsonb_projection import (
+    json_object_absent as _json_object_absent,
+    jsonb_key_order as _jsonb_key_order,
+    supports_sql_projection,
+)
 from foms.services.integrations.naver_commerce.mapping import CLAIM_BLOCK_KEYS, RETURN_BLOCK_KEYS
 from models import ExternalOrderLink
 
@@ -127,9 +131,6 @@ _LIST_FIELDS = tuple(column.key for column in LIST_COLUMNS) + ("raw_snapshot",)
 
 _KEY_PATTERN = re.compile(r"^[A-Za-z]+$")
 
-#: ``JSON_OBJECT … ABSENT ON NULL`` 은 PostgreSQL 16 부터다(CI PG 레인 16, 스테이징·운영 17).
-_MIN_SERVER_VERSION = (16,)
-
 
 class ListLink:
     """처리 목록용 **읽기 전용** 링크 행 — ``raw_snapshot`` 자리에 목록 투영 문서가 들어간다.
@@ -172,33 +173,6 @@ def _project(value: Any, spec: Optional[dict[str, Any]]) -> Any:
     return {key: _project(item, spec[key]) for key, item in value.items() if key in spec}
 
 
-class _json_object_absent(FunctionElement):
-    """``JSON_OBJECT(k VALUE v, … ABSENT ON NULL RETURNING json)`` — 있는 키만 담는다.
-
-    ``jsonb_build_object`` 는 없는 키를 ``null`` 로 채운다(원본과 모양이 달라진다).
-    인자는 ``(키, 값, 키, 값, …)`` 순서다. 키는 :data:`_KEY_PATTERN` 을 통과한 상수 글자다.
-    """
-
-    name = "json_object"
-    inherit_cache = True
-    type = NullType()
-
-
-@compiles(_json_object_absent, "postgresql")
-def _compile_json_object_absent(element: _json_object_absent, compiler: Any, **kw: Any) -> str:
-    """PostgreSQL 문법으로 펼친다(다른 방언에서는 이 식을 만들지 않는다)."""
-    args = list(element.clauses)
-    pairs = ", ".join(f"{compiler.process(key, **kw)} VALUE {compiler.process(value, **kw)}"
-                      for key, value in zip(args[0::2], args[1::2], strict=True))
-    return f"JSON_OBJECT({pairs} ABSENT ON NULL RETURNING json)"
-
-
-def _jsonb_key_order(key: str) -> tuple[int, bytes]:
-    """jsonb 가 객체 키를 저장하는 순서(길이 먼저, 같으면 바이트) — 출력 순서를 맞춘다."""
-    raw = key.encode("utf-8")
-    return (len(raw), raw)
-
-
 def _pick(doc: Any, spec: dict[str, Any], prepared: Optional[dict[str, Any]] = None) -> Any:
     """``doc`` 에서 ``spec`` 의 키만 담은 json 객체 식을 만든다.
 
@@ -224,25 +198,6 @@ def _pick(doc: Any, spec: dict[str, Any], prepared: Optional[dict[str, Any]] = N
                          else_=cast(value, PG_JSON))
         entries += [literal_column(f"'{key}'"), value]
     return _json_object_absent(*entries)
-
-
-def supports_sql_projection(db: Any) -> bool:
-    """이 세션에서 SQL 투영을 쓸 수 있는가(PostgreSQL 16 이상).
-
-    Args:
-        db: 요청 스코프 DB 세션.
-
-    Returns:
-        SQL 투영을 쓰면 True. 아니면 통째로 읽고 :func:`project_list_snapshot` 으로 줄인다
-        (결과는 같고 비용만 옛날 값이다 — SQLite 테스트 레인·옛 로컬 PG 보호).
-    """
-    # 엔진의 첫 연결 전에는 서버 버전을 모른다 — 연결을 먼저 잡아 판정이 흔들리지 않게 한다
-    # (어차피 바로 다음 조회가 같은 트랜잭션을 연다).
-    dialect = getattr(db.connection(), "dialect", None)
-    if getattr(dialect, "name", "") != "postgresql":
-        return False
-    version = getattr(dialect, "server_version_info", None) or ()
-    return tuple(version[:1]) >= _MIN_SERVER_VERSION
 
 
 def list_snapshot_statement(criteria: tuple, order_by: Optional[tuple] = None,

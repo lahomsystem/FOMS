@@ -19,7 +19,10 @@
 
 **캡 없음(§13.3-2)**: 모집단 전량(운영 ERP 1,978건)을 읽고 파이썬에서 좁힌다. 완료
 대시보드처럼 캡으로 먼저 자른 뒤 좁히면 특정 구간이 통째로 빈다. 규모가 커지면 캡이
-아니라 모집단 술어를 SQL 로 내려야 한다.
+아니라 모집단 술어를 SQL 로 내려야 한다. 필터(경과일·정산·채널·aging)는 SQL 로 내리지
+않는다 — 기본 화면(전체)이 어차피 전량이고, aging 막대·합계·"미수 먼저" 정렬이 금액 파생
+SSOT(파이썬)에서 나오기 때문이다. 대신 행마다 싣는 문서를 판정이 읽는 경로만 남긴 투영으로
+줄였다(:mod:`foms.services.settlement_source`).
 
 순서 주의: `foms.services.orders.*` 를 `erp_display` 보다 먼저 둔다(집계 커널과 같은
 순환 회피 — 그 파일 상단 주석 참조).
@@ -51,6 +54,7 @@ from foms.services.settlement_aggregation import (
     aging_bucket,
     completion_day_key,
 )
+from foms.services.settlement_source import fetch_settlement_rows
 from foms.web.cs.completion_dashboard import (
     _cash_receipt_issued,
     _cash_receipt_state,
@@ -380,11 +384,8 @@ def _load_rows(
         행 dict 리스트.
     """
     channels = _channel_map(db)
-    orders = (
-        db.query(Order.id, Order.status, Order.customer_name, Order.structured_data)
-        .filter(*_population_filters())
-        .all()
-    )
+    orders = fetch_settlement_rows(
+        db, (Order.id, Order.status, Order.customer_name), _population_filters())
     settle_map: dict[int, dict] = {}
     if include_naver_settlement:
         settle_map = _naver_settle_map(db, [int(order.id) for order in orders])
