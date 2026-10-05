@@ -508,3 +508,42 @@ body.erp-mobile-v2-layout .erp-mobile-shell-header.has-urgent.has-mytasks .erp-m
   font-weight: var(--foms-font-weight-normal, 400);
   color: var(--foms-text-secondary, #6b7280);
 }
+
+/* ── 긴급 칸 정렬 — 2026-10-05 ──
+   라벨 줄(체크 3개: 긴급·자가실측·지방주문) 높이를 왼쪽 접수 3칸 라벨(.form-label mb-1)과 맞춰
+   긴급 사유 칸이 접수 입력과 한 줄에 서게 한다. 줄바꿈 금지 — 넘치면 사유 칸이 다시 밀린다. */
+.erp-urgent-head {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 1.5rem;
+  margin-bottom: 0.25rem;
+  white-space: nowrap;
+}
+
+.erp-urgent-head .form-check {
+  min-height: 0;
+}
+
+/* 네이버 원본 칸이 붙으면(셸 1400px↑) 폼이 약 54% 로 좁아져 이 칸이 215~225px 까지 줄고,
+   체크 3개(약 232px)가 넘친다. 판정은 뷰포트가 아니라 칸 폭(공용 부품 규칙)이라 container
+   query 로, 좁을 때만 간격·체크 여백·글자를 줄여 한 줄을 지킨다. */
+.erp-urgent-col {
+  container-type: inline-size;
+}
+
+@container (max-width: 240px) {
+  .erp-urgent-head {
+    gap: 0.5rem;
+    font-size: 0.875rem;
+  }
+
+  .erp-urgent-head .form-check {
+    padding-left: 1.375em;
+  }
+
+  .erp-urgent-head .form-check .form-check-input {
+    margin-left: -1.375em;
+  }
+}
+
