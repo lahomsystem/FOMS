@@ -2659,7 +2659,7 @@ def _render_workbench(db) -> str:
 @admin_bp.route("/admin/naver-ingest/triage/pane")
 @login_required
 @role_required(["ADMIN", "MANAGER", "STAFF"])
-def naver_ingest_triage_pane() -> str:
+def naver_ingest_triage_pane() -> Any:
     """상세 pane 조각만 돌려준다 — 행을 눌러도 페이지를 통째로 다시 받지 않게.
 
     읽기 전용 GET 이다(mutation 이 아니라 write manifest 등재도 감사 라벨도 없다).
@@ -2684,8 +2684,16 @@ def naver_ingest_triage_pane() -> str:
     link = _link_by_id(db, link_id)
     if link is None:
         abort(404)
-    return render_template("admin/partials/naver_workbench_pane.html",
-                           **_pane_context(db, link))
+    # EPT-B7(원장 P3-2): 행을 누를 때마다 오는 조각인데 헤더가 없어 서버 시간을 못 읽었다.
+    # 전체 렌더와 같은 구간 이름(wb_pane_ctx)으로 나란히 읽힌다.
+    with phase("wb_pane_ctx"):
+        pane_ctx = _pane_context(db, link)
+    _t0 = time.perf_counter()
+    response = make_response(render_template("admin/partials/naver_workbench_pane.html",
+                                             **pane_ctx))
+    apply_ept_b7_render_headers(response, route_id="naver_ingest_triage_pane",
+                                render_ms=(time.perf_counter() - _t0) * 1000.0)
+    return response
 
 
 @admin_bp.route("/admin/naver-ingest/triage/detail")

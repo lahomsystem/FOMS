@@ -377,6 +377,24 @@ def test_pane_route_404s_for_an_unknown_link(client, workbench_on):
     assert client.get(f"{PANE_PATH}?link_id=99999999").status_code == 404
 
 
+def test_pane_route_reports_server_time_headers(client, workbench_on):
+    """행을 누를 때마다 오는 조각도 EPT-B7 서버 시간 헤더를 싣는다(원장 P3-2) — 전체 렌더와
+    같은 구간 이름(wb_pane_ctx)으로 나란히 읽힌다. 실패 응답(400)에는 싣지 않는다(음성)."""
+    _login(client)
+    link = _collected(order_no="N-V3-PANE-EPT", product="붙박이장")
+
+    response = client.get(f"{PANE_PATH}?link_id={link.id}")
+    missing = client.get(PANE_PATH)
+
+    assert response.status_code == 200
+    assert response.headers.get("X-FOMS-EPT-B7-ROUTE") == "naver_ingest_triage_pane"
+    assert float(response.headers["X-FOMS-EPT-B7-RENDER-MS"]) >= 0
+    phases = response.headers.get("X-FOMS-EPT-B7-PHASES", "")
+    assert phases.split(";")[0].startswith("wb_pane_ctx="), phases
+    assert missing.status_code == 400
+    assert "X-FOMS-EPT-B7-ROUTE" not in missing.headers
+
+
 # --------------------------------------------------------------------------- #
 # ⑤ pane 의 집 == `_group_of_link` 결과  ← **가장 중요**
 #

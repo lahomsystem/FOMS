@@ -1,5 +1,6 @@
 """ERP 도면 작업실 (ERP-SLIM-5; canonical, SFC-B11B). /erp/drawing-workbench."""
 import re
+import time
 from typing import Any, Mapping
 
 from flask import Blueprint, make_response, render_template, request, url_for, redirect, flash, g
@@ -65,6 +66,7 @@ from foms.services.drawing_workbench_read_model import (
     count_confirmed_drawing_orders,
 )
 from foms.services.common.erp_shell_http import apply_erp_shell_fragment_headers, wants_erp_shell_tab_body
+from foms.services.common.ept_b7_profile import apply_ept_b7_render_headers, record_phase
 from foms.services.request_utils import get_search_query_arg
 from foms.services.drawing_workbench_display import (
     drawing_thumb_enabled,
@@ -628,6 +630,9 @@ def erp_drawing_workbench_dashboard():
         "confirmed": bool(include_confirmed),
     }
     _seed_key = build_dashboard_cache_key("drawing", "workbench_queue_ids", _seed_fp)
+    # EPT-B7 구간(원장 P3-2): 이 화면은 서버 시간 헤더가 없어 어느 몫이 큰지 갈라 볼 수 없었다.
+    # 블록을 다시 들여쓰지 않으려고 phase() 대신 시각을 찍어 record_phase 로 넘긴다.
+    _t_phase = time.perf_counter()
     _seed_blob = get_or_compute_dashboard_slice(
         _seed_key,
         TTL_PANEL_ROWS,
@@ -643,6 +648,8 @@ def erp_drawing_workbench_dashboard():
         slice_name="workbench_queue_ids",
     )
     order_ids = [int(x) for x in (_seed_blob.get("order_ids") or [])]
+    record_phase("seed", (time.perf_counter() - _t_phase) * 1000)
+    _t_phase = time.perf_counter()
     orders = hydrate_drawing_orders_by_ids(orders_query, order_ids)
 
     # 검색 카드 딥링크(?focus_order=)는 seed 캡·필터와 무관하게 해당 주문이 착지해야 한다.
@@ -659,6 +666,8 @@ def erp_drawing_workbench_dashboard():
             or is_order_related_to_user(focus_order, current_user, scope=mine_scope)
         ):
             orders = [focus_order] + orders
+    record_phase("hydrate", (time.perf_counter() - _t_phase) * 1000)
+    _t_phase = time.perf_counter()
 
     # 판정 권한 축(요청당 1회 — 주문 무관). 상세 라우트의 동일 판정과 같은 조건이며
     # `not is_drawing_team` 누락 금지: 누락 시 상세에선 숨는 버튼이 태블릿에서만 노출된다.
@@ -890,6 +899,8 @@ def erp_drawing_workbench_dashboard():
             'include_for_mine': include_for_mine,
             'search_hay': search_hay,
         })
+    record_phase("rows", (time.perf_counter() - _t_phase) * 1000)
+    _t_phase = time.perf_counter()
 
     # 프로세스 맵 카운트는 목록 필터와 무관하게 전체 큐 기준(파이프라인 bar SSOT).
     # '전체' = 열린 큐 네 칸(대기중·작업중·수정요청·확정대기)의 합. 칸은 _workbench_bucket
@@ -996,6 +1007,11 @@ def erp_drawing_workbench_dashboard():
         if wants_erp_shell_tab_body(request)
         else 'drawing/workbench_dashboard.html'
     )
+    record_phase("filter_sort", (time.perf_counter() - _t_phase) * 1000)
+    # render_template 인자로 바로 부르면 그 시간이 렌더 구간에 섞인다(인자 선평가) — 먼저 계산.
+    _can_edit_erp = can_edit_erp(current_user)
+    _drawing_thumb_enabled = drawing_thumb_enabled(mobile_v2_active=mobile_v2_active)
+    _t0 = time.perf_counter()
     response = make_response(
         render_template(
             template_name,
@@ -1004,11 +1020,16 @@ def erp_drawing_workbench_dashboard():
             pagination={'page': page, 'per_page': per_page, 'total_count': total_count, 'total_pages': total_pages, 'has_prev': page > 1, 'has_next': page < total_pages},
             sort_by=request.args.get('sort') or '',
             filters={'q': q_raw, 'status': status_filter, 'mine': '1' if mine_only else '', 'unread': '1' if unread_only else '', 'due_today': '1' if due_today_only else '', 'overdue': '1' if overdue_only else '', 'assignee': assignee_filter_raw, 'dday3': '1' if dday3_only else '', 'pending': '1' if pending_only else '', 'include_confirmed': '1' if include_confirmed else ''},
-            can_edit_erp=can_edit_erp(current_user),
+            can_edit_erp=_can_edit_erp,
             erp_order_enabled=True,
             erp_mine_only=mine_only,
-            drawing_thumb_enabled=drawing_thumb_enabled(mobile_v2_active=mobile_v2_active),
+            drawing_thumb_enabled=_drawing_thumb_enabled,
         )
+    )
+    apply_ept_b7_render_headers(
+        response,
+        route_id="erp_drawing_workbench_dashboard",
+        render_ms=(time.perf_counter() - _t0) * 1000,
     )
     apply_erp_shell_fragment_headers(response, request)
     return response
