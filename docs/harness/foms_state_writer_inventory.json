@@ -132,14 +132,14 @@
     },
     {
       "path": "foms/web/orders/trash.py",
-      "lineno": 316,
+      "lineno": 349,
       "axis": "MAIN",
       "kind": "attr_status",
       "owner": "DELETE-TRASH"
     },
     {
       "path": "foms/web/orders/trash.py",
-      "lineno": 317,
+      "lineno": 350,
       "axis": "MAIN",
       "kind": "attr_status",
       "owner": "DELETE-TRASH"
@@ -412,7 +412,7 @@
     },
     {
       "path": "foms/web/orders/trash.py",
-      "lineno": 316,
+      "lineno": 349,
       "kind": "attr_status",
       "axis": "MAIN",
       "classification": "EXTERNAL",
@@ -420,7 +420,7 @@
     },
     {
       "path": "foms/web/orders/trash.py",
-      "lineno": 317,
+      "lineno": 350,
       "kind": "attr_status",
       "axis": "MAIN",
       "classification": "EXTERNAL",
