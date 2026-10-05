@@ -315,14 +315,22 @@ def erp_dashboard():
         filtered.sort(key=lambda item: item['_order'].id, reverse=True)
 
     # --- A-0. kpis / step_stats 집계 (limit 무관하게 _q_stats에서 산출) ---
+    # 키 = ``_q_stats`` 를 정하는 축 전부(build_orders_dashboard_queries 가 복제 **전에** 거는 필터).
+    # v4 는 date·field·risk·status 를 빠뜨려, 필터를 바꿔도 TTL(300초) 동안 먼저 계산된 숫자판이
+    # 나왔다(2026-10-05 스테이징 실화면: status=ON_HOLD 목록 0건인데 단계 합계 532 = 필터 없는 값).
+    # '오늘' 필터는 KST 날짜가 바뀌면 다른 집합이므로 그날 날짜도 넣는다.
     _summary_fp = {
-        "v": 4,
+        "v": 5,
         "user": _orders_user_visibility_fingerprint(current_user, is_admin),
         "filters": {
             "mine": '1' if f_mine else '',
             "q": f_q,
             "team": f_team,
-            "today": f_today,
+            "today": today_iso if f_today == '1' else '',
+            "date": f_date,
+            "field": f_field if f_date else '',
+            "risk": f_risk,
+            "status": _filters.status,
         },
     }
     _summary_key = build_dashboard_cache_key("orders", "summary_counts", _summary_fp)
