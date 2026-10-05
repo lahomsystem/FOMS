@@ -392,7 +392,7 @@
     {
       "path": "foms/api/drawing/erp_orders_drawing.py",
       "endpoint": "api_drawing_gateway_complete",
-      "lineno": 832,
+      "lineno": 875,
       "methods": [
         "POST"
       ],
@@ -401,7 +401,7 @@
     {
       "path": "foms/api/drawing/erp_orders_drawing.py",
       "endpoint": "api_drawing_gateway_upload",
-      "lineno": 787,
+      "lineno": 830,
       "methods": [
         "POST"
       ],
@@ -410,7 +410,7 @@
     {
       "path": "foms/api/drawing/erp_orders_drawing.py",
       "endpoint": "api_order_cancel_transfer",
-      "lineno": 494,
+      "lineno": 537,
       "methods": [
         "POST"
       ],
@@ -419,7 +419,7 @@
     {
       "path": "foms/api/drawing/erp_orders_drawing.py",
       "endpoint": "api_order_transfer_drawing",
-      "lineno": 432,
+      "lineno": 475,
       "methods": [
         "POST"
       ],
@@ -500,7 +500,7 @@
     {
       "path": "foms/api/drawing/wizard.py",
       "endpoint": "api_post_drawing_wizard_presets",
-      "lineno": 1701,
+      "lineno": 1702,
       "methods": [
         "POST"
       ],
@@ -527,7 +527,7 @@
     {
       "path": "foms/api/drawing/wizard.py",
       "endpoint": "api_post_drawing_wizard_version_snapshot",
-      "lineno": 1509,
+      "lineno": 1510,
       "methods": [
         "POST"
       ],
@@ -761,7 +761,7 @@
     {
       "path": "foms/api/files/direct_upload.py",
       "endpoint": "api_order_attachments_complete",
-      "lineno": 186,
+      "lineno": 205,
       "methods": [
         "POST"
       ],
@@ -770,7 +770,7 @@
     {
       "path": "foms/api/files/direct_upload.py",
       "endpoint": "api_upload_session",
-      "lineno": 62,
+      "lineno": 73,
       "methods": [
         "POST"
       ],
@@ -779,7 +779,7 @@
     {
       "path": "foms/api/files/direct_upload.py",
       "endpoint": "api_upload_session_batch",
-      "lineno": 121,
+      "lineno": 136,
       "methods": [
         "POST"
       ],
@@ -788,7 +788,7 @@
     {
       "path": "foms/api/files/order_routes.py",
       "endpoint": "api_order_attachments_delete",
-      "lineno": 646,
+      "lineno": 674,
       "methods": [
         "DELETE"
       ],
@@ -797,7 +797,7 @@
     {
       "path": "foms/api/files/order_routes.py",
       "endpoint": "api_order_attachments_patch",
-      "lineno": 472,
+      "lineno": 500,
       "methods": [
         "PATCH"
       ],
@@ -806,7 +806,7 @@
     {
       "path": "foms/api/files/order_routes.py",
       "endpoint": "api_order_attachments_reorder",
-      "lineno": 571,
+      "lineno": 599,
       "methods": [
         "POST"
       ],
@@ -815,7 +815,7 @@
     {
       "path": "foms/api/files/order_routes.py",
       "endpoint": "api_order_attachments_restore",
-      "lineno": 729,
+      "lineno": 757,
       "methods": [
         "POST"
       ],
@@ -824,7 +824,7 @@
     {
       "path": "foms/api/files/order_routes.py",
       "endpoint": "api_order_attachments_upload",
-      "lineno": 351,
+      "lineno": 376,
       "methods": [
         "POST"
       ],
@@ -860,7 +860,7 @@
     {
       "path": "foms/api/files/upload_ticket_routes.py",
       "endpoint": "api_complete_upload_ticket",
-      "lineno": 102,
+      "lineno": 107,
       "methods": [
         "POST"
       ],
@@ -869,7 +869,7 @@
     {
       "path": "foms/api/files/upload_ticket_routes.py",
       "endpoint": "api_issue_upload_ticket",
-      "lineno": 60,
+      "lineno": 61,
       "methods": [
         "POST"
       ],
@@ -1950,7 +1950,7 @@
     {
       "path": "foms/web/orders/trash.py",
       "endpoint": "delete_order",
-      "lineno": 178,
+      "lineno": 209,
       "methods": [
         "POST"
       ],
@@ -1959,7 +1959,7 @@
     {
       "path": "foms/web/orders/trash.py",
       "endpoint": "restore_orders",
-      "lineno": 293,
+      "lineno": 326,
       "methods": [
         "POST"
       ],

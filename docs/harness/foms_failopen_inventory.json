@@ -78,7 +78,7 @@
     "foms/services/jobs/tasks.py:703",
     "foms/services/notifications/push_sender.py:643",
     "foms/web/auth/routes.py:124",
-    "foms/web/orders/trash.py:147",
+    "foms/web/orders/trash.py:178",
     "wdcalculator_db.py:152"
   ],
   "unclassified_sites": [],
@@ -5521,7 +5521,7 @@
     },
     {
       "path": "foms/web/orders/trash.py",
-      "lineno": 140,
+      "lineno": 171,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "web",
@@ -5530,7 +5530,7 @@
     },
     {
       "path": "foms/web/orders/trash.py",
-      "lineno": 143,
+      "lineno": 174,
       "handler_type": "broad_exception",
       "disposition": "INTENTIONAL",
       "owner": "web",
@@ -5539,7 +5539,7 @@
     },
     {
       "path": "foms/web/orders/trash.py",
-      "lineno": 147,
+      "lineno": 178,
       "handler_type": "broad_exception",
       "disposition": "FAIL_CLOSED",
       "owner": "web",
@@ -5548,7 +5548,7 @@
     },
     {
       "path": "foms/web/orders/trash.py",
-      "lineno": 151,
+      "lineno": 182,
       "handler_type": "broad_exception",
       "disposition": "INTENTIONAL",
       "owner": "web",
@@ -5557,7 +5557,7 @@
     },
     {
       "path": "foms/web/orders/trash.py",
-      "lineno": 171,
+      "lineno": 202,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
@@ -5566,7 +5566,7 @@
     },
     {
       "path": "foms/web/orders/trash.py",
-      "lineno": 205,
+      "lineno": 236,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
@@ -5575,7 +5575,7 @@
     },
     {
       "path": "foms/web/orders/trash.py",
-      "lineno": 233,
+      "lineno": 264,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "web",
@@ -5584,7 +5584,7 @@
     },
     {
       "path": "foms/web/orders/trash.py",
-      "lineno": 247,
+      "lineno": 278,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "web",
@@ -5593,7 +5593,7 @@
     },
     {
       "path": "foms/web/orders/trash.py",
-      "lineno": 328,
+      "lineno": 361,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "web",

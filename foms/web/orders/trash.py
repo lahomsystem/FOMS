@@ -9,13 +9,13 @@ cleanup_order_drafts)은 원상태(``original_status``)로 되돌리고, canonic
 두 경로 모두 ``deleted_at`` 을 반드시 clear 해 ghost(active_filter 제외) 를 막는다.
 """
 
-import copy
 import logging
 
 import uuid
 
 from flask import Blueprint, flash, make_response, redirect, render_template, request, session, url_for
 from sqlalchemy import String, text
+from sqlalchemy import inspect as sa_inspect
 
 from foms.web.auth import get_user_by_id, log_access, login_required, role_required
 from db import get_db
@@ -65,11 +65,42 @@ def _build_erp_order_options_summary(structured_data):
     return ", ".join(summary_parts)
 
 
+#: 휴지통 표시 행이 싣는 칸 — ``Order`` 의 매핑 컬럼 **전부**. 예전 표시 사본(ORM 인스턴스
+#: ``deepcopy``)과 같은 속성 집합이라 템플릿·``apply_erp_display_fields`` 가 읽는 칸이 빠질 수
+#: 없다(빠지면 Jinja 는 예외 없이 빈칸을 그린다 — 그래서 고르지 않고 전부 싣는다).
+_TRASH_ROW_KEYS = tuple(attr.key for attr in sa_inspect(Order).column_attrs)
+_TRASH_COLUMNS = tuple(getattr(Order, key) for key in _TRASH_ROW_KEYS)
+
+
+class TrashDisplayRow:
+    """휴지통 목록 표시용 **분리된** 행(ORM 인스턴스 아님).
+
+    예전에는 ORM 주문을 행마다 ``copy.deepcopy`` 해서 표시 속성을 덧입혔다 — 세션에 붙은
+    인스턴스를 고치지 않으려는 것이었는데, ``structured_data`` 까지 통째 깊은 복사라 스테이징
+    343행에서 표시 준비만 약 120ms 였다(2026-10-05, 성능 원장 P3-6). 이 행은 컬럼 조회 결과로
+    만들어 처음부터 세션 밖이라 복사할 것이 없다. 표시 속성(``display_options``·
+    ``apply_erp_display_fields`` 가 채우는 칸)은 그냥 속성으로 붙는다.
+    """
+
+    def __init__(self, values: dict):
+        self.__dict__.update(values)
+
+
+def _trash_display_row(order) -> TrashDisplayRow:
+    """조회 행(컬럼 결과 ``Row`` 또는 ORM 주문) → 표시 행. 컬럼 값은 얕게 옮긴다."""
+    return TrashDisplayRow({key: getattr(order, key) for key in _TRASH_ROW_KEYS})
+
+
 def _build_trash_display_orders(orders):
-    """휴지통 목록 표시용 copy에 ERP Order display 정보를 덧입힌다."""
+    """휴지통 목록 표시 행에 ERP Order display 정보를 덧입힌다.
+
+    입력 행은 고치지 않는다 — 표시 속성은 :class:`TrashDisplayRow` 에만 붙는다.
+    ``structured_data`` 는 읽기만 하므로(``apply_erp_display_fields``·옵션 요약 모두 읽기
+    전용) 사본을 만들지 않는다.
+    """
     display_orders = []
     for order in orders:
-        order_display = copy.deepcopy(order)
+        order_display = _trash_display_row(order)
         order_display.display_options = format_options_for_display(order.options)
 
         if is_erp_order_record(order) and getattr(order, "structured_data", None):
@@ -261,7 +292,9 @@ def trash():
     db = get_db()
     # canonical delete 술어: deleted_at IS NOT NULL (DELETE-CORE projection). legacy
     # status=='DELETED' 미러(DELETE-BULK 전이기)에 의존하지 않는다.
-    query = db.query(Order).filter(Order.deleted_at.isnot(None))
+    # ORM 인스턴스가 아니라 컬럼 행으로 읽는다(표시 행으로 옮겨 담을 뿐이라 식별자 지도가
+    # 필요 없다). 술어·정렬·전량 표시는 그대로다 — 휴지통 화면에는 페이지가 없다.
+    query = db.query(*_TRASH_COLUMNS).filter(Order.deleted_at.isnot(None))
     if search_term:
         search_pattern = f"%{search_term}%"
         query = query.filter(
