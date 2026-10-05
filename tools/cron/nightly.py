@@ -43,6 +43,10 @@ class NightlyStep:
 
 # ``--execute`` / ``--apply`` are part of the contract: without them each tool is a
 # dry-run that "succeeds" every night while deleting nothing.
+#
+# 보류(2026-10-05 사용자 결정): 초안 표식 규칙 감시 ``tools/ops/check_draft_flag_invariant.py``
+# (읽기만, 위반 시 exit 3)는 운영 숨은 초안 7건을 정리한 뒤에 ``cleanup_order_drafts`` 바로
+# 다음 단계로 넣는다. 지금 넣으면 그 7건 때문에 매일 밤 실패로 울린다.
 NIGHTLY_STEPS: tuple[NightlyStep, ...] = (
     NightlyStep("cleanup_order_drafts", "tools/cron/cleanup_order_drafts.py", ("--execute",)),
     NightlyStep(
