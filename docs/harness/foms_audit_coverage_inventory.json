@@ -671,7 +671,7 @@
     {
       "path": "foms/api/erp_orders_structured.py",
       "endpoint": "api_erp_create_draft",
-      "lineno": 1969,
+      "lineno": 1972,
       "methods": [
         "POST"
       ],
@@ -680,7 +680,7 @@
     {
       "path": "foms/api/erp_orders_structured.py",
       "endpoint": "api_erp_discard_draft",
-      "lineno": 2428,
+      "lineno": 2431,
       "methods": [
         "POST"
       ],
@@ -689,7 +689,7 @@
     {
       "path": "foms/api/erp_orders_structured.py",
       "endpoint": "api_erp_draft_autosave",
-      "lineno": 2301,
+      "lineno": 2304,
       "methods": [
         "POST"
       ],
@@ -698,7 +698,7 @@
     {
       "path": "foms/api/erp_orders_structured.py",
       "endpoint": "api_parse_order_text",
-      "lineno": 1864,
+      "lineno": 1867,
       "methods": [
         "POST"
       ],
@@ -707,7 +707,7 @@
     {
       "path": "foms/api/erp_orders_structured.py",
       "endpoint": "api_patch_order_structured_fields",
-      "lineno": 1105,
+      "lineno": 1108,
       "methods": [
         "PATCH"
       ],
@@ -716,7 +716,7 @@
     {
       "path": "foms/api/erp_orders_structured.py",
       "endpoint": "api_payment_confirm",
-      "lineno": 1886,
+      "lineno": 1889,
       "methods": [
         "POST"
       ],
@@ -725,7 +725,7 @@
     {
       "path": "foms/api/erp_orders_structured.py",
       "endpoint": "api_put_order_structured",
-      "lineno": 1394,
+      "lineno": 1397,
       "methods": [
         "PUT"
       ],
@@ -1221,7 +1221,7 @@
     {
       "path": "foms/api/quest.py",
       "endpoint": "api_order_quest_approve",
-      "lineno": 327,
+      "lineno": 328,
       "methods": [
         "POST"
       ],
@@ -1230,7 +1230,7 @@
     {
       "path": "foms/api/quest.py",
       "endpoint": "api_order_quest_create",
-      "lineno": 145,
+      "lineno": 146,
       "methods": [
         "POST"
       ],
@@ -1239,7 +1239,7 @@
     {
       "path": "foms/api/quest.py",
       "endpoint": "api_order_quest_update_status",
-      "lineno": 726,
+      "lineno": 731,
       "methods": [
         "PUT"
       ],
@@ -1950,7 +1950,7 @@
     {
       "path": "foms/web/orders/trash.py",
       "endpoint": "delete_order",
-      "lineno": 209,
+      "lineno": 220,
       "methods": [
         "POST"
       ],
@@ -1959,7 +1959,7 @@
     {
       "path": "foms/web/orders/trash.py",
       "endpoint": "restore_orders",
-      "lineno": 326,
+      "lineno": 379,
       "methods": [
         "POST"
       ],

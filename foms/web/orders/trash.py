@@ -7,6 +7,10 @@ web hard-delete 는 제거됐다(DELETE-TRASH-01): 물리 영구 삭제는 OPS-A
 cleanup_order_drafts)은 원상태(``original_status``)로 되돌리고, canonical
 :func:`soft_delete_order` 로 삭제된(status 실상태 보존) 주문은 delete 축만 clear 한다 —
 두 경로 모두 ``deleted_at`` 을 반드시 clear 해 ghost(active_filter 제외) 를 막는다.
+
+작성 중 초안(ERP 이고 표식 참·status DRAFT·original_status DRAFT 중 하나)은 **복원하지 않는다**
+(2026-10-05 사용자 결정 (다), :mod:`foms.services.orders.draft_guard`). 버린 초안을 복원하면
+status 만 바뀌고 표식이 남아 어느 화면에도 안 보이는 주문이 됐다(운영 #5078).
 """
 
 import logging
@@ -24,6 +28,11 @@ from foms.services.erp_display import _ensure_dict, apply_erp_display_fields
 from foms.services.erp_order_flags import is_erp_order_record
 from foms.services.order_display_utils import format_options_for_display
 from foms.services.orders.change_reason import reason_label, record_action_reason
+from foms.services.orders.draft_guard import (
+    DRAFT_NOT_RESTORABLE_LABEL,
+    DRAFT_NOT_RESTORABLE_MESSAGE,
+    is_unrestorable_trashed_draft,
+)
 from foms.services.orders.soft_delete import restore_order, soft_delete_order
 from foms.services.request_utils import get_preserved_filter_args
 from foms.services.gnav_contract import gnav_orders_layout_parent, wants_gnav_fragment
@@ -102,6 +111,8 @@ def _build_trash_display_orders(orders):
     for order in orders:
         order_display = _trash_display_row(order)
         order_display.display_options = format_options_for_display(order.options)
+        # 복원 술어(restore_orders)와 같은 판정 — 화면에서 미리 막고 이유를 보여 준다.
+        order_display.is_unrestorable_draft = is_unrestorable_trashed_draft(order)
 
         if is_erp_order_record(order) and getattr(order, "structured_data", None):
             order_display.structured_data = _ensure_dict(order.structured_data)
@@ -313,6 +324,7 @@ def trash():
         orders=orders,
         search_term=search_term,
         parent_template=parent,
+        draft_not_restorable_label=DRAFT_NOT_RESTORABLE_LABEL,
     )
     resp = make_response(html)
     if wants_gnav_fragment():
@@ -320,11 +332,52 @@ def trash():
     return resp
 
 
+def _restore_trashed_order(db, order, actor_user_id) -> dict:
+    """휴지통 행 1건을 복원하고 감사용 전후 값을 돌려준다(커밋은 호출부).
+
+    Args:
+        db: 요청 세션.
+        order: 휴지통 행(초안이 아님 — 호출부가 :func:`is_unrestorable_trashed_draft` 로 걸렀다).
+        actor_user_id: 복원한 사람.
+
+    Returns:
+        ``{'from_status', 'to_status', 'original_status'}``.
+    """
+    from_status = str(order.status or "")
+    original_status = order.original_status
+    if from_status == "DELETED":
+        # transition: status 축을 'DELETED'로 덮은 주문(legacy web bulk·DELETE-BULK
+        # 전이기 미러·cron cleanup). 원상태로 되돌린다 — restore_order 만으로는
+        # status='DELETED' 가 잔존해 active_filter(status!='DELETED' AND deleted_at
+        # IS NULL) 에서 제외되는 ghost 가 된다. DELETE-BULK 미러는 무접근(제거 안 함).
+        order.status = order.original_status or "RECEIVED"
+        order.original_status = None
+        order.deleted_at = None
+    else:
+        # canonical soft_delete_order 로 삭제(status 실상태 보존) → delete 축만 clear,
+        # main/logistics/hold/AS overlay 보존.
+        restore_order(db, order_id=order.id, actor_user_id=actor_user_id)
+    return {
+        "from_status": from_status,
+        "to_status": str(order.status or ""),
+        "original_status": original_status,
+    }
+
+
+def _flash_restore_result(restored_count: int, rejected_draft_ids: list) -> None:
+    """복원 결과 안내. 초안을 뺐으면 번호와 이유를 함께 알린다."""
+    if restored_count or not rejected_draft_ids:
+        flash(f"{restored_count}개 주문이 성공적으로 복원되었습니다.", "success")
+    if rejected_draft_ids:
+        ids_text = ", ".join(f"#{oid}" for oid in rejected_draft_ids)
+        flash(f"{ids_text}: {DRAFT_NOT_RESTORABLE_MESSAGE}", "warning")
+
+
 @order_trash_bp.route("/restore_orders", methods=["POST"])
 @login_required
 @role_required(["ADMIN", "MANAGER"])
 def restore_orders():
-    """선택한 주문 복원."""
+    """선택한 주문 복원. 작성 중 초안은 서버에서 거절하고 그 행은 그대로 둔다."""
     selected_ids = request.form.getlist("selected_order")
     if not selected_ids:
         flash("복원할 주문을 선택해주세요.", "warning")
@@ -340,24 +393,30 @@ def restore_orders():
             .all()  # perf-ok
         )
         actor_user_id = session.get("user_id")
+        rejected_draft_ids = sorted(int(o.id) for o in orders if is_unrestorable_trashed_draft(o))
+        restored_ids: list[int] = []
         for order in orders:
-            if (order.status or "") == "DELETED":
-                # transition: status 축을 'DELETED'로 덮은 주문(legacy web bulk·DELETE-BULK
-                # 전이기 미러·cron cleanup). 원상태로 되돌린다 — restore_order 만으로는
-                # status='DELETED' 가 잔존해 active_filter(status!='DELETED' AND deleted_at
-                # IS NULL) 에서 제외되는 ghost 가 된다. DELETE-BULK 미러는 무접근(제거 안 함).
-                order.status = order.original_status or "RECEIVED"
-                order.original_status = None
-                order.deleted_at = None
-            else:
-                # canonical soft_delete_order 로 삭제(status 실상태 보존) → delete 축만 clear,
-                # main/logistics/hold/AS overlay 보존.
-                restore_order(db, order_id=order.id, actor_user_id=actor_user_id)
+            if int(order.id) in rejected_draft_ids:
+                continue
+            change = _restore_trashed_order(db, order, actor_user_id)
+            restored_ids.append(int(order.id))
+            # 주문마다 번호가 남는 감사행(예전 요약 한 줄에는 번호가 없었다 — 2026-10-05 조사).
+            log_access(
+                f"주문 #{order.id} 휴지통 복원", actor_user_id, auto_commit=False,
+                action="ORDER_RESTORED", target_type="order", target_id=int(order.id),
+                detail=change, db=db,
+            )
+        # 요약 문구는 옛 조회("주문 N개 복원")와 호환되게 그대로 두고 번호를 detail 에 싣는다.
+        log_access(
+            f"주문 {len(restored_ids)}개 복원", actor_user_id,
+            {"count": len(restored_ids), "order_ids": sorted(restored_ids),
+             "rejected_draft_ids": rejected_draft_ids},
+            auto_commit=False, db=db,
+        )
         db.commit()
         # 복원도 주문이 모든 탭에 다시 나타나는 전이 → 삭제와 동일하게 즉시 무효화.
         _invalidate_dashboard_caches_after_delete("order_restore")
-        log_access(f"주문 {len(orders)}개 복원", session.get("user_id"), {"count": len(orders)})
-        flash(f"{len(orders)}개 주문이 성공적으로 복원되었습니다.", "success")
+        _flash_restore_result(len(restored_ids), rejected_draft_ids)
     except Exception as exc:
         db.rollback()
         flash(f"주문 복원 중 오류가 발생했습니다: {str(exc)}", "error")
