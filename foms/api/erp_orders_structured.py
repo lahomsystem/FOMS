@@ -94,6 +94,9 @@ STRUCTURED_PUT_POLICY_ID = "ERP_STRUCTURED_PUT"
 ORDER_CREATED_EVENT = "ORDER_CREATED"
 #: draft 행이 **처음 만들어진** 시점의 이벤트(설계 결정 ② — 승격 이벤트와 분리).
 ORDER_DRAFT_CREATED_EVENT = "ORDER_DRAFT_CREATED"
+#: 새 주문 화면 복원 띠의 '버리기'로 초안을 지운 시점(2026-10-05 숨은 초안 조사에서 버린 시각을
+#: 알 수 없었던 빈칸을 메운다).
+ORDER_DRAFT_DISCARDED_EVENT = "ORDER_DRAFT_DISCARDED"
 #: 두 이벤트 payload 의 경로 표기 — 마법사/레거시 폼(``create_order`` 경유)과 구분한다.
 ERP_DRAFT_EVENT_VIA = "erp_draft"
 
@@ -2440,9 +2443,18 @@ def api_erp_discard_draft():
         order = _resolve_session_draft(db, draft_token)
         if order is not None and is_erp_order_draft(order):
             order.status = 'DELETED'
+            # 정리 크론(tools/cron/cleanup_order_drafts.py)과 같은 모양 — 휴지통이 "초안이었다"를
+            # 알아보고 복원을 막는다(draft_guard). 비워 두면 '원래 상태: 알 수 없음' 이었다.
+            order.original_status = 'DRAFT'
             # deleted_at 정본 규약 = naive UTC 고정폭(soft_delete._DELETED_AT_FORMAT).
             # 이전 ISO(T 포함 컨테이너 로컬)는 문자열 desc 정렬과 읽는 쪽 해석을 둘 다 어긋냈다.
             order.deleted_at = now_utc_naive().strftime('%Y-%m-%d %H:%M:%S')
+            db.add(OrderEvent(
+                order_id=order.id,
+                event_type=ORDER_DRAFT_DISCARDED_EVENT,
+                payload={'via': ERP_DRAFT_EVENT_VIA},
+                created_by_user_id=_event_actor_user_id(),
+            ))
             db.commit()
         session.pop('erp_draft_order_id', None)
         return jsonify({'success': True})

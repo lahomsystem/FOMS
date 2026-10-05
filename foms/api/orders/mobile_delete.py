@@ -37,6 +37,11 @@ from foms.services.orders.change_reason import (
     reason_label,
     record_action_reason,
 )
+from foms.services.orders.draft_guard import (
+    DRAFT_NOT_RESTORABLE_CODE,
+    DRAFT_NOT_RESTORABLE_MESSAGE,
+    is_unrestorable_trashed_draft,
+)
 from foms.services.orders.mobile_delete_guard import (
     GUARD_BLOCKED,
     GUARD_FREE,
@@ -209,6 +214,9 @@ def mobile_restore_order_response(order_id: int):
     order = db.query(Order).filter(Order.id == order_id, Order.deleted_at.isnot(None)).first()
     if order is None:
         return _fail("NOT_FOUND", "휴지통에 없는 주문이에요.", 404)
+    # 작성 중 초안은 어느 복원 길로도 되살리지 않는다(PC 휴지통과 같은 술어, draft_guard).
+    if is_unrestorable_trashed_draft(order):
+        return _fail(DRAFT_NOT_RESTORABLE_CODE, DRAFT_NOT_RESTORABLE_MESSAGE, 409)
 
     if (order.status or "") == "DELETED":
         # legacy status 미러(PC bulk 삭제·cron)가 덮은 주문은 restore_order 만으로 ghost 가 된다
