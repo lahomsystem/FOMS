@@ -777,7 +777,11 @@
   /** `brand_channels` → 분석 탭 채널 표가 읽는 {channel, count, revenue}(실제 매출 기준). */
   function brandActualChannels(data) {
     return ((data && data.brand_channels) || []).map(function (b) {
-      return { channel: b.label, count: b.actual_count || 0, revenue: b.actual_revenue || 0 };
+      return {
+        channel: b.label, count: b.actual_count || 0, revenue: b.actual_revenue || 0,
+        // 그 칸 안의 네이버 몫(shop in shop) — 칸 합계에 이미 들어 있는 부분값이다.
+        naverCount: b.naver_actual_count || 0, naverRevenue: b.naver_actual_revenue || 0,
+      };
     });
   }
 
@@ -1553,7 +1557,25 @@
         seg.setAttribute('data-settlement-channel', ch.channel || '');
         seg.style.setProperty('--s-seg-pct', pct.toFixed(2) + '%');
         seg.style.setProperty('--s-seg-color', color);
-        seg.textContent = pct >= 10 ? Math.round(pct) + '%' : '';
+        var segText = pct >= 10 ? Math.round(pct) + '%' : '';
+        // 요약 탭 채널 카드와 같은 shop in shop — 라홈 조각 안 끝자리에 네이버 몫(네이버 초록).
+        // 금액 기준일 때만 그린다(건수 기준 막대에 금액 몫을 끼우면 축이 섞인다).
+        if (totalRevenue > 0 && ch.naverRevenue > 0 && value > 0) {
+          var inner = Math.min(100, (ch.naverRevenue / value) * 100);
+          seg.classList.add('s-chseg--host');
+          var own = document.createElement('span');
+          own.className = 's-chseg-own';
+          own.textContent = segText;
+          var nav = document.createElement('span');
+          nav.className = 's-chseg-inner';
+          nav.style.setProperty('--s-inner-pct', inner.toFixed(2) + '%');
+          nav.title = '그중 네이버 ' + fmtWon(ch.naverRevenue) + ' (' + inner.toFixed(1) + '%)';
+          nav.textContent = pct * inner / 100 >= 9 ? '네이버' : '';
+          seg.appendChild(own);
+          seg.appendChild(nav);
+        } else {
+          seg.textContent = segText;
+        }
         bar.appendChild(seg);
       }
     });
@@ -1586,6 +1608,29 @@
         tr.appendChild(td);
       });
       tbody.appendChild(tr);
+      // 라홈 행 바로 아래 '그중 네이버' 줄 — 칸 합계의 부분값이라 표 합계에 더하지 않는다.
+      if (ch.naverCount > 0) {
+        var naverPer = Math.round(ch.naverRevenue / ch.naverCount);
+        var sub = document.createElement('tr');
+        sub.className = 's-dt-sub';
+        [
+          '└ 그중 네이버',
+          fmtMan(toMan(ch.naverRevenue)),
+          fmtCount(ch.naverCount),
+          fmtMan(toMan(naverPer)),
+        ].forEach(function (text, ci) {
+          var td = document.createElement('td');
+          if (ci === 0) {
+            var dot = document.createElement('i');
+            dot.className = 's-sw';
+            dot.style.setProperty('--s-sw-color', NAVER_GREEN);
+            td.appendChild(dot);
+          }
+          td.appendChild(document.createTextNode(text));
+          sub.appendChild(td);
+        });
+        tbody.appendChild(sub);
+      }
     });
     table.appendChild(tbody);
   }
