@@ -811,8 +811,8 @@ def api_users_list_for_mention():
 def _urgent_targets_payload(db, user_id):
     """긴급 호출 후보 목록 — 활성 사용자 전원(자기 자신 제외), 팀 표시순→이름순.
 
-    주문 문맥(``/orders/<id>/urgent-targets``)과 주문 없는 문맥(``/urgent-targets``)이
-    같은 목록을 쓴다. 각 항목에 team_label(팀 라벨, 팀 미등록/미상=기타)을 붙인다.
+    ``/urgent-targets`` 가 쓴다(옛 주문 문맥 ``/orders/<id>/urgent-targets`` 는 2026-10-06 삭제 —
+    운영 기록 4일간 호출 0건). 각 항목에 team_label(팀 라벨, 팀 미등록/미상=기타)을 붙인다.
     """
     # 팀 표시순·라벨은 auth 사용자관리와 동일한 TEAMS SSOT 를 따른다.
     # (지연 import 로 auth↔notifications 순환 의존 회피)
@@ -833,32 +833,6 @@ def _urgent_targets_payload(db, user_id):
         str(t["name"] or ""),
     ))
     return targets
-
-
-@notifications_bp.route("/orders/<int:order_id>/urgent-targets", methods=["GET"])
-@login_required
-def api_order_urgent_targets(order_id):
-    """주문 문맥형 긴급 호출 후보 목록(호환 — 새 화면은 ``/urgent-targets``).
-
-    호출자는 주문 read scope 여야 한다(아니면 403 — sender 게이트).
-    """
-    try:
-        db = get_db()
-        user_id = session.get("user_id")
-        user = getattr(g, "current_user", None)
-        if not user:
-            return jsonify({"success": False, "message": "사용자 정보를 찾을 수 없습니다."}), 404
-
-        order = db.query(Order).filter(Order.id == order_id).first()
-        if not order:
-            return jsonify({"success": False, "message": "주문을 찾을 수 없습니다."}), 404
-
-        if not _user_can_access_order_urgent(user, order):
-            return jsonify({"success": False, "message": "권한이 없습니다."}), 403
-
-        return jsonify({"success": True, "targets": _urgent_targets_payload(db, user_id)})
-    except Exception as e:
-        return jsonify({"success": False, "message": str(e)}), 500
 
 
 @notifications_bp.route("/urgent-targets", methods=["GET"])
@@ -1171,10 +1145,11 @@ def _send_urgent_call(db, sender, data, order=None):
     return {"success": True, "message": f"{target_user.name}님에게 긴급 호출을 보냈습니다."}, 200
 
 
-def _urgent_call_response(order_id, *, require_order):
-    """두 라우트 공용 껍데기 — 보낸 사람·주문 조회, sender 게이트, 예외 시 롤백.
+def _urgent_call_response(order_id):
+    """``/urgent-call`` 껍데기 — 보낸 사람·주문 조회, sender 게이트, 예외 시 롤백.
 
-    ``order_id`` 가 None 이고 ``require_order`` 가 거짓이면 주문 없는 호출이다.
+    ``order_id`` 가 None 이면 주문 없는 호출이다. 옛 주문 라우트 ``/orders/<id>/urgent-mention`` 은
+    2026-10-06 삭제(운영 기록 4일간 호출 0건).
     """
     db = None
     try:
@@ -1185,7 +1160,7 @@ def _urgent_call_response(order_id, *, require_order):
             return jsonify({"success": False, "message": "사용자 정보를 찾을 수 없습니다."}), 404
 
         order = None
-        if require_order or order_id is not None:
+        if order_id is not None:
             order = db.query(Order).filter(Order.id == order_id).first()
             if not order:
                 return jsonify({"success": False, "message": "주문을 찾을 수 없습니다."}), 404
@@ -1207,18 +1182,6 @@ def _urgent_call_response(order_id, *, require_order):
         return jsonify({"success": False, "message": str(e)}), 500
 
 
-@notifications_bp.route("/orders/<int:order_id>/urgent-mention", methods=["POST"])
-@login_required
-@notification_write_guard
-def api_order_urgent_mention(order_id):
-    """주문 문맥 긴급 호출 — URGENT-CALL-01(호환 — 새 화면은 ``/urgent-call``).
-
-    Body: ``{ target_user_id: int, message: str(trim 1..500) }``. 계약은 ``_send_urgent_call``.
-    sender: Order read scope(participant incl VIEWER) — CHANNEL-AUTH-01 ``user_can_read_order``.
-    """
-    return _urgent_call_response(order_id, require_order=True)
-
-
 @notifications_bp.route("/urgent-call", methods=["POST"])
 @login_required
 @notification_write_guard
@@ -1237,7 +1200,7 @@ def api_urgent_call():
             order_id = int(raw)
         except (TypeError, ValueError):
             return jsonify({"success": False, "message": "올바르지 않은 주문입니다."}), 400
-    return _urgent_call_response(order_id, require_order=False)
+    return _urgent_call_response(order_id)
 
 
 __all__ = [
@@ -1254,9 +1217,7 @@ __all__ = [
     "api_notification_ack",
     "api_notifications_delete_all",
     "api_users_list_for_mention",
-    "api_order_urgent_targets",
     "api_urgent_targets",
     "api_notifications_send",
-    "api_order_urgent_mention",
     "api_urgent_call",
 ]

@@ -74,8 +74,8 @@ def _login(client, user):
 
 def _send(client, order_id, target_id, message="확인 부탁", headers=WRITE_HEADERS):
     return client.post(
-        f"/erp/api/orders/{order_id}/urgent-mention",
-        json={"target_user_id": target_id, "message": message},
+        "/erp/api/urgent-call",
+        json={"order_id": order_id, "target_user_id": target_id, "message": message},
         headers=headers,
     )
 
@@ -286,7 +286,7 @@ def test_target_list_unrelated_reader_200(client, db):
     caller = _mk_user("uc_tl_reader", "무관뷰어", role="VIEWER", team="PRODUCTION")
     oid = order.id
     _login(client, caller)
-    resp = client.get(f"/erp/api/orders/{oid}/urgent-targets")
+    resp = client.get("/erp/api/urgent-targets")
     assert resp.status_code == 200
 
 
@@ -297,7 +297,7 @@ def test_target_list_excludes_inactive_and_self(client, db):
     _mk_user("uc_tls_inactive", "비활성동료", role="STAFF", is_active=False)
     oid, caller_id, active_id = order.id, caller.id, active.id
     _login(client, caller)
-    resp = client.get(f"/erp/api/orders/{oid}/urgent-targets")
+    resp = client.get("/erp/api/urgent-targets")
     assert resp.status_code == 200
     targets = resp.get_json()["targets"]
     ids = {t["id"] for t in targets}

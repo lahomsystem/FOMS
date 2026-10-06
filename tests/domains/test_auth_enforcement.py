@@ -224,7 +224,7 @@ def test_viewer_allowed_ancillary_surfaces(client, app, policy_on):
         ("POST", "/erp/api/notifications/1/ack", {}),
         ("POST", "/erp/api/notifications/push/subscribe", {"endpoint": "x"}),
         ("POST", "/api/chat/messages", {"room_id": 1, "text": "hi"}),
-        ("POST", f"/erp/api/orders/{oid}/urgent-mention", {"target_user_id": 1}),
+        ("POST", "/erp/api/urgent-call", {"target_user_id": 1, "order_id": oid}),
     ]:
         resp = client.open(path, method=method, json=body)
         assert _gate_passed(resp), (path, resp.status_code, resp.headers.get("X-Auth-Policy"))

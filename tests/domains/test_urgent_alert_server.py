@@ -102,8 +102,8 @@ def test_urgent_mention_emit_carries_notification_id(client, db, emitted):
     _login(client, sender_info)
 
     resp = client.post(
-        f"/erp/api/orders/{oid}/urgent-mention",
-        json={"target_user_id": tid, "message": "확인 부탁"},
+        "/erp/api/urgent-call",
+        json={"order_id": oid, "target_user_id": tid, "message": "확인 부탁"},
         headers=WRITE_HEADERS,
     )
     assert resp.status_code == 200, resp.get_data(as_text=True)

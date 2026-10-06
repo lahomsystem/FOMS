@@ -258,7 +258,7 @@ def test_urgent_targets_unrelated_reader_allowed_200(client, db):
     order = _mk_order(manager_name="담당자")
     unrelated = _mk_user("ut_unrel", "무관", role="VIEWER")
     _login(client, unrelated)
-    resp = client.get(f"/erp/api/orders/{order.id}/urgent-targets")
+    resp = client.get("/erp/api/urgent-targets")
     assert resp.status_code == 200
 
 
@@ -269,7 +269,7 @@ def test_urgent_targets_excludes_inactive_and_self(client, db):
     _mk_user("ut_inactive", "담당자비활성", role="ADMIN", is_active=False)
 
     _login(client, caller)
-    resp = client.get(f"/erp/api/orders/{order.id}/urgent-targets")
+    resp = client.get("/erp/api/urgent-targets")
     assert resp.status_code == 200
     data = resp.get_json()
     ids = {t["id"] for t in data["targets"]}
@@ -290,7 +290,7 @@ def test_urgent_targets_includes_unrelated_active_user(client, db):
     outsider = _mk_user("ut_incl_out", "무관동료", role="STAFF", team="PRODUCTION")
 
     _login(client, caller)
-    resp = client.get(f"/erp/api/orders/{order.id}/urgent-targets")
+    resp = client.get("/erp/api/urgent-targets")
     assert resp.status_code == 200
     data = resp.get_json()
     labels = {t["id"]: t.get("team_label") for t in data["targets"]}
@@ -305,7 +305,7 @@ def test_urgent_targets_unknown_team_labeled_gita(client, db):
     noteam = _mk_user("ut_gita_noteam", "무팀원", role="VIEWER", team=None)
 
     _login(client, caller)
-    resp = client.get(f"/erp/api/orders/{order.id}/urgent-targets")
+    resp = client.get("/erp/api/urgent-targets")
     assert resp.status_code == 200
     data = resp.get_json()
     labels = {t["id"]: t.get("team_label") for t in data["targets"]}
@@ -325,8 +325,8 @@ def test_urgent_mention_unrelated_target_succeeds(client, db):
 
     _login(client, caller)
     resp = client.post(
-        f"/erp/api/orders/{order.id}/urgent-mention",
-        json={"target_user_id": outsider.id, "message": "확인 부탁"},
+        "/erp/api/urgent-call",
+        json={"order_id": order.id, "target_user_id": outsider.id, "message": "확인 부탁"},
         headers=WRITE_HEADERS,
     )
     assert resp.status_code == 200
@@ -340,8 +340,8 @@ def test_urgent_mention_unrelated_reader_allowed_200(client, db):
     target = _mk_user("um_tgt", "담당자", role="VIEWER")
     _login(client, caller)
     resp = client.post(
-        f"/erp/api/orders/{order.id}/urgent-mention",
-        json={"target_user_id": target.id, "message": "확인 부탁"},
+        "/erp/api/urgent-call",
+        json={"order_id": order.id, "target_user_id": target.id, "message": "확인 부탁"},
         headers=WRITE_HEADERS,
     )
     assert resp.status_code == 200
@@ -352,8 +352,8 @@ def test_urgent_mention_self_returns_400(client, db):
     admin = _mk_user("um_self", "관리자", role="ADMIN")
     _login(client, admin)
     resp = client.post(
-        f"/erp/api/orders/{order.id}/urgent-mention",
-        json={"target_user_id": admin.id},
+        "/erp/api/urgent-call",
+        json={"order_id": order.id, "target_user_id": admin.id},
         headers=WRITE_HEADERS,
     )
     assert resp.status_code == 400
@@ -365,8 +365,8 @@ def test_urgent_mention_message_too_long_returns_400(client, db):
     target = _mk_user("um_msg_tgt", "대상", role="MANAGER")
     _login(client, admin)
     resp = client.post(
-        f"/erp/api/orders/{order.id}/urgent-mention",
-        json={"target_user_id": target.id, "message": "x" * 501},
+        "/erp/api/urgent-call",
+        json={"order_id": order.id, "target_user_id": target.id, "message": "x" * 501},
         headers=WRITE_HEADERS,
     )
     assert resp.status_code == 400
@@ -378,8 +378,8 @@ def test_urgent_mention_creates_states(client, db):
     target = _mk_user("um_ok_tgt", "대상", role="MANAGER")
     _login(client, admin)
     resp = client.post(
-        f"/erp/api/orders/{order.id}/urgent-mention",
-        json={"target_user_id": target.id, "message": "빨리요"},
+        "/erp/api/urgent-call",
+        json={"order_id": order.id, "target_user_id": target.id, "message": "빨리요"},
         headers=WRITE_HEADERS,
     )
     assert resp.status_code == 200
