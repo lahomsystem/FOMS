@@ -2527,6 +2527,10 @@
                 typeof window.generateEstimateId === "function"
                     ? window.generateEstimateId()
                     : "est_" + Date.now() + "_" + Math.random().toString(36).substr(2, 9);
+            var baseName =
+                copied.displayName ||
+                (copied.productName || "") + " " + formatNumber(copied.widthMm) + "mm";
+            copied.displayName = baseName + " (복사)";
             var nextEstimates = estimates.slice();
             nextEstimates.splice(index + 1, 0, copied);
             setEstimates(nextEstimates);
