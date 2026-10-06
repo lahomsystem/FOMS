@@ -1995,7 +1995,7 @@ async function erpLoadStructured(bootstrapData, options) {
         const selectEl = document.getElementById('erp-orderer-select');
         const inputEl = document.getElementById('erp-orderer');
         const directCb = document.getElementById('erp-orderer-direct');
-        if (ordererName === '라홈' || ordererName === '하우드') {
+        if (ordererName === '라홈' || ordererName === '하우드' || ordererName === '숨고') {
             if (selectEl) selectEl.value = ordererName;
             if (directCb) directCb.checked = false;
             if (inputEl) inputEl.value = '';
