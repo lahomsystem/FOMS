@@ -10,7 +10,7 @@ from typing import Any
 from sqlalchemy import func
 
 from db import get_db
-from foms.services.erp_permissions import build_mine_sql_filter
+from foms.services.erp_permissions import build_mine_sql_filter, mine_membership_clause
 from models import Order
 
 __all__ = [
@@ -62,13 +62,18 @@ def _mine_only_for_user(user: Any) -> bool:
 
 
 def _apply_mine_filter(query: Any, user: Any) -> Any:
-    """로그인 사용자의 역할 관계로 nav badge 집계를 제한."""
-    from sqlalchemy import or_
+    """로그인 사용자의 역할 관계로 nav badge 집계를 제한.
 
-    conds = build_mine_sql_filter(user)
-    if not conds:
+    조건을 OR 하나로 묶으면 플래너가 trgm 인덱스를 못 쓰고 ERP 행마다 JSONB 를
+    여러 번 풀어 읽는다(운영 평균 696ms). 조건마다 별칭 테이블에서 주문 번호를 뽑아
+    UNION 한 뒤 멤버십만 본다 — 갈래마다 자기 인덱스를 탄다(스테이징 SALES 94→7ms,
+    설계서 docs/specs/2026-10-06-nav-badge-count-query_SPEC.md). 조건 정의는
+    ``build_mine_sql_filter`` 한 곳 그대로 쓴다.
+    """
+    clause = mine_membership_clause(build_mine_sql_filter(user))
+    if clause is None:
         return query.filter(Order.id == -1)
-    return query.filter(or_(*conds))
+    return query.filter(clause)
 
 
 def compute_nav_badge_counts(user: Any, *, mine_only: bool | None = None) -> dict[str, int]:

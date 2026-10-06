@@ -27,6 +27,7 @@ _LIKE_ESCAPE_RE = re.compile(r"([%_\\])")
 
 __all__ = [
     "build_mine_sql_filter",
+    "mine_membership_clause",
     "can_act_construction",
     "can_edit_erp",
     "can_edit_erp_construction",
@@ -219,6 +220,29 @@ def is_order_related_to_user(order: Any, user: Any, *, scope: str | None = None)
         "all": sales_match or drawing_match or construction_match,
     }
     return matches.get(selected_scope, matches["all"])
+
+
+
+def mine_membership_clause(conds: list[Any]) -> Any | None:
+    """``build_mine_sql_filter`` 조건 목록을 "주문 번호 UNION 멤버십" 하나로 묶는다.
+
+    ``or_(*conds)`` 는 플래너가 trgm 인덱스를 못 써 ERP 행마다 JSONB 를 여러 번 푼다.
+    조건마다 별칭 ``orders_mine`` 에서 id 를 뽑아 UNION 하고 ``Order.id IN (...)`` 로만
+    본다 — 갈래마다 자기 인덱스를 탄다(설계서 docs/specs/2026-10-06-nav-badge-count-query_SPEC.md).
+    행 집합은 ``or_(*conds)`` 와 같다. 빈 목록이면 None — 빈 조건의 의미(필터 없음/0건)는
+    호출부가 정한다.
+    """
+    if not conds:
+        return None
+    from sqlalchemy import select, union
+    from sqlalchemy.sql.util import ClauseAdapter
+
+    from foms.persistence.main.models import Order
+
+    om = Order.__table__.alias("orders_mine")
+    adapter = ClauseAdapter(om)
+    branches = [select(om.c.id).where(adapter.traverse(cond)) for cond in conds]
+    return Order.id.in_(union(*branches))
 
 
 def build_mine_sql_filter(user: Any, scope: str | None = None) -> list[Any]:
