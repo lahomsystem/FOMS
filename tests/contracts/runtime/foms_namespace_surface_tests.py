@@ -1225,6 +1225,7 @@ def test_namespaced_erp_permissions_shim_preserves_canonical_contract() -> None:
     # 같은 함수로 쓰기 위해 추가한 공개 술어.
     expected_public_names = [
         "build_mine_sql_filter",
+        "mine_membership_clause",
         "can_act_construction",
         "can_edit_erp",
         "can_edit_erp_construction",

@@ -1,6 +1,6 @@
 # 하단 메뉴 배지 개수 쿼리 SPEC (성능 P3-1 후속)
 
-- 작성: 2026-10-06 · 상태: **승인 대기 (설계만, 코드·DB 변경 없음)**
+- 작성: 2026-10-06 · 상태: **승인됨 — 배지(§3, deploy `2a3df97c`)·실측 목록(§8) 스테이징 반영, 운영은 실측 목록과 함께 승인 대기**
 - 원장: `docs/plans/2026-10-01-full-perf-audit-ledger.md` P3-1 · 앞선 설계서 `docs/specs/2026-10-05-perf-db-draft-flag-and-stats_SPEC.md`(초안 표식, PR #499)
 - 기준: origin/deploy `562df32d7` · 스테이징 PostgreSQL 17.11 · 스테이징 주문 3,524행(ERP 2,349, ERP·삭제 아님 2,009) · 본표 645블록, TOAST 포함 4,558블록 · `structured_data` 평균 1,582바이트(최대 5,297)
 - 표기: **[실측]** 스테이징 읽기 전용 `EXPLAIN (ANALYZE, BUFFERS, SERIALIZE)` 2~3회 중 최솟값 · **[운영]** 10-06 pg_stat_statements 스냅숏(읽기만, 이 작업에서 새로 접속하지 않음) · **[추정]** 계산으로 낸 값
@@ -126,6 +126,30 @@ A 의 계획: `Bitmap Index Scan on ix_orders_is_erp_order`(2,490행) → `Bitma
 4. 사용자 명시 요청 시에만 production 승격(이 세션 커밋만 cherry-pick + PR).
 5. 운영 반영 다음 날 pgss 에서 새 queryid 평균·블록 확인(읽기만, 사용자 요청 1건당 1회). 기대: 평균 100ms 이하, 호출당 1만 블록 이하.
 6. 결과에 따라 결정 2(대시보드 목록 등 다른 호출부) 별도 설계.
+
+## 8. 실측 목록 확대(2026-10-06 사용자 승인)
+
+**바꾼 것.** 공통 헬퍼 `mine_membership_clause(conds)` 를 `foms/services/erp_permissions.py` 에 두고(빈 목록이면 None, `__all__` 공개), 배지 `_apply_mine_filter` 와 실측 경로 5곳이 같이 쓴다 — 정의 한 곳.
+- `foms/web/measurement/dashboard.py` 메인 목록, `foms/services/measurement_read_model.py` 패널·패널 보조·행 보조, `foms/services/measurement_undated.py` 날짜 미정 목록.
+- 빈 조건 의미는 호출부 그대로: 실측 경로는 필터 없음, 배지는 0건(`Order.id == -1`). 바깥 쿼리는 모두 `Order`(일정 조인은 `Order.id` 멤버십에 영향 없음).
+- 다른 화면(대시보드·이력·시공·도면)은 손대지 않았다.
+
+**스테이징 측정 [실측]** (읽기 전용, 코드가 그리는 SQL·바인딩 그대로, `EXPLAIN (ANALYZE, BUFFERS)` 3회 중 최솟값, ms, SALES 9·CONSTRUCTION 10명 = 19명):
+
+| 경로 | OR 중앙값 / 최대 | UNION 중앙값 / 최대 |
+|---|---|---|
+| 메인 목록(날짜 미선택, 60일 창) | 0.8 / 42.8 | 3.9 / 8.6 |
+| 패널(오늘~14일) | 0.5 / 43.8 | 0.4 / 3.4 |
+| 하루 목록 | 0.1 / 0.5 | 0.1 / 0.2 |
+| 날짜 미정 목록 | 1.0 / 19.9 | 3.8 / 8.0 |
+
+- 담당 주문이 많은 SALES(250건대)는 메인 37~43 → 7~8ms, 패널 34~44 → 0.1~0.2ms, 미정 18~20 → 7~8ms.
+- 담당이 0~2건인 시공 사용자는 0.5~1ms → 3.5~4.5ms 로 몇 ms 늘었다(갈래 고정 비용). 절대값이 작아 수용.
+- 스테이징은 일정 행이 적어 하루·패널 목록이 비어 있다 — 운영 큰 값(pgss 평균 1,109ms)의 재현은 아니다. 운영 반영 뒤 pgss 로 다시 잰다.
+
+**동일성 [실측].** mine 조건이 있는 활성 사용자 31명(SALES 9·CONSTRUCTION 10·CS 7·DRAWING 3·ACCOUNTING 2) × 4경로 = 124건 주문 번호 목록 전후 동일(124/124).
+
+**테스트.** `tests/domains/test_measurement_mine_union.py` — 실측 소스에 `or_(*mine)` 잔존 금지, PostgreSQL SQL 의 `orders_mine` 갈래 수, 빈 목록 None, OR 꼴과 번호 집합 동일(양성 매칭 포함).
 
 ## 부록 A. 측정 방법
 

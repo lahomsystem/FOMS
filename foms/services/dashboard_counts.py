@@ -7,11 +7,10 @@ from dataclasses import dataclass
 from threading import Lock
 from typing import Any
 
-from sqlalchemy import func, select, union
-from sqlalchemy.sql.util import ClauseAdapter
+from sqlalchemy import func
 
 from db import get_db
-from foms.services.erp_permissions import build_mine_sql_filter
+from foms.services.erp_permissions import build_mine_sql_filter, mine_membership_clause
 from models import Order
 
 __all__ = [
@@ -71,13 +70,10 @@ def _apply_mine_filter(query: Any, user: Any) -> Any:
     설계서 docs/specs/2026-10-06-nav-badge-count-query_SPEC.md). 조건 정의는
     ``build_mine_sql_filter`` 한 곳 그대로 쓴다.
     """
-    conds = build_mine_sql_filter(user)
-    if not conds:
+    clause = mine_membership_clause(build_mine_sql_filter(user))
+    if clause is None:
         return query.filter(Order.id == -1)
-    om = Order.__table__.alias("orders_mine")
-    adapter = ClauseAdapter(om)
-    branches = [select(om.c.id).where(adapter.traverse(cond)) for cond in conds]
-    return query.filter(Order.id.in_(union(*branches)))
+    return query.filter(clause)
 
 
 def compute_nav_badge_counts(user: Any, *, mine_only: bool | None = None) -> dict[str, int]:

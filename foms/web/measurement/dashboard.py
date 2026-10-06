@@ -28,6 +28,7 @@ from foms.services.measurement.visit_check import (
 )
 from foms.services.erp_permissions import (
     build_mine_sql_filter,
+    mine_membership_clause,
     can_edit_erp,
 )
 from foms.services.erp_display import (
@@ -251,9 +252,10 @@ def erp_measurement_dashboard():
 
     # mine 필터를 SQL WHERE로 적용 (Python 루프 대신)
     if mine_filter_active:
-        mine_conds = build_mine_sql_filter(current_user)
-        if mine_conds:
-            query = query.filter(or_(*mine_conds))
+        # 조건 OR 대신 갈래별 주문 번호 UNION 멤버십(trgm 인덱스 사용, 설계서 §8)
+        mine_clause = mine_membership_clause(build_mine_sql_filter(current_user))
+        if mine_clause is not None:
+            query = query.filter(mine_clause)
 
     list_query = query
 

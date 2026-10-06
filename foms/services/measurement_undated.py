@@ -32,7 +32,7 @@ from foms.services.erp_display import (
     self_measurement_four_checks_done,
 )
 from foms.services.erp_order_flags import is_erp_order_record
-from foms.services.erp_permissions import build_mine_sql_filter
+from foms.services.erp_permissions import build_mine_sql_filter, mine_membership_clause
 from foms.services.erp_policy import STAGE_LABELS, STAGE_NAME_TO_CODE
 from foms.services.measurement_dates import extract_all_measurement_dates
 from foms.services.measurement_read_model import apply_measurement_dashboard_order_scope
@@ -237,9 +237,10 @@ def _build_measurement_undated_query(
 
     if mine_filter_active and current_user:
         # build_mine_sql_filter 는 조건 "리스트"를 반환한다 — or_ 로 감싸지 않으면 AND 결합된다.
-        conds = build_mine_sql_filter(current_user)
-        if conds:
-            query = query.filter(or_(*conds))
+        # 조건 OR 대신 갈래별 주문 번호 UNION 멤버십(trgm 인덱스 사용, 설계서 §8)
+        mine_clause = mine_membership_clause(build_mine_sql_filter(current_user))
+        if mine_clause is not None:
+            query = query.filter(mine_clause)
 
     # extract_all_measurement_dates 가 schedule_dates 관계를 읽는다 — N+1 방지 필수.
     return query.options(selectinload(Order.schedule_dates))
