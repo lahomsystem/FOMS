@@ -26,7 +26,7 @@ from typing import Any, Callable, List, Optional, Sequence, Tuple
 from sqlalchemy.orm import Session
 
 from foms.services.datetime_kst import now_utc_naive
-from foms.services.erp_sync_columns import sync_erp_flat_columns
+from foms.services.erp_sync_columns import sync_erp_flat_columns, sync_identity_phone_column
 from foms.services.orders.erp_flat_audit import (
     PACKET_ID,
     PHASE,
@@ -111,6 +111,8 @@ def _resync_batch(session: Session, order_ids: Sequence[int], report: BackfillRe
         if not isinstance(order.structured_data, dict):
             continue
         sync_erp_flat_columns(order, order.structured_data)
+        # 신원 phone 도 저장 경로와 같은 규칙으로 맞춘다(audit 의 IDENTITY_COLUMNS 짝).
+        sync_identity_phone_column(order, order.structured_data)
         report.resynced_orders += 1
 
 

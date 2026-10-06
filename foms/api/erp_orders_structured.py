@@ -7,7 +7,6 @@ import datetime
 import hashlib
 import json
 import logging
-import re
 import time
 import uuid
 from typing import Any, List, Mapping, Optional, Tuple
@@ -57,7 +56,11 @@ from foms.services.erp_order_flags import (
     is_erp_order_draft,
     is_erp_order_record,
 )
-from foms.services.erp_sync_columns import sync_erp_flat_columns
+from foms.services.erp_sync_columns import (
+    is_placeholder_phone,
+    sync_erp_flat_columns,
+    sync_identity_phone_column,
+)
 from foms.services.orders.structured_form_projection import recompute_totals
 from foms.services.orders.erp_automation import apply_auto_tasks
 from foms.services.orders.order_text_parser import parse_order_text
@@ -870,35 +873,8 @@ def _emit_order_created_event(order: Order) -> None:
     ))
 
 
-def _is_placeholder_phone(phone: str) -> bool:
-    """실제 연락처가 아닌 자리표시자 전화인가.
-
-    ``000-0000-0000`` 한 값만 막던 시절의 구멍: 운영 주문 #4648 의 정본에
-    ``000000000`` 이 들어가 있다(사람이 편집 중 남긴 값). 문자열 비교 한 줄로는 그 변형을
-    못 걸러서, 정본을 따라가는 flat 동기가 **진짜 번호를 자리표시자로 덮는다.**
-
-    판정은 숫자만 남긴 뒤에 한다 — 하이픈 유무·자릿수 변형이 전부 같은 값으로 접힌다.
-
-    Args:
-        phone: 정본에 들어 있는 전화 문자열.
-
-    Returns:
-        자리표시자(전부 0이거나 숫자가 모자람)면 True.
-
-    >>> _is_placeholder_phone('000-0000-0000')
-    True
-    >>> _is_placeholder_phone('000000000')
-    True
-    >>> _is_placeholder_phone('010-3468-7933')
-    False
-    """
-    digits = re.sub(r'[^0-9]', '', phone or '')
-    if not digits:
-        return True
-    if set(digits) == {'0'}:
-        return True
-    # 시내번호(02-xxx-xxxx)까지 살리려면 9자리가 하한이다.
-    return len(digits) < 9
+# 자리표시자 판정·전화 동기 규칙의 정본은 서비스 계층(flat 백필과 공유).
+_is_placeholder_phone = is_placeholder_phone
 
 
 def _sync_identity_flat_columns(order: Order, structured_data: dict) -> None:
@@ -930,12 +906,10 @@ def _sync_identity_flat_columns(order: Order, structured_data: dict) -> None:
     """
     customer = ((structured_data.get('parties') or {}).get('customer') or {})
     cust_name = (customer.get('name') or '').strip()
-    cust_phone = (customer.get('phone') or '').strip()
     # draft 가 심어둔 플레이스홀더는 실제 값을 덮지 않는다.
     if cust_name and cust_name not in _CUSTOMER_PLACEHOLDERS:
         order.customer_name = cust_name
-    if cust_phone and not _is_placeholder_phone(cust_phone):
-        order.phone = cust_phone
+    sync_identity_phone_column(order, structured_data)
 
 
 def _sync_promoted_flat_columns(order: Order, structured_data: dict) -> None:

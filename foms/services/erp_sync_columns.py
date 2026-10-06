@@ -10,7 +10,66 @@ from foms.services.datetime_kst import to_utc_naive
 from foms.services.erp_order_flags import is_erp_order_record
 from foms.services.phone_search import normalize_phone_digits
 
-__all__ = ["sync_as_axis_column", "sync_erp_flat_columns"]
+__all__ = [
+    "is_placeholder_phone",
+    "sync_as_axis_column",
+    "sync_erp_flat_columns",
+    "sync_identity_phone_column",
+]
+
+
+def is_placeholder_phone(phone: str) -> bool:
+    """실제 연락처가 아닌 자리표시자 전화인가.
+
+    ``000-0000-0000`` 한 값만 막던 시절의 구멍: 운영 주문 #4648 의 정본에
+    ``000000000`` 이 들어가 있다(사람이 편집 중 남긴 값). 문자열 비교 한 줄로는 그 변형을
+    못 걸러서, 정본을 따라가는 flat 동기가 **진짜 번호를 자리표시자로 덮는다.**
+
+    판정은 숫자만 남긴 뒤에 한다 — 하이픈 유무·자릿수 변형이 전부 같은 값으로 접힌다.
+
+    Args:
+        phone: 정본에 들어 있는 전화 문자열.
+
+    Returns:
+        자리표시자(전부 0이거나 숫자가 모자람)면 True.
+
+    >>> is_placeholder_phone('000-0000-0000')
+    True
+    >>> is_placeholder_phone('000000000')
+    True
+    >>> is_placeholder_phone('010-3468-7933')
+    False
+    """
+    digits = normalize_phone_digits(phone or '') or ''
+    if not digits:
+        return True
+    if set(digits) == {'0'}:
+        return True
+    # 시내번호(02-xxx-xxxx)까지 살리려면 9자리가 하한이다.
+    return len(digits) < 9
+
+
+def sync_identity_phone_column(order, structured_data: dict) -> None:
+    """flat ``phone`` 을 정본 고객 전화에 맞춘다(저장 경로·flat 백필 공용 규칙).
+
+    정본이 비었거나 자리표시자면 기존 값을 덮지 않는다. 저장 경로는
+    ``foms.api.erp_orders_structured._sync_identity_flat_columns`` 가, 과거 잔여 drift 는
+    ``foms.services.orders.erp_flat_backfill`` 이 이 함수를 부른다 — 규칙이 한 벌이다.
+
+    Args:
+        order: 대상 주문(ORM 또는 shim).
+        structured_data: 정본 structured_data.
+
+    Returns:
+        None.
+    """
+    parties = structured_data.get('parties') if isinstance(structured_data, dict) else None
+    customer = (parties or {}).get('customer') if isinstance(parties, dict) else None
+    if not isinstance(customer, dict):
+        return
+    cust_phone = str(customer.get('phone') or '').strip()
+    if cust_phone and not is_placeholder_phone(cust_phone):
+        order.phone = cust_phone
 
 
 def _parse_stage_updated_at(value):
