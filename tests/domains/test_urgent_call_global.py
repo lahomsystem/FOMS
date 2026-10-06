@@ -201,19 +201,15 @@ def test_with_order_string_id_accepted(client, db):
     assert _call(client, tid, order_id=str(oid)).status_code == 200
 
 
-def test_with_order_rate_limit_five_per_hour_shared_with_old_route(client, db):
-    """주문을 고르면 주문당 5회/시간 — 옛 주문 라우트와 같은 카운터를 쓴다."""
+def test_with_order_rate_limit_five_per_hour(client, db):
+    """주문을 고르면 주문당 5회/시간 — 주문 없는 호출은 그 카운터와 무관하다."""
     order = _mk_order()
     sender = _mk_user("ucg_orl_sender", "보낸이", role="ADMIN")
     target = _mk_user("ucg_orl_target", "받는이")
     oid, tid = order.id, target.id
     _login(client, sender)
-    for i in range(3):
-        assert _call(client, tid, f"새 {i}", order_id=oid).status_code == 200
-    for i in range(2):
-        r = client.post(f"/erp/api/orders/{oid}/urgent-mention",
-                        json={"target_user_id": tid, "message": f"옛 {i}"}, headers=WRITE_HEADERS)
-        assert r.status_code == 200
+    for i in range(5):
+        assert _call(client, tid, f"호출 {i}", order_id=oid).status_code == 200
     assert _call(client, tid, "여섯번째", order_id=oid).status_code == 429
     # 주문 없이는 여전히 보낼 수 있다.
     assert _call(client, tid, "주문 없이").status_code == 200
@@ -281,12 +277,15 @@ def test_targets_without_order_excludes_self_and_inactive_sorted_by_team(client,
     assert ids.index(cs_id) < ids.index(none_id)
 
 
-def test_targets_without_order_same_list_as_order_route(client, db):
+def test_old_order_routes_are_gone(client, db):
+    """옛 주문 라우트 2개는 2026-10-06 삭제(운영 기록 10-02~10-06 호출 0건) — 이제 404."""
     order = _mk_order()
-    caller = _mk_user("ucg_ts_caller", "부르는이", role="ADMIN")
-    _mk_user("ucg_ts_a", "동료A", team="SALES")
-    oid = order.id
+    caller = _mk_user("ucg_gone_caller", "부르는이", role="ADMIN")
+    target = _mk_user("ucg_gone_target", "받는이")
+    oid, tid = order.id, target.id
     _login(client, caller)
-    a = client.get("/erp/api/urgent-targets").get_json()["targets"]
-    b = client.get(f"/erp/api/orders/{oid}/urgent-targets").get_json()["targets"]
-    assert a == b
+    assert client.get(f"/erp/api/orders/{oid}/urgent-targets").status_code == 404
+    resp = client.post(f"/erp/api/orders/{oid}/urgent-mention",
+                       json={"target_user_id": tid, "message": "확인"}, headers=WRITE_HEADERS)
+    assert resp.status_code == 404
+    assert db.query(Notification).count() == 0
