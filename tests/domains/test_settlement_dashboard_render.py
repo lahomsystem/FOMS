@@ -905,7 +905,8 @@ def test_granularity_change_refetches_with_server_param():
     js = _read_code(f"static/{JS_ASSET}")
 
     assert "granularity" in js
-    assert "month_from" in js and "month_to" in js, "재조회가 범위 파라미터를 실어야 한다"
+    # 2026-10-06 공통 기간 바: 범위는 날짜(date_from/date_to)로 싣는다(서버가 월보다 우선한다).
+    assert "'date_from='" in js and "'date_to='" in js, "재조회가 범위 파라미터를 실어야 한다"
 
 
 # ==========================================================================
@@ -1359,23 +1360,28 @@ def test_filter_bar_is_shared_by_period_tabs_and_not_duplicated(client, app):
     )
 
 
-def test_filter_bar_is_hidden_on_the_ops_tab_only():
-    """실무 탭에서만 필터바가 CSS 로 감춰진다(요약·분석은 그대로 쓴다).
+def test_filter_bar_is_shared_by_every_tab_and_only_chart_controls_hide():
+    """기간 바는 네 탭 모두에 보이고, 차트 없는 실무·네이버 정산 탭에서는 그래프 조작만 감춘다.
 
-    감추는 수단이 `s-hidden` 이 아니라 루트 속성 선택자인 것까지 계약이다 — `s-hidden` 은
-    `showState()` 의 권한거부 분기가 쓰는 자리라, 겹쳐 쓰면 403 이 풀릴 때 탭 상태까지
-    되돌아간다.
+    사용자 결정(2026-10-06 "기간 설정 가능하게, 모든 정산 탭") 이전에는 실무 탭에서 필터바를
+    통째로 감췄다. 감추는 수단이 `s-hidden` 이 아니라 루트 속성 선택자인 것은 그대로 계약이다 —
+    `s-hidden` 은 `showState()` 의 권한거부 분기가 쓰는 자리다.
     """
     css = _read_code(f"static/{CSS_ASSET}")
+    channel_css = _read_code("static/css/settlement/settlement-channel.css")
 
-    rule = re.search(r'\[data-settlement-active-tab="ops"\][^{]*\.s-filterbar\s*\{([^}]*)\}', css)
-    assert rule, "실무 탭에서 필터바를 감추는 규칙이 없다"
-    assert re.search(r"display\s*:\s*none", rule.group(1)), rule.group(1)
-    for other in ("summary", "analytics"):
+    for source in (css, channel_css):
         assert not re.search(
-            r'\[data-settlement-active-tab="%s"\][^{]*\.s-filterbar\s*\{[^}]*display\s*:\s*none' % other,
+            r'\[data-settlement-active-tab="\w+"\][^{]*\.s-filterbar\s*\{[^}]*display\s*:\s*none',
+            source,
+        ), "어느 탭에서 기간 바를 통째로 감추고 있다"
+    for tab in ("ops", "channel"):
+        assert re.search(
+            r'\[data-settlement-active-tab="%s"\][^{]*\.s-fb-chart[^{]*\{[^}]*display\s*:\s*none' % tab
+            if tab == "channel" else
+            r'\[data-settlement-active-tab="%s"\]\s*\.s-fb-chart' % tab,
             css,
-        ), f"{other} 탭에서도 필터바를 감추고 있다"
+        ), f"{tab} 탭에서 그래프 조작을 감추는 규칙이 없다"
     assert re.search(r"\.s-pane\[hidden\]\s*\{[^}]*display\s*:\s*none", css), (
         "비활성 pane 을 감추는 규칙이 없다"
     )
@@ -1662,7 +1668,9 @@ def test_aggregate_bar_ramp_is_a_separate_scale_from_single_order_edges():
         assert fixed not in js, f"목업 고정 범례가 남아 있다: {fixed}"
     # 두 램프가 실제로 다른 상수여야 한다(같은 배열을 가리키면 이름만 다른 것).
     assert re.search(r"var\s+AGG_RAMP_QUARTILES\s*=\s*\[", js), "집계 램프 경계 상수가 없다"
-    assert re.search(r"var\s+BUCKET_EDGES\s*=\s*\[\s*450", js), "단건 램프 경계가 바뀌었다"
+    # 단건 램프(BUCKET_EDGES 450/700/900만)는 2026-10-06 요약 추이가 예상/실제 겹친 막대로 바뀌며
+    # 퇴역했다 — 집계 램프가 그 이름을 다시 끌어오지 않는 것(위 단언)만 남긴다.
+    assert not re.search(r"var\s+BUCKET_EDGES\s*=", js), "퇴역한 단건 램프 경계가 되살아났다"
 
 
 def test_analytics_kpi_deltas_come_from_prev_totals():

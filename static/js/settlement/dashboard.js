@@ -40,24 +40,22 @@
   /* ── 색 사전 (목업 확정본 :379-393 — 팔레트 검증 기록은 목업 하단 주석) ────────── */
   var ACCENT = '#2a78d6';                                          // 매출 가족 (slot-1)
   var CTX = '#8a94a3';                                             // 전월 비교 = 강조용 그레이
-  var BLUE_BUCKET4 = ['#86b6ef', '#5598e7', '#2a78d6', '#104281']; // 매출 금액구간 램프
-  var BUCKET_EDGES = [450, 700, 900];                              // 만원
-  var BUCKET_LABELS = ['~449만', '450~699만', '700~899만', '900만~'];
+  var BLUE_BUCKET4 = ['#86b6ef', '#5598e7', '#2a78d6', '#104281']; // 집계 금액 램프(담당자·단계)
+  // 예상 매출 = 같은 파랑의 옅은 스텝. "아직 시공완료 아닌 몫"이라 실제(ACCENT)보다 한 단계 물러선다.
+  // 막대는 예상(넓고 옅게) 위에 실제(좁고 진하게)를 겹친다 — 실제 ≤ 예상이 서버 계약이라 늘 안에 든다.
+  var PLAN = '#bcd6f5';
+  var PLAN_LINE = '#6fa3e3';                                       // 누적 보기의 예상 점선
   // 비교 라인이 y축 상한을 끌어올릴 수 있는 배수. 막대가 주 마크라 그 1.5배까지만
   // 양보하고, 그 위는 축 상단에 고정하고 캐럿으로 표시한다(columnChart 주석 참조).
   var LINE_HEADROOM = 1.5;
   var ORANGE_RAMP5 = ['#f19979', '#eb6834', '#c74b12', '#9f3701', '#752600']; // 미수 aging 램프
-  var FAM = { rev: '#2a78d6', ar: '#eb6834', col: '#1baf7a', vol: '#6b7280' };
-  var FAM_TINT = { rev: '#f1f6fd', ar: '#fdf3ed', col: '#eefaf5', vol: '#f4f6f8' };
-  var CHANNEL_COLORS = { '일반': '#2a78d6', '네이버': '#eb6834' };
+  var FAM = { rev: '#2a78d6', plan: '#6fa3e3', ar: '#eb6834', col: '#1baf7a', vol: '#6b7280' };
+  var FAM_TINT = { rev: '#f1f6fd', plan: '#f5f9fe', ar: '#fdf3ed', col: '#eefaf5', vol: '#f4f6f8' };
+  // 매출 비중 카드의 두 칸(일반/라홈). 이름은 API `brand_channels[].label` 그대로다.
+  var CHANNEL_COLORS = { '라홈': '#2a78d6', '일반': '#eb6834' };
+  // 네이버 시그니처 초록(사용자 결정 2026-10-06) — 라홈 막대 안의 네이버 몫(shop in shop)에만 쓴다.
+  var NAVER_GREEN = '#03c75a';
   var CHANNEL_FALLBACK = ['#6b7280', '#7b4bd6', '#0f8a8a', '#b45309', '#8a3b6b'];
-
-  function bucketColor(v) {
-    for (var i = 0; i < BUCKET_EDGES.length; i++) {
-      if (v < BUCKET_EDGES[i]) return BLUE_BUCKET4[i];
-    }
-    return BLUE_BUCKET4[BLUE_BUCKET4.length - 1];
-  }
 
   function channelColor(name, index) {
     if (CHANNEL_COLORS[name]) return CHANNEL_COLORS[name];
@@ -168,11 +166,6 @@
     }
   }
 
-  function kstMonth() {
-    var day = kstDay();
-    return day ? day.slice(0, 7) : null;
-  }
-
   /** "조회 2026-08-31 09:04 (KST)" — 데이터 신선도 표기. */
   function kstStamp() {
     var day = kstDay();
@@ -187,29 +180,90 @@
     }
   }
 
-  function shiftMonth(monthKey, delta) {
-    if (!/^\d{4}-\d{2}$/.test(monthKey || '')) return null;
-    var index = parseInt(monthKey.slice(0, 4), 10) * 12 + (parseInt(monthKey.slice(5, 7), 10) - 1) + delta;
-    var year = Math.floor(index / 12);
-    var month = (index % 12) + 1;
-    return String(year).padStart(4, '0') + '-' + String(month).padStart(2, '0');
-  }
-
-  function monthLabel(monthKey) {
-    if (!/^\d{4}-\d{2}$/.test(monthKey || '')) return '';
-    return parseInt(monthKey.slice(0, 4), 10) + '년 ' + parseInt(monthKey.slice(5, 7), 10) + '월';
-  }
-
-  /** 짧은 월 라벨 "8월" — 범례처럼 폭이 좁은 자리용(긴 라벨은 범례를 두 줄로 접는다). */
-  function shortMonthLabel(monthKey) {
-    if (!/^\d{4}-\d{2}$/.test(monthKey || '')) return '';
-    return parseInt(monthKey.slice(5, 7), 10) + '월';
-  }
-
   /** 서버 일별 라벨 "8/1" → 목업 x축 표기 "1일". 다른 형식이면 그대로 둔다. */
   function dayLabel(label) {
     var m = /^(\d{1,2})\/(\d{1,2})$/.exec(String(label || ''));
     return m ? parseInt(m[2], 10) + '일' : label;
+  }
+
+  /* ── 기간(날짜 범위) — 네 탭 공통 기간 바(2026-10-06) ─────────────────────────── */
+
+  // 서버 `settlement_aggregation.MAX_RANGE_DAYS` 와 같은 값(넘기면 서버가 400 으로 막는다).
+  var MAX_RANGE_DAYS = 366;
+  var DEFAULT_PRESET = 'this_month';
+  // 빠른 선택별 그래프 단위 — 1개월은 일별, 3개월은 주별, 1년은 월별이 막대 수가 읽힌다.
+  var PRESET_GRANULARITY = { this_month: 'day', last_month: 'day', last_3_months: 'week', this_year: 'month' };
+
+  function pad2(n) { return (n < 10 ? '0' : '') + n; }
+
+  /** 그 달의 말일(1~31). month 는 1~12. */
+  function monthEnd(year, month) {
+    return new Date(Date.UTC(year, month, 0)).getUTCDate();
+  }
+
+  function isDayKey(text) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(text || '')) return false;
+    var y = +text.slice(0, 4), m = +text.slice(5, 7), d = +text.slice(8, 10);
+    return m >= 1 && m <= 12 && d >= 1 && d <= monthEnd(y, m);
+  }
+
+  /** 두 날짜 사이 일수(양끝 포함). */
+  function spanDays(from, to) {
+    var a = Date.UTC(+from.slice(0, 4), +from.slice(5, 7) - 1, +from.slice(8, 10));
+    var b = Date.UTC(+to.slice(0, 4), +to.slice(5, 7) - 1, +to.slice(8, 10));
+    return Math.round((b - a) / 86400000) + 1;
+  }
+
+  /** 오늘(KST "YYYY-MM-DD") 기준 빠른 선택 범위. */
+  function presetRange(key, today) {
+    var y = +today.slice(0, 4), m = +today.slice(5, 7);
+    function first(yy, mm) { return yy + '-' + pad2(mm) + '-01'; }
+    function last(yy, mm) { return yy + '-' + pad2(mm) + '-' + pad2(monthEnd(yy, mm)); }
+    function shift(delta) { var i = y * 12 + (m - 1) + delta; return [Math.floor(i / 12), i % 12 + 1]; }
+    if (key === 'last_month') { var p = shift(-1); return { from: first(p[0], p[1]), to: last(p[0], p[1]) }; }
+    if (key === 'last_3_months') { var q = shift(-2); return { from: first(q[0], q[1]), to: last(y, m) }; }
+    if (key === 'this_year') return { from: y + '-01-01', to: y + '-12-31' };
+    return { from: first(y, m), to: last(y, m) };
+  }
+
+  /** 오늘(KST). Intl 이 없으면 기기 달력으로 떨어진다(조회 범위가 하루 어긋날 수 있을 뿐이다). */
+  function todayKey() {
+    var day = kstDay();
+    if (day) return day;
+    var now = new Date();
+    return now.getFullYear() + '-' + pad2(now.getMonth() + 1) + '-' + pad2(now.getDate());
+  }
+
+  /** "10월 3일" — 같은 해 안의 짧은 날짜. */
+  function shortDay(key) {
+    return +key.slice(5, 7) + '월 ' + +key.slice(8, 10) + '일';
+  }
+
+  /**
+   * 구간을 사람이 부르는 이름으로: 꼭 맞는 달 하나면 "10월", 여러 달이면 "8~10월",
+   * 해를 넘으면 "25년 11월~26년 2월", 달 중간이면 "10월 3일~10월 16일".
+   */
+  function spanWord(from, to) {
+    if (!isDayKey(from) || !isDayKey(to)) return '';
+    var whole = from.slice(8) === '01' && +to.slice(8) === monthEnd(+to.slice(0, 4), +to.slice(5, 7));
+    var sameYear = from.slice(0, 4) === to.slice(0, 4);
+    if (whole) {
+      var fm = +from.slice(5, 7) + '월', tm = +to.slice(5, 7) + '월';
+      if (from.slice(0, 7) === to.slice(0, 7)) return fm;
+      return sameYear ? +from.slice(5, 7) + '~' + tm
+        : from.slice(2, 4) + '년 ' + fm + '~' + to.slice(2, 4) + '년 ' + tm;
+    }
+    return sameYear ? shortDay(from) + '~' + shortDay(to)
+      : from.slice(2, 4) + '년 ' + shortDay(from) + '~' + to.slice(2, 4) + '년 ' + shortDay(to);
+  }
+
+  /** 응답 range 로 (이번 구간 이름, 비교 구간 이름). 비교 이름은 KPI "vs ..." 와 범례가 쓴다. */
+  function periodWords(ctx) {
+    var range = (ctx.state.data && ctx.state.data.range) || {};
+    return {
+      cur: spanWord(range.date_from, range.date_to) || '이번 기간',
+      prev: spanWord(range.prev_date_from, range.prev_date_to) || '이전 기간',
+    };
   }
 
   /* ═══════════════ 2. 툴팁 (라벨은 전부 textContent — innerHTML 미사용) ═══════════════ */
@@ -486,13 +540,18 @@
     cfg.groups.forEach(function (gr, gi) {
       var nb = gr.bars.length;
       var inset = Math.min(12, band * 0.25); // 밴드가 좁아도(일별 31개) 인접 막대 갭 ≥2px 보장
-      var bw = Math.max(1, Math.min(24, (band - inset - (nb - 1) * 2) / nb));
+      // cfg.overlay: 막대를 나란히 두지 않고 같은 중심에 겹친다 — 첫 막대(예상)는 밴드 폭,
+      // 뒤 막대(실제)는 그 절반 폭. 뒤 막대가 앞 막대 안에 들어가는 시리즈(실제 ≤ 예상)용이다.
+      var bw = cfg.overlay
+        ? Math.max(1, Math.min(28, band - inset))
+        : Math.max(1, Math.min(24, (band - inset - (nb - 1) * 2) / nb));
       var total = nb * bw + (nb - 1) * 2;
       var x0 = pad.l + gi * band + (band - total) / 2;
       var cx = centerX(gi);
       s += '<g class="s-cgrp">';
       gr.bars.forEach(function (b, bi) {
-        var bx = x0 + bi * (bw + 2);
+        var barW = cfg.overlay && bi > 0 ? Math.max(1, bw * 0.5) : bw;
+        var bx = cfg.overlay ? cx - barW / 2 : x0 + bi * (bw + 2);
         // 0 은 기본적으로 그리지 않는다(aging 처럼 한 버킷이 압도하는 서열 차트에서
         // 최소 높이 하한은 "적지만 있다"는 거짓 신호가 된다).
         // 시계열 차트만 cfg.zeroFloor 로 목업과 같은 baseline 스텁을 켠다 — 거기서는
@@ -500,12 +559,13 @@
         // 막대의 리듬이 무너지고 비교 라인만 남아 라인 차트로 읽힌다.
         var bh = b.v > 0 ? Math.max(3, b.v / sc.top * ph) : 0;
         if (bh > 0) {
-          s += '<path d="' + roundTopRect(bx, pad.t + ph - bh, bw, bh, 4) + '" fill="' + b.color + '"/>';
+          s += '<path d="' + roundTopRect(bx, pad.t + ph - bh, barW, bh, 4) + '" fill="' + b.color + '"/>';
         } else if (cfg.zeroFloor) {
-          s += '<path d="' + roundTopRect(bx, pad.t + ph - 1.5, bw, 1.5, 0) + '" fill="var(--s-zero-bar)"/>';
+          // 겹친 막대의 뒤 막대(실제)는 스텁을 또 깔지 않는다 — 앞 막대(예상) 스텁 하나면 된다.
+          if (!(cfg.overlay && bi > 0)) s += '<path d="' + roundTopRect(bx, pad.t + ph - 1.5, barW, 1.5, 0) + '" fill="var(--s-zero-bar)"/>';
         }
         if (b.cap) {
-          s += '<text class="s-cap-t" x="' + (bx + bw / 2) + '" y="' + (pad.t + ph - bh - 6) +
+          s += '<text class="s-cap-t" x="' + (bx + barW / 2) + '" y="' + (pad.t + ph - bh - 6) +
             '" text-anchor="middle">' + esc(b.cap) + '</text>';
         }
       });
@@ -641,6 +701,16 @@
       delta.className = 's-kpi-delta s-flat';
       delta.textContent = spec.noDelta;
     }
+    // 달성률 카드의 미터(예상 트랙 안의 실제 몫). 0~100 숫자일 때만 그린다.
+    if (typeof spec.meter === 'number' && isFinite(spec.meter)) {
+      var meter = document.createElement('div');
+      meter.className = 's-meter s-kpi-meter';
+      var fill = document.createElement('div');
+      fill.className = 's-meter-fill';
+      fill.style.setProperty('--s-meter-pct', Math.max(0, Math.min(100, spec.meter)).toFixed(1) + '%');
+      meter.appendChild(fill);
+      tile.appendChild(meter);
+    }
     tile.appendChild(delta);
     var sub = document.createElement('div');
     sub.className = 's-kpi-sub';
@@ -649,73 +719,69 @@
     wrap.appendChild(tile);
   }
 
+  /**
+   * 요약 KPI 3장 — 예상 매출 · 실제 매출 · 달성률(사용자 결정 2026-10-06).
+   *
+   * 예상 = 진행 단계와 무관하게 시공일이 구간 안인 주문 전부, 실제 = 그중 시공완료. 둘 다
+   * 서버 `forecast` 가 낸 값을 그대로 쓴다 — 화면이 버킷을 더해 만들지 않는다(합계 SSOT).
+   * 미수·수금 카드는 분석 탭(`renderAnalyticsCollection`)에 그대로 있다.
+   */
   function renderKpis(ctx) {
     var data = ctx.state.data;
     var wrap = ctx.els.kpis;
     if (!wrap) return;
     clear(wrap);
-    var kpi = data.kpi || {};
-    var buckets = data.buckets || [];
-    var prev = data.prev_buckets || [];
-    var prevRevenue = sum(prev, function (b) { return b.revenue; });
-    var prevCount = sum(prev, function (b) { return b.count; });
-    var prevAvg = prevCount ? prevRevenue / prevCount : 0;
-    var vs = 'vs ' + (ctx.state.gran === 'month' ? '이전 동일 기간' : '전월');
-    var overpaid = kpi.overpaid_total || 0;
+    var f = data.forecast || {};
+    var prev = f.prev || {};
+    var fb = f.buckets || [];
+    var words = periodWords(ctx);
+    var vs = 'vs ' + words.prev;
+    var expected = f.expected_revenue || 0;
+    var actual = f.actual_revenue || 0;
+    var unpriced = f.expected_unpriced_count || 0;
 
     appendKpi(wrap, {
-      key: 'revenue', label: '기간 매출', value: fmtMan(toMan(kpi.revenue)), unit: '원', fam: 'rev',
-      delta: deltaOf(kpi.revenue || 0, prevRevenue), vs: vs,
-      noDelta: '비교 기준 기간에 매출 없음',
-      sub: '완료일 기준 · ' + fmtCount(kpi.completed_count) + '건',
-      spark: buckets.map(function (b) { return toMan(b.revenue); }),
+      key: 'expected', label: '예상 매출', value: fmtMan(toMan(expected)), unit: '원', fam: 'plan',
+      delta: deltaOf(expected, prev.expected_revenue || 0), vs: vs,
+      noDelta: '비교 기간에 시공일 잡힌 주문 없음',
+      // 출고가 미산출 건은 건수에만 들고 금액은 0 으로 든다 — 숫자가 작아 보이는 이유를 말한다.
+      sub: fmtCount(f.expected_count) + '건 · 단계 무관, 시공일 기준' +
+        (unpriced > 0 ? ' · 출고가 미산출 ' + fmtCount(unpriced) + '건' : ''),
+      spark: fb.map(function (b) { return toMan(b.expected); }),
     });
     appendKpi(wrap, {
-      key: 'receivable', label: '미수금 잔액', value: fmtMan(toMan(kpi.receivable_total)), unit: '원', fam: 'ar',
-      delta: null, noDelta: '시점 잔액 — 기간 비교 없음',
-      sub: fmtCount(kpi.receivable_count) + '건 · 잔금 입금 미확인 · 기간 무관 전체',
+      key: 'actual', label: '실제 매출', value: fmtMan(toMan(actual)), unit: '원', fam: 'rev',
+      delta: deltaOf(actual, prev.actual_revenue || 0), vs: vs,
+      noDelta: '비교 기간에 시공완료 없음',
+      sub: fmtCount(f.actual_count) + '건 · 시공완료(완료 · AS접수 · AS완료)',
+      spark: fb.map(function (b) { return toMan(b.actual); }),
     });
+    var rate = expected > 0 ? (actual / expected) * 100 : null;
+    var prevExpected = prev.expected_revenue || 0;
+    var prevRate = prevExpected > 0 ? ((prev.actual_revenue || 0) / prevExpected) * 100 : null;
     appendKpi(wrap, {
-      key: 'completed', label: '완료 건수', value: fmtCount(kpi.completed_count), unit: '건', fam: 'vol',
-      delta: deltaOf(kpi.completed_count || 0, prevCount), vs: vs,
-      noDelta: '비교 기준 기간에 완료 건 없음',
-      sub: '완료 · AS접수 · AS완료',
-      spark: buckets.map(function (b) { return b.count || 0; }),
-    });
-    appendKpi(wrap, {
-      key: 'avg', label: '평균 출고가', value: fmtMan(toMan(kpi.avg_shipping_price)), unit: '원', fam: 'rev',
-      delta: deltaOf(kpi.avg_shipping_price || 0, prevAvg), vs: vs,
-      noDelta: '비교 기준 기간에 완료 건 없음',
-      sub: '출고가 = 품목합 + 배송 − 할인',
-    });
-    appendKpi(wrap, {
-      key: 'collected', label: '기간 수금(근사)', value: fmtMan(toMan(kpi.collected_approx)), unit: '원', fam: 'col',
-      delta: null, noDelta: '입금 확인 토글 기반 근사 — 기간 비교 없음',
-      // 과입금은 잔금 0 클램프가 삼키는 금액이다. 0 이면 줄을 내지 않는다.
-      sub: overpaid > 0
-        ? '예약금 + 잔금확인분 · 과입금 ' + fmtWon(overpaid) + ' 별도'
-        : '예약금 + 잔금확인분',
+      key: 'rate', label: '달성률', value: rate === null ? '—' : rate.toFixed(1),
+      unit: rate === null ? '' : '%', fam: 'col',
+      delta: null,
+      noDelta: '남은 예상 ' + fmtWon(Math.max(0, expected - actual)) + ' · ' +
+        fmtCount(Math.max(0, (f.expected_count || 0) - (f.actual_count || 0))) + '건',
+      sub: '실제 ÷ 예상' + (prevRate === null ? '' : ' · ' + words.prev + ' ' + prevRate.toFixed(1) + '%'),
+      meter: rate,
     });
   }
 
-  function mainSeries(ctx) {
-    var data = ctx.state.data;
-    var cur = (data.buckets || []).map(function (b) { return toMan(b.revenue); });
-    var prev = (data.prev_buckets || []).map(function (b) { return toMan(b.revenue); });
-    return { cur: cur, prev: prev };
+  /** `brand_channels` → 분석 탭 채널 표가 읽는 {channel, count, revenue}(실제 매출 기준). */
+  function brandActualChannels(data) {
+    return ((data && data.brand_channels) || []).map(function (b) {
+      return { channel: b.label, count: b.actual_count || 0, revenue: b.actual_revenue || 0 };
+    });
   }
 
-  function renderLegend(ctx, els, mode) {
+  function renderLegend(ctx, els, mode, cmp) {
     var lg = els.legend;
     if (!lg) return;
     clear(lg);
     if (mode === 'none') return;
-    // 목업과 같은 축약형("8월(당월)"/"7월(전월)"). 긴 형식은 스와치 4개가 붙는
-    // bucketcmp 모드에서 범례가 두 줄로 접혀 카드 헤드 높이가 밀린다.
-    var curMonth = shortMonthLabel(ctx.state.month);
-    var prevMonth = shortMonthLabel(shiftMonth(ctx.state.month, -1));
-    var curLabel = curMonth ? curMonth + '(당월)' : '당월';
-    var prevLabel = prevMonth ? prevMonth + '(전월)' : '전월';
     function mk(color, label, keyCls) {
       var span = document.createElement('span');
       span.className = 's-lg';
@@ -727,13 +793,14 @@
       return span;
     }
     // 범례 키는 마크를 그대로 반영: 막대=사각 스와치, 라인=선 키.
-    if (mode === 'bucket' || mode === 'bucketcmp') {
-      BUCKET_LABELS.forEach(function (lb, i) { lg.appendChild(mk(BLUE_BUCKET4[i], lb, 's-lg-rect')); });
-      if (mode === 'bucketcmp') lg.appendChild(mk(CTX, prevLabel, 's-lg-line'));
-      return;
-    }
-    lg.appendChild(mk(ACCENT, curLabel, mode === 'line' ? 's-lg-line' : 's-lg-rect'));
-    lg.appendChild(mk(CTX, prevLabel, 's-lg-line'));
+    var line = mode === 'line';
+    lg.appendChild(mk(line ? PLAN_LINE : PLAN, '예상', line ? 's-lg-line' : 's-lg-rect'));
+    lg.appendChild(mk(ACCENT, '실제', line ? 's-lg-line' : 's-lg-rect'));
+    if (cmp) lg.appendChild(mk(CTX, periodWords(ctx).prev + ' 실제', 's-lg-line'));
+  }
+
+  function rateText(actual, expected) {
+    return expected > 0 ? ((actual / expected) * 100).toFixed(1) + '%' : '—';
   }
 
   function renderMainTable(ctx, els, cmp) {
@@ -741,19 +808,26 @@
     if (!table) return;
     clear(table);
     var data = ctx.state.data;
-    var buckets = data.buckets || [];
+    var buckets = (data.forecast && data.forecast.buckets) || [];
     var prev = data.prev_buckets || [];
     var thead = document.createElement('thead');
     var tbody = document.createElement('tbody');
     var headRow = document.createElement('tr');
-    var headers = cmp ? ['구간', '매출 (만원)', '건수', '이전 구간 (만원)'] : ['구간', '매출 (만원)', '건수'];
+    var headers = ['구간', '예상 (만원)', '실제 (만원)', '달성률', '건수 (실제/예상)'];
+    if (cmp) headers.push('이전 실제 (만원)');
     headers.forEach(function (text) {
       var th = document.createElement('th');
       th.textContent = text;
       headRow.appendChild(th);
     });
     buckets.forEach(function (b, i) {
-      var cells = [b.label, toMan(b.revenue).toLocaleString('ko-KR'), fmtCount(b.count)];
+      var cells = [
+        b.label,
+        toMan(b.expected).toLocaleString('ko-KR'),
+        toMan(b.actual).toLocaleString('ko-KR'),
+        rateText(b.actual, b.expected),
+        fmtCount(b.actual_count) + ' / ' + fmtCount(b.expected_count),
+      ];
       if (cmp) cells.push(prev[i] ? toMan(prev[i].revenue).toLocaleString('ko-KR') : '—');
       var tr = document.createElement('tr');
       cells.forEach(function (c) {
@@ -768,67 +842,95 @@
     table.appendChild(tbody);
   }
 
+  /**
+   * 예상 vs 실제 추이(요약·분석 탭이 같은 함수를 els 묶음만 바꿔 부른다).
+   *
+   * 막대 = 예상(넓고 옅게) 위에 실제(좁고 진하게)를 같은 중심에 겹친다(columnChart `overlay`).
+   * 서버 계약상 실제 ≤ 예상이라 진한 막대는 늘 옅은 막대 안에 든다 — 그 차이가 "아직 시공완료
+   * 처리 안 된 매출"이다. 비교 라인은 직전 구간의 **실제** 매출(prev_buckets)이다.
+   * 누적 보기(일별만)는 예상 점선 · 실제 영역 · 비교 실제 라인이다.
+   */
   function renderMainChart(ctx, els) {
     var state = ctx.state;
     var data = state.data;
     var host = els.chart;
     if (!host) return;
-    var buckets = data.buckets || [];
+    var buckets = (data.forecast && data.forecast.buckets) || [];
     var prevBuckets = data.prev_buckets || [];
-    var totalCount = sum(buckets, function (b) { return b.count; });
-    var empty = buckets.length === 0 || (totalCount === 0 && sum(buckets, function (b) { return b.revenue; }) === 0);
+    var empty = buckets.length === 0 || (
+      sum(buckets, function (b) { return b.expected_count; }) === 0 &&
+      sum(buckets, function (b) { return b.expected; }) === 0
+    );
     toggle(els.empty, !empty);
     toggle(els.tableWrap, empty);
     if (empty) {
       clear(host);
-      renderLegend(ctx, els, 'none');
-      if (els.sub) els.sub.textContent = '완료일 기준 · 이 기간에 집계할 매출이 없습니다';
+      renderLegend(ctx, els, 'none', false);
+      if (els.sub) els.sub.textContent = '시공일 기준 · 이 기간에 시공일이 잡힌 주문이 없습니다';
       return;
     }
 
-    var cmp = state.cmp && state.gran !== 'month' && prevBuckets.length > 0;
-    var series = mainSeries(ctx);
+    var cmp = state.cmp && prevBuckets.length > 0;
+    var words = periodWords(ctx);
+    var range = data.range || {};
     var granWord = state.gran === 'day' ? '일별' : (state.gran === 'week' ? '주별' : '월별');
-    // 목업 부제: "8월 일별(막대) vs 7월 동일자(라인) · 완료일 기준" / 누적은 "8월 누적 vs 7월 누적".
-    var curWord = shortMonthLabel(state.month);
-    var prevMonthWord = shortMonthLabel(shiftMonth(state.month, -1)) || '전월';
-    var prevWord = prevMonthWord +
-      (state.gran === 'day' ? ' 동일자' : (state.gran === 'week' ? ' 동주차' : ''));
-    // 누적(라인) 축도 목업과 같은 "1일" 표기를 쓴다 — 막대 축과 어긋나면 토글할 때 축이 바뀐다.
+    var expMan = buckets.map(function (b) { return toMan(b.expected); });
+    var actMan = buckets.map(function (b) { return toMan(b.actual); });
+    var prevMan = prevBuckets.map(function (b) { return toMan(b.revenue); });
+    // 한 달 안의 일별만 "1일" 로 줄인다. 여러 달이면 "7/1" 을 그대로 둬야 어느 달인지 읽힌다.
+    var oneMonth = String(range.date_from || '').slice(0, 7) === String(range.date_to || '').slice(0, 7);
     var xLabelOf = function (i) {
       if (!buckets[i]) return '';
-      return state.gran === 'day' ? dayLabel(buckets[i].label) : buckets[i].label;
+      return state.gran === 'day' && oneMonth ? dayLabel(buckets[i].label) : buckets[i].label;
     };
-    var tipTitleOf = function (i) { return (buckets[i] ? buckets[i].label : '') + ' · 완료일 기준'; };
-    var prevRow = function (i) {
-      if (!cmp || !prevBuckets[i]) return null;
-      return { color: CTX, val: fmtMan(series.prev[i]), lbl: prevBuckets[i].label + '(이전)' };
+    var tipTitleOf = function (i) {
+      var b = buckets[i];
+      if (!b) return '';
+      return (state.gran === 'day' && isDayKey(b.key) ? shortDay(b.key) : b.label) + ' · 시공일 기준';
     };
+    var tipRowsOf = function (i, extra) {
+      var b = buckets[i];
+      var rows = [
+        { color: PLAN, val: fmtMan(expMan[i]), lbl: '예상' },
+        { color: ACCENT, val: fmtMan(actMan[i]), lbl: '실제' },
+        { val: rateText(b.actual, b.expected), lbl: '달성률' },
+        { val: fmtCount(b.actual_count) + ' / ' + fmtCount(b.expected_count) + '건', lbl: '실제 / 예상 건수' },
+      ];
+      if (cmp && prevBuckets[i]) {
+        rows.push({ color: CTX, val: fmtMan(prevMan[i]), lbl: prevBuckets[i].label + ' 실제' });
+      }
+      return extra ? extra.concat(rows) : rows;
+    };
+    // 라벨 간격: 막대가 많으면 일별 ~7개, 주·월별 ~10개만 낸다(31일이면 5칸마다 — 예전과 같다).
+    var labelStep = buckets.length > 16
+      ? Math.ceil(buckets.length / (state.gran === 'day' ? 7 : 10))
+      : 1;
 
     if (state.gran === 'day' && state.cum) {
-      // 누적 = 영역 라인차트 (순증=막대, 누적=영역)
-      var curCum = cumsum(series.cur);
-      var prevCum = cumsum(series.prev);
+      var expCum = cumsum(expMan);
+      var actCum = cumsum(actMan);
+      var prevCum = cumsum(prevMan);
       if (els.sub) {
-        var cumHead = curWord ? curWord + ' 누적' : granWord + ' 누적';
-        els.sub.textContent = cmp
-          ? cumHead + ' vs ' + prevMonthWord + ' 누적 · 완료일 기준'
-          : cumHead + ' · 완료일 기준';
+        els.sub.textContent = words.cur + ' 누적' + (cmp ? ' vs ' + words.prev + ' 실제 누적' : '') + ' · 시공일 기준';
       }
-      renderLegend(ctx, els, cmp ? 'line' : 'none');
+      renderLegend(ctx, els, 'line', cmp);
       var lineSeries = [];
       if (cmp) lineSeries.push({ color: CTX, values: prevCum });
-      lineSeries.push({ color: ACCENT, values: curCum, endDot: true, area: true });
+      lineSeries.push({ color: PLAN_LINE, values: expCum, dash: true });
+      lineSeries.push({ color: ACCENT, values: actCum, endDot: true, area: true });
       lineChart(ctx, host, {
         height: trendChartHeight(), tickCount: 5,
-        aria: '누적 출고가 매출' + (cmp ? ' — 이전 구간과 비교' : ''),
+        aria: '누적 예상 · 실제 매출' + (cmp ? ' — 이전 기간 실제와 비교' : ''),
         series: lineSeries,
         xLabel: xLabelOf,
-        xTick: function (i, n) { return i % 5 === 0 || i === n - 1; },
+        xTick: function (i, n) { return i % labelStep === 0 || i === n - 1; },
         tipTitle: function (i) { return tipTitleOf(i) + ' · 누적'; },
         tipRows: function (i) {
-          var rows = [{ color: ACCENT, val: fmtMan(curCum[i]), lbl: '누적' }];
-          if (cmp && prevCum[i] != null) rows.push({ color: CTX, val: fmtMan(prevCum[i]), lbl: '이전 누적' });
+          var rows = [
+            { color: PLAN_LINE, val: fmtMan(expCum[i]), lbl: '예상 누적' },
+            { color: ACCENT, val: fmtMan(actCum[i]), lbl: '실제 누적' },
+          ];
+          if (cmp && prevCum[i] != null) rows.push({ color: CTX, val: fmtMan(prevCum[i]), lbl: '이전 실제 누적' });
           return rows;
         },
       });
@@ -836,49 +938,31 @@
       return;
     }
 
-    // 목업의 분기 기준은 granularity 다(일별=금액구간 램프·캡 없음, 주/월별=단색·캡 있음).
-    // 버킷 수로 가르면 범위 UI 가 붙어 13주 이상을 볼 때 주별 차트가 조용히 램프로 바뀐다.
-    var dense = state.gran === 'day';
+    var dense = buckets.length > 16;
     if (els.sub) {
-      // 월별은 당월이 아니라 최근 N개월을 본다(buildUrl 이 6개월을 요청한다) — 목업과 같이
-      // 구간 길이를 말한다. 일/주별만 "8월 일별" 처럼 당월을 앞에 붙인다.
-      var head = state.gran === 'month'
-        ? '최근 ' + buckets.length + '개월'
-        : (curWord ? curWord + ' ' + granWord : granWord);
+      var head = words.cur + ' ' + granWord;
       els.sub.textContent = cmp
-        ? head + '(막대) vs ' + prevWord + '(라인) · 완료일 기준'
-        : head + ' · 완료일 기준';
+        ? head + '(막대) vs ' + words.prev + ' 실제(라인) · 시공일 기준'
+        : head + ' · 시공일 기준 · 출고가';
     }
-    renderLegend(ctx, els, dense ? (cmp ? 'bucketcmp' : 'bucket') : (cmp ? 'barline' : 'none'));
+    renderLegend(ctx, els, 'bar', cmp);
     var groups = buckets.map(function (b, i) {
-      var v = series.cur[i];
       return {
-        // 일별 31개는 라벨이 겹친다 — 목업과 같이 5칸마다·마지막만 낸다.
-        label: dense ? ((i % 5 === 0 || i === buckets.length - 1) ? dayLabel(b.label) : '') : b.label,
-        bars: [{
-          name: b.label,
-          color: dense ? bucketColor(v) : ACCENT,
-          // 목업은 주별 캡이 fmtMan("8,240만"), 월별 캡이 fmtTick("1.2억") 이다.
-          v: v,
-          cap: dense ? '' : (state.gran === 'week' ? fmtMan(v) : fmtTick(v)),
-        }],
+        label: (i % labelStep === 0 || i === buckets.length - 1) ? xLabelOf(i) : '',
+        bars: [
+          // 캡은 막대가 듬성할 때만 — 예상 막대 위에 달성률을 단다.
+          { name: b.label, color: PLAN, v: expMan[i], cap: !dense && b.expected > 0 ? rateText(b.actual, b.expected) : '' },
+          { name: b.label, color: ACCENT, v: actMan[i], cap: '' },
+        ],
       };
     });
     columnChart(ctx, host, {
-      height: trendChartHeight(), caps: !dense, tickCount: 4, zeroFloor: true,
-      aria: '출고가 매출 ' + granWord + (cmp ? ' — 막대는 이번 구간, 라인은 이전 구간' : ''),
+      height: trendChartHeight(), caps: !dense, tickCount: 4, zeroFloor: true, overlay: true,
+      aria: '예상 · 실제 매출 ' + granWord + (cmp ? ' — 라인은 이전 기간 실제' : ''),
       groups: groups,
-      line: cmp ? { color: CTX, values: series.prev } : null,
+      line: cmp ? { color: CTX, values: prevMan } : null,
       tipTitle: tipTitleOf,
-      tipRows: function (i) {
-        var rows = [
-          { color: dense ? bucketColor(series.cur[i]) : ACCENT, val: fmtMan(series.cur[i]), lbl: '매출' },
-          { val: fmtCount(buckets[i].count) + '건', lbl: '완료' },
-        ];
-        var pr = prevRow(i);
-        if (pr) rows.push(pr);
-        return rows;
-      },
+      tipRows: function (i) { return tipRowsOf(i); },
     });
     renderMainTable(ctx, els, cmp);
   }
@@ -1083,75 +1167,142 @@
     });
   }
 
+  /**
+   * 채널별 매출 비중 — 일반 / 라홈 두 칸, 실제·예상 두 줄 막대(사용자 결정 2026-10-06).
+   * 칸 이름·순서는 API `brand_channels` 그대로다(라홈 = 발주사 '라홈' + 네이버 주문 전부).
+   */
   function renderChannels(ctx) {
-    var channels = ctx.state.data.channels || [];
+    var brands = ctx.state.data.brand_channels || [];
     var bar = ctx.els.channelBar;
+    var planBar = ctx.els.channelPlanBar;
     var legend = ctx.els.channelLegend;
     if (!bar || !legend) return;
     clear(bar);
+    clear(planBar);
     clear(legend);
-    var totalRevenue = sum(channels, function (c) { return c.revenue; });
-    var totalCount = sum(channels, function (c) { return c.count; });
-    var empty = totalRevenue === 0 && totalCount === 0;
+    var actualTotal = sum(brands, function (b) { return b.actual_revenue; });
+    var expectedTotal = sum(brands, function (b) { return b.expected_revenue; });
+    var expectedCount = sum(brands, function (b) { return b.expected_count; });
+    var empty = expectedTotal === 0 && expectedCount === 0;
     toggle(ctx.els.emptyChannels, !empty);
-    if (ctx.els.channelSub) {
-      ctx.els.channelSub.textContent = totalRevenue > 0 ? '기간 · 출고가 기준' : '기간 · 건수 기준(매출 0원)';
-    }
+    if (ctx.els.channelTotalActual) ctx.els.channelTotalActual.textContent = empty ? '' : fmtWon(actualTotal);
+    if (ctx.els.channelTotalExpected) ctx.els.channelTotalExpected.textContent = empty ? '' : fmtWon(expectedTotal);
     if (empty) return;
 
-    // 매출이 0 이면 비중을 건수로 잡는다. 실데이터는 '일반' 단일 조각(100%)이라
-    // 조각이 하나여도 막대·범례가 깨지지 않아야 한다.
-    var basisTotal = totalRevenue > 0 ? totalRevenue : totalCount;
-    var pickBasis = function (c) { return totalRevenue > 0 ? (c.revenue || 0) : (c.count || 0); };
-    channels.forEach(function (ch, i) {
-      var value = pickBasis(ch);
-      var pct = basisTotal > 0 ? (value / basisTotal) * 100 : 0;
-      var color = channelColor(ch.channel, i);
-      if (pct > 0) {
+    function share(value, total) { return total > 0 ? (value / total) * 100 : 0; }
+    function fill(host, field, total) {
+      if (!host) return;
+      brands.forEach(function (b, i) {
+        var value = b[field + '_revenue'] || 0;
+        var pct = share(value, total);
+        if (!(pct > 0)) return;
+        var color = channelColor(b.label, i);
         var seg = document.createElement('div');
         seg.className = 's-chseg';
-        seg.setAttribute('data-settlement-channel', ch.channel || '');
+        seg.setAttribute('data-settlement-channel', b.channel || '');
         seg.style.setProperty('--s-seg-pct', pct.toFixed(2) + '%');
         seg.style.setProperty('--s-seg-color', color);
-        // 조각이 좁으면 안쪽 글자가 잘린다 — 그때는 범례가 값을 말한다.
-        seg.textContent = pct >= 10 ? Math.round(pct) + '%' : '';
+        // 조각이 좁으면 안쪽 글자가 잘린다 — 넓을 때만 이름까지, 그다음은 % 만, 더 좁으면 범례가 말한다.
+        var segText = pct >= 28 ? b.label + ' ' + Math.round(pct) + '%' : (pct >= 10 ? Math.round(pct) + '%' : '');
+        var fieldWord = field === 'actual' ? '실제 매출' : '예상 매출';
+        var naverValue = b['naver_' + field + '_revenue'] || 0;
+        if (naverValue > 0) {
+          // shop in shop: 라홈 조각 안의 끝자리에 네이버 몫을 네이버 색으로 끼운다. 바깥 폭은
+          // 라홈 전체(네이버 포함) 그대로라 막대 합계·비중은 바뀌지 않는다.
+          var inner = share(naverValue, value);
+          seg.classList.add('s-chseg--host');
+          var own = document.createElement('span');
+          own.className = 's-chseg-own';
+          own.textContent = segText;
+          var nav = document.createElement('span');
+          nav.className = 's-chseg-inner';
+          nav.style.setProperty('--s-inner-pct', inner.toFixed(2) + '%');
+          // 안쪽 조각 폭 = 전체 막대 대비 (라홈 비중 × 네이버 몫) — 그 값으로 글자를 낼지 정한다.
+          nav.textContent = pct * inner / 100 >= 9 ? '네이버' : '';
+          nav.addEventListener('pointermove', function (e) {
+            e.stopPropagation();
+            showTip(ctx, e.clientX, e.clientY, b.label + ' 중 네이버 · ' + fieldWord, [
+              { color: NAVER_GREEN, val: fmtWon(naverValue), lbl: '매출' },
+              { val: fmtCount(b['naver_' + field + '_count']) + '건', lbl: '네이버 주문' },
+              { val: inner.toFixed(1) + '%', lbl: b.label + ' 중' },
+              { val: share(naverValue, total).toFixed(1) + '%', lbl: '전체 중' },
+            ]);
+          });
+          seg.appendChild(own);
+          seg.appendChild(nav);
+        } else {
+          seg.textContent = segText;
+        }
         seg.addEventListener('pointermove', function (e) {
-          showTip(ctx, e.clientX, e.clientY, (ch.channel || '미상') + ' 채널', [
-            { color: color, val: fmtWon(ch.revenue || 0), lbl: '매출' },
-            { val: fmtCount(ch.count) + '건', lbl: '완료 주문' },
+          showTip(ctx, e.clientX, e.clientY, b.label + ' · ' + fieldWord, [
+            { color: color, val: fmtWon(value), lbl: '매출' },
+            { val: fmtCount(b[field + '_count']) + '건', lbl: field === 'actual' ? '시공완료' : '시공일 잡힌 주문' },
             { val: pct.toFixed(1) + '%', lbl: '비중' },
-          ]);
+            naverValue > 0 ? { color: NAVER_GREEN, val: fmtWon(naverValue), lbl: '그중 네이버' } : null,
+          ].filter(Boolean));
         });
         seg.addEventListener('pointerleave', function () { hideTip(ctx); });
-        bar.appendChild(seg);
-      }
+        host.appendChild(seg);
+      });
+    }
+    fill(bar, 'actual', actualTotal);
+    fill(planBar, 'expected', expectedTotal);
+
+    brands.forEach(function (b, i) {
       var row = document.createElement('div');
       row.className = 's-chrow';
       var swatch = document.createElement('i');
       swatch.className = 's-sw';
-      swatch.style.setProperty('--s-sw-color', color);
+      swatch.style.setProperty('--s-sw-color', channelColor(b.label, i));
       row.appendChild(swatch);
       var name = document.createElement('b');
-      name.textContent = ch.channel || '미상';
+      name.textContent = b.label || '미상';
       row.appendChild(name);
       row.appendChild(document.createTextNode(
-        fmtWon(ch.revenue || 0) + ' · ' + fmtCount(ch.count) + '건 · ' + pct.toFixed(1) + '%'
+        '실제 ' + fmtWon(b.actual_revenue || 0) + ' (' + share(b.actual_revenue || 0, actualTotal).toFixed(1) + '%) · ' +
+        '예상 ' + fmtWon(b.expected_revenue || 0) + ' (' + share(b.expected_revenue || 0, expectedTotal).toFixed(1) + '%) · ' +
+        fmtCount(b.actual_count) + ' / ' + fmtCount(b.expected_count) + '건'
       ));
       legend.appendChild(row);
+      // 라홈 칸 안의 네이버 몫 — 한 칸 들여 적는다(합계에 이미 포함된 부분값이라 더하지 않는다).
+      if ((b.naver_expected_count || 0) > 0 || (b.naver_actual_count || 0) > 0) {
+        var sub = document.createElement('div');
+        sub.className = 's-chrow s-chrow--sub';
+        var subSwatch = document.createElement('i');
+        subSwatch.className = 's-sw';
+        subSwatch.style.setProperty('--s-sw-color', NAVER_GREEN);
+        sub.appendChild(subSwatch);
+        var subName = document.createElement('b');
+        subName.textContent = '그중 네이버';
+        sub.appendChild(subName);
+        sub.appendChild(document.createTextNode(
+          '실제 ' + fmtWon(b.naver_actual_revenue || 0) + ' (' + b.label + '의 ' +
+          share(b.naver_actual_revenue || 0, b.actual_revenue || 0).toFixed(1) + '%) · ' +
+          '예상 ' + fmtWon(b.naver_expected_revenue || 0) + ' · ' +
+          fmtCount(b.naver_actual_count) + ' / ' + fmtCount(b.naver_expected_count) + '건'
+        ));
+        legend.appendChild(sub);
+      }
     });
+  }
+
+  /** "2026년 10월 1일 ~ 10월 31일" — 연도는 앞(과 해가 바뀌면 뒤)에만 붙인다. */
+  function fullSpan(from, to) {
+    if (!isDayKey(from) || !isDayKey(to)) return '';
+    var sameYear = from.slice(0, 4) === to.slice(0, 4);
+    return from.slice(0, 4) + '년 ' + shortDay(from) + ' ~ ' + (sameYear ? '' : to.slice(0, 4) + '년 ') + shortDay(to);
   }
 
   function renderRangeLine(ctx) {
     var range = ctx.state.data.range || {};
     var node = ctx.els.rangeLine;
     if (!node) return;
-    var from = monthLabel(range.month_from);
-    var to = monthLabel(range.month_to);
-    var scope = from && to && from !== to ? from + ' ~ ' + to : (to || from || '');
-    var cmpTarget = monthLabel(shiftMonth(range.month_from, -1));
-    node.textContent = ctx.state.gran === 'month' || !cmpTarget
-      ? scope
-      : scope + ' · 비교 대상 ' + cmpTarget;
+    var cur = fullSpan(range.date_from, range.date_to);
+    var days = cur ? spanDays(range.date_from, range.date_to) : 0;
+    var prev = fullSpan(range.prev_date_from, range.prev_date_to);
+    node.textContent = cur
+      ? '조회 ' + cur + ' (' + fmtCount(days) + '일)' + (prev ? ' · 비교 대상 ' + prev : '')
+      : '';
     if (ctx.els.stamp) ctx.els.stamp.textContent = kstStamp();
   }
 
@@ -1168,7 +1319,8 @@
   /**
    * 집계 막대(담당자별·단계별)용 금액 램프의 경계.
    *
-   * `BUCKET_EDGES`(450/700/900만)는 **주문 한 건**의 출고가에 맞춘 경계라 합계 축에 그대로
+   * 옛 요약 추이 차트의 단건 램프 경계(450/700/900만, 2026-10-06 예상/실제 겹친 막대로 퇴역)는
+   * **주문 한 건**의 출고가에 맞춘 경계라 합계 축에 그대로
    * 쓰면 안 된다 — 실측(2026-08-31 dev 5011 시드): 담당자 7명이 1,120만~1,808만이라 전원이
    * 최상단 색으로 칠해져 램프가 아무 말도 하지 않는다. 그래서 **그 시리즈 최댓값의 4분위**로
    * 경계를 새로 잡고, 범례 문구도 그 경계에서 생성한다(고정 문구를 적으면 색과 글자가 갈린다).
@@ -1334,14 +1486,14 @@
     // 이전 구간 스칼라는 서버가 준다(prev_totals). 화면이 직접 만들어 내지 않는다.
     var prev = data.prev_totals || {};
     var buckets = data.buckets || [];
-    var vs = 'vs ' + (ctx.state.gran === 'month' ? '이전 동일 기간' : '전월');
+    var vs = 'vs ' + periodWords(ctx).prev;
     var deduction = deductionTotalOf(data);
 
     appendKpi(wrap, {
-      key: 'an-revenue', label: '매출 (출고가 · 완료일 기준)', value: fmtMan(toMan(kpi.revenue)), unit: '원', fam: 'rev',
+      key: 'an-revenue', label: '실제 매출 (출고가 · 시공완료)', value: fmtMan(toMan(kpi.revenue)), unit: '원', fam: 'rev',
       delta: deltaOf(kpi.revenue || 0, prev.revenue || 0), vs: vs,
       noDelta: '비교 기준 기간에 매출 없음',
-      sub: '완료일 기준 · ' + fmtCount(kpi.completed_count) + '건',
+      sub: '시공일 기준 · ' + fmtCount(kpi.completed_count) + '건',
       spark: buckets.map(function (b) { return toMan(b.revenue); }),
     });
     appendKpi(wrap, {
@@ -1367,7 +1519,7 @@
   }
 
   function renderAnalyticsChannels(ctx) {
-    var channels = ctx.state.data.channels || [];
+    var channels = brandActualChannels(ctx.state.data);
     var bar = ctx.els.anChannelBar;
     var table = ctx.els.anChannelTable;
     if (!bar || !table) return;
@@ -1380,7 +1532,7 @@
     toggle(ctx.els.anChannelTableWrap, empty);
     if (ctx.els.anChannelSub) {
       ctx.els.anChannelSub.textContent = totalRevenue > 0
-        ? '기간 · 출고가 기준 · 채널 ' + fmtCount(channels.length) + '종'
+        ? '일반 · 라홈 · 실제 매출(시공완료) 출고가'
         : '기간 · 건수 기준(매출 0원)';
     }
     if (empty) return;
@@ -1701,16 +1853,14 @@
 
   function buildUrl(ctx) {
     var base = ctx.root.getAttribute('data-aggregates-url') || API_FALLBACK;
-    var gran = ctx.state.gran;
-    var month = ctx.state.month;
-    var params = ['granularity=' + encodeURIComponent(gran)];
-    // 월 모드는 목업과 같이 최근 6개월을 본다. 일/주 모드는 당월 1개월 —
-    // 그래야 서버의 prev_buckets 가 정확히 '전월'이 된다(같은 길이의 직전 구간).
-    var from = gran === 'month' ? shiftMonth(month, -5) : month;
-    if (month && from) {
-      params.push('month_from=' + encodeURIComponent(from));
-      params.push('month_to=' + encodeURIComponent(month));
-    }
+    var state = ctx.state;
+    // 공통 기간 바의 날짜 범위를 그대로 싣는다(서버가 날짜를 월 파라미터보다 우선한다).
+    // 달 단위 범위면 서버가 직전 비교 구간도 달 단위로 잡는다 — '이번 달'은 예전처럼 전월과 비교된다.
+    var params = [
+      'granularity=' + encodeURIComponent(state.gran),
+      'date_from=' + encodeURIComponent(state.from),
+      'date_to=' + encodeURIComponent(state.to),
+    ];
     return base + (base.indexOf('?') === -1 ? '?' : '&') + params.join('&');
   }
 
@@ -1740,10 +1890,6 @@
         return;
       }
       state.data = body.data;
-      if (body.data.range && /^\d{4}-\d{2}$/.test(body.data.range.month_to || '')) {
-        // 서버가 KST 기준 월의 최종 권위다 — 클라 계산이 틀렸어도 여기서 교정된다.
-        state.month = body.data.range.month_to;
-      }
       showState(ctx, 'ready');
       renderAll(ctx);
     } catch (err) {
@@ -1765,12 +1911,61 @@
       ctx.els.cumToggle.disabled = !cumAllowed;
       ctx.els.cumToggle.setAttribute('aria-pressed', String(state.cum));
     }
-    // 월 모드는 최근 6개월 단일 시리즈 — 전월 비교 축이 없다.
-    var cmpAllowed = state.gran !== 'month';
+    // 어느 단위든 비교가 된다 — 서버가 어떤 구간에도 같은 길이의 직전 구간(prev_buckets)을 준다.
     if (ctx.els.cmpToggle) {
-      ctx.els.cmpToggle.disabled = !cmpAllowed;
-      ctx.els.cmpToggle.setAttribute('aria-pressed', String(cmpAllowed && state.cmp));
+      ctx.els.cmpToggle.disabled = false;
+      ctx.els.cmpToggle.setAttribute('aria-pressed', String(state.cmp));
     }
+    ctx.els.presetButtons.forEach(function (btn) {
+      btn.setAttribute('aria-pressed', String(btn.getAttribute('data-settlement-preset') === state.preset));
+    });
+    if (ctx.els.dateFrom) ctx.els.dateFrom.value = state.from;
+    if (ctx.els.dateTo) ctx.els.dateTo.value = state.to;
+    publishRange(ctx);
+  }
+
+  /**
+   * 실무·네이버 정산 탭(operations.js · channel.js — 별도 스크립트)이 관찰하는 공통 기간.
+   * 속성 하나("YYYY-MM-DD..YYYY-MM-DD")로 적는다 — 시작·끝을 따로 적으면 바꿀 때마다 관찰자가
+   * 두 번 깨어나 같은 조회를 두 번 한다. 값이 같으면 다시 쓰지 않는다(불필요한 재조회 방지).
+   */
+  function publishRange(ctx) {
+    var value = ctx.state.from + '..' + ctx.state.to;
+    if (ctx.root.getAttribute('data-settlement-date-range') !== value) {
+      ctx.root.setAttribute('data-settlement-date-range', value);
+    }
+  }
+
+  /** 범위 검증(서버 `parse_day_range` 와 같은 규칙). 통과면 빈 문자열. */
+  function rangeError(from, to) {
+    if (!isDayKey(from) || !isDayKey(to)) return '시작일과 종료일을 모두 고르세요.';
+    if (from > to) return '시작일이 종료일보다 뒤입니다.';
+    if (spanDays(from, to) > MAX_RANGE_DAYS) return '기간은 최대 ' + MAX_RANGE_DAYS + '일까지 고를 수 있습니다.';
+    return '';
+  }
+
+  /**
+   * 기간을 바꾸고 다시 조회한다. 잘못된 범위면 조회하지 않고 필터바에 이유를 낸다(무음 실패 금지).
+   * 빠른 선택은 그 길이에 맞는 그래프 단위로 바꾼다. 직접 고른 범위는 막대가 너무 많아질 때만
+   * 단위를 올린다(일별 120칸 이상은 막대가 1px 로 눌린다).
+   */
+  function setRange(ctx, from, to, preset) {
+    var err = rangeError(from, to);
+    if (ctx.els.rangeError) {
+      ctx.els.rangeError.textContent = err;
+      ctx.els.rangeError.hidden = !err;
+    }
+    if (err) return;
+    var state = ctx.state;
+    state.from = from;
+    state.to = to;
+    state.preset = preset || '';
+    var days = spanDays(from, to);
+    if (preset && PRESET_GRANULARITY[preset]) state.gran = PRESET_GRANULARITY[preset];
+    else if (days > 120 && state.gran !== 'month') state.gran = 'month';
+    else if (days > 62 && state.gran === 'day') state.gran = 'week';
+    syncToggles(ctx);
+    load(ctx);
   }
 
   /* ═══════════════ 6.5 탭 3종 (요약 · 실무 · 분석) ═══════════════ */
@@ -1852,6 +2047,13 @@
         activateTab(ctx, tabKeyOf(tabBtn), false);
         return;
       }
+      var presetBtn = e.target.closest('[data-settlement-preset]');
+      if (presetBtn && ctx.root.contains(presetBtn)) {
+        var key = presetBtn.getAttribute('data-settlement-preset');
+        var r = presetRange(key, todayKey());
+        setRange(ctx, r.from, r.to, key);
+        return;
+      }
       var granBtn = e.target.closest('[data-settlement-granularity]');
       if (granBtn && ctx.root.contains(granBtn)) {
         var next = granBtn.getAttribute('data-settlement-granularity');
@@ -1894,6 +2096,13 @@
       }
     });
     ctx.root.addEventListener('keydown', function (e) { onTabKeydown(ctx, e); });
+    // 날짜 칸은 change(달력에서 고르거나 입력을 마쳤을 때)에만 조회한다 — input 마다 조회하면
+    // 연도를 치는 도중의 "0002-10-01" 같은 값으로 전량 집계를 부른다.
+    ctx.root.addEventListener('change', function (e) {
+      var t = e.target;
+      if (!t || !t.matches || !t.matches('[data-settlement-date-from], [data-settlement-date-to]')) return;
+      setRange(ctx, ctx.els.dateFrom ? ctx.els.dateFrom.value : '', ctx.els.dateTo ? ctx.els.dateTo.value : '', '');
+    });
   }
 
   /* ═══════════════ 7. 마운트 + 전역 배선 ═══════════════ */
@@ -1934,6 +2143,9 @@
       channelBar: q('#foms-settle-channel-bar'),
       channelLegend: q('#foms-settle-channel-legend'),
       channelSub: q('[data-settlement-channel-sub]'),
+      channelPlanBar: q('#foms-settle-channel-plan-bar'),
+      channelTotalActual: q('[data-settlement-channel-total="actual"]'),
+      channelTotalExpected: q('[data-settlement-channel-total="expected"]'),
       statusBody: q('[data-settlement-status-body]'),
       statusSub: q('[data-settlement-status-sub]'),
       emptySettlement: q('[data-settlement-empty="settlement_status"]'),
@@ -1952,6 +2164,10 @@
       tooltip: q('#foms-settle-tooltip'),
       granButtons: Array.prototype.slice.call(root.querySelectorAll('[data-settlement-granularity]')),
       cmpToggle: q('[data-settlement-compare]'),
+      presetButtons: Array.prototype.slice.call(root.querySelectorAll('[data-settlement-preset]')),
+      dateFrom: q('[data-settlement-date-from]'),
+      dateTo: q('[data-settlement-date-to]'),
+      rangeError: q('[data-settlement-range-error]'),
       cumToggle: q('[data-settlement-cumulative]'),
       tabbar: q('.s-tabs'),
       tabs: Array.prototype.slice.call(root.querySelectorAll('[data-settlement-tab]')),
@@ -1994,7 +2210,14 @@
     var ctx = {
       root: root,
       els: collectEls(root),
-      state: { gran: 'day', cum: false, cmp: true, month: kstMonth(), data: null, seq: 0, tab: DEFAULT_TAB },
+      state: (function () {
+        var r = presetRange(DEFAULT_PRESET, todayKey());
+        return {
+          gran: PRESET_GRANULARITY[DEFAULT_PRESET], cum: false, cmp: true,
+          from: r.from, to: r.to, preset: DEFAULT_PRESET,
+          data: null, seq: 0, tab: DEFAULT_TAB,
+        };
+      })(),
     };
     mounts.push(ctx);
     syncToggles(ctx);

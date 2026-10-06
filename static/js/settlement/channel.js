@@ -2734,6 +2734,42 @@
     return { today: today, from: addDays(today, -DEFAULT_BACK_DAYS), to: addDays(today, DEFAULT_FORWARD_DAYS) };
   }
 
+  /**
+   * 셸의 공통 기간 바를 따른다(2026-10-06 — 모든 정산 탭이 같은 날짜 범위).
+   *
+   * dashboard.js 가 셸 루트에 `data-settlement-date-range="YYYY-MM-DD..YYYY-MM-DD"` 를 적고, 이
+   * 탭은 그 값을 조회 구간(from/to)으로 쓴다. 바뀌면 **이미 연 탭만** 1쪽부터 다시 읽는다 — 아직
+   * 안 연 탭은 열 때 새 구간으로 읽힌다. 셸 밖 단독 렌더(셸 루트가 없음)면 숨겨 둔 이 탭의
+   * 시작·종료 칸을 다시 보여 예전처럼 직접 고르게 한다.
+   *
+   * 셸은 `data-settlement-active-tab` 로 찾는다(서버 렌더 속성이라 늘 있다). 기간 속성은 스크립트
+   * 순서에 따라 이 마운트보다 늦게 붙을 수 있어 관찰자가 그 첫 기록도 받는다.
+   */
+  function followShellRange(ctx) {
+    var shell = ctx.root.closest('[data-settlement-active-tab]');
+    if (!shell) {
+      ctx.root.querySelectorAll('[data-settlement-ch-own-range]').forEach(function (node) { node.hidden = false; });
+      return;
+    }
+    function apply() {
+      var m = /^(\d{4}-\d{2}-\d{2})\.\.(\d{4}-\d{2}-\d{2})$/.exec(
+        shell.getAttribute('data-settlement-date-range') || ''
+      );
+      if (!m || (m[1] === ctx.state.from && m[2] === ctx.state.to)) return false;
+      ctx.state.from = m[1];
+      ctx.state.to = m[2];
+      return true;
+    }
+    apply();
+    if (typeof MutationObserver !== 'function') return;
+    ctx.rangeObserver = new MutationObserver(function () {
+      if (!apply()) return;
+      syncControls(ctx);
+      if (ctx.state.loaded) reload(ctx, true);
+    });
+    ctx.rangeObserver.observe(shell, { attributes: true, attributeFilter: ['data-settlement-date-range'] });
+  }
+
   function ensureLoaded(ctx) {
     if (ctx.state.loaded) return;
     ctx.state.loaded = true;
@@ -2788,6 +2824,7 @@
       tip: null,
       observer: null,
       resizeObserver: null,
+      rangeObserver: null,
       resizeTimer: null,
       searchTimer: null,
       pollTimer: null,
@@ -2822,6 +2859,7 @@
     // 서버가 셀렉트 기본값을 렌더했다면 그 값이 시작값이다(이 파일에 옵션을 적지 않는다).
     if (ctx.els.basis && ctx.els.basis.value) ctx.state.basis = ctx.els.basis.value;
     if (ctx.els.granularity && ctx.els.granularity.value) ctx.state.granularity = ctx.els.granularity.value;
+    followShellRange(ctx);
     mounts.push(ctx);
     syncControls(ctx);
     renderSwitch(ctx);
@@ -2842,6 +2880,7 @@
       if (ctx.root.isConnected) return true;
       if (ctx.observer) ctx.observer.disconnect();
       if (ctx.resizeObserver) ctx.resizeObserver.disconnect();
+      if (ctx.rangeObserver) ctx.rangeObserver.disconnect();
       window.clearTimeout(ctx.resizeTimer);
       window.clearTimeout(ctx.searchTimer);
       window.clearTimeout(ctx.pollTimer);

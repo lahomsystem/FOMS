@@ -1,7 +1,8 @@
 """정산 대시보드 조회 API — SETTLE-DASH-01 M2 + SETTLE-TABS (읽기 전용).
 
 - ``GET /api/settlement/aggregates?month_from=YYYY-MM&month_to=YYYY-MM&granularity=day|week|month``
-- ``GET /api/settlement/rows?period=&settlement=&channel=&aging=&page=`` (실무 탭)
+  (또는 ``date_from=YYYY-MM-DD&date_to=YYYY-MM-DD`` — 정산 탭 공통 기간 바. 날짜가 우선)
+- ``GET /api/settlement/rows?period=&settlement=&channel=&aging=&page=&date_from=&date_to=`` (실무 탭)
 
 집계 커널은 :func:`foms.services.settlement_aggregation.aggregate_settlement` (M1)이고
 이 모듈은 파라미터 파싱·권한 판정·응답 포장만 한다.
@@ -94,6 +95,8 @@ def api_settlement_aggregates():
         month_from: 조회 시작 월 "YYYY-MM"(기본 전월).
         month_to: 조회 종료 월 "YYYY-MM"(기본 이번 달, KST).
         granularity: "day" | "week" | "month"(기본 "day").
+        date_from: 조회 시작일 "YYYY-MM-DD". date_to 와 **함께** 오면 월 파라미터보다 우선한다.
+        date_to: 조회 종료일 "YYYY-MM-DD".
 
     Returns:
         200 ``{'success': True, 'data': <aggregate_settlement 반환값>, 'error': None}``.
@@ -108,6 +111,8 @@ def api_settlement_aggregates():
     month_from = (request.args.get("month_from") or "").strip() or default_from
     month_to = (request.args.get("month_to") or "").strip() or default_to
     granularity = (request.args.get("granularity") or "").strip() or _DEFAULT_GRANULARITY
+    date_from = (request.args.get("date_from") or "").strip() or None
+    date_to = (request.args.get("date_to") or "").strip() or None
 
     try:
         data = aggregate_settlement(
@@ -115,6 +120,8 @@ def api_settlement_aggregates():
             month_from=month_from,
             month_to=month_to,
             granularity=granularity,
+            date_from=date_from,
+            date_to=date_to,
         )
     except ValueError as exc:
         # 집계 커널이 사람이 읽는 한글 사유를 담아 던진다 — 그대로 전달한다(내부 스택 노출 없음).
@@ -141,6 +148,8 @@ def api_settlement_rows():
         channel: "all" 또는 채널 코드(기본 "all").
         aging: aging 버킷 코드 또는 빈 값(기본 빈 값).
         page: 1부터(기본 1).
+        date_from: 시공일(완료일) 구간 시작 "YYYY-MM-DD" — 정산 탭 공통 기간 바. date_to 와 함께.
+        date_to: 시공일(완료일) 구간 끝 "YYYY-MM-DD".
 
     Returns:
         200 ``{'success': True, 'data': <list_settlement_rows 반환값>, 'error': None}``.
@@ -166,6 +175,8 @@ def api_settlement_rows():
             page=request.args.get("page", type=int) or 1,
             per_page=PER_PAGE,
             include_naver_settlement=include_naver_settlement,
+            date_from=(request.args.get("date_from") or "").strip() or None,
+            date_to=(request.args.get("date_to") or "").strip() or None,
         )
     except ValueError as exc:
         return _error(str(exc), 400)

@@ -67,9 +67,9 @@
 .foms-settle .s-ch-waterfall { grid-column: 9 / 13; }
 .foms-settle .s-ch-deposit { grid-column: 9 / 13; }
 
-/* 이 탭에서는 요약/분석 탭의 필터바를 감춘다 — 축이 다르다(완료일 vs 정산 예정일).
-   실무 탭이 같은 이유로 쓰는 규칙(`settlement-dashboard.css`)의 채널 판이다. */
-.foms-settle[data-settlement-active-tab="channel"] .s-filterbar { display: none; }
+/* 셸의 공통 기간 바는 이 탭에서도 보인다(2026-10-06 — 모든 정산 탭이 같은 날짜 범위).
+   그래프 전용 조작만 `settlement-dashboard.css` 의 `.s-fb-chart` 규칙이 감춘다. 날짜 축은 여전히
+   정산 예정일 등 이 탭의 기준일이다 — 축 안내 문구(`.s-ch-axisnote`)가 그 차이를 말한다. */
 
 /* ── 유틸 ──────────────────────────────────────────────────────── */
 .foms-settle .s-ch-hidden { display: none !important; }

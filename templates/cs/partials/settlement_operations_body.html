@@ -4,7 +4,8 @@
 
    **이 파일이 소유하는 범위**: 셸이 만들어 둔 `#foms-settle-ops-mount` **안쪽**만이다.
    pane 자체와 `role`/`aria-*`/`hidden` 배선, 탭바, 기간 필터바는 셸(`settlement_dashboard_body.html`)
-   소유라 여기서 만들지 않는다. 이 탭은 기간 스코프 화면이 아니라 셸이 필터바를 CSS 로 감춘다.
+   소유라 여기서 만들지 않는다. 셸의 공통 기간 바(날짜 범위)가 이 탭 목록도 거른다 — 그래프 전용
+   조작(단위·비교·누적)만 셸 CSS 가 이 탭에서 감춘다.
 
    **데이터 소스는 `GET /api/settlement/rows` 하나뿐이다.** KPI 스트립도 그 응답의 `totals` 에서
    파생한다 — 집계 API(`/api/settlement/aggregates`)를 여기서 부르지 않는다. 한 화면에 소스가
@@ -67,17 +68,11 @@
       </button>
     </div>
 
-    {# 칩 3묶음. 값은 그대로 API 파라미터가 된다(period / settlement / channel).
-       기간 칩은 **완료 후 경과일**이지 완료월이 아니다 — 요약 탭 필터바와 축이 다르다. #}
+    {# 칩 2묶음. 값은 그대로 API 파라미터가 된다(settlement / channel).
+       기간은 칩이 아니라 셸 상단의 **공통 기간 바**(시공일 날짜 범위)다(2026-10-06 — 옛 '완료 후
+       경과일' 칩 4개를 대체). operations.js 가 셸 루트의 `data-settlement-date-range` 를 읽는다.
+       경과일로 좁히는 일은 아래 aging 막대가 그대로 한다. #}
     <div class="s-ops-filterbar" data-settlement-ops-filterbar>
-      <span class="s-ops-grp-lbl" id="foms-settle-ops-lbl-period">기간</span>
-      <div class="s-ops-grp" role="group" aria-labelledby="foms-settle-ops-lbl-period"
-        data-settlement-ops-filter="period">
-        <button type="button" class="s-ops-chip" data-settlement-ops-value="all" aria-pressed="true">전체</button>
-        <button type="button" class="s-ops-chip" data-settlement-ops-value="7" aria-pressed="false">7일 이내</button>
-        <button type="button" class="s-ops-chip" data-settlement-ops-value="30" aria-pressed="false">30일 이내</button>
-        <button type="button" class="s-ops-chip" data-settlement-ops-value="31" aria-pressed="false">31일 이상</button>
-      </div>
       {# 라벨만 "차감청구"로 개명한다(v1.1 T13) — id·aria-labelledby·필터 이름
          `settlement`·칩 값 `all/pending/issued` 는 그대로 API 파라미터라 손대지 않는다.
          이 칩은 **내부 차감청구(부서 귀속 차감) 발행 여부**이고, 아래 표에 새로 붙는

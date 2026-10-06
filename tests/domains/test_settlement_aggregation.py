@@ -214,10 +214,30 @@ def test_returns_exact_schema_keys(app):
         "range", "kpi", "buckets", "prev_buckets", "prev_totals", "aging",
         "aging_unknown", "channels", "managers", "managers_total",
         "settlement_status", "stages", "unknown_completion",
+        "forecast", "brand_channels",
     }
     assert result["range"] == {
         "month_from": "2026-07", "month_to": "2026-07", "granularity": "day",
+        "date_from": "2026-07-01", "date_to": "2026-07-31",
+        "prev_date_from": "2026-06-01", "prev_date_to": "2026-06-30",
     }
+    assert set(result["forecast"]) == {
+        "expected_revenue", "expected_count", "expected_unpriced_count",
+        "actual_revenue", "actual_count", "prev", "buckets",
+    }
+    assert set(result["forecast"]["prev"]) == {
+        "expected_revenue", "expected_count", "actual_revenue", "actual_count",
+    }
+    for bucket in result["forecast"]["buckets"]:
+        assert set(bucket) == {
+            "key", "label", "expected", "expected_count", "actual", "actual_count",
+        }
+    for item in result["brand_channels"]:
+        assert set(item) == {
+            "channel", "label", "expected_revenue", "expected_count",
+            "actual_revenue", "actual_count", "naver_expected_revenue",
+            "naver_expected_count", "naver_actual_revenue", "naver_actual_count",
+        }
     assert set(result["kpi"]) == {
         "revenue", "completed_count", "avg_shipping_price", "receivable_total",
         "receivable_count", "collected_approx", "collected_deposit",
