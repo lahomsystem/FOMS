@@ -278,7 +278,7 @@ def test_wdcalculator_embedded_mode_renders_pc_split_contract(erp_editor_client)
     assert "css/orders/erp-wdc-split.css" in body
     assert "js/wdcalculator/embedded-shell.js" in body
     assert "js/wdcalculator/mobile-enhance.js" not in body
-    assert "js/wdcalculator/estimate-lifecycle.js?v=20261006a" in body
+    assert "js/wdcalculator/estimate-lifecycle.js?v=20261006c" in body
     assert "주문으로 돌아가기" not in body
 
 

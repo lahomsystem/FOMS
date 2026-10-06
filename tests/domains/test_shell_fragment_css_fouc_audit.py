@@ -202,6 +202,6 @@ def test_tablet_split_order_detail_fragment_has_wdc_split_css():
     """HTMX tablet split fragment must carry erp-wdc-split.css (no layout head)."""
     frag = _read("templates/partials/shared/foms_order_detail_fragment.html")
     edit = _read("templates/orders/edit_order.html")
-    token = "erp-wdc-split.css') }}?v=20260713a"
+    token = "erp-wdc-split.css') }}?v=20261006a"
     assert token in edit
     assert token in frag
