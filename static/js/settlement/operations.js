@@ -336,7 +336,7 @@
     appendKpi(wrap, {
       key: 'unknown_completion', label: '완료일 미상',
       value: count(totals.unknown_completion_count), unit: '건',
-      sub: '경과일을 셀 수 없어 기간 칩·aging 구간 밖입니다',
+      sub: '경과일을 셀 수 없어 aging 구간 밖입니다 · 기간을 고르면 목록에서 빠집니다',
     });
   }
 

@@ -247,14 +247,18 @@
     if (!isDayKey(from) || !isDayKey(to)) return '';
     var whole = from.slice(8) === '01' && +to.slice(8) === monthEnd(+to.slice(0, 4), +to.slice(5, 7));
     var sameYear = from.slice(0, 4) === to.slice(0, 4);
-    if (whole) {
-      var fm = +from.slice(5, 7) + '월', tm = +to.slice(5, 7) + '월';
-      if (from.slice(0, 7) === to.slice(0, 7)) return fm;
-      return sameYear ? +from.slice(5, 7) + '~' + tm
-        : from.slice(2, 4) + '년 ' + fm + '~' + to.slice(2, 4) + '년 ' + tm;
+    if (!sameYear) {
+      return whole
+        ? from.slice(2, 4) + '년 ' + +from.slice(5, 7) + '월~' + to.slice(2, 4) + '년 ' + +to.slice(5, 7) + '월'
+        : from.slice(2, 4) + '년 ' + shortDay(from) + '~' + to.slice(2, 4) + '년 ' + shortDay(to);
     }
-    return sameYear ? shortDay(from) + '~' + shortDay(to)
-      : from.slice(2, 4) + '년 ' + shortDay(from) + '~' + to.slice(2, 4) + '년 ' + shortDay(to);
+    // 올해가 아니면 연도를 붙인다 — '올해'(1~12월)와 비교 구간(작년 1~12월)이 같은 이름이 되지 않게.
+    var year = from.slice(0, 4) === todayKey().slice(0, 4) ? '' : from.slice(2, 4) + '년 ';
+    if (whole) {
+      var tm = +to.slice(5, 7) + '월';
+      return year + (from.slice(0, 7) === to.slice(0, 7) ? tm : +from.slice(5, 7) + '~' + tm);
+    }
+    return year + shortDay(from) + '~' + shortDay(to);
   }
 
   /** 응답 range 로 (이번 구간 이름, 비교 구간 이름). 비교 이름은 KPI "vs ..." 와 범례가 쓴다. */
@@ -1185,6 +1189,7 @@
     var expectedCount = sum(brands, function (b) { return b.expected_count; });
     var empty = expectedTotal === 0 && expectedCount === 0;
     toggle(ctx.els.emptyChannels, !empty);
+    toggle(ctx.els.channelBody, empty);
     if (ctx.els.channelTotalActual) ctx.els.channelTotalActual.textContent = empty ? '' : fmtWon(actualTotal);
     if (ctx.els.channelTotalExpected) ctx.els.channelTotalExpected.textContent = empty ? '' : fmtWon(expectedTotal);
     if (empty) return;
@@ -2144,6 +2149,7 @@
       channelLegend: q('#foms-settle-channel-legend'),
       channelSub: q('[data-settlement-channel-sub]'),
       channelPlanBar: q('#foms-settle-channel-plan-bar'),
+      channelBody: q('[data-settlement-channel-body]'),
       channelTotalActual: q('[data-settlement-channel-total="actual"]'),
       channelTotalExpected: q('[data-settlement-channel-total="expected"]'),
       statusBody: q('[data-settlement-status-body]'),

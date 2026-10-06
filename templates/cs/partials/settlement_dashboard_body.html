@@ -17,9 +17,9 @@
    탭으로 가른다. 새 메뉴도 새 URL 도 만들지 않는다. 탭 1 은 기존 화면을 **그대로** 옮긴 것이다.
    숨은 pane 은 `clientWidth === 0` 이라 그 사이에 그린 차트는 폴백 폭(400px)으로 눌린다 —
    재렌더 책임은 `dashboard.js` 의 `activateTab()` 에 있다(실측 수치까지 그쪽 주석에 있다). #}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/settlement/settlement-dashboard.css') }}?v=20261006a">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/settlement/settlement-operations.css') }}?v=20261006a">
-{% if can_view_channel_settlement %}<link rel="stylesheet" href="{{ url_for('static', filename='css/settlement/settlement-channel.css') }}?v=20261006a">{% endif %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/settlement/settlement-dashboard.css') }}?v=20261006b">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/settlement/settlement-operations.css') }}?v=20261006b">
+{% if can_view_channel_settlement %}<link rel="stylesheet" href="{{ url_for('static', filename='css/settlement/settlement-channel.css') }}?v=20261006b">{% endif %}
 <div class="container-fluid erp-dashboard erp-pro erp-settlement">
   <header class="erp-pro-header">
     <h1 class="erp-pro-header__title">
@@ -261,11 +261,14 @@
           </div>
           {# 두 줄 막대: 실제(시공완료) / 예상(시공일 있는 주문 전부). 칸 이름·순서는 API 의
              `brand_channels[].label` 그대로다 — 화면이 채널 이름을 정하지 않는다. #}
-          <div class="s-chhead"><b>실제 매출</b><span data-settlement-channel-total="actual"></span></div>
-          <div class="s-chbar" id="foms-settle-channel-bar"></div>
-          <div class="s-chhead"><b>예상 매출</b><span data-settlement-channel-total="expected"></span></div>
-          <div class="s-chbar s-chbar--plan" id="foms-settle-channel-plan-bar"></div>
-          <div class="s-chlegend" id="foms-settle-channel-legend"></div>
+          {# 빈 기간이면 이 묶음째 감춘다 — 막대 자리만 비어 남으면 고장으로 읽힌다(스테이징 실화면). #}
+          <div data-settlement-channel-body>
+            <div class="s-chhead"><b>실제 매출</b><span data-settlement-channel-total="actual"></span></div>
+            <div class="s-chbar" id="foms-settle-channel-bar"></div>
+            <div class="s-chhead"><b>예상 매출</b><span data-settlement-channel-total="expected"></span></div>
+            <div class="s-chbar s-chbar--plan" id="foms-settle-channel-plan-bar"></div>
+            <div class="s-chlegend" id="foms-settle-channel-legend"></div>
+          </div>
           <p class="s-cardnote">라홈 = 발주사 이름에 '라홈'이 들어간 주문 + 네이버 주문 전부 · 일반 = 나머지(하우드 · 숨고 · 대리점 등)</p>
           <div class="s-empty s-hidden" data-settlement-empty="channels">
             이 기간에 채널별로 집계할 <b>매출이 없습니다</b>.
@@ -447,6 +450,6 @@
     <div class="s-tt" id="foms-settle-tooltip" role="tooltip"></div>
   </div>
 </div>
-<script src="{{ url_for('static', filename='js/settlement/dashboard.js') }}?v=20261006a" defer></script>
-<script src="{{ url_for('static', filename='js/settlement/operations.js') }}?v=20261006a" defer></script>
-{% if can_view_channel_settlement %}<script src="{{ url_for('static', filename='js/settlement/channel.js') }}?v=20261006a" defer></script>{% endif %}
+<script src="{{ url_for('static', filename='js/settlement/dashboard.js') }}?v=20261006b" defer></script>
+<script src="{{ url_for('static', filename='js/settlement/operations.js') }}?v=20261006b" defer></script>
+{% if can_view_channel_settlement %}<script src="{{ url_for('static', filename='js/settlement/channel.js') }}?v=20261006b" defer></script>{% endif %}
