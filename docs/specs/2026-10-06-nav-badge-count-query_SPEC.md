@@ -151,6 +151,36 @@ A 의 계획: `Bitmap Index Scan on ix_orders_is_erp_order`(2,490행) → `Bitma
 
 **테스트.** `tests/domains/test_measurement_mine_union.py` — 실측 소스에 `or_(*mine)` 잔존 금지, PostgreSQL SQL 의 `orders_mine` 갈래 수, 빈 목록 None, OR 꼴과 번호 집합 동일(양성 매칭 포함).
 
+## 9. 다른 화면 확대(2026-10-06 승인)
+
+**바꾼 것(3곳).** `foms/services/foms_unified_search.py` `_owner_scope`(빈 조건 = `Order.id == -1` 유지), `foms/web/drawing/workbench.py` 작업대 목록(`scope=mine_scope` 유지, 빈 조건 = 0건 유지), `foms/web/orders/history.py` 이력(빈 조건 = 0건 유지). 바깥 엔터티는 모두 `Order`, 캐시 키는 그대로다.
+
+**안 바꾼 것(7곳) — 도면팀 사용자군이 +10ms 넘게 느려진다.** 60일 대시보드 창(`dashboard_active_filter(days=60)`) 계열은 OR 꼴이면 창 안 행에만 JSONB 를 보지만, UNION 의 도면 담당 갈래는 창 밖 전체 주문을 훑어 도면팀 3명 모두 200ms 대가 된다.
+- `foms/api/cs/dashboard.py` 완료 큐, `foms/services/orders/dashboard_control_tower.py` 3곳(타워 base·내 미완료 수·내작업 토글), `foms/services/orders/dashboard_read_model.py`, `foms/services/production_read_model.py`, `foms/web/construction/dashboard.py`, `foms/web/cs/as_dashboard.py`.
+- 다시 하려면 갈래 안에 바깥 창 조건을 같이 넣는 별도 설계가 필요하다(이번 범위 밖).
+
+**스테이징 측정 [실측]** (읽기 전용, 각 경로 코드가 그리는 WHERE 그대로 `SELECT orders.id`(내 미완료 수는 count), `EXPLAIN (ANALYZE, BUFFERS)` 3회 최솟값, ms, SALES 3·CONSTRUCTION 3·DRAWING 3·ADMIN 1·CS 3 = 13명, 도면 작업대는 scope 4종 각각):
+
+| 경로 | OR 중앙 / 최대 | UNION 중앙 / 최대 | 최악 증가(팀) | +10ms 초과 | 결정 |
+|---|---|---|---|---|---|
+| 이력 | 1.5 / 359.8 | 6.2 / 206.1 | +4.7 (SALES) | 0 | 바꿈 |
+| 통합 검색 owner 범위 | 1.8 / 351.4 | 6.2 / 213.2 | +4.4 (SALES) | 0 | 바꿈 |
+| 도면 작업대 [sales] | 0.3 / 92.7 | 0.4 / 6.7 | +2.5 | 0 | 바꿈 |
+| 도면 작업대 [construction] | 0.3 / 64.0 | 2.9 / 7.5 | +2.9 | 0 | 바꿈 |
+| 도면 작업대 [drawing] | 243.4 / 269.8 | 206.0 / 219.3 | -19.2 | 0 | 바꿈 |
+| 도면 작업대 [all] | 354.0 / 396.1 | 207.1 / 232.0 | -89.1 | 0 | 바꿈 |
+| 완료 큐 | 70.7 / 273.2 | 6.4 / 227.4 | +38.6 (DRAWING) | 3 | 유지 |
+| 타워 base·내작업 | 1.7 / 129.2 | 6.2 / 212.1 | +120.3 (DRAWING) | 4 | 유지 |
+| 타워 내 미완료 수 | 1.9 / 106.3 | 6.0 / 207.3 | +131.3 (DRAWING) | 4 | 유지 |
+| 대시보드 목록 | 1.8 / 123.4 | 6.2 / 207.3 | +121.5 (DRAWING) | 4 | 유지 |
+| 생산 | 6.0 / 19.9 | 4.0 / 212.6 | +192.6 (ADMIN) | 4 | 유지 |
+| 시공 대시보드 | 1.7 / 145.8 | 6.3 / 233.9 | +141.8 (DRAWING) | 4 | 유지 |
+| AS 대시보드 | 1.2 / 87.9 | 3.9 / 222.3 | +158.3 (DRAWING) | 4 | 유지 |
+
+**동일성 [실측].** 13명 × 10경로(도면 작업대 scope 4종) = 169건 주문 번호 목록 전후 동일(169/169).
+
+**테스트.** `tests/domains/test_mine_union_other_screens.py` — 바꾼 3곳 소스에 `or_(*mine)` 잔존 금지·헬퍼 호출, 도면 scope 인자 유지, 통합 검색 SQL 의 `orders_mine` 갈래 수·None 의미, 5팀 × scope 5종 OR 꼴과 번호 집합 동일(양성 매칭 포함).
+
 ## 부록 A. 측정 방법
 
 - 쿼리는 SQLAlchemy 로 psycopg2 방언에 그려 바인딩 파라미터로 실행(literal_binds 안 씀). `import foms.platform` 을 먼저 불러 순환 import 를 피했다.

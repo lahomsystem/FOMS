@@ -4,7 +4,6 @@ import time
 from typing import Any, Mapping
 
 from flask import Blueprint, make_response, render_template, request, url_for, redirect, flash, g
-from sqlalchemy import or_
 
 from db import get_db
 from models import Order, User, OrderAttachment
@@ -13,6 +12,7 @@ from foms.services.common.erp_mine_filter import erp_mine_only_from_request
 from foms.services.datetime_kst import format_datetime_kst, parse_datetime_utc
 from foms.services.erp_permissions import (
     build_mine_sql_filter,
+    mine_membership_clause,
     can_edit_erp,
     is_order_related_to_user,
     resolve_mine_scope_for_user,
@@ -610,10 +610,10 @@ def erp_drawing_workbench_dashboard():
         .filter(Order.active_filter(), Order.is_erp_order.is_(True))
     )
     if mine_only:
-        mine_conditions = build_mine_sql_filter(current_user, scope=mine_scope)
+        mine_clause = mine_membership_clause(build_mine_sql_filter(current_user, scope=mine_scope))
         orders_query = (
-            orders_query.filter(or_(*mine_conditions))
-            if mine_conditions
+            orders_query.filter(mine_clause)
+            if mine_clause is not None
             else orders_query.filter(Order.id == -1)
         )
 

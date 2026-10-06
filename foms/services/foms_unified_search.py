@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from sqlalchemy import and_, or_
+from sqlalchemy import and_
 from sqlalchemy.orm import Session
 
 from foms.services.erp_dashboard_search import (
@@ -19,7 +19,11 @@ from foms.services.erp_mobile_order_display import (
     format_queue_card_schedule_summary,
     resolve_queue_card_schedule,
 )
-from foms.services.erp_permissions import build_mine_sql_filter, is_order_related_to_user
+from foms.services.erp_permissions import (
+    build_mine_sql_filter,
+    is_order_related_to_user,
+    mine_membership_clause,
+)
 from foms.services.erp_policy import STAGE_LABELS
 from foms.services.phone_search import extract_phone_digit_query, normalize_phone_digits
 from models import Order
@@ -58,8 +62,8 @@ def _owner_scope(owner: Any):
     """``owner`` 의 내 담당 SQL 술어(이력 화면과 같은 ``build_mine_sql_filter``)."""
     if owner is None:
         return None
-    conds = build_mine_sql_filter(owner)
-    return or_(*conds) if conds else (Order.id == -1)
+    clause = mine_membership_clause(build_mine_sql_filter(owner))
+    return clause if clause is not None else (Order.id == -1)
 
 
 def _active_orders(db: Session, scope):
