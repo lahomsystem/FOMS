@@ -257,7 +257,7 @@ def compute_measurement_panel_assembly(
          "panel_fallback_supplement_ids": [...]} — 원본 closure와 동일 형태.
     """
     # lazy import: erp_permissions canonical path (namespace 계약 + circular 회피)
-    from foms.services.erp_permissions import build_mine_sql_filter
+    from foms.services.erp_permissions import build_mine_sql_filter, mine_membership_clause
 
     panel_query = base_query.join(OrderScheduleDate, Order.id == OrderScheduleDate.order_id)
     panel_query = panel_query.filter(
@@ -266,9 +266,9 @@ def compute_measurement_panel_assembly(
         OrderScheduleDate.date <= range_end_str,
     ).distinct()
     if mine_filter_active:
-        p_mine_conds = build_mine_sql_filter(current_user)
-        if p_mine_conds:
-            panel_query = panel_query.filter(or_(*p_mine_conds))
+        p_mine_conds = mine_membership_clause(build_mine_sql_filter(current_user))
+        if p_mine_conds is not None:
+            panel_query = panel_query.filter(p_mine_conds)
     panel_orders = panel_query.options(
         load_only(
             Order.id, Order.measurement_date, Order.structured_data,
@@ -295,9 +295,9 @@ def compute_measurement_panel_assembly(
     if panel_fallback_filter is not None:
         panel_fallback_query = base_query.filter(panel_fallback_filter)
         if mine_filter_active:
-            p_mine_conds = build_mine_sql_filter(current_user)
-            if p_mine_conds:
-                panel_fallback_query = panel_fallback_query.filter(or_(*p_mine_conds))
+            p_mine_conds = mine_membership_clause(build_mine_sql_filter(current_user))
+            if p_mine_conds is not None:
+                panel_fallback_query = panel_fallback_query.filter(p_mine_conds)
         panel_fallback_orders = panel_fallback_query.options(
             load_only(
                 Order.id, Order.measurement_date, Order.structured_data,
@@ -436,7 +436,7 @@ def build_measurement_main_rows(
         (rows, row_fallback_added_ids)
     """
     # lazy import: erp_permissions canonical path(namespace 계약 + circular 회피)
-    from foms.services.erp_permissions import is_order_related_to_user, build_mine_sql_filter
+    from foms.services.erp_permissions import is_order_related_to_user, build_mine_sql_filter, mine_membership_clause
 
     rows = []
     for order in all_rows:
@@ -471,9 +471,9 @@ def build_measurement_main_rows(
     if row_fallback_filter is not None:
         row_fallback_query = base_query.filter(row_fallback_filter)
         if mine_filter_active:
-            r_mine_conds = build_mine_sql_filter(current_user)
-            if r_mine_conds:
-                row_fallback_query = row_fallback_query.filter(or_(*r_mine_conds))
+            r_mine_conds = mine_membership_clause(build_mine_sql_filter(current_user))
+            if r_mine_conds is not None:
+                row_fallback_query = row_fallback_query.filter(r_mine_conds)
         fallback_rows = row_fallback_query.options(selectinload(Order.schedule_dates)).order_by(Order.id.desc()).limit(1500).all()
         existing_row_ids = {o.id for o in rows}
         for order in fallback_rows:
