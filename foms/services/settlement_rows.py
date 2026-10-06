@@ -53,6 +53,7 @@ from foms.services.settlement_aggregation import (
     AGING_BUCKETS,
     aging_bucket,
     completion_day_key,
+    parse_day_range,
 )
 from foms.services.settlement_source import fetch_settlement_rows
 from foms.web.cs.completion_dashboard import (
@@ -530,6 +531,8 @@ def list_settlement_rows(
     page: int = 1,
     per_page: int = PER_PAGE,
     include_naver_settlement: bool = False,
+    date_from: str | None = None,
+    date_to: str | None = None,
 ) -> dict:
     """정산 실무 탭의 주문 행 목록(필터·정렬·페이지네이션 적용).
 
@@ -546,6 +549,10 @@ def list_settlement_rows(
             모듈이 하지 않는다 — 라우트가
             :func:`foms.services.settlement_channel_access.can_view_channel_settlement`
             으로 판정해 넘긴다.
+        date_from: 시공일(완료일) 구간 시작 "YYYY-MM-DD". ``date_to`` 와 함께 주면 그 구간에
+            시공일이 든 행만 남는다(정산 탭 공통 기간 바). 시공일 미상 행은 빠진다 — 어느
+            구간에도 속하지 않는다. 둘 다 없으면 구간 제한이 없다(예전 동작).
+        date_to: 시공일(완료일) 구간 끝 "YYYY-MM-DD".
 
     Returns:
         rows/page/per_page/total_count/total_pages/totals/filters/aging_options/
@@ -563,9 +570,18 @@ def list_settlement_rows(
         )
     if aging and aging not in _AGING_CODES:
         raise ValueError(f"aging 은 {'|'.join(_AGING_CODES)} 중 하나여야 합니다: {aging!r}")
+    span = None
+    if date_from is not None or date_to is not None:
+        start, end = parse_day_range(date_from, date_to)
+        span = (start.isoformat(), end.isoformat())
 
     today = get_today_kst()
     all_rows = _load_rows(db, today, include_naver_settlement=include_naver_settlement)
+    if span is not None:
+        all_rows = [
+            row for row in all_rows
+            if row["completion_date"] and span[0] <= row["completion_date"] <= span[1]
+        ]
     # 2단으로 좁힌다: 스코프(기간·정산상태·채널)까지가 aging 막대의 모집단이고, 거기서
     # 고른 구간을 더 좁힌 것이 목록이다. 한 번 읽은 모집단으로 둘 다 낸다.
     scoped = [
@@ -593,6 +609,8 @@ def list_settlement_rows(
             "settlement": settlement,
             "channel": channel,
             "aging": aging,
+            "date_from": span[0] if span else None,
+            "date_to": span[1] if span else None,
         },
         "aging_options": [
             {"code": code, "label": label} for code, label in AGING_BUCKETS

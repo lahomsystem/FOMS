@@ -167,10 +167,11 @@ body.foms-settle-focus:has(.foms-settlement-root) .s-focusbar { display: flex; }
    눈에 덜 띈다) — 다시 보일 때 JS 가 되그린다(dashboard.js `activateTab()`). */
 .foms-settle .s-pane[hidden] { display: none; }
 
-/* 실무 탭은 기간 스코프 화면이 아니다 — 필터바를 복제하는 대신 한 벌을 감춘다.
-   선택자가 `s-hidden` 이 아니라 루트 속성인 이유는 body 템플릿의 필터바 주석 참조
-   (showState() 의 권한거부 분기와 클래스를 겹쳐 쓰지 않는다). */
-.foms-settle[data-settlement-active-tab="ops"] .s-filterbar { display: none; }
+/* 기간 바는 네 탭이 같이 쓴다(2026-10-06). 차트가 없는 실무·네이버 정산 탭에서는 그래프 전용
+   조작(단위·비교·누적·카드 범위 안내)만 감춘다. 선택자가 `s-hidden` 이 아니라 루트 속성인 이유는
+   body 템플릿의 필터바 주석 참조(showState() 의 권한거부 분기와 클래스를 겹쳐 쓰지 않는다). */
+.foms-settle[data-settlement-active-tab="ops"] .s-fb-chart,
+.foms-settle[data-settlement-active-tab="channel"] .s-fb-chart { display: none; }
 
 /* 탭 2·3 자리표시. 내용이 붙기 전에도 "빈 화면"이 아니라 "아직 없음"으로 읽혀야 한다.
    빈 상태(`.s-empty`)와 같은 점선 박스 어휘를 쓰되 카드 안이 아니라 pane 폭 전체다. */
@@ -215,6 +216,16 @@ body.foms-settle-focus:has(.foms-settlement-root) .s-focusbar { display: flex; }
 .foms-settle .s-toggle[aria-pressed="true"] .s-knob::after { left: 13px; }
 .foms-settle .s-toggle[disabled] { opacity: .4; cursor: not-allowed; }
 .foms-settle .s-filterbar .s-scope { color: var(--s-muted); font-size: calc(12px * var(--s-fs, 1)); }
+.foms-settle .s-fb-label { font-size: calc(12.5px * var(--s-fs, 1)); font-weight: 800; }
+.foms-settle .s-fb-chart { display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.foms-settle .s-daterange { display: inline-flex; align-items: center; gap: 6px; color: var(--s-muted); }
+.foms-settle .s-date {
+  border: 1px solid var(--s-line); border-radius: 8px; background: var(--s-surface); color: var(--s-text);
+  font: inherit; font-size: calc(12.5px * var(--s-fs, 1)); font-variant-numeric: tabular-nums; padding: 4px 8px;
+}
+.foms-settle .s-date:focus-visible { outline: 2px solid var(--s-accent); outline-offset: 1px; }
+.foms-settle .s-range-error { color: var(--s-bad); font-size: calc(12px * var(--s-fs, 1)); font-weight: 700; }
+.foms-settle .s-seg button:focus-visible { outline: 2px solid var(--s-accent); outline-offset: 1px; }
 .foms-settle .s-filterbar .s-note { color: var(--s-faint); font-size: calc(11.5px * var(--s-fs, 1)); margin-left: auto; }
 
 /* ── bento 그리드 ─────────────────────────────────────────────── */
@@ -242,6 +253,10 @@ body.foms-settle-focus:has(.foms-settlement-root) .s-focusbar { display: flex; }
 }
 /* 전략 D: 지표 가족 틴트 + 상단 액센트 바 (데이터 잉크가 아닌 서피스 층위) */
 .foms-settle .s-kpi.s-fam { border-top: 3px solid var(--s-fam, var(--s-line)); background: var(--s-fam-tint, var(--s-surface)); }
+/* 요약 탭은 예상 · 실제 · 달성률 3장이다(2026-10-06). 미수·수금 카드는 분석 탭에 있다. */
+.foms-settle .s-kpis.s-kpis--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+/* 달성률 카드의 미터 — 예상(트랙) 안에서 실제(채움)가 차지하는 몫. */
+.foms-settle .s-kpi-meter { margin-top: 10px; }
 .foms-settle .s-kpi-label { font-size: calc(12.5px * var(--s-fs, 1)); font-weight: 700; color: var(--s-muted); }
 .foms-settle .s-kpi-mid { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; margin-top: 5px; }
 .foms-settle .s-kpi-value { font-size: calc(30px * var(--s-fs, 1)); font-weight: 800; letter-spacing: -0.02em; line-height: 1.1; white-space: nowrap; }
@@ -324,6 +339,27 @@ body.foms-settle-focus:has(.foms-settlement-root) .s-focusbar { display: flex; }
   font-weight: 800; font-size: calc(12px * var(--s-fs, 1)); min-width: 0;
   width: var(--s-seg-pct, 0%); background: var(--s-seg-color, var(--s-accent));
 }
+/* shop in shop — 라홈 조각 안 끝자리에 네이버 몫(네이버 시그니처 초록). 바깥 폭은 라홈 전체 그대로다.
+   안쪽 조각 앞의 흰 선이 "칸 안의 칸" 경계를 말한다. */
+.foms-settle .s-chseg.s-chseg--host { justify-content: flex-start; }
+.foms-settle .s-chseg-own {
+  flex: 1 1 auto; min-width: 0; height: 100%; display: flex; align-items: center; justify-content: center;
+  overflow: hidden; white-space: nowrap;
+}
+.foms-settle .s-chseg-inner {
+  flex: none; width: var(--s-inner-pct, 0%); height: 100%; min-width: 3px;
+  display: flex; align-items: center; justify-content: center; overflow: hidden; white-space: nowrap;
+  background: #03c75a; color: #fff; box-shadow: inset 2px 0 0 rgba(255, 255, 255, .9);
+}
+.foms-settle .s-chrow--sub { padding-left: 14px; }
+/* 예상 막대는 같은 색의 옅은 스텝 — "아직 확정 아닌 몫"이라 실제 막대보다 한 단계 물러선다. */
+.foms-settle .s-chbar--plan .s-chseg { opacity: .45; color: var(--s-text); }
+.foms-settle .s-chhead {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-top: 12px;
+  font-size: calc(12.5px * var(--s-fs, 1)); color: var(--s-muted); font-variant-numeric: tabular-nums;
+}
+.foms-settle .s-chhead b { color: var(--s-text); font-weight: 800; }
+.foms-settle .s-chhead + .s-chbar { margin-top: 6px; }
 .foms-settle .s-chlegend { margin-top: 11px; display: grid; gap: 7px; }
 .foms-settle .s-chrow { display: flex; align-items: center; gap: 7px; font-size: calc(12.5px * var(--s-fs, 1)); color: var(--s-muted); flex-wrap: wrap; }
 .foms-settle .s-chrow b { color: var(--s-text); font-weight: 800; }
@@ -474,6 +510,7 @@ body.foms-settle-focus:has(.foms-settlement-root) .s-focusbar { display: flex; }
   .foms-settle .s-tab--focus,
   .foms-settle .s-tabs-meta { display: none; }   /* 모바일은 접을 크롬이 다르다 — 집중 모드 미제공 */
   .foms-settle .s-side { grid-template-columns: 1fr; }
+  .foms-settle .s-kpis.s-kpis--3 { grid-template-columns: 1fr; }
   .foms-settle .s-card--aging,
   .foms-settle .s-card--stages { grid-column: 1 / -1; }
   .foms-settle .s-filterbar .s-note { margin-left: 0; }

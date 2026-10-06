@@ -29,6 +29,7 @@
 - ``settlement`` (통째) — 부서별 차감·현금영수증 발행(``_deduction_entries``·``_cash_receipt_issued``).
 - ``shipment.as_billing`` — AS 청구 판정(``as_billing_badge_kind``·``_as_billing_paid_amount``).
 - ``parties.manager.name``·``parties.customer.name`` — 담당자·고객 표시명.
+- ``parties.orderer.name`` — 매출 비중 일반/라홈 판정(``brand_channel_of``, 2026-10-06).
 
 원본은 행마다 **한 번만** 푼다. 투영 식은 원본을 여러 번 참조하는데 TOAST 에 있는 jsonb 는 참조마다
 다시 풀린다 — 그래서 안쪽 조회가 ``structured_data #> '{}'``(같은 값의 풀린 사본)로 한 번 풀고
@@ -71,7 +72,7 @@ _KEY_PATTERN = re.compile(r"^[A-Za-z_]+$")
 SETTLEMENT_SD_SPEC: dict[str, Any] = {
     "items": {ARRAY_ITEMS: {"price": None}},
     "totals": None,
-    "parties": {"manager": {"name": None}, "customer": {"name": None}},
+    "parties": {"manager": {"name": None}, "customer": {"name": None}, "orderer": {"name": None}},
     "payment": None,
     "payments": None,
     "schedule": {"construction": {"date": None}},

@@ -17,9 +17,9 @@
    탭으로 가른다. 새 메뉴도 새 URL 도 만들지 않는다. 탭 1 은 기존 화면을 **그대로** 옮긴 것이다.
    숨은 pane 은 `clientWidth === 0` 이라 그 사이에 그린 차트는 폴백 폭(400px)으로 눌린다 —
    재렌더 책임은 `dashboard.js` 의 `activateTab()` 에 있다(실측 수치까지 그쪽 주석에 있다). #}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/settlement/settlement-dashboard.css') }}?v=20260908c">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/settlement/settlement-operations.css') }}?v=20260908c">
-{% if can_view_channel_settlement %}<link rel="stylesheet" href="{{ url_for('static', filename='css/settlement/settlement-channel.css') }}?v=20260909a">{% endif %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/settlement/settlement-dashboard.css') }}?v=20261006a">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/settlement/settlement-operations.css') }}?v=20261006a">
+{% if can_view_channel_settlement %}<link rel="stylesheet" href="{{ url_for('static', filename='css/settlement/settlement-channel.css') }}?v=20261006a">{% endif %}
 <div class="container-fluid erp-dashboard erp-pro erp-settlement">
   <header class="erp-pro-header">
     <h1 class="erp-pro-header__title">
@@ -114,29 +114,49 @@
          2026-09-02: 별도 `.s-strip` 한 줄(40px)을 없애고 탭줄 오른쪽 메타로 합쳤다 — 크롬이 본문
          시작을 400px 아래로 밀던 문제. 기준 시각 훅 `data-settlement-stamp` 은 그대로다. #}
       <span class="s-tabs-meta">
-        <span class="s-who">관리자 · 회계팀 열람 · 매출 인식: 완료일 기준 (완료 · AS접수 · AS완료)</span>
+        <span class="s-who">관리자 · 회계팀 열람 · 매출 인식: 시공일 기준 · 예상 = 시공일 있는 주문 전부 · 실제 = 시공완료(완료 · AS접수 · AS완료)</span>
         <span class="s-stamp" data-settlement-stamp></span>
       </span>
     </div>
 
-    {# 필터바는 **한 벌만** 둔다(탭별 복제 금지). 기간 스코프는 요약·분석 두 탭이 공유하는
-       하나의 상태다 — 복제하면 `aria-pressed` 짝이 두 벌이 되어 탭을 오갈 때 조용히 갈리고,
-       JS 쪽 `collectEls()` 의 `.s-filterbar`·`granButtons` 단일 배선도 깨진다.
-       실무 탭은 기간 스코프 화면이 아니라서 **CSS 가** 루트의 `data-settlement-active-tab="ops"`
-       를 보고 필터바를 감춘다. `s-hidden` 을 쓰지 않는 이유: 그 클래스는 showState() 의
-       권한거부 분기가 쓰는 자리라, 겹쳐 쓰면 403 해제가 탭 상태까지 되돌린다. #}
-    <nav class="s-filterbar" aria-label="기간 필터">
-      <div class="s-seg" role="group" aria-label="기간 단위">
-        <button type="button" data-settlement-granularity="day" aria-pressed="true">일별</button>
-        <button type="button" data-settlement-granularity="week" aria-pressed="false">주별</button>
-        <button type="button" data-settlement-granularity="month" aria-pressed="false">월별</button>
-      </div>
-      <button type="button" class="s-toggle" data-settlement-compare aria-pressed="true">전월 비교 <span class="s-knob" aria-hidden="true"></span></button>
-      <button type="button" class="s-toggle" data-settlement-cumulative aria-pressed="false">누적 보기 <span class="s-knob" aria-hidden="true"></span></button>
+    {# 필터바는 **한 벌만** 둔다(탭별 복제 금지). 기간(날짜 범위)은 **네 탭 모두**가 공유하는
+       하나의 상태다(사용자 결정 2026-10-06 — "기간 설정 가능하게, 모든 정산 탭").
+       복제하면 `aria-pressed` 짝이 두 벌이 되어 탭을 오갈 때 조용히 갈리고, JS 쪽
+       `collectEls()` 의 `.s-filterbar`·`granButtons` 단일 배선도 깨진다.
+
+       실무·네이버 정산 탭은 다른 스크립트(operations.js · channel.js)라, dashboard.js 가 고른
+       범위를 루트의 `data-settlement-date-range`("시작..끝") 속성 하나에 적고 두 스크립트가 그 속성을
+       관찰한다(탭 활성화 신호 `data-settlement-active-tab` 과 같은 방식 — 새 이벤트를 만들지 않는다).
+       그래프 전용 조작(단위·비교·누적)은 `.s-fb-chart` 로 묶여 차트가 없는 두 탭에서 CSS 로 감춘다.
+       `s-hidden` 을 쓰지 않는 이유: 그 클래스는 showState() 의 권한거부 분기가 쓰는 자리다. #}
+    <nav class="s-filterbar" aria-label="기간 설정">
+      <span class="s-fb-label" id="foms-settle-fb-label">기간</span>
+      <span class="s-seg" role="group" aria-labelledby="foms-settle-fb-label">
+        <button type="button" data-settlement-preset="this_month" aria-pressed="true">이번 달</button>
+        <button type="button" data-settlement-preset="last_month" aria-pressed="false">지난 달</button>
+        <button type="button" data-settlement-preset="last_3_months" aria-pressed="false">최근 3개월</button>
+        <button type="button" data-settlement-preset="this_year" aria-pressed="false">올해</button>
+      </span>
+      <span class="s-daterange">
+        <input type="date" class="s-date" data-settlement-date-from aria-label="조회 시작일">
+        <span aria-hidden="true">~</span>
+        <input type="date" class="s-date" data-settlement-date-to aria-label="조회 종료일">
+      </span>
+      <span class="s-fb-chart">
+        <span class="s-seg" role="group" aria-label="그래프 단위">
+          <button type="button" data-settlement-granularity="day" aria-pressed="true">일별</button>
+          <button type="button" data-settlement-granularity="week" aria-pressed="false">주별</button>
+          <button type="button" data-settlement-granularity="month" aria-pressed="false">월별</button>
+        </span>
+        <button type="button" class="s-toggle" data-settlement-compare aria-pressed="true">이전 기간 비교 <span class="s-knob" aria-hidden="true"></span></button>
+        <button type="button" class="s-toggle" data-settlement-cumulative aria-pressed="false">누적 보기 <span class="s-knob" aria-hidden="true"></span></button>
+      </span>
       <span class="s-scope" data-settlement-range>조회 기간을 불러오는 중입니다.</span>
+      {# 날짜 칸에 잘못된 범위(역전·366일 초과)를 넣으면 조회하지 않고 여기서 이유를 말한다. #}
+      <span class="s-range-error" data-settlement-range-error role="alert" hidden></span>
       {# 목업 문구("모든 카드가 같은 기간 스코프를 따릅니다")는 실구현에서 사실이 아니다 —
          미수·aging 은 기간 무관 모집단 전체이고, 단계 카드는 현재 시점 스냅샷이다(SPEC §4.4). #}
-      <span class="s-note">미수·aging 은 기간과 무관한 전체 집계 · 단계 카드는 현재 시점 스냅샷</span>
+      <span class="s-note s-fb-chart">미수·aging 은 기간과 무관한 전체 집계 · 단계 카드는 현재 시점 스냅샷</span>
     </nav>
 
     {# 상태 3종은 서로 다른 노드·다른 문구다. 무음 실패 금지, 권한 실패와 통신 실패 혼동 금지.
@@ -149,7 +169,7 @@
        (권한거부는 showState() 가 탭바까지 감추고 요약 탭으로 되돌리므로 어느 탭에서도 보인다.) #}
     <div class="s-state s-state--loading" data-settlement-loading aria-live="polite">
       <div class="s-state-title">집계를 불러오는 중입니다…</div>
-      <div class="s-state-detail">완료일 기준 전량 집계라 첫 조회에 몇 초가 걸릴 수 있습니다.</div>
+      <div class="s-state-detail">시공일 기준 전량 집계라 첫 조회에 몇 초가 걸릴 수 있습니다.</div>
     </div>
     <div class="s-state s-state--error s-hidden" data-settlement-error role="alert">
       <div class="s-state-title">집계를 불러오지 못했습니다.</div>
@@ -170,18 +190,18 @@
 
       <div class="s-grid" data-settlement-grid>
 
-        <div class="s-kpis" id="foms-settle-kpis"></div>
+        <div class="s-kpis s-kpis--3" id="foms-settle-kpis"></div>
         {% if can_view_channel_settlement %}<div id="foms-settle-ch-strip" data-settlement-ch-strip hidden></div>{% endif %}
 
         <div class="s-card s-card--main">
           <div class="s-card-head">
-            <span class="s-card-title">출고가 매출 추이</span>
-            <span class="s-card-sub" data-settlement-main-sub>완료일 기준</span>
+            <span class="s-card-title">예상 vs 실제 매출</span>
+            <span class="s-card-sub" data-settlement-main-sub>시공일 기준 · 출고가</span>
             <span class="s-head-right"><span class="s-legend" id="foms-settle-main-legend"></span></span>
           </div>
           <div class="s-chart-host" id="foms-settle-main-chart"></div>
           <div class="s-empty s-hidden" data-settlement-empty="buckets">
-            이 기간에 완료된 주문이 <b>없습니다</b>.<br>
+            이 기간에 시공일이 잡힌 주문이 <b>없습니다</b>.<br>
             기간을 넓히거나 다른 단위(주별 · 월별)로 보세요.
           </div>
           {# 완료일 미상 건은 어느 기간 버킷에도 못 들어간다. 암묵 drop 하지 않고 반드시 각주로 낸다. #}
@@ -237,10 +257,16 @@
         <div class="s-card s-card--channel">
           <div class="s-card-head">
             <span class="s-card-title">채널별 매출 비중</span>
-            <span class="s-card-sub" data-settlement-channel-sub>기간 · 출고가</span>
+            <span class="s-card-sub" data-settlement-channel-sub>일반 · 라홈</span>
           </div>
+          {# 두 줄 막대: 실제(시공완료) / 예상(시공일 있는 주문 전부). 칸 이름·순서는 API 의
+             `brand_channels[].label` 그대로다 — 화면이 채널 이름을 정하지 않는다. #}
+          <div class="s-chhead"><b>실제 매출</b><span data-settlement-channel-total="actual"></span></div>
           <div class="s-chbar" id="foms-settle-channel-bar"></div>
+          <div class="s-chhead"><b>예상 매출</b><span data-settlement-channel-total="expected"></span></div>
+          <div class="s-chbar s-chbar--plan" id="foms-settle-channel-plan-bar"></div>
           <div class="s-chlegend" id="foms-settle-channel-legend"></div>
+          <p class="s-cardnote">라홈 = 발주사 이름에 '라홈'이 들어간 주문 + 네이버 주문 전부 · 일반 = 나머지(하우드 · 숨고 · 대리점 등)</p>
           <div class="s-empty s-hidden" data-settlement-empty="channels">
             이 기간에 채널별로 집계할 <b>매출이 없습니다</b>.
           </div>
@@ -250,7 +276,8 @@
 
       <div class="s-foot">
         출고가 = 품목합 + 배송 − 할인 · 잔금 = 출고가 − 예약금 ·
-        매출 인식: 완료일(시공 완료일) 기준 · 정산 대상 상태: 완료 · AS 접수 · AS 완료 ·
+        예상 매출 = 진행 단계와 무관하게 시공일이 들어가 있는 주문의 출고가 합(날짜가 아닌 시공일은 제외) ·
+        실제 매출 = 그중 시공완료(완료 · AS 접수 · AS 완료) 주문의 출고가 합 · 달성률 = 실제 ÷ 예상 ·
         수금은 입금 확인 토글 기반 근사치입니다.
       </div>
 
@@ -315,7 +342,7 @@
           <div class="s-card s-span4" id="foms-settle-an-channel-card">
             <div class="s-card-head">
               <span class="s-card-title">채널 비교</span>
-              <span class="s-card-sub" data-settlement-an-channel-sub>기간 · 완료일 기준</span>
+              <span class="s-card-sub" data-settlement-an-channel-sub>일반 · 라홈 · 실제 매출</span>
             </div>
             <div class="s-chbar" id="foms-settle-an-channel-bar"></div>
             <div class="s-tblwrap s-atbl">
@@ -420,6 +447,6 @@
     <div class="s-tt" id="foms-settle-tooltip" role="tooltip"></div>
   </div>
 </div>
-<script src="{{ url_for('static', filename='js/settlement/dashboard.js') }}?v=20260908c" defer></script>
-<script src="{{ url_for('static', filename='js/settlement/operations.js') }}?v=20260908c" defer></script>
-{% if can_view_channel_settlement %}<script src="{{ url_for('static', filename='js/settlement/channel.js') }}?v=20260909a" defer></script>{% endif %}
+<script src="{{ url_for('static', filename='js/settlement/dashboard.js') }}?v=20261006a" defer></script>
+<script src="{{ url_for('static', filename='js/settlement/operations.js') }}?v=20261006a" defer></script>
+{% if can_view_channel_settlement %}<script src="{{ url_for('static', filename='js/settlement/channel.js') }}?v=20261006a" defer></script>{% endif %}

@@ -64,19 +64,38 @@ from models import ExternalOrderLink, Order
 
 __all__ = [
     "AGING_BUCKETS",
+    "BRAND_CHANNELS",
+    "MAX_RANGE_DAYS",
     "aggregate_settlement",
     "aging_bucket",
+    "brand_channel_of",
     "completion_day_key",
     "completion_month_key",
+    "parse_day_range",
     "week_key",
 ]
 
 _MONTH_RE = re.compile(r"^\d{4}-\d{2}$")
+_DAY_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _GRANULARITIES = ("day", "week", "month")
 # 성능 가드(SPEC §4.2): 한 번에 12개월까지만. prev 구간까지 하면 최대 24개월 스캔이다.
 _MAX_RANGE_MONTHS = 12
+#: 날짜 범위 조회 상한(일). 화면의 '올해' 빠른 선택(1/1~12/31)이 윤년에도 들어가는 폭이다.
+#: 네이버 정산 탭 상한(``settlement_channel.MAX_RANGE_DAYS`` 400일)보다 좁아서 공통 기간 바가
+#: 고른 범위를 그 탭도 그대로 받는다.
+MAX_RANGE_DAYS = 366
 # 링크 없는 주문의 채널 표기. 네이버 등 외부 수집분만 링크가 붙는다.
 _DEFAULT_CHANNEL = "일반"
+_NAVER_CHANNEL = "NAVER"
+#: 매출 비중 카드의 두 칸(사용자 결정 2026-10-06). 순서가 화면 순서다.
+#: 라홈 = 발주사 이름에 '라홈'이 들어간 주문 + 네이버 주문 전부, 일반 = 나머지.
+BRAND_GENERAL = "GENERAL"
+BRAND_LAHOM = "LAHOM"
+BRAND_CHANNELS: tuple[tuple[str, str], ...] = ((BRAND_GENERAL, "일반"), (BRAND_LAHOM, "라홈"))
+#: 발주사 브랜드 판정 낱말 — `kakao_alimtalk.resolve_brand`·도면 로고 규칙과 같은 판정이다.
+#: 그 함수를 import 하지 않는 이유: 읽기 전용 집계가 알림 발송 모듈(엔진·outbox)을 끌고 오게
+#: 된다. 대신 두 판정이 갈리지 않음을 테스트가 고정한다.
+_LAHOM_ORDERER_KEYWORD = "라홈"
 # 단계 카드에서 빼는 완료 계열 stage code(SPEC §4.4).
 _COMPLETED_STAGE_CODES = ("COMPLETED", "AS_COMPLETED")
 # 담당자 미상 버킷. 조회 결과에서 **항상 마지막**에 온다(매출 순위와 섞이면 "1등 담당자"가
@@ -287,6 +306,85 @@ def _previous_month_range(months: list[str]) -> list[str]:
     return [_month_from_index(start + i) for i in range(len(months))]
 
 
+def _month_span(months: list[str]) -> tuple[datetime.date, datetime.date]:
+    """월 키 목록 → (첫 달 1일, 마지막 달 말일)."""
+    first, last = months[0], months[-1]
+    y, m = int(last[0:4]), int(last[5:7])
+    return (
+        datetime.date(int(first[0:4]), int(first[5:7]), 1),
+        datetime.date(y, m, calendar.monthrange(y, m)[1]),
+    )
+
+
+def parse_day_range(date_from: Any, date_to: Any) -> tuple[datetime.date, datetime.date]:
+    """날짜 범위 파라미터를 검증해 ``date`` 쌍으로 낸다(정산 탭 공통 기간 바).
+
+    Args:
+        date_from: 시작일 "YYYY-MM-DD"(포함).
+        date_to: 종료일 "YYYY-MM-DD"(포함).
+
+    Returns:
+        (시작일, 종료일).
+
+    Raises:
+        ValueError: 형식 오류·달력에 없는 날짜·범위 역전·:data:`MAX_RANGE_DAYS` 초과.
+    """
+    parsed = []
+    for value, field in ((date_from, "date_from"), (date_to, "date_to")):
+        day = _day_to_date(value) if isinstance(value, str) and _DAY_RE.match(value) else None
+        if day is None:
+            raise ValueError(f"{field} 은(는) 'YYYY-MM-DD' 형식의 실제 날짜여야 합니다: {value!r}")
+        parsed.append(day)
+    start, end = parsed
+    if start > end:
+        raise ValueError(f"date_from 이 date_to 보다 뒤입니다: {date_from} > {date_to}")
+    span = (end - start).days + 1
+    if span > MAX_RANGE_DAYS:
+        raise ValueError(f"조회 범위는 최대 {MAX_RANGE_DAYS}일입니다(요청 {span}일).")
+    return start, end
+
+
+def _whole_months(start: datetime.date, end: datetime.date) -> list[str] | None:
+    """범위가 정확히 달 단위(1일~말일)면 그 월 키 목록, 아니면 None."""
+    if start.day != 1 or end.day != calendar.monthrange(end.year, end.month)[1]:
+        return None
+    first = start.year * 12 + start.month - 1
+    last = end.year * 12 + end.month - 1
+    return [_month_from_index(i) for i in range(first, last + 1)]
+
+
+def _resolve_period(
+    month_from: Any, month_to: Any, date_from: Any, date_to: Any,
+) -> dict:
+    """조회 구간과 직전 비교 구간을 정한다.
+
+    날짜 범위가 오면 그것이 우선이다. 범위가 **정확히 달 단위**면 직전 구간도 달 단위
+    (같은 개월수의 직전 달들)로 잡는다 — 월 파라미터로 부른 것과 결과가 똑같아야 화면의
+    '이번 달'이 예전 화면과 같은 전월 비교선을 그린다. 달 단위가 아니면 같은 일수의 바로
+    앞 구간이다.
+
+    Returns:
+        ``start``/``end``/``prev_start``/``prev_end``(date) dict.
+
+    Raises:
+        ValueError: 파라미터 검증 실패.
+    """
+    if date_from is not None or date_to is not None:
+        start, end = parse_day_range(date_from, date_to)
+        months = _whole_months(start, end)
+        if months is not None and len(months) <= _MAX_RANGE_MONTHS:
+            prev_start, prev_end = _month_span(_previous_month_range(months))
+        else:
+            length = (end - start).days + 1
+            prev_end = start - datetime.timedelta(days=1)
+            prev_start = prev_end - datetime.timedelta(days=length - 1)
+    else:
+        months = _month_range(month_from, month_to)
+        start, end = _month_span(months)
+        prev_start, prev_end = _month_span(_previous_month_range(months))
+    return {"start": start, "end": end, "prev_start": prev_start, "prev_end": prev_end}
+
+
 # ---------------------------------------------------------------------------
 # 행 파생 (완료 대시보드 `_completion_row` 파리티)
 # ---------------------------------------------------------------------------
@@ -373,6 +471,28 @@ def _manager_display_name(sd: dict, manager_name: Any) -> str:
     return fallback or "-"
 
 
+def brand_channel_of(sd: Any, channel: Any) -> str:
+    """매출 비중 카드의 채널(일반/라홈) 판정.
+
+    라홈 = 발주사(``parties.orderer.name``)에 '라홈'이 들어간 주문 **또는** 네이버 주문.
+    네이버 주문은 발주사가 비어 있거나 다르게 적혀 있어도 라홈이다(사용자 결정 2026-10-06 —
+    운영 네이버 주문 190건 중 189건이 이미 발주사 '라홈'이다). 그 밖은 전부 일반이다.
+
+    Args:
+        sd: structured_data(dict 가 아니면 발주사 없음으로 본다).
+        channel: 외부 판매채널 코드 또는 "일반".
+
+    Returns:
+        :data:`BRAND_LAHOM` 또는 :data:`BRAND_GENERAL`.
+    """
+    if str(channel or "").strip().upper() == _NAVER_CHANNEL:
+        return BRAND_LAHOM
+    parties = sd.get("parties") if isinstance(sd, dict) else None
+    orderer = parties.get("orderer") if isinstance(parties, dict) else None
+    name = orderer.get("name") if isinstance(orderer, dict) else None
+    return BRAND_LAHOM if _LAHOM_ORDERER_KEYWORD in str(name or "") else BRAND_GENERAL
+
+
 def _row_amounts(sd: dict) -> dict:
     """출고가·예약금·잔금·과입금 파생 — 완료 대시보드 ``_completion_row`` 와 같은 식.
 
@@ -436,6 +556,7 @@ def _settlement_row(order: Any, channel: str) -> dict:
         "id": order.id,
         "status": order.status,
         "channel": channel,
+        "brand": brand_channel_of(sd, channel),
         "manager": _manager_display_name(sd, order.manager_name),
         # AS 모집단 판정은 AS 축 투영(AS-AXIS-01). status 는 overlay 라 외부 write 한 번에
         # 모집단이 통째로 빠진다(2026-08-14 사고).
@@ -468,13 +589,19 @@ def _row_month(row: dict) -> str:
     return row["day_key"][:7]
 
 
+def _rows_in_span(rows: list[dict], start: datetime.date, end: datetime.date) -> list[dict]:
+    """일 키가 [start, end] 안인 행. 일 키는 ISO 문자열이라 사전순 비교가 날짜순이다."""
+    lo, hi = start.isoformat(), end.isoformat()
+    return [row for row in rows if row["day_key"] and lo <= row["day_key"] <= hi]
+
+
 # ---------------------------------------------------------------------------
 # 모집단 로드
 # ---------------------------------------------------------------------------
 
 
-def _population_filters() -> tuple:
-    """주 모집단 3조건 — 완료 대시보드 ``_completion_base_query`` 와 정확히 동일.
+def _erp_scope_filters() -> tuple:
+    """예상 매출 모집단 — 진행 단계와 무관한 살아 있는 ERP 주문 전부.
 
     ``Order.dashboard_active_filter()`` 를 쓰지 않는다 — 완료 60일 경과분을 잘라
     과거 월이 통째로 증발한다.
@@ -482,8 +609,20 @@ def _population_filters() -> tuple:
     return (
         Order.active_filter(),
         Order.is_erp_order.is_(True),
+    )
+
+
+def _population_filters() -> tuple:
+    """주 모집단 3조건 — 완료 대시보드 ``_completion_base_query`` 와 정확히 동일."""
+    return (
+        *_erp_scope_filters(),
         Order.status.in_(ORDER_SETTLEMENT_ALERT_TARGET_STATUSES),
     )
+
+
+def _is_settlement_row(row: dict) -> bool:
+    """실제 매출(시공완료) 모집단 — :func:`_population_filters` 의 status 조건과 같다."""
+    return row["status"] in ORDER_SETTLEMENT_ALERT_TARGET_STATUSES
 
 
 def _channel_map(db: Any) -> dict[int, str]:
@@ -502,7 +641,7 @@ def _channel_map(db: Any) -> dict[int, str]:
     rows = (
         db.query(ExternalOrderLink.order_id, ExternalOrderLink.channel)
         .join(Order, ExternalOrderLink.order_id == Order.id)
-        .filter(*_population_filters())
+        .filter(*_erp_scope_filters())
         .order_by(ExternalOrderLink.id.asc())
         .all()
     )
@@ -515,7 +654,11 @@ def _channel_map(db: Any) -> dict[int, str]:
 
 
 def _load_rows(db: Any) -> list[dict]:
-    """모집단 전량을 파생 행 리스트로 읽는다(날짜 술어 없음).
+    """살아 있는 ERP 주문 전량을 파생 행 리스트로 읽는다(날짜·상태 술어 없음).
+
+    예상 매출은 진행 단계와 무관하게 시공일이 있는 주문 전부라 status 로 거르지 않고
+    읽는다. 실제 매출·미수·정산 카드의 모집단(완료·AS접수·AS완료)은 호출부가
+    :func:`_is_settlement_row` 로 같은 행에서 가른다 — 쿼리를 두 번 하지 않는다.
 
     담당자(``manager_name``)·AS 축(``as_axis_status``)은 **같은 쿼리에 컬럼으로만** 더
     붙인다. 별도 쿼리나 행별 조회로 가져오면 모듈 docstring 이 금지한 N+1 이 된다.
@@ -531,7 +674,7 @@ def _load_rows(db: Any) -> list[dict]:
     orders = fetch_settlement_rows(
         db,
         (Order.id, Order.status, Order.manager_name, Order.as_axis_status),
-        _population_filters(),
+        _erp_scope_filters(),
     )
     return [
         _settlement_row(order, channels.get(int(order.id), _DEFAULT_CHANNEL))
@@ -553,54 +696,76 @@ def _bucket_key(row: dict, granularity: str) -> str:
     return _row_month(row)
 
 
-def _enumerate_bucket_keys(months: list[str], granularity: str) -> list[str]:
+def _enumerate_bucket_keys(
+    start: datetime.date, end: datetime.date, granularity: str,
+) -> list[str]:
     """기간 내 모든 버킷 키(빈 구간 0 채우기용, 시간순).
 
+    구간 안의 날을 하루씩 버킷 키로 접는다. 달 단위 구간이면 예전(월 목록 기반) 열거와
+    같은 키가 같은 순서로 나온다. 달 중간에서 시작·끝나는 구간은 그 주·그 달 버킷이
+    부분 구간이 된다.
+
     Args:
-        months: 대상 월 키 목록(오름차순).
+        start: 구간 시작일(포함).
+        end: 구간 종료일(포함).
         granularity: "day" | "week" | "month".
 
     Returns:
-        버킷 키 목록(시간 오름차순).
+        버킷 키 목록(시간 오름차순, 중복 없음).
     """
-    if granularity == "month":
-        return list(months)
     keys: list[str] = []
-    for month in months:
-        year, mon = int(month[0:4]), int(month[5:7])
-        last_day = calendar.monthrange(year, mon)[1]
-        if granularity == "day":
-            keys.extend(f"{month}-{d:02d}" for d in range(1, last_day + 1))
-            continue
-        last_week = int(week_key(f"{month}-{last_day:02d}").rsplit("W", 1)[1])
-        keys.extend(f"{month}-W{n}" for n in range(1, last_week + 1))
+    seen: set[str] = set()
+    day = start
+    while day <= end:
+        day_key = day.isoformat()
+        key = (
+            day_key if granularity == "day"
+            else week_key(day_key) if granularity == "week"
+            else day_key[:7]
+        )
+        if key not in seen:
+            seen.add(key)
+            keys.append(key)
+        day += datetime.timedelta(days=1)
     return keys
 
 
-def _bucket_label(key: str, granularity: str) -> str:
-    """버킷 키 → 화면 라벨("7/1" / "7월 1주" / "7월")."""
+def _bucket_label(key: str, granularity: str, with_year: bool = False) -> str:
+    """버킷 키 → 화면 라벨("7/1" / "7월 1주" / "7월").
+
+    ``with_year`` 면 주·월 라벨 앞에 "25년 " 을 붙인다 — 해를 넘는 구간에서 "1월"이 두 번
+    나오는 것을 막는다. 일 라벨은 폭이 좁아 붙이지 않는다(툴팁·표가 키를 말한다).
+    """
     month_no = int(key[5:7])
+    year = f"{key[2:4]}년 " if with_year else ""
     if granularity == "day":
         return f"{month_no}/{int(key[8:10])}"
     if granularity == "week":
-        return f"{month_no}월 {key.rsplit('W', 1)[1]}주"
-    return f"{month_no}월"
+        return f"{year}{month_no}월 {key.rsplit('W', 1)[1]}주"
+    return f"{year}{month_no}월"
 
 
-def _build_buckets(rows: list[dict], months: list[str], granularity: str) -> list[dict]:
+def _build_buckets(
+    rows: list[dict], start: datetime.date, end: datetime.date, granularity: str,
+) -> list[dict]:
     """기간 내 행을 시계열 버킷으로 집계한다(빈 구간도 0 으로 채운다).
 
     Args:
-        rows: 기간 내 파생 행(이미 월로 걸러진 것).
-        months: 대상 월 키 목록(오름차순).
+        rows: 기간 내 파생 행(이미 구간으로 걸러진 것).
+        start: 구간 시작일.
+        end: 구간 종료일.
         granularity: "day" | "week" | "month".
 
     Returns:
         [{"key", "label", "revenue", "count"}] 시간 오름차순.
     """
+    with_year = start.year != end.year
     buckets = {
-        key: {"key": key, "label": _bucket_label(key, granularity), "revenue": 0, "count": 0}
-        for key in _enumerate_bucket_keys(months, granularity)
+        key: {
+            "key": key, "label": _bucket_label(key, granularity, with_year),
+            "revenue": 0, "count": 0,
+        }
+        for key in _enumerate_bucket_keys(start, end, granularity)
     }
     for row in rows:
         entry = buckets.get(_bucket_key(row, granularity))
@@ -768,6 +933,113 @@ def _build_channels(in_period: list[dict]) -> list[dict]:
     ordered = [stats.pop(_DEFAULT_CHANNEL)]
     ordered.extend(stats[name] for name in sorted(stats))
     return ordered
+
+
+def _priced(row: dict) -> int:
+    """출고가(미산출 None 은 0 기여)."""
+    price = row["shipping_price"]
+    return price if isinstance(price, int) else 0
+
+
+def _build_forecast(
+    expected_rows: list[dict],
+    actual_rows: list[dict],
+    prev_expected: list[dict],
+    prev_actual: list[dict],
+    start: datetime.date,
+    end: datetime.date,
+    granularity: str,
+) -> dict:
+    """예상 매출 vs 실제 매출(사용자 결정 2026-10-06).
+
+    - **예상** = 진행 단계와 무관하게 시공일이 구간 안인 주문 전부의 출고가 합.
+    - **실제** = 그중 시공완료(완료·AS접수·AS완료)의 출고가 합. ``kpi.revenue`` 와 같은 값이다
+      — 같은 행·같은 구간이라 갈릴 수 없다(테스트가 항등식으로 고정).
+
+    실제 모집단은 예상 모집단의 부분집합이라 버킷마다 ``actual <= expected`` 다.
+
+    Args:
+        expected_rows: 구간 안의 ERP 주문 전체 행.
+        actual_rows: 구간 안의 시공완료 행.
+        prev_expected: 직전 구간의 ERP 주문 전체 행.
+        prev_actual: 직전 구간의 시공완료 행.
+        start: 구간 시작일.
+        end: 구간 종료일.
+        granularity: "day" | "week" | "month".
+
+    Returns:
+        expected_*/actual_*/prev/buckets 를 가진 dict. ``expected_unpriced_count`` 는
+        출고가를 아직 못 낸(품목 미입력) 건수 — 건수에는 들고 금액에는 0 으로 든다.
+    """
+    with_year = start.year != end.year
+    buckets = {
+        key: {
+            "key": key, "label": _bucket_label(key, granularity, with_year),
+            "expected": 0, "expected_count": 0, "actual": 0, "actual_count": 0,
+        }
+        for key in _enumerate_bucket_keys(start, end, granularity)
+    }
+    for rows, field in ((expected_rows, "expected"), (actual_rows, "actual")):
+        for row in rows:
+            entry = buckets.get(_bucket_key(row, granularity))
+            if entry is None:
+                continue
+            entry[field] += _priced(row)
+            entry[f"{field}_count"] += 1
+    return {
+        "expected_revenue": sum(_priced(row) for row in expected_rows),
+        "expected_count": len(expected_rows),
+        "expected_unpriced_count": sum(
+            1 for row in expected_rows if not isinstance(row["shipping_price"], int)
+        ),
+        "actual_revenue": _revenue_of(actual_rows),
+        "actual_count": len(actual_rows),
+        "prev": {
+            "expected_revenue": sum(_priced(row) for row in prev_expected),
+            "expected_count": len(prev_expected),
+            "actual_revenue": _revenue_of(prev_actual),
+            "actual_count": len(prev_actual),
+        },
+        "buckets": list(buckets.values()),
+    }
+
+
+def _build_brand_channels(expected_rows: list[dict], actual_rows: list[dict]) -> list[dict]:
+    """일반/라홈 두 칸의 예상·실제 매출. 데이터가 없어도 두 칸을 항상 낸다.
+
+    Args:
+        expected_rows: 구간 안의 ERP 주문 전체 행.
+        actual_rows: 구간 안의 시공완료 행.
+
+    ``naver_*`` 는 그 칸 **안의** 네이버 주문 몫이다(사용자 결정 2026-10-06 — 라홈 막대 안에
+    네이버를 따로, shop in shop). 네이버는 늘 라홈 칸에 들므로 일반 칸의 ``naver_*`` 는 0 이다.
+    칸 합계에 이미 포함된 값이라 더하면 이중 계상이다.
+
+    Returns:
+        [{"channel", "label", "expected_revenue", "expected_count",
+          "actual_revenue", "actual_count", "naver_expected_revenue",
+          "naver_expected_count", "naver_actual_revenue", "naver_actual_count"}]
+        — :data:`BRAND_CHANNELS` 순서.
+    """
+    stats = {
+        code: {
+            "channel": code, "label": label,
+            "expected_revenue": 0, "expected_count": 0,
+            "actual_revenue": 0, "actual_count": 0,
+            "naver_expected_revenue": 0, "naver_expected_count": 0,
+            "naver_actual_revenue": 0, "naver_actual_count": 0,
+        }
+        for code, label in BRAND_CHANNELS
+    }
+    for rows, field in ((expected_rows, "expected"), (actual_rows, "actual")):
+        for row in rows:
+            entry = stats[row["brand"]]
+            entry[f"{field}_revenue"] += _priced(row)
+            entry[f"{field}_count"] += 1
+            if row["channel"] == _NAVER_CHANNEL:
+                entry[f"naver_{field}_revenue"] += _priced(row)
+                entry[f"naver_{field}_count"] += 1
+    return [stats[code] for code, _ in BRAND_CHANNELS]
 
 
 def _manager_group_key(name: str) -> str:
@@ -978,43 +1250,61 @@ def _build_unknown_completion(all_rows: list[dict]) -> dict:
 def aggregate_settlement(
     db: Any,
     *,
-    month_from: str,
-    month_to: str,
+    month_from: str | None = None,
+    month_to: str | None = None,
     granularity: str = "month",
+    date_from: str | None = None,
+    date_to: str | None = None,
 ) -> dict:
     """정산 대시보드 집계 — 완료 대시보드 200건 캡과 무관한 전량 집계.
+
+    구간은 월(``month_from``/``month_to``) 또는 날짜(``date_from``/``date_to``)로 준다.
+    날짜가 오면 날짜가 우선이다(정산 탭 공통 기간 바). 직전 비교 구간 규칙은
+    :func:`_resolve_period`.
 
     Args:
         db: SQLAlchemy Session.
         month_from: 조회 시작 월 "YYYY-MM"(포함).
         month_to: 조회 종료 월 "YYYY-MM"(포함).
         granularity: "day" | "week" | "month".
+        date_from: 조회 시작일 "YYYY-MM-DD"(포함).
+        date_to: 조회 종료일 "YYYY-MM-DD"(포함).
 
     Returns:
         range/kpi/buckets/prev_buckets/prev_totals/aging/aging_unknown/channels/
-        managers/managers_total/settlement_status/stages/unknown_completion 키를 가진 dict.
+        managers/managers_total/settlement_status/stages/unknown_completion/
+        forecast/brand_channels 키를 가진 dict.
 
     Raises:
-        ValueError: month 형식 오류, granularity 미지원, 범위 역전, 12개월 초과.
+        ValueError: 월·날짜 형식 오류, granularity 미지원, 범위 역전, 상한 초과.
     """
     if granularity not in _GRANULARITIES:
         raise ValueError(
             f"granularity 는 {'|'.join(_GRANULARITIES)} 중 하나여야 합니다: {granularity!r}"
         )
-    months = _month_range(month_from, month_to)
-    prev_months = _previous_month_range(months)
-    current, previous = set(months), set(prev_months)
-    all_rows = _load_rows(db)
-    in_period = [row for row in all_rows if _row_month(row) in current]
-    prev_period = [row for row in all_rows if _row_month(row) in previous]
+    period = _resolve_period(month_from, month_to, date_from, date_to)
+    start, end = period["start"], period["end"]
+    prev_start, prev_end = period["prev_start"], period["prev_end"]
+    erp_rows = _load_rows(db)
+    all_rows = [row for row in erp_rows if _is_settlement_row(row)]
+    in_period = _rows_in_span(all_rows, start, end)
+    prev_period = _rows_in_span(all_rows, prev_start, prev_end)
+    expected = _rows_in_span(erp_rows, start, end)
     aging, aging_unknown = _build_aging(all_rows, get_today_kst())
     managers, managers_total = _build_managers(in_period)
     return {
-        "range": {"month_from": month_from, "month_to": month_to,
-                  "granularity": granularity},
+        "range": {
+            "month_from": start.isoformat()[:7],
+            "month_to": end.isoformat()[:7],
+            "granularity": granularity,
+            "date_from": start.isoformat(),
+            "date_to": end.isoformat(),
+            "prev_date_from": prev_start.isoformat(),
+            "prev_date_to": prev_end.isoformat(),
+        },
         "kpi": _build_kpi(in_period, all_rows),
-        "buckets": _build_buckets(in_period, months, granularity),
-        "prev_buckets": _build_buckets(prev_period, prev_months, granularity),
+        "buckets": _build_buckets(in_period, start, end, granularity),
+        "prev_buckets": _build_buckets(prev_period, prev_start, prev_end, granularity),
         "prev_totals": _build_period_totals(prev_period),
         "aging": aging,
         "aging_unknown": aging_unknown,
@@ -1024,4 +1314,10 @@ def aggregate_settlement(
         "settlement_status": _build_settlement_status(in_period),
         "stages": _build_stages(db),
         "unknown_completion": _build_unknown_completion(all_rows),
+        "forecast": _build_forecast(
+            expected, in_period,
+            _rows_in_span(erp_rows, prev_start, prev_end), prev_period,
+            start, end, granularity,
+        ),
+        "brand_channels": _build_brand_channels(expected, in_period),
     }
