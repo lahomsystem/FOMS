@@ -912,11 +912,11 @@
                                 <strong style="white-space: nowrap;">견적 ${index + 1}</strong>
                                 <span class="text-muted" style="white-space: nowrap;">·</span>
                                 <span class="estimate-display-name fw-bold text-truncate" style="max-width: 180px;" title="${displayNameEscaped}">${displayNameEscaped}</span>
-                                <button class="btn btn-sm btn-link p-0 text-primary edit-estimate-name-btn" data-estimate-id="${estimateIdStr}" title="이름 수정">
+                            </div>
+                            <div class="estimate-card-actions">
+                                <button class="btn btn-sm btn-outline-primary edit-estimate-name-btn" data-estimate-id="${estimateIdStr}" title="이름 수정">
                                     <i class="fas fa-pen"></i>
                                 </button>
-                            </div>
-                            <div>
                                 <button class="btn btn-sm btn-outline-primary edit-estimate-btn" data-estimate-id="${estimateIdStr}" title="수정">
                                     <i class="fas fa-edit"></i>
                                 </button>

@@ -219,3 +219,23 @@
 .wd-embedded-saved-backdrop[hidden] {
   display: none !important;
 }
+
+/* 진행 중인 견적 카드 — 아이콘 4개(이름·수정·복사·삭제) 2x2 정렬 */
+.estimate-card-actions {
+    display: grid;
+    grid-template-columns: repeat(2, 30px);
+    gap: 4px;
+    flex-shrink: 0;
+    margin-left: 8px;
+}
+.estimate-card-actions .btn {
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8rem;
+    line-height: 1;
+    margin: 0;
+}
