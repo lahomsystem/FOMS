@@ -33,11 +33,12 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from foms.services.erp_order_flags import is_erp_order_record
-from foms.services.erp_sync_columns import sync_erp_flat_columns
+from foms.services.erp_sync_columns import sync_erp_flat_columns, sync_identity_phone_column
+from foms.services.phone_search import normalize_phone_digits
 
 PACKET_ID = "STARTUP-BACKFILL-01"
 PHASE = "STARTUP_FLAT"
-TOOL_VERSION = 1
+TOOL_VERSION = 2
 
 CLEAN = "CLEAN"
 SAFE = "SAFE"
@@ -63,6 +64,12 @@ DERIVED_COLUMNS: Tuple[str, ...] = (
 )
 _FINANCIAL_COLUMN = "payment_amount"
 
+# 신원 flat 컬럼 — sync_erp_flat_columns 계약 밖이라 저장 경로가 따로 맞춘다
+# (:func:`~foms.services.erp_sync_columns.sync_identity_phone_column`). 2026-09-02 이전
+# 저장분은 옛 번호가 남아 대시보드 검색에 걸린다(#4147, 2026-10-06 실측 46건).
+IDENTITY_COLUMNS: Tuple[str, ...] = ("phone",)
+_DELETED_STATUS = "DELETED"
+
 # ambiguous 사유 코드.
 MALFORMED = "MALFORMED_STRUCTURED_DATA"
 PAYMENT_DRIFT = "PAYMENT_AMOUNT_DRIFT"
@@ -87,7 +94,11 @@ class _DeriveShim:
 def column_schema_sha256() -> str:
     """flat 컬럼 스키마의 결정적 sha256(artifact AAD·manifest 바인딩용)."""
     payload = json.dumps(
-        {"columns": list(DERIVED_COLUMNS), "tool_version": TOOL_VERSION},
+        {
+            "columns": list(DERIVED_COLUMNS),
+            "identity_columns": list(IDENTITY_COLUMNS),
+            "tool_version": TOOL_VERSION,
+        },
         sort_keys=True,
         ensure_ascii=False,
     )
@@ -126,6 +137,23 @@ def _expected_flat_values(order: Any, structured_data: Dict[str, Any]) -> Dict[s
     return {column: getattr(shim, column, None) for column in DERIVED_COLUMNS}
 
 
+def _phone_drifts(order: Any, structured_data: Dict[str, Any]) -> bool:
+    """flat ``phone`` 이 정본 고객 전화와 실제로 어긋났는가.
+
+    삭제된 주문은 화면·검색 어디에도 안 나오므로 대상이 아니다. 숫자만 비교하고, 옛 값의
+    숫자가 정본 숫자 안에 들어 있으면(다전화 주문의 첫 번호 등) 같은 사람이라 drift 가 아니다.
+    """
+    if getattr(order, "status", None) == _DELETED_STATUS:
+        return False
+    shim = _DeriveShim(order)
+    sync_identity_phone_column(shim, structured_data)
+    current = normalize_phone_digits(getattr(order, "phone", None) or "") or ""
+    expected = normalize_phone_digits(shim.phone or "") or ""
+    if current == expected:
+        return False
+    return not (current and current in expected)
+
+
 def classify_order(order: Any) -> Optional[FlatColumnAudit]:
     """한 주문을 CLEAN/SAFE/AMBIGUOUS 로 분류한다(read-only, 대상 아니면 None).
 
@@ -150,6 +178,8 @@ def classify_order(order: Any) -> Optional[FlatColumnAudit]:
         column for column in DERIVED_COLUMNS
         if expected[column] != getattr(order, column, None)
     )
+    if _phone_drifts(order, sd):
+        drift = drift + ("phone",)
     if not drift:
         return FlatColumnAudit(order_id, CLEAN, src_sha=src)
     if _FINANCIAL_COLUMN in drift:
@@ -297,6 +327,7 @@ __all__ = [
     "AMBIGUOUS",
     "CLASSIFICATIONS",
     "DERIVED_COLUMNS",
+    "IDENTITY_COLUMNS",
     "MALFORMED",
     "PAYMENT_DRIFT",
     "FlatColumnAudit",
