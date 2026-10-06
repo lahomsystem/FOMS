@@ -115,6 +115,9 @@ _M1_DATA_KEYS = {
     "settlement_status",
     "stages",
     "unknown_completion",
+    # 예상/실제 매출 + 일반/라홈 비중(2026-10-06).
+    "forecast",
+    "brand_channels",
 }
 
 #: 담당자별 매출 = 직원 실적이라 관리자급에게만 내려간다(스펙 §13.6, 사용자 결정).
@@ -431,6 +434,10 @@ def test_api_success_envelope_and_m1_schema(client, app):
         "month_from": "2026-07",
         "month_to": "2026-08",
         "granularity": "day",
+        "date_from": "2026-07-01",
+        "date_to": "2026-08-31",
+        "prev_date_from": "2026-05-01",
+        "prev_date_to": "2026-06-30",
     }
 
     expected = aggregate_settlement(
@@ -487,11 +494,15 @@ def test_api_defaults_to_previous_and_current_month_day_granularity(client, app)
 
     assert resp.status_code == 200, resp.get_data(as_text=True)[:400]
     month_from, month_to = _default_range()
-    assert resp.get_json()["data"]["range"] == {
+    rng = resp.get_json()["data"]["range"]
+    assert {k: rng[k] for k in ("month_from", "month_to", "granularity")} == {
         "month_from": month_from,
         "month_to": month_to,
         "granularity": "day",
     }
+    # 월 기본값도 날짜 경계를 같이 말한다(첫 달 1일 ~ 이번 달 말일).
+    assert rng["date_from"] == month_from + "-01"
+    assert rng["date_to"].startswith(month_to + "-")
 
 
 @pytest.mark.parametrize(

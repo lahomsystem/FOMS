@@ -230,7 +230,25 @@
       'aging=' + encodeURIComponent(state.bucket),
       'page=' + encodeURIComponent(state.page),
     ];
+    // 셸의 공통 기간 바(시공일 날짜 범위). 셸 밖 단독 렌더면 속성이 없어 구간 제한 없이 본다.
+    var range = shellRange(ctx);
+    if (range) {
+      params.push('date_from=' + encodeURIComponent(range.from));
+      params.push('date_to=' + encodeURIComponent(range.to));
+    }
     return base + (base.indexOf('?') === -1 ? '?' : '&') + params.join('&');
+  }
+
+  /**
+   * 셸 루트의 공통 기간(`data-settlement-date-range="YYYY-MM-DD..YYYY-MM-DD"`). dashboard.js 가
+   * 쓰고 이 스크립트는 읽기만 한다. 없거나 모양이 틀리면 null(= 구간 제한 없음).
+   */
+  function shellRange(ctx) {
+    var shell = ctx.root.closest('[data-settlement-date-range]');
+    var m = shell && /^(\d{4}-\d{2}-\d{2})\.\.(\d{4}-\d{2}-\d{2})$/.exec(
+      shell.getAttribute('data-settlement-date-range') || ''
+    );
+    return m ? { from: m[1], to: m[2] } : null;
   }
 
   /** 공통 GET — 실패는 던진다(호출부가 상태 노드로 옮긴다). */
@@ -318,7 +336,7 @@
     appendKpi(wrap, {
       key: 'unknown_completion', label: '완료일 미상',
       value: count(totals.unknown_completion_count), unit: '건',
-      sub: '경과일을 셀 수 없어 기간 칩·aging 구간 밖입니다',
+      sub: '경과일을 셀 수 없어 aging 구간 밖입니다 · 기간을 고르면 목록에서 빠집니다',
     });
   }
 
@@ -997,6 +1015,14 @@
       if (shell.getAttribute('data-settlement-active-tab') === OPS_TAB) ensureLoaded(ctx);
     });
     ctx.observer.observe(shell, { attributes: true, attributeFilter: ['data-settlement-active-tab'] });
+    // 공통 기간이 바뀌면 이미 연 목록만 1쪽부터 다시 읽는다. 아직 안 연 탭은 열 때 새 기간으로 읽는다
+    // (조회 URL 이 그때 속성을 읽는다) — 요약 탭만 보는 사용자에게 왕복을 물리지 않는다.
+    ctx.rangeObserver = new MutationObserver(function () {
+      if (!ctx.state.loaded) return;
+      ctx.state.page = 1;
+      loadRows(ctx);
+    });
+    ctx.rangeObserver.observe(shell, { attributes: true, attributeFilter: ['data-settlement-date-range'] });
   }
 
   function mount(root) {
@@ -1013,6 +1039,7 @@
         issueOrderId: null,
       },
       observer: null,
+      rangeObserver: null,
     };
     mounts.push(ctx);
     syncChips(ctx);
@@ -1025,6 +1052,7 @@
     mounts = mounts.filter(function (ctx) {
       if (ctx.root.isConnected) return true;
       if (ctx.observer) ctx.observer.disconnect();
+      if (ctx.rangeObserver) ctx.rangeObserver.disconnect();
       return false;
     });
     document.querySelectorAll(ROOT_SELECTOR).forEach(mount);

@@ -99,9 +99,10 @@ _REQUIRED_ANCHORS = {
     "aging 해제 칩 자리": "data-settlement-ops-bucket-chip",
 }
 
-#: 칩 3묶음 — 값이 그대로 API 파라미터가 된다(`period`/`settlement`/`channel`).
+#: 칩 2묶음 — 값이 그대로 API 파라미터가 된다(`settlement`/`channel`).
+#: 옛 `period`(완료 후 경과일) 칩은 2026-10-06 셸 공통 기간 바(시공일 날짜 범위)로 대체됐다
+#: — 아래 `test_period_chips_are_replaced_by_the_shell_date_range` 가 그 교체를 고정한다.
 _FILTER_GROUPS = {
-    "period": ("all", "7", "30", "31"),
     "settlement": ("all", "pending", "issued"),
     "channel": ("all", "일반", "NAVER"),
 }
@@ -329,7 +330,21 @@ def test_filter_chips_use_aria_pressed_for_selection(app):
     html = _render(app, department_options=_SENTINEL_DEPARTMENTS)
 
     pressed = re.findall(r'data-settlement-ops-value="([^"]+)"[^>]*aria-pressed="true"', html)
-    assert pressed == ["all", "all", "all"], pressed
+    assert pressed == ["all", "all"], pressed
+
+
+def test_period_chips_are_replaced_by_the_shell_date_range(app):
+    """실무 탭 기간은 칩이 아니라 셸의 공통 기간 바다(사용자 결정 2026-10-06).
+
+    칩이 남아 있으면 같은 화면에 기간 조작이 두 벌이 되어 어느 쪽이 목록을 거르는지 갈린다.
+    JS 는 셸 루트의 `data-settlement-date-range` 를 읽어 `date_from`/`date_to` 로 싣는다.
+    """
+    html = _render(app, department_options=_SENTINEL_DEPARTMENTS)
+    js = _read_code(f"static/{JS_ASSET}")
+
+    assert 'data-settlement-ops-filter="period"' not in html
+    assert "data-settlement-date-range" in js
+    assert "'date_from='" in js and "'date_to='" in js
 
 
 # ==========================================================================

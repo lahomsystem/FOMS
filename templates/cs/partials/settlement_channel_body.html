@@ -47,17 +47,20 @@
   </div>
 
   {# ── 기간 바 ─────────────────────────────────────────────────────────────────
-     요약/분석 탭의 `.s-filterbar` 는 이 탭에서 CSS 로 감춘다(기간 축이 다르다).
-     여기 컨트롤이 그대로 조회 API 파라미터(from/to/granularity)가 된다.
+     **기간은 셸 상단의 공통 기간 바가 정한다**(2026-10-06 — 모든 정산 탭이 같은 날짜 범위).
+     channel.js 가 셸 루트의 `data-settlement-date-range` 를 관찰해 아래 숨은 시작·종료 칸과
+     조회 파라미터(from/to)를 맞춘다. 칸 자체는 남겨 둔다 — 조회 상태의 화면 사본이고, 셸 밖
+     단독 렌더(테스트·미리보기)에서는 다시 이 칸이 기간을 정한다(JS 가 hidden 을 푼다).
+     단위(granularity)는 이 탭의 차트 단위라 여기 남는다.
      **날짜 축 셀렉트(basis)는 이 줄에 없다** — 그 축은 아래 원장 표에만 걸리는데 이 줄에
      두면 위쪽 KPI·차트·워터폴까지 바뀌는 것처럼 읽힌다(2026-09-03 실측). 원장 스위처 줄로
      옮겼다. #}
   <div class="s-ch-bar" id="foms-settle-ch-bar">
-    <label class="s-ch-field">
+    <label class="s-ch-field" data-settlement-ch-own-range hidden>
       <span class="s-ch-field-name">시작</span>
       <input type="date" class="s-ch-input" data-settlement-ch-from aria-label="조회 시작일">
     </label>
-    <label class="s-ch-field">
+    <label class="s-ch-field" data-settlement-ch-own-range hidden>
       <span class="s-ch-field-name">종료</span>
       <input type="date" class="s-ch-input" data-settlement-ch-to aria-label="조회 종료일">
     </label>
