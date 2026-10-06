@@ -83,6 +83,7 @@
   var ORDERER_SELECT_OPTIONS = [
     ["라홈", "라홈"],
     ["하우드", "하우드"],
+    ["숨고", "숨고"],
   ];
   var TIME_SELECT_OPTIONS = [
     ["", "시간 선택"],
@@ -2349,7 +2350,7 @@
             balance_confirmed_by: payment.balance_confirmed_by || null,
             balance_confirmed_by_user_id: payment.balance_confirmed_by_user_id || null,
           },
-          ordererDirect: !(ordererName === "" || ordererName === "라홈" || ordererName === "하우드"),
+          ordererDirect: !(ordererName === "" || ordererName === "라홈" || ordererName === "하우드" || ordererName === "숨고"),
           activeItem: 0,
           activeTab: "order",
           convText: "", // 변환 텍스트 미리보기 — [변환 텍스트 생성] 클릭 전까지 빈 값.
