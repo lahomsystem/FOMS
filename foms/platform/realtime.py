@@ -97,17 +97,9 @@ def init_realtime_bootstrap(
         if view is not None:
             app.view_functions[endpoint] = limiter.limit(notification_read_limit)(view)
 
-    # 주문 문맥형 긴급 호출(멘션) rate limit. 맨 위 줄 ⚡ 의 /erp/api/urgent-call 에는 걸지 않는다 —
-    # 주문 없는 호출은 제한 없음(사용자 결정 2026-10-01). 주문을 고른 호출은 route 가 주문당 5회/시간을 센다.
-    urgent_mention_limit = os.environ.get(
-        "ERP_URGENT_MENTION_RATE_LIMIT",
-        "30 per hour",
-    )
-    urgent_mention_view = app.view_functions.get("notifications.api_order_urgent_mention")
-    if urgent_mention_view is not None:
-        app.view_functions["notifications.api_order_urgent_mention"] = limiter.limit(
-            urgent_mention_limit
-        )(urgent_mention_view)
+    # 긴급 호출 /erp/api/urgent-call 에는 Flask-Limiter 를 걸지 않는다 — 주문 없는 호출은 제한 없음
+    # (사용자 결정 2026-10-01), 주문을 고른 호출은 route 가 주문당 5회/시간을 센다. 옛 주문 라우트와
+    # 그 30회/시간 제한(ERP_URGENT_MENTION_RATE_LIMIT)은 2026-10-06 삭제.
 
     # Web Push 구독 upsert/soft-delete rate limit.
     push_subscribe_limit = os.environ.get(

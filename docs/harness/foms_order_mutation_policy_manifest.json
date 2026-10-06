@@ -820,11 +820,6 @@
       "policy_id": "STAFF_MUTATION",
       "rule": "/erp/api/notifications/send"
     },
-    "notifications.api_order_urgent_mention": {
-      "mode": "guard",
-      "policy_id": "SEND_URGENT_CALL",
-      "rule": "/erp/api/orders/<int:order_id>/urgent-mention"
-    },
     "notifications.api_urgent_call": {
       "mode": "guard",
       "policy_id": "SEND_URGENT_CALL",
