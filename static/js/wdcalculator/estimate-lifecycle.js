@@ -920,6 +920,9 @@
                                 <button class="btn btn-sm btn-outline-primary edit-estimate-btn" data-estimate-id="${estimateIdStr}" title="수정">
                                     <i class="fas fa-edit"></i>
                                 </button>
+                                <button class="btn btn-sm btn-outline-secondary copy-estimate-btn" data-estimate-id="${estimateIdStr}" title="복사">
+                                    <i class="fas fa-copy"></i>
+                                </button>
                                 <button class="btn btn-sm btn-outline-danger delete-estimate-btn" data-estimate-id="${estimateIdStr}" title="삭제">
                                     <i class="fas fa-trash"></i>
                                 </button>
@@ -2505,6 +2508,31 @@
             renderEstimatesList();
         }
 
+        function copyEstimate(copyBtn) {
+            var estimateId = normalizeId(copyBtn.dataset.estimateId);
+            if (!estimateId) {
+                return;
+            }
+
+            var estimates = getEstimates() || [];
+            var index = estimates.findIndex(function (estimate) {
+                return isSameId(estimate.id, estimateId);
+            });
+            if (index === -1) {
+                return;
+            }
+
+            var copied = JSON.parse(JSON.stringify(estimates[index]));
+            copied.id =
+                typeof window.generateEstimateId === "function"
+                    ? window.generateEstimateId()
+                    : "est_" + Date.now() + "_" + Math.random().toString(36).substr(2, 9);
+            var nextEstimates = estimates.slice();
+            nextEstimates.splice(index + 1, 0, copied);
+            setEstimates(nextEstimates);
+            renderEstimatesList();
+        }
+
         function handleEstimateListClick(event) {
             var container = documentRef.getElementById("estimatesListContainer");
             if (!container || !container.contains(event.target)) {
@@ -2545,6 +2573,14 @@
                 return;
             }
 
+            var copyBtn = event.target.closest(".copy-estimate-btn");
+            if (copyBtn) {
+                event.stopPropagation();
+                event.preventDefault();
+                copyEstimate(copyBtn);
+                return;
+            }
+
             var deleteBtn = event.target.closest(".delete-estimate-btn");
             if (deleteBtn) {
                 event.stopPropagation();
@@ -2568,6 +2604,7 @@
 
         ns.commitInlineNameEdit = commitInlineNameEdit;
         ns.configure = configure;
+        ns.copyEstimate = copyEstimate;
         ns.deleteEstimate = deleteEstimate;
         ns.handleEstimateListClick = handleEstimateListClick;
         ns.initEstimateListEvents = initEstimateListEvents;
