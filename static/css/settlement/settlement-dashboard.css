@@ -349,11 +349,15 @@ body.foms-settle-focus:has(.foms-settlement-root) .s-focusbar { display: flex; }
 .foms-settle .s-chseg-inner {
   flex: none; width: var(--s-inner-pct, 0%); height: 100%; min-width: 3px;
   display: flex; align-items: center; justify-content: center; overflow: hidden; white-space: nowrap;
-  background: #03c75a; color: #fff; box-shadow: inset 2px 0 0 rgba(255, 255, 255, .9);
+  background: #03c75a; color: #fff; box-shadow: inset 2px 0 0 var(--s-surface);
 }
 .foms-settle .s-chrow--sub { padding-left: 14px; }
 /* 예상 막대는 같은 색의 옅은 스텝 — "아직 확정 아닌 몫"이라 실제 막대보다 한 단계 물러선다. */
-.foms-settle .s-chbar--plan .s-chseg { opacity: .45; color: var(--s-text); }
+.foms-settle .s-chbar--plan .s-chseg {
+  /* 투명도로 옅게 하면 글자까지 옅어져 읽히지 않는다(스테이징 실화면 2026-10-06) — 바탕만 섞는다. */
+  background: color-mix(in srgb, var(--s-seg-color, var(--s-accent)) 32%, var(--s-surface)); color: var(--s-text);
+}
+.foms-settle .s-chbar--plan .s-chseg-inner { background: color-mix(in srgb, #03c75a 38%, var(--s-surface)); color: var(--s-text); }
 .foms-settle .s-chhead {
   display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-top: 12px;
   font-size: calc(12.5px * var(--s-fs, 1)); color: var(--s-muted); font-variant-numeric: tabular-nums;
