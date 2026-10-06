@@ -82,7 +82,7 @@ _STATIC_ASSETS = (CSS_ASSET, JS_ASSET)
 #: 60초 확인 창이 실측 62초를 못 담아 성공해도 실패 문구가 뜨던 것을 150초로
 #: (JS 만, 20260908a → 20260908c; 셸 6줄 동반 이동).
 #: 2026-10-06 공통 기간 바 — 셸 루트의 날짜 범위를 따른다(JS + CSS, 20260909a → 20261006a; 셸 6줄 동반 이동).
-_CHANNEL_PIN = "20261006c"
+_CHANNEL_PIN = "20261007a"
 
 _CHANNEL_TAB_ID = "foms-settle-tab-channel"
 _CHANNEL_PANE_ID = "foms-settle-pane-channel"

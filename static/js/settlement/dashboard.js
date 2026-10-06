@@ -55,6 +55,24 @@
   var CHANNEL_COLORS = { '라홈': '#2a78d6', '일반': '#eb6834' };
   // 네이버 시그니처 초록(사용자 결정 2026-10-06) — 라홈 막대 안의 네이버 몫(shop in shop)에만 쓴다.
   var NAVER_GREEN = '#03c75a';
+
+  /**
+   * 라홈 막대 안 네이버 조각의 글자 — 막대 **전체** 대비 비중을 "(N%)" 로 적는다(사용자 요청
+   * 2026-10-07). 바깥 라홈 % 와 같은 기준(막대 전체)이라 두 숫자를 나란히 읽을 수 있다. 라홈 대비
+   * 몫은 툴팁·범례가 말한다. 조각이 좁으면 이름을 빼고, 더 좁으면 비운다(글자가 잘려 거짓이 된다).
+   */
+  function naverPct(barPct) {
+    // 1% 아래를 반올림하면 0% 나 1% 로 부풀거나 사라진다 — 있는 몫은 "1% 미만"으로 말한다.
+    return barPct < 1 ? '1% 미만' : Math.round(barPct) + '%';
+  }
+
+  function naverSegText(barPct) {
+    if (!(barPct > 0)) return '';
+    var n = naverPct(barPct);
+    if (barPct >= 18) return '네이버 (' + n + ')';
+    if (barPct >= 8) return '(' + n + ')';
+    return '';
+  }
   var CHANNEL_FALLBACK = ['#6b7280', '#7b4bd6', '#0f8a8a', '#b45309', '#8a3b6b'];
 
   function channelColor(name, index) {
@@ -1227,7 +1245,11 @@
           nav.className = 's-chseg-inner';
           nav.style.setProperty('--s-inner-pct', inner.toFixed(2) + '%');
           // 안쪽 조각 폭 = 전체 막대 대비 (라홈 비중 × 네이버 몫) — 그 값으로 글자를 낼지 정한다.
-          nav.textContent = pct * inner / 100 >= 9 ? '네이버' : '';
+          nav.textContent = naverSegText(pct * inner / 100);
+          // 네이버 조각이 좁아 글자를 못 담으면 라홈 글자 옆에 붙여 비중이 늘 보이게 한다.
+          if (!nav.textContent && own.textContent) {
+            own.textContent += ' (네이버 ' + naverPct(pct * inner / 100) + ')';
+          }
           nav.addEventListener('pointermove', function (e) {
             e.stopPropagation();
             showTip(ctx, e.clientX, e.clientY, b.label + ' 중 네이버 · ' + fieldWord, [
@@ -1570,7 +1592,11 @@
           nav.className = 's-chseg-inner';
           nav.style.setProperty('--s-inner-pct', inner.toFixed(2) + '%');
           nav.title = '그중 네이버 ' + fmtWon(ch.naverRevenue) + ' (' + inner.toFixed(1) + '%)';
-          nav.textContent = pct * inner / 100 >= 9 ? '네이버' : '';
+          nav.textContent = naverSegText(pct * inner / 100);
+          // 네이버 조각이 좁아 글자를 못 담으면 라홈 글자 옆에 붙여 비중이 늘 보이게 한다.
+          if (!nav.textContent && own.textContent) {
+            own.textContent += ' (네이버 ' + naverPct(pct * inner / 100) + ')';
+          }
           seg.appendChild(own);
           seg.appendChild(nav);
         } else {
