@@ -69,3 +69,19 @@ def test_inp_sends_worst_interaction_once_per_screen() -> None:
     assert "worstInp" in observer
     for trigger in ("'visibilitychange'", "'pagehide'", "'foms:erp-shell-fragment-swapped', flushInp"):
         assert trigger in js
+
+
+def test_inp_daily_cap_per_device() -> None:
+    """느린 기기 1대가 하루 34~56건을 보내 일별 p95 를 끌어올렸다(2026-10-07).
+
+    기기당 하루 20건 상한 · storage 실패면 보낸다(fail-open) · 캐시 핀 갱신.
+    """
+    js = (ROOT / "static/js/foms/rum-baseline.js").read_text(encoding="utf-8")
+    assert "var INP_DAILY_CAP = 20;" in js
+    slot = js.split("function takeInpDailySlot")[1].split("function flushInp")[0]
+    assert "try {" in slot and "catch (e)" in slot
+    assert "return true;" in slot.split("catch (e)")[1]
+    flush = js.split("function flushInp")[1].split("try {")[0]
+    assert flush.index("takeInpDailySlot()") < flush.index("sendMetric(payload)")
+    scripts = (ROOT / "templates/partials/shared/layout_scripts.html").read_text(encoding="utf-8")
+    assert "rum-baseline.js') }}?v=20261007a" in scripts

@@ -64,17 +64,19 @@ class _BoomRedis:
     "value,expected",
     [
         (0, 0),
-        (99, 0),
-        (100, 1),
-        (299, 1),
-        (300, 2),
-        (799, 2),
-        (800, 3),
-        (1999, 3),
-        (2000, 4),
-        (4999, 4),
-        (5000, 5),
-        (999999, 5),
+        (49, 0),
+        (50, 1),
+        (99, 1),
+        (100, 2),
+        (299, 4),
+        (300, 5),
+        (799, 8),
+        (800, 9),
+        (1999, 11),
+        (2000, 12),
+        (4999, 12),
+        (5000, 13),
+        (999999, 13),
     ],
 )
 def test_bucket_index_mapping(value, expected):
@@ -119,20 +121,37 @@ def test_record_metric_rejects_negative():
 def test_record_metric_hincrby_aggregates():
     fake = _FakeRedis()
     day = "2026-07-04"
-    # LCP: 50ms(b0), 250ms(b1), 250ms(b1), 6000ms(b5)
+    # LCP: 50ms([50,100)), 250ms([200,300)) 2건, 6000ms(open top)
     for v in (50, 250, 250, 6000):
         assert ra.record_metric("LCP", v, redis_client=fake, date_str=day) is True
     key = ra.build_rum_key(day, "LCP")
     hist = ra.histogram_from_hash(fake.store[key])
-    assert hist == [1, 2, 0, 0, 0, 1]
+    expected = [0] * ra.BUCKET_COUNT
+    expected[ra.bucket_index(50)] += 1
+    expected[ra.bucket_index(250)] += 2
+    expected[ra.BUCKET_COUNT - 1] += 1
+    assert hist == expected
     # TTL 도 설정되었는지
     assert fake.store["__ttl__"][key] == ra.TTL_SECONDS
 
 
+def _counts(values_to_n: dict[int, int]) -> list[int]:
+    """{대표값 ms: 건수} → 현재 버킷 경계 기준 카운트 리스트."""
+    counts = [0] * ra.BUCKET_COUNT
+    for value, n in values_to_n.items():
+        counts[ra.bucket_index(value)] += n
+    return counts
+
+
 # --- histogram_from_hash 방어 --------------------------------------------------
 def test_histogram_from_hash_ignores_out_of_range():
-    hist = ra.histogram_from_hash({"0": "3", "9": "5", "bad": "2", "2": "7"})
-    assert hist == [3, 0, 7, 0, 0, 0]
+    hist = ra.histogram_from_hash(
+        {"0": "3", str(ra.BUCKET_COUNT): "5", "-1": "4", "bad": "2", "2": "7"}
+    )
+    expected = [0] * ra.BUCKET_COUNT
+    expected[0] = 3
+    expected[2] = 7
+    assert hist == expected
 
 
 # --- p95 보간 ------------------------------------------------------------------
@@ -141,21 +160,21 @@ def test_percentile_empty_is_none():
 
 
 def test_percentile_single_bucket_interpolates_within_range():
-    # 전부 b1 [100,300): p50 은 그 구간 안.
-    counts = [0, 10, 0, 0, 0, 0]
+    # 전부 [200,300) 칸: p50 은 그 구간 안.
+    counts = _counts({250: 10})
     p50 = ra.percentile_from_histogram(counts, 0.50)
-    assert p50 is not None and 100 <= p50 <= 300
+    assert p50 is not None and 200 <= p50 <= 300
 
 
 def test_percentile_p95_lands_in_tail_bucket():
-    # 90개 b0, 10개 b4([2000,5000)). p95 는 tail 버킷.
-    counts = [90, 0, 0, 0, 10, 0]
+    # 90개 [0,50), 10개 [2000,5000). p95 는 tail 버킷.
+    counts = _counts({10: 90, 3000: 10})
     p95 = ra.percentile_from_histogram(counts, 0.95)
     assert p95 is not None and 2000 <= p95 <= 5000
 
 
 def test_percentile_open_top_uses_nominal_upper():
-    counts = [0, 0, 0, 0, 0, 4]
+    counts = _counts({6000: 4})
     p95 = ra.percentile_from_histogram(counts, 0.95)
     assert p95 is not None and 5000 <= p95 <= ra.OPEN_TOP_NOMINAL_MS
 
@@ -383,3 +402,36 @@ def test_detect_sample_shift_survives_contaminated_baseline():
         _row(8050, 52.0, 98.0),
     ]
     assert ra.detect_sample_shift(recent, baseline) is True
+
+
+# --- v2 버킷(2026-10-07 INP 오경보) ---------------------------------------------
+def test_v2_bucket_contract():
+    """버킷 인덱스 의미가 바뀌면 키 버전도 바뀌어야 v1 해시와 섞이지 않는다."""
+    assert ra.KEY_VERSION == "v2"
+    assert ra.build_rum_key("2026-10-07", "INP") == "foms:rum:v2:2026-10-07:INP"
+    assert ra.BUCKET_UPPER_BOUNDS_MS == (
+        50, 100, 150, 200, 300, 400, 500, 600, 800, 1000, 1500, 2000, 5000,
+    )
+
+
+def test_p95_near_800_boundary_stays_close_to_exact():
+    """p95 가 800 경계 근처일 때 800 이상 2% 로 값이 두 배로 튀지 않는다.
+
+    2026-10-06 운영 INP 1,013건: 정확 p95 448ms, v1 6칸 집계는 549ms(전체 표본에선 967ms).
+    분포 모양(아래)을 재현해 정확값 ±10% 안을 고정한다.
+    """
+    values = [60] * 600 + [180] * 200 + [350] * 120 + [450] * 40 + [700] * 20 + [1200] * 20
+    exact = sorted(values)[int(len(values) * 0.95)]
+    counts = [0] * ra.BUCKET_COUNT
+    for v in values:
+        counts[ra.bucket_index(v)] += 1
+    p95 = ra.percentile_from_histogram(counts, 0.95)
+    assert p95 is not None and abs(p95 - exact) <= exact * 0.10
+
+
+def test_detect_regression_skips_when_baseline_days_too_few():
+    """키 전환 직후 기준이 MIN_BASELINE_DAYS 일 미만이면 판정 보류."""
+    few = [200.0] * (ra.MIN_BASELINE_DAYS - 1)
+    assert ra.detect_regression([400.0, 400.0], few).regressed is None
+    enough = [200.0] * ra.MIN_BASELINE_DAYS
+    assert ra.detect_regression([400.0, 400.0], enough).regressed is True
