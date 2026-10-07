@@ -250,7 +250,7 @@
             var placeholder = el('option', null, '⚠ 본품 선택…');
             placeholder.value = '';
             select.appendChild(placeholder);
-            state.mains.forEach(function (main) {
+            erpDockMainsInItemOrder(document).forEach(function (main) {
                 // 이름이 겹치는 본품은 꼬리표를 **앞에** 붙여 읽는다 — 뒤에 붙이면 좁은
                 // select 에서 잘려 선택지 두 개가 다시 글자 하나까지 같아진다(N2 결함).
                 var option = el('option', null,
@@ -601,7 +601,7 @@
 
         var bd = el('div', 'naver-dock-bd');
         var groups = [];
-        state.mains.forEach(function (main, index) {
+        erpDockMainsInItemOrder(document).forEach(function (main, index) {
             var label = (state.mains.length > 1 ? '본품 ' + (index + 1) + ' — ' : '본품 — ') + main.label;
             groups.push({ key: main.external_id, label: label });
         });
@@ -1105,6 +1105,33 @@
     function erpDockItemRows(root) {
         if (!root || !root.querySelectorAll) return [];
         return Array.prototype.slice.call(root.querySelectorAll('.erp-item-row'));
+    }
+
+    /**
+     * 본품 묶음 순서를 ERP 품목 순서(좌측 항목 목록)에 맞춘다. 서버는 링크 id 순으로
+     * 보내서 두 패널의 "본품 1·2" 가 서로 엇갈렸다. 제품명이 같은 품목 행의 위치로
+     * 정렬하고, 못 찾은 본품은 원래 순서대로 뒤에 둔다.
+     * @param {Node} root 조회 기준.
+     * @returns {Array<Object>} 정렬된 본품 목록(원본은 건드리지 않는다).
+     */
+    function erpDockMainsInItemOrder(root) {
+        var names = erpDockItemRows(root).map(function (row) {
+            var input = row.querySelector('[data-erp="product_name"]');
+            return input ? String(input.value || '').trim() : '';
+        });
+        var used = {};
+        var rank = state.mains.map(function (main, index) {
+            var label = String(main.label || '').trim();
+            for (var i = 0; i < names.length; i++) {
+                if (!used[i] && names[i] && names[i] === label) {
+                    used[i] = true;
+                    return { main: main, pos: i, index: index };
+                }
+            }
+            return { main: main, pos: names.length + index, index: index };
+        });
+        rank.sort(function (a, b) { return a.pos - b.pos || a.index - b.index; });
+        return rank.map(function (entry) { return entry.main; });
     }
 
     /* ── 문서 위임(싱글톤) — fragment 재실행에도 리스너가 중복되지 않는다 ── */
