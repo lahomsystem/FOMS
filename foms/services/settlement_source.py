@@ -31,6 +31,11 @@
 - ``parties.manager.name``·``parties.customer.name`` — 담당자·고객 표시명.
 - ``parties.orderer.name`` — 매출 비중 일반/라홈 판정(``brand_channel_of``, 2026-10-06).
 
+제품별 매출 탭(:mod:`foms.services.settlement_products`, 2026-10-07)은 **자기 나무**
+(``settlement_products.PRODUCTS_SD_SPEC`` — 출고가·완료일·발주사 + ``items[].product_name``)를
+``spec`` 인자로 넘긴다. 품명을 이 기본 나무에 더하지 않은 이유: 집계·실무 탭은 품명을 안 읽는데
+행마다 싣는 양만 는다. 그 나무의 추적 계약은 ``tests/domains/test_settlement_products.py`` 가 진다.
+
 원본은 행마다 **한 번만** 푼다. 투영 식은 원본을 여러 번 참조하는데 TOAST 에 있는 jsonb 는 참조마다
 다시 풀린다 — 그래서 안쪽 조회가 ``structured_data #> '{}'``(같은 값의 풀린 사본)로 한 번 풀고
 ``OFFSET 0`` 울타리로 바깥에 끌려 올라가지 않게 막는다(네이버 ``fenced_snapshot_source`` 와 같은 수,
@@ -165,22 +170,25 @@ def settlement_rows_statement(columns: tuple, criteria: tuple,
                   document.label("structured_data"))
 
 
-def fetch_settlement_rows(db: Any, columns: tuple, criteria: tuple) -> list[Any]:
+def fetch_settlement_rows(db: Any, columns: tuple, criteria: tuple,
+                          spec: Optional[dict[str, Any]] = None) -> list[Any]:
     """정산 모집단 행을 읽는다 — 술어는 호출자 그대로, ``structured_data`` 만 얇다.
 
     Args:
         db: SQLAlchemy Session.
         columns: 함께 읽을 ``Order`` 컬럼(행 속성 이름은 컬럼 키 그대로).
         criteria: WHERE 조건.
+        spec: 투영 나무(기본 :data:`SETTLEMENT_SD_SPEC`). 기본 나무 밖 경로를 읽는 소비자
+            (제품별 매출 탭)만 자기 나무를 넘긴다.
 
     Returns:
         ``columns`` 키 + ``structured_data`` 속성을 가진 결과 행 목록. 정렬은 보장하지 않는다
         (옛 조회도 ORDER BY 가 없었다 — 소비자는 집계하거나 스스로 정렬한다).
     """
     if supports_sql_projection(db):
-        return db.execute(settlement_rows_statement(columns, criteria)).all()
+        return db.execute(settlement_rows_statement(columns, criteria, spec)).all()
     rows = db.query(*columns, Order.structured_data).filter(*criteria).all()
     keys = [col.key for col in columns] + ["structured_data"]
-    return [SimpleNamespace(**dict(zip(keys, (*row[:-1], project_settlement_sd(row[-1])))))
+    return [SimpleNamespace(**dict(zip(keys, (*row[:-1], project_settlement_sd(row[-1], spec)))))
             for row in rows]
 

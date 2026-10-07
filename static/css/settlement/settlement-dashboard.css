@@ -167,11 +167,12 @@ body.foms-settle-focus:has(.foms-settlement-root) .s-focusbar { display: flex; }
    눈에 덜 띈다) — 다시 보일 때 JS 가 되그린다(dashboard.js `activateTab()`). */
 .foms-settle .s-pane[hidden] { display: none; }
 
-/* 기간 바는 네 탭이 같이 쓴다(2026-10-06). 차트가 없는 실무·네이버 정산 탭에서는 그래프 전용
+/* 기간 바는 모든 탭이 같이 쓴다(2026-10-06). 요약·분석 밖 탭(실무·제품별·네이버 정산)에서는 그래프 전용
    조작(단위·비교·누적·카드 범위 안내)만 감춘다. 선택자가 `s-hidden` 이 아니라 루트 속성인 이유는
    body 템플릿의 필터바 주석 참조(showState() 의 권한거부 분기와 클래스를 겹쳐 쓰지 않는다). */
 .foms-settle[data-settlement-active-tab="ops"] .s-fb-chart,
-.foms-settle[data-settlement-active-tab="channel"] .s-fb-chart { display: none; }
+.foms-settle[data-settlement-active-tab="channel"] .s-fb-chart,
+.foms-settle[data-settlement-active-tab="products"] .s-fb-chart { display: none; }
 
 /* 탭 2·3 자리표시. 내용이 붙기 전에도 "빈 화면"이 아니라 "아직 없음"으로 읽혀야 한다.
    빈 상태(`.s-empty`)와 같은 점선 박스 어휘를 쓰되 카드 안이 아니라 pane 폭 전체다. */
