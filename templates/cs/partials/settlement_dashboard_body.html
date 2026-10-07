@@ -17,9 +17,10 @@
    탭으로 가른다. 새 메뉴도 새 URL 도 만들지 않는다. 탭 1 은 기존 화면을 **그대로** 옮긴 것이다.
    숨은 pane 은 `clientWidth === 0` 이라 그 사이에 그린 차트는 폴백 폭(400px)으로 눌린다 —
    재렌더 책임은 `dashboard.js` 의 `activateTab()` 에 있다(실측 수치까지 그쪽 주석에 있다). #}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/settlement/settlement-dashboard.css') }}?v=20261006b">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/settlement/settlement-operations.css') }}?v=20261006b">
-{% if can_view_channel_settlement %}<link rel="stylesheet" href="{{ url_for('static', filename='css/settlement/settlement-channel.css') }}?v=20261006b">{% endif %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/settlement/settlement-dashboard.css') }}?v=20261007b">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/settlement/settlement-operations.css') }}?v=20261007b">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/settlement/settlement-products.css') }}?v=20261007b">
+{% if can_view_channel_settlement %}<link rel="stylesheet" href="{{ url_for('static', filename='css/settlement/settlement-channel.css') }}?v=20261007b">{% endif %}
 <div class="container-fluid erp-dashboard erp-pro erp-settlement">
   <header class="erp-pro-header">
     <h1 class="erp-pro-header__title">
@@ -81,6 +82,13 @@
         aria-controls="foms-settle-pane-analytics" aria-selected="false" tabindex="-1">
         <span class="s-tab-name">분석</span>
       </button>
+      {# 탭 · 제품별(제품군 · 시리즈별 매출, 2026-10-07 승인). 정산 대시보드와 같은 권한이라 게이트가
+         따로 없다 — 내용은 settlement_products_body.html, 동작은 products*.js 가 소유한다. #}
+      <button type="button" class="s-tab" role="tab"
+        id="foms-settle-tab-products" data-settlement-tab="products"
+        aria-controls="foms-settle-pane-products" aria-selected="false" tabindex="-1">
+        <span class="s-tab-name">제품별</span>
+      </button>
       {# 탭 4 · 채널(네이버) 정산 — ADMIN·회계팀만 본다(NAVER-SETTLE-01 §1). 서버가 마크업째
          빼므로 그 밖의 사용자에겐 버튼도 pane 도 존재하지 않는다(클라 숨김 금지 원칙).
          힌트 "정산 예정일 기준" 은 네이버 settleExpectDate 축을 말하는 도메인 문구다 —
@@ -124,10 +132,10 @@
        복제하면 `aria-pressed` 짝이 두 벌이 되어 탭을 오갈 때 조용히 갈리고, JS 쪽
        `collectEls()` 의 `.s-filterbar`·`granButtons` 단일 배선도 깨진다.
 
-       실무·네이버 정산 탭은 다른 스크립트(operations.js · channel.js)라, dashboard.js 가 고른
-       범위를 루트의 `data-settlement-date-range`("시작..끝") 속성 하나에 적고 두 스크립트가 그 속성을
+       실무·제품별·네이버 정산 탭은 다른 스크립트(operations.js · products.js · channel.js)라, dashboard.js 가 고른
+       범위를 루트의 `data-settlement-date-range`("시작..끝") 속성 하나에 적고 세 스크립트가 그 속성을
        관찰한다(탭 활성화 신호 `data-settlement-active-tab` 과 같은 방식 — 새 이벤트를 만들지 않는다).
-       그래프 전용 조작(단위·비교·누적)은 `.s-fb-chart` 로 묶여 차트가 없는 두 탭에서 CSS 로 감춘다.
+       그래프 전용 조작(단위·비교·누적)은 `.s-fb-chart` 로 묶여 요약·분석 밖 세 탭에서 CSS 로 감춘다.
        `s-hidden` 을 쓰지 않는 이유: 그 클래스는 showState() 의 권한거부 분기가 쓰는 자리다. #}
     <nav class="s-filterbar" aria-label="기간 설정">
       <span class="s-fb-label" id="foms-settle-fb-label">기간</span>
@@ -439,6 +447,15 @@
       </div>
     </div>
 
+    {# 제품별 pane. 내용물은 별도 파셜이 소유한다(실무·채널 탭과 같은 관례) — pane 의 role/aria-*/hidden
+       배선은 셸 소유라 파셜이 건드리지 않는다. 기간 바는 공유하고 그래프 단위 조작만 CSS 로 감춘다. #}
+    <div class="s-pane" role="tabpanel" id="foms-settle-pane-products"
+      data-settlement-pane="products" aria-labelledby="foms-settle-tab-products" tabindex="0" hidden>
+      <div class="s-pane-mount" id="foms-settle-products-mount" data-settlement-mount="products">
+        {% include 'cs/partials/settlement_products_body.html' %}
+      </div>
+    </div>
+
     {# 탭 4 pane · 채널(네이버) 정산. 내용물은 별도 파셜이 소유한다(실무 탭과 같은 관례).
        pane 의 role/aria-*/hidden 배선은 셸 소유라 파셜이 건드리지 않는다. #}
     {% if can_view_channel_settlement %}<div class="s-pane" role="tabpanel" id="foms-settle-pane-channel"
@@ -450,6 +467,11 @@
     <div class="s-tt" id="foms-settle-tooltip" role="tooltip"></div>
   </div>
 </div>
-<script src="{{ url_for('static', filename='js/settlement/dashboard.js') }}?v=20261006b" defer></script>
-<script src="{{ url_for('static', filename='js/settlement/operations.js') }}?v=20261006b" defer></script>
-{% if can_view_channel_settlement %}<script src="{{ url_for('static', filename='js/settlement/channel.js') }}?v=20261006b" defer></script>{% endif %}
+<script src="{{ url_for('static', filename='js/settlement/dashboard.js') }}?v=20261007b" defer></script>
+<script src="{{ url_for('static', filename='js/settlement/operations.js') }}?v=20261007b" defer></script>
+<script src="{{ url_for('static', filename='js/settlement/products-core.js') }}?v=20261007b" defer></script>
+<script src="{{ url_for('static', filename='js/settlement/products-cards.js') }}?v=20261007b" defer></script>
+<script src="{{ url_for('static', filename='js/settlement/products-charts.js') }}?v=20261007b" defer></script>
+<script src="{{ url_for('static', filename='js/settlement/products-quality.js') }}?v=20261007b" defer></script>
+<script src="{{ url_for('static', filename='js/settlement/products.js') }}?v=20261007b" defer></script>
+{% if can_view_channel_settlement %}<script src="{{ url_for('static', filename='js/settlement/channel.js') }}?v=20261007b" defer></script>{% endif %}

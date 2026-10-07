@@ -55,6 +55,24 @@
   var CHANNEL_COLORS = { '라홈': '#2a78d6', '일반': '#eb6834' };
   // 네이버 시그니처 초록(사용자 결정 2026-10-06) — 라홈 막대 안의 네이버 몫(shop in shop)에만 쓴다.
   var NAVER_GREEN = '#03c75a';
+
+  /**
+   * 라홈 막대 안 네이버 조각의 글자 — 막대 **전체** 대비 비중을 "(N%)" 로 적는다(사용자 요청
+   * 2026-10-07). 바깥 라홈 % 와 같은 기준(막대 전체)이라 두 숫자를 나란히 읽을 수 있다. 라홈 대비
+   * 몫은 툴팁·범례가 말한다. 조각이 좁으면 이름을 빼고, 더 좁으면 비운다(글자가 잘려 거짓이 된다).
+   */
+  function naverPct(barPct) {
+    // 1% 아래를 반올림하면 0% 나 1% 로 부풀거나 사라진다 — 있는 몫은 "1% 미만"으로 말한다.
+    return barPct < 1 ? '1% 미만' : Math.round(barPct) + '%';
+  }
+
+  function naverSegText(barPct) {
+    if (!(barPct > 0)) return '';
+    var n = naverPct(barPct);
+    if (barPct >= 18) return '네이버 (' + n + ')';
+    if (barPct >= 8) return '(' + n + ')';
+    return '';
+  }
   var CHANNEL_FALLBACK = ['#6b7280', '#7b4bd6', '#0f8a8a', '#b45309', '#8a3b6b'];
 
   function channelColor(name, index) {
@@ -777,7 +795,11 @@
   /** `brand_channels` → 분석 탭 채널 표가 읽는 {channel, count, revenue}(실제 매출 기준). */
   function brandActualChannels(data) {
     return ((data && data.brand_channels) || []).map(function (b) {
-      return { channel: b.label, count: b.actual_count || 0, revenue: b.actual_revenue || 0 };
+      return {
+        channel: b.label, count: b.actual_count || 0, revenue: b.actual_revenue || 0,
+        // 그 칸 안의 네이버 몫(shop in shop) — 칸 합계에 이미 들어 있는 부분값이다.
+        naverCount: b.naver_actual_count || 0, naverRevenue: b.naver_actual_revenue || 0,
+      };
     });
   }
 
@@ -1223,7 +1245,11 @@
           nav.className = 's-chseg-inner';
           nav.style.setProperty('--s-inner-pct', inner.toFixed(2) + '%');
           // 안쪽 조각 폭 = 전체 막대 대비 (라홈 비중 × 네이버 몫) — 그 값으로 글자를 낼지 정한다.
-          nav.textContent = pct * inner / 100 >= 9 ? '네이버' : '';
+          nav.textContent = naverSegText(pct * inner / 100);
+          // 네이버 조각이 좁아 글자를 못 담으면 라홈 글자 옆에 붙여 비중이 늘 보이게 한다.
+          if (!nav.textContent && own.textContent) {
+            own.textContent += ' (네이버 ' + naverPct(pct * inner / 100) + ')';
+          }
           nav.addEventListener('pointermove', function (e) {
             e.stopPropagation();
             showTip(ctx, e.clientX, e.clientY, b.label + ' 중 네이버 · ' + fieldWord, [
@@ -1553,7 +1579,29 @@
         seg.setAttribute('data-settlement-channel', ch.channel || '');
         seg.style.setProperty('--s-seg-pct', pct.toFixed(2) + '%');
         seg.style.setProperty('--s-seg-color', color);
-        seg.textContent = pct >= 10 ? Math.round(pct) + '%' : '';
+        var segText = pct >= 10 ? Math.round(pct) + '%' : '';
+        // 요약 탭 채널 카드와 같은 shop in shop — 라홈 조각 안 끝자리에 네이버 몫(네이버 초록).
+        // 금액 기준일 때만 그린다(건수 기준 막대에 금액 몫을 끼우면 축이 섞인다).
+        if (totalRevenue > 0 && ch.naverRevenue > 0 && value > 0) {
+          var inner = Math.min(100, (ch.naverRevenue / value) * 100);
+          seg.classList.add('s-chseg--host');
+          var own = document.createElement('span');
+          own.className = 's-chseg-own';
+          own.textContent = segText;
+          var nav = document.createElement('span');
+          nav.className = 's-chseg-inner';
+          nav.style.setProperty('--s-inner-pct', inner.toFixed(2) + '%');
+          nav.title = '그중 네이버 ' + fmtWon(ch.naverRevenue) + ' (' + inner.toFixed(1) + '%)';
+          nav.textContent = naverSegText(pct * inner / 100);
+          // 네이버 조각이 좁아 글자를 못 담으면 라홈 글자 옆에 붙여 비중이 늘 보이게 한다.
+          if (!nav.textContent && own.textContent) {
+            own.textContent += ' (네이버 ' + naverPct(pct * inner / 100) + ')';
+          }
+          seg.appendChild(own);
+          seg.appendChild(nav);
+        } else {
+          seg.textContent = segText;
+        }
         bar.appendChild(seg);
       }
     });
@@ -1586,6 +1634,29 @@
         tr.appendChild(td);
       });
       tbody.appendChild(tr);
+      // 라홈 행 바로 아래 '그중 네이버' 줄 — 칸 합계의 부분값이라 표 합계에 더하지 않는다.
+      if (ch.naverCount > 0) {
+        var naverPer = Math.round(ch.naverRevenue / ch.naverCount);
+        var sub = document.createElement('tr');
+        sub.className = 's-dt-sub';
+        [
+          '└ 그중 네이버',
+          fmtMan(toMan(ch.naverRevenue)),
+          fmtCount(ch.naverCount),
+          fmtMan(toMan(naverPer)),
+        ].forEach(function (text, ci) {
+          var td = document.createElement('td');
+          if (ci === 0) {
+            var dot = document.createElement('i');
+            dot.className = 's-sw';
+            dot.style.setProperty('--s-sw-color', NAVER_GREEN);
+            td.appendChild(dot);
+          }
+          td.appendChild(document.createTextNode(text));
+          sub.appendChild(td);
+        });
+        tbody.appendChild(sub);
+      }
     });
     table.appendChild(tbody);
   }

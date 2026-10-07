@@ -159,6 +159,8 @@ _TABS = (
     ("summary", "foms-settle-tab-summary", "foms-settle-pane-summary", "요약"),
     ("ops", "foms-settle-tab-ops", "foms-settle-pane-ops", "실무"),
     ("analytics", "foms-settle-tab-analytics", "foms-settle-pane-analytics", "분석"),
+    # 제품별(2026-10-07) — 분석과 네이버 정산 사이. 내용 계약은 test_settlement_products_render.py.
+    ("products", "foms-settle-tab-products", "foms-settle-pane-products", "제품별"),
     ("channel", "foms-settle-tab-channel", "foms-settle-pane-channel", "네이버 정산"),
 )
 _DEFAULT_TAB = "summary"
@@ -1127,7 +1129,7 @@ def test_dashboard_js_reinitializes_on_fragment_swap():
 # 사라진다. 여기서 잠그는 것은 **접근성 배선**(role/aria 짝)과 **폭 0 함정**(숨은 pane 에서
 # 그린 차트는 빈 SVG 가 된다) 두 축이다.
 def test_tab_bar_renders_four_tabs_with_expected_wiring(client, app):
-    """ADMIN 에게 탭이 정확히 4개이고, 각 버튼이 진짜 `<button role="tab">` 로 aria 배선을 갖췄다.
+    """ADMIN 에게 탭이 정확히 `_TABS` 수(5개 — 제품별 포함)이고, 각 버튼이 진짜 `<button role="tab">` 로 aria 배선을 갖췄다.
 
     `<div>` 에 클릭 핸들러를 다는 방식은 키보드·스크린리더에서 통째로 사라진다.
     버튼 순서·id·라벨까지 고정하는 이유는 `_TABS` 주석 참조. 4번째(채널·네이버 정산)는
@@ -1139,7 +1141,7 @@ def test_tab_bar_renders_four_tabs_with_expected_wiring(client, app):
 
     assert 'role="tablist"' in html, "tablist 컨테이너가 없다"
     tabs = _tab_buttons(html)
-    assert len(tabs) == 4, [tag for tag, _ in tabs]
+    assert len(tabs) == len(_TABS), [tag for tag, _ in tabs]
     for (key, tab_id, pane_id, label), (tag, inner) in zip(_TABS, tabs):
         assert _attr(tag, "id") == tab_id, tag
         assert _attr(tag, "data-settlement-tab") == key, tag
@@ -1205,7 +1207,7 @@ def test_every_tab_has_a_matching_tabpanel(client, app):
     html = _fragment_html(client)
 
     panels = _tab_panels(html)
-    assert len(panels) == 4, panels
+    assert len(panels) == len(_TABS), panels
     for (key, tab_id, pane_id, _label), tag in zip(_TABS, panels):
         assert _attr(tag, "id") == pane_id, tag
         assert _attr(tag, "data-settlement-pane") == key, tag
