@@ -4819,7 +4819,7 @@
     },
     {
       "path": "foms/services/rum_aggregate.py",
-      "lineno": 138,
+      "lineno": 142,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "telemetry",
@@ -4828,7 +4828,7 @@
     },
     {
       "path": "foms/services/rum_aggregate.py",
-      "lineno": 151,
+      "lineno": 155,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "telemetry",
