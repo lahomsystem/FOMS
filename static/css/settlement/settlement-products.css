@@ -1,0 +1,302 @@
+/*
+ * 정산 대시보드 · 탭 "제품별"(제품군 · 시리즈별 매출) — 승인 목업(2026-10-07) 이식.
+ *
+ * 토큰(`--s-*`)과 공용 어휘(`.s-card`·`.s-card-head`·`.s-empty`·`.s-dt`·`.s-seg`·`.s-toggle`·
+ * `.s-legend`·`.s-state`·`.s-tt`)는 settlement-dashboard.css 가 소유한다. 이 파일은 이 탭에만 있는
+ * 것만 더하고, 이름은 전부 `s-pr-` 접두어다 — 같은 루트 안에 요약·분석 탭의 `.s-chbar`/`.s-kpi`
+ * 가 살아 있어서 이름이 겹치면 서로의 크기·여백을 덮는다.
+ *
+ * 글자 크기는 전부 `calc(Npx * var(--s-fs, 1))` — 탭줄의 글자 크기 조절기(루트 `--s-fs`)를 따른다.
+ * 막대 폭·색은 JS 가 CSS 사용자 속성(`--s-pr-w`·`--s-pr-pct`·`--s-pr-c`·`--s-pr-inner`)으로만 넣는다
+ * (인라인 style 속성 금지 규칙). 핀(`?v=`)은 셸 템플릿 한 곳이다 — 이 파일을 고치면 거기를 범프한다.
+ */
+
+/* ── 탭 안 배치 ─────────────────────────────────────────────── */
+.foms-settle .s-pr .s-state { margin: 0 0 14px; }
+.foms-settle .s-pr-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 16px; }
+.foms-settle .s-pr-span12 { grid-column: 1 / -1; }
+.foms-settle .s-pr-span7 { grid-column: span 7; }
+.foms-settle .s-pr-span5 { grid-column: span 5; }
+.foms-settle .s-pr .s-empty { margin-top: 12px; }
+.foms-settle .s-pr-grid > .s-empty { margin-top: 0; }
+.foms-settle .s-pr-range { margin: 0; color: var(--s-muted); font-size: calc(12px * var(--s-fs, 1)); line-height: 1.5; }
+.foms-settle .s-pr-range b { color: var(--s-text); }
+.foms-settle .s-pr-range .s-pr-partial { color: var(--s-amber); font-weight: 700; }
+.foms-settle .s-pr .s-card-head .s-head-right { flex-wrap: wrap; gap: 10px; }
+.foms-settle .s-pr .s-cardnote { margin: 12px 0 0; line-height: 1.6; }
+.foms-settle .s-pr-seg-sm button { padding: 4px 11px; font-size: calc(11.5px * var(--s-fs, 1)); }
+.foms-settle .s-pr .s-toggle { padding: 4px 10px; font-size: calc(11.5px * var(--s-fs, 1)); }
+.foms-settle .s-pr-legend { margin-top: 10px; }
+
+/* 범례 스와치 — 색은 수정자 클래스 또는 JS 의 `--s-pr-c`. */
+.foms-settle .s-pr-sw { width: 11px; height: 11px; border-radius: 3px; display: inline-block; flex: none; background: var(--s-pr-c, var(--s-accent)); }
+.foms-settle .s-pr-sw--plan { background: var(--s-plan, #bcd6f5); box-shadow: inset 0 0 0 1px var(--s-plan-edge, #8fbcf0); }
+.foms-settle .s-pr-sw--general { --s-pr-c: var(--s-pr-general); }
+.foms-settle .s-pr-sw--lahom { --s-pr-c: var(--s-pr-lahom); }
+.foms-settle .s-pr-sw--naver { --s-pr-c: var(--s-pr-naver); }
+.foms-settle .s-pr-sw--sel { background: var(--s-accent-soft); box-shadow: inset 0 0 0 1px var(--s-plan-edge, #8fbcf0); }
+
+/* 이 탭 전용 색 토큰(채널 3색 · 예상 막대). 루트 토큰을 늘리지 않고 탭 안에서만 선언한다. */
+.foms-settle .s-pr {
+  --s-plan: #bcd6f5; --s-plan-edge: #8fbcf0;
+  --s-pr-general: var(--s-series-2, #eb6834); --s-pr-lahom: var(--s-accent); --s-pr-naver: #03c75a;
+}
+
+/* ── KPI 4장 ───────────────────────────────────────────────── */
+.foms-settle .s-pr-kpis { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+.foms-settle .s-pr-kpi {
+  background: var(--s-surface); border: 1px solid var(--s-line); border-top: 3px solid var(--s-pr-fam, var(--s-line));
+  border-radius: var(--s-radius); padding: 14px 18px; min-width: 0;
+}
+.foms-settle .s-pr-kpi--plan { --s-pr-fam: var(--s-plan-edge); }
+.foms-settle .s-pr-kpi--real { --s-pr-fam: var(--s-accent); }
+.foms-settle .s-pr-kpi--rate { --s-pr-fam: var(--s-good); }
+.foms-settle .s-pr-kpi--top { --s-pr-fam: #1f2937; }
+.foms-settle .s-pr-kpi-label { font-size: calc(12.5px * var(--s-fs, 1)); font-weight: 700; color: var(--s-muted); display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.foms-settle .s-pr-chip-rule {
+  font-size: calc(10.5px * var(--s-fs, 1)); font-weight: 700; color: var(--s-muted); background: var(--s-surface-soft);
+  border: 1px solid var(--s-line); border-radius: 999px; padding: 1px 7px;
+}
+.foms-settle .s-pr-kpi-value {
+  margin-top: 5px; font-size: calc(28px * var(--s-fs, 1)); font-weight: 800; letter-spacing: -0.02em; line-height: 1.15;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums;
+}
+.foms-settle .s-pr-kpi-value i { font-style: normal; font-size: calc(13px * var(--s-fs, 1)); font-weight: 700; color: var(--s-muted); margin-left: 2px; }
+.foms-settle .s-pr-kpi-value--name { font-size: calc(22px * var(--s-fs, 1)); padding-top: 4px; }
+.foms-settle .s-pr-kpi-value--name em { font-style: normal; color: var(--s-accent); font-size: calc(18px * var(--s-fs, 1)); margin-left: 6px; }
+.foms-settle .s-pr-kpi-sub { margin-top: 6px; font-size: calc(12px * var(--s-fs, 1)); color: var(--s-muted); line-height: 1.45; }
+.foms-settle .s-pr-kpi-sub b { color: var(--s-text); }
+.foms-settle .s-pr-meter { margin-top: 10px; height: 8px; border-radius: 999px; background: var(--s-meter-track); overflow: hidden; }
+.foms-settle .s-pr-meter > span { display: block; height: 100%; width: var(--s-pr-pct, 0%); background: var(--s-accent); border-radius: 999px; }
+
+/* ── 제품군별 매출(메인 리스트) ─────────────────────────────── */
+.foms-settle .s-pr-list { margin-top: 14px; }
+.foms-settle .s-pr-row {
+  display: grid; align-items: center; gap: 12px;
+  grid-template-columns: 176px minmax(140px, 1fr) 108px 108px 64px 60px 104px;
+  grid-template-areas: "name bar act exp rate share cnt";
+  padding: 7px 8px; border-radius: 7px;
+}
+.foms-settle .s-pr-row--head {
+  padding-top: 0; padding-bottom: 6px; border-bottom: 1px solid var(--s-line-soft); border-radius: 0;
+  font-size: calc(11px * var(--s-fs, 1)); font-weight: 700; color: var(--s-muted);
+}
+.foms-settle .s-pr-row--head > span { text-align: right; }
+.foms-settle .s-pr-row--head > span:first-child,
+.foms-settle .s-pr-row--head > span:nth-child(2) { text-align: left; }
+.foms-settle .s-pr-row:not(.s-pr-row--head):hover,
+.foms-settle .s-pr-row--open { background: var(--s-surface-soft); }
+.foms-settle .s-pr-c-name { grid-area: name; min-width: 0; }
+.foms-settle .s-pr-c-bar { grid-area: bar; min-width: 0; }
+.foms-settle .s-pr-c-act { grid-area: act; }
+.foms-settle .s-pr-c-exp { grid-area: exp; }
+.foms-settle .s-pr-c-rate { grid-area: rate; }
+.foms-settle .s-pr-c-share { grid-area: share; }
+.foms-settle .s-pr-c-cnt { grid-area: cnt; }
+.foms-settle .s-pr-c-act,
+.foms-settle .s-pr-c-exp,
+.foms-settle .s-pr-c-rate,
+.foms-settle .s-pr-c-share,
+.foms-settle .s-pr-c-cnt { text-align: right; font-size: calc(12.5px * var(--s-fs, 1)); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.foms-settle .s-pr-c-act { font-weight: 800; font-size: calc(13px * var(--s-fs, 1)); }
+.foms-settle .s-pr-c-exp { color: var(--s-muted); }
+.foms-settle .s-pr-c-rate b { font-weight: 800; }
+.foms-settle .s-pr-c-cnt { color: var(--s-muted); font-size: calc(12px * var(--s-fs, 1)); }
+.foms-settle .s-pr-c-cnt b { color: var(--s-text); font-weight: 700; }
+.foms-settle .s-pr-name {
+  display: flex; align-items: center; gap: 7px; width: 100%; min-width: 0;
+  border: none; background: none; padding: 2px 0; text-align: left; cursor: pointer;
+  font: inherit; font-size: calc(13px * var(--s-fs, 1)); font-weight: 800; color: var(--s-text);
+}
+.foms-settle .s-pr-name span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.foms-settle .s-pr-name::before {
+  content: ""; flex: none; width: 6px; height: 6px; margin: 0 3px 0 1px;
+  border-right: 1.6px solid var(--s-faint); border-bottom: 1.6px solid var(--s-faint);
+  transform: rotate(-45deg); transition: transform .15s;
+}
+.foms-settle .s-pr-name[aria-expanded="true"]::before { transform: rotate(45deg); }
+.foms-settle .s-pr-name:focus-visible { outline: 2px solid var(--s-accent); outline-offset: 2px; border-radius: 4px; }
+.foms-settle .s-pr-rank { flex: none; width: 18px; font-style: normal; font-size: calc(11px * var(--s-fs, 1)); font-weight: 700; color: var(--s-faint); font-variant-numeric: tabular-nums; }
+.foms-settle .s-pr-track { position: relative; height: 20px; cursor: crosshair; outline: none; }
+.foms-settle .s-pr-track:focus-visible { outline: 2px solid var(--s-accent); outline-offset: 2px; border-radius: 3px; }
+.foms-settle .s-pr-exp { position: absolute; left: 0; top: 0; height: 20px; width: var(--s-pr-w, 0%); background: var(--s-plan); border-radius: 0 4px 4px 0; }
+.foms-settle .s-pr-act {
+  position: absolute; left: 0; top: 5px; height: 10px; width: var(--s-pr-w, 0%); background: var(--s-accent);
+  border-radius: 0 3px 3px 0; box-shadow: 0 0 0 1px rgba(255, 255, 255, .6);
+}
+.foms-settle .s-pr-row--muted .s-pr-name { color: var(--s-muted); font-weight: 700; }
+.foms-settle .s-pr-row--muted .s-pr-exp { background: #e3e8ef; }
+.foms-settle .s-pr-row--muted .s-pr-act { background: var(--s-ctx); }
+.foms-settle .s-pr-row--muted .s-pr-c-act { color: var(--s-muted); font-weight: 700; }
+.foms-settle .s-pr-group {
+  display: flex; align-items: baseline; gap: 8px; margin: 10px 0 2px; padding: 8px 8px 4px;
+  border-top: 1px dashed var(--s-line); font-size: calc(11.5px * var(--s-fs, 1)); color: var(--s-muted); font-weight: 700;
+}
+.foms-settle .s-pr-group span { font-weight: 500; color: var(--s-faint); }
+.foms-settle .s-pr-detail {
+  margin: 2px 8px 8px 34px; padding: 10px 12px; border-left: 2px solid var(--s-line);
+  display: grid; gap: 8px; font-size: calc(12px * var(--s-fs, 1)); color: var(--s-muted);
+}
+.foms-settle .s-pr-detail h4 { margin: 0; font-size: calc(11.5px * var(--s-fs, 1)); font-weight: 800; color: var(--s-text); }
+.foms-settle .s-pr-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.foms-settle .s-pr-chip { background: var(--s-surface); border: 1px solid var(--s-line); border-radius: 999px; padding: 2px 9px; font-size: calc(12px * var(--s-fs, 1)); color: var(--s-text); }
+.foms-settle .s-pr-chip i { font-style: normal; color: var(--s-faint); margin-left: 4px; font-variant-numeric: tabular-nums; }
+.foms-settle .s-pr-raw { display: flex; flex-wrap: wrap; gap: 4px 18px; font-variant-numeric: tabular-nums; }
+.foms-settle .s-pr-raw b { color: var(--s-text); }
+.foms-settle .s-pr-row--total { font-weight: 800; border-top: 1px solid var(--s-line); border-radius: 0; margin-top: 6px; padding-top: 10px; }
+.foms-settle .s-pr-row--total .s-pr-c-name { font-size: calc(13px * var(--s-fs, 1)); padding-left: 26px; }
+
+/* ── 채널 · 시리즈 막대 ─────────────────────────────────────── */
+.foms-settle .s-pr-chlist { margin-top: 12px; display: grid; gap: 8px; }
+.foms-settle .s-pr-chline { display: grid; grid-template-columns: 132px minmax(0, 1fr) 92px; gap: 10px; align-items: center; }
+.foms-settle .s-pr-chline > b { font-size: calc(12.5px * var(--s-fs, 1)); font-weight: 700; color: var(--s-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.foms-settle .s-pr-chline > b.s-pr-muted { color: var(--s-muted); }
+.foms-settle .s-pr-chline > span { text-align: right; font-size: calc(12px * var(--s-fs, 1)); color: var(--s-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.foms-settle .s-pr-chline--total { padding-bottom: 8px; border-bottom: 1px solid var(--s-line-soft); }
+.foms-settle .s-pr-chline--total > b { font-weight: 800; }
+.foms-settle .s-pr-chline--total > span { color: var(--s-text); font-weight: 800; }
+.foms-settle .s-pr-chbar { display: flex; gap: 2px; height: 24px; border-radius: 6px; overflow: hidden; background: var(--s-line-soft); }
+.foms-settle .s-pr-chline--total .s-pr-chbar { height: 32px; }
+.foms-settle .s-pr-chseg {
+  display: flex; align-items: center; justify-content: center; color: #fff;
+  font-weight: 800; font-size: calc(11.5px * var(--s-fs, 1)); min-width: 0; overflow: hidden; white-space: nowrap;
+  width: var(--s-pr-pct, 0%); background: var(--s-pr-c, var(--s-accent)); cursor: crosshair;
+}
+.foms-settle .s-pr-chseg--dark { color: #111827; }
+.foms-settle .s-pr-chseg--host { justify-content: flex-start; }
+.foms-settle .s-pr-chseg-own { flex: 1 1 auto; min-width: 0; height: 100%; display: flex; align-items: center; justify-content: center; overflow: hidden; white-space: nowrap; }
+.foms-settle .s-pr-chseg-inner {
+  flex: none; width: var(--s-pr-inner, 0%); height: 100%; min-width: 3px;
+  display: flex; align-items: center; justify-content: center; overflow: hidden; white-space: nowrap;
+  background: var(--s-pr-naver); color: #fff; box-shadow: inset 2px 0 0 var(--s-surface);
+}
+/* 예상 막대는 같은 색의 옅은 스텝 — 투명도로 옅게 하면 글자까지 옅어진다(요약 탭과 같은 결정). */
+.foms-settle .s-pr-chbar--plan .s-pr-chseg { background: color-mix(in srgb, var(--s-pr-c, var(--s-accent)) 32%, var(--s-surface)); color: var(--s-text); }
+.foms-settle .s-pr-chbar--plan .s-pr-chseg-inner { background: color-mix(in srgb, var(--s-pr-naver) 38%, var(--s-surface)); color: var(--s-text); }
+.foms-settle .s-pr-ch-rule {
+  margin: 12px 0 0; font-size: calc(11.5px * var(--s-fs, 1)); color: var(--s-muted); line-height: 1.55;
+  background: var(--s-surface-soft); border-radius: 8px; padding: 8px 10px;
+}
+.foms-settle .s-pr-ch-rule b { color: var(--s-text); }
+
+/* ── 표(시리즈 · 분류 안 된 품목) ───────────────────────────── */
+.foms-settle .s-pr-tblwrap { margin-top: 12px; overflow-x: auto; border: 1px solid var(--s-line-soft); border-radius: 8px; }
+.foms-settle .s-pr-tblwrap--flush { margin-top: 0; }
+.foms-settle .s-pr .s-dt { font-size: calc(12px * var(--s-fs, 1)); font-variant-numeric: tabular-nums; }
+.foms-settle .s-pr .s-dt th,
+.foms-settle .s-pr .s-dt td { padding: 6px 8px; white-space: nowrap; }
+.foms-settle .s-pr .s-dt thead th { position: static; font-size: calc(11px * var(--s-fs, 1)); font-weight: 700; }
+.foms-settle .s-pr .s-dt tbody tr:hover { background: var(--s-surface-soft); }
+.foms-settle .s-pr .s-dt td .s-pr-sw { margin-right: 6px; vertical-align: -1px; }
+.foms-settle .s-pr .s-dt .s-pr-dt-sub td { color: var(--s-muted); }
+.foms-settle .s-pr .s-dt .s-pr-dt-sub td:first-child { padding-left: 26px; }
+/* 시리즈 × 제품 수량 칩(예: "아라 무몰딩 여닫이 1개") — 시리즈 줄 바로 아래 한 줄. */
+.foms-settle .s-pr .s-dt tr.s-pr-dt-chips td { text-align: left; padding-top: 0; padding-bottom: 8px; white-space: normal; }
+.foms-settle .s-pr .s-dt tr.s-pr-dt-chips:hover { background: transparent; }
+.foms-settle .s-pr-sechip {
+  display: inline-flex; align-items: baseline; gap: 4px; margin: 3px 6px 0 0; padding: 2px 9px;
+  border: 1px solid var(--s-line); border-radius: 999px; background: var(--s-surface-soft);
+  font-size: calc(11.5px * var(--s-fs, 1)); color: var(--s-text); white-space: nowrap;
+}
+.foms-settle .s-pr-sechip b { font-weight: 800; font-variant-numeric: tabular-nums; }
+
+/* ── 월별 추이(소형 다중) ───────────────────────────────────── */
+.foms-settle .s-pr-tm-grid { margin-top: 14px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.foms-settle .s-pr-tm { border: 1px solid var(--s-line-soft); border-radius: 8px; padding: 10px 12px 6px; min-width: 0; }
+.foms-settle .s-pr-tm-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.foms-settle .s-pr-tm-head b { font-size: calc(13px * var(--s-fs, 1)); font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.foms-settle .s-pr-tm-head span { font-size: calc(12px * var(--s-fs, 1)); color: var(--s-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.foms-settle .s-pr-tm-head span strong { color: var(--s-text); font-weight: 800; }
+.foms-settle .s-pr-tm-head > .s-pr-tm-own {
+  flex: none; order: 2; font-size: calc(10.5px * var(--s-fs, 1)); font-weight: 700; color: var(--s-amber);
+  background: var(--s-amber-soft); border-radius: 4px; padding: 1px 6px;
+}
+.foms-settle .s-pr-tm-head > .s-pr-tm-meta { order: 3; margin-left: auto; }
+.foms-settle .s-pr-tm-chart { margin-top: 6px; line-height: 0; }
+.foms-settle .s-pr-tm-chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+.foms-settle .s-pr-ax { font-size: calc(11px * var(--s-fs, 1)); fill: var(--s-faint); font-variant-numeric: tabular-nums; }
+.foms-settle .s-pr-ax--now { fill: var(--s-amber); font-weight: 700; }
+.foms-settle .s-pr-ax--sel { fill: var(--s-accent); font-weight: 700; }
+.foms-settle .s-pr-gl { stroke: var(--s-line-soft); }
+.foms-settle .s-pr-bl { stroke: var(--s-axis); }
+.foms-settle .s-pr-bar-plan { fill: var(--s-plan); }
+.foms-settle .s-pr-bar-real { fill: var(--s-accent); }
+.foms-settle .s-pr-sel-band { fill: var(--s-accent-soft); }
+.foms-settle .s-pr-hit { fill: transparent; cursor: crosshair; outline: none; }
+.foms-settle .s-pr-hit:hover,
+.foms-settle .s-pr-hit:focus { fill: rgba(42, 120, 214, .07); }
+
+/* ── 분류 안 된 품목 ────────────────────────────────────────── */
+.foms-settle .s-pr-uq { margin-top: 14px; display: grid; grid-template-columns: minmax(0, 4fr) minmax(0, 8fr); gap: 18px; align-items: start; }
+.foms-settle .s-pr-uq-stats { display: grid; gap: 10px; }
+.foms-settle .s-pr-dbox { background: var(--s-surface-soft); border-radius: 8px; padding: 10px 12px; min-width: 0; }
+.foms-settle .s-pr-dbox--warn { background: var(--s-amber-soft); border-left: 3px solid var(--s-amber); }
+.foms-settle .s-pr-dbox-label { color: var(--s-muted); font-size: calc(11.5px * var(--s-fs, 1)); font-weight: 700; }
+.foms-settle .s-pr-dbox-val { font-size: calc(20px * var(--s-fs, 1)); font-weight: 800; margin-top: 2px; letter-spacing: -0.02em; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.foms-settle .s-pr-dbox-val i { font-style: normal; font-size: calc(12px * var(--s-fs, 1)); font-weight: 700; color: var(--s-muted); margin-left: 2px; }
+.foms-settle .s-pr-dbox-sub { color: var(--s-muted); font-size: calc(11.5px * var(--s-fs, 1)); margin-top: 2px; line-height: 1.5; }
+.foms-settle .s-pr-dbox-sub b { color: var(--s-text); }
+.foms-settle .s-pr-uq-cnt { display: inline-flex; align-items: center; gap: 8px; justify-content: flex-end; }
+.foms-settle .s-pr-uq-bar { display: inline-block; height: 8px; border-radius: 0 3px 3px 0; width: var(--s-pr-w, 0px); background: var(--s-ctx); }
+.foms-settle .s-pr .s-dt td.s-pr-uq-name { font-weight: 700; color: var(--s-text); white-space: normal; min-width: 150px; }
+
+/* ── 집계 기준 ──────────────────────────────────────────────── */
+.foms-settle .s-pr-rules { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
+.foms-settle .s-pr-rule { border: 1px solid var(--s-line-soft); border-radius: 8px; padding: 12px 14px; background: var(--s-surface-soft); }
+.foms-settle .s-pr-rule h3 { margin: 0 0 6px; font-size: calc(13.5px * var(--s-fs, 1)); font-weight: 800; }
+.foms-settle .s-pr-rule p { margin: 0; font-size: calc(12.5px * var(--s-fs, 1)); color: var(--s-muted); line-height: 1.6; }
+.foms-settle .s-pr-rule p b { color: var(--s-text); }
+.foms-settle .s-pr-check { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: calc(12.5px * var(--s-fs, 1)); color: var(--s-muted); font-variant-numeric: tabular-nums; }
+.foms-settle .s-pr-check b { color: var(--s-text); }
+
+/* ── 툴팁(공용 .s-tt 위에 값 정렬만) ────────────────────────── */
+.foms-settle .s-pr .s-tt { min-width: 150px; }
+.foms-settle .s-pr .s-tt-val { margin-left: auto; padding-left: 14px; }
+
+/* ── 반응형 ─────────────────────────────────────────────────── */
+@media (max-width: 1240px) {
+  .foms-settle .s-pr-row { grid-template-columns: 156px minmax(110px, 1fr) 100px 100px 58px 54px 92px; gap: 10px; }
+  .foms-settle .s-pr-rules { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 1120px) {
+  .foms-settle .s-pr-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .foms-settle .s-pr-span7,
+  .foms-settle .s-pr-span5 { grid-column: 1 / -1; }
+  .foms-settle .s-pr-tm-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .foms-settle .s-pr-uq { grid-template-columns: minmax(0, 1fr); }
+  .foms-settle .s-pr-uq-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 860px) {
+  .foms-settle .s-pr-row--head { display: none; }
+  .foms-settle .s-pr-row {
+    grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px 8px;
+    grid-template-areas: "name name name act" "bar bar bar bar" "exp rate share cnt";
+    padding: 9px 6px; border-bottom: 1px solid var(--s-line-soft); border-radius: 0;
+  }
+  .foms-settle .s-pr-c-exp,
+  .foms-settle .s-pr-c-rate,
+  .foms-settle .s-pr-c-share,
+  .foms-settle .s-pr-c-cnt { text-align: left; font-size: calc(11.5px * var(--s-fs, 1)); }
+  .foms-settle .s-pr-c-exp::before,
+  .foms-settle .s-pr-c-rate::before,
+  .foms-settle .s-pr-c-share::before,
+  .foms-settle .s-pr-c-cnt::before {
+    content: attr(data-l); display: block; font-size: calc(10.5px * var(--s-fs, 1)); font-weight: 700; color: var(--s-faint);
+  }
+  .foms-settle .s-pr-row--total .s-pr-c-name { padding-left: 0; }
+  .foms-settle .s-pr-detail { margin-left: 8px; }
+}
+@media (max-width: 720px) {
+  .foms-settle .s-pr-grid { gap: 12px; }
+  .foms-settle .s-pr .s-card { padding: 14px 14px 16px; }
+  .foms-settle .s-pr-kpis { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .foms-settle .s-pr-kpi-value { font-size: calc(24px * var(--s-fs, 1)); }
+  .foms-settle .s-pr-tm-grid,
+  .foms-settle .s-pr-uq-stats,
+  .foms-settle .s-pr-rules { grid-template-columns: minmax(0, 1fr); }
+  .foms-settle .s-pr-chline { grid-template-columns: minmax(0, 1fr) auto; gap: 3px 8px; }
+  .foms-settle .s-pr-chline .s-pr-chbar { grid-column: 1 / -1; grid-row: 2; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .foms-settle .s-pr-name::before { transition: none; }
+}

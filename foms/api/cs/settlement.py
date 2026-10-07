@@ -3,6 +3,8 @@
 - ``GET /api/settlement/aggregates?month_from=YYYY-MM&month_to=YYYY-MM&granularity=day|week|month``
   (또는 ``date_from=YYYY-MM-DD&date_to=YYYY-MM-DD`` — 정산 탭 공통 기간 바. 날짜가 우선)
 - ``GET /api/settlement/rows?period=&settlement=&channel=&aging=&page=&date_from=&date_to=`` (실무 탭)
+- ``GET /api/settlement/products?date_from=YYYY-MM-DD&date_to=YYYY-MM-DD`` (제품별 탭 — 집계만,
+  ``aggregates`` 와 같은 노출 계약: 주문 행·고객 정보 없음)
 
 집계 커널은 :func:`foms.services.settlement_aggregation.aggregate_settlement` (M1)이고
 이 모듈은 파라미터 파싱·권한 판정·응답 포장만 한다.
@@ -35,6 +37,7 @@ from db import get_db
 from foms.services.datetime_kst import get_today_kst
 from foms.services.settlement_aggregation import aggregate_settlement
 from foms.services.settlement_channel_access import can_view_channel_settlement
+from foms.services.settlement_products import aggregate_products
 from foms.services.settlement_rows import PER_PAGE, list_settlement_rows
 from foms.web.auth import login_required
 from foms.web.cs.settlement_dashboard import (
@@ -183,4 +186,36 @@ def api_settlement_rows():
 
     # 화면이 "칸이 없는 것"과 "값이 비어 있는 것"을 구분하려면 권한 판정 자체가 필요하다.
     data["channel_settlement_visible"] = include_naver_settlement
+    return jsonify({"success": True, "data": data, "error": None})
+
+
+@settlement_api_bp.route("/products", methods=["GET"])
+@login_required
+def api_settlement_products():
+    """정산 제품별 매출 탭 집계(읽기 전용).
+
+    ``aggregates`` 와 **같은 권한 게이트·같은 노출 계약**이다 — 제품군·시리즈 집계와 품명 빈도만
+    내고 주문 행·고객 정보는 내지 않는다.
+
+    Query Args:
+        date_from: 시공일 구간 시작 "YYYY-MM-DD". date_to 와 **함께** 준다.
+        date_to: 시공일 구간 끝 "YYYY-MM-DD". 둘 다 없으면 이번 달(KST).
+
+    Returns:
+        200 ``{'success': True, 'data': <aggregate_products 반환값>, 'error': None}``.
+        권한 거부 403, 날짜 오류(형식·한쪽만·범위 역전·366일 초과) 400 — 모두 같은 형식이다.
+    """
+    user = getattr(g, "current_user", None)
+    if not can_view_settlement_dashboard(user):
+        return _error("정산 대시보드 열람 권한이 없습니다.", 403)
+
+    try:
+        data = aggregate_products(
+            get_db(),
+            date_from=(request.args.get("date_from") or "").strip() or None,
+            date_to=(request.args.get("date_to") or "").strip() or None,
+        )
+    except ValueError as exc:
+        return _error(str(exc), 400)
+
     return jsonify({"success": True, "data": data, "error": None})
