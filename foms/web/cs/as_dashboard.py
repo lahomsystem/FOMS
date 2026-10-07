@@ -9,7 +9,7 @@ import datetime
 
 from foms.services.erp_display import _normalize_for_search
 from foms.services.common.erp_mine_filter import erp_mine_only_from_request
-from foms.services.erp_permissions import build_mine_sql_filter, can_edit_erp
+from foms.services.erp_permissions import build_mine_sql_filter, can_edit_erp, mine_membership_clause
 from foms.services.erp_display import _ensure_dict, apply_erp_display_fields_to_orders, get_today_kst
 from foms.services.as_content_safety import sanitize_as_content_html
 from foms.services.as_dashboard_display import apply_as_dashboard_row_display_fields
@@ -272,7 +272,7 @@ def erp_as_dashboard():
     if erp_mine_only and current_user:
         conds = build_mine_sql_filter(current_user)
         if conds:
-            base_query = base_query.filter(or_(*conds))
+            base_query = base_query.filter(mine_membership_clause(conds, scope_conds=[base_query.whereclause]))
         else:
             base_query = base_query.filter(Order.id == -1)
 

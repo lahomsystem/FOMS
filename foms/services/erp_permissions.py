@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+import weakref
 from functools import wraps
 from typing import Any, Callable
 
@@ -28,6 +29,7 @@ _LIKE_ESCAPE_RE = re.compile(r"([%_\\])")
 __all__ = [
     "build_mine_sql_filter",
     "mine_membership_clause",
+    "is_doc_scan_mine_cond",
     "can_act_construction",
     "can_edit_erp",
     "can_edit_erp_construction",
@@ -223,7 +225,26 @@ def is_order_related_to_user(order: Any, user: Any, *, scope: str | None = None)
 
 
 
-def mine_membership_clause(conds: list[Any]) -> Any | None:
+# 도면 문서 전체 ILIKE 갈래(무거운 조건) 표시. 구조 추측 대신 ``build_mine_sql_filter`` 가
+# 만들 때 여기에 등록한다. 범위 있는 화면(HYBRID)에서 이 조건만 바깥 OR 로 남긴다.
+_DOC_SCAN_CONDS: "weakref.WeakSet[Any]" = weakref.WeakSet()
+
+
+def _mark_doc_scan_cond(cond: Any) -> Any:
+    """무거운(문서 전체 ILIKE) 조건으로 표시하고 그대로 돌려준다."""
+    _DOC_SCAN_CONDS.add(cond)
+    return cond
+
+
+def is_doc_scan_mine_cond(cond: Any) -> bool:
+    """``build_mine_sql_filter`` 가 무거운 조건으로 표시한 객체인지."""
+    try:
+        return cond in _DOC_SCAN_CONDS
+    except TypeError:
+        return False
+
+
+def mine_membership_clause(conds: list[Any], scope_conds: list[Any] | None = None) -> Any | None:
     """``build_mine_sql_filter`` 조건 목록을 "주문 번호 UNION 멤버십" 하나로 묶는다.
 
     ``or_(*conds)`` 는 플래너가 trgm 인덱스를 못 써 ERP 행마다 JSONB 를 여러 번 푼다.
@@ -231,18 +252,35 @@ def mine_membership_clause(conds: list[Any]) -> Any | None:
     본다 — 갈래마다 자기 인덱스를 탄다(설계서 docs/specs/2026-10-06-nav-badge-count-query_SPEC.md).
     행 집합은 ``or_(*conds)`` 와 같다. 빈 목록이면 None — 빈 조건의 의미(필터 없음/0건)는
     호출부가 정한다.
+
+    ``scope_conds`` (HYBRID, 설계서 docs/specs/2026-10-07-mine-filter-scoped-screens_SPEC.md):
+    바깥 쿼리의 범위 술어(보통 mine 직전 ``query.whereclause``). 주어지면 가벼운 갈래마다
+    범위를 별칭으로 옮겨 함께 넣고, 무거운 조건(``is_doc_scan_mine_cond``)은 원본 그대로
+    바깥 ``OR`` 로 붙인다. 바깥에 같은 범위가 있으므로 결과 집합은 ``or_(*conds)`` 와 같다.
+    None 이면 기존 동작 그대로.
     """
     if not conds:
         return None
-    from sqlalchemy import select, union
+    from sqlalchemy import or_, select, union
     from sqlalchemy.sql.util import ClauseAdapter
 
     from foms.persistence.main.models import Order
 
     om = Order.__table__.alias("orders_mine")
     adapter = ClauseAdapter(om)
-    branches = [select(om.c.id).where(adapter.traverse(cond)) for cond in conds]
-    return Order.id.in_(union(*branches))
+    if scope_conds is None:
+        branches = [select(om.c.id).where(adapter.traverse(cond)) for cond in conds]
+        return Order.id.in_(union(*branches))
+
+    scope = [adapter.traverse(s) for s in scope_conds if s is not None]
+    light = [c for c in conds if not is_doc_scan_mine_cond(c)]
+    heavy = [c for c in conds if is_doc_scan_mine_cond(c)]
+    parts: list[Any] = []
+    if light:
+        branches = [select(om.c.id).where(*scope, adapter.traverse(cond)) for cond in light]
+        parts.append(Order.id.in_(union(*branches)))
+    parts.extend(heavy)
+    return parts[0] if len(parts) == 1 else or_(*parts)
 
 
 def build_mine_sql_filter(user: Any, scope: str | None = None) -> list[Any]:
@@ -287,10 +325,13 @@ def build_mine_sql_filter(user: Any, scope: str | None = None) -> list[Any]:
         manager_conds.append(_json_string_token_condition(Order.structured_data["workflow"]["current_quest"]["owner_person"], value, dialect_name=dialect_name))
         construction_conds.append(_json_string_token_condition(Order.structured_data["shipment"]["construction_workers"], value, dialect_name=dialect_name))
         drawing_conds.append(_json_string_token_condition(Order.structured_data["assignments"]["drawing_assignees"], value, dialect_name=dialect_name))
+        # 무거운 조건: 문서 전체 ILIKE — 범위 화면 HYBRID 가 바깥 OR 로 남기도록 표시한다.
         drawing_conds.append(
-            and_(
-                _json_like_condition(Order.structured_data, value, dialect_name=dialect_name),  # perf-ok: ix_orders_structured_data_text_trgm
-                _json_string_token_condition(Order.structured_data["drawing_assignees"], value, dialect_name=dialect_name),
+            _mark_doc_scan_cond(
+                and_(
+                    _json_like_condition(Order.structured_data, value, dialect_name=dialect_name),  # perf-ok: ix_orders_structured_data_text_trgm
+                    _json_string_token_condition(Order.structured_data["drawing_assignees"], value, dialect_name=dialect_name),
+                )
             )
         )
 

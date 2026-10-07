@@ -9,7 +9,7 @@ from foms.services.error_logging import log_handled_exception
 import datetime
 
 from flask import Blueprint, jsonify, request, session
-from sqlalchemy import and_, or_
+from sqlalchemy import and_
 from sqlalchemy.orm.attributes import flag_modified
 
 from foms.web.auth import get_user_by_id, login_required
@@ -23,7 +23,11 @@ from foms.services.erp_dashboard_search import (
 from foms.services.erp_order_deeplink import load_focus_order_only
 from foms.services.erp_display import _ensure_dict, manager_display_name
 from foms.services.common.erp_mine_filter import erp_mine_only_for_construction
-from foms.services.erp_permissions import build_mine_sql_filter, is_order_related_to_user
+from foms.services.erp_permissions import (
+    build_mine_sql_filter,
+    is_order_related_to_user,
+    mine_membership_clause,
+)
 from foms.services.erp_policy import ORDER_SETTLEMENT_ALERT_TARGET_STATUSES
 from foms.services.foms_unified_search import (
     _matches_phone,
@@ -54,7 +58,8 @@ def _apply_mine_filter(query, user, *, mine_only: bool):
     mine_conds = build_mine_sql_filter(user)
     if not mine_conds:
         return query.filter(Order.id == -1)
-    return query.filter(or_(*mine_conds))
+    # 범위(완료 큐 바깥 조건)를 넣은 UNION + 무거운 갈래만 OR (HYBRID)
+    return query.filter(mine_membership_clause(mine_conds, scope_conds=[query.whereclause]))
 
 # 비용 청구 귀속 대상 (계획서 3.1)
 SETTLEMENT_DEPARTMENTS = ("SALES", "DRAWING", "PRODUCTION", "CONSTRUCTION", "CUSTOMER")

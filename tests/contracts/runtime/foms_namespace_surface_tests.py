@@ -1226,6 +1226,7 @@ def test_namespaced_erp_permissions_shim_preserves_canonical_contract() -> None:
     expected_public_names = [
         "build_mine_sql_filter",
         "mine_membership_clause",
+        "is_doc_scan_mine_cond",
         "can_act_construction",
         "can_edit_erp",
         "can_edit_erp_construction",
