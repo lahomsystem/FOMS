@@ -98,10 +98,10 @@ def build_production_orders_query(
 
     if erp_mine_only and user:
         # lazy import: erp_permissions canonical path (namespace 계약 + circular 회피, 원본 패턴 유지)
-        from foms.services.erp_permissions import build_mine_sql_filter
+        from foms.services.erp_permissions import build_mine_sql_filter, mine_membership_clause
         conds = build_mine_sql_filter(user)
         if conds:
-            _q = _q.filter(or_(*conds))
+            _q = _q.filter(mine_membership_clause(conds, scope_conds=[_q.whereclause]))
         else:
             _q = _q.filter(Order.id == -1)
 

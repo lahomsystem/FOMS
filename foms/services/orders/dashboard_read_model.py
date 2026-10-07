@@ -82,10 +82,10 @@ def build_orders_dashboard_queries(db, current_user, is_admin: bool, filters: Or
 
     if filters.mine and current_user:
         # lazy import: erp_permissions canonical path (namespace 계약 + circular 회피, 원본 패턴 유지)
-        from foms.services.erp_permissions import build_mine_sql_filter
+        from foms.services.erp_permissions import build_mine_sql_filter, mine_membership_clause
         mine_conds = build_mine_sql_filter(current_user)
         if mine_conds:
-            _q = _q.filter(or_(*mine_conds))
+            _q = _q.filter(mine_membership_clause(mine_conds, scope_conds=[_q.whereclause]))
 
     today_date = get_today_kst()
     today_iso = today_date.isoformat()

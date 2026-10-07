@@ -2,8 +2,8 @@
 
 설계서 docs/specs/2026-10-06-nav-badge-count-query_SPEC.md §9.
 이력·통합 검색·도면 작업대는 ``build_mine_sql_filter`` 조건을 ``or_(*conds)`` 대신
-``mine_membership_clause`` 로 묶는다. 60일 대시보드 계열(타워·대시보드·생산·시공·AS·완료 큐)은
-도면팀 사용자가 스테이징에서 +120~190ms 느려져 OR 꼴을 유지한다(설계서 §9 표).
+``mine_membership_clause`` 로 묶는다. 범위 있는 대시보드 계열(타워·대시보드·생산·시공·AS·완료 큐)은
+HYBRID(``scope_conds``)로 바꿨다 — 계약은 tests/domains/test_mine_filter_scoped_screens.py.
 
 1. 모양: 각 경로 소스에 ``or_(*..mine/conds..)`` 꼴이 남지 않고 헬퍼를 부른다.
 2. 동일성: 팀·도면 scope 별로 옛 OR 꼴과 주문 번호 집합이 같다(음성 대조군 포함).

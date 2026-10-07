@@ -31,7 +31,7 @@ from foms.services.erp_display import (
 )
 from foms.services.datetime_kst import now_utc_naive
 from foms.services.common.business_calendar import business_days_until
-from foms.services.erp_permissions import build_mine_sql_filter
+from foms.services.erp_permissions import build_mine_sql_filter, mine_membership_clause
 from foms.services.shipment_dashboard_helpers import AS_SHIPMENT_STATUSES
 
 __all__ = [
@@ -188,7 +188,7 @@ def _tower_base_query(db: Any, current_user: Any):
     if current_user and (getattr(current_user, "team", None) or "") == "CONSTRUCTION":
         conds = build_mine_sql_filter(current_user)
         if conds:
-            q = q.filter(or_(*conds))
+            q = q.filter(mine_membership_clause(conds, scope_conds=[q.whereclause]))
     return q
 
 
@@ -594,12 +594,9 @@ def _mine_open_count(base: Any, current_user: Any) -> int:
     conds = build_mine_sql_filter(current_user)
     if not conds:
         return 0
-    return int(
-        base.filter(or_(*conds))
-        .filter(or_(Order.erp_stage_code.is_(None), Order.erp_stage_code.notin_(_DONE_CODES)))
-        .count()
-        or 0
-    )
+    # 단계 조건까지 먼저 붙인 범위를 갈래에 넣는다(HYBRID, 결과는 OR 과 같다)
+    scoped = base.filter(or_(Order.erp_stage_code.is_(None), Order.erp_stage_code.notin_(_DONE_CODES)))
+    return int(scoped.filter(mine_membership_clause(conds, scope_conds=[scoped.whereclause])).count() or 0)
 
 
 def _apply_mine_only(base: Any, current_user: Any) -> Any:
@@ -607,7 +604,9 @@ def _apply_mine_only(base: Any, current_user: Any) -> Any:
     if not current_user:
         return base
     conds = build_mine_sql_filter(current_user)
-    return base.filter(or_(*conds)) if conds else base
+    if not conds:
+        return base
+    return base.filter(mine_membership_clause(conds, scope_conds=[base.whereclause]))
 
 
 def build_field_ops_for_day(

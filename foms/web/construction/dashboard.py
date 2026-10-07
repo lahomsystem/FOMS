@@ -7,7 +7,6 @@ import time
 from typing import Any
 
 from flask import Blueprint, g, make_response, render_template, request
-from sqlalchemy import or_
 
 from foms.web.auth import login_required
 from db import get_db
@@ -23,6 +22,7 @@ from foms.services.common.ept_b7_profile import apply_ept_b7_render_headers, pha
 from foms.services.common.erp_shell_http import apply_erp_shell_fragment_headers, wants_erp_shell_tab_body
 from foms.services.erp_permissions import (
     build_mine_sql_filter,
+    mine_membership_clause,
     can_act_construction,
     can_edit_erp,
     is_order_related_to_user,
@@ -82,7 +82,7 @@ def erp_construction_dashboard():
     if mine_only and user:
         mine_conds = build_mine_sql_filter(user)
         if mine_conds:
-            query = query.filter(or_(*mine_conds))
+            query = query.filter(mine_membership_clause(mine_conds, scope_conds=[query.whereclause]))
         else:
             query = query.filter(Order.id == -1)
 
