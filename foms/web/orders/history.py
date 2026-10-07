@@ -33,6 +33,7 @@ from foms.services.common.fragment_revalidation import (
 )
 from foms.services.erp_permissions import (
     build_mine_sql_filter,
+    mine_membership_clause,
     can_edit_erp,
     is_order_related_to_user,
 )
@@ -208,9 +209,9 @@ def history_dashboard():
     _q = db.query(Order).filter(Order.active_filter())
 
     if mine_only and user:
-        mine_conds = build_mine_sql_filter(user)
-        if mine_conds:
-            _q = _q.filter(or_(*mine_conds))
+        mine_clause = mine_membership_clause(build_mine_sql_filter(user))
+        if mine_clause is not None:
+            _q = _q.filter(mine_clause)
         else:
             _q = _q.filter(Order.id == -1)
     
