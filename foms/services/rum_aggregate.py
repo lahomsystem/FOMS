@@ -7,7 +7,7 @@
 회귀 판정(rum-daily): KST 오늘 제외 · 일별 MIN_DAY_SAMPLES · 유효 recent
 RECENT_WINDOW일 **전부** threshold 초과(지속) · 표시는 중앙값. 아침 cron 오탐 차단.
 
-Key: ``foms:rum:v1:<YYYY-MM-DD>:<metric>`` (Redis Hash, field=bucket index, value=count)
+Key: ``foms:rum:v2:<YYYY-MM-DD>:<metric>`` (Redis Hash, field=bucket index, value=count)
 TTL: 35일. Redis 부재/오류 시 조용히 skip(기존 fail-open 관례).
 
 무인증 수신 엔드포인트의 키 카디널리티 공격을 막기 위해 **고정 메트릭명 화이트리스트**
@@ -23,7 +23,8 @@ from typing import Any, Final, NamedTuple
 
 logger = logging.getLogger("foms.rum")
 
-KEY_VERSION: Final[str] = "v1"
+# v2(2026-10-07): 버킷을 촘촘하게 바꿔 인덱스 의미가 달라졌다 — v1 해시와 섞이지 않게 키를 나눈다.
+KEY_VERSION: Final[str] = "v2"
 KEY_PREFIX: Final[str] = f"foms:rum:{KEY_VERSION}"
 TTL_SECONDS: Final[int] = 35 * 24 * 3600
 
@@ -32,8 +33,11 @@ TTL_SECONDS: Final[int] = 35 * 24 * 3600
 ALLOWED_METRICS: Final[frozenset[str]] = frozenset({"LCP", "INP", "LOAD", "SWAP"})
 
 # 고정 버킷 상한(ms). 마지막 버킷은 open-ended(5000+ ms).
-#   버킷0 [0,100) 1 [100,300) 2 [300,800) 3 [800,2000) 4 [2000,5000) 5 [5000,+inf)
-BUCKET_UPPER_BOUNDS_MS: Final[tuple[int, ...]] = (100, 300, 800, 2000, 5000)
+# v1 의 6칸 (100, 300, 800, 2000, 5000) 은 p95 가 800 경계 근처일 때 800 이상 몇 건만으로
+# 보간값이 [800,2000) 칸으로 넘어가 두 배로 튀었다(2026-10-07 INP 오경보: 정확 448ms → 집계 967ms).
+BUCKET_UPPER_BOUNDS_MS: Final[tuple[int, ...]] = (
+    50, 100, 150, 200, 300, 400, 500, 600, 800, 1000, 1500, 2000, 5000,
+)
 BUCKET_COUNT: Final[int] = len(BUCKET_UPPER_BOUNDS_MS) + 1
 BUCKET_LOWER_BOUNDS_MS: Final[tuple[int, ...]] = (0,) + BUCKET_UPPER_BOUNDS_MS
 # open-ended 최상위 버킷 보간용 명목 상한(ms). 실제 값이 아니라 p-quantile 보간 상한.
@@ -95,7 +99,7 @@ def recent_kst_dates(days: int) -> list[str]:
 
 
 def build_rum_key(date_str: str, metric: str) -> str:
-    """집계 Redis 키 문자열 생성(``foms:rum:v1:<date>:<metric>``)."""
+    """집계 Redis 키 문자열 생성(``foms:rum:v2:<date>:<metric>``)."""
     return f"{KEY_PREFIX}:{date_str}:{metric}"
 
 
@@ -225,6 +229,9 @@ class RegressionVerdict(NamedTuple):
 # SKIP_TODAY_FOR_REGRESSION 이면 조회 일수 하한 = 1(오늘)+RECENT+BASELINE.
 RECENT_WINDOW: Final[int] = 2
 BASELINE_WINDOW: Final[int] = 5
+# 유효 baseline 일수가 이보다 적으면 판정 보류. 키 버전 전환 직후 하루~이틀치 기준으로
+# 판정하면 흔들린다.
+MIN_BASELINE_DAYS: Final[int] = 3
 
 
 def p95_for_regression(p95: float | None, samples: int) -> float | None:
@@ -260,7 +267,7 @@ def detect_regression(
         threshold: 회귀 배수(기본 1.5 = +50%).
 
     Returns:
-        RegressionVerdict. 유효 recent < RECENT_WINDOW 이거나 baseline 없으면
+        RegressionVerdict. 유효 recent < RECENT_WINDOW · 유효 baseline < MIN_BASELINE_DAYS 이거나 baseline 없으면
         regressed=None.
     """
     recent_vals = [x for x in recent_p95 if x is not None]
@@ -272,8 +279,8 @@ def detect_regression(
     if base_med <= 0:
         return RegressionVerdict(None, recent_med, base_med, None)
     ratio = recent_med / base_med
-    # 하루만 유효하면 "지속"을 주장할 수 없음 → 판정 skip.
-    if len(recent_vals) < RECENT_WINDOW:
+    # 하루만 유효하면 "지속"을 주장할 수 없음 → 판정 skip. 기준이 MIN_BASELINE_DAYS 일 미만이어도 skip.
+    if len(recent_vals) < RECENT_WINDOW or len(baseline_vals) < MIN_BASELINE_DAYS:
         return RegressionVerdict(None, recent_med, base_med, ratio)
     cutoff = base_med * threshold
     sustained = all(v >= cutoff for v in recent_vals)

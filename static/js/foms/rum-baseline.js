@@ -48,10 +48,27 @@
     // 번에 keydown·keyup·input 이 각각 나가 운영 web 요청의 40% 를 차지했고 서버 한도(429)에
     // 걸렸다(2026-10-01 실측). 최댓값만 들고 있다가 화면을 떠날 때·탭 전환 때 한 번 보낸다.
     var worstInp = null;
+    // 기기 한 대가 하루에 보내는 INP 는 INP_DAILY_CAP 건까지다. 느린 태블릿 1대가 하루 34~56건을
+    // 보내 일별 p95 를 끌어올려 rum-daily 가 red 가 됐다(2026-10-07). 하루 약 1,000건 중 2% 이하로 묶는다.
+    // storage 를 못 쓰면(사생활 보호 모드 등) 지금처럼 보낸다.
+    var INP_DAILY_CAP = 20;
+    var INP_DAILY_KEY = 'foms_rum_inp_daily';
+    function takeInpDailySlot() {
+      try {
+        var d = new Date();
+        var today = d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate();
+        var saved = JSON.parse(window.localStorage.getItem(INP_DAILY_KEY) || 'null');
+        var count = saved && saved.date === today ? saved.count : 0;
+        if (count >= INP_DAILY_CAP) { return false; }
+        window.localStorage.setItem(INP_DAILY_KEY, JSON.stringify({ date: today, count: count + 1 }));
+      } catch (e) { /* storage 불가 — 보낸다 */ }
+      return true;
+    }
     function flushInp() {
       if (!worstInp) { return; }
       var payload = worstInp;
       worstInp = null;
+      if (!takeInpDailySlot()) { return; }
       sendMetric(payload);
     }
     try {
