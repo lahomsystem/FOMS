@@ -87,6 +87,7 @@ def _row_to_item(order: Order, link: dict[str, Any], state: str) -> dict[str, An
         "order_id": order.id,
         "customer_name": get_order_display_customer_name(order),
         "address": get_order_display_address(order),
+        "phone": order.phone or "",
         "item_text": _item_text_of(order.structured_data),
         "state": state,
         "ref_date": link.get("ref_date"),
@@ -117,7 +118,7 @@ def build_sales_delivery_by_ref(db: Session, *, cap: int = 300) -> dict[str, Any
     conditions = build_as_tab_query_conditions(dialect_name=_dialect_name(db))
     query = (
         db.query(Order)
-        .options(load_only(Order.id, Order.customer_name, Order.address, Order.structured_data))
+        .options(load_only(Order.id, Order.customer_name, Order.address, Order.phone, Order.structured_data))
         .filter(Order.active_filter(), conditions["sales_delivery_condition"])
         .order_by(Order.id.desc())
     )

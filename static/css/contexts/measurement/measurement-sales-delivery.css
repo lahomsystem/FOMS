@@ -246,3 +246,73 @@
   white-space: normal;
   word-break: break-word;
 }
+
+/* --- 스케줄표 동행 전달 줄(PC 표 + 모바일 한눈 목록) ------------------------- */
+
+.meas-sd-row__tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.0625rem 0.4375rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: #9d174d;
+  background: #fce7f3;
+  border-radius: 9999px;
+  white-space: nowrap;
+}
+
+tr.meas-sd-row > td {
+  background: #fdf2f8;
+  color: #4b525d;
+  font-size: 0.875rem;
+  border-right: 1px solid #f9d3e6;
+}
+
+tr.meas-sd-row.is-delivered > td {
+  opacity: 0.6;
+}
+
+.foms-meas-glance__sd {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  margin: 0 0 0.375rem 2.75rem;
+  padding: 0.5rem 0.625rem;
+  font-size: 0.8125rem;
+  color: #4b525d;
+  background: #fdf2f8;
+  border-left: 3px solid #f472b6;
+  border-radius: 0.375rem;
+}
+
+.foms-meas-glance__sd.is-delivered {
+  opacity: 0.6;
+}
+
+.foms-meas-glance__sd-head {
+  color: #14171c;
+}
+
+.foms-meas-glance__sd-no {
+  color: #6b7380;
+  font-size: 0.75rem;
+}
+
+.foms-meas-glance__sd-line {
+  word-break: break-word;
+}
+
+.foms-meas-glance__sd-tel {
+  color: #1d4ed8;
+  text-decoration: none;
+}
+
+[data-theme='dark'] tr.meas-sd-row > td,
+[data-theme='dark'] .foms-meas-glance__sd {
+  background: #2a1520;
+  color: #d1d5db;
+}
+
+[data-theme='dark'] .foms-meas-glance__sd-head {
+  color: #f7f8fa;
+}

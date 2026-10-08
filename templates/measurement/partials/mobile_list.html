@@ -84,6 +84,16 @@
             <i class="fas fa-chevron-right foms-meas-glance__chev" aria-hidden="true"></i>
           </a>
         </div>
+        {# 동행 전달: 이 실측 길에 함께 들고 갈 AS 건 — 이름·주소·전화·품목을 목록에서 바로 본다. #}
+        {% for sd_item in (o.sales_delivery_items or []) %}
+        {% set _sdp = (sd_item.phone or '')|replace('-', '')|replace(' ', '') %}
+        <div class="foms-meas-glance__sd{% if sd_item.state == 'delivered' %} is-delivered{% endif %}" data-meas-sd-row="{{ sd_item.order_id }}">
+          <span class="foms-meas-glance__sd-head"><span class="meas-sd-row__tag">AS 전달</span> <b>{{ sd_item.customer_name or '-' }}</b> <span class="foms-meas-glance__sd-no">#{{ sd_item.order_id }}</span>{% if sd_item.state == 'delivered' %} <span class="meas-sd-state meas-sd-state--delivered">전달완료</span>{% endif %}</span>
+          {% if sd_item.address %}<span class="foms-meas-glance__sd-line"><i class="fas fa-location-dot" aria-hidden="true"></i> {{ sd_item.address }}</span>{% endif %}
+          {% if _sdp %}<a class="foms-meas-glance__sd-line foms-meas-glance__sd-tel" href="tel:{{ _sdp }}"><i class="fas fa-phone" aria-hidden="true"></i> {{ sd_item.phone|format_phone }}</a>{% endif %}
+          <span class="foms-meas-glance__sd-line"><i class="fas fa-box" aria-hidden="true"></i> {{ sd_item.item_text or '전달 품목 미기재' }}</span>
+        </div>
+        {% endfor %}
         {% endfor %}
         </div>
       </div>
