@@ -377,6 +377,10 @@
     els.zoomLabel = document.getElementById('dws-zoom-label');
     els.fileInput = document.getElementById('dws-file-input');
     els.mtTrim = document.getElementById('dws-mt-trim');
+    els.mtFlipX = document.getElementById('dws-mt-flip-x');
+    els.mtFlipY = document.getElementById('dws-mt-flip-y');
+    els.mtLockBtns = ['text', 'image', 'shape'].map(function (k) { return document.getElementById('dws-mt-lock-' + k); }).filter(Boolean);
+    els.mtEyedropBtns = ['text', 'shape'].map(function (k) { return document.getElementById('dws-mt-eyedrop-' + k); }).filter(Boolean);
     els.presetMenu = document.getElementById('dws-preset-menu');
     els.shapeMenu = document.getElementById('dws-shape-menu');
     els.exportMenu = document.getElementById('dws-export-menu');
@@ -895,6 +899,7 @@
   function tagNode(node, o) {
     node.setAttr('annoType', o.type);
     node.setAttr('objId', o.id);
+    node.setAttr('annoLocked', !!o.locked);   // 잠금 객체: 이동·변형·삭제·러버밴드 선택 제외
     wireNode(node);
     return node;
   }
@@ -923,7 +928,7 @@
       var natural = Math.max(1, Math.round(node.width()));
       if (o.w !== natural) { o.w = natural; }
     }
-    node.on('dblclick', function (e) { e.cancelBubble = true; if (canSave) { startEditText(node, false); } });
+    node.on('dblclick', function (e) { e.cancelBubble = true; if (canSave && !isLockedNode(node)) { startEditText(node, false); } });
     return node;
   }
 
@@ -956,7 +961,7 @@
     });
     group.setAttr('richWidth', Math.round(groupWidth));
     tagNode(group, o);
-    group.on('dblclick', function (e) { e.cancelBubble = true; if (canSave) { startEditText(group, false); } });
+    group.on('dblclick', function (e) { e.cancelBubble = true; if (canSave && !isLockedNode(group)) { startEditText(group, false); } });
     return group;
   }
 
@@ -973,16 +978,35 @@
     if (o.key) {
       var cached = _annoImgCache[o.key];
       if (cached && cached.complete && cached.naturalWidth) {
-        node.image(cached);   // 재빌드 시 동기 반영 → 깜빡임 없음
+        node.image(flippedImageSource(cached, o));   // 재빌드 시 동기 반영 → 깜빡임 없음
       } else {
         var img = cached || new Image();
         _annoImgCache[o.key] = img;
-        img.onload = function () { node.image(img); konvaLayer.batchDraw(); };
+        img.onload = function () { node.image(flippedImageSource(img, o)); konvaLayer.batchDraw(); };
         img.onerror = function () { /* 로드 실패 시 빈 프레임 유지 */ };
         if (!img.src) { img.src = viewUrl(o.key); }
       }
     }
     return node;
+  }
+
+  /* 이미지 뒤집기(flipX/flipY) — 원본 이미지를 뒤집어 그린 캔버스를 Konva.Image 소스로 쓴다.
+     노드는 scale 1·offset 0 그대로라 위치/bbox 가 변하지 않고, applyLiveTransform/commitNode 의
+     scale→치수 정규화가 뒤집기를 지우지 않는다(뒤집기는 state 의 flipX/flipY 가 정본). */
+  function flippedImageSource(img, o) {
+    var fx = !!(o && o.flipX), fy = !!(o && o.flipY);
+    if ((!fx && !fy) || !img || !img.naturalWidth) { return img; }
+    var cacheKey = (fx ? 'x' : '') + (fy ? 'y' : '');
+    img._dwsFlip = img._dwsFlip || {};
+    if (img._dwsFlip[cacheKey]) { return img._dwsFlip[cacheKey]; }
+    var cv = document.createElement('canvas');
+    cv.width = img.naturalWidth; cv.height = img.naturalHeight;
+    var ctx = cv.getContext('2d');
+    ctx.translate(fx ? cv.width : 0, fy ? cv.height : 0);
+    ctx.scale(fx ? -1 : 1, fy ? -1 : 1);
+    ctx.drawImage(img, 0, 0);
+    img._dwsFlip[cacheKey] = cv;
+    return cv;
   }
 
   function buildRect(o) {
@@ -1087,6 +1111,7 @@
       if (annoMode !== 'select') { return; }   // 그리기 모드면 스테이지 핸들러가 처리
       e.cancelBubble = true;
       var id = node.getAttr('objId');
+      if (eyedropArmed) { pickEyedropColor(id); return; }   // 스포이트: 선택 변경 없이 색만 가져온다
       var devt = e.evt || {};
       // Shift/Ctrl/Cmd+클릭 = 선택 토글(추가/제거), 일반 클릭 = 단일 선택.
       if (devt.shiftKey || devt.ctrlKey || devt.metaKey) { toggleInSelection(id); }
@@ -1095,6 +1120,7 @@
     // 아래 드래그/변형 핸들러는 단일 선택 전용 — 다중(그룹)은 transformer 레벨 핸들러가 처리.
     node.on('dragstart', function (e) {
       if (annoMode !== 'select') { node.stopDrag(); return; }
+      if (isLockedNode(node)) { node.stopDrag(); return; }   // 잠금 객체는 이동 불가
       if (lastPointerType === 'touch') { node.stopDrag(); return; }   // 손가락 드래그 금지(팜 리젝션 — 손가락=이동/핀치 전용)
       var alt = !!(e && e.evt && e.evt.altKey);
       if (isMultiSelect()) { if (alt) { startAltDuplicate(selectedIds.slice()); } return; }
@@ -1207,7 +1233,7 @@
       var node = buildNode(o);
       if (node) { konvaLayer.add(node); nodeById[o.id] = node; }
     });
-    konvaLayer.find('.anno').forEach(function (n) { n.draggable(canSave && annoMode === 'select'); });
+    konvaLayer.find('.anno').forEach(function (n) { n.draggable(canSave && annoMode === 'select' && !isLockedNode(n)); });
     transformer.moveToTop();
     konvaLayer.batchDraw();
     // 다중 선택 복원: 아직 존재하는 노드만 유지, 하나라도 남으면 applySelection, 전부 사라졌으면 해제.
@@ -1274,7 +1300,9 @@
       transformer.shouldOverdrawWholeArea(false);
       transformer.keepRatio(t === 'image' ? imageRatioLock : false);
       // 런 텍스트는 이동·회전만(리사이즈 앵커 비활성) — 단색 텍스트/도형은 코너 앵커 유지.
-      transformer.enabledAnchors(isRich ? [] : ['top-left', 'top-right', 'bottom-left', 'bottom-right']);
+      var lockedOne = isLockedNode(node);
+      transformer.enabledAnchors((isRich || lockedOne) ? [] : ['top-left', 'top-right', 'bottom-left', 'bottom-right']);
+      transformer.rotateEnabled(!lockedOne);   // 잠금 = 변형 불가(선택은 잠금 해제용으로 허용)
       transformer.nodes([node]);
       transformer.moveToTop();
       hideAlignToolbar();
@@ -1282,9 +1310,11 @@
     } else {
       // 다중: 그룹 bbox 영역 드래그=함께 이동, 코너 앵커=그룹 리사이즈/회전.
       // (런 텍스트 포함 시 리사이즈는 richWidth 로 되돌아감 — 이동/정렬은 정상. 문서화된 한계.)
-      transformer.shouldOverdrawWholeArea(true);
+      var anyLocked = nodes.some(isLockedNode);   // 잠금 포함 다중 선택 = 그룹 이동·변형 금지
+      transformer.shouldOverdrawWholeArea(!anyLocked);
       transformer.keepRatio(false);
-      transformer.enabledAnchors(['top-left', 'top-right', 'bottom-left', 'bottom-right']);
+      transformer.enabledAnchors(anyLocked ? [] : ['top-left', 'top-right', 'bottom-left', 'bottom-right']);
+      transformer.rotateEnabled(!anyLocked);
       transformer.nodes(nodes);
       transformer.moveToTop();
       hideMiniToolbar();
@@ -1423,8 +1453,9 @@
     els.mtShape.hidden = !isStrokeType(t);   // pen 도 line 처럼 색/굵기/삭제 툴 노출
     els.mt.hidden = false;
     if (t === 'text') { syncTextToolbar(o); }
-    else if (t === 'image') { syncImageToolbar(); }
+    else if (t === 'image') { syncImageToolbar(o); }
     else { syncShapeToolbar(o); }
+    syncLockEyedropButtons(o);
     positionMiniToolbar();
   }
 
@@ -1459,8 +1490,20 @@
     els.mtAlign.classList.toggle('dws-active', o.align === 'center');
   }
 
-  function syncImageToolbar() {
+  function syncImageToolbar(o) {
     els.mtRatio.textContent = '비율고정: ' + (imageRatioLock ? '켬' : '끔');
+    if (!o) { o = findObj(selected); }
+    if (els.mtFlipX) { els.mtFlipX.classList.toggle('dws-active', !!(o && o.flipX)); }
+    if (els.mtFlipY) { els.mtFlipY.classList.toggle('dws-active', !!(o && o.flipY)); }
+  }
+
+  function syncLockEyedropButtons(o) {
+    var locked = !!(o && o.locked);
+    els.mtLockBtns.forEach(function (b) {
+      b.textContent = locked ? '잠금 해제' : '잠금';
+      b.classList.toggle('dws-active', locked);
+    });
+    els.mtEyedropBtns.forEach(function (b) { b.classList.toggle('dws-active', eyedropArmed); });
   }
 
   function syncShapeToolbar(o) {
@@ -1497,6 +1540,84 @@
     selectById(o.id);
   }
 
+  /* ---- 잠금 / 뒤집기 / 스포이트 ------------------------------------------- */
+  function isLockedNode(n) { return !!(n && n.getAttr('annoLocked')); }
+
+  function reselect(ids) {
+    rebuildAnno();
+    selectedIds = ids.filter(function (id) { return !!nodeById[id]; });
+    applySelection();
+  }
+
+  /** 선택 잠금 토글: 전부 잠겨 있으면 해제, 하나라도 풀려 있으면 전부 잠금. */
+  function toggleLockSelected() {
+    if (!canSave) { return; }
+    var objs = selectedIds.map(findObj).filter(Boolean);
+    if (!objs.length) { toast('잠글 객체를 먼저 선택하세요.'); return; }
+    var unlock = objs.every(function (o) { return o.locked; });
+    recordUndo();
+    objs.forEach(function (o) { if (unlock) { delete o.locked; } else { o.locked = true; } });
+    markDirty();
+    reselect(selectedIds.slice());
+    toast(unlock ? '잠금을 해제했습니다.' : '잠갔습니다. 이동·변형·삭제가 막힙니다 (Ctrl+L 로 해제).');
+  }
+
+  /** 현재 시트의 잠긴 객체 전부 잠금 해제(Ctrl+Shift+L / Ctrl+Alt+L). */
+  function unlockAllOnSheet() {
+    if (!canSave || !currentSheet()) { return; }
+    var locked = (currentSheet().objects || []).filter(function (o) { return o.locked; });
+    if (!locked.length) { toast('잠긴 객체가 없습니다.'); return; }
+    recordUndo();
+    locked.forEach(function (o) { delete o.locked; });
+    markDirty();
+    reselect(selectedIds.slice());
+    toast('잠긴 객체 ' + locked.length + '개를 모두 풀었습니다.');
+  }
+
+  /** 이미지 좌우(flipX)/상하(flipY) 뒤집기 — 위치·크기는 그대로, 실행 취소 가능. */
+  function flipSelectedImage(axis) {
+    var o = findObj(selected);
+    if (!canSave || !o || o.type !== 'image') { return; }
+    if (o.locked) { toast('잠긴 객체는 뒤집을 수 없습니다.'); return; }
+    recordUndo();
+    if (o[axis]) { delete o[axis]; } else { o[axis] = true; }
+    markDirty();
+    reselect([o.id]);
+  }
+
+  /* 스포이트: 텍스트/도형 선택 후 버튼 → 다음에 클릭한 객체의 색(글자색/선색)을 선택 객체에 적용. */
+  var eyedropArmed = false;
+  function setEyedropUi(on) {
+    eyedropArmed = on;
+    if (els.anno) { els.anno.classList.toggle('dws-eyedrop-armed', on); }
+    els.mtEyedropBtns.forEach(function (b) { b.classList.toggle('dws-active', on); });
+  }
+  function armEyedrop() {
+    var o = findObj(selected);
+    if (!canSave || !o || !(o.type === 'text' || isStrokeType(o.type))) { return; }
+    setEyedropUi(true);
+    toast('색을 가져올 객체를 클릭하세요 (Esc 취소).');
+  }
+  function cancelEyedrop() { if (eyedropArmed) { setEyedropUi(false); toast('스포이트를 취소했습니다.'); } }
+  function objColorOf(o) {
+    if (!o) { return null; }
+    if (o.type === 'text') { return (o.runs && o.runs.length) ? o.runs[0].c : o.color; }
+    if (isStrokeType(o.type)) { return o.stroke; }
+    return null;
+  }
+  function pickEyedropColor(sourceId) {
+    var target = findObj(selected);
+    var color = objColorOf(findObj(sourceId));
+    setEyedropUi(false);
+    if (!target) { return; }
+    if (!color) { toast('이 객체에는 가져올 색이 없습니다.'); return; }
+    if (target.locked) { toast('잠긴 객체에는 색을 적용할 수 없습니다.'); return; }
+    // 견본(data-color / data-shape-color) 클릭과 같은 적용 경로를 쓴다.
+    if (target.type === 'text') { updateSelectedText({ color: color }); }
+    else if (isStrokeType(target.type)) { updateSelectedShape({ stroke: color }); }
+    toast('색을 가져왔습니다: ' + color);
+  }
+
   /* ---- 삭제 / 이동 -------------------------------------------------------- */
   function spliceObject(id) {
     var objs = currentSheet().objects, i = -1;
@@ -1509,8 +1630,9 @@
   /** 선택 전체 삭제(단일·다중 공용) — recordUndo 1회로 묶고 rebuild 1회. */
   function deleteSelected() {
     if (!canSave || !selectedIds.length) { return; }
+    var ids = selectedIds.filter(function (id) { var o = findObj(id); return !(o && o.locked); });
+    if (!ids.length) { toast('잠긴 객체는 삭제할 수 없습니다. Ctrl+L 로 잠금을 해제하세요.'); return; }
     recordUndo();
-    var ids = selectedIds.slice();
     deselect();
     ids.forEach(spliceObject);
     rebuildAnno();
@@ -1729,7 +1851,7 @@
       els.anno.classList.toggle('dws-erasing', mode === 'eraser');
     }
     if (konvaLayer) {
-      konvaLayer.find('.anno').forEach(function (n) { n.draggable(canSave && mode === 'select'); });
+      konvaLayer.find('.anno').forEach(function (n) { n.draggable(canSave && mode === 'select' && !isLockedNode(n)); });
     }
     if (els.penPalette) {
       els.penPalette.hidden = (mode !== 'pen');
@@ -1792,6 +1914,7 @@
 
   function onStageMouseDown(e) {
     if (!canSave || !currentSheet()) { return; }
+    if (eyedropArmed && e.target === konvaStage) { cancelEyedrop(); return; }   // 빈 곳 클릭 = 스포이트 취소
     // 펜/지우개는 pointer 핸들러(onStagePointerDown) 전담 — mousedown 은 no-op(러버밴드·선택 이중발동 차단).
     if (annoMode === 'pen' || annoMode === 'eraser') { return; }
     /* 같은 물리 클릭의 stage 'mousedown' 이중발화 dedupe(플랫폼별 pointer/mouse
@@ -1901,7 +2024,7 @@
     var objs = (currentSheet() && currentSheet().objects) || [];
     objs.forEach(function (o) {
       var n = nodeById[o.id];
-      if (!n) { return; }
+      if (!n || o.locked) { return; }   // 잠금 객체는 러버밴드로 선택되지 않는다
       var r = n.getClientRect();
       if (r.x < box.x + box.w && r.x + r.width > box.x && r.y < box.y + box.h && r.y + r.height > box.y) {
         out.push(o.id);
@@ -3381,7 +3504,7 @@
   /* ========================================================================
    * [6] save / load
    * ====================================================================== */
-  function serializeObj(o) {
+  function serializeObjCore(o) {
     var rot = normalizeRotation(o.rotation);
     if (o.type === 'image') {
       return {
@@ -3434,6 +3557,19 @@
     return null;
   }
 
+  /* 잠금(locked)·이미지 뒤집기(flipX/flipY) 공통 보존 — 참일 때만 필드 저장(거짓=기본, 생략). */
+  function withLockFlip(src, out) {
+    if (!out) { return out; }
+    if (src.locked === true) { out.locked = true; }
+    if (out.type === 'image') {
+      if (src.flipX === true) { out.flipX = true; }
+      if (src.flipY === true) { out.flipY = true; }
+    }
+    return out;
+  }
+  function serializeObj(o) { return withLockFlip(o, serializeObjCore(o)); }
+  function normalizeObj(o) { return withLockFlip(o, normalizeObjCore(o)); }
+
   function serializeForm(f) {
     f = f || {};
     var o = {};
@@ -3484,7 +3620,7 @@
   }
 
   /** 저장 상태 → 런타임 객체. v1(text/image, rotation 없음)은 기본값 보충해 무손실 로드. */
-  function normalizeObj(o) {
+  function normalizeObjCore(o) {
     var rot = num(o.rotation);
     if (o.type === 'image') {
       return {
@@ -4486,6 +4622,13 @@
     });
     document.getElementById('dws-mt-del-image').addEventListener('click', deleteSelected);
     if (els.mtTrim) { els.mtTrim.addEventListener('click', trimSelectedImage); }
+    if (els.mtFlipX) { els.mtFlipX.addEventListener('click', function () { flipSelectedImage('flipX'); }); }
+    if (els.mtFlipY) { els.mtFlipY.addEventListener('click', function () { flipSelectedImage('flipY'); }); }
+    // 미니 툴바 — 잠금 / 스포이트(텍스트·이미지·도형 공용)
+    els.mtLockBtns.forEach(function (b) { b.addEventListener('click', toggleLockSelected); });
+    els.mtEyedropBtns.forEach(function (b) {
+      b.addEventListener('click', function () { if (eyedropArmed) { cancelEyedrop(); } else { armEyedrop(); } });
+    });
 
     // 미니 툴바 — 도형
     Array.prototype.forEach.call(els.mtShape.querySelectorAll('.dws-swatch'), function (sw) {
@@ -4585,7 +4728,14 @@
       if (meta && (e.key === 's' || e.key === 'S')) { e.preventDefault(); save(); return; }
       if (editing) { return; }
       if (e.key === 'Escape') {
+        if (eyedropArmed) { cancelEyedrop(); return; }   // 스포이트 대기 중이면 취소만
         if (annoMode !== 'select') { setAnnoMode('select'); } else { deselect(); }
+        return;
+      }
+      // Ctrl/Cmd+L = 선택 잠금 토글, Ctrl/Cmd+Shift+L·Ctrl+Alt+L = 이 시트 전체 잠금 해제(한글 자판은 code 기준)
+      if (canSave && meta && (e.key === 'l' || e.key === 'L' || e.code === 'KeyL')) {
+        e.preventDefault();
+        if (e.shiftKey || e.altKey) { unlockAllOnSheet(); } else { toggleLockSelected(); }
         return;
       }
       /* 'T' 단축키(수정자 없음, 한글 자판은 code 기준): 텍스트 모드 무장.
@@ -4644,7 +4794,7 @@
       if (now - lastArrowUndoTs > 500) { recordUndo(); }
       lastArrowUndoTs = now;
       // 단일·다중 공용: 선택 전체를 같은 델타로 이동.
-      selectedIds.forEach(function (id) { var o = findObj(id); if (o) { moveObjectBy(o, dx, dy); } });
+      selectedIds.forEach(function (id) { var o = findObj(id); if (o && !o.locked) { moveObjectBy(o, dx, dy); } });
       markDirty();
       if (isMultiSelect() && transformer) { transformer.forceUpdate(); }
       positionMiniToolbar();
