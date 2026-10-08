@@ -1955,3 +1955,121 @@ html, body {
 .dws-autofill-group label { font-size: 13px; color: #1d1d1f; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
 .dws-autofill-count { font-size: 13px; font-weight: 600; color: #1d1d1f; margin: 4px 0 16px; min-height: 18px; }
 .dws-photo[draggable="true"] { cursor: grab; }
+/* ---- 단축키 도움말(#dws-help) — 라이트박스와 같은 오버레이 패턴 ---------- */
+.dws-help-btn {
+  min-width: 28px;
+  padding-left: 8px;
+  padding-right: 8px;
+  font-weight: 700;
+}
+.dws-help-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 125;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4vmin;
+  background: rgba(0, 0, 0, 0.45);
+}
+.dws-help-overlay[hidden] { display: none; }
+.dws-help-card {
+  width: min(760px, 100%);
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+  color: #1d1d1f;
+  border-radius: 14px;
+  box-shadow: 0 24px 68px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+}
+.dws-help-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+.dws-help-title { margin: 0; font-size: 16px; font-weight: 700; }
+.dws-help-close {
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.05);
+  color: #1d1d1f;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+.dws-help-close:hover { background: rgba(0, 0, 0, 0.1); }
+.dws-help-body {
+  overflow-y: auto;
+  padding: 12px 18px 18px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 6px 24px;
+}
+.dws-help-group-title {
+  margin: 10px 0 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #6e6e73;
+}
+.dws-help-list {
+  margin: 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 5px 12px;
+  font-size: 13px;
+  align-items: baseline;
+}
+.dws-help-list dt { white-space: nowrap; color: #1d1d1f; }
+.dws-help-list dd { margin: 0; color: #424245; }
+.dws-help-list kbd {
+  display: inline-block;
+  min-width: 20px;
+  padding: 1px 5px;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  background: #f5f5f7;
+  font-family: inherit;
+  font-size: 11px;
+  line-height: 1.5;
+  text-align: center;
+}
+
+/* ---- 터치(굵은 포인터) 기기: 작은 버튼의 누를 수 있는 범위를 32px 이상으로 ----
+   모양 크기는 그대로 두고 ::before 로 보이지 않는 터치 영역(36px)만 넓혀 배치가 밀리지 않게 한다. */
+@media (pointer: coarse) {
+  .dws-products-toggle,
+  .dws-photos-toggle,
+  .dws-pending-toggle {
+    position: relative;
+  }
+  .dws-tab-x::before,
+  .dws-tab-dup::before,
+  .dws-products-toggle::before,
+  .dws-photos-toggle::before,
+  .dws-pending-toggle::before,
+  .dws-del-saved::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 36px;
+    height: 36px;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+  }
+  /* 탭은 overflow:hidden 이라 터치 영역이 잘리지 않게 높이·오른쪽 여백을 넓힌다 */
+  .dws-tab { min-height: 36px; padding-right: 74px; }
+  /* 탭 복제 버튼은 hover 가 없는 터치 기기에서도 늘 보이게, ×와 터치 영역이 덜 겹치게 간격을 넓힌다 */
+  .dws-tab-dup {
+    right: 34px;
+    opacity: 1;
+    pointer-events: auto;
+  }
+}

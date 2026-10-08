@@ -362,6 +362,9 @@
     els.lightbox = document.getElementById('dws-lightbox');
     els.lightboxImg = document.getElementById('dws-lightbox-img');
     els.lightboxClose = document.getElementById('dws-lightbox-close');
+    els.help = document.getElementById('dws-help');
+    els.helpClose = document.getElementById('dws-help-close');
+    els.helpBtn = document.getElementById('dws-btn-help');
     els.tabbar = document.getElementById('dws-tabbar');
     els.canvas = document.getElementById('dws-canvas');
     els.empty = document.getElementById('dws-empty');
@@ -3305,13 +3308,43 @@
     setZoom(z);
   }
 
+  /* 줌 범위 50%~400% — 슬라이더(#dws-zoom-range max=400)·휠·핀치·단축키 공용. */
+  var ZOOM_MIN = 0.5, ZOOM_MAX = 4;
+
+  /* 단축키 줌(Ctrl+=/-): 화면 가운데를 고정한 채 step 만큼 확대/축소. */
+  function zoomByStep(delta) {
+    var nz = clamp(Math.round((zoom + delta) * 100) / 100, ZOOM_MIN, ZOOM_MAX);
+    if (nz === zoom) { return; }
+    var cw = els.canvas.clientWidth, ch = els.canvas.clientHeight;
+    var fx = (els.canvas.scrollLeft + cw / 2) / zoom, fy = (els.canvas.scrollTop + ch / 2) / zoom;
+    setZoom(nz);
+    els.canvas.scrollLeft = fx * nz - cw / 2;
+    els.canvas.scrollTop = fy * nz - ch / 2;
+  }
+
+  /* 단축키 도움말 모달(#dws-help) — '?' 키 또는 앱바 '?' 버튼, Esc·바깥 클릭·✕ 로 닫는다. */
+  var helpReturnFocus = null;
+  function isHelpOpen() { return !!(els.help && !els.help.hidden); }
+  function openHelp() {
+    if (!els.help) { return; }
+    helpReturnFocus = document.activeElement;
+    els.help.hidden = false;
+    if (els.helpClose) { els.helpClose.focus(); }
+  }
+  function closeHelp() {
+    if (!els.help) { return; }
+    els.help.hidden = true;
+    if (helpReturnFocus && typeof helpReturnFocus.focus === 'function') { helpReturnFocus.focus(); }
+    helpReturnFocus = null;
+  }
+
   function setZoom(z) {
     zoom = z;
     els.stage.style.setProperty('--dws-zoom', String(z));
     els.wrap.style.width = (STAGE_W * z) + 'px';
     els.wrap.style.height = (STAGE_H * z) + 'px';
     var pct = Math.round(z * 100);
-    els.zoomRange.value = String(clamp(pct, 50, 250));
+    els.zoomRange.value = String(clamp(pct, 50, 400));
     els.zoomLabel.textContent = pct + '%';
     positionMiniToolbar();
   }
@@ -4555,6 +4588,11 @@
       });
     }
     if (els.lightboxClose) { els.lightboxClose.addEventListener('click', closeLightbox); }
+    if (els.helpBtn) { els.helpBtn.addEventListener('click', openHelp); }
+    if (els.helpClose) { els.helpClose.addEventListener('click', closeHelp); }
+    if (els.help) {
+      els.help.addEventListener('click', function (e) { if (e.target === els.help) { closeHelp(); } });
+    }
     if (els.lightbox) {
       els.lightbox.addEventListener('click', function (e) { if (e.target === els.lightbox) { closeLightbox(); } });
     }
@@ -4772,11 +4810,27 @@
         if (e.key === 'Escape') { e.preventDefault(); closeLightbox(); }
         return;
       }
+      // 단축키 도움말 열림 시: Esc 로 닫고 다른 단축키는 무시.
+      if (isHelpOpen()) {
+        if (e.key === 'Escape') { e.preventDefault(); closeHelp(); }
+        return;
+      }
       var ae = document.activeElement;
       var editing = !!(ae && (ae.isContentEditable || ae.tagName === 'TEXTAREA' || ae.tagName === 'INPUT' || ae.tagName === 'SELECT'));
       var meta = e.ctrlKey || e.metaKey;
       if (meta && (e.key === 's' || e.key === 'S')) { e.preventDefault(); save(); return; }
       if (editing) { return; }
+      // '?'(Shift+/) = 단축키 도움말
+      if (!meta && !e.altKey && (e.key === '?' || (e.shiftKey && e.code === 'Slash'))) {
+        e.preventDefault(); openHelp(); return;
+      }
+      /* 줌 단축키: Ctrl+0 화면 폭 맞춤 · Ctrl+1 100% · Ctrl+=/Ctrl+- 확대/축소(브라우저 페이지 줌 대신). */
+      if (meta && !e.altKey) {
+        if (e.key === '0' || e.code === 'Digit0' || e.code === 'Numpad0') { e.preventDefault(); fitZoom(); return; }
+        if (e.key === '1' || e.code === 'Digit1' || e.code === 'Numpad1') { e.preventDefault(); setZoom(1); return; }
+        if (e.key === '=' || e.key === '+' || e.code === 'Equal' || e.code === 'NumpadAdd') { e.preventDefault(); zoomByStep(0.1); return; }
+        if (e.key === '-' || e.key === '_' || e.code === 'Minus' || e.code === 'NumpadSubtract') { e.preventDefault(); zoomByStep(-0.1); return; }
+      }
       if (e.key === 'Escape') {
         if (eyedropArmed) { cancelEyedrop(); return; }   // 스포이트 대기 중이면 취소만
         if (annoMode !== 'select') { setAnnoMode('select'); } else { deselect(); }
@@ -4921,14 +4975,15 @@
        setZoom 이 슬라이더(#dws-zoom-range)·라벨을 자동 갱신하므로 별도 DOM 갱신 불필요.
        __DWS_BOUND 스코프라 1회만 바인딩(idempotent). */
     els.canvas.addEventListener('wheel', function (e) {
-      if (!e.altKey) { return; }              // 일반 휠 = 기존 스크롤(관여 안 함)
+      // Alt+휠 · Ctrl/Cmd+휠(트랙패드 핀치 포함) = 도면 줌. 브라우저 페이지 줌은 막는다.
+      if (!e.altKey && !e.ctrlKey && !e.metaKey) { return; }   // 일반 휠 = 기존 스크롤(관여 안 함)
       e.preventDefault();
       var rect = els.canvas.getBoundingClientRect();
       var px = e.clientX - rect.left, py = e.clientY - rect.top;   // 뷰포트 내 커서 좌표
       var focalLogicalX = (els.canvas.scrollLeft + px) / zoom;     // 커서 아래 논리점(줌 무관)
       var focalLogicalY = (els.canvas.scrollTop + py) / zoom;
       var step = 0.1;                                              // 휠 1노치 = 10%p
-      var nz = clamp(zoom + (e.deltaY < 0 ? step : -step), 0.5, 2.5);
+      var nz = clamp(zoom + (e.deltaY < 0 ? step : -step), ZOOM_MIN, ZOOM_MAX);
       if (nz === zoom) { return; }            // clamp 경계 도달 → 변화 없음
       setZoom(nz);
       // 커서 아래 논리점이 화면상 같은 위치에 남도록 스크롤 보정(범위 밖은 브라우저 clamp).
@@ -4994,7 +5049,7 @@
         if (mode === 2 && fingers.length >= 2) {
           var rect = els.canvas.getBoundingClientRect();
           var d = dist(fingers[0], fingers[1]) || 1;
-          var nz = clamp(startZoom * (d / startDist), 0.5, 2.5);
+          var nz = clamp(startZoom * (d / startDist), ZOOM_MIN, ZOOM_MAX);
           setZoom(nz);
           var m = midpoint(fingers[0], fingers[1]);
           els.canvas.scrollLeft = focalLogicalX * nz - (m.x - rect.left);
