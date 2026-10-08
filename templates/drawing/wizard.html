@@ -118,6 +118,8 @@
 
         <span class="dws-appbar-sep"></span>
 
+        {# 저장 상태 칩 — wizard.js renderSaveStatus 가 '저장됨 HH:MM'·'저장 중…'·'저장 안 됨'·'저장 실패' 를 채운다 #}
+        <span class="dws-save-status" id="dws-save-status" role="status" aria-live="polite" hidden></span>
         <button type="button" class="dws-btn dws-btn-primary dws-edit-ctl" id="dws-btn-save">저장</button>
         <button type="button" class="dws-btn dws-edit-ctl" id="dws-btn-save-all" title="모든 시트를 전달 대기함에 저장">일괄 저장</button>
 
@@ -155,6 +157,12 @@
 
     {# 자동 저장이 실패로 멈췄을 때 상시 노출. 토스트는 5초 뒤 사라져 2시간 동안 아무도
        모른 채 그림이 저장되지 않은 사고가 있었다(2026-09-08 주문 5193, 403 80여 회). #}
+    {# 로컬 비상 백업 복원 배너 — 서버 저장 전에 탭이 닫혔을 때 이 브라우저에 남은 작업을 되살린다(막지 않음). #}
+    <div class="dws-restore-banner dws-ui" id="dws-restore-banner" role="status" hidden>
+      <span id="dws-restore-text">저장되지 않은 작업이 있습니다</span>
+      <button type="button" class="dws-btn dws-btn-primary" id="dws-btn-restore">복원</button>
+      <button type="button" class="dws-btn" id="dws-btn-restore-discard">버리기</button>
+    </div>
     <div class="dws-autosave-banner dws-ui" id="dws-autosave-banner" role="alert" hidden>
       <strong>자동 저장이 멈췄습니다.</strong>
       <span id="dws-autosave-banner-reason"></span>
