@@ -10,6 +10,7 @@ from typing import Any, Iterable
 
 from sqlalchemy import func
 
+from foms.services.integrations.naver_commerce.constants import OWNER_USERNAME as NAVER_OWNER_USERNAME
 from foms.services.notifications.recipients import expand_team_codes
 from foms.services.orders.order_mutation_policy import normalize_team
 from foms.services.security.password_policy import WeakPasswordError, set_strong_password
@@ -36,6 +37,7 @@ def _validate_owner(db, owner_user_id: Any) -> int:
         or not owner.is_active
         or owner.partner_org_id is not None
         or normalize_team(owner.team) != "SALES"
+        or owner.username == NAVER_OWNER_USERNAME
     ):
         raise PartnerAdminError("담당 직원은 활성 영업팀 직원이어야 합니다.")
     return owner_id
@@ -130,7 +132,8 @@ def list_partner_orgs_with_users(db) -> list[dict[str, Any]]:
     )
     order_counts = dict(
         db.query(Order.partner_org_id, func.count(Order.id))
-        .filter(Order.partner_org_id.in_(org_ids))  # perf-ok: 부분 색인 ix_orders_partner_org_id
+        # 지운 주문 · 초안은 세지 않는다(운영 화면과 같은 기준).
+        .filter(Order.partner_org_id.in_(org_ids), Order.active_filter())  # perf-ok: 부분 색인 ix_orders_partner_org_id
         .group_by(Order.partner_org_id)
         .all()
     )
@@ -149,13 +152,14 @@ def list_partner_orgs_with_users(db) -> list[dict[str, Any]]:
 
 
 def sales_owner_choices(db) -> list[User]:
-    """담당 직원 선택지: 활성 영업팀(MEASURE 표기 포함) 우리 직원."""
+    """담당 직원 선택지: 활성 영업팀(MEASURE 표기 포함) 우리 직원. 시스템 계정(네이버 미배정 보류함)은 뺀다."""
     return (
         db.query(User)
         .filter(
             User.is_active.is_(True),
             User.partner_org_id.is_(None),
             func.upper(User.team).in_(expand_team_codes("SALES")),
+            User.username != NAVER_OWNER_USERNAME,
         )
         .order_by(User.name)
         .all()

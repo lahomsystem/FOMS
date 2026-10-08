@@ -6,6 +6,22 @@
     <h1 class="pp-title">{{ (intake.customer or {}).name or '주문' }} <span class="pp-muted">#{{ order.id }}</span></h1>
     <span class="pp-stage">{{ order.stage_label }}{% if order.stage_label == '시공 예정' and order.construction_date %} · {{ order.construction_date }}{% endif %}</span>
 </div>
+{% if final_drawings %}
+<section class="pp-section pp-section--accent">
+    <h2 class="pp-subtitle">최종 도면</h2>
+    <ul class="pp-files">
+        {% for f in final_drawings %}
+        <li><a href="{{ f.url }}" target="_blank" rel="noopener">{{ f.filename }}</a></li>
+        {% endfor %}
+    </ul>
+    {% if can_approve %}
+    <p class="pp-help">고객과 확인한 뒤 눌러 주세요. 누르면 이 도면대로 제작을 시작합니다(누른 사람·시각·도면이 기록됩니다).</p>
+    <p class="pp-status" id="ppStatus" role="status" aria-live="polite"></p>
+    <button type="button" class="pp-btn pp-btn--primary" data-pp-approve-url="{{ url_for('partner_api.approve_drawing', order_id=order.id) }}">이대로 만들어 주세요</button>
+    <p class="pp-help">고칠 곳이 있으면 저희 담당자에게 알려 주세요.</p>
+    {% endif %}
+</section>
+{% endif %}
 <section class="pp-section">
     <h2 class="pp-subtitle">보낸 내용</h2>
     <dl class="pp-dl">

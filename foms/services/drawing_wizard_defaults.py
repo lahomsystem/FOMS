@@ -18,6 +18,7 @@ from foms.services.erp_template_filters import (
     format_phone_no_prefix,
     item_spec_w300_display,
 )
+from foms.services.partners.logo import partner_logo_mode
 
 __all__ = ["build_wizard_defaults", "resolve_assignee_drew_en"]
 
@@ -303,7 +304,8 @@ def build_wizard_defaults(
         "misc": _misc(selected_item),
         "sales_manager": sales_manager,
         "manager_phone": _resolve_manager_phone(order, parties, manager, sales_manager),
-        "logo": _resolve_logo(sales_manager),
+        # PARTNER-03: 협력사 주문은 라홈·하우드 대신 협력사 로고('partner') 또는 빈칸('none').
+        "logo": partner_logo_mode(order) or _resolve_logo(sales_manager),
         "drew": _resolve_drew(sd, current_user),
         # 제품별 시트는 제품 번호(1-base)로 자동 넘버링, 집계(전체)·제품 1개 주문은 '-'.
         "page_no": (

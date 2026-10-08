@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import os
 
-from flask import Blueprint, g, jsonify, request, session
+from flask import Blueprint, Response, g, jsonify, request, session
 
 from db import get_db
 from foms.api.files.blueprint import ASYNC_ATTACHMENT_THUMBNAIL
@@ -18,11 +18,16 @@ from foms.api.files.order_routes import ATTACHMENT_ADDED, emit_attachment_event
 from foms.services.auth.partner_scope import partner_can_read_order, partner_required
 from foms.services.common.dashboard_cache import (
     ATTACHMENT_DASHBOARD_FAMILIES,
+    DASHBOARD_FAMILY_ORDERS,
     invalidate_dashboard_families,
 )
 from foms.services.error_logging import log_handled_exception
 from foms.services.files.upload_policy import ERP_MEDIA_ALLOWED_EXTENSIONS
 from foms.services.order_attachment_thumbnail import schedule_order_attachment_thumbnail_generation
+from foms.services.orders.order_transition_service import TransitionError
+from foms.services.orders.revision import RevisionError
+from foms.services.partners.drawing_confirm import PartnerConfirmError, approve_partner_drawing
+from foms.services.partners.logo import partner_org_of, read_partner_logo
 from foms.services.partners.orders import PartnerOrderError, create_partner_order
 from foms.services.storage import get_storage
 from models import Order, OrderAttachment, PartnerOrg
@@ -129,3 +134,46 @@ def upload_file(order_id: int):
         "data": {"attachment_id": attachment.id, "filename": attachment.filename, "kind": folder_name},
         "error": None,
     })
+
+
+@partner_api_bp.route("/orders/<int:order_id>/approve-drawing", methods=["POST"])
+@partner_required
+def approve_drawing(order_id: int):
+    """"이대로 만들어 주세요" — 고객컨펌 승인 → 생산(:func:`approve_partner_drawing`)."""
+    db = get_db()
+    payload = request.get_json(silent=True) or {}
+    key = str(payload.get("idempotency_key") or request.headers.get("Idempotency-Key") or "")[:64] or None
+    try:
+        approve_partner_drawing(db, g.current_user, order_id, idempotency_key=key)
+        db.commit()
+    except PartnerConfirmError as exc:
+        db.rollback()
+        return _fail(str(exc), exc.status)
+    except (TransitionError, RevisionError):
+        db.rollback()
+        log_handled_exception("partner approve drawing transition")
+        return _fail("지금은 처리할 수 없습니다. 화면을 새로고침한 뒤 다시 시도해 주세요.", 409)
+    invalidate_dashboard_families(DASHBOARD_FAMILY_ORDERS)
+    return jsonify({"success": True, "data": {"order_id": order_id}, "error": None})
+
+
+@partner_api_bp.route("/orders/<int:order_id>/logo", methods=["GET"])
+def order_logo(order_id: int):
+    """협력사 주문 도면에 넣을 협력사 로고 — **우리 직원용**(도면 마법사가 같은 출처로 읽는다).
+
+    도면 PNG 는 html2canvas 로 만들어져 R2 서명 URL(다른 출처) 이미지는 빠진다. 그래서 앱이 바이트를
+    직접 내준다. 협력사 세션은 문지기 허용 목록 밖이라 여기 오지 못한다. key 는 DB 값만 쓴다.
+    """
+    user = getattr(g, "current_user", None)
+    if user is None or getattr(user, "is_active", None) is False:
+        return _fail("로그인이 필요합니다.", 401)
+    db = get_db()
+    order = db.query(Order).filter(Order.id == order_id).first()
+    org = partner_org_of(db, order) if order is not None else None
+    found = read_partner_logo(get_storage(), org)
+    if found is None:
+        return _fail("로고가 없습니다.", 404)
+    data, mimetype = found
+    response = Response(data, mimetype=mimetype)
+    response.headers["Cache-Control"] = "private, max-age=600"
+    return response

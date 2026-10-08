@@ -295,3 +295,145 @@ def test_staff_list_marks_partner_orders_only(app, world):
     assert "우리고객" in html and "홍길동" in html
     assert html.count('class="foms-partner-mark"') == 1
     assert "협력사 · 가나가구" in html
+
+
+def test_admin_owner_choices_and_counts_skip_system_and_deleted(app, world):
+    from foms.services.partners.orgs import list_partner_orgs_with_users, sales_owner_choices
+
+    system = _user(team="SALES", name="미배정 (네이버 수집)")
+    system.username = "naver_unassigned"
+    db_session.commit()
+    names = {u.username for u in sales_owner_choices(db_session)}
+    assert "naver_unassigned" not in names and db_session.get(User, world["sales"]).username in names
+
+    keep = _create(app, world["partner_a"]).get_json()["data"]["order_id"]
+    gone = _create(app, world["partner_a"]).get_json()["data"]["order_id"]
+    order = db_session.get(Order, gone)
+    order.status = "DELETED"
+    order.deleted_at = "2026-10-08 12:00:00"
+    db_session.commit()
+    row = next(r for r in list_partner_orgs_with_users(db_session) if r["org"].id == world["org_a"])
+    assert keep and row["order_count"] == 1
+
+
+# --------------------------------------------------------------------------
+# 3단계 — 협력사 로고
+# --------------------------------------------------------------------------
+class _LogoStorage:
+    storage_type = "r2"
+
+    def __init__(self):
+        self.files = {}
+
+    def upload_file(self, file, filename, folder):
+        key = f"{folder}/20261008_x_{filename}"
+        self.files[key] = file.read()
+        return {"success": True, "key": key}
+
+    def read_file_bytes(self, key):
+        return self.files.get(key)
+
+
+@pytest.fixture
+def logo_storage(monkeypatch):
+    import foms.web.admin.partners as admin_partners
+
+    storage = _LogoStorage()
+    monkeypatch.setattr(admin_partners, "get_storage", lambda: storage)
+    monkeypatch.setattr(partner_api, "get_storage", lambda: storage)
+    return storage
+
+
+def test_wizard_logo_partner_none_and_ours_unchanged(app, world, logo_storage):
+    from foms.services.drawing_wizard_defaults import build_wizard_defaults
+
+    partner_id = _create(app, world["partner_a"]).get_json()["data"]["order_id"]
+    partner_order = db_session.get(Order, partner_id)
+    assert build_wizard_defaults(partner_order, partner_order.structured_data, None)["logo"] == "none"
+
+    admin = _client(app, db_session.get(User, world["admin"]))
+    resp = admin.post(f"/admin/partners/{world['org_a']}/logo",
+                      data={"logo": (io.BytesIO(b"\x89PNG-logo"), "logo.png")},
+                      content_type="multipart/form-data")
+    assert resp.status_code == 302
+    db_session.expire_all()
+    partner_order = db_session.get(Order, partner_id)
+    assert build_wizard_defaults(partner_order, partner_order.structured_data, None)["logo"] == "partner"
+    # 대조군: 우리 주문은 예전 규칙 그대로(하우드).
+    ours = Order(received_date="2026-10-08", customer_name="c", phone="0", address="a", product="p",
+                 structured_data={"parties": {"manager": {"name": "영업김"}}})
+    db_session.add(ours)
+    db_session.commit()
+    assert build_wizard_defaults(ours, ours.structured_data, None)["logo"] == "haud"
+
+    staff = _client(app, db_session.get(User, world["staff"]))
+    got = staff.get(f"/api/partner/orders/{partner_order.id}/logo")
+    assert got.status_code == 200 and got.data == b"\x89PNG-logo" and got.mimetype == "image/png"
+    assert staff.get(f"/api/partner/orders/{ours.id}/logo").status_code == 404
+    assert admin.get(f"/admin/partners/{world['org_a']}/logo").status_code == 200
+
+
+def test_admin_logo_rejects_non_images(app, world, logo_storage):
+    admin = _client(app, db_session.get(User, world["admin"]))
+    admin.post(f"/admin/partners/{world['org_a']}/logo",
+               data={"logo": (io.BytesIO(b"x"), "logo.exe")}, content_type="multipart/form-data")
+    assert db_session.get(PartnerOrg, world["org_a"]).logo_storage_key is None
+    assert logo_storage.files == {}
+
+
+# --------------------------------------------------------------------------
+# 3단계 — 협력사 도면 확인(이대로 제작) → 생산
+# --------------------------------------------------------------------------
+def _to_confirm(order_id, *, drawing_status="CONFIRMED"):
+    from sqlalchemy.orm.attributes import flag_modified
+
+    order = db_session.get(Order, order_id)
+    sd = dict(order.structured_data)
+    sd["workflow"] = {"stage": "CONFIRM"}
+    sd["drawing_status"] = drawing_status
+    sd["drawing_current_files"] = [{"key": f"orders/{order_id}/drawing/final.pdf", "filename": "final.pdf"}]
+    order.structured_data = sd
+    flag_modified(order, "structured_data")
+    order.erp_stage_code = "CONFIRM"
+    order.status = "CONFIRM"
+    db_session.commit()
+
+
+def test_partner_approves_drawing_and_order_moves_to_production(app, world):
+    from models import SecurityLog
+
+    order_id = _create(app, world["partner_a"]).get_json()["data"]["order_id"]
+    _to_confirm(order_id)
+    client = _client(app, db_session.get(User, world["partner_a"]))
+    page = client.get(f"/partner/orders/{order_id}").get_data(as_text=True)
+    assert "final.pdf" in page and "이대로 만들어 주세요" in page
+
+    resp = client.post(f"/api/partner/orders/{order_id}/approve-drawing", json={"idempotency_key": "k1"})
+    assert resp.status_code == 200, resp.get_json()
+    db_session.expire_all()
+    order = db_session.get(Order, order_id)
+    sd = order.structured_data
+    assert order.erp_stage_code == "PRODUCTION"
+    assert sd["blueprint"]["customer_confirmed"] is True
+    quest = next(q for q in sd["quests"] if q.get("stage") in ("고객컨펌", "CONFIRM"))
+    assert quest["status"] == "COMPLETED" and quest["assignee_approval"]["approved_by"] == world["partner_a"]
+    log = db_session.query(SecurityLog).filter(SecurityLog.action == "PARTNER_DRAWING_APPROVED").one()
+    assert log.target_id == order_id and log.detail["final_drawing_keys"] == [f"orders/{order_id}/drawing/final.pdf"]
+    assert "생산 중" in client.get(f"/partner/orders/{order_id}").get_data(as_text=True)
+
+
+def test_partner_approve_refused_when_not_ready_or_not_own(app, world):
+    order_id = _create(app, world["partner_a"]).get_json()["data"]["order_id"]
+    a = _client(app, db_session.get(User, world["partner_a"]))
+    b = _client(app, db_session.get(User, world["partner_b"]))
+    # 아직 실측 단계
+    assert a.post(f"/api/partner/orders/{order_id}/approve-drawing", json={}).status_code == 409
+    # 도면 확인 단계지만 도면이 확정 전(수정 요청됨)
+    _to_confirm(order_id, drawing_status="RETURNED")
+    assert "이대로 만들어 주세요" not in a.get(f"/partner/orders/{order_id}").get_data(as_text=True)
+    assert a.post(f"/api/partner/orders/{order_id}/approve-drawing", json={}).status_code == 409
+    # 다른 협력사
+    _to_confirm(order_id)
+    assert b.post(f"/api/partner/orders/{order_id}/approve-drawing", json={}).status_code == 404
+    db_session.expire_all()
+    assert db_session.get(Order, order_id).erp_stage_code == "CONFIRM"
