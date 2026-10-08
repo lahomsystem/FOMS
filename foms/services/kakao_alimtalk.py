@@ -29,6 +29,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.orm.attributes import flag_modified
 
 from db import engine
+from foms.services.auth.partner_scope import is_partner_order, is_partner_sd
 from foms.services.datetime_kst import now_utc_naive
 from foms.services.erp_display import erp_deposit_amount_from_structured
 from foms.services.order_date_sync import _normalize_date_str
@@ -330,6 +331,10 @@ _ERROR_SIGNATURES: tuple[tuple[str, tuple[str, ...]], ...] = (
 #: 때문이다(D3 단계 가동). 나머지 사유(미설정·draft·일정없음)는 이력도 남기지 않는다.
 _RECORDED_SKIP_REASONS = frozenset({"no_valid_phone", "brand_profile_missing"})
 
+#: PARTNER-02: 협력사 주문 — 고객 연락은 협력사 몫이라 우리는 보내지 않는다. 재시도·이력 대상이
+#: 아니다(:data:`_RETRYABLE_SEND_ERRORS`·:data:`_RECORDED_SKIP_REASONS` 에 넣지 않는다).
+PARTNER_ORDER_REASON = "partner_order"
+
 #: handler 가 예외로 올려 워커 재시도할 오류. 그 외(템플릿 불일치 등)는 DONE 으로 닫아
 #: 같은 본문을 10번 보내지 않는다. ``not_configured`` 는 SIDEFX env 누락일 수 있어 재시도.
 _RETRYABLE_SEND_ERRORS = frozenset({"network", "unknown", "balance", "auth", "not_configured"})
@@ -536,6 +541,10 @@ def _sd_ineligible_reason(sd: dict, *, order_draft: bool = False) -> str | None:
     Returns:
         미자격 사유 코드. 자격이면 ``None``.
     """
+    # PARTNER-02: 외부 협력사 주문의 고객에게는 우리가 보내지 않는다(협력사가 따로 연락한다 — 사용자
+    # 결정 2026-10-08). 설정보다 먼저 본다: 미설정(재시도 대상)으로 떨어지면 워커가 다시 보낸다.
+    if is_partner_sd(sd):
+        return PARTNER_ORDER_REASON
     if not is_configured(resolve_brand(sd)):
         return "not_configured"
     if order_draft:
@@ -563,6 +572,9 @@ def _ineligible_reason(order: Order | None, sd: dict) -> str | None:
         return "order_not_found"
     if _is_deleted_order(order):
         return "order_not_found"
+    # 주문 행의 협력사 칸이 정본이다(sd 표식은 저장 경로에서 빠질 수 있다).
+    if is_partner_order(order):
+        return PARTNER_ORDER_REASON
     return _sd_ineligible_reason(sd, order_draft=_is_draft_order(order, sd))
 
 

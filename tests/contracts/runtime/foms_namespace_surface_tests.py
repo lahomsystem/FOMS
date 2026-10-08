@@ -2261,6 +2261,7 @@ _SLG_FOMS_WEB_TOP_LEVEL_ALLOWED = frozenset(
         "drawing",
         "measurement",
         "orders",
+        "partner",
         "production",
         "shipment",
         "wdcalculator",
@@ -2280,6 +2281,7 @@ _SLG_FOMS_API_TOP_LEVEL_ALLOWED = frozenset(
         "measurement",
         "notifications",
         "orders",
+        "partner",
         "production",
         "shipment",
         "wdcalculator",
@@ -2304,6 +2306,7 @@ _SLG_FOMS_SERVICES_TOP_LEVEL_ALLOWED = frozenset(
         "measurement",
         "notifications",
         "orders",
+        "partners",  # PARTNER-02: 외부 협력사
         "production",
         "security",
         "shipment",

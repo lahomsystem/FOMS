@@ -133,15 +133,14 @@ def test_every_rule_outside_allowlist_is_blocked_for_partner(app, world):
         for method in sorted(rule.methods - {"HEAD", "OPTIONS"}):
             resp = client.open(path, method=method)
             checked += 1
-            if resp.status_code != 403:
-                leaks.append((rule.endpoint, method, path, resp.status_code))
-                continue
-            if "/api/" in path:
+            if "/api/" in path or method != "GET":
+                # API · 쓰기: 403 JSON(문지기 문구)
                 body = resp.get_json(silent=True) or {}
-                if body.get("error") != _DENIED_MSG:
-                    leaks.append((rule.endpoint, method, path, "403 이지만 문지기 응답 아님"))
-            elif "협력사 화면 준비 중" not in resp.get_data(as_text=True):
-                leaks.append((rule.endpoint, method, path, "403 이지만 막힘 화면 아님"))
+                if resp.status_code != 403 or body.get("error") != _DENIED_MSG:
+                    leaks.append((rule.endpoint, method, path, resp.status_code))
+            elif resp.status_code != 302 or not resp.headers.get("Location", "").endswith("/partner"):
+                # 화면: 협력사 첫 화면으로 보낸다
+                leaks.append((rule.endpoint, method, path, resp.status_code))
     assert checked > 300, checked
     assert leaks == [], leaks[:20]
 
@@ -151,15 +150,17 @@ def test_internal_staff_is_not_gated(app, world):
     client = _client(app, db_session.get(User, world["staff"]))
     resp = client.get("/")
     assert resp.status_code != 403
-    assert "협력사 화면 준비 중" not in resp.get_data(as_text=True)
+    assert not resp.headers.get("Location", "").endswith("/partner")
 
 
-def test_logged_in_partner_sees_blocked_page_with_logout(app, world):
+def test_logged_in_partner_is_sent_to_portal_and_can_logout(app, world):
     client = _client(app, db_session.get(User, world["partner"]))
     resp = client.get("/login")
-    assert resp.status_code == 403
-    html = resp.get_data(as_text=True)
-    assert "협력사A" in html and "로그아웃" in html
+    assert resp.status_code == 302 and resp.headers["Location"].endswith("/partner")
+
+    home = client.get("/partner")
+    html = home.get_data(as_text=True)
+    assert home.status_code == 200 and "협력사A" in html and "로그아웃" in html
 
     out = client.post("/logout")
     assert out.status_code == 302
@@ -167,14 +168,14 @@ def test_logged_in_partner_sees_blocked_page_with_logout(app, world):
         assert "user_id" not in sess
 
 
-def test_partner_password_login_lands_on_blocked_page(app):
+def test_partner_password_login_lands_on_portal(app):
     org = _org("협력사로그인")
     user = _user(role="PARTNER", team=None, org=org, password=generate_password_hash("pw-1234!"))
     client = app.test_client()
     resp = client.post("/login", data={"username": user.username, "password": "pw-1234!"},
                        follow_redirects=True)
-    assert resp.status_code == 403
-    assert "협력사 화면 준비 중" in resp.get_data(as_text=True)
+    assert resp.status_code == 200
+    assert "주문 목록" in resp.get_data(as_text=True)
 
 
 @pytest.fixture
@@ -205,7 +206,7 @@ def test_policy_engine_denies_partner_outside_account_policies(app):
     org = _org("협력사정책")
     partner = _user(role="PARTNER", team=None, org=org)
     allowed = {pid for pid, pol in POLICY_REGISTRY.items() if evaluate_policy(pol, partner).allowed}
-    assert allowed == {"ACCOUNT_SELF", "ACCOUNT_ANON"}
+    assert allowed == {"ACCOUNT_SELF", "ACCOUNT_ANON", "PARTNER_PORTAL"}
 
 
 # --------------------------------------------------------------------------

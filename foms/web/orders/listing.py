@@ -45,6 +45,7 @@ from foms.services.feature_flags import (
 from foms.services.post_auth_navigation import redirect_to_authenticated_home, should_use_erp_mobile_home
 from foms.services.gnav_contract import gnav_orders_layout_parent, wants_gnav_fragment
 from foms.services.erp_dashboard_search import erp_order_dashboard_search_predicate
+from foms.services.auth.partner_scope import partner_mark_name
 from foms.services.integrations.naver_commerce.constants import SOURCE_MARKER
 
 
@@ -226,6 +227,7 @@ def index():
             _sd_all = _ensure_dict(order_db_item.structured_data) if order_db_item.structured_data else {}
             setattr(order_display_data, 'channel_source',
                     'NAVER' if _sd_all.get('source') == SOURCE_MARKER else None)
+            setattr(order_display_data, 'partner_name', partner_mark_name(order_db_item, _sd_all))
             # 해피콜 상태(부재·콜백)는 비고 글과 따로 flags.happy_call 에 있다 — 목록 비고칸에 배지로 붙인다.
             # 접수·해피콜 단계에서만 쓰는 정보라 실측 단계부터는 숨긴다(값은 지우지 않는다).
             _flags_all = _sd_all.get('flags') if isinstance(_sd_all.get('flags'), dict) else {}

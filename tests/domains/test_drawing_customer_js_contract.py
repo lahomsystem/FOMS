@@ -28,7 +28,7 @@ JS_FILES = {
 # 자산 본문을 고쳤다면 핀을 새 값으로 올리고 이 표의 (해시, 핀)을 함께 갱신한다 —
 # ?v= 붙은 정적 자산은 24시간 캐시돼 핀을 안 올리면 기기가 옛 JS 를 쓴다.
 JS_PIN_LOCK = {
-    "static/js/foms/drawing-customer-send.js": ("3a626f85a177", "20260929n"),
+    "static/js/foms/drawing-customer-send.js": ("1896ea7854ad", "20261008p"),
     "static/js/foms/drawing-customer-ok.js": ("624445c27786", "20260930b"),
     "static/js/foms/drawing-revision-edit.js": ("43d3ee5cb418", "20260930b"),
     "static/js/foms/drawing-urgent-call-pc.js": ("7bda3b35784c", "20261001b"),

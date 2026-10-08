@@ -34,7 +34,7 @@ from sqlalchemy.exc import DBAPIError
 from sqlalchemy.pool import NullPool
 
 from foms.services.db_url_resolver import PG_SQLALCHEMY_DRIVER, pg_error_code
-from models import META_DRAFT_ALIAS, META_DRAFT_INDEX_NAME, Order, PartnerOrg
+from models import META_DRAFT_ALIAS, META_DRAFT_INDEX_NAME, Order, PartnerOrg, User
 from tests.postgres.conftest import _raw_connect, assert_test_db_name
 from tests.support.meta_draft_contract import (
     DRAFTIDX,
@@ -119,8 +119,8 @@ def draft_engine(draft_db_url: URL) -> Iterator[tuple[Engine, dict[int, str]]]:
     from db import Base
 
     engine = create_engine(draft_db_url, connect_args={"client_encoding": "utf8"}, poolclass=NullPool)
-    # orders.partner_org_id FK 대상(PARTNER-01)도 함께 만든다.
-    Base.metadata.create_all(bind=engine, tables=[PartnerOrg.__table__, Order.__table__])
+    # orders.partner_org_id → partner_orgs → users(owner) FK 대상도 함께 만든다(PARTNER-01·02).
+    Base.metadata.create_all(bind=engine, tables=[User.__table__, PartnerOrg.__table__, Order.__table__])
     with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as ac:
         ac.execute(insert(Order.__table__), _filler_rows())
         case_ids = insert_cases(ac, first_id=FIRST_CASE_ID)

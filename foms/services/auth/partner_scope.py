@@ -17,10 +17,12 @@ from typing import Any
 
 from models import PARTNER_ROLE
 
-# 협력사 세션이 쓸 수 있는 endpoint. 1단계는 화면이 없어 로그아웃·파일 관문뿐이다.
-# 파일 관문 3종은 안에서 ``_deny_file_access`` → ``user_can_read_order`` 로 주문 단위 판정을 한다.
+# 협력사 세션이 쓸 수 있는 endpoint.
+# * 파일 관문 3종은 안에서 ``_deny_file_access`` → ``user_can_read_order`` 로 주문 단위 판정을 한다.
+# * 협력사 화면·API(``partner_portal.*``·``partner_api.*``)는 ``partner_required`` + 주문마다
+#   ``partner_can_read_order`` 로 다시 판정한다.
 # 로그인 화면은 넣지 않는다 — 공용 레이아웃이 내부 메뉴·단계 배지 수를 그린다. 로그인된 협력사가
-# /login 을 열면 막힘 화면(로그아웃 버튼)이 나온다.
+# 다른 화면을 열면 협력사 첫 화면으로 보낸다.
 PARTNER_ALLOWED_ENDPOINTS: frozenset[str] = frozenset({
     "static",
     "auth.logout",
@@ -29,12 +31,49 @@ PARTNER_ALLOWED_ENDPOINTS: frozenset[str] = frozenset({
     "files.view",
     "files.presigned_urls",
     "files.download",
+    "partner_portal.home",
+    "partner_portal.new_order",
+    "partner_portal.order_detail",
+    "partner_api.create_order",
+    "partner_api.upload_file",
 })
 
 # 쓰기 정책 엔진(``evaluate_policy``)이 협력사 계정에 허용하는 policy_id. 문지기를 지난 쓰기 요청도
-# 이 엔진을 한 번 더 지난다(운영에서만 켜짐 — ``AUTH_POLICY_ENABLED``). 1단계는 로그아웃·
-# 관리자 복귀(ACCOUNT_SELF)와 로그인 전 단계(ACCOUNT_ANON)뿐이다.
-PARTNER_ALLOWED_POLICIES: frozenset[str] = frozenset({"ACCOUNT_SELF", "ACCOUNT_ANON"})
+# 이 엔진을 한 번 더 지난다(운영에서만 켜짐 — ``AUTH_POLICY_ENABLED``). 로그아웃·관리자
+# 복귀(ACCOUNT_SELF), 로그인 전 단계(ACCOUNT_ANON), 협력사 화면 쓰기(PARTNER_PORTAL).
+PARTNER_ALLOWED_POLICIES: frozenset[str] = frozenset({"ACCOUNT_SELF", "ACCOUNT_ANON", "PARTNER_PORTAL"})
+
+
+# 협력사 주문의 ``structured_data['source']`` 값(네이버의 ``NAVER_SMARTSTORE`` 와 같은 자리).
+# 판정의 정본은 ``orders.partner_org_id`` 다 — sd 값은 주문 행이 아직 없는 경로(초안 발송)와
+# 화면 표시용이다.
+PARTNER_SOURCE_MARKER = "PARTNER"
+
+
+def is_partner_sd(sd: Any) -> bool:
+    """structured_data 가 협력사 주문의 것인가."""
+    return isinstance(sd, dict) and sd.get("source") == PARTNER_SOURCE_MARKER
+
+
+def is_partner_order(order: Any) -> bool:
+    """협력사 주문인가 — ``partner_org_id`` 칸이 정본, sd 표식은 보조."""
+    if order is None:
+        return False
+    if getattr(order, "partner_org_id", None) is not None:
+        return True
+    return is_partner_sd(getattr(order, "structured_data", None))
+
+
+def partner_mark_name(order: Any, sd: Any = None) -> str | None:
+    """직원 화면 "협력사" 표식에 쓸 이름 — 협력사 주문이 아니면 ``None``(추가 쿼리 없음).
+
+    등록 때 발주사 칸에 협력사 이름을 넣으므로 그 값을 읽는다(판정은 ``partner_org_id``).
+    """
+    sd = sd if isinstance(sd, dict) else (getattr(order, "structured_data", None) or {})
+    if getattr(order, "partner_org_id", None) is None and not is_partner_sd(sd):
+        return None
+    orderer = ((sd.get("parties") or {}).get("orderer") or {}) if isinstance(sd, dict) else {}
+    return (orderer.get("name") or "").strip() or "협력사"
 
 
 def is_partner_user(user: Any) -> bool:
@@ -76,7 +115,7 @@ def partner_gate() -> Any | None:
     Returns:
         막을 때 응답, 통과면 ``None``.
     """
-    from flask import g, jsonify, redirect, render_template, request, session, url_for
+    from flask import g, jsonify, redirect, request, session, url_for
 
     user = getattr(g, "current_user", None)
     if not is_partner_user(user):
@@ -101,6 +140,33 @@ def partner_gate() -> Any | None:
         return None
 
     path = request.path or ""
-    if _wants_json(path):
+    if _wants_json(path) or request.method not in ("GET", "HEAD"):
         return jsonify({"success": False, "data": None, "error": _DENIED_MSG}), 403
-    return render_template("partner/blocked.html", partner_name=org.name), 403
+    return redirect(url_for("partner_portal.home"))
+
+
+def partner_required(view):
+    """협력사 화면 · API 전용 데코레이터 — 활성 협력사 계정만 통과한다(우리 직원도 거부).
+
+    로그인 안 됨: 화면은 로그인으로, API 는 401. 협력사가 아님: 403(우리 직원이 협력사 화면을
+    열 일은 없다 — 관리자는 ``/switch-user`` 로 협력사 계정이 되어 본다).
+    """
+    from functools import wraps
+
+    @wraps(view)
+    def wrapper(*args, **kwargs):
+        from flask import g, jsonify, redirect, request, url_for
+
+        user = getattr(g, "current_user", None)
+        wants_json = _wants_json(request.path or "")
+        if user is None or getattr(user, "is_active", None) is False:
+            if wants_json:
+                return jsonify({"success": False, "data": None, "error": "로그인이 필요합니다."}), 401
+            return redirect(url_for("auth.login"))
+        if not is_partner_user(user) or getattr(user, "partner_org_id", None) is None:
+            if wants_json:
+                return jsonify({"success": False, "data": None, "error": "협력사 계정 전용입니다."}), 403
+            return "협력사 계정 전용 화면입니다.", 403
+        return view(*args, **kwargs)
+
+    return wrapper

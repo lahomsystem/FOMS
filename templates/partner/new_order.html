@@ -1,0 +1,39 @@
+{% extends "partner/layout.html" %}
+{% block title %}새 주문 등록{% endblock %}
+{% block content %}
+<h1 class="pp-title">새 주문 등록</h1>
+<p class="pp-help">실측까지 마친 주문을 보내 주세요. 보낸 내용은 원본으로 보관되고, 저희 담당자가 확인한 뒤 도면 작업을 시작합니다.</p>
+<form id="ppNewOrder" class="pp-form" data-create-url="{{ url_for('partner_api.create_order') }}" data-detail-url="{{ url_for('partner_portal.order_detail', order_id=0) }}" data-upload-url="{{ url_for('partner_api.upload_file', order_id=0) }}" novalidate>
+    <fieldset class="pp-fieldset">
+        <legend>고객</legend>
+        <label class="pp-field">고객 이름<input name="customer_name" maxlength="50" required></label>
+        <label class="pp-field">연락처<input name="customer_phone" maxlength="30" inputmode="tel" required></label>
+        <label class="pp-field">현장 주소<input name="address" maxlength="300" required></label>
+        <label class="pp-field">실측한 날<input name="measured_on" type="date"></label>
+    </fieldset>
+    <fieldset class="pp-fieldset">
+        <legend>품목 (치수 단위: mm)</legend>
+        <div id="ppItems" class="pp-items"></div>
+        <button type="button" class="pp-btn pp-btn--ghost" data-pp-add-item>품목 더하기</button>
+    </fieldset>
+    <fieldset class="pp-fieldset">
+        <legend>파일</legend>
+        <label class="pp-field">실측 사진<input type="file" name="photos" multiple accept="image/*,video/*"></label>
+        <label class="pp-field">초안 도면<input type="file" name="drafts" multiple accept="image/*,.pdf,.dwg,.dxf,.zip"></label>
+    </fieldset>
+    <label class="pp-field">메모<textarea name="memo" rows="4" maxlength="2000"></textarea></label>
+    <p class="pp-status" id="ppStatus" role="status" aria-live="polite"></p>
+    <button type="submit" class="pp-btn pp-btn--primary">보내기</button>
+</form>
+<template id="ppItemRow">
+    <div class="pp-item">
+        <label class="pp-field pp-field--wide">품목<input data-k="product_name" maxlength="100"></label>
+        <label class="pp-field">가로<input data-k="width" maxlength="20" inputmode="numeric"></label>
+        <label class="pp-field">깊이<input data-k="depth" maxlength="20" inputmode="numeric"></label>
+        <label class="pp-field">높이<input data-k="height" maxlength="20" inputmode="numeric"></label>
+        <label class="pp-field">수량<input data-k="quantity" maxlength="10" inputmode="numeric" value="1"></label>
+        <label class="pp-field pp-field--wide">품목 메모<input data-k="memo" maxlength="500"></label>
+        <button type="button" class="pp-btn pp-btn--ghost" data-pp-remove-item>빼기</button>
+    </div>
+</template>
+{% endblock %}

@@ -822,6 +822,12 @@ def edit_user(user_id):
     if not user:
         flash('사용자를 찾을 수 없습니다.', 'error')
         return redirect(url_for('auth.user_list'))
+
+    # PARTNER-02: 협력사 계정은 협력사 관리 화면에서만 고친다(여기 역할 목록에 PARTNER 가 없어
+    # 저장하면 협력사 칸과 역할이 어긋난다 — DB 제약 ck_users_partner_role_org 가 거부).
+    if user.partner_org_id is not None:
+        flash('협력사 계정은 협력사 관리 화면에서 고칩니다.', 'info')
+        return redirect(url_for('admin.partners'))
     
     # Prevent editing admin user if it's the only admin
     if user.role == 'ADMIN':

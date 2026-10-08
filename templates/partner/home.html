@@ -1,0 +1,23 @@
+{% extends "partner/layout.html" %}
+{% block title %}주문 목록{% endblock %}
+{% block content %}
+<div class="pp-toolbar">
+    <h1 class="pp-title">주문 목록</h1>
+    <a class="pp-btn pp-btn--primary" href="{{ url_for('partner_portal.new_order') }}">새 주문 등록</a>
+</div>
+{% if not orders %}
+<p class="pp-empty">아직 등록한 주문이 없습니다. "새 주문 등록"으로 실측 내용과 초안 도면을 보내 주세요.</p>
+{% else %}
+<ul class="pp-list">
+    {% for o in orders %}
+    <li class="pp-card">
+        <a class="pp-card__link" href="{{ url_for('partner_portal.order_detail', order_id=o.id) }}">
+            <span class="pp-card__name">{{ o.customer_name }}</span>
+            <span class="pp-stage">{{ o.stage_label }}{% if o.stage_label == '시공 예정' and o.construction_date %} · {{ o.construction_date }}{% endif %}</span>
+            <span class="pp-card__meta">#{{ o.id }} · {{ o.received_date }} · {{ o.address }}</span>
+        </a>
+    </li>
+    {% endfor %}
+</ul>
+{% endif %}
+{% endblock %}

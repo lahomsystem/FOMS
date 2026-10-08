@@ -1251,6 +1251,14 @@ class PartnerOrg(Base):
     logo_storage_key = Column(String(500), nullable=True)
     contact_name = Column(String(100), nullable=True)
     contact_phone = Column(String(30), nullable=True)
+    # PARTNER-02: 이 협력사를 맡는 우리 영업 직원. 협력사 주문의 영업 담당(OrderAssignment SALES ·
+    # quest owner_person)이 된다 — 주문 담당은 반드시 우리 직원이어야 한다(create_order 계약).
+    owner_user_id = Column(
+        Integer,
+        # users.partner_org_id 와 서로 가리키는 순환이라 표 생성 뒤 ALTER 로 붙인다(use_alter).
+        ForeignKey('users.id', name='fk_partner_orgs_owner_user_id_users', use_alter=True),
+        nullable=True,
+    )
     created_at = Column(DateTime, nullable=False, default=now_utc_naive, server_default=func.now())
     updated_at = Column(DateTime, nullable=False, default=now_utc_naive, onupdate=now_utc_naive,
                         server_default=func.now())

@@ -7,6 +7,7 @@
    포함되며, 코호트 밖(폰/세로/데스크톱)에서는 CSS base rule(display:none)로 완전 숨김.
    NO inline style, NO <script>. #}
 {% from 'partials/shared/channel_mark.html' import channel_mark %}
+{% from 'partials/shared/channel_mark.html' import partner_mark %}
 <div class="foms-tablet-measure-split" aria-label="실측 태블릿 작업 화면">
   {# 실측일 순 정렬: measurement_date 는 문자열(YYYY-MM-DD) 또는 None.
      None 은 Jinja sort 에서 예외 → 유효 값만 selectattr 로 분리해 정렬 후 미지정 뒤에 붙임. #}
@@ -65,7 +66,7 @@
             <span class="foms-tablet-measure-card__time">{{ r.measurement_time or '-' }}</span>
           </div>
           <div class="foms-tablet-measure-card__customer">{{ r.customer_name or '-' }}
-            {{ channel_mark(r.channel_source|default(none, true)) }}</div>
+            {{ channel_mark(r.channel_source|default(none, true)) }} {{ partner_mark(r.partner_name|default(none, true)) }}</div>
           <div class="foms-tablet-measure-card__product">{{ (r.product or '-')|strip_product_w or '-' }}</div>
           {# 동행 전달: 이 실측에 태운 AS 건. 카드가 <button> 이라 [전달 완료] 버튼은 못 넣고
              배지 + 들고 갈 물건 한 줄만 보인다(완료 처리는 PC 상세행·모바일 시트). #}

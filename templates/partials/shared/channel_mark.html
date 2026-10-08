@@ -14,3 +14,11 @@
 <span class="foms-channel-mark foms-channel-mark--naver" role="img" aria-label="네이버 스마트스토어 주문" title="네이버 스마트스토어 주문"><svg viewBox="0 0 24 24" width="22" height="22" focusable="false" aria-hidden="true"><rect x="0.5" y="0.5" width="23" height="23" rx="4.75" fill="#03C75A" stroke="#02A34A" stroke-width="1"></rect><path d="M6.5 6 H11.2 L14.6 11.6 V6 H17.5 V18 H12.8 L9.4 12.4 V18 H6.5 Z" fill="#FFFFFF"></path></svg></span>
 {%- endif -%}
 {%- endmacro %}
+
+{#- PARTNER-02: 외부 협력사 주문 표식 — 네이버 마크 바로 뒤. 판정은 서버(partner_mark_name)가 하고
+    여기서는 이름이 있을 때만 그린다. 네이버 마크와 클래스를 나눈다(--naver 개수를 세는 계약 테스트). -#}
+{% macro partner_mark(partner_name) -%}
+{%- if partner_name -%}
+<span class="foms-partner-mark" title="외부 협력사 주문">협력사 · {{ partner_name }}</span>
+{%- endif -%}
+{%- endmacro %}
