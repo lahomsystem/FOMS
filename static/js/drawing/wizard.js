@@ -233,6 +233,9 @@
   var userPresets = [];                // 도면팀 공유 사용자 프리셋 [{label,text}] (전역 SystemSetting)
   var presetsVersion = 0;              // preset SystemSetting optimistic-lock version (GET 로 갱신, 저장 If-Match)
   var defaults = {};
+  var PHOTO_DRAG_TYPE = 'application/x-dws-photo';   // 실측 사진 내부 드래그 식별용 dataTransfer 타입
+  var PHOTO_MAX_LONG = 480;                          // 실측 사진 삽입 기본 크기(긴 변 px)
+  var photoDragMap = {};                             // 사진 key → {photo, cell}(드롭 시 조회)
   var products = [];                   // 주문 제품 리스트 [{index,name,spec,price}] (좌측 패널 소스)
   var measurePhotos = [];              // 실측 사진 [{key,filename,item_index,thumb_url}] (사이드 참조 소스)
   var customerName = '';
@@ -242,11 +245,18 @@
   var imageRatioLock = true;
   var undoStack = [];
   var redoStack = [];
+  var sheetHistories = {};             // 시트 id → {undo:[], redo:[]} — 시트를 오가도 실행 취소 이력 유지
   var lastArrowUndoTs = 0;
 
   /* 저장 조율 상태 (자동 저장 · 저장+전달 원클릭 공용) */
   var saveInFlight = false;            // 저장 요청 진행 중(중복 저장·자동 저장 억제)
   var dragActive = false;             // 노드 드래그/변형·경계선 드래그 진행 중(자동 저장 억제)
+  var shapeDrawActive = false;        // 도형(사각·원·화살표·선) 초안 드래그 진행 중(자동 저장 억제)
+  var saveFailed = false;             // 마지막 저장이 실패했다(상태 칩 '저장 실패' — 다음 성공 시 해제)
+  var lastSavedAt = null;             // 마지막 저장 성공 시각(Date) — 상태 칩 '저장됨 HH:MM'
+  var BACKUP_DEBOUNCE_MS = 2000;      // 로컬 비상 백업 디바운스(2초)
+  var BACKUP_MAX_CHARS = 4 * 1024 * 1024;   // 로컬 백업 상한(약 4MB) — 넘으면 백업 생략
+  var backupTimer = null;             // 로컬 백업 디바운스 타이머
   var AUTOSAVE_INTERVAL_MS = 45000;   // 자동 저장 주기(45초)
   var autosaveTimer = null;           // setInterval 핸들(단일)
   var autoConflictWarned = false;     // 자동 저장 409 경고 1회성 플래그(성공 시 해제)
@@ -302,6 +312,22 @@
     return f;
   }
 
+  /** 현재 시트의 실행 취소/다시 실행 스택을 undoStack/redoStack 에 연결한다(없으면 새로 만든다). */
+  function bindSheetHistory() {
+    var cs = currentSheet();
+    if (!cs || !cs.id) { undoStack = []; redoStack = []; return; }
+    var h = sheetHistories[cs.id];
+    if (!h) { h = sheetHistories[cs.id] = { undo: [], redo: [] }; }
+    undoStack = h.undo;
+    redoStack = h.redo;
+  }
+
+  /** 전체 이력 초기화(서버 상태 재로드) — 모든 시트 스택을 버리고 현재 시트에 새로 연결한다. */
+  function resetAllHistories() {
+    sheetHistories = {};
+    bindSheetHistory();
+  }
+
   function pushUndoSnapshot(snap) {
     undoStack.push(snap);
     if (undoStack.length > 50) { undoStack.shift(); }
@@ -330,7 +356,87 @@
     markDirty();
   }
 
-  function markDirty() { dirty = true; userDirty = true; updateSaveState(); }
+  function markDirty() { dirty = true; userDirty = true; updateSaveState(); scheduleBackup(); }
+
+  /* ---- 로컬 비상 백업(브라우저 localStorage) --------------------------------
+     서버 저장 전에 탭이 죽어도 작업을 되살리도록, 변경 2초 뒤 시트 전체를 이 브라우저에 적어 둔다.
+     서버 저장 성공 시 지운다. 열람 전용(canSave=false)이면 백업·복원 모두 하지 않는다. */
+  function backupKey() { return 'dws-backup:' + String(ORDER_ID || ''); }
+
+  function scheduleBackup() {
+    if (!canSave || !hydrated) { return; }
+    if (backupTimer) { clearTimeout(backupTimer); }
+    backupTimer = setTimeout(writeBackup, BACKUP_DEBOUNCE_MS);
+  }
+
+  function writeBackup() {
+    backupTimer = null;
+    if (!canSave || !hydrated || !dirty) { return; }
+    try {
+      var raw = JSON.stringify({ ts: Date.now(), base_updated_at: baseUpdatedAt, sheets: state.sheets });
+      if (raw.length > BACKUP_MAX_CHARS) { return; }   // 너무 크면 생략(저장소 한도 초과 방지)
+      window.localStorage.setItem(backupKey(), raw);
+    } catch (e) { /* 사생활 보호 모드·저장소 가득 참 — 백업만 포기하고 작업은 계속 */ }
+  }
+
+  function clearBackup() {
+    if (backupTimer) { clearTimeout(backupTimer); backupTimer = null; }
+    try { window.localStorage.removeItem(backupKey()); } catch (e) { /* 무시 */ }
+  }
+
+  function readBackup() {
+    try {
+      var raw = window.localStorage.getItem(backupKey());
+      if (!raw) { return null; }
+      var b = JSON.parse(raw);
+      if (!b || !b.sheets || !b.sheets.length) { return null; }
+      return b;
+    } catch (e) { return null; }
+  }
+
+  function hhmm(d) {
+    function two(n) { return (n < 10 ? '0' : '') + n; }
+    return two(d.getHours()) + ':' + two(d.getMinutes());
+  }
+
+  /** 로드 직후 1회: 서버 내용과 다른 백업이 있으면 복원 배너를 띄운다(막지 않는 배너). */
+  function offerBackupRestore() {
+    if (!els.restoreBanner) { return; }
+    els.restoreBanner.hidden = true;
+    if (!canSave) { return; }
+    var b = readBackup();
+    if (!b) { return; }
+    var same = false;
+    try { same = JSON.stringify(b.sheets) === JSON.stringify(state.sheets); } catch (e) { same = false; }
+    if (same) { clearBackup(); return; }   // 서버와 같으면 되살릴 것이 없다
+    var d = new Date(b.ts || Date.now());
+    if (els.restoreText) {
+      els.restoreText.textContent = '저장되지 않은 작업이 있습니다 (' + (d.getMonth() + 1) + '/' + d.getDate() + ' ' + hhmm(d) + ')';
+    }
+    els.restoreBanner.hidden = false;
+  }
+
+  /** 복원: 백업 시트를 불러와 dirty 로 표시(저장은 사람이 하거나 자동 저장이 한다). */
+  function restoreBackup() {
+    var b = readBackup();
+    if (els.restoreBanner) { els.restoreBanner.hidden = true; }
+    if (!b || !canSave) { return; }
+    state = normalizeState({ v: 1, sheets: b.sheets });
+    current = 0;
+    resetAllHistories();   // 백업 복원 = 상태 통째 교체 → 시트별 이력 전부 초기화
+    deselect();
+    renderProducts();
+    renderTabs();
+    renderForm();
+    rebuildAnno();
+    markDirty();
+    toast('저장되지 않은 작업을 복원했습니다. 저장 버튼을 눌러 서버에 반영하세요.');
+  }
+
+  function discardBackup() {
+    clearBackup();
+    if (els.restoreBanner) { els.restoreBanner.hidden = true; }
+  }
 
   /* ========================================================================
    * [3] form render
@@ -342,6 +448,11 @@
     els.readonlyBanner = document.getElementById('dws-readonly-banner');
     els.autosaveBanner = document.getElementById('dws-autosave-banner');
     els.autosaveBannerReason = document.getElementById('dws-autosave-banner-reason');
+    els.saveStatus = document.getElementById('dws-save-status');
+    els.restoreBanner = document.getElementById('dws-restore-banner');
+    els.restoreText = document.getElementById('dws-restore-text');
+    els.restoreBtn = document.getElementById('dws-btn-restore');
+    els.restoreDiscardBtn = document.getElementById('dws-btn-restore-discard');
     els.products = document.getElementById('dws-products');
     els.productList = document.getElementById('dws-product-list');
     els.productToggle = document.getElementById('dws-products-toggle');
@@ -359,6 +470,9 @@
     els.lightbox = document.getElementById('dws-lightbox');
     els.lightboxImg = document.getElementById('dws-lightbox-img');
     els.lightboxClose = document.getElementById('dws-lightbox-close');
+    els.help = document.getElementById('dws-help');
+    els.helpClose = document.getElementById('dws-help-close');
+    els.helpBtn = document.getElementById('dws-btn-help');
     els.tabbar = document.getElementById('dws-tabbar');
     els.canvas = document.getElementById('dws-canvas');
     els.empty = document.getElementById('dws-empty');
@@ -377,6 +491,10 @@
     els.zoomLabel = document.getElementById('dws-zoom-label');
     els.fileInput = document.getElementById('dws-file-input');
     els.mtTrim = document.getElementById('dws-mt-trim');
+    els.mtFlipX = document.getElementById('dws-mt-flip-x');
+    els.mtFlipY = document.getElementById('dws-mt-flip-y');
+    els.mtLockBtns = ['text', 'image', 'shape'].map(function (k) { return document.getElementById('dws-mt-lock-' + k); }).filter(Boolean);
+    els.mtEyedropBtns = ['text', 'shape'].map(function (k) { return document.getElementById('dws-mt-eyedrop-' + k); }).filter(Boolean);
     els.presetMenu = document.getElementById('dws-preset-menu');
     els.shapeMenu = document.getElementById('dws-shape-menu');
     els.exportMenu = document.getElementById('dws-export-menu');
@@ -754,6 +872,9 @@
       rotateAnchorOffset: 24,
       rotationSnaps: [0, 45, 90, 135, 180, 225, 270, 315],
       rotationSnapTolerance: 6,
+      // Shift+코너 리사이즈 = 비율 유지(포토샵). Konva 'default' = keepRatio() || shiftKey
+      // → 이미지 비율 잠금(keepRatio true)은 그대로, 그 외엔 Shift 누르는 동안만 비율 고정.
+      shiftBehavior: 'default',
       ignoreStroke: true
     });
     konvaLayer.add(transformer);
@@ -892,6 +1013,7 @@
   function tagNode(node, o) {
     node.setAttr('annoType', o.type);
     node.setAttr('objId', o.id);
+    node.setAttr('annoLocked', !!o.locked);   // 잠금 객체: 이동·변형·삭제·러버밴드 선택 제외
     wireNode(node);
     return node;
   }
@@ -920,7 +1042,7 @@
       var natural = Math.max(1, Math.round(node.width()));
       if (o.w !== natural) { o.w = natural; }
     }
-    node.on('dblclick', function (e) { e.cancelBubble = true; if (canSave) { startEditText(node, false); } });
+    node.on('dblclick', function (e) { e.cancelBubble = true; if (canSave && !isLockedNode(node)) { startEditText(node, false); } });
     return node;
   }
 
@@ -953,7 +1075,7 @@
     });
     group.setAttr('richWidth', Math.round(groupWidth));
     tagNode(group, o);
-    group.on('dblclick', function (e) { e.cancelBubble = true; if (canSave) { startEditText(group, false); } });
+    group.on('dblclick', function (e) { e.cancelBubble = true; if (canSave && !isLockedNode(group)) { startEditText(group, false); } });
     return group;
   }
 
@@ -970,16 +1092,35 @@
     if (o.key) {
       var cached = _annoImgCache[o.key];
       if (cached && cached.complete && cached.naturalWidth) {
-        node.image(cached);   // 재빌드 시 동기 반영 → 깜빡임 없음
+        node.image(flippedImageSource(cached, o));   // 재빌드 시 동기 반영 → 깜빡임 없음
       } else {
         var img = cached || new Image();
         _annoImgCache[o.key] = img;
-        img.onload = function () { node.image(img); konvaLayer.batchDraw(); };
+        img.onload = function () { node.image(flippedImageSource(img, o)); konvaLayer.batchDraw(); };
         img.onerror = function () { /* 로드 실패 시 빈 프레임 유지 */ };
         if (!img.src) { img.src = viewUrl(o.key); }
       }
     }
     return node;
+  }
+
+  /* 이미지 뒤집기(flipX/flipY) — 원본 이미지를 뒤집어 그린 캔버스를 Konva.Image 소스로 쓴다.
+     노드는 scale 1·offset 0 그대로라 위치/bbox 가 변하지 않고, applyLiveTransform/commitNode 의
+     scale→치수 정규화가 뒤집기를 지우지 않는다(뒤집기는 state 의 flipX/flipY 가 정본). */
+  function flippedImageSource(img, o) {
+    var fx = !!(o && o.flipX), fy = !!(o && o.flipY);
+    if ((!fx && !fy) || !img || !img.naturalWidth) { return img; }
+    var cacheKey = (fx ? 'x' : '') + (fy ? 'y' : '');
+    img._dwsFlip = img._dwsFlip || {};
+    if (img._dwsFlip[cacheKey]) { return img._dwsFlip[cacheKey]; }
+    var cv = document.createElement('canvas');
+    cv.width = img.naturalWidth; cv.height = img.naturalHeight;
+    var ctx = cv.getContext('2d');
+    ctx.translate(fx ? cv.width : 0, fy ? cv.height : 0);
+    ctx.scale(fx ? -1 : 1, fy ? -1 : 1);
+    ctx.drawImage(img, 0, 0);
+    img._dwsFlip[cacheKey] = cv;
+    return cv;
   }
 
   function buildRect(o) {
@@ -1043,9 +1184,21 @@
      dragBoundFunc 에는 이벤트가 없어 Shift 상태를 전역 키/포인터 이벤트로 추적한다. */
   var shiftHeld = false;
   ['keydown', 'keyup', 'pointermove', 'pointerdown'].forEach(function (t) {
-    window.addEventListener(t, function (e) { shiftHeld = !!e.shiftKey; }, true);
+    window.addEventListener(t, function (e) { shiftHeld = !!e.shiftKey; syncShiftRotationSnaps(); }, true);
   });
-  window.addEventListener('blur', function () { shiftHeld = false; });
+  window.addEventListener('blur', function () { shiftHeld = false; syncShiftRotationSnaps(); });
+
+  /* Shift+회전 = 15° 단위 스냅(포토샵). 평소엔 45° 배수(허용 6°), Shift 누르는 동안만 15° 배수(허용 7.5° = 항상 스냅). */
+  var ROTATION_SNAPS_DEFAULT = [0, 45, 90, 135, 180, 225, 270, 315];
+  var ROTATION_SNAPS_SHIFT = [];
+  for (var rs = 0; rs < 360; rs += 15) { ROTATION_SNAPS_SHIFT.push(rs); }
+  var shiftSnapActive = false;
+  function syncShiftRotationSnaps() {
+    if (!transformer || shiftSnapActive === shiftHeld) { return; }
+    shiftSnapActive = shiftHeld;
+    transformer.rotationSnaps(shiftHeld ? ROTATION_SNAPS_SHIFT : ROTATION_SNAPS_DEFAULT);
+    transformer.rotationSnapTolerance(shiftHeld ? 7.5 : 6);
+  }
   function wireAxisLock(node) {
     // 축은 한 번 정하면(6px 이상 움직인 뒤) 드래그 끝까지 유지 — 대각선 근처에서 축이 뒤바뀌며 튀는 것 방지.
     // Shift 를 떼면 축 선택을 풀어 다시 누를 때 새로 정한다.
@@ -1072,6 +1225,7 @@
       if (annoMode !== 'select') { return; }   // 그리기 모드면 스테이지 핸들러가 처리
       e.cancelBubble = true;
       var id = node.getAttr('objId');
+      if (eyedropArmed) { pickEyedropColor(id); return; }   // 스포이트: 선택 변경 없이 색만 가져온다
       var devt = e.evt || {};
       // Shift/Ctrl/Cmd+클릭 = 선택 토글(추가/제거), 일반 클릭 = 단일 선택.
       if (devt.shiftKey || devt.ctrlKey || devt.metaKey) { toggleInSelection(id); }
@@ -1080,6 +1234,7 @@
     // 아래 드래그/변형 핸들러는 단일 선택 전용 — 다중(그룹)은 transformer 레벨 핸들러가 처리.
     node.on('dragstart', function (e) {
       if (annoMode !== 'select') { node.stopDrag(); return; }
+      if (isLockedNode(node)) { node.stopDrag(); return; }   // 잠금 객체는 이동 불가
       if (lastPointerType === 'touch') { node.stopDrag(); return; }   // 손가락 드래그 금지(팜 리젝션 — 손가락=이동/핀치 전용)
       var alt = !!(e && e.evt && e.evt.altKey);
       if (isMultiSelect()) { if (alt) { startAltDuplicate(selectedIds.slice()); } return; }
@@ -1192,7 +1347,7 @@
       var node = buildNode(o);
       if (node) { konvaLayer.add(node); nodeById[o.id] = node; }
     });
-    konvaLayer.find('.anno').forEach(function (n) { n.draggable(canSave && annoMode === 'select'); });
+    konvaLayer.find('.anno').forEach(function (n) { n.draggable(canSave && annoMode === 'select' && !isLockedNode(n)); });
     transformer.moveToTop();
     konvaLayer.batchDraw();
     // 다중 선택 복원: 아직 존재하는 노드만 유지, 하나라도 남으면 applySelection, 전부 사라졌으면 해제.
@@ -1259,7 +1414,9 @@
       transformer.shouldOverdrawWholeArea(false);
       transformer.keepRatio(t === 'image' ? imageRatioLock : false);
       // 런 텍스트는 이동·회전만(리사이즈 앵커 비활성) — 단색 텍스트/도형은 코너 앵커 유지.
-      transformer.enabledAnchors(isRich ? [] : ['top-left', 'top-right', 'bottom-left', 'bottom-right']);
+      var lockedOne = isLockedNode(node);
+      transformer.enabledAnchors((isRich || lockedOne) ? [] : ['top-left', 'top-right', 'bottom-left', 'bottom-right']);
+      transformer.rotateEnabled(!lockedOne);   // 잠금 = 변형 불가(선택은 잠금 해제용으로 허용)
       transformer.nodes([node]);
       transformer.moveToTop();
       hideAlignToolbar();
@@ -1267,9 +1424,11 @@
     } else {
       // 다중: 그룹 bbox 영역 드래그=함께 이동, 코너 앵커=그룹 리사이즈/회전.
       // (런 텍스트 포함 시 리사이즈는 richWidth 로 되돌아감 — 이동/정렬은 정상. 문서화된 한계.)
-      transformer.shouldOverdrawWholeArea(true);
+      var anyLocked = nodes.some(isLockedNode);   // 잠금 포함 다중 선택 = 그룹 이동·변형 금지
+      transformer.shouldOverdrawWholeArea(!anyLocked);
       transformer.keepRatio(false);
-      transformer.enabledAnchors(['top-left', 'top-right', 'bottom-left', 'bottom-right']);
+      transformer.enabledAnchors(anyLocked ? [] : ['top-left', 'top-right', 'bottom-left', 'bottom-right']);
+      transformer.rotateEnabled(!anyLocked);
       transformer.nodes(nodes);
       transformer.moveToTop();
       hideMiniToolbar();
@@ -1408,8 +1567,9 @@
     els.mtShape.hidden = !isStrokeType(t);   // pen 도 line 처럼 색/굵기/삭제 툴 노출
     els.mt.hidden = false;
     if (t === 'text') { syncTextToolbar(o); }
-    else if (t === 'image') { syncImageToolbar(); }
+    else if (t === 'image') { syncImageToolbar(o); }
     else { syncShapeToolbar(o); }
+    syncLockEyedropButtons(o);
     positionMiniToolbar();
   }
 
@@ -1444,8 +1604,20 @@
     els.mtAlign.classList.toggle('dws-active', o.align === 'center');
   }
 
-  function syncImageToolbar() {
+  function syncImageToolbar(o) {
     els.mtRatio.textContent = '비율고정: ' + (imageRatioLock ? '켬' : '끔');
+    if (!o) { o = findObj(selected); }
+    if (els.mtFlipX) { els.mtFlipX.classList.toggle('dws-active', !!(o && o.flipX)); }
+    if (els.mtFlipY) { els.mtFlipY.classList.toggle('dws-active', !!(o && o.flipY)); }
+  }
+
+  function syncLockEyedropButtons(o) {
+    var locked = !!(o && o.locked);
+    els.mtLockBtns.forEach(function (b) {
+      b.textContent = locked ? '잠금 해제' : '잠금';
+      b.classList.toggle('dws-active', locked);
+    });
+    els.mtEyedropBtns.forEach(function (b) { b.classList.toggle('dws-active', eyedropArmed); });
   }
 
   function syncShapeToolbar(o) {
@@ -1482,6 +1654,84 @@
     selectById(o.id);
   }
 
+  /* ---- 잠금 / 뒤집기 / 스포이트 ------------------------------------------- */
+  function isLockedNode(n) { return !!(n && n.getAttr('annoLocked')); }
+
+  function reselect(ids) {
+    rebuildAnno();
+    selectedIds = ids.filter(function (id) { return !!nodeById[id]; });
+    applySelection();
+  }
+
+  /** 선택 잠금 토글: 전부 잠겨 있으면 해제, 하나라도 풀려 있으면 전부 잠금. */
+  function toggleLockSelected() {
+    if (!canSave) { return; }
+    var objs = selectedIds.map(findObj).filter(Boolean);
+    if (!objs.length) { toast('잠글 객체를 먼저 선택하세요.'); return; }
+    var unlock = objs.every(function (o) { return o.locked; });
+    recordUndo();
+    objs.forEach(function (o) { if (unlock) { delete o.locked; } else { o.locked = true; } });
+    markDirty();
+    reselect(selectedIds.slice());
+    toast(unlock ? '잠금을 해제했습니다.' : '잠갔습니다. 이동·변형·삭제가 막힙니다 (Ctrl+L 로 해제).');
+  }
+
+  /** 현재 시트의 잠긴 객체 전부 잠금 해제(Ctrl+Shift+L / Ctrl+Alt+L). */
+  function unlockAllOnSheet() {
+    if (!canSave || !currentSheet()) { return; }
+    var locked = (currentSheet().objects || []).filter(function (o) { return o.locked; });
+    if (!locked.length) { toast('잠긴 객체가 없습니다.'); return; }
+    recordUndo();
+    locked.forEach(function (o) { delete o.locked; });
+    markDirty();
+    reselect(selectedIds.slice());
+    toast('잠긴 객체 ' + locked.length + '개를 모두 풀었습니다.');
+  }
+
+  /** 이미지 좌우(flipX)/상하(flipY) 뒤집기 — 위치·크기는 그대로, 실행 취소 가능. */
+  function flipSelectedImage(axis) {
+    var o = findObj(selected);
+    if (!canSave || !o || o.type !== 'image') { return; }
+    if (o.locked) { toast('잠긴 객체는 뒤집을 수 없습니다.'); return; }
+    recordUndo();
+    if (o[axis]) { delete o[axis]; } else { o[axis] = true; }
+    markDirty();
+    reselect([o.id]);
+  }
+
+  /* 스포이트: 텍스트/도형 선택 후 버튼 → 다음에 클릭한 객체의 색(글자색/선색)을 선택 객체에 적용. */
+  var eyedropArmed = false;
+  function setEyedropUi(on) {
+    eyedropArmed = on;
+    if (els.anno) { els.anno.classList.toggle('dws-eyedrop-armed', on); }
+    els.mtEyedropBtns.forEach(function (b) { b.classList.toggle('dws-active', on); });
+  }
+  function armEyedrop() {
+    var o = findObj(selected);
+    if (!canSave || !o || !(o.type === 'text' || isStrokeType(o.type))) { return; }
+    setEyedropUi(true);
+    toast('색을 가져올 객체를 클릭하세요 (Esc 취소).');
+  }
+  function cancelEyedrop() { if (eyedropArmed) { setEyedropUi(false); toast('스포이트를 취소했습니다.'); } }
+  function objColorOf(o) {
+    if (!o) { return null; }
+    if (o.type === 'text') { return (o.runs && o.runs.length) ? o.runs[0].c : o.color; }
+    if (isStrokeType(o.type)) { return o.stroke; }
+    return null;
+  }
+  function pickEyedropColor(sourceId) {
+    var target = findObj(selected);
+    var color = objColorOf(findObj(sourceId));
+    setEyedropUi(false);
+    if (!target) { return; }
+    if (!color) { toast('이 객체에는 가져올 색이 없습니다.'); return; }
+    if (target.locked) { toast('잠긴 객체에는 색을 적용할 수 없습니다.'); return; }
+    // 견본(data-color / data-shape-color) 클릭과 같은 적용 경로를 쓴다.
+    if (target.type === 'text') { updateSelectedText({ color: color }); }
+    else if (isStrokeType(target.type)) { updateSelectedShape({ stroke: color }); }
+    toast('색을 가져왔습니다: ' + color);
+  }
+
   /* ---- 삭제 / 이동 -------------------------------------------------------- */
   function spliceObject(id) {
     var objs = currentSheet().objects, i = -1;
@@ -1494,8 +1744,9 @@
   /** 선택 전체 삭제(단일·다중 공용) — recordUndo 1회로 묶고 rebuild 1회. */
   function deleteSelected() {
     if (!canSave || !selectedIds.length) { return; }
+    var ids = selectedIds.filter(function (id) { var o = findObj(id); return !(o && o.locked); });
+    if (!ids.length) { toast('잠긴 객체는 삭제할 수 없습니다. Ctrl+L 로 잠금을 해제하세요.'); return; }
     recordUndo();
-    var ids = selectedIds.slice();
     deselect();
     ids.forEach(spliceObject);
     rebuildAnno();
@@ -1548,6 +1799,7 @@
     dwsClip.objs.forEach(function (src) {
       var o = JSON.parse(JSON.stringify(src));
       o.id = rid('o-');
+      delete o.locked;   // 붙여넣은 사본은 잠금 없이 시작
       moveObjectBy(o, off, off);
       currentSheet().objects.push(o);
       ids.push(o.id);
@@ -1592,6 +1844,73 @@
     transformer.moveToTop();
     konvaLayer.batchDraw();
     markDirty();
+  }
+
+  /* ---- 포토샵식 단축키 A 보조 함수 ---------------------------------------- */
+  /** Ctrl+A: 현재 시트의 주석 객체 전부를 다중 선택. */
+  function selectAllOnSheet() {
+    var cs = currentSheet();
+    if (!cs) { return; }
+    var ids = (cs.objects || []).map(function (o) { return o.id; }).filter(function (id) { return !!nodeById[id]; });
+    if (!ids.length) { deselect(); return; }
+    selectedIds = ids;
+    applySelection();
+  }
+
+  /** Ctrl+J: 선택 객체를 제자리(10px 어긋나게) 복제하고 복제본을 선택. 200개 상한 지킴. */
+  function duplicateSelectedInPlace() {
+    var cs = currentSheet();
+    if (!cs || !selectedIds.length) { return; }
+    var objs = cs.objects || (cs.objects = []);
+    var src = selectedIds.map(findObj).filter(Boolean);
+    if (!src.length) { return; }
+    if (objs.length + src.length > 200) { toast('한 시트의 객체가 200개를 넘어 복제할 수 없습니다.'); return; }
+    recordUndo();
+    var ids = [];
+    src.forEach(function (s) {
+      var o = JSON.parse(JSON.stringify(s));
+      o.id = rid('o-');
+      delete o.locked;   // 복제본은 잠금 없이 시작
+      moveObjectBy(o, 10, 10);
+      objs.push(o);
+      ids.push(o.id);
+    });
+    markDirty();
+    rebuildAnno();
+    selectedIds = ids;
+    applySelection();
+  }
+
+  /** Ctrl+]/[ 계열: 시트 objects 배열 순서(=그리는 순서)를 바꿔 층을 옮기고 선택 유지.
+      dir: 'up' 한 층 앞 · 'down' 한 층 뒤 · 'front' 맨 앞 · 'back' 맨 뒤. */
+  function reorderSelected(dir) {
+    var cs = currentSheet();
+    if (!cs || !selectedIds.length) { return; }
+    var objs = cs.objects || [];
+    var sel = {};
+    selectedIds.forEach(function (id) { sel[id] = true; });
+    var next = objs.slice();
+    var i, t;
+    if (dir === 'front' || dir === 'back') {
+      var picked = next.filter(function (o) { return sel[o.id]; });
+      var rest = next.filter(function (o) { return !sel[o.id]; });
+      next = dir === 'front' ? rest.concat(picked) : picked.concat(rest);
+    } else if (dir === 'up') {
+      for (i = next.length - 2; i >= 0; i--) {
+        if (sel[next[i].id] && !sel[next[i + 1].id]) { t = next[i]; next[i] = next[i + 1]; next[i + 1] = t; }
+      }
+    } else {
+      for (i = 1; i < next.length; i++) {
+        if (sel[next[i].id] && !sel[next[i - 1].id]) { t = next[i]; next[i] = next[i - 1]; next[i - 1] = t; }
+      }
+    }
+    var changed = false;
+    for (i = 0; i < next.length; i++) { if (next[i] !== objs[i]) { changed = true; break; } }
+    if (!changed) { return; }
+    recordUndo();
+    cs.objects = next;
+    markDirty();
+    rebuildAnno();   // rebuildAnno 가 selectedIds 를 복원한다
   }
 
   function pastePlainTextAsObject(text) {
@@ -1648,7 +1967,7 @@
       els.anno.classList.toggle('dws-erasing', mode === 'eraser');
     }
     if (konvaLayer) {
-      konvaLayer.find('.anno').forEach(function (n) { n.draggable(canSave && mode === 'select'); });
+      konvaLayer.find('.anno').forEach(function (n) { n.draggable(canSave && mode === 'select' && !isLockedNode(n)); });
     }
     if (els.penPalette) {
       els.penPalette.hidden = (mode !== 'pen');
@@ -1711,6 +2030,7 @@
 
   function onStageMouseDown(e) {
     if (!canSave || !currentSheet()) { return; }
+    if (eyedropArmed && e.target === konvaStage) { cancelEyedrop(); return; }   // 빈 곳 클릭 = 스포이트 취소
     // 펜/지우개는 pointer 핸들러(onStagePointerDown) 전담 — mousedown 은 no-op(러버밴드·선택 이중발동 차단).
     if (annoMode === 'pen' || annoMode === 'eraser') { return; }
     /* 같은 물리 클릭의 stage 'mousedown' 이중발화 dedupe(플랫폼별 pointer/mouse
@@ -1820,7 +2140,7 @@
     var objs = (currentSheet() && currentSheet().objects) || [];
     objs.forEach(function (o) {
       var n = nodeById[o.id];
-      if (!n) { return; }
+      if (!n || o.locked) { return; }   // 잠금 객체는 러버밴드로 선택되지 않는다
       var r = n.getClientRect();
       if (r.x < box.x + box.w && r.x + r.width > box.x && r.y < box.y + box.h && r.y + r.height > box.y) {
         out.push(o.id);
@@ -1885,10 +2205,11 @@
     }
     konvaLayer.add(draft);
     transformer.moveToTop();
+    shapeDrawActive = true;   // 도형 초안 진행 중 — 자동 저장 보류
 
     // window 레벨 네이티브 리스너: 포인터가 캔버스를 벗어났다 놓아도 그리기가 확정된다.
     function move(nativeEvt) {
-      var p = pointerLogical(nativeEvt);
+      var p = constrainShapeEnd(mode, start, pointerLogical(nativeEvt), !!nativeEvt.shiftKey);
       if (mode === 'rect' || mode === 'ellipse') {
         var x = Math.min(start.x, p.x), y = Math.min(start.y, p.y);
         var w = Math.abs(p.x - start.x), h = Math.abs(p.y - start.y);
@@ -1902,10 +2223,25 @@
     function up(nativeEvt) {
       window.removeEventListener('mousemove', move, true);
       window.removeEventListener('mouseup', up, true);
-      finishDrawShape(draft, mode, start, pointerLogical(nativeEvt));
+      shapeDrawActive = false;
+      finishDrawShape(draft, mode, start, constrainShapeEnd(mode, start, pointerLogical(nativeEvt), !!nativeEvt.shiftKey));
     }
     window.addEventListener('mousemove', move, true);
     window.addEventListener('mouseup', up, true);
+  }
+
+  /* Shift+그리기 제약(포토샵): 사각형=정사각형, 타원=정원, 선/화살표=45° 단위 각도.
+     draft(mousemove)와 확정(mouseup)이 같은 함수를 거쳐 미리보기=결과가 일치한다. */
+  function constrainShapeEnd(mode, start, p, shift) {
+    if (!shift) { return p; }
+    var dx = p.x - start.x, dy = p.y - start.y;
+    if (mode === 'rect' || mode === 'ellipse') {
+      var side = Math.max(Math.abs(dx), Math.abs(dy));
+      return { x: start.x + (dx < 0 ? -side : side), y: start.y + (dy < 0 ? -side : side) };
+    }
+    var len = Math.sqrt(dx * dx + dy * dy);
+    var ang = Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) * (Math.PI / 4);
+    return { x: start.x + Math.cos(ang) * len, y: start.y + Math.sin(ang) * len };
   }
 
   function finishDrawShape(draft, mode, start, end) {
@@ -2066,7 +2402,7 @@
       var node = annoNodeFromHit(hit);
       if (!node) { return; }
       var id = node.getAttr('objId');
-      if (!id) { return; }
+      if (!id || isLockedNode(node)) { return; }   // 잠긴 객체는 지우개로도 지우지 않는다
       if (!recorded) { recordUndo(); recorded = true; }   // 첫 삭제 직전 스냅샷(제스처당 1회 undo)
       spliceObject(id);
       node.destroy();
@@ -2410,14 +2746,22 @@
       pos(논리 좌표 {x,y}) 가 주어지면 이미지 중심이 그 지점에 오도록, 없으면 캔버스 중앙에 배치.
       이미지 업로드(파일/붙여넣기/드롭)와 실측 사진 삽입(import-attachment)의 공용 삽입 파이프라인.
       cascade(0부터의 순번)가 있으면 그만큼 24px 씩 어긋나게 놓아 여러 장이 완전히 겹치지 않는다. */
-  function placeImageFromKey(key, pos, cascade) {
+  function placeImageFromKey(key, pos, cascade, maxLong) {
     if (!canSave || !key || !currentSheet()) { return; }
     var img = new Image();
     img.onload = function () {
       if (!currentSheet()) { return; }   // 비동기 로드 사이 빈 상태 방어
       var nw = img.naturalWidth || 900, nh = img.naturalHeight || 600;
-      var w = Math.min(900, nw);
-      var h = Math.round(w * nh / nw) || Math.round(w * 0.66);
+      var w, h;
+      if (maxLong) {
+        // 실측 사진: 긴 변을 maxLong(기본 480) 이하로 줄여 캔버스를 덮지 않게 한다.
+        var sc = Math.min(1, maxLong / Math.max(nw, nh));
+        w = Math.max(1, Math.round(nw * sc));
+        h = Math.max(1, Math.round(nh * sc));
+      } else {
+        w = Math.min(900, nw);
+        h = Math.round(w * nh / nw) || Math.round(w * 0.66);
+      }
       recordUndo();
       var x, y;
       var off = Math.max(0, num(cascade, 0)) * 24;
@@ -2456,11 +2800,11 @@
     }
     uploadAsset(file).then(function (r) {
       if (r.status !== 200 || !r.data || !r.data.success || !r.data.data) {
-        toast(serverErrorText(r, '이미지 업로드 실패'));
+        toast(failureText('이미지 업로드 실패', r), { error: true, retry: function () { addImageFromFile(file, pos, cascade); } });
         return;
       }
       placeImageFromKey(r.data.data.key, pos, cascade);
-    }).catch(function (err) { console.warn('[dws] asset upload', err); toast('이미지 업로드 오류'); });
+    }).catch(function (err) { console.warn('[dws] asset upload', err); toast(failureText('이미지 업로드 실패', null), { error: true, retry: function () { addImageFromFile(file, pos, cascade); } }); });
   }
 
   /** 이미지 파일 여러 장을 한 번에 추가한다(파일 선택·붙여넣기·드롭 공용).
@@ -2543,21 +2887,29 @@
     var zone = els.canvas;
     if (!zone) { return; }
     var depth = 0;   // dragenter/leave 균형 카운터(자식 경계 진입에도 하이라이트 유지)
+    function isPhotoDrag(e) {
+      var t = e.dataTransfer && e.dataTransfer.types;
+      if (!t) { return false; }
+      for (var i = 0; i < t.length; i++) { if (t[i] === PHOTO_DRAG_TYPE) { return true; } }
+      return false;
+    }
     function isFileDrag(e) {
       var t = e.dataTransfer && e.dataTransfer.types;
       if (!t) { return false; }
       for (var i = 0; i < t.length; i++) { if (t[i] === 'Files') { return true; } }
       return false;
     }
+    // 실측 사진 썸네일 끌어놓기(내부 드래그) — 파일 드롭 경로와 구분해 따로 받는다.
+    function isAcceptDrag(e) { return isFileDrag(e) || isPhotoDrag(e); }
     function show(on) { zone.classList.toggle('dws-dropzone-active', !!on); }
     zone.addEventListener('dragenter', function (e) {
-      if (!isFileDrag(e)) { return; }
+      if (!isAcceptDrag(e)) { return; }
       e.preventDefault();
       depth++;
       show(true);
     });
     zone.addEventListener('dragover', function (e) {
-      if (!isFileDrag(e)) { return; }
+      if (!isAcceptDrag(e)) { return; }
       e.preventDefault();   // 없으면 drop 이 발화하지 않음
       if (e.dataTransfer) { e.dataTransfer.dropEffect = 'copy'; }
       show(true);
@@ -2568,6 +2920,16 @@
       if (depth === 0) { show(false); }
     });
     zone.addEventListener('drop', function (e) {
+      if (isPhotoDrag(e)) {
+        e.preventDefault();
+        depth = 0;
+        show(false);
+        var pkey = '';
+        try { pkey = e.dataTransfer.getData(PHOTO_DRAG_TYPE) || ''; } catch (_) { pkey = ''; }
+        var entry = photoDragMap[pkey];
+        if (entry) { onPhotoClick(entry.photo, entry.cell, dropLogicalPos(e)); }
+        return;
+      }
       if (!isFileDrag(e)) { return; }
       e.preventDefault();   // 브라우저의 파일 네비게이션 차단
       depth = 0;
@@ -2659,8 +3021,7 @@
       sheet.product_index = idx;
       state.sheets.push(sheet);
       current = state.sheets.length - 1;
-      undoStack.length = 0;
-      redoStack.length = 0;
+      bindSheetHistory();
       deselect();
       setAnnoMode('select');
       markDirty();
@@ -2740,12 +3101,30 @@
       img.src = photo.thumb_url || '';
       cell.appendChild(img);
       cell.addEventListener('click', function () { onPhotoClick(photo, cell); });
+      // 데스크톱: 썸네일을 캔버스로 끌어놓으면 놓은 지점에 삽입(터치 기기는 클릭만).
+      if (photo.key && !isTouchOnly()) {
+        cell.draggable = true;
+        photoDragMap[photo.key] = { photo: photo, cell: cell };
+        cell.addEventListener('dragstart', function (e) {
+          if (!e.dataTransfer) { return; }
+          try {
+            e.dataTransfer.setData(PHOTO_DRAG_TYPE, photo.key);
+            e.dataTransfer.effectAllowed = 'copy';
+          } catch (_) { /* 드래그 데이터 설정 실패 = 클릭 삽입만 */ }
+        });
+      }
       els.photoGrid.appendChild(cell);
     });
   }
 
-  /** 실측 사진 썸네일 클릭 → import-attachment 로 에셋 복사 후 캔버스에 삽입(로딩 표시). */
-  function onPhotoClick(photo, cell) {
+  /** 터치 전용 기기 판정(끌어놓기 비활성 — 클릭 삽입만). */
+  function isTouchOnly() {
+    try { return window.matchMedia('(hover: none) and (pointer: coarse)').matches; }
+    catch (_) { return false; }
+  }
+
+  /** 실측 사진 썸네일 클릭(또는 캔버스로 끌어놓기, pos=놓은 지점) → import-attachment 로 에셋 복사 후 캔버스에 삽입(로딩 표시). */
+  function onPhotoClick(photo, cell, pos) {
     if (!canSave) { toast('열람 전용 — 도면 담당자·도면팀 또는 관리자만 편집할 수 있습니다.'); return; }
     if (!currentSheet()) { toast('제품을 선택해 도면을 먼저 시작하세요.'); return; }
     if (!photo || !photo.key || cell.classList.contains('dws-photo-loading')) { return; }
@@ -2757,14 +3136,14 @@
     }).then(function (r) {
       cell.classList.remove('dws-photo-loading');
       if (r.status !== 200 || !r.data || !r.data.success || !r.data.data || !r.data.data.key) {
-        toast(serverErrorText(r, '실측 사진을 삽입하지 못했습니다.'));
+        toast(failureText('실측 사진 삽입 실패', r), { error: true, retry: function () { onPhotoClick(photo, cell); } });
         return;
       }
-      placeImageFromKey(r.data.data.key);
+      placeImageFromKey(r.data.data.key, pos || null, 0, PHOTO_MAX_LONG);
     }, function (err) {
       cell.classList.remove('dws-photo-loading');
       console.warn('[dws] import-attachment', err);
-      toast('실측 사진 삽입 오류');
+      toast(failureText('실측 사진 삽입 실패', null), { error: true, retry: function () { onPhotoClick(photo, cell); } });
     });
   }
 
@@ -2948,8 +3327,7 @@
     setAnnoMode('select');
     current = i;
     deselect();
-    undoStack.length = 0;
-    redoStack.length = 0;
+    bindSheetHistory();   // 시트별 이력으로 교체(지우지 않는다)
     renderTabs();
     renderForm();
     rebuildAnno();
@@ -2962,8 +3340,7 @@
     if (state.sheets.length >= 10) { toast('시트는 최대 10장까지 만들 수 있습니다.'); return; }
     state.sheets.push(newSheet('도면 ' + (state.sheets.length + 1), defaults));
     current = state.sheets.length - 1;
-    undoStack.length = 0;
-    redoStack.length = 0;
+    bindSheetHistory();
     deselect();
     markDirty();
     renderTabs();
@@ -2992,8 +3369,7 @@
     (copy.objects || []).forEach(function (o) { o.id = rid('o-'); });
     state.sheets.splice(i + 1, 0, copy);
     current = i + 1;
-    undoStack.length = 0;
-    redoStack.length = 0;
+    bindSheetHistory();
     deselect();
     markDirty();
     renderTabs();
@@ -3018,17 +3394,81 @@
     if (!canSave) { return; }
     if (state.sheets.length <= 1) { toast('최소 1개의 시트가 필요합니다.'); return; }
     if (!confirm('시트 "' + state.sheets[i].name + '"를 삭제할까요?')) { return; }
+    var removed = state.sheets[i];
+    var removedHist = sheetHistories[removed.id] || { undo: [], redo: [] };
+    var wasCurrent = (i === current);
     state.sheets.splice(i, 1);
+    delete sheetHistories[removed.id];   // 삭제된 시트의 이력은 버린다(되돌리기용 사본만 따로 보관)
     if (current >= state.sheets.length) { current = state.sheets.length - 1; }
     else if (i < current) { current -= 1; }
-    undoStack.length = 0;
-    redoStack.length = 0;
+    bindSheetHistory();
     deselect();
     markDirty();
     renderTabs();
     renderForm();
     rebuildAnno();
     syncProductActive();
+    showSheetUndoBar({
+      sheet: cloneSheet(removed),
+      index: i,
+      wasCurrent: wasCurrent,
+      hist: { undo: removedHist.undo.slice(), redo: removedHist.redo.slice() }
+    });
+  }
+
+  /* ---- 시트 삭제 되돌리기 바(10초) ---- */
+  var SHEET_UNDO_MS = 10000;
+  var sheetUndoBar = null;            // 현재 떠 있는 되돌리기 바(단일)
+  var sheetUndoTimer = null;
+
+  function hideSheetUndoBar() {
+    if (sheetUndoTimer) { clearTimeout(sheetUndoTimer); sheetUndoTimer = null; }
+    var bar = sheetUndoBar;
+    sheetUndoBar = null;
+    if (!bar) { return; }
+    bar.classList.remove('dws-toast-show');
+    setTimeout(function () { if (bar.parentNode) { bar.parentNode.removeChild(bar); } }, 240);
+  }
+
+  /** 삭제 직후 '되돌리기' 버튼이 달린 토스트 바를 10초 동안 띄운다. */
+  function showSheetUndoBar(entry) {
+    hideSheetUndoBar();   // 이전 삭제의 되돌리기 기회는 새 삭제로 끝난다
+    var bar = document.createElement('div');
+    bar.className = 'dws-toast dws-toast-action';
+    var msg = document.createElement('span');
+    msg.className = 'dws-toast-msg';
+    msg.textContent = '시트 "' + String(entry.sheet.name || '도면') + '"를 삭제했습니다.';
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'dws-toast-undo-btn';
+    btn.textContent = '되돌리기';
+    btn.addEventListener('click', function () { restoreDeletedSheet(entry); hideSheetUndoBar(); });
+    bar.appendChild(msg);
+    bar.appendChild(btn);
+    els.toastHost.appendChild(bar);
+    sheetUndoBar = bar;
+    requestAnimationFrame(function () { bar.classList.add('dws-toast-show'); });
+    sheetUndoTimer = setTimeout(hideSheetUndoBar, SHEET_UNDO_MS);
+  }
+
+  /** 삭제한 시트를 원래 자리에 깊은 복사로 되살리고 그 시트의 실행 취소 이력도 돌려놓는다. */
+  function restoreDeletedSheet(entry) {
+    if (!canSave || !entry) { return; }
+    if (state.sheets.length >= 10) { toast('시트는 최대 10장까지 만들 수 있습니다.'); return; }
+    var sheet = cloneSheet(entry.sheet);
+    var idx = Math.max(0, Math.min(entry.index, state.sheets.length));
+    state.sheets.splice(idx, 0, sheet);
+    sheetHistories[sheet.id] = { undo: entry.hist.undo.slice(), redo: entry.hist.redo.slice() };
+    if (entry.wasCurrent) { current = idx; }
+    else if (idx <= current) { current += 1; }
+    bindSheetHistory();
+    deselect();
+    markDirty();
+    renderTabs();
+    renderForm();
+    rebuildAnno();
+    syncProductActive();
+    toast('시트를 되돌렸습니다.');
   }
 
   function fitZoom() {
@@ -3038,13 +3478,43 @@
     setZoom(z);
   }
 
+  /* 줌 범위 50%~400% — 슬라이더(#dws-zoom-range max=400)·휠·핀치·단축키 공용. */
+  var ZOOM_MIN = 0.5, ZOOM_MAX = 4;
+
+  /* 단축키 줌(Ctrl+=/-): 화면 가운데를 고정한 채 step 만큼 확대/축소. */
+  function zoomByStep(delta) {
+    var nz = clamp(Math.round((zoom + delta) * 100) / 100, ZOOM_MIN, ZOOM_MAX);
+    if (nz === zoom) { return; }
+    var cw = els.canvas.clientWidth, ch = els.canvas.clientHeight;
+    var fx = (els.canvas.scrollLeft + cw / 2) / zoom, fy = (els.canvas.scrollTop + ch / 2) / zoom;
+    setZoom(nz);
+    els.canvas.scrollLeft = fx * nz - cw / 2;
+    els.canvas.scrollTop = fy * nz - ch / 2;
+  }
+
+  /* 단축키 도움말 모달(#dws-help) — '?' 키 또는 앱바 '?' 버튼, Esc·바깥 클릭·✕ 로 닫는다. */
+  var helpReturnFocus = null;
+  function isHelpOpen() { return !!(els.help && !els.help.hidden); }
+  function openHelp() {
+    if (!els.help) { return; }
+    helpReturnFocus = document.activeElement;
+    els.help.hidden = false;
+    if (els.helpClose) { els.helpClose.focus(); }
+  }
+  function closeHelp() {
+    if (!els.help) { return; }
+    els.help.hidden = true;
+    if (helpReturnFocus && typeof helpReturnFocus.focus === 'function') { helpReturnFocus.focus(); }
+    helpReturnFocus = null;
+  }
+
   function setZoom(z) {
     zoom = z;
     els.stage.style.setProperty('--dws-zoom', String(z));
     els.wrap.style.width = (STAGE_W * z) + 'px';
     els.wrap.style.height = (STAGE_H * z) + 'px';
     var pct = Math.round(z * 100);
-    els.zoomRange.value = String(clamp(pct, 50, 250));
+    els.zoomRange.value = String(clamp(pct, 50, 400));
     els.zoomLabel.textContent = pct + '%';
     positionMiniToolbar();
   }
@@ -3080,7 +3550,13 @@
     if (els.mtPresetMenu) { els.mtPresetMenu.hidden = true; }
   }
 
-  function toast(msg) {
+  /**
+   * 토스트. 기본은 2.6초 뒤 사라진다.
+   * opts.error=true 면 오류 토스트: 닫기(×)를 누를 때까지 남고, opts.retry(함수)가 있으면 '다시 시도' 버튼을 단다.
+   */
+  function toast(msg, opts) {
+    opts = opts || {};
+    if (opts.error) { return errorToast(msg, opts.retry); }
     var t = document.createElement('div');
     t.className = 'dws-toast';
     t.textContent = String(msg || '');
@@ -3090,6 +3566,49 @@
       t.classList.remove('dws-toast-show');
       setTimeout(function () { if (t.parentNode) { t.parentNode.removeChild(t); } }, 240);
     }, 2600);
+  }
+
+  function errorToast(msg, retry) {
+    var t = document.createElement('div');
+    t.className = 'dws-toast dws-toast-error';
+    t.setAttribute('role', 'alert');
+    var text = document.createElement('span');
+    text.className = 'dws-toast-text';
+    text.textContent = String(msg || '');
+    t.appendChild(text);
+    function close() {
+      t.classList.remove('dws-toast-show');
+      setTimeout(function () { if (t.parentNode) { t.parentNode.removeChild(t); } }, 240);
+    }
+    if (typeof retry === 'function') {
+      var rb = document.createElement('button');
+      rb.type = 'button';
+      rb.className = 'dws-toast-retry';
+      rb.textContent = '다시 시도';
+      rb.addEventListener('click', function () { close(); retry(); });
+      t.appendChild(rb);
+    }
+    var xb = document.createElement('button');
+    xb.type = 'button';
+    xb.className = 'dws-toast-close';
+    xb.setAttribute('aria-label', '닫기');
+    xb.textContent = '×';
+    xb.addEventListener('click', close);
+    t.appendChild(xb);
+    els.toastHost.appendChild(t);
+    requestAnimationFrame(function () { t.classList.add('dws-toast-show'); });
+    return t;
+  }
+
+  /** 실패 원인 + 다음 행동 문구. 네트워크 끊김(응답 없음)과 서버 오류(상태 코드)를 가른다. */
+  function failureText(what, r) {
+    if (!r) { return what + ' — 인터넷 연결이 끊겼거나 불안정합니다. 연결을 확인한 뒤 다시 시도하세요.'; }
+    var st = r.status || 0;
+    var detail = serverErrorText(r, '');
+    if (st === 401 || st === 403) { return what + ' — 권한이 없거나 로그인이 만료되었습니다(' + st + '). ' + (detail ? detail + ' ' : '') + '새로고침 후 다시 로그인하세요.'; }
+    if (st === 413) { return what + ' — 파일이 너무 큽니다(413). 더 작은 파일로 다시 시도하세요.'; }
+    if (st >= 500) { return what + ' — 서버 오류입니다(' + st + '). 잠시 후 다시 시도하세요.' + (detail ? ' (' + detail + ')' : ''); }
+    return what + (detail ? ' — ' + detail : ' (' + st + ')') + ' — 내용을 확인한 뒤 다시 시도하세요.';
   }
 
   /* ---- 프리셋 메뉴: 기본 4개(코드 상수) + 사용자 프리셋(전역) 동적 렌더 ---- */
@@ -3253,9 +3772,29 @@
       els.autosaveBanner.hidden = !autosaveStopped;
       if (els.autosaveBannerReason) { els.autosaveBannerReason.textContent = autosaveStopReason || ''; }
     }
+    renderSaveStatus();
     if (!els.saveBtn) { return; }
     els.saveBtn.classList.toggle('dws-dirty', !!dirty);
     els.saveBtn.textContent = dirty ? '저장 *' : '저장';
+  }
+
+  /** 앱바 저장 상태 칩: 저장 중… / 저장 실패 / 자동 저장 멈춤 / 저장 안 됨 / 저장됨 HH:MM. */
+  function renderSaveStatus() {
+    var el = els.saveStatus;
+    if (!el) { return; }
+    if (!canSave) { el.hidden = true; return; }
+    var label = '';
+    var kind = '';
+    if (saveInFlight) { label = '저장 중…'; kind = 'saving'; }
+    else if (saveFailed) { label = '저장 실패'; kind = 'failed'; }
+    else if (dirty && (autosaveStopped || autosaveSuspended)) { label = '저장 안 됨 · 자동 저장 멈춤'; kind = 'paused'; }
+    else if (dirty) { label = '저장 안 됨'; kind = 'dirty'; }
+    else if (lastSavedAt) { label = '저장됨 ' + hhmm(lastSavedAt); kind = 'saved'; }
+    el.hidden = !label;
+    el.textContent = label;
+    ['saving', 'failed', 'paused', 'dirty', 'saved'].forEach(function (k) {
+      el.classList.toggle('dws-save-status-' + k, k === kind);
+    });
   }
 
   /** 자동 저장을 멈추고 사유를 상시 배너로 띄운다. 재개는 수동 저장 성공 또는 재로드. */
@@ -3286,7 +3825,7 @@
   /* ========================================================================
    * [6] save / load
    * ====================================================================== */
-  function serializeObj(o) {
+  function serializeObjCore(o) {
     var rot = normalizeRotation(o.rotation);
     if (o.type === 'image') {
       return {
@@ -3339,6 +3878,19 @@
     return null;
   }
 
+  /* 잠금(locked)·이미지 뒤집기(flipX/flipY) 공통 보존 — 참일 때만 필드 저장(거짓=기본, 생략). */
+  function withLockFlip(src, out) {
+    if (!out) { return out; }
+    if (src.locked === true) { out.locked = true; }
+    if (out.type === 'image') {
+      if (src.flipX === true) { out.flipX = true; }
+      if (src.flipY === true) { out.flipY = true; }
+    }
+    return out;
+  }
+  function serializeObj(o) { return withLockFlip(o, serializeObjCore(o)); }
+  function normalizeObj(o) { return withLockFlip(o, normalizeObjCore(o)); }
+
   function serializeForm(f) {
     f = f || {};
     var o = {};
@@ -3389,7 +3941,7 @@
   }
 
   /** 저장 상태 → 런타임 객체. v1(text/image, rotation 없음)은 기본값 보충해 무손실 로드. */
-  function normalizeObj(o) {
+  function normalizeObjCore(o) {
     var rot = num(o.rotation);
     if (o.type === 'image') {
       return {
@@ -3475,8 +4027,8 @@
         baseUpdatedAt = null;
       }
       current = 0;
-      undoStack.length = 0;
-      redoStack.length = 0;
+      resetAllHistories();
+      hideSheetUndoBar();
       dirty = false;
       userDirty = false; autosaveSuspended = false; loadFailed = false;   // 새 서버 상태 위에서 다시 시작
       resumeAutosave();   // 실패로 멈췄던 자동 저장도 재로드 성공으로 풀린다
@@ -3516,6 +4068,7 @@
       updateSaveState();
       fitZoom();
       refreshPending();   // 저장된 도면(전달 대기) 미리보기 패널 초기 로드
+      offerBackupRestore();   // 서버와 다른 로컬 비상 백업이 있으면 복원 배너(열람 전용이면 생략)
       hydrated = true;   // 렌더까지 끝난 뒤에만 저장 허용(성공 핸들러의 맨 마지막 문장)
     }, function (err) { loadFailed = true; console.warn('[dws] load', err); toast('불러오기 오류 — 새로고침해 주세요.'); });
   }
@@ -3582,6 +4135,7 @@
       if (document.activeElement && document.activeElement.blur) { document.activeElement.blur(); }
     }
     saveInFlight = true;
+    renderSaveStatus();   // '저장 중…'
     var sheet = currentSheet();   // 저장 시점 시트 참조(비동기 PNG 단계 동안 고정)
     var body = { state: serializeState(), base_updated_at: baseUpdatedAt, auto: auto };
     els.saveBtn.disabled = true;
@@ -3592,6 +4146,9 @@
         baseUpdatedAt = (r.data.data && r.data.data.updated_at) || baseUpdatedAt;
         dirty = false;
         userDirty = false;
+        saveFailed = false;
+        lastSavedAt = new Date();
+        clearBackup();   // 서버에 반영됐다 — 로컬 비상 백업은 더 필요 없다
         autoConflictWarned = false;   // 저장 성공 → 다음 충돌 시 다시 1회 경고 허용
         if (!auto) {
           // 사람이 눌러 성공했다 = 서버와 맞다. 자동 저장을 다시 켠다(멈춤·억제 모두 해제).
@@ -3602,17 +4159,21 @@
         if (auto) {
           els.saveBtn.disabled = false;
           saveInFlight = false;
+          renderSaveStatus();
           return true;   // 자동 저장: PNG 도면 탭 갱신 생략, 조용히 성공
         }
         // 수동 저장: 상태 확정 후 PNG 를 도면 탭에 반영(버튼 재활성·토스트는 내부에서).
         return saveSheetPng(sheet).then(function () {
           saveInFlight = false;
+          renderSaveStatus();
           refreshPending();   // 전달 대기함에 새 시트 반영 → 미리보기 패널 갱신
           return true;
         });
       }
       els.saveBtn.disabled = false;
       saveInFlight = false;
+      saveFailed = true;
+      renderSaveStatus();
       if (r.status === 409) {
         if (auto) {
           // 자동 저장은 여기서 멈춘다. 예전에는 dirty 를 유지한 채 45초마다 같은 실패를
@@ -3633,14 +4194,16 @@
           // 두 사람이 2시간 그림을 그렸다. 반복 실패는 멈추고 상시 배너로 알린다.
           stopAutosave(failText);
         }
-        toast(failText);
+        toast(failureText('저장 실패', r), { error: true, retry: function () { save(); } });
       }
       return false;
     }, function (err) {
       els.saveBtn.disabled = false;
       saveInFlight = false;
+      saveFailed = true;
+      renderSaveStatus();
       console.warn('[dws] save', err);
-      if (!auto) { toast('저장 오류'); }
+      if (!auto) { toast(failureText('저장 실패', null), { error: true, retry: function () { save(); } }); }
       return false;
     });
   }
@@ -3651,7 +4214,7 @@
     if (!dirty || !canSave || saveInFlight) { return; }
     if (!state.sheets.length) { return; }          // 빈 상태(시트 0개)는 저장 대상 없음
     if (editingTextarea || editCtx) { return; }   // 주석 텍스트 편집 중이면 보류
-    if (annoMode !== 'select') { return; }         // 그리기/도형 모드면 보류
+    if (isDrawingPen || shapeDrawActive) { return; }   // 펜·지우개 스트로크/도형 초안 진행 중이면 보류(도구 모드는 무관 — 펜 모드에서도 자동 저장)
     if (dragActive) { return; }                    // 드래그·변형 진행 중이면 보류
     save({ auto: true });
   }
@@ -3772,6 +4335,7 @@
     if (commitActiveEdit) { commitActiveEdit(); }
     if (document.activeElement && document.activeElement.blur) { document.activeElement.blur(); }
     saveInFlight = true;
+    renderSaveStatus();
     var origIdx = current;
     els.saveBtn.disabled = true;
     if (els.saveAllBtn) { els.saveAllBtn.disabled = true; }
@@ -3780,14 +4344,18 @@
       method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
     }).then(function (r) {
       if (!(r.status === 200 && r.data && r.data.success)) {
+        saveFailed = true;
         finishSaveAll();
         if (r.status === 409) { handleConflict(r.data); }
-        else { toast(serverErrorText(r, ('저장 실패 (' + r.status + ')'))); }
+        else { toast(failureText('일괄 저장 실패', r), { error: true, retry: saveAll }); }
         return;
       }
       baseUpdatedAt = (r.data.data && r.data.data.updated_at) || baseUpdatedAt;
       dirty = false;
       userDirty = false;
+      saveFailed = false;
+      lastSavedAt = new Date();
+      clearBackup();
       autoConflictWarned = false;
       updateSaveState();
       return eachSheetToBlob(postSheetPngBlob, '일괄 저장').then(function (res) {
@@ -3801,9 +4369,10 @@
         }
       });
     }, function (err) {
+      saveFailed = true;
       finishSaveAll();
       console.warn('[dws] save-all', err);
-      toast('저장 오류');
+      toast(failureText('일괄 저장 실패', null), { error: true, retry: saveAll });
     });
   }
 
@@ -3811,6 +4380,7 @@
     saveInFlight = false;
     els.saveBtn.disabled = false;
     if (els.saveAllBtn) { els.saveAllBtn.disabled = false; }
+    renderSaveStatus();
   }
 
   /* ========================================================================
@@ -4195,8 +4765,7 @@
         (sheet.objects || []).forEach(function (o) { o.id = rid('o-'); });
         state.sheets.push(sheet);
         current = state.sheets.length - 1;
-        undoStack.length = 0;
-        redoStack.length = 0;
+        bindSheetHistory();
         deselect();
         markDirty();
         renderTabs();
@@ -4240,6 +4809,7 @@
     if (exitBtn) { exitBtn.addEventListener('click', exitWizard); }
     // 앱바 편집 버튼
     document.getElementById('dws-btn-autofill').addEventListener('click', autofill);
+    wireAutofillDialog();
     document.getElementById('dws-btn-select').addEventListener('click', function () {
       setAnnoMode('select');
     });
@@ -4250,6 +4820,8 @@
     document.getElementById('dws-btn-redo').addEventListener('click', redo);
     els.saveBtn.addEventListener('click', function () { save(); });
     if (els.saveAllBtn) { els.saveAllBtn.addEventListener('click', saveAll); }
+    if (els.restoreBtn) { els.restoreBtn.addEventListener('click', restoreBackup); }
+    if (els.restoreDiscardBtn) { els.restoreDiscardBtn.addEventListener('click', discardBackup); }
     if (els.roomPushBtn) { els.roomPushBtn.addEventListener('click', pushDrawingRoom); }
 
     // 빈 상태 오버레이 — "빈 시트 추가"(제품 없는 주문 대비). addSheet 는 defaults 로 시트 생성.
@@ -4274,6 +4846,11 @@
       });
     }
     if (els.lightboxClose) { els.lightboxClose.addEventListener('click', closeLightbox); }
+    if (els.helpBtn) { els.helpBtn.addEventListener('click', openHelp); }
+    if (els.helpClose) { els.helpClose.addEventListener('click', closeHelp); }
+    if (els.help) {
+      els.help.addEventListener('click', function (e) { if (e.target === els.help) { closeHelp(); } });
+    }
     if (els.lightbox) {
       els.lightbox.addEventListener('click', function (e) { if (e.target === els.lightbox) { closeLightbox(); } });
     }
@@ -4391,6 +4968,13 @@
     });
     document.getElementById('dws-mt-del-image').addEventListener('click', deleteSelected);
     if (els.mtTrim) { els.mtTrim.addEventListener('click', trimSelectedImage); }
+    if (els.mtFlipX) { els.mtFlipX.addEventListener('click', function () { flipSelectedImage('flipX'); }); }
+    if (els.mtFlipY) { els.mtFlipY.addEventListener('click', function () { flipSelectedImage('flipY'); }); }
+    // 미니 툴바 — 잠금 / 스포이트(텍스트·이미지·도형 공용)
+    els.mtLockBtns.forEach(function (b) { b.addEventListener('click', toggleLockSelected); });
+    els.mtEyedropBtns.forEach(function (b) {
+      b.addEventListener('click', function () { if (eyedropArmed) { cancelEyedrop(); } else { armEyedrop(); } });
+    });
 
     // 미니 툴바 — 도형
     Array.prototype.forEach.call(els.mtShape.querySelectorAll('.dws-swatch'), function (sw) {
@@ -4484,13 +5068,36 @@
         if (e.key === 'Escape') { e.preventDefault(); closeLightbox(); }
         return;
       }
+      // 단축키 도움말 열림 시: Esc 로 닫고 다른 단축키는 무시.
+      if (isHelpOpen()) {
+        if (e.key === 'Escape') { e.preventDefault(); closeHelp(); }
+        return;
+      }
       var ae = document.activeElement;
       var editing = !!(ae && (ae.isContentEditable || ae.tagName === 'TEXTAREA' || ae.tagName === 'INPUT' || ae.tagName === 'SELECT'));
       var meta = e.ctrlKey || e.metaKey;
       if (meta && (e.key === 's' || e.key === 'S')) { e.preventDefault(); save(); return; }
       if (editing) { return; }
+      // '?'(Shift+/) = 단축키 도움말
+      if (!meta && !e.altKey && (e.key === '?' || (e.shiftKey && e.code === 'Slash'))) {
+        e.preventDefault(); openHelp(); return;
+      }
+      /* 줌 단축키: Ctrl+0 화면 폭 맞춤 · Ctrl+1 100% · Ctrl+=/Ctrl+- 확대/축소(브라우저 페이지 줌 대신). */
+      if (meta && !e.altKey) {
+        if (e.key === '0' || e.code === 'Digit0' || e.code === 'Numpad0') { e.preventDefault(); fitZoom(); return; }
+        if (e.key === '1' || e.code === 'Digit1' || e.code === 'Numpad1') { e.preventDefault(); setZoom(1); return; }
+        if (e.key === '=' || e.key === '+' || e.code === 'Equal' || e.code === 'NumpadAdd') { e.preventDefault(); zoomByStep(0.1); return; }
+        if (e.key === '-' || e.key === '_' || e.code === 'Minus' || e.code === 'NumpadSubtract') { e.preventDefault(); zoomByStep(-0.1); return; }
+      }
       if (e.key === 'Escape') {
+        if (eyedropArmed) { cancelEyedrop(); return; }   // 스포이트 대기 중이면 취소만
         if (annoMode !== 'select') { setAnnoMode('select'); } else { deselect(); }
+        return;
+      }
+      // Ctrl/Cmd+L = 선택 잠금 토글, Ctrl/Cmd+Shift+L·Ctrl+Alt+L = 이 시트 전체 잠금 해제(한글 자판은 code 기준)
+      if (canSave && meta && (e.key === 'l' || e.key === 'L' || e.code === 'KeyL')) {
+        e.preventDefault();
+        if (e.shiftKey || e.altKey) { unlockAllOnSheet(); } else { toggleLockSelected(); }
         return;
       }
       /* 'T' 단축키(수정자 없음, 한글 자판은 code 기준): 텍스트 모드 무장.
@@ -4502,6 +5109,40 @@
       }
       if (meta && (e.key === 'z' || e.key === 'Z')) { e.preventDefault(); if (e.shiftKey) { redo(); } else { undo(); } return; }
       if (meta && (e.key === 'y' || e.key === 'Y')) { e.preventDefault(); redo(); return; }
+      /* 포토샵식 단축키 A: Ctrl+A 전체 선택 · Ctrl+D 선택 해제 · Ctrl+J 제자리 복제 ·
+         Ctrl+]/[ 한 층 앞/뒤 · Ctrl+Shift+]/[ 맨 앞/맨 뒤. 한글 자판은 code 기준으로 함께 본다.
+         Ctrl+D(북마크)·Ctrl+J(다운로드) 브라우저 기본 동작은 막는다. */
+      if (meta && !e.altKey && (e.key === 'a' || e.key === 'A' || e.code === 'KeyA')) {
+        e.preventDefault(); selectAllOnSheet(); return;
+      }
+      if (meta && !e.altKey && (e.key === 'd' || e.key === 'D' || e.code === 'KeyD')) {
+        e.preventDefault(); deselect(); return;
+      }
+      if (meta && !e.altKey && (e.key === 'j' || e.key === 'J' || e.code === 'KeyJ')) {
+        e.preventDefault(); if (canSave) { duplicateSelectedInPlace(); } return;
+      }
+      if (meta && !e.altKey && (e.code === 'BracketRight' || e.code === 'BracketLeft' || e.key === ']' || e.key === '[' || e.key === '}' || e.key === '{')) {
+        e.preventDefault();
+        if (!canSave) { return; }
+        var fwd = (e.code === 'BracketRight' || e.key === ']' || e.key === '}');
+        reorderSelected(fwd ? (e.shiftKey ? 'front' : 'up') : (e.shiftKey ? 'back' : 'down'));
+        return;
+      }
+      /* 도구 단축키(수정자 없음): V 선택 · U 도형 · P 펜 · E 지우개 · I 이미지 추가.
+         버튼과 같은 동작이 되도록 버튼 click 을 그대로 부른다. */
+      if (canSave && !meta && !e.altKey) {
+        var toolBtnId = null;
+        if (e.key === 'v' || e.key === 'V' || e.code === 'KeyV') { toolBtnId = 'dws-btn-select'; }
+        else if (e.key === 'u' || e.key === 'U' || e.code === 'KeyU') { toolBtnId = 'dws-btn-shape'; }
+        else if (e.key === 'p' || e.key === 'P' || e.code === 'KeyP') { toolBtnId = 'dws-btn-pen'; }
+        else if (e.key === 'e' || e.key === 'E' || e.code === 'KeyE') { toolBtnId = 'dws-btn-eraser'; }
+        else if (e.key === 'i' || e.key === 'I' || e.code === 'KeyI') { toolBtnId = 'dws-file-input'; }
+        if (toolBtnId) {
+          var toolBtn = document.getElementById(toolBtnId);
+          if (toolBtn && !toolBtn.disabled) { e.preventDefault(); toolBtn.click(); }
+          return;
+        }
+      }
       if (!selectedIds.length) { return; }
       if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); deleteSelected(); return; }
       var step = e.shiftKey ? 10 : 1, dx = 0, dy = 0;
@@ -4515,7 +5156,7 @@
       if (now - lastArrowUndoTs > 500) { recordUndo(); }
       lastArrowUndoTs = now;
       // 단일·다중 공용: 선택 전체를 같은 델타로 이동.
-      selectedIds.forEach(function (id) { var o = findObj(id); if (o) { moveObjectBy(o, dx, dy); } });
+      selectedIds.forEach(function (id) { var o = findObj(id); if (o && !o.locked) { moveObjectBy(o, dx, dy); } });
       markDirty();
       if (isMultiSelect() && transformer) { transformer.forceUpdate(); }
       positionMiniToolbar();
@@ -4592,14 +5233,15 @@
        setZoom 이 슬라이더(#dws-zoom-range)·라벨을 자동 갱신하므로 별도 DOM 갱신 불필요.
        __DWS_BOUND 스코프라 1회만 바인딩(idempotent). */
     els.canvas.addEventListener('wheel', function (e) {
-      if (!e.altKey) { return; }              // 일반 휠 = 기존 스크롤(관여 안 함)
+      // Alt+휠 · Ctrl/Cmd+휠(트랙패드 핀치 포함) = 도면 줌. 브라우저 페이지 줌은 막는다.
+      if (!e.altKey && !e.ctrlKey && !e.metaKey) { return; }   // 일반 휠 = 기존 스크롤(관여 안 함)
       e.preventDefault();
       var rect = els.canvas.getBoundingClientRect();
       var px = e.clientX - rect.left, py = e.clientY - rect.top;   // 뷰포트 내 커서 좌표
       var focalLogicalX = (els.canvas.scrollLeft + px) / zoom;     // 커서 아래 논리점(줌 무관)
       var focalLogicalY = (els.canvas.scrollTop + py) / zoom;
       var step = 0.1;                                              // 휠 1노치 = 10%p
-      var nz = clamp(zoom + (e.deltaY < 0 ? step : -step), 0.5, 2.5);
+      var nz = clamp(zoom + (e.deltaY < 0 ? step : -step), ZOOM_MIN, ZOOM_MAX);
       if (nz === zoom) { return; }            // clamp 경계 도달 → 변화 없음
       setZoom(nz);
       // 커서 아래 논리점이 화면상 같은 위치에 남도록 스크롤 보정(범위 밖은 브라우저 clamp).
@@ -4665,7 +5307,7 @@
         if (mode === 2 && fingers.length >= 2) {
           var rect = els.canvas.getBoundingClientRect();
           var d = dist(fingers[0], fingers[1]) || 1;
-          var nz = clamp(startZoom * (d / startDist), 0.5, 2.5);
+          var nz = clamp(startZoom * (d / startDist), ZOOM_MIN, ZOOM_MAX);
           setZoom(nz);
           var m = midpoint(fingers[0], fingers[1]);
           els.canvas.scrollLeft = focalLogicalX * nz - (m.x - rect.left);
@@ -4729,6 +5371,51 @@
     });
   }
 
+  /* ---- 재전송 변경 내용 입력 모달 (window.prompt 대체) ---- */
+  var CHANGE_NOTE_MAX = 500;   // 서버 _MAX_CHANGE_NOTE_LEN(channel_integration.py)과 같은 값
+
+  /** 변경 내용 모달을 열고, 보내기 → 입력 문자열 / 취소·Esc → null 로 끝나는 Promise 를 돌려준다. */
+  function askChangeNote() {
+    return new Promise(function (resolve) {
+      var dlg = document.getElementById('dws-note-dialog');
+      var area = document.getElementById('dws-note-input');
+      var count = document.getElementById('dws-note-count');
+      var err = document.getElementById('dws-note-error');
+      var okBtn = document.getElementById('dws-note-send');
+      var cancelBtn = document.getElementById('dws-note-cancel');
+      if (!dlg || !area || !count || !err || !okBtn || !cancelBtn) { resolve(null); return; }
+      var done = false;
+      area.maxLength = CHANGE_NOTE_MAX;
+      area.value = '';
+      err.hidden = true;
+      function updateCount() { count.textContent = area.value.length + ' / ' + CHANGE_NOTE_MAX; }
+      function finish(val) {
+        if (done) { return; }
+        done = true;
+        area.removeEventListener('input', onInput);
+        okBtn.removeEventListener('click', onOk);
+        cancelBtn.removeEventListener('click', onCancel);
+        dlg.removeEventListener('cancel', onCancel);
+        if (dlg.close) { try { dlg.close(); } catch (_) { dlg.removeAttribute('open'); } } else { dlg.removeAttribute('open'); }
+        resolve(val);
+      }
+      function onInput() { updateCount(); if (area.value.trim()) { err.hidden = true; } }
+      function onOk() {
+        var v = area.value.trim();
+        if (!v) { err.hidden = false; area.focus(); return; }   // 빈 입력은 조용히 취소하지 않고 안내한다
+        finish(v.slice(0, CHANGE_NOTE_MAX));
+      }
+      function onCancel(e) { if (e && e.preventDefault) { e.preventDefault(); } finish(null); }   // Esc(cancel 이벤트) 포함
+      area.addEventListener('input', onInput);
+      okBtn.addEventListener('click', onOk);
+      cancelBtn.addEventListener('click', onCancel);
+      dlg.addEventListener('cancel', onCancel);
+      updateCount();
+      if (dlg.showModal) { try { dlg.showModal(); } catch (_) { dlg.setAttribute('open', ''); } } else { dlg.setAttribute('open', ''); }
+      area.focus();
+    });
+  }
+
   /** 앱바 [도면방 PUSH] 클릭 — 사전 점검 → 확인 → 전송(재전송이면 변경 내용 1회 회수). */
   function pushDrawingRoom() {
     var btn = els.roomPushBtn;
@@ -4745,14 +5432,15 @@
       return sendRoomPush(null).then(function (r) {
         var msg = String((r.data && r.data.message) || '');
         if (r.data && r.data.success !== true && msg.indexOf('재전송 시 변경 내용') >= 0) {
-          var note = (prompt('이번 재전송의 변경 내용을 입력해주세요. (1~500자)') || '').trim();
-          if (!note) { return null; }
-          return sendRoomPush(note);
+          return askChangeNote().then(function (note) {
+            if (!note) { return null; }
+            return sendRoomPush(note);
+          });
         }
         return r;
       }).then(function (r) {
         if (!r) { return; }
-        if (!r.data || r.data.success !== true) { toast(serverErrorText(r, '도면방 PUSH 실패')); return; }
+        if (!r.data || r.data.success !== true) { toast(failureText('도면방 PUSH 실패', r), { error: true, retry: pushDrawingRoom }); return; }
         // 담당자 개인방까지 나갔는지는 서버가 말한다. 못 보냈으면 그 사유를 그대로 띄운다.
         var sentCount = r.data.files_count || 0;
         if (r.data.manager_room_sent) {
@@ -4765,7 +5453,7 @@
       });
     }).catch(function (err) {
       console.warn('[dws] drawing room push', err);
-      toast('도면방 PUSH 중 오류가 발생했습니다.');
+      toast(failureText('도면방 PUSH 실패', null), { error: true, retry: pushDrawingRoom });
     }).then(function () { btn.disabled = !canSave; });
   }
 
@@ -4784,16 +5472,133 @@
     }
   }
 
-  function autofill() {
-    if (!canSave || !currentSheet()) { return; }
-    if (!confirm('현재 폼 값을 주문 데이터로 덮어씁니다. 계속할까요?')) { return; }
-    recordUndo();
-    var form = currentSheet().form;
-    var d = defaults || {};
-    Object.keys(d).forEach(function (k) { if (k !== 'checks') { form[k] = (d[k] == null) ? '' : String(d[k]); } });
+  /* ---- 자동 채움(주문 데이터 → 폼) — 빈 칸만/모두 덮어쓰기 · 이 시트만/모든 시트 ---- */
+  var AUTOFILL_SKIP = { checks: 1, layout: 1, cell_font: 1 };
+
+  /** 시트 하나에 대해 바뀔 칸 목록을 센다. mode='empty' 면 빈 칸('', '-')만 대상. */
+  function autofillChanges(sheet, d, mode) {
+    var out = [];
+    if (!sheet || !sheet.form || !d) { return out; }
+    Object.keys(d).forEach(function (k) {
+      if (AUTOFILL_SKIP[k]) { return; }
+      var nv = (d[k] == null) ? '' : String(d[k]);
+      var cur = (sheet.form[k] == null) ? '' : String(sheet.form[k]);
+      if (nv === cur) { return; }
+      if (mode === 'empty' && cur !== '' && cur !== '-') { return; }
+      if (mode === 'empty' && nv === '') { return; }
+      out.push({ k: k, v: nv });
+    });
+    return out;
+  }
+
+  /** 시트별 주문 데이터: 제품 시트는 그 제품(item=index) 기본값, 그 외는 공통 defaults. 캐시 사용. */
+  var autofillDefaultsCache = {};
+  function fetchSheetDefaults(sheet) {
+    if (!sheet || !isFiniteNum(sheet.product_index)) { return Promise.resolve(defaults || {}); }
+    var idx = sheet.product_index;
+    if (autofillDefaultsCache[idx]) { return Promise.resolve(autofillDefaultsCache[idx]); }
+    return jsonFetch(API_BASE + '/drawing-wizard?item=' + idx, { headers: { 'Accept': 'application/json' } })
+      .then(function (r) {
+        var d = (r.status === 200 && r.data && r.data.success && r.data.data && r.data.data.defaults)
+          ? r.data.data.defaults : (defaults || {});
+        autofillDefaultsCache[idx] = d;
+        return d;
+      }, function () { return defaults || {}; });
+  }
+
+  function autofillOpts() {
+    var mode = 'empty', scope = 'current';
+    var m = document.querySelector('input[name="dws-autofill-mode"]:checked');
+    var sc = document.querySelector('input[name="dws-autofill-scope"]:checked');
+    if (m && m.value === 'all') { mode = 'all'; }
+    if (sc && sc.value === 'all') { scope = 'all'; }
+    return { mode: mode, scope: scope };
+  }
+
+  var autofillPlan = null;   // [{ index, changes }]
+  /** 선택한 방식으로 바뀔 칸 수를 미리 계산해 다이얼로그에 보여준다. */
+  function refreshAutofillPreview() {
+    var o = autofillOpts();
+    var countEl = document.getElementById('dws-autofill-count');
+    var okBtn = document.getElementById('dws-autofill-apply');
+    var targets = (o.scope === 'all') ? state.sheets.map(function (s, i) { return i; }) : [current];
+    if (countEl) { countEl.textContent = '바뀔 칸을 세는 중…'; }
+    if (okBtn) { okBtn.disabled = true; }
+    var token = {};
+    autofillPlan = token;
+    Promise.all(targets.map(function (i) { return fetchSheetDefaults(state.sheets[i]); })).then(function (ds) {
+      if (autofillPlan !== token) { return; }   // 그 사이 옵션이 바뀜
+      var plan = [], total = 0;
+      targets.forEach(function (i, n) {
+        var ch = autofillChanges(state.sheets[i], ds[n], o.mode);
+        if (ch.length) { plan.push({ index: i, changes: ch }); total += ch.length; }
+      });
+      autofillPlan = plan;
+      if (countEl) {
+        countEl.textContent = total
+          ? ('바뀔 칸 ' + total + '개' + (o.scope === 'all' ? ' (시트 ' + plan.length + '장)' : ''))
+          : '바뀔 칸이 없습니다.';
+      }
+      if (okBtn) { okBtn.disabled = !total; }
+    });
+  }
+
+  function closeAutofillDialog() {
+    var dlg = document.getElementById('dws-autofill-dialog');
+    autofillPlan = null;
+    if (!dlg) { return; }
+    if (dlg.close) { try { dlg.close(); } catch (_) { dlg.removeAttribute('open'); } } else { dlg.removeAttribute('open'); }
+  }
+
+  /** 미리 센 계획을 적용한다. 현재 시트는 recordUndo(실행 취소 가능), 다른 시트는 값만 바꾼다
+      (실행 취소 스택은 현재 시트 단위 설계 — 시트 전환 시 비워진다). */
+  function applyAutofill() {
+    var plan = autofillPlan;
+    if (!Array.isArray(plan) || !plan.length) { return; }
+    var total = 0;
+    plan.forEach(function (p) {
+      var sheet = state.sheets[p.index];
+      if (!sheet) { return; }
+      if (p.index === current) { recordUndo(); }
+      else if (sheet.id) {   // 다른 시트도 그 시트 이력에 스냅샷을 남겨, 그 시트로 가서 Ctrl+Z 로 되돌릴 수 있게
+        var h = sheetHistories[sheet.id] || (sheetHistories[sheet.id] = { undo: [], redo: [] });
+        h.undo.push(cloneSheet(sheet));
+        if (h.undo.length > 50) { h.undo.shift(); }
+        h.redo.length = 0;
+      }
+      p.changes.forEach(function (c) { sheet.form[c.k] = c.v; total++; });
+    });
+    closeAutofillDialog();
     renderForm();
     markDirty();
-    toast('자동 채움 완료');
+    toast('자동 채움 완료 — ' + total + '칸 변경');
+  }
+
+  /** 자동 채움 버튼 → 방식·범위를 고르는 다이얼로그(기본 = 빈 칸만 · 이 시트만). */
+  function autofill() {
+    if (!canSave || !currentSheet()) { return; }
+    var dlg = document.getElementById('dws-autofill-dialog');
+    if (!dlg) { return; }
+    var m = document.getElementById('dws-autofill-mode-empty');
+    var sc = document.getElementById('dws-autofill-scope-current');
+    if (m) { m.checked = true; }
+    if (sc) { sc.checked = true; }
+    if (dlg.showModal) {
+      try { dlg.showModal(); } catch (_) { dlg.setAttribute('open', ''); }
+    } else {
+      dlg.setAttribute('open', '');
+    }
+    refreshAutofillPreview();
+  }
+
+  function wireAutofillDialog() {
+    var dlg = document.getElementById('dws-autofill-dialog');
+    if (!dlg) { return; }
+    dlg.addEventListener('change', function (e) {
+      if (e.target && e.target.name && e.target.name.indexOf('dws-autofill-') === 0) { refreshAutofillPreview(); }
+    });
+    document.getElementById('dws-autofill-apply').addEventListener('click', applyAutofill);
+    document.getElementById('dws-autofill-cancel').addEventListener('click', closeAutofillDialog);
   }
 
   function init() {

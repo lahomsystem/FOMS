@@ -420,13 +420,13 @@ html, body {
 /* ---- 앱바 반응형 컴팩트 (겹침 방지 보조 단계) -----------------------------
    구조적 보장은 grid minmax(max-content,1fr)가 담당. 아래는 좁은 폭에서
    세그먼트 중앙 정렬을 유지하기 위한 밀도 축소. */
-/* 1단계(≤1500px): 세그 라벨 숨김 — 아이콘만(각 버튼 title 툴팁 유지) */
-@media (max-width: 1500px) {
+/* 1단계(≤1700px): 세그 라벨 숨김 — 아이콘만(각 버튼 title 툴팁 유지) */
+@media (max-width: 1700px) {
   .dws-seg-label { display: none; }
   .dws-seg-btn { padding: 6px 10px; }
 }
-/* 2단계(≤1340px): 우측 컨트롤 밀도 축소 */
-@media (max-width: 1340px) {
+/* 2단계(≤1600px): 우측 컨트롤 밀도 축소 — 저장 상태 칩·도움말(?) 버튼이 늘어 1440px 에서 제목이 눌리던 것 방지 */
+@media (max-width: 1600px) {
   .dws-appbar { padding: 0 12px; column-gap: 10px; }
   .dws-appbar-right { gap: 6px; }
   .dws-appbar-right .dws-btn { padding: 7px 11px; }
@@ -1656,6 +1656,10 @@ html, body {
 .dws-mt-btn.dws-active { background: #0071e3; border-color: #0071e3; color: #fff; }
 .dws-mt-del { color: #ff8a80; }
 .dws-mt-del:hover { background: rgba(255, 69, 58, 0.22); }
+/* 잠금 / 스포이트(미니 툴바) */
+.dws-mt-btn.dws-mt-lock.dws-active { background: #f59f00; border-color: #f59f00; color: #1d1d1f; }
+.dws-mt-btn.dws-mt-eyedrop.dws-active { background: #0071e3; border-color: #0071e3; color: #fff; }
+.dws-eyedrop-armed, .dws-eyedrop-armed canvas { cursor: crosshair; }
 
 .dws-swatch {
   width: 20px;
@@ -1881,6 +1885,44 @@ html, body {
   transition: opacity 0.16s ease-out, transform 0.16s ease-out;
 }
 .dws-toast.dws-toast-show { opacity: 1; transform: translateY(0); }
+/* 시트 삭제 되돌리기 바 — 버튼을 눌러야 하므로 포인터를 받는다 */
+.dws-toast.dws-toast-action {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 8px 6px 18px;
+  pointer-events: auto;
+}
+.dws-toast-undo-btn {
+  border: 0;
+  border-radius: 980px;
+  padding: 5px 12px;
+  background: rgba(255, 255, 255, 0.16);
+  color: #8ec5ff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.dws-toast-undo-btn:hover { background: rgba(255, 255, 255, 0.26); }
+
+/* ---- 재전송 변경 내용 다이얼로그 ---- */
+.dws-note-dialog { width: min(440px, calc(100vw - 32px)); }
+.dws-note-input {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 110px;
+  resize: vertical;
+  padding: 10px 12px;
+  border: 1px solid #d2d2d7;
+  border-radius: 10px;
+  font: inherit;
+  font-size: 13px;
+  color: #1d1d1f;
+}
+.dws-note-input:focus { outline: none; border-color: #0071e3; box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.18); }
+.dws-note-meta { display: flex; justify-content: space-between; align-items: center; margin: 6px 0 16px; font-size: 12px; }
+.dws-note-error { color: #d70015; }
+.dws-note-count { margin-left: auto; color: #86868b; }
 
 /* ---- 모바일 안내 --------------------------------------------------------- */
 .dws-mobile-notice {
@@ -1944,3 +1986,195 @@ html, body {
    ============================================================================ */
 .dws-exporting .dws-ui { display: none !important; }
 .dws-exporting .dws-selected { outline: none !important; }
+
+/* 자동 채움 다이얼로그 — 방식·범위 선택 */
+.dws-autofill-group { border: 0; margin: 0 0 14px; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 16px; }
+.dws-autofill-group legend { font-size: 12px; font-weight: 600; color: #6e6e73; margin-bottom: 6px; padding: 0; width: 100%; }
+.dws-autofill-group label { font-size: 13px; color: #1d1d1f; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.dws-autofill-count { font-size: 13px; font-weight: 600; color: #1d1d1f; margin: 4px 0 16px; min-height: 18px; }
+.dws-photo[draggable="true"] { cursor: grab; }
+/* ---- 단축키 도움말(#dws-help) — 라이트박스와 같은 오버레이 패턴 ---------- */
+.dws-help-btn {
+  min-width: 28px;
+  padding-left: 8px;
+  padding-right: 8px;
+  font-weight: 700;
+}
+.dws-help-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 125;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4vmin;
+  background: rgba(0, 0, 0, 0.45);
+}
+.dws-help-overlay[hidden] { display: none; }
+.dws-help-card {
+  width: min(760px, 100%);
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+  color: #1d1d1f;
+  border-radius: 14px;
+  box-shadow: 0 24px 68px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+}
+.dws-help-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+.dws-help-title { margin: 0; font-size: 16px; font-weight: 700; }
+.dws-help-close {
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.05);
+  color: #1d1d1f;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+.dws-help-close:hover { background: rgba(0, 0, 0, 0.1); }
+.dws-help-body {
+  overflow-y: auto;
+  padding: 12px 18px 18px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 6px 24px;
+}
+.dws-help-group-title {
+  margin: 10px 0 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #6e6e73;
+}
+.dws-help-list {
+  margin: 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 5px 12px;
+  font-size: 13px;
+  align-items: baseline;
+}
+.dws-help-list dt { white-space: nowrap; color: #1d1d1f; }
+.dws-help-list dd { margin: 0; color: #424245; }
+.dws-help-list kbd {
+  display: inline-block;
+  min-width: 20px;
+  padding: 1px 5px;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  background: #f5f5f7;
+  font-family: inherit;
+  font-size: 11px;
+  line-height: 1.5;
+  text-align: center;
+}
+
+/* ---- 터치(굵은 포인터) 기기: 작은 버튼의 누를 수 있는 범위를 32px 이상으로 ----
+   모양 크기는 그대로 두고 ::before 로 보이지 않는 터치 영역(36px)만 넓혀 배치가 밀리지 않게 한다. */
+@media (pointer: coarse) {
+  .dws-products-toggle,
+  .dws-photos-toggle,
+  .dws-pending-toggle {
+    position: relative;
+  }
+  .dws-tab-x::before,
+  .dws-tab-dup::before,
+  .dws-products-toggle::before,
+  .dws-photos-toggle::before,
+  .dws-pending-toggle::before,
+  .dws-del-saved::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 36px;
+    height: 36px;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+  }
+  /* 탭은 overflow:hidden 이라 터치 영역이 잘리지 않게 높이·오른쪽 여백을 넓힌다 */
+  .dws-tab { min-height: 36px; padding-right: 74px; }
+  /* 탭 복제 버튼은 hover 가 없는 터치 기기에서도 늘 보이게, ×와 터치 영역이 덜 겹치게 간격을 넓힌다 */
+  .dws-tab-dup {
+    right: 34px;
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+/* ---- 저장 상태 칩(앱바) · 로컬 백업 복원 배너 · 오류 토스트 ------------------- */
+.dws-save-status {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 980px;
+  font-size: 12px;
+  white-space: nowrap;
+  background: rgba(0, 0, 0, 0.05);
+  color: #6e6e73;
+}
+.dws-save-status[hidden] { display: none; }
+.dws-save-status.dws-save-status-saved { background: #e8f5ec; color: #1d7a3a; }
+.dws-save-status.dws-save-status-saving { background: #eef4ff; color: #0a59c9; }
+.dws-save-status.dws-save-status-dirty { background: #fff6e0; color: #8a5a00; }
+.dws-save-status.dws-save-status-paused { background: #fff1e0; color: #a14a00; }
+.dws-save-status.dws-save-status-failed { background: #fdecea; color: #c0261b; font-weight: 600; }
+
+.dws-restore-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 8px 12px;
+  background: #eef4ff;
+  border: 1px solid #c7d9f7;
+  border-radius: 6px;
+  color: #0a3d8a;
+  font-size: 13px;
+}
+.dws-restore-banner[hidden] { display: none; }
+
+.dws-toast.dws-toast-error {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(560px, calc(100vw - 32px));
+  border-radius: 12px;
+  background: rgba(176, 32, 24, 0.94);
+  pointer-events: auto;
+}
+.dws-toast-error .dws-toast-text { flex: 1 1 auto; line-height: 1.45; }
+.dws-toast-retry,
+.dws-toast-close {
+  flex: 0 0 auto;
+  border: 0;
+  cursor: pointer;
+  color: #fff;
+  font: inherit;
+}
+.dws-toast-retry {
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.2);
+  font-weight: 600;
+}
+.dws-toast-retry:hover { background: rgba(255, 255, 255, 0.32); }
+.dws-toast-close {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: transparent;
+  font-size: 16px;
+  line-height: 1;
+}
+.dws-toast-close:hover { background: rgba(255, 255, 255, 0.2); }

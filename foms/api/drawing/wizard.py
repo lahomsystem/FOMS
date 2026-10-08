@@ -474,6 +474,10 @@ def _validate_object(obj, order_id: int) -> str | None:
     rotation_error = _validate_rotation(obj)
     if rotation_error:
         return rotation_error
+    # optional 잠금(locked, 모든 유형)·이미지 뒤집기(flipX/flipY) — 있으면 불리언이어야 한다.
+    for flag_key in ('locked', 'flipX', 'flipY'):
+        if flag_key in obj and not isinstance(obj[flag_key], bool):
+            return '객체 잠금/뒤집기 값이 올바르지 않습니다.'
     if obj_type in ('arrow', 'line'):
         return _validate_line_object(obj)
     if obj_type == 'pen':

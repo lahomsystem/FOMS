@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>도면 마법사 — 주문 #{{ order.id }}</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/wizard.css') }}?v=20260930a">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/wizard.css') }}?v=20261008c">
   {# 도면 수정 요청 확인창 — 마법사는 공용 상단바(벨·배지·소켓)를 쓰지 않는 standalone 이라
      도면팀이 가장 오래 머무는 화면이 알림 사각지대였다(2026-09-11 실측: 수정 요청 21건 중
      8건 미독). 상단바 전체를 들이면 캔버스 단축키와 충돌하므로 확인창과 소켓만 싣는다. #}
@@ -40,16 +40,16 @@
       <!-- 중앙: 도구 세그먼트 컨트롤 -->
       <div class="dws-appbar-center">
         <div class="dws-seg" role="group" aria-label="주석 도구">
-          <button type="button" class="dws-seg-btn dws-edit-ctl" id="dws-btn-select" title="선택 · 이동">
+          <button type="button" class="dws-seg-btn dws-edit-ctl" id="dws-btn-select" title="선택 · 이동 (V)">
             <svg class="dws-ico" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3l7.07 17 2.51-7.39L20 10.09 3 3z"/></svg>
             <span class="dws-seg-label">선택</span>
           </button>
-          <button type="button" class="dws-seg-btn dws-edit-ctl" id="dws-btn-add-text" title="텍스트 추가">
+          <button type="button" class="dws-seg-btn dws-edit-ctl" id="dws-btn-add-text" title="텍스트 추가 (T)">
             <svg class="dws-ico" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>
             <span class="dws-seg-label">텍스트</span>
           </button>
           <div class="dws-dropdown dws-seg-slot">
-            <button type="button" class="dws-seg-btn dws-edit-ctl" id="dws-btn-shape" title="도형 그리기">
+            <button type="button" class="dws-seg-btn dws-edit-ctl" id="dws-btn-shape" title="도형 그리기 (U)">
               <svg class="dws-ico" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="6" width="17" height="12" rx="2"/></svg>
               <span class="dws-seg-label">도형</span>
               <svg class="dws-caret" viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
@@ -61,15 +61,15 @@
               <button type="button" class="dws-menu-item" data-shape="line">선</button>
             </div>
           </div>
-          <button type="button" class="dws-seg-btn dws-edit-ctl" id="dws-btn-pen" title="펜 · 손그림 (태블릿·펜슬)">
+          <button type="button" class="dws-seg-btn dws-edit-ctl" id="dws-btn-pen" title="펜 · 손그림 (태블릿·펜슬) (P)">
             <svg class="dws-ico" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
             <span class="dws-seg-label">펜</span>
           </button>
-          <button type="button" class="dws-seg-btn dws-edit-ctl" id="dws-btn-eraser" title="지우개 · 획 통째 삭제 (펜슬·마우스)">
+          <button type="button" class="dws-seg-btn dws-edit-ctl" id="dws-btn-eraser" title="지우개 · 획 통째 삭제 (펜슬·마우스) (E)">
             <svg class="dws-ico" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 20H8.5l-5.2-5.2a1.8 1.8 0 0 1 0-2.55l8-8a1.8 1.8 0 0 1 2.55 0l5.3 5.3a1.8 1.8 0 0 1 0 2.55L13 20"/><line x1="6.5" y1="11" x2="13" y2="17.5"/></svg>
             <span class="dws-seg-label">지우개</span>
           </button>
-          <label class="dws-seg-btn dws-edit-ctl dws-file-btn" id="dws-file-btn" title="이미지 추가">
+          <label class="dws-seg-btn dws-edit-ctl dws-file-btn" id="dws-file-btn" title="이미지 추가 (I)">
             <svg class="dws-ico" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2.5"/><circle cx="8.5" cy="8.5" r="1.6"/><path d="M21 15l-5-5L5 21"/></svg>
             <span class="dws-seg-label">이미지</span>
             <input type="file" id="dws-file-input" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden>
@@ -95,16 +95,17 @@
         <button type="button" class="dws-btn dws-icon-btn dws-edit-ctl" id="dws-btn-undo" title="실행취소 (Ctrl+Z)" aria-label="실행취소">
           <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
         </button>
-        <button type="button" class="dws-btn dws-icon-btn dws-edit-ctl" id="dws-btn-redo" title="재실행 (Ctrl+Y)" aria-label="재실행">
+        <button type="button" class="dws-btn dws-icon-btn dws-edit-ctl" id="dws-btn-redo" title="재실행 (Ctrl+Y · Ctrl+Shift+Z)" aria-label="재실행">
           <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
         </button>
 
         <span class="dws-appbar-sep"></span>
 
         <div class="dws-zoom">
-          <button type="button" class="dws-btn dws-btn-plain" id="dws-btn-zoom-fit" title="화면 폭 맞춤">맞춤</button>
-          <input type="range" id="dws-zoom-range" min="50" max="250" step="5" value="100" title="줌">
+          <button type="button" class="dws-btn dws-btn-plain" id="dws-btn-zoom-fit" title="화면 폭 맞춤 (Ctrl+0)">맞춤</button>
+          <input type="range" id="dws-zoom-range" min="50" max="400" step="5" value="100" title="줌 (Ctrl+휠 · Alt+휠)">
           <span class="dws-zoom-label" id="dws-zoom-label">100%</span>
+          <button type="button" class="dws-btn dws-btn-plain dws-help-btn" id="dws-btn-help" title="단축키 도움말 (?)" aria-label="단축키 도움말" aria-haspopup="dialog" aria-controls="dws-help">?</button>
         </div>
 
         <div class="dws-fontctl">
@@ -117,6 +118,8 @@
 
         <span class="dws-appbar-sep"></span>
 
+        {# 저장 상태 칩 — wizard.js renderSaveStatus 가 '저장됨 HH:MM'·'저장 중…'·'저장 안 됨'·'저장 실패' 를 채운다 #}
+        <span class="dws-save-status" id="dws-save-status" role="status" aria-live="polite" hidden></span>
         <button type="button" class="dws-btn dws-btn-primary dws-edit-ctl" id="dws-btn-save">저장</button>
         <button type="button" class="dws-btn dws-edit-ctl" id="dws-btn-save-all" title="모든 시트를 전달 대기함에 저장">일괄 저장</button>
 
@@ -154,6 +157,12 @@
 
     {# 자동 저장이 실패로 멈췄을 때 상시 노출. 토스트는 5초 뒤 사라져 2시간 동안 아무도
        모른 채 그림이 저장되지 않은 사고가 있었다(2026-09-08 주문 5193, 403 80여 회). #}
+    {# 로컬 비상 백업 복원 배너 — 서버 저장 전에 탭이 닫혔을 때 이 브라우저에 남은 작업을 되살린다(막지 않음). #}
+    <div class="dws-restore-banner dws-ui" id="dws-restore-banner" role="status" hidden>
+      <span id="dws-restore-text">저장되지 않은 작업이 있습니다</span>
+      <button type="button" class="dws-btn dws-btn-primary" id="dws-btn-restore">복원</button>
+      <button type="button" class="dws-btn" id="dws-btn-restore-discard">버리기</button>
+    </div>
     <div class="dws-autosave-banner dws-ui" id="dws-autosave-banner" role="alert" hidden>
       <strong>자동 저장이 멈췄습니다.</strong>
       <span id="dws-autosave-banner-reason"></span>
@@ -377,11 +386,16 @@
           <button type="button" class="dws-mt-btn" id="dws-mt-preset-btn" title="프리셋 삽입">프리셋 ▾</button>
           <div class="dws-menu dws-mt-preset-menu" id="dws-mt-preset-menu" hidden></div>
         </div>
+        <button type="button" class="dws-mt-btn dws-mt-eyedrop" id="dws-mt-eyedrop-text" title="스포이트: 다음에 클릭한 객체의 색을 가져옵니다 (Esc 취소)">스포이트</button>
+        <button type="button" class="dws-mt-btn dws-mt-lock" id="dws-mt-lock-text" title="잠금/잠금 해제 (Ctrl+L)">잠금</button>
         <button type="button" class="dws-mt-btn dws-mt-del" id="dws-mt-del-text" title="삭제">삭제</button>
       </div>
       <div class="dws-mt-group" id="dws-mt-image" hidden>
         <button type="button" class="dws-mt-btn" id="dws-mt-ratio" title="비율 고정">비율고정: 켬</button>
         <button type="button" class="dws-mt-btn" id="dws-mt-trim" title="그림 둘레의 빈 여백을 잘라냅니다">여백 자르기</button>
+        <button type="button" class="dws-mt-btn" id="dws-mt-flip-x" title="좌우 뒤집기">좌우 뒤집기</button>
+        <button type="button" class="dws-mt-btn" id="dws-mt-flip-y" title="상하 뒤집기">상하 뒤집기</button>
+        <button type="button" class="dws-mt-btn dws-mt-lock" id="dws-mt-lock-image" title="잠금/잠금 해제 (Ctrl+L)">잠금</button>
         <button type="button" class="dws-mt-btn dws-mt-del" id="dws-mt-del-image" title="삭제">삭제</button>
       </div>
       <div class="dws-mt-group" id="dws-mt-shape" hidden>
@@ -393,6 +407,8 @@
           <option value="2">보통</option>
           <option value="3">굵게</option>
         </select>
+        <button type="button" class="dws-mt-btn dws-mt-eyedrop" id="dws-mt-eyedrop-shape" title="스포이트: 다음에 클릭한 객체의 색을 가져옵니다 (Esc 취소)">스포이트</button>
+        <button type="button" class="dws-mt-btn dws-mt-lock" id="dws-mt-lock-shape" title="잠금/잠금 해제 (Ctrl+L)">잠금</button>
         <button type="button" class="dws-mt-btn dws-mt-del" id="dws-mt-del-shape" title="삭제">삭제</button>
       </div>
     </div>
@@ -445,6 +461,46 @@
       </div>
     </dialog>
 
+    <!-- ================= 자동 채움 다이얼로그 ================= -->
+    <dialog class="dws-dialog dws-ui" id="dws-autofill-dialog">
+      <div class="dws-dialog-body">
+        <h2 class="dws-dialog-title">자동 채움</h2>
+        <p class="dws-dialog-note">주문 데이터로 폼 칸을 채웁니다. 모든 시트를 고르면 시트마다 자기 제품 데이터로 채웁니다.</p>
+        <fieldset class="dws-autofill-group">
+          <legend>채우는 방식</legend>
+          <label><input type="radio" name="dws-autofill-mode" id="dws-autofill-mode-empty" value="empty" checked> 빈 칸만 채우기</label>
+          <label><input type="radio" name="dws-autofill-mode" id="dws-autofill-mode-all" value="all"> 모두 덮어쓰기</label>
+        </fieldset>
+        <fieldset class="dws-autofill-group">
+          <legend>범위</legend>
+          <label><input type="radio" name="dws-autofill-scope" id="dws-autofill-scope-current" value="current" checked> 이 시트만</label>
+          <label><input type="radio" name="dws-autofill-scope" id="dws-autofill-scope-all" value="all"> 모든 시트</label>
+        </fieldset>
+        <p class="dws-autofill-count" id="dws-autofill-count" aria-live="polite"></p>
+        <div class="dws-dialog-actions">
+          <button type="button" class="dws-btn" id="dws-autofill-cancel">취소</button>
+          <button type="button" class="dws-btn dws-btn-primary" id="dws-autofill-apply">채우기</button>
+        </div>
+      </div>
+    </dialog>
+
+    <!-- ================= 재전송 변경 내용 다이얼로그 ================= -->
+    <dialog class="dws-dialog dws-note-dialog dws-ui" id="dws-note-dialog">
+      <div class="dws-dialog-body">
+        <h2 class="dws-dialog-title">재전송 변경 내용</h2>
+        <p class="dws-dialog-note">이번 재전송에서 무엇이 바뀌었는지 적어주세요. 도면방에 함께 전달됩니다.</p>
+        <textarea class="dws-note-input" id="dws-note-input" rows="5" maxlength="500" placeholder="예) 상판 길이 1200 → 1250 으로 수정"></textarea>
+        <div class="dws-note-meta">
+          <span class="dws-note-error" id="dws-note-error" role="alert" hidden>변경 내용을 입력해주세요.</span>
+          <span class="dws-note-count" id="dws-note-count">0 / 500</span>
+        </div>
+        <div class="dws-dialog-actions">
+          <button type="button" class="dws-btn" id="dws-note-cancel">취소</button>
+          <button type="button" class="dws-btn dws-btn-primary" id="dws-note-send">보내기</button>
+        </div>
+      </div>
+    </dialog>
+
     <!-- ================= 모바일 안내 ================= -->
     <div class="dws-mobile-notice" id="dws-mobile-notice" hidden>
       <div class="dws-mobile-notice-box">
@@ -459,6 +515,81 @@
       <img class="dws-lightbox-img" id="dws-lightbox-img" alt="저장된 도면 미리보기">
     </div>
 
+    <!-- ================= 단축키 도움말 ================= -->
+    <div class="dws-help-overlay dws-ui" id="dws-help" role="dialog" aria-modal="true" aria-labelledby="dws-help-title" hidden>
+      <div class="dws-help-card">
+        <div class="dws-help-head">
+          <h2 class="dws-help-title" id="dws-help-title">단축키 도움말</h2>
+          <button type="button" class="dws-help-close" id="dws-help-close" title="닫기 (Esc)" aria-label="닫기">✕</button>
+        </div>
+        <div class="dws-help-body">
+          <section class="dws-help-group">
+            <h3 class="dws-help-group-title">기본</h3>
+            <dl class="dws-help-list">
+              <dt><kbd>Ctrl</kbd>+<kbd>S</kbd></dt><dd>저장</dd>
+              <dt><kbd>Ctrl</kbd>+<kbd>Z</kbd></dt><dd>실행취소</dd>
+              <dt><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> · <kbd>Ctrl</kbd>+<kbd>Y</kbd></dt><dd>다시 실행</dd>
+              <dt><kbd>Esc</kbd></dt><dd>스포이트 취소 · 선택 도구로 돌아가기 · 선택 해제 · 창 닫기</dd>
+              <dt><kbd>?</kbd></dt><dd>이 도움말 열기</dd>
+            </dl>
+          </section>
+          <section class="dws-help-group">
+            <h3 class="dws-help-group-title">도구</h3>
+            <dl class="dws-help-list">
+              <dt><kbd>V</kbd></dt><dd>선택 · 이동</dd>
+              <dt><kbd>T</kbd></dt><dd>텍스트 추가</dd>
+              <dt><kbd>U</kbd></dt><dd>도형 그리기</dd>
+              <dt><kbd>P</kbd></dt><dd>펜</dd>
+              <dt><kbd>E</kbd></dt><dd>지우개</dd>
+              <dt><kbd>I</kbd></dt><dd>이미지 추가</dd>
+            </dl>
+          </section>
+          <section class="dws-help-group">
+            <h3 class="dws-help-group-title">선택 · 편집</h3>
+            <dl class="dws-help-list">
+              <dt><kbd>Ctrl</kbd>+<kbd>A</kbd></dt><dd>이 시트 전체 선택</dd>
+              <dt><kbd>Ctrl</kbd>+<kbd>D</kbd></dt><dd>선택 해제</dd>
+              <dt><kbd>Delete</kbd> · <kbd>Backspace</kbd></dt><dd>선택 삭제</dd>
+              <dt><kbd>←</kbd><kbd>↑</kbd><kbd>→</kbd><kbd>↓</kbd></dt><dd>1px 이동 (<kbd>Shift</kbd> 누르면 10px)</dd>
+              <dt><kbd>Ctrl</kbd>+<kbd>C</kbd> / <kbd>X</kbd> / <kbd>V</kbd></dt><dd>복사 / 잘라내기 / 붙여넣기</dd>
+              <dt><kbd>Ctrl</kbd>+<kbd>J</kbd></dt><dd>제자리 복제</dd>
+              <dt><kbd>Alt</kbd>+드래그</dt><dd>복제하며 이동</dd>
+              <dt><kbd>Ctrl</kbd>+<kbd>]</kbd> · <kbd>Ctrl</kbd>+<kbd>[</kbd></dt><dd>한 층 앞으로 · 뒤로</dd>
+              <dt><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>]</kbd> · <kbd>[</kbd></dt><dd>맨 앞으로 · 맨 뒤로</dd>
+              <dt><kbd>Ctrl</kbd>+<kbd>L</kbd></dt><dd>선택 잠금 / 잠금 해제</dd>
+              <dt><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>L</kbd></dt><dd>이 시트 전체 잠금 해제</dd>
+            </dl>
+          </section>
+          <section class="dws-help-group">
+            <h3 class="dws-help-group-title">마우스 · 보조키</h3>
+            <dl class="dws-help-list">
+              <dt><kbd>Shift</kbd>·<kbd>Ctrl</kbd>+클릭</dt><dd>선택에 더하기 · 빼기</dd>
+              <dt><kbd>Shift</kbd>+드래그</dt><dd>가로·세로 한 방향으로만 이동</dd>
+              <dt><kbd>Shift</kbd> (그리기·크기·회전 중)</dt><dd>비율 고정 · 반듯한 선 · 각도 맞춤</dd>
+            </dl>
+          </section>
+          <section class="dws-help-group">
+            <h3 class="dws-help-group-title">텍스트 입력</h3>
+            <dl class="dws-help-list">
+              <dt><kbd>Enter</kbd></dt><dd>입력 마치기</dd>
+              <dt><kbd>Shift</kbd>+<kbd>Enter</kbd></dt><dd>줄 바꿈</dd>
+              <dt><kbd>Esc</kbd></dt><dd>입력 마치기</dd>
+            </dl>
+          </section>
+          <section class="dws-help-group">
+            <h3 class="dws-help-group-title">화면 보기</h3>
+            <dl class="dws-help-list">
+              <dt><kbd>Space</kbd>+드래그</dt><dd>화면 옮기기</dd>
+              <dt><kbd>Ctrl</kbd>+휠 · <kbd>Alt</kbd>+휠</dt><dd>확대 / 축소</dd>
+              <dt><kbd>Ctrl</kbd>+<kbd>=</kbd> · <kbd>Ctrl</kbd>+<kbd>-</kbd></dt><dd>확대 · 축소</dd>
+              <dt><kbd>Ctrl</kbd>+<kbd>0</kbd></dt><dd>화면 폭 맞춤</dd>
+              <dt><kbd>Ctrl</kbd>+<kbd>1</kbd></dt><dd>100% 보기</dd>
+            </dl>
+          </section>
+        </div>
+      </div>
+    </div>
+
     <!-- ================= 토스트 ================= -->
     <div class="dws-toast-host dws-ui" id="dws-toast-host" aria-live="polite"></div>
 
@@ -466,7 +597,7 @@
 
   <script id="drawing-wizard-config" type="application/json">{{ wizard_config|tojson }}</script>
   <script src="{{ url_for('static', filename='vendor/konva.min.js') }}?v=20260706b" defer></script>
-  <script src="{{ url_for('static', filename='js/drawing/wizard.js') }}?v=20261008b" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/wizard.js') }}?v=20261008e" defer></script>
   {# 수정 요청 확인창 배선: 소켓 → 확인창. write helper 는 ack POST 의 same-origin 헤더용. #}
   <script src="https://cdn.socket.io/4.5.4/socket.io.min.js" defer></script>
   <script src="{{ url_for('static', filename='js/foms/notification-write.js') }}?v=20260704a" defer></script>

@@ -51,7 +51,9 @@ def test_tick_autosave_gate_requires_hydration_and_user_edit() -> None:
     assert "if (!dirty || !canSave || saveInFlight) { return; }" in tick
     assert "if (!state.sheets.length) { return; }" in tick
     assert "if (editingTextarea || editCtx) { return; }" in tick
-    assert "if (annoMode !== 'select') { return; }" in tick
+    # 2026-10-08: 도구 모드 보류는 없앴다 — 대신 진행 중 제스처(펜·지우개·도형 초안)만 보류한다.
+    assert "if (annoMode !== 'select') { return; }" not in tick
+    assert "if (isDrawingPen || shapeDrawActive) { return; }" in tick
     assert "if (dragActive) { return; }" in tick
 
 
@@ -130,7 +132,7 @@ def test_handle_conflict_suspends_autosave_and_reads_conflict_reason() -> None:
 def test_wizard_js_asset_pin_bumped_for_autosave_guard() -> None:
     """wizard.js 내용이 바뀌었으므로 ?v= 핀을 올렸다(SW staticCacheFirst 스테일 봉합)."""
     assert "js/drawing/wizard.js') }}?v=20260911a" not in TPL
-    assert "js/drawing/wizard.js') }}?v=20261008b" in TPL
+    assert "js/drawing/wizard.js') }}?v=20261008e" in TPL
 
 
 def test_no_content_based_empty_canvas_block() -> None:
