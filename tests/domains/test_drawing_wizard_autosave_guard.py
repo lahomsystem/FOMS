@@ -51,7 +51,9 @@ def test_tick_autosave_gate_requires_hydration_and_user_edit() -> None:
     assert "if (!dirty || !canSave || saveInFlight) { return; }" in tick
     assert "if (!state.sheets.length) { return; }" in tick
     assert "if (editingTextarea || editCtx) { return; }" in tick
-    assert "if (annoMode !== 'select') { return; }" in tick
+    # 2026-10-08: 도구 모드 보류는 없앴다 — 대신 진행 중 제스처(펜·지우개·도형 초안)만 보류한다.
+    assert "if (annoMode !== 'select') { return; }" not in tick
+    assert "if (isDrawingPen || shapeDrawActive) { return; }" in tick
     assert "if (dragActive) { return; }" in tick
 
 

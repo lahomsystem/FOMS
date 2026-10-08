@@ -2111,3 +2111,70 @@ html, body {
     pointer-events: auto;
   }
 }
+/* ---- 저장 상태 칩(앱바) · 로컬 백업 복원 배너 · 오류 토스트 ------------------- */
+.dws-save-status {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 980px;
+  font-size: 12px;
+  white-space: nowrap;
+  background: rgba(0, 0, 0, 0.05);
+  color: #6e6e73;
+}
+.dws-save-status[hidden] { display: none; }
+.dws-save-status.dws-save-status-saved { background: #e8f5ec; color: #1d7a3a; }
+.dws-save-status.dws-save-status-saving { background: #eef4ff; color: #0a59c9; }
+.dws-save-status.dws-save-status-dirty { background: #fff6e0; color: #8a5a00; }
+.dws-save-status.dws-save-status-paused { background: #fff1e0; color: #a14a00; }
+.dws-save-status.dws-save-status-failed { background: #fdecea; color: #c0261b; font-weight: 600; }
+
+.dws-restore-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 8px 12px;
+  background: #eef4ff;
+  border: 1px solid #c7d9f7;
+  border-radius: 6px;
+  color: #0a3d8a;
+  font-size: 13px;
+}
+.dws-restore-banner[hidden] { display: none; }
+
+.dws-toast.dws-toast-error {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(560px, calc(100vw - 32px));
+  border-radius: 12px;
+  background: rgba(176, 32, 24, 0.94);
+  pointer-events: auto;
+}
+.dws-toast-error .dws-toast-text { flex: 1 1 auto; line-height: 1.45; }
+.dws-toast-retry,
+.dws-toast-close {
+  flex: 0 0 auto;
+  border: 0;
+  cursor: pointer;
+  color: #fff;
+  font: inherit;
+}
+.dws-toast-retry {
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.2);
+  font-weight: 600;
+}
+.dws-toast-retry:hover { background: rgba(255, 255, 255, 0.32); }
+.dws-toast-close {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: transparent;
+  font-size: 16px;
+  line-height: 1;
+}
+.dws-toast-close:hover { background: rgba(255, 255, 255, 0.2); }

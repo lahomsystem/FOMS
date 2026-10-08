@@ -251,6 +251,12 @@
   /* 저장 조율 상태 (자동 저장 · 저장+전달 원클릭 공용) */
   var saveInFlight = false;            // 저장 요청 진행 중(중복 저장·자동 저장 억제)
   var dragActive = false;             // 노드 드래그/변형·경계선 드래그 진행 중(자동 저장 억제)
+  var shapeDrawActive = false;        // 도형(사각·원·화살표·선) 초안 드래그 진행 중(자동 저장 억제)
+  var saveFailed = false;             // 마지막 저장이 실패했다(상태 칩 '저장 실패' — 다음 성공 시 해제)
+  var lastSavedAt = null;             // 마지막 저장 성공 시각(Date) — 상태 칩 '저장됨 HH:MM'
+  var BACKUP_DEBOUNCE_MS = 2000;      // 로컬 비상 백업 디바운스(2초)
+  var BACKUP_MAX_CHARS = 4 * 1024 * 1024;   // 로컬 백업 상한(약 4MB) — 넘으면 백업 생략
+  var backupTimer = null;             // 로컬 백업 디바운스 타이머
   var AUTOSAVE_INTERVAL_MS = 45000;   // 자동 저장 주기(45초)
   var autosaveTimer = null;           // setInterval 핸들(단일)
   var autoConflictWarned = false;     // 자동 저장 409 경고 1회성 플래그(성공 시 해제)
@@ -350,7 +356,88 @@
     markDirty();
   }
 
-  function markDirty() { dirty = true; userDirty = true; updateSaveState(); }
+  function markDirty() { dirty = true; userDirty = true; updateSaveState(); scheduleBackup(); }
+
+  /* ---- 로컬 비상 백업(브라우저 localStorage) --------------------------------
+     서버 저장 전에 탭이 죽어도 작업을 되살리도록, 변경 2초 뒤 시트 전체를 이 브라우저에 적어 둔다.
+     서버 저장 성공 시 지운다. 열람 전용(canSave=false)이면 백업·복원 모두 하지 않는다. */
+  function backupKey() { return 'dws-backup:' + String(ORDER_ID || ''); }
+
+  function scheduleBackup() {
+    if (!canSave || !hydrated) { return; }
+    if (backupTimer) { clearTimeout(backupTimer); }
+    backupTimer = setTimeout(writeBackup, BACKUP_DEBOUNCE_MS);
+  }
+
+  function writeBackup() {
+    backupTimer = null;
+    if (!canSave || !hydrated || !dirty) { return; }
+    try {
+      var raw = JSON.stringify({ ts: Date.now(), base_updated_at: baseUpdatedAt, sheets: state.sheets });
+      if (raw.length > BACKUP_MAX_CHARS) { return; }   // 너무 크면 생략(저장소 한도 초과 방지)
+      window.localStorage.setItem(backupKey(), raw);
+    } catch (e) { /* 사생활 보호 모드·저장소 가득 참 — 백업만 포기하고 작업은 계속 */ }
+  }
+
+  function clearBackup() {
+    if (backupTimer) { clearTimeout(backupTimer); backupTimer = null; }
+    try { window.localStorage.removeItem(backupKey()); } catch (e) { /* 무시 */ }
+  }
+
+  function readBackup() {
+    try {
+      var raw = window.localStorage.getItem(backupKey());
+      if (!raw) { return null; }
+      var b = JSON.parse(raw);
+      if (!b || !b.sheets || !b.sheets.length) { return null; }
+      return b;
+    } catch (e) { return null; }
+  }
+
+  function hhmm(d) {
+    function two(n) { return (n < 10 ? '0' : '') + n; }
+    return two(d.getHours()) + ':' + two(d.getMinutes());
+  }
+
+  /** 로드 직후 1회: 서버 내용과 다른 백업이 있으면 복원 배너를 띄운다(막지 않는 배너). */
+  function offerBackupRestore() {
+    if (!els.restoreBanner) { return; }
+    els.restoreBanner.hidden = true;
+    if (!canSave) { return; }
+    var b = readBackup();
+    if (!b) { return; }
+    var same = false;
+    try { same = JSON.stringify(b.sheets) === JSON.stringify(state.sheets); } catch (e) { same = false; }
+    if (same) { clearBackup(); return; }   // 서버와 같으면 되살릴 것이 없다
+    var d = new Date(b.ts || Date.now());
+    if (els.restoreText) {
+      els.restoreText.textContent = '저장되지 않은 작업이 있습니다 (' + (d.getMonth() + 1) + '/' + d.getDate() + ' ' + hhmm(d) + ')';
+    }
+    els.restoreBanner.hidden = false;
+  }
+
+  /** 복원: 백업 시트를 불러와 dirty 로 표시(저장은 사람이 하거나 자동 저장이 한다). */
+  function restoreBackup() {
+    var b = readBackup();
+    if (els.restoreBanner) { els.restoreBanner.hidden = true; }
+    if (!b || !canSave) { return; }
+    state = normalizeState({ v: 1, sheets: b.sheets });
+    current = 0;
+    undoStack.length = 0;
+    redoStack.length = 0;
+    deselect();
+    renderProducts();
+    renderTabs();
+    renderForm();
+    rebuildAnno();
+    markDirty();
+    toast('저장되지 않은 작업을 복원했습니다. 저장 버튼을 눌러 서버에 반영하세요.');
+  }
+
+  function discardBackup() {
+    clearBackup();
+    if (els.restoreBanner) { els.restoreBanner.hidden = true; }
+  }
 
   /* ========================================================================
    * [3] form render
@@ -362,6 +449,11 @@
     els.readonlyBanner = document.getElementById('dws-readonly-banner');
     els.autosaveBanner = document.getElementById('dws-autosave-banner');
     els.autosaveBannerReason = document.getElementById('dws-autosave-banner-reason');
+    els.saveStatus = document.getElementById('dws-save-status');
+    els.restoreBanner = document.getElementById('dws-restore-banner');
+    els.restoreText = document.getElementById('dws-restore-text');
+    els.restoreBtn = document.getElementById('dws-btn-restore');
+    els.restoreDiscardBtn = document.getElementById('dws-btn-restore-discard');
     els.products = document.getElementById('dws-products');
     els.productList = document.getElementById('dws-product-list');
     els.productToggle = document.getElementById('dws-products-toggle');
@@ -2114,6 +2206,7 @@
     }
     konvaLayer.add(draft);
     transformer.moveToTop();
+    shapeDrawActive = true;   // 도형 초안 진행 중 — 자동 저장 보류
 
     // window 레벨 네이티브 리스너: 포인터가 캔버스를 벗어났다 놓아도 그리기가 확정된다.
     function move(nativeEvt) {
@@ -2131,6 +2224,7 @@
     function up(nativeEvt) {
       window.removeEventListener('mousemove', move, true);
       window.removeEventListener('mouseup', up, true);
+      shapeDrawActive = false;
       finishDrawShape(draft, mode, start, constrainShapeEnd(mode, start, pointerLogical(nativeEvt), !!nativeEvt.shiftKey));
     }
     window.addEventListener('mousemove', move, true);
@@ -2707,11 +2801,11 @@
     }
     uploadAsset(file).then(function (r) {
       if (r.status !== 200 || !r.data || !r.data.success || !r.data.data) {
-        toast(serverErrorText(r, '이미지 업로드 실패'));
+        toast(failureText('이미지 업로드 실패', r), { error: true, retry: function () { addImageFromFile(file, pos, cascade); } });
         return;
       }
       placeImageFromKey(r.data.data.key, pos, cascade);
-    }).catch(function (err) { console.warn('[dws] asset upload', err); toast('이미지 업로드 오류'); });
+    }).catch(function (err) { console.warn('[dws] asset upload', err); toast(failureText('이미지 업로드 실패', null), { error: true, retry: function () { addImageFromFile(file, pos, cascade); } }); });
   }
 
   /** 이미지 파일 여러 장을 한 번에 추가한다(파일 선택·붙여넣기·드롭 공용).
@@ -3043,14 +3137,14 @@
     }).then(function (r) {
       cell.classList.remove('dws-photo-loading');
       if (r.status !== 200 || !r.data || !r.data.success || !r.data.data || !r.data.data.key) {
-        toast(serverErrorText(r, '실측 사진을 삽입하지 못했습니다.'));
+        toast(failureText('실측 사진 삽입 실패', r), { error: true, retry: function () { onPhotoClick(photo, cell); } });
         return;
       }
       placeImageFromKey(r.data.data.key, pos || null, 0, PHOTO_MAX_LONG);
     }, function (err) {
       cell.classList.remove('dws-photo-loading');
       console.warn('[dws] import-attachment', err);
-      toast('실측 사진 삽입 오류');
+      toast(failureText('실측 사진 삽입 실패', null), { error: true, retry: function () { onPhotoClick(photo, cell); } });
     });
   }
 
@@ -3457,7 +3551,13 @@
     if (els.mtPresetMenu) { els.mtPresetMenu.hidden = true; }
   }
 
-  function toast(msg) {
+  /**
+   * 토스트. 기본은 2.6초 뒤 사라진다.
+   * opts.error=true 면 오류 토스트: 닫기(×)를 누를 때까지 남고, opts.retry(함수)가 있으면 '다시 시도' 버튼을 단다.
+   */
+  function toast(msg, opts) {
+    opts = opts || {};
+    if (opts.error) { return errorToast(msg, opts.retry); }
     var t = document.createElement('div');
     t.className = 'dws-toast';
     t.textContent = String(msg || '');
@@ -3467,6 +3567,49 @@
       t.classList.remove('dws-toast-show');
       setTimeout(function () { if (t.parentNode) { t.parentNode.removeChild(t); } }, 240);
     }, 2600);
+  }
+
+  function errorToast(msg, retry) {
+    var t = document.createElement('div');
+    t.className = 'dws-toast dws-toast-error';
+    t.setAttribute('role', 'alert');
+    var text = document.createElement('span');
+    text.className = 'dws-toast-text';
+    text.textContent = String(msg || '');
+    t.appendChild(text);
+    function close() {
+      t.classList.remove('dws-toast-show');
+      setTimeout(function () { if (t.parentNode) { t.parentNode.removeChild(t); } }, 240);
+    }
+    if (typeof retry === 'function') {
+      var rb = document.createElement('button');
+      rb.type = 'button';
+      rb.className = 'dws-toast-retry';
+      rb.textContent = '다시 시도';
+      rb.addEventListener('click', function () { close(); retry(); });
+      t.appendChild(rb);
+    }
+    var xb = document.createElement('button');
+    xb.type = 'button';
+    xb.className = 'dws-toast-close';
+    xb.setAttribute('aria-label', '닫기');
+    xb.textContent = '×';
+    xb.addEventListener('click', close);
+    t.appendChild(xb);
+    els.toastHost.appendChild(t);
+    requestAnimationFrame(function () { t.classList.add('dws-toast-show'); });
+    return t;
+  }
+
+  /** 실패 원인 + 다음 행동 문구. 네트워크 끊김(응답 없음)과 서버 오류(상태 코드)를 가른다. */
+  function failureText(what, r) {
+    if (!r) { return what + ' — 인터넷 연결이 끊겼거나 불안정합니다. 연결을 확인한 뒤 다시 시도하세요.'; }
+    var st = r.status || 0;
+    var detail = serverErrorText(r, '');
+    if (st === 401 || st === 403) { return what + ' — 권한이 없거나 로그인이 만료되었습니다(' + st + '). ' + (detail ? detail + ' ' : '') + '새로고침 후 다시 로그인하세요.'; }
+    if (st === 413) { return what + ' — 파일이 너무 큽니다(413). 더 작은 파일로 다시 시도하세요.'; }
+    if (st >= 500) { return what + ' — 서버 오류입니다(' + st + '). 잠시 후 다시 시도하세요.' + (detail ? ' (' + detail + ')' : ''); }
+    return what + (detail ? ' — ' + detail : ' (' + st + ')') + ' — 내용을 확인한 뒤 다시 시도하세요.';
   }
 
   /* ---- 프리셋 메뉴: 기본 4개(코드 상수) + 사용자 프리셋(전역) 동적 렌더 ---- */
@@ -3630,9 +3773,29 @@
       els.autosaveBanner.hidden = !autosaveStopped;
       if (els.autosaveBannerReason) { els.autosaveBannerReason.textContent = autosaveStopReason || ''; }
     }
+    renderSaveStatus();
     if (!els.saveBtn) { return; }
     els.saveBtn.classList.toggle('dws-dirty', !!dirty);
     els.saveBtn.textContent = dirty ? '저장 *' : '저장';
+  }
+
+  /** 앱바 저장 상태 칩: 저장 중… / 저장 실패 / 자동 저장 멈춤 / 저장 안 됨 / 저장됨 HH:MM. */
+  function renderSaveStatus() {
+    var el = els.saveStatus;
+    if (!el) { return; }
+    if (!canSave) { el.hidden = true; return; }
+    var label = '';
+    var kind = '';
+    if (saveInFlight) { label = '저장 중…'; kind = 'saving'; }
+    else if (saveFailed) { label = '저장 실패'; kind = 'failed'; }
+    else if (dirty && (autosaveStopped || autosaveSuspended)) { label = '저장 안 됨 · 자동 저장 멈춤'; kind = 'paused'; }
+    else if (dirty) { label = '저장 안 됨'; kind = 'dirty'; }
+    else if (lastSavedAt) { label = '저장됨 ' + hhmm(lastSavedAt); kind = 'saved'; }
+    el.hidden = !label;
+    el.textContent = label;
+    ['saving', 'failed', 'paused', 'dirty', 'saved'].forEach(function (k) {
+      el.classList.toggle('dws-save-status-' + k, k === kind);
+    });
   }
 
   /** 자동 저장을 멈추고 사유를 상시 배너로 띄운다. 재개는 수동 저장 성공 또는 재로드. */
@@ -3906,6 +4069,7 @@
       updateSaveState();
       fitZoom();
       refreshPending();   // 저장된 도면(전달 대기) 미리보기 패널 초기 로드
+      offerBackupRestore();   // 서버와 다른 로컬 비상 백업이 있으면 복원 배너(열람 전용이면 생략)
       hydrated = true;   // 렌더까지 끝난 뒤에만 저장 허용(성공 핸들러의 맨 마지막 문장)
     }, function (err) { loadFailed = true; console.warn('[dws] load', err); toast('불러오기 오류 — 새로고침해 주세요.'); });
   }
@@ -3972,6 +4136,7 @@
       if (document.activeElement && document.activeElement.blur) { document.activeElement.blur(); }
     }
     saveInFlight = true;
+    renderSaveStatus();   // '저장 중…'
     var sheet = currentSheet();   // 저장 시점 시트 참조(비동기 PNG 단계 동안 고정)
     var body = { state: serializeState(), base_updated_at: baseUpdatedAt, auto: auto };
     els.saveBtn.disabled = true;
@@ -3982,6 +4147,9 @@
         baseUpdatedAt = (r.data.data && r.data.data.updated_at) || baseUpdatedAt;
         dirty = false;
         userDirty = false;
+        saveFailed = false;
+        lastSavedAt = new Date();
+        clearBackup();   // 서버에 반영됐다 — 로컬 비상 백업은 더 필요 없다
         autoConflictWarned = false;   // 저장 성공 → 다음 충돌 시 다시 1회 경고 허용
         if (!auto) {
           // 사람이 눌러 성공했다 = 서버와 맞다. 자동 저장을 다시 켠다(멈춤·억제 모두 해제).
@@ -3992,17 +4160,21 @@
         if (auto) {
           els.saveBtn.disabled = false;
           saveInFlight = false;
+          renderSaveStatus();
           return true;   // 자동 저장: PNG 도면 탭 갱신 생략, 조용히 성공
         }
         // 수동 저장: 상태 확정 후 PNG 를 도면 탭에 반영(버튼 재활성·토스트는 내부에서).
         return saveSheetPng(sheet).then(function () {
           saveInFlight = false;
+          renderSaveStatus();
           refreshPending();   // 전달 대기함에 새 시트 반영 → 미리보기 패널 갱신
           return true;
         });
       }
       els.saveBtn.disabled = false;
       saveInFlight = false;
+      saveFailed = true;
+      renderSaveStatus();
       if (r.status === 409) {
         if (auto) {
           // 자동 저장은 여기서 멈춘다. 예전에는 dirty 를 유지한 채 45초마다 같은 실패를
@@ -4023,14 +4195,16 @@
           // 두 사람이 2시간 그림을 그렸다. 반복 실패는 멈추고 상시 배너로 알린다.
           stopAutosave(failText);
         }
-        toast(failText);
+        toast(failureText('저장 실패', r), { error: true, retry: function () { save(); } });
       }
       return false;
     }, function (err) {
       els.saveBtn.disabled = false;
       saveInFlight = false;
+      saveFailed = true;
+      renderSaveStatus();
       console.warn('[dws] save', err);
-      if (!auto) { toast('저장 오류'); }
+      if (!auto) { toast(failureText('저장 실패', null), { error: true, retry: function () { save(); } }); }
       return false;
     });
   }
@@ -4041,7 +4215,7 @@
     if (!dirty || !canSave || saveInFlight) { return; }
     if (!state.sheets.length) { return; }          // 빈 상태(시트 0개)는 저장 대상 없음
     if (editingTextarea || editCtx) { return; }   // 주석 텍스트 편집 중이면 보류
-    if (annoMode !== 'select') { return; }         // 그리기/도형 모드면 보류
+    if (isDrawingPen || shapeDrawActive) { return; }   // 펜·지우개 스트로크/도형 초안 진행 중이면 보류(도구 모드는 무관 — 펜 모드에서도 자동 저장)
     if (dragActive) { return; }                    // 드래그·변형 진행 중이면 보류
     save({ auto: true });
   }
@@ -4162,6 +4336,7 @@
     if (commitActiveEdit) { commitActiveEdit(); }
     if (document.activeElement && document.activeElement.blur) { document.activeElement.blur(); }
     saveInFlight = true;
+    renderSaveStatus();
     var origIdx = current;
     els.saveBtn.disabled = true;
     if (els.saveAllBtn) { els.saveAllBtn.disabled = true; }
@@ -4170,14 +4345,18 @@
       method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
     }).then(function (r) {
       if (!(r.status === 200 && r.data && r.data.success)) {
+        saveFailed = true;
         finishSaveAll();
         if (r.status === 409) { handleConflict(r.data); }
-        else { toast(serverErrorText(r, ('저장 실패 (' + r.status + ')'))); }
+        else { toast(failureText('일괄 저장 실패', r), { error: true, retry: saveAll }); }
         return;
       }
       baseUpdatedAt = (r.data.data && r.data.data.updated_at) || baseUpdatedAt;
       dirty = false;
       userDirty = false;
+      saveFailed = false;
+      lastSavedAt = new Date();
+      clearBackup();
       autoConflictWarned = false;
       updateSaveState();
       return eachSheetToBlob(postSheetPngBlob, '일괄 저장').then(function (res) {
@@ -4191,9 +4370,10 @@
         }
       });
     }, function (err) {
+      saveFailed = true;
       finishSaveAll();
       console.warn('[dws] save-all', err);
-      toast('저장 오류');
+      toast(failureText('일괄 저장 실패', null), { error: true, retry: saveAll });
     });
   }
 
@@ -4201,6 +4381,7 @@
     saveInFlight = false;
     els.saveBtn.disabled = false;
     if (els.saveAllBtn) { els.saveAllBtn.disabled = false; }
+    renderSaveStatus();
   }
 
   /* ========================================================================
@@ -4640,6 +4821,8 @@
     document.getElementById('dws-btn-redo').addEventListener('click', redo);
     els.saveBtn.addEventListener('click', function () { save(); });
     if (els.saveAllBtn) { els.saveAllBtn.addEventListener('click', saveAll); }
+    if (els.restoreBtn) { els.restoreBtn.addEventListener('click', restoreBackup); }
+    if (els.restoreDiscardBtn) { els.restoreDiscardBtn.addEventListener('click', discardBackup); }
     if (els.roomPushBtn) { els.roomPushBtn.addEventListener('click', pushDrawingRoom); }
 
     // 빈 상태 오버레이 — "빈 시트 추가"(제품 없는 주문 대비). addSheet 는 defaults 로 시트 생성.
@@ -5258,7 +5441,7 @@
         return r;
       }).then(function (r) {
         if (!r) { return; }
-        if (!r.data || r.data.success !== true) { toast(serverErrorText(r, '도면방 PUSH 실패')); return; }
+        if (!r.data || r.data.success !== true) { toast(failureText('도면방 PUSH 실패', r), { error: true, retry: pushDrawingRoom }); return; }
         // 담당자 개인방까지 나갔는지는 서버가 말한다. 못 보냈으면 그 사유를 그대로 띄운다.
         var sentCount = r.data.files_count || 0;
         if (r.data.manager_room_sent) {
@@ -5271,7 +5454,7 @@
       });
     }).catch(function (err) {
       console.warn('[dws] drawing room push', err);
-      toast('도면방 PUSH 중 오류가 발생했습니다.');
+      toast(failureText('도면방 PUSH 실패', null), { error: true, retry: pushDrawingRoom });
     }).then(function () { btn.disabled = !canSave; });
   }
 
