@@ -3808,6 +3808,7 @@
     else if (lastSavedAt) { label = '저장됨 ' + hhmm(lastSavedAt); kind = 'saved'; }
     el.hidden = !label;
     el.textContent = label;
+    el.title = label;   // 좁은 화면에서 칩 글자가 말줄임돼도 마우스를 올리면 전체 문구
     ['saving', 'failed', 'paused', 'dirty', 'saved'].forEach(function (k) {
       el.classList.toggle('dws-save-status-' + k, k === kind);
     });
