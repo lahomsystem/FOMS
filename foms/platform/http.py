@@ -10,6 +10,7 @@ from typing import Any, Callable
 
 from werkzeug.exceptions import HTTPException
 
+from foms.services.auth.partner_scope import partner_gate
 from foms.services.common.ept_b7_profile import format_phases
 from foms.services.common.request_phase_profile import HEADER_REQ_DIAG, format_request_diag
 from foms.services.datetime_kst import get_today_kst
@@ -225,6 +226,9 @@ def register_http_bootstrap(
             if not session.get("_permanent"):
                 session.permanent = True
             g.current_user = get_user_by_id(user_id)
+
+    # PARTNER-01: 외부 협력사 계정은 허용 목록 endpoint 만(기본 거부). _set_current_user 바로 뒤여야 한다.
+    app.before_request(partner_gate)
 
     @app.before_request
     def _touch_last_seen() -> None:

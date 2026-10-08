@@ -2243,6 +2243,8 @@ _SLG_TEMPLATES_TOP_LEVEL_ALLOWED = frozenset(
         "measurement",
         "orders",
         "partials",
+        # PARTNER-01: 외부 협력사 전용 화면(공용 레이아웃을 쓰지 않는 단독 템플릿).
+        "partner",
         "production",
         "shipment",
         "wdcalculator",

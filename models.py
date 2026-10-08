@@ -59,6 +59,9 @@ class Order(Base):
     # Regional order management fields (지방 주문 관리)
     is_regional = Column(Boolean, default=False)  # 지방 주문 여부
     is_self_measurement = Column(Boolean, default=False)  # 자가실측 여부
+    # PARTNER-01: 외부 협력사가 등록한 주문이면 그 협력사 id. NULL = 우리 주문.
+    # 협력사 계정의 주문 조회 판정(user_can_read_order)이 이 칸만 본다 — 발주사 이름(JSONB)으로 판정하지 않는다.
+    partner_org_id = Column(Integer, ForeignKey('partner_orgs.id', name='fk_orders_partner_org_id_partner_orgs'), nullable=True)
     # Cabinet (수납장) management flag and status
     is_cabinet = Column(Boolean, default=False)  # 수납장 주문 여부
     cabinet_status = Column(String, default=None, nullable=True)  # 수납장 상태: RECEIVED/IN_PRODUCTION/SHIPPED
@@ -136,6 +139,8 @@ class Order(Base):
         Index('ix_orders_erp_order_active', 'id', postgresql_where=(and_(status != 'DELETED', deleted_at.is_(None), is_erp_order == True))),
         # AS 행만 담는 부분 인덱스(AS 이력 없는 대다수 행은 NULL 이라 인덱스에 안 들어간다).
         Index('ix_orders_as_axis_status', 'as_axis_status', postgresql_where=(as_axis_status.isnot(None))),
+        # PARTNER-01: 협력사 주문만 담는 부분 인덱스(우리 주문은 NULL 이라 안 들어간다).
+        Index('ix_orders_partner_org_id', 'partner_org_id', postgresql_where=(partner_org_id.isnot(None))),
         # SEARCH-TRGM-00: 검색 술어(erp_dashboard_search)의 가지 중 인덱스가 없던 5개.
         # 마이그레이션 search_trgm_00 과 이름·식이 글자 단위로 같아야 한다 — 식이 한 글자라도
         # 다르면 플래너가 인덱스를 못 쓰고 BitmapOr 전체가 Seq Scan 으로 떨어진다
@@ -1228,9 +1233,45 @@ class SystemBuildStep(Base):
     message = Column(Text, nullable=True)
     meta = Column(JSONColumn, nullable=True)
 
+class PartnerOrg(Base):
+    """PARTNER-01: 우리 ERP 를 쓰는 외부 협력사(영업·실측·초안 도면까지 하고 넘긴다).
+
+    협력사 계정(``users.role == 'PARTNER'``)은 소속 협력사 주문만 볼 수 있다.
+    스펙: docs/specs/2026-10-08-partner-portal_SPEC.md
+    """
+    __tablename__ = 'partner_orgs'
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String(100), nullable=False, unique=True)
+    biz_reg_no = Column(String(20), nullable=True)
+    # False 면 소속 계정 전부 로그인 세션이 끊긴다(협력사 문지기가 판정).
+    is_active = Column(Boolean, nullable=False, default=True, server_default=text('true'))
+    # 협력사 주문 고객에게 우리 시스템이 보내는 메시지 정책. 지금은 'NONE'(보내지 않음)만 쓴다.
+    customer_messaging = Column(String(20), nullable=False, default='NONE', server_default='NONE')
+    logo_storage_key = Column(String(500), nullable=True)
+    contact_name = Column(String(100), nullable=True)
+    contact_phone = Column(String(30), nullable=True)
+    created_at = Column(DateTime, nullable=False, default=now_utc_naive, server_default=func.now())
+    updated_at = Column(DateTime, nullable=False, default=now_utc_naive, onupdate=now_utc_naive,
+                        server_default=func.now())
+
+
+# PARTNER-01: 협력사 계정 role. ``foms.web.auth.routes.ROLES`` 에는 넣지 않는다 — 사용자 관리
+# 화면에서 우리 직원에게 실수로 줄 수 없게 한다. 쓰기 정책(evaluate_policy)은 모르는 role 을
+# 기본 거부하므로 이 값은 기존 허용 규칙 어디에도 걸리지 않는다.
+PARTNER_ROLE = 'PARTNER'
+
+
 class User(Base):
     __tablename__ = 'users'
-    
+    # PARTNER-01: 협력사 계정은 반드시 협력사 id 가 있고, 우리 직원은 반드시 없다.
+    __table_args__ = (
+        CheckConstraint(
+            "(upper(role) = 'PARTNER') = (partner_org_id IS NOT NULL)",
+            name='ck_users_partner_role_org',
+        ),
+    )
+
     id = Column(Integer, primary_key=True)
     username = Column(String, unique=True, nullable=False)
     password = Column(String, nullable=False)
@@ -1257,6 +1298,8 @@ class User(Base):
     # 담당자 개인 도면방(채널톡 그룹 id). 주문 담당자 이름이 이 사용자와 맞으면
     # 도면방 PUSH 가 공용 도면방과 여기로 함께 나간다. 미등록이면 공용방만 나간다.
     channel_drawing_group_id = Column(String(32), nullable=True)
+    # PARTNER-01: 협력사 계정의 소속. NULL = 우리 직원(ck_users_partner_role_org 가 role 과 맞춘다).
+    partner_org_id = Column(Integer, ForeignKey('partner_orgs.id', name='fk_users_partner_org_id_partner_orgs'), nullable=True, index=True)
     created_at = Column(DateTime, default=datetime.datetime.now)
     last_login = Column(DateTime)
 
