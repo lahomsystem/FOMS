@@ -5,7 +5,7 @@
    공통으로 include 하므로 여기에 두면 전체 페이지·프래그먼트 양쪽에 실린다
    (erp-shell preloadFragmentStylesheets 가 프래그먼트 HTML 의 link 를 head 로 올린다). #}
 <link rel="stylesheet"
-  href="{{ url_for('static', filename='css/contexts/measurement/measurement-sales-delivery.css') }}?v=20261008b">
+  href="{{ url_for('static', filename='css/contexts/measurement/measurement-sales-delivery.css') }}?v=20261008c">
 <link rel="stylesheet"
   href="{{ url_for('static', filename='css/contexts/measurement/measurement-mobile-glance.css') }}?v=20260929a">
 <div class="erp-pro erp-mobile-shell erp-measurement-dashboard" data-erp-order-active="{{ 'true' if erp_order_enabled else 'false' }}"
@@ -1124,6 +1124,24 @@
                     {% endif %}
                   </td>
                 </tr>
+                {# 동행 전달 줄: 이 실측 길에 태운 AS 건을 스케줄표 칸에 맞춰 한 줄씩(이미지 저장에도 실린다). #}
+                {% for sd_item in (r.sales_delivery_items if r.sales_delivery_items is defined else []) %}
+                <tr class="meas-sd-row{% if sd_item.state == 'delivered' %} is-delivered{% endif %}" data-meas-sd-row="{{ sd_item.order_id }}" data-ref-order-id="{{ r.id }}">
+                  <td class="text-center" data-label="상세">
+                    {% if can_edit_erp|default(false) %}
+                    <a href="{{ url_for('order_edit.edit_order', order_id=sd_item.order_id, return_to='erp_measurement_dashboard') }}?open=erp-order"
+                      class="btn btn-sm btn-outline-secondary" title="AS 주문 상세"><i class="fas fa-box"></i></a>
+                    {% endif %}
+                  </td>
+                  <td data-label="고객"><span class="meas-sd-row__tag">AS 전달</span> {{ sd_item.customer_name or '-' }}</td>
+                  <td data-label="발주사">AS #{{ sd_item.order_id }}</td>
+                  <td class="cell-wrap" data-label="주소">{{ sd_item.address or '-' }}</td>
+                  <td data-label="전화번호">{{ (sd_item.phone or '')|format_phone or '-' }}</td>
+                  <td data-label="시간">{% if sd_item.state == 'delivered' %}전달완료{% else %}동행 전달{% endif %}</td>
+                  <td class="cell-wrap" data-label="제품">{{ sd_item.item_text or '전달 품목 미기재' }}</td>
+                  <td data-label="담당자">{{ sd_item.assigned_by or '-' }} 배정</td>
+                </tr>
+                {% endfor %}
                 {% endfor %}
                 {% else %}
                 <tr>
