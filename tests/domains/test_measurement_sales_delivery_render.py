@@ -26,7 +26,7 @@ from models import Order, OrderScheduleDate, User
 _ROOT = Path(__file__).resolve().parents[2]
 _CSS_ASSET = "css/contexts/measurement/measurement-sales-delivery.css"
 _JS_ASSET = "js/measurement/measurement-sales-delivery.js"
-_ASSET_PIN = "20261008a"
+_ASSET_PIN = "20261008b"
 
 
 def _login_erp_admin(client, username="measurement_sd_admin"):
@@ -325,3 +325,23 @@ def test_mobile_measurement_tab_shows_delivery_badge_card_and_date_chip(client, 
     chips = re.findall(r'data-measurement-date-chip="([^"]+)"(.*?)</a>', body, re.S)
     chip_today = [html for date, html in chips if date == today]
     assert chip_today and 'data-meas-sd-panel-count="1"' in chip_today[0]
+
+
+def test_tablet_split_card_shows_delivery_badge_and_item(client, monkeypatch):
+    """태블릿 가로 실측 큐 카드에도 AS 전달 배지·품목 한 줄(음성 대조군: 전달 없는 카드)."""
+    from tests.domains.test_measurement_mobile_glance import _prepare
+
+    today = _prepare(client, monkeypatch, username="meas_sd_tablet_admin")
+    with_delivery = _create_measurement_order(customer_name="태블릿오세영", on_date=today)
+    control = _create_measurement_order(customer_name="태블릿신동혁", on_date=today)
+    delivery = _create_delivery_order(customer_name="태블릿한지훈", as_content="전자렌지장EP 680*2365")
+    _assign(delivery, with_delivery.id, ref_date=today)
+
+    body = _fetch_dashboard(client, today)
+    split = body[body.index('class="foms-tablet-measure-split"'):]
+    cards = dict(re.findall(
+        r'class="foms-tablet-measure-card[^"]*"\s+data-order-id="(\d+)"(.*?)</button>', split, re.S))
+    assert 'data-meas-sd-count="1"' in cards[str(with_delivery.id)]
+    assert f"AS #{delivery.id}" in cards[str(with_delivery.id)]
+    assert "전자렌지장EP 680*2365" in cards[str(with_delivery.id)]
+    assert "data-meas-sd-count" not in cards[str(control.id)]

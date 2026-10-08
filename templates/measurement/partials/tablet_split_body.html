@@ -67,6 +67,17 @@
           <div class="foms-tablet-measure-card__customer">{{ r.customer_name or '-' }}
             {{ channel_mark(r.channel_source|default(none, true)) }}</div>
           <div class="foms-tablet-measure-card__product">{{ (r.product or '-')|strip_product_w or '-' }}</div>
+          {# 동행 전달: 이 실측에 태운 AS 건. 카드가 <button> 이라 [전달 완료] 버튼은 못 넣고
+             배지 + 들고 갈 물건 한 줄만 보인다(완료 처리는 PC 상세행·모바일 시트). #}
+          {% set _sd_items = r.sales_delivery_items if r.sales_delivery_items is defined else [] %}
+          {% if _sd_items %}
+          <div class="foms-tablet-measure-card__sd" data-meas-sd-count="{{ _sd_items|length }}">
+            <span class="meas-sd-badge"><i class="fas fa-box" aria-hidden="true"></i> AS 전달 {{ _sd_items|length }}</span>
+            {% for sd_item in _sd_items %}
+            <span class="foms-tablet-measure-card__sd-item">AS #{{ sd_item.order_id }} {{ sd_item.customer_name or '-' }}{% if sd_item.state == 'delivered' %} · 전달완료{% endif %} — {{ sd_item.item_text or '전달 품목 미기재' }}</span>
+            {% endfor %}
+          </div>
+          {% endif %}
           <div class="foms-tablet-measure-card__meta">
             {% if r.phone %}
             <span class="foms-tablet-measure-card__meta-item">

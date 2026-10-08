@@ -228,3 +228,21 @@
 .erp-measurement-mobile-card .meas-sd-card {
   padding: 0.75rem 0.875rem;
 }
+
+/* --- 태블릿 가로 실측 큐 카드 --------------------------------------------- */
+
+.foms-tablet-measure-card__sd {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+  margin-top: 0.375rem;
+}
+
+.foms-tablet-measure-card__sd-item {
+  font-size: 0.75rem;
+  color: #9d174d;
+  text-align: left;
+  white-space: normal;
+  word-break: break-word;
+}
