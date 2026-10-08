@@ -115,6 +115,8 @@
   margin-bottom: 12px;
 }
 
+.pp-section--accent { border-color: var(--pp-primary); }
+
 .pp-dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; margin: 0 0 12px; }
 .pp-dl dt { color: var(--pp-muted); }
 .pp-dl dd { margin: 0; overflow-wrap: anywhere; }

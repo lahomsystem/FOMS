@@ -152,7 +152,29 @@
     });
   }
 
+  function bindApprove(button) {
+    var busy = false;
+    button.addEventListener('click', async function () {
+      if (busy) return;
+      if (!window.confirm('이 도면대로 제작을 시작할까요? 누르면 되돌릴 수 없습니다.')) return;
+      busy = true;
+      button.disabled = true;
+      setStatus('보내는 중…');
+      try {
+        var key = 'pp-approve-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+        await postJson(button.getAttribute('data-pp-approve-url'), { idempotency_key: key });
+        window.location.reload();
+      } catch (err) {
+        setStatus(err.message, true);
+        busy = false;
+        button.disabled = false;
+      }
+    });
+  }
+
   document.addEventListener('DOMContentLoaded', function () {
+    var approve = document.querySelector('[data-pp-approve-url]');
+    if (approve) bindApprove(approve);
     var newOrder = document.getElementById('ppNewOrder');
     if (newOrder) bindNewOrder(newOrder);
     var more = document.getElementById('ppMoreFiles');

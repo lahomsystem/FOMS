@@ -13,6 +13,8 @@ from foms.api.files.routes import build_file_view_url
 from foms.api.partner import UPLOAD_OPEN_STAGES
 from foms.services.auth.partner_scope import partner_can_read_order, partner_required
 from foms.services.order_attachment_permissions import is_partner_original_key
+from foms.services.orders.confirm_drawing_gate import confirm_exit_block
+from foms.services.partners.drawing_confirm import final_drawings_for_partner
 from foms.services.partners.orders import list_partner_orders, partner_order_detail
 from models import Order, OrderAttachment, PartnerOrg
 
@@ -63,9 +65,17 @@ def order_detail(order_id: int):
         for a in rows
         if is_partner_original_key(a.storage_key)
     ]
+    stage = (order.erp_stage_code or "").upper()
+    finals = [
+        {"filename": f.get("filename") or f.get("key", "").rsplit("/", 1)[-1], "url": build_file_view_url(f["key"])}
+        for f in final_drawings_for_partner(order)
+    ]
     return render_template(
         "partner/order_detail.html",
         org=_org(),
         order=partner_order_detail(order, attachments),
-        can_upload=(order.erp_stage_code or "").upper() in UPLOAD_OPEN_STAGES,
+        can_upload=stage in UPLOAD_OPEN_STAGES,
+        final_drawings=finals,
+        # 도면 확인 차례(CONFIRM)이고 도면이 확정됐을 때만 버튼을 연다(서버가 다시 판정한다).
+        can_approve=stage == "CONFIRM" and bool(finals) and confirm_exit_block(order.structured_data or {}) is None,
     )
