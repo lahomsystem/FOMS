@@ -423,8 +423,7 @@
     if (!b || !canSave) { return; }
     state = normalizeState({ v: 1, sheets: b.sheets });
     current = 0;
-    undoStack.length = 0;
-    redoStack.length = 0;
+    resetAllHistories();   // 백업 복원 = 상태 통째 교체 → 시트별 이력 전부 초기화
     deselect();
     renderProducts();
     renderTabs();
@@ -5561,6 +5560,12 @@
       var sheet = state.sheets[p.index];
       if (!sheet) { return; }
       if (p.index === current) { recordUndo(); }
+      else if (sheet.id) {   // 다른 시트도 그 시트 이력에 스냅샷을 남겨, 그 시트로 가서 Ctrl+Z 로 되돌릴 수 있게
+        var h = sheetHistories[sheet.id] || (sheetHistories[sheet.id] = { undo: [], redo: [] });
+        h.undo.push(cloneSheet(sheet));
+        if (h.undo.length > 50) { h.undo.shift(); }
+        h.redo.length = 0;
+      }
       p.changes.forEach(function (c) { sheet.form[c.k] = c.v; total++; });
     });
     closeAutofillDialog();
