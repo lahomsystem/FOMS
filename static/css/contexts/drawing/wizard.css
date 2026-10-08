@@ -1948,3 +1948,10 @@ html, body {
    ============================================================================ */
 .dws-exporting .dws-ui { display: none !important; }
 .dws-exporting .dws-selected { outline: none !important; }
+
+/* 자동 채움 다이얼로그 — 방식·범위 선택 */
+.dws-autofill-group { border: 0; margin: 0 0 14px; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 16px; }
+.dws-autofill-group legend { font-size: 12px; font-weight: 600; color: #6e6e73; margin-bottom: 6px; padding: 0; width: 100%; }
+.dws-autofill-group label { font-size: 13px; color: #1d1d1f; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.dws-autofill-count { font-size: 13px; font-weight: 600; color: #1d1d1f; margin: 4px 0 16px; min-height: 18px; }
+.dws-photo[draggable="true"] { cursor: grab; }

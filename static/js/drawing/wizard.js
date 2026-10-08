@@ -233,6 +233,9 @@
   var userPresets = [];                // 도면팀 공유 사용자 프리셋 [{label,text}] (전역 SystemSetting)
   var presetsVersion = 0;              // preset SystemSetting optimistic-lock version (GET 로 갱신, 저장 If-Match)
   var defaults = {};
+  var PHOTO_DRAG_TYPE = 'application/x-dws-photo';   // 실측 사진 내부 드래그 식별용 dataTransfer 타입
+  var PHOTO_MAX_LONG = 480;                          // 실측 사진 삽입 기본 크기(긴 변 px)
+  var photoDragMap = {};                             // 사진 key → {photo, cell}(드롭 시 조회)
   var products = [];                   // 주문 제품 리스트 [{index,name,spec,price}] (좌측 패널 소스)
   var measurePhotos = [];              // 실측 사진 [{key,filename,item_index,thumb_url}] (사이드 참조 소스)
   var customerName = '';
@@ -2630,14 +2633,22 @@
       pos(논리 좌표 {x,y}) 가 주어지면 이미지 중심이 그 지점에 오도록, 없으면 캔버스 중앙에 배치.
       이미지 업로드(파일/붙여넣기/드롭)와 실측 사진 삽입(import-attachment)의 공용 삽입 파이프라인.
       cascade(0부터의 순번)가 있으면 그만큼 24px 씩 어긋나게 놓아 여러 장이 완전히 겹치지 않는다. */
-  function placeImageFromKey(key, pos, cascade) {
+  function placeImageFromKey(key, pos, cascade, maxLong) {
     if (!canSave || !key || !currentSheet()) { return; }
     var img = new Image();
     img.onload = function () {
       if (!currentSheet()) { return; }   // 비동기 로드 사이 빈 상태 방어
       var nw = img.naturalWidth || 900, nh = img.naturalHeight || 600;
-      var w = Math.min(900, nw);
-      var h = Math.round(w * nh / nw) || Math.round(w * 0.66);
+      var w, h;
+      if (maxLong) {
+        // 실측 사진: 긴 변을 maxLong(기본 480) 이하로 줄여 캔버스를 덮지 않게 한다.
+        var sc = Math.min(1, maxLong / Math.max(nw, nh));
+        w = Math.max(1, Math.round(nw * sc));
+        h = Math.max(1, Math.round(nh * sc));
+      } else {
+        w = Math.min(900, nw);
+        h = Math.round(w * nh / nw) || Math.round(w * 0.66);
+      }
       recordUndo();
       var x, y;
       var off = Math.max(0, num(cascade, 0)) * 24;
@@ -2763,21 +2774,29 @@
     var zone = els.canvas;
     if (!zone) { return; }
     var depth = 0;   // dragenter/leave 균형 카운터(자식 경계 진입에도 하이라이트 유지)
+    function isPhotoDrag(e) {
+      var t = e.dataTransfer && e.dataTransfer.types;
+      if (!t) { return false; }
+      for (var i = 0; i < t.length; i++) { if (t[i] === PHOTO_DRAG_TYPE) { return true; } }
+      return false;
+    }
     function isFileDrag(e) {
       var t = e.dataTransfer && e.dataTransfer.types;
       if (!t) { return false; }
       for (var i = 0; i < t.length; i++) { if (t[i] === 'Files') { return true; } }
       return false;
     }
+    // 실측 사진 썸네일 끌어놓기(내부 드래그) — 파일 드롭 경로와 구분해 따로 받는다.
+    function isAcceptDrag(e) { return isFileDrag(e) || isPhotoDrag(e); }
     function show(on) { zone.classList.toggle('dws-dropzone-active', !!on); }
     zone.addEventListener('dragenter', function (e) {
-      if (!isFileDrag(e)) { return; }
+      if (!isAcceptDrag(e)) { return; }
       e.preventDefault();
       depth++;
       show(true);
     });
     zone.addEventListener('dragover', function (e) {
-      if (!isFileDrag(e)) { return; }
+      if (!isAcceptDrag(e)) { return; }
       e.preventDefault();   // 없으면 drop 이 발화하지 않음
       if (e.dataTransfer) { e.dataTransfer.dropEffect = 'copy'; }
       show(true);
@@ -2788,6 +2807,16 @@
       if (depth === 0) { show(false); }
     });
     zone.addEventListener('drop', function (e) {
+      if (isPhotoDrag(e)) {
+        e.preventDefault();
+        depth = 0;
+        show(false);
+        var pkey = '';
+        try { pkey = e.dataTransfer.getData(PHOTO_DRAG_TYPE) || ''; } catch (_) { pkey = ''; }
+        var entry = photoDragMap[pkey];
+        if (entry) { onPhotoClick(entry.photo, entry.cell, dropLogicalPos(e)); }
+        return;
+      }
       if (!isFileDrag(e)) { return; }
       e.preventDefault();   // 브라우저의 파일 네비게이션 차단
       depth = 0;
@@ -2960,12 +2989,30 @@
       img.src = photo.thumb_url || '';
       cell.appendChild(img);
       cell.addEventListener('click', function () { onPhotoClick(photo, cell); });
+      // 데스크톱: 썸네일을 캔버스로 끌어놓으면 놓은 지점에 삽입(터치 기기는 클릭만).
+      if (photo.key && !isTouchOnly()) {
+        cell.draggable = true;
+        photoDragMap[photo.key] = { photo: photo, cell: cell };
+        cell.addEventListener('dragstart', function (e) {
+          if (!e.dataTransfer) { return; }
+          try {
+            e.dataTransfer.setData(PHOTO_DRAG_TYPE, photo.key);
+            e.dataTransfer.effectAllowed = 'copy';
+          } catch (_) { /* 드래그 데이터 설정 실패 = 클릭 삽입만 */ }
+        });
+      }
       els.photoGrid.appendChild(cell);
     });
   }
 
-  /** 실측 사진 썸네일 클릭 → import-attachment 로 에셋 복사 후 캔버스에 삽입(로딩 표시). */
-  function onPhotoClick(photo, cell) {
+  /** 터치 전용 기기 판정(끌어놓기 비활성 — 클릭 삽입만). */
+  function isTouchOnly() {
+    try { return window.matchMedia('(hover: none) and (pointer: coarse)').matches; }
+    catch (_) { return false; }
+  }
+
+  /** 실측 사진 썸네일 클릭(또는 캔버스로 끌어놓기, pos=놓은 지점) → import-attachment 로 에셋 복사 후 캔버스에 삽입(로딩 표시). */
+  function onPhotoClick(photo, cell, pos) {
     if (!canSave) { toast('열람 전용 — 도면 담당자·도면팀 또는 관리자만 편집할 수 있습니다.'); return; }
     if (!currentSheet()) { toast('제품을 선택해 도면을 먼저 시작하세요.'); return; }
     if (!photo || !photo.key || cell.classList.contains('dws-photo-loading')) { return; }
@@ -2980,7 +3027,7 @@
         toast(serverErrorText(r, '실측 사진을 삽입하지 못했습니다.'));
         return;
       }
-      placeImageFromKey(r.data.data.key);
+      placeImageFromKey(r.data.data.key, pos || null, 0, PHOTO_MAX_LONG);
     }, function (err) {
       cell.classList.remove('dws-photo-loading');
       console.warn('[dws] import-attachment', err);
@@ -4473,6 +4520,7 @@
     if (exitBtn) { exitBtn.addEventListener('click', exitWizard); }
     // 앱바 편집 버튼
     document.getElementById('dws-btn-autofill').addEventListener('click', autofill);
+    wireAutofillDialog();
     document.getElementById('dws-btn-select').addEventListener('click', function () {
       setAnnoMode('select');
     });
@@ -5065,16 +5113,127 @@
     }
   }
 
-  function autofill() {
-    if (!canSave || !currentSheet()) { return; }
-    if (!confirm('현재 폼 값을 주문 데이터로 덮어씁니다. 계속할까요?')) { return; }
-    recordUndo();
-    var form = currentSheet().form;
-    var d = defaults || {};
-    Object.keys(d).forEach(function (k) { if (k !== 'checks') { form[k] = (d[k] == null) ? '' : String(d[k]); } });
+  /* ---- 자동 채움(주문 데이터 → 폼) — 빈 칸만/모두 덮어쓰기 · 이 시트만/모든 시트 ---- */
+  var AUTOFILL_SKIP = { checks: 1, layout: 1, cell_font: 1 };
+
+  /** 시트 하나에 대해 바뀔 칸 목록을 센다. mode='empty' 면 빈 칸('', '-')만 대상. */
+  function autofillChanges(sheet, d, mode) {
+    var out = [];
+    if (!sheet || !sheet.form || !d) { return out; }
+    Object.keys(d).forEach(function (k) {
+      if (AUTOFILL_SKIP[k]) { return; }
+      var nv = (d[k] == null) ? '' : String(d[k]);
+      var cur = (sheet.form[k] == null) ? '' : String(sheet.form[k]);
+      if (nv === cur) { return; }
+      if (mode === 'empty' && cur !== '' && cur !== '-') { return; }
+      if (mode === 'empty' && nv === '') { return; }
+      out.push({ k: k, v: nv });
+    });
+    return out;
+  }
+
+  /** 시트별 주문 데이터: 제품 시트는 그 제품(item=index) 기본값, 그 외는 공통 defaults. 캐시 사용. */
+  var autofillDefaultsCache = {};
+  function fetchSheetDefaults(sheet) {
+    if (!sheet || !isFiniteNum(sheet.product_index)) { return Promise.resolve(defaults || {}); }
+    var idx = sheet.product_index;
+    if (autofillDefaultsCache[idx]) { return Promise.resolve(autofillDefaultsCache[idx]); }
+    return jsonFetch(API_BASE + '/drawing-wizard?item=' + idx, { headers: { 'Accept': 'application/json' } })
+      .then(function (r) {
+        var d = (r.status === 200 && r.data && r.data.success && r.data.data && r.data.data.defaults)
+          ? r.data.data.defaults : (defaults || {});
+        autofillDefaultsCache[idx] = d;
+        return d;
+      }, function () { return defaults || {}; });
+  }
+
+  function autofillOpts() {
+    var mode = 'empty', scope = 'current';
+    var m = document.querySelector('input[name="dws-autofill-mode"]:checked');
+    var sc = document.querySelector('input[name="dws-autofill-scope"]:checked');
+    if (m && m.value === 'all') { mode = 'all'; }
+    if (sc && sc.value === 'all') { scope = 'all'; }
+    return { mode: mode, scope: scope };
+  }
+
+  var autofillPlan = null;   // [{ index, changes }]
+  /** 선택한 방식으로 바뀔 칸 수를 미리 계산해 다이얼로그에 보여준다. */
+  function refreshAutofillPreview() {
+    var o = autofillOpts();
+    var countEl = document.getElementById('dws-autofill-count');
+    var okBtn = document.getElementById('dws-autofill-apply');
+    var targets = (o.scope === 'all') ? state.sheets.map(function (s, i) { return i; }) : [current];
+    if (countEl) { countEl.textContent = '바뀔 칸을 세는 중…'; }
+    if (okBtn) { okBtn.disabled = true; }
+    var token = {};
+    autofillPlan = token;
+    Promise.all(targets.map(function (i) { return fetchSheetDefaults(state.sheets[i]); })).then(function (ds) {
+      if (autofillPlan !== token) { return; }   // 그 사이 옵션이 바뀜
+      var plan = [], total = 0;
+      targets.forEach(function (i, n) {
+        var ch = autofillChanges(state.sheets[i], ds[n], o.mode);
+        if (ch.length) { plan.push({ index: i, changes: ch }); total += ch.length; }
+      });
+      autofillPlan = plan;
+      if (countEl) {
+        countEl.textContent = total
+          ? ('바뀔 칸 ' + total + '개' + (o.scope === 'all' ? ' (시트 ' + plan.length + '장)' : ''))
+          : '바뀔 칸이 없습니다.';
+      }
+      if (okBtn) { okBtn.disabled = !total; }
+    });
+  }
+
+  function closeAutofillDialog() {
+    var dlg = document.getElementById('dws-autofill-dialog');
+    autofillPlan = null;
+    if (!dlg) { return; }
+    if (dlg.close) { try { dlg.close(); } catch (_) { dlg.removeAttribute('open'); } } else { dlg.removeAttribute('open'); }
+  }
+
+  /** 미리 센 계획을 적용한다. 현재 시트는 recordUndo(실행 취소 가능), 다른 시트는 값만 바꾼다
+      (실행 취소 스택은 현재 시트 단위 설계 — 시트 전환 시 비워진다). */
+  function applyAutofill() {
+    var plan = autofillPlan;
+    if (!Array.isArray(plan) || !plan.length) { return; }
+    var total = 0;
+    plan.forEach(function (p) {
+      var sheet = state.sheets[p.index];
+      if (!sheet) { return; }
+      if (p.index === current) { recordUndo(); }
+      p.changes.forEach(function (c) { sheet.form[c.k] = c.v; total++; });
+    });
+    closeAutofillDialog();
     renderForm();
     markDirty();
-    toast('자동 채움 완료');
+    toast('자동 채움 완료 — ' + total + '칸 변경');
+  }
+
+  /** 자동 채움 버튼 → 방식·범위를 고르는 다이얼로그(기본 = 빈 칸만 · 이 시트만). */
+  function autofill() {
+    if (!canSave || !currentSheet()) { return; }
+    var dlg = document.getElementById('dws-autofill-dialog');
+    if (!dlg) { return; }
+    var m = document.getElementById('dws-autofill-mode-empty');
+    var sc = document.getElementById('dws-autofill-scope-current');
+    if (m) { m.checked = true; }
+    if (sc) { sc.checked = true; }
+    if (dlg.showModal) {
+      try { dlg.showModal(); } catch (_) { dlg.setAttribute('open', ''); }
+    } else {
+      dlg.setAttribute('open', '');
+    }
+    refreshAutofillPreview();
+  }
+
+  function wireAutofillDialog() {
+    var dlg = document.getElementById('dws-autofill-dialog');
+    if (!dlg) { return; }
+    dlg.addEventListener('change', function (e) {
+      if (e.target && e.target.name && e.target.name.indexOf('dws-autofill-') === 0) { refreshAutofillPreview(); }
+    });
+    document.getElementById('dws-autofill-apply').addEventListener('click', applyAutofill);
+    document.getElementById('dws-autofill-cancel').addEventListener('click', closeAutofillDialog);
   }
 
   function init() {
