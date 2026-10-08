@@ -754,6 +754,9 @@
       rotateAnchorOffset: 24,
       rotationSnaps: [0, 45, 90, 135, 180, 225, 270, 315],
       rotationSnapTolerance: 6,
+      // Shift+코너 리사이즈 = 비율 유지(포토샵). Konva 'default' = keepRatio() || shiftKey
+      // → 이미지 비율 잠금(keepRatio true)은 그대로, 그 외엔 Shift 누르는 동안만 비율 고정.
+      shiftBehavior: 'default',
       ignoreStroke: true
     });
     konvaLayer.add(transformer);
@@ -1043,9 +1046,21 @@
      dragBoundFunc 에는 이벤트가 없어 Shift 상태를 전역 키/포인터 이벤트로 추적한다. */
   var shiftHeld = false;
   ['keydown', 'keyup', 'pointermove', 'pointerdown'].forEach(function (t) {
-    window.addEventListener(t, function (e) { shiftHeld = !!e.shiftKey; }, true);
+    window.addEventListener(t, function (e) { shiftHeld = !!e.shiftKey; syncShiftRotationSnaps(); }, true);
   });
-  window.addEventListener('blur', function () { shiftHeld = false; });
+  window.addEventListener('blur', function () { shiftHeld = false; syncShiftRotationSnaps(); });
+
+  /* Shift+회전 = 15° 단위 스냅(포토샵). 평소엔 45° 배수(허용 6°), Shift 누르는 동안만 15° 배수(허용 7.5° = 항상 스냅). */
+  var ROTATION_SNAPS_DEFAULT = [0, 45, 90, 135, 180, 225, 270, 315];
+  var ROTATION_SNAPS_SHIFT = [];
+  for (var rs = 0; rs < 360; rs += 15) { ROTATION_SNAPS_SHIFT.push(rs); }
+  var shiftSnapActive = false;
+  function syncShiftRotationSnaps() {
+    if (!transformer || shiftSnapActive === shiftHeld) { return; }
+    shiftSnapActive = shiftHeld;
+    transformer.rotationSnaps(shiftHeld ? ROTATION_SNAPS_SHIFT : ROTATION_SNAPS_DEFAULT);
+    transformer.rotationSnapTolerance(shiftHeld ? 7.5 : 6);
+  }
   function wireAxisLock(node) {
     // 축은 한 번 정하면(6px 이상 움직인 뒤) 드래그 끝까지 유지 — 대각선 근처에서 축이 뒤바뀌며 튀는 것 방지.
     // Shift 를 떼면 축 선택을 풀어 다시 누를 때 새로 정한다.
@@ -1954,7 +1969,7 @@
 
     // window 레벨 네이티브 리스너: 포인터가 캔버스를 벗어났다 놓아도 그리기가 확정된다.
     function move(nativeEvt) {
-      var p = pointerLogical(nativeEvt);
+      var p = constrainShapeEnd(mode, start, pointerLogical(nativeEvt), !!nativeEvt.shiftKey);
       if (mode === 'rect' || mode === 'ellipse') {
         var x = Math.min(start.x, p.x), y = Math.min(start.y, p.y);
         var w = Math.abs(p.x - start.x), h = Math.abs(p.y - start.y);
@@ -1968,10 +1983,24 @@
     function up(nativeEvt) {
       window.removeEventListener('mousemove', move, true);
       window.removeEventListener('mouseup', up, true);
-      finishDrawShape(draft, mode, start, pointerLogical(nativeEvt));
+      finishDrawShape(draft, mode, start, constrainShapeEnd(mode, start, pointerLogical(nativeEvt), !!nativeEvt.shiftKey));
     }
     window.addEventListener('mousemove', move, true);
     window.addEventListener('mouseup', up, true);
+  }
+
+  /* Shift+그리기 제약(포토샵): 사각형=정사각형, 타원=정원, 선/화살표=45° 단위 각도.
+     draft(mousemove)와 확정(mouseup)이 같은 함수를 거쳐 미리보기=결과가 일치한다. */
+  function constrainShapeEnd(mode, start, p, shift) {
+    if (!shift) { return p; }
+    var dx = p.x - start.x, dy = p.y - start.y;
+    if (mode === 'rect' || mode === 'ellipse') {
+      var side = Math.max(Math.abs(dx), Math.abs(dy));
+      return { x: start.x + (dx < 0 ? -side : side), y: start.y + (dy < 0 ? -side : side) };
+    }
+    var len = Math.sqrt(dx * dx + dy * dy);
+    var ang = Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) * (Math.PI / 4);
+    return { x: start.x + Math.cos(ang) * len, y: start.y + Math.sin(ang) * len };
   }
 
   function finishDrawShape(draft, mode, start, end) {
