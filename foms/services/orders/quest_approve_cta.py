@@ -34,7 +34,12 @@ _QUEST_APPROVE_CONFIRM_HEADS: dict[str, str] = {
     "RECEIVED": "주문 접수 확인을 마치고 실측 단계로 넘길까요?",
     "MEASURE": "실측을 완료하고 도면 단계로 넘길까요?",
     "CONFIRM": "고객 컨펌을 완료하고 생산 단계로 넘길까요?",
+    "CS": "CS 확인을 마치고 완료 단계로 넘길까요?",
 }
+
+# _STAGE_ADVANCE 밖이지만 최종 승인이 단계를 옮기는 stage — CS 는 승인 라우트가 완료 정본
+# 서비스(complete_order_as_cs)를 같은 tx 로 부른다(CS-AUTO-COMPLETE-01).
+_APPROVE_COMPLETES_STAGE: dict[str, str] = {"CS": "COMPLETED"}
 
 
 def _done_label(label: str | None, stage_label: str) -> str:
@@ -111,7 +116,7 @@ def build_approve_cta(stage_code: str | None, order: Any, *, sd: Any = None) -> 
             **gate,
         }
 
-    next_stage_code = stage_advance_target(stage_code)
+    next_stage_code = stage_advance_target(stage_code) or _APPROVE_COMPLETES_STAGE.get(stage_code or "")
     next_stage_label = STAGE_LABELS.get(next_stage_code, next_stage_code or "")
     approve_label = f"{next_stage_label} 단계로 넘기기" if next_stage_code else label
 
@@ -120,7 +125,7 @@ def build_approve_cta(stage_code: str | None, order: Any, *, sd: Any = None) -> 
             stage_code or "", f"{stage_label} 확인을 마치고 {next_stage_label} 단계로 넘길까요?"
         )
     else:
-        # 단계를 옮기지 않는 stage(생산·CS·AS): 승인 기록만 남는다는 사실을 그대로 말한다.
+        # 단계를 옮기지 않는 stage(생산·AS): 승인 기록만 남는다는 사실을 그대로 말한다.
         head = f"{stage_label} 확인을 기록할까요?\n단계는 '{stage_label}' 그대로 유지됩니다."
 
     context_line = _order_confirm_context(order)

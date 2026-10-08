@@ -66,7 +66,10 @@ function renderBadges(alerts) {
             }
 
             let _toastMsg;
-            if ((data.retransitioned || data.auto_transitioned) && data.next_stage) {
+            if (data.completion_blocked) {
+              // CS 확인은 기록됐지만 보류·AS 등으로 완료에 못 간 경우 — 서버 문구 그대로.
+              _toastMsg = data.completion_blocked.message;
+            } else if ((data.retransitioned || data.auto_transitioned) && data.next_stage) {
               _toastMsg = label(STAGE_LABELS, data.next_stage, data.next_stage) + ' 단계로 넘겼습니다';
             } else if (data.all_approved) {
               _toastMsg = '기록했습니다';
@@ -108,7 +111,10 @@ function renderBadges(alerts) {
             }
 
             let _toastMsg;
-            if ((data.retransitioned || data.auto_transitioned) && data.next_stage) {
+            if (data.completion_blocked) {
+              // CS 확인은 기록됐지만 보류·AS 등으로 완료에 못 간 경우 — 서버 문구 그대로.
+              _toastMsg = data.completion_blocked.message;
+            } else if ((data.retransitioned || data.auto_transitioned) && data.next_stage) {
               _toastMsg = label(STAGE_LABELS, data.next_stage, data.next_stage) + ' 단계로 넘겼습니다';
             } else if (data.all_approved) {
               _toastMsg = '기록했습니다';

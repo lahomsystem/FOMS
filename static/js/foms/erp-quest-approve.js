@@ -46,6 +46,9 @@
 
   /** 승인 후 결과 문장 — 단계가 옮겨졌는지 서버 응답으로만 말한다. */
   function resultMessage(data) {
+    if (data.completion_blocked) {
+      return data.completion_blocked.message;
+    }
     if ((data.retransitioned || data.auto_transitioned) && data.next_stage) {
       return data.next_stage + ' 단계로 넘겼습니다.';
     }

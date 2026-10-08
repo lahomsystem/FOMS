@@ -251,16 +251,26 @@ def test_approve_cta_names_the_stage_and_promises_the_move() -> None:
 
 
 def test_approve_cta_does_not_promise_a_move_that_never_happens() -> None:
-    """생산·CS 는 승인해도 stage 가 그대로다 — 문구가 이동을 약속하면 안 된다."""
+    """생산은 승인해도 stage 가 그대로다 — 문구가 이동을 약속하면 안 된다."""
     for stage, stage_code, label in [
         ("생산", "PRODUCTION", "생산 확인"),
-        ("CS", "CS", "CS 확인"),
     ]:
         payload = _payload_for_stage(stage, stage_code)
         assert payload["approve_label"] == label
         assert payload["advances_stage"] is False
         assert "그대로 유지됩니다" in payload["approve_confirm"]
         assert "넘길까요" not in payload["approve_confirm"]
+
+
+def test_cs_approve_cta_promises_completion() -> None:
+    """CS 최종 승인은 완료 단계로 넘긴다(CS-AUTO-COMPLETE-01) — 문구와 재전이 버튼이 같은 약속."""
+    payload = _payload_for_stage("CS", "CS")
+    assert payload["approve_label"] == "완료 단계로 넘기기"
+    assert payload["advances_stage"] is True
+    assert payload["next_stage_label"] == "완료"
+    assert "완료 단계로 넘길까요" in payload["approve_confirm"]
+    cta = cta_mod.build_approve_cta("CS", SimpleNamespace(id=1, customer_name="홍길동"))
+    assert cta["retransition_label"] == "완료 단계로 넘기기"
 
 
 def test_command_required_stage_exposes_no_approve_button() -> None:
