@@ -97,3 +97,11 @@ def test_dialogs_and_help_overlay_are_not_nested():
     assert not p.errors, p.errors
     assert not p.stack, p.stack
     assert not p.nested, p.nested
+
+
+def test_appbar_title_space_rules_desktop_only():
+    css = Path("static/css/contexts/drawing/wizard.css").read_text(encoding="utf-8")
+    tpl = Path("templates/drawing/wizard.html").read_text(encoding="utf-8")
+    assert '<span class="dws-appbar-title-prefix">도면 마법사 · </span>' in tpl
+    assert "@media (min-width: 901px) and (max-width: 1600px)" in css
+    assert ".dws-appbar-title-prefix { display: none; }" in css
