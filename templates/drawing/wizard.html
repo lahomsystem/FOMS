@@ -452,6 +452,29 @@
       </div>
     </dialog>
 
+    <!-- ================= 자동 채움 다이얼로그 ================= -->
+    <dialog class="dws-dialog dws-ui" id="dws-autofill-dialog">
+      <div class="dws-dialog-body">
+        <h2 class="dws-dialog-title">자동 채움</h2>
+        <p class="dws-dialog-note">주문 데이터로 폼 칸을 채웁니다. 모든 시트를 고르면 시트마다 자기 제품 데이터로 채웁니다.</p>
+        <fieldset class="dws-autofill-group">
+          <legend>채우는 방식</legend>
+          <label><input type="radio" name="dws-autofill-mode" id="dws-autofill-mode-empty" value="empty" checked> 빈 칸만 채우기</label>
+          <label><input type="radio" name="dws-autofill-mode" id="dws-autofill-mode-all" value="all"> 모두 덮어쓰기</label>
+        </fieldset>
+        <fieldset class="dws-autofill-group">
+          <legend>범위</legend>
+          <label><input type="radio" name="dws-autofill-scope" id="dws-autofill-scope-current" value="current" checked> 이 시트만</label>
+          <label><input type="radio" name="dws-autofill-scope" id="dws-autofill-scope-all" value="all"> 모든 시트</label>
+        </fieldset>
+        <p class="dws-autofill-count" id="dws-autofill-count" aria-live="polite"></p>
+        <div class="dws-dialog-actions">
+          <button type="button" class="dws-btn" id="dws-autofill-cancel">취소</button>
+          <button type="button" class="dws-btn dws-btn-primary" id="dws-autofill-apply">채우기</button>
+        </div>
+      </div>
+    </dialog>
+
     <!-- ================= 모바일 안내 ================= -->
     <div class="dws-mobile-notice" id="dws-mobile-notice" hidden>
       <div class="dws-mobile-notice-box">
