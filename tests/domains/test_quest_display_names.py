@@ -33,7 +33,8 @@ def test_payload_title_uses_name_tag_and_keeps_stored_title() -> None:
         ("RECEIVED", "접수 확인", "실측 단계로 넘기기", "실측 단계로 넘기기", "접수 확인 완료"),
         ("MEASURE", "실측 완료", "도면 단계로 넘기기", "도면 단계로 넘기기", "실측 완료"),
         ("CONFIRM", "고객 컨펌 완료", "생산 단계로 넘기기", "생산 단계로 넘기기", "고객 컨펌 완료"),
-        ("CS", "CS 확인", "CS 확인", "", "CS 확인 완료"),
+        # CS 최종 승인은 완료 단계로 넘긴다(CS-AUTO-COMPLETE-01, 2026-10-08).
+        ("CS", "CS 확인", "완료 단계로 넘기기", "완료 단계로 넘기기", "CS 확인 완료"),
         ("PRODUCTION", "생산 확인", "생산 확인", "", "생산 확인 완료"),
         ("CONSTRUCTION", None, None, "", "시공 완료"),
         ("AS", "AS 확인", "AS 확인", "", "AS 확인 완료"),

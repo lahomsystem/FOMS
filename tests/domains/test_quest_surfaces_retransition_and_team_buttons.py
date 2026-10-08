@@ -305,14 +305,14 @@ def test_pc_grid_renders_pass_on_labels(client):
     assert all(">승인<" not in str(b) for b in buttons)
 
 
-def test_대조군_cs_단계_버튼은_넘기기가_아니라_cs_확인(client):
-    """대조군 — CS 단계는 단계를 넘기지 않으니 버튼 글자가 'CS 확인' 이다."""
+def test_cs_단계_버튼은_완료_단계로_넘기기(client):
+    """CS 최종 승인은 완료 단계로 넘기므로 버튼 글자도 '완료 단계로 넘기기' 다(CS-AUTO-COMPLETE-01)."""
     user = _db_user("grid_names_cs", role="ADMIN", team="CS")
     order_id = _db_order("CS", "이름 CS").id
 
     html = _grid_html(client, user, "CS")
     buttons = _quest_cell(html, order_id).select(".erp-btn-approve-team")
-    assert [b.get_text(" ", strip=True) for b in buttons] == ["CS 확인"]
+    assert [b.get_text(" ", strip=True) for b in buttons] == ["완료 단계로 넘기기"]
 
 
 def test_pc_grid_shows_board_state_for_production(client):
