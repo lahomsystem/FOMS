@@ -165,7 +165,9 @@ def test_partner_as_register_opens_cycle_with_photo(app, world, fake_storage):
     # 진행 중인 AS 가 있으면 새로 열지 않는다.
     again = client.post(f"/api/partner/orders/{order_id}/as", data={"content": "또"})
     assert again.status_code == 409
-    assert "진행 중인 AS" in client.get(f"/partner/orders/{order_id}").get_data(as_text=True)
+    detail = client.get(f"/partner/orders/{order_id}").get_data(as_text=True)
+    assert "진행 중인 AS" in detail and '<span class="pp-stage">AS 진행 중' in detail
+    assert "AS 진행 중" in client.get("/partner").get_data(as_text=True)
 
 
 def test_partner_as_other_org_refused(app, world, fake_storage):

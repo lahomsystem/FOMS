@@ -45,7 +45,10 @@ class PartnerOrderError(ValueError):
     """협력사 화면에 그대로 보여 줄 수 있는 입력 오류."""
 
 
-def partner_stage_label(stage_code: Any) -> str:
+def partner_stage_label(stage_code: Any, as_axis_status: Any = None) -> str:
+    """쉬운 단계. AS 건이 열려 있으면(접수·진행) 단계와 무관하게 "AS 진행 중"."""
+    if str(as_axis_status or "").upper() in ("RECEIVED", "IN_PROGRESS"):
+        return "AS 진행 중"
     return _PARTNER_STAGE_LABELS.get(str(stage_code or "").upper(), "접수 확인 중")
 
 
@@ -181,7 +184,7 @@ def list_partner_orders(db, org_id: int, *, limit: int = 200) -> list[dict[str, 
     rows = (
         db.query(
             Order.id, Order.customer_name, Order.address, Order.received_date,
-            Order.erp_stage_code, Order.erp_construction_date,
+            Order.erp_stage_code, Order.erp_construction_date, Order.as_axis_status,
         )
         .filter(Order.partner_org_id == org_id, Order.active_filter())
         .order_by(Order.id.desc())
@@ -194,7 +197,7 @@ def list_partner_orders(db, org_id: int, *, limit: int = 200) -> list[dict[str, 
             "customer_name": r.customer_name,
             "address": r.address,
             "received_date": r.received_date,
-            "stage_label": partner_stage_label(r.erp_stage_code),
+            "stage_label": partner_stage_label(r.erp_stage_code, r.as_axis_status),
             "construction_date": r.erp_construction_date,
         }
         for r in rows
@@ -207,7 +210,7 @@ def partner_order_detail(order: Order, attachments: list[Any]) -> dict[str, Any]
     intake = sd.get("partner_intake") or {}
     return {
         "id": order.id,
-        "stage_label": partner_stage_label(order.erp_stage_code),
+        "stage_label": partner_stage_label(order.erp_stage_code, order.as_axis_status),
         "construction_date": order.erp_construction_date,
         "intake": intake,
         "attachments": attachments,
