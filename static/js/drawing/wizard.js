@@ -784,6 +784,9 @@
      shouldOverdrawWholeArea(true) 로 그룹 bbox 영역 드래그=전체 함께 이동, 코너 앵커=그룹 리사이즈/회전.
      각 핸들러는 isMultiSelect() 게이트로 단일 선택 경로(노드 핸들러)와 이중 처리를 회피한다. */
   function wireTransformerGroup() {
+    // 다중 선택 박스(빈 곳) 드래그는 Konva 가 'back' 사각형을 끌고 노드들을 따라 붙인다 — 그 첫 이동도 축 고정.
+    var back = transformer.findOne('.back');
+    if (back) { wireAxisLock(back); }
     transformer.on('dragstart', function (e) {
       if (!isMultiSelect()) { return; }
       if (lastPointerType === 'touch') { transformer.stopDrag(); return; }   // 손가락 그룹 드래그 금지(팜 리젝션)
@@ -1036,8 +1039,35 @@
   }
 
   /** 선택/드래그/변형 이벤트 공통 배선. */
+  /* Shift+드래그 = 수평/수직 고정 이동(포토샵). 시작점에서 더 많이 움직인 축만 남긴다.
+     dragBoundFunc 에는 이벤트가 없어 Shift 상태를 전역 키/포인터 이벤트로 추적한다. */
+  var shiftHeld = false;
+  ['keydown', 'keyup', 'pointermove', 'pointerdown'].forEach(function (t) {
+    window.addEventListener(t, function (e) { shiftHeld = !!e.shiftKey; }, true);
+  });
+  window.addEventListener('blur', function () { shiftHeld = false; });
+  function wireAxisLock(node) {
+    // 축은 한 번 정하면(6px 이상 움직인 뒤) 드래그 끝까지 유지 — 대각선 근처에서 축이 뒤바뀌며 튀는 것 방지.
+    // Shift 를 떼면 축 선택을 풀어 다시 누를 때 새로 정한다.
+    node.on('dragstart.axislock', function () { node.setAttr('dragStartAbs', node.absolutePosition()); node.setAttr('dragAxis', null); });
+    node.on('dragend.axislock', function () { node.setAttr('dragStartAbs', null); node.setAttr('dragAxis', null); });
+    node.dragBoundFunc(function (pos) {
+      var s = node.getAttr('dragStartAbs');
+      if (!shiftHeld || !s) { node.setAttr('dragAxis', null); return pos; }
+      var axis = node.getAttr('dragAxis');
+      if (!axis) {
+        var dx = Math.abs(pos.x - s.x), dy = Math.abs(pos.y - s.y);
+        if (Math.max(dx, dy) < 6) { return { x: s.x, y: s.y }; }
+        axis = dx >= dy ? 'x' : 'y';
+        node.setAttr('dragAxis', axis);
+      }
+      return axis === 'x' ? { x: pos.x, y: s.y } : { x: s.x, y: pos.y };
+    });
+  }
+
   function wireNode(node) {
     if (!canSave) { return; }
+    wireAxisLock(node);
     node.on('mousedown', function (e) {
       if (annoMode !== 'select') { return; }   // 그리기 모드면 스테이지 핸들러가 처리
       e.cancelBubble = true;
@@ -2360,7 +2390,11 @@
     });
     area.addEventListener('keydown', function (e) {
       if (e.key === 'Escape') { e.preventDefault(); commit(); return; }
-      /* Enter = 줄바꿈(contenteditable 기본). 커밋은 blur/Esc. */
+      /* Enter = 편집 끝(포토샵 — 빈 곳 클릭과 같음), Shift+Enter = 줄바꿈.
+         한글 조합 중 Enter(isComposing/229)는 조합 확정이라 건드리지 않는다. */
+      if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && e.keyCode !== 229) {
+        e.preventDefault(); area.blur();
+      }
     });
     area.addEventListener('input', function () { positionEditToolbar(); });
   }
