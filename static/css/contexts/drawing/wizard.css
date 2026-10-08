@@ -1885,6 +1885,44 @@ html, body {
   transition: opacity 0.16s ease-out, transform 0.16s ease-out;
 }
 .dws-toast.dws-toast-show { opacity: 1; transform: translateY(0); }
+/* 시트 삭제 되돌리기 바 — 버튼을 눌러야 하므로 포인터를 받는다 */
+.dws-toast.dws-toast-action {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 8px 6px 18px;
+  pointer-events: auto;
+}
+.dws-toast-undo-btn {
+  border: 0;
+  border-radius: 980px;
+  padding: 5px 12px;
+  background: rgba(255, 255, 255, 0.16);
+  color: #8ec5ff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.dws-toast-undo-btn:hover { background: rgba(255, 255, 255, 0.26); }
+
+/* ---- 재전송 변경 내용 다이얼로그 ---- */
+.dws-note-dialog { width: min(440px, calc(100vw - 32px)); }
+.dws-note-input {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 110px;
+  resize: vertical;
+  padding: 10px 12px;
+  border: 1px solid #d2d2d7;
+  border-radius: 10px;
+  font: inherit;
+  font-size: 13px;
+  color: #1d1d1f;
+}
+.dws-note-input:focus { outline: none; border-color: #0071e3; box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.18); }
+.dws-note-meta { display: flex; justify-content: space-between; align-items: center; margin: 6px 0 16px; font-size: 12px; }
+.dws-note-error { color: #d70015; }
+.dws-note-count { margin-left: auto; color: #86868b; }
 
 /* ---- 모바일 안내 --------------------------------------------------------- */
 .dws-mobile-notice {

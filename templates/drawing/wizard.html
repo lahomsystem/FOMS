@@ -472,6 +472,19 @@
         <div class="dws-dialog-actions">
           <button type="button" class="dws-btn" id="dws-autofill-cancel">취소</button>
           <button type="button" class="dws-btn dws-btn-primary" id="dws-autofill-apply">채우기</button>
+    <!-- ================= 재전송 변경 내용 다이얼로그 ================= -->
+    <dialog class="dws-dialog dws-note-dialog dws-ui" id="dws-note-dialog">
+      <div class="dws-dialog-body">
+        <h2 class="dws-dialog-title">재전송 변경 내용</h2>
+        <p class="dws-dialog-note">이번 재전송에서 무엇이 바뀌었는지 적어주세요. 도면방에 함께 전달됩니다.</p>
+        <textarea class="dws-note-input" id="dws-note-input" rows="5" maxlength="500" placeholder="예) 상판 길이 1200 → 1250 으로 수정"></textarea>
+        <div class="dws-note-meta">
+          <span class="dws-note-error" id="dws-note-error" role="alert" hidden>변경 내용을 입력해주세요.</span>
+          <span class="dws-note-count" id="dws-note-count">0 / 500</span>
+        </div>
+        <div class="dws-dialog-actions">
+          <button type="button" class="dws-btn" id="dws-note-cancel">취소</button>
+          <button type="button" class="dws-btn dws-btn-primary" id="dws-note-send">보내기</button>
         </div>
       </div>
     </dialog>
