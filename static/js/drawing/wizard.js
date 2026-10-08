@@ -1594,6 +1594,72 @@
     markDirty();
   }
 
+  /* ---- 포토샵식 단축키 A 보조 함수 ---------------------------------------- */
+  /** Ctrl+A: 현재 시트의 주석 객체 전부를 다중 선택. */
+  function selectAllOnSheet() {
+    var cs = currentSheet();
+    if (!cs) { return; }
+    var ids = (cs.objects || []).map(function (o) { return o.id; }).filter(function (id) { return !!nodeById[id]; });
+    if (!ids.length) { deselect(); return; }
+    selectedIds = ids;
+    applySelection();
+  }
+
+  /** Ctrl+J: 선택 객체를 제자리(10px 어긋나게) 복제하고 복제본을 선택. 200개 상한 지킴. */
+  function duplicateSelectedInPlace() {
+    var cs = currentSheet();
+    if (!cs || !selectedIds.length) { return; }
+    var objs = cs.objects || (cs.objects = []);
+    var src = selectedIds.map(findObj).filter(Boolean);
+    if (!src.length) { return; }
+    if (objs.length + src.length > 200) { toast('한 시트의 객체가 200개를 넘어 복제할 수 없습니다.'); return; }
+    recordUndo();
+    var ids = [];
+    src.forEach(function (s) {
+      var o = JSON.parse(JSON.stringify(s));
+      o.id = rid('o-');
+      moveObjectBy(o, 10, 10);
+      objs.push(o);
+      ids.push(o.id);
+    });
+    markDirty();
+    rebuildAnno();
+    selectedIds = ids;
+    applySelection();
+  }
+
+  /** Ctrl+]/[ 계열: 시트 objects 배열 순서(=그리는 순서)를 바꿔 층을 옮기고 선택 유지.
+      dir: 'up' 한 층 앞 · 'down' 한 층 뒤 · 'front' 맨 앞 · 'back' 맨 뒤. */
+  function reorderSelected(dir) {
+    var cs = currentSheet();
+    if (!cs || !selectedIds.length) { return; }
+    var objs = cs.objects || [];
+    var sel = {};
+    selectedIds.forEach(function (id) { sel[id] = true; });
+    var next = objs.slice();
+    var i, t;
+    if (dir === 'front' || dir === 'back') {
+      var picked = next.filter(function (o) { return sel[o.id]; });
+      var rest = next.filter(function (o) { return !sel[o.id]; });
+      next = dir === 'front' ? rest.concat(picked) : picked.concat(rest);
+    } else if (dir === 'up') {
+      for (i = next.length - 2; i >= 0; i--) {
+        if (sel[next[i].id] && !sel[next[i + 1].id]) { t = next[i]; next[i] = next[i + 1]; next[i + 1] = t; }
+      }
+    } else {
+      for (i = 1; i < next.length; i++) {
+        if (sel[next[i].id] && !sel[next[i - 1].id]) { t = next[i]; next[i] = next[i - 1]; next[i - 1] = t; }
+      }
+    }
+    var changed = false;
+    for (i = 0; i < next.length; i++) { if (next[i] !== objs[i]) { changed = true; break; } }
+    if (!changed) { return; }
+    recordUndo();
+    cs.objects = next;
+    markDirty();
+    rebuildAnno();   // rebuildAnno 가 selectedIds 를 복원한다
+  }
+
   function pastePlainTextAsObject(text) {
     text = String(text || '').replace(/\r\n?/g, '\n').replace(/\s+$/, '');
     if (!canSave || !text) { return; }
@@ -4502,6 +4568,40 @@
       }
       if (meta && (e.key === 'z' || e.key === 'Z')) { e.preventDefault(); if (e.shiftKey) { redo(); } else { undo(); } return; }
       if (meta && (e.key === 'y' || e.key === 'Y')) { e.preventDefault(); redo(); return; }
+      /* 포토샵식 단축키 A: Ctrl+A 전체 선택 · Ctrl+D 선택 해제 · Ctrl+J 제자리 복제 ·
+         Ctrl+]/[ 한 층 앞/뒤 · Ctrl+Shift+]/[ 맨 앞/맨 뒤. 한글 자판은 code 기준으로 함께 본다.
+         Ctrl+D(북마크)·Ctrl+J(다운로드) 브라우저 기본 동작은 막는다. */
+      if (meta && !e.altKey && (e.key === 'a' || e.key === 'A' || e.code === 'KeyA')) {
+        e.preventDefault(); selectAllOnSheet(); return;
+      }
+      if (meta && !e.altKey && (e.key === 'd' || e.key === 'D' || e.code === 'KeyD')) {
+        e.preventDefault(); deselect(); return;
+      }
+      if (meta && !e.altKey && (e.key === 'j' || e.key === 'J' || e.code === 'KeyJ')) {
+        e.preventDefault(); if (canSave) { duplicateSelectedInPlace(); } return;
+      }
+      if (meta && !e.altKey && (e.code === 'BracketRight' || e.code === 'BracketLeft' || e.key === ']' || e.key === '[' || e.key === '}' || e.key === '{')) {
+        e.preventDefault();
+        if (!canSave) { return; }
+        var fwd = (e.code === 'BracketRight' || e.key === ']' || e.key === '}');
+        reorderSelected(fwd ? (e.shiftKey ? 'front' : 'up') : (e.shiftKey ? 'back' : 'down'));
+        return;
+      }
+      /* 도구 단축키(수정자 없음): V 선택 · U 도형 · P 펜 · E 지우개 · I 이미지 추가.
+         버튼과 같은 동작이 되도록 버튼 click 을 그대로 부른다. */
+      if (canSave && !meta && !e.altKey) {
+        var toolBtnId = null;
+        if (e.key === 'v' || e.key === 'V' || e.code === 'KeyV') { toolBtnId = 'dws-btn-select'; }
+        else if (e.key === 'u' || e.key === 'U' || e.code === 'KeyU') { toolBtnId = 'dws-btn-shape'; }
+        else if (e.key === 'p' || e.key === 'P' || e.code === 'KeyP') { toolBtnId = 'dws-btn-pen'; }
+        else if (e.key === 'e' || e.key === 'E' || e.code === 'KeyE') { toolBtnId = 'dws-btn-eraser'; }
+        else if (e.key === 'i' || e.key === 'I' || e.code === 'KeyI') { toolBtnId = 'dws-file-input'; }
+        if (toolBtnId) {
+          var toolBtn = document.getElementById(toolBtnId);
+          if (toolBtn && !toolBtn.disabled) { e.preventDefault(); toolBtn.click(); }
+          return;
+        }
+      }
       if (!selectedIds.length) { return; }
       if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); deleteSelected(); return; }
       var step = e.shiftKey ? 10 : 1, dx = 0, dy = 0;
