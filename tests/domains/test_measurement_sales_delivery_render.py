@@ -380,3 +380,22 @@ def test_manager_sort_carries_delivery_rows_with_their_measurement_row():
     assert "(p.sdRows || []).forEach" in js
     manual = (_ROOT / "static" / "js" / "measurement" / "manual-rows.js").read_text(encoding="utf-8")
     assert "meas-sd-row" in manual
+
+
+def test_delivery_row_manager_is_linked_measurement_manager(client):
+    """동행 전달 줄의 담당 칸 = 묶인 실측 행의 담당(배정자는 title 로만)."""
+    today = get_today_kst().strftime("%Y-%m-%d")
+    _login_erp_admin(client, username="meas_sd_mgr_admin")
+    ref = _create_measurement_order(customer_name="담당오세영", on_date=today)
+    delivery = _create_delivery_order(customer_name="담당한지훈")
+    _assign(delivery, ref.id, ref_date=today, assigned_by="고애희")
+
+    body = _fetch_dashboard(client, today)
+    cell = re.search(
+        rf'data-meas-sd-row="{delivery.id}"[^>]*>.*?<td class="meas-sd-row__manager"([^>]*)>(.*?)</td>',
+        body, re.S)
+    assert cell, "전달 줄 담당 칸 없음"
+    assert cell.group(2).strip() == "이정민"
+    assert 'title="고애희 배정"' in cell.group(1)
+    js = (_ROOT / "static" / "js" / "measurement" / "dashboard.js").read_text(encoding="utf-8")
+    assert "syncDeliveryRowManagers(pairs);" in js
