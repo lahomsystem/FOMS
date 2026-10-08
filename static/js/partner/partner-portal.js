@@ -172,7 +172,43 @@
     });
   }
 
+  /** 메모 + 사진 폼(수정 요청 · AS 접수) — multipart 로 한 번에 보낸다. */
+  function bindPostForm(form) {
+    var busy = false;
+    var status = form.querySelector('[data-pp-status]');
+    function show(text, isError) {
+      if (!status) return;
+      status.textContent = text || '';
+      status.classList.toggle('pp-status--error', !!isError);
+    }
+    form.addEventListener('submit', async function (ev) {
+      ev.preventDefault();
+      if (busy) return;
+      var text = form.querySelector('textarea');
+      if (text && !text.value.trim()) { show('내용을 적어 주세요.', true); return; }
+      if (!window.confirm(form.getAttribute('data-pp-confirm') || '보낼까요?')) return;
+      busy = true;
+      form.querySelector('button[type="submit"]').disabled = true;
+      show('보내는 중…');
+      try {
+        var body = new FormData(form);
+        body.append('idempotency_key', 'pp-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8));
+        var resp = await fetch(form.getAttribute('data-pp-post-url'), { method: 'POST', body: body, credentials: 'same-origin' });
+        var data = null;
+        try { data = await resp.json(); } catch (e) { data = null; }
+        if (!data || !data.success) throw new Error((data && data.error) || '보내지 못했습니다. 잠시 뒤 다시 시도해 주세요.');
+        if (data.data && data.data.photo_error) window.alert('접수는 됐지만 사진을 올리지 못했습니다: ' + data.data.photo_error);
+        window.location.reload();
+      } catch (err) {
+        show(err.message, true);
+        busy = false;
+        form.querySelector('button[type="submit"]').disabled = false;
+      }
+    });
+  }
+
   document.addEventListener('DOMContentLoaded', function () {
+    Array.prototype.forEach.call(document.querySelectorAll('form[data-pp-post-url]'), bindPostForm);
     var approve = document.querySelector('[data-pp-approve-url]');
     if (approve) bindApprove(approve);
     var newOrder = document.getElementById('ppNewOrder');

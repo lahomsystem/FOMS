@@ -16,58 +16,16 @@ from foms.services import kakao_alimtalk as ka
 from foms.services import order_share as osvc
 from foms.services.order_attachment_permissions import can_delete_order_attachment
 from models import Order, OrderAssignment, OrderAttachment, PartnerOrg, User
-
-_counter = itertools.count(1)
-
-
-def _user(*, role="STAFF", team="CS", org=None, name=None, is_active=True) -> User:
-    n = next(_counter)
-    user = User(username=f"pp-{n}", password="x", role=role, team=team, name=name or f"user-{n}",
-                partner_org_id=org.id if org else None, is_active=is_active)
-    db_session.add(user)
-    db_session.commit()
-    return user
-
-
-def _client(app, user: User | None):
-    client = app.test_client()
-    if user is not None:
-        with client.session_transaction() as sess:
-            sess["user_id"] = user.id
-    return client
-
-
-@pytest.fixture
-def world(app):
-    sales = _user(team="SALES", name="영업김")
-    org_a = PartnerOrg(name="가나가구", owner_user_id=sales.id)
-    org_b = PartnerOrg(name="다라가구", owner_user_id=sales.id)
-    db_session.add_all([org_a, org_b])
-    db_session.commit()
-    return {
-        "sales": sales.id,
-        "org_a": org_a.id,
-        "org_b": org_b.id,
-        "partner_a": _user(role="PARTNER", team=None, org=org_a, name="가나 직원").id,
-        "partner_b": _user(role="PARTNER", team=None, org=org_b).id,
-        "staff": _user().id,
-        "admin": _user(role="ADMIN", team=None).id,
-    }
-
-
-_PAYLOAD = {
-    "customer_name": "홍길동",
-    "customer_phone": "010-1234-5678",
-    "address": "서울시 어딘가 1",
-    "measured_on": "2026-10-07",
-    "memo": "현관 좁음",
-    "items": [{"product_name": "붙박이장", "width": "2400", "depth": "600", "height": "2300", "quantity": "1"}],
-}
-
-
-def _create(app, partner_id, payload=None):
-    client = _client(app, db_session.get(User, partner_id))
-    return client.post("/api/partner/orders", json=payload or _PAYLOAD)
+from tests.security.partner_fixtures import (  # noqa: F401 — pytest fixture 재노출
+    _PAYLOAD,
+    _FakeStorage,
+    _client,
+    _create,
+    _upload,
+    _user,
+    fake_storage,
+    world,
+)
 
 
 # --------------------------------------------------------------------------
@@ -132,36 +90,6 @@ def test_partner_sees_only_own_orders(app, world):
 # --------------------------------------------------------------------------
 # 파일 올리기
 # --------------------------------------------------------------------------
-class _FakeStorage:
-    storage_type = "r2"
-
-    def __init__(self):
-        self.calls = []
-
-    def upload_file(self, file, filename, folder):
-        self.calls.append(folder)
-        return {"success": True, "key": f"{folder}/20261008_abc_{filename}"}
-
-    def get_file_type(self, filename):
-        return "image" if filename.endswith(".jpg") else "file"
-
-
-@pytest.fixture
-def fake_storage(monkeypatch):
-    storage = _FakeStorage()
-    monkeypatch.setattr(partner_api, "get_storage", lambda: storage)
-    monkeypatch.setattr(partner_api, "schedule_order_attachment_thumbnail_generation", lambda *a, **k: None)
-    return storage
-
-
-def _upload(client, order_id, filename, kind):
-    return client.post(
-        f"/api/partner/orders/{order_id}/files",
-        data={"kind": kind, "file": (io.BytesIO(b"x" * 10), filename)},
-        content_type="multipart/form-data",
-    )
-
-
 def test_partner_upload_goes_to_partner_folders(app, world, fake_storage):
     order_id = _create(app, world["partner_a"]).get_json()["data"]["order_id"]
     client = _client(app, db_session.get(User, world["partner_a"]))
@@ -314,126 +242,3 @@ def test_admin_owner_choices_and_counts_skip_system_and_deleted(app, world):
     db_session.commit()
     row = next(r for r in list_partner_orgs_with_users(db_session) if r["org"].id == world["org_a"])
     assert keep and row["order_count"] == 1
-
-
-# --------------------------------------------------------------------------
-# 3단계 — 협력사 로고
-# --------------------------------------------------------------------------
-class _LogoStorage:
-    storage_type = "r2"
-
-    def __init__(self):
-        self.files = {}
-
-    def upload_file(self, file, filename, folder):
-        key = f"{folder}/20261008_x_{filename}"
-        self.files[key] = file.read()
-        return {"success": True, "key": key}
-
-    def read_file_bytes(self, key):
-        return self.files.get(key)
-
-
-@pytest.fixture
-def logo_storage(monkeypatch):
-    import foms.web.admin.partners as admin_partners
-
-    storage = _LogoStorage()
-    monkeypatch.setattr(admin_partners, "get_storage", lambda: storage)
-    monkeypatch.setattr(partner_api, "get_storage", lambda: storage)
-    return storage
-
-
-def test_wizard_logo_partner_none_and_ours_unchanged(app, world, logo_storage):
-    from foms.services.drawing_wizard_defaults import build_wizard_defaults
-
-    partner_id = _create(app, world["partner_a"]).get_json()["data"]["order_id"]
-    partner_order = db_session.get(Order, partner_id)
-    assert build_wizard_defaults(partner_order, partner_order.structured_data, None)["logo"] == "none"
-
-    admin = _client(app, db_session.get(User, world["admin"]))
-    resp = admin.post(f"/admin/partners/{world['org_a']}/logo",
-                      data={"logo": (io.BytesIO(b"\x89PNG-logo"), "logo.png")},
-                      content_type="multipart/form-data")
-    assert resp.status_code == 302
-    db_session.expire_all()
-    partner_order = db_session.get(Order, partner_id)
-    assert build_wizard_defaults(partner_order, partner_order.structured_data, None)["logo"] == "partner"
-    # 대조군: 우리 주문은 예전 규칙 그대로(하우드).
-    ours = Order(received_date="2026-10-08", customer_name="c", phone="0", address="a", product="p",
-                 structured_data={"parties": {"manager": {"name": "영업김"}}})
-    db_session.add(ours)
-    db_session.commit()
-    assert build_wizard_defaults(ours, ours.structured_data, None)["logo"] == "haud"
-
-    staff = _client(app, db_session.get(User, world["staff"]))
-    got = staff.get(f"/api/partner/orders/{partner_order.id}/logo")
-    assert got.status_code == 200 and got.data == b"\x89PNG-logo" and got.mimetype == "image/png"
-    assert staff.get(f"/api/partner/orders/{ours.id}/logo").status_code == 404
-    assert admin.get(f"/admin/partners/{world['org_a']}/logo").status_code == 200
-
-
-def test_admin_logo_rejects_non_images(app, world, logo_storage):
-    admin = _client(app, db_session.get(User, world["admin"]))
-    admin.post(f"/admin/partners/{world['org_a']}/logo",
-               data={"logo": (io.BytesIO(b"x"), "logo.exe")}, content_type="multipart/form-data")
-    assert db_session.get(PartnerOrg, world["org_a"]).logo_storage_key is None
-    assert logo_storage.files == {}
-
-
-# --------------------------------------------------------------------------
-# 3단계 — 협력사 도면 확인(이대로 제작) → 생산
-# --------------------------------------------------------------------------
-def _to_confirm(order_id, *, drawing_status="CONFIRMED"):
-    from sqlalchemy.orm.attributes import flag_modified
-
-    order = db_session.get(Order, order_id)
-    sd = dict(order.structured_data)
-    sd["workflow"] = {"stage": "CONFIRM"}
-    sd["drawing_status"] = drawing_status
-    sd["drawing_current_files"] = [{"key": f"orders/{order_id}/drawing/final.pdf", "filename": "final.pdf"}]
-    order.structured_data = sd
-    flag_modified(order, "structured_data")
-    order.erp_stage_code = "CONFIRM"
-    order.status = "CONFIRM"
-    db_session.commit()
-
-
-def test_partner_approves_drawing_and_order_moves_to_production(app, world):
-    from models import SecurityLog
-
-    order_id = _create(app, world["partner_a"]).get_json()["data"]["order_id"]
-    _to_confirm(order_id)
-    client = _client(app, db_session.get(User, world["partner_a"]))
-    page = client.get(f"/partner/orders/{order_id}").get_data(as_text=True)
-    assert "final.pdf" in page and "이대로 만들어 주세요" in page
-
-    resp = client.post(f"/api/partner/orders/{order_id}/approve-drawing", json={"idempotency_key": "k1"})
-    assert resp.status_code == 200, resp.get_json()
-    db_session.expire_all()
-    order = db_session.get(Order, order_id)
-    sd = order.structured_data
-    assert order.erp_stage_code == "PRODUCTION"
-    assert sd["blueprint"]["customer_confirmed"] is True
-    quest = next(q for q in sd["quests"] if q.get("stage") in ("고객컨펌", "CONFIRM"))
-    assert quest["status"] == "COMPLETED" and quest["assignee_approval"]["approved_by"] == world["partner_a"]
-    log = db_session.query(SecurityLog).filter(SecurityLog.action == "PARTNER_DRAWING_APPROVED").one()
-    assert log.target_id == order_id and log.detail["final_drawing_keys"] == [f"orders/{order_id}/drawing/final.pdf"]
-    assert "생산 중" in client.get(f"/partner/orders/{order_id}").get_data(as_text=True)
-
-
-def test_partner_approve_refused_when_not_ready_or_not_own(app, world):
-    order_id = _create(app, world["partner_a"]).get_json()["data"]["order_id"]
-    a = _client(app, db_session.get(User, world["partner_a"]))
-    b = _client(app, db_session.get(User, world["partner_b"]))
-    # 아직 실측 단계
-    assert a.post(f"/api/partner/orders/{order_id}/approve-drawing", json={}).status_code == 409
-    # 도면 확인 단계지만 도면이 확정 전(수정 요청됨)
-    _to_confirm(order_id, drawing_status="RETURNED")
-    assert "이대로 만들어 주세요" not in a.get(f"/partner/orders/{order_id}").get_data(as_text=True)
-    assert a.post(f"/api/partner/orders/{order_id}/approve-drawing", json={}).status_code == 409
-    # 다른 협력사
-    _to_confirm(order_id)
-    assert b.post(f"/api/partner/orders/{order_id}/approve-drawing", json={}).status_code == 404
-    db_session.expire_all()
-    assert db_session.get(Order, order_id).erp_stage_code == "CONFIRM"

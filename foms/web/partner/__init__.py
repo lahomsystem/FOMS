@@ -13,7 +13,9 @@ from foms.api.files.routes import build_file_view_url
 from foms.api.partner import UPLOAD_OPEN_STAGES
 from foms.services.auth.partner_scope import partner_can_read_order, partner_required
 from foms.services.order_attachment_permissions import is_partner_original_key
+from foms.services.orders.as_cycle_service import AS_IN_PROGRESS, AS_RECEIVED, current_cycle, cycle_status
 from foms.services.orders.confirm_drawing_gate import confirm_exit_block
+from foms.services.partners.as_intake import AS_OPEN_STAGES
 from foms.services.partners.drawing_confirm import final_drawings_for_partner
 from foms.services.partners.orders import list_partner_orders, partner_order_detail
 from models import Order, OrderAttachment, PartnerOrg
@@ -66,6 +68,8 @@ def order_detail(order_id: int):
         if is_partner_original_key(a.storage_key)
     ]
     stage = (order.erp_stage_code or "").upper()
+    cycle = current_cycle(order.structured_data or {})
+    as_open = cycle is not None and cycle_status(cycle) in (AS_RECEIVED, AS_IN_PROGRESS)
     finals = [
         {"filename": f.get("filename") or f.get("key", "").rsplit("/", 1)[-1], "url": build_file_view_url(f["key"])}
         for f in final_drawings_for_partner(order)
@@ -78,4 +82,8 @@ def order_detail(order_id: int):
         final_drawings=finals,
         # 도면 확인 차례(CONFIRM)이고 도면이 확정됐을 때만 버튼을 연다(서버가 다시 판정한다).
         can_approve=stage == "CONFIRM" and bool(finals) and confirm_exit_block(order.structured_data or {}) is None,
+        can_revise=stage in ("DRAWING", "CONFIRM") and bool(finals)
+        and (order.structured_data or {}).get("drawing_status") in ("TRANSFERRED", "CONFIRMED"),
+        can_as=stage in AS_OPEN_STAGES and not as_open,
+        as_open=as_open,
     )
