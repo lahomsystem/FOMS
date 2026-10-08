@@ -371,3 +371,12 @@ def test_schedule_table_and_mobile_glance_show_delivery_contact_lines(client, mo
     lines = re.findall(r'class="foms-meas-glance__sd[^"]*" data-meas-sd-row="(\d+)">(.*?)</div>', glance, re.S)
     assert len(lines) == 1 and lines[0][0] == str(delivery.id)
     assert "중계동 무지개 201-1005" in lines[0][1] and 'href="tel:01033334444"' in lines[0][1]
+
+
+def test_manager_sort_carries_delivery_rows_with_their_measurement_row():
+    """담당자 정렬(dashboard.js)이 동행 전달 줄을 기준 실측 행에 붙여 옮긴다 — 빠지면 표 맨 위에 혼자 남는다."""
+    js = (_ROOT / "static" / "js" / "measurement" / "dashboard.js").read_text(encoding="utf-8")
+    assert "tr.meas-sd-row[data-ref-order-id=" in js
+    assert "(p.sdRows || []).forEach" in js
+    manual = (_ROOT / "static" / "js" / "measurement" / "manual-rows.js").read_text(encoding="utf-8")
+    assert "meas-sd-row" in manual
