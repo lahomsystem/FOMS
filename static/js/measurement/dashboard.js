@@ -183,12 +183,32 @@
             const managerIndex = buildManagerIndex(mainRows);
             const managerColors = buildManagerColorMap(mainRows, managerIndex);
             applyManagerColors(mainRows, managerColors);
+            syncDeliveryRowManagers(pairs);
             window.measurementManualRowsRecomputeAnchors();
             window.measurementManualRowsPersist();
 
             if (options && options.focusRow) {
                 focusEditedMeasurementRow(options.focusRow);
             }
+        }
+
+        // 동행 전달 줄의 담당 칸 = 묶인 실측 행 담당(이름·색). 실측 행 담당을 고치면 다음 정렬 때 같이 바뀐다.
+        function syncDeliveryRowManagers(pairs) {
+            pairs.forEach(function (p) {
+                if (!p.sdRows || !p.sdRows.length) return;
+                const src = getManagerCell(p.main);
+                if (!src) return;
+                const name = (getManagerFromRow(p.main) || '').trim() || '-';
+                const bg = src.style.getPropertyValue('background-color');
+                const fg = src.style.getPropertyValue('color');
+                p.sdRows.forEach(function (sd) {
+                    const cell = sd.querySelector('td.meas-sd-row__manager');
+                    if (!cell) return;
+                    cell.textContent = name;
+                    if (bg) cell.style.setProperty('background-color', bg, 'important');
+                    if (fg) cell.style.setProperty('color', fg, 'important');
+                });
+            });
         }
 
         function scheduleApplyMeasurementManagerSortAndColors(options) {

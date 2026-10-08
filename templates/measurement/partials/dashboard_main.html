@@ -1139,7 +1139,9 @@
                   <td data-label="전화번호">{{ (sd_item.phone or '')|format_phone or '-' }}</td>
                   <td data-label="시간">{% if sd_item.state == 'delivered' %}전달완료{% else %}동행 전달{% endif %}</td>
                   <td class="cell-wrap" data-label="제품">{{ sd_item.item_text or '전달 품목 미기재' }}</td>
-                  <td data-label="담당자">{{ sd_item.assigned_by or '-' }} 배정</td>
+                  {# 담당자 = 묶인 실측 행의 담당(같이 가는 사람). 색은 dashboard.js 가 실측 행 담당 칸과 맞춘다. #}
+                  <td class="meas-sd-row__manager" data-label="담당자" data-bg="{{ manager_bg_color }}" data-color="{{ text_color }}"
+                    title="{{ sd_item.assigned_by or '알 수 없음' }} 배정">{{ manager or '-' }}</td>
                 </tr>
                 {% endfor %}
                 {% endfor %}
