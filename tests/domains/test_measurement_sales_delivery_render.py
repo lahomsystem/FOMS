@@ -26,7 +26,7 @@ from models import Order, OrderScheduleDate, User
 _ROOT = Path(__file__).resolve().parents[2]
 _CSS_ASSET = "css/contexts/measurement/measurement-sales-delivery.css"
 _JS_ASSET = "js/measurement/measurement-sales-delivery.js"
-_ASSET_PIN = "20261008c"
+_ASSET_PIN = "20261008d"
 
 
 def _login_erp_admin(client, username="measurement_sd_admin"):
