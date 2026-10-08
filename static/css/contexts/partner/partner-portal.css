@@ -116,6 +116,7 @@
 }
 
 .pp-section--accent { border-color: var(--pp-primary); }
+.pp-form--sub { margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--pp-border); }
 
 .pp-dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; margin: 0 0 12px; }
 .pp-dl dt { color: var(--pp-muted); }

@@ -1,4 +1,4 @@
-# 외부 협력사 주문 접수 — 협력사 전용 화면 SPEC (승인 2026-10-08 · 1·2·3-1단계 구현)
+# 외부 협력사 주문 접수 — 협력사 전용 화면 SPEC (승인 2026-10-08 · 1·2·3단계 구현)
 
 작성 2026-10-08. 등급: 코어 변경(DB · Auth) — Spec → 승인 → 구현.
 
@@ -236,4 +236,16 @@
 - 작은 수정: 관리 화면 주문 수에서 지운 주문 제외, 담당 선택지에서 시스템 계정(naver_unassigned) 제외.
 
 3-2 (다음): 협력사 "수정 요청"(메모·사진 → 기존 도면 수정 요청과 같은 효과), 협력사 AS 접수(`register_as_cycle`).
+
+## 14. 3-2 구현 기록 (2026-10-08)
+
+- **수정 요청**: 협력사 상세(DRAWING·CONFIRM 단계, 도면 TRANSFERRED·CONFIRMED)에서 메모 + 참고 사진(≤10장).
+  `POST /api/partner/orders/<id>/revision` — 사진은 서버가 `orders/<id>/drawing_gateway/revisions/` 에 올리고
+  (`is_revision_reference_key` 와 같은 폴더), 직원 수정 요청과 같은 효과: drawing_status RETURNED · 이력 REQUEST_REVISION
+  (`by_user_name` 에 "(협력사)") · 고객확인 무효화 · 쓰기 정책 DRAWING_REVISION_REQUEST · 도면팀 알림(확인 창·웹 푸시·배지).
+  대상 도면은 고르지 않고 현재 최종 도면 전부. 감사 `PARTNER_DRAWING_REVISION_REQUESTED`(`foms/services/partners/revision.py`).
+- **AS 접수**: 시공 시작 뒤(CONSTRUCTION·CS·COMPLETED·AS*) 열린 AS 건이 없을 때만. `POST /api/partner/orders/<id>/as` →
+  `register_as_cycle` + 직원 접수와 같은 부수 기록(reception·"AS 접수됨 (협력사)"·비용 판정 '미정' 기본값).
+  사진은 접수 원문 줄(as_log_id)에 category 'as' 로 붙는다(접수가 확정된 뒤 — 사진 실패해도 접수는 남는다).
+  고객 발송 없음. 열린 건 재접수는 우리 직원 몫(409). 감사 `PARTNER_AS_REGISTERED`(`foms/services/partners/as_intake.py`).
 

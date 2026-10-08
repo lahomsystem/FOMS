@@ -37,6 +37,8 @@ PARTNER_ALLOWED_ENDPOINTS: frozenset[str] = frozenset({
     "partner_api.create_order",
     "partner_api.upload_file",
     "partner_api.approve_drawing",
+    "partner_api.request_revision",
+    "partner_api.register_as",
 })
 
 # 쓰기 정책 엔진(``evaluate_policy``)이 협력사 계정에 허용하는 policy_id. 문지기를 지난 쓰기 요청도
