@@ -26,7 +26,7 @@ from models import Order, OrderScheduleDate, User
 _ROOT = Path(__file__).resolve().parents[2]
 _CSS_ASSET = "css/contexts/measurement/measurement-sales-delivery.css"
 _JS_ASSET = "js/measurement/measurement-sales-delivery.js"
-_ASSET_PIN = "20261008b"
+_ASSET_PIN = "20261008c"
 
 
 def _login_erp_admin(client, username="measurement_sd_admin"):
@@ -345,3 +345,29 @@ def test_tablet_split_card_shows_delivery_badge_and_item(client, monkeypatch):
     assert f"AS #{delivery.id}" in cards[str(with_delivery.id)]
     assert "전자렌지장EP 680*2365" in cards[str(with_delivery.id)]
     assert "data-meas-sd-count" not in cards[str(control.id)]
+
+
+def test_schedule_table_and_mobile_glance_show_delivery_contact_lines(client, monkeypatch):
+    """스케줄표(PC 표)·모바일 한눈 목록에 전달 건 이름·주소·전화·품목 줄(대조군: 전달 없는 행엔 줄 없음)."""
+    from tests.domains.test_measurement_mobile_glance import _glance, _prepare
+
+    today = _prepare(client, monkeypatch, username="meas_sd_line_admin")
+    with_delivery = _create_measurement_order(customer_name="줄오세영", on_date=today)
+    _create_measurement_order(customer_name="줄신동혁", on_date=today)
+    delivery = _create_delivery_order(customer_name="줄한지훈", as_content="후드도어 594*612",
+                                      address="중계동 무지개 201-1005")
+
+    _assign(delivery, with_delivery.id, ref_date=today)
+    body = _fetch_dashboard(client, today)
+
+    rows = re.findall(r'<tr class="meas-sd-row[^"]*" data-meas-sd-row="(\d+)" data-ref-order-id="(\d+)">(.*?)</tr>',
+                      body, re.S)
+    assert [(a, b) for a, b, _ in rows] == [(str(delivery.id), str(with_delivery.id))]
+    row_html = rows[0][2]
+    for text in ("줄한지훈", "중계동 무지개 201-1005", "010-3333-4444", "후드도어 594*612", f"AS #{delivery.id}"):
+        assert text in row_html, text
+
+    glance = _glance(body)
+    lines = re.findall(r'class="foms-meas-glance__sd[^"]*" data-meas-sd-row="(\d+)">(.*?)</div>', glance, re.S)
+    assert len(lines) == 1 and lines[0][0] == str(delivery.id)
+    assert "중계동 무지개 201-1005" in lines[0][1] and 'href="tel:01033334444"' in lines[0][1]
