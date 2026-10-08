@@ -209,3 +209,22 @@
     justify-content: space-between;
   }
 }
+
+/* --- 모바일 실측 탭 --------------------------------------------------------- */
+
+/* 날짜 칩: 그 날짜 실측에 태운 AS 전달 건수. 칩이 좁아 숫자만 둔다. */
+.meas-sd-badge--chip {
+  align-self: flex-start;
+  margin-top: 2px;
+  padding: 0 0.375rem;
+  font-size: 0.6875rem;
+}
+
+/* 모바일 카드(바텀시트로 옮겨지는 노드) 안에서는 큐 카드 위에 붙는다. */
+.erp-measurement-mobile-card > .meas-sd-cards {
+  margin-bottom: 0.5rem;
+}
+
+.erp-measurement-mobile-card .meas-sd-card {
+  padding: 0.75rem 0.875rem;
+}

@@ -1,3 +1,4 @@
+{% from 'measurement/partials/sales_delivery_cards.html' import render_sales_delivery_cards %}
 {% from 'partials/shared/erp_mobile_queue_card_v2.html' import render_queue_card_v2 %}
 {% from 'partials/shared/channel_mark.html' import channel_mark %}
 
@@ -76,6 +77,7 @@
             <span class="foms-meas-glance__name">{{ o.customer_name or '-' }} {{ channel_mark(o.channel_source|default(none, true)) }}{% if o.same_day_mark %}<span class="foms-meas-sameday" data-meas-same-day><i class="fas fa-bolt" aria-hidden="true"></i> 당일<span class="visually-hidden"> 긴급 추가</span></span>{% endif %}{% if o.measurement_completed %}<span class="foms-meas-glance__handed"><i class="fas fa-circle-check" aria-hidden="true"></i> 실측 완료</span>{% endif %}</span>
             {% if o.address and o.address != '-' %}<span class="foms-meas-glance__addr">{{ o.address }}</span>{% endif %}
             {% if o.product_subtitle %}<span class="foms-meas-glance__prod">{{ o.product_subtitle }}</span>{% endif %}
+            {% if o.sales_delivery_items %}<span class="meas-sd-badge" data-meas-sd-count="{{ o.sales_delivery_items|length }}"><i class="fas fa-box" aria-hidden="true"></i> AS 전달 {{ o.sales_delivery_items|length }}</span>{% endif %}
             {% if o.site_memo_count %}<span class="foms-meas-glance__memo" data-meas-glance-memo="{{ o.site_memo_count }}">가기 전 확인 {{ o.site_memo_count }}</span>{% endif %}
             {% if _t %}<span class="foms-meas-glance__time" data-daypart="{{ _t|meas_daypart or '' }}">{{ _t }}</span>{% endif %}
             {% if _pcn %}<span class="foms-meas-glance__pc" data-meas-glance-photos="{{ _pcn }}"><i class="fas fa-camera" aria-hidden="true"></i><span class="visually-hidden">사진 </span>{{ _pcn }}<span class="visually-hidden">장</span></span>{% endif %}
@@ -155,6 +157,8 @@
           {# 현장 메모(site_memo.build_site_memo): 주소·연락처 특이사항은 그 줄 바로 밑(매크로 옵트인),
              실측 특이사항·비고·고객 요청은 "현장 메모" 한 상자 — 종류는 색 알약 이름표로 가른다(2026-09-28 목업 ①).
              빈 칸은 줄을 안 그리고, 셋 다 비면 상자도 없다. 줄바꿈은 CSS pre-line. #}
+          {# 동행 전달 카드: 이 실측 길에 함께 들고 갈 AS 건(PC 상세행과 같은 매크로·같은 [전달 완료] 훅). #}
+          {{ render_sales_delivery_cards(o.sales_delivery_items or []) }}
           {% set _sm = o.site_memo or {} %}
           {% set _memo_n = (1 if _sm.measure else 0) + (1 if _sm.notes else 0) + (1 if _sm.request else 0) %}
           {% set _memo_slot %}{% if _memo_n %}
