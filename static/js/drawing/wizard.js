@@ -245,6 +245,7 @@
   var imageRatioLock = true;
   var undoStack = [];
   var redoStack = [];
+  var sheetHistories = {};             // 시트 id → {undo:[], redo:[]} — 시트를 오가도 실행 취소 이력 유지
   var lastArrowUndoTs = 0;
 
   /* 저장 조율 상태 (자동 저장 · 저장+전달 원클릭 공용) */
@@ -303,6 +304,22 @@
     f.layout = sanitizeLayout(d.layout);
     f.cell_font = sanitizeCellFont(d.cell_font);
     return f;
+  }
+
+  /** 현재 시트의 실행 취소/다시 실행 스택을 undoStack/redoStack 에 연결한다(없으면 새로 만든다). */
+  function bindSheetHistory() {
+    var cs = currentSheet();
+    if (!cs || !cs.id) { undoStack = []; redoStack = []; return; }
+    var h = sheetHistories[cs.id];
+    if (!h) { h = sheetHistories[cs.id] = { undo: [], redo: [] }; }
+    undoStack = h.undo;
+    redoStack = h.redo;
+  }
+
+  /** 전체 이력 초기화(서버 상태 재로드) — 모든 시트 스택을 버리고 현재 시트에 새로 연결한다. */
+  function resetAllHistories() {
+    sheetHistories = {};
+    bindSheetHistory();
   }
 
   function pushUndoSnapshot(snap) {
@@ -2911,8 +2928,7 @@
       sheet.product_index = idx;
       state.sheets.push(sheet);
       current = state.sheets.length - 1;
-      undoStack.length = 0;
-      redoStack.length = 0;
+      bindSheetHistory();
       deselect();
       setAnnoMode('select');
       markDirty();
@@ -3218,8 +3234,7 @@
     setAnnoMode('select');
     current = i;
     deselect();
-    undoStack.length = 0;
-    redoStack.length = 0;
+    bindSheetHistory();   // 시트별 이력으로 교체(지우지 않는다)
     renderTabs();
     renderForm();
     rebuildAnno();
@@ -3232,8 +3247,7 @@
     if (state.sheets.length >= 10) { toast('시트는 최대 10장까지 만들 수 있습니다.'); return; }
     state.sheets.push(newSheet('도면 ' + (state.sheets.length + 1), defaults));
     current = state.sheets.length - 1;
-    undoStack.length = 0;
-    redoStack.length = 0;
+    bindSheetHistory();
     deselect();
     markDirty();
     renderTabs();
@@ -3262,8 +3276,7 @@
     (copy.objects || []).forEach(function (o) { o.id = rid('o-'); });
     state.sheets.splice(i + 1, 0, copy);
     current = i + 1;
-    undoStack.length = 0;
-    redoStack.length = 0;
+    bindSheetHistory();
     deselect();
     markDirty();
     renderTabs();
@@ -3288,17 +3301,81 @@
     if (!canSave) { return; }
     if (state.sheets.length <= 1) { toast('최소 1개의 시트가 필요합니다.'); return; }
     if (!confirm('시트 "' + state.sheets[i].name + '"를 삭제할까요?')) { return; }
+    var removed = state.sheets[i];
+    var removedHist = sheetHistories[removed.id] || { undo: [], redo: [] };
+    var wasCurrent = (i === current);
     state.sheets.splice(i, 1);
+    delete sheetHistories[removed.id];   // 삭제된 시트의 이력은 버린다(되돌리기용 사본만 따로 보관)
     if (current >= state.sheets.length) { current = state.sheets.length - 1; }
     else if (i < current) { current -= 1; }
-    undoStack.length = 0;
-    redoStack.length = 0;
+    bindSheetHistory();
     deselect();
     markDirty();
     renderTabs();
     renderForm();
     rebuildAnno();
     syncProductActive();
+    showSheetUndoBar({
+      sheet: cloneSheet(removed),
+      index: i,
+      wasCurrent: wasCurrent,
+      hist: { undo: removedHist.undo.slice(), redo: removedHist.redo.slice() }
+    });
+  }
+
+  /* ---- 시트 삭제 되돌리기 바(10초) ---- */
+  var SHEET_UNDO_MS = 10000;
+  var sheetUndoBar = null;            // 현재 떠 있는 되돌리기 바(단일)
+  var sheetUndoTimer = null;
+
+  function hideSheetUndoBar() {
+    if (sheetUndoTimer) { clearTimeout(sheetUndoTimer); sheetUndoTimer = null; }
+    var bar = sheetUndoBar;
+    sheetUndoBar = null;
+    if (!bar) { return; }
+    bar.classList.remove('dws-toast-show');
+    setTimeout(function () { if (bar.parentNode) { bar.parentNode.removeChild(bar); } }, 240);
+  }
+
+  /** 삭제 직후 '되돌리기' 버튼이 달린 토스트 바를 10초 동안 띄운다. */
+  function showSheetUndoBar(entry) {
+    hideSheetUndoBar();   // 이전 삭제의 되돌리기 기회는 새 삭제로 끝난다
+    var bar = document.createElement('div');
+    bar.className = 'dws-toast dws-toast-action';
+    var msg = document.createElement('span');
+    msg.className = 'dws-toast-msg';
+    msg.textContent = '시트 "' + String(entry.sheet.name || '도면') + '"를 삭제했습니다.';
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'dws-toast-undo-btn';
+    btn.textContent = '되돌리기';
+    btn.addEventListener('click', function () { restoreDeletedSheet(entry); hideSheetUndoBar(); });
+    bar.appendChild(msg);
+    bar.appendChild(btn);
+    els.toastHost.appendChild(bar);
+    sheetUndoBar = bar;
+    requestAnimationFrame(function () { bar.classList.add('dws-toast-show'); });
+    sheetUndoTimer = setTimeout(hideSheetUndoBar, SHEET_UNDO_MS);
+  }
+
+  /** 삭제한 시트를 원래 자리에 깊은 복사로 되살리고 그 시트의 실행 취소 이력도 돌려놓는다. */
+  function restoreDeletedSheet(entry) {
+    if (!canSave || !entry) { return; }
+    if (state.sheets.length >= 10) { toast('시트는 최대 10장까지 만들 수 있습니다.'); return; }
+    var sheet = cloneSheet(entry.sheet);
+    var idx = Math.max(0, Math.min(entry.index, state.sheets.length));
+    state.sheets.splice(idx, 0, sheet);
+    sheetHistories[sheet.id] = { undo: entry.hist.undo.slice(), redo: entry.hist.redo.slice() };
+    if (entry.wasCurrent) { current = idx; }
+    else if (idx <= current) { current += 1; }
+    bindSheetHistory();
+    deselect();
+    markDirty();
+    renderTabs();
+    renderForm();
+    rebuildAnno();
+    syncProductActive();
+    toast('시트를 되돌렸습니다.');
   }
 
   function fitZoom() {
@@ -3788,8 +3865,8 @@
         baseUpdatedAt = null;
       }
       current = 0;
-      undoStack.length = 0;
-      redoStack.length = 0;
+      resetAllHistories();
+      hideSheetUndoBar();
       dirty = false;
       userDirty = false; autosaveSuspended = false; loadFailed = false;   // 새 서버 상태 위에서 다시 시작
       resumeAutosave();   // 실패로 멈췄던 자동 저장도 재로드 성공으로 풀린다
@@ -4508,8 +4585,7 @@
         (sheet.objects || []).forEach(function (o) { o.id = rid('o-'); });
         state.sheets.push(sheet);
         current = state.sheets.length - 1;
-        undoStack.length = 0;
-        redoStack.length = 0;
+        bindSheetHistory();
         deselect();
         markDirty();
         renderTabs();
@@ -5113,6 +5189,51 @@
     });
   }
 
+  /* ---- 재전송 변경 내용 입력 모달 (window.prompt 대체) ---- */
+  var CHANGE_NOTE_MAX = 500;   // 서버 _MAX_CHANGE_NOTE_LEN(channel_integration.py)과 같은 값
+
+  /** 변경 내용 모달을 열고, 보내기 → 입력 문자열 / 취소·Esc → null 로 끝나는 Promise 를 돌려준다. */
+  function askChangeNote() {
+    return new Promise(function (resolve) {
+      var dlg = document.getElementById('dws-note-dialog');
+      var area = document.getElementById('dws-note-input');
+      var count = document.getElementById('dws-note-count');
+      var err = document.getElementById('dws-note-error');
+      var okBtn = document.getElementById('dws-note-send');
+      var cancelBtn = document.getElementById('dws-note-cancel');
+      if (!dlg || !area || !count || !err || !okBtn || !cancelBtn) { resolve(null); return; }
+      var done = false;
+      area.maxLength = CHANGE_NOTE_MAX;
+      area.value = '';
+      err.hidden = true;
+      function updateCount() { count.textContent = area.value.length + ' / ' + CHANGE_NOTE_MAX; }
+      function finish(val) {
+        if (done) { return; }
+        done = true;
+        area.removeEventListener('input', onInput);
+        okBtn.removeEventListener('click', onOk);
+        cancelBtn.removeEventListener('click', onCancel);
+        dlg.removeEventListener('cancel', onCancel);
+        if (dlg.close) { try { dlg.close(); } catch (_) { dlg.removeAttribute('open'); } } else { dlg.removeAttribute('open'); }
+        resolve(val);
+      }
+      function onInput() { updateCount(); if (area.value.trim()) { err.hidden = true; } }
+      function onOk() {
+        var v = area.value.trim();
+        if (!v) { err.hidden = false; area.focus(); return; }   // 빈 입력은 조용히 취소하지 않고 안내한다
+        finish(v.slice(0, CHANGE_NOTE_MAX));
+      }
+      function onCancel(e) { if (e && e.preventDefault) { e.preventDefault(); } finish(null); }   // Esc(cancel 이벤트) 포함
+      area.addEventListener('input', onInput);
+      okBtn.addEventListener('click', onOk);
+      cancelBtn.addEventListener('click', onCancel);
+      dlg.addEventListener('cancel', onCancel);
+      updateCount();
+      if (dlg.showModal) { try { dlg.showModal(); } catch (_) { dlg.setAttribute('open', ''); } } else { dlg.setAttribute('open', ''); }
+      area.focus();
+    });
+  }
+
   /** 앱바 [도면방 PUSH] 클릭 — 사전 점검 → 확인 → 전송(재전송이면 변경 내용 1회 회수). */
   function pushDrawingRoom() {
     var btn = els.roomPushBtn;
@@ -5129,9 +5250,10 @@
       return sendRoomPush(null).then(function (r) {
         var msg = String((r.data && r.data.message) || '');
         if (r.data && r.data.success !== true && msg.indexOf('재전송 시 변경 내용') >= 0) {
-          var note = (prompt('이번 재전송의 변경 내용을 입력해주세요. (1~500자)') || '').trim();
-          if (!note) { return null; }
-          return sendRoomPush(note);
+          return askChangeNote().then(function (note) {
+            if (!note) { return null; }
+            return sendRoomPush(note);
+          });
         }
         return r;
       }).then(function (r) {
