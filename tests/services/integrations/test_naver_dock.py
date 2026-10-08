@@ -974,3 +974,14 @@ def test_dock_js_renders_workbench_anchor_and_asset_pin_moved():
     for rel in ("js/orders/erp-naver-dock.js", "css/orders/erp-naver-dock.css"):
         assert asset_url_call(rel) in tpl, rel
         assert f"{rel}') }}}}?v=" not in tpl, f"손 날짜 핀이 되살아났다: {rel}"
+
+
+def test_dock_mains_follow_erp_item_order():
+    """본품 묶음·귀속 선택지는 ERP 품목 순서를 따른다(2026-10-08 실화면 결함).
+
+    서버는 본품을 링크 id 순으로 보내 좌측 항목 목록과 `본품 1·2` 가 엇갈렸다.
+    """
+    js = _DOCK_JS.read_text(encoding="utf-8")
+    assert "function erpDockMainsInItemOrder(root)" in js
+    assert js.count("erpDockMainsInItemOrder(document).forEach") == 2
+    assert "state.mains.forEach(function (main, index)" not in js
