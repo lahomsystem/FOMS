@@ -37,6 +37,12 @@ from foms.services.erp_policy import (
     get_next_stage_for_completed_quest,
 )
 from foms.services.orders.draft_guard import draft_not_promoted_body, is_unpromoted_draft
+from foms.services.erp_permissions import can_edit_erp
+from foms.services.orders.cs_complete_service import (
+    complete_order_as_cs,
+    cs_complete_replay,
+    cs_gate_code,
+)
 from foms.services.orders.order_transition_service import TransitionError
 from foms.services.orders.quest_transition_service import (
     advance_stage_on_quest_completion,
@@ -308,6 +314,42 @@ def _already_transitioned_into(sd, current_stage_code: str) -> bool:
     return False
 
 
+def _complete_cs_after_approve(db, order, user, user_id, payload):
+    """CS 최종 승인 뒤 같은 tx 에서 최종 완료(CS_COMPLETE)까지 보낸다(CS-AUTO-COMPLETE-01).
+
+    완료 정본 경로 :func:`complete_order_as_cs` 를 그대로 탄다(attempt 봉인·history·감사).
+    보류·진행 중 AS·ERP 수정 권한 없음은 승인을 실패시키지 않는다 — 승인 기록은 유효하고
+    단계만 CS 에 남긴다. 화면이 사유를 보여 주도록 ``blocked`` 를 돌려준다.
+
+    Returns:
+        ``(completed, blocked, error_response)``. ``error_response`` 가 있으면 전이가
+        실패해 rollback 된 것이므로 라우트는 그대로 돌려줘야 한다.
+    """
+    if not can_edit_erp(user):
+        return False, {'code': 'NO_COMPLETE_PERMISSION',
+                       'message': 'CS 확인은 기록됐지만 완료 처리 권한이 없어 CS 단계에 남습니다.'}, None
+    idem_key = _idempotency_key(payload)
+    if not cs_complete_replay(db, user_id, idem_key):
+        hit = cs_gate_code(order, order.structured_data or {})
+        if hit is not None:
+            return False, {'code': hit[0], 'message': _CS_COMPLETE_BLOCK_MESSAGES.get(hit[0], hit[0])}, None
+    failed = complete_order_as_cs(
+        db, order, actor_user=user, actor_user_id=user_id, body=payload,
+        idempotency_key=idem_key,
+    )
+    if failed is not None:
+        return False, None, failed
+    return True, None, None
+
+
+# 승인은 기록됐는데 완료로 못 넘긴 사유 — 사용자 문구.
+_CS_COMPLETE_BLOCK_MESSAGES = {
+    'HOLD_ACTIVE': 'CS 확인은 기록됐지만 보류 중이라 완료로 넘기지 못했습니다. 보류를 풀고 다시 눌러 주세요.',
+    'AS_ACTIVE': 'CS 확인은 기록됐지만 진행 중인 AS 가 있어 완료로 넘기지 못했습니다.',
+    'QUEST_INCOMPLETE': 'CS 확인은 기록됐지만 아직 승인하지 않은 팀이 있습니다.',
+}
+
+
 def _transition_error_response(exc):
     """전이 엔진/REV helper 예외를 route JSON 오류로 매핑한다.
 
@@ -444,8 +486,32 @@ def api_order_quest_approve(order_id):
         # 예전엔 이 경로가 승인 기록을 actor 로 덮어쓰고 가짜 QUEST_APPROVAL_CHANGED 를 남겼다
         # (2026-09-20 스테이징 #4382). 다음 단계가 없는 COMPLETED(PRODUCTION/CS 등)는 대상이 아니다.
         # 활성 quest 가 있으면 그 quest 를 잡아 정상 승인 경로를 탄다(2026-09-20 리뷰 P2).
+        quest_done = str(current_quest.get('status', 'OPEN')).upper() == 'COMPLETED'
+        # CS 는 _STAGE_ADVANCE 밖이지만 완료 quest 인데 CS 에 남은 주문(CS-AUTO-COMPLETE-01 전
+        # 승인분·보류로 막혔던 건)을 같은 버튼으로 최종 완료까지 다시 보낸다.
+        if quest_done and current_stage_code == 'CS':
+            _audit_quest(order, 'QUEST_APPROVED', user_id, note='재전이',
+                         extra={'team': team, 'retransition': True})
+            completed, blocked, failed = _complete_cs_after_approve(db, order, user, user_id, payload)
+            if failed is not None:
+                return failed
+            db.commit()
+            from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
+
+            invalidate_all_dashboard_slice_caches()
+            return jsonify({
+                'success': True,
+                'quest': current_quest,
+                'all_approved': True,
+                'missing_teams': [],
+                'auto_transitioned': completed,
+                'retransitioned': True,
+                'completion_blocked': blocked,
+                'next_stage': CODE_TO_STAGE_NAME.get('COMPLETED', 'COMPLETED') if completed else None,
+            })
+
         is_retransition = (
-            str(current_quest.get('status', 'OPEN')).upper() == 'COMPLETED'
+            quest_done
             and stage_advance_target(current_stage_code) is not None
         )
         if is_retransition:
@@ -642,6 +708,16 @@ def api_order_quest_approve(order_id):
                 return _transition_error_response(exc)
             auto_transitioned = transition_result is not None and not transition_result.replayed
 
+        # CS 최종 승인 = 최종 완료(CS-AUTO-COMPLETE-01). 완료 정본 서비스를 같은 tx 로 탄다.
+        cs_completed = False
+        completion_blocked = None
+        if is_complete and current_stage_code == 'CS':
+            cs_completed, completion_blocked, failed = _complete_cs_after_approve(
+                db, order, user, user_id, payload)
+            if failed is not None:
+                return failed
+            auto_transitioned = auto_transitioned or cs_completed
+
         if admin_override is not None and punched:
             record_admin_override_event(
                 db, order, override=admin_override, gates=punched,
@@ -697,7 +773,7 @@ def api_order_quest_approve(order_id):
         next_stage_for_response = None
         if is_complete:
             CODE_TO_STAGE_NAME = {v: k for k, v in STAGE_NAME_TO_CODE.items()}
-            if transition_result is not None:
+            if transition_result is not None or cs_completed:
                 # 전이가 실제로 일어났으면 엔진이 쓴 현재 stage 가 정답(추정값 금지).
                 next_stage_code = order.erp_stage_code
             else:
@@ -713,6 +789,7 @@ def api_order_quest_approve(order_id):
             'missing_team_labels': [team_label(t) for t in missing_teams],
             'auto_transitioned': auto_transitioned,
             'retransitioned': False,
+            'completion_blocked': completion_blocked,
             'next_stage': next_stage_for_response,
         })
     except Exception as e:
