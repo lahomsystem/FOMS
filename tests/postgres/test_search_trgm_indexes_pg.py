@@ -39,7 +39,7 @@ from foms.services.erp_dashboard_search import (
     erp_order_dashboard_search_predicate,
     visible_order_search_clause,
 )
-from models import Order
+from models import Order, PartnerOrg, User
 from tests.postgres.conftest import _raw_connect, assert_test_db_name
 from tests.support.search_index_contract import (
     SEARCH_TRGM,
@@ -158,7 +158,8 @@ def search_engine(search_db_url: URL) -> Iterator[Engine]:
     from db import Base
 
     engine = create_engine(search_db_url, connect_args={"client_encoding": "utf8"}, poolclass=NullPool)
-    Base.metadata.create_all(bind=engine, tables=[Order.__table__])
+    # orders.partner_org_id → partner_orgs → users(owner) FK 대상도 함께 만든다(PARTNER-01·02).
+    Base.metadata.create_all(bind=engine, tables=[User.__table__, PartnerOrg.__table__, Order.__table__])
     with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as ac:
         for expression, name in REGISTRY.items():
             if name not in NEW_INDEXES:  # 새 5개는 models(create_all)가 이미 만들었다

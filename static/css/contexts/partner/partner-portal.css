@@ -1,0 +1,161 @@
+/* PARTNER-02: 협력사 전용 화면(templates/partner/*). 공용 레이아웃·Bootstrap 을 쓰지 않는 단독 문서라 여기서 완결한다. */
+:root {
+  --pp-bg: #f6f7f9;
+  --pp-surface: #ffffff;
+  --pp-text: #1f2328;
+  --pp-muted: #6b7280;
+  --pp-border: #d9dde3;
+  --pp-primary: #2457d6;
+  --pp-primary-text: #ffffff;
+  --pp-danger: #c62828;
+  --pp-stage-bg: #e8eefc;
+  --pp-stage-text: #1d3f99;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --pp-bg: #14161a;
+    --pp-surface: #1d2025;
+    --pp-text: #e6e8eb;
+    --pp-muted: #9aa1ab;
+    --pp-border: #343941;
+    --pp-primary: #5b86f0;
+    --pp-primary-text: #0b1020;
+    --pp-danger: #ef6b6b;
+    --pp-stage-bg: #24324f;
+    --pp-stage-text: #c9d7ff;
+  }
+}
+
+* { box-sizing: border-box; }
+
+.pp-body {
+  margin: 0;
+  background: var(--pp-bg);
+  color: var(--pp-text);
+  font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.pp-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--pp-surface);
+  border-bottom: 1px solid var(--pp-border);
+}
+
+.pp-brand { color: var(--pp-text); font-weight: 700; text-decoration: none; }
+.pp-logout { margin: 0; }
+
+.pp-main { max-width: 860px; margin: 0 auto; padding: 16px; }
+
+.pp-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.pp-title { font-size: 20px; margin: 0 0 8px; }
+.pp-subtitle { font-size: 16px; margin: 0 0 8px; }
+.pp-help, .pp-empty, .pp-muted { color: var(--pp-muted); }
+.pp-help { font-size: 14px; }
+
+.pp-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--pp-border);
+  border-radius: 8px;
+  background: var(--pp-surface);
+  color: var(--pp-text);
+  font: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.pp-btn--primary { background: var(--pp-primary); border-color: var(--pp-primary); color: var(--pp-primary-text); }
+.pp-btn--ghost { background: transparent; }
+.pp-btn:disabled { opacity: 0.6; cursor: default; }
+
+.pp-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+
+.pp-card {
+  background: var(--pp-surface);
+  border: 1px solid var(--pp-border);
+  border-radius: 10px;
+}
+
+.pp-card__link, .pp-card--plain { display: grid; gap: 4px; padding: 12px 14px; color: inherit; text-decoration: none; }
+.pp-card__name { font-weight: 600; }
+.pp-card__meta { color: var(--pp-muted); font-size: 14px; overflow-wrap: anywhere; }
+
+.pp-stage {
+  justify-self: start;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--pp-stage-bg);
+  color: var(--pp-stage-text);
+  font-size: 14px;
+}
+
+.pp-section {
+  background: var(--pp-surface);
+  border: 1px solid var(--pp-border);
+  border-radius: 10px;
+  padding: 14px;
+  margin-bottom: 12px;
+}
+
+.pp-section--accent { border-color: var(--pp-primary); }
+.pp-form--sub { margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--pp-border); }
+
+.pp-dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; margin: 0 0 12px; }
+.pp-dl dt { color: var(--pp-muted); }
+.pp-dl dd { margin: 0; overflow-wrap: anywhere; }
+
+.pp-memo { white-space: pre-wrap; margin: 12px 0 0; }
+.pp-files { margin: 0 0 12px; padding-left: 18px; }
+.pp-files a { color: var(--pp-primary); overflow-wrap: anywhere; }
+
+.pp-form { display: grid; gap: 12px; }
+.pp-fieldset { border: 1px solid var(--pp-border); border-radius: 10px; padding: 12px; margin: 0; display: grid; gap: 10px; background: var(--pp-surface); }
+.pp-fieldset legend { padding: 0 4px; font-weight: 600; }
+
+.pp-field { display: grid; gap: 4px; font-size: 14px; color: var(--pp-muted); }
+.pp-field input, .pp-field textarea {
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 1px solid var(--pp-border);
+  border-radius: 8px;
+  background: var(--pp-bg);
+  color: var(--pp-text);
+  font: inherit;
+}
+
+.pp-items { display: grid; gap: 10px; }
+.pp-item {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  padding: 10px;
+  border: 1px dashed var(--pp-border);
+  border-radius: 8px;
+}
+.pp-field--wide { grid-column: 1 / -1; }
+
+.pp-status { min-height: 1.5em; margin: 0; color: var(--pp-muted); }
+.pp-status--error { color: var(--pp-danger); }
+
+@media (max-width: 520px) {
+  .pp-item { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

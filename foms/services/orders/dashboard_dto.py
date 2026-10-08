@@ -21,6 +21,7 @@ from foms.services.erp_mobile_order_display import (
 )
 from foms.services.estimate_service import build_measurement_manager_phone_map
 from foms.services.orders.board_state_display import build_board_state
+from foms.services.auth.partner_scope import partner_mark_name
 from foms.services.integrations.naver_commerce.constants import SOURCE_MARKER
 
 
@@ -100,6 +101,8 @@ def build_orders_row_dtos(page_orders, page_sds, att_counts, user_map, current_u
             # 판매채널 출처 마크(A안)의 판정 축. 출처 하나로만 정한다 —
             # naver_linked 는 ERP 주문에 네이버 재결제를 붙인 경우도 참이라 출처가 아니다.
             'channel_source': 'NAVER' if sd.get('source') == SOURCE_MARKER else None,
+            # PARTNER-02: 외부 협력사 주문 표식(협력사 이름). 협력사 주문이 아니면 None.
+            'partner_name': partner_mark_name(o, sd),
             'manager_phone': resolve_manager_phone_for_queue(
                 parties, order=o, manager_phone_map=manager_phone_map
             ),

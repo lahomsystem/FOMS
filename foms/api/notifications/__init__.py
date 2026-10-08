@@ -19,7 +19,7 @@ from foms.services.audit_message_display import describe_action, describe_order_
 from foms.services.orders.audit_order_context import order_audit_context
 from foms.services.datetime_kst import format_datetime_kst, now_utc_naive
 from foms.services.notifications.measure_same_day_payload import measure_same_day_link
-from foms.services.notifications.recipients import fan_out_new_notification
+from foms.services.notifications.recipients import INTERNAL_USERS_ONLY, fan_out_new_notification
 from foms.services.request_write_guard import require_same_origin_write
 from foms.services.sidefx_outbox import enqueue_side_effect
 from db import get_db
@@ -84,14 +84,14 @@ def resolve_notification_recipient_user_ids(
     ttype = (target_type or "").strip().upper()
 
     if ttype == "ALL":
-        return {int(r[0]) for r in db.query(User.id).filter(User.is_active == True).yield_per(500)}
+        return {int(r[0]) for r in db.query(User.id).filter(User.is_active == True, INTERNAL_USERS_ONLY).yield_per(500)}
 
     role = (target_role or "").strip().upper()
     if ttype == "ROLE" and role:
         return {
             int(r[0])
             for r in db.query(User.id)
-            .filter(func.upper(User.role) == role, User.is_active == True)  # noqa: E712
+            .filter(func.upper(User.role) == role, User.is_active == True, INTERNAL_USERS_ONLY)  # noqa: E712
             .yield_per(500)
         }
 
@@ -121,7 +121,7 @@ def resolve_notification_recipient_user_ids(
     if not conditions:
         return set()
 
-    return {int(r[0]) for r in db.query(User.id).filter(or_(*conditions), User.is_active == True).yield_per(500)}
+    return {int(r[0]) for r in db.query(User.id).filter(or_(*conditions), User.is_active == True, INTERNAL_USERS_ONLY).yield_per(500)}
 
 
 def _ensure_dict(data):
@@ -820,7 +820,7 @@ def _urgent_targets_payload(db, user_id):
 
     # 활성 사용자 1회 조회(N+1 없음), 자기 자신만 제외하고 등록 인원 전체를 후보로 연다.
     # 운영 규모상 상한 500 으로 bound(users/list 와 동일 상한).
-    active_users = db.query(User).filter(User.is_active == True).limit(500).all()  # perf-ok: bounded active-user candidate scan
+    active_users = db.query(User).filter(User.is_active == True, INTERNAL_USERS_ONLY).limit(500).all()  # perf-ok: bounded active-user candidate scan
     targets = [
         {**_urgent_target_payload(u), "team_label": TEAMS.get(u.team) or "기타"}
         for u in active_users

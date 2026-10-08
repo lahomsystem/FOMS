@@ -8,11 +8,11 @@
     "log_access"
   ],
   "baselines": {
-    "total": 215,
+    "total": 227,
     "unaudited": 0
   },
   "classification_counts": {
-    "AUDITED": 185,
+    "AUDITED": 197,
     "EXEMPT": 30,
     "UNAUDITED": 0
   },
@@ -1120,6 +1120,51 @@
       "classification": "AUDITED"
     },
     {
+      "path": "foms/api/partner/__init__.py",
+      "endpoint": "approve_drawing",
+      "lineno": 148,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/partner/__init__.py",
+      "endpoint": "create_order",
+      "lineno": 70,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/partner/__init__.py",
+      "endpoint": "register_as",
+      "lineno": 241,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/partner/__init__.py",
+      "endpoint": "request_revision",
+      "lineno": 201,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/partner/__init__.py",
+      "endpoint": "upload_file",
+      "lineno": 86,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
       "path": "foms/api/production/orders.py",
       "endpoint": "api_production_cancel",
       "lineno": 1149,
@@ -1239,7 +1284,7 @@
     {
       "path": "foms/api/share.py",
       "endpoint": "api_share_create",
-      "lineno": 816,
+      "lineno": 817,
       "methods": [
         "POST"
       ],
@@ -1248,7 +1293,7 @@
     {
       "path": "foms/api/share.py",
       "endpoint": "api_share_revoke",
-      "lineno": 1622,
+      "lineno": 1631,
       "methods": [
         "POST"
       ],
@@ -1257,7 +1302,7 @@
     {
       "path": "foms/api/share.py",
       "endpoint": "api_share_send_alimtalk",
-      "lineno": 1483,
+      "lineno": 1489,
       "methods": [
         "POST"
       ],
@@ -1266,7 +1311,7 @@
     {
       "path": "foms/api/share.py",
       "endpoint": "api_share_send_sms",
-      "lineno": 1164,
+      "lineno": 1167,
       "methods": [
         "POST"
       ],
@@ -1777,6 +1822,69 @@
       "classification": "AUDITED"
     },
     {
+      "path": "foms/web/admin/partners.py",
+      "endpoint": "partners_add_user",
+      "lineno": 150,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/web/admin/partners.py",
+      "endpoint": "partners_create",
+      "lineno": 56,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/web/admin/partners.py",
+      "endpoint": "partners_reset_password",
+      "lineno": 193,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/web/admin/partners.py",
+      "endpoint": "partners_set_owner",
+      "lineno": 79,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/web/admin/partners.py",
+      "endpoint": "partners_toggle",
+      "lineno": 100,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/web/admin/partners.py",
+      "endpoint": "partners_toggle_user",
+      "lineno": 176,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/web/admin/partners.py",
+      "endpoint": "partners_upload_logo",
+      "lineno": 117,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
       "path": "foms/web/admin/routes.py",
       "endpoint": "update_menu",
       "lineno": 33,
@@ -1806,7 +1914,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "approve_user",
-      "lineno": 1029,
+      "lineno": 1035,
       "methods": [
         "POST"
       ],
@@ -1815,7 +1923,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "delete_user",
-      "lineno": 953,
+      "lineno": 959,
       "methods": [
         "POST"
       ],
@@ -1833,7 +1941,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "handle_reset_request",
-      "lineno": 1118,
+      "lineno": 1124,
       "methods": [
         "POST"
       ],
@@ -1869,7 +1977,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "profile",
-      "lineno": 1166,
+      "lineno": 1172,
       "methods": [
         "POST"
       ],
@@ -1887,7 +1995,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "reject_user",
-      "lineno": 1082,
+      "lineno": 1088,
       "methods": [
         "POST"
       ],
@@ -1923,7 +2031,7 @@
     {
       "path": "foms/web/orders/listing.py",
       "endpoint": "add_order",
-      "lineno": 330,
+      "lineno": 332,
       "methods": [
         "POST"
       ],
@@ -1932,7 +2040,7 @@
     {
       "path": "foms/web/orders/listing.py",
       "endpoint": "bulk_action",
-      "lineno": 570,
+      "lineno": 572,
       "methods": [
         "POST"
       ],

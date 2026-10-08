@@ -5,6 +5,7 @@ from __future__ import annotations
 import datetime
 from typing import Any, Dict, List, Optional
 
+from foms.services.auth.partner_scope import is_partner_sd
 from foms.services.orders.erp_policy_constants import STAGE_LABELS, STAGE_NAME_TO_CODE
 from foms.services.orders.erp_policy_data_access import get_quest_templates
 
@@ -179,6 +180,18 @@ def resolve_required_approval_teams(
     return saved
 
 
+def cs_owns_orderer_stages(sd: Optional[Dict[str, Any]]) -> bool:
+    """실측·고객컨펌(:data:`LAHOM_CS_OWNER_STAGES`)을 CS 가 주관하는 주문인가.
+
+    라홈 발주사, 그리고 외부 협력사 주문(PARTNER-02 — 실측은 협력사가 이미 했고 CS 가 받아 확인).
+    생성(:func:`create_quest_from_template`)과 표시(``erp_quest_display``)가 같은 규칙을 쓴다.
+    """
+    if not isinstance(sd, dict):
+        return False
+    orderer_name = (((sd.get("parties") or {}).get("orderer") or {}).get("name") or "").strip()
+    return bool(orderer_name and "라홈" in orderer_name) or is_partner_sd(sd)
+
+
 def create_quest_from_template(
     stage: Optional[str],
     owner_person: Optional[str] = None,
@@ -199,8 +212,7 @@ def create_quest_from_template(
     # 라홈 발주사는 **주관 팀**만 CS 로 바꾼다(표시·배정). 승인 축은 안 좁힌다 —
     # 실측·고객컨펌은 CS·영업 둘 다 누른다(:func:`resolve_required_approval_teams`).
     if stage in LAHOM_CS_OWNER_STAGES and structured_data:
-        orderer_name = (((structured_data.get("parties") or {}).get("orderer") or {}).get("name") or "").strip()
-        if orderer_name and "라홈" in orderer_name:
+        if cs_owns_orderer_stages(structured_data):
             owner_team = "CS"
 
     assignee_based_stages = ["실측", "MEASURE", "도면", "DRAWING", "고객컨펌", "CONFIRM"]

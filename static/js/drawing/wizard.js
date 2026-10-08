@@ -550,7 +550,23 @@
     });
   }
 
+  /** PARTNER-03: 외부 협력사 주문인가 — 서버 기본값이 'partner'(협력사 로고)·'none'(빈칸)일 때. */
+  function isPartnerLogoOrder() {
+    var d = (defaults && defaults.logo) || '';
+    return d === 'partner' || d === 'none';
+  }
+
   function renderLogo(logo) {
+    // 협력사 주문: 협력사 로고(같은 출처 — PNG 내보내기 캔버스에 들어가야 한다) 또는 빈칸.
+    if (isPartnerLogoOrder()) {
+      var partner = (defaults.logo === 'partner');
+      els.logoImg.hidden = !partner;
+      if (partner) {
+        els.logoImg.onerror = function () { els.logoImg.hidden = true; };
+        els.logoImg.src = '/api/partner/orders/' + ORDER_ID + '/logo';
+      }
+      return;
+    }
     // 라홈만 라홈 로고, 그 외 전부('haud'/'none'/빈값/기타)는 하우드 로고
     // (하위호환: 기존 저장 'none'도 하우드로 렌더).
     var src = (logo === 'lahom') ? '/static/images/lahom-logo.png' : '/static/images/haud-logo.png';
@@ -3520,7 +3536,7 @@
   }
 
   function openLogoPopup() {
-    if (!canSave) { return; }
+    if (!canSave || isPartnerLogoOrder()) { return; }  // 협력사 주문은 라홈·하우드를 고를 수 없다
     var rect = els.logoCell.getBoundingClientRect();
     els.logoPopup.hidden = false;
     els.logoPopup.style.left = clamp(rect.left, 8, window.innerWidth - 140) + 'px';
@@ -3936,6 +3952,8 @@
     var checks = {}, dk = d.checks || {}, sk = saved.checks || {};
     CHECK_KEYS.forEach(function (k) { checks[k] = (k in sk) ? !!sk[k] : !!dk[k]; });
     base.checks = checks;
+    // 협력사 주문: 예전에 저장된 'haud'/'lahom' 이 남아 있어도 서버 기본값(협력사 로고/빈칸)을 쓴다.
+    if (isPartnerLogoOrder()) { base.logo = d.logo; }
     base.layout = sanitizeLayout(saved.layout);
     base.cell_font = sanitizeCellFont(saved.cell_font);
     return base;

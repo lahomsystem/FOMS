@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}협력사 주문{% endblock %} · {{ org.name }}</title>
+    {# PARTNER-02: 공용 레이아웃(내부 메뉴·배지·알림·실시간 연결)을 쓰지 않는 협력사 전용 단독 문서. #}
+    {% include "partials/shared/csrf_bootstrap.html" %}
+    <link rel="stylesheet" href="{{ asset_url('css/contexts/partner/partner-portal.css') }}">
+</head>
+<body class="pp-body">
+    <header class="pp-header">
+        <a class="pp-brand" href="{{ url_for('partner_portal.home') }}">{{ org.name }} · 주문</a>
+        <form method="post" action="{{ url_for('auth.logout') }}" class="pp-logout">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="pp-btn pp-btn--ghost">로그아웃</button>
+        </form>
+    </header>
+    <main class="pp-main">
+        {% block content %}{% endblock %}
+    </main>
+    <script src="{{ asset_url('js/partner/partner-portal.js') }}" defer></script>
+</body>
+</html>

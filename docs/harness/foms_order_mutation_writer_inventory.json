@@ -3,17 +3,17 @@
   "summary": "Order mutation writer inventory for foms/. Every persisted order mutation — flag_modified(order, 'structured_data') or a direct mutation_version bump — is classified CANONICAL (routes through REV-00 execute_order_mutation / canonical mutator) / VERSIONED_DIRECT (direct version bump under FOR UPDATE) / AUDITED_RECOVERY (OPS-APPROVAL offline apply) / EXTERNAL (direct writer with no version/If-Match contract). Release target: EXTERNAL == 0 (every order mutation carries version bump + If-Match/idempotency metadata). EXTERNAL sites below are pinned residual writers reported to their owner packet — the drift gate keeps the set from growing.",
   "scope": "foms/**.py",
   "baselines": {
-    "total": 74,
-    "external": 26
+    "total": 76,
+    "external": 28
   },
   "classification_counts": {
     "AUDITED_RECOVERY": 2,
     "CANONICAL": 41,
-    "EXTERNAL": 26,
+    "EXTERNAL": 28,
     "VERSIONED_DIRECT": 5
   },
   "kind_counts": {
-    "flag_modified_structured_data": 70,
+    "flag_modified_structured_data": 72,
     "mutation_version_bump": 4
   },
   "external_sites": [
@@ -127,13 +127,13 @@
     },
     {
       "path": "foms/services/kakao_alimtalk.py",
-      "lineno": 649,
+      "lineno": 661,
       "kind": "flag_modified_structured_data",
       "owner": "UNASSIGNED"
     },
     {
       "path": "foms/services/kakao_alimtalk.py",
-      "lineno": 1016,
+      "lineno": 1028,
       "kind": "flag_modified_structured_data",
       "owner": "UNASSIGNED"
     },
@@ -166,6 +166,18 @@
       "lineno": 198,
       "kind": "flag_modified_structured_data",
       "owner": "STATE-QUEST-01"
+    },
+    {
+      "path": "foms/services/partners/drawing_confirm.py",
+      "lineno": 122,
+      "kind": "flag_modified_structured_data",
+      "owner": "UNASSIGNED"
+    },
+    {
+      "path": "foms/services/partners/revision.py",
+      "lineno": 88,
+      "kind": "flag_modified_structured_data",
+      "owner": "UNASSIGNED"
     },
     {
       "path": "foms/web/orders/edit.py",
@@ -534,14 +546,14 @@
     },
     {
       "path": "foms/services/kakao_alimtalk.py",
-      "lineno": 649,
+      "lineno": 661,
       "kind": "flag_modified_structured_data",
       "classification": "EXTERNAL",
       "owner": "UNASSIGNED"
     },
     {
       "path": "foms/services/kakao_alimtalk.py",
-      "lineno": 1016,
+      "lineno": 1028,
       "kind": "flag_modified_structured_data",
       "classification": "EXTERNAL",
       "owner": "UNASSIGNED"
@@ -671,6 +683,20 @@
       "kind": "mutation_version_bump",
       "classification": "VERSIONED_DIRECT",
       "owner": "UPLOAD-01"
+    },
+    {
+      "path": "foms/services/partners/drawing_confirm.py",
+      "lineno": 122,
+      "kind": "flag_modified_structured_data",
+      "classification": "EXTERNAL",
+      "owner": "UNASSIGNED"
+    },
+    {
+      "path": "foms/services/partners/revision.py",
+      "lineno": 88,
+      "kind": "flag_modified_structured_data",
+      "classification": "EXTERNAL",
+      "owner": "UNASSIGNED"
     },
     {
       "path": "foms/services/shipment/as_recommendation.py",

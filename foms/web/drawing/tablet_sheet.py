@@ -168,7 +168,8 @@ def erp_drawing_workbench_tablet_sheet(order_id: int) -> Any:
     autofill = {
         'construction_date': defaults.get('construction_date') or '-',
         'spec_w300': defaults.get('spec_w300') or '-',
-        'logo': (defaults.get('logo') or '').upper() or '-',
+        # PARTNER-03: 협력사 주문은 'PARTNER'/'NONE' 대신 사람이 읽는 말로.
+        'logo': {'partner': '협력사', 'none': '-'}.get(defaults.get('logo') or '', (defaults.get('logo') or '').upper() or '-'),
     }
 
     # '시트 전달'(마법사 transfer-pending → perform_drawing_transfer)은 서버 전달 권한과 같은

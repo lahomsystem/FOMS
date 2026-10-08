@@ -6,6 +6,14 @@ from flask_socketio import emit, join_room, leave_room
 from db import get_db
 from models import ChatRoom, ChatRoomMember, ChatMessage, ChatAttachment, User
 from foms.api.channel.utils import schedule_chat_thumbnail_generation
+from foms.services.auth.partner_scope import is_partner_user
+
+
+def _is_partner_session_user(user_id) -> bool:
+    """세션 사용자가 협력사 계정인가(PARTNER-01). 사용자 행이 없으면 협력사가 아니다 —
+    그 밖의 연결 판정은 기존처럼 세션 user_id 만 본다."""
+    user = get_db().query(User).filter(User.id == user_id).first()
+    return is_partner_user(user)
 
 
 def register_chat_socketio_handlers(socketio):
@@ -14,6 +22,10 @@ def register_chat_socketio_handlers(socketio):
     def handle_connect():
         """클라이언트 연결 이벤트"""
         user_id = session.get('user_id')
+        if user_id and _is_partner_session_user(user_id):
+            # PARTNER-01: 협력사 계정은 실시간 연결(사내 채팅·알림)을 쓰지 않는다. Socket.IO 는
+            # Flask before_request 문지기를 거치지 않으므로 여기서 따로 막는다.
+            return False
         if user_id:
             print(f"[SocketIO] 사용자 {user_id} 연결됨")
             join_room(f'user_{user_id}')

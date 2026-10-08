@@ -39,6 +39,12 @@ from typing import Any, Optional
 
 from flask import Flask, g, jsonify, redirect, request, session
 
+from foms.services.auth.partner_scope import (
+    PARTNER_ALLOWED_POLICIES,
+    is_partner_user,
+    partner_can_read_order,
+)
+
 # --------------------------------------------------------------------------- #
 # 팀/역할 상수
 # --------------------------------------------------------------------------- #
@@ -123,6 +129,11 @@ POLICY_REGISTRY: dict[str, Policy] = {
                         description="ADMIN 사용자 CRUD/impersonation — ADMIN 전용."),
     "ADMIN_OPS": _p("ADMIN_OPS", teams=(), manager_ok=False,
                     description="ops approval review / admin menu — ADMIN 전용."),
+    # PARTNER-02: 협력사 화면 쓰기(주문 등록·파일). 협력사 계정은 evaluate_policy 1-a 에서
+    # PARTNER_ALLOWED_POLICIES 로 통과하고, 라우트의 partner_required 가 협력사만 남긴다.
+    # 우리 직원은 ADMIN 만 엔진을 지나지만 라우트에서 403(협력사 전용)이다.
+    "PARTNER_PORTAL": _p("PARTNER_PORTAL", teams=(), manager_ok=False,
+                         description="외부 협력사 화면 쓰기 — 협력사 계정 전용(partner_required)."),
 
     # --- 금융 (§2.1 line 153, P0-3) -----------------------------------------
     "FINANCE_MUTATION": _p("FINANCE_MUTATION", teams=("CS", "SALES", "ACCOUNTING"),
@@ -335,6 +346,13 @@ def evaluate_policy(
 
     role = (getattr(user, "role", None) or "").strip().upper()
 
+    # 1-a. 외부 협력사(PARTNER-01) — 협력사 몫 정책(로그아웃 등)만 허용하고 나머지는 거부한다.
+    # 모르는 role 은 4단계에서도 거부되지만, 그 앞의 viewer/anonymous 분기를 타지 않게 여기서 끊는다.
+    if is_partner_user(user):
+        if policy.policy_id in PARTNER_ALLOWED_POLICIES:
+            return _ALLOW
+        return Decision(False, 403, "FORBIDDEN", "협력사 계정으로는 이 작업을 할 수 없습니다.")
+
     # 1-b. gate 함수(엔진 순서로 표현 불가한 판정) — 지정 정책은 이 함수가 단독 판정한다.
     if policy.gate is not None:
         if _resolve_gate(policy.gate)(user):
@@ -388,14 +406,15 @@ def user_can_read_order(user: Any, order: Any = None) -> bool:
     """일반 Order detail(``@login_required``)과 동일한 canonical read scope.
 
     §2.1 line 144: 인증된 active FOMS 사용자는 team·assignment 와 무관하게 모든 Order 를
-    조회할 수 있다(VIEWER 포함, GET/HEAD 조회 허용). 이 함수는 그 read 판정의 단일
+    조회할 수 있다(VIEWER 포함, GET/HEAD 조회 허용). 예외: 외부 협력사 계정(role PARTNER)은
+    ``order.partner_org_id`` 가 자기 협력사와 같을 때만 읽는다(PARTNER-01). 이 함수는 그 read 판정의 단일
     chokepoint 이며, manager-mapped Channel quick action 등 cookie-auth 밖 surface 도
     PII 조회 **전에** 재사용한다(CHANNEL-AUTH-01).
 
     Args:
         user: 조회 주체. ``None``(미인증) 또는 비활성 계정은 거부한다.
-        order: 대상 Order. 현재 정책은 order-무관 전역 read 이므로 미사용이나, 향후
-            per-order read scope 확장 지점으로 시그니처에 유지한다.
+        order: 대상 Order. 우리 직원은 order-무관 전역 read 라 보지 않는다. 협력사 계정은
+            이 주문의 ``partner_org_id`` 로 판정한다(``None`` 이면 거부).
 
     Returns:
         조회 허용이면 True. 미인증/비활성/role 부재는 False.
@@ -405,6 +424,9 @@ def user_can_read_order(user: Any, order: Any = None) -> bool:
     if getattr(user, "is_active", None) is False:
         return False
     role = (getattr(user, "role", None) or "").strip().upper()
+    # PARTNER-01: 외부 협력사 계정은 자기 협력사 주문만 읽는다(우리 직원은 전역 read 그대로).
+    if is_partner_user(user):
+        return partner_can_read_order(user, order)
     return bool(role)
 
 

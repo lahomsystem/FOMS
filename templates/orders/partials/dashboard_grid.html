@@ -1,5 +1,6 @@
 {# foms-kv-rollout: order grid deeplinks via edit_order + mobile shell kv-copy.js #}
 {% from 'partials/shared/channel_mark.html' import channel_mark %}
+{% from 'partials/shared/channel_mark.html' import partner_mark %}
 
     <!-- Middle: Grid -->
     {# data-foms-stage-catalog: 8단계 워크플로 카탈로그(STAGE_SEQUENCE SSOT, code+label). 태블릿
@@ -342,7 +343,7 @@
                     <div class="d-flex flex-column gap-1">
                       <span class="d-inline-flex align-items-center gap-1 flex-wrap">
                         {{ o.customer_name }}
-                        {{ channel_mark(o.channel_source) }}
+                        {{ channel_mark(o.channel_source) }} {{ partner_mark(o.partner_name|default(none, true)) }}
                         {% if (o.orderer_name or '')|string and '라홈' in (o.orderer_name or '') %}
                         <img src="{{ url_for('static', filename='images/lahom-logo.png') }}" alt="라홈" class="erp-lahom-logo ms-1" title="라홈 주문">
                         {% endif %}
