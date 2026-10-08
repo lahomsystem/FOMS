@@ -2134,6 +2134,28 @@ html, body {
 .dws-save-status.dws-save-status-paused { background: #fff1e0; color: #a14a00; }
 .dws-save-status.dws-save-status-failed { background: #fdecea; color: #c0261b; font-weight: 600; }
 
+/* ---- 앱바 제목 공간 확보(저장 상태 칩·도움말 버튼 추가 뒤 1280~1600px 에서 제목이 0px 로 눌리고
+   1366px 이하에선 오른쪽 버튼이 화면 밖으로 밀리던 것 — 실화면 계측으로 조정) ---- */
+.dws-save-status { display: inline-block; max-width: 120px; vertical-align: middle; overflow: hidden; text-overflow: ellipsis; line-height: 24px; }
+@media (min-width: 901px) and (max-width: 1600px) {
+  #dws-zoom-range { display: none; }          /* 줌은 Ctrl/Alt+휠·Ctrl+0/1·맞춤 버튼으로 */
+  .dws-save-status { max-width: 96px; }
+  .dws-appbar-title-prefix { display: none; } /* "도면 마법사 · " 를 빼고 주문 번호부터 */
+}
+@media (min-width: 901px) and (max-width: 1440px) {
+  .dws-appbar-exit { padding: 8px; min-width: 40px; justify-content: center; }
+  .dws-appbar-exit .dws-appbar-exit-label { display: none; }
+}
+@media (min-width: 901px) and (max-width: 1366px) {
+  .dws-appbar { column-gap: 8px; }
+  .dws-appbar-right { gap: 4px; }
+  .dws-appbar-right .dws-btn { padding: 6px 8px; }
+  .dws-save-status { max-width: 84px; padding: 0 8px; }
+}
+@media (min-width: 901px) and (max-width: 1300px) {
+  #dws-zoom-label { display: none; }   /* 배율 숫자는 Ctrl+1(100%)·맞춤으로 대신 — 주문 번호 자리 확보 */
+}
+
 .dws-restore-banner {
   display: flex;
   align-items: center;
