@@ -88,7 +88,11 @@
                     next.classList.contains('measurement-detail-row') &&
                     (next.dataset.orderId === orderId || next.id === 'detail-' + orderId)
                         ? next : null;
-                return { main: tr, detail: detailRow };
+                // 동행 전달 줄(tr.meas-sd-row)은 기준 실측 행에 붙어 다닌다 — 빼면 정렬 후 표 맨 위에 혼자 남는다.
+                const sdRows = isManual || !orderId ? [] : Array.from(
+                    tbody.querySelectorAll('tr.meas-sd-row[data-ref-order-id="' + orderId + '"]')
+                );
+                return { main: tr, detail: detailRow, sdRows: sdRows };
             });
             pairs.sort(function (a, b) {
                 var sA = managerSortOrder(a.main);
@@ -173,6 +177,7 @@
             pairs.forEach(function (p) {
                 tbody.appendChild(p.main);
                 if (p.detail) tbody.appendChild(p.detail);
+                (p.sdRows || []).forEach(function (sd) { tbody.appendChild(sd); });
             });
 
             const managerIndex = buildManagerIndex(mainRows);

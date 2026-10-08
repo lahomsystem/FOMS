@@ -35,6 +35,11 @@
             el = n;
             n = el.nextElementSibling;
         }
+        // 동행 전달 줄(같은 기준 실측)은 실측 블록의 일부 — 수기 행은 그 아래에 붙인다.
+        while (n && n.classList.contains('meas-sd-row') && String(n.dataset.refOrderId) === oid) {
+            el = n;
+            n = el.nextElementSibling;
+        }
         while (n && n.classList.contains('measurement-row-manual') && String(n.dataset.afterAnchorOrderId) === oid) {
             el = n;
             n = el.nextElementSibling;
