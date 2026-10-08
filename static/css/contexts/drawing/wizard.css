@@ -420,13 +420,13 @@ html, body {
 /* ---- 앱바 반응형 컴팩트 (겹침 방지 보조 단계) -----------------------------
    구조적 보장은 grid minmax(max-content,1fr)가 담당. 아래는 좁은 폭에서
    세그먼트 중앙 정렬을 유지하기 위한 밀도 축소. */
-/* 1단계(≤1500px): 세그 라벨 숨김 — 아이콘만(각 버튼 title 툴팁 유지) */
-@media (max-width: 1500px) {
+/* 1단계(≤1700px): 세그 라벨 숨김 — 아이콘만(각 버튼 title 툴팁 유지) */
+@media (max-width: 1700px) {
   .dws-seg-label { display: none; }
   .dws-seg-btn { padding: 6px 10px; }
 }
-/* 2단계(≤1340px): 우측 컨트롤 밀도 축소 */
-@media (max-width: 1340px) {
+/* 2단계(≤1600px): 우측 컨트롤 밀도 축소 — 저장 상태 칩·도움말(?) 버튼이 늘어 1440px 에서 제목이 눌리던 것 방지 */
+@media (max-width: 1600px) {
   .dws-appbar { padding: 0 12px; column-gap: 10px; }
   .dws-appbar-right { gap: 6px; }
   .dws-appbar-right .dws-btn { padding: 7px 11px; }

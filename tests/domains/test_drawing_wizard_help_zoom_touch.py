@@ -62,3 +62,38 @@ def test_coarse_pointer_touch_targets():
 def test_no_inline_style_in_help():
     body = HTML.split('id="dws-help"', 1)[1].split("토스트", 1)[0]
     assert "style=" not in body
+
+
+def test_dialogs_and_help_overlay_are_not_nested():
+    """병합 사고 회귀: 닫는 태그가 빠져 도움말 오버레이가 자동 채움 <dialog> 안에 갇히면 화면에 안 보인다."""
+    import re
+    from html.parser import HTMLParser
+    src = re.sub(r"\{\{.*?\}\}|\{%.*?%\}|\{#.*?#\}", "", Path("templates/drawing/wizard.html").read_text(encoding="utf-8"), flags=re.S)
+    void = {"br", "img", "input", "meta", "link", "hr", "source", "area", "base", "col", "embed", "param", "track", "wbr"}
+
+    class P(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.stack, self.errors, self.nested = [], [], []
+
+        def handle_starttag(self, tag, attrs):
+            if tag in void:
+                return
+            el_id = dict(attrs).get("id")
+            if (tag == "dialog" or el_id == "dws-help") and any(t == "dialog" for t, _ in self.stack):
+                self.nested.append(el_id)
+            self.stack.append((tag, el_id))
+
+        def handle_endtag(self, tag):
+            if tag in void:
+                return
+            if self.stack and self.stack[-1][0] == tag:
+                self.stack.pop()
+            else:
+                self.errors.append((tag, self.getpos()[0]))
+
+    p = P()
+    p.feed(src)
+    assert not p.errors, p.errors
+    assert not p.stack, p.stack
+    assert not p.nested, p.nested
