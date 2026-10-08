@@ -119,3 +119,9 @@ def test_put_rejects_non_boolean_lock_flip(client):
 def test_text_color_swatches_include_yellow_and_white():
     tpl = Path("templates/drawing/wizard.html").read_text(encoding="utf-8")
     assert 'data-color="#ffd43b"' in tpl and 'data-color="#ffffff"' in tpl
+
+
+def test_shape_and_pen_color_swatches_include_yellow_and_white():
+    tpl = Path("templates/drawing/wizard.html").read_text(encoding="utf-8")
+    for attr in ("data-shape-color", "data-pen-color"):
+        assert f'{attr}="#ffd43b"' in tpl and f'{attr}="#ffffff"' in tpl
