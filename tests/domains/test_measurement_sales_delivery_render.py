@@ -26,7 +26,7 @@ from models import Order, OrderScheduleDate, User
 _ROOT = Path(__file__).resolve().parents[2]
 _CSS_ASSET = "css/contexts/measurement/measurement-sales-delivery.css"
 _JS_ASSET = "js/measurement/measurement-sales-delivery.js"
-_ASSET_PIN = "20260909a"
+_ASSET_PIN = "20261008a"
 
 
 def _login_erp_admin(client, username="measurement_sd_admin"):
@@ -293,3 +293,35 @@ def test_touched_asset_cache_pins_are_in_sync():
             for pin in pattern.findall(path.read_text(encoding="utf-8", errors="ignore"))
         }
         assert pins == {_ASSET_PIN}, f"{asset}: 핀 불일치/부재 {sorted(pins)}"
+
+
+def test_mobile_measurement_tab_shows_delivery_badge_card_and_date_chip(client, monkeypatch):
+    """모바일 실측 탭도 동행 전달을 보인다: 한눈 줄 배지·시트 카드([전달 완료] 훅)·날짜 칩 숫자.
+
+    음성 대조군: 같은 날 전달이 없는 실측 행에는 배지·카드가 붙지 않는다.
+    """
+    from tests.domains.test_measurement_mobile_glance import _glance, _prepare
+
+    today = _prepare(client, monkeypatch, username="meas_sd_mobile_admin")
+    with_delivery = _create_measurement_order(customer_name="모바일오세영", on_date=today)
+    control = _create_measurement_order(customer_name="모바일신동혁", on_date=today)
+    delivery = _create_delivery_order(customer_name="모바일한지훈", as_content="후드도어 594*612")
+    _assign(delivery, with_delivery.id, ref_date=today)
+
+    body = _fetch_dashboard(client, today)
+
+    glance = _glance(body)
+    rows = dict(re.findall(r'data-meas-glance-row="(\d+)"(.*?)</a>', glance, re.S))
+    assert 'data-meas-sd-count="1"' in rows[str(with_delivery.id)]
+    assert "data-meas-sd-count" not in rows[str(control.id)]
+
+    card_start = body.index(f'id="meas-card-{with_delivery.id}"')
+    card = body[card_start:body.index(f'id="meas-card-{control.id}"')] if body.index(
+        f'id="meas-card-{control.id}"') > card_start else body[card_start:card_start + 20000]
+    assert f'data-meas-sd-deliver="{delivery.id}"' in card
+    assert "후드도어 594*612" in card
+    assert body.count(f'data-meas-sd-deliver="{delivery.id}"') >= 1
+
+    chips = re.findall(r'data-measurement-date-chip="([^"]+)"(.*?)</a>', body, re.S)
+    chip_today = [html for date, html in chips if date == today]
+    assert chip_today and 'data-meas-sd-panel-count="1"' in chip_today[0]

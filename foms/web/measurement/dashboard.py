@@ -506,6 +506,8 @@ def erp_measurement_dashboard():
             _row['channel_source'] = getattr(_o, 'channel_source', None)
             # 현장 메모 5종(주소·연락처·실측 특이사항·비고·네이버 고객 요청) — 카드·목록 알약이 읽는다.
             _row.update(build_site_memo(_o))
+            # 동행 전달(AS 영업/택배 → 이 실측에 태운 건): 위에서 붙인 역방향 맵 결과 재사용(쿼리 0).
+            _row['sales_delivery_items'] = getattr(_o, 'sales_delivery_items', None) or []
             _row['measurement_visit_done'] = bool(_visit_date) and is_visit_marked(
                 _o.structured_data, _visit_date
             )

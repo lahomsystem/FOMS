@@ -1,0 +1,35 @@
+{# 동행 전달 카드(스펙 §6.2) — PC 상세행과 모바일 실측 카드가 같은 마크업·같은 [전달 완료] 훅
+   (measurement-sales-delivery.js 의 [data-meas-sd-deliver])을 쓰도록 한 곳에 둔다. #}
+{% macro render_sales_delivery_cards(_sd_detail_items) %}
+{% if _sd_detail_items %}
+<div class="meas-sd-cards" data-meas-sd-cards>
+  {% for sd_item in _sd_detail_items %}
+  <div class="meas-sd-card" data-meas-sd-order-id="{{ sd_item.order_id }}">
+    <div class="meas-sd-card__body">
+      <div class="meas-sd-card__head">
+        <span class="meas-sd-card__tag">전달 배정</span>
+        <span class="meas-sd-card__title">AS #{{ sd_item.order_id }} · {{ sd_item.customer_name or '-' }}</span>
+        {% if sd_item.state == 'delivered' %}
+        <span class="meas-sd-state meas-sd-state--delivered">전달완료</span>
+        {% else %}
+        <span class="meas-sd-state meas-sd-state--assigned">배정</span>
+        {% endif %}
+      </div>
+      <div class="meas-sd-card__item">{{ sd_item.item_text or '전달 품목 미기재 (AS 내용 확인 필요)' }}</div>
+      <div class="meas-sd-card__addr"><i class="fas fa-location-dot" aria-hidden="true"></i>{{ sd_item.address or '-' }}</div>
+      <div class="meas-sd-card__meta">{{ sd_item.assigned_by or '알 수 없음' }} 배정{% if sd_item.assigned_at %} · {{ sd_item.assigned_at[:10] }}{% endif %}</div>
+    </div>
+    <div class="meas-sd-card__actions">
+      <span class="meas-sd-card__msg" data-meas-sd-msg role="status"></span>
+      {% if sd_item.state == 'delivered' %}
+      <span class="meas-sd-done" data-meas-sd-done>전달 완료됨</span>
+      {% else %}
+      <button type="button" class="erp-pro-btn erp-pro-btn--primary meas-sd-deliver-btn"
+        data-meas-sd-deliver="{{ sd_item.order_id }}">전달 완료</button>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endmacro %}
