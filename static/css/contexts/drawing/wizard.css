@@ -1656,6 +1656,10 @@ html, body {
 .dws-mt-btn.dws-active { background: #0071e3; border-color: #0071e3; color: #fff; }
 .dws-mt-del { color: #ff8a80; }
 .dws-mt-del:hover { background: rgba(255, 69, 58, 0.22); }
+/* 잠금 / 스포이트(미니 툴바) */
+.dws-mt-btn.dws-mt-lock.dws-active { background: #f59f00; border-color: #f59f00; color: #1d1d1f; }
+.dws-mt-btn.dws-mt-eyedrop.dws-active { background: #0071e3; border-color: #0071e3; color: #fff; }
+.dws-eyedrop-armed, .dws-eyedrop-armed canvas { cursor: crosshair; }
 
 .dws-swatch {
   width: 20px;
