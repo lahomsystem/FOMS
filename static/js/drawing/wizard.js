@@ -1685,6 +1685,7 @@
     dwsClip.objs.forEach(function (src) {
       var o = JSON.parse(JSON.stringify(src));
       o.id = rid('o-');
+      delete o.locked;   // 붙여넣은 사본은 잠금 없이 시작
       moveObjectBy(o, off, off);
       currentSheet().objects.push(o);
       ids.push(o.id);
@@ -1755,6 +1756,7 @@
     src.forEach(function (s) {
       var o = JSON.parse(JSON.stringify(s));
       o.id = rid('o-');
+      delete o.locked;   // 복제본은 잠금 없이 시작
       moveObjectBy(o, 10, 10);
       objs.push(o);
       ids.push(o.id);
@@ -2284,7 +2286,7 @@
       var node = annoNodeFromHit(hit);
       if (!node) { return; }
       var id = node.getAttr('objId');
-      if (!id) { return; }
+      if (!id || isLockedNode(node)) { return; }   // 잠긴 객체는 지우개로도 지우지 않는다
       if (!recorded) { recordUndo(); recorded = true; }   // 첫 삭제 직전 스냅샷(제스처당 1회 undo)
       spliceObject(id);
       node.destroy();
