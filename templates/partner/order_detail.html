@@ -18,7 +18,14 @@
     <p class="pp-help">고객과 확인한 뒤 눌러 주세요. 누르면 이 도면대로 제작을 시작합니다(누른 사람·시각·도면이 기록됩니다).</p>
     <p class="pp-status" id="ppStatus" role="status" aria-live="polite"></p>
     <button type="button" class="pp-btn pp-btn--primary" data-pp-approve-url="{{ url_for('partner_api.approve_drawing', order_id=order.id) }}">이대로 만들어 주세요</button>
-    <p class="pp-help">고칠 곳이 있으면 저희 담당자에게 알려 주세요.</p>
+    {% endif %}
+    {% if can_revise %}
+    <form class="pp-form pp-form--sub" data-pp-post-url="{{ url_for('partner_api.request_revision', order_id=order.id) }}" data-pp-confirm="도면팀에 수정 요청을 보낼까요?" novalidate>
+        <label class="pp-field">고칠 곳<textarea name="note" rows="3" maxlength="2000" required></textarea></label>
+        <label class="pp-field">참고 사진(선택, 10장까지)<input type="file" name="photos" multiple accept="image/*"></label>
+        <p class="pp-status" data-pp-status role="status" aria-live="polite"></p>
+        <button type="submit" class="pp-btn">수정 요청 보내기</button>
+    </form>
     {% endif %}
 </section>
 {% endif %}
@@ -63,5 +70,20 @@
     <p class="pp-help">도면 작업이 시작되어 파일은 더 보낼 수 없습니다. 바꿀 내용은 저희 담당자에게 알려 주세요.</p>
     {% endif %}
 </section>
+{% if can_as or as_open %}
+<section class="pp-section">
+    <h2 class="pp-subtitle">AS 접수</h2>
+    {% if as_open %}
+    <p class="pp-help">진행 중인 AS 가 있습니다. 추가 내용은 저희 담당자에게 알려 주세요.</p>
+    {% else %}
+    <form class="pp-form" data-pp-post-url="{{ url_for('partner_api.register_as', order_id=order.id) }}" data-pp-confirm="AS 를 접수할까요?" novalidate>
+        <label class="pp-field">AS 내용<textarea name="content" rows="3" maxlength="2000" required></textarea></label>
+        <label class="pp-field">사진(선택, 10장까지)<input type="file" name="photos" multiple accept="image/*"></label>
+        <p class="pp-status" data-pp-status role="status" aria-live="polite"></p>
+        <button type="submit" class="pp-btn pp-btn--primary">AS 접수하기</button>
+    </form>
+    {% endif %}
+</section>
+{% endif %}
 <p><a class="pp-btn pp-btn--ghost" href="{{ url_for('partner_portal.home') }}">목록으로</a></p>
 {% endblock %}

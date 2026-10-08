@@ -8,11 +8,11 @@
     "log_access"
   ],
   "baselines": {
-    "total": 225,
+    "total": 227,
     "unaudited": 0
   },
   "classification_counts": {
-    "AUDITED": 195,
+    "AUDITED": 197,
     "EXEMPT": 30,
     "UNAUDITED": 0
   },
@@ -1122,7 +1122,7 @@
     {
       "path": "foms/api/partner/__init__.py",
       "endpoint": "approve_drawing",
-      "lineno": 141,
+      "lineno": 148,
       "methods": [
         "POST"
       ],
@@ -1131,7 +1131,25 @@
     {
       "path": "foms/api/partner/__init__.py",
       "endpoint": "create_order",
-      "lineno": 63,
+      "lineno": 70,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/partner/__init__.py",
+      "endpoint": "register_as",
+      "lineno": 241,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/partner/__init__.py",
+      "endpoint": "request_revision",
+      "lineno": 201,
       "methods": [
         "POST"
       ],
@@ -1140,7 +1158,7 @@
     {
       "path": "foms/api/partner/__init__.py",
       "endpoint": "upload_file",
-      "lineno": 79,
+      "lineno": 86,
       "methods": [
         "POST"
       ],

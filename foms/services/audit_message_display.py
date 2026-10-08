@@ -307,6 +307,8 @@ ACTION_LABELS: dict[str, str] = {
     # --- 외부 협력사(PARTNER-02) ---
     "PARTNER_ORDER_CREATED": "협력사 주문 등록",
     "PARTNER_DRAWING_APPROVED": "협력사 도면 확인(이대로 제작)",
+    "PARTNER_DRAWING_REVISION_REQUESTED": "협력사 도면 수정 요청",
+    "PARTNER_AS_REGISTERED": "협력사 AS 접수",
     "PARTNER_ORG_CREATED": "협력사 추가",
     "PARTNER_ORG_OWNER_CHANGED": "협력사 담당 변경",
     "PARTNER_ORG_TOGGLED": "협력사 켜기/끄기",
