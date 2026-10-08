@@ -2019,6 +2019,7 @@
   // 로드되지 않는 대시보드에서 동작하므로 채널톡 pushManual 선례대로 자체 구현한다).
   var ALIMTALK_REASONS = {
     order_not_found: "주문을 찾을 수 없습니다",
+    partner_order: "협력사 주문 — 고객 연락은 협력사가 합니다",
     not_configured: "알림톡 서버 설정이 없습니다",
     not_eligible: "실측 일정이 확정되지 않았습니다",
     no_valid_phone: "고객 휴대폰 번호가 올바르지 않습니다",
@@ -2164,6 +2165,7 @@
   // 토큰 원문은 발급 응답 지역변수에만 존재한다(§1 해시-온리 — 저장·재표시 불가).
   var SHARE_REASONS = {
     order_not_found: "주문을 찾을 수 없습니다",
+    partner_order: "협력사 주문 — 고객 연락은 협력사가 합니다",
     token_mismatch: "링크 정보가 맞지 않습니다 — 다시 발급해 주세요",
     share_expired: "만료된 링크입니다 — 다시 발급해 주세요",
     share_revoked: "회수된 링크입니다 — 다시 발급해 주세요",

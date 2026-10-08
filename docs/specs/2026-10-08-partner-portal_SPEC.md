@@ -1,4 +1,4 @@
-# 외부 협력사 주문 접수 — 협력사 전용 화면 SPEC (승인 2026-10-08 · 1단계 구현)
+# 외부 협력사 주문 접수 — 협력사 전용 화면 SPEC (승인 2026-10-08 · 1·2단계 구현)
 
 작성 2026-10-08. 등급: 코어 변경(DB · Auth) — Spec → 승인 → 구현.
 
@@ -193,3 +193,28 @@
 - 백그라운드 작업(worker · cron)이 만드는 알림 · 메시지는 요청 문지기를 거치지 않는다 → 6.1 의 주문 단위 판정과 4.3 의 수신자 조건이 막아야 한다.
 - 발주사 이름을 내부 직원이 손으로 고치면 `orderer.name` 과 `partner_org_id` 가 어긋날 수 있다 → 판정은 항상 `partner_org_id` 로만 하고, 협력사 주문의 발주사 칸은 내부 화면에서 잠근다.
 - 개인정보: 협력사 고객의 개인정보를 우리가 받는다. 협력사와 개인정보 처리 관련 계약이 필요하다(법률 확인은 사용자 몫).
+
+## 12. 2단계 구현 기록 (2026-10-08)
+
+- **우리 쪽 담당 직원**: `partner_orgs.owner_user_id`(migration `partner_01`). 주문은 반드시 우리 영업 직원이 담당이어야 한다
+  (`create_order` 의 SALES 배정 행이 권한 판정에 쓰인다). 담당이 없는 협력사는 주문 등록을 400 으로 막는다.
+  `users.partner_org_id` 와 서로 가리키는 순환이라 FK 는 `use_alter`.
+- **협력사 관리**(`/admin/partners`, ADMIN): 협력사 만들기 · 담당 바꾸기 · 켜고 끄기, 계정 만들기 · 끄기 · 비밀번호 바꾸기.
+  일반 사용자 수정 화면은 협력사 계정을 열면 여기로 보낸다.
+- **협력사 화면**(`/partner`): 목록 · 새 주문 등록 · 상세. 단독 레이아웃(`partner/layout.html`, CSRF 배선 포함).
+  문지기는 이제 막힌 화면 대신 `/partner` 로 보낸다(API · 쓰기는 403 JSON 그대로).
+- **주문 등록**(`POST /api/partner/orders`): MEASURE · 주관 CS(퀘스트 규칙에 협력사 분기 — `erp_policy_quests`·`erp_quest_display`),
+  `measurement_completed`, 원문 사본 `structured_data.partner_intake`. 실측일은 `schedule.measurement` 에 넣지 않는다(우리 실측 일정표에 안 섞이게).
+- **파일**(`POST /api/partner/orders/<id>/files`): 기존 업로드 API 는 주문 범위 판정이 없어 열지 않고 전용 API 를 만들었다.
+  사진 → `measurement` 분류 · `orders/<id>/partner_measurement/`, 초안 도면 → `drawing` 분류 · `orders/<id>/partner_draft/`.
+  새 분류를 만들지 않은 이유: 직원 화면 JS 7곳이 분류 4종을 손으로 나열한다. 도면이 시작되면(DRAWING 부터) 409.
+  이 두 폴더의 파일은 ADMIN 만 지운다(`is_partner_original_key`).
+- **고객 메시지 차단**: `kakao_alimtalk._sd_ineligible_reason`·`_ineligible_reason`(자동 · 워커 · 수동 · 초안 전부),
+  공유 링크 문자 · 알림톡 409, 공유 링크 만들기는 고객 번호 · 문자 본문을 비워 준다. 사유 코드 `partner_order`(재시도 · 이력 대상 아님).
+- **직원 화면 표식**: 네이버 마크 8자리 바로 뒤에 "협력사 · 이름"(`partner_mark` 매크로, 추가 쿼리 없음 — 발주사 칸 값).
+
+남은 것(3단계 이후):
+- 실측 화면의 "협력사 접수" 묶음(지금은 표식만 붙는다).
+- 내부 화면에서 협력사 주문의 발주사 칸 잠그기(판정은 `partner_org_id` 라 권한에는 영향 없음).
+- 협력사 도면 확인(→ 생산) · 시공 날짜 고르기 · AS 접수 · 협력사 로고 · 정산 축.
+

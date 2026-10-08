@@ -129,6 +129,11 @@ POLICY_REGISTRY: dict[str, Policy] = {
                         description="ADMIN 사용자 CRUD/impersonation — ADMIN 전용."),
     "ADMIN_OPS": _p("ADMIN_OPS", teams=(), manager_ok=False,
                     description="ops approval review / admin menu — ADMIN 전용."),
+    # PARTNER-02: 협력사 화면 쓰기(주문 등록·파일). 협력사 계정은 evaluate_policy 1-a 에서
+    # PARTNER_ALLOWED_POLICIES 로 통과하고, 라우트의 partner_required 가 협력사만 남긴다.
+    # 우리 직원은 ADMIN 만 엔진을 지나지만 라우트에서 403(협력사 전용)이다.
+    "PARTNER_PORTAL": _p("PARTNER_PORTAL", teams=(), manager_ok=False,
+                         description="외부 협력사 화면 쓰기 — 협력사 계정 전용(partner_required)."),
 
     # --- 금융 (§2.1 line 153, P0-3) -----------------------------------------
     "FINANCE_MUTATION": _p("FINANCE_MUTATION", teams=("CS", "SALES", "ACCOUNTING"),

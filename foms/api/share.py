@@ -29,6 +29,7 @@ from foms.services import kakao_alimtalk as ka
 from foms.services import order_share as share_service
 from foms.services import order_share_history as share_history
 from foms.services.audit_message_display import describe_order_action
+from foms.services.auth.partner_scope import is_partner_order
 from foms.services.audit_writer import record_file_access
 from foms.services.datetime_kst import (format_datetime_kst, get_today_kst,
                                         now_utc_naive)
@@ -863,6 +864,7 @@ def api_share_create(order_id: int):
         action='SHARE_LINK_CREATED', target_type='order', target_id=int(order.id),
         detail={'share_id': row.id, 'kind': kind, 'expires_at': expires_iso, **context},
     )
+    partner_order = is_partner_order(order)
     return _envelope({
         'share_id': row.id,
         'kind': kind,
@@ -871,8 +873,9 @@ def api_share_create(order_id: int):
         'expires_at': expires_iso,
         # 영업 본인 휴대폰 문자앱으로 바로 보내기(모바일)용 — 서버가 조립한 본문과
         # 정규화된 수신번호. 화면값 조립을 막아 알림톡 문구와 어긋나지 않게 한다.
-        'to_phone': ka.extract_valid_phone(order.structured_data or {}) or '',
-        'sms_text': share_link_message(order, kind=kind, url=url, brand=brand),
+        # 협력사 주문은 고객 번호·문자 본문을 내려주지 않는다(직원 휴대폰 문자앱 경로도 닫는다).
+        'to_phone': '' if partner_order else (ka.extract_valid_phone(order.structured_data or {}) or ''),
+        'sms_text': '' if partner_order else share_link_message(order, kind=kind, url=url, brand=brand),
     }, None)
 
 
@@ -1202,6 +1205,9 @@ def api_share_send_sms(share_id: int):
     )
     if order is None:
         return _envelope(None, 'order_not_found', 404)
+    # PARTNER-02: 협력사 주문 고객에게는 우리가 보내지 않는다(협력사가 따로 연락 — 2026-10-08 결정).
+    if is_partner_order(order):
+        return _envelope(None, ka.PARTNER_ORDER_REASON, 409)
 
     # 보내기 창 '번호 바꾸기'(Q5-②): 본문 to_phone 은 이번 발송에만 쓰고 원문은 저장하지 않는다.
     to_phone, phone_override, phone_err = resolve_send_phone(order.structured_data, body)
@@ -1519,6 +1525,9 @@ def api_share_send_alimtalk(share_id: int):
     )
     if order is None:
         return _envelope(None, 'order_not_found', 404)
+    # PARTNER-02: 협력사 주문 고객에게는 우리가 보내지 않는다(협력사가 따로 연락 — 2026-10-08 결정).
+    if is_partner_order(order):
+        return _envelope(None, ka.PARTNER_ORDER_REASON, 409)
 
     # 보내기 창 '번호 바꾸기'(Q5-②): 본문 to_phone 은 이번 발송에만 쓰고 원문은 저장하지 않는다.
     to_phone, phone_override, phone_err = resolve_send_phone(order.structured_data, body)

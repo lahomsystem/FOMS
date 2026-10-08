@@ -19,6 +19,7 @@
     // 서버 자격/오류 코드 → 사용자 문구. tablet-measure-form.js 의 동일 맵과 미러 관계다.
     const REASON_LABELS = {
         order_not_found: '주문을 찾을 수 없습니다',
+        partner_order: '협력사 주문 — 고객 연락은 협력사가 합니다',
         not_configured: '알림톡 서버 설정이 없습니다',
         not_eligible: '실측 일정이 확정되지 않았습니다',
         no_valid_phone: '고객 휴대폰 번호가 올바르지 않습니다',
