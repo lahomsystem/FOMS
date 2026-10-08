@@ -114,3 +114,8 @@ def test_put_rejects_non_boolean_lock_flip(client):
         obj.update(bad)
         resp = _put_state(client, order.id, [obj])
         assert resp.status_code == 400, bad
+
+
+def test_text_color_swatches_include_yellow_and_white():
+    tpl = Path("templates/drawing/wizard.html").read_text(encoding="utf-8")
+    assert 'data-color="#ffd43b"' in tpl and 'data-color="#ffffff"' in tpl
