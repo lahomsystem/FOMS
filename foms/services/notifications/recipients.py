@@ -31,6 +31,10 @@ from models import (
     User,
 )
 
+# PARTNER-01: 넓은 경로(전체·role·팀·담당자 이름)는 우리 직원만 받는다. 외부 협력사 계정은
+# target_user_id 로 직접 지정한 알림만 받는다(이름이 우연히 같아도 내부 알림이 새지 않게).
+INTERNAL_USERS_ONLY = User.partner_org_id.is_(None)
+
 # 우선순위: 더 구체적인 경로가 낮은 우선순위를 덮어쓴다.
 _SOURCE_ORDER = (
     NotificationRecipientSource.TARGET_ALL,
@@ -81,13 +85,13 @@ def resolve_recipients_for_notification(db, notification) -> List[Tuple[int, str
 
     ttype = (notification.target_type or '').strip().upper()
     if ttype == 'ALL':
-        for (uid,) in db.query(User.id).filter(User.is_active == True).yield_per(500):  # noqa: E712
+        for (uid,) in db.query(User.id).filter(User.is_active == True, INTERNAL_USERS_ONLY).yield_per(500):  # noqa: E712
             source_by_user[int(uid)] = NotificationRecipientSource.TARGET_ALL
 
     role = (notification.target_role or '').strip().upper()
     if role:
         rows = db.query(User.id).filter(
-            func.upper(User.role) == role, User.is_active == True  # noqa: E712
+            func.upper(User.role) == role, User.is_active == True, INTERNAL_USERS_ONLY  # noqa: E712
         ).yield_per(500)
         for (uid,) in rows:
             source_by_user[int(uid)] = NotificationRecipientSource.TARGET_ROLE
@@ -97,6 +101,7 @@ def resolve_recipients_for_notification(db, notification) -> List[Tuple[int, str
         rows = db.query(User.id).filter(
             func.upper(User.team).in_(expand_team_codes(team)),
             User.is_active == True,  # noqa: E712
+            INTERNAL_USERS_ONLY,
         ).yield_per(500)
         for (uid,) in rows:
             source_by_user[int(uid)] = NotificationRecipientSource.TARGET_TEAM
@@ -104,7 +109,7 @@ def resolve_recipients_for_notification(db, notification) -> List[Tuple[int, str
     manager = (notification.target_manager_name or '').strip()
     if manager:
         rows = db.query(User.id).filter(
-            User.name == manager, User.is_active == True  # noqa: E712
+            User.name == manager, User.is_active == True, INTERNAL_USERS_ONLY  # noqa: E712
         ).yield_per(500)
         for (uid,) in rows:
             source_by_user[int(uid)] = NotificationRecipientSource.TARGET_MANAGER_NAME

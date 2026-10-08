@@ -400,7 +400,7 @@
     },
     {
       "path": "foms/api/channel/socketio_handlers.py",
-      "lineno": 136,
+      "lineno": 148,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "channel",
@@ -409,7 +409,7 @@
     },
     {
       "path": "foms/api/channel/socketio_handlers.py",
-      "lineno": 177,
+      "lineno": 189,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "channel",
