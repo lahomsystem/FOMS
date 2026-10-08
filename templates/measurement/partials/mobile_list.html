@@ -1,6 +1,7 @@
 {% from 'measurement/partials/sales_delivery_cards.html' import render_sales_delivery_cards %}
 {% from 'partials/shared/erp_mobile_queue_card_v2.html' import render_queue_card_v2 %}
 {% from 'partials/shared/channel_mark.html' import channel_mark %}
+{% from 'partials/shared/channel_mark.html' import partner_mark %}
 
 {% set _mrows = mobile_queue_rows or [] %}
 {# 예전 요약 줄(foms-visit-summary: 실측 n곳·완료·남은)은 통합 머리 숫자와 겹쳐 뺐다(목업 기준, 2026-09-23). #}
@@ -74,7 +75,7 @@
         <div class="foms-meas-glance__row{% if o.measurement_visit_done %} is-done{% endif %}{% if o.same_day_mark %} is-same-day{% endif %}" data-meas-glance-row="{{ o.id }}"{% if o.measurement_completed %} data-meas-glance-handed{% endif %}>
           <button type="button" class="foms-meas-glance__check" data-meas-visit-toggle="{{ o.id }}" data-meas-visit-date="{{ _gv_date }}" aria-pressed="{{ 'true' if o.measurement_visit_done else 'false' }}" aria-label="{{ o.customer_name or '고객' }} 실측 체크"{% if not _gv_can %} disabled{% endif %}><i class="fas fa-check" aria-hidden="true"></i></button>
           <a class="foms-meas-glance__go{% if _pcn %} has-pc{% endif %}" href="#meas-card-{{ o.id }}" data-meas-glance-go="{{ o.id }}" aria-haspopup="dialog" aria-controls="meas-sheet">
-            <span class="foms-meas-glance__name">{{ o.customer_name or '-' }} {{ channel_mark(o.channel_source|default(none, true)) }}{% if o.same_day_mark %}<span class="foms-meas-sameday" data-meas-same-day><i class="fas fa-bolt" aria-hidden="true"></i> 당일<span class="visually-hidden"> 긴급 추가</span></span>{% endif %}{% if o.measurement_completed %}<span class="foms-meas-glance__handed"><i class="fas fa-circle-check" aria-hidden="true"></i> 실측 완료</span>{% endif %}</span>
+            <span class="foms-meas-glance__name">{{ o.customer_name or '-' }} {{ channel_mark(o.channel_source|default(none, true)) }} {{ partner_mark(o.partner_name|default(none, true)) }}{% if o.same_day_mark %}<span class="foms-meas-sameday" data-meas-same-day><i class="fas fa-bolt" aria-hidden="true"></i> 당일<span class="visually-hidden"> 긴급 추가</span></span>{% endif %}{% if o.measurement_completed %}<span class="foms-meas-glance__handed"><i class="fas fa-circle-check" aria-hidden="true"></i> 실측 완료</span>{% endif %}</span>
             {% if o.address and o.address != '-' %}<span class="foms-meas-glance__addr">{{ o.address }}</span>{% endif %}
             {% if o.product_subtitle %}<span class="foms-meas-glance__prod">{{ o.product_subtitle }}</span>{% endif %}
             {% if o.sales_delivery_items %}<span class="meas-sd-badge" data-meas-sd-count="{{ o.sales_delivery_items|length }}"><i class="fas fa-box" aria-hidden="true"></i> AS 전달 {{ o.sales_delivery_items|length }}</span>{% endif %}

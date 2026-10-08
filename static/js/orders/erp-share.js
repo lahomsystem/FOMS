@@ -25,6 +25,7 @@
     var KIND_LABELS = { drawing: '도면', estimate: '견적서', bundle: '도면·계약서' };
     var ERROR_LABELS = {
         order_not_found: '주문을 찾을 수 없습니다',
+        partner_order: '협력사 주문 — 고객 연락은 협력사가 합니다',
         unknown_kind: '알 수 없는 공유 종류입니다',
         share_not_found: '공유 링크를 찾을 수 없습니다',
         token_mismatch: '링크 정보가 맞지 않습니다 — 회수 후 다시 발급해 주세요',

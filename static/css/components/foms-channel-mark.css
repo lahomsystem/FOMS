@@ -24,3 +24,21 @@
   width: 100%;
   height: 100%;
 }
+
+/* PARTNER-02: 외부 협력사 주문 표식 — 고객 이름 뒤 글자 칩. 간격은 감싸는 줄의 gap/공백이 만든다. */
+.foms-partner-mark {
+  display: inline-flex;
+  align-items: center;
+  align-self: center;
+  vertical-align: middle;
+  flex-shrink: 0;
+  padding: 0 0.45em;
+  border-radius: 999px;
+  border: 1px solid var(--foms-border-default, #c9d3e8);
+  background: var(--foms-surface-accent, #eef3ff);
+  color: var(--foms-text-link, #1d3f99);
+  font-size: 0.75em;
+  font-weight: 600;
+  line-height: 1.6;
+  white-space: nowrap;
+}

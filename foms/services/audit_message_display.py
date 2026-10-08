@@ -304,6 +304,14 @@ ACTION_LABELS: dict[str, str] = {
     "USER_PASSWORD_RESET": "비밀번호 재설정",
     "USER_BOOTSTRAP": "최초 관리자 생성",
     "RESET_REQUEST_HANDLE": "재설정 요청 처리",
+    # --- 외부 협력사(PARTNER-02) ---
+    "PARTNER_ORDER_CREATED": "협력사 주문 등록",
+    "PARTNER_ORG_CREATED": "협력사 추가",
+    "PARTNER_ORG_OWNER_CHANGED": "협력사 담당 변경",
+    "PARTNER_ORG_TOGGLED": "협력사 켜기/끄기",
+    "PARTNER_USER_CREATED": "협력사 계정 추가",
+    "PARTNER_USER_TOGGLED": "협력사 계정 켜기/끄기",
+    "PARTNER_USER_PASSWORD_RESET": "협력사 계정 비밀번호 변경",
     # --- 차단(거부 기록) ---
     "ACCESS_DENIED": "권한 거부",
     "CSRF_BLOCKED": "CSRF 차단",

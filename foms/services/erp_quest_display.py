@@ -17,7 +17,7 @@ from foms.services.erp_policy import (
     get_quest_template_for_stage,
     get_required_approval_teams_for_stage,
 )
-from foms.services.orders.erp_policy_quests import resolve_required_approval_teams
+from foms.services.orders.erp_policy_quests import cs_owns_orderer_stages, resolve_required_approval_teams
 from foms.services.orders.order_mutation_policy import team_has_capability
 from foms.services.orders.quest_approve_authz import display_team_axes
 from foms.services.orders.quest_approve_cta import (
@@ -132,8 +132,7 @@ def _apply_lahom_cs_override(current_quest: dict[str, Any], sd: dict[str, Any], 
     지금 그렇게 하면 영업 승인 기록이 화면에서 사라진다.
     """
     if stage in ("실측", "MEASURE", "고객컨펌", "CONFIRM"):
-        orderer_name = (((sd.get("parties") or {}).get("orderer") or {}).get("name") or "").strip()
-        if orderer_name and "라홈" in orderer_name:
+        if cs_owns_orderer_stages(sd):
             current_quest["owner_team"] = "CS"
     return list(resolve_required_approval_teams(stage, current_quest))
 

@@ -191,6 +191,14 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
     app.register_blueprint(ops_worker_heartbeat_bp)
     # OPS-ROUTE-01: debug_bp 미등록 → deployed 앱에 /debug-db 라우트 0.
 
+    # --- Lane: 외부 협력사 화면(PARTNER-02) — /partner(HTML) · /api/partner(JSON). 경로가 고유해
+    # shadowing 이 없고 규약대로 **뒤에만** 덧붙인다. 협력사 세션은 문지기 허용 목록만 지난다.
+    from foms.api.partner import partner_api_bp
+    from foms.web.partner import partner_portal_bp
+
+    app.register_blueprint(partner_api_bp)
+    app.register_blueprint(partner_portal_bp)
+
     # --- Lane: Infra liveness (Railway healthcheck / keep-warm 프로브) ---
     from foms.api.health import health_bp
 

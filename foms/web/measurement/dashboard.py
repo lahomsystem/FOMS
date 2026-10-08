@@ -73,6 +73,7 @@ from foms.services.erp_dashboard_search import (
     erp_measurement_main_search_predicate,
 )
 from foms.services.orders.sales_delivery_map import build_sales_delivery_by_ref
+from foms.services.auth.partner_scope import partner_mark_name
 from foms.services.integrations.naver_commerce.constants import SOURCE_MARKER
 
 erp_measurement_dashboard_bp = Blueprint(
@@ -355,6 +356,7 @@ def erp_measurement_dashboard():
         _o.channel_source = ('NAVER'
                              if (_o.structured_data or {}).get('source') == SOURCE_MARKER
                              else None)
+        _o.partner_name = partner_mark_name(_o)
 
     # 담당자 필터: rows hydrate 후 Python 적용(담당자 값이 structured_data.parties.manager와
     # Order.manager_name에 분산되고 normalize_manager_name으로 정규화되므로 SQL 필터는 부정확).
@@ -504,6 +506,7 @@ def erp_measurement_dashboard():
             # 큐 카드(erp_mobile_queue_card_v2.html:72)는 이미 매크로를 부른다 -
             # 이 키를 채우는 순간 실측 모바일 카드에도 마크가 뜬다(템플릿 편집 없음).
             _row['channel_source'] = getattr(_o, 'channel_source', None)
+            _row['partner_name'] = getattr(_o, 'partner_name', None)
             # 현장 메모 5종(주소·연락처·실측 특이사항·비고·네이버 고객 요청) — 카드·목록 알약이 읽는다.
             _row.update(build_site_memo(_o))
             # 동행 전달(AS 영업/택배 → 이 실측에 태운 건): 위에서 붙인 역방향 맵 결과 재사용(쿼리 0).

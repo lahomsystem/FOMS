@@ -6,6 +6,7 @@ import foms.web.admin.backup_status  # noqa: F401 — registers backup-status ro
 import foms.web.admin.naver_ingest  # noqa: F401 — registers naver ingest routes on admin_bp
 import foms.web.admin.naver_ingest  # noqa: F401 - registers naver ingest routes on admin_bp
 import foms.web.admin.ops_approvals  # noqa: F401 — registers ops-approval routes on admin_bp
+import foms.web.admin.partners  # noqa: F401 — registers partner admin routes on admin_bp (PARTNER-02)
 
 from foms.web.admin.backup_status import ops_ingest_bp
 from foms.web.admin.routes import (

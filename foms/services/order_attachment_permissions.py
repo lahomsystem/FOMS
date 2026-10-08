@@ -14,6 +14,7 @@ __all__ = [
     "can_manage_order_attachments",
     "can_modify_order_attachment",
     "can_reorder_order_attachments",
+    "is_partner_original_key",
     "user_may_reorder_attachments",
 ]
 
@@ -124,10 +125,23 @@ def can_manage_order_attachments(user: Any, order: Any) -> bool:
     return _manager_name_db_lookup_matches(user, order, sd)
 
 
+#: 협력사 화면 업로드가 쓰는 폴더 이름(``orders/<id>/<폴더>/...``). 이 폴더의 파일은 원본 보존 대상이다.
+PARTNER_ORIGINAL_FOLDERS = ("partner_draft", "partner_measurement")
+
+
+def is_partner_original_key(storage_key: Any) -> bool:
+    """협력사가 올린 원본 파일 key 인가(``orders/<id>/partner_*/...``)."""
+    parts = str(storage_key or "").split("/")
+    return len(parts) >= 3 and parts[0] == "orders" and parts[2] in PARTNER_ORIGINAL_FOLDERS
+
+
 def can_delete_order_attachment(user: Any, order: Any, attachment: Any) -> bool:
     """Return whether the user may delete an attachment on the given order."""
     if not user or not order or not attachment:
         return False
+    # PARTNER-02: 협력사가 낸 원본(초안 도면·실측 사진)은 ADMIN 만 지운다 — 실측 책임을 가리는 근거.
+    if is_partner_original_key(getattr(attachment, "storage_key", None)):
+        return (getattr(user, "role", None) or "").strip().upper() == "ADMIN"
     if can_manage_order_attachments(user, order):
         return True
 
