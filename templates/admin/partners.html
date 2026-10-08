@@ -76,6 +76,22 @@
         <div class="col-auto"><button type="submit" class="btn btn-outline-primary btn-sm">담당 바꾸기</button></div>
       </form>
 
+      <form method="post" action="{{ url_for('admin.partners_upload_logo', org_id=org.id) }}" enctype="multipart/form-data" class="row g-2 align-items-end mb-3">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="col-auto">
+          {% if org.logo_storage_key %}
+          <img class="img-thumbnail" height="48" src="{{ url_for('admin.partners_logo', org_id=org.id) }}" alt="{{ org.name }} 로고">
+          {% else %}
+          <span class="text-muted small">로고 없음 — 도면 로고 칸이 비어 나갑니다</span>
+          {% endif %}
+        </div>
+        <div class="col-md-4">
+          <label class="form-label small" for="pt-logo-{{ org.id }}">도면 로고(png · jpg · webp, 2MB 이하)</label>
+          <input type="file" class="form-control form-control-sm" id="pt-logo-{{ org.id }}" name="logo" accept=".png,.jpg,.jpeg,.webp" required>
+        </div>
+        <div class="col-auto"><button type="submit" class="btn btn-outline-primary btn-sm">로고 올리기</button></div>
+      </form>
+
       <table class="table table-sm align-middle mb-3">
         <thead><tr><th>아이디</th><th>이름</th><th>상태</th><th>마지막 접속</th><th>비밀번호 바꾸기</th><th></th></tr></thead>
         <tbody>

@@ -1,4 +1,4 @@
-# 외부 협력사 주문 접수 — 협력사 전용 화면 SPEC (승인 2026-10-08 · 1·2단계 구현)
+# 외부 협력사 주문 접수 — 협력사 전용 화면 SPEC (승인 2026-10-08 · 1·2·3-1단계 구현)
 
 작성 2026-10-08. 등급: 코어 변경(DB · Auth) — Spec → 승인 → 구현.
 
@@ -217,4 +217,23 @@
 - 실측 화면의 "협력사 접수" 묶음(지금은 표식만 붙는다).
 - 내부 화면에서 협력사 주문의 발주사 칸 잠그기(판정은 `partner_org_id` 라 권한에는 영향 없음).
 - 협력사 도면 확인(→ 생산) · 시공 날짜 고르기 · AS 접수 · 협력사 로고 · 정산 축.
+
+## 13. 3단계 결정 · 3-1 구현 기록 (2026-10-08)
+
+사용자 결정: 생산 날짜·시공 날짜는 우리가 erporder 에서 정한다(협력사는 보기만 — 목록 "시공 예정 · 날짜").
+협력사 "도면 OK(→ 생산)"와 "수정 요청"은 만든다. 협력사 로고는 관리 화면에서 올린다.
+
+3-1 (이번):
+- **로고**: `/admin/partners/<id>/logo` 업로드(png·jpg·webp ≤2MB, `partners/<id>/logo/` 키) → `partner_orgs.logo_storage_key`.
+  도면 마법사 기본값 `logo` = `'partner'`(로고 있음) / `'none'`(없음) — 라홈·하우드 안 씀(`foms/services/partners/logo.py`).
+  도면 PNG 는 html2canvas 라 로고는 같은 출처 `GET /api/partner/orders/<id>/logo`(직원용, 협력사 세션은 문지기 밖)로 내린다.
+  마법사는 협력사 주문이면 예전에 저장된 'haud'/'lahom' 을 무시하고 로고 고르기 창을 열지 않는다.
+- **도면 OK**: 협력사 상세에 "최종 도면"(`resolve_final_drawing_files` — 도면팀이 넘긴 현재 파일만, 협력사 초안 제외) +
+  CONFIRM 단계·도면 확정(CONFIRMED)일 때만 "이대로 만들어 주세요". `POST /api/partner/orders/<id>/approve-drawing` →
+  직원 승인과 같은 기록(quest.assignee_approval · COMPLETED · blueprint.customer_confirmed · QUEST_APPROVAL_CHANGED) +
+  `advance_stage_on_quest_completion` → PRODUCTION. 감사 `PARTNER_DRAWING_APPROVED`(도면 회차 · 최종 파일 key).
+  도면 게이트 우회 없음.
+- 작은 수정: 관리 화면 주문 수에서 지운 주문 제외, 담당 선택지에서 시스템 계정(naver_unassigned) 제외.
+
+3-2 (다음): 협력사 "수정 요청"(메모·사진 → 기존 도면 수정 요청과 같은 효과), 협력사 AS 접수(`register_as_cycle`).
 

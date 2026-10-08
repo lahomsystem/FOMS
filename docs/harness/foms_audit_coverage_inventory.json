@@ -8,11 +8,11 @@
     "log_access"
   ],
   "baselines": {
-    "total": 223,
+    "total": 225,
     "unaudited": 0
   },
   "classification_counts": {
-    "AUDITED": 193,
+    "AUDITED": 195,
     "EXEMPT": 30,
     "UNAUDITED": 0
   },
@@ -1121,8 +1121,17 @@
     },
     {
       "path": "foms/api/partner/__init__.py",
+      "endpoint": "approve_drawing",
+      "lineno": 141,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/partner/__init__.py",
       "endpoint": "create_order",
-      "lineno": 58,
+      "lineno": 63,
       "methods": [
         "POST"
       ],
@@ -1131,7 +1140,7 @@
     {
       "path": "foms/api/partner/__init__.py",
       "endpoint": "upload_file",
-      "lineno": 74,
+      "lineno": 79,
       "methods": [
         "POST"
       ],
@@ -1797,7 +1806,7 @@
     {
       "path": "foms/web/admin/partners.py",
       "endpoint": "partners_add_user",
-      "lineno": 115,
+      "lineno": 150,
       "methods": [
         "POST"
       ],
@@ -1806,7 +1815,7 @@
     {
       "path": "foms/web/admin/partners.py",
       "endpoint": "partners_create",
-      "lineno": 54,
+      "lineno": 56,
       "methods": [
         "POST"
       ],
@@ -1815,7 +1824,7 @@
     {
       "path": "foms/web/admin/partners.py",
       "endpoint": "partners_reset_password",
-      "lineno": 158,
+      "lineno": 193,
       "methods": [
         "POST"
       ],
@@ -1824,7 +1833,7 @@
     {
       "path": "foms/web/admin/partners.py",
       "endpoint": "partners_set_owner",
-      "lineno": 77,
+      "lineno": 79,
       "methods": [
         "POST"
       ],
@@ -1833,7 +1842,7 @@
     {
       "path": "foms/web/admin/partners.py",
       "endpoint": "partners_toggle",
-      "lineno": 98,
+      "lineno": 100,
       "methods": [
         "POST"
       ],
@@ -1842,7 +1851,16 @@
     {
       "path": "foms/web/admin/partners.py",
       "endpoint": "partners_toggle_user",
-      "lineno": 141,
+      "lineno": 176,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/web/admin/partners.py",
+      "endpoint": "partners_upload_logo",
+      "lineno": 117,
       "methods": [
         "POST"
       ],

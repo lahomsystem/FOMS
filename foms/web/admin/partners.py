@@ -5,9 +5,10 @@
 """
 from __future__ import annotations
 
-from flask import flash, redirect, render_template, request, session, url_for
+from flask import Response, abort, flash, redirect, render_template, request, session, url_for
 
 from db import get_db
+from foms.services.partners.logo import PartnerLogoError, read_partner_logo, save_partner_logo
 from foms.services.partners.orgs import (
     PartnerAdminError,
     create_partner_org,
@@ -18,6 +19,7 @@ from foms.services.partners.orgs import (
     sales_owner_choices,
     update_partner_owner,
 )
+from foms.services.storage import get_storage
 from foms.web.admin.routes import admin_bp
 from foms.web.auth import log_access, login_required, role_required
 from models import PartnerOrg
@@ -107,6 +109,39 @@ def partners_toggle(org_id: int):
     db.commit()
     flash(f"'{org.name}'을(를) {'켰' if org.is_active else '껐'}습니다.", "success")
     return _back()
+
+
+@admin_bp.route("/admin/partners/<int:org_id>/logo", methods=["POST"])
+@login_required
+@role_required(["ADMIN"])
+def partners_upload_logo(org_id: int):
+    """협력사 로고 올리기(png · jpg · webp, 2MB 이하). 협력사 주문 도면에 들어간다."""
+    db = get_db()
+    org = _org_or_none(db, org_id)
+    if org is None:
+        flash("협력사를 찾을 수 없습니다.", "error")
+        return _back()
+    try:
+        save_partner_logo(get_storage(), org, request.files.get("logo"))
+        _audit(db, f"협력사 로고 변경: {org.name}", "PARTNER_ORG_LOGO_CHANGED", "partner_org", org.id)
+        db.commit()
+        flash("로고를 바꿨습니다.", "success")
+    except PartnerLogoError as exc:
+        db.rollback()
+        flash(str(exc), "error")
+    return _back()
+
+
+@admin_bp.route("/admin/partners/<int:org_id>/logo")
+@login_required
+@role_required(["ADMIN"])
+def partners_logo(org_id: int):
+    """관리 화면 미리보기용 로고."""
+    found = read_partner_logo(get_storage(), _org_or_none(get_db(), org_id))
+    if found is None:
+        abort(404)
+    data, mimetype = found
+    return Response(data, mimetype=mimetype, headers={"Cache-Control": "private, no-store"})
 
 
 @admin_bp.route("/admin/partners/<int:org_id>/users", methods=["POST"])

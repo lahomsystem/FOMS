@@ -3,7 +3,7 @@
   "policy_ssot": "foms/services/orders/order_mutation_policy.py",
   "description": "AUTH-01 URL-map inventory: 모든 cookie-auth state-changing route 의 policy_id. mode=guard 는 order_mutation_policy.evaluate_policy 로 §2.1 정책 enforce(before_request enforce_order_mutation_policy). mode=exempt 는 서명 검증 webhook/Function·anonymous RUM 처럼 쿠키 세션 미사용 자기 정책으로 우회. url_map 의 모든 POST/PUT/PATCH/DELETE endpoint 가 여기 등재되어야 하며 미분류=static gate fail(tests/domains/test_auth_enforcement.py).",
   "exempt_count": 5,
-  "guard_count": 218,
+  "guard_count": 220,
   "routes": {
     "admin.naver_ingest_attach_order": {
       "mode": "guard",
@@ -164,6 +164,11 @@
       "mode": "guard",
       "policy_id": "ACCOUNT_ADMIN",
       "rule": "/admin/partners/users/<int:user_id>/toggle"
+    },
+    "admin.partners_upload_logo": {
+      "mode": "guard",
+      "policy_id": "ACCOUNT_ADMIN",
+      "rule": "/admin/partners/<int:org_id>/logo"
     },
     "admin.update_menu": {
       "mode": "guard",
@@ -959,6 +964,11 @@
       "mode": "guard",
       "policy_id": "STAFF_MUTATION",
       "rule": "/api/update_regional_status"
+    },
+    "partner_api.approve_drawing": {
+      "mode": "guard",
+      "policy_id": "PARTNER_PORTAL",
+      "rule": "/api/partner/orders/<int:order_id>/approve-drawing"
     },
     "partner_api.create_order": {
       "mode": "guard",
