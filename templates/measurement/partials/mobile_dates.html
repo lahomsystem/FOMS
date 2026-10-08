@@ -30,6 +30,8 @@
         <span class="erp-measurement-mobile-date-chip__meta">
           <span class="erp-measurement-mobile-date-chip__day">{{ day_label }}</span>
           <span class="erp-measurement-mobile-date-chip__count">{{ item.count }}</span>
+          {% set _sd_day_count = (measurement_panel_delivery_counts or {}).get(item.date) %}
+          {% if _sd_day_count %}<span class="meas-sd-badge meas-sd-badge--chip" data-meas-sd-panel-count="{{ _sd_day_count }}" title="AS 전달 {{ _sd_day_count }}건"><i class="fas fa-box" aria-hidden="true"></i> {{ _sd_day_count }}</span>{% endif %}
         </span>
       </a>
     {% endfor %}

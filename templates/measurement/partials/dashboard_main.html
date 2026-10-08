@@ -1,9 +1,10 @@
+{% from 'measurement/partials/sales_delivery_cards.html' import render_sales_delivery_cards %}
 {% from 'partials/shared/channel_mark.html' import channel_mark %}
 {# 동행 전달(스펙 §6.2) 전용 CSS. dashboard.html / dashboard_fragment.html 은 이 파일을
    공통으로 include 하므로 여기에 두면 전체 페이지·프래그먼트 양쪽에 실린다
    (erp-shell preloadFragmentStylesheets 가 프래그먼트 HTML 의 link 를 head 로 올린다). #}
 <link rel="stylesheet"
-  href="{{ url_for('static', filename='css/contexts/measurement/measurement-sales-delivery.css') }}?v=20260909a">
+  href="{{ url_for('static', filename='css/contexts/measurement/measurement-sales-delivery.css') }}?v=20261008b">
 <link rel="stylesheet"
   href="{{ url_for('static', filename='css/contexts/measurement/measurement-mobile-glance.css') }}?v=20260929a">
 <div class="erp-pro erp-mobile-shell erp-measurement-dashboard" data-erp-order-active="{{ 'true' if erp_order_enabled else 'false' }}"
@@ -925,37 +926,7 @@
                   <td colspan="8" class="erp-measurement-detail-cell">
                     {# 동행 전달 카드(스펙 §6.2): 이 실측 방문 길에 함께 전달할 AS 건. #}
                     {%- set _sd_detail_items = r.sales_delivery_items if r.sales_delivery_items is defined else [] %}
-                    {% if _sd_detail_items %}
-                    <div class="meas-sd-cards" data-meas-sd-cards>
-                      {% for sd_item in _sd_detail_items %}
-                      <div class="meas-sd-card" data-meas-sd-order-id="{{ sd_item.order_id }}">
-                        <div class="meas-sd-card__body">
-                          <div class="meas-sd-card__head">
-                            <span class="meas-sd-card__tag">전달 배정</span>
-                            <span class="meas-sd-card__title">AS #{{ sd_item.order_id }} · {{ sd_item.customer_name or '-' }}</span>
-                            {% if sd_item.state == 'delivered' %}
-                            <span class="meas-sd-state meas-sd-state--delivered">전달완료</span>
-                            {% else %}
-                            <span class="meas-sd-state meas-sd-state--assigned">배정</span>
-                            {% endif %}
-                          </div>
-                          <div class="meas-sd-card__item">{{ sd_item.item_text or '전달 품목 미기재 (AS 내용 확인 필요)' }}</div>
-                          <div class="meas-sd-card__addr"><i class="fas fa-location-dot" aria-hidden="true"></i>{{ sd_item.address or '-' }}</div>
-                          <div class="meas-sd-card__meta">{{ sd_item.assigned_by or '알 수 없음' }} 배정{% if sd_item.assigned_at %} · {{ sd_item.assigned_at[:10] }}{% endif %}</div>
-                        </div>
-                        <div class="meas-sd-card__actions">
-                          <span class="meas-sd-card__msg" data-meas-sd-msg role="status"></span>
-                          {% if sd_item.state == 'delivered' %}
-                          <span class="meas-sd-done" data-meas-sd-done>전달 완료됨</span>
-                          {% else %}
-                          <button type="button" class="erp-pro-btn erp-pro-btn--primary meas-sd-deliver-btn"
-                            data-meas-sd-deliver="{{ sd_item.order_id }}">전달 완료</button>
-                          {% endif %}
-                        </div>
-                      </div>
-                      {% endfor %}
-                    </div>
-                    {% endif %}
+                    {{ render_sales_delivery_cards(_sd_detail_items) }}
                     {%- set rsd = r.structured_data or {} %}
                     {%- set rsd_notes_raw = rsd.get('notes') %}
                     {%- set rsd_notes = rsd_notes_raw if rsd_notes_raw is mapping else {} %}
