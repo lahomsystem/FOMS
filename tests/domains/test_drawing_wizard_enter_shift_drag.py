@@ -13,4 +13,5 @@ def test_shift_drag_locks_axis_on_nodes_and_group_back():
     assert "function wireAxisLock(node)" in JS
     assert "wireAxisLock(node);" in JS
     assert "transformer.findOne('.back')" in JS
-    assert "{ x: pos.x, y: s.y } : { x: s.x, y: pos.y }" in JS
+    assert "axis === 'x' ? { x: pos.x, y: s.y } : { x: s.x, y: pos.y }" in JS
+    assert "node.setAttr('dragAxis', axis);" in JS  # 축 고정 유지(튐 방지)

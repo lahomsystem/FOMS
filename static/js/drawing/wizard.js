@@ -1047,12 +1047,21 @@
   });
   window.addEventListener('blur', function () { shiftHeld = false; });
   function wireAxisLock(node) {
-    node.on('dragstart.axislock', function () { node.setAttr('dragStartAbs', node.absolutePosition()); });
-    node.on('dragend.axislock', function () { node.setAttr('dragStartAbs', null); });
+    // 축은 한 번 정하면(6px 이상 움직인 뒤) 드래그 끝까지 유지 — 대각선 근처에서 축이 뒤바뀌며 튀는 것 방지.
+    // Shift 를 떼면 축 선택을 풀어 다시 누를 때 새로 정한다.
+    node.on('dragstart.axislock', function () { node.setAttr('dragStartAbs', node.absolutePosition()); node.setAttr('dragAxis', null); });
+    node.on('dragend.axislock', function () { node.setAttr('dragStartAbs', null); node.setAttr('dragAxis', null); });
     node.dragBoundFunc(function (pos) {
       var s = node.getAttr('dragStartAbs');
-      if (!shiftHeld || !s) { return pos; }
-      return Math.abs(pos.x - s.x) >= Math.abs(pos.y - s.y) ? { x: pos.x, y: s.y } : { x: s.x, y: pos.y };
+      if (!shiftHeld || !s) { node.setAttr('dragAxis', null); return pos; }
+      var axis = node.getAttr('dragAxis');
+      if (!axis) {
+        var dx = Math.abs(pos.x - s.x), dy = Math.abs(pos.y - s.y);
+        if (Math.max(dx, dy) < 6) { return { x: s.x, y: s.y }; }
+        axis = dx >= dy ? 'x' : 'y';
+        node.setAttr('dragAxis', axis);
+      }
+      return axis === 'x' ? { x: pos.x, y: s.y } : { x: s.x, y: pos.y };
     });
   }
 
