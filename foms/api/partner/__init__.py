@@ -78,6 +78,12 @@ def create_order():
     except PartnerOrderError as exc:
         db.rollback()
         return _fail(str(exc), 400)
+    # 받는 사람(CS 팀 + 담당 영업)의 벨 배지를 바로 갱신한다.
+    recipients = set(resolve_notification_recipient_user_ids(
+        db, target_team="CS", target_manager_name=None, include_admin=False))
+    if org.owner_user_id:
+        recipients.add(int(org.owner_user_id))
+    invalidate_badge_cache_for_user_ids(recipients)
     return jsonify({"success": True, "data": {"order_id": order.id}, "error": None})
 
 
