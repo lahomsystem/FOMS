@@ -20,7 +20,10 @@ from foms.services.audit_writer import normalize_security_detail
 from foms.services.auth.partner_scope import PARTNER_SOURCE_MARKER
 from foms.services.datetime_kst import get_today_kst, now_kst
 from foms.services.orders.order_create import create_order
-from models import Order, PartnerOrg, SecurityLog, User
+from foms.services.notifications.recipients import fan_out_new_notification
+from models import Notification, Order, PartnerOrg, SecurityLog, User
+
+PARTNER_ORDER_NOTIFICATION_TYPE = "PARTNER_ORDER_CREATED"
 
 MAX_ITEMS = 30
 _TEXT_LIMIT = 500
@@ -176,6 +179,21 @@ def create_partner_order(db, user: User, org: PartnerOrg, payload: Any) -> Order
         target_id=order.id,
         detail=normalize_security_detail({"partner_org_id": org.id}),
     ))
+    # 우리 쪽이 새 협력사 주문을 놓치지 않게 — CS 팀 + 이 협력사를 맡은 영업 직원 알림(벨 목록).
+    # 협력사 주문은 실측일이 없어 실측 화면에 뜨지 않으므로 알림이 접수 신호다.
+    notification = Notification(
+        order_id=order.id,
+        notification_type=PARTNER_ORDER_NOTIFICATION_TYPE,
+        target_team="CS",
+        target_user_id=owner.id,
+        title="협력사 새 주문",
+        message=f"[{org.name}] 주문 #{order.id} ({customer_name}) 접수 — 내용 확인 후 도면 단계로 넘겨 주세요.",
+        created_by_user_id=user.id,
+        created_by_name=f"{user.name} (협력사)",
+    )
+    db.add(notification)
+    db.flush()
+    fan_out_new_notification(db, notification, actor_user_id=user.id)
     return order
 
 

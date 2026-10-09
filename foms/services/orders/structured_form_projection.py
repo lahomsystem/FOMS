@@ -24,6 +24,8 @@ import copy
 import logging
 from typing import Any
 
+from foms.services.auth.partner_scope import is_partner_sd
+
 logger = logging.getLogger(__name__)
 
 #: 파서·서버가 심는 provenance 최상위 키. 클라이언트 폼은 이 값을 덮어쓸 수 없다(old-wins).
@@ -135,6 +137,16 @@ def lock_server_owned_keys(old_sd: dict, structured_data: dict) -> list[str]:
             new_parent = {}
             structured_data[parent] = new_parent
         ignored.extend(_lock_mapping(old_parent, new_parent, subkeys, parent + "."))
+    # PARTNER-03: 외부 협력사 주문은 발주사(협력사 이름) · 출처 표식 · 등록 원문을 직원 폼이 못 바꾼다.
+    # 권한 판정은 orders.partner_org_id 라 영향이 없지만, 발주사 이름은 화면 표식·브랜드 판정이 읽는다.
+    if is_partner_sd(existing):
+        ignored.extend(_lock_mapping(existing, structured_data, ["partner_intake", "source"], ""))
+        old_parties = existing.get("parties") if isinstance(existing.get("parties"), dict) else {}
+        new_parties = structured_data.get("parties")
+        if not isinstance(new_parties, dict):
+            new_parties = {}
+            structured_data["parties"] = new_parties
+        ignored.extend(_lock_mapping(old_parties, new_parties, ["orderer"], "parties."))
     if ignored:
         logger.warning("[DATA-01] ignored client values for server-locked keys: %s", ignored)
     return ignored
