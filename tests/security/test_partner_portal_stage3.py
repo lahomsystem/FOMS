@@ -177,3 +177,39 @@ def test_partner_as_other_org_refused(app, world, fake_storage):
     assert b.post(f"/api/partner/orders/{order_id}/as", data={"content": "x"}).status_code == 404
     db_session.expire_all()
     assert db_session.get(Order, order_id).as_axis_status is None
+
+
+# --------------------------------------------------------------------------
+# 마무리 — 협력사 주문 발주사 잠금
+# --------------------------------------------------------------------------
+def test_staff_form_cannot_change_partner_orderer():
+    from foms.services.orders.structured_form_projection import lock_server_owned_keys
+
+    old = {"source": "PARTNER", "partner_intake": {"memo": "원문"},
+           "parties": {"orderer": {"name": "가나가구"}, "customer": {"name": "홍"}}}
+    new = {"source": "", "partner_intake": {"memo": "고침"},
+           "parties": {"orderer": {"name": "하우드"}, "customer": {"name": "홍길동"}}}
+    ignored = lock_server_owned_keys(old, new)
+    assert new["parties"]["orderer"] == {"name": "가나가구"}
+    assert new["source"] == "PARTNER" and new["partner_intake"] == {"memo": "원문"}
+    assert new["parties"]["customer"] == {"name": "홍길동"}  # 다른 칸은 그대로 고칠 수 있다
+    assert "parties.orderer" in ignored
+
+    # 대조군: 우리 주문은 발주사를 바꿀 수 있다.
+    ours_old = {"parties": {"orderer": {"name": "하우드"}}}
+    ours_new = {"parties": {"orderer": {"name": "라홈"}}}
+    lock_server_owned_keys(ours_old, ours_new)
+    assert ours_new["parties"]["orderer"] == {"name": "라홈"}
+
+
+def test_new_partner_order_notifies_cs_and_owner_not_partner(app, world):
+    from foms.services.notifications.recipients import resolve_recipients_for_notification
+    from models import Notification
+
+    order_id = _create(app, world["partner_a"]).get_json()["data"]["order_id"]
+    note = db_session.query(Notification).filter(Notification.order_id == order_id,
+                                                 Notification.notification_type == "PARTNER_ORDER_CREATED").one()
+    ids = {uid for uid, _ in resolve_recipients_for_notification(db_session, note)}
+    assert world["staff"] in ids and world["sales"] in ids  # world 의 staff 는 CS 팀
+    assert world["partner_a"] not in ids and world["partner_b"] not in ids
+    assert "가나가구" in note.message
