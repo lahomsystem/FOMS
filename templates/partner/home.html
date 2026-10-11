@@ -5,6 +5,16 @@
     <h1 class="pp-title">주문 목록</h1>
     <a class="pp-btn pp-btn--primary" href="{{ url_for('partner_portal.new_order') }}">새 주문 등록</a>
 </div>
+<section class="pp-section pp-me">
+    <form class="pp-form pp-form--inline" data-pp-json-url="{{ url_for('partner_api.update_my_phone') }}" data-pp-json-key="contact_phone" novalidate>
+        <label class="pp-field">{{ me.name }} 연락처 <span class="pp-muted">(내가 담당인 주문의 도면에 찍힙니다)</span>
+            <input type="tel" name="contact_phone" value="{{ me.contact_phone or '' }}" maxlength="30" placeholder="010-0000-0000" required>
+        </label>
+        <button type="submit" class="pp-btn">저장</button>
+        <p class="pp-status" data-pp-status role="status" aria-live="polite"></p>
+    </form>
+    {% if not me.contact_phone %}<p class="pp-help pp-status--error">연락처가 없습니다. 넣어 두어야 도면에 담당 연락처가 찍힙니다.</p>{% endif %}
+</section>
 {% if not orders %}
 <p class="pp-empty">아직 등록한 주문이 없습니다. "새 주문 등록"으로 실측 내용과 초안 도면을 보내 주세요.</p>
 {% else %}

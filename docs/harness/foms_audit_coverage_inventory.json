@@ -8,11 +8,11 @@
     "log_access"
   ],
   "baselines": {
-    "total": 227,
+    "total": 229,
     "unaudited": 0
   },
   "classification_counts": {
-    "AUDITED": 197,
+    "AUDITED": 199,
     "EXEMPT": 30,
     "UNAUDITED": 0
   },
@@ -392,7 +392,7 @@
     {
       "path": "foms/api/drawing/erp_orders_drawing.py",
       "endpoint": "api_drawing_gateway_complete",
-      "lineno": 875,
+      "lineno": 882,
       "methods": [
         "POST"
       ],
@@ -401,7 +401,7 @@
     {
       "path": "foms/api/drawing/erp_orders_drawing.py",
       "endpoint": "api_drawing_gateway_upload",
-      "lineno": 830,
+      "lineno": 837,
       "methods": [
         "POST"
       ],
@@ -410,7 +410,7 @@
     {
       "path": "foms/api/drawing/erp_orders_drawing.py",
       "endpoint": "api_order_cancel_transfer",
-      "lineno": 537,
+      "lineno": 543,
       "methods": [
         "POST"
       ],
@@ -419,7 +419,7 @@
     {
       "path": "foms/api/drawing/erp_orders_drawing.py",
       "endpoint": "api_order_transfer_drawing",
-      "lineno": 475,
+      "lineno": 481,
       "methods": [
         "POST"
       ],
@@ -1122,7 +1122,16 @@
     {
       "path": "foms/api/partner/__init__.py",
       "endpoint": "approve_drawing",
-      "lineno": 148,
+      "lineno": 192,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/partner/__init__.py",
+      "endpoint": "change_manager",
+      "lineno": 153,
       "methods": [
         "POST"
       ],
@@ -1131,7 +1140,7 @@
     {
       "path": "foms/api/partner/__init__.py",
       "endpoint": "create_order",
-      "lineno": 70,
+      "lineno": 72,
       "methods": [
         "POST"
       ],
@@ -1140,7 +1149,7 @@
     {
       "path": "foms/api/partner/__init__.py",
       "endpoint": "register_as",
-      "lineno": 241,
+      "lineno": 285,
       "methods": [
         "POST"
       ],
@@ -1149,7 +1158,16 @@
     {
       "path": "foms/api/partner/__init__.py",
       "endpoint": "request_revision",
-      "lineno": 201,
+      "lineno": 245,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/partner/__init__.py",
+      "endpoint": "update_my_phone",
+      "lineno": 168,
       "methods": [
         "POST"
       ],
@@ -1158,7 +1176,7 @@
     {
       "path": "foms/api/partner/__init__.py",
       "endpoint": "upload_file",
-      "lineno": 86,
+      "lineno": 91,
       "methods": [
         "POST"
       ],
@@ -1824,7 +1842,7 @@
     {
       "path": "foms/web/admin/partners.py",
       "endpoint": "partners_add_user",
-      "lineno": 150,
+      "lineno": 126,
       "methods": [
         "POST"
       ],
@@ -1833,7 +1851,7 @@
     {
       "path": "foms/web/admin/partners.py",
       "endpoint": "partners_create",
-      "lineno": 56,
+      "lineno": 54,
       "methods": [
         "POST"
       ],
@@ -1850,8 +1868,8 @@
     },
     {
       "path": "foms/web/admin/partners.py",
-      "endpoint": "partners_set_owner",
-      "lineno": 79,
+      "endpoint": "partners_set_user_phone",
+      "lineno": 170,
       "methods": [
         "POST"
       ],
@@ -1860,7 +1878,7 @@
     {
       "path": "foms/web/admin/partners.py",
       "endpoint": "partners_toggle",
-      "lineno": 100,
+      "lineno": 76,
       "methods": [
         "POST"
       ],
@@ -1869,7 +1887,7 @@
     {
       "path": "foms/web/admin/partners.py",
       "endpoint": "partners_toggle_user",
-      "lineno": 176,
+      "lineno": 153,
       "methods": [
         "POST"
       ],
@@ -1878,7 +1896,7 @@
     {
       "path": "foms/web/admin/partners.py",
       "endpoint": "partners_upload_logo",
-      "lineno": 117,
+      "lineno": 93,
       "methods": [
         "POST"
       ],

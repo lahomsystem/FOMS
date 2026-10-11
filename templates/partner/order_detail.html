@@ -30,6 +30,21 @@
 </section>
 {% endif %}
 <section class="pp-section">
+    <h2 class="pp-subtitle">담당</h2>
+    <p>{{ order.manager_name or '-' }}{% if order.manager_phone %} · {{ order.manager_phone }}{% endif %}</p>
+    {% if manager_choices | length > 1 %}
+    <form class="pp-form pp-form--inline" data-pp-json-url="{{ url_for('partner_api.change_manager', order_id=order.id) }}" data-pp-json-key="user_id" novalidate>
+        <label class="pp-field">담당 바꾸기
+            <select name="user_id">
+                {% for u in manager_choices %}<option value="{{ u.id }}" {% if u.id == order.manager_user_id %}selected{% endif %}>{{ u.name }}{% if u.contact_phone %} · {{ u.contact_phone }}{% endif %}</option>{% endfor %}
+            </select>
+        </label>
+        <button type="submit" class="pp-btn">바꾸기</button>
+        <p class="pp-status" data-pp-status role="status" aria-live="polite"></p>
+    </form>
+    {% endif %}
+</section>
+<section class="pp-section">
     <h2 class="pp-subtitle">보낸 내용</h2>
     <dl class="pp-dl">
         <dt>연락처</dt><dd>{{ (intake.customer or {}).phone or '-' }}</dd>

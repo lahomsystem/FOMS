@@ -131,7 +131,7 @@
 .pp-fieldset legend { padding: 0 4px; font-weight: 600; }
 
 .pp-field { display: grid; gap: 4px; font-size: 14px; color: var(--pp-muted); }
-.pp-field input, .pp-field textarea {
+.pp-field input, .pp-field textarea, .pp-field select {
   width: 100%;
   min-height: 40px;
   padding: 8px 10px;
@@ -152,6 +152,11 @@
   border-radius: 8px;
 }
 .pp-field--wide { grid-column: 1 / -1; }
+
+/* 한 칸 + 버튼(담당 바꾸기 · 내 연락처). 상태 줄은 아랫줄 전체. */
+.pp-form--inline { grid-template-columns: minmax(0, 1fr) auto; align-items: end; }
+.pp-form--inline .pp-status { grid-column: 1 / -1; }
+.pp-form--inline .pp-status:empty { display: none; }
 
 .pp-status { min-height: 1.5em; margin: 0; color: var(--pp-muted); }
 .pp-status--error { color: var(--pp-danger); }

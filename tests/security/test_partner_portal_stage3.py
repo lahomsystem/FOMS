@@ -202,7 +202,7 @@ def test_staff_form_cannot_change_partner_orderer():
     assert ours_new["parties"]["orderer"] == {"name": "라홈"}
 
 
-def test_new_partner_order_notifies_cs_and_owner_not_partner(app, world):
+def test_new_partner_order_notifies_cs_only(app, world):
     from foms.services.notifications.recipients import resolve_recipients_for_notification
     from models import Notification
 
@@ -210,6 +210,8 @@ def test_new_partner_order_notifies_cs_and_owner_not_partner(app, world):
     note = db_session.query(Notification).filter(Notification.order_id == order_id,
                                                  Notification.notification_type == "PARTNER_ORDER_CREATED").one()
     ids = {uid for uid, _ in resolve_recipients_for_notification(db_session, note)}
-    assert world["staff"] in ids and world["sales"] in ids  # world 의 staff 는 CS 팀
+    assert world["staff"] in ids  # world 의 staff 는 CS 팀
+    # 담당(협력사 직원)도, 영업 직원도 받지 않는다 — 우리 쪽은 CS 가 챙긴다(스펙 §16).
+    assert world["sales"] not in ids
     assert world["partner_a"] not in ids and world["partner_b"] not in ids
     assert "가나가구" in note.message

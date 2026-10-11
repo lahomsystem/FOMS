@@ -137,7 +137,7 @@ def lock_server_owned_keys(old_sd: dict, structured_data: dict) -> list[str]:
             new_parent = {}
             structured_data[parent] = new_parent
         ignored.extend(_lock_mapping(old_parent, new_parent, subkeys, parent + "."))
-    # PARTNER-03: 외부 협력사 주문은 발주사(협력사 이름) · 출처 표식 · 등록 원문을 직원 폼이 못 바꾼다.
+    # PARTNER-03: 외부 협력사 주문은 발주사(협력사 이름) · 담당 · 출처 표식 · 등록 원문을 직원 폼이 못 바꾼다.
     # 권한 판정은 orders.partner_org_id 라 영향이 없지만, 발주사 이름은 화면 표식·브랜드 판정이 읽는다.
     if is_partner_sd(existing):
         ignored.extend(_lock_mapping(existing, structured_data, ["partner_intake", "source"], ""))
@@ -146,7 +146,8 @@ def lock_server_owned_keys(old_sd: dict, structured_data: dict) -> list[str]:
         if not isinstance(new_parties, dict):
             new_parties = {}
             structured_data["parties"] = new_parties
-        ignored.extend(_lock_mapping(old_parties, new_parties, ["orderer"], "parties."))
+        # PARTNER-04: 담당(협력사 직원 · 연락처)은 협력사 화면의 "담당 바꾸기"·연락처 저장만 바꾼다.
+        ignored.extend(_lock_mapping(old_parties, new_parties, ["orderer", "manager"], "parties."))
     if ignored:
         logger.warning("[DATA-01] ignored client values for server-locked keys: %s", ignored)
     return ignored
