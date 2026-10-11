@@ -121,9 +121,9 @@
       "mode": "guard",
       "rule": "/admin/partners/users/<int:user_id>/password"
     },
-    "admin.partners_set_owner": {
+    "admin.partners_set_user_phone": {
       "mode": "guard",
-      "rule": "/admin/partners/<int:org_id>/owner"
+      "rule": "/admin/partners/users/<int:user_id>/phone"
     },
     "admin.partners_toggle": {
       "mode": "guard",
@@ -786,6 +786,10 @@
       "mode": "guard",
       "rule": "/api/partner/orders/<int:order_id>/approve-drawing"
     },
+    "partner_api.change_manager": {
+      "mode": "guard",
+      "rule": "/api/partner/orders/<int:order_id>/manager"
+    },
     "partner_api.create_order": {
       "mode": "guard",
       "rule": "/api/partner/orders"
@@ -797,6 +801,10 @@
     "partner_api.request_revision": {
       "mode": "guard",
       "rule": "/api/partner/orders/<int:order_id>/revision"
+    },
+    "partner_api.update_my_phone": {
+      "mode": "guard",
+      "rule": "/api/partner/me/phone"
     },
     "partner_api.upload_file": {
       "mode": "guard",

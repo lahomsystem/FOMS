@@ -39,6 +39,8 @@ PARTNER_ALLOWED_ENDPOINTS: frozenset[str] = frozenset({
     "partner_api.approve_drawing",
     "partner_api.request_revision",
     "partner_api.register_as",
+    "partner_api.change_manager",
+    "partner_api.update_my_phone",
 })
 
 # 쓰기 정책 엔진(``evaluate_policy``)이 협력사 계정에 허용하는 policy_id. 문지기를 지난 쓰기 요청도
@@ -65,6 +67,18 @@ def is_partner_order(order: Any) -> bool:
     if getattr(order, "partner_org_id", None) is not None:
         return True
     return is_partner_sd(getattr(order, "structured_data", None))
+
+
+def partner_drawing_manager_name(sd: Any) -> str | None:
+    """협력사 주문이면 도면 "담당" 칸에 찍을 꼬리 없는 이름(``partner_user_name``), 아니면 ``None``.
+
+    협력사 주문의 ``parties.manager.name`` 은 ``이름 (회사명)`` 이다(``foms/services/partners/manager.py``).
+    도면에는 협력사 로고가 이미 있어 회사명 꼬리를 뗀다.
+    """
+    manager = ((sd.get("parties") or {}).get("manager")) if isinstance(sd, dict) else None
+    if not isinstance(manager, dict) or not manager.get("partner_user_id"):
+        return None
+    return str(manager.get("partner_user_name") or "").strip() or None
 
 
 def partner_mark_name(order: Any, sd: Any = None) -> str | None:

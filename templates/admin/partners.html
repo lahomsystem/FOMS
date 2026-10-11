@@ -7,7 +7,7 @@
   <h1 class="h4 mb-2">협력사 관리</h1>
   <p class="text-muted small mb-4">
     외부 협력사와 그 계정을 만듭니다. 협력사 계정은 자기 협력사 주문만 보고, 협력사 화면(/partner)만 씁니다.
-    협력사 주문의 영업 담당은 아래 "우리 쪽 담당" 직원이 됩니다.
+    협력사 주문의 담당은 주문을 올린 협력사 직원이고(연락처가 도면에 찍힙니다), 우리 쪽은 CS 팀이 챙깁니다.
   </p>
 
   <section class="card mb-4">
@@ -18,13 +18,6 @@
         <div class="col-md-3">
           <label class="form-label small" for="pt-name">협력사 이름</label>
           <input class="form-control form-control-sm" id="pt-name" name="name" maxlength="100" required>
-        </div>
-        <div class="col-md-3">
-          <label class="form-label small" for="pt-owner">우리 쪽 담당(영업)</label>
-          <select class="form-select form-select-sm" id="pt-owner" name="owner_user_id" required>
-            <option value="">고르기</option>
-            {% for u in owner_choices %}<option value="{{ u.id }}">{{ u.name }} ({{ u.username }})</option>{% endfor %}
-          </select>
         </div>
         <div class="col-md-2">
           <label class="form-label small" for="pt-biz">사업자번호</label>
@@ -64,18 +57,6 @@
         </form>
       </div>
 
-      <form method="post" action="{{ url_for('admin.partners_set_owner', org_id=org.id) }}" class="row g-2 align-items-end mb-3">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <div class="col-md-4">
-          <label class="form-label small" for="pt-owner-{{ org.id }}">우리 쪽 담당(영업) — 지금: {{ row.owner_name or '없음' }}</label>
-          <select class="form-select form-select-sm" id="pt-owner-{{ org.id }}" name="owner_user_id" required>
-            <option value="">고르기</option>
-            {% for u in owner_choices %}<option value="{{ u.id }}" {% if u.id == org.owner_user_id %}selected{% endif %}>{{ u.name }} ({{ u.username }})</option>{% endfor %}
-          </select>
-        </div>
-        <div class="col-auto"><button type="submit" class="btn btn-outline-primary btn-sm">담당 바꾸기</button></div>
-      </form>
-
       <form method="post" action="{{ url_for('admin.partners_upload_logo', org_id=org.id) }}" enctype="multipart/form-data" class="row g-2 align-items-end mb-3">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="col-auto">
@@ -93,12 +74,19 @@
       </form>
 
       <table class="table table-sm align-middle mb-3">
-        <thead><tr><th>아이디</th><th>이름</th><th>상태</th><th>마지막 접속</th><th>비밀번호 바꾸기</th><th></th></tr></thead>
+        <thead><tr><th>아이디</th><th>이름</th><th>연락처(도면 표기)</th><th>상태</th><th>마지막 접속</th><th>비밀번호 바꾸기</th><th></th></tr></thead>
         <tbody>
           {% for u in row.users %}
           <tr>
             <td>{{ u.username }}</td>
             <td>{{ u.name }}</td>
+            <td>
+              <form method="post" action="{{ url_for('admin.partners_set_user_phone', user_id=u.id) }}" class="d-flex gap-1">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="tel" name="contact_phone" class="form-control form-control-sm" value="{{ u.contact_phone or '' }}" maxlength="30" placeholder="010-0000-0000" aria-label="{{ u.username }} 연락처" required>
+                <button type="submit" class="btn btn-outline-primary btn-sm text-nowrap">저장</button>
+              </form>
+            </td>
             <td>{% if u.is_active %}<span class="badge bg-success">사용 중</span>{% else %}<span class="badge bg-secondary">꺼짐</span>{% endif %}</td>
             <td class="small text-muted">{{ u.last_login | format_datetime_kst if u.last_login else '-' }}</td>
             <td>
@@ -116,14 +104,14 @@
             </td>
           </tr>
           {% else %}
-          <tr><td colspan="6" class="text-muted small">계정이 없습니다.</td></tr>
+          <tr><td colspan="7" class="text-muted small">계정이 없습니다.</td></tr>
           {% endfor %}
         </tbody>
       </table>
 
       <form method="post" action="{{ url_for('admin.partners_add_user', org_id=org.id) }}" class="row g-2 align-items-end">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <div class="col-md-3">
+        <div class="col-md-2">
           <label class="form-label small" for="pt-u-{{ org.id }}">새 계정 아이디</label>
           <input class="form-control form-control-sm" id="pt-u-{{ org.id }}" name="username" maxlength="64" autocomplete="off" required>
         </div>
@@ -131,7 +119,11 @@
           <label class="form-label small" for="pt-n-{{ org.id }}">이름</label>
           <input class="form-control form-control-sm" id="pt-n-{{ org.id }}" name="name" maxlength="50">
         </div>
-        <div class="col-md-3">
+        <div class="col-md-2">
+          <label class="form-label small" for="pt-ph-{{ org.id }}">연락처(도면 표기)</label>
+          <input type="tel" class="form-control form-control-sm" id="pt-ph-{{ org.id }}" name="contact_phone" maxlength="30" placeholder="010-0000-0000" required>
+        </div>
+        <div class="col-md-2">
           <label class="form-label small" for="pt-p-{{ org.id }}">비밀번호</label>
           <input type="password" class="form-control form-control-sm" id="pt-p-{{ org.id }}" name="password" autocomplete="new-password" required>
         </div>

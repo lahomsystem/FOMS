@@ -18,6 +18,7 @@ from foms.services.erp_template_filters import (
     format_phone_no_prefix,
     item_spec_w300_display,
 )
+from foms.services.auth.partner_scope import partner_drawing_manager_name
 from foms.services.partners.logo import partner_logo_mode
 
 __all__ = ["build_wizard_defaults", "resolve_assignee_drew_en"]
@@ -288,6 +289,8 @@ def build_wizard_defaults(
         product_name = _as_str(selected_item.get("product_name")).strip()
 
     sales_manager = _as_str(manager.get("name")) or _as_str(getattr(order, "manager_name", None))
+    # PARTNER-04: 협력사 주문은 담당이 협력사 직원 — 연락처는 parties.manager.phone 에 있고, 도면엔 이름만 찍는다.
+    sales_manager_label = partner_drawing_manager_name(sd) or sales_manager
     phone_raw = customer.get("phone")
 
     return {
@@ -302,7 +305,7 @@ def build_wizard_defaults(
         "handle": _consult_strip(selected_item.get("handle")),
         "drawer": _consult_strip(selected_item.get("internal")),
         "misc": _misc(selected_item),
-        "sales_manager": sales_manager,
+        "sales_manager": sales_manager_label,
         "manager_phone": _resolve_manager_phone(order, parties, manager, sales_manager),
         # PARTNER-03: 협력사 주문은 라홈·하우드 대신 협력사 로고('partner') 또는 빈칸('none').
         "logo": partner_logo_mode(order) or _resolve_logo(sales_manager),

@@ -13,10 +13,10 @@ from models import Order, PartnerOrg, User
 _counter = itertools.count(1)
 
 
-def _user(*, role="STAFF", team="CS", org=None, name=None, is_active=True) -> User:
+def _user(*, role="STAFF", team="CS", org=None, name=None, is_active=True, contact_phone=None) -> User:
     n = next(_counter)
     user = User(username=f"pp-{n}", password="x", role=role, team=team, name=name or f"user-{n}",
-                partner_org_id=org.id if org else None, is_active=is_active)
+                partner_org_id=org.id if org else None, is_active=is_active, contact_phone=contact_phone)
     db_session.add(user)
     db_session.commit()
     return user
@@ -32,16 +32,20 @@ def _client(app, user: User | None):
 
 @pytest.fixture
 def world(app):
+    # 협력사 주문 담당은 협력사 직원이다(스펙 §16) — 영업 직원은 대조군(협력사 주문 몫 없음).
     sales = _user(team="SALES", name="영업김")
-    org_a = PartnerOrg(name="가나가구", owner_user_id=sales.id)
-    org_b = PartnerOrg(name="다라가구", owner_user_id=sales.id)
+    org_a = PartnerOrg(name="가나가구")
+    org_b = PartnerOrg(name="다라가구")
     db_session.add_all([org_a, org_b])
     db_session.commit()
     return {
         "sales": sales.id,
         "org_a": org_a.id,
         "org_b": org_b.id,
-        "partner_a": _user(role="PARTNER", team=None, org=org_a, name="가나 직원").id,
+        "partner_a": _user(role="PARTNER", team=None, org=org_a, name="가나 직원",
+                           contact_phone="010-1111-2222").id,
+        "partner_a2": _user(role="PARTNER", team=None, org=org_a, name="가나 둘째",
+                            contact_phone="010-3333-4444").id,
         "partner_b": _user(role="PARTNER", team=None, org=org_b).id,
         "staff": _user().id,
         "admin": _user(role="ADMIN", team=None).id,

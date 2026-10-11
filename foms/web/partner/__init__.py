@@ -17,6 +17,7 @@ from foms.services.orders.as_cycle_service import AS_IN_PROGRESS, AS_RECEIVED, c
 from foms.services.orders.confirm_drawing_gate import confirm_exit_block
 from foms.services.partners.as_intake import AS_OPEN_STAGES
 from foms.services.partners.drawing_confirm import final_drawings_for_partner
+from foms.services.partners.manager import org_member_choices
 from foms.services.partners.orders import list_partner_orders, partner_order_detail
 from models import Order, OrderAttachment, PartnerOrg
 
@@ -35,6 +36,7 @@ def home():
         "partner/home.html",
         org=org,
         orders=list_partner_orders(get_db(), org.id),
+        me=g.current_user,
     )
 
 
@@ -86,4 +88,5 @@ def order_detail(order_id: int):
         and (order.structured_data or {}).get("drawing_status") in ("TRANSFERRED", "CONFIRMED"),
         can_as=stage in AS_OPEN_STAGES and not as_open,
         as_open=as_open,
+        manager_choices=org_member_choices(db, order.partner_org_id),
     )

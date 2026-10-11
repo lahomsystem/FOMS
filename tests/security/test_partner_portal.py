@@ -31,7 +31,7 @@ from tests.security.partner_fixtures import (  # noqa: F401 — pytest fixture �
 # --------------------------------------------------------------------------
 # 주문 등록
 # --------------------------------------------------------------------------
-def test_partner_order_lands_in_measure_owned_by_cs_with_our_sales_owner(app, world):
+def test_partner_order_lands_in_measure_owned_by_cs_with_partner_manager(app, world):
     resp = _create(app, world["partner_a"])
     body = resp.get_json()
     assert resp.status_code == 200 and body["success"] is True, body
@@ -47,20 +47,27 @@ def test_partner_order_lands_in_measure_owned_by_cs_with_our_sales_owner(app, wo
     assert not (sd.get("schedule") or {}).get("measurement")
     assert sd["partner_intake"]["measured_on"] == "2026-10-07"
     assert sd["partner_intake"]["submitted_by_name"] == "가나 직원"
-    # 영업 담당은 협력사가 아니라 우리 직원이다.
+    # 담당은 주문을 올린 협력사 직원이다(스펙 §16). 이름엔 회사명 꼬리, 연락처는 계정 연락처.
     owners = db_session.query(OrderAssignment).filter(OrderAssignment.order_id == order.id).all()
-    assert [(a.domain, a.user_id) for a in owners] == [("SALES", world["sales"])]
+    assert [(a.domain, a.user_id) for a in owners] == [("SALES", world["partner_a"])]
+    assert sd["parties"]["manager"] == {
+        "name": "가나 직원 (가나가구)", "phone": "010-1111-2222",
+        "partner_user_id": world["partner_a"], "partner_user_name": "가나 직원",
+    }
+    assert order.manager_name == "가나 직원 (가나가구)"
     quest = next(q for q in sd["quests"] if q.get("stage") == "MEASURE")
     assert quest["owner_team"] == "CS"
 
 
-def test_partner_order_rejected_without_our_owner(app, world):
-    org = db_session.get(PartnerOrg, world["org_a"])
-    org.owner_user_id = None
+def test_partner_order_without_phone_has_no_manager_phone(app, world):
+    # 연락처 없는 옛 계정도 등록은 된다 — 도면 담당 연락처만 비어 나간다(관리 화면에서 넣으면 채워진다).
+    user = db_session.get(User, world["partner_a"])
+    user.contact_phone = None
     db_session.commit()
     resp = _create(app, world["partner_a"])
-    assert resp.status_code == 400
-    assert db_session.query(Order).count() == 0
+    assert resp.status_code == 200
+    order = db_session.get(Order, resp.get_json()["data"]["order_id"])
+    assert "phone" not in order.structured_data["parties"]["manager"]
 
 
 def test_partner_order_requires_fields(app, world):
@@ -179,22 +186,25 @@ def test_share_create_hides_customer_phone_for_partner_orders(app, world):
 # --------------------------------------------------------------------------
 def test_admin_creates_partner_and_account(app, world):
     client = _client(app, db_session.get(User, world["admin"]))
-    resp = client.post("/admin/partners", data={"name": "마바가구", "owner_user_id": world["sales"]})
+    resp = client.post("/admin/partners", data={"name": "마바가구"})
     assert resp.status_code == 302
     org_id = db_session.query(PartnerOrg.id).filter(PartnerOrg.name == "마바가구").scalar()
     resp = client.post(f"/admin/partners/{org_id}/users",
-                       data={"username": "maba1", "name": "마바", "password": "Strong-pass-2026!"})
+                       data={"username": "maba1", "name": "마바", "password": "Strong-pass-2026!",
+                             "contact_phone": "01055556666"})
     assert resp.status_code == 302
     user = db_session.query(User).filter(User.username == "maba1").one()
     assert user.role == "PARTNER" and user.partner_org_id == org_id and user.team is None
+    assert user.contact_phone == "010-5555-6666"
     page = client.get("/admin/partners").get_data(as_text=True)
     assert "마바가구" in page and "maba1" in page
 
 
-def test_admin_partner_owner_must_be_sales(app, world):
+def test_admin_partner_account_requires_phone(app, world):
     client = _client(app, db_session.get(User, world["admin"]))
-    client.post("/admin/partners", data={"name": "영업아님", "owner_user_id": world["staff"]})
-    assert db_session.query(PartnerOrg).filter(PartnerOrg.name == "영업아님").count() == 0
+    client.post(f"/admin/partners/{world['org_a']}/users",
+                data={"username": "nophone", "name": "번호없음", "password": "Strong-pass-2026!"})
+    assert db_session.query(User).filter(User.username == "nophone").count() == 0
 
 
 def test_generic_user_edit_refuses_partner_accounts(app, world):
@@ -205,7 +215,7 @@ def test_generic_user_edit_refuses_partner_accounts(app, world):
 
 def test_non_admin_cannot_manage_partners(app, world):
     client = _client(app, db_session.get(User, world["staff"]))
-    client.post("/admin/partners", data={"name": "몰래", "owner_user_id": world["sales"]})
+    client.post("/admin/partners", data={"name": "몰래"})
     assert db_session.query(PartnerOrg).filter(PartnerOrg.name == "몰래").count() == 0
 
 
@@ -225,14 +235,8 @@ def test_staff_list_marks_partner_orders_only(app, world):
     assert "협력사 · 가나가구" in html
 
 
-def test_admin_owner_choices_and_counts_skip_system_and_deleted(app, world):
-    from foms.services.partners.orgs import list_partner_orgs_with_users, sales_owner_choices
-
-    system = _user(team="SALES", name="미배정 (네이버 수집)")
-    system.username = "naver_unassigned"
-    db_session.commit()
-    names = {u.username for u in sales_owner_choices(db_session)}
-    assert "naver_unassigned" not in names and db_session.get(User, world["sales"]).username in names
+def test_admin_counts_skip_deleted(app, world):
+    from foms.services.partners.orgs import list_partner_orgs_with_users
 
     keep = _create(app, world["partner_a"]).get_json()["data"]["order_id"]
     gone = _create(app, world["partner_a"]).get_json()["data"]["order_id"]
