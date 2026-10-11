@@ -1251,8 +1251,8 @@ class PartnerOrg(Base):
     logo_storage_key = Column(String(500), nullable=True)
     contact_name = Column(String(100), nullable=True)
     contact_phone = Column(String(30), nullable=True)
-    # PARTNER-02: 이 협력사를 맡는 우리 영업 직원. 협력사 주문의 영업 담당(OrderAssignment SALES ·
-    # quest owner_person)이 된다 — 주문 담당은 반드시 우리 직원이어야 한다(create_order 계약).
+    # PARTNER-02 때 "이 협력사를 맡는 우리 영업 직원" 칸. 2026-10-11 부터 협력사 주문 담당은 협력사
+    # 직원이고 우리 쪽은 CS 팀이 챙겨서(스펙 §16) 앱이 더는 읽거나 쓰지 않는다 — 지우는 것은 나중에 따로.
     owner_user_id = Column(
         Integer,
         # users.partner_org_id 와 서로 가리키는 순환이라 표 생성 뒤 ALTER 로 붙인다(use_alter).
@@ -1306,6 +1306,8 @@ class User(Base):
     # 담당자 개인 도면방(채널톡 그룹 id). 주문 담당자 이름이 이 사용자와 맞으면
     # 도면방 PUSH 가 공용 도면방과 여기로 함께 나간다. 미등록이면 공용방만 나간다.
     channel_drawing_group_id = Column(String(32), nullable=True)
+    # PARTNER-04: 연락처(협력사 직원 — 담당인 주문의 도면 "담당 연락처"에 찍힌다). sender_phone 과 별개.
+    contact_phone = Column(String(30), nullable=True)
     # PARTNER-01: 협력사 계정의 소속. NULL = 우리 직원(ck_users_partner_role_org 가 role 과 맞춘다).
     partner_org_id = Column(Integer, ForeignKey('partner_orgs.id', name='fk_users_partner_org_id_partner_orgs'), nullable=True, index=True)
     created_at = Column(DateTime, default=datetime.datetime.now)

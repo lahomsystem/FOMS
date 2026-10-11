@@ -15,6 +15,7 @@ from db import get_db
 from foms.api.files.blueprint import ASYNC_ATTACHMENT_THUMBNAIL
 from foms.api.files.common import DRAWING_ATTACHMENT_EXTRA_EXTENSIONS, get_erp_media_max_size
 from foms.api.files.order_routes import ATTACHMENT_ADDED, emit_attachment_event
+from foms.services.audit_writer import normalize_security_detail
 from foms.api.notifications import invalidate_badge_cache_for_user_ids, resolve_notification_recipient_user_ids
 from foms.services.auth.partner_scope import partner_can_read_order, partner_required
 from foms.services.common.dashboard_cache import (
@@ -35,9 +36,10 @@ from foms.services.partners.as_intake import PartnerASError, register_partner_as
 from foms.services.partners.drawing_confirm import PartnerConfirmError, approve_partner_drawing
 from foms.services.partners.revision import REVISION_FOLDER, PartnerRevisionError, request_partner_revision
 from foms.services.partners.logo import partner_org_of, read_partner_logo
+from foms.services.partners.manager import PartnerManagerError, change_partner_order_manager, set_partner_user_phone
 from foms.services.partners.orders import PartnerOrderError, create_partner_order
 from foms.services.storage import get_storage
-from models import Order, OrderAttachment, PartnerOrg
+from models import Order, OrderAttachment, PartnerOrg, SecurityLog
 
 partner_api_bp = Blueprint("partner_api", __name__, url_prefix="/api/partner")
 
@@ -78,12 +80,9 @@ def create_order():
     except PartnerOrderError as exc:
         db.rollback()
         return _fail(str(exc), 400)
-    # 받는 사람(CS 팀 + 담당 영업)의 벨 배지를 바로 갱신한다.
-    recipients = set(resolve_notification_recipient_user_ids(
+    # 받는 사람(CS 팀)의 벨 배지를 바로 갱신한다.
+    invalidate_badge_cache_for_user_ids(resolve_notification_recipient_user_ids(
         db, target_team="CS", target_manager_name=None, include_admin=False))
-    if org.owner_user_id:
-        recipients.add(int(org.owner_user_id))
-    invalidate_badge_cache_for_user_ids(recipients)
     return jsonify({"success": True, "data": {"order_id": order.id}, "error": None})
 
 
@@ -147,6 +146,45 @@ def upload_file(order_id: int):
         "data": {"attachment_id": attachment.id, "filename": attachment.filename, "kind": folder_name},
         "error": None,
     })
+
+
+@partner_api_bp.route("/orders/<int:order_id>/manager", methods=["POST"])
+@partner_required
+def change_manager(order_id: int):
+    """담당 바꾸기(JSON ``user_id``) — 같은 회사 사용 중인 직원만."""
+    db = get_db()
+    try:
+        change_partner_order_manager(db, g.current_user, order_id, (request.get_json(silent=True) or {}).get("user_id"))
+        db.commit()
+    except PartnerManagerError as exc:
+        db.rollback()
+        return _fail(str(exc), exc.status)
+    invalidate_dashboard_families(DASHBOARD_FAMILY_ORDERS)
+    return jsonify({"success": True, "data": {"order_id": order_id}, "error": None})
+
+
+@partner_api_bp.route("/me/phone", methods=["POST"])
+@partner_required
+def update_my_phone():
+    """내 연락처(JSON ``contact_phone``) — 내가 담당인 진행 중 주문의 도면 담당 연락처도 바뀐다."""
+    db = get_db()
+    user = g.current_user
+    try:
+        changed = set_partner_user_phone(db, user, (request.get_json(silent=True) or {}).get("contact_phone"),
+                                         actor_user_id=user.id)
+        db.add(SecurityLog(
+            user_id=user.id, message=f"협력사 직원 연락처 변경: {user.username}", action="PARTNER_USER_PHONE_CHANGED",
+            target_type="user", target_id=user.id,
+            detail=normalize_security_detail({"partner_org_id": user.partner_org_id, "orders_updated": changed}),
+        ))
+        db.commit()
+    except PartnerManagerError as exc:
+        db.rollback()
+        return _fail(str(exc), exc.status)
+    if changed:
+        invalidate_dashboard_families(DASHBOARD_FAMILY_ORDERS)
+    return jsonify({"success": True, "data": {"contact_phone": user.contact_phone, "orders_updated": changed},
+                    "error": None})
 
 
 @partner_api_bp.route("/orders/<int:order_id>/approve-drawing", methods=["POST"])

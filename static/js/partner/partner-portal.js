@@ -3,6 +3,7 @@
  *
  * 서버 계약: POST /api/partner/orders (JSON) → {success, data:{order_id}, error}
  *            POST /api/partner/orders/<id>/files (multipart file + kind=photo|draft)
+ *            POST /api/partner/orders/<id>/manager · /api/partner/me/phone (JSON 한 칸 — form[data-pp-json-url])
  * CSRF 헤더는 partials/shared/csrf_bootstrap.html 이 fetch 에 자동으로 싣는다.
  */
 (function () {
@@ -207,7 +208,40 @@
     });
   }
 
+  /** 한 칸짜리 JSON 폼(담당 바꾸기 · 내 연락처) — 성공하면 새로고침. */
+  function bindJsonForm(form) {
+    var busy = false;
+    var status = form.querySelector('[data-pp-status]');
+    function show(text, isError) {
+      if (!status) return;
+      status.textContent = text || '';
+      status.classList.toggle('pp-status--error', !!isError);
+    }
+    form.addEventListener('submit', async function (ev) {
+      ev.preventDefault();
+      if (busy) return;
+      var key = form.getAttribute('data-pp-json-key');
+      var field = form.elements[key];
+      var value = field ? String(field.value || '').trim() : '';
+      if (!value) { show('값을 넣어 주세요.', true); return; }
+      busy = true;
+      form.querySelector('button[type="submit"]').disabled = true;
+      show('저장하는 중…');
+      try {
+        var body = {};
+        body[key] = value;
+        await postJson(form.getAttribute('data-pp-json-url'), body);
+        window.location.reload();
+      } catch (err) {
+        show(err.message, true);
+        busy = false;
+        form.querySelector('button[type="submit"]').disabled = false;
+      }
+    });
+  }
+
   document.addEventListener('DOMContentLoaded', function () {
+    Array.prototype.forEach.call(document.querySelectorAll('form[data-pp-json-url]'), bindJsonForm);
     Array.prototype.forEach.call(document.querySelectorAll('form[data-pp-post-url]'), bindPostForm);
     var approve = document.querySelector('[data-pp-approve-url]');
     if (approve) bindApprove(approve);

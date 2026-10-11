@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import List, Optional
 
 from foms.services.orders.erp_policy_constants import DEFAULT_OWNER_TEAM_BY_STAGE
+from foms.services.orders.order_mutation_policy import team_has_capability
 
 
 def get_assignee_ids(order, domain: str) -> List[int]:
@@ -59,10 +60,27 @@ def can_modify_domain(
         allowed_ids = get_assignee_ids(order, domain)
         if user.id in allowed_ids:
             return True
+        if domain == "SALES_DOMAIN" and is_partner_order_cs_staff(user, order):
+            return True
         if user.role == "MANAGER" and emergency_override and override_reason:
             return True
         return False
     return can_modify_by_team_policy(user, order, domain, emergency_override, override_reason)
+
+
+def is_partner_order_cs_staff(user, order) -> bool:
+    """외부 협력사 주문이고 사용자가 CS 업무 권한을 가진 우리 직원인가(스펙 §16).
+
+    협력사 주문의 담당은 협력사 직원이라(우리 시스템 밖 사람) 우리 쪽 영업 몫(도면 수정 요청 ·
+    도면 받음 확인 등)은 CS 팀이 대신 맡는다. 협력사 계정 자신은 ``partner_org_id`` 가 있어 빠진다.
+    """
+    if not user or not order or getattr(order, "partner_org_id", None) is None:
+        return False
+    if getattr(user, "partner_org_id", None) is not None:
+        return False
+    if (getattr(user, "role", None) or "").upper() not in ("STAFF", "MANAGER"):
+        return False
+    return team_has_capability(getattr(user, "team", None), ("CS",))
 
 
 def can_modify_by_team_policy(

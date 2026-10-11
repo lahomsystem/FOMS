@@ -258,3 +258,85 @@
   없다. 대신 등록 순간 **CS 팀 + 담당 영업**에게 벨 알림 `PARTNER_ORDER_CREATED`("협력사 새 주문")를 남긴다(협력사 계정은 수신 제외).
   주문 대시보드(실측 단계·CS 주관)에는 "협력사" 표식과 함께 보인다.
 
+
+## 16. 담당 = 협력사 직원 (2026-10-11 결정 · 승인 · 구현)
+
+사용자 결정(2026-10-11):
+- 협력사 주문의 **담당은 협력사 직원**이다 — 주문을 올린 직원. 나중에 같은 회사 다른 직원으로 바꿀 수 있다.
+- **도면은 우리 도면팀이 그린다.** 협력사가 올리는 "초안 도면"은 참고 파일일 뿐이다(지금 코드와 같다 — 바꿀 것 없음).
+- 우리 쪽은 **CS 팀만** 챙긴다. 회사마다 정하던 "우리 쪽 담당 직원"(`partner_orgs.owner_user_id`)은 쓰지 않는다.
+
+### 16.1 지금 코드 (바뀌는 이유)
+- 주문 등록이 `partner_orgs.owner_user_id`(우리 영업 직원)를 담당으로 넣는다: `parties.manager.name` · `OrderAssignment(SALES)` ·
+  quest `owner_person` · 새 주문 벨 `target_user_id` (`foms/services/partners/orders.py:92-197`). 이 직원이 없으면 등록이 막힌다.
+- 담당 이름은 여러 곳에서 **이름 문자열로** 사용자와 맞춰 본다(같은 이름이면 같은 사람으로 본다):
+  도면 전달·전달취소 알림 대상(`foms/api/drawing/erp_orders_drawing.py:70-93`), "내 주문" 필터(`erp_permissions.py:306-348`),
+  영업 권한 이름 대체 판정(`erp_display.py:507-531`), 첨부 관리 권한(`order_attachment_permissions.py:67-104`),
+  채널톡 개인 도면방(`channel_manager_room.py:107-122`).
+- 영업 쪽 권한(`SALES_DOMAIN`)은 ADMIN · SALES 배정 id · (MANAGER 긴급) 만 통과한다(`erp_policy_permissions.py:45-64`).
+  CS 팀은 이 권한이 없다.
+
+### 16.2 바꾸는 것
+1. **주문 등록**(`create_partner_order`):
+   - 담당 = 등록한 협력사 계정. `OrderAssignment(SALES)` · quest `owner_person` = 그 계정 id.
+   - `parties.manager.name` = **`이름 (회사명)`** 형태(예: `김철수 (가나가구)`). 우리 직원과 이름이 같아도 이름 맞추기에서
+     섞이지 않게 하려는 것이다 — 같은 이름의 우리 직원에게 도면 알림 · "내 주문" · 첨부 권한이 넘어가는 사고를 막는다.
+   - "우리 쪽 담당자가 아직 정해지지 않았습니다" 막힘은 없앤다.
+   - 새 주문 벨은 CS 팀만(`target_user_id` 빼기). 배지 갱신도 CS 팀만.
+2. **CS 팀 = 협력사 주문의 영업 쪽 권한**: `can_modify_domain('SALES_DOMAIN')` 에 "협력사 주문이고 내부 CS 팀 직원이면 허용"
+   한 갈래를 더한다. 그래야 CS 가 도면 수정 요청 · 수정 요청 취소 · 도면 받음 확인을 대신 할 수 있다(지금은 우리 영업 담당 몫).
+   협력사 계정 자신은 문지기와 쓰기 정책 엔진이 그대로 막는다(이 갈래는 `partner_org_id IS NULL` 직원만).
+3. **도면 전달 · 전달취소 알림**: `_drawing_notice_target` 에 "협력사 주문이면 CS 팀" 갈래를 맨 앞에 둔다
+   (지금은 이름이 안 맞으면 영업팀 전체로 퍼진다). 협력사는 협력사 화면에서 단계("도면 확인 대기")로 본다 — 지금과 같다.
+4. **담당 바꾸기**(같은 회사 직원끼리): 협력사 상세 화면에 "담당 바꾸기"(같은 회사 활성 직원 중 고르기).
+   `POST /api/partner/orders/<id>/manager` → SALES 배정 교체 · `parties.manager.name` · quest `owner_person` · 감사
+   `PARTNER_ORDER_MANAGER_CHANGED`. 새 라우트라 허용 목록과 매니페스트 2개에 넣는다.
+   직원 주문 폼은 협력사 주문의 `parties.manager` 를 서버값으로 잠근다(`lock_server_owned_keys` 에 추가 — 지금은 안 잠긴다).
+   우리 쪽에서 바꿔야 하면 관리자가 협력사 계정으로 들어가서 바꾼다(지원용 전환은 이미 허용).
+5. **관리 화면**: 협력사 만들 때 "우리 쪽 담당 직원" 칸과 "담당 바꾸기" 폼을 뺀다. `partner_orgs.owner_user_id` 컬럼은
+   이미 비워도 되는(nullable) 칸이라 **DB 변경 없이** 쓰지 않기만 한다(지우는 것은 나중에 따로).
+6. **이미 있는 협력사 주문**: 담당을 `partner_intake.submitted_by_user_id` 로 옮기는 정리 스크립트(먼저 미리보기 → 실행).
+   스테이징 먼저, 운영은 건수를 보고한 뒤 허락받고.
+
+7. **협력사 직원 전화번호 → 도면 표기**(2026-10-11 사용자 요청):
+   - `users.contact_phone`(비워도 되는 칸, 30자) 추가 — Alembic 1개, downgrade 포함. `sender_phone` 은 알림톡 발신번호라 섞지 않는다.
+   - 관리 화면에서 협력사 직원 계정을 만들 때 **전화번호 필수**, 기존 계정은 관리 화면에서 고친다.
+     협력사 직원 본인도 협력사 화면 "내 정보"에서 고칠 수 있다.
+   - 주문 등록 · 담당 바꾸기 때 `parties.manager.phone` 에 담당의 번호를 적는다. 도면 마법사는 이미 이 칸을
+     맨 먼저 읽는다(`drawing_wizard_defaults.py:214-244` `_resolve_manager_phone`) — 마법사 코드는 안 바꾼다.
+   - 직원이 번호를 바꾸면 그 직원이 담당인 **진행 중 주문**(완료 · 취소 전)의 `parties.manager.phone` 도 같이 바꾼다.
+     이미 보낸 도면 그림은 그대로다(다음에 그리는 도면부터 새 번호).
+   - 도면의 "담당" 칸은 회사명 꼬리를 떼고 `김철수` 만 찍는다(로고가 이미 협력사다). 목록 · 상세 화면은 `김철수 (가나가구)`.
+   - 직원 주문 폼은 협력사 주문의 `parties.manager`(이름 · 번호)를 서버값으로 잠근다(4번과 같은 잠금).
+
+### 16.3 바꾸지 않는 것
+- 협력사 계정은 알림을 받지 않는다(`INTERNAL_USERS_ONLY` 그대로). 담당이 협력사 직원이어도 담당 앞 알림은 CS 로 간다.
+- 고객 발송 막힘(`partner_order` 409) 그대로.
+- 정산의 "담당별" 묶음은 협력사 직원 이름별로 나뉜다 — 정산 규칙을 정할 때 같이 본다(이번엔 손대지 않음).
+
+### 16.4 알아 둘 것
+- 주문을 올린 협력사 계정은 SALES 배정이 남아 **완전 삭제가 막힌다**(`user_deletion.py:136-143`). 퇴사한 협력사 직원은
+  비활성으로 돌린다.
+- 전화번호가 없는 옛 협력사 계정이 올린 주문은 도면 "담당 연락처"가 `-` 로 나온다 — 관리 화면에서 번호를 넣으면 진행 중 주문에 채워진다.
+
+### 16.5 검증
+- 등록 → SALES 배정 = 협력사 계정 · 이름 `이름 (회사명)` · 새 주문 벨은 CS 만(협력사 · 다른 영업 0명).
+- 같은 이름 우리 직원이 있어도 "내 주문" · 도면 알림 · 첨부 권한에 안 잡힌다(음성 대조군: 우리 주문은 담당 이름으로 잡힌다).
+- CS 직원은 협력사 주문 도면 수정 요청 200, 일반 주문은 지금처럼 403(대조군). 영업팀 다른 직원은 협력사 주문 403.
+- 도면 전달 알림: 협력사 주문은 CS 팀, 일반 주문은 지금처럼 담당 본인.
+- 담당 바꾸기: 같은 회사 직원 200, 다른 회사 직원 400, 직원 폼으로 `parties.manager` 바꾸기 무시.
+- 전화번호: 계정 만들 때 번호 없으면 400. 등록한 주문의 도면 기본값 `manager_phone` = 그 번호, `sales_manager` = 이름만.
+  번호 바꾸면 진행 중 주문만 바뀌고 완료 주문은 그대로(대조군). 마이그레이션 upgrade → downgrade → upgrade 통과.
+- 기존 45개 테스트 중 담당 가정을 바꾸는 것(`test_partner_portal.py` 등록 · 관리 화면, `test_partner_portal_stage3.py` 벨)은 새 규칙으로 고친다.
+
+### 16.6 구현 기록 (2026-10-11)
+- 담당 · 연락처 한 곳: `foms/services/partners/manager.py`(`manager_party` · `reassign_partner_order` · `change_partner_order_manager`
+  · `set_partner_user_phone` · `clean_contact_phone`). `parties.manager` = `{name: "이름 (회사명)", phone, partner_user_id, partner_user_name}`.
+- 마이그레이션 `partner_02`(users.contact_phone). `partner_orgs.owner_user_id` 는 남겨 두고 읽지 않는다.
+- CS 권한: `erp_policy_permissions.is_partner_order_cs_staff` → `can_modify_domain('SALES_DOMAIN')`.
+- 도면 알림: `_drawing_notice_target(..., partner=is_partner_sd(s_data))` → CS. 도면 이름: `partner_scope.partner_drawing_manager_name`.
+- 새 라우트 3개(허용 목록 · 매니페스트 2개): `partner_api.change_manager`, `partner_api.update_my_phone`, `admin.partners_set_user_phone`.
+  지운 라우트: `admin.partners_set_owner`.
+- 기존 주문 백필: `tools/ops/backfill_partner_order_manager.py`(기본 미리보기, `--apply`).
+- 시험: `tests/security/test_partner_manager.py`(거부 · 대조군), 교체 성공 경로와 백필은 PG 레인
+  `tests/postgres/test_partner_manager_pg.py`(SQLite 는 order_assignments 부분 유니크를 전체 유니크로 굳혀 교체가 죽는다).

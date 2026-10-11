@@ -16,8 +16,7 @@ from foms.services.partners.orgs import (
     get_partner_user,
     list_partner_orgs_with_users,
     reset_partner_user_password,
-    sales_owner_choices,
-    update_partner_owner,
+    update_partner_user_phone,
 )
 from foms.services.storage import get_storage
 from foms.web.admin.routes import admin_bp
@@ -46,7 +45,6 @@ def partners():
     return render_template(
         "admin/partners.html",
         rows=list_partner_orgs_with_users(db),
-        owner_choices=sales_owner_choices(db),
     )
 
 
@@ -59,7 +57,6 @@ def partners_create():
         org = create_partner_org(
             db,
             name=request.form.get("name"),
-            owner_user_id=request.form.get("owner_user_id"),
             biz_reg_no=request.form.get("biz_reg_no"),
             contact_name=request.form.get("contact_name"),
             contact_phone=request.form.get("contact_phone"),
@@ -67,27 +64,6 @@ def partners_create():
         _audit(db, f"협력사 추가: {org.name}", "PARTNER_ORG_CREATED", "partner_org", org.id)
         db.commit()
         flash(f"협력사 '{org.name}'를 만들었습니다.", "success")
-    except PartnerAdminError as exc:
-        db.rollback()
-        flash(str(exc), "error")
-    return _back()
-
-
-@admin_bp.route("/admin/partners/<int:org_id>/owner", methods=["POST"])
-@login_required
-@role_required(["ADMIN"])
-def partners_set_owner(org_id: int):
-    db = get_db()
-    org = _org_or_none(db, org_id)
-    if org is None:
-        flash("협력사를 찾을 수 없습니다.", "error")
-        return _back()
-    try:
-        update_partner_owner(db, org, request.form.get("owner_user_id"))
-        _audit(db, f"협력사 담당 변경: {org.name}", "PARTNER_ORG_OWNER_CHANGED", "partner_org", org.id,
-               owner_user_id=org.owner_user_id)
-        db.commit()
-        flash("우리 쪽 담당 직원을 바꿨습니다.", "success")
     except PartnerAdminError as exc:
         db.rollback()
         flash(str(exc), "error")
@@ -159,6 +135,7 @@ def partners_add_user(org_id: int):
             username=request.form.get("username"),
             name=request.form.get("name"),
             password=request.form.get("password"),
+            contact_phone=request.form.get("contact_phone"),
         )
         _audit(db, f"협력사 계정 추가: {user.username} ({org.name})", "PARTNER_USER_CREATED", "user", user.id,
                partner_org_id=org.id)
@@ -184,6 +161,29 @@ def partners_toggle_user(user_id: int):
            "user", user.id, is_active=user.is_active)
     db.commit()
     flash(f"계정 '{user.username}'을(를) {'켰' if user.is_active else '껐'}습니다.", "success")
+    return _back()
+
+
+@admin_bp.route("/admin/partners/users/<int:user_id>/phone", methods=["POST"])
+@login_required
+@role_required(["ADMIN"])
+def partners_set_user_phone(user_id: int):
+    """협력사 직원 연락처 — 그 직원이 담당인 진행 중 주문의 도면 담당 연락처도 바뀐다."""
+    db = get_db()
+    user = get_partner_user(db, user_id)
+    if user is None:
+        flash("협력사 계정을 찾을 수 없습니다.", "error")
+        return _back()
+    try:
+        changed = update_partner_user_phone(db, user, request.form.get("contact_phone"),
+                                            actor_user_id=session.get("user_id"))
+        _audit(db, f"협력사 계정 연락처 변경: {user.username}", "PARTNER_USER_PHONE_CHANGED", "user", user.id,
+               orders_updated=changed)
+        db.commit()
+        flash(f"'{user.username}' 연락처를 바꿨습니다(진행 중 주문 {changed}건에 반영).", "success")
+    except PartnerAdminError as exc:
+        db.rollback()
+        flash(str(exc), "error")
     return _back()
 
 

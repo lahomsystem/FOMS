@@ -6,7 +6,7 @@
   발주사(``parties.orderer.name``) = 협력사 이름.
 * 실측 단계(MEASURE) · 주관 팀 CS · ``measurement_completed`` 로 들어온다. CS 가 내용을 보고 기존
   "도면 단계로 넘기기"를 누르면 도면으로 간다. 새 단계 코드는 만들지 않는다.
-* 영업 담당은 협력사를 맡는 우리 직원(``partner_orgs.owner_user_id``)이다.
+* 담당은 주문을 올린 협력사 직원이다(스펙 §16 — ``foms/services/partners/manager.py``). 우리 쪽은 CS 팀이 챙긴다.
 * 협력사가 낸 원문은 ``structured_data.partner_intake`` 에 등록 시점 사본으로 남는다(도면팀이
   ``items`` 를 고쳐도 원문은 그대로 — 실측 책임을 가리는 근거).
 * 실측일은 ``schedule.measurement`` 에 넣지 않는다 — 우리 실측 일정표에 협력사 실측이 섞이지 않게.
@@ -21,6 +21,7 @@ from foms.services.auth.partner_scope import PARTNER_SOURCE_MARKER
 from foms.services.datetime_kst import get_today_kst, now_kst
 from foms.services.orders.order_create import create_order
 from foms.services.notifications.recipients import fan_out_new_notification
+from foms.services.partners.manager import manager_party
 from models import Notification, Order, PartnerOrg, SecurityLog, User
 
 PARTNER_ORDER_NOTIFICATION_TYPE = "PARTNER_ORDER_CREATED"
@@ -89,17 +90,6 @@ def _clean_items(raw_items: Any) -> list[dict[str, Any]]:
     return items
 
 
-def _require_owner(db, org: PartnerOrg) -> User:
-    owner = (
-        db.query(User).filter(User.id == org.owner_user_id).first()
-        if org.owner_user_id else None
-    )
-    if owner is None or not owner.is_active:
-        # 관리자가 담당 직원을 정하기 전에는 받지 않는다(담당 없는 주문이 생기지 않게).
-        raise PartnerOrderError("우리 쪽 담당자가 아직 정해지지 않았습니다. 담당자에게 문의해 주세요.")
-    return owner
-
-
 def create_partner_order(db, user: User, org: PartnerOrg, payload: Any) -> Order:
     """협력사 주문을 만든다(호출자가 commit).
 
@@ -117,7 +107,6 @@ def create_partner_order(db, user: User, org: PartnerOrg, payload: Any) -> Order
     items = _clean_items(data.get("items"))
     memo = _text(data.get("memo"), 2000)
     measured_on = _text(data.get("measured_on"), 10)
-    owner = _require_owner(db, org)
 
     submitted_at = now_kst()
     intake = {
@@ -137,7 +126,7 @@ def create_partner_order(db, user: User, org: PartnerOrg, payload: Any) -> Order
         "parties": {
             "customer": {"name": customer_name, "phone": customer_phone},
             "orderer": {"name": org.name},
-            "manager": {"name": owner.name},
+            "manager": manager_party(user, org),
         },
         "site": {"address_full": address},
         "items": items,
@@ -151,7 +140,7 @@ def create_partner_order(db, user: User, org: PartnerOrg, payload: Any) -> Order
     order = create_order(
         db,
         actor_user_id=user.id,
-        owner_user_id=owner.id,
+        owner_user_id=user.id,
         order_fields=dict(
             received_date=get_today_kst().strftime("%Y-%m-%d"),
             received_time=submitted_at.strftime("%H:%M"),
@@ -179,13 +168,12 @@ def create_partner_order(db, user: User, org: PartnerOrg, payload: Any) -> Order
         target_id=order.id,
         detail=normalize_security_detail({"partner_org_id": org.id}),
     ))
-    # 우리 쪽이 새 협력사 주문을 놓치지 않게 — CS 팀 + 이 협력사를 맡은 영업 직원 알림(벨 목록).
+    # 우리 쪽이 새 협력사 주문을 놓치지 않게 — CS 팀 알림(벨 목록). 담당(협력사 직원)은 알림을 받지 않는다.
     # 협력사 주문은 실측일이 없어 실측 화면에 뜨지 않으므로 알림이 접수 신호다.
     notification = Notification(
         order_id=order.id,
         notification_type=PARTNER_ORDER_NOTIFICATION_TYPE,
         target_team="CS",
-        target_user_id=owner.id,
         title="협력사 새 주문",
         message=f"[{org.name}] 주문 #{order.id} ({customer_name}) 접수 — 내용 확인 후 도면 단계로 넘겨 주세요.",
         created_by_user_id=user.id,
@@ -226,8 +214,13 @@ def partner_order_detail(order: Order, attachments: list[Any]) -> dict[str, Any]
     """협력사 화면 상세 — 등록 원문 · 쉬운 단계 · 시공일 · 파일(금액 · 내부 메모 없음)."""
     sd = order.structured_data or {}
     intake = sd.get("partner_intake") or {}
+    manager = (sd.get("parties") or {}).get("manager")
+    manager = manager if isinstance(manager, dict) else {}
     return {
         "id": order.id,
+        "manager_user_id": manager.get("partner_user_id"),
+        "manager_name": manager.get("partner_user_name") or "",
+        "manager_phone": manager.get("phone") or "",
         "stage_label": partner_stage_label(order.erp_stage_code, order.as_axis_status),
         "construction_date": order.erp_construction_date,
         "intake": intake,
