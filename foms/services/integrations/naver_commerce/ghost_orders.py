@@ -68,7 +68,7 @@ from foms.services.integrations.naver_commerce.mapping import (
 from foms.services.orders.erp_policy_constants import STAGE_LABELS
 from foms.services.orders.measure_progress import judge_measure_progress
 from foms.services.orders.soft_delete import read_order_trash
-from models import ExternalOrderLink, Order, User
+from models import ExternalOrderLink, Order
 
 logger = logging.getLogger(__name__)
 
@@ -551,34 +551,6 @@ def find_ghost_orders(session, *, limit: int = GHOST_LIST_LIMIT) -> dict[str, An
     if not orders:
         return {"count": 0, "rows": []}
 
-    # 영업 담당자 이름은 assignments 의 사용자 id 를 기준으로 해석한다. 유령 행 수만큼
-    # 사용자 조회를 반복하지 않도록 id 를 먼저 모아 한 번에 읽는다.
-    sales_ids: set[int] = set()
-    sales_ids_by_order: dict[int, list[int]] = {}
-    for order in orders:
-        structured_data = order.structured_data
-        if not isinstance(structured_data, dict):
-            continue
-        assignments = structured_data.get("assignments") or {}
-        if not isinstance(assignments, dict):
-            continue
-        raw_ids = assignments.get("sales_assignee_user_ids") or []
-        if not isinstance(raw_ids, list):
-            continue
-        order_sales_ids = sales_ids_by_order.setdefault(int(order.id), [])
-        for raw_id in raw_ids:
-            try:
-                user_id = int(raw_id)
-            except (TypeError, ValueError):
-                continue
-            sales_ids.add(user_id)
-            if user_id not in order_sales_ids:
-                order_sales_ids.append(user_id)
-    sales_names: dict[int, str] = {}
-    if sales_ids:
-        users = session.query(User).filter(User.id.in_(sales_ids)).all()  # perf-ok: batched assigned user ids
-        sales_names = {int(user.id): user.name for user in users if user.name}
-
     views: list[dict[str, Any]] = []
     for order in orders:
         bucket = buckets[int(order.id)]
@@ -591,14 +563,15 @@ def find_ghost_orders(session, *, limit: int = GHOST_LIST_LIMIT) -> dict[str, An
         # 표시를 푼 주문이 옛 기록 때문에 숨으면 안 된다.
         if repay and read_repay_settled(order):
             continue
+        structured_data = order.structured_data
+        parties = structured_data.get("parties") if isinstance(structured_data, dict) else None
+        manager = parties.get("manager") if isinstance(parties, dict) else None
+        manager_name = manager.get("name") if isinstance(manager, dict) else manager
+        manager_name = str(manager_name or order.manager_name or "").strip()
         views.append({
             "order_id": int(order.id),
             "customer_name": order.customer_name or "",
-            "sales_assignee_names": [
-                sales_names[user_id]
-                for user_id in sales_ids_by_order.get(int(order.id), [])
-                if user_id in sales_names
-            ],
+            "sales_assignee_name": manager_name,
             "phone": order.phone or "",
             "status": status,
             "received_date": order.received_date or "",
