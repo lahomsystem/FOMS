@@ -85,25 +85,25 @@
     },
     {
       "path": "foms/services/integrations/naver_commerce/ghost_orders.py",
-      "lineno": 281,
+      "lineno": 282,
       "kind": "flag_modified_structured_data",
       "owner": "UNASSIGNED"
     },
     {
       "path": "foms/services/integrations/naver_commerce/ghost_orders.py",
-      "lineno": 307,
+      "lineno": 308,
       "kind": "flag_modified_structured_data",
       "owner": "UNASSIGNED"
     },
     {
       "path": "foms/services/integrations/naver_commerce/ghost_orders.py",
-      "lineno": 356,
+      "lineno": 357,
       "kind": "flag_modified_structured_data",
       "owner": "UNASSIGNED"
     },
     {
       "path": "foms/services/integrations/naver_commerce/ghost_orders.py",
-      "lineno": 377,
+      "lineno": 378,
       "kind": "flag_modified_structured_data",
       "owner": "UNASSIGNED"
     },
@@ -497,28 +497,28 @@
     },
     {
       "path": "foms/services/integrations/naver_commerce/ghost_orders.py",
-      "lineno": 281,
+      "lineno": 282,
       "kind": "flag_modified_structured_data",
       "classification": "EXTERNAL",
       "owner": "UNASSIGNED"
     },
     {
       "path": "foms/services/integrations/naver_commerce/ghost_orders.py",
-      "lineno": 307,
+      "lineno": 308,
       "kind": "flag_modified_structured_data",
       "classification": "EXTERNAL",
       "owner": "UNASSIGNED"
     },
     {
       "path": "foms/services/integrations/naver_commerce/ghost_orders.py",
-      "lineno": 356,
+      "lineno": 357,
       "kind": "flag_modified_structured_data",
       "classification": "EXTERNAL",
       "owner": "UNASSIGNED"
     },
     {
       "path": "foms/services/integrations/naver_commerce/ghost_orders.py",
-      "lineno": 377,
+      "lineno": 378,
       "kind": "flag_modified_structured_data",
       "classification": "EXTERNAL",
       "owner": "UNASSIGNED"

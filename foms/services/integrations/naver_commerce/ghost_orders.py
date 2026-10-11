@@ -51,6 +51,7 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy.orm.attributes import flag_modified
 
 from foms.services.datetime_kst import now_kst
+from foms.services.erp_display import manager_display_name
 from foms.services.integrations.naver_commerce.grouping import resolve_group_key
 from foms.services.integrations.naver_commerce.link_mirror import snapshot_from_mirror
 from foms.services.integrations.naver_commerce.mapping import (
@@ -551,34 +552,6 @@ def find_ghost_orders(session, *, limit: int = GHOST_LIST_LIMIT) -> dict[str, An
     if not orders:
         return {"count": 0, "rows": []}
 
-    # 영업 담당자 이름은 assignments 의 사용자 id 를 기준으로 해석한다. 유령 행 수만큼
-    # 사용자 조회를 반복하지 않도록 id 를 먼저 모아 한 번에 읽는다.
-    sales_ids: set[int] = set()
-    sales_ids_by_order: dict[int, list[int]] = {}
-    for order in orders:
-        structured_data = order.structured_data
-        if not isinstance(structured_data, dict):
-            continue
-        assignments = structured_data.get("assignments") or {}
-        if not isinstance(assignments, dict):
-            continue
-        raw_ids = assignments.get("sales_assignee_user_ids") or []
-        if not isinstance(raw_ids, list):
-            continue
-        order_sales_ids = sales_ids_by_order.setdefault(int(order.id), [])
-        for raw_id in raw_ids:
-            try:
-                user_id = int(raw_id)
-            except (TypeError, ValueError):
-                continue
-            sales_ids.add(user_id)
-            if user_id not in order_sales_ids:
-                order_sales_ids.append(user_id)
-    sales_names: dict[int, str] = {}
-    if sales_ids:
-        users = session.query(User).filter(User.id.in_(sales_ids)).all()  # perf-ok: batched assigned user ids
-        sales_names = {int(user.id): user.name for user in users if user.name}
-
     views: list[dict[str, Any]] = []
     for order in orders:
         bucket = buckets[int(order.id)]
@@ -594,11 +567,12 @@ def find_ghost_orders(session, *, limit: int = GHOST_LIST_LIMIT) -> dict[str, An
         views.append({
             "order_id": int(order.id),
             "customer_name": order.customer_name or "",
-            "sales_assignee_names": [
-                sales_names[user_id]
-                for user_id in sales_ids_by_order.get(int(order.id), [])
-                if user_id in sales_names
-            ],
+            "sales_assignee_name": (
+                manager_display_name(
+                    (order.structured_data or {}).get("parties")
+                    if isinstance(order.structured_data, dict) else None
+                ) or str(order.manager_name or "").strip()
+            ),
             "phone": order.phone or "",
             "status": status,
             "received_date": order.received_date or "",
