@@ -220,6 +220,10 @@
                         <a href="{{ url_for('order_edit.edit_order', order_id=row.order_id, open='erp-order') }}"
                            target="_blank" rel="noopener">#{{ row.order_id }}</a>
                         {{ row.customer_name }}
+                        <div class="wb-ghost__owner">
+                            <span class="wb-ghost__owner-label">영업</span>
+                            <span>{{ row.sales_assignee_names|join(', ') if row.sales_assignee_names else '미지정' }}</span>
+                        </div>
                         <div class="wb-ghost__dim">{{ '{:,}'.format(row.naver_amount_total) }}원</div>
                     </td>
                     <td>

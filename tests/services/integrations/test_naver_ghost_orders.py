@@ -282,6 +282,15 @@ def test_band_renders_with_count_and_buttons(app, client, workbench_on):
     """처리 탭에 띠가 뜨고, 잠긴 주문에는 버튼이 없다."""
     _login(client)
     open_order = _order(tel="010-7000-0009")
+    sales_user = User(username=f"ghost_sales_{_uid()}",
+                      password=generate_password_hash("pw"), role="SALES",
+                      team="SALES", name="박영업", is_active=True)
+    db_session.add(sales_user)
+    db_session.commit()
+    open_order.structured_data = {
+        "assignments": {"sales_assignee_user_ids": [sales_user.id]}
+    }
+    db_session.commit()
     open_id = int(open_order.id)
     _link(order_no="N-GH-9", amount=100_000, claim="CANCEL_DONE", order_id=open_id,
           tel="010-7000-0009")
@@ -294,6 +303,9 @@ def test_band_renders_with_count_and_buttons(app, client, workbench_on):
 
     assert "네이버 결제가 전부 취소된 주문" in body
     assert f'data-ghost-order-id="{open_id}"' in body
+    assert 'class="wb-ghost__owner-label">영업</span>' in body
+    assert ">박영업</span>" in body
+    assert ">미지정</span>" in body
     assert f'data-order-id="{open_id}"' in body, "접수 단계인데 버튼이 없다"
     # 실측 단계도 버튼은 뜬다 — 대신 사유 표식이 붙는다(2026-09-02).
     assert f'data-order-id="{locked_id}"' in body, "실측 단계인데 버튼이 없다"
