@@ -68,7 +68,7 @@ from foms.services.integrations.naver_commerce.mapping import (
 from foms.services.orders.erp_policy_constants import STAGE_LABELS
 from foms.services.orders.measure_progress import judge_measure_progress
 from foms.services.orders.soft_delete import read_order_trash
-from models import ExternalOrderLink, Order, User
+from models import ExternalOrderLink, Order
 
 logger = logging.getLogger(__name__)
 
@@ -551,33 +551,9 @@ def find_ghost_orders(session, *, limit: int = GHOST_LIST_LIMIT) -> dict[str, An
     if not orders:
         return {"count": 0, "rows": []}
 
-    # 영업 담당자 이름은 assignments 의 사용자 id 를 기준으로 해석한다. 유령 행 수만큼
-    # 사용자 조회를 반복하지 않도록 id 를 먼저 모아 한 번에 읽는다.
-    sales_ids: set[int] = set()
-    sales_ids_by_order: dict[int, list[int]] = {}
-    for order in orders:
-        structured_data = order.structured_data
-        if not isinstance(structured_data, dict):
-            continue
-        assignments = structured_data.get("assignments") or {}
-        if not isinstance(assignments, dict):
-            continue
-        raw_ids = assignments.get("sales_assignee_user_ids") or []
-        if not isinstance(raw_ids, list):
-            continue
-        order_sales_ids = sales_ids_by_order.setdefault(int(order.id), [])
-        for raw_id in raw_ids:
-            try:
-                user_id = int(raw_id)
-            except (TypeError, ValueError):
-                continue
-            sales_ids.add(user_id)
-            if user_id not in order_sales_ids:
-                order_sales_ids.append(user_id)
-    sales_names: dict[int, str] = {}
-    if sales_ids:
-        users = session.query(User).filter(User.id.in_(sales_ids)).all()  # perf-ok: batched assigned user ids
-        sales_names = {int(user.id): user.name for user in users if user.name}
+    # erp-manager 정본은 parties.manager.name 이다. 런타임 import 는 writer inventory 의
+    # 소스 위치 계약을 유지하며, helper 자체가 과거 scalar 형식도 처리한다.
+    from foms.services.erp_display import manager_display_name
 
     views: list[dict[str, Any]] = []
     for order in orders:
@@ -594,11 +570,12 @@ def find_ghost_orders(session, *, limit: int = GHOST_LIST_LIMIT) -> dict[str, An
         views.append({
             "order_id": int(order.id),
             "customer_name": order.customer_name or "",
-            "sales_assignee_names": [
-                sales_names[user_id]
-                for user_id in sales_ids_by_order.get(int(order.id), [])
-                if user_id in sales_names
-            ],
+            "sales_assignee_name": (
+                manager_display_name(
+                    (order.structured_data or {}).get("parties")
+                    if isinstance(order.structured_data, dict) else None
+                ) or str(order.manager_name or "").strip()
+            ),
             "phone": order.phone or "",
             "status": status,
             "received_date": order.received_date or "",
