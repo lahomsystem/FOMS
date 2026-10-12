@@ -1,0 +1,62 @@
+/* 도면 확정 창 ①제품 ②최종 생산 도면 (DRAWING-PARTIAL-CONFIRM, 2026-10-12).
+   설계 docs/specs/2026-10-12-drawing-confirm-partial-cancel_SPEC.md §5. PC·모바일 공용(#dwCustomerOkModal). */
+.dw-ok-scope{display:grid;gap:.75rem;margin-bottom:.75rem}
+.dw-ok-scope__cols{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem}
+@media (max-width:767.98px){.dw-ok-scope__cols{grid-template-columns:1fr}}
+.dw-ok-scope__head{margin:0 0 .4rem;font-size:.8rem;font-weight:700;color:var(--foms-text-tertiary,#6b7380)}
+.dw-ok-scope__list{display:grid;gap:.5rem}
+.dw-ok-item{display:grid;gap:.5rem;padding:.625rem .75rem;border:1px solid var(--foms-border-subtle,#dde1e6);border-radius:8px;background:#fff}
+.dw-ok-item.is-cancel{border-color:var(--foms-color-warning-500,#f59e0b);background:var(--foms-color-warning-50,#fffbeb)}
+.dw-ok-item__row{display:flex;justify-content:space-between;align-items:center;gap:.5rem}
+.dw-ok-item__name{font-size:.92rem;font-weight:800;color:var(--foms-text-primary,#14171c)}
+.dw-ok-item__spec{font-size:.75rem;color:var(--foms-text-tertiary,#6b7380)}
+.dw-ok-seg{display:inline-flex;flex:none;border:1px solid var(--foms-border-default,#c1c7d0);border-radius:8px;overflow:hidden}
+.dw-ok-seg button{min-height:2.5rem;padding:0 .875rem;border:0;background:#fff;color:var(--foms-text-secondary,#4b525d);font-size:.8rem;font-weight:800}
+.dw-ok-seg button[aria-pressed="true"].is-make{background:var(--foms-color-success-600,#059669);color:#fff}
+.dw-ok-seg button[aria-pressed="true"].is-cancel{background:var(--foms-color-warning-500,#f59e0b);color:var(--foms-text-primary,#14171c)}
+.dw-ok-seg button:disabled{opacity:.5}
+.dw-ok-reason{display:flex;flex-wrap:wrap;gap:.375rem;align-items:center}
+.dw-ok-reason__chip{min-height:2.25rem;padding:0 .75rem;border:1px solid var(--foms-border-default,#c1c7d0);border-radius:999px;background:#fff;color:var(--foms-text-secondary,#4b525d);font-size:.78rem;font-weight:700}
+.dw-ok-reason__chip[aria-pressed="true"]{border-color:var(--foms-color-warning-700,#b45309);background:var(--foms-color-warning-700,#b45309);color:#fff}
+.dw-ok-reason__note{flex:1 1 100%;font-size:.8rem}
+.dw-ok-dw{display:grid;grid-template-columns:1.25rem 3.5rem minmax(0,1fr);gap:.625rem;align-items:center;min-height:4.75rem;margin:0;padding:.625rem;border:1px solid var(--foms-border-subtle,#dde1e6);border-radius:8px;background:#fff;cursor:pointer}
+.dw-ok-dw.is-final{border:2px solid var(--foms-color-success-600,#059669);background:var(--foms-color-success-50,#ecfdf5)}
+.dw-ok-dw.is-off{opacity:.55}
+.dw-ok-dw input{width:1.15rem;height:1.15rem;accent-color:var(--foms-color-success-600,#059669)}
+.dw-ok-dw__thumb{width:3.5rem;height:3.5rem;border:1px solid var(--foms-border-subtle,#dde1e6);border-radius:8px;object-fit:contain;background:#fff}
+.dw-ok-dw__body{display:grid;gap:.15rem;min-width:0}
+.dw-ok-dw__chips{display:flex;flex-wrap:wrap;gap:.3rem}
+.dw-ok-dw__chip{padding:.05rem .45rem;border-radius:999px;background:var(--foms-color-neutral-100,#eef0f3);color:var(--foms-text-secondary,#4b525d);font-size:.7rem;font-weight:800}
+.dw-ok-dw__chip.is-final{background:var(--foms-color-success-50,#ecfdf5);color:var(--foms-color-success-600,#059669)}
+.dw-ok-dw__chip.is-off{background:var(--foms-color-warning-50,#fffbeb);color:var(--foms-color-warning-700,#b45309)}
+.dw-ok-dw__name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.88rem;font-weight:700}
+.dw-ok-dw.is-off .dw-ok-dw__name{text-decoration:line-through}
+.dw-ok-dw__meta{font-size:.74rem;color:var(--foms-text-tertiary,#6b7380)}
+.dw-ok-scope__sum{padding:.5rem .75rem;border:1px solid #a7f3d0;border-radius:8px;background:var(--foms-color-success-50,#ecfdf5);color:var(--foms-color-success-600,#059669);font-size:.8rem;font-weight:700}
+.dw-ok-scope__sum.is-warn{border-color:#fde68a;background:var(--foms-color-warning-50,#fffbeb);color:var(--foms-color-warning-700,#b45309)}
+
+/* 확정 뒤 결과(3단계) — 취소 제품·견적 수정 필요·제외 도면 */
+.dw-confirm-result{display:grid;gap:.5rem;margin-top:.625rem}
+.dw-confirm-result__items{display:grid;gap:.35rem;padding:.625rem .75rem;border:1px solid #fde68a;border-radius:8px;background:var(--foms-color-warning-50,#fffbeb)}
+.dw-confirm-result__item{display:flex;flex-wrap:wrap;justify-content:space-between;gap:.35rem;font-size:.82rem}
+.dw-confirm-result__name{color:var(--foms-text-tertiary,#6b7380);text-decoration:line-through}
+.dw-confirm-result__chip,.dw-confirm-result__dw-reason{font-size:.74rem;font-weight:800;color:var(--foms-color-warning-700,#b45309)}
+.dw-confirm-result__estimate{font-size:.78rem;font-weight:700;color:var(--foms-color-warning-700,#b45309)}
+.dw-confirm-result__excluded{padding:.5rem .75rem;border:1px dashed var(--foms-border-subtle,#dde1e6);border-radius:8px;background:#fff}
+.dw-confirm-result__excluded>summary{min-height:2.25rem;display:flex;align-items:center;font-size:.82rem;font-weight:700;color:var(--foms-text-tertiary,#6b7380);cursor:pointer}
+.dw-confirm-result__dw{display:grid;gap:.1rem;padding:.4rem 0;border-top:1px solid var(--foms-border-subtle,#dde1e6);color:inherit;text-decoration:none;opacity:.7}
+.dw-confirm-result__dw-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.82rem;text-decoration:line-through}
+
+/* 주문 모바일 상세 — 취소 품목 */
+.foms-product-item--cancelled .foms-product-item__title{color:var(--foms-text-tertiary,#6b7380);text-decoration:line-through}
+.foms-product-item__cancel{margin-left:.35rem;padding:.05rem .45rem;border-radius:999px;background:var(--foms-color-warning-50,#fffbeb);color:var(--foms-color-warning-700,#b45309);font-size:.7rem;font-weight:800;white-space:nowrap}
+
+/* 확정 뒤 제품 취소(6단계) */
+.dw-confirm-result__cancel{padding:.5rem .75rem;border:1px solid var(--foms-border-subtle,#dde1e6);border-radius:8px;background:#fff}
+.dw-confirm-result__cancel>summary{min-height:2.25rem;display:flex;align-items:center;font-size:.82rem;font-weight:700;color:var(--foms-color-warning-700,#b45309);cursor:pointer}
+.dw-confirm-result__hint{margin:.25rem 0 .5rem;font-size:.74rem;color:var(--foms-text-tertiary,#6b7380)}
+.dw-confirm-result__row{display:flex;justify-content:space-between;align-items:center;gap:.5rem;min-height:2.75rem;border-top:1px solid var(--foms-border-subtle,#dde1e6);font-size:.84rem}
+/* 생산 칸반 카드 — 취소 품목 있음 */
+.foms-kanban-card__cancelled{margin-top:.25rem;padding:.15rem .5rem;border-radius:6px;background:var(--foms-color-warning-50,#fffbeb);color:var(--foms-color-warning-700,#b45309);font-size:.75rem;font-weight:800}
+/* 확정 뒤 취소 창 사유 — 전역 .btn !important 가 .btn-check:checked 색을 덮어 고른 티가 안 났다 */
+#dwItemCancelModal .btn-check:checked+.btn{border-color:var(--foms-color-warning-700,#b45309)!important;background:var(--foms-color-warning-700,#b45309)!important;color:#fff!important}

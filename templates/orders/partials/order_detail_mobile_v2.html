@@ -220,10 +220,10 @@
           <span class="foms-detail-section__count">{{ order.product_items|length }}건</span>
         </div>
         {% for item in order.product_items %}
-          <div class="product-item foms-product-item{% if item.collapsed_default %} foms-product-item--collapsed{% endif %}" data-foms-product-item>
+          <div class="product-item foms-product-item{% if item.collapsed_default %} foms-product-item--collapsed{% endif %}{% if item.cancel_label %} foms-product-item--cancelled{% endif %}" data-foms-product-item>
             <header class="product-item__head foms-product-item__head" data-foms-product-toggle role="button" tabindex="0" aria-expanded="{{ 'false' if item.collapsed_default else 'true' }}">
               <span class="product-item__index foms-product-item__index">항목 {{ item.index }}</span>
-              <span class="product-item__title foms-product-item__title">{{ item.title }}</span>
+              <span class="product-item__title foms-product-item__title">{{ item.title }}</span>{% if item.cancel_label %}<span class="foms-product-item__cancel">{{ item.cancel_label }}</span>{% endif %}
               <button type="button" class="product-item__expand foms-product-item__expand" aria-label="{{ '펼치기' if item.collapsed_default else '접기' }}">{{ '⌄' if item.collapsed_default else '⌃' }}</button>
             </header>
             <p class="product-item__summary foms-product-item__summary">{{ item.summary }}</p>

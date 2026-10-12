@@ -36,6 +36,7 @@ from foms.services.integrations.naver_commerce.auto_assign import (
     auto_assign_sales_owner_from_manager,
 )
 from foms.services.orders.audit_order_context import order_audit_context
+from foms.services.orders.drawing_confirm_partial import preserve_item_cancel_state
 from foms.services.orders.structured_item_uid import ensure_item_uids
 from foms.services.orders.order_field_change_writer import record_field_changes
 from foms.services.orders.order_flag_permissions import (
@@ -253,6 +254,7 @@ _OPERATIONAL_TOP_LEVEL_KEYS = (
     'drawing_confirmed_at',
     'drawing_confirmed_by',
     'drawing_current_files',
+    'drawing_excluded_files',
     'drawing_transfer_history',
     'last_drawing_transfer',
     'drawing_assignees',
@@ -1625,6 +1627,9 @@ def api_put_order_structured(order_id):
                 # ORDER-ITEM-UID: 품목 식별자를 **비교 직전에** 보장한다. 클라이언트가 uid 를
                 # 빠뜨렸어도 위치로 물려받으므로 저장 한 번이 "전 품목 재생성"으로 기록되지 않는다.
                 ensure_item_uids(audit_old_sd, structured_data)
+                # DRAWING-PARTIAL-CONFIRM: 품목 취소·견적 수정 표시는 서버 소유 — 폼이 몰라서
+                # 빠뜨린 것을 uid 로 되살린다(uid 보장 뒤여야 짝이 맞는다).
+                preserve_item_cancel_state(old_sd, structured_data)
 
                 # ORDER-DIFF-01: 상한 없이 계산한다 — 원장에는 전량, 화면 detail 에만 상한.
                 captured['diff'] = diff_structured(audit_old_sd, structured_data, max_changes=-1)

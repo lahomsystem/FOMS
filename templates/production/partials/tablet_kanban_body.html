@@ -281,6 +281,9 @@
         {% endif %}
         {# ── 목업 frame05 카드 메타: 자수(총 자수 W/300) · 발주사 · 첨부수. HMI 무채 정보행.
            기존 DTO 필드만 소비: units_display(사이드 시트 SSOT 재사용) / orderer_name / attachments_count. #}
+        {% if o.cancelled_items_count %}
+        <div class="foms-kanban-card__cancelled" title="고객이 뺀 제품이 있어요 — 생산하지 마세요">취소 품목 {{ o.cancelled_items_count }}개 있음</div>
+        {% endif %}
         {% set _units = o.units_display %}
         {% if (_units and _units not in ('0.0', '0', '')) or o.orderer_name or o.attachments_count %}
         <div class="foms-kanban-card__meta">

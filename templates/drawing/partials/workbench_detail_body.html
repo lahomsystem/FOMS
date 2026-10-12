@@ -1517,6 +1517,7 @@
           {% else %}
           <div class="small text-muted mb-2">등록된 도면이 없습니다.</div>
           {% endif %}
+          {% include 'drawing/partials/workbench_confirm_result.html' %}
           {# 영업 → 고객 상태 한 줄(설계서 2026-09-29 §3.2·§3.4) — 서버 읽기 모델 값만 그린다(읽기 전용). #}
           {% set cs = customer_send|default({}) %}
           {% set cs_bar = cs.bar|default([]) %}
@@ -1948,6 +1949,7 @@
 
 {# 도면 탭 고객 보내기 시트(설계서 2026-09-29 §3.5 + Q5) — PC·모바일 공용. 모달 본문은 따로 둔다. #}
 {% include 'drawing/partials/workbench_customer_send_modals.html' %}
+{% include 'drawing/partials/workbench_item_cancel_modal.html' %}
 
 </div>
 </div>
@@ -3177,7 +3179,9 @@
 <script src="{{ url_for('static', filename='js/drawing/order-change-banner.js') }}?v=20260913a" defer></script>
 {# 도면 탭 고객 보내기 시트 JS(설계서 2026-09-29 §3.6 + Q5) — PC 에서도 시트가 동작해야 하므로 v2 조건 블록 밖. #}
 <script src="{{ url_for('static', filename='js/foms/drawing-customer-send.js') }}?v=20261012b" defer></script>
-<script src="{{ url_for('static', filename='js/foms/drawing-customer-ok.js') }}?v=20260930b" defer></script>
+<script src="{{ url_for('static', filename='js/foms/drawing-ok-scope.js') }}?v=20261012b" defer></script>
+<script src="{{ url_for('static', filename='js/foms/drawing-item-cancel.js') }}?v=20261012b" defer></script>
+<script src="{{ url_for('static', filename='js/foms/drawing-customer-ok.js') }}?v=20261012a" defer></script>
 <script src="{{ url_for('static', filename='js/foms/drawing-revision-edit.js') }}?v=20260930b" defer></script>
 <script src="{{ url_for('static', filename='js/foms/drawing-urgent-call-pc.js') }}?v=20261001b" defer></script>
 {% if erp_mobile_v2_enabled %}

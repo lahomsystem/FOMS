@@ -43,6 +43,7 @@ from typing import Any
 # _append_line 은 erpAppendConversionTextLine 의 서버 미러다. AS PUSH 조립기가 이미 같은
 # 규칙으로 갖고 있어 두 벌을 두지 않고 재사용한다(드리프트 방지 — 브리프 §8).
 from foms.services.channel_as_message import _append_line, format_schedule_date_korean
+from foms.services.orders.drawing_confirm_partial import drop_cancelled
 from foms.services.erp_display import (
     erp_deposit_amount_from_structured,
     erp_shipping_price_from_structured,
@@ -353,8 +354,8 @@ def _items_block(text: str, sd: dict) -> str:
     Returns:
         품목 블록이 덧붙은 본문.
     """
-    items = sd.get("items")
-    if not isinstance(items, list) or not items:
+    items = drop_cancelled(sd.get("items"))  # 취소 품목은 고객 안내에서 뺀다
+    if not items:
         return text
     item_count = len(items)
     visible = 0

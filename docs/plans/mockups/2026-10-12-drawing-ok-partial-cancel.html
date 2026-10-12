@@ -1,0 +1,134 @@
+<title>부분 확정 목업</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+:root{--bg:#eef0f4;--card:#fff;--ink:#1d2330;--mute:#6b7385;--line:#dfe3ea;--brand:#6c5ce7;--ok:#13875f;--okbg:#e5f5ee;--warn:#b4561b;--warnbg:#fdf0e6;--chip:#f3f4f8;color-scheme:light}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#14171d;--card:#1e222b;--ink:#e8ebf1;--mute:#9aa2b3;--line:#323846;--brand:#8f83f0;--ok:#3cc28d;--okbg:#18352a;--warn:#f0995e;--warnbg:#3a2618;--chip:#272c37;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#14171d;--card:#1e222b;--ink:#e8ebf1;--mute:#9aa2b3;--line:#323846;--brand:#8f83f0;--ok:#3cc28d;--okbg:#18352a;--warn:#f0995e;--warnbg:#3a2618;--chip:#272c37;color-scheme:dark}
+body{background:var(--bg);color:var(--ink);font-family:"Noto Sans KR",system-ui,sans-serif;padding:24px 16px;line-height:1.55}
+h1{font-size:22px;margin:0 0 4px;text-wrap:balance}h2{font-size:16px;margin:0 0 10px}
+.lead{color:var(--mute);margin:0 0 20px;max-width:70ch}
+.wrap{max-width:1180px;margin:0 auto;display:grid;gap:28px}
+.notes{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
+.note{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px}
+.note b{display:block;margin-bottom:4px}.note p{margin:0;color:var(--mute);font-size:13px}
+.stage{display:flex;flex-wrap:wrap;gap:28px;align-items:flex-start}
+.label{font:500 11px "IBM Plex Mono",monospace;letter-spacing:.08em;color:var(--mute);text-transform:uppercase;margin-bottom:8px}
+.pc{flex:1 1 640px;min-width:0}.mo{flex:0 1 360px;min-width:0;max-width:100%}
+.modal{background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:0 10px 30px rgba(20,25,40,.12);overflow:hidden}
+.mh{padding:16px 20px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
+.mh small{color:var(--mute)}
+.steps{display:flex;gap:6px;font-size:12px}.steps span{padding:3px 10px;border-radius:99px;background:var(--chip);color:var(--mute)}.steps .on{background:var(--brand);color:#fff}
+.mb{padding:18px 20px;display:grid;gap:16px}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media (max-width:720px){.cols{grid-template-columns:1fr}}
+.sec h3{font-size:13px;margin:0 0 8px;color:var(--mute);font-weight:500}
+.item{border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:grid;gap:8px}
+.item+.item{margin-top:8px}
+.item .nm{font-weight:700;font-size:14px}.item .sp{font-size:12px;color:var(--mute)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{border:0;background:transparent;color:var(--ink);padding:5px 12px;font:inherit;font-size:13px;cursor:pointer}
+.seg button[aria-pressed="true"].p{background:var(--okbg);color:var(--ok);font-weight:700}
+.seg button[aria-pressed="true"].c{background:var(--warnbg);color:var(--warn);font-weight:700}
+.seg button:focus-visible,.dw:focus-within{outline:2px solid var(--brand);outline-offset:2px}
+.reason{display:flex;flex-wrap:wrap;gap:6px}.reason[hidden]{display:none}
+.reason label{font-size:12px;padding:3px 9px;border-radius:99px;background:var(--chip);cursor:pointer}
+.reason input{margin-right:4px}
+.item.cx{background:var(--warnbg);border-color:transparent}
+.dw{display:flex;gap:10px;align-items:center;border:1px solid var(--line);border-radius:10px;padding:8px 10px;cursor:pointer}
+.dw+.dw{margin-top:8px}
+.th{width:54px;height:40px;border-radius:6px;background:repeating-linear-gradient(45deg,var(--chip) 0 6px,var(--card) 6px 12px);border:1px solid var(--line);flex:none}
+.dw .no{font:500 12px "IBM Plex Mono",monospace;background:var(--chip);padding:1px 7px;border-radius:99px}
+.dw .fn{font-size:13px;word-break:break-all}.dw .ln{font-size:11px;color:var(--mute)}
+.dw.off{opacity:.45}.dw.off .fn{text-decoration:line-through}
+.sum{border-radius:10px;padding:10px 12px;background:var(--chip);font-size:13px}
+.sum b{color:var(--ok)}.sum .w{color:var(--warn)}
+.mf{padding:14px 20px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+.btn{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:8px;padding:8px 14px;font:inherit;font-weight:500;cursor:pointer}
+.btn.ok{background:var(--ok);border-color:var(--ok);color:#fff}
+.phone{border:10px solid #222;border-radius:34px;background:var(--bg);overflow:hidden}
+.sheet{background:var(--card);border-radius:18px 18px 0 0;margin-top:40px;padding:14px 14px 0;display:grid;gap:12px}
+.grab{width:40px;height:4px;border-radius:4px;background:var(--line);margin:0 auto}
+.sheet .mf{padding:12px 0 16px;border-top:1px solid var(--line)}.sheet .btn.ok{flex:1}
+.after{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 18px;display:grid;gap:10px}
+.badge{display:inline-block;font-size:12px;padding:2px 9px;border-radius:99px;margin-right:6px}
+.b-ok{background:var(--okbg);color:var(--ok)}.b-w{background:var(--warnbg);color:var(--warn)}
+</style>
+
+<div class="wrap">
+<header>
+<h1>고객 OK · 확정 — 일부 제품 취소 목업</h1>
+<p class="lead">지금은 확정 때 도면 목록 전체가 최종본이 되고, 제품 하나만 빼는 방법이 없다. 이 안은 확정 창 안에서 영업이 제품별로 "생산 / 취소"를 고르고, 최종 생산 도면을 체크로 고르게 한다. 제품을 취소하면 그 제품에 묶인 도면은 자동으로 빠진다. 아래 화면은 눌러 볼 수 있다(예시 주문 #5600).</p>
+</header>
+
+<section class="notes">
+<div class="note"><b>영업 담당자 입장</b><p>고객이 통화로 "슬라이딩장은 빼 주세요" 하면, 창 하나에서 제품 취소 + 사유 + 확정을 끝내고 싶다. 견적 고치는 일은 잊지 않게 알려 주면 된다.</p></div>
+<div class="note"><b>도면팀 입장</b><p>확정 뒤 공장에 넘길 도면이 몇 장인지 한눈에 봐야 한다. 취소된 도면은 지우지 말고 "제외"로 흐리게 남겨, 왜 빠졌는지 알 수 있어야 한다.</p></div>
+<div class="note"><b>막아야 할 실수</b><p>생산 제품이 0개면 확정 불가. 생산 제품인데 도면이 하나도 체크 안 되면 경고. 취소 사유는 필수.</p></div>
+</section>
+
+<div class="stage">
+<div class="pc">
+<div class="label">PC · 확정 창</div>
+<div class="modal" data-root>
+<div class="mh"><div><b>고객 OK · 확정</b><br><small>장익중 · #5600 · 1차 전달본</small></div>
+<div class="steps"><span class="on">제품·도면 고르기</span><span>확인 방법</span></div></div>
+<div class="mb">
+<div class="cols">
+<div class="sec"><h3>제품 — 고객이 최종으로 맞다고 한 것</h3><div data-items></div></div>
+<div class="sec"><h3>최종 생산 도면 — 공장으로 갈 것만 체크</h3><div data-dws></div></div>
+</div>
+<div class="sum" data-sum></div>
+</div>
+<div class="mf"><button class="btn" type="button">닫기</button><button class="btn ok" type="button" data-go>다음 · 확인 방법</button></div>
+</div>
+</div>
+
+<div class="mo">
+<div class="label">모바일 · 아래에서 올라오는 창</div>
+<div class="phone"><div class="sheet" data-root>
+<div class="grab"></div>
+<div><b>고객 OK · 확정</b><br><small style="color:var(--mute)">장익중 · #5600</small></div>
+<div class="sec"><h3>제품</h3><div data-items></div></div>
+<div class="sec"><h3>최종 생산 도면</h3><div data-dws></div></div>
+<div class="sum" data-sum></div>
+<div class="mf"><button class="btn" type="button">닫기</button><button class="btn ok" type="button" data-go>다음</button></div>
+</div></div>
+</div>
+</div>
+
+<section>
+<div class="label">확정 뒤 · 도면팀이 보는 도면 목록</div>
+<div class="after">
+<div><span class="badge b-ok">최종 생산 1장</span><span class="badge b-w">제외 1장</span></div>
+<div class="dw"><div class="th"></div><div><span class="no">1번</span> <span class="fn">도면_장익중_5600_몰딩 여닫이.png</span><div class="ln">최종 생산 · 10/12 15:40 확정</div></div></div>
+<div class="dw off"><div class="th"></div><div><span class="no">2번</span> <span class="fn">도면_장익중_5600_보테가 슬라이딩.png</span><div class="ln">제외 — 제품 취소(고객 변심) · 영업 구현정</div></div></div>
+</div>
+</section>
+</div>
+
+<script>
+const ITEMS=[{id:'a',nm:'몰딩 여닫이장',sp:'2400×600×2300 · 1개'},{id:'b',nm:'보테가 슬라이딩장',sp:'1800×650×2300 · 1개'}];
+const DWS=[{no:1,fn:'도면_장익중_5600_몰딩 여닫이.png',item:'a'},{no:2,fn:'도면_장익중_5600_보테가 슬라이딩.png',item:'b'}];
+const REASONS=['고객 변심','예산','치수 불가','다음에 따로 주문'];
+const st={a:'p',b:'c'},rs={b:'고객 변심'},chk={1:true,2:false};
+function render(){document.querySelectorAll('[data-root]').forEach((root,ri)=>{
+ root.querySelector('[data-items]').innerHTML=ITEMS.map(it=>`<div class="item ${st[it.id]==='c'?'cx':''}">
+ <div><div class="nm">${it.nm}</div><div class="sp">${it.sp}</div></div>
+ <div class="seg"><button type="button" class="p" data-s="${it.id}:p" aria-pressed="${st[it.id]==='p'}">생산</button><button type="button" class="c" data-s="${it.id}:c" aria-pressed="${st[it.id]==='c'}">취소</button></div>
+ <div class="reason" ${st[it.id]==='c'?'':'hidden'}>${REASONS.map(r=>`<label><input type="radio" id="r${ri}${it.id}${r}" name="r${ri}${it.id}" data-r="${it.id}" value="${r}" ${rs[it.id]===r?'checked':''}>${r}</label>`).join('')}</div></div>`).join('');
+ root.querySelector('[data-dws]').innerHTML=DWS.map(d=>{const cx=st[d.item]==='c';return `<label class="dw ${chk[d.no]?'':'off'}"><input type="checkbox" id="d${ri}${d.no}" data-d="${d.no}" ${chk[d.no]?'checked':''} ${cx?'disabled':''}><div class="th"></div><div><span class="no">${d.no}번</span> <span class="fn">${d.fn}</span><div class="ln">${cx?'취소 제품의 도면 — 자동 제외':'1차 전달본'}</div></div></label>`}).join('');
+ const p=ITEMS.filter(i=>st[i.id]==='p').length,c=ITEMS.length-p,n=DWS.filter(d=>chk[d.no]).length;
+ const miss=ITEMS.filter(i=>st[i.id]==='c'&&!rs[i.id]).length;
+ let msg=`생산 <b>${p}개</b> · 최종 도면 <b>${n}장</b>`;
+ if(c)msg+=` · <span class="w">취소 ${c}개 — 견적·금액은 따로 고쳐야 해요</span>`;
+ if(!p)msg=`<span class="w">생산할 제품이 없어요. 전부 취소면 주문 취소로 처리하세요.</span>`;
+ else if(!n)msg+=`<br><span class="w">공장으로 갈 도면을 하나 이상 골라 주세요.</span>`;
+ if(miss)msg+=`<br><span class="w">취소 사유를 골라 주세요.</span>`;
+ root.querySelector('[data-sum]').innerHTML=msg;
+ root.querySelector('[data-go]').disabled=!p||!n||miss>0;
+});}
+document.addEventListener('click',e=>{const s=e.target.closest('[data-s]');if(!s)return;const[id,v]=s.dataset.s.split(':');st[id]=v;
+ DWS.filter(d=>d.item===id).forEach(d=>chk[d.no]=v==='p');if(v==='p')delete rs[id];render();});
+document.addEventListener('change',e=>{const t=e.target;if(t.dataset.d)chk[t.dataset.d]=t.checked;if(t.dataset.r)rs[t.dataset.r]=t.value;render();});
+render();
+</script>

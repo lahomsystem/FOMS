@@ -41,6 +41,7 @@ from sqlalchemy.orm import Session
 
 from foms.services.datetime_kst import now_utc_naive
 from foms.services.erp_display import _normalize_date_to_yyyymmdd
+from foms.services.orders.drawing_confirm_partial import active_items
 from foms.services.shipment_change_alerts import (
     _chip_customer_name,
     _dates_to_md,
@@ -163,9 +164,8 @@ def _current_construction_date(order_structured_data: Any) -> str:
     schedule = sd.get("schedule") if isinstance(sd.get("schedule"), dict) else {}
     construction = schedule.get("construction") if isinstance(schedule.get("construction"), dict) else {}
     candidates = [construction.get("date")]
-    for item in sd.get("items") or []:
-        if isinstance(item, dict):
-            candidates.append(item.get("construction_date"))
+    for item in active_items(sd):  # 취소 품목 시공일은 후보에서 뺀다
+        candidates.append(item.get("construction_date"))
     for raw in candidates:
         for token in str(raw or "").split(","):
             normalized = _normalize_date_to_yyyymmdd(token.strip())

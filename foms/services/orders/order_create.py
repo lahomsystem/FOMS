@@ -32,6 +32,7 @@ from foms.services.orders.erp_policy_quests import create_quest_from_template
 from foms.services.orders.item_identity import get_or_create_identity
 from foms.services.orders.order_mutation_policy import normalize_team
 from foms.services.orders.structured_form_projection import recompute_totals
+from foms.services.orders.structured_item_uid import ensure_item_uids
 from models import Order, OrderAssignment, OrderEvent, User
 
 #: 주소 없음/placeholder 로 취급해 geocode 를 예약하지 않는 값.
@@ -167,6 +168,10 @@ def create_order(
     """
     now = now or now_utc_naive()
     sd = _prepare_structured(structured_data, owner_user_id, now) if is_erp_order else None
+    if sd is not None:
+        # 품목 uid(ORDER-ITEM-UID)를 처음부터 단다 — 예전엔 ERP 폼 저장 때만 생겨, 마법사로 만든
+        # 주문은 도면 확정 창에서 품목을 uid 로 가리킬 수 없었다(DRAWING-PARTIAL-CONFIRM).
+        ensure_item_uids({}, sd)
 
     order = Order(
         **order_fields,

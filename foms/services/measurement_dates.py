@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from foms.services.erp_display import _normalize_date_to_yyyymmdd
 from foms.services.erp_order_flags import is_erp_order_record
+from foms.services.orders.drawing_confirm_partial import active_items
 
 
 def _append_unique_dates(target_dates, seen_dates, raw_value) -> None:
@@ -55,9 +56,7 @@ def extract_all_measurement_dates(order):
     if is_erp_order and sd:
         if isinstance(erp_date, dict):
             _append_unique_dates(dates, seen_dates, erp_date.get('date'))
-        for it in sd.get('items') or []:
-            if not isinstance(it, dict):
-                continue
+        for it in active_items(sd):  # 취소 품목 날짜는 일정에 남기지 않는다
             _append_unique_dates(dates, seen_dates, it.get('measurement_date'))
 
     return dates

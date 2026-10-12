@@ -3,41 +3,47 @@
   "summary": "Order mutation writer inventory for foms/. Every persisted order mutation — flag_modified(order, 'structured_data') or a direct mutation_version bump — is classified CANONICAL (routes through REV-00 execute_order_mutation / canonical mutator) / VERSIONED_DIRECT (direct version bump under FOR UPDATE) / AUDITED_RECOVERY (OPS-APPROVAL offline apply) / EXTERNAL (direct writer with no version/If-Match contract). Release target: EXTERNAL == 0 (every order mutation carries version bump + If-Match/idempotency metadata). EXTERNAL sites below are pinned residual writers reported to their owner packet — the drift gate keeps the set from growing.",
   "scope": "foms/**.py",
   "baselines": {
-    "total": 78,
-    "external": 30
+    "total": 79,
+    "external": 31
   },
   "classification_counts": {
     "AUDITED_RECOVERY": 2,
     "CANONICAL": 41,
-    "EXTERNAL": 30,
+    "EXTERNAL": 31,
     "VERSIONED_DIRECT": 5
   },
   "kind_counts": {
-    "flag_modified_structured_data": 74,
+    "flag_modified_structured_data": 75,
     "mutation_version_bump": 4
   },
   "external_sites": [
     {
       "path": "foms/api/cs/dashboard.py",
-      "lineno": 360,
+      "lineno": 361,
       "kind": "flag_modified_structured_data",
       "owner": "STATE-CONST-CS-01"
     },
     {
       "path": "foms/api/cs/dashboard.py",
-      "lineno": 446,
+      "lineno": 447,
       "kind": "flag_modified_structured_data",
       "owner": "STATE-CONST-CS-01"
     },
     {
       "path": "foms/api/drawing/erp_orders_draftsman.py",
-      "lineno": 129,
+      "lineno": 135,
       "kind": "flag_modified_structured_data",
       "owner": "STATE-DRAWING-01"
     },
     {
       "path": "foms/api/drawing/erp_orders_draftsman.py",
-      "lineno": 245,
+      "lineno": 251,
+      "kind": "flag_modified_structured_data",
+      "owner": "STATE-DRAWING-01"
+    },
+    {
+      "path": "foms/api/drawing/erp_orders_item_cancel.py",
+      "lineno": 78,
       "kind": "flag_modified_structured_data",
       "owner": "STATE-DRAWING-01"
     },
@@ -127,13 +133,13 @@
     },
     {
       "path": "foms/services/kakao_alimtalk.py",
-      "lineno": 661,
+      "lineno": 663,
       "kind": "flag_modified_structured_data",
       "owner": "UNASSIGNED"
     },
     {
       "path": "foms/services/kakao_alimtalk.py",
-      "lineno": 1028,
+      "lineno": 1030,
       "kind": "flag_modified_structured_data",
       "owner": "UNASSIGNED"
     },
@@ -250,52 +256,59 @@
     },
     {
       "path": "foms/api/cs/dashboard.py",
-      "lineno": 360,
+      "lineno": 361,
       "kind": "flag_modified_structured_data",
       "classification": "EXTERNAL",
       "owner": "STATE-CONST-CS-01"
     },
     {
       "path": "foms/api/cs/dashboard.py",
-      "lineno": 446,
+      "lineno": 447,
       "kind": "flag_modified_structured_data",
       "classification": "EXTERNAL",
       "owner": "STATE-CONST-CS-01"
     },
     {
       "path": "foms/api/drawing/erp_orders_draftsman.py",
-      "lineno": 129,
+      "lineno": 135,
       "kind": "flag_modified_structured_data",
       "classification": "EXTERNAL",
       "owner": "STATE-DRAWING-01"
     },
     {
       "path": "foms/api/drawing/erp_orders_draftsman.py",
-      "lineno": 245,
+      "lineno": 251,
       "kind": "flag_modified_structured_data",
       "classification": "EXTERNAL",
       "owner": "STATE-DRAWING-01"
     },
     {
       "path": "foms/api/drawing/erp_orders_drawing.py",
-      "lineno": 365,
+      "lineno": 368,
       "kind": "flag_modified_structured_data",
       "classification": "VERSIONED_DIRECT",
       "owner": "WIZ-TRANSFER-01"
     },
     {
       "path": "foms/api/drawing/erp_orders_drawing.py",
-      "lineno": 690,
+      "lineno": 693,
       "kind": "flag_modified_structured_data",
       "classification": "VERSIONED_DIRECT",
       "owner": "WIZ-TRANSFER-01"
     },
     {
       "path": "foms/api/drawing/erp_orders_drawing.py",
-      "lineno": 692,
+      "lineno": 695,
       "kind": "mutation_version_bump",
       "classification": "VERSIONED_DIRECT",
       "owner": "WIZ-TRANSFER-01"
+    },
+    {
+      "path": "foms/api/drawing/erp_orders_item_cancel.py",
+      "lineno": 78,
+      "kind": "flag_modified_structured_data",
+      "classification": "EXTERNAL",
+      "owner": "STATE-DRAWING-01"
     },
     {
       "path": "foms/api/drawing/erp_orders_revision.py",
@@ -341,28 +354,28 @@
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 1160,
+      "lineno": 1162,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "DATA-01"
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 1633,
+      "lineno": 1638,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "DATA-01"
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 1901,
+      "lineno": 1906,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "DATA-01"
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 2342,
+      "lineno": 2347,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "DATA-01"
@@ -488,7 +501,7 @@
     },
     {
       "path": "foms/api/shipment/packing.py",
-      "lineno": 353,
+      "lineno": 354,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "PACK-01"
@@ -558,14 +571,14 @@
     },
     {
       "path": "foms/services/kakao_alimtalk.py",
-      "lineno": 661,
+      "lineno": 663,
       "kind": "flag_modified_structured_data",
       "classification": "EXTERNAL",
       "owner": "UNASSIGNED"
     },
     {
       "path": "foms/services/kakao_alimtalk.py",
-      "lineno": 1028,
+      "lineno": 1030,
       "kind": "flag_modified_structured_data",
       "classification": "EXTERNAL",
       "owner": "UNASSIGNED"
