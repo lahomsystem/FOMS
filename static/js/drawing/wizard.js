@@ -306,7 +306,7 @@
     return Object.keys(PRESETS).map(function (kind, i) {
       return {
         id: rid('o-'), type: 'text', x: PRESET_SEED_X0 + i * PRESET_SEED_GAP, y: PRESET_SEED_Y, w: 1,
-        text: PRESETS[kind] + '\n', size: loadPreferredTextSize(), color: '#000000', bold: true, align: 'left', rotation: 0, autoWidth: true
+        text: PRESETS[kind] + '\n', size: loadPreferredTextSize(), color: '#000000', bold: false, align: 'left', rotation: 0, autoWidth: true
       };
     });
   }
@@ -2513,7 +2513,7 @@
   function addPreset(kind) {
     var label = PRESETS[kind];
     if (!label) { return; }
-    insertPresetText(label + '\n', true);
+    insertPresetText(label + '\n', false);   // 프리셋 라벨은 일반체(2026-10-12 사용자 결정)
   }
 
   /* ---- 리치 편집: DOM ↔ 런 변환 헬퍼 ------------------------------------- */
