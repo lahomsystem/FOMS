@@ -29,7 +29,8 @@ JS_FILES = {
 # ?v= 붙은 정적 자산은 24시간 캐시돼 핀을 안 올리면 기기가 옛 JS 를 쓴다.
 JS_PIN_LOCK = {
     "static/js/foms/drawing-customer-send.js": ("303b043164b2", "20261012b"),
-    "static/js/foms/drawing-customer-ok.js": ("624445c27786", "20260930b"),
+    "static/js/foms/drawing-customer-ok.js": ("dc13c582b66b", "20261012a"),
+    "static/js/foms/drawing-ok-scope.js": ("4a693b8862c0", "20261012a"),
     "static/js/foms/drawing-revision-edit.js": ("43d3ee5cb418", "20260930b"),
     "static/js/foms/drawing-urgent-call-pc.js": ("7bda3b35784c", "20261001b"),
 }

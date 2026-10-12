@@ -131,7 +131,7 @@
   data-round-label="{{ cs_round_label }}"
   data-can-approve="{{ 'true' if cs.can_approve_after_confirm else 'false' }}"
   data-mode="{{ 'customer' if cs.sent_this_round else 'no_customer' }}">
-  <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down">
+  <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down{{ ' modal-lg modal-dialog-scrollable' if (ok_scope is defined and ok_scope.show) else '' }}">
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title" id="dwCustomerOkTitle" data-ok-title>고객이 {{ cs_round_label }} 도면으로 OK 했나요?</h5>
@@ -139,6 +139,16 @@
       </div>
       <div class="modal-body">
         <p class="small text-muted" data-ok-lead>확정하면 이 도면이 최종본이 돼요.</p>
+        {# ①제품 ②최종 생산 도면(설계서 2026-10-12 §5) — 고를 거리가 있을 때만. 줄은 drawing-ok-scope.js 가 data-ok-scope 로 그린다. #}
+        {% if ok_scope is defined and ok_scope.show %}
+        <div class="dw-ok-scope" data-ok-scope="{{ ok_scope|tojson|forceescape }}">
+          <div class="dw-ok-scope__cols">
+            <section><h6 class="dw-ok-scope__head">① 제품 — 생산할까요?</h6><div class="dw-ok-scope__list" data-ok-items></div></section>
+            <section><h6 class="dw-ok-scope__head">② 최종 생산 도면 — 공장으로 갈 것만</h6><div class="dw-ok-scope__list" data-ok-drawings></div></section>
+          </div>
+          <div class="dw-ok-scope__sum" data-ok-sum aria-live="polite"></div>
+        </div>
+        {% endif %}
         <div class="mb-3">
           <div class="small fw-semibold text-muted mb-1">어떻게 확인했나요 <span class="fw-normal">(선택)</span></div>
           <div class="btn-group flex-wrap" role="group" aria-label="확인한 방법">

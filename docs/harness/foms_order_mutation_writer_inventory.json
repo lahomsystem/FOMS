@@ -19,25 +19,25 @@
   "external_sites": [
     {
       "path": "foms/api/cs/dashboard.py",
-      "lineno": 360,
+      "lineno": 361,
       "kind": "flag_modified_structured_data",
       "owner": "STATE-CONST-CS-01"
     },
     {
       "path": "foms/api/cs/dashboard.py",
-      "lineno": 446,
+      "lineno": 447,
       "kind": "flag_modified_structured_data",
       "owner": "STATE-CONST-CS-01"
     },
     {
       "path": "foms/api/drawing/erp_orders_draftsman.py",
-      "lineno": 129,
+      "lineno": 135,
       "kind": "flag_modified_structured_data",
       "owner": "STATE-DRAWING-01"
     },
     {
       "path": "foms/api/drawing/erp_orders_draftsman.py",
-      "lineno": 245,
+      "lineno": 251,
       "kind": "flag_modified_structured_data",
       "owner": "STATE-DRAWING-01"
     },
@@ -127,13 +127,13 @@
     },
     {
       "path": "foms/services/kakao_alimtalk.py",
-      "lineno": 661,
+      "lineno": 663,
       "kind": "flag_modified_structured_data",
       "owner": "UNASSIGNED"
     },
     {
       "path": "foms/services/kakao_alimtalk.py",
-      "lineno": 1028,
+      "lineno": 1030,
       "kind": "flag_modified_structured_data",
       "owner": "UNASSIGNED"
     },
@@ -250,28 +250,28 @@
     },
     {
       "path": "foms/api/cs/dashboard.py",
-      "lineno": 360,
+      "lineno": 361,
       "kind": "flag_modified_structured_data",
       "classification": "EXTERNAL",
       "owner": "STATE-CONST-CS-01"
     },
     {
       "path": "foms/api/cs/dashboard.py",
-      "lineno": 446,
+      "lineno": 447,
       "kind": "flag_modified_structured_data",
       "classification": "EXTERNAL",
       "owner": "STATE-CONST-CS-01"
     },
     {
       "path": "foms/api/drawing/erp_orders_draftsman.py",
-      "lineno": 129,
+      "lineno": 135,
       "kind": "flag_modified_structured_data",
       "classification": "EXTERNAL",
       "owner": "STATE-DRAWING-01"
     },
     {
       "path": "foms/api/drawing/erp_orders_draftsman.py",
-      "lineno": 245,
+      "lineno": 251,
       "kind": "flag_modified_structured_data",
       "classification": "EXTERNAL",
       "owner": "STATE-DRAWING-01"
@@ -341,28 +341,28 @@
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 1160,
+      "lineno": 1162,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "DATA-01"
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 1633,
+      "lineno": 1638,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "DATA-01"
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 1901,
+      "lineno": 1906,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "DATA-01"
     },
     {
       "path": "foms/api/erp_orders_structured.py",
-      "lineno": 2342,
+      "lineno": 2347,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "DATA-01"
@@ -488,7 +488,7 @@
     },
     {
       "path": "foms/api/shipment/packing.py",
-      "lineno": 353,
+      "lineno": 354,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "PACK-01"
@@ -558,14 +558,14 @@
     },
     {
       "path": "foms/services/kakao_alimtalk.py",
-      "lineno": 661,
+      "lineno": 663,
       "kind": "flag_modified_structured_data",
       "classification": "EXTERNAL",
       "owner": "UNASSIGNED"
     },
     {
       "path": "foms/services/kakao_alimtalk.py",
-      "lineno": 1028,
+      "lineno": 1030,
       "kind": "flag_modified_structured_data",
       "classification": "EXTERNAL",
       "owner": "UNASSIGNED"

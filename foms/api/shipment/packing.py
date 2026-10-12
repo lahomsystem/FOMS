@@ -36,6 +36,7 @@ from foms.services.orders.order_mutation_policy import (
     evaluate_policy,
     team_has_capability,
 )
+from foms.services.orders.drawing_confirm_partial import is_item_cancelled
 from foms.services.orders.revision import RevisionError, execute_order_mutation
 from foms.web.auth import get_user_by_id, log_access
 from foms.services.audit_message_display import describe_order_action
@@ -117,7 +118,7 @@ def _derive_packing_items(sd: dict[str, Any]) -> list[dict[str, Any]]:
     if not isinstance(items, list):
         return derived
     for idx, item in enumerate(items):
-        if not isinstance(item, dict):
+        if not isinstance(item, dict) or is_item_cancelled(item):  # 취소 품목은 포장 대상 아님
             continue
         name = (item.get("product_name") or item.get("name") or "").strip() or f"제품 {idx + 1}"
         for suffix_key, suffix_label in _DERIVED_PART_SUFFIXES:

@@ -81,6 +81,10 @@ def _normalize_file_entry(entry: dict[str, Any]) -> dict[str, str]:
     sheet_id = clean_sheet_id(entry.get("sheet_id"))
     if sheet_id:
         out["sheet_id"] = sheet_id
+    # 도면↔품목 연결도 남긴다 — 확정 뒤 품목 취소가 그 품목 도면을 찾는 축(DRAWING-PARTIAL-CONFIRM).
+    item_uids = [u.strip() for u in (entry.get("item_uids") or []) if isinstance(u, str) and u.strip()]
+    if item_uids:
+        out["item_uids"] = item_uids
     return out
 
 

@@ -121,6 +121,7 @@
     var btn = q(root, '[data-ok-submit]');
     if (btn) btn.disabled = false;
     show(q(root, '[data-ok-error]'), '');
+    if (window.fomsDrawingOkScope) window.fomsDrawingOkScope.reset(root);
     refreshOk(root);
   }
 
@@ -131,6 +132,8 @@
     var errEl = q(root, '[data-ok-error]');
     var mode = attr(root, 'data-mode');
     var wantApprove = attr(root, 'data-can-approve') === 'true' && checked(root, 'dw-ok-after') === 'approve';
+    var scope = window.fomsDrawingOkScope ? window.fomsDrawingOkScope.collect(root) : null;
+    if (scope && scope.error) { show(errEl, scope.error); return; }
     busy = true;
     if (btn) btn.disabled = true;
     show(errEl, '');
@@ -139,6 +142,7 @@
       customer_ok_via: checked(root, 'dw-ok-via') || null,
       customer_ok_note: String((q(root, '#dw-ok-note') || {}).value || '').trim().slice(0, 200) || null,
     };
+    if (scope && scope.body) Object.assign(body, scope.body);
     var res = await postJson('/api/orders/' + encodeURIComponent(orderId) + '/confirm-drawing-receipt', body);
     if (res.thrown || !res.data.success) {
       // ① 실패 — 아무것도 안 바뀌었다. 사유만 보인다.

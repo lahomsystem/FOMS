@@ -21,6 +21,7 @@ from foms.services.erp_order_flags import (
 )
 
 logger = logging.getLogger(__name__)
+from foms.services.orders.drawing_confirm_partial import is_item_cancelled
 from models import OrderEvent, OrderScheduleDate
 
 __all__ = [
@@ -122,7 +123,7 @@ def collect_order_schedule_date_specs(order: Any) -> list[dict[str, Any]]:
                             m_dates.add(nd)
 
         for idx, it in enumerate(sd.get("items") or []):
-            if isinstance(it, dict):
+            if isinstance(it, dict) and not is_item_cancelled(it):  # 취소 품목 날짜는 동기화 안 함
                 imd = it.get("measurement_date")
                 if imd:
                     for d in str(imd).split(","):
@@ -200,7 +201,7 @@ def collect_order_schedule_date_specs(order: Any) -> list[dict[str, Any]]:
                         c_dates.add(nd)
 
         for idx, it in enumerate(sd.get("items") or []):
-            if isinstance(it, dict):
+            if isinstance(it, dict) and not is_item_cancelled(it):  # 취소 품목 날짜는 동기화 안 함
                 icd = it.get("construction_date")
                 if icd:
                     for d in str(icd).split(","):
