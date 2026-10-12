@@ -28,7 +28,7 @@ JS_FILES = {
 # 자산 본문을 고쳤다면 핀을 새 값으로 올리고 이 표의 (해시, 핀)을 함께 갱신한다 —
 # ?v= 붙은 정적 자산은 24시간 캐시돼 핀을 안 올리면 기기가 옛 JS 를 쓴다.
 JS_PIN_LOCK = {
-    "static/js/foms/drawing-customer-send.js": ("1896ea7854ad", "20261008p"),
+    "static/js/foms/drawing-customer-send.js": ("43ed37f29bc8", "20261012a"),
     "static/js/foms/drawing-customer-ok.js": ("624445c27786", "20260930b"),
     "static/js/foms/drawing-revision-edit.js": ("43d3ee5cb418", "20260930b"),
     "static/js/foms/drawing-urgent-call-pc.js": ("7bda3b35784c", "20261001b"),
@@ -171,3 +171,14 @@ def test_inline_script_c14_and_extras_guard():
     assert "/erp/dashboard?focus_order=" not in inline and "open_quest" not in inline
     assert "async function confirmReceipt" not in inline
     assert "typeof window.fomsDrawingRevisionExtras === 'function'" in inline
+
+
+
+def test_send_success_shows_toast_before_reload():
+    """성공하면 새로고침하므로, 그 전에 '보냈다' 알림을 띄우고 읽을 틈을 둔 뒤 새로고침한다."""
+    js = _read(JS_FILES["send"])
+    ok_branch = js[js.index("result.sent === true"):]
+    ok_branch = ok_branch[:ok_branch.index("PRE_SEND_FAIL.indexOf")]
+    assert ok_branch.index("showToast(") < ok_branch.index("setTimeout(")
+    assert "window.location.reload(); }, 1800)" in ok_branch
+    assert "erp-pro-toast" in js
