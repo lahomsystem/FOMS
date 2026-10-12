@@ -225,7 +225,7 @@ def test_ok_scope_view_shows_only_when_there_is_a_choice():
     one = {"items": [{"product_name": "단품"}], "drawing_current_files": [{"key": k1}]}
     single = build_ok_scope(one)
     assert single["show"] is False
-    assert single["items"][0]["cancellable"] is False  # uid 없는 옛 품목
+    assert single["items"][0]["uid"] == "idx:0"  # uid 없는 옛 품목은 위치 참조
 
 
 def test_ok_scope_js_is_valid_and_follows_conventions():
@@ -414,3 +414,25 @@ def test_after_confirm_cancel_button_and_modal_render(client, monkeypatch):
 def test_after_confirm_cancel_hidden_for_last_item(client, monkeypatch):
     soup = _confirmed_page(client, monkeypatch, [{"uid": UID_A, "product_name": "여닫이장"}])
     assert soup.select("[data-item-cancel-uid]") == [] and soup.select_one("#dwItemCancelModal") is None
+
+
+
+def test_legacy_items_without_uid_cancel_by_index_and_get_uid(client):
+    """마법사로 만든 주문처럼 uid 가 없는 품목도 확정 창에서 취소된다 — 적용 순간 uid 발급."""
+    _login(client, _user("legacy_a"))
+    oid, k1, k2 = _order()
+    order = db_session.get(Order, oid)
+    sd = dict(order.structured_data)
+    sd["items"] = [{"product_name": "여닫이장"}, {"product_name": "슬라이딩장"}]
+    sd["drawing_current_files"] = [{"key": k1, "filename": "1.png"}, {"key": k2, "filename": "2.png"}]
+    order.structured_data = sd
+    db_session.commit()
+    res = client.post(f"/api/orders/{oid}/confirm-drawing-receipt", json={
+        "final_drawing_keys": [k1], "cancel_items": [{"uid": "idx:1", "reason": "customer_change"}]})
+    assert res.status_code == 200, res.get_json()
+    after = _sd(oid)
+    assert "cancel" not in after["items"][0] and after["items"][1]["cancel"]["reason"] == "customer_change"
+    new_uid = after["items"][1]["uid"]
+    assert len(new_uid) == 36
+    receipt = [h for h in after["drawing_transfer_history"] if h["action"] == "CONFIRM_RECEIPT"][-1]
+    assert receipt["cancelled_item_uids"] == [new_uid]
