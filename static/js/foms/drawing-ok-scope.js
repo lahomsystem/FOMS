@@ -32,7 +32,7 @@
 
   function summary() {
     var items = state.data.items, drawings = state.data.drawings;
-    var make = items.filter(function (it) { return state.status[it.uid || it.name] !== 'cancel'; }).length;
+    var make = items.filter(function (it) { return state.status[it.uid] !== 'cancel'; }).length;
     var cancel = items.length - make;
     var finals = drawings.filter(function (d) { return state.final[d.key]; }).length;
     var missReason = items.some(function (it) {
