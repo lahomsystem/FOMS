@@ -85,3 +85,19 @@ def test_mobile_detail_rows_keep_cancelled_with_badge():
     rows = mobile_product_items(_sd())
     assert [r["title"] for r in rows] == ["보테가 슬라이딩장", "몰딩 여닫이장"]  # 상세는 줄을 지우지 않는다
     assert rows[0]["cancel_label"] == "취소 · 고객 변심" and rows[1]["cancel_label"] == ""
+
+
+def test_create_order_mints_item_uids(app):
+    from db import db_session
+    from foms.services.orders.order_create import create_order
+    from models import User
+    from werkzeug.security import generate_password_hash
+    u = User(username="mint_uid_u", password=generate_password_hash("pw"), role="STAFF", team="SALES", name="m", is_active=True)
+    db_session.add(u); db_session.commit()
+    order = create_order(db_session, owner_user_id=u.id, actor_user_id=u.id,
+                         order_fields={"customer_name": "x", "phone": "010", "address": "a", "product": "p",
+                                       "received_date": "2026-10-12", "status": "RECEIVED"},
+                         structured_data={"items": [{"product_name": "A"}, {"product_name": "B"}]},
+                         is_erp_order=True)
+    assert all(len(it.get("uid") or "") == 36 for it in order.structured_data["items"])
+    db_session.rollback()

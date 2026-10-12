@@ -15,7 +15,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from foms.services.orders.structured_item_uid import item_uid_of
+import uuid
+
+from foms.services.orders.structured_item_uid import ITEM_UID_KEY, item_uid_of
 
 __all__ = [
     "CANCEL_REASONS",
@@ -99,6 +101,23 @@ def _file_key(entry: Any) -> str:
     return str(entry.get("key") or "").strip() if isinstance(entry, dict) else ""
 
 
+#: uid 가 아직 없는 옛 품목을 가리키는 임시 참조 접두사(``idx:<배열 위치>``). uid 는 ERP 폼
+#: 저장 때만 발급돼, 마법사로 만든 주문·진행 중 주문의 품목엔 없다(2026-10-12 스테이징 실측).
+#: 취소를 적용하는 순간 그 품목에 uid 를 새로 발급한다.
+_IDX_PREFIX = "idx:"
+
+
+def item_ref(items: list[Any], index: int) -> str:
+    """품목 참조 — uid 가 있으면 uid, 없으면 ``idx:<위치>``."""
+    item = items[index] if 0 <= index < len(items) else None
+    return item_uid_of(item) or f"{_IDX_PREFIX}{index}"
+
+
+def _items_by_ref(sd: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    raw = sd.get("items") if isinstance(sd.get("items"), list) else []
+    return {item_ref(raw, i): it for i, it in enumerate(raw) if isinstance(it, dict)}
+
+
 def _explicit_item_uids(entry: dict[str, Any]) -> list[str]:
     raw = entry.get("item_uids")
     if not isinstance(raw, list):
@@ -123,7 +142,7 @@ def _wizard_sheet_item_uid(sd: dict[str, Any], sheet_id: Any) -> str | None:
         idx = sheet.get("product_index")
         items = sd.get("items") if isinstance(sd.get("items"), list) else []
         if isinstance(idx, int) and not isinstance(idx, bool) and 0 <= idx < len(items):
-            return item_uid_of(items[idx])
+            return item_ref(items, idx)
         return None
     return None
 
@@ -189,17 +208,17 @@ def plan_partial_confirm(
     current = [f for f in (sd.get("drawing_current_files") or []) if _file_key(f)]
     current_keys = [_file_key(f) for f in current]
 
-    items = [it for it in (sd.get("items") or []) if isinstance(it, dict)]
-    uid_to_item = {item_uid_of(it): it for it in items if item_uid_of(it)}
+    by_ref = _items_by_ref(sd)
+    items = list(by_ref.values())
     for c in cancels:
-        item = uid_to_item.get(c["uid"])
+        item = by_ref.get(c["uid"])
         if item is None:
             raise PartialConfirmError("UNKNOWN_ITEM", "이 주문에 없는 제품이에요. 화면을 새로 고쳐 주세요.")
         if is_item_cancelled(item):
             raise PartialConfirmError("ITEM_ALREADY_CANCELLED", "이미 취소된 제품이에요.")
 
     cancel_uids = {c["uid"] for c in cancels}
-    remaining = [it for it in items if not is_item_cancelled(it) and item_uid_of(it) not in cancel_uids]
+    remaining = [it for ref, it in by_ref.items() if not is_item_cancelled(it) and ref not in cancel_uids]
     if items and not remaining:
         raise PartialConfirmError(
             "NO_ITEMS_LEFT", "생산할 제품이 없어요. 전부 취소라면 주문 취소로 처리해 주세요.")
@@ -251,11 +270,15 @@ def apply_partial_confirm(
         확정 이력 항목에 붙일 요약 ``{final_drawing_keys, excluded_drawings,
         cancelled_item_uids, estimate_needs_update}``.
     """
-    by_uid = {c["uid"]: c for c in plan.cancels}
-    for item in structured_data.get("items") or []:
-        uid = item_uid_of(item)
-        if uid in by_uid:
-            c = by_uid[uid]
+    by_ref = {c["uid"]: c for c in plan.cancels}
+    minted: dict[str, str] = {}  # idx:N → 새 uid
+    raw_items = structured_data.get("items") if isinstance(structured_data.get("items"), list) else []
+    for i, item in enumerate(raw_items):
+        ref = item_ref(raw_items, i)
+        if ref in by_ref and isinstance(item, dict):
+            c = by_ref[ref]
+            if ref.startswith(_IDX_PREFIX):
+                item[ITEM_UID_KEY] = minted.setdefault(ref, str(uuid.uuid4()))
             item["cancel"] = {
                 "at": at_iso, "by_user_id": actor_user_id,
                 "reason": c["reason"], "note": c["note"], "source": source,
@@ -271,6 +294,10 @@ def apply_partial_confirm(
         key = _file_key(f)
         if key in excluded_by_key:
             moved.append(dict(f, excluded_reason=excluded_by_key[key]["reason"], excluded_at=at_iso))
+    for e in plan.excluded:
+        e["item_uids"] = [minted.get(u, u) for u in e.get("item_uids") or []]
+    for c in plan.cancels:
+        c["uid"] = minted.get(c["uid"], c["uid"])
     if moved:
         structured_data["drawing_excluded_files"] = moved
 
@@ -353,16 +380,16 @@ def build_ok_scope(structured_data: Any) -> dict[str, Any]:
     지금 모양 그대로다. uid 가 없는 품목은 취소를 못 고른다(``cancellable=False``).
     """
     sd = structured_data if isinstance(structured_data, dict) else {}
-    items = [it for it in (sd.get("items") or []) if isinstance(it, dict)]
+    raw = sd.get("items") if isinstance(sd.get("items"), list) else []
     item_rows = [
         {
-            "uid": item_uid_of(it) or "",
+            "uid": item_ref(raw, i),
             "name": str(it.get("product_name") or it.get("name") or f"제품 {i + 1}").strip(),
             "spec": _spec_text(it),
-            "cancellable": bool(item_uid_of(it)),
+            "cancellable": True,
         }
-        for i, it in enumerate(items)
-        if not is_item_cancelled(it)
+        for i, it in enumerate(raw)
+        if isinstance(it, dict) and not is_item_cancelled(it)
     ]
     names = {r["uid"]: r["name"] for r in item_rows if r["uid"]}
     drawings = []
@@ -423,10 +450,10 @@ def build_confirm_result_view(structured_data: Any) -> dict[str, Any]:
     flags = sd.get("flags") if isinstance(sd.get("flags"), dict) else {}
     estimate = bool(flags.get("estimate_needs_update"))
     # 확정 뒤 취소 후보(§10) — 확정됐고 남은 생산 품목이 2개 이상일 때만(마지막 하나는 주문 취소 몫).
-    alive = [it for it in active_items(sd) if item_uid_of(it)]
+    alive = [(ref, it) for ref, it in _items_by_ref(sd).items() if not is_item_cancelled(it)]
     active = [
-        {"uid": item_uid_of(it), "name": str(it.get("product_name") or it.get("name") or "제품").strip()}
-        for it in alive
+        {"uid": ref, "name": str(it.get("product_name") or it.get("name") or "제품").strip()}
+        for ref, it in alive
     ] if sd.get("drawing_status") == "CONFIRMED" and len(alive) > 1 else []
     return {
         "show": bool(cancelled or excluded or estimate or active),
