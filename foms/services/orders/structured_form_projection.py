@@ -80,6 +80,7 @@ SERVER_LOCKED_KEYS = frozenset({
     "drawing_confirmed_at",
     "drawing_confirmed_by",
     "drawing_current_files",
+    "drawing_excluded_files",
     "drawing_transfer_history",
     "last_drawing_transfer",
     "drawing_assignees",

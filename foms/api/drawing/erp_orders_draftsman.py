@@ -21,6 +21,12 @@ from foms.services.erp_display import _ensure_dict
 from foms.services.erp_policy import can_modify_domain
 from foms.api.drawing.draftsman_receipt_authz import can_confirm_drawing_receipt
 from foms.services.drawing_confirm_cleanup import finalize_drawing_files_on_confirm
+from foms.services.orders.drawing_confirm_partial import (
+    PartialConfirmError,
+    apply_partial_confirm,
+    cancel_event_payload,
+    plan_partial_confirm,
+)
 from foms.services.orders.drawing_receipt_command import (
     advance_receipt_stage,
     receipt_transition_error,
@@ -339,6 +345,14 @@ def api_order_confirm_drawing_receipt(order_id):
                 msg += ' (긴급 오버라이드가 필요합니다.)'
             return jsonify({'success': False, 'message': msg}), 403
 
+        # DRAWING-PARTIAL-CONFIRM: 최종 생산 도면·취소 품목 검증은 무엇이든 바꾸기 전에 한다.
+        # 두 입력이 없으면 plan 은 None — 기존 확정과 똑같다.
+        try:
+            partial_plan = plan_partial_confirm(
+                s_data, data.get('final_drawing_keys'), data.get('cancel_items'))
+        except PartialConfirmError as exc:
+            return jsonify({'success': False, 'code': exc.code, 'message': str(exc)}), 400
+
         old_drawing_status = s_data.get('drawing_status', 'UNKNOWN')
         old_stage = read_main_stage(order)
 
@@ -378,6 +392,11 @@ def api_order_confirm_drawing_receipt(order_id):
         wf['history'] = hist
         s_data['workflow'] = wf
 
+        partial_summary = None
+        if partial_plan is not None:
+            partial_summary = apply_partial_confirm(
+                s_data, partial_plan, actor_user_id=current_user.id, at_iso=request_at)
+
         now_str = now_utc_naive().strftime('%Y-%m-%d %H:%M:%S')
         draw_history = list(s_data.get('drawing_transfer_history') or [])
         draw_history.append({
@@ -391,6 +410,8 @@ def api_order_confirm_drawing_receipt(order_id):
         })
 
         final_files, _deleted_count = finalize_drawing_files_on_confirm(db, order_id, s_data)
+        if partial_summary is not None:
+            draw_history[-1].update(partial_summary)
         draw_history[-1]['files'] = final_files
         draw_history[-1]['files_count'] = len(final_files)
         s_data['drawing_transfer_history'] = draw_history
@@ -418,6 +439,10 @@ def api_order_confirm_drawing_receipt(order_id):
             created_by_user_id=current_user.id
         )
         db.add(drawing_confirm_event)
+        if partial_summary is not None and partial_summary['cancelled_item_uids']:
+            db.add(OrderEvent(order_id=order_id, event_type='ITEM_CANCELLED_AT_CONFIRM',
+                              payload=cancel_event_payload(partial_plan, partial_summary),
+                              created_by_user_id=current_user.id))
 
         if stage_moved:
             security_note = f"주문 #{order_id} 도면 확정 및 단계 이동 ({old_stage} -> {next_stage})"

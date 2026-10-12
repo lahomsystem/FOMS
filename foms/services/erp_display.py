@@ -6,6 +6,7 @@ import unicodedata
 from foms.services.common.business_calendar import business_days_until
 from foms.services.datetime_kst import format_datetime_kst, get_today_kst, now_utc_naive, to_utc_naive
 from foms.services.erp_order_flags import is_erp_order_record
+from foms.services.orders.drawing_confirm_partial import drop_cancelled
 from foms.services.erp_policy import (
     STAGE_LABELS,
     STAGE_NAME_TO_CODE,
@@ -382,8 +383,8 @@ def apply_erp_display_fields(order):
     elif address_main:
         order.address = f"{address_main} {address_detail}".strip() if address_detail else address_main
 
-    items = sd.get('items') or []
-    if isinstance(items, list) and items:
+    items = drop_cancelled(sd.get('items') or [])  # 취소 품목은 제품 요약에서 뺀다
+    if items:
         product_parts = []
         for item in items:
             if not isinstance(item, dict):

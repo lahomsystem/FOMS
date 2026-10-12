@@ -21,6 +21,7 @@ from foms.services.erp_display import (
 )
 from foms.services.erp_mobile_order_display import resolve_manager_phone_for_queue
 from foms.services.estimate_service import build_measurement_manager_phone_map
+from foms.services.orders.drawing_confirm_partial import drop_cancelled
 from foms.services.orders.erp_policy_quests import check_quest_approvals_complete
 
 __all__ = [
@@ -36,12 +37,11 @@ __all__ = [
 
 
 def _production_first_item(sd: dict[str, Any]) -> tuple[dict[str, Any] | None, list[Any]]:
-    """structured_data.items에서 첫 유효 dict 항목과 전체 항목 리스트를 반환."""
-    items = sd.get('items') or sd.get('products') or sd.get('product_items') or []
-    if isinstance(items, dict):
-        items = [items]
-    if not isinstance(items, list):
-        return None, []
+    """structured_data.items에서 첫 유효 dict 항목과 전체 항목 리스트를 반환.
+
+    취소 품목(``items[].cancel``)은 생산 대상이 아니라 뺀다(DRAWING-PARTIAL-CONFIRM).
+    """
+    items = drop_cancelled(sd.get('items') or sd.get('products') or sd.get('product_items') or [])
     for it in items:
         if isinstance(it, dict):
             return it, items

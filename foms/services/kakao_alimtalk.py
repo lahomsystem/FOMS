@@ -33,6 +33,7 @@ from foms.services.auth.partner_scope import is_partner_order, is_partner_sd
 from foms.services.datetime_kst import now_utc_naive
 from foms.services.erp_display import erp_deposit_amount_from_structured
 from foms.services.order_date_sync import _normalize_date_str
+from foms.services.orders.drawing_confirm_partial import drop_cancelled
 from foms.services.sidefx_outbox import enqueue_side_effect
 from models import Order, OrderEvent, User
 
@@ -272,7 +273,8 @@ def build_variables(sd: dict | None) -> dict[str, str]:
     customer = _node(sd, "parties", "customer")
     measure = _node(sd, "schedule", "measurement")
     site = _node(sd, "site")
-    items = sd.get("items") if isinstance(sd, dict) else None
+    # 취소 품목은 고객 안내에서 뺀다(DRAWING-PARTIAL-CONFIRM). 빈 목록이면 _items_text 가 '상담'.
+    items = drop_cancelled(sd.get("items")) if isinstance(sd, dict) else []
     deposit = erp_deposit_amount_from_structured(sd if isinstance(sd, dict) else {})
 
     variables = {

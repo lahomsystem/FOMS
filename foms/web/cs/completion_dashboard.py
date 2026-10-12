@@ -29,6 +29,7 @@ from foms.services.estimate_service import (
 )
 from foms.services.feature_flags import is_mobile_v2_shell, resolve_shell_variant_cached
 from foms.services.request_utils import get_search_query_arg
+from foms.services.orders.drawing_confirm_partial import active_items
 from models import Order, OrderAttachment
 
 erp_completion_page_bp = Blueprint(
@@ -150,7 +151,7 @@ def _completion_row(order) -> dict:
         or getattr(order, "customer_name", None)
         or "-"
     )
-    items = sd.get("items") or []
+    items = active_items(sd)  # 취소 품목은 요약에서 뺀다
     product_summary = ", ".join(
         str((item.get("product_name") or "").strip())
         for item in items

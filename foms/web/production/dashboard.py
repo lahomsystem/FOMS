@@ -18,6 +18,7 @@ from foms.web.auth import login_required
 
 from foms.services.datetime_kst import get_today_kst
 from foms.services.drawing_confirm_cleanup import resolve_final_drawing_files
+from foms.services.orders.drawing_confirm_partial import active_items
 from foms.services.erp_template_filters import (
     eval_spec_width_mm,
     item_spec_w300_value,
@@ -193,10 +194,7 @@ def erp_production_dashboard():
     for _r in _enriched_all:
         # 태블릿 칸반 카드 총 자수(W/300): 사이드 시트와 동일 SSOT(_prod_sheet_total_units) 재사용.
         _card_sd = _r.get("structured_data") or {}
-        _card_items = _card_sd.get("items")
-        _r["units_display"] = _prod_sheet_total_units(
-            _card_items if isinstance(_card_items, list) else []
-        )
+        _r["units_display"] = _prod_sheet_total_units(active_items(_card_sd))
         _r["is_regional"] = bool(getattr(_orders_by_id.get(_r["id"]), "is_regional", False))
         _rc = _alerts_by_id.get(_r["id"]) or {"alerts": [], "history": []}
         _r["change_alerts"] = _rc["alerts"]        # 미확인(시끄러운 스트립)
@@ -311,9 +309,7 @@ def _compute_tablet_prod_kpis(orders: list[dict[str, Any]]) -> dict[str, Any]:
         if dday is not None and dday < 0:
             delayed += 1
         if dday is not None and week_start <= dday <= week_end:
-            sd = row.get('structured_data') or {}
-            items = sd.get('items')
-            for item in items if isinstance(items, list) else []:
+            for item in active_items(row.get('structured_data') or {}):
                 week_total += item_spec_w300_value(item)
     return {
         'today_line': today_line,
@@ -423,9 +419,7 @@ def erp_production_tablet_sheet(order_id: int):
         abort(404)
     user = getattr(g, 'current_user', None)
     sd = _ensure_dict(order.structured_data)
-    items = sd.get('items')
-    if not isinstance(items, list):
-        items = []
+    items = active_items(sd)  # 취소 품목은 생산 시트에서 뺀다(DRAWING-PARTIAL-CONFIRM)
     construction_date = (((sd.get('schedule') or {}).get('construction') or {}).get('date'))
     notes_raw = sd.get('notes')
     _prod = sd.get('production') if isinstance(sd.get('production'), dict) else {}

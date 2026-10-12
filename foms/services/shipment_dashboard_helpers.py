@@ -13,6 +13,7 @@ from typing import Any
 from foms.services.erp_order_flags import is_erp_order_record
 from foms.services.erp_template_filters import item_spec_w300_value
 from foms.services.order_date_sync import _normalize_date_str
+from foms.services.orders.drawing_confirm_partial import active_items, drop_cancelled
 
 logger = logging.getLogger(__name__)
 
@@ -88,9 +89,7 @@ def extract_all_construction_dates(order):
                     dates.add(d.strip())
         if is_erp_order_record(order) and getattr(order, 'structured_data', None):
             sd = order.structured_data if isinstance(order.structured_data, dict) else {}
-            for it in sd.get('items') or []:
-                if not isinstance(it, dict):
-                    continue
+            for it in active_items(sd):
                 date_val = it.get('construction_date')
                 if date_val:
                     for d in str(date_val).split(','):
@@ -143,7 +142,7 @@ def visible_items_for_dates(
         표시할 품목 dict 리스트.
     """
     sd = order.structured_data if isinstance(getattr(order, 'structured_data', None), dict) else {}
-    items = sd.get('items') or []
+    items = drop_cancelled(sd.get('items') or [])  # 취소 품목은 출고 대상 아님
     use_range = bool(date_from and date_to)
     if not items or not (target_date or use_range):
         return list(items)
@@ -211,7 +210,7 @@ def visible_spec_units(order: Any) -> float:
         return 0.0
     items = getattr(order, 'shipment_visible_items', None)
     if items is None:
-        items = (order.structured_data or {}).get('items') or []
+        items = drop_cancelled((order.structured_data or {}).get('items') or [])
     return sum(item_spec_w300_value(it) for it in items if isinstance(it, dict))
 
 

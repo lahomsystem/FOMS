@@ -40,6 +40,7 @@ _STRUCTURED_DROP_KEYS = frozenset(
         "drawing_confirmed_at",
         "drawing_confirmed_by",
         "drawing_current_files",
+        "drawing_excluded_files",
         "drawing_transfer_history",
         "last_drawing_transfer",
         "drawing_assignees",
@@ -132,6 +133,12 @@ def _copy_structured_data(original: Order, copied_at: datetime.datetime) -> dict
     sd = copy.deepcopy(_ensure_dict(getattr(original, "structured_data", None)))
     for key in _STRUCTURED_DROP_KEYS:
         sd.pop(key, None)
+    # 품목 취소·견적 수정 표시는 원본 주문의 사정이다 — 새 주문의 품목은 전부 살아 있는 상태로 시작한다.
+    for item in sd.get("items") or []:
+        if isinstance(item, dict):
+            item.pop("cancel", None)
+    if isinstance(sd.get("flags"), dict):
+        sd["flags"].pop("estimate_needs_update", None)
 
     meta = copy.deepcopy(_ensure_dict(sd.get("meta")))
     for key in _META_DROP_KEYS:
