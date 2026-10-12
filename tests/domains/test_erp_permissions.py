@@ -625,7 +625,8 @@ def test_all_erp_dashboard_mine_paths_use_shared_role_scope_contract() -> None:
     assert "build_mine_sql_filter(user)" in sources["production"]
     assert "build_mine_sql_filter(current_user)" in sources["as"]
     assert "erp_mine_only_for_construction(request, user)" in sources["completion"]
-    assert "build_mine_sql_filter(user)" in sources["nav_badges"]
+    # 배지만 관리자 역할도 소속 팀 범위(사용자 결정 2026-10-12, 도면 문서 전체 갈래 제외).
+    assert "build_mine_sql_filter(user, scope=_badge_mine_scope(user))" in sources["nav_badges"]
 
 
 def test_construction_dashboard_applies_mine_filter_for_construction_team(app, client) -> None:
