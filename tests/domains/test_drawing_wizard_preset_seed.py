@@ -37,3 +37,10 @@ def test_legacy_empty_sheet_seeded_once_and_flag_saved():
     assert 'if (s.presets_seeded === true) { sheet.presets_seeded = true; }' in JS
     assert 'if (!sheet.objects.length) { sheet.objects = seedPresetObjects(); }' in JS
     assert 'if (s.presets_seeded === true) { out.presets_seeded = true; }' in JS
+
+
+def test_preset_labels_are_regular_weight():
+    """프리셋 라벨은 굵게가 아니라 일반체로 들어간다(자리표·메뉴 삽입 모두)."""
+    assert "color: '#000000', bold: false, align: 'left', rotation: 0, autoWidth: true" in JS
+    assert "bold: true, align: 'left', rotation: 0, autoWidth: true\n" not in JS
+    assert "insertPresetText(label + '\\n', false);" in JS
