@@ -31,6 +31,7 @@ __all__ = [
     "build_ok_scope",
     "cancel_label",
     "drop_cancelled",
+    "file_item_uids",
     "cancel_event_payload",
     "is_item_cancelled",
     "plan_partial_confirm",
@@ -97,11 +98,42 @@ def _file_key(entry: Any) -> str:
     return str(entry.get("key") or "").strip() if isinstance(entry, dict) else ""
 
 
-def _item_uids_of_file(entry: dict[str, Any]) -> list[str]:
+def _explicit_item_uids(entry: dict[str, Any]) -> list[str]:
     raw = entry.get("item_uids")
     if not isinstance(raw, list):
         return []
     return [u.strip() for u in raw if isinstance(u, str) and u.strip()]
+
+
+def _wizard_sheet_item_uid(sd: dict[str, Any], sheet_id: Any) -> str | None:
+    """마법사 시트(``drawing_wizard.sheets[].id``)의 ``product_index`` → 그 품목 uid.
+
+    마법사는 제품 칸에서 시트를 만들 때 ``product_index`` 를 시트에 저장한다(wizard.js
+    ``currentSheet().product_index``). 품목이 그 뒤 재배열되면 어긋날 수 있어, 인덱스가
+    범위 밖이거나 uid 가 없으면 연결하지 않는다(모름 = 자동 제외 안 함 — 안전한 쪽).
+    """
+    sid = str(sheet_id or "").strip()
+    wizard = sd.get("drawing_wizard") if isinstance(sd.get("drawing_wizard"), dict) else {}
+    if not sid:
+        return None
+    for sheet in wizard.get("sheets") or []:
+        if not isinstance(sheet, dict) or str(sheet.get("id") or "") != sid:
+            continue
+        idx = sheet.get("product_index")
+        items = sd.get("items") if isinstance(sd.get("items"), list) else []
+        if isinstance(idx, int) and not isinstance(idx, bool) and 0 <= idx < len(items):
+            return item_uid_of(items[idx])
+        return None
+    return None
+
+
+def file_item_uids(sd: dict[str, Any], entry: dict[str, Any]) -> list[str]:
+    """도면 항목이 묶인 품목 uid 목록 — 명시값(``item_uids``) 우선, 없으면 마법사 시트에서 유도."""
+    explicit = _explicit_item_uids(entry)
+    if explicit:
+        return explicit
+    uid = _wizard_sheet_item_uid(sd, entry.get("sheet_id"))
+    return [uid] if uid else []
 
 
 def _parse_cancel_items(raw: Any) -> list[dict[str, Any]]:
@@ -186,7 +218,7 @@ def plan_partial_confirm(
     excluded: list[dict[str, Any]] = []
     final_keys: list[str] = []
     for entry, key in zip(current, current_keys):
-        linked = _item_uids_of_file(entry)
+        linked = file_item_uids(sd, entry)
         only_cancelled = bool(linked) and all(u in cancel_uids for u in linked)
         if only_cancelled:
             if final_drawing_keys is not None and key in selected:
@@ -335,7 +367,7 @@ def build_ok_scope(structured_data: Any) -> dict[str, Any]:
     drawings = []
     for no, f in enumerate((f for f in (sd.get("drawing_current_files") or []) if _file_key(f)), start=1):
         key = _file_key(f)
-        linked = _item_uids_of_file(f)
+        linked = file_item_uids(sd, f)
         drawings.append({
             "key": key,
             "no": no,
