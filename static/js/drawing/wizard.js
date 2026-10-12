@@ -300,7 +300,7 @@
     return null;
   }
 
-  function newSheet(name, d) { return { id: rid('s-'), name: name, form: cloneForm(d), objects: seedPresetObjects() }; }
+  function newSheet(name, d) { return { id: rid('s-'), name: name, form: cloneForm(d), objects: seedPresetObjects(), presets_seeded: true }; }
 
   function seedPresetObjects() {
     return Object.keys(PRESETS).map(function (kind, i) {
@@ -3992,6 +3992,7 @@
     if (isFiniteNum(s.attachment_id) && s.attachment_id >= 0) {
       out.attachment_id = Math.round(s.attachment_id);
     }
+    if (s.presets_seeded === true) { out.presets_seeded = true; }   // 기본 프리셋 1회 배치 표시
     return out;
   }
 
@@ -4070,6 +4071,13 @@
       };
       if (isFiniteNum(s.product_index)) { sheet.product_index = Math.round(s.product_index); }
       if (isFiniteNum(s.attachment_id)) { sheet.attachment_id = Math.round(s.attachment_id); }
+      /* 기본 프리셋 이전에 만든 시트: 빈 시트면 한 번만 자리표를 깔고, 깔았든 안 깔았든 표시를 남겨
+         지운 프리셋이 다시 열 때 되살아나지 않게 한다. 저장 권한이 없으면 건드리지 않는다. */
+      if (s.presets_seeded === true) { sheet.presets_seeded = true; }
+      else if (canSave) {
+        if (!sheet.objects.length) { sheet.objects = seedPresetObjects(); }
+        sheet.presets_seeded = true;
+      }
       return sheet;
     });
     // 빈 배열은 그대로 반환 — 기본 시트 자동 생성 없음(제품 클릭/+시트로만 생성).
