@@ -539,6 +539,17 @@ def _revision_thread_fields(event: Mapping[str, Any], order_id: int | None) -> d
     }
 
 
+def _target_files_text(event: Mapping[str, Any], targets: list[int]) -> str:
+    """대상 도면 글자 — 이름이 있으면 "2번 · 보테가 슬라이딩", 없으면 "2번 대상"(#5600)."""
+    named = [
+        f"{t.get('no')}번 · {t.get('name')}"
+        for t in (event.get('target_files') or []) if isinstance(t, Mapping) and t.get('name')
+    ]
+    if named:
+        return ', '.join(named)
+    return f"{', '.join(str(n) for n in targets)}번 대상" if targets else ''
+
+
 def _cancelled_revision_fields(event: Mapping[str, Any]) -> dict[str, Any]:
     """수정요청 취소 기록(``REVISION_CANCELLED``) 표시값 — 취소 이유 + 원래 요청 메모(흐리게).
 
@@ -585,7 +596,6 @@ def _build_handoff_thread(
     for _event_index, event in newest_first:
         action = (event.get('action') or '').upper()
         targets = _event_target_numbers(event)
-        target_text = ', '.join(str(n) for n in targets)
         if action == 'ERP_ORDER_CHANGED':
             side = 'alert'
         elif action in ('TRANSFER', 'CANCEL_TRANSFER'):
@@ -607,7 +617,7 @@ def _build_handoff_thread(
             **event,
             'side': side,
             'tag': event.get('action_label') or action_labels.get(action) or action or '-',
-            'target_text': f'{target_text}번 대상' if target_text else '',
+            'target_text': _target_files_text(event, targets),
             'files': list(event.get('files') or []) if isinstance(event.get('files'), list) else [],
             'changes': changes if changes is not None else event.get('changes'),
             'acked_at_text': format_datetime_kst(event.get('acked_at'), '%m-%d %H:%M') or '',

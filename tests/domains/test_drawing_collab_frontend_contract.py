@@ -49,8 +49,8 @@ def test_detail_dom_cachebuster_cascade_bumped() -> None:
     assert "erp-dashboard-drawing.js?v=20261004a" in entry
     assert "erp-dashboard-core.js?v=20260929h" in entry
     assert "erp-dashboard-attachments.js?v=20261004a" in entry  # 2026-10-04 도면 최종본 순서
-    assert "erp-dashboard-gateway.js?v=20260929e" in entry
-    assert "erp-dashboard-entry.js') }}?v=20261004a" in layout
+    assert "erp-dashboard-gateway.js?v=20261012a" in entry
+    assert "erp-dashboard-entry.js') }}?v=20261012a" in layout
 
 
 def test_workbench_include_confirmed_toggle() -> None:

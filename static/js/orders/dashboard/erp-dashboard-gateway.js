@@ -8,10 +8,28 @@ function drawingActionLabel(action) {
           return map[action] || (action || '기타');
         }
 
-        function drawingTargetLabel(h) {
+        // 번호만 보이면 도면 장 안의 페이지 번호와 헷갈린다(#5600) — 이력에 실린 파일 이름을 붙인다.
+        function drawingHistoryNames(history) {
+          const names = {};
+          (Array.isArray(history) ? history : []).forEach((ev) => {
+            ['files', 'previous_current_files'].forEach((bucket) => {
+              const list = ev && Array.isArray(ev[bucket]) ? ev[bucket] : [];
+              list.forEach((f) => {
+                const key = String((f && f.key) || '').trim();
+                if (key && f.filename && !names[key]) names[key] = String(f.filename).replace(/\.[^.]+$/, '');
+              });
+            });
+          });
+          return names;
+        }
+
+        function drawingTargetLabel(h, names) {
           if (!h || typeof h !== 'object') return '';
           const n = Number(h.target_drawing_number || h.replace_target_number || 0);
-          return n > 0 ? `${n}번 대상` : '';
+          if (!(n > 0)) return '';
+          const key = String(h.target_drawing_key || h.replace_target_key || '').trim();
+          const name = key && names ? names[key] : '';
+          return name ? `${n}번 · ${name}` : `${n}번 대상`;
         }
 
         var __drawingGatewayImageGroups = {};
@@ -356,6 +374,7 @@ function drawingActionLabel(action) {
           if (!Array.isArray(history) || history.length === 0) {
             return '<div class="text-muted small">아직 요청/전달 이력이 없습니다.</div>';
           }
+          const names = drawingHistoryNames(history);
           const sorted = [...history].reverse();
           return sorted.map((h, idx) => {
             const action = drawingActionLabel(h.action);
@@ -366,7 +385,7 @@ function drawingActionLabel(action) {
               : (h.note || ''));
             const cancelledReq = (h.action === 'REVISION_CANCELLED' && h.request) ? h.request : null;
             const cancelledNote = cancelledReq && cancelledReq.note ? escapeHtml(`원래 요청: ${cancelledReq.note}`) : '';
-            const targetLabel = escapeHtml(drawingTargetLabel(h));
+            const targetLabel = escapeHtml(drawingTargetLabel(h, names));
             const groupKey = `gateway_${idx}_${String(h.transferred_at || h.at || '').replace(/[^0-9A-Za-z]/g, '')}`;
             const filesHtml = renderGatewayFiles(h.files || [], groupKey);
             const badgeClass = h.action === 'REQUEST_REVISION'
