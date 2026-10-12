@@ -48,6 +48,9 @@ route('/api/share/create/77', function () {
 });
 route('/api/share/revoke/', function () { return Resp(200, { success: true, data: {}, error: null }); });
 route('/structured/fields', function () { return Resp(200, { success: true }); });
+document.body = makeEl({});
+const timers = [];
+globalThis.setTimeout = function (fn, ms) { timers.push(ms); fn(); return 0; };  // 새로고침 지연을 바로 돌린다
 loadSources();
 fire('show.bs.modal', root, { relatedTarget: makeEl({ attrs: { 'data-customer-send-mode': 'first' } }) });
 """
@@ -64,7 +67,8 @@ def _send(send_route: str, *, channel: str = "kakao", override: str = "", save: 
         + "const disabledBeforeHide = submitBtn.disabled;\n"
         + ("fire('hidden.bs.modal', root);\n" if then_hide else "")
         + "out({ err: hidden(errEl) ? '' : errEl.textContent, status: hidden(statusEl) ? '' : statusEl.textContent,"
-        + " disabled: disabledBeforeHide });"
+        + " disabled: disabledBeforeHide, timers: timers,"
+        + " toast: document.body.children.map(function (w) { return w.children.map(function (c) { return c.textContent; }).join(''); }) });"
     )
     return run_js([SEND_JS], driver)
 
@@ -81,6 +85,9 @@ def test_send_success_reloads_with_drawing_tab_marker():
     assert send_body == {"token": "tok-secret", "source_screen": "drawing_tab"}  # to_phone 은 바꿨을 때만
     assert r["calls"][0]["body"] == {"kind": "drawing"}
     assert r["reloaded"] == 1 and r["disabled"] is True
+    # 보냈다는 알림을 화면에 띄우고, 읽을 틈(1.8초)을 둔 뒤 새로고침한다.
+    assert r["toast"] == ["✓ 알림톡 발송 완료 — 홍길동 고객님께 2차 도면을 보냈어요."]
+    assert r["timers"] == [1800]
     assert r["storageWrites"] == []  # 토큰 원문을 저장소에 쓰지 않는다
 
 

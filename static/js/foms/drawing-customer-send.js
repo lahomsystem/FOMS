@@ -41,7 +41,6 @@
   var SUBMIT_LABELS = { kakao: '알림톡 보내기', company: '회사 문자 보내기', mine: '내 문자 앱 열기' };
 
   var state = { busy: false, locked: false, reloadOnHide: false };
-
   function label(code) { return ERROR_LABELS[code] || String(code || '알 수 없는 오류'); }
   function modal() { return document.getElementById(MODAL_ID); }
   function q(root, sel) { return root ? root.querySelector(sel) : null; }
@@ -62,14 +61,12 @@
     return /^01[016789][0-9]{7,8}$/.test(digits) ? digits : '';
   }
   function hyphenPhone(d) { var m = d.length - 4; return d.slice(0, 3) + '-' + d.slice(3, m) + '-' + d.slice(m); }
-
   function overridePhone(root) {
     var box = q(root, '[data-send-phone-edit]');
     if (!box || box.classList.contains('d-none')) return { raw: '', phone: '' };
     var raw = String((q(root, '#dw-send-phone') || {}).value || '').trim();
     return { raw: raw, phone: normalizePhone(raw) };
   }
-
   function lockButtons(root, on) {
     var btn = q(root, '[data-send-submit]');
     if (btn) btn.disabled = !!on;
@@ -77,7 +74,6 @@
       el.disabled = !!on;
     });
   }
-
   /** 고객이 받는 모습(문서 이름만 — 템플릿 원문은 베끼지 않는다, §3.5 가). */
   function refresh(root) {
     var kind = checked(root, 'dw-send-kind') || 'drawing';
@@ -143,7 +139,6 @@
       await fetch('/api/share/revoke/' + encodeURIComponent(shareId), { method: 'POST', credentials: 'same-origin' });
     } catch (_) { /* 회수 실패는 무시 — 발급 이력 창에서 다시 회수할 수 있다 */ }
   }
-
   function smsHref(phone, text) {
     var sep = /iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent) ? '&' : '?';
     return 'sms:' + phone + sep + 'body=' + encodeURIComponent(text);
@@ -184,6 +179,13 @@
     return false;
   }
 
+  /** 화면 위 '보냈어요' 알림(전역 erp-pro-toast) — 성공 직후 새로고침 전에 읽을 수 있게 먼저 띄운다. */
+  function showToast(text) {
+    var wrap = document.createElement('div'), item = document.createElement('div');
+    wrap.className = 'erp-pro-toast'; wrap.setAttribute('role', 'status');
+    item.className = 'erp-pro-toast__item'; item.textContent = '✓ ' + text;
+    wrap.appendChild(item); document.body.appendChild(wrap);
+  }
   var UNSURE = '보냈는지 확실하지 않아요 — 잠시 뒤 새로고침해 상태 줄을 확인하세요';
 
   /** 결과 줄 + 버튼 상태. hold=true 면 잠근 채 둔다(나갔을 수 있음 — 바로 재시도 금지, 닫으면 새로고침). */
@@ -218,7 +220,6 @@
     var roundLabel = attr(root, 'data-round-label');
     var customerName = attr(root, 'data-customer-name');
     var doneText = (customerName ? customerName + ' ' : '') + '고객님께 ' + (roundLabel ? roundLabel + ' ' : '') + '도면을 보냈어요.';
-
     if (channel === 'mine') {
       var to = ov.phone || data.data.to_phone || '';
       if (!to) { await revokeShare(shareId); settle(root, label('no_valid_phone'), false); return; }
@@ -229,7 +230,6 @@
       window.location.href = smsHref(to, data.data.sms_text || data.data.url);
       return;
     }
-
     var url = (channel === 'company' ? '/api/share/send-sms/' : '/api/share/send-alimtalk/') + encodeURIComponent(shareId);
     var body = { token: token, source_screen: 'drawing_tab' };
     if (ov.phone) body.to_phone = ov.phone;
@@ -244,7 +244,8 @@
       state.locked = true;
       if (!(await finishSaved(root, orderId, ov.phone, doneText))) return;
       show(q(root, '[data-send-status]'), doneText);
-      window.location.reload();
+      showToast(CHANNEL_LABELS[channel] + ' 발송 완료 — ' + doneText);
+      setTimeout(function () { window.location.reload(); }, 1800); // 알림을 읽을 틈을 준 뒤 새로고침
       return;
     }
     if (PRE_SEND_FAIL.indexOf(sent.status) !== -1) {
