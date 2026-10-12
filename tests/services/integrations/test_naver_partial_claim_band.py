@@ -11,6 +11,7 @@
 2. 같은 주문이 유령 띠에는 **여전히 안 뜬다**(유령 판정은 한 글자도 안 바뀌었다).
 3. 확정된(``done``) 부분 취소는 안 센다 — 재결제로 이미 정리된 정상 모양이라 소음이다.
 4. 전부 취소된 주문은 이 띠에 **안 뜬다**(유령 띠 몫, 음성 대조군).
+5. 집 **안에서 일부만** 확정 전 클레임이어도 뜬다(2026-10-12, 운영 #5625).
 """
 import pytest
 from werkzeug.security import generate_password_hash
@@ -148,13 +149,53 @@ def test_fully_canceled_order_is_not_in_this_band(app):
     assert order_id in ghost_ids
 
 
-def test_half_claimed_household_alone_is_not_enough(app):
-    """집 안에서 **일부만** 취소된 것은 안 센다 — 통째로 죽은 집이 있어야 한다."""
+def test_half_claimed_household_shows_in_the_band(app):
+    """집 안에서 **일부만** 취소 요청돼도 뜬다(2026-10-12 — 예전엔 어느 띠에도 안 떴다)."""
     order = _order(tel="010-7100-0006")
     order_id = int(order.id)
     _link(order_no="N-HALF-1", amount=100_000, claim="RETURN_REQUEST", order_id=order_id,
           tel="010-7100-0006")
-    _link(order_no="N-HALF-1", amount=100_000, order_id=order_id, tel="010-7100-0006")
+    _link(order_no="N-HALF-1", amount=150_000, order_id=order_id, tel="010-7100-0006")
+
+    row = next(row for row in find_partial_claim_orders(db_session)["rows"]
+               if row["order_id"] == order_id)
+
+    assert row["dead_link_count"] == 1
+    assert row["alive_link_count"] == 1
+    assert row["dead_whole_household"] is False
+    assert row["lead_household_link_count"] == 2
+    # 살아 있는 상품주문 금액은 더하지 않는다.
+    assert row["naver_amount_total"] == 100_000
+
+
+def test_cancel_requests_beside_a_rejected_line_show_in_the_band(app):
+    """운영 #5625 모양 — 한 집 7건 중 6건 취소 요청 + 1건 취소 거부(살아 있음)."""
+    tel = "010-7100-0008"
+    order = _order(tel=tel)
+    order_id = int(order.id)
+    _link(order_no="N-5625", amount=50_000, claim="CANCEL_REJECT", order_id=order_id, tel=tel)
+    for _ in range(6):
+        _link(order_no="N-5625", amount=50_000, claim="CANCEL_REQUEST", order_id=order_id,
+              tel=tel)
+
+    row = next(row for row in find_partial_claim_orders(db_session)["rows"]
+               if row["order_id"] == order_id)
+    ghost_ids = [row["order_id"] for row in find_ghost_orders(db_session)["rows"]]
+
+    assert row["claim_phase"] == "pending"
+    assert row["dead_link_count"] == 6
+    assert row["alive_link_count"] == 1
+    assert row["naver_amount_total"] == 300_000
+    assert order_id not in ghost_ids
+
+
+def test_confirmed_cancel_inside_a_household_is_not_counted(app):
+    """집 안 일부 취소라도 확정(``done``)이면 안 센다 — 음성 대조군."""
+    tel = "010-7100-0009"
+    order = _order(tel=tel)
+    order_id = int(order.id)
+    _link(order_no="N-DONE-1", amount=100_000, claim="CANCEL_DONE", order_id=order_id, tel=tel)
+    _link(order_no="N-DONE-1", amount=100_000, order_id=order_id, tel=tel)
 
     ids = [row["order_id"] for row in find_partial_claim_orders(db_session)["rows"]]
 

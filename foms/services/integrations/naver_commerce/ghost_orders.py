@@ -386,6 +386,8 @@ def _new_bucket() -> dict[str, Any]:
     """
     return {
         "link_count": 0, "canceled": 0, "amount_total": 0,
+        # 클레임 링크만 더한 금액 — 부분 취소 띠가 집 안 일부 취소의 환불 예정액을 말할 때 쓴다.
+        "canceled_amount": 0,
         "order_nos": [], "claim_labels": set(), "phases": set(), "kinds": set(),
         # 워크벤치 pane 으로 보낼 대표 링크. 띠에서 불가역 버튼을 누르게 하지
         # 않는 대신(같은 행에 휴지통 버튼과 환불 버튼이 나란히 서면 사고
@@ -425,6 +427,8 @@ def _fold_link(bucket: dict[str, Any], *, snapshot: Any, order_no: Any,
         amount = product_order.get("totalPaymentAmount")
         if isinstance(amount, int):
             bucket["amount_total"] += amount
+            if phase in GHOST_CLAIM_PHASES and kind in GHOST_CLAIM_KINDS:
+                bucket["canceled_amount"] += amount
     text = str(order_no or "").strip()
     if text and text not in bucket["order_nos"]:
         bucket["order_nos"].append(text)
@@ -638,7 +642,7 @@ def _mirror_link_rows(session) -> list[tuple]:
 
 def find_partial_claim_orders(session, *,
                               limit: int = PARTIAL_LIST_LIMIT) -> dict[str, Any]:
-    """**집 하나가 통째로 취소·반품됐는데** 살아 있는 집이 남은 주문 (2026-09-21).
+    """**일부만** 취소·반품 요청된 주문 — 살아 있는 상품주문이 남은 주문 (2026-09-21).
 
     유령 띠(:func:`find_ghost_orders`)는 일부러 "붙은 링크가 전부 취소"만 센다 — 부분
     취소는 정상 진행 중일 수 있어서다. 그런데 그 제외가 **추가결제가 붙은 주문의 본품
@@ -646,12 +650,16 @@ def find_partial_claim_orders(session, *,
     추가결제 집 6건이 살아 있어 띠 밖이었고, 담당자가 그 반품을 볼 자리가 화면에 없었다
     (2026-09-21 사용자 보고 — "네이버엔 반품 2건인데 FOMS 엔 1건").
 
-    그래서 유령 판정은 **한 글자도 건드리지 않고** 띠를 하나 더 둔다. 모집단은 셋 다 참일
+    그래서 유령 판정은 **한 글자도 건드리지 않고** 띠를 하나 더 둔다. 모집단은 둘 다 참일
     때다:
 
-    * 집(네이버 주문번호) 하나가 **그 집 링크 전부** 취소·반품이고,
     * 같은 ERP 주문에 클레임이 **없는 링크가 하나라도** 살아 있고,
-    * 죽은 집의 클레임이 **아직 확정 전**(:data:`PARTIAL_PENDING_PHASES`)이다.
+    * 클레임이 **아직 확정 전**(:data:`PARTIAL_PENDING_PHASES`)인 집이 하나라도 있다.
+
+    2026-10-12: 예전에는 "집 하나가 **통째로** 취소"여야 했다. 그래서 **한 집 안에서 일부만**
+    취소 요청된 주문이 두 띠 어디에도 안 떴다 — 운영 #5625(김나윤)는 상품주문 7건 중 6건이
+    ``CANCEL_REQUEST``·1건이 ``CANCEL_REJECT`` 라 담당자가 승인·거부할 자리가 화면에 없었다.
+    이제 집 안 일부 취소 요청도 센다(사용자 결정 2026-10-12).
 
     셋째 조건이 이 띠를 할 일 목록으로 만든다(근거는 그 상수에 적었다).
 
@@ -678,8 +686,8 @@ def find_partial_claim_orders(session, *,
 
     picked: dict[int, dict[str, Any]] = {}
     for order_id, by_no in households.items():
-        dead = [bucket for bucket in by_no.values()
-                if bucket["link_count"] and bucket["canceled"] == bucket["link_count"]]
+        # 클레임이 한 건이라도 있는 집. 통째로 죽은 집만 세면 집 안 일부 취소가 빠진다.
+        dead = [bucket for bucket in by_no.values() if bucket["canceled"]]
         alive_links = sum(bucket["link_count"] - bucket["canceled"]
                           for bucket in by_no.values())
         if not dead or not alive_links:
@@ -723,11 +731,14 @@ def find_partial_claim_orders(session, *,
             "status": str(order.status or ""),
             "status_label": verdict["status_label"],
             "payment_amount": order.payment_amount or 0,
-            # 금액은 **죽은 집**의 것이다 — 살아 있는 추가결제까지 더하면 환불 예정액을
+            # 금액은 **클레임 링크**의 것이다 — 살아 있는 상품주문까지 더하면 환불 예정액을
             # 거짓말한다.
-            "naver_amount_total": int(lead["amount_total"] or 0),
+            "naver_amount_total": int(lead["canceled_amount"] or 0),
             "dead_order_nos": dead_order_nos,
-            "dead_link_count": int(lead["link_count"]),
+            "dead_link_count": int(lead["canceled"]),
+            # 대표 집이 통째로 클레임인가 — 화면이 `N건 전부` 와 `M건 중 N건` 을 가른다.
+            "dead_whole_household": lead["canceled"] == lead["link_count"],
+            "lead_household_link_count": int(lead["link_count"]),
             "alive_link_count": found["alive_links"],
             "lead_link_id": lead["lead_link_id"],
             "claim_kind": verdict["claim_kind"],

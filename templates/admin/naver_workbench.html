@@ -335,7 +335,7 @@
         <summary class="wb-ghost__head">
             <span class="wb-ghost__badge">{{ partial_claims.count }}건</span>
             <b>일부만 취소·반품된 주문</b>
-            <span class="wb-ghost__sub">한 집이 통째로 취소·반품됐는데 같은 주문에 살아 있는 결제가 남아
+            <span class="wb-ghost__sub">취소·반품 요청이 들어왔는데 같은 주문에 살아 있는 결제가 남아
                 있습니다 — 위 띠(전부 취소)에는 안 나옵니다. 네이버가 아직 확정하지 않은 건만 셉니다.</span>
         </summary>
         <div class="wb-scroll">{# 폰에서만 가로 스크롤(표가 화면을 넘지 않게) #}
@@ -355,7 +355,7 @@
                     <td>
                         {# 문구는 서버가 만든다(유령 띠와 같은 `_discard_verdict`). #}
                         <span class="wb-ghost__claim{% if row.claim_phase != 'done' %} wb-ghost__claim--pending{% endif %}">{{ row.claim_text }}</span>
-                        <div class="wb-ghost__dim">{{ row.dead_link_count }}건 전부 ·
+                        <div class="wb-ghost__dim">{% if row.dead_whole_household %}{{ row.dead_link_count }}건 전부{% else %}{{ row.lead_household_link_count }}건 중 {{ row.dead_link_count }}건{% endif %} ·
                             {{ row.dead_order_nos|join(', ') }}</div>
                     </td>
                     <td>
