@@ -56,7 +56,12 @@
   var HI_COLOR_DEFAULT = '#ffd400';    // 형광펜 기본 색(노랑)
   var HI_OPACITY = 0.35;               // 형광펜 반투명도(0<x≤1)
   var CHECK_KEYS = ['d_site', 'd_double', 'd_order', 'p_prod', 'p_glass', 'p_light', 'p_handle', 'p_etc'];
-  var PRESETS = { SR: '[SR]', EP: '[EP]', DOOR: '[DOOR]', ROD: '[옷봉]' };
+  var PRESETS = { SR: '[SR]', EP: '[EP]', DOOR: '[DOOR]', ROD: '[옷봉]', MAIDA: '[마이다]' };
+  /* 새 시트에 미리 깔리는 기본 프리셋 자리 — 시트 머리 확인칸(.dws-header, top 43px) 바로 아래 한 줄.
+     라벨만 있는 텍스트(= 자리표)는 클릭하면 바로 아랫줄 입력, 손대지 않은 자리표는 Delete 로 지운다. */
+  var PRESET_SEED_Y = 120;
+  var PRESET_SEED_X0 = 48;
+  var PRESET_SEED_GAP = 170;
   var ANNO_FONT = '"Malgun Gothic","맑은 고딕","Dotum","돋움",sans-serif';
   var _html2canvasPromise = null;
 
@@ -295,7 +300,23 @@
     return null;
   }
 
-  function newSheet(name, d) { return { id: rid('s-'), name: name, form: cloneForm(d), objects: [] }; }
+  function newSheet(name, d) { return { id: rid('s-'), name: name, form: cloneForm(d), objects: seedPresetObjects() }; }
+
+  function seedPresetObjects() {
+    return Object.keys(PRESETS).map(function (kind, i) {
+      return {
+        id: rid('o-'), type: 'text', x: PRESET_SEED_X0 + i * PRESET_SEED_GAP, y: PRESET_SEED_Y, w: 1,
+        text: PRESETS[kind] + '\n', size: loadPreferredTextSize(), color: '#000000', bold: true, align: 'left', rotation: 0, autoWidth: true
+      };
+    });
+  }
+
+  /** 라벨만 있고 아직 내용을 안 쓴 프리셋 텍스트(자리표)인가. */
+  function isPresetPlaceholder(o) {
+    if (!o || o.type !== 'text' || o.locked) { return false; }
+    var t = String(o.text || '').replace(/\n$/, '');
+    return Object.keys(PRESETS).some(function (k) { return PRESETS[k] === t; });
+  }
 
   function cloneForm(d) {
     d = d || {};
@@ -1246,6 +1267,15 @@
       // Shift/Ctrl/Cmd+클릭 = 선택 토글(추가/제거), 일반 클릭 = 단일 선택.
       if (devt.shiftKey || devt.ctrlKey || devt.metaKey) { toggleInSelection(id); }
       else { selectSingle(id); }
+    });
+    // 프리셋 자리표는 클릭(끌지 않은 클릭) 한 번으로 라벨 아랫줄 입력을 시작한다.
+    node.on('click tap', function (e) {
+      if (annoMode !== 'select' || eyedropArmed || isMultiSelect() || isLockedNode(node)) { return; }
+      var devt = e.evt || {};
+      if (devt.shiftKey || devt.ctrlKey || devt.metaKey || devt.altKey) { return; }
+      if (!isPresetPlaceholder(findObj(node.getAttr('objId')))) { return; }
+      e.cancelBubble = true;
+      startEditText(node, false, true);
     });
     // 아래 드래그/변형 핸들러는 단일 선택 전용 — 다중(그룹)은 transformer 레벨 핸들러가 처리.
     node.on('dragstart', function (e) {
@@ -2573,6 +2603,14 @@
   }
 
   /* ---- 리치 편집: 선택/스타일 적용 --------------------------------------- */
+  function caretToEnd(area) {
+    var range = document.createRange();
+    range.selectNodeContents(area);
+    range.collapse(false);
+    var sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
   function selectAllIn(area) {
     var range = document.createRange();
     range.selectNodeContents(area);
@@ -2618,11 +2656,13 @@
     els.mtShape.hidden = true;
     els.mt.hidden = false;
     els.mt.classList.add('dws-mt-editing');   // CSS: 편집 중 삭제 버튼 숨김
+    els.mt.classList.toggle('dws-mt-placeholder', !!(editCtx && editCtx.placeholder));   // 자리표 편집 중엔 삭제 버튼 노출
     syncEditToolbar();
     positionEditToolbar();
   }
   function hideEditToolbar() {
     els.mt.classList.remove('dws-mt-editing');
+    els.mt.classList.remove('dws-mt-placeholder');
     els.mt.hidden = true;
     if (els.mtPresetMenu) { els.mtPresetMenu.hidden = true; }
   }
@@ -2646,7 +2686,7 @@
   }
 
   /** contenteditable 오버레이 인라인 편집 → blur/Esc 커밋. 커밋 시 DOM→런 추출. */
-  function startEditText(node, isNew) {
+  function startEditText(node, isNew, caretEnd) {
     if (!canSave || !node) { return; }
     if (commitActiveEdit) { commitActiveEdit(); }
     var o = findObj(node.getAttr('objId'));
@@ -2685,13 +2725,15 @@
     fillOverlay(area, o);
     document.body.appendChild(area);
     editingTextarea = area;
-    editCtx = { id: o.id, area: area, isNew: !!isNew, size: size, align: align };
+    var placeholder = !isNew && isPresetPlaceholder(o);
+    editCtx = { id: o.id, area: area, isNew: !!isNew, size: size, align: align, placeholder: placeholder };
     textJustOpenedUntil = Date.now() + 450;   // 보호창: 직후 stage down의 handler-blur 방지(2중 방어)
 
     try { document.execCommand('styleWithCSS', false, true); } catch (_) { /* noop */ }
     showEditToolbar();
     area.focus();
-    selectAllIn(area);
+    if (caretEnd) { caretToEnd(area); } else { selectAllIn(area); }
+    var originalText = extractRuns(area).map(function (r) { return r.t; }).join('');
 
     var done = false;
     function commit() {
@@ -2742,6 +2784,10 @@
     });
     area.addEventListener('keydown', function (e) {
       if (e.key === 'Escape') { e.preventDefault(); commit(); return; }
+      // 손대지 않은 프리셋 자리표에서 Delete = 그 프리셋 통째 삭제(빈 텍스트 커밋 = 객체 제거).
+      if (e.key === 'Delete' && placeholder && extractRuns(area).map(function (r) { return r.t; }).join('') === originalText) {
+        e.preventDefault(); area.textContent = ''; commit(); return;
+      }
       /* Enter = 편집 끝(포토샵 — 빈 곳 클릭과 같음), Shift+Enter = 줄바꿈.
          한글 조합 중 Enter(isComposing/229)는 조합 확정이라 건드리지 않는다. */
       if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && e.keyCode !== 229) {
@@ -4963,7 +5009,11 @@
       if (editCtx) { setEditAlign(editCtx.align === 'center' ? 'left' : 'center'); return; }
       var o = findObj(selected); if (o && o.type === 'text') { updateSelectedText({ align: o.align === 'center' ? 'left' : 'center' }); }
     });
-    document.getElementById('dws-mt-del-text').addEventListener('click', deleteSelected);
+    document.getElementById('dws-mt-del-text').addEventListener('click', function () {
+      // 자리표 편집 중 삭제 = 오버레이를 비우고 커밋(빈 텍스트 커밋이 객체를 지운다).
+      if (editCtx && editCtx.placeholder && commitActiveEdit) { editCtx.area.textContent = ''; commitActiveEdit(); return; }
+      deleteSelected();
+    });
 
     // 미니 툴바 — 텍스트 편집 중 프리셋 삽입 드롭다운(편집 중에만 노출: CSS .dws-mt-editing)
     // 미니바 mousedown 이 preventDefault(위 els.mt 핸들러) → 버튼/항목 클릭에도 오버레이 포커스 유지.
