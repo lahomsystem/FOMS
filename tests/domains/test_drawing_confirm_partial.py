@@ -305,3 +305,38 @@ def test_workbench_renders_confirm_result(client, monkeypatch):
     assert "슬라이딩장" in text and "취소 · 고객 변심" in text
     assert "제외된 도면 1장 보기" in text and box.select_one("[data-estimate-needs-update]") is not None
     assert "style=" not in str(box)
+
+
+# ── 5단계: 마법사 시트 → 품목 연결 ────────────────────────────────────────
+
+def _wizard_sd():
+    sd, k1, k2 = _sd_base()
+    for f, sid in zip(sd["drawing_current_files"], ("s1", "s2")):
+        f.pop("item_uids")
+        f["sheet_id"] = sid
+    sd["drawing_wizard"] = {"sheets": [{"id": "s1", "product_index": 0}, {"id": "s2", "product_index": 1}]}
+    return sd, k1, k2
+
+
+def test_wizard_sheet_links_drawing_to_item_and_auto_excludes():
+    from foms.services.orders.drawing_confirm_partial import build_ok_scope, file_item_uids
+    sd, k1, k2 = _wizard_sd()
+    assert file_item_uids(sd, sd["drawing_current_files"][1]) == [UID_B]
+    plan = plan_partial_confirm(sd, None, [{"uid": UID_B, "reason": "customer_change"}])
+    assert plan.final_keys == [k1] and plan.excluded[0]["reason"] == "item_cancelled"
+    assert build_ok_scope(sd)["drawings"][1]["item_names"] == ["보테가 슬라이딩장"]
+
+
+@pytest.mark.parametrize("sheets", [
+    [{"id": "s2", "product_index": 9}],          # 범위 밖
+    [{"id": "s2", "product_index": None}],       # 공통 시트
+    [{"id": "s2", "product_index": True}],       # 형식 이상
+    [],                                          # 시트 없음
+])
+def test_wizard_link_unknown_means_no_auto_exclude(sheets):
+    from foms.services.orders.drawing_confirm_partial import file_item_uids
+    sd, k1, k2 = _wizard_sd()
+    sd["drawing_wizard"]["sheets"] = sheets
+    assert file_item_uids(sd, sd["drawing_current_files"][1]) == []
+    plan = plan_partial_confirm(sd, None, [{"uid": UID_B, "reason": "customer_change"}])
+    assert plan.final_keys == [k1, k2]
