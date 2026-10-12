@@ -56,6 +56,29 @@ def _wizard_sheet_ids(structured_data: Any) -> list[str]:
     return out
 
 
+def order_by_wizard_sheets(new_files: list, structured_data: Any) -> list:
+    """이번 전달 파일 중 마법사 시트 파일을 마법사 시트 순서(도면 장 번호)로 줄 세운다(순수 계산).
+
+    전달 목록은 [저장] 순서로 쌓여 도면 장에 찍힌 번호(마법사 1장·2장)와 ERP 번호가 뒤집혔다
+    (2026-10-12 주문 5600: 1장 보테가 슬라이딩이 ERP 2번). 시트 파일이 차지한 자리 안에서만
+    순서를 바꾸고, 시트가 없는 파일(직접 올린 파일)은 제자리에 둔다. 이미 전달된 도면의 번호는
+    건드리지 않는다 — 옛 수정요청·알림의 번호가 다른 도면을 가리키게 된다.
+    """
+    rank = {sid: i for i, sid in enumerate(_wizard_sheet_ids(structured_data))}
+    files = list(new_files or [])
+    slots = [
+        i for i, f in enumerate(files)
+        if isinstance(f, dict) and clean_sheet_id(f.get("sheet_id")) in rank
+    ]
+    ordered = sorted(
+        (files[i] for i in slots),
+        key=lambda f: rank[clean_sheet_id(f.get("sheet_id"))],
+    )
+    for i, f in zip(slots, ordered):
+        files[i] = f
+    return files
+
+
 def replace_same_sheet_files(
     old_files: list, new_files: list, structured_data: Any,
 ) -> tuple[list[dict], list[dict], list[int]]:

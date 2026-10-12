@@ -41,6 +41,7 @@ from foms.services.orders.team_labels import team_label
 from foms.services.orders.drawing_transfer import (
     materialize_pending_snapshot,
     materialize_transfer_attachments,
+    order_by_wizard_sheets,
     replace_same_sheet_files,
 )
 from foms.services.orders.drawing_key_safety import history_referenced_keys, split_deletable_keys
@@ -217,6 +218,8 @@ def perform_drawing_transfer(
     # WIZ-TRANSFER helper 로 전달 소스 조립(인라인 재구현 금지). 도면 key 경로만 통과시켜
     # 실측/일반 첨부 유출을 차단한다(drawing_current_files leak 함정 SSOT).
     new_files = materialize_transfer_attachments(order_id, files or [])
+    # 도면 장 번호(마법사 시트 순서)와 ERP 번호를 맞춘다(2026-10-12 주문 5600).
+    new_files = order_by_wizard_sheets(new_files, s_data)
 
     old_files = list(s_data.get('drawing_current_files', []) or [])
     updated_files = list(old_files)
