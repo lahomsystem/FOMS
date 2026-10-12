@@ -102,3 +102,17 @@ def test_union_counts_match_or_form(app):
             old = _counts(_base().filter(or_(*conds)))
             new = _counts(_apply_mine_filter(_base(), user))
             assert new == old, f"{user.team}: {new} != {old}"
+
+
+def test_admin_badge_scope_follows_team(app):
+    """관리자 역할이어도 배지 범위는 소속 팀 기준(도면 문서 전체 갈래 제외, 2026-10-12)."""
+    from foms.services.dashboard_counts import _badge_mine_scope
+
+    with app.app_context():
+        admin_sales = _user("관리영업", "SALES")
+        admin_sales.role = "ADMIN"
+        assert _badge_mine_scope(admin_sales) == "sales"
+        admin_noteam = _user("관리무팀", "")
+        admin_noteam.role = "ADMIN"
+        assert _badge_mine_scope(admin_noteam) == "all"
+        assert _badge_mine_scope(_user("범위시공", "CONSTRUCTION")) == "construction"
