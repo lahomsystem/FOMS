@@ -449,12 +449,30 @@ def _build_handoff_viewer_files(handoff_files: list[Mapping[str, Any]]) -> list[
     return viewer_files
 
 
-def _event_target_files(order_id: int, event: Mapping[str, Any], drawing_files: list[Any]) -> list[dict[str, Any]]:
+def _history_file_names(history: list[Any]) -> dict[str, str]:
+    """이력에 한 번이라도 실린 도면 key → 파일 이름(전달 파일·교체 전 목록)."""
+    names: dict[str, str] = {}
+    for event in history:
+        if not isinstance(event, Mapping):
+            continue
+        for bucket in ('files', 'previous_current_files'):
+            files = event.get(bucket)
+            for f in files if isinstance(files, list) else []:
+                if isinstance(f, Mapping) and f.get('key') and f.get('filename'):
+                    names.setdefault(str(f['key']).strip(), str(f['filename']))
+    return names
+
+
+def _event_target_files(
+    order_id: int, event: Mapping[str, Any], drawing_files: list[Any],
+    history_names: Mapping[str, str] | None = None,
+) -> list[dict[str, Any]]:
     """이력 이벤트의 대상 도면을 "번호 + 파일 이름 + 썸네일" 행으로 만든다.
 
     번호만 보이면 도면 장 안의 페이지 번호(마법사 시트 번호)와 ERP 전달 순번이 달라
     도면팀이 다른 도면을 고칠 수 있다(2026-10-12 #5600). key 를 먼저 맞추고, key 가
-    없거나 지금 목록에 없으면 저장된 번호만 보여 준다.
+    지금 목록에 없으면(수정본으로 교체됨) 이력에 남은 옛 파일 이름·그림을 저장된 번호로
+    보여 준다 — 요청은 그 옛 판을 보고 쓴 것이다. 그것도 없으면 번호만.
     """
     raw_keys = event.get('target_drawing_keys') or event.get('replace_target_keys') or []
     if not isinstance(raw_keys, list):
@@ -463,21 +481,27 @@ def _event_target_files(order_id: int, event: Mapping[str, Any], drawing_files: 
         raw_keys = [event.get('target_drawing_key') or event.get('replace_target_key')]
     keys = [str(k).strip() for k in raw_keys if k and str(k).strip()]
     index_by_key = {_drawing_file_key(f, i): i for i, f in enumerate(drawing_files)}
+    stored_numbers = _event_target_numbers(event)
     rows: list[dict[str, Any]] = []
-    for key in keys:
+    for pos, key in enumerate(keys):
         idx = index_by_key.get(key)
-        if idx is None:
+        if idx is not None:
+            file_map = drawing_files[idx] if isinstance(drawing_files[idx], Mapping) else {}
+            filename = str(file_map.get('filename') or key.rsplit('/', 1)[-1])
+            no = idx + 1
+        elif (history_names or {}).get(key) and pos < len(stored_numbers):
+            filename = str(history_names[key])
+            no = stored_numbers[pos]
+        else:
             continue
-        file_map = drawing_files[idx] if isinstance(drawing_files[idx], Mapping) else {}
-        filename = str(file_map.get('filename') or key.rsplit('/', 1)[-1])
         own = is_own_order_key(order_id, key)
         rows.append({
-            'no': idx + 1,
+            'no': no,
             'name': filename.rsplit('.', 1)[0],
             'view_url': f'/api/files/view/{key}' if own and _is_drawing_image(filename) else '',
         })
     if not rows:
-        rows = [{'no': n, 'name': '', 'view_url': ''} for n in _event_target_numbers(event)]
+        rows = [{'no': n, 'name': '', 'view_url': ''} for n in stored_numbers]
     return rows
 
 
@@ -1094,6 +1118,7 @@ def erp_drawing_workbench_detail(order_id):
     history_raw = list(s_data.get('drawing_transfer_history', []) or [])
     requested_drawing_key = (request.args.get('drawing_key') or '').strip()
 
+    history_names = _history_file_names(history_raw)
     history = []
     for idx, h in enumerate(history_raw):
         if not isinstance(h, dict):
@@ -1114,7 +1139,7 @@ def erp_drawing_workbench_detail(order_id):
             'at_text': _history_event_at_text(h),
             'by_text': h.get('by_user_name') or '-',
             'target_no': h.get('target_drawing_number') or h.get('replace_target_number'),
-            'target_files': _event_target_files(order_id, h, drawing_files),
+            'target_files': _event_target_files(order_id, h, drawing_files, history_names),
             'files': list(h.get('files') or []) if isinstance(h.get('files'), list) else [],
         }
         # PC 타임라인 갤러리 — 수정요청 참고 파일은 이 주문 창구 key 만 링크(저장 URL 불신),

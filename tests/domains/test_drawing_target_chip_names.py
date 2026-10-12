@@ -43,3 +43,19 @@ def test_template_uses_chip_in_timeline_and_request_card():
     src = Path('templates/drawing/partials/workbench_detail_body.html').read_text(encoding='utf-8')
     assert 'dw_target_chips(h.target_files)' in src
     assert 'dw_target_chips(r.target_files)' in src
+
+
+def test_replaced_target_uses_history_name_and_stored_number():
+    """수정본으로 교체되어 지금 목록에 없는 옛 판도 이름·그림을 보여 준다(운영 #5600 실측)."""
+    from foms.web.drawing.workbench import _history_file_names
+    old_key = 'orders/5600/drawing_wizard/exports/old_bottega.png'
+    history = [
+        {'action': 'TRANSFER', 'files': [FILES[0], {'key': old_key, 'filename': '도면_장익중_5600_보테가 슬라이딩.png'}]},
+        {'action': 'REQUEST_REVISION', 'target_drawing_keys': [old_key], 'target_drawing_numbers': [2]},
+    ]
+    rows = _event_target_files(5600, history[1], FILES, _history_file_names(history))
+    assert rows == [{
+        'no': 2,
+        'name': '도면_장익중_5600_보테가 슬라이딩',
+        'view_url': f'/api/files/view/{old_key}',
+    }]
