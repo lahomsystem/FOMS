@@ -40,11 +40,8 @@ from foms.services.orders.confirm_drawing_gate import effective_drawing_status
 from foms.services.orders.drawing_customer_send import drawing_round_info, round_text
 from foms.services.orders.drawing_customer_send_view import build_customer_send_view
 from foms.services.orders.order_mutation_policy import POLICY_REGISTRY, evaluate_policy
-from foms.services.orders.drawing_confirm_partial import (
-    active_items,
-    build_confirm_result_view,
-    build_ok_scope,
-)
+from foms.services.orders.drawing_confirm_partial import active_items
+from foms.services.orders.drawing_confirm_partial_view import build_confirm_result_view, build_ok_scope
 from foms.services.orders.drawing_key_safety import is_own_order_key
 from foms.services.orders.drawing_revision_files import revision_reference_display_rows
 from foms.services.orders.drawing_revision_source import (
