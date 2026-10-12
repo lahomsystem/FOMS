@@ -142,6 +142,7 @@ def test_drawing_customer_send_scripts_are_deferred_outside_v2_block() -> None:
         "js/foms/drawing-customer-send.js",
         "js/foms/drawing-customer-ok.js",
         "js/foms/drawing-ok-scope.js",
+        "js/foms/drawing-item-cancel.js",
         "js/foms/drawing-revision-edit.js",
         "js/foms/drawing-urgent-call-pc.js",
     ):

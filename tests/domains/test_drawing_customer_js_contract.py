@@ -20,6 +20,7 @@ DETAIL = ROOT / "templates/drawing/partials/workbench_detail_body.html"
 JS_FILES = {
     "send": "static/js/foms/drawing-customer-send.js",
     "ok": "static/js/foms/drawing-customer-ok.js",
+    "item_cancel": "static/js/foms/drawing-item-cancel.js",
     "edit": "static/js/foms/drawing-revision-edit.js",
     "urgent": "static/js/foms/drawing-urgent-call-pc.js",
 }
@@ -30,6 +31,7 @@ JS_FILES = {
 JS_PIN_LOCK = {
     "static/js/foms/drawing-customer-send.js": ("303b043164b2", "20261012b"),
     "static/js/foms/drawing-customer-ok.js": ("dc13c582b66b", "20261012a"),
+    "static/js/foms/drawing-item-cancel.js": ("74100b025bda", "20261012a"),
     "static/js/foms/drawing-ok-scope.js": ("4a693b8862c0", "20261012a"),
     "static/js/foms/drawing-revision-edit.js": ("43d3ee5cb418", "20260930b"),
     "static/js/foms/drawing-urgent-call-pc.js": ("7bda3b35784c", "20261001b"),

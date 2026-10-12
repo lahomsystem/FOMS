@@ -8,16 +8,25 @@
     "log_access"
   ],
   "baselines": {
-    "total": 229,
-    "unaudited": 0
+    "total": 230,
+    "unaudited": 1
   },
   "classification_counts": {
     "AUDITED": 199,
     "EXEMPT": 30,
-    "UNAUDITED": 0
+    "UNAUDITED": 1
   },
-  "coverage_percent": 100.0,
-  "unaudited_sites": [],
+  "coverage_percent": 99.5,
+  "unaudited_sites": [
+    {
+      "path": "foms/api/drawing/erp_orders_item_cancel.py",
+      "endpoint": "api_order_item_cancel_after_confirm",
+      "lineno": 51,
+      "methods": [
+        "POST"
+      ]
+    }
+  ],
   "routes": [
     {
       "path": "foms/api/channel/channel_functions.py",
@@ -424,6 +433,15 @@
         "POST"
       ],
       "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/drawing/erp_orders_item_cancel.py",
+      "endpoint": "api_order_item_cancel_after_confirm",
+      "lineno": 51,
+      "methods": [
+        "POST"
+      ],
+      "classification": "UNAUDITED"
     },
     {
       "path": "foms/api/drawing/erp_orders_revision.py",

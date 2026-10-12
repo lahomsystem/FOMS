@@ -50,3 +50,13 @@
 /* 주문 모바일 상세 — 취소 품목 */
 .foms-product-item--cancelled .foms-product-item__title{color:var(--foms-text-tertiary,#6b7380);text-decoration:line-through}
 .foms-product-item__cancel{margin-left:.35rem;padding:.05rem .45rem;border-radius:999px;background:var(--foms-color-warning-50,#fffbeb);color:var(--foms-color-warning-700,#b45309);font-size:.7rem;font-weight:800;white-space:nowrap}
+
+/* 확정 뒤 제품 취소(6단계) */
+.dw-confirm-result__cancel{padding:.5rem .75rem;border:1px solid var(--foms-border-subtle,#dde1e6);border-radius:8px;background:#fff}
+.dw-confirm-result__cancel>summary{min-height:2.25rem;display:flex;align-items:center;font-size:.82rem;font-weight:700;color:var(--foms-color-warning-700,#b45309);cursor:pointer}
+.dw-confirm-result__hint{margin:.25rem 0 .5rem;font-size:.74rem;color:var(--foms-text-tertiary,#6b7380)}
+.dw-confirm-result__row{display:flex;justify-content:space-between;align-items:center;gap:.5rem;min-height:2.75rem;border-top:1px solid var(--foms-border-subtle,#dde1e6);font-size:.84rem}
+/* 생산 칸반 카드 — 취소 품목 있음 */
+.foms-kanban-card__cancelled{margin-top:.25rem;padding:.15rem .5rem;border-radius:6px;background:var(--foms-color-warning-50,#fffbeb);color:var(--foms-color-warning-700,#b45309);font-size:.75rem;font-weight:800}
+/* 확정 뒤 취소 창 사유 — 전역 .btn !important 가 .btn-check:checked 색을 덮어 고른 티가 안 났다 */
+#dwItemCancelModal .btn-check:checked+.btn{border-color:var(--foms-color-warning-700,#b45309)!important;background:var(--foms-color-warning-700,#b45309)!important;color:#fff!important}

@@ -340,3 +340,77 @@ def test_wizard_link_unknown_means_no_auto_exclude(sheets):
     assert file_item_uids(sd, sd["drawing_current_files"][1]) == []
     plan = plan_partial_confirm(sd, None, [{"uid": UID_B, "reason": "customer_change"}])
     assert plan.final_keys == [k1, k2]
+
+
+# ── 6단계: 확정 뒤 품목 취소 ──────────────────────────────────────────────
+
+def _confirmed_order():
+    oid, k1, k2 = _order()
+    order = db_session.get(Order, oid)
+    sd = dict(order.structured_data)
+    sd["drawing_status"] = "CONFIRMED"
+    order.structured_data = sd
+    db_session.commit()
+    return oid, k1, k2
+
+
+def test_after_confirm_cancel_marks_item_and_moves_its_drawing(client):
+    _login(client, _user("after_a"))
+    oid, k1, k2 = _confirmed_order()
+    res = client.post(f"/api/orders/{oid}/items/{UID_B}/cancel", json={"reason": "customer_change"})
+    assert res.status_code == 200, res.get_json()
+    sd = _sd(oid)
+    assert sd["items"][1]["cancel"]["source"] == "after_confirm"
+    assert [f["key"] for f in sd["drawing_current_files"]] == [k1]
+    assert sd["drawing_excluded_files"][0]["excluded_reason"] == "item_cancelled_after_confirm"
+    assert sd["flags"]["estimate_needs_update"] is True
+    assert db_session.query(OrderEvent).filter_by(order_id=oid, event_type="ITEM_CANCELLED_AFTER_CONFIRM").count() == 1
+
+
+@pytest.mark.parametrize("prep, uid, body, code", [
+    ("transferred", UID_B, {"reason": "customer_change"}, "NOT_CONFIRMED"),
+    ("confirmed", "z" * 36, {"reason": "customer_change"}, "UNKNOWN_ITEM"),
+    ("confirmed", UID_B, {"reason": "other"}, "CANCEL_NOTE_REQUIRED"),
+    ("last_one", UID_B, {"reason": "customer_change"}, "NO_ITEMS_LEFT"),
+])
+def test_after_confirm_cancel_rejects_without_change(client, prep, uid, body, code):
+    _login(client, _user(f"after_{code.lower()}"))
+    oid, _, _ = _order() if prep == "transferred" else _confirmed_order()
+    if prep == "last_one":
+        order = db_session.get(Order, oid)
+        sd = dict(order.structured_data)
+        sd["items"] = [dict(sd["items"][0], cancel={"reason": "customer_change"}), sd["items"][1]]
+        order.structured_data = sd
+        db_session.commit()
+    before = _sd(oid)
+    res = client.post(f"/api/orders/{oid}/items/{uid}/cancel", json=body)
+    assert res.status_code == 400 and res.get_json()["code"] == code
+    assert _sd(oid) == before
+
+
+def _confirmed_page(client, monkeypatch, items):
+    from tests.support.drawing_tab_send_pc_helpers import _bar, _inject, _order as _pc_order, _page, make_people
+    people = make_people()
+    oid = _pc_order(people["drafter"]["id"], status="CONFIRMED")
+    order = db_session.get(Order, oid)
+    sd = dict(order.structured_data)
+    sd["items"] = items
+    order.structured_data = sd
+    db_session.commit()
+    _inject(monkeypatch, {"bar": _bar("send"), "round_text": "1차"})
+    return _page(client, people["sales"], oid)
+
+
+def test_after_confirm_cancel_button_and_modal_render(client, monkeypatch):
+    soup = _confirmed_page(client, monkeypatch, [{"uid": UID_A, "product_name": "여닫이장"},
+                                                 {"uid": UID_B, "product_name": "슬라이딩장"}])
+    btns = soup.select("[data-item-cancel-uid]")
+    assert [b["data-item-cancel-name"] for b in btns] == ["여닫이장", "슬라이딩장"]
+    modal = soup.select_one("#dwItemCancelModal")
+    assert modal is not None and modal["data-mutation-version"]
+    assert modal.select_one("#dw-item-cancel-note")["maxlength"] == "200"
+
+
+def test_after_confirm_cancel_hidden_for_last_item(client, monkeypatch):
+    soup = _confirmed_page(client, monkeypatch, [{"uid": UID_A, "product_name": "여닫이장"}])
+    assert soup.select("[data-item-cancel-uid]") == [] and soup.select_one("#dwItemCancelModal") is None

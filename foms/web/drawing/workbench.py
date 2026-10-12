@@ -39,6 +39,7 @@ from foms.services.erp_product_items import build_product_items_for_order
 from foms.services.orders.confirm_drawing_gate import effective_drawing_status
 from foms.services.orders.drawing_customer_send import drawing_round_info, round_text
 from foms.services.orders.drawing_customer_send_view import build_customer_send_view
+from foms.services.orders.order_mutation_policy import POLICY_REGISTRY, evaluate_policy
 from foms.services.orders.drawing_confirm_partial import (
     active_items,
     build_confirm_result_view,
@@ -1452,6 +1453,7 @@ def erp_drawing_workbench_detail(order_id):
         # 확정 창 ①제품 ②최종 생산 도면(DRAWING-PARTIAL-CONFIRM) — 순수 계산, 조회 0.
         ok_scope=build_ok_scope(s_data),
         confirm_result=build_confirm_result_view(s_data),
+        can_cancel_items=evaluate_policy(POLICY_REGISTRY['ERP_EDIT'], current_user).allowed if current_user else False,
         # 도면 탭 고객 보내기 화면값(설계서 2026-09-29 §4.5) — 모든 키가 늘 있다. 조회 2번(발송 이벤트·링크).
         customer_send=build_customer_send_view(
             db, order, s_data, current_user, drawing_status=drawing_status,
