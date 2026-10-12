@@ -1,3 +1,9 @@
+{% macro dw_target_chips(files) -%}
+{% for t in files %}
+{% if t.view_url %}<a class="dw-target-chip me-1 mt-1" href="{{ t.view_url }}" target="_blank" rel="noopener" title="{{ t.no }}번 · {{ t.name }} 크게 보기"><img src="{{ t.view_url }}" alt="{{ t.no }}번 도면" loading="lazy"><span class="dw-target-chip-no">{{ t.no }}번</span>{% if t.name %}<span class="dw-target-chip-name">· {{ t.name }}</span>{% endif %}</a>
+{%- else %}<span class="dw-target-chip me-1 mt-1"><span class="dw-target-chip-no">{{ t.no }}번 대상</span>{% if t.name %}<span class="dw-target-chip-name">· {{ t.name }}</span>{% endif %}</span>{% endif %}
+{% endfor %}
+{%- endmacro %}
 {# 맨 위 줄 ⚡ 긴급 호출이 이 주문을 미리 고르는 표지(urgent-call.js contextOrder). #}
 <span hidden data-urgent-context-order-id="{{ order.id }}" data-urgent-context-order-label="{{ ('#' ~ order.id ~ ' ' ~ order.customer_name) if order.customer_name else '' }}"></span>
 {% if erp_mobile_v2_enabled %}
@@ -845,6 +851,34 @@
       color: var(--foms-text-tertiary, #6b7380);
     }
 
+    /* 수정 대상 도면 칩 — 번호만 보이면 도면 장의 페이지 번호와 헷갈린다(#5600). */
+    .dw-target-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      max-width: 100%;
+      padding: 2px 8px 2px 2px;
+      border: 1px solid #f5a524;
+      border-radius: 6px;
+      background: #fff8e6;
+      color: #5c3d00;
+      font-size: 12px;
+      font-weight: 600;
+      text-decoration: none;
+      vertical-align: middle;
+    }
+    .dw-target-chip:hover { color: #5c3d00; background: #ffefc2; }
+    .dw-target-chip img {
+      width: 44px;
+      height: 32px;
+      object-fit: contain;
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 4px;
+    }
+    .dw-target-chip .dw-target-chip-no { padding-left: 6px; }
+    .dw-target-chip img + .dw-target-chip-no { padding-left: 0; }
+    .dw-target-chip-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .dw-order-change-badge {
       letter-spacing: -0.02em;
       background: #fce7f3 !important;
@@ -1342,7 +1376,9 @@
                 </div>
                 <span class="small text-muted">{{ h.at_text }}</span>
               </div>
-              {% if h.target_no %}
+              {% if h.target_files %}
+              <div class="mt-1">{{ dw_target_chips(h.target_files) }}</div>
+              {% elif h.target_no %}
               <div class="small mt-1"><span class="badge bg-light text-dark border">{{ h.target_no }}번 대상</span></div>
               {% endif %}
               {% if h.action == 'ERP_ORDER_CHANGED' and h.changes %}
@@ -1398,7 +1434,6 @@
                 <div class="small text-muted">
                   {% if r.source_tag %}<span class="badge text-bg-warning me-1" data-source-tag>{{ r.source_tag }}</span>{% endif %}
                   {{ r.at_text }} · {{ r.by_text }}
-                  {% if r.target_no %}<span class="badge bg-info text-dark ms-1">{{ r.target_no }}번 대상</span>{% endif %}
                 </div>
                 {% if checked %}
                 <span class="badge bg-success">반영 완료</span>
@@ -1406,6 +1441,7 @@
                 <span class="badge bg-secondary">미완료</span>
                 {% endif %}
               </div>
+              {% if r.target_files %}<div class="mt-1">{{ dw_target_chips(r.target_files) }}</div>{% endif %}
               <div class="small mt-1 dw-revision-note-text">{{ r.note or '요청 메모 없음' }}</div>
               {% if checked %}
               <div class="small text-success mt-1">
