@@ -78,3 +78,10 @@ def test_order_copy_revives_items_and_drops_excluded_drawings():
     assert out["flags"] == {"urgent": True}
     assert "drawing_excluded_files" not in out
     assert "cancel" in sd["items"][0], "원본은 그대로"
+
+
+def test_mobile_detail_rows_keep_cancelled_with_badge():
+    from foms.services.erp_mobile_order_display import mobile_product_items
+    rows = mobile_product_items(_sd())
+    assert [r["title"] for r in rows] == ["보테가 슬라이딩장", "몰딩 여닫이장"]  # 상세는 줄을 지우지 않는다
+    assert rows[0]["cancel_label"] == "취소 · 고객 변심" and rows[1]["cancel_label"] == ""
