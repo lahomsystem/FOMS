@@ -216,7 +216,7 @@ def test_api_confirm_keeps_item_links_on_final_files(client):
 # ── 화면 ──────────────────────────────────────────────────────────────────
 
 def test_ok_scope_view_shows_only_when_there_is_a_choice():
-    from foms.services.orders.drawing_confirm_partial import build_ok_scope
+    from foms.services.orders.drawing_confirm_partial_view import build_ok_scope
     sd, k1, _ = _sd_base()
     view = build_ok_scope(sd)
     assert view["show"] is True
@@ -272,7 +272,7 @@ def test_ok_modal_without_choice_keeps_old_shape(client, monkeypatch):
 # ── 3단계: 확정 뒤 화면 ───────────────────────────────────────────────────
 
 def test_confirm_result_view_lists_cancelled_excluded_and_estimate():
-    from foms.services.orders.drawing_confirm_partial import build_confirm_result_view, cancel_label
+    from foms.services.orders.drawing_confirm_partial_view import build_confirm_result_view, cancel_label
     sd, k1, k2 = _sd_base()
     plan = plan_partial_confirm(sd, None, [{"uid": UID_B, "reason": "other", "note": "색상"}])
     apply_partial_confirm(sd, plan, actor_user_id=1, at_iso="t")
@@ -319,7 +319,8 @@ def _wizard_sd():
 
 
 def test_wizard_sheet_links_drawing_to_item_and_auto_excludes():
-    from foms.services.orders.drawing_confirm_partial import build_ok_scope, file_item_uids
+    from foms.services.orders.drawing_confirm_partial import file_item_uids
+    from foms.services.orders.drawing_confirm_partial_view import build_ok_scope
     sd, k1, k2 = _wizard_sd()
     assert file_item_uids(sd, sd["drawing_current_files"][1]) == [UID_B]
     plan = plan_partial_confirm(sd, None, [{"uid": UID_B, "reason": "customer_change"}])
@@ -436,3 +437,31 @@ def test_legacy_items_without_uid_cancel_by_index_and_get_uid(client):
     assert len(new_uid) == 36
     receipt = [h for h in after["drawing_transfer_history"] if h["action"] == "CONFIRM_RECEIPT"][-1]
     assert receipt["cancelled_item_uids"] == [new_uid]
+
+
+
+def test_after_confirm_cancel_can_exclude_unlinked_drawing(client):
+    """직접 올린 도면(연결 없음)은 고른 것만 같이 뺀다 — 스테이징에서 화장대 도면이 남던 빈틈."""
+    _login(client, _user("after_ex"))
+    oid, k1, k2 = _confirmed_order()
+    order = db_session.get(Order, oid)
+    sd = dict(order.structured_data)
+    sd["drawing_current_files"] = [{"key": k1, "filename": "1.png"}, {"key": k2, "filename": "2.png"}]
+    order.structured_data = sd
+    db_session.commit()
+    res = client.post(f"/api/orders/{oid}/items/{UID_B}/cancel",
+                      json={"reason": "customer_change", "exclude_drawing_keys": [k2]})
+    assert res.status_code == 200, res.get_json()
+    after = _sd(oid)
+    assert [f["key"] for f in after["drawing_current_files"]] == [k1]
+    assert after["drawing_excluded_files"][0]["excluded_reason"] == "item_cancelled_after_confirm"
+    res = client.post(f"/api/orders/{oid}/items/{UID_A}/cancel",
+                      json={"reason": "customer_change", "exclude_drawing_keys": ["orders/x/y.png"]})
+    assert res.status_code == 400
+
+
+def test_after_confirm_modal_lists_drawings_prelinked(client, monkeypatch):
+    soup = _confirmed_page(client, monkeypatch, [{"uid": UID_A, "product_name": "여닫이장"},
+                                                 {"uid": UID_B, "product_name": "슬라이딩장"}])
+    boxes = soup.select("#dwItemCancelModal [data-item-cancel-dw]")
+    assert len(boxes) == 2 and all(b.get("value") for b in boxes)

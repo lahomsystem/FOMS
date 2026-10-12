@@ -26,6 +26,17 @@
     return 'dwic-' + Date.now() + '-' + Math.random().toString(36).slice(2, 12);
   }
 
+  /** 사유·메모 + 같이 뺄 도면(체크칸이 있을 때만 보낸다 — 없으면 서버가 연결된 도면만 자동 제외). */
+  function payloadBody(root, reason, note) {
+    var body = { reason: reason, note: note || null };
+    var boxes = root.querySelectorAll('[data-item-cancel-dw]');
+    if (boxes.length) {
+      body.exclude_drawing_keys = Array.prototype.filter.call(boxes, function (b) { return b.checked; })
+        .map(function (b) { return b.value; });
+    }
+    return body;
+  }
+
   async function submit(root) {
     if (busy || !target.uid) return;
     var reasonEl = q(root, 'input[name="dw-item-cancel-reason"]:checked');
@@ -44,7 +55,7 @@
       if (version) headers['If-Match'] = version;
       var res = await fetch('/api/orders/' + encodeURIComponent(orderId) + '/items/' + encodeURIComponent(target.uid) + '/cancel', {
         method: 'POST', credentials: 'same-origin', headers: headers,
-        body: JSON.stringify({ reason: reason, note: note || null }),
+        body: JSON.stringify(payloadBody(root, reason, note)),
       });
       try { data = await res.json(); } catch (_) { data = {}; }
       if (!data.success) throw new Error(data.error || ('HTTP ' + res.status));
@@ -68,6 +79,11 @@
     if (title) title.textContent = (target.name || '제품') + '을(를) 취소할까요?';
     var note = q(root, '#dw-item-cancel-note');
     if (note) note.value = '';
+    // 이 제품에 연결된 도면은 미리 체크(직접 올린 도면은 연결이 없어 사람이 고른다).
+    Array.prototype.forEach.call(root.querySelectorAll('[data-item-cancel-dw]'), function (box) {
+      var linked = String(box.getAttribute('data-item-uids') || '').split(',');
+      box.checked = !!target.uid && linked.indexOf(target.uid) !== -1;
+    });
     var first = q(root, '#dw-item-cancel-customer');
     if (first) first.checked = true;
     var btn = q(root, '[data-item-cancel-submit]');

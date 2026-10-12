@@ -24,14 +24,12 @@ __all__ = [
     "CANCEL_SOURCE_AFTER_CONFIRM",
     "CANCEL_SOURCE_DRAWING_CONFIRM",
     "EXCLUDE_REASON_ITEM_CANCELLED",
+    "EXCLUDE_REASON_ITEM_CANCELLED_AFTER",
     "EXCLUDE_REASON_NOT_SELECTED",
     "PartialConfirmError",
     "PartialConfirmPlan",
     "active_items",
     "apply_partial_confirm",
-    "build_confirm_result_view",
-    "build_ok_scope",
-    "cancel_label",
     "drop_cancelled",
     "file_item_uids",
     "cancel_event_payload",
@@ -366,110 +364,17 @@ def cancel_event_payload(plan: PartialConfirmPlan, summary: dict[str, Any]) -> d
     }
 
 
-def _spec_text(item: dict[str, Any]) -> str:
-    dims = [str(item.get(k) or item.get(f"spec_{k}") or "").strip() for k in ("width", "depth", "height")]
-    size = "×".join(d for d in dims if d)
-    qty = str(item.get("quantity") or "").strip()
-    return " · ".join(p for p in (size, f"{qty}개" if qty else "") if p)
-
-
-def build_ok_scope(structured_data: Any) -> dict[str, Any]:
-    """확정 창 ①제품 ②최종 생산 도면 칸의 화면값. 템플릿이 ``data-*`` JSON 으로 싣는다.
-
-    ``show`` 는 고를 거리가 있을 때만 참이다(제품 2개+ 또는 도면 2장+). 아니면 확정 창은
-    지금 모양 그대로다. uid 가 없는 품목은 취소를 못 고른다(``cancellable=False``).
-    """
-    sd = structured_data if isinstance(structured_data, dict) else {}
-    raw = sd.get("items") if isinstance(sd.get("items"), list) else []
-    item_rows = [
-        {
-            "uid": item_ref(raw, i),
-            "name": str(it.get("product_name") or it.get("name") or f"제품 {i + 1}").strip(),
-            "spec": _spec_text(it),
-            "cancellable": True,
-        }
-        for i, it in enumerate(raw)
-        if isinstance(it, dict) and not is_item_cancelled(it)
-    ]
-    names = {r["uid"]: r["name"] for r in item_rows if r["uid"]}
-    drawings = []
-    for no, f in enumerate((f for f in (sd.get("drawing_current_files") or []) if _file_key(f)), start=1):
-        key = _file_key(f)
-        linked = file_item_uids(sd, f)
-        drawings.append({
-            "key": key,
-            "no": no,
-            "filename": str(f.get("filename") or key.rsplit("/", 1)[-1]),
-            "view_url": f"/api/files/view/{key}",
-            "item_uids": linked,
-            "item_names": [names[u] for u in linked if u in names],
-        })
-    return {
-        "show": len(item_rows) > 1 or len(drawings) > 1,
-        "items": item_rows,
-        "drawings": drawings,
-        "reasons": [{"value": "customer_change", "label": "고객 변심"}, {"value": "other", "label": "기타"}],
-    }
-
-
-_REASON_LABELS = {"customer_change": "고객 변심", "other": "기타"}
-_EXCLUDE_LABELS = {
-    EXCLUDE_REASON_ITEM_CANCELLED: "제품 취소",
-    EXCLUDE_REASON_NOT_SELECTED: "최종 도면에서 뺌",
-}
-
-
-def cancel_label(item: Any) -> str:
-    """취소 품목의 화면 문구('취소 · 고객 변심', '취소 · 기타(메모)'). 취소가 아니면 빈 문자열."""
-    if not is_item_cancelled(item):
-        return ""
-    c = item["cancel"]
-    label = _REASON_LABELS.get(str(c.get("reason") or ""), "취소")
-    note = str(c.get("note") or "").strip()
-    return f"취소 · {label}" + (f"({note})" if note else "")
-
-
-def build_confirm_result_view(structured_data: Any) -> dict[str, Any]:
-    """확정 뒤 화면값 — 취소 제품·제외 도면·견적 수정 필요. 보일 것이 없으면 ``show=False``."""
-    sd = structured_data if isinstance(structured_data, dict) else {}
-    cancelled = [
-        {"name": str(it.get("product_name") or it.get("name") or "제품").strip(), "label": cancel_label(it)}
-        for it in (sd.get("items") or [])
-        if is_item_cancelled(it)
-    ]
-    excluded = []
-    for f in sd.get("drawing_excluded_files") or []:
-        key = _file_key(f)
-        if not key:
-            continue
-        excluded.append({
-            "filename": str(f.get("filename") or key.rsplit("/", 1)[-1]),
-            "view_url": f"/api/files/view/{key}",
-            "reason": _EXCLUDE_LABELS.get(str(f.get("excluded_reason") or ""), "제외"),
-        })
-    flags = sd.get("flags") if isinstance(sd.get("flags"), dict) else {}
-    estimate = bool(flags.get("estimate_needs_update"))
-    # 확정 뒤 취소 후보(§10) — 확정됐고 남은 생산 품목이 2개 이상일 때만(마지막 하나는 주문 취소 몫).
-    alive = [(ref, it) for ref, it in _items_by_ref(sd).items() if not is_item_cancelled(it)]
-    active = [
-        {"uid": ref, "name": str(it.get("product_name") or it.get("name") or "제품").strip()}
-        for ref, it in alive
-    ] if sd.get("drawing_status") == "CONFIRMED" and len(alive) > 1 else []
-    return {
-        "show": bool(cancelled or excluded or estimate or active),
-        "active": active,
-        "cancelled": cancelled,
-        "excluded": excluded,
-        "estimate_needs_update": estimate,
-    }
-
-
 EXCLUDE_REASON_ITEM_CANCELLED_AFTER = "item_cancelled_after_confirm"
-_EXCLUDE_LABELS[EXCLUDE_REASON_ITEM_CANCELLED_AFTER] = "확정 뒤 제품 취소"
 
 
-def plan_after_confirm_cancel(structured_data: dict[str, Any], uid: str, reason: Any, note: Any) -> PartialConfirmPlan:
+def plan_after_confirm_cancel(
+    structured_data: dict[str, Any], uid: str, reason: Any, note: Any, exclude_drawing_keys: Any = None,
+) -> PartialConfirmPlan:
     """확정 뒤 품목 하나 취소 계획(설계서 §10). 그 품목에만 묶인 최종 도면은 제외 대상.
+
+    ``exclude_drawing_keys`` 로 같이 뺄 최종 도면을 직접 고른다 — 직접 올린 도면은 품목 연결이
+    없어 자동으로 안 빠지기 때문이다(2026-10-12 스테이징: 화장대를 취소해도 화장대 도면이
+    공장 도면에 남았다). ``None`` 이면 연결된 도면만 자동 제외.
 
     Raises:
         PartialConfirmError: 확정 전·없는 품목·이미 취소·생산 품목 0개·도면 0장·사유 오류.
@@ -478,7 +383,17 @@ def plan_after_confirm_cancel(structured_data: dict[str, Any], uid: str, reason:
     if sd.get("drawing_status") != "CONFIRMED":
         raise PartialConfirmError("NOT_CONFIRMED", "도면 확정 뒤에만 쓸 수 있어요. 확정 전에는 확정 창에서 고르세요.")
     cancels = _parse_cancel_items([{"uid": uid, "reason": reason, "note": note}])
-    plan = plan_partial_confirm(sd, None, cancels)
+    final_keys = None
+    if exclude_drawing_keys is not None:
+        if not isinstance(exclude_drawing_keys, list):
+            raise PartialConfirmError("INVALID_FINAL_DRAWINGS", "뺄 도면 목록 형식이 올바르지 않아요.")
+        drop = {str(k or "").strip() for k in exclude_drawing_keys}
+        current = [_file_key(f) for f in (sd.get("drawing_current_files") or []) if _file_key(f)]
+        unknown = drop - set(current) - {""}
+        if unknown:
+            raise PartialConfirmError("UNKNOWN_DRAWING", "지금 도면 목록에 없는 도면이 있어요. 화면을 새로 고쳐 주세요.")
+        final_keys = [k for k in current if k not in drop]
+    plan = plan_partial_confirm(sd, final_keys, cancels)
     for e in plan.excluded:
         e["reason"] = EXCLUDE_REASON_ITEM_CANCELLED_AFTER
     return plan

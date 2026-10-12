@@ -41,7 +41,7 @@ from foms.services.estimate_service import (
     resolve_manager_phone_from_measurement_settings,
 )
 from foms.services.orders.board_state_display import build_board_state, production_run_ids_for
-from foms.services.orders.drawing_confirm_partial import cancel_label
+from foms.services.orders.drawing_confirm_partial_view import cancel_label
 from foms.services.order_event_display import (
     format_timeline_meta,
     translate_event_type_to_korean,

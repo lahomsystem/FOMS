@@ -61,16 +61,17 @@ def api_order_item_cancel_after_confirm(order_id: int, uid: str):
     payload = request.get_json(silent=True) or {}
     reason = str(payload.get("reason") or "").strip()
     note = str(payload.get("note") or "").strip()[:200]
+    exclude_keys = payload.get("exclude_drawing_keys")  # None = 연결된 도면만 자동 제외
     if_match = (request.headers.get("If-Match") or "").strip().strip('"')
     expected = {order_id: int(if_match)} if if_match.isdigit() else None
     idem = (request.headers.get("Idempotency-Key") or "").strip() or None
-    scope_hash, request_hash = _hashes(order_id, uid, reason, note)
+    scope_hash, request_hash = _hashes(order_id, uid, reason, f"{note}|{json.dumps(exclude_keys, ensure_ascii=False)}")
     captured: dict = {}
 
     def _mutate(sess, locked):
         order = locked[0]
         sd = copy.deepcopy(order.structured_data if isinstance(order.structured_data, dict) else {})
-        plan = plan_after_confirm_cancel(sd, uid, reason, note)
+        plan = plan_after_confirm_cancel(sd, uid, reason, note, exclude_keys)
         summary = apply_partial_confirm(sd, plan, actor_user_id=user.id, at_iso=now_utc_naive().isoformat(),
                                         source=CANCEL_SOURCE_AFTER_CONFIRM)
         order.structured_data = sd
