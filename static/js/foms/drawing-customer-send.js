@@ -181,11 +181,10 @@
 
   /** 화면 위 '보냈어요' 알림(전역 erp-pro-toast) — 성공 직후 새로고침 전에 읽을 수 있게 먼저 띄운다. */
   function showToast(text) {
-    var wrap = document.createElement('div');
+    var wrap = document.createElement('div'), item = document.createElement('div');
     wrap.className = 'erp-pro-toast'; wrap.setAttribute('role', 'status');
-    var item = wrap.appendChild(document.createElement('div'));
     item.className = 'erp-pro-toast__item'; item.textContent = '✓ ' + text;
-    document.body.appendChild(wrap);
+    wrap.appendChild(item); document.body.appendChild(wrap);
   }
   var UNSURE = '보냈는지 확실하지 않아요 — 잠시 뒤 새로고침해 상태 줄을 확인하세요';
 
