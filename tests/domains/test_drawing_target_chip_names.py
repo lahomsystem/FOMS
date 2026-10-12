@@ -59,3 +59,12 @@ def test_replaced_target_uses_history_name_and_stored_number():
         'name': '도면_장익중_5600_보테가 슬라이딩',
         'view_url': f'/api/files/view/{old_key}',
     }]
+
+
+def test_mobile_thread_and_dashboard_show_target_name():
+    from foms.web.drawing.workbench import _target_files_text
+    event = {'target_files': [{'no': 2, 'name': '보테가 슬라이딩', 'view_url': ''}]}
+    assert _target_files_text(event, [2]) == '2번 · 보테가 슬라이딩'
+    assert _target_files_text({}, [2]) == '2번 대상'
+    js = Path('static/js/orders/dashboard/erp-dashboard-gateway.js').read_text(encoding='utf-8')
+    assert 'drawingTargetLabel(h, names)' in js

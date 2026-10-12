@@ -156,7 +156,7 @@ def test_erp_gateway_js_builds_urls_from_key_only():
     assert "view_url" not in body and "download_url" not in body
     assert "REVISION_CANCELLED: '수정요청 취소'" in js
     entry = _read("static/js/orders/erp-dashboard-entry.js")
-    assert "erp-dashboard-gateway.js?v=20260929e" in entry
+    assert "erp-dashboard-gateway.js?v=20261012a" in entry
 
 
 def test_cancel_guidance_no_longer_claims_files_are_deleted():
@@ -172,7 +172,7 @@ def test_cancel_guidance_no_longer_claims_files_are_deleted():
     entry = _read("static/js/orders/erp-dashboard-entry.js")
     assert "erp-dashboard-detail-dom.js?v=20261001a" in entry
     assert "erp-dashboard-drawing.js?v=20261004a" in entry
-    assert "erp-dashboard-entry.js') }}?v=20261004a" in _read("templates/partials/shared/layout_scripts.html")
+    assert "erp-dashboard-entry.js') }}?v=20261012a" in _read("templates/partials/shared/layout_scripts.html")
     grid = _read("templates/orders/partials/dashboard_grid.html")
     assert "REVISION_CANCELLED" in grid and "수정요청 취소" in grid
 
