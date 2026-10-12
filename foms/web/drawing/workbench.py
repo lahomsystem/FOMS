@@ -446,6 +446,38 @@ def _build_handoff_viewer_files(handoff_files: list[Mapping[str, Any]]) -> list[
     return viewer_files
 
 
+def _event_target_files(order_id: int, event: Mapping[str, Any], drawing_files: list[Any]) -> list[dict[str, Any]]:
+    """이력 이벤트의 대상 도면을 "번호 + 파일 이름 + 썸네일" 행으로 만든다.
+
+    번호만 보이면 도면 장 안의 페이지 번호(마법사 시트 번호)와 ERP 전달 순번이 달라
+    도면팀이 다른 도면을 고칠 수 있다(2026-10-12 #5600). key 를 먼저 맞추고, key 가
+    없거나 지금 목록에 없으면 저장된 번호만 보여 준다.
+    """
+    raw_keys = event.get('target_drawing_keys') or event.get('replace_target_keys') or []
+    if not isinstance(raw_keys, list):
+        raw_keys = [raw_keys]
+    if not raw_keys:
+        raw_keys = [event.get('target_drawing_key') or event.get('replace_target_key')]
+    keys = [str(k).strip() for k in raw_keys if k and str(k).strip()]
+    index_by_key = {_drawing_file_key(f, i): i for i, f in enumerate(drawing_files)}
+    rows: list[dict[str, Any]] = []
+    for key in keys:
+        idx = index_by_key.get(key)
+        if idx is None:
+            continue
+        file_map = drawing_files[idx] if isinstance(drawing_files[idx], Mapping) else {}
+        filename = str(file_map.get('filename') or key.rsplit('/', 1)[-1])
+        own = is_own_order_key(order_id, key)
+        rows.append({
+            'no': idx + 1,
+            'name': filename.rsplit('.', 1)[0],
+            'view_url': f'/api/files/view/{key}' if own and _is_drawing_image(filename) else '',
+        })
+    if not rows:
+        rows = [{'no': n, 'name': '', 'view_url': ''} for n in _event_target_numbers(event)]
+    return rows
+
+
 def _revision_reference_files(order_id: int | None, files: Any) -> tuple[list[dict[str, Any]], int]:
     """수정요청 참고 파일 중 이 주문 도면 창구 경로의 것만 열람 행으로 만든다.
 
@@ -1079,6 +1111,7 @@ def erp_drawing_workbench_detail(order_id):
             'at_text': _history_event_at_text(h),
             'by_text': h.get('by_user_name') or '-',
             'target_no': h.get('target_drawing_number') or h.get('replace_target_number'),
+            'target_files': _event_target_files(order_id, h, drawing_files),
             'files': list(h.get('files') or []) if isinstance(h.get('files'), list) else [],
         }
         # PC 타임라인 갤러리 — 수정요청 참고 파일은 이 주문 창구 key 만 링크(저장 URL 불신),
