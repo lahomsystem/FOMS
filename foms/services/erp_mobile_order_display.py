@@ -41,6 +41,7 @@ from foms.services.estimate_service import (
     resolve_manager_phone_from_measurement_settings,
 )
 from foms.services.orders.board_state_display import build_board_state, production_run_ids_for
+from foms.services.orders.drawing_confirm_partial import cancel_label
 from foms.services.order_event_display import (
     format_timeline_meta,
     translate_event_type_to_korean,
@@ -340,6 +341,7 @@ def mobile_product_items(
                 "misc": raw.get("misc") or raw.get("install_notes") or "-",
                 "extra_input": str(raw.get("extra_input") or "").strip() or "-",
                 "price_label": price_label,
+                "cancel_label": cancel_label(raw),  # 취소 품목 배지(DRAWING-PARTIAL-CONFIRM)
                 "summary": " · ".join(summary_bits) if summary_bits else str(name),
                 "collapsed_default": collapse_all,
                 "attachments": att_by_index.get(idx, []),

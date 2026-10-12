@@ -1,0 +1,28 @@
+{# 확정 뒤 — 취소 제품·견적 수정 필요·제외 도면(DRAWING-PARTIAL-CONFIRM 3단계, 설계서 2026-10-12 §5).
+   모바일 도면 목록 아래와 PC '현재 버전' 아래에서 include 한다. 값은 build_confirm_result_view 뿐. #}
+{% set cr = confirm_result|default({}) %}
+{% if cr.show %}
+<div class="dw-confirm-result" data-confirm-result>
+  {% if cr.cancelled or cr.estimate_needs_update %}
+  <div class="dw-confirm-result__items">
+    {% for c in cr.cancelled %}
+    <div class="dw-confirm-result__item"><span class="dw-confirm-result__name">{{ c.name }}</span><span class="dw-confirm-result__chip">{{ c.label }}</span></div>
+    {% endfor %}
+    {% if cr.estimate_needs_update %}
+    <div class="dw-confirm-result__estimate" data-estimate-needs-update>견적 수정 필요 — 취소한 제품 금액은 주문 화면에서 고쳐 주세요</div>
+    {% endif %}
+  </div>
+  {% endif %}
+  {% if cr.excluded %}
+  <details class="dw-confirm-result__excluded">
+    <summary>제외된 도면 {{ cr.excluded|length }}장 보기</summary>
+    {% for f in cr.excluded %}
+    <a class="dw-confirm-result__dw" href="{{ f.view_url }}" target="_blank" rel="noopener">
+      <span class="dw-confirm-result__dw-name">{{ f.filename }}</span>
+      <span class="dw-confirm-result__dw-reason">제외 · {{ f.reason }}</span>
+    </a>
+    {% endfor %}
+  </details>
+  {% endif %}
+</div>
+{% endif %}

@@ -146,6 +146,7 @@ data-bar-key="{{ item.key }}"
         <i class="fas fa-chevron-right" aria-hidden="true"></i>
       </a>
       {% endfor %}
+      {% include 'drawing/partials/workbench_confirm_result.html' %}
     </section>
     {% else %}
     <section class="foms-drawing-handoff-detail" aria-labelledby="drawing-handoff-detail-title">

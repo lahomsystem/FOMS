@@ -1517,6 +1517,7 @@
           {% else %}
           <div class="small text-muted mb-2">등록된 도면이 없습니다.</div>
           {% endif %}
+          {% include 'drawing/partials/workbench_confirm_result.html' %}
           {# 영업 → 고객 상태 한 줄(설계서 2026-09-29 §3.2·§3.4) — 서버 읽기 모델 값만 그린다(읽기 전용). #}
           {% set cs = customer_send|default({}) %}
           {% set cs_bar = cs.bar|default([]) %}

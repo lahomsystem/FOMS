@@ -34,3 +34,19 @@
 .dw-ok-dw__meta{font-size:.74rem;color:var(--foms-text-tertiary,#6b7380)}
 .dw-ok-scope__sum{padding:.5rem .75rem;border:1px solid #a7f3d0;border-radius:8px;background:var(--foms-color-success-50,#ecfdf5);color:var(--foms-color-success-600,#059669);font-size:.8rem;font-weight:700}
 .dw-ok-scope__sum.is-warn{border-color:#fde68a;background:var(--foms-color-warning-50,#fffbeb);color:var(--foms-color-warning-700,#b45309)}
+
+/* 확정 뒤 결과(3단계) — 취소 제품·견적 수정 필요·제외 도면 */
+.dw-confirm-result{display:grid;gap:.5rem;margin-top:.625rem}
+.dw-confirm-result__items{display:grid;gap:.35rem;padding:.625rem .75rem;border:1px solid #fde68a;border-radius:8px;background:var(--foms-color-warning-50,#fffbeb)}
+.dw-confirm-result__item{display:flex;flex-wrap:wrap;justify-content:space-between;gap:.35rem;font-size:.82rem}
+.dw-confirm-result__name{color:var(--foms-text-tertiary,#6b7380);text-decoration:line-through}
+.dw-confirm-result__chip,.dw-confirm-result__dw-reason{font-size:.74rem;font-weight:800;color:var(--foms-color-warning-700,#b45309)}
+.dw-confirm-result__estimate{font-size:.78rem;font-weight:700;color:var(--foms-color-warning-700,#b45309)}
+.dw-confirm-result__excluded{padding:.5rem .75rem;border:1px dashed var(--foms-border-subtle,#dde1e6);border-radius:8px;background:#fff}
+.dw-confirm-result__excluded>summary{min-height:2.25rem;display:flex;align-items:center;font-size:.82rem;font-weight:700;color:var(--foms-text-tertiary,#6b7380);cursor:pointer}
+.dw-confirm-result__dw{display:grid;gap:.1rem;padding:.4rem 0;border-top:1px solid var(--foms-border-subtle,#dde1e6);color:inherit;text-decoration:none;opacity:.7}
+.dw-confirm-result__dw-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.82rem;text-decoration:line-through}
+
+/* 주문 모바일 상세 — 취소 품목 */
+.foms-product-item--cancelled .foms-product-item__title{color:var(--foms-text-tertiary,#6b7380);text-decoration:line-through}
+.foms-product-item__cancel{margin-left:.35rem;padding:.05rem .45rem;border-radius:999px;background:var(--foms-color-warning-50,#fffbeb);color:var(--foms-color-warning-700,#b45309);font-size:.7rem;font-weight:800;white-space:nowrap}

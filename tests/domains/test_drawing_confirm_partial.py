@@ -267,3 +267,41 @@ def test_ok_modal_without_choice_keeps_old_shape(client, monkeypatch):
     modal = _page(client, people["sales"], oid).select_one("#dwCustomerOkModal")
     assert modal.select_one("[data-ok-scope]") is None
     assert "modal-lg" not in modal.select_one(".modal-dialog")["class"]
+
+
+# ── 3단계: 확정 뒤 화면 ───────────────────────────────────────────────────
+
+def test_confirm_result_view_lists_cancelled_excluded_and_estimate():
+    from foms.services.orders.drawing_confirm_partial import build_confirm_result_view, cancel_label
+    sd, k1, k2 = _sd_base()
+    plan = plan_partial_confirm(sd, None, [{"uid": UID_B, "reason": "other", "note": "색상"}])
+    apply_partial_confirm(sd, plan, actor_user_id=1, at_iso="t")
+    view = build_confirm_result_view(sd)
+    assert view["show"] is True and view["estimate_needs_update"] is True
+    assert view["cancelled"] == [{"name": "보테가 슬라이딩장", "label": "취소 · 기타(색상)"}]
+    assert view["excluded"][0]["reason"] == "제품 취소"
+    assert cancel_label(sd["items"][0]) == ""
+    assert build_confirm_result_view(_sd_base()[0])["show"] is False
+
+
+def test_workbench_renders_confirm_result(client, monkeypatch):
+    from tests.support.drawing_tab_send_pc_helpers import _bar, _inject, _order as _pc_order, _page, make_people
+    people = make_people()
+    oid = _pc_order(people["drafter"]["id"], status="CONFIRMED")
+    order = db_session.get(Order, oid)
+    sd = dict(order.structured_data)
+    sd["items"] = [{"uid": UID_A, "product_name": "여닫이장"},
+                   {"uid": UID_B, "product_name": "슬라이딩장", "cancel": {"reason": "customer_change"}}]
+    sd["drawing_excluded_files"] = [{"key": f"orders/{oid}/x.png", "filename": "슬라이딩.png",
+                                     "excluded_reason": "item_cancelled"}]
+    sd["flags"] = {"estimate_needs_update": True}
+    order.structured_data = sd
+    db_session.commit()
+    _inject(monkeypatch, {"bar": _bar("send"), "round_text": "1차"})
+    soup = _page(client, people["sales"], oid)
+    box = soup.select_one("[data-confirm-result]")
+    assert box is not None
+    text = box.get_text(" ", strip=True)
+    assert "슬라이딩장" in text and "취소 · 고객 변심" in text
+    assert "제외된 도면 1장 보기" in text and box.select_one("[data-estimate-needs-update]") is not None
+    assert "style=" not in str(box)
