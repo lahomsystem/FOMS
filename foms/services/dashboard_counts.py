@@ -10,7 +10,11 @@ from typing import Any
 from sqlalchemy import func
 
 from db import get_db
-from foms.services.erp_permissions import build_mine_sql_filter, mine_membership_clause
+from foms.services.erp_permissions import (
+    _MINE_SCOPE_BY_TEAM,
+    build_mine_sql_filter,
+    mine_membership_clause,
+)
 from models import Order
 
 __all__ = [
@@ -61,6 +65,17 @@ def _mine_only_for_user(user: Any) -> bool:
     return bool(user and (getattr(user, "team", None) or "") in MINE_ONLY_TEAMS)
 
 
+def _badge_mine_scope(user: Any) -> str:
+    """배지 "내 차례" 범위는 관리자 역할이어도 소속 팀 기준으로 정한다.
+
+    관리자 역할이면 화면용 범위는 "all"(도면 문서 전체 ILIKE 갈래 포함)이 된다. 영업팀
+    관리자 1명의 배지가 그 갈래 때문에 GIN 대기 목록이 쌓일 때 77→412ms 로 흔들렸다
+    (2026-10-12 운영 읽기, 팀 기준 235→4ms·결과 동일). 팀이 없으면 기존처럼 "all".
+    """
+    team = (getattr(user, "team", None) or "").strip().upper()
+    return _MINE_SCOPE_BY_TEAM.get(team, "all")
+
+
 def _apply_mine_filter(query: Any, user: Any) -> Any:
     """로그인 사용자의 역할 관계로 nav badge 집계를 제한.
 
@@ -70,7 +85,7 @@ def _apply_mine_filter(query: Any, user: Any) -> Any:
     설계서 docs/specs/2026-10-06-nav-badge-count-query_SPEC.md). 조건 정의는
     ``build_mine_sql_filter`` 한 곳 그대로 쓴다.
     """
-    clause = mine_membership_clause(build_mine_sql_filter(user))
+    clause = mine_membership_clause(build_mine_sql_filter(user, scope=_badge_mine_scope(user)))
     if clause is None:
         return query.filter(Order.id == -1)
     return query.filter(clause)
