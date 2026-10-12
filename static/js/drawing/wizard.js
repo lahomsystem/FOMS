@@ -2603,10 +2603,20 @@
   }
 
   /* ---- 리치 편집: 선택/스타일 적용 --------------------------------------- */
+  /** 커서를 라벨 아랫줄(새 빈 줄)에 둔다. 끝의 filler <br> 앞에 커서를 두면 라벨과 같은 줄이 되므로
+      <br> 를 하나 더 붙이고 그 사이에 둔다(extractRuns 는 마지막 filler <br> 를 무시 → 원문 불변). */
   function caretToEnd(area) {
     var range = document.createRange();
-    range.selectNodeContents(area);
-    range.collapse(false);
+    var last = area.lastChild;
+    if (last && last.nodeName === 'BR') {
+      var br = document.createElement('br');
+      area.appendChild(br);
+      range.setStartBefore(br);
+      range.collapse(true);
+    } else {
+      range.selectNodeContents(area);
+      range.collapse(false);
+    }
     var sel = window.getSelection();
     sel.removeAllRanges();
     sel.addRange(range);
