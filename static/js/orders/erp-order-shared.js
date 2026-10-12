@@ -3075,6 +3075,13 @@ window.erpTogglePayment = async function(btn, pType) {
     // ERP Order: 지방주문이면 대시보드 필터용 하우드/협력사 구분을 반드시 받는다.
     document.getElementById('erp-regional-order')?.addEventListener('change', function () {
         erpSyncRegionalConstructionTypeVisibility({ clear: !this.checked });
+        // 지방주문을 켜면 담당자를 양산지사로 지정할지 묻는다(아니오면 비워 둔다).
+        const managerEl = document.getElementById('erp-manager');
+        if (this.checked && managerEl && managerEl.value.trim() !== '양산지사') {
+            managerEl.value = window.confirm('담당자를 양산지사로 지정할까요?') ? '양산지사' : '';
+            managerEl.dispatchEvent(new Event('input', { bubbles: true }));
+            managerEl.dispatchEvent(new Event('change', { bubbles: true }));
+        }
     });
     erpSyncRegionalConstructionTypeVisibility({ clear: false });
 
