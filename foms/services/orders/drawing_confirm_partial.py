@@ -34,6 +34,7 @@ __all__ = [
     "file_item_uids",
     "cancel_event_payload",
     "is_item_cancelled",
+    "plan_after_confirm_cancel",
     "plan_partial_confirm",
     "preserve_item_cancel_state",
 ]
@@ -421,9 +422,36 @@ def build_confirm_result_view(structured_data: Any) -> dict[str, Any]:
         })
     flags = sd.get("flags") if isinstance(sd.get("flags"), dict) else {}
     estimate = bool(flags.get("estimate_needs_update"))
+    # 확정 뒤 취소 후보(§10) — 확정됐고 남은 생산 품목이 2개 이상일 때만(마지막 하나는 주문 취소 몫).
+    alive = [it for it in active_items(sd) if item_uid_of(it)]
+    active = [
+        {"uid": item_uid_of(it), "name": str(it.get("product_name") or it.get("name") or "제품").strip()}
+        for it in alive
+    ] if sd.get("drawing_status") == "CONFIRMED" and len(alive) > 1 else []
     return {
-        "show": bool(cancelled or excluded or estimate),
+        "show": bool(cancelled or excluded or estimate or active),
+        "active": active,
         "cancelled": cancelled,
         "excluded": excluded,
         "estimate_needs_update": estimate,
     }
+
+
+EXCLUDE_REASON_ITEM_CANCELLED_AFTER = "item_cancelled_after_confirm"
+_EXCLUDE_LABELS[EXCLUDE_REASON_ITEM_CANCELLED_AFTER] = "확정 뒤 제품 취소"
+
+
+def plan_after_confirm_cancel(structured_data: dict[str, Any], uid: str, reason: Any, note: Any) -> PartialConfirmPlan:
+    """확정 뒤 품목 하나 취소 계획(설계서 §10). 그 품목에만 묶인 최종 도면은 제외 대상.
+
+    Raises:
+        PartialConfirmError: 확정 전·없는 품목·이미 취소·생산 품목 0개·도면 0장·사유 오류.
+    """
+    sd = structured_data if isinstance(structured_data, dict) else {}
+    if sd.get("drawing_status") != "CONFIRMED":
+        raise PartialConfirmError("NOT_CONFIRMED", "도면 확정 뒤에만 쓸 수 있어요. 확정 전에는 확정 창에서 고르세요.")
+    cancels = _parse_cancel_items([{"uid": uid, "reason": reason, "note": note}])
+    plan = plan_partial_confirm(sd, None, cancels)
+    for e in plan.excluded:
+        e["reason"] = EXCLUDE_REASON_ITEM_CANCELLED_AFTER
+    return plan

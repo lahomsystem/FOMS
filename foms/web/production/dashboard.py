@@ -18,7 +18,7 @@ from foms.web.auth import login_required
 
 from foms.services.datetime_kst import get_today_kst
 from foms.services.drawing_confirm_cleanup import resolve_final_drawing_files
-from foms.services.orders.drawing_confirm_partial import active_items
+from foms.services.orders.drawing_confirm_partial import active_items, is_item_cancelled
 from foms.services.erp_template_filters import (
     eval_spec_width_mm,
     item_spec_w300_value,
@@ -195,6 +195,9 @@ def erp_production_dashboard():
         # 태블릿 칸반 카드 총 자수(W/300): 사이드 시트와 동일 SSOT(_prod_sheet_total_units) 재사용.
         _card_sd = _r.get("structured_data") or {}
         _r["units_display"] = _prod_sheet_total_units(active_items(_card_sd))
+        # 취소 품목이 있으면 카드에 표시(DRAWING-PARTIAL-CONFIRM §10) — 이미 만들고 있으면 멈춰야 한다.
+        _r["cancelled_items_count"] = sum(
+            1 for _it in (_card_sd.get("items") or []) if is_item_cancelled(_it))
         _r["is_regional"] = bool(getattr(_orders_by_id.get(_r["id"]), "is_regional", False))
         _rc = _alerts_by_id.get(_r["id"]) or {"alerts": [], "history": []}
         _r["change_alerts"] = _rc["alerts"]        # 미확인(시끄러운 스트립)

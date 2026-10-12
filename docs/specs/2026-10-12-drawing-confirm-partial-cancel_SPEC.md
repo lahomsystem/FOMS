@@ -121,3 +121,9 @@ JSONB 수정은 규약대로 deepcopy → 수정 → 재대입 → `flag_modifie
 - OrderEvent `ITEM_CANCELLED_AFTER_CONFIRM` + 생산·시공 대시보드 캐시 비우기.
 - 생산 단계 이후면 생산팀에게 보이는 배지("취소 품목 있음")를 단다. 이미 만든 것의 처리(폐기·재고)는 이번 범위 밖, 메모로만.
 - 화면: 주문/도면 상세의 품목 줄 [더 보기 › 이 제품 취소] → 확인 창(사유·메모).
+
+### 10.1 구현 (2026-10-12)
+- 라우트 `foms/api/drawing/erp_orders_item_cancel.py` — 정책 `ERP_EDIT`(CS·SALES·관리자), REV-00 `execute_order_mutation`(If-Match·버전·멱등 키·OrderEvent 한 트랜잭션). 정책·쓰기 가드 매니페스트 등재.
+- 화면: 도면 작업실 확정 결과 칸의 [확정 뒤 제품 취소] 접힘 → 제품별 [이 제품 취소] → 창(사유·메모). 남은 생산 품목이 1개면 버튼을 그리지 않는다.
+- 생산 칸반 카드에 "취소 품목 N개 있음" 표시.
+

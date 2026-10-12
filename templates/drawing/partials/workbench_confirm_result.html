@@ -24,5 +24,18 @@
     {% endfor %}
   </details>
   {% endif %}
+  {% if cr.active and can_cancel_items|default(false) %}
+  <details class="dw-confirm-result__cancel">
+    <summary>확정 뒤 제품 취소</summary>
+    <p class="dw-confirm-result__hint">고객이 생산 전에 제품 하나를 뺐을 때만 써요. 금액은 주문 화면에서 따로 고쳐요.</p>
+    {% for a in cr.active %}
+    <div class="dw-confirm-result__row">
+      <span>{{ a.name }}</span>
+      <button type="button" class="btn btn-outline-warning btn-sm" data-bs-toggle="modal" data-bs-target="#dwItemCancelModal"
+        data-item-cancel-uid="{{ a.uid }}" data-item-cancel-name="{{ a.name }}">이 제품 취소</button>
+    </div>
+    {% endfor %}
+  </details>
+  {% endif %}
 </div>
 {% endif %}

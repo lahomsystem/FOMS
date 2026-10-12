@@ -1,0 +1,32 @@
+{# 확정 뒤 제품 취소 창(DRAWING-PARTIAL-CONFIRM 6단계, 설계서 §10). 동작 JS: drawing-item-cancel.js. #}
+{% set cr = confirm_result|default({}) %}
+{% if cr.active and can_cancel_items|default(false) %}
+<div class="modal fade" id="dwItemCancelModal" tabindex="-1" aria-hidden="true" aria-labelledby="dwItemCancelTitle"
+  data-order-id="{{ order.id }}" data-mutation-version="{{ order.mutation_version|default('', true) }}">
+  <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="dwItemCancelTitle" data-item-cancel-title>제품을 취소할까요?</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
+      </div>
+      <div class="modal-body">
+        <p class="small text-muted">취소하면 이 제품은 생산·출고·안내에서 빠지고, 이 제품 도면은 '제외된 도면'으로 옮겨요. 생산팀이 이미 만들고 있다면 먼저 알려 주세요.</p>
+        <div class="small fw-semibold text-muted mb-1">취소 사유</div>
+        <div class="btn-group mb-2" role="group" aria-label="취소 사유">
+          <input type="radio" class="btn-check" name="dw-item-cancel-reason" id="dw-item-cancel-customer" value="customer_change" autocomplete="off" checked>
+          <label class="btn btn-outline-secondary btn-sm" for="dw-item-cancel-customer">고객 변심</label>
+          <input type="radio" class="btn-check" name="dw-item-cancel-reason" id="dw-item-cancel-other" value="other" autocomplete="off">
+          <label class="btn btn-outline-secondary btn-sm" for="dw-item-cancel-other">기타</label>
+        </div>
+        <label class="form-label small fw-semibold text-muted mb-1" for="dw-item-cancel-note">메모 (기타는 필수)</label>
+        <input type="text" class="form-control form-control-sm" id="dw-item-cancel-note" maxlength="200">
+        <div class="alert alert-danger py-2 small mt-2 mb-0 d-none" role="alert" data-item-cancel-error data-foms-no-autodismiss></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
+        <button type="button" class="btn btn-warning" data-item-cancel-submit>제품 취소</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
