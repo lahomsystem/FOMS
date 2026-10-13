@@ -21,20 +21,20 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import re
 import subprocess
 import sys
 from dataclasses import asdict, dataclass, field
 from typing import Sequence
 
+from promote_file_compare import (  # noqa: F401 — PIN_RE·normalize_pins 는 승격 도구가 여기서 가져간다
+    FILE_DIFFERS,
+    FILE_PIN_ONLY,
+    FILE_SAME,
+    PIN_RE,
+    classify_file,
+    normalize_pins,
+)
 from session_commit_ledger import session_shas, sha_in_list
-
-# 자산 핀: ``?v=<토큰>`` (템플릿·테스트 단언 공통). 토큰은 날짜+접미사라 사전순 최대가 최신.
-PIN_RE = re.compile(r"\?v=([A-Za-z0-9_.-]+)")
-
-FILE_SAME = "same"
-FILE_PIN_ONLY = "pin_only"
-FILE_DIFFERS = "differs"
 
 
 @dataclass(frozen=True)
@@ -154,60 +154,6 @@ def _file_range_shas(
     if proc.returncode != 0:
         raise RuntimeError(proc.stderr or "git log failed")
     return tuple(ln.strip().lower() for ln in proc.stdout.splitlines() if ln.strip())
-
-
-def _blob_id(project_root: str, ref: str, path: str) -> str | None:
-    """``ref:path`` blob 해시. 없으면 None."""
-    proc = _run(
-        project_root, "git", "rev-parse", "--verify", "--quiet", f"{ref}:{path}"
-    )
-    if proc.returncode != 0:
-        return None
-    return (proc.stdout or "").strip() or None
-
-
-def _blob_text(project_root: str, ref: str, path: str) -> str | None:
-    """``ref:path`` 내용. 없으면 None."""
-    proc = _run(project_root, "git", "show", f"{ref}:{path}")
-    if proc.returncode != 0:
-        return None
-    return proc.stdout
-
-
-def normalize_pins(text: str) -> str:
-    """자산 핀 토큰을 지운 문자열(핀만 다른 줄 비교용)."""
-    return PIN_RE.sub("?v=", text)
-
-
-def is_pin_only_diff(a: str, b: str) -> bool:
-    """두 텍스트가 다르되 다른 줄이 모두 핀 토큰 차이뿐인가."""
-    if a == b:
-        return False
-    la = a.splitlines()
-    lb = b.splitlines()
-    if len(la) != len(lb):
-        return False
-    for x, y in zip(la, lb):
-        if x != y and normalize_pins(x) != normalize_pins(y):
-            return False
-    return True
-
-
-def classify_file(project_root: str, base_ref: str, bottom: str, path: str) -> str:
-    """``base_ref:path`` 와 ``bottom:path`` 를 비교해 same/pin_only/differs."""
-    a_id = _blob_id(project_root, base_ref, path)
-    b_id = _blob_id(project_root, bottom, path)
-    if a_id is None and b_id is None:
-        return FILE_SAME
-    if a_id is None or b_id is None:
-        return FILE_DIFFERS  # 한쪽에만 있음(추가·삭제)
-    if a_id == b_id:
-        return FILE_SAME
-    a = _blob_text(project_root, base_ref, path)
-    b = _blob_text(project_root, bottom, path)
-    if a is not None and b is not None and is_pin_only_diff(a, b):
-        return FILE_PIN_ONLY
-    return FILE_DIFFERS
 
 
 def _oldest_pending(project_root: str, pending: Sequence[str]) -> str:
