@@ -3540,6 +3540,8 @@ input.wb-pick:disabled,
         background: var(--wb-surface-soft);
         border-block: 1px solid var(--wb-line-soft);
     }
+    /* 옛 결제 금액이 없으면 칸에 '–' 하나뿐이다 — 빈 회색 띠를 남기지 않는다. */
+    .wb-cmp--cand td.wb-cmp__num:not(:has(.wb-cand__delta)) { display: none; }
     .wb-cmp--cand td.wb-cmp__num .wb-cand__delta { margin-left: auto; font-size: calc(13px * var(--wb-fs, 1)); }
     .wb-cmp--cand td.text-end { grid-area: act; text-align: left; display: flex; flex-direction: column; gap: 6px; }
     .naver-workbench .wb-cmp--cand td.text-end .btn,
