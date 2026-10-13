@@ -7,9 +7,12 @@
 
 알고리즘:
   1) 승격 SHA가 건드린 파일 집합
-  2) 각 SHA에 대해 ``base_ref..<sha> -- <files>`` 커밋
-  3) ``git cherry base_ref <tip>`` 에서 ``-``(동등 패치) 제외, ``+``만 missing
-  4) promote 집합 자체는 missing에서 제외
+  2) 파일 단위 바탕 비교: ``base_ref:F`` 와 ``<가장 오래된 pending>~1:F``
+     → same(blob 동일) / pin_only(자산 핀 ``?v=`` 만 다름) / differs
+  3) differs 파일에 대해서만 ``base_ref..<sha> -- <files>`` 커밋을 후보로
+  4) ``git cherry base_ref <tip>`` 에서 ``-``(동등 패치) 제외, ``+``만 missing
+  5) same/pin_only 파일만 건드린 후보는 already_equivalent(사유 content_same)
+  6) promote 집합 자체는 missing에서 제외
 
 exit: 0=complete, 2=incomplete, 1=error
 """
@@ -20,9 +23,17 @@ import json
 import os
 import subprocess
 import sys
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from typing import Sequence
 
+from promote_file_compare import (  # noqa: F401 — PIN_RE·normalize_pins 는 승격 도구가 여기서 가져간다
+    FILE_DIFFERS,
+    FILE_PIN_ONLY,
+    FILE_SAME,
+    PIN_RE,
+    classify_file,
+    normalize_pins,
+)
 from session_commit_ledger import session_shas, sha_in_list
 
 
@@ -46,6 +57,10 @@ class CompletenessResult:
     already_equivalent: tuple[str, ...]
     base_ref: str
     error: str | None = None
+    # 파일별 바탕 비교 {path: same|pin_only|differs} — 기본값으로 기존 호출 호환.
+    files_status: dict[str, str] = field(default_factory=dict)
+    # already_equivalent 사유 {sha: patch_id|content_same}.
+    equivalent_reasons: dict[str, str] = field(default_factory=dict)
 
 
 def _run(cwd: str, *args: str) -> subprocess.CompletedProcess[str]:
@@ -141,6 +156,17 @@ def _file_range_shas(
     return tuple(ln.strip().lower() for ln in proc.stdout.splitlines() if ln.strip())
 
 
+def _oldest_pending(project_root: str, pending: Sequence[str]) -> str:
+    """pending 중 topo 순으로 가장 오래된 SHA."""
+    proc = _run(project_root, "git", "rev-list", "--topo-order", "--reverse", *pending)
+    if proc.returncode == 0:
+        for ln in proc.stdout.splitlines():
+            sha = ln.strip().lower()
+            if sha and sha_in_list(sha, list(pending)):
+                return sha
+    return pending[0]
+
+
 def analyze_promote_completeness(
     project_root: str,
     shas: Sequence[str],
@@ -222,9 +248,18 @@ def analyze_promote_completeness(
                 error=None,
             )
 
+        # 파일 단위 바탕 비교 — 승격 직전 deploy 바탕(가장 오래된 pending~1)과 production.
+        bottom = f"{_oldest_pending(project_root, pending)}~1"
+        files_status = {
+            path: classify_file(project_root, base_ref, bottom, path) for path in files
+        }
+        differs_files = tuple(p for p in files if files_status[p] == FILE_DIFFERS)
+        same_files = tuple(p for p in files if files_status[p] != FILE_DIFFERS)
+
         missing_map: dict[str, MissingCommit] = {}
         already: list[str] = list(already_landed)
         already_seen: set[str] = set(already_landed)
+        reasons: dict[str, str] = {s: "patch_id" for s in already_landed}
 
         equiv: set[str] = set()
         candidates: list[str] = []
@@ -235,7 +270,7 @@ def analyze_promote_completeness(
             for sha, mark in marks.items():
                 if mark == "-":
                     equiv.add(sha)
-            for cand in _file_range_shas(project_root, base_ref, tip, files):
+            for cand in _file_range_shas(project_root, base_ref, tip, differs_files):
                 if sha_in_list(cand, list(promote)):
                     continue
                 if cand not in cand_seen:
@@ -247,17 +282,29 @@ def analyze_promote_completeness(
                 if cand not in already_seen:
                     already_seen.add(cand)
                     already.append(cand)
+                    reasons[cand] = "patch_id"
                 continue
             overlap = tuple(
                 f
                 for f in files_touched(project_root, cand)
-                if f in seen_files
+                if f in differs_files
             )
             missing_map[cand] = MissingCommit(
                 sha=cand,
                 subject=_commit_subject(project_root, cand),
                 files=overlap,
             )
+
+        # same/pin_only 파일만 건드린 후보 — 바탕이 같으니 누락이 아니다.
+        for tip in pending:
+            for cand in _file_range_shas(project_root, base_ref, tip, same_files):
+                if sha_in_list(cand, list(promote)):
+                    continue
+                if cand in missing_map or cand in already_seen:
+                    continue
+                already_seen.add(cand)
+                already.append(cand)
+                reasons[cand] = "content_same"
 
         missing = tuple(missing_map.values())
         return CompletenessResult(
@@ -268,6 +315,8 @@ def analyze_promote_completeness(
             already_equivalent=tuple(already),
             base_ref=base_ref,
             error=None,
+            files_status=files_status,
+            equivalent_reasons=reasons,
         )
     except RuntimeError as exc:
         return CompletenessResult(
@@ -285,6 +334,24 @@ def result_to_dict(result: CompletenessResult) -> dict:
     """JSON 직렬화용 dict."""
     data = asdict(result)
     return data
+
+
+def verdict_line(result: CompletenessResult) -> str:
+    """텍스트 출력 첫 줄 판정 한 줄."""
+    if result.complete:
+        vals = [result.files_status.get(p) for p in result.files]
+        same = sum(1 for v in vals if v == FILE_SAME)
+        pin = sum(1 for v in vals if v == FILE_PIN_ONLY)
+        diff = sum(1 for v in vals if v == FILE_DIFFERS)
+        return (
+            f"판정: 올려도 됨 — 대상 {len(result.files)}파일 중 "
+            f"바탕 같음 {same} · 핀만 다름 {pin} · 내용 다름 {diff}"
+        )
+    differs = [p for p in result.files if result.files_status.get(p) == FILE_DIFFERS]
+    return (
+        f"판정: 진짜 누락 {len(result.missing)}개 — 내용 다른 파일: "
+        + (", ".join(differs) if differs else "-")
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -361,8 +428,13 @@ def main(argv: list[str] | None = None) -> int:
     if args.json:
         print(json.dumps(result_to_dict(result), ensure_ascii=False, indent=2))
     else:
+        print(verdict_line(result))
         print(f"base={result.base_ref}")
         print(f"promote={len(result.promote_shas)} files={len(result.files)}")
+        for path in result.files:
+            status = result.files_status.get(path)
+            if status:
+                print(f"  [{status}] {path}")
         if result.already_equivalent:
             print(f"already_equivalent={len(result.already_equivalent)}")
         if result.complete:
