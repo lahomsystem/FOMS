@@ -10,6 +10,7 @@ promo 브랜치를 푸시하고 ``gh pr create --base production`` 한다.
 
 기본: ``promote_completeness`` incomplete 이면 중단(exit 2).
 ``--allow-incomplete`` 로만 우회. cherry-pick 충돌 시 exit 3·worktree 보존.
+단, 충돌 hunk 가 모두 자산 핀(``?v=<토큰>``)만 다르면 사전순 max 토큰으로 자동 해결.
 """
 from __future__ import annotations
 
@@ -22,7 +23,7 @@ import time
 from collections.abc import Callable
 from typing import Sequence
 
-from promote_completeness import analyze_promote_completeness
+from promote_completeness import PIN_RE, analyze_promote_completeness, normalize_pins
 from session_commit_ledger import session_shas, sha_in_list
 
 GhRunner = Callable[[str, list[str]], subprocess.CompletedProcess[str]]
@@ -81,6 +82,104 @@ def _count_range(worktree: str, base_ref: str) -> int:
         return int((proc.stdout or "").strip() or "0")
     except ValueError:
         return -1
+
+
+def _resolve_pin_hunks(text: str) -> str | None:
+    """충돌 마커가 든 텍스트에서 hunk 마다 ours/theirs 가 핀 토큰만 다르면 max 토큰으로 해결.
+
+    반환: 해결된 텍스트. 핀이 아닌 차이가 하나라도 있으면 None.
+    """
+    lines = text.splitlines(keepends=True)
+    out: list[str] = []
+    i = 0
+    found = False
+    while i < len(lines):
+        if not lines[i].startswith("<<<<<<<"):
+            out.append(lines[i])
+            i += 1
+            continue
+        found = True
+        ours: list[str] = []
+        theirs: list[str] = []
+        section = "ours"
+        i += 1
+        while i < len(lines) and not lines[i].startswith(">>>>>>>"):
+            ln = lines[i]
+            if ln.startswith("|||||||"):
+                section = "base"  # diff3 바탕 구간은 버린다
+            elif ln.startswith("=======") and section in ("ours", "base"):
+                section = "theirs"
+            elif section == "ours":
+                ours.append(ln)
+            elif section == "theirs":
+                theirs.append(ln)
+            i += 1
+        if i >= len(lines):
+            return None  # 닫는 마커 없음
+        i += 1
+        if len(ours) != len(theirs):
+            return None
+        for a, b in zip(ours, theirs):
+            if normalize_pins(a) != normalize_pins(b):
+                return None
+            ta = PIN_RE.findall(a)
+            tb = PIN_RE.findall(b)
+            tokens = iter(max(x, y) for x, y in zip(ta, tb))
+            out.append(PIN_RE.sub(lambda _m: f"?v={next(tokens)}", a))
+    return "".join(out) if found else None
+
+
+def _try_resolve_pin_conflicts(wt: str) -> bool:
+    """cherry-pick 충돌이 모두 핀 줄뿐이면 해결·add·continue 한다.
+
+    "충돌 = 타 세션 의존 신호, 임의 해결 금지" 의 유일한 예외 — 자산 핀 토큰만.
+    반환: 해결해 커밋까지 마쳤으면 True. 아니면 worktree 를 건드리지 않고 False.
+    """
+    proc = _run(wt, "git", "diff", "--name-only", "--diff-filter=U", check=False)
+    if proc.returncode != 0:
+        return False
+    paths = [p.strip() for p in proc.stdout.splitlines() if p.strip()]
+    if not paths:
+        return False
+    resolved: dict[str, str] = {}
+    for rel in paths:
+        full = os.path.join(wt, rel)
+        try:
+            with open(full, encoding="utf-8", newline="") as fh:
+                text = fh.read()
+        except (OSError, UnicodeDecodeError):
+            return False
+        fixed = _resolve_pin_hunks(text)
+        if fixed is None:
+            return False
+        resolved[rel] = fixed
+    for rel, fixed in resolved.items():
+        with open(os.path.join(wt, rel), "w", encoding="utf-8", newline="") as fh:
+            fh.write(fixed)
+    add = _run(wt, "git", "add", "--", *resolved.keys(), check=False)
+    if add.returncode != 0:
+        return False
+    # 편집기를 띄우지 않게 GIT_EDITOR=true (core.editor 는 환경변수에 밀린다).
+    cont = subprocess.run(
+        [
+            "git",
+            "-c",
+            "user.email=promote@foms.local",
+            "-c",
+            "user.name=FOMS Promote",
+            "cherry-pick",
+            "--continue",
+        ],
+        cwd=wt,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        stdin=subprocess.DEVNULL,
+        env={**os.environ, "GIT_EDITOR": "true"},
+        timeout=120,
+    )
+    return cont.returncode == 0
 
 
 def promote_own_commits(
@@ -189,6 +288,9 @@ def promote_own_commits(
                 sha,
                 check=False,
             )
+            if cp.returncode != 0 and _try_resolve_pin_conflicts(wt):
+                print(f"핀 충돌 자동 해결(사전순 max): {sha[:8]}")
+                continue
             if cp.returncode != 0:
                 print(
                     f"cherry-pick 충돌: {sha[:8]}\n{cp.stderr}\n"
