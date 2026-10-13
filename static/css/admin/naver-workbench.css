@@ -3550,6 +3550,51 @@ input.wb-pick:disabled,
     }
     /* Bootstrap `.text-end` 는 !important 라 칸에서 못 이긴다 — 안의 안내 줄만 왼쪽으로 돌린다. */
     .wb-cmp--cand td.text-end > .wb-relation__reason { text-align: left; }
+
+    /* ── 폰 손가락 크기 다듬기 (2026-10-13 목업 "남은 문제 4가지") ──
+       처리 버튼 줄(.wb-acts)만 44px 이고 그 밖은 btn-sm(약 30px)이 그대로였다. 동작·문구는 그대로,
+       누르는 면적과 글자 크기만 키운다. */
+    /* 1. 반품 거부 — 자주 쓰는 문장 한 줄에 하나. ×(지우기)는 회사 전체 목록을 지우므로 넣기 버튼과
+          44px 칸으로 떼어 놓는다. 긴 문장은 버튼 안에서 줄바꿈(창 밖으로 밀지 않는다). */
+    .modal .wb-reject__fills { flex-direction: column; align-items: stretch; gap: 6px; }
+    .modal .wb-reject__chip { display: flex; align-items: stretch; border: 1px solid var(--wb-line); border-radius: 8px; overflow: hidden; }
+    .modal .wb-reject__fills .wb-reject-fill {
+        flex: 1 1 auto;
+        min-height: 44px;
+        border: 0;
+        border-radius: 0;
+        text-align: left;
+        white-space: normal;
+        font-size: calc(13.5px * var(--wb-fs, 1));
+    }
+    .modal .wb-reject__chip .wb-reject-drop {
+        flex: none;
+        width: 44px;
+        min-height: 44px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-left: 1px solid var(--wb-line) !important;
+        font-size: calc(18px * var(--wb-fs, 1));
+    }
+    /* 2. 정리 계획 — 고르기 동그라미 22px, 닫기·실행·승인 버튼 44px. */
+    .wb-fork__pick { width: 22px; height: 22px; }
+    .wb-plan__head .wb-plan-close { width: 44px; height: 44px; padding: 0; background-size: 14px; }
+    .naver-workbench .wb-plan .wb-plan-approve {
+        width: 100%;
+        min-height: 44px;
+        white-space: normal;
+        font-size: calc(14px * var(--wb-fs, 1));
+    }
+    .wb-plan__acts { flex-wrap: wrap; }
+    .naver-workbench .wb-plan__acts .btn { flex: 1 1 0; min-height: 44px; font-size: calc(14px * var(--wb-fs, 1)); }
+    .wb-plan__acts .wb-plan__why { flex: 1 1 100%; order: -1; }
+    /* 3. 직접 찾아 붙이기 — 16px 미만 입력칸은 iOS 가 화면을 확대한다(목록 찾기 칸과 같은 규칙). */
+    .wb-seek__q { max-width: none; min-height: 44px; font-size: calc(16px * var(--wb-fs, 1)); }
+    .naver-workbench .wb-seek__bar .btn { min-height: 44px; }
+    /* 4. 관계 칸 링크 버튼(원 주문 열기·붙이기 풀기 등)과 확인 창 아래 버튼 — 44px. */
+    .naver-workbench .wb-relation .btn-sm:not(.wb-attach) { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
+    body:has(.naver-workbench) .modal-footer .btn { min-height: 44px; flex: 1 1 auto; }
 }
 
 /* ══ PC 다듬기(2026-09-29 · 사용자 결정: 확인 단계 + 흐린 글자) ══════════════════════════════
