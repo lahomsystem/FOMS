@@ -58,11 +58,11 @@
   var HI_OPACITY = 0.35;               // 형광펜 반투명도(0<x≤1)
   var CHECK_KEYS = ['d_site', 'd_double', 'd_order', 'p_prod', 'p_glass', 'p_light', 'p_handle', 'p_etc'];
   var PRESETS = { SR: '[SR]', EP: '[EP]', DOOR: '[DOOR]', ROD: '[옷봉]', MAIDA: '[마이다]' };
-  /* 새 시트에 미리 깔리는 기본 프리셋 자리 — 시트 머리 확인칸(.dws-header, top 43px) 바로 아래 한 줄.
+  /* 새 시트에 미리 깔리는 기본 프리셋 자리 — 시트 머리 확인칸(.dws-header, top 43px) 아래, 오른쪽 끝에 붙인 한 줄.
      라벨만 있는 텍스트(= 자리표)는 클릭하면 바로 아랫줄 입력, 손대지 않은 자리표는 Delete 로 지운다. */
   var PRESET_SEED_Y = 120;
-  var PRESET_SEED_X0 = 48;
   var PRESET_SEED_GAP = 170;
+  var PRESET_SEED_LAST_W = 100;        // 마지막 자리표 시작~오른쪽 끝 여유(라벨 폭 + 여백)
   var ANNO_FONT = '"Malgun Gothic","맑은 고딕","Dotum","돋움",sans-serif';
   var _html2canvasPromise = null;
 
@@ -304,11 +304,26 @@
   function newSheet(name, d) { return { id: rid('s-'), name: name, form: cloneForm(d), objects: seedPresetObjects(), presets_seeded: true }; }
 
   function seedPresetObjects() {
-    return Object.keys(PRESETS).map(function (kind, i) {
+    // 왼쪽 빈칸은 현장 사진 자리 — 자리표 한 줄을 도면 오른쪽 끝에 붙여 깐다.
+    var kinds = Object.keys(PRESETS);
+    return kinds.map(function (kind, i) {
       return {
-        id: rid('o-'), type: 'text', x: PRESET_SEED_X0 + i * PRESET_SEED_GAP, y: PRESET_SEED_Y, w: 1,
+        id: rid('o-'), type: 'text', x: PRESET_RIGHT_EDGE - PRESET_SEED_LAST_W - (kinds.length - 1 - i) * PRESET_SEED_GAP, y: PRESET_SEED_Y, w: 1,
         text: PRESETS[kind] + '\n', size: loadPreferredTextSize(), color: '#000000', bold: false, align: 'left', rotation: 0, autoWidth: true
       };
+    });
+  }
+
+  /** 예전 왼쪽 자리(x=48+i*170, y=120)에 손대지 않고 남은 자리표를 오른쪽 자리로 옮긴다.
+      사용자가 옮겼거나 내용을 쓴 자리표는 그대로 둔다. */
+  function moveLegacySeedRight(objects) {
+    var kinds = Object.keys(PRESETS);
+    objects.forEach(function (o) {
+      if (!isPresetPlaceholder(o) || o.y !== PRESET_SEED_Y) { return; }
+      var label = String(o.text || '').replace(/\n$/, '');
+      var i = kinds.filter(function (k) { return PRESETS[k] === label; }).map(function (k) { return kinds.indexOf(k); })[0];
+      if (i == null || o.x !== 48 + i * PRESET_SEED_GAP) { return; }
+      o.x = PRESET_RIGHT_EDGE - PRESET_SEED_LAST_W - (kinds.length - 1 - i) * PRESET_SEED_GAP;
     });
   }
 
@@ -4082,6 +4097,7 @@
         if (!sheet.objects.length) { sheet.objects = seedPresetObjects(); }
         sheet.presets_seeded = true;
       }
+      if (canSave) { moveLegacySeedRight(sheet.objects); }
       return sheet;
     });
     // 빈 배열은 그대로 반환 — 기본 시트 자동 생성 없음(제품 클릭/+시트로만 생성).
