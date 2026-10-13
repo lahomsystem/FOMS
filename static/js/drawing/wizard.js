@@ -39,6 +39,7 @@
   var MAX_ASSET_BYTES = 10 * 1024 * 1024;
   var STAGE_W = 1478;
   var STAGE_H = 1040;
+  var PRESET_RIGHT_EDGE = STAGE_W - 70;   // 프리셋 삽입 시 오른쪽 끝 x(도면 테두리 안쪽)
   var ALLOWED_SIZES = [14, 17, 20, 24, 28, 32, 36, 40];
   // 이 컴퓨터에서 마지막으로 고른 글자 크기 — 새 텍스트의 기본값(브라우저마다 따로 저장).
   var TEXT_SIZE_STORAGE_KEY = 'foms.drawingWizard.textSize';
@@ -2500,10 +2501,13 @@
     recordUndo();
     var n = currentSheet().objects.length;
     var o = {
-      id: rid('o-'), type: 'text', x: 340 + (n % 3) * 30, y: 95 + (n % 6) * 46, w: 1,
+      id: rid('o-'), type: 'text', x: 0, y: 95 + (n % 6) * 46, w: 1,
       text: String(text || ''), size: loadPreferredTextSize(), color: '#000000', bold: !!bold, align: 'left', rotation: 0, autoWidth: true
     };
     currentSheet().objects.push(o);
+    rebuildAnno();
+    // 왼쪽 빈칸은 현장 사진 자리 — 프리셋은 도면 오른쪽 끝에 붙여 넣는다(rebuild 가 o.w 를 자연폭으로 동기).
+    o.x = Math.max(0, PRESET_RIGHT_EDGE - (o.w || 1));
     markDirty();
     rebuildAnno();
     selectById(o.id);
