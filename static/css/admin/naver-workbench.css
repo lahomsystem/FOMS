@@ -3491,6 +3491,112 @@ input.wb-pick:disabled,
     }
     .naver-workbench:has(#wb-bulk.on) .wb-totop { bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
     body.wb-detail-open .wb-totop { display: none; }
+
+    /* ── 관계 후보 표·찾아 붙이기 결과(.wb-cmp--cand) → 후보 1건 = 카드 1장 (2026-10-13 목업) ──
+       6칸 표가 폰 폭에 그대로 들어와 금액·붙이기 칸이 화면 밖으로 밀리고 주소·날짜가 두세 글자씩
+       세로로 섰다(연하경 #5610 실화면). 마크업·판정 분기는 그대로 두고 같은 표를 CSS 로 편다 —
+       "주문 단위" 대조표와 같은 방식이다. 읽는 순서 = 주문 → 옛 결제(신호) → 고객·접수 → 금액 → 버튼. */
+    .wb-cmp--cand thead { display: none; }
+    .wb-cmp--cand,
+    .wb-cmp--cand tbody { display: block; width: auto; }
+    .wb-cmp--cand tr {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-areas:
+            "k    k"
+            "c    c"
+            "who  date"
+            "num  num"
+            "act  act";
+        margin-bottom: 8px;
+        border: 1px solid var(--wb-line);
+        border-radius: 8px;
+        background: #fff;
+    }
+    .wb-cmp--cand td {
+        display: block;
+        width: auto;
+        padding: 0 10px 8px;
+        border-bottom: 0;
+        overflow-wrap: anywhere;
+    }
+    .wb-cmp--cand td.wb-cmp__k { grid-area: k; width: auto; padding-top: 10px; }
+    .wb-cmp--cand td.wb-cmp__k > a { font-weight: 700; font-size: calc(15px * var(--wb-fs, 1)); margin-right: 4px; }
+    .wb-cmp--cand td:nth-child(2) { grid-area: who; font-weight: 600; }
+    .wb-cmp--cand td:nth-child(2) .wb-relation__reason { font-weight: 400; }
+    .wb-cmp--cand td:nth-child(3) { grid-area: date; text-align: right; font-variant-numeric: tabular-nums; }
+    .wb-cmp--cand td:nth-child(4) { grid-area: c; }
+    /* 금액 견주기: 새 · 옛 · 차이 를 한 줄로 — 세로 세 줄이면 숫자가 오른쪽 끝에 몰려 안 읽힌다. */
+    .wb-cmp--cand td.wb-cmp__num {
+        grid-area: num;
+        width: auto;
+        display: flex;
+        align-items: baseline;
+        flex-wrap: wrap;
+        gap: 4px 12px;
+        margin: 0 0 8px;
+        padding: 7px 10px;
+        text-align: left;
+        background: var(--wb-surface-soft);
+        border-block: 1px solid var(--wb-line-soft);
+    }
+    /* 옛 결제 금액이 없으면 칸에 '–' 하나뿐이다 — 빈 회색 띠를 남기지 않는다. */
+    .wb-cmp--cand td.wb-cmp__num:not(:has(.wb-cand__delta)) { display: none; }
+    .wb-cmp--cand td.wb-cmp__num .wb-cand__delta { margin-left: auto; font-size: calc(13px * var(--wb-fs, 1)); }
+    .wb-cmp--cand td.text-end { grid-area: act; text-align: left; display: flex; flex-direction: column; gap: 6px; }
+    .naver-workbench .wb-cmp--cand td.text-end .btn,
+    .wb-cmp--cand td.text-end .btn {
+        width: 100%;
+        min-height: 44px;
+        font-size: calc(14px * var(--wb-fs, 1));
+    }
+    /* Bootstrap `.text-end` 는 !important 라 칸에서 못 이긴다 — 안의 안내 줄만 왼쪽으로 돌린다. */
+    .wb-cmp--cand td.text-end > .wb-relation__reason { text-align: left; }
+
+    /* ── 폰 손가락 크기 다듬기 (2026-10-13 목업 "남은 문제 4가지") ──
+       처리 버튼 줄(.wb-acts)만 44px 이고 그 밖은 btn-sm(약 30px)이 그대로였다. 동작·문구는 그대로,
+       누르는 면적과 글자 크기만 키운다. */
+    /* 1. 반품 거부 — 자주 쓰는 문장 한 줄에 하나. ×(지우기)는 회사 전체 목록을 지우므로 넣기 버튼과
+          44px 칸으로 떼어 놓는다. 긴 문장은 버튼 안에서 줄바꿈(창 밖으로 밀지 않는다). */
+    .modal .wb-reject__fills { flex-direction: column; align-items: stretch; gap: 6px; }
+    .modal .wb-reject__chip { display: flex; align-items: stretch; border: 1px solid var(--wb-line); border-radius: 8px; overflow: hidden; }
+    .modal .wb-reject__fills .wb-reject-fill {
+        flex: 1 1 auto;
+        min-height: 44px;
+        border: 0;
+        border-radius: 0;
+        text-align: left;
+        white-space: normal;
+        font-size: calc(13.5px * var(--wb-fs, 1));
+    }
+    .modal .wb-reject__chip .wb-reject-drop {
+        flex: none;
+        width: 44px;
+        min-height: 44px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-left: 1px solid var(--wb-line) !important;
+        font-size: calc(18px * var(--wb-fs, 1));
+    }
+    /* 2. 정리 계획 — 고르기 동그라미 22px, 닫기·실행·승인 버튼 44px. */
+    .wb-fork__pick { width: 22px; height: 22px; }
+    .wb-plan__head .wb-plan-close { width: 44px; height: 44px; padding: 0; background-size: 14px; }
+    .naver-workbench .wb-plan .wb-plan-approve {
+        width: 100%;
+        min-height: 44px;
+        white-space: normal;
+        font-size: calc(14px * var(--wb-fs, 1));
+    }
+    .wb-plan__acts { flex-wrap: wrap; }
+    .naver-workbench .wb-plan__acts .btn { flex: 1 1 0; min-height: 44px; font-size: calc(14px * var(--wb-fs, 1)); }
+    .wb-plan__acts .wb-plan__why { flex: 1 1 100%; order: -1; }
+    /* 3. 직접 찾아 붙이기 — 16px 미만 입력칸은 iOS 가 화면을 확대한다(목록 찾기 칸과 같은 규칙). */
+    .wb-seek__q { max-width: none; min-height: 44px; font-size: calc(16px * var(--wb-fs, 1)); }
+    .naver-workbench .wb-seek__bar .btn { min-height: 44px; }
+    /* 4. 관계 칸 링크 버튼(원 주문 열기·붙이기 풀기 등)과 확인 창 아래 버튼 — 44px. */
+    .naver-workbench .wb-relation .btn-sm:not(.wb-attach) { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
+    body:has(.naver-workbench) .modal-footer .btn { min-height: 44px; flex: 1 1 auto; }
 }
 
 /* ══ PC 다듬기(2026-09-29 · 사용자 결정: 확인 단계 + 흐린 글자) ══════════════════════════════
