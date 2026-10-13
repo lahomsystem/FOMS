@@ -230,6 +230,12 @@
   line-height: 1;
 }
 
+/* 날짜 칩은 76px 고정이라 요일·건수·전달이 한 줄에 다 안 들어가 배지가
+   칩 오른쪽 밖으로 삐져나왔다. 전달이 있는 칩만 내용 폭만큼 늘린다. */
+.erp-measurement-dashboard[data-erp-mobile-v2='true'] .erp-measurement-mobile-date-chip:has(.meas-sd-badge--chip) {
+  flex: 0 0 auto;
+}
+
 /* 모바일 카드(바텀시트로 옮겨지는 노드) 안에서는 큐 카드 위에 붙는다. */
 .erp-measurement-mobile-card > .meas-sd-cards {
   margin-bottom: 0.5rem;
