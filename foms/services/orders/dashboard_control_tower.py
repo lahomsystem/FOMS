@@ -442,7 +442,7 @@ def _month_calendar(
 
 
 WEATHER_LIVE_DAYS = 7
-WEATHER_LABELS = {"sun": "맑음", "cloud": "구름", "drizzle": "부슬비", "heavy": "장대비", "snow": "눈"}
+WEATHER_LABELS = {"sun": "맑음", "cloud": "구름", "drizzle": "부슬비", "heavy": "장대비", "flurry": "부슬눈", "snow": "함박눈"}
 
 
 def _link_weather_neighbours(week: list[dict[str, Any]]) -> None:
