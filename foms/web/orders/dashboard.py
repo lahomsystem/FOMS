@@ -67,6 +67,7 @@ from foms.services.common.erp_shell_http import (
 from foms.services.common.ept_b7_profile import apply_ept_b7_render_headers, phase
 from foms.services.common.erp_mine_filter import erp_tower_mine_from_request
 from foms.services.integrations.kma.seoul_daily_weather import weather_version
+from foms.services.orders.calendar_weather_timeline import timeline_defs, wx_style, wx_timeline_band
 from foms.services.orders.calendar_amount_colors import (
     CalendarColorsConflict,
     CalendarColorsError,
@@ -77,6 +78,9 @@ from foms.services.orders.calendar_amount_colors import (
 
 
 erp_dashboard_bp = Blueprint('erp_dashboard', __name__, url_prefix='/erp')
+# 모바일 달력 '시간 줄' 날씨 보기(사람마다 쿠키 foms_wx_style) — 템플릿 전역. 그림은 화면 그릴 때 만든다(지금 선 = 지금 시각).
+for _name, _fn in (("wx_style", wx_style), ("wx_timeline_band", wx_timeline_band), ("wx_timeline_defs", timeline_defs)):
+    erp_dashboard_bp.add_app_template_global(_fn, _name)
 
 
 def _dashboard_search_history_redirect_blocked(f_team: str, f_urgent: str, f_has_alert: str, f_alert_type: str) -> bool:
