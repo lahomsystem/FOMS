@@ -297,33 +297,39 @@
 
 /* ── 시간 줄 보기(사람마다 쿠키 foms_wx_style=timeline, 2026-10-14) ──────────────────────────────
    한 주 띠 = SVG 한 장(foms/services/orders/calendar_weather_timeline.py). 6시간 칸 날씨가 바뀌는 시각에서만 바뀐다.
-   목업 '시간 줄 ② 업그레이드' 그대로 — 측정(CPU 6배 느리게, 두 주 전부 움직임) 59.4fps. 주 전체가 지난 날이면 멈춘다(.is-still). */
+   목업 '시간 줄 ② 업그레이드' + 다듬기(2026-10-14 사용자: 지난 날 흐리게·움직임 더 강하게·경계 더 부드럽게·지금 선 얇고 짧게).
+   주 전체가 지난 날이면 멈춘다(.is-still). */
 .foms-wx-band.tl-band { display: block; }
 .tl-svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 .tl-s-sun { stop-color: var(--wx-sun); } .tl-s-cloud { stop-color: var(--wx-cloud); } .tl-s-drizzle { stop-color: var(--wx-drizzle); }
 .tl-s-heavy { stop-color: var(--wx-heavy); } .tl-s-flurry { stop-color: var(--wx-flurry); } .tl-s-snow { stop-color: var(--wx-snow); }
 .tl-s-none { stop-color: var(--wx-none); }
-.tl-breathe { transform-box: fill-box; transform-origin: center; animation: fwxBreathe 2.6s ease-in-out infinite; }
-.tl-drift2 { animation: fwxDrift2 6s linear infinite alternate; }
+.tl-breathe { transform-box: fill-box; transform-origin: center; animation: tlBreathe 2.4s ease-in-out infinite; }
+.tl-drift2 { animation: tlDrift2 4.5s ease-in-out infinite alternate; }
 .tl-flash { opacity: 0; animation: fwxFlash 4.2s linear infinite; }
-.up-spin { transform-box: fill-box; transform-origin: center; animation: fwxSpin 30s linear infinite; }
-.up-glow { animation: tlGlow 7s ease-in-out infinite alternate; }
-.up-far { animation: fwxDrift2 14s ease-in-out infinite alternate; }
-.up-near { animation: tlNear 5s ease-in-out infinite alternate; }
+.up-spin { transform-box: fill-box; transform-origin: center; animation: fwxSpin 20s linear infinite; }
+.up-glow { animation: tlGlow 5s ease-in-out infinite alternate; }
+.up-far { animation: tlDrift2 9s ease-in-out infinite alternate; }
+.up-near { animation: tlNear 4s ease-in-out infinite alternate; }
 .up-veil { animation: tlVeil 5s ease-in-out infinite alternate; }
-.up-rainfar { animation: tlRainFar 1.6s linear infinite; }
-.up-sn { animation: tlSn 5.5s ease-in-out infinite; }
-.up-specks { animation: tlSpecks 7s linear infinite; }
+.up-rainfar { animation: tlRainFar 1.2s linear infinite; }
+.up-sn { animation: tlSn 4.4s ease-in-out infinite; }
+.up-specks { animation: tlSpecks 5.5s linear infinite; }
 .up-pulse { transform-box: fill-box; transform-origin: center; animation: tlPulse 2s ease-out infinite; }
-.tl-dz { animation: tlDz 2.2s linear infinite; }
-.tl-hv { animation: tlHv .55s linear infinite; }
+.tl-dz { animation: tlDz 1.8s linear infinite; }
+.tl-hv { animation: tlHv .45s linear infinite; }
 .tl-p1 { animation-delay: -.33s; } .tl-p2 { animation-delay: -.66s; }
-.tl-dz.tl-p1 { animation-delay: -.8s; } .tl-dz.tl-p2 { animation-delay: -1.5s; }
-.up-sn.tl-p1 { animation-delay: -2.7s; }
+.tl-dz.tl-p1 { animation-delay: -.6s; } .tl-dz.tl-p2 { animation-delay: -1.2s; }
+.up-sn.tl-p1 { animation-delay: -2.2s; }
+/* 지난 날 흐리게 — 하늘 색 막을 반쯤 덮는다(칸 보기 지난 날 그림 opacity .5 와 같은 느낌) */
+.tl-past { opacity: .5; }
+.tl-past.is-part { opacity: 1; } /* 일부만 지난 주는 멈춤점 투명도(.5)로 걷는다 */
 .tl-svg.is-still * { animation: none !important; }
-@keyframes tlGlow { from { transform: translate(-3px, 2px); opacity: .8; } to { transform: translate(3px, -2px); opacity: 1; } }
-@keyframes tlNear { from { transform: translateX(18px); } to { transform: translateX(-22px); } }
-@keyframes tlVeil { from { opacity: .6; } to { opacity: 1; } }
+@keyframes tlGlow { from { transform: translate(-5px, 3px) scale(.94); opacity: .7; } to { transform: translate(5px, -3px) scale(1.06); opacity: 1; } }
+@keyframes tlBreathe { 0%, 100% { transform: scale(1); opacity: .3; } 50% { transform: scale(1.45); opacity: .9; } }
+@keyframes tlDrift2 { from { transform: translateX(-20px); } to { transform: translateX(20px); } }
+@keyframes tlNear { from { transform: translateX(26px); } to { transform: translateX(-30px); } }
+@keyframes tlVeil { from { opacity: .45; } to { opacity: 1; } }
 @keyframes tlRainFar { from { transform: translate(6px, -36px); } to { transform: translate(-8px, 40px); } }
 @keyframes tlSn { 0% { transform: translate(0, -40px) rotate(0deg); opacity: 0; } 12% { opacity: 1; } 50% { transform: translate(9px, 2px) rotate(40deg); } 88% { opacity: 1; } 100% { transform: translate(-4px, 44px) rotate(80deg); opacity: 0; } }
 @keyframes tlSpecks { from { transform: translate(-6px, -30px); } to { transform: translate(6px, 36px); } }
