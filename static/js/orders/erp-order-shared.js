@@ -225,6 +225,8 @@ var _erpNormalizePaymentData =
             balance_confirmed_at: pay.balance_confirmed_at || null,
             balance_confirmed_by: pay.balance_confirmed_by || null,
             balance_confirmed_by_user_id: pay.balance_confirmed_by_user_id || null,
+            balance_method: pay.balance_method || null,
+            balance_method_text: pay.balance_method_text || null,
         };
     };
 window._erpNormalizePaymentData = _erpNormalizePaymentData;
@@ -232,6 +234,9 @@ window._erpNormalizePaymentData = _erpNormalizePaymentData;
 var _erpUpdatePaymentConfirmUI =
     window._erpUpdatePaymentConfirmUI ||
     function _erpUpdatePaymentConfirmUI(type, paymentData) {
+        if (type === "balance" && typeof window.erpRenderBalanceMethodUI === "function") {
+            window.erpRenderBalanceMethodUI(paymentData);
+        }
         var btn = document.querySelector(
             '.erp-payment-confirm-btn[data-payment-type="' + type + '"]'
         );
@@ -757,6 +762,10 @@ function erpToggleLocalPaymentState(pType, targetConfirmed) {
         nextPayment.balance_confirmed_at = targetConfirmed ? new Date().toISOString() : null;
         nextPayment.balance_confirmed_by = targetConfirmed ? '저장 전' : null;
         nextPayment.balance_confirmed_by_user_id = null;
+        if (!targetConfirmed) {
+            nextPayment.balance_method = null;
+            nextPayment.balance_method_text = null;
+        }
     }
 
     if (!window.__erpLastStructuredData || typeof window.__erpLastStructuredData !== 'object') {
@@ -767,6 +776,145 @@ function erpToggleLocalPaymentState(pType, targetConfirmed) {
     erpSetStatus('결제 확인 상태가 저장 전 임시 반영되었습니다. 최종 저장 버튼을 누르면 저장됩니다.');
 }
 window.erpToggleLocalPaymentState = erpToggleLocalPaymentState;
+
+// 잔금 결제수단(서버 foms/services/orders/balance_payment_method.py 미러).
+const ERP_BALANCE_METHOD_PRESETS = ['네이버', '카드', '계좌입금'];
+const ERP_BALANCE_METHOD_TEXT_MAX = 20;
+
+function erpNormalizeBalanceMethod(method, text) {
+    const m = String(method || '').trim();
+    if (ERP_BALANCE_METHOD_PRESETS.indexOf(m) >= 0) return { method: m, text: null };
+    if (m === 'custom') {
+        const t = String(text || '').trim().slice(0, ERP_BALANCE_METHOD_TEXT_MAX);
+        if (t) return { method: 'custom', text: t };
+    }
+    return { method: null, text: null };
+}
+
+function erpBalanceConfirmedSuffix(payment) {
+    if (!payment || !_erpBoolConfirmed(payment.balance_confirmed)) return '';
+    const n = erpNormalizeBalanceMethod(payment.balance_method, payment.balance_method_text);
+    const label = n.method === 'custom' ? n.text : n.method;
+    return label ? `(결제 완-${label})` : '(결제 완)';
+}
+window.erpBalanceConfirmedSuffix = erpBalanceConfirmedSuffix;
+
+// "직접입력"을 골랐지만 아직 글을 안 쓴 상태(저장값은 없음).
+let _erpBalanceMethodCustomPending = false;
+
+function erpRenderBalanceMethodUI(paymentData) {
+    const root = document.getElementById('erp-balance-method-section');
+    if (!root) return;
+    const pay = paymentData || {};
+    const confirmed = _erpBoolConfirmed(pay.balance_confirmed);
+    const n = erpNormalizeBalanceMethod(pay.balance_method, pay.balance_method_text);
+    if (!confirmed) _erpBalanceMethodCustomPending = false;
+    const current = n.method || (confirmed && _erpBalanceMethodCustomPending ? 'custom' : '');
+    const editable = root.dataset.editable === '1';
+    root.hidden = !confirmed;
+
+    const select = document.getElementById('erp-balance-method');
+    if (select) {
+        select.value = current;
+        select.disabled = !editable;
+    }
+    root.querySelectorAll('[data-balance-method]').forEach(function (b) {
+        b.setAttribute('aria-pressed', b.dataset.balanceMethod === current ? 'true' : 'false');
+        b.disabled = !editable;
+    });
+    const textRow = document.getElementById('erp-balance-method-text-row');
+    if (textRow) textRow.hidden = current !== 'custom';
+    const textEl = document.getElementById('erp-balance-method-text');
+    if (textEl) {
+        textEl.disabled = !editable;
+        if (document.activeElement !== textEl) textEl.value = n.text || '';
+    }
+}
+window.erpRenderBalanceMethodUI = erpRenderBalanceMethodUI;
+
+let _erpBalanceMethodSaving = false;
+
+async function erpSaveBalanceMethod(method, text) {
+    const prev = window.__erpLastStructuredData && window.__erpLastStructuredData.payment
+        ? window.__erpLastStructuredData.payment
+        : {};
+    if (!_erpBoolConfirmed(prev.balance_confirmed)) return;
+    if (_erpBalanceMethodSaving) return;
+    _erpBalanceMethodCustomPending = method === 'custom';
+    const n = erpNormalizeBalanceMethod(method, text);
+    const prevN = erpNormalizeBalanceMethod(prev.balance_method, prev.balance_method_text);
+    const next = Object.assign({}, prev, { balance_method: n.method, balance_method_text: n.text });
+    if (!window.__erpLastStructuredData) window.__erpLastStructuredData = {};
+    window.__erpLastStructuredData.payment = next;
+    erpRenderBalanceMethodUI(next);
+    if (n.method === prevN.method && n.text === prevN.text) return;
+
+    const targetId = erpResolveCurrentOrderId();
+    if (targetId <= 0 || erpIsDraftBackedOrder()) {
+        erpSetStatus('잔금 결제수단이 저장 전 임시 반영되었습니다. 최종 저장 버튼을 누르면 저장됩니다.');
+        return;
+    }
+    _erpBalanceMethodSaving = true;
+    try {
+        const res = await fetch(`/api/orders/${targetId}/payment-confirm`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                type: 'balance',
+                confirmed: true,
+                balance_method: n.method,
+                balance_method_text: n.text
+            })
+        });
+        const data = await res.json();
+        if (!data.success || !data.payment) {
+            throw new Error(data.message || '결제수단 저장에 실패했습니다.');
+        }
+        const p = _erpNormalizePaymentData({ payment: Object.assign({}, next, data.payment) });
+        window.__erpLastStructuredData.payment = p;
+        _erpUpdatePaymentConfirmUI('balance', p);
+        erpSetStatus('잔금 결제수단을 저장했습니다.');
+    } catch (err) {
+        console.error(err);
+        window.__erpLastStructuredData.payment = prev;
+        _erpUpdatePaymentConfirmUI('balance', prev);
+        erpSetStatus(err.message || '결제수단 저장에 실패했습니다.', true);
+    } finally {
+        _erpBalanceMethodSaving = false;
+    }
+}
+window.erpSaveBalanceMethod = erpSaveBalanceMethod;
+
+function erpBindBalanceMethodControls() {
+    const root = document.getElementById('erp-balance-method-section');
+    if (!root || root.dataset.erpBound === '1') return;
+    root.dataset.erpBound = '1';
+    const textEl = document.getElementById('erp-balance-method-text');
+    const currentText = function () { return textEl ? textEl.value : ''; };
+    const select = document.getElementById('erp-balance-method');
+    if (select) {
+        select.addEventListener('change', function () {
+            erpSaveBalanceMethod(select.value, currentText());
+            if (select.value === 'custom' && textEl) textEl.focus();
+        });
+    }
+    root.querySelectorAll('[data-balance-method]').forEach(function (b) {
+        b.addEventListener('click', function () {
+            const prev = (window.__erpLastStructuredData && window.__erpLastStructuredData.payment) || {};
+            const cur = erpNormalizeBalanceMethod(prev.balance_method, prev.balance_method_text).method
+                || (_erpBalanceMethodCustomPending ? 'custom' : '');
+            const picked = b.dataset.balanceMethod === cur ? '' : b.dataset.balanceMethod;
+            erpSaveBalanceMethod(picked, currentText());
+            if (picked === 'custom' && textEl) textEl.focus();
+        });
+    });
+    if (textEl) {
+        textEl.addEventListener('change', function () {
+            erpSaveBalanceMethod('custom', textEl.value);
+        });
+    }
+}
+window.erpBindBalanceMethodControls = erpBindBalanceMethodControls;
 
 var erpSetStatus =
     window.erpSetStatus ||
@@ -2333,7 +2481,9 @@ function erpCollectStructured() {
                 balance_confirmed: _erpBoolConfirmed(prev.balance_confirmed),
                 balance_confirmed_at: prev.balance_confirmed_at || null,
                 balance_confirmed_by: prev.balance_confirmed_by || null,
-                balance_confirmed_by_user_id: prev.balance_confirmed_by_user_id || null
+                balance_confirmed_by_user_id: prev.balance_confirmed_by_user_id || null,
+                balance_method: prev.balance_method || null,
+                balance_method_text: prev.balance_method_text || null
             };
         })(),
         items
@@ -2989,6 +3139,10 @@ window.erpTogglePayment = async function(btn, pType) {
         optimisticPaymentData.balance_confirmed = targetConfirmed;
         optimisticPaymentData.balance_confirmed_by = '처리 중...';
         optimisticPaymentData.balance_confirmed_at = new Date().toISOString();
+        if (!targetConfirmed) {
+            optimisticPaymentData.balance_method = null;
+            optimisticPaymentData.balance_method_text = null;
+        }
     }
     
     if (!window.__erpLastStructuredData) window.__erpLastStructuredData = {};
@@ -3637,6 +3791,8 @@ ${escapeHtml(sub)}</div>` : ''}`;
         freeInputTextEl.addEventListener('input', erpCalculateRemaining);
         freeInputTextEl.addEventListener('change', erpCalculateRemaining);
     })();
+
+    erpBindBalanceMethodControls();
 
     (function bindErpBalanceNoteControls() {
         if (window.__ERP_BALANCE_NOTE_BOUND) return;
@@ -5254,7 +5410,11 @@ function erpGenerateConversionText() {
     text = erpAppendConversionMoneyLine(text, '출고가', totals.shipping_price);
     text = erpAppendConversionMoneyLine(text, '예약금(선금)', totals.deposit_amount);
     text = erpAppendConversionFreeInputBlock(text, freeInputVal);
-    const balanceSuffix = _erpIsBalancePaymentConfirmed() ? '(결제 완)' : '';
+    const balanceSuffix = _erpIsBalancePaymentConfirmed()
+        ? erpBalanceConfirmedSuffix(Object.assign(
+            {}, (window.__erpLastStructuredData && window.__erpLastStructuredData.payment) || {},
+            { balance_confirmed: true }))
+        : '';
     text = erpAppendConversionMoneyLine(text, '잔금', totals.final_amount, balanceSuffix);
     const balanceNoteVal = getVal('erp-balance-note');
     text = erpAppendConversionTextLine(text, '잔금메모', balanceNoteVal);

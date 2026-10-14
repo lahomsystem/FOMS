@@ -1157,7 +1157,7 @@ def test_shared_erp_order_js_persists_deposit_adjusted_final_totals() -> None:
     assert "erpAppendConversionMoneyLine(text, '출고가', totals.shipping_price)" in conversion_block
     assert "erpAppendConversionMoneyLine(text, '예약금(선금)', totals.deposit_amount)" in conversion_block
     assert "_erpIsBalancePaymentConfirmed()" in conversion_block
-    assert "const balanceSuffix = _erpIsBalancePaymentConfirmed() ? '(결제 완)' : '';" in conversion_block
+    assert "erpBalanceConfirmedSuffix(Object.assign(" in conversion_block
     assert "erpAppendConversionMoneyLine(text, '잔금', totals.final_amount, balanceSuffix)" in conversion_block
     assert "erpAppendConversionFreeInputBlock(text, freeInputVal)" in conversion_block
     assert "erpAppendConversionTextLine(text, '잔금메모', balanceNoteVal)" in conversion_block

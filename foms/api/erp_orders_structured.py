@@ -36,6 +36,7 @@ from foms.services.integrations.naver_commerce.auto_assign import (
     auto_assign_sales_owner_from_manager,
 )
 from foms.services.orders.audit_order_context import order_audit_context
+from foms.services.orders.balance_payment_method import normalize_balance_method
 from foms.services.orders.drawing_confirm_partial import preserve_item_cancel_state
 from foms.services.orders.structured_item_uid import ensure_item_uids
 from foms.services.orders.order_field_change_writer import record_field_changes
@@ -1901,6 +1902,14 @@ def api_payment_confirm(order_id):
             payment_obj['balance_confirmed_at'] = now_str if confirmed else None
             payment_obj['balance_confirmed_by'] = user_name if confirmed else None
             payment_obj['balance_confirmed_by_user_id'] = user_id if confirmed else None
+            if confirmed:
+                method, method_text = normalize_balance_method(
+                    payload.get('balance_method'), payload.get('balance_method_text')
+                )
+            else:
+                method, method_text = None, None
+            payment_obj['balance_method'] = method
+            payment_obj['balance_method_text'] = method_text
 
         order.structured_data = structured_data
         flag_modified(order, 'structured_data')
@@ -1915,7 +1924,13 @@ def api_payment_confirm(order_id):
             user_id,
             auto_commit=False,
             action=audit_action, target_type='order', target_id=int(order_id),
-            detail={'payment_type': payment_type, 'confirmed': bool(confirmed), **audit_context},
+            detail={
+                'payment_type': payment_type, 'confirmed': bool(confirmed),
+                **({'balance_method': payment_obj.get('balance_method'),
+                    'balance_method_text': payment_obj.get('balance_method_text')}
+                   if payment_type == 'balance' else {}),
+                **audit_context,
+            },
         )
 
         db.commit()
@@ -1936,6 +1951,8 @@ def api_payment_confirm(order_id):
             'balance_confirmed_at': payment_obj.get('balance_confirmed_at'),
             'balance_confirmed_by': payment_obj.get('balance_confirmed_by'),
             'balance_confirmed_by_user_id': payment_obj.get('balance_confirmed_by_user_id'),
+            'balance_method': payment_obj.get('balance_method'),
+            'balance_method_text': payment_obj.get('balance_method_text'),
         }
 
         return jsonify({'success': True, 'payment': ret_payment})

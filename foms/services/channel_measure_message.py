@@ -43,6 +43,7 @@ from typing import Any
 # _append_line 은 erpAppendConversionTextLine 의 서버 미러다. AS PUSH 조립기가 이미 같은
 # 규칙으로 갖고 있어 두 벌을 두지 않고 재사용한다(드리프트 방지 — 브리프 §8).
 from foms.services.channel_as_message import _append_line, format_schedule_date_korean
+from foms.services.orders.balance_payment_method import balance_confirmed_suffix
 from foms.services.orders.drawing_confirm_partial import drop_cancelled
 from foms.services.erp_display import (
     erp_deposit_amount_from_structured,
@@ -53,7 +54,6 @@ __all__ = ["build_measure_push_text"]
 
 _DEFAULT_ORDERER = "라홈"
 _NO_CONSTRUCTION_DATE = "상담"
-_BALANCE_CONFIRMED_SUFFIX = "(결제 완)"
 _FREE_INPUT_SUFFIX = "(총견적 포함)"
 _TRAILING_NEWLINES_RE = re.compile(r"\n+$")
 _FREE_INPUT_LABEL_RE = re.compile(r"^(.+?)[:：]\s*(.+)$")
@@ -419,7 +419,7 @@ def _footer_block(text: str, sd: dict) -> str:
     text = _append_money_line(text, "출고가", shipping)
     text = _append_money_line(text, "예약금(선금)", deposit)
     text = _append_free_input_block(text, _free_input_text(sd))
-    suffix = _BALANCE_CONFIRMED_SUFFIX if _bool_flag(payment.get("balance_confirmed")) else ""
+    suffix = balance_confirmed_suffix(payment)
     text = _append_money_line(text, "잔금", final_amount, suffix)
     text = _append_line(text, "잔금메모", _text(payment.get("balance_note")))
     cash_receipt = _text(payment.get("cash_receipt"))
