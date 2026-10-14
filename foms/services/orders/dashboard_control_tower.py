@@ -460,6 +460,9 @@ def _link_weather_neighbours(week: list[dict[str, Any]]) -> None:
         cell["wx_next"] = (right["wx"] or "none") if right else own
         cell["band_start"] = left is None
         cell["band_end"] = right is None
+        # 같은 날씨가 이어지는 쪽만 그림이 옆 칸으로 번진다(사용자 2026-10-14: 다른 날 침범 금지, 연속은 이어서)
+        cell["wx_join_l"] = bool(cell["wx"]) and left is not None and left["wx"] == cell["wx"]
+        cell["wx_join_r"] = bool(cell["wx"]) and right is not None and right["wx"] == cell["wx"]
 
 
 def _weather_window(db: Any, first: datetime.date) -> dict[str, Any]:

@@ -57,7 +57,7 @@
           {% if inm %}
             <div class="foms-wx-band s-{{ inm[0].dow + 1 }} n-{{ inm | length }}" aria-hidden="true">
               {% for c in inm | reverse %}
-                <span class="foms-wx-seg c-{{ c.dow - inm[0].dow + 1 }} wx-k-{{ c.wx or 'none' }} wx-p-{{ c.wx_prev }} wx-n-{{ c.wx_next }}{% if c.is_past %} is-past{% endif %}">{% if c.wx %}{{ wx_pic(c.wx, c.wx_live) }}{% if c.wx_live %}{% if c.wx == 'sun' %}<span class="fwx-fx fwx-sweep"></span>{% elif c.wx == 'cloud' %}<span class="fwx-fx fwx-pass"></span>{% elif c.wx == 'heavy' %}<span class="fwx-fx fwx-flash"></span><span class="fwx-fx fwx-bolt"></span>{% endif %}{% endif %}{% endif %}</span>
+                <span class="foms-wx-seg c-{{ c.dow - inm[0].dow + 1 }} wx-k-{{ c.wx or 'none' }} wx-p-{{ c.wx_prev }} wx-n-{{ c.wx_next }}{% if c.wx_join_l %} is-jl{% endif %}{% if c.wx_join_r %} is-jr{% endif %}{% if c.is_past %} is-past{% endif %}">{% if c.wx %}{{ wx_pic(c.wx, c.wx_live) }}{% if c.wx_live and c.wx in ('sun', 'cloud', 'heavy') %}<span class="fwx-fxbox">{% if c.wx == 'sun' %}<span class="fwx-fx fwx-sweep"></span>{% elif c.wx == 'cloud' %}<span class="fwx-fx fwx-pass"></span>{% else %}<span class="fwx-fx fwx-flash"></span><span class="fwx-fx fwx-bolt"></span>{% endif %}</span>{% endif %}{% endif %}</span>
               {% endfor %}
               <span class="foms-wx-gloss"></span>
             </div>

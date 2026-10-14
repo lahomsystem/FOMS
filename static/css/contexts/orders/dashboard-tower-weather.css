@@ -118,10 +118,29 @@
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .9);
 }
 [data-theme='dark'] .foms-wx-gloss { background: linear-gradient(180deg, rgba(255, 255, 255, .1) 0%, rgba(255, 255, 255, 0) 40%); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .12); }
+/* 그림 판은 칸 폭 2배(가운데가 제 칸 = 25%~75%). 옆 날짜로 번지는 것은 같은 날씨가 이어지는 쪽(.is-jl/.is-jr)뿐이고,
+   다른 날씨와 맞닿은 쪽은 제 칸 안(25%→32%·68%→75%)에서 사라진다 — 구름 흐름·덧그림이 옆 날을 침범하지 않게(사용자 2026-10-14). */
 .foms-wx-pic {
   position: absolute; top: 0; bottom: 0; left: -50%; width: 200%; pointer-events: none;
+  -webkit-mask-image: linear-gradient(90deg, transparent 25%, #000 32%, #000 68%, transparent 75%);
+  mask-image: linear-gradient(90deg, transparent 25%, #000 32%, #000 68%, transparent 75%);
+}
+.foms-wx-seg.is-jl .foms-wx-pic {
+  -webkit-mask-image: linear-gradient(90deg, transparent 2%, #000 25%, #000 68%, transparent 75%);
+  mask-image: linear-gradient(90deg, transparent 2%, #000 25%, #000 68%, transparent 75%);
+}
+.foms-wx-seg.is-jr .foms-wx-pic {
+  -webkit-mask-image: linear-gradient(90deg, transparent 25%, #000 32%, #000 75%, transparent 98%);
+  mask-image: linear-gradient(90deg, transparent 25%, #000 32%, #000 75%, transparent 98%);
+}
+.foms-wx-seg.is-jl.is-jr .foms-wx-pic {
   -webkit-mask-image: linear-gradient(90deg, transparent 2%, #000 25%, #000 75%, transparent 98%);
   mask-image: linear-gradient(90deg, transparent 2%, #000 25%, #000 75%, transparent 98%);
+}
+.fwx-fxbox {
+  position: absolute; inset: 0; overflow: hidden; pointer-events: none;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent);
 }
 .foms-wx-seg.is-past .foms-wx-pic { opacity: .5; }
 /* 다크: 흰 구름이 흰 날짜 글자를 삼키지 않게 그림을 낮춘다(filter 대신 opacity — 움직이는 칸에서도 가볍다) */
@@ -211,8 +230,8 @@
 .foms-wx-pic.is-live .fwx-rays { transform-box: view-box; transform-origin: 168px 18px; animation: fwxSpin 14s linear infinite; }
 .foms-wx-pic.is-live .fwx-breathe { transform-box: view-box; transform-origin: 168px 18px; animation: fwxBreathe 2.6s ease-in-out infinite; }
 .foms-wx-pic.is-live .fwx-twinkle { animation: fwxTwinkle 1.5s ease-in-out infinite; }
-.foms-wx-pic.is-live .fwx-drift1 { animation: fwxDrift 4.5s ease-in-out infinite alternate; }
-.foms-wx-pic.is-live .fwx-drift2 { animation: fwxDrift2 6s ease-in-out infinite alternate; }
+.foms-wx-pic.is-live .fwx-drift1 { animation: fwxDrift 4.5s linear infinite alternate; }
+.foms-wx-pic.is-live .fwx-drift2 { animation: fwxDrift2 6s linear infinite alternate; }
 .foms-wx-pic.is-live .fwx-bob { animation: fwxBob 2.2s ease-in-out infinite alternate; }
 .foms-wx-pic.is-live .fwx-heavy { animation: fwxHeavy .5s cubic-bezier(.5, 0, 1, .7) infinite; }
 .foms-wx-pic.is-live .fwx-drizzle { animation: fwxDrizzle 2.7s linear infinite; }
@@ -253,7 +272,7 @@
 @keyframes fwxDot { 0% { transform: translate(0, -28px); opacity: 0; } 15% { opacity: 1; } 85% { opacity: 1; } 100% { transform: translate(5px, 40px); opacity: 0; } }
 /* C 단계 덧그림 — 움직이는 7칸에만 마크업이 붙는다: 맑음 햇빛 쓸기 · 구름 지나가기 · 장대비 번개 */
 .fwx-fx { position: absolute; inset: 0; pointer-events: none; will-change: transform, opacity; }
-.fwx-sweep { background: linear-gradient(105deg, rgba(255, 255, 255, 0) 30%, rgba(255, 255, 255, .7) 50%, rgba(255, 255, 255, 0) 70%); transform: translateX(-130%); animation: fwxSweep 3.6s ease-in-out infinite; }
+.fwx-sweep { background: linear-gradient(105deg, rgba(255, 255, 255, 0) 30%, rgba(255, 255, 255, .7) 50%, rgba(255, 255, 255, 0) 70%); transform: translateX(-100%); animation: fwxSweep 2.8s linear infinite; }
 .fwx-pass {
   inset: auto; top: 30px; left: 0; width: 34px; height: 14px; opacity: .9;
   background: radial-gradient(circle at 30% 60%, #fff 0 6px, transparent 6.5px), radial-gradient(circle at 58% 40%, #fff 0 8px, transparent 8.5px), radial-gradient(circle at 82% 65%, #fff 0 5px, transparent 5.5px);
@@ -266,8 +285,8 @@
   animation: fwxFlash 4.2s linear infinite;
 }
 [data-theme='dark'] .fwx-flash { background: #c9d6ff; }
-@keyframes fwxSweep { 0% { transform: translateX(-130%); } 55%, 100% { transform: translateX(130%); } }
-@keyframes fwxPass { from { transform: translateX(60px); } to { transform: translateX(-40px); } }
+@keyframes fwxSweep { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+@keyframes fwxPass { from { transform: translateX(52px); } to { transform: translateX(-34px); } }
 @keyframes fwxFlash { 0%, 68% { opacity: 0; } 70% { opacity: .85; } 72% { opacity: 0; } 75% { opacity: .6; } 78%, 100% { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) {
   .foms-wx-pic .fwx-a { animation: none !important; }
