@@ -50,6 +50,7 @@ from foms.services.foms_split_view import build_split_master_cards, build_split_
 from foms.services.orders.dashboard_control_tower import (
     build_mobile_control_tower,
     build_field_ops_for_day,
+    build_month_calendar,
     build_risk_frame,
     risk_row_cta_meta,
 )
@@ -466,7 +467,7 @@ def erp_dashboard():
     # 같은 판정으로 건너뛴다. tower_mode 자체는 모바일 헤더(내 할 일 토글)가 읽어 그대로 둔다.
     if tower_mode and wants_mobile_width_surfaces():
         _tower_fp = {
-            "v": 2,
+            "v": 3,
             "user": _orders_user_visibility_fingerprint(current_user, is_admin),
             "date": today_iso,
             "mine": f_tower_mine,
@@ -670,7 +671,7 @@ def erp_dashboard_field_ops():
     )
     list_html = render_template(
         'orders/partials/dashboard_mobile_tower_field_list.html',
-        rows=payload['rows'],
+        sections=payload['sections'],
     )
     queue_args = {'date': date_iso, 'view': 'queue'}
     if field_type in ('measure', 'construction', 'as'):
@@ -683,11 +684,44 @@ def erp_dashboard_field_ops():
             'measure_count': payload['measure_count'],
             'construction_count': payload['construction_count'],
             'as_count': payload['as_count'],
+            'amount_label': payload['amount_label'],
+            'is_today': payload['is_today'],
             'label': payload['label'],
             'iso': date_iso,
             'queue_href': url_for('erp_dashboard.erp_dashboard', **queue_args),
         },
     }
+
+
+@erp_dashboard_bp.route('/dashboard/field-calendar')
+@login_required
+def erp_dashboard_field_calendar():
+    """모바일 홈 월간 현장 달력 — 달 이동(‹ ›) swap 용 HTML 조각(JSON).
+
+    month=YYYY-MM. 형식 오류·오늘 기준 ±12개월 밖이면 이번 달. 타워와 같은 캐시 TTL.
+    """
+    db = get_db()
+    current_user = getattr(g, 'current_user', None)
+    is_admin = bool(current_user and current_user.role == 'ADMIN')
+    mine_only = erp_tower_mine_from_request(request)
+    month = (request.args.get('month') or '').strip()[:7]
+    today = get_today_kst()
+    cache_key = build_dashboard_cache_key("orders", "mobile_month_calendar", {
+        "v": 1,
+        "user": _orders_user_visibility_fingerprint(current_user, is_admin),
+        "date": today.isoformat(),
+        "month": month,
+        "mine": mine_only,
+    })
+    calendar = get_or_compute_dashboard_slice(
+        cache_key,
+        TTL_SUMMARY_COUNTS,
+        lambda: build_month_calendar(db, current_user, month, mine_only=mine_only, today=today),
+        page="orders",
+        slice_name="mobile_month_calendar",
+    )
+    html = render_template('orders/partials/dashboard_mobile_tower_calendar.html', cal=calendar)
+    return {'success': True, 'data': {'html': html, 'month': calendar['month']}}
 
 
 @erp_dashboard_bp.route('/orders/<int:order_id>/mobile')

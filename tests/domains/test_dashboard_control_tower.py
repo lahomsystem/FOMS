@@ -41,27 +41,49 @@ def test_measure_readiness_warns_when_unassigned():
 
 
 def test_measure_readiness_ok_by_manager_or_ids():
-    assert ct._measure_readiness(_Order(manager_name="한용희"), {})[0] == "ok"
+    """담당이 있으면 칩 없음(빈 라벨) — 전 행 '준비완료'는 정보가 없다(2026-10-14)."""
+    assert ct._measure_readiness(_Order(manager_name="한용희"), {}) == ("ok", "")
     sd = {"assignments": {"sales_assignee_user_ids": [7]}}
-    assert ct._measure_readiness(_Order(), sd)[0] == "ok"
+    assert ct._measure_readiness(_Order(), sd) == ("ok", "")
 
 
-def test_construction_readiness_risk_when_not_yet_shipped():
-    # 시공일인데 아직 생산/컨펌 단계 → 출고 미확인(위험)
+def test_construction_readiness_risk_only_today_and_tomorrow():
+    # 출고 전 단계: 오늘·내일만 '출고 전'(위험), 먼 날짜는 정상 진행이라 칩 없음.
     for code in ("PRODUCTION", "CONFIRM", "DRAWING", "RECEIVED"):
-        state, label = ct._construction_readiness(_Order(erp_stage_code=code), {})
-        assert state == "risk" and label == "출고 미확인"
+        for offset in (0, 1):
+            assert ct._construction_readiness(_Order(erp_stage_code=code), {}, day_offset=offset) == ("risk", "출고 전")
+        assert ct._construction_readiness(_Order(erp_stage_code=code), {}, day_offset=2) == ("ok", "")
+
+
+def test_construction_readiness_silent_for_past_days():
+    assert ct._construction_readiness(_Order(erp_stage_code="PRODUCTION"), {}, day_offset=-1) == ("ok", "")
 
 
 def test_construction_readiness_ok_when_installed_and_paid():
-    state, label = ct._construction_readiness(_Order(erp_stage_code="CONSTRUCTION"), {})
-    assert state == "ok" and label == "준비완료"
+    assert ct._construction_readiness(_Order(erp_stage_code="CONSTRUCTION"), {}) == ("ok", "")
 
 
 def test_construction_readiness_warns_on_outstanding_balance():
-    sd = {"pricing": {"balance": 100000}}
-    state, label = ct._construction_readiness(_Order(erp_stage_code="CONSTRUCTION", structured_data=sd), sd)
-    assert state == "warn" and label == "잔금 미수"
+    sd = {"pricing": {"balance": 480000}}
+    state, label = ct._construction_readiness(_Order(erp_stage_code="CONSTRUCTION", structured_data=sd), sd, day_offset=5)
+    assert state == "warn" and label == "잔금 48만"
+
+
+def test_man_label_rounds_to_man_and_eok():
+    assert ct._man_label(None) == ""
+    assert ct._man_label(0) == ""
+    assert ct._man_label(34_700_000) == "3,470만"
+    assert ct._man_label(123_000_000) == "1억 2,300만"
+    assert ct._man_label(200_000_000) == "2억"
+    assert ct._man_label(4_000) == "4,000원"
+
+
+def test_time_group_and_items_label():
+    assert [ct._time_group(t) for t in ("09:00", "오전", "13:00", "3~4시", "오후", "종일", None, "미정")] == [
+        "오전", "오전", "오후", "오후", "오후", "종일", "시간 미정", "시간 미정",
+    ]
+    assert ct._items_label({"items": [{"product_name": "붙박이장"}, {"product_name": "화장대"}, {}]}) == "붙박이장 외 1"
+    assert ct._items_label({"items": []}) == ""
 
 
 def test_risk_group_shape():
@@ -115,20 +137,35 @@ def _order_with_balance(oid, bal):
     )
 
 
-def test_week_strip_marks_first_day_as_today():
-    """주간 타일 첫 칸만 is_today/dow=오늘 (KST today 인자 SSOT)."""
+def test_month_calendar_grid_starts_sunday():
+    """2026-10: 1일=목요일 → 일요일 시작 5주, 앞 4칸(9/27~30)은 달 밖. 오늘 칸 1개."""
     import datetime
 
-    today = datetime.date(2026, 6, 17)
-    week = ct._week_strip(_FakeQuery([]), today)
-    assert week["days"][0]["iso"] == "2026-06-17"
-    assert week["days"][0]["is_today"] is True
-    assert week["days"][0]["dow"] == "오늘"
-    assert week["days"][1]["iso"] == "2026-06-18"
-    assert week["days"][1]["is_today"] is False
-    # AS 출고 집계 계약: 일자별 as_count + 주간 as_total 키 존재(빈 base=0).
-    assert week["days"][0]["as_count"] == 0
-    assert week["as_total"] == 0
+    today = datetime.date(2026, 10, 14)
+    cal = ct._month_calendar(_FakeQuery([]), today, today.replace(day=1))
+    cells = [c for week in cal["weeks"] for c in week]
+    assert len(cal["weeks"]) == 5 and all(len(w) == 7 for w in cal["weeks"])
+    assert [c["iso"] for c in cells[:5]] == ["2026-09-27", "2026-09-28", "2026-09-29", "2026-09-30", "2026-10-01"]
+    assert [c["in_month"] for c in cells[:5]] == [False, False, False, False, True]
+    assert cells[-1]["iso"] == "2026-10-31" and cells[-1]["dow"] == 6
+    assert [c["iso"] for c in cells if c["is_today"]] == ["2026-10-14"]
+    assert next(c for c in cells if c["iso"] == "2026-10-09")["is_holiday"] is True  # 한글날
+    assert cal["label"] == "2026년 10월" and cal["month"] == "2026-10" and cal["is_this_month"] is True
+    assert (cal["prev"], cal["next"]) == ("2026-09", "2026-11")
+    assert cal["amount_label"] == "0원" and cal["as_total"] == 0
+
+
+def test_month_first_clamps_bad_or_far_months():
+    import datetime
+
+    today = datetime.date(2026, 10, 14)
+    assert ct._month_first("2026-12", today) == datetime.date(2026, 12, 1)
+    assert ct._month_first("2027-10", today) == datetime.date(2027, 10, 1)
+    assert ct._month_first("2027-11", today) == datetime.date(2026, 10, 1)  # 12개월 밖
+    assert ct._month_first("bogus", today) == datetime.date(2026, 10, 1)
+    assert ct._month_first(None, today) == datetime.date(2026, 10, 1)
+    cal = ct._month_calendar(_FakeQuery([]), today, datetime.date(2027, 10, 1))
+    assert cal["next"] is None and cal["prev"] == "2027-09"
 
 
 def test_business_window_dates_includes_today_excludes_far():
@@ -261,7 +298,8 @@ def test_field_ops_for_day_supports_as_visit_rows(app):
     assert payload["rows"][0]["type_code"] == "as"
     assert payload["rows"][0]["type"] == "AS"
     assert payload["rows"][0]["time"] == "15:30"
-    assert payload["rows"][0]["readiness_label"] == "AS 방문"
+    assert payload["rows"][0]["readiness_label"] == ""  # AS 는 묶음 머리가 종류를 말한다
+    assert [s["type_code"] for s in payload["sections"]] == ["as"]
 
 
 def test_mobile_control_tower_exposes_today_as_count(app):
@@ -344,8 +382,12 @@ def test_tower_counts_multi_date_orders_on_each_date(app):
     }
 
     base = ct._tower_base_query(db_session, None)
-    week = ct._week_strip(base, today)
-    by_iso = {d["iso"]: d for d in week["days"]}
+    cal = ct._month_calendar(base, today, datetime.date(2026, 7, 1))
+    by_iso = {c["iso"]: c for week in cal["weeks"] for c in week if c["in_month"]}
+    by_iso[today.isoformat()] = next(
+        c for week in ct._month_calendar(base, today, today.replace(day=1))["weeks"] for c in week
+        if c["iso"] == today.isoformat()
+    )
     assert by_iso[today.isoformat()]["measure"] == 1
     assert by_iso[meas2]["measure"] == 1  # 2차 실측일도 카운트 (구현 전 0)
     assert by_iso[cons1]["construction"] == 1
@@ -394,8 +436,8 @@ def test_tower_measure_counts_exclude_self_measurement_done(app):
     base = ct._tower_base_query(db_session, None)
     measure, _construction, _as_count = ct._type_counts_for_date(base, today.isoformat())
     assert measure == 0
-    week = ct._week_strip(base, today)
-    assert week["days"][0]["measure"] == 0
+    cal = ct._month_calendar(base, today, today.replace(day=1))
+    assert next(c for w in cal["weeks"] for c in w if c["iso"] == today.isoformat())["measure"] == 0
 
 
 def test_orders_dashboard_date_field_as_filters_as_visit_queue(app):
@@ -534,3 +576,137 @@ def test_orders_dashboard_date_field_measure_lands_second_measurement_date(app):
     )
 
     assert [o.id for o in query.all()] == [order.id]
+
+
+def test_field_ops_sort_puts_unknown_time_last_and_reads_free_text():
+    """현장 목록 시각 정렬 회귀 가드(2026-10-14 운영 화면).
+
+    문자열 비교 시절엔 미정("99:99")이 "오전"·"오후"보다 앞섰고 "3~4시"가 "18:00" 뒤로 갔다.
+    """
+    def row(type_code, time):
+        return {"type_code": type_code, "time": time}
+
+    rows = [
+        row("construction", None),
+        row("construction", "오후"),
+        row("construction", "오전"),
+        row("measure", None),
+        row("measure", "종일"),
+        row("measure", "오후"),
+        row("measure", "3~4시"),
+        row("measure", "18:00"),
+        row("measure", "오전"),
+        row("measure", "09:00"),
+        row("as", "15:30"),
+    ]
+    ordered = [(r["type_code"], r["time"]) for r in sorted(rows, key=ct._field_ops_sort_key)]
+    assert ordered == [
+        ("construction", "오전"),
+        ("construction", "오후"),
+        ("construction", None),
+        ("measure", "09:00"),
+        ("measure", "오전"),
+        ("measure", "3~4시"),
+        ("measure", "18:00"),
+        ("measure", "오후"),
+        ("measure", "종일"),
+        ("measure", None),
+        ("as", "15:30"),
+    ]
+
+
+def test_field_sections_group_by_type_then_time():
+    rows = []
+    for type_code, time, amount, label in (
+        ("construction", "오전", 4_120_000, "출고 전"),
+        ("construction", None, 1_320_000, "잔금 48만"),
+        ("measure", "09:00", None, ""),
+        ("measure", "오후", None, ""),
+    ):
+        rows.append({
+            "type_code": type_code, "type": "x", "time": time, "time_group": ct._time_group(time),
+            "amount": amount, "readiness_label": label,
+        })
+    sections = ct._field_sections(rows, day_offset=0)
+    assert [(s["title"], s["count"]) for s in sections] == [("시공", 2), ("실측", 2)]
+    assert sections[0]["amount_label"] == "544만"
+    assert sections[0]["unshipped"] == 1 and sections[0]["unshipped_when"] == "오늘"
+    assert [g["label"] for g in sections[0]["groups"]] == ["오전", "시간 미정"]
+    assert [g["label"] for g in sections[1]["groups"]] == ["오전", "오후"]
+    assert ct._field_sections(rows, day_offset=3)[0]["unshipped_when"] == ""
+
+
+def test_month_calendar_amounts_and_soon_risk(app):
+    """날짜 칸 금액 = 그날 시공 출고가 합, 이달 합계는 주문당 한 번. 빨간 점은 오늘·내일만."""
+    import datetime
+
+    from db import db_session
+    from models import Order
+
+    today = datetime.date(2026, 6, 10)
+    far = "2026-06-20"
+
+    def _order(name, stage, dates, total):
+        return Order(
+            received_date=today.isoformat(),
+            customer_name=name,
+            phone="010-1000-2000",
+            address="서울",
+            product="붙박이장",
+            status=stage,
+            erp_stage_code=stage,
+            is_erp_order=True,
+            structured_data={
+                "parties": {"customer": {"name": name, "phone": "010-1000-2000"}},
+                "schedule": {"construction": {"date": dates}},
+                "totals": {"items_total": total},
+                "items": [{"product_name": "붙박이장"}],
+            },
+        )
+
+    unshipped_today = _order("출고전 오늘", "PRODUCTION", today.isoformat(), 4_120_000)
+    two_days = _order("이틀 시공", "PRODUCTION", f"{today.isoformat()}, {far}", 2_000_000)
+    unshipped_far = _order("출고전 먼날", "PRODUCTION", far, 1_000_000)
+    db_session.add_all([unshipped_today, two_days, unshipped_far])
+    db_session.commit()
+
+    base = ct._tower_base_query(db_session, None)
+    cal = ct._month_calendar(base, today, today.replace(day=1))
+    by_iso = {c["iso"]: c for w in cal["weeks"] for c in w if c["in_month"]}
+    assert by_iso[today.isoformat()]["construction"] == 2
+    assert by_iso[today.isoformat()]["amount_label"] == "612만"
+    assert by_iso[today.isoformat()]["unshipped"] == 2
+    assert by_iso[far]["amount_label"] == "300만"
+    assert by_iso[far]["unshipped"] == 0  # 먼 날짜 출고 전은 점 없음
+    assert cal["amount_label"] == "712만"  # 이틀 시공 주문은 한 번만
+
+    payload = ct.build_field_ops_for_day(db_session, None, today.isoformat(), today=today)
+    assert payload["amount_label"] == "612만" and payload["is_today"] is True
+    assert {r["readiness_label"] for r in payload["rows"]} == {"출고 전"}
+    assert payload["sections"][0]["unshipped"] == 2
+    assert payload["rows"][0]["items_label"] == "붙박이장" and payload["rows"][0]["phone"]
+
+    far_payload = ct.build_field_ops_for_day(db_session, None, far, today=today)
+    assert {r["readiness_label"] for r in far_payload["rows"]} == {""}
+
+
+def test_field_calendar_route_renders_month_and_clamps(auth_client):
+    """달 이동 swap 라우트: 달력 조각 HTML + 정규화된 month. 형식 오류·12개월 밖은 이번 달."""
+    from foms.services.erp_display import get_today_kst
+
+    this_month = get_today_kst().strftime("%Y-%m")
+    res = auth_client.get("/erp/dashboard/field-calendar?month=bogus")
+    assert res.status_code == 200
+    body = res.get_json()
+    assert body["success"] is True and body["data"]["month"] == this_month
+    assert "data-foms-cal" in body["data"]["html"] and "data-foms-day-tile" in body["data"]["html"]
+
+    far = auth_client.get("/erp/dashboard/field-calendar?month=1999-01").get_json()
+    assert far["data"]["month"] == this_month
+
+
+def test_field_ops_route_renders_sections(auth_client):
+    res = auth_client.get("/erp/dashboard/field-ops?date=2026-06-30&field=all")
+    data = res.get_json()["data"]
+    assert data["amount_label"] == "0원" and "is_today" in data
+    assert "foms-tower__empty" in data["html"]

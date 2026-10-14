@@ -87,26 +87,30 @@ def test_p1_dashboard_tower_mobile_width_contract() -> None:
         "erp-dashboard-mobile-v2",
     ):
         assert token in tower_css or token in tower_tpl
+    tower_calendar = (
+        ROOT / "templates/orders/partials/dashboard_mobile_tower_calendar.html"
+    ).read_text(encoding="utf-8")
     for token in (
-        "foms-tower__day-count--measure",
-        "foms-tower__day-count--as",
-        "grid-template-rows: auto auto auto",
+        "foms-tower__cal-grid",
+        "foms-tower__cal-n--measure",
+        "foms-tower__cal-n--as",
+        "grid-template-columns: repeat(7, minmax(0, 1fr))",
         "grid-template-columns: repeat(4, minmax(0, 1fr))",
         "justify-content: center",
-        "min-width: 34px",
         "foms-tower__pipeline-toggle::after",
         "content: '펼치기'",
         "content: '접기'",
         "align-content: start",
-        "is-empty",
-        "📐",
-        "🔧",
+        "foms-tower__sheet",
+        "data-foms-day-tile",
     ):
-        assert token in tower_css or token in tower_tpl
+        assert token in tower_css or token in tower_tpl or token in tower_calendar
     assert 'class="foms-tower__pipeline-toggle" aria-hidden="true"></span>' in tower_tpl
     assert 'class="foms-tower__pipeline-toggle">접기</span>' not in tower_tpl
-    assert "row.type_code == 'as'" in tower_field_list
-    assert "foms-stage-badge--{{ 'construction' if row.type_code == 'construction' else ('cs' if row.type_code == 'as' else 'measure') }}" in tower_field_list
+    # 그날 목록: 종류 묶음 머리가 종류를 말한다 — 카드 안 종류 배지 중복 금지, 칩은 할 일이 있을 때만.
+    assert "sec.groups" in tower_field_list
+    assert "foms-stage-badge" not in tower_field_list
+    assert "{% if row.readiness_label %}" in tower_field_list
 
 
 def test_p1_dashboard_mobile_v2_body_mockup_selectors() -> None:
@@ -229,7 +233,7 @@ def test_p1_shell_hides_desktop_chrome_on_mobile_v2() -> None:
     assert ".layout-header" in head
     assert ".layout-global-nav--erp-v2-suppressed" in head
     assert 'erp-dashboard\\00002d layout' in head
-    assert "foms-mobile-surfaces.css') }}?v=20261005r" in head
+    assert "foms-mobile-surfaces.css') }}?v=20261014a" in head
     assert head.index("foms-mobile-v2-critical-css") < head.index("foms-mobile-surfaces.css")
 
 
