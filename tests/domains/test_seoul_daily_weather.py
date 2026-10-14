@@ -189,7 +189,9 @@ def test_mid_fills_later_days_but_keeps_short_values():
     out = w.refresh_mid(db_session, now=NOW, transport=tr, key="k")
     assert out == {"stored": 2, "base": "202610140600"}
     days = w.load_days(db_session, datetime.date(2026, 10, 1), datetime.date(2026, 10, 31))["days"]
-    assert days["2026-10-17"] == {"kind": "drizzle", "t_min": 12, "t_max": 21, "pop": 70, "src": "mid", "base": "202610140600"}
+    assert days["2026-10-17"] == {"kind": "drizzle", "t_min": 12, "t_max": 21, "pop": 70, "src": "mid", "base": "202610140600",
+                                  "slots": ["sun", "sun", "drizzle", "drizzle"]}  # 시간 줄: 오전 글 0~11시 · 오후 글 12~23시
+    assert days["2026-10-22"]["slots"] == ["flurry"] * 4  # 8일 뒤부터는 하루 글 하나
     assert days["2026-10-22"]["kind"] == "flurry" and (days["2026-10-22"]["t_min"], days["2026-10-22"]["t_max"]) == (-6, 2)
     assert days["2026-10-14"]["src"] == "short"
 
@@ -329,3 +331,43 @@ def test_join_flags_only_between_same_weather():
     assert not cells["2026-10-14"]["wx_join_l"] and not cells["2026-10-14"]["wx_join_r"]
     assert not cells["2026-10-17"]["wx_join_r"] and not cells["2026-10-18"]["wx_join_l"]  # 토→일은 다른 주(띠가 끊긴다)
     assert not cells["2026-10-15"]["wx_join_l"]  # 날씨 없는 날
+
+
+# --------------------------------------------------------------------------- #
+# 시간 줄 보기 — 6시간 칸(slots)
+# --------------------------------------------------------------------------- #
+
+def test_slots_split_day_into_four_six_hour_parts():
+    """0~5·6~11·12~17·18~23시 칸마다 따로 판정한다. 밤 칸의 구름도 그 칸 시각으로 본다(낮 시간만 보지 않는다)."""
+    items = (_hours("20261015", "TMP", [(h, "15") for h in range(24)])
+             + _hours("20261015", "SKY", [(h, "4" if h < 6 else "1") for h in range(24)])
+             + _hours("20261015", "PTY", [(h, "1" if 12 <= h < 18 else "0") for h in range(24)])
+             + _hours("20261015", "PCP", [(h, "8.0mm" if h == 13 else ("1mm 미만" if 12 <= h < 18 else "강수없음")) for h in range(24)])
+             + _hours("20261015", "SNO", [(h, "적설없음") for h in range(24)]))
+    assert w.classify_slots(items) == ["cloud", "sun", "heavy", "sun"]
+
+
+def test_slots_missing_hours_are_none_and_today_keeps_earlier_parts():
+    """오늘 늦은 발표엔 지난 시간이 없다(None) — 먼저 받아 둔 그 칸 값을 지킨다."""
+    morning = (_hours("20261014", "TMP", [(h, "15") for h in range(24)]) + _hours("20261014", "SKY", [(h, "4") for h in range(24)])
+               + _hours("20261015", "TMP", [(h, "15") for h in range(24)]))
+    w.refresh_short(db_session, now=NOW, transport=_Transport({"getVilageFcst": _Resp(200, _ok(morning))}), key="k")
+    afternoon = (_hours("20261014", "TMP", [(h, "18") for h in range(15, 24)]) + _hours("20261014", "SKY", [(h, "1") for h in range(15, 24)])
+                 + _hours("20261015", "TMP", [(h, "15") for h in range(24)]))
+    assert w.classify_slots(afternoon[:18]) == [None, None, "sun", "sun"]
+    later = NOW.replace(hour=15, minute=0)
+    w.refresh_short(db_session, now=later, transport=_Transport({"getVilageFcst": _Resp(200, _ok(afternoon))}), key="k")
+    days = w.load_days(db_session, datetime.date(2026, 10, 1), datetime.date(2026, 10, 31))["days"]
+    assert days["2026-10-14"]["slots"] == ["cloud", "cloud", "sun", "sun"]
+
+
+def test_calendar_cells_carry_slots_only_when_well_formed():
+    today = datetime.date(2026, 10, 14)
+    weather = {"days": {"2026-10-14": {"kind": "sun", "slots": ["sun", "cloud", "cloud", "drizzle"]},
+                        "2026-10-15": {"kind": "sun", "slots": ["sun"]},     # 깨진 값
+                        "2026-10-16": {"kind": "cloud"}}}                    # 옛 저장 값(칸 없음)
+    from models import Order
+    cells = _cells(ct._month_calendar(db_session.query(Order), today, today.replace(day=1), None, weather))
+    assert cells["2026-10-14"]["wx_slots"] == ["sun", "cloud", "cloud", "drizzle"]
+    assert cells["2026-10-15"]["wx_slots"] is None and cells["2026-10-16"]["wx_slots"] is None
+    assert cells["2026-10-20"]["wx_slots"] is None

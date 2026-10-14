@@ -4,10 +4,13 @@
    디자인: 달마다 사진 머리띠 + 주마다 입체 날씨 띠(목업 M3v2, docs/specs/2026-10-14-mobile-calendar-weather-band_SPEC.md).
    - 띠 바탕: 칸마다 제 날씨 색, 양끝은 옆 날짜 색과 반씩 섞어 이음새 없이 잇는다(wx-k/wx-p/wx-n).
    - 그림: 오른쪽 날짜부터 깔아 각 칸 그림이 옆 날짜 번짐 위에 온다. 움직임은 c.wx_live(오늘~6일 뒤)만.
-   - 금액 색(tone)은 출고가 알약에만. #}
+   - 금액 색(tone)은 출고가 알약에만.
+   날씨 보기 2가지(사람마다 쿠키 foms_wx_style, 범례의 [칸|시간 줄] 버튼): 칸(기본, 위 설명) · 시간 줄(한 주 = SVG 한 장,
+   6시간 칸 날씨가 바뀌는 시각에서 이어진다 — foms/services/orders/calendar_weather_timeline.py). #}
 {% from 'orders/partials/dashboard_mobile_tower_weather.html' import wx_defs, wx_pic %}
+{% set wx_tl = wx_style(request.cookies) == 'timeline' %}
 <div class="foms-tower__cal" data-foms-cal data-month="{{ cal.month }}">
-  {{ wx_defs(cal.wx_used, cal.wx_still) }}
+  {% if wx_tl %}{% if cal.wx_used %}{{ wx_timeline_defs() }}{% endif %}{% else %}{{ wx_defs(cal.wx_used, cal.wx_still) }}{% endif %}
   {# 사진 출처 줄은 화면에서 뺐다(사용자 2026-10-14). 출처는 title(길게 누르기·마우스 올리기)과 calendar_month_photos.py 에 남긴다. #}
   <div class="foms-tower__cal-hero foms-cal-photo-{{ cal.photo.month }}"{% if cal.photo.credit %} title="{{ cal.photo.credit }}"{% endif %}>
     <div class="foms-tower__cal-top">
@@ -55,7 +58,9 @@
     <div class="foms-tower__cal-grid">
       {%- for week in cal.weeks %}{% set inm = week | selectattr('in_month') | list -%}
       <div class="foms-tower__cal-week">
-        {%- if inm -%}
+        {%- if inm and wx_tl -%}
+        <div class="foms-wx-band s-{{ inm[0].dow + 1 }} n-{{ inm | length }} tl-band" aria-hidden="true">{{ wx_timeline_band(inm, 'tl' ~ cal.month | replace('-', '') ~ 'w' ~ loop.index) }}<span class="foms-wx-gloss"></span></div>
+        {%- elif inm -%}
         <div class="foms-wx-band s-{{ inm[0].dow + 1 }} n-{{ inm | length }}" aria-hidden="true">
           {%- for c in inm | reverse -%}
           <span class="foms-wx-seg c-{{ c.dow - inm[0].dow + 1 }} wx-k-{{ c.wx or 'none' }}{% if c.wx_prev != (c.wx or 'none') %} wx-p-{{ c.wx_prev }}{% endif %}{% if c.wx_next != (c.wx or 'none') %} wx-n-{{ c.wx_next }}{% endif %}{% if c.wx_join_l %} is-jl{% endif %}{% if c.wx_join_r %} is-jr{% endif %}{% if c.is_past %} is-past{% endif %}">{% if c.wx %}{{ wx_pic(c.wx, c.wx_live) }}{% if c.wx_live and c.wx in ('sun', 'cloud', 'heavy') %}<span class="fwx-fxbox">{% if c.wx == 'sun' %}<span class="fwx-fx fwx-sweep"></span>{% elif c.wx == 'cloud' %}<span class="fwx-fx fwx-pass"></span>{% else %}<span class="fwx-fx fwx-flash"></span><span class="fwx-fx fwx-bolt"></span>{% endif %}</span>{% endif %}{% endif %}</span>
@@ -78,6 +83,9 @@
     </div>
 
     <div class="foms-tower__cal-legend">
+      <span class="foms-tower__wx-style" role="group" aria-label="날씨 보기">
+        <button type="button" data-foms-wx-style="cell" aria-pressed="{{ 'false' if wx_tl else 'true' }}">칸</button><button type="button" data-foms-wx-style="timeline" aria-pressed="{{ 'true' if wx_tl else 'false' }}">시간 줄</button>
+      </span>
       <span class="foms-tower__wx-chips" aria-label="날씨">
         <i class="foms-tower__wx-chip wx-k-sun">맑음</i><i class="foms-tower__wx-chip wx-k-cloud">구름</i><i class="foms-tower__wx-chip wx-k-drizzle">부슬비</i><i class="foms-tower__wx-chip wx-k-heavy">장대비</i><i class="foms-tower__wx-chip wx-k-flurry">부슬눈</i><i class="foms-tower__wx-chip wx-k-snow">함박눈</i>
       </span>

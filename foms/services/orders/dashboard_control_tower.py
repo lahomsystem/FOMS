@@ -347,6 +347,7 @@ def _month_calendar(
     weather: `seoul_daily_weather.load_days` 결과. 칸마다 날씨 종류(wx)·최고기온·움직임 여부(wx_live).
       자료 없는 날은 wx="" (띠는 회백색). 움직임은 오늘부터 예보 끝(10일 뒤)까지 날씨 있는 칸 전부, 지난 날은 멈춤
       (사용자 2026-10-14. 실측 CPU 6배 느리게: 11칸 53fps · 지난 날 포함 24칸 29.5fps → 지난 날은 멈춘다).
+      wx_slots 는 '시간 줄' 보기용 6시간 칸 날씨(그림은 calendar_weather_timeline 이 화면 그릴 때 만든다).
     """
     wx_days = (weather or {}).get("days") or {}
     colors = colors if colors is not None else dict(DEFAULT_COLORS)
@@ -386,6 +387,7 @@ def _month_calendar(
             wx = str(wx_day.get("kind") or "") if isinstance(wx_day, dict) else ""
             t_max = wx_day.get("t_max") if isinstance(wx_day, dict) else None
             t_min = wx_day.get("t_min") if isinstance(wx_day, dict) else None
+            slots = wx_day.get("slots") if isinstance(wx_day, dict) else None
             if wx:
                 aria += f", 날씨 {WEATHER_LABELS.get(wx, '')}"
                 if t_min is not None and t_max is not None:
@@ -410,6 +412,8 @@ def _month_calendar(
                 "t_max_label": f"{t_max}°" if wx and t_max is not None else "",
                 "t_min_label": f"{t_min}°" if wx and t_min is not None else "",
                 "wx_live": bool(wx) and today <= day,
+                # 시간 줄 보기(사람마다 고름)의 6시간 칸 4개 — 없으면 None(그날 날씨로 채운다)
+                "wx_slots": list(slots) if wx and isinstance(slots, list) and len(slots) == 4 else None,
                 "unshipped": unshipped,
                 "aria": aria,
             })

@@ -4,6 +4,8 @@
  *  - 저장 → POST 같은 주소 {enabled, yellow_from, pink_from, settings_version}.
  *    409(다른 사람이 먼저 저장) = 안내 후 최신 값으로 다시 채운다. 성공 = 시트 닫고 달력을 다시 읽는다
  *    (타워 요소에 foms:tower-calendar-reload → mobile-tower.js).
+ * 날씨 보기 [data-foms-wx-style] (칸 | 시간 줄) — 사람마다(이 브라우저) 쿠키 foms_wx_style 에 1년 저장하고
+ *   같은 신호로 달력을 다시 읽는다(서버가 쿠키를 보고 그린다). 근거: docs/specs/2026-10-14-mobile-calendar-weather-band_SPEC.md
  * 문서 단위 위임이라 탭 스왑 뒤 다시 연결할 것이 없다(셸 run-once 스크립트).
  * 근거: docs/specs/2026-10-14-mobile-calendar-amount-colors_SPEC.md
  */
@@ -135,10 +137,7 @@
       }
       state.version = data.data.version;
       close();
-      var tower = document.querySelector('[data-foms-tower]');
-      if (tower) {
-        tower.dispatchEvent(new CustomEvent('foms:tower-calendar-reload'));
-      }
+      reloadCalendar();
     } catch (err) {
       showError(sheet, '저장하지 못했어요. 연결을 확인해 주세요.');
     } finally {
@@ -146,7 +145,32 @@
     }
   }
 
+  function reloadCalendar() {
+    var tower = document.querySelector('[data-foms-tower]');
+    if (tower) {
+      tower.dispatchEvent(new CustomEvent('foms:tower-calendar-reload'));
+    }
+  }
+
+  function setWeatherStyle(button) {
+    var style = button.getAttribute('data-foms-wx-style') === 'timeline' ? 'timeline' : 'cell';
+    if (button.getAttribute('aria-pressed') === 'true') {
+      return;
+    }
+    document.cookie = 'foms_wx_style=' + style + '; path=/; max-age=31536000; SameSite=Lax';
+    var group = button.parentNode;
+    Array.prototype.forEach.call(group.querySelectorAll('[data-foms-wx-style]'), function (b) {
+      b.setAttribute('aria-pressed', b === button ? 'true' : 'false');
+    });
+    reloadCalendar();
+  }
+
   document.addEventListener('click', function (ev) {
+    var styleButton = ev.target.closest('[data-foms-wx-style]');
+    if (styleButton) {
+      setWeatherStyle(styleButton);
+      return;
+    }
     var opener = ev.target.closest('[data-foms-colors-open]');
     if (opener) {
       open(opener);
