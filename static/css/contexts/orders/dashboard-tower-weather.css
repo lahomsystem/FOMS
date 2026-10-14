@@ -2,8 +2,8 @@
    근거: docs/specs/2026-10-14-mobile-calendar-weather-band_SPEC.md
    - 띠 바탕: 칸(.foms-wx-seg)마다 제 날씨 색(--wx-c), 양끝은 옆 날짜 색(--wx-p/--wx-n)과 반씩 섞는다 → 이음새 없음.
    - 그림 판(.foms-wx-pic)은 칸 폭 2배, 양끝은 마스크로 사라진다. 물체는 제 칸 안, 빛만 옆으로 번진다.
-   - 움직임은 transform·opacity 만, .is-live(오늘~6일 뒤 7칸)만. '동작 줄이기'면 전부 멈춘다.
-     측정(목업, CPU 6배 느리게): 7칸 58fps ≈ 정지, 31칸 22fps → 7칸 제한을 풀지 말 것. */
+   - 움직임은 transform·opacity 만, .is-live(오늘~예보 끝, 지난 날 제외)만. '동작 줄이기'면 전부 멈춘다.
+     측정(실템플릿, CPU 6배 느리게, 아주 강하게 단계): 11칸 53fps · 지난 날 포함 24칸 29.5fps → 지난 날은 움직이지 말 것. */
 
 .foms-tower {
   --wx-sun: rgb(255, 236, 176);
@@ -105,7 +105,8 @@
 .foms-wx-seg.c-5, .foms-tower__cal-cell.is-c5 { grid-column: 5; }
 .foms-wx-seg.c-6, .foms-tower__cal-cell.is-c6 { grid-column: 6; }
 .foms-wx-seg.c-7, .foms-tower__cal-cell.is-c7 { grid-column: 7; }
-.foms-wx-seg { grid-row: 1; position: relative; min-width: 0; background: var(--wx-c); }
+/* 옆 날씨 클래스(wx-p/wx-n)는 제 날씨와 다를 때만 붙는다(전송 바이트) — 없으면 제 색으로 */
+.foms-wx-seg { grid-row: 1; position: relative; min-width: 0; background: var(--wx-c); --wx-p: var(--wx-c); --wx-n: var(--wx-c); }
 @supports (background: color-mix(in srgb, red 50%, blue)) {
   .foms-wx-seg {
     background: linear-gradient(90deg,
@@ -225,7 +226,7 @@
 .fwx-breathe { opacity: .35; }
 .fwx-twinkle { opacity: .4; }
 
-/* 움직임 — 오늘~6일 뒤 7칸(.is-live)만. 세기 = 목업 "C 아주 강하게"(사용자 2026-10-14: 폰에서 안 보였다), 부슬비는 한 단계 더 */
+/* 움직임 — 오늘~예보 끝(.is-live)만. 세기 = 목업 "C 아주 강하게"(사용자 2026-10-14: 폰에서 안 보였다), 부슬비는 한 단계 더 */
 .foms-wx-pic.is-live .fwx-a { will-change: transform; }
 .foms-wx-pic.is-live .fwx-rays { transform-box: view-box; transform-origin: 168px 18px; animation: fwxSpin 14s linear infinite; }
 .foms-wx-pic.is-live .fwx-breathe { transform-box: view-box; transform-origin: 168px 18px; animation: fwxBreathe 2.6s ease-in-out infinite; }
