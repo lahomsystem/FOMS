@@ -131,16 +131,18 @@
   box-shadow: 0 8px 18px rgba(28, 28, 30, .18), inset 0 1px 0 rgba(255, 255, 255, .95);
 }
 [data-theme='dark'] .foms-tower__cal-cell.is-today { background: rgba(255, 255, 255, .12); border-color: rgba(255, 255, 255, .28); box-shadow: 0 8px 18px rgba(0, 0, 0, .4); }
-.foms-tower__cal-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 1px; }
-.foms-tower__cal-cell .foms-tower__cal-date { width: 22px; height: 22px; font-size: 13.5px; font-weight: 700; }
+/* 기온 받침은 칸 오른쪽 위에 띄운다 — 폭 46px 폰 칸에서 날짜와 한 줄로 두면 잘린다(스테이징 2026-10-14) */
+.foms-tower__cal-head { position: relative; display: flex; align-items: flex-start; min-height: 22px; }
+.foms-tower__cal-cell .foms-tower__cal-date { width: 20px; height: 20px; font-size: 13px; font-weight: 700; }
 .foms-tower__cal-cell.is-past .foms-tower__cal-date { opacity: .45; }
 .foms-tower__cal-cell.is-today .foms-tower__cal-date { background: var(--foms-color-danger-600); color: #fff; box-shadow: 0 3px 8px rgba(255, 59, 48, .45); }
 .foms-tower__cal-temp {
-  margin-top: 3px; padding: 2px 3px; border-radius: 6px; background: rgba(255, 255, 255, .62);
-  box-shadow: 0 1px 2px rgba(28, 28, 30, .08); font-size: 9.5px; font-weight: 700; line-height: 1; color: #2c2c2e;
+  position: absolute; top: 2px; right: -1px; padding: 1px 2px; border-radius: 5px; background: rgba(255, 255, 255, .62);
+  box-shadow: 0 1px 2px rgba(28, 28, 30, .08); font-size: 9px; font-weight: 700; line-height: 1.1; color: #2c2c2e;
+  letter-spacing: -0.3px; white-space: nowrap;
 }
 [data-theme='dark'] .foms-tower__cal-temp { background: rgba(28, 28, 30, .55); color: #f2f2f7; }
-.foms-tower__cal-cell .foms-tower__cal-risk { top: 4px; left: 25px; right: auto; }
+.foms-tower__cal-cell .foms-tower__cal-risk { top: 4px; left: 22px; right: auto; }
 .foms-tower__cal-cell .foms-tower__cal-counts { align-items: flex-start; min-height: 0; padding-left: 2px; }
 .foms-tower__cal-cell .foms-tower__cal-n { font-size: 11px; line-height: 14px; gap: 3px; text-shadow: 0 1px 0 rgba(255, 255, 255, .7); }
 [data-theme='dark'] .foms-tower__cal-cell .foms-tower__cal-n { text-shadow: 0 1px 0 rgba(0, 0, 0, .5); }
