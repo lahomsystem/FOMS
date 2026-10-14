@@ -27,6 +27,7 @@
                 <span class="foms-tower__field-addr">{{ row.addr }}</span>
                 <span class="foms-tower__field-foot">
                   {% if row.items_label %}<span class="foms-tower__field-items">{{ row.items_label }}</span>{% endif %}
+                  {% if row.amount_split_label %}<span class="foms-tower__field-split">{{ row.amount_split_label }}</span>{% endif %}
                   <span class="foms-tower__field-who{% if row.manager == '-' %} is-missing{% endif %}">{{ '담당 없음' if row.manager == '-' else '담당 ' ~ row.manager }}</span>
                   {% if row.readiness_label %}<span class="foms-tower__chip foms-tower__chip--{{ row.readiness_state }}">{{ row.readiness_label }}</span>{% endif %}
                 </span>
