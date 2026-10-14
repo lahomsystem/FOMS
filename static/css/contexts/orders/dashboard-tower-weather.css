@@ -31,7 +31,7 @@
 /* 달력 상자: 테두리 카드 대신 사진 머리띠 + 겹친 흰 판 */
 .foms-tower__calbox { background: transparent; border: 0; box-shadow: none; padding: 0; }
 
-/* 사진 머리띠 — 사진 출처(CC BY-SA)는 늘 보인다(foms/services/orders/calendar_month_photos.py) */
+/* 사진 머리띠 — 출처는 화면 줄 대신 title 로만(foms/services/orders/calendar_month_photos.py) */
 .foms-tower__cal-hero {
   position: relative; border-radius: 24px; padding: 6px 8px 32px; color: #fff;
   background-size: cover; background-position: center;
@@ -62,7 +62,6 @@
 .foms-tower__cal-hero .foms-tower__mark--measure { color: #a9c4ff; }
 .foms-tower__cal-hero .foms-tower__mark--construction { color: #ffc9a3; }
 .foms-tower__cal-hero .foms-tower__mark--as { color: #8ff0e2; }
-.foms-tower__cal-credit { position: absolute; right: 12px; bottom: 26px; font-size: 8px; opacity: .72; }
 
 /* 겹친 흰 판 — 흐림(backdrop-filter)은 쓰지 않는다: 아래 움직이는 그림 때문에 매 프레임 다시 그리게 된다 */
 .foms-tower__cal-sheet {

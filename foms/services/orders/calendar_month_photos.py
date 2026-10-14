@@ -3,7 +3,7 @@
 근거: docs/specs/2026-10-14-mobile-calendar-weather-band_SPEC.md §2.1
 
 사진은 ``static/img/calendar/month-MM.webp`` (Wikimedia Commons, 780×420 이하로 줄임). CC BY-SA 사진은
-출처 표시가 이용 조건이라 머리띠 오른쪽 아래에 :data:`MONTH_PHOTO_CREDITS` 의 한 줄을 늘 보여 준다.
+출처 표시가 이용 조건이다. 화면의 출처 줄은 사용자 요청(2026-10-14)으로 뺐고, 머리띠 ``title``(길게 누르기)에 남긴다.
 사진을 바꾸면 이 표와 ``dashboard-tower-weather.css`` 의 ``.foms-cal-photo-N`` 을 함께 고친다.
 """
 
