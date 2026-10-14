@@ -512,6 +512,8 @@
       balance_confirmed_at: base.balance_confirmed_at || null,
       balance_confirmed_by: base.balance_confirmed_by || null,
       balance_confirmed_by_user_id: base.balance_confirmed_by_user_id || null,
+      balance_method: base.balance_method || null,
+      balance_method_text: base.balance_method_text || null,
     };
     return totals;
   }
@@ -1795,6 +1797,17 @@
     return text + withSuffix + "\n";
   }
   // PC erpAppendConversionMoneyLine (erp-order-shared.js:4096)
+  // 잔금 꼬리표(서버 foms/services/orders/balance_payment_method.py 미러).
+  var BALANCE_METHOD_PRESETS = ["네이버", "카드", "계좌입금"];
+  function erpBalanceConfirmedSuffix(payment) {
+    if (!payment || !payment.balance_confirmed) return "";
+    var method = String(payment.balance_method || "").trim();
+    var label = "";
+    if (BALANCE_METHOD_PRESETS.indexOf(method) >= 0) label = method;
+    else if (method === "custom") label = String(payment.balance_method_text || "").trim().slice(0, 20);
+    return label ? "(결제 완-" + label + ")" : "(결제 완)";
+  }
+
   function convAppendMoneyLine(text, label, amount, suffix) {
     var n = coerceAmount(amount);
     if (n <= 0) return text;
@@ -1922,7 +1935,7 @@
     text = convAppendMoneyLine(text, "출고가", totals.shipping_price);
     text = convAppendMoneyLine(text, "예약금(선금)", totals.deposit_amount);
     text = convAppendFreeInputBlock(text, freeInputVal);
-    var balanceSuffix = state.paymentBase && state.paymentBase.balance_confirmed ? "(결제 완)" : "";
+    var balanceSuffix = erpBalanceConfirmedSuffix(state.paymentBase);
     text = convAppendMoneyLine(text, "잔금", totals.final_amount, balanceSuffix);
     text = convAppendLine(text, "잔금메모", a.balanceNote);
     var cashReceiptVal = a.cashReceipt;
@@ -2351,6 +2364,8 @@
             balance_confirmed_at: payment.balance_confirmed_at || null,
             balance_confirmed_by: payment.balance_confirmed_by || null,
             balance_confirmed_by_user_id: payment.balance_confirmed_by_user_id || null,
+            balance_method: payment.balance_method || null,
+            balance_method_text: payment.balance_method_text || null,
           },
           ordererDirect: !(ordererName === "" || ordererName === "라홈" || ordererName === "하우드" || ordererName === "숨고"),
           activeItem: 0,
