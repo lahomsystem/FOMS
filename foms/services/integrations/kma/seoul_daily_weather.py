@@ -19,7 +19,7 @@
 저장 자리
 ---------
 새 표 없이 ``SystemSetting`` 키 :data:`WEATHER_KEY` 하나. 설정이 아니라 캐시라 버전 잠금은 쓰지 않는다.
-``{"updated_at": iso, "days": {"YYYY-MM-DD": {"kind", "t_max", "pop", "src", "base"}}}``
+``{"updated_at": iso, "days": {"YYYY-MM-DD": {"kind", "t_min", "t_max", "pop", "src", "base"}}}``
 """
 
 from __future__ import annotations
@@ -73,6 +73,10 @@ HEAVY_HOUR_MM = 7.0
 CLOUD_DAY_RATIO = 0.5
 DAYTIME_HOURS = range(9, 19)
 
+#: 미래 날짜를 단기예보로 판정하려면 시간별 기온이 이만큼은 있어야 한다. 오후 발표의 4일 뒤는 자정 한두 시간뿐이라
+#: 그 조각으로 '맑음 18°/18°' 같은 값이 나오고 중기예보(그날 '흐리고 비')를 막았다(2026-10-14 실측) → 중기에 맡긴다.
+SHORT_MIN_HOURS = 12
+
 #: 지난 날 보관 일수(달력은 지난달·다음달까지 넘겨 본다).
 RETAIN_PAST_DAYS = 62
 HTTP_TIMEOUT_SECONDS = 5
@@ -109,7 +113,7 @@ def _int_or_none(text: Any) -> Optional[int]:
 
 
 def classify_short(items: Iterable[dict[str, Any]]) -> dict[str, Any]:
-    """하루치 단기예보 항목(``category``·``fcstTime``·``fcstValue``) → ``{"kind","t_max","pop"}``.
+    """하루치 단기예보 항목(``category``·``fcstTime``·``fcstValue``) → ``{"kind","t_min","t_max","pop"}``.
 
     판정 순서(위가 먼저): 눈·진눈깨비 → 장대비(하루 합 ≥ 20mm 또는 한 시간 ≥ 7mm) → 부슬비 →
     구름(낮 시간 절반 이상 구름많음·흐림) → 맑음.
@@ -119,6 +123,7 @@ def classify_short(items: Iterable[dict[str, Any]]) -> dict[str, Any]:
     sky_day: list[int] = []
     tmp: list[int] = []
     tmx: Optional[int] = None
+    tmn: Optional[int] = None
     pop: list[int] = []
     for it in items:
         cat = str(it.get("category") or "")
@@ -136,6 +141,8 @@ def classify_short(items: Iterable[dict[str, Any]]) -> dict[str, Any]:
                 tmp.append(t)
         elif cat == "TMX":
             tmx = _int_or_none(val)
+        elif cat == "TMN":
+            tmn = _int_or_none(val)
         elif cat == "POP":
             p = _int_or_none(val)
             if p is not None:
@@ -149,8 +156,10 @@ def classify_short(items: Iterable[dict[str, Any]]) -> dict[str, Any]:
         kind = "cloud"
     else:
         kind = "sun"
+    # 일 최고(TMX)·최저(TMN)는 발표 시각에 따라 빠지는 날이 있다(오늘 오후 발표엔 오늘 TMN 이 없다) → 시간별 기온으로 채운다.
     t_max = tmx if tmx is not None else (max(tmp) if tmp else None)
-    return {"kind": kind, "t_max": t_max, "pop": max(pop) if pop else None}
+    t_min = tmn if tmn is not None else (min(tmp) if tmp else None)
+    return {"kind": kind, "t_min": t_min, "t_max": t_max, "pop": max(pop) if pop else None}
 
 
 def classify_mid_text(*texts: Any) -> str:
@@ -251,9 +260,16 @@ def refresh_short(session: Session, *, now: Optional[datetime.datetime] = None,
         d = str(it.get("fcstDate") or "")
         if len(d) == 8:
             by_date.setdefault(f"{d[:4]}-{d[4:6]}-{d[6:]}", []).append(it)
-    days = {iso: dict(classify_short(rows), src="short", base=f"{base_date}{base_time}")
-            for iso, rows in by_date.items()}
-    n = _merge(session, days, today=now.date(), keep_short=False)
+    today_iso = now.date().isoformat()
+    days = {}
+    partial = set()
+    for iso, rows in by_date.items():
+        hours = len({str(r.get("fcstTime") or "") for r in rows if r.get("category") == "TMP"})
+        if iso > today_iso and hours < SHORT_MIN_HOURS:
+            partial.add(iso)  # 하루 일부만 있는 끝 날짜 — 중기예보가 채운다
+            continue
+        days[iso] = dict(classify_short(rows), src="short", base=f"{base_date}{base_time}", hours=hours)
+    n = _merge(session, days, today=now.date(), keep_short=False, drop_partial=partial)
     return {"stored": n, "base": f"{base_date}{base_time}"}
 
 
@@ -282,6 +298,7 @@ def refresh_mid(session: Session, *, now: Optional[datetime.datetime] = None,
         pops = [p for p in pops if p is not None]
         days[(base_day + datetime.timedelta(days=n)).isoformat()] = {
             "kind": classify_mid_text(*texts),
+            "t_min": _int_or_none(ta_row.get(f"taMin{n}")),
             "t_max": _int_or_none(ta_row.get(f"taMax{n}")),
             "pop": max(pops) if pops else None,
             "src": "mid",
@@ -291,7 +308,8 @@ def refresh_mid(session: Session, *, now: Optional[datetime.datetime] = None,
     return {"stored": n, "base": tm_fc}
 
 
-def _merge(session: Session, days: dict[str, dict[str, Any]], *, today: datetime.date, keep_short: bool) -> int:
+def _merge(session: Session, days: dict[str, dict[str, Any]], *, today: datetime.date, keep_short: bool,
+           drop_partial: Iterable[str] = ()) -> int:
     """새 날짜 값을 저장된 값에 합친다 — 오늘 이전은 그대로(그날 마지막 예보), 오래된 날짜는 지운다."""
     row = session.query(SystemSetting).filter(SystemSetting.setting_key == WEATHER_KEY).with_for_update().first()
     current = copy.deepcopy(row.setting_value) if row is not None and isinstance(row.setting_value, dict) else {}
@@ -303,10 +321,19 @@ def _merge(session: Session, days: dict[str, dict[str, Any]], *, today: datetime
         if iso < today_iso or val.get("kind") not in KINDS:
             continue
         old = stored.get(iso)
-        if keep_short and isinstance(old, dict) and old.get("src") == "short":
-            continue
+        if keep_short and isinstance(old, dict) and old.get("src") == "short" and int(old.get("hours") or 0) >= SHORT_MIN_HOURS:
+            continue  # 하루치가 다 있는 단기 값이 더 정확하다(시간 수 없는 옛 값은 중기로 덮는다)
+        if iso == today_iso and isinstance(old, dict) and old.get("t_min") is not None:
+            # 오후 발표엔 오늘 TMN(새벽 최저)이 없어 남은 시간 기온으로 채운다 → 아침에 받아 둔 더 낮은 값을 지킨다.
+            new_min = val.get("t_min")
+            val = dict(val, t_min=old["t_min"] if new_min is None else min(old["t_min"], new_min))
         stored[iso] = val
         written += 1
+    for iso in drop_partial:
+        old = stored.get(iso)
+        # 시간 수를 모르는(이 규칙 전) 단기 값은 같은 조각으로 판정됐을 수 있다 — 지우고 다음 발표·중기에 맡긴다
+        if isinstance(old, dict) and old.get("src") == "short" and int(old.get("hours") or 0) < SHORT_MIN_HOURS:
+            del stored[iso]
     stored = {iso: v for iso, v in stored.items() if iso >= oldest}
     value = {"updated_at": now_kst().replace(microsecond=0).isoformat(), "days": stored}
     if row is None:
