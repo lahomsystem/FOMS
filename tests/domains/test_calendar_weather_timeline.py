@@ -28,10 +28,22 @@ def test_runs_follow_weather_not_day_edges():
     assert tl.runs(sl, lambda k: k not in ("sun", "none")) == [(2, 6)]  # 구름은 날짜 경계를 넘어 한 무리
 
 
-def test_sky_blends_over_half_a_day_at_weather_changes():
-    """바탕은 같은 날씨 안에서 한 색, 바뀌는 자리는 6시간 칸 2개에 걸쳐 섞는다(칼로 자른 듯 끊기지 않게)."""
+def test_sky_blends_over_eighteen_hours_at_weather_changes():
+    """바탕은 같은 날씨 안에서 한 색, 바뀌는 자리는 6시간 칸 3개(18시간)에 걸쳐 섞는다(칼로 자른 듯 끊기지 않게)."""
     stops = tl._sky_stops(["sun"] * 4 + ["cloud"] * 4)
-    assert stops == [(0.0, "sun"), (0.375, "sun"), (0.625, "cloud"), (1.0, "cloud")]
+    assert stops == [(0.0, "sun"), (0.3125, "sun"), (0.6875, "cloud"), (1.0, "cloud")]
+
+
+def test_past_part_is_dimmed_and_now_line_stays_short():
+    """지난 날 부분은 하늘 색 막으로 흐리게, 지금 선은 위쪽 절반만(아래 건수 글자를 가로지르지 않게)."""
+    cells = [_cell("sun", iso="2026-10-13", past=True), _cell("heavy"), _cell("cloud", iso="2026-10-15")]
+    svg = str(tl.week_band_svg(cells, uid="tlC", now_index=1.5, past_days=1))
+    assert '<rect class="tl-past is-part" width="104"' in svg and 'fill="url(#tlCp)"' in svg
+    assert 'stop-opacity="0"' in svg and svg.count('mask=') == 2          # 흐림 막은 마스크 없이(구름 1·장대비 1만)
+    assert 'y1="42" y2="96"' in svg
+    whole = str(tl.week_band_svg(cells[:1], uid="tlD", still=True, past_days=1))
+    assert '<rect class="tl-past" width="100"' in whole and "tlDpm" not in whole
+    assert "tl-past" not in str(tl.week_band_svg(cells[1:], uid="tlE"))
 
 
 def test_week_svg_draws_one_sun_per_run_and_unique_ids():
