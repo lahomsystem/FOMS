@@ -266,6 +266,20 @@ ERP Order mobile-v2 tab pane.
                                 </div>
                                 <div class="erp-mobile-amount-chip erp-amount-value erp-amount-value--balance" id="erp-remaining-amount">0원</div>
                             </div>
+                            <div id="erp-balance-method-section" class="erp-balance-method-section erp-balance-method-section--mobile" data-editable="{{ '1' if policy_can('FINANCE_MUTATION') else '0' }}" hidden>
+                                <div class="erp-balance-method-seg" role="group" aria-label="잔금 결제수단">
+                                    <button type="button" data-balance-method="네이버" aria-pressed="false">네이버</button>
+                                    <button type="button" data-balance-method="카드" aria-pressed="false">카드</button>
+                                    <button type="button" data-balance-method="계좌입금" aria-pressed="false">계좌입금</button>
+                                    <button type="button" data-balance-method="custom" aria-pressed="false">직접입력</button>
+                                </div>
+                                <div id="erp-balance-method-text-row" class="erp-mobile-amount-row" hidden>
+                                    <div class="erp-mobile-amount-label">
+                                        <label for="erp-balance-method-text">직접입력</label>
+                                    </div>
+                                    <input type="text" id="erp-balance-method-text" class="foms-input erp-balance-method-text" maxlength="20" placeholder="예: 현금">
+                                </div>
+                            </div>
                             <div id="erp-balance-note-toggle-row" class="erp-mobile-amount-row erp-balance-note-toggle-row" hidden>
                                 <span class="erp-mobile-amount-label" aria-hidden="true"></span>
                                 <button type="button" id="erp-balance-note-toggle" class="erp-balance-note-add-btn" title="잔금 메모 추가" aria-label="잔금 메모 추가" aria-expanded="false" aria-controls="erp-balance-note-section">+</button>

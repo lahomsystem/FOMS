@@ -467,6 +467,21 @@ ERP Order Tab Pane (shared between add_order and edit_order)
                             </div>
                             <div class="erp-amount-value erp-amount-value--balance text-end" id="erp-remaining-amount">0원</div>
                         </div>
+                        <div id="erp-balance-method-section" class="erp-balance-method-section" data-editable="{{ '1' if policy_can('FINANCE_MUTATION') else '0' }}" hidden>
+                            <div class="erp-balance-method-row">
+                                <label for="erp-balance-method" class="form-label mb-0 text-nowrap erp-balance-method-label">결제수단</label>
+                                <select id="erp-balance-method" class="erp-balance-method-select" aria-label="잔금 결제수단">
+                                    <option value="">선택</option>
+                                    <option value="네이버">네이버</option>
+                                    <option value="카드">카드</option>
+                                    <option value="계좌입금">계좌입금</option>
+                                    <option value="custom">직접입력</option>
+                                </select>
+                            </div>
+                            <div id="erp-balance-method-text-row" class="erp-balance-method-row" hidden>
+                                <input type="text" id="erp-balance-method-text" class="erp-balance-method-text" maxlength="20" placeholder="예: 현금" aria-label="잔금 결제수단 직접입력">
+                            </div>
+                        </div>
                         <div id="erp-balance-note-toggle-row" class="d-flex justify-content-end w-100 erp-balance-note-toggle-row" style="max-width: 16rem;" hidden>
                             <button type="button" id="erp-balance-note-toggle" class="erp-balance-note-add-btn" title="잔금 메모 추가" aria-label="잔금 메모 추가" aria-expanded="false" aria-controls="erp-balance-note-section">+</button>
                         </div>

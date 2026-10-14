@@ -560,6 +560,8 @@
       balance_confirmed_at: payment.balance_confirmed_at || null,
       balance_confirmed_by: payment.balance_confirmed_by || null,
       balance_confirmed_by_user_id: payment.balance_confirmed_by_user_id || null,
+      balance_method: payment.balance_method || null,
+      balance_method_text: payment.balance_method_text || null,
     };
   }
 

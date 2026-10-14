@@ -1252,3 +1252,48 @@ def test_order_list_shows_happy_call_badge_only_before_measurement(auth_client):
     assert body.count('data-happy-call="부재"') == 1
     # 음성 대조군: 실측 단계 주문의 콜백은 목록에 나오면 안 된다.
     assert 'data-happy-call="콜백"' not in body
+
+
+def test_payment_confirm_saves_and_clears_balance_method(client):
+    _login_as_admin(client, username="erp-balance-method")
+    order = _create_order()
+    order_id = order.id
+
+    res = client.post(
+        f"/api/orders/{order_id}/payment-confirm",
+        json={"type": "balance", "confirmed": True, "balance_method": "카드"},
+    ).get_json()
+    assert res["success"] is True
+    assert res["payment"]["balance_method"] == "카드"
+    assert res["payment"]["balance_method_text"] is None
+
+    res = client.post(
+        f"/api/orders/{order_id}/payment-confirm",
+        json={"type": "balance", "confirmed": True, "balance_method": "custom",
+              "balance_method_text": "  현금  "},
+    ).get_json()
+    assert res["payment"]["balance_method"] == "custom"
+    assert res["payment"]["balance_method_text"] == "현금"
+    db_session.expire_all()
+    stored = db_session.get(Order, order_id).structured_data["payment"]
+    assert stored["balance_method"] == "custom"
+    assert stored["balance_method_text"] == "현금"
+
+    res = client.post(
+        f"/api/orders/{order_id}/payment-confirm",
+        json={"type": "balance", "confirmed": False},
+    ).get_json()
+    assert res["payment"]["balance_confirmed"] is False
+    assert res["payment"]["balance_method"] is None
+    assert res["payment"]["balance_method_text"] is None
+
+
+def test_payment_confirm_ignores_unknown_balance_method(client):
+    _login_as_admin(client, username="erp-balance-method-bad")
+    order = _create_order()
+    res = client.post(
+        f"/api/orders/{order.id}/payment-confirm",
+        json={"type": "balance", "confirmed": True, "balance_method": "<script>"},
+    ).get_json()
+    assert res["success"] is True
+    assert res["payment"]["balance_method"] is None
