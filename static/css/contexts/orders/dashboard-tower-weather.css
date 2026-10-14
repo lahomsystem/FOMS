@@ -30,14 +30,20 @@
 
 /* 달력 상자: 테두리 카드 대신 사진 머리띠 + 겹친 흰 판 */
 .foms-tower__calbox { background: transparent; border: 0; box-shadow: none; padding: 0; }
-/* 달력만 본문 좌우 여백(16px)을 4px 까지 넓힌다 — 칸이 좁아 출고가·기온이 잘렸다(사용자 2026-10-14).
-   max-width:100% (모바일 폭 계약)를 풀어야 음수 여백만큼 실제로 넓어진다. 부모 .foms-tower 의 overflow-x:clip 은 패딩 안쪽이라 잘리지 않는다. */
+/* 달력만 화면 좌우 4px 까지 넓힌다 — 칸이 좁아 출고가·기온이 잘렸다(사용자 2026-10-14).
+   달력 상자는 .container-fluid(좌우 12px) 안의 타워 섹션(좌우 16px, overflow-x:clip) 안에 있어
+   상자만 늘리면 섹션 끝에서 잘린다 → 섹션을 화면 끝까지 펴고(padding 4px), 달력 밖 카드들은
+   margin 24px 로 원래 자리(화면 끝에서 28px)를 지킨다. 고정 위치 시트(.foms-tower__sheet)는 건드리지 않는다. */
 @media (max-width: 991.98px), ((min-width: 992px) and (pointer: coarse) and (orientation: portrait)) {
-  /* `.foms-mobile-v2-dashboard.foms-tower > section { max-width:100% }`(dashboard-control-tower.css)보다 강해야 한다 */
-  body.erp-mobile-v2-layout .foms-mobile-v2-dashboard.foms-tower > section.foms-tower__calbox {
-    max-width: none; width: auto; margin-inline: calc(4px - var(--foms-space-4));
+  body.erp-mobile-v2-layout .foms-shell-body.foms-mobile-v2-dashboard.foms-tower {
+    width: calc(100% + var(--bs-gutter-x, 1.5rem)); max-width: none;
+    margin-inline: calc(var(--bs-gutter-x, 1.5rem) * -.5); padding-inline: 4px;
+  }
+  body.erp-mobile-v2-layout .foms-mobile-v2-dashboard.foms-tower > :not(.foms-tower__calbox):not(.foms-tower__sheet) {
+    width: auto; margin-inline: calc(var(--bs-gutter-x, 1.5rem) * .5 + var(--foms-space-4) - 4px);
   }
 }
+
 
 /* 사진 머리띠 — 출처는 화면 줄 대신 title 로만(foms/services/orders/calendar_month_photos.py) */
 .foms-tower__cal-hero {
