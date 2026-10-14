@@ -315,6 +315,9 @@ body.erp-mobile-v2-layout .erp-mobile-shell-header__mytasks.is-active i { color:
 .foms-tower__field-name { font-size: 15px; font-weight: 800; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .foms-tower__field-amt { margin-left: auto; flex-shrink: 0; font-size: 14px; font-weight: 800; color: var(--foms-color-brand-800); white-space: nowrap; font-variant-numeric: tabular-nums; }
 [data-theme='dark'] .foms-tower__field-amt { color: var(--foms-color-brand-200); }
+/* 여러 날 시공: 그날 몫만 보인다는 표시 '2일 나눔 · 전체 1,000만' (2026-10-15) */
+.foms-tower__field-split { flex-shrink: 0; white-space: nowrap; color: var(--foms-color-brand-700); font-weight: 700; }
+[data-theme='dark'] .foms-tower__field-split { color: var(--foms-color-brand-200); }
 .foms-tower__field-addr { font-size: 12.5px; color: var(--foms-text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .foms-tower__field-foot { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: var(--foms-font-size-xs); color: var(--foms-text-secondary); }
 .foms-tower__field-items { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--foms-text-primary); }
