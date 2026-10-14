@@ -70,14 +70,14 @@
                 <span class="foms-tower__cal-head" aria-hidden="true">
                   <span class="foms-tower__cal-date">{{ c.day }}</span>
                   {% if c.unshipped %}<span class="foms-tower__cal-risk"></span>{% endif %}
-                  {% if c.t_max_label %}<span class="foms-tower__cal-temp">{{ c.t_max_label }}</span>{% endif %}
+                  {% if c.t_max_label or c.t_min_label %}<span class="foms-tower__cal-temp">{% if c.t_max_label %}<b class="is-max">{{ c.t_max_label }}</b>{% endif %}{% if c.t_min_label %}<b class="is-min">{{ c.t_min_label }}</b>{% endif %}</span>{% endif %}
                 </span>
                 <span class="foms-tower__cal-counts" aria-hidden="true">
                   {% if c.measure %}<span class="foms-tower__cal-n foms-tower__cal-n--measure"><i class="foms-tower__mark foms-tower__mark--measure"></i>{{ c.measure }}</span>{% endif %}
                   {% if c.construction %}<span class="foms-tower__cal-n foms-tower__cal-n--construction"><i class="foms-tower__mark foms-tower__mark--construction"></i>{{ c.construction }}</span>{% endif %}
                   {% if c.as_count %}<span class="foms-tower__cal-n foms-tower__cal-n--as"><i class="foms-tower__mark foms-tower__mark--as"></i>{{ c.as_count }}</span>{% endif %}
                 </span>
-                {% if c.amount_label %}<span class="foms-tower__cal-amt{% if c.tone %} is-tone-{{ c.tone }}{% endif %}" aria-hidden="true">{{ c.amount_label }}</span>{% endif %}
+                {% if c.amount_label %}<span class="foms-tower__cal-amt{% if c.tone %} is-tone-{{ c.tone }}{% endif %}" aria-hidden="true">{{ c.amount_pill }}</span>{% endif %}
               </button>
             {% else %}
               <span class="foms-tower__cal-cell is-out is-c{{ c.dow + 1 }}" aria-hidden="true"></span>

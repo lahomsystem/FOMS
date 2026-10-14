@@ -101,8 +101,9 @@ def test_short_cloud_needs_half_of_daytime():
 def test_short_temperature_and_pop():
     items = (_hours("20261014", "TMP", [(9, "-4"), (15, "-1")]) + _hours("20261014", "POP", [(9, "20"), (15, "60")]))
     out = w.classify_short(items)
-    assert out["t_max"] == -1 and out["pop"] == 60
-    assert w.classify_short(items + _hours("20261014", "TMX", [(15, "-0.4")]))["t_max"] == 0
+    assert (out["t_min"], out["t_max"], out["pop"]) == (-4, -1, 60)  # TMN·TMX 없으면 시간별 기온으로
+    with_daily = w.classify_short(items + _hours("20261014", "TMX", [(15, "-0.4")]) + _hours("20261014", "TMN", [(6, "-7.0")]))
+    assert (with_daily["t_min"], with_daily["t_max"]) == (-7, 0)
 
 
 @pytest.mark.parametrize("texts, kind", [
@@ -131,7 +132,8 @@ def test_base_times():
 def _short_items():
     return (_hours("20261014", "PTY", [(9, "1")]) + _hours("20261014", "PCP", [(9, "8.0mm")])
             + _hours("20261014", "TMX", [(15, "23.0")])
-            + _hours("20261015", "SKY", [(h, "1") for h in range(9, 19)]) + _hours("20261015", "TMX", [(15, "25.0")]))
+            + _hours("20261015", "SKY", [(h, "1") for h in range(9, 19)]) + _hours("20261015", "TMX", [(15, "25.0")])
+            + _hours("20261015", "TMP", [(h, "18") for h in range(24)]))
 
 
 def test_no_key_skips_without_calling():
@@ -162,14 +164,14 @@ def test_not_applied_403_is_quiet_none():
 def test_mid_fills_later_days_but_keeps_short_values():
     w.refresh_short(db_session, now=NOW, transport=_Transport({"getVilageFcst": _Resp(200, _ok(_short_items()))}), key="k")
     land = {"wf3Am": "맑음", "wf3Pm": "흐리고 비", "rnSt3Am": 10, "rnSt3Pm": 70, "wf8": "눈", "rnSt8": 60}
-    ta = {"taMax3": 21, "taMax8": 2}
+    ta = {"taMin3": 12, "taMax3": 21, "taMin8": -6, "taMax8": 2}
     tr = _Transport({"getMidLandFcst": _Resp(200, _ok([land])), "getMidTa": _Resp(200, _ok([ta]))})
     # tmFc 10/14 06시 → 3일 뒤 = 10/17, 8일 뒤 = 10/22. 단기 날짜(10/14·15)는 건드리지 않는다.
     out = w.refresh_mid(db_session, now=NOW, transport=tr, key="k")
     assert out == {"stored": 2, "base": "202610140600"}
     days = w.load_days(db_session, datetime.date(2026, 10, 1), datetime.date(2026, 10, 31))["days"]
-    assert days["2026-10-17"] == {"kind": "drizzle", "t_max": 21, "pop": 70, "src": "mid", "base": "202610140600"}
-    assert days["2026-10-22"]["kind"] == "snow" and days["2026-10-22"]["t_max"] == 2
+    assert days["2026-10-17"] == {"kind": "drizzle", "t_min": 12, "t_max": 21, "pop": 70, "src": "mid", "base": "202610140600"}
+    assert days["2026-10-22"]["kind"] == "snow" and (days["2026-10-22"]["t_min"], days["2026-10-22"]["t_max"]) == (-6, 2)
     assert days["2026-10-14"]["src"] == "short"
 
 
@@ -207,16 +209,16 @@ def _cells(cal):
 def test_calendar_cells_carry_weather_and_only_seven_days_move():
     today = datetime.date(2026, 10, 14)
     weather = {"updated_at": "t", "days": {
-        (today + datetime.timedelta(days=i)).isoformat(): {"kind": "sun", "t_max": 20 + i} for i in range(-3, 11)}}
+        (today + datetime.timedelta(days=i)).isoformat(): {"kind": "sun", "t_min": 10 + i, "t_max": 20 + i} for i in range(-3, 11)}}
     from models import Order
     cal = ct._month_calendar(db_session.query(Order), today, today.replace(day=1), None, weather)
     cells = _cells(cal)
     live = sorted(iso for iso, c in cells.items() if c["wx_live"])
     assert live == [(today + datetime.timedelta(days=i)).isoformat() for i in range(7)]
     assert cells["2026-10-11"]["wx"] == "sun" and not cells["2026-10-11"]["wx_live"]  # 지난 날 = 멈춘 그림
-    assert cells["2026-10-14"]["t_max_label"] == "20°"
+    assert (cells["2026-10-14"]["t_min_label"], cells["2026-10-14"]["t_max_label"]) == ("10°", "20°")
     assert cells["2026-10-31"]["wx"] == "" and cells["2026-10-31"]["t_max_label"] == ""  # 예보 밖 = 비움
-    assert "날씨 맑음 20도" in cells["2026-10-14"]["aria"]
+    assert "날씨 맑음 최저 10도 최고 20도" in cells["2026-10-14"]["aria"]
     assert cal["photo"]["month"] == 10 and "CC" in cal["photo"]["credit"]
     assert cal["wx_used"] == ["sun"] and cal["wx_still"] == ["sun"]  # 11~13일·21~24일 = 멈춘 맑음
 
@@ -250,3 +252,46 @@ def test_band_neighbours_blend_within_the_week_only():
     assert sun["wx_prev"] == "snow" and sun["band_start"] and sun["wx_next"] == "sun"
     assert cells["2026-10-01"]["band_start"]                       # 10/1 목요일 = 첫 주 띠 시작
     assert cells["2026-10-02"]["wx_prev"] == "none"                # 날씨 없는 이웃
+
+
+def test_today_min_keeps_the_lower_morning_value():
+    """오후 발표에는 오늘 TMN 이 없다 — 아침에 받은 더 낮은 최저기온을 지킨다."""
+    db_session.add(SystemSetting(setting_key=w.WEATHER_KEY, setting_value={"updated_at": "x", "days": {
+        "2026-10-14": {"kind": "sun", "t_min": 9, "t_max": 20, "src": "short"}}}))
+    db_session.commit()
+    items = _hours("20261014", "TMP", [(15, "19"), (18, "15")]) + _hours("20261015", "TMP", [(h, "8" if h == 6 else "12") for h in range(24)])
+    w.refresh_short(db_session, now=NOW, transport=_Transport({"getVilageFcst": _Resp(200, _ok(items))}), key="k")
+    days = w.load_days(db_session, datetime.date(2026, 10, 1), datetime.date(2026, 10, 31))["days"]
+    assert days["2026-10-14"]["t_min"] == 9 and days["2026-10-14"]["t_max"] == 19
+    assert days["2026-10-15"]["t_min"] == 8
+
+
+def test_partial_last_short_day_is_left_to_mid():
+    """오후 발표의 끝 날짜(자정 몇 시간뿐)는 단기로 판정하지 않고, 중기예보가 채운다."""
+    items = _short_items() + _hours("20261018", "TMP", [(0, "18"), (1, "18")]) + _hours("20261018", "SKY", [(0, "1")])
+    w.refresh_short(db_session, now=NOW, transport=_Transport({"getVilageFcst": _Resp(200, _ok(items))}), key="k")
+    days = w.load_days(db_session, datetime.date(2026, 10, 1), datetime.date(2026, 10, 31))["days"]
+    assert "2026-10-18" not in days
+    land = {"wf4Am": "흐리고 비", "wf4Pm": "흐리고 비", "rnSt4Am": 60, "rnSt4Pm": 60}
+    tr = _Transport({"getMidLandFcst": _Resp(200, _ok([land])), "getMidTa": _Resp(200, _ok([{"taMin4": 17, "taMax4": 22}]))})
+    w.refresh_mid(db_session, now=NOW, transport=tr, key="k")
+    d18 = w.load_days(db_session, datetime.date(2026, 10, 1), datetime.date(2026, 10, 31))["days"]["2026-10-18"]
+    assert (d18["kind"], d18["t_min"], d18["t_max"], d18["src"]) == ("drizzle", 17, 22, "mid")
+
+
+def test_mid_overrides_legacy_short_value_without_hours():
+    db_session.add(SystemSetting(setting_key=w.WEATHER_KEY, setting_value={"updated_at": "x", "days": {
+        "2026-10-18": {"kind": "sun", "t_min": 18, "t_max": 18, "src": "short"}}}))
+    db_session.commit()
+    tr = _Transport({"getMidLandFcst": _Resp(200, _ok([{"wf4Am": "흐리고 비"}])), "getMidTa": _Resp(200, _ok([{}]))})
+    w.refresh_mid(db_session, now=NOW, transport=tr, key="k")
+    assert w.load_days(db_session, datetime.date(2026, 10, 18), datetime.date(2026, 10, 18))["days"]["2026-10-18"]["kind"] == "drizzle"
+
+
+def test_partial_day_drops_legacy_short_value():
+    db_session.add(SystemSetting(setting_key=w.WEATHER_KEY, setting_value={"updated_at": "x", "days": {
+        "2026-10-17": {"kind": "cloud", "t_min": 14, "t_max": 14, "src": "short"}}}))
+    db_session.commit()
+    items = _short_items() + _hours("20261017", "TMP", [(h, "14") for h in range(8)])
+    w.refresh_short(db_session, now=NOW, transport=_Transport({"getVilageFcst": _Resp(200, _ok(items))}), key="k")
+    assert "2026-10-17" not in w.load_days(db_session, datetime.date(2026, 10, 1), datetime.date(2026, 10, 31))["days"]

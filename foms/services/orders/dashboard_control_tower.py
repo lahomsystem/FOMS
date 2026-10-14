@@ -304,6 +304,13 @@ def _man_label(won: int | None) -> str:
     return f"{eok}억 {rest:,}만" if rest else f"{eok}억"
 
 
+def _pill_label(won: int | None) -> str:
+    """달력 칸 출고가 알약용 짧은 글 — 1억 이상은 '1.23억'(폭 40px 폰 칸에서 '1억 2,300만' 이 넘친다)."""
+    if won and won >= 100_000_000:
+        return f"{won / 100_000_000:.2f}".rstrip("0").rstrip(".") + "억"
+    return _man_label(won)
+
+
 _CAL_DOW = ["일", "월", "화", "수", "목", "금", "토"]
 # 달 이동 범위(오늘 기준 앞뒤 개월). 모집단이 '완료 60일 이내'라 먼 과거는 숫자가 줄어든다.
 _CAL_MONTH_SPAN = 12
@@ -378,8 +385,13 @@ def _month_calendar(
             wx_day = wx_days.get(iso) if in_month else None
             wx = str(wx_day.get("kind") or "") if isinstance(wx_day, dict) else ""
             t_max = wx_day.get("t_max") if isinstance(wx_day, dict) else None
+            t_min = wx_day.get("t_min") if isinstance(wx_day, dict) else None
             if wx:
-                aria += f", 날씨 {WEATHER_LABELS.get(wx, '')}" + (f" {t_max}도" if t_max is not None else "")
+                aria += f", 날씨 {WEATHER_LABELS.get(wx, '')}"
+                if t_min is not None:
+                    aria += f" 최저 {t_min}도"
+                if t_max is not None:
+                    aria += f" 최고 {t_max}도"
             week.append({
                 "iso": iso,
                 "day": day.day,
@@ -392,9 +404,11 @@ def _month_calendar(
                 "construction": construction,
                 "as_count": as_count,
                 "amount_label": amount_label,
+                "amount_pill": _pill_label(amount_won),
                 "tone": tone_for(amount_won, colors),
                 "wx": wx,
                 "t_max_label": f"{t_max}°" if wx and t_max is not None else "",
+                "t_min_label": f"{t_min}°" if wx and t_min is not None else "",
                 "wx_live": bool(wx) and today <= day <= live_last,
                 "unshipped": unshipped,
                 "aria": aria,
