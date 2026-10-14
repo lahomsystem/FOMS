@@ -314,3 +314,17 @@ def test_partial_day_drops_legacy_short_value():
     items = _short_items() + _hours("20261017", "TMP", [(h, "14") for h in range(8)])
     w.refresh_short(db_session, now=NOW, transport=_Transport({"getVilageFcst": _Resp(200, _ok(items))}), key="k")
     assert "2026-10-17" not in w.load_days(db_session, datetime.date(2026, 10, 1), datetime.date(2026, 10, 31))["days"]
+
+
+def test_join_flags_only_between_same_weather():
+    """같은 날씨가 이어지는 쪽만 그림이 번진다 — 다른 날씨 옆은 제 칸 안에서 끝난다."""
+    today = datetime.date(2026, 10, 14)
+    weather = {"days": {"2026-10-12": {"kind": "sun"}, "2026-10-13": {"kind": "sun"}, "2026-10-14": {"kind": "cloud"},
+                        "2026-10-17": {"kind": "sun"}, "2026-10-18": {"kind": "sun"}}}
+    from models import Order
+    cells = _cells(ct._month_calendar(db_session.query(Order), today, today.replace(day=1), None, weather))
+    assert (cells["2026-10-12"]["wx_join_l"], cells["2026-10-12"]["wx_join_r"]) == (False, True)
+    assert (cells["2026-10-13"]["wx_join_l"], cells["2026-10-13"]["wx_join_r"]) == (True, False)
+    assert not cells["2026-10-14"]["wx_join_l"] and not cells["2026-10-14"]["wx_join_r"]
+    assert not cells["2026-10-17"]["wx_join_r"] and not cells["2026-10-18"]["wx_join_l"]  # 토→일은 다른 주(띠가 끊긴다)
+    assert not cells["2026-10-15"]["wx_join_l"]  # 날씨 없는 날
