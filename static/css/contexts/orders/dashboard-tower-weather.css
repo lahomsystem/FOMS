@@ -33,7 +33,10 @@
 /* 달력만 본문 좌우 여백(16px)을 4px 까지 넓힌다 — 칸이 좁아 출고가·기온이 잘렸다(사용자 2026-10-14).
    max-width:100% (모바일 폭 계약)를 풀어야 음수 여백만큼 실제로 넓어진다. 부모 .foms-tower 의 overflow-x:clip 은 패딩 안쪽이라 잘리지 않는다. */
 @media (max-width: 991.98px), ((min-width: 992px) and (pointer: coarse) and (orientation: portrait)) {
-  body.erp-mobile-v2-layout .foms-tower__calbox { max-width: none; margin-inline: calc(4px - var(--foms-space-4)); }
+  /* `.foms-mobile-v2-dashboard.foms-tower > section { max-width:100% }`(dashboard-control-tower.css)보다 강해야 한다 */
+  body.erp-mobile-v2-layout .foms-mobile-v2-dashboard.foms-tower > section.foms-tower__calbox {
+    max-width: none; width: auto; margin-inline: calc(4px - var(--foms-space-4));
+  }
 }
 
 /* 사진 머리띠 — 출처는 화면 줄 대신 title 로만(foms/services/orders/calendar_month_photos.py) */
