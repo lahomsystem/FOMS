@@ -7,7 +7,7 @@
    - 금액 색(tone)은 출고가 알약에만. #}
 {% from 'orders/partials/dashboard_mobile_tower_weather.html' import wx_defs, wx_pic %}
 <div class="foms-tower__cal" data-foms-cal data-month="{{ cal.month }}">
-  {{ wx_defs() }}
+  {{ wx_defs(cal.wx_used, cal.wx_still) }}
   {# 사진 출처 줄은 화면에서 뺐다(사용자 2026-10-14). 출처는 title(길게 누르기·마우스 올리기)과 calendar_month_photos.py 에 남긴다. #}
   <div class="foms-tower__cal-hero foms-cal-photo-{{ cal.photo.month }}"{% if cal.photo.credit %} title="{{ cal.photo.credit }}"{% endif %}>
     <div class="foms-tower__cal-top">
