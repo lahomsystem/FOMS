@@ -403,6 +403,7 @@ def _month_calendar(
         _link_weather_neighbours(week)
         weeks.append(week)
 
+    month_cells = [c for week in weeks for c in week if c["in_month"] and c["wx"]]
     this_month = today.replace(day=1)
     prev_first = _shift_month(first, -1)
     return {
@@ -418,6 +419,9 @@ def _month_calendar(
         "amount_label": _man_label(month_amount) or "0원",
         "colors": colors,
         "photo": month_photo(first.month),
+        # 그림 정의는 이 달에 쓰는 날씨만 싣는다(대시보드 전송 바이트 예산, perf-gate 2026-10-14).
+        "wx_used": sorted({c["wx"] for c in month_cells}),
+        "wx_still": sorted({c["wx"] for c in month_cells if not c["wx_live"]}),
         "yellow_label": _man_label((colors.get("yellow_from") or 0) * 10000),
         "pink_label": _man_label((colors.get("pink_from") or 0) * 10000),
     }

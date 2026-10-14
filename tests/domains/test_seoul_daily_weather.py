@@ -218,6 +218,26 @@ def test_calendar_cells_carry_weather_and_only_seven_days_move():
     assert cells["2026-10-31"]["wx"] == "" and cells["2026-10-31"]["t_max_label"] == ""  # 예보 밖 = 비움
     assert "날씨 맑음 20도" in cells["2026-10-14"]["aria"]
     assert cal["photo"]["month"] == 10 and "CC" in cal["photo"]["credit"]
+    assert cal["wx_used"] == ["sun"] and cal["wx_still"] == ["sun"]  # 11~13일·21~24일 = 멈춘 맑음
+
+
+def test_calendar_defs_only_ship_kinds_in_use(app):
+    """그 달에 없는 날씨의 그림 정의는 보내지 않는다 — 대시보드 전송 바이트 예산(perf-gate)."""
+    from flask import render_template
+    from models import Order
+    ctx = app.test_request_context("/erp/dashboard")
+    ctx.push()
+    today = datetime.date(2026, 10, 14)
+    weather = {"days": {"2026-10-14": {"kind": "heavy"}, "2026-10-25": {"kind": "sun"}}}
+    cal = ct._month_calendar(db_session.query(Order), today, today.replace(day=1), None, weather)
+    assert cal["wx_used"] == ["heavy", "sun"] and cal["wx_still"] == ["sun"]
+    html = render_template("orders/partials/dashboard_mobile_tower_calendar.html", cal=cal, calendar_colors_editable=False)
+    assert 'id="fwxStill-sun"' in html and 'id="fwxStill-heavy"' not in html  # 장대비는 움직이는 칸에만
+    assert 'id="fwxHvDrop"' in html and 'id="fwxSnFront"' not in html and 'id="fwxFlake"' not in html
+    empty = ct._month_calendar(db_session.query(Order), today, today.replace(day=1), None, {"days": {}})
+    assert 'foms-wx-defs' not in render_template(
+        "orders/partials/dashboard_mobile_tower_calendar.html", cal=empty, calendar_colors_editable=False)
+    ctx.pop()
 
 
 def test_band_neighbours_blend_within_the_week_only():
