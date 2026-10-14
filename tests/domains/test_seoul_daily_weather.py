@@ -225,7 +225,7 @@ def _cells(cal):
     return {c["iso"]: c for week in cal["weeks"] for c in week if c["in_month"]}
 
 
-def test_calendar_cells_carry_weather_and_only_seven_days_move():
+def test_calendar_cells_carry_weather_and_future_days_move():
     today = datetime.date(2026, 10, 14)
     weather = {"updated_at": "t", "days": {
         (today + datetime.timedelta(days=i)).isoformat(): {"kind": "sun", "t_min": 10 + i, "t_max": 20 + i} for i in range(-3, 11)}}
@@ -233,13 +233,14 @@ def test_calendar_cells_carry_weather_and_only_seven_days_move():
     cal = ct._month_calendar(db_session.query(Order), today, today.replace(day=1), None, weather)
     cells = _cells(cal)
     live = sorted(iso for iso, c in cells.items() if c["wx_live"])
-    assert live == [(today + datetime.timedelta(days=i)).isoformat() for i in range(7)]
+    # 오늘부터 예보 끝(10일 뒤)까지 전부 움직인다 — 이 달 안(14~24일)만 셀에 있다. 지난 날은 멈춤.
+    assert live == [(today + datetime.timedelta(days=i)).isoformat() for i in range(11)]
     assert cells["2026-10-11"]["wx"] == "sun" and not cells["2026-10-11"]["wx_live"]  # 지난 날 = 멈춘 그림
     assert (cells["2026-10-14"]["t_min_label"], cells["2026-10-14"]["t_max_label"]) == ("10°", "20°")
     assert cells["2026-10-31"]["wx"] == "" and cells["2026-10-31"]["t_max_label"] == ""  # 예보 밖 = 비움
-    assert "날씨 맑음 최저 10도 최고 20도" in cells["2026-10-14"]["aria"]
+    assert "날씨 맑음 10~20도" in cells["2026-10-14"]["aria"]
     assert cal["photo"]["month"] == 10 and "CC" in cal["photo"]["credit"]
-    assert cal["wx_used"] == ["sun"] and cal["wx_still"] == ["sun"]  # 11~13일·21~24일 = 멈춘 맑음
+    assert cal["wx_used"] == ["sun"] and cal["wx_still"] == ["sun"]  # 11~13일(지난 날) = 멈춘 맑음
 
 
 def test_calendar_defs_only_ship_kinds_in_use(app):
@@ -249,7 +250,7 @@ def test_calendar_defs_only_ship_kinds_in_use(app):
     ctx = app.test_request_context("/erp/dashboard")
     ctx.push()
     today = datetime.date(2026, 10, 14)
-    weather = {"days": {"2026-10-14": {"kind": "heavy"}, "2026-10-25": {"kind": "sun"}}}
+    weather = {"days": {"2026-10-14": {"kind": "heavy"}, "2026-10-10": {"kind": "sun"}}}  # 10일 = 지난 날(멈춤)
     cal = ct._month_calendar(db_session.query(Order), today, today.replace(day=1), None, weather)
     assert cal["wx_used"] == ["heavy", "sun"] and cal["wx_still"] == ["sun"]
     html = render_template("orders/partials/dashboard_mobile_tower_calendar.html", cal=cal, calendar_colors_editable=False)
