@@ -10,6 +10,7 @@ Flask 3.1 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
+- [2026-10-14] **모바일 홈 월간 달력 + 금액별 칸 색(deploy `c03cf3f0`)** — 스펙 `docs/specs/2026-10-14-mobile-*`. 잔여: 디자인 안 선택·운영 승격
 - [2026-10-08] **도면 마법사 편집 개선 운영 반영(PR #516·#519·#522·#524·#526)** — 사진 끌어놓기·재전송 모달·오류 안내도 실화면 통과. 잔여: 1100px 이하 데스크톱 창 앱바 오른쪽 16px 밀림
 - [2026-10-07] **정산 제품별 탭·분석 탭 네이버 운영 반영(PR #511 `6d0ffb6e`)**
 - [2026-10-05] **주문 수정 접수인·접수 3칸(deploy)** — 잔여: 스테이징 실화면
@@ -30,7 +31,6 @@ Flask 3.1 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 - [2026-09-13] **네이버 주문 마크 — 고객 이름 옆(deploy 대기)** — 판정 축은 출처(`source == SOURCE_MARKER`), `naver_linked` 아님. 대시보드 코호트 6곳 전수. 원장 `docs/plans/2026-09-13-naver-channel-mark-impl-brief.md`
 - [2026-09-13] **도면 모바일 제보 3건 수정(deploy 대기)** — 근거 `docs/plans/2026-09-13-drawing-mobile-change-line-fixes-brief.md`. 잔여: 실기기 확인
 - [2026-09-12] **도면 주문 변경 UI 재설계(운영 반영 PR #366)** — 근거 `docs/plans/2026-09-11-drawing-mobile-order-change-brief.md`. 잔여: 스테이징 실화면 확인
-- [2026-09-11] **네이버 취소·반품 부분 선택(deploy 대기 · 게이트 `FOMS_NAVER_PARTIAL_CLAIM_ENABLED`+`_COHORT`)** — 스펙 `docs/specs/2026-09-11-naver-partial-claim_SPEC.md` §11. **잔여: 스테이징 §8 ①②③ + 사용자 #2354 화면 확인**
 
 ## 알려진 이슈
 - 차단 이슈 없음. 남은 구조 부채는 `WR-B1`/`WR-J1`/`WR-H1` 처럼 explicit future-batch 조건으로만 존재한다. `wdcalculator_scripts_config.html` Jinja 변수 주입 구간의 JS lint false-positive 는 기존과 동일.
@@ -197,6 +197,7 @@ Flask 3.1 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 - [2026-04-15] **Strict final canonical tree `SFC-B11B` slice 2 (`dashboards`, §6.16):** 구현을 `foms/web/dashboards/routes.py`로 이전; `foms/web/dashboards/__init__.py`는 `routes`만 import; `apps/dashboards.py`는 `foms.web.dashboards` 재노출 shim. 검증: `APP_OK`, `verify_result.py --json`, `pytest tests` **586 passed**. 근거: batch11b **§Slice B11B-2**.
 
 ## 기록 보관 (strict canonical / 이전 배치 요약)
+- [2026-09-11] **네이버 취소·반품 부분 선택(deploy 대기 · 게이트 `FOMS_NAVER_PARTIAL_CLAIM_ENABLED`+`_COHORT`)** — 스펙 `docs/specs/2026-09-11-naver-partial-claim_SPEC.md` §11. **잔여: 스테이징 §8 ①②③ + 사용자 #2354 화면 확인**
 - [2026-10-01] **운영 로그 후속 4건(PR #481 운영)** — 드리프트 감사 초록(10-01)
 - [2026-09-30] **도면 탭 고객 보내기(PR #458 · production `eb181215`)** — 보내기·고객 요청·고객 OK 확정·요청 고치기·번호 바꾸기·PC 긴급 호출. 운영 알림톡 테스트 1회 수신 확인 뒤 회차 이름 스위치 켬(FOMS_SHARE_ROUND_DOC_LABEL=1)
 - [2026-09-29] **도면 결함 2차(PR #457 · production `9cd99254`)** — 폼 저장 도면 잠금·행 잠금·남의 파일 삭제 차단·고객컨펌/제작 시작 게이트·생산 배지. 잔여: 고아 도면 51개 정리(승인 대기) · wizard 쓰기 3곳은 09-30 막음
