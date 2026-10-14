@@ -345,10 +345,10 @@ def _month_calendar(
     빨간 점(출고 전 시공)은 오늘·내일 칸에만 — 먼 날짜의 출고 전은 정상 상태다.
     colors: 시공 금액별 기준(`calendar_amount_colors`) — 출고가 알약 색. None 이면 기본값.
     weather: `seoul_daily_weather.load_days` 결과. 칸마다 날씨 종류(wx)·최고기온·움직임 여부(wx_live).
-      자료 없는 날은 wx="" (띠는 회백색). 움직임은 오늘~6일 뒤 7칸만(휴대폰 성능, 설계서 §2.4).
+      자료 없는 날은 wx="" (띠는 회백색). 움직임은 오늘부터 예보 끝(10일 뒤)까지 날씨 있는 칸 전부, 지난 날은 멈춤
+      (사용자 2026-10-14. 실측 CPU 6배 느리게: 11칸 53fps · 지난 날 포함 24칸 29.5fps → 지난 날은 멈춘다).
     """
     wx_days = (weather or {}).get("days") or {}
-    live_last = today + datetime.timedelta(days=WEATHER_LIVE_DAYS - 1)
     colors = colors if colors is not None else dict(DEFAULT_COLORS)
     next_first = _shift_month(first, 1)
     last = next_first - datetime.timedelta(days=1)
@@ -388,9 +388,9 @@ def _month_calendar(
             t_min = wx_day.get("t_min") if isinstance(wx_day, dict) else None
             if wx:
                 aria += f", 날씨 {WEATHER_LABELS.get(wx, '')}"
-                if t_min is not None:
-                    aria += f" 최저 {t_min}도"
-                if t_max is not None:
+                if t_min is not None and t_max is not None:
+                    aria += f" {t_min}~{t_max}도"
+                elif t_max is not None:
                     aria += f" 최고 {t_max}도"
             week.append({
                 "iso": iso,
@@ -409,7 +409,7 @@ def _month_calendar(
                 "wx": wx,
                 "t_max_label": f"{t_max}°" if wx and t_max is not None else "",
                 "t_min_label": f"{t_min}°" if wx and t_min is not None else "",
-                "wx_live": bool(wx) and today <= day <= live_last,
+                "wx_live": bool(wx) and today <= day,
                 "unshipped": unshipped,
                 "aria": aria,
             })
@@ -441,7 +441,6 @@ def _month_calendar(
     }
 
 
-WEATHER_LIVE_DAYS = 7
 WEATHER_LABELS = {"sun": "맑음", "cloud": "구름", "drizzle": "부슬비", "heavy": "장대비", "flurry": "부슬눈", "snow": "함박눈"}
 
 
