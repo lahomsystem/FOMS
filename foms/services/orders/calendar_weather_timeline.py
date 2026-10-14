@@ -29,6 +29,12 @@ KINDS = ("sun", "cloud", "drizzle", "heavy", "flurry", "snow")
 SLOTS_PER_DAY = 4
 DAY_W = 100.0
 SLOT_W = DAY_W / SLOTS_PER_DAY
+#: 구간 그림이 구간 밖으로 번지는 폭(마스크가 사라지기 시작하는 자리) — 물안개 막도 이만큼 넓힌다.
+FEATHER_OUT = 16
+#: 바탕 하늘이 날씨 바뀌는 자리 양쪽으로 섞이는 폭(6시간 칸 수). 1.5 = 양쪽 9시간씩, 모두 18시간.
+SKY_BLEND_SLOTS = 1.5
+#: 지난 날 흐림 막의 진하기(칸 보기 지난 날 그림 opacity .5 와 같은 느낌).
+PAST_VEIL = .5
 VH = 190  # 띠 비율(한 주 376×102)에 맞춘 높이 — 가로·세로 단위가 거의 같아 그림이 찌그러지지 않는다
 
 _CLOUD = "M0 26a13 13 0 0 1 2-25.8A17 17 0 0 1 34 5a11 11 0 0 1 1 21z"
@@ -96,9 +102,10 @@ def _x(i: int) -> float:
 
 
 def _feather(uid: str, n: int, a: int, b: int, vw: float) -> str:
-    """구간 양끝을 30 단위(약 7시간, 폰에서 16px)에 걸쳐 서서히 사라지게 하는 마스크 — 짧으면 물안개 막 끝이 칼선처럼 보인다."""
-    x0, x1 = _x(a) - 10, _x(b) + 10
-    edge = min(.5, 30 / (x1 - x0))
+    """구간 양끝을 44 단위(약 10시간, 폰에서 24px)에 걸쳐 서서히 사라지게 하는 마스크 — 짧으면 물안개 막 끝이 칼선처럼 보인다
+    (2026-10-14 사용자: 경계 더 부드럽게)."""
+    x0, x1 = _x(a) - FEATHER_OUT, _x(b) + FEATHER_OUT
+    edge = min(.5, 44 / (x1 - x0))
     return (f'<linearGradient id="{uid}f{n}" gradientUnits="userSpaceOnUse" x1="{x0:.1f}" x2="{x1:.1f}" y1="0" y2="0">'
             f'<stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset="{edge:.3f}" stop-color="#fff"/>'
             f'<stop offset="{1 - edge:.3f}" stop-color="#fff"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>'
@@ -107,7 +114,7 @@ def _feather(uid: str, n: int, a: int, b: int, vw: float) -> str:
 
 
 def _sky_stops(sl: Sequence[str]) -> list[tuple[float, str]]:
-    """바탕 하늘 색 멈춤점 — 같은 날씨 구간 안은 한 색, 바뀌는 자리는 6시간 칸 2개(반나절)에 걸쳐 섞는다.
+    """바탕 하늘 색 멈춤점 — 같은 날씨 구간 안은 한 색, 바뀌는 자리는 6시간 칸 3개(18시간)에 걸쳐 섞는다.
 
     칸 가운데마다 찍으면 섞이는 폭이 6시간(폰에서 13px)이라 경계가 칼로 자른 듯 보인다.
     """
@@ -118,7 +125,7 @@ def _sky_stops(sl: Sequence[str]) -> list[tuple[float, str]]:
         j = i
         while j < len(sl) and sl[j] == sl[i]:
             j += 1
-        lo, hi = _x(i) + SLOT_W, _x(j) - SLOT_W
+        lo, hi = _x(i) + SLOT_W * SKY_BLEND_SLOTS, _x(j) - SLOT_W * SKY_BLEND_SLOTS
         if lo > hi:
             lo = hi = (_x(i) + _x(j)) / 2
         if i == 0:
@@ -133,12 +140,12 @@ def _sky_stops(sl: Sequence[str]) -> list[tuple[float, str]]:
 
 
 def week_band_svg(cells: Sequence[dict[str, Any]], *, uid: str, now_index: Optional[float] = None,
-                  still: bool = False) -> Markup:
+                  still: bool = False, past_days: int = 0) -> Markup:
     """한 주 띠(이 달 날짜만) SVG.
 
     cells: 띠 안 날짜 칸(``wx``·``wx_slots``). uid: 문서 안에서 겹치지 않는 접두어(주마다).
     now_index: 지금 시각의 칸 위치(0 = 띠 첫날 0시, 1.5 = 둘째 날 정오). None 이면 지금 선 없음.
-    still: 움직임 없이(주 전체가 지난 날).
+    still: 움직임 없이(주 전체가 지난 날). past_days: 띠 앞쪽 지난 날 수 — 그 부분 그림을 흐리게(칸 보기와 같이 반쯤).
     """
     sl = week_slots(cells)
     vw = DAY_W * len(cells)
@@ -152,8 +159,8 @@ def week_band_svg(cells: Sequence[dict[str, Any]], *, uid: str, now_index: Optio
     # 해: 맑음이 이어지는 구간마다 한가운데 해 하나 — 빛번짐이 떠다니며 숨쉬고 햇살은 30초에 한 바퀴
     for a, b in runs(sl, lambda k: k == "sun"):
         cx = (_x(a) + _x(b)) / 2 + 12
-        body.append(f'<g transform="translate({cx:.1f} 70)"><g class="up-glow"><circle r="92" fill="url(#tlBloom)"/></g>'
-                    '<g class="up-spin"><use href="#tlRays" fill="url(#tlRay)" opacity=".85"/></g>'
+        body.append(f'<g transform="translate({cx:.1f} 70)"><g class="up-glow"><circle r="104" fill="url(#tlBloom)"/></g>'
+                    '<g class="up-spin"><use href="#tlRays" fill="url(#tlRay)" transform="scale(1.15)"/></g>'
                     '<circle class="tl-breathe" r="30" fill="#ffe27a"/><circle r="17" fill="url(#tlDisc)"/></g>')
 
     # 구름: 맑음이 아닌 구간 전체 — 원근 3단(먼 층 작고 옅고 느림 · 가운데 · 가까운 층 크고 빠름)
@@ -172,7 +179,7 @@ def week_band_svg(cells: Sequence[dict[str, Any]], *, uid: str, now_index: Optio
             x += 20 + (j * 11) % 14
             j += 1
         w = _x(b) - _x(a)
-        far = "".join(f'<use href="#tlCloud" transform="translate({_x(a) + 8 + 23 * i:.1f} {44 + (i % 2) * 6}) scale(.6)" fill="#fff" opacity=".45"/>'
+        far = "".join(f'<use href="#tlCloud" transform="translate({_x(a) + 8 + 23 * i:.1f} {44 + (i % 2) * 6}) scale(.6)" fill="#fff" opacity=".6"/>'
                       for i in range(int(w // 23) + 1))
         edge = ""
         if a > 0 and sl[a - 1] == "sun":
@@ -182,22 +189,22 @@ def week_band_svg(cells: Sequence[dict[str, Any]], *, uid: str, now_index: Optio
                     f'{edge}<g class="up-near">{"".join(front)}</g></g>')
 
     # 비: 부슬비는 듬성, 장대비는 촘촘·빠르게(세 묶음) + 먼 빗줄기 층 + 물안개 막, 장대비는 먹구름 속 번개
-    for kind, shape, grad, step, cls in (("drizzle", "tlDrop", "tlDz", 14, "tl-dz"), ("heavy", "tlStreak", "tlHv", 7, "tl-hv")):
+    for kind, shape, grad, step, cls in (("drizzle", "tlDrop", "tlDz", 11, "tl-dz"), ("heavy", "tlStreak", "tlHv", 6, "tl-hv")):
         for a, b in runs(sl, lambda k, kind=kind: k == kind):
             n += 1
             d.append(_feather(uid, n, a, b, vw))
             groups: list[list[str]] = [[], [], []]
             x, j = _x(a) + 3, 0
-            rot, sc = (18, "1") if kind == "heavy" else (8, "1.3")
+            rot, sc = (18, "1.15") if kind == "heavy" else (8, "1.5")
             while x < _x(b):
                 y = 112 + (j * 37) % 60
                 groups[j % 3].append(f'<use href="#{shape}" transform="translate({x:.1f} {y}) rotate({rot}) scale({sc})" fill="url(#{grad})"/>')
                 x += step
                 j += 1
-            far = "".join(f'<use href="#{shape}" transform="translate({_x(a) + 5 + 9 * i:.1f} {100 + (i * 23) % 70}) rotate({14 if kind == "heavy" else 6}) scale(.55)" fill="url(#{grad})" opacity=".45"/>'
+            far = "".join(f'<use href="#{shape}" transform="translate({_x(a) + 5 + 9 * i:.1f} {100 + (i * 23) % 70}) rotate({14 if kind == "heavy" else 6}) scale(.6)" fill="url(#{grad})" opacity=".6"/>'
                           for i in range(int((_x(b) - _x(a)) // 9)))
             # 물안개 막은 마스크 범위(구간 ±10)까지 넓혀야 끝이 마스크로 사라진다 — 구간 폭 그대로면 끝이 칼선
-            extra = f'<rect class="up-veil" x="{_x(a) - 10:.1f}" width="{_x(b) - _x(a) + 20:.1f}" height="{VH}" fill="url(#tlVeil)"/>'
+            extra = f'<rect class="up-veil" x="{_x(a) - FEATHER_OUT:.1f}" width="{_x(b) - _x(a) + 2 * FEATHER_OUT:.1f}" height="{VH}" fill="url(#tlVeil)"/>'
             if kind == "heavy":
                 bx = (_x(a) + _x(b)) / 2
                 extra += (f'<ellipse class="tl-flash" cx="{bx:.1f}" cy="70" rx="40" ry="18" fill="url(#tlLit)"/>'
@@ -206,7 +213,7 @@ def week_band_svg(cells: Sequence[dict[str, Any]], *, uid: str, now_index: Optio
             body.append(f'<g mask="url(#{uid}m{n})">{extra}<g class="up-rainfar">{far}</g>{drops}</g>')
 
     # 눈: 부슬눈은 듬성 점, 함박눈은 촘촘 결정(천천히 돌며) + 먼 눈송이
-    for kind, step, r in (("flurry", 22, 2.2), ("snow", 11, 3.4)):
+    for kind, step, r in (("flurry", 17, 2.7), ("snow", 10, 3.4)):
         for a, b in runs(sl, lambda k, kind=kind: k == kind):
             n += 1
             d.append(_feather(uid, n, a, b, vw))
@@ -215,7 +222,7 @@ def week_band_svg(cells: Sequence[dict[str, Any]], *, uid: str, now_index: Optio
             while x < _x(b):
                 y = 112 + (j * 29) % 62
                 if kind == "snow":
-                    groups[j % 2].append(f'<use href="#tlFlake" transform="translate({x:.1f} {y}) scale({.75 if j % 3 else 1.0:.2f})"/>')
+                    groups[j % 2].append(f'<use href="#tlFlake" transform="translate({x:.1f} {y}) scale({.9 if j % 3 else 1.2:.2f})"/>')
                 else:
                     groups[j % 2].append(f'<circle cx="{x:.1f}" cy="{y}" r="{r if j % 3 else r * 1.3:.1f}" fill="#fff" stroke="#9db6dc" stroke-width=".7"/>')
                 x += step
@@ -227,9 +234,25 @@ def week_band_svg(cells: Sequence[dict[str, Any]], *, uid: str, now_index: Optio
 
     if now_index is not None and 0 <= now_index <= len(cells):
         nx = now_index * DAY_W
-        body.append(f'<g class="tl-now"><line x1="{nx:.1f}" x2="{nx:.1f}" y1="40" y2="{VH - 30}" stroke="#ff3b30" stroke-width="1.6" stroke-linecap="round" opacity=".85"/>'
-                    f'<circle cx="{nx:.1f}" cy="40" r="3.4" fill="#ff3b30"/>'
-                    f'<circle class="up-pulse" cx="{nx:.1f}" cy="40" r="3.4" fill="none" stroke="#ff3b30" stroke-width="1.4"/></g>')
+        # 지금 시각: 얇고 짧은 선(위쪽 절반) + 맥박 점 — 아래 건수·출고가 글자를 가로지르지 않게(사용자 2026-10-14)
+        body.append(f'<g class="tl-now"><line x1="{nx:.1f}" x2="{nx:.1f}" y1="42" y2="96" stroke="#ff3b30" stroke-width="1" stroke-linecap="round" opacity=".7"/>'
+                    f'<circle cx="{nx:.1f}" cy="42" r="2.6" fill="#ff3b30"/>'
+                    f'<circle class="up-pulse" cx="{nx:.1f}" cy="42" r="2.6" fill="none" stroke="#ff3b30" stroke-width="1.2"/></g>')
+    if past_days > 0:
+        # 지난 날 흐리게: 하늘 색 막(반투명)을 덮어 그림만 반쯤 옅게(바탕 색은 그대로). 오늘 0시 직전에 짧게 걷힌다.
+        # 마스크 대신 멈춤점 투명도로 걷는다 — 움직이는 그림 위 마스크는 프레임마다 다시 그려 무겁다(CPU 6배 43fps 실측).
+        px = min(past_days, len(cells)) * DAY_W
+        if px >= vw:
+            body.append(f'<rect class="tl-past" width="{vw:.0f}" height="{VH}" fill="url(#{uid}s)"/>')
+        else:
+            edge0, edge1 = px - 12, px + 4
+            kind_at = sl[max(0, min(len(sl) - 1, int(edge0 // SLOT_W)))]
+            pstops = [f'<stop offset="{pos:.4f}" class="tl-s-{k}" stop-opacity="{PAST_VEIL}"/>'
+                      for pos, k in _sky_stops(sl) if pos * vw < edge0]
+            pstops.append(f'<stop offset="{edge0 / vw:.4f}" class="tl-s-{kind_at}" stop-opacity="{PAST_VEIL}"/>'
+                          f'<stop offset="{edge1 / vw:.4f}" class="tl-s-{kind_at}" stop-opacity="0"/>')
+            d.append(f'<linearGradient id="{uid}p" x1="0" x2="1" y1="0" y2="0">{"".join(pstops)}</linearGradient>')
+            body.append(f'<rect class="tl-past is-part" width="{edge1:.0f}" height="{VH}" fill="url(#{uid}p)"/>')
     cls = "tl-svg is-still" if still else "tl-svg"
     return Markup(f'<svg class="{cls}" viewBox="0 0 {vw:.0f} {VH}" preserveAspectRatio="none" aria-hidden="true" focusable="false">'
                   f'<defs>{"".join(d)}</defs>{"".join(body)}</svg>')
@@ -255,4 +278,5 @@ def wx_timeline_band(cells: Sequence[dict[str, Any]], uid: str) -> Markup:
     idx = next((i for i, c in enumerate(cells) if c.get("iso") == today_iso), None)
     now_index = idx + (now.hour + now.minute / 60) / 24 if idx is not None else None
     still = bool(cells) and all(c.get("is_past") for c in cells)
-    return week_band_svg(cells, uid=uid, now_index=now_index, still=still)
+    past_days = next((i for i, c in enumerate(cells) if not c.get("is_past")), len(cells))
+    return week_band_svg(cells, uid=uid, now_index=now_index, still=still, past_days=past_days)
