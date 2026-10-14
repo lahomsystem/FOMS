@@ -74,8 +74,26 @@ def test_pcp_text_to_mm():
 
 def test_short_snow_wins_over_rain():
     items = _hours("20261014", "PTY", [(9, "1"), (10, "3")])
-    assert w.classify_short(items)["kind"] == "snow"
-    assert w.classify_short(_hours("20261014", "PTY", [(9, "2")]))["kind"] == "snow"  # 비/눈 = 눈 그림
+    assert w.classify_short(items)["kind"] == "flurry"  # 신적설 없음 = 부슬눈
+    assert w.classify_short(_hours("20261014", "PTY", [(9, "2")]))["kind"] == "flurry"  # 비/눈(진눈깨비) = 부슬눈
+
+
+@pytest.mark.parametrize("sno, kind", [
+    ([(9, "1cm 미만"), (10, "1cm 미만")], "flurry"),
+    ([(9, "1.0cm")], "snow"),                                  # 한 시간 1cm = 함박눈
+    ([(h, "0.6cm") for h in range(9, 14)], "snow"),            # 하루 3cm = 함박눈
+    ([(h, "0.5cm") for h in range(9, 14)], "flurry"),          # 하루 2.5cm
+    ([(9, "5.0cm 이상")], "snow"),
+])
+def test_short_snow_strength(sno, kind):
+    items = _hours("20261014", "PTY", [(9, "3")]) + _hours("20261014", "SNO", sno)
+    assert w.classify_short(items)["kind"] == kind
+
+
+def test_sleet_with_snowfall_stays_flurry():
+    """진눈깨비(PTY 2)는 쌓여도 함박눈 그림으로 그리지 않는다 — 함박눈은 눈(PTY 3)일 때만."""
+    items = _hours("20261014", "PTY", [(9, "2")]) + _hours("20261014", "SNO", [(9, "2.0cm")])
+    assert w.classify_short(items)["kind"] == "flurry"
 
 
 @pytest.mark.parametrize("pcp, kind", [
@@ -108,7 +126,8 @@ def test_short_temperature_and_pop():
 
 @pytest.mark.parametrize("texts, kind", [
     (("흐리고 비", "맑음"), "drizzle"),   # 중기는 비의 양이 없다 → 부슬비
-    (("비/눈",), "snow"),
+    (("비/눈",), "flurry"),   # 중기는 눈의 양이 없다 → 부슬눈
+    (("흐리고 눈",), "flurry"),
     (("구름많음", "흐림"), "cloud"),
     (("맑음", "맑음"), "sun"),
     (("흐리고 소나기",), "drizzle"),
@@ -171,7 +190,7 @@ def test_mid_fills_later_days_but_keeps_short_values():
     assert out == {"stored": 2, "base": "202610140600"}
     days = w.load_days(db_session, datetime.date(2026, 10, 1), datetime.date(2026, 10, 31))["days"]
     assert days["2026-10-17"] == {"kind": "drizzle", "t_min": 12, "t_max": 21, "pop": 70, "src": "mid", "base": "202610140600"}
-    assert days["2026-10-22"]["kind"] == "snow" and (days["2026-10-22"]["t_min"], days["2026-10-22"]["t_max"]) == (-6, 2)
+    assert days["2026-10-22"]["kind"] == "flurry" and (days["2026-10-22"]["t_min"], days["2026-10-22"]["t_max"]) == (-6, 2)
     assert days["2026-10-14"]["src"] == "short"
 
 

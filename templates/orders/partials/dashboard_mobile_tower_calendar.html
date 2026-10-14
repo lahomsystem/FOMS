@@ -57,7 +57,7 @@
           {% if inm %}
             <div class="foms-wx-band s-{{ inm[0].dow + 1 }} n-{{ inm | length }}" aria-hidden="true">
               {% for c in inm | reverse %}
-                <span class="foms-wx-seg c-{{ c.dow - inm[0].dow + 1 }} wx-k-{{ c.wx or 'none' }} wx-p-{{ c.wx_prev }} wx-n-{{ c.wx_next }}{% if c.is_past %} is-past{% endif %}">{% if c.wx %}{{ wx_pic(c.wx, c.wx_live) }}{% endif %}</span>
+                <span class="foms-wx-seg c-{{ c.dow - inm[0].dow + 1 }} wx-k-{{ c.wx or 'none' }} wx-p-{{ c.wx_prev }} wx-n-{{ c.wx_next }}{% if c.is_past %} is-past{% endif %}">{% if c.wx %}{{ wx_pic(c.wx, c.wx_live) }}{% if c.wx_live %}{% if c.wx == 'sun' %}<span class="fwx-fx fwx-sweep"></span>{% elif c.wx == 'cloud' %}<span class="fwx-fx fwx-pass"></span>{% elif c.wx == 'heavy' %}<span class="fwx-fx fwx-flash"></span><span class="fwx-fx fwx-bolt"></span>{% endif %}{% endif %}{% endif %}</span>
               {% endfor %}
               <span class="foms-wx-gloss"></span>
             </div>
@@ -89,7 +89,7 @@
 
     <div class="foms-tower__cal-legend">
       <span class="foms-tower__wx-chips" aria-label="날씨">
-        <i class="foms-tower__wx-chip wx-k-sun">맑음</i><i class="foms-tower__wx-chip wx-k-cloud">구름</i><i class="foms-tower__wx-chip wx-k-drizzle">부슬비</i><i class="foms-tower__wx-chip wx-k-heavy">장대비</i><i class="foms-tower__wx-chip wx-k-snow">눈</i>
+        <i class="foms-tower__wx-chip wx-k-sun">맑음</i><i class="foms-tower__wx-chip wx-k-cloud">구름</i><i class="foms-tower__wx-chip wx-k-drizzle">부슬비</i><i class="foms-tower__wx-chip wx-k-heavy">장대비</i><i class="foms-tower__wx-chip wx-k-flurry">부슬눈</i><i class="foms-tower__wx-chip wx-k-snow">함박눈</i>
       </span>
       <span><i class="foms-tower__cal-legend-dot" aria-hidden="true"></i>오늘·내일 시공 중 출고 전 있음</span>
       {% if cal.colors and cal.colors.enabled and (cal.yellow_label or cal.pink_label) %}
