@@ -8,7 +8,8 @@
 {% from 'orders/partials/dashboard_mobile_tower_weather.html' import wx_defs, wx_pic %}
 <div class="foms-tower__cal" data-foms-cal data-month="{{ cal.month }}">
   {{ wx_defs() }}
-  <div class="foms-tower__cal-hero foms-cal-photo-{{ cal.photo.month }}">
+  {# 사진 출처 줄은 화면에서 뺐다(사용자 2026-10-14). 출처는 title(길게 누르기·마우스 올리기)과 calendar_month_photos.py 에 남긴다. #}
+  <div class="foms-tower__cal-hero foms-cal-photo-{{ cal.photo.month }}"{% if cal.photo.credit %} title="{{ cal.photo.credit }}"{% endif %}>
     <div class="foms-tower__cal-top">
       <div class="foms-tower__cal-nav">
         <button type="button" class="foms-tower__cal-arrow" data-foms-cal-month="{{ cal.prev or '' }}" aria-label="지난달"{% if not cal.prev %} disabled{% endif %}>
@@ -42,7 +43,6 @@
         <span><i class="foms-tower__mark foms-tower__mark--as" aria-hidden="true"></i>AS <b>{{ cal.as_total }}</b></span>
       </div>
     </div>
-    {% if cal.photo.credit %}<span class="foms-tower__cal-credit">{{ cal.photo.credit }}</span>{% endif %}
   </div>
 
   <div class="foms-tower__cal-sheet">
