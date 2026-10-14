@@ -138,8 +138,6 @@
 .foms-tower__cal-legend { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 7px 4px 0; font-size: 10.5px; color: var(--foms-text-secondary); }
 .foms-tower__cal-legend span { display: inline-flex; align-items: center; gap: 4px; }
 .foms-tower__cal-legend-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--foms-color-danger-600); }
-.foms-tower__cal-legend-amt { margin-left: auto; font-weight: var(--foms-font-weight-bold); color: var(--foms-color-brand-800); }
-[data-theme='dark'] .foms-tower__cal-legend-amt { color: var(--foms-color-brand-200); }
 
 /* (B) 오늘 요약 */
 .foms-tower__today {
