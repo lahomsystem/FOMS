@@ -2,7 +2,7 @@
 
 설계 의도: 단계별 개수(인벤토리/funnel)가 아니라 사용자가 매일 아침 던지는
 실제 질문에 답하는 read-model을 만든다.
-  ① 이번주/오늘 나갈 현장(실측·시공)은? 각각 준비됐나? (week / today_field_ops)
+  ① 이번 달·그날 나갈 현장(실측·시공·AS)과 시공 출고가는? 할 일이 남았나? (calendar / field-ops)
   ② 약속일 펑크날 위험(시퀀스 위반)은? (risk_groups)
   ③ 내 담당 진행중 / 신규 유입은? (mine_open_count / inbound_count)
 
@@ -26,17 +26,20 @@ from foms.services.erp_display import (
     _ensure_dict,
     _erp_get_stage,
     erp_payment_amount_from_structured,
+    erp_shipping_price_from_structured,
     get_today_kst,
     manager_display_name,
 )
 from foms.services.datetime_kst import now_utc_naive
-from foms.services.common.business_calendar import business_days_until
+from foms.services.common.business_calendar import business_days_until, get_holidays_kr
 from foms.services.erp_permissions import build_mine_sql_filter, mine_membership_clause
+from foms.services.measurement_time import measurement_glance_time_key
 from foms.services.shipment_dashboard_helpers import AS_SHIPMENT_STATUSES
 
 __all__ = [
     "build_mobile_control_tower",
     "build_field_ops_for_day",
+    "build_month_calendar",
     "build_risk_order_ids",
     "build_risk_frame",
     "risk_row_cta_meta",
@@ -151,18 +154,32 @@ def _cust_name(order: Any, sd: dict) -> str:
 
 
 def _measure_readiness(order: Any, sd: dict) -> tuple[str, str]:
+    """실측 칩: 담당이 없을 때만 '담당 미배정'. 배정됐으면 칩 없음(빈 라벨) — 전 행 '준비완료'는 정보가 없다."""
     if _measure_assigned(order, sd):
-        return ("ok", "준비완료")
+        return ("ok", "")
     return ("warn", "담당 미배정")
 
 
-def _construction_readiness(order: Any, sd: dict) -> tuple[str, str]:
-    """시공 준비도: 설치단계 미도달=위험(출고 미확인), 잔금 남음=경고, 그 외 준비완료."""
+def _construction_readiness(order: Any, sd: dict, *, day_offset: int = 0) -> tuple[str, str]:
+    """시공 칩 — 할 일이 있을 때만 붙인다.
+
+    Args:
+        order: Order.
+        sd: structured_data.
+        day_offset: 시공일 − 오늘(일). 지난 날(<0)은 칩 없음. 출고 전 단계(설치 단계 미도달)는
+            오늘·내일(0·1)만 '출고 전'(위험) — 먼 날짜의 출고 전은 정상 진행이다.
+
+    Returns:
+        (상태, 라벨). 출고된 주문에 잔금이 남았으면 ('warn', '잔금 48만'). 할 일 없으면 ('ok', '').
+    """
+    if day_offset < 0:
+        return ("ok", "")
     if _stage_code_of(order, sd) not in _INSTALL_READY_CODES:
-        return ("risk", "출고 미확인")
-    if (_balance_remaining(sd) or 0) > 0:
-        return ("warn", "잔금 미수")
-    return ("ok", "준비완료")
+        return ("risk", "출고 전") if day_offset <= 1 else ("ok", "")
+    balance = _balance_remaining(sd) or 0
+    if balance > 0:
+        return ("warn", f"잔금 {_man_label(balance)}")
+    return ("ok", "")
 
 
 def _business_window_dates(today: datetime.date, *, max_business_days: int, window_days: int) -> list[str]:
@@ -192,33 +209,41 @@ def _tower_base_query(db: Any, current_user: Any):
     return q
 
 
-def _week_strip(base: Any, today: datetime.date) -> dict[str, Any]:
-    """오늘부터 7일: 일자별 실측/시공 건수 + 시공 미준비 위험 표시.
+def _day_counts(base: Any, date_strs: list[str]) -> tuple[dict, dict, dict]:
+    """날짜별 (실측, 시공, AS 방문) 주문 수. 복수 일정 주문은 각 날짜에 모두 잡힌다.
 
-    복수 일정 대응: order_schedule_dates 조인으로 집계해 실측/시공일이 여러 개인
-    주문이 각 날짜 칸에 모두 잡힌다(as_by와 동일 패턴).
+    order_schedule_dates 조인 집계 — 실측 대시보드 패널·출고 대시보드와 같은 모집단.
+
+    Args:
+        base: 타워 base 쿼리.
+        date_strs: 'YYYY-MM-DD' 목록.
+
+    Returns:
+        ({날짜: 실측 수}, {날짜: 시공 수}, {날짜: AS 수}).
     """
-    dates = [today + datetime.timedelta(days=i) for i in range(7)]
-    date_strs = [d.isoformat() for d in dates]
-    meas_by = dict(
-        base.join(OrderScheduleDate, OrderScheduleDate.order_id == Order.id)
-        .filter(
-            OrderScheduleDate.kind == 'measurement',
-            OrderScheduleDate.date.in_(date_strs),
-            ~_SELF_MEASURE_DONE_SQL,
+    if not date_strs:
+        return {}, {}, {}
+
+    def _count_by(*conds):
+        return dict(
+            base.join(OrderScheduleDate, OrderScheduleDate.order_id == Order.id)
+            .filter(OrderScheduleDate.date.in_(date_strs), *conds)
+            .with_entities(OrderScheduleDate.date, func.count(distinct(Order.id)))
+            .group_by(OrderScheduleDate.date)
+            .all()
         )
-        .with_entities(OrderScheduleDate.date, func.count(distinct(Order.id)))
-        .group_by(OrderScheduleDate.date)
-        .all()
-    )
-    cons_by = dict(
-        base.join(OrderScheduleDate, OrderScheduleDate.order_id == Order.id)
-        .filter(OrderScheduleDate.kind == 'construction', OrderScheduleDate.date.in_(date_strs))
-        .with_entities(OrderScheduleDate.date, func.count(distinct(Order.id)))
-        .group_by(OrderScheduleDate.date)
-        .all()
-    )
-    risk_by = dict(
+
+    meas_by = _count_by(OrderScheduleDate.kind == 'measurement', ~_SELF_MEASURE_DONE_SQL)
+    cons_by = _count_by(OrderScheduleDate.kind == 'construction')
+    as_by = _count_by(Order.status.in_(AS_SHIPMENT_STATUSES), OrderScheduleDate.kind == "as_visit")
+    return meas_by, cons_by, as_by
+
+
+def _unshipped_construction_by(base: Any, date_strs: list[str]) -> dict:
+    """날짜별 '출고 전' 시공 수 — 시공 일정은 있는데 단계가 시공 준비 완료 전인 주문."""
+    if not date_strs:
+        return {}
+    return dict(
         base.join(OrderScheduleDate, OrderScheduleDate.order_id == Order.id)
         .filter(
             OrderScheduleDate.kind == 'construction',
@@ -229,36 +254,145 @@ def _week_strip(base: Any, today: datetime.date) -> dict[str, Any]:
         .group_by(OrderScheduleDate.date)
         .all()
     )
-    as_by = dict(
+
+
+def _construction_amounts(base: Any, date_strs: list[str]) -> tuple[dict[str, int], int]:
+    """날짜별 시공 출고가 합과 기간 합계(주문당 한 번).
+
+    출고가는 정산 '예상 매출'·모바일 상세와 같은 식(`erp_shipping_price_from_structured`).
+    산출 불가(None) 주문은 금액에서만 빠진다. 복수 시공일 주문은 날짜 칸마다 들어가지만
+    기간 합계에는 한 번만 들어간다.
+
+    Returns:
+        ({날짜: 원}, 기간 합계 원).
+    """
+    if not date_strs:
+        return {}, 0
+    rows = (
         base.join(OrderScheduleDate, OrderScheduleDate.order_id == Order.id)
-        .filter(
-            Order.status.in_(AS_SHIPMENT_STATUSES),
-            OrderScheduleDate.kind == "as_visit",
-            OrderScheduleDate.date.in_(date_strs),
-        )
-        .with_entities(OrderScheduleDate.date, func.count(distinct(Order.id)))
-        .group_by(OrderScheduleDate.date)
+        .filter(OrderScheduleDate.kind == 'construction', OrderScheduleDate.date.in_(date_strs))
+        .with_entities(OrderScheduleDate.date, Order.id, Order.structured_data)
         .all()
     )
-    days = []
-    for i, day in enumerate(dates):
-        ds = day.isoformat()
-        days.append({
-            "date": day.day,
-            "iso": ds,
-            "dow": "오늘" if i == 0 else DOW_KR[day.weekday()],
-            "is_today": i == 0,
-            "measure": int(meas_by.get(ds, 0) or 0),
-            "construction": int(cons_by.get(ds, 0) or 0),
-            "as_count": int(as_by.get(ds, 0) or 0),
-            "has_risk": int(risk_by.get(ds, 0) or 0) > 0,
-        })
+    price_of: dict[int, int] = {}
+    by_date: dict[str, int] = {}
+    seen: set[tuple[str, int]] = set()
+    for date_str, order_id, sd in rows:
+        key = (str(date_str), int(order_id))
+        if key in seen:
+            continue
+        seen.add(key)
+        if key[1] not in price_of:
+            price_of[key[1]] = erp_shipping_price_from_structured(_ensure_dict(sd)) or 0
+        by_date[key[0]] = by_date.get(key[0], 0) + price_of[key[1]]
+    return by_date, sum(price_of.values())
+
+
+def _man_label(won: int | None) -> str:
+    """원 → '3,470만' / '1억 2,300만'(만 원 반올림). 0·None 은 빈 문자열."""
+    if not won or won <= 0:
+        return ""
+    man = int(round(won / 10000))
+    if man <= 0:
+        return f"{won:,}원"
+    eok, rest = divmod(man, 10000)
+    if not eok:
+        return f"{man:,}만"
+    return f"{eok}억 {rest:,}만" if rest else f"{eok}억"
+
+
+_CAL_DOW = ["일", "월", "화", "수", "목", "금", "토"]
+# 달 이동 범위(오늘 기준 앞뒤 개월). 모집단이 '완료 60일 이내'라 먼 과거는 숫자가 줄어든다.
+_CAL_MONTH_SPAN = 12
+
+
+def _month_gap(a: datetime.date, b: datetime.date) -> int:
+    return (a.year - b.year) * 12 + (a.month - b.month)
+
+
+def _shift_month(first: datetime.date, delta: int) -> datetime.date:
+    index = first.year * 12 + (first.month - 1) + delta
+    return datetime.date(index // 12, index % 12 + 1, 1)
+
+
+def _month_first(month: str | None, today: datetime.date) -> datetime.date:
+    """'YYYY-MM' → 그 달 1일. 형식 오류·오늘 기준 ±12개월 밖이면 이번 달."""
+    this_month = today.replace(day=1)
+    try:
+        year, mon = (int(part) for part in str(month or "").split("-"))
+        first = datetime.date(year, mon, 1)
+    except (TypeError, ValueError):
+        return this_month
+    return first if abs(_month_gap(first, this_month)) <= _CAL_MONTH_SPAN else this_month
+
+
+def _month_calendar(base: Any, today: datetime.date, first: datetime.date) -> dict[str, Any]:
+    """월간 현장 달력: 일요일 시작 주 격자 + 날짜별 실측/시공/AS 수·시공 출고가 합.
+
+    빨간 점(출고 전 시공)은 오늘·내일 칸에만 — 먼 날짜의 출고 전은 정상 상태다.
+    """
+    next_first = _shift_month(first, 1)
+    last = next_first - datetime.timedelta(days=1)
+    grid_start = first - datetime.timedelta(days=(first.weekday() + 1) % 7)
+    grid_end = last + datetime.timedelta(days=(5 - last.weekday()) % 7)
+    month_dates = [(first + datetime.timedelta(days=i)).isoformat() for i in range(last.day)]
+    soon_dates = [
+        d.isoformat() for d in (today, today + datetime.timedelta(days=1)) if first <= d <= last
+    ]
+
+    meas_by, cons_by, as_by = _day_counts(base, month_dates)
+    unshipped_by = _unshipped_construction_by(base, soon_dates)
+    amount_by, month_amount = _construction_amounts(base, month_dates)
+    holidays = get_holidays_kr(first.year)
+
+    weeks: list[list[dict[str, Any]]] = []
+    day = grid_start
+    while day <= grid_end:
+        week: list[dict[str, Any]] = []
+        for col in range(7):
+            iso = day.isoformat()
+            in_month = first <= day <= last
+            measure = int(meas_by.get(iso, 0) or 0) if in_month else 0
+            construction = int(cons_by.get(iso, 0) or 0) if in_month else 0
+            as_count = int(as_by.get(iso, 0) or 0) if in_month else 0
+            unshipped = int(unshipped_by.get(iso, 0) or 0) if in_month else 0
+            amount_label = _man_label(amount_by.get(iso, 0)) if in_month else ""
+            aria = f"{day.month}월 {day.day}일 {_CAL_DOW[col]}요일, 실측 {measure}건, 시공 {construction}건, AS {as_count}건"
+            if amount_label:
+                aria += f", 출고가 {amount_label}원"
+            if unshipped:
+                aria += f", 출고 전 시공 {unshipped}건"
+            week.append({
+                "iso": iso,
+                "day": day.day,
+                "dow": col,
+                "in_month": in_month,
+                "is_today": day == today,
+                "is_past": day < today,
+                "is_holiday": iso in holidays,
+                "measure": measure,
+                "construction": construction,
+                "as_count": as_count,
+                "amount_label": amount_label,
+                "unshipped": unshipped,
+                "aria": aria,
+            })
+            day += datetime.timedelta(days=1)
+        weeks.append(week)
+
+    this_month = today.replace(day=1)
+    prev_first = _shift_month(first, -1)
     return {
-        "days": days,
-        "measure_total": sum(d["measure"] for d in days),
-        "construction_total": sum(d["construction"] for d in days),
-        "as_total": sum(d["as_count"] for d in days),
-        "risk_total": sum(int(risk_by.get(d["iso"], 0) or 0) for d in days),
+        "month": first.strftime("%Y-%m"),
+        "label": f"{first.year}년 {first.month}월",
+        "is_this_month": first == this_month,
+        "prev": prev_first.strftime("%Y-%m") if abs(_month_gap(prev_first, this_month)) <= _CAL_MONTH_SPAN else None,
+        "next": next_first.strftime("%Y-%m") if abs(_month_gap(next_first, this_month)) <= _CAL_MONTH_SPAN else None,
+        "weeks": weeks,
+        "measure_total": sum(int(v or 0) for v in meas_by.values()),
+        "construction_total": sum(int(v or 0) for v in cons_by.values()),
+        "as_total": sum(int(v or 0) for v in as_by.values()),
+        "amount_label": _man_label(month_amount) or "0원",
     }
 
 
@@ -276,7 +410,14 @@ def _as_visit_order_ids_for_date(base: Any, date_iso: str) -> list[int]:
     return [int(r[0]) for r in rows]
 
 
-def _field_ops_for_date(base: Any, date_iso: str, *, field_type: str = "all", limit: int = 100) -> list[dict[str, Any]]:
+def _field_ops_for_date(
+    base: Any,
+    date_iso: str,
+    *,
+    field_type: str = "all",
+    limit: int = 100,
+    today: datetime.date | None = None,
+) -> list[dict[str, Any]]:
     """특정 날짜의 실측/시공/AS 약속 + 준비도 신호등 (시공 우선, 시간순).
 
     field_type: 'measure'(실측만) | 'construction'(시공만) | 'as'(AS만) | 'all'(전부).
@@ -311,6 +452,10 @@ def _field_ops_for_date(base: Any, date_iso: str, *, field_type: str = "all", li
             for r in base.filter(_sched_any('construction', [date_iso])).with_entities(Order.id).all()
         }
     as_id_set = set(as_ids)
+    try:
+        day_offset = (datetime.date.fromisoformat(date_iso) - (today or get_today_kst())).days
+    except ValueError:
+        day_offset = 0
     out: list[dict[str, Any]] = []
     for order in rows:
         sd = _ensure_dict(getattr(order, "structured_data", None))
@@ -336,24 +481,95 @@ def _field_ops_for_date(base: Any, date_iso: str, *, field_type: str = "all", li
             is_cons = order_id in cons_id_set
         schedule_key = "as_visit" if is_as_only_visit else ("construction" if is_cons else "measurement")
         sched = (sd.get("schedule") or {}).get(schedule_key) or {}
-        state, label = (_construction_readiness if is_cons else _measure_readiness)(order, sd)
         if is_as_only_visit:
-            state, label = ("ok", "AS 방문")
+            state, label = ("ok", "")
+        elif is_cons:
+            state, label = _construction_readiness(order, sd, day_offset=day_offset)
+        else:
+            state, label = _measure_readiness(order, sd)
         parties = sd.get("parties") or {}
         site = sd.get("site") or {}
+        time_text = str(sched.get("time") or "").strip() or None
+        amount = erp_shipping_price_from_structured(sd) if (is_cons and not is_as_only_visit) else None
         out.append({
             "id": order.id,
             "name": (parties.get("customer") or {}).get("name") or "-",
             "type": "AS" if is_as_only_visit else ("시공" if is_cons else "실측"),
             "type_code": "as" if is_as_only_visit else ("construction" if is_cons else "measure"),
-            "time": (str(sched.get("time") or "").strip() or None),
+            "time": time_text,
+            "time_group": _time_group(time_text),
             "addr": site.get("address_full") or site.get("address_main") or "-",
             "manager": manager_display_name(parties) or getattr(order, "manager_name", None) or "-",
+            "phone": str((parties.get("customer") or {}).get("phone") or "").strip(),
+            "items_label": "" if (not is_cons and not is_as_only_visit) else _items_label(sd),
+            "amount": amount,
+            "amount_label": _man_label(amount),
             "readiness_state": state,
             "readiness_label": label,
         })
-    out.sort(key=lambda r: (0 if r["type_code"] == "construction" else 1, r["time"] or "99:99"))
+    out.sort(key=_field_ops_sort_key)
     return out
+
+
+_FIELD_TYPE_ORDER = {"construction": 0, "measure": 1, "as": 2}
+_FIELD_TYPE_TITLE = {"construction": "시공", "measure": "실측", "as": "AS"}
+
+
+def _field_ops_sort_key(row: dict[str, Any]) -> tuple[int, tuple[int, int, int]]:
+    """현장 목록 정렬: 시공 → 실측 → AS, 그 안에서 방문 시각 이른 순(시각 미정은 맨 뒤).
+
+    시각은 자유 텍스트("오전", "2~3시 이후", None)라 문자열 비교를 하면 "99:99"(미정)가
+    "오전"·"오후"보다 앞서고 "3~4시"가 "18:00" 뒤로 간다. 실측 체크리스트와 같은 키를 쓴다.
+    """
+    return (_FIELD_TYPE_ORDER.get(row["type_code"], 3), measurement_glance_time_key(row["time"]))
+
+
+def _time_group(time_text: str | None) -> str:
+    """방문 시각 원문 → 묶음 머리('오전'|'오후'|'종일'|'시간 미정'). 정렬 키와 같은 판정."""
+    bucket, minutes, _ = measurement_glance_time_key(time_text)
+    if bucket == 0:
+        return "오전" if minutes < 12 * 60 else "오후"
+    return {1: "오후", 2: "종일"}.get(bucket, "시간 미정")
+
+
+def _items_label(sd: dict) -> str:
+    """품목 요약: 첫 품목명 + ' 외 N'. 품목명이 없으면 빈 문자열."""
+    names = [
+        str(item.get("product_name") or "").strip()
+        for item in (sd.get("items") or [])
+        if isinstance(item, dict)
+    ]
+    names = [name for name in names if name]
+    if not names:
+        return ""
+    return names[0] if len(names) == 1 else f"{names[0]} 외 {len(names) - 1}"
+
+
+def _field_sections(rows: list[dict[str, Any]], day_offset: int) -> list[dict[str, Any]]:
+    """정렬된 행 → 종류 묶음(시공·실측·AS) × 시간 묶음. 시공 묶음은 출고가 합·출고 전 띠를 싣는다."""
+    sections: list[dict[str, Any]] = []
+    for row in rows:
+        if not sections or sections[-1]["type_code"] != row["type_code"]:
+            sections.append({
+                "type_code": row["type_code"],
+                "title": _FIELD_TYPE_TITLE.get(row["type_code"], row["type"]),
+                "count": 0,
+                "amount": 0,
+                "unshipped": 0,
+                "groups": [],
+            })
+        section = sections[-1]
+        section["count"] += 1
+        section["amount"] += int(row.get("amount") or 0)
+        if row["readiness_label"] == "출고 전":
+            section["unshipped"] += 1
+        if not section["groups"] or section["groups"][-1]["label"] != row["time_group"]:
+            section["groups"].append({"label": row["time_group"], "rows": []})
+        section["groups"][-1]["rows"].append(row)
+    for section in sections:
+        section["amount_label"] = _man_label(section.pop("amount"))
+        section["unshipped_when"] = "오늘" if day_offset == 0 else ("내일" if day_offset == 1 else "")
+    return sections
 
 
 def _type_counts_for_date(base: Any, date_iso: str) -> tuple[int, int, int]:
@@ -365,14 +581,12 @@ def _type_counts_for_date(base: Any, date_iso: str) -> tuple[int, int, int]:
 
 
 def _day_label(date_iso: str, today: datetime.date) -> str:
-    """섹션 제목용 날짜 라벨. 오늘이면 '오늘의 현장', 그 외 'M/D(요일) 현장'."""
+    """그날 목록 시트 제목 'M월 D일 (요일)'. 오늘 여부는 호출부가 is_today 배지로 따로 싣는다."""
     try:
         d = datetime.date.fromisoformat(date_iso)
     except (TypeError, ValueError):
         return "현장 일정"
-    if d == today:
-        return "오늘의 현장"
-    return f"{d.month}/{d.day}({DOW_KR[d.weekday()]}) 현장"
+    return f"{d.month}월 {d.day}일 ({DOW_KR[d.weekday()]})"
 
 
 def _risk_group(key: str, icon: str, tone: str, title: str, why: str, count: int, filter_args: dict) -> dict[str, Any]:
@@ -623,8 +837,12 @@ def build_field_ops_for_day(
     base = _tower_base_query(db, current_user)
     if mine_only:
         base = _apply_mine_only(base, current_user)
-    rows = _field_ops_for_date(base, date_iso, field_type=field_type)
+    rows = _field_ops_for_date(base, date_iso, field_type=field_type, today=today)
     measure_count, construction_count, as_count = _type_counts_for_date(base, date_iso)
+    try:
+        day_offset = (datetime.date.fromisoformat(date_iso) - today).days
+    except ValueError:
+        day_offset = 0
     if field_type == "measure":
         count = measure_count
     elif field_type == "construction":
@@ -633,15 +851,35 @@ def build_field_ops_for_day(
         count = as_count
     else:
         count = _today_total(base, date_iso)
+    construction_amount = sum(int(r.get("amount") or 0) for r in rows if r["type_code"] == "construction")
     return {
         "rows": rows,
+        "sections": _field_sections(rows, day_offset),
         "count": count,
         "measure_count": measure_count,
         "construction_count": construction_count,
         "as_count": as_count,
+        "amount_label": _man_label(construction_amount) or "0원",
         "label": _day_label(date_iso, today),
         "iso": date_iso,
+        "is_today": day_offset == 0,
     }
+
+
+def build_month_calendar(
+    db: Any,
+    current_user: Any,
+    month: str | None,
+    *,
+    mine_only: bool = False,
+    today: datetime.date | None = None,
+) -> dict[str, Any]:
+    """월간 현장 달력 페이로드(달 이동 ajax용). month='YYYY-MM', 범위 밖·오류면 이번 달."""
+    today = today or get_today_kst()
+    base = _tower_base_query(db, current_user)
+    if mine_only:
+        base = _apply_mine_only(base, current_user)
+    return _month_calendar(base, today, _month_first(month, today))
 
 
 def build_mobile_control_tower(
@@ -657,12 +895,17 @@ def build_mobile_control_tower(
     if mine_only:
         base = _apply_mine_only(base, current_user)
     risk = _risk_radar(base, today)
-    field_ops = _field_ops_for_date(base, today_iso)
     measure_count, construction_count, as_count = _type_counts_for_date(base, today_iso)
+    calendar = _month_calendar(base, today, today.replace(day=1))
+    today_cell = next(
+        (cell for week in calendar["weeks"] for cell in week if cell["iso"] == today_iso), {}
+    )
     return {
-        "week": _week_strip(base, today),
+        "calendar": calendar,
         "today_iso": today_iso,
-        "today_field_ops": field_ops,
+        "today_label": _day_label(today_iso, today),
+        "today_amount_label": today_cell.get("amount_label") or "0원",
+        "today_unshipped": int(today_cell.get("unshipped") or 0),
         "today_count": _today_total(base, today_iso),
         "today_measure_count": measure_count,
         "today_construction_count": construction_count,
