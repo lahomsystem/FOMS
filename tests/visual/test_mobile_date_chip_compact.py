@@ -81,7 +81,7 @@ def _tower_cal_cell_metrics(page) -> dict[str, float | str]:
 
 
 def _assert_tower_cal_cell_contained(metrics: dict[str, float | str]) -> None:
-    assert 70 <= metrics["cellHeight"] <= 82
+    assert 84 <= metrics["cellHeight"] <= 92
     assert metrics["cellWidth"] <= 60
     assert metrics["dateTop"] < metrics["countsTop"]
     assert metrics["contentRight"] <= metrics["cellRight"] + 0.5

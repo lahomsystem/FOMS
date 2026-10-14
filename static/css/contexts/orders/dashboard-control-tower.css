@@ -100,7 +100,7 @@
 .foms-tower__cal-dow .is-blue { color: var(--foms-color-info-600); }
 .foms-tower__cal-cell {
   appearance: none; -webkit-appearance: none; font: inherit; color: var(--foms-text-primary); cursor: pointer;
-  position: relative; min-width: 0; height: 76px; padding: 4px 1px 3px; box-sizing: border-box;
+  position: relative; min-width: 0; height: 88px; padding: 4px 1px 4px; box-sizing: border-box;
   border: 1px solid transparent; border-radius: 10px; background: var(--foms-surface-base);
   display: flex; flex-direction: column; align-items: center; gap: 1px; overflow: clip;
 }
