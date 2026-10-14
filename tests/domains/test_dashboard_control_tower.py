@@ -637,7 +637,7 @@ def test_field_sections_group_by_type_then_time():
 
 
 def test_month_calendar_amounts_and_soon_risk(app):
-    """날짜 칸 금액 = 그날 시공 출고가 합, 이달 합계는 주문당 한 번. 빨간 점은 오늘·내일만."""
+    """날짜 칸 금액 = 그날 시공 출고가 합(여러 날 시공은 시공일 수로 나눈 몫), 이달 합계 = 날짜 칸 합. 빨간 점은 오늘·내일만."""
     import datetime
 
     from db import db_session
@@ -674,14 +674,16 @@ def test_month_calendar_amounts_and_soon_risk(app):
     cal = ct._month_calendar(base, today, today.replace(day=1))
     by_iso = {c["iso"]: c for w in cal["weeks"] for c in w if c["in_month"]}
     assert by_iso[today.isoformat()]["construction"] == 2
-    assert by_iso[today.isoformat()]["amount_label"] == "612만"
+    assert by_iso[today.isoformat()]["amount_label"] == "512만"  # 412만 + 이틀 시공 200만의 절반
     assert by_iso[today.isoformat()]["unshipped"] == 2
-    assert by_iso[far]["amount_label"] == "300만"
+    assert by_iso[far]["amount_label"] == "200만"  # 100만 + 이틀 시공 몫 100만
     assert by_iso[far]["unshipped"] == 0  # 먼 날짜 출고 전은 점 없음
-    assert cal["amount_label"] == "712만"  # 이틀 시공 주문은 한 번만
+    assert cal["amount_label"] == "712만"  # 이틀 시공 주문은 몫을 나눠 한 번만
 
     payload = ct.build_field_ops_for_day(db_session, None, today.isoformat(), today=today)
-    assert payload["amount_label"] == "612만" and payload["is_today"] is True
+    assert payload["amount_label"] == "512만" and payload["is_today"] is True
+    split = {r["name"]: r for r in payload["rows"]}["이틀 시공"]
+    assert split["amount_label"] == "100만" and split["amount_split_label"] == "2일 나눔 · 전체 200만"
     assert {r["readiness_label"] for r in payload["rows"]} == {"출고 전"}
     assert payload["sections"][0]["unshipped"] == 2
     assert payload["rows"][0]["items_label"] == "붙박이장" and payload["rows"][0]["phone"]
@@ -710,3 +712,12 @@ def test_field_ops_route_renders_sections(auth_client):
     data = res.get_json()["data"]
     assert data["amount_label"] == "0원" and "is_today" in data
     assert "foms-tower__empty" in data["html"]
+
+
+def test_split_price_by_day_keeps_total():
+    """여러 날 시공 출고가는 날짜별 몫으로 — 나머지 원은 첫 날, 몫을 더하면 출고가 그대로(사용자 2026-10-15)."""
+    dates = ["2026-10-20", "2026-10-22", "2026-10-23"]
+    shares = [ct.split_price_by_day(10_000_001, dates, d) for d in dates]
+    assert shares == [3_333_335, 3_333_333, 3_333_333] and sum(shares) == 10_000_001
+    assert ct.split_price_by_day(10_000_000, ["2026-10-20"], "2026-10-20") == 10_000_000
+    assert ct.split_price_by_day(0, dates, dates[0]) == 0

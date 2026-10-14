@@ -16,7 +16,7 @@
 from __future__ import annotations
 
 import datetime
-from typing import Any
+from typing import Any, Iterable
 
 from sqlalchemy import and_, distinct, false, func, or_
 
@@ -259,12 +259,42 @@ def _unshipped_construction_by(base: Any, date_strs: list[str]) -> dict:
     )
 
 
+def _construction_dates_of(base: Any, order_ids: Iterable[int]) -> dict[int, list[str]]:
+    """주문별 시공일 전부(이 달 밖 포함, 날짜순). 출고가를 시공일 수로 나누는 데 쓴다."""
+    ids = sorted({int(i) for i in order_ids})
+    if not ids:
+        return {}
+    rows = (
+        base.session.query(OrderScheduleDate.order_id, OrderScheduleDate.date)
+        .filter(OrderScheduleDate.kind == 'construction', OrderScheduleDate.order_id.in_(ids))
+        .distinct()
+        .all()
+    )
+    out: dict[int, list[str]] = {}
+    for order_id, date_str in rows:
+        out.setdefault(int(order_id), []).append(str(date_str))
+    return {k: sorted(set(v)) for k, v in out.items()}
+
+
+def split_price_by_day(price: int, dates: list[str], date_str: str) -> int:
+    """출고가를 시공일 수로 나눈 그날 몫(원). 나머지 원은 첫 시공일에 — 날짜별 몫을 더하면 출고가와 같다.
+
+    사용자 결정(2026-10-15): 시공일이 여러 날이면 출고가를 날짜별로 나눠 싣는다(1,000만 · 이틀 = 500만씩).
+    월 합계도 그 달 날짜 몫만 더해 중복되지 않는다.
+    """
+    n = len(dates)
+    if price <= 0 or n <= 1:
+        return price
+    share, rest = divmod(price, n)
+    return share + (rest if date_str == dates[0] else 0)
+
+
 def _construction_amounts(base: Any, date_strs: list[str]) -> tuple[dict[str, int], int]:
-    """날짜별 시공 출고가 합과 기간 합계(주문당 한 번).
+    """날짜별 시공 출고가 합과 기간 합계.
 
     출고가는 정산 '예상 매출'·모바일 상세와 같은 식(`erp_shipping_price_from_structured`).
-    산출 불가(None) 주문은 금액에서만 빠진다. 복수 시공일 주문은 날짜 칸마다 들어가지만
-    기간 합계에는 한 번만 들어간다.
+    산출 불가(None) 주문은 금액에서만 빠진다. 시공일이 여러 날인 주문은 출고가를 시공일 수로 나눠
+    날짜마다 몫만 싣는다(:func:`split_price_by_day`) — 기간 합계 = 날짜 칸 합(중복 없음).
 
     Returns:
         ({날짜: 원}, 기간 합계 원).
@@ -287,8 +317,11 @@ def _construction_amounts(base: Any, date_strs: list[str]) -> tuple[dict[str, in
         seen.add(key)
         if key[1] not in price_of:
             price_of[key[1]] = erp_shipping_price_from_structured(_ensure_dict(sd)) or 0
-        by_date[key[0]] = by_date.get(key[0], 0) + price_of[key[1]]
-    return by_date, sum(price_of.values())
+    dates_of = _construction_dates_of(base, price_of)
+    for date_str, order_id in seen:
+        share = split_price_by_day(price_of[order_id], dates_of.get(order_id, [date_str]), date_str)
+        by_date[date_str] = by_date.get(date_str, 0) + share
+    return by_date, sum(by_date.values())
 
 
 def _man_label(won: int | None) -> str:
@@ -529,6 +562,8 @@ def _field_ops_for_date(
             for r in base.filter(_sched_any('construction', [date_iso])).with_entities(Order.id).all()
         }
     as_id_set = set(as_ids)
+    # 여러 날 시공 주문은 출고가를 시공일 수로 나눠 그날 몫만 보인다(한 번의 조회로 그날 주문들의 시공일 전부)
+    cons_dates_of = _construction_dates_of(base, [int(getattr(o, "id", 0) or 0) for o in rows])
     try:
         day_offset = (datetime.date.fromisoformat(date_iso) - (today or get_today_kst())).days
     except ValueError:
@@ -568,6 +603,10 @@ def _field_ops_for_date(
         site = sd.get("site") or {}
         time_text = str(sched.get("time") or "").strip() or None
         amount = erp_shipping_price_from_structured(sd) if (is_cons and not is_as_only_visit) else None
+        cons_dates = cons_dates_of.get(order_id, []) if amount else []
+        amount_total = amount
+        if amount and len(cons_dates) > 1:
+            amount = split_price_by_day(amount, cons_dates, date_iso)  # 여러 날 시공 = 그날 몫만
         out.append({
             "id": order.id,
             "name": (parties.get("customer") or {}).get("name") or "-",
@@ -581,6 +620,9 @@ def _field_ops_for_date(
             "items_label": "" if (not is_cons and not is_as_only_visit) else _items_label(sd),
             "amount": amount,
             "amount_label": _man_label(amount),
+            # 여러 날 시공이면 '2일 나눔 · 전체 1,000만' (그날 몫만 합계에 들어간다)
+            "amount_split_label": (f"{len(cons_dates)}일 나눔 · 전체 {_man_label(amount_total)}"
+                                   if amount and len(cons_dates) > 1 else ""),
             "readiness_state": state,
             "readiness_label": label,
         })
