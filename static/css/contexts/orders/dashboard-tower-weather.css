@@ -30,6 +30,11 @@
 
 /* 달력 상자: 테두리 카드 대신 사진 머리띠 + 겹친 흰 판 */
 .foms-tower__calbox { background: transparent; border: 0; box-shadow: none; padding: 0; }
+/* 달력만 본문 좌우 여백(16px)을 4px 까지 넓힌다 — 칸이 좁아 출고가·기온이 잘렸다(사용자 2026-10-14).
+   max-width:100% (모바일 폭 계약)를 풀어야 음수 여백만큼 실제로 넓어진다. 부모 .foms-tower 의 overflow-x:clip 은 패딩 안쪽이라 잘리지 않는다. */
+@media (max-width: 991.98px), ((min-width: 992px) and (pointer: coarse) and (orientation: portrait)) {
+  body.erp-mobile-v2-layout .foms-tower__calbox { max-width: none; margin-inline: calc(4px - var(--foms-space-4)); }
+}
 
 /* 사진 머리띠 — 출처는 화면 줄 대신 title 로만(foms/services/orders/calendar_month_photos.py) */
 .foms-tower__cal-hero {
@@ -59,13 +64,10 @@
 [data-theme='dark'] .foms-tower__cal-hero .foms-tower__cal-sum-amt { color: #fff; }
 .foms-tower__cal-hero .foms-tower__cal-sum-counts { color: rgba(255, 255, 255, .9); }
 .foms-tower__cal-hero .foms-tower__cal-sum-counts b { color: #fff; }
-.foms-tower__cal-hero .foms-tower__mark--measure { color: #a9c4ff; }
-.foms-tower__cal-hero .foms-tower__mark--construction { color: #ffc9a3; }
-.foms-tower__cal-hero .foms-tower__mark--as { color: #8ff0e2; }
 
 /* 겹친 흰 판 — 흐림(backdrop-filter)은 쓰지 않는다: 아래 움직이는 그림 때문에 매 프레임 다시 그리게 된다 */
 .foms-tower__cal-sheet {
-  position: relative; margin: -22px 0 0; padding: 10px 6px;
+  position: relative; margin: -22px 0 0; padding: 10px 3px;
   background: var(--foms-surface-base); border: 1px solid var(--foms-border-subtle); border-radius: 28px;
   box-shadow: 0 10px 30px rgba(0, 0, 0, .08);
 }
@@ -119,7 +121,7 @@
 
 /* 날짜 칸 (띠 위에 투명하게) */
 .foms-tower__cal-cell {
-  grid-row: 1; height: 102px; padding: 5px 3px; align-items: stretch; gap: 2px; text-align: left;
+  grid-row: 1; height: 102px; padding: 5px 2px; align-items: stretch; gap: 2px; text-align: left;
   background: transparent; border-radius: 18px;
 }
 .foms-tower__cal-cell.is-past { background: transparent; }
@@ -140,14 +142,21 @@
   position: absolute; top: 2px; right: -1px; padding: 1px 2px; border-radius: 5px; background: rgba(255, 255, 255, .62);
   box-shadow: 0 1px 2px rgba(28, 28, 30, .08); font-size: 9px; font-weight: 700; line-height: 1.1; color: #2c2c2e;
   letter-spacing: -0.3px; white-space: nowrap;
+  display: flex; flex-direction: column; align-items: flex-end;
 }
+/* 최고 위·최저 아래 두 줄 — 한 줄 '12°/20°' 는 폭 40px 칸에서 날짜와 겹친다 */
+.foms-tower__cal-temp b { font-weight: 700; }
+.foms-tower__cal-temp .is-min { color: #1d4ed8; font-size: 8.5px; }
+[data-theme='dark'] .foms-tower__cal-temp .is-min { color: #93b4ff; }
 [data-theme='dark'] .foms-tower__cal-temp { background: rgba(28, 28, 30, .55); color: #f2f2f7; }
 .foms-tower__cal-cell .foms-tower__cal-risk { top: 4px; left: 22px; right: auto; }
 .foms-tower__cal-cell .foms-tower__cal-counts { align-items: flex-start; min-height: 0; padding-left: 2px; }
 .foms-tower__cal-cell .foms-tower__cal-n { font-size: 11px; line-height: 14px; gap: 3px; text-shadow: 0 1px 0 rgba(255, 255, 255, .7); }
 [data-theme='dark'] .foms-tower__cal-cell .foms-tower__cal-n { text-shadow: 0 1px 0 rgba(0, 0, 0, .5); }
 .foms-tower__cal-cell .foms-tower__cal-amt {
-  align-self: stretch; text-align: center; padding: 0 2px; font-size: 10px; line-height: 16px; border-radius: 999px;
+  /* 폭 44px 폰 칸에서 "5,158만" 이 넘쳤다(운영 실화면 2026-10-14) → 화면 폭에 맞춰 8~10px */
+  align-self: stretch; text-align: center; padding: 0; font-size: clamp(8px, 2.45vw, 10px); letter-spacing: -0.5px;
+  line-height: 16px; border-radius: 999px; text-overflow: clip;
   background: rgba(255, 255, 255, .95); color: #1c1c1e;
   box-shadow: 0 2px 6px rgba(28, 28, 30, .14), inset 0 1px 0 rgba(255, 255, 255, .7);
 }
@@ -156,6 +165,19 @@
 [data-theme='dark'] .foms-tower__cal-cell .foms-tower__cal-amt.is-tone-yellow { background: #ffd60a; color: #3d2f00; }
 .foms-tower__cal-cell .foms-tower__cal-amt.is-tone-pink,
 [data-theme='dark'] .foms-tower__cal-cell .foms-tower__cal-amt.is-tone-pink { background: #ff9fca; color: #4d0526; }
+
+/* 실측·시공·AS 표지 = 목업 아이콘(줄자·망치·렌치, 두 가지 색). 예전 ▲■● 모양을 대신한다(사용자 2026-10-14).
+   마크업은 그대로(<i class="foms-tower__mark ...">) — 배경 그림만 바꿔 화면 전송 바이트가 늘지 않는다. */
+.foms-tower__mark { width: 11px; height: 11px; background-color: transparent; background-repeat: no-repeat; background-position: center; background-size: contain; clip-path: none; border-radius: 0; }
+.foms-tower__mark--measure { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='2' y='5' width='15' height='14' rx='5' fill='%23007aff'/%3E%3Ccircle cx='9.5' cy='12' r='3.2' fill='%23d6e8ff'/%3E%3Crect x='15' y='15' width='7' height='3.5' rx='1' fill='%237db8ff'/%3E%3C/svg%3E"); }
+.foms-tower__mark--construction { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='4' y='3' width='15' height='6.5' rx='2.5' fill='%23ff9500'/%3E%3Crect x='10' y='9' width='4.5' height='12.5' rx='2.2' fill='%23ffc98a'/%3E%3C/svg%3E"); }
+.foms-tower__mark--as { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M15.5 2.5a5 5 0 0 0-4.6 6.9L3 17.3 6.7 21l7.9-7.9a5 5 0 0 0 6.9-4.6l-3.2 3.2-3.5-.8-.8-3.5z' fill='%2330b0a0'/%3E%3C/svg%3E"); }
+.foms-tower__cal-hero .foms-tower__mark--measure { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='2' y='5' width='15' height='14' rx='5' fill='%238ab4ff'/%3E%3Ccircle cx='9.5' cy='12' r='3.2' fill='%23ffffff'/%3E%3Crect x='15' y='15' width='7' height='3.5' rx='1' fill='%23dbe7ff'/%3E%3C/svg%3E"); }
+.foms-tower__cal-hero .foms-tower__mark--construction { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='4' y='3' width='15' height='6.5' rx='2.5' fill='%23ffb27a'/%3E%3Crect x='10' y='9' width='4.5' height='12.5' rx='2.2' fill='%23ffe1cc'/%3E%3C/svg%3E"); }
+.foms-tower__cal-hero .foms-tower__mark--as { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M15.5 2.5a5 5 0 0 0-4.6 6.9L3 17.3 6.7 21l7.9-7.9a5 5 0 0 0 6.9-4.6l-3.2 3.2-3.5-.8-.8-3.5z' fill='%237fe3d6'/%3E%3C/svg%3E"); }
+.foms-tower__cal-n .foms-tower__mark { width: 10px; height: 10px; }
+.foms-tower__cal-hero .foms-tower__mark { width: 13px; height: 13px; }
+.foms-tower__fsec-title .foms-tower__mark { width: 13px; height: 13px; }
 
 /* 범례 */
 .foms-tower__wx-chips { display: inline-flex; gap: 4px; flex-wrap: wrap; }
