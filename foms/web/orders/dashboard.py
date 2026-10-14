@@ -66,6 +66,7 @@ from foms.services.common.erp_shell_http import (
 )
 from foms.services.common.ept_b7_profile import apply_ept_b7_render_headers, phase
 from foms.services.common.erp_mine_filter import erp_tower_mine_from_request
+from foms.services.integrations.kma.seoul_daily_weather import weather_version
 from foms.services.orders.calendar_amount_colors import (
     CalendarColorsConflict,
     CalendarColorsError,
@@ -474,12 +475,14 @@ def erp_dashboard():
     # 같은 판정으로 건너뛴다. tower_mode 자체는 모바일 헤더(내 할 일 토글)가 읽어 그대로 둔다.
     if tower_mode and wants_mobile_width_surfaces():
         _tower_fp = {
-            "v": 3,
+            "v": 4,
             "user": _orders_user_visibility_fingerprint(current_user, is_admin),
             "date": today_iso,
             "mine": f_tower_mine,
             # 칸 색 기준을 저장하면 새 키가 된다 — 300초 동안 옛 색을 보여 주지 않게.
             "colors": calendar_colors_version(db),
+            # 새 예보가 들어오면(SIDEFX 루프가 한 시간마다 갱신) 새 키가 된다.
+            "weather": weather_version(db),
         }
         _tower_key = build_dashboard_cache_key("orders", "mobile_control_tower", _tower_fp)
         control_tower = get_or_compute_dashboard_slice(
@@ -717,12 +720,13 @@ def erp_dashboard_field_calendar():
     month = (request.args.get('month') or '').strip()[:7]
     today = get_today_kst()
     cache_key = build_dashboard_cache_key("orders", "mobile_month_calendar", {
-        "v": 2,
+        "v": 3,
         "user": _orders_user_visibility_fingerprint(current_user, is_admin),
         "date": today.isoformat(),
         "month": month,
         "mine": mine_only,
         "colors": calendar_colors_version(db),
+        "weather": weather_version(db),
     })
     calendar = get_or_compute_dashboard_slice(
         cache_key,

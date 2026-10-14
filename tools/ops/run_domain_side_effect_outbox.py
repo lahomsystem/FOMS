@@ -94,6 +94,7 @@ from foms.services.record_only_effects import (
 )  # noqa: E402
 from foms.services.storage_delete_handler import handle_storage_delete  # noqa: E402
 from foms.services.upload_cleanup import run_upload_expiry_scan_once  # noqa: E402
+from foms.services.integrations.kma.seoul_daily_weather import refresh_mid, refresh_short  # noqa: E402
 from sqlalchemy.engine import Engine  # noqa: E402
 from sqlalchemy.orm import sessionmaker  # noqa: E402
 
@@ -128,6 +129,9 @@ def _parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
                    help=f"delivery/reclaim 배치 크기(기본 {DEFAULT_BATCH_SIZE}).")
     p.add_argument("--retention-limit", type=int, default=1000,
                    help="retention 배치당 삭제 상한(기본 1000).")
+    p.add_argument("--weather-interval", type=int, default=3600,
+                   help="모바일 달력 서울 날씨(기상청 예보) 갱신 간격(초, 기본 3600, 0=끔). "
+                        "KMA_APIHUB_KEY 가 없으면 호출 없이 건너뛴다.")
     return p.parse_args(argv)
 
 
@@ -234,6 +238,8 @@ def _run_loop(engine: Engine, args: argparse.Namespace, owner: str,
     clock = _Clock(now)
     next_delivery = next_expiry = next_retention = next_heartbeat = time.monotonic()
     next_watchdog = time.monotonic()
+    next_weather = time.monotonic()
+    weather_session = sessionmaker(bind=engine)
     _LOGGER.info("[sidefx-worker] started owner=%s interval=%ds expiry=%ds retention=%ds",
                  owner[:12], interval, args.expiry_scan_interval, args.retention_scan_interval)
     while not stop.is_set():
@@ -261,9 +267,21 @@ def _run_loop(engine: Engine, args: argparse.Namespace, owner: str,
         if mono >= next_watchdog:
             _safe(lambda: _run_watchdog(engine), "worker-watchdog")
             next_watchdog = mono + WATCHDOG_INTERVAL_SECONDS
+        if args.weather_interval > 0 and mono >= next_weather:
+            # 단기·중기를 따로 돌린다 — 한쪽이 실패해도 다른 쪽 저장은 남는다.
+            _safe(lambda: _refresh_weather(weather_session, refresh_short, "short"), "weather-short")
+            _safe(lambda: _refresh_weather(weather_session, refresh_mid, "mid"), "weather-mid")
+            next_weather = mono + args.weather_interval
         stop.wait(min(interval, HEARTBEAT_INTERVAL_SECONDS))
     _LOGGER.info("[sidefx-worker] graceful shutdown")
     return 0
+
+
+def _refresh_weather(session_factory, refresh, label: str) -> None:
+    """날씨 한 갈래(단기/중기)를 받아 저장하고 결과를 한 줄 남긴다(키·URL 은 찍지 않는다)."""
+    with session_factory() as session:
+        result = refresh(session)
+    _LOGGER.info("[sidefx-worker] weather-%s %s", label, result)
 
 
 def _safe(fn, label: str) -> bool:
