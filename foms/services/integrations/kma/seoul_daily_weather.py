@@ -9,7 +9,7 @@
   한쪽이 실패해도 다른 쪽 저장은 남는다. 예외는 루프의 ``_safe`` 가 로그로 남긴다.
 * 달력은 :func:`load_days` 로 저장된 값만 읽는다(예외 없이 — 자료가 없으면 빈 dict, 띠는 회백색).
 
-날씨 종류(달력 그림 5종): ``sun`` 맑음 · ``cloud`` 구름 · ``drizzle`` 부슬비 · ``heavy`` 장대비 · ``snow`` 눈.
+날씨 종류(달력 그림 6종): ``sun`` 맑음 · ``cloud`` 구름 · ``drizzle`` 부슬비 · ``heavy`` 장대비 · ``flurry`` 부슬눈 · ``snow`` 함박눈.
 
 지난 날
 -------
@@ -58,7 +58,7 @@ WEATHER_KEY = "seoul_daily_weather"
 #: 기상청 API허브 인증키(22자). 로그·응답·화면에 찍지 않는다.
 KEY_ENV = "KMA_APIHUB_KEY"
 BASE_URL = "https://apihub.kma.go.kr/api/typ02/openApi"
-KINDS = ("sun", "cloud", "drizzle", "heavy", "snow")
+KINDS = ("sun", "cloud", "drizzle", "heavy", "flurry", "snow")
 
 #: 서울 단기예보 격자(종로구 기준).
 SHORT_NX, SHORT_NY = 60, 127
@@ -69,6 +69,9 @@ MID_TA_REG = "11B10101"
 #: 장대비 기준 — 하루 강수량 합(mm) 또는 한 시간 강수량(mm) 중 하나라도 넘으면 장대비.
 HEAVY_DAY_MM = 20.0
 HEAVY_HOUR_MM = 7.0
+#: 함박눈 기준 — 하루 신적설 합(cm) 또는 한 시간 신적설(cm) 중 하나라도 넘으면 함박눈, 아니면 부슬눈.
+HEAVY_SNOW_DAY_CM = 3.0
+HEAVY_SNOW_HOUR_CM = 1.0
 #: 낮(09~18시) 중 구름많음·흐림 시간이 이 비율 이상이면 구름.
 CLOUD_DAY_RATIO = 0.5
 DAYTIME_HOURS = range(9, 19)
@@ -87,7 +90,7 @@ SHORT_READY_MINUTES = 10
 MID_BASE_HOURS = (6, 18)
 MID_READY_MINUTES = 30
 
-_SEVERITY = {"sun": 0, "cloud": 1, "drizzle": 2, "heavy": 3, "snow": 4}
+_SEVERITY = {"sun": 0, "cloud": 1, "drizzle": 2, "heavy": 3, "flurry": 4, "snow": 5}
 _NUM = re.compile(r"(-?\d+(?:\.\d+)?)")
 
 Transport = Callable[..., Any]
@@ -107,6 +110,11 @@ def parse_pcp_mm(text: Any) -> float:
     return float(m.group(1)) if m else 0.0
 
 
+def parse_sno_cm(text: Any) -> float:
+    """단기예보 ``SNO``(1시간 신적설) 글 → cm. "적설없음"=0, "1cm 미만"=0.5, "1.0cm"=1, "5.0cm 이상"=5."""
+    return parse_pcp_mm(text)  # 글 모양이 강수량과 같다(없음·미만·범위·이상)
+
+
 def _int_or_none(text: Any) -> Optional[int]:
     m = _NUM.search(str(text or ""))
     return int(round(float(m.group(1)))) if m else None
@@ -115,11 +123,12 @@ def _int_or_none(text: Any) -> Optional[int]:
 def classify_short(items: Iterable[dict[str, Any]]) -> dict[str, Any]:
     """하루치 단기예보 항목(``category``·``fcstTime``·``fcstValue``) → ``{"kind","t_min","t_max","pop"}``.
 
-    판정 순서(위가 먼저): 눈·진눈깨비 → 장대비(하루 합 ≥ 20mm 또는 한 시간 ≥ 7mm) → 부슬비 →
+    판정 순서(위가 먼저): 함박눈(신적설 하루 ≥ 3cm 또는 한 시간 ≥ 1cm) → 부슬눈·진눈깨비 → 장대비(하루 합 ≥ 20mm 또는 한 시간 ≥ 7mm) → 부슬비 →
     구름(낮 시간 절반 이상 구름많음·흐림) → 맑음.
     """
     pty: list[int] = []
     pcp: list[float] = []
+    sno: list[float] = []
     sky_day: list[int] = []
     tmp: list[int] = []
     tmx: Optional[int] = None
@@ -133,6 +142,8 @@ def classify_short(items: Iterable[dict[str, Any]]) -> dict[str, Any]:
             pty.append(_int_or_none(val) or 0)
         elif cat == "PCP":
             pcp.append(parse_pcp_mm(val))
+        elif cat == "SNO":
+            sno.append(parse_sno_cm(val))
         elif cat == "SKY" and hour in DAYTIME_HOURS:
             sky_day.append(_int_or_none(val) or 1)
         elif cat == "TMP":
@@ -148,8 +159,10 @@ def classify_short(items: Iterable[dict[str, Any]]) -> dict[str, Any]:
             if p is not None:
                 pop.append(p)
 
-    if any(p in (2, 3) for p in pty):
-        kind = "snow"
+    if any(p == 3 for p in pty) and (sum(sno) >= HEAVY_SNOW_DAY_CM or max(sno or [0.0]) >= HEAVY_SNOW_HOUR_CM):
+        kind = "snow"  # 함박눈
+    elif any(p in (2, 3) for p in pty):
+        kind = "flurry"  # 부슬눈 · 진눈깨비(비/눈)
     elif any(p in (1, 4) for p in pty):
         kind = "heavy" if (sum(pcp) >= HEAVY_DAY_MM or max(pcp or [0.0]) >= HEAVY_HOUR_MM) else "drizzle"
     elif sky_day and sum(1 for s in sky_day if s >= 3) / len(sky_day) >= CLOUD_DAY_RATIO:
@@ -165,13 +178,13 @@ def classify_short(items: Iterable[dict[str, Any]]) -> dict[str, Any]:
 def classify_mid_text(*texts: Any) -> str:
     """중기 육상예보 글(오전·오후) → 날씨 종류. 더 궂은 쪽을 쓴다.
 
-    중기예보에는 비의 양이 없어서 비는 모두 부슬비 그림으로 둔다(장대비를 지어내지 않는다).
+    중기예보에는 비·눈의 양이 없어서 비는 부슬비, 눈은 부슬눈 그림으로 둔다(장대비·함박눈을 지어내지 않는다).
     """
     worst = "sun"
     for t in texts:
         s = str(t or "")
         if "눈" in s:
-            kind = "snow"
+            kind = "flurry"
         elif "비" in s or "소나기" in s:
             kind = "drizzle"
         elif "흐림" in s or "구름" in s:
