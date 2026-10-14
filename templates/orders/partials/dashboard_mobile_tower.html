@@ -1,84 +1,124 @@
 {# 모바일 홈 — 오퍼레이션 컨트롤 타워 (tower_mode 전용).
    데이터: control_tower (foms.services.orders.dashboard_control_tower), process_steps.
-   레이아웃: 이번주 → 오늘의 현장(준비도) → 위험 레이더 → 내것/신규 → (접힘)파이프라인
+   레이아웃: 월간 현장 달력 → 오늘 요약 → 위험 레이더 → 내것/신규 → (접힘)파이프라인.
+   날짜 칸·[오늘 목록] → 그날 현장 시트(/dashboard/field-ops swap). 근거 docs/specs/2026-10-14-mobile-home-month-calendar_SPEC.md
    CSS: dashboard-control-tower.css — foms-mobile-surfaces.css 번들( fragment swap 시 <link> FOUC 방지). #}
 
 {% set ct = control_tower %}
-{% set week = ct.week %}
 {% set _stage_mod = {'주문접수':'received','실측':'measure','도면':'drawing','고객컨펌':'confirm','생산':'production','시공':'construction','완료':'completed','CS':'cs','AS처리':'cs'} %}
 
 <section class="foms-shell-body foms-mobile-v2-dashboard erp-dashboard-mobile-v2 foms-tower" aria-label="모바일 홈 컨트롤 타워" data-foms-tower>
 
   {% include 'orders/partials/draft_resume_bar.html' %}
 
-  {# (A) 이번주 현장 #}
-  <section class="foms-tower__week">
-    <div class="foms-tower__week-top">
-      <span class="foms-tower__week-title">이번주 현장</span>
-      <a class="foms-tower__week-link" href="{{ url_for('erp_dashboard.erp_dashboard', sort='schedule', view='queue') }}">
-        실측 {{ week.measure_total }} · 시공 {{ week.construction_total }}{% if week.risk_total %} · 위험 {{ week.risk_total }}{% endif %} →
-      </a>
-    </div>
-    <div class="foms-tower__week-strip">
-      {% for d in week.days %}
-      {% set day_measure = d.measure or 0 %}
-      {% set day_construction = d.construction or 0 %}
-      {% set day_as = d.as_count or 0 %}
-      {% set day_total = day_measure + day_construction + day_as %}
-      <button type="button"
-              class="foms-tower__day {% if d.is_today %}is-today is-active{% endif %}"
-              data-foms-day-tile data-iso="{{ d.iso }}"
-              aria-label="{{ d.dow }} {{ d.date }}일 실측 {{ day_measure }}건, 시공 {{ day_construction }}건, AS출고 {{ day_as }}건 보기">
-        {% if d.has_risk %}<span class="foms-tower__day-risk" aria-label="위험"></span>{% endif %}
-        <span class="foms-tower__day-dow">{{ d.dow }}</span>
-        <span class="foms-tower__day-date">{{ d.date }}</span>
-        <span class="foms-tower__day-counts" aria-hidden="true">
-          <span class="foms-tower__day-count foms-tower__day-count--measure{% if not day_measure %} is-empty{% endif %}">
-            {%- if day_measure -%}📐{{ day_measure }}{%- elif not day_total -%}·{%- endif -%}
-          </span>
-          <span class="foms-tower__day-count foms-tower__day-count--construction{% if not day_construction %} is-empty{% endif %}">
-            {%- if day_construction -%}🔨{{ day_construction }}{%- endif -%}
-          </span>
-          <span class="foms-tower__day-count foms-tower__day-count--as{% if not day_as %} is-empty{% endif %}">
-            {%- if day_as -%}🔧{{ day_as }}{%- endif -%}
-          </span>
-        </span>
-      </button>
-      {% endfor %}
-    </div>
+  {# (A) 월간 현장 달력 — 달 이동은 /dashboard/field-calendar swap #}
+  <section class="foms-tower__calbox" aria-label="월간 현장 달력"
+           data-foms-cal-root
+           data-foms-cal-endpoint="{{ url_for('erp_dashboard.erp_dashboard_field_calendar') }}">
+    {% set cal = ct.calendar %}
+    {% include 'orders/partials/dashboard_mobile_tower_calendar.html' %}
   </section>
 
-  {# (B) 현장 일정 — 주간 타일 클릭=날짜 변경, 실측/시공 탭=타입 필터. 인라인 ajax swap. #}
-  <section data-foms-day-ops
-           data-day-iso="{{ ct.today_iso }}"
-           data-tower-mine="{{ '1' if tower_mine_active else '0' }}"
-           data-foms-day-endpoint="{{ url_for('erp_dashboard.erp_dashboard_field_ops') }}">
-    <div class="foms-tower__head">
-      <h2 class="foms-tower__head-title" data-foms-day-title>📍 오늘의 현장</h2>
-      <a class="foms-tower__head-action" data-foms-day-queue
-         href="{{ url_for('erp_dashboard.erp_dashboard', today='1', view='queue') }}">{{ ct.today_count }}건 →</a>
+  {# (B) 오늘 요약 #}
+  <section class="foms-tower__today" aria-label="오늘 요약">
+    <div class="foms-tower__today-body">
+      <span class="foms-tower__today-date">오늘 {{ ct.today_label }}</span>
+      <strong class="foms-tower__today-counts">실측 {{ ct.today_measure_count }} · 시공 {{ ct.today_construction_count }} · AS {{ ct.today_as_count }}</strong>
+      <span class="foms-tower__today-amt">
+        출고가 <b>{{ ct.today_amount_label }}</b>
+        {% if ct.today_unshipped %}<span class="foms-tower__chip foms-tower__chip--risk">출고 전 {{ ct.today_unshipped }}</span>{% endif %}
+      </span>
     </div>
-    <div class="foms-tower__daytabs" role="tablist" aria-label="현장 유형">
-      <button type="button" class="foms-tower__daytab is-active" role="tab" aria-selected="true" data-foms-day-tab="all">
-        전체 <span class="foms-tower__daytab-n" data-foms-tabcount="all">{{ ct.today_count }}</span>
-      </button>
-      <button type="button" class="foms-tower__daytab" role="tab" aria-selected="false" data-foms-day-tab="measure">
-        📐 실측 <span class="foms-tower__daytab-n" data-foms-tabcount="measure">{{ ct.today_measure_count }}</span>
-      </button>
-      <button type="button" class="foms-tower__daytab" role="tab" aria-selected="false" data-foms-day-tab="construction">
-        🔨 시공 <span class="foms-tower__daytab-n" data-foms-tabcount="construction">{{ ct.today_construction_count }}</span>
-      </button>
-      <button type="button" class="foms-tower__daytab" role="tab" aria-selected="false" data-foms-day-tab="as">
-        🔧 AS <span class="foms-tower__daytab-n" data-foms-tabcount="as">{{ ct.today_as_count }}</span>
-      </button>
-    </div>
-    <div data-foms-day-ops-list>
-      {% set rows = ct.today_field_ops %}
-      {% include 'orders/partials/dashboard_mobile_tower_field_list.html' %}
-    </div>
+    <button type="button" class="foms-tower__today-btn" data-foms-day-tile data-iso="{{ ct.today_iso }}">오늘 목록</button>
   </section>
 
-  {# (C) 위험 레이더 #}
+  {# (C) 그날 현장 시트 — 날짜 칸·오늘 목록 버튼이 연다. 탭·‹ ›·목록은 /dashboard/field-ops swap #}
+  <div class="foms-tower__sheet" hidden
+       data-foms-day-ops
+       data-day-iso="{{ ct.today_iso }}"
+       data-tower-mine="{{ '1' if tower_mine_active else '0' }}"
+       data-foms-day-endpoint="{{ url_for('erp_dashboard.erp_dashboard_field_ops') }}">
+    <button type="button" class="foms-tower__sheet-backdrop" data-foms-sheet-close aria-label="목록 닫기"></button>
+    <section class="foms-tower__sheet-panel" role="dialog" aria-modal="true" aria-labelledby="foms-day-sheet-title">
+      <div class="foms-tower__sheet-head">
+        <span class="foms-tower__sheet-handle" aria-hidden="true"></span>
+        <div class="foms-tower__sheet-bar">
+          <button type="button" class="foms-tower__sheet-icon" data-foms-day-step="-1" aria-label="전날">
+            <i class="fas fa-chevron-left" aria-hidden="true"></i>
+          </button>
+          <div class="foms-tower__sheet-titlebox">
+            <h2 class="foms-tower__sheet-title" id="foms-day-sheet-title">
+              <span data-foms-day-title>{{ ct.today_label }}</span>
+              <span class="foms-tower__sheet-today" data-foms-day-today>오늘</span>
+            </h2>
+            <p class="foms-tower__sheet-sub">출고가 합계 <b data-foms-day-amount>{{ ct.today_amount_label }}</b> · 시공 <span data-foms-tabcount="construction">{{ ct.today_construction_count }}</span>건</p>
+          </div>
+          <button type="button" class="foms-tower__sheet-icon" data-foms-day-step="1" aria-label="다음날">
+            <i class="fas fa-chevron-right" aria-hidden="true"></i>
+          </button>
+          <button type="button" class="foms-tower__sheet-icon" data-foms-sheet-close aria-label="닫기">
+            <i class="fas fa-times" aria-hidden="true"></i>
+          </button>
+        </div>
+        <div class="foms-tower__daytabs" role="tablist" aria-label="현장 종류">
+          <button type="button" class="foms-tower__daytab is-active" role="tab" aria-selected="true" data-foms-day-tab="all">
+            전체 <span class="foms-tower__daytab-n" data-foms-tabcount="all">{{ ct.today_count }}</span>
+          </button>
+          <button type="button" class="foms-tower__daytab" role="tab" aria-selected="false" data-foms-day-tab="construction">
+            시공 <span class="foms-tower__daytab-n" data-foms-tabcount="construction">{{ ct.today_construction_count }}</span>
+          </button>
+          <button type="button" class="foms-tower__daytab" role="tab" aria-selected="false" data-foms-day-tab="measure">
+            실측 <span class="foms-tower__daytab-n" data-foms-tabcount="measure">{{ ct.today_measure_count }}</span>
+          </button>
+          <button type="button" class="foms-tower__daytab" role="tab" aria-selected="false" data-foms-day-tab="as">
+            AS <span class="foms-tower__daytab-n" data-foms-tabcount="as">{{ ct.today_as_count }}</span>
+          </button>
+        </div>
+      </div>
+      <div class="foms-tower__sheet-body" data-foms-day-ops-list>
+        <div class="foms-tower__empty">불러오는 중…</div>
+      </div>
+      <a class="foms-tower__sheet-queue" data-foms-day-queue
+         href="{{ url_for('erp_dashboard.erp_dashboard', today='1', view='queue') }}">작업 큐에서 {{ ct.today_count }}건 보기 →</a>
+    </section>
+  </div>
+
+  {# (C-2) 달력 칸 색 기준 — 관리자·팀장만. 회사 공통 한 벌(/dashboard/calendar-colors).
+     근거 docs/specs/2026-10-14-mobile-calendar-amount-colors_SPEC.md #}
+  {% if calendar_colors_editable %}
+  <div class="foms-tower__sheet foms-tower__sheet--mini" hidden
+       data-foms-colors-sheet
+       data-foms-colors-endpoint="{{ url_for('erp_dashboard.erp_dashboard_calendar_colors_save') }}">
+    <button type="button" class="foms-tower__sheet-backdrop" data-foms-colors-close aria-label="닫기"></button>
+    <form class="foms-tower__sheet-panel foms-tower__colors" role="dialog" aria-modal="true" aria-labelledby="foms-colors-title" data-foms-colors-form novalidate>
+      <span class="foms-tower__sheet-handle" aria-hidden="true"></span>
+      <h2 class="foms-tower__colors-title" id="foms-colors-title">칸 색 기준</h2>
+      <p class="foms-tower__colors-sub">그날 시공 출고가 합 · 모든 직원 공통</p>
+      <label class="foms-tower__colors-row">
+        <i class="foms-tower__tone-dot is-yellow" aria-hidden="true"></i>
+        <span class="foms-tower__colors-name">노랑</span>
+        <input class="foms-tower__colors-input" type="text" inputmode="numeric" maxlength="6" name="yellow_from" aria-label="노랑 기준 만원">
+        <span class="foms-tower__colors-unit">만원 이상</span>
+      </label>
+      <label class="foms-tower__colors-row">
+        <i class="foms-tower__tone-dot is-pink" aria-hidden="true"></i>
+        <span class="foms-tower__colors-name">분홍</span>
+        <input class="foms-tower__colors-input" type="text" inputmode="numeric" maxlength="6" name="pink_from" aria-label="분홍 기준 만원">
+        <span class="foms-tower__colors-unit">만원 이상</span>
+      </label>
+      <p class="foms-tower__colors-error" data-foms-colors-error role="alert" hidden></p>
+      <div class="foms-tower__colors-foot">
+        <label class="foms-tower__colors-switch">
+          <input type="checkbox" name="enabled">
+          <span>색 칠하기</span>
+        </label>
+        <button type="submit" class="foms-tower__colors-save">저장</button>
+      </div>
+    </form>
+  </div>
+  {% endif %}
+
+  {# (D) 위험 레이더 #}
   <section>
     <div class="foms-tower__head">
       <h2 class="foms-tower__head-title">{% if ct.risk_total %}<span class="foms-tower__dot-risk"></span> {% endif %}위험 레이더</h2>
@@ -102,7 +142,7 @@
     {% endif %}
   </section>
 
-  {# (D) 내 담당 · 신규 유입 #}
+  {# (E) 내 담당 · 신규 유입 #}
   <section>
     <div class="foms-tower__head"><h2 class="foms-tower__head-title">✅ 처리 대기</h2></div>
     <div class="foms-tower__quick">

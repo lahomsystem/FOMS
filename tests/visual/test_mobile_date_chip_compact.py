@@ -49,49 +49,45 @@ def _date_chip_metrics(page, selector: str) -> dict[str, float | str]:
     )
 
 
-def _tower_day_metrics(page) -> dict[str, float | str]:
-    page.locator(".foms-tower__day").first.wait_for()
-    return page.locator(".foms-tower__day").first.evaluate(
-        """(chip) => {
-          const dow = chip.querySelector(".foms-tower__day-dow");
-          const date = chip.querySelector(".foms-tower__day-date");
-          const counts = chip.querySelector(".foms-tower__day-counts");
-          const countLines = Array.from(chip.querySelectorAll(".foms-tower__day-count"));
-          const chipRect = chip.getBoundingClientRect();
-          const dowRect = dow.getBoundingClientRect();
-          const dateRect = date.getBoundingClientRect();
-          const countsRect = counts.getBoundingClientRect();
-          let contentRight = chipRect.left;
-          let contentBottom = chipRect.top;
-          [dowRect, dateRect, countsRect, ...countLines.map((el) => el.getBoundingClientRect())].forEach((rect) => {
+def _tower_cal_cell_metrics(page) -> dict[str, float | str]:
+    """월간 달력 날짜 칸(달 안 첫 칸): 날짜·건수·금액이 칸 밖으로 넘치지 않는지."""
+    cell = page.locator(".foms-tower__cal-cell[data-iso]").first
+    cell.wait_for()
+    return cell.evaluate(
+        """(cell) => {
+          const date = cell.querySelector(".foms-tower__cal-date");
+          const counts = cell.querySelector(".foms-tower__cal-counts");
+          const cellRect = cell.getBoundingClientRect();
+          let contentRight = cellRect.left;
+          let contentBottom = cellRect.top;
+          Array.from(cell.querySelectorAll(".foms-tower__cal-date, .foms-tower__cal-temp, .foms-tower__cal-n, .foms-tower__cal-amt")).forEach((el) => {
+            const rect = el.getBoundingClientRect();
             contentRight = Math.max(contentRight, rect.right);
             contentBottom = Math.max(contentBottom, rect.bottom);
           });
           return {
-            chipWidth: chipRect.width,
-            chipHeight: chipRect.height,
-            chipLeft: chipRect.left,
-            chipRight: chipRect.right,
-            chipBottom: chipRect.bottom,
+            cellWidth: cellRect.width,
+            cellHeight: cellRect.height,
+            cellRight: cellRect.right,
+            cellBottom: cellRect.bottom,
             contentRight,
             contentBottom,
-            dowTop: dowRect.top,
-            dateTop: dateRect.top,
-            countsTop: countsRect.top,
-            countsText: counts.textContent.trim(),
-            chipGridRows: window.getComputedStyle(chip).gridTemplateRows
+            dateTop: date.getBoundingClientRect().top,
+            countsTop: counts.getBoundingClientRect().top,
+            gridColumns: window.getComputedStyle(cell.parentElement).gridTemplateColumns,
           };
         }"""
     )
 
 
-def _assert_tower_day_tile_contained(metrics: dict[str, float | str]) -> None:
-    assert 58 <= metrics["chipHeight"] <= 82
-    assert metrics["chipWidth"] <= 84
-    assert metrics["dowTop"] < metrics["dateTop"] < metrics["countsTop"]
-    assert metrics["contentRight"] <= metrics["chipRight"] + 0.5
-    assert metrics["contentBottom"] <= metrics["chipBottom"] + 0.5
-    assert "px" in metrics["chipGridRows"]
+def _assert_tower_cal_cell_contained(metrics: dict[str, float | str]) -> None:
+    # 주마다 날씨 띠 한 줄 = 102px, 오늘 칸은 띠 위에 뜬 렌즈라 위아래 3px 더(108px). 2026-10-14 날씨 띠.
+    assert 100 <= metrics["cellHeight"] <= 110
+    assert metrics["cellWidth"] <= 60
+    assert metrics["dateTop"] < metrics["countsTop"]
+    assert metrics["contentRight"] <= metrics["cellRight"] + 0.5
+    assert metrics["contentBottom"] <= metrics["cellBottom"] + 0.5
+    assert len(str(metrics["gridColumns"]).split()) == 7
 
 
 def _assert_compact_two_row_chip(metrics: dict[str, float | str]) -> None:
@@ -130,7 +126,7 @@ def test_shipment_mobile_date_chip_uses_compact_two_row_layout(
     )
 
 
-def test_dashboard_tower_day_tile_uses_compact_two_row_layout(
+def test_dashboard_tower_calendar_cell_contains_counts(
     page, visual_live_server_erp_v2
 ) -> None:
     page.set_viewport_size({"width": 390, "height": 760})
@@ -138,7 +134,4 @@ def test_dashboard_tower_day_tile_uses_compact_two_row_layout(
 
     page.goto(f"{visual_live_server_erp_v2}/erp/dashboard", wait_until="networkidle")
 
-    metrics = _tower_day_metrics(page)
-    _assert_tower_day_tile_contained(metrics)
-    counts_text = str(metrics["countsText"])
-    assert counts_text == "·" or "📐" in counts_text or "🔨" in counts_text
+    _assert_tower_cal_cell_contained(_tower_cal_cell_metrics(page))

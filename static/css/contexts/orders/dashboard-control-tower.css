@@ -23,7 +23,8 @@
     box-sizing: border-box;
   }
 
-  body.erp-mobile-v2-layout .foms-tower__week,
+  body.erp-mobile-v2-layout .foms-tower__calbox,
+  body.erp-mobile-v2-layout .foms-tower__today,
   body.erp-mobile-v2-layout .foms-tower__field-list,
   body.erp-mobile-v2-layout .foms-tower__risk-list,
   body.erp-mobile-v2-layout .foms-tower__risk,
@@ -46,47 +47,205 @@
 .foms-tower__head-action--muted { color: var(--foms-text-tertiary); }
 .foms-tower__dot-risk { width: 7px; height: 7px; border-radius: 50%; background: var(--foms-color-danger-500); display: inline-block; }
 
-/* (A) 이번주 현장 */
-.foms-tower__week {
-  background: linear-gradient(135deg, var(--foms-color-brand-700) 0%, var(--foms-color-brand-500) 70%, var(--foms-color-brand-400) 100%);
-  border-radius: var(--foms-radius-xl); padding: var(--foms-space-3) var(--foms-space-2);
-  color: #fff; box-shadow: var(--foms-shadow-md);
+/* 종류 표지 색 — 실측 ▲ / 시공 ■ / AS ● (모양으로도 갈라 색만으로 구분하지 않는다) */
+.foms-tower {
+  --foms-tower-measure: #1d4ed8;
+  --foms-tower-construction: #c2410c;
+  --foms-tower-as: #0f766e;
 }
-.foms-tower__week-top { display: flex; align-items: baseline; justify-content: space-between; padding: 0 var(--foms-space-2) var(--foms-space-2); gap: var(--foms-space-2); min-width: 0; }
-.foms-tower__week-title { font-size: var(--foms-font-size-base); font-weight: var(--foms-font-weight-bold); flex-shrink: 0; }
-.foms-tower__week-link { font-size: var(--foms-font-size-xs); color: #fff; opacity: .9; min-width: 0; flex: 1 1 auto; text-align: right; overflow-wrap: anywhere; }
-.foms-tower__week-strip { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; min-width: 0; }
-/* 주간 타일 = 클릭 버튼. mockup v3 3행(요일·날짜·실측/시공) + 셀 clip으로 가로 튐 방지. */
-.foms-tower__day {
-  appearance: none; -webkit-appearance: none; border: 0; font: inherit; color: #fff; cursor: pointer;
-  width: 100%; border-radius: 12px; padding: 6px 2px;
-  text-align: center; background: rgba(255,255,255,.10); position: relative;
-  display: grid; grid-template-rows: auto auto auto; align-content: start; gap: 2px;
-  min-width: 0; min-height: 72px; overflow: clip;
-  box-sizing: border-box;
+[data-theme='dark'] .foms-tower {
+  --foms-tower-measure: #93b4ff;
+  --foms-tower-construction: #fdba74;
+  --foms-tower-as: #5eead4;
 }
-.foms-tower__day.is-today { background: var(--foms-surface-base); color: var(--foms-color-brand-700); box-shadow: var(--foms-shadow-sm); }
-[data-theme='dark'] .foms-tower__day.is-today { background: var(--foms-color-neutral-50); color: var(--foms-color-brand-800); }
-/* 현재 선택된 날짜(인라인 현장 일정 대상) 강조 — 오늘이 아닌 날 클릭 시 외곽선. */
-.foms-tower__day.is-active:not(.is-today) { box-shadow: inset 0 0 0 2px #fff; }
-.foms-tower__day-dow { font-size: 9px; line-height: 1; opacity: .82; }
-.foms-tower__day.is-today .foms-tower__day-dow { opacity: .65; }
-.foms-tower__day-date { font-size: 14px; font-weight: var(--foms-font-weight-bold); line-height: 1.05; }
-.foms-tower__day-counts {
-  display: grid; grid-template-rows: repeat(3, minmax(9px, auto));
-  align-items: center; justify-items: center;
-  gap: 0; min-width: 0; width: 100%; max-width: 100%; min-height: 28px;
-}
-.foms-tower__day-count {
-  display: block; max-width: 100%; min-height: 9px;
-  font-size: 8px; line-height: 1.2; opacity: .92;
-  white-space: nowrap; letter-spacing: -0.2px; font-variant-numeric: tabular-nums;
-}
-.foms-tower__day-count.is-empty { visibility: hidden; }
-.foms-tower__day.is-today .foms-tower__day-count:not(.is-empty) { opacity: .85; }
-.foms-tower__day-risk { position: absolute; top: 4px; right: 4px; width: 6px; height: 6px; border-radius: 50%; background: var(--foms-color-danger-500); }
+.foms-tower__mark { display: inline-block; width: 7px; height: 7px; flex-shrink: 0; background: currentColor; }
+.foms-tower__mark--measure { color: var(--foms-tower-measure); clip-path: polygon(50% 0, 100% 100%, 0 100%); }
+.foms-tower__mark--construction { color: var(--foms-tower-construction); border-radius: 1px; }
+.foms-tower__mark--as { color: var(--foms-tower-as); border-radius: 50%; }
 
-/* (B) 현장 일정 — 전체/실측/시공/AS 탭 */
+/* (A) 월간 현장 달력 */
+.foms-tower__calbox {
+  background: var(--foms-surface-base); border-radius: var(--foms-radius-xl);
+  padding: var(--foms-space-2) 6px var(--foms-space-2); box-shadow: var(--foms-shadow-sm);
+  border: 1px solid var(--foms-border-subtle);
+}
+.foms-tower__calbox.is-loading { opacity: .55; transition: opacity .12s ease; }
+.foms-tower__cal-top { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.foms-tower__cal-nav { display: flex; align-items: center; min-width: 0; }
+.foms-tower__cal-arrow {
+  appearance: none; -webkit-appearance: none; border: 0; background: transparent; cursor: pointer;
+  width: 40px; height: 44px; display: flex; align-items: center; justify-content: center;
+  color: var(--foms-text-secondary); font-size: 14px;
+}
+.foms-tower__cal-arrow:disabled { opacity: .3; cursor: default; }
+.foms-tower__cal-title { margin: 0; font-size: var(--foms-font-size-lg); font-weight: var(--foms-font-weight-bold); letter-spacing: -0.3px; white-space: nowrap; }
+.foms-tower__cal-thismonth {
+  appearance: none; -webkit-appearance: none; cursor: pointer; font: inherit;
+  height: 36px; padding: 0 12px; border-radius: var(--foms-radius-full);
+  border: 1px solid var(--foms-border-default); background: var(--foms-surface-base);
+  color: var(--foms-color-brand-700); font-size: var(--foms-font-size-xs); font-weight: var(--foms-font-weight-bold);
+}
+.foms-tower__cal-sum { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; padding: 0 6px 8px; flex-wrap: wrap; }
+.foms-tower__cal-sum-main { display: grid; min-width: 0; }
+.foms-tower__cal-sum-label { font-size: var(--foms-font-size-xs); color: var(--foms-text-secondary); }
+.foms-tower__cal-sum-amt { font-size: 22px; font-weight: 800; color: var(--foms-color-brand-800); letter-spacing: -0.5px; line-height: 1.2; font-variant-numeric: tabular-nums; }
+[data-theme='dark'] .foms-tower__cal-sum-amt { color: var(--foms-color-brand-200); }
+.foms-tower__cal-sum-counts { display: flex; gap: 10px; font-size: var(--foms-font-size-xs); color: var(--foms-text-secondary); padding-bottom: 3px; }
+.foms-tower__cal-sum-counts span { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.foms-tower__cal-sum-counts b { color: var(--foms-text-primary); font-variant-numeric: tabular-nums; }
+.foms-tower__cal-dow, .foms-tower__cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px; }
+.foms-tower__cal-dow { padding-bottom: 3px; }
+.foms-tower__cal-dow span { text-align: center; font-size: 11px; font-weight: var(--foms-font-weight-bold); color: var(--foms-text-tertiary); }
+.foms-tower__cal-dow .is-red { color: var(--foms-color-danger-600); }
+.foms-tower__cal-dow .is-blue { color: var(--foms-color-info-600); }
+.foms-tower__cal-cell {
+  appearance: none; -webkit-appearance: none; font: inherit; color: var(--foms-text-primary); cursor: pointer;
+  position: relative; min-width: 0; height: 88px; padding: 4px 1px 4px; box-sizing: border-box;
+  border: 1px solid transparent; border-radius: 10px; background: var(--foms-surface-base);
+  display: flex; flex-direction: column; align-items: center; gap: 1px; overflow: clip;
+}
+.foms-tower__cal-cell.is-past { background: var(--foms-surface-raised); }
+.foms-tower__cal-cell.is-today { border-color: var(--foms-color-brand-200); background: var(--foms-color-brand-50); }
+[data-theme='dark'] .foms-tower__cal-cell.is-today { background: rgba(120, 130, 240, .14); border-color: var(--foms-color-brand-600); }
+.foms-tower__cal-cell.is-active { border: 2px solid var(--foms-color-brand-700); }
+.foms-tower__cal-cell.is-out { cursor: default; background: transparent; color: var(--foms-text-tertiary); opacity: .45; }
+.foms-tower__cal-date {
+  width: 20px; height: 20px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 800; line-height: 1;
+}
+.foms-tower__cal-cell.is-red .foms-tower__cal-date { color: var(--foms-color-danger-600); }
+.foms-tower__cal-cell.is-blue .foms-tower__cal-date { color: var(--foms-color-info-600); }
+.foms-tower__cal-cell.is-today .foms-tower__cal-date { background: var(--foms-color-brand-700); color: #fff; }
+.foms-tower__cal-counts { display: flex; flex-direction: column; align-items: center; min-height: 36px; }
+.foms-tower__cal-n {
+  display: inline-flex; align-items: center; gap: 2px;
+  font-size: 10.5px; font-weight: var(--foms-font-weight-bold); line-height: 12px; font-variant-numeric: tabular-nums;
+}
+.foms-tower__cal-n .foms-tower__mark { width: 6px; height: 6px; }
+.foms-tower__cal-n--measure { color: var(--foms-tower-measure); }
+.foms-tower__cal-n--construction { color: var(--foms-tower-construction); }
+.foms-tower__cal-n--as { color: var(--foms-tower-as); }
+.foms-tower__cal-amt {
+  margin-top: auto; max-width: 100%; overflow: hidden;
+  font-size: 9.5px; font-weight: 800; letter-spacing: -0.3px; white-space: nowrap;
+  color: var(--foms-color-brand-800); font-variant-numeric: tabular-nums;
+}
+[data-theme='dark'] .foms-tower__cal-amt { color: var(--foms-color-brand-200); }
+.foms-tower__cal-cell.is-past .foms-tower__cal-counts,
+.foms-tower__cal-cell.is-past .foms-tower__cal-amt { opacity: .6; }
+.foms-tower__cal-risk { position: absolute; top: 5px; right: 5px; width: 6px; height: 6px; border-radius: 50%; background: var(--foms-color-danger-600); }
+.foms-tower__cal-legend { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 7px 4px 0; font-size: 10.5px; color: var(--foms-text-secondary); }
+.foms-tower__cal-legend span { display: inline-flex; align-items: center; gap: 4px; }
+.foms-tower__cal-legend-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--foms-color-danger-600); }
+
+/* (B) 오늘 요약 */
+.foms-tower__today {
+  display: flex; align-items: center; gap: 10px; min-width: 0;
+  background: var(--foms-color-brand-800); color: #fff;
+  border-radius: var(--foms-radius-xl); padding: 12px 12px 12px 14px;
+}
+.foms-tower__today-body { flex: 1 1 auto; min-width: 0; display: grid; gap: 2px; }
+.foms-tower__today-date { font-size: var(--foms-font-size-xs); opacity: .85; }
+.foms-tower__today-counts { font-size: 15px; font-weight: 800; }
+.foms-tower__today-amt { display: flex; align-items: center; gap: 8px; font-size: 12.5px; flex-wrap: wrap; }
+.foms-tower__today-btn {
+  appearance: none; -webkit-appearance: none; cursor: pointer; font: inherit; flex-shrink: 0;
+  height: 44px; padding: 0 14px; border: 0; border-radius: 12px;
+  background: #fff; color: var(--foms-color-brand-800); font-size: 13.5px; font-weight: 800;
+}
+
+/* (C) 그날 현장 시트 */
+body.foms-tower-sheet-open { overflow: hidden; }
+.foms-tower__sheet { position: fixed; inset: 0; z-index: var(--foms-z-modal); }
+.foms-tower__sheet[hidden] { display: none; }
+.foms-tower__sheet-backdrop {
+  appearance: none; -webkit-appearance: none; position: absolute; inset: 0; width: 100%;
+  border: 0; padding: 0; background: rgba(17, 24, 39, .45); cursor: pointer;
+}
+.foms-tower__sheet-panel {
+  position: absolute; left: 0; right: 0; bottom: 0; height: min(88vh, 760px); max-width: 640px; margin: 0 auto;
+  display: flex; flex-direction: column; overflow: hidden;
+  background: var(--foms-surface-raised); border-radius: 20px 20px 0 0;
+  box-shadow: 0 -8px 30px rgba(17, 24, 39, .18);
+}
+.foms-tower__sheet-head { flex-shrink: 0; background: var(--foms-surface-base); border-bottom: 1px solid var(--foms-border-subtle); padding: 6px 6px 0; }
+.foms-tower__sheet-handle { display: block; width: 40px; height: 4px; border-radius: 2px; background: var(--foms-border-default); margin: 0 auto 4px; }
+.foms-tower__sheet-bar { display: flex; align-items: center; gap: 2px; }
+.foms-tower__sheet-icon {
+  appearance: none; -webkit-appearance: none; border: 0; background: transparent; cursor: pointer; flex-shrink: 0;
+  width: 44px; height: 44px; display: flex; align-items: center; justify-content: center;
+  color: var(--foms-text-secondary); font-size: 16px;
+}
+.foms-tower__sheet-titlebox { flex: 1 1 auto; min-width: 0; text-align: center; }
+.foms-tower__sheet-title { margin: 0; font-size: var(--foms-font-size-lg); font-weight: 800; letter-spacing: -0.3px; display: flex; align-items: center; justify-content: center; gap: 6px; }
+.foms-tower__sheet-today { padding: 1px 8px; border-radius: var(--foms-radius-full); background: var(--foms-color-brand-700); color: #fff; font-size: 11.5px; font-weight: 700; }
+.foms-tower__sheet-today[hidden] { display: none; }
+.foms-tower__sheet-sub { margin: 1px 0 0; font-size: 12.5px; color: var(--foms-text-secondary); }
+.foms-tower__sheet-sub b { color: var(--foms-color-brand-800); font-size: 14px; }
+[data-theme='dark'] .foms-tower__sheet-sub b { color: var(--foms-color-brand-200); }
+.foms-tower__sheet .foms-tower__daytabs { padding: 8px 6px 10px; margin-bottom: 0; }
+.foms-tower__sheet .foms-tower__daytab { height: 44px; border-radius: 12px; font-size: var(--foms-font-size-sm); }
+.foms-tower__sheet-body {
+  flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+  padding: 10px 10px 16px; display: grid; align-content: start; gap: 14px;
+}
+.foms-tower__sheet-queue {
+  flex-shrink: 0; display: block; text-align: center; padding: 12px; min-height: 44px; box-sizing: border-box;
+  border-top: 1px solid var(--foms-border-subtle); background: var(--foms-surface-base);
+  font-size: var(--foms-font-size-sm); font-weight: var(--foms-font-weight-semibold); color: var(--foms-text-link); text-decoration: none;
+}
+
+/* (A-2) 시공 금액별 칸 색 — 회사 공통 기준(관리자·팀장 설정). 바탕만 칠하고 테두리(오늘·선택)는 그대로. */
+.foms-tower {
+  --foms-tower-tone-yellow: #fef9c3;
+  --foms-tower-tone-pink: #fce7f3;
+}
+[data-theme='dark'] .foms-tower {
+  --foms-tower-tone-yellow: rgba(250, 204, 21, .16);
+  --foms-tower-tone-pink: rgba(244, 114, 182, .16);
+}
+/* 금액 색은 칸 바탕이 아니라 출고가 알약에 칠한다(dashboard-tower-weather.css, 2026-10-14 날씨 띠). */
+.foms-tower__tone-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; border: 1px solid rgba(17, 24, 39, .12); }
+.foms-tower__tone-dot.is-yellow { background: #fde68a; }
+.foms-tower__tone-dot.is-pink { background: #f9a8d4; }
+.foms-tower__cal-legend-tones { display: inline-flex; gap: 8px; }
+.foms-tower__cal-legend-tones span { display: inline-flex; align-items: center; gap: 3px; }
+.foms-tower__cal-tools { display: flex; align-items: center; gap: 4px; }
+.foms-tower__cal-gear {
+  appearance: none; -webkit-appearance: none; border: 0; background: transparent; cursor: pointer;
+  width: 44px; height: 44px; display: flex; align-items: center; justify-content: center;
+  color: var(--foms-text-tertiary); font-size: 15px;
+}
+
+/* (C-2) 칸 색 기준 시트 — 미니멀: 숫자 두 칸 + 스위치 + 저장 */
+.foms-tower__sheet--mini .foms-tower__sheet-panel { height: auto; padding: 6px 20px calc(20px + env(safe-area-inset-bottom, 0px)); gap: 0; }
+.foms-tower__colors { display: flex; flex-direction: column; }
+.foms-tower__colors-title { margin: 6px 0 0; font-size: var(--foms-font-size-lg); font-weight: 800; }
+.foms-tower__colors-sub { margin: 2px 0 14px; font-size: var(--foms-font-size-xs); color: var(--foms-text-secondary); }
+.foms-tower__colors-row { display: flex; align-items: center; gap: 10px; min-height: 52px; border-bottom: 1px solid var(--foms-border-subtle); }
+.foms-tower__colors-name { width: 34px; font-size: var(--foms-font-size-sm); font-weight: var(--foms-font-weight-bold); }
+.foms-tower__colors-input {
+  width: 96px; height: 40px; padding: 0 10px; box-sizing: border-box; text-align: right;
+  font: inherit; font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums;
+  border: 1px solid var(--foms-border-default); border-radius: 10px;
+  background: var(--foms-surface-base); color: var(--foms-text-primary);
+}
+.foms-tower__colors-input:focus { outline: 2px solid var(--foms-border-focus); outline-offset: 1px; }
+.foms-tower__colors-unit { font-size: var(--foms-font-size-sm); color: var(--foms-text-secondary); }
+.foms-tower__colors-error { margin: 10px 0 0; font-size: 12.5px; color: var(--foms-color-danger-600); }
+.foms-tower__colors-error[hidden] { display: none; }
+.foms-tower__colors-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 16px; }
+.foms-tower__colors-switch { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; font-size: var(--foms-font-size-sm); }
+.foms-tower__colors-switch input { width: 20px; height: 20px; accent-color: var(--foms-color-brand-700); }
+.foms-tower__colors-save {
+  appearance: none; -webkit-appearance: none; cursor: pointer; font: inherit;
+  height: 44px; min-width: 96px; padding: 0 18px; border: 0; border-radius: 12px;
+  background: var(--foms-color-brand-700); color: #fff; font-size: var(--foms-font-size-sm); font-weight: 800;
+}
+.foms-tower__colors-save:disabled { opacity: .5; }
+
+/* (C) 시트 탭 — 전체/시공/실측/AS */
 .foms-tower__daytabs {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -126,39 +285,53 @@
 body.erp-mobile-v2-layout .erp-mobile-shell-header__mytasks.is-active,
 body.erp-mobile-v2-layout .erp-mobile-shell-header__mytasks.is-active i { color: #ff6a00; }
 
-/* (B) 오늘의 현장 */
-.foms-tower__field-list { display: grid; gap: var(--foms-space-2); }
+/* (C) 그날 현장 목록 — 종류 묶음 × 시간 묶음 */
+.foms-tower__fsec { display: grid; gap: 8px; min-width: 0; }
+.foms-tower__fsec-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 0 4px; }
+.foms-tower__fsec-title { margin: 0; display: flex; align-items: center; gap: 6px; font-size: 15px; font-weight: 800; }
+.foms-tower__fsec-title .foms-tower__mark { width: 10px; height: 10px; }
+.foms-tower__fsec-amt { font-size: 12.5px; font-weight: var(--foms-font-weight-bold); color: var(--foms-text-secondary); white-space: nowrap; }
+.foms-tower__fsec-alert {
+  margin: 0; padding: 10px 12px; border-radius: 12px; font-size: 13px; line-height: 1.4;
+  background: var(--foms-color-danger-50); border: 1px solid #fecaca; color: #991b1b;
+}
+[data-theme='dark'] .foms-tower__fsec-alert { background: rgba(239, 68, 68, .14); border-color: rgba(239, 68, 68, .4); color: #fecaca; }
+.foms-tower__fgrp { display: grid; gap: 6px; }
+.foms-tower__fgrp-label { font-size: var(--foms-font-size-xs); font-weight: var(--foms-font-weight-bold); color: var(--foms-text-secondary); padding: 2px 4px 0; }
+.foms-tower__field-list { display: grid; gap: 6px; }
 .foms-tower__field {
-  display: grid; grid-template-columns: 52px 1fr; gap: var(--foms-space-2); align-items: center;
-  background: var(--foms-surface-base); border: 1px solid var(--foms-border-subtle); border-left-width: 4px;
-  border-radius: var(--foms-radius-md); padding: var(--foms-space-2) var(--foms-space-3);
-  text-decoration: none; color: var(--foms-text-primary);
+  display: flex; align-items: stretch; min-width: 0; overflow: hidden;
+  background: var(--foms-surface-base); border: 1px solid var(--foms-border-subtle); border-radius: 12px;
 }
-.foms-tower__field--ok { border-left-color: var(--foms-stage-construction); }
-.foms-tower__field--warn { border-left-color: var(--foms-stage-production); }
-.foms-tower__field--risk { border-left-color: var(--foms-color-danger-500); }
-.foms-tower__field-time { text-align: center; }
-.foms-tower__field-hh { display: block; font-size: var(--foms-font-size-sm); font-weight: var(--foms-font-weight-bold); font-variant-numeric: tabular-nums; line-height: 1.05; }
-.foms-tower__field-type { font-size: 9px; color: var(--foms-text-tertiary); }
-.foms-tower__field-body { min-width: 0; }
-.foms-tower__field-name { display: flex; align-items: center; gap: 6px; font-size: var(--foms-font-size-sm); font-weight: var(--foms-font-weight-semibold); min-width: 0; flex-wrap: wrap; }
-.foms-tower__field-name .foms-stage-badge {
-  justify-content: center;
-  min-width: 34px;
-  padding: 2px 6px;
-  text-align: center;
-  line-height: 1.2;
-  flex: 0 0 auto;
+.foms-tower__field--risk { border-color: #fecaca; }
+[data-theme='dark'] .foms-tower__field--risk { border-color: rgba(239, 68, 68, .45); }
+.foms-tower__field-main {
+  flex: 1 1 auto; min-width: 0; display: flex; gap: 10px;
+  padding: 10px 4px 10px 12px; color: var(--foms-text-primary); text-decoration: none;
 }
-.foms-tower__field-addr { display: block; font-size: var(--foms-font-size-xs); color: var(--foms-text-tertiary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 1px; }
-.foms-tower__field-foot { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
-.foms-tower__field-who { font-size: 10px; color: var(--foms-text-tertiary); margin-left: auto; }
-.foms-tower__chip { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: var(--foms-radius-full); }
+.foms-tower__field-time { width: 46px; flex-shrink: 0; padding-top: 1px; font-size: 13px; font-weight: 800; line-height: 1.25; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.foms-tower__field-body { flex: 1 1 auto; min-width: 0; display: grid; gap: 2px; }
+.foms-tower__field-line { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
+.foms-tower__field-name { font-size: 15px; font-weight: 800; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.foms-tower__field-amt { margin-left: auto; flex-shrink: 0; font-size: 14px; font-weight: 800; color: var(--foms-color-brand-800); white-space: nowrap; font-variant-numeric: tabular-nums; }
+[data-theme='dark'] .foms-tower__field-amt { color: var(--foms-color-brand-200); }
+.foms-tower__field-addr { font-size: 12.5px; color: var(--foms-text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.foms-tower__field-foot { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: var(--foms-font-size-xs); color: var(--foms-text-secondary); }
+.foms-tower__field-items { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--foms-text-primary); }
+.foms-tower__field-who { flex-shrink: 0; white-space: nowrap; }
+.foms-tower__field-who.is-missing { color: var(--foms-color-warning-700); font-weight: var(--foms-font-weight-bold); }
+.foms-tower__field-foot .foms-tower__chip { margin-left: auto; flex-shrink: 0; white-space: nowrap; }
+.foms-tower__field-call {
+  width: 48px; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+  border-left: 1px solid var(--foms-border-subtle); color: var(--foms-color-brand-700); text-decoration: none;
+}
+[data-theme='dark'] .foms-tower__field-call { color: var(--foms-color-brand-200); }
+.foms-tower__chip { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: var(--foms-radius-full); }
 .foms-tower__chip--ok { background: var(--foms-color-success-50); color: var(--foms-color-success-600); }
-.foms-tower__chip--warn { background: var(--foms-color-warning-50); color: var(--foms-color-warning-600); }
+.foms-tower__chip--warn { background: var(--foms-color-warning-50); color: var(--foms-color-warning-700); }
 .foms-tower__chip--risk { background: var(--foms-color-danger-50); color: var(--foms-color-danger-600); }
 
-/* (C) 위험 레이더 */
+/* (D) 위험 레이더 */
 .foms-tower__risk-list { display: grid; gap: var(--foms-space-2); }
 .foms-tower__risk {
   display: flex; align-items: center; gap: var(--foms-space-2);
@@ -187,7 +360,7 @@ body.erp-mobile-v2-layout .erp-mobile-shell-header__mytasks.is-active i { color:
 .foms-tower__empty { padding: var(--foms-space-4); text-align: center; font-size: var(--foms-font-size-sm); color: var(--foms-text-tertiary); background: var(--foms-surface-base); border: 1px dashed var(--foms-border-default); border-radius: var(--foms-radius-lg); }
 .foms-tower__empty--ok { color: var(--foms-color-success-600); border-color: var(--foms-color-success-500); background: var(--foms-color-success-50); }
 
-/* (D) 처리 대기 */
+/* (E) 처리 대기 */
 .foms-tower__quick { display: grid; grid-template-columns: 1fr 1fr; gap: var(--foms-space-2); }
 .foms-tower__quick-card { display: grid; gap: 2px; padding: var(--foms-space-3); background: var(--foms-surface-base); border: 1px solid var(--foms-border-subtle); border-radius: var(--foms-radius-lg); box-shadow: var(--foms-shadow-sm); text-decoration: none; color: var(--foms-text-primary); }
 .foms-tower__quick-num { font-size: var(--foms-font-size-2xl); font-weight: var(--foms-font-weight-bold); line-height: 1; font-variant-numeric: tabular-nums; color: var(--foms-color-brand-600); }

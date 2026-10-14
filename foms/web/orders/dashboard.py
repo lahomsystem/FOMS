@@ -5,7 +5,7 @@ import time
 from flask import Blueprint, abort, flash, make_response, redirect, render_template, request, g, url_for
 from db import get_db
 from models import Order
-from foms.web.auth import login_required
+from foms.web.auth import log_access, login_required, role_required
 from foms.services.erp_dashboard_search import search_query_tokens, visible_order_search_clause
 from foms.services.foms_unified_search import is_chosung_query
 from sqlalchemy import text
@@ -50,6 +50,7 @@ from foms.services.foms_split_view import build_split_master_cards, build_split_
 from foms.services.orders.dashboard_control_tower import (
     build_mobile_control_tower,
     build_field_ops_for_day,
+    build_month_calendar,
     build_risk_frame,
     risk_row_cta_meta,
 )
@@ -65,6 +66,14 @@ from foms.services.common.erp_shell_http import (
 )
 from foms.services.common.ept_b7_profile import apply_ept_b7_render_headers, phase
 from foms.services.common.erp_mine_filter import erp_tower_mine_from_request
+from foms.services.integrations.kma.seoul_daily_weather import weather_version
+from foms.services.orders.calendar_amount_colors import (
+    CalendarColorsConflict,
+    CalendarColorsError,
+    colors_version as calendar_colors_version,
+    load_colors as load_calendar_colors,
+    save_colors as save_calendar_colors,
+)
 
 
 erp_dashboard_bp = Blueprint('erp_dashboard', __name__, url_prefix='/erp')
@@ -466,10 +475,14 @@ def erp_dashboard():
     # 같은 판정으로 건너뛴다. tower_mode 자체는 모바일 헤더(내 할 일 토글)가 읽어 그대로 둔다.
     if tower_mode and wants_mobile_width_surfaces():
         _tower_fp = {
-            "v": 2,
+            "v": 4,
             "user": _orders_user_visibility_fingerprint(current_user, is_admin),
             "date": today_iso,
             "mine": f_tower_mine,
+            # 칸 색 기준을 저장하면 새 키가 된다 — 300초 동안 옛 색을 보여 주지 않게.
+            "colors": calendar_colors_version(db),
+            # 새 예보가 들어오면(SIDEFX 루프가 한 시간마다 갱신) 새 키가 된다.
+            "weather": weather_version(db),
         }
         _tower_key = build_dashboard_cache_key("orders", "mobile_control_tower", _tower_fp)
         control_tower = get_or_compute_dashboard_slice(
@@ -537,6 +550,7 @@ def erp_dashboard():
         tower_mode=tower_mode,
         control_tower=control_tower,
         tower_mine_active=f_tower_mine,
+        calendar_colors_editable=_can_edit_calendar_colors(current_user),
         mobile_shell_show_mytasks=tower_mode,
         mobile_shell_mytasks_active=f_tower_mine,
         mobile_shell_mytasks_href=_mytasks_href,
@@ -670,7 +684,7 @@ def erp_dashboard_field_ops():
     )
     list_html = render_template(
         'orders/partials/dashboard_mobile_tower_field_list.html',
-        rows=payload['rows'],
+        sections=payload['sections'],
     )
     queue_args = {'date': date_iso, 'view': 'queue'}
     if field_type in ('measure', 'construction', 'as'):
@@ -683,11 +697,107 @@ def erp_dashboard_field_ops():
             'measure_count': payload['measure_count'],
             'construction_count': payload['construction_count'],
             'as_count': payload['as_count'],
+            'amount_label': payload['amount_label'],
+            'is_today': payload['is_today'],
             'label': payload['label'],
             'iso': date_iso,
             'queue_href': url_for('erp_dashboard.erp_dashboard', **queue_args),
         },
     }
+
+
+@erp_dashboard_bp.route('/dashboard/field-calendar')
+@login_required
+def erp_dashboard_field_calendar():
+    """모바일 홈 월간 현장 달력 — 달 이동(‹ ›) swap 용 HTML 조각(JSON).
+
+    month=YYYY-MM. 형식 오류·오늘 기준 ±12개월 밖이면 이번 달. 타워와 같은 캐시 TTL.
+    """
+    db = get_db()
+    current_user = getattr(g, 'current_user', None)
+    is_admin = bool(current_user and current_user.role == 'ADMIN')
+    mine_only = erp_tower_mine_from_request(request)
+    month = (request.args.get('month') or '').strip()[:7]
+    today = get_today_kst()
+    cache_key = build_dashboard_cache_key("orders", "mobile_month_calendar", {
+        "v": 3,
+        "user": _orders_user_visibility_fingerprint(current_user, is_admin),
+        "date": today.isoformat(),
+        "month": month,
+        "mine": mine_only,
+        "colors": calendar_colors_version(db),
+        "weather": weather_version(db),
+    })
+    calendar = get_or_compute_dashboard_slice(
+        cache_key,
+        TTL_SUMMARY_COUNTS,
+        lambda: build_month_calendar(db, current_user, month, mine_only=mine_only, today=today),
+        page="orders",
+        slice_name="mobile_month_calendar",
+    )
+    html = render_template(
+        'orders/partials/dashboard_mobile_tower_calendar.html',
+        cal=calendar,
+        calendar_colors_editable=_can_edit_calendar_colors(current_user),
+    )
+    return {'success': True, 'data': {'html': html, 'month': calendar['month']}}
+
+
+#: 달력 칸 색 기준을 바꿀 수 있는 역할(사용자 결정 2026-10-14: 관리자·팀장).
+CALENDAR_COLORS_EDIT_ROLES = ("ADMIN", "MANAGER")
+
+
+def _can_edit_calendar_colors(user) -> bool:
+    return bool(user and getattr(user, "role", None) in CALENDAR_COLORS_EDIT_ROLES)
+
+
+@erp_dashboard_bp.route('/dashboard/calendar-colors', methods=['GET'])
+@login_required
+def erp_dashboard_calendar_colors_get():
+    """달력 칸 색 기준 + 버전(설정 시트가 열 때 읽는다). 근거 docs/specs/2026-10-14-mobile-calendar-amount-colors_SPEC.md"""
+    db = get_db()
+    return {
+        'success': True,
+        'data': {'colors': load_calendar_colors(db), 'version': calendar_colors_version(db)},
+        'error': None,
+    }
+
+
+@erp_dashboard_bp.route('/dashboard/calendar-colors', methods=['POST'])
+@login_required
+@role_required(list(CALENDAR_COLORS_EDIT_ROLES))
+def erp_dashboard_calendar_colors_save():
+    """달력 칸 색 기준 저장 — 회사 전체가 쓰는 한 벌(관리자·팀장).
+
+    통째로 덮어쓴다. 동시 저장은 ``version`` 으로 막는다(뒤에 누른 사람이 앞사람 기준을
+    조용히 지우지 않게 409 로 돌려보내고 화면이 새로 불러온다). 주문은 건드리지 않는다.
+    """
+    payload = request.get_json(silent=True) or {}
+    raw_version = payload.get('settings_version')
+    try:
+        if_match = int(raw_version) if raw_version is not None else None
+    except (TypeError, ValueError):
+        if_match = None
+
+    db = get_db()
+    current_user = getattr(g, 'current_user', None)
+    try:
+        result = save_calendar_colors(db, value=payload, if_match_version=if_match)
+        db.commit()
+    except CalendarColorsConflict as exc:
+        db.rollback()
+        return {'success': False, 'data': {'version': exc.current_version}, 'error': str(exc)}, 409
+    except CalendarColorsError as exc:
+        db.rollback()
+        return {'success': False, 'data': None, 'error': str(exc)}, 400
+
+    log_access(
+        "모바일 달력 칸 색 기준 저장",
+        getattr(current_user, 'id', None),
+        action="MOBILE_CALENDAR_COLORS_SAVE",
+        detail={"colors": result["colors"], "version": result["version"]},
+    )
+    return {'success': True, 'data': result, 'error': None}
 
 
 @erp_dashboard_bp.route('/orders/<int:order_id>/mobile')

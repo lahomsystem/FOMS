@@ -1,0 +1,219 @@
+/* 모바일 홈 달력 — 사진 머리띠 + 주마다 입체 날씨 띠 (목업 M3v2).
+   근거: docs/specs/2026-10-14-mobile-calendar-weather-band_SPEC.md
+   - 띠 바탕: 칸(.foms-wx-seg)마다 제 날씨 색(--wx-c), 양끝은 옆 날짜 색(--wx-p/--wx-n)과 반씩 섞는다 → 이음새 없음.
+   - 그림 판(.foms-wx-pic)은 칸 폭 2배, 양끝은 마스크로 사라진다. 물체는 제 칸 안, 빛만 옆으로 번진다.
+   - 움직임은 transform·opacity 만, .is-live(오늘~6일 뒤 7칸)만. '동작 줄이기'면 전부 멈춘다.
+     측정(목업, CPU 6배 느리게): 7칸 58fps ≈ 정지, 31칸 22fps → 7칸 제한을 풀지 말 것. */
+
+.foms-tower {
+  --wx-sun: rgb(255, 236, 176);
+  --wx-cloud: rgb(214, 221, 232);
+  --wx-drizzle: rgb(212, 224, 238);
+  --wx-heavy: rgb(176, 190, 212);
+  --wx-snow: rgb(198, 216, 246);
+  --wx-none: rgb(238, 240, 244);
+}
+[data-theme='dark'] .foms-tower {
+  --wx-sun: rgb(130, 122, 95);
+  --wx-cloud: rgb(112, 115, 120);
+  --wx-drizzle: rgb(111, 116, 123);
+  --wx-heavy: rgb(95, 101, 111);
+  --wx-snow: rgb(105, 113, 126);
+  --wx-none: rgb(44, 46, 52);
+}
+.wx-k-sun { --wx-c: var(--wx-sun); } .wx-p-sun { --wx-p: var(--wx-sun); } .wx-n-sun { --wx-n: var(--wx-sun); }
+.wx-k-cloud { --wx-c: var(--wx-cloud); } .wx-p-cloud { --wx-p: var(--wx-cloud); } .wx-n-cloud { --wx-n: var(--wx-cloud); }
+.wx-k-drizzle { --wx-c: var(--wx-drizzle); } .wx-p-drizzle { --wx-p: var(--wx-drizzle); } .wx-n-drizzle { --wx-n: var(--wx-drizzle); }
+.wx-k-heavy { --wx-c: var(--wx-heavy); } .wx-p-heavy { --wx-p: var(--wx-heavy); } .wx-n-heavy { --wx-n: var(--wx-heavy); }
+.wx-k-snow { --wx-c: var(--wx-snow); } .wx-p-snow { --wx-p: var(--wx-snow); } .wx-n-snow { --wx-n: var(--wx-snow); }
+.wx-k-none { --wx-c: var(--wx-none); } .wx-p-none { --wx-p: var(--wx-none); } .wx-n-none { --wx-n: var(--wx-none); }
+
+/* 달력 상자: 테두리 카드 대신 사진 머리띠 + 겹친 흰 판 */
+.foms-tower__calbox { background: transparent; border: 0; box-shadow: none; padding: 0; }
+
+/* 사진 머리띠 — 출처는 화면 줄 대신 title 로만(foms/services/orders/calendar_month_photos.py) */
+.foms-tower__cal-hero {
+  position: relative; border-radius: 24px; padding: 6px 8px 32px; color: #fff;
+  background-size: cover; background-position: center;
+}
+.foms-cal-photo-1 { background-color: #364fc7; background-image: linear-gradient(rgba(12, 14, 32, .42), rgba(12, 14, 32, .42)), url("../../../img/calendar/month-01.webp?v=20261014a"); }
+.foms-cal-photo-2 { background-color: #5f3dc4; background-image: linear-gradient(rgba(12, 14, 32, .42), rgba(12, 14, 32, .42)), url("../../../img/calendar/month-02.webp?v=20261014a"); }
+.foms-cal-photo-3 { background-color: #087f5b; background-image: linear-gradient(rgba(12, 14, 32, .42), rgba(12, 14, 32, .42)), url("../../../img/calendar/month-03.webp?v=20261014a"); }
+.foms-cal-photo-4 { background-color: #c2255c; background-image: linear-gradient(rgba(12, 14, 32, .42), rgba(12, 14, 32, .42)), url("../../../img/calendar/month-04.webp?v=20261014a"); }
+.foms-cal-photo-5 { background-color: #2b8a3e; background-image: linear-gradient(rgba(12, 14, 32, .42), rgba(12, 14, 32, .42)), url("../../../img/calendar/month-05.webp?v=20261014a"); }
+.foms-cal-photo-6 { background-color: #0b7285; background-image: linear-gradient(rgba(12, 14, 32, .42), rgba(12, 14, 32, .42)), url("../../../img/calendar/month-06.webp?v=20261014a"); }
+.foms-cal-photo-7 { background-color: #1864ab; background-image: linear-gradient(rgba(12, 14, 32, .42), rgba(12, 14, 32, .42)), url("../../../img/calendar/month-07.webp?v=20261014a"); }
+.foms-cal-photo-8 { background-color: #c92a2a; background-image: linear-gradient(rgba(12, 14, 32, .42), rgba(12, 14, 32, .42)), url("../../../img/calendar/month-08.webp?v=20261014a"); }
+.foms-cal-photo-9 { background-color: #9c4f00; background-image: linear-gradient(rgba(12, 14, 32, .42), rgba(12, 14, 32, .42)), url("../../../img/calendar/month-09.webp?v=20261014a"); }
+.foms-cal-photo-10 { background-color: #c2410c; background-image: linear-gradient(rgba(12, 14, 32, .42), rgba(12, 14, 32, .42)), url("../../../img/calendar/month-10.webp?v=20261014a"); }
+.foms-cal-photo-11 { background-color: #7a4b28; background-image: linear-gradient(rgba(12, 14, 32, .42), rgba(12, 14, 32, .42)), url("../../../img/calendar/month-11.webp?v=20261014a"); }
+.foms-cal-photo-12 { background-color: #2b6a4a; background-image: linear-gradient(rgba(12, 14, 32, .42), rgba(12, 14, 32, .42)), url("../../../img/calendar/month-12.webp?v=20261014a"); }
+.foms-tower__cal-hero .foms-tower__cal-title { color: #fff; font-size: 26px; font-weight: 800; letter-spacing: -0.8px; }
+.foms-tower__cal-hero .foms-tower__cal-arrow { color: #fff; }
+.foms-tower__cal-hero .foms-tower__cal-arrow:disabled { opacity: .35; }
+.foms-tower__cal-hero .foms-tower__cal-gear { color: rgba(255, 255, 255, .9); }
+.foms-tower__cal-hero .foms-tower__cal-thismonth { color: #fff; background: rgba(255, 255, 255, .2); border: 1px solid rgba(255, 255, 255, .35); }
+.foms-tower__cal-hero .foms-tower__cal-sum { padding: 4px 6px 0; }
+.foms-tower__cal-hero .foms-tower__cal-sum-label { color: rgba(255, 255, 255, .88); }
+.foms-tower__cal-hero .foms-tower__cal-sum-amt,
+[data-theme='dark'] .foms-tower__cal-hero .foms-tower__cal-sum-amt { color: #fff; }
+.foms-tower__cal-hero .foms-tower__cal-sum-counts { color: rgba(255, 255, 255, .9); }
+.foms-tower__cal-hero .foms-tower__cal-sum-counts b { color: #fff; }
+.foms-tower__cal-hero .foms-tower__mark--measure { color: #a9c4ff; }
+.foms-tower__cal-hero .foms-tower__mark--construction { color: #ffc9a3; }
+.foms-tower__cal-hero .foms-tower__mark--as { color: #8ff0e2; }
+
+/* 겹친 흰 판 — 흐림(backdrop-filter)은 쓰지 않는다: 아래 움직이는 그림 때문에 매 프레임 다시 그리게 된다 */
+.foms-tower__cal-sheet {
+  position: relative; margin: -22px 0 0; padding: 10px 6px;
+  background: var(--foms-surface-base); border: 1px solid var(--foms-border-subtle); border-radius: 28px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .08);
+}
+
+/* 주 = 띠 1개 + 칸 7개를 같은 줄에 겹친다 */
+.foms-tower__cal-grid { display: flex; flex-direction: column; gap: 7px; }
+.foms-tower__cal-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.foms-wx-band {
+  grid-row: 1; position: relative; display: grid; border-radius: 24px; overflow: hidden; isolation: isolate;
+  box-shadow: 0 8px 18px rgba(28, 28, 30, .09), 0 1px 2px rgba(28, 28, 30, .07), inset 0 -3px 8px rgba(28, 28, 30, .05);
+}
+.foms-wx-band.s-1 { grid-column-start: 1; } .foms-wx-band.n-1 { grid-column-end: span 1; grid-template-columns: repeat(1, minmax(0, 1fr)); }
+.foms-wx-band.s-2 { grid-column-start: 2; } .foms-wx-band.n-2 { grid-column-end: span 2; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.foms-wx-band.s-3 { grid-column-start: 3; } .foms-wx-band.n-3 { grid-column-end: span 3; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.foms-wx-band.s-4 { grid-column-start: 4; } .foms-wx-band.n-4 { grid-column-end: span 4; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.foms-wx-band.s-5 { grid-column-start: 5; } .foms-wx-band.n-5 { grid-column-end: span 5; grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.foms-wx-band.s-6 { grid-column-start: 6; } .foms-wx-band.n-6 { grid-column-end: span 6; grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.foms-wx-band.s-7 { grid-column-start: 7; } .foms-wx-band.n-7 { grid-column-end: span 7; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.foms-wx-seg.c-1, .foms-tower__cal-cell.is-c1 { grid-column: 1; }
+.foms-wx-seg.c-2, .foms-tower__cal-cell.is-c2 { grid-column: 2; }
+.foms-wx-seg.c-3, .foms-tower__cal-cell.is-c3 { grid-column: 3; }
+.foms-wx-seg.c-4, .foms-tower__cal-cell.is-c4 { grid-column: 4; }
+.foms-wx-seg.c-5, .foms-tower__cal-cell.is-c5 { grid-column: 5; }
+.foms-wx-seg.c-6, .foms-tower__cal-cell.is-c6 { grid-column: 6; }
+.foms-wx-seg.c-7, .foms-tower__cal-cell.is-c7 { grid-column: 7; }
+.foms-wx-seg { grid-row: 1; position: relative; min-width: 0; background: var(--wx-c); }
+@supports (background: color-mix(in srgb, red 50%, blue)) {
+  .foms-wx-seg {
+    background: linear-gradient(90deg,
+      color-mix(in srgb, var(--wx-p) 50%, var(--wx-c)) 0%, var(--wx-c) 50%, color-mix(in srgb, var(--wx-n) 50%, var(--wx-c)) 100%);
+  }
+}
+.foms-wx-gloss {
+  position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .34) 0%, rgba(255, 255, 255, .06) 28%, rgba(255, 255, 255, 0) 50%, rgba(0, 0, 0, .04) 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .9);
+}
+[data-theme='dark'] .foms-wx-gloss { background: linear-gradient(180deg, rgba(255, 255, 255, .1) 0%, rgba(255, 255, 255, 0) 40%); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .12); }
+.foms-wx-pic {
+  position: absolute; top: 0; bottom: 0; left: -50%; width: 200%; pointer-events: none;
+  -webkit-mask-image: linear-gradient(90deg, transparent 2%, #000 25%, #000 75%, transparent 98%);
+  mask-image: linear-gradient(90deg, transparent 2%, #000 25%, #000 75%, transparent 98%);
+}
+.foms-wx-seg.is-past .foms-wx-pic { opacity: .5; }
+/* 다크: 흰 구름이 흰 날짜 글자를 삼키지 않게 그림을 낮춘다(filter 대신 opacity — 움직이는 칸에서도 가볍다) */
+[data-theme='dark'] .foms-wx-pic { opacity: .55; }
+[data-theme='dark'] .foms-wx-seg.is-past .foms-wx-pic { opacity: .3; }
+[data-theme='dark'] .foms-tower__cal-cell .foms-tower__cal-date { text-shadow: 0 1px 3px rgba(0, 0, 0, .75); }
+.foms-wx-svg { display: block; width: 100%; height: 100%; }
+.foms-wx-defs { position: absolute; width: 0; height: 0; overflow: hidden; }
+
+/* 날짜 칸 (띠 위에 투명하게) */
+.foms-tower__cal-cell {
+  grid-row: 1; height: 102px; padding: 5px 3px; align-items: stretch; gap: 2px; text-align: left;
+  background: transparent; border-radius: 18px;
+}
+.foms-tower__cal-cell.is-past { background: transparent; }
+.foms-tower__cal-cell.is-out { opacity: 1; }
+.foms-tower__cal-cell.is-today,
+[data-theme='dark'] .foms-tower__cal-cell.is-today {
+  margin: -3px 1px; height: 108px; padding: 8px 3px;
+  background: rgba(255, 255, 255, .42); border-color: rgba(255, 255, 255, .7);
+  box-shadow: 0 8px 18px rgba(28, 28, 30, .18), inset 0 1px 0 rgba(255, 255, 255, .95);
+}
+[data-theme='dark'] .foms-tower__cal-cell.is-today { background: rgba(255, 255, 255, .12); border-color: rgba(255, 255, 255, .28); box-shadow: 0 8px 18px rgba(0, 0, 0, .4); }
+/* 기온 받침은 칸 오른쪽 위에 띄운다 — 폭 46px 폰 칸에서 날짜와 한 줄로 두면 잘린다(스테이징 2026-10-14) */
+.foms-tower__cal-head { position: relative; display: flex; align-items: flex-start; min-height: 22px; }
+.foms-tower__cal-cell .foms-tower__cal-date { width: 20px; height: 20px; font-size: 13px; font-weight: 700; }
+.foms-tower__cal-cell.is-past .foms-tower__cal-date { opacity: .45; }
+.foms-tower__cal-cell.is-today .foms-tower__cal-date { background: var(--foms-color-danger-600); color: #fff; box-shadow: 0 3px 8px rgba(255, 59, 48, .45); }
+.foms-tower__cal-temp {
+  position: absolute; top: 2px; right: -1px; padding: 1px 2px; border-radius: 5px; background: rgba(255, 255, 255, .62);
+  box-shadow: 0 1px 2px rgba(28, 28, 30, .08); font-size: 9px; font-weight: 700; line-height: 1.1; color: #2c2c2e;
+  letter-spacing: -0.3px; white-space: nowrap;
+}
+[data-theme='dark'] .foms-tower__cal-temp { background: rgba(28, 28, 30, .55); color: #f2f2f7; }
+.foms-tower__cal-cell .foms-tower__cal-risk { top: 4px; left: 22px; right: auto; }
+.foms-tower__cal-cell .foms-tower__cal-counts { align-items: flex-start; min-height: 0; padding-left: 2px; }
+.foms-tower__cal-cell .foms-tower__cal-n { font-size: 11px; line-height: 14px; gap: 3px; text-shadow: 0 1px 0 rgba(255, 255, 255, .7); }
+[data-theme='dark'] .foms-tower__cal-cell .foms-tower__cal-n { text-shadow: 0 1px 0 rgba(0, 0, 0, .5); }
+.foms-tower__cal-cell .foms-tower__cal-amt {
+  align-self: stretch; text-align: center; padding: 0 2px; font-size: 10px; line-height: 16px; border-radius: 999px;
+  background: rgba(255, 255, 255, .95); color: #1c1c1e;
+  box-shadow: 0 2px 6px rgba(28, 28, 30, .14), inset 0 1px 0 rgba(255, 255, 255, .7);
+}
+[data-theme='dark'] .foms-tower__cal-cell .foms-tower__cal-amt { background: rgba(28, 28, 30, .85); color: #f2f2f7; }
+.foms-tower__cal-cell .foms-tower__cal-amt.is-tone-yellow,
+[data-theme='dark'] .foms-tower__cal-cell .foms-tower__cal-amt.is-tone-yellow { background: #ffd60a; color: #3d2f00; }
+.foms-tower__cal-cell .foms-tower__cal-amt.is-tone-pink,
+[data-theme='dark'] .foms-tower__cal-cell .foms-tower__cal-amt.is-tone-pink { background: #ff9fca; color: #4d0526; }
+
+/* 범례 */
+.foms-tower__wx-chips { display: inline-flex; gap: 4px; flex-wrap: wrap; }
+.foms-tower__wx-chip {
+  font-style: normal; padding: 0 7px; line-height: 18px; border-radius: 999px; color: var(--foms-text-primary);
+  background: var(--wx-c); box-shadow: 0 2px 5px rgba(28, 28, 30, .1);
+}
+.foms-tower__tone-pill { padding: 0 6px; line-height: 16px; border-radius: 999px; font-weight: 700; }
+.foms-tower__tone-pill.is-yellow { background: #ffd60a; color: #3d2f00; }
+.foms-tower__tone-pill.is-pink { background: #ff9fca; color: #4d0526; }
+
+/* 그림 기본 모양 — 멈춘 그림(<use> 안쪽)에도 적용된다 */
+.fwx-breathe { opacity: .35; }
+.fwx-twinkle { opacity: .4; }
+
+/* 움직임 — 오늘~6일 뒤 7칸(.is-live)만 */
+.foms-wx-pic.is-live .fwx-a { will-change: transform; }
+.foms-wx-pic.is-live .fwx-rays { transform-box: view-box; transform-origin: 168px 18px; animation: fwxSpin 48s linear infinite; }
+.foms-wx-pic.is-live .fwx-breathe { transform-box: view-box; transform-origin: 168px 18px; animation: fwxBreathe 5s ease-in-out infinite; }
+.foms-wx-pic.is-live .fwx-twinkle { animation: fwxTwinkle 3.4s ease-in-out infinite; }
+.foms-wx-pic.is-live .fwx-drift1 { animation: fwxDrift 9s ease-in-out infinite alternate; }
+.foms-wx-pic.is-live .fwx-drift2 { animation: fwxDrift2 13s ease-in-out infinite alternate; }
+.foms-wx-pic.is-live .fwx-bob { animation: fwxBob 4.5s ease-in-out infinite alternate; }
+.foms-wx-pic.is-live .fwx-heavy { animation: fwxHeavy .5s cubic-bezier(.5, 0, 1, .7) infinite; }
+.foms-wx-pic.is-live .fwx-drizzle { animation: fwxDrizzle 2.7s linear infinite; }
+.foms-wx-pic.is-live .fwx-flake { transform-box: fill-box; transform-origin: center; animation: fwxFlake 3.4s linear infinite; }
+.foms-wx-pic.is-live .fwx-dot { animation: fwxDot 2.4s linear infinite; }
+/* 지연·길이 — 칸 안 물체마다 다르게(templates/orders/partials/dashboard_mobile_tower_weather.html 의 fwx-dN) */
+.foms-wx-pic.is-live .fwx-d1 { animation-delay: -0.2s; }
+.foms-wx-pic.is-live .fwx-d2 { animation-delay: -1.9s; }
+.foms-wx-pic.is-live .fwx-d3 { animation-delay: -0.3s; animation-duration: 2.6s; }
+.foms-wx-pic.is-live .fwx-d4 { animation-delay: -1.6s; animation-duration: 2.9s; }
+.foms-wx-pic.is-live .fwx-d5 { animation-delay: -0.9s; animation-duration: 2.5s; }
+.foms-wx-pic.is-live .fwx-d6 { animation-delay: -2.2s; animation-duration: 2.8s; }
+.foms-wx-pic.is-live .fwx-d7 { animation-delay: -1.2s; animation-duration: 3s; }
+.foms-wx-pic.is-live .fwx-d8 { animation-delay: -2.6s; animation-duration: 2.7s; }
+.foms-wx-pic.is-live .fwx-d9 { animation-delay: -0.6s; animation-duration: 2.9s; }
+.foms-wx-pic.is-live .fwx-d10 { animation-delay: -0.04s; }
+.foms-wx-pic.is-live .fwx-d11 { animation-delay: -0.37s; }
+.foms-wx-pic.is-live .fwx-d12 { animation-delay: -1.3s; }
+.foms-wx-pic.is-live .fwx-d13 { animation-delay: -2.4s; }
+.foms-wx-pic.is-live .fwx-d14 { animation-delay: -0.4s; }
+.foms-wx-pic.is-live .fwx-d15 { animation-delay: -1.5s; }
+.foms-wx-pic.is-live .fwx-d16 { animation-delay: -0.1s; }
+.foms-wx-pic.is-live .fwx-d17 { animation-delay: -1.1s; }
+.foms-wx-pic.is-live .fwx-d18 { animation-delay: -2s; }
+.foms-wx-pic.is-live .fwx-d19 { animation-delay: -0.8s; }
+.foms-wx-pic.is-live .fwx-d20 { animation-delay: -1.8s; }
+@keyframes fwxSpin { to { transform: rotate(360deg); } }
+@keyframes fwxBreathe { 0%, 100% { transform: scale(1); opacity: .28; } 50% { transform: scale(1.16); opacity: .5; } }
+@keyframes fwxTwinkle { 0%, 100% { opacity: .18; } 50% { opacity: .6; } }
+@keyframes fwxDrift { from { transform: translateX(3px); } to { transform: translateX(-5px); } }
+@keyframes fwxDrift2 { from { transform: translateX(-4px); } to { transform: translateX(4px); } }
+@keyframes fwxBob { from { transform: translateY(-1px); } to { transform: translateY(1.5px); } }
+@keyframes fwxHeavy { 0% { transform: translate(8px, -26px); opacity: 0; } 12% { opacity: 1; } 85% { opacity: 1; } 100% { transform: translate(-10px, 30px); opacity: 0; } }
+@keyframes fwxDrizzle { 0% { transform: translate(-1px, -12px); opacity: 0; } 20% { opacity: 1; } 50% { transform: translate(1.5px, 0); } 80% { opacity: 1; } 100% { transform: translate(-1px, 12px); opacity: 0; } }
+@keyframes fwxFlake { 0% { transform: translate(0, -22px) rotate(0deg); opacity: 0; } 10% { opacity: 1; } 50% { transform: translate(4px, 0) rotate(60deg); } 90% { opacity: 1; } 100% { transform: translate(-2px, 24px) rotate(120deg); opacity: 0; } }
+@keyframes fwxDot { 0% { transform: translate(0, -16px); opacity: 0; } 15% { opacity: 1; } 85% { opacity: 1; } 100% { transform: translate(3px, 20px); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .foms-wx-pic .fwx-a { animation: none !important; }
+}
