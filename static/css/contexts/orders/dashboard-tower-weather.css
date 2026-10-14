@@ -105,12 +105,13 @@
 .foms-wx-seg.c-5, .foms-tower__cal-cell.is-c5 { grid-column: 5; }
 .foms-wx-seg.c-6, .foms-tower__cal-cell.is-c6 { grid-column: 6; }
 .foms-wx-seg.c-7, .foms-tower__cal-cell.is-c7 { grid-column: 7; }
-/* 옆 날씨 클래스(wx-p/wx-n)는 제 날씨와 다를 때만 붙는다(전송 바이트) — 없으면 제 색으로 */
-.foms-wx-seg { grid-row: 1; position: relative; min-width: 0; background: var(--wx-c); --wx-p: var(--wx-c); --wx-n: var(--wx-c); }
+/* 옆 날씨 클래스(wx-p/wx-n)는 제 날씨와 다를 때만 붙는다(전송 바이트) — 없으면 var() 대체값으로 제 색.
+   기본값을 여기서 --wx-p/--wx-n 으로 선언하면 앞쪽 .wx-p-* 규칙을 덮어 경계가 칼로 자른 듯 끊긴다(2026-10-14 회귀). */
+.foms-wx-seg { grid-row: 1; position: relative; min-width: 0; background: var(--wx-c); }
 @supports (background: color-mix(in srgb, red 50%, blue)) {
   .foms-wx-seg {
     background: linear-gradient(90deg,
-      color-mix(in srgb, var(--wx-p) 50%, var(--wx-c)) 0%, var(--wx-c) 50%, color-mix(in srgb, var(--wx-n) 50%, var(--wx-c)) 100%);
+      color-mix(in srgb, var(--wx-p, var(--wx-c)) 50%, var(--wx-c)) 0%, var(--wx-c) 50%, color-mix(in srgb, var(--wx-n, var(--wx-c)) 50%, var(--wx-c)) 100%);
   }
 }
 .foms-wx-gloss {
@@ -293,3 +294,50 @@
   .foms-wx-pic .fwx-a { animation: none !important; }
   .fwx-fx { display: none; }
 }
+
+/* ── 시간 줄 보기(사람마다 쿠키 foms_wx_style=timeline, 2026-10-14) ──────────────────────────────
+   한 주 띠 = SVG 한 장(foms/services/orders/calendar_weather_timeline.py). 6시간 칸 날씨가 바뀌는 시각에서만 바뀐다.
+   목업 '시간 줄 ② 업그레이드' 그대로 — 측정(CPU 6배 느리게, 두 주 전부 움직임) 59.4fps. 주 전체가 지난 날이면 멈춘다(.is-still). */
+.foms-wx-band.tl-band { display: block; }
+.tl-svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.tl-s-sun { stop-color: var(--wx-sun); } .tl-s-cloud { stop-color: var(--wx-cloud); } .tl-s-drizzle { stop-color: var(--wx-drizzle); }
+.tl-s-heavy { stop-color: var(--wx-heavy); } .tl-s-flurry { stop-color: var(--wx-flurry); } .tl-s-snow { stop-color: var(--wx-snow); }
+.tl-s-none { stop-color: var(--wx-none); }
+.tl-breathe { transform-box: fill-box; transform-origin: center; animation: fwxBreathe 2.6s ease-in-out infinite; }
+.tl-drift2 { animation: fwxDrift2 6s linear infinite alternate; }
+.tl-flash { opacity: 0; animation: fwxFlash 4.2s linear infinite; }
+.up-spin { transform-box: fill-box; transform-origin: center; animation: fwxSpin 30s linear infinite; }
+.up-glow { animation: tlGlow 7s ease-in-out infinite alternate; }
+.up-far { animation: fwxDrift2 14s ease-in-out infinite alternate; }
+.up-near { animation: tlNear 5s ease-in-out infinite alternate; }
+.up-veil { animation: tlVeil 5s ease-in-out infinite alternate; }
+.up-rainfar { animation: tlRainFar 1.6s linear infinite; }
+.up-sn { animation: tlSn 5.5s ease-in-out infinite; }
+.up-specks { animation: tlSpecks 7s linear infinite; }
+.up-pulse { transform-box: fill-box; transform-origin: center; animation: tlPulse 2s ease-out infinite; }
+.tl-dz { animation: tlDz 2.2s linear infinite; }
+.tl-hv { animation: tlHv .55s linear infinite; }
+.tl-p1 { animation-delay: -.33s; } .tl-p2 { animation-delay: -.66s; }
+.tl-dz.tl-p1 { animation-delay: -.8s; } .tl-dz.tl-p2 { animation-delay: -1.5s; }
+.up-sn.tl-p1 { animation-delay: -2.7s; }
+.tl-svg.is-still * { animation: none !important; }
+@keyframes tlGlow { from { transform: translate(-3px, 2px); opacity: .8; } to { transform: translate(3px, -2px); opacity: 1; } }
+@keyframes tlNear { from { transform: translateX(18px); } to { transform: translateX(-22px); } }
+@keyframes tlVeil { from { opacity: .6; } to { opacity: 1; } }
+@keyframes tlRainFar { from { transform: translate(6px, -36px); } to { transform: translate(-8px, 40px); } }
+@keyframes tlSn { 0% { transform: translate(0, -40px) rotate(0deg); opacity: 0; } 12% { opacity: 1; } 50% { transform: translate(9px, 2px) rotate(40deg); } 88% { opacity: 1; } 100% { transform: translate(-4px, 44px) rotate(80deg); opacity: 0; } }
+@keyframes tlSpecks { from { transform: translate(-6px, -30px); } to { transform: translate(6px, 36px); } }
+@keyframes tlPulse { from { transform: scale(1); opacity: .9; } to { transform: scale(3.2); opacity: 0; } }
+@keyframes tlDz { 0% { transform: translate(3px, -44px); opacity: 0; } 12% { opacity: 1; } 50% { transform: translate(-4px, 4px); } 88% { opacity: 1; } 100% { transform: translate(3px, 50px); opacity: 0; } }
+@keyframes tlHv { 0% { transform: translate(14px, -50px); opacity: 0; } 10% { opacity: 1; } 88% { opacity: 1; } 100% { transform: translate(-16px, 56px); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .tl-svg * { animation: none !important; } .tl-flash { opacity: 0; } }
+
+/* 날씨 보기 고르기 [칸 | 시간 줄] — 범례 맨 앞 */
+.foms-tower__wx-style { display: inline-flex; padding: 2px; gap: 0; border-radius: 999px; background: rgba(118, 118, 128, .14); }
+.foms-tower__wx-style button {
+  border: 0; background: transparent; color: var(--foms-text-secondary); font: inherit; font-weight: 600;
+  min-height: 24px; padding: 0 10px; border-radius: 999px;
+}
+.foms-tower__wx-style button[aria-pressed='true'] { background: var(--foms-surface-base, #fff); color: var(--foms-text-primary); box-shadow: 0 1px 3px rgba(28, 28, 30, .14); }
+/* 다크: 칸 보기와 같이 그림만 낮춘다(하늘 바탕 rect 는 그대로) — 흰 구름이 흰 날짜 글자를 삼키지 않게 */
+[data-theme='dark'] .tl-svg > g { opacity: .55; }

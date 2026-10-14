@@ -19,7 +19,10 @@
 저장 자리
 ---------
 새 표 없이 ``SystemSetting`` 키 :data:`WEATHER_KEY` 하나. 설정이 아니라 캐시라 버전 잠금은 쓰지 않는다.
-``{"updated_at": iso, "days": {"YYYY-MM-DD": {"kind", "t_min", "t_max", "pop", "src", "base"}}}``
+``{"updated_at": iso, "days": {"YYYY-MM-DD": {"kind", "t_min", "t_max", "pop", "src", "base", "slots"}}}``
+
+``slots`` 는 하루를 6시간 4칸(00·06·12·18시)으로 나눈 날씨 종류 목록이다 — '시간 줄' 보기(사람마다 고름)가 쓴다.
+자료가 없는 칸은 ``None``(오늘 새벽처럼 이미 지난 시간), 옛 저장 값엔 키가 없다 — 그리는 쪽이 하루 날씨로 채운다.
 """
 
 from __future__ import annotations
@@ -43,6 +46,7 @@ __all__ = [
     "KINDS",
     "parse_pcp_mm",
     "classify_short",
+    "classify_slots",
     "classify_mid_text",
     "short_base_time",
     "mid_tm_fc",
@@ -75,6 +79,9 @@ HEAVY_SNOW_HOUR_CM = 1.0
 #: 낮(09~18시) 중 구름많음·흐림 시간이 이 비율 이상이면 구름.
 CLOUD_DAY_RATIO = 0.5
 DAYTIME_HOURS = range(9, 19)
+#: 시간 줄 한 칸 = 6시간(하루 4칸: 0~5·6~11·12~17·18~23시).
+SLOT_HOURS = 6
+SLOTS_PER_DAY = 24 // SLOT_HOURS
 
 #: 미래 날짜를 단기예보로 판정하려면 시간별 기온이 이만큼은 있어야 한다. 오후 발표의 4일 뒤는 자정 한두 시간뿐이라
 #: 그 조각으로 '맑음 18°/18°' 같은 값이 나오고 중기예보(그날 '흐리고 비')를 막았다(2026-10-14 실측) → 중기에 맡긴다.
@@ -120,12 +127,13 @@ def _int_or_none(text: Any) -> Optional[int]:
     return int(round(float(m.group(1)))) if m else None
 
 
-def classify_short(items: Iterable[dict[str, Any]]) -> dict[str, Any]:
+def classify_short(items: Iterable[dict[str, Any]], *, sky_hours: Iterable[int] = DAYTIME_HOURS) -> dict[str, Any]:
     """하루치 단기예보 항목(``category``·``fcstTime``·``fcstValue``) → ``{"kind","t_min","t_max","pop"}``.
 
     판정 순서(위가 먼저): 함박눈(신적설 하루 ≥ 3cm 또는 한 시간 ≥ 1cm) → 부슬눈·진눈깨비 → 장대비(하루 합 ≥ 20mm 또는 한 시간 ≥ 7mm) → 부슬비 →
-    구름(낮 시간 절반 이상 구름많음·흐림) → 맑음.
+    구름(낮 시간 절반 이상 구름많음·흐림) → 맑음. ``sky_hours`` 는 구름 판정에 쓰는 시각(시간 줄 칸은 그 칸 전부).
     """
+    sky_hours = set(sky_hours)
     pty: list[int] = []
     pcp: list[float] = []
     sno: list[float] = []
@@ -144,7 +152,7 @@ def classify_short(items: Iterable[dict[str, Any]]) -> dict[str, Any]:
             pcp.append(parse_pcp_mm(val))
         elif cat == "SNO":
             sno.append(parse_sno_cm(val))
-        elif cat == "SKY" and hour in DAYTIME_HOURS:
+        elif cat == "SKY" and hour in sky_hours:
             sky_day.append(_int_or_none(val) or 1)
         elif cat == "TMP":
             t = _int_or_none(val)
@@ -173,6 +181,22 @@ def classify_short(items: Iterable[dict[str, Any]]) -> dict[str, Any]:
     t_max = tmx if tmx is not None else (max(tmp) if tmp else None)
     t_min = tmn if tmn is not None else (min(tmp) if tmp else None)
     return {"kind": kind, "t_min": t_min, "t_max": t_max, "pop": max(pop) if pop else None}
+
+
+def classify_slots(items: Iterable[dict[str, Any]]) -> list[Optional[str]]:
+    """하루치 단기예보 항목 → 6시간 칸 4개의 날씨 종류. 기온(TMP)이 하나도 없는 칸(이미 지난 시간)은 ``None``."""
+    groups: list[list[dict[str, Any]]] = [[] for _ in range(SLOTS_PER_DAY)]
+    for it in items:
+        hour = _int_or_none(str(it.get("fcstTime") or "")[:2])
+        if hour is not None and 0 <= hour < 24:
+            groups[hour // SLOT_HOURS].append(it)
+    out: list[Optional[str]] = []
+    for i, rows in enumerate(groups):
+        if not any(r.get("category") == "TMP" for r in rows):
+            out.append(None)
+            continue
+        out.append(classify_short(rows, sky_hours=range(i * SLOT_HOURS, (i + 1) * SLOT_HOURS))["kind"])
+    return out
 
 
 def classify_mid_text(*texts: Any) -> str:
@@ -281,7 +305,8 @@ def refresh_short(session: Session, *, now: Optional[datetime.datetime] = None,
         if iso > today_iso and hours < SHORT_MIN_HOURS:
             partial.add(iso)  # 하루 일부만 있는 끝 날짜 — 중기예보가 채운다
             continue
-        days[iso] = dict(classify_short(rows), src="short", base=f"{base_date}{base_time}", hours=hours)
+        days[iso] = dict(classify_short(rows), src="short", base=f"{base_date}{base_time}", hours=hours,
+                         slots=classify_slots(rows))
     n = _merge(session, days, today=now.date(), keep_short=False, drop_partial=partial)
     return {"stored": n, "base": f"{base_date}{base_time}"}
 
@@ -309,8 +334,12 @@ def refresh_mid(session: Session, *, now: Optional[datetime.datetime] = None,
             continue
         pops = [_int_or_none(row.get(f"rnSt{n}{s}")) for s in ("Am", "Pm", "")]
         pops = [p for p in pops if p is not None]
+        # 시간 줄 칸: 오전 글 = 0~11시, 오후 글 = 12~23시(8일 뒤부터는 하루 글 하나)
+        am = classify_mid_text(texts[0] or texts[2] or texts[1])
+        pm = classify_mid_text(texts[1] or texts[2] or texts[0])
         days[(base_day + datetime.timedelta(days=n)).isoformat()] = {
             "kind": classify_mid_text(*texts),
+            "slots": [am, am, pm, pm],
             "t_min": _int_or_none(ta_row.get(f"taMin{n}")),
             "t_max": _int_or_none(ta_row.get(f"taMax{n}")),
             "pop": max(pops) if pops else None,
@@ -340,6 +369,11 @@ def _merge(session: Session, days: dict[str, dict[str, Any]], *, today: datetime
             # 오후 발표엔 오늘 TMN(새벽 최저)이 없어 남은 시간 기온으로 채운다 → 아침에 받아 둔 더 낮은 값을 지킨다.
             new_min = val.get("t_min")
             val = dict(val, t_min=old["t_min"] if new_min is None else min(old["t_min"], new_min))
+        if iso == today_iso and isinstance(old, dict) and isinstance(val.get("slots"), list):
+            # 오늘 지난 칸은 새 발표에 없다(None) → 앞서 받아 둔 그 칸 값을 지킨다
+            prev = old.get("slots") if isinstance(old.get("slots"), list) else []
+            val = dict(val, slots=[s if s is not None else (prev[i] if i < len(prev) else None)
+                                   for i, s in enumerate(val["slots"])])
         stored[iso] = val
         written += 1
     for iso in drop_partial:
