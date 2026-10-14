@@ -1,75 +1,103 @@
 {# 모바일 홈 월간 현장 달력 — 초기 렌더(타워)와 달 이동 swap(/dashboard/field-calendar) 공용.
    입력: cal (dashboard_control_tower._month_calendar), calendar_colors_editable(관리자·팀장 톱니 버튼).
-   날짜 칸 = data-foms-day-tile (누르면 그날 목록 시트). 칸 바탕색 = cal 칸의 tone(시공 금액별 기준). #}
+   날짜 칸 = data-foms-day-tile (누르면 그날 목록 시트).
+   디자인: 달마다 사진 머리띠 + 주마다 입체 날씨 띠(목업 M3v2, docs/specs/2026-10-14-mobile-calendar-weather-band_SPEC.md).
+   - 띠 바탕: 칸마다 제 날씨 색, 양끝은 옆 날짜 색과 반씩 섞어 이음새 없이 잇는다(wx-k/wx-p/wx-n).
+   - 그림: 오른쪽 날짜부터 깔아 각 칸 그림이 옆 날짜 번짐 위에 온다. 움직임은 c.wx_live(오늘~6일 뒤)만.
+   - 금액 색(tone)은 출고가 알약에만. #}
+{% from 'orders/partials/dashboard_mobile_tower_weather.html' import wx_defs, wx_pic %}
 <div class="foms-tower__cal" data-foms-cal data-month="{{ cal.month }}">
-  <div class="foms-tower__cal-top">
-    <div class="foms-tower__cal-nav">
-      <button type="button" class="foms-tower__cal-arrow" data-foms-cal-month="{{ cal.prev or '' }}" aria-label="지난달"{% if not cal.prev %} disabled{% endif %}>
-        <i class="fas fa-chevron-left" aria-hidden="true"></i>
-      </button>
-      <h2 class="foms-tower__cal-title">{{ cal.label }}</h2>
-      <button type="button" class="foms-tower__cal-arrow" data-foms-cal-month="{{ cal.next or '' }}" aria-label="다음달"{% if not cal.next %} disabled{% endif %}>
-        <i class="fas fa-chevron-right" aria-hidden="true"></i>
-      </button>
-    </div>
-    <div class="foms-tower__cal-tools">
-      {% if not cal.is_this_month %}
-        <button type="button" class="foms-tower__cal-thismonth" data-foms-cal-month="">이번 달</button>
-      {% endif %}
-      {% if calendar_colors_editable %}
-        <button type="button" class="foms-tower__cal-gear" data-foms-colors-open aria-label="칸 색 기준">
-          <i class="fas fa-sliders-h" aria-hidden="true"></i>
+  {{ wx_defs() }}
+  <div class="foms-tower__cal-hero foms-cal-photo-{{ cal.photo.month }}">
+    <div class="foms-tower__cal-top">
+      <div class="foms-tower__cal-nav">
+        <button type="button" class="foms-tower__cal-arrow" data-foms-cal-month="{{ cal.prev or '' }}" aria-label="지난달"{% if not cal.prev %} disabled{% endif %}>
+          <i class="fas fa-chevron-left" aria-hidden="true"></i>
         </button>
+        <h2 class="foms-tower__cal-title">{{ cal.label }}</h2>
+        <button type="button" class="foms-tower__cal-arrow" data-foms-cal-month="{{ cal.next or '' }}" aria-label="다음달"{% if not cal.next %} disabled{% endif %}>
+          <i class="fas fa-chevron-right" aria-hidden="true"></i>
+        </button>
+      </div>
+      <div class="foms-tower__cal-tools">
+        {% if not cal.is_this_month %}
+          <button type="button" class="foms-tower__cal-thismonth" data-foms-cal-month="">이번 달</button>
+        {% endif %}
+        {% if calendar_colors_editable %}
+          <button type="button" class="foms-tower__cal-gear" data-foms-colors-open aria-label="칸 색 기준">
+            <i class="fas fa-sliders-h" aria-hidden="true"></i>
+          </button>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="foms-tower__cal-sum">
+      <div class="foms-tower__cal-sum-main">
+        <span class="foms-tower__cal-sum-label">{{ '이번 달' if cal.is_this_month else '이 달' }} 출고가 합계</span>
+        <strong class="foms-tower__cal-sum-amt">{{ cal.amount_label }}</strong>
+      </div>
+      <div class="foms-tower__cal-sum-counts">
+        <span><i class="foms-tower__mark foms-tower__mark--measure" aria-hidden="true"></i>실측 <b>{{ cal.measure_total }}</b></span>
+        <span><i class="foms-tower__mark foms-tower__mark--construction" aria-hidden="true"></i>시공 <b>{{ cal.construction_total }}</b></span>
+        <span><i class="foms-tower__mark foms-tower__mark--as" aria-hidden="true"></i>AS <b>{{ cal.as_total }}</b></span>
+      </div>
+    </div>
+    {% if cal.photo.credit %}<span class="foms-tower__cal-credit">{{ cal.photo.credit }}</span>{% endif %}
+  </div>
+
+  <div class="foms-tower__cal-sheet">
+    <div class="foms-tower__cal-dow" aria-hidden="true">
+      <span class="is-red">일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span class="is-blue">토</span>
+    </div>
+
+    <div class="foms-tower__cal-grid">
+      {% for week in cal.weeks %}
+        {% set inm = week | selectattr('in_month') | list %}
+        <div class="foms-tower__cal-week">
+          {% if inm %}
+            <div class="foms-wx-band s-{{ inm[0].dow + 1 }} n-{{ inm | length }}" aria-hidden="true">
+              {% for c in inm | reverse %}
+                <span class="foms-wx-seg c-{{ c.dow - inm[0].dow + 1 }} wx-k-{{ c.wx or 'none' }} wx-p-{{ c.wx_prev }} wx-n-{{ c.wx_next }}{% if c.is_past %} is-past{% endif %}">{% if c.wx %}{{ wx_pic(c.wx, c.wx_live) }}{% endif %}</span>
+              {% endfor %}
+              <span class="foms-wx-gloss"></span>
+            </div>
+          {% endif %}
+          {% for c in week %}
+            {% if c.in_month %}
+              <button type="button"
+                      class="foms-tower__cal-cell is-c{{ c.dow + 1 }}{% if c.is_today %} is-today{% endif %}{% if c.is_past %} is-past{% endif %}{% if c.dow == 0 or c.is_holiday %} is-red{% elif c.dow == 6 %} is-blue{% endif %}"
+                      data-foms-day-tile data-iso="{{ c.iso }}" aria-label="{{ c.aria }}">
+                <span class="foms-tower__cal-head" aria-hidden="true">
+                  <span class="foms-tower__cal-date">{{ c.day }}</span>
+                  {% if c.unshipped %}<span class="foms-tower__cal-risk"></span>{% endif %}
+                  {% if c.t_max_label %}<span class="foms-tower__cal-temp">{{ c.t_max_label }}</span>{% endif %}
+                </span>
+                <span class="foms-tower__cal-counts" aria-hidden="true">
+                  {% if c.measure %}<span class="foms-tower__cal-n foms-tower__cal-n--measure"><i class="foms-tower__mark foms-tower__mark--measure"></i>{{ c.measure }}</span>{% endif %}
+                  {% if c.construction %}<span class="foms-tower__cal-n foms-tower__cal-n--construction"><i class="foms-tower__mark foms-tower__mark--construction"></i>{{ c.construction }}</span>{% endif %}
+                  {% if c.as_count %}<span class="foms-tower__cal-n foms-tower__cal-n--as"><i class="foms-tower__mark foms-tower__mark--as"></i>{{ c.as_count }}</span>{% endif %}
+                </span>
+                {% if c.amount_label %}<span class="foms-tower__cal-amt{% if c.tone %} is-tone-{{ c.tone }}{% endif %}" aria-hidden="true">{{ c.amount_label }}</span>{% endif %}
+              </button>
+            {% else %}
+              <span class="foms-tower__cal-cell is-out is-c{{ c.dow + 1 }}" aria-hidden="true"></span>
+            {% endif %}
+          {% endfor %}
+        </div>
+      {% endfor %}
+    </div>
+
+    <div class="foms-tower__cal-legend">
+      <span class="foms-tower__wx-chips" aria-label="날씨">
+        <i class="foms-tower__wx-chip wx-k-sun">맑음</i><i class="foms-tower__wx-chip wx-k-cloud">구름</i><i class="foms-tower__wx-chip wx-k-drizzle">부슬비</i><i class="foms-tower__wx-chip wx-k-heavy">장대비</i><i class="foms-tower__wx-chip wx-k-snow">눈</i>
+      </span>
+      <span><i class="foms-tower__cal-legend-dot" aria-hidden="true"></i>오늘·내일 시공 중 출고 전 있음</span>
+      {% if cal.colors and cal.colors.enabled and (cal.yellow_label or cal.pink_label) %}
+        <span class="foms-tower__cal-legend-tones">
+          {% if cal.colors.yellow_from is not none %}<span class="foms-tower__tone-pill is-yellow">{{ cal.yellow_label }}+</span>{% endif %}
+          {% if cal.colors.pink_from is not none %}<span class="foms-tower__tone-pill is-pink">{{ cal.pink_label }}+</span>{% endif %}
+        </span>
       {% endif %}
     </div>
-  </div>
-
-  <div class="foms-tower__cal-sum">
-    <div class="foms-tower__cal-sum-main">
-      <span class="foms-tower__cal-sum-label">{{ '이번 달' if cal.is_this_month else '이 달' }} 출고가 합계</span>
-      <strong class="foms-tower__cal-sum-amt">{{ cal.amount_label }}</strong>
-    </div>
-    <div class="foms-tower__cal-sum-counts">
-      <span><i class="foms-tower__mark foms-tower__mark--measure" aria-hidden="true"></i>실측 <b>{{ cal.measure_total }}</b></span>
-      <span><i class="foms-tower__mark foms-tower__mark--construction" aria-hidden="true"></i>시공 <b>{{ cal.construction_total }}</b></span>
-      <span><i class="foms-tower__mark foms-tower__mark--as" aria-hidden="true"></i>AS <b>{{ cal.as_total }}</b></span>
-    </div>
-  </div>
-
-  <div class="foms-tower__cal-dow" aria-hidden="true">
-    <span class="is-red">일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span class="is-blue">토</span>
-  </div>
-
-  <div class="foms-tower__cal-grid">
-    {% for week in cal.weeks %}
-      {% for c in week %}
-        {% if c.in_month %}
-          <button type="button"
-                  class="foms-tower__cal-cell{% if c.is_today %} is-today{% endif %}{% if c.is_past %} is-past{% endif %}{% if c.dow == 0 or c.is_holiday %} is-red{% elif c.dow == 6 %} is-blue{% endif %}{% if c.tone %} is-tone-{{ c.tone }}{% endif %}"
-                  data-foms-day-tile data-iso="{{ c.iso }}" aria-label="{{ c.aria }}">
-            {% if c.unshipped %}<span class="foms-tower__cal-risk" aria-hidden="true"></span>{% endif %}
-            <span class="foms-tower__cal-date" aria-hidden="true">{{ c.day }}</span>
-            <span class="foms-tower__cal-counts" aria-hidden="true">
-              {% if c.measure %}<span class="foms-tower__cal-n foms-tower__cal-n--measure"><i class="foms-tower__mark foms-tower__mark--measure"></i>{{ c.measure }}</span>{% endif %}
-              {% if c.construction %}<span class="foms-tower__cal-n foms-tower__cal-n--construction"><i class="foms-tower__mark foms-tower__mark--construction"></i>{{ c.construction }}</span>{% endif %}
-              {% if c.as_count %}<span class="foms-tower__cal-n foms-tower__cal-n--as"><i class="foms-tower__mark foms-tower__mark--as"></i>{{ c.as_count }}</span>{% endif %}
-            </span>
-            {% if c.amount_label %}<span class="foms-tower__cal-amt" aria-hidden="true">{{ c.amount_label }}</span>{% endif %}
-          </button>
-        {% else %}
-          <span class="foms-tower__cal-cell is-out" aria-hidden="true"><span class="foms-tower__cal-date">{{ c.day }}</span></span>
-        {% endif %}
-      {% endfor %}
-    {% endfor %}
-  </div>
-
-  <div class="foms-tower__cal-legend">
-    <span><i class="foms-tower__cal-legend-dot" aria-hidden="true"></i>오늘·내일 시공 중 출고 전 있음</span>
-    {% if cal.colors and cal.colors.enabled and (cal.yellow_label or cal.pink_label) %}
-      <span class="foms-tower__cal-legend-tones">
-        {% if cal.colors.yellow_from is not none %}<span><i class="foms-tower__tone-dot is-yellow" aria-hidden="true"></i>{{ cal.yellow_label }}+</span>{% endif %}
-        {% if cal.colors.pink_from is not none %}<span><i class="foms-tower__tone-dot is-pink" aria-hidden="true"></i>{{ cal.pink_label }}+</span>{% endif %}
-      </span>
-    {% endif %}
   </div>
 </div>

@@ -205,8 +205,7 @@ body.foms-tower-sheet-open { overflow: hidden; }
   --foms-tower-tone-yellow: rgba(250, 204, 21, .16);
   --foms-tower-tone-pink: rgba(244, 114, 182, .16);
 }
-.foms-tower__cal-cell.is-tone-yellow { background: var(--foms-tower-tone-yellow); }
-.foms-tower__cal-cell.is-tone-pink { background: var(--foms-tower-tone-pink); }
+/* 금액 색은 칸 바탕이 아니라 출고가 알약에 칠한다(dashboard-tower-weather.css, 2026-10-14 날씨 띠). */
 .foms-tower__tone-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; border: 1px solid rgba(17, 24, 39, .12); }
 .foms-tower__tone-dot.is-yellow { background: #fde68a; }
 .foms-tower__tone-dot.is-pink { background: #f9a8d4; }

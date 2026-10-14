@@ -35,6 +35,8 @@ from foms.services.common.business_calendar import business_days_until, get_holi
 from foms.services.erp_permissions import build_mine_sql_filter, mine_membership_clause
 from foms.services.measurement_time import measurement_glance_time_key
 from foms.services.orders.calendar_amount_colors import DEFAULT_COLORS, load_colors, tone_for
+from foms.services.orders.calendar_month_photos import month_photo
+from foms.services.integrations.kma.seoul_daily_weather import load_days as load_weather_days
 from foms.services.shipment_dashboard_helpers import AS_SHIPMENT_STATUSES
 
 __all__ = [
@@ -329,12 +331,17 @@ def _month_first(month: str | None, today: datetime.date) -> datetime.date:
 
 def _month_calendar(
     base: Any, today: datetime.date, first: datetime.date, colors: dict[str, Any] | None = None,
+    weather: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """월간 현장 달력: 일요일 시작 주 격자 + 날짜별 실측/시공/AS 수·시공 출고가 합.
 
     빨간 점(출고 전 시공)은 오늘·내일 칸에만 — 먼 날짜의 출고 전은 정상 상태다.
-    colors: 시공 금액별 칸 색 기준(`calendar_amount_colors`). None 이면 기본값.
+    colors: 시공 금액별 기준(`calendar_amount_colors`) — 출고가 알약 색. None 이면 기본값.
+    weather: `seoul_daily_weather.load_days` 결과. 칸마다 날씨 종류(wx)·최고기온·움직임 여부(wx_live).
+      자료 없는 날은 wx="" (띠는 회백색). 움직임은 오늘~6일 뒤 7칸만(휴대폰 성능, 설계서 §2.4).
     """
+    wx_days = (weather or {}).get("days") or {}
+    live_last = today + datetime.timedelta(days=WEATHER_LIVE_DAYS - 1)
     colors = colors if colors is not None else dict(DEFAULT_COLORS)
     next_first = _shift_month(first, 1)
     last = next_first - datetime.timedelta(days=1)
@@ -368,6 +375,11 @@ def _month_calendar(
                 aria += f", 출고가 {amount_label}원"
             if unshipped:
                 aria += f", 출고 전 시공 {unshipped}건"
+            wx_day = wx_days.get(iso) if in_month else None
+            wx = str(wx_day.get("kind") or "") if isinstance(wx_day, dict) else ""
+            t_max = wx_day.get("t_max") if isinstance(wx_day, dict) else None
+            if wx:
+                aria += f", 날씨 {WEATHER_LABELS.get(wx, '')}" + (f" {t_max}도" if t_max is not None else "")
             week.append({
                 "iso": iso,
                 "day": day.day,
@@ -381,10 +393,14 @@ def _month_calendar(
                 "as_count": as_count,
                 "amount_label": amount_label,
                 "tone": tone_for(amount_won, colors),
+                "wx": wx,
+                "t_max_label": f"{t_max}°" if wx and t_max is not None else "",
+                "wx_live": bool(wx) and today <= day <= live_last,
                 "unshipped": unshipped,
                 "aria": aria,
             })
             day += datetime.timedelta(days=1)
+        _link_weather_neighbours(week)
         weeks.append(week)
 
     this_month = today.replace(day=1)
@@ -401,9 +417,36 @@ def _month_calendar(
         "as_total": sum(int(v or 0) for v in as_by.values()),
         "amount_label": _man_label(month_amount) or "0원",
         "colors": colors,
+        "photo": month_photo(first.month),
         "yellow_label": _man_label((colors.get("yellow_from") or 0) * 10000),
         "pink_label": _man_label((colors.get("pink_from") or 0) * 10000),
     }
+
+
+WEATHER_LIVE_DAYS = 7
+WEATHER_LABELS = {"sun": "맑음", "cloud": "구름", "drizzle": "부슬비", "heavy": "장대비", "snow": "눈"}
+
+
+def _link_weather_neighbours(week: list[dict[str, Any]]) -> None:
+    """같은 주 띠 안에서 옆 날짜 날씨(wx_prev·wx_next)를 붙인다 — 칸 경계 색을 이음새 없이 섞는 데 쓴다.
+
+    띠 끝(이 달 밖 칸과 닿는 쪽)은 제 날씨를 쓴다. 날씨 없는 날은 "none".
+    """
+    for i, cell in enumerate(week):
+        if not cell["in_month"]:
+            continue
+        own = cell["wx"] or "none"
+        left = week[i - 1] if i > 0 and week[i - 1]["in_month"] else None
+        right = week[i + 1] if i < 6 and week[i + 1]["in_month"] else None
+        cell["wx_prev"] = (left["wx"] or "none") if left else own
+        cell["wx_next"] = (right["wx"] or "none") if right else own
+        cell["band_start"] = left is None
+        cell["band_end"] = right is None
+
+
+def _weather_window(db: Any, first: datetime.date) -> dict[str, Any]:
+    """달력 격자(앞뒤 한 주 여유)에 해당하는 날씨를 읽는다."""
+    return load_weather_days(db, first - datetime.timedelta(days=7), _shift_month(first, 1) + datetime.timedelta(days=7))
 
 
 def _as_visit_order_ids_for_date(base: Any, date_iso: str) -> list[int]:
@@ -889,7 +932,8 @@ def build_month_calendar(
     base = _tower_base_query(db, current_user)
     if mine_only:
         base = _apply_mine_only(base, current_user)
-    return _month_calendar(base, today, _month_first(month, today), load_colors(db))
+    first = _month_first(month, today)
+    return _month_calendar(base, today, first, load_colors(db), _weather_window(db, first))
 
 
 def build_mobile_control_tower(
@@ -906,7 +950,8 @@ def build_mobile_control_tower(
         base = _apply_mine_only(base, current_user)
     risk = _risk_radar(base, today)
     measure_count, construction_count, as_count = _type_counts_for_date(base, today_iso)
-    calendar = _month_calendar(base, today, today.replace(day=1), load_colors(db))
+    first = today.replace(day=1)
+    calendar = _month_calendar(base, today, first, load_colors(db), _weather_window(db, first))
     today_cell = next(
         (cell for week in calendar["weeks"] for cell in week if cell["iso"] == today_iso), {}
     )

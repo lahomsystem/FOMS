@@ -60,7 +60,7 @@ def _tower_cal_cell_metrics(page) -> dict[str, float | str]:
           const cellRect = cell.getBoundingClientRect();
           let contentRight = cellRect.left;
           let contentBottom = cellRect.top;
-          Array.from(cell.querySelectorAll(".foms-tower__cal-date, .foms-tower__cal-n, .foms-tower__cal-amt")).forEach((el) => {
+          Array.from(cell.querySelectorAll(".foms-tower__cal-date, .foms-tower__cal-temp, .foms-tower__cal-n, .foms-tower__cal-amt")).forEach((el) => {
             const rect = el.getBoundingClientRect();
             contentRight = Math.max(contentRight, rect.right);
             contentBottom = Math.max(contentBottom, rect.bottom);
@@ -81,7 +81,8 @@ def _tower_cal_cell_metrics(page) -> dict[str, float | str]:
 
 
 def _assert_tower_cal_cell_contained(metrics: dict[str, float | str]) -> None:
-    assert 84 <= metrics["cellHeight"] <= 92
+    # 주마다 날씨 띠 한 줄 = 102px, 오늘 칸은 띠 위에 뜬 렌즈라 위아래 3px 더(108px). 2026-10-14 날씨 띠.
+    assert 100 <= metrics["cellHeight"] <= 110
     assert metrics["cellWidth"] <= 60
     assert metrics["dateTop"] < metrics["countsTop"]
     assert metrics["contentRight"] <= metrics["cellRight"] + 0.5
