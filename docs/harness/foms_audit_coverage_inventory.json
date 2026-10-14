@@ -8,11 +8,11 @@
     "log_access"
   ],
   "baselines": {
-    "total": 230,
+    "total": 231,
     "unaudited": 1
   },
   "classification_counts": {
-    "AUDITED": 199,
+    "AUDITED": 200,
     "EXEMPT": 30,
     "UNAUDITED": 1
   },
@@ -2050,6 +2050,15 @@
       "path": "foms/web/auth/routes.py",
       "endpoint": "switch_user",
       "lineno": 488,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/web/orders/dashboard.py",
+      "endpoint": "erp_dashboard_calendar_colors_save",
+      "lineno": 765,
       "methods": [
         "POST"
       ],

@@ -223,6 +223,11 @@
       }
     });
 
+    /* 칸 색 기준을 저장하면(mobile-tower-colors.js) 보고 있는 달을 다시 읽어 색을 바로 바꾼다. */
+    tower.addEventListener('foms:tower-calendar-reload', function () {
+      loadMonth(currentMonth());
+    });
+
     return {
       root: tower,
       setMine: function (active) {

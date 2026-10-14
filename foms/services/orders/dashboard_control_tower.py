@@ -34,6 +34,7 @@ from foms.services.datetime_kst import now_utc_naive
 from foms.services.common.business_calendar import business_days_until, get_holidays_kr
 from foms.services.erp_permissions import build_mine_sql_filter, mine_membership_clause
 from foms.services.measurement_time import measurement_glance_time_key
+from foms.services.orders.calendar_amount_colors import DEFAULT_COLORS, load_colors, tone_for
 from foms.services.shipment_dashboard_helpers import AS_SHIPMENT_STATUSES
 
 __all__ = [
@@ -326,11 +327,15 @@ def _month_first(month: str | None, today: datetime.date) -> datetime.date:
     return first if abs(_month_gap(first, this_month)) <= _CAL_MONTH_SPAN else this_month
 
 
-def _month_calendar(base: Any, today: datetime.date, first: datetime.date) -> dict[str, Any]:
+def _month_calendar(
+    base: Any, today: datetime.date, first: datetime.date, colors: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """월간 현장 달력: 일요일 시작 주 격자 + 날짜별 실측/시공/AS 수·시공 출고가 합.
 
     빨간 점(출고 전 시공)은 오늘·내일 칸에만 — 먼 날짜의 출고 전은 정상 상태다.
+    colors: 시공 금액별 칸 색 기준(`calendar_amount_colors`). None 이면 기본값.
     """
+    colors = colors if colors is not None else dict(DEFAULT_COLORS)
     next_first = _shift_month(first, 1)
     last = next_first - datetime.timedelta(days=1)
     grid_start = first - datetime.timedelta(days=(first.weekday() + 1) % 7)
@@ -356,7 +361,8 @@ def _month_calendar(base: Any, today: datetime.date, first: datetime.date) -> di
             construction = int(cons_by.get(iso, 0) or 0) if in_month else 0
             as_count = int(as_by.get(iso, 0) or 0) if in_month else 0
             unshipped = int(unshipped_by.get(iso, 0) or 0) if in_month else 0
-            amount_label = _man_label(amount_by.get(iso, 0)) if in_month else ""
+            amount_won = int(amount_by.get(iso, 0) or 0) if in_month else 0
+            amount_label = _man_label(amount_won)
             aria = f"{day.month}월 {day.day}일 {_CAL_DOW[col]}요일, 실측 {measure}건, 시공 {construction}건, AS {as_count}건"
             if amount_label:
                 aria += f", 출고가 {amount_label}원"
@@ -374,6 +380,7 @@ def _month_calendar(base: Any, today: datetime.date, first: datetime.date) -> di
                 "construction": construction,
                 "as_count": as_count,
                 "amount_label": amount_label,
+                "tone": tone_for(amount_won, colors),
                 "unshipped": unshipped,
                 "aria": aria,
             })
@@ -393,6 +400,9 @@ def _month_calendar(base: Any, today: datetime.date, first: datetime.date) -> di
         "construction_total": sum(int(v or 0) for v in cons_by.values()),
         "as_total": sum(int(v or 0) for v in as_by.values()),
         "amount_label": _man_label(month_amount) or "0원",
+        "colors": colors,
+        "yellow_label": _man_label((colors.get("yellow_from") or 0) * 10000),
+        "pink_label": _man_label((colors.get("pink_from") or 0) * 10000),
     }
 
 
@@ -879,7 +889,7 @@ def build_month_calendar(
     base = _tower_base_query(db, current_user)
     if mine_only:
         base = _apply_mine_only(base, current_user)
-    return _month_calendar(base, today, _month_first(month, today))
+    return _month_calendar(base, today, _month_first(month, today), load_colors(db))
 
 
 def build_mobile_control_tower(
@@ -896,7 +906,7 @@ def build_mobile_control_tower(
         base = _apply_mine_only(base, current_user)
     risk = _risk_radar(base, today)
     measure_count, construction_count, as_count = _type_counts_for_date(base, today_iso)
-    calendar = _month_calendar(base, today, today.replace(day=1))
+    calendar = _month_calendar(base, today, today.replace(day=1), load_colors(db))
     today_cell = next(
         (cell for week in calendar["weeks"] for cell in week if cell["iso"] == today_iso), {}
     )
