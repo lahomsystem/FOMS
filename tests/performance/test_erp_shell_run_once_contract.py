@@ -42,6 +42,7 @@ EXPECTED_SHELL_SCRIPTS = {
     "js/foms/mobile-queue-scroll.js",
     "js/foms/mobile-queue-focus.js",
     "js/foms/mobile-tower.js",
+    "js/foms/mobile-tower-colors.js",
     "js/runtime/erp-mobile-shell.js",
     "js/foms/foms-order-timeline-sheet.js",
     "js/foms/foms-write.js",

@@ -83,6 +83,41 @@
     </section>
   </div>
 
+  {# (C-2) 달력 칸 색 기준 — 관리자·팀장만. 회사 공통 한 벌(/dashboard/calendar-colors).
+     근거 docs/specs/2026-10-14-mobile-calendar-amount-colors_SPEC.md #}
+  {% if calendar_colors_editable %}
+  <div class="foms-tower__sheet foms-tower__sheet--mini" hidden
+       data-foms-colors-sheet
+       data-foms-colors-endpoint="{{ url_for('erp_dashboard.erp_dashboard_calendar_colors_save') }}">
+    <button type="button" class="foms-tower__sheet-backdrop" data-foms-colors-close aria-label="닫기"></button>
+    <form class="foms-tower__sheet-panel foms-tower__colors" role="dialog" aria-modal="true" aria-labelledby="foms-colors-title" data-foms-colors-form novalidate>
+      <span class="foms-tower__sheet-handle" aria-hidden="true"></span>
+      <h2 class="foms-tower__colors-title" id="foms-colors-title">칸 색 기준</h2>
+      <p class="foms-tower__colors-sub">그날 시공 출고가 합 · 모든 직원 공통</p>
+      <label class="foms-tower__colors-row">
+        <i class="foms-tower__tone-dot is-yellow" aria-hidden="true"></i>
+        <span class="foms-tower__colors-name">노랑</span>
+        <input class="foms-tower__colors-input" type="text" inputmode="numeric" maxlength="6" name="yellow_from" aria-label="노랑 기준 만원">
+        <span class="foms-tower__colors-unit">만원 이상</span>
+      </label>
+      <label class="foms-tower__colors-row">
+        <i class="foms-tower__tone-dot is-pink" aria-hidden="true"></i>
+        <span class="foms-tower__colors-name">분홍</span>
+        <input class="foms-tower__colors-input" type="text" inputmode="numeric" maxlength="6" name="pink_from" aria-label="분홍 기준 만원">
+        <span class="foms-tower__colors-unit">만원 이상</span>
+      </label>
+      <p class="foms-tower__colors-error" data-foms-colors-error role="alert" hidden></p>
+      <div class="foms-tower__colors-foot">
+        <label class="foms-tower__colors-switch">
+          <input type="checkbox" name="enabled">
+          <span>색 칠하기</span>
+        </label>
+        <button type="submit" class="foms-tower__colors-save">저장</button>
+      </div>
+    </form>
+  </div>
+  {% endif %}
+
   {# (D) 위험 레이더 #}
   <section>
     <div class="foms-tower__head">

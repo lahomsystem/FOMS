@@ -198,6 +198,56 @@ body.foms-tower-sheet-open { overflow: hidden; }
   font-size: var(--foms-font-size-sm); font-weight: var(--foms-font-weight-semibold); color: var(--foms-text-link); text-decoration: none;
 }
 
+/* (A-2) 시공 금액별 칸 색 — 회사 공통 기준(관리자·팀장 설정). 바탕만 칠하고 테두리(오늘·선택)는 그대로. */
+.foms-tower {
+  --foms-tower-tone-yellow: #fef9c3;
+  --foms-tower-tone-pink: #fce7f3;
+}
+[data-theme='dark'] .foms-tower {
+  --foms-tower-tone-yellow: rgba(250, 204, 21, .16);
+  --foms-tower-tone-pink: rgba(244, 114, 182, .16);
+}
+.foms-tower__cal-cell.is-tone-yellow { background: var(--foms-tower-tone-yellow); }
+.foms-tower__cal-cell.is-tone-pink { background: var(--foms-tower-tone-pink); }
+.foms-tower__tone-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; border: 1px solid rgba(17, 24, 39, .12); }
+.foms-tower__tone-dot.is-yellow { background: #fde68a; }
+.foms-tower__tone-dot.is-pink { background: #f9a8d4; }
+.foms-tower__cal-legend-tones { display: inline-flex; gap: 8px; }
+.foms-tower__cal-legend-tones span { display: inline-flex; align-items: center; gap: 3px; }
+.foms-tower__cal-tools { display: flex; align-items: center; gap: 4px; }
+.foms-tower__cal-gear {
+  appearance: none; -webkit-appearance: none; border: 0; background: transparent; cursor: pointer;
+  width: 44px; height: 44px; display: flex; align-items: center; justify-content: center;
+  color: var(--foms-text-tertiary); font-size: 15px;
+}
+
+/* (C-2) 칸 색 기준 시트 — 미니멀: 숫자 두 칸 + 스위치 + 저장 */
+.foms-tower__sheet--mini .foms-tower__sheet-panel { height: auto; padding: 6px 20px calc(20px + env(safe-area-inset-bottom, 0px)); gap: 0; }
+.foms-tower__colors { display: flex; flex-direction: column; }
+.foms-tower__colors-title { margin: 6px 0 0; font-size: var(--foms-font-size-lg); font-weight: 800; }
+.foms-tower__colors-sub { margin: 2px 0 14px; font-size: var(--foms-font-size-xs); color: var(--foms-text-secondary); }
+.foms-tower__colors-row { display: flex; align-items: center; gap: 10px; min-height: 52px; border-bottom: 1px solid var(--foms-border-subtle); }
+.foms-tower__colors-name { width: 34px; font-size: var(--foms-font-size-sm); font-weight: var(--foms-font-weight-bold); }
+.foms-tower__colors-input {
+  width: 96px; height: 40px; padding: 0 10px; box-sizing: border-box; text-align: right;
+  font: inherit; font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums;
+  border: 1px solid var(--foms-border-default); border-radius: 10px;
+  background: var(--foms-surface-base); color: var(--foms-text-primary);
+}
+.foms-tower__colors-input:focus { outline: 2px solid var(--foms-border-focus); outline-offset: 1px; }
+.foms-tower__colors-unit { font-size: var(--foms-font-size-sm); color: var(--foms-text-secondary); }
+.foms-tower__colors-error { margin: 10px 0 0; font-size: 12.5px; color: var(--foms-color-danger-600); }
+.foms-tower__colors-error[hidden] { display: none; }
+.foms-tower__colors-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 16px; }
+.foms-tower__colors-switch { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; font-size: var(--foms-font-size-sm); }
+.foms-tower__colors-switch input { width: 20px; height: 20px; accent-color: var(--foms-color-brand-700); }
+.foms-tower__colors-save {
+  appearance: none; -webkit-appearance: none; cursor: pointer; font: inherit;
+  height: 44px; min-width: 96px; padding: 0 18px; border: 0; border-radius: 12px;
+  background: var(--foms-color-brand-700); color: #fff; font-size: var(--foms-font-size-sm); font-weight: 800;
+}
+.foms-tower__colors-save:disabled { opacity: .5; }
+
 /* (C) 시트 탭 — 전체/시공/실측/AS */
 .foms-tower__daytabs {
   display: grid;
