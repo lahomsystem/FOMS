@@ -458,10 +458,10 @@ ERP Order Tab Pane (shared between add_order and edit_order)
                         <div id="erp-discount-section" class="erp-discount-box w-100" style="display: none;">
                             <div class="erp-discount-head">
                                 <span class="form-label mb-0 fw-bold text-nowrap">할인</span>
-                                <span id="erp-discount-sum" class="erp-discount-sum foms-tabular">0원</span>
+                                <span id="erp-discount-sum" class="erp-discount-sum foms-tabular" hidden></span>
+                                <button type="button" id="erp-discount-add" class="erp-discount-add-btn">+ 추가</button>
                             </div>
                             <div id="erp-discount-list" class="erp-discount-list"></div>
-                            <button type="button" id="erp-discount-add" class="erp-discount-add-btn">+ 할인 추가</button>
                             <input type="hidden" id="erp-discount-amount" value="">
                         </div>
                         <div id="erp-remaining-section" class="d-flex justify-content-end align-items-center gap-2 w-100" style="max-width: 16rem; display: none;">
