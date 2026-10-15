@@ -385,7 +385,7 @@ def test_day_kind_is_worst_slot_and_today_keeps_earlier_slots():
     morning = _slot_rows("20261014", "1", "8.0mm", hours=range(6, 12)) + _slot_rows("20261014", "0", "강수없음", sky="1", hours=range(12, 24))
     w.refresh_short(db_session, now=NOW, transport=_Transport({"getVilageFcst": _Resp(200, _ok(morning))}), key="k")
     day = w.load_days(db_session, datetime.date(2026, 10, 1), datetime.date(2026, 10, 31))["days"]["2026-10-14"]
-    assert day["kind"] == "rain" and [d and d["k"] for d in day["slot_detail"]] == [None, "rain", "sun", "sun"]
+    assert day["kind"] == "rain" and [d and d["k"] for d in day["slot_detail"]] == [None, "rain", "sun", "sun"]  # 낮(6~12시) 비
     evening = _slot_rows("20261014", "0", "강수없음", sky="1", hours=range(18, 24))
     w.refresh_short(db_session, now=NOW.replace(hour=17), transport=_Transport({"getVilageFcst": _Resp(200, _ok(evening))}), key="k")
     day = w.load_days(db_session, datetime.date(2026, 10, 1), datetime.date(2026, 10, 31))["days"]["2026-10-14"]
@@ -396,3 +396,12 @@ def test_day_kind_is_worst_slot_and_today_keeps_earlier_slots():
 def test_mid_text_partly_vs_cloud():
     assert w.classify_mid_text("구름많음") == "partly" and w.classify_mid_text("흐림") == "cloud"
     assert w.classify_mid_text("구름많고 비") == "drizzle" and w.classify_mid_text("흐리고 눈") == "flurry"
+
+
+def test_day_kind_ignores_light_night_rain():
+    """하루 대표 = 낮 칸 중 가장 궂은 것. 밤의 약한 비(자정 한 시간 2mm)는 그림에만 — 보통 비 이상·눈은 밤이라도 넣는다."""
+    d = lambda k, lv=0: {"k": k, "lv": lv, "pop": 60, "wind": None}  # noqa: E731
+    assert w.day_kind([d("drizzle", 1), d("partly"), d("partly"), d("sun")]) == "partly"   # 2026-10-16 실제
+    assert w.day_kind([d("rain", 2), d("sun"), d("sun"), d("sun")]) == "rain"             # 밤이라도 보통 비 이상
+    assert w.day_kind([d("sun"), d("drizzle", 0), d("sun"), d("sun")]) == "drizzle"       # 낮 비는 약해도 넣는다
+    assert w.day_kind([None, d("sun"), d("sun"), None], ["flurry", None, None, None]) == "flurry"

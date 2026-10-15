@@ -201,3 +201,28 @@ def worst_kind(kinds: Iterable[Optional[str]], default: str = "sun") -> str:
     """여러 칸 날씨 중 가장 궂은 것(하루 대표 날씨)."""
     known = [k for k in kinds if k in _SEVERITY]
     return max(known, key=_SEVERITY.__getitem__) if known else default
+
+
+#: 낮 칸(6~12시·12~18시). 밤 칸의 약한 비·이슬비는 하루 대표 날씨에 넣지 않는다.
+DAY_SLOTS = (1, 2)
+
+
+def day_kind(detail: Iterable[Optional[dict[str, Any]]], slots: Iterable[Optional[str]] = (), default: str = "sun") -> str:
+    """6시간 칸 → 하루 대표 날씨: 낮 칸 중 가장 궂은 것 + 밤 칸은 보통 비 이상·눈만.
+
+    2026-10-15 사용자: 16일은 자정 한 시간 2mm 뿐인데 하루가 '부슬비'로 보였다 — 밤의 약한 비는 시간 줄 그림에만 남긴다.
+    칸 자료가 비면 같은 자리 칸 종류(slots)로 본다.
+    """
+    det = list(detail)
+    kinds = list(slots) + [None] * SLOTS_PER_DAY
+    picked = []
+    for i in range(SLOTS_PER_DAY):
+        d = det[i] if i < len(det) and isinstance(det[i], dict) else None
+        k = d["k"] if d else kinds[i]
+        if k not in _SEVERITY:
+            continue
+        lv = d.get("lv") if d else None
+        night_light_rain = k == "drizzle" and (lv is None or lv <= 1)
+        if i in DAY_SLOTS or not night_light_rain:
+            picked.append(k)
+    return worst_kind(picked, default)
