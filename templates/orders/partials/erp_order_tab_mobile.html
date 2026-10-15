@@ -251,11 +251,15 @@ ERP Order mobile-v2 tab pane.
                                     <input type="text" id="erp-free-input-amount" inputmode="numeric" maxlength="24" placeholder="0원" class="foms-input foms-tabular erp-amount-value erp-amount-value--free-input text-end" title="금액. 총 견적·잔금에 합산됩니다.">
                                 </div>
                             </div>
-                            <div id="erp-discount-section" class="erp-mobile-amount-row" style="display: none;">
-                                <div class="erp-mobile-amount-label">
-                                    <label for="erp-discount-amount">할인</label>
+                            {# 할인 항목 줄 — PC 와 같은 id(erp-discount-items.js). 모바일은 줄마다 카드로 쌓인다. #}
+                            <div id="erp-discount-section" class="erp-discount-box erp-discount-box--mobile" style="display: none;">
+                                <div class="erp-discount-head">
+                                    <span class="erp-mobile-amount-label">할인</span>
+                                    <span id="erp-discount-sum" class="erp-discount-sum foms-tabular">0원</span>
                                 </div>
-                                <input type="text" id="erp-discount-amount" inputmode="numeric" placeholder="0원" maxlength="24" class="foms-input foms-tabular erp-amount-value erp-amount-value--discount" title="숫자 입력 시 1,000단위 쉼표가 적용됩니다.">
+                                <div id="erp-discount-list" class="erp-discount-list"></div>
+                                <button type="button" id="erp-discount-add" class="erp-discount-add-btn">+ 할인 추가</button>
+                                <input type="hidden" id="erp-discount-amount" value="">
                             </div>
                             <div id="erp-remaining-section" class="erp-mobile-amount-row" style="display: none;">
                                 <div class="erp-mobile-amount-label">

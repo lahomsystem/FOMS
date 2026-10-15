@@ -1,0 +1,174 @@
+<title>항목별 할인 목업</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* 레이아웃: 위 PC 금액 블록(오른쪽 정렬 16rem), 아래 모바일 375px 폰 프레임. 두 화면이 같은 데이터를 공유한다. */
+:root{
+  --bg:#f3f5f8; --panel:#ffffff; --fg:#1d2533; --muted:#6b7586; --line:#dbe1ea;
+  --accent:#2f6fd6; --discount:#d23b3b; --discount-bg:#fdeeee; --ok:#1f8a4c;
+  --body:"Noto Sans KR",system-ui,sans-serif; --num:"IBM Plex Mono",ui-monospace,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#12161d; --panel:#1b212b; --fg:#e6eaf1; --muted:#97a1b2; --line:#2e3644;
+  --accent:#6fa0f0; --discount:#ff7b7b; --discount-bg:#3a2224; --ok:#5fd08f; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#12161d; --panel:#1b212b; --fg:#e6eaf1; --muted:#97a1b2; --line:#2e3644;
+  --accent:#6fa0f0; --discount:#ff7b7b; --discount-bg:#3a2224; --ok:#5fd08f; color-scheme:dark}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);padding-inline:16px;padding-block:24px 48px}
+.wrap{max-width:980px;margin:0 auto;display:flex;flex-direction:column;gap:28px}
+h1{font-size:1.35rem;margin:0;text-wrap:balance}
+h2{font-size:1rem;margin:0 0 10px;color:var(--muted);letter-spacing:.04em}
+p.lead{margin:6px 0 0;color:var(--muted);line-height:1.6;max-width:65ch}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px}
+.num{font-family:var(--num);font-variant-numeric:tabular-nums}
+input{font:inherit;color:var(--fg);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:4px 8px;min-width:0}
+input:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+button{font:inherit;cursor:pointer}
+
+/* PC */
+.pc-grid{display:grid;grid-template-columns:1fr minmax(0,22rem);gap:18px}
+.pc-items{border:1px dashed var(--line);border-radius:8px;padding:12px;color:var(--muted);font-size:.85rem;line-height:1.7}
+.amt{display:flex;flex-direction:column;gap:8px;align-items:stretch}
+.row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.row .lbl{font-weight:700;white-space:nowrap}
+.badge{background:var(--accent);color:#fff;border-radius:6px;padding:3px 10px}
+.val{width:8.5rem;text-align:right}
+.disc-box{border:1px solid var(--line);border-radius:8px;padding:8px;display:flex;flex-direction:column;gap:6px;background:var(--discount-bg)}
+.disc-head{display:flex;justify-content:space-between;align-items:center}
+.disc-head .lbl{color:var(--discount)}
+.disc-row{display:grid;grid-template-columns:minmax(0,1fr) 7.5rem 1.6rem;gap:6px;align-items:center}
+.disc-row input.amt-in{text-align:right;color:var(--discount)}
+.x{border:0;background:none;color:var(--muted);font-size:1.05rem;line-height:1}
+.add{border:1px dashed var(--discount);background:var(--panel);color:var(--discount);border-radius:6px;padding:3px 8px;font-size:.85rem}
+.sum{color:var(--discount);font-weight:700}
+.balance{font-weight:700;color:var(--ok)}
+.hint{font-size:.8rem;color:var(--muted)}
+
+/* 모바일 */
+.phone{width:min(375px,100%);margin:0 auto;border:1px solid var(--line);border-radius:26px;padding:14px;background:var(--panel)}
+.m-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--line);gap:8px}
+.m-row .lbl{font-weight:700}
+.m-disc{padding:10px 0;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:8px}
+.m-card{display:flex;align-items:center;gap:8px;background:var(--discount-bg);border-radius:10px;padding:8px 10px}
+.m-card .t{flex:1;min-width:0;display:flex;flex-direction:column}
+.m-card .t b{font-size:.92rem;overflow-wrap:anywhere}
+.m-card .t span{color:var(--discount)}
+.m-card button{border:0;background:none;color:var(--muted);min-width:44px;min-height:44px;font-size:1.1rem}
+.m-add{min-height:44px;border:1px dashed var(--discount);border-radius:10px;background:none;color:var(--discount);font-weight:700}
+.sheet{border-top:1px solid var(--line);margin-top:12px;padding-top:12px;display:flex;flex-direction:column;gap:8px}
+.sheet input{min-height:44px;font-size:16px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1px solid var(--line);background:var(--panel);color:var(--fg);border-radius:999px;padding:4px 10px;font-size:.82rem}
+.sheet .go{min-height:44px;border:0;border-radius:10px;background:var(--discount);color:#fff;font-weight:700}
+.notes{font-size:.88rem;line-height:1.7;color:var(--muted)}
+.notes b{color:var(--fg)}
+pre{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;overflow-x:auto;font-family:var(--num);font-size:.8rem;margin:0}
+@media (max-width:720px){.pc-grid{grid-template-columns:1fr}}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>ERP 주문 — 할인 항목별 추가</h1>
+    <p class="lead">할인 칸 하나 대신 "할인 이름 + 금액" 줄을 여러 개 둔다. 합계는 자동으로 더하고, 잔금 = 출고가 − 예약금 − 할인 합계로 계산한다. 아래 두 화면은 같은 값을 공유하니 한쪽에서 고치면 다른 쪽도 바뀐다.</p>
+  </header>
+
+  <section>
+    <h2>PC — 주문 편집 금액 블록</h2>
+    <div class="panel pc-grid">
+      <div class="pc-items">
+        (제품 목록 영역 — 변경 없음)<br>
+        붙박이장 2,400 × 2,300 · 1,850,000원<br>
+        화장대 1,000 · 420,000원<br>
+        신발장 900 · 330,000원
+      </div>
+      <div class="amt">
+        <div class="row"><span class="lbl">출고가</span><span class="badge num" id="pc-total"></span></div>
+        <div class="row"><span class="lbl">예약금(선금)</span><input class="val num" id="pc-deposit" inputmode="numeric"></div>
+        <div class="disc-box">
+          <div class="disc-head"><span class="lbl">할인</span><span class="sum num" id="pc-sum"></span></div>
+          <div id="pc-list" style="display:contents"></div>
+          <div class="row"><button type="button" class="add" id="pc-add">+ 할인 추가</button><span class="hint">빈 줄은 저장 안 함</span></div>
+        </div>
+        <div class="row"><span class="lbl">잔금</span><span class="balance num" id="pc-balance"></span></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>모바일 — 주문 편집 금액 카드</h2>
+    <div class="phone">
+      <div class="m-row"><span class="lbl">출고가</span><span class="num" id="m-total"></span></div>
+      <div class="m-row"><span class="lbl">예약금(선금)</span><span class="num" id="m-deposit"></span></div>
+      <div class="m-disc">
+        <div class="row"><span class="lbl" style="font-weight:700">할인</span><span class="sum num" id="m-sum"></span></div>
+        <div id="m-list" style="display:contents"></div>
+        <button type="button" class="m-add" id="m-open">+ 할인 추가</button>
+        <div class="sheet" id="m-sheet" hidden>
+          <span class="hint">자주 쓰는 이름</span>
+          <div class="chips" id="m-chips"></div>
+          <input id="m-name" placeholder="할인 이름 (예: 지인 할인)">
+          <input id="m-amt" class="num" inputmode="numeric" placeholder="0원">
+          <button type="button" class="go" id="m-save">추가</button>
+        </div>
+      </div>
+      <div class="m-row" style="border:0"><span class="lbl">잔금</span><span class="balance num" id="m-balance"></span></div>
+    </div>
+  </section>
+
+  <section class="panel notes">
+    <h2>정해야 할 것 · 동작 규칙</h2>
+    <b>저장 형태</b> — structured_data.payment 에 discounts 배열을 두고, 옛 discount 숫자는 합계로 계속 채운다(정산·견적·옛 화면 호환).
+    <pre>"payment": {
+  "discounts": [{"label": "오픈 특가", "amount": 100000},
+                {"label": "지인 할인", "amount": 50000}],
+  "discount": 150000
+}</pre>
+    <b>옛 주문</b> — discount 숫자만 있으면 "할인" 이름 한 줄로 보여 준다.<br>
+    <b>PUSH·변환 텍스트</b> — 줄마다 "할인(오픈 특가) : 100,000원" 처럼 나가고, 합계 줄을 붙일지 정해야 한다.<br>
+    <b>모바일</b> — 줄은 카드로 보이고, 누르면 고치기, × 로 지우기. 입력칸은 16px 이상이라 아이폰이 확대하지 않는다.
+  </section>
+</div>
+
+<script>
+const items=2600000;
+const state={deposit:500000,list:[{label:"오픈 특가",amount:100000},{label:"지인 할인",amount:50000}]};
+const won=n=>(n||0).toLocaleString("ko-KR")+"원";
+const parse=s=>parseInt(String(s).replace(/[^0-9]/g,""),10)||0;
+const $=id=>document.getElementById(id);
+function render(){
+  const sum=state.list.reduce((a,d)=>a+d.amount,0);
+  const bal=items-state.deposit-sum;
+  $("pc-total").textContent=$("m-total").textContent=won(items);
+  if(document.activeElement!==$("pc-deposit"))$("pc-deposit").value=won(state.deposit);
+  $("m-deposit").textContent=won(state.deposit);
+  $("pc-sum").textContent=$("m-sum").textContent=sum?"−"+won(sum):"0원";
+  $("pc-balance").textContent=$("m-balance").textContent=won(bal);
+  const pc=$("pc-list");
+  if(!pc.contains(document.activeElement)){
+    pc.innerHTML="";
+    state.list.forEach((d,i)=>{
+      const r=document.createElement("div");r.className="disc-row";
+      r.innerHTML=`<input id="pc-n${i}" placeholder="할인 이름" value="${d.label.replace(/"/g,"&quot;")}"><input id="pc-a${i}" class="amt-in num" inputmode="numeric" value="${won(d.amount)}"><button type="button" class="x" aria-label="이 할인 지우기">×</button>`;
+      r.children[0].oninput=e=>{d.label=e.target.value;render()};
+      r.children[1].oninput=e=>{d.amount=parse(e.target.value);render()};
+      r.children[1].onblur=e=>{e.target.value=won(d.amount)};
+      r.children[2].onclick=()=>{state.list.splice(i,1);render()};
+      pc.appendChild(r);
+    });
+  }
+  const m=$("m-list");m.innerHTML="";
+  state.list.forEach((d,i)=>{
+    const c=document.createElement("div");c.className="m-card";
+    c.innerHTML=`<div class="t"><b></b><span class="num">−${won(d.amount)}</span></div><button type="button" aria-label="지우기">×</button>`;
+    c.querySelector("b").textContent=d.label||"(이름 없음)";
+    c.querySelector("button").onclick=()=>{state.list.splice(i,1);render()};
+    m.appendChild(c);
+  });
+}
+$("pc-deposit").oninput=e=>{state.deposit=parse(e.target.value);render()};
+$("pc-deposit").onblur=e=>{e.target.value=won(state.deposit)};
+$("pc-add").onclick=()=>{state.list.push({label:"",amount:0});render();$("pc-n"+(state.list.length-1)).focus()};
+$("m-open").onclick=()=>{$("m-sheet").hidden=!$("m-sheet").hidden};
+["오픈 특가","지인 할인","현장 할인","단골 할인"].forEach(t=>{const b=document.createElement("button");b.type="button";b.className="chip";b.textContent=t;b.onclick=()=>{$("m-name").value=t};$("m-chips").appendChild(b)});
+$("m-save").onclick=()=>{const a=parse($("m-amt").value);if(!a)return;state.list.push({label:$("m-name").value.trim(),amount:a});$("m-name").value=$("m-amt").value="";$("m-sheet").hidden=true;render()};
+render();
+</script>
