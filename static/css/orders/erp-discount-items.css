@@ -1,0 +1,122 @@
+/* ERP 주문 편집 — 할인 항목 줄(erp-discount-items.js). PC 금액 블록 오른쪽 정렬, 모바일 카드. */
+
+.erp-discount-box {
+  max-width: 22rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  padding: 0.5rem;
+  border: 1px solid var(--erp-border, #dbe1ea);
+  border-radius: 0.5rem;
+  background: var(--erp-discount-bg, #fdf1f1);
+}
+
+.erp-discount-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.erp-discount-sum {
+  font-weight: 700;
+  color: var(--erp-discount-fg, #c62828);
+  font-variant-numeric: tabular-nums;
+}
+
+.erp-discount-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.erp-discount-list:empty {
+  display: none;
+}
+
+.erp-discount-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 7.5rem 1.75rem;
+  gap: 0.375rem;
+  align-items: center;
+}
+
+.erp-discount-row__label {
+  min-width: 0;
+  border: 1px solid var(--erp-border, #dbe1ea);
+  border-radius: 0.375rem;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.875rem;
+}
+
+.erp-discount-row__amount {
+  width: 100%;
+  text-align: right;
+}
+
+.erp-discount-row__remove {
+  border: 0;
+  background: none;
+  color: var(--erp-muted, #6b7586);
+  font-size: 1.1rem;
+  line-height: 1;
+  padding: 0;
+  cursor: pointer;
+}
+
+.erp-discount-row__remove:hover,
+.erp-discount-row__remove:focus-visible {
+  color: var(--erp-discount-fg, #c62828);
+}
+
+.erp-discount-add-btn {
+  align-self: flex-start;
+  border: 1px dashed var(--erp-discount-fg, #c62828);
+  background: transparent;
+  color: var(--erp-discount-fg, #c62828);
+  border-radius: 0.375rem;
+  padding: 0.15rem 0.6rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+/* 모바일: 줄마다 카드, 이름 위·금액 아래, 지우기 버튼 44px, 입력 16px(아이폰 확대 방지). */
+.erp-discount-box--mobile {
+  max-width: none;
+  margin-block: 0.25rem;
+}
+
+.erp-discount-box--mobile .erp-discount-row {
+  grid-template-columns: minmax(0, 1fr) 2.75rem;
+  grid-template-areas:
+    "label remove"
+    "amount remove";
+  background: var(--erp-surface, #ffffff);
+  border-radius: 0.625rem;
+  padding: 0.5rem 0.5rem 0.5rem 0.625rem;
+}
+
+.erp-discount-box--mobile .erp-discount-row__label {
+  grid-area: label;
+  font-size: 16px;
+  min-height: 2.5rem;
+}
+
+.erp-discount-box--mobile .erp-discount-row__amount {
+  grid-area: amount;
+  font-size: 16px;
+  min-height: 2.5rem;
+}
+
+.erp-discount-box--mobile .erp-discount-row__remove {
+  grid-area: remove;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+}
+
+.erp-discount-box--mobile .erp-discount-add-btn {
+  align-self: stretch;
+  min-height: 2.75rem;
+  font-weight: 700;
+  font-size: 0.95rem;
+}
