@@ -112,3 +112,11 @@ def test_calendar_renders_timeline_only_with_month_legend(app, monkeypatch):
 def test_month_without_weather_ships_no_defs(app):
     _, html = _render(app, {"days": {}})
     assert "foms-wx-defs" not in html and 'tl-s-none' in html
+
+
+def test_missing_detail_slot_falls_back_to_slot_kind_before_day_kind():
+    """오늘 지난 칸은 칸 자료가 비어 있다 — 하루 대표(부슬비)가 아니라 그 칸 종류(맑음)로 그린다(2026-10-15 운영)."""
+    cell = _cell("drizzle", [None, _d("sun"), _d("partly"), _d("drizzle", 1, 60)], slots=["sun", "sun", "partly", "drizzle"])
+    assert [s["k"] for s in tl.week_slots([cell])] == ["sun", "sun", "partly", "drizzle"]
+    only_day = _cell("drizzle", [None, _d("sun"), _d("partly"), _d("drizzle", 1)])
+    assert tl.week_slots([only_day])[0]["k"] == "drizzle"
