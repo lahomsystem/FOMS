@@ -212,9 +212,9 @@
 .up-specks { animation: tlSpecks 5.5s linear infinite; }
 /* 오늘 지금 시각 점 */
 .up-pulse { transform-box: fill-box; transform-origin: center; animation: tlPulse 2s ease-out infinite; }
-/* 지난 날 흐리게 — 하늘 색 막을 반쯤 덮는다 */
-.tl-past { opacity: .5; }
-.tl-past.is-part { opacity: 1; } /* 일부만 지난 주는 멈춤점 투명도(.5)로 걷는다 */
+/* 지난 날 흐리게 — 화면 바탕 색 막을 반쯤 덮는다(일부만 지난 주는 오늘 0시 직전에 걷히는 그라데이션) */
+.tl-past { fill: var(--foms-surface-base); opacity: .5; }
+.tl-pv { stop-color: var(--foms-surface-base); }
 .tl-svg.is-still * { animation: none !important; }
 /* 다크: 그림만 낮춘다(하늘 바탕 rect 는 그대로) — 흰 구름이 흰 날짜 글자를 삼키지 않게 */
 [data-theme='dark'] .tl-svg > g { opacity: .55; }
