@@ -46,7 +46,7 @@ _CLOUD = "M0 26a13 13 0 0 1 2-25.8A17 17 0 0 1 34 5a11 11 0 0 1 1 21z"
 _DROP = "M0-7C2.6-1.6 3.4.8 3.4 2.6a3.4 3.4 0 0 1-6.8 0C-3.4.8-2.6-1.6 0-7z"
 _STREAK = "M0-15C1.7-6 2.5-1 2.5 1.8a2.5 2.5 0 0 1-5 0C-2.5-1-1.7-6 0-15z"
 _RAYS = "".join(
-    "M%.1f %.1fL%.1f %.1fL%.1f %.1fZ" % (
+    "M%.0f %.0fL%.0f %.0fL%.0f %.0fZ" % (
         22 * math.cos(math.radians(a - 4)), 22 * math.sin(math.radians(a - 4)),
         74 * math.cos(math.radians(a - 6)), 74 * math.sin(math.radians(a - 6)),
         74 * math.cos(math.radians(a + 6)), 74 * math.sin(math.radians(a + 6)))
@@ -59,7 +59,8 @@ _DEF_SUN = (
     '<radialGradient id="tlDisc"><stop offset="0" stop-color="#fffdf0"/><stop offset=".5" stop-color="#ffe066"/><stop offset="1" stop-color="#ffb000"/></radialGradient>'
     '<radialGradient id="tlBloom"><stop offset="0" stop-color="#ffc21f" stop-opacity=".6"/><stop offset="1" stop-color="#ffc21f" stop-opacity="0"/></radialGradient>'
     '<radialGradient id="tlRay"><stop offset=".3" stop-color="#fff6c8" stop-opacity=".95"/><stop offset=".75" stop-color="#ffc94a" stop-opacity=".45"/><stop offset="1" stop-color="#ffc94a" stop-opacity="0"/></radialGradient>'
-    f'<path id="tlRays" d="{_RAYS}"/>'
+    f'<path id="tlRays" d="{_RAYS}" fill="url(#tlRay)" transform="scale(1.15)"/>'
+    '<circle id="tlSB" r="104" fill="url(#tlBloom)"/><circle id="tlSD" r="17" fill="url(#tlDisc)"/>'
 )
 _DEF_CLOUD = (
     '<linearGradient id="tlCl" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="#dfe5ee"/></linearGradient>'
@@ -146,14 +147,15 @@ def _x(i: float) -> float:
 
 
 def _feather(uid: str, n: int, a: int, b: int, vw: float) -> str:
-    """구간 양끝을 44 단위(약 10시간)에 걸쳐 서서히 사라지게 하는 마스크."""
+    """구간 양끝을 44 단위(약 10시간)에 걸쳐 서서히 사라지게 하는 마스크.
+
+    알파 마스크(CSS .tl-m = mask-type: alpha)라 멈춤점은 투명도만 쓴다 — 색·영역 속성을 빼 전송 바이트를 줄였다(perf-gate).
+    """
     x0, x1 = _x(a) - FEATHER_OUT, _x(b) + FEATHER_OUT
     edge = min(.5, 44 / (x1 - x0))
-    return (f'<linearGradient id="{uid}f{n}" gradientUnits="userSpaceOnUse" x1="{x0:.1f}" x2="{x1:.1f}" y1="0" y2="0">'
-            f'<stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset="{edge:.3f}" stop-color="#fff"/>'
-            f'<stop offset="{1 - edge:.3f}" stop-color="#fff"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>'
-            f'<mask id="{uid}m{n}" maskUnits="userSpaceOnUse" x="0" y="0" width="{vw:.0f}" height="{VH}">'
-            f'<rect x="{x0:.1f}" width="{x1 - x0:.1f}" height="{VH}" fill="url(#{uid}f{n})"/></mask>')
+    return (f'<linearGradient id="{uid}f{n}" gradientUnits="userSpaceOnUse" x1="{x0:.0f}" x2="{x1:.0f}">'
+            f'<stop stop-opacity="0"/><stop offset="{edge:.2f}"/><stop offset="{1 - edge:.2f}"/><stop offset="1" stop-opacity="0"/></linearGradient>'
+            f'<mask id="{uid}m{n}" class="tl-m"><rect x="{x0:.0f}" width="{x1 - x0:.0f}" height="{VH}" fill="url(#{uid}f{n})"/></mask>')
 
 
 def _sky_key(s: dict[str, Any]) -> str:
@@ -207,10 +209,23 @@ _RAIN_LV = {0: ("tlDrop", "tlDz", 17, 1.05, 6), 1: ("tlDrop", "tlDz", 11, 1.45, 
 _WIND_TILT = (0, 12, 24)
 
 
+def _spans(sl: Sequence[dict[str, Any]], a: int, b: int, key) -> list[tuple[int, int]]:
+    """구간 [a, b) 안에서 key 가 같은 이웃 칸끼리 묶은 [(시작, 끝 다음)]."""
+    out: list[tuple[int, int]] = []
+    i = a
+    while i < b:
+        j = i + 1
+        while j < b and key(sl[j]) == key(sl[i]):
+            j += 1
+        out.append((i, j))
+        i = j
+    return out
+
+
 def _sun(cx: float, cy: float, scale: float) -> str:
-    return (f'<g transform="translate({cx:.0f} {cy}) scale({scale:.2f})"><circle r="104" fill="url(#tlBloom)"/>'
-            '<g class="up-spin"><use href="#tlRays" fill="url(#tlRay)" transform="scale(1.15)"/></g>'
-            '<circle class="tl-breathe" r="30" fill="#ffe27a"/><circle r="17" fill="url(#tlDisc)"/></g>')
+    # 멈춘 부분(빛번짐·원반)은 정의 재사용, 움직이는 햇살·숨쉬기만 제자리에(<use> 안쪽엔 움직임이 안 걸린다)
+    return (f'<g transform="translate({cx:.0f} {cy}) scale({scale:.2f})"><use href="#tlSB"/>'
+            '<g class="up-spin"><use href="#tlRays"/></g><circle class="tl-breathe" r="30"/><use href="#tlSD"/></g>')
 
 
 def week_band_svg(cells: Sequence[dict[str, Any]], *, uid: str, now_index: Optional[float] = None,
@@ -250,18 +265,20 @@ def week_band_svg(cells: Sequence[dict[str, Any]], *, uid: str, now_index: Optio
             dark = s["k"] in ("rain", "heavy")
             sc = sizes[j % len(sizes)] * (.85 if s["k"] == "partly" else 1)
             y = 58 + (j * 7) % 18
-            front.append(f'<use href="#tlCloud" transform="translate({x:.0f} {y}) scale({sc:.2f})" fill="url(#{"tlClD" if dark else "tlCl"})"/>')
-            if s["k"] != "partly":
-                back.append(f'<use href="#tlCloud" transform="translate({x + 14:.0f} {y - 14}) scale({sc * 1.1:.2f})" fill="{"#9aa7bb" if dark else "#fff"}" opacity=".55"/>')
-            x += (34 if s["k"] == "partly" else 20) + (j * 11) % 14
+            front.append(f'<use href="#tlCloud" transform="translate({x:.0f} {y}) scale({sc:.1f})"{' fill="url(#tlClD)"' if dark else ""}/>')
+            if s["k"] != "partly" and j % 2 == 0 and not still:  # 뒤 층은 하나 걸러, 멈춘 주는 없이(전송 바이트)
+                back.append(f'<use href="#tlCloud" transform="translate({x + 14:.0f} {y - 14}) scale({sc * 1.1:.1f})"{' fill="#9aa7bb"' if dark else ""}/>')
+            x += (36 if s["k"] == "partly" else 26) + (j * 11) % 14
             j += 1
-        far = "".join(f'<use href="#tlCloud" transform="translate({_x(a) + 8 + 23 * i:.0f} {44 + (i % 2) * 6}) scale(.6)" fill="#fff" opacity=".6"/>'
-                      for i in range(int((_x(b) - _x(a)) // 23) + 1) if sl[min(a + int(i * 23 // SLOT_W), b - 1)]["k"] != "partly")
+        far = "".join(f'<use href="#tlCloud" transform="translate({_x(a) + 8 + 40 * i:.0f} {44 + (i % 2) * 6}) scale(.6)"/>'
+                      for i in range(int((_x(b) - _x(a)) // 40) + 1) if not still and sl[min(a + int(i * 40 // SLOT_W), b - 1)]["k"] != "partly")
         edge = ""
         if a > 0 and kinds[a - 1] == "sun" and kinds[a] != "partly":
             edge = f'<use href="#tlCloud" transform="translate({_x(a) - 6:.0f} 50) scale(1.7)" fill="url(#tlClD)" opacity=".75"/>'
-        body.append(f'<g mask="url(#{uid}m{n})"><g class="up-far">{far}</g><g class="tl-drift2">{"".join(back)}</g>'
-                    f'{edge}<g class="up-near">{"".join(front)}</g></g>')
+        # 같은 칠·투명도는 묶음에 한 번(전송 바이트, perf-gate 2026-10-15)
+        body.append(f'<g mask="url(#{uid}m{n})"><g class="up-far" fill="#fff" opacity=".6">{far}</g>'
+                    f'<g class="tl-drift2" fill="#fff" opacity=".55">{"".join(back)}</g>'
+                    f'{edge}<g class="up-near" fill="url(#tlCl)">{"".join(front)}</g></g>')
 
     # 비: 칸마다 강도대로(빗방울 수·크기·빠르기), 강수확률만큼 진하게, 바람만큼 눕힌다. 보통 비부터 땅에 튀고, 강한 비엔 번개.
     for a, b in runs(kinds, lambda k: k in RAIN):
@@ -270,25 +287,27 @@ def week_band_svg(cells: Sequence[dict[str, Any]], *, uid: str, now_index: Optio
         top = max(s["lv"] for s in sl[a:b])
         veil = f'<rect class="up-veil" x="{_x(a) - FEATHER_OUT:.1f}" width="{_x(b) - _x(a) + 2 * FEATHER_OUT:.1f}" height="{VH}" fill="url(#tlVeil)" opacity="{.55 + .15 * top:.2f}"/>'
         parts = [veil]
-        for i in range(a, b):
-            s = sl[i]
+        # 강도·바람·강수확률이 같은 이웃 칸은 한 묶음으로 그린다(칸마다 묶음을 만들면 전송 바이트가 크다 — perf-gate)
+        for i0, i1 in _spans(sl, a, b, lambda s: (s["lv"], _wind_class(s["wind"]), _pop_opacity(s["pop"]))):
+            s = sl[i0]
             shape, grad, step, sc, tilt = _RAIN_LV[max(0, min(3, s["lv"]))]
             wc = _wind_class(s["wind"])
             rot = tilt + _WIND_TILT[wc]
             groups: list[list[str]] = [[], [], []]
-            x, j = _x(i) + 3 + (i % 2) * 4, 0
-            while x < _x(i + 1) + 2:
-                y = 112 + ((i * 5 + j) * 37) % 60
-                groups[j % 3].append(f'<use href="#{shape}" transform="translate({x:.0f} {y}) rotate({rot}) scale({sc})" fill="url(#{grad})"/>')
+            x, j = _x(i0) + 3 + (i0 % 2) * 4, 0
+            while x < _x(i1) + 2:
+                y = 112 + ((i0 * 5 + j) * 37) % 60
+                groups[j % 3].append(f'<use href="#{shape}" transform="translate({x:.0f} {y}) rotate({rot}) scale({sc})"/>')
                 x += step
                 j += 1
-            drops = "".join(f'<g class="tl-r{s["lv"]} tl-w{wc} tl-p{p}">{"".join(gr)}</g>' for p, gr in enumerate(groups) if gr)
+            drops = "".join(f'<g class="tl-r{s["lv"]} tl-w{wc} tl-p{p}" fill="url(#{grad})">{"".join(gr)}</g>' for p, gr in enumerate(groups) if gr)
             if s["lv"] >= 2:
-                drops = ('<g class="up-rainfar">' + "".join(
-                    f'<use href="#{shape}" transform="translate({_x(i) + 5 + 9 * q:.0f} {100 + ((i + q) * 23) % 70}) rotate({rot - 4}) scale(.6)" fill="url(#{grad})" opacity=".6"/>'
-                    for q in range(3)) + '</g>' + drops)
-            if s["lv"] >= 2:
-                drops += "".join(f'<use href="#tlSplash" class="tl-splash tl-p{q % 3}" x="{_x(i) + 4 + 8 * q:.0f}" y="180"/>' for q in range(2))
+                n_far = 3 * (i1 - i0)
+                drops = (f'<g class="up-rainfar" fill="url(#{grad})" opacity=".6">' + "".join(
+                    f'<use href="#{shape}" transform="translate({_x(i0) + 5 + 8.3 * q:.0f} {100 + ((i0 + q) * 23) % 70}) rotate({rot - 4}) scale(.6)"/>'
+                    for q in range(n_far)) + '</g>' + drops)
+                drops += "".join(f'<use href="#tlSplash" class="tl-splash tl-p{q % 2}" x="{_x(i0) + 4 + 12.5 * q:.0f}" y="180"/>'
+                                 for q in range(2 * (i1 - i0)))
             op = _pop_opacity(s["pop"])
             parts.append(f'<g opacity="{op}">{drops}</g>' if op < 1 else drops)
         if top >= 3:
@@ -304,25 +323,26 @@ def week_band_svg(cells: Sequence[dict[str, Any]], *, uid: str, now_index: Optio
         d.append(_feather(uid, n, a, b, vw))
         top = max((s["lv"] if s["k"] == "snow" else 0) for s in sl[a:b])
         parts = [f'<rect class="up-veil" x="{_x(a) - FEATHER_OUT:.1f}" width="{_x(b) - _x(a) + 2 * FEATHER_OUT:.1f}" height="{VH}" fill="url(#tlSnowVeil)" opacity="{.75 + .12 * top:.2f}"/>']
-        for i in range(a, b):
-            s = sl[i]
+        for i0, i1 in _spans(sl, a, b, lambda s: (s["lv"] if s["k"] == "snow" else -1, _pop_opacity(s["pop"]))):
+            s = sl[i0]
             lv = s["lv"] if s["k"] == "snow" else -1  # -1 = 부슬눈
             step = {-1: 10, 0: 9, 1: 7, 2: 5.5}[max(-1, min(2, lv))]
             groups: list[list[str]] = [[], [], []]
-            x, j = _x(i) + 3 + (i % 2) * 3, 0
-            while x < _x(i + 1) + 2:
-                y = 106 + ((i * 3 + j) * 29) % 68
+            x, j = _x(i0) + 3 + (i0 % 2) * 3, 0
+            while x < _x(i1) + 2:
+                y = 106 + ((i0 * 3 + j) * 29) % 68
                 if lv >= 0:
                     sc = (1.15 if j % 3 else 1.5) * (1.15 if lv >= 2 else 1)
                     groups[j % 3].append(f'<use href="#tlFlakeB" transform="translate({x:.0f} {y}) scale({sc:.2f})"/>')
                 else:
-                    groups[j % 3].append(f'<circle cx="{x:.1f}" cy="{y}" r="{3.6 if j % 3 else 4.6}" fill="#fff" stroke="#3d63a8" stroke-width="1.6"/>')
+                    groups[j % 3].append(f'<circle cx="{x:.0f}" cy="{y}" r="{3.6 if j % 3 else 4.6}"/>')
                 x += step
                 j += 1
-            far = "".join(f'<circle cx="{_x(i) + 3 + 6 * q:.0f}" cy="{92 + ((i + q) * 19) % 84}" r="1.9" fill="#fff" stroke="#5b7fbe" stroke-width=".9"/>' for q in range(4))
+            far = "".join(f'<circle cx="{_x(i0) + 3 + 6 * q:.0f}" cy="{92 + ((i0 + q) * 19) % 84}" r="1.9"/>' for q in range(4 * (i1 - i0)))
             cls = "up-blow" if lv >= 2 else "up-sn"
-            flakes = "".join(f'<g class="{cls} tl-p{p}">{"".join(gr)}</g>' for p, gr in enumerate(groups) if gr)
-            g = f'<g class="up-specks">{far}</g>{flakes}'
+            dots = ' fill="#fff" stroke="#3d63a8" stroke-width="1.6"' if lv < 0 else ""
+            flakes = "".join(f'<g class="{cls} tl-p{p}"{dots}>{"".join(gr)}</g>' for p, gr in enumerate(groups) if gr)
+            g = f'<g class="up-specks" fill="#fff" stroke="#5b7fbe" stroke-width=".9">{far}</g>{flakes}'
             op = _pop_opacity(s["pop"])
             parts.append(f'<g opacity="{op}">{g}</g>' if op < 1 else g)
         body.append(f'<g mask="url(#{uid}m{n})">{"".join(parts)}</g>')
@@ -347,7 +367,7 @@ def week_band_svg(cells: Sequence[dict[str, Any]], *, uid: str, now_index: Optio
                     f'<circle cx="{nx:.1f}" cy="42" r="2.6" fill="#ff3b30"/>'
                     f'<circle class="up-pulse" cx="{nx:.1f}" cy="42" r="2.6" fill="none" stroke="#ff3b30" stroke-width="1.2"/></g>')
     cls = "tl-svg is-still" if still else "tl-svg"
-    return Markup(f'<svg class="{cls}" viewBox="0 0 {vw:.0f} {VH}" preserveAspectRatio="none" aria-hidden="true" focusable="false">'
+    return Markup(f'<svg class="{cls}" viewBox="0 0 {vw:.0f} {VH}" preserveAspectRatio="none">'
                   f'<defs>{"".join(d)}</defs>{"".join(body)}</svg>')
 
 

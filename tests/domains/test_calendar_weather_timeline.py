@@ -51,8 +51,8 @@ def test_rain_intensity_drives_speed_tilt_opacity_splash_and_lightning():
     assert 'opacity="0.64"' in svg              # 강수확률 40% → 옅게
     assert svg.count('href="#tlSplash"') == 16  # 보통 비부터 땅에 튄다(칸마다 2개 × 8칸)
     assert svg.count('class="tl-flash"') == 2   # 강한 비만 번개
-    lv0 = re.search(r'class="tl-r0 tl-w0 tl-p0">(.*?)</g>', svg).group(1).count("<use")
-    lv3 = re.search(r'class="tl-r3 tl-w0 tl-p0">(.*?)</g>', svg).group(1).count("<use")
+    lv0 = re.search(r'class="tl-r0 tl-w0 tl-p0"[^>]*>(.*?)</g>', svg).group(1).count("<use")
+    lv3 = re.search(r'class="tl-r3 tl-w0 tl-p0"[^>]*>(.*?)</g>', svg).group(1).count("<use")
     assert lv3 > lv0                             # 강할수록 촘촘
 
 
