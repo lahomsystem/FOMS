@@ -55,6 +55,26 @@ from foms.services.jobs.queue import get_rq_runtime_status
 logger = logging.getLogger(__name__)
 
 _MAX_TEXT_LENGTH = 4000
+
+
+_FILENAME_FORBIDDEN = '\/:*?"<>|'
+
+
+def _rename_drawing_room_files(files: list[dict], customer_name: str | None) -> list[dict]:
+    """도면방 파일 이름을 고객명으로 바꾼다. 여러 장이면 '고객명1', '고객명2' … (확장자 유지)."""
+    base = ''.join(
+        ch for ch in (customer_name or '').strip() if ch not in _FILENAME_FORBIDDEN and ch.isprintable()
+    ).strip()
+    if not base:
+        return files
+    multiple = len(files) > 1
+    renamed = []
+    for idx, item in enumerate(files, start=1):
+        original = item.get('fileName') or ''
+        ext = os.path.splitext(original)[1]
+        stem = f"{base}{idx}" if multiple else base
+        renamed.append({**item, 'fileName': f"{stem}{ext}"})
+    return renamed
 # 본문을 서버가 저장된 주문으로 단독 조립하는 push 종류(클라이언트 text 를 신뢰하지 않는다).
 _SERVER_COMPOSED_TEXT_KINDS = frozenset({'as', 'drawing_room'})
 _MIN_CHANGE_NOTE_LEN = 1
@@ -641,6 +661,8 @@ def api_channel_push_manual():
         # 21장을 넘기면 이력과 실제 전송이 어긋날 수 있다.
         files = files[:MAX_MANUAL_ATTACHMENTS]
         sent_attachment_ids = sent_attachment_ids[:MAX_MANUAL_ATTACHMENTS]
+        if push_kind == 'drawing_room':
+            files = _rename_drawing_room_files(files, order.customer_name)
 
         current_user = getattr(g, "current_user", None)
         pushed_by_name = current_user.name if current_user else None
