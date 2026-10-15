@@ -121,9 +121,12 @@ def week_slots(cells: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
     for c in cells:
         day = str(c.get("wx") or "")
         day = day if day in KINDS else "none"
-        raw = c.get("wx_detail") if isinstance(c.get("wx_detail"), list) else c.get("wx_slots")
-        raw = raw if isinstance(raw, list) and len(raw) == SLOTS_PER_DAY else [None] * SLOTS_PER_DAY
-        for i, r in enumerate(raw):
+        detail = c.get("wx_detail") if isinstance(c.get("wx_detail"), list) and len(c["wx_detail"]) == SLOTS_PER_DAY else [None] * SLOTS_PER_DAY
+        kinds = c.get("wx_slots") if isinstance(c.get("wx_slots"), list) and len(c["wx_slots"]) == SLOTS_PER_DAY else [None] * SLOTS_PER_DAY
+        for i in range(SLOTS_PER_DAY):
+            # 칸 자료가 비면(오늘 지난 시간 등) 그 칸 종류(slots) → 없으면 하루 날씨 순으로 채운다
+            # (2026-10-15 운영: 15일 0~6시가 하루 대표 '부슬비'로 그려졌다 — 그 칸은 '맑음' 이었다)
+            r = detail[i] if isinstance(detail[i], dict) else kinds[i]
             s = _slot(r, day) if day != "none" else {"k": "none", "lv": 0, "pop": None, "wind": None}
             out.append(s)
     return out
