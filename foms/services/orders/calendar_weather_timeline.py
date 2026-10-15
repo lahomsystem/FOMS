@@ -35,6 +35,7 @@ SNOW = ("flurry", "snow")
 #: 종류만 아는 옛 자료·중기예보의 기본 강도
 DEFAULT_LV = {"drizzle": 1, "rain": 2, "heavy": 3, "flurry": 0, "snow": 1}
 SLOTS_PER_DAY = 4
+NIGHT_SLOTS = (0, 3)  # 0~6시·18~24시
 DAY_W = 100.0
 SLOT_W = DAY_W / SLOTS_PER_DAY
 FEATHER_OUT = 16
@@ -128,6 +129,10 @@ def week_slots(cells: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
             # (2026-10-15 운영: 15일 0~6시가 하루 대표 '부슬비'로 그려졌다 — 그 칸은 '맑음' 이었다)
             r = detail[i] if isinstance(detail[i], dict) else kinds[i]
             s = _slot(r, day) if day != "none" else {"k": "none", "lv": 0, "pop": None, "wind": None}
+            if i in NIGHT_SLOTS and s["k"] == "drizzle" and s["lv"] <= 1:
+                # 밤(0~6·18~24시)의 약한 비는 그림에서도 구름으로 — 하루 대표 날씨(day_kind)와 같은 규칙.
+                # 2026-10-15 사용자: 16일은 자정 한 시간 2mm 뿐인데 날짜 칸 왼쪽에 빗방울이 보여 비 오는 날로 읽혔다.
+                s = {"k": "cloud", "lv": 0, "pop": None, "wind": None}
             out.append(s)
     return out
 
