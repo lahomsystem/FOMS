@@ -43,8 +43,8 @@
   },
   "fail_closed_sites": [
     "db.py:68",
-    "foms/api/channel/channel_integration.py:362",
-    "foms/api/channel/channel_integration.py:1075",
+    "foms/api/channel/channel_integration.py:382",
+    "foms/api/channel/channel_integration.py:1097",
     "foms/api/orders/stage_override_admin.py:144",
     "foms/api/orders/stage_override_admin.py:210",
     "foms/persistence/designer/repositories.py:173",
@@ -112,7 +112,7 @@
     },
     {
       "path": "foms/api/channel/channel_integration.py",
-      "lineno": 362,
+      "lineno": 382,
       "handler_type": "broad_exception",
       "disposition": "FAIL_CLOSED",
       "owner": "channel",
@@ -121,7 +121,7 @@
     },
     {
       "path": "foms/api/channel/channel_integration.py",
-      "lineno": 685,
+      "lineno": 707,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "channel",
@@ -130,7 +130,7 @@
     },
     {
       "path": "foms/api/channel/channel_integration.py",
-      "lineno": 731,
+      "lineno": 753,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "channel",
@@ -139,7 +139,7 @@
     },
     {
       "path": "foms/api/channel/channel_integration.py",
-      "lineno": 935,
+      "lineno": 957,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "channel",
@@ -148,7 +148,7 @@
     },
     {
       "path": "foms/api/channel/channel_integration.py",
-      "lineno": 1075,
+      "lineno": 1097,
       "handler_type": "broad_exception",
       "disposition": "FAIL_CLOSED",
       "owner": "channel",
@@ -157,7 +157,7 @@
     },
     {
       "path": "foms/api/channel/channel_integration.py",
-      "lineno": 1103,
+      "lineno": 1125,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "channel",
@@ -166,7 +166,7 @@
     },
     {
       "path": "foms/api/channel/channel_integration.py",
-      "lineno": 1253,
+      "lineno": 1275,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "channel",
@@ -175,7 +175,7 @@
     },
     {
       "path": "foms/api/channel/channel_integration.py",
-      "lineno": 1331,
+      "lineno": 1353,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "channel",
