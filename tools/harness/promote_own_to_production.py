@@ -182,6 +182,33 @@ def _try_resolve_pin_conflicts(wt: str) -> bool:
     return cont.returncode == 0
 
 
+# 승격 판정을 하는 도구 파일. 이 폴더 내용이 origin/deploy 와 다르면 옛 도구다.
+PROMOTE_TOOL_FILES = (
+    "tools/harness/promote_own_to_production.py",
+    "tools/harness/promote_completeness.py",
+    "tools/harness/promote_file_compare.py",
+)
+STALE_TOOL_REF = "origin/deploy"
+EXIT_STALE_TOOL = 4
+
+
+def stale_promote_tool_files(project_root: str, ref: str = STALE_TOOL_REF) -> list[str]:
+    """이 폴더의 승격 도구 파일 중 ``ref`` 와 내용이 다른 것을 돌려준다.
+
+    2026-10-15: origin 보다 389커밋 뒤처진 메인 체크아웃에서 돌리자 파일 내용 판정
+    (c0ef5f12d) 이전의 옛 판정이 돌아 "missing baseline deps=8" 오탐이 났다.
+    ``ref`` 가 없으면(테스트용 임시 저장소 등) 판정할 수 없으니 빈 목록.
+    """
+    if _run(project_root, "git", "rev-parse", "--verify", "--quiet", ref, check=False).returncode != 0:
+        return []
+    diff = _run(
+        project_root, "git", "diff", "--name-only", ref, "--", *PROMOTE_TOOL_FILES, check=False
+    )
+    if diff.returncode != 0:
+        return []
+    return [line.strip() for line in (diff.stdout or "").splitlines() if line.strip()]
+
+
 def promote_own_commits(
     project_root: str,
     shas: Sequence[str],
@@ -189,6 +216,7 @@ def promote_own_commits(
     worktree_parent: str | None = None,
     keep_on_error: bool = True,
     allow_incomplete: bool = False,
+    allow_stale_tool: bool = False,
     base_ref: str = "origin/production",
     gh_runner: GhRunner | None = None,
     title: str = "",
@@ -202,11 +230,12 @@ def promote_own_commits(
         worktree_parent: 임시 worktree 부모 (기본 c:/tmp).
         keep_on_error: 실패 시 worktree 보존.
         allow_incomplete: completeness 미통과 시에도 진행.
+        allow_stale_tool: 도구 파일이 origin/deploy 와 달라도 진행(도구를 고치는 중일 때만).
         base_ref: production 정본.
         gh_runner: 테스트용 gh 주입.
         title/body: PR 제목·본문.
     반환:
-        exit code (0=성공, 1=오류, 2=incomplete/empty, 3=충돌).
+        exit code (0=성공, 1=오류, 2=incomplete/empty, 3=충돌, 4=옛 도구).
     """
     if not shas:
         print("승격할 자기 세션 커밋이 없습니다.", file=sys.stderr)
@@ -216,6 +245,20 @@ def promote_own_commits(
     if fetch.returncode != 0:
         print(fetch.stderr or "git fetch failed", file=sys.stderr)
         return 1
+
+    if not allow_stale_tool:
+        _run(project_root, "git", "fetch", "origin", "deploy", check=False)
+        stale = stale_promote_tool_files(project_root)
+        if stale:
+            print(
+                "옛 승격 도구입니다(이 폴더가 origin/deploy 보다 뒤처졌거나 도구 파일이 바뀜): "
+                + ", ".join(stale)
+                + "\n최신 기준 작업 폴더에서 다시 실행하세요: "
+                "git worktree add c:/tmp/foms-promote origin/deploy\n"
+                "도구 자체를 고치는 중일 때만 --allow-stale-tool 로 우회.",
+                file=sys.stderr,
+            )
+            return EXIT_STALE_TOOL
 
     completeness = analyze_promote_completeness(
         project_root, shas, base_ref=base_ref
@@ -415,6 +458,11 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="completeness incomplete 여도 진행 (사용자 승인 후만)",
     )
+    parser.add_argument(
+        "--allow-stale-tool",
+        action="store_true",
+        help="도구 파일이 origin/deploy 와 달라도 진행 (도구를 고치는 중일 때만)",
+    )
     parser.add_argument("--base-ref", default="origin/production")
     parser.add_argument("--title", default="")
     parser.add_argument("--body", default="")
@@ -429,6 +477,7 @@ def main(argv: list[str] | None = None) -> int:
         shas,
         worktree_parent=args.worktree_parent or None,
         allow_incomplete=args.allow_incomplete,
+        allow_stale_tool=args.allow_stale_tool,
         base_ref=args.base_ref,
         title=args.title,
         body=args.body,

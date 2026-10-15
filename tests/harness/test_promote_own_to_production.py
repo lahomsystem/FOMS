@@ -244,3 +244,45 @@ def test_non_pin_conflict_exits_3_and_keeps_worktree(tmp_path: Path) -> None:
     kept = [p for p in wt.iterdir() if p.name.startswith("foms-prod-own-")]
     assert len(kept) == 1
     assert "<<<<<<<" in (kept[0] / "page.html").read_text(encoding="utf-8")
+
+
+def _commit_tool_file(local: Path, text: str) -> Path:
+    tool = local / "tools" / "harness" / "promote_completeness.py"
+    tool.parent.mkdir(parents=True, exist_ok=True)
+    tool.write_text(text, encoding="utf-8")
+    _git(local, "add", str(tool))
+    _git(local, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-m", "tool")
+    return tool
+
+
+def test_stale_tool_file_blocks_with_exit_4(tmp_path: Path) -> None:
+    """2026-10-15: 뒤처진 체크아웃의 옛 판정 도구가 deps=8 오탐을 냈다 — 옛 도구면 멈춘다."""
+    mod = _load()
+    local, _bare, _dep, feat = _setup(tmp_path)
+    tool = _commit_tool_file(local, "new\n")
+    _git(local, "push", "origin", "deploy")
+    tool.write_text("old\n", encoding="utf-8")  # 이 폴더만 옛 내용
+
+    assert mod.stale_promote_tool_files(str(local)) == ["tools/harness/promote_completeness.py"]
+
+    def fake_gh(*_a: Any, **_k: Any) -> Any:
+        raise AssertionError("옛 도구면 PR 을 만들면 안 된다")
+
+    code = mod.promote_own_commits(
+        str(local), [feat], worktree_parent=str(tmp_path / "wt"), gh_runner=fake_gh
+    )
+    assert code == mod.EXIT_STALE_TOOL == 4
+
+
+def test_fresh_tool_file_passes_guard(tmp_path: Path) -> None:
+    mod = _load()
+    local, _bare, _dep, _feat = _setup(tmp_path)
+    _commit_tool_file(local, "same\n")
+    _git(local, "push", "origin", "deploy")
+    assert mod.stale_promote_tool_files(str(local)) == []
+
+
+def test_missing_ref_skips_guard(tmp_path: Path) -> None:
+    mod = _load()
+    local, _bare, _dep, _feat = _setup(tmp_path)
+    assert mod.stale_promote_tool_files(str(local), ref="origin/no-such-branch") == []
