@@ -39,7 +39,6 @@ DAY_W = 100.0
 SLOT_W = DAY_W / SLOTS_PER_DAY
 FEATHER_OUT = 16
 SKY_BLEND_SLOTS = 1.5
-PAST_VEIL = .5
 VH = 190
 
 _CLOUD = "M0 26a13 13 0 0 1 2-25.8A17 17 0 0 1 34 5a11 11 0 0 1 1 21z"
@@ -348,18 +347,15 @@ def week_band_svg(cells: Sequence[dict[str, Any]], *, uid: str, now_index: Optio
         body.append(f'<g mask="url(#{uid}m{n})">{"".join(parts)}</g>')
 
     if past_days > 0:
-        # 지난 날 흐리게: 하늘 색 막(투명도 .5) — 마스크 대신 멈춤점 투명도로 오늘 0시 직전에 걷는다(가볍다)
+        # 지난 날 흐리게: 바탕색(.tl-past = 화면 바탕 색, 투명도 .5) 막을 덮는다. 일부만 지난 주는 오늘 0시 직전에
+        # 짧게 걷히는 두 멈춤점 그라데이션 — 하늘 멈춤점을 복사하지 않아 전송 바이트가 작다(perf-gate 2026-10-15).
         px = min(past_days, len(cells)) * DAY_W
         if px >= vw:
-            body.append(f'<rect class="tl-past" width="{vw:.0f}" height="{VH}" fill="url(#{uid}s)"/>')
+            body.append(f'<rect class="tl-past" width="{vw:.0f}" height="{VH}"/>')
         else:
-            edge0, edge1 = px - 12, px + 4
-            key_at = _sky_key(sl[max(0, min(len(sl) - 1, int(edge0 // SLOT_W)))])
-            pstops = [f'<stop offset="{p:.4f}" class="tl-s-{k}" stop-opacity="{PAST_VEIL}"/>' for p, k in sky if p * vw < edge0]
-            pstops.append(f'<stop offset="{edge0 / vw:.4f}" class="tl-s-{key_at}" stop-opacity="{PAST_VEIL}"/>'
-                          f'<stop offset="{edge1 / vw:.4f}" class="tl-s-{key_at}" stop-opacity="0"/>')
-            d.append(f'<linearGradient id="{uid}p" x1="0" x2="1" y1="0" y2="0">{"".join(pstops)}</linearGradient>')
-            body.append(f'<rect class="tl-past is-part" width="{edge1:.0f}" height="{VH}" fill="url(#{uid}p)"/>')
+            d.append(f'<linearGradient id="{uid}p" gradientUnits="userSpaceOnUse" x1="{px - 12:.0f}" x2="{px + 4:.0f}">'
+                     '<stop class="tl-pv"/><stop offset="1" class="tl-pv" stop-opacity="0"/></linearGradient>')
+            body.append(f'<rect class="tl-past is-part" width="{px + 4:.0f}" height="{VH}" fill="url(#{uid}p)"/>')
 
     if now_index is not None and 0 <= now_index <= len(cells):
         nx = now_index * DAY_W
