@@ -113,8 +113,14 @@
   padding-block: 0.25rem;
 }
 
+/* 모바일 금액 줄은 이름이 왼쪽 — 머리 줄도 [할인][합계] ····· [+ 추가]. */
 .erp-discount-box--mobile .erp-discount-head {
   min-height: 2.75rem;
+  justify-content: flex-start;
+}
+
+.erp-discount-box--mobile .erp-discount-add-btn {
+  margin-left: auto;
 }
 
 .erp-discount-box--mobile .erp-discount-add-btn {
