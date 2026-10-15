@@ -828,6 +828,21 @@ def test_measure_room_push_sends_conversion_text_verbatim() -> None:
     assert "measure_room" not in tablet_block
 
 
+def test_measure_only_notes_dropped_from_sales_and_drawing_push() -> None:
+    """실측·주소·연락처 특이사항은 실측용 정보 — 영발·발주 PUSH 슬라이스에서 뺀다.
+
+    실측방(measure_room) PUSH 는 슬라이스를 거치지 않으므로 그대로 나간다.
+    """
+    root = Path(__file__).resolve().parents[2]
+    pattern = "(실측|주소|연락처) 특이사항"
+    shared = (root / "static/js/orders/erp-order-shared.js").read_text(encoding="utf-8")
+    start = shared.index("function erpSliceConversionTextForChannelPush(text)")
+    assert pattern in shared[start:start + 1200]
+    tablet = (root / "static/js/foms/tablet-measure-form.js").read_text(encoding="utf-8")
+    t_start = tablet.index("function sliceConversionTextForChannelPush(text)")
+    assert pattern in tablet[t_start:t_start + 900]
+
+
 def test_as_push_text_is_server_built_not_client_built() -> None:
     """AS 본문은 서버 SSOT — 폼이 없는 AS 대시보드와 같은 문구를 보장한다."""
     root = Path(__file__).resolve().parents[2]
