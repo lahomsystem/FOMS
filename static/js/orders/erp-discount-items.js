@@ -32,7 +32,11 @@
     var hidden = document.getElementById("erp-discount-amount");
     if (hidden) hidden.value = formatWon(sum);
     var sumEl = document.getElementById("erp-discount-sum");
-    if (sumEl) sumEl.textContent = sum > 0 ? "−" + formatWon(sum) : "0원";
+    if (sumEl) {
+      // 합계는 두 줄 이상일 때만 — 한 줄이면 그 줄 금액이 곧 합계다.
+      sumEl.textContent = "합계 −" + formatWon(sum);
+      sumEl.hidden = rows.length < 2 || sum <= 0;
+    }
     if (typeof window.erpCalculateRemaining === "function") window.erpCalculateRemaining();
   }
 
@@ -44,7 +48,7 @@
     label.type = "text";
     label.className = "erp-discount-row__label";
     label.maxLength = 64;
-    label.placeholder = "할인 이름 (예: 지인 할인)";
+    label.placeholder = "할인 이름";
     label.value = row.label || "";
     label.setAttribute("aria-label", "할인 이름");
     label.addEventListener("input", function () { row.label = label.value; });
