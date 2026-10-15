@@ -189,8 +189,12 @@ def test_mid_fills_later_days_but_keeps_short_values():
     out = w.refresh_mid(db_session, now=NOW, transport=tr, key="k")
     assert out == {"stored": 2, "base": "202610140600"}
     days = w.load_days(db_session, datetime.date(2026, 10, 1), datetime.date(2026, 10, 31))["days"]
-    assert days["2026-10-17"] == {"kind": "drizzle", "t_min": 12, "t_max": 21, "pop": 70, "src": "mid", "base": "202610140600",
-                                  "slots": ["sun", "sun", "drizzle", "drizzle"]}  # 시간 줄: 오전 글 0~11시 · 오후 글 12~23시
+    d17 = days["2026-10-17"]
+    assert {k: d17[k] for k in ("kind", "t_min", "t_max", "pop", "src", "base")} == {
+        "kind": "drizzle", "t_min": 12, "t_max": 21, "pop": 70, "src": "mid", "base": "202610140600"}
+    assert d17["slots"] == ["sun", "sun", "drizzle", "drizzle"]  # 시간 줄: 오전 글 0~11시 · 오후 글 12~23시
+    # 중기는 비 양이 없다 → 강도는 비우고 오전/오후 강수확률만
+    assert [(x["k"], x["lv"], x["pop"]) for x in d17["slot_detail"]] == [("sun", None, 10)] * 2 + [("drizzle", None, 70)] * 2
     assert days["2026-10-22"]["slots"] == ["flurry"] * 4  # 8일 뒤부터는 하루 글 하나
     assert days["2026-10-22"]["kind"] == "flurry" and (days["2026-10-22"]["t_min"], days["2026-10-22"]["t_max"]) == (-6, 2)
     assert days["2026-10-14"]["src"] == "short"
@@ -227,64 +231,32 @@ def _cells(cal):
     return {c["iso"]: c for week in cal["weeks"] for c in week if c["in_month"]}
 
 
-def test_calendar_cells_carry_weather_and_future_days_move():
+def test_calendar_cells_carry_weather():
     today = datetime.date(2026, 10, 14)
     weather = {"updated_at": "t", "days": {
         (today + datetime.timedelta(days=i)).isoformat(): {"kind": "sun", "t_min": 10 + i, "t_max": 20 + i} for i in range(-3, 11)}}
     from models import Order
     cal = ct._month_calendar(db_session.query(Order), today, today.replace(day=1), None, weather)
     cells = _cells(cal)
-    live = sorted(iso for iso, c in cells.items() if c["wx_live"])
-    # 오늘부터 예보 끝(10일 뒤)까지 전부 움직인다 — 이 달 안(14~24일)만 셀에 있다. 지난 날은 멈춤.
-    assert live == [(today + datetime.timedelta(days=i)).isoformat() for i in range(11)]
-    assert cells["2026-10-11"]["wx"] == "sun" and not cells["2026-10-11"]["wx_live"]  # 지난 날 = 멈춘 그림
+    assert cells["2026-10-11"]["wx"] == "sun"  # 지난 날 = 그날 마지막 예보
     assert (cells["2026-10-14"]["t_min_label"], cells["2026-10-14"]["t_max_label"]) == ("10°", "20°")
     assert cells["2026-10-31"]["wx"] == "" and cells["2026-10-31"]["t_max_label"] == ""  # 예보 밖 = 비움
     assert "날씨 맑음 10~20도" in cells["2026-10-14"]["aria"]
     assert cal["photo"]["month"] == 10 and "CC" in cal["photo"]["credit"]
-    assert cal["wx_used"] == ["sun"] and cal["wx_still"] == ["sun"]  # 11~13일(지난 날) = 멈춘 맑음
+    assert cal["wx_used"] == ["sun"] and cal["wx_legend"] == [["sun", "맑음"]]  # 범례 = 이 달에 나오는 날씨만
 
 
-def test_calendar_defs_only_ship_kinds_in_use(app):
-    """그 달에 없는 날씨의 그림 정의는 보내지 않는다 — 대시보드 전송 바이트 예산(perf-gate)."""
-    from flask import render_template
-    from models import Order
-    ctx = app.test_request_context("/erp/dashboard")
-    ctx.push()
-    today = datetime.date(2026, 10, 14)
-    weather = {"days": {"2026-10-14": {"kind": "heavy"}, "2026-10-10": {"kind": "sun"}}}  # 10일 = 지난 날(멈춤)
-    cal = ct._month_calendar(db_session.query(Order), today, today.replace(day=1), None, weather)
-    assert cal["wx_used"] == ["heavy", "sun"] and cal["wx_still"] == ["sun"]
-    html = render_template("orders/partials/dashboard_mobile_tower_calendar.html", cal=cal, calendar_colors_editable=False)
-    assert 'id="fwxStill-sun"' in html and 'id="fwxStill-heavy"' not in html  # 장대비는 움직이는 칸에만
-    assert 'id="fwxHvDrop"' in html and 'id="fwxSnFront"' not in html and 'id="fwxFlake"' not in html
-    empty = ct._month_calendar(db_session.query(Order), today, today.replace(day=1), None, {"days": {}})
-    assert 'foms-wx-defs' not in render_template(
-        "orders/partials/dashboard_mobile_tower_calendar.html", cal=empty, calendar_colors_editable=False)
-    ctx.pop()
 
-
-def test_band_neighbours_blend_within_the_week_only():
-    today = datetime.date(2026, 10, 14)
-    weather = {"days": {"2026-10-03": {"kind": "heavy"}, "2026-10-04": {"kind": "snow"}, "2026-10-05": {"kind": "sun"}}}
-    from models import Order
-    cells = _cells(ct._month_calendar(db_session.query(Order), today, today.replace(day=1), None, weather))
-    sat, sun = cells["2026-10-03"], cells["2026-10-04"]           # 10/3 토요일 = 주 끝, 10/4 일요일 = 다음 주 시작
-    assert sat["wx_next"] == "heavy" and sat["band_end"]           # 띠 끝은 제 색
-    assert sun["wx_prev"] == "snow" and sun["band_start"] and sun["wx_next"] == "sun"
-    assert cells["2026-10-01"]["band_start"]                       # 10/1 목요일 = 첫 주 띠 시작
-    assert cells["2026-10-02"]["wx_prev"] == "none"                # 날씨 없는 이웃
-
-
-def test_today_min_keeps_the_lower_morning_value():
-    """오후 발표에는 오늘 TMN 이 없다 — 아침에 받은 더 낮은 최저기온을 지킨다."""
+def test_today_keeps_lower_min_and_higher_max():
+    """오후 발표에는 오늘 TMN·TMX 가 없다 — 앞서 받은 더 낮은 최저·더 높은 최고를 지킨다."""
     db_session.add(SystemSetting(setting_key=w.WEATHER_KEY, setting_value={"updated_at": "x", "days": {
         "2026-10-14": {"kind": "sun", "t_min": 9, "t_max": 20, "src": "short"}}}))
     db_session.commit()
     items = _hours("20261014", "TMP", [(15, "19"), (18, "15")]) + _hours("20261015", "TMP", [(h, "8" if h == 6 else "12") for h in range(24)])
     w.refresh_short(db_session, now=NOW, transport=_Transport({"getVilageFcst": _Resp(200, _ok(items))}), key="k")
     days = w.load_days(db_session, datetime.date(2026, 10, 1), datetime.date(2026, 10, 31))["days"]
-    assert days["2026-10-14"]["t_min"] == 9 and days["2026-10-14"]["t_max"] == 19
+    # 최저는 더 낮은 아침 값, 최고는 더 높은 앞선 값을 지킨다(저녁 발표엔 낮 최고가 없다 — 2026-10-15 '14°/13°' 사고)
+    assert days["2026-10-14"]["t_min"] == 9 and days["2026-10-14"]["t_max"] == 20
     assert days["2026-10-15"]["t_min"] == 8
 
 
@@ -318,19 +290,6 @@ def test_partial_day_drops_legacy_short_value():
     w.refresh_short(db_session, now=NOW, transport=_Transport({"getVilageFcst": _Resp(200, _ok(items))}), key="k")
     assert "2026-10-17" not in w.load_days(db_session, datetime.date(2026, 10, 1), datetime.date(2026, 10, 31))["days"]
 
-
-def test_join_flags_only_between_same_weather():
-    """같은 날씨가 이어지는 쪽만 그림이 번진다 — 다른 날씨 옆은 제 칸 안에서 끝난다."""
-    today = datetime.date(2026, 10, 14)
-    weather = {"days": {"2026-10-12": {"kind": "sun"}, "2026-10-13": {"kind": "sun"}, "2026-10-14": {"kind": "cloud"},
-                        "2026-10-17": {"kind": "sun"}, "2026-10-18": {"kind": "sun"}}}
-    from models import Order
-    cells = _cells(ct._month_calendar(db_session.query(Order), today, today.replace(day=1), None, weather))
-    assert (cells["2026-10-12"]["wx_join_l"], cells["2026-10-12"]["wx_join_r"]) == (False, True)
-    assert (cells["2026-10-13"]["wx_join_l"], cells["2026-10-13"]["wx_join_r"]) == (True, False)
-    assert not cells["2026-10-14"]["wx_join_l"] and not cells["2026-10-14"]["wx_join_r"]
-    assert not cells["2026-10-17"]["wx_join_r"] and not cells["2026-10-18"]["wx_join_l"]  # 토→일은 다른 주(띠가 끊긴다)
-    assert not cells["2026-10-15"]["wx_join_l"]  # 날씨 없는 날
 
 
 # --------------------------------------------------------------------------- #
@@ -371,3 +330,69 @@ def test_calendar_cells_carry_slots_only_when_well_formed():
     assert cells["2026-10-14"]["wx_slots"] == ["sun", "cloud", "cloud", "drizzle"]
     assert cells["2026-10-15"]["wx_slots"] is None and cells["2026-10-16"]["wx_slots"] is None
     assert cells["2026-10-20"]["wx_slots"] is None
+
+
+# --------------------------------------------------------------------------- #
+# 시간 줄 v2 — 칸마다 강도·강수확률·바람 (기상청 강수강도)
+# --------------------------------------------------------------------------- #
+
+def _slot_rows(date, pty, pcp, sno="적설없음", sky="4", pop="60", wsd="2.0", hours=range(24)):
+    rows = []
+    for h in hours:
+        rows += _hours(date, "TMP", [(h, "10")]) + _hours(date, "PTY", [(h, pty)]) + _hours(date, "PCP", [(h, pcp)])
+        rows += _hours(date, "SNO", [(h, sno)]) + _hours(date, "SKY", [(h, sky)]) + _hours(date, "POP", [(h, pop)])
+        rows += _hours(date, "WSD", [(h, wsd)])
+    return rows
+
+
+@pytest.mark.parametrize("pcp, kind, lv", [
+    ("1mm 미만", "drizzle", 0), ("2.0mm", "drizzle", 1), ("8.0mm", "rain", 2), ("30.0~50.0mm", "heavy", 3),
+])
+def test_slot_detail_rain_levels_follow_kma_intensity(pcp, kind, lv):
+    """비 강도 = 기상청 강수강도(이슬비 <1 · 약한 비 1~3 · 보통 비 3~15 · 강한 비 ≥15 mm/h)."""
+    det = w.classify_slot_detail(_slot_rows("20261015", "1", pcp))
+    assert all(d["k"] == kind and d["lv"] == lv and d["pop"] == 60 and d["wind"] == 2.0 for d in det)
+
+
+@pytest.mark.parametrize("sno, kind, lv", [("1cm 미만", "flurry", 0), ("2.0cm", "snow", 1), ("5.0cm 이상", "snow", 2)])
+def test_slot_detail_snow_levels(sno, kind, lv):
+    det = w.classify_slot_detail(_slot_rows("20261215", "3", "강수없음", sno=sno))
+    assert {(d["k"], d["lv"]) for d in det} == {(kind, lv)}
+
+
+@pytest.mark.parametrize("sky, kind", [("1", "sun"), ("3", "partly"), ("4", "cloud")])
+def test_slot_detail_sky_three_steps(sky, kind):
+    det = w.classify_slot_detail(_slot_rows("20261015", "0", "강수없음", sky=sky))
+    assert {d["k"] for d in det} == {kind}
+
+
+def test_three_hourly_day_is_a_full_day_and_rate_is_per_hour():
+    """3~4일 뒤 예보는 3시간 간격(하루 8칸) — 하루치로 받고, 3시간 강수량은 시간당으로 나눠 본다(2026-10-15 18일 사고)."""
+    rows = _slot_rows("20261018", "1", "6.0mm", hours=range(0, 24, 3))
+    assert w._covers_day(rows)
+    assert {(d["k"], d["lv"]) for d in w.classify_slot_detail(rows)} == {("drizzle", 1)}  # 6mm/3h = 2mm/h = 약한 비
+    w.refresh_short(db_session, now=NOW, transport=_Transport({"getVilageFcst": _Resp(200, _ok(rows))}), key="k")
+    d18 = w.load_days(db_session, datetime.date(2026, 10, 1), datetime.date(2026, 10, 31))["days"]["2026-10-18"]
+    assert d18["src"] == "short" and d18["full"] is True
+    # 중기예보가 와도 하루치 단기 값을 덮지 않는다
+    tr = _Transport({"getMidLandFcst": _Resp(200, _ok([{"wf4Am": "맑음", "wf4Pm": "맑음"}])), "getMidTa": _Resp(200, _ok([{}]))})
+    w.refresh_mid(db_session, now=NOW, transport=tr, key="k")
+    assert w.load_days(db_session, datetime.date(2026, 10, 1), datetime.date(2026, 10, 31))["days"]["2026-10-18"]["src"] == "short"
+
+
+def test_day_kind_is_worst_slot_and_today_keeps_earlier_slots():
+    """하루 대표 날씨 = 6시간 칸 중 가장 궂은 것. 오늘 늦은 발표는 지난 칸을 앞서 받은 값으로 채운 뒤 다시 정한다."""
+    morning = _slot_rows("20261014", "1", "8.0mm", hours=range(6, 12)) + _slot_rows("20261014", "0", "강수없음", sky="1", hours=range(12, 24))
+    w.refresh_short(db_session, now=NOW, transport=_Transport({"getVilageFcst": _Resp(200, _ok(morning))}), key="k")
+    day = w.load_days(db_session, datetime.date(2026, 10, 1), datetime.date(2026, 10, 31))["days"]["2026-10-14"]
+    assert day["kind"] == "rain" and [d and d["k"] for d in day["slot_detail"]] == [None, "rain", "sun", "sun"]
+    evening = _slot_rows("20261014", "0", "강수없음", sky="1", hours=range(18, 24))
+    w.refresh_short(db_session, now=NOW.replace(hour=17), transport=_Transport({"getVilageFcst": _Resp(200, _ok(evening))}), key="k")
+    day = w.load_days(db_session, datetime.date(2026, 10, 1), datetime.date(2026, 10, 31))["days"]["2026-10-14"]
+    assert day["kind"] == "rain"  # 저녁 몇 시간이 맑다고 하루가 '맑음'이 되지 않는다
+    assert [d and d["k"] for d in day["slot_detail"]] == [None, "rain", "sun", "sun"]
+
+
+def test_mid_text_partly_vs_cloud():
+    assert w.classify_mid_text("구름많음") == "partly" and w.classify_mid_text("흐림") == "cloud"
+    assert w.classify_mid_text("구름많고 비") == "drizzle" and w.classify_mid_text("흐리고 눈") == "flurry"

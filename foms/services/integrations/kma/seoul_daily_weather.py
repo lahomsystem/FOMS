@@ -31,13 +31,16 @@ import copy
 import datetime
 import logging
 import os
-import re
 from typing import Any, Callable, Iterable, Optional
 
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
 from foms.services.datetime_kst import now_kst
+from foms.services.integrations.kma.weather_classify import (  # 판정은 옆 모듈(500줄 래칫) — 예전 자리로도 부른다
+    KINDS, _int_or_none, classify_mid_text, classify_short, classify_slot_detail, classify_slots, parse_pcp_mm,
+    worst_kind,
+)
 from models import SystemSetting
 
 __all__ = [
@@ -47,6 +50,8 @@ __all__ = [
     "parse_pcp_mm",
     "classify_short",
     "classify_slots",
+    "classify_slot_detail",
+    "worst_kind",
     "classify_mid_text",
     "short_base_time",
     "mid_tm_fc",
@@ -62,7 +67,6 @@ WEATHER_KEY = "seoul_daily_weather"
 #: 기상청 API허브 인증키(22자). 로그·응답·화면에 찍지 않는다.
 KEY_ENV = "KMA_APIHUB_KEY"
 BASE_URL = "https://apihub.kma.go.kr/api/typ02/openApi"
-KINDS = ("sun", "cloud", "drizzle", "heavy", "flurry", "snow")
 
 #: 서울 단기예보 격자(종로구 기준).
 SHORT_NX, SHORT_NY = 60, 127
@@ -70,22 +74,13 @@ SHORT_NX, SHORT_NY = 60, 127
 MID_LAND_REG = "11B00000"
 MID_TA_REG = "11B10101"
 
-#: 장대비 기준 — 하루 강수량 합(mm) 또는 한 시간 강수량(mm) 중 하나라도 넘으면 장대비.
-HEAVY_DAY_MM = 20.0
-HEAVY_HOUR_MM = 7.0
-#: 함박눈 기준 — 하루 신적설 합(cm) 또는 한 시간 신적설(cm) 중 하나라도 넘으면 함박눈, 아니면 부슬눈.
-HEAVY_SNOW_DAY_CM = 3.0
-HEAVY_SNOW_HOUR_CM = 1.0
-#: 낮(09~18시) 중 구름많음·흐림 시간이 이 비율 이상이면 구름.
-CLOUD_DAY_RATIO = 0.5
-DAYTIME_HOURS = range(9, 19)
-#: 시간 줄 한 칸 = 6시간(하루 4칸: 0~5·6~11·12~17·18~23시).
-SLOT_HOURS = 6
-SLOTS_PER_DAY = 24 // SLOT_HOURS
 
 #: 미래 날짜를 단기예보로 판정하려면 시간별 기온이 이만큼은 있어야 한다. 오후 발표의 4일 뒤는 자정 한두 시간뿐이라
 #: 그 조각으로 '맑음 18°/18°' 같은 값이 나오고 중기예보(그날 '흐리고 비')를 막았다(2026-10-14 실측) → 중기에 맡긴다.
 SHORT_MIN_HOURS = 12
+#: 3~4일 뒤 단기예보는 3시간 간격(하루 8칸)이다 — 시간 수가 12 미만이어도 0~21시를 고루 덮으면 하루치로 본다
+#: (2026-10-15 실측: 18일이 '조각'으로 버려져 비 양을 모르는 중기예보로 그려졌다).
+SPARSE_STEP_HOURS = 3
 
 #: 지난 날 보관 일수(달력은 지난달·다음달까지 넘겨 본다).
 RETAIN_PAST_DAYS = 62
@@ -97,127 +92,8 @@ SHORT_READY_MINUTES = 10
 MID_BASE_HOURS = (6, 18)
 MID_READY_MINUTES = 30
 
-_SEVERITY = {"sun": 0, "cloud": 1, "drizzle": 2, "heavy": 3, "flurry": 4, "snow": 5}
-_NUM = re.compile(r"(-?\d+(?:\.\d+)?)")
 
 Transport = Callable[..., Any]
-
-
-# ── 판정 (순수 함수) ─────────────────────────────────────────────
-
-
-def parse_pcp_mm(text: Any) -> float:
-    """단기예보 ``PCP``(1시간 강수량) 글 → mm. "강수없음"=0, "1mm 미만"=0.5, "30.0~50.0mm"=30, "50.0mm 이상"=50."""
-    s = str(text or "").strip()
-    if not s or "없음" in s:
-        return 0.0
-    if "미만" in s:
-        return 0.5
-    m = _NUM.search(s)
-    return float(m.group(1)) if m else 0.0
-
-
-def parse_sno_cm(text: Any) -> float:
-    """단기예보 ``SNO``(1시간 신적설) 글 → cm. "적설없음"=0, "1cm 미만"=0.5, "1.0cm"=1, "5.0cm 이상"=5."""
-    return parse_pcp_mm(text)  # 글 모양이 강수량과 같다(없음·미만·범위·이상)
-
-
-def _int_or_none(text: Any) -> Optional[int]:
-    m = _NUM.search(str(text or ""))
-    return int(round(float(m.group(1)))) if m else None
-
-
-def classify_short(items: Iterable[dict[str, Any]], *, sky_hours: Iterable[int] = DAYTIME_HOURS) -> dict[str, Any]:
-    """하루치 단기예보 항목(``category``·``fcstTime``·``fcstValue``) → ``{"kind","t_min","t_max","pop"}``.
-
-    판정 순서(위가 먼저): 함박눈(신적설 하루 ≥ 3cm 또는 한 시간 ≥ 1cm) → 부슬눈·진눈깨비 → 장대비(하루 합 ≥ 20mm 또는 한 시간 ≥ 7mm) → 부슬비 →
-    구름(낮 시간 절반 이상 구름많음·흐림) → 맑음. ``sky_hours`` 는 구름 판정에 쓰는 시각(시간 줄 칸은 그 칸 전부).
-    """
-    sky_hours = set(sky_hours)
-    pty: list[int] = []
-    pcp: list[float] = []
-    sno: list[float] = []
-    sky_day: list[int] = []
-    tmp: list[int] = []
-    tmx: Optional[int] = None
-    tmn: Optional[int] = None
-    pop: list[int] = []
-    for it in items:
-        cat = str(it.get("category") or "")
-        val = it.get("fcstValue")
-        hour = _int_or_none(str(it.get("fcstTime") or "")[:2])
-        if cat == "PTY":
-            pty.append(_int_or_none(val) or 0)
-        elif cat == "PCP":
-            pcp.append(parse_pcp_mm(val))
-        elif cat == "SNO":
-            sno.append(parse_sno_cm(val))
-        elif cat == "SKY" and hour in sky_hours:
-            sky_day.append(_int_or_none(val) or 1)
-        elif cat == "TMP":
-            t = _int_or_none(val)
-            if t is not None:
-                tmp.append(t)
-        elif cat == "TMX":
-            tmx = _int_or_none(val)
-        elif cat == "TMN":
-            tmn = _int_or_none(val)
-        elif cat == "POP":
-            p = _int_or_none(val)
-            if p is not None:
-                pop.append(p)
-
-    if any(p == 3 for p in pty) and (sum(sno) >= HEAVY_SNOW_DAY_CM or max(sno or [0.0]) >= HEAVY_SNOW_HOUR_CM):
-        kind = "snow"  # 함박눈
-    elif any(p in (2, 3) for p in pty):
-        kind = "flurry"  # 부슬눈 · 진눈깨비(비/눈)
-    elif any(p in (1, 4) for p in pty):
-        kind = "heavy" if (sum(pcp) >= HEAVY_DAY_MM or max(pcp or [0.0]) >= HEAVY_HOUR_MM) else "drizzle"
-    elif sky_day and sum(1 for s in sky_day if s >= 3) / len(sky_day) >= CLOUD_DAY_RATIO:
-        kind = "cloud"
-    else:
-        kind = "sun"
-    # 일 최고(TMX)·최저(TMN)는 발표 시각에 따라 빠지는 날이 있다(오늘 오후 발표엔 오늘 TMN 이 없다) → 시간별 기온으로 채운다.
-    t_max = tmx if tmx is not None else (max(tmp) if tmp else None)
-    t_min = tmn if tmn is not None else (min(tmp) if tmp else None)
-    return {"kind": kind, "t_min": t_min, "t_max": t_max, "pop": max(pop) if pop else None}
-
-
-def classify_slots(items: Iterable[dict[str, Any]]) -> list[Optional[str]]:
-    """하루치 단기예보 항목 → 6시간 칸 4개의 날씨 종류. 기온(TMP)이 하나도 없는 칸(이미 지난 시간)은 ``None``."""
-    groups: list[list[dict[str, Any]]] = [[] for _ in range(SLOTS_PER_DAY)]
-    for it in items:
-        hour = _int_or_none(str(it.get("fcstTime") or "")[:2])
-        if hour is not None and 0 <= hour < 24:
-            groups[hour // SLOT_HOURS].append(it)
-    out: list[Optional[str]] = []
-    for i, rows in enumerate(groups):
-        if not any(r.get("category") == "TMP" for r in rows):
-            out.append(None)
-            continue
-        out.append(classify_short(rows, sky_hours=range(i * SLOT_HOURS, (i + 1) * SLOT_HOURS))["kind"])
-    return out
-
-
-def classify_mid_text(*texts: Any) -> str:
-    """중기 육상예보 글(오전·오후) → 날씨 종류. 더 궂은 쪽을 쓴다.
-
-    중기예보에는 비·눈의 양이 없어서 비는 부슬비, 눈은 부슬눈 그림으로 둔다(장대비·함박눈을 지어내지 않는다).
-    """
-    worst = "sun"
-    for t in texts:
-        s = str(t or "")
-        if "눈" in s:
-            kind = "flurry"
-        elif "비" in s or "소나기" in s:
-            kind = "drizzle"
-        elif "흐림" in s or "구름" in s:
-            kind = "cloud"
-        else:
-            kind = "sun"
-        if _SEVERITY[kind] > _SEVERITY[worst]:
-            worst = kind
-    return worst
 
 
 # ── 발표 시각 ───────────────────────────────────────────────────
@@ -279,6 +155,15 @@ def _key(key: Optional[str]) -> str:
     return (key if key is not None else os.environ.get(KEY_ENV, "")).strip()
 
 
+def _covers_day(rows: Iterable[dict[str, Any]]) -> bool:
+    """하루치 단기예보인가 — 시간별(12칸 이상) 또는 3시간 간격으로 0~21시를 고루 덮는다."""
+    hours = sorted({h for h in (_int_or_none(str(r.get("fcstTime") or "")[:2]) for r in rows if r.get("category") == "TMP") if h is not None})
+    if len(hours) >= SHORT_MIN_HOURS:
+        return True
+    gaps = [b - a for a, b in zip(hours, hours[1:])]
+    return bool(hours) and hours[0] <= SPARSE_STEP_HOURS and hours[-1] >= 24 - SPARSE_STEP_HOURS and max(gaps or [99]) <= SPARSE_STEP_HOURS
+
+
 def refresh_short(session: Session, *, now: Optional[datetime.datetime] = None,
                   transport: Optional[Transport] = None, key: Optional[str] = None) -> dict[str, Any]:
     """단기예보(오늘~모레·글피)를 받아 날짜별로 줄여 저장한다. 오늘 이전 날짜는 덮어쓰지 않는다."""
@@ -302,11 +187,16 @@ def refresh_short(session: Session, *, now: Optional[datetime.datetime] = None,
     partial = set()
     for iso, rows in by_date.items():
         hours = len({str(r.get("fcstTime") or "") for r in rows if r.get("category") == "TMP"})
-        if iso > today_iso and hours < SHORT_MIN_HOURS:
+        full = _covers_day(rows)
+        if iso > today_iso and not full:
             partial.add(iso)  # 하루 일부만 있는 끝 날짜 — 중기예보가 채운다
             continue
-        days[iso] = dict(classify_short(rows), src="short", base=f"{base_date}{base_time}", hours=hours,
-                         slots=classify_slots(rows))
+        detail = classify_slot_detail(rows)
+        # 하루 대표 날씨 = 6시간 칸 중 가장 궂은 것(기상청 강수강도 기준). 오늘은 지난 칸을 합친 뒤 다시 정한다(_merge).
+        day = classify_short(rows)
+        day["kind"] = worst_kind((d["k"] for d in detail if d), day["kind"])
+        days[iso] = dict(day, src="short", base=f"{base_date}{base_time}", hours=hours, full=full,
+                         slots=[d["k"] if d else None for d in detail], slot_detail=detail)
     n = _merge(session, days, today=now.date(), keep_short=False, drop_partial=partial)
     return {"stored": n, "base": f"{base_date}{base_time}"}
 
@@ -337,9 +227,14 @@ def refresh_mid(session: Session, *, now: Optional[datetime.datetime] = None,
         # 시간 줄 칸: 오전 글 = 0~11시, 오후 글 = 12~23시(8일 뒤부터는 하루 글 하나)
         am = classify_mid_text(texts[0] or texts[2] or texts[1])
         pm = classify_mid_text(texts[1] or texts[2] or texts[0])
+        pop_am = _int_or_none(row.get(f"rnSt{n}Am") if row.get(f"rnSt{n}Am") is not None else row.get(f"rnSt{n}"))
+        pop_pm = _int_or_none(row.get(f"rnSt{n}Pm") if row.get(f"rnSt{n}Pm") is not None else row.get(f"rnSt{n}"))
+        # 중기예보는 비·눈 양이 없다 → 강도는 비우고(그림은 종류 기본값), 오전/오후 강수확률만 싣는다
+        detail = [{"k": am, "lv": None, "pop": pop_am, "wind": None}] * 2 + [{"k": pm, "lv": None, "pop": pop_pm, "wind": None}] * 2
         days[(base_day + datetime.timedelta(days=n)).isoformat()] = {
-            "kind": classify_mid_text(*texts),
+            "kind": worst_kind([am, pm], classify_mid_text(*texts)),
             "slots": [am, am, pm, pm],
+            "slot_detail": [dict(d) for d in detail],
             "t_min": _int_or_none(ta_row.get(f"taMin{n}")),
             "t_max": _int_or_none(ta_row.get(f"taMax{n}")),
             "pop": max(pops) if pops else None,
@@ -363,23 +258,34 @@ def _merge(session: Session, days: dict[str, dict[str, Any]], *, today: datetime
         if iso < today_iso or val.get("kind") not in KINDS:
             continue
         old = stored.get(iso)
-        if keep_short and isinstance(old, dict) and old.get("src") == "short" and int(old.get("hours") or 0) >= SHORT_MIN_HOURS:
+        if keep_short and isinstance(old, dict) and old.get("src") == "short" and (old.get("full") or int(old.get("hours") or 0) >= SHORT_MIN_HOURS):
             continue  # 하루치가 다 있는 단기 값이 더 정확하다(시간 수 없는 옛 값은 중기로 덮는다)
         if iso == today_iso and isinstance(old, dict) and old.get("t_min") is not None:
             # 오후 발표엔 오늘 TMN(새벽 최저)이 없어 남은 시간 기온으로 채운다 → 아침에 받아 둔 더 낮은 값을 지킨다.
             new_min = val.get("t_min")
             val = dict(val, t_min=old["t_min"] if new_min is None else min(old["t_min"], new_min))
+        if iso == today_iso and isinstance(old, dict) and old.get("t_max") is not None:
+            # 저녁 발표엔 낮 최고(TMX)가 없어 남은 시간 기온으로 채운다 → 더 높은 값을 지킨다
+            # (2026-10-15 실측: 14일이 '14°/13°'로 저장됐다, 실제 9~17°).
+            new_max = val.get("t_max")
+            val = dict(val, t_max=old["t_max"] if new_max is None else max(old["t_max"], new_max))
         if iso == today_iso and isinstance(old, dict) and isinstance(val.get("slots"), list):
             # 오늘 지난 칸은 새 발표에 없다(None) → 앞서 받아 둔 그 칸 값을 지킨다
             prev = old.get("slots") if isinstance(old.get("slots"), list) else []
             val = dict(val, slots=[s if s is not None else (prev[i] if i < len(prev) else None)
                                    for i, s in enumerate(val["slots"])])
+            if isinstance(val.get("slot_detail"), list):
+                prev_d = old.get("slot_detail") if isinstance(old.get("slot_detail"), list) else []
+                merged = [d if d else (prev_d[i] if i < len(prev_d) and prev_d[i] else None) for i, d in enumerate(val["slot_detail"])]
+                # 하루 대표 날씨도 합친 칸으로 다시 — 늦은 발표의 저녁 몇 시간만으로 '맑음'이 되지 않게
+                kinds = [d["k"] if isinstance(d, dict) else None for d in merged] + [k for k in val["slots"] if k]
+                val = dict(val, slot_detail=merged, kind=worst_kind(kinds, val["kind"]))
         stored[iso] = val
         written += 1
     for iso in drop_partial:
         old = stored.get(iso)
         # 시간 수를 모르는(이 규칙 전) 단기 값은 같은 조각으로 판정됐을 수 있다 — 지우고 다음 발표·중기에 맡긴다
-        if isinstance(old, dict) and old.get("src") == "short" and int(old.get("hours") or 0) < SHORT_MIN_HOURS:
+        if isinstance(old, dict) and old.get("src") == "short" and not old.get("full") and int(old.get("hours") or 0) < SHORT_MIN_HOURS:
             del stored[iso]
     stored = {iso: v for iso, v in stored.items() if iso >= oldest}
     value = {"updated_at": now_kst().replace(microsecond=0).isoformat(), "days": stored}
