@@ -38,7 +38,7 @@ from sqlalchemy.orm.attributes import flag_modified
 
 from foms.services.datetime_kst import now_kst
 from foms.services.integrations.kma.weather_classify import (  # 판정은 옆 모듈(500줄 래칫) — 예전 자리로도 부른다
-    KINDS, _int_or_none, classify_mid_text, classify_short, classify_slot_detail, classify_slots, parse_pcp_mm,
+    KINDS, _int_or_none, classify_mid_text, classify_short, classify_slot_detail, classify_slots, day_kind, parse_pcp_mm,
     worst_kind,
 )
 from models import SystemSetting
@@ -194,7 +194,7 @@ def refresh_short(session: Session, *, now: Optional[datetime.datetime] = None,
         detail = classify_slot_detail(rows)
         # 하루 대표 날씨 = 6시간 칸 중 가장 궂은 것(기상청 강수강도 기준). 오늘은 지난 칸을 합친 뒤 다시 정한다(_merge).
         day = classify_short(rows)
-        day["kind"] = worst_kind((d["k"] for d in detail if d), day["kind"])
+        day["kind"] = day_kind(detail, default=day["kind"]) if any(detail) else day["kind"]
         days[iso] = dict(day, src="short", base=f"{base_date}{base_time}", hours=hours, full=full,
                          slots=[d["k"] if d else None for d in detail], slot_detail=detail)
     n = _merge(session, days, today=now.date(), keep_short=False, drop_partial=partial)
@@ -278,8 +278,7 @@ def _merge(session: Session, days: dict[str, dict[str, Any]], *, today: datetime
                 prev_d = old.get("slot_detail") if isinstance(old.get("slot_detail"), list) else []
                 merged = [d if d else (prev_d[i] if i < len(prev_d) and prev_d[i] else None) for i, d in enumerate(val["slot_detail"])]
                 # 하루 대표 날씨도 합친 칸으로 다시 — 늦은 발표의 저녁 몇 시간만으로 '맑음'이 되지 않게
-                kinds = [d["k"] if isinstance(d, dict) else None for d in merged] + [k for k in val["slots"] if k]
-                val = dict(val, slot_detail=merged, kind=worst_kind(kinds, val["kind"]))
+                val = dict(val, slot_detail=merged, kind=day_kind(merged, val["slots"], val["kind"]))
         stored[iso] = val
         written += 1
     for iso in drop_partial:
