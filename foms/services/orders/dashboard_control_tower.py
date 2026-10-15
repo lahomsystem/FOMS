@@ -377,10 +377,9 @@ def _month_calendar(
 
     빨간 점(출고 전 시공)은 오늘·내일 칸에만 — 먼 날짜의 출고 전은 정상 상태다.
     colors: 시공 금액별 기준(`calendar_amount_colors`) — 출고가 알약 색. None 이면 기본값.
-    weather: `seoul_daily_weather.load_days` 결과. 칸마다 날씨 종류(wx)·최고기온·움직임 여부(wx_live).
-      자료 없는 날은 wx="" (띠는 회백색). 움직임은 오늘부터 예보 끝(10일 뒤)까지 날씨 있는 칸 전부, 지난 날은 멈춤
-      (사용자 2026-10-14. 실측 CPU 6배 느리게: 11칸 53fps · 지난 날 포함 24칸 29.5fps → 지난 날은 멈춘다).
-      wx_slots 는 '시간 줄' 보기용 6시간 칸 날씨(그림은 calendar_weather_timeline 이 화면 그릴 때 만든다).
+    weather: `seoul_daily_weather.load_days` 결과. 칸마다 하루 날씨 종류(wx)·최고/최저 기온과
+      6시간 칸 자료(wx_slots 종류 · wx_detail 종류·강도·강수확률·풍속). 자료 없는 날은 wx="" (띠는 회백색).
+      그림(시간 줄)은 calendar_weather_timeline 이 화면 그릴 때 만든다 — 이 페이로드는 JSON 캐시라 자료만 싣는다.
     """
     wx_days = (weather or {}).get("days") or {}
     colors = colors if colors is not None else dict(DEFAULT_COLORS)
@@ -421,6 +420,7 @@ def _month_calendar(
             t_max = wx_day.get("t_max") if isinstance(wx_day, dict) else None
             t_min = wx_day.get("t_min") if isinstance(wx_day, dict) else None
             slots = wx_day.get("slots") if isinstance(wx_day, dict) else None
+            detail = wx_day.get("slot_detail") if isinstance(wx_day, dict) else None
             if wx:
                 aria += f", 날씨 {WEATHER_LABELS.get(wx, '')}"
                 if t_min is not None and t_max is not None:
@@ -444,14 +444,14 @@ def _month_calendar(
                 "wx": wx,
                 "t_max_label": f"{t_max}°" if wx and t_max is not None else "",
                 "t_min_label": f"{t_min}°" if wx and t_min is not None else "",
-                "wx_live": bool(wx) and today <= day,
                 # 시간 줄 보기(사람마다 고름)의 6시간 칸 4개 — 없으면 None(그날 날씨로 채운다)
                 "wx_slots": list(slots) if wx and isinstance(slots, list) and len(slots) == 4 else None,
+                # 시간 줄 v2: 6시간 칸마다 종류·강도·강수확률·풍속(없으면 None — 그날 날씨로 채운다)
+                "wx_detail": list(detail) if wx and isinstance(detail, list) and len(detail) == 4 else None,
                 "unshipped": unshipped,
                 "aria": aria,
             })
             day += datetime.timedelta(days=1)
-        _link_weather_neighbours(week)
         weeks.append(week)
 
     month_cells = [c for week in weeks for c in week if c["in_month"] and c["wx"]]
@@ -470,35 +470,28 @@ def _month_calendar(
         "amount_label": _man_label(month_amount) or "0원",
         "colors": colors,
         "photo": month_photo(first.month),
-        # 그림 정의는 이 달에 쓰는 날씨만 싣는다(대시보드 전송 바이트 예산, perf-gate 2026-10-14).
+        # 날씨가 하나라도 있는 달만 그림 정의(defs)를 싣는다(대시보드 전송 바이트 예산, perf-gate)
         "wx_used": sorted({c["wx"] for c in month_cells}),
-        "wx_still": sorted({c["wx"] for c in month_cells if not c["wx_live"]}),
+        # 범례: 이 달 띠에 실제로 그려지는 날씨만(6시간 칸 종류 포함), 순서는 맑음 → 함박눈
+        "wx_legend": _weather_legend(month_cells),
         "yellow_label": _man_label((colors.get("yellow_from") or 0) * 10000),
         "pink_label": _man_label((colors.get("pink_from") or 0) * 10000),
     }
 
 
-WEATHER_LABELS = {"sun": "맑음", "cloud": "구름", "drizzle": "부슬비", "heavy": "장대비", "flurry": "부슬눈", "snow": "함박눈"}
+WEATHER_LABELS = {"sun": "맑음", "partly": "구름조금", "cloud": "흐림", "drizzle": "부슬비", "rain": "비",
+                  "heavy": "장대비", "flurry": "부슬눈", "snow": "함박눈"}
 
 
-def _link_weather_neighbours(week: list[dict[str, Any]]) -> None:
-    """같은 주 띠 안에서 옆 날짜 날씨(wx_prev·wx_next)를 붙인다 — 칸 경계 색을 이음새 없이 섞는 데 쓴다.
-
-    띠 끝(이 달 밖 칸과 닿는 쪽)은 제 날씨를 쓴다. 날씨 없는 날은 "none".
-    """
-    for i, cell in enumerate(week):
-        if not cell["in_month"]:
-            continue
-        own = cell["wx"] or "none"
-        left = week[i - 1] if i > 0 and week[i - 1]["in_month"] else None
-        right = week[i + 1] if i < 6 and week[i + 1]["in_month"] else None
-        cell["wx_prev"] = (left["wx"] or "none") if left else own
-        cell["wx_next"] = (right["wx"] or "none") if right else own
-        cell["band_start"] = left is None
-        cell["band_end"] = right is None
-        # 같은 날씨가 이어지는 쪽만 그림이 옆 칸으로 번진다(사용자 2026-10-14: 다른 날 침범 금지, 연속은 이어서)
-        cell["wx_join_l"] = bool(cell["wx"]) and left is not None and left["wx"] == cell["wx"]
-        cell["wx_join_r"] = bool(cell["wx"]) and right is not None and right["wx"] == cell["wx"]
+def _weather_legend(cells: list[dict[str, Any]]) -> list[list[str]]:
+    used: set[str] = set()
+    for c in cells:
+        used.add(c["wx"])
+        for s in (c.get("wx_detail") or []):
+            if isinstance(s, dict) and s.get("k"):
+                used.add(s["k"])
+        used.update(k for k in (c.get("wx_slots") or []) if k)
+    return [[k, label] for k, label in WEATHER_LABELS.items() if k in used]
 
 
 def _weather_window(db: Any, first: datetime.date) -> dict[str, Any]:
