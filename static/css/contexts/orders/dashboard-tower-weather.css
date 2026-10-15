@@ -1,14 +1,16 @@
-/* 모바일 홈 달력 — 사진 머리띠 + 주마다 입체 날씨 띠 (목업 M3v2).
+/* 모바일 홈 달력 — 사진 머리띠 + 주마다 날씨 '시간 줄' 띠 (2026-10-15 v2, 유일한 보기).
    근거: docs/specs/2026-10-14-mobile-calendar-weather-band_SPEC.md
-   - 띠 바탕: 칸(.foms-wx-seg)마다 제 날씨 색(--wx-c), 양끝은 옆 날짜 색(--wx-p/--wx-n)과 반씩 섞는다 → 이음새 없음.
-   - 그림 판(.foms-wx-pic)은 칸 폭 2배, 양끝은 마스크로 사라진다. 물체는 제 칸 안, 빛만 옆으로 번진다.
-   - 움직임은 transform·opacity 만, .is-live(오늘~예보 끝, 지난 날 제외)만. '동작 줄이기'면 전부 멈춘다.
-     측정(실템플릿, CPU 6배 느리게, 아주 강하게 단계): 11칸 53fps · 지난 날 포함 24칸 29.5fps → 지난 날은 움직이지 말 것. */
+   - 한 주 띠 = SVG 한 장(foms/services/orders/calendar_weather_timeline.py). 6시간 칸 날씨가 바뀌는 시각에서만 바뀐다.
+   - 날씨 8종(맑음·구름조금·흐림·부슬비·비·장대비·부슬눈·함박눈), 비·눈은 기상청 강수강도 단계대로 촘촘·크게·빠르게.
+   - 움직임은 transform·opacity 만, 오늘부터 7일 안에 날씨가 있는 주만(.is-still 이 아닌 주). '동작 줄이기'면 전부 멈춘다.
+     측정(10월 실데이터, CPU 6배 느리게): 57fps. 한 달 세 주가 움직이면 35~50fps 로 떨어진다 — 7일 규칙을 지킬 것. */
 
 .foms-tower {
   --wx-sun: rgb(255, 236, 176);
+  --wx-partly: rgb(240, 236, 214);
   --wx-cloud: rgb(214, 221, 232);
   --wx-drizzle: rgb(212, 224, 238);
+  --wx-rain: rgb(194, 207, 226);
   --wx-heavy: rgb(176, 190, 212);
   --wx-snow: rgb(198, 216, 246);
   --wx-flurry: rgb(214, 227, 248);
@@ -16,20 +18,19 @@
 }
 [data-theme='dark'] .foms-tower {
   --wx-sun: rgb(130, 122, 95);
+  --wx-partly: rgb(118, 116, 104);
   --wx-cloud: rgb(112, 115, 120);
   --wx-drizzle: rgb(111, 116, 123);
+  --wx-rain: rgb(102, 108, 118);
   --wx-heavy: rgb(95, 101, 111);
   --wx-snow: rgb(105, 113, 126);
   --wx-flurry: rgb(109, 115, 126);
   --wx-none: rgb(44, 46, 52);
 }
-.wx-k-sun { --wx-c: var(--wx-sun); } .wx-p-sun { --wx-p: var(--wx-sun); } .wx-n-sun { --wx-n: var(--wx-sun); }
-.wx-k-cloud { --wx-c: var(--wx-cloud); } .wx-p-cloud { --wx-p: var(--wx-cloud); } .wx-n-cloud { --wx-n: var(--wx-cloud); }
-.wx-k-drizzle { --wx-c: var(--wx-drizzle); } .wx-p-drizzle { --wx-p: var(--wx-drizzle); } .wx-n-drizzle { --wx-n: var(--wx-drizzle); }
-.wx-k-heavy { --wx-c: var(--wx-heavy); } .wx-p-heavy { --wx-p: var(--wx-heavy); } .wx-n-heavy { --wx-n: var(--wx-heavy); }
-.wx-k-snow { --wx-c: var(--wx-snow); } .wx-p-snow { --wx-p: var(--wx-snow); } .wx-n-snow { --wx-n: var(--wx-snow); }
-.wx-k-flurry { --wx-c: var(--wx-flurry); } .wx-p-flurry { --wx-p: var(--wx-flurry); } .wx-n-flurry { --wx-n: var(--wx-flurry); }
-.wx-k-none { --wx-c: var(--wx-none); } .wx-p-none { --wx-p: var(--wx-none); } .wx-n-none { --wx-n: var(--wx-none); }
+/* 범례 칩 색 */
+.wx-k-sun { --wx-c: var(--wx-sun); } .wx-k-partly { --wx-c: var(--wx-partly); } .wx-k-cloud { --wx-c: var(--wx-cloud); }
+.wx-k-drizzle { --wx-c: var(--wx-drizzle); } .wx-k-rain { --wx-c: var(--wx-rain); } .wx-k-heavy { --wx-c: var(--wx-heavy); }
+.wx-k-flurry { --wx-c: var(--wx-flurry); } .wx-k-snow { --wx-c: var(--wx-snow); }
 
 /* 달력 상자: 테두리 카드 대신 사진 머리띠 + 겹친 흰 판 */
 .foms-tower__calbox { background: transparent; border: 0; box-shadow: none; padding: 0; }
@@ -88,68 +89,25 @@
 .foms-tower__cal-grid { display: flex; flex-direction: column; gap: 7px; }
 .foms-tower__cal-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
 .foms-wx-band {
-  grid-row: 1; position: relative; display: grid; border-radius: 24px; overflow: hidden; isolation: isolate;
+  grid-row: 1; position: relative; display: block; border-radius: 24px; overflow: hidden; isolation: isolate;
   box-shadow: 0 8px 18px rgba(28, 28, 30, .09), 0 1px 2px rgba(28, 28, 30, .07), inset 0 -3px 8px rgba(28, 28, 30, .05);
 }
-.foms-wx-band.s-1 { grid-column-start: 1; } .foms-wx-band.n-1 { grid-column-end: span 1; grid-template-columns: repeat(1, minmax(0, 1fr)); }
-.foms-wx-band.s-2 { grid-column-start: 2; } .foms-wx-band.n-2 { grid-column-end: span 2; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.foms-wx-band.s-3 { grid-column-start: 3; } .foms-wx-band.n-3 { grid-column-end: span 3; grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.foms-wx-band.s-4 { grid-column-start: 4; } .foms-wx-band.n-4 { grid-column-end: span 4; grid-template-columns: repeat(4, minmax(0, 1fr)); }
-.foms-wx-band.s-5 { grid-column-start: 5; } .foms-wx-band.n-5 { grid-column-end: span 5; grid-template-columns: repeat(5, minmax(0, 1fr)); }
-.foms-wx-band.s-6 { grid-column-start: 6; } .foms-wx-band.n-6 { grid-column-end: span 6; grid-template-columns: repeat(6, minmax(0, 1fr)); }
-.foms-wx-band.s-7 { grid-column-start: 7; } .foms-wx-band.n-7 { grid-column-end: span 7; grid-template-columns: repeat(7, minmax(0, 1fr)); }
-.foms-wx-seg.c-1, .foms-tower__cal-cell.is-c1 { grid-column: 1; }
-.foms-wx-seg.c-2, .foms-tower__cal-cell.is-c2 { grid-column: 2; }
-.foms-wx-seg.c-3, .foms-tower__cal-cell.is-c3 { grid-column: 3; }
-.foms-wx-seg.c-4, .foms-tower__cal-cell.is-c4 { grid-column: 4; }
-.foms-wx-seg.c-5, .foms-tower__cal-cell.is-c5 { grid-column: 5; }
-.foms-wx-seg.c-6, .foms-tower__cal-cell.is-c6 { grid-column: 6; }
-.foms-wx-seg.c-7, .foms-tower__cal-cell.is-c7 { grid-column: 7; }
-/* 옆 날씨 클래스(wx-p/wx-n)는 제 날씨와 다를 때만 붙는다(전송 바이트) — 없으면 var() 대체값으로 제 색.
-   기본값을 여기서 --wx-p/--wx-n 으로 선언하면 앞쪽 .wx-p-* 규칙을 덮어 경계가 칼로 자른 듯 끊긴다(2026-10-14 회귀). */
-.foms-wx-seg { grid-row: 1; position: relative; min-width: 0; background: var(--wx-c); }
-@supports (background: color-mix(in srgb, red 50%, blue)) {
-  .foms-wx-seg {
-    background: linear-gradient(90deg,
-      color-mix(in srgb, var(--wx-p, var(--wx-c)) 50%, var(--wx-c)) 0%, var(--wx-c) 50%, color-mix(in srgb, var(--wx-n, var(--wx-c)) 50%, var(--wx-c)) 100%);
-  }
-}
+.foms-wx-band.s-1 { grid-column-start: 1; } .foms-wx-band.s-2 { grid-column-start: 2; } .foms-wx-band.s-3 { grid-column-start: 3; }
+.foms-wx-band.s-4 { grid-column-start: 4; } .foms-wx-band.s-5 { grid-column-start: 5; } .foms-wx-band.s-6 { grid-column-start: 6; }
+.foms-wx-band.s-7 { grid-column-start: 7; }
+.foms-wx-band.n-1 { grid-column-end: span 1; } .foms-wx-band.n-2 { grid-column-end: span 2; } .foms-wx-band.n-3 { grid-column-end: span 3; }
+.foms-wx-band.n-4 { grid-column-end: span 4; } .foms-wx-band.n-5 { grid-column-end: span 5; } .foms-wx-band.n-6 { grid-column-end: span 6; }
+.foms-wx-band.n-7 { grid-column-end: span 7; }
+.foms-tower__cal-cell.is-c1 { grid-column: 1; } .foms-tower__cal-cell.is-c2 { grid-column: 2; } .foms-tower__cal-cell.is-c3 { grid-column: 3; }
+.foms-tower__cal-cell.is-c4 { grid-column: 4; } .foms-tower__cal-cell.is-c5 { grid-column: 5; } .foms-tower__cal-cell.is-c6 { grid-column: 6; }
+.foms-tower__cal-cell.is-c7 { grid-column: 7; }
 .foms-wx-gloss {
   position: absolute; inset: 0; pointer-events: none;
   background: linear-gradient(180deg, rgba(255, 255, 255, .34) 0%, rgba(255, 255, 255, .06) 28%, rgba(255, 255, 255, 0) 50%, rgba(0, 0, 0, .04) 100%);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .9);
 }
 [data-theme='dark'] .foms-wx-gloss { background: linear-gradient(180deg, rgba(255, 255, 255, .1) 0%, rgba(255, 255, 255, 0) 40%); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .12); }
-/* 그림 판은 칸 폭 2배(가운데가 제 칸 = 25%~75%). 옆 날짜로 번지는 것은 같은 날씨가 이어지는 쪽(.is-jl/.is-jr)뿐이고,
-   다른 날씨와 맞닿은 쪽은 제 칸 안(25%→32%·68%→75%)에서 사라진다 — 구름 흐름·덧그림이 옆 날을 침범하지 않게(사용자 2026-10-14). */
-.foms-wx-pic {
-  position: absolute; top: 0; bottom: 0; left: -50%; width: 200%; pointer-events: none;
-  -webkit-mask-image: linear-gradient(90deg, transparent 25%, #000 32%, #000 68%, transparent 75%);
-  mask-image: linear-gradient(90deg, transparent 25%, #000 32%, #000 68%, transparent 75%);
-}
-.foms-wx-seg.is-jl .foms-wx-pic {
-  -webkit-mask-image: linear-gradient(90deg, transparent 2%, #000 25%, #000 68%, transparent 75%);
-  mask-image: linear-gradient(90deg, transparent 2%, #000 25%, #000 68%, transparent 75%);
-}
-.foms-wx-seg.is-jr .foms-wx-pic {
-  -webkit-mask-image: linear-gradient(90deg, transparent 25%, #000 32%, #000 75%, transparent 98%);
-  mask-image: linear-gradient(90deg, transparent 25%, #000 32%, #000 75%, transparent 98%);
-}
-.foms-wx-seg.is-jl.is-jr .foms-wx-pic {
-  -webkit-mask-image: linear-gradient(90deg, transparent 2%, #000 25%, #000 75%, transparent 98%);
-  mask-image: linear-gradient(90deg, transparent 2%, #000 25%, #000 75%, transparent 98%);
-}
-.fwx-fxbox {
-  position: absolute; inset: 0; overflow: hidden; pointer-events: none;
-  -webkit-mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent);
-  mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent);
-}
-.foms-wx-seg.is-past .foms-wx-pic { opacity: .5; }
-/* 다크: 흰 구름이 흰 날짜 글자를 삼키지 않게 그림을 낮춘다(filter 대신 opacity — 움직이는 칸에서도 가볍다) */
-[data-theme='dark'] .foms-wx-pic { opacity: .55; }
-[data-theme='dark'] .foms-wx-seg.is-past .foms-wx-pic { opacity: .3; }
 [data-theme='dark'] .foms-tower__cal-cell .foms-tower__cal-date { text-shadow: 0 1px 3px rgba(0, 0, 0, .75); }
-.foms-wx-svg { display: block; width: 100%; height: 100%; }
 .foms-wx-defs { position: absolute; width: 0; height: 0; overflow: hidden; }
 
 /* 날짜 칸 (띠 위에 투명하게) */
@@ -185,8 +143,9 @@
 [data-theme='dark'] .foms-tower__cal-temp { background: rgba(28, 28, 30, .55); color: #f2f2f7; }
 .foms-tower__cal-cell .foms-tower__cal-risk { top: 4px; left: 22px; right: auto; }
 .foms-tower__cal-cell .foms-tower__cal-counts { align-items: flex-start; min-height: 0; padding-left: 2px; }
-.foms-tower__cal-cell .foms-tower__cal-n { font-size: 11px; line-height: 14px; gap: 3px; text-shadow: 0 1px 0 rgba(255, 255, 255, .7); }
-[data-theme='dark'] .foms-tower__cal-cell .foms-tower__cal-n { text-shadow: 0 1px 0 rgba(0, 0, 0, .5); }
+/* 건수 숫자 테두리: 띠 그림(해·빗방울·눈) 위에서도 읽히게(운영 실데이터 2026-10-15) */
+.foms-tower__cal-cell .foms-tower__cal-n { font-size: 11px; line-height: 14px; gap: 3px; text-shadow: 0 0 2px rgba(255, 255, 255, .95), 0 0 4px rgba(255, 255, 255, .8); }
+[data-theme='dark'] .foms-tower__cal-cell .foms-tower__cal-n { text-shadow: 0 0 2px rgba(0, 0, 0, .9), 0 0 4px rgba(0, 0, 0, .7); }
 .foms-tower__cal-cell .foms-tower__cal-amt {
   /* 폭 44px 폰 칸에서 "5,158만" 이 넘쳤다(운영 실화면 2026-10-14) → 화면 폭에 맞춰 8~10px */
   align-self: stretch; text-align: center; padding: 0; font-size: clamp(8px, 2.45vw, 10px); letter-spacing: -0.5px;
@@ -223,127 +182,55 @@
 .foms-tower__tone-pill.is-yellow { background: #ffd60a; color: #3d2f00; }
 .foms-tower__tone-pill.is-pink { background: #ff9fca; color: #4d0526; }
 
-/* 그림 기본 모양 — 멈춘 그림(<use> 안쪽)에도 적용된다 */
-.fwx-breathe { opacity: .35; }
-.fwx-twinkle { opacity: .4; }
-
-/* 움직임 — 오늘~예보 끝(.is-live)만. 세기 = 목업 "C 아주 강하게"(사용자 2026-10-14: 폰에서 안 보였다), 부슬비는 한 단계 더 */
-.foms-wx-pic.is-live .fwx-a { will-change: transform; }
-.foms-wx-pic.is-live .fwx-rays { transform-box: view-box; transform-origin: 168px 18px; animation: fwxSpin 14s linear infinite; }
-.foms-wx-pic.is-live .fwx-breathe { transform-box: view-box; transform-origin: 168px 18px; animation: fwxBreathe 2.6s ease-in-out infinite; }
-.foms-wx-pic.is-live .fwx-twinkle { animation: fwxTwinkle 1.5s ease-in-out infinite; }
-.foms-wx-pic.is-live .fwx-drift1 { animation: fwxDrift 4.5s linear infinite alternate; }
-.foms-wx-pic.is-live .fwx-drift2 { animation: fwxDrift2 6s linear infinite alternate; }
-.foms-wx-pic.is-live .fwx-bob { animation: fwxBob 2.2s ease-in-out infinite alternate; }
-.foms-wx-pic.is-live .fwx-heavy { animation: fwxHeavy .5s cubic-bezier(.5, 0, 1, .7) infinite; }
-.foms-wx-pic.is-live .fwx-drizzle { animation: fwxDrizzle 2.7s linear infinite; }
-.foms-wx-pic.is-live .fwx-flake { transform-box: fill-box; transform-origin: center; animation: fwxFlake 3.4s linear infinite; }
-.foms-wx-pic.is-live .fwx-dot { animation: fwxDot 2.4s linear infinite; }
-/* 지연·길이 — 칸 안 물체마다 다르게(templates/orders/partials/dashboard_mobile_tower_weather.html 의 fwx-dN) */
-.foms-wx-pic.is-live .fwx-d1 { animation-delay: -0.2s; }
-.foms-wx-pic.is-live .fwx-d2 { animation-delay: -1.9s; }
-.foms-wx-pic.is-live .fwx-d3 { animation-delay: -0.3s; animation-duration: 2.08s; }
-.foms-wx-pic.is-live .fwx-d4 { animation-delay: -1.6s; animation-duration: 2.32s; }
-.foms-wx-pic.is-live .fwx-d5 { animation-delay: -0.9s; animation-duration: 2s; }
-.foms-wx-pic.is-live .fwx-d6 { animation-delay: -2.2s; animation-duration: 2.24s; }
-.foms-wx-pic.is-live .fwx-d7 { animation-delay: -1.2s; animation-duration: 2.4s; }
-.foms-wx-pic.is-live .fwx-d8 { animation-delay: -2.6s; animation-duration: 2.16s; }
-.foms-wx-pic.is-live .fwx-d9 { animation-delay: -0.6s; animation-duration: 2.32s; }
-.foms-wx-pic.is-live .fwx-d10 { animation-delay: -0.04s; }
-.foms-wx-pic.is-live .fwx-d11 { animation-delay: -0.37s; }
-.foms-wx-pic.is-live .fwx-d12 { animation-delay: -1.3s; }
-.foms-wx-pic.is-live .fwx-d13 { animation-delay: -2.4s; }
-.foms-wx-pic.is-live .fwx-d14 { animation-delay: -0.8s; }
-.foms-wx-pic.is-live .fwx-d15 { animation-delay: -1.8s; }
-.foms-wx-pic.is-live .fwx-d16 { animation-delay: -0.4s; }
-.foms-wx-pic.is-live .fwx-d17 { animation-delay: -1.5s; }
-.foms-wx-pic.is-live .fwx-d18 { animation-delay: -0.1s; }
-.foms-wx-pic.is-live .fwx-d19 { animation-delay: -1.1s; }
-.foms-wx-pic.is-live .fwx-d20 { animation-delay: -2s; }
-.foms-wx-pic.is-live .fwx-d21 { animation-delay: -0.6s; }
-.foms-wx-pic.is-live .fwx-d22 { animation-delay: -2.2s; }
-@keyframes fwxSpin { to { transform: rotate(360deg); } }
-@keyframes fwxBreathe { 0%, 100% { transform: scale(1); opacity: .3; } 50% { transform: scale(1.32); opacity: .8; } }
-@keyframes fwxTwinkle { 0%, 100% { opacity: .18; } 50% { opacity: .6; } }
-@keyframes fwxDrift { from { transform: translateX(12px); } to { transform: translateX(-16px); } }
-@keyframes fwxDrift2 { from { transform: translateX(-14px); } to { transform: translateX(14px); } }
-@keyframes fwxBob { from { transform: translateY(-3px); } to { transform: translateY(4px); } }
-@keyframes fwxHeavy { 0% { transform: translate(14px, -44px); opacity: 0; } 10% { opacity: 1; } 88% { opacity: 1; } 100% { transform: translate(-16px, 52px); opacity: 0; } }
-@keyframes fwxDrizzle { 0% { transform: translate(-3px, -34px); opacity: 0; } 12% { opacity: 1; } 50% { transform: translate(4px, 6px); } 88% { opacity: 1; } 100% { transform: translate(-3px, 50px); opacity: 0; } }
-@keyframes fwxFlake { 0% { transform: translate(0, -36px) rotate(0deg); opacity: 0; } 10% { opacity: 1; } 35% { transform: translate(8px, -8px) rotate(80deg); } 65% { transform: translate(-8px, 18px) rotate(160deg); } 90% { opacity: 1; } 100% { transform: translate(2px, 42px) rotate(220deg); opacity: 0; } }
-@keyframes fwxDot { 0% { transform: translate(0, -28px); opacity: 0; } 15% { opacity: 1; } 85% { opacity: 1; } 100% { transform: translate(5px, 40px); opacity: 0; } }
-/* C 단계 덧그림 — 움직이는 7칸에만 마크업이 붙는다: 맑음 햇빛 쓸기 · 구름 지나가기 · 장대비 번개 */
-.fwx-fx { position: absolute; inset: 0; pointer-events: none; will-change: transform, opacity; }
-.fwx-sweep { background: linear-gradient(105deg, rgba(255, 255, 255, 0) 30%, rgba(255, 255, 255, .7) 50%, rgba(255, 255, 255, 0) 70%); transform: translateX(-100%); animation: fwxSweep 2.8s linear infinite; }
-.fwx-pass {
-  inset: auto; top: 30px; left: 0; width: 34px; height: 14px; opacity: .9;
-  background: radial-gradient(circle at 30% 60%, #fff 0 6px, transparent 6.5px), radial-gradient(circle at 58% 40%, #fff 0 8px, transparent 8.5px), radial-gradient(circle at 82% 65%, #fff 0 5px, transparent 5.5px);
-  animation: fwxPass 7s linear infinite;
-}
-.fwx-flash { background: #fff; opacity: 0; animation: fwxFlash 4.2s linear infinite; }
-.fwx-bolt {
-  inset: auto; top: 26px; right: 10px; width: 14px; height: 26px; opacity: 0;
-  background: linear-gradient(#fff6b0, #ffd60a); clip-path: polygon(55% 0, 10% 55%, 45% 55%, 30% 100%, 90% 38%, 55% 38%, 75% 0);
-  animation: fwxFlash 4.2s linear infinite;
-}
-[data-theme='dark'] .fwx-flash { background: #c9d6ff; }
-@keyframes fwxSweep { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
-@keyframes fwxPass { from { transform: translateX(52px); } to { transform: translateX(-34px); } }
-@keyframes fwxFlash { 0%, 68% { opacity: 0; } 70% { opacity: .85; } 72% { opacity: 0; } 75% { opacity: .6; } 78%, 100% { opacity: 0; } }
-@media (prefers-reduced-motion: reduce) {
-  .foms-wx-pic .fwx-a { animation: none !important; }
-  .fwx-fx { display: none; }
-}
-
-/* ── 시간 줄 보기(사람마다 쿠키 foms_wx_style=timeline, 2026-10-14) ──────────────────────────────
-   한 주 띠 = SVG 한 장(foms/services/orders/calendar_weather_timeline.py). 6시간 칸 날씨가 바뀌는 시각에서만 바뀐다.
-   목업 '시간 줄 ② 업그레이드' + 다듬기(2026-10-14 사용자: 지난 날 흐리게·움직임 더 강하게·경계 더 부드럽게·지금 선 얇고 짧게).
-   주 전체가 지난 날이면 멈춘다(.is-still). */
-.foms-wx-band.tl-band { display: block; }
+/* ── 시간 줄 그림 ─────────────────────────────────────────────── */
 .tl-svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
-.tl-s-sun { stop-color: var(--wx-sun); } .tl-s-cloud { stop-color: var(--wx-cloud); } .tl-s-drizzle { stop-color: var(--wx-drizzle); }
-.tl-s-heavy { stop-color: var(--wx-heavy); } .tl-s-flurry { stop-color: var(--wx-flurry); } .tl-s-snow { stop-color: var(--wx-snow); }
-.tl-s-none { stop-color: var(--wx-none); }
-.tl-breathe { transform-box: fill-box; transform-origin: center; animation: tlBreathe 2.4s ease-in-out infinite; }
-.tl-drift2 { animation: tlDrift2 4.5s ease-in-out infinite alternate; }
-.tl-flash { opacity: 0; animation: fwxFlash 4.2s linear infinite; }
-.up-spin { transform-box: fill-box; transform-origin: center; animation: fwxSpin 20s linear infinite; }
-.up-glow { animation: tlGlow 5s ease-in-out infinite alternate; }
-.up-far { animation: tlDrift2 9s ease-in-out infinite alternate; }
+.tl-m { mask-type: alpha; } /* 구간 끝 마스크 = 투명도 멈춤점(마크업을 짧게) */
+.tl-s-sun { stop-color: var(--wx-sun); } .tl-s-partly { stop-color: var(--wx-partly); } .tl-s-cloud { stop-color: var(--wx-cloud); }
+.tl-s-drizzle { stop-color: var(--wx-drizzle); } .tl-s-rain { stop-color: var(--wx-rain); } .tl-s-heavy { stop-color: var(--wx-heavy); }
+.tl-s-flurry { stop-color: var(--wx-flurry); } .tl-s-snow { stop-color: var(--wx-snow); } .tl-s-none { stop-color: var(--wx-none); }
+/* 해: 햇살 20초에 한 바퀴 + 빛 숨쉬기 */
+.up-spin { transform-box: fill-box; transform-origin: center; animation: tlSpin 20s linear infinite; }
+.tl-breathe { fill: #ffe27a; transform-box: fill-box; transform-origin: center; animation: tlBreathe 2.4s ease-in-out infinite; }
+/* 구름: 원근 3단(먼 층 느리게 · 가운데 · 가까운 층 빠르게) */
+.up-far { animation: tlDrift 9s ease-in-out infinite alternate; }
+.tl-drift2 { animation: tlDrift 4.5s ease-in-out infinite alternate; }
 .up-near { animation: tlNear 4s ease-in-out infinite alternate; }
+/* 비·눈 구간의 물안개 막 숨쉬기, 장대비 번개 */
 .up-veil { animation: tlVeil 5s ease-in-out infinite alternate; }
+.tl-flash { opacity: 0; animation: tlFlash 4.2s linear infinite; }
+/* 비: 강도별 빠르기(tl-r0 이슬비 ~ tl-r3 강한 비) × 바람별 기울기(tl-w0 잔잔 · w1 4m/s+ · w2 9m/s+), 보통 비부터 땅에 튐 */
+.tl-w0 { animation: tlFallW0 2s linear infinite; } .tl-w1 { animation: tlFallW1 2s linear infinite; } .tl-w2 { animation: tlFallW2 2s linear infinite; }
+.tl-r0 { animation-duration: 2.6s; } .tl-r1 { animation-duration: 1.9s; } .tl-r2 { animation-duration: .7s; } .tl-r3 { animation-duration: .45s; }
+.tl-r0.tl-p1, .tl-r1.tl-p1 { animation-delay: -.7s; } .tl-r0.tl-p2, .tl-r1.tl-p2 { animation-delay: -1.4s; }
+.tl-r2.tl-p1, .tl-r3.tl-p1 { animation-delay: -.2s; } .tl-r2.tl-p2, .tl-r3.tl-p2 { animation-delay: -.4s; }
 .up-rainfar { animation: tlRainFar 1.2s linear infinite; }
-.up-sn { animation: tlSn 4.4s ease-in-out infinite; }
+.tl-splash { transform-box: fill-box; transform-origin: center; animation: tlSplash .7s ease-out infinite; }
+.tl-splash.tl-p1 { animation-delay: -.35s; }
+/* 눈: 묶음은 돌리지 않는다 — SVG 묶음의 회전 중심이 그림 왼쪽 위라 눈이 띠 밖으로 휘둘려 안 보였다(2026-10-15) */
+.up-sn { animation: tlSn 4.4s ease-in-out infinite; } .up-sn.tl-p1 { animation-delay: -1.5s; } .up-sn.tl-p2 { animation-delay: -2.9s; }
+.up-blow { animation: tlBlow 2.4s linear infinite; } .up-blow.tl-p1 { animation-delay: -.8s; } .up-blow.tl-p2 { animation-delay: -1.6s; }
 .up-specks { animation: tlSpecks 5.5s linear infinite; }
+/* 오늘 지금 시각 점 */
 .up-pulse { transform-box: fill-box; transform-origin: center; animation: tlPulse 2s ease-out infinite; }
-.tl-dz { animation: tlDz 1.8s linear infinite; }
-.tl-hv { animation: tlHv .45s linear infinite; }
-.tl-p1 { animation-delay: -.33s; } .tl-p2 { animation-delay: -.66s; }
-.tl-dz.tl-p1 { animation-delay: -.6s; } .tl-dz.tl-p2 { animation-delay: -1.2s; }
-.up-sn.tl-p1 { animation-delay: -2.2s; }
-/* 지난 날 흐리게 — 하늘 색 막을 반쯤 덮는다(칸 보기 지난 날 그림 opacity .5 와 같은 느낌) */
-.tl-past { opacity: .5; }
-.tl-past.is-part { opacity: 1; } /* 일부만 지난 주는 멈춤점 투명도(.5)로 걷는다 */
+/* 지난 날 흐리게 — 화면 바탕 색 막을 반쯤 덮는다(일부만 지난 주는 오늘 0시 직전에 걷히는 그라데이션) */
+.tl-past { fill: var(--foms-surface-base); opacity: .5; }
+.tl-pv { stop-color: var(--foms-surface-base); }
 .tl-svg.is-still * { animation: none !important; }
-@keyframes tlGlow { from { transform: translate(-5px, 3px) scale(.94); opacity: .7; } to { transform: translate(5px, -3px) scale(1.06); opacity: 1; } }
+/* 다크: 그림만 낮춘다(하늘 바탕 rect 는 그대로) — 흰 구름이 흰 날짜 글자를 삼키지 않게 */
+[data-theme='dark'] .tl-svg > g { opacity: .55; }
+@keyframes tlSpin { to { transform: rotate(360deg); } }
 @keyframes tlBreathe { 0%, 100% { transform: scale(1); opacity: .3; } 50% { transform: scale(1.45); opacity: .9; } }
-@keyframes tlDrift2 { from { transform: translateX(-20px); } to { transform: translateX(20px); } }
+@keyframes tlDrift { from { transform: translateX(-20px); } to { transform: translateX(20px); } }
 @keyframes tlNear { from { transform: translateX(26px); } to { transform: translateX(-30px); } }
 @keyframes tlVeil { from { opacity: .45; } to { opacity: 1; } }
+@keyframes tlFlash { 0%, 68% { opacity: 0; } 70% { opacity: .85; } 72% { opacity: 0; } 75% { opacity: .6; } 78%, 100% { opacity: 0; } }
+@keyframes tlFallW0 { 0% { transform: translate(3px, -48px); opacity: 0; } 12% { opacity: 1; } 88% { opacity: 1; } 100% { transform: translate(-3px, 52px); opacity: 0; } }
+@keyframes tlFallW1 { 0% { transform: translate(14px, -48px); opacity: 0; } 12% { opacity: 1; } 88% { opacity: 1; } 100% { transform: translate(-10px, 52px); opacity: 0; } }
+@keyframes tlFallW2 { 0% { transform: translate(26px, -48px); opacity: 0; } 12% { opacity: 1; } 88% { opacity: 1; } 100% { transform: translate(-22px, 52px); opacity: 0; } }
 @keyframes tlRainFar { from { transform: translate(6px, -36px); } to { transform: translate(-8px, 40px); } }
-@keyframes tlSn { 0% { transform: translate(0, -40px) rotate(0deg); opacity: 0; } 12% { opacity: 1; } 50% { transform: translate(9px, 2px) rotate(40deg); } 88% { opacity: 1; } 100% { transform: translate(-4px, 44px) rotate(80deg); opacity: 0; } }
+@keyframes tlSplash { 0% { transform: scale(.2); opacity: .9; } 100% { transform: scale(1.7); opacity: 0; } }
+@keyframes tlSn { 0% { transform: translate(0, -46px); opacity: 0; } 8% { opacity: 1; } 50% { transform: translate(8px, 2px); } 92% { opacity: 1; } 100% { transform: translate(-4px, 48px); opacity: 0; } }
+@keyframes tlBlow { 0% { transform: translate(30px, -46px); opacity: 0; } 8% { opacity: 1; } 92% { opacity: 1; } 100% { transform: translate(-30px, 48px); opacity: 0; } }
 @keyframes tlSpecks { from { transform: translate(-6px, -30px); } to { transform: translate(6px, 36px); } }
 @keyframes tlPulse { from { transform: scale(1); opacity: .9; } to { transform: scale(3.2); opacity: 0; } }
-@keyframes tlDz { 0% { transform: translate(3px, -44px); opacity: 0; } 12% { opacity: 1; } 50% { transform: translate(-4px, 4px); } 88% { opacity: 1; } 100% { transform: translate(3px, 50px); opacity: 0; } }
-@keyframes tlHv { 0% { transform: translate(14px, -50px); opacity: 0; } 10% { opacity: 1; } 88% { opacity: 1; } 100% { transform: translate(-16px, 56px); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .tl-svg * { animation: none !important; } .tl-flash { opacity: 0; } }
-
-/* 날씨 보기 고르기 [칸 | 시간 줄] — 범례 맨 앞 */
-.foms-tower__wx-style { display: inline-flex; padding: 2px; gap: 0; border-radius: 999px; background: rgba(118, 118, 128, .14); }
-.foms-tower__wx-style button {
-  border: 0; background: transparent; color: var(--foms-text-secondary); font: inherit; font-weight: 600;
-  min-height: 24px; padding: 0 10px; border-radius: 999px;
-}
-.foms-tower__wx-style button[aria-pressed='true'] { background: var(--foms-surface-base, #fff); color: var(--foms-text-primary); box-shadow: 0 1px 3px rgba(28, 28, 30, .14); }
-/* 다크: 칸 보기와 같이 그림만 낮춘다(하늘 바탕 rect 는 그대로) — 흰 구름이 흰 날짜 글자를 삼키지 않게 */
-[data-theme='dark'] .tl-svg > g { opacity: .55; }
