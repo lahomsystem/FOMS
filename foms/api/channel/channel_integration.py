@@ -11,6 +11,7 @@ import logging
 import os
 import traceback
 from typing import Any
+from urllib.parse import quote
 
 from flask import Blueprint, g, jsonify, request
 from sqlalchemy import text as sa_text
@@ -75,6 +76,14 @@ def _rename_drawing_room_files(files: list[dict], customer_name: str | None) -> 
         stem = f"{base}{idx}" if multiple else base
         renamed.append({**item, 'fileName': f"{stem}{ext}"})
     return renamed
+
+
+def _attachment_disposition(filename: str) -> str:
+    """한글 파일 이름도 깨지지 않는 Content-Disposition 값(RFC 6266 filename*)."""
+    ext = os.path.splitext(filename)[1]
+    ascii_fallback = (filename.encode('ascii', 'ignore').decode().strip() or 'drawing' + ext)
+    ascii_fallback = ascii_fallback.replace('"', '')
+    return f"attachment; filename=\"{ascii_fallback}\"; filename*=UTF-8''{quote(filename)}"
 # 본문을 서버가 저장된 주문으로 단독 조립하는 push 종류(클라이언트 text 를 신뢰하지 않는다).
 _SERVER_COMPOSED_TEXT_KINDS = frozenset({'as', 'drawing_room'})
 _MIN_CHANGE_NOTE_LEN = 1
@@ -645,6 +654,7 @@ def api_channel_push_manual():
         storage = get_storage()
         files = []
         sent_attachment_ids = []
+        sent_attachment_keys = []
         for att in attachments:
             if not att.storage_key:
                 continue
@@ -656,13 +666,27 @@ def api_channel_push_manual():
                     'mime': _infer_mime(att.filename or '', att.file_type or 'image'),
                 })
                 sent_attachment_ids.append(att.id)
+                sent_attachment_keys.append(att.storage_key)
         # 지정 순서의 앞 20장만 전송(AS-SORT-01). provenance 와 files 를 같은 자리에서
         # 자른다 — dispatch 의 apply_attachment_policy 도 files[:20] 이지만, 여기까지
         # 21장을 넘기면 이력과 실제 전송이 어긋날 수 있다.
         files = files[:MAX_MANUAL_ATTACHMENTS]
         sent_attachment_ids = sent_attachment_ids[:MAX_MANUAL_ATTACHMENTS]
+        sent_attachment_keys = sent_attachment_keys[:MAX_MANUAL_ATTACHMENTS]
         if push_kind == 'drawing_room':
-            files = _rename_drawing_room_files(files, order.customer_name)
+            # 채널톡은 dto.fileName 이 아니라 내려받은 응답의 이름으로 저장한다 — 서명 URL 에
+            # Content-Disposition 을 실어 R2 가 고객명 파일 이름으로 응답하게 한다.
+            renamed = _rename_drawing_room_files(files, order.customer_name)
+            if renamed is not files:
+                for item, key in zip(renamed, sent_attachment_keys):
+                    url = storage.get_download_url(
+                        key,
+                        expires_in=3600,
+                        response_content_disposition=_attachment_disposition(item['fileName']),
+                    )
+                    if url:
+                        item['url'] = url
+            files = renamed
 
         current_user = getattr(g, "current_user", None)
         pushed_by_name = current_user.name if current_user else None
