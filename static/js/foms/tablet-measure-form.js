@@ -1825,7 +1825,8 @@
     var body = raw
       .split("\n")
       .filter(function (line) {
-        return !/^\s*★★\s*$/.test(line) && !/^\s*실측일\s*:/.test(line) && !/^\s*시\s*간\s*:/.test(line);
+        return !/^\s*★★\s*$/.test(line) && !/^\s*실측일\s*:/.test(line) && !/^\s*시\s*간\s*:/.test(line)
+          && !/^\s*(실측|주소|연락처) 특이사항\s*:/.test(line);
       })
       .join("\n")
       .replace(/^\n+/, "")

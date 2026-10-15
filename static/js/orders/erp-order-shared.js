@@ -5259,11 +5259,13 @@ function erpSliceConversionTextForChannelPush(text) {
     const raw = String(text ?? '').trim();
     if (!raw) return '';
     // 라홈시스템(factory2) ★★는 채널톡에도 유지.
-    // 실측일/시간 헤더만 제거 — 실측 특이사항·주소/연락처 특이사항은 유지.
+    // 실측일/시간 헤더와 실측·주소·연락처 특이사항은 제거 — 시공에 필요 없는 실측용 정보다.
+    // 실측방(measure_room) PUSH 는 이 함수를 거치지 않으므로 그쪽에는 그대로 나간다.
     const hasFactory2Stars = raw.split('\n').some((line) => /^\s*★★\s*$/.test(line));
     const body = raw
         .split('\n')
-        .filter((line) => !/^\s*★★\s*$/.test(line) && !/^\s*실측일\s*:/.test(line) && !/^\s*시\s*간\s*:/.test(line))
+        .filter((line) => !/^\s*★★\s*$/.test(line) && !/^\s*실측일\s*:/.test(line) && !/^\s*시\s*간\s*:/.test(line)
+            && !/^\s*(실측|주소|연락처) 특이사항\s*:/.test(line))
         .join('\n')
         .replace(/^\n+/, '')
         .trim();
