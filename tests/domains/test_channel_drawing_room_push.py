@@ -14,7 +14,8 @@ from werkzeug.security import generate_password_hash
 
 
 class _FakeStorage:
-    def get_download_url(self, storage_key, expires_in=3600):
+    def get_download_url(self, storage_key, expires_in=3600, response_content_disposition=None):
+        _ = response_content_disposition
         return f"https://cdn.example.com/{storage_key}?e={expires_in}"
 
 
