@@ -214,6 +214,8 @@ var _erpNormalizePaymentData =
         return {
             deposit: Math.max(0, depositAmount),
             discount: Math.max(0, discountAmount),
+            // 할인 항목 줄. 없는 옛 주문은 null — 화면이 discount 숫자를 한 줄로 보여 준다.
+            discounts: Array.isArray(pay.discounts) ? pay.discounts : null,
             free_input: erpResolveFreeInputText(sd),
             cash_receipt: erpResolveCashReceipt(sd),
             balance_note: erpResolveBalanceNote(sd),
@@ -2243,6 +2245,10 @@ async function erpLoadStructured(bootstrapData, options) {
     if (discountEl) {
         discountEl.value = erpFormatDepositDisplay(paymentData.discount);
     }
+    // 할인 항목 줄(payment.discounts). 없으면 옛 discount 숫자를 "할인" 한 줄로 보여 준다.
+    if (typeof window.erpSetDiscountItems === 'function') {
+        window.erpSetDiscountItems(paymentData.discounts, paymentData.discount);
+    }
     const freeInputParts = erpSplitFreeInputForForm(paymentData.free_input);
     const freeInputTextEl = document.getElementById('erp-free-input-text');
     if (freeInputTextEl) {
@@ -2471,6 +2477,8 @@ function erpCollectStructured() {
             return {
                 deposit: totals.deposit_amount,
                 discount: totals.discount_amount,
+                ...(typeof window.erpGetDiscountItems === 'function'
+                    ? { discounts: window.erpGetDiscountItems() } : {}),
                 free_input: erpBuildFreeInputStoredValue(),
                 cash_receipt: String(getVal('erp-cash-receipt') || ''),
                 balance_note: String(getVal('erp-balance-note') || '').trim(),

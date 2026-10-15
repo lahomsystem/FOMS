@@ -549,6 +549,7 @@
     return {
       deposit: autosaveCoerceAmount(payment.deposit || legacy.deposit || totals.deposit_amount),
       discount: autosaveCoerceAmount(payment.discount || totals.discount_amount),
+      discounts: Array.isArray(payment.discounts) ? payment.discounts : null,
       free_input: autosaveTextValue(payment.free_input || legacy.free_input),
       cash_receipt: autosaveTextValue(payment.cash_receipt || legacy.cash_receipt),
       balance_note: autosaveTextValue(payment.balance_note),
@@ -583,6 +584,9 @@
 
     set("erp-deposit-amount", formatSnapshotAmount(payment.deposit));
     set("erp-discount-amount", formatSnapshotAmount(payment.discount));
+    if (typeof window.erpSetDiscountItems === "function") {
+      window.erpSetDiscountItems(payment.discounts, payment.discount);
+    }
 
     var freeInputParts = splitSnapshotFreeInput(payment.free_input);
     set("erp-free-input-text", freeInputParts.text || "");

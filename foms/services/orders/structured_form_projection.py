@@ -25,6 +25,7 @@ import logging
 from typing import Any
 
 from foms.services.auth.partner_scope import is_partner_sd
+from foms.services.orders.discount_items import normalize_payment_discounts
 
 logger = logging.getLogger(__name__)
 
@@ -330,6 +331,8 @@ def project_structured_form(old_sd: dict, structured_data: dict) -> list[str]:
     stripped = enforce_form_allowlist(structured_data, old_sd)
     lock_provenance(old_sd, structured_data)
     lock_server_owned_keys(old_sd, structured_data)
+    # 할인 줄 목록이 있으면 payment.discount 를 그 합계로 맞춘 뒤 합계를 다시 계산한다.
+    normalize_payment_discounts(structured_data, old_sd)
     recompute_totals(structured_data)
     return stripped
 
