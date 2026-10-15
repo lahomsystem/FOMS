@@ -25,9 +25,10 @@ def test_week_slots_fill_missing_parts_with_day_weather():
     cells = [_cell("sun", [_d("sun"), None, _d("partly"), _d("rain", 2, 80, 5)]), _cell("drizzle"), _cell(""),
              _cell("cloud", slots=["x", "sun", "sun", "sun"])]
     sl = tl.week_slots(cells)
-    assert [s["k"] for s in sl] == ["sun", "sun", "partly", "rain", *["drizzle"] * 4, *["none"] * 4, "cloud", "sun", "sun", "sun"]
+    # 밤 칸(0~6·18~24시)의 약한 비는 구름으로 그린다 — drizzle 하루의 첫·끝 칸
+    assert [s["k"] for s in sl] == ["sun", "sun", "partly", "rain", "cloud", "drizzle", "drizzle", "cloud", *["none"] * 4, "cloud", "sun", "sun", "sun"]
     assert sl[3]["lv"] == 2 and sl[3]["pop"] == 80 and sl[3]["wind"] == 5
-    assert sl[4]["lv"] == tl.DEFAULT_LV["drizzle"]  # 강도 모르는 비(옛 자료·중기) = 종류 기본값
+    assert sl[5]["lv"] == tl.DEFAULT_LV["drizzle"]  # 강도 모르는 비(옛 자료·중기) = 종류 기본값
 
 
 def test_runs_follow_weather_not_day_edges():
@@ -117,6 +118,11 @@ def test_month_without_weather_ships_no_defs(app):
 def test_missing_detail_slot_falls_back_to_slot_kind_before_day_kind():
     """오늘 지난 칸은 칸 자료가 비어 있다 — 하루 대표(부슬비)가 아니라 그 칸 종류(맑음)로 그린다(2026-10-15 운영)."""
     cell = _cell("drizzle", [None, _d("sun"), _d("partly"), _d("drizzle", 1, 60)], slots=["sun", "sun", "partly", "drizzle"])
-    assert [s["k"] for s in tl.week_slots([cell])] == ["sun", "sun", "partly", "drizzle"]
-    only_day = _cell("drizzle", [None, _d("sun"), _d("partly"), _d("drizzle", 1)])
-    assert tl.week_slots([only_day])[0]["k"] == "drizzle"
+    assert [s["k"] for s in tl.week_slots([cell])] == ["sun", "sun", "partly", "cloud"]  # 18~24시 약한 비 = 구름
+    only_day = _cell("drizzle", [None, _d("drizzle", 1), _d("sun"), _d("sun")])
+    assert tl.week_slots([only_day])[1]["k"] == "drizzle"  # 낮 비는 그대로
+
+
+def test_light_night_rain_drawn_as_cloud_but_strong_night_rain_stays():
+    night = [_d("drizzle", 1, 60), _d("partly"), _d("partly"), _d("rain", 2, 80)]
+    assert [s["k"] for s in tl.week_slots([_cell("partly", night)])] == ["cloud", "partly", "partly", "rain"]
