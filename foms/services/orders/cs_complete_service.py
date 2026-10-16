@@ -1,9 +1,12 @@
-"""CS 완료 정본 서비스 — 완료로 가는 길은 이 함수 하나다 (ADMIN-OVERRIDE-01 C4).
+"""CS·지방 주문 완료 정본 서비스 (ADMIN-OVERRIDE-01 C4).
 
 어느 라우트로 들어오든(`cs/complete`, 일반 화면 상태 변경, 강제 단계 변경) 최종 COMPLETED 는
 :func:`complete_order_as_cs` 를 지나야 한다. 그래야 "상태만 COMPLETED 이고 뒤가 빈" 주문이
 생기지 않는다 — 전이와 함께 현재 시공 attempt 봉인·workflow.history·SecurityLog 가 같은
 transaction 에서 일어난다.
+
+지방 ERP 주문은 별도 REGIONAL_COMPLETE 정책으로 CS 단계·승인만 생략한다.
+보류·진행 중 AS·전이 정합 검사는 유지하고, 남은 물류 상태도 같은 트랜잭션에서 종료한다.
 
 게이트는 두 종류다.
 * **업무 게이트(뚫을 수 있다)**: CS 단계 전제(`INVALID_STAGE`), CS 필수 승인
@@ -26,6 +29,8 @@ from foms.services.datetime_kst import now_utc_naive
 from foms.services.erp_display import _ensure_dict
 from foms.services.erp_sync_columns import sync_erp_flat_columns
 from foms.services.orders.erp_policy_quests import check_quest_approvals_complete
+from foms.services.orders.complete_path_policy import uses_regional_completion
+from foms.services.orders.stage_override import MAIN_PIPELINE_CODES
 from foms.services.orders.order_transition_service import (
     COMMAND_REGISTRY,
     StageConflictError,
@@ -33,16 +38,18 @@ from foms.services.orders.order_transition_service import (
     TransitionError,
     transition_order,
 )
-from foms.services.orders.revision import RevisionError
+from foms.services.orders.revision import IdempotencyKeyConflictError, RevisionError
 from foms.services.orders.state_axes import (
     AXIS_MAIN,
     read_as_status,
     read_hold,
     read_main_stage,
+    read_logistics,
 )
 from models import Order, OrderConstructionAttempt, SecurityLog
 
 POLICY_CS_COMPLETE = "STATE_CS_COMPLETE"
+POLICY_REGIONAL_COMPLETE = "STATE_REGIONAL_COMPLETE"
 CS_STAGES = ("CS",)
 
 # CS 완료 = main CS→COMPLETED advance. STATE-CORE 엔진 파일은 import 만 하고 command 를
@@ -58,6 +65,16 @@ COMMAND_REGISTRY.setdefault(
         to_values=("COMPLETED",),
         event_type="CS_COMPLETED",
         effect_type="STAGE_NOTIFICATION",
+    ),
+)
+
+COMMAND_REGISTRY.setdefault(
+    "REGIONAL_COMPLETE",
+    TransitionCommand(
+        command_id="REGIONAL_COMPLETE", policy_id=POLICY_REGIONAL_COMPLETE, axis=AXIS_MAIN,
+        # COMPLETED는 receipt 재전송 검증용이다. 신규 완료는 아래 업무 게이트에서 거부한다.
+        from_values=MAIN_PIPELINE_CODES, to_values=("COMPLETED",),
+        event_type="REGIONAL_ORDER_COMPLETED", effect_type="STAGE_NOTIFICATION",
     ),
 )
 
@@ -101,7 +118,7 @@ def cs_gate_code(order: Order, sd: dict[str, Any]) -> Optional[tuple]:
 
     판정 순서는 quest → hold → AS 다(기존 라우트와 1:1).
     """
-    missing = _cs_quest_missing_teams(sd)
+    missing = None if uses_regional_completion(order) else _cs_quest_missing_teams(sd)
     if missing is not None:
         return ("QUEST_INCOMPLETE", {"missing_teams": missing})
     if read_hold(order) == "HELD":
@@ -156,14 +173,15 @@ def _apply_cs_complete_side_effects(db: Any, order: Order, user: Any, user_id: A
     wf = sd.setdefault("workflow", {})
     wf["stage_updated_by"] = user.name if user else "Unknown"
     hist = wf.get("history") or []
+    note = "지방 주문 완료 -> 최종 완료" if uses_regional_completion(order) else "CS 완료 -> 최종 완료"
     hist.append({"stage": "COMPLETED",
                  "updated_at": wf.get("stage_updated_at") or now_utc_naive().isoformat(),
-                 "updated_by": wf["stage_updated_by"], "note": "CS 완료 -> 최종 완료"})
+                 "updated_by": wf["stage_updated_by"], "note": note})
     wf["history"] = hist
     order.structured_data = sd
     flag_modified(order, "structured_data")
     sync_erp_flat_columns(order, sd)
-    db.add(SecurityLog(user_id=user_id, message=f"주문 #{order.id} CS 완료 -> 최종 완료"))
+    db.add(SecurityLog(user_id=user_id, message=f"주문 #{order.id} {note}"))
 
 
 def transition_error_response(exc: Exception):
@@ -173,7 +191,8 @@ def transition_error_response(exc: Exception):
     return jsonify({"success": False, "code": code, "message": str(exc)}), status
 
 
-def cs_complete_replay(db: Any, actor_user_id: Any, idem_key: Optional[str]) -> bool:
+def cs_complete_replay(db: Any, actor_user_id: Any, idem_key: Optional[str],
+                       policy_id: str = POLICY_CS_COMPLETE) -> bool:
     """(actor, CS_COMPLETE, key) receipt 존재 여부. 존재하면 replay(전제 게이트 skip)."""
     if not idem_key or actor_user_id is None:
         return False
@@ -183,12 +202,52 @@ def cs_complete_replay(db: Any, actor_user_id: Any, idem_key: Optional[str]) -> 
         db.query(OrderMutationReceipt.read_receipt_id)
         .filter(
             OrderMutationReceipt.actor_user_id == actor_user_id,
-            OrderMutationReceipt.policy_id == POLICY_CS_COMPLETE,
+            OrderMutationReceipt.policy_id == policy_id,
             OrderMutationReceipt.idempotency_key == idem_key,
         )
         .first()
         is not None
     )
+
+
+def _completion_gate(db: Any, order: Order, actor_id: Any, idem_key: Optional[str],
+                     override: Any, punched: list, regional: bool) -> Optional[tuple[Any, int]]:
+    """정책별 단계·승인 및 공통 보류·AS 검사 결과를 반환한다. receipt는 엔진에서 검증한다."""
+    policy = POLICY_REGIONAL_COMPLETE if regional else POLICY_CS_COMPLETE
+    if cs_complete_replay(db, actor_id, idem_key, policy):
+        return None
+    allowed = MAIN_PIPELINE_CODES[:-1] if regional else CS_STAGES
+    if read_main_stage(order) not in allowed:
+        if override is None:
+            message = "진행 중인 지방 주문만 완료할 수 있습니다." if regional else "CS 상태에서만 완료할 수 있습니다."
+            return jsonify({"success": False, "code": "INVALID_STAGE", "message": message}), 409
+        punched.append("INVALID_STAGE")
+    hit = cs_gate_code(order, _ensure_dict(order.structured_data))
+    if hit is not None:
+        if override is None:
+            return _cs_gate_block(order, _ensure_dict(order.structured_data))
+        punched.append(hit[0])
+    return None
+
+
+def _finish_regional_logistics(db: Any, order: Order, actor_id: Any) -> None:
+    """지방 완료의 설치예정 물류 축을 정식 전이로 종료한다. 호출자 트랜잭션을 공유한다."""
+    current = read_logistics(order)
+    if current == "NONE":
+        return
+    transition_order(
+        db, command_id="SET_LOGISTICS_STATUS", order_id=order.id, actor_user_id=actor_id,
+        expected_from=current, target_value="NONE",
+        scope_hash=scope_hash("SET_LOGISTICS_STATUS", order.id), request_hash=request_hash({}),
+    )
+
+
+def _validate_regional_replay(result: Any, order_id: int) -> None:
+    """재전송 결과의 주문번호를 확인한다. 다른 주문이면 충돌 예외를 발생시킨다."""
+    if result.replayed and not any(
+        row.get("order_id") == order_id for row in result.mutation.body.get("resources", [])
+    ):
+        raise IdempotencyKeyConflictError("idempotency key belongs to another order.")
 
 
 def complete_order_as_cs(
@@ -203,52 +262,43 @@ def complete_order_as_cs(
     punched: Optional[list] = None,
     expected_version: Optional[int] = None,
 ):
-    """주문을 CS 완료 경로로 최종 COMPLETED 로 보낸다. 성공하면 None, 실패하면 ``(json, status)``.
-
-    ``override`` 가 주어지면 업무 게이트(CS 단계 전제·필수 승인·보류·진행 중 AS)를 건너뛰고
-    건너뛴 코드를 ``punched`` 에 적는다. 전이 자체의 정합 검사(잠금 아래 ``expected_from``
-    재확인·``to_values``·If-Match)는 override 와 무관하게 그대로 돈다.
-
-    커밋은 호출자가 한다 — 실패 시에도 rollback 은 호출자 몫이 아니라 이 함수가 전이 예외에서
-    직접 수행한다(전이가 남긴 부분 변경을 지우기 위해서다).
-    """
+    """CS/지방 정책으로 최종 완료한다. 성공은 None, 실패는 (JSON, status). 커밋은 호출자 소관."""
     if punched is None:
         punched = []
     order_id = order.id
-    sd = _ensure_dict(order.structured_data)
+    # 지방 판정·보류·AS를 잠금 아래 재확인한다. 전이 엔진도 같은 트랜잭션의 잠금을 쓴다.
+    if uses_regional_completion(order):
+        db.refresh(order, with_for_update=True)
+        if order.status == "DELETED" or order.deleted_at is not None:
+            return jsonify({"success": False, "message": "주문을 찾을 수 없습니다."}), 404
+    regional = uses_regional_completion(order)
+    command_id = "REGIONAL_COMPLETE" if regional else "CS_COMPLETE"
+    receipt_body = {"order_id": order_id, "body": body} if regional else body
     from_stage = read_main_stage(order)
-
-    # replay(같은 key 저장 receipt) 가 아니면 CS stage + quest/hold/AS 게이트를 검사한다.
-    if not cs_complete_replay(db, actor_user_id, idempotency_key):
-        # 단계 판독은 canonical 축(workflow.stage 우선)으로 한다 — 화면 CTA 와 전이 엔진
-        # expected_from 이 모두 이 축을 보므로 화면 잣대와 서버 잣대가 어긋나지 않는다.
-        if from_stage not in CS_STAGES:
-            if override is None:
-                return jsonify({"success": False, "code": "INVALID_STAGE",
-                                "message": "CS 상태에서만 완료할 수 있습니다."}), 409
-            punched.append("INVALID_STAGE")
-        hit = cs_gate_code(order, sd)
-        if hit is not None:
-            if override is None:
-                return _cs_gate_block(order, sd)
-            punched.append(hit[0])
+    failed = _completion_gate(db, order, actor_user_id, idempotency_key, override, punched, regional)
+    if failed is not None:
+        return failed
 
     try:
         result = transition_order(
-            db, command_id="CS_COMPLETE", order_id=order_id, actor_user_id=actor_user_id,
+            db, command_id=command_id, order_id=order_id, actor_user_id=actor_user_id,
             expected_from=from_stage, target_value="COMPLETED",
-            scope_hash=scope_hash("CS_COMPLETE", order_id),
-            request_hash=request_hash(body), idempotency_key=idempotency_key,
+            scope_hash=scope_hash(command_id, order_id),
+            request_hash=request_hash(receipt_body), idempotency_key=idempotency_key,
             expected_version=expected_version,
             emergency_override=bool(override),
             reason=(override.reason if override is not None else None),
         )
+        if regional:
+            _validate_regional_replay(result, order_id)
+        if not result.replayed:
+            if regional:
+                _finish_regional_logistics(db, order, actor_user_id)
+            _apply_cs_complete_side_effects(db, order, actor_user, actor_user_id)
     except (TransitionError, RevisionError) as exc:
         db.rollback()
         return transition_error_response(exc)
 
-    if not result.replayed:
-        _apply_cs_complete_side_effects(db, order, actor_user, actor_user_id)
     return None
 
 

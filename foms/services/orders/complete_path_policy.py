@@ -3,6 +3,7 @@
 메인 파이프라인 주문의 최종 완료는 ``POST /api/orders/<id>/cs/complete`` 한 길만 쓴다.
 보드의 ``update_order_field(status=COMPLETED)`` 우회로는 quest·보류·AS 게이트를 통째로
 건너뛰었기 때문에 이번 계약에서 막힌다(:func:`rejects_completed_field_write`).
+지방 ERP 주문은 같은 완료 API에서 단계·CS 승인만 생략하는 별도 정책을 따른다.
 
 이 모듈은 **읽기 전용 판정만** 한다 — 추가 DB 쿼리 0회(전부 structured_data 파생)이고
 어떤 값도 쓰지 않는다. 화면(매크로)과 서버(field_update)가 **같은 술어**를 부르므로
@@ -19,6 +20,10 @@ from foms.services.erp_order_flags import is_erp_order_record
 from foms.services.erp_permissions import can_edit_erp
 from foms.services.orders.erp_policy_constants import STAGE_LABELS
 from foms.services.orders.erp_policy_quests import check_quest_approvals_complete
+from foms.services.orders.draft_guard import (
+    DRAFT_NOT_PROMOTED_CODE, DRAFT_NOT_PROMOTED_MESSAGE, is_unpromoted_draft,
+)
+from foms.services.orders.stage_override import MAIN_PIPELINE_CODES
 from foms.services.orders.state_axes import (
     read_as_status,
     read_hold,
@@ -35,6 +40,7 @@ __all__ = [
     "build_complete_ctas",
     "rejects_completed_field_write",
     "use_cs_complete_response_body",
+    "uses_regional_completion",
 ]
 
 
@@ -125,11 +131,17 @@ def _cs_quest_missing_teams(sd: dict) -> Optional[list]:
     return list(missing or [])
 
 
+def uses_regional_completion(order: Any) -> bool:
+    """서버 주문 속성으로 지방 ERP 직접 완료 대상인지 반환한다. 추가 조회는 없다."""
+    return is_erp_order_record(order) and getattr(order, "is_regional", False) is True
+
+
 def complete_block_reason(order: Any, user: Any):
     """완료를 막는 첫 사유 ``(code, message, href)``. 막을 게 없으면 None.
 
     판정 순서는 라우트(:mod:`foms.api.cs.complete`)의 게이트와 1:1이다 —
-    권한 → main stage CS → CS quest 승인 → 보류 → AS. 순서가 어긋나면 화면이
+    권한 → main stage CS → CS quest 승인 → 보류 → AS. 지방 주문은 단계·CS 승인을 생략한다.
+    순서가 어긋나면 화면이
     서버와 다른 이유를 말하게 된다.
 
     Args:
@@ -144,7 +156,12 @@ def complete_block_reason(order: Any, user: Any):
         return ("NO_PERMISSION", _NO_PERMISSION_MESSAGE, "")
 
     stage = read_main_stage(order)
-    if stage != "CS":
+    regional = uses_regional_completion(order)
+    if regional and is_unpromoted_draft(order):
+        return (DRAFT_NOT_PROMOTED_CODE, DRAFT_NOT_PROMOTED_MESSAGE, "")
+    if regional and stage not in MAIN_PIPELINE_CODES[:-1]:
+        return ("INVALID_STAGE", "진행 중인 지방 주문만 완료할 수 있습니다.", "")
+    if not regional and stage != "CS":
         label = STAGE_LABELS.get(stage or "", stage or "이전")
         return (
             "STAGE_NOT_CS",
@@ -155,7 +172,7 @@ def complete_block_reason(order: Any, user: Any):
 
     sd = getattr(order, "structured_data", None)
     sd = sd if isinstance(sd, dict) else {}
-    missing = _cs_quest_missing_teams(sd)
+    missing = None if regional else _cs_quest_missing_teams(sd)
     if missing is not None:
         teams = ", ".join(str(team) for team in missing) or "확인 필요"
         return (
@@ -242,11 +259,11 @@ def _build_one(order: Any, current_user: Any) -> dict:
         return _hidden()
 
     # field_update 가 막지 않는 행은 화면도 옛 경로 그대로 둔다(잣대 일치).
-    if not rejects_completed_field_write(order, "COMPLETED"):
+    if not uses_regional_completion(order) and not rejects_completed_field_write(order, "COMPLETED"):
         return _legacy_cta()
 
     blocked = complete_block_reason(order, current_user)
-    endpoint = "cs_complete" if read_main_stage(order) == "CS" else "field_update"
+    endpoint = "cs_complete" if uses_regional_completion(order) or read_main_stage(order) == "CS" else "field_update"
     return {
         "visible": True,
         "enabled": blocked is None,
@@ -274,7 +291,9 @@ def use_cs_complete_response_body(order: Any, user: Any) -> dict:
         'admin_override_available'}`` dict.
     """
     blocked = complete_block_reason(order, user)
-    code, message, _href = blocked if blocked else ("USE_CS_COMPLETE", CS_PATH_MESSAGE, "")
+    path_message = ("지방 주문 완료는 [완료] 버튼으로 처리해 주세요."
+                    if uses_regional_completion(order) else CS_PATH_MESSAGE)
+    code, message, _href = blocked if blocked else ("USE_CS_COMPLETE", path_message, "")
     return {
         "success": False,
         "code": "USE_CS_COMPLETE",

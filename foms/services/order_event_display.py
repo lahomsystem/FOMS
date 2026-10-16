@@ -210,6 +210,7 @@ def translate_event_type_to_korean(event_type: str | None) -> str:
         "CONSTRUCTION_SCHEDULED": "시공 예약",
         "CS_STARTED": "CS 시작",
         "CS_COMPLETED": "CS 완료",
+        "REGIONAL_ORDER_COMPLETED": "지방 주문 완료",
         "CS_ISSUE_REPORTED": "CS 이슈 보고",
         "AS_STARTED": "AS 시작",
         "AS_COMPLETED": "AS 완료",
@@ -582,6 +583,8 @@ def generate_change_description(
         return "시공을 시작했습니다"
     if event_type == "CS_COMPLETED":
         return "CS를 완료 처리했습니다"
+    if event_type == "REGIONAL_ORDER_COMPLETED":
+        return "지방 주문을 완료 처리했습니다"
     if event_type == "CS_STARTED":
         return "CS를 시작했습니다"
     if event_type == "AS_STARTED":

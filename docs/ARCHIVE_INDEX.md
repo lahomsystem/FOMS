@@ -275,6 +275,7 @@
 ## 구현 스펙 (docs/specs/)
 | 파일 | 키워드 | 요약 |
 |------|--------|------|
+| [2026-10-16-regional-direct-complete_SPEC.md](specs/2026-10-16-regional-direct-complete_SPEC.md) | 지방, regional, 완료, canonical | 지방 주문 직접 완료 구현·로컬 검증 완료. 권한·보류·AS·정합 검사 유지. |
 | 2026-04-30-shared-harness-task-classification_SPEC.md | harness, classifier, cursor, codex, claude, wave3 | Cursor hook, Codex wrapper, Claude/Codex plugin preflight가 공유하는 단일 task classification 계약 |
 | 2026-04-17-erp-shell-fragment-contract_SPEC.md | erp, shell, fragment, canonical-url, history, micro-cache, contract | ERP 4탭 fast-page tranche: full vs fragment 요청 판별, browser cache 키, micro-cache 유지, GET/비-JS fallback 경계를 고정한 계약 SPEC |
 | 2026-04-13-foms-modular-monolith-rebaseline_SPEC.md | foms, modular-monolith, rebaseline, structure, chunk, folder-taxonomy, wdcalculator | FOMS 전체를 단일 modular monolith로 더 선명하게 정리하기 위한 상위 구조 기준선으로, 폴더 체계, canonical 경계, chunk-first 분해 규칙, quarantine 정책, migration wave를 정의하는 전사 구조 재기준선 스펙 |
