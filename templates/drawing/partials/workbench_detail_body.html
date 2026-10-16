@@ -1,6 +1,12 @@
-{% macro dw_target_chips(files) -%}
+{% macro dw_target_chips(files, group_key) -%}
+{% set viewer = namespace(index=0) %}
 {% for t in files %}
-{% if t.view_url %}<a class="dw-target-chip me-1 mt-1" href="{{ t.view_url }}" target="_blank" rel="noopener" title="{{ t.no }}번 · {{ t.name }} 크게 보기"><img src="{{ t.view_url }}" alt="{{ t.no }}번 도면" loading="lazy"><span class="dw-target-chip-no">{{ t.no }}번</span>{% if t.name %}<span class="dw-target-chip-name">· {{ t.name }}</span>{% endif %}</a>
+{% if t.view_url %}<button type="button" class="dw-target-chip me-1 mt-1"
+  data-group-key="{{ group_key }}" data-index="{{ viewer.index }}"
+  data-view-url="{{ t.view_url }}" data-download-url="{{ t.view_url|replace('/api/files/view/', '/api/files/download/') }}"
+  data-filename="{{ t.name or (t.no ~ '번 도면') }}"
+  onclick="openDrawingGatewayImageViewer(this.dataset.groupKey, Number(this.dataset.index))"
+  title="{{ t.no }}번 · {{ t.name }} 크게 보기"><img src="{{ t.view_url }}" alt="{{ t.no }}번 도면" loading="lazy"><span class="dw-target-chip-no">{{ t.no }}번</span>{% if t.name %}<span class="dw-target-chip-name">· {{ t.name }}</span>{% endif %}</button>{% set viewer.index = viewer.index + 1 %}
 {%- else %}<span class="dw-target-chip me-1 mt-1"><span class="dw-target-chip-no">{{ t.no }}번 대상</span>{% if t.name %}<span class="dw-target-chip-name">· {{ t.name }}</span>{% endif %}</span>{% endif %}
 {% endfor %}
 {%- endmacro %}
@@ -1377,7 +1383,7 @@
                 <span class="small text-muted">{{ h.at_text }}</span>
               </div>
               {% if h.target_files %}
-              <div class="mt-1">{{ dw_target_chips(h.target_files) }}</div>
+              <div class="mt-1">{{ dw_target_chips(h.target_files, 'target-history-' ~ loop.index0) }}</div>
               {% elif h.target_no %}
               <div class="small mt-1"><span class="badge bg-light text-dark border">{{ h.target_no }}번 대상</span></div>
               {% endif %}
@@ -1441,7 +1447,7 @@
                 <span class="badge bg-secondary">미완료</span>
                 {% endif %}
               </div>
-              {% if r.target_files %}<div class="mt-1">{{ dw_target_chips(r.target_files) }}</div>{% endif %}
+              {% if r.target_files %}<div class="mt-1">{{ dw_target_chips(r.target_files, 'target-request-' ~ loop.index0) }}</div>{% endif %}
               <div class="small mt-1 dw-revision-note-text">{{ r.note or '요청 메모 없음' }}</div>
               {% if checked %}
               <div class="small text-success mt-1">

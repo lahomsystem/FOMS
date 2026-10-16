@@ -41,8 +41,8 @@ def test_foreign_order_key_gets_no_link():
 
 def test_template_uses_chip_in_timeline_and_request_card():
     src = Path('templates/drawing/partials/workbench_detail_body.html').read_text(encoding='utf-8')
-    assert 'dw_target_chips(h.target_files)' in src
-    assert 'dw_target_chips(r.target_files)' in src
+    assert "dw_target_chips(h.target_files, 'target-history-' ~ loop.index0)" in src
+    assert "dw_target_chips(r.target_files, 'target-request-' ~ loop.index0)" in src
 
 
 def test_replaced_target_uses_history_name_and_stored_number():
