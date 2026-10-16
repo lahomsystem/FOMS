@@ -730,7 +730,7 @@ def _naver_facts(session, order_ids: list[int], *,
     개수가 아니라 **그 결제가 취소됐는가**다(취소됐으면 재결제, 살아 있으면 추가결제).
     담당자는 그걸 확인하려고 네이버를 따로 열고 있었다.
 
-    ``cancel_reasons`` 는 **고객이 직접 쓴 취소·반품 사유 원문**이다 (2026-08-26). 클레임
+    ``cancel_reasons`` 는 고객 사유 또는 판매자의 고객 안내가 담긴 취소·반품 상세 원문이다. 클레임
     라벨(`전부 취소`)은 *무엇이* 일어났는지만 말하고 *왜* 를 말하지 못한다. 그런데 이 표는
     재결제냐 추가결제냐를 가르는 자리이고, 실데이터의 사유 원문이 바로 그 답을 적고 있다 —
     스테이징 실측: `일시불 재결제 예정` · `취소 재결제` · `재주문예정` · `재결제` 는 재결제,
@@ -1114,7 +1114,7 @@ def _order_view(order: Order, *, score: int, reason: str,
         # 카드에 적힌 합계가 서로 다른 수가 된다.
         "naver_cancel_approve_groups": list(facts.get("naver_cancel_approve_groups") or []),
         "naver_return_approve_groups": list(facts.get("naver_return_approve_groups") or []),
-        # 고객이 쓴 사유 원문 — 라벨이 못 말하는 **왜** 를 말한다(2026-08-26).
+        # 취소·반품 상세 원문 — 고객 사유와 판매자의 고객 안내를 모두 포함한다.
         "naver_cancel_reasons": list(facts.get("cancel_reasons") or []),
         # ③ 금액 관계 — 집 전체끼리 견준다(대표 1건끼리 견주면 항상 작게 나온다).
         "naver_amount_total": old_amount,
