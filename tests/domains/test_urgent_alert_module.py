@@ -82,6 +82,18 @@ def test_css_file_has_overlay_layer() -> None:
     assert "white-space: pre-line" in css
 
 
+def test_police_beacon_and_sound_preserve_keyboard_access() -> None:
+    js, css = _read(MODULE), _read(CSS)
+    assert '🔔' not in js
+    assert "foms-urgent-alert__beacon" in js
+    assert 'foms-urgent-alert-sweep' in css
+    assert 'prefers-reduced-motion: reduce' in css
+    assert '.foms-urgent-alert__beacon::before { animation: none; }' in css
+    assert 'FOMSUrgentSound.start()' in js and 'FOMSUrgentSound.stop()' in js
+    assert "event.key === 'Tab'" in js
+    assert "event.target === sound" in js
+
+
 def test_layout_head_delegates_to_module() -> None:
     head = _read(LAYOUT_HEAD)
     init_js = _read(HEAD_INIT)

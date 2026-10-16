@@ -409,6 +409,11 @@ body.erp-mobile-v2-layout .foms-kanban-move-btn.foms-kanban-move-btn--warn {
   min-height: 44px;
   font-weight: 700;
 }
+.foms-urgent-selected {
+  max-height: 120px;
+  overflow-y: auto;
+}
+.foms-urgent-selected:empty { display: none; }
 
 /* 맨 위 줄 ⚡ — PC(layout_nav.html) 는 옆 아이콘과 같은 크기, 빨간색. */
 .foms-urgent-header-btn,
