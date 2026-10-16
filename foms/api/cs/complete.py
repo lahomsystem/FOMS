@@ -1,4 +1,4 @@
-"""ERP 주문 CS 완료 API — canonical CS→COMPLETED 전이 (STATE-CONST-CS-01).
+"""ERP 주문 CS·지방 직접 완료 API — canonical 최종 완료 전이 (STATE-CONST-CS-01).
 
 본체는 :mod:`foms.services.orders.cs_complete_service` 로 옮겼다(ADMIN-OVERRIDE-01 C4) —
 완료로 가는 길이 여러 라우트에 흩어지면 "상태만 COMPLETED 이고 뒤가 빈" 주문이 생기기
@@ -34,6 +34,7 @@ from foms.services.orders.cs_complete_service import (
     transition_error_response as _transition_error_response,
 )
 from foms.services.orders.state_axes import read_main_stage
+from foms.services.orders.complete_path_policy import uses_regional_completion
 from models import Order
 
 erp_orders_cs_bp = Blueprint(
@@ -57,11 +58,12 @@ def _idempotency_key(body: dict[str, Any]) -> Optional[str]:
 @login_required
 @erp_edit_required
 def api_cs_complete(order_id):
-    """CS 단계 완료 → COMPLETED. CS quest + hold + AS gate 통과 시에만 전이.
+    """CS 완료 또는 지방 직접 완료 → COMPLETED. 공통 보류·AS 검사를 유지한다.
 
     5단계 하드 게이트: 존재(404) → 팀 권한(데코레이터 403) → CS stage(INVALID_STAGE 409) →
     CS quest 완료 + 보류 해제 + AS cycle NONE/COMPLETED(각 409). 관리자가 `admin_override` 를
     켜면 이 업무 게이트들만 건너뛴다. same-key 재요청은 전이/side-effect 없이 replay 한다.
+    지방 주문은 서버 주문 표식에 따라 CS 단계·승인만 생략한다.
     """
     db = get_db()
     try:
@@ -70,6 +72,11 @@ def api_cs_complete(order_id):
             return jsonify({"success": False, "message": "주문을 찾을 수 없습니다."}), 404
 
         body = request.get_json(silent=True) or {}
+        raw_version = (request.headers.get("If-Match") or "").strip().strip('"')
+        try:
+            expected_version = int(raw_version) if raw_version else None
+        except ValueError:
+            return jsonify({"success": False, "message": "If-Match 형식이 올바르지 않습니다."}), 400
         user_id = session.get("user_id")
         user = get_user_by_id(user_id)
 
@@ -87,6 +94,7 @@ def api_cs_complete(order_id):
         failed = complete_order_as_cs(
             db, order, actor_user=user, actor_user_id=user_id, body=body,
             idempotency_key=_idempotency_key(body), override=override, punched=punched,
+            expected_version=expected_version,
         )
         if failed is not None:
             return failed
@@ -98,7 +106,9 @@ def api_cs_complete(order_id):
                 from_value=from_stage, to_value="COMPLETED",
             )
         db.commit()
-        return jsonify({"success": True, "message": "CS가 완료되어 최종 완료 처리되었습니다.",
+        message = ("지방 주문이 완료 처리되었습니다." if uses_regional_completion(order)
+                   else "CS가 완료되어 최종 완료 처리되었습니다.")
+        return jsonify({"success": True, "message": message,
                         "new_status": "COMPLETED"})
     except Exception as e:
         db.rollback()

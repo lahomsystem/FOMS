@@ -163,7 +163,7 @@
     },
     {
       "path": "foms/services/orders/cs_complete_service.py",
-      "lineno": 164,
+      "lineno": 182,
       "kind": "flag_modified_structured_data",
       "owner": "STATE-CONST-CS-01"
     },
@@ -207,7 +207,7 @@
   "writers": [
     {
       "path": "foms/api/channel/channel_integration.py",
-      "lineno": 321,
+      "lineno": 350,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "CHANNEL-WRITER-01"
@@ -634,7 +634,7 @@
     },
     {
       "path": "foms/services/orders/cs_complete_service.py",
-      "lineno": 164,
+      "lineno": 182,
       "kind": "flag_modified_structured_data",
       "classification": "EXTERNAL",
       "owner": "STATE-CONST-CS-01"
