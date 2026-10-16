@@ -376,6 +376,7 @@ def test_urgent_mention_creates_states(client, db):
     order = _mk_order(manager_name="담당자")
     admin = _mk_user("um_ok_admin", "관리자", role="ADMIN")
     target = _mk_user("um_ok_tgt", "대상", role="MANAGER")
+    target_id = target.id
     _login(client, admin)
     resp = client.post(
         "/erp/api/urgent-call",
@@ -386,14 +387,14 @@ def test_urgent_mention_creates_states(client, db):
 
     state = (
         db.query(NotificationUserState)
-        .filter(NotificationUserState.user_id == target.id)
+        .filter(NotificationUserState.user_id == target_id)
         .first()
     )
     assert state is not None
     created = (
         db.query(NotificationEvent)
         .filter(
-            NotificationEvent.recipient_user_id == target.id,
+            NotificationEvent.recipient_user_id == target_id,
             NotificationEvent.event_type == NotificationEventType.CREATED,
         )
         .first()

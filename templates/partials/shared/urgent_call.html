@@ -32,7 +32,11 @@
           </div>
         </div>
         <div class="foms-urgent-teams" role="group" aria-label="팀" data-foms-urgent-teams></div>
+        <p class="small text-muted mb-1" data-foms-urgent-count aria-live="polite">여러 명을 선택할 수 있어요</p>
+        <div class="foms-urgent-people foms-urgent-selected mb-2" data-foms-urgent-selected role="group" aria-label="선택한 사람"></div>
         <div class="foms-urgent-people" data-foms-urgent-people aria-live="polite"></div>
+        <button type="button" class="btn btn-sm btn-outline-secondary my-2" data-foms-urgent-sound-test>긴급 사이렌 소리 켜기·시험</button>
+        <p class="small text-muted" data-foms-urgent-sound-status role="status">이 화면을 사용하는 동안 소리를 받을 수 있어요. 기기 음량도 확인해 주세요.</p>
         <label class="visually-hidden" for="foms-urgent-message">사유</label>
         <textarea class="form-control" id="foms-urgent-message" rows="3" maxlength="500" placeholder="사유"
           data-foms-urgent-message></textarea>

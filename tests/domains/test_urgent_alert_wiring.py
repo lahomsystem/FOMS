@@ -153,3 +153,13 @@ def test_sw_click_branches_urgent_before_navigate_and_keeps_non_urgent_navigate(
 
 def test_sw_cache_version_bumped_for_urgent_click() -> None:
     assert 'CACHE_VERSION = "foms-p2-v11"' in _read(SW)
+
+
+def test_sound_loaded_before_alert_and_all_asset_versions_match() -> None:
+    paths = [WIZARD, MAP_VIEW, ROOT / 'templates/partials/shared/layout_head.html']
+    for path in paths:
+        html = _read(path)
+        assert 'defer' in _script_tag(html, 'js/foms/urgent-sound.js')
+        assert html.index('js/foms/urgent-sound.js') < html.index('js/foms/foms-urgent-alert.js')
+        for asset in ('js/foms/urgent-sound.js', 'js/foms/foms-urgent-alert.js', 'css/components/foms-urgent-alert.css'):
+            assert re.search(re.escape(asset) + r"[^>]*\?v=20261016a", html), (path, asset)

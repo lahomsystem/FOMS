@@ -219,7 +219,7 @@ def test_send_writes_notification_state_event_and_sidefx_row_one_tx(client, db):
         .filter(NotificationUserState.notification_id == notif.id)
         .all()
     )
-    assert len(states) == 1 and states[0].user_id == target.id
+    assert len(states) == 1 and states[0].user_id == tid
 
     # NotificationEvent(created) 존재.
     created = (

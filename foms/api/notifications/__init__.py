@@ -9,6 +9,7 @@ import datetime as dt_mod
 from foms.services.error_logging import log_handled_exception
 import json
 import time
+from typing import Any
 from urllib.parse import quote
 
 from flask import Blueprint, g, jsonify, request, session
@@ -18,6 +19,7 @@ from foms.web.auth import log_access, login_required
 from foms.services.audit_message_display import describe_action, describe_order_action
 from foms.services.orders.audit_order_context import order_audit_context
 from foms.services.datetime_kst import format_datetime_kst, now_utc_naive
+from foms.services.integrations.naver_commerce.constants import ACTOR_USERNAME, OWNER_USERNAME
 from foms.services.notifications.measure_same_day_payload import measure_same_day_link
 from foms.services.notifications.recipients import INTERNAL_USERS_ONLY, fan_out_new_notification
 from foms.services.request_write_guard import require_same_origin_write
@@ -28,6 +30,7 @@ from models import (
     NotificationDeliveryStatus,
     NotificationEvent,
     NotificationEventType,
+    NotificationRecipientSource,
     NotificationUserState,
     Order,
     User,
@@ -299,9 +302,13 @@ def _user_can_access_order_urgent(user, order):
     return user_can_read_order(user, order)
 
 
-def _urgent_target_payload(u):
+def _urgent_target_payload(u: User) -> dict[str, Any]:
     """긴급 호출 대상 사용자 표시용 dict."""
-    return {"id": u.id, "name": u.name, "team": u.team, "role": u.role}
+    from foms.web.auth import TEAMS
+
+    selection_team = "_ETC" if u.username in (ACTOR_USERNAME, OWNER_USERNAME) else u.team
+    return {"id": u.id, "name": u.name, "team": u.team, "role": u.role,
+            "selection_team": selection_team, "team_label": TEAMS.get(selection_team) or "기타"}
 
 
 @notifications_bp.route("/notifications", methods=["GET"])
@@ -822,14 +829,14 @@ def _urgent_targets_payload(db, user_id):
     # 운영 규모상 상한 500 으로 bound(users/list 와 동일 상한).
     active_users = db.query(User).filter(User.is_active == True, INTERNAL_USERS_ONLY).limit(500).all()  # perf-ok: bounded active-user candidate scan
     targets = [
-        {**_urgent_target_payload(u), "team_label": TEAMS.get(u.team) or "기타"}
+        _urgent_target_payload(u)
         for u in active_users
         if u.id != user_id
     ]
     # 팀 미등록/미상(=기타)은 TEAMS 뒤로, 같은 팀은 이름순. JS 는 이 순서대로 그룹핑한다.
     team_index = {code: idx for idx, code in enumerate(TEAMS)}
     targets.sort(key=lambda t: (
-        team_index.get(t["team"], len(team_index)),
+        team_index.get(t["selection_team"], len(team_index)),
         str(t["name"] or ""),
     ))
     return targets
@@ -988,161 +995,131 @@ def api_notifications_send():
 URGENT_MENTION_RATE_PER_HOUR = 5
 
 
-def _send_urgent_call(db, sender, data, order=None):
-    """긴급 호출 한 건을 보낸다 — 주문 문맥·주문 없는 문맥 공용(SPEC 2026-10-01 §3.1).
-
-    계약(report line 157):
-      * target: active FOMS user(주문 참여자일 필요 없음). 비활성 422·미존재 404.
-      * message: trim 후 1..500자(빈 사유·초과는 400).
-      * rate: 주문이 있으면 actor+order 당 5회/시간 초과는 429. 주문이 없으면 제한 없음.
-      * one transaction: notification + recipient urgent state(child receipt) +
-        urgent-call ``NotificationEvent`` + ``source_domain=NOTIFICATION_EVENT``
-        domain side-effect row(SIDEFX-00 outbox, 별도 notification worker 재구현 없음)를
-        **한 commit** 으로 원자화한다. 중간 실패는 전체 롤백(부분 배달 0).
-      * Order 는 mutate 하지 않는다(notification 전용).
-
-    sender 게이트(주문 read scope)는 부르는 쪽(``_urgent_call_response``)이 먼저 검사한다.
-
-    :return: ``(body_dict, http_status)``
-    """
-    sender_id = sender.id
-    order_id = order.id if order is not None else None
-
-    target_uid_raw = data.get("target_user_id")
-    if not target_uid_raw:
-        return {"success": False, "message": "호출 대상을 선택해주세요."}, 400
-
-    try:
-        target_uid = int(target_uid_raw)
-    except (TypeError, ValueError):
-        return {"success": False, "message": "올바르지 않은 사용자입니다."}, 400
-
-    if target_uid == sender_id:
-        return {"success": False, "message": "자기 자신은 호출할 수 없습니다."}, 400
-
-    # message: trim 1..500(빈 사유·초과 400).
-    msg = (data.get("message") or "").strip()
-    if not msg:
-        return {"success": False, "message": "호출 사유를 입력해주세요."}, 400
+def _urgent_input(data: dict[str, Any], sender_id: int) -> tuple[list[int], str]:
+    """요청과 발신자 id를 검사해 중복 없는 수신자 id·사유를 반환, 오류는 ValueError."""
+    if "target_user_ids" in data and "target_user_id" in data:
+        raise ValueError("호출 대상은 한 가지 형식으로 보내주세요.")
+    raw = data.get("target_user_ids") if "target_user_ids" in data else [data.get("target_user_id")]
+    if not isinstance(raw, list) or not raw or len(raw) > 500:
+        raise ValueError("호출 대상은 1명 이상 500명 이하로 선택해주세요.")
+    ids = []
+    for value in raw:
+        if isinstance(value, bool) or not isinstance(value, (int, str)):
+            raise ValueError("올바르지 않은 사용자입니다.")
+        if isinstance(value, str) and (not value.isascii() or not value.isdecimal() or len(value) > 19):
+            raise ValueError("올바르지 않은 사용자입니다.")
+        uid = int(value)
+        if not 0 < uid <= 2**63 - 1:
+            raise ValueError("올바르지 않은 사용자입니다.")
+        if uid == sender_id:
+            raise ValueError("자기 자신은 호출할 수 없습니다.")
+        if uid not in ids:
+            ids.append(uid)
+    msg = data.get("message", "")
+    if not isinstance(msg, str) or not msg.strip():
+        raise ValueError("호출 사유를 입력해주세요.")
+    msg = msg.strip()
     if len(msg) > 500:
-        return {"success": False, "message": "메시지는 500자 이내여야 합니다."}, 400
+        raise ValueError("메시지는 500자 이내여야 합니다.")
+    return ids, msg
 
-    # target: active FOMS user(참여자 제한 없음). 미존재 404·비활성 422.
-    target_user = db.query(User).filter(User.id == target_uid).first()
-    if not target_user:
-        return {"success": False, "message": "대상 사용자를 찾을 수 없습니다."}, 404
-    if not target_user.is_active:
-        return {"success": False, "message": "비활성 사용자에게는 호출할 수 없습니다."}, 422
 
-    if order is not None:
-        # rate: actor+order 당 5회/시간(같은 sender·order 의 URGENT_MENTION 카운트).
-        window_start = now_utc_naive() - dt_mod.timedelta(hours=1)
-        recent = (
-            db.query(func.count(Notification.id))
-            .filter(
-                Notification.created_by_user_id == sender_id,
-                Notification.order_id == order_id,
-                Notification.notification_type == "URGENT_MENTION",
-                Notification.created_at >= window_start,
-            )
-            .scalar()
-            or 0
-        )
-        if recent >= URGENT_MENTION_RATE_PER_HOUR:
-            return {
-                "success": False,
-                "message": f"긴급 호출은 주문당 시간당 {URGENT_MENTION_RATE_PER_HOUR}회까지만 보낼 수 있습니다.",
-            }, 429
-        customer = order.customer_name or f"#{order_id}"
-        title = f"[긴급 멘션] {sender.name}님이 #{order_id} {customer} 주문에서 호출했습니다"
-    else:
-        title = f"[긴급 호출] {sender.name}님이 호출했습니다"
+def _urgent_rate_exceeded(db: Any, sender_id: int, order_id: int | None, count: int) -> bool:
+    """세션·발신자·주문·새 수신자 수로 기존 시간당 발송량 초과 여부를 반환."""
+    if order_id is None:
+        return False
+    recent = db.query(func.count(Notification.id)).filter(
+        Notification.created_by_user_id == sender_id,
+        Notification.order_id == order_id,
+        Notification.notification_type == "URGENT_MENTION",
+        Notification.created_at >= now_utc_naive() - dt_mod.timedelta(hours=1),
+    ).scalar() or 0
+    return recent + count > URGENT_MENTION_RATE_PER_HOUR
 
-    # --- 한 transaction: notification + child receipt state + created event +
-    #     source_domain=NOTIFICATION_EVENT side-effect row(부분 배달 0). ---
-    notif = Notification(
-        order_id=order_id,
-        notification_type="URGENT_MENTION",
-        target_type="USER",
-        target_user_id=target_uid,
-        is_urgent=True,
-        title=title,
-        message=msg,
-        created_by_user_id=sender_id,
-        created_by_name=str(sender.name or ""),
-        is_read=False,
-    )
-    db.add(notif)
+
+def _create_urgent_receipts(db: Any, sender: User, targets: list[User], title: str,
+                           message: str, order_id: int | None) -> list[tuple[Notification, NotificationEvent]]:
+    """검증한 직접 수신자들의 알림·state·created event를 일괄 생성해 반환. commit 없음."""
+    # 직접 수신자를 이미 일괄 검증했다. 일반 fan-out resolver를 사람마다 다시 조회하지 않는다.
+    notifications = [Notification(
+        order_id=order_id, notification_type="URGENT_MENTION", target_type="USER",
+        target_user_id=u.id, is_urgent=True, title=title, message=message,
+        created_by_user_id=sender.id, created_by_name=str(sender.name or ""), is_read=False,
+    ) for u in targets]
+    db.add_all(notifications)
     db.flush()
-    # child receipt: recipient urgent state + 'created' NotificationEvent(같은 tx).
-    fan_out_new_notification(db, notif, actor_user_id=sender_id)
-    # urgent-call NotificationEvent(child receipt 의 created event)를 side-effect 의
-    # one-of source(notification_event_id)로 참조한다.
-    created_event = (
-        db.query(NotificationEvent)
-        .filter(
-            NotificationEvent.notification_id == notif.id,
-            NotificationEvent.recipient_user_id == target_uid,
-            NotificationEvent.event_type == NotificationEventType.CREATED,
-        )
-        .order_by(NotificationEvent.id.desc())
-        .first()
-    )
-    if created_event is None:
-        # target 을 active 로 검증했으므로 fan-out 은 반드시 state+event 를 만든다.
-        raise RuntimeError("urgent-call recipient receipt was not created")
-    # 배달(urgent push/realtime)을 domain side-effect outbox 에 같은 tx enqueue한다.
-    # 별도 notification outbox/worker 재구현 없이 SIDEFX-00 을 재사용한다.
+    states = [NotificationUserState(
+        notification_id=n.id, user_id=n.target_user_id,
+        recipient_source=NotificationRecipientSource.TARGET_USER,
+    ) for n in notifications]
+    db.add_all(states)
+    db.flush()
+    events = [NotificationEvent(
+        notification_id=s.notification_id, user_state_id=s.id, actor_user_id=sender.id,
+        recipient_user_id=s.user_id, event_type=NotificationEventType.CREATED,
+    ) for s in states]
+    db.add_all(events)
+    db.flush()
+    return list(zip(notifications, events))
+
+
+def _queue_urgent_delivery(db: Any, sender: User, target: User, notif: Notification,
+                         event: NotificationEvent, order: Order | None) -> None:
+    """세션·송수신자·알림/event·주문으로 기존 outbox와 감사 로그 기록. commit 없음."""
     enqueue_side_effect(
-        db,
-        source_domain="NOTIFICATION_EVENT",
-        source_id=created_event.id,
-        effect_type="NOTIFICATION",
-        payload={
-            "notification_id": notif.id,
-            "recipient_user_id": target_uid,
-            "order_id": order_id,
-            "kind": "URGENT_MENTION",
-        },
+        db, source_domain="NOTIFICATION_EVENT", source_id=event.id, effect_type="NOTIFICATION",
+        payload={"notification_id": notif.id, "recipient_user_id": target.id,
+                 "order_id": notif.order_id, "kind": "URGENT_MENTION"},
         dedupe_key=f"urgent_mention:{notif.id}",
     )
+    detail = {"target_user_id": target.id, "notification_id": notif.id}
     if order is not None:
-        log_access(
-            describe_order_action(order_id=order_id, action="URGENT_MENTION_SENT",
-                                  **order_audit_context(order)),
-            sender_id,
-            auto_commit=False,
-            action="URGENT_MENTION_SENT", target_type="order", target_id=int(order_id),
-            detail={"target_user_id": int(target_uid), "notification_id": int(notif.id),
-                    **order_audit_context(order)},
-        )
+        detail.update(order_audit_context(order))
+        label = describe_order_action(order_id=order.id, action="URGENT_MENTION_SENT",
+                                      **order_audit_context(order))
     else:
-        log_access(
-            describe_action("URGENT_MENTION_SENT", target_label=f"{target_user.name}님"),
-            sender_id,
-            auto_commit=False,
-            action="URGENT_MENTION_SENT", target_type="user", target_id=int(target_uid),
-            detail={"target_user_id": int(target_uid), "notification_id": int(notif.id)},
-        )
-    db.commit()  # 원자 커밋: notification+state+event+outbox(부분 배달 0)
+        label = describe_action("URGENT_MENTION_SENT", target_label=f"{target.name}님")
+    log_access(label, sender.id, auto_commit=False, action="URGENT_MENTION_SENT",
+               target_type="order" if order is not None else "user",
+               target_id=order.id if order is not None else target.id, detail=detail, db=db)
 
-    invalidate_badge_cache_for_user_ids([target_uid])
 
-    # best-effort 실시간 표시(비내구 — 내구 배달은 위 outbox row 가 담당).
+def _send_urgent_call(db: Any, sender: User, data: dict[str, Any], order: Order | None = None) -> tuple[dict, int]:
+    """세션·발신자·요청·선택 주문으로 전원 발송. 알림/receipt/event/outbox는 한 commit, 오류는 전체 롤백."""
     from foms.services.notifications.realtime_notifications import emit_erp_notification_to_users
-    payload = {
-        "title": title,
-        "message": msg,
-        "urgent": True,
-        "notification_type": "URGENT_MENTION",
-        "order_id": order_id,
-        "created_by_name": str(sender.name or ""),
-        # 받는 쪽 빨간 창의 "확인" 이 이 id 로 ack 를 기록한다.
-        "notification_id": int(notif.id),
-    }
-    emit_erp_notification_to_users([target_uid], payload)
 
-    return {"success": True, "message": f"{target_user.name}님에게 긴급 호출을 보냈습니다."}, 200
+    try:
+        ids, msg = _urgent_input(data, sender.id)
+    except ValueError as exc:
+        return {"success": False, "message": str(exc)}, 400
+    by_id = {u.id: u for u in db.query(User).filter(User.id.in_(ids)).limit(len(ids)).all()}
+    if len(by_id) != len(ids):
+        return {"success": False, "message": "대상 사용자를 찾을 수 없습니다."}, 404
+    targets = [by_id[uid] for uid in ids]
+    if any(not u.is_active for u in targets):
+        return {"success": False, "message": "비활성 사용자에게는 호출할 수 없습니다."}, 422
+    if any(u.partner_org_id is not None for u in targets):
+        return {"success": False, "message": "내부 직원에게만 긴급 호출을 보낼 수 있습니다."}, 422
+    order_id = order.id if order is not None else None
+    if _urgent_rate_exceeded(db, sender.id, order_id, len(ids)):
+        return {"success": False, "message": f"긴급 호출은 주문당 시간당 {URGENT_MENTION_RATE_PER_HOUR}회까지만 보낼 수 있습니다."}, 429
+    title = f"[긴급 호출] {sender.name}님이 호출했습니다"
+    if order is not None:
+        customer = order.customer_name or f"#{order_id}"
+        title = f"[긴급 멘션] {sender.name}님이 #{order_id} {customer} 주문에서 호출했습니다"
+    receipts = _create_urgent_receipts(db, sender, targets, title, msg, order_id)
+    payloads = []
+    for target, (notif, event) in zip(targets, receipts):
+        _queue_urgent_delivery(db, sender, target, notif, event, order)
+        payloads.append((target.id, {"title": title, "message": msg, "urgent": True,
+                        "notification_type": "URGENT_MENTION", "order_id": order_id,
+                        "created_by_name": str(sender.name or ""), "notification_id": int(notif.id)}))
+    name = f"{targets[0].name}님" if len(ids) == 1 else f"{len(ids)}명"
+    db.commit()  # 전원의 notification+state+event+outbox+감사 로그를 원자 커밋.
+    invalidate_badge_cache_for_user_ids(ids)
+    for uid, payload in payloads:
+        emit_erp_notification_to_users([uid], payload)
+    return {"success": True, "message": f"{name}에게 긴급 호출을 보냈습니다."}, 200
 
 
 def _urgent_call_response(order_id):
@@ -1188,11 +1165,14 @@ def _urgent_call_response(order_id):
 def api_urgent_call():
     """맨 위 줄 ⚡ 긴급 호출 — 주문은 골라도 되고 안 골라도 된다(SPEC 2026-10-01 §3.2).
 
-    Body: ``{ target_user_id: int, message: str(trim 1..500), order_id?: int }``.
+    Body: ``{ target_user_ids: [int], message: str(trim 1..500), order_id?: int }``.
+    기존 단일 target_user_id 요청도 지원한다(두 형식 동시 전달은 금지).
     order_id 가 있으면 주문 문맥 규칙(read scope 게이트·주문당 5회/시간), 없으면
     로그인 사용자 누구나·횟수 제한 없음.
     """
     data = request.get_json(silent=True) or {}
+    if not isinstance(data, dict):
+        return jsonify({"success": False, "message": "올바르지 않은 요청입니다."}), 400
     raw = data.get("order_id")
     order_id = None
     if raw not in (None, ""):
