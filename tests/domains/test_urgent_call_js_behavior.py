@@ -19,7 +19,7 @@ const root = makeEl({ id: 'fomsUrgentCallModal' });
 const el = {
   picked: makeEl({ cls: ['d-none'] }), add: makeEl({}), search: makeEl({ cls: ['d-none'] }),
   label: makeEl({}), q: makeEl({ attrs: { 'data-foms-urgent-order-q': '' } }), results: makeEl({}),
-  teams: makeEl({}), people: makeEl({}), message: makeEl({ attrs: { 'data-foms-urgent-message': '' } }),
+  teams: makeEl({}), people: makeEl({}), selected: makeEl({}), count: makeEl({}), message: makeEl({ attrs: { 'data-foms-urgent-message': '' } }),
   error: makeEl({ cls: ['d-none'] }), send: makeEl({ disabled: true, cls: ['btn-secondary'] }),
   clear: makeEl({}), addBtn: null,
 };
@@ -28,6 +28,7 @@ Object.assign(root._sel, {
   '[data-foms-urgent-order-search]': el.search, '[data-foms-urgent-order-label]': el.label,
   '[data-foms-urgent-order-q]': el.q, '[data-foms-urgent-order-results]': el.results,
   '[data-foms-urgent-teams]': el.teams, '[data-foms-urgent-people]': el.people,
+  '[data-foms-urgent-selected]': el.selected, '[data-foms-urgent-count]': el.count,
   '[data-foms-urgent-message]': el.message, '[data-foms-urgent-error]': el.error,
   '[data-foms-urgent-send]': el.send,
 });
@@ -82,7 +83,7 @@ out({ s0: s0, s1: s1, posts: posts });
         "send": "받을 사람을 골라 주세요", "locked": True,
     }
     assert r["s1"] == {"send": "구범진에게 보내기", "locked": False, "danger": True, "selected": True, "pressed": "true"}
-    assert r["posts"] == [["/erp/api/urgent-call", {"target_user_id": 52, "message": "확인 부탁", "order_id": 4491}]]
+    assert r["posts"] == [["/erp/api/urgent-call", {"target_user_ids": [52], "message": "확인 부탁", "order_id": 4491}]]
     assert ["hide", "fomsUrgentCallModal"] in r["modalOps"]
     assert r["toasts"] == ["구범진님에게 긴급 호출을 보냈습니다."]
 
@@ -105,7 +106,7 @@ out({ afterClear: afterClear, noReason: noReason, ready: ready, posts: posts });
     assert r["afterClear"] == {"pickedShown": False, "addShown": True}
     assert r["noReason"] == {"send": "사유를 적어 주세요", "locked": True}
     assert r["ready"] == "김한비에게 보내기"
-    assert r["posts"] == [["/erp/api/urgent-call", {"target_user_id": 42, "message": "지금 와 주세요"}]]
+    assert r["posts"] == [["/erp/api/urgent-call", {"target_user_ids": [42], "message": "지금 와 주세요"}]]
 
 
 def test_header_bolt_prefills_expanded_dashboard_order_and_resolves_label():
@@ -194,3 +195,61 @@ out({ tabs: tabs, etc: el.people.children.slice(-2).map(function (b) { return b.
     r = run_js([ORDER_JS, JS], driver)
     assert r["tabs"] == [["CS", "CS", True], ["DRAWING", "도면", False], ["_ETC", "기타", False]]
     assert r["etc"] == ["QA Claude", "성능게이트봇"]
+
+
+def test_multi_select_survives_team_switch_and_sends_one_request():
+    r = run_js([ORDER_JS, JS], DOM + r"""
+loadSources();
+window.fomsUrgentCall.open({ message: '다 같이 확인' }); await flush();
+clickRendered(person(20), '[data-foms-urgent-target]');
+clickRendered(el.teams.children.filter(b => b.getAttribute('data-foms-urgent-team') === 'DRAWING').pop(), '[data-foms-urgent-team]');
+clickRendered(person(52), '[data-foms-urgent-target]');
+const ready = el.send.textContent, count = el.count.textContent;
+let resolveSend;
+window.FOMSNotificationWrite.fetch = function (url, opts) {
+  posts.push([url, JSON.parse(opts.body)]); return new Promise(resolve => { resolveSend = resolve; });
+};
+fire('click', el.send); fire('click', el.send);
+clickRendered(person(42), '[data-foms-urgent-target]');
+const pending = { label: el.send.textContent, disabled: el.send.disabled };
+resolveSend(Resp(200, { success: true })); await flush();
+out({ ready, count, pending, posts });
+""")
+    assert r['ready'] == '김세연 외 1명에게 보내기'
+    assert r['count'] == '선택 2명'
+    assert r['pending'] == {'label': '보내는 중...', 'disabled': True}
+    assert r['posts'] == [['/erp/api/urgent-call', {'target_user_ids': [20, 52], 'message': '다 같이 확인'}]]
+
+
+def test_selection_toggle_removal_and_reopen_reset():
+    r = run_js([ORDER_JS, JS], DOM + r"""
+loadSources();
+window.fomsUrgentCall.open({ message: '확인' }); await flush();
+clickRendered(person(20), '[data-foms-urgent-target]');
+clickRendered(person(20), '[data-foms-urgent-target]');
+const toggled = el.send.disabled;
+clickRendered(person(20), '[data-foms-urgent-target]');
+clickRendered(el.selected.children.slice(-1)[0], '[data-foms-urgent-remove]');
+const removed = el.send.disabled;
+clickRendered(person(20), '[data-foms-urgent-target]');
+window.fomsUrgentCall.open({ message: '확인' }); await flush();
+out({ toggled, removed, reset: el.send.disabled, count: el.count.textContent });
+""")
+    assert r['toggled'] and r['removed'] and r['reset']
+    assert r['count'] == '여러 명을 선택할 수 있어요'
+
+
+def test_system_selection_team_overrides_actual_team():
+    r = run_js([ORDER_JS, JS], DOM + r"""
+routes.length = 0;
+route('/erp/api/urgent-targets', () => Resp(200, {success: true, targets: [
+  {id: 20, name: '사람', team: 'CS', selection_team: 'CS'},
+  {id: 60, name: '네이버 수집봇', team: 'CS', selection_team: '_ETC'}]}));
+loadSources(); window.fomsUrgentCall.open({}); await flush();
+const cs = el.people.children.map(b => b.textContent);
+clickRendered(el.teams.children[1], '[data-foms-urgent-team]');
+out({cs, bot: person(60).textContent, tabs: teamButtons().slice(-2)});
+""")
+    assert r['cs'] == ['사람']
+    assert r['bot'] == '네이버 수집봇'
+    assert r['tabs'] == [['CS', 'CS', False], ['_ETC', '기타', True]]

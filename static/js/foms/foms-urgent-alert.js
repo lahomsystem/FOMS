@@ -33,32 +33,20 @@
     return -1;
   }
 
-  function beep() {
-    try {
-      var Ctx = window.AudioContext || window.webkitAudioContext;
-      if (!Ctx) return;
-      var ctx = new Ctx(), osc = ctx.createOscillator(), gain = ctx.createGain(), now = ctx.currentTime;
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.type = 'square';
-      osc.frequency.setValueAtTime(880, now);
-      osc.frequency.exponentialRampToValueAtTime(440, now + 0.1);
-      gain.gain.setValueAtTime(0.1, now);
-      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
-      osc.start();
-      osc.stop(now + 0.3);
-    } catch (e) { console.warn('[urgent-alert] 소리 재생 실패:', e); }
-  }
-
   // ── 키 가둠: 오버레이 뒤 화면 단축키(마법사 캔버스 등)가 먹지 않게 ──────────
   function onKey(event) {
     if (!overlay) return;
     var btn = refs && refs.btn;
-    var onBtn = btn && event.target === btn;
+    var sound = refs && refs.sound;
+    var onBtn = btn && (event.target === btn || event.target === sound);
     var activates = onBtn && (event.key === 'Enter' || event.key === ' ' || event.key === 'Spacebar');
     event.stopImmediatePropagation();
     if (activates) return; // 버튼 기본 동작(클릭)은 살린다.
     event.preventDefault();
+    if (event.type === 'keydown' && event.key === 'Tab' && sound) {
+      (event.target === btn ? sound : btn).focus();
+      return;
+    }
     if (event.type === 'keydown' && btn && !btn.disabled) btn.focus();
   }
 
@@ -86,7 +74,7 @@
     var box = el('div', 'foms-urgent-alert__box', root);
     var icon = el('div', 'foms-urgent-alert__icon', box);
     icon.setAttribute('aria-hidden', 'true');
-    icon.textContent = '🔔';
+    el('span', 'foms-urgent-alert__beacon', icon);
     var count = el('div', 'foms-urgent-alert__count', box);
     var title = el('h1', 'foms-urgent-alert__title', box, 'foms-urgent-alert-title');
     var message = el('p', 'foms-urgent-alert__message', box, 'foms-urgent-alert-message');
@@ -101,14 +89,22 @@
       event.stopPropagation();
       confirmCurrent();
     });
+    var sound = el('button', 'foms-urgent-alert__sound', box);
+    sound.type = 'button';
+    sound.textContent = '사이렌 소리 켜기·시험';
+    sound.addEventListener('click', function () { if (window.FOMSUrgentSound) window.FOMSUrgentSound.test(); });
+    var soundStatus = el('p', 'foms-urgent-alert__sound-status', box);
+    soundStatus.setAttribute('data-foms-urgent-sound-status', '');
+    soundStatus.setAttribute('role', 'status');
     // 배경 클릭은 아무것도 하지 않는다(닫기 금지) — 뒤 화면으로 새지 않게만 막는다.
     root.addEventListener('click', function (event) { event.stopPropagation(); });
-    refs = { count: count, title: title, message: message, sender: sender, error: error, btn: btn };
+    refs = { count: count, title: title, message: message, sender: sender, error: error, btn: btn, sound: sound };
     return root;
   }
 
   function render() {
     if (!queue.length) {
+      if (window.FOMSUrgentSound) window.FOMSUrgentSound.stop();
       if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
       if (overlay) toggleKeys(false);
       overlay = null;
@@ -141,6 +137,7 @@
     refs.btn.disabled = false;
     busy = false;
     refs.btn.focus();
+    if (window.FOMSUrgentSound) window.FOMSUrgentSound.start();
   }
 
   function removeId(id) {
@@ -170,6 +167,7 @@
 
   function confirmCurrent() {
     if (busy || !queue.length) return;
+    if (window.FOMSUrgentSound) window.FOMSUrgentSound.stop();
     var id = idOf(queue[0]);
     if (!id) { queue.shift(); render(); return; } // 에스컬레이션 경고 — 기록할 id 가 없으니 닫기만.
     busy = true;
@@ -222,7 +220,6 @@
     var id = idOf(data);
     if (id && (acked[id] || indexOfId(id) >= 0)) return false;
     queue.push(data);
-    beep();
     if (document.body) render(); // 첫 건이면 띄우고, 아니면 대기 건수만 갱신
     else document.addEventListener('DOMContentLoaded', render, { once: true });
     return true;

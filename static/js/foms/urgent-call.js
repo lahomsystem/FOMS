@@ -1,14 +1,8 @@
 /**
  * 긴급 호출 공용 창(#fomsUrgentCallModal) — SPEC docs/specs/2026-10-01-urgent-call-global_SPEC.md §4.
  *
- * 여는 곳:
- *  - 맨 위 줄 ⚡ [data-foms-urgent-open] (PC layout_nav · 모바일 셸 머리줄). 지금 보던 주문이 있으면 미리 고른다:
- *    페이지가 실은 [data-urgent-context-order-id] 또는 대시보드에서 펼쳐 둔 주문 상세.
- *  - 주문·도면 화면 버튼 [data-foms-urgent-call][data-order-id] (모바일 주문 상세·도면 모바일).
- *  - window.fomsUrgentCall.open({ orderId, orderLabel, team, message }) — 도면 작업실 PC 창·전달 취소 경고가 부른다.
- *
- * 창: 주문 한 줄(골라짐 `#번호 고객명 ×` / 없으면 `+ 주문 추가 (안 해도 돼요)` → 검색) · 팀 버튼 · 사람 이름 ·
- * 사유 · 맨 아래 버튼 하나(받을 사람을 골라 주세요 / 사유를 적어 주세요 / ○○에게 보내기).
+ * ⚡ [data-foms-urgent-open]·주문 [data-foms-urgent-call]·window.fomsUrgentCall.open이 공용 창을 연다.
+ * 여러 팀의 사람을 선택·해제하고 한 요청으로 보낸다(SPEC 2026-10-16).
  * 주문 줄(골라짐·검색)은 urgent-call-order.js(window.fomsUrgentOrder)가 맡는다 — 이 파일보다 먼저 싣는다.
  * 보내기는 POST /erp/api/urgent-call(window.FOMSNotificationWrite — same-origin 쓰기 헤더). 주문은 없어도 된다.
  *
@@ -28,8 +22,7 @@
 
   var state = {
     team: '',
-    targetId: null,
-    targetName: '',
+    selected: [],
     targets: null,      // 서버 목록 캐시(창을 열 때마다 새로 받는다)
     sending: false
   };
@@ -54,30 +47,49 @@
   }
   // 팀 표에 없는 코드(ADMIN 등)와 팀 없음은 모두 '기타' 하나로 묶는다 — 서버 team_label 도 둘 다 '기타'다.
   function teamKey(u) {
-    var code = String((u && u.team) || '');
+    var code = String((u && (u.selection_team || u.team)) || '');
     return TEAM_SHORT[code] ? code : '_ETC';
   }
   function teamText(key) { return TEAM_SHORT[key] || '기타'; }
 
-  // ---- 보내기 버튼 ---------------------------------------------------------
   function syncSend() {
     var btn = q('[data-foms-urgent-send]');
     if (!btn) return;
     var label;
     var ready = false;
-    if (state.targetId === null) label = '받을 사람을 골라 주세요';
+    if (!state.selected.length) label = '받을 사람을 골라 주세요';
     else if (!messageText()) label = '사유를 적어 주세요';
-    else { label = state.targetName + '에게 보내기'; ready = true; }
+    else { label = targetLabel() + '에게 보내기'; ready = true; }
+    if (state.sending) label = '보내는 중...';
     btn.textContent = label;
     btn.disabled = !ready || state.sending;
     btn.classList.toggle('btn-danger', ready);
     btn.classList.toggle('btn-secondary', !ready);
   }
 
-  // ---- 주문 줄: urgent-call-order.js(window.fomsUrgentOrder) ---------------
   function orderApi() { return window.fomsUrgentOrder || null; }
 
-  // ---- 팀·사람 -------------------------------------------------------------
+  function targetLabel() {
+    return state.selected[0].name + (state.selected.length > 1 ? ' 외 ' + (state.selected.length - 1) + '명' : '');
+  }
+  function renderSelected() {
+    var box = q('[data-foms-urgent-selected]');
+    if (!box) return;
+    box.textContent = '';
+    state.selected.forEach(function (u) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'btn btn-sm foms-urgent-pick is-selected';
+      b.setAttribute('data-foms-urgent-remove', String(u.id));
+      b.setAttribute('aria-label', u.name + ' 선택 해제');
+      b.textContent = u.name + ' ×';
+      b.disabled = state.sending;
+      box.appendChild(b);
+    });
+    var count = q('[data-foms-urgent-count]');
+    if (count) count.textContent = state.selected.length ? '선택 ' + state.selected.length + '명' : '여러 명을 선택할 수 있어요';
+  }
+
   function groups() {
     var order = [];
     var byKey = {};
@@ -93,6 +105,7 @@
   }
 
   function renderTeams() {
+    renderSelected();
     var box = q('[data-foms-urgent-teams]');
     var people = q('[data-foms-urgent-people]');
     if (!box || !people) return;
@@ -115,7 +128,7 @@
     });
     var current = gs.filter(function (g) { return g.key === state.team; })[0];
     current.members.forEach(function (u) {
-      var on = state.targetId === Number(u.id);
+      var on = state.selected.some(function (s) { return s.id === Number(u.id); });
       var p = document.createElement('button');
       p.type = 'button';
       p.className = 'btn btn-sm foms-urgent-pick' + (on ? ' is-selected' : '');
@@ -143,7 +156,6 @@
       });
   }
 
-  // ---- 열기·보내기 ---------------------------------------------------------
   /** 지금 화면의 주문 — 페이지가 실은 표지, 아니면 대시보드에서 펼쳐 둔 주문 상세. */
   function contextOrder() {
     var el = document.querySelector('[data-urgent-context-order-id]');
@@ -163,11 +175,11 @@
       toast('긴급 호출 창을 열 수 없어요. 화면을 새로고침해 주세요.');
       return false;
     }
+    if (state.sending) return false;
     opts = opts || {};
     state.team = String(opts.team || '');
-    state.targetId = null;
-    state.targetName = '';
-    state.sending = false;
+    state.selected = [];
+    renderSelected();
     var msg = q('[data-foms-urgent-message]');
     if (msg) msg.value = String(opts.message || '').slice(0, MAX_MESSAGE);
     showError('');
@@ -181,17 +193,19 @@
 
   function send() {
     var btn = q('[data-foms-urgent-send]');
-    if (!btn || btn.disabled || state.targetId === null || state.sending) return;
+    if (!btn || btn.disabled || !state.selected.length || state.sending) return;
     var message = messageText().slice(0, MAX_MESSAGE);
     if (!message) return;
     if (!window.FOMSNotificationWrite || typeof window.FOMSNotificationWrite.fetch !== 'function') {
       showError('긴급 호출을 보낼 수 없어요. 화면을 새로고침해 주세요.');
       return;
     }
-    var body = { target_user_id: state.targetId, message: message };
+    var body = { target_user_ids: state.selected.map(function (u) { return u.id; }), message: message };
+    var sentLabel = targetLabel();
     var order = orderApi() ? orderApi().get() : null;
     if (order) body.order_id = Number(order.id);
     state.sending = true;
+    renderSelected();
     syncSend();
     showError('');
     window.FOMSNotificationWrite.fetch('/erp/api/urgent-call', {
@@ -199,18 +213,22 @@
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
       body: JSON.stringify(body)
     })
-      .then(function (res) { return res.json(); })
+      .then(function (res) { return res.json().then(function (d) {
+        if (!res.ok) throw new Error((d && (d.message || d.error)) || '긴급 호출을 보내지 못했어요.');
+        return d;
+      }); })
       .then(function (data) {
         if (!data || !data.success) throw new Error((data && data.message) || '긴급 호출을 보내지 못했어요.');
         var api = modalApi();
         if (api && root()) api.getOrCreateInstance(root()).hide();
-        toast(data.message || (state.targetName + '님에게 보냈어요.'));
+        toast(data.message || (sentLabel + '에게 보냈어요.'));
       })
       .catch(function (err) {
         showError((err && err.message) || '긴급 호출을 보내지 못했어요.');
       })
       .then(function () {
         state.sending = false;
+        renderSelected();
         syncSend();
       });
   }
@@ -253,12 +271,15 @@
     var teamBtn = t.closest('[data-foms-urgent-team]');
     if (teamBtn) { e.preventDefault(); state.team = teamBtn.getAttribute('data-foms-urgent-team'); renderTeams(); return; }
 
-    var person = t.closest('[data-foms-urgent-target]');
+    var remove = t.closest('[data-foms-urgent-remove]');
+    var person = remove || t.closest('[data-foms-urgent-target]');
     if (person) {
       e.preventDefault();
-      var id = Number(person.getAttribute('data-foms-urgent-target'));
-      state.targetId = Number.isInteger(id) ? id : null;
-      state.targetName = state.targetId === null ? '' : (person.getAttribute('data-target-name') || '');
+      if (state.sending) return;
+      var id = Number(person.getAttribute(remove ? 'data-foms-urgent-remove' : 'data-foms-urgent-target'));
+      var index = state.selected.findIndex(function (u) { return u.id === id; });
+      if (index >= 0) state.selected.splice(index, 1);
+      else if (!remove && Number.isInteger(id) && id > 0) state.selected.push({ id: id, name: person.getAttribute('data-target-name') || '' });
       renderTeams();
       syncSend();
       return;
