@@ -336,7 +336,7 @@ def test_태블릿_보드_실화면에_사유와_갈_곳이_함께_렌더된다(
         received_date="2026-09-01", customer_name="지방 완료 고객", phone="010-7777-8888",
         address="강원", product="붙박이장", status="SCHEDULED", manager_name="Bob",
         is_erp_order=True, is_regional=True, erp_stage_code="CS",
-        structured_data={"workflow": {"stage": "CS"}, **_cs_quest(approved=False)},
+        structured_data={"workflow": {"stage": "CS", "hold": {"active": True}}, **_cs_quest(approved=False)},
     )
     db_session.add(order)
     db_session.commit()
@@ -345,6 +345,6 @@ def test_태블릿_보드_실화면에_사유와_갈_곳이_함께_렌더된다(
     body = client.get("/regional_dashboard").get_data(as_text=True)
     assert "지방 완료 고객" in body
     assert '<span class="foms-complete-blocked-reason">' in body
-    assert "CS 필수 승인이 남아 완료할 수 없습니다" in body
+    assert "보류 중인 주문은 완료할 수 없습니다" in body
     assert "js-complete-blocked-link" in body
     assert f"focus_order={order_id}" in body
