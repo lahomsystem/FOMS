@@ -41,11 +41,11 @@
         </p>
     </div>
 
-    {# 고객이 쓴 취소·반품 사유 원문. 라벨은 무엇이 일어났는지만 말하고 왜인지는 이 문장에
-       있다. 없으면 줄 자체를 내지 않는다 — 빈 칸은 "사유가 없다"는 거짓말이다. #}
+    {# 네이버 취소·반품 상세 원문. 고객 사유와 판매자의 고객 안내를 작성 주체 단정 없이
+       보여 준다. 없으면 줄 자체를 내지 않는다. #}
     {% if detail.claim.detailed_reason %}
     <div class="wb-claim-reason small" data-foms-no-autodismiss>
-        <span class="wb-claim-reason__k">고객이 쓴 사유</span>
+        <span class="wb-claim-reason__k">취소·반품 상세 내용</span>
         <span class="wb-claim-reason__v">{{ detail.claim.detailed_reason }}</span>
     </div>
     {% endif %}

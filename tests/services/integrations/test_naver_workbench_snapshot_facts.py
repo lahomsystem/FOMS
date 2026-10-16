@@ -3,7 +3,7 @@
 근거: ``docs/guides/NAVER_FIELD_INVENTORY.md`` §3 우선순위 3건. 셋 다 수집분 281/281 에
 들어 있는데 화면이 안 읽었을 뿐이라 **네이버로 나가는 호출은 0이다**.
 
-* F-1 ``cancelDetailedReason`` — 고객이 직접 쓴 사유 원문. 재결제 판정의 결정적 근거인데
+* F-1 ``cancelDetailedReason`` — 고객 사유 또는 판매자의 고객 안내 원문. 재결제 판정의 근거인데
   지금까지 담당자가 이 한 줄을 보려고 판매자센터를 따로 열었다.
 * F-2 ``delivery.sendDate`` — 발송처리를 우리가 눌러 놓고 그 결과 시각을 화면이 안 읽었다.
   우리 기록과 나란히 둬야 **어긋남**이 보인다(그게 이 줄의 값어치다).
@@ -94,10 +94,10 @@ def _product_table(pane: str) -> str:
 
 
 # --------------------------------------------------------------------------- #
-# F-1 — 고객이 쓴 사유 원문
+# F-1 — 취소·반품 상세 원문
 # --------------------------------------------------------------------------- #
 
-def test_customer_written_reason_reaches_the_screen(client, workbench_on):
+def test_detailed_reason_reaches_the_screen(client, workbench_on):
     """사유 원문이 있는 집은 **그 문장이 그대로** 화면에 나온다.
 
     배지("취소 요청")는 코드 라벨이라 왜 취소인지를 말하지 못한다. 실데이터
@@ -113,7 +113,9 @@ def test_customer_written_reason_reaches_the_screen(client, workbench_on):
     pane = _pane_html(client, link.id)
 
     assert "wb-claim-reason" in pane, "사유 원문 줄이 통째로 없다"
-    assert "일시불 재결제 예정" in pane, "고객이 쓴 문장이 화면에 닿지 않았다"
+    assert "일시불 재결제 예정" in pane, "상세 원문이 화면에 닿지 않았다"
+    assert "취소·반품 상세 내용" in pane
+    assert "고객이 쓴 사유" not in pane
 
 
 def test_reason_code_and_written_sentence_are_not_merged(client, workbench_on):
@@ -146,7 +148,7 @@ def test_no_written_reason_means_no_line_at_all(client, workbench_on):
     pane = _pane_html(client, link.id)
 
     assert "wb-claim-reason" not in pane, "사유 원문이 없는데 빈 줄이 났다"
-    assert "고객이 쓴 사유" not in pane
+    assert "취소·반품 상세 내용" not in pane
 
 
 # --------------------------------------------------------------------------- #

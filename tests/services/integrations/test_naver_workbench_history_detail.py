@@ -93,7 +93,9 @@ def test_detail_carries_the_fields_erp_screen_cannot_show(client, workbench_on):
     body = _detail(client, link.id).get_data(as_text=True)
 
     assert "동 뒤편 주차장으로" in body, "배송메모(실위치)가 안 보인다"
-    assert "일시불 재결제 예정" in body, "고객이 쓴 사유가 안 보인다"
+    assert "일시불 재결제 예정" in body, "상세 원문이 안 보인다"
+    assert "취소·반품 상세 내용" in body
+    assert "고객이 쓴 사유" not in body
     assert "발송처리 2026-08-25 14:03" in body, "발송 결과 시각이 안 보인다"
 
 
@@ -128,7 +130,7 @@ def test_detail_says_nothing_it_was_not_told(client, workbench_on):
 
     body = _detail(client, link.id).get_data(as_text=True)
 
-    assert "고객이 쓴 사유" not in body, "사유가 없는데 사유 줄이 났다"
+    assert "취소·반품 상세 내용" not in body, "사유가 없는데 사유 줄이 났다"
     assert "배송메모" not in body, "배송메모가 없는데 줄이 났다"
     assert "wb-sendline" not in body, "발송 기록이 없는데 줄이 났다"
 
