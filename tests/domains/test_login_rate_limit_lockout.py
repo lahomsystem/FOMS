@@ -155,6 +155,7 @@ def test_lock_writes_login_fail_rows_and_single_login_locked(client, app):
     assert lock.target_type is None and lock.target_id is None
     assert lock.detail["reason"] == "lockout_threshold"
     assert lock.detail["threshold"] == _THRESHOLD
+    assert lock.detail["scope"] == "ip", "같은 자리에서 8회(여기선 3회)면 (아이디, IP) 잠금이 먼저다"
     assert lock.detail["username"] == "audit-target"
 
     for row in fails + locks:
@@ -273,7 +274,11 @@ def test_dead_storage_reports_in_memory_fallback_once(caplog, monkeypatch):
     limiter_instance = next(iter(probe.extensions["limiter"]))
     assert limiter_instance.logger.name == rate_limit.FLASK_LIMITER_LOGGER_NAME
 
-    records = [r for r in caplog.records if r.name == rate_limit.__name__]
+    # 기동 INFO(저장소 종류, 2026-10-19)는 세지 않는다 — 여기서 세는 것은 폴백 warning 이다.
+    records = [
+        r for r in caplog.records
+        if r.name == rate_limit.__name__ and r.levelno >= logging.WARNING
+    ]
     assert len(records) == 1, f"폴백 warning 은 전이 1회만 (실제 {len(records)}건)"
     message = records[0].getMessage()
     assert "인메모리 폴백" in message

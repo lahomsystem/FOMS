@@ -243,5 +243,31 @@ def init_limiter(app: Any) -> Limiter:
     # 자격증명 없는 라벨만 남긴다(URL 원문은 로그·Sentry 어디에도 싣지 않는다).
     storage_scheme = redis_url.split("://", 1)[0] if redis_url else "memory"
     _install_storage_fallback_alert(limiter, storage_scheme)
+    _report_limiter_storage(storage_scheme)
     _bind_login_rate_limit(app, limiter)
     return limiter
+
+
+def _report_limiter_storage(storage_scheme: str) -> None:
+    """기동 때 레이트리미터(=로그인 잠금 카운터) 저장소 종류를 로그로 남긴다.
+
+    로그인 잠금은 이 limiter 의 저장소를 그대로 쓴다
+    (``foms/services/security/auth_rate/login_lockout.py`` 의 ``_limiter_storage``).
+    ``memory`` 면 카운터가 프로세스마다 따로라, gunicorn 워커 2개(``start.sh``)만으로도
+    실패가 반씩 나뉘어 잠금이 걸리지 않는다 — 그런데 지금까지는 아무 흔적이 없었다
+    (2026-10-19 설계서 원인 2). 배포 환경에서 그 상태면 경고, 아니면 INFO 로 종류만 남긴다.
+
+    :param storage_scheme: ``redis``/``memory`` 등 scheme 문자열(자격증명 없음 — URL 원문 금지).
+    :return: 없음.
+    """
+    deployed = bool(os.environ.get("RAILWAY_ENVIRONMENT")) or (
+        os.environ.get("FLASK_ENV") == "production"
+    )
+    if deployed and storage_scheme == "memory":
+        logger.warning(
+            "레이트리미터·로그인 잠금 저장소가 프로세스 메모리다 — 워커마다 카운터가 따로라 "
+            "잠금과 한도가 사실상 꺼진다. REDIS_URL 을 확인하라. storage=%s",
+            storage_scheme,
+        )
+        return
+    logger.info("레이트리미터·로그인 잠금 저장소 storage=%s", storage_scheme)
