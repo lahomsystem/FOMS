@@ -100,8 +100,8 @@
     if (!iso) return '';
     var d = new Date(iso);
     if (isNaN(d.getTime())) return '';
-    return d.toLocaleDateString('ko-KR') + ' ' +
-      d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+    return d.toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul' }) + ' ' +
+      d.toLocaleTimeString('ko-KR', { timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit' });
   }
 
   function setDepartLabel(btn, text) {
@@ -179,8 +179,8 @@
     if (item.at) {
       var d = new Date(item.at);
       if (!isNaN(d.getTime())) {
-        when = ' · ' + d.toLocaleDateString('ko-KR') + ' ' +
-          d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+        when = ' · ' + d.toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul' }) + ' ' +
+          d.toLocaleTimeString('ko-KR', { timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit' });
       }
     }
     return item.by_name + when;

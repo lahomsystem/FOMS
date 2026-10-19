@@ -41,7 +41,7 @@
     {
       "path": "foms/api/channel/channel_integration.py",
       "endpoint": "api_channel_push_estimate",
-      "lineno": 942,
+      "lineno": 988,
       "methods": [
         "POST"
       ],
@@ -50,7 +50,7 @@
     {
       "path": "foms/api/channel/channel_integration.py",
       "endpoint": "api_channel_push_manual",
-      "lineno": 446,
+      "lineno": 475,
       "methods": [
         "POST"
       ],
@@ -338,7 +338,7 @@
     {
       "path": "foms/api/cs/complete.py",
       "endpoint": "api_cs_complete",
-      "lineno": 59,
+      "lineno": 60,
       "methods": [
         "POST"
       ],
@@ -932,7 +932,7 @@
     {
       "path": "foms/api/notifications/__init__.py",
       "endpoint": "api_notification_ack",
-      "lineno": 721,
+      "lineno": 738,
       "methods": [
         "POST"
       ],
@@ -941,7 +941,7 @@
     {
       "path": "foms/api/notifications/__init__.py",
       "endpoint": "api_notification_archive",
-      "lineno": 635,
+      "lineno": 652,
       "methods": [
         "POST"
       ],
@@ -950,7 +950,7 @@
     {
       "path": "foms/api/notifications/__init__.py",
       "endpoint": "api_notification_mark_read",
-      "lineno": 551,
+      "lineno": 568,
       "methods": [
         "POST"
       ],
@@ -959,7 +959,7 @@
     {
       "path": "foms/api/notifications/__init__.py",
       "endpoint": "api_notifications_archive_all",
-      "lineno": 672,
+      "lineno": 689,
       "methods": [
         "POST"
       ],
@@ -968,7 +968,7 @@
     {
       "path": "foms/api/notifications/__init__.py",
       "endpoint": "api_notifications_delete_all",
-      "lineno": 752,
+      "lineno": 769,
       "methods": [
         "POST"
       ],
@@ -977,7 +977,7 @@
     {
       "path": "foms/api/notifications/__init__.py",
       "endpoint": "api_notifications_mark_all_read",
-      "lineno": 592,
+      "lineno": 609,
       "methods": [
         "POST"
       ],
@@ -986,7 +986,7 @@
     {
       "path": "foms/api/notifications/__init__.py",
       "endpoint": "api_notifications_send",
-      "lineno": 859,
+      "lineno": 876,
       "methods": [
         "POST"
       ],
@@ -995,7 +995,7 @@
     {
       "path": "foms/api/notifications/__init__.py",
       "endpoint": "api_urgent_call",
-      "lineno": 1188,
+      "lineno": 1175,
       "methods": [
         "POST"
       ],
@@ -1140,7 +1140,7 @@
     {
       "path": "foms/api/partner/__init__.py",
       "endpoint": "approve_drawing",
-      "lineno": 192,
+      "lineno": 223,
       "methods": [
         "POST"
       ],
@@ -1149,7 +1149,7 @@
     {
       "path": "foms/api/partner/__init__.py",
       "endpoint": "change_manager",
-      "lineno": 153,
+      "lineno": 184,
       "methods": [
         "POST"
       ],
@@ -1158,7 +1158,7 @@
     {
       "path": "foms/api/partner/__init__.py",
       "endpoint": "create_order",
-      "lineno": 72,
+      "lineno": 97,
       "methods": [
         "POST"
       ],
@@ -1167,7 +1167,7 @@
     {
       "path": "foms/api/partner/__init__.py",
       "endpoint": "register_as",
-      "lineno": 285,
+      "lineno": 316,
       "methods": [
         "POST"
       ],
@@ -1176,7 +1176,7 @@
     {
       "path": "foms/api/partner/__init__.py",
       "endpoint": "request_revision",
-      "lineno": 245,
+      "lineno": 276,
       "methods": [
         "POST"
       ],
@@ -1185,7 +1185,7 @@
     {
       "path": "foms/api/partner/__init__.py",
       "endpoint": "update_my_phone",
-      "lineno": 168,
+      "lineno": 199,
       "methods": [
         "POST"
       ],
@@ -1194,7 +1194,7 @@
     {
       "path": "foms/api/partner/__init__.py",
       "endpoint": "upload_file",
-      "lineno": 91,
+      "lineno": 117,
       "methods": [
         "POST"
       ],
@@ -1941,7 +1941,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "add_user",
-      "lineno": 754,
+      "lineno": 775,
       "methods": [
         "POST"
       ],
@@ -1950,7 +1950,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "approve_user",
-      "lineno": 1035,
+      "lineno": 1056,
       "methods": [
         "POST"
       ],
@@ -1959,7 +1959,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "delete_user",
-      "lineno": 959,
+      "lineno": 980,
       "methods": [
         "POST"
       ],
@@ -1968,7 +1968,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "edit_user",
-      "lineno": 816,
+      "lineno": 837,
       "methods": [
         "POST"
       ],
@@ -1977,7 +1977,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "handle_reset_request",
-      "lineno": 1124,
+      "lineno": 1145,
       "methods": [
         "POST"
       ],
@@ -1986,7 +1986,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "login",
-      "lineno": 382,
+      "lineno": 400,
       "methods": [
         "POST"
       ],
@@ -1995,7 +1995,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "logout",
-      "lineno": 473,
+      "lineno": 491,
       "methods": [
         "POST"
       ],
@@ -2004,7 +2004,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "password_reset_request",
-      "lineno": 666,
+      "lineno": 687,
       "methods": [
         "POST"
       ],
@@ -2013,7 +2013,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "profile",
-      "lineno": 1172,
+      "lineno": 1193,
       "methods": [
         "POST"
       ],
@@ -2022,7 +2022,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "register",
-      "lineno": 561,
+      "lineno": 582,
       "methods": [
         "POST"
       ],
@@ -2031,7 +2031,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "reject_user",
-      "lineno": 1088,
+      "lineno": 1109,
       "methods": [
         "POST"
       ],
@@ -2040,7 +2040,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "switch_back",
-      "lineno": 536,
+      "lineno": 554,
       "methods": [
         "POST"
       ],
@@ -2049,7 +2049,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "switch_user",
-      "lineno": 488,
+      "lineno": 506,
       "methods": [
         "POST"
       ],
@@ -2058,7 +2058,7 @@
     {
       "path": "foms/web/orders/dashboard.py",
       "endpoint": "erp_dashboard_calendar_colors_save",
-      "lineno": 765,
+      "lineno": 773,
       "methods": [
         "POST"
       ],
