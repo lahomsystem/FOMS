@@ -709,6 +709,18 @@ def _regional_region_index(address: str | None) -> int:
     return _REGIONAL_REGION_ORDER.index(canon)
 
 
+def _drawing_workbench_ids(orders) -> set[int]:
+    """도면 작업실 바로가기를 붙일 주문 id — 도면 단계 ERP 주문만.
+
+    작업실 상세는 ERP 주문만 연다(그 외는 작업실 목록으로 리다이렉트).
+    """
+    return {
+        o.id
+        for o in orders
+        if getattr(o, "is_erp_order", False) and read_main_stage(o) == "DRAWING"
+    }
+
+
 @dashboards_bp.route("/regional_dashboard")
 @login_required
 def regional_dashboard():
@@ -832,12 +844,7 @@ def regional_dashboard():
         all_regional_orders, getattr(g, "current_user", None)
     )
 
-    # 도면 단계 주문은 도면 작업실로 바로 간다. 작업실 상세는 ERP 주문만 연다(그 외는 리다이렉트).
-    drawing_workbench_ids = {
-        o.id
-        for o in all_regional_orders
-        if getattr(o, "is_erp_order", False) and read_main_stage(o) == "DRAWING"
-    }
+    drawing_workbench_ids = _drawing_workbench_ids(all_regional_orders)
 
     return render_template(
         "measurement/regional_dashboard.html",
@@ -1109,6 +1116,7 @@ def self_measurement_dashboard():
     return render_template(
         "measurement/self_measurement_dashboard.html",
         drawing_ctas=drawing_ctas,
+        drawing_workbench_ids=_drawing_workbench_ids(all_orders),
         complete_ctas=complete_ctas,
         pending_orders=pending_orders,
         scheduled_orders=scheduled_orders,
