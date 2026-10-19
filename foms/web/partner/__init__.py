@@ -28,6 +28,14 @@ def _org() -> PartnerOrg:
     return get_db().query(PartnerOrg).filter(PartnerOrg.id == g.current_user.partner_org_id).first()
 
 
+def _item_name(items: list, item_index: int | None) -> str:
+    """품목 실측 사진이 묶인 품목 이름(공통 사진이면 빈 문자열)."""
+    if item_index is None or not isinstance(items, list) or not 0 <= item_index < len(items):
+        return ""
+    item = items[item_index]
+    return str(item.get("product_name") or "") if isinstance(item, dict) else ""
+
+
 @partner_portal_bp.route("")
 @partner_required
 def home():
@@ -60,10 +68,12 @@ def order_detail(order_id: int):
         .all()
     )
     # 협력사가 낸 파일만 보여 준다(우리 작업 파일은 3단계 "도면 확인"에서 연다).
+    items = (order.structured_data or {}).get("items") or []
     attachments = [
         {
             "filename": a.filename,
             "kind": "초안 도면" if "/partner_draft/" in (a.storage_key or "") else "실측 사진",
+            "item_name": _item_name(items, a.item_index),
             "url": build_file_view_url(a.storage_key),
         }
         for a in rows
