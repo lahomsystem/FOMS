@@ -118,7 +118,8 @@ def test_detail_is_collapsed_by_default_but_content_survives(app):
     assert '<details class="audit-detail-toggle">' in body, "접이식으로 감싸지 않았다"
     assert "open" not in body.split('audit-detail-toggle"', 1)[1][:40], "기본이 펼침이다"
     assert "부가정보 3개" in body, "키 개수 요약이 없다"
-    assert "이가언" in body, "접었더니 내용이 사라졌다(펼칠 게 없다)"
+    # 고객명은 성만 남아 저장된다(AUDIT-PII-00).
+    assert "이**" in body, "접었더니 내용이 사라졌다(펼칠 게 없다)"
 
 
 def test_collapsed_summary_stays_single_line():

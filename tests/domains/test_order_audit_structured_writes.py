@@ -9,6 +9,7 @@
 * 로그가 주문번호만 담아 "누구 건인지"를 알려면 매번 주문을 열어야 했다
   → 고객명·주문 성격을 기록 시점에 스냅샷한다.
 * 그러나 감사 원장에 PII 를 늘리지는 않는다 → **연락처·주소는 담지 않는다**.
+  고객명도 성만 남긴다(AUDIT-PII-00 — 저장 직전 한 지점에서 가린다).
 """
 
 from __future__ import annotations
@@ -16,6 +17,7 @@ from __future__ import annotations
 import itertools
 
 from db import db_session
+from foms.services.audit_masking import mask_person_name
 from models import Order, SecurityLog, User
 
 _counter = itertools.count(1)
@@ -95,9 +97,9 @@ def test_field_update_records_before_and_after(app):
         assert row.detail["field"] == "measurement_date"
         assert row.detail["before"] == "2026-07-02"
         assert row.detail["after"] == "2026-08-20"
-        assert row.detail["customer_name"] == "이영희"
+        assert row.detail["customer_name"] == mask_person_name("이영희")
         assert "실측일: 2026-07-02 → 2026-08-20" in row.message
-        assert f"주문 #{order_id} (이영희)" in row.message
+        assert f"주문 #{order_id} ({mask_person_name('이영희')})" in row.message
         _assert_no_pii(row)
 
 
@@ -166,7 +168,7 @@ def test_regional_checklist_records_previous_state(app):
         assert row.detail["before"] is True
         assert row.detail["after"] is False
         assert "도면 발송: 완료 → 해제" in row.message
-        assert f"지방 주문 #{order_id} (김철수)" in row.message
+        assert f"지방 주문 #{order_id} ({mask_person_name('김철수')})" in row.message
         _assert_no_pii(row)
 
 
@@ -217,7 +219,7 @@ def test_regional_memo_records_content_change(app):
         assert row.detail["after"] == "7/22 해피콜 완료, 8/1 시공 예정"
         assert row.detail["before"] == ""
         assert "메모: (없음) → 7/22 해피콜 완료, 8/1 시공 예정" in row.message
-        assert f"지방 주문 #{order_id} (김재민)" in row.message
+        assert f"지방 주문 #{order_id} ({mask_person_name('김재민')})" in row.message
         _assert_no_pii(row)
 
 

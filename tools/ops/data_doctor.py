@@ -500,7 +500,8 @@ def _apply_one(cur, item: dict[str, Any], *, actor_user_id: int, now: datetime, 
         INSERT INTO security_logs(timestamp, user_id, message, action, target_type, target_id, detail)
         VALUES (%s, %s, %s, 'ORDER_STATUS_CHANGED', 'order', %s, %s)
     """, (now, actor_user_id,
-          f"주문 #{oid} ({item.get('customer_name') or ''}) — 상태 복구: "
+          # AUDIT-PII-00: 앱을 import 하지 않는 독립 도구라 가림 함수를 못 지난다 — 고객명을 싣지 않는다.
+          f"주문 #{oid} — 상태 복구: "
           f"{item['observed_status']} → {item['restore_status']} ({reason})", oid,
           Jsonb({
               "field": "status", "before": item["observed_status"],

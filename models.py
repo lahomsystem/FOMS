@@ -1410,6 +1410,25 @@ class SecurityLog(Base):
     detail = Column(JSONColumn, nullable=True)
 
 
+@event.listens_for(SecurityLog, 'before_insert')
+@event.listens_for(SecurityLog, 'before_update')
+def _mask_security_log_pii(mapper, connection, target) -> None:
+    """감사 원장에 고객 전화·주소·이름이 원문으로 남지 않게 가린다 (AUDIT-PII-00).
+
+    ORM 으로 쓰는 모든 행(``log_access``·``db.add(SecurityLog(...))``)이 지나는 한 지점이다.
+    Core 경로(``audit_writer.write_security_log_detached``)는 같은 함수를 직접 부른다.
+    규칙: ``foms/services/audit_masking.py`` · 설계: ``docs/specs/2026-10-19-audit-log-masking_SPEC.md``.
+    """
+    from foms.services.audit_masking import mask_security_log_values
+
+    message, detail = mask_security_log_values(
+        target.message, target.detail, target_type=target.target_type, action=target.action)
+    if message != target.message:
+        target.message = message
+    if detail != target.detail:
+        target.detail = detail
+
+
 class PasswordResetRequest(Base):
     """ACCOUNT-SELF-01: 비밀번호 재설정 요청 큐(관리자 처리형, 인증 채널 없음).
 

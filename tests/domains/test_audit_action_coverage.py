@@ -10,8 +10,9 @@
 2. **행위자·대상이 구조화로 남는다** — ``user_id``·``action``·``target_type='order'``·
    ``target_id``·``detail``.
 3. **문장은 표시 SSOT 가 만든다** — 고객명이 문장에 병기되고, 라우트가 f-string 으로
-   직접 조립하지 않는다(회귀 시 즉시 red).
-4. **PII 최소성** — 연락처·주소는 감사 행에 싣지 않는다.
+   직접 조립하지 않는다(회귀 시 즉시 red). 병기되는 이름은 성만 남긴 값이다(AUDIT-PII-00,
+   ``docs/specs/2026-10-19-audit-log-masking_SPEC.md`` — 화면은 주문 표의 현재 이름을 붙인다).
+4. **PII 최소성** — 연락처·주소·고객명 원문은 감사 행에 싣지 않는다.
 """
 
 from __future__ import annotations
@@ -23,6 +24,7 @@ from datetime import date
 from werkzeug.security import generate_password_hash
 
 from db import db_session
+from foms.services.audit_masking import mask_person_name
 from models import Order, OrderAttachment, SecurityLog, User
 from tests.support.quest_seed import confirm_quest_completed
 from tests.support.confirm_seed import drawing_for_stage
@@ -86,10 +88,12 @@ def _assert_structured(row: SecurityLog, *, action: str, order_id: int, user_id:
     assert row.action == action
     assert row.target_type == "order" and row.target_id == order_id
     assert row.user_id == user_id, "행위자가 없으면 '누가 했나'를 물을 수 없다"
-    assert isinstance(row.detail, dict) and row.detail.get("customer_name") == customer_name
-    assert f"#{order_id} ({customer_name})" in (row.message or ""), row.message
+    masked = mask_person_name(customer_name)
+    assert isinstance(row.detail, dict) and row.detail.get("customer_name") == masked
+    assert f"#{order_id} ({masked})" in (row.message or ""), row.message
     blob = f"{row.message or ''} {row.detail or ''}"
     assert _PHONE not in blob and _ADDRESS not in blob, "감사 행에 PII 가 실렸다"
+    assert customer_name not in blob, "감사 행에 고객명 원문이 실렸다(AUDIT-PII-00)"
 
 
 # --------------------------------------------------------------------------- #

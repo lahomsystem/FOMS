@@ -151,10 +151,11 @@ def test_inline_patch_records_before_and_after(client, monkeypatch):
     entry = _latest_save_log(order_id)
     assert entry.detail["mode"] == "inline"
     assert entry.detail["field"] == "parties.customer.phone"
+    # 값은 남되 고객 전화는 가운데 자리를 가려 저장한다(AUDIT-PII-00). 원문은 order_field_changes 원장.
     assert entry.detail["changes"] == [{
         "path": "parties.customer.phone",
-        "before": "010-1234-5678",
-        "after": "010-9999-8888",
+        "before": "010****5678",
+        "after": "010****8888",
         "op": "set",
     }]
 

@@ -2,10 +2,11 @@
 
 import datetime
 import json
+import re
 from typing import Any
 
 from flask import render_template, request
-from sqlalchemy import or_
+from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Query
 
 from db import get_db
@@ -17,6 +18,7 @@ from foms.services.audit_message_display import (
     humanize_message,
     path_label,
 )
+from foms.services.audit_masking import mask_person_name
 from foms.services.datetime_kst import to_utc_naive
 from models import AccessLog, Order, OrderFieldChange, SecurityLog, User
 from foms.web.admin.routes import admin_bp
@@ -45,6 +47,13 @@ _ACTION_SAMPLE_ROWS = 5000
 # 변경 원장 필터가 헤더로 넘길 change set 상한(ORDER-DIFF-01). 감사 화면은 최신순이라
 # 최신 change set 부터 채운다 — 조건이 지나치게 넓을 때 IN 목록이 무한정 커지는 것을 막는다.
 _CHANGE_SET_MATCH_LIMIT = 2000
+
+# AUDIT-PII-00: 새 감사 행의 고객명은 성만 남기고 저장된다. 이름 검색은 주문 표에서 맞는 주문을
+# 찾아 그 주문이 대상인 행을 함께 고른다 — 후보 주문 수 상한(넓은 검색어가 IN 을 키우지 않게).
+_NAME_SEARCH_ORDER_LIMIT = 200
+
+# 가려 저장된 이름 괄호(``주문 #4109 (홍**)``) — 첫 글자 + 별표만 고른다(AUDIT-PII-00).
+_MASKED_MENTION_RE = re.compile(r"(?P<head>주문\s*#(?P<order_id>\d+) \()(?P<masked>[^()\s*]\*+)\)")
 
 
 def _apply_security_log_filters(query: Query, filters: dict[str, Any]) -> Query:
@@ -88,10 +97,16 @@ def _apply_security_log_filters(query: Query, filters: dict[str, Any]) -> Query:
         query = query.filter(SecurityLog.target_id == filters["target_id"])
     if filters.get("search"):
         pattern = f"%{filters['search']}%"
+        named_orders = (
+            select(Order.id)
+            .where(Order.customer_name.ilike(pattern))  # perf-ok: bounded admin audit search cold path
+            .limit(_NAME_SEARCH_ORDER_LIMIT)
+        )
         query = query.join(User, User.id == SecurityLog.user_id, isouter=True).filter(
             or_(
                 User.name.ilike(pattern),  # perf-ok: bounded admin audit search cold path
                 SecurityLog.message.ilike(pattern),  # perf-ok: bounded admin audit search cold path
+                and_(SecurityLog.target_type == "order", SecurityLog.target_id.in_(named_orders)),
             )
         )
     return query
@@ -362,11 +377,12 @@ def _security_log_row(entry: SecurityLog, customer_names: dict[int, str]) -> dic
             after=detail.get("after"),
             before=detail.get("before"),
             has_before="before" in detail,
-            customer_name=detail.get("customer_name") or customer_names.get(order_id),
+            # AUDIT-PII-00: 원장의 이름은 가려져 있다 — 살아 있는 주문의 현재 이름을 먼저 쓴다.
+            customer_name=customer_names.get(order_id) or detail.get("customer_name"),
             order_type=detail.get("order_type"),
         )
     if display is None:
-        display = humanize_message(entry.message, customer_names)
+        display = _unmask_order_names(humanize_message(entry.message, customer_names), customer_names)
 
     changes = _display_changes(detail)
     return {
@@ -383,6 +399,25 @@ def _security_log_row(entry: SecurityLog, customer_names: dict[int, str]) -> dic
         "change_total": int(detail.get("change_count") or len(changes)),
         "change_truncated": int(detail.get("truncated") or 0),
     }
+
+
+def _unmask_order_names(text: str, customer_names: dict[int, str]) -> str:
+    """가려 저장된 ``(홍**)`` 을 그 주문의 **현재 이름**으로 바꿔 보여 준다 (AUDIT-PII-00).
+
+    원장에는 성만 남는다. 괄호가 현재 이름의 가림 결과와 **같을 때만** 바꾼다 — 이름이 바뀐
+    주문은 가린 채로 둔다(다른 사람 이름을 붙이지 않는다). "원문 보기" 는 저장값 그대로다.
+
+    :param text: 표시 문장.
+    :param customer_names: ``{주문 id: 고객명}`` 배치 조회 결과.
+    :return: 이름을 되돌린 표시 문장.
+    """
+    def _repl(match: re.Match[str]) -> str:
+        name = (customer_names.get(int(match.group("order_id"))) or "").strip()
+        if name and match.group("masked") == mask_person_name(name):
+            return f"{match.group('head')}{name})"
+        return match.group(0)
+
+    return _MASKED_MENTION_RE.sub(_repl, text)
 
 
 def _display_changes(detail: Any) -> list[dict[str, Any]]:

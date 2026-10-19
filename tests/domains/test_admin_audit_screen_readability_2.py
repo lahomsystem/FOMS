@@ -83,7 +83,8 @@ def test_detail_json_renders_hangul_not_unicode_escapes(app):
         db_session.commit()
         body = _client(app, admin_id).get(_SECURITY_PATH).get_data(as_text=True)
 
-    assert "이가언" in body, "한글이 그대로 표시되지 않는다"
+    # 고객명은 성만 남아 저장된다(AUDIT-PII-00) — 한글 렌더 확인은 가린 값(이**)으로 한다.
+    assert "이**" in body, "한글이 그대로 표시되지 않는다"
     assert "\\uc774" not in body, "유니코드 이스케이프가 화면에 남아 있다"
 
 
