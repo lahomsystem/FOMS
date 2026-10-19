@@ -37,8 +37,10 @@ from foms.services.post_auth_navigation import (
 )
 from foms.services.error_logging import log_handled_exception
 from foms.services.security.auth_rate.login_lockout import (
+    LOCK_SCOPE_ACCOUNT,
     clear_login_failures,
     is_login_locked,
+    login_account_lockout_threshold,
     login_lockout_seconds,
     login_lockout_threshold,
     register_login_failure,
@@ -340,21 +342,28 @@ def role_required(roles):
     return decorator
 
 
-def _login_locked_response(next_url: str) -> tuple[str, int]:
-    """잠긴 (아이디, IP) 쌍의 로그인 시도를 429 로 되돌린다.
+def _login_locked_response(next_url: str) -> tuple[str, int, dict[str, str]]:
+    """잠긴 로그인 시도((아이디, IP) 잠금 또는 계정 잠금)를 429 로 되돌린다.
 
     429 를 쓰는 이유: 브라우저·역방향 프록시·모니터링이 모두 "너무 잦은 시도" 로 읽는
     표준 코드다. 200 으로 내보내면 무차별 대입기가 잠금과 단순 실패를 구분하지 못해
-    계속 두드리고, 운영자는 그래프에서 잠금 구간을 볼 수 없다.
+    계속 두드리고, 운영자는 그래프에서 잠금 구간을 볼 수 없다. ``Retry-After`` 는 429 의
+    표준 짝이다(잠금 시간 상한 — 남은 시간이 아니라 전체 잠금 시간). 두 잠금이 같은 응답이라
+    어느 쪽이 걸렸는지, 계정이 있는지는 드러나지 않는다.
 
     :param next_url: 로그인 후 돌아갈 내부 경로(폼에 그대로 실어 준다).
-    :return: (렌더된 로그인 화면, 429) 튜플.
+    :return: (렌더된 로그인 화면, 429, ``Retry-After`` 헤더) 튜플.
     """
+    lock_seconds = login_lockout_seconds()
     flash(
-        f'로그인 시도가 너무 많아 잠시 잠겼습니다. {login_lockout_seconds() // 60}분 뒤 다시 시도해주세요.',
+        f'로그인 시도가 너무 많아 잠시 잠겼습니다. {lock_seconds // 60}분 뒤 다시 시도해주세요.',
         'error',
     )
-    return render_template('auth/login.html', next_url=next_url), 429
+    return (
+        render_template('auth/login.html', next_url=next_url),
+        429,
+        {'Retry-After': str(lock_seconds)},
+    )
 
 
 def _note_login_failure(username: str, user_id: int | None) -> bool:
@@ -364,16 +373,24 @@ def _note_login_failure(username: str, user_id: int | None) -> bool:
     어떤 형태로도 detail 에 넣지 않는다**. 카운터가 fail-open 이라 저장소 장애 시에는
     항상 ``False`` 가 돌아오고 감사도 남지 않는다(그 사실은 카운터 쪽이 warning 으로 남긴다).
 
+    ``scope`` 는 새로 잠긴 범위다 — ``ip``(같은 자리에서 연속 실패) 또는 ``account``(IP 와
+    무관하게 이 아이디로 연속 실패, 2026-10-19 설계서). ``account`` 가 잦으면 누군가 IP 를
+    바꿔 가며 이 아이디를 노린다는 신호다.
+
     :param username: 시도에 쓰인 아이디 원문(계정 존재 여부와 무관).
     :param user_id: 존재하는 계정이면 그 id, 계정이 없으면 ``None``.
     :return: 이번 실패로 새로 잠겼으면 ``True``.
     """
-    if not register_login_failure(username):
+    scope = register_login_failure(username)
+    if scope is None:
         return False
-    threshold = login_lockout_threshold()
-    log_access(f"로그인 잠금: 사용자 {username} (연속 실패 {threshold}회)", user_id,
+    if scope == LOCK_SCOPE_ACCOUNT:
+        threshold, where = login_account_lockout_threshold(), '계정 기준'
+    else:
+        threshold, where = login_lockout_threshold(), '같은 접속 위치'
+    log_access(f"로그인 잠금: 사용자 {username} ({where} 연속 실패 {threshold}회)", user_id,
                action='LOGIN_LOCKED',
-               detail={'reason': 'lockout_threshold', 'username': username,
+               detail={'reason': 'lockout_threshold', 'username': username, 'scope': scope,
                        'threshold': threshold, 'lock_seconds': login_lockout_seconds()})
     return True
 

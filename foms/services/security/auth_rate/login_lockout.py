@@ -4,11 +4,16 @@
 공격면인 **로그인에는 한도도 잠금도 0** 이었다(2026-09-06 검토 R7). 이 모듈이 그 두
 가지의 공통 기반을 한 자리에 정의한다.
 
-**버킷 키 = 아이디 + canonical client IP**. 어느 한쪽만 쓰면 안 되는 이유가 대칭으로 있다:
+**카운터는 두 개다** (설계서 ``docs/specs/2026-10-19-login-lockout-key_SPEC.md``):
 
-* 아이디만 쓰면 외부인이 남의 아이디로 실패를 쌓아 그 계정을 마음대로 잠글 수 있다(계정 DoS).
-* IP 만 쓰면 사무실 PC·현장 태블릿·iOS 웹뷰가 같은 회선을 쓰는 회사라 한 사람의 오타가
-  전 직원을 통째로 잠근다.
+* **(아이디, IP) 카운터** — 임계 8. IP 만 쓰면 사무실 PC·현장 태블릿·iOS 웹뷰가 같은 회선을
+  쓰는 회사라 한 사람의 오타가 전 직원을 통째로 잠근다. 한 사람이 한 자리에서 틀리면 이쪽이
+  먼저 걸리고, 잠긴 자리의 시도는 더 세지 않는다.
+* **계정 카운터(정규화한 아이디, IP 없음)** — 임계 20. 앱이 보는 IP 가 요청마다 바뀌면
+  (손님 출구 IP 회전, 또는 프록시 체인이 신뢰 홉 수보다 길어 ``remote_addr`` 가 엣지 주소가
+  되는 경우) (아이디, IP) 카운터는 매번 1에서 다시 시작해 절대 잠기지 않았다(2026-10-19
+  스테이징 200×9). 대가는 남의 아이디로 그 계정을 잠그는 남용이다 — 임계를 (아이디, IP) 의
+  2.5배로 두고 잠금을 15분으로 짧게 둬서 받아들인다(근거는 설계서 §변경 3).
 
 IP 는 :func:`flask_limiter.util.get_remote_address` (= ProxyFix 가 세운
 ``request.remote_addr``) 만 쓴다. 원시 ``X-Forwarded-For``/``X-Real-IP`` 를 직접 파싱하면
@@ -23,6 +28,8 @@ PROXY-01 주석과 같은 결정이다.
 ``logger.warning`` 을 남긴다 — 관측 배선이 로그인을 막는 것은 더 나쁜 실패다. 다만 조용히
 넘기지는 않는다(``except ...: pass`` 금지). 잡는 예외는 저장소가 스스로 밝히는
 ``Storage.base_exceptions`` 뿐이라, 우리 쪽 프로그래밍 오류(TypeError 등)는 그대로 시끄럽게 죽는다.
+한 요청 안에서 첫 저장소 호출이 실패하면 그 요청의 나머지 호출은 건너뛴다 — 같은 장애로
+요청마다 경고가 여러 줄 쌓이지 않게, 경고는 요청당 1건이다.
 """
 
 from __future__ import annotations
@@ -30,9 +37,10 @@ from __future__ import annotations
 import hashlib
 import logging
 import os
+import unicodedata
 from typing import Any, Optional
 
-from flask import current_app, has_app_context, request
+from flask import current_app, g, has_app_context, has_request_context, request
 from flask_limiter.util import get_remote_address
 
 # 본문 상한 매니페스트 SSOT. 여기서 숫자를 복제하면 /login 상한이 바뀔 때 조용히 어긋난다.
@@ -41,12 +49,16 @@ from foms.platform.request_limits import resolve_body_cap
 logger = logging.getLogger(__name__)
 
 __all__ = [
+    "LOCK_SCOPE_ACCOUNT",
+    "LOCK_SCOPE_PAIR",
     "clear_login_failures",
     "is_login_locked",
+    "login_account_lockout_threshold",
     "login_bucket_key",
     "login_lockout_seconds",
     "login_lockout_threshold",
     "login_lockout_window_seconds",
+    "normalize_login_username",
     "register_login_failure",
 ]
 
@@ -63,8 +75,24 @@ DEFAULT_WINDOW_SECONDS = 900
 LOCK_SECONDS_ENV = "FOMS_LOGIN_LOCKOUT_SECONDS"
 DEFAULT_LOCK_SECONDS = 900
 
+#: 계정 카운터 임계(IP 와 무관). 20 = (아이디, IP) 임계 8 의 2.5배 — 한 사람의 오타는 늘
+#: (아이디, IP) 잠금이 먼저 걸리고, 두 자리에서 7번씩 틀려도(14회) 계정 잠금까지 여유가 있다.
+#: IP 를 바꾸는 추측기는 15분에 19번으로 묶인다. 창·잠금 시간은 위 두 env 를 같이 쓴다.
+ACCOUNT_THRESHOLD_ENV = "FOMS_LOGIN_ACCOUNT_LOCKOUT_THRESHOLD"
+DEFAULT_ACCOUNT_THRESHOLD = 20
+
+#: 잠금 범위 이름 — 감사 ``LOGIN_LOCKED`` detail 의 ``scope`` 값.
+LOCK_SCOPE_PAIR = "ip"
+LOCK_SCOPE_ACCOUNT = "account"
+
 #: 버킷 키 접두어. flask-limiter 는 자기 키를 따로 namespacing 하므로 충돌하지 않는다.
 _KEY_PREFIX = "foms-login"
+
+#: 계정 카운터 키 접두어. (아이디, IP) 키(``foms-login:<해시>:<IP>``)와 모양이 겹치지 않게 따로 둔다.
+_ACCOUNT_KEY_PREFIX = "foms-login-acct"
+
+#: 이 요청에서 저장소 호출이 이미 실패했음을 표시하는 ``flask.g`` 속성 이름.
+_STORAGE_FAILED_FLAG = "_foms_login_lockout_storage_failed"
 
 #: 로그인 폼 인코딩. 이 밖(multipart 등)은 아이디를 엿보지 않는다.
 _FORM_MIMETYPE = "application/x-www-form-urlencoded"
@@ -99,6 +127,14 @@ def login_lockout_threshold() -> int:
     :return: 임계 횟수(최소 1).
     """
     return _env_int(THRESHOLD_ENV, DEFAULT_THRESHOLD)
+
+
+def login_account_lockout_threshold() -> int:
+    """계정 카운터의 잠금 임계(env ``FOMS_LOGIN_ACCOUNT_LOCKOUT_THRESHOLD``).
+
+    :return: 임계 횟수(최소 1).
+    """
+    return _env_int(ACCOUNT_THRESHOLD_ENV, DEFAULT_ACCOUNT_THRESHOLD)
 
 
 def login_lockout_window_seconds() -> int:
@@ -160,6 +196,32 @@ def login_bucket_key(username: Optional[str] = None) -> str:
     return f"{_KEY_PREFIX}:{digest}:{address}"
 
 
+def normalize_login_username(raw: str) -> str:
+    """계정 카운터용 아이디 정규화 — NFKC → 앞뒤 공백 제거 → 대소문자 접기.
+
+    (아이디, IP) 키와 달리 접는다. 계정 카운터의 목적은 "이 계정을 노리는 시도" 를 한데
+    모으는 것이라, 표기만 다른 변형이 카운터를 새로 쓰면 그만큼 추측 기회가 늘어난다.
+    접어서 서로 다른 두 계정이 카운터를 공유하는 경우(대소문자만 다른 아이디)는 그 둘의
+    잠금이 함께 걸릴 뿐 인증에는 영향이 없다.
+
+    :param raw: 시도에 쓰인 아이디 원문.
+    :return: 정규화한 아이디.
+    """
+    return unicodedata.normalize("NFKC", raw).strip().casefold()
+
+
+def _account_key(username: str, suffix: str) -> str:
+    """계정 카운터 키 — ``foms-login-acct:<정규화 아이디 해시>:<suffix>`` (IP 없음).
+
+    :param username: 시도에 쓰인 아이디 원문.
+    :param suffix: ``fail`` 또는 ``lock``.
+    :return: 저장소 키 문자열.
+    """
+    normalized = normalize_login_username(username)
+    digest = hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:16]
+    return f"{_ACCOUNT_KEY_PREFIX}:{digest}:{suffix}"
+
+
 def _fail_key(username: str) -> str:
     """연속 실패 카운터 키.
 
@@ -199,6 +261,23 @@ def _limiter_storage() -> Optional[Any]:
     return None
 
 
+def _storage_failed_this_request() -> bool:
+    """이 요청에서 저장소 호출이 이미 실패했는가(그렇다면 나머지 호출은 건너뛴다).
+
+    :return: 실패 표시가 있으면 ``True``. 요청 컨텍스트 밖이면 늘 ``False``.
+    """
+    return has_request_context() and bool(g.get(_STORAGE_FAILED_FLAG, False))
+
+
+def _mark_storage_failed() -> None:
+    """이 요청의 저장소 실패를 표시한다(요청 컨텍스트 밖이면 아무 것도 하지 않는다).
+
+    :return: 없음.
+    """
+    if has_request_context():
+        setattr(g, _STORAGE_FAILED_FLAG, True)
+
+
 def _incr(storage: Any, key: str, expiry: int) -> Optional[int]:
     """카운터를 1 올리고 **올린 뒤의 값**을 돌려준다.
 
@@ -207,9 +286,12 @@ def _incr(storage: Any, key: str, expiry: int) -> Optional[int]:
     :param expiry: 키 수명(초). 첫 증가 때만 적용된다(고정 창).
     :return: 증가 후 값. 저장소 장애면 ``None``(fail-open — 호출부는 잠그지 않는다).
     """
+    if _storage_failed_this_request():
+        return None
     try:
         return int(storage.incr(key, expiry))
     except storage.base_exceptions:
+        _mark_storage_failed()
         logger.warning(
             "로그인 잠금 카운터 증가 실패 (key=%s) — 잠금 없이 진행한다(fail-open)",
             key,
@@ -225,9 +307,12 @@ def _get(storage: Any, key: str) -> Optional[int]:
     :param key: 카운터 키.
     :return: 현재 값(없으면 0). 저장소 장애면 ``None``(fail-open).
     """
+    if _storage_failed_this_request():
+        return None
     try:
         return int(storage.get(key))
     except storage.base_exceptions:
+        _mark_storage_failed()
         logger.warning(
             "로그인 잠금 상태 조회 실패 (key=%s) — 잠기지 않은 것으로 본다(fail-open)",
             key,
@@ -243,57 +328,111 @@ def _clear(storage: Any, key: str) -> None:
     :param key: 카운터 키.
     :return: 없음.
     """
+    if _storage_failed_this_request():
+        return
     try:
         storage.clear(key)
     except storage.base_exceptions:
-        logger.warning("로그인 잠금 카운터 삭제 실패 (key=%s)", key, exc_info=True)
+        _mark_storage_failed()
+        logger.warning(
+            "로그인 잠금 카운터 삭제 실패 (key=%s) — 지우지 못하고 진행한다(fail-open)",
+            key,
+            exc_info=True,
+        )
+
+
+def _lock_on_threshold(
+    storage: Any, fail_key: str, lock_key: str, count: Optional[int], threshold: int
+) -> bool:
+    """실패 수가 임계에 닿았으면 잠금 마커를 세우고 실패 카운터를 비운다.
+
+    잠금 마커는 ``incr`` 로 세우므로 **1 을 돌려받은 요청 하나만** "처음 잠근" 요청이 된다.
+    replica·워커가 여러 개여도 ``LOGIN_LOCKED`` 감사가 중복되지 않는다. 실패 카운터를 비우는
+    것은 잠금이 풀린 뒤 다시 임계만큼의 기회로 시작하게 하려는 것이다(PAM faillock 과 같은 모양).
+
+    :param storage: limiter 저장소.
+    :param fail_key: 실패 카운터 키.
+    :param lock_key: 잠금 마커 키.
+    :param count: 이번 증가 후 실패 수(저장소 장애면 ``None``).
+    :param threshold: 이 카운터의 임계.
+    :return: 이번 호출이 잠금을 새로 걸었으면 ``True``.
+    """
+    if count is None or count < threshold:
+        return False
+    locked = _incr(storage, lock_key, login_lockout_seconds())
+    _clear(storage, fail_key)
+    return locked == 1
 
 
 def is_login_locked(username: str) -> bool:
-    """이 (아이디, IP) 쌍이 지금 잠겨 있는가.
+    """이 시도가 지금 잠겨 있는가 — (아이디, IP) 잠금 **또는** 계정 잠금.
+
+    두 잠금은 같은 응답(429)으로 나가므로 어느 쪽이 걸렸는지, 계정이 있는지는 드러나지 않는다.
 
     :param username: 시도에 쓰인 아이디 원문.
-    :return: 잠겨 있으면 ``True``. 저장소가 없거나 조회에 실패하면 ``False``(fail-open).
+    :return: 어느 하나라도 잠겨 있으면 ``True``. 저장소가 없거나 조회에 실패하면 ``False``(fail-open).
     """
     storage = _limiter_storage()
     if storage is None:
         logger.warning("limiter 저장소가 없어 로그인 잠금을 판정할 수 없다(fail-open)")
         return False
-    return bool(_get(storage, _lock_key(username)))
+    return any(
+        bool(_get(storage, key))
+        for key in (_lock_key(username), _account_key(username, "lock"))
+    )
 
 
-def register_login_failure(username: str) -> bool:
-    """실패 1건을 세고, **이번 실패로 새로 잠겼는지** 알려준다.
+def register_login_failure(username: str) -> Optional[str]:
+    """실패 1건을 두 카운터에 세고, **이번 실패로 새로 잠긴 범위**를 알려준다.
 
-    임계에 닿으면 잠금 마커를 세우고 실패 카운터는 비운다 — 잠금이 풀린 뒤 다시 임계만큼의
-    기회로 시작하게 하려는 것이다(PAM faillock 과 같은 모양). 잠금 마커는 ``incr`` 로
-    세우므로 **1 을 돌려받은 요청 하나만** "처음 잠근" 요청이 된다. replica 가 여러 대여도
-    ``LOGIN_LOCKED`` 감사가 중복되지 않는다.
+    (아이디, IP) 카운터와 계정 카운터를 함께 올린다. 둘 다 이번에 새로 잠기면 더 넓은
+    ``account`` 를 돌려준다 — 관리자에게 더 중요한 신호다. 잠긴 시도는 호출부가 이 함수
+    앞에서 끊으므로, 한 자리에서 잠긴 사람의 시도는 계정 카운터에도 더 쌓이지 않는다.
 
     :param username: 시도에 쓰인 아이디 원문(계정 존재 여부와 무관하게 센다 — 아이디
         열거 시도도 무차별 대입이다).
-    :return: 이번 실패가 잠금을 새로 걸었으면 ``True``. 임계 미만이거나 이미 잠겼거나
-        저장소 장애로 셀 수 없으면 ``False``(fail-open — 로그인을 막지 않는다).
+    :return: 새로 잠긴 범위(:data:`LOCK_SCOPE_ACCOUNT` / :data:`LOCK_SCOPE_PAIR`). 임계 미만이거나
+        이미 잠겼거나 저장소 장애로 셀 수 없으면 ``None``(fail-open — 로그인을 막지 않는다).
     """
     storage = _limiter_storage()
     if storage is None:
         logger.warning("limiter 저장소가 없어 로그인 실패를 셀 수 없다(fail-open)")
-        return False
-    count = _incr(storage, _fail_key(username), login_lockout_window_seconds())
-    if count is None or count < login_lockout_threshold():
-        return False
-    locked = _incr(storage, _lock_key(username), login_lockout_seconds())
-    _clear(storage, _fail_key(username))
-    return locked == 1
+        return None
+    window = login_lockout_window_seconds()
+
+    pair_fail = _fail_key(username)
+    pair_locked = _lock_on_threshold(
+        storage,
+        pair_fail,
+        _lock_key(username),
+        _incr(storage, pair_fail, window),
+        login_lockout_threshold(),
+    )
+    account_fail = _account_key(username, "fail")
+    account_locked = _lock_on_threshold(
+        storage,
+        account_fail,
+        _account_key(username, "lock"),
+        _incr(storage, account_fail, window),
+        login_account_lockout_threshold(),
+    )
+    if account_locked:
+        return LOCK_SCOPE_ACCOUNT
+    if pair_locked:
+        return LOCK_SCOPE_PAIR
+    return None
 
 
 def clear_login_failures(username: str) -> None:
-    """인증에 성공한 (아이디, IP) 쌍의 실패 흔적을 지운다.
+    """인증에 성공한 시도의 실패 흔적을 지운다 — (아이디, IP) 카운터·잠금 + 계정 실패 카운터.
 
     성공은 그 행위자가 자격증명을 쥐고 있다는 증거이므로, 그때까지 쌓인 실패는 더 이상
     공격의 증거가 아니다. 지우지 않으면 오타를 7번 낸 뒤 로그인에 성공한 사람이 같은 15분
     안에 한 번 더 틀렸다는 이유로 잠긴다. 방어가 약해지지도 않는다 — 성공을 한 번이라도
     만들 수 있는 공격자는 이미 비밀번호를 쥐고 있다.
+
+    계정 **잠금** 마커는 지우지 않는다. 계정이 잠긴 동안에는 비밀번호 대조까지 가지 않으므로
+    여기 올 수 없고, 잠금은 시간이 지나야 풀린다.
 
     :param username: 인증에 성공한 아이디 원문.
     :return: 없음.
@@ -303,3 +442,4 @@ def clear_login_failures(username: str) -> None:
         return
     _clear(storage, _fail_key(username))
     _clear(storage, _lock_key(username))
+    _clear(storage, _account_key(username, "fail"))
