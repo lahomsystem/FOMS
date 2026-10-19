@@ -145,3 +145,19 @@
   </button>
   {%- endif -%}
 {%- endmacro -%}
+
+{#
+  지방 대시보드 '도면 작업실' 바로가기 — 화면 이동만 하는 링크다(상태를 바꾸지 않는다).
+  노출 대상(도면 단계 ERP 주문)은 라우트가 정한 id 집합으로만 판정한다.
+  아이콘·톤은 도면 파일 뷰어(btn-outline-info+fa-drafting-compass)·단계 넘기기
+  (btn-outline-primary+fa-arrow-right)와 겹치지 않게 btn-outline-secondary+fa-pencil-ruler.
+#}
+{%- macro drawing_workbench_link(order_id, ids) -%}
+  {%- if ids and order_id in ids -%}
+  <a class="btn btn-sm btn-outline-secondary"
+     href="{{ url_for('erp_drawing_workbench.erp_drawing_workbench_detail', order_id=order_id) }}"
+     title="이 주문의 도면 작업실로 이동합니다">
+    <i class="fas fa-pencil-ruler"></i> 도면 작업실
+  </a>
+  {%- endif -%}
+{%- endmacro -%}
