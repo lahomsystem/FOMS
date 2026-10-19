@@ -25,7 +25,8 @@ engine 에서만 성립하며 PG 레인 테스트가 그것을 증명한다 — 
 다중 프로세스 환경에서는 같은 (주체, endpoint, action) 연타가 프로세스 수만큼
 기록될 수 있다(4 프로세스면 억제 효과 1/4). 또한 억제 카운트는 **창 만료 후 첫
 후속 호출**이 보고하므로, 폭주가 그대로 끝나거나 캐시 상한 GC 로 키가 밀려나면 마지막
-누적분은 보고되지 않는다. Redis 승격은 본 패킷 범위 밖(스펙 §4 T5 에서 v1 한계로 명시 수용).
+누적분은 보고되지 않는다. Redis 승격은 본 패킷 범위 밖이며 스펙 §4 T5 에서 v1 한계로
+명시 수용했다.
 
 캐시는 접근거부(T5, 60초)와 파일 열람(T6, 10분)이 **공유**한다 — 키 3요소의 action 이
 용도를 구분하므로 오탐은 없지만, 파일 트래픽이 몰리면 LRU 상한 때문에 접근거부 키가 먼저
@@ -45,8 +46,6 @@ from typing import Any, Mapping
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import SQLAlchemyError
-
-from foms.services.audit_masking import mask_security_log_values
 
 logger = logging.getLogger(__name__)
 
@@ -205,12 +204,12 @@ def write_security_log_detached(
     :param action: 행위 종류 태그(``ACCESS_DENIED``·``WRITE_BLOCKED`` 등, T8 구조화).
     :param target_type: 행위 대상 종류(``user`` 등). 대상이 없으면 ``None``.
     :param target_id: 행위 대상 PK. 대상이 없으면 ``None``.
-    :param detail: 구조화 부가정보 dict. 고객 전화·주소·이름은 저장 직전에 가린다(AUDIT-PII-00).
+    :param detail: 구조화 부가정보 dict(**비밀번호·PII 원문 금지**).
     :return: 커밋에 성공했으면 True, 실패(로그 후 포기)면 False.
     """
     from foms.services.datetime_kst import now_utc_naive
     from models import SecurityLog
-    message, detail = mask_security_log_values(message, detail, target_type=target_type, action=action)
+
     try:
         engine = get_audit_engine()
         stmt = SecurityLog.__table__.insert().values(

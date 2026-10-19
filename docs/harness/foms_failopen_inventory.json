@@ -5,19 +5,19 @@
   "overlap_api_error_01": "API-ERROR-01 owns response/stdout exposure (print_exc/str(e) -> log_handled_exception). This packet owns swallow classification. Sites that log via log_handled_exception are LOG_AND_CONTINUE here.",
   "marker_convention": "Silent-by-design catches carry an inline `# failopen: intentional: <reason>` (or `fail-closed`) marker; the scanner reads it as the justification. No bare allowlist, no lint-disable.",
   "baselines": {
-    "broad_total": 625,
+    "broad_total": 624,
     "unclassified": 0,
     "swallow_by_control_flow": 166
   },
   "disposition_counts": {
     "FAIL_CLOSED": 38,
     "INTENTIONAL": 17,
-    "LOG_AND_CONTINUE": 404,
+    "LOG_AND_CONTINUE": 403,
     "SWALLOW_BY_CONTROL_FLOW": 166
   },
   "owner_counts": {
     "api": 241,
-    "audit": 3,
+    "audit": 2,
     "auth": 16,
     "cache": 29,
     "channel": 37,
@@ -2998,15 +2998,6 @@
       "owner": "services",
       "has_logging": false,
       "justification": "print only, no logger (API-ERROR-01 owns stdout->logger migration)"
-    },
-    {
-      "path": "foms/services/audit_masking.py",
-      "lineno": 380,
-      "handler_type": "broad_exception",
-      "disposition": "LOG_AND_CONTINUE",
-      "owner": "audit",
-      "has_logging": true,
-      "justification": "logs via logger/log_handled_exception"
     },
     {
       "path": "foms/services/channel_client.py",
