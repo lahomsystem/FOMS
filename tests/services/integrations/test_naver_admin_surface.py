@@ -6,9 +6,10 @@
 
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import timedelta
 
 from db import db_session
+from foms.services.datetime_kst import get_today_kst
 from foms.services.integrations.naver_commerce import app_expiry
 from foms.services.integrations.naver_commerce import watermark as wm
 from models import ExternalOrderLink, SecurityLog
@@ -125,7 +126,9 @@ def test_watermark_and_last_error_are_visible(auth_client):
 
 def test_expiry_warning_shows_when_close(auth_client):
     """만료가 임박하면 화면 상단에서 바로 보여야 한다."""
-    app_expiry.set_expiry_date(db_session, date.today() + timedelta(days=3))
+    # 화면은 한국 날짜로 D-day 를 센다(naver_ingest.py get_today_kst). date.today() 는 CI(UTC)에서
+    # 한국 00~09시에 하루 늦어 D-4 가 된다.
+    app_expiry.set_expiry_date(db_session, get_today_kst() + timedelta(days=3))
     db_session.commit()
     body = auth_client.get("/admin/naver-ingest").get_data(as_text=True)
     assert "D-3" in body and "갱신 필요" in body
