@@ -27,7 +27,12 @@ from models import Notification, Order, PartnerOrg, SecurityLog, User
 PARTNER_ORDER_NOTIFICATION_TYPE = "PARTNER_ORDER_CREATED"
 
 MAX_ITEMS = 30
+MAX_SPEC_ROWS = 20
+DIM_LIMIT = 100
 _TEXT_LIMIT = 500
+SPEC_KEYS = ("spec_width", "spec_depth", "spec_height")
+# 제품 속성 다섯 칸 — 우리 주문 화면과 같은 키(static/js/orders/erp-order-shared.js 제품 속성 시트).
+ATTRIBUTE_KEYS = ("internal", "color", "option_detail", "handle", "misc")
 
 # 협력사 화면의 쉬운 단계(내부 단계 코드를 묶는다). 스펙 §5.1.
 _PARTNER_STAGE_LABELS = {
@@ -61,8 +66,46 @@ def _text(value: Any, limit: int = _TEXT_LIMIT) -> str:
 
 
 def _dim(value: Any) -> str:
-    """치수 칸 — 숫자만 아니어도 받는다(현장 표기 그대로). 길이만 자른다."""
-    return _text(value, 20)
+    """치수 칸 — 숫자만 아니어도 받는다(복합 폭 ``5700(2402+1864+1434)`` 등 현장 표기 그대로). 길이만 자른다."""
+    return _text(value, DIM_LIMIT)
+
+
+def _clean_spec_rows(raw: dict[str, Any]) -> list[dict[str, str]]:
+    """품목 규격 줄들. 새 모양 ``spec_rows=[{spec_width,...}]``, 옛 모양 ``width/depth/height`` 둘 다 받는다.
+
+    옛 모양은 하루 캐시된 옛 화면 스크립트가 보낼 수 있다. 빈 줄은 버리되 최소 한 줄은 남긴다(지금 규칙).
+    """
+    raw_rows = raw.get("spec_rows")
+    if not isinstance(raw_rows, list):
+        raw_rows = [{"spec_width": raw.get("width"), "spec_depth": raw.get("depth"), "spec_height": raw.get("height")}]
+    rows = []
+    for row in raw_rows[:MAX_SPEC_ROWS]:
+        if not isinstance(row, dict):
+            continue
+        cleaned = {key: _dim(row.get(key)) for key in SPEC_KEYS}
+        if any(cleaned.values()):
+            rows.append(cleaned)
+    return rows or [{key: "" for key in SPEC_KEYS}]
+
+
+def _clean_item(raw: dict[str, Any], name: str) -> dict[str, Any]:
+    """품목 하나 — 우리 주문 화면과 같은 키(규격 줄 · 제품 속성 다섯 칸 · 추가 입력)."""
+    item: dict[str, Any] = {
+        "product_name": name,
+        "spec_rows": _clean_spec_rows(raw),
+        "quantity": _text(raw.get("quantity"), 10) or "1",
+    }
+    for key in ATTRIBUTE_KEYS:
+        value = _text(raw.get(key))
+        if value:
+            item[key] = value
+    # 옛 화면의 "품목 메모"는 지금처럼 기타·설치(misc)로 받는다.
+    if "misc" not in item and _text(raw.get("memo")):
+        item["misc"] = _text(raw.get("memo"))
+    extra = _text(raw.get("extra_input"), 2000)
+    if extra:
+        item["extra_input"] = extra
+    return item
 
 
 def _clean_items(raw_items: Any) -> list[dict[str, Any]]:
@@ -73,18 +116,8 @@ def _clean_items(raw_items: Any) -> list[dict[str, Any]]:
         if not isinstance(raw, dict):
             continue
         name = _text(raw.get("product_name"), 100)
-        if not name:
-            continue
-        items.append({
-            "product_name": name,
-            "spec_rows": [{
-                "spec_width": _dim(raw.get("width")),
-                "spec_depth": _dim(raw.get("depth")),
-                "spec_height": _dim(raw.get("height")),
-            }],
-            "quantity": _text(raw.get("quantity"), 10) or "1",
-            "misc": _text(raw.get("memo")),
-        })
+        if name:
+            items.append(_clean_item(raw, name))
     if not items:
         raise PartnerOrderError("품목을 하나 이상 넣어 주세요.")
     return items

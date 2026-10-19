@@ -28,6 +28,8 @@
 }
 
 * { box-sizing: border-box; }
+/* .pp-btn 의 display 가 hidden 속성을 덮지 않게(규격 줄 · 항목 빼기 버튼을 하나뿐일 때 숨긴다). */
+[hidden] { display: none !important; }
 
 .pp-body {
   margin: 0;
@@ -142,16 +144,36 @@
   font: inherit;
 }
 
-.pp-items { display: grid; gap: 10px; }
+.pp-items { display: grid; gap: 12px; }
+/* 제품 항목 카드 — 우리 주문 화면 제품 항목과 같은 칸(규격 여러 줄 · 제품 속성 다섯 칸 · 추가 입력 · 실측 사진). */
 .pp-item {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--pp-primary);
+  border-radius: 10px;
+}
+.pp-item__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.pp-item__no { font-weight: 700; color: var(--pp-stage-text); background: var(--pp-stage-bg); border-radius: 6px; padding: 2px 10px; }
+.pp-item__add-spec { justify-self: start; }
+.pp-btn--sm { min-height: 32px; padding: 0 10px; font-size: 14px; }
+.pp-specs { display: grid; gap: 8px; }
+.pp-spec {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: end;
   gap: 8px;
-  padding: 10px;
+  padding: 8px;
   border: 1px dashed var(--pp-border);
   border-radius: 8px;
 }
+.pp-spec__no { grid-column: 1 / -1; font-size: 13px; font-weight: 600; color: var(--pp-muted); }
+.pp-attrs-input { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .pp-field--wide { grid-column: 1 / -1; }
+.pp-attrs { display: grid; grid-template-columns: max-content 1fr; gap: 2px 10px; margin: 4px 0 0; font-size: 14px; }
+.pp-attrs:empty { display: none; }
+.pp-attrs dt { color: var(--pp-muted); }
+.pp-attrs dd { margin: 0; overflow-wrap: anywhere; }
 
 /* 한 칸 + 버튼(담당 바꾸기 · 내 연락처). 상태 줄은 아랫줄 전체. */
 .pp-form--inline { grid-template-columns: minmax(0, 1fr) auto; align-items: end; }
@@ -162,5 +184,8 @@
 .pp-status--error { color: var(--pp-danger); }
 
 @media (max-width: 520px) {
-  .pp-item { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pp-spec { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .pp-spec__w { grid-column: 1 / -1; }
+  .pp-spec__remove { grid-column: 1 / -1; justify-self: end; }
+  .pp-attrs-input { grid-template-columns: minmax(0, 1fr); }
 }

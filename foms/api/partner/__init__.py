@@ -13,7 +13,12 @@ from flask import Blueprint, Response, g, jsonify, request, session
 
 from db import get_db
 from foms.api.files.blueprint import ASYNC_ATTACHMENT_THUMBNAIL
-from foms.api.files.common import DRAWING_ATTACHMENT_EXTRA_EXTENSIONS, get_erp_media_max_size
+from foms.api.files.common import (
+    DRAWING_ATTACHMENT_EXTRA_EXTENSIONS,
+    get_erp_media_max_size,
+    parse_attachment_item_index,
+)
+from foms.services.orders.item_identity import resolve_active_item_id
 from foms.api.files.order_routes import ATTACHMENT_ADDED, emit_attachment_event
 from foms.services.audit_writer import normalize_security_detail
 from foms.api.notifications import invalidate_badge_cache_for_user_ids, resolve_notification_recipient_user_ids
@@ -67,6 +72,25 @@ def _own_order(db, order_id: int) -> Order | None:
     return order if partner_can_read_order(g.current_user, order) else None
 
 
+def _item_index_for_upload(order: Order, raw: str | None, category: str) -> tuple[int | None, str | None]:
+    """품목 실측 사진의 품목 번호(우리 직원 업로드와 같은 ``item_index``). 없으면 공통 사진.
+
+    Returns:
+        ``(item_index, None)`` 또는 ``(None, 오류 문구)``.
+    """
+    ok, item_index, _err = parse_attachment_item_index(raw)
+    if not ok:
+        return None, "품목 번호가 올바르지 않습니다."
+    if item_index is None:
+        return None, None
+    if category != "measurement":
+        return None, "품목에는 실측 사진만 붙일 수 있습니다."
+    items = (order.structured_data or {}).get("items")
+    if not isinstance(items, list) or item_index >= len(items):
+        return None, "없는 품목입니다. 화면을 새로고침한 뒤 다시 올려 주세요."
+    return item_index, None
+
+
 @partner_api_bp.route("/orders", methods=["POST"])
 @partner_required
 def create_order():
@@ -83,7 +107,8 @@ def create_order():
     # 받는 사람(CS 팀)의 벨 배지를 바로 갱신한다.
     invalidate_badge_cache_for_user_ids(resolve_notification_recipient_user_ids(
         db, target_team="CS", target_manager_name=None, include_admin=False))
-    return jsonify({"success": True, "data": {"order_id": order.id}, "error": None})
+    item_count = len((order.structured_data or {}).get("items") or [])
+    return jsonify({"success": True, "data": {"order_id": order.id, "item_count": item_count}, "error": None})
 
 
 @partner_api_bp.route("/orders/<int:order_id>/files", methods=["POST"])
@@ -100,6 +125,9 @@ def upload_file(order_id: int):
     if kind is None:
         return _fail("파일 종류(사진/초안 도면)를 골라 주세요.", 400)
     category, folder_name, allowed_exts = kind
+    item_index, item_error = _item_index_for_upload(order, request.form.get("item_index"), category)
+    if item_error:
+        return _fail(item_error, 400)
     file = request.files.get("file")
     if not file or not file.filename:
         return _fail("파일이 없습니다.", 400)
@@ -126,6 +154,8 @@ def upload_file(order_id: int):
             filename=file.filename,
             file_type=file_type,
             category=category,
+            item_index=item_index,
+            item_id=resolve_active_item_id(db, order.id, item_index),
             file_size=file_size,
             storage_key=storage_key,
             thumbnail_key=None,

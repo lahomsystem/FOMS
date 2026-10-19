@@ -54,10 +54,16 @@
     </dl>
     <ul class="pp-list">
         {% for it in intake['items'] or [] %}
-        {% set spec = (it.spec_rows or [{}])[0] %}
         <li class="pp-card pp-card--plain">
-            <span class="pp-card__name">{{ it.product_name }}</span>
-            <span class="pp-card__meta">{{ spec.spec_width or '-' }} × {{ spec.spec_depth or '-' }} × {{ spec.spec_height or '-' }} · {{ it.quantity or 1 }}개{% if it.misc %} · {{ it.misc }}{% endif %}</span>
+            <span class="pp-card__name">{{ it.product_name }}{% if it.quantity and it.quantity != '1' %} <span class="pp-muted">· {{ it.quantity }}개</span>{% endif %}</span>
+            {% for spec in it.spec_rows or [{}] %}
+            <span class="pp-card__meta">{% if (it.spec_rows or [])|length > 1 %}규격 {{ loop.index }} · {% endif %}{{ spec.spec_width or '-' }} × {{ spec.spec_depth or '-' }} × {{ spec.spec_height or '-' }}</span>
+            {% endfor %}
+            <dl class="pp-attrs">
+                {% for key, label in [('internal', '내부'), ('color', '색상'), ('option_detail', '옵션'), ('handle', '손잡이'), ('misc', '기타·설치'), ('extra_input', '추가 입력')] %}
+                {% if it[key] %}<dt>{{ label }}</dt><dd>{{ it[key] }}</dd>{% endif %}
+                {% endfor %}
+            </dl>
         </li>
         {% endfor %}
     </ul>
@@ -68,7 +74,7 @@
     {% if order.attachments %}
     <ul class="pp-files">
         {% for f in order.attachments %}
-        <li><span class="pp-muted">{{ f.kind }}</span> <a href="{{ f.url }}" target="_blank" rel="noopener">{{ f.filename }}</a></li>
+        <li><span class="pp-muted">{{ f.kind }}{% if f.item_name %} · {{ f.item_name }}{% endif %}</span> <a href="{{ f.url }}" target="_blank" rel="noopener">{{ f.filename }}</a></li>
         {% endfor %}
     </ul>
     {% else %}
