@@ -170,6 +170,24 @@ def test_partner_as_register_opens_cycle_with_photo(app, world, fake_storage):
     assert "AS 진행 중" in client.get("/partner").get_data(as_text=True)
 
 
+def test_partner_as_register_stores_sanitized_reception_text(app, world):
+    """협력사 접수 본문도 저장 함수에서 정리된다 — 접수 경로에 정리 호출이 없어도 봉인된다."""
+    from foms.services.as_content_safety import sanitize_as_content_html
+    from foms.services.partners.as_intake import register_partner_as
+
+    order_id = _create(app, world["partner_a"]).get_json()["data"]["order_id"]
+    _to_stage(order_id, "COMPLETED")
+    raw = "<x-claude-test>CLAUDE-TEST-협력사 접수</x-claude-test> <b>문짝</b> 처짐"
+    reception_id = register_partner_as(db_session, db_session.get(User, world["partner_a"]), order_id, raw)
+    db_session.commit()
+    db_session.expire_all()
+    logs = db_session.get(Order, order_id).structured_data["shipment"]["as_log"]
+    reception = next(e for e in logs if e.get("id") == reception_id)
+    assert reception["type"] == "reception"
+    assert reception["text"] == sanitize_as_content_html(raw)
+    assert "x-claude-test" not in reception["text"] and "CLAUDE-TEST-협력사 접수" in reception["text"]
+
+
 def test_partner_as_other_org_refused(app, world, fake_storage):
     order_id = _create(app, world["partner_a"]).get_json()["data"]["order_id"]
     _to_stage(order_id, "COMPLETED")

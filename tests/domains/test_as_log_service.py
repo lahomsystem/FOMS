@@ -2,6 +2,7 @@
 
 import pytest
 
+from foms.services.as_content_safety import sanitize_as_content_html
 from foms.services.orders.as_log import (
     append_client_log,
     append_system_log,
@@ -184,6 +185,42 @@ def test_stream_respects_recent_limit():
     assert len(view["stream"]) == 2
     assert view["stream_total"] == 5
     assert view["has_more"] is True
+
+
+# ---------------------------------------------------------------------------
+# 수기 항목 본문 정리 — 생성 지점 봉인(호출부가 정리를 빠뜨려도 저장값은 정리돼 있다)
+# ---------------------------------------------------------------------------
+
+
+def test_append_client_log_sanitizes_text():
+    """허용 목록 밖 태그는 저장 전에 빠지고 안의 글자만 남는다."""
+    sd = {"shipment": {}}
+    raw = "<x-claude-test>CLAUDE-TEST-표지</x-claude-test> 문짝 처짐"
+    entry = append_client_log(sd, log_type="reception", text=raw, by="협력", by_id=1)
+    assert "x-claude-test" not in entry["text"]
+    assert "CLAUDE-TEST-표지" in entry["text"] and "문짝 처짐" in entry["text"]
+    assert entry["text"] == sanitize_as_content_html(raw)
+    assert sd["shipment"]["as_log"][-1]["text"] == entry["text"]  # 반환값과 저장값이 같다
+
+
+def test_append_client_log_keeps_allowed_markup():
+    """허용 목록 안의 서식(굵게)은 그대로 남는다."""
+    sd = {"shipment": {}}
+    raw = "<b>CLAUDE-TEST-굵게</b> 경첩 조정"
+    entry = append_client_log(sd, log_type="memo", text=raw, by="김", by_id=1)
+    assert entry["text"] == raw
+
+
+def test_append_client_log_idempotent_for_sanitized_input():
+    """이미 정리한 본문을 넘기면(직원 경로) 저장값이 입력과 같다 — 재정리로 내용이 바뀌지 않는다."""
+    sanitized = sanitize_as_content_html(
+        '<div onclick="x">CLAUDE-TEST-줄<br>둘 &amp; <span style="color:red">빨강</span>'
+        "<x-claude-test>표지</x-claude-test></div>"
+    )
+    assert "onclick" not in sanitized and "x-claude-test" not in sanitized  # 표본이 실제로 정리됐다
+    sd = {"shipment": {}}
+    entry = append_client_log(sd, log_type="memo", text=sanitized, by="김", by_id=1)
+    assert entry["text"] == sanitized
 
 
 def test_append_system_log_is_server_authored():
