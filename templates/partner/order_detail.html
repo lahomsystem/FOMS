@@ -1,153 +1,39 @@
 {% extends "partner/layout.html" %}
-{% block title %}주문 #{{ order.id }}{% endblock %}
+{# PARTNER-FOMS 3-1: 협력사 주문 화면 — 우리 /edit 카드 · 탭 · 칸 순서(설계서 §3.3 · §12). 값은 협력사 투영(view)만 쓴다. #}
+{% block title %}주문 #{{ view.id }}{% endblock %}
+{% block styles %}<link rel="stylesheet" href="{{ asset_url('css/orders/erp-items-master-detail.css') }}">{% endblock %}
+{% block main_class %}pp-main--wide{% endblock %}
 {% block content %}
-{% set intake = order.intake %}
-<div class="pp-toolbar">
-    <h1 class="pp-title">{{ (intake.customer or {}).name or '주문' }} <span class="pp-muted">#{{ order.id }}</span></h1>
-    <span class="pp-stage">{{ order.stage_label }}{% if order.stage_label == '시공 예정' and order.construction_date %} · {{ order.construction_date }}{% endif %}</span>
-</div>
-{% if final_drawings %}
-<section class="pp-section pp-section--accent">
-    <h2 class="pp-subtitle">최종 도면</h2>
-    <ul class="pp-files">
-        {% for f in final_drawings %}
-        <li><a href="{{ f.url }}" target="_blank" rel="noopener">{{ f.filename }}</a></li>
-        {% endfor %}
-    </ul>
-    {% if can_approve %}
-    <p class="pp-help">고객과 확인한 뒤 눌러 주세요. 누르면 이 도면대로 제작을 시작합니다(누른 사람·시각·도면이 기록됩니다).</p>
-    <p class="pp-status" id="ppStatus" role="status" aria-live="polite"></p>
-    <button type="button" class="pp-btn pp-btn--primary" data-pp-approve-url="{{ url_for('partner_api.approve_drawing', order_id=order.id) }}">이대로 만들어 주세요</button>
-    {% endif %}
-    {% if can_revise %}
-    <form class="pp-form pp-form--sub" data-pp-post-url="{{ url_for('partner_api.request_revision', order_id=order.id) }}" data-pp-confirm="도면팀에 수정 요청을 보낼까요?" novalidate>
-        <label class="pp-field">고칠 곳<textarea name="note" rows="3" maxlength="2000" required></textarea></label>
-        <label class="pp-field">참고 사진(선택, 10장까지)<input type="file" name="photos" multiple accept="image/*"></label>
-        <p class="pp-status" data-pp-status role="status" aria-live="polite"></p>
-        <button type="submit" class="pp-btn">수정 요청 보내기</button>
-    </form>
-    {% endif %}
-</section>
-{% endif %}
-<section class="pp-section">
-    <h2 class="pp-subtitle">담당</h2>
-    <p>{{ order.manager_name or '-' }}{% if order.manager_phone %} · {{ order.manager_phone }}{% endif %}</p>
-    {% if manager_choices | length > 1 %}
-    <form class="pp-form pp-form--inline" data-pp-json-url="{{ url_for('partner_api.change_manager', order_id=order.id) }}" data-pp-json-key="user_id" novalidate>
-        <label class="pp-field">담당 바꾸기
-            <select name="user_id">
-                {% for u in manager_choices %}<option value="{{ u.id }}" {% if u.id == order.manager_user_id %}selected{% endif %}>{{ u.name }}{% if u.contact_phone %} · {{ u.contact_phone }}{% endif %}</option>{% endfor %}
-            </select>
-        </label>
-        <button type="submit" class="pp-btn">바꾸기</button>
-        <p class="pp-status" data-pp-status role="status" aria-live="polite"></p>
-    </form>
-    {% endif %}
-</section>
-<section class="pp-section">
-    <h2 class="pp-subtitle">보낸 내용</h2>
-    <dl class="pp-dl">
-        <dt>연락처</dt><dd>{{ (intake.customer or {}).phone or '-' }}</dd>
-        <dt>현장 주소</dt><dd>{{ intake.address or '-' }}</dd>
-        <dt>실측한 날</dt><dd>{{ intake.measured_on or '-' }}</dd>
-        <dt>보낸 때</dt><dd>{{ (intake.submitted_at or '')[:16] | replace('T', ' ') }} · {{ intake.submitted_by_name or '' }}</dd>
-    </dl>
-    <ul class="pp-list">
-        {% for it in intake['items'] or [] %}
-        <li class="pp-card pp-card--plain">
-            <span class="pp-card__name">{{ it.product_name }}{% if it.quantity and it.quantity != '1' %} <span class="pp-muted">· {{ it.quantity }}개</span>{% endif %}</span>
-            {% for spec in it.spec_rows or [{}] %}
-            <span class="pp-card__meta">{% if (it.spec_rows or [])|length > 1 %}규격 {{ loop.index }} · {% endif %}{{ spec.spec_width or '-' }} × {{ spec.spec_depth or '-' }} × {{ spec.spec_height or '-' }}</span>
-            {% endfor %}
-            <dl class="pp-attrs">
-                {% for key, label in [('internal', '내부'), ('color', '색상'), ('option_detail', '옵션'), ('handle', '손잡이'), ('misc', '기타·설치'), ('extra_input', '추가 입력')] %}
-                {% if it[key] %}<dt>{{ label }}</dt><dd>{{ it[key] }}</dd>{% endif %}
-                {% endfor %}
-            </dl>
-        </li>
-        {% endfor %}
-    </ul>
-    {% if intake.memo %}<p class="pp-memo">{{ intake.memo }}</p>{% endif %}
-</section>
-<section class="pp-section">
-    <h2 class="pp-subtitle">보낸 파일</h2>
-    {% if order.attachments %}
-    <ul class="pp-files">
-        {% for f in order.attachments %}
-        <li><span class="pp-muted">{{ f.kind }}{% if f.item_name %} · {{ f.item_name }}{% endif %}</span> <a href="{{ f.url }}" target="_blank" rel="noopener">{{ f.filename }}</a></li>
-        {% endfor %}
-    </ul>
-    {% else %}
-    <p class="pp-empty">보낸 파일이 없습니다.</p>
-    {% endif %}
-    {% if can_upload %}
-    <form id="ppMoreFiles" class="pp-form" data-upload-url="{{ url_for('partner_api.upload_file', order_id=order.id) }}" novalidate>
-        <label class="pp-field">실측 사진 더 보내기<input type="file" name="photos" multiple accept="image/*,video/*"></label>
-        <label class="pp-field">초안 도면 더 보내기<input type="file" name="drafts" multiple accept="image/*,.pdf,.dwg,.dxf,.zip"></label>
-        <p class="pp-status" id="ppStatus" role="status" aria-live="polite"></p>
-        <button type="submit" class="pp-btn pp-btn--primary">파일 보내기</button>
-    </form>
-    {% else %}
-    <p class="pp-help">도면 작업이 시작되어 파일은 더 보낼 수 없습니다. 바꿀 내용은 저희 담당자에게 알려 주세요.</p>
-    {% endif %}
-</section>
-{% macro photo_grid(photos, selectable) %}
-<ul class="pp-photos">
-    {% for p in photos %}
-    <li class="pp-photo">
-        {% if selectable %}<label class="pp-photo__pick">{% endif %}
-        {% if p.is_image %}<img src="{{ p.thumb_url }}" alt="{{ p.filename }}" loading="lazy">{% else %}<span class="pp-photo__file">{{ p.filename }}</span>{% endif %}
-        {% if selectable %}<input type="checkbox" name="construction_photo_ids" value="{{ p.id }}" aria-label="{{ p.filename }} 를 AS 에 붙이기"></label>{% endif %}
-        <a class="pp-photo__open" href="{{ p.url }}" target="_blank" rel="noopener">크게 보기</a>
-    </li>
-    {% endfor %}
-</ul>
-{% endmacro %}
-{% macro as_fields() %}
-<label class="pp-field">AS 내용<textarea name="content" rows="3" maxlength="2000" required></textarea></label>
-<label class="pp-field">고객이 보낸 사진(선택, 10장까지)<input type="file" name="photos" multiple accept="image/*"></label>
-<p class="pp-status" data-pp-status role="status" aria-live="polite"></p>
-<button type="submit" class="pp-btn pp-btn--primary">AS 접수하기</button>
-{% endmacro %}
-{% if show_completion or as_open %}
-<section class="pp-section" id="completion">
-    <h2 class="pp-subtitle">완공 사진 · AS</h2>
-    {% if as_open %}
-    <div class="pp-as-progress">
-        <p class="pp-help">진행 중인 AS 가 있습니다. 추가 내용은 저희 담당자에게 알려 주세요.</p>
-        {% if as_progress %}
-        <dl class="pp-dl">
-            <dt>상태</dt><dd>{{ as_progress.status_label }}</dd>
-            <dt>접수</dt><dd>{{ as_progress.opened_at or '-' }}</dd>
-            <dt>방문 예정</dt><dd>{% if as_progress.visit_date %}{{ as_progress.visit_date }} {{ as_progress.visit_time }} · 고객에게 알려 주세요{% else %}아직 안 정해짐{% endif %}</dd>
-        </dl>
-        {% if as_progress.photos %}<p class="pp-help">AS 사진</p>{{ photo_grid(as_progress.photos, false) }}{% endif %}
-        {% endif %}
+<div class="card border-secondary pp-order" data-pp-tabs="{{ active_tab }}">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <div class="fw-bold"><i class="fas fa-layer-group"></i> 주문 <span class="text-muted fw-normal">#{{ view.id }} {{ view.customer_name }}</span></div>
+        <span class="pp-stage">{{ view.stage_label }}{% if view.stage_label == '시공 예정' and view.construction_date %} · {{ view.construction_date }}{% endif %}</span>
     </div>
-    {% elif as_progress %}
-    <p class="pp-help">지난 AS: {{ as_progress.status_label }}{% if as_progress.opened_at %} (접수 {{ as_progress.opened_at }}){% endif %}</p>
-    {% if as_progress.photos %}{{ photo_grid(as_progress.photos, false) }}{% endif %}
-    {% endif %}
-    {% if construction_photos %}
-    {% if can_as %}
-    <form class="pp-form" data-pp-post-url="{{ url_for('partner_api.register_as', order_id=order.id) }}" data-pp-confirm="AS 를 접수할까요?" novalidate>
-        <p class="pp-help">우리 시공팀이 올린 완공 사진입니다. AS 할 곳이 보이면 사진을 골라 아래에 적어 주세요. 고른 사진이 접수에 함께 남습니다.</p>
-        {{ photo_grid(construction_photos, true) }}
-        {{ as_fields() }}
-    </form>
-    {% else %}
-    <p class="pp-help">우리 시공팀이 올린 완공 사진입니다. 고객에게는 "크게 보기"로 열어 저장한 뒤 보내 주세요.</p>
-    {{ photo_grid(construction_photos, false) }}
-    {% endif %}
-    {% else %}
-    <p class="pp-empty">아직 완공 사진이 없습니다.</p>
-    {% if can_as %}
-    <form class="pp-form" data-pp-post-url="{{ url_for('partner_api.register_as', order_id=order.id) }}" data-pp-confirm="AS 를 접수할까요?" novalidate>
-        {{ as_fields() }}
-    </form>
-    {% endif %}
-    {% endif %}
-</section>
+    <ul class="nav nav-tabs px-2 pt-2 pp-tabs" role="tablist">
+        <li class="nav-item"><button type="button" class="nav-link" role="tab" data-pp-tab="order"><i class="fas fa-layer-group"></i> 주문</button></li>
+        <li class="nav-item"><button type="button" class="nav-link" role="tab" data-pp-tab="drawing"><i class="fas fa-compass-drafting"></i> 도면{% if can_approve %} <span class="badge bg-danger">확인</span>{% endif %}</button></li>
+        <li class="nav-item"><button type="button" class="nav-link" role="tab" data-pp-tab="completion"{% if not (show_completion or as_open) %} disabled title="시공이 끝나면 열립니다"{% endif %}><i class="fas fa-camera"></i> 완공 사진{% if not (show_completion or as_open) %} <span class="small text-muted">(시공 뒤)</span>{% endif %}</button></li>
+    </ul>
+    <div class="card-body foms-page-form">
+        <section data-pp-tab-panel="order" aria-label="주문">
+            {% include "partner/partials/order_info.html" %}
+            {% include "partner/partials/order_items.html" %}
+            {% include "partner/partials/order_files.html" %}
+        </section>
+        <section data-pp-tab-panel="drawing" aria-label="도면" hidden>
+            {% include "partner/partials/order_drawing.html" %}
+        </section>
+        <section data-pp-tab-panel="completion" id="completion" aria-label="완공 사진" hidden>
+            {% include "partner/partials/order_completion.html" %}
+        </section>
+    </div>
+</div>
+{% include "partner/partials/order_actions.html" %}
+{% if view.items_editable %}
+{% from "partner/partials/item_card.html" import pp_item_templates %}
+{{ pp_item_templates() }}
+<script src="{{ asset_url('js/partner/partner-items.js') }}" defer></script>
 {% endif %}
-<p><a class="pp-btn pp-btn--ghost" href="{{ url_for('partner_portal.home') }}">목록으로</a></p>
+<script src="{{ asset_url('js/partner/partner-items-rail.js') }}" defer></script>
+<script src="{{ asset_url('js/partner/partner-order.js') }}" defer></script>
 {% endblock %}

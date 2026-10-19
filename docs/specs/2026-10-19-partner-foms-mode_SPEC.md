@@ -1,4 +1,4 @@
-# 협력사 화면을 우리 주문 화면 그대로 — 협력사 모드 SPEC (2026-10-19 승인 · 1단계 구현 중)
+# 협력사 화면을 우리 주문 화면 그대로 — 협력사 모드 SPEC (2026-10-19 승인 · 1·2단계 운영 · 3단계 구현 중)
 
 등급: 코어 변경(Auth · API · 화면) — Spec → 승인 → 구현.
 선행 설계서: `docs/specs/2026-10-08-partner-portal_SPEC.md`(1~3단계 · §16 담당 = 협력사 직원). 이 문서는 그 화면 부분을 대체한다.
@@ -28,10 +28,13 @@
 10. 관리자가 협력사 계정으로 전환하면 협력사 화면에 돌아가기 버튼이 없다(`templates/partner/layout.html` 은 로그아웃만). `auth.switch_back` 은 문지기 허용 목록에 이미 있다.
 11. 새 협력사 라우트는 허용 목록(`foms/services/auth/partner_scope.py` `PARTNER_ALLOWED_ENDPOINTS`)과 매니페스트 2개(`docs/harness/foms_order_mutation_policy_manifest.json`, `docs/harness/foms_write_guard_manifest.json`)에 같이 넣는다.
 12. 우리 주문 화면 템플릿은 크다: `erp_order_tab.html` 749줄, `erp_order_tab_mobile.html` 698줄, `edit_order_body.html` 652줄.
+13. (3단계 착수 때 확인) 우리 주문 화면은 값 · 품목 · 금액 · 첨부를 서버가 그리지 않는다. `erp-order-shared.js`(6,278줄) `erpLoadStructured` 가 주문 데이터 전체로 브라우저에서 채운다. 같은 파일이 저장(`PUT /structured`) · 탭을 다시 열 때 다시 읽기(`GET /structured`) · 실측 일정판 30초 조회를 함께 한다.
+14. `erpLoadStructured` 는 칸 14개(`erp-customer-name` · `erp-items` 등)를 있는지 확인하지 않고 쓴다 — 구역을 서버에서 빼면 거기서 멈춘다.
+15. 우리 바깥 틀(`orders/layout.html` → `layout_nav` · `layout_head` · `layout_scripts`)은 알림 벨 · 실시간 연결 · 채팅 · 긴급 호출을 싣고, 한 번에 끄는 장치가 없다.
 
 ## 2. 설계 원칙
 
-- **화면 틀은 하나.** 우리 템플릿 · CSS · JS 부품을 그대로 쓰고 "협력사 모드"에서 구역을 끈다. 협력사 전용 화면을 따로 키우지 않는다(두 벌 관리 금지).
+- ~~**화면 틀은 하나.** 우리 템플릿 · CSS · JS 부품을 그대로 쓰고 "협력사 모드"에서 구역을 끈다.~~ → **2026-10-19 바꿈(§5-8)**: 우리 디자인 부품(CSS 파일 · 마크업 클래스)을 그대로 싣고, 화면 파일(템플릿 · JS)은 협력사 것을 따로 둔다.
 - **뺌은 서버에서.** (a) 데이터는 협력사 투영 함수가 고른 키만 페이지에 싣는다, (b) 뺄 구역은 Jinja 가 아예 그리지 않는다, (c) 협력사 쓰기는 협력사 전용 API 로만 간다. CSS 로 가리는 것은 뺌이 아니다.
 - **구역 단위로 끈다.** 칸 하나하나에 분기를 넣지 않고 구역(접수 표시 · 발주 · 금액 · 발송 · 실측 일정판 · 계산기 · 견적서)으로 묶는다 — 직원 화면이 깨질 자리를 줄이려는 것.
 - **주소는 협력사 쪽에 둔다.** 협력사는 지금처럼 `/partner/...` 주소만 쓴다. 우리 `/edit/<id>` 를 협력사에게 열지 않는다. 같은 템플릿을 협력사 라우트가 협력사 모드로 그린다.
@@ -115,6 +118,8 @@
 5. 협력사가 보는 품목 값은 도면팀이 고친 현재값(기본값 그대로). 원문과 다를 때 표시는 이번 범위 밖.
 6. 협력사 알림 방식은 6단계에서 따로 정한다.
 7. 1단계부터 시작한다.
+8. (2026-10-19, 3단계 착수 때) **우리 디자인 부품 + 협력사 화면 파일.** §1-13 ~ 15 때문에 "우리 화면 파일에 협력사 모드"는 직원 화면을 깨뜨릴 위험이 크다. 협력사 화면은 우리 CSS(Bootstrap · `style-pro-max.css` · `foms-tokens.css` · `erp-pro.css` · `erp-items-master-detail.css`)와 같은 마크업 클래스로 그리고, 템플릿 · JS 는 `templates/partner/` · `static/js/partner/` 에 둔다. 우리 직원 화면 파일은 바꾸지 않는다. 대가: 우리 화면 모양이 바뀌면 협력사 화면을 따로 맞춘다.
+9. 3단계는 셋으로 나눈다: 3-1 주문 화면(+ 접수 확인 중 품목 고치기) → 3-2 주문 목록(대시보드 모양) → 3-3 도면 미리보기 · 이력.
 
 ## 6. 단계 (각 단계 끝마다 deploy · 스테이징 실화면 확인)
 
@@ -166,3 +171,17 @@
 - 관리자 돌아가기: `templates/partner/layout.html` 머리줄에 세션 `impersonating_from` 이 있을 때만 "관리자로 돌아가기"(POST `auth.switch_back`, 문지기 허용 목록에 이미 있음).
 - 시험: `tests/security/test_partner_completion.py` 8건(시공 전 숨김 · 실측 사진 대조군, 사진 없을 때 접수 칸, 고른 사진 id · 덧붙임 · 첨부 복제 없음, 사진 없는 접수 대조군, 다른 주문 · 다른 분류 · 숫자 아님 · 없는 id 거부와 AS 미개설, 다른 회사 404, 진행 상황 방문일 · AS 사진 · 접수 칸 없음, 돌아가기 버튼 대조군).
 - 스테이징 실화면(2026-10-19, CLAUDE-TEST 협력사 · 시험 주문 #4774 휴지통): 완공 사진 썸네일 표시 → 골라 AS 접수 → 진행 상황(접수됨 · 접수일 · 방문 미정) 표시, 우리 쪽 접수 원문 `[완공 사진 참고] …` + `ref_attachment_ids`, 첨부 복제 없음. 이때 "관리자로 돌아가기"가 직전 주소(`/partner`, 협력사 전용)로 돌아가 관리자에게 막힌 화면이 뜨는 문제를 찾아 `switch_back` 이 협력사 화면에서 왔을 때만 협력사 관리로 보내게 고쳤다(대조군 시험 포함).
+
+## 12. 3-1 주문 화면 설계 (2026-10-19)
+
+- 바깥 틀: `templates/partner/layout.html` 이 우리 CSS 를 싣고 우리 머리줄 · 메뉴 줄 모양(`layout-header` · `layout-global-nav`)을 그린다. 협력사 메뉴: 회사 주문 · 새 주문. 벨 · 실시간 연결 · 채팅 · 긴급 호출은 싣지 않는다.
+- 협력사 투영 `foms/services/partners/view.py` `build_partner_order_view(order)`: 허용 키만(주문 번호 · 고객 이름 · 연락처 · 연락처 특이사항 · 접수인 · 접수일 · 접수시간 · 담당 · 쉬운 단계와 진행 칸 · 주소 · 주소 특이사항 · 실측일 · 실측 특이사항 · 시공일 · 시공시간 · 보낸 메모 · 품목(제품명 · 규격 줄 · 수량 · 속성 다섯 칸 · 추가 입력 · uid)). 품목은 도면팀이 고친 현재값(§5-5). 금액 · 견적 · 입금 · 비고 · 시공 특이사항 · 내부 표시는 넣지 않는다.
+- 주문 화면(`templates/partner/order_detail.html` + `templates/partner/partials/*`): 우리 `/edit` 카드 · 탭(주문 · 도면 · 완공 사진) · 칸 순서. 제품 항목은 우리 왼쪽 목록 · 오른쪽 상세(같은 클래스) — 넓은 화면만, 좁은 화면은 지금처럼 카드를 차례로. 아래 고정 줄에 단계 버튼(도면 확인 차례: 수정 요청 · 이대로 만들어 주세요 / 접수 확인 중: 품목 저장 / 시공 뒤: AS 접수).
+- 품목 고치기 `PUT /api/partner/orders/<id>/items`(§4-4): 접수 확인 중(RECEIVED · MEASURE)만, 다른 회사 404, 그 밖 409. 협력사가 고칠 수 있는 키(제품명 · 규격 줄 · 수량 · 속성 다섯 칸 · 추가 입력)만 바꾸고 나머지 품목 키(금액 · 품목 일정 · 취소 표시 등)는 uid 로 짝지어 그대로 둔다. uid 는 `ensure_item_uids`(이 주문에 있던 값만 인정). 원문 사본(`partner_intake.items`)도 같이 바꾸고 `partner_intake.item_edits` 에 누가 · 언제 · 바꾸기 전 품목을 남긴다(§5-4, 최근 20번). 품목에 묶인 첨부는 uid 로 새 자리를 찾아 `item_index` · `item_id` 를 옮기고, 지운 품목의 사진은 공통 사진이 된다. 감사 1줄 + CS 팀 알림.
+
+## 13. 3-1 구현 기록 (2026-10-19)
+
+- 투영 `foms/services/partners/view.py`(`build_partner_order_view`, 허용 키 23개 — 시험이 키 목록을 고정한다). 품목 고치기 `foms/services/partners/items_edit.py`(`update_partner_items`, 쓰기 정책 id `PARTNER_ITEMS_EDIT`, `execute_single_order_write` 경유라 쓰기 목록 허용 파일에 CANONICAL 로 올림), 라우트 `PUT /api/partner/orders/<id>/items`(`partner_api.update_items` — 문지기 허용 목록 · 쓰기 목록 2개에 추가). 감사 `PARTNER_ORDER_ITEMS_EDITED` + CS 팀 알림(`PARTNER_ORDER_ITEMS_EDITED`).
+- 화면: `templates/partner/layout.html`(우리 CSS · 머리줄 · 메뉴 줄), `templates/partner/order_detail.html` + `templates/partner/partials/`(`order_info` · `order_items` · `order_files` · `order_drawing` · `order_completion` · `order_actions` · `item_card`). 제품 항목 카드는 새 주문 화면과 같은 매크로(`item_card.html`)를 쓴다 — 고칠 때와 볼 때 같은 칸. 도면 확인 차례면 도면 탭을 먼저 연다.
+- JS: `partner-items-rail.js`(왼쪽 목록 · 오른쪽 상세, 992px 이상만), `partner-order.js`(탭 · 품목 저장 → 품목 사진 올리기), `partner-items.js` 는 서버가 그린 카드를 그대로 고치고 uid 를 돌려보낸다.
+- 시험: `tests/security/test_partner_order_screen.py` 8건(화면 원문에 금액 · 견적 · 입금 · 시공 메모 · 긴급 사유 · 비고 0개와 우리 직원 부트스트랩 대조군, 투영 키 목록, 접수 확인 중에만 고치는 칸, uid · 우리 쪽 품목 키 보존 · 원문 사본 · 고친 기록 · 감사 · CS 알림, 남의 uid 거부, 품목 사진 자리 옮기기 · 지운 품목 사진은 공통으로, 도면 단계 409 · 다른 회사 404 · 빈 품목 400, 우리 직원 호출 거부).

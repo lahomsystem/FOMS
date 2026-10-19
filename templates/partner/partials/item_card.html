@@ -1,0 +1,70 @@
+{# PARTNER-FOMS 3-1: 제품 항목 카드 — 우리 주문 화면(erp-order-shared.js erpNewItemRow)과 같은 칸 · 같은 클래스.
+   editable 이면 고치는 칸(새 주문 · 접수 확인 중), 아니면 같은 칸을 읽기만(readonly).
+   JS(partner-items.js · partner-items-rail.js)는 data-k · data-s · data-pp-* 만 본다. #}
+{% macro pp_spec(spec, editable, no=None) %}
+<div class="pp-spec erp-spec-row d-flex flex-wrap gap-2 align-items-end mb-1">
+    <span class="pp-spec__no small text-muted" data-pp-spec-no>규격{% if no %} {{ no }}{% endif %}</span>
+    <div class="col-12 erp-spec-w-col"><label class="form-label mb-0 small text-muted">W(가로·총폭)</label>
+        <input class="form-control form-control-sm" data-s="spec_width" maxlength="100" value="{{ spec.spec_width or '' }}" placeholder="예: 5700(2402+1864+1434) 또는 2352+2100+2860"{% if not editable %} readonly{% endif %}></div>
+    <div class="col erp-spec-d-col"><label class="form-label mb-0 small text-muted">D(깊이)</label>
+        <input class="form-control form-control-sm" data-s="spec_depth" maxlength="100" value="{{ spec.spec_depth or '' }}" inputmode="numeric"{% if not editable %} readonly{% endif %}></div>
+    <div class="col erp-spec-h-col"><label class="form-label mb-0 small text-muted">H(높이)</label>
+        <input class="form-control form-control-sm" data-s="spec_height" maxlength="100" value="{{ spec.spec_height or '' }}" inputmode="numeric"{% if not editable %} readonly{% endif %}></div>
+    {% if editable %}<button type="button" class="btn btn-sm btn-outline-secondary" data-pp-remove-spec aria-label="이 규격 줄 빼기"><i class="fas fa-minus"></i></button>{% endif %}
+</div>
+{% endmacro %}
+
+{% macro pp_item(it, editable, photos, no=None) %}
+<div class="pp-item erp-item-row" data-pp-item{% if it.uid %} data-pp-uid="{{ it.uid }}"{% endif %}>
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <div class="fw-bold small erp-item-title" data-pp-item-no>항목{% if no %} {{ no }}{% endif %}</div>
+        {% if editable %}<button type="button" class="btn btn-sm btn-outline-danger" data-pp-remove-item aria-label="이 항목 빼기"><i class="fas fa-times"></i></button>{% endif %}
+    </div>
+    <div class="row g-2">
+        <div class="col-12">
+            <label class="form-label mb-1 small erp-field-label">제품명</label>
+            <input class="form-control form-control-sm" data-k="product_name" maxlength="100" value="{{ it.product_name or '' }}" placeholder="예: 드레스룸 ㄷ자"{% if not editable %} readonly{% endif %}>
+        </div>
+        <div class="col-12">
+            <label class="form-label mb-1 small erp-field-label">규격 (W × D × H)</label>
+            {% if editable %}<div class="small text-muted mb-1">W*D*H 를 붙여넣으면 나뉩니다. 복합 폭은 5700(2402+1864+1434) 처럼 그대로 적어 주세요(단위 mm).</div>{% endif %}
+            <div class="erp-spec-rows" data-pp-specs>{% for spec in it.spec_rows or [] %}{{ pp_spec(spec, editable, loop.index) }}{% endfor %}</div>
+            {% if editable %}<button type="button" class="btn btn-sm btn-outline-primary mt-1" data-pp-add-spec><i class="fas fa-plus"></i> 규격 1행 추가</button>{% endif %}
+            {% if it.quantity and it.quantity != '1' %}<div class="small text-muted mt-1">수량 {{ it.quantity }}개</div>{% endif %}
+        </div>
+        <div class="col-12">
+            <div class="erp-preset-sheet" aria-label="제품 속성">
+                <div class="erp-preset-sheet__head">제품 속성</div>
+                <div class="erp-preset-sheet__body">
+                    {% for key, label in [('internal', '내부'), ('color', '색상'), ('option_detail', '옵션'), ('handle', '손잡이'), ('misc', '기타·설치')] %}
+                    <div class="erp-preset-row">
+                        <span class="erp-preset-row__label">{{ label }}</span>
+                        <div class="erp-preset-row__value"><input class="form-control form-control-sm" data-k="{{ key }}" maxlength="500" value="{{ it[key] or '' }}"{% if editable %} placeholder="{{ '설치 위치 · 몰딩 · 콘센트 등' if key == 'misc' else '모르면 상담' }}"{% else %} readonly{% endif %}></div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        <div class="col-12">
+            <label class="form-label mb-1 small erp-field-label">추가 입력</label>
+            <textarea class="form-control form-control-sm" data-k="extra_input" rows="2" maxlength="2000"{% if not editable %} readonly{% endif %}>{{ it.extra_input or '' }}</textarea>
+        </div>
+        <div class="col-12">
+            <div class="border rounded p-2 bg-light pp-item-photos">
+                <div class="small fw-semibold text-muted">{{ it.product_name or '이 제품' }} 실측 사진</div>
+                {% if photos %}
+                <div class="d-flex flex-wrap gap-1 mt-2">
+                    {% for p in photos %}<a class="pp-thumb" href="{{ p.url }}" target="_blank" rel="noopener">{% if p.is_image %}<img src="{{ p.thumb_url }}" alt="{{ p.filename }}" loading="lazy">{% else %}{{ p.filename }}{% endif %}</a>{% endfor %}
+                </div>
+                {% elif not editable %}<div class="small text-muted mt-1">이 제품에 붙인 사진이 없습니다.</div>{% endif %}
+                {% if editable %}<input type="file" class="form-control form-control-sm mt-2" data-pp-item-photos multiple accept="image/*,video/*" aria-label="이 제품 실측 사진 더하기">{% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endmacro %}
+
+{% macro pp_item_templates() %}
+<template id="ppItemRow">{{ pp_item({}, true, []) }}</template>
+<template id="ppSpecRow">{{ pp_spec({}, true) }}</template>
+{% endmacro %}

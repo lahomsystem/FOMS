@@ -108,7 +108,8 @@ def _clean_item(raw: dict[str, Any], name: str) -> dict[str, Any]:
     return item
 
 
-def _clean_items(raw_items: Any) -> list[dict[str, Any]]:
+def clean_partner_items(raw_items: Any, *, keep_uid: bool = False) -> list[dict[str, Any]]:
+    """협력사가 보낸 품목들. ``keep_uid`` 면 화면이 돌려보낸 품목 uid 를 싣는다(진위는 ``ensure_item_uids`` 가 본다)."""
     if not isinstance(raw_items, list):
         raise PartnerOrderError("품목을 하나 이상 넣어 주세요.")
     items: list[dict[str, Any]] = []
@@ -117,7 +118,10 @@ def _clean_items(raw_items: Any) -> list[dict[str, Any]]:
             continue
         name = _text(raw.get("product_name"), 100)
         if name:
-            items.append(_clean_item(raw, name))
+            item = _clean_item(raw, name)
+            if keep_uid and isinstance(raw.get("uid"), str):
+                item["uid"] = raw["uid"][:64]
+            items.append(item)
     if not items:
         raise PartnerOrderError("품목을 하나 이상 넣어 주세요.")
     return items
@@ -137,7 +141,7 @@ def create_partner_order(db, user: User, org: PartnerOrg, payload: Any) -> Order
     address = _text(data.get("address"), 300)
     if not customer_name or not customer_phone or not address:
         raise PartnerOrderError("고객 이름 · 연락처 · 현장 주소를 넣어 주세요.")
-    items = _clean_items(data.get("items"))
+    items = clean_partner_items(data.get("items"))
     memo = _text(data.get("memo"), 2000)
     measured_on = _text(data.get("measured_on"), 10)
 
@@ -241,21 +245,3 @@ def list_partner_orders(db, org_id: int, *, limit: int = 200) -> list[dict[str, 
         }
         for r in rows
     ]
-
-
-def partner_order_detail(order: Order, attachments: list[Any]) -> dict[str, Any]:
-    """협력사 화면 상세 — 등록 원문 · 쉬운 단계 · 시공일 · 파일(금액 · 내부 메모 없음)."""
-    sd = order.structured_data or {}
-    intake = sd.get("partner_intake") or {}
-    manager = (sd.get("parties") or {}).get("manager")
-    manager = manager if isinstance(manager, dict) else {}
-    return {
-        "id": order.id,
-        "manager_user_id": manager.get("partner_user_id"),
-        "manager_name": manager.get("partner_user_name") or "",
-        "manager_phone": manager.get("phone") or "",
-        "stage_label": partner_stage_label(order.erp_stage_code, order.as_axis_status),
-        "construction_date": order.erp_construction_date,
-        "intake": intake,
-        "attachments": attachments,
-    }
