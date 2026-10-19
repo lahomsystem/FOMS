@@ -20,6 +20,7 @@ from __future__ import annotations
 import datetime
 import pathlib
 
+from foms.services.datetime_kst import get_today_kst
 from db import db_session
 from models import SecurityLog
 
@@ -44,7 +45,7 @@ def _read(client):
 def test_admin_can_register_the_expiry_date(client, workbench_on):
     """ADMIN 이 날짜를 적으면 저장되고, 남은 일수까지 돌려준다."""
     _login(client)
-    target = datetime.date.today() + datetime.timedelta(days=40)
+    target = get_today_kst() + datetime.timedelta(days=40)
 
     response = client.post(EXPIRY_PATH, json={"expires_on": target.isoformat()})
     body = response.get_json()
@@ -59,7 +60,7 @@ def test_admin_can_register_the_expiry_date(client, workbench_on):
 def test_the_card_says_the_registered_date(client, workbench_on):
     """등록면과 표시면이 같은 값을 본다 — 저장했는데 카드가 `미등록` 이면 안 된다."""
     _login(client)
-    target = datetime.date.today() + datetime.timedelta(days=200)
+    target = get_today_kst() + datetime.timedelta(days=200)
     client.post(EXPIRY_PATH, json={"expires_on": target.isoformat()})
 
     body = client.get(TRIAGE_PATH, query_string={"tab": "all"}).get_data(as_text=True)
@@ -84,7 +85,7 @@ def test_history_card_offers_the_input_even_when_unset(client, workbench_on):
 def test_the_editor_is_folded_until_asked(client, workbench_on):
     """평소엔 접혀 있다 — 상태 카드는 읽는 자리라 폼이 늘 펼쳐져 있으면 안 된다."""
     _login(client)
-    target = datetime.date.today() + datetime.timedelta(days=100)
+    target = get_today_kst() + datetime.timedelta(days=100)
     client.post(EXPIRY_PATH, json={"expires_on": target.isoformat()})
 
     card = (client.get(TRIAGE_PATH, query_string={"tab": "all"})
@@ -121,7 +122,7 @@ def test_year_typo_far_outside_is_refused(client, workbench_on):
 def test_non_admin_cannot_register(client, workbench_on):
     """STAFF 는 못 적는다 — `지금 수집` 과 같은 ADMIN 전용 축이다."""
     _login(client, role="STAFF")
-    target = datetime.date.today() + datetime.timedelta(days=10)
+    target = get_today_kst() + datetime.timedelta(days=10)
 
     response = client.post(EXPIRY_PATH, json={"expires_on": target.isoformat()})
 
@@ -132,7 +133,7 @@ def test_non_admin_cannot_register(client, workbench_on):
 def test_registering_is_audited(client, workbench_on):
     """수집이 멈춘 뒤 '누가 언제 무엇으로 바꿨나'를 묻게 되는 값이라 기록에 남긴다."""
     _login(client)
-    target = datetime.date.today() + datetime.timedelta(days=15)
+    target = get_today_kst() + datetime.timedelta(days=15)
 
     client.post(EXPIRY_PATH, json={"expires_on": target.isoformat()})
 
@@ -146,12 +147,12 @@ def test_changing_the_date_rearms_the_warning(client, workbench_on):
     from foms.services.integrations.naver_commerce import app_expiry
 
     _login(client)
-    first = datetime.date.today() + datetime.timedelta(days=3)
+    first = get_today_kst() + datetime.timedelta(days=3)
     client.post(EXPIRY_PATH, json={"expires_on": first.isoformat()})
     app_expiry.check_and_notify(db_session)
     db_session.commit()
 
-    second = datetime.date.today() + datetime.timedelta(days=365)
+    second = get_today_kst() + datetime.timedelta(days=365)
     client.post(EXPIRY_PATH, json={"expires_on": second.isoformat()})
 
     row = db_session.get(__import__("models").SystemSetting, app_expiry.SETTING_KEY)

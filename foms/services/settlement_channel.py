@@ -32,7 +32,7 @@ from typing import Any, Optional
 
 from sqlalchemy import and_, case, func, or_, select
 
-from foms.services.datetime_kst import now_utc_naive
+from foms.services.datetime_kst import get_today_kst, now_utc_naive, to_utc_naive
 # 출고가는 실무 탭(`settlement_rows`)·완료 대시보드와 **같은 함수**로 만든다(파생 SSOT 재사용, D-03).
 # models 뒤에 두어도 순환이 없음을 2026-09-06 새 인터프리터로 확인했다.
 from foms.services.erp_display import _ensure_dict, erp_shipping_price_from_structured
@@ -454,11 +454,9 @@ def _hours_since(stamp: Any) -> Optional[float]:
     if not text:
         return None
     try:
-        parsed = datetime.datetime.fromisoformat(text)
+        parsed = to_utc_naive(datetime.datetime.fromisoformat(text))
     except ValueError:
         return None
-    if parsed.tzinfo is not None:
-        parsed = parsed.replace(tzinfo=None)
     return (now_utc_naive() - parsed).total_seconds() / 3600.0
 
 
@@ -1710,7 +1708,7 @@ def build_channel_dashboard(session: Any, *, date_from: datetime.date,
         ValueError: 허용 집합 밖 파라미터 또는 구간 폭 초과.
     """
     basis, granularity, ledger = _validated(basis, granularity, ledger, date_from, date_to)
-    today = today or datetime.date.today()
+    today = today or get_today_kst()
     per_page = max(1, min(int(per_page or DEFAULT_PER_PAGE), MAX_PER_PAGE))
     filters = dict(filters or {})
     # kpi.prev 와 daily_prev 가 **같은 구간**을 본다 — 월 단위 꽉 찬 달은 달력 전월(감사 C-01).
@@ -1781,7 +1779,7 @@ def build_channel_strip(session: Any, *, channel: str = "NAVER",
     """
     # 축은 언제나 정산 예정일이다(스트립에는 축 셀렉터가 없다). 구간 폭·역전 검사만 재사용.
     _validated(DEFAULT_BASIS, DEFAULT_GRANULARITY, DEFAULT_LEDGER, date_from, date_to)
-    today = today or datetime.date.today()
+    today = today or get_today_kst()
     rows = _daily_rows(session, channel, date_from, date_to)
     totals = _daily_totals(rows)
     case_stats = _build_case_stats(session, channel, date_from, date_to, today)
