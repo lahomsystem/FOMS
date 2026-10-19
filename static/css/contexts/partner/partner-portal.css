@@ -25,6 +25,8 @@
 .pp-brand { min-width: 0; color: inherit; text-decoration: none; }
 .pp-logout, .pp-admin-back { margin: 0; }
 .pp-user { color: var(--pp-muted); font-size: 14px; white-space: nowrap; }
+.pp-header__actions { flex-shrink: 0; }
+.pp-header__actions .btn { white-space: nowrap; }
 .pp-nav .nav-link { font-weight: 600; }
 
 .pp-main { max-width: 860px; margin: 0 auto; padding: 16px; }
@@ -191,6 +193,11 @@
 @media (max-width: 992px) {
   .pp-header { padding: 0.5rem 0.75rem; }
   .pp-brand { overflow: hidden; font-size: 1rem; line-height: 1.25; white-space: nowrap; text-overflow: ellipsis; }
+}
+
+@media (max-width: 575.98px) {
+  /* 접수 3칸은 휴대폰에서 한 칸씩(한 줄 3칸이면 날짜 · 이름이 잘린다). */
+  .pp-order .erp-received-trio { grid-template-columns: minmax(0, 1fr); }
 }
 
 @media (max-width: 520px) {
