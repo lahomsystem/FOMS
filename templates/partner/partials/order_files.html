@@ -1,0 +1,28 @@
+{# 공통 첨부 — 우리 첨부 갤러리(실측 · 도면 · 시공 · AS) 자리. 협력사가 보낸 것 · 최종 도면만(§3.3). #}
+<hr class="my-3">
+<div class="fw-bold mb-2"><i class="fas fa-paperclip"></i> 공통 첨부(사진/동영상)</div>
+{% if can_upload %}
+<form id="ppMoreFiles" class="row g-2 align-items-end mb-3" data-upload-url="{{ url_for('partner_api.upload_file', order_id=view.id) }}" novalidate>
+    <div class="col-md-5"><label class="form-label mb-1">실측 사진 더 보내기</label><input type="file" class="form-control form-control-sm" name="photos" multiple accept="image/*,video/*"></div>
+    <div class="col-md-5"><label class="form-label mb-1">초안 도면 더 보내기</label><input type="file" class="form-control form-control-sm" name="drafts" multiple accept="image/*,.pdf,.dwg,.dxf,.zip"></div>
+    <div class="col-md-2"><button type="submit" class="btn btn-sm btn-primary w-100"><i class="fas fa-upload"></i> 파일 보내기</button></div>
+</form>
+{% else %}
+<p class="small text-muted">도면 작업이 시작되어 파일은 더 보낼 수 없습니다. 바꿀 내용은 저희 담당자에게 알려 주세요.</p>
+{% endif %}
+{% macro group(title, files, empty) %}
+<div class="pp-gal">
+    <div class="pp-gal__head">{{ title }} <span class="badge bg-secondary">{{ files | length }}</span></div>
+    {% if files %}
+    <ul class="pp-files">
+        {% for f in files %}<li>{% if f.kind %}<span class="text-muted small">{{ f.kind }}{% if f.item_name %} · {{ f.item_name }}{% endif %}</span> {% endif %}<a href="{{ f.url }}" target="_blank" rel="noopener">{{ f.filename }}</a></li>{% endfor %}
+    </ul>
+    {% else %}<p class="small text-muted mb-0">{{ empty }}</p>{% endif %}
+</div>
+{% endmacro %}
+{{ group('실측', partner_files, '보낸 파일이 없습니다.') }}
+{{ group('도면', final_drawings, '최종 도면이 올라오면 여기와 도면 탭에 보입니다.') }}
+<div class="pp-gal">
+    <div class="pp-gal__head">시공 <span class="badge bg-secondary">{{ construction_photos | length }}</span></div>
+    <p class="small text-muted mb-0">{% if construction_photos %}완공 사진 탭에서 크게 보고 AS 를 접수할 수 있습니다.{% else %}시공이 끝나면 "완공 사진" 탭에 보입니다.{% endif %}</p>
+</div>

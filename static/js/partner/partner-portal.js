@@ -227,6 +227,9 @@
     });
   }
 
+  // 주문 화면 품목 저장(partner-order.js)이 같은 상태 줄 · 파일 올리기를 쓴다.
+  window.PartnerPortal = { setStatus: setStatus, uploadFiles: uploadFiles };
+
   document.addEventListener('DOMContentLoaded', function () {
     Array.prototype.forEach.call(document.querySelectorAll('form[data-pp-json-url]'), bindJsonForm);
     Array.prototype.forEach.call(document.querySelectorAll('form[data-pp-post-url]'), bindPostForm);
