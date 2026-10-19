@@ -97,11 +97,37 @@
         btn.title = btn.disabled ? '먼저 링크를 발급하세요' : '';
     }
 
+var _KST_FMT = (function () {
+        try {
+            return new Intl.DateTimeFormat('en-CA', {
+                timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit',
+                hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
+            });
+        } catch (e) { return null; }
+    })();
+
+    /**
+     * 서버 시각 문자열을 KST 'YYYY-MM-DD HH:MM' 로. 오프셋 없는 값은 naive UTC 로 본다
+     * (DB 규약 now_utc_naive). 파싱 실패 시 기존처럼 앞 16자를 그대로 보여 준다.
+     * @returns {string}
+     */
+    function _toKstMinute(value) {
+        var raw = String(value || '');
+        if (!raw) return '';
+        var iso = raw.replace(' ', 'T');
+        if (!/(Z|[+-]\d{2}:?\d{2})$/i.test(iso)) iso += 'Z';
+        var d = new Date(iso);
+        if (!_KST_FMT || isNaN(d.getTime())) return raw.replace('T', ' ').slice(0, 16);
+        var p = {};
+        _KST_FMT.formatToParts(d).forEach(function (part) { p[part.type] = part.value; });
+        return p.year + '-' + p.month + '-' + p.day + ' ' + p.hour + ':' + p.minute;
+    }
+
     /** 이력 한 건을 li 로 렌더. @returns {string} */
     function _itemHtml(item) {
         var status = STATUS_LABELS[item.status] || item.status;
         var badgeTone = item.status === 'active' ? 'text-bg-success' : 'text-bg-secondary';
-        var created = String(item.created_at || '').replace('T', ' ').slice(0, 16);
+        var created = _toKstMinute(item.created_at);
         var views = '열람 ' + (item.view_count || 0) + '회';
         // 좁은 모달에서 버튼 라벨이 세로로 접히지 않게 nowrap 고정.
         var revokeBtn = item.status === 'active'
@@ -131,7 +157,7 @@
 
     /** 열람 기록 한 건을 li 로 렌더. @returns {string} */
     function _historyItemHtml(row) {
-        var seen = String(row.first_viewed_at || '').replace('T', ' ').slice(0, 16);
+        var seen = _toKstMinute(row.first_viewed_at);
         var sum = row.summary || {};
         var repeat = (row.view_count || 0) > 1 ? ' · ' + row.view_count + '회' : '';
         var stored = row.source === 'stored' ? ' · 발급 저장본' : '';

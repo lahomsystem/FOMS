@@ -132,20 +132,35 @@
     }
 
     /**
-     * 서버가 남긴 naive UTC ISO 문자열을 KST `MM-DD HH:MM` 으로 만든다.
+     * 서버 시각 문자열을 epoch ms 로 바꾼다. 두 형식이 섞여 온다:
+     * - 이벤트 API ``created_at`` = ``format_datetime_kst`` 결과 "YYYY-MM-DD HH:MM:SS"(이미 KST, 오프셋 없음)
+     * - 주문 사본 ``sent_at`` = ISO(``+00:00`` 오프셋, 옛 값은 오프셋 없는 UTC "YYYY-MM-DDTHH:MM:SS")
+     * 공백 구분 값은 KST(+09:00), 'T' 구분 무오프셋 값은 UTC 로 읽는다.
+     * @param {*} value 시각 문자열.
+     * @returns {number} epoch ms(파싱 불가면 NaN).
+     */
+    function _parseWhen(value) {
+        if (!value) return NaN;
+        const raw = String(value).trim();
+        if (/(Z|[+-]\d{2}:?\d{2})$/.test(raw)) return new Date(raw).getTime();
+        const kst = /^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}(:\d{2}(\.\d+)?)?)$/.exec(raw);
+        if (kst) return new Date(kst[1] + 'T' + kst[2] + '+09:00').getTime();
+        return new Date(raw + 'Z').getTime();
+    }
+
+    /**
+     * 서버 시각 문자열(_parseWhen 규칙)을 KST `MM-DD HH:MM` 으로 만든다.
      *
      * 초·연도는 아무 결정도 바꾸지 않으면서 긴 고객명을 밀어내므로 쓰지 않는다.
-     * 타임존 표기가 없으면 UTC 로 읽는다(프로젝트 timestamp 규약).
      *
      * @param {string} value ISO 문자열.
      * @returns {string} 표시 문자열(파싱 불가면 빈 문자열).
      */
     function _formatWhen(value) {
         if (!value) return '';
-        const raw = String(value);
-        const zoned = /(Z|[+-]\d{2}:?\d{2})$/.test(raw) ? raw : raw + 'Z';
-        const date = new Date(zoned);
-        if (isNaN(date.getTime())) return '';
+        const ms = _parseWhen(value);
+        if (isNaN(ms)) return '';
+        const date = new Date(ms);
         const parts = new Intl.DateTimeFormat('ko-KR', {
             timeZone: 'Asia/Seoul',
             month: '2-digit',
@@ -166,9 +181,7 @@
     /** @returns {number|null} 발송 후 지난 밀리초(모르면 null). */
     function _elapsedMs(record) {
         if (!record || !record.sent_at) return null;
-        const raw = String(record.sent_at);
-        const zoned = /(Z|[+-]\d{2}:?\d{2})$/.test(raw) ? raw : raw + 'Z';
-        const sent = new Date(zoned).getTime();
+        const sent = _parseWhen(record.sent_at);
         if (isNaN(sent)) return null;
         return Date.now() - sent;
     }
@@ -487,7 +500,9 @@
             });
         });
         return out.sort(function (a, b) {
-            return String(b.created_at || '').localeCompare(String(a.created_at || ''));
+            const tb = _parseWhen(b.created_at);
+            const ta = _parseWhen(a.created_at);
+            return (isNaN(tb) ? -Infinity : tb) - (isNaN(ta) ? -Infinity : ta);
         });
     }
 

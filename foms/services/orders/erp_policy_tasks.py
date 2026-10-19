@@ -13,6 +13,22 @@ from foms.services.orders.erp_policy_data_access import (
     recommend_owner_team,
 )
 from foms.services.error_logging import log_handled_exception
+from foms.services.datetime_kst import get_today_kst, parse_datetime_utc
+
+_KST = datetime.timezone(datetime.timedelta(hours=9))
+
+
+def _kst_date(value: Any) -> Optional[datetime.date]:
+    """datetime/ISO 문자열을 KST 날짜로. naive 는 UTC(DB 규약)로 해석한다."""
+    dt = parse_datetime_utc(value)
+    return dt.astimezone(_KST).date() if dt is not None else None
+
+
+def _today_kst(now: Optional[datetime.datetime]) -> datetime.date:
+    """'오늘' 기준일. now 미지정이면 KST 오늘, 지정이면 KST 날짜로 환산(naive=UTC)."""
+    if now is None:
+        return get_today_kst()
+    return _kst_date(now) or get_today_kst()
 
 
 def _business_days_until(date_iso: str):
@@ -42,7 +58,7 @@ def _parse_date(value: Any) -> Optional[datetime.date]:
 
 def build_auto_tasks(sd: Dict[str, Any], now: Optional[datetime.datetime] = None) -> List[AutoTaskSpec]:
     """structured_data 기반 자동 Task spec 목록을 만든다."""
-    now_dt = now or datetime.datetime.now()
+    now_dt = now  # None 이면 _today_kst 가 KST 오늘을 쓴다
     out: List[AutoTaskSpec] = []
     sd = sd or {}
 
@@ -148,7 +164,7 @@ def build_auto_tasks(sd: Dict[str, Any], now: Optional[datetime.datetime] = None
     return out
 
 
-def _resolve_due_date(due: Dict[str, Any], sd: Dict[str, Any], now_dt: datetime.datetime) -> Optional[str]:
+def _resolve_due_date(due: Dict[str, Any], sd: Dict[str, Any], now_dt: Optional[datetime.datetime]) -> Optional[str]:
     if not isinstance(due, dict):
         return None
     due_type = due.get("type")
@@ -183,28 +199,30 @@ def _resolve_due_date(due: Dict[str, Any], sd: Dict[str, Any], now_dt: datetime.
         raw_timestamp = workflow.get("stage_updated_at")
         if not raw_timestamp:
             return None
-        try:
-            timestamp = datetime.datetime.fromisoformat(str(raw_timestamp))
-        except Exception:
+        # stage_updated_at 은 naive UTC 와 +09:00 aware 가 섞여 있다 → UTC 로 정규화 후 KST 날짜.
+        timestamp = parse_datetime_utc(str(raw_timestamp))
+        if timestamp is None:
             return None
         offset_hours = int(due.get("offset_hours", 48) or 48)
-        return (timestamp + datetime.timedelta(hours=offset_hours)).date().isoformat()
+        deadline = _kst_date(timestamp + datetime.timedelta(hours=offset_hours))
+        return deadline.isoformat() if deadline else None
     if due_type == "today":
         offset_business_days = due.get("offset_business_days")
+        today = _today_kst(now_dt)
         if offset_business_days is None:
-            return now_dt.date().isoformat()
+            return today.isoformat()
         try:
             from foms.services.common.business_calendar import add_business_days
 
-            return add_business_days(now_dt.date(), int(offset_business_days)).isoformat()
+            return add_business_days(today, int(offset_business_days)).isoformat()
         except Exception:
-            return now_dt.date().isoformat()
+            return today.isoformat()
     return None
 
 
 def build_stage_template_tasks(sd: Dict[str, Any], now: Optional[datetime.datetime] = None) -> List[AutoTaskSpec]:
     """현재 stage용 템플릿 Task spec 목록을 계산한다."""
-    now_dt = now or datetime.datetime.now()
+    now_dt = now  # None 이면 _today_kst 가 KST 오늘을 쓴다
     sd = sd or {}
     stage = get_stage(sd) or ""
     if not stage:
