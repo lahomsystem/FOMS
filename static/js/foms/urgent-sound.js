@@ -2,7 +2,7 @@
 (function () {
   'use strict';
   if (window.FOMSUrgentSound) return;
-  var ctx = null, voice = null, active = false, generation = 0;
+  var ctx = null, wave = null, voice = null, active = false, generation = 0;
   var status = '소리 켜기·시험을 눌러 사이렌과 기기 음량을 확인해 주세요.';
 
   function sync() {
@@ -28,18 +28,29 @@
     release();
     if (ctx && ctx.state === 'running') report('사이렌 준비됨 · 탭 음소거와 기기 음량을 확인해 주세요.');
   }
+  function frequencyCurve(seconds, isTest) {
+    var values = new Float32Array(Math.ceil(seconds * 256) + 1);
+    var wailEnd = isTest ? 1.6 : 3.2;
+    for (var i = 0; i < values.length; i += 1) {
+      var t = seconds * i / (values.length - 1);
+      // Wail → Yelp → 빠른 Priority. 전환점도 저음에서 이어져 음높이가 튀지 않는다.
+      var phase = t < wailEnd ? t / 1.6 :
+        (t < 6.4 ? (t - wailEnd) / 0.4 : (t - 6.4) / 0.16);
+      values[i] = 650 + 900 * (1 - Math.cos(2 * Math.PI * phase)) / 2;
+    }
+    return values;
+  }
   function tone(seconds, isTest) {
     release();
     if (!ctx || ctx.state !== 'running') return;
+    // 정규화된 배음으로 전자 사이렌 스피커의 날카로운 질감. 외부 음원·타이머 없음.
+    if (!wave) wave = ctx.createPeriodicWave(new Float32Array(9),
+      new Float32Array([0, 1, 0.12, 0.45, 0.08, 0.2, 0.04, 0.1, 0.02]));
     var osc = ctx.createOscillator(), gain = ctx.createGain(), now = ctx.currentTime;
     osc.connect(gain);
     gain.connect(ctx.destination);
-    osc.type = 'sine';
-    // 경찰 사이렌처럼 낮은 음→높은 음→낮은 음을 왕복. 대용량 음원 다운로드 없음.
-    osc.frequency.setValueAtTime(600, now);
-    for (var t = 0.5; t <= seconds; t += 0.5) {
-      osc.frequency.linearRampToValueAtTime(t % 1 ? 1200 : 600, now + t);
-    }
+    osc.setPeriodicWave(wave);
+    osc.frequency.setValueCurveAtTime(frequencyCurve(seconds, isTest), now, seconds);
     gain.gain.setValueAtTime(0, now);
     gain.gain.linearRampToValueAtTime(0.12, now + 0.08);
     gain.gain.setValueAtTime(0.12, now + seconds - 0.15);
@@ -71,7 +82,7 @@
     if (!Ctx) { report('이 브라우저는 사이렌 소리를 지원하지 않아요.'); return; }
     var ticket = generation;
     try {
-      if (!ctx || ctx.state === 'closed') ctx = new Ctx();
+      if (!ctx || ctx.state === 'closed') { ctx = new Ctx(); wave = null; }
       var audio = ctx;
       // 반드시 클릭/키 입력의 동기 구간에서 resume한다(iOS·Chrome autoplay 정책).
       var ready = ctx.state === 'running' ? Promise.resolve() : ctx.resume();
@@ -99,6 +110,7 @@
     if (ctx) {
       var audio = ctx;
       ctx = null;
+      wave = null;
       audio.close().catch(function (e) { console.warn('[urgent-sound] 오디오 종료 실패:', e); });
     }
   });

@@ -10,7 +10,7 @@
      8건 미독). 상단바 전체를 들이면 캔버스 단축키와 충돌하므로 확인창과 소켓만 싣는다. #}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-drawing-alert.css') }}?v=20260911b">
   {# 긴급 알림 빨간 창(SPEC 2026-10-02 urgent-alert-everywhere) — 마법사에서도 긴급 멘션·공지를 띄운다. #}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-urgent-alert.css') }}?v=20261016a">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-urgent-alert.css') }}?v=20261019a">
     {# WRITE-GUARD-01: 이 문서는 layout_head 를 상속하지 않는 standalone 이라 CSRF 배선을
        직접 include 해야 한다. 빠지면 마법사의 모든 mutation(저장·이미지 업로드·실측 사진
        삽입)이 403 invalid_csrf_token 이 된다. #}
@@ -608,8 +608,8 @@
   <script src="https://cdn.socket.io/4.5.4/socket.io.min.js" defer></script>
   <script src="{{ url_for('static', filename='js/foms/notification-write.js') }}?v=20260704a" defer></script>
   <script src="{{ url_for('static', filename='js/foms/foms-drawing-alert.js') }}?v=20260930a" defer></script>
-  <script src="{{ url_for('static', filename='js/foms/urgent-sound.js') }}?v=20261016a" defer></script>
-  <script src="{{ url_for('static', filename='js/foms/foms-urgent-alert.js') }}?v=20261016a" defer></script>
+  <script src="{{ url_for('static', filename='js/foms/urgent-sound.js') }}?v=20261019a" defer></script>
+  <script src="{{ url_for('static', filename='js/foms/foms-urgent-alert.js') }}?v=20261019a" defer></script>
   <script src="{{ url_for('static', filename='js/drawing/wizard-alert-bridge.js') }}?v=20261002a" defer></script>
 </body>
 </html>

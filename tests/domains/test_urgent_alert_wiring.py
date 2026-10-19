@@ -162,4 +162,4 @@ def test_sound_loaded_before_alert_and_all_asset_versions_match() -> None:
         assert 'defer' in _script_tag(html, 'js/foms/urgent-sound.js')
         assert html.index('js/foms/urgent-sound.js') < html.index('js/foms/foms-urgent-alert.js')
         for asset in ('js/foms/urgent-sound.js', 'js/foms/foms-urgent-alert.js', 'css/components/foms-urgent-alert.css'):
-            assert re.search(re.escape(asset) + r"[^>]*\?v=20261016a", html), (path, asset)
+            assert re.search(re.escape(asset) + r"[^>]*\?v=20261019a", html), (path, asset)
