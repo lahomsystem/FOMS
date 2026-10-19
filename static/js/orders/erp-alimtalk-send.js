@@ -150,6 +150,32 @@
         el.classList.toggle('d-none', !text);
     }
 
+const _KST_FMT = (function () {
+        try {
+            return new Intl.DateTimeFormat('en-CA', {
+                timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit',
+                hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
+            });
+        } catch (e) { return null; }
+    })();
+
+    /**
+     * 서버 시각 문자열을 KST 'YYYY-MM-DD HH:MM' 로. 오프셋 없는 값은 naive UTC 로 본다
+     * (DB 규약 now_utc_naive). 파싱 실패 시 기존처럼 앞 16자를 그대로 보여 준다.
+     * @returns {string}
+     */
+    function _toKstMinute(value) {
+        var raw = String(value || '');
+        if (!raw) return '';
+        var iso = raw.replace(' ', 'T');
+        if (!/(Z|[+-]\d{2}:?\d{2})$/i.test(iso)) iso += 'Z';
+        var d = new Date(iso);
+        if (!_KST_FMT || isNaN(d.getTime())) return raw.replace('T', ' ').slice(0, 16);
+        var p = {};
+        _KST_FMT.formatToParts(d).forEach(function (part) { p[part.type] = part.value; });
+        return p.year + '-' + p.month + '-' + p.day + ' ' + p.hour + ':' + p.minute;
+    }
+
     /** 마지막 발송 이력 줄 렌더(없으면 숨김). */
     function _setLast(last) {
         const el = document.getElementById('erp-alimtalk-last');
@@ -158,7 +184,7 @@
         if (last && last.error) {
             text = '마지막 시도 실패 · ' + erpAlimtalkReasonLabel(last.error);
         } else if (last && last.sent_at) {
-            text = '최근 발송 · ' + String(last.sent_at).replace('T', ' ').slice(0, 16);
+            text = '최근 발송 · ' + _toKstMinute(last.sent_at);
         }
         el.textContent = text;
         el.classList.toggle('d-none', !text);
