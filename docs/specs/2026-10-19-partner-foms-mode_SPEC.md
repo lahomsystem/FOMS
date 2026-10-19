@@ -185,3 +185,11 @@
 - 화면: `templates/partner/layout.html`(우리 CSS · 머리줄 · 메뉴 줄), `templates/partner/order_detail.html` + `templates/partner/partials/`(`order_info` · `order_items` · `order_files` · `order_drawing` · `order_completion` · `order_actions` · `item_card`). 제품 항목 카드는 새 주문 화면과 같은 매크로(`item_card.html`)를 쓴다 — 고칠 때와 볼 때 같은 칸. 도면 확인 차례면 도면 탭을 먼저 연다.
 - JS: `partner-items-rail.js`(왼쪽 목록 · 오른쪽 상세, 992px 이상만), `partner-order.js`(탭 · 품목 저장 → 품목 사진 올리기), `partner-items.js` 는 서버가 그린 카드를 그대로 고치고 uid 를 돌려보낸다.
 - 시험: `tests/security/test_partner_order_screen.py` 8건(화면 원문에 금액 · 견적 · 입금 · 시공 메모 · 긴급 사유 · 비고 0개와 우리 직원 부트스트랩 대조군, 투영 키 목록, 접수 확인 중에만 고치는 칸, uid · 우리 쪽 품목 키 보존 · 원문 사본 · 고친 기록 · 감사 · CS 알림, 남의 uid 거부, 품목 사진 자리 옮기기 · 지운 품목 사진은 공통으로, 도면 단계 409 · 다른 회사 404 · 빈 품목 400, 우리 직원 호출 거부).
+
+## 14. 3-2 주문 목록 구현 기록 (2026-10-19)
+
+- 서비스 `foms/services/partners/order_list.py`: `partner_order_board`(프로세스 맵 7칸 수 · 내 차례 수 · 거른 작업 큐 최근 200건, 내 차례를 맨 위로), `partner_list_filters`(검색 · 단계 · 담당 · 내 차례만 · 내 담당 — 모르는 값은 버림), `partner_turn_count`(머리 메뉴 수). 자기 회사 운영 주문의 평면 칸만 읽는다(JSONB 안 읽음). 담당은 SALES 배정(협력사 직원) 기준. 검색은 고객 · 주소 · 제품 글자, 주문 번호(같은 숫자), 연락처(숫자 4자리 이상).
+- "내 차례" = 쉬운 단계 "도면 확인 대기"(CONFIRM, AS 건 열림 제외).
+- 화면 `templates/partner/home.html`: 우리 `erp-pro-card` · `erp-pro-pipeline` · 필터 줄 · 작업 큐 표(단계 · 현재 작업 · 고객 · 연락처 · 주소 · 제품 · 시공일 · 담당). 768px 미만은 표 대신 카드(지금 내 차례 묶음 · 진행 막대). 경보 칸 · D-day · 실측일 칸 · 내부 메뉴는 없다. 머리 메뉴에 "도면 확인 N"(내 차례) · "완공 사진 · AS"(완료 단계) 링크.
+- JS: 필터 줄은 고르면 바로 거르고, 작업 큐 줄을 누르면 주문 화면으로(`partner-portal.js` `bindBoard`). 인라인 스타일 · 인라인 이벤트는 쓰지 않는다.
+- 시험 `tests/security/test_partner_order_list.py` 4건(칸별 수 · 다른 회사 제외 · 내 차례 맨 위, 필터 다섯 가지와 모르는 값 무시, 목록 화면 · 단계 거르기, 모든 화면 머리 메뉴 차례 수와 다른 회사 대조군).
