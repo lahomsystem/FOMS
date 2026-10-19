@@ -832,9 +832,17 @@ def regional_dashboard():
         all_regional_orders, getattr(g, "current_user", None)
     )
 
+    # 도면 단계 주문은 도면 작업실로 바로 간다. 작업실 상세는 ERP 주문만 연다(그 외는 리다이렉트).
+    drawing_workbench_ids = {
+        o.id
+        for o in all_regional_orders
+        if getattr(o, "is_erp_order", False) and read_main_stage(o) == "DRAWING"
+    }
+
     return render_template(
         "measurement/regional_dashboard.html",
         drawing_ctas=drawing_ctas,
+        drawing_workbench_ids=drawing_workbench_ids,
         complete_ctas=complete_ctas,
         pending_orders=pending_orders,
         scheduled_orders=scheduled_orders,

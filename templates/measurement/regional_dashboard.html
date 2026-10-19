@@ -366,7 +366,7 @@
 {% endblock %}
 
 {% block content %}
-{% from 'partials/shared/status_select_options.html' import complete_order_control, as_complete_control, board_status_badge, drawing_transfer_control with context %}
+{% from 'partials/shared/status_select_options.html' import complete_order_control, as_complete_control, board_status_badge, drawing_transfer_control, drawing_workbench_link with context %}
 {# 라홈시스템(factory2) 뱃지: ERP 대시보드(orders/partials/dashboard_grid.html)와 동일한 flags.factory2 판정. #}
 {% macro factory2_badge(order) -%}
   {%- if order.is_erp_order and ((order.structured_data or {}).get('flags') or {}).get('factory2') %}
@@ -543,6 +543,7 @@
                                     <td>
                                         {% if order.status == 'AS_RECEIVED' %}{{ board_status_badge('AS접수', 'as') }}{% else %}{{ board_status_badge('상차예정', 'shipped') }}{% endif %}
                                         {{ drawing_transfer_control(order.id, drawing_ctas.get(order.id)) }}
+{{ drawing_workbench_link(order.id, drawing_workbench_ids) }}
                                     </td>
                                     <td>
                                         <div class="d-flex flex-column" style="gap: 0.2rem;">
@@ -746,6 +747,7 @@
                                             <td>
                                                 {{ board_status_badge('진행 중', 'progress') }}
                                                 {{ drawing_transfer_control(order.id, drawing_ctas.get(order.id)) }}
+{{ drawing_workbench_link(order.id, drawing_workbench_ids) }}
                                             </td>
                                     <td>
                                         <input type="date" class="form-control form-control-sm editable-date"
@@ -1006,6 +1008,7 @@
                                                     {{ board_status_badge('설치예정', 'scheduled') }}
                                                     {{ complete_order_control(order.id, order.status, complete_ctas.get(order.id)) }}
                                                     {{ drawing_transfer_control(order.id, drawing_ctas.get(order.id)) }}
+{{ drawing_workbench_link(order.id, drawing_workbench_ids) }}
                                                 </div>
                                             </td>
                                             <td>
