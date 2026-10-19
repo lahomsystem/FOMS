@@ -261,7 +261,9 @@ def test_history_fills_pushes_older_than_push_events() -> None:
     """
     src = _read("static/js/orders/erp-alimtalk-trace.js")
     block = src[src.index("const PUSH_HISTORY_KEYS"):src.index("/** 이력 목록을 서버에서 받아 패널에 채운다. */")]
-    script = "global.window = global;\n" + block + r"""
+    parse = src[src.index("    function _parseWhen("):src.index("    function _formatWhen(")]
+    parse = parse[:parse.rindex("    /**")]
+    script = "global.window = global;\n" + parse + block + r"""
 window.__erpLastStructuredData = {
   channeltalk_push: { pushed: true, sent_at: '2026-07-14T06:39:06+00:00', is_modified: false },
   channeltalk_push_drawing: { pushed: true, sent_at: '2026-09-01T01:00:00', is_modified: true,
@@ -285,3 +287,31 @@ process.stdout.write(JSON.stringify(_withSnapshotPushes(events)));
     assert drawing["created_by_name"] == "홍길동" and drawing["payload"]["is_resend"] is True
     assert out[3]["created_by_name"] == "보낸 사람 기록 없음"
     assert "_withSnapshotPushes(Array.isArray(body.events) ? body.events : [])" in src
+
+
+@_needs_node
+def test_history_times_mixed_formats_parse_as_kst_and_sort_by_instant() -> None:
+    """이벤트 API created_at 은 이미 KST 문자열("YYYY-MM-DD HH:MM:SS", format_datetime_kst)이고
+    주문 사본 sent_at 은 UTC ISO 다. 예전엔 둘 다 'Z' 를 붙여 이벤트가 +9시간 밀리고,
+    문자열 정렬이라 10-07 10:30(사본)이 10-08 01:53(이벤트)보다 위로 갔다(2026-10-19).
+    """
+    src = _read("static/js/orders/erp-alimtalk-trace.js")
+    parse = src[src.index("    function _parseWhen("):src.index("    function _formatWhen(")]
+    parse = parse[:parse.rindex("    /**")]
+    fmt = src[src.index("    function _formatWhen("):src.index("    /** @returns {number|null} 발송 후")]
+    block = src[src.index("const PUSH_HISTORY_KEYS"):src.index("/** 이력 목록을 서버에서 받아 패널에 채운다. */")]
+    script = "global.window = global;\n" + parse + fmt + block + r"""
+window.__erpLastStructuredData = {
+  channeltalk_push: { pushed: true, sent_at: '2026-10-07T01:30:00+00:00' },
+};
+const events = [
+  { event_type: 'CHANNELTALK_PUSH', payload: { push_kind: 'estimate' }, created_at: '2026-10-08 01:53:00' },
+  { event_type: 'CHANNELTALK_PUSH', payload: { push_kind: 'drawing' }, created_at: '2026-10-19 13:12:00' },
+];
+const out = _withSnapshotPushes(events).map(function (e) { return _formatWhen(e.created_at); });
+process.stdout.write(JSON.stringify(out));
+"""
+    proc = subprocess.run([shutil.which("node"), "-e", script], capture_output=True, text=True,
+                          encoding="utf-8", timeout=30)
+    assert proc.returncode == 0, proc.stderr
+    assert json.loads(proc.stdout) == ["10-19 13:12", "10-08 01:53", "10-07 10:30"]
