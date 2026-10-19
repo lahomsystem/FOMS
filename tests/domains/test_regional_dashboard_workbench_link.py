@@ -1,4 +1,4 @@
-"""지방 대시보드 '도면 작업실' 바로가기 노출 계약.
+"""지방·자가실측 대시보드 '도면 작업실' 바로가기 노출 계약.
 
 도면 단계 ERP 주문 행에만 링크가 붙는다. 작업실 상세는 ERP 주문만 열기 때문에
 비ERP 주문과 다른 단계 주문에는 붙지 않아야 한다.
@@ -17,6 +17,19 @@ def test_regional_dashboard_links_drawing_stage_order_to_workbench(client) -> No
     legacy = _create_order(stage="DRAWING", status="DRAWING", is_regional=True, is_erp_order=False)
 
     body = client.get("/regional_dashboard").get_data(as_text=True)
+    assert f'href="/erp/drawing-workbench/{drawing.id}"' in body
+    assert f'href="/erp/drawing-workbench/{measure.id}"' not in body
+    assert f'href="/erp/drawing-workbench/{legacy.id}"' not in body
+
+
+def test_self_measurement_dashboard_links_drawing_stage_order_to_workbench(client) -> None:
+    user = _make_user(role="STAFF", team="SALES", username="self-workbench-staff")
+    _login(client, user)
+    drawing = _create_order(stage="DRAWING", status="DRAWING", is_self_measurement=True)
+    measure = _create_order(stage="MEASURE", status="MEASURE", is_self_measurement=True)
+    legacy = _create_order(stage="DRAWING", status="DRAWING", is_self_measurement=True, is_erp_order=False)
+
+    body = client.get("/self_measurement_dashboard").get_data(as_text=True)
     assert f'href="/erp/drawing-workbench/{drawing.id}"' in body
     assert f'href="/erp/drawing-workbench/{measure.id}"' not in body
     assert f'href="/erp/drawing-workbench/{legacy.id}"' not in body
