@@ -291,6 +291,8 @@ def build_app(*, socketio_available: bool) -> AppFactoryResult:
         app,
         get_user_by_id=blueprint_bindings.get_user_by_id,
         is_production=is_production,
+        # RESP-HEADERS-01: HSTS 는 SESSION_COOKIE_SECURE 와 같은 기준(배포 환경)에서만.
+        deployed=(is_production or is_railway),
         close_db=close_db,
         close_wdcalculator_db=close_wdcalculator_db,
         register_context_processors=register_context_processors,

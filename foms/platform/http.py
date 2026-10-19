@@ -10,6 +10,7 @@ from typing import Any, Callable
 
 from werkzeug.exceptions import HTTPException
 
+from foms.platform.security_headers import apply_security_headers
 from foms.services.auth.partner_scope import partner_gate
 from foms.services.common.ept_b7_profile import format_phases
 from foms.services.common.request_phase_profile import HEADER_REQ_DIAG, format_request_diag
@@ -198,11 +199,16 @@ def register_http_bootstrap(
     *,
     get_user_by_id: Callable[..., Any],
     is_production: bool,
+    deployed: bool = False,
     close_db: Callable[..., Any],
     close_wdcalculator_db: Callable[..., Any],
     register_context_processors: Callable[[Flask], None],
 ) -> None:
-    """Register app-wide request hooks, routes, handlers, and teardown wiring."""
+    """Register app-wide request hooks, routes, handlers, and teardown wiring.
+
+    ``deployed`` 는 app_factory 의 ``is_production or is_railway`` 와 같은 기준이다 —
+    HSTS 를 배포 환경에서만 붙인다(RESP-HEADERS-01).
+    """
 
     install_protected_logging(app)
 
@@ -333,6 +339,12 @@ def register_http_bootstrap(
             payload = _contained_error_payload(rid or _current_request_id())
             response.set_data(json.dumps(payload, ensure_ascii=False))
         return response
+
+    @app.after_request
+    def _attach_security_headers(response: Any) -> Any:
+        # RESP-HEADERS-01: 표준 보안 헤더를 앱 전역 한 곳에서 붙인다. 앞단(Railway 엣지)이
+        # 붙여 주지 않는다. 이미 정한 값(공유 화면 no-referrer 등)은 덮어쓰지 않는다.
+        return apply_security_headers(response, request.path or "", hsts=deployed)
 
     @app.after_request
     def _log_request_duration(response: Any) -> Any:
