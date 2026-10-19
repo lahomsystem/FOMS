@@ -5,6 +5,7 @@ from functools import wraps
 from datetime import datetime, timezone
 import logging
 import re
+from urllib.parse import urlsplit
 from sqlalchemy import case, inspect as sa_inspect
 from sqlalchemy.exc import IntegrityError
 from werkzeug.security import check_password_hash
@@ -572,6 +573,9 @@ def switch_back():
         admin.id,
     )
     flash(f'관리자({admin.name}) 계정으로 복귀했습니다.', 'success')
+    # 협력사 화면(/partner…)에서 돌아오면 그 화면은 협력사 전용이라 관리자에겐 막힌다 → 협력사 관리로.
+    if urlsplit(request.referrer or '').path.startswith('/partner'):
+        return redirect(url_for('admin.partners'))
     return redirect(request.referrer or url_for('order_pages.index'))
 
 @auth_bp.route('/register', methods=['GET', 'POST'])

@@ -149,3 +149,17 @@ def test_admin_back_button_only_when_impersonating(app, world):
         sess["impersonating_from"] = world["admin"]
     html = client.get("/partner").get_data(as_text=True)
     assert "관리자로 돌아가기" in html and 'action="/switch-back"' in html
+
+
+def test_switch_back_from_partner_page_lands_on_partner_admin(app, world):
+    # 협력사 화면은 관리자에게 막혀 있어(협력사 전용) 돌아온 뒤엔 협력사 관리로 보낸다.
+    def _back(referrer):
+        client = _client(app, db_session.get(User, world["partner_a"]))
+        with client.session_transaction() as sess:
+            sess["impersonating_from"] = world["admin"]
+        return client.post("/switch-back", headers={"Referer": referrer})
+
+    resp = _back("https://lahom.example/partner/orders/1")
+    assert resp.status_code == 302 and resp.headers["Location"].endswith("/admin/partners")
+    other = _back("https://lahom.example/erp/dashboard")  # 대조군: 다른 화면에서는 지금처럼 그 화면으로
+    assert other.status_code == 302 and other.headers["Location"].endswith("/erp/dashboard")
