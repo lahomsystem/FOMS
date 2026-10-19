@@ -196,11 +196,17 @@ def current_as_round(sd: dict | None) -> int:
 
 
 def append_client_log(sd: dict, *, log_type: str, text: str, by: str, by_id: int | None) -> dict:
-    """수기 항목 append(최초 append 시 legacy 영구화, 현재 회차 스탬프). 반환=append된 항목."""
+    """수기 항목 append(최초 append 시 legacy 영구화, 현재 회차 스탬프). 반환=append된 항목.
+
+    본문은 함수 안에서 ``sanitize_as_content_html`` 로 정리한 뒤 저장한다. 항목 text 는
+    렌더에서 `|safe`(정리된 rich HTML 전제)라 호출부에 맡기면 새 경로가 빠뜨릴 수 있다 —
+    시스템 항목처럼 유일한 생성 지점에서 봉인한다. 정리는 같은 입력에 같은 결과라 이미
+    정리한 본문을 넘겨도 내용이 바뀌지 않는다.
+    """
     migrate_legacy_into_log(sd)
     entry = build_as_log_entry(
-        log_type=log_type, text=text, by=by, by_id=by_id, round_no=current_as_round(sd),
-        cycle_id=current_as_cycle_id(sd))
+        log_type=log_type, text=sanitize_as_content_html(text), by=by, by_id=by_id,
+        round_no=current_as_round(sd), cycle_id=current_as_cycle_id(sd))
     sd["shipment"]["as_log"].append(entry)
     return entry
 
