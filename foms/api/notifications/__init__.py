@@ -22,6 +22,7 @@ from foms.services.datetime_kst import format_datetime_kst, now_utc_naive
 from foms.services.integrations.naver_commerce.constants import ACTOR_USERNAME, OWNER_USERNAME
 from foms.services.notifications.measure_same_day_payload import measure_same_day_link
 from foms.services.notifications.recipients import INTERNAL_USERS_ONLY, fan_out_new_notification
+from foms.services.notifications.urgent_call_limit import urgent_sender_limit_exceeded, urgent_sender_limit_message
 from foms.services.request_write_guard import require_same_origin_write
 from foms.services.sidefx_outbox import enqueue_side_effect
 from db import get_db
@@ -1001,7 +1002,7 @@ def api_notifications_send():
 
 
 # 긴급 호출 rate: actor+order 당 시간당 상한(URGENT-CALL-01, report line 157).
-# 주문 없는 호출은 제한하지 않는다(사용자 결정 2026-10-01, SPEC §5-1).
+# 주문 유무와 무관한 보낸 사람 상한은 urgent_call_limit 모듈(SPEC 2026-10-19, 10-01 §5-1 대체).
 URGENT_MENTION_RATE_PER_HOUR = 5
 
 
@@ -1047,12 +1048,12 @@ def _urgent_rate_exceeded(db: Any, sender_id: int, order_id: int | None, count: 
     return recent + count > URGENT_MENTION_RATE_PER_HOUR
 
 
-def _create_urgent_receipts(db: Any, sender: User, targets: list[User], title: str,
-                           message: str, order_id: int | None) -> list[tuple[Notification, NotificationEvent]]:
+def _create_urgent_receipts(db: Any, sender: User, targets: list[User], title: str, message: str,
+                           order_id: int | None, sent_at: dt_mod.datetime) -> list[tuple[Notification, NotificationEvent]]:
     """검증한 직접 수신자들의 알림·state·created event를 일괄 생성해 반환. commit 없음."""
-    # 직접 수신자를 이미 일괄 검증했다. 일반 fan-out resolver를 사람마다 다시 조회하지 않는다.
+    # 직접 수신자를 이미 일괄 검증했다. 같은 sent_at = 호출 1회(보낸 사람 상한이 이 값으로 센다).
     notifications = [Notification(
-        order_id=order_id, notification_type="URGENT_MENTION", target_type="USER",
+        order_id=order_id, notification_type="URGENT_MENTION", target_type="USER", created_at=sent_at,
         target_user_id=u.id, is_urgent=True, title=title, message=message,
         created_by_user_id=sender.id, created_by_name=str(sender.name or ""), is_read=False,
     ) for u in targets]
@@ -1113,11 +1114,15 @@ def _send_urgent_call(db: Any, sender: User, data: dict[str, Any], order: Order 
     order_id = order.id if order is not None else None
     if _urgent_rate_exceeded(db, sender.id, order_id, len(ids)):
         return {"success": False, "message": f"긴급 호출은 주문당 시간당 {URGENT_MENTION_RATE_PER_HOUR}회까지만 보낼 수 있습니다."}, 429
+    sent_at = now_utc_naive()
+    if urgent_sender_limit_exceeded(db, sender.id, sent_at):  # 주문 유무와 무관한 보낸 사람 상한
+        text = urgent_sender_limit_message()
+        return {"success": False, "error": text, "message": text}, 429
     title = f"[긴급 호출] {sender.name}님이 호출했습니다"
     if order is not None:
         customer = order.customer_name or f"#{order_id}"
         title = f"[긴급 멘션] {sender.name}님이 #{order_id} {customer} 주문에서 호출했습니다"
-    receipts = _create_urgent_receipts(db, sender, targets, title, msg, order_id)
+    receipts = _create_urgent_receipts(db, sender, targets, title, msg, order_id, sent_at)
     payloads = []
     for target, (notif, event) in zip(targets, receipts):
         _queue_urgent_delivery(db, sender, target, notif, event, order)
@@ -1177,8 +1182,8 @@ def api_urgent_call():
 
     Body: ``{ target_user_ids: [int], message: str(trim 1..500), order_id?: int }``.
     기존 단일 target_user_id 요청도 지원한다(두 형식 동시 전달은 금지).
-    order_id 가 있으면 주문 문맥 규칙(read scope 게이트·주문당 5회/시간), 없으면
-    로그인 사용자 누구나·횟수 제한 없음.
+    order_id 가 있으면 주문 문맥 규칙(read scope 게이트·주문당 5회/시간), 없으면 로그인 사용자
+    누구나. 주문 유무와 무관하게 보낸 사람 상한(urgent_call_limit 상수)이 함께 걸린다.
     """
     data = request.get_json(silent=True) or {}
     if not isinstance(data, dict):

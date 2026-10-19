@@ -97,8 +97,8 @@ def init_realtime_bootstrap(
         if view is not None:
             app.view_functions[endpoint] = limiter.limit(notification_read_limit)(view)
 
-    # 긴급 호출 /erp/api/urgent-call 에는 Flask-Limiter 를 걸지 않는다 — 주문 없는 호출은 제한 없음
-    # (사용자 결정 2026-10-01), 주문을 고른 호출은 route 가 주문당 5회/시간을 센다. 옛 주문 라우트와
+    # 긴급 호출 /erp/api/urgent-call 에는 Flask-Limiter 를 걸지 않는다 — route 가 DB 로 보낸 사람
+    # 상한(urgent_call_limit, 주문 유무 무관)과 주문당 5회/시간을 센다. 옛 주문 라우트와
     # 그 30회/시간 제한(ERP_URGENT_MENTION_RATE_LIMIT)은 2026-10-06 삭제.
 
     # Web Push 구독 upsert/soft-delete rate limit.
