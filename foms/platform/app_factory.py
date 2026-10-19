@@ -17,6 +17,7 @@ from db import close_db, engine as main_db_engine
 from wdcalculator_db import close_wdcalculator_db
 
 from .blueprints import register_blueprints
+from .client_ip_trust import log_proxy_trust_config, resolve_trusted_proxy_hops, wrap_proxy_fix
 from .http import register_http_bootstrap
 from .logging_setup import configure_logging
 from .realtime import init_realtime_bootstrap
@@ -169,10 +170,8 @@ def apply_proxy_fix(app: Flask) -> None:
     """Trust exactly ``FOMS_TRUSTED_PROXY_HOPS`` ``X-Forwarded-For`` hops.
 
     ProxyFix rewrites ``request.remote_addr`` to the address recorded ``hops``
-    positions from the *right* of ``X-Forwarded-For`` — i.e. the client IP that
-    our own trusted edge proxy observed. Any left-most entries a client injects
-    fall outside the trusted window and are ignored, so ``remote_addr`` (and the
-    rate-limit key derived from it) cannot be spoofed by a forged header.
+    positions from the *right* of ``X-Forwarded-For``. Left-most entries outside
+    that window are ignored, so a forged header cannot pick the rate-limit key.
 
     Args:
         app: The Flask app whose WSGI stack is wrapped in place.
@@ -180,25 +179,16 @@ def apply_proxy_fix(app: Flask) -> None:
     Returns:
         None. ``app.wsgi_app`` is replaced with the ProxyFix-wrapped callable.
 
-    The hop count is parameterized via the ``FOMS_TRUSTED_PROXY_HOPS`` env var
-    (default ``1`` = single Railway edge proxy, preserving the prior ``x_for=1``).
-    A non-integer value falls back to ``1``; negatives are floored to ``0``
-    (trust no proxy). Only ``x_for`` is parameterized — ``x_proto``/``x_host``/
-    ``x_prefix`` stay at ``1`` (proto/host trust is out of this packet's scope).
-
-    MERGE-GATE: set ``FOMS_TRUSTED_PROXY_HOPS`` to the *measured* Railway
-    proxy-chain hop count before merging. Shipping the default without confirming
-    the real chain length risks trusting one hop too few (breaks legitimate
-    client-IP resolution) or too many (re-opens the spoof this packet closes).
+    CLIENT-IP-01 (2026-10-19): hop parsing, the boot-time config log, the
+    ``x_prefix=0`` hardening and the per-request "client IP looks untrusted"
+    warning live in :mod:`foms.platform.client_ip_trust`. The hop count is still
+    unmeasured on Railway — staging showed ``remote_addr`` changing on every
+    request from one PC. See ``docs/specs/2026-10-19-client-ip-behind-proxy_SPEC.md``
+    before changing the default.
     """
-    from werkzeug.middleware.proxy_fix import ProxyFix
-
-    raw = os.environ.get("FOMS_TRUSTED_PROXY_HOPS", "1") or "1"
-    try:
-        hops = max(0, int(raw))
-    except ValueError:
-        hops = 1
-    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=hops, x_proto=1, x_host=1, x_prefix=1)
+    hops, source = resolve_trusted_proxy_hops()
+    app.wsgi_app = wrap_proxy_fix(app.wsgi_app, hops=hops)
+    log_proxy_trust_config(hops, source)
 
 
 def build_app(*, socketio_available: bool) -> AppFactoryResult:
