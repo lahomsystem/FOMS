@@ -103,12 +103,32 @@
   }
 
   /**
-   * ISO 타임스탬프를 `2026-09-02 14:30` 모양으로 자른다.
+   * ISO 타임스탬프를 한국 시각 `2026-09-02 14:30` 모양으로 바꾼다.
+   * 서버(JSONB)는 시간대 없는 UTC 를 저장하므로 오프셋이 없으면 UTC(`Z`)로 읽는다.
    * @param {string} value ISO 문자열.
    * @returns {string} 표시용 문자열.
    */
   function formatStamp(value) {
-    return String(value || "").replace("T", " ").slice(0, 16);
+    var raw = String(value || "").trim();
+    if (!raw) {
+      return "";
+    }
+    var iso = raw.replace(" ", "T");
+    if (!/(Z|[+-]\d{2}:?\d{2})$/i.test(iso)) {
+      iso += "Z";
+    }
+    var date = new Date(iso);
+    if (isNaN(date.getTime())) {
+      return raw.replace("T", " ").slice(0, 16);
+    }
+    var parts = {};
+    new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit", hourCycle: "h23"
+    }).formatToParts(date).forEach(function (part) {
+      parts[part.type] = part.value;
+    });
+    return parts.year + "-" + parts.month + "-" + parts.day + " " + parts.hour + ":" + parts.minute;
   }
 
   /**
