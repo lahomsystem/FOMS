@@ -88,7 +88,9 @@ def test_police_beacon_and_sound_preserve_keyboard_access() -> None:
     assert "foms-urgent-alert__beacon" in js
     assert 'foms-urgent-alert-sweep' in css
     assert 'prefers-reduced-motion: reduce' in css
-    assert '.foms-urgent-alert__beacon::before { animation: none; }' in css
+    assert '.foms-urgent-alert__beacon::before,\n  .foms-urgent-alert__beacon::after { animation: none; }' in css
+    assert 'color: #ff2444' in css and 'color: #2785ff' in css
+    assert 'animation-delay: -.8s' in css
     assert 'FOMSUrgentSound.start()' in js and 'FOMSUrgentSound.stop()' in js
     assert "event.key === 'Tab'" in js
     assert "event.target === sound" in js
