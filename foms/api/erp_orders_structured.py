@@ -1886,7 +1886,7 @@ def api_payment_confirm(order_id):
             structured_data['payment'] = {}
         
         payment_obj = structured_data['payment']
-        now_str = datetime.datetime.now().isoformat()
+        now_str = now_utc_naive().isoformat()  # naive UTC 규약(서버 시간대 무관)
         
         user_id = session.get('user_id')
         user = db.query(User).filter(User.id == user_id).first() if user_id else None
@@ -1991,7 +1991,7 @@ def api_erp_create_draft():
         today = now.strftime('%Y-%m-%d')
         time_str = now.strftime('%H:%M')
         structured = {
-            'workflow': {'stage': 'RECEIVED', 'stage_updated_at': now.isoformat()},
+            'workflow': {'stage': 'RECEIVED', 'stage_updated_at': now_utc_naive().isoformat()},
             'flags': {'urgent': False},
             'assignments': {},
             'schedule': {},
@@ -2129,7 +2129,7 @@ def _create_session_draft(db: Session, draft_token: str = '') -> Order:
     """
     now = now_kst()
     structured = {
-        'workflow': {'stage': 'RECEIVED', 'stage_updated_at': now.isoformat()},
+        'workflow': {'stage': 'RECEIVED', 'stage_updated_at': now_utc_naive().isoformat()},
         'flags': {'urgent': False},
         'assignments': {},
         'schedule': {},
