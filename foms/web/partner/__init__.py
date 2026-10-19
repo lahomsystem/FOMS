@@ -16,6 +16,7 @@ from foms.services.order_attachment_permissions import is_partner_original_key
 from foms.services.orders.as_cycle_service import AS_IN_PROGRESS, AS_RECEIVED, current_cycle, cycle_status
 from foms.services.orders.confirm_drawing_gate import confirm_exit_block
 from foms.services.partners.as_intake import AS_OPEN_STAGES
+from foms.services.partners.completion import as_progress_for_partner, construction_photos_for_partner
 from foms.services.partners.drawing_confirm import final_drawings_for_partner
 from foms.services.partners.manager import org_member_choices
 from foms.services.partners.orders import list_partner_orders, partner_order_detail
@@ -26,6 +27,14 @@ partner_portal_bp = Blueprint("partner_portal", __name__, url_prefix="/partner")
 
 def _org() -> PartnerOrg:
     return get_db().query(PartnerOrg).filter(PartnerOrg.id == g.current_user.partner_org_id).first()
+
+
+def _item_name(items: list, item_index: int | None) -> str:
+    """품목 실측 사진이 묶인 품목 이름(공통 사진이면 빈 문자열)."""
+    if item_index is None or not isinstance(items, list) or not 0 <= item_index < len(items):
+        return ""
+    item = items[item_index]
+    return str(item.get("product_name") or "") if isinstance(item, dict) else ""
 
 
 @partner_portal_bp.route("")
@@ -60,10 +69,12 @@ def order_detail(order_id: int):
         .all()
     )
     # 협력사가 낸 파일만 보여 준다(우리 작업 파일은 3단계 "도면 확인"에서 연다).
+    items = (order.structured_data or {}).get("items") or []
     attachments = [
         {
             "filename": a.filename,
             "kind": "초안 도면" if "/partner_draft/" in (a.storage_key or "") else "실측 사진",
+            "item_name": _item_name(items, a.item_index),
             "url": build_file_view_url(a.storage_key),
         }
         for a in rows
@@ -89,4 +100,26 @@ def order_detail(order_id: int):
         can_as=stage in AS_OPEN_STAGES and not as_open,
         as_open=as_open,
         manager_choices=org_member_choices(db, order.partner_org_id),
+        **_completion_context(db, order, stage),
     )
+
+
+def _with_urls(photos: list[dict]) -> list[dict]:
+    """서비스가 돌려준 key 로 보기 주소를 붙인다(주소 만들기는 웹 층 몫 — 층 의존 규칙)."""
+    return [
+        {**p, "url": build_file_view_url(p["storage_key"]), "thumb_url": build_file_view_url(p["thumbnail_key"])}
+        for p in photos
+    ]
+
+
+def _completion_context(db, order: Order, stage: str) -> dict:
+    """완공 사진 탭(시공이 시작된 뒤만) · AS 진행 상황. 설계서 2026-10-19 §3.6."""
+    show = stage in AS_OPEN_STAGES
+    progress = as_progress_for_partner(db, order) if show else None
+    if progress is not None:
+        progress = {**progress, "photos": _with_urls(progress["photos"])}
+    return {
+        "show_completion": show,
+        "construction_photos": _with_urls(construction_photos_for_partner(db, order)) if show else [],
+        "as_progress": progress,
+    }
