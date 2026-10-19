@@ -38,6 +38,7 @@ from foms.services.notifications.realtime_notifications import emit_erp_notifica
 from foms.services.orders.as_cycle_service import ASCycleError
 from foms.services.orders.drawing_gate_followups import invalidate_after_drawing_revision
 from foms.services.partners.as_intake import PartnerASError, register_partner_as
+from foms.services.partners.completion import CompletionPhotoError, pick_construction_photos
 from foms.services.partners.drawing_confirm import PartnerConfirmError, approve_partner_drawing
 from foms.services.partners.revision import REVISION_FOLDER, PartnerRevisionError, request_partner_revision
 from foms.services.partners.logo import partner_org_of, read_partner_logo
@@ -319,8 +320,13 @@ def register_as(order_id: int):
         return _fail("주문을 찾을 수 없습니다.", 404)
     key = (request.form.get("idempotency_key") or "")[:64] or None
     try:
+        # 완공 사진 탭에서 고른 사진(우리 시공팀 사진) — 이 주문의 것만, 첨부 복제 없이 id 로만 남긴다.
+        ref_photos = pick_construction_photos(db, order_id, request.form.getlist("construction_photo_ids"))
+    except CompletionPhotoError as exc:
+        return _fail(str(exc), 400)
+    try:
         reception_id = register_partner_as(db, g.current_user, order_id, request.form.get("content"),
-                                           idempotency_key=key)
+                                           idempotency_key=key, ref_photos=ref_photos)
         db.commit()
     except PartnerASError as exc:
         db.rollback()

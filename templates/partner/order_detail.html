@@ -91,18 +91,61 @@
     <p class="pp-help">도면 작업이 시작되어 파일은 더 보낼 수 없습니다. 바꿀 내용은 저희 담당자에게 알려 주세요.</p>
     {% endif %}
 </section>
-{% if can_as or as_open %}
-<section class="pp-section">
-    <h2 class="pp-subtitle">AS 접수</h2>
+{% macro photo_grid(photos, selectable) %}
+<ul class="pp-photos">
+    {% for p in photos %}
+    <li class="pp-photo">
+        {% if selectable %}<label class="pp-photo__pick">{% endif %}
+        {% if p.is_image %}<img src="{{ p.thumb_url }}" alt="{{ p.filename }}" loading="lazy">{% else %}<span class="pp-photo__file">{{ p.filename }}</span>{% endif %}
+        {% if selectable %}<input type="checkbox" name="construction_photo_ids" value="{{ p.id }}" aria-label="{{ p.filename }} 를 AS 에 붙이기"></label>{% endif %}
+        <a class="pp-photo__open" href="{{ p.url }}" target="_blank" rel="noopener">크게 보기</a>
+    </li>
+    {% endfor %}
+</ul>
+{% endmacro %}
+{% macro as_fields() %}
+<label class="pp-field">AS 내용<textarea name="content" rows="3" maxlength="2000" required></textarea></label>
+<label class="pp-field">고객이 보낸 사진(선택, 10장까지)<input type="file" name="photos" multiple accept="image/*"></label>
+<p class="pp-status" data-pp-status role="status" aria-live="polite"></p>
+<button type="submit" class="pp-btn pp-btn--primary">AS 접수하기</button>
+{% endmacro %}
+{% if show_completion or as_open %}
+<section class="pp-section" id="completion">
+    <h2 class="pp-subtitle">완공 사진 · AS</h2>
     {% if as_open %}
-    <p class="pp-help">진행 중인 AS 가 있습니다. 추가 내용은 저희 담당자에게 알려 주세요.</p>
-    {% else %}
+    <div class="pp-as-progress">
+        <p class="pp-help">진행 중인 AS 가 있습니다. 추가 내용은 저희 담당자에게 알려 주세요.</p>
+        {% if as_progress %}
+        <dl class="pp-dl">
+            <dt>상태</dt><dd>{{ as_progress.status_label }}</dd>
+            <dt>접수</dt><dd>{{ as_progress.opened_at or '-' }}</dd>
+            <dt>방문 예정</dt><dd>{% if as_progress.visit_date %}{{ as_progress.visit_date }} {{ as_progress.visit_time }} · 고객에게 알려 주세요{% else %}아직 안 정해짐{% endif %}</dd>
+        </dl>
+        {% if as_progress.photos %}<p class="pp-help">AS 사진</p>{{ photo_grid(as_progress.photos, false) }}{% endif %}
+        {% endif %}
+    </div>
+    {% elif as_progress %}
+    <p class="pp-help">지난 AS: {{ as_progress.status_label }}{% if as_progress.opened_at %} (접수 {{ as_progress.opened_at }}){% endif %}</p>
+    {% if as_progress.photos %}{{ photo_grid(as_progress.photos, false) }}{% endif %}
+    {% endif %}
+    {% if construction_photos %}
+    {% if can_as %}
     <form class="pp-form" data-pp-post-url="{{ url_for('partner_api.register_as', order_id=order.id) }}" data-pp-confirm="AS 를 접수할까요?" novalidate>
-        <label class="pp-field">AS 내용<textarea name="content" rows="3" maxlength="2000" required></textarea></label>
-        <label class="pp-field">사진(선택, 10장까지)<input type="file" name="photos" multiple accept="image/*"></label>
-        <p class="pp-status" data-pp-status role="status" aria-live="polite"></p>
-        <button type="submit" class="pp-btn pp-btn--primary">AS 접수하기</button>
+        <p class="pp-help">우리 시공팀이 올린 완공 사진입니다. AS 할 곳이 보이면 사진을 골라 아래에 적어 주세요. 고른 사진이 접수에 함께 남습니다.</p>
+        {{ photo_grid(construction_photos, true) }}
+        {{ as_fields() }}
     </form>
+    {% else %}
+    <p class="pp-help">우리 시공팀이 올린 완공 사진입니다. 고객에게는 "크게 보기"로 열어 저장한 뒤 보내 주세요.</p>
+    {{ photo_grid(construction_photos, false) }}
+    {% endif %}
+    {% else %}
+    <p class="pp-empty">아직 완공 사진이 없습니다.</p>
+    {% if can_as %}
+    <form class="pp-form" data-pp-post-url="{{ url_for('partner_api.register_as', order_id=order.id) }}" data-pp-confirm="AS 를 접수할까요?" novalidate>
+        {{ as_fields() }}
+    </form>
+    {% endif %}
     {% endif %}
 </section>
 {% endif %}

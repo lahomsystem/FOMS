@@ -16,6 +16,7 @@ from foms.services.order_attachment_permissions import is_partner_original_key
 from foms.services.orders.as_cycle_service import AS_IN_PROGRESS, AS_RECEIVED, current_cycle, cycle_status
 from foms.services.orders.confirm_drawing_gate import confirm_exit_block
 from foms.services.partners.as_intake import AS_OPEN_STAGES
+from foms.services.partners.completion import as_progress_for_partner, construction_photos_for_partner
 from foms.services.partners.drawing_confirm import final_drawings_for_partner
 from foms.services.partners.manager import org_member_choices
 from foms.services.partners.orders import list_partner_orders, partner_order_detail
@@ -99,4 +100,26 @@ def order_detail(order_id: int):
         can_as=stage in AS_OPEN_STAGES and not as_open,
         as_open=as_open,
         manager_choices=org_member_choices(db, order.partner_org_id),
+        **_completion_context(db, order, stage),
     )
+
+
+def _with_urls(photos: list[dict]) -> list[dict]:
+    """서비스가 돌려준 key 로 보기 주소를 붙인다(주소 만들기는 웹 층 몫 — 층 의존 규칙)."""
+    return [
+        {**p, "url": build_file_view_url(p["storage_key"]), "thumb_url": build_file_view_url(p["thumbnail_key"])}
+        for p in photos
+    ]
+
+
+def _completion_context(db, order: Order, stage: str) -> dict:
+    """완공 사진 탭(시공이 시작된 뒤만) · AS 진행 상황. 설계서 2026-10-19 §3.6."""
+    show = stage in AS_OPEN_STAGES
+    progress = as_progress_for_partner(db, order) if show else None
+    if progress is not None:
+        progress = {**progress, "photos": _with_urls(progress["photos"])}
+    return {
+        "show_completion": show,
+        "construction_photos": _with_urls(construction_photos_for_partner(db, order)) if show else [],
+        "as_progress": progress,
+    }
