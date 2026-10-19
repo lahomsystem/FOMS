@@ -716,9 +716,9 @@
        onConnect/onErpNotification 이 부를 때 window.FOMSUrgentAlert 가 이미 있다.
        standalone 화면(도면 마법사·실측 지도)은 자기 템플릿에서 같은 파일을 싣는다 — 핀을 함께 올린다. #}
     {% if current_user %}
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-urgent-alert.css') }}?v=20261016a">
-    <script src="{{ url_for('static', filename='js/foms/urgent-sound.js') }}?v=20261016a" defer></script>
-    <script src="{{ url_for('static', filename='js/foms/foms-urgent-alert.js') }}?v=20261016a" defer></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-urgent-alert.css') }}?v=20261019a">
+    <script src="{{ url_for('static', filename='js/foms/urgent-sound.js') }}?v=20261019a" defer></script>
+    <script src="{{ url_for('static', filename='js/foms/foms-urgent-alert.js') }}?v=20261019a" defer></script>
     {% endif %}
     <!-- 전역 Socket.IO 초기화 (서버가 Socket.IO 제공 시 로드. 로컬 socketio.run / 원격 gunicorn gevent) -->
     {% if current_user and (not request.endpoint or (request.endpoint != 'admin' and not
