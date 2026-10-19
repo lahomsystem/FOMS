@@ -490,3 +490,17 @@ def test_transfer_does_not_duplicate_ledger_when_already_checked(client) -> None
     db_session.expire_all()
     assert db_session.query(Order).filter(Order.id == order_id).one().measurement_completed is True
     assert _measurement_ledger(order_id) == [], "값이 그대로인데 원장 행이 생겼다"
+
+
+def test_regional_dashboard_links_drawing_stage_order_to_workbench(client) -> None:
+    """도면 단계 ERP 주문 행에만 도면 작업실 바로가기가 붙는다."""
+    user = _make_user(role="STAFF", team="SALES", username="regional-workbench-staff")
+    _login(client, user)
+    drawing = _create_order(stage="DRAWING", status="DRAWING", is_regional=True)
+    measure = _create_order(stage="MEASURE", status="MEASURE", is_regional=True)
+    legacy = _create_order(stage="DRAWING", status="DRAWING", is_regional=True, is_erp_order=False)
+
+    body = client.get("/regional_dashboard").get_data(as_text=True)
+    assert f'href="/erp/drawing-workbench/{drawing.id}"' in body
+    assert f'href="/erp/drawing-workbench/{measure.id}"' not in body
+    assert f'href="/erp/drawing-workbench/{legacy.id}"' not in body
