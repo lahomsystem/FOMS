@@ -227,10 +227,24 @@
     });
   }
 
+  /** 주문 목록: 필터 줄은 고르면 바로 거르고, 작업 큐 줄은 눌러 주문 화면으로 간다(안의 링크는 그대로). */
+  function bindBoard() {
+    Array.prototype.forEach.call(document.querySelectorAll('form[data-pp-autosubmit]'), function (form) {
+      form.addEventListener('change', function (ev) {
+        if (ev.target.matches('select, input[type="checkbox"]')) form.submit();
+      });
+    });
+    document.addEventListener('click', function (ev) {
+      var row = ev.target.closest('[data-pp-row-href]');
+      if (row && !ev.target.closest('a, button')) window.location.href = row.getAttribute('data-pp-row-href');
+    });
+  }
+
   // 주문 화면 품목 저장(partner-order.js)이 같은 상태 줄 · 파일 올리기를 쓴다.
   window.PartnerPortal = { setStatus: setStatus, uploadFiles: uploadFiles };
 
   document.addEventListener('DOMContentLoaded', function () {
+    bindBoard();
     Array.prototype.forEach.call(document.querySelectorAll('form[data-pp-json-url]'), bindJsonForm);
     Array.prototype.forEach.call(document.querySelectorAll('form[data-pp-post-url]'), bindPostForm);
     var approve = document.querySelector('[data-pp-approve-url]');

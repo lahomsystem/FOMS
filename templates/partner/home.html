@@ -1,10 +1,94 @@
 {% extends "partner/layout.html" %}
+{# PARTNER-FOMS 3-2: 협력사 주문 목록 — 우리 ERP 대시보드 모양(프로세스 맵 · 필터 줄 · 작업 큐). 설계서 §3.2. #}
 {% block title %}주문 목록{% endblock %}
+{% block main_class %}pp-main--wide{% endblock %}
 {% block content %}
-<div class="pp-toolbar">
-    <h1 class="pp-title">주문 목록</h1>
-    <a class="pp-btn pp-btn--primary" href="{{ url_for('partner_portal.new_order') }}">새 주문 등록</a>
+{% set filtered = filters.q or filters.stage or filters.manager or filters.turn or filters.mine %}
+<div class="erp-pro-card erp-pro-card--process-map pp-board">
+    <div class="erp-pro-card__header">
+        <h3 class="erp-pro-card__title"><i class="fas fa-project-diagram"></i> {{ org.name }} 주문 <span class="small text-muted fw-normal">프로세스 맵</span></h3>
+        <a class="btn btn-primary btn-sm" href="{{ url_for('partner_portal.new_order') }}"><i class="fas fa-plus"></i> 새 주문 등록</a>
+    </div>
+    <div class="erp-pro-card__body">
+        <div class="erp-pro-pipeline">
+            {% for step in pipeline %}
+            <a class="erp-pro-pipeline__stage{% if filters.stage == step.label %} erp-pro-pipeline__stage--active{% endif %}{% if step.turn and step.count %} pp-pipe--turn{% endif %}" href="{{ url_for('partner_portal.home', stage=step.label) }}" title="'{{ step.label }}' 단계만 보기">
+                <div class="erp-pro-pipeline__count">{{ step.count }}</div>
+                <div class="erp-pro-pipeline__label">{{ step.label }}</div>
+            </a>
+            {% if not loop.last %}<div class="erp-pro-pipeline__connector" aria-hidden="true"><i class="fas fa-chevron-right"></i></div>{% endif %}
+            {% endfor %}
+        </div>
+    </div>
+    <div class="erp-dashboard-filters pp-filters">
+        <form method="get" action="{{ url_for('partner_portal.home') }}" class="d-flex align-items-center flex-wrap gap-3 m-0 w-100" data-pp-autosubmit>
+            <span class="pp-filters__label"><i class="fas fa-filter me-1 text-primary"></i><span class="d-none d-md-inline">필터</span></span>
+            <div class="input-group input-group-sm pp-filters__search">
+                <input type="text" class="form-control" name="q" placeholder="고객 · 연락처 · 주소 · 주문 번호" value="{{ filters.q }}" aria-label="검색">
+                <button class="btn btn-primary" type="submit" aria-label="검색"><i class="fas fa-search"></i></button>
+            </div>
+            <select class="form-select form-select-sm pp-filters__select" name="stage" aria-label="단계">
+                <option value="">단계: 전체</option>
+                {% for step in pipeline %}<option value="{{ step.label }}"{% if filters.stage == step.label %} selected{% endif %}>{{ step.label }}</option>{% endfor %}
+            </select>
+            {% if members | length > 1 %}
+            <select class="form-select form-select-sm pp-filters__select" name="manager" aria-label="담당">
+                <option value="">담당: 전체</option>
+                {% for u in members %}<option value="{{ u.id }}"{% if filters.manager == u.id|string %} selected{% endif %}>{{ u.name }}</option>{% endfor %}
+            </select>
+            {% endif %}
+            <label class="form-check m-0 d-flex align-items-center gap-1"><input class="form-check-input m-0" type="checkbox" name="turn" value="1"{% if filters.turn %} checked{% endif %}><span class="form-check-label fw-semibold">내 차례만</span></label>
+            <label class="form-check m-0 d-flex align-items-center gap-1"><input class="form-check-input m-0" type="checkbox" name="mine" value="1"{% if filters.mine %} checked{% endif %}><span class="form-check-label fw-semibold">내 담당</span></label>
+            <a class="btn btn-outline-secondary btn-sm fw-semibold ms-auto" href="{{ url_for('partner_portal.home') }}"><i class="fas fa-redo me-1"></i><span class="d-none d-md-inline">초기화</span></a>
+        </form>
+    </div>
 </div>
+
+<div class="erp-pro-card pp-queue">
+    <div class="erp-pro-card__header">
+        <h3 class="erp-pro-card__title"><i class="fas fa-table-cells"></i> 작업 큐 <span class="small text-muted fw-normal">주문별 현재 작업</span></h3>
+        <span class="badge bg-primary">표시: <strong>{{ orders | length }}</strong>건{% if total > orders | length %} / {{ total }}{% endif %}</span>
+    </div>
+    {% if not orders %}
+    <p class="pp-empty p-3 mb-0">{% if filtered %}조건에 맞는 주문이 없습니다. "초기화"를 눌러 모두 보세요.{% else %}아직 등록한 주문이 없습니다. "새 주문 등록"으로 실측 내용과 초안 도면을 보내 주세요.{% endif %}</p>
+    {% else %}
+    <div class="table-responsive pp-grid-wrap">
+        <table class="table table-sm table-hover align-middle mb-0 pp-grid">
+            <thead><tr><th>단계</th><th>현재 작업</th><th>고객</th><th>연락처</th><th>주소</th><th>제품</th><th>시공일</th><th>담당</th></tr></thead>
+            <tbody>
+                {% for o in orders %}
+                <tr class="pp-grid__row{% if o.turn %} pp-grid__row--turn{% endif %}" data-pp-row-href="{{ url_for('partner_portal.order_detail', order_id=o.id) }}">
+                    <td><span class="pp-stage">{{ o.stage_label }}</span></td>
+                    <td class="pp-grid__work">{% if o.turn %}<span class="badge bg-warning text-dark">내 차례</span> {% endif %}{{ o.work }}</td>
+                    <td><a href="{{ url_for('partner_portal.order_detail', order_id=o.id) }}" class="fw-semibold">{{ o.customer_name }}</a> <span class="text-muted small">#{{ o.id }}</span></td>
+                    <td class="text-nowrap">{{ o.phone or '-' }}</td>
+                    <td class="pp-grid__address">{{ o.address or '-' }}</td>
+                    <td>{{ o.product or '-' }}</td>
+                    <td class="text-nowrap">{{ o.construction_date or '-' }}</td>
+                    <td class="text-nowrap">{{ o.manager_name or '-' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <ul class="pp-list pp-cards">
+        {% for o in orders %}
+        {% if loop.first and o.turn %}<li class="pp-cards__group">지금 내 차례</li>
+        {% elif not o.turn and loop.previtem and loop.previtem.turn %}<li class="pp-cards__group">다른 주문</li>{% endif %}
+        <li class="pp-card{% if o.turn %} pp-card--turn{% endif %}">
+            <a class="pp-card__link" href="{{ url_for('partner_portal.order_detail', order_id=o.id) }}">
+                <span class="pp-card__name">{{ o.customer_name }} <span class="pp-muted">#{{ o.id }}</span></span>
+                <span class="pp-stage">{{ o.stage_label }}{% if o.stage_label == '시공 예정' and o.construction_date %} · {{ o.construction_date }}{% endif %}</span>
+                <span class="pp-progress" aria-hidden="true"><span class="pp-progress__bar pp-progress__bar--{{ o.step }}"></span></span>
+                <span class="pp-card__meta">{{ o.work }}</span>
+                <span class="pp-card__meta">{{ o.product or '' }}{% if o.product and o.address %} · {% endif %}{{ o.address or '' }}</span>
+            </a>
+        </li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+</div>
+
 <section class="pp-section pp-me">
     <form class="pp-form pp-form--inline" data-pp-json-url="{{ url_for('partner_api.update_my_phone') }}" data-pp-json-key="contact_phone" novalidate>
         <label class="pp-field">{{ me.name }} 연락처 <span class="pp-muted">(내가 담당인 주문의 도면에 찍힙니다)</span>
@@ -15,19 +99,4 @@
     </form>
     {% if not me.contact_phone %}<p class="pp-help pp-status--error">연락처가 없습니다. 넣어 두어야 도면에 담당 연락처가 찍힙니다.</p>{% endif %}
 </section>
-{% if not orders %}
-<p class="pp-empty">아직 등록한 주문이 없습니다. "새 주문 등록"으로 실측 내용과 초안 도면을 보내 주세요.</p>
-{% else %}
-<ul class="pp-list">
-    {% for o in orders %}
-    <li class="pp-card">
-        <a class="pp-card__link" href="{{ url_for('partner_portal.order_detail', order_id=o.id) }}">
-            <span class="pp-card__name">{{ o.customer_name }}</span>
-            <span class="pp-stage">{{ o.stage_label }}{% if o.stage_label == '시공 예정' and o.construction_date %} · {{ o.construction_date }}{% endif %}</span>
-            <span class="pp-card__meta">#{{ o.id }} · {{ o.received_date }} · {{ o.address }}</span>
-        </a>
-    </li>
-    {% endfor %}
-</ul>
-{% endif %}
 {% endblock %}

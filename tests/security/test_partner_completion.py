@@ -47,10 +47,11 @@ def test_completion_photos_show_only_after_construction(app, world):
     _attach(order_id, "measure.jpg", category="measurement")  # 대조군: 실측 사진은 완공 사진이 아니다
     client = _client(app, db_session.get(User, world["partner_a"]))
     before = client.get(f"/partner/orders/{order_id}").get_data(as_text=True)
-    assert "완공 사진 · AS" not in before and "front.jpg" not in before  # 시공 전에는 탭이 없다
+    # 시공 전에는 완공 사진 칸이 비어 있다(머리 메뉴 "완공 사진 · AS" 글자는 모든 화면에 있어 칸 표식으로 본다).
+    assert "data-pp-completion" not in before and "front.jpg" not in before
     _to_stage(order_id, "COMPLETED")
     html = client.get(f"/partner/orders/{order_id}").get_data(as_text=True)
-    assert "완공 사진 · AS" in html and 'alt="front.jpg"' in html
+    assert "data-pp-completion" in html and 'alt="front.jpg"' in html
     assert 'name="construction_photo_ids"' in html and "measure.jpg" not in html
 
 

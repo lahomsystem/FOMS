@@ -7,7 +7,7 @@
 """
 from __future__ import annotations
 
-from flask import Blueprint, abort, g, render_template
+from flask import Blueprint, abort, g, render_template, request
 
 from db import get_db
 from foms.api.files.routes import build_file_view_url
@@ -20,7 +20,7 @@ from foms.services.partners.as_intake import AS_OPEN_STAGES
 from foms.services.partners.completion import as_progress_for_partner, construction_photos_for_partner
 from foms.services.partners.drawing_confirm import final_drawings_for_partner
 from foms.services.partners.manager import org_member_choices
-from foms.services.partners.orders import list_partner_orders
+from foms.services.partners.order_list import partner_list_filters, partner_order_board, partner_turn_count
 from foms.services.partners.view import build_partner_order_view
 from models import Order, OrderAttachment, PartnerOrg
 
@@ -39,15 +39,30 @@ def _item_name(items: list, item_index: int | None) -> str:
     return str(item.get("product_name") or "") if isinstance(item, dict) else ""
 
 
+@partner_portal_bp.context_processor
+def _partner_nav():
+    """머리 메뉴 "도면 확인 N"(협력사 차례 수). 협력사 화면을 그릴 때만 센다."""
+    user = getattr(g, "current_user", None)
+    if user is None or not getattr(user, "partner_org_id", None):
+        return {}
+    return {"partner_turn_count": partner_turn_count(get_db(), user.partner_org_id)}
+
+
 @partner_portal_bp.route("")
 @partner_required
 def home():
+    db = get_db()
     org = _org()
+    members = org_member_choices(db, org.id)
+    filters = partner_list_filters(request.args)
+    board = partner_order_board(db, org.id, g.current_user.id, filters, {u.id: u.name for u in members})
     return render_template(
         "partner/home.html",
         org=org,
-        orders=list_partner_orders(get_db(), org.id),
         me=g.current_user,
+        members=members,
+        filters=filters,
+        **board,
     )
 
 

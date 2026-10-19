@@ -220,28 +220,3 @@ def create_partner_order(db, user: User, org: PartnerOrg, payload: Any) -> Order
     db.flush()
     fan_out_new_notification(db, notification, actor_user_id=user.id)
     return order
-
-
-def list_partner_orders(db, org_id: int, *, limit: int = 200) -> list[dict[str, Any]]:
-    """협력사 화면 목록 — 자기 협력사의 운영 주문만(삭제 · 초안 제외), 최신순."""
-    rows = (
-        db.query(
-            Order.id, Order.customer_name, Order.address, Order.received_date,
-            Order.erp_stage_code, Order.erp_construction_date, Order.as_axis_status,
-        )
-        .filter(Order.partner_org_id == org_id, Order.active_filter())
-        .order_by(Order.id.desc())
-        .limit(limit)
-        .all()
-    )
-    return [
-        {
-            "id": r.id,
-            "customer_name": r.customer_name,
-            "address": r.address,
-            "received_date": r.received_date,
-            "stage_label": partner_stage_label(r.erp_stage_code, r.as_axis_status),
-            "construction_date": r.erp_construction_date,
-        }
-        for r in rows
-    ]
