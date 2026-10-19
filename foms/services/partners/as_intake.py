@@ -41,8 +41,24 @@ class PartnerASError(ValueError):
         self.status = status
 
 
-def register_partner_as(db, user: Any, order_id: int, content: Any, *, idempotency_key: str | None = None) -> str | None:
+def _reception_text(text: str, ref_photos: list[tuple[int, str]]) -> str:
+    """접수 원문 — 고른 완공 사진이 있으면 이름을 한 줄 덧붙인다(우리 AS 화면에서 바로 보이게)."""
+    if not ref_photos:
+        return text
+    names = ", ".join(name for _id, name in ref_photos)
+    return f"{text}\n[완공 사진 참고] {names}"
+
+
+def register_partner_as(
+    db, user: Any, order_id: int, content: Any, *, idempotency_key: str | None = None,
+    ref_photos: list[tuple[int, str]] | None = None,
+) -> str | None:
     """AS 건을 연다(호출자가 commit). 접수 원문 로그 id 를 돌려준다(사진을 그 줄에 붙인다).
+
+    Args:
+        ref_photos: 협력사가 고른 완공 사진 ``[(attachment_id, filename)]`` — 호출자가
+            :func:`foms.services.partners.completion.pick_construction_photos` 로 검사한 값.
+            첨부를 복제하지 않고 접수 원문 줄의 ``ref_attachment_ids`` 로만 남긴다.
 
     Raises:
         PartnerASError: 주문 없음(404)·내용 없음(400)·아직 시공 전·진행 중인 AS 있음(409).
@@ -50,6 +66,7 @@ def register_partner_as(db, user: Any, order_id: int, content: Any, *, idempoten
     text = str(content or "").strip()[:MAX_CONTENT]
     if not text:
         raise PartnerASError("AS 내용을 적어 주세요.", 400)
+    ref_photos = list(ref_photos or [])
     order = lock_order_row(db, order_id)
     if order is None or order.deleted_at is not None or not partner_can_read_order(user, order):
         raise PartnerASError("주문을 찾을 수 없습니다.", 404)
@@ -65,7 +82,10 @@ def register_partner_as(db, user: Any, order_id: int, content: Any, *, idempoten
     def _hook(sd: dict[str, Any]) -> None:
         shipment = sd.setdefault("shipment", {})
         migrate_legacy_into_log(sd)
-        entry = append_client_log(sd, log_type="reception", text=text, by=who, by_id=user.id)
+        entry = append_client_log(sd, log_type="reception", text=_reception_text(text, ref_photos),
+                                  by=who, by_id=user.id)
+        if ref_photos:
+            entry["ref_attachment_ids"] = [photo_id for photo_id, _name in ref_photos]
         captured["reception_log_id"] = entry["id"]
         append_system_log(sd, text="AS 접수됨 (협력사)")
         # 비용 판정은 우리 몫 — 판정이 없을 때만 '미정' 기본값을 둔다(확정 판정은 덮지 않는다).
@@ -75,7 +95,8 @@ def register_partner_as(db, user: Any, order_id: int, content: Any, *, idempoten
                 "reason": "", "decided_by": "", "decided_at": "",
             }
 
-    body = {"order_id": order.id, "content": text, "idempotency_key": idempotency_key}
+    body = {"order_id": order.id, "content": text, "idempotency_key": idempotency_key,
+            "ref_attachment_ids": [photo_id for photo_id, _name in ref_photos]}
     register_as_cycle(
         db,
         order_id=order.id,

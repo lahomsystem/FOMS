@@ -175,6 +175,19 @@
 .pp-attrs dt { color: var(--pp-muted); }
 .pp-attrs dd { margin: 0; overflow-wrap: anywhere; }
 
+/* 완공 사진 · AS 사진 — 눌러 고르면 AS 접수에 붙는다(설계서 2026-10-19 §3.6). */
+.pp-photos { list-style: none; margin: 0 0 12px; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; }
+.pp-photo { position: relative; display: grid; gap: 4px; }
+.pp-photo__pick { position: relative; display: block; cursor: pointer; border: 2px solid transparent; border-radius: 10px; overflow: hidden; }
+.pp-photo__pick:has(input:checked) { border-color: var(--pp-primary); }
+.pp-photo img { display: block; width: 100%; max-width: 100%; aspect-ratio: 1 / 1; object-fit: cover; border-radius: 8px; background: var(--pp-bg); }
+.pp-photo__file { display: grid; place-items: center; aspect-ratio: 1 / 1; padding: 6px; border: 1px solid var(--pp-border); border-radius: 8px; font-size: 13px; overflow-wrap: anywhere; }
+.pp-photo__pick input { position: absolute; top: 6px; right: 6px; width: 22px; height: 22px; accent-color: var(--pp-primary); }
+.pp-photo__open { font-size: 13px; color: var(--pp-primary); }
+.pp-as-progress { margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px dashed var(--pp-border); }
+.pp-admin-back { margin: 0; }
+.pp-header__actions { display: flex; gap: 8px; align-items: center; }
+
 /* 한 칸 + 버튼(담당 바꾸기 · 내 연락처). 상태 줄은 아랫줄 전체. */
 .pp-form--inline { grid-template-columns: minmax(0, 1fr) auto; align-items: end; }
 .pp-form--inline .pp-status { grid-column: 1 / -1; }

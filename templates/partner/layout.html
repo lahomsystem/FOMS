@@ -11,10 +11,19 @@
 <body class="pp-body">
     <header class="pp-header">
         <a class="pp-brand" href="{{ url_for('partner_portal.home') }}">{{ org.name }} · 주문</a>
-        <form method="post" action="{{ url_for('auth.logout') }}" class="pp-logout">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button type="submit" class="pp-btn pp-btn--ghost">로그아웃</button>
-        </form>
+        <div class="pp-header__actions">
+            {# 관리자가 협력사 계정으로 들어와 본 경우에만 — 로그아웃 없이 자기 계정으로 돌아간다. #}
+            {% if session.get('impersonating_from') %}
+            <form method="post" action="{{ url_for('auth.switch_back') }}" class="pp-admin-back">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="pp-btn">관리자로 돌아가기</button>
+            </form>
+            {% endif %}
+            <form method="post" action="{{ url_for('auth.logout') }}" class="pp-logout">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="pp-btn pp-btn--ghost">로그아웃</button>
+            </form>
+        </div>
     </header>
     <main class="pp-main">
         {% block content %}{% endblock %}

@@ -157,3 +157,11 @@
 - 등록 응답에 `item_count`. 업로드(`POST /api/partner/orders/<id>/files`)에 선택 칸 `item_index` — 실측 사진만, 그 주문의 품목 범위 안만(밖이면 400), `item_id` 는 `resolve_active_item_id` 로 같이 채운다(우리 직원 업로드와 같은 묶음). 새 라우트 없음(허용 목록 · 매니페스트 변경 없음).
 - 화면: `templates/partner/new_order.html` 제품 항목 카드(규격 줄 추가 · 빼기, W*D*H 붙여넣기 분해, 속성 다섯 칸, 추가 입력, 제품 실측 사진), 입력 로직은 새 파일 `static/js/partner/partner-items.js`(JS 300줄 규칙 때문에 분리). 수량 칸은 우리 화면처럼 뺐다(서버는 기본 "1" 유지, 상세는 1이 아닐 때만 표시). 상세는 규격 모든 줄 · 속성 · 추가 입력, 제품 사진에 품목 이름.
 - 시험: `tests/security/test_partner_items.py` 8건(여러 줄 · 복합 폭 · 속성 · 원문 사본, 옛 모양 대조군, 길이 · 줄 상한, 빈 줄, 품목 사진 item_index · item_id 와 공통 사진 대조군, 잘못된 번호 · 초안 거부, 다른 회사 404, 상세 표시).
+
+## 11. 2단계 구현 기록 (2026-10-19)
+
+- 새 서비스 `foms/services/partners/completion.py`: `construction_photos_for_partner`(첨부 분류 `construction`, 올린 순서), `as_progress_for_partner`(`project_current_as_cycle` 의 상태 · 방문일 · 방문시간 · 접수일 + 현재 AS 건 로그 줄에 붙은 `as` 사진만 — 비용 판정은 넣지 않음), `pick_construction_photos`(이 주문의 `construction` 사진만, 고른 순서 · 중복 제거 · 20장, 아니면 400). services 는 api 를 부를 수 없어(층 의존 규칙) 사진 주소는 웹 층(`foms/web/partner/__init__.py` `_with_urls`)이 만든다.
+- AS 접수(`POST /api/partner/orders/<id>/as`)에 선택 칸 `construction_photo_ids`(여러 개). 다른 회사 주문은 사진 검사 전에 404. 고른 사진은 첨부를 복제하지 않고 접수 원문 줄에 `ref_attachment_ids` 로 남기고, 원문 끝에 `[완공 사진 참고] 파일명, …` 한 줄을 붙여 우리 AS 화면에서 바로 보이게 했다. 고른 사진이 없으면 원문은 지금과 같다. 새 라우트 없음.
+- 화면(`templates/partner/order_detail.html`): 시공이 시작된 뒤(`AS_OPEN_STAGES`) "완공 사진 · AS" 칸 — 사진 격자에서 골라 바로 AS 접수, 진행 중인 AS 면 상태 · 접수일 · 방문 예정(날짜 · 시간) · AS 사진, 끝난 AS 는 "지난 AS" 한 줄. 사진이 없으면 "아직 완공 사진이 없습니다" + 접수 칸.
+- 관리자 돌아가기: `templates/partner/layout.html` 머리줄에 세션 `impersonating_from` 이 있을 때만 "관리자로 돌아가기"(POST `auth.switch_back`, 문지기 허용 목록에 이미 있음).
+- 시험: `tests/security/test_partner_completion.py` 8건(시공 전 숨김 · 실측 사진 대조군, 사진 없을 때 접수 칸, 고른 사진 id · 덧붙임 · 첨부 복제 없음, 사진 없는 접수 대조군, 다른 주문 · 다른 분류 · 숫자 아님 · 없는 id 거부와 AS 미개설, 다른 회사 404, 진행 상황 방문일 · AS 사진 · 접수 칸 없음, 돌아가기 버튼 대조군).
