@@ -110,7 +110,7 @@
 {% endblock %}
 
 {% block content %}
-{% from 'partials/shared/status_select_options.html' import assignable_status_options, complete_order_control, drawing_transfer_control with context %}
+{% from 'partials/shared/status_select_options.html' import assignable_status_options, complete_order_control, drawing_transfer_control, drawing_workbench_link with context %}
 <div class="erp-pro self-measurement-dashboard">
     <!-- Modern Header -->
     <header class="erp-pro-header">
@@ -255,6 +255,7 @@
                                             {{ assignable_status_options(SELF_BOARD_STATUS, order.status) }}
                                         </select>
                                         {{ drawing_transfer_control(order.id, drawing_ctas.get(order.id)) }}
+{{ drawing_workbench_link(order.id, drawing_workbench_ids) }}
                                     </td>
                                     <td>
                                         <div class="d-flex flex-column" style="gap: 0.2rem;">
@@ -426,6 +427,7 @@
                                         </select>
                                         {{ complete_order_control(order.id, order.status, complete_ctas.get(order.id)) }}
                                         {{ drawing_transfer_control(order.id, drawing_ctas.get(order.id)) }}
+{{ drawing_workbench_link(order.id, drawing_workbench_ids) }}
                                     </td>
                                     <td>
                                         <div class="d-flex flex-column" style="gap: 0.2rem;">
