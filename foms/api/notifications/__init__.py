@@ -159,10 +159,20 @@ def _build_drawing_event_key(idx, event):
     return f"{idx}:{action}:{at}:{by_user_id}"
 
 
-def _resolve_notification_deep_link(notification, order_structured_data):
-    """알림 -> 도면 작업실 상세 딥링크 정보(event_id/target_no/tab) 계산."""
+def _resolve_notification_deep_link(
+    notification: Any, order_structured_data: Any, recipient: User | None = None,
+) -> dict[str, Any]:
+    """알림·주문 데이터·조회 수신자로 작업 화면 링크를 계산해 반환. 추가 쿼리 없음."""
     n_type = str(getattr(notification, "notification_type", "") or "").upper()
     oid = getattr(notification, "order_id", None)
+
+    if n_type == "URGENT_MENTION" and oid and (getattr(recipient, "team", None) or "").strip().upper() == "DRAWING":
+        return {
+            "deep_tab": None,
+            "deep_event_id": None,
+            "deep_target_no": None,
+            "deep_link_url": f"/erp/drawing-workbench/{oid}",
+        }
 
     if n_type == "SHIPMENT_ORDER_CHANGED" and oid:
         # Notification 모델에는 링크/날짜 컬럼이 없다 — 링크는 이미 로드한 주문
@@ -370,7 +380,7 @@ def api_notifications_list():
             row["archived_at"] = format_datetime_kst(state.archived_at)
             row["ack_at"] = format_datetime_kst(state.ack_at)
             sd = order_map.get(n.order_id, {}) if n.order_id else {}
-            deep = _resolve_notification_deep_link(n, sd)
+            deep = _resolve_notification_deep_link(n, sd, recipient=user)
             row.update(deep)
             notif_payloads.append(row)
 
