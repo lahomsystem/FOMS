@@ -5,7 +5,9 @@
  * - 가로 칸에 W*D*H(또는 ×)를 붙여넣으면 가로 · 깊이 · 높이로 나눈다(erp-order-shared.js 와 같은 규칙).
  * - 제품 속성 다섯 칸(internal · color · option_detail · handle · misc) + 추가 입력(extra_input).
  * - 제품마다 실측 사진 — 보내기 뒤 item_index 를 붙여 올린다(partner-portal.js).
- * 설계서: docs/specs/2026-10-19-partner-foms-mode_SPEC.md §3.4 · §4.3 · §4.5
+ * - 주문 화면(접수 확인 중)에서는 서버가 그린 카드를 그대로 고친다. 카드에 실린 data-pp-uid 를 돌려보낸다.
+ * - 항목을 더하거나 빼면 container 에 'pp:items-changed' 를 보낸다(partner-items-rail.js 가 목록을 다시 그린다).
+ * 설계서: docs/specs/2026-10-19-partner-foms-mode_SPEC.md §3.4 · §4.3 · §4.5 · §12
  */
 (function () {
   'use strict';
@@ -37,11 +39,12 @@
     if (add) add.disabled = count >= MAX_SPEC_ROWS;
   }
 
-  function refreshItems(container) {
+  function refreshItems(container, added) {
     var count = renumber(container, '.pp-item', '[data-pp-item-no]', '항목');
     Array.prototype.forEach.call(container.querySelectorAll('[data-pp-remove-item]'), function (btn) {
       btn.hidden = count <= 1;
     });
+    container.dispatchEvent(new CustomEvent('pp:items-changed', { detail: { added: added || null } }));
     return count;
   }
 
@@ -77,7 +80,7 @@
     if (!item) return null;
     container.appendChild(item);
     addSpecRow(item);
-    refreshItems(container);
+    refreshItems(container, item);
     return item;
   }
 
@@ -110,6 +113,7 @@
 
   function readItem(item) {
     var data = { spec_rows: readSpecRows(item) };
+    if (item.getAttribute('data-pp-uid')) data.uid = item.getAttribute('data-pp-uid');
     Array.prototype.forEach.call(item.querySelectorAll('[data-k]'), function (input) {
       data[input.getAttribute('data-k')] = input.value.trim();
     });
@@ -136,7 +140,10 @@
 
   function init(container, addButton) {
     if (!container) return;
-    addItem(container);
+    var cards = container.querySelectorAll('.pp-item');
+    if (!cards.length) addItem(container);
+    Array.prototype.forEach.call(cards, refreshSpecs);
+    if (cards.length) refreshItems(container);
     container.addEventListener('click', function (ev) { onClick(container, ev); });
     container.addEventListener('paste', onWidthPaste);
     if (addButton) addButton.addEventListener('click', function () { addItem(container); });

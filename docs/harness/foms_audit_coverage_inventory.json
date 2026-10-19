@@ -8,11 +8,11 @@
     "log_access"
   ],
   "baselines": {
-    "total": 231,
+    "total": 232,
     "unaudited": 1
   },
   "classification_counts": {
-    "AUDITED": 200,
+    "AUDITED": 201,
     "EXEMPT": 30,
     "UNAUDITED": 1
   },
@@ -1140,7 +1140,7 @@
     {
       "path": "foms/api/partner/__init__.py",
       "endpoint": "approve_drawing",
-      "lineno": 222,
+      "lineno": 246,
       "methods": [
         "POST"
       ],
@@ -1149,7 +1149,7 @@
     {
       "path": "foms/api/partner/__init__.py",
       "endpoint": "change_manager",
-      "lineno": 183,
+      "lineno": 185,
       "methods": [
         "POST"
       ],
@@ -1158,7 +1158,7 @@
     {
       "path": "foms/api/partner/__init__.py",
       "endpoint": "create_order",
-      "lineno": 96,
+      "lineno": 98,
       "methods": [
         "POST"
       ],
@@ -1167,7 +1167,7 @@
     {
       "path": "foms/api/partner/__init__.py",
       "endpoint": "register_as",
-      "lineno": 315,
+      "lineno": 339,
       "methods": [
         "POST"
       ],
@@ -1176,7 +1176,7 @@
     {
       "path": "foms/api/partner/__init__.py",
       "endpoint": "request_revision",
-      "lineno": 275,
+      "lineno": 299,
       "methods": [
         "POST"
       ],
@@ -1184,8 +1184,17 @@
     },
     {
       "path": "foms/api/partner/__init__.py",
+      "endpoint": "update_items",
+      "lineno": 200,
+      "methods": [
+        "PUT"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/partner/__init__.py",
       "endpoint": "update_my_phone",
-      "lineno": 198,
+      "lineno": 222,
       "methods": [
         "POST"
       ],
@@ -1194,7 +1203,7 @@
     {
       "path": "foms/api/partner/__init__.py",
       "endpoint": "upload_file",
-      "lineno": 116,
+      "lineno": 118,
       "methods": [
         "POST"
       ],
@@ -1941,7 +1950,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "add_user",
-      "lineno": 754,
+      "lineno": 775,
       "methods": [
         "POST"
       ],
@@ -1950,7 +1959,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "approve_user",
-      "lineno": 1035,
+      "lineno": 1056,
       "methods": [
         "POST"
       ],
@@ -1959,7 +1968,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "delete_user",
-      "lineno": 959,
+      "lineno": 980,
       "methods": [
         "POST"
       ],
@@ -1968,7 +1977,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "edit_user",
-      "lineno": 816,
+      "lineno": 837,
       "methods": [
         "POST"
       ],
@@ -1977,7 +1986,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "handle_reset_request",
-      "lineno": 1124,
+      "lineno": 1145,
       "methods": [
         "POST"
       ],
@@ -1986,7 +1995,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "login",
-      "lineno": 382,
+      "lineno": 400,
       "methods": [
         "POST"
       ],
@@ -1995,7 +2004,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "logout",
-      "lineno": 473,
+      "lineno": 491,
       "methods": [
         "POST"
       ],
@@ -2004,7 +2013,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "password_reset_request",
-      "lineno": 666,
+      "lineno": 687,
       "methods": [
         "POST"
       ],
@@ -2013,7 +2022,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "profile",
-      "lineno": 1172,
+      "lineno": 1193,
       "methods": [
         "POST"
       ],
@@ -2022,7 +2031,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "register",
-      "lineno": 561,
+      "lineno": 582,
       "methods": [
         "POST"
       ],
@@ -2031,7 +2040,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "reject_user",
-      "lineno": 1088,
+      "lineno": 1109,
       "methods": [
         "POST"
       ],
@@ -2040,7 +2049,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "switch_back",
-      "lineno": 536,
+      "lineno": 554,
       "methods": [
         "POST"
       ],
@@ -2049,7 +2058,7 @@
     {
       "path": "foms/web/auth/routes.py",
       "endpoint": "switch_user",
-      "lineno": 488,
+      "lineno": 506,
       "methods": [
         "POST"
       ],

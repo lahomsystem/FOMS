@@ -40,6 +40,7 @@ PARTNER_ALLOWED_ENDPOINTS: frozenset[str] = frozenset({
     "partner_api.request_revision",
     "partner_api.register_as",
     "partner_api.change_manager",
+    "partner_api.update_items",
     "partner_api.update_my_phone",
 })
 

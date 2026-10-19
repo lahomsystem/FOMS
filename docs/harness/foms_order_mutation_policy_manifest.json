@@ -1000,6 +1000,11 @@
       "policy_id": "PARTNER_PORTAL",
       "rule": "/api/partner/orders/<int:order_id>/revision"
     },
+    "partner_api.update_items": {
+      "mode": "guard",
+      "policy_id": "PARTNER_PORTAL",
+      "rule": "/api/partner/orders/<int:order_id>/items"
+    },
     "partner_api.update_my_phone": {
       "mode": "guard",
       "policy_id": "PARTNER_PORTAL",

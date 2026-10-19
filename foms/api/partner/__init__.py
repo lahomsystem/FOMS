@@ -40,6 +40,7 @@ from foms.services.orders.drawing_gate_followups import invalidate_after_drawing
 from foms.services.partners.as_intake import PartnerASError, register_partner_as
 from foms.services.partners.completion import CompletionPhotoError, pick_construction_photos
 from foms.services.partners.drawing_confirm import PartnerConfirmError, approve_partner_drawing
+from foms.services.partners.items_edit import PartnerItemsError, update_partner_items
 from foms.services.partners.revision import REVISION_FOLDER, PartnerRevisionError, request_partner_revision
 from foms.services.partners.logo import partner_org_of, read_partner_logo
 from foms.services.partners.manager import PartnerManagerError, change_partner_order_manager, set_partner_user_phone
@@ -192,6 +193,28 @@ def change_manager(order_id: int):
         return _fail(str(exc), exc.status)
     invalidate_dashboard_families(DASHBOARD_FAMILY_ORDERS)
     return jsonify({"success": True, "data": {"order_id": order_id}, "error": None})
+
+
+@partner_api_bp.route("/orders/<int:order_id>/items", methods=["PUT"])
+@partner_required
+def update_items(order_id: int):
+    """접수 확인 중 품목 고치기(JSON ``items``) — :func:`update_partner_items` 참조."""
+    db = get_db()
+    try:
+        items = update_partner_items(db, g.current_user, order_id, request.get_json(silent=True))
+        db.commit()
+    except PartnerItemsError as exc:
+        db.rollback()
+        return _fail(str(exc), exc.status)
+    except RevisionError:
+        db.rollback()
+        return _fail("다른 사람이 먼저 고쳤습니다. 화면을 새로고침해 주세요.", 409)
+    invalidate_dashboard_families(DASHBOARD_FAMILY_ORDERS)
+    invalidate_badge_cache_for_user_ids(resolve_notification_recipient_user_ids(
+        db, target_team="CS", target_manager_name=None, include_admin=False))
+    uids = [it.get("uid") for it in items]
+    return jsonify({"success": True, "data": {"order_id": order_id, "item_count": len(items), "uids": uids},
+                    "error": None})
 
 
 @partner_api_bp.route("/me/phone", methods=["POST"])

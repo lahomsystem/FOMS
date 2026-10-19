@@ -163,6 +163,12 @@
       "classification": "CANONICAL",
       "owner": "RESTORE-GUI-01",
       "reason": "필드 단위 복원 정본 mutator — REV-00 route(api/events field-changes restore) 의 execute_order_mutation callback 안에서 structured_data 를 원자 변경한다. 경로는 RESTORABLE_PATHS 화이트리스트로 고정이며 요청이 target 을 지정할 수 없다."
+    },
+    {
+      "path": "foms/services/partners/items_edit.py",
+      "classification": "CANONICAL",
+      "owner": "PARTNER-FOMS-3",
+      "reason": "협력사 접수 확인 중 품목 고치기(update_partner_items) — 첫 조회를 lock_order_row(FOR UPDATE)로 잠그고, structured_data 재대입·flag_modified 는 execute_single_order_write 콜백(→ REV-00 execute_order_mutation, version bump + receipt) 안에서만 한다."
     }
   ]
 }

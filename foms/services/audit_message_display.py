@@ -314,6 +314,7 @@ ACTION_LABELS: dict[str, str] = {
     "PARTNER_ORG_CREATED": "협력사 추가",
     "PARTNER_ORG_OWNER_CHANGED": "협력사 담당 변경(옛 규칙 — 2026-10-11 이전 기록)",
     "PARTNER_ORDER_MANAGER_CHANGED": "협력사 주문 담당 변경",
+    "PARTNER_ORDER_ITEMS_EDITED": "협력사 품목 고침(접수 확인 중)",
     "PARTNER_USER_PHONE_CHANGED": "협력사 계정 연락처 변경",
     "PARTNER_ORG_TOGGLED": "협력사 켜기/끄기",
     "PARTNER_ORG_LOGO_CHANGED": "협력사 로고 변경",

@@ -1,0 +1,65 @@
+{# 주문 탭 위쪽 — 우리 erp_order_tab.html 칸 순서: 접수 → 고객 → 담당 → 단계 → 주소 → 일정. 보기만(자물쇠). #}
+{% macro ro(label, value, cls='', input_id='') %}
+<div class="{{ cls }}">
+    <label class="form-label mb-1"{% if input_id %} for="{{ input_id }}"{% endif %}>{{ label }}</label>
+    <div class="pp-ro">
+        <input type="text" class="form-control form-control-sm"{% if input_id %} id="{{ input_id }}"{% endif %} value="{{ value or '-' }}" readonly>
+        <i class="fas fa-lock pp-ro__lock" aria-hidden="true"></i>
+    </div>
+</div>
+{% endmacro %}
+{% macro note(label, value) %}{% if value %}<div class="small text-muted mt-1 pp-note"><b>{{ label }}</b> {{ value }}</div>{% endif %}{% endmacro %}
+<div class="row g-2">
+    <div class="col-xl-8">
+        <div class="erp-received-trio">
+            {{ ro('접수인', view.received_by, 'erp-received-trio__cell') }}
+            {{ ro('접수일', view.received_date, 'erp-received-trio__cell') }}
+            {{ ro('접수시간', view.received_time, 'erp-received-trio__cell') }}
+        </div>
+    </div>
+    <div class="col-md-6">
+        {{ ro('고객명', view.customer_name) }}
+    </div>
+    <div class="col-md-6">
+        {{ ro('연락처', view.customer_phone) }}
+        {{ note('연락처 특이사항', view.phone_note) }}
+    </div>
+    <div class="col-md-6">
+        <label class="form-label mb-1">담당자 <span class="small text-muted">(도면에 찍힘)</span></label>
+        {% if manager_choices | length > 1 %}
+        <form class="d-flex gap-2 align-items-start" data-pp-json-url="{{ url_for('partner_api.change_manager', order_id=view.id) }}" data-pp-json-key="user_id" novalidate>
+            <select name="user_id" class="form-select form-select-sm" aria-label="담당 바꾸기">
+                {% for u in manager_choices %}<option value="{{ u.id }}" {% if u.id == view.manager_user_id %}selected{% endif %}>{{ u.name }}{% if u.contact_phone %} · {{ u.contact_phone }}{% endif %}</option>{% endfor %}
+            </select>
+            <button type="submit" class="btn btn-sm btn-outline-primary text-nowrap">담당 바꾸기</button>
+            <p class="pp-status mb-0" data-pp-status role="status" aria-live="polite"></p>
+        </form>
+        {% else %}
+        <div class="pp-ro"><input type="text" class="form-control form-control-sm" value="{{ view.manager_name or '-' }}{% if view.manager_phone %} · {{ view.manager_phone }}{% endif %}" readonly><i class="fas fa-lock pp-ro__lock" aria-hidden="true"></i></div>
+        {% endif %}
+    </div>
+    <div class="col-md-6">
+        <span class="form-label mb-1 d-block">진행 단계</span>
+        <ol class="pp-steps" aria-label="진행 단계">
+            {% for step in view.steps %}<li class="pp-steps__step pp-steps__step--{{ step.state }}"{% if step.state == 'now' %} aria-current="step"{% endif %}>{{ step.label }}</li>{% endfor %}
+        </ol>
+    </div>
+    <div class="col-12">
+        {{ ro('주소', view.address) }}
+        {{ note('주소 특이사항', view.address_note) }}
+    </div>
+</div>
+<hr class="my-3">
+<div class="row g-2">
+    {{ ro('실측일', view.measured_on, 'col-md-3') }}
+    {{ ro('시공일 (우리가 정함)', view.construction_date or '아직 안 정해짐', 'col-md-3') }}
+    {{ ro('시공시간', view.construction_time, 'col-md-3') }}
+    <div class="col-12">{{ note('실측 특이사항', view.measurement_note) }}</div>
+    {% if view.memo %}
+    <div class="col-12">
+        <label class="form-label mb-1">보낸 메모 <span class="small text-muted">({{ view.submitted_at }})</span></label>
+        <div class="pp-memo">{{ view.memo }}</div>
+    </div>
+    {% endif %}
+</div>
+<hr class="my-3">
