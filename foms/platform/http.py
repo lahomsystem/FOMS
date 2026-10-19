@@ -219,13 +219,21 @@ def register_http_bootstrap(
         g.current_user = None
         user_id = session.get("user_id")
         if user_id:
+            user = get_user_by_id(user_id)
+            if user is None or not user.is_active:
+                # INACTIVE-SESSION-01: 없거나 비활성(퇴사 처리)된 계정의 세션은 여기서 끊는다.
+                # 장식·핸들러 안 확인·정책 가드가 모두 g.current_user 를 보므로 한 곳이면 된다.
+                # 승인 대기(PENDING)는 login_required 처럼 보지 않는다(로그인 단계에서 막힌다).
+                # 세션을 쓰는 것은 이 경우뿐이다 — 활성 사용자는 아래 SESSION-COOKIE-01 그대로.
+                session.clear()
+                return
             # SESSION-COOKIE-01: 이미 permanent 면 다시 쓰지 않는다. ``session.permanent = True``
             # 는 대입일 뿐이어도 세션을 modified 로 만들어 **모든 응답이 Set-Cookie 를 다시
             # 쓰게** 했다. 그 값은 요청 시작 시점 스냅샷이라, 폴링 응답 하나가 방금 심은
             # 세션 값을 지운다(2026-09-09 CSRF seed 증발 사고).
             if not session.get("_permanent"):
                 session.permanent = True
-            g.current_user = get_user_by_id(user_id)
+            g.current_user = user
 
     # PARTNER-01: 외부 협력사 계정은 허용 목록 endpoint 만(기본 거부). _set_current_user 바로 뒤여야 한다.
     app.before_request(partner_gate)

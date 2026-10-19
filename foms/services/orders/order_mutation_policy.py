@@ -330,7 +330,7 @@ def evaluate_policy(
 
     Args:
         policy: 대상 :class:`Policy`.
-        user: 현재 사용자(``None`` 이면 미인증). ``role``/``team``/``id`` 를 읽는다.
+        user: 현재 사용자(``None``·``is_active=False`` 면 미인증). ``role``/``team``/``id`` 를 읽는다.
         active_assignee_ids: policy.assignment domain 의 현재 active 배정 user_id.
             ``None`` 이면 assignment 미조회(caller 가 order 없음/불필요로 판단). 빈 list 는
             "조회했으나 배정 0" — team capability 로 폴백한다(backfill 미완 lock-out 방지).
@@ -338,8 +338,9 @@ def evaluate_policy(
     Returns:
         :class:`Decision`. 거부는 401(AUTH_REQUIRED)/403(FORBIDDEN).
     """
-    # 1. authentication
-    if user is None:
+    # 1. authentication — 비활성(퇴사 처리) 계정은 미인증과 같다(INACTIVE-SESSION-01,
+    # ``_set_current_user`` 와 같은 규칙). 엔진을 직접 부르는 경로도 같은 답을 받는다.
+    if user is None or getattr(user, "is_active", None) is False:
         if policy.anonymous:
             return _ALLOW
         return Decision(False, 401, "AUTH_REQUIRED", "로그인이 필요합니다.")

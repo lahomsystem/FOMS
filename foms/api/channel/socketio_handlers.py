@@ -9,11 +9,9 @@ from foms.api.channel.utils import schedule_chat_thumbnail_generation
 from foms.services.auth.partner_scope import is_partner_user
 
 
-def _is_partner_session_user(user_id) -> bool:
-    """세션 사용자가 협력사 계정인가(PARTNER-01). 사용자 행이 없으면 협력사가 아니다 —
-    그 밖의 연결 판정은 기존처럼 세션 user_id 만 본다."""
-    user = get_db().query(User).filter(User.id == user_id).first()
-    return is_partner_user(user)
+def _session_user(user_id):
+    """세션 user_id 의 사용자 행(없으면 None)."""
+    return get_db().query(User).filter(User.id == user_id).first()
 
 
 def register_chat_socketio_handlers(socketio):
@@ -22,7 +20,12 @@ def register_chat_socketio_handlers(socketio):
     def handle_connect():
         """클라이언트 연결 이벤트"""
         user_id = session.get('user_id')
-        if user_id and _is_partner_session_user(user_id):
+        user = _session_user(user_id) if user_id else None
+        if user_id and (user is None or not user.is_active):
+            # INACTIVE-SESSION-01: 없거나 비활성(퇴사 처리)된 계정은 연결을 받지 않는다.
+            # Socket.IO 는 before_request(_set_current_user)를 거치지 않으므로 여기서 따로 막는다.
+            return False
+        if user_id and is_partner_user(user):
             # PARTNER-01: 협력사 계정은 실시간 연결(사내 채팅·알림)을 쓰지 않는다. Socket.IO 는
             # Flask before_request 문지기를 거치지 않으므로 여기서 따로 막는다.
             return False
