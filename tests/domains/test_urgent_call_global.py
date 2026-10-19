@@ -1,8 +1,7 @@
 """맨 위 줄 ⚡ 긴급 호출 — ``POST /erp/api/urgent-call`` · ``GET /erp/api/urgent-targets``.
 
 SPEC ``docs/specs/2026-10-01-urgent-call-global_SPEC.md`` §3·§6. 주문은 골라도 되고 안 골라도 된다.
-- 주문 없음: 로그인 사용자 누구나, ``Notification.order_id is None``, 감사 로그는 사용자 대상.
-  횟수는 보낸 사람 상한만(2026-10-19, ``test_urgent_call_sender_limit.py``).
+- 주문 없음: 로그인 사용자 누구나, 횟수 제한 없음, ``Notification.order_id is None``, 감사 로그는 사용자 대상.
 - 주문 있음: 기존 주문 문맥 규칙 그대로(read scope · 주문당 5회/시간 · 같은 tx).
 - 검증(빈 사유·자기 자신·비활성·없는 사용자)은 둘 다 같다.
 """
@@ -113,12 +112,8 @@ def test_no_order_writes_notification_state_event_outbox_and_user_audit(client, 
     assert audit[0].target_type == "user" and audit[0].target_id == tid
 
 
-def test_no_order_repeated_calls_within_sender_limit_succeed(client, db):
-    """주문 없는 연속 호출은 보낸 사람 상한 안에서는 성공한다(주문당 5회 상한과 무관).
-
-    2026-10-01 결정 "주문 없는 호출 제한 없음"은 2026-10-19 보낸 사람 상한으로 바뀌었다 —
-    상한 초과는 ``test_urgent_call_sender_limit.py`` 가 고정한다.
-    """
+def test_no_order_has_no_rate_limit(client, db):
+    """사용자 결정 2026-10-01: 주문 없는 호출은 횟수 제한 없음(주문 있는 5회 상한과 다르다)."""
     sender = _mk_user("ucg_rl_sender", "보낸이", role="ADMIN")
     target = _mk_user("ucg_rl_target", "받는이")
     tid = target.id
