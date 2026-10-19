@@ -348,6 +348,6 @@ def test_packing_js_version_bumped_in_dashboards():
     """foms-packing.js 변경 → SW staticCacheFirst 무력화용 ?v 범프(구 20260714a 이탈)."""
     for tpl in (_SHIPMENT_DASH, _CONSTRUCTION_DASH):
         src = tpl.read_text(encoding="utf-8")
-        assert "foms-packing.js') }}?v=20260725a" in src, str(tpl)
+        assert "foms-packing.js') }}?v=20261019a" in src, str(tpl)
         # JS 핀만 검사 — 무관한 foms-packing.css 핀(20260714a)까지 잡지 않도록 스코프한다.
         assert "foms-packing.js') }}?v=20260714a" not in src, f"구 JS 버전 핀 잔존: {tpl}"

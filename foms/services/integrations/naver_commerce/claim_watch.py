@@ -26,7 +26,7 @@ from typing import Any, Optional
 from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy.orm import Session
 
-from foms.services.datetime_kst import now_utc_naive
+from foms.services.datetime_kst import now_utc_naive, to_utc_naive
 from foms.services.integrations.naver_commerce.constants import CHANNEL
 from foms.services.integrations.naver_commerce.grouping import resolve_group_key
 from foms.services.integrations.naver_commerce.link_mirror import apply_claim_mirror
@@ -693,8 +693,7 @@ def _refreshed_since(stamp: Optional[str], since: datetime) -> bool:
         parsed = datetime.fromisoformat(str(stamp))
     except (TypeError, ValueError):
         return False
-    if parsed.tzinfo is not None:
-        parsed = parsed.replace(tzinfo=None)
+    parsed = to_utc_naive(parsed)
     return parsed >= since
 
 
@@ -936,8 +935,7 @@ def _is_recent_refresh(refreshed_at: Optional[str], cutoff: datetime) -> bool:
         stamp = datetime.fromisoformat(str(refreshed_at))
     except (TypeError, ValueError):
         return False
-    if stamp.tzinfo is not None:
-        stamp = stamp.replace(tzinfo=None)
+    stamp = to_utc_naive(stamp)
     return stamp >= cutoff
 
 

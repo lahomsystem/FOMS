@@ -268,7 +268,7 @@ def _expiry_view(db) -> dict[str, Any]:
         return {"expires_on": None, "days_left": None}
     return {
         "expires_on": expires_on.strftime("%Y-%m-%d"),
-        "days_left": (expires_on - datetime.date.today()).days,
+        "days_left": (expires_on - get_today_kst()).days,
     }
 
 
@@ -7134,7 +7134,7 @@ def naver_ingest_set_app_expiry():
         }), 400
     # 오타 방지선. 연도 한 자리를 잘못 치면(2207) 화면이 `180일 남음` 대신 66,000일을
     # 말하고 만료 경고는 영원히 안 뜬다 — 조용히 무력화되는 자리라 여기서 막는다.
-    today = datetime.date.today()
+    today = get_today_kst()
     if not (today - datetime.timedelta(days=365 * 5)
             <= expires_on <= today + datetime.timedelta(days=365 * 5)):
         return jsonify({
