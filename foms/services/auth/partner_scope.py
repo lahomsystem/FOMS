@@ -42,12 +42,24 @@ PARTNER_ALLOWED_ENDPOINTS: frozenset[str] = frozenset({
     "partner_api.change_manager",
     "partner_api.update_items",
     "partner_api.update_my_phone",
+    # PARTNER-FOMS 6: 협력사 직원 웹 푸시 "알림 받기". 넷 다 자기 것만 다룬다 — 공개 키(읽기),
+    # 자기 기기 구독 등록 · 해제(남의 기기 403), 자기에게 시험 알림(비관리자는 남 지정 403),
+    # 자기 알림 열람 기록(자기 state 없으면 404). tests/security/test_partner_push.py 가 고정한다.
+    "notifications_push.vapid_public_key",
+    "notifications_push.subscribe",
+    "notifications_push.push_test",
+    "notifications_push.push_event",
 })
 
 # 쓰기 정책 엔진(``evaluate_policy``)이 협력사 계정에 허용하는 policy_id. 문지기를 지난 쓰기 요청도
 # 이 엔진을 한 번 더 지난다(운영에서만 켜짐 — ``AUTH_POLICY_ENABLED``). 로그아웃·관리자
-# 복귀(ACCOUNT_SELF), 로그인 전 단계(ACCOUNT_ANON), 협력사 화면 쓰기(PARTNER_PORTAL).
-PARTNER_ALLOWED_POLICIES: frozenset[str] = frozenset({"ACCOUNT_SELF", "ACCOUNT_ANON", "PARTNER_PORTAL"})
+# 복귀(ACCOUNT_SELF), 로그인 전 단계(ACCOUNT_ANON), 협력사 화면 쓰기(PARTNER_PORTAL),
+# 웹 푸시 자기 것(CREATE_OWN_PUSH_SUBSCRIPTION · OWN_PUSH_SELF).
+PARTNER_ALLOWED_POLICIES: frozenset[str] = frozenset({
+    "ACCOUNT_SELF", "ACCOUNT_ANON", "PARTNER_PORTAL",
+    # 웹 푸시 자기 구독 · 자기 시험 알림 · 자기 알림 열람 기록(위 허용 endpoint 4개).
+    "CREATE_OWN_PUSH_SUBSCRIPTION", "OWN_PUSH_SELF",
+})
 
 
 # 협력사 주문의 ``structured_data['source']`` 값(네이버의 ``NAVER_SMARTSTORE`` 와 같은 자리).
