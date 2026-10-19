@@ -858,3 +858,18 @@ def test_construction_team_mobile_bottom_nav_shows_four_tabs_only(client, monkey
     assert ">시공</span>" in nav_html
     assert ">완료</span>" in nav_html
     assert ">이력</span>" in nav_html
+
+
+def test_admin_mine_includes_yangsan_branch_orders():
+    """관리자의 '내 할 일만'은 양산지사 담당 주문도 포함한다(영업 사용자는 아니다)."""
+    order = SimpleNamespace(manager_name="양산지사", structured_data={})
+    admin = SimpleNamespace(id=1, name="이시영", username="lsy", role="ADMIN", team="SALES")
+    sales = SimpleNamespace(id=2, name="김영업", username="kim", role="USER", team="SALES")
+    assert erp_permissions.is_order_related_to_user(order, admin)
+    assert not erp_permissions.is_order_related_to_user(order, sales)
+    admin_sql = " ".join(str(c) for c in erp_permissions.build_mine_sql_filter(admin))
+    sales_conds = erp_permissions.build_mine_sql_filter(sales)
+    assert len(erp_permissions.build_mine_sql_filter(admin)) == len(
+        erp_permissions.build_mine_sql_filter(SimpleNamespace(id=1, name="이시영", username="lsy", role="USER", team="ADMIN_X"))
+    ) + 2
+    assert admin_sql and sales_conds

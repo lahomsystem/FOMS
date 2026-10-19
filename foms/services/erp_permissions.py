@@ -164,6 +164,15 @@ def _assignment_ids(values: Any) -> set[int]:
     return ids
 
 
+#: 관리자가 직접 처리하는 지사 담당 이름 — 관리자의 '내 할 일만' 필터에 본인 담당과 함께 넣는다
+#: (도면 알림 ``ADMIN_HANDLED_MANAGER_KEYWORD`` 와 같은 정책, 2026-10-19 사용자 요청).
+ADMIN_EXTRA_MINE_MANAGER_NAME = "양산지사"
+
+
+def _is_admin_user(user: Any) -> bool:
+    return str(getattr(user, "role", "") or "").strip().upper() == "ADMIN"
+
+
 def is_order_related_to_user(order: Any, user: Any, *, scope: str | None = None) -> bool:
     """Return whether an order is explicitly assigned to the user in the requested domain."""
     if not order or not user:
@@ -207,7 +216,9 @@ def is_order_related_to_user(order: Any, user: Any, *, scope: str | None = None)
     drawing_names.update(_assignment_names(top_level_drawing_assignees))
     construction_names = _assignment_names(shipment.get("construction_workers"))
 
-    manager_match = bool(identities & manager_names)
+    manager_match = bool(identities & manager_names) or (
+        _is_admin_user(user) and ADMIN_EXTRA_MINE_MANAGER_NAME.lower() in manager_names
+    )
     sales_match = manager_match or (user_id is not None and user_id in sales_ids)
     drawing_match = bool(identities & drawing_names) or (
         user_id is not None and user_id in drawing_ids
@@ -339,6 +350,10 @@ def build_mine_sql_filter(user: Any, scope: str | None = None) -> list[Any]:
         _add_name_group(u_name)
     if u_username and _escape_like(u_username) != _escape_like(u_name):
         _add_name_group(u_username)
+    if _is_admin_user(user) and _escape_like(ADMIN_EXTRA_MINE_MANAGER_NAME) not in {_escape_like(u_name), _escape_like(u_username)}:
+        branch = ADMIN_EXTRA_MINE_MANAGER_NAME
+        manager_conds.append(Order.manager_name.ilike(_escape_like(branch), escape="\\"))  # perf-ok: ix_orders_manager_name_trgm
+        manager_conds.append(_json_string_token_condition(Order.structured_data["parties"]["manager"]["name"], branch, dialect_name=dialect_name))
     if u_id_str:
         user_id = int(u_id_str)
         sales_conds.append(_json_int_array_condition(Order.structured_data["assignments"]["sales_assignee_user_ids"], user_id))  # perf-ok: ix_orders_sd_sales_ids_trgm
