@@ -4,7 +4,8 @@
 
 * 프로세스 맵은 협력사 쉬운 단계 7칸이다(:data:`PARTNER_PIPELINE`). "도면 확인 대기"가 협력사 차례다.
 * 필터: 검색(고객 · 연락처 · 주소 · 주문 번호) · 단계 · 담당 · 내 차례만 · 내 담당.
-* 자기 회사의 운영 주문만 읽는다(삭제 · 초안 제외). structured_data(JSONB)는 읽지 않는다 — 평면 칸만.
+* 자기 회사의 운영 주문만 읽는다(삭제 · 초안 제외). structured_data(JSONB)는 고객컨펌 단계 주문의 도면 확정
+  여부만 읽는다(그 단계 주문 몇 건 — PARTNER-FOMS 6 §1-9). 나머지는 평면 칸.
 """
 from __future__ import annotations
 
@@ -65,6 +66,15 @@ def _matches_query(row: dict[str, Any], q: str) -> bool:
     return any(needle in str(row[key] or "").lower() for key in ("customer_name", "address", "product"))
 
 
+def _drawing_confirmed(db, order_ids: set[int]) -> dict[int, bool]:
+    """고객컨펌 단계 주문만 도면 확정 여부를 읽는다(주문 데이터 JSONB — 그 단계 주문 몇 건뿐)."""
+    if not order_ids:
+        return {}
+    rows = db.query(Order.id, Order.structured_data).filter(Order.id.in_(order_ids)).all()
+    return {r.id: isinstance(r.structured_data, dict) and r.structured_data.get("drawing_status") == "CONFIRMED"
+            for r in rows}
+
+
 def _rows(db, org_id: int, names: dict[int, str]) -> list[dict[str, Any]]:
     result = (
         db.query(
@@ -78,11 +88,12 @@ def _rows(db, org_id: int, names: dict[int, str]) -> list[dict[str, Any]]:
         .limit(_SCAN_LIMIT)
         .all()
     )
+    confirmed = _drawing_confirmed(db, {r.id for r in result if (r.erp_stage_code or "").upper() == "CONFIRM"})
     rows: dict[int, dict[str, Any]] = {}
     for r in result:
         if r.id in rows:
             continue
-        label = partner_stage_label(r.erp_stage_code, r.as_axis_status)
+        label = partner_stage_label(r.erp_stage_code, r.as_axis_status, confirmed.get(r.id))
         rows[r.id] = {
             "id": r.id, "customer_name": r.customer_name, "phone": r.phone, "address": r.address,
             "product": r.product, "received_date": r.received_date, "construction_date": r.erp_construction_date,
@@ -117,10 +128,11 @@ def partner_order_board(db, org_id: int, user_id: int, filters: dict[str, str],
 
 
 def partner_turn_count(db, org_id: int) -> int:
-    """머리 메뉴 "도면 확인" 수 — 협력사 차례(고객컨펌 단계, AS 건 열림 제외)."""
-    return (
-        db.query(Order.id)
-        .filter(Order.partner_org_id == org_id, Order.active_filter(), Order.erp_stage_code == "CONFIRM",
-                or_(Order.as_axis_status.is_(None), ~Order.as_axis_status.in_(("RECEIVED", "IN_PROGRESS"))))
-        .count()
-    )
+    """머리 메뉴 "도면 확인 N" — 협력사 차례(고객컨펌 단계 · 도면 확정 · AS 건 열림 제외)."""
+    ids = {
+        r.id for r in db.query(Order.id).filter(
+            Order.partner_org_id == org_id, Order.active_filter(), Order.erp_stage_code == "CONFIRM",
+            or_(Order.as_axis_status.is_(None), ~Order.as_axis_status.in_(("RECEIVED", "IN_PROGRESS"))),
+        )
+    }
+    return sum(1 for ok in _drawing_confirmed(db, ids).values() if ok)

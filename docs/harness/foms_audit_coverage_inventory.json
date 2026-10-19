@@ -374,7 +374,7 @@
     {
       "path": "foms/api/drawing/erp_orders_draftsman.py",
       "endpoint": "api_order_assign_draftsman",
-      "lineno": 195,
+      "lineno": 196,
       "methods": [
         "POST"
       ],
@@ -383,7 +383,7 @@
     {
       "path": "foms/api/drawing/erp_orders_draftsman.py",
       "endpoint": "api_order_confirm_drawing_receipt",
-      "lineno": 296,
+      "lineno": 297,
       "methods": [
         "POST"
       ],
@@ -392,7 +392,7 @@
     {
       "path": "foms/api/drawing/erp_orders_draftsman.py",
       "endpoint": "api_orders_batch_assign_draftsman",
-      "lineno": 78,
+      "lineno": 79,
       "methods": [
         "POST"
       ],
@@ -1869,7 +1869,7 @@
     {
       "path": "foms/web/admin/partners.py",
       "endpoint": "partners_add_user",
-      "lineno": 126,
+      "lineno": 128,
       "methods": [
         "POST"
       ],
@@ -1878,7 +1878,7 @@
     {
       "path": "foms/web/admin/partners.py",
       "endpoint": "partners_create",
-      "lineno": 54,
+      "lineno": 56,
       "methods": [
         "POST"
       ],
@@ -1887,7 +1887,7 @@
     {
       "path": "foms/web/admin/partners.py",
       "endpoint": "partners_reset_password",
-      "lineno": 193,
+      "lineno": 195,
       "methods": [
         "POST"
       ],
@@ -1896,7 +1896,7 @@
     {
       "path": "foms/web/admin/partners.py",
       "endpoint": "partners_set_user_phone",
-      "lineno": 170,
+      "lineno": 172,
       "methods": [
         "POST"
       ],
@@ -1905,7 +1905,7 @@
     {
       "path": "foms/web/admin/partners.py",
       "endpoint": "partners_toggle",
-      "lineno": 76,
+      "lineno": 78,
       "methods": [
         "POST"
       ],
@@ -1914,7 +1914,7 @@
     {
       "path": "foms/web/admin/partners.py",
       "endpoint": "partners_toggle_user",
-      "lineno": 153,
+      "lineno": 155,
       "methods": [
         "POST"
       ],
@@ -1923,7 +1923,7 @@
     {
       "path": "foms/web/admin/partners.py",
       "endpoint": "partners_upload_logo",
-      "lineno": 93,
+      "lineno": 95,
       "methods": [
         "POST"
       ],

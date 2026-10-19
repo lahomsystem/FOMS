@@ -20,6 +20,11 @@ import datetime as _dt
 
 from foms.services.datetime_kst import format_datetime_kst, now_utc_naive
 from foms.services.notifications.measure_same_day_payload import measure_same_day_link
+from foms.services.notifications.partner_push import (
+    is_partner_notification_type,
+    partner_deep_link,
+    partner_push_text,
+)
 from foms.services.orders.order_mutation_policy import normalize_team
 import hashlib
 import json
@@ -182,7 +187,9 @@ def _should_push(notif: Notification) -> bool:
     """severity 게이트: 긴급이거나 지정 P1 유형이면 True(그 외 P2 no-op)."""
     if bool(notif.is_urgent):
         return True
-    return (notif.notification_type or "").strip().upper() in _p1_types()
+    ntype = (notif.notification_type or "").strip().upper()
+    # 협력사 알림은 협력사에게 닿는 유일한 길이라 env 로 P1 집합을 바꿔도 늘 보낸다(PARTNER-FOMS 6).
+    return ntype in _p1_types() or is_partner_notification_type(ntype)
 
 
 def _urgency(notif: Notification) -> str:
@@ -198,6 +205,8 @@ def _deep_link(notif: Notification) -> str:
     if notif.order_id:
         ntype = (notif.notification_type or "").strip().upper()
         oid = int(notif.order_id)
+        if is_partner_notification_type(ntype):
+            return partner_deep_link(oid)
         if ntype == "ERP_ORDER_CHANGED":
             return f"/erp/drawing-workbench/{oid}?tab=timeline"
         if ntype in ("DRAWING_TRANSFERRED", "DRAWING_REVISION"):
@@ -339,7 +348,10 @@ def _build_payload(notif: Notification, customer_name: str = "") -> Dict[str, An
     urgent = bool(notif.is_urgent)
     ntype = (notif.notification_type or "").strip().upper()
     name = _clean_customer_name(customer_name)
-    if name and notif.order_id and ntype not in _WORKER_HEALTH_TYPES:
+    if is_partner_notification_type(ntype):
+        # 협력사 알림 문장은 협력사 알림 서비스가 주소 · 메모 없이, 고객 이름을 가려서 만든다.
+        title, body = partner_push_text(ntype, notif.message)
+    elif name and notif.order_id and ntype not in _WORKER_HEALTH_TYPES:
         title, body = _order_bound_text(urgent, ntype, int(notif.order_id), name)
     else:
         title, body = _generic_title(urgent, ntype), _generic_body(urgent, ntype)

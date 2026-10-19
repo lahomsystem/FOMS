@@ -50,6 +50,17 @@ def _current_cycle_log_ids(order: Order, cycle_id: Any) -> set[str]:
     return {str(e.get("id")) for e in logs if isinstance(e, dict) and e.get("cycle_id") == cycle_id and e.get("id")}
 
 
+def _visit(order: Order, cycle: dict[str, Any], is_open: bool) -> tuple[str, str]:
+    """방문 예정 날짜 · 시간. AS 화면은 ``schedule.as_visit`` 에 바로 저장하고 ``AS_SCHEDULE`` 기록을 남기지
+    않는다(``field_update`` ``as_visit_date``) — 진행 중인 AS 건이면 그 칸도 읽는다(PARTNER-FOMS 6 §1-8)."""
+    date, time = cycle.get("visit_date") or "", cycle.get("visit_time") or ""
+    if date or not is_open:
+        return date, time
+    sd = order.structured_data if isinstance(order.structured_data, dict) else {}
+    visit = ((sd.get("schedule") or {}).get("as_visit") or {})
+    return str(visit.get("date") or ""), str(visit.get("time") or "")
+
+
 def as_progress_for_partner(db, order: Order) -> dict[str, Any] | None:
     """현재 AS 건 진행 상황. AS 건이 없으면 None."""
     cycle = project_current_as_cycle(order)
@@ -67,12 +78,14 @@ def as_progress_for_partner(db, order: Order) -> dict[str, Any] | None:
         )
         photos = [_photo_view(a) for a in rows if a.storage_key]
     status = cycle.get("status")
+    is_open = status in (AS_RECEIVED, AS_IN_PROGRESS)
+    visit_date, visit_time = _visit(order, cycle, is_open)
     return {
         "status": status,
         "status_label": _AS_STATUS_LABELS.get(status, "처리 완료"),
-        "is_open": status in (AS_RECEIVED, AS_IN_PROGRESS),
-        "visit_date": cycle.get("visit_date") or "",
-        "visit_time": cycle.get("visit_time") or "",
+        "is_open": is_open,
+        "visit_date": visit_date,
+        "visit_time": visit_time,
         "opened_at": str(cycle.get("opened_at") or "")[:10],
         "photos": photos,
     }
