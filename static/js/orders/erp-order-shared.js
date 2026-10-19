@@ -1,3 +1,27 @@
+var _ERP_KST_FMT = (function () {
+    try {
+        return new Intl.DateTimeFormat("en-CA", {
+            timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit",
+            hour: "2-digit", minute: "2-digit", hourCycle: "h23"
+        });
+    } catch (e) {
+        return null;
+    }
+})();
+
+/** 저장 시각(naive=UTC, 오프셋 있으면 그대로)을 KST 'YYYY-MM-DD HH:MM' 로. */
+function _erpToKstMinute(value) {
+    var raw = String(value || "");
+    if (!raw) return "";
+    var iso = raw.replace(" ", "T");
+    if (!/(Z|[+-]\d{2}:?\d{2})$/i.test(iso)) iso += "Z";
+    var d = new Date(iso);
+    if (!_ERP_KST_FMT || isNaN(d.getTime())) return raw.replace("T", " ").slice(0, 16);
+    var p = {};
+    _ERP_KST_FMT.formatToParts(d).forEach(function (part) { p[part.type] = part.value; });
+    return p.year + "-" + p.month + "-" + p.day + " " + p.hour + ":" + p.minute;
+}
+
 var _erpBoolConfirmed =
     window._erpBoolConfirmed ||
     function _erpBoolConfirmed(v) {
@@ -267,7 +291,7 @@ var _erpUpdatePaymentConfirmUI =
                 "확인됨 (" +
                 byName +
                 " / " +
-                (at ? at.substring(0, 16).replace("T", " ") : "-") +
+                (at ? _erpToKstMinute(at) : "-") +
                 ") - 클릭하여 취소";
             return;
         }
