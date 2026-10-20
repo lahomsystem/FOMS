@@ -98,6 +98,21 @@ SCORE_NAME_ONLY = 40
 NAME_SCAN_CAP = 200
 
 
+def _name_match_key(name: Any) -> str:
+    """이름 비교 키 — 글자(한글·영문)와 숫자만 남긴다.
+
+    ``★강민주``·``강 민주`` 처럼 담당자가 붙인 기호·띄어쓰기를 떼고 견주려는 것이다.
+    ``강민주님`` 같은 낱말 덧붙임은 그대로 남아 다른 키가 된다(동명이인 오탐을 늘리지 않는다).
+
+    Args:
+        name: 이름 원문(None 허용).
+
+    Returns:
+        비교 키. 남는 글자가 없으면 빈 문자열.
+    """
+    return "".join(ch for ch in str(name or "") if ch.isalnum())
+
+
 def _snapshot_keys(raw_snapshot: Any) -> dict[str, str]:
     """원본에서 매칭 키(수취인/주문자 전화·이름·주소)를 뽑는다.
 
@@ -1184,14 +1199,21 @@ def find_order_candidates(session, link: ExternalOrderLink, *,
             if current is None or score > current[0]:
                 scored[int(order.id)] = (score, reason)
 
-    if keys["name"]:
-        # 이름으로 좁힌 뒤 주소는 파이썬에서 비교한다 — 주소 LIKE 는 인덱스가 없다.
-        rows = (
-            base.filter(Order.customer_name == keys["name"])
-            .order_by(Order.created_at.desc())
-            .limit(NAME_SCAN_CAP)
-            .all()
-        )
+    name_key = _name_match_key(keys["name"])
+    if name_key:
+        # 이름은 **표시 기호를 뗀 글자**로 견준다(2026-10-20 운영 강민주 건). 담당자가
+        # ERP 이름을 `★강민주` 로 표시해 둔 사이 수집된 집이 후보 0건으로 떠서 같은 고객
+        # 주문이 둘로 갈렸다. SQL 은 포함(LIKE)으로 넓게 줍고, 파이썬에서 같은 키만 남겨
+        # `강민주희` 같은 다른 이름은 걸러 낸다. 주소도 파이썬에서 비교한다 — LIKE 는 인덱스가 없다.
+        rows = [
+            order for order in (
+                base.filter(Order.customer_name.contains(name_key, autoescape=True))
+                .order_by(Order.created_at.desc())
+                .limit(NAME_SCAN_CAP)
+                .all()
+            )
+            if _name_match_key(order.customer_name) == name_key
+        ]
         if len(rows) >= NAME_SCAN_CAP:
             # 캡에 닿았다 = 이 뒤로 더 있는데 안 봤다. 조용히 자르면 "이게 전부"로 읽힌다.
             logger.warning("[NAVER] 후보 이름 스캔 캡(%d) 도달 — link_id=%s name=%s",
