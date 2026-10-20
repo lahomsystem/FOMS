@@ -23,7 +23,10 @@ ENDPOINTS = (
     "/api/erp/order-draft/alimtalk/preview",
     "/api/erp/order-draft/alimtalk/send",
     "/api/erp/order-draft/channel-push/preview",
-    "/api/erp/order-draft/channel-push/send",
+    # 실측 PUSH 는 "등록하고 PUSH" — 등록 뒤 주문 기준 정본 경로로 보낸다(2026-10-20 설계서
+    # docs/plans/2026-10-20-wizard-push-register-safety-spec.md). 옛 초안 발송 라우트는 캐시된
+    # 옛 JS 를 위해 서버에 남아 있다.
+    "/api/channel/push-manual",
 )
 
 

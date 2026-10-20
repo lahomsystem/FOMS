@@ -282,6 +282,7 @@ ACTION_LABELS: dict[str, str] = {
     "ORDER_DRAFT_SAVED": "임시 주문 저장",
     "ORDER_DRAFT_SUBMITTED": "임시 주문 제출",
     "ORDER_DRAFT_DELETED": "임시 주문 삭제",
+    "ORDER_DRAFT_DISCARDED": "발송 후 미등록 초안 버림(관리자)",
     # --- 주문 편집·상태 (2026-08-11: 운영 감사 화면에서 가장 자주 보이는데 라벨이 없었다) ---
     "ORDER_FIELD_UPDATED": "주문 항목 변경",
     "ORDER_MEMO_UPDATED": "메모 변경",

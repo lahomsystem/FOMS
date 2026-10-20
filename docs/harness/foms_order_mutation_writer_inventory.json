@@ -207,7 +207,7 @@
   "writers": [
     {
       "path": "foms/api/channel/channel_integration.py",
-      "lineno": 350,
+      "lineno": 355,
       "kind": "flag_modified_structured_data",
       "classification": "CANONICAL",
       "owner": "CHANNEL-WRITER-01"
