@@ -747,7 +747,7 @@
     },
     "erp_orders_structured.api_patch_order_structured_fields": {
       "mode": "guard",
-      "policy_id": "STAFF_MUTATION",
+      "policy_id": "ERP_EDIT",
       "rule": "/api/orders/<int:order_id>/structured/fields"
     },
     "erp_orders_structured.api_payment_confirm": {
@@ -757,7 +757,7 @@
     },
     "erp_orders_structured.api_put_order_structured": {
       "mode": "guard",
-      "policy_id": "STAFF_MUTATION",
+      "policy_id": "ERP_EDIT",
       "rule": "/api/orders/<int:order_id>/structured"
     },
     "erp_shipment.api_erp_shipment_settings_save": {
@@ -892,7 +892,7 @@
     },
     "order_edit.edit_order": {
       "mode": "guard",
-      "policy_id": "STAFF_MUTATION",
+      "policy_id": "ERP_EDIT",
       "rule": "/edit/<int:order_id>"
     },
     "order_pages.add_order": {
@@ -937,7 +937,7 @@
     },
     "orders.bulk_update_order_status": {
       "mode": "guard",
-      "policy_id": "STAFF_MUTATION",
+      "policy_id": "ERP_EDIT",
       "rule": "/api/bulk_update_order_status"
     },
     "orders.copy_orders": {
@@ -962,7 +962,7 @@
     },
     "orders.update_order_status": {
       "mode": "guard",
-      "policy_id": "STAFF_MUTATION",
+      "policy_id": "ERP_EDIT",
       "rule": "/api/update_order_status"
     },
     "orders.update_regional_memo": {
