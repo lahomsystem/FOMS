@@ -1329,7 +1329,7 @@
     {
       "path": "foms/api/share.py",
       "endpoint": "api_share_create",
-      "lineno": 817,
+      "lineno": 818,
       "methods": [
         "POST"
       ],
@@ -1338,7 +1338,7 @@
     {
       "path": "foms/api/share.py",
       "endpoint": "api_share_revoke",
-      "lineno": 1631,
+      "lineno": 1679,
       "methods": [
         "POST"
       ],
@@ -1347,7 +1347,7 @@
     {
       "path": "foms/api/share.py",
       "endpoint": "api_share_send_alimtalk",
-      "lineno": 1489,
+      "lineno": 1518,
       "methods": [
         "POST"
       ],
@@ -1356,7 +1356,7 @@
     {
       "path": "foms/api/share.py",
       "endpoint": "api_share_send_sms",
-      "lineno": 1167,
+      "lineno": 1168,
       "methods": [
         "POST"
       ],
