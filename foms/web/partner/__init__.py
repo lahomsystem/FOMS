@@ -10,15 +10,19 @@ from __future__ import annotations
 from flask import Blueprint, abort, g, render_template, request
 
 from db import get_db
-from foms.api.files.routes import build_file_view_url
+from foms.api.files.routes import build_file_download_url, build_file_view_url
 from foms.api.partner import UPLOAD_OPEN_STAGES
 from foms.services.auth.partner_scope import partner_can_read_order, partner_required
 from foms.services.order_attachment_permissions import is_partner_original_key
 from foms.services.orders.as_cycle_service import AS_IN_PROGRESS, AS_RECEIVED, current_cycle, cycle_status
+from foms.services.datetime_kst import format_datetime_kst
 from foms.services.orders.confirm_drawing_gate import confirm_exit_block
+from foms.services.orders.drawing_customer_send import drawing_round_info, round_text
+from foms.services.orders.upload_ticket import _file_type as attachment_file_type  # 확장자→image/video/file (첨부 정본과 같은 규칙)
 from foms.services.partners.as_intake import AS_OPEN_STAGES
 from foms.services.partners.completion import as_progress_for_partner, construction_photos_for_partner
 from foms.services.partners.drawing_confirm import final_drawings_for_partner
+from foms.services.partners.history import partner_order_history
 from foms.services.partners.manager import org_member_choices
 from foms.services.partners.order_list import partner_list_filters, partner_order_board, partner_turn_count
 from foms.services.partners.view import build_partner_order_view
@@ -84,10 +88,7 @@ def order_detail(order_id: int):
     stage = view["stage_code"]
     cycle = current_cycle(order.structured_data or {})
     as_open = cycle is not None and cycle_status(cycle) in (AS_RECEIVED, AS_IN_PROGRESS)
-    finals = [
-        {"filename": f.get("filename") or f.get("key", "").rsplit("/", 1)[-1], "url": build_file_view_url(f["key"])}
-        for f in final_drawings_for_partner(order)
-    ]
+    finals = _final_drawings(order)
     # 도면 확인 차례(CONFIRM)이고 도면이 확정됐을 때만 버튼을 연다(서버가 다시 판정한다).
     can_approve = stage == "CONFIRM" and bool(finals) and confirm_exit_block(order.structured_data or {}) is None
     return render_template(
@@ -103,10 +104,38 @@ def order_detail(order_id: int):
         and (order.structured_data or {}).get("drawing_status") in ("TRANSFERRED", "CONFIRMED"),
         can_as=stage in AS_OPEN_STAGES and not as_open,
         as_open=as_open,
+        drawing_cards=[f for f in finals if f["is_image"]],
+        drawing_files=[f for f in finals if not f["is_image"]],
+        drawing_round=_drawing_round(order),
+        history=partner_order_history(db, order),
         active_tab="drawing" if can_approve else "order",
         manager_choices=org_member_choices(db, order.partner_org_id),
         **_completion_context(db, order, stage),
     )
+
+
+def _final_drawings(order: Order) -> list[dict]:
+    """최종 도면 — 그림은 고객 공유 화면과 같은 갤러리 카드(``url`` · ``label`` · ``download_url``), 그 밖은 파일 줄."""
+    rows = []
+    for f in final_drawings_for_partner(order):
+        name = f.get("filename") or f.get("key", "").rsplit("/", 1)[-1]
+        rows.append({
+            "filename": name,
+            "label": name,
+            "url": build_file_view_url(f["key"]),
+            "download_url": build_file_download_url(f["key"]),
+            "is_image": attachment_file_type(name) == "image",
+        })
+    return rows
+
+
+def _drawing_round(order: Order) -> str:
+    """도면 탭 제목 옆 "2차 · 10-20 14:05 올라옴"(올린 적이 없으면 빈 문자열)."""
+    info = drawing_round_info(order.structured_data or {})
+    if not info.round:
+        return ""
+    at = format_datetime_kst(info.round_at, "%m-%d %H:%M") if info.round_at else None
+    return f"{round_text(info.round)} · {at} 올라옴" if at else round_text(info.round)
 
 
 def _partner_files(db, order: Order, items: list) -> tuple[list[dict], dict[int, list[dict]]]:

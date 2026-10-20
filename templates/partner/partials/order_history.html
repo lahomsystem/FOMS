@@ -1,0 +1,18 @@
+{# 이력 탭 — 협력사가 볼 일만 고른 줄(최근이 위). 우리 직원 이름 · 내부 메모는 없다(설계서 §3.7 · §15). #}
+{% set icons = {"order": "fa-file-lines", "drawing": "fa-compass-drafting", "revision": "fa-pen", "approve": "fa-circle-check", "schedule": "fa-calendar-day", "as": "fa-screwdriver-wrench"} %}
+{% if history %}
+<ol class="pp-history" data-pp-history>
+    {% for h in history %}
+    <li class="pp-history__row pp-history__row--{{ h.kind }}">
+        <span class="pp-history__icon" aria-hidden="true"><i class="fas {{ icons.get(h.kind, 'fa-circle') }}"></i></span>
+        <div class="pp-history__body">
+            <div class="pp-history__head"><span class="pp-history__title">{{ h.title }}</span>{% if h.who %} <span class="pp-history__who">{{ h.who }}</span>{% endif %}</div>
+            {% if h.detail %}<div class="pp-history__detail">{{ h.detail }}</div>{% endif %}
+            <time class="pp-history__at">{{ h.at }}</time>
+        </div>
+    </li>
+    {% endfor %}
+</ol>
+{% else %}
+<p class="small text-muted">아직 기록이 없습니다.</p>
+{% endif %}

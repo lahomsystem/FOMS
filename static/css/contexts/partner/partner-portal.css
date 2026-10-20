@@ -263,3 +263,49 @@
   .pp-actions__buttons { margin-left: 0; }
   .pp-actions__buttons .btn { flex: 1 1 auto; }
 }
+
+/* 3-3 도면 갤러리 — 고객 공유 화면과 같은 카드(우리 조각), 저장 단추 규칙은 공유 화면 것을 협력사 칸에 가둬 옮겼다. */
+.pp-drawing-gallery .foms-drawing-mobile-v2 { padding: 0 0 8px; }
+.pp-drawing-gallery .foms-drawing-card-grid { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+.pp-drawing-gallery .foms-share-card-wrap { position: relative; min-width: 0; }
+.pp-drawing-gallery .foms-share-card-wrap > .foms-drawing-card { width: 100%; }
+.pp-drawing-gallery .foms-drawing-card-grid > .foms-share-card-wrap:only-child { grid-column: 1 / -1; width: fit-content; max-width: 100%; }
+.pp-drawing-gallery .foms-drawing-card-grid > .foms-share-card-wrap:only-child > .foms-drawing-card { aspect-ratio: auto; min-width: 160px; min-height: 160px; max-height: 72vh; }
+.pp-drawing-gallery .foms-drawing-card-grid > .foms-share-card-wrap:only-child .foms-drawing-card__img { width: auto; height: auto; max-width: 100%; max-height: 72vh; }
+.pp-drawing-gallery .foms-share-card-save {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid rgba(17, 24, 39, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #374151;
+}
+.pp-drawing-gallery .foms-share-card-save::after { content: ''; position: absolute; top: 50%; left: 50%; width: 44px; height: 44px; transform: translate(-50%, -50%); }
+.pp-drawing-gallery .foms-share-card-save__icon { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+/* 3-3 이력 탭 — 세로 줄(최근이 위). */
+.pp-history { margin: 0; padding: 0; list-style: none; }
+.pp-history__row { display: flex; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--pp-border); }
+.pp-history__row:last-child { border-bottom: 0; }
+.pp-history__icon { display: inline-flex; flex: 0 0 32px; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 50%; background: var(--pp-bg); color: var(--pp-muted); }
+.pp-history__row--approve .pp-history__icon { background: var(--pp-stage-bg); color: var(--pp-stage-text); }
+.pp-history__row--revision .pp-history__icon { background: #fff4d6; color: #8a5a00; }
+.pp-history__body { min-width: 0; }
+.pp-history__title { font-weight: 600; }
+.pp-history__who { color: var(--pp-muted); font-size: 13px; }
+.pp-history__detail { margin-top: 2px; overflow-wrap: anywhere; white-space: pre-line; }
+.pp-history__at { display: block; margin-top: 2px; color: var(--pp-muted); font-size: 12px; }
+
+@media (max-width: 575.98px) {
+  /* 탭 4개 — 휴대폰에서 두 줄로 꺾지 않고 옆으로 민다. */
+  .pp-tabs { flex-wrap: nowrap; overflow-x: auto; }
+  .pp-tabs .nav-link { white-space: nowrap; }
+  .pp-drawing-gallery .foms-drawing-card-grid { grid-template-columns: minmax(0, 1fr); }
+}
