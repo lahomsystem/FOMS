@@ -20,11 +20,42 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/style-pro-max.css') }}?v=20260915a">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/foms-tokens.css') }}?v=20260915a">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/erp-pro.css') }}?v=20261016a">
-    {% block styles %}{% endblock %}
+    {# PARTNER-FOMS 4-1: 우리 휴대폰 틀(위 줄 · 아래 탭 · 카드) — layout_head.html 과 같은 주소 · 핀. 아래 시트는 우리 사유 시트 모양. #}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/foms-mobile-surfaces.css') }}?v=20261015d">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-reason-sheet.css') }}?v=20260920a">
+    {% block styles %}{% endblock %}{% if false %}{% block mobile_back %}{% endblock %}{% endif %}
     <link rel="stylesheet" href="{{ asset_url('css/contexts/partner/partner-portal.css') }}">
 </head>
-<body class="pp-body">
-    <header class="bg-light d-flex justify-content-between align-items-center gap-2 layout-header pp-header">
+{% set pp_back = self.mobile_back() | trim %}
+{% set pp_tab = 'new' if request.endpoint == 'partner_portal.new_order' else ('turn' if request.args.get('turn') == '1' else ('done' if request.args.get('stage') == '완료' else 'orders')) %}
+<body class="pp-body erp-mobile-v2-layout">
+<div class="erp-mobile-shell pp-shell" data-erp-mobile-v2="true">
+    {# 휴대폰(992px 미만): 우리 위 줄 + 아래 탭 5개(설계서 §3.1 · §16). PC 는 아래 머리줄 · 메뉴 줄(foms-shell-desktop-only). #}
+    <div class="erp-mobile-shell-chrome">
+        <header class="erp-mobile-shell-header foms-shell-header pp-mheader" aria-label="협력사 위 줄">
+            <div class="erp-mobile-shell-header__inner">
+                {% if pp_back %}
+                <a class="erp-mobile-shell-header__home foms-icon-btn" href="{{ pp_back }}" aria-label="뒤로 가기"><i class="fas fa-arrow-left" aria-hidden="true"></i></a>
+                {% else %}
+                <a class="erp-mobile-shell-header__menu foms-icon-btn" href="{{ url_for('partner_portal.home') }}" aria-label="회사 주문"><i class="fas fa-layer-group" aria-hidden="true"></i></a>
+                {% endif %}
+                <div class="erp-mobile-shell-header__context"><strong class="erp-mobile-shell-header__title foms-shell-title">{% block mobile_title %}{{ org.name }}{% endblock %}</strong></div>
+                <div class="pp-push pp-push--m" data-pp-push>
+                    <button type="button" class="foms-icon-btn erp-mobile-shell-header__notify pp-push__btn" data-pp-push-toggle aria-expanded="false" aria-label="알림 받기"><i class="fas fa-bell" aria-hidden="true"></i><span class="visually-hidden" data-pp-push-label>알림 받기</span></button>
+                    {% include "partner/partials/push_panel.html" %}
+                </div>
+            </div>
+        </header>
+        {% macro tab(id, href, icon, label, badge=0) %}<a class="erp-mobile-bottom-nav__item{% if pp_tab == id %} is-active{% endif %}" href="{{ href }}" data-pp-nav="{{ id }}" aria-current="{{ 'page' if pp_tab == id else 'false' }}"><i class="fas {{ icon }}" aria-hidden="true"></i><span>{{ label }}</span>{% if badge %}<span class="erp-mobile-bottom-nav__badge" aria-label="내 차례 {{ badge }}건">{{ badge if badge < 100 else '99+' }}</span>{% endif %}</a>{% endmacro %}
+        <nav class="erp-mobile-bottom-nav pp-mnav" aria-label="협력사 주요 메뉴">
+            {{ tab('orders', url_for('partner_portal.home'), 'fa-layer-group', '주문') }}
+            {{ tab('turn', url_for('partner_portal.home', turn='1'), 'fa-compass-drafting', '도면 확인', partner_turn_count or 0) }}
+            {{ tab('new', url_for('partner_portal.new_order'), 'fa-plus', '새 주문') }}
+            {{ tab('done', url_for('partner_portal.home', stage='완료'), 'fa-camera', '완공·AS') }}
+            <button type="button" class="erp-mobile-bottom-nav__item" data-pp-sheet-open="ppMoreSheet" aria-controls="ppMoreSheet" aria-label="더보기"><i class="fas fa-ellipsis-h" aria-hidden="true"></i><span>더보기</span></button>
+        </nav>
+    </div>
+    <header class="bg-light d-flex justify-content-between align-items-center gap-2 layout-header pp-header foms-shell-desktop-only">
         <a class="mb-0 h3 layout-header__title pp-brand" href="{{ url_for('partner_portal.home') }}">{{ org.name }} · 주문</a>
         <div class="d-flex align-items-center gap-2 pp-header__actions">
             {# 관리자가 협력사 계정으로 들어와 본 경우에만 — 로그아웃 없이 자기 계정으로 돌아간다. #}
@@ -35,16 +66,8 @@
             </form>
             {% endif %}
             <div class="pp-push" data-pp-push>
-                <button type="button" class="btn btn-sm btn-outline-primary pp-push__btn" data-pp-push-toggle aria-expanded="false" aria-controls="ppPushPanel"><i class="fas fa-bell"></i> <span data-pp-push-label>알림 받기</span></button>
-                <div class="pp-push__panel" id="ppPushPanel" data-pp-push-panel hidden>
-                    <p class="pp-push__msg" data-pp-push-msg role="status" aria-live="polite"></p>
-                    <ol class="pp-push__steps" data-pp-push-steps hidden></ol>
-                    <div class="d-flex flex-wrap gap-2">
-                        <button type="button" class="btn btn-sm btn-primary" data-pp-push-enable hidden>이 기기에서 알림 받기</button>
-                        <button type="button" class="btn btn-sm btn-outline-secondary" data-pp-push-test hidden>시험 알림</button>
-                        <button type="button" class="btn btn-sm btn-outline-danger" data-pp-push-disable hidden>알림 끄기</button>
-                    </div>
-                </div>
+                <button type="button" class="btn btn-sm btn-outline-primary pp-push__btn" data-pp-push-toggle aria-expanded="false"><i class="fas fa-bell"></i> <span data-pp-push-label>알림 받기</span></button>
+                {% include "partner/partials/push_panel.html" %}
             </div>
             {% if g.current_user %}<span class="pp-user"><i class="fas fa-user-circle"></i> {{ g.current_user.name }}</span>{% endif %}
             <form method="post" action="{{ url_for('auth.logout') }}" class="pp-logout">
@@ -53,7 +76,7 @@
             </form>
         </div>
     </header>
-    <nav class="layout-global-nav navbar navbar-light bg-light border-bottom px-2 px-lg-4 pp-nav" aria-label="협력사 메뉴">
+    <nav class="layout-global-nav navbar navbar-light bg-light border-bottom px-2 px-lg-4 pp-nav foms-shell-desktop-only" aria-label="협력사 메뉴">
         <ul class="navbar-nav flex-row flex-wrap gap-3">
             <li class="nav-item"><a class="nav-link" href="{{ url_for('partner_portal.home') }}"><i class="fas fa-layer-group"></i> {{ org.name }} 주문</a></li>
             <li class="nav-item"><a class="nav-link" href="{{ url_for('partner_portal.home', turn='1') }}"><i class="fas fa-compass-drafting"></i> 도면 확인{% if partner_turn_count %} <span class="badge rounded-pill bg-danger">{{ partner_turn_count }}</span>{% endif %}</a></li>
@@ -64,7 +87,33 @@
     <main class="pp-main {% block main_class %}{% endblock %}">
         {% block content %}{% endblock %}
     </main>
+</div>
+{# 더보기 — 우리 아래 시트 모양(foms-reason-sheet), 여닫기는 partner-shell.js. #}
+<div class="foms-reason-sheet pp-sheet" id="ppMoreSheet" data-pp-sheet hidden>
+    <div class="foms-reason-sheet__backdrop" data-pp-sheet-close></div>
+    <div class="foms-reason-sheet__panel" role="dialog" aria-modal="true" aria-labelledby="ppMoreTitle">
+        <div class="foms-reason-sheet__head">
+            <h2 class="foms-reason-sheet__title" id="ppMoreTitle">더보기</h2>
+            <button type="button" class="foms-reason-sheet__close" data-pp-sheet-close aria-label="닫기"><i class="fas fa-xmark" aria-hidden="true"></i></button>
+        </div>
+        <p class="pp-sheet__who"><i class="fas fa-user-circle" aria-hidden="true"></i> {% if g.current_user %}{{ g.current_user.name }} · {% endif %}{{ org.name }}</p>
+        <p class="small text-muted">알림은 위 줄 오른쪽 종 단추에서 켜고 끕니다.</p>
+        <div class="d-grid gap-2">
+            {% if session.get('impersonating_from') %}
+            <form method="post" action="{{ url_for('auth.switch_back') }}" class="d-grid">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-outline-primary">관리자로 돌아가기</button>
+            </form>
+            {% endif %}
+            <form method="post" action="{{ url_for('auth.logout') }}" class="d-grid">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-outline-secondary">로그아웃</button>
+            </form>
+        </div>
+    </div>
+</div>
     <script src="{{ asset_url('js/partner/partner-portal.js') }}" defer></script>
     <script src="{{ asset_url('js/partner/partner-push.js') }}" defer></script>
+    <script src="{{ asset_url('js/partner/partner-shell.js') }}" defer></script>
 </body>
 </html>

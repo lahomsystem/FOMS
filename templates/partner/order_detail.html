@@ -5,6 +5,8 @@
 <link rel="stylesheet" href="{{ asset_url('css/components/foms-drawing-mobile.css') }}">
 <link rel="stylesheet" href="{{ asset_url('css/components/foms-lightbox.css') }}">{% endblock %}
 {% block main_class %}pp-main--wide{% endblock %}
+{% block mobile_title %}주문 #{{ view.id }}{% endblock %}
+{% block mobile_back %}{{ url_for('partner_portal.home') }}{% endblock %}
 {% block content %}
 <div class="card border-secondary pp-order" data-pp-tabs="{{ active_tab }}">
     <div class="card-header d-flex justify-content-between align-items-center">

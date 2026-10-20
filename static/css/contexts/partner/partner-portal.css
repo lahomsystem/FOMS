@@ -310,3 +310,18 @@
   .pp-tabs__hint { display: none; }
   .pp-drawing-gallery .foms-drawing-card-grid { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* 4-1 휴대폰 틀 — 우리 위 줄 · 아래 탭(foms-mobile-surfaces.css)에 협력사 몫만 더한다. 조건은 우리 틀과 같다. */
+@media (max-width: 991.98px), ((min-width: 992px) and (pointer: coarse) and (orientation: portrait)) {
+  /* 알림 칸은 위 줄 오른쪽 칸(우리 알림 자리). 판은 위 줄 아래로 펼친다. */
+  .pp-push--m { grid-column: 4; display: flex; justify-content: center; }
+  .pp-push--m .pp-push__panel { top: calc(100% + 2px); right: 4px; }
+  .pp-push--on .erp-mobile-shell-header__notify { color: #198754; }
+  /* 아래 고정 줄(단계 버튼)은 아래 탭 위에 앉는다. */
+  .pp-actions { bottom: calc(var(--foms-shell-bottom-nav-h) + var(--foms-safe-area-bottom)); }
+  .pp-main { padding: 12px; }
+  .pp-mnav .erp-mobile-bottom-nav__item { position: relative; }
+}
+
+.pp-sheet__who { margin: 0 0 4px; font-weight: 600; }
+body.pp-sheet-open { overflow: hidden; }
