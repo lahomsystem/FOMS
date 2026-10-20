@@ -251,10 +251,10 @@ def _order_url(order_id: int) -> str:
     return f"{base}/erp/orders/{int(order_id)}"
 
 
-def _note(user_chat_id: str, text: str) -> None:
+def _note(user_chat_id: str, text: str, channel_id: str = "") -> None:
     """매니저만 보는 내부 메모(실패해도 처리를 깨뜨리지 않는다)."""
     result = channel_client.send_user_chat_message(user_chat_id, text, bot_name=_BOT_NAME,
-                                                   private=True)
+                                                   private=True, channel_id=channel_id)
     if not result.get("success"):
         logger.warning("[상담 먼저] 내부 메모 실패 chat=%s", user_chat_id)
 
@@ -282,6 +282,8 @@ def handle_user_chat_message(session, payload: dict[str, Any],
     if str(entity.get("personType") or "") != "user":
         return "ignored_not_customer"
     user_chat_id = str(entity.get("chatId") or "")
+    # 라홈·하우드는 채널톡 채널이 따로다 — 답장은 메시지가 온 채널로 써야 한다.
+    channel_id = str(entity.get("channelId") or "")
     parsed = parse_consult_message(str(entity.get("plainText") or ""))
     if not user_chat_id or parsed is None:
         return "ignored_no_code"
@@ -295,7 +297,7 @@ def handle_user_chat_message(session, payload: dict[str, Any],
     # 주문이 없을 때와 코드가 틀릴 때 메모를 똑같이 쓴다 — 어느 주문이 있는지 드러내지 않는다.
     rejected_note = "[FOMS 자동] 확인코드를 확인하지 못해 자동으로 보내지 않았어요. 담당자가 확인해 주세요."
     if order is None or is_partner_order(order):
-        _note(user_chat_id, rejected_note)
+        _note(user_chat_id, rejected_note, channel_id)
         return "rejected"
 
     request_event = _find_request(session, order.id, code, now)
@@ -305,7 +307,7 @@ def handle_user_chat_message(session, payload: dict[str, Any],
                 {"user_chat_id": user_chat_id,
                  "reason": "revoked" if revoked else "code_mismatch_or_expired"})
         session.commit()
-        _note(user_chat_id, rejected_note)
+        _note(user_chat_id, rejected_note, channel_id)
         return "rejected"
 
     request_payload = copy.deepcopy(request_event.payload)
@@ -313,7 +315,7 @@ def handle_user_chat_message(session, payload: dict[str, Any],
     if int(consult.get("deliveries") or 0) >= MAX_DELIVERIES:
         session.rollback()  # 행 잠금 풀기
         _note(user_chat_id, f"[FOMS 자동] 이 코드로 이미 {MAX_DELIVERIES}번 보냈어요. "
-                            f"더 필요하면 담당자가 직접 보내 주세요.\n{_order_url(order.id)}")
+                            f"더 필요하면 담당자가 직접 보내 주세요.\n{_order_url(order.id)}", channel_id)
         return "limit"
 
     try:
@@ -321,7 +323,7 @@ def handle_user_chat_message(session, payload: dict[str, Any],
     except share_service.SnapshotTooLargeError:
         session.rollback()
         _note(user_chat_id, f"[FOMS 자동] 계약서가 너무 커서 링크를 못 만들었어요. "
-                            f"담당자가 직접 보내 주세요.\n{_order_url(order.id)}")
+                            f"담당자가 직접 보내 주세요.\n{_order_url(order.id)}", channel_id)
         return "send_failed"
     # 잠금을 쥔 채로 횟수를 먼저 하나 잡아 둔다(동시에 눌러도 한도를 넘지 않게). 하나도 못 보내면 되돌린다.
     consult["deliveries"] = int(consult.get("deliveries") or 0) + 1
@@ -334,7 +336,8 @@ def handle_user_chat_message(session, payload: dict[str, Any],
     sent_ids: list[Optional[str]] = []
     error: Optional[str] = None
     for text, rows in messages:
-        result = channel_client.send_user_chat_message(user_chat_id, text, bot_name=_BOT_NAME)
+        result = channel_client.send_user_chat_message(user_chat_id, text, bot_name=_BOT_NAME,
+                                                       channel_id=channel_id)
         if not result.get("success"):
             error = result.get("error") or "provider_error"
             break
@@ -364,11 +367,11 @@ def handle_user_chat_message(session, payload: dict[str, Any],
 
     if status == "failed":
         _note(user_chat_id, f"[FOMS 자동] 링크를 상담에 쓰지 못했어요. 담당자가 직접 보내 주세요.\n"
-                            f"{_order_url(order.id)}")
+                            f"{_order_url(order.id)}", channel_id)
         return "send_failed"
     manager = (order.manager_name or "").strip() or "미지정"
     sent_label = "·".join(DOC_LABELS[kind] for kind, row, _t in links if row in sent_rows)
     tail = "" if status == "sent" else " 나머지는 쓰지 못했어요 — 담당자가 직접 보내 주세요."
     _note(user_chat_id, f"[FOMS 자동] 주문 {order.id} · 담당 {manager}\n"
-                        f"{sent_label} 링크를 보냈어요.{tail}\n{_order_url(order.id)}")
+                        f"{sent_label} 링크를 보냈어요.{tail}\n{_order_url(order.id)}", channel_id)
     return "delivered" if status == "sent" else "partial"
