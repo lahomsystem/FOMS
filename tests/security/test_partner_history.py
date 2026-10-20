@@ -92,7 +92,7 @@ def test_history_lines_partner_projection(app, world):
     assert by_title["시공일 정해짐"]["detail"] == "2026-10-22"
     assert by_title["시공일 바뀜"]["detail"] == "2026-10-22 → 2026-10-22, 2026-10-23"
     assert by_title["AS 방문 예정"]["detail"] == "2026-10-25 14:00" and by_title["AS 접수"]["who"] == "가나 직원"
-    assert {"주문 확인 · 도면 작업 시작", "도면 확정 · 협력사 확인 차례", "시공 끝", "품목 고침"} <= set(titles)
+    assert {"주문 확인 · 도면 작업 시작", "도면 확정 · 확인 차례", "시공 끝", "품목 고침"} <= set(titles)
     revisions = [x for x in lines if x["title"] == "수정 요청"]
     assert [(x["who"], x["detail"]) for x in revisions] == [("가나 직원", "서랍 3단으로"), ("저희 담당자", "")]
 
