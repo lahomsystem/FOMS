@@ -45,6 +45,7 @@ from sqlalchemy.orm import Session
 from db import Base
 from foms.services.common.table_version_counter import mark_tables_dirty
 from foms.services.datetime_kst import now_utc_naive
+from foms.services.order_storage_cleanup import storage_targets_for_orders
 from foms.services.security.ops_approval import consume_same_db
 
 OPERATION_ID = "DELETE_RETENTION_APPLY"
@@ -97,6 +98,8 @@ class DeleteRetentionResult:
         plan_sha256: 실행 시 검증한 plan 해시(승인 artifact_sha256 과 일치).
         count_sha256: expected count hash(id 집합·수 커밋).
         result_sha256: consume 결과 해시(dry-run 은 None).
+        storage_targets: 지울 저장소 파일(키·접두어, apply 만). 파일은 호출자가 **커밋 성공 뒤**
+            :func:`foms.services.order_storage_cleanup.delete_storage_targets` 로 지운다.
     """
 
     target_count: int
@@ -106,6 +109,7 @@ class DeleteRetentionResult:
     plan_sha256: str
     count_sha256: str
     result_sha256: Optional[str] = None
+    storage_targets: Optional[dict] = None
 
 
 # --------------------------------------------------------------------------- #
@@ -497,6 +501,8 @@ def apply_delete_retention(
     session.execute(text("SELECT pg_advisory_xact_lock(hashtext(:k))"), {"k": _ADVISORY_LOCK_KEY})
 
     scope = _ops_scope(live)
+    # 행이 사라지기 전에 파일 키를 모은다(지우는 것은 커밋 뒤 호출자 몫 — SPEC purge-storage-files).
+    storage_targets = storage_targets_for_orders(session, order_ids)
 
     def _target_mutation(sess: Session) -> bytes:
         return _hard_delete(sess, order_ids, batch_size=batch_size, plan_sha256=live["plan_sha256"])
@@ -516,6 +522,7 @@ def apply_delete_retention(
         target_count=len(order_ids), deleted=len(order_ids), applied=True, consumed=True,
         plan_sha256=live["plan_sha256"], count_sha256=live["count_sha256"],
         result_sha256=result_sha,
+        storage_targets=storage_targets,
     )
 
 

@@ -92,14 +92,6 @@
     },
     {
       "path": "foms/services/orders/delete_retention.py",
-      "lineno": 412,
-      "kind": "raw_dml",
-      "func": "_hard_delete",
-      "signal": "MARKED",
-      "reason": ""
-    },
-    {
-      "path": "foms/services/orders/delete_retention.py",
       "lineno": 416,
       "kind": "raw_dml",
       "func": "_hard_delete",
@@ -109,6 +101,14 @@
     {
       "path": "foms/services/orders/delete_retention.py",
       "lineno": 420,
+      "kind": "raw_dml",
+      "func": "_hard_delete",
+      "signal": "MARKED",
+      "reason": ""
+    },
+    {
+      "path": "foms/services/orders/delete_retention.py",
+      "lineno": 424,
       "kind": "raw_dml",
       "func": "_hard_delete",
       "signal": "MARKED",
