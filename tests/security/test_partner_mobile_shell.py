@@ -95,3 +95,29 @@ def test_mobile_list_uses_our_queue_cards_chips_and_turn_group(app, world):
     assert 'href="tel:010-1234-5678"' in mobile
     stage = _html(app, world["partner_a"], "/partner?stage=접수 확인 중")
     assert re.search(r'chip foms-chip is-active" href="[^"]*stage=[^"]*">접수 확인 중 1<', stage)
+
+
+def test_mobile_order_screen_hero_chip_tabs_and_as_sheet(app, world):
+    """4-3: 휴대폰 주문 화면 = 우리 상세 위 카드 + 칩 줄 탭, 완공 사진을 고르면 AS 칸이 아래 시트."""
+    from models import OrderAttachment
+    from tests.security.partner_fixtures import _to_stage
+
+    order_id = _create(app, world["partner_a"]).get_json()["data"]["order_id"]
+    html = _html(app, world["partner_a"], f"/partner/orders/{order_id}")
+    hero = html[html.index("detail-hero foms-detail-hero pp-mhero"):html.index('class="pp-mtabs"')]
+    assert "foms-stage-badge foms-stage-badge--received" in hero and "홍길동" in hero and "붙박이장" in hero
+    tabs = html[html.index('class="pp-mtabs"'):html.index("pp-order")]
+    assert re.findall(r'chip foms-chip" role="tab" data-pp-tab="(\w+)"', tabs) == ["order", "drawing", "completion", "history"]
+    assert 'data-pp-tab="completion" disabled' in tabs  # 시공 전에는 꺼짐
+    assert "data-pp-msheet" not in html  # 완공 사진 없으면 AS 시트도 없다
+
+    _to_stage(order_id, "COMPLETED")
+    db_session.add(OrderAttachment(order_id=order_id, filename="done.jpg", file_type="image", category="construction",
+                                   file_size=10, storage_key=f"orders/{order_id}/construction/done.jpg"))
+    db_session.commit()
+    done = _html(app, world["partner_a"], f"/partner/orders/{order_id}")
+    assert 'data-pp-msheet-picks="ppAsSheet"' in done and 'id="ppAsSheet" data-pp-msheet' in done
+    sheet = done[done.index('id="ppAsSheet"'):]
+    assert 'name="content"' in sheet[:1500]  # AS 내용 칸이 시트 안(같은 form 이라 고른 사진과 함께 보낸다)
+    assert done.index('id="ppAsForm"') < done.index('data-pp-msheet-picks') < done.index('id="ppAsSheet"')
+    assert 'data-pp-goto-tab="completion" data-pp-msheet-open="ppAsSheet"' in done  # 아래 고정 줄 "AS 접수"
