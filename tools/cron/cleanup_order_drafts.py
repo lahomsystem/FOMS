@@ -28,6 +28,14 @@ logger = logging.getLogger("cleanup_order_drafts")
 # 미승격 ERP draft 주문(status='DRAFT')을 소프트 삭제하기까지의 경과 시간(시간).
 ERP_DRAFT_STALE_HOURS = int(os.environ.get("ERP_DRAFT_STALE_HOURS", "48"))
 
+# 발송(알림톡·실측 PUSH) 기록이 있는데 주문이 안 된 초안은 만료돼도 지우지 않는다. 고객·실측방은
+# 안내를 받았는데 ERP 에 주문이 없는 상태라 조용히 지우면 흔적까지 사라진다(2026-10-20 설계서
+# docs/plans/2026-10-20-wizard-push-register-safety-spec.md §3.2). 관리자 화면에서 정리한다.
+# JSON 열이라 None 을 명시 대입한 행은 SQL NULL 이 아니라 JSON 'null' 이다 — 둘 다 "기록 없음".
+_KEEP_SENT_DRAFTS_SQL = (
+    " AND (send_history IS NULL OR CAST(send_history AS TEXT) = 'null' OR order_id IS NOT NULL)"
+)
+
 
 def _parse_args() -> argparse.Namespace:
     """Parse CLI flags for dry-run vs execute."""
@@ -89,7 +97,7 @@ def run(*, execute: bool = False, session=None) -> tuple[int, int]:
     now = now_utc_naive()
     try:
         scanned_row = session.execute(
-            text("SELECT COUNT(*) FROM order_drafts WHERE expires_at < :now"),
+            text("SELECT COUNT(*) FROM order_drafts WHERE expires_at < :now" + _KEEP_SENT_DRAFTS_SQL),
             {"now": now},
         ).fetchone()
         scanned = scanned_row[0] if scanned_row else 0
@@ -97,7 +105,7 @@ def run(*, execute: bool = False, session=None) -> tuple[int, int]:
         deleted = 0
         if execute and scanned > 0:
             result = session.execute(
-                text("DELETE FROM order_drafts WHERE expires_at < :now"),
+                text("DELETE FROM order_drafts WHERE expires_at < :now" + _KEEP_SENT_DRAFTS_SQL),
                 {"now": now},
             )
             deleted = result.rowcount

@@ -8,11 +8,11 @@
     "log_access"
   ],
   "baselines": {
-    "total": 232,
+    "total": 233,
     "unaudited": 1
   },
   "classification_counts": {
-    "AUDITED": 201,
+    "AUDITED": 202,
     "EXEMPT": 30,
     "UNAUDITED": 1
   },
@@ -41,7 +41,7 @@
     {
       "path": "foms/api/channel/channel_integration.py",
       "endpoint": "api_channel_push_estimate",
-      "lineno": 988,
+      "lineno": 1004,
       "methods": [
         "POST"
       ],
@@ -50,7 +50,7 @@
     {
       "path": "foms/api/channel/channel_integration.py",
       "endpoint": "api_channel_push_manual",
-      "lineno": 475,
+      "lineno": 480,
       "methods": [
         "POST"
       ],
@@ -1933,6 +1933,15 @@
       "path": "foms/web/admin/routes.py",
       "endpoint": "update_menu",
       "lineno": 33,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/web/admin/sent_unregistered_drafts.py",
+      "endpoint": "discard_sent_unregistered_draft",
+      "lineno": 90,
       "methods": [
         "POST"
       ],

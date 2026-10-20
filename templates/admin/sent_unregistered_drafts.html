@@ -1,0 +1,81 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}발송 후 미등록 초안{% endblock %}
+
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/admin/audit-tables.css') }}?v=20260811c">
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1>발송 후 미등록 초안</h1>
+    <p class="text-muted">
+        주문 등록 마법사에서 알림톡·실측 PUSH 는 보냈는데 [주문 등록] 을 누르지 않은 초안입니다.
+        고객·실측방은 안내를 받았지만 ERP 에는 주문이 없습니다. 등록은 작성자가 홈 화면
+        '작성 중' 줄에서 이어서 합니다. 여기서는 버려도 되는 초안(중복·취소된 상담)만 정리합니다.
+    </p>
+
+    <p>
+        지금 <strong>{{ rows|length }}건</strong>입니다.
+        {% if truncated %}
+        <span class="text-warning">조회 상한에 걸려 일부가 빠졌을 수 있습니다.</span>
+        {% endif %}
+    </p>
+
+    {% if rows %}
+    <div class="table-responsive">
+        <table class="table table-striped table-hover audit-table">
+            <thead>
+                <tr>
+                    <th>마지막 발송</th>
+                    <th>무슨 발송</th>
+                    <th>고객</th>
+                    <th>연락처</th>
+                    <th>주소</th>
+                    <th>작성자</th>
+                    <th>마지막 저장</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in rows %}
+                <tr>
+                    <td class="audit-cell-time">{{ row.sent_at }}</td>
+                    <td>{{ row.kind }}</td>
+                    <td>{{ row.customer_name }}</td>
+                    <td>{{ row.phone }}</td>
+                    <td>{{ row.address }}</td>
+                    <td>{{ row.author }}</td>
+                    <td class="audit-cell-time">{{ row.updated_at }}</td>
+                    <td>
+                        <form method="post" action="{{ url_for('admin.discard_sent_unregistered_draft', draft_id=row.id) }}"
+                              data-discard-draft>
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="btn btn-sm btn-outline-danger">버리기</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="text-success">발송하고 등록을 놓친 초안이 없습니다.</p>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  "use strict";
+  document.addEventListener("submit", function (ev) {
+    var form = ev.target;
+    if (form && form.hasAttribute && form.hasAttribute("data-discard-draft")
+        && !window.confirm("이 초안을 버릴까요? 되돌릴 수 없습니다.")) {
+      ev.preventDefault();
+    }
+  });
+})();
+</script>
+{% endblock %}

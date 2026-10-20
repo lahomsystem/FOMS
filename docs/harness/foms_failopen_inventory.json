@@ -43,8 +43,8 @@
   },
   "fail_closed_sites": [
     "db.py:68",
-    "foms/api/channel/channel_integration.py:391",
-    "foms/api/channel/channel_integration.py:1121",
+    "foms/api/channel/channel_integration.py:396",
+    "foms/api/channel/channel_integration.py:1137",
     "foms/api/orders/stage_override_admin.py:144",
     "foms/api/orders/stage_override_admin.py:210",
     "foms/persistence/designer/repositories.py:173",
@@ -76,7 +76,7 @@
     "foms/services/jobs/tasks.py:653",
     "foms/services/jobs/tasks.py:697",
     "foms/services/jobs/tasks.py:703",
-    "foms/services/notifications/push_sender.py:655",
+    "foms/services/notifications/push_sender.py:657",
     "foms/web/auth/routes.py:137",
     "foms/web/orders/trash.py:189",
     "wdcalculator_db.py:152"
@@ -112,7 +112,7 @@
     },
     {
       "path": "foms/api/channel/channel_integration.py",
-      "lineno": 391,
+      "lineno": 396,
       "handler_type": "broad_exception",
       "disposition": "FAIL_CLOSED",
       "owner": "channel",
@@ -121,7 +121,7 @@
     },
     {
       "path": "foms/api/channel/channel_integration.py",
-      "lineno": 731,
+      "lineno": 747,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "channel",
@@ -130,7 +130,7 @@
     },
     {
       "path": "foms/api/channel/channel_integration.py",
-      "lineno": 777,
+      "lineno": 793,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "channel",
@@ -139,7 +139,7 @@
     },
     {
       "path": "foms/api/channel/channel_integration.py",
-      "lineno": 981,
+      "lineno": 997,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "channel",
@@ -148,7 +148,7 @@
     },
     {
       "path": "foms/api/channel/channel_integration.py",
-      "lineno": 1121,
+      "lineno": 1137,
       "handler_type": "broad_exception",
       "disposition": "FAIL_CLOSED",
       "owner": "channel",
@@ -157,7 +157,7 @@
     },
     {
       "path": "foms/api/channel/channel_integration.py",
-      "lineno": 1149,
+      "lineno": 1165,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "channel",
@@ -166,7 +166,7 @@
     },
     {
       "path": "foms/api/channel/channel_integration.py",
-      "lineno": 1299,
+      "lineno": 1315,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "channel",
@@ -175,7 +175,7 @@
     },
     {
       "path": "foms/api/channel/channel_integration.py",
-      "lineno": 1377,
+      "lineno": 1393,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "channel",
@@ -4513,7 +4513,7 @@
     },
     {
       "path": "foms/services/notifications/push_sender.py",
-      "lineno": 307,
+      "lineno": 309,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "telemetry",
@@ -4522,7 +4522,7 @@
     },
     {
       "path": "foms/services/notifications/push_sender.py",
-      "lineno": 543,
+      "lineno": 545,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "telemetry",
@@ -4531,7 +4531,7 @@
     },
     {
       "path": "foms/services/notifications/push_sender.py",
-      "lineno": 655,
+      "lineno": 657,
       "handler_type": "broad_exception",
       "disposition": "FAIL_CLOSED",
       "owner": "telemetry",
@@ -4540,7 +4540,7 @@
     },
     {
       "path": "foms/services/notifications/push_sender.py",
-      "lineno": 735,
+      "lineno": 737,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "telemetry",
@@ -4549,7 +4549,7 @@
     },
     {
       "path": "foms/services/notifications/push_sender.py",
-      "lineno": 792,
+      "lineno": 794,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "telemetry",
