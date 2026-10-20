@@ -142,6 +142,10 @@ def format_phone_no_prefix(value) -> str:
     """
     if not value:
         return ''
+    # 번호 여러 개('010-1111-2222 /010-3333-4444')는 각각 포맷해 줄바꿈으로 잇는다.
+    parts = [p for p in re.split(r'[/,;\n]+', str(value)) if p.strip()]
+    if len(parts) > 1:
+        return '\n'.join(format_phone_no_prefix(p.strip()) for p in parts)
     digits = re.sub(r'[^0-9]', '', str(value))
     if len(digits) == 11:
         if digits.startswith('010'):
