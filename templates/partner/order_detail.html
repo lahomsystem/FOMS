@@ -3,7 +3,9 @@
 {% block title %}주문 #{{ view.id }}{% endblock %}
 {% block styles %}<link rel="stylesheet" href="{{ asset_url('css/orders/erp-items-master-detail.css') }}">
 <link rel="stylesheet" href="{{ asset_url('css/components/foms-drawing-mobile.css') }}">
-<link rel="stylesheet" href="{{ asset_url('css/components/foms-lightbox.css') }}">{% endblock %}
+<link rel="stylesheet" href="{{ asset_url('css/components/foms-lightbox.css') }}">
+{% if product_names %}<link rel="stylesheet" href="{{ asset_url('css/wdcalculator/category-picker.css') }}">
+<link rel="stylesheet" href="{{ asset_url('css/orders/erp-spec-calc.css') }}">{% endif %}{% endblock %}
 {% block main_class %}pp-main--wide{% endblock %}
 {% block mobile_title %}주문 #{{ view.id }}{% endblock %}
 {% block mobile_back %}{{ url_for('partner_portal.home') }}{% endblock %}
@@ -54,7 +56,10 @@
 {% include "partner/partials/order_actions.html" %}
 {% if view.items_editable %}
 {% from "partner/partials/item_card.html" import pp_item_templates %}
-{{ pp_item_templates() }}
+{{ pp_item_templates(product_names | length > 0) }}
+{% if product_names %}<div hidden data-pp-product-names='{{ product_names | tojson }}'></div>
+<script src="{{ asset_url('js/orders/erp-spec-picker.js') }}" defer></script>
+<script src="{{ asset_url('js/partner/partner-order-entry.js') }}" defer></script>{% endif %}
 <script src="{{ asset_url('js/partner/partner-items.js') }}" defer></script>
 {% endif %}
 <script src="{{ asset_url('js/partner/partner-items-rail.js') }}" defer></script>

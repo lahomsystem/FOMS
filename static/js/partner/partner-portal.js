@@ -76,7 +76,7 @@
   }
 
   function bindNewOrder(form) {
-    var items = document.getElementById('ppItems');
+    var items = form.querySelector('[data-pp-items]');
     if (!window.PartnerItems) return;
     window.PartnerItems.init(items, form.querySelector('[data-pp-add-item]'));
     var busy = false;

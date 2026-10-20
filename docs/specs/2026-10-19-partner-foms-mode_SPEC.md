@@ -253,3 +253,27 @@
 - 4-2 목록: `templates/partner/home.html` 에 휴대폰 전용 `.foms-shell-body.pp-mlist` — 검색 줄(`erp-mobile-queue-filters`) · 칩 줄(전체 · 단계 7칸 · 내 담당, 도면 확인 대기는 노란 칩) · 우리 큐 카드(`foms-queue-card-v2`, 단계 칩 색 `foms-stage-badge--<단계>`, 지금 · 주소 · 제품 · 연락처(전화 링크) · 시공일 · 담당, "도면 확인하기"/"열기") + 진행 막대. 3-2 의 옛 카드 목록(`pp-cards`)과 CSS 는 걷었다.
 - 4-3 주문 화면: 휴대폰에서 카드 머리 · 탭 대신 우리 상세 위 카드(`foms-detail-hero`: 단계 칩 · 내 차례 · 고객 · 제품 · 시공일)와 칩 줄 탭(`foms-chip`, 위 줄 아래 고정). 단계 칩 색은 공용 조각 `partials/stage_badge.html`(목록과 같이 씀). 완공 사진이 있고 AS 를 접수할 수 있으면, AS 칸은 PC 에서 사진 아래 펼친 칸 · 휴대폰에서 사진을 고르면 올라오는 아래 시트(같은 form 안이라 고른 사진과 함께 보낸다, `is-open` · 고른 장수 표시, `partner-shell.js`). 아래 고정 줄 "AS 접수"도 그 시트를 연다.
 - 시험 `tests/security/test_partner_mobile_shell.py` 6건(위 줄 · 아래 탭 5개 · 활성 탭 · 뒤로 · 배지 · CSS 핀, 휴대폰 목록 카드 · 칩 · 내 차례 묶음 · 다른 회사 제외, 주문 화면 위 카드 · 칩 탭 · AS 시트).
+
+## 17. 5단계 새 주문 화면 설계 (2026-10-20 사용자 승인: 셋 다 5-1 부터 · 주소 찾기는 우리 PC 와 같은 창 · ▾ 목록은 제품명만)
+
+### 17.1 사실
+- 지금 협력사 새 주문(`templates/partner/new_order.html`)은 단독 form(`pp-fieldset` 넷)이다. 제품 카드는 주문 화면과 같은 매크로(`partials/item_card.html` `pp_item`)지만, 왼쪽 목록 · 오른쪽 상세 틀은 주문 화면(`partials/order_items.html`)에만 있다.
+- 보내기 순서: 주문 만들기(`POST /api/partner/orders`) → 사진 올리기(`POST …/files`, `item_index`). 주문이 생겨야 올릴 곳이 생기므로, 새 주문 화면의 사진은 보내기 전까지 브라우저에만 있다(`partner-portal.js` `bindNewOrder`).
+- 우리 새 주문(`/add`, `orders/add_order.html:372`)은 주문 화면과 같은 `orders/partials/erp_order_tab.html` 을 쓴다(목록 · 상세 `:389-410`). 우리 휴대폰 새 주문은 마법사(`orders/wizard/wizard_shell.html`)라 모양이 따로다.
+- 제품명 목록: 우리 입력 칸 옆 ▾ 단추(`static/js/orders/erp-spec-calc.js:160-184`)가 `ErpSpecPicker.openSingle` 을 연다(`static/js/orders/erp-spec-picker.js` — PC 는 펼침 목록, 휴대폰은 아래 시트. 다른 JS 에 기대지 않는 모듈). 목록 출처 `GET /api/wdcalculator/products` 는 값에 단가가 들어 있고 협력사 허용 목록 밖이다. 우리 화면은 발주사가 라홈인 주문에서만 켠다.
+- 품목 사진: 우리 칸은 `[data-erp-attachment-paste-zone="item"]` · "즉시 추가" · Ctrl+V(`erp-order-shared.js:1780-1797 · 5078-5093`). 끌어놓기는 우리 화면에도 없다. 우리 쪽은 주문이 이미 있어 바로 올린다.
+- 공통 사진 연결 · 해제: 우리 `PATCH /api/orders/<id>/attachments/<aid>` `{item_index}`(`foms/api/files/order_routes.py:498`) — 공통 카드의 "제품 연결" 고르기, 품목 사진의 "공통으로 이동" 단추. 협력사 쪽 API 는 아직 없다(§4-5).
+- 주소 찾기: 우리 PC 는 서버의 카카오 주소 검색 `GET /api/address/search`(`foms/api/address.py:96`, 로그인만 확인 · 주문 데이터 없음) + 검색 창(`erp_order_tab.html:599-628`, Bootstrap 모달). 협력사 허용 목록에 없다. 휴대폰 마법사는 다음 우편번호 창(`wizard_shell.html:92`).
+- 전체 항목 요약은 우리도 `window.alert`(`static/js/orders/erp-items-master-detail.js:267`).
+
+### 17.2 설계 — 우리 부품 클래스 + 협력사 파일(§5-8 그대로), 셋으로 나눈다
+- **5-1 화면 틀**: 우리 새 주문 모양 — "주문 정보" 카드(고객명 · 연락처 · 주소 + 찾기 · 실측일 · 메모, 우리 `erp_order_tab` 칸 순서) → 제품 항목 왼쪽 목록 · 오른쪽 상세(주문 화면 조각을 새 주문에도 씀) → 공통 첨부 → 아래 고정 줄 "보내기"(휴대폰은 아래 탭 위).
+  - 제품명 ▾ 목록: 우리 제품 목록의 **이름만** 화면에 싣는다(단가 등 다른 값은 싣지 않음, 새 라우트 없음). 고르기는 우리 `erp-spec-picker.js` 를 그대로 싣고, 직접 입력은 지금처럼 된다.
+  - 주소 찾기: 우리 PC 와 같은 검색 창(검색어 · 상세주소 · 결과 목록 · 입력)을 협력사 파일로 그리고, 우리 서버 카카오 검색(`address.search`)을 협력사 허용 목록에 하나 더한다. 고르면 "도로명 주소 + 상세주소"가 주소 칸에 들어간다. 꼭 넣을 칸은 지금과 같다(고객명 · 연락처 · 주소 · 품목 1개).
+- **5-2 사진**: 품목 사진 칸을 우리 모양으로 — "즉시 추가" · Ctrl+V · 끌어놓기(PC), "찍기" · "앨범"(휴대폰). 고른 사진은 미리보기 · 빼기. 공통 첨부(실측 사진 · 초안 도면)도 같은 칸이고, 공통 사진마다 "제품 연결" 고르기, 품목 사진마다 "공통으로" 단추. 보내기 때 지금처럼 주문 → 사진 순서로 올린다(서버 변경 없음).
+- **5-3 접수 확인 중 주문 화면 사진**: 주문 화면(접수 확인 중)에도 같은 사진 칸. 이미 올린 사진의 연결 · 해제는 새 API `PATCH /api/partner/orders/<id>/attachments/<aid>` `{item_index}` — 접수 확인 중만(밖이면 409), 다른 회사 404, 협력사가 올린 실측 사진만(아니면 400), 품목 범위 안만, `item_id` 같이 고침, 첨부 변경 기록(`ATTACHMENT_META_UPDATED`)은 우리와 같이 남김. 허용 목록 · 쓰기 목록 · "다른 회사 거부" 시험 1:1(§4-8).
+- 우리 직원 화면 파일은 바꾸지 않는다. 직원 쪽 제품 목록 · 주소 검색 라우트도 바꾸지 않는다.
+
+### 17.3 검증
+- 시험: 새 주문 화면 원문에 목록 · 상세 틀 · ▾ 단추 · 주소 찾기 창, 실린 제품 목록에 이름만(단가 키 0개), 등록 필수 칸 그대로. 협력사가 주소 검색은 되고 우리 다른 API(제품 단가 목록 등)는 여전히 막힘(대조군). 5-3 API: 다른 회사 404 · 도면 단계 409 · 다른 주문 사진 · 우리 직원 파일 · 실측 사진 아님 · 범위 밖 400, 연결 뒤 `item_index` · `item_id`.
+- 스테이징 실화면: PC 1440px 등록(목록 고르기 · 직접 입력 · W*D*H 붙여넣기 · 주소 찾기 · Ctrl+V · 끌어놓기 · 공통 사진 연결) → 주문 화면에 품목 사진 자리가 맞음. 휴대폰 390px(찍기 · 앨범 · 아래 시트 목록 · 가로 넘침 0).
