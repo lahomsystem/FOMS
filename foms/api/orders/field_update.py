@@ -14,7 +14,8 @@ from sqlalchemy.orm.attributes import flag_modified
 from foms.web.auth import get_user_by_id, log_access
 from foms.services.audit_message_display import describe_field_change
 from foms.services.orders.audit_order_context import order_audit_context
-from foms.services.orders.status_constants import STATUS
+from foms.services.orders.status_constants import STATUS, is_logistics_board_status
+from foms.services.orders.order_mutation_policy import user_can
 from db import get_db
 from foms.services.as_content_safety import load_structured_data_dict_or_raise
 from foms.services.erp_order_flags import is_erp_order_record
@@ -466,6 +467,31 @@ def _bridge_as_completed_date(db, order: Order, user: Any, value: Any, body: dic
         order, "as_completed_date", value, getattr(order, "structured_data", None) or {}))
 
 
+def _team_scope_error(user: Any, field: str, value: Any):
+    """담당자·상태 칸은 역할표(§2.1)의 팀만 쓴다 — 경로 전체는 STAFF 전 팀이라 칸별로 본다.
+
+    담당자와 main-stage 상태는 주문 form 이라 영업·CS(``ERP_EDIT``)만, 물류 보드 목표
+    상태(설치예정·출고대기 등)는 출고팀도 쓰는 일정 축이라 ``SHIPMENT_EDIT`` 로 본다.
+    그 밖의 칸(AS 날짜·지방 체크리스트 등)은 지금처럼 통과시킨다.
+
+    Returns:
+        거부면 ``(response, 403)``, 통과면 ``None``.
+    """
+    if field == "manager_name":
+        policy_id = "ERP_EDIT"
+    elif field == "status":
+        policy_id = "SHIPMENT_EDIT" if is_logistics_board_status(value) else "ERP_EDIT"
+    else:
+        return None
+    if user_can(policy_id, user):
+        return None
+    return jsonify({
+        "success": False,
+        "code": "FORBIDDEN",
+        "message": "이 칸을 바꿀 권한이 없는 팀입니다.",
+    }), 403
+
+
 def update_order_field_response(
     *,
     clean_dict_like_name: Callable[[Any], str],
@@ -508,6 +534,10 @@ def update_order_field_response(
             jsonify({"success": False, "message": f"허용되지 않은 필드입니다: {field}"}),
             400,
         )
+
+    team_denied = _team_scope_error(user, field, value)
+    if team_denied is not None:
+        return team_denied
 
     # ADMIN-OVERRIDE-01 C1: 권한 축 판정을 업무 게이트보다 먼저 돌린다.
     err = admin_override_error(user, data)

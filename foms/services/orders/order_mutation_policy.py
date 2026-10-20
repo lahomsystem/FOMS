@@ -156,7 +156,7 @@ POLICY_REGISTRY: dict[str, Policy] = {
 
     # --- 주문 form/estimate/일반 (CS/SALES team-wide) -----------------------
     "ERP_EDIT": _p("ERP_EDIT", teams=("CS", "SALES"),
-                   description="주문 form/finance-외 CS·SALES command(call-log/cs-complete/confirm/AS/estimate/measurement/address/gateway). MEASURE→SALES, ACCOUNTING→CS capability(2026-09-03)."),
+                   description="주문 form(구조화 폼·편집 폼·담당자·상태 — §2.1 '일반 structured form' 은 CS/SALES 만, 2026-10-20)·finance-외 CS·SALES command(call-log/cs-complete/confirm/AS/estimate/measurement/address/gateway). MEASURE→SALES, ACCOUNTING→CS capability(2026-09-03)."),
 
     # --- 일반 STAFF 업무(전 팀 열람+쓰기, 현행 role_required STAFF) ----------
     "STAFF_MUTATION": _p("STAFF_MUTATION", teams="*",
