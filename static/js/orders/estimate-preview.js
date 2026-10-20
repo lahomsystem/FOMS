@@ -310,6 +310,8 @@
             }
             var s = document.createElement('script');
             s.src = _HTML2CANVAS_SRC;
+            s.integrity = 'sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H';
+            s.crossOrigin = 'anonymous';
             s.async = true;
             s.onload = function () {
                 if (typeof window.html2canvas === 'function') {
