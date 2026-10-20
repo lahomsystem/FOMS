@@ -20,6 +20,7 @@
     Array.prototype.forEach.call(document.querySelectorAll('[data-pp-tab]'), function (btn) {
       var on = btn.getAttribute('data-pp-tab') === name;
       btn.classList.toggle('active', on);
+      btn.classList.toggle('is-active', on);  // 휴대폰 칩 줄 탭(우리 foms-chip)
       btn.setAttribute('aria-selected', on ? 'true' : 'false');
     });
   }

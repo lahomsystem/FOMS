@@ -12,7 +12,7 @@
         <button type="button" class="btn btn-primary" data-pp-approve-url="{{ url_for('partner_api.approve_drawing', order_id=view.id) }}"><i class="fas fa-check"></i> 이대로 만들어 주세요</button>
         {% endif %}
         {% if can_as %}
-        <button type="button" class="btn btn-outline-primary" data-pp-goto-tab="completion">AS 접수</button>
+        <button type="button" class="btn btn-outline-primary" data-pp-goto-tab="completion" data-pp-msheet-open="ppAsSheet">AS 접수</button>
         {% endif %}
         <a class="btn btn-outline-secondary" href="{{ url_for('partner_portal.home') }}">목록으로</a>
     </div>

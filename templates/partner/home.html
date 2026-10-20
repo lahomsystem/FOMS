@@ -45,7 +45,7 @@
 </div>
 
 {# 4-2 휴대폰: 우리 검색 줄 · 칩 줄 · 큐 카드(설계서 §3.2 · §16). 진행 막대는 협력사 추가. PC 는 위 프로세스 맵 · 작업 큐 표. #}
-{% set badge_mod = {"접수 확인 중": "received", "도면 작업 중": "drawing", "도면 확인 대기": "confirm", "생산 중": "production", "시공 예정": "construction", "완료": "completed", "AS 진행 중": "cs"} %}
+{% from "partner/partials/stage_badge.html" import stage_badge %}
 {% set q = filters.q or None %}
 <div class="foms-shell-body pp-mlist">
     <section class="erp-mobile-queue-filters foms-mobile-filter-bar" aria-label="주문 찾기">
@@ -74,7 +74,7 @@
     {% elif not o.turn and (loop.first or loop.previtem.turn) %}<div class="foms-section-header section-header pp-mlist__group"><h2 class="section-header__title foms-section-header__title">{{ '다른 주문' if turn_count else '주문' }}</h2><span class="section-header__count foms-section-header__count">{{ orders | length - turn_count }}</span></div>{% endif %}
     <article class="queue-card foms-queue-card-v2 pp-qcard{% if o.turn %} pp-qcard--turn{% endif %}" data-pp-order-id="{{ o.id }}">
         <header class="queue-card__head foms-queue-card-v2__head">
-            <span class="foms-stage-badge foms-stage-badge--{{ badge_mod.get(o.stage_label, 'received') }}">{{ o.stage_label }}</span>
+            {{ stage_badge(o.stage_label) }}
             {% if o.turn %}<span class="foms-badge foms-badge--alert">내 차례</span>{% endif %}
             <span class="queue-card__time foms-queue-card-v2__time">#{{ o.id }}</span>
         </header>
