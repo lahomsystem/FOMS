@@ -23,8 +23,8 @@ from foms.services.as_content_safety import as_content_html_to_text
 from foms.services.orders.as_availability import as_availability_label
 from foms.services.orders.as_log import (
     _legacy_entries_from_content,
-    current_as_cycle_id,
     current_as_round,
+    current_reception_entry,
     decorate_entry,
 )
 
@@ -528,10 +528,7 @@ def build_as_round_chart_view(
     availability = as_visit.get("availability")
     availability = availability if isinstance(availability, dict) and availability else None
     # 증상 = 현재 건의 접수 원문(기록 수정이 바로 보이게) → 없으면 as_content.
-    cur_cycle = current_as_cycle_id(sd)
-    cur_reception = next((
-        e for e in entries if isinstance(e, dict) and e.get("deleted") is not True
-        and e.get("type") == "reception" and cur_cycle and e.get("cycle_id") == cur_cycle), None)
+    cur_reception = current_reception_entry(sd)
     symptom = (_preview_text(cur_reception.get("text")) if cur_reception else "") or (
         _preview_text(shipment.get("as_content"))) or (
         _preview_text(reception.get("text")) if reception else "")

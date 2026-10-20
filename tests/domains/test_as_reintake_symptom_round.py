@@ -68,3 +68,19 @@ def test_unedited_reintake_same_legacy_text_stays_round_one(client):
                        json={"as_content": "서랍 안열림"}).status_code == 200
 
     assert build_as_round_chart_view(_sd(order_id))["current_display_round"] == 1
+
+
+def test_as_push_text_uses_edited_reception():
+    from types import SimpleNamespace
+
+    from foms.services.channel_as_message import build_as_push_text
+
+    sd = {
+        "as_lifecycle": {"current_cycle_id": "c1", "cycles": [
+            {"cycle_id": "c1", "initial_content": "안열림", "transitions": []}]},
+        "shipment": {"as_content": "안열림", "as_log": [
+            {"id": "r1", "type": "reception", "text": "안닫힘", "round": 1, "cycle_id": "c1",
+             "ts": "2026-10-20T00:15:36"}]},
+    }
+    text = build_as_push_text(SimpleNamespace(structured_data=sd))
+    assert "내용 : 안닫힘" in text and "안열림" not in text
