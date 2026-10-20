@@ -460,6 +460,7 @@ def test_namespaced_channel_security_shim_preserves_canonical_contract() -> None
     """The legacy services path should re-export the canonical channel security helpers."""
     expected_public_names = [
         "verify_channel_signature",
+        "verify_channel_webhook_token",
         "require_channel_signature",
         "generate_wam_launch_token",
         "generate_wam_entry_token",
