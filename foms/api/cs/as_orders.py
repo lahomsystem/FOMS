@@ -61,6 +61,7 @@ from foms.services.orders.as_log import (
     append_verdict_log,
     build_as_timeline_view,
     coerce_client_log_type,
+    current_as_cycle_id,
     current_as_round,
     decorate_entry,
     migrate_legacy_into_log,
@@ -1285,6 +1286,11 @@ def api_as_log_patch(order_id: int, log_id: str):
         locked["text"] = text
         locked["edited_at"] = now_utc_naive().isoformat()
         locked["edited_by"] = user.name if user else ""
+        # 현재 건의 접수 원문을 고치면 화면 상단 "증상"(shipment.as_content)도 따라가야 한다 —
+        # 안 그러면 기록은 고쳐졌는데 증상 줄은 처음 문구 그대로 남는다.
+        if locked.get("type") == "reception" and locked.get("cycle_id") and (
+                locked.get("cycle_id") == current_as_cycle_id(sd)):
+            sd["shipment"]["as_content"] = text
         captured["entry"] = locked
 
     try:
