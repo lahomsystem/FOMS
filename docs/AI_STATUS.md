@@ -10,6 +10,7 @@ Flask 3.1 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
+- [2026-10-20] **마법사 등록하고 PUSH + 미등록 초안 알림(deploy `457ba1e9e`)** — 스펙 `2026-10-20-wizard-push-register-safety-spec`. 잔여: 승격
 - [2026-10-20] **알림톡 '상담 먼저'(deploy 대기·env 꺼짐)** — [문서 받기]→채널톡 상담에 링크 자동. 서식 심사 중. SPEC `2026-10-20-alimtalk-consult-first-design` §5
 - [2026-10-20] **협력사 화면 1~3·6 운영(#577~#603, 3-3 도면 그림·이력 포함)** — SPEC `2026-10-19-partner-foms-mode` §15. 잔여: 4 모바일·5 새 주문
 - [2026-10-20] **보안 점검 후속 2차 운영(PR #591·#605)** — 팀 권한·글자 변환·세션 끊기(session_rev_00)·Pillow 12.3·완전 삭제 파일·셸 가드·협력사 초안 공유 제외·외부 스크립트 SRI. SPEC `2026-10-20-*`
