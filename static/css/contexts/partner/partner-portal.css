@@ -266,7 +266,7 @@
 
 /* 3-3 도면 갤러리 — 고객 공유 화면과 같은 카드(우리 조각), 저장 단추 규칙은 공유 화면 것을 협력사 칸에 가둬 옮겼다. */
 .pp-drawing-gallery .foms-drawing-mobile-v2 { padding: 0 0 8px; }
-.pp-drawing-gallery .foms-drawing-card-grid { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+.pp-drawing-gallery .foms-drawing-card-grid { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
 .pp-drawing-gallery .foms-share-card-wrap { position: relative; min-width: 0; }
 .pp-drawing-gallery .foms-share-card-wrap > .foms-drawing-card { width: 100%; }
 .pp-drawing-gallery .foms-drawing-card-grid > .foms-share-card-wrap:only-child { grid-column: 1 / -1; width: fit-content; max-width: 100%; }
@@ -304,8 +304,9 @@
 .pp-history__at { display: block; margin-top: 2px; color: var(--pp-muted); font-size: 12px; }
 
 @media (max-width: 575.98px) {
-  /* 탭 4개 — 휴대폰에서 두 줄로 꺾지 않고 옆으로 민다. */
+  /* 탭 4개 — 휴대폰 한 줄에 다 보이게 안내 글을 빼고 여백을 줄인다(넘치면 옆으로 민다). */
   .pp-tabs { flex-wrap: nowrap; overflow-x: auto; }
-  .pp-tabs .nav-link { white-space: nowrap; }
+  .pp-tabs .nav-link { padding: 0.5rem 0.6rem; white-space: nowrap; }
+  .pp-tabs__hint { display: none; }
   .pp-drawing-gallery .foms-drawing-card-grid { grid-template-columns: minmax(0, 1fr); }
 }

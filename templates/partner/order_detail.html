@@ -14,7 +14,7 @@
     <ul class="nav nav-tabs px-2 pt-2 pp-tabs" role="tablist">
         <li class="nav-item"><button type="button" class="nav-link" role="tab" data-pp-tab="order"><i class="fas fa-layer-group"></i> 주문</button></li>
         <li class="nav-item"><button type="button" class="nav-link" role="tab" data-pp-tab="drawing"><i class="fas fa-compass-drafting"></i> 도면{% if can_approve %} <span class="badge bg-danger">확인</span>{% endif %}</button></li>
-        <li class="nav-item"><button type="button" class="nav-link" role="tab" data-pp-tab="completion"{% if not (show_completion or as_open) %} disabled title="시공이 끝나면 열립니다"{% endif %}><i class="fas fa-camera"></i> 완공 사진{% if not (show_completion or as_open) %} <span class="small text-muted">(시공 뒤)</span>{% endif %}</button></li>
+        <li class="nav-item"><button type="button" class="nav-link" role="tab" data-pp-tab="completion"{% if not (show_completion or as_open) %} disabled title="시공이 끝나면 열립니다"{% endif %}><i class="fas fa-camera"></i> 완공 사진{% if not (show_completion or as_open) %} <span class="small text-muted pp-tabs__hint">(시공 뒤)</span>{% endif %}</button></li>
         <li class="nav-item"><button type="button" class="nav-link" role="tab" data-pp-tab="history"><i class="fas fa-clock-rotate-left"></i> 이력</button></li>
     </ul>
     <div class="card-body foms-page-form">

@@ -82,7 +82,7 @@ def _drawing_lines(history: list[dict], names: dict[int, str]) -> tuple[list[dic
             note = str(h.get("note") or "").strip()[:MAX_NOTE] if name else ""
             lines.append(_line(h.get("at"), "revision", "수정 요청", name or OUR_STAFF, note))
         elif action == "CONFIRM_RECEIPT":
-            lines.append(_line(h.get("at"), "drawing", "도면 확정 · 협력사 확인 차례", OUR_STAFF))
+            lines.append(_line(h.get("at"), "drawing", "도면 확정 · 확인 차례", OUR_STAFF))
     return lines, rounds
 
 
