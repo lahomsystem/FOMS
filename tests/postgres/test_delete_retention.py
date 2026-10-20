@@ -427,3 +427,30 @@ def test_advisory_lock_serializes_apply(pg_engine):
     finally:
         other.close()
         s.close()
+
+
+# --------------------------------------------------------------------------- #
+# 완전 삭제 대상 파일 (SPEC 2026-10-20-purge-storage-files)
+# --------------------------------------------------------------------------- #
+def test_apply_reports_storage_targets_only_for_purged_orders(pg_engine):
+    s = _session(pg_engine)
+    try:
+        admin = _admin(s)
+        aged = _order(s)
+        live = _order(s)
+        _attach(s, aged, filename="aged.jpg")
+        _attach(s, live, filename="live.jpg")
+        _soft_delete(s, aged, admin.id, days_ago=400)
+
+        plan = build_delete_plan(s, retention_days=365)
+        _row, raw = _approve(s, admin, plan)
+        dry = apply_delete_retention(s, approved_plan=plan, raw_secret=raw, apply=False)
+        s.rollback()
+        assert dry.storage_targets is None  # dry-run 은 파일 대상도 없다
+
+        res = apply_delete_retention(s, approved_plan=plan, raw_secret=raw, apply=True)
+        s.commit()
+
+        assert res.storage_targets == {"keys": ["uploads/aged.jpg"], "prefixes": [f"orders/{aged}/"]}
+    finally:
+        s.close()
