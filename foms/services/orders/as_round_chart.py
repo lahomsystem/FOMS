@@ -23,6 +23,7 @@ from foms.services.as_content_safety import as_content_html_to_text
 from foms.services.orders.as_availability import as_availability_label
 from foms.services.orders.as_log import (
     _legacy_entries_from_content,
+    current_as_cycle_id,
     current_as_round,
     decorate_entry,
 )
@@ -297,6 +298,7 @@ def _build_rounds(
 
 def _assign_display_numbers(
     cycle_groups: list[dict[str, Any]], unassigned_rounds: list[dict[str, Any]],
+    start: int = 0,
 ) -> None:
     """회차 dict 에 **표시 전용** 통합 번호(``display_no``)를 붙인다(제자리 변경).
 
@@ -315,8 +317,9 @@ def _assign_display_numbers(
         unassigned_rounds: 건 표식이 없는 옛 기록 회차. 어느 건인지 모르므로 **번호를
             주지 않고** ``unassigned`` 를 세운다 — 여기에 번호를 붙이면 통합 순번과 나란히
             또 다른 "1차"가 떠서 방금 고친 혼동이 되살아난다(템플릿이 '옛 기록'으로 낸다).
+        start: 건 기록 이전에 끝난 AS 처리 수(:func:`_pre_cycle_offset`). 번호를 그만큼 밀어서 센다.
     """
-    counter = 0
+    counter = start
     # 오래된 건부터(= groups 역순), 건 안에서는 오래된 회차부터(= rounds 역순).
     for group in reversed(cycle_groups):
         closed = not group.get("is_current")
@@ -332,6 +335,30 @@ def _assign_display_numbers(
     for r in unassigned_rounds:
         r["closed_cycle"] = False
         r["unassigned"] = True
+
+
+def _pre_cycle_offset(sd: dict) -> int:
+    """건(cycle) 기록이 생기기 전에 이미 끝난 AS 가 있으면 1, 아니면 0.
+
+    개편 전 주문은 지난 AS 가 ``as_content`` 글(→ legacy 항목)로만 남아 있다. 그 뒤 재접수로
+    첫 건이 열리면 건 순번이 1이라 화면이 "1차"로 보인다(production #3455 실사례 — 지난 AS
+    처리 후 재접수인데 1차). 첫 건이 레거시 전환 건이면 legacy 글은 그 건 자신의 원문이고,
+    무편집 재접수면 legacy 글이 첫 건 원문과 같으므로 둘 다 밀지 않는다.
+    """
+    from foms.services.orders.as_cycle_view import is_history_unknown
+
+    cycles = ((sd.get("as_lifecycle") or {}).get("cycles") or []) if isinstance(sd.get("as_lifecycle"), dict) else []
+    first = next((c for c in cycles if isinstance(c, dict)), None)
+    if first is None or is_history_unknown(first):
+        return 0
+    first_text = str(first.get("initial_content") or "").strip()
+    shipment = sd.get("shipment") or {}
+    entries = shipment.get("as_log") if isinstance(shipment.get("as_log"), list) else []
+    for e in entries:
+        if (isinstance(e, dict) and e.get("legacy") is True and e.get("deleted") is not True
+                and str(e.get("text") or "").strip() and str(e.get("text") or "").strip() != first_text):
+            return 1
+    return 0
 
 
 def _build_cycle_groups(
@@ -377,7 +404,7 @@ def _build_cycle_groups(
     unassigned = _rounds("", False)
     # 표시 전용 통합 번호는 그룹이 다 모인 뒤에 매긴다. rounds 객체는 groups[0]["rounds"]
     # 와 **같은 객체**라 제자리 변경이면 최상위 rounds 에도 그대로 보인다.
-    _assign_display_numbers(groups, unassigned)
+    _assign_display_numbers(groups, unassigned, start=_pre_cycle_offset(sd))
     return groups, groups[0]["rounds"], unassigned
 
 
@@ -500,7 +527,13 @@ def build_as_round_chart_view(
     billing = shipment.get("as_billing")
     availability = as_visit.get("availability")
     availability = availability if isinstance(availability, dict) and availability else None
-    symptom = _preview_text(shipment.get("as_content")) or (
+    # 증상 = 현재 건의 접수 원문(기록 수정이 바로 보이게) → 없으면 as_content.
+    cur_cycle = current_as_cycle_id(sd)
+    cur_reception = next((
+        e for e in entries if isinstance(e, dict) and e.get("deleted") is not True
+        and e.get("type") == "reception" and cur_cycle and e.get("cycle_id") == cur_cycle), None)
+    symptom = (_preview_text(cur_reception.get("text")) if cur_reception else "") or (
+        _preview_text(shipment.get("as_content"))) or (
         _preview_text(reception.get("text")) if reception else "")
     return {
         "state_card": {
