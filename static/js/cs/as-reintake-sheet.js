@@ -189,11 +189,11 @@
       sortOrders: files.map(function (_file, index) { return index; }),
       useDirectUpload: true,
       onUploadProgress: function (info) {
-        setStatus('사진 올리는 중... (' + Math.round(info.done) + '/' + info.total + ')');
+        setStatus('사진·동영상 올리는 중... (' + Math.round(info.done) + '/' + info.total + ')');
       },
     });
     if (result && result.ok !== result.total) {
-      toast('사진 ' + (result.total - result.ok) + '장 업로드 실패 — 접수는 저장됐어요.', true);
+      toast('첨부 ' + (result.total - result.ok) + '개 업로드 실패 — 접수는 저장됐어요.', true);
     }
   }
 
@@ -295,6 +295,6 @@
     if (!input) return;
     state.files = input.files ? Array.prototype.slice.call(input.files) : [];
     var count = q('[data-as-reintake-photo-count]');
-    if (count) count.textContent = state.files.length + '장';
+    if (count) count.textContent = state.files.length + '개';
   });
 }());
