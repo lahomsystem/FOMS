@@ -162,7 +162,9 @@
   };
 
   document.addEventListener('DOMContentLoaded', function () {
-    var root = document.querySelector('[data-pp-push]');
-    if (root) new Push(root).bind();
+    // PC 머리줄과 휴대폰 위 줄에 하나씩 있다(4-1) — 칸마다 따로 묶는다.
+    Array.prototype.forEach.call(document.querySelectorAll('[data-pp-push]'), function (root) {
+      new Push(root).bind();
+    });
   });
 })();

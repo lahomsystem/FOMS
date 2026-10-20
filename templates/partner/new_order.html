@@ -1,6 +1,8 @@
 {% extends "partner/layout.html" %}
 {% from "partner/partials/item_card.html" import pp_item_templates %}
 {% block title %}새 주문 등록{% endblock %}
+{% block mobile_title %}새 주문{% endblock %}
+{% block mobile_back %}{{ url_for('partner_portal.home') }}{% endblock %}
 {% block content %}
 <h1 class="pp-title">새 주문 등록</h1>
 <p class="pp-help">실측까지 마친 주문을 보내 주세요. 보낸 내용은 원본으로 보관되고, 저희 담당자가 확인한 뒤 도면 작업을 시작합니다.</p>

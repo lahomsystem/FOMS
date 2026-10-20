@@ -41,8 +41,16 @@
 {% if can_as %}
 <form id="ppAsForm" data-pp-post-url="{{ url_for('partner_api.register_as', order_id=view.id) }}" data-pp-confirm="AS 를 접수할까요?" novalidate>
     <p class="small text-muted">저희 시공팀이 올린 완공 사진입니다. AS 할 곳이 보이면 사진을 골라 아래에 적어 주세요. 고른 사진이 접수에 함께 남습니다.</p>
-    {{ photo_grid(construction_photos, true) }}
-    {{ as_fields() }}
+    <div data-pp-msheet-picks="ppAsSheet">{{ photo_grid(construction_photos, true) }}</div>
+    <button type="button" class="btn btn-primary w-100 pp-as-open" data-pp-msheet-open="ppAsSheet">AS 접수 칸 열기</button>
+    {# 휴대폰: 사진을 고르면 아래에서 올라오는 칸(우리 아래 시트 모양). PC: 사진 아래에 그대로(설계서 §3.6 · §16). #}
+    <div class="pp-as-sheet" id="ppAsSheet" data-pp-msheet role="group" aria-label="AS 접수">
+        <div class="foms-reason-sheet__head pp-as-sheet__head">
+            <h2 class="foms-reason-sheet__title">AS 접수 <span class="small text-muted fw-normal" data-pp-msheet-count></span></h2>
+            <button type="button" class="foms-reason-sheet__close" data-pp-msheet-close aria-label="닫기"><i class="fas fa-xmark" aria-hidden="true"></i></button>
+        </div>
+        {{ as_fields() }}
+    </div>
 </form>
 {% else %}
 <p class="small text-muted">저희 시공팀이 올린 완공 사진입니다. 고객에게는 "크게 보기"로 열어 저장한 뒤 보내 주세요.</p>

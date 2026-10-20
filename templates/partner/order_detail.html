@@ -5,9 +5,26 @@
 <link rel="stylesheet" href="{{ asset_url('css/components/foms-drawing-mobile.css') }}">
 <link rel="stylesheet" href="{{ asset_url('css/components/foms-lightbox.css') }}">{% endblock %}
 {% block main_class %}pp-main--wide{% endblock %}
+{% block mobile_title %}주문 #{{ view.id }}{% endblock %}
+{% block mobile_back %}{{ url_for('partner_portal.home') }}{% endblock %}
 {% block content %}
+{% from "partner/partials/stage_badge.html" import stage_badge %}
+{% set tab_off = not (show_completion or as_open) %}
+{# 4-3 휴대폰: 우리 상세 위 카드(foms-detail-hero) + 칩 줄 탭. PC 는 아래 카드 머리 · 탭 그대로(설계서 §16). #}
+<header class="detail-hero foms-detail-hero pp-mhero">
+    <div class="detail-hero__badges foms-detail-hero__badges">{{ stage_badge(view.stage_label) }}{% if can_approve %}<span class="foms-badge foms-badge--alert">내 차례</span>{% endif %}<span class="pp-mhero__id">#{{ view.id }}</span></div>
+    <h1 class="detail-hero__customer foms-detail-hero__customer">{{ view.customer_name }}</h1>
+    {% set names = view['items'] | map(attribute='product_name') | select | list %}
+    <p class="detail-hero__product foms-detail-hero__product">{% if names %}{{ names[0] }}{% if names | length > 1 %} 외 {{ names | length - 1 }}{% endif %}{% endif %}{% if view.construction_date %}{% if names %} · {% endif %}시공 {{ view.construction_date }}{% endif %}</p>
+</header>
+<nav class="pp-mtabs" role="tablist" aria-label="주문 탭">
+    <button type="button" class="chip foms-chip" role="tab" data-pp-tab="order">주문</button>
+    <button type="button" class="chip foms-chip" role="tab" data-pp-tab="drawing">도면{% if can_approve %} <span class="badge rounded-pill bg-danger">확인</span>{% endif %}</button>
+    <button type="button" class="chip foms-chip" role="tab" data-pp-tab="completion"{% if tab_off %} disabled title="시공이 끝나면 열립니다"{% endif %}>완공</button>
+    <button type="button" class="chip foms-chip" role="tab" data-pp-tab="history">이력</button>
+</nav>
 <div class="card border-secondary pp-order" data-pp-tabs="{{ active_tab }}">
-    <div class="card-header d-flex justify-content-between align-items-center">
+    <div class="card-header pp-order__head">
         <div class="fw-bold"><i class="fas fa-layer-group"></i> 주문 <span class="text-muted fw-normal">#{{ view.id }} {{ view.customer_name }}</span></div>
         <span class="pp-stage">{{ view.stage_label }}{% if view.stage_label == '시공 예정' and view.construction_date %} · {{ view.construction_date }}{% endif %}</span>
     </div>
