@@ -66,17 +66,6 @@
 .pp-btn--ghost { background: transparent; }
 .pp-btn:disabled { opacity: 0.6; cursor: default; }
 
-.pp-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-
-.pp-card {
-  background: var(--pp-surface);
-  border: 1px solid var(--pp-border);
-  border-radius: 10px;
-}
-
-.pp-card__link { display: grid; gap: 4px; padding: 12px 14px; color: inherit; text-decoration: none; }
-.pp-card__name { font-weight: 600; }
-.pp-card__meta { color: var(--pp-muted); font-size: 14px; overflow-wrap: anywhere; }
 
 .pp-stage {
   justify-self: start;
@@ -186,9 +175,6 @@
 .pp-grid__row--turn > td { background: #fffbea; }
 .pp-grid__work { min-width: 220px; }
 .pp-grid__address { min-width: 200px; }
-.pp-cards { display: none; padding: 12px; }
-.pp-cards__group { font-weight: 700; color: var(--pp-stage-text); }
-.pp-card--turn { border-color: #ffc107; }
 .pp-progress { display: block; height: 6px; border-radius: 999px; background: var(--pp-border); overflow: hidden; }
 .pp-progress__bar { display: block; height: 100%; border-radius: 999px; background: var(--pp-primary); }
 .pp-progress__bar--0 { width: 16.7%; }
@@ -200,8 +186,6 @@
 @media (max-width: 767.98px) {
   .pp-board .erp-pro-card__header { flex-wrap: wrap; gap: 8px; }
   .pp-board .erp-pro-card__title .small { display: none; }
-  .pp-grid-wrap { display: none; }
-  .pp-cards { display: grid; }
   .pp-filters { padding: 0.75rem; }
   .pp-filters__search { max-width: none; }
 }
@@ -325,3 +309,17 @@
 
 .pp-sheet__who { margin: 0 0 4px; font-weight: 600; }
 body.pp-sheet-open { overflow: hidden; }
+
+/* 4-2 휴대폰 목록 — 우리 검색 줄 · 칩 줄 · 큐 카드(foms-mobile-surfaces.css). PC 에서는 숨긴다. */
+.pp-mlist { display: none; }
+.pp-progress { margin: 2px 0 4px; }
+@media (max-width: 991.98px), ((min-width: 992px) and (pointer: coarse) and (orientation: portrait)) {
+  .pp-mlist { display: grid; }
+  .pp-mlist .erp-mobile-queue-filters { display: block; padding: 0; }
+  .pp-main--list { padding: 0; }
+  .pp-main--list .pp-queue { display: none; }
+  .pp-main--list .pp-me { margin: 0 16px 16px; }
+  .pp-qcard--turn { border-color: #ffc107; box-shadow: 0 0 0 1px #ffc107; }
+  .pp-chip--turn:not(.is-active) { background: #fff4d6; color: #8a5a00; }
+  .pp-mlist__group { margin-top: 4px; }
+}

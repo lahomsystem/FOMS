@@ -72,3 +72,26 @@ def test_mobile_surfaces_pin_matches_staff_layout():
     partner = Path("templates/partner/layout.html").read_text(encoding="utf-8")
     pin = re.search(r"foms-mobile-surfaces\.css'\) \}\}\?v=(\w+)", staff).group(1)
     assert f"foms-mobile-surfaces.css') }}}}?v={pin}" in partner
+
+
+def test_mobile_list_uses_our_queue_cards_chips_and_turn_group(app, world):
+    """4-2: 휴대폰 목록 = 우리 검색 줄 · 칩 줄 · 큐 카드, 내 차례 묶음이 맨 위."""
+    turn_id = _create(app, world["partner_a"]).get_json()["data"]["order_id"]
+    _to_confirm(turn_id)
+    other_id = _create(app, world["partner_a"]).get_json()["data"]["order_id"]
+    foreign_id = _create(app, world["partner_b"]).get_json()["data"]["order_id"]
+    html = _html(app, world["partner_a"], "/partner")
+    mobile = html[html.index('class="foms-shell-body pp-mlist"'):html.index('class="erp-pro-card pp-queue"')]
+    assert "erp-mobile-queue-filters foms-mobile-filter-bar" in mobile and "chip-strip foms-chip-strip" in mobile
+    assert re.search(r'chip foms-chip is-active" href="/partner">전체 2<', mobile)
+    assert "pp-chip--turn" in mobile and "도면 확인 대기 1" in mobile
+    cards = re.findall(r'data-pp-order-id="(\d+)"', mobile)
+    assert cards == [str(turn_id), str(other_id)]  # 내 차례가 위, 다른 회사 주문 없음
+    assert str(foreign_id) not in cards
+    assert mobile.index("지금 내 차례") < mobile.index(f'data-pp-order-id="{turn_id}"') < mobile.index("다른 주문")
+    assert "foms-stage-badge foms-stage-badge--confirm" in mobile
+    assert f'href="/partner/orders/{turn_id}#drawing">도면 확인하기<' in mobile
+    assert f'href="/partner/orders/{other_id}">열기<' in mobile
+    assert 'href="tel:010-1234-5678"' in mobile
+    stage = _html(app, world["partner_a"], "/partner?stage=접수 확인 중")
+    assert re.search(r'chip foms-chip is-active" href="[^"]*stage=[^"]*">접수 확인 중 1<', stage)
