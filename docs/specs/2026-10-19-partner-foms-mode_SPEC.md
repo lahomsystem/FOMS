@@ -221,6 +221,7 @@
 
 ### 15.4 구현 기록 (2026-10-20)
 - 서비스 `foms/services/partners/history.py` `partner_order_history`: 줄 = `{at, kind, title, who, detail}`(시험이 키를 고정). 이름은 이 주문 협력사 직원(`User.partner_org_id`)만 내고 나머지는 "저희 담당자" · "저희 도면팀". 수정 요청 내용은 협력사 직원이 보낸 것만. 단계 전이는 우리 타임라인 규칙(`_stage_reach_events`)의 DRAWING 첫 도달만 쓴다. 올림 취소는 이력에서 TRANSFER 를 빼는 방식이라 따로 줄이 없다.
-- 화면: 도면 탭(`templates/partner/partials/order_drawing.html`)에 회차 · 그림 갤러리(우리 조각 `drawing_mobile_v2_gallery.html` share_mode, `lightbox.js` 는 그림이 있을 때만) · 파일 줄. 이력 탭(`order_history.html`). 저장 단추 CSS 는 공유 화면 규칙을 `.pp-drawing-gallery` 안으로 옮겼다(우리 파일 무변경). 휴대폰에서는 탭 4개를 옆으로 밀고 도면 카드는 한 줄 한 장.
+- 화면: 도면 탭(`templates/partner/partials/order_drawing.html`)에 회차 · 그림 갤러리(우리 조각 `drawing_mobile_v2_gallery.html` share_mode, `lightbox.js` 는 그림이 있을 때만) · 파일 줄. 이력 탭(`order_history.html`). 저장 단추 CSS 는 공유 화면 규칙을 `.pp-drawing-gallery` 안으로 옮겼다(우리 파일 무변경). 휴대폰에서는 "(시공 뒤)" 안내를 빼고 탭 여백을 줄여 탭 4개가 한 줄에 보이게 했고(스테이징 390px 에서 "이력" 탭이 화면 밖에 숨던 것), 도면 카드는 한 줄 한 장.
+- 스테이징 실화면(2026-10-20, CLAUDE-TEST 협력사 · 시험 주문 #4782): 우리 쪽에서 그림 2장 + PDF 1개를 1차로 전달하고 수령 확정 → 협력사 도면 탭에 그림 카드 2장(눌러서 크게 · 다음 그림) · PDF 파일 줄 · "1차 · 10-20 13:37 올라옴", 협력사 수정 요청 뒤 이력 5줄(보냄 · 1차 · 도면 작업 · 확정 · 수정 요청 내용). 화면 원문에 도면 메모 · 도면 담당자 이름 · 단계 사유 0건.
 - 시험 `tests/security/test_partner_history.py` 4건.
 
