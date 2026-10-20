@@ -80,12 +80,12 @@
     var channel = checked(root, 'dw-send-channel') || 'kakao';
     var preview = q(root, '[data-send-preview]');
     var text;
-    if (kind === 'bundle' && channel === 'kakao' && attr(root, 'data-bundle-both-template') === 'true') {
+    if (channel === 'kakao' && attr(root, 'data-consult-template') === 'true') {
+      text = '링크 없는 알림톡이 가요. 고객이 [문서 받기]를 누르면 채널톡 상담으로 링크가 자동으로 가요.';
+    } else if (kind === 'bundle' && channel === 'kakao' && attr(root, 'data-bundle-both-template') === 'true') {
       text = '버튼 2개(도면 · 계약서) 알림톡으로 가요. 문서 이름은 템플릿에 고정돼 회차가 안 들어가요.';
-    } else if (kind === 'bundle') {
-      text = '문서 이름: ' + attr(root, 'data-doc-label-bundle');
     } else {
-      text = '문서 이름: ' + attr(root, 'data-doc-label-drawing');
+      text = '문서 이름: ' + attr(root, 'data-doc-label-' + (kind === 'bundle' || kind === 'estimate' ? kind : 'drawing'));
     }
     if (preview) preview.textContent = text;
     var btn = q(root, '[data-send-submit]');
@@ -219,7 +219,7 @@
     var token = data.data.token;
     var roundLabel = attr(root, 'data-round-label');
     var customerName = attr(root, 'data-customer-name');
-    var doneText = (customerName ? customerName + ' ' : '') + '고객님께 ' + (roundLabel ? roundLabel + ' ' : '') + '도면을 보냈어요.';
+    var doneText = (customerName ? customerName + ' ' : '') + '고객님께 ' + (kind === 'estimate' ? '계약서를' : (roundLabel ? roundLabel + ' ' : '') + '도면을') + ' 보냈어요.';
     if (channel === 'mine') {
       var to = ov.phone || data.data.to_phone || '';
       if (!to) { await revokeShare(shareId); settle(root, label('no_valid_phone'), false); return; }
@@ -232,10 +232,10 @@
     }
     var url = (channel === 'company' ? '/api/share/send-sms/' : '/api/share/send-alimtalk/') + encodeURIComponent(shareId);
     var body = { token: token, source_screen: 'drawing_tab' };
+    if (checked(root, 'dw-send-split') === 'split') body.split = true; // 상담 먼저: 도면·계약서 따로따로
     if (ov.phone) body.to_phone = ov.phone;
     var sent = await postJson(url, body);
-    token = null;
-    body = null;
+    token = null; body = null;
     // 연결 끊김 — 나갔는지 모른다. 회수 금지 · 버튼 잠금 유지(바로 재시도하면 두 통).
     if (sent.thrown) { settle(root, UNSURE, true); return; }
     var sd = sent.data || {};

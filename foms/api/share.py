@@ -28,6 +28,7 @@ from db import db_session
 from foms.services import kakao_alimtalk as ka
 from foms.services import order_share as share_service
 from foms.services import order_share_history as share_history
+from foms.services import share_consult
 from foms.services.audit_message_display import describe_order_action
 from foms.services.auth.partner_scope import is_partner_order
 from foms.services.audit_writer import record_file_access
@@ -1461,6 +1462,34 @@ def _share_both_variables(order: Order, *, drawing_token: str, estimate_token: s
     }
 
 
+def _share_consult_variables(order: Order, *, kind: str, code: str,
+                             brand: str) -> dict[str, str]:
+    """'상담 먼저' 템플릿 변수(승인 템플릿과 1:1 — 링크 토큰 없음).
+
+    주문번호·확인코드는 고객이 [문서 받기]를 누르면 본문째 채널톡 상담에 올라오고,
+    :func:`share_consult.handle_user_chat_message` 가 둘을 맞춰 본 뒤 링크를 보낸다.
+
+    Args:
+        order: 대상 주문.
+        kind: 공유 링크 종류 — ``#{문서종류}`` 가 이것으로 정해진다.
+        code: 이번 발송의 확인코드 원문.
+        brand: :func:`ka.resolve_brand` 결과.
+
+    Returns:
+        치환 dict — 빈값 금지 폴백은 :func:`_share_alimtalk_variables` 와 같은 규칙.
+    """
+    sd = order.structured_data or {}
+    customer = str(ka._node(sd, 'parties', 'customer').get('name') or '').strip() or '고객'
+    return {
+        '#{고객명}': customer,
+        '#{문서종류}': share_consult.DOC_LABELS[share_consult.docs_for_kind(kind)],
+        '#{주문번호}': str(order.id),
+        '#{확인코드}': code,
+        '#{담당자}': _share_contact_name(order),
+        '#{담당자연락처}': _share_contact_phone(order, brand),
+    }
+
+
 def _issue_pair_tokens(order: Order) -> tuple[Any, str, Any, str]:
     """버튼 2개 발송용 도면·계약서 링크를 새로 발급한다(커밋은 호출자 몫).
 
@@ -1539,15 +1568,30 @@ def api_share_send_alimtalk(share_id: int):
     pf_id = ka._env(f'SOLAPI_PF_ID_{brand}')
     # bundle 은 통합 템플릿(버튼 2개)이 승인·등록돼 있으면 그쪽으로 나간다. env 가 없으면
     # 지금처럼 링크 1개(통합 열람 페이지)로 나간다 — 승인 전후 전환이 env 하나다.
-    use_both = row.kind == 'bundle' and bool(_both_template_id(brand))
-    template_id = (_both_template_id(brand) if use_both
-                   else ka._env(f'SOLAPI_TEMPLATE_SHARE_ID_{brand}'))
+    # '상담 먼저': 링크 없는 알림톡 + [문서 받기] 버튼. 고객이 누르면 채널톡 상담에서 링크를 보낸다
+    # (설계서 2026-10-20). 버튼 2개 템플릿과 같은 env 스위치 — 템플릿 env 가 있으면 이쪽이 우선이고,
+    # body ``consult: false`` 로만 옛 경로를 고를 수 있다. ``split`` = 도면·계약서를 따로따로 보낼지.
+    use_consult = (bool(share_consult.consult_template_id(brand))
+                   and body.get('consult') is not False)
+    use_both = (not use_consult) and row.kind == 'bundle' and bool(_both_template_id(brand))
+    if use_consult:
+        template_id = share_consult.consult_template_id(brand)
+    elif use_both:
+        template_id = _both_template_id(brand)
+    else:
+        template_id = ka._env(f'SOLAPI_TEMPLATE_SHARE_ID_{brand}')
     from_phone, sender_source = _resolve_sender(order, brand)
     if not (pf_id and template_id and from_phone):
         return _envelope(None, 'not_configured', 503)
 
     pair_ids: dict[str, int] = {}
-    if use_both:
+    consult_tags: dict[str, Any] = {}
+    if use_consult:
+        code = share_consult.new_code()
+        variables = _share_consult_variables(order, kind=row.kind, code=code, brand=brand)
+        consult_tags = {'consult': share_consult.build_consult_record(
+            order_id=order.id, code=code, kind=row.kind, split=bool(body.get('split')))}
+    elif use_both:
         try:
             drawing_row, drawing_token, estimate_row, estimate_token = _issue_pair_tokens(order)
         except share_service.SnapshotTooLargeError:
@@ -1567,7 +1611,8 @@ def api_share_send_alimtalk(share_id: int):
         # 회차 표지 + 고객이 실제로 받는 짝 링크 id(통합 템플릿) — 도면 탭 상태 줄이 짝을 짓는다.
         payload={'share_id': row.id, 'kind': row.kind, 'status': 'in_flight',
                  'sent_by': actor_user_id, **send_event_tags(order.structured_data, body),
-                 **pair_ids, **({'to_phone_override': True} if phone_override else {})},
+                 **pair_ids, **consult_tags,
+                 **({'to_phone_override': True} if phone_override else {})},
         created_by_user_id=actor_user_id,
     )
     try:
@@ -1590,8 +1635,10 @@ def api_share_send_alimtalk(share_id: int):
     # --- 동기 발송 — 알림톡 실패 시 Solapi failover 가 from_ 번호로 SMS 대체발송 ---
     error: Optional[str] = None
     try:
+        # 상담 먼저 템플릿은 링크가 없어 문자 대체발송이 쓸모없다 — 끈다(설계서 Q4).
         ka._solapi_send(to=to_phone, from_=from_phone, pf_id=pf_id,
-                        template_id=template_id, variables=variables)
+                        template_id=template_id, variables=variables,
+                        **({'disable_sms': True} if use_consult else {}))
     except Exception as exc:  # 벤더/네트워크 실패 분류 — 조용한 실패 금지
         error = ka._classify_error(exc)
         logger.warning('공유 알림톡 발송 실패: share_id=%s source=%s error=%s (%s)',
@@ -1619,7 +1666,8 @@ def api_share_send_alimtalk(share_id: int):
         detail={'share_id': row.id, 'kind': row.kind, 'sent': error is None,
                 'error': error, 'to': ka._mask_phone(to_phone),
                 **({'to_phone_override': True} if phone_override else {}),
-                'template': 'share_both' if use_both else 'share',
+                'template': ('share_consult' if use_consult
+                             else 'share_both' if use_both else 'share'),
                 'sender_source': sender_source, **pair_ids, **context},
     )
     return _envelope({'sent': error is None, 'error': error, 'last_share': last_share}, error)

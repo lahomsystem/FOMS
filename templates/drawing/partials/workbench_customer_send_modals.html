@@ -27,7 +27,9 @@
   data-sent-text="{{ cs.sent_text|default('') }}"
   data-doc-label-drawing="{{ cs.doc_label_drawing|default('도면') }}"
   data-doc-label-bundle="{{ cs.doc_label_bundle|default('도면·계약서') }}"
-  data-bundle-both-template="{{ 'true' if cs.bundle_both_template else 'false' }}">
+  data-doc-label-estimate="계약서"
+  data-bundle-both-template="{{ 'true' if cs.bundle_both_template else 'false' }}"
+  data-consult-template="{{ 'true' if cs.consult_template else 'false' }}">
   <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-fullscreen-sm-down">
     <div class="modal-content">
       <div class="modal-header">
@@ -91,10 +93,27 @@
           <div class="btn-group" role="group" aria-label="보낼 것">
             <input type="radio" class="btn-check" name="dw-send-kind" id="dw-send-kind-drawing" value="drawing" autocomplete="off" checked>
             <label class="btn btn-outline-primary btn-sm" for="dw-send-kind-drawing">도면만</label>
+            {% if cs.consult_template %}
+            <input type="radio" class="btn-check" name="dw-send-kind" id="dw-send-kind-estimate" value="estimate" autocomplete="off">
+            <label class="btn btn-outline-primary btn-sm" for="dw-send-kind-estimate">계약서만</label>
+            {% endif %}
             <input type="radio" class="btn-check" name="dw-send-kind" id="dw-send-kind-bundle" value="bundle" autocomplete="off">
             <label class="btn btn-outline-primary btn-sm" for="dw-send-kind-bundle">도면+계약서</label>
           </div>
         </div>
+
+        {% if cs.consult_template %}
+        {# 상담 먼저(설계서 2026-10-20): 고객이 알림톡 [문서 받기]를 누르면 채널톡 상담으로 링크가 자동으로 간다. #}
+        <div class="mb-3">
+          <div class="small fw-semibold text-muted mb-1">도면+계약서일 때 상담방에 보내는 모양</div>
+          <div class="btn-group" role="group" aria-label="상담방에 보내는 모양">
+            <input type="radio" class="btn-check" name="dw-send-split" id="dw-send-split-together" value="together" autocomplete="off" checked>
+            <label class="btn btn-outline-secondary btn-sm" for="dw-send-split-together">한 번에</label>
+            <input type="radio" class="btn-check" name="dw-send-split" id="dw-send-split-split" value="split" autocomplete="off">
+            <label class="btn btn-outline-secondary btn-sm" for="dw-send-split-split">따로따로</label>
+          </div>
+        </div>
+        {% endif %}
 
         <div class="mb-3">
           <div class="small fw-semibold text-muted mb-1">보내는 방법</div>

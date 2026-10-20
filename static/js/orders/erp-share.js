@@ -539,7 +539,7 @@ var _KST_FMT = (function () {
                     method: 'POST',
                     credentials: 'same-origin',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ token: body.data.token }),
+                    body: JSON.stringify({ token: body.data.token, consult: false }),  // 상담 먼저(링크 없는 알림톡)는 도면 탭 보내기 시트만
                 }).then(function (res) { return res.json(); });
             })
             .then(function (body) {
@@ -575,7 +575,7 @@ var _KST_FMT = (function () {
             method: 'POST',
             credentials: 'same-origin',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ token: _issued.token }),
+            body: JSON.stringify({ token: _issued.token, consult: false }),  // 상담 먼저(링크 없는 알림톡)는 도면 탭 보내기 시트만
         })
             .then(function (res) { return res.json(); })
             .then(function (body) {

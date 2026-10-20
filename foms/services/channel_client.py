@@ -37,6 +37,7 @@ __all__ = [
     "format_order_message",
     "build_channel_bot_name",
     "send_group_message",
+    "send_user_chat_message",
 ]
 
 _BOT_NAME_PREFIX = "FOMS"
@@ -259,6 +260,75 @@ def _put_native_function(payload: dict[str, Any], access_token: str) -> dict[str
     return resp.json()
 
 
+def _call_native_function(payload: dict[str, Any]) -> dict[str, Any]:
+    """
+    Call a native function with the cached token, retrying once on a dead token.
+
+    캐시된 토큰이 만료 전에 무효화되는 경우가 있다(채널톡이 세션을 끊음). 죽은 토큰을
+    버리고 재발급해 1회 재시도한다.
+
+    Args:
+        payload: ``method``/``params`` 요청 본문.
+
+    Returns:
+        응답 JSON dict(``result`` 또는 ``error``).
+    """
+    access_token = _get_access_token()
+    data = _put_native_function(payload, access_token)
+    err = data.get("error") or {}
+    if err.get("message") and _is_unauthenticated_error(err):
+        logger.warning("[채널톡] 액세스 토큰 무효 - 재발급 후 1회 재시도")
+        _invalidate_token(access_token)
+        data = _put_native_function(payload, _get_access_token())
+    return data
+
+
+def send_user_chat_message(
+    user_chat_id: str,
+    plain_text: str,
+    *,
+    bot_name: str = "FOMS",
+    private: bool = False,
+) -> dict[str, Any]:
+    """
+    Write a message into a customer user chat (``writeUserChatMessage``).
+
+    고객 상담(userChat)에 쓰는 유일한 경로다. 카카오 상담톡 상담이면 고객 카톡 대화방으로
+    전달된다. ``private`` 면 매니저에게만 보이는 내부 메모로 쓴다(고객에게 안 감).
+    실패는 예외 대신 ``success=False`` 로 돌려준다 — 호출자가 발급한 링크를 회수하는 등
+    뒷정리를 해야 하므로 결과를 꼭 확인해야 한다.
+
+    Args:
+        user_chat_id: 채널톡 userChat id.
+        plain_text: 보낼 글(링크는 글 안에 그대로 넣는다 — 카카오에서도 눌린다).
+        bot_name: 보낸 이로 보일 봇 이름.
+        private: 내부 메모로 쓸지.
+
+    Returns:
+        ``{'success': bool, 'message_id': str | None, 'error': str | None}``.
+    """
+    if not user_chat_id:
+        return {"success": False, "message_id": None, "error": "no_user_chat"}
+    dto: dict[str, Any] = {"plainText": plain_text, "botName": bot_name}
+    if private:
+        dto["options"] = ["MESSAGE_OPTION_PRIVATE"]
+    payload = {
+        "method": "writeUserChatMessage",
+        "params": {"channelId": CHANNEL_ID, "userChatId": user_chat_id, "dto": dto},
+    }
+    try:
+        data = _call_native_function(payload)
+    except Exception as exc:
+        logger.error("[채널톡] writeUserChatMessage 실패 (chat=%s): %s", user_chat_id, exc)
+        return {"success": False, "message_id": None, "error": "request_failed"}
+    err = data.get("error") or {}
+    if err.get("message"):
+        logger.error("[채널톡] writeUserChatMessage 오류 (chat=%s): %s", user_chat_id, err["message"])
+        return {"success": False, "message_id": None, "error": "provider_error"}
+    message_id = ((data.get("result") or {}).get("message") or {}).get("id")
+    return {"success": True, "message_id": message_id, "error": None}
+
+
 def send_group_message(
     group_id: str,
     plain_text: str,
@@ -273,7 +343,6 @@ def send_group_message(
         return {"success": False, "message_id": None}
 
     try:
-        access_token = _get_access_token()
         payload = {
             "method": "writeGroupMessage",
             "params": {
@@ -289,15 +358,8 @@ def send_group_message(
                 },
             },
         }
-        data = _put_native_function(payload, access_token)
+        data = _call_native_function(payload)
         err = data.get("error") or {}
-        if err.get("message") and _is_unauthenticated_error(err):
-            # 캐시된 토큰이 만료 전에 무효화되는 경우가 있다(채널톡이 세션을 끊음).
-            # 죽은 토큰을 버리고 재발급해 1회 재시도한다.
-            logger.warning("[채널톡] 액세스 토큰 무효 - 재발급 후 1회 재시도")
-            _invalidate_token(access_token)
-            data = _put_native_function(payload, _get_access_token())
-            err = data.get("error") or {}
         if err.get("message"):
             logger.error("[채널톡] writeGroupMessage 오류: %s", err["message"])
             if raise_on_error:

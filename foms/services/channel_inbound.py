@@ -18,6 +18,7 @@ from typing import Any, Dict, Optional, Tuple
 from foms.persistence.main.db import db_session, get_db
 from foms.persistence.main.models import ChannelInboundEventLog, Order  # noqa: F401
 from foms.services.jobs.queue import enqueue_channeltalk_inbound
+from foms.services.share_consult import handle_user_chat_message
 
 __all__ = [
     "generate_payload_hash",
@@ -72,6 +73,11 @@ def extract_keys(payload: dict) -> Tuple[Optional[str], str, Optional[str]]:
     return provider_event_id, dedupe_key, creation_key
 
 
+def _is_user_chat_message(entity: Any) -> bool:
+    """웹훅 entity 가 고객 상담(userChat) 메시지인지."""
+    return isinstance(entity, dict) and str(entity.get("chatType") or "") == "userChat"
+
+
 def receive_webhook(payload: dict) -> Tuple[int, Dict[str, Any]]:
     """
     Webhook 수신 및 Receipt Log 저장, Enqueue 처리 (CT-E-01, CT-E-05)
@@ -95,6 +101,7 @@ def receive_webhook(payload: dict) -> Tuple[int, Dict[str, Any]]:
             "rejected_replay",
             "rejected_group",
             "ignored_duplicate",
+            "user_chat_handled",
         ]
         if existing_log.status in terminal_statuses:
             return 200, {"status": "duplicate_ignored"}
@@ -112,7 +119,8 @@ def receive_webhook(payload: dict) -> Tuple[int, Dict[str, Any]]:
     chat_id = entity.get("chatId") or entity.get("channelId") or str(payload.get("ref", {}).get("id", ""))
 
     # 테스트 환경이나 화이트리스트가 비어있으면 통과 (단, 실 운영에서는 엄격히 설정)
-    if allowed_groups and chat_id and chat_id not in allowed_groups:
+    # 그룹 화이트리스트는 팀 그룹 채팅에만 건다 — 고객 상담 메시지는 상담 먼저 처리로 간다.
+    if allowed_groups and chat_id and chat_id not in allowed_groups and not _is_user_chat_message(entity):
         log = ChannelInboundEventLog(
             provider_event_id=provider_event_id,
             dedupe_key=dedupe_key,
@@ -272,6 +280,17 @@ def process_inbound_job(log_id: int):
         payload = log.raw_payload or {}
         # UserChat / Message 텍스트 추출 (채널톡 웹훅 스키마에 따라 변동 가능)
         entity = payload.get("entity", {})
+
+        # 고객 상담(userChat) 메시지는 주문 접수 파싱에 절대 넣지 않는다 — 고객이 쓴 글로
+        # 주문이 만들어지면 안 된다. '상담 먼저' 알림톡의 [문서 받기] 전달만 처리한다(설계서 2026-10-20).
+        if _is_user_chat_message(entity):
+            outcome = handle_user_chat_message(db, payload)
+            log.status = "user_chat_handled"
+            log.error_reason = outcome
+            log.processed_at = datetime.now()
+            db.commit()
+            return
+
         text = entity.get("plainText") or entity.get("message") or ""
 
         if not text:
