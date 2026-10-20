@@ -31,6 +31,7 @@ from foms.services import order_share_history as share_history
 from foms.services import share_consult
 from foms.services.audit_message_display import describe_order_action
 from foms.services.auth.partner_scope import is_partner_order
+from foms.services.order_attachment_permissions import is_partner_original_key
 from foms.services.audit_writer import record_file_access
 from foms.services.datetime_kst import (format_datetime_kst, get_today_kst,
                                         now_utc_naive)
@@ -210,6 +211,9 @@ def _collect_drawing_files(order: Order) -> list[dict[str, str]]:
     for att in attachments:
         key = (att.storage_key or '').strip()
         if not key or key in seen or key in superseded:
+            continue
+        # 협력사 초안은 도면팀이 고쳐 넘기기 전 참고 자료다 — 고객에게 도면으로 보이지 않게 뺀다.
+        if is_partner_original_key(key):
             continue
         seen.add(key)
         files.append({'key': key,

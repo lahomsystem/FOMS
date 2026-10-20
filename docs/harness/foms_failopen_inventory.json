@@ -2371,7 +2371,7 @@
     },
     {
       "path": "foms/api/share.py",
-      "lineno": 384,
+      "lineno": 388,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2380,7 +2380,7 @@
     },
     {
       "path": "foms/api/share.py",
-      "lineno": 1066,
+      "lineno": 1070,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2389,7 +2389,7 @@
     },
     {
       "path": "foms/api/share.py",
-      "lineno": 1150,
+      "lineno": 1154,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2398,7 +2398,7 @@
     },
     {
       "path": "foms/api/share.py",
-      "lineno": 1642,
+      "lineno": 1646,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -3064,7 +3064,7 @@
     },
     {
       "path": "foms/services/channel_security.py",
-      "lineno": 540,
+      "lineno": 561,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "audit",
@@ -4918,7 +4918,7 @@
     },
     {
       "path": "foms/services/schedule_recommendations.py",
-      "lineno": 407,
+      "lineno": 408,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "services",
@@ -4927,7 +4927,7 @@
     },
     {
       "path": "foms/services/schedule_recommendations.py",
-      "lineno": 446,
+      "lineno": 447,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "services",
@@ -4936,7 +4936,7 @@
     },
     {
       "path": "foms/services/schedule_recommendations.py",
-      "lineno": 509,
+      "lineno": 510,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "services",
@@ -4945,7 +4945,7 @@
     },
     {
       "path": "foms/services/schedule_recommendations.py",
-      "lineno": 580,
+      "lineno": 581,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "services",
@@ -4954,7 +4954,7 @@
     },
     {
       "path": "foms/services/schedule_recommendations.py",
-      "lineno": 589,
+      "lineno": 590,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "services",
@@ -4963,7 +4963,7 @@
     },
     {
       "path": "foms/services/schedule_recommendations.py",
-      "lineno": 724,
+      "lineno": 725,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "services",
@@ -4972,7 +4972,7 @@
     },
     {
       "path": "foms/services/schedule_recommendations.py",
-      "lineno": 736,
+      "lineno": 737,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "services",
