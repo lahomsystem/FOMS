@@ -46,6 +46,15 @@ from foms.services.security.auth_rate.login_lockout import (
     login_lockout_threshold,
     register_login_failure,
 )
+from foms.services.security.session_guard import (
+    IMPERSONATOR_VERSION_KEY,
+    SESSION_ID_KEY,
+    SESSION_VERSION_KEY,
+    bump_session_version,
+    pin_session,
+    revoke_session,
+    user_session_version,
+)
 from foms.services.security.password_policy import (
     WeakPasswordError,
     active_legacy_count,
@@ -114,7 +123,8 @@ def log_access(action_message, user_id=None, additional_data=None, auto_commit=T
             action=action,
             target_type=target_type,
             target_id=target_id,
-            detail=normalize_security_detail(_merge_audit_detail(additional_data, detail)),
+            detail=normalize_security_detail(
+                _with_impersonator(_merge_audit_detail(additional_data, detail), user_id)),
         )
         # 감사 실패의 사정거리를 감사 행 하나로 묶는다(SAVEPOINT). 예전에는 except 분기가
         # 호출자 세션을 통째로 rollback 해서, auto_commit=False 로 호출자 트랜잭션에 얹는
@@ -141,6 +151,19 @@ def log_access(action_message, user_id=None, additional_data=None, auto_commit=T
                 session_db.rollback()
             except Exception:
                 log_handled_exception("auth log_access rollback")
+
+
+def _with_impersonator(detail: dict | None, user_id: object) -> dict | None:
+    """대리 로그인 세션에서 대상 계정 이름으로 남기는 기록이면 원 관리자 id 를 붙인다.
+
+    전환 중 한 일이 대상 계정으로만 남아 누가 했는지 알 수 없었다(SESSION-REVOKE-01).
+    """
+    if not has_request_context():
+        return detail
+    admin_id = session.get('impersonating_from')
+    if not admin_id or user_id is None or str(user_id) != str(session.get('user_id')):
+        return detail
+    return {**(detail or {}), 'impersonated_by': admin_id}
 
 
 def _merge_audit_detail(additional_data: object, detail: dict | None) -> dict | None:
@@ -475,6 +498,7 @@ def login():
         session['user_id'] = user.id
         session['username'] = user.username
         session['role'] = user.role
+        pin_session(session, user)
         session.permanent = True
         
         update_last_login(user.id)
@@ -492,7 +516,18 @@ def logout():
     if 'user_id' in session:
         user_id = session['user_id']
         username = session.get('username', 'Unknown')
-        
+        # SESSION-REVOKE-01: 이 세션 표지를 회수해 복사된 같은 쿠키도 끊는다(다른 기기는 그대로).
+        # 표지가 없는 옛 세션(기능 배포 전 로그인)은 골라 끊을 수 없어 그 계정 세션을 모두 끊는다.
+        # 폴링 응답이 쿠키를 다시 쓰지 않도록 요청 중에 표지를 심지는 않는다(SESSION-COOKIE-01).
+        sid = session.get(SESSION_ID_KEY)
+        for owner_id in {user_id, session.get('impersonating_from')} - {None}:
+            owner = get_user_by_id(owner_id)
+            if owner is None:
+                continue
+            if sid:
+                revoke_session(owner, sid)
+            else:
+                bump_session_version(owner)
         session.clear()
         log_access(f"로그아웃: 사용자 {username} (ID: {user_id})", user_id)
         
@@ -535,9 +570,11 @@ def switch_user(target_user_id):
         return redirect(request.referrer or url_for('order_pages.index'))
     # 전환 전 관리자 저장 (원래 관리자로 돌아가기용)
     session['impersonating_from'] = admin_id
+    session[IMPERSONATOR_VERSION_KEY] = user_session_version(actor)
     session['user_id'] = target.id
     session['username'] = target.username
     session['role'] = target.role
+    session[SESSION_VERSION_KEY] = user_session_version(target)
     # T8: 계정 전환은 "관리자(actor)가 대상 계정(target)의 권한을 빌리는" 특권 행위다.
     log_access(f"관리자(ID:{admin_id})가 사용자로 전환: {target.username} (ID:{target.id})", admin_id,
                action='IMPERSONATE', target_type='user', target_id=target.id,
@@ -564,6 +601,7 @@ def switch_back():
         return redirect(url_for('auth.logout'))
     impersonated_id = session.get('user_id')
     session.pop('impersonating_from', None)
+    session[SESSION_VERSION_KEY] = session.pop(IMPERSONATOR_VERSION_KEY, user_session_version(admin))
     session['user_id'] = admin.id
     session['username'] = admin.username
     session['role'] = admin.role
@@ -914,6 +952,9 @@ def edit_user(user_id):
                 return render_template('auth/edit_user.html', user=user, roles=ROLES, teams=TEAMS, count_admin=db.query(User).filter(User.role == 'ADMIN').count())
 
             # Update user
+            if (user.role, user.team) != (role, team):
+                # SESSION-REVOKE-01: 역할·팀이 바뀌면 옛 권한으로 열린 세션을 끊는다.
+                bump_session_version(user)
             user.name = name
             user.role = role
             user.team = team
@@ -1232,6 +1273,8 @@ def profile():
                 # 본인 변경도 항상 strong: 검증 통과 hash 설정 + STRONG 버전 기록.
                 set_strong_password(user, new_password)
                 db.commit()
+                # 다른 기기 세션은 끊기고(set_strong_password) 지금 세션만 새 번호로 묶는다.
+                session[SESSION_VERSION_KEY] = user_session_version(user)
                 log_access("비밀번호 변경 완료", user_id)
                 flash("비밀번호가 성공적으로 변경되었습니다.", "success")
 

@@ -272,7 +272,8 @@ def _m_env(name: str, value: str):
 
 def _m_impersonation(ctx, client, monkeypatch):
     with client.session_transaction() as sess:
-        sess["impersonating_from"] = ctx["sales"]
+        # 전환 세션은 원 관리자가 활성 ADMIN 이어야 산다(SESSION-REVOKE-01) — 관리자 id 로 흉내 낸다.
+        sess["impersonating_from"] = ctx["admin"]
 
 
 def _m_nav_badge(ctx, client, monkeypatch):

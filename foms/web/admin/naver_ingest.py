@@ -65,6 +65,13 @@ from models import ExternalOrderLink, Order, OrderEvent
 
 logger = logging.getLogger(__name__)
 
+
+def _request_role() -> str:
+    """요청 사용자의 DB 역할. 쿠키에 담긴 역할 값은 강등 뒤에도 옛 값이라 쓰지 않는다."""
+    user = getattr(g, "current_user", None)
+    return (getattr(user, "role", None) or "").strip().upper()
+
+
 #: 한 페이지에 보여줄 수집 이력 행 수(관리자 cold path 라 페이지네이션으로 충분).
 PAGE_SIZE = 50
 
@@ -2339,7 +2346,7 @@ def _ghost_discard_view(db, link: Optional[ExternalOrderLink]) -> dict[str, Any]
     view = judge_order_discard(db, int(link.order_id),
                                group_key=_history_group_key(link))
     if (view["can_discard"] and view["discard_needs_reason"]
-            and (session.get("role") or "") != "ADMIN"):
+            and _request_role() != "ADMIN"):
         view["can_discard"] = False
         view["discard_block"] = (
             f"{view['status_label']} 단계라 실측·도면 이력이 붙어 있습니다 — "
@@ -2475,14 +2482,14 @@ def _pane_context(db, link: Optional[ExternalOrderLink],
         "return_approve_enabled": is_naver_return_approve_enabled(),
         # 승인은 ADMIN·MANAGER 만(사용자 결정 2026-09-01). 라우트도 같은 조건이다 —
         # 한쪽만 좁히면 열린 버튼이 403 을 받는다.
-        "claim_approve_can_act": (session.get("role") or "") in ("ADMIN", "MANAGER"),
+        "claim_approve_can_act": _request_role() in ("ADMIN", "MANAGER"),
         # 자주 쓰는 거부 문장(채워 넣기 전용)과 우리 글자수 상한. 화면이 목록을 따로 들면
         # 서버 상한과 갈린다 — 잘려 나간 문장이 그대로 구매자에게 간다.
         # 목록은 **DB 가 정본**이다(전역 공유). 저장된 적이 없으면 코드 기본 5종이 온다.
         "return_reject_fills": load_reject_templates(db),
         "return_reject_templates_version": reject_templates_version(db),
         # 문장을 고치는 것은 ADMIN 만(거부 실행은 MANAGER 까지). 라우트도 같은 조건이다.
-        "return_reject_can_manage": (session.get("role") or "") == "ADMIN",
+        "return_reject_can_manage": _request_role() == "ADMIN",
         "return_reject_reason_max": RETURN_REJECT_REASON_MAX,
         # sales_users 는 워크벤치 두 템플릿 어디서도 안 쓴다 — 넣어 두면
         # pane 조각 요청마다 User 전 행 조회가 1회씩 헛돈다(리뷰 M-5).
@@ -5590,7 +5597,7 @@ def naver_ingest_ghost_discard(order_id: int):
     # 사유 칸을 띄운다 — 한쪽만 좁히면 열린 버튼이 400 을 받는다.
     note = str((request.get_json(silent=True) or {}).get("reason") or "").strip()[:500]
     if target.get("discard_needs_reason"):
-        if (session.get("role") or "") != "ADMIN":
+        if _request_role() != "ADMIN":
             return jsonify({"success": False, "data": None,
                             "error": f"{target['status_label']} 단계라 이력이 붙어 있습니다 — "
                                      "관리자만 사유를 적고 접을 수 있습니다."}), 403
@@ -6540,7 +6547,7 @@ def naver_ingest_repay_reconcile(link_id: int):
     can_run, run_block = run_gate(claim_code)
     if not can_run:
         return jsonify({"success": False, "data": None, "error": f"{run_block}."}), 400
-    is_admin = (session.get("role") or "") == "ADMIN"
+    is_admin = _request_role() == "ADMIN"
 
     try:
         # 집 요약은 **변경 전에** 뽑는다 — 붙인 뒤에는 대상 집합·관계값이 이미 바뀌어 있다.

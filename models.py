@@ -1310,6 +1310,10 @@ class User(Base):
     contact_phone = Column(String(30), nullable=True)
     # PARTNER-01: 협력사 계정의 소속. NULL = 우리 직원(ck_users_partner_role_org 가 role 과 맞춘다).
     partner_org_id = Column(Integer, ForeignKey('partner_orgs.id', name='fk_users_partner_org_id_partner_orgs'), nullable=True, index=True)
+    # SESSION-REVOKE-01: 세션 세대 번호(비밀번호·역할 변경 때 +1 → 모든 세션 끊김)와
+    # 로그아웃한 세션 표지 목록(그 기기만 끊김). foms/services/security/session_guard.py 가 읽고 쓴다.
+    session_version = Column(Integer, nullable=False, server_default='0', default=0)
+    revoked_session_ids = Column(JSONColumn, nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.now)
     last_login = Column(DateTime)
 

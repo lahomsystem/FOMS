@@ -16,6 +16,7 @@ from foms.services.common.ept_b7_profile import format_phases
 from foms.services.common.request_phase_profile import HEADER_REQ_DIAG, format_request_diag
 from foms.services.datetime_kst import get_today_kst
 from foms.services.error_logging import install_protected_logging
+from foms.services.security.session_guard import impersonator_ok, session_is_current
 from foms.services.user_activity import touch_last_seen
 
 from flask import Flask, current_app, g, jsonify, redirect, request, session, url_for
@@ -231,6 +232,10 @@ def register_http_bootstrap(
                 # 장식·핸들러 안 확인·정책 가드가 모두 g.current_user 를 보므로 한 곳이면 된다.
                 # 승인 대기(PENDING)는 login_required 처럼 보지 않는다(로그인 단계에서 막힌다).
                 # 세션을 쓰는 것은 이 경우뿐이다 — 활성 사용자는 아래 SESSION-COOKIE-01 그대로.
+                session.clear()
+                return
+            # SESSION-REVOKE-01: 로그아웃한 세션·비밀번호/역할이 바뀐 계정의 옛 세션을 끊는다.
+            if not session_is_current(session, user) or not impersonator_ok(session):
                 session.clear()
                 return
             # SESSION-COOKIE-01: 이미 permanent 면 다시 쓰지 않는다. ``session.permanent = True``
