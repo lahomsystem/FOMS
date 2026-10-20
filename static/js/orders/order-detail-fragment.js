@@ -275,7 +275,10 @@ window.resolveOrderRoleAssignees = resolveOrderRoleAssignees;
 
 function buildOrderRoleAssigneesHtml(roleAssignees) {
     const roles = roleAssignees || {};
-    const esc = typeof escapeHtml === 'function' ? escapeHtml : function (v) { return String(v || ''); };
+    const esc = typeof escapeHtml === 'function' ? escapeHtml : function (v) {
+        return String(v || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    };
     return '<div class="col-12">'
         + '<div class="card">'
         + '<div class="card-body">'

@@ -147,7 +147,7 @@
   function escapeHtml(s) {
     var d = document.createElement('div');
     d.appendChild(document.createTextNode(s || ''));
-    return d.innerHTML;
+    return d.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
 
   form.addEventListener('submit', function(e) {
