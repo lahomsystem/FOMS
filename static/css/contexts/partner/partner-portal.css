@@ -322,4 +322,6 @@ body.pp-sheet-open { overflow: hidden; }
   .pp-qcard--turn { border-color: #ffc107; box-shadow: 0 0 0 1px #ffc107; }
   .pp-chip--turn:not(.is-active) { background: #fff4d6; color: #8a5a00; }
   .pp-mlist__group { margin-top: 4px; }
+  /* 지금 · 주소 · 제품은 한 줄 전체(우리 출고 카드와 같은 규칙) — 반 칸이면 "지금" 문장이 좁게 꺾인다. */
+  .pp-qcard .foms-queue-card-v2__meta-full { grid-column: 1 / -1; }
 }
