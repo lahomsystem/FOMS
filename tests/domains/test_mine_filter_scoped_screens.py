@@ -147,3 +147,45 @@ def test_hybrid_ids_match_or_form(app):
                 matched += len(old)
         assert checked >= 8
         assert matched > 0, "음성만 비교했다"
+
+
+def test_tower_mine_on_does_not_reapply_mine_clause(app):
+    """mine 켠 타워의 '내 담당 진행중' 은 이미 걸러진 base 를 그대로 센다.
+
+    같은 mine 절을 두 번 걸면 첫 절이 범위로 갈래마다 복제돼(ADMIN all 범위) 질의 하나가 4.4초가 됐다
+    (2026-10-20 스테이징). 개수는 mine 끈 타워와 같아야 하고, 어떤 SQL 도 mine 갈래를 한 벌 넘게 품지 않는다.
+    """
+    from sqlalchemy import event
+
+    from foms.services.datetime_kst import get_today_kst
+
+    with app.app_context():
+        admin = _user("타워관리", "ADMIN", role="ADMIN")
+        today = get_today_kst().isoformat()
+        rows = [_order("타워관리", "MEASURE"), _order("타워관리", "DRAWING"), _order("타워관리", "COMPLETED"),
+                _order("다른사람", "MEASURE")]
+        rows[2].erp_stage_code = "COMPLETED"
+        for o in rows:
+            o.received_date = today
+        db_session.add_all(rows)
+        db_session.commit()
+
+        light = [c for c in build_mine_sql_filter(admin) if not is_doc_scan_mine_cond(c)]
+        statements: list[str] = []
+        engine = db_session.get_bind()
+
+        def _capture(conn, cursor, statement, params, context, executemany):
+            statements.append(statement)
+
+        off = tower.build_mobile_control_tower(db_session, admin, mine_only=False)
+        event.listen(engine, "before_cursor_execute", _capture)
+        try:
+            on = tower.build_mobile_control_tower(db_session, admin, mine_only=True)
+        finally:
+            event.remove(engine, "before_cursor_execute", _capture)
+
+        assert off["mine_open_count"] == 2
+        assert on["mine_open_count"] == off["mine_open_count"]
+        assert statements, "SQL 을 못 잡았다"
+        worst = max(s.count("FROM orders AS orders_mine") for s in statements)
+        assert worst <= len(light), f"mine 갈래가 겹쳐 들어갔다: {worst} > {len(light)}"

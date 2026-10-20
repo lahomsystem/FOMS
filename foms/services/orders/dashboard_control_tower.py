@@ -914,7 +914,7 @@ def _inbound_count(base: Any) -> int:
     return int(base.filter(Order.erp_stage_code.in_(["RECEIVED"])).count() or 0)
 
 
-def _mine_open_count(base: Any, current_user: Any) -> int:
+def _mine_open_count(base: Any, current_user: Any, *, base_is_mine: bool = False) -> int:
     if not current_user:
         return 0
     conds = build_mine_sql_filter(current_user)
@@ -922,6 +922,10 @@ def _mine_open_count(base: Any, current_user: Any) -> int:
         return 0
     # 단계 조건까지 먼저 붙인 범위를 갈래에 넣는다(HYBRID, 결과는 OR 과 같다)
     scoped = base.filter(or_(Order.erp_stage_code.is_(None), Order.erp_stage_code.notin_(_DONE_CODES)))
+    if base_is_mine:
+        # base 가 이미 _apply_mine_only 로 내 담당만이다. 같은 mine 절을 또 걸면 범위(첫 mine 절 포함)가
+        # 갈래마다 복제돼 ADMIN(all 범위 16갈래)에서 4.4초가 걸렸다(2026-10-20 스테이징 실측, 결과는 같다).
+        return int(scoped.count() or 0)
     return int(scoped.filter(mine_membership_clause(conds, scope_conds=[scoped.whereclause])).count() or 0)
 
 
@@ -1027,5 +1031,5 @@ def build_mobile_control_tower(
         "risk_groups": risk,
         "risk_total": sum(g["count"] for g in risk),
         "inbound_count": _inbound_count(base),
-        "mine_open_count": _mine_open_count(base, current_user),
+        "mine_open_count": _mine_open_count(base, current_user, base_is_mine=mine_only),
     }
