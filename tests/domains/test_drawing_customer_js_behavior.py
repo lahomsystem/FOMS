@@ -77,6 +77,14 @@ def _urls(result: dict) -> list[str]:
     return [c["url"] for c in result["calls"]]
 
 
+def test_send_split_choice_reaches_server():
+    """상담 먼저: [따로따로]를 고르면 send-alimtalk 본문에 split=true 가 실린다(설계서 2026-10-20)."""
+    r = _send("root._sel['input[name=\"dw-send-split\"]:checked'] = makeEl({ value: 'split', checked: true });\n"
+              "route('/api/share/send-alimtalk/501', function () {"
+              " return Resp(200, { success: true, data: { sent: true, error: null }, error: null }); });")
+    assert r["calls"][1]["body"] == {"token": "tok-secret", "source_screen": "drawing_tab", "split": True}
+
+
 def test_send_success_reloads_with_drawing_tab_marker():
     r = _send("route('/api/share/send-alimtalk/501', function () {"
               " return Resp(200, { success: true, data: { sent: true, error: null }, error: null }); });")
