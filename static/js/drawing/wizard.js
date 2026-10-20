@@ -562,6 +562,16 @@
   function formCells() { return Array.prototype.slice.call(els.form.querySelectorAll('[data-dws-form-key]')); }
   function checkEls() { return Array.prototype.slice.call(els.form.querySelectorAll('[data-dws-check]')); }
 
+  /* 이미 저장된 도면의 '010-1111-2222 /010-3333-4444' 도 서버 포맷(format_phone_no_prefix)처럼 줄마다 하나로 */
+  function splitPhones(v) {
+    var parts = v.split(/[\/,;\n]+/).map(function (p) { return p.trim(); }).filter(Boolean);
+    if (parts.length < 2) { return v; }
+    return parts.map(function (p) {
+      var d = p.replace(/[^0-9]/g, '');
+      return (d.length === 11 && d.indexOf('010') === 0) ? d.slice(3, 7) + '-' + d.slice(7) : p;
+    }).join('\n');
+  }
+
   function renderForm() {
     var cs = currentSheet();
     if (!cs) { return; }   // 시트 0개(빈 상태): 빈 안내 오버레이는 renderTabs 가 표시
@@ -569,6 +579,7 @@
     formCells().forEach(function (el) {
       var k = el.getAttribute('data-dws-form-key');
       el.textContent = (form[k] != null) ? String(form[k]) : '';
+      if (k === 'phone') { el.textContent = splitPhones(el.textContent); }
       if (k === 'phone') { el.classList.toggle('dws-cell-2line', el.textContent.indexOf('\n') !== -1); }
     });
     renderChecks();
