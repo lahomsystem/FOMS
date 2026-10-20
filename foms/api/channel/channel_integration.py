@@ -33,6 +33,7 @@ from foms.services.channel_drawing_attachments import (
     select_drawing_room_push_attachments,
 )
 from foms.services.channel_drawing_room_message import build_drawing_room_push_text
+from foms.services.channel_measure_message import build_measure_push_text
 from foms.services.drawing_confirm_cleanup import exclude_superseded_drawing_rows
 from foms.services.channel_manager_room import resolve_manager_room
 from foms.services.orders.as_log import decorate_entry
@@ -86,6 +87,10 @@ def _attachment_disposition(filename: str) -> str:
     return f"attachment; filename=\"{ascii_fallback}\"; filename*=UTF-8''{quote(filename)}"
 # 본문을 서버가 저장된 주문으로 단독 조립하는 push 종류(클라이언트 text 를 신뢰하지 않는다).
 _SERVER_COMPOSED_TEXT_KINDS = frozenset({'as', 'drawing_room'})
+# text 를 비워 보내면 서버가 저장된 주문으로 본문을 조립하는 push 종류. 실측 PUSH 는 PC 폼이
+# 저장 전 화면 값을 변환 텍스트로 보내므로 text 가 오면 그대로 쓴다. 모바일 주문등록 마법사의
+# "등록하고 PUSH" 는 등록 직후 화면 DOM 이 없으므로 text 없이 보내 서버 미러를 쓴다.
+_SERVER_COMPOSED_WHEN_EMPTY_KINDS = frozenset({'measure_room'})
 _MIN_CHANGE_NOTE_LEN = 1
 _MAX_CHANGE_NOTE_LEN = 500
 _RETIRED_GROUP_MESSAGE = '이 채널톡 방(554075)으로의 PUSH 기능은 삭제되었습니다.'
@@ -511,7 +516,10 @@ def api_channel_push_manual():
         # AS·도면방 본문은 서버가 저장된 주문으로 조립한다(SSOT). ERP 폼·AS 대시보드·
         # 도면 워크벤치·도면 마법사 어느 쪽에서 쏘든 같은 문구가 나가야 하므로 클라이언트가
         # 보낸 text 는 이 경로에서 신뢰하지 않는다.
-        if push_kind not in _SERVER_COMPOSED_TEXT_KINDS:
+        server_composes = push_kind in _SERVER_COMPOSED_TEXT_KINDS or (
+            push_kind in _SERVER_COMPOSED_WHEN_EMPTY_KINDS and not text
+        )
+        if not server_composes:
             if not text:
                 return jsonify({'success': False, 'message': '전송할 텍스트가 없습니다. 변환 버튼을 먼저 누르거나 내용을 입력해주세요.'}), 400
             if len(text) > _MAX_TEXT_LENGTH:
@@ -571,6 +579,14 @@ def api_channel_push_manual():
                 return jsonify({
                     'success': False,
                     'message': f'도면방 본문이 너무 깁니다 (최대 {_MAX_TEXT_LENGTH}자).',
+                }), 400
+
+        if push_kind in _SERVER_COMPOSED_WHEN_EMPTY_KINDS and server_composes:
+            text = build_measure_push_text(order.structured_data or {})
+            if len(text) > _MAX_TEXT_LENGTH:
+                return jsonify({
+                    'success': False,
+                    'message': f'실측 PUSH 본문이 너무 깁니다 (최대 {_MAX_TEXT_LENGTH}자).',
                 }), 400
 
         # 이전 푸쉬 이력 확인 (push_kind별 분리)

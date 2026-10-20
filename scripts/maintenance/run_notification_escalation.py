@@ -39,6 +39,12 @@ from foms.services.notifications.escalation import (  # noqa: E402
     escalate_overdue_urgent,
     finalize_escalation_delivery,
 )
+from foms.api.notifications import invalidate_badge_cache_for_user_ids  # noqa: E402
+from foms.services.notifications import draft_send_reminder  # noqa: E402
+from foms.services.notifications.push_sender import enqueue_push_for_notification  # noqa: E402
+from foms.services.notifications.realtime_notifications import (  # noqa: E402
+    emit_erp_notification_to_users,
+)
 from foms.services.sidefx_worker import (  # noqa: E402
     WORKER_KIND_NOTIFICATION_ESCALATION,
 )
@@ -90,10 +96,58 @@ def _sweep_once(dry_run: bool) -> dict:
             created_notification_ids=result.get("created_notification_ids"),
             recipient_user_ids=result.get("recipient_user_ids"),
         )
+        result["draft_reminder"] = _draft_reminder_once(db)
         return result
     except Exception:
         db.rollback()
         raise
+
+
+def _deliver_draft_reminders(db, notification_ids, recipient_user_ids) -> int:
+    """커밋된 미등록 알림의 배지 무효화 + 실시간 + 웹푸시 enqueue. 푸시 enqueue 수를 준다."""
+    recipients = sorted({int(x) for x in (recipient_user_ids or [])})
+    if recipients:
+        invalidate_badge_cache_for_user_ids(recipients)
+        emit_erp_notification_to_users(
+            recipients,
+            {
+                "title": draft_send_reminder.TITLE,
+                "message": "",
+                "notification_type": draft_send_reminder.NOTIFICATION_TYPE,
+                "kind": "erp_notification",
+            },
+        )
+    pushed = 0
+    for nid in notification_ids or []:
+        try:
+            if enqueue_push_for_notification(int(nid), db=db).get("enqueued"):
+                pushed += 1
+        except Exception:
+            _LOGGER.exception("[draft-reminder] push enqueue failed notification_id=%s", nid)
+    return pushed
+
+
+def _draft_reminder_once(db) -> dict:
+    """발송 후 미등록 마법사 초안 알림(같은 1분 루프에 얹는다 — 새 루프·새 인프라 없이).
+
+    실패해도 에스컬레이션 결과는 이미 커밋됐으므로 기록만 하고 넘어간다.
+    """
+    try:
+        reminder = draft_send_reminder.remind_unregistered_sent_drafts(db)
+        db.commit()
+    except Exception:
+        db.rollback()
+        _LOGGER.exception("[draft-reminder] sweep failed")
+        return {"error": "sweep_failed"}
+    pushed = _deliver_draft_reminders(
+        db, reminder["created_notification_ids"], reminder["recipient_user_ids"]
+    )
+    return {
+        "checked": reminder["checked"],
+        "owner_reminded": reminder["owner_reminded"],
+        "admin_reminded": reminder["admin_reminded"],
+        "pushed": pushed,
+    }
 
 
 def _print_result(result: dict, as_json: bool) -> None:

@@ -22,8 +22,11 @@
     },
     channel: {
       preview: "/api/erp/order-draft/channel-push/preview",
-      send: "/api/erp/order-draft/channel-push/send",
-      title: "실측 PUSH",
+      // 실측 PUSH 는 "등록하고 PUSH" 다 — 주문을 먼저 등록하고, 등록된 주문 기준으로 보낸다.
+      // 초안 PUSH 만 하고 등록을 놓쳐 "채널톡엔 왔는데 ERP 에 주문이 없는" 일이 되풀이됐다
+      // (2026-10-20 박미영 건, 설계서 docs/plans/2026-10-20-wizard-push-register-safety-spec.md).
+      send: "/api/channel/push-manual",
+      title: "등록하고 실측 PUSH",
     },
   };
 
@@ -46,7 +49,12 @@
     not_found: "발송 기능이 아직 배포되지 않았습니다",
     server_error: "서버 오류가 발생했습니다",
     forbidden: "발송 권한이 없습니다",
+    push_in_progress: "이미 전송 처리 중입니다. 잠시 후 다시 시도해주세요",
   };
+
+  // 등록이 끝난 뒤 주문 화면 주소. 바뀐 내용 재전송은 그 화면의 PUSH 가 맡는다.
+  var ORDER_EDIT_HREF_PREFIX = "/edit/";
+  var REDIRECT_DELAY_MS = 1200;
 
   var TRACE_PREFIX = { alimtalk: "알림톡", channel: "실측 PUSH" };
 
@@ -302,6 +310,7 @@
     var metaParts = [];
     if (kind === "channel") {
       metaParts.push("첨부 " + (parseInt(data.files_count, 10) || 0) + "건");
+      metaParts.push("확인하면 주문을 먼저 등록하고 보냅니다");
     }
     if (!blocked && state.resend) {
       metaParts.push("이미 발송 이력이 있습니다. 확인하면 다시 발송됩니다.");
@@ -325,6 +334,7 @@
     var confirmBtn = document.getElementById("foms-wizard-send-confirm");
     if (confirmBtn) {
       confirmBtn.disabled = !state.sendable;
+      confirmBtn.textContent = kind === "channel" ? "등록하고 보내기" : "발송";
     }
   }
 
@@ -380,6 +390,9 @@
    * @returns {Promise<void>}
    */
   function confirmSend() {
+    if (state.kind === "channel") {
+      return registerAndPush();
+    }
     var kind = state.kind;
     var conf = kind ? ENDPOINTS[kind] : null;
     var key = draftKey();
@@ -429,6 +442,111 @@
         setStatus(conf.title + " 발송 실패 · " + label, true);
       })
       .then(function () {
+        lockButtons(false);
+      });
+  }
+
+  /**
+   * 등록 실패 응답을 한 줄 문구로 바꾼다(빠진 칸 이름까지).
+   * @param {Object|null} data 등록 응답 본문.
+   * @returns {string} 사용자 문구.
+   */
+  function submitErrorLabel(data) {
+    if (data && data.error === "VALIDATION" && Array.isArray(data.fields) && data.fields.length) {
+      return "빠진 칸이 있습니다: " + data.fields.join(", ");
+    }
+    return (data && data.error) || "주문 등록에 실패했습니다";
+  }
+
+  /**
+   * 등록이 끝났으므로 주문 화면으로 옮긴다.
+   * @param {number|string} orderId 새 주문 번호.
+   * @param {number} delayMs 이동 전 대기(안내 문구를 읽을 시간).
+   * @returns {void}
+   */
+  function goToOrder(orderId, delayMs) {
+    window.setTimeout(function () {
+      window.location.href = ORDER_EDIT_HREF_PREFIX + encodeURIComponent(String(orderId));
+    }, delayMs);
+  }
+
+  /**
+   * 시트 확인 → 주문 등록 → (등록 성공 시에만) 주문 기준 실측 PUSH.
+   *
+   * 등록이 실패하면 PUSH 를 보내지 않는다 — PUSH 가 나갔다면 주문은 반드시 있다.
+   * PUSH 만 실패하면 주문은 그대로 두고 주문 화면에서 다시 보내도록 안내한다.
+   * 본문은 서버가 등록된 주문으로 조립한다(``push-manual`` 에 text 를 보내지 않는다).
+   * @returns {Promise<void>}
+   */
+  function registerAndPush() {
+    var client = window.fomsWizardDraftClient;
+    if (!client || typeof client.submitOrder !== "function" || !state.sendable) {
+      return Promise.resolve();
+    }
+    var changeNote = "";
+    var noteInput = document.getElementById("foms-wizard-send-sheet-note");
+    var noteWrap = document.getElementById("foms-wizard-send-sheet-note-wrap");
+    if (noteWrap && !noteWrap.hidden && noteInput) {
+      changeNote = noteInput.value.trim();
+      if (!changeNote) {
+        setStatus("이미 보낸 PUSH 가 있습니다 — 변경 사유를 적어 주세요", true);
+        return Promise.resolve();
+      }
+    }
+    lockButtons(true);
+    setStatus("주문 등록 중…");
+    var orderId = null;
+    return client
+      .submitOrder()
+      .then(function (result) {
+        var data = result && result.data;
+        if (!data || data.success !== true || !data.data || !data.data.order_id) {
+          setStatus("주문 등록 실패 · " + submitErrorLabel(data) + " — PUSH 는 보내지 않았습니다", true);
+          toggleSheet(false);
+          lockButtons(false);
+          return null;
+        }
+        orderId = data.data.order_id;
+        setStatus("주문 등록 완료 · 실측 PUSH 보내는 중…");
+        var payload = { order_id: orderId, push_kind: "measure_room" };
+        if (changeNote) {
+          payload.change_note = changeNote;
+        }
+        return fetch(ENDPOINTS.channel.send, {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        }).then(readBody);
+      })
+      .then(function (result) {
+        if (!result) {
+          return;
+        }
+        var body = result.body;
+        toggleSheet(false);
+        if (body && body.success === true) {
+          setStatus("등록하고 실측 PUSH 완료 — 주문 화면으로 이동합니다. 바뀌면 거기서 고치고 PUSH 를 다시 누르세요");
+          goToOrder(orderId, REDIRECT_DELAY_MS);
+          return;
+        }
+        var reason = (body && (body.message || body.error)) || reasonLabel(errorCode(result.status, body));
+        window.alert(
+          "주문은 등록됐습니다. 실측 PUSH 는 보내지 못했습니다.\n사유: " + reason +
+          "\n주문 화면에서 [PUSH] → [실측 PUSH] 를 다시 눌러 주세요."
+        );
+        goToOrder(orderId, 0);
+      })
+      .catch(function () {
+        if (orderId) {
+          window.alert(
+            "주문은 등록됐습니다. 실측 PUSH 결과를 확인하지 못했습니다(통신 끊김).\n" +
+            "주문 화면의 발송 기록을 확인하고, 없으면 PUSH 를 다시 눌러 주세요."
+          );
+          goToOrder(orderId, 0);
+          return;
+        }
+        setStatus("주문 등록 실패 · " + reasonLabel("network") + " — PUSH 는 보내지 않았습니다", true);
         lockButtons(false);
       });
   }

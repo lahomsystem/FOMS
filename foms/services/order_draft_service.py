@@ -6,6 +6,7 @@ import copy
 import datetime
 from typing import Any
 
+from sqlalchemy import String, and_, cast, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
@@ -24,6 +25,18 @@ SEND_KIND_ALIMTALK = "alimtalk_measurement"
 SEND_KIND_CHANNEL_MEASURE = "channeltalk_push_measure_room"
 
 _SEND_KINDS = frozenset({SEND_KIND_ALIMTALK, SEND_KIND_CHANNEL_MEASURE})
+
+
+def has_send_history_clause():
+    """발송 이력 열에 무언가 적힌 초안 조건.
+
+    열은 ``JSON`` 이라 파이썬 ``None`` 을 명시 대입하면 SQL NULL 이 아니라 JSON ``null`` 이
+    들어간다 — ``IS NOT NULL`` 하나로는 그 행을 "발송함"으로 잘못 센다.
+    """
+    return and_(
+        OrderDraft.send_history.isnot(None),
+        cast(OrderDraft.send_history, String) != "null",
+    )
 
 
 class OrderDraftConflictError(Exception):
@@ -124,7 +137,9 @@ def list_open_drafts(
 
     * ``user_id`` — 본인 소유만.
     * ``order_id IS NULL`` — 이미 주문이 된 초안(편집 초안)은 "작성 중"이 아니다.
-    * ``expires_at > now`` — 만료분은 곧 정리 대상이라 이어서 쓸 수 없다.
+    * ``expires_at > now`` — 만료분은 곧 정리 대상이라 이어서 쓸 수 없다. **단 발송 기록이
+      있는 초안은 만료돼도 남긴다** — 고객·실측방은 안내를 받았는데 주문이 없는 상태라
+      조용히 지우면 안 된다(정리 cron 도 지우지 않는다, 2026-10-20).
 
     Args:
         db: 조회 세션.
@@ -141,7 +156,7 @@ def list_open_drafts(
         .filter(
             OrderDraft.user_id == user_id,
             OrderDraft.order_id.is_(None),
-            OrderDraft.expires_at > threshold,
+            or_(OrderDraft.expires_at > threshold, has_send_history_clause()),
         )
         .order_by(OrderDraft.updated_at.desc(), OrderDraft.id.desc())
         .limit(max(1, int(limit)))
@@ -326,6 +341,39 @@ def record_draft_send(
     # SQLAlchemy 는 값이 그대로인 속성을 SET 절에서 빼므로 "같은 값 재대입"으로는
     # onupdate 를 못 막는다 — flush 뒤 값이 밀렸으면 옛 값으로 되돌린다(그때는 값이
     # 달라서 SET 절에 실리고, 명시 값이 있으면 onupdate 는 적용되지 않는다).
+    preserved_updated_at = row.updated_at
+    row.send_history = history
+    flag_modified(row, "send_history")
+    db.flush()
+    if row.updated_at != preserved_updated_at:
+        row.updated_at = preserved_updated_at
+        db.flush()
+
+
+def write_draft_send_history_meta(
+    db: Session, row: OrderDraft, *, key: str, value: dict[str, Any]
+) -> None:
+    """발송 이력 열에 발송이 아닌 부가 표시(예: 미등록 알림을 보냈다는 표시)를 굳힌다.
+
+    :func:`record_draft_send` 와 같은 이유로 ``updated_at`` 을 지킨다 — 서버 전용 쓰기가
+    If-Match 토큰을 흔들면 사용자의 다음 autosave 가 409 로 튕긴다. 발송 종류 키
+    (:data:`_SEND_KINDS`)는 이 함수로 쓰지 않는다(발송 기록은 :func:`record_draft_send` 몫).
+
+    Args:
+        db: 활성 세션(flush 까지만, 커밋은 호출자).
+        row: 대상 초안 행.
+        key: 부가 표시 키.
+        value: 저장할 dict(깊은 복사).
+
+    Raises:
+        ValueError: ``key`` 가 발송 종류 키이거나 ``value`` 가 dict 가 아닐 때.
+    """
+    if key in _SEND_KINDS:
+        raise ValueError(f"send kind must be written by record_draft_send: {key!r}")
+    if not isinstance(value, dict):
+        raise ValueError("value must be an object")
+    history = copy.deepcopy(row.send_history) if isinstance(row.send_history, dict) else {}
+    history[key] = copy.deepcopy(value)
     preserved_updated_at = row.updated_at
     row.send_history = history
     flag_modified(row, "send_history")
