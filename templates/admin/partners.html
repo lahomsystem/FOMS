@@ -74,7 +74,7 @@
       </form>
 
       <table class="table table-sm align-middle mb-3">
-        <thead><tr><th>아이디</th><th>이름</th><th>연락처(도면 표기)</th><th>상태</th><th>마지막 접속</th><th>비밀번호 바꾸기</th><th></th></tr></thead>
+        <thead><tr><th>아이디</th><th>이름</th><th>연락처(도면 표기)</th><th>상태</th><th>알림 받는 기기</th><th>마지막 접속</th><th>비밀번호 바꾸기</th><th></th></tr></thead>
         <tbody>
           {% for u in row.users %}
           <tr>
@@ -88,6 +88,8 @@
               </form>
             </td>
             <td>{% if u.is_active %}<span class="badge bg-success">사용 중</span>{% else %}<span class="badge bg-secondary">꺼짐</span>{% endif %}</td>
+            {# PARTNER-FOMS 6: 웹 푸시를 켠 기기 수. 0대면 협력사 알림이 안 가니 CS 가 전화로 알린다. #}
+            <td>{% set n = push_devices.get(u.id, 0) %}{% if n %}<span class="badge bg-success">{{ n }}대</span>{% else %}<span class="badge bg-warning text-dark" title="협력사 화면 머리줄 '알림 받기'를 아직 누르지 않았습니다 — 전화로 알려 주세요">없음</span>{% endif %}</td>
             <td class="small text-muted">{{ u.last_login | format_datetime_kst if u.last_login else '-' }}</td>
             <td>
               <form method="post" action="{{ url_for('admin.partners_reset_password', user_id=u.id) }}" class="d-flex gap-1">

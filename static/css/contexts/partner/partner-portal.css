@@ -21,7 +21,8 @@
 .pp-body { margin: 0; background: var(--pp-bg); color: var(--pp-text); }
 
 /* 머리줄 · 메뉴 줄은 우리 layout-header · layout-global-nav 모양(Bootstrap). 좁은 화면 규칙은 우리 layout_head 와 같은 값. */
-.pp-header { padding: 1rem 1.5rem; }
+/* 머리줄이 메뉴 줄보다 위에 쌓여야 "알림 받기" 판이 메뉴 줄에 가려지지 않는다(스테이징 실화면). */
+.pp-header { position: relative; z-index: 1035; padding: 1rem 1.5rem; }
 .pp-brand { min-width: 0; color: inherit; text-decoration: none; }
 .pp-logout, .pp-admin-back { margin: 0; }
 .pp-user { color: var(--pp-muted); font-size: 14px; white-space: nowrap; }
@@ -208,6 +209,24 @@
 /* 주문 화면 머리의 단계 표시는 한 줄로(휴대폰에서 "접수 확인 중"이 꺾였다). */
 .pp-order .card-header .pp-stage { flex-shrink: 0; white-space: nowrap; }
 
+/* 머리줄 "알림 받기"(웹 푸시) — 버튼 아래로 펼치는 작은 판. */
+.pp-push { position: relative; }
+.pp-push--on .pp-push__btn { border-color: #198754; color: #198754; }
+.pp-push__panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 30;
+  width: min(320px, calc(100vw - 24px));
+  padding: 12px;
+  border: 1px solid var(--pp-border);
+  border-radius: 10px;
+  background: var(--pp-surface);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+.pp-push__msg { margin: 0 0 8px; font-size: 14px; }
+.pp-push__steps { margin: 0 0 8px; padding-left: 18px; font-size: 13px; color: var(--pp-muted); }
+
 /* 완공 사진 · AS 사진 — 눌러 고르면 AS 접수에 붙는다(설계서 2026-10-19 §3.6). */
 .pp-photos { list-style: none; margin: 0 0 12px; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; }
 .pp-photo { position: relative; display: grid; gap: 4px; }
@@ -239,6 +258,7 @@
 
 @media (max-width: 520px) {
   .pp-user { display: none; }
+  .pp-push__btn span { display: none; }
   .pp-main--wide { padding: 12px 12px 24px; }
   .pp-actions__buttons { margin-left: 0; }
   .pp-actions__buttons .btn { flex: 1 1 auto; }

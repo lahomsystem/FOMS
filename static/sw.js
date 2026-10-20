@@ -419,8 +419,8 @@ function applyPushAppBadge(count) {
   }
 }
 
-// deep link allowlist: same-origin 이면서 '/erp/' 로 시작하는 경로만 허용.
-// 그 외(교차 출처, 임의 경로, javascript: 등)는 대시보드로 폴백한다(오픈 리다이렉트 차단).
+// deep link allowlist: same-origin 이면서 '/erp/' 또는 '/partner/'(협력사 알림 — PARTNER-FOMS 6) 로
+// 시작하는 경로만 허용. 그 외(교차 출처, 임의 경로, javascript: 등)는 대시보드로 폴백한다(오픈 리다이렉트 차단).
 function sanitizePushDeepLink(rawLink) {
   if (!rawLink || typeof rawLink !== "string") return PUSH_FALLBACK_DEEP_LINK;
   var target;
@@ -430,7 +430,9 @@ function sanitizePushDeepLink(rawLink) {
     return PUSH_FALLBACK_DEEP_LINK;
   }
   if (target.origin !== self.location.origin) return PUSH_FALLBACK_DEEP_LINK;
-  if (target.pathname.indexOf("/erp/") !== 0) return PUSH_FALLBACK_DEEP_LINK;
+  if (target.pathname.indexOf("/erp/") !== 0 && target.pathname.indexOf("/partner/") !== 0) {
+    return PUSH_FALLBACK_DEEP_LINK;
+  }
   return target.pathname + target.search + target.hash;
 }
 

@@ -206,7 +206,8 @@ def test_policy_engine_denies_partner_outside_account_policies(app):
     org = _org("협력사정책")
     partner = _user(role="PARTNER", team=None, org=org)
     allowed = {pid for pid, pol in POLICY_REGISTRY.items() if evaluate_policy(pol, partner).allowed}
-    assert allowed == {"ACCOUNT_SELF", "ACCOUNT_ANON", "PARTNER_PORTAL"}
+    # 웹 푸시 자기 구독 · 자기 시험 알림 · 자기 알림 열람(PARTNER-FOMS 6)만 더했다.
+    assert allowed == {"ACCOUNT_SELF", "ACCOUNT_ANON", "PARTNER_PORTAL", "CREATE_OWN_PUSH_SUBSCRIPTION", "OWN_PUSH_SELF"}
 
 
 # --------------------------------------------------------------------------

@@ -9,6 +9,7 @@ from flask import Response, abort, flash, redirect, render_template, request, se
 
 from db import get_db
 from foms.services.partners.logo import PartnerLogoError, read_partner_logo, save_partner_logo
+from foms.services.partners.notify import partner_push_device_counts
 from foms.services.partners.orgs import (
     PartnerAdminError,
     create_partner_org,
@@ -45,6 +46,7 @@ def partners():
     return render_template(
         "admin/partners.html",
         rows=list_partner_orgs_with_users(db),
+        push_devices=partner_push_device_counts(db),
     )
 
 

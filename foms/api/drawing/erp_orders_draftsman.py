@@ -39,6 +39,7 @@ from foms.services.orders.drawing_assignee_write import apply_drawing_assignees
 from foms.services.orders.admin_override import (
     admin_override_error, log_admin_override_denied,
     record_admin_override_event, resolve_admin_override)
+from foms.services.partners.notify import notify_partner_drawing_ready
 from foms.services.storage import get_storage
 
 erp_orders_draftsman_bp = Blueprint(
@@ -461,6 +462,7 @@ def api_order_confirm_drawing_receipt(order_id):
                 to_value='CONFIRMED')
 
         db.commit()
+        notify_partner_drawing_ready(db, order)  # PARTNER-FOMS 6: 협력사 주문이면 협력사 직원 웹 푸시
         # P1-2: 바뀌는 것은 도면 상태(CONFIRMED)·현재 도면 목록(drawing_current_files)·단계
         # DRAWING→CONFIRM 이다. 단계 전이는 transition_order → execute_order_mutation 이라
         # MUT-CACHE-01 리스너가 떠난/도착한 단계 family 를 비운다. 도면 상태는 도면 큐 소속,
