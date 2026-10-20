@@ -31,6 +31,7 @@ from foms.services.security.signing.signing_keys import (
 
 __all__ = [
     "verify_channel_signature",
+    "verify_channel_webhook_token",
     "require_channel_signature",
     "generate_wam_launch_token",
     "generate_wam_entry_token",
@@ -227,6 +228,19 @@ def verify_channel_signature(raw_body: bytes, signature: str) -> bool:
     return False
 
 
+def verify_channel_webhook_token(token: str) -> bool:
+    """채널 설정 웹훅의 ``?token=`` 값을 브랜드 채널별 키와 상수 시간 비교한다.
+
+    서명 키와 같은 env(``CHANNEL_SIGNING_KEY``·``_HAUD``·``_LAHOM``)를 쓴다 — 웹훅을 만들 때
+    채널톡이 주는 토큰이 곧 이 값이다.
+    """
+    if not token:
+        return False
+    keys = [key for key in (CHANNEL_SIGNING_KEY, CHANNEL_SIGNING_KEY_HAUD,
+                            CHANNEL_SIGNING_KEY_LAHOM) if key]
+    return any(hmac.compare_digest(key, token) for key in keys)
+
+
 def require_channel_signature(f):
     """Reject ChannelTalk requests that fail signature or replay checks."""
 
@@ -238,14 +252,21 @@ def require_channel_signature(f):
             return jsonify({"error": "not_found"}), 404
 
         signature = request.headers.get("x-signature", "")
-        if not signature:
+        query_token = request.args.get("token", "")
+        if signature:
+            raw_body = request.get_data()
+            if not verify_channel_signature(raw_body, signature):
+                logger.warning("[ChannelSecurity] Invalid x-signature")
+                return jsonify({"error": "unauthorized", "message": "Invalid signature"}), 401
+        elif query_token:
+            # 채널 설정 > 웹훅은 서명 헤더 없이 ``?token=<웹훅 토큰>`` 만 붙여 보낸다
+            # (2026-10-20 스테이징 실측: ChannelBot 요청에 x-signature 없음).
+            if not verify_channel_webhook_token(query_token):
+                logger.warning("[ChannelSecurity] Invalid webhook token")
+                return jsonify({"error": "unauthorized", "message": "Invalid token"}), 401
+        else:
             logger.warning("[ChannelSecurity] Missing x-signature header")
             return jsonify({"error": "unauthorized", "message": "Missing x-signature"}), 401
-
-        raw_body = request.get_data()
-        if not verify_channel_signature(raw_body, signature):
-            logger.warning("[ChannelSecurity] Invalid x-signature")
-            return jsonify({"error": "unauthorized", "message": "Invalid signature"}), 401
 
         payload = request.get_json(silent=True) or {}
         created_at_ms = payload.get("entity", {}).get("createdAt")
