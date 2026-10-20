@@ -333,3 +333,31 @@ def test_unknown_kind_returns_400(client) -> None:
     assert payload["success"] is False
     assert "message" in payload
     assert "error" in payload
+
+
+def test_construction_loader_filters_soft_deleted_orders() -> None:
+    """시공 후보 쿼리는 휴지통(deleted_at)·초안 주문을 거른다(active_filter).
+
+    휴지통 주문도 시공 일정 행이 남아 AS 태우기 후보에 떴다(운영 #5457, 2026-10-20).
+    SQLite 에는 jsonb 함수가 없어 실행 대신 보낸 SQL 을 본다.
+    """
+    from sqlalchemy import event
+
+    from foms.services.schedule_recommendations import load_construction_nearby_valid_items
+
+    statements: list[str] = []
+    engine = db_session.get_bind()
+
+    def capture(conn, cursor, statement, *args):
+        statements.append(statement)
+
+    event.listen(engine, "before_cursor_execute", capture)
+    try:
+        load_construction_nearby_valid_items(db_session, REF_DATE, None)
+    except Exception:
+        db_session.rollback()
+    finally:
+        event.remove(engine, "before_cursor_execute", capture)
+
+    sql = next(s for s in statements if "order_schedule_dates" in s and "FROM orders" in s)
+    assert "orders.deleted_at IS NULL" in sql
