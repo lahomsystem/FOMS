@@ -144,6 +144,7 @@ def load_construction_nearby_valid_items(
             ),
         )
         .filter(
+            Order.active_filter(),
             ~Order.status.in_(_AS_NEARBY_EXCLUDED_STATUSES),
             or_(
                 Order.scheduled_date >= ref_date,
@@ -253,7 +254,7 @@ def load_measurement_nearby_valid_items(
     """Load measurement-schedule orders and return nearby candidate items.
 
     후보 = ``OrderScheduleDate.kind='measurement'`` 이고 date >= ``ref_date``.
-    제외 = soft-delete / 자가실측(``is_self_measurement`` 또는 status
+    제외 = soft-delete·ERP 초안(``active_filter``) / 자가실측(``is_self_measurement`` 또는 status
     SELF_MEASUREMENT·SELF_MEASURED) / 지방(``is_regional``).
     예산은 시공 로더와 같다: ``load_only`` + ``selectinload`` + DB 캡 2500.
 
@@ -294,7 +295,7 @@ def load_measurement_nearby_valid_items(
             ),
         )
         .filter(
-            Order.not_deleted_filter(),
+            Order.active_filter(),
             ~Order.status.in_(_SELF_MEASUREMENT_STATUSES),
             Order.is_self_measurement.isnot(True),
             Order.is_regional.isnot(True),
