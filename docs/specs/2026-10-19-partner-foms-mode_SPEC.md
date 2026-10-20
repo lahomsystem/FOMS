@@ -193,3 +193,35 @@
 - 화면 `templates/partner/home.html`: 우리 `erp-pro-card` · `erp-pro-pipeline` · 필터 줄 · 작업 큐 표(단계 · 현재 작업 · 고객 · 연락처 · 주소 · 제품 · 시공일 · 담당). 768px 미만은 표 대신 카드(지금 내 차례 묶음 · 진행 막대). 경보 칸 · D-day · 실측일 칸 · 내부 메뉴는 없다. 머리 메뉴에 "도면 확인 N"(내 차례) · "완공 사진 · AS"(완료 단계) 링크.
 - JS: 필터 줄은 고르면 바로 거르고, 작업 큐 줄을 누르면 주문 화면으로(`partner-portal.js` `bindBoard`). 인라인 스타일 · 인라인 이벤트는 쓰지 않는다.
 - 시험 `tests/security/test_partner_order_list.py` 4건(칸별 수 · 다른 회사 제외 · 내 차례 맨 위, 필터 다섯 가지와 모르는 값 무시, 목록 화면 · 단계 거르기, 모든 화면 머리 메뉴 차례 수와 다른 회사 대조군).
+
+## 15. 3-3 도면 미리보기 · 이력 설계 (2026-10-20)
+
+### 15.1 사실
+- 우리 화면은 그림 도면만 그림으로 보여 준다. 고객 공유 화면(`foms/api/share.py` `share_view`)은 그림 도면을 `drawing/partials/drawing_mobile_v2_gallery.html`(카드 + `static/js/foms/lightbox.js` 확대 · 넘기기 · 저장)로, PDF 등은 파일 줄로 보여 준다. 우리 직원 미리보기 창도 PDF 는 "미리보기를 지원하지 않습니다"다. PDF 를 그림으로 바꾸는 부품은 없다(새 패키지 필요).
+- 협력사는 `files.view` · `files.download` 를 이미 쓸 수 있다(주문 단위 판정).
+- 이력 재료와 시각 기준(모두 naive = UTC, `format_datetime_kst` 로 바꿈 — 협력사 원문 사본만 KST aware):
+  - 주문 보냄: `partner_intake.submitted_at` · `submitted_by_name`. 품목 고침: `partner_intake.item_edits`(`at` · `by_name`).
+  - 도면: `drawing_transfer_history` — `TRANSFER`(올림, 파일 수), `CANCEL_TRANSFER`(올림 취소), `REQUEST_REVISION`(수정 요청 — 협력사가 보낸 것은 `by_user_name` 이 "(협력사)"로 끝남), `CONFIRM_RECEIPT`(도면 확정 = 협력사 확인 차례). 회차 = 그 올림 앞의 수정 요청 수 + 1(`drawing_round_info` 와 같은 규칙).
+  - 승인: `blueprint.confirmed_at` · `confirmed_by`(협력사 승인 때 "이름 (협력사)").
+  - 접수 확인 → 도면 작업: 단계 전이 이벤트(`STAGE_CHANGED` 등, 우리 타임라인 `_stage_reach_events` 규칙)의 DRAWING 첫 도달.
+  - 시공일: `OrderEvent` `CONSTRUCTION_DATE_CHANGED`(`from` · `to`). 시공 끝: `CONSTRUCTION_COMPLETED`.
+  - AS: `as_lifecycle.cycles[].transitions`(`AS_REGISTER` · `AS_SCHEDULE` · `AS_UNSCHEDULE` · `AS_COMPLETE` · `AS_REOPEN`). 대시보드 칸(`field_update` 의 `as_visit_date`)으로 정한 방문일은 이벤트가 없어 이력에 못 넣는다 — 지금 방문일은 "완공 사진 · AS" 탭 진행 상황에 보인다.
+
+### 15.2 설계 (2026-10-20 사용자 승인: PDF 는 파일 줄로 · 우리 쪽 수정 요청 내용은 숨김)
+- **도면 탭**: 최종 도면 중 그림 파일은 고객 공유 화면과 같은 갤러리(카드 · 눌러서 크게 · 넘기기 · 카드마다 저장), 그 밖(PDF · DWG 등)은 지금처럼 파일 줄(새 창 열기). 회차("N차 도면 · 올라온 날")를 제목 옆에. 갤러리 조각 · lightbox JS · CSS 는 우리 파일을 그대로 싣는다(바꾸지 않음).
+- **이력 탭**(새 탭 "이력"): 새 서비스 `foms/services/partners/history.py` `partner_order_history(db, order)` — 협력사가 볼 줄만 고른 허용 목록 방식, 최근이 위. 줄 = 시각(KST) · 일 · 누가 · 내용.
+  - 우리 직원 이름은 넣지 않는다 — "저희 도면팀" · "저희 담당자". 협력사 직원 이름은 넣는다(자기 회사).
+  - 도면팀이 올릴 때 적은 메모, 우리 쪽이 낸 수정 요청 내용, 단계 바꾼 사유, 시공 메모, AS 비용 판정은 넣지 않는다. 협력사가 보낸 수정 요청은 내용까지 보인다.
+- 새 API · DB 변경 없음(HTML 화면만). 이벤트는 그 주문 것만 한 번에 읽는다(N+1 없음).
+
+### 15.3 검증
+- 시험 `tests/security/test_partner_history.py`: 줄 종류별(보냄 · 고침 · 도면 작업 · N차 올림 · 수정 요청 · 확정 · 승인 · 시공일 정해짐/바뀜 · 시공 끝 · AS 접수/방문/끝), 우리 직원 이름 · 도면 메모 · 우리 쪽 수정 요청 내용 0개(대조군: 협력사 수정 요청 내용은 보임), 다른 회사 주문 404, 시각 KST.
+- 도면 탭: 그림 도면은 갤러리 카드, PDF 는 파일 줄(대조군), 회차 표시.
+- 스테이징: CLAUDE-TEST 협력사로 PC · 휴대폰 실화면(그림 확대 · 넘기기, 이력 탭).
+
+### 15.4 구현 기록 (2026-10-20)
+- 서비스 `foms/services/partners/history.py` `partner_order_history`: 줄 = `{at, kind, title, who, detail}`(시험이 키를 고정). 이름은 이 주문 협력사 직원(`User.partner_org_id`)만 내고 나머지는 "저희 담당자" · "저희 도면팀". 수정 요청 내용은 협력사 직원이 보낸 것만. 단계 전이는 우리 타임라인 규칙(`_stage_reach_events`)의 DRAWING 첫 도달만 쓴다. 올림 취소는 이력에서 TRANSFER 를 빼는 방식이라 따로 줄이 없다.
+- 화면: 도면 탭(`templates/partner/partials/order_drawing.html`)에 회차 · 그림 갤러리(우리 조각 `drawing_mobile_v2_gallery.html` share_mode, `lightbox.js` 는 그림이 있을 때만) · 파일 줄. 이력 탭(`order_history.html`). 저장 단추 CSS 는 공유 화면 규칙을 `.pp-drawing-gallery` 안으로 옮겼다(우리 파일 무변경). 휴대폰에서는 "(시공 뒤)" 안내를 빼고 탭 여백을 줄여 탭 4개가 한 줄에 보이게 했고(스테이징 390px 에서 "이력" 탭이 화면 밖에 숨던 것), 도면 카드는 한 줄 한 장.
+- 스테이징 실화면(2026-10-20, CLAUDE-TEST 협력사 · 시험 주문 #4782): 우리 쪽에서 그림 2장 + PDF 1개를 1차로 전달하고 수령 확정 → 협력사 도면 탭에 그림 카드 2장(눌러서 크게 · 다음 그림) · PDF 파일 줄 · "1차 · 10-20 13:37 올라옴", 협력사 수정 요청 뒤 이력 5줄(보냄 · 1차 · 도면 작업 · 확정 · 수정 요청 내용). 화면 원문에 도면 메모 · 도면 담당자 이름 · 단계 사유 0건.
+- 시험 `tests/security/test_partner_history.py` 4건.
+
