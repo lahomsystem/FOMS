@@ -170,6 +170,23 @@ def migrate_legacy_into_log(sd: dict) -> bool:
     return bool(seeded)
 
 
+def current_reception_entry(sd: dict | None) -> dict | None:
+    """현재 건(cycle)의 접수 원문(reception) 항목. 없으면 None.
+
+    ``shipment.as_content`` 는 접수 시점 문구라 기록 수정 전 주문에서는 낡아 있을 수 있다 —
+    증상 줄·AS PUSH 처럼 "지금 접수 내용"을 보여 주는 곳은 이 항목을 먼저 읽는다.
+    """
+    cycle_id = current_as_cycle_id(sd)
+    if not cycle_id:
+        return None
+    entries = ((sd or {}).get("shipment") or {}).get("as_log")
+    if not isinstance(entries, list):
+        return None
+    return next((
+        e for e in entries if isinstance(e, dict) and e.get("deleted") is not True
+        and e.get("type") == "reception" and e.get("cycle_id") == cycle_id), None)
+
+
 def current_as_round(sd: dict | None) -> int:
     """진행 중 회차 번호(1 시작). 미결 판정 1건마다 다음 회차가 열린다.
 

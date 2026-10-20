@@ -30,7 +30,7 @@ import re
 from typing import Any
 
 from foms.services.as_content_safety import as_content_html_to_text
-from foms.services.orders.as_log import current_as_round, decorate_entry
+from foms.services.orders.as_log import current_as_round, current_reception_entry, decorate_entry
 
 __all__ = ["build_as_push_text", "format_schedule_date_korean"]
 
@@ -224,7 +224,7 @@ def build_as_push_text(order: Any) -> str:
 
     값은 ``structured_data`` 를 우선하고, 비어 있으면 평면 컬럼(Order.customer_name 등)
     으로 폴백한다 — 구버전/부분 저장 주문에서도 식별 정보가 비지 않게 하기 위해서다.
-    본문의 핵심인 AS 접수 내용은 ``structured_data.shipment.as_content`` 하나만 본다
+    본문의 핵심인 AS 접수 내용은 현재 건 접수 원문(reception), 없으면 ``shipment.as_content`` 를 본다
     (append-only ``as_log`` 는 이력 화면 소관이며, PUSH 는 최신 접수 내용만 보낸다).
 
     Args:
@@ -236,7 +236,10 @@ def build_as_push_text(order: Any) -> str:
     """
     sd = order.structured_data if isinstance(getattr(order, "structured_data", None), dict) else {}
 
-    as_content = str(_dict_at(sd, "shipment").get("as_content") or "").strip()
+    # 현재 건 접수 원문이 정본 — 기록을 고치면 as_content 가 낡아 있어도 PUSH 는 고친 문구를 보낸다.
+    reception = current_reception_entry(sd)
+    as_content = as_content_html_to_text(reception.get("text"), already_sanitized=True).strip() if reception else ""
+    as_content = as_content or str(_dict_at(sd, "shipment").get("as_content") or "").strip()
     if not as_content:
         return ""
 
