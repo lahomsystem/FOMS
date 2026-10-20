@@ -569,6 +569,7 @@
     formCells().forEach(function (el) {
       var k = el.getAttribute('data-dws-form-key');
       el.textContent = (form[k] != null) ? String(form[k]) : '';
+      if (k === 'phone') { el.classList.toggle('dws-cell-2line', el.textContent.indexOf('\n') !== -1); }
     });
     renderChecks();
     renderLogo(form.logo);
