@@ -225,3 +225,24 @@
 - 스테이징 실화면(2026-10-20, CLAUDE-TEST 협력사 · 시험 주문 #4782): 우리 쪽에서 그림 2장 + PDF 1개를 1차로 전달하고 수령 확정 → 협력사 도면 탭에 그림 카드 2장(눌러서 크게 · 다음 그림) · PDF 파일 줄 · "1차 · 10-20 13:37 올라옴", 협력사 수정 요청 뒤 이력 5줄(보냄 · 1차 · 도면 작업 · 확정 · 수정 요청 내용). 화면 원문에 도면 메모 · 도면 담당자 이름 · 단계 사유 0건.
 - 시험 `tests/security/test_partner_history.py` 4건.
 
+
+## 16. 4단계 휴대폰 화면 설계 (2026-10-20)
+
+### 16.1 사실
+- 우리 휴대폰 틀은 CSS 만으로 모양이 난다. 켜지는 조건 셋: 화면 폭 992px 미만(또는 세운 터치 태블릿), 조상에 `.erp-mobile-shell[data-erp-mobile-v2='true']`, `body.erp-mobile-v2-layout`. 아니면 `.erp-mobile-shell-chrome{display:none}`(`erp-pro/10-erp-mobile-v2-shell.css:28 · 49 · 364`).
+- CSS: `erp-pro.css`(이미 실음, 머리 · 아래 탭 기본) + `foms-mobile-surfaces.css?v=20261015d`(우리 `layout_head.html:241`, `foms-shell` · `foms-bottom-nav` · `foms-queue-card-v2` · `foms-detail-hero` · `foms-form-field` · `foms-chip-strip` 등을 가져옴). 협력사 화면은 아직 두 번째 것을 싣지 않는다.
+- 부품(클래스): 위 줄 `header.erp-mobile-shell-header.foms-shell-header` · 뒤로 `.erp-mobile-shell-header__home` · 제목 `.erp-mobile-shell-header__title` · 알림 `.erp-mobile-shell-header__notify`. 아래 탭 `nav.erp-mobile-bottom-nav > a.erp-mobile-bottom-nav__item(.is-active)` · 배지 `.erp-mobile-bottom-nav__badge`. 큐 카드 `article.queue-card.foms-queue-card-v2`(단계 칩 `foms-stage-badge--<단계>` · 제목 · `dl` 칸 · 아래 단추). 상세 `foms-detail-hero` · `foms-detail-section`. 아래 고정 줄 `foms-sticky-action-bar.erp-mobile-sticky-action-bar`. 아래 시트 `foms-reason-sheet`(CSS 조건 없음, 여닫기는 JS).
+- 우리 메뉴 서랍 · 뒤로 단추 JS(`erp-mobile-shell.js`)는 Bootstrap JS · 내부 화면 전제라 싣지 않는다.
+
+### 16.2 설계 — 우리 부품 클래스 + 협력사 파일(§5-8 그대로), 셋으로 나눈다
+- **4-1 바깥 틀**: 휴대폰에서 지금 머리줄 · 메뉴 줄 대신 우리 위 줄 + 아래 탭.
+  - 위 줄: 목록은 회사 이름, 주문 · 새 주문 화면은 뒤로 단추 + 제목. 오른쪽 알림(지금 "알림 받기" 칸을 연다).
+  - 아래 탭 5개(§3.1): 주문 · 도면 확인(내 차례 수 배지) · 새 주문 · 완공·AS · 더보기. 더보기 = 아래 시트(이름 · 회사 · 알림 받기 · 관리자로 돌아가기 · 로그아웃).
+  - PC(992px 이상)는 지금 머리줄 · 메뉴 줄 그대로.
+- **4-2 목록**: 휴대폰 카드를 우리 큐 카드 마크업으로(단계 칩 · 고객 · 주소 · 제품 · 시공일 · 담당 · "열기"/"도면 확인하기" 단추) + 진행 막대(협력사 추가). "지금 내 차례" 묶음 · 검색 · 단계 칩(우리 칩 줄).
+- **4-3 주문 화면**: 휴대폰에서 우리 상세 모양 — 위 카드(단계 칩 · 고객 · 제품), 탭 4개(주문 · 도면 · 완공 · 이력)는 칩 줄, 칸은 구역 카드, 단계 버튼은 아래 탭 바로 위 고정 줄. 완공 사진을 고르면 AS 접수 칸이 아래 시트로 뜬다(§3.6).
+- 데이터 · API · 권한은 바꾸지 않는다(화면만). 우리 직원 화면 파일은 바꾸지 않는다.
+
+### 16.3 검증
+- 시험: 협력사 화면 원문에 위 줄 · 아래 탭 5개 · 활성 탭 · 배지, 우리 직원 화면 대조군(바뀌지 않음), 기초 CSS 핀이 `layout_head` 와 같음.
+- 스테이징 실화면: 휴대폰 390px(목록 · 주문 · 도면 · 이력 · 완공 · 새 주문, 가로 넘침 0) · PC 1440px(지금과 같음).
