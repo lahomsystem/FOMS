@@ -22,6 +22,7 @@
                 <div id="erp-items" data-pp-items>
                     {% for it in items %}{{ pp_item(it, editable, item_photos.get(loop.index0, []), loop.index, pick) }}{% endfor %}
                 </div>
+                {% if editable %}<button type="button" class="btn btn-sm btn-outline-primary w-100 mt-3 pp-items-md__add" data-pp-add-item><i class="fas fa-plus"></i> 제품 항목 더하기</button>{% endif %}
             </div>
             <footer class="item-detail__foot">
                 <div class="item-detail__kbd" aria-label="키보드 단축키 안내">
