@@ -246,3 +246,10 @@
 ### 16.3 검증
 - 시험: 협력사 화면 원문에 위 줄 · 아래 탭 5개 · 활성 탭 · 배지, 우리 직원 화면 대조군(바뀌지 않음), 기초 CSS 핀이 `layout_head` 와 같음.
 - 스테이징 실화면: 휴대폰 390px(목록 · 주문 · 도면 · 이력 · 완공 · 새 주문, 가로 넘침 0) · PC 1440px(지금과 같음).
+
+### 16.4 구현 기록 (2026-10-20)
+- 4-1 바깥 틀: `templates/partner/layout.html` 이 `body.erp-mobile-v2-layout` + `.erp-mobile-shell[data-erp-mobile-v2]` 안에 우리 위 줄(`erp-mobile-shell-header`) · 아래 탭(`erp-mobile-bottom-nav`)을 그린다. PC 머리줄 · 메뉴 줄은 `foms-shell-desktop-only`(우리 규칙이 휴대폰에서만 숨김). 알림 판은 공용 조각 `partials/push_panel.html`(PC · 휴대폰 하나씩, `partner-push.js` 가 칸마다 묶음). 더보기는 우리 아래 시트 모양(`foms-reason-sheet`), 여닫기 `static/js/partner/partner-shell.js`. 알림 켜기는 더보기가 아니라 위 줄 종 단추에 두었다(같은 판을 두 번 두지 않으려고).
+- 우리 휴대폰 틀은 직원 화면에서도 프로세스 맵(`erp-pro-card--process-map`)을 휴대폰에서 숨긴다(`foms-shell.css:190`) — 그래서 4-1 만으로는 휴대폰 목록의 검색 · 단계 거르기가 빠졌고, 4-2 에서 우리 검색 줄 · 칩 줄로 되살렸다.
+- 4-2 목록: `templates/partner/home.html` 에 휴대폰 전용 `.foms-shell-body.pp-mlist` — 검색 줄(`erp-mobile-queue-filters`) · 칩 줄(전체 · 단계 7칸 · 내 담당, 도면 확인 대기는 노란 칩) · 우리 큐 카드(`foms-queue-card-v2`, 단계 칩 색 `foms-stage-badge--<단계>`, 지금 · 주소 · 제품 · 연락처(전화 링크) · 시공일 · 담당, "도면 확인하기"/"열기") + 진행 막대. 3-2 의 옛 카드 목록(`pp-cards`)과 CSS 는 걷었다.
+- 시험 `tests/security/test_partner_mobile_shell.py` 5건(위 줄 · 아래 탭 5개 · 활성 탭 · 뒤로 · 배지 · CSS 핀, 휴대폰 목록 카드 · 칩 · 내 차례 묶음 · 다른 회사 제외).
+
