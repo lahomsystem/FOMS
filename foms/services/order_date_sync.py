@@ -22,6 +22,7 @@ from foms.services.erp_order_flags import (
 
 logger = logging.getLogger(__name__)
 from foms.services.orders.drawing_confirm_partial import is_item_cancelled
+from foms.services.partners.notify_listeners import register_partner_construction_date_listener
 from models import OrderEvent, OrderScheduleDate
 
 __all__ = [
@@ -767,3 +768,6 @@ def register_date_sync_listener() -> None:
     )
 
     register_measure_same_day_listener()
+
+    # 소비자 배선: 협력사 주문의 시공일이 정해지거나 바뀌면 그 협력사 직원에게 웹 푸시(PARTNER-FOMS 6-2).
+    register_partner_construction_date_listener(pending_construction_date_changes)

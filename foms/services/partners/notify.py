@@ -111,15 +111,44 @@ def notify_partner_staff(db, order: Order | None, event: str, values: dict[str, 
     return len(rows)
 
 
+def _after_commit(db, order: Order | None, event: str, ready) -> int:
+    """원래 일이 커밋된 뒤 부르는 공통 입구 — 협력사 주문이고 ``ready(order)`` 가 값을 주면 알린다.
+
+    커밋 뒤 주문을 다시 읽다 실패해도 끝난 일(도면 받음 확인 · 방문일 저장 · 시공 완료)을 500 으로 바꾸지 않는다.
+    """
+    try:
+        if order is None or not order.partner_org_id:
+            return 0
+        values = ready(order)
+        if values is None:
+            return 0
+    except Exception:  # noqa: BLE001 — 알림 판정 실패가 끝난 일을 되돌리면 안 된다
+        log_handled_exception(f"partner notify {event}")
+        return 0
+    return notify_partner_staff(db, order, event, values)
+
+
 def notify_partner_drawing_ready(db, order: Order | None) -> int:
     """우리 CS 가 "도면 받음 확인"을 커밋한 뒤 — 고객컨펌 단계일 때만(협력사 차례). 수정 뒤 다시 확정도 같다."""
-    try:
-        if order is None or not order.partner_org_id or (order.erp_stage_code or "").upper() != "CONFIRM":
-            return 0
-    except Exception:  # noqa: BLE001 — 커밋 뒤 다시 읽기 실패가 끝난 확인을 500 으로 바꾸면 안 된다
-        log_handled_exception("partner notify drawing ready")
-        return 0
-    return notify_partner_staff(db, order, PARTNER_DRAWING_READY)
+    return _after_commit(db, order, PARTNER_DRAWING_READY,
+                         lambda o: {} if (o.erp_stage_code or "").upper() == "CONFIRM" else None)
+
+
+def _as_visit_values(order: Order) -> dict[str, str] | None:
+    sd = order.structured_data if isinstance(order.structured_data, dict) else {}
+    visit = (sd.get("schedule") or {}).get("as_visit") or {}
+    date = str(visit.get("date") or "").strip()
+    return {"date": date, "time": str(visit.get("time") or "").strip()} if date else None
+
+
+def notify_partner_as_visit(db, order: Order | None) -> int:
+    """AS 화면이 방문일(``schedule.as_visit.date``)을 저장해 커밋한 뒤."""
+    return _after_commit(db, order, PARTNER_AS_VISIT, _as_visit_values)
+
+
+def notify_partner_construction_done(db, order: Order | None) -> int:
+    """시공 완료(→CS)를 커밋한 뒤 — 완공 사진을 볼 수 있다."""
+    return _after_commit(db, order, PARTNER_CONSTRUCTION_DONE, lambda o: {})
 
 
 def partner_push_device_counts(db) -> dict[int, int]:
