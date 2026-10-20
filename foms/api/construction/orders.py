@@ -48,6 +48,7 @@ from foms.services.orders.order_transition_service import (
 )
 from foms.services.orders.revision import RevisionError, execute_order_mutation
 from foms.services.orders.state_axes import AXIS_MAIN, read_main_stage
+from foms.services.partners.notify import notify_partner_construction_done
 from foms.services.orders.admin_override import (
     admin_override_error,
     log_admin_override_denied,
@@ -456,6 +457,7 @@ def api_construction_complete(order_id):
                 route="erp_orders_construction.api_construction_complete", axis="MAIN",
                 from_value=from_stage, to_value="CS")
         db.commit()
+        notify_partner_construction_done(db, order)  # PARTNER-FOMS 6-2: 협력사 주문이면 협력사 직원 웹 푸시
         return jsonify({"success": True, "message": "시공이 완료되었습니다. CS 단계로 이동합니다.",
                         "new_status": "CS"})
     except Exception as exc:
