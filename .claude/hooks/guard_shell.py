@@ -88,7 +88,8 @@ def _emit(decision: str, label: str, command: str) -> None:
 
 
 def main() -> None:
-    """PreToolUse 훅 진입점. 실패는 fail-open(allow)하되 hook_log 로 기록."""
+    """PreToolUse 훅 진입점. 판정 중 예외는 통과가 아니라 ask(사용자 확인)로 닫는다."""
+    command = ""
     try:
         payload = read_stdin_json()
         command = (payload.get("tool_input") or {}).get("command", "")
@@ -112,8 +113,12 @@ def main() -> None:
         normalized = " ".join(str(command).split())
         _log_command(project_root, decision, label, normalized)
         _emit(decision, label, normalized)
-    except Exception as exc:  # noqa: BLE001 - 훅 크래시가 세션을 막지 않도록 fail-open
-        hook_log(f"guard_shell 예외 fail-open: {exc}", tag="guard_shell")
+    except Exception as exc:  # noqa: BLE001 - 판정 불가는 확인으로 닫는다(SEC-13)
+        hook_log(f"guard_shell 예외 → ask: {exc}", tag="guard_shell")
+        try:
+            _emit("ask", "가드 오류 — 확인 필요", " ".join(str(command).split()))
+        except Exception as emit_exc:  # noqa: BLE001 - 출력조차 실패하면 기록만
+            hook_log(f"guard_shell ask 출력 실패: {emit_exc}", tag="guard_shell")
 
 
 if __name__ == "__main__":

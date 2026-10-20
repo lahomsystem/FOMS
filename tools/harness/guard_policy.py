@@ -659,14 +659,58 @@ def _classify_powershell_remove(tokens: list[str]) -> tuple[str, str]:
     return "allow", ""
 
 
+#: 조건 있는 DB 쓰기 SQL — 사용자가 지시한 것만 하도록 확인(SEC-13, 2026-10-20).
+_SQL_WRITE_RE = re.compile(
+    r"\b(update\s+[\w.\"]+\s+set|insert\s+into|delete\s+from|alter\s+table"
+    r"|create\s+(?:unique\s+)?(?:table|index|database)|grant|revoke)\b"
+)
+
+#: 배포·환경변수를 바꾸거나 운영 안으로 들어가는 Railway 하위 명령(SEC-13).
+_RAILWAY_MUTATING: frozenset[str] = frozenset({
+    "up", "deploy", "redeploy", "restart", "down", "delete", "remove", "ssh", "run",
+    "shell", "connect", "add", "scale", "volume", "domain",
+})
+_RAILWAY_VALUE_FLAGS: frozenset[str] = frozenset({
+    "-s", "--service", "-e", "--environment", "-p", "--project",
+})
+#: 하위 명령 뒤에 오면 변경이 되는 동사(``railway variables --set`` 등).
+_RAILWAY_SUB_MUTATING: dict[str, frozenset[str]] = {
+    "variables": frozenset({"--set", "set", "delete", "--delete"}),
+    "variable": frozenset({"--set", "set", "delete", "--delete"}),
+    "environment": frozenset({"new", "delete"}),
+}
+
+
+def _classify_railway(tokens: list[str]) -> tuple[str, str]:
+    """Railway CLI — 조회(status·logs·link·variables 조회)는 통과, 변경·운영 접속은 ask."""
+    args = [t.lower() for t in tokens[1:]]
+    sub, skip = "", False
+    for t in args:  # 값을 받는 전역 옵션(`railway -s web redeploy`)의 값은 하위 명령이 아니다.
+        if skip:
+            skip = False
+        elif t in _RAILWAY_VALUE_FLAGS:
+            skip = True
+        elif not t.startswith("-"):
+            sub = t
+            break
+    if sub in _RAILWAY_MUTATING:
+        return "ask", f"Railway 배포·설정·운영 접속(railway {sub})"
+    risky = _RAILWAY_SUB_MUTATING.get(sub)
+    if risky and any(t in risky or t.startswith("--set=") for t in args):
+        return "ask", f"Railway 설정 변경(railway {sub})"
+    return "allow", ""
+
+
 def _classify_db_sql(segment_lower: str) -> tuple[str, str]:
-    """SQL 파괴 구문(drop database/table, truncate table, 무조건 DELETE) 판정."""
+    """SQL 파괴 구문(drop database/table, truncate table, 무조건 DELETE)은 deny, 그 밖 쓰기는 ask."""
     if re.search(r"\bdrop\s+(database|table)\b", segment_lower):
         return "deny", "DB 파괴 명령(drop)"
     if re.search(r"\btruncate\s+table\b", segment_lower):
         return "deny", "DB 파괴 명령(truncate)"
     if re.search(r"\bdelete\s+from\s+\w+\s*;?\s*$", segment_lower):
         return "deny", "무조건 DELETE"
+    if _SQL_WRITE_RE.search(segment_lower):
+        return "ask", "DB 쓰기 SQL"
     return "allow", ""
 
 
@@ -880,6 +924,13 @@ def _classify_segment(segment: str, depth: int = 0) -> tuple[str, str]:
     if name in ("npm", "pnpm", "yarn"):
         return _classify_npm(tokens)
 
+    if name == "railway":
+        return _classify_railway(tokens)
+
+    # Railway 공개 DB/Redis 프록시로 직접 붙는 명령은 무엇이든 확인(SEC-13).
+    if ".proxy.rlwy.net" in segment_lower:
+        return "ask", "Railway 공개 DB 주소 직접 접속"
+
     if name == "format":
         for tok in tokens[1:]:
             if re.fullmatch(r"[a-z]:", _strip_quotes(tok).lower()):
@@ -891,6 +942,10 @@ def _classify_segment(segment: str, depth: int = 0) -> tuple[str, str]:
         decision, label = _classify_db_sql(segment_lower)
         if decision != "allow":
             return decision, label
+
+    # python -c "...UPDATE ... SET..." 처럼 한 줄 스크립트로 DB 를 쓰는 경로.
+    if name in ("python", "python3", "py") and "-c" in tokens and _SQL_WRITE_RE.search(segment_lower):
+        return "ask", "DB 쓰기 SQL(python -c)"
 
     return "allow", ""
 
