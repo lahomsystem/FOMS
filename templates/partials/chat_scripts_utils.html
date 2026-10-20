@@ -4,7 +4,7 @@ function escapeHtml(text) {
     if (text == null || text === undefined) return '';
     const div = document.createElement('div');
     div.textContent = text;
-    return div.innerHTML.replace(/`/g, '&#96;');
+    return div.innerHTML.replace(/`/g, '&#96;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 /** onclick 등 단일 따옴표 JS 문자열·템플릿 리터럴 안에 넣을 때 사용 (작은따옴표·백슬래시·백틱 이스케이프) */
 function escapeJsString(s) {

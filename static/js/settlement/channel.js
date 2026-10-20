@@ -213,7 +213,7 @@
   function esc(text) {
     return String(text == null ? '' : text)
       .replace(/&/g, '&amp;').replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
 
   function isNum(v) {

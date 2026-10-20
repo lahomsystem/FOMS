@@ -24,6 +24,8 @@ from typing import Any, Optional
 
 from werkzeug.security import generate_password_hash
 
+from foms.services.security.session_guard import bump_session_version
+
 #: LEGACY = 강도 미검증(기존/약할 수 있음). 마이그레이션 server_default 이자 model default.
 #: "모르면 legacy" — hash 로 추정하지 않는다.
 POLICY_VERSION_LEGACY: int = 0
@@ -105,6 +107,8 @@ def set_strong_password(user: Any, plaintext: Optional[str]) -> None:
         raise WeakPasswordError(reason)
     user.password = hash_password(plaintext)
     user.password_policy_version = POLICY_VERSION_STRONG
+    # SESSION-REVOKE-01: 비밀번호가 바뀌면 그 계정의 옛 세션은 모두 끊긴다.
+    bump_session_version(user)
 
 
 def is_password_legacy(user: Any) -> bool:

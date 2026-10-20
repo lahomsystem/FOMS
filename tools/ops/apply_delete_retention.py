@@ -28,6 +28,7 @@ from sqlalchemy.exc import SQLAlchemyError  # noqa: E402
 from sqlalchemy.orm import Session, sessionmaker  # noqa: E402
 
 from db import engine  # noqa: E402
+from foms.services.order_storage_cleanup import delete_storage_targets  # noqa: E402
 from foms.services.security import ops_control_root as root_store  # noqa: E402
 from foms.services.orders.delete_retention import (  # noqa: E402
     DeleteRetentionError,
@@ -85,6 +86,7 @@ def main(argv: "list[str] | None" = None) -> int:
     raw_secret = root_store.decode_secret_b64url(token["one_time_secret_b64url"])
 
     session = sessionmaker(bind=engine)()
+    storage_deleted = storage_failed = None
     try:
         result = apply_delete_retention(
             session,
@@ -95,6 +97,9 @@ def main(argv: "list[str] | None" = None) -> int:
         )
         if args.apply:
             session.commit()
+            # 파일은 커밋이 성공한 뒤에만 지운다 — 커밋이 실패해 주문이 남았는데 파일만
+            # 사라지는 일을 막는다(SPEC 2026-10-20-purge-storage-files).
+            storage_deleted, storage_failed = delete_storage_targets(result.storage_targets or {})
         else:
             session.rollback()
         # T9: 삭제가 끝난 뒤 감사 이벤트가 남아 있는지 확인한다(잔존이 정상 — FK 분리).
@@ -129,6 +134,8 @@ def main(argv: "list[str] | None" = None) -> int:
         "target_count": result.target_count,
         "deleted": result.deleted,
         "retained_order_events": retained_order_events,
+        "storage_deleted": storage_deleted,
+        "storage_failed": storage_failed,
         "plan_sha256": result.plan_sha256,
         "count_sha256": result.count_sha256,
         "result_sha256": result.result_sha256,

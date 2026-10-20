@@ -10,6 +10,7 @@ from __future__ import annotations
 import io
 import logging
 import os
+import re
 import shutil
 import uuid
 from datetime import datetime
@@ -420,6 +421,29 @@ class StorageAdapter:
                 return True
             except Exception:
                 return False
+
+    def delete_prefix(self, prefix):
+        """``orders/<숫자>/`` 아래 파일을 모두 지우고 지운 수를 돌려준다(주문 완전 삭제용).
+
+        빈 접두어·다른 모양은 거부한다 — 실수 한 번에 저장소 전체가 지워지지 않게.
+        """
+        if not re.fullmatch(r"orders/[0-9]+/", prefix or ""):
+            raise ValueError(f"delete_prefix 는 orders/<숫자>/ 만 받는다: {prefix!r}")
+        if self.storage_type in ["r2", "s3"]:
+            deleted = 0
+            paginator = self.client.get_paginator("list_objects_v2")
+            for page in paginator.paginate(Bucket=self.bucket_name, Prefix=prefix):
+                objects = [{"Key": o["Key"]} for o in page.get("Contents", [])]
+                if objects:
+                    self.client.delete_objects(Bucket=self.bucket_name, Delete={"Objects": objects})
+                    deleted += len(objects)
+            return deleted
+        folder = os.path.join(self.upload_folder, prefix)
+        if not os.path.isdir(folder):
+            return 0
+        count = sum(len(files) for _root, _dirs, files in os.walk(folder))
+        shutil.rmtree(folder)
+        return count
 
     def _upload_to_cloud(self, file_obj, filename, folder):
         """클라우드 스토리지에 업로드"""

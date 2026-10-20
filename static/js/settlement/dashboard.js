@@ -86,7 +86,7 @@
   function esc(text) {
     return String(text == null ? '' : text)
       .replace(/&/g, '&amp;').replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
 
   /** 원 → 만원(반올림). API 는 원, 목업 렌더러는 만원이 단위다. */

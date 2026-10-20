@@ -1403,6 +1403,8 @@ def test_namespaced_order_storage_cleanup_shim_preserves_canonical_contract() ->
     """The legacy services path should re-export the canonical order storage cleanup helper."""
     expected_public_names = [
         "delete_storage_files_for_order",
+        "storage_targets_for_orders",
+        "delete_storage_targets",
     ]
 
     assert namespaced_order_storage_cleanup.__all__ == expected_public_names
