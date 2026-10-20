@@ -14,7 +14,7 @@
 </div>
 {% endmacro %}
 
-{% macro pp_item(it, editable, photos, no=None) %}
+{% macro pp_item(it, editable, photos, no=None, pick=False) %}
 <div class="pp-item erp-item-row" data-pp-item{% if it.uid %} data-pp-uid="{{ it.uid }}"{% endif %}>
     <div class="d-flex justify-content-between align-items-center mb-2">
         <div class="fw-bold small erp-item-title" data-pp-item-no>항목{% if no %} {{ no }}{% endif %}</div>
@@ -23,7 +23,12 @@
     <div class="row g-2">
         <div class="col-12">
             <label class="form-label mb-1 small erp-field-label">제품명</label>
+            {% if editable and pick %}<div class="erp-calc-field">
+                <input class="form-control form-control-sm erp-calc-has-trigger" data-k="product_name" maxlength="100" value="{{ it.product_name or '' }}" placeholder="목록에서 고르거나 직접 입력" autocomplete="off">
+                <button type="button" class="erp-calc-trigger" data-pp-product-pick aria-label="제품명 목록 열기"><span aria-hidden="true">▾</span></button>
+            </div>{% else %}
             <input class="form-control form-control-sm" data-k="product_name" maxlength="100" value="{{ it.product_name or '' }}" placeholder="예: 드레스룸 ㄷ자"{% if not editable %} readonly{% endif %}>
+            {% endif %}
         </div>
         <div class="col-12">
             <label class="form-label mb-1 small erp-field-label">규격 (W × D × H)</label>
@@ -64,7 +69,7 @@
 </div>
 {% endmacro %}
 
-{% macro pp_item_templates() %}
-<template id="ppItemRow">{{ pp_item({}, true, []) }}</template>
+{% macro pp_item_templates(pick=False) %}
+<template id="ppItemRow">{{ pp_item({}, true, [], None, pick) }}</template>
 <template id="ppSpecRow">{{ pp_spec({}, true) }}</template>
 {% endmacro %}

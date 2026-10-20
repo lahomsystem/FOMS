@@ -43,7 +43,6 @@
   margin-bottom: 12px;
 }
 
-.pp-title { font-size: 20px; margin: 0 0 8px; }
 .pp-help, .pp-empty, .pp-muted { color: var(--pp-muted); }
 .pp-help { font-size: 14px; }
 
@@ -94,8 +93,6 @@
 .pp-files a { color: var(--pp-primary); overflow-wrap: anywhere; }
 
 .pp-form { display: grid; gap: 12px; }
-.pp-fieldset { border: 1px solid var(--pp-border); border-radius: 10px; padding: 12px; margin: 0; display: grid; gap: 10px; background: var(--pp-surface); }
-.pp-fieldset legend { padding: 0 4px; font-weight: 600; }
 
 .pp-field { display: grid; gap: 4px; font-size: 14px; color: var(--pp-muted); }
 .pp-field input, .pp-field textarea, .pp-field select {
@@ -109,16 +106,9 @@
   font: inherit;
 }
 
-.pp-items { display: grid; gap: 12px; }
-/* 제품 항목 카드 — 우리 주문 화면 제품 항목과 같은 칸(item_card.html). 새 주문 화면은 카드를 차례로 쌓는다. */
-.pp-items .pp-item { padding: 12px; border: 1px solid var(--pp-border); border-radius: 10px; background: var(--pp-surface); }
 .pp-spec__no { flex-basis: 100%; font-weight: 600; }
-.pp-items .erp-preset-sheet { border: 1px solid var(--pp-border); border-radius: 8px; overflow: hidden; }
-.pp-items .erp-preset-sheet__head { padding: 6px 10px; font-size: 13px; font-weight: 600; background: var(--pp-bg); }
-.pp-items .erp-preset-row { display: grid; grid-template-columns: 80px minmax(0, 1fr); align-items: center; gap: 8px; padding: 4px 10px; border-top: 1px solid var(--pp-border); }
-.pp-items .erp-preset-row__label { font-size: 13px; color: var(--pp-muted); }
 
-/* 주문 화면 제품 항목(왼쪽 목록 · 오른쪽 상세). 좁은 화면은 목록 없이 카드를 모두 차례로. */
+/* 제품 항목 카드(item_card.html) — 주문 화면 · 새 주문 모두 왼쪽 목록 · 오른쪽 상세. 좁은 화면은 목록 없이 카드를 모두 차례로. */
 .pp-items-md .pp-item + .pp-item { margin-top: 16px; padding-top: 16px; border-top: 1px dashed var(--pp-border); }
 .pp-thumb { display: inline-block; font-size: 13px; color: var(--pp-primary); overflow-wrap: anywhere; }
 .pp-thumb img { display: block; width: 72px; height: 72px; object-fit: cover; border-radius: 6px; }
@@ -368,4 +358,13 @@ body.pp-sheet-open { overflow: hidden; }
   }
   .pp-as-sheet.is-open { transform: none; visibility: visible; }
   .pp-as-sheet__head { display: flex; }
+}
+
+/* 5-1 주소 찾기 창 — 우리 Bootstrap 모달 모양. Bootstrap JS 를 싣지 않아 hidden 으로 여닫는다(partner-shell.js). */
+.pp-modal:not([hidden]) { display: block; background: rgba(15, 23, 42, 0.45); }
+.pp-modal .list-group { max-height: 50vh; overflow-y: auto; }
+@media (max-width: 991.98px) {
+  /* 제품명 ▾ 단추 — 우리 휴대폰 입력 칸과 같은 큰 터치 칸. */
+  .pp-items-md .erp-calc-trigger { width: 2.75rem; font-size: 1rem; }
+  .pp-items-md .erp-calc-field .erp-calc-has-trigger { padding-right: 2.9rem; }
 }
