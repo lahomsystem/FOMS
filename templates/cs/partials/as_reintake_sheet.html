@@ -87,11 +87,11 @@
        as_log_id=접수 기록 id 결합. 새 업로드 경로를 만들지 않는다. #}
     <button type="button" class="erp-as-reintake-sheet__photo" data-as-reintake-photo>
       <i class="fas fa-camera" aria-hidden="true"></i>
-      <span class="erp-as-reintake-sheet__photo-text">사진 찍어 붙이기</span>
-      <span class="erp-as-reintake-sheet__photo-count" data-as-reintake-photo-count>0장</span>
+      <span class="erp-as-reintake-sheet__photo-text">사진·동영상 붙이기</span>
+      <span class="erp-as-reintake-sheet__photo-count" data-as-reintake-photo-count>0개</span>
     </button>
     <input type="file" class="erp-as-reintake-sheet__file" data-as-reintake-files
-      accept="image/*" multiple hidden aria-hidden="true" tabindex="-1">
+      accept="image/*,video/*" multiple hidden aria-hidden="true" tabindex="-1">
 
     {# 자동 닫힘(.alert 5초 규칙) 대상이 아니도록 .alert 를 쓰지 않는다. #}
     <p class="erp-as-reintake-sheet__status" data-as-reintake-status role="status" aria-live="polite" hidden></p>
