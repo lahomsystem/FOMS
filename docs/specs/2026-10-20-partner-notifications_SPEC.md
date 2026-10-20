@@ -104,3 +104,11 @@
 - 화면: 협력사 머리줄 "알림 받기"(`static/js/partner/partner-push.js` — 서비스 워커 등록 · 권한 · 구독 · 시험 알림 · 끄기, 아이폰 홈 화면 안내, 막힘 안내), 협력사 매니페스트 `static/manifest-partner.json`(시작 `/partner`). 관리자 "협력사 관리"에 직원별 "알림 받는 기기 N대 / 없음".
 - 함께 고침: 협력사 AS 진행 "방문 예정"이 진행 중 AS 건이면 `schedule.as_visit` 도 읽는다(`completion._visit`). 쉬운 단계 · 내 차례 · 머리 메뉴 수는 고객컨펌이라도 도면 확정(`CONFIRMED`) 전이면 "도면 작업 중"(`partner_stage_label(drawing_confirmed=...)`, 목록은 고객컨펌 주문만 JSONB 를 읽음).
 - 시험 `tests/security/test_partner_push.py` 10건 + `test_partner_gate` 정책 집합 갱신.
+
+## 11. 6-2 구현 기록 (2026-10-20)
+
+- 시공일: `foms/services/partners/notify_listeners.py` — 날짜 동기화 훅이 남긴 시공일 변경(`pending_construction_date_changes`)을 `before_commit` 에서 읽어 같은 트랜잭션에 협력사 알림 줄을 만들고, `after_commit` 에서 푸시를 예약한다(시공팀 출고 알림과 같은 방식, 협력사 주문만, 처음 정해질 때도). 등록은 `order_date_sync` 의 소비자 배선 끝. 문장: "시공일이 ○로 정해졌습니다(바뀜: ○ → ○)".
+- AS 방문일: `field_update` 의 `as_visit_date` 저장 커밋 뒤 `notify_partner_as_visit`(`schedule.as_visit` 날짜 · 시간).
+- 시공 끝: `api_construction_complete` 커밋 직후 `notify_partner_construction_done`.
+- 세 알림 모두 `notify._after_commit` 공통 입구 — 판정이 실패해도 끝난 일을 500 으로 바꾸지 않는다. 같은 문장 10분 안 중복은 건너뜀.
+- 시험 `tests/security/test_partner_push_events.py` 4건(시공일 처음 · 바뀜과 협력사 아닌 주문 대조군, AS 화면 방문일 저장 경로, 시공 끝과 라우트 연결).

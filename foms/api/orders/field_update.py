@@ -42,6 +42,7 @@ from foms.services.orders.as_log import append_system_log
 from foms.services.orders.construction_type import normalize_regional_construction_type
 from foms.services.orders.order_field_change_writer import record_field_changes
 from foms.services.orders.structured_diff import diff_structured
+from foms.services.partners.notify import notify_partner_as_visit
 from models import Order
 
 ORDER_UPDATE_ALLOWED_FIELDS = [
@@ -971,6 +972,10 @@ def update_order_field_response(
             from foms.services.kakao_alimtalk import maybe_send_measure_alimtalk
 
             maybe_send_measure_alimtalk(order.id)
+
+        # PARTNER-FOMS 6-2: AS 화면이 방문일을 잡으면 협력사 주문의 협력사 직원에게 웹 푸시(실패는 서비스가 흡수).
+        if field == "as_visit_date" and value:
+            notify_partner_as_visit(db, order)
 
         if structured_changed:
             try:
