@@ -572,6 +572,19 @@
     }).join('\n');
   }
 
+  /* 칸 크기는 종이 양식에 고정 — 글이 넘치면 글씨만 줄여 칸 안에 맞춘다(최소 7px).
+     시작 크기는 표 글자 설정값(data-dws-base-font, applyFormLayout 가 기록). */
+  function fitCellText(el) {
+    var base = parseFloat(el.getAttribute('data-dws-base-font'));
+    el.style.fontSize = base ? base + 'px' : '';
+    if (!el.clientHeight) { return; }   // 숨은 상태면 잴 수 없다
+    var size = parseFloat(getComputedStyle(el).fontSize) || 16;
+    while (size > 7 && (el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1)) {
+      size -= 0.5;
+      el.style.fontSize = size + 'px';
+    }
+  }
+
   function renderForm() {
     var cs = currentSheet();
     if (!cs) { return; }   // 시트 0개(빈 상태): 빈 안내 오버레이는 renderTabs 가 표시
@@ -580,7 +593,6 @@
       var k = el.getAttribute('data-dws-form-key');
       el.textContent = (form[k] != null) ? String(form[k]) : '';
       if (k === 'phone') { el.textContent = splitPhones(el.textContent); }
-      if (k === 'phone') { el.classList.toggle('dws-cell-2line', el.textContent.indexOf('\n') !== -1); }
     });
     renderChecks();
     renderLogo(form.logo);
@@ -626,6 +638,7 @@
   function syncEditable(el) {
     var k = el.getAttribute('data-dws-form-key');
     if (!k) { return; }
+    fitCellText(el);
     var cs = currentSheet();
     if (!cs) { return; }
     cs.form[k] = el.textContent;
@@ -746,10 +759,11 @@
     setVLine(q.vC7, c[6], top, Y1 - top); setVLine(q.vC8, c[7], top, r[1] - top);
     setVLine(q.vAddr, addr, r[1], Y1 - r[1]);
     // 폰트(표 셀 전체 동일)
-    if (q.cells) { Array.prototype.forEach.call(q.cells, function (el) { el.style.fontSize = font + 'px'; }); }
+    if (q.cells) { Array.prototype.forEach.call(q.cells, function (el) { el.setAttribute('data-dws-base-font', font); }); }
     if (els.fontDecBtn) { els.fontDecBtn.title = '표 글자 작게 (현재 ' + font + 'px)'; }
     if (els.fontIncBtn) { els.fontIncBtn.title = '표 글자 크게 (현재 ' + font + 'px)'; }
     positionDividers(L);
+    if (q.cells) { Array.prototype.forEach.call(q.cells, fitCellText); }
   }
 
   /* ---- 경계선 드래그(열/행 폭 조절) --------------------------------------- */

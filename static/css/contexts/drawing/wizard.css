@@ -1299,9 +1299,7 @@ html, body {
 /* ---- 표 B행 (top 924, h 25) --------------------------------------------- */
 .dws-c-b-cdate    { left: 40px;   top: 924px; width: 83px;  height: 25px; }
 .dws-c-b-cname    { left: 123px;  top: 924px; width: 88px;  height: 25px; }
-.dws-c-b-phone    { left: 211px;  top: 924px; width: 99px;  height: 25px; white-space: pre-line; }
-/* 연락처 2개 — 25px 칸에 두 줄 */
-.dws-c-b-phone.dws-cell-2line { font-size: 10px; line-height: 1.1; }
+.dws-c-b-phone    { left: 211px;  top: 924px; width: 99px;  height: 25px; white-space: pre-line; line-height: 1.1; }
 .dws-c-b-l1       { left: 310px;  top: 924px; width: 89px;  height: 25px; }
 .dws-c-b-color    { left: 399px;  top: 924px; width: 329px; height: 25px; }
 .dws-c-b-l2       { left: 728px;  top: 924px; width: 92px;  height: 25px; }
