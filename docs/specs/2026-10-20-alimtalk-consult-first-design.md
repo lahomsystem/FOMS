@@ -78,10 +78,16 @@
 ## 5. 켜는 순서 (사람 손이 필요한 것 포함)
 
 1. **카카오 승인 확인.** 솔라피 `GET /kakao/v2/templates/{id}` 가 APPROVED 인지 본다.
-2. **채널톡 웹훅.** 채널톡 설정 > 웹훅에서 이 앱(`/api/channel/webhooks`)에 **고객 상담 메시지(`messageCreatedUserChat`)** 범위를 켠다. 서명 키는 `CHANNEL_SIGNING_KEY` 와 같아야 한다. 채널톡 웹훅이 `x-signature` 헤더로 서명하는지는 문서에 확답이 없다 → 스테이징에서 1회 받아 본다.
+2. **채널톡 웹훅 — 하우드·라홈 채널마다 하나씩.** 라홈·하우드는 채널톡 채널이 따로다(사용자 확인 2026-10-20).
+   - 각 채널의 채널 설정 > 보안 및 개발 > 웹훅 > [Webhook 만들기]에서 만든다.
+   - 주소는 `https://<환경 주소>/api/channel/webhooks` 이고, 이벤트는 **고객 상담 메시지만** 고른다. 팀챗 메시지는 고르지 않는다(주문 자동 접수 경로라 켜면 안 된다).
+   - 만들면 나오는 토큰을 하우드 것은 `CHANNEL_SIGNING_KEY_HAUD`, 라홈 것은 `CHANNEL_SIGNING_KEY_LAHOM` 에 넣는다. 기존 `CHANNEL_SIGNING_KEY` 와 셋 중 하나만 맞으면 통과한다(`verify_channel_signature`).
+   - 하우드 채널에 이미 웹훅이 있으면 그것을 고치지 말고 새로 하나 더 만든다(기존 키를 건드리지 않게).
+   - 채널톡이 이 토큰으로 `x-signature` 헤더에 서명하는지는 문서에 확답이 없다 → 스테이징에서 1회 받아 본다(401 이면 서명 방식부터 본다).
+   - 링크는 메시지가 온 채널(`entity.channelId`)로 쓴다. 토큰은 채널마다 따로 받는다.
 3. **웹훅 암호화 키.** 운영 `web` 에 `CHANNEL_WEBHOOK_ENVELOPE_KEY`(hex, 32바이트 이상)가 **없다**(2026-10-20 확인). 없으면 웹훅이 모두 503 이다. 스테이징·운영에 넣는다.
 4. **워커.** `channeltalk_inbound` 작업은 RQ 워커(WORKER)가 처리한다. WORKER 의 `FOMS_BASE_URL` 이 그 환경 주소인지 확인한다(링크 주소가 이것으로 만들어진다. 비어 있으면 운영 주소).
-5. **채널톡 앱 권한.** 앱 설정에서 `writeUserChatMessage` 함수 권한이 켜져 있는지 확인한다. 지금 앱은 `writeGroupMessage` 만 써 왔다.
+5. **채널톡 앱 설치·권한.** FOMS 앱이 **라홈 채널에도 설치**돼 있어야 그 채널 토큰을 받을 수 있다. 앱 설정에서 `writeUserChatMessage` 함수 권한도 켠다. 지금 앱은 하우드 채널에서 `writeGroupMessage` 만 써 왔다.
 6. **스테이징 시험.**
    - env `SOLAPI_TEMPLATE_SHARE_CONSULT_ID_{HAUD,LAHOM}` 를 넣는다.
    - CLAUDE-TEST 주문으로 사장님 폰에 1통 보낸다.

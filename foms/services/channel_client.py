@@ -157,13 +157,17 @@ def build_channel_bot_name(pushed_by_name: str | None = None) -> str:
     return bot_name[:_BOT_NAME_MAX_LEN]
 
 
-def _issue_token() -> tuple[str, float]:
-    """Issue a ChannelTalk access token and return it with its local expiry timestamp."""
+def _issue_token(channel_id: str = "") -> tuple[str, float]:
+    """Issue a ChannelTalk access token and return it with its local expiry timestamp.
+
+    ``channel_id`` 를 주면 그 채널 토큰을 받는다(라홈·하우드는 채널톡 채널이 따로다 —
+    앱이 그 채널에도 설치돼 있어야 한다). 비우면 기본 ``CHANNEL_ID``.
+    """
     payload = {
         "method": "issueToken",
         "params": {
             "secret": CHANNEL_APP_SECRET,
-            "channelId": CHANNEL_ID,
+            "channelId": channel_id or CHANNEL_ID,
         },
     }
     resp = requests.put(
@@ -186,22 +190,23 @@ def _issue_token() -> tuple[str, float]:
     return access_token, time.time() + max(ttl, 60)
 
 
-def _get_access_token() -> str:
-    """Return a cached valid access token or issue a new one."""
+def _get_access_token(channel_id: str = "") -> str:
+    """Return a cached valid access token (per channel) or issue a new one."""
     if not is_configured():
         raise RuntimeError("CHANNEL_APP_SECRET, CHANNEL_ID 환경변수 미설정")
 
+    cid = channel_id or CHANNEL_ID
     with _token_lock:
-        cached = _token_cache.get(CHANNEL_ID)
+        cached = _token_cache.get(cid)
         if cached and time.time() < cached[1]:
             return cached[0]
 
-        access_token, expires_at = _issue_token()
-        _token_cache[CHANNEL_ID] = (access_token, expires_at)
+        access_token, expires_at = _issue_token(cid)
+        _token_cache[cid] = (access_token, expires_at)
         return access_token
 
 
-def _invalidate_token(stale_token: str) -> None:
+def _invalidate_token(stale_token: str, channel_id: str = "") -> None:
     """
     Drop the cached access token when ChannelTalk rejected it.
 
@@ -210,10 +215,11 @@ def _invalidate_token(stale_token: str) -> None:
     Args:
         stale_token: 401 을 받은 토큰 값.
     """
+    cid = channel_id or CHANNEL_ID
     with _token_lock:
-        cached = _token_cache.get(CHANNEL_ID)
+        cached = _token_cache.get(cid)
         if cached and cached[0] == stale_token:
-            _token_cache.pop(CHANNEL_ID, None)
+            _token_cache.pop(cid, None)
 
 
 def _is_unauthenticated_error(err: dict[str, Any]) -> bool:
@@ -260,7 +266,7 @@ def _put_native_function(payload: dict[str, Any], access_token: str) -> dict[str
     return resp.json()
 
 
-def _call_native_function(payload: dict[str, Any]) -> dict[str, Any]:
+def _call_native_function(payload: dict[str, Any], channel_id: str = "") -> dict[str, Any]:
     """
     Call a native function with the cached token, retrying once on a dead token.
 
@@ -269,17 +275,18 @@ def _call_native_function(payload: dict[str, Any]) -> dict[str, Any]:
 
     Args:
         payload: ``method``/``params`` 요청 본문.
+        channel_id: 토큰을 받을 채널(비우면 기본 ``CHANNEL_ID``).
 
     Returns:
         응답 JSON dict(``result`` 또는 ``error``).
     """
-    access_token = _get_access_token()
+    access_token = _get_access_token(channel_id)
     data = _put_native_function(payload, access_token)
     err = data.get("error") or {}
     if err.get("message") and _is_unauthenticated_error(err):
         logger.warning("[채널톡] 액세스 토큰 무효 - 재발급 후 1회 재시도")
-        _invalidate_token(access_token)
-        data = _put_native_function(payload, _get_access_token())
+        _invalidate_token(access_token, channel_id)
+        data = _put_native_function(payload, _get_access_token(channel_id))
     return data
 
 
@@ -289,6 +296,7 @@ def send_user_chat_message(
     *,
     bot_name: str = "FOMS",
     private: bool = False,
+    channel_id: str = "",
 ) -> dict[str, Any]:
     """
     Write a message into a customer user chat (``writeUserChatMessage``).
@@ -303,6 +311,8 @@ def send_user_chat_message(
         plain_text: 보낼 글(링크는 글 안에 그대로 넣는다 — 카카오에서도 눌린다).
         bot_name: 보낸 이로 보일 봇 이름.
         private: 내부 메모로 쓸지.
+        channel_id: 상담이 있는 채널(웹훅이 알려 준 값). 라홈·하우드는 채널이 따로라
+            반드시 넘긴다. 비우면 기본 ``CHANNEL_ID``.
 
     Returns:
         ``{'success': bool, 'message_id': str | None, 'error': str | None}``.
@@ -314,10 +324,10 @@ def send_user_chat_message(
         dto["options"] = ["MESSAGE_OPTION_PRIVATE"]
     payload = {
         "method": "writeUserChatMessage",
-        "params": {"channelId": CHANNEL_ID, "userChatId": user_chat_id, "dto": dto},
+        "params": {"channelId": channel_id or CHANNEL_ID, "userChatId": user_chat_id, "dto": dto},
     }
     try:
-        data = _call_native_function(payload)
+        data = _call_native_function(payload, channel_id)
     except Exception as exc:
         logger.error("[채널톡] writeUserChatMessage 실패 (chat=%s): %s", user_chat_id, exc)
         return {"success": False, "message_id": None, "error": "request_failed"}

@@ -97,8 +97,9 @@ def chat_stub(monkeypatch):
     """채널톡 상담 쓰기 스텁 — 보낸 글을 모은다. ``fail`` 을 켜면 공개 메시지가 실패한다."""
     state = {'sent': [], 'fail': False, 'fail_from': None}
 
-    def _fake(user_chat_id, plain_text, *, bot_name='FOMS', private=False):
-        state['sent'].append({'chat': user_chat_id, 'text': plain_text, 'private': private})
+    def _fake(user_chat_id, plain_text, *, bot_name='FOMS', private=False, channel_id=''):
+        state['sent'].append({'chat': user_chat_id, 'text': plain_text, 'private': private,
+                              'channel': channel_id})
         public_count = sum(1 for m in state['sent'] if not m['private'])
         failing = state['fail'] or (state['fail_from'] is not None and public_count > state['fail_from'])
         if failing and not private:
@@ -127,6 +128,7 @@ def _request_event(order_id, *, kind='bundle', split=False, code='ABC234',
 def _message(order_id, code='ABC234', *, person='user', chat_type='userChat'):
     return {'type': 'message', 'entity': {
         'chatType': chat_type, 'chatId': 'uc-1', 'personType': person, 'id': 'msg-1',
+        'channelId': 'ch-lahom',
         'plainText': f"문서 받기\n[하우드] 도면·계약서 준비 완료\n임다슬 고객님, 안녕하세요.\n"
                      f"■ 주문번호: {order_id}\n■ 확인코드: {code}\n■ 담당: 박민수 010-1234-5678"}}
 
@@ -223,6 +225,15 @@ def test_delivers_links_together(app, chat_stub):
     delivered = (db_session.query(OrderEvent)
                  .filter_by(order_id=order.id, event_type='SHARE_CONSULT_DELIVERED').one())
     assert delivered.payload['status'] == 'sent'
+
+
+def test_replies_into_the_channel_the_message_came_from(app, chat_stub):
+    """라홈·하우드는 채널톡 채널이 따로다 — 링크·메모 모두 메시지가 온 채널로 쓴다."""
+    order = _mk_order()
+    _request_event(order.id)
+
+    assert sc.handle_user_chat_message(db_session, _message(order.id)) == 'delivered'
+    assert chat_stub['sent'] and all(m['channel'] == 'ch-lahom' for m in chat_stub['sent'])
 
 
 def test_delivers_links_split(app, chat_stub):
@@ -387,7 +398,7 @@ def test_worker_routes_user_chat_away_from_order_intake(app, chat_stub):
 def test_send_user_chat_message_payload(monkeypatch):
     seen = {}
 
-    def _fake_call(payload):
+    def _fake_call(payload, channel_id=''):
         seen.update(payload)
         return {'result': {'message': {'id': 'm-9'}}}
 
@@ -402,6 +413,20 @@ def test_send_user_chat_message_payload(monkeypatch):
 
 def test_send_user_chat_message_provider_error(monkeypatch):
     monkeypatch.setattr(channel_client, '_call_native_function',
-                        lambda payload: {'error': {'message': 'forbidden'}})
+                        lambda payload, channel_id='': {'error': {'message': 'forbidden'}})
     result = channel_client.send_user_chat_message('uc-7', '안녕')
     assert result['success'] is False and result['error'] == 'provider_error'
+
+
+def test_send_user_chat_message_uses_given_channel(monkeypatch):
+    seen = {}
+
+    def _fake_call(payload, channel_id=''):
+        seen.update(payload=payload, channel=channel_id)
+        return {'result': {'message': {'id': 'm-1'}}}
+
+    monkeypatch.setattr(channel_client, '_call_native_function', _fake_call)
+    channel_client.send_user_chat_message('uc-7', '안녕', channel_id='ch-lahom')
+
+    assert seen['channel'] == 'ch-lahom'
+    assert seen['payload']['params']['channelId'] == 'ch-lahom'

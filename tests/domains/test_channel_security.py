@@ -213,3 +213,18 @@ def test_wam_session_token_expiration():
 
     payload = verify_wam_session_token(token, max_age=-1)
     assert payload is None
+
+
+def test_verify_channel_signature_accepts_lahom_channel_key(monkeypatch):
+    """라홈 채널 웹훅은 서명 키가 따로다 — 두 키 중 하나만 맞아도 통과, 둘 다 아니면 거절."""
+    monkeypatch.setattr(channel_security, 'CHANNEL_SIGNING_KEY', '')
+    monkeypatch.setattr(channel_security, 'CHANNEL_SIGNING_KEY_HAUD', 'haud-secret')
+    monkeypatch.setattr(channel_security, 'CHANNEL_SIGNING_KEY_LAHOM', 'lahom-secret')
+    payload = b'{"hello":"world"}'
+
+    def sign(key):
+        return hmac.new(key, msg=payload, digestmod=hashlib.sha256).hexdigest()
+
+    assert verify_channel_signature(payload, sign(b'haud-secret')) is True
+    assert verify_channel_signature(payload, sign(b'lahom-secret')) is True
+    assert verify_channel_signature(payload, sign(b'other-secret')) is False
