@@ -54,8 +54,8 @@ def test_safe_shared_layout_scripts_are_deferred() -> None:
         "js/foms/rum-baseline.js",
         "js/runtime/script.js",
         "js/runtime/upload-progress.js",
-        "cdn.jsdelivr.net/npm/flatpickr",
-        "cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ko.js",
+        "cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js",
+        "cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/l10n/ko.js",
     ]
 
     for needle in deferred_scripts:
