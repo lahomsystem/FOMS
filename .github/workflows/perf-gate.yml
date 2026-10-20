@@ -90,7 +90,7 @@ jobs:
 
       - name: Upload re-seeded budgets
         if: inputs.mode == 'seed'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: perf-budgets-seeded
           path: tools/perf/perf_budgets.json
@@ -99,7 +99,7 @@ jobs:
       # 판정 evidence 는 CI 에서 커밋하지 않고 artifact 로만 보존(로컬 실행과 무충돌).
       - name: Upload evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: perf-gate-evidence
           path: docs/harness/evidence/perf-gate-*.json
