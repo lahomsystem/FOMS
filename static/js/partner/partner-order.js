@@ -58,7 +58,7 @@
     var container = document.querySelector('[data-pp-items]');
     var portal = window.PartnerPortal;
     if (!container || !window.PartnerItems || !portal) return;
-    window.PartnerItems.init(container, document.querySelector('[data-pp-add-item]'));
+    window.PartnerItems.init(container, document.querySelectorAll('[data-pp-add-item]'));
     var busy = false;
     button.addEventListener('click', async function () {
       if (busy) return;

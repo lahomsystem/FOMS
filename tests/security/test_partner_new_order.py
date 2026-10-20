@@ -48,6 +48,8 @@ def test_new_order_uses_our_item_frame_picker_and_address_window(app, world, cat
     assert "erp-items-master-detail-shell pp-items-md" in html and 'class="item-rail"' in html
     assert "data-pp-rail-summary" in html and "data-pp-rail-prev" in html and "data-pp-rail-next" in html
     assert re.search(r'class="pp-actions".*?type="submit"', html, re.S)
+    # 항목 더하기: PC 왼쪽 목록 '+ 항목' + 휴대폰(목록이 숨을 때) 카드 아래 단추.
+    assert html.count("data-pp-add-item") == 2 and "pp-items-md__add" in html
     # 꼭 넣을 칸은 지금과 같다.
     for name in ("customer_name", "customer_phone", "address"):
         assert re.search(rf'name="{name}"[^>]*required', html), name

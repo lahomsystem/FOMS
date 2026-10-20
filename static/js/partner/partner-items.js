@@ -138,7 +138,8 @@
     return { items: items, photoJobs: photoJobs };
   }
 
-  function init(container, addButton) {
+  /** addButtons: '+ 항목'(PC 왼쪽 목록) · '제품 항목 더하기'(휴대폰, 목록이 숨을 때) 단추들. */
+  function init(container, addButtons) {
     if (!container) return;
     var cards = container.querySelectorAll('.pp-item');
     if (!cards.length) addItem(container);
@@ -146,7 +147,9 @@
     if (cards.length) refreshItems(container);
     container.addEventListener('click', function (ev) { onClick(container, ev); });
     container.addEventListener('paste', onWidthPaste);
-    if (addButton) addButton.addEventListener('click', function () { addItem(container); });
+    Array.prototype.forEach.call(addButtons || [], function (btn) {
+      btn.addEventListener('click', function () { addItem(container); });
+    });
   }
 
   window.PartnerItems = { init: init, collect: collect };
