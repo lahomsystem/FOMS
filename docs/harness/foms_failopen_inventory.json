@@ -5,14 +5,14 @@
   "overlap_api_error_01": "API-ERROR-01 owns response/stdout exposure (print_exc/str(e) -> log_handled_exception). This packet owns swallow classification. Sites that log via log_handled_exception are LOG_AND_CONTINUE here.",
   "marker_convention": "Silent-by-design catches carry an inline `# failopen: intentional: <reason>` (or `fail-closed`) marker; the scanner reads it as the justification. No bare allowlist, no lint-disable.",
   "baselines": {
-    "broad_total": 629,
+    "broad_total": 631,
     "unclassified": 0,
     "swallow_by_control_flow": 166
   },
   "disposition_counts": {
     "FAIL_CLOSED": 38,
     "INTENTIONAL": 17,
-    "LOG_AND_CONTINUE": 408,
+    "LOG_AND_CONTINUE": 410,
     "SWALLOW_BY_CONTROL_FLOW": 166
   },
   "owner_counts": {
@@ -25,7 +25,7 @@
     "platform": 5,
     "runtime": 3,
     "services": 192,
-    "storage": 22,
+    "storage": 24,
     "telemetry": 40,
     "web": 39
   },
@@ -1993,7 +1993,7 @@
     },
     {
       "path": "foms/api/orders/field_update.py",
-      "lineno": 427,
+      "lineno": 428,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "api",
@@ -2002,7 +2002,7 @@
     },
     {
       "path": "foms/api/orders/field_update.py",
-      "lineno": 848,
+      "lineno": 878,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2011,7 +2011,7 @@
     },
     {
       "path": "foms/api/orders/field_update.py",
-      "lineno": 869,
+      "lineno": 899,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2020,7 +2020,7 @@
     },
     {
       "path": "foms/api/orders/field_update.py",
-      "lineno": 958,
+      "lineno": 988,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2029,7 +2029,7 @@
     },
     {
       "path": "foms/api/orders/field_update.py",
-      "lineno": 970,
+      "lineno": 1000,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2038,7 +2038,7 @@
     },
     {
       "path": "foms/api/orders/field_update.py",
-      "lineno": 1030,
+      "lineno": 1060,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -2047,7 +2047,7 @@
     },
     {
       "path": "foms/api/orders/field_update.py",
-      "lineno": 1041,
+      "lineno": 1071,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -4647,6 +4647,24 @@
       "justification": "logs via logger/log_handled_exception"
     },
     {
+      "path": "foms/services/order_storage_cleanup.py",
+      "lineno": 121,
+      "handler_type": "broad_exception",
+      "disposition": "LOG_AND_CONTINUE",
+      "owner": "storage",
+      "has_logging": true,
+      "justification": "logs via logger/log_handled_exception"
+    },
+    {
+      "path": "foms/services/order_storage_cleanup.py",
+      "lineno": 130,
+      "handler_type": "broad_exception",
+      "disposition": "LOG_AND_CONTINUE",
+      "owner": "storage",
+      "has_logging": true,
+      "justification": "logs via logger/log_handled_exception"
+    },
+    {
       "path": "foms/services/orders/as_upload_anchor.py",
       "lineno": 123,
       "handler_type": "broad_exception",
@@ -5152,7 +5170,7 @@
     },
     {
       "path": "foms/services/storage.py",
-      "lineno": 140,
+      "lineno": 141,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "storage",
@@ -5161,7 +5179,7 @@
     },
     {
       "path": "foms/services/storage.py",
-      "lineno": 285,
+      "lineno": 286,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "storage",
@@ -5170,7 +5188,7 @@
     },
     {
       "path": "foms/services/storage.py",
-      "lineno": 311,
+      "lineno": 312,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "storage",
@@ -5179,7 +5197,7 @@
     },
     {
       "path": "foms/services/storage.py",
-      "lineno": 380,
+      "lineno": 381,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "storage",
@@ -5188,7 +5206,7 @@
     },
     {
       "path": "foms/services/storage.py",
-      "lineno": 421,
+      "lineno": 422,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "storage",
@@ -5197,7 +5215,7 @@
     },
     {
       "path": "foms/services/storage.py",
-      "lineno": 493,
+      "lineno": 517,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "storage",
@@ -5206,7 +5224,7 @@
     },
     {
       "path": "foms/services/storage.py",
-      "lineno": 564,
+      "lineno": 588,
       "handler_type": "broad_exception",
       "disposition": "SWALLOW_BY_CONTROL_FLOW",
       "owner": "storage",
@@ -5215,7 +5233,7 @@
     },
     {
       "path": "foms/services/storage.py",
-      "lineno": 683,
+      "lineno": 707,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "storage",
