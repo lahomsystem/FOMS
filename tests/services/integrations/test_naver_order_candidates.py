@@ -247,11 +247,17 @@ def test_name_only_match_is_offered_with_weakest_score(app):
     assert got[0]["score"] == 40
 
 
-def test_same_address_but_different_name_is_not_a_candidate(app):
-    """음성 대조군 — 같은 집이라도 이름이 다르면 남의 주문이다(문기범/문유주)."""
-    _order(name="문유주", phone="010-9999-8888", digits="01099998888",
-           address=_INCIDENT_ERP_ADDRESS)
-    assert find_order_candidates(db_session, _incident_link(external_id="PO-OTHERNAME")) == []
+def test_same_address_but_different_name_is_weakest_candidate(app):
+    """같은 집(동·호까지)이면 이름이 달라도 **가장 약한 후보**로 보여 준다(문기범/문유주).
+
+    2026-10-20 결정 — 가족이 대신 결제한 추가결제(운영 이재천→김세진 #5558)를 못 잡아
+    새 주문이 생겼다. 붙일지는 사람이 근거를 보고 고른다.
+    """
+    order = _order(name="문유주", phone="010-9999-8888", digits="01099998888",
+                   address=_INCIDENT_ERP_ADDRESS)
+    got = find_order_candidates(db_session, _incident_link(external_id="PO-OTHERNAME"))
+    assert [row["order_id"] for row in got] == [order.id]
+    assert got[0]["reason"] == "주소(동·호)만 일치"
 
 
 def test_same_road_different_building_number_is_not_address_match(app):
