@@ -13,7 +13,7 @@
           if (!text) return '';
           const div = document.createElement('div');
           div.textContent = String(text);
-          return div.innerHTML;
+          return div.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
         }
 
         /** ERP Order 일정 카드: 날짜 + 선택 시간 (structured_data.schedule.*) */

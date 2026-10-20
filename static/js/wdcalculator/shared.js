@@ -89,7 +89,7 @@ var escapeHtml =
         if (!text) return "";
         var div = document.createElement("div");
         div.textContent = String(text);
-        return div.innerHTML;
+        return div.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     };
 window.escapeHtml = escapeHtml;
 
