@@ -34,6 +34,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from datetime import timedelta
 from typing import Any, Optional
 
@@ -93,6 +94,8 @@ SCORE_NAME_ADDRESS = 60
 #: 수령인명만 맞고 주소는 다른 경우. 동명이인을 만날 수 있어 **가장 약한 단서**다 —
 #: 그래도 보여 준다: 안 보여 주면 사람이 "기존 주문 없음"으로 읽고 중복 주문을 만든다.
 SCORE_NAME_ONLY = 40
+#: 이름·전화는 다르고 집(도로명+건물번호+동·호)만 같은 경우 — 가족 대리결제·추가결제.
+SCORE_ADDRESS_ONLY = 30
 
 #: 후보 스캔 상한. 이름+주소 규칙은 인덱스가 이름까지만 걸려 후보가 많아질 수 있다.
 NAME_SCAN_CAP = 200
@@ -111,6 +114,36 @@ def _name_match_key(name: Any) -> str:
         비교 키. 남는 글자가 없으면 빈 문자열.
     """
     return "".join(ch for ch in str(name or "") if ch.isalnum())
+
+
+#: 도로명 + 건물번호(``동탄대로10길 20``). 앞에 붙은 시·구는 표기마다 달라 보지 않는다.
+_UNIT_ROAD_RE = re.compile(r"([가-힣A-Za-z0-9]*?[가-힣](?:대로|로|길))(\s*\d+번?길)?\s*(\d+(?:-\d+)?)(?!\d)")
+_UNIT_PAREN_RE = re.compile(r"\([^)]*\)")
+
+
+def _unit_address_key(address: Any) -> Optional[tuple[str, str, str, str]]:
+    """같은 **집**인지 견주는 키 ``(도로명, 번길, 건물번호, 동-호)``.
+
+    ``경기도 화성시 동탄구 동탄대로10길 20 (산척동, …) 2505동 1103호`` 와
+    ``동탄대로10길 20 더샵레이크에듀타운 2505동 1103호`` 를 같은 키로 접는다. 동·호는
+    건물번호 뒤에 나오는 숫자 묶음의 마지막 둘(하나뿐이면 그 하나)이다.
+
+    Args:
+        address: 주소 원문(None 허용).
+
+    Returns:
+        키. 도로명 주소가 아니거나 동·호 숫자가 없으면 None — 단지 단위로 견주면 남의 집이 걸린다.
+    """
+    text = _UNIT_PAREN_RE.sub(" ", str(address or ""))
+    matches = list(_UNIT_ROAD_RE.finditer(text))
+    if not matches:
+        return None
+    road = matches[-1]
+    numbers = re.findall(r"\d+", text[road.end():])
+    if not numbers:
+        return None
+    sub_road = re.sub(r"\s+", "", road.group(2) or "")
+    return road.group(1), sub_road, road.group(3), "-".join(numbers[-2:])
 
 
 def _snapshot_keys(raw_snapshot: Any) -> dict[str, str]:
@@ -1231,6 +1264,23 @@ def find_order_candidates(session, link: ExternalOrderLink, *,
                 # 고르게 한다 — 일괄 발송처리 매칭이 이미 같은 축을 쓴다
                 # (:func:`bulk_dispatch.find_unlinked_matches`, 운영 규칙 2026-09-01).
                 scored[int(order.id)] = (SCORE_NAME_ONLY, "수령인명만 일치")
+
+    # 주소축 — 이름이 달라도 **같은 집(도로명+건물번호+동·호)**이면 후보다(2026-10-20 운영
+    # 이재천 건: 김세진 #5558 의 추가결제를 가족이 결제해 이름·전화가 모두 달랐다).
+    # 동·호까지 요구한다 — 단지 하나에 수백 세대라 건물번호만으론 남의 집이 걸린다.
+    unit_key = _unit_address_key(keys["address"])
+    if unit_key:
+        # SQL 은 도로명 앞마디(``판교로``)로만 줍는다 — ``256번길`` 은 띄어 쓰기도 한다.
+        road_name = unit_key[0]
+        rows = (
+            base.filter(Order.address.contains(road_name, autoescape=True))
+            .order_by(Order.created_at.desc())
+            .limit(NAME_SCAN_CAP)
+            .all()
+        )
+        for order in rows:
+            if int(order.id) not in scored and _unit_address_key(order.address) == unit_key:
+                scored[int(order.id)] = (SCORE_ADDRESS_ONLY, "주소(동·호)만 일치")
 
     if not scored:
         return []
