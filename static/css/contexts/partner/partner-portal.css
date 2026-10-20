@@ -328,6 +328,8 @@ body.pp-sheet-open { overflow: hidden; }
 
 /* 4-3 휴대폰 주문 화면 — 우리 상세 위 카드(foms-detail-hero) · 칩 줄 탭 · AS 아래 시트. PC 는 카드 머리 · 탭 · 펼친 AS 칸 그대로. */
 .pp-mhero, .pp-mtabs, .pp-as-open, .pp-as-sheet__head { display: none; }
+/* 카드 머리(PC) — d-flex 대신 이 클래스로 펼친다(휴대폰에서 숨길 수 있게, 유틸리티 !important 를 피함). */
+.pp-order__head { display: flex; justify-content: space-between; align-items: center; }
 @media (max-width: 991.98px), ((min-width: 992px) and (pointer: coarse) and (orientation: portrait)) {
   .pp-mhero { display: block; margin-bottom: 8px; }
   .pp-mhero__id { margin-left: auto; color: var(--foms-text-tertiary); font-size: var(--foms-font-size-sm); }
