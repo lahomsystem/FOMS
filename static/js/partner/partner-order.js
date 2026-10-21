@@ -64,6 +64,7 @@
       if (busy) return;
       var collected = window.PartnerItems.collect(container);
       if (!collected.items.length) { portal.setStatus('제품명을 넣은 제품 항목이 하나 이상 있어야 합니다.', true); return; }
+      if (collected.orphanPhotos) { portal.setStatus('제품명이 없는 항목에 고른 사진이 있습니다. 제품명을 넣어 주세요.', true); return; }
       if (!window.confirm('품목을 이대로 저장할까요? 저희 담당자에게 고친 내용이 알려집니다.')) return;
       busy = true;
       button.disabled = true;

@@ -1,6 +1,7 @@
 {# PARTNER-FOMS 3-1: 제품 항목 카드 — 우리 주문 화면(erp-order-shared.js erpNewItemRow)과 같은 칸 · 같은 클래스.
    editable 이면 고치는 칸(새 주문 · 접수 확인 중), 아니면 같은 칸을 읽기만(readonly).
    JS(partner-items.js · partner-items-rail.js)는 data-k · data-s · data-pp-* 만 본다. #}
+{% from "partner/partials/photo_zone.html" import photo_zone %}
 {% macro pp_spec(spec, editable, no=None) %}
 <div class="pp-spec erp-spec-row d-flex flex-wrap gap-2 align-items-end mb-1">
     <span class="pp-spec__no small text-muted" data-pp-spec-no>규격{% if no %} {{ no }}{% endif %}</span>
@@ -55,15 +56,15 @@
             <textarea class="form-control form-control-sm" data-k="extra_input" rows="2" maxlength="2000"{% if not editable %} readonly{% endif %}>{{ it.extra_input or '' }}</textarea>
         </div>
         <div class="col-12">
-            <div class="border rounded p-2 bg-light pp-item-photos">
-                <div class="small fw-semibold text-muted">{{ it.product_name or '이 제품' }} 실측 사진</div>
+            {% if photos or not editable %}<div class="border rounded p-2 bg-light pp-item-photos{% if editable %} mb-2{% endif %}">
+                <div class="small fw-semibold text-muted">{{ it.product_name or '이 제품' }} 실측 사진{% if editable %} (보낸 것){% endif %}</div>
                 {% if photos %}
                 <div class="d-flex flex-wrap gap-1 mt-2">
                     {% for p in photos %}<a class="pp-thumb" href="{{ p.url }}" target="_blank" rel="noopener">{% if p.is_image %}<img src="{{ p.thumb_url }}" alt="{{ p.filename }}" loading="lazy">{% else %}{{ p.filename }}{% endif %}</a>{% endfor %}
                 </div>
                 {% elif not editable %}<div class="small text-muted mt-1">이 제품에 붙인 사진이 없습니다.</div>{% endif %}
-                {% if editable %}<input type="file" class="form-control form-control-sm mt-2" data-pp-item-photos multiple accept="image/*,video/*" aria-label="이 제품 실측 사진 더하기">{% endif %}
-            </div>
+            </div>{% endif %}
+            {% if editable %}{{ photo_zone('item', '이 제품 실측 사진', 'image/*,video/*', '아직 고른 사진이 없습니다.') }}{% endif %}
         </div>
     </div>
 </div>

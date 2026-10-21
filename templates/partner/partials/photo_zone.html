@@ -1,0 +1,19 @@
+{# PARTNER-FOMS 5-2: 사진 칸 — 우리 품목 사진 칸(erp-order-shared.js [data-erp-attachment-paste-zone])과 같은 모양.
+   고른 사진은 보내기(품목 저장) 전까지 브라우저에만 있고, 주문이 생긴 뒤 올린다(partner-photo-stage.js).
+   zone: item(제품 실측 사진) · common(공통 실측 사진, 제품 연결 가능) · draft(초안 도면). #}
+{% macro photo_zone(zone, title, accept, empty, camera=True) %}
+<div class="border rounded p-2 bg-light pp-drop" data-pp-photo-zone="{{ zone }}" tabindex="0" aria-label="{{ title }} — 끌어놓거나 Ctrl+V 로 붙여넣기">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <div class="small fw-semibold text-muted">{{ title }} <span class="pp-drop__count" data-pp-photo-count></span></div>
+        <div class="d-flex gap-1">
+            <input type="file" class="d-none" data-pp-photo-input accept="{{ accept }}" multiple aria-label="{{ title }} 고르기">
+            <button type="button" class="btn btn-sm btn-outline-primary" data-pp-photo-pick><i class="fas fa-image"></i> <span class="pp-drop__pc">즉시 추가</span><span class="pp-drop__m">앨범</span></button>
+            {% if camera %}<input type="file" class="d-none" data-pp-photo-camera accept="image/*" capture="environment" aria-label="{{ title }} 찍기">
+            <button type="button" class="btn btn-sm btn-outline-primary pp-drop__m" data-pp-photo-shoot><i class="fas fa-camera"></i> 찍기</button>{% endif %}
+        </div>
+    </div>
+    <div class="small text-muted mt-1 pp-drop__pc">Ctrl+V 로 붙여넣거나 여기에 끌어다 놓아도 됩니다.</div>
+    <div class="d-flex flex-wrap gap-1 mt-2" data-pp-photo-gallery></div>
+    <div class="small text-muted mt-1" data-pp-photo-empty>{{ empty }}</div>
+</div>
+{% endmacro %}

@@ -129,3 +129,23 @@ def test_staff_address_search_unchanged(app, world, monkeypatch):
     assert resp.status_code == 200 and resp.get_json()["results"] == []
     anon = app.test_client().get("/api/address/search?q=x")
     assert anon.status_code in (302, 401)
+
+
+def test_photo_zones_on_new_order_and_editable_order(app, world, catalog):
+    """5-2: 사진 칸(즉시 추가 · 찍기 · 붙여넣기 · 끌어놓기) — 제품 칸 · 공통 실측 사진 · 초안 도면."""
+    html = _html(app, world["partner_a"], "/partner/orders/new")
+    template = re.search(r'<template id="ppItemRow">(.*?)</template>', html, re.S).group(1)
+    assert 'data-pp-photo-zone="item"' in template and 'capture="environment"' in template
+    assert 'data-pp-photo-zone="common"' in html and 'data-pp-photo-zone="draft"' in html
+    draft = re.search(r'data-pp-photo-zone="draft".*?data-pp-photo-empty', html, re.S).group(0)
+    assert "capture=" not in draft and 'accept="image/*,.pdf,.dwg,.dxf,.zip"' in draft
+    assert 'name="photos"' not in html and 'name="drafts"' not in html  # 옛 파일 칸은 걷었다
+    assert "js/partner/partner-photo-stage.js" in html
+
+    order_id = _create(app, world["partner_a"]).get_json()["data"]["order_id"]
+    editable = _html(app, world["partner_a"], f"/partner/orders/{order_id}")
+    assert editable.count('data-pp-photo-zone="item"') == 2  # 서버가 그린 카드 1 + 새 항목 틀 1
+    assert "js/partner/partner-photo-stage.js" in editable
+    _to_confirm(order_id)
+    locked = _html(app, world["partner_a"], f"/partner/orders/{order_id}")
+    assert "data-pp-photo-zone" not in locked and "partner-photo-stage.js" not in locked
