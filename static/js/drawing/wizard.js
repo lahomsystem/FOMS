@@ -4521,7 +4521,10 @@
     var safe = function (s) { return String(s || '').replace(/[\\/:*?"<>|\n\r]/g, '_').trim() || '무제'; };
     return '도면_' + safe(customerName) + '_' + ORDER_ID + '_' + safe((sheet || {}).name) + '.png';
   }
-  function exportFilename() { return sheetPngFilename(currentSheet()); }
+  /** 단일 PNG 내보내기 파일명 — 일괄 내보내기·도면방 PUSH 처럼 `고객명도면번호.png`. */
+  function exportFilename() {
+    return exportSheetFilename(currentSheet(), current);
+  }
 
   /**
    * 내보내기 합성(§3.5): 폼(html2canvas scale=2) + Konva(toCanvas pixelRatio=2)를
