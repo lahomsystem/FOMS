@@ -18,10 +18,10 @@
 <input id="{{ id }}" class="form-control form-control-sm" name="address" data-pp-info-key="address" maxlength="300" value="{{ value or '' }}" required placeholder="주소를 입력하거나 찾기 버튼을 누르세요" autocomplete="off">
 {% endmacro %}
 
-{% macro date_field(label, key, value, id) %}
+{% macro date_field(label, key, value, id, counts=False) %}
 <label class="form-label mb-1" for="{{ id }}">{{ label }}</label>
 <div class="input-group input-group-sm">
-    <input type="text" class="form-control form-control-sm" id="{{ id }}" name="{{ key }}" data-pp-info-key="{{ key }}" data-pp-date value="{{ value or '' }}" placeholder="예: 2026-10-30" maxlength="10" autocomplete="off" title="누르거나 달력 단추를 누르면 날짜 선택">
+    <input type="text" class="form-control form-control-sm" id="{{ id }}" name="{{ key }}" data-pp-info-key="{{ key }}" data-pp-date{% if counts %} data-pp-date-counts="{{ url_for('partner_api.construction_calendar') }}"{% endif %} value="{{ value or '' }}" placeholder="예: 2026-10-30" maxlength="10" autocomplete="off" title="누르거나 달력 단추를 누르면 날짜 선택">
     <button type="button" class="btn btn-outline-secondary" data-pp-date-open="{{ id }}" title="달력에서 선택" aria-label="{{ label }} 달력 열기"><i class="fas fa-calendar-alt"></i></button>
 </div>
 {% endmacro %}

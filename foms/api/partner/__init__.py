@@ -40,6 +40,7 @@ from foms.services.orders.drawing_gate_followups import invalidate_after_drawing
 from foms.services.partners.as_intake import PartnerASError, register_partner_as
 from foms.services.partners.completion import CompletionPhotoError, pick_construction_photos
 from foms.services.partners.drawing_confirm import PartnerConfirmError, approve_partner_drawing
+from foms.services.partners.construction_calendar import partner_construction_calendar
 from foms.services.partners.info_edit import update_partner_info
 from foms.services.partners.items_edit import PartnerItemsError, update_partner_items
 from foms.services.jobs.queue import enqueue_geocode_order_address
@@ -240,6 +241,15 @@ def update_info(order_id: int):
         invalidate_badge_cache_for_user_ids(resolve_notification_recipient_user_ids(
             db, target_team=team, target_manager_name=None, include_admin=False))
     return jsonify({"success": True, "data": {"order_id": order_id, **result}, "error": None})
+
+
+@partner_api_bp.route("/construction-calendar", methods=["GET"])
+@partner_required
+def construction_calendar():
+    """희망 시공일 고르기 달력의 칸 숫자(?month=YYYY-MM) — 전체 시공 건수 · 내 회사 출고가(§18.4)."""
+    cal = partner_construction_calendar(get_db(), g.current_user.partner_org_id, request.args.get("month"))
+    data = {k: cal[k] for k in ("month", "label", "prev", "next", "days", "construction_total", "own_amount_label")}
+    return jsonify({"success": True, "data": data, "error": None})
 
 
 @partner_api_bp.route("/me/phone", methods=["POST"])

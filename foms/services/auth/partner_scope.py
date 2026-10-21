@@ -42,6 +42,8 @@ PARTNER_ALLOWED_ENDPOINTS: frozenset[str] = frozenset({
     "partner_api.change_manager",
     "partner_api.update_items",
     "partner_api.update_info",
+    # 18-2 시공 달력 숫자(읽기만): 전체 시공 건수 · 자기 회사 출고가만.
+    "partner_api.construction_calendar",
     "partner_api.update_my_phone",
     # PARTNER-FOMS 5-1: 새 주문 "주소 찾기" — 우리 서버의 카카오 주소 검색(읽기만, 주문 데이터 없음).
     "address.search",
