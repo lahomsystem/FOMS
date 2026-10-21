@@ -1585,6 +1585,28 @@
                 <div class="wb-seek__done" id="wb-seek-done" hidden></div>
             </div>
         </div>
+        {% elif selected.candidates %}
+        {# 주문이 이미 붙은 뒤에도 **비슷한 기존 주문**을 알린다(2026-10-20). 후보 칸이 주문
+           생성 전에만 보여서, 잘못 새로 만든 주문(운영 #5768 강민주·#5774 이재천)을 사람이
+           알아챌 자리가 없었다. 여기는 읽기 전용 안내다 — 옮겨 붙이기는 주문 화면에서 한다. #}
+        <div class="wb-cmp-title" data-cmp-section="relation">
+            관계 <span class="wb-cmp-title__sub">같은 고객일 수 있는 다른 주문 {{ selected.candidates|length }}건</span>
+        </div>
+        <div class="wb-relation wb-relation--ask" data-foms-no-autodismiss>
+            <p class="wb-relation__why">
+                주문 <b>#{{ selected.order_id }}</b> 를 새로 만들었지만, 아래 주문의 <b>추가결제·재결제</b>일 수 있습니다.
+            </p>
+            <ul class="wb-relation__list">
+                {% for cand in selected.candidates %}
+                <li>
+                    <a href="{{ url_for('order_edit.edit_order', order_id=cand.order_id, open='erp-order') }}"
+                       target="_blank" rel="noopener">#{{ cand.order_id }}</a>
+                    {{ cand.customer_name }}{% if cand.trashed %} <span class="wb-cand__claim wb-cand__claim--dead">휴지통</span>{% endif %}
+                    <span class="wb-relation__reason">{{ cand.reason }} · {{ cand.received_date }} · {{ cand.address[:24] }}</span>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
         {% endif %}
     </div>
 </section>
