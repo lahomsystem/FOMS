@@ -108,13 +108,14 @@
 
 .pp-spec__no { flex-basis: 100%; font-weight: 600; }
 
-/* 제품 항목 카드(item_card.html) — 주문 화면 · 새 주문 모두 왼쪽 목록 · 오른쪽 상세. 좁은 화면은 목록 없이 카드를 모두 차례로. */
+/* 제품 항목 카드(item_card.html) — 주문 화면 · 새 주문 모두 왼쪽 목록 · 오른쪽 상세(우리 ERP 처럼 768px 이상 — 좁은 PC 창 · 태블릿 포함).
+   휴대폰(768px 미만)만 목록 없이 카드를 차례로. */
 .pp-items-md .pp-item + .pp-item { margin-top: 16px; padding-top: 16px; border-top: 1px dashed var(--pp-border); }
-/* 휴대폰은 왼쪽 목록('+ 항목')이 숨으므로 카드 아래 '제품 항목 더하기'를 쓴다. 넓은 화면에서는 숨긴다. */
-@media (min-width: 992px) { .pp-items-md .pp-items-md__add { display: none; } }
+/* 휴대폰은 왼쪽 목록('+ 항목')이 숨으므로 카드 아래 '제품 항목 더하기'를 쓴다. 목록이 보이면 숨긴다. */
+@media (min-width: 768px) { .pp-items-md .pp-items-md__add { display: none; } }
 .pp-thumb { display: inline-block; font-size: 13px; color: var(--pp-primary); overflow-wrap: anywhere; }
 .pp-thumb img { display: block; width: 72px; height: 72px; object-fit: cover; border-radius: 6px; }
-@media (max-width: 991.98px) {
+@media (max-width: 767.98px) {
   .pp-items-md .erp-order-body { display: block; }
   .pp-items-md .item-rail, .pp-items-md .item-detail__foot { display: none; }
 }
