@@ -7,11 +7,12 @@
 """
 from __future__ import annotations
 
-from flask import Blueprint, abort, g, render_template, request
+from flask import Blueprint, abort, g, render_template, request, url_for
 
 from db import get_db
 from foms.api.files.routes import build_file_download_url, build_file_view_url
 from foms.api.partner import UPLOAD_OPEN_STAGES
+from foms.api.wdcalculator.blueprint import load_products
 from foms.services.auth.partner_scope import partner_can_read_order, partner_required
 from foms.services.order_attachment_permissions import is_partner_original_key
 from foms.services.orders.as_cycle_service import AS_IN_PROGRESS, AS_RECEIVED, current_cycle, cycle_status
@@ -21,6 +22,7 @@ from foms.services.orders.drawing_customer_send import drawing_round_info, round
 from foms.services.orders.upload_ticket import _file_type as attachment_file_type  # 확장자→image/video/file (첨부 정본과 같은 규칙)
 from foms.services.partners.as_intake import AS_OPEN_STAGES
 from foms.services.partners.completion import as_progress_for_partner, construction_photos_for_partner
+from foms.services.partners.construction_calendar import partner_construction_calendar
 from foms.services.partners.drawing_confirm import final_drawings_for_partner
 from foms.services.partners.history import partner_order_history
 from foms.services.partners.manager import org_member_choices
@@ -29,6 +31,8 @@ from foms.services.partners.view import build_partner_order_view
 from models import Order, OrderAttachment, PartnerOrg
 
 partner_portal_bp = Blueprint("partner_portal", __name__, url_prefix="/partner")
+
+MAX_PRODUCT_NAMES = 500
 
 
 def _org() -> PartnerOrg:
@@ -41,6 +45,16 @@ def _item_name(items: list, item_index: int | None) -> str:
         return ""
     item = items[item_index]
     return str(item.get("product_name") or "") if isinstance(item, dict) else ""
+
+
+def _product_names() -> list[str]:
+    """제품명 ▾ 목록 — 우리 제품 목록의 **이름만**(단가 · 쿠폰 · 옵션 값은 협력사에게 싣지 않는다, §17)."""
+    names: set[str] = set()
+    for product in load_products() or []:
+        name = str(product.get("name") or "").strip() if isinstance(product, dict) else ""
+        if name:
+            names.add(name[:100])
+    return sorted(names)[:MAX_PRODUCT_NAMES]
 
 
 @partner_portal_bp.context_processor
@@ -66,6 +80,8 @@ def home():
         me=g.current_user,
         members=members,
         filters=filters,
+        cal=partner_construction_calendar(db, org.id, request.args.get("cal")),
+        cal_url=url_for("partner_portal.home"),
         **board,
     )
 
@@ -73,7 +89,7 @@ def home():
 @partner_portal_bp.route("/orders/new")
 @partner_required
 def new_order():
-    return render_template("partner/new_order.html", org=_org())
+    return render_template("partner/new_order.html", org=_org(), product_names=_product_names())
 
 
 @partner_portal_bp.route("/orders/<int:order_id>")
@@ -110,6 +126,7 @@ def order_detail(order_id: int):
         history=partner_order_history(db, order),
         active_tab="drawing" if can_approve else "order",
         manager_choices=org_member_choices(db, order.partner_org_id),
+        product_names=_product_names() if view["items_editable"] else [],
         **_completion_context(db, order, stage),
     )
 

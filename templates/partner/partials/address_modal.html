@@ -1,0 +1,28 @@
+{# PARTNER-FOMS 5-1: 주소 찾기 — 우리 PC 주소 검색 창(erp_order_tab.html #erpAddressSearchModal)과 같은 칸.
+   Bootstrap JS 를 싣지 않아 여닫기는 partner-shell.js(data-pp-sheet-open · close), 검색 · 입력은 partner-order-entry.js. #}
+<div class="modal pp-modal" id="ppAddressModal" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="ppAddressTitle" data-pp-sheet data-pp-address data-pp-address-url="{{ url_for('address.search') }}" data-pp-address-target="ppAddress" hidden>
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="ppAddressTitle"><i class="fas fa-map-marker-alt"></i> 주소 검색</h5>
+                <button type="button" class="btn-close" data-pp-sheet-close aria-label="닫기"></button>
+            </div>
+            <div class="modal-body">
+                <div class="input-group mb-2">
+                    <input type="text" class="form-control" data-pp-address-query placeholder="예: 송파대로 345" autocomplete="off" aria-label="주소 검색어">
+                    <button class="btn btn-primary" type="button" data-pp-address-search><i class="fas fa-search"></i> 검색</button>
+                </div>
+                <div class="mb-2">
+                    <label class="form-label small mb-1" for="ppAddressDetail">상세주소</label>
+                    <input type="text" class="form-control form-control-sm" id="ppAddressDetail" data-pp-address-detail placeholder="동/호/현관/경비실 등" autocomplete="off">
+                </div>
+                <div class="small text-muted mb-2" data-pp-address-status role="status" aria-live="polite"></div>
+                <div class="list-group" data-pp-address-results></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" data-pp-address-apply><i class="fas fa-check"></i> 입력</button>
+                <button type="button" class="btn btn-secondary" data-pp-sheet-close><i class="fas fa-times"></i> 닫기</button>
+            </div>
+        </div>
+    </div>
+</div>

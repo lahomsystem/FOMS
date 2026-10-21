@@ -52,14 +52,16 @@
 
   /**
    * 공통 사진 · 초안과 제품별 실측 사진(itemJobs: [{index, files}])을 하나씩 올린다.
+   * commonJobs: 사진 칸의 공통 사진 · 초안([[파일, 'photo'|'draft'], …], PartnerPhotos.commonJobs).
    * 실패한 파일 이름 목록을 돌려준다.
    */
-  async function uploadFiles(form, url, itemJobs) {
+  async function uploadFiles(form, url, itemJobs, commonJobs) {
     var jobs = [];
     var photos = form.querySelector('input[name="photos"]');
     var drafts = form.querySelector('input[name="drafts"]');
     Array.prototype.forEach.call((photos && photos.files) || [], function (f) { jobs.push([f, 'photo', null]); });
     Array.prototype.forEach.call((drafts && drafts.files) || [], function (f) { jobs.push([f, 'draft', null]); });
+    (commonJobs || []).forEach(function (job) { jobs.push([job[0], job[1], null]); });
     (itemJobs || []).forEach(function (job) {
       job.files.forEach(function (f) { jobs.push([f, 'photo', job.index]); });
     });
@@ -76,9 +78,9 @@
   }
 
   function bindNewOrder(form) {
-    var items = document.getElementById('ppItems');
+    var items = form.querySelector('[data-pp-items]');
     if (!window.PartnerItems) return;
-    window.PartnerItems.init(items, form.querySelector('[data-pp-add-item]'));
+    window.PartnerItems.init(items, form.querySelectorAll('[data-pp-add-item]'));
     var busy = false;
     form.addEventListener('submit', async function (ev) {
       ev.preventDefault();
@@ -88,7 +90,10 @@
         customer_name: form.elements.customer_name.value.trim(),
         customer_phone: form.elements.customer_phone.value.trim(),
         address: form.elements.address.value.trim(),
-        measured_on: form.elements.measured_on.value,
+        measured_on: form.elements.measured_on.value.trim(),
+        measured_time: form.elements.measured_time.value.trim(),
+        requested_construction_date: form.elements.requested_construction_date.value.trim(),
+        requested_construction_time: form.elements.requested_construction_time.value.trim(),
         memo: form.elements.memo.value.trim(),
         items: collected.items,
       };
@@ -100,6 +105,10 @@
         setStatus('제품명을 넣은 제품 항목이 하나 이상 있어야 합니다.', true);
         return;
       }
+      if (collected.orphanPhotos) {
+        setStatus('제품명이 없는 항목에 사진이 ' + collected.orphanPhotos + '개 있습니다. 제품명을 넣거나 사진을 공통으로 옮겨 주세요.', true);
+        return;
+      }
       busy = true;
       form.querySelector('button[type="submit"]').disabled = true;
       setStatus('보내는 중…');
@@ -107,7 +116,8 @@
         var created = await postJson(form.getAttribute('data-create-url'), payload);
         var orderId = created.order_id;
         var uploadUrl = withOrderId(form.getAttribute('data-upload-url'), orderId);
-        var failed = await uploadFiles(form, uploadUrl, collected.photoJobs);
+        var common = window.PartnerPhotos ? window.PartnerPhotos.commonJobs() : [];
+        var failed = await uploadFiles(form, uploadUrl, collected.photoJobs, common);
         var detail = withOrderId(form.getAttribute('data-detail-url'), orderId);
         if (failed.length) {
           // 주문은 이미 등록됐다 — 다시 보내면 중복 주문이 생기니 상세로 보내 거기서 파일만 더 올리게 한다.

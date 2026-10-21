@@ -253,3 +253,76 @@
 - 4-2 목록: `templates/partner/home.html` 에 휴대폰 전용 `.foms-shell-body.pp-mlist` — 검색 줄(`erp-mobile-queue-filters`) · 칩 줄(전체 · 단계 7칸 · 내 담당, 도면 확인 대기는 노란 칩) · 우리 큐 카드(`foms-queue-card-v2`, 단계 칩 색 `foms-stage-badge--<단계>`, 지금 · 주소 · 제품 · 연락처(전화 링크) · 시공일 · 담당, "도면 확인하기"/"열기") + 진행 막대. 3-2 의 옛 카드 목록(`pp-cards`)과 CSS 는 걷었다.
 - 4-3 주문 화면: 휴대폰에서 카드 머리 · 탭 대신 우리 상세 위 카드(`foms-detail-hero`: 단계 칩 · 내 차례 · 고객 · 제품 · 시공일)와 칩 줄 탭(`foms-chip`, 위 줄 아래 고정). 단계 칩 색은 공용 조각 `partials/stage_badge.html`(목록과 같이 씀). 완공 사진이 있고 AS 를 접수할 수 있으면, AS 칸은 PC 에서 사진 아래 펼친 칸 · 휴대폰에서 사진을 고르면 올라오는 아래 시트(같은 form 안이라 고른 사진과 함께 보낸다, `is-open` · 고른 장수 표시, `partner-shell.js`). 아래 고정 줄 "AS 접수"도 그 시트를 연다.
 - 시험 `tests/security/test_partner_mobile_shell.py` 6건(위 줄 · 아래 탭 5개 · 활성 탭 · 뒤로 · 배지 · CSS 핀, 휴대폰 목록 카드 · 칩 · 내 차례 묶음 · 다른 회사 제외, 주문 화면 위 카드 · 칩 탭 · AS 시트).
+
+## 17. 5단계 새 주문 화면 설계 (2026-10-20 사용자 승인: 셋 다 5-1 부터 · 주소 찾기는 우리 PC 와 같은 창 · ▾ 목록은 제품명만)
+
+### 17.1 사실
+- 지금 협력사 새 주문(`templates/partner/new_order.html`)은 단독 form(`pp-fieldset` 넷)이다. 제품 카드는 주문 화면과 같은 매크로(`partials/item_card.html` `pp_item`)지만, 왼쪽 목록 · 오른쪽 상세 틀은 주문 화면(`partials/order_items.html`)에만 있다.
+- 보내기 순서: 주문 만들기(`POST /api/partner/orders`) → 사진 올리기(`POST …/files`, `item_index`). 주문이 생겨야 올릴 곳이 생기므로, 새 주문 화면의 사진은 보내기 전까지 브라우저에만 있다(`partner-portal.js` `bindNewOrder`).
+- 우리 새 주문(`/add`, `orders/add_order.html:372`)은 주문 화면과 같은 `orders/partials/erp_order_tab.html` 을 쓴다(목록 · 상세 `:389-410`). 우리 휴대폰 새 주문은 마법사(`orders/wizard/wizard_shell.html`)라 모양이 따로다.
+- 제품명 목록: 우리 입력 칸 옆 ▾ 단추(`static/js/orders/erp-spec-calc.js:160-184`)가 `ErpSpecPicker.openSingle` 을 연다(`static/js/orders/erp-spec-picker.js` — PC 는 펼침 목록, 휴대폰은 아래 시트. 다른 JS 에 기대지 않는 모듈). 목록 출처 `GET /api/wdcalculator/products` 는 값에 단가가 들어 있고 협력사 허용 목록 밖이다. 우리 화면은 발주사가 라홈인 주문에서만 켠다.
+- 품목 사진: 우리 칸은 `[data-erp-attachment-paste-zone="item"]` · "즉시 추가" · Ctrl+V(`erp-order-shared.js:1780-1797 · 5078-5093`). 끌어놓기는 우리 화면에도 없다. 우리 쪽은 주문이 이미 있어 바로 올린다.
+- 공통 사진 연결 · 해제: 우리 `PATCH /api/orders/<id>/attachments/<aid>` `{item_index}`(`foms/api/files/order_routes.py:498`) — 공통 카드의 "제품 연결" 고르기, 품목 사진의 "공통으로 이동" 단추. 협력사 쪽 API 는 아직 없다(§4-5).
+- 주소 찾기: 우리 PC 는 서버의 카카오 주소 검색 `GET /api/address/search`(`foms/api/address.py:96`, 로그인만 확인 · 주문 데이터 없음) + 검색 창(`erp_order_tab.html:599-628`, Bootstrap 모달). 협력사 허용 목록에 없다. 휴대폰 마법사는 다음 우편번호 창(`wizard_shell.html:92`).
+- 전체 항목 요약은 우리도 `window.alert`(`static/js/orders/erp-items-master-detail.js:267`).
+
+### 17.2 설계 — 우리 부품 클래스 + 협력사 파일(§5-8 그대로), 셋으로 나눈다
+- **5-1 화면 틀**: 우리 새 주문 모양 — "주문 정보" 카드(고객명 · 연락처 · 주소 + 찾기 · 실측일 · 메모, 우리 `erp_order_tab` 칸 순서) → 제품 항목 왼쪽 목록 · 오른쪽 상세(주문 화면 조각을 새 주문에도 씀) → 공통 첨부 → 아래 고정 줄 "보내기"(휴대폰은 아래 탭 위).
+  - 제품명 ▾ 목록: 우리 제품 목록의 **이름만** 화면에 싣는다(단가 등 다른 값은 싣지 않음, 새 라우트 없음). 고르기는 우리 `erp-spec-picker.js` 를 그대로 싣고, 직접 입력은 지금처럼 된다.
+  - 주소 찾기: 우리 PC 와 같은 검색 창(검색어 · 상세주소 · 결과 목록 · 입력)을 협력사 파일로 그리고, 우리 서버 카카오 검색(`address.search`)을 협력사 허용 목록에 하나 더한다. 고르면 "도로명 주소 + 상세주소"가 주소 칸에 들어간다. 꼭 넣을 칸은 지금과 같다(고객명 · 연락처 · 주소 · 품목 1개).
+- **5-2 사진**: 품목 사진 칸을 우리 모양으로 — "즉시 추가" · Ctrl+V · 끌어놓기(PC), "찍기" · "앨범"(휴대폰). 고른 사진은 미리보기 · 빼기. 공통 첨부(실측 사진 · 초안 도면)도 같은 칸이고, 공통 사진마다 "제품 연결" 고르기, 품목 사진마다 "공통으로" 단추. 보내기 때 지금처럼 주문 → 사진 순서로 올린다(서버 변경 없음).
+- **5-3 접수 확인 중 주문 화면 사진**: 주문 화면(접수 확인 중)에도 같은 사진 칸. 이미 올린 사진의 연결 · 해제는 새 API `PATCH /api/partner/orders/<id>/attachments/<aid>` `{item_index}` — 접수 확인 중만(밖이면 409), 다른 회사 404, 협력사가 올린 실측 사진만(아니면 400), 품목 범위 안만, `item_id` 같이 고침, 첨부 변경 기록(`ATTACHMENT_META_UPDATED`)은 우리와 같이 남김. 허용 목록 · 쓰기 목록 · "다른 회사 거부" 시험 1:1(§4-8).
+- 우리 직원 화면 파일은 바꾸지 않는다. 직원 쪽 제품 목록 · 주소 검색 라우트도 바꾸지 않는다.
+
+### 17.3 검증
+- 시험: 새 주문 화면 원문에 목록 · 상세 틀 · ▾ 단추 · 주소 찾기 창, 실린 제품 목록에 이름만(단가 키 0개), 등록 필수 칸 그대로. 협력사가 주소 검색은 되고 우리 다른 API(제품 단가 목록 등)는 여전히 막힘(대조군). 5-3 API: 다른 회사 404 · 도면 단계 409 · 다른 주문 사진 · 우리 직원 파일 · 실측 사진 아님 · 범위 밖 400, 연결 뒤 `item_index` · `item_id`.
+- 스테이징 실화면: PC 1440px 등록(목록 고르기 · 직접 입력 · W*D*H 붙여넣기 · 주소 찾기 · Ctrl+V · 끌어놓기 · 공통 사진 연결) → 주문 화면에 품목 사진 자리가 맞음. 휴대폰 390px(찍기 · 앨범 · 아래 시트 목록 · 가로 넘침 0).
+
+### 17.4 구현 기록 (2026-10-21)
+- 5-1 화면 틀: `templates/partner/new_order.html` 을 우리 새 주문 모양(주문 정보 카드 → 제품 항목 왼쪽 목록 · 오른쪽 상세 → 공통 첨부 → 메모 → 아래 고정 줄 "보내기")으로 바꿨다. 목록 · 상세 틀은 공용 조각 `partials/items_rail.html`(주문 화면 `order_items.html` 도 같이 씀). 옛 새 주문 전용 CSS(`pp-fieldset` · `pp-items` · `pp-title`)는 걷었다.
+- 제품명 ▾: `foms/web/partner` `_product_names()` 가 `load_products()` 에서 이름만(앞뒤 공백 · 빈 이름 · 겹친 이름 뺌, 500개까지) 골라 `[data-pp-product-names]` 에 싣는다. 고르기는 우리 `erp-spec-picker.js`(PC 펼침 목록 · 휴대폰 아래 시트), 묶기는 새 `static/js/partner/partner-order-entry.js`. 접수 확인 중 주문 화면에도 붙는다(그 밖 단계는 싣지 않음).
+- 주소 찾기: `partials/address_modal.html`(우리 PC 검색 창과 같은 칸, `hidden` 으로 여닫기 — `partner-shell.js`). 협력사 허용 목록에 `address.search` 하나를 더했다.
+- 스테이징에서 찾아 고친 것: 휴대폰은 왼쪽 목록이 숨어 '+ 항목' 단추도 숨었다 → 카드 아래 '제품 항목 더하기'(넓은 화면에서는 숨김). 접수 확인 중 주문 화면에도 같은 구멍이 있었다.
+- 시험 `tests/security/test_partner_new_order.py` 6건(틀 · ▾ · 주소 창 · 더하기 단추 둘, 제품 목록은 이름만 · 단가 0개, 목록이 비면 ▾ 없음, 주문 화면은 접수 확인 중만, 협력사 주소 검색 됨 · 우리 제품 단가 · 프리셋 API 403 대조군, 직원 주소 검색 그대로).
+- 스테이징 실화면(2026-10-21, CLAUDE-TEST 협력사): PC 1440px — ▾ 목록 27개에서 "신발장" 고름 → 칸 · 왼쪽 목록 반영, 주소 찾기 "송파대로 345" 10건 → 고르고 상세주소 → 주소 칸에 "… 헬리오시티 101동 1001호", 항목 둘(목록 고른 것 · 직접 입력, 복합 폭 `5700(2402+1864+1434)`)로 보내기 → 시험 주문 #4786 에 그대로. 휴대폰 390px — 아래 시트 목록 · 주소 창(Enter 검색) · 더하기 단추, 가로 넘침 0, 보내기 줄은 아래 탭 바로 위.
+
+## 18. 주문 정보 입력을 우리 모양으로 · 보낸 뒤 고치기 · 희망 시공일 (2026-10-21 설계)
+
+사용자 요청(2026-10-21): 새 주문과 접수 확인 중 주문 화면 둘 다 — 연락처 하이픈 · 수동입력, 주소 찾기, 실측일 · 시간 달력, 시공일 · 시간(협력사는 희망일, 출고 담당자와 이야기한 뒤 우리가 확정), 제품 속성 기본값 "상담", 접수 확인 중에도 고객명 · 연락처 · 주소 · 날짜 고치기.
+
+### 18.1 사실
+- 연락처: 우리 `formatPhoneAuto`(`erp-order-shared.js:351` — 11자리 3-4-4, 10자리 3-3-4) + "수동입력" 체크(`erp_order_tab.html:166-170`, 켜면 그대로).
+- 날짜: 우리는 글자 칸 + 달력 단추(flatpickr 4.6.13, `layout_head.html:273` · `layout_scripts.html:1625`). 시간은 고르기(오전 · 오후 · 종일 · 직접 입력) + 직접 칸(`erp_order_tab.html:357-378`).
+- 저장 자리: 우리 실측 `schedule.measurement.{date,time}`, 시공 `schedule.construction.{date,time}`(평면 열 `measurement_date` · `scheduled_date` 등은 `sync_erp_flat_columns` 가 맞춘다, `foms/services/erp_sync_columns.py:120-127`). 협력사 실측일은 지금 `partner_intake.measured_on` 에만 있다(우리 실측 화면에 뜨지 않게 — 협력사가 이미 실측함). "희망 시공일" 칸은 우리 쪽에 없다.
+- 출고 화면(`foms/web/shipment/dashboard.py:634`)은 시공일이 정해진 주문만 날짜로 줄을 세운다. 시공 특이사항(`notes.construction_note`)은 주소 칸에 읽기만으로 뜬다.
+- 품목 고치기(`foms/services/partners/items_edit.py`)가 본보기: 행 잠금 → 접수 확인 중만 → `execute_single_order_write`(쓰기 정책 id) → 원문 사본 · 고친 기록 → 감사 1줄 → CS 알림. 등록 자리 6곳(문지기 허용 목록 · 쓰기 매니페스트 2 · 쓰기 허용 목록 · 쓰기 인벤토리 · 감사 인벤토리).
+
+### 18.2 설계
+- **화면(새 주문 · 접수 확인 중 주문 화면 같은 칸, 공용 조각)**: 고객명 · 연락처(하이픈 + 수동입력) · 주소(찾기) · 실측일(달력) · 실측시간(오전 · 오후 · 종일 · 직접) · 희망 시공일(달력) · 희망 시공시간. 우리가 시공일을 확정하면 희망 칸 대신 확정 시공일 · 시간(보기만). 달력은 우리와 같은 flatpickr(한 날짜).
+- **제품 속성 기본값**: 고치는 카드의 빈 속성 칸은 우리처럼 "상담"을 넣어 둔다(✅ 이미 반영).
+- **저장**: 실측일 · 시간은 지금처럼 `partner_intake`(`measured_on` · `measured_time`)에만. 희망 시공일은 `partner_intake.requested_construction = {date, time}` — 우리 `schedule.construction` 은 건드리지 않는다(확정은 우리 몫).
+- **보낸 뒤 고치기** 새 API `PUT /api/partner/orders/<id>/info`(쓰기 정책 `PARTNER_INFO_EDIT`):
+  - 고객명 · 연락처 · 주소 · 실측일 · 실측시간: 접수 확인 중(RECEIVED · MEASURE)만, 밖이면 409.
+  - 희망 시공일 · 시간: 우리가 시공일을 정하기 전까지(정했으면 409).
+  - 다른 회사 404. 주문 열(고객명 · 연락처 · 주소) · `parties.customer` · `site.address_full` · 원문 사본을 같이 바꾸고 `partner_intake.info_edits` 에 누가 · 언제 · 바꾸기 전(최근 20번). 감사 `PARTNER_ORDER_INFO_EDITED` + CS 알림. 주소가 바뀌면 우리 지도 좌표를 지워 다시 찾게 한다(우리 주소 저장과 같은 처리 — 구현 때 확인).
+  - 등록 자리 6곳 + "다른 회사 거부" 시험(§4-8).
+- **출고 담당자에게 알리기**: 희망 시공일을 넣거나 바꾸면 출고팀 알림 1건("[협력사] #번호 고객 — 희망 시공일 10-30 오후. 협의 후 시공일을 정해 주세요"). 우리 주문 화면 시공일 칸 아래에 "협력사 희망: 10-30 오후" 한 줄(우리 직원 화면 작은 추가 — 이번만 예외).
+
+### 18.3 검증
+- 시험: 하이픈 · 수동입력 · 달력 · 시간 칸 원문, 등록에 실측시간 · 희망 시공일이 원문 사본에 남음(우리 `schedule.construction` 비어 있음), 정보 고치기 — 접수 확인 중만 · 희망일은 확정 전까지 · 다른 회사 404 · 우리 직원 거부 · 고친 기록 · 감사 · CS 알림 · 출고팀 알림, 우리 주문 화면 희망 한 줄.
+- 스테이징: PC · 휴대폰에서 새 주문 → 접수 확인 중 고치기 → 우리 화면에 희망일 보임 → 우리가 시공일 정하면 협력사 칸 잠김.
+
+### 18.4 결정 (2026-10-21 사용자 승인)
+- §18.2 그대로 진행(출고팀 알림 + 우리 주문 화면 시공일 칸 아래 "협력사 희망" 한 줄).
+- **시공 달력**(사용자 추가 요청): 협력사 담당자가 날짜마다 시공이 몇 건 잡혔는지 보고 희망 시공일을 고른다.
+  - 건수 = **우리 회사 전체** 시공 건수(숫자만 — 고객 · 주소 · 다른 협력사 이름은 보이지 않음). 우리 모바일 홈 달력과 같은 모집단(`order_schedule_dates` 시공, `dashboard_control_tower._day_counts`).
+  - 금액 = **그 협력사 주문의 출고가만**(우리 전체 매출은 보이지 않음). 계산은 우리 달력과 같은 식(`_construction_amounts` — 여러 날 시공은 날짜 수로 나눔).
+  - 휴대폰: 칸마다 시공 건수 · 금액. PC: 칸마다 시공 건수 + 달 합계(건수 · 총 금액).
+  - 자리: 협력사 목록 화면 달력 + 희망 시공일 고르기(달력에서 날짜를 누르면 희망일로).
+- 나눠서 한다: 18-1 입력 칸 · 보낸 뒤 고치기 · 출고팀 알림 → 18-2 시공 달력.
+
+### 18.5 구현 기록 (2026-10-21)
+- 5-2 사진 칸: `partials/photo_zone.html` + `static/js/partner/partner-photo-stage.js` — 제품 칸 · 공통 실측 사진 · 초안 도면. PC 즉시 추가 · Ctrl+V · 끌어놓기, 휴대폰 찍기 · 앨범, 미리보기 · 빼기, 공통 → "제품 연결" · 제품 → "공통으로". 보내기 뒤 주문 → 사진 순서로 올린다(서버 변경 없음). 이름 없는 항목에 사진이 있으면 보내기 전에 알린다. 사용자 지적으로 제품 목록 · 상세를 768px 이상에서도(우리 ERP 처럼 좁은 PC 창 · 태블릿) — 휴대폰만 카드를 차례로.
+- 18-1: 공용 칸 `partials/info_fields.html`(연락처 하이픈 · 수동입력, 주소 찾기, flatpickr 달력, 오전 · 오후 · 종일 · 직접 입력). 서비스 `foms/services/partners/info_edit.py`(`update_partner_info`, 정책 `PARTNER_INFO_EDIT`) · `schedule_request.py`(날짜 · 시간 정리, `request_open`, 출고팀 알림 `PARTNER_CONSTRUCTION_REQUESTED`). 라우트 `PUT /api/partner/orders/<id>/info`. 우리 주문 화면 PC · 휴대폰 시공일 칸 아래 `orders/partials/erp_partner_requested_construction.html`. 제품 속성 빈 칸 기본 "상담". 시험 `test_partner_info_edit.py` 6건.
+- 18-2: `foms/services/partners/construction_calendar.py`(우리 모바일 홈 달력 셈 재사용, 앞뒤 6개월, 달 사진 머리띠), 목록 화면 달력 `partials/construction_calendar.html`, 읽기 API `GET /api/partner/construction-calendar`(희망 시공일 flatpickr 칸 숫자). 시험 `test_partner_construction_calendar.py` 3건.
+- 스테이징(2026-10-21): 5-2 끌어놓기 2장 → 제품 연결 → 붙여넣기 → 공통으로(파일 수 맞음), 900px 목록 · 상세. 18-1 하이픈 `010-1234-5678` · 수동입력 그대로 · 시간 "오후" · 달력 열림 · 속성 "상담", 시험 주문 #4786 연락처 · 희망 시공일 2026-11-06 오전 저장 → 우리 `/edit/4786` 에 "협력사 희망: 2026-11-06 오전". 18-2 목록 달력(스테이징 9월 3건 · 10월 0건 — 데이터가 적음), 첫 화면에서 머리띠 흰 글씨가 안 보여 우리 달 사진 머리띠를 붙였다.

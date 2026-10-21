@@ -1,35 +1,72 @@
 {% extends "partner/layout.html" %}
+{# PARTNER-FOMS 5-1: 새 주문 — 우리 새 주문(/add → erp_order_tab.html) 모양: 주문 정보 카드 → 제품 항목 왼쪽 목록 · 오른쪽 상세
+   → 공통 첨부 → 아래 고정 줄 "보내기"(설계서 §3.4 · §17). 사진은 주문이 생긴 뒤 올린다(partner-portal.js). #}
 {% from "partner/partials/item_card.html" import pp_item_templates %}
+{% from "partner/partials/items_rail.html" import items_rail %}
+{% from "partner/partials/photo_zone.html" import photo_zone %}
+{% from "partner/partials/info_fields.html" import phone_field, address_field, date_field, time_field %}
 {% block title %}새 주문 등록{% endblock %}
+{% block styles %}<link rel="stylesheet" href="{{ asset_url('css/orders/erp-items-master-detail.css') }}">
+{% if product_names %}<link rel="stylesheet" href="{{ asset_url('css/wdcalculator/category-picker.css') }}">
+<link rel="stylesheet" href="{{ asset_url('css/orders/erp-spec-calc.css') }}">{% endif %}
+{% include "partner/partials/flatpickr_head.html" %}{% endblock %}
+{% block main_class %}pp-main--wide{% endblock %}
 {% block mobile_title %}새 주문{% endblock %}
 {% block mobile_back %}{{ url_for('partner_portal.home') }}{% endblock %}
 {% block content %}
-<h1 class="pp-title">새 주문 등록</h1>
-<p class="pp-help">실측까지 마친 주문을 보내 주세요. 보낸 내용은 원본으로 보관되고, 저희 담당자가 확인한 뒤 도면 작업을 시작합니다.</p>
-<form id="ppNewOrder" class="pp-form" data-create-url="{{ url_for('partner_api.create_order') }}" data-detail-url="{{ url_for('partner_portal.order_detail', order_id=0) }}" data-upload-url="{{ url_for('partner_api.upload_file', order_id=0) }}" novalidate>
-    <fieldset class="pp-fieldset">
-        <legend>고객</legend>
-        <label class="pp-field">고객 이름<input name="customer_name" maxlength="50" required></label>
-        <label class="pp-field">연락처<input name="customer_phone" maxlength="30" inputmode="tel" required></label>
-        <label class="pp-field">현장 주소<input name="address" maxlength="300" required></label>
-        <label class="pp-field">실측한 날<input name="measured_on" type="date"></label>
-    </fieldset>
-    <fieldset class="pp-fieldset">
-        <legend>제품 항목 (치수 단위: mm)</legend>
-        <p class="pp-help">제품마다 규격을 여러 줄 넣을 수 있습니다(벽마다 한 줄). 가로 칸에 2400*600*2300 처럼 붙여넣으면 가로 · 깊이 · 높이로 나뉩니다. 복합 폭은 5700(2402+1864+1434) 처럼 그대로 적어 주세요.</p>
-        <div id="ppItems" class="pp-items"></div>
-        <button type="button" class="pp-btn pp-btn--ghost" data-pp-add-item>제품 항목 더하기</button>
-    </fieldset>
-    <fieldset class="pp-fieldset">
-        <legend>공통 파일</legend>
-        <p class="pp-help">현장 전체 · 벽 · 천장 · 콘센트처럼 제품 하나에 묶이지 않는 사진은 여기에 올려 주세요.</p>
-        <label class="pp-field">실측 사진<input type="file" name="photos" multiple accept="image/*,video/*"></label>
-        <label class="pp-field">초안 도면<input type="file" name="drafts" multiple accept="image/*,.pdf,.dwg,.dxf,.zip"></label>
-    </fieldset>
-    <label class="pp-field">메모<textarea name="memo" rows="4" maxlength="2000"></textarea></label>
-    <p class="pp-status" id="ppStatus" role="status" aria-live="polite"></p>
-    <button type="submit" class="pp-btn pp-btn--primary">보내기</button>
+{% set pick = product_names | length > 0 %}
+<form id="ppNewOrder" data-create-url="{{ url_for('partner_api.create_order') }}" data-detail-url="{{ url_for('partner_portal.order_detail', order_id=0) }}" data-upload-url="{{ url_for('partner_api.upload_file', order_id=0) }}" novalidate>
+<div class="card border-secondary pp-order pp-new">
+    <div class="card-header pp-order__head">
+        <div class="fw-bold"><i class="fas fa-layer-group"></i> 새 주문 등록</div>
+        <span class="small text-muted">* 꼭 넣을 칸</span>
+    </div>
+    <div class="card-body foms-page-form">
+        <p class="small text-muted mb-3">실측까지 마친 주문을 보내 주세요. 보낸 내용은 원본으로 보관되고, 저희 담당자가 확인한 뒤 도면 작업을 시작합니다.</p>
+        <div class="row g-2">
+            <div class="col-md-6">
+                <label class="form-label mb-1" for="ppCustomerName">고객명 *</label>
+                <input id="ppCustomerName" class="form-control form-control-sm" name="customer_name" maxlength="50" required autocomplete="off">
+            </div>
+            <div class="col-md-6">{{ phone_field('', 'ppCustomerPhone') }}</div>
+            <div class="col-12">{{ address_field('', 'ppAddress') }}</div>
+            <div class="col-7 col-md-3">{{ date_field('실측일', 'measured_on', '', 'ppMeasuredOn') }}</div>
+            <div class="col-5 col-md-3">{{ time_field('실측시간', 'measured_time', '', 'ppMeasuredTime') }}</div>
+            <div class="col-7 col-md-3">{{ date_field('희망 시공일', 'requested_construction_date', '', 'ppRequestDate', counts=True) }}</div>
+            <div class="col-5 col-md-3">{{ time_field('희망 시공시간', 'requested_construction_time', '', 'ppRequestTime') }}</div>
+            <div class="col-12 small text-muted">희망 시공일은 저희 출고 담당자와 이야기한 뒤 확정됩니다.</div>
+        </div>
+        <hr class="my-3">
+        <div class="fw-bold mb-2"><i class="fas fa-box"></i> 제품 항목(1..n) <span class="small text-muted fw-normal">치수 단위 mm</span></div>
+        <p class="small text-muted mb-2">제품마다 규격을 여러 줄 넣을 수 있습니다(벽마다 한 줄). 제품명은 ▾ 목록에서 고르거나 직접 적어 주세요.</p>
+        {{ items_rail([], true, {}, pick) }}
+        <hr class="my-3">
+        <div class="fw-bold mb-2"><i class="fas fa-paperclip"></i> 공통 첨부(사진/동영상)</div>
+        <p class="small text-muted mb-2">현장 전체 · 벽 · 천장 · 콘센트처럼 제품 하나에 묶이지 않는 사진은 여기에 올려 주세요. 사진마다 "제품 연결"로 제품에 붙일 수 있습니다.</p>
+        <div class="row g-2">
+            <div class="col-md-6">{{ photo_zone('common', '실측 사진', 'image/*,video/*', '현장 전체 사진을 넣어 주세요.') }}</div>
+            <div class="col-md-6">{{ photo_zone('draft', '초안 도면', 'image/*,.pdf,.dwg,.dxf,.zip', '초안 도면이 있으면 넣어 주세요.', camera=False) }}</div>
+        </div>
+        <hr class="my-3">
+        <label class="form-label mb-1" for="ppMemo">메모</label>
+        <textarea id="ppMemo" class="form-control form-control-sm" name="memo" rows="3" maxlength="2000"></textarea>
+    </div>
+</div>
+<div class="pp-actions" role="region" aria-label="보내기">
+    <p class="pp-status mb-0" id="ppStatus" role="status" aria-live="polite"></p>
+    <div class="pp-actions__buttons">
+        <a class="btn btn-outline-secondary" href="{{ url_for('partner_portal.home') }}">목록으로</a>
+        <button type="submit" class="btn btn-primary"><i class="fas fa-paper-plane"></i> 보내기</button>
+    </div>
+</div>
 </form>
-{{ pp_item_templates() }}
+{% include "partner/partials/address_modal.html" %}
+{{ pp_item_templates(pick) }}
+{% if pick %}<div hidden data-pp-product-names='{{ product_names | tojson }}'></div>
+<script src="{{ asset_url('js/orders/erp-spec-picker.js') }}" defer></script>{% endif %}
 <script src="{{ asset_url('js/partner/partner-items.js') }}" defer></script>
+<script src="{{ asset_url('js/partner/partner-items-rail.js') }}" defer></script>
+<script src="{{ asset_url('js/partner/partner-photo-stage.js') }}" defer></script>
+{% include "partner/partials/flatpickr_scripts.html" %}
+<script src="{{ asset_url('js/partner/partner-order-entry.js') }}" defer></script>
 {% endblock %}

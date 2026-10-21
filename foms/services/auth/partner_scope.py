@@ -41,7 +41,12 @@ PARTNER_ALLOWED_ENDPOINTS: frozenset[str] = frozenset({
     "partner_api.register_as",
     "partner_api.change_manager",
     "partner_api.update_items",
+    "partner_api.update_info",
+    # 18-2 시공 달력 숫자(읽기만): 전체 시공 건수 · 자기 회사 출고가만.
+    "partner_api.construction_calendar",
     "partner_api.update_my_phone",
+    # PARTNER-FOMS 5-1: 새 주문 "주소 찾기" — 우리 서버의 카카오 주소 검색(읽기만, 주문 데이터 없음).
+    "address.search",
     # PARTNER-FOMS 6: 협력사 직원 웹 푸시 "알림 받기". 넷 다 자기 것만 다룬다 — 공개 키(읽기),
     # 자기 기기 구독 등록 · 해제(남의 기기 403), 자기에게 시험 알림(비관리자는 남 지정 403),
     # 자기 알림 열람 기록(자기 state 없으면 404). tests/security/test_partner_push.py 가 고정한다.

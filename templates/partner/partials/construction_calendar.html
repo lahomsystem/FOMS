@@ -1,0 +1,50 @@
+{# PARTNER-FOMS 18-2: 시공 달력 — 우리 모바일 홈 달력과 같은 칸 모양(foms-tower__cal-*, dashboard-control-tower.css).
+   칸 = 날짜 · 우리 회사 전체 시공 건수 · (휴대폰) 그 협력사 주문 출고가. 위 줄 = 달 합계(전체 시공 건수 · 내 회사 출고가).
+   입력: cal (foms/services/partners/construction_calendar.py), cal_url(달 넘기기 주소 — ?cal=YYYY-MM). #}
+<div class="foms-tower__cal pp-cal" data-pp-cal data-month="{{ cal.month }}">
+  <div class="foms-tower__cal-hero pp-cal__hero foms-cal-photo-{{ cal.photo.month }}"{% if cal.photo.credit %} title="{{ cal.photo.credit }}"{% endif %}>
+    <div class="foms-tower__cal-top">
+      <div class="foms-tower__cal-nav">
+        {% if cal.prev %}<a class="foms-tower__cal-arrow" href="{{ cal_url }}?cal={{ cal.prev }}" aria-label="지난달"><i class="fas fa-chevron-left" aria-hidden="true"></i></a>
+        {% else %}<span class="foms-tower__cal-arrow is-off" aria-hidden="true"><i class="fas fa-chevron-left"></i></span>{% endif %}
+        <h2 class="foms-tower__cal-title">{{ cal.label }} 시공</h2>
+        {% if cal.next %}<a class="foms-tower__cal-arrow" href="{{ cal_url }}?cal={{ cal.next }}" aria-label="다음달"><i class="fas fa-chevron-right" aria-hidden="true"></i></a>
+        {% else %}<span class="foms-tower__cal-arrow is-off" aria-hidden="true"><i class="fas fa-chevron-right"></i></span>{% endif %}
+      </div>
+      <div class="foms-tower__cal-tools">{% if not cal.is_this_month %}<a class="foms-tower__cal-thismonth" href="{{ cal_url }}">이번 달</a>{% endif %}</div>
+    </div>
+    <div class="foms-tower__cal-sum">
+      <div class="foms-tower__cal-sum-main">
+        <span class="foms-tower__cal-sum-label">내 회사 출고가 합계</span>
+        <strong class="foms-tower__cal-sum-amt">{{ cal.own_amount_label }}</strong>
+      </div>
+      <div class="foms-tower__cal-sum-counts">
+        <span><i class="foms-tower__mark foms-tower__mark--construction" aria-hidden="true"></i>전체 시공 <b>{{ cal.construction_total }}</b>건</span>
+      </div>
+    </div>
+  </div>
+  <div class="foms-tower__cal-sheet">
+    <div class="foms-tower__cal-dow" aria-hidden="true"><span class="is-red">일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span class="is-blue">토</span></div>
+    <div class="foms-tower__cal-grid">
+      {%- for week in cal.weeks %}
+      <div class="foms-tower__cal-week">
+        {%- for c in week -%}
+        {%- if c.in_month -%}
+        <span class="foms-tower__cal-cell is-c{{ c.dow + 1 }}{% if c.is_today %} is-today{% endif %}{% if c.is_past %} is-past{% endif %}{% if c.dow == 0 or c.is_holiday %} is-red{% elif c.dow == 6 %} is-blue{% endif %}" aria-label="{{ c.day }}일 시공 {{ c.count }}건{% if c.amount_label %}, 내 회사 출고가 {{ c.amount_label }}원{% endif %}">
+          <span class="foms-tower__cal-head"><span class="foms-tower__cal-date">{{ c.day }}</span></span>
+          <span class="foms-tower__cal-counts">{% if c.count %}<span class="foms-tower__cal-n foms-tower__cal-n--construction"><i class="foms-tower__mark foms-tower__mark--construction"></i>{{ c.count }}</span>{% endif %}</span>
+          {%- if c.amount_pill %}<span class="foms-tower__cal-amt pp-cal__amt">{{ c.amount_pill }}</span>{% endif -%}
+        </span>
+        {%- else -%}
+        <span class="foms-tower__cal-cell is-out is-c{{ c.dow + 1 }}" aria-hidden="true"></span>
+        {%- endif -%}
+        {%- endfor -%}
+      </div>
+      {%- endfor %}
+    </div>
+    <div class="foms-tower__cal-legend">
+      <span><i class="foms-tower__mark foms-tower__mark--construction" aria-hidden="true"></i>숫자 = 그날 저희 시공 건수(전체)</span>
+      <span class="pp-cal__amt-legend">알약 = 내 회사 주문 출고가</span>
+    </div>
+  </div>
+</div>

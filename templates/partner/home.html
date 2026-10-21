@@ -44,6 +44,9 @@
     </div>
 </div>
 
+{# 18-2 시공 달력: 날짜마다 저희 전체 시공 건수 · 내 회사 출고가(휴대폰 칸마다, PC 는 달 합계). #}
+<section class="pp-cal-wrap" aria-label="시공 달력">{% include "partner/partials/construction_calendar.html" %}</section>
+
 {# 4-2 휴대폰: 우리 검색 줄 · 칩 줄 · 큐 카드(설계서 §3.2 · §16). 진행 막대는 협력사 추가. PC 는 위 프로세스 맵 · 작업 큐 표. #}
 {% from "partner/partials/stage_badge.html" import stage_badge %}
 {% set q = filters.q or None %}

@@ -1,0 +1,39 @@
+{# PARTNER-FOMS 18-1: 주문 정보 입력 칸 — 우리 erp_order_tab.html 과 같은 모양(새 주문 · 접수 확인 중 주문 화면이 같이 쓴다).
+   name = 새 주문 form 이 읽는 이름, data-pp-info-key = 주문 화면 "정보 저장"이 읽는 키(partner-order-entry.js · partner-info.js).
+   날짜는 우리처럼 글자 칸 + 달력 단추(flatpickr), 시간은 오전 · 오후 · 종일 · 직접 입력. #}
+{% macro phone_field(value, id) %}
+<label class="form-label mb-1" for="{{ id }}">연락처 *</label>
+<input id="{{ id }}" type="tel" class="form-control form-control-sm" name="customer_phone" data-pp-info-key="customer_phone" maxlength="30" value="{{ value or '' }}" required autocomplete="off" data-pp-phone>
+<div class="form-check mt-1">
+    <input class="form-check-input" type="checkbox" id="{{ id }}Manual" data-pp-phone-manual autocomplete="off">
+    <label class="form-check-label" for="{{ id }}Manual">수동입력</label>
+</div>
+{% endmacro %}
+
+{% macro address_field(value, id) %}
+<div class="d-flex align-items-center gap-2 mb-1">
+    <label class="form-label mb-0" for="{{ id }}">주소 *</label>
+    <button class="btn btn-outline-primary btn-sm" type="button" data-pp-sheet-open="ppAddressModal"><i class="fas fa-search"></i> 찾기</button>
+</div>
+<input id="{{ id }}" class="form-control form-control-sm" name="address" data-pp-info-key="address" maxlength="300" value="{{ value or '' }}" required placeholder="주소를 입력하거나 찾기 버튼을 누르세요" autocomplete="off">
+{% endmacro %}
+
+{% macro date_field(label, key, value, id, counts=False) %}
+<label class="form-label mb-1" for="{{ id }}">{{ label }}</label>
+<div class="input-group input-group-sm">
+    <input type="text" class="form-control form-control-sm" id="{{ id }}" name="{{ key }}" data-pp-info-key="{{ key }}" data-pp-date{% if counts %} data-pp-date-counts="{{ url_for('partner_api.construction_calendar') }}"{% endif %} value="{{ value or '' }}" placeholder="예: 2026-10-30" maxlength="10" autocomplete="off" title="누르거나 달력 단추를 누르면 날짜 선택">
+    <button type="button" class="btn btn-outline-secondary" data-pp-date-open="{{ id }}" title="달력에서 선택" aria-label="{{ label }} 달력 열기"><i class="fas fa-calendar-alt"></i></button>
+</div>
+{% endmacro %}
+
+{% macro time_field(label, key, value, id) %}
+{% set presets = ['오전', '오후', '종일'] %}
+{% set direct = value and value not in presets %}
+<label class="form-label mb-1" for="{{ id }}Select">{{ label }}</label>
+<select class="form-select form-select-sm" id="{{ id }}Select" data-pp-time-select="{{ id }}" autocomplete="off">
+    <option value="">시간 선택</option>
+    {% for p in presets %}<option value="{{ p }}"{% if value == p %} selected{% endif %}>{{ p }}</option>{% endfor %}
+    <option value="__direct__"{% if direct %} selected{% endif %}>직접 입력</option>
+</select>
+<input type="text" class="form-control form-control-sm mt-2{% if not direct %} d-none{% endif %}" id="{{ id }}" name="{{ key }}" data-pp-info-key="{{ key }}" value="{{ value or '' }}" maxlength="20" placeholder="예: 10:30 / 오전 / 오후 / 종일" autocomplete="off" aria-label="{{ label }} 직접 입력">
+{% endmacro %}

@@ -1,5 +1,5 @@
 {# 제품 항목 — 우리 왼쪽 목록 · 오른쪽 상세(erp-items-master-detail.css). 접수 확인 중에만 고친다(§4-4). #}
-{% from "partner/partials/item_card.html" import pp_item %}
+{% from "partner/partials/items_rail.html" import items_rail %}
 {% set editable = view.items_editable %}
 <div class="d-flex justify-content-between align-items-center mb-2">
     <div class="fw-bold"><i class="fas fa-box"></i> 제품 항목(1..n)</div>
@@ -9,37 +9,4 @@
 {% else %}
 <p class="small text-muted mb-2"><i class="fas fa-lock"></i> 도면 작업이 시작되어 고칠 수 없습니다. 바꿀 곳은 도면 탭의 "수정 요청"으로 보내 주세요.</p>
 {% endif %}
-<div class="erp-items-section erp-items-master-detail-shell pp-items-md" data-pp-items-md>
-    <div class="erp-order-body erp-items-master-detail">
-        <aside class="item-rail" aria-label="제품 항목 목록">
-            <div class="item-rail__head">
-                <div class="item-rail__row">
-                    <h2 class="item-rail__title">제품 항목 <span class="item-rail__count" data-pp-rail-count>{{ view['items'] | length }}</span></h2>
-                    {% if editable %}<button type="button" class="erp-pro-btn erp-pro-btn--primary erp-pro-btn--sm" data-pp-add-item>+ 항목</button>{% endif %}
-                </div>
-                <input type="search" class="item-rail__search" data-pp-rail-search placeholder="제품명 검색…" aria-label="항목 검색">
-            </div>
-            <div class="item-rail__list" data-pp-rail-list role="listbox"></div>
-            <div class="item-rail__foot">
-                <button type="button" class="erp-pro-btn erp-pro-btn--secondary erp-pro-btn--sm erp-pro-btn--full" data-pp-rail-summary>전체 항목 요약</button>
-            </div>
-        </aside>
-        <main class="item-detail foms-page-form" aria-label="선택 항목">
-            <div class="item-detail__scroll">
-                <div id="erp-items" data-pp-items>
-                    {% for it in view['items'] %}{{ pp_item(it, editable, item_photos.get(loop.index0, []), loop.index) }}{% endfor %}
-                </div>
-            </div>
-            <footer class="item-detail__foot">
-                <div class="item-detail__kbd" aria-label="키보드 단축키 안내">
-                    <span class="item-detail__kbd-hint"><kbd>Ctrl</kbd> + <kbd>↑</kbd><kbd>↓</kbd> 항목 이동</span>
-                    <span class="item-detail__kbd-pos" data-pp-rail-pos>1 / {{ view['items'] | length }}</span>
-                </div>
-                <div class="item-detail__actions">
-                    <button type="button" class="btn btn-sm btn-outline-secondary" data-pp-rail-prev>◀ 이전</button>
-                    <button type="button" class="btn btn-sm btn-outline-secondary" data-pp-rail-next>다음 항목 ▶</button>
-                </div>
-            </footer>
-        </main>
-    </div>
-</div>
+{{ items_rail(view['items'], editable, item_photos, product_names | length > 0) }}

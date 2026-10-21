@@ -8,11 +8,11 @@
     "log_access"
   ],
   "baselines": {
-    "total": 233,
+    "total": 234,
     "unaudited": 1
   },
   "classification_counts": {
-    "AUDITED": 202,
+    "AUDITED": 203,
     "EXEMPT": 30,
     "UNAUDITED": 1
   },
@@ -1140,7 +1140,7 @@
     {
       "path": "foms/api/partner/__init__.py",
       "endpoint": "approve_drawing",
-      "lineno": 246,
+      "lineno": 281,
       "methods": [
         "POST"
       ],
@@ -1149,7 +1149,7 @@
     {
       "path": "foms/api/partner/__init__.py",
       "endpoint": "change_manager",
-      "lineno": 185,
+      "lineno": 188,
       "methods": [
         "POST"
       ],
@@ -1158,7 +1158,7 @@
     {
       "path": "foms/api/partner/__init__.py",
       "endpoint": "create_order",
-      "lineno": 98,
+      "lineno": 101,
       "methods": [
         "POST"
       ],
@@ -1167,7 +1167,7 @@
     {
       "path": "foms/api/partner/__init__.py",
       "endpoint": "register_as",
-      "lineno": 339,
+      "lineno": 374,
       "methods": [
         "POST"
       ],
@@ -1176,7 +1176,7 @@
     {
       "path": "foms/api/partner/__init__.py",
       "endpoint": "request_revision",
-      "lineno": 299,
+      "lineno": 334,
       "methods": [
         "POST"
       ],
@@ -1184,8 +1184,17 @@
     },
     {
       "path": "foms/api/partner/__init__.py",
+      "endpoint": "update_info",
+      "lineno": 225,
+      "methods": [
+        "PUT"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/partner/__init__.py",
       "endpoint": "update_items",
-      "lineno": 200,
+      "lineno": 203,
       "methods": [
         "PUT"
       ],
@@ -1194,7 +1203,7 @@
     {
       "path": "foms/api/partner/__init__.py",
       "endpoint": "update_my_phone",
-      "lineno": 222,
+      "lineno": 257,
       "methods": [
         "POST"
       ],
@@ -1203,7 +1212,7 @@
     {
       "path": "foms/api/partner/__init__.py",
       "endpoint": "upload_file",
-      "lineno": 118,
+      "lineno": 121,
       "methods": [
         "POST"
       ],

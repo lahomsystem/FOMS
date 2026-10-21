@@ -1005,6 +1005,11 @@
       "policy_id": "PARTNER_PORTAL",
       "rule": "/api/partner/orders/<int:order_id>/revision"
     },
+    "partner_api.update_info": {
+      "mode": "guard",
+      "policy_id": "PARTNER_PORTAL",
+      "rule": "/api/partner/orders/<int:order_id>/info"
+    },
     "partner_api.update_items": {
       "mode": "guard",
       "policy_id": "PARTNER_PORTAL",

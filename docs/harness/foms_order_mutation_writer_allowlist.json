@@ -169,6 +169,12 @@
       "classification": "CANONICAL",
       "owner": "PARTNER-FOMS-3",
       "reason": "협력사 접수 확인 중 품목 고치기(update_partner_items) — 첫 조회를 lock_order_row(FOR UPDATE)로 잠그고, structured_data 재대입·flag_modified 는 execute_single_order_write 콜백(→ REV-00 execute_order_mutation, version bump + receipt) 안에서만 한다."
+    },
+    {
+      "path": "foms/services/partners/info_edit.py",
+      "classification": "CANONICAL",
+      "owner": "PARTNER-FOMS-18",
+      "reason": "협력사 주문 정보 고치기(update_partner_info — 고객 · 주소 · 실측 · 희망 시공일) — items_edit 와 같은 틀: lock_order_row(FOR UPDATE) 뒤 structured_data 재대입·flag_modified 는 execute_single_order_write 콜백 안에서만 한다."
     }
   ]
 }
