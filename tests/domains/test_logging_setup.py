@@ -213,3 +213,33 @@ def test_dashboard_cache_module_logger_has_no_local_handlers():
     assert dashboard_cache.logger.propagate is True
     assert not hasattr(dashboard_cache, "_ensure_dashcache_log_to_stderr")
     assert not hasattr(dashboard_cache, "_lazy_ensure_dashcache_log_to_stderr")
+
+
+def test_gunicorn_access_log_masks_query_token():
+    """gunicorn 접근 로그(자기 핸들러·root 비전파)에서도 ``?token=`` 값이 가려진다.
+
+    채널톡 웹훅은 토큰을 쿼리로 보내 운영 접근 로그에 그대로 찍혔다(2026-10-21).
+    gunicorn 은 ``access_log.info(format, atoms_dict)`` 로 남기므로 같은 모양으로 부른다.
+    """
+    from foms.services.error_logging import install_protected_logging
+
+    install_protected_logging(Flask(__name__))
+    access = logging.getLogger("gunicorn.access")
+    stream = io.StringIO()
+    handler = logging.StreamHandler(stream)
+    access.addHandler(handler)
+    try:
+        access.info(
+            '%(h)s "%(r)s" %(s)s',
+            {
+                "h": "100.64.0.11",
+                "r": "POST /api/channel/webhooks?token=a802ee0d047bf906e68af HTTP/1.1",
+                "s": "200",
+            },
+        )
+    finally:
+        access.removeHandler(handler)
+
+    output = stream.getvalue()
+    assert "a802ee0d047bf906e68af" not in output
+    assert "/api/channel/webhooks?token=*** HTTP/1.1" in output
