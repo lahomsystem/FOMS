@@ -1,10 +1,10 @@
 {% extends "partner/layout.html" %}
-{# PARTNER-FOMS 5-1: 새 주문 — 우리 새 주문(/add → erp_order_tab.html) 모양: 주문 정보 카드 → 제품 항목 왼쪽 목록 · 오른쪽 상세
-   → 공통 첨부 → 아래 고정 줄 "보내기"(설계서 §3.4 · §17). 사진은 주문이 생긴 뒤 올린다(partner-portal.js). #}
+{# PARTNER-FOMS 5-1 · 18-3: 새 주문 — 주문 화면(order_detail.html)과 같은 카드 · 탭 · 칸 순서(우리 /add 가 /edit 와 같은 틀이듯).
+   "저장"하면 주문을 만들고 사진을 올린 뒤 바로 목록으로 간다(우리 FOMS 방식, 사용자 2026-10-21). 설계서 §3.4 · §17 · §18. #}
 {% from "partner/partials/item_card.html" import pp_item_templates %}
 {% from "partner/partials/items_rail.html" import items_rail %}
 {% from "partner/partials/photo_zone.html" import photo_zone %}
-{% from "partner/partials/info_fields.html" import phone_field, address_field, date_field, time_field %}
+{% from "partner/partials/info_fields.html" import phone_field, address_field, date_field, time_field, ro %}
 {% block title %}새 주문 등록{% endblock %}
 {% block styles %}<link rel="stylesheet" href="{{ asset_url('css/orders/erp-items-master-detail.css') }}">
 {% if product_names %}<link rel="stylesheet" href="{{ asset_url('css/wdcalculator/category-picker.css') }}">
@@ -15,26 +15,55 @@
 {% block mobile_back %}{{ url_for('partner_portal.home') }}{% endblock %}
 {% block content %}
 {% set pick = product_names | length > 0 %}
-<form id="ppNewOrder" data-create-url="{{ url_for('partner_api.create_order') }}" data-detail-url="{{ url_for('partner_portal.order_detail', order_id=0) }}" data-upload-url="{{ url_for('partner_api.upload_file', order_id=0) }}" novalidate>
+<form id="ppNewOrder" data-create-url="{{ url_for('partner_api.create_order') }}" data-list-url="{{ url_for('partner_portal.home') }}" data-upload-url="{{ url_for('partner_api.upload_file', order_id=0) }}" novalidate>
 <div class="card border-secondary pp-order pp-new">
     <div class="card-header pp-order__head">
-        <div class="fw-bold"><i class="fas fa-layer-group"></i> 새 주문 등록</div>
+        <div class="fw-bold"><i class="fas fa-layer-group"></i> 주문 <span class="text-muted fw-normal">새 주문</span></div>
         <span class="small text-muted">* 꼭 넣을 칸</span>
     </div>
+    <ul class="nav nav-tabs px-2 pt-2 pp-tabs" role="tablist">
+        <li class="nav-item"><button type="button" class="nav-link active" role="tab" aria-selected="true"><i class="fas fa-layer-group"></i> 주문</button></li>
+        <li class="nav-item"><button type="button" class="nav-link" role="tab" disabled title="저장한 뒤 열립니다"><i class="fas fa-compass-drafting"></i> 도면</button></li>
+        <li class="nav-item"><button type="button" class="nav-link" role="tab" disabled title="시공이 끝나면 열립니다"><i class="fas fa-camera"></i> 완공 사진</button></li>
+        <li class="nav-item"><button type="button" class="nav-link" role="tab" disabled title="저장한 뒤 열립니다"><i class="fas fa-clock-rotate-left"></i> 이력</button></li>
+    </ul>
     <div class="card-body foms-page-form">
-        <p class="small text-muted mb-3">실측까지 마친 주문을 보내 주세요. 보낸 내용은 원본으로 보관되고, 저희 담당자가 확인한 뒤 도면 작업을 시작합니다.</p>
+        {# 주문 화면(partials/order_info.html)과 같은 칸 순서: 접수 → 고객 → 담당 → 단계 → 주소 → 일정 · 메모. #}
         <div class="row g-2">
+            <div class="col-xl-8">
+                <div class="erp-received-trio">
+                    {{ ro('접수인', me.name, 'erp-received-trio__cell') }}
+                    {{ ro('접수일', today, 'erp-received-trio__cell') }}
+                    {{ ro('접수시간', '저장할 때', 'erp-received-trio__cell') }}
+                </div>
+            </div>
             <div class="col-md-6">
                 <label class="form-label mb-1" for="ppCustomerName">고객명 *</label>
                 <input id="ppCustomerName" class="form-control form-control-sm" name="customer_name" maxlength="50" required autocomplete="off">
             </div>
             <div class="col-md-6">{{ phone_field('', 'ppCustomerPhone') }}</div>
+            <div class="col-md-6">
+                {{ ro('담당자 (도면에 찍힘)', me.name ~ ((' · ' ~ me.contact_phone) if me.contact_phone else '')) }}
+            </div>
+            <div class="col-md-6">
+                <span class="form-label mb-1 d-block">진행 단계</span>
+                <ol class="pp-steps" aria-label="진행 단계">
+                    {% for step in steps %}<li class="pp-steps__step pp-steps__step--{{ step.state }}"{% if step.state == 'now' %} aria-current="step"{% endif %}>{{ step.label }}</li>{% endfor %}
+                </ol>
+            </div>
             <div class="col-12">{{ address_field('', 'ppAddress') }}</div>
+        </div>
+        <hr class="my-3">
+        <div class="row g-2">
             <div class="col-7 col-md-3">{{ date_field('실측일', 'measured_on', '', 'ppMeasuredOn') }}</div>
             <div class="col-5 col-md-3">{{ time_field('실측시간', 'measured_time', '', 'ppMeasuredTime') }}</div>
             <div class="col-7 col-md-3">{{ date_field('희망 시공일', 'requested_construction_date', '', 'ppRequestDate', counts=True) }}</div>
             <div class="col-5 col-md-3">{{ time_field('희망 시공시간', 'requested_construction_time', '', 'ppRequestTime') }}</div>
             <div class="col-12 small text-muted">희망 시공일은 저희 출고 담당자와 이야기한 뒤 확정됩니다.</div>
+            <div class="col-12">
+                <label class="form-label mb-1" for="ppMemo">메모</label>
+                <textarea id="ppMemo" class="form-control form-control-sm" name="memo" rows="2" maxlength="2000"></textarea>
+            </div>
         </div>
         <hr class="my-3">
         <div class="fw-bold mb-2"><i class="fas fa-box"></i> 제품 항목(1..n) <span class="small text-muted fw-normal">치수 단위 mm</span></div>
@@ -47,16 +76,13 @@
             <div class="col-md-6">{{ photo_zone('common', '실측 사진', 'image/*,video/*', '현장 전체 사진을 넣어 주세요.') }}</div>
             <div class="col-md-6">{{ photo_zone('draft', '초안 도면', 'image/*,.pdf,.dwg,.dxf,.zip', '초안 도면이 있으면 넣어 주세요.', camera=False) }}</div>
         </div>
-        <hr class="my-3">
-        <label class="form-label mb-1" for="ppMemo">메모</label>
-        <textarea id="ppMemo" class="form-control form-control-sm" name="memo" rows="3" maxlength="2000"></textarea>
     </div>
 </div>
-<div class="pp-actions" role="region" aria-label="보내기">
+<div class="pp-actions" role="region" aria-label="저장">
     <p class="pp-status mb-0" id="ppStatus" role="status" aria-live="polite"></p>
     <div class="pp-actions__buttons">
+        <button type="submit" class="btn btn-primary"><i class="fas fa-floppy-disk"></i> 저장</button>
         <a class="btn btn-outline-secondary" href="{{ url_for('partner_portal.home') }}">목록으로</a>
-        <button type="submit" class="btn btn-primary"><i class="fas fa-paper-plane"></i> 보내기</button>
     </div>
 </div>
 </form>

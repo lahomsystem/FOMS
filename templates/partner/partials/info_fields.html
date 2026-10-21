@@ -37,3 +37,14 @@
 </select>
 <input type="text" class="form-control form-control-sm mt-2{% if not direct %} d-none{% endif %}" id="{{ id }}" name="{{ key }}" data-pp-info-key="{{ key }}" value="{{ value or '' }}" maxlength="20" placeholder="예: 10:30 / 오전 / 오후 / 종일" autocomplete="off" aria-label="{{ label }} 직접 입력">
 {% endmacro %}
+
+{# 보기만 하는 칸 — 우리 입력 칸 모양 + 자물쇠(주문 화면 · 새 주문이 같이 쓴다). #}
+{% macro ro(label, value, cls='', input_id='') %}
+<div class="{{ cls }}">
+    <label class="form-label mb-1"{% if input_id %} for="{{ input_id }}"{% endif %}>{{ label }}</label>
+    <div class="pp-ro">
+        <input type="text" class="form-control form-control-sm"{% if input_id %} id="{{ input_id }}"{% endif %} value="{{ value or '-' }}" readonly>
+        <i class="fas fa-lock pp-ro__lock" aria-hidden="true"></i>
+    </div>
+</div>
+{% endmacro %}

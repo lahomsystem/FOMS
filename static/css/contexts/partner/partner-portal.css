@@ -393,9 +393,9 @@ body.pp-sheet-open { overflow: hidden; }
 .pp-cal-wrap { margin-bottom: 16px; }
 .pp-cal .foms-tower__cal-arrow.is-off { opacity: 0.35; }
 .pp-cal .foms-tower__cal-cell { cursor: default; }
+/* PC 에는 달력을 두지 않는다(사용자 2026-10-21) — 희망 시공일 고르기 달력 칸에 건수가 뜬다. */
 @media (min-width: 992px) {
-  .pp-cal .pp-cal__amt, .pp-cal .pp-cal__amt-legend { display: none; }
-  .pp-cal-wrap { max-width: 720px; }
+  .pp-cal-wrap { display: none; }
 }
 @media (max-width: 991.98px) {
   .pp-main--list .pp-cal-wrap { margin: 12px; }

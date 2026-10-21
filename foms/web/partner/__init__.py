@@ -16,7 +16,7 @@ from foms.api.wdcalculator.blueprint import load_products
 from foms.services.auth.partner_scope import partner_can_read_order, partner_required
 from foms.services.order_attachment_permissions import is_partner_original_key
 from foms.services.orders.as_cycle_service import AS_IN_PROGRESS, AS_RECEIVED, current_cycle, cycle_status
-from foms.services.datetime_kst import format_datetime_kst
+from foms.services.datetime_kst import format_datetime_kst, get_today_kst
 from foms.services.orders.confirm_drawing_gate import confirm_exit_block
 from foms.services.orders.drawing_customer_send import drawing_round_info, round_text
 from foms.services.orders.upload_ticket import _file_type as attachment_file_type  # 확장자→image/video/file (첨부 정본과 같은 규칙)
@@ -27,7 +27,7 @@ from foms.services.partners.drawing_confirm import final_drawings_for_partner
 from foms.services.partners.history import partner_order_history
 from foms.services.partners.manager import org_member_choices
 from foms.services.partners.order_list import partner_list_filters, partner_order_board, partner_turn_count
-from foms.services.partners.view import build_partner_order_view
+from foms.services.partners.view import build_partner_order_view, partner_steps
 from models import Order, OrderAttachment, PartnerOrg
 
 partner_portal_bp = Blueprint("partner_portal", __name__, url_prefix="/partner")
@@ -89,7 +89,14 @@ def home():
 @partner_portal_bp.route("/orders/new")
 @partner_required
 def new_order():
-    return render_template("partner/new_order.html", org=_org(), product_names=_product_names())
+    return render_template(
+        "partner/new_order.html",
+        org=_org(),
+        me=g.current_user,
+        today=get_today_kst().isoformat(),
+        steps=partner_steps("MEASURE"),  # 보내면 "접수 확인 중" — 주문 화면과 같은 진행 칸
+        product_names=_product_names(),
+    )
 
 
 @partner_portal_bp.route("/orders/<int:order_id>")

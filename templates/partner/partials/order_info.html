@@ -1,17 +1,8 @@
 {# 주문 탭 위쪽 — 우리 erp_order_tab.html 칸 순서: 접수 → 고객 → 담당 → 단계 → 주소 → 일정.
    접수 확인 중이면 고객명 · 연락처 · 주소 · 실측을, 우리가 시공일을 정하기 전이면 희망 시공일을 고친다(§18). 나머지는 보기만(자물쇠). #}
-{% from "partner/partials/info_fields.html" import phone_field, address_field, date_field, time_field %}
+{% from "partner/partials/info_fields.html" import phone_field, address_field, date_field, time_field, ro %}
 {% set info_on = view.items_editable %}
 {% set request_on = view.request_editable %}
-{% macro ro(label, value, cls='', input_id='') %}
-<div class="{{ cls }}">
-    <label class="form-label mb-1"{% if input_id %} for="{{ input_id }}"{% endif %}>{{ label }}</label>
-    <div class="pp-ro">
-        <input type="text" class="form-control form-control-sm"{% if input_id %} id="{{ input_id }}"{% endif %} value="{{ value or '-' }}" readonly>
-        <i class="fas fa-lock pp-ro__lock" aria-hidden="true"></i>
-    </div>
-</div>
-{% endmacro %}
 {% macro note(label, value) %}{% if value %}<div class="small text-muted mt-1 pp-note"><b>{{ label }}</b> {{ value }}</div>{% endif %}{% endmacro %}
 <div class="row g-2">
     <div class="col-xl-8">

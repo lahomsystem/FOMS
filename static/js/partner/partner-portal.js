@@ -111,19 +111,19 @@
       }
       busy = true;
       form.querySelector('button[type="submit"]').disabled = true;
-      setStatus('보내는 중…');
+      setStatus('저장하는 중…');
       try {
         var created = await postJson(form.getAttribute('data-create-url'), payload);
         var orderId = created.order_id;
         var uploadUrl = withOrderId(form.getAttribute('data-upload-url'), orderId);
         var common = window.PartnerPhotos ? window.PartnerPhotos.commonJobs() : [];
         var failed = await uploadFiles(form, uploadUrl, collected.photoJobs, common);
-        var detail = withOrderId(form.getAttribute('data-detail-url'), orderId);
         if (failed.length) {
-          // 주문은 이미 등록됐다 — 다시 보내면 중복 주문이 생기니 상세로 보내 거기서 파일만 더 올리게 한다.
-          window.alert('주문은 등록됐지만 일부 파일을 올리지 못했습니다. 상세 화면 "실측 사진 더 보내기"로 다시 보내 주세요.\n\n' + failed.join('\n'));
+          // 주문은 이미 저장됐다 — 다시 저장하면 중복 주문이 생기니, 목록에서 그 주문을 열어 파일만 더 올리게 한다.
+          window.alert('주문은 저장됐지만 일부 파일을 올리지 못했습니다. 목록에서 주문 #' + orderId + ' 을 열어 "실측 사진 더 보내기"로 다시 보내 주세요.\n\n' + failed.join('\n'));
         }
-        window.location.href = detail;
+        // 우리 FOMS 처럼 저장하면 바로 목록으로(사용자 2026-10-21).
+        window.location.href = form.getAttribute('data-list-url');
       } catch (err) {
         setStatus(err.message, true);
         busy = false;
