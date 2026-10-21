@@ -52,7 +52,7 @@
     "foms/persistence/designer/repositories.py:505",
     "foms/platform/request_limits.py:242",
     "foms/services/app_init.py:145",
-    "foms/services/channel_client.py:498",
+    "foms/services/channel_client.py:495",
     "foms/services/channel_dispatch.py:59",
     "foms/services/common/business_calendar.py:65",
     "foms/services/integrations/naver_commerce/client.py:1257",
@@ -3010,7 +3010,7 @@
     },
     {
       "path": "foms/services/channel_client.py",
-      "lineno": 399,
+      "lineno": 397,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3019,7 +3019,7 @@
     },
     {
       "path": "foms/services/channel_client.py",
-      "lineno": 453,
+      "lineno": 450,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3028,7 +3028,7 @@
     },
     {
       "path": "foms/services/channel_client.py",
-      "lineno": 498,
+      "lineno": 495,
       "handler_type": "broad_exception",
       "disposition": "FAIL_CLOSED",
       "owner": "services",
