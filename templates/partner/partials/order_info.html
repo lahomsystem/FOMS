@@ -58,19 +58,19 @@
 <hr class="my-3">
 <div class="row g-2">
     {% if info_on %}
-    <div class="col-6 col-md-3">{{ date_field('실측일', 'measured_on', view.measured_on, 'ppMeasuredOn') }}</div>
-    <div class="col-6 col-md-3">{{ time_field('실측시간', 'measured_time', view.measured_time, 'ppMeasuredTime') }}</div>
+    <div class="col-7 col-md-3">{{ date_field('실측일', 'measured_on', view.measured_on, 'ppMeasuredOn') }}</div>
+    <div class="col-5 col-md-3">{{ time_field('실측시간', 'measured_time', view.measured_time, 'ppMeasuredTime') }}</div>
     {% else %}
-    {{ ro('실측일', view.measured_on, 'col-6 col-md-3') }}
-    {{ ro('실측시간', view.measured_time, 'col-6 col-md-3') }}
+    {{ ro('실측일', view.measured_on, 'col-7 col-md-3') }}
+    {{ ro('실측시간', view.measured_time, 'col-5 col-md-3') }}
     {% endif %}
     {% if view.construction_date %}
-    {{ ro('시공일 (확정)', view.construction_date, 'col-6 col-md-3') }}
-    {{ ro('시공시간', view.construction_time, 'col-6 col-md-3') }}
+    {{ ro('시공일 (확정)', view.construction_date, 'col-7 col-md-3') }}
+    {{ ro('시공시간', view.construction_time, 'col-5 col-md-3') }}
     {% if view.requested_date or view.requested_time %}<div class="col-12 small text-muted">보낸 희망 시공일: {{ view.requested_date }} {{ view.requested_time }}</div>{% endif %}
     {% elif request_on %}
-    <div class="col-6 col-md-3">{{ date_field('희망 시공일', 'requested_construction_date', view.requested_date, 'ppRequestDate', counts=True) }}</div>
-    <div class="col-6 col-md-3">{{ time_field('희망 시공시간', 'requested_construction_time', view.requested_time, 'ppRequestTime') }}</div>
+    <div class="col-7 col-md-3">{{ date_field('희망 시공일', 'requested_construction_date', view.requested_date, 'ppRequestDate', counts=True) }}</div>
+    <div class="col-5 col-md-3">{{ time_field('희망 시공시간', 'requested_construction_time', view.requested_time, 'ppRequestTime') }}</div>
     <div class="col-12 small text-muted">희망 시공일은 저희 출고 담당자와 이야기한 뒤 확정됩니다.</div>
     {% else %}
     {{ ro('희망 시공일', ((view.requested_date ~ ' ' ~ view.requested_time) | trim) or '-', 'col-md-6') }}
