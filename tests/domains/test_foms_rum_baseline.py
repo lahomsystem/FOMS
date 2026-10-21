@@ -84,4 +84,16 @@ def test_inp_daily_cap_per_device() -> None:
     flush = js.split("function flushInp")[1].split("try {")[0]
     assert flush.index("takeInpDailySlot()") < flush.index("sendMetric(payload)")
     scripts = (ROOT / "templates/partials/shared/layout_scripts.html").read_text(encoding="utf-8")
-    assert "rum-baseline.js') }}?v=20261007a" in scripts
+    assert "rum-baseline.js') }}?v=20261021a" in scripts
+
+
+def test_slow_load_breakdown_only_above_threshold() -> None:
+    """3초 미만 LOAD 는 숫자만 — 분해(nav·slow)는 SLOW_LOAD_MS 이상에서만 싣는다."""
+    js = (ROOT / "static/js/foms/rum-baseline.js").read_text(encoding="utf-8")
+    assert "var SLOW_LOAD_MS = 3000;" in js
+    assert "if (value >= SLOW_LOAD_MS) {" in js
+    block = js[js.index("function sendLoadMetric"):]
+    assert block.index("if (value >= SLOW_LOAD_MS)") < block.index("payload.nav = navBreakdown(nav)")
+    # 사진 주소·서명이 새지 않게: 경로는 우리 /static/ 만, 나머지는 확장자만
+    assert "u.pathname.indexOf('/static/') === 0" in js
+    assert "entries.slice(0, 3)" in js

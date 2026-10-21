@@ -283,3 +283,85 @@ def test_report_valid_days_ok(auth_client, monkeypatch):
     body = resp.get_json()
     assert body["success"] is True
     assert body["data"]["days"] >= 35
+
+
+# --------------------------------------------------------------------------- #
+# 느린 LOAD 분해(nav·slow) — docs/specs/2026-10-21-rum-slow-load-breakdown_SPEC.md
+# --------------------------------------------------------------------------- #
+
+def _nav(**overrides):
+    nav = {"dns": 0, "conn": 120, "ttfb": 310, "resp": 40, "dcl": 900, "redir": 0}
+    nav.update(overrides)
+    return nav
+
+
+def _slow_item(**overrides):
+    item = {"h": "cdn.jsdelivr.net", "p": ".css", "d": 4800, "s": 120, "c": 0, "k": "link"}
+    item.update(overrides)
+    return item
+
+
+def _slow_load(**overrides):
+    body = _valid_payload(metric="LOAD", value=5200, nav=_nav(),
+                          slow=[_slow_item(), _slow_item(h="lahom-production.up.railway.app",
+                                                         p="/static/js/foms/erp-shell.js", c=1, k="script")])
+    body.update(overrides)
+    return body
+
+
+def test_slow_load_breakdown_accepted_and_logged(rum_client, caplog):
+    with caplog.at_level(logging.INFO, logger="foms.rum"):
+        resp = rum_client.post(RUM_URL, json=_slow_load())
+    assert resp.status_code == 200
+    lines = [r.getMessage() for r in caplog.records if r.name == "foms.rum"]
+    assert lines and '"nav": {"conn": 120' in lines[-1]
+    assert '"slow": [{"h": "cdn.jsdelivr.net"' in lines[-1]
+    assert "/static/js/foms/erp-shell.js" in lines[-1]
+
+
+def test_plain_payload_still_accepted_without_breakdown(rum_client, caplog):
+    """음성 대조군: 지금 5키 페이로드는 그대로 통과하고 로그에 분해가 없다."""
+    with caplog.at_level(logging.INFO, logger="foms.rum"):
+        resp = rum_client.post(RUM_URL, json=_valid_payload(metric="LOAD", value=900))
+    assert resp.status_code == 200
+    lines = [r.getMessage() for r in caplog.records if r.name == "foms.rum"]
+    assert lines and '"nav"' not in lines[-1] and '"slow"' not in lines[-1]
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        _slow_load(metric="LCP"),                                     # 분해는 LOAD 만
+        _slow_load(nav=_nav(extra=1)),                                # nav 키 초과
+        _slow_load(nav={"dns": 1}),                                   # nav 키 부족
+        _slow_load(nav=_nav(ttfb=-1)),                                # 음수
+        _slow_load(nav=_nav(ttfb=120001)),                            # 범위 밖
+        _slow_load(nav=_nav(ttfb=1.5)),                               # 정수만
+        _slow_load(nav=_nav(ttfb=True)),                              # bool 거부
+        _slow_load(slow=[_slow_item()] * 4),                          # 4개
+        _slow_load(slow={"h": "x"}),                                  # 리스트 아님
+        _slow_load(slow=[_slow_item(h="evil.com/x")]),                # 호스트에 경로
+        _slow_load(slow=[_slow_item(h="")]),                          # 빈 호스트
+        _slow_load(slow=[_slow_item(p="/static/a.js?v=1")]),          # 쿼리
+        _slow_load(slow=[_slow_item(p="/api/files/5728/photo.jpg")]),  # /static/ 밖 경로(사진 주소)
+        _slow_load(slow=[_slow_item(p=".toolongext1")]),              # 확장자 9자
+        _slow_load(slow=[_slow_item(c=2)]),                           # 캐시 표시 0/1
+        _slow_load(slow=[_slow_item(c=True)]),                        # bool 거부
+        _slow_load(slow=[_slow_item(k="Script")]),                    # 대문자
+        _slow_load(slow=[{**_slow_item(), "url": "x"}]),              # 항목 키 초과
+    ],
+)
+def test_slow_load_breakdown_rejected(rum_client, payload):
+    resp = rum_client.post(RUM_URL, json=payload)
+    assert resp.status_code == 400, f"expected 400 for {payload!r}, got {resp.status_code}"
+
+
+def test_slow_load_max_payload_fits_2kib_cap(rum_client):
+    """가장 긴 정상 분해(3개 · /static/ 200자 · 긴 호스트)도 2 KiB 한도 안이다."""
+    import json as _json
+    long_path = "/static/" + "a" * 189 + ".js"
+    item = _slow_item(h="a" * 60 + ".example.com", p=long_path, d=120000, s=120000, k="xmlhttpr")
+    body = _slow_load(path="/" + "p" * 120, viewport="10000x10000", slow=[item] * 3,
+                      nav=_nav(**{k: 120000 for k in ("dns", "conn", "ttfb", "resp", "dcl", "redir")}))
+    assert len(_json.dumps(body)) < 2048
+    assert rum_client.post(RUM_URL, json=body).status_code == 200

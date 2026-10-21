@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import logging
 import math
+import re
 from typing import Any
 
 from flask import Blueprint, g, jsonify, request
@@ -25,7 +26,17 @@ foms_rum_bp = Blueprint("foms_rum", __name__)
 _logger = logging.getLogger("foms.rum")
 
 # Anonymous ingest contract (rum-baseline.js sends exactly these keys).
-_ALLOWED_KEYS: frozenset[str] = frozenset({"metric", "value", "path", "viewport", "mobile_v2"})
+# ``nav``·``slow`` 는 느린 LOAD(3초 이상)에서만 온다 — 무엇을 기다렸는지 가르는 분해
+# (docs/specs/2026-10-21-rum-slow-load-breakdown_SPEC.md).
+_ALLOWED_KEYS: frozenset[str] = frozenset({"metric", "value", "path", "viewport", "mobile_v2", "nav", "slow"})
+_NAV_KEYS: frozenset[str] = frozenset({"dns", "conn", "ttfb", "resp", "dcl", "redir"})
+_SLOW_KEYS: frozenset[str] = frozenset({"h", "p", "d", "s", "c", "k"})
+_MAX_SLOW_ENTRIES: int = 3
+_MAX_HOST_LEN: int = 253
+_MAX_STATIC_PATH_LEN: int = 200
+_HOST_RE = re.compile(r"^[A-Za-z0-9.-]+$")
+_EXT_RE = re.compile(r"^\.[A-Za-z0-9]{1,8}$")
+_KIND_RE = re.compile(r"^[a-z]{1,8}$")
 _MAX_VALUE_MS: float = 120000.0
 _MAX_PATH_LEN: int = 500
 _MAX_VIEWPORT_DIM: int = 10000
@@ -80,6 +91,64 @@ def _valid_viewport(viewport: str) -> bool:
     return 1 <= width <= _MAX_VIEWPORT_DIM and 1 <= height <= _MAX_VIEWPORT_DIM
 
 
+def _ms_int(value: Any) -> int | None:
+    """Return ``value`` as an int in 0.._MAX_VALUE_MS, or None (bool·float·범위 밖 거부)."""
+    if isinstance(value, bool) or not isinstance(value, int):
+        return None
+    return value if 0 <= value <= _MAX_VALUE_MS else None
+
+
+def _validate_nav(nav: Any) -> dict[str, int] | None:
+    """느린 LOAD 의 navigation 단계 ms — 정해진 6개 키, 각 0..120000 정수."""
+    if not isinstance(nav, dict) or set(nav) != _NAV_KEYS:
+        return None
+    out: dict[str, int] = {}
+    for key in sorted(_NAV_KEYS):
+        ms = _ms_int(nav[key])
+        if ms is None:
+            return None
+        out[key] = ms
+    return out
+
+
+def _valid_slow_path(p: Any) -> bool:
+    """``/static/`` 경로(쿼리·조각·제어문자 없음) 또는 ``.확장자`` 만 받는다(사진 주소·서명 차단)."""
+    if not isinstance(p, str):
+        return False
+    if _EXT_RE.match(p):
+        return True
+    return (
+        p.startswith("/static/")
+        and len(p) <= _MAX_STATIC_PATH_LEN
+        and "?" not in p
+        and "#" not in p
+        and all(0x20 < ord(ch) < 0x7F for ch in p)
+    )
+
+
+def _validate_slow(slow: Any) -> list[dict[str, Any]] | None:
+    """느린 LOAD 의 오래 걸린 resource 상위 3개."""
+    if not isinstance(slow, list) or len(slow) > _MAX_SLOW_ENTRIES:
+        return None
+    out: list[dict[str, Any]] = []
+    for item in slow:
+        if not isinstance(item, dict) or set(item) != _SLOW_KEYS:
+            return None
+        host, path, kind = item["h"], item["p"], item["k"]
+        if not isinstance(host, str) or not host or len(host) > _MAX_HOST_LEN or not _HOST_RE.match(host):
+            return None
+        if not _valid_slow_path(path):
+            return None
+        if not isinstance(kind, str) or not _KIND_RE.match(kind):
+            return None
+        duration, start = _ms_int(item["d"]), _ms_int(item["s"])
+        cached = item["c"]
+        if duration is None or start is None or isinstance(cached, bool) or cached not in (0, 1):
+            return None
+        out.append({"h": host, "p": path, "d": duration, "s": start, "c": cached, "k": kind})
+    return out
+
+
 def _validate_rum_payload(payload: Any) -> tuple[dict[str, Any] | None, str | None]:
     """Strict-validate an anonymous RUM payload.
 
@@ -122,13 +191,27 @@ def _validate_rum_payload(payload: Any) -> tuple[dict[str, Any] | None, str | No
     if mobile_v2 is not None and not isinstance(mobile_v2, bool):
         return None, "invalid mobile_v2"
 
-    return {
+    record = {
         "metric": metric,
         "value": fvalue,
         "path": path,
         "viewport": viewport,
         "mobile_v2": mobile_v2,
-    }, None
+    }
+    if "nav" in payload or "slow" in payload:
+        if metric != "LOAD":
+            return None, "breakdown only for LOAD"
+        if "nav" in payload:
+            nav = _validate_nav(payload["nav"])
+            if nav is None:
+                return None, "invalid nav"
+            record["nav"] = nav
+        if "slow" in payload:
+            slow = _validate_slow(payload["slow"])
+            if slow is None:
+                return None, "invalid slow"
+            record["slow"] = slow
+    return record, None
 
 
 def _parse_report_days(raw: str | None) -> tuple[int, str | None]:
