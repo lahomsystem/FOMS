@@ -896,7 +896,7 @@
     {
       "path": "foms/api/foms_rum.py",
       "endpoint": "ingest_rum_event",
-      "lineno": 156,
+      "lineno": 239,
       "methods": [
         "POST"
       ],

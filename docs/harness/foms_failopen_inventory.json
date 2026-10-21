@@ -5,14 +5,14 @@
   "overlap_api_error_01": "API-ERROR-01 owns response/stdout exposure (print_exc/str(e) -> log_handled_exception). This packet owns swallow classification. Sites that log via log_handled_exception are LOG_AND_CONTINUE here.",
   "marker_convention": "Silent-by-design catches carry an inline `# failopen: intentional: <reason>` (or `fail-closed`) marker; the scanner reads it as the justification. No bare allowlist, no lint-disable.",
   "baselines": {
-    "broad_total": 633,
+    "broad_total": 634,
     "unclassified": 0,
     "swallow_by_control_flow": 166
   },
   "disposition_counts": {
     "FAIL_CLOSED": 38,
     "INTENTIONAL": 17,
-    "LOG_AND_CONTINUE": 412,
+    "LOG_AND_CONTINUE": 413,
     "SWALLOW_BY_CONTROL_FLOW": 166
   },
   "owner_counts": {
@@ -24,7 +24,7 @@
     "persistence": 3,
     "platform": 5,
     "runtime": 3,
-    "services": 194,
+    "services": 195,
     "storage": 24,
     "telemetry": 40,
     "web": 39
@@ -52,7 +52,7 @@
     "foms/persistence/designer/repositories.py:505",
     "foms/platform/request_limits.py:242",
     "foms/services/app_init.py:145",
-    "foms/services/channel_client.py:444",
+    "foms/services/channel_client.py:495",
     "foms/services/channel_dispatch.py:59",
     "foms/services/common/business_calendar.py:65",
     "foms/services/integrations/naver_commerce/client.py:1257",
@@ -3001,7 +3001,7 @@
     },
     {
       "path": "foms/services/channel_client.py",
-      "lineno": 332,
+      "lineno": 333,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3010,7 +3010,7 @@
     },
     {
       "path": "foms/services/channel_client.py",
-      "lineno": 399,
+      "lineno": 397,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -3019,7 +3019,16 @@
     },
     {
       "path": "foms/services/channel_client.py",
-      "lineno": 444,
+      "lineno": 450,
+      "handler_type": "broad_exception",
+      "disposition": "LOG_AND_CONTINUE",
+      "owner": "services",
+      "has_logging": true,
+      "justification": "logs via logger/log_handled_exception"
+    },
+    {
+      "path": "foms/services/channel_client.py",
+      "lineno": 495,
       "handler_type": "broad_exception",
       "disposition": "FAIL_CLOSED",
       "owner": "services",

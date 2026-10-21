@@ -25,7 +25,7 @@ import logging
 import os
 import re
 import secrets
-from typing import Any, Optional
+from typing import Any, NamedTuple, Optional
 
 from sqlalchemy.orm.attributes import flag_modified
 
@@ -41,6 +41,7 @@ logger = logging.getLogger(__name__)
 __all__ = [
     "CONSULT_TEMPLATE_ENV_PREFIX",
     "DOC_LABELS",
+    "LinkMessage",
     "MAX_DELIVERIES",
     "build_consult_record",
     "build_link_messages",
@@ -218,32 +219,57 @@ def _customer_name(order: Order) -> str:
     return str(ka._node(sd, "parties", "customer").get("name") or "").strip() or "고객"
 
 
+class LinkMessage(NamedTuple):
+    """상담에 보낼 글 한 통 — 버튼으로 보낼 모양과 글 속 링크로 보낼 모양을 함께 든다."""
+
+    head: str                     # 버튼 위에 보일 글(링크 없음)
+    buttons: list[tuple[str, str]]  # [(버튼 이름, 주소)] — 최대 2개
+    text: str                     # 버튼을 못 쓸 때 보낼 글(링크를 글 안에 넣는다)
+    rows: list[Any]               # 이 글에 담긴 토큰 row 들
+
+
 def build_link_messages(order: Order, links: list[tuple[str, Any, str]],
-                        *, split: bool) -> list[tuple[str, list[Any]]]:
+                        *, split: bool) -> list[LinkMessage]:
     """상담에 보낼 글 목록. 따로 보내기면 문서마다 한 통, 아니면 한 통에 모은다.
 
-    링크는 버튼이 아니라 글 안에 넣는다 — 카카오 상담톡에서도 그대로 눌린다.
+    링크는 버튼으로 보낸다(Open API 키가 있을 때). 키가 없거나 버튼 쓰기가 실패하면
+    ``text``(글 속 링크)로 보낸다 — 카카오 상담톡에서도 그대로 눌린다.
 
     Returns:
-        ``[(글, 그 글에 담긴 토큰 row 들), ...]`` — 쓰기가 중간에 실패하면 못 보낸 글의
-        링크만 회수하려고 짝을 지어 돌려준다.
+        :class:`LinkMessage` 목록 — 쓰기가 중간에 실패하면 못 보낸 글의 링크만 회수하려고
+        글마다 토큰 row 를 짝지어 둔다.
     """
     customer = _customer_name(order)
     days = share_service.token_days()
     closing = "보시고 궁금하신 점이나 바꾸실 부분은 이 대화방에 편하게 남겨 주세요."
-    blocks = [f"▶ {DOC_LABELS[kind]} 보기\n{_public_url(token)}" for kind, _row, token in links]
+
+    def _one(label: str, chunk: list[tuple[str, Any, str]], last: bool) -> LinkMessage:
+        intro = f"{customer} 고객님, 요청하신 {label}입니다.\n{days}일 동안 열어 보실 수 있습니다."
+        tail = f"\n\n{closing}" if last else ""
+        buttons = [(f"{DOC_LABELS[kind]} 보기", _public_url(token)) for kind, _row, token in chunk]
+        blocks = "\n\n".join(f"▶ {title}\n{url}" for title, url in buttons)
+        return LinkMessage(head=f"{intro}{tail}", buttons=buttons,
+                           text=f"{intro}\n\n{blocks}{tail}", rows=[row for _k, row, _t in chunk])
+
     if split and len(links) > 1:
-        messages = [(f"{customer} 고객님, 요청하신 {DOC_LABELS[kind]}입니다.\n"
-                     f"{days}일 동안 열어 보실 수 있습니다.\n\n{block}", [row])
-                    for (kind, row, _token), block in zip(links, blocks)]
-        last_text, last_rows = messages[-1]
-        messages[-1] = (f"{last_text}\n\n{closing}", last_rows)
-        return messages
+        return [_one(DOC_LABELS[link[0]], [link], index == len(links) - 1)
+                for index, link in enumerate(links)]
     label = "도면과 계약서" if len(links) > 1 else DOC_LABELS[links[0][0]]
-    body = "\n\n".join(blocks)
-    return [(f"{customer} 고객님, 요청하신 {label}입니다.\n"
-             f"{days}일 동안 열어 보실 수 있습니다.\n\n{body}\n\n{closing}",
-             [row for _kind, row, _token in links])]
+    return [_one(label, links, True)]
+
+
+def _send_link_message(brand: str, user_chat_id: str, message: LinkMessage,
+                       channel_id: str) -> dict[str, Any]:
+    """버튼으로 먼저 쓰고, 키가 없거나 실패하면 글 속 링크로 다시 쓴다."""
+    result = channel_client.send_user_chat_buttons(brand, user_chat_id, message.head,
+                                                   message.buttons, bot_name=_BOT_NAME)
+    if result.get("success"):
+        return result
+    if result.get("error") != "not_configured":
+        logger.warning("[상담 먼저] 버튼 쓰기 실패 → 글 속 링크로 chat=%s error=%s",
+                       user_chat_id, result.get("error"))
+    return channel_client.send_user_chat_message(user_chat_id, message.text, bot_name=_BOT_NAME,
+                                                 channel_id=channel_id)
 
 
 def _order_url(order_id: int) -> str:
@@ -331,17 +357,17 @@ def handle_user_chat_message(session, payload: dict[str, Any],
     flag_modified(request_event, "payload")
     session.commit()
 
+    brand = ka.resolve_brand(order.structured_data or {})
     messages = build_link_messages(order, links, split=bool(consult.get("split")))
     sent_rows: list[Any] = []
     sent_ids: list[Optional[str]] = []
     error: Optional[str] = None
-    for text, rows in messages:
-        result = channel_client.send_user_chat_message(user_chat_id, text, bot_name=_BOT_NAME,
-                                                       channel_id=channel_id)
+    for message in messages:
+        result = _send_link_message(brand, user_chat_id, message, channel_id)
         if not result.get("success"):
             error = result.get("error") or "provider_error"
             break
-        sent_rows.extend(rows)
+        sent_rows.extend(message.rows)
         sent_ids.append(result.get("message_id"))
 
     # 고객에게 못 닿은 링크만 회수한다(이미 간 링크는 고객 손에서 열려야 한다).
@@ -372,7 +398,7 @@ def handle_user_chat_message(session, payload: dict[str, Any],
     manager = (order.manager_name or "").strip() or "미지정"
     # 받은편지함에 누구인지 보이게 — 고객 이름과 "주문 · 고객 · 담당"(Open API 키가 있을 때만).
     channel_client.label_user_chat(
-        ka.resolve_brand(order.structured_data or {}), user_chat_id=user_chat_id,
+        brand, user_chat_id=user_chat_id,
         user_id=str(entity.get("personId") or ""), customer_name=_customer_name(order),
         description=f"주문 {order.id} · {_customer_name(order)} · 담당 {manager}")
     sent_label = "·".join(DOC_LABELS[kind] for kind, row, _t in links if row in sent_rows)

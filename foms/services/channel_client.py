@@ -38,6 +38,7 @@ __all__ = [
     "build_channel_bot_name",
     "send_group_message",
     "send_user_chat_message",
+    "send_user_chat_buttons",
     "label_user_chat",
 ]
 
@@ -353,6 +354,56 @@ def _open_api_headers(brand: str) -> dict[str, str] | None:
         return None
     return {"x-access-key": key, "x-access-secret": secret,
             "Channel-Version": _OPEN_API_VERSION, "Content-Type": "application/json"}
+
+
+def send_user_chat_buttons(
+    brand: str,
+    user_chat_id: str,
+    plain_text: str,
+    buttons: list[tuple[str, str]],
+    *,
+    bot_name: str = "FOMS",
+) -> dict[str, Any]:
+    """
+    Write a customer-visible message with link buttons into a user chat (Open API).
+
+    앱 함수는 버튼을 422 로 거절했지만 Open API 공식 형식으로 보내면 카카오 상담톡에도 버튼으로
+    간다(2026-10-21 실폰 확인). 키가 없으면 ``not_configured`` — 호출자가 글 속 링크로 보낸다.
+
+    Args:
+        brand: ``LAHOM``/``HAUD`` — 어느 채널 키를 쓸지.
+        user_chat_id: 채널톡 userChat id.
+        plain_text: 버튼 위에 보일 글.
+        buttons: ``[(버튼 이름, 열 주소), ...]`` — 한 글에 2개까지.
+        bot_name: 보낸 이로 보일 봇 이름.
+
+    Returns:
+        ``{'success': bool, 'message_id': str | None, 'error': str | None}``.
+    """
+    headers = _open_api_headers(brand)
+    if headers is None:
+        return {"success": False, "message_id": None, "error": "not_configured"}
+    if not user_chat_id:
+        return {"success": False, "message_id": None, "error": "no_user_chat"}
+    body = {
+        "plainText": plain_text,
+        "buttons": [{"title": title, "colorVariant": "cobalt",
+                     "action": {"type": "web", "attributes": {"url": url}}}
+                    for title, url in buttons[:2]],
+    }
+    try:
+        resp = requests.post(f"{_OPEN_API_BASE}/open/user-chats/{user_chat_id}/messages",
+                             params={"botName": bot_name}, json=body, headers=headers, timeout=10)
+    except Exception as exc:
+        logger.error("[채널톡] 버튼 메시지 요청 실패 (chat=%s): %s", user_chat_id, exc)
+        return {"success": False, "message_id": None, "error": "request_failed"}
+    if resp.status_code >= 400:
+        logger.error("[채널톡] 버튼 메시지 실패 (chat=%s) status=%s", user_chat_id, resp.status_code)
+        return {"success": False, "message_id": None, "error": f"http_{resp.status_code}"}
+    try:
+        return {"success": True, "message_id": (resp.json().get("message") or {}).get("id"), "error": None}
+    except ValueError:
+        return {"success": True, "message_id": None, "error": None}
 
 
 def label_user_chat(

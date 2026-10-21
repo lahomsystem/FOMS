@@ -94,8 +94,11 @@ def ata_stub(monkeypatch):
 
 @pytest.fixture
 def chat_stub(monkeypatch):
-    """채널톡 상담 쓰기 스텁 — 보낸 글을 모은다. ``fail`` 을 켜면 공개 메시지가 실패한다."""
-    state = {'sent': [], 'fail': False, 'fail_from': None}
+    """채널톡 상담 쓰기 스텁 — 보낸 글을 모은다. ``fail`` 을 켜면 공개 메시지가 실패한다.
+
+    ``buttons`` 가 ``None`` 이면 Open API 키가 없는 것처럼(버튼 꺼짐), 리스트면 버튼 글을 모은다.
+    """
+    state = {'sent': [], 'fail': False, 'fail_from': None, 'buttons': None, 'buttons_fail': False}
 
     def _fake(user_chat_id, plain_text, *, bot_name='FOMS', private=False, channel_id=''):
         state['sent'].append({'chat': user_chat_id, 'text': plain_text, 'private': private,
@@ -106,7 +109,17 @@ def chat_stub(monkeypatch):
             return {'success': False, 'message_id': None, 'error': 'provider_error'}
         return {'success': True, 'message_id': f"m{len(state['sent'])}", 'error': None}
 
+    def _fake_buttons(brand, user_chat_id, plain_text, buttons, *, bot_name='FOMS'):
+        if state['buttons'] is None:
+            return {'success': False, 'message_id': None, 'error': 'not_configured'}
+        state['buttons'].append({'brand': brand, 'chat': user_chat_id, 'text': plain_text,
+                                 'buttons': list(buttons)})
+        if state['buttons_fail']:
+            return {'success': False, 'message_id': None, 'error': 'http_422'}
+        return {'success': True, 'message_id': f"b{len(state['buttons'])}", 'error': None}
+
     monkeypatch.setattr(channel_client, 'send_user_chat_message', _fake)
+    monkeypatch.setattr(channel_client, 'send_user_chat_buttons', _fake_buttons)
     return state
 
 
@@ -463,3 +476,4 @@ def test_label_user_chat_not_configured_and_calls(monkeypatch):
                                           description='주문 1 · 홍길동 · 담당 이시영')['success'] is True
     assert calls == [('https://api.channel.io/open/users/u1', {'profile': {'name': '홍길동'}}, 'k'),
                      ('https://api.channel.io/open/user-chats/c1', {'description': '주문 1 · 홍길동 · 담당 이시영'}, 'k')]
+
