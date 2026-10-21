@@ -327,3 +327,8 @@
 - 18-2: `foms/services/partners/construction_calendar.py`(우리 모바일 홈 달력 셈 재사용, 앞뒤 6개월, 달 사진 머리띠), 목록 화면 달력 `partials/construction_calendar.html`, 읽기 API `GET /api/partner/construction-calendar`(희망 시공일 flatpickr 칸 숫자). 시험 `test_partner_construction_calendar.py` 3건.
 - 스테이징(2026-10-21): 5-2 끌어놓기 2장 → 제품 연결 → 붙여넣기 → 공통으로(파일 수 맞음), 900px 목록 · 상세. 18-1 하이픈 `010-1234-5678` · 수동입력 그대로 · 시간 "오후" · 달력 열림 · 속성 "상담", 시험 주문 #4786 연락처 · 희망 시공일 2026-11-06 오전 저장 → 우리 `/edit/4786` 에 "협력사 희망: 2026-11-06 오전". 18-2 목록 달력(스테이징 9월 3건 · 10월 0건 — 데이터가 적음), 첫 화면에서 머리띠 흰 글씨가 안 보여 우리 달 사진 머리띠를 붙였다.
 - 5-3(2026-10-21): 라우트 `PATCH /api/partner/orders/<id>/attachments/<aid>`(`partner_api.link_attachment` — 접수 확인 중 · 자기 회사 · 협력사가 보낸 실측 사진만, `item_id` 같이, `ATTACHMENT_META_UPDATED` 이벤트). 주문 화면: 보낸 공통 실측 사진 "제품 연결", 제품 카드 보낸 사진 "공통으로", "더 보내기"도 사진 칸. 시험 `test_partner_attachment_link.py` 3건. 스테이징 시험 주문 #4791: 공통 사진 → 제품 2 연결, 제품 1 사진 → 공통으로, 사진 칸으로 실측 사진 · 초안 PDF 더 보내기 — 모두 맞음(휴지통).
+
+### 18.6 운영 피드백 반영 (2026-10-21, 사용자)
+- 시공 달력에 날씨가 없었다 → 우리 모바일 홈 달력과 같은 날씨(칸마다 최고/최저, 주마다 '시간 줄' 띠, 날씨 범례). 셈은 `dashboard_control_tower._weather_window` · `_weather_legend` 재사용, 띠는 앱 전역 `wx_timeline_band` · `wx_timeline_defs`.
+- PC 에는 달력이 필요 없다 → 목록 화면 달력은 휴대폰에서만(992px 이상 숨김). PC 는 희망 시공일 고르기 달력 칸 숫자로 본다.
+- "보내기 → 주문 화면 → 품목 저장 → 목록으로" 동선이 길다 → 새 주문을 주문 화면과 같은 카드 · 탭 · 칸 순서(접수 3칸 · 고객 · 담당 · 진행 단계 · 주소 · 일정 · 메모 · 제품 · 공통 첨부)로 그리고, 단추는 "저장"(우리 FOMS 처럼), 저장하면 사진까지 올린 뒤 **바로 목록으로**. 읽기 칸 `ro` 매크로는 `partials/info_fields.html` 로 옮겨 같이 쓴다.

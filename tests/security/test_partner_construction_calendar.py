@@ -71,5 +71,6 @@ def test_month_range_and_api_carry_no_customer_data(app, world, priced):
 def test_home_shows_calendar(app, world, priced):
     html = _client(app, db_session.get(User, world["partner_a"])).get("/partner").get_data(as_text=True)
     assert 'class="foms-tower__cal pp-cal"' in html and "내 회사 출고가 합계" in html
+    assert "foms-wx-band" in html  # 우리 달력과 같은 주마다 날씨 '시간 줄' 띠
     new = _client(app, db_session.get(User, world["partner_a"])).get("/partner/orders/new").get_data(as_text=True)
     assert 'data-pp-date-counts="/api/partner/construction-calendar"' in new
