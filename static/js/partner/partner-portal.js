@@ -90,7 +90,10 @@
         customer_name: form.elements.customer_name.value.trim(),
         customer_phone: form.elements.customer_phone.value.trim(),
         address: form.elements.address.value.trim(),
-        measured_on: form.elements.measured_on.value,
+        measured_on: form.elements.measured_on.value.trim(),
+        measured_time: form.elements.measured_time.value.trim(),
+        requested_construction_date: form.elements.requested_construction_date.value.trim(),
+        requested_construction_time: form.elements.requested_construction_time.value.trim(),
         memo: form.elements.memo.value.trim(),
         items: collected.items,
       };

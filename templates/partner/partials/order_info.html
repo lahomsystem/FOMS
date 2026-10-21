@@ -1,4 +1,8 @@
-{# 주문 탭 위쪽 — 우리 erp_order_tab.html 칸 순서: 접수 → 고객 → 담당 → 단계 → 주소 → 일정. 보기만(자물쇠). #}
+{# 주문 탭 위쪽 — 우리 erp_order_tab.html 칸 순서: 접수 → 고객 → 담당 → 단계 → 주소 → 일정.
+   접수 확인 중이면 고객명 · 연락처 · 주소 · 실측을, 우리가 시공일을 정하기 전이면 희망 시공일을 고친다(§18). 나머지는 보기만(자물쇠). #}
+{% from "partner/partials/info_fields.html" import phone_field, address_field, date_field, time_field %}
+{% set info_on = view.items_editable %}
+{% set request_on = view.request_editable %}
 {% macro ro(label, value, cls='', input_id='') %}
 <div class="{{ cls }}">
     <label class="form-label mb-1"{% if input_id %} for="{{ input_id }}"{% endif %}>{{ label }}</label>
@@ -18,10 +22,12 @@
         </div>
     </div>
     <div class="col-md-6">
-        {{ ro('고객명', view.customer_name) }}
+        {% if info_on %}<label class="form-label mb-1" for="ppCustomerName">고객명 *</label>
+        <input id="ppCustomerName" class="form-control form-control-sm" data-pp-info-key="customer_name" maxlength="50" value="{{ view.customer_name }}" autocomplete="off">
+        {% else %}{{ ro('고객명', view.customer_name) }}{% endif %}
     </div>
     <div class="col-md-6">
-        {{ ro('연락처', view.customer_phone) }}
+        {% if info_on %}{{ phone_field(view.customer_phone, 'ppCustomerPhone') }}{% else %}{{ ro('연락처', view.customer_phone) }}{% endif %}
         {{ note('연락처 특이사항', view.phone_note) }}
     </div>
     <div class="col-md-6">
@@ -45,15 +51,36 @@
         </ol>
     </div>
     <div class="col-12">
-        {{ ro('주소', view.address) }}
+        {% if info_on %}{{ address_field(view.address, 'ppAddress') }}{% else %}{{ ro('주소', view.address) }}{% endif %}
         {{ note('주소 특이사항', view.address_note) }}
     </div>
 </div>
 <hr class="my-3">
 <div class="row g-2">
-    {{ ro('실측일', view.measured_on, 'col-md-3') }}
-    {{ ro('시공일 (우리가 정함)', view.construction_date or '아직 안 정해짐', 'col-md-3') }}
-    {{ ro('시공시간', view.construction_time, 'col-md-3') }}
+    {% if info_on %}
+    <div class="col-6 col-md-3">{{ date_field('실측일', 'measured_on', view.measured_on, 'ppMeasuredOn') }}</div>
+    <div class="col-6 col-md-3">{{ time_field('실측시간', 'measured_time', view.measured_time, 'ppMeasuredTime') }}</div>
+    {% else %}
+    {{ ro('실측일', view.measured_on, 'col-6 col-md-3') }}
+    {{ ro('실측시간', view.measured_time, 'col-6 col-md-3') }}
+    {% endif %}
+    {% if view.construction_date %}
+    {{ ro('시공일 (확정)', view.construction_date, 'col-6 col-md-3') }}
+    {{ ro('시공시간', view.construction_time, 'col-6 col-md-3') }}
+    {% if view.requested_date or view.requested_time %}<div class="col-12 small text-muted">보낸 희망 시공일: {{ view.requested_date }} {{ view.requested_time }}</div>{% endif %}
+    {% elif request_on %}
+    <div class="col-6 col-md-3">{{ date_field('희망 시공일', 'requested_construction_date', view.requested_date, 'ppRequestDate') }}</div>
+    <div class="col-6 col-md-3">{{ time_field('희망 시공시간', 'requested_construction_time', view.requested_time, 'ppRequestTime') }}</div>
+    <div class="col-12 small text-muted">희망 시공일은 저희 출고 담당자와 이야기한 뒤 확정됩니다.</div>
+    {% else %}
+    {{ ro('희망 시공일', ((view.requested_date ~ ' ' ~ view.requested_time) | trim) or '-', 'col-md-6') }}
+    {% endif %}
+    {% if info_on or request_on %}
+    <div class="col-12 d-flex align-items-center gap-2 flex-wrap" data-pp-info data-pp-info-url="{{ url_for('partner_api.update_info', order_id=view.id) }}" data-pp-info-groups="{{ 'info ' if info_on }}{{ 'request' if request_on }}">
+        <button type="button" class="btn btn-sm btn-outline-primary" data-pp-info-save><i class="fas fa-floppy-disk"></i> 정보 저장</button>
+        <p class="pp-status mb-0" data-pp-info-status role="status" aria-live="polite"></p>
+    </div>
+    {% endif %}
     <div class="col-12">{{ note('실측 특이사항', view.measurement_note) }}</div>
     {% if view.memo %}
     <div class="col-12">

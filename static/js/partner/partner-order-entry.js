@@ -5,6 +5,8 @@
  *   이름 목록은 서버가 [data-pp-product-names] 에 이름만 싣는다(단가 없음). 직접 입력도 그대로 된다.
  * - 주소 찾기: 우리 PC 주소 검색 창과 같은 칸(검색어 · 상세주소 · 결과 · 입력), 우리 서버 카카오 검색(/api/address/search).
  *   창 여닫기는 partner-shell.js(data-pp-sheet-open · data-pp-sheet-close · Esc).
+ * - 연락처: 우리 화면(erp-order-shared.js formatPhoneAuto)처럼 숫자 10 · 11자리면 하이픈을 넣는다. "수동입력"이면 그대로 둔다.
+ * - 날짜: 우리처럼 flatpickr 달력(한 날짜, 직접 입력 가능). 시간: 오전 · 오후 · 종일 고르기, "직접 입력"이면 글자 칸.
  * 설계서: docs/specs/2026-10-19-partner-foms-mode_SPEC.md §3.4 · §17
  */
 (function () {
@@ -41,6 +43,44 @@
           input.dispatchEvent(new Event('input', { bubbles: true }));
         }
       });
+    });
+  }
+
+  /** 우리 formatPhoneAuto 와 같은 규칙: 11자리 3-4-4, 10자리 3-3-4, 그 밖은 그대로. */
+  function formatPhone(value) {
+    var d = String(value || '').replace(/[^0-9]/g, '');
+    if (d.length === 11) return d.slice(0, 3) + '-' + d.slice(3, 7) + '-' + d.slice(7);
+    if (d.length === 10) return d.slice(0, 3) + '-' + d.slice(3, 6) + '-' + d.slice(6);
+    return value || '';
+  }
+
+  function bindPhone(input) {
+    var manual = document.getElementById(input.id + 'Manual');
+    function apply() {
+      if (manual && manual.checked) return;
+      input.value = formatPhone(input.value);
+    }
+    ['input', 'blur', 'change'].forEach(function (type) { input.addEventListener(type, apply); });
+    if (manual) manual.addEventListener('change', apply);
+  }
+
+  function bindDate(input) {
+    if (typeof window.flatpickr !== 'function') return;
+    var locale = window.flatpickr.l10ns && window.flatpickr.l10ns.ko ? 'ko' : 'default';
+    var picker = window.flatpickr(input, { dateFormat: 'Y-m-d', allowInput: true, disableMobile: true, locale: locale });
+    var opener = document.querySelector('[data-pp-date-open="' + input.id + '"]');
+    if (opener) opener.addEventListener('click', function () { picker.open(); });
+  }
+
+  /** 시간 고르기: 오전 · 오후 · 종일은 글자 칸(이름이 붙은 칸)에 그대로, "직접 입력"이면 글자 칸을 보인다. */
+  function bindTime(select) {
+    var input = document.getElementById(select.getAttribute('data-pp-time-select'));
+    if (!input) return;
+    select.addEventListener('change', function () {
+      var direct = select.value === '__direct__';
+      input.classList.toggle('d-none', !direct);
+      input.value = direct ? '' : select.value;
+      if (direct) input.focus();
     });
   }
 
@@ -145,5 +185,8 @@
     if (names.length) bindProductPick(names);
     var modal = document.querySelector('[data-pp-address]');
     if (modal) bindAddress(modal);
+    Array.prototype.forEach.call(document.querySelectorAll('[data-pp-phone]'), bindPhone);
+    Array.prototype.forEach.call(document.querySelectorAll('[data-pp-date]'), bindDate);
+    Array.prototype.forEach.call(document.querySelectorAll('[data-pp-time-select]'), bindTime);
   });
 })();

@@ -22,6 +22,7 @@ from foms.services.datetime_kst import get_today_kst, now_kst
 from foms.services.orders.order_create import create_order
 from foms.services.notifications.recipients import fan_out_new_notification
 from foms.services.partners.manager import manager_party
+from foms.services.partners.schedule_request import clean_date, clean_request, clean_time, notify_shipment_request
 from models import Notification, Order, PartnerOrg, SecurityLog, User
 
 PARTNER_ORDER_NOTIFICATION_TYPE = "PARTNER_ORDER_CREATED"
@@ -141,7 +142,8 @@ def create_partner_order(db, user: User, org: PartnerOrg, payload: Any) -> Order
     Args:
         user: 등록하는 협력사 계정.
         org: 그 계정의 협력사(활성 확인은 문지기가 했다).
-        payload: ``customer_name``·``customer_phone``·``address``·``items``·``memo``·``measured_on``.
+        payload: ``customer_name``·``customer_phone``·``address``·``items``·``memo``·``measured_on``·``measured_time``·
+            ``requested_construction_date``·``requested_construction_time``(희망 시공일 — §18, 확정은 우리가 한다).
     """
     data = payload if isinstance(payload, dict) else {}
     customer_name = _text(data.get("customer_name"), 50)
@@ -151,7 +153,9 @@ def create_partner_order(db, user: User, org: PartnerOrg, payload: Any) -> Order
         raise PartnerOrderError("고객 이름 · 연락처 · 현장 주소를 넣어 주세요.")
     items = clean_partner_items(data.get("items"))
     memo = _text(data.get("memo"), 2000)
-    measured_on = _text(data.get("measured_on"), 10)
+    measured_on = clean_date(data.get("measured_on"))
+    measured_time = clean_time(data.get("measured_time"))
+    requested = clean_request(data)
 
     submitted_at = now_kst()
     intake = {
@@ -163,6 +167,8 @@ def create_partner_order(db, user: User, org: PartnerOrg, payload: Any) -> Order
         "customer": {"name": customer_name, "phone": customer_phone},
         "address": address,
         "measured_on": measured_on or None,
+        "measured_time": measured_time or None,
+        "requested_construction": requested,
         "items": copy.deepcopy(items),
         "memo": memo,
     }
@@ -227,4 +233,6 @@ def create_partner_order(db, user: User, org: PartnerOrg, payload: Any) -> Order
     db.add(notification)
     db.flush()
     fan_out_new_notification(db, notification, actor_user_id=user.id)
+    if requested:
+        notify_shipment_request(db, user, order.id, customer_name, requested)
     return order
