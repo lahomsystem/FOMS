@@ -13,6 +13,7 @@ from typing import Any
 
 from foms.services.common.business_calendar import get_holidays_kr
 from foms.services.datetime_kst import get_today_kst
+from foms.services.orders.calendar_month_photos import month_photo
 from foms.services.orders.dashboard_control_tower import (
     _construction_amounts,
     _day_counts,
@@ -73,6 +74,7 @@ def partner_construction_calendar(db, org_id: int, month: str | None = None,
         "month": first.strftime("%Y-%m"),
         "label": f"{first.year}년 {first.month}월",
         "is_this_month": first == this_month,
+        "photo": month_photo(first.month),  # 우리 달력과 같은 달 사진 머리띠(흰 글씨가 읽히게)
         "prev": prev_first.strftime("%Y-%m") if abs(_month_gap(prev_first, this_month)) <= MONTH_SPAN else None,
         "next": next_first.strftime("%Y-%m") if abs(_month_gap(next_first, this_month)) <= MONTH_SPAN else None,
         "weeks": weeks,

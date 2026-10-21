@@ -2,7 +2,7 @@
    칸 = 날짜 · 우리 회사 전체 시공 건수 · (휴대폰) 그 협력사 주문 출고가. 위 줄 = 달 합계(전체 시공 건수 · 내 회사 출고가).
    입력: cal (foms/services/partners/construction_calendar.py), cal_url(달 넘기기 주소 — ?cal=YYYY-MM). #}
 <div class="foms-tower__cal pp-cal" data-pp-cal data-month="{{ cal.month }}">
-  <div class="foms-tower__cal-hero pp-cal__hero">
+  <div class="foms-tower__cal-hero pp-cal__hero foms-cal-photo-{{ cal.photo.month }}"{% if cal.photo.credit %} title="{{ cal.photo.credit }}"{% endif %}>
     <div class="foms-tower__cal-top">
       <div class="foms-tower__cal-nav">
         {% if cal.prev %}<a class="foms-tower__cal-arrow" href="{{ cal_url }}?cal={{ cal.prev }}" aria-label="지난달"><i class="fas fa-chevron-left" aria-hidden="true"></i></a>
