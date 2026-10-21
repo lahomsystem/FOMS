@@ -149,3 +149,12 @@ def test_photo_zones_on_new_order_and_editable_order(app, world, catalog):
     _to_confirm(order_id)
     locked = _html(app, world["partner_a"], f"/partner/orders/{order_id}")
     assert "data-pp-photo-zone" not in locked and "partner-photo-stage.js" not in locked
+
+
+def test_new_order_matches_order_screen_and_saves_to_list(app, world, catalog):
+    """18-3: 새 주문 = 주문 화면과 같은 카드 · 탭 · 칸 순서, "저장"하면 목록으로(우리 FOMS 방식)."""
+    html = _html(app, world["partner_a"], "/partner/orders/new")
+    assert 'class="nav nav-tabs px-2 pt-2 pp-tabs"' in html and "erp-received-trio" in html
+    assert 'class="pp-steps"' in html and "가나 직원" in html  # 접수인 · 담당자 = 나
+    assert 'data-list-url="/partner"' in html and "data-detail-url" not in html
+    assert re.search(r'type="submit"[^>]*>\s*<i class="fas fa-floppy-disk"></i> 저장', html)

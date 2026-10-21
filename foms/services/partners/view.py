@@ -33,7 +33,8 @@ def _text(value: Any) -> str:
     return str(value).strip() if value is not None else ""
 
 
-def _steps(stage: str) -> list[dict[str, str]]:
+def partner_steps(stage: str) -> list[dict[str, str]]:
+    """쉬운 단계 진행 칸(주문 화면 · 새 주문)."""
     now = _STEP_OF_STAGE.get(stage, 0)
     return [
         {"label": label, "state": "done" if i < now else ("now" if i == now else "todo")}
@@ -83,7 +84,7 @@ def build_partner_order_view(order: Order) -> dict[str, Any]:
         "stage_code": stage,
         "stage_label": partner_stage_label(order.erp_stage_code, order.as_axis_status,
                                            sd.get("drawing_status") == "CONFIRMED"),
-        "steps": _steps(stage),
+        "steps": partner_steps(stage),
         "address": _text(site.get("address_full")) or _text(order.address),
         "address_note": _text(notes.get("address_note")),
         "measured_on": _text(intake.get("measured_on")),

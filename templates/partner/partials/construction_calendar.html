@@ -2,6 +2,7 @@
    칸 = 날짜 · 우리 회사 전체 시공 건수 · (휴대폰) 그 협력사 주문 출고가. 위 줄 = 달 합계(전체 시공 건수 · 내 회사 출고가).
    입력: cal (foms/services/partners/construction_calendar.py), cal_url(달 넘기기 주소 — ?cal=YYYY-MM). #}
 <div class="foms-tower__cal pp-cal" data-pp-cal data-month="{{ cal.month }}">
+  {% if cal.wx_legend %}{{ wx_timeline_defs(cal.wx_legend) }}{% endif %}
   <div class="foms-tower__cal-hero pp-cal__hero foms-cal-photo-{{ cal.photo.month }}"{% if cal.photo.credit %} title="{{ cal.photo.credit }}"{% endif %}>
     <div class="foms-tower__cal-top">
       <div class="foms-tower__cal-nav">
@@ -26,12 +27,15 @@
   <div class="foms-tower__cal-sheet">
     <div class="foms-tower__cal-dow" aria-hidden="true"><span class="is-red">일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span class="is-blue">토</span></div>
     <div class="foms-tower__cal-grid">
-      {%- for week in cal.weeks %}
+      {%- for week in cal.weeks %}{% set inm = week | selectattr('in_month') | list %}
       <div class="foms-tower__cal-week">
+        {%- if inm -%}
+        <div class="foms-wx-band s-{{ inm[0].dow + 1 }} n-{{ inm | length }} tl-band" aria-hidden="true">{{ wx_timeline_band(inm, 'pptl' ~ cal.month | replace('-', '') ~ 'w' ~ loop.index) }}<span class="foms-wx-gloss"></span></div>
+        {%- endif -%}
         {%- for c in week -%}
         {%- if c.in_month -%}
         <span class="foms-tower__cal-cell is-c{{ c.dow + 1 }}{% if c.is_today %} is-today{% endif %}{% if c.is_past %} is-past{% endif %}{% if c.dow == 0 or c.is_holiday %} is-red{% elif c.dow == 6 %} is-blue{% endif %}" aria-label="{{ c.day }}일 시공 {{ c.count }}건{% if c.amount_label %}, 내 회사 출고가 {{ c.amount_label }}원{% endif %}">
-          <span class="foms-tower__cal-head"><span class="foms-tower__cal-date">{{ c.day }}</span></span>
+          <span class="foms-tower__cal-head"><span class="foms-tower__cal-date">{{ c.day }}</span>{% if c.t_max_label or c.t_min_label %}<span class="foms-tower__cal-temp">{% if c.t_max_label %}<b class="is-max">{{ c.t_max_label }}</b>{% endif %}{% if c.t_min_label %}<b class="is-min">{{ c.t_min_label }}</b>{% endif %}</span>{% endif %}</span>
           <span class="foms-tower__cal-counts">{% if c.count %}<span class="foms-tower__cal-n foms-tower__cal-n--construction"><i class="foms-tower__mark foms-tower__mark--construction"></i>{{ c.count }}</span>{% endif %}</span>
           {%- if c.amount_pill %}<span class="foms-tower__cal-amt pp-cal__amt">{{ c.amount_pill }}</span>{% endif -%}
         </span>
@@ -43,6 +47,7 @@
       {%- endfor %}
     </div>
     <div class="foms-tower__cal-legend">
+      {% if cal.wx_legend %}<span class="foms-tower__wx-chips" aria-label="날씨">{% for k, label in cal.wx_legend %}<i class="foms-tower__wx-chip wx-k-{{ k }}">{{ label }}</i>{% endfor %}</span>{% endif %}
       <span><i class="foms-tower__mark foms-tower__mark--construction" aria-hidden="true"></i>숫자 = 그날 저희 시공 건수(전체)</span>
       <span class="pp-cal__amt-legend">알약 = 내 회사 주문 출고가</span>
     </div>
