@@ -437,6 +437,7 @@ def _solapi_send(
     pf_id: str,
     template_id: str,
     variables: dict[str, str],
+    disable_sms: bool = False,
 ) -> str | None:
     """Solapi SDK 호출부(테스트 monkeypatch 격리 지점).
 
@@ -446,6 +447,8 @@ def _solapi_send(
         pf_id: 브랜드 발신프로필 키.
         template_id: 심사 통과 템플릿 id.
         variables: ``{'#{고객명}': '임다슬', ...}`` 치환 변수.
+        disable_sms: 카톡 실패 때 문자 대체발송을 끈다. 링크 없는 '상담 먼저' 템플릿은
+            문자로 가면 누를 버튼이 없어 쓸모가 없으므로 끈다(설계서 2026-10-20 Q4).
 
     Returns:
         벤더 message id(없으면 group id). 실패는 예외로 올라온다.
@@ -454,11 +457,14 @@ def _solapi_send(
     from solapi.model import KakaoOption, RequestMessage
 
     service = SolapiMessageService(_env("SOLAPI_API_KEY"), _env("SOLAPI_API_SECRET"))
+    # 끌 때만 넘긴다 — 기존 발송은 지금처럼 벤더 기본값(대체발송 켜짐)에 맡긴다.
+    extra = {"disable_sms": True} if disable_sms else {}
+    kakao_option = KakaoOption(pf_id=pf_id, template_id=template_id, variables=variables, **extra)
     response = service.send(
         RequestMessage(
             from_=from_,
             to=to,
-            kakaoOptions=KakaoOption(pf_id=pf_id, template_id=template_id, variables=variables),
+            kakaoOptions=kakao_option,
         )
     )
     for item in getattr(response, "message_list", None) or []:

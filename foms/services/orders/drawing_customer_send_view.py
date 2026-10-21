@@ -44,6 +44,7 @@ from foms.services.orders.drawing_revision_edit import (
 from foms.services.orders.drawing_revision_source import request_rounds
 from foms.services.orders.quest_approve_authz import quest_approve_allowed
 from foms.services.orders.quest_transition_service import find_stage_quest_for_approve
+from foms.services.share_consult import consult_template_id
 from models import OrderEvent, OrderShareToken
 
 #: ``foms/api/share.py`` ``_BOTH_TEMPLATE_ENV_PREFIX`` 와 같아야 한다(테스트가 단언). 서비스가 api 를
@@ -329,6 +330,8 @@ def build_customer_send_view(
                             and str(getattr(user, "role", "") or "").upper() in _SALES_ROLES),
         doc_label_drawing=share_doc_label(sd, "drawing"), doc_label_bundle=share_doc_label(sd, "bundle"),
         bundle_both_template=bool(ka._env(BOTH_TEMPLATE_ENV_PREFIX + ka.resolve_brand(dict(sd)))),
+        # '상담 먼저' 템플릿이 켜져 있으면 알림톡은 링크 없이 가고, 계약서만 보내기·따로 보내기를 고른다.
+        consult_template=bool(consult_template_id(ka.resolve_brand(dict(sd)))),
         can_customer_ok=bool(can_confirm_receipt),
         can_approve_after_confirm=can_approve_after_confirm(user, order, sd),
     )

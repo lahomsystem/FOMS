@@ -213,3 +213,35 @@ def test_wam_session_token_expiration():
 
     payload = verify_wam_session_token(token, max_age=-1)
     assert payload is None
+
+
+def test_verify_channel_signature_accepts_lahom_channel_key(monkeypatch):
+    """라홈 채널 웹훅은 서명 키가 따로다 — 두 키 중 하나만 맞아도 통과, 둘 다 아니면 거절."""
+    monkeypatch.setattr(channel_security, 'CHANNEL_SIGNING_KEY', '')
+    monkeypatch.setattr(channel_security, 'CHANNEL_SIGNING_KEY_HAUD', 'haud-secret')
+    monkeypatch.setattr(channel_security, 'CHANNEL_SIGNING_KEY_LAHOM', 'lahom-secret')
+    payload = b'{"hello":"world"}'
+
+    def sign(key):
+        return hmac.new(key, msg=payload, digestmod=hashlib.sha256).hexdigest()
+
+    assert verify_channel_signature(payload, sign(b'haud-secret')) is True
+    assert verify_channel_signature(payload, sign(b'lahom-secret')) is True
+    assert verify_channel_signature(payload, sign(b'other-secret')) is False
+
+
+def test_webhook_query_token_accepted_and_wrong_token_rejected(test_app, monkeypatch):
+    """채널 설정 웹훅은 x-signature 없이 ?token= 만 붙여 보낸다(2026-10-20 스테이징 실측)."""
+    monkeypatch.setattr(channel_security, 'CHANNEL_SIGNING_KEY', '')
+    monkeypatch.setattr(channel_security, 'CHANNEL_SIGNING_KEY_HAUD', 'haud-token')
+    monkeypatch.setattr(channel_security, 'CHANNEL_SIGNING_KEY_LAHOM', 'lahom-token')
+    client = test_app.test_client()
+    body = b'{"hello":"world"}'
+
+    ok = client.post('/test-webhook?token=lahom-token', data=body, content_type='application/json')
+    bad = client.post('/test-webhook?token=nope', data=body, content_type='application/json')
+    none = client.post('/test-webhook', data=body, content_type='application/json')
+
+    assert ok.status_code == 200
+    assert bad.status_code == 401
+    assert none.status_code == 401

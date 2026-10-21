@@ -31,6 +31,7 @@ from foms.services.security.signing.signing_keys import (
 
 __all__ = [
     "verify_channel_signature",
+    "verify_channel_webhook_token",
     "require_channel_signature",
     "generate_wam_launch_token",
     "generate_wam_entry_token",
@@ -45,6 +46,10 @@ __all__ = [
 logger = logging.getLogger(__name__)
 
 CHANNEL_SIGNING_KEY = os.environ.get("CHANNEL_SIGNING_KEY", "")
+#: 브랜드 채널별 웹훅 서명 키(라홈·하우드는 채널톡 채널이 따로라 웹훅 키도 따로다).
+#: 기존 ``CHANNEL_SIGNING_KEY`` 웹훅을 그대로 두고 새 웹훅을 더 만들 수 있게 따로 받는다.
+CHANNEL_SIGNING_KEY_HAUD = os.environ.get("CHANNEL_SIGNING_KEY_HAUD", "")
+CHANNEL_SIGNING_KEY_LAHOM = os.environ.get("CHANNEL_SIGNING_KEY_LAHOM", "")
 WAM_DEFAULT_SCOPES = ("page", "attachments")
 WAM_DEFAULT_ALLOWED_SECTIONS = ("customer", "site", "schedule", "people", "items", "attachments")
 
@@ -202,16 +207,38 @@ def _build_wam_token_payload(manager_id: str, order_id: int | None = None, **ext
 
 
 def verify_channel_signature(raw_body: bytes, signature: str) -> bool:
-    """Validate the inbound ChannelTalk webhook signature."""
-    if not CHANNEL_SIGNING_KEY or not signature:
-        return False
+    """Validate the inbound ChannelTalk webhook signature.
 
-    expected_hash = hmac.new(
-        CHANNEL_SIGNING_KEY.encode("utf-8"),
-        msg=raw_body,
-        digestmod=hashlib.sha256,
-    ).hexdigest()
-    return hmac.compare_digest(expected_hash, signature)
+    라홈·하우드는 채널톡 채널이 따로라 웹훅도 채널마다 하나씩이고 서명 키가 다르다
+    (설계서 2026-10-20). 기본 키 ``CHANNEL_SIGNING_KEY`` 와 채널별 키
+    ``CHANNEL_SIGNING_KEY_HAUD``·``CHANNEL_SIGNING_KEY_LAHOM`` 중 하나라도 맞으면 통과한다.
+    """
+    if not signature:
+        return False
+    keys = [key for key in (CHANNEL_SIGNING_KEY, CHANNEL_SIGNING_KEY_HAUD,
+                            CHANNEL_SIGNING_KEY_LAHOM) if key]
+    for key in keys:
+        expected_hash = hmac.new(
+            key.encode("utf-8"),
+            msg=raw_body,
+            digestmod=hashlib.sha256,
+        ).hexdigest()
+        if hmac.compare_digest(expected_hash, signature):
+            return True
+    return False
+
+
+def verify_channel_webhook_token(token: str) -> bool:
+    """채널 설정 웹훅의 ``?token=`` 값을 브랜드 채널별 키와 상수 시간 비교한다.
+
+    서명 키와 같은 env(``CHANNEL_SIGNING_KEY``·``_HAUD``·``_LAHOM``)를 쓴다 — 웹훅을 만들 때
+    채널톡이 주는 토큰이 곧 이 값이다.
+    """
+    if not token:
+        return False
+    keys = [key for key in (CHANNEL_SIGNING_KEY, CHANNEL_SIGNING_KEY_HAUD,
+                            CHANNEL_SIGNING_KEY_LAHOM) if key]
+    return any(hmac.compare_digest(key, token) for key in keys)
 
 
 def require_channel_signature(f):
@@ -225,14 +252,21 @@ def require_channel_signature(f):
             return jsonify({"error": "not_found"}), 404
 
         signature = request.headers.get("x-signature", "")
-        if not signature:
+        query_token = request.args.get("token", "")
+        if signature:
+            raw_body = request.get_data()
+            if not verify_channel_signature(raw_body, signature):
+                logger.warning("[ChannelSecurity] Invalid x-signature")
+                return jsonify({"error": "unauthorized", "message": "Invalid signature"}), 401
+        elif query_token:
+            # 채널 설정 > 웹훅은 서명 헤더 없이 ``?token=<웹훅 토큰>`` 만 붙여 보낸다
+            # (2026-10-20 스테이징 실측: ChannelBot 요청에 x-signature 없음).
+            if not verify_channel_webhook_token(query_token):
+                logger.warning("[ChannelSecurity] Invalid webhook token")
+                return jsonify({"error": "unauthorized", "message": "Invalid token"}), 401
+        else:
             logger.warning("[ChannelSecurity] Missing x-signature header")
             return jsonify({"error": "unauthorized", "message": "Missing x-signature"}), 401
-
-        raw_body = request.get_data()
-        if not verify_channel_signature(raw_body, signature):
-            logger.warning("[ChannelSecurity] Invalid x-signature")
-            return jsonify({"error": "unauthorized", "message": "Invalid signature"}), 401
 
         payload = request.get_json(silent=True) or {}
         created_at_ms = payload.get("entity", {}).get("createdAt")

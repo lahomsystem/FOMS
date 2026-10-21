@@ -156,8 +156,8 @@ def test_empty_view_has_every_contract_key():
         "round", "round_text", "round_at", "is_append", "arrived_at_text", "arrival_label",
         "can_send", "has_phone", "phone_masked", "sent_this_round", "sent_text", "link_only_text",
         "failed_text", "views", "last_viewed_text", "status_line", "turn_hint", "steps", "prev_summary",
-        "doc_label_drawing", "doc_label_bundle", "bundle_both_template", "can_customer_ok",
-        "can_approve_after_confirm", "bar", "cancel_warning_text_pc", "cancel_warning_text_mobile",
+        "doc_label_drawing", "doc_label_bundle", "bundle_both_template", "consult_template",
+        "can_customer_ok", "can_approve_after_confirm", "bar", "cancel_warning_text_pc", "cancel_warning_text_mobile",
         "can_change_phone", "can_save_phone", "edit_revision", "sent_earlier_text", "last_attempt_state",
     ):
         assert key in view, key
@@ -170,7 +170,7 @@ def test_empty_view_values_hide_new_buttons():
     assert view["edit_revision"] == {}
     assert view["round"] == 0 and view["round_text"] == "" and view["views"] == 0
     for key in ("can_send", "has_phone", "sent_this_round", "bundle_both_template",
-                "can_customer_ok", "can_approve_after_confirm", "can_change_phone", "can_save_phone",
+                "consult_template", "can_customer_ok", "can_approve_after_confirm", "can_change_phone", "can_save_phone",
                 "is_append"):
         assert view[key] is False, key
     for key in ("sent_text", "link_only_text", "failed_text", "status_line", "turn_hint",

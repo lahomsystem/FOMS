@@ -62,7 +62,7 @@ def test_get_access_token_reuses_cached_token(monkeypatch):
     monkeypatch.setattr(channel_client, "_token_cache", {})
     monkeypatch.setattr(channel_client.time, "time", lambda: 100.0)
 
-    def _fake_issue_token():
+    def _fake_issue_token(*_channel):
         issued.append("called")
         return "cached-token", 200.0
 
@@ -86,7 +86,7 @@ def test_send_group_message_returns_message_id_on_success(monkeypatch):
     captured = {}
 
     monkeypatch.setattr(channel_client, "CHANNEL_ID", "channel-1")
-    monkeypatch.setattr(channel_client, "_get_access_token", lambda: "access-token")
+    monkeypatch.setattr(channel_client, "_get_access_token", lambda *_channel: "access-token")
 
     def _fake_put(url, *, json, headers, timeout):
         captured["url"] = url
@@ -114,7 +114,7 @@ def test_send_group_message_returns_message_id_on_success(monkeypatch):
 
 def test_send_group_message_raises_runtime_error_when_api_returns_error_and_flag_enabled(monkeypatch):
     monkeypatch.setattr(channel_client, "CHANNEL_ID", "channel-1")
-    monkeypatch.setattr(channel_client, "_get_access_token", lambda: "access-token")
+    monkeypatch.setattr(channel_client, "_get_access_token", lambda *_channel: "access-token")
     monkeypatch.setattr(
         channel_client.requests,
         "put",
@@ -131,7 +131,7 @@ def test_send_group_message_raises_runtime_error_when_api_returns_error_and_flag
 
 def test_send_group_message_returns_failure_when_api_returns_error_without_raise(monkeypatch):
     monkeypatch.setattr(channel_client, "CHANNEL_ID", "channel-1")
-    monkeypatch.setattr(channel_client, "_get_access_token", lambda: "access-token")
+    monkeypatch.setattr(channel_client, "_get_access_token", lambda *_channel: "access-token")
     monkeypatch.setattr(
         channel_client.requests,
         "put",
@@ -196,7 +196,7 @@ def test_send_group_message_reissues_token_and_retries_on_unauthenticated(monkey
     monkeypatch.setattr(channel_client, "CHANNEL_APP_SECRET", "secret")
     monkeypatch.setattr(channel_client, "_token_cache", {"channel-1": ("stale-token", 1e12)})
     monkeypatch.setattr(
-        channel_client, "_issue_token", lambda: ("fresh-token", 1e12)
+        channel_client, "_issue_token", lambda *_channel: ("fresh-token", 1e12)
     )
 
     used_tokens = []
@@ -220,7 +220,7 @@ def test_send_group_message_gives_up_when_retry_also_unauthenticated(monkeypatch
     monkeypatch.setattr(channel_client, "CHANNEL_ID", "channel-1")
     monkeypatch.setattr(channel_client, "CHANNEL_APP_SECRET", "secret")
     monkeypatch.setattr(channel_client, "_token_cache", {})
-    monkeypatch.setattr(channel_client, "_issue_token", lambda: ("fresh-token", 1e12))
+    monkeypatch.setattr(channel_client, "_issue_token", lambda *_channel: ("fresh-token", 1e12))
     monkeypatch.setattr(
         channel_client.requests,
         "put",
@@ -237,7 +237,7 @@ def test_send_group_message_does_not_retry_non_auth_error(monkeypatch):
     calls = []
 
     monkeypatch.setattr(channel_client, "CHANNEL_ID", "channel-1")
-    monkeypatch.setattr(channel_client, "_get_access_token", lambda: "access-token")
+    monkeypatch.setattr(channel_client, "_get_access_token", lambda *_channel: "access-token")
 
     def _fake_put(url, *, json, headers, timeout):
         calls.append(headers["x-access-token"])

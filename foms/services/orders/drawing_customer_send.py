@@ -115,6 +115,8 @@ def empty_customer_send_view() -> dict[str, Any]:
         "doc_label_drawing": _DEFAULT_DOC_LABEL_DRAWING,
         "doc_label_bundle": _DEFAULT_DOC_LABEL_BUNDLE,
         "bundle_both_template": False,
+        # 상담 먼저 알림톡(설계서 2026-10-20) — 켜지면 [계약서만]·[한 번에/따로따로]가 보인다
+        "consult_template": False,
         # 고객 OK · 컨펌(§3.5 나)
         "can_customer_ok": False,
         "can_approve_after_confirm": False,
