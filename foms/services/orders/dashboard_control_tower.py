@@ -936,7 +936,11 @@ def _apply_mine_only(base: Any, current_user: Any) -> Any:
     conds = build_mine_sql_filter(current_user)
     if not conds:
         return base
-    return base.filter(mine_membership_clause(conds, scope_conds=[base.whereclause]))
+    mine = base.filter(mine_membership_clause(conds, scope_conds=[base.whereclause]))
+    # 타워는 이 base 로 질의 18개를 낸다. mine 절(도면 문서 전체 ILIKE 갈래 포함)을 매번 다시 풀면
+    # ADMIN 에서 mine 끔 대비 계산이 약 0.5초 늘었다(2026-10-21 스테이징) — 주문 번호를 한 번만 구한다.
+    ids = [row[0] for row in mine.with_entities(Order.id).all()]
+    return base.filter(Order.id.in_(ids)) if ids else base.filter(false())
 
 
 def build_field_ops_for_day(

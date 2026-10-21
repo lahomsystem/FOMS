@@ -189,3 +189,38 @@ def test_tower_mine_on_does_not_reapply_mine_clause(app):
         assert statements, "SQL 을 못 잡았다"
         worst = max(s.count("FROM orders AS orders_mine") for s in statements)
         assert worst <= len(light), f"mine 갈래가 겹쳐 들어갔다: {worst} > {len(light)}"
+        # mine 절은 주문 번호를 구하는 질의 한 번만 푼다(나머지 질의는 번호 목록을 쓴다)
+        assert sum("FROM orders AS orders_mine" in s for s in statements) == 1
+
+
+def test_tower_mine_ids_materialized_same_payload(app, monkeypatch):
+    """번호 목록으로 바꾼 mine base 가 mine 절을 그대로 건 base 와 같은 타워를 낸다."""
+    from foms.services.datetime_kst import get_today_kst
+
+    with app.app_context():
+        admin = _user("목록관리", "ADMIN", role="ADMIN")
+        drawer = _user("목록도면", "DRAWING")
+        today = get_today_kst().isoformat()
+        rows = [_order("목록관리", "MEASURE"), _order("목록관리", "CONSTRUCTION"), _order("다른사람", "MEASURE"),
+                _order("다른사람", "DRAWING", drawing_assignees=["목록도면"]),
+                _order("다른사람", "DRAWING", assignments={"drawing_assignees": ["목록도면"]})]
+        for o in rows:
+            o.received_date = today
+        db_session.add_all(rows)
+        db_session.commit()
+
+        def _clause_only(base, current_user):
+            conds = build_mine_sql_filter(current_user)
+            return base.filter(mine_membership_clause(conds, scope_conds=[base.whereclause])) if conds else base
+
+        for user in (admin, drawer):
+            new = tower.build_mobile_control_tower(db_session, user, mine_only=True)
+            with monkeypatch.context() as m:
+                m.setattr(tower, "_apply_mine_only", _clause_only)
+                old = tower.build_mobile_control_tower(db_session, user, mine_only=True)
+            assert new == old
+            assert new["mine_open_count"] >= 1, "음성만 비교했다"
+        # 내 주문이 없으면 빈 타워(번호 목록이 비면 false)
+        nobody = _user("목록없음", "SALES")
+        empty = tower.build_mobile_control_tower(db_session, nobody, mine_only=True)
+        assert empty["mine_open_count"] == 0 and empty["today_count"] == 0
