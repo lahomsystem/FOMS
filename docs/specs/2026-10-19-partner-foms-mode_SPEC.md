@@ -320,3 +320,9 @@
   - 휴대폰: 칸마다 시공 건수 · 금액. PC: 칸마다 시공 건수 + 달 합계(건수 · 총 금액).
   - 자리: 협력사 목록 화면 달력 + 희망 시공일 고르기(달력에서 날짜를 누르면 희망일로).
 - 나눠서 한다: 18-1 입력 칸 · 보낸 뒤 고치기 · 출고팀 알림 → 18-2 시공 달력.
+
+### 18.5 구현 기록 (2026-10-21)
+- 5-2 사진 칸: `partials/photo_zone.html` + `static/js/partner/partner-photo-stage.js` — 제품 칸 · 공통 실측 사진 · 초안 도면. PC 즉시 추가 · Ctrl+V · 끌어놓기, 휴대폰 찍기 · 앨범, 미리보기 · 빼기, 공통 → "제품 연결" · 제품 → "공통으로". 보내기 뒤 주문 → 사진 순서로 올린다(서버 변경 없음). 이름 없는 항목에 사진이 있으면 보내기 전에 알린다. 사용자 지적으로 제품 목록 · 상세를 768px 이상에서도(우리 ERP 처럼 좁은 PC 창 · 태블릿) — 휴대폰만 카드를 차례로.
+- 18-1: 공용 칸 `partials/info_fields.html`(연락처 하이픈 · 수동입력, 주소 찾기, flatpickr 달력, 오전 · 오후 · 종일 · 직접 입력). 서비스 `foms/services/partners/info_edit.py`(`update_partner_info`, 정책 `PARTNER_INFO_EDIT`) · `schedule_request.py`(날짜 · 시간 정리, `request_open`, 출고팀 알림 `PARTNER_CONSTRUCTION_REQUESTED`). 라우트 `PUT /api/partner/orders/<id>/info`. 우리 주문 화면 PC · 휴대폰 시공일 칸 아래 `orders/partials/erp_partner_requested_construction.html`. 제품 속성 빈 칸 기본 "상담". 시험 `test_partner_info_edit.py` 6건.
+- 18-2: `foms/services/partners/construction_calendar.py`(우리 모바일 홈 달력 셈 재사용, 앞뒤 6개월, 달 사진 머리띠), 목록 화면 달력 `partials/construction_calendar.html`, 읽기 API `GET /api/partner/construction-calendar`(희망 시공일 flatpickr 칸 숫자). 시험 `test_partner_construction_calendar.py` 3건.
+- 스테이징(2026-10-21): 5-2 끌어놓기 2장 → 제품 연결 → 붙여넣기 → 공통으로(파일 수 맞음), 900px 목록 · 상세. 18-1 하이픈 `010-1234-5678` · 수동입력 그대로 · 시간 "오후" · 달력 열림 · 속성 "상담", 시험 주문 #4786 연락처 · 희망 시공일 2026-11-06 오전 저장 → 우리 `/edit/4786` 에 "협력사 희망: 2026-11-06 오전". 18-2 목록 달력(스테이징 9월 3건 · 10월 0건 — 데이터가 적음), 첫 화면에서 머리띠 흰 글씨가 안 보여 우리 달 사진 머리띠를 붙였다.
