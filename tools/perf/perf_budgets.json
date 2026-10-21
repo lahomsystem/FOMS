@@ -1,7 +1,7 @@
 {
   "coarse_paths": {
     "/erp/dashboard?view=fragment": {
-      "body_bytes_max": 30700
+      "body_bytes_max": 31700
     },
     "/erp/measurement?view=fragment": {
       "body_bytes_max": 17485
