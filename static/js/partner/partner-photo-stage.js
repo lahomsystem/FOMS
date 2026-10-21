@@ -13,7 +13,7 @@
   'use strict';
 
   var MAX_FILES = 50;
-  var WIDE = window.matchMedia('(min-width: 992px)');
+  var WIDE = window.matchMedia('(min-width: 768px)');
 
   function filesOf(zone) {
     if (!zone._ppFiles) zone._ppFiles = [];
