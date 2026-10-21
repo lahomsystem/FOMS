@@ -1,13 +1,13 @@
-"""도면방 PUSH 파일 이름 = 고객명(여러 장이면 고객명+번호)."""
+"""도면방 PUSH 파일 이름 = 고객명+도면 번호(한 장이어도 고객명1)."""
 
 import app  # noqa: F401  - 순환 import 회피용 선적재
 
 from foms.api.channel.channel_integration import _rename_drawing_room_files
 
 
-def test_single_file_uses_customer_name():
+def test_single_file_gets_number_one():
     out = _rename_drawing_room_files([{'fileName': 'draw_v3.pdf', 'url': 'u'}], '홍길동')
-    assert out == [{'fileName': '홍길동.pdf', 'url': 'u'}]
+    assert out == [{'fileName': '홍길동1.pdf', 'url': 'u'}]
 
 
 def test_multiple_files_append_number_and_keep_ext():
