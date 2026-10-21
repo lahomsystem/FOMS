@@ -370,3 +370,20 @@ body.pp-sheet-open { overflow: hidden; }
   .pp-items-md .erp-calc-trigger { width: 2.75rem; font-size: 1rem; }
   .pp-items-md .erp-calc-field .erp-calc-has-trigger { padding-right: 2.9rem; }
 }
+
+/* 5-2 사진 칸 — 우리 품목 사진 칸 모양. 휴대폰은 찍기 · 앨범, PC 는 즉시 추가 · Ctrl+V · 끌어놓기. */
+.pp-drop { transition: border-color 0.15s, background-color 0.15s; }
+.pp-drop--over { border-color: var(--pp-primary) !important; background-color: var(--pp-stage-bg) !important; }
+.pp-drop__count { font-weight: 400; }
+.pp-tile { max-width: 260px; }
+.pp-tile__thumb { width: 40px; height: 40px; flex: 0 0 40px; border-radius: 4px; object-fit: cover; }
+.pp-tile__thumb--file { display: inline-flex; align-items: center; justify-content: center; background: var(--pp-bg); color: var(--pp-muted); }
+.pp-tile__name { max-width: 90px; }
+.pp-tile__link { width: auto; max-width: 110px; }
+.pp-drop .pp-drop__m { display: none; }
+@media (max-width: 991.98px) {
+  .pp-drop .pp-drop__m { display: inline-block; }
+  .pp-drop .pp-drop__pc { display: none; }
+  .pp-tile { max-width: 100%; flex: 1 1 100%; }
+  .pp-tile__name { max-width: none; }
+}

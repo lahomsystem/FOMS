@@ -4,7 +4,7 @@
  * - 제품마다 규격 여러 줄(spec_rows), 복합 폭은 글자 그대로(예: 5700(2402+1864+1434)).
  * - 가로 칸에 W*D*H(또는 ×)를 붙여넣으면 가로 · 깊이 · 높이로 나눈다(erp-order-shared.js 와 같은 규칙).
  * - 제품 속성 다섯 칸(internal · color · option_detail · handle · misc) + 추가 입력(extra_input).
- * - 제품마다 실측 사진 — 보내기 뒤 item_index 를 붙여 올린다(partner-portal.js).
+ * - 제품마다 실측 사진(partner-photo-stage.js 사진 칸) — 보내기 뒤 item_index 를 붙여 올린다(partner-portal.js).
  * - 주문 화면(접수 확인 중)에서는 서버가 그린 카드를 그대로 고친다. 카드에 실린 data-pp-uid 를 돌려보낸다.
  * - 항목을 더하거나 빼면 container 에 'pp:items-changed' 를 보낸다(partner-items-rail.js 가 목록을 다시 그린다).
  * 설계서: docs/specs/2026-10-19-partner-foms-mode_SPEC.md §3.4 · §4.3 · §4.5 · §12
@@ -127,15 +127,19 @@
   function collect(container) {
     var items = [];
     var photoJobs = [];
+    var orphanPhotos = 0;
     Array.prototype.forEach.call(container.querySelectorAll('.pp-item'), function (item) {
       var data = readItem(item);
-      if (!data.product_name) return;
-      var photos = item.querySelector('[data-pp-item-photos]');
-      var files = Array.prototype.slice.call((photos && photos.files) || []);
+      var zone = item.querySelector('[data-pp-photo-zone="item"]');
+      var files = window.PartnerPhotos ? window.PartnerPhotos.files(zone) : [];
+      if (!data.product_name) {
+        orphanPhotos += files.length;
+        return;
+      }
       if (files.length) photoJobs.push({ index: items.length, name: data.product_name, files: files });
       items.push(data);
     });
-    return { items: items, photoJobs: photoJobs };
+    return { items: items, photoJobs: photoJobs, orphanPhotos: orphanPhotos };
   }
 
   /** addButtons: '+ 항목'(PC 왼쪽 목록) · '제품 항목 더하기'(휴대폰, 목록이 숨을 때) 단추들. */
