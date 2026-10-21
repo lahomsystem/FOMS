@@ -1140,7 +1140,7 @@
     {
       "path": "foms/api/partner/__init__.py",
       "endpoint": "approve_drawing",
-      "lineno": 271,
+      "lineno": 281,
       "methods": [
         "POST"
       ],
@@ -1149,7 +1149,7 @@
     {
       "path": "foms/api/partner/__init__.py",
       "endpoint": "change_manager",
-      "lineno": 187,
+      "lineno": 188,
       "methods": [
         "POST"
       ],
@@ -1158,7 +1158,7 @@
     {
       "path": "foms/api/partner/__init__.py",
       "endpoint": "create_order",
-      "lineno": 100,
+      "lineno": 101,
       "methods": [
         "POST"
       ],
@@ -1167,7 +1167,7 @@
     {
       "path": "foms/api/partner/__init__.py",
       "endpoint": "register_as",
-      "lineno": 364,
+      "lineno": 374,
       "methods": [
         "POST"
       ],
@@ -1176,7 +1176,7 @@
     {
       "path": "foms/api/partner/__init__.py",
       "endpoint": "request_revision",
-      "lineno": 324,
+      "lineno": 334,
       "methods": [
         "POST"
       ],
@@ -1185,7 +1185,7 @@
     {
       "path": "foms/api/partner/__init__.py",
       "endpoint": "update_info",
-      "lineno": 224,
+      "lineno": 225,
       "methods": [
         "PUT"
       ],
@@ -1194,7 +1194,7 @@
     {
       "path": "foms/api/partner/__init__.py",
       "endpoint": "update_items",
-      "lineno": 202,
+      "lineno": 203,
       "methods": [
         "PUT"
       ],
@@ -1203,7 +1203,7 @@
     {
       "path": "foms/api/partner/__init__.py",
       "endpoint": "update_my_phone",
-      "lineno": 247,
+      "lineno": 257,
       "methods": [
         "POST"
       ],
@@ -1212,7 +1212,7 @@
     {
       "path": "foms/api/partner/__init__.py",
       "endpoint": "upload_file",
-      "lineno": 120,
+      "lineno": 121,
       "methods": [
         "POST"
       ],
