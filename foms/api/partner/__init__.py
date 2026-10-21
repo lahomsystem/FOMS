@@ -19,7 +19,7 @@ from foms.api.files.common import (
     parse_attachment_item_index,
 )
 from foms.services.orders.item_identity import resolve_active_item_id
-from foms.api.files.order_routes import ATTACHMENT_ADDED, emit_attachment_event
+from foms.api.files.order_routes import ATTACHMENT_ADDED, ATTACHMENT_META_UPDATED, emit_attachment_event
 from foms.services.audit_writer import normalize_security_detail
 from foms.api.notifications import invalidate_badge_cache_for_user_ids, resolve_notification_recipient_user_ids
 from foms.services.auth.partner_scope import partner_can_read_order, partner_required
@@ -30,6 +30,7 @@ from foms.services.common.dashboard_cache import (
 )
 from foms.services.error_logging import log_handled_exception
 from foms.services.files.upload_policy import ERP_MEDIA_ALLOWED_EXTENSIONS
+from foms.services.order_attachment_permissions import is_partner_original_key
 from foms.services.order_attachment_thumbnail import schedule_order_attachment_thumbnail_generation
 from foms.services.orders.order_transition_service import TransitionError
 from foms.services.orders.revision import RevisionError
@@ -181,6 +182,43 @@ def upload_file(order_id: int):
         "data": {"attachment_id": attachment.id, "filename": attachment.filename, "kind": folder_name},
         "error": None,
     })
+
+
+@partner_api_bp.route("/orders/<int:order_id>/attachments/<int:attachment_id>", methods=["PATCH"])
+@partner_required
+def link_attachment(order_id: int, attachment_id: int):
+    """보낸 실측 사진을 제품에 연결 · 해제(JSON ``item_index``: 번호 | null) — 우리 첨부 PATCH 와 같은 일(§17 5-3).
+
+    접수 확인 중만(밖이면 409), 다른 회사 404, 협력사가 보낸 실측 사진만(우리 직원 파일 · 초안 도면 400).
+    """
+    db = get_db()
+    order = _own_order(db, order_id)
+    if order is None:
+        return _fail("주문을 찾을 수 없습니다.", 404)
+    if (order.erp_stage_code or "").upper() not in UPLOAD_OPEN_STAGES:
+        return _fail("도면 작업이 시작되어 사진 자리를 바꿀 수 없습니다. 저희 담당자에게 알려 주세요.", 409)
+    attachment = db.query(OrderAttachment).filter(OrderAttachment.id == attachment_id,
+                                                  OrderAttachment.order_id == order.id).first()
+    if attachment is None:
+        return _fail("사진을 찾을 수 없습니다.", 404)
+    if not is_partner_original_key(attachment.storage_key) or attachment.category != "measurement":
+        return _fail("보내 주신 실측 사진만 제품에 연결할 수 있습니다.", 400)
+    payload = request.get_json(silent=True) or {}
+    if "item_index" not in payload:
+        return _fail("item_index 가 필요합니다.", 400)
+    raw = payload.get("item_index")
+    item_index, item_error = _item_index_for_upload(order, None if raw is None else str(raw), "measurement")
+    if item_error:
+        return _fail(item_error, 400)
+    previous = attachment.item_index
+    attachment.item_index = item_index
+    attachment.item_id = resolve_active_item_id(db, order.id, item_index)
+    if previous != item_index:
+        emit_attachment_event(db, attachment, ATTACHMENT_META_UPDATED,
+                              extra={"field": "item_index", "from": previous, "to": item_index})
+    db.commit()
+    invalidate_dashboard_families(*ATTACHMENT_DASHBOARD_FAMILIES)
+    return jsonify({"success": True, "data": {"attachment_id": attachment.id, "item_index": item_index}, "error": None})
 
 
 @partner_api_bp.route("/orders/<int:order_id>/manager", methods=["POST"])
