@@ -54,6 +54,7 @@ WORKER_KIND_NOTIFICATION_ESCALATION = "NOTIFICATION_ESCALATION"
 WORKER_KIND_NAVER_ORDER_SYNC = "NAVER_ORDER_SYNC"
 WORKER_KIND_NAVER_SETTLE_SYNC = "NAVER_SETTLE_SYNC"
 WORKER_KIND_RQ_WORKER = "RQ_WORKER"
+WORKER_KIND_SHARE_CONSULT_SMS = "SHARE_CONSULT_SMS"
 
 
 @dataclass(frozen=True)
@@ -101,6 +102,9 @@ WORKER_KIND_SPECS: dict[str, "WorkerKindSpec"] = {
     # 잡는다 — 정지 감지가 15분에서 20분 15초로 넓어지는 것을 규칙 한 벌의 대가로 받는다.
     WORKER_KIND_RQ_WORKER: WorkerKindSpec(
         WORKER_KIND_RQ_WORKER, max_heartbeat_age=900),
+    # '상담 먼저' 카톡 실패 → 링크 문자(tick 60초) → 3틱.
+    WORKER_KIND_SHARE_CONSULT_SMS: WorkerKindSpec(
+        WORKER_KIND_SHARE_CONSULT_SMS, max_heartbeat_age=180),
 }
 
 DEFAULT_LEASE_SECONDS = 60

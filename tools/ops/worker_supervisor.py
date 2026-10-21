@@ -106,6 +106,12 @@ def worker_jobs(env: Mapping[str, str], python: str = sys.executable) -> list[Jo
             python, "scripts/maintenance/run_notification_escalation.py", "--loop",
             "--interval", _env(env, "FOMS_ESCALATION_INTERVAL_SECONDS", "60"), "--json")))
 
+    # '상담 먼저' 알림톡 카톡 실패 → 링크 문자 자동 발송(설계서 2026-10-21). 기본 off.
+    if env.get("FOMS_SHARE_CONSULT_SMS_FALLBACK_ENABLED") == "1":
+        jobs.append(Job("share_consult_sms_fallback", (
+            python, "scripts/maintenance/run_share_consult_fallback.py", "--loop",
+            "--interval", _env(env, "FOMS_SHARE_CONSULT_SMS_INTERVAL_SECONDS", "60"), "--json")))
+
     # 네이버 스마트스토어 주문 수집 (NAVER-INGEST-01). **WORKER 에서만** 돈다 — 커머스API센터 호출 IP
     # 한도 3 = Railway static IP 3 이라 네이버로 나가는 HTTP 는 이 서비스 한 곳으로 모은다. 기본 off.
     if env.get("FOMS_NAVER_SYNC_ENABLED") == "1":

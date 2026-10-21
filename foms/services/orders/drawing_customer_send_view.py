@@ -58,7 +58,9 @@ _TOKEN_LIMIT = 50
 _LEGACY_PAIR_WINDOW = datetime.timedelta(seconds=10)
 _CHANNEL_LABELS = {"SHARE_ALIMTALK": "알림톡", "SHARE_SMS": "회사 문자"}
 #: "알림톡으로" · "회사 문자로"(받침 있는 말 뒤에는 '으로').
-_CHANNEL_WITH = {"알림톡": "알림톡으로", "회사 문자": "회사 문자로"}
+_CHANNEL_WITH = {"알림톡": "알림톡으로", "회사 문자": "회사 문자로", "카톡 실패 → 문자": "카톡이 안 돼 문자로"}
+#: '상담 먼저' 카톡 실패 때 워커가 보낸 링크 문자(``SHARE_SMS.payload.source``) — 설계서 2026-10-21.
+_FALLBACK_SMS_LABEL = "카톡 실패 → 문자"
 _ERROR_LABELS = {
     "invalid_phone": "번호 오류", "auth": "인증 오류", "balance": "잔액 부족",
     "template_mismatch": "템플릿 오류", "length_exceeded": "길이 초과", "unknown": "알 수 없는 오류",
@@ -162,7 +164,8 @@ def _sends(events: list[Any], tokens: list[Any], info: RoundInfo,
                 if t_at is not None and abs(t_at - at) <= _LEGACY_PAIR_WINDOW:
                     ids.add(int(t.id))
         out.append(_Send(
-            channel=_CHANNEL_LABELS.get(ev.event_type, "알림톡"),
+            channel=(_FALLBACK_SMS_LABEL if payload.get("source") == "consult_fallback"
+                     else _CHANNEL_LABELS.get(ev.event_type, "알림톡")),
             status=str(payload.get("status") or ""),
             error=str(payload.get("error") or ""),
             at=at, this_round=this_round,

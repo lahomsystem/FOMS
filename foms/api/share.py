@@ -1638,11 +1638,13 @@ def api_share_send_alimtalk(share_id: int):
 
     # --- 동기 발송 — 알림톡 실패 시 Solapi failover 가 from_ 번호로 SMS 대체발송 ---
     error: Optional[str] = None
+    message_id: Optional[str] = None
     try:
-        # 상담 먼저 템플릿은 링크가 없어 문자 대체발송이 쓸모없다 — 끈다(설계서 Q4).
-        ka._solapi_send(to=to_phone, from_=from_phone, pf_id=pf_id,
-                        template_id=template_id, variables=variables,
-                        **({'disable_sms': True} if use_consult else {}))
+        # 상담 먼저 템플릿은 링크가 없어 문자 대체발송이 쓸모없다 — 끈다(설계서 Q4). 대신 워커가
+        # 이 message id 로 카톡 결과를 물어 실패면 링크 문자를 보낸다(설계서 2026-10-21).
+        message_id = ka._solapi_send(to=to_phone, from_=from_phone, pf_id=pf_id,
+                                     template_id=template_id, variables=variables,
+                                     **({'disable_sms': True} if use_consult else {}))
     except Exception as exc:  # 벤더/네트워크 실패 분류 — 조용한 실패 금지
         error = ka._classify_error(exc)
         logger.warning('공유 알림톡 발송 실패: share_id=%s source=%s error=%s (%s)',
@@ -1650,6 +1652,8 @@ def api_share_send_alimtalk(share_id: int):
 
     event.payload = {**(event.payload or {}), 'status': 'sent' if error is None else 'failed',
                      'error': error, 'sender_source': sender_source}
+    if use_consult and message_id:
+        event.payload['consult'] = {**event.payload['consult'], 'message_id': message_id}
     flag_modified(event, 'payload')
     outbox_row.status = 'DONE'
     outbox_row.completed_at = now_utc_naive()
