@@ -91,12 +91,63 @@
 
   // Navigation Timing: load 핸들러 실행 중 loadEventEnd 는 아직 0 인 브라우저가 있다.
   // (스펙상 load 이벤트 처리가 끝나야 loadEventEnd 가 채워짐) → setTimeout(0) 후 재측정.
+  // 느린 LOAD(3초 이상)에만 "무엇을 기다렸나" 분해를 싣는다 — 단계별 시간 + 오래 걸린 파일 3개.
+  // 사진 주소·서명·주문 번호를 남기지 않도록 우리 /static/ 만 경로, 나머지는 확장자만 보낸다.
+  // (docs/specs/2026-10-21-rum-slow-load-breakdown_SPEC.md)
+  var SLOW_LOAD_MS = 3000;
+  function clampMs(x) {
+    var v = Math.round(x || 0);
+    return v < 0 ? 0 : (v > 120000 ? 120000 : v);
+  }
+  function navBreakdown(nav) {
+    return {
+      dns: clampMs(nav.domainLookupEnd - nav.domainLookupStart),
+      conn: clampMs(nav.connectEnd - nav.connectStart),
+      ttfb: clampMs(nav.responseStart - nav.requestStart),
+      resp: clampMs(nav.responseEnd - nav.responseStart),
+      dcl: clampMs(nav.domContentLoadedEventEnd),
+      redir: clampMs(nav.redirectEnd - nav.redirectStart),
+    };
+  }
+  function slowResources() {
+    var entries = performance.getEntriesByType('resource').slice();
+    entries.sort(function (a, b) { return b.duration - a.duration; });
+    return entries.slice(0, 3).map(function (e) {
+      var u;
+      try { u = new URL(e.name); } catch (err) { u = null; }
+      var host = u ? u.hostname : 'unknown';
+      var path = '.none';
+      if (u && u.origin === window.location.origin && u.pathname.indexOf('/static/') === 0 && u.pathname.length <= 200) {
+        path = u.pathname;
+      } else if (u) {
+        var ext = u.pathname.match(/\.[A-Za-z0-9]{1,8}$/);
+        if (ext) { path = ext[0]; }
+      }
+      var kind = String(e.initiatorType || '').toLowerCase().replace(/[^a-z]/g, '').slice(0, 8) || 'other';
+      return {
+        h: /^[A-Za-z0-9.-]+$/.test(host) ? host : 'unknown',
+        p: path,
+        d: clampMs(e.duration),
+        s: clampMs(e.startTime),
+        c: (e.transferSize === 0 && e.decodedBodySize > 0) ? 1 : 0,
+        k: kind,
+      };
+    });
+  }
+
   function sendLoadMetric() {
     var nav = performance.getEntriesByType('navigation')[0];
     if (!nav) { return; }
     var value = Math.round(nav.loadEventEnd || nav.duration || 0);
     if (value <= 0) { return; }
-    sendMetric(Object.assign(basePayload(), { metric: 'LOAD', value: value }));
+    var payload = Object.assign(basePayload(), { metric: 'LOAD', value: value });
+    if (value >= SLOW_LOAD_MS) {
+      try {
+        payload.nav = navBreakdown(nav);
+        payload.slow = slowResources();
+      } catch (e) { /* 분해 실패 — 숫자만 보낸다 */ }
+    }
+    sendMetric(payload);
   }
   if (document.readyState === 'complete') {
     setTimeout(sendLoadMetric, 0);
