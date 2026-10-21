@@ -88,6 +88,7 @@
 3. **웹훅 암호화 키.** 운영 `web` 에 `CHANNEL_WEBHOOK_ENVELOPE_KEY`(hex, 32바이트 이상)가 **없다**(2026-10-20 확인). 없으면 웹훅이 모두 503 이다. 스테이징·운영에 넣는다.
 4. **워커.** `channeltalk_inbound` 작업은 RQ 워커(WORKER)가 처리한다. WORKER 의 `FOMS_BASE_URL` 이 그 환경 주소인지 확인한다(링크 주소가 이것으로 만들어진다. 비어 있으면 운영 주소).
 5. **채널톡 앱 설치·권한.** FOMS 앱이 **라홈 채널에도 설치**돼 있어야 그 채널 토큰을 받을 수 있다. 앱 설정에서 `writeUserChatMessage` 함수 권한도 켠다. 지금 앱은 하우드 채널에서 `writeGroupMessage` 만 써 왔다.
+5-1. **(선택) 받은편지함 이름표.** 채널마다 채널 설정 › 보안 및 개발 › API 에서 인증 키를 만들어 `CHANNEL_OPENAPI_KEY_{HAUD,LAHOM}`·`CHANNEL_OPENAPI_SECRET_{HAUD,LAHOM}` 에 넣으면, 링크를 보낸 뒤 고객 프로필 이름 = 주문 고객 이름, 상담 설명 = "주문 · 고객 · 담당" 을 적는다(`channel_client.label_user_chat`). 앱 함수에는 이름을 바꾸는 기능이 없어 Open API 를 쓴다. 키가 없으면 건너뛴다.
 6. **스테이징 시험.**
    - env `SOLAPI_TEMPLATE_SHARE_CONSULT_ID_{HAUD,LAHOM}` 를 넣는다.
    - CLAUDE-TEST 주문으로 사장님 폰에 1통 보낸다.

@@ -370,6 +370,11 @@ def handle_user_chat_message(session, payload: dict[str, Any],
                             f"{_order_url(order.id)}", channel_id)
         return "send_failed"
     manager = (order.manager_name or "").strip() or "미지정"
+    # 받은편지함에 누구인지 보이게 — 고객 이름과 "주문 · 고객 · 담당"(Open API 키가 있을 때만).
+    channel_client.label_user_chat(
+        ka.resolve_brand(order.structured_data or {}), user_chat_id=user_chat_id,
+        user_id=str(entity.get("personId") or ""), customer_name=_customer_name(order),
+        description=f"주문 {order.id} · {_customer_name(order)} · 담당 {manager}")
     sent_label = "·".join(DOC_LABELS[kind] for kind, row, _t in links if row in sent_rows)
     tail = "" if status == "sent" else " 나머지는 쓰지 못했어요 — 담당자가 직접 보내 주세요."
     _note(user_chat_id, f"[FOMS 자동] 주문 {order.id} · 담당 {manager}\n"
