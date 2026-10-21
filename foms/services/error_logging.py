@@ -80,7 +80,12 @@ class RedactionFilter(logging.Filter):
 
 
 def install_protected_logging(app: Any) -> None:
-    """Attach the redaction filter to the app, root, and error loggers.
+    """Attach the redaction filter to the app, root, error, and gunicorn loggers.
+
+    ``gunicorn.access`` / ``gunicorn.error`` carry their own handlers and do not
+    propagate to root, so they need the filter directly — otherwise query-string
+    secrets (e.g. the Channel Talk webhook ``?token=``) land in the access log
+    verbatim. A logger-level filter survives gunicorn's handler re-setup.
 
     Idempotent: safe to call on every app build / handler re-registration.
 
@@ -95,6 +100,8 @@ def install_protected_logging(app: Any) -> None:
     _ensure(app.logger)
     _ensure(logging.getLogger())  # root: covers third-party + module loggers
     _ensure(_logger)
+    _ensure(logging.getLogger("gunicorn.access"))
+    _ensure(logging.getLogger("gunicorn.error"))
 
 
 def log_handled_exception(context: str = "") -> None:
