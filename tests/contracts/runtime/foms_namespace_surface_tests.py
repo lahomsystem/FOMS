@@ -491,6 +491,7 @@ def test_namespaced_channel_client_shim_preserves_canonical_contract() -> None:
         "build_channel_bot_name",
         "send_group_message",
         "send_user_chat_message",
+        "send_user_chat_buttons",
         "label_user_chat",
     ]
 

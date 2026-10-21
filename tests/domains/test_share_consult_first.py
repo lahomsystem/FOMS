@@ -94,8 +94,11 @@ def ata_stub(monkeypatch):
 
 @pytest.fixture
 def chat_stub(monkeypatch):
-    """채널톡 상담 쓰기 스텁 — 보낸 글을 모은다. ``fail`` 을 켜면 공개 메시지가 실패한다."""
-    state = {'sent': [], 'fail': False, 'fail_from': None}
+    """채널톡 상담 쓰기 스텁 — 보낸 글을 모은다. ``fail`` 을 켜면 공개 메시지가 실패한다.
+
+    ``buttons`` 가 ``None`` 이면 Open API 키가 없는 것처럼(버튼 꺼짐), 리스트면 버튼 글을 모은다.
+    """
+    state = {'sent': [], 'fail': False, 'fail_from': None, 'buttons': None, 'buttons_fail': False}
 
     def _fake(user_chat_id, plain_text, *, bot_name='FOMS', private=False, channel_id=''):
         state['sent'].append({'chat': user_chat_id, 'text': plain_text, 'private': private,
@@ -106,7 +109,17 @@ def chat_stub(monkeypatch):
             return {'success': False, 'message_id': None, 'error': 'provider_error'}
         return {'success': True, 'message_id': f"m{len(state['sent'])}", 'error': None}
 
+    def _fake_buttons(brand, user_chat_id, plain_text, buttons, *, bot_name='FOMS'):
+        if state['buttons'] is None:
+            return {'success': False, 'message_id': None, 'error': 'not_configured'}
+        state['buttons'].append({'brand': brand, 'chat': user_chat_id, 'text': plain_text,
+                                 'buttons': list(buttons)})
+        if state['buttons_fail']:
+            return {'success': False, 'message_id': None, 'error': 'http_422'}
+        return {'success': True, 'message_id': f"b{len(state['buttons'])}", 'error': None}
+
     monkeypatch.setattr(channel_client, 'send_user_chat_message', _fake)
+    monkeypatch.setattr(channel_client, 'send_user_chat_buttons', _fake_buttons)
     return state
 
 
@@ -463,3 +476,91 @@ def test_label_user_chat_not_configured_and_calls(monkeypatch):
                                           description='주문 1 · 홍길동 · 담당 이시영')['success'] is True
     assert calls == [('https://api.channel.io/open/users/u1', {'profile': {'name': '홍길동'}}, 'k'),
                      ('https://api.channel.io/open/user-chats/c1', {'description': '주문 1 · 홍길동 · 담당 이시영'}, 'k')]
+
+
+# --- 버튼으로 보내기(Open API, 2026-10-21 카카오 실폰에서 버튼 확인) ----------------
+
+
+def test_delivers_buttons_when_open_api_configured(app, chat_stub):
+    """키가 있으면 링크는 글이 아니라 버튼으로 간다 — 한 통에 [도면 보기][계약서 보기]."""
+    chat_stub['buttons'] = []
+    order = _mk_order()
+    _request_event(order.id)
+
+    assert sc.handle_user_chat_message(db_session, _message(order.id)) == 'delivered'
+    assert [m for m in chat_stub['sent'] if not m['private']] == []
+    (sent,) = chat_stub['buttons']
+    assert sent['chat'] == 'uc-1' and sent['brand'] == 'HAUD'
+    assert [title for title, _url in sent['buttons']] == ['도면 보기', '계약서 보기']
+    assert all('/s/' in url for _title, url in sent['buttons'])
+    assert '/s/' not in sent['text'] and '이 대화방에' in sent['text']
+
+
+def test_split_buttons_one_per_message(app, chat_stub):
+    chat_stub['buttons'] = []
+    order = _mk_order()
+    _request_event(order.id, split=True)
+
+    assert sc.handle_user_chat_message(db_session, _message(order.id)) == 'delivered'
+    assert [[t for t, _u in m['buttons']] for m in chat_stub['buttons']] == [['도면 보기'], ['계약서 보기']]
+    assert '이 대화방에' not in chat_stub['buttons'][0]['text']
+    assert '이 대화방에' in chat_stub['buttons'][1]['text']
+
+
+def test_button_failure_falls_back_to_link_text(app, chat_stub):
+    """버튼 쓰기가 실패하면 같은 링크를 글 속 링크로 다시 보낸다(고객이 빈손이 되지 않게)."""
+    chat_stub['buttons'] = []
+    chat_stub['buttons_fail'] = True
+    order = _mk_order()
+    _request_event(order.id)
+
+    assert sc.handle_user_chat_message(db_session, _message(order.id)) == 'delivered'
+    public = [m for m in chat_stub['sent'] if not m['private']]
+    assert len(public) == 1 and public[0]['text'].count('/s/') == 2
+    assert public[0]['channel'] == 'ch-lahom'
+
+
+def test_send_user_chat_buttons_payload(monkeypatch):
+    monkeypatch.delenv('CHANNEL_OPENAPI_KEY_HAUD', raising=False)
+    monkeypatch.delenv('CHANNEL_OPENAPI_SECRET_HAUD', raising=False)
+    assert channel_client.send_user_chat_buttons('HAUD', 'c', '글', [('도면 보기', 'https://x/s/1')]) \
+        == {'success': False, 'message_id': None, 'error': 'not_configured'}
+
+    monkeypatch.setenv('CHANNEL_OPENAPI_KEY_HAUD', 'k')
+    monkeypatch.setenv('CHANNEL_OPENAPI_SECRET_HAUD', 's')
+    calls = []
+
+    class _Resp:
+        status_code = 200
+
+        @staticmethod
+        def json():
+            return {'message': {'id': 'msg-9'}}
+
+    def _post(url, *, params, json, headers, timeout):
+        calls.append({'url': url, 'params': params, 'json': json, 'headers': headers})
+        return _Resp()
+
+    monkeypatch.setattr(channel_client.requests, 'post', _post)
+    result = channel_client.send_user_chat_buttons(
+        'HAUD', 'uc-7', '고객님 문서입니다', [('도면 보기', 'https://x/s/1'), ('계약서 보기', 'https://x/s/2'),
+                                         ('넘침', 'https://x/s/3')], bot_name='FOMS')
+
+    assert result == {'success': True, 'message_id': 'msg-9', 'error': None}
+    (call,) = calls
+    assert call['url'] == 'https://api.channel.io/open/user-chats/uc-7/messages'
+    assert call['params'] == {'botName': 'FOMS'}
+    assert call['headers']['x-access-key'] == 'k'
+    assert call['json']['plainText'] == '고객님 문서입니다'
+    assert call['json']['buttons'] == [
+        {'title': '도면 보기', 'colorVariant': 'cobalt',
+         'action': {'type': 'web', 'attributes': {'url': 'https://x/s/1'}}},
+        {'title': '계약서 보기', 'colorVariant': 'cobalt',
+         'action': {'type': 'web', 'attributes': {'url': 'https://x/s/2'}}},
+    ]
+
+    class _Bad:
+        status_code = 422
+
+    monkeypatch.setattr(channel_client.requests, 'post', lambda *a, **k: _Bad())
+    assert channel_client.send_user_chat_buttons('HAUD', 'uc-7', '글', [('a', 'b')])['error'] == 'http_422'
