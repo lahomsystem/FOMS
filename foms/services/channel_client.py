@@ -38,6 +38,7 @@ __all__ = [
     "build_channel_bot_name",
     "send_group_message",
     "send_user_chat_message",
+    "label_user_chat",
 ]
 
 _BOT_NAME_PREFIX = "FOMS"
@@ -337,6 +338,68 @@ def send_user_chat_message(
         return {"success": False, "message_id": None, "error": "provider_error"}
     message_id = ((data.get("result") or {}).get("message") or {}).get("id")
     return {"success": True, "message_id": message_id, "error": None}
+
+
+#: 채널톡 Open API(앱 함수에는 고객·상담 이름을 바꾸는 기능이 없다). 키는 채널마다 따로다.
+_OPEN_API_BASE = "https://api.channel.io"
+_OPEN_API_VERSION = "2026-06-01"
+
+
+def _open_api_headers(brand: str) -> dict[str, str] | None:
+    """브랜드 채널의 Open API 인증 헤더. 키가 없으면 ``None``(이름표 기능 꺼짐)."""
+    key = os.environ.get(f"CHANNEL_OPENAPI_KEY_{brand}", "").strip()
+    secret = os.environ.get(f"CHANNEL_OPENAPI_SECRET_{brand}", "").strip()
+    if not (key and secret):
+        return None
+    return {"x-access-key": key, "x-access-secret": secret,
+            "Channel-Version": _OPEN_API_VERSION, "Content-Type": "application/json"}
+
+
+def label_user_chat(
+    brand: str,
+    *,
+    user_chat_id: str,
+    user_id: str,
+    customer_name: str,
+    description: str,
+) -> dict[str, Any]:
+    """
+    Name the customer and describe the user chat so the inbox shows who it is.
+
+    카카오 상담톡 고객은 채널톡 받은편지함에 이름 없이 뜬다. 고객 프로필 이름을 주문의
+    고객 이름으로, 상담 설명을 "주문 · 고객 · 담당"으로 적는다. 실패해도 링크 발송은 이미
+    끝났으므로 예외 없이 결과만 돌려준다.
+
+    Args:
+        brand: ``LAHOM``/``HAUD`` — 어느 채널 키를 쓸지.
+        user_chat_id: 채널톡 userChat id.
+        user_id: 채널톡 user id(웹훅 ``entity.personId``).
+        customer_name: 고객 이름.
+        description: 상담 설명(1000자 이하).
+
+    Returns:
+        ``{'success': bool, 'error': str | None}``.
+    """
+    headers = _open_api_headers(brand)
+    if headers is None:
+        return {"success": False, "error": "not_configured"}
+    calls = []
+    if user_id and customer_name:
+        calls.append((f"{_OPEN_API_BASE}/open/users/{user_id}", {"profile": {"name": customer_name}}))
+    if user_chat_id and description:
+        calls.append((f"{_OPEN_API_BASE}/open/user-chats/{user_chat_id}",
+                      {"description": description[:1000]}))
+    error = None
+    for url, body in calls:
+        try:
+            resp = requests.patch(url, json=body, headers=headers, timeout=10)
+            if resp.status_code >= 400:
+                logger.warning("[채널톡] 이름표 실패 %s status=%s", url.rsplit("/", 2)[-2], resp.status_code)
+                error = f"http_{resp.status_code}"
+        except Exception as exc:
+            logger.warning("[채널톡] 이름표 요청 실패: %s", exc)
+            error = "request_failed"
+    return {"success": error is None, "error": error}
 
 
 def send_group_message(

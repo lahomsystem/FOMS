@@ -491,6 +491,7 @@ def test_namespaced_channel_client_shim_preserves_canonical_contract() -> None:
         "build_channel_bot_name",
         "send_group_message",
         "send_user_chat_message",
+        "label_user_chat",
     ]
 
     assert namespaced_channel_client.__all__ == expected_public_names

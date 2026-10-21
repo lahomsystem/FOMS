@@ -128,7 +128,7 @@ def _request_event(order_id, *, kind='bundle', split=False, code='ABC234',
 def _message(order_id, code='ABC234', *, person='user', chat_type='userChat'):
     return {'type': 'message', 'entity': {
         'chatType': chat_type, 'chatId': 'uc-1', 'personType': person, 'id': 'msg-1',
-        'channelId': 'ch-lahom',
+        'channelId': 'ch-lahom', 'personId': 'u-9',
         'plainText': f"문서 받기\n[하우드] 도면·계약서 준비 완료\n임다슬 고객님, 안녕하세요.\n"
                      f"■ 주문번호: {order_id}\n■ 확인코드: {code}\n■ 담당: 박민수 010-1234-5678"}}
 
@@ -430,3 +430,36 @@ def test_send_user_chat_message_uses_given_channel(monkeypatch):
 
     assert seen['channel'] == 'ch-lahom'
     assert seen['payload']['params']['channelId'] == 'ch-lahom'
+
+
+def test_delivery_labels_chat_with_customer_and_manager(app, chat_stub, monkeypatch):
+    """받은편지함에 누구인지 보이게 — 고객 이름과 '주문 · 고객 · 담당' 을 적는다."""
+    seen = []
+    monkeypatch.setattr(channel_client, 'label_user_chat',
+                        lambda brand, **kw: seen.append((brand, kw)) or {'success': True, 'error': None})
+    order = _mk_order()
+    _request_event(order.id)
+
+    assert sc.handle_user_chat_message(db_session, _message(order.id)) == 'delivered'
+    assert seen == [('HAUD', {'user_chat_id': 'uc-1', 'user_id': 'u-9', 'customer_name': '임다슬',
+                              'description': f'주문 {order.id} · 임다슬 · 담당 박민수'})]
+
+
+def test_label_user_chat_not_configured_and_calls(monkeypatch):
+    for k in ('CHANNEL_OPENAPI_KEY_HAUD', 'CHANNEL_OPENAPI_SECRET_HAUD'):
+        monkeypatch.delenv(k, raising=False)
+    assert channel_client.label_user_chat('HAUD', user_chat_id='c', user_id='u', customer_name='홍',
+                                          description='d') == {'success': False, 'error': 'not_configured'}
+    monkeypatch.setenv('CHANNEL_OPENAPI_KEY_HAUD', 'k')
+    monkeypatch.setenv('CHANNEL_OPENAPI_SECRET_HAUD', 's')
+    calls = []
+
+    class _Resp:
+        status_code = 200
+
+    monkeypatch.setattr(channel_client.requests, 'patch',
+                        lambda url, json, headers, timeout: calls.append((url, json, headers['x-access-key'])) or _Resp())
+    assert channel_client.label_user_chat('HAUD', user_chat_id='c1', user_id='u1', customer_name='홍길동',
+                                          description='주문 1 · 홍길동 · 담당 이시영')['success'] is True
+    assert calls == [('https://api.channel.io/open/users/u1', {'profile': {'name': '홍길동'}}, 'k'),
+                     ('https://api.channel.io/open/user-chats/c1', {'description': '주문 1 · 홍길동 · 담당 이시영'}, 'k')]
