@@ -100,7 +100,7 @@ def _supervisor(mod, h, defer):
 # --- 배선 ---------------------------------------------------------------------------------
 def test_every_loop_is_deferred_and_the_queue_consumer_is_not() -> None:
     listed = jobs(all_enabled=True)
-    assert len(listed) == 6, [j.name for j in listed]
+    assert len(listed) == 7, [j.name for j in listed]
     assert [j.name for j in listed if not j.deferred] == ["rq_worker"]
     assert load_supervisor().Job("x", ("python", "x.py")).deferred is False  # 음성 대조: 기본은 안 미룸
 

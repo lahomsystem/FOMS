@@ -178,7 +178,7 @@ def test_enable_flags_select_the_jobs(env, expected) -> None:
 def test_all_loops_can_be_enabled_and_queue_consumer_is_last() -> None:
     names = [job.name for job in jobs(all_enabled=True)]
     assert names[-1] == "rq_worker"
-    assert len(names) == 6, names
+    assert len(names) == 7, names
 
 
 def test_print_jobs_redacts_the_redis_url(capsys, monkeypatch) -> None:
