@@ -32,7 +32,7 @@
             <div class="col-12">{{ address_field('', 'ppAddress') }}</div>
             <div class="col-6 col-md-3">{{ date_field('실측일', 'measured_on', '', 'ppMeasuredOn') }}</div>
             <div class="col-6 col-md-3">{{ time_field('실측시간', 'measured_time', '', 'ppMeasuredTime') }}</div>
-            <div class="col-6 col-md-3">{{ date_field('희망 시공일', 'requested_construction_date', '', 'ppRequestDate') }}</div>
+            <div class="col-6 col-md-3">{{ date_field('희망 시공일', 'requested_construction_date', '', 'ppRequestDate', counts=True) }}</div>
             <div class="col-6 col-md-3">{{ time_field('희망 시공시간', 'requested_construction_time', '', 'ppRequestTime') }}</div>
             <div class="col-12 small text-muted">희망 시공일은 저희 출고 담당자와 이야기한 뒤 확정됩니다.</div>
         </div>

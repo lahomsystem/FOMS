@@ -388,3 +388,19 @@ body.pp-sheet-open { overflow: hidden; }
   .pp-tile { max-width: 100%; flex: 1 1 100%; }
   .pp-tile__name { max-width: none; }
 }
+
+/* 18-2 시공 달력 — 우리 모바일 홈 달력 칸(foms-tower__cal-*). PC 는 칸에 건수만, 금액은 위 줄 합계. 휴대폰은 칸마다 금액. */
+.pp-cal-wrap { margin-bottom: 16px; }
+.pp-cal .foms-tower__cal-arrow.is-off { opacity: 0.35; }
+.pp-cal .foms-tower__cal-cell { cursor: default; }
+@media (min-width: 992px) {
+  .pp-cal .pp-cal__amt, .pp-cal .pp-cal__amt-legend { display: none; }
+  .pp-cal-wrap { max-width: 720px; }
+}
+@media (max-width: 991.98px) {
+  .pp-main--list .pp-cal-wrap { margin: 12px; }
+}
+/* 희망 시공일 고르기(flatpickr) 칸의 그날 시공 건수 · 내 회사 출고가. */
+.flatpickr-day { position: relative; }
+.flatpickr-day .pp-fp-count { position: absolute; left: 0; right: 0; bottom: 1px; font-size: 9px; line-height: 1; color: var(--pp-primary); white-space: nowrap; overflow: hidden; pointer-events: none; }
+.flatpickr-day.selected .pp-fp-count { color: #fff; }

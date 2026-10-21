@@ -64,10 +64,46 @@
     if (manual) manual.addEventListener('change', apply);
   }
 
+  /** 희망 시공일 달력: 칸마다 그날 저희 전체 시공 건수 · 내 회사 출고가(/api/partner/construction-calendar). */
+  function countsOptions(url) {
+    var days = {};
+    var loaded = {};
+    function load(fp) {
+      var month = fp.currentYear + '-' + String(fp.currentMonth + 1).padStart(2, '0');
+      if (loaded[month]) return;
+      loaded[month] = true;
+      fetch(url + '?month=' + month, { credentials: 'same-origin' })
+        .then(function (resp) { return resp.json(); })
+        .then(function (data) {
+          if (!data || !data.success) return;
+          Object.assign(days, data.data.days || {});
+          fp.redraw();
+        })
+        .catch(function () { loaded[month] = false; });
+    }
+    return {
+      onReady: function (_d, _s, fp) { load(fp); },
+      onOpen: function (_d, _s, fp) { load(fp); },
+      onMonthChange: function (_d, _s, fp) { load(fp); },
+      onYearChange: function (_d, _s, fp) { load(fp); },
+      onDayCreate: function (_d, _s, fp, el) {
+        var info = days[fp.formatDate(el.dateObj, 'Y-m-d')];
+        if (!info || (!info.count && !info.amount)) return;
+        var tag = document.createElement('span');
+        tag.className = 'pp-fp-count';
+        tag.textContent = (info.count ? info.count + '건' : '') + (info.amount ? ' ' + info.amount : '');
+        el.appendChild(tag);
+      }
+    };
+  }
+
   function bindDate(input) {
     if (typeof window.flatpickr !== 'function') return;
     var locale = window.flatpickr.l10ns && window.flatpickr.l10ns.ko ? 'ko' : 'default';
-    var picker = window.flatpickr(input, { dateFormat: 'Y-m-d', allowInput: true, disableMobile: true, locale: locale });
+    var options = { dateFormat: 'Y-m-d', allowInput: true, disableMobile: true, locale: locale };
+    var countsUrl = input.getAttribute('data-pp-date-counts');
+    if (countsUrl) Object.assign(options, countsOptions(countsUrl));
+    var picker = window.flatpickr(input, options);
     var opener = document.querySelector('[data-pp-date-open="' + input.id + '"]');
     if (opener) opener.addEventListener('click', function () { picker.open(); });
   }
