@@ -367,16 +367,14 @@ def send_user_chat_buttons(
     """
     Write a customer-visible message with link buttons into a user chat (Open API).
 
-    앱 함수(writeUserChatMessage)는 버튼을 422 로 거절했지만, Open API 로 공식 형식
-    (``action={type: web, attributes: {url}}``)을 보내면 카카오 상담톡에도 버튼으로 간다
-    (2026-10-21 실폰 확인). 한 글에 버튼은 2개까지다. 키가 없으면 ``not_configured`` —
-    호출자는 글 속 링크(:func:`send_user_chat_message`)로 대신 보낸다.
+    앱 함수는 버튼을 422 로 거절했지만 Open API 공식 형식으로 보내면 카카오 상담톡에도 버튼으로
+    간다(2026-10-21 실폰 확인). 키가 없으면 ``not_configured`` — 호출자가 글 속 링크로 보낸다.
 
     Args:
         brand: ``LAHOM``/``HAUD`` — 어느 채널 키를 쓸지.
         user_chat_id: 채널톡 userChat id.
         plain_text: 버튼 위에 보일 글.
-        buttons: ``[(버튼 이름, 열 주소), ...]`` 최대 2개.
+        buttons: ``[(버튼 이름, 열 주소), ...]`` — 한 글에 2개까지.
         bot_name: 보낸 이로 보일 봇 이름.
 
     Returns:
@@ -403,10 +401,9 @@ def send_user_chat_buttons(
         logger.error("[채널톡] 버튼 메시지 실패 (chat=%s) status=%s", user_chat_id, resp.status_code)
         return {"success": False, "message_id": None, "error": f"http_{resp.status_code}"}
     try:
-        message_id = (resp.json().get("message") or {}).get("id")
+        return {"success": True, "message_id": (resp.json().get("message") or {}).get("id"), "error": None}
     except ValueError:
-        message_id = None
-    return {"success": True, "message_id": message_id, "error": None}
+        return {"success": True, "message_id": None, "error": None}
 
 
 def label_user_chat(
