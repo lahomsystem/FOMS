@@ -60,7 +60,7 @@
                 <div class="small fw-semibold text-muted">{{ it.product_name or '이 제품' }} 실측 사진{% if editable %} (보낸 것){% endif %}</div>
                 {% if photos %}
                 <div class="d-flex flex-wrap gap-1 mt-2">
-                    {% for p in photos %}<a class="pp-thumb" href="{{ p.url }}" target="_blank" rel="noopener">{% if p.is_image %}<img src="{{ p.thumb_url }}" alt="{{ p.filename }}" loading="lazy">{% else %}{{ p.filename }}{% endif %}</a>{% endfor %}
+                    {% for p in photos %}<span class="pp-sent"><a class="pp-thumb" href="{{ p.url }}" target="_blank" rel="noopener">{% if p.is_image %}<img src="{{ p.thumb_url }}" alt="{{ p.filename }}" loading="lazy">{% else %}{{ p.filename }}{% endif %}</a>{% if editable and p.linkable and p.id %}<button type="button" class="btn btn-sm btn-outline-secondary pp-sent__unlink" data-pp-att-unlink="{{ p.id }}" title="공통으로 이동" aria-label="{{ p.filename }} 공통으로 이동"><i class="fas fa-unlink"></i></button>{% endif %}</span>{% endfor %}
                 </div>
                 {% elif not editable %}<div class="small text-muted mt-1">이 제품에 붙인 사진이 없습니다.</div>{% endif %}
             </div>{% endif %}
