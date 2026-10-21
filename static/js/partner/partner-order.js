@@ -110,12 +110,12 @@
       show('저장하는 중…');
       try {
         await putJson(box.getAttribute('data-pp-info-url'), body);
+        // 새로고침하지 않는다 — 품목 칸에 고르고 아직 안 보낸 사진 · 고친 품목이 사라지지 않게. 칸에는 이미 새 값이 있다.
         show('저장했습니다.');
-        window.location.reload();
       } catch (err) {
         show(err.message, true);
-        button.disabled = false;
       }
+      button.disabled = false;
     });
   }
 
