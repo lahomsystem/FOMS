@@ -62,6 +62,8 @@
 
 링크 글은 버튼이 아니라 본문에 주소를 넣는다. 카카오 상담톡에서 채널톡 메시지 버튼이 어떻게 보이는지 문서에 없어서다(카톡은 글 속 주소를 누를 수 있다).
 
+2026-10-21 바꿈: 링크는 **버튼**([도면 보기]·[계약서 보기])으로 보낸다. 앱 함수 `writeUserChatMessage` 는 버튼을 422 로 거절했지만, Open API `POST /open/user-chats/{id}/messages` 에 공식 형식(`action={type: web, attributes: {url}}`, 한 글에 2개까지)으로 보내면 카카오 상담톡에도 버튼으로 간다(하우드 실폰 확인). `channel_client.send_user_chat_buttons` 가 쓰고, Open API 키(§5-1)가 없거나 쓰기가 실패하면 예전처럼 글 속 링크로 보낸다(`share_consult._send_link_message`). 따로따로면 글마다 버튼 하나, 한 번에면 버튼 둘.
+
 ## 4. 테스트
 
 - `tests/domains/test_share_consult_first.py` 23개를 새로 만들었다(검토 반영 3개 포함: 일부만 간 경우, 직원 회수, 메모 문구).
