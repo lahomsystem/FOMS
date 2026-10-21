@@ -92,6 +92,8 @@ def test_projection_keys_are_an_allowlist(app, world):
         "manager_user_id", "manager_name", "manager_phone", "stage_code", "stage_label", "steps", "address",
         "address_note", "measured_on", "measurement_note", "construction_date", "construction_time", "memo",
         "submitted_at", "items", "items_editable",
+        # §18: 실측시간 · 희망 시공일(원문 사본) · 희망 시공일을 고칠 수 있는가
+        "measured_time", "requested_date", "requested_time", "request_editable",
     }
     assert set(view["items"][0]) <= {"product_name", "spec_rows", "quantity", "internal", "color", "option_detail",
                                       "handle", "misc", "extra_input", "uid"}

@@ -41,6 +41,7 @@ PARTNER_ALLOWED_ENDPOINTS: frozenset[str] = frozenset({
     "partner_api.register_as",
     "partner_api.change_manager",
     "partner_api.update_items",
+    "partner_api.update_info",
     "partner_api.update_my_phone",
     # PARTNER-FOMS 5-1: 새 주문 "주소 찾기" — 우리 서버의 카카오 주소 검색(읽기만, 주문 데이터 없음).
     "address.search",

@@ -14,6 +14,7 @@ from typing import Any
 
 from foms.services.partners.items_edit import ITEMS_EDIT_STAGES, PARTNER_ITEM_KEYS
 from foms.services.partners.orders import partner_stage_label
+from foms.services.partners.schedule_request import request_open
 from models import Order
 
 # 진행 칸(쉬운 단계). 내부 단계 코드 → 칸 번호. AS 는 "완료" 칸에 둔다(AS 진행은 완공 사진 탭이 보여 준다).
@@ -86,6 +87,9 @@ def build_partner_order_view(order: Order) -> dict[str, Any]:
         "address": _text(site.get("address_full")) or _text(order.address),
         "address_note": _text(notes.get("address_note")),
         "measured_on": _text(intake.get("measured_on")),
+        "measured_time": _text(intake.get("measured_time")),
+        "requested_date": _text(_dict(intake.get("requested_construction")).get("date")),
+        "requested_time": _text(_dict(intake.get("requested_construction")).get("time")),
         "measurement_note": _text(notes.get("measurement_note")),
         "construction_date": _text(construction.get("date")) or _text(order.erp_construction_date),
         "construction_time": _text(construction.get("time")),
@@ -93,4 +97,6 @@ def build_partner_order_view(order: Order) -> dict[str, Any]:
         "submitted_at": _text(intake.get("submitted_at"))[:16].replace("T", " "),
         "items": _items(sd),
         "items_editable": stage in ITEMS_EDIT_STAGES,
+        # 희망 시공일은 우리가 시공일을 정하기 전까지 고친다(§18).
+        "request_editable": request_open(sd, stage),
     }

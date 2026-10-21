@@ -1,0 +1,11 @@
+{# PARTNER-FOMS 18-1: 협력사 주문의 희망 시공일(partner_intake.requested_construction) — 출고 담당자가 협력사와
+   이야기한 뒤 시공일을 정하도록 시공일 칸 아래 한 줄로만 보인다. 협력사 주문이 아니거나 희망일이 없으면 아무것도 그리지 않는다. #}
+{% if order is defined and order and order.partner_org_id %}
+{% set _pp_intake = (order.structured_data or {}).get('partner_intake') %}
+{% set _pp_req = _pp_intake.get('requested_construction') if _pp_intake is mapping else none %}
+{% if _pp_req is mapping and (_pp_req.get('date') or _pp_req.get('time')) %}
+<div class="small text-primary mt-1 erp-partner-requested-construction" data-erp-partner-requested-construction>
+    <i class="fas fa-handshake" aria-hidden="true"></i> 협력사 희망: {{ _pp_req.get('date') or '' }} {{ _pp_req.get('time') or '' }}
+</div>
+{% endif %}
+{% endif %}

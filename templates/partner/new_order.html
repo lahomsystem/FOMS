@@ -4,10 +4,12 @@
 {% from "partner/partials/item_card.html" import pp_item_templates %}
 {% from "partner/partials/items_rail.html" import items_rail %}
 {% from "partner/partials/photo_zone.html" import photo_zone %}
+{% from "partner/partials/info_fields.html" import phone_field, address_field, date_field, time_field %}
 {% block title %}새 주문 등록{% endblock %}
 {% block styles %}<link rel="stylesheet" href="{{ asset_url('css/orders/erp-items-master-detail.css') }}">
 {% if product_names %}<link rel="stylesheet" href="{{ asset_url('css/wdcalculator/category-picker.css') }}">
-<link rel="stylesheet" href="{{ asset_url('css/orders/erp-spec-calc.css') }}">{% endif %}{% endblock %}
+<link rel="stylesheet" href="{{ asset_url('css/orders/erp-spec-calc.css') }}">{% endif %}
+{% include "partner/partials/flatpickr_head.html" %}{% endblock %}
 {% block main_class %}pp-main--wide{% endblock %}
 {% block mobile_title %}새 주문{% endblock %}
 {% block mobile_back %}{{ url_for('partner_portal.home') }}{% endblock %}
@@ -26,21 +28,13 @@
                 <label class="form-label mb-1" for="ppCustomerName">고객명 *</label>
                 <input id="ppCustomerName" class="form-control form-control-sm" name="customer_name" maxlength="50" required autocomplete="off">
             </div>
-            <div class="col-md-6">
-                <label class="form-label mb-1" for="ppCustomerPhone">연락처 *</label>
-                <input id="ppCustomerPhone" class="form-control form-control-sm" name="customer_phone" maxlength="30" inputmode="tel" required autocomplete="off">
-            </div>
-            <div class="col-12">
-                <div class="d-flex align-items-center gap-2 mb-1">
-                    <label class="form-label mb-0" for="ppAddress">주소 *</label>
-                    <button class="btn btn-outline-primary btn-sm" type="button" data-pp-sheet-open="ppAddressModal"><i class="fas fa-search"></i> 찾기</button>
-                </div>
-                <input id="ppAddress" class="form-control form-control-sm" name="address" maxlength="300" required placeholder="주소를 입력하거나 찾기 버튼을 누르세요" autocomplete="off">
-            </div>
-            <div class="col-md-3">
-                <label class="form-label mb-1" for="ppMeasuredOn">실측일</label>
-                <input id="ppMeasuredOn" class="form-control form-control-sm" name="measured_on" type="date">
-            </div>
+            <div class="col-md-6">{{ phone_field('', 'ppCustomerPhone') }}</div>
+            <div class="col-12">{{ address_field('', 'ppAddress') }}</div>
+            <div class="col-6 col-md-3">{{ date_field('실측일', 'measured_on', '', 'ppMeasuredOn') }}</div>
+            <div class="col-6 col-md-3">{{ time_field('실측시간', 'measured_time', '', 'ppMeasuredTime') }}</div>
+            <div class="col-6 col-md-3">{{ date_field('희망 시공일', 'requested_construction_date', '', 'ppRequestDate') }}</div>
+            <div class="col-6 col-md-3">{{ time_field('희망 시공시간', 'requested_construction_time', '', 'ppRequestTime') }}</div>
+            <div class="col-12 small text-muted">희망 시공일은 저희 출고 담당자와 이야기한 뒤 확정됩니다.</div>
         </div>
         <hr class="my-3">
         <div class="fw-bold mb-2"><i class="fas fa-box"></i> 제품 항목(1..n) <span class="small text-muted fw-normal">치수 단위 mm</span></div>
@@ -73,5 +67,6 @@
 <script src="{{ asset_url('js/partner/partner-items.js') }}" defer></script>
 <script src="{{ asset_url('js/partner/partner-items-rail.js') }}" defer></script>
 <script src="{{ asset_url('js/partner/partner-photo-stage.js') }}" defer></script>
+{% include "partner/partials/flatpickr_scripts.html" %}
 <script src="{{ asset_url('js/partner/partner-order-entry.js') }}" defer></script>
 {% endblock %}

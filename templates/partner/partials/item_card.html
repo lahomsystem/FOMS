@@ -45,7 +45,7 @@
                     {% for key, label in [('internal', '내부'), ('color', '색상'), ('option_detail', '옵션'), ('handle', '손잡이'), ('misc', '기타·설치')] %}
                     <div class="erp-preset-row">
                         <span class="erp-preset-row__label">{{ label }}</span>
-                        <div class="erp-preset-row__value"><input class="form-control form-control-sm" data-k="{{ key }}" maxlength="500" value="{{ it[key] or '' }}"{% if editable %} placeholder="{{ '설치 위치 · 몰딩 · 콘센트 등' if key == 'misc' else '모르면 상담' }}"{% else %} readonly{% endif %}></div>
+                        <div class="erp-preset-row__value"><input class="form-control form-control-sm" data-k="{{ key }}" maxlength="500" value="{{ it[key] or ('상담' if editable else '') }}"{% if editable %} placeholder="{{ '설치 위치 · 몰딩 · 콘센트 등' if key == 'misc' else '모르면 상담' }}"{% else %} readonly{% endif %}></div>
                     </div>
                     {% endfor %}
                 </div>

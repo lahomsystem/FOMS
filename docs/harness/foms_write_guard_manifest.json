@@ -814,6 +814,10 @@
       "mode": "guard",
       "rule": "/api/partner/orders/<int:order_id>/revision"
     },
+    "partner_api.update_info": {
+      "mode": "guard",
+      "rule": "/api/partner/orders/<int:order_id>/info"
+    },
     "partner_api.update_items": {
       "mode": "guard",
       "rule": "/api/partner/orders/<int:order_id>/items"
