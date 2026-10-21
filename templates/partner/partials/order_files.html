@@ -1,12 +1,35 @@
-{# 공통 첨부 — 우리 첨부 갤러리(실측 · 도면 · 시공 · AS) 자리. 협력사가 보낸 것 · 최종 도면만(§3.3). #}
+{# 공통 첨부 — 우리 첨부 갤러리(실측 · 도면 · 시공 · AS) 자리. 협력사가 보낸 것 · 최종 도면만(§3.3).
+   접수 확인 중(5-3): 우리 사진 칸으로 더 보내고, 보낸 공통 실측 사진은 "제품 연결"로 제품에 붙인다(partner_api.link_attachment). #}
+{% from "partner/partials/photo_zone.html" import photo_zone %}
 <hr class="my-3">
 <div class="fw-bold mb-2"><i class="fas fa-paperclip"></i> 공통 첨부(사진/동영상)</div>
 {% if can_upload %}
-<form id="ppMoreFiles" class="row g-2 align-items-end mb-3" data-upload-url="{{ url_for('partner_api.upload_file', order_id=view.id) }}" novalidate>
-    <div class="col-md-5"><label class="form-label mb-1">실측 사진 더 보내기</label><input type="file" class="form-control form-control-sm" name="photos" multiple accept="image/*,video/*"></div>
-    <div class="col-md-5"><label class="form-label mb-1">초안 도면 더 보내기</label><input type="file" class="form-control form-control-sm" name="drafts" multiple accept="image/*,.pdf,.dwg,.dxf,.zip"></div>
-    <div class="col-md-2"><button type="submit" class="btn btn-sm btn-primary w-100"><i class="fas fa-upload"></i> 파일 보내기</button></div>
+<form id="ppMoreFiles" class="mb-3" data-upload-url="{{ url_for('partner_api.upload_file', order_id=view.id) }}" novalidate>
+    <div class="row g-2">
+        <div class="col-md-6">{{ photo_zone('common', '실측 사진 더 보내기', 'image/*,video/*', '현장 전체 사진을 더 넣어 주세요.') }}</div>
+        <div class="col-md-6">{{ photo_zone('draft', '초안 도면 더 보내기', 'image/*,.pdf,.dwg,.dxf,.zip', '초안 도면이 있으면 넣어 주세요.', camera=False) }}</div>
+    </div>
+    <button type="submit" class="btn btn-sm btn-primary mt-2"><i class="fas fa-upload"></i> 파일 보내기</button>
 </form>
+<div hidden id="ppAttUrl" data-url="{{ url_for('partner_api.link_attachment', order_id=view.id, attachment_id=0) }}"></div>
+{% set loose = partner_files | selectattr('linkable') | selectattr('item_index', 'none') | list %}
+{% if loose %}
+<div class="mb-3">
+    <div class="small fw-semibold text-muted mb-1">보낸 공통 실측 사진 — 제품에 붙이려면 "제품 연결"을 고르세요</div>
+    <div class="d-flex flex-wrap gap-1">
+        {% for f in loose %}
+        <div class="pp-tile border rounded bg-white p-1 d-flex align-items-center gap-1">
+            <a href="{{ f.url }}" target="_blank" rel="noopener">{% if f.is_image %}<img class="pp-tile__thumb" src="{{ f.thumb_url }}" alt="{{ f.filename }}" loading="lazy">{% else %}<span class="pp-tile__thumb pp-tile__thumb--file"><i class="fas fa-file-alt"></i></span>{% endif %}</a>
+            <div class="small text-truncate flex-grow-1 pp-tile__name" title="{{ f.filename }}">{{ f.filename }}</div>
+            <select class="form-select form-select-sm pp-tile__link" data-pp-att-link="{{ f.id }}" aria-label="{{ f.filename }} 제품 연결">
+                <option value="">제품 연결</option>
+                {% for it in view['items'] %}<option value="{{ loop.index0 }}">{{ loop.index }}. {{ it.product_name }}</option>{% endfor %}
+            </select>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
 {% else %}
 <p class="small text-muted">도면 작업이 시작되어 파일은 더 보낼 수 없습니다. 바꿀 내용은 저희 담당자에게 알려 주세요.</p>
 {% endif %}

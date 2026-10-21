@@ -3,6 +3,7 @@
  *
  * 서버 계약: PUT /api/partner/orders/<id>/items (JSON {items}) → {success, data:{order_id, item_count, uids}, error}
  *            PUT /api/partner/orders/<id>/info (JSON 고객 · 주소 · 실측 · 희망 시공일, §18) → {success, data, error}
+ *            PATCH /api/partner/orders/<id>/attachments/<aid> (JSON {item_index: 번호 | null}, 5-3 보낸 사진 제품 연결 · 해제)
  *            품목 사진은 저장 뒤 POST /api/partner/orders/<id>/files 에 item_index 를 붙여 올린다(partner-portal.js).
  * 단계 버튼(아래 고정 줄)의 data-pp-goto-tab 은 해당 탭을 연다.
  * 설계서: docs/specs/2026-10-19-partner-foms-mode_SPEC.md §3.3 · §4-4 · §12
@@ -119,8 +120,50 @@
     });
   }
 
+  /** 고르고 아직 안 보낸 사진이 있으면 새로고침 전에 묻는다(사진 칸 파일은 브라우저에만 있다). */
+  function hasStagedPhotos() {
+    return Array.prototype.some.call(document.querySelectorAll('[data-pp-photo-zone]'), function (z) {
+      return z._ppFiles && z._ppFiles.length;
+    });
+  }
+
+  /** 5-3: 보낸 실측 사진을 제품에 연결(고르기) · 공통으로(단추). 서버가 접수 확인 중 · 자기 사진인지 다시 판정한다. */
+  function bindAttachmentLinks() {
+    var root = document.getElementById('ppAttUrl');
+    if (!root) return;
+    var portal = window.PartnerPortal;
+    async function link(id, itemIndex, control) {
+      if (hasStagedPhotos() && !window.confirm('고르고 아직 보내지 않은 사진이 있습니다. 계속하면 다시 골라야 합니다. 계속할까요?')) {
+        if (control.tagName === 'SELECT') control.value = '';
+        return;
+      }
+      control.disabled = true;
+      try {
+        var url = root.getAttribute('data-url').replace(/\/0$/, '/' + id);
+        var resp = await fetch(url, { method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ item_index: itemIndex }), credentials: 'same-origin' });
+        var data = null;
+        try { data = await resp.json(); } catch (e) { data = null; }
+        if (!data || !data.success) throw new Error((data && data.error) || '사진 자리를 바꾸지 못했습니다.');
+        window.location.reload();
+      } catch (err) {
+        if (portal) portal.setStatus(err.message, true);
+        control.disabled = false;
+      }
+    }
+    document.addEventListener('click', function (ev) {
+      var btn = ev.target.closest('[data-pp-att-unlink]');
+      if (btn) link(btn.getAttribute('data-pp-att-unlink'), null, btn);
+    });
+    document.addEventListener('change', function (ev) {
+      var select = ev.target.closest('[data-pp-att-link]');
+      if (select && select.value !== '') link(select.getAttribute('data-pp-att-link'), parseInt(select.value, 10), select);
+    });
+  }
+
   document.addEventListener('DOMContentLoaded', function () {
     bindTabs();
+    bindAttachmentLinks();
     var info = document.querySelector('[data-pp-info]');
     if (info) bindInfoSave(info);
     var save = document.querySelector('[data-pp-items-url]');

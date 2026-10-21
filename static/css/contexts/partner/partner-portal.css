@@ -404,3 +404,7 @@ body.pp-sheet-open { overflow: hidden; }
 .flatpickr-day { position: relative; }
 .flatpickr-day .pp-fp-count { position: absolute; left: 0; right: 0; bottom: 1px; font-size: 9px; line-height: 1; color: var(--pp-primary); white-space: nowrap; overflow: hidden; pointer-events: none; }
 .flatpickr-day.selected .pp-fp-count { color: #fff; }
+
+/* 5-3 보낸 제품 사진 — 사진 옆 "공통으로" 단추. */
+.pp-sent { display: inline-flex; align-items: flex-start; gap: 2px; }
+.pp-sent__unlink { padding: 2px 6px; }

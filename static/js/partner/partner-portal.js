@@ -139,7 +139,8 @@
       if (busy) return;
       busy = true;
       form.querySelector('button[type="submit"]').disabled = true;
-      var failed = await uploadFiles(form, form.getAttribute('data-upload-url'));
+      var common = window.PartnerPhotos ? window.PartnerPhotos.commonJobs() : [];
+      var failed = await uploadFiles(form, form.getAttribute('data-upload-url'), [], common);
       if (failed.length) {
         setStatus(failed.join(' / '), true);
         busy = false;

@@ -170,6 +170,10 @@ def _partner_files(db, order: Order, items: list) -> tuple[list[dict], dict[int,
             continue
         entry = {
             "filename": a.filename,
+            "id": a.id,
+            "item_index": a.item_index,
+            # 제품 연결 · 해제는 협력사가 보낸 실측 사진만(5-3, partner_api.link_attachment 와 같은 판정).
+            "linkable": a.category == "measurement",
             "kind": "초안 도면" if "/partner_draft/" in (a.storage_key or "") else "실측 사진",
             "item_name": _item_name(items, a.item_index),
             "url": build_file_view_url(a.storage_key),
