@@ -19,12 +19,12 @@ Railway 가 사라졌을 때 서버 1대(서울 VM)에서 FOMS 를 다시 띄우
 2. 환경변수: `age -d -i <키> vars-latest.json.age | python tools/ops/vars_snapshot_to_env.py --out /srv/foms-env`
    — 사고 원인이 비밀값 유출이면 새 값으로 바꾼다.
 3. `export FOMS_ENV_DIR=/srv/foms-env POSTGRES_PASSWORD=<새 값> REDIS_PASSWORD=<새 값> FOMS_DOMAIN=<도메인>`
-4. DB 만 먼저 띄운다: `docker compose -f deploy/compose/docker-compose.yml up -d postgres`
+4. DB 만 먼저 띄운다: `docker compose -f scripts/exit_compose/docker-compose.yml up -d postgres`
 5. 복원: `python tools/ops/offsite_restore.py --key <키> --fetch --target postgresql://foms:<비번>@127.0.0.1:5432/foms`
    (DB 포트를 잠시 열거나 같은 네트워크에서 실행한다. 대상에 표가 있으면 스크립트가 거부한다.)
-6. 나머지: `docker compose -f deploy/compose/docker-compose.yml up -d` — migrate 가 먼저 돌고 web·worker·sidefx·caddy 가 뜬다.
+6. 나머지: `docker compose -f scripts/exit_compose/docker-compose.yml up -d` — migrate 가 먼저 돌고 web·worker·sidefx·caddy 가 뜬다.
 7. cron(매일 17:00 UTC, 겹침 금지) — 호스트 crontab:
-   `0 17 * * * flock -n /tmp/foms-cron.lock docker compose -f /srv/FOMS/deploy/compose/docker-compose.yml --profile cron run --rm cron`
+   `0 17 * * * flock -n /tmp/foms-cron.lock docker compose -f /srv/FOMS/scripts/exit_compose/docker-compose.yml --profile cron run --rm cron`
 8. 점검: `/healthz` 200 · 로그인 · 주문 목록 · 첨부 보기(R2 CORS 에 새 주소 등록 필요) · 실시간 알림 · 작업 큐.
 9. 바깥 등록: 네이버 허용 IP(서버 고정 IP), 카카오 JS 도메인, 채널톡 URL, 알림톡 서식(주소가 바뀌었으면 재심사).
 
