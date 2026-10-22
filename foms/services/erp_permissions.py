@@ -54,23 +54,6 @@ def _current_dialect_name() -> str:
         return ""
 
 
-def _json_like_condition(expr: Any, value: str, *, dialect_name: str) -> Any:
-    """Build a JSON text match condition with SQLite unicode-escape fallback."""
-    from sqlalchemy import String, cast, or_
-
-    candidates = [value]
-    if dialect_name == "sqlite":
-        escaped_value = json.dumps(value, ensure_ascii=True)[1:-1]
-        if escaped_value and escaped_value not in candidates:
-            candidates.append(escaped_value)
-
-    conditions = [
-        cast(expr, String).ilike(f"%{_escape_like(candidate)}%", escape="\\")  # perf-ok: ix_orders_structured_data_text_trgm
-        for candidate in candidates
-    ]
-    return or_(*conditions) if len(conditions) > 1 else conditions[0]
-
-
 def _json_string_token_condition(expr: Any, value: str, *, dialect_name: str) -> Any:
     """Match one complete JSON string value, including SQLite unicode escapes."""
     from sqlalchemy import String, cast, or_
@@ -315,8 +298,6 @@ def build_mine_sql_filter(user: Any, scope: str | None = None) -> list[Any]:
 
     scope="all"은 기존 union 계약 보존: conds[0]은 manager_name ilike, 그룹 합산 개수 동일.
     """
-    from sqlalchemy import and_
-
     from foms.persistence.main.models import Order
 
     dialect_name = _current_dialect_name()
@@ -336,15 +317,10 @@ def build_mine_sql_filter(user: Any, scope: str | None = None) -> list[Any]:
         manager_conds.append(_json_string_token_condition(Order.structured_data["workflow"]["current_quest"]["owner_person"], value, dialect_name=dialect_name))
         construction_conds.append(_json_string_token_condition(Order.structured_data["shipment"]["construction_workers"], value, dialect_name=dialect_name))
         drawing_conds.append(_json_string_token_condition(Order.structured_data["assignments"]["drawing_assignees"], value, dialect_name=dialect_name))
-        # 무거운 조건: 문서 전체 ILIKE — 범위 화면 HYBRID 가 바깥 OR 로 남기도록 표시한다.
-        drawing_conds.append(
-            _mark_doc_scan_cond(
-                and_(
-                    _json_like_condition(Order.structured_data, value, dialect_name=dialect_name),  # perf-ok: ix_orders_structured_data_text_trgm
-                    _json_string_token_condition(Order.structured_data["drawing_assignees"], value, dialect_name=dialect_name),
-                )
-            )
-        )
+        # 옛 최상위 drawing_assignees 칸만 본다. 예전엔 문서 전체 ILIKE 를 AND 로 앞에 붙였는데(색인 선필터 의도)
+        # 영업 이름처럼 거의 모든 주문 문서에 있는 이름이면 색인이 못 거르고 행마다 문서를 풀어
+        # 질의 하나가 220ms 였다(2026-10-22 운영, ADMIN). 칸 조건만으로 결과가 같다(운영 62조합 차이 0).
+        drawing_conds.append(_json_string_token_condition(Order.structured_data["drawing_assignees"], value, dialect_name=dialect_name))
 
     if u_name:
         _add_name_group(u_name)
