@@ -237,3 +237,36 @@ def test_queue_card_done_chip_hidden_under_board_state(app):
     assert "erp-queue-card__quest-done" in plain
     assert "생산 확인 완료" not in guarded
     assert "erp-queue-card__quest-done" not in guarded
+
+
+def test_queue_card_production_new_drawing_opens_workbench(app):
+    """생산 단계에 새 도면이 와 [제작 시작]이 막히면 휴대폰 카드도 도면 작업실로 보낸다(주문 5625).
+
+    PC '현재 작업' 칸·휴대폰 상세는 board_state 로 [도면 작업실 열기]를 그렸는데 휴대폰 목록
+    카드만 [상세]·[ERP 편집]뿐이라 영업이 확정할 곳을 카드에서 찾지 못했다.
+    """
+    src = ("{% from 'partials/shared/erp_mobile_queue_card_v2.html' import render_queue_card_v2 %}"
+           "{{ render_queue_card_v2(o) }}")
+    blocked = {
+        "kind": "production", "label": "제작대기", "tone": "warn", "title": "새 도면 확정 필요",
+        "link_label": "도면 작업실 열기",
+        "link_endpoint": "erp_drawing_workbench.erp_drawing_workbench_detail", "link_params": {"order_id": 7},
+    }
+    normal = {
+        "kind": "production", "label": "제작대기", "tone": "soft", "title": "",
+        "link_label": "생산 보드 열기",
+        "link_endpoint": "erp_production_page.erp_production_dashboard", "link_params": {"focus_order": 7},
+    }
+    base = {"id": 7, "customer_name": "고객", "address": "주소 1", "phone": "010-1", "alerts": {},
+            "structured_data": {}, "stage_code": "PRODUCTION"}
+    with app.test_request_context("/"):
+        html = render_template_string(src, o={**base, "board_state": blocked})
+        control = render_template_string(src, o={**base, "board_state": normal})
+        drawing = render_template_string(src, o={**base, "stage_code": "DRAWING"})
+    assert "/erp/drawing-workbench/7" in html
+    assert "도면 작업실 열기" in html
+    assert "새 도면 확정 필요" in html
+    # 음성 대조: 막히지 않은 생산 카드에는 도면 버튼이 없다
+    assert "erp-queue-card__drawing-open" not in control
+    # 도면 단계 카드는 그대로 '도면 창구'
+    assert "도면 창구" in drawing and "도면 작업실 열기" not in drawing
