@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>도면 마법사 — 주문 #{{ order.id }}</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/wizard.css') }}?v=20261022a">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/wizard.css') }}?v=20261023a">
   {# 도면 수정 요청 확인창 — 마법사는 공용 상단바(벨·배지·소켓)를 쓰지 않는 standalone 이라
      도면팀이 가장 오래 머무는 화면이 알림 사각지대였다(2026-09-11 실측: 수정 요청 21건 중
      8건 미독). 상단바 전체를 들이면 캔버스 단축키와 충돌하므로 확인창과 소켓만 싣는다. #}
@@ -81,6 +81,7 @@
       <div class="dws-appbar-right">
         <button type="button" class="dws-btn dws-edit-ctl" id="dws-btn-autofill" title="주문 데이터로 폼을 채웁니다">자동 채움</button>
         <button type="button" class="dws-btn dws-edit-ctl" id="dws-btn-arrange" title="그림을 종류에 맞춰 자동으로 배치합니다 (되돌리기 Ctrl+Z)">자동 배치</button>
+        <button type="button" class="dws-btn" id="dws-btn-calc" title="모듈 구성을 넣으면 SR·문·옷봉·마이다 크기를 계산해 보여 줍니다" aria-expanded="false" aria-controls="dws-calc">자재표 계산</button>
 
         <div class="dws-dropdown">
           <button type="button" class="dws-btn dws-edit-ctl" id="dws-btn-preset">
@@ -323,6 +324,9 @@
         </div>
       </div>
     </div>
+
+    <!-- 오른쪽 자재표 계산 칸(bom-panel.js 가 채움, 설계서 2026-10-23 §3.6 — 그림자 판) -->
+    <aside class="dws-calc dws-ui" id="dws-calc" aria-label="자재표 계산" hidden></aside>
 
     </div><!-- /.dws-body -->
 
@@ -608,7 +612,10 @@
   <script src="{{ url_for('static', filename='vendor/konva.min.js') }}?v=20260706b" defer></script>
   <script src="{{ url_for('static', filename='js/drawing/part-ai.js') }}?v=20261022a" data-head-url="{{ url_for('static', filename='js/drawing/part-head.json') }}?v=h1-20261022" defer></script>
   <script src="{{ url_for('static', filename='js/drawing/part-layout.js') }}?v=20261022b" defer></script>
-  <script src="{{ url_for('static', filename='js/drawing/wizard.js') }}?v=20261022a" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/bom-calc.js') }}?v=20261023b" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/bom-rules.js') }}?v=20261023a" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/bom-panel.js') }}?v=20261023b" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/wizard.js') }}?v=20261023a" defer></script>
   {# 수정 요청 확인창 배선: 소켓 → 확인창. write helper 는 ack POST 의 same-origin 헤더용. #}
   <script src="https://cdn.socket.io/4.5.4/socket.io.min.js" defer integrity="sha384-/KNQL8Nu5gCHLqwqfQjA689Hhoqgi2S84SNUxC3roTe4EhJ9AfLkp8QiQcU8AMzI" crossorigin="anonymous"></script>
   <script src="{{ url_for('static', filename='js/foms/notification-write.js') }}?v=20260704a" defer></script>
