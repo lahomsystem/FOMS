@@ -60,3 +60,6 @@
 .foms-kanban-card__cancelled{margin-top:.25rem;padding:.15rem .5rem;border-radius:6px;background:var(--foms-color-warning-50,#fffbeb);color:var(--foms-color-warning-700,#b45309);font-size:.75rem;font-weight:800}
 /* 확정 뒤 취소 창 사유 — 전역 .btn !important 가 .btn-check:checked 색을 덮어 고른 티가 안 났다 */
 #dwItemCancelModal .btn-check:checked+.btn{border-color:var(--foms-color-warning-700,#b45309)!important;background:var(--foms-color-warning-700,#b45309)!important;color:#fff!important}
+/* 고객에게 보내기 창 고르기 칸 — 전역 .btn{border:none!important}·.btn-outline-secondary{background:white!important} 가 .btn-check:checked 를 덮어 눌러도 고른 티가 안 났다(2026-10-22) */
+#dwCustomerSendModal .btn-check+.btn{border:1px solid var(--erp-border,#d0d7e2)!important;background:#fff!important;color:#1f2937!important;padding:6px 12px!important}
+#dwCustomerSendModal .btn-check:checked+.btn{border-color:var(--brand-primary,#007AFF)!important;background:var(--brand-primary,#007AFF)!important;color:#fff!important}
