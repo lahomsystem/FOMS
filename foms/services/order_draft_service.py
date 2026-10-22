@@ -106,18 +106,19 @@ def validate_draft_payload(payload: Any) -> dict[str, Any]:
     return copy.deepcopy(payload)
 
 
-def get_draft(db: Session, user_id: int, draft_key: str) -> OrderDraft | None:
-    """Load a draft owned by user_id or None."""
+def get_draft(
+    db: Session, user_id: int, draft_key: str, *, for_update: bool = False
+) -> OrderDraft | None:
+    """Load a draft owned by user_id or None (for_update=True locks the row)."""
     if not draft_key or not draft_key.strip():
         return None
-    return (
-        db.query(OrderDraft)
-        .filter(
-            OrderDraft.user_id == user_id,
-            OrderDraft.draft_key == draft_key.strip(),
-        )
-        .one_or_none()
+    query = db.query(OrderDraft).filter(
+        OrderDraft.user_id == user_id,
+        OrderDraft.draft_key == draft_key.strip(),
     )
+    if for_update:
+        query = query.with_for_update()
+    return query.one_or_none()
 
 
 def list_open_drafts(

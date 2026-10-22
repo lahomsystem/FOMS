@@ -765,3 +765,65 @@ def test_wizard_disabled_returns_403(client, app, monkeypatch: pytest.MonkeyPatc
     _login(client, app, "wizard_off_user")
     response = client.get("/api/erp/order-draft?key=new.off")
     assert response.status_code == 403
+
+
+def test_order_draft_resubmit_returns_first_order(client, app, wizard_enabled) -> None:
+    """같은 초안을 두 번 등록해도 주문은 하나다(2026-10-20~22 운영 중복 4쌍).
+
+    "등록하고 실측 PUSH" 뒤 화면 이동 전에 [주문 등록] 이 한 번 더 눌리면 초안 행은
+    이미 지워졌고 body.payload 만 남는다. 그때 새 주문을 또 만들면 안 된다.
+    """
+    from db import db_session
+    from models import Order
+
+    _login(client, app, "wizard_resubmit_user")
+    key = "new.test-resubmit"
+    payload = {
+        "schema_version": 1,
+        "step": 4,
+        "data": {
+            "customer_name": "중복등록테스트",
+            "phone": "010-3269-3762",
+            "address": "광진구 자양번영로",
+            "items": [{"product_name": "붙박이장"}],
+            "schedule": {},
+        },
+    }
+    client.put(
+        "/api/erp/order-draft",
+        data=json.dumps({"draft_key": key, "step": 4, "payload": payload}),
+        content_type="application/json",
+    )
+    body = json.dumps({"draft_key": key, "payload": payload})
+    first = client.post("/api/erp/order-draft/submit", data=body, content_type="application/json")
+    second = client.post("/api/erp/order-draft/submit", data=body, content_type="application/json")
+
+    assert first.status_code == 200 and second.status_code == 200
+    first_id = first.get_json()["data"]["order_id"]
+    assert second.get_json()["data"] == {"order_id": first_id, "already_submitted": True}
+    with app.app_context():
+        rows = db_session.query(Order).filter_by(customer_name="중복등록테스트").all()
+        assert [o.id for o in rows] == [first_id]
+        assert rows[0].structured_data["meta"]["wizard_draft_key"] == key
+
+    # 다른 초안 키면 같은 고객이라도 새 주문이다(진짜 두 번째 주문).
+    other = client.post(
+        "/api/erp/order-draft/submit",
+        data=json.dumps({"draft_key": "new.test-resubmit-2", "payload": payload}),
+        content_type="application/json",
+    )
+    assert other.status_code == 200
+    assert other.get_json()["data"]["order_id"] != first_id
+
+
+def test_wizard_submit_is_guarded_on_client() -> None:
+    """등록 성공 뒤 submitOrder 는 다시 보내지 않고, 등록하고 PUSH 중엔 [주문 등록] 을 잠근다."""
+    draft_js = (ROOT / "static/js/foms/draft.js").read_text(encoding="utf-8")
+    assert "if (self._submitResult) {" in draft_js
+    assert "self._submitResult = result;" in draft_js
+    send_js = (ROOT / "static/js/foms/wizard-send.js").read_text(encoding="utf-8")
+    assert "function lockSubmitButton(locked)" in send_js
+    lock_at = send_js.index("lockSubmitButton(true);")
+    assert lock_at < send_js.index("client\n      .submitOrder()")
+    shell = (ROOT / "templates/orders/wizard/wizard_shell.html").read_text(encoding="utf-8")
+    assert "draft.js') }}?v=20261022a" in shell

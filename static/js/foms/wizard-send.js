@@ -210,6 +210,28 @@
   }
 
   /**
+   * "등록하고 실측 PUSH" 가 도는 동안 4단계 [주문 등록] 을 잠근다.
+   *
+   * 잠그지 않으면 등록 → PUSH → 화면 이동(1.2초) 사이에 [주문 등록] 이 그대로 눌려
+   * 같은 주문이 하나 더 생겼다(2026-10-20~22 운영 4쌍). 알림톡을 먼저 보냈으면
+   * 그 단추가 "등록하세요" 강조까지 달고 있어 더 눌리기 쉬웠다.
+   * @param {boolean} locked 잠금 여부.
+   * @returns {void}
+   */
+  function lockSubmitButton(locked) {
+    var next = document.getElementById("foms-wizard-next");
+    if (!next) {
+      return;
+    }
+    next.disabled = !!locked;
+    if (locked) {
+      next.classList.remove("is-pending-submit");
+    } else if (state.sentPendingSubmit) {
+      next.classList.add("is-pending-submit");
+    }
+  }
+
+  /**
    * 응답 규약 `{success, data, error}` 를 안전하게 읽는다.
    * @param {Response} res fetch 응답.
    * @returns {Promise<{status:number, body:Object|null}>}
@@ -494,6 +516,7 @@
       }
     }
     lockButtons(true);
+    lockSubmitButton(true);
     setStatus("주문 등록 중…");
     var orderId = null;
     return client
@@ -504,6 +527,7 @@
           setStatus("주문 등록 실패 · " + submitErrorLabel(data) + " — PUSH 는 보내지 않았습니다", true);
           toggleSheet(false);
           lockButtons(false);
+          lockSubmitButton(false);
           return null;
         }
         orderId = data.data.order_id;
@@ -548,6 +572,7 @@
         }
         setStatus("주문 등록 실패 · " + reasonLabel("network") + " — PUSH 는 보내지 않았습니다", true);
         lockButtons(false);
+        lockSubmitButton(false);
       });
   }
 

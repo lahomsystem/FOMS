@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from foms.services.datetime_kst import now_utc_naive
 import copy
+import datetime
 import re
 from typing import Any
 
@@ -11,7 +12,7 @@ from flask import Blueprint, jsonify, request, session
 from sqlalchemy.orm import Session
 
 from db import get_db
-from models import OrderDraft
+from models import Order, OrderDraft
 from foms.services.feature_flags import env_bool, wizard_new_order_enabled
 from foms.api.files.routes import build_file_view_url
 from foms.services.order_draft_attachments import (
@@ -617,6 +618,46 @@ def _inherit_draft_send_history(
     return merged
 
 
+# 같은 초안을 다시 등록하면 새 주문을 만들지 않고 먼저 만든 주문 번호를 돌려준다.
+# 2026-10-20~22 운영 중복 4쌍: "등록하고 실측 PUSH" 뒤 화면 이동 전(1.2초)에
+# [주문 등록] 이 한 번 더 눌려, 초안 행이 이미 지워진 상태에서 body.payload 로
+# 새 주문이 또 만들어졌다. 초안 키는 새 주문 meta 에 남겨 두고 그걸로 찾는다.
+WIZARD_DRAFT_KEY_META = "wizard_draft_key"
+_RESUBMIT_LOOKBACK = datetime.timedelta(days=1)
+
+
+def _already_submitted_order_id(db: Session, *, draft_key: str, customer_name: str) -> int | None:
+    """이 초안 키로 최근 하루 안에 만든(지우지 않은) 주문 번호. 없으면 None.
+
+    Args:
+        db: 활성 세션.
+        draft_key: 제출된 초안 키.
+        customer_name: 고객명(flat 컬럼으로 후보를 먼저 좁힌다).
+
+    Returns:
+        이미 만든 주문 번호 또는 None.
+    """
+    # Order.created_at 기본값이 datetime.now 라 같은 시계로 자른다.
+    cutoff = datetime.datetime.now() - _RESUBMIT_LOOKBACK
+    rows = (
+        db.query(Order.id, Order.structured_data)
+        .filter(
+            Order.is_erp_order.is_(True),
+            Order.deleted_at.is_(None),
+            Order.customer_name == customer_name,
+            Order.created_at >= cutoff,
+        )
+        .order_by(Order.id.desc())
+        .limit(5)
+        .all()
+    )
+    for order_id, sd in rows:
+        meta = (sd or {}).get("meta") if isinstance(sd, dict) else None
+        if isinstance(meta, dict) and meta.get(WIZARD_DRAFT_KEY_META) == draft_key:
+            return int(order_id)
+    return None
+
+
 @erp_order_draft_bp.route("/order-draft/submit", methods=["POST"])
 @login_required
 @role_required(["ADMIN", "MANAGER", "STAFF"])
@@ -636,7 +677,9 @@ def api_submit_order_draft() -> tuple[Any, int]:
         return jsonify({"success": False, "error": "UNAUTHORIZED"}), 401
 
     db = get_db()
-    row = get_draft(db, uid, draft_key)
+    # 행 잠금: 같은 초안의 등록 두 건이 겹치면 뒤 요청은 앞 요청이 끝날 때까지 기다렸다가
+    # 아래 중복 확인에서 앞 주문을 찾는다.
+    row = get_draft(db, uid, draft_key, for_update=True)
     # 사용자가 step4에서 확인한 현재 클라이언트 상태(body.payload)를 우선 사용한다.
     # debounce된 autosave가 아직 flush되지 않았어도 최신 입력이 유실되지 않도록 보장.
     # body.payload가 없거나 형식이 아니면 서버 저장 draft(row.payload)로 폴백.
@@ -688,6 +731,18 @@ def api_submit_order_draft() -> tuple[Any, int]:
             ),
             400,
         )
+
+    existing_order_id = _already_submitted_order_id(
+        db, draft_key=draft_key, customer_name=cust_name
+    )
+    if existing_order_id is not None:
+        if row is not None:
+            delete_draft(db, uid, draft_key)
+            db.commit()
+        return jsonify(
+            {"success": True, "data": {"order_id": existing_order_id, "already_submitted": True}}
+        ), 200
+    structured_data.setdefault("meta", {})[WIZARD_DRAFT_KEY_META] = draft_key
 
     received_date = str(data.get("received_date") or get_today_kst().strftime("%Y-%m-%d"))
     received_time = now_kst().strftime("%H:%M")
