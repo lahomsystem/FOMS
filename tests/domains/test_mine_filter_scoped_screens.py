@@ -45,36 +45,39 @@ def _heavy(conds):
     return [c for c in conds if is_doc_scan_mine_cond(c)]
 
 
-@pytest.mark.parametrize("scope,expected", [("all", 2), ("drawing", 2), ("sales", 0), ("construction", 0)])
-def test_doc_scan_marker_one_per_name(app, scope, expected):
+@pytest.mark.parametrize("scope", ["all", "drawing", "sales", "construction"])
+def test_no_full_document_scan_conds(app, scope):
+    """mine 조건에 문서 전체 ILIKE 가 없다 — 영업 이름이 거의 모든 문서에 있어 행마다 문서를 풀었다
+    (2026-10-22 운영 ADMIN 질의 220ms). 최상위 drawing_assignees 는 칸 조건 하나로 본다."""
     with app.app_context():
         conds = build_mine_sql_filter(_U("표시도면", "mark_drawing", 7), scope=scope)
-        heavy = _heavy(conds)
-        assert len(heavy) == expected
-        for c in heavy:  # 표시된 것은 실제로 문서 전체 ILIKE 를 품은 and_ 복합이다
-            assert isinstance(c, BooleanClauseList) and c.operator is operators.and_
+        assert _heavy(conds) == []
+        for c in conds:
+            sql = str(c.compile(compile_kwargs={"literal_binds": True}))
+            assert "CAST(orders.structured_data AS" not in sql, sql
 
 
-def test_doc_scan_marker_negative_control(app, monkeypatch):
-    """표시를 빼면 계약 테스트가 잡는다 — 구조가 같아도 표시 없는 and_ 는 가볍게 취급된다."""
+def test_toplevel_drawing_assignees_still_matched(app):
+    """음성 대조군: 최상위 배정만 있는 주문도 도면 범위로 잡힌다(문서 스캔을 뺀 뒤에도)."""
     with app.app_context():
-        monkeypatch.setattr(ep, "_mark_doc_scan_cond", lambda c: c)
-        conds = build_mine_sql_filter(_U("표시도면", "mark_drawing", 7), scope="all")
-        assert len(_heavy(conds)) == 0  # 위 계약(2개)과 어긋난다 = 누락이 드러난다
-        assert not is_doc_scan_mine_cond(and_(Order.id == 1, Order.id == 2))
+        conds = build_mine_sql_filter(_U("최상위도면", "top_drawing", 8), scope="drawing")
+        sql = " ".join(str(c.compile(compile_kwargs={"literal_binds": True})) for c in conds)
+        assert "drawing_assignees" in sql and "최상위도면" in sql
 
 
 def test_hybrid_clause_shape(app):
+    """HYBRID 기반은 남아 있다 — 표시된 무거운 조건은 바깥 OR, 나머지는 범위 넣은 UNION."""
     with app.app_context():
         conds = build_mine_sql_filter(_U("모양도면", "shape_drawing", 9), scope="all")
+        marked = ep._mark_doc_scan_cond(and_(Order.id > 0, Order.notes.ilike("%모양%")))
+        all_conds = conds + [marked]
         scope = Order.is_erp_order.is_(True)
-        clause = mine_membership_clause(conds, scope_conds=[scope])
+        clause = mine_membership_clause(all_conds, scope_conds=[scope])
         assert isinstance(clause, BooleanClauseList) and clause.operator is operators.or_
         parts = list(clause.clauses)
-        heavy = _heavy(conds)
-        assert parts[1:] == heavy and all(a is b for a, b in zip(parts[1:], heavy))
+        assert len(parts) == 2 and parts[1] is marked
         sql = str(clause.compile())
-        assert sql.count("FROM orders AS orders_mine") == len(conds) - len(heavy)
+        assert sql.count("FROM orders AS orders_mine") == len(conds)
         # 기본값(None)은 예전 그대로: 모든 갈래 UNION, 범위 없음
         old = mine_membership_clause(conds)
         assert str(old.compile()).count("FROM orders AS orders_mine") == len(conds)
