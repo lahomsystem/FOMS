@@ -4,6 +4,7 @@ from __future__ import annotations
 from typing import Any
 
 from foms.services.erp_display import _erp_get_stage
+from foms.services.orders.confirm_drawing_gate import revision_in_flight_block
 from foms.services.orders.erp_policy_constants import STAGE_NAME_TO_CODE
 from foms.services.orders.quest_approve_cta import display_quest_title
 from foms.services.production_read_model import (
@@ -62,6 +63,19 @@ def build_board_state(order, sd, stage_code, *, has_current_run=False, current_q
     if stage_code == "PRODUCTION":
         if current_quest and not current_quest.get("is_synthesized") and not current_quest.get("is_done"):
             return None
+        # 생산 단계에 새 도면이 와 있으면(수정 중·수령 전) [제작 시작]이 막힌다 — 영업이 확정할
+        # 곳(도면 작업실)으로 보낸다. 판정은 생산 보드 배지와 같은 함수.
+        block = revision_in_flight_block(sd)
+        if block is not None:
+            return _state(
+                "production",
+                _kpi_stage_label_from_erp_stage("PRODUCTION", has_current_run),
+                "warn",
+                title="도면 수정 중" if block.drawing_status == "RETURNED" else "새 도면 확정 필요",
+                link_label="도면 작업실 열기",
+                link_endpoint="erp_drawing_workbench.erp_drawing_workbench_detail",
+                link_params={"order_id": order.id},
+            )
         return _state(
             "production",
             _kpi_stage_label_from_erp_stage("PRODUCTION", has_current_run),

@@ -43,6 +43,7 @@ from foms.services.orders.confirm_drawing_gate import (
     production_block_reason,
     revision_in_flight_block,
 )
+from foms.services.orders.assignment import active_assignee_ids
 from foms.services.orders.erp_policy_permissions import get_assignee_ids
 from foms.services.orders.state_axes import AXIS_MAIN, read_logistics, read_main_stage
 from foms.services.orders.admin_override import (
@@ -395,7 +396,8 @@ def _drawing_block_response(db: Any, order: Order, sd: dict[str, Any], predicate
     block = predicate(sd)
     if block is None:
         return None
-    ids = get_assignee_ids(order, "SALES_DOMAIN")
+    # 정본은 배정 표 — 배정 행이 없는 옛 주문만 structured_data 담당 id 로 물러선다.
+    ids = active_assignee_ids(db, int(order.id), "SALES") or get_assignee_ids(order, "SALES_DOMAIN")
     names = [n for (n,) in db.query(User.name).filter(User.id.in_(ids)).limit(20).all()] if ids else []
     return jsonify({
         "success": False, "code": block.code,
