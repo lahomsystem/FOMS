@@ -1644,6 +1644,10 @@ html, body {
   cursor: pointer;
 }
 .dws-mt-select option { color: #1d1d1f; }
+/* 그림 종류(미니 툴바) — AI 짐작은 점선, 사람이 고른 것은 초록 실선 */
+.dws-mt-part { min-width: 118px; }
+.dws-mt-part[data-src="ai"] { border-style: dashed; border-color: rgba(255, 255, 255, 0.45); }
+.dws-mt-part[data-src="user"] { border-color: #34c759; }
 .dws-mt-btn {
   background: rgba(255, 255, 255, 0.12);
   color: #f5f5f7;

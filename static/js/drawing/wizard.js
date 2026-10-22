@@ -542,6 +542,7 @@
     els.mtPresetBtn = document.getElementById('dws-mt-preset-btn');
     els.mtPresetMenu = document.getElementById('dws-mt-preset-menu');
     els.mtImage = document.getElementById('dws-mt-image');
+    els.mtPart = document.getElementById('dws-mt-part');
     els.mtShape = document.getElementById('dws-mt-shape');
     els.mtSize = document.getElementById('dws-mt-size');
     els.mtBold = document.getElementById('dws-mt-bold');
@@ -1699,6 +1700,33 @@
     if (!o) { o = findObj(selected); }
     if (els.mtFlipX) { els.mtFlipX.classList.toggle('dws-active', !!(o && o.flipX)); }
     if (els.mtFlipY) { els.mtFlipY.classList.toggle('dws-active', !!(o && o.flipY)); }
+    if (els.mtPart) {
+      var part = o && o.part;
+      els.mtPart.value = part ? part.label : '';
+      els.mtPart.setAttribute('data-src', part ? part.src : '');
+      els.mtPart.title = (part && part.src === 'ai')
+        ? 'AI 짐작(확신 ' + Math.round((part.conf || 0) * 100) + '%) — 틀리면 숫자키 1~9로 고치세요'
+        : '그림 종류 — 숫자키 1~9로 고르고 0은 미분류';
+    }
+  }
+
+  function initPartSelect() {
+    if (!els.mtPart || els.mtPart.options.length) { return; }
+    var none = document.createElement('option');
+    none.value = '';
+    none.textContent = '종류 —';
+    none.disabled = true;
+    els.mtPart.appendChild(none);
+    PART_LABELS.forEach(function (label, i) {
+      var opt = document.createElement('option');
+      opt.value = label;
+      opt.textContent = (i < 9 ? i + 1 : 0) + ' ' + label;
+      els.mtPart.appendChild(opt);
+    });
+    els.mtPart.addEventListener('change', function () {
+      if (selected) { setPartLabel(selected, els.mtPart.value); }
+      els.mtPart.blur();   // 포커스를 캔버스로 돌려 숫자키·Delete 단축키가 다시 먹게
+    });
   }
 
   function syncLockEyedropButtons(o) {
@@ -2865,11 +2893,11 @@
       pos(논리 좌표 {x,y}) 가 주어지면 이미지 중심이 그 지점에 오도록, 없으면 캔버스 중앙에 배치.
       이미지 업로드(파일/붙여넣기/드롭)와 실측 사진 삽입(import-attachment)의 공용 삽입 파이프라인.
       cascade(0부터의 순번)가 있으면 그만큼 24px 씩 어긋나게 놓아 여러 장이 완전히 겹치지 않는다. */
-  function placeImageFromKey(key, pos, cascade, maxLong) {
-    if (!canSave || !key || !currentSheet()) { return; }
+  function placeImageFromKey(key, pos, cascade, maxLong, batch) {
+    if (!canSave || !key || !currentSheet()) { finishPartBatch(batch, null); return; }
     var img = new Image();
     img.onload = function () {
-      if (!currentSheet()) { return; }   // 비동기 로드 사이 빈 상태 방어
+      if (!currentSheet()) { finishPartBatch(batch, null); return; }   // 비동기 로드 사이 빈 상태 방어
       var nw = img.naturalWidth || 900, nh = img.naturalHeight || 600;
       var w, h;
       if (maxLong) {
@@ -2903,43 +2931,139 @@
       markDirty();
       rebuildAnno();
       selectById(o.id);
+      classifyPlacedImage(o.id, img, batch);
     };
-    img.onerror = function () { toast('이미지를 불러오지 못했습니다.'); };
+    img.onerror = function () { toast('이미지를 불러오지 못했습니다.'); finishPartBatch(batch, null); };
     img.src = viewUrl(key);
   }
 
-  function addImageFromFile(file, pos, cascade) {
-    if (!canSave || !file) { return; }
-    if (!currentSheet()) { toast('제품을 선택해 도면을 먼저 시작하세요.'); return; }
+  function addImageFromFile(file, pos, cascade, batch) {
+    if (!canSave || !file) { finishPartBatch(batch, null); return; }
+    if (!currentSheet()) { toast('제품을 선택해 도면을 먼저 시작하세요.'); finishPartBatch(batch, null); return; }
     // 서버 캡(10MB)을 넘는 파일은 업로드 전에 막는다 — 초과분은 본문 제한 가드가
     // 응답 본문 없이 연결을 끊어(413 + ERR_HTTP2_PROTOCOL_ERROR) 이유를 못 보여준다.
     if (file.size && file.size > MAX_ASSET_BYTES) {
       toast('이미지 용량이 너무 큽니다(최대 10MB): ' + (file.name || '이미지'));
+      finishPartBatch(batch, null);
       return;
     }
     uploadAsset(file).then(function (r) {
       if (r.status !== 200 || !r.data || !r.data.success || !r.data.data) {
         toast(failureText('이미지 업로드 실패', r), { error: true, retry: function () { addImageFromFile(file, pos, cascade); } });
+        finishPartBatch(batch, null);
         return;
       }
-      placeImageFromKey(r.data.data.key, pos, cascade);
-    }).catch(function (err) { console.warn('[dws] asset upload', err); toast(failureText('이미지 업로드 실패', null), { error: true, retry: function () { addImageFromFile(file, pos, cascade); } }); });
+      placeImageFromKey(r.data.data.key, pos, cascade, undefined, batch);
+    }).catch(function (err) {
+      console.warn('[dws] asset upload', err);
+      toast(failureText('이미지 업로드 실패', null), { error: true, retry: function () { addImageFromFile(file, pos, cascade); } });
+      finishPartBatch(batch, null);
+    });
   }
 
   /** 이미지 파일 여러 장을 한 번에 추가한다(파일 선택·붙여넣기·드롭 공용).
       base(논리 좌표)가 있으면 그 지점 기준, 없으면 캔버스 중앙 기준으로 24px 씩 cascade.
-      이미지가 아닌 파일은 건너뛰고, 한 장도 못 넣었으면 안내 토스트. 반환=배치 시도한 장수. */
+      이미지가 아닌 파일은 건너뛰고, 한 장도 못 넣었으면 안내 토스트. 반환=배치 시도한 장수.
+      두 장 이상이면 종류 분류가 다 끝난 뒤, 빈 시트에서는 종류에 맞춰 자동 배치한다(§3.2). */
   function addImagesFromFiles(files, base) {
     var list = files || [];
-    var placed = 0, skipped = 0;
+    var images = [], skipped = 0;
     for (var i = 0; i < list.length; i++) {
       var f = list[i];
       if (!f || !f.type || f.type.indexOf('image/') !== 0) { skipped++; continue; }
-      addImageFromFile(f, base || null, placed);
-      placed++;
+      images.push(f);
     }
-    if (placed === 0 && skipped > 0) { toast('이미지 파일만 캔버스에 추가할 수 있습니다.'); }
-    return placed;
+    var batch = images.length >= 2 ? newPartBatch(images.length) : null;
+    images.forEach(function (file, idx) { addImageFromFile(file, base || null, idx, batch); });
+    if (images.length === 0 && skipped > 0) { toast('이미지 파일만 캔버스에 추가할 수 있습니다.'); }
+    return images.length;
+  }
+
+  /* ---- 그림 종류 이름표(part) · 자동 배치 — 설계: docs/plans/2026-10-23-drawing-part-label-feedback-spec.md ----
+     분류는 part-ai.js(브라우저 안 AI), 배치 계산은 part-layout.js. 사람이 고른 이름표(src:user)는 AI 가 덮지 않는다. */
+  var PART_AI_TIMEOUT_MS = 30000;
+
+  function newPartBatch(n) {
+    var s = currentSheet();
+    var had = !!(s && (s.objects || []).some(function (o) { return o.type === 'image'; }));
+    return { left: n, ids: [], hadImages: had, sheetId: s ? s.id : null };
+  }
+
+  function finishPartBatch(batch, id) {
+    if (!batch) { return; }
+    if (id) { batch.ids.push(id); }
+    batch.left -= 1;
+    if (batch.left > 0 || batch.ids.length < 2) { return; }
+    var s = currentSheet();
+    if (!s || s.id !== batch.sheetId) { return; }
+    if (batch.hadImages) { toast('여러 장을 올렸습니다 — 위의 [자동 배치]로 종류에 맞춰 정리할 수 있습니다.'); return; }
+    autoArrangeImages(true);
+  }
+
+  function classifyPlacedImage(id, img, batch) {
+    var ai = window.FomsPartAI;
+    if (!ai) { finishPartBatch(batch, id); return; }
+    var settled = false;
+    var timer = setTimeout(function () {
+      if (!settled) { settled = true; finishPartBatch(batch, id); }
+    }, PART_AI_TIMEOUT_MS);
+    ai.classify(img).then(function (res) {
+      var o = findObj(id);   // 그 사이 지워졌거나 다른 시트로 갔으면 건너뜀
+      if (res && o && o.type === 'image' && !(o.part && o.part.src === 'user')) {
+        o.part = sanitizePart({ label: res.label, src: 'ai', ai: res.ai, conf: res.conf, head: res.head });
+        markDirty();
+        if (selected === id) { syncImageToolbar(o); }
+      }
+      if (!settled) { settled = true; clearTimeout(timer); finishPartBatch(batch, id); }
+    });
+  }
+
+  /** 사람이 종류를 고르거나 고친다 — AI 짐작(ai·conf·head)은 다시 가르칠 때 쓰려고 남긴다. */
+  function setPartLabel(id, label) {
+    var o = findObj(id);
+    if (!canSave || !o || o.type !== 'image' || PART_LABELS.indexOf(label) < 0) { return; }
+    if (o.part && o.part.src === 'user' && o.part.label === label) { return; }
+    recordUndo();
+    var prev = o.part || {};
+    o.part = sanitizePart({ label: label, src: 'user', ai: prev.ai, conf: prev.conf, head: prev.head });
+    markDirty();
+    syncImageToolbar(o);
+  }
+
+  function partTableTop(s) {
+    var top = s && s.form && s.form.layout && s.form.layout.top;
+    return (typeof top === 'number' && isFinite(top)) ? top : LAYOUT_DEFAULT.top;
+  }
+
+  /** 잠기지 않은 그림을 종류에 맞춰 놓는다. 글자·도형·잠긴 그림은 장애물로 비켜 간다. 실행 취소 한 번이면 원래대로. */
+  function autoArrangeImages(fromUpload) {
+    var s = currentSheet();
+    if (!canSave || !s || !window.FomsPartLayout) { return; }
+    var items = [], obstacles = [], order = 0;
+    (s.objects || []).forEach(function (o) {
+      if (o.type === 'image' && !o.locked) {
+        items.push({ id: o.id, nw: o.natural_w || o.w, nh: o.natural_h || o.h,
+          label: (o.part && o.part.label) || PART_LABELS[PART_LABELS.length - 1], order: order++ });
+        return;
+      }
+      var n = nodeById[o.id];
+      if (!n) { return; }
+      var r = n.getClientRect();
+      obstacles.push({ x: r.x - 8, y: r.y - 8, w: r.width + 16, h: r.height + 16 });
+    });
+    if (!items.length) { if (!fromUpload) { toast('배치할 그림이 없습니다.'); } return; }
+    var area = { x0: 20, y0: 76, x1: STAGE_W - 20, y1: partTableTop(s) - 12 };
+    var res = window.FomsPartLayout.arrange(items, area, obstacles);
+    if (!res.placed.length) { return; }
+    recordUndo();
+    res.placed.forEach(function (p) {
+      var o = findObj(p.id);
+      if (o) { o.x = p.x; o.y = p.y; o.w = p.w; o.h = p.h; }
+    });
+    markDirty();
+    rebuildAnno();
+    toast(res.crowded ? '그림이 많아 작게 놓였습니다 — 시트를 나누는 것을 권합니다 (되돌리기 Ctrl+Z)'
+      : '종류에 맞춰 배치했습니다 (되돌리기 Ctrl+Z)');
   }
 
   /** 선택한 이미지의 여백을 잘라 새 에셋으로 교체한다.
@@ -3998,13 +4122,27 @@
     return null;
   }
 
-  /* 잠금(locked)·이미지 뒤집기(flipX/flipY) 공통 보존 — 참일 때만 필드 저장(거짓=기본, 생략). */
+  /* 그림 종류 이름표(part) — 서버 계약(foms/api/drawing/wizard.py _validate_part)과 같은 닫힌 목록.
+     순서 = 숫자키 1~9, 마지막 '미분류' = 0. */
+  var PART_LABELS = ['정면·내부', '정면·도어', '입체·내부', '입체·도어', '평면·상판', '서랍 단면', '부품 상세', '사진', '그림 아님', '미분류'];
+  function sanitizePart(p) {
+    if (!p || typeof p !== 'object' || PART_LABELS.indexOf(p.label) < 0 || (p.src !== 'ai' && p.src !== 'user')) { return null; }
+    var out = { label: p.label, src: p.src };
+    if (PART_LABELS.indexOf(p.ai) >= 0) { out.ai = p.ai; }
+    if (typeof p.conf === 'number' && p.conf >= 0 && p.conf <= 1) { out.conf = Math.round(p.conf * 1000) / 1000; }
+    if (typeof p.head === 'string' && /^[A-Za-z0-9._-]{1,16}$/.test(p.head)) { out.head = p.head; }
+    return out;
+  }
+
+  /* 잠금(locked)·이미지 뒤집기(flipX/flipY)·종류 이름표(part) 공통 보존 — 있을 때만 필드 저장. */
   function withLockFlip(src, out) {
     if (!out) { return out; }
     if (src.locked === true) { out.locked = true; }
     if (out.type === 'image') {
       if (src.flipX === true) { out.flipX = true; }
       if (src.flipY === true) { out.flipY = true; }
+      var part = sanitizePart(src.part);
+      if (part) { out.part = part; }
     }
     return out;
   }
@@ -4944,6 +5082,8 @@
     if (exitBtn) { exitBtn.addEventListener('click', exitWizard); }
     // 앱바 편집 버튼
     document.getElementById('dws-btn-autofill').addEventListener('click', autofill);
+    var arrangeBtn = document.getElementById('dws-btn-arrange');
+    if (arrangeBtn) { arrangeBtn.addEventListener('click', function () { autoArrangeImages(false); }); }
     wireAutofillDialog();
     document.getElementById('dws-btn-select').addEventListener('click', function () {
       setAnnoMode('select');
@@ -5106,6 +5246,7 @@
       syncImageToolbar();
     });
     document.getElementById('dws-mt-del-image').addEventListener('click', deleteSelected);
+    initPartSelect();
     if (els.mtTrim) { els.mtTrim.addEventListener('click', trimSelectedImage); }
     if (els.mtFlipX) { els.mtFlipX.addEventListener('click', function () { flipSelectedImage('flipX'); }); }
     if (els.mtFlipY) { els.mtFlipY.addEventListener('click', function () { flipSelectedImage('flipY'); }); }
@@ -5266,6 +5407,16 @@
         var fwd = (e.code === 'BracketRight' || e.key === ']' || e.key === '}');
         reorderSelected(fwd ? (e.shiftKey ? 'front' : 'up') : (e.shiftKey ? 'back' : 'down'));
         return;
+      }
+      /* 그림 종류 단축키(수정자 없음, 그림 하나 선택): 1~9 = 종류 목록 순서, 0 = 미분류. */
+      if (canSave && !meta && !e.altKey && selected && selectedIds.length <= 1 && /^(Digit|Numpad)[0-9]$/.test(e.code)) {
+        var partObj = findObj(selected);
+        if (partObj && partObj.type === 'image') {
+          var digit = parseInt(e.code.slice(-1), 10);
+          e.preventDefault();
+          setPartLabel(partObj.id, PART_LABELS[digit === 0 ? PART_LABELS.length - 1 : digit - 1]);
+          return;
+        }
       }
       /* 도구 단축키(수정자 없음): V 선택 · U 도형 · P 펜 · E 지우개 · I 이미지 추가.
          버튼과 같은 동작이 되도록 버튼 click 을 그대로 부른다. */

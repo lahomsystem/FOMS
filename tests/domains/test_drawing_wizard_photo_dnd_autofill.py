@@ -34,7 +34,7 @@ def test_photo_insert_default_480_long_side_via_import_attachment():
     assert "function onPhotoClick(photo, cell, pos)" in click
     assert "/drawing-wizard/import-attachment" in click
     assert "placeImageFromKey(r.data.data.key, pos || null, 0, PHOTO_MAX_LONG)" in click
-    assert "function placeImageFromKey(key, pos, cascade, maxLong)" in JS
+    assert "function placeImageFromKey(key, pos, cascade, maxLong, batch)" in JS
 
 
 def test_autofill_uses_dialog_not_confirm():

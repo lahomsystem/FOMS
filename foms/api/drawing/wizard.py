@@ -101,6 +101,16 @@ _PEN_MAX_POINTS = 400
 _PEN_MIN_WIDTH, _PEN_MAX_WIDTH = 1, 20
 _COLOR_RE = re.compile(r'^#[0-9a-fA-F]{6}$')
 
+# 그림 종류 이름표(optional ``part``) — 브라우저 AI 자동 분류 결과와 사람 수정 기록.
+# 설계 정본: docs/plans/2026-10-23-drawing-part-label-feedback-spec.md §3.1
+_PART_LABELS = (
+    '정면·내부', '정면·도어', '입체·내부', '입체·도어', '평면·상판',
+    '서랍 단면', '부품 상세', '사진', '그림 아님', '미분류',
+)
+_PART_SOURCES = ('ai', 'user')
+_PART_FIELDS = frozenset({'label', 'src', 'ai', 'conf', 'head'})
+_PART_HEAD_RE = re.compile(r'^[A-Za-z0-9._-]{1,16}$')
+
 # 제품별 도면 시트 — 시트 승격 값(제품 리스트 인덱스)
 _MAX_PRODUCT_INDEX = 199
 # 실측 사진 사이드 참조 — 첨부 category(주문 상세 실측 이미지와 동일 3종)
@@ -379,6 +389,25 @@ def _validate_image_object(obj: dict, order_id: int) -> str | None:
     for dim_key in ('natural_w', 'natural_h'):
         if dim_key in obj and not _is_number(obj.get(dim_key)):
             return '이미지 원본 치수 값이 올바르지 않습니다.'
+    if 'part' in obj:
+        return _validate_part(obj['part'])
+    return None
+
+
+def _validate_part(part) -> str | None:
+    """optional ``part``(그림 종류 이름표) 검증 — 닫힌 목록 label·출처(ai/user)·확신 0~1·판 번호."""
+    if not isinstance(part, dict) or not set(part) <= _PART_FIELDS:
+        return '그림 종류 형식이 올바르지 않습니다.'
+    if part.get('label') not in _PART_LABELS:
+        return '그림 종류 값이 올바르지 않습니다.'
+    if part.get('src') not in _PART_SOURCES:
+        return '그림 종류 출처 값이 올바르지 않습니다.'
+    if 'ai' in part and part['ai'] not in _PART_LABELS:
+        return '그림 종류 AI 짐작 값이 올바르지 않습니다.'
+    if 'conf' in part and not _is_number_in_range(part['conf'], 0, 1):
+        return '그림 종류 확신 값이 올바르지 않습니다.'
+    if 'head' in part and not (isinstance(part['head'], str) and _PART_HEAD_RE.match(part['head'])):
+        return '그림 종류 판 번호가 올바르지 않습니다.'
     return None
 
 
