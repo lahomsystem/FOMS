@@ -305,3 +305,41 @@ def test_confirmed_tile_count_survives_default_population(client):
     )
     assert tile, "'완료' 타일을 찾지 못했다(마크업 변경?)"
     assert int(tile.group(1)) >= 1, "'완료' 타일이 컨펌 주문을 세지 않는다"
+
+
+@pytest.mark.parametrize("stage", ["CONFIRM", "PRODUCTION"])
+def test_transferred_after_drawing_stage_survives(client, stage):
+    """고객컨펌·생산 단계에 새 도면이 와 수령 확정을 기다리면(TRANSFERRED) 목록에 남는다.
+
+    운영 증상(2026-10-22, 주문 5625 김나윤): 생산 단계로 넘어간 뒤 도면팀이 고친 도면을
+    다시 보내자 [제작 시작]은 "영업이 수령 확정하지 않았다"며 막혔는데, 작업실 목록은
+    도면 단계 ∪ RETURNED 만 보여 영업이 확정할 주문을 찾을 수 없었다.
+    """
+    _login_admin(client)
+    transferred_id = _seed_order(
+        70, stage=stage, created_at=_OLD, drawing_status="TRANSFERRED"
+    )
+    db_session.commit()
+    _seed_newest_noise(260)
+
+    resp = _fragment_get(client)
+
+    assert resp.status_code == 200
+    assert _detail_link(transferred_id) in resp.get_data(as_text=True), (
+        f"{stage} 단계의 수령 대기 재전달 주문이 작업실 목록에서 사라졌다"
+    )
+
+
+@pytest.mark.parametrize("stage", ["CONSTRUCTION", "COMPLETED", "AS_RECEIVED"])
+def test_transferred_after_production_stays_out(client, stage):
+    """음성 대조군: 시공 이후 단계의 옛 TRANSFERRED(운영 65건)는 기본 목록에 넣지 않는다."""
+    _login_admin(client)
+    stale_id = _seed_order(
+        71, stage=stage, created_at=_OLD, drawing_status="TRANSFERRED"
+    )
+    db_session.commit()
+
+    resp = _fragment_get(client)
+
+    assert resp.status_code == 200
+    assert _detail_link(stale_id) not in resp.get_data(as_text=True)

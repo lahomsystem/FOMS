@@ -755,6 +755,10 @@ def erp_drawing_workbench_dashboard():
         drawing_status = effective_drawing_status(sd, default='PENDING')  # 판정 정본(2a-2)
         is_drawing_stage = (stage_code == 'DRAWING')
         is_active_revision = (drawing_status == 'RETURNED')
+        # 고객컨펌·생산 단계에서 새 도면이 와 영업 수령 확정을 기다리는 주문(build_drawing_queue_filter 와 같은 축).
+        is_post_drawing_receipt = (
+            drawing_status == 'TRANSFERRED' and stage_code in ('CONFIRM', 'PRODUCTION')
+        )
         is_confirmed = (drawing_status == 'CONFIRMED')
         # 수령확정 주문은 도면 단계에 남아 있어도(전달·수령확정은 stage 를 안 바꾼다) 기본 목록에서
         # 뺀다 — '전체' 타일(열린 큐 합)과 '전체' 목록 건수가 같은 모집단을 보게 한다.
@@ -762,7 +766,7 @@ def erp_drawing_workbench_dashboard():
         if is_confirmed:
             if not include_confirmed:
                 continue
-        elif not (is_drawing_stage or is_active_revision):
+        elif not (is_drawing_stage or is_active_revision or is_post_drawing_receipt):
             continue
 
         customer_name = (((sd.get('parties') or {}).get('customer') or {}).get('name')) or '-'

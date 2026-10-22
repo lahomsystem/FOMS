@@ -127,6 +127,26 @@ def test_board_state_table(stage_code, sd, has_run, expected):
     assert state == expected
 
 
+@pytest.mark.parametrize(
+    "drawing_status, has_run, label, title",
+    [
+        ("TRANSFERRED", False, "제작대기", "새 도면 확정 필요"),
+        ("RETURNED", False, "제작대기", "도면 수정 중"),
+        ("TRANSFERRED", True, "제작중", "새 도면 확정 필요"),
+    ],
+)
+def test_production_board_state_points_to_drawing_workbench(drawing_status, has_run, label, title):
+    """생산 단계에 새 도면이 와 [제작 시작]이 막히면 '현재 작업'이 도면 작업실로 보낸다(주문 5625)."""
+    sd = {**_sd("PRODUCTION"), "drawing_status": drawing_status}
+    state = build_board_state(_O(7), sd, "PRODUCTION", has_current_run=has_run)
+    assert state == {
+        "kind": "production", "label": label, "tone": "warn", "title": title,
+        "link_label": "도면 작업실 열기",
+        "link_endpoint": "erp_drawing_workbench.erp_drawing_workbench_detail",
+        "link_params": {"order_id": 7},
+    }
+
+
 # ② 음성 대조군
 @pytest.mark.parametrize("stage_code", ["RECEIVED", "MEASURE", "DRAWING", "CONFIRM", "CS", "UNKNOWN", ""])
 def test_board_state_none_for_other_stages(stage_code):

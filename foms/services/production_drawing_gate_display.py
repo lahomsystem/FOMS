@@ -5,7 +5,8 @@
 
 판정은 서버 제작 시작 라우트와 **같은 함수**(``confirm_drawing_gate``)를 부른다(화면 == 서버).
 생산 보드 행은 캐시 없이 매 요청 읽으므로 수령 확정 직후 배지·막힘이 바로 사라진다.
-영업 담당 이름은 막힌 행이 있을 때만 한 번에 조회한다(쿼리 최대 1회).
+영업 담당 이름은 막힌 행이 있을 때만 한 번에 조회한다. 정본은 배정 표(``order_assignments``)이고,
+배정 행이 없는 옛 주문만 ``structured_data`` 의 담당 id 로 물러선다(쿼리 최대 2회).
 """
 from __future__ import annotations
 
@@ -45,10 +46,38 @@ def attach_production_drawing_gate(db: Any, rows: Iterable[dict[str, Any]], orde
             pending.append((row, block, get_assignee_ids(order, "SALES_DOMAIN")))
     if not pending:
         return
-    names = _user_names(db, {uid for _row, _block, ids in pending for uid in ids})
+    assigned = _assigned_sales_names(db, [row.get("id") for row, _block, _ids in pending])
+    legacy_ids = {uid for row, _block, ids in pending if not assigned.get(row.get("id")) for uid in ids}
+    names = _user_names(db, legacy_ids)
     for row, block, ids in pending:
+        sales_names = assigned.get(row.get("id")) or [names.get(i, "") for i in ids]
         row["production_start_blocked"] = True
-        row["production_start_block_reason"] = production_block_reason(block, [names.get(i, "") for i in ids])
+        row["production_start_block_reason"] = production_block_reason(block, sales_names)
+
+
+def _assigned_sales_names(db: Any, order_ids: list[Any]) -> dict[int, list[str]]:
+    """주문 id → 현재 영업(SALES) 배정 이름(배정 표, 한 번에 조회). 주문 5625 처럼 배정이 표에만
+    있으면 ``structured_data`` 담당 id 는 비어 있어 안내 문구가 "영업 담당" 만 남았다."""
+    ids = sorted({int(i) for i in order_ids if i is not None})
+    if not ids:
+        return {}
+    from models import OrderAssignment, User
+
+    rows = (
+        db.query(OrderAssignment.order_id, User.name)
+        .join(User, User.id == OrderAssignment.user_id)
+        .filter(
+            OrderAssignment.order_id.in_(ids),
+            OrderAssignment.domain == "SALES",
+            OrderAssignment.active.is_(True),
+        )
+        .order_by(OrderAssignment.order_id, OrderAssignment.user_id)
+        .all()
+    )
+    out: dict[int, list[str]] = {}
+    for oid, name in rows:
+        out.setdefault(int(oid), []).append(str(name or ""))
+    return out
 
 
 def _user_names(db: Any, user_ids: set[int]) -> dict[int, str]:
