@@ -37,6 +37,7 @@
     // 쏘고 upsert 가 그 초안을 되살린다(등록될 때마다 유령 초안 1건). 제출 성공을
     // 표시해 이후 저장 경로를 전부 닫는다.
     this._submitted = false;
+    this._submitResult = null;
     this._boundFlush = this.flush.bind(this);
   }
 
@@ -283,6 +284,10 @@
 
   FomsDraftClient.prototype.submitOrder = function () {
     var self = this;
+    // 이미 등록에 성공했으면 다시 보내지 않고 그 결과를 돌려준다(같은 초안 두 번 등록 방지).
+    if (self._submitResult) {
+      return Promise.resolve(self._submitResult);
+    }
     return fetch(API_BASE + "/submit", {
       method: "POST",
       credentials: "same-origin",
@@ -293,10 +298,12 @@
         return res.json().then(function (data) {
           // 성공하면 서버가 초안 행을 지운 상태다. 여기서 저장을 끄지 않으면 이어지는
           // 페이지 이동의 pagehide keepalive 가 같은 키로 PUT 을 쏴 초안을 되살린다.
+          var result = { status: res.status, data: data };
           if (res.ok && data && data.success) {
             self._markSubmitted();
+            self._submitResult = result;
           }
-          return { status: res.status, data: data };
+          return result;
         });
       });
   };
