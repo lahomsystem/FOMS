@@ -22,14 +22,25 @@ MARKER_REL = Path("docs") / "harness" / "runtime" / ".cursor_ci_gate_pending.jso
 
 
 def _load_module():
-    """Cursor 훅 모듈을 파일 경로에서 직접 로드한다(.cursor/hooks 를 sys.path 에 추가)."""
-    hooks_dir = str(HOOK_PATH.parent)
-    if hooks_dir not in sys.path:
-        sys.path.insert(0, hooks_dir)
+    """Cursor 훅 모듈을 파일 경로에서 직접 로드한다(로드 동안만 .cursor/hooks 를 sys.path 에 추가).
+
+    로드 뒤 sys.path 와 `shared_utils` 캐시를 되돌린다. 남겨 두면 같은 프로세스의 뒤 테스트가 Claude 훅을
+    불러올 때 Cursor 쪽 shared_utils 를 집어 `cannot import name 'get_project_root'` 로 깨진다(2026-10-22).
+    """
+    saved_path = list(sys.path)
+    saved_shared = sys.modules.get("shared_utils")
+    sys.path.insert(0, str(HOOK_PATH.parent))
     spec = importlib.util.spec_from_file_location("post_task_qc_under_test", HOOK_PATH)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    try:
+        spec.loader.exec_module(module)
+    finally:
+        sys.path[:] = saved_path
+        if saved_shared is not None:
+            sys.modules["shared_utils"] = saved_shared
+        else:
+            sys.modules.pop("shared_utils", None)
     return module
 
 

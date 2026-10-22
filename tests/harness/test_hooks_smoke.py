@@ -57,12 +57,26 @@ def _hook_env(
 
 
 def _load_module(module_name: str, relative_path: str):
-    """Load a Python module directly from a repo-relative path."""
+    """Load a Python module directly from a repo-relative path.
+
+    Cursor 훅은 불러올 때 `.cursor/hooks` 를 sys.path 앞에 넣고 그쪽 `shared_utils` 를 import 한다.
+    되돌리지 않으면 같은 프로세스의 뒤 테스트가 Claude 훅을 불러올 때 이 캐시를 집어
+    `cannot import name 'get_project_root'` 로 깨진다(2026-10-22, test_claude_stop_gate·test_edit_log_session_column).
+    """
     module_path = REPO_ROOT / relative_path
     spec = importlib.util.spec_from_file_location(module_name, module_path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    saved_path = list(sys.path)
+    saved_shared = sys.modules.get("shared_utils")
+    try:
+        spec.loader.exec_module(module)
+    finally:
+        sys.path[:] = saved_path
+        if saved_shared is not None:
+            sys.modules["shared_utils"] = saved_shared
+        else:
+            sys.modules.pop("shared_utils", None)
     return module
 
 
