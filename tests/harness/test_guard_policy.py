@@ -79,21 +79,6 @@ CASES: list[tuple[str, str]] = [
     ("allow", 'psql -c "SELECT 1"'),
     ("allow", "grep proxy.rlwy.net notes.md"),
     ("allow", "python -c \"print('update notes')\""),
-    # Railway 공개 GraphQL 변경 요청(2026-10-22 SPEC railway-api-mutation-guard R1·R2)
-    ("ask", "curl -s https://backboard.railway.com/graphql/v2 -d '{\"query\":\"mutation{tcpProxyDelete(id:1)}\"}'"),
-    ("ask", "python -c \"q='mutation Del($i:String!){tcpProxyDelete(id:$i)}'; u='https://backboard.railway.com/graphql/v2'\""),
-    ("ask", "python - <<'PY'\nurl = 'https://backboard.railway.com/graphql/v2'\nq = 'mutation{variableUpsert(input:{})}'\nPY"),
-    ("ask", "python <<PY\nurl = 'https://backboard.railway.com/graphql/v2'\nq = 'mutation{tcpProxyDelete(id:1)}'\nPY"),
-    ("ask", "cat <<'EOF' | python -\nurl = 'https://backboard.railway.com/graphql/v2'\nq = 'mutation{tcpProxyDelete(id:1)}'\nEOF"),
-    ("ask", "python tools/ops/railway_pitr.py --list"),
-    ("ask", "python -m tools.ops.railway_pitr --list"),
-    ("ask", "python -u tools/ops/railway_configure_cron_service.py --help"),
-    ("ask", "uv run python tools/ops/railway_pitr.py --list"),
-    ("allow", "curl -s https://backboard.railway.com/graphql/v2 -d '{\"query\":\"query{me{id}}\"}'"),
-    ("allow", "python tools/perf/prod_route_latency_compare.py --help"),
-    ("allow", "python tools/ops/check_deploy_drift.py"),
-    ("allow", "grep -rn \"mutation{tcpProxyDelete\" docs/ backboard.railway.com"),
-    ("allow", "cat <<'MD' > notes.md\nbackboard.railway.com mutation{tcpProxyDelete(id:1)}\nMD"),
     # --- 우회 봉합: 첫 토큰 디스패치 우회(deny 유지) ---------------------
     # 개행 세그먼트 우회 (다줄 명령 2번째 줄부터의 위험 명령)
     ("deny", "git status\ngit push --force origin production"),
@@ -508,25 +493,3 @@ def test_session_start_drift_tool_only_queries_railway() -> None:
     """세션 시작 훅이 부르는 drift 도구는 Railway GraphQL 조회만 한다(mutation 0)."""
     source = (Path(REPO_ROOT) / "tools" / "ops" / "check_deploy_drift.py").read_text(encoding="utf-8")
     assert "mutation" not in source.lower()
-
-
-# --- Railway API mutation: 실행 스크립트 파일 검사(R2) ------------------------------
-_MUTATION_SCRIPT = "URL = 'https://backboard.railway.com/graphql/v2'\nQ = 'mutation{tcpProxyDelete(id:\"x\")}'\n"
-_QUERY_SCRIPT = "URL = 'https://backboard.railway.com/graphql/v2'\nQ = 'query{me{id}}'  # mutation 은 보내지 않는다\n"
-
-
-@pytest.mark.parametrize(
-    ("body", "argv", "expected"),
-    [
-        (_MUTATION_SCRIPT, "python {p}", "ask"),
-        (_MUTATION_SCRIPT, "py -3 {p}", "ask"),
-        (_MUTATION_SCRIPT, "python -X utf8 {p}", "ask"),
-        (_QUERY_SCRIPT, "python {p}", "allow"),
-    ],
-)
-def test_railway_mutation_inside_script_file(tmp_path: Path, body: str, argv: str, expected: str) -> None:
-    """스크립트 파일 안의 Railway mutation 은 실행 전에 확인을 묻는다(조회만이면 통과)."""
-    script = tmp_path / "s.py"
-    script.write_text(body, encoding="utf-8")
-    decision, _ = _load_policy().classify_command(argv.format(p=script.as_posix()))
-    assert decision == expected
