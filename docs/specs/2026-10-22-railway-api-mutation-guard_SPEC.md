@@ -1,6 +1,6 @@
 # Railway API 변경 요청도 허락을 묻게 — 안전 장치 보강 SPEC (2026-10-22)
 
-상태: **R1·R2 구현 완료(2026-10-22, 사용자 승인 "스크립트 파일까지")**. R3 의 AGENTS.md 문구는 별도 승인 전이라 넣지 않았다.
+상태: **R1·R2 구현 완료(2026-10-22, 사용자 승인 "스크립트 파일까지")**. R3 문구는 AGENTS.md «프로젝트 기본 정보» 절에 넣었다(2026-10-22 사용자 승인).
 구현 확인: 저장소에서 Railway API 주소가 든 파일 5개 중 새로 ask 가 되는 것은 `railway_configure_cron_service.py`·`railway_pitr.py`
 두 개뿐(나머지 `check_deploy_drift.py`·`prod_route_latency_compare.py`·`guard_policy.py` 는 allow). 새 ask 사례 9개는 옛 가드에서
 전부 allow 였다(대조군).
