@@ -25,6 +25,11 @@ DRAWING_WORKBENCH_SEED_CAP = 1000
 # workflow.stage 미러 컬럼(erp_stage_code)의 도면 단계 표기 — 코드/한글 라벨 양쪽.
 DRAWING_STAGE_CODES = ('DRAWING', '도면')
 
+# 도면 단계를 지난 뒤 새 도면이 와서 영업 수령 확정을 기다리는(TRANSFERRED) 단계 — 코드/한글.
+# 생산 단계 재전달은 [제작 시작]을 막는데(confirm_drawing_gate) 목록에서 빠지면 영업이 확정할
+# 곳을 못 찾는다(2026-10-22 주문 5625). 시공 이후 옛 주문(운영 65건)은 넣지 않는다.
+POST_DRAWING_RECEIPT_STAGE_CODES = ('CONFIRM', '고객컨펌', 'PRODUCTION', '생산')
+
 
 def _drawing_status_exprs():
     """행 판정이 읽는 두 키(``sd['drawing']['status']`` / ``sd['drawing_status']``) 식.
@@ -96,6 +101,11 @@ def build_drawing_queue_filter(*, include_confirmed: bool = False):
     for status in statuses:
         conditions.append(nested == status)
         conditions.append(flat == status)
+    # 생산 전 단계의 수령 대기 재전달 — 단계 축은 색인 있는 미러 컬럼(대상 수십 건)으로 좁힌다.
+    conditions.append(and_(
+        Order.erp_stage_code.in_(POST_DRAWING_RECEIPT_STAGE_CODES),
+        or_(nested == 'TRANSFERRED', flat == 'TRANSFERRED'),
+    ))
     return or_(*conditions)
 
 
