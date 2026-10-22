@@ -351,4 +351,4 @@ def test_wizard_channel_button_registers_then_pushes():
     assert register_at < push_at
     assert 'push_kind: "measure_room"' in js
     assert "payload.text" not in js
-    assert "wizard-send.js') }}?v=20261020a" in shell
+    assert "wizard-send.js') }}?v=20261022a" in shell
