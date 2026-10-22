@@ -1,0 +1,123 @@
+# FOMS 대피 구성 초안 — Railway 없이 서버 1대에서 띄운다.
+# 상태: 준비용 초안(2026-10-22). 아직 한 번도 띄워 보지 않았다. 운영 DB 에 붙이지 않는다.
+# 설계: docs/specs/2026-10-22-railway-exit-plan_SPEC.md 1단계. 사용법: deploy/compose/README.md
+#
+# 비밀값은 저장소 밖 $FOMS_ENV_DIR/*.env 에 둔다(tools/ops/vars_snapshot_to_env.py 가 오프사이트 스냅샷에서 만든다, 저장소에 올리지 않는다).
+# Railway 가 대시보드에서 하던 일을 여기서 대신한다:
+#   start 명령(topology.json) · 배포마다 한 번 마이그레이션(predeploy.sh) · 재시작 정책 · WORKER 1개 고정 · HTTPS 프록시.
+
+name: foms
+
+x-app: &app
+  image: foms-app:${FOMS_IMAGE_TAG:-local}
+  build:
+    context: ../..
+    dockerfile: Dockerfile
+  restart: always
+  environment:
+    # Railway 변수가 없으면 앱이 개발 모드·임시 디스크 저장으로 떨어진다(app_factory.py·storage.py) — 직접 명시한다.
+    FLASK_ENV: production
+    STORAGE_TYPE: r2
+    TZ: UTC
+    DATABASE_URL: postgresql://foms:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD}@postgres:5432/foms
+    REDIS_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD}@redis:6379/0
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_started
+
+services:
+  postgres:
+    # pgvector 가 없으면 designer_pgvector 마이그레이션이 일부러 실패하고 복원 때 오류 13건이 난다(RESTORE.md §4).
+    image: pgvector/pgvector:pg17
+    restart: always
+    environment:
+      POSTGRES_DB: foms
+      POSTGRES_USER: foms
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U foms -d foms"]
+      interval: 5s
+      retries: 20
+
+  redis:
+    image: redis:8.2.9
+    restart: always
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:?REDIS_PASSWORD}", "--save", "60", "1"]
+    volumes:
+      - redisdata:/data
+
+  migrate:
+    # Railway preDeployCommand 자리 — 앱보다 먼저 한 번 돈다(alembic upgrade head).
+    <<: *app
+    restart: "no"
+    env_file: ["${FOMS_ENV_DIR:?FOMS_ENV_DIR}/web.env"]
+    command: ["sh", "predeploy.sh"]
+
+  web:
+    <<: *app
+    env_file: ["${FOMS_ENV_DIR:?FOMS_ENV_DIR}/web.env"]
+    environment:
+      FLASK_ENV: production
+      STORAGE_TYPE: r2
+      TZ: UTC
+      PORT: "8080"
+      # Caddy 한 단만 거친다 — Railway 의 2 와 다르다(docs/specs/2026-10-19-client-ip-behind-proxy_SPEC.md).
+      FOMS_TRUSTED_PROXY_HOPS: "1"
+      DATABASE_URL: postgresql://foms:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD}@postgres:5432/foms
+      REDIS_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD}@redis:6379/0
+    command: ["sh", "start.sh"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  worker:
+    # 반드시 1개 — 네이버 허용 IP·하루 1회 자동 발송 전제.
+    <<: *app
+    env_file: ["${FOMS_ENV_DIR:?FOMS_ENV_DIR}/worker.env"]
+    environment:
+      FLASK_ENV: production
+      STORAGE_TYPE: r2
+      TZ: UTC
+      USE_RQ_WORKER: "1"
+      DATABASE_URL: postgresql://foms:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD}@postgres:5432/foms
+      REDIS_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD}@redis:6379/0
+    command: ["sh", "start.sh"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  sidefx:
+    <<: *app
+    env_file: ["${FOMS_ENV_DIR:?FOMS_ENV_DIR}/sidefx.env"]
+    command: ["python", "tools/ops/run_domain_side_effect_outbox.py", "--loop", "--interval", "5"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  cron:
+    # 상주하지 않는다 — 호스트 crontab 이 매일 17:00 UTC 에 겹치지 않게(flock) 한 번 돌린다. README 참고.
+    <<: *app
+    restart: "no"
+    profiles: ["cron"]
+    env_file: ["${FOMS_ENV_DIR:?FOMS_ENV_DIR}/cron.env"]
+    command: ["python", "tools/cron/nightly.py"]
+
+  caddy:
+    image: caddy:2
+    restart: always
+    ports: ["80:80", "443:443"]
+    environment:
+      FOMS_DOMAIN: ${FOMS_DOMAIN:?FOMS_DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddydata:/data
+    depends_on: [web]
+
+volumes:
+  pgdata:
+  redisdata:
+  caddydata:

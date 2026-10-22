@@ -1,0 +1,12 @@
+# FOMS 대피 구성 초안 — HTTPS 자동 발급 + web 으로 전달.
+# X-Forwarded-For/Proto/Host 를 Caddy 가 붙인다. 틀리면 쓰기 요청이 전부 403(request_write_guard 의 Origin 대조).
+# 웹소켓(Socket.IO)은 reverse_proxy 가 그대로 넘긴다. 긴 요청(gunicorn --timeout 120)에 맞춰 읽기 제한을 두지 않는다.
+{$FOMS_DOMAIN} {
+	encode gzip
+	reverse_proxy web:8080 {
+		transport http {
+			read_timeout 180s
+			write_timeout 180s
+		}
+	}
+}
