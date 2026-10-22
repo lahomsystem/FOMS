@@ -63,19 +63,18 @@ _FILENAME_FORBIDDEN = '\/:*?"<>|'
 
 
 def _rename_drawing_room_files(files: list[dict], customer_name: str | None) -> list[dict]:
-    """도면방 파일 이름을 고객명으로 바꾼다. 여러 장이면 '고객명1', '고객명2' … (확장자 유지)."""
+    """도면방 파일 이름을 '고객명+도면 번호'로 바꾼다. 한 장이어도 '고객명1', 여러 장이면
+    '고객명1', '고객명2' … (확장자 유지). 번호는 현재 전달본 순서 = 도면 번호순."""
     base = ''.join(
         ch for ch in (customer_name or '').strip() if ch not in _FILENAME_FORBIDDEN and ch.isprintable()
     ).strip()
     if not base:
         return files
-    multiple = len(files) > 1
     renamed = []
     for idx, item in enumerate(files, start=1):
         original = item.get('fileName') or ''
         ext = os.path.splitext(original)[1]
-        stem = f"{base}{idx}" if multiple else base
-        renamed.append({**item, 'fileName': f"{stem}{ext}"})
+        renamed.append({**item, 'fileName': f"{base}{idx}{ext}"})
     return renamed
 
 

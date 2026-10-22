@@ -4521,7 +4521,10 @@
     var safe = function (s) { return String(s || '').replace(/[\\/:*?"<>|\n\r]/g, '_').trim() || '무제'; };
     return '도면_' + safe(customerName) + '_' + ORDER_ID + '_' + safe((sheet || {}).name) + '.png';
   }
-  function exportFilename() { return sheetPngFilename(currentSheet()); }
+  /** 단일 PNG 내보내기 파일명 — 일괄 내보내기와 같은 `고객명+도면 번호.png`. */
+  function exportFilename() {
+    return exportSheetFilename(currentSheet(), current);
+  }
 
   /**
    * 내보내기 합성(§3.5): 폼(html2canvas scale=2) + Konva(toCanvas pixelRatio=2)를
@@ -4591,12 +4594,13 @@
     return ('0' + (d.getMonth() + 1)).slice(-2) + ('0' + d.getDate()).slice(-2);
   }
 
-  /** 일괄 내보내기 파일명: `고객이름도면번호.png`(붙여쓰기, 도면번호=page_no, 없으면 순번+1).
+  /** 내보내기 파일명: 고객명+도면 번호(예 `이시영1.png`). 도면 번호=page_no 가 숫자일 때 그 값,
+      아니면(제품 1개 주문의 '-'·빈 값) 순번+1 — 도면방 PUSH 와 같은 규칙.
       .png 확장자 필수 — 없으면 Windows 가 PNG 로 인식 못 함(탐색기는 알려진 확장자를 기본 숨김). */
   function exportSheetFilename(sheet, i) {
     var form = (sheet && sheet.form) || {};
     var pageNo = String(form.page_no == null ? '' : form.page_no).trim();
-    if (!pageNo) { pageNo = String(i + 1); }
+    if (!/^\d+$/.test(pageNo)) { pageNo = String(i + 1); }
     return fsSafe(customerName) + fsSafe(pageNo) + '.png';
   }
 
