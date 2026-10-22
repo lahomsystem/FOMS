@@ -59,7 +59,7 @@ def orders_trgm_index_registry() -> dict[str, str]:
     """운영 마이그레이션이 orders 에 만드는 trgm 인덱스 — ``{식: 인덱스 이름}``.
 
     Returns:
-        phase_d·phase_e·phase_f·search_trgm_00 의 orders trgm 인덱스 식(``orders.`` 접두 없음).
+        phase_d·phase_e·phase_f·search_trgm_00·mine_toplevel_drawing_idx_00 의 orders trgm 인덱스 식(``orders.`` 접두 없음).
 
     Raises:
         AssertionError: phase_d 원문에서 기대한 DDL 이 사라졌을 때(대조 기준이 낡았다).
@@ -77,6 +77,8 @@ def orders_trgm_index_registry() -> dict[str, str]:
     )
     registry.update({expression: name for name, expression in phase_f._ORDER_SD_TRGM_INDEXES.items()})
     registry.update({expression: name for name, expression in SEARCH_TRGM.SEARCH_TRGM_INDEXES.items()})
+    mine_top = load_migration("mine_toplevel_drawing_idx_00.py")
+    registry.update({expression: name for name, expression in mine_top.MINE_TRGM_INDEXES.items()})
     return registry
 
 
