@@ -262,8 +262,12 @@
     {# 접수·실측만 카드에서 바로 승인한다(단계가 실제로 넘어가고, 판단에 필요한 정보가 카드에 있다).
        나머지 단계는 지금처럼 상세로 보내 맥락·권한을 다시 확인하게 한다. #}
     {% set quest_inline_approve = quest_actionable and quest.advances_stage %}
+    {#- 생산 단계에 새 도면이 와 [제작 시작]이 막힌 주문(board_state 가 도면 작업실로 보냄, 주문 5625)도
+        카드에서 도면 작업실로 바로 보낸다 — PC '현재 작업' 칸·휴대폰 상세와 같은 판정. -#}
+    {% set board_drawing_open = order.board_state
+        and order.board_state.link_endpoint == 'erp_drawing_workbench.erp_drawing_workbench_detail' %}
     {% set drawing_actionable = (not action_list) and (not quest_actionable)
-        and (order.stage_code == 'DRAWING' or order.stage in ['도면', 'DRAWING']) %}
+        and (order.stage_code == 'DRAWING' or order.stage in ['도면', 'DRAWING'] or board_drawing_open) %}
     {# 고객컨펌을 상세로만 보내던 전용 링크는 뺐다 — 이제 quest_inline_approve 가 승인 버튼을 그린다. #}
     {% set workflow_actionable = quest_actionable or drawing_actionable %}
     {% set detail_href = url_for('erp_dashboard.erp_order_mobile_detail', order_id=order.id, return_to=detail_return_to) if detail_return_to else url_for('erp_dashboard.erp_order_mobile_detail', order_id=order.id) %}
@@ -272,6 +276,9 @@
         비관리자는 버튼이 빠지고, 관리자는 아래 경고 모양 버튼 → 409 → 사유 시트로 뚫는다. -#}
     {% if (not action_list) and quest and quest.approve_blocked %}
     <p class="foms-gate-blocked-reason" data-quest-approve-blocked>{{ quest.approve_blocked_reason }}</p>
+    {% endif %}
+    {% if drawing_actionable and board_drawing_open and order.board_state.title %}
+    <p class="foms-gate-blocked-reason" data-board-drawing-reason>{{ order.board_state.title }}</p>
     {% endif %}
     {#- 카드 통합 후속(2026-07-15): footer_extra_slot 사용 도메인(출고)은 푸터 본줄을
         [상세 · ERP 편집 · 슬롯 버튼] 3개로 고정하고, 조건부 워크플로 버튼(리스크 CTA ·
@@ -328,8 +335,8 @@
         <a
           class="foms-btn foms-btn--primary foms-btn--sm erp-queue-card__drawing-open"
           href="{{ url_for('erp_drawing_workbench.erp_drawing_workbench_detail', order_id=order.id) }}"
-          aria-label="도면 창구 열기">
-          <i class="fas fa-drafting-compass" aria-hidden="true"></i> 도면 창구
+          aria-label="{{ order.board_state.link_label if board_drawing_open else '도면 창구 열기' }}">
+          <i class="fas fa-drafting-compass" aria-hidden="true"></i> {{ order.board_state.link_label if board_drawing_open else '도면 창구' }}
         </a>
       {% elif quest and quest.is_done and not order.board_state %}
         {# 완료 quest 인데 단계가 그대로인 막다른 길 — 승인 버튼과 같은 모양·이름으로 다시 넘긴다
