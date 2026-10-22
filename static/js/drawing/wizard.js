@@ -375,10 +375,18 @@
 
   function recordUndo() { pushUndoSnapshot(cloneSheet(currentSheet())); }
 
+  /** 되돌리기 이력에서 꺼낸 시트로 바꾼다. 자재표 계산 칸 입력(calc)은 그림 편집 이력이 아니라
+      지금 값을 그대로 이어 쓴다(되돌리기가 계산 칸에 친 숫자를 지우지 않게). */
+  function swapInHistory(next) {
+    var calc = currentSheet().calc;
+    if (calc) { next.calc = calc; } else { delete next.calc; }
+    state.sheets[current] = next;
+  }
+
   function undo() {
     if (!undoStack.length) { return; }
     redoStack.push(cloneSheet(currentSheet()));
-    state.sheets[current] = undoStack.pop();
+    swapInHistory(undoStack.pop());
     deselect();
     renderForm();
     rebuildAnno();
@@ -388,7 +396,7 @@
   function redo() {
     if (!redoStack.length) { return; }
     undoStack.push(cloneSheet(currentSheet()));
-    state.sheets[current] = redoStack.pop();
+    swapInHistory(redoStack.pop());
     deselect();
     renderForm();
     rebuildAnno();
@@ -1429,6 +1437,7 @@
   /** state.objects → Konva 노드 전체 재구성. */
   function rebuildAnno() {
     if (!konvaLayer) { return; }
+    if (window.FomsBomPanel) { window.FomsBomPanel.sync(); }   // 자재표 계산 칸: 시트가 바뀌면 다시 맞춰 보기
     transformer.nodes([]);
     konvaLayer.find('.anno').forEach(function (n) { n.destroy(); });
     nodeById = {};
@@ -1727,6 +1736,22 @@
       if (selected) { setPartLabel(selected, els.mtPart.value); }
       els.mtPart.blur();   // 포커스를 캔버스로 돌려 숫자키·Delete 단축키가 다시 먹게
     });
+  }
+
+  /** 자재표 계산 칸(bom-panel.js, 설계서 §3.6) 연결 — 스크립트가 없으면 앱바 단추를 숨긴다. */
+  function initBomPanel() {
+    var btn = document.getElementById('dws-btn-calc');
+    var host = document.getElementById('dws-calc');
+    var ok = !!(window.FomsBomPanel && host && window.FomsBomPanel.init({
+      host: host,
+      button: btn,
+      getSheet: currentSheet,
+      getProduct: function (s) { return (s && isFiniteNum(s.product_index)) ? (products[s.product_index] || null) : null; },
+      canSave: function () { return canSave; },
+      onChange: markDirty,
+      toast: toast
+    }));
+    if (!ok && btn) { btn.hidden = true; }
   }
 
   function syncLockEyedropButtons(o) {
@@ -4178,6 +4203,11 @@
       out.attachment_id = Math.round(s.attachment_id);
     }
     if (s.presets_seeded === true) { out.presets_seeded = true; }   // 기본 프리셋 1회 배치 표시
+    // 자재표 계산 칸 입력·계산 글자(설계서 §3.6). bom-calc.js 를 못 불러왔으면 받은 그대로 되돌려 보낸다.
+    if (s.calc && typeof s.calc === 'object') {
+      var calc = window.FomsBomCalc ? window.FomsBomCalc.sanitize(s.calc) : s.calc;
+      if (calc) { out.calc = calc; }
+    }
     return out;
   }
 
@@ -4256,6 +4286,7 @@
       };
       if (isFiniteNum(s.product_index)) { sheet.product_index = Math.round(s.product_index); }
       if (isFiniteNum(s.attachment_id)) { sheet.attachment_id = Math.round(s.attachment_id); }
+      if (s.calc && typeof s.calc === 'object') { sheet.calc = s.calc; }
       /* 기본 프리셋 이전에 만든 시트: 빈 시트면 한 번만 자리표를 깔고, 깔았든 안 깔았든 표시를 남겨
          지운 프리셋이 다시 열 때 되살아나지 않게 한다. 저장 권한이 없으면 건드리지 않는다. */
       if (s.presets_seeded === true) { sheet.presets_seeded = true; }
@@ -5084,6 +5115,7 @@
     document.getElementById('dws-btn-autofill').addEventListener('click', autofill);
     var arrangeBtn = document.getElementById('dws-btn-arrange');
     if (arrangeBtn) { arrangeBtn.addEventListener('click', function () { autoArrangeImages(false); }); }
+    initBomPanel();
     wireAutofillDialog();
     document.getElementById('dws-btn-select').addEventListener('click', function () {
       setAnnoMode('select');

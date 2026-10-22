@@ -503,6 +503,10 @@
       "mode": "guard",
       "rule": "/api/orders/<int:order_id>/drawing-wizard/asset"
     },
+    "erp_orders_drawing_wizard.api_post_drawing_wizard_bom_rules": {
+      "mode": "guard",
+      "rule": "/api/orders/drawing-wizard/bom-rules"
+    },
     "erp_orders_drawing_wizard.api_post_drawing_wizard_import_attachment": {
       "mode": "guard",
       "rule": "/api/orders/<int:order_id>/drawing-wizard/import-attachment"

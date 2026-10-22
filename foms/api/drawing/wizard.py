@@ -53,6 +53,13 @@ from foms.services.datetime_kst import now_kst, now_utc_naive
 from foms.services.erp_policy import is_drawing_workbench_participant
 from foms.services.storage import get_storage
 from foms.services.drawing_wizard_defaults import build_wizard_defaults, resolve_assignee_drew_en
+from foms.services.drawing_wizard_bom_rules import (
+    BOM_RULES_POLICY_ID,
+    DEFAULT_RULES as BOM_DEFAULT_RULES,
+    BomRulesError,
+    load_bom_rules,
+    update_bom_rules,
+)
 from foms.services.drawing_wizard_presets import (
     WIZ_PRESET_POLICY_ID,
     WizardPresetError,
@@ -110,6 +117,25 @@ _PART_LABELS = (
 _PART_SOURCES = ('ai', 'user')
 _PART_FIELDS = frozenset({'label', 'src', 'ai', 'conf', 'head'})
 _PART_HEAD_RE = re.compile(r'^[A-Za-z0-9._-]{1,16}$')
+
+# 자재표 계산 칸(optional 시트 ``calc``) — 입력값·마지막 계산 글자·규칙 판·모드(그림자/넣기).
+# 설계 정본: docs/plans/2026-10-23-drawing-part-label-feedback-spec.md §3.3 · §3.6
+_CALC_FIELDS = frozenset({'in', 'out', 'rules', 'mode'})
+_CALC_MODES = ('shadow', 'insert')
+_CALC_RULES_RE = re.compile(r'^[A-Za-z0-9._-]{1,16}$')
+_CALC_CHOICES = {
+    'line': ('mold', 'nomold', 'slide', 'other'),
+    'handle': ('phoenix', 'other'),
+    'nomold': ('ceiling', 'std'),
+}
+_CALC_NUMBERS = {
+    'W': (0, 20000), 'D': (0, 2000), 'H': (0, 5000), 'zone': (0, 3000),
+    'door_h': (0, 5000), 'ep': (0, 4), 'sr_l': (0, 1000), 'sr_r': (0, 1000),
+}
+_CALC_MOD_NUMBERS = {'w': (0, 5000), 'doors': (0, 4), 'drawers': (0, 6), 'rods': (0, 3)}
+_MAX_CALC_MODS = 24
+_MAX_CALC_OUT_LEN = 2000
+_MAX_CALC_BYTES = 4096
 
 # 제품별 도면 시트 — 시트 승격 값(제품 리스트 인덱스)
 _MAX_PRODUCT_INDEX = 199
@@ -411,6 +437,47 @@ def _validate_part(part) -> str | None:
     return None
 
 
+def _validate_calc_inputs(inputs) -> str | None:
+    """``calc.in`` — 닫힌 선택값·숫자 범위·모듈 목록(최대 24개)."""
+    allowed = set(_CALC_CHOICES) | set(_CALC_NUMBERS) | {'mods'}
+    if not isinstance(inputs, dict) or not set(inputs) <= allowed:
+        return '자재표 계산 입력 형식이 올바르지 않습니다.'
+    for key, choices in _CALC_CHOICES.items():
+        if key in inputs and inputs[key] not in choices:
+            return '자재표 계산 선택 값이 올바르지 않습니다.'
+    for key, (low, high) in _CALC_NUMBERS.items():
+        if key in inputs and not _is_number_in_range(inputs[key], low, high):
+            return '자재표 계산 숫자가 범위를 벗어났습니다.'
+    mods = inputs.get('mods', [])
+    if not isinstance(mods, list) or len(mods) > _MAX_CALC_MODS:
+        return f'자재표 계산 모듈은 최대 {_MAX_CALC_MODS}개까지 허용됩니다.'
+    for mod in mods:
+        if not isinstance(mod, dict) or not set(mod) <= set(_CALC_MOD_NUMBERS):
+            return '자재표 계산 모듈 형식이 올바르지 않습니다.'
+        for key, (low, high) in _CALC_MOD_NUMBERS.items():
+            if key in mod and not _is_number_in_range(mod[key], low, high):
+                return '자재표 계산 모듈 숫자가 범위를 벗어났습니다.'
+    return None
+
+
+def _validate_calc(calc) -> str | None:
+    """optional 시트 ``calc``(자재표 계산 칸) 검증 — 닫힌 칸·모드·규칙 판·글자 길이·크기 상한."""
+    if not isinstance(calc, dict) or not set(calc) <= _CALC_FIELDS:
+        return '자재표 계산 형식이 올바르지 않습니다.'
+    if calc.get('mode', 'shadow') not in _CALC_MODES:
+        return '자재표 계산 모드 값이 올바르지 않습니다.'
+    if 'rules' in calc and not (isinstance(calc['rules'], str) and _CALC_RULES_RE.match(calc['rules'])):
+        return '자재표 계산 규칙 판 값이 올바르지 않습니다.'
+    if 'out' in calc and not (isinstance(calc['out'], str) and len(calc['out']) <= _MAX_CALC_OUT_LEN):
+        return '자재표 계산 결과 글자가 올바르지 않습니다.'
+    inputs_error = _validate_calc_inputs(calc.get('in', {}))
+    if inputs_error:
+        return inputs_error
+    if len(json.dumps(calc, ensure_ascii=False).encode('utf-8')) > _MAX_CALC_BYTES:
+        return '자재표 계산 데이터가 너무 큽니다.'
+    return None
+
+
 def _validate_rotation(obj: dict) -> str | None:
     """공통 optional ``rotation``(있으면 -360~360 숫자). 없으면 통과."""
     if 'rotation' in obj and not _is_number_in_range(obj.get('rotation'), -360, 360):
@@ -584,7 +651,8 @@ def _validate_sheet(sheet, order_id: int) -> str | None:
 
     제품별 도면 시트 승격 값(optional): ``product_index``(제품 리스트 인덱스,
     0~199)와 ``attachment_id``(도면 탭 첨부 식별자, 양의 정수)를 허용한다. 둘 다
-    없거나 ``None`` 이면 통과(구 저장분·비-제품 시트).
+    없거나 ``None`` 이면 통과(구 저장분·비-제품 시트). 자재표 계산 칸(optional ``calc``)은
+    :func:`_validate_calc` 가 본다.
     """
     if not isinstance(sheet, dict):
         return '시트 형식이 올바르지 않습니다.'
@@ -606,6 +674,10 @@ def _validate_sheet(sheet, order_id: int) -> str | None:
         or attachment_id < 0
     ):
         return '시트 첨부 식별자 값이 올바르지 않습니다.'
+    if 'calc' in sheet:
+        calc_error = _validate_calc(sheet['calc'])
+        if calc_error:
+            return calc_error
     form = sheet.get('form')
     if not isinstance(form, dict):
         return '시트 폼 형식이 올바르지 않습니다.'
@@ -1787,3 +1859,68 @@ def api_post_drawing_wizard_presets():
             'mutation_receipt': result.receipt_id,
         },
     })
+
+
+@erp_orders_drawing_wizard_bp.route('/drawing-wizard/bom-rules', methods=['GET'])
+@login_required
+def api_get_drawing_wizard_bom_rules():
+    """자재표 계산 규칙 숫자(주문 무관 전역)와 기본값·고치기 권한을 반환한다(설계서 §3.6).
+
+    ``version`` 은 저장 때 If-Match 로 되보낸다(저장 없으면 0, 판 이름 ``d1``).
+    """
+    try:
+        db = get_db()
+        current_user = get_user_by_id(session.get('user_id'))
+        can_edit = evaluate_policy(POLICY_REGISTRY[BOM_RULES_POLICY_ID], current_user).allowed
+        data = dict(load_bom_rules(db), defaults=BOM_DEFAULT_RULES, can_edit=can_edit)
+        return jsonify({'success': True, 'data': data, 'error': None})
+    except Exception as e:
+        logger.error("drawing-wizard bom-rules GET failed: %s", e, exc_info=True)
+        msg = '계산 규칙을 불러오지 못했습니다.'
+        return jsonify({'success': False, 'data': None, 'error': msg, 'message': msg}), 500
+
+
+@erp_orders_drawing_wizard_bp.route('/drawing-wizard/bom-rules', methods=['POST'])
+@login_required
+def api_post_drawing_wizard_bom_rules():
+    """자재표 계산 규칙 숫자를 저장한다(전역 SystemSetting, 도면팀·관리자, 설계서 §3.6).
+
+    Body: ``{rules, settings_version?}`` · optional 헤더 ``If-Match``. 형식 위반 400 ·
+    version 누락 428 · 불일치 409(현재 version 동봉) · SecurityLog 감사. Order 는 건드리지 않는다.
+    """
+    current_user = get_user_by_id(session.get('user_id'))
+    decision = evaluate_policy(POLICY_REGISTRY[BOM_RULES_POLICY_ID], current_user)
+    if not decision.allowed:
+        return jsonify({
+            'success': False, 'data': None,
+            'error': decision.reason, 'message': decision.reason, 'code': decision.code,
+        }), decision.status
+
+    data = request.get_json(silent=True)
+    data = data if isinstance(data, dict) else {}
+    db = get_db()
+    try:
+        result = update_bom_rules(
+            db,
+            actor_user_id=getattr(current_user, 'id', None),
+            payload=data.get('rules'),
+            if_match_version=_preset_if_match(data),
+        )
+        db.commit()
+    except BomRulesError as err:
+        db.rollback()
+        payload = {
+            'success': False, 'data': None, 'error': str(err),
+            'message': str(err), 'code': err.error_code,
+        }
+        current = getattr(err, 'current_version', None)
+        if current is not None:
+            payload['current_version'] = current
+        return jsonify(payload), err.status_code
+    except Exception as e:
+        db.rollback()
+        logger.error("drawing-wizard bom-rules POST failed: %s", e, exc_info=True)
+        msg = '계산 규칙을 저장하지 못했습니다.'
+        return jsonify({'success': False, 'data': None, 'error': msg, 'message': msg}), 500
+
+    return jsonify({'success': True, 'data': dict(result, defaults=BOM_DEFAULT_RULES), 'error': None})
