@@ -681,6 +681,116 @@ _RAILWAY_SUB_MUTATING: dict[str, frozenset[str]] = {
 }
 
 
+#: Railway 공개 GraphQL — 이 주소로 가는 mutation 은 운영 설정을 바꾼다
+#: (2026-10-22 SPEC docs/specs/2026-10-22-railway-api-mutation-guard_SPEC.md).
+_RAILWAY_API_HOSTS: tuple[str, ...] = ("backboard.railway.com", "backboard.railway.app")
+#: GraphQL 연산 모양의 mutation 만 — 설명문 "mutation 은 …"·정규식 리터럴은 걸리지 않는다.
+_GRAPHQL_MUTATION_RE = re.compile(r"\bmutation\s*(?:[A-Za-z_]\w*\s*)?[({]", re.IGNORECASE)
+_RAILWAY_API_LABEL = "Railway API 변경 요청(mutation)"
+#: 받는 글자를 네트워크로 보내거나 실행하는 명령 — 이들의 인자·heredoc 본문만 검사한다(R1).
+_RAILWAY_API_SENDERS: frozenset[str] = frozenset({
+    "curl", "wget", "python", "python3", "py", "node", "powershell", "pwsh",
+    "irm", "iwr", "invoke-restmethod", "invoke-webrequest",
+})
+#: 스크립트 파일을 읽어 볼 실행기(R2)와 그 옵션.
+_SCRIPT_RUNNERS: frozenset[str] = frozenset({"python", "python3", "py", "node"})
+_SCRIPT_VALUE_OPTS: frozenset[str] = frozenset({
+    "-X", "-W", "--check-hash-based-pycs", "-r", "--require", "--import", "--loader",
+})
+_SCRIPT_INLINE_OPTS: frozenset[str] = frozenset({"-c", "-e", "--eval", "-p", "--print", "-"})
+_SCRIPT_SCAN_MAX_BYTES = 256 * 1024
+#: `uv run …` 처럼 뒤 명령을 실행하는 패키지 관리자 래퍼(하위 명령 run).
+_RUN_WRAPPERS: frozenset[str] = frozenset({"uv", "pipenv", "poetry"})
+
+
+def _has_railway_mutation(text: str) -> bool:
+    """글자 안에 Railway API 주소와 GraphQL mutation 연산이 함께 있는지."""
+    lower = text.lower()
+    return any(h in lower for h in _RAILWAY_API_HOSTS) and bool(_GRAPHQL_MUTATION_RE.search(text))
+
+
+def _heredoc_railway_mutation(command: str) -> bool:
+    """실행기(python·node 등)에 먹이는 heredoc 본문에 Railway API mutation 이 있는지(R1).
+
+    `_strip_heredoc_bodies` 가 본문을 데이터로 지우기 전에 본다. 소비자는 `<<` 앞 명령
+    (`python - <<'PY'`, `python <<PY`)과 같은 줄 태그 뒤 파이프 다음 명령(`cat <<'EOF' | python -`) 둘 다다.
+    """
+    lines = command.split("\n")
+    i = 0
+    while i < len(lines):
+        match = _HEREDOC_RE.search(lines[i])
+        if not match:
+            i += 1
+            continue
+        line, tag = lines[i], match.group(2)
+        consumers = {_heredoc_consumer(line[: match.start()])}
+        tail = line[match.end():]
+        if "|" in tail:
+            after = tail.split("|", 1)[1].strip()
+            if after:
+                consumers.add(_command_name(_tokenize(after)))
+        body: list[str] = []
+        i += 1
+        while i < len(lines) and lines[i].strip() != tag:
+            body.append(lines[i])
+            i += 1
+        i += 1
+        if consumers & _RAILWAY_API_SENDERS and _has_railway_mutation("\n".join(body)):
+            return True
+    return False
+
+
+def _script_target(tokens: list[str]) -> str | None:
+    """`python [옵션] x.py` · `py -3 x.py` · `python -m a.b` · `node x.js` 의 실행 파일 경로(없으면 None)."""
+    i = 1
+    while i < len(tokens):
+        tok = tokens[i]
+        if tok == "-m":
+            if i + 1 >= len(tokens):
+                return None
+            return tokens[i + 1].replace(".", "/") + ".py"
+        if tok in _SCRIPT_INLINE_OPTS:
+            return None
+        if tok in _SCRIPT_VALUE_OPTS:
+            i += 2
+            continue
+        if tok.startswith("-"):
+            i += 1
+            continue
+        return tok
+    return None
+
+
+def _resolve_script_path(target: str) -> str | None:
+    """상대 경로를 같은 명령의 `cd`·저장소 루트·현재 폴더 순으로 풀어 실제 파일을 찾는다."""
+    msys = re.match(r"^/([a-zA-Z])/(.*)$", target)
+    if msys:
+        target = f"{msys.group(1)}:/{msys.group(2)}"
+    if os.path.isabs(target):
+        return target if os.path.isfile(target) else None
+    for base in (_ctx_cwd_hint, _ctx_project_root, os.getcwd()):
+        if base:
+            candidate = os.path.join(base, target)
+            if os.path.isfile(candidate):
+                return candidate
+    return None
+
+
+def _script_has_railway_mutation(tokens: list[str]) -> bool:
+    """실행하는 스크립트 파일 안에 Railway API mutation 이 있는지(R2). 못 읽으면 False."""
+    target = _script_target(tokens)
+    path = _resolve_script_path(target) if target else None
+    if not path:
+        return False
+    try:
+        if os.path.getsize(path) > _SCRIPT_SCAN_MAX_BYTES:
+            return False
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            return _has_railway_mutation(fh.read())
+    except OSError:
+        return False
+
+
 def _classify_railway(tokens: list[str]) -> tuple[str, str]:
     """Railway CLI — 조회(status·logs·link·variables 조회)는 통과, 변경·운영 접속은 ask."""
     args = [t.lower() for t in tokens[1:]]
@@ -846,6 +956,14 @@ def _reduce_wrappers(tokens_raw: list[str]) -> list[str] | None:
         if name in _SIMPLE_WRAPPERS:
             i, changed = i + 1, True
             continue
+        if (name in _RUN_WRAPPERS and i + 1 < n
+                and _strip_quotes(tokens_raw[i + 1]).lower() == "run"):
+            i, changed = i + 2, True
+            while i < n and _strip_quotes(tokens_raw[i]).startswith("-"):
+                i += 1
+            if i < n and _strip_quotes(tokens_raw[i]).lower().endswith(".py"):
+                return ["python", *tokens_raw[i:]]  # `uv run x.py` 는 python 실행
+            continue
         break
     if changed and 0 < i < n:
         return tokens_raw[i:]
@@ -927,6 +1045,12 @@ def _classify_segment(segment: str, depth: int = 0) -> tuple[str, str]:
     if name == "railway":
         return _classify_railway(tokens)
 
+    # Railway 공개 GraphQL 로 보내는 변경 요청 — 명령 글자(R1)와 실행 스크립트 파일(R2).
+    if name in _RAILWAY_API_SENDERS and _has_railway_mutation(segment):
+        return "ask", _RAILWAY_API_LABEL
+    if name in _SCRIPT_RUNNERS and _script_has_railway_mutation(tokens):
+        return "ask", _RAILWAY_API_LABEL
+
     # Railway 공개 DB/Redis 프록시로 직접 붙는 명령은 무엇이든 확인(SEC-13).
     if ".proxy.rlwy.net" in segment_lower:
         return "ask", "Railway 공개 DB 주소 직접 접속"
@@ -966,8 +1090,11 @@ def _classify_command(command: str, depth: int) -> tuple[str, str]:
         return "ask", "언랩 깊이 상한 초과(의심 명령)"
 
     global _ctx_cwd_hint
-    unified = _strip_heredoc_bodies(command.replace("\r\n", "\n").replace("\r", "\n"))
+    normalized = command.replace("\r\n", "\n").replace("\r", "\n")
+    unified = _strip_heredoc_bodies(normalized)
     best_decision, best_label = "allow", ""
+    if _heredoc_railway_mutation(normalized):  # 본문은 지우기 전에 본다(R1)
+        best_decision, best_label = "ask", _RAILWAY_API_LABEL
     for raw_segment in _split_segments(unified):
         segment = re.sub(r"\s+", " ", raw_segment).strip()
         if not segment:

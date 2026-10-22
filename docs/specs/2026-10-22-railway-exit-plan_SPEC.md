@@ -1,6 +1,7 @@
 # Railway 밖 대피 계획 — SPEC (2026-10-22)
 
-상태: **설계 — 사용자 승인 대기**. 승인 전에는 인프라·코드를 바꾸지 않는다.
+상태: **계획·준비만(2026-10-22 사용자: "지금 당장은 불가능하니 계획서와 준비만")**. 서버 구매·운영 변경은 하지 않는다.
+돈이 들지 않고 운영을 건드리지 않는 준비(1단계 구성 파일·스크립트 초안)는 할 수 있다 — 착수 시점은 따로 정한다.
 관련: `docs/guides/DISASTER_RECOVERY.md`(데이터 살리기 개요), 비공개 `lahomsystem/foms-ops-backup` 의 `RESTORE.md`(복원 절차·리허설 기록),
 `docs/specs/2026-10-22-railway-api-mutation-guard_SPEC.md`(Railway 변경 허락 안전 장치).
 
@@ -80,7 +81,10 @@ Fly 도쿄 IP 부족 글 https://community.fly.io/t/no-more-egress-ips-available
 ## 7. 단계
 
 ### 0단계 — 자체 도메인 (가장 먼저, Railway 배포 재개 뒤)
-1. 도메인을 정한다(예: `app.lahom.kr` — `docs/guides/NETWORK_EDGE_TAIL_FIX.md:30-42` 에 같은 계획이 있었으나 실행되지 않았다). DNS 는 Cloudflare.
+1. 도메인을 정한다. `docs/guides/NETWORK_EDGE_TAIL_FIX.md:30-42` 의 `app.lahom.kr` 은 예시였고 실행되지 않았다 — 공개 DNS 조회
+   (2026-10-22)로 `lahom.kr` 은 네임서버가 없다(미등록으로 보임). 이미 등록된 도메인은 `lahom.co.kr`·`haud.co.kr`·`haudsystem.com`
+   (모두 카페24 네임서버). 새로 사지 않고 **`erp.lahom.co.kr` 같은 하위 주소**를 카페24 DNS 에 CNAME 한 줄로 거는 길이 가장 싸다.
+   소유·카페24 계정 관리자 확인이 필요하다(`lahom.com` 은 다른 등록 업체 — 소유 미확인).
 2. Railway web 에 자체 도메인 연결 → 운영 `FOMS_BASE_URL` 변경 → 카카오 JS 도메인·채널톡 URL·R2 CORS 등록 → 알림톡 공유 서식을 새 주소로 재심사.
 3. 옛 Railway 주소는 살아 있는 동안 그대로 둔다(이미 보낸 링크).
 
