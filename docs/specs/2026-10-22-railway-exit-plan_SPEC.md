@@ -93,7 +93,7 @@ Fly 도쿄 IP 부족 글 https://community.fly.io/t/no-more-egress-ips-available
 ### 1단계 — Railway 없이 뜨게 (저장소 안 코드·구성)
 1. Railway 변수 의존 끊기: 운영 env 에 `FLASK_ENV=production`·`STORAGE_TYPE=r2` 명시(배포 재개 뒤), `/healthz` 커밋 값은 `FOMS_RELEASE_ID`
    같은 대체를 허용, `channel_policy.py:46` 기본값 버그 수정, FOMS-cron 에 `FOMS_BASE_URL`.
-2. 구성 파일 한 벌(가칭 `scripts/exit_compose/`): `docker-compose.yml`(서비스 6개 + HTTPS 프록시), `.env` 틀(이름만), cron 대체(겹침 금지 `flock`),
+2. 구성 파일 한 벌(가칭 `scripts/ops/exit_compose/`): `docker-compose.yml`(서비스 6개 + HTTPS 프록시), `.env` 틀(이름만), cron 대체(겹침 금지 `flock`),
    재시작 정책 always, WORKER 1개 고정.
 3. 복원 스크립트: R2 최신 덤프 받기 → sha256 대조 → age 복호화 → pg_restore(pgvector 이미지) → 행 수 확인. 10-22 리허설 순서를 그대로 옮긴다.
 4. 환경변수 변환: 스냅샷(`vars-latest.json.age`) → 서비스별 `.env`(DB·Redis 주소만 새 값, `RAILWAY_*` 제외, 1번 변수 추가).
