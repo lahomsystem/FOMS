@@ -10,7 +10,7 @@ Flask 3.1 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 진행 중
-- [2026-10-22] **Railway 공격 사고·배포 차단 — 백업 점검** — 덤프 정상·첫 복원 리허설 성공(pgvector 필요)·SIDEFX 백업 추가. 잔여: CI `RAILWAY_TOKEN` 재발급·열쇠 사본
+- [2026-10-22] **Railway 사고(env 유출)·배포 정지** — 복원 리허설 OK(pgvector)·SIDEFX 백업·Redis 문 닫음. 재개 전 DB Regenerate 금지. 대피·가드 SPEC 승인 대기
 - [2026-10-20] **마법사 등록하고 PUSH + 미등록 초안 알림(deploy `457ba1e9e`)** — 스펙 `2026-10-20-wizard-push-register-safety-spec`. 잔여: 승격
 - [2026-10-20] **알림톡 '상담 먼저'(deploy·스테이징 켬)** — 서식 3벌 승인·실폰 시험 성공(하우드: 버튼→웹훅→링크 자동 발송). 잔여: 채널톡 자동 인사 예외·버튼형 링크 불가(422)·운영 켜기. SPEC `2026-10-20-alimtalk-consult-first-design` §5
 - [2026-10-21] **협력사 1~6·18 운영 완료(#577~#619)** — 새 주문·사진·입력 칸·희망 시공일·시공 달력·사진 연결. SPEC `2026-10-19-partner-foms-mode` §18
