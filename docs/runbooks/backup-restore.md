@@ -12,16 +12,19 @@ BACKUP-01(2026-07-24)로 deprecated 로컬 pg_dump 백업 서비스(`foms/api/ba
 
 | 대상 | 정본 백업 | 위치 |
 |------|-----------|------|
-| production DB | Railway PostgreSQL 자동 백업/스냅샷 | Railway 대시보드 → Postgres 서비스 → Backups |
+| production DB — Railway 프로젝트·Railway 자체를 잃었을 때 | 오프사이트 백업(매일 `pg_dump` → age 암호화 → R2 백업 전용 버킷, 90일) | 비공개 저장소 `lahomsystem/foms-ops-backup` — 절차 `RESTORE.md`, 개요 `docs/guides/DISASTER_RECOVERY.md` |
+| production DB — 실수 삭제·데이터 오염(Railway 가 살아 있을 때) | Railway PostgreSQL 자동 백업/스냅샷 | Railway 대시보드 → Postgres 서비스 → Backups |
 | 로컬 → 운영 동기화 덤프 | `scripts/ops/sync_local_to_railway.ps1` | `FOMS_RUNTIME_OUTPUT_ROOT\dumps\foms.dump` (미설정 시 `%USERPROFILE%\FOMS-runtime\dumps\foms.dump`) |
 
 production 코드/템플릿 백업은 git(원격 저장소)이 정본이며 별도 파일 백업이 불필요하다.
 
 ## 복원 절차
 
-### 1) production DB 복원 (재해복구 표준)
+### 1) production DB 복원 (Railway 가 살아 있을 때)
 
-Railway PostgreSQL 스냅샷에서 복원한다.
+Railway PostgreSQL 스냅샷에서 복원한다. Railway 볼륨 스냅샷은 같은 프로젝트·환경으로만
+복원되고 프로젝트와 함께 사라진다. 프로젝트가 지워졌거나 Railway 를 쓸 수 없으면 이 절차는
+쓸 수 없다 — `docs/guides/DISASTER_RECOVERY.md` 를 거쳐 `foms-ops-backup` 의 `RESTORE.md` 로 간다.
 
 1. Railway 대시보드 → 해당 프로젝트(운영 = centerbeam) → Postgres 서비스 → **Backups** 탭.
    - 운영/스테이징 혼동 주의: 운영은 `centerbeam`, 스테이징(dev)은 `hopper`
