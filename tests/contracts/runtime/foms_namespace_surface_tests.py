@@ -2147,6 +2147,8 @@ def test_strict_canonical_tools_taxonomy() -> None:
     design/ added: design SSOT lint helpers (ssot_lint.py).
     perf/ added: performance regression scanner (perf_scan.py — perf-guard/perf-audit skills).
     tests/ added (PACKET-HARNESS-00): bug-audit packet runner (run_packet.ps1, report §8.1).
+    drawing_ai/ added (2026-10-23): drawing-wizard part classifier retrain tool
+    (docs/plans/2026-10-23-drawing-part-label-feedback-spec.md §3.7 — offline, read-only production reads).
     """
     tools_dir = _REPO_ROOT / "tools"
     assert tools_dir.is_dir()
@@ -2161,6 +2163,7 @@ def test_strict_canonical_tools_taxonomy() -> None:
         "sketchup_analyzer",
         "perf",
         "tests",
+        "drawing_ai",
     }
     for p in tools_dir.iterdir():
         if p.name.startswith(".") or p.name == "README.md" or p.name == "__pycache__":
