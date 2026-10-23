@@ -377,7 +377,11 @@ def test_my_todo_pin_is_gated_on_explicit_sort() -> None:
     """명시 정렬(?sort=)이 있으면 my_todo 핀이 사용자 선택을 덮지 않는다."""
     route = _read(WORKBENCH)
     tail = route.split("    if sort_by:")[1]
-    assert "    if not sort_by:\n        rows.sort(key=lambda r: 0 if r.get('my_todo') else 1)" in tail
+    pin = tail.split("    if not sort_by:\n        rows.sort(key=lambda r: (", 1)
+    assert len(pin) == 2, "핀 정렬이 명시 정렬 게이트(if not sort_by) 안에 있어야 한다"
+    pin_key = pin[1].split("))", 1)[0]
+    # 생산 전 확정 대기(주문 5625) 다음이 '내 차례'
+    assert pin_key.index("post_drawing_receipt") < pin_key.index("my_todo")
     # 게이트 판정용 원본 보존 — 접두사 제거는 별도 변수(sort_key)로.
     assert "sort_key = sort_by[1:] if reverse else sort_by" in route
     assert "sort_by = sort_by[1:] if reverse else sort_by" not in route
