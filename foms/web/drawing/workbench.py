@@ -968,6 +968,8 @@ def erp_drawing_workbench_dashboard():
             'construction_badge_level': _construction_badge_level(alerts.get('construction_days')),
             'unread_count': unchecked_requests,
             'order_change_pending': order_change_pending,
+            # 고객컨펌·생산 단계에서 새 도면 확정을 기다리는 주문 — 다음 단계가 멈춰 있어 맨 앞에 둔다.
+            'post_drawing_receipt': is_post_drawing_receipt,
             'my_todo': my_todo,
             'include_for_mine': include_for_mine,
             'search_hay': search_hay,
@@ -1032,6 +1034,7 @@ def erp_drawing_workbench_dashboard():
             rows = [r for r in rows if _match_status(r)]
 
     rows.sort(key=lambda r: (
+        0 if r.get('post_drawing_receipt') else 1,
         0 if r.get('order_change_pending') else 1,
         0 if r.get('my_todo') else 1,
         0 if r.get('is_overdue') else 1,
@@ -1065,9 +1068,13 @@ def erp_drawing_workbench_dashboard():
             )
 
     # 모바일 기본 목록(무한스크롤) 전용 핀: '내 차례'를 앞으로(안정 정렬로 그룹 보존).
+    # 생산 전 확정 대기 주문은 그보다 앞이다(주문 5625 — 운영에서 4쪽·8쪽 뒤에 묻혔다).
     # 명시 정렬(?sort=)이 있으면 사용자가 고른 순서를 덮지 않도록 생략한다.
     if not sort_by:
-        rows.sort(key=lambda r: 0 if r.get('my_todo') else 1)
+        rows.sort(key=lambda r: (
+            0 if r.get('post_drawing_receipt') else 1,
+            0 if r.get('my_todo') else 1,
+        ))
 
     total_count = len(rows)
     total_pages = max(1, (total_count + per_page - 1) // per_page) if per_page > 0 else 1

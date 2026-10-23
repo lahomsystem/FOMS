@@ -343,3 +343,41 @@ def test_transferred_after_production_stays_out(client, stage):
 
     assert resp.status_code == 200
     assert _detail_link(stale_id) not in resp.get_data(as_text=True)
+
+
+def test_post_drawing_receipt_pinned_first(client):
+    """생산 단계 확정 대기 주문은 기본 목록 첫 쪽 맨 앞에 온다.
+
+    운영 확인(2026-10-23): 목록에는 들어왔지만 기본 정렬(최신 주문순)이라 5407 은 4쪽,
+    5340 은 8쪽 뒤에 있었다 — 생산이 멈춘 주문을 영업이 찾으려면 쪽을 넘겨야 했다.
+    보는 사람은 그 주문의 담당이 아니다('내 차례' 핀으로 앞에 오는 경우와 가르기 위해).
+    """
+    viewer = User(
+        username="drawing_pin_viewer", password=generate_password_hash("x"),
+        role="ADMIN", team="DRAWING", name="정렬확인관리자", is_active=True,
+    )
+    db_session.add(viewer)
+    db_session.commit()
+    with client.session_transaction() as sess:
+        sess["user_id"] = viewer.id
+        sess["username"] = viewer.username
+        sess["role"] = viewer.role
+    blocked_id = _seed_order(
+        80, stage="PRODUCTION", created_at=_OLD, drawing_status="TRANSFERRED"
+    )
+    drawing_ids = [
+        _seed_order(800 + i, stage="DRAWING", created_at=_NEW + datetime.timedelta(minutes=i))
+        for i in range(30)
+    ]
+    db_session.commit()
+
+    html = _fragment_get(client).get_data(as_text=True)
+
+    links = re.findall(r"/erp/drawing-workbench/(\d+)\?tab=timeline", html)
+    ordered = list(dict.fromkeys(int(x) for x in links))
+    assert ordered and ordered[0] == blocked_id, (
+        "생산 전 확정 대기 주문이 첫 쪽 맨 앞이 아니다 — 최신 도면 주문 뒤에 묻혔다"
+    )
+    # 대조: 나머지 도면 단계 주문은 기존 순서(최신 먼저) 그대로
+    rest = [i for i in ordered[1:] if i in drawing_ids]
+    assert rest == sorted(rest, reverse=True)
