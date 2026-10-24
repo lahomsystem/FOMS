@@ -227,7 +227,8 @@
       state.reloadOnHide = true;
       show(q(root, '[data-send-status]'), '문자 앱을 열었어요. 링크를 만들었어요(직접 보낸 경우 보냈는지는 기록되지 않아요).');
       await finishSaved(root, orderId, ov.phone, '문자 앱을 열었어요.');
-      window.location.href = smsHref(to, data.data.sms_text || data.data.url);
+      var smsText = data.data.sms_text || data.data.url, href = smsHref(to, smsText); // PC 는 self-sms.js 가 받아 창 안에 보여 준다
+      if (document.dispatchEvent(new CustomEvent('foms:self-sms', { cancelable: true, detail: { href: href, to: to, text: smsText } }))) window.location.href = href;
       return;
     }
     var url = (channel === 'company' ? '/api/share/send-sms/' : '/api/share/send-alimtalk/') + encodeURIComponent(shareId);
