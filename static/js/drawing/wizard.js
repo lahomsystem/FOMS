@@ -3007,6 +3007,7 @@
   /* ---- 그림 종류 이름표(part) · 자동 배치 — 설계: docs/plans/2026-10-23-drawing-part-label-feedback-spec.md ----
      분류는 part-ai.js(브라우저 안 AI), 배치 계산은 part-layout.js. 사람이 고른 이름표(src:user)는 AI 가 덮지 않는다. */
   var PART_AI_TIMEOUT_MS = 30000;
+  var partHatch = {};   // 그림 key → 빗금 세기(주방 짝 규칙용, 저장하지 않음)
 
   function newPartBatch(n) {
     var s = currentSheet();
@@ -3037,9 +3038,45 @@
       if (res && o && o.type === 'image' && !(o.part && o.part.src === 'user')) {
         o.part = sanitizePart({ label: res.label, src: 'ai', ai: res.ai, conf: res.conf, head: res.head });
         markDirty();
+        applyKitchenPairs(o, img);
         if (selected === id) { syncImageToolbar(o); }
       }
       if (!settled) { settled = true; clearTimeout(timer); finishPartBatch(batch, id); }
+    });
+  }
+
+  function sheetProductText(s) {
+    var p = (s && isFiniteNum(s.product_index)) ? (products[s.product_index] || {}) : {};
+    return (p.name || '') + ' ' + ((s && s.name) || '');
+  }
+
+  function hatchOf(o, img) {
+    if (typeof partHatch[o.key] !== 'number') {
+      var node = nodeById[o.id];
+      var src = img || (node && node.image ? node.image() : null);
+      var h = src ? window.FomsPartPair.hatchFromImage(src) : null;
+      if (typeof h === 'number') { partHatch[o.key] = h; }
+    }
+    return partHatch[o.key];
+  }
+
+  /** 주방 시트면 AI 이름표에 짝 규칙을 다시 적용한다(part-pair.js, 설계서 §3.1).
+      사람이 고른 이름표는 넣지도 바꾸지도 않는다. 방금 분류한 그림(fresh)은 받은 그림으로 빗금을 센다. */
+  function applyKitchenPairs(fresh, img) {
+    var pair = window.FomsPartPair, s = currentSheet();
+    if (!pair || !s || !pair.isKitchen(sheetProductText(s))) { return; }
+    var pool = (s.objects || []).filter(function (o) { return o.type === 'image' && o.part && o.part.src === 'ai'; });
+    var items = pool.map(function (o) {
+      return { id: o.id, ai: o.part.ai, conf: o.part.conf, label: o.part.label, hatch: hatchOf(o, o === fresh ? img : null) };
+    });
+    var th = (window.FomsPartAI && window.FomsPartAI.threshold) ? window.FomsPartAI.threshold() : 0.5;
+    pair.pairLabels(items, th).forEach(function (n) {
+      var o = findObj(n.id);
+      if (o && o.part && o.part.label !== n.label) {
+        o.part = sanitizePart({ label: n.label, src: 'ai', ai: o.part.ai, conf: o.part.conf, head: o.part.head });
+        markDirty();
+        if (selected === o.id) { syncImageToolbar(o); }
+      }
     });
   }
 
