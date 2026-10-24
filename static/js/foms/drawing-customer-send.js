@@ -232,7 +232,6 @@
     }
     var url = (channel === 'company' ? '/api/share/send-sms/' : '/api/share/send-alimtalk/') + encodeURIComponent(shareId);
     var body = { token: token, source_screen: 'drawing_tab' };
-    if ((q(root, '#dw-send-kind-bundle-split') || {}).checked) body.split = true; // 상담 먼저: 도면·계약서 따로따로
     if (ov.phone) body.to_phone = ov.phone;
     var sent = await postJson(url, body);
     token = null; body = null;

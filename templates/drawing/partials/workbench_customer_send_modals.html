@@ -90,7 +90,7 @@
             {% endfor %}
           </div>
           {% endif %}
-          {# 상담 먼저면 '보낼 것'과 '상담방에 보내는 모양'을 한 줄로 고른다(사용자 2026-10-22). 고객이 받는 모습 문구는
+          {# 상담 먼저: 도면만 · 계약서만 · 도면+계약서(한 글에 버튼 둘). 따로따로는 뺐다(사용자 2026-10-24). 고객이 받는 모습 문구는
              고른 칸의 data-consult-preview 를 그대로 보여 준다(drawing-customer-send.js refresh). #}
           <div class="btn-group flex-wrap dw-send-choice" role="group" aria-label="보낼 것">
             <input type="radio" class="btn-check" name="dw-send-kind" id="dw-send-kind-drawing" value="drawing" autocomplete="off" checked
@@ -102,13 +102,8 @@
             <label class="btn btn-outline-primary btn-sm" for="dw-send-kind-estimate">계약서만</label>
             {% endif %}
             <input type="radio" class="btn-check" name="dw-send-kind" id="dw-send-kind-bundle" value="bundle" autocomplete="off"
-                   data-consult-preview="링크 없는 알림톡이 가요. 고객이 [문서 받기]를 누르면 상담방에 [도면 보기][계약서 보기] 버튼이 한 번에 가요.">
-            <label class="btn btn-outline-primary btn-sm" for="dw-send-kind-bundle">도면+계약서{% if cs.consult_template %} 한 번에{% endif %}</label>
-            {% if cs.consult_template %}
-            <input type="radio" class="btn-check" name="dw-send-kind" id="dw-send-kind-bundle-split" value="bundle" autocomplete="off"
-                   data-consult-preview="링크 없는 알림톡이 가요. 고객이 [문서 받기]를 누르면 상담방에 [도면 보기]·[계약서 보기]가 따로따로 두 번 가요.">
-            <label class="btn btn-outline-primary btn-sm" for="dw-send-kind-bundle-split">도면+계약서 따로따로</label>
-            {% endif %}
+                   data-consult-preview="링크 없는 알림톡이 가요. 고객이 [문서 받기]를 누르면 상담방에 [도면 보기][계약서 보기] 버튼이 함께 가요.">
+            <label class="btn btn-outline-primary btn-sm" for="dw-send-kind-bundle">도면+계약서</label>
           </div>
         </div>
 
