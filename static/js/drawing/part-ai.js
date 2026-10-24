@@ -7,7 +7,7 @@
  * - 특징(768 = CLS + 패치 평균, L2 정규화) → 작은 분류기(part-head.json, 운영 그림으로 가르친 가중치) → 종류.
  * - 확신이 문턱보다 낮으면 '미분류'. 어떤 실패든 null 을 돌려 사람이 손으로 고르게 한다(화면을 막지 않음).
  *
- * window.FomsPartAI = { LABELS, KEY_LABELS, classify(img) → Promise<{label, ai, conf, head}|null>, warm() }
+ * window.FomsPartAI = { LABELS, KEY_LABELS, classify(img) → Promise<{label, ai, conf, head}|null>, warm(), threshold() }
  */
 (function () {
   'use strict';
@@ -32,6 +32,7 @@
   var HEAD_URL = (me && me.getAttribute('data-head-url')) || '/static/js/drawing/part-head.json';
   var readyPromise = null;
   var warned = false;
+  var threshold = 0.5;   // 분류기 머리(part-head.json)의 확신 문턱 — 받은 뒤 갱신
 
   function warnOnce(what, err) {
     if (warned) { return; }
@@ -88,6 +89,7 @@
       var ort = window.ort;
       ort.env.wasm.wasmPaths = ORT_DIR;
       ort.env.wasm.numThreads = 1;   // 교차 출처 격리가 없는 페이지 — 단일 스레드
+      if (typeof r[2].threshold === 'number') { threshold = r[2].threshold; }
       return ort.InferenceSession.create(r[1], { executionProviders: ['wasm'] }).then(function (sess) {
         return { ort: ort, sess: sess, head: r[2] };
       });
@@ -171,5 +173,8 @@
     });
   }
 
-  window.FomsPartAI = { LABELS: LABELS, KEY_LABELS: KEY_LABELS, UNSURE: UNSURE, classify: classify, warm: warm };
+  window.FomsPartAI = {
+    LABELS: LABELS, KEY_LABELS: KEY_LABELS, UNSURE: UNSURE, classify: classify, warm: warm,
+    threshold: function () { return threshold; }
+  };
 })();

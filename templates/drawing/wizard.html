@@ -610,12 +610,13 @@
 
   <script id="drawing-wizard-config" type="application/json">{{ wizard_config|tojson }}</script>
   <script src="{{ url_for('static', filename='vendor/konva.min.js') }}?v=20260706b" defer></script>
-  <script src="{{ url_for('static', filename='js/drawing/part-ai.js') }}?v=20261022a" data-head-url="{{ url_for('static', filename='js/drawing/part-head.json') }}?v=h1-20261022" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/part-ai.js') }}?v=20261024a" data-head-url="{{ url_for('static', filename='js/drawing/part-head.json') }}?v=h1-20261022" defer></script>
   <script src="{{ url_for('static', filename='js/drawing/part-layout.js') }}?v=20261022b" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/part-pair.js') }}?v=20261024a" defer></script>
   <script src="{{ url_for('static', filename='js/drawing/bom-calc.js') }}?v=20261023b" defer></script>
   <script src="{{ url_for('static', filename='js/drawing/bom-rules.js') }}?v=20261023a" defer></script>
   <script src="{{ url_for('static', filename='js/drawing/bom-panel.js') }}?v=20261023b" defer></script>
-  <script src="{{ url_for('static', filename='js/drawing/wizard.js') }}?v=20261023a" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/wizard.js') }}?v=20261024a" defer></script>
   {# 수정 요청 확인창 배선: 소켓 → 확인창. write helper 는 ack POST 의 same-origin 헤더용. #}
   <script src="https://cdn.socket.io/4.5.4/socket.io.min.js" defer integrity="sha384-/KNQL8Nu5gCHLqwqfQjA689Hhoqgi2S84SNUxC3roTe4EhJ9AfLkp8QiQcU8AMzI" crossorigin="anonymous"></script>
   <script src="{{ url_for('static', filename='js/foms/notification-write.js') }}?v=20260704a" defer></script>

@@ -20,6 +20,7 @@ ROOT = Path(__file__).resolve().parents[2]
 JS = {
     "part_ai": ROOT / "static/js/drawing/part-ai.js",
     "part_layout": ROOT / "static/js/drawing/part-layout.js",
+    "part_pair": ROOT / "static/js/drawing/part-pair.js",
     "wizard": ROOT / "static/js/drawing/wizard.js",
 }
 HEAD = ROOT / "static/js/drawing/part-head.json"
@@ -66,7 +67,7 @@ def test_head_json_shape_matches_browser_contract():
 
 def test_template_loads_part_scripts_deferred_with_pin():
     html = TEMPLATE.read_text(encoding="utf-8")
-    for name in ("part-ai.js", "part-layout.js"):
+    for name in ("part-ai.js", "part-layout.js", "part-pair.js"):
         tag = re.search(r'<script src="[^"]*' + re.escape(name) + r'[^"]*"[^>]*>', html)
         assert tag, name
         assert "?v=" in tag.group(0) and " defer" in tag.group(0)
@@ -131,3 +132,60 @@ def test_layout_shrinks_and_flags_crowded_sheets():
     assert len(crowded["placed"]) == 120
     assert crowded["mainH"] < small["mainH"]
     assert small["crowded"] is False and crowded["crowded"] is True
+
+
+PAIR_RUNNER = r"""
+global.window = {};
+require(process.argv[1]);
+const P = window.FomsPartPair, job = JSON.parse(process.argv[2]);
+const out = {};
+for (const [name, items] of Object.entries(job.cases)) {
+  out[name] = Object.fromEntries(P.pairLabels(items, 0.5).map(r => [r.id, r.label]));
+}
+out.kitchen = job.names.map(P.isKitchen);
+out.hatch = P.hatchFromPixels(Buffer.from(job.rgba, 'base64'), job.w, job.h);
+process.stdout.write(JSON.stringify(out));
+"""
+
+
+def test_kitchen_pair_rule_and_hatch_formula():
+    """주방 짝 규칙(설계서 §3.1) — 같은 보기 딱 두 장이면 빗금 많은 쪽이 내부, 차이 0.05 미만·세 장이면 모델 짐작 그대로."""
+    import base64
+
+    from PIL import Image, ImageDraw
+
+    def it(i, ai, conf, hatch, label=None):
+        return {"id": i, "ai": ai, "conf": conf, "hatch": hatch, "label": label or (ai if conf >= 0.5 else "미분류")}
+
+    img = Image.new("RGB", (60, 40), (255, 255, 255))
+    draw = ImageDraw.Draw(img)
+    draw.rectangle([2, 2, 57, 37], outline=(0, 0, 0))
+    for x in range(6, 56, 6):
+        draw.line([(x, 4), (x - 4, 36)], fill=(180, 180, 180))
+    gray = img.convert("L")
+    px = list(gray.getdata())
+    ink = sum(1 for v in px if v < 230)
+    py_hatch = sum(1 for v in px if 150 <= v <= 215) / max(1, ink)   # 1단계 실험 all_label.hatch 와 같은 식
+
+    job = {
+        "cases": {
+            "swap": [it("a", "정면·도어", 0.9, 0.42), it("b", "정면·도어", 0.8, 0.10), it("p", "사진", 0.9, None)],
+            "close": [it("a", "정면·도어", 0.9, 0.30), it("b", "정면·내부", 0.7, 0.27)],
+            "three": [it("a", "입체·도어", 0.9, 0.5, label="입체·내부"), it("b", "입체·도어", 0.9, 0.1),
+                      it("c", "입체·내부", 0.4, 0.3)],
+            "unsure": [it("a", "입체·내부", 0.3, 0.05), it("b", "입체·도어", 0.45, 0.6), it("f", "정면·내부", 0.9, 0.2)],
+        },
+        "names": ["주방 하부장", "아일랜드 식탁", "양문형 냉장고장", "몰딩 여닫이 붙박이장"],
+        "rgba": base64.b64encode(img.convert("RGBA").tobytes()).decode(), "w": 60, "h": 40,
+    }
+    proc = subprocess.run([_node(), "-e", PAIR_RUNNER, str(JS["part_pair"]), json.dumps(job)],
+                          capture_output=True, text=True, encoding="utf-8")
+    assert proc.returncode == 0, proc.stderr
+    res = json.loads(proc.stdout)
+    assert res["swap"] == {"a": "정면·내부", "b": "정면·도어", "p": "사진"}
+    assert res["close"] == {"a": "정면·도어", "b": "정면·내부"}                      # 차이 0.03 — 그대로
+    assert res["three"] == {"a": "입체·도어", "b": "입체·도어", "c": "미분류"}        # 짝이 깨지면 모델 짐작으로
+    assert res["unsure"] == {"a": "입체·도어", "b": "입체·내부", "f": "정면·내부"}    # 확신이 낮아도 짝이면 정함
+    assert res["kitchen"] == [True, True, False, False]
+    assert abs(res["hatch"] - py_hatch) < 0.02
+
