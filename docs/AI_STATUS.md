@@ -205,6 +205,7 @@ Flask 3.1 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 - [2026-04-15] **Strict final canonical tree `SFC-B11B` slice 2 (`dashboards`, §6.16):** 구현을 `foms/web/dashboards/routes.py`로 이전; `foms/web/dashboards/__init__.py`는 `routes`만 import; `apps/dashboards.py`는 `foms.web.dashboards` 재노출 shim. 검증: `APP_OK`, `verify_result.py --json`, `pytest tests` **586 passed**. 근거: batch11b **§Slice B11B-2**.
 
 ## 기록 보관 (strict canonical / 이전 배치 요약)
+- [2026-10-21] **협력사 1~6·18 운영 완료(#577~#619)** — 새 주문·사진·입력 칸·희망 시공일·시공 달력·사진 연결. SPEC `2026-10-19-partner-foms-mode` §18
 - [2026-09-23] **실측 모바일 통합 화면 운영 반영(PR #424·#425 칩 색·#426 사진 제목 중복·#427 시트 압축·#428 담당자 색 띠 · production `64058a6c1`)** — 체크리스트+카드 두 벌을 담당자 탭·접기·바텀시트 한 목록으로(16곳 1,242px). 사진첩 저장 시트·담당자별 시간순 포함. 선행: 체크리스트·긴급 알림 PR #421, 색 A안 #422. 잔여: 아이폰·안드로이드 실기기(사진첩 저장·두 단 sticky·가로 밀기)
 - [2026-09-11] **네이버 취소·반품 부분 선택(deploy 대기 · 게이트 `FOMS_NAVER_PARTIAL_CLAIM_ENABLED`+`_COHORT`)** — 스펙 `docs/specs/2026-09-11-naver-partial-claim_SPEC.md` §11. **잔여: 스테이징 §8 ①②③ + 사용자 #2354 화면 확인**
 - [2026-10-01] **운영 로그 후속 4건(PR #481 운영)** — 드리프트 감사 초록(10-01)
