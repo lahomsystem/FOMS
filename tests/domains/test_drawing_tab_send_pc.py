@@ -217,7 +217,8 @@ def test_send_modal_preview_data_and_bundle_chip(client, monkeypatch, people):
     assert modal.select_one("[data-send-phone-toggle]") is None
     assert "번호가 틀리면 주문 화면에서 고쳐요" in text
     mine = modal.select_one('label[for="dw-send-channel-mine"]')
-    assert "d-lg-none" in mine["class"]  # 내 폰 문자는 모바일에서만
+    assert "d-lg-none" not in mine["class"]  # 내 폰 문자는 PC 에서도(2026-10-25) — PC 는 창 안 복사 칸
+    assert modal.select_one("[data-self-sms-box]") is not None
 
 
 @pytest.mark.parametrize("name,expect_title,expect_attr", [("-", "고객님께 2차 도면 보내기", ""),

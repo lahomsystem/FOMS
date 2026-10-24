@@ -140,6 +140,7 @@ def test_drawing_customer_send_scripts_are_deferred_outside_v2_block() -> None:
     v2_block = html.index("{% if erp_mobile_v2_enabled %}\n<script")
     for needle in (
         "js/foms/drawing-customer-send.js",
+        "js/foms/drawing-customer-send-self-sms.js",
         "js/foms/drawing-customer-ok.js",
         "js/foms/drawing-ok-scope.js",
         "js/foms/drawing-item-cancel.js",

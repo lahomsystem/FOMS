@@ -90,6 +90,7 @@ globalThis.document = {
   querySelector: function (s) { return globalSel[s] || null; },
   querySelectorAll: function () { return []; },
   addEventListener: function (t, fn) { (docListeners[t] = docListeners[t] || []).push(fn); },
+  dispatchEvent: function (ev) { (docListeners[ev.type] || []).forEach(function (fn) { fn(ev); }); return !ev.defaultPrevented; },
   createElement: function () { return makeEl({}); },
 };
 Object.defineProperty(globalThis, 'navigator', { value: { userAgent: 'node-harness' }, configurable: true });
