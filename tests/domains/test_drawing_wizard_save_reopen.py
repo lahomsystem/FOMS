@@ -180,12 +180,14 @@ eval(src.join('\n'));
 const snap = () => ({ x: !els.delSavedBtn.hidden, chip: els.saveStatus.hidden ? '' : els.saveStatus.textContent.replace(/\d\d:\d\d$/, 'HH:MM'),
   kind: [...classes].join(' ') });
 const tick = () => new Promise((r) => setTimeout(r, 0));
+// 목록 시각은 '오늘'로 만든다 — 날짜를 박아 두면 다음 날부터 칩이 'M/D'(오늘이 아님)로 바뀌어 시험이 깨졌다(2026-10-26)
+const TODAY = ((d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'))(new Date());
 (async () => {
   const out = {};
   // 새로고침: load() 가 서버 내용을 받은 직후 — 아직 전달 대기함 목록 전
   rememberLoadedSheets(); syncSheetSaveUi(); out.beforeList = snap();
   hydrated = true;
-  replies.push(ok([{ key: 'k1', sheet_id: 's1', sheet_name: '도면 1', at: '2026-10-25 14:33' }]));
+  replies.push(ok([{ key: 'k1', sheet_id: 's1', sheet_name: '도면 1', at: TODAY + ' 14:33' }]));
   refreshPending(); await tick(); out.listed = snap();
   // 그릴 때 자동 폭 글자를 다시 잼(손대지 않음) → 그대로 '전달 대기함'
   state.sheets[0].objects[1].w = 123; syncSheetSaveUi(); out.remeasured = snap();
@@ -199,8 +201,8 @@ const tick = () => new Promise((r) => setTimeout(r, 0));
   noteQueued(state.sheets[0], window.FomsSaveStatus.sheetSig(state.sheets[0])); lastSaveAuto = false;
   syncSheetSaveUi(); out.requeued = snap();
   // 다음 목록: 첫 목록 기준은 다시 깔지 않는다 · 다른 창이 넣은 s8 은 기준을 모른다(새것으로 본다)
-  replies.push(ok([{ key: 'k1b', sheet_id: 's1', sheet_name: '도면 1', at: '2026-10-25 14:50' },
-                   { key: 'k8', sheet_id: 's8', sheet_name: '도면 8', at: '2026-10-25 14:51' }]));
+  replies.push(ok([{ key: 'k1b', sheet_id: 's1', sheet_name: '도면 1', at: TODAY + ' 14:50' },
+                   { key: 'k8', sheet_id: 's8', sheet_name: '도면 8', at: TODAY + ' 14:51' }]));
   refreshPending(); await tick(); out.afterSave = snap();
   current = 1; syncSheetSaveUi(); out.otherWindow = snap(); current = 0;
   // 목록을 못 읽으면(끊김·서버 오류) 알던 것을 지우지 않는다
