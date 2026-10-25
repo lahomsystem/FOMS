@@ -7,8 +7,11 @@
  * - 다른 제품에 쓰면 정확도가 오히려 내려가서 주방 시트에만 쓴다(냉장고장은 주방이 아님).
  * - 빗금 = 회색 점(밝기 150~215) 수 ÷ 잉크 점(밝기 230 미만) 수. 밝기는 PIL 'L' 과 같은 식.
  * - 짝이 깨지면(세 장이 되면) 모델 짐작(확신 문턱 아래면 미분류)으로 되돌린다 — 늘 같은 입력이면 같은 답.
+ * - 규칙이 바꾼 이름인지는 저장 필드 없이 계산으로 가린다(pairChanged): AI 이름표인데 '모델 짐작 그대로'와 다르면 규칙 몫.
+ *   짝이 풀려 그 이름이 되돌아가면 releaseNote 가 안내 글을 만든다(화면 토스트 — 사용성 평가 보통-2).
  *
- * window.FomsPartPair = { isKitchen(text), pairLabels(items, threshold), hatchFromPixels(rgba, w, h), hatchFromImage(img) }
+ * window.FomsPartPair = { isKitchen(text), pairLabels(items, threshold), pairChanged(part, threshold),
+ *   releaseNote(items, next, threshold), hatchFromPixels(rgba, w, h), hatchFromImage(img) }
  *   items: [{ id, ai, conf, label, hatch }]  (사람이 고른 이름표는 넣지 않는다)  →  [{ id, label }]
  */
 (function () {
@@ -60,6 +63,36 @@
     return out;
   }
 
+  /** 짝 규칙이 정한 이름인가 — AI 이름표인데 모델 짐작 그대로(확신이 문턱 아래면 미분류)와 다르다. */
+  function pairChanged(part, threshold) {
+    if (!part || part.src !== 'ai' || !viewOf(part.ai)) { return false; }
+    return part.label !== baseLabel(part, typeof threshold === 'number' ? threshold : 0.5);
+  }
+
+  /** 짝이 풀려 규칙이 붙였던 이름이 모델 짐작으로 되돌아간 그림이 있으면 안내 글, 없으면 ''.
+      items = pairLabels 에 넣은 것(label = 바꾸기 전 이름), next = pairLabels 결과. */
+  function releaseNote(items, next, threshold) {
+    var th = typeof threshold === 'number' ? threshold : 0.5;
+    var after = {}, counts = {}, hit = null;
+    (next || []).forEach(function (n) { after[n.id] = n.label; });
+    (items || []).forEach(function (it) {
+      var v = viewOf(it.ai);
+      if (v) { counts[v] = (counts[v] || 0) + 1; }
+    });
+    (items || []).some(function (it) {
+      var v = viewOf(it.ai), base = baseLabel(it, th);
+      if (v && it.label !== base && after[it.id] === base) { hit = v; }
+      return !!hit;
+    });
+    if (!hit) { return ''; }
+    var n = counts[hit];
+    if (n >= 3) {
+      return '주방 ' + (hit === '정면' ? '앞모습' : '입체 그림') + '이 ' + (n === 3 ? '세 장' : n + '장') +
+        '이 되어 짝 규칙을 풀었어요 — 종류를 확인해 주세요';
+    }
+    return '주방 짝이 맞지 않아 짝 규칙을 풀었어요 — 종류를 확인해 주세요';
+  }
+
   function hatchFromPixels(rgba, w, h) {
     var ink = 0, mid = 0, n = w * h;
     for (var i = 0; i < n; i++) {
@@ -90,5 +123,8 @@
     }
   }
 
-  window.FomsPartPair = { isKitchen: isKitchen, pairLabels: pairLabels, hatchFromPixels: hatchFromPixels, hatchFromImage: hatchFromImage };
+  window.FomsPartPair = {
+    isKitchen: isKitchen, pairLabels: pairLabels, pairChanged: pairChanged, releaseNote: releaseNote,
+    hatchFromPixels: hatchFromPixels, hatchFromImage: hatchFromImage
+  };
 })();

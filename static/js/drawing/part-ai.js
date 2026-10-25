@@ -7,7 +7,10 @@
  * - 특징(768 = CLS + 패치 평균, L2 정규화) → 작은 분류기(part-head.json, 운영 그림으로 가르친 가중치) → 종류.
  * - 확신이 문턱보다 낮으면 '미분류'. 어떤 실패든 null 을 돌려 사람이 손으로 고르게 한다(화면을 막지 않음).
  *
- * window.FomsPartAI = { LABELS, KEY_LABELS, classify(img) → Promise<{label, ai, conf, head}|null>, warm(), threshold() }
+ * - 여러 장은 한 장씩 차례로, 사이사이 화면을 한 번 그리게 하고 돌린다(진행 칩 'n/N' 이 보이게 — 사용성 재평가 2026-10-25).
+ *
+ * window.FomsPartAI = { LABELS, KEY_LABELS, classify(img) → Promise<{label, ai, conf, head}|null>, warm(), threshold(),
+ *   cached() → Promise<bool>(모델이 이미 이 브라우저에 있나) }
  */
 (function () {
   'use strict';
@@ -156,12 +159,41 @@
     return { label: head.labels[best], conf: bestP / sum };
   }
 
-  /** 불러온 <img>(같은 출처) 한 장의 종류. 실패하면 null. */
+  /** 모델이 이 브라우저(Cache Storage)에 이미 있나 — 진행 칩이 '모델 받는 중'을 띄울지 고른다(사용성 재평가 QA1·QA3). */
+  function cached() {
+    if (typeof window.caches === 'undefined') { return Promise.resolve(false); }
+    return window.caches.open(CACHE_NAME)
+      .then(function (c) { return c.match(MODEL_URL); })
+      .then(function (hit) { return !!hit; }, function () { return false; });
+  }
+
+  /* 한 장씩 차례로 — 실행기(wasm 단일 스레드)는 돌리는 동안 화면을 붙잡는다. 여러 장을 쉬지 않고 이어 돌리면
+     끝날 때까지 화면이 한 번도 안 그려져 진행 칩 'n/N' 이 안 보이고 화면이 굳었다(사용성 재평가 QA1·QA3).
+     그래서 앞 장이 끝나면 화면이 한 번 그려진 뒤에 다음 장을 돌린다. */
+  var turn = Promise.resolve();
+
+  /** 다음 그림 틀이 그려진 뒤로 미룬다. 창이 가려져 있으면 바로(그릴 화면이 없다), 그림 틀이 안 오면 0.12초 뒤. */
+  function breathe() {
+    return new Promise(function (resolve) {
+      if (document.hidden || typeof window.requestAnimationFrame !== 'function') { resolve(); return; }
+      var done = false;
+      var go = function () { if (!done) { done = true; setTimeout(resolve, 0); } };
+      window.requestAnimationFrame(go);
+      setTimeout(go, 120);
+    });
+  }
+
+  /** 불러온 <img>(같은 출처) 한 장의 종류. 실패하면 null. 앞서 맡긴 그림이 다 끝난 뒤 차례로 돈다. */
   function classify(img) {
-    return warm().then(function (ctx) {
-      var feeds = {};
-      feeds[ctx.sess.inputNames[0]] = toTensor(ctx.ort, img);
-      return ctx.sess.run(feeds).then(function (out) {
+    // 모델 준비는 함께 맡긴 그림들이 같이 기다린다 — 실패하면 같이 null(장마다 다시 받으려 하지 않고, 다음에 올린 그림 때 다시)
+    var ready = warm();
+    ready.catch(function () { /* 아래 차례에서 받는다 */ });
+    var job = turn.then(function () { return ready; }).then(function (ctx) {
+      return breathe().then(function () {
+        var feeds = {};
+        feeds[ctx.sess.inputNames[0]] = toTensor(ctx.ort, img);
+        return ctx.sess.run(feeds);
+      }).then(function (out) {
         var p = predict(ctx.head, pool(out));
         var th = typeof ctx.head.threshold === 'number' ? ctx.head.threshold : 0.5;
         var conf = Math.round(p.conf * 1000) / 1000;
@@ -171,10 +203,12 @@
       warnOnce('분류를 건너뜁니다(손으로 고르세요)', err);
       return null;
     });
+    turn = job;   // 실패해도 null 로 끝나므로 다음 장이 막히지 않는다
+    return job;
   }
 
   window.FomsPartAI = {
-    LABELS: LABELS, KEY_LABELS: KEY_LABELS, UNSURE: UNSURE, classify: classify, warm: warm,
+    LABELS: LABELS, KEY_LABELS: KEY_LABELS, UNSURE: UNSURE, classify: classify, warm: warm, cached: cached,
     threshold: function () { return threshold; }
   };
 })();

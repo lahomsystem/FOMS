@@ -132,7 +132,10 @@ def test_handle_conflict_suspends_autosave_and_reads_conflict_reason() -> None:
 def test_wizard_js_asset_pin_bumped_for_autosave_guard() -> None:
     """wizard.js 내용이 바뀌었으므로 ?v= 핀을 올렸다(SW staticCacheFirst 스테일 봉합)."""
     assert "js/drawing/wizard.js') }}?v=20260911a" not in TPL
-    assert "js/drawing/wizard.js') }}?v=20261024a" in TPL
+    assert "js/drawing/wizard.js') }}?v=20261024a" not in TPL   # 2026-10-25 사용성 평가 수정으로 다시 올림
+    assert "js/drawing/wizard.js') }}?v=20261025a" not in TPL   # 2026-10-25 실화면 QA 뒤 고침으로 한 번 더 올림
+    assert "js/drawing/wizard.js') }}?v=20261025b" not in TPL   # 2026-10-25 검수 뒤 마지막 고침으로 한 번 더 올림
+    assert "js/drawing/wizard.js') }}?v=20261025c" in TPL
 
 
 def test_no_content_based_empty_canvas_block() -> None:

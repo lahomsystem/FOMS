@@ -12,6 +12,9 @@
   transaction 에 한다(WIZ-PRESET-01 과 같은 꼴). idempotency receipt 는 쓰지 않는다 —
   같은 version 으로 두 번 보내면 두 번째가 409 라 두 번 적용되지 않는다.
 - 읽기는 관대하게: 저장된 값 중 형식이 틀린 칸은 기본값으로 바꿔 읽어 마법사가 깨지지 않게 한다.
+- 읽기·저장 결과에 마지막으로 고친 사람·시각(``changed_by``·``changed_at``)을 붙인다 — 도면팀 전체 계산에
+  바로 적용되는 숫자라 규칙 창이 보여 준다(사용성 평가 2026-10-25 보통-4). 새 칸을 만들지 않고 저장마다
+  남기는 감사 행(SecurityLog)의 가장 최근 것을 읽는다. 시각은 한국 시간 ``YYYY-MM-DD HH:MM`` 글자.
 """
 from __future__ import annotations
 
@@ -22,7 +25,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
 from foms.persistence.main.models import SystemSetting
-from models import SecurityLog
+from foms.services.datetime_kst import format_datetime_kst
+from models import SecurityLog, User
 
 __all__ = [
     "BOM_RULES_KEY",
@@ -41,6 +45,9 @@ __all__ = [
 
 BOM_RULES_KEY = "drawing_wizard_bom_rules"
 DEFAULT_RULES_LABEL = "d1"
+#: 저장 감사 행의 action·target_type(:func:`update_bom_rules` 가 남기고 :func:`_last_change` 가 읽는다).
+_AUDIT_ACTION = "DRAWING_WIZARD_BOM_RULES_UPDATE"
+_AUDIT_TARGET = "system_setting"
 #: 규칙 숫자 고치기 정책 — 프리셋(WIZ-PRESET-01)과 같은 DRAWING team + Admin.
 BOM_RULES_POLICY_ID = "DRAWING_TEAM"
 
@@ -185,17 +192,46 @@ def _label(version: int) -> str:
     return f"s{version}"
 
 
+_NO_CHANGE = {"changed_at": None, "changed_by": None}
+
+
+def _last_change(session: Session) -> dict:
+    """마지막 저장 감사 행 → ``{changed_at: 'YYYY-MM-DD HH:MM'(KST) | None, changed_by: 이름 | None}``.
+
+    ``(target_type, target_id, timestamp)`` 인덱스를 타도록 target 조건을 함께 건다(감사 원장은 크다).
+    사람이 지워졌거나 시스템이 저장했으면 이름은 None.
+    """
+    row = (
+        session.query(SecurityLog.timestamp, User.name)
+        .outerjoin(User, User.id == SecurityLog.user_id)
+        .filter(
+            SecurityLog.target_type == _AUDIT_TARGET,
+            SecurityLog.target_id.is_(None),
+            SecurityLog.action == _AUDIT_ACTION,
+        )
+        .order_by(SecurityLog.timestamp.desc(), SecurityLog.id.desc())
+        .first()
+    )
+    if row is None:
+        return dict(_NO_CHANGE)
+    return {"changed_at": format_datetime_kst(row[0], "%Y-%m-%d %H:%M"), "changed_by": row[1] or None}
+
+
 def load_bom_rules(session: Session) -> dict:
-    """현재 규칙 ``{rules, label, version}`` 을 돌려준다(저장 없으면 기본값·``d1``·0)."""
+    """현재 규칙 ``{rules, label, version, changed_at, changed_by}`` 을 돌려준다.
+
+    저장이 없으면 기본값·``d1``·0 이고 고친 사람·시각은 None 이다.
+    """
     setting = (
         session.query(SystemSetting)
         .filter(SystemSetting.setting_key == BOM_RULES_KEY)
         .first()
     )
     if setting is None:
-        return {"rules": copy.deepcopy(DEFAULT_RULES), "label": DEFAULT_RULES_LABEL, "version": 0}
+        return {"rules": copy.deepcopy(DEFAULT_RULES), "label": DEFAULT_RULES_LABEL, "version": 0, **_NO_CHANGE}
     version = int(getattr(setting, "version", 0) or 0)
-    return {"rules": _merge_stored(setting.setting_value), "label": _label(version), "version": version}
+    return {"rules": _merge_stored(setting.setting_value), "label": _label(version), "version": version,
+            **_last_change(session)}
 
 
 def update_bom_rules(
@@ -211,7 +247,7 @@ def update_bom_rules(
     불일치 409) → 저장 → version +1 → SecurityLog(바뀐 칸의 전·후 값). Order 는 건드리지 않는다.
 
     Returns:
-        저장 뒤 ``{rules, label, version}``.
+        저장 뒤 ``{rules, label, version, changed_at, changed_by}``(방금 남긴 감사 행 기준).
     """
     cleaned = validate_bom_rules(payload)   # 400 먼저(잠금 전).
     setting = (
@@ -240,10 +276,11 @@ def update_bom_rules(
     changed = {key: [before[key], cleaned[key]] for key in DEFAULT_RULES if before[key] != cleaned[key]}
     session.add(SecurityLog(
         user_id=actor_user_id,
-        message=f"DRAWING_WIZARD_BOM_RULES_UPDATE key={BOM_RULES_KEY} version={setting.version}",
-        action="DRAWING_WIZARD_BOM_RULES_UPDATE",
-        target_type="system_setting",
+        message=f"{_AUDIT_ACTION} key={BOM_RULES_KEY} version={setting.version}",
+        action=_AUDIT_ACTION,
+        target_type=_AUDIT_TARGET,
         detail={"key": BOM_RULES_KEY, "version": setting.version, "changed": changed},
     ))
     session.flush()
-    return {"rules": cleaned, "label": _label(setting.version), "version": setting.version}
+    return {"rules": cleaned, "label": _label(setting.version), "version": setting.version,
+            **_last_change(session)}
