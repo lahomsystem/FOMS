@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>도면 마법사 — 주문 #{{ order.id }}</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/wizard.css') }}?v=20261023a">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/wizard.css') }}?v=20261025c">
   {# 도면 수정 요청 확인창 — 마법사는 공용 상단바(벨·배지·소켓)를 쓰지 않는 standalone 이라
      도면팀이 가장 오래 머무는 화면이 알림 사각지대였다(2026-09-11 실측: 수정 요청 21건 중
      8건 미독). 상단바 전체를 들이면 캔버스 단축키와 충돌하므로 확인창과 소켓만 싣는다. #}
@@ -83,6 +83,25 @@
         <button type="button" class="dws-btn dws-edit-ctl" id="dws-btn-arrange" title="그림을 종류에 맞춰 자동으로 배치합니다 (되돌리기 Ctrl+Z)">자동 배치</button>
         <button type="button" class="dws-btn" id="dws-btn-calc" title="모듈 구성을 넣으면 SR·문·옷봉·마이다 크기를 계산해 보여 줍니다" aria-expanded="false" aria-controls="dws-calc">자재표 계산</button>
 
+        <!-- 도구 ▾ — 좁은 폭(1900px 이하, CSS)에서 위 세 단추를, 더 좁으면 표 글자 단추(1700px 이하)·맞춤(1280px 이하)도
+             한 메뉴로 묶는다. 항목은 원래 단추를 눌러 줄 뿐이라 단추 id·처리·잠금이 그대로 산다(wizard-chrome.js initToolsMenu). -->
+        <div class="dws-dropdown dws-tools-more">
+          <button type="button" class="dws-btn" id="dws-btn-tools" title="자동 채움 · 자동 배치 · 자재표 계산" aria-expanded="false" aria-controls="dws-tools-menu">
+            <span>도구</span>
+            <svg class="dws-caret" viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div class="dws-menu dws-tools-menu" id="dws-tools-menu" hidden>
+            <button type="button" class="dws-menu-item" data-tools-for="dws-btn-autofill">자동 채움</button>
+            <button type="button" class="dws-menu-item" data-tools-for="dws-btn-arrange">자동 배치</button>
+            <button type="button" class="dws-menu-item" data-tools-for="dws-btn-calc" aria-pressed="false">자재표 계산</button>
+            <div class="dws-menu-sep dws-tools-font"></div>
+            <button type="button" class="dws-menu-item dws-tools-font" data-tools-for="dws-btn-font-dec">표 글자 작게 (A−)</button>
+            <button type="button" class="dws-menu-item dws-tools-font" data-tools-for="dws-btn-font-inc">표 글자 크게 (A+)</button>
+            <button type="button" class="dws-menu-item dws-tools-font" data-tools-for="dws-btn-table-reset">표 칸 크기 원상 복구</button>
+            <button type="button" class="dws-menu-item dws-tools-fit" data-tools-for="dws-btn-zoom-fit">화면 폭 맞춤 (Ctrl+0)</button>
+          </div>
+        </div>
+
         <div class="dws-dropdown">
           <button type="button" class="dws-btn dws-edit-ctl" id="dws-btn-preset">
             <span>프리셋</span>
@@ -120,9 +139,12 @@
 
         <span class="dws-appbar-sep"></span>
 
-        {# 저장 상태 칩 — wizard.js renderSaveStatus 가 '저장됨 HH:MM'·'저장 중…'·'저장 안 됨'·'저장 실패' 를 채운다 #}
+        {# 그림 종류 칩 묶음('미분류 N장 ›'·딱지 숨기기 단추·'알아보는 중' 칩) — part-status.js 가 채운다. 처음부터 자리를 잡아 두려고
+           템플릿에 둔다(비어 있어도 폭은 그대로 — wizard.css '상태 칩 자리'. '알아보는 중' 칩은 앱바 아래에 떠서 보인다). #}
+        <span class="dws-part-status" id="dws-part-status" hidden></span>
+        {# 저장 상태 칩 — wizard.js renderSaveStatus 가 지금 시트 기준으로 채운다(글은 save-status.js chip: '전달 대기함 HH:MM'·'자동 저장 HH:MM'·'전달본 없음'·'전달본 예전 것'·'저장 중…'·'저장 안 됨'·'저장 실패') #}
         <span class="dws-save-status" id="dws-save-status" role="status" aria-live="polite" hidden></span>
-        <button type="button" class="dws-btn dws-btn-primary dws-edit-ctl" id="dws-btn-save">저장</button>
+        <button type="button" class="dws-btn dws-btn-primary dws-edit-ctl" id="dws-btn-save" title="지금 시트를 전달 대기함에 넣기 (Ctrl+S)">저장</button>
         <button type="button" class="dws-btn dws-edit-ctl" id="dws-btn-save-all" title="모든 시트를 전달 대기함에 저장">일괄 저장</button>
 
         <div class="dws-dropdown">
@@ -211,8 +233,8 @@
     <div class="dws-canvas" id="dws-canvas">
       <div class="dws-stage-wrap" id="dws-stage-wrap">
 
-        <!-- 현재 시트의 저장(전달 대기) 도면 삭제 — 저장분 있고 편집 권한일 때만 노출(wizard.js) -->
-        <button type="button" class="dws-del-saved" id="dws-btn-delete-saved" title="이 시트의 저장 도면 삭제" aria-label="이 시트의 저장 도면 삭제" hidden>×</button>
+        <!-- 현재 시트의 전달본(전달 대기함에 넣은 그림) 지우기 — 전달본 있고 편집 권한일 때만 노출(wizard.js updateDeleteSavedBtn) -->
+        <button type="button" class="dws-del-saved" id="dws-btn-delete-saved" title="이 시트의 전달본 지우기" aria-label="이 시트의 전달본 지우기" hidden>×</button>
 
         <div class="dws-stage" id="dws-stage">
 
@@ -314,7 +336,8 @@
         </div>
       </div>
 
-      <!-- ===== 빈 상태 안내 오버레이(시트 0개): 제품 클릭/+시트로만 도면 생성 ===== -->
+      <!-- ===== 빈 상태 안내 오버레이(시트 0개): 제품 클릭/+시트로만 도면 생성 =====
+           글은 wizard.js updateEmptyOverlay 가 제품 수·권한을 보고 고친다(save-status.js emptyCopy — 제품 없는 주문은 빈 시트로 안내) -->
       <div class="dws-empty dws-ui" id="dws-empty" hidden>
         <div class="dws-empty-box">
           <svg class="dws-empty-ico" viewBox="0 0 24 24" width="46" height="46" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg>
@@ -325,7 +348,8 @@
       </div>
     </div>
 
-    <!-- 오른쪽 자재표 계산 칸(bom-panel.js 가 채움, 설계서 2026-10-23 §3.6 — 그림자 판) -->
+    <!-- 오른쪽 자재표 계산 칸(bom-panel.js 가 채움, 설계서 2026-10-23 §3.6 — 그림자 판, 화면 글 '시험 계산').
+         배치 안 A: 제목 아래 결과·맞춰 보기 고정(bom-results.js) · 입력 묶음(bom-form.js) · 규칙 창(bom-rules-dialog.js) -->
     <aside class="dws-calc dws-ui" id="dws-calc" aria-label="자재표 계산" hidden></aside>
 
     </div><!-- /.dws-body -->
@@ -538,11 +562,32 @@
           <section class="dws-help-group">
             <h3 class="dws-help-group-title">기본</h3>
             <dl class="dws-help-list">
-              <dt><kbd>Ctrl</kbd>+<kbd>S</kbd></dt><dd>저장</dd>
+              <dt><kbd>Ctrl</kbd>+<kbd>S</kbd></dt><dd>저장(지금 시트를 전달 대기함에)</dd>
               <dt><kbd>Ctrl</kbd>+<kbd>Z</kbd></dt><dd>실행취소</dd>
               <dt><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> · <kbd>Ctrl</kbd>+<kbd>Y</kbd></dt><dd>다시 실행</dd>
               <dt><kbd>Esc</kbd></dt><dd>스포이트 취소 · 선택 도구로 돌아가기 · 선택 해제 · 창 닫기</dd>
               <dt><kbd>?</kbd></dt><dd>이 도움말 열기</dd>
+            </dl>
+          </section>
+          {# 그림 종류 숫자키 — 순서는 wizard.js PART_LABELS(서버 _PART_LABELS)와 같다. 고친 종류는 다음 AI 학습 자료가 된다. #}
+          <section class="dws-help-group">
+            <h3 class="dws-help-group-title">그림 종류 숫자키 (그림을 고른 뒤)</h3>
+            <dl class="dws-help-list">
+              <dt><kbd>1</kbd></dt><dd>정면·내부</dd>
+              <dt><kbd>2</kbd></dt><dd>정면·도어</dd>
+              <dt><kbd>3</kbd></dt><dd>입체·내부</dd>
+              <dt><kbd>4</kbd></dt><dd>입체·도어</dd>
+              <dt><kbd>5</kbd></dt><dd>평면·상판</dd>
+              <dt><kbd>6</kbd></dt><dd>서랍 단면</dd>
+              <dt><kbd>7</kbd></dt><dd>부품 상세</dd>
+              <dt><kbd>8</kbd></dt><dd>사진</dd>
+              <dt><kbd>9</kbd></dt><dd>그림 아님</dd>
+              <dt><kbd>0</kbd></dt><dd>미분류</dd>
+              <dt><kbd>Enter</kbd></dt><dd>맞음 — AI 짐작을 사람 확인으로 굳힘</dd>
+              <dt>여러 장 고른 뒤 숫자</dt><dd>고른 그림 전부 같은 종류로 — Shift+클릭·끌어서 고른 그림만(Ctrl+A 전체 선택은 빼요)</dd>
+              <dt>그림 위 딱지</dt><dd>점선 = AI 짐작 · 초록 ✓ = 확인함 · 주황 ? = 미분류 — 마우스를 올리거나 그림을 하나 고르면 그 위 딱지가 흐려져요 · 위쪽 저장 단추 옆 딱지 단추로 모두 숨기기</dd>
+              <dt>주방 짝 규칙</dt><dd>제품·시트 이름에 주방·싱크·하부장 같은 말이 있으면 켜짐 — 같은 보기 두 장 중 빗금 많은 쪽 = 내부</dd>
+              <dt>학습</dt><dd>고친 종류·확인한 종류는 다음 AI 학습에 쓰여요</dd>
             </dl>
           </section>
           <section class="dws-help-group">
@@ -561,7 +606,6 @@
             <dl class="dws-help-list">
               <dt><kbd>Ctrl</kbd>+<kbd>A</kbd></dt><dd>이 시트 전체 선택</dd>
               <dt><kbd>Ctrl</kbd>+<kbd>D</kbd></dt><dd>선택 해제</dd>
-              <dt><kbd>1</kbd>~<kbd>9</kbd> · <kbd>0</kbd></dt><dd>고른 그림의 종류 정하기(0 = 미분류)</dd>
               <dt><kbd>Delete</kbd> · <kbd>Backspace</kbd></dt><dd>선택 삭제</dd>
               <dt><kbd>←</kbd><kbd>↑</kbd><kbd>→</kbd><kbd>↓</kbd></dt><dd>1px 이동 (<kbd>Shift</kbd> 누르면 10px)</dd>
               <dt><kbd>Ctrl</kbd>+<kbd>C</kbd> / <kbd>X</kbd> / <kbd>V</kbd></dt><dd>복사 / 잘라내기 / 붙여넣기</dd>
@@ -610,13 +654,27 @@
 
   <script id="drawing-wizard-config" type="application/json">{{ wizard_config|tojson }}</script>
   <script src="{{ url_for('static', filename='vendor/konva.min.js') }}?v=20260706b" defer></script>
-  <script src="{{ url_for('static', filename='js/drawing/part-ai.js') }}?v=20261024a" data-head-url="{{ url_for('static', filename='js/drawing/part-head.json') }}?v=h1-20261022" defer></script>
-  <script src="{{ url_for('static', filename='js/drawing/part-layout.js') }}?v=20261022b" defer></script>
-  <script src="{{ url_for('static', filename='js/drawing/part-pair.js') }}?v=20261024a" defer></script>
-  <script src="{{ url_for('static', filename='js/drawing/bom-calc.js') }}?v=20261023b" defer></script>
-  <script src="{{ url_for('static', filename='js/drawing/bom-rules.js') }}?v=20261023a" defer></script>
-  <script src="{{ url_for('static', filename='js/drawing/bom-panel.js') }}?v=20261023b" defer></script>
-  <script src="{{ url_for('static', filename='js/drawing/wizard.js') }}?v=20261024a" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/part-ai.js') }}?v=20261025b" data-head-url="{{ url_for('static', filename='js/drawing/part-head.json') }}?v=h1-20261022" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/part-pack.js') }}?v=20261025b" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/part-layout.js') }}?v=20261025c" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/part-split.js') }}?v=20261025c" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/part-textsize.js') }}?v=20261025a" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/part-arrange.js') }}?v=20261025c" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/part-pair.js') }}?v=20261025a" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/part-badge-spot.js') }}?v=20261025c" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/part-status.js') }}?v=20261025c" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/part-badges.js') }}?v=20261025c" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/bom-calc.js') }}?v=20261025c" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/bom-rules.js') }}?v=20261025b" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/bom-rules-dialog.js') }}?v=20261025c" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/bom-results.js') }}?v=20261025c" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/bom-form.js') }}?v=20261025a" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/bom-panel.js') }}?v=20261025b" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/save-status.js') }}?v=20261025c" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/wizard-chrome.js') }}?v=20261025b" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/wizard-toast.js') }}?v=20261025b" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/wizard-appbar.js') }}?v=20261025c" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/wizard.js') }}?v=20261025c" defer></script>
   {# 수정 요청 확인창 배선: 소켓 → 확인창. write helper 는 ack POST 의 same-origin 헤더용. #}
   <script src="https://cdn.socket.io/4.5.4/socket.io.min.js" defer integrity="sha384-/KNQL8Nu5gCHLqwqfQjA689Hhoqgi2S84SNUxC3roTe4EhJ9AfLkp8QiQcU8AMzI" crossorigin="anonymous"></script>
   <script src="{{ url_for('static', filename='js/foms/notification-write.js') }}?v=20260704a" defer></script>

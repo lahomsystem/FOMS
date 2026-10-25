@@ -55,7 +55,8 @@ def test_coarse_pointer_touch_targets():
     for sel in (".dws-tab-x::before", ".dws-tab-dup::before", ".dws-products-toggle::before",
                 ".dws-photos-toggle::before", ".dws-pending-toggle::before", ".dws-del-saved::before"):
         assert sel in block, sel
-    assert "width: 36px;" in block and "height: 36px;" in block
+    # 펜슬·손가락 누르는 곳 40px(2026-10-25 사용성 평가 '작음' — 예전 36px)
+    assert "width: 40px;" in block and "height: 40px;" in block
     assert "opacity: 1;" in block
 
 
@@ -103,5 +104,6 @@ def test_appbar_title_space_rules_desktop_only():
     css = Path("static/css/contexts/drawing/wizard.css").read_text(encoding="utf-8")
     tpl = Path("templates/drawing/wizard.html").read_text(encoding="utf-8")
     assert '<span class="dws-appbar-title-prefix">도면 마법사 · </span>' in tpl
-    assert "@media (min-width: 901px) and (max-width: 1600px)" in css
+    # 줌 막대 숨김(데스크톱 폭만) — 1600 → 1920(2026-10-25 실화면 확인 V1: 상태 칩 자리를 늘 잡아 두는 몫)
+    assert "@media (min-width: 901px) and (max-width: 1920px)" in css
     assert ".dws-appbar-title-prefix { display: none; }" in css

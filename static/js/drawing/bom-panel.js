@@ -1,15 +1,20 @@
 /**
- * 도면 마법사 — 자재표 계산 칸(오른쪽에 여닫는 칸, 그림자 판).
+ * 도면 마법사 — 자재표 계산 칸(오른쪽에 여닫는 칸, 그림자 판 — 화면 글은 '시험 계산').
  *
  * 설계 정본: docs/plans/2026-10-23-drawing-part-label-feedback-spec.md §3.6
  * - 시트마다 전체 폭·깊이·천장 높이·제품 계열·손잡이·모듈 목록을 받아 [SR][EP][DOOR][옷봉][마이다]
  *   줄을 계산해 보여 주고, 시트에 사람이 친 자재표와 줄마다 맞춰 본다.
- * - 그림자 판: 도면팀이 규칙을 확인하기 전에는 시트에 넣지도, 복사하게 하지도 않는다.
+ * - 그림자 판(calc.mode 'shadow'): 도면팀이 규칙을 확인하기 전에는 시트에 넣지도, 복사하게 하지도 않는다.
  *   사람이 따로 친 자재표와 계산을 맞춰 본 기록(시트 calc)이 규칙을 검증하는 자료이기 때문이다.
  * - 입력을 처음 바꿀 때 시트에 calc 를 만든다(열어 보기만 해서는 시트가 바뀌지 않는다).
+ * - 배치(보고서 2026-10-25 '계산 칸 배치 안 A'): 제목 아래 '결과 · 맞춰 보기'를 고정하고(bom-results.js)
+ *   그 아래만 스크롤한다 — 모듈(펼침) · 기본(값이 차면 한 줄 요약) · 줄마다 계산 근거(접힘) · 규칙 한 줄.
+ *   입력 묶음은 bom-form.js, 규칙 편집은 칸 밖 규칙 창(bom-rules-dialog.js)이 맡는다.
+ * - 칸 폭은 왼쪽 가장자리 손잡이로 280~420px 사이에서 바꾼다(이 브라우저에만 기억, 없으면 340).
  *
- * window.FomsBomPanel = { init(opts), sync(), toggle() }
- *   opts: { host, button, getSheet(), getProduct(sheet), canSave(), onChange(), toast(msg) }
+ * window.FomsBomPanel = { init(opts), sync(), toggle(), roomPlan(o) }
+ *   opts: { host, button, getSheet(), getProduct(sheet), canSave(), onChange(), toast(msg), onOpenChange(open)? }
+ *   roomPlan: 칸을 연 뒤 시트가 칸에 가리면 폭 맞춤·제품 목록 접기를 정한다(마법사 onOpenChange 가 쓴다).
  */
 (function () {
   'use strict';
@@ -17,11 +22,8 @@
 
   var NOTE = '계산만 보여 줍니다. 자재표는 지금처럼 직접 쳐 주세요. 둘을 맞춰 본 기록으로 계산 규칙을 고치고, ' +
     '도면팀이 규칙을 확인하면 시트에 넣는 단추를 엽니다.';
-  var HANDLE_NAMES = { phoenix: '피닉스바', other: '그 밖(푸쉬 등)' };
-  var NOMOLD_NAMES = { ceiling: '천장까지(천장 − 45)', std: '표준 문(2160 등)' };
-  var MOD_COLS = [['w', '폭'], ['doors', '문 짝', [0, 1, 2]], ['drawers', '서랍', [0, 1, 2, 3, 4]], ['rods', '옷봉', [0, 1, 2]]];
-  var KIND_NAMES = { ok: '같음', warn: '여유', bad: '다름', extra: '시트에만' };
-  var C = null, R = null, ctx = null, info = null, loading = null, isOpen = false;
+  var WIDTH_KEY = 'dws-calc-width', W_MIN = 280, W_MAX = 420, W_DEF = 340;
+  var C = null, R = null, F = null, B = null, D = null, ctx = null, info = null, loading = null, isOpen = false;
   var els = {}, inp = null, lastSheetId = null, lastCalc;
 
   function el(tag, cls, text) {
@@ -29,12 +31,6 @@
     if (cls) { e.className = cls; }
     if (text != null) { e.textContent = text; }
     return e;
-  }
-  function section(title) {
-    var s = el('section', 'dws-calc-sec');
-    s.appendChild(el('h3', 'dws-calc-sec-title', title));
-    els.body.appendChild(s);
-    return s;
   }
   function editable() { return !!(ctx && ctx.canSave()); }
 
@@ -48,222 +44,129 @@
     refresh();
     ctx.onChange();
   }
-  function intOf(v) { var n = Math.round(Number(v)); return isFinite(n) && n > 0 ? n : 0; }
 
-  function choice(host, label, key, names, numeric) {
-    var wrap = el('label', 'dws-calc-field');
-    wrap.appendChild(el('span', null, label));
-    var sel = el('select');
-    Object.keys(names).forEach(function (k) { var o = el('option', null, names[k]); o.value = k; sel.appendChild(o); });
-    sel.value = String(inp[key]);
-    sel.disabled = !editable();
-    sel.addEventListener('change', function () { edit(key, numeric ? intOf(sel.value) : sel.value); syncVisibility(); });
-    wrap.appendChild(sel);
-    host.appendChild(wrap);
-    return wrap;
-  }
-  function numBox(value) {
-    var box = el('input');
-    box.type = 'number'; box.min = '0'; box.step = '1'; box.inputMode = 'numeric';
-    box.value = value > 0 ? String(value) : '';
-    box.disabled = !editable();
-    return box;
-  }
-  function number(host, label, key, hint) {
-    var wrap = el('label', 'dws-calc-field');
-    wrap.appendChild(el('span', null, label));
-    var box = numBox(inp[key]);
-    box.placeholder = hint || '';
-    box.addEventListener('input', function () { edit(key, intOf(box.value)); });
-    wrap.appendChild(box);
-    host.appendChild(wrap);
-    return wrap;
-  }
-  function syncVisibility() { if (els.nomold) { els.nomold.hidden = inp.line !== 'nomold'; } }
-
-  function renderBasics(product) {
-    var sec = section('기본');
-    var grid = el('div', 'dws-calc-grid');
-    var lines = {};
-    C.LINES.forEach(function (k) { lines[k] = C.LINE_NAMES[k]; });
-    choice(grid, '제품 계열', 'line', lines);
-    choice(grid, '손잡이', 'handle', HANDLE_NAMES);
-    number(grid, '전체 폭', 'W', 'mm');
-    number(grid, '깊이', 'D', 'mm');
-    number(grid, '천장 높이', 'H', 'mm');
-    els.nomold = choice(grid, '무몰딩 문 높이', 'nomold', NOMOLD_NAMES);
-    number(grid, '서랍 칸 높이', 'zone', String(info.rules.drawer_zone));
-    number(grid, '문 높이 직접', 'door_h', '비우면 계산');
-    choice(grid, '드러난 옆면(EP)', 'ep', { 0: '0', 1: '1', 2: '2' }, true);
-    number(grid, '옆벽 SR 좌', 'sr_l', '없으면 비움');
-    number(grid, '옆벽 SR 우', 'sr_r', '없으면 비움');
-    sec.appendChild(grid);
-    syncVisibility();
-    var spec = product && C.parseSpec(product.spec);
-    if (spec && editable()) {
-      var again = el('button', 'dws-btn dws-calc-small', '제품 규격 다시 넣기 (' + product.spec + ')');
-      again.type = 'button';
-      again.addEventListener('click', function () {
-        inp.W = spec.W; inp.D = spec.D; edit('H', spec.H);
-        render();
-      });
-      sec.appendChild(again);
-    }
-  }
-
-  function renderMods() {
-    var sec = section('모듈 · 스케치업에서 따로 저장한 장 한 칸마다 한 줄');
-    var table = el('table', 'dws-calc-mods');
-    var hrow = el('tr');
-    ['#'].concat(MOD_COLS.map(function (c) { return c[1]; })).concat(['']).forEach(function (t) { hrow.appendChild(el('th', null, t)); });
-    table.appendChild(el('thead')).appendChild(hrow);
-    var body = el('tbody');
-    inp.mods.forEach(function (m, i) {
-      var tr = el('tr');
-      tr.appendChild(el('td', 'dws-calc-no', String(i + 1)));
-      MOD_COLS.forEach(function (c) {
-        var box = c[2] ? el('select') : numBox(m[c[0]]);
-        if (c[2]) {
-          c[2].forEach(function (v) { var o = el('option', null, String(v)); o.value = String(v); box.appendChild(o); });
-          box.value = String(m[c[0]] || 0);
-          box.disabled = !editable();
-        }
-        box.setAttribute('aria-label', (i + 1) + '번 모듈 ' + c[1]);
-        box.addEventListener(c[2] ? 'change' : 'input', function () { m[c[0]] = intOf(box.value); edit('mods', inp.mods); });
-        tr.appendChild(el('td')).appendChild(box);
-      });
-      var del = el('button', 'dws-calc-del', '빼기');
-      del.type = 'button';
-      del.disabled = !editable();
-      del.setAttribute('aria-label', (i + 1) + '번 모듈 빼기');
-      del.addEventListener('click', function () { inp.mods.splice(i, 1); edit('mods', inp.mods); render(); });
-      tr.appendChild(el('td')).appendChild(del);
-      body.appendChild(tr);
-    });
-    table.appendChild(body);
-    sec.appendChild(table);
-    var row = el('div', 'dws-calc-actions');
-    if (editable()) {
-      var addBtn = el('button', 'dws-btn dws-calc-small', '모듈 더하기');
-      addBtn.type = 'button';
-      addBtn.addEventListener('click', function () {
-        var last = inp.mods[inp.mods.length - 1];
-        inp.mods.push({ w: last ? last.w : 1000, doors: 2, drawers: 0, rods: 1 });
-        edit('mods', inp.mods);
-        render();
-      });
-      row.appendChild(addBtn);
-    }
-    els.sum = el('span', 'dws-calc-sum');
-    row.appendChild(els.sum);
-    sec.appendChild(row);
-  }
-
-  function renderSum() {
-    var sum = inp.mods.reduce(function (t, m) { return t + (m.w || 0); }, 0);
-    var text = '모듈 합 ' + sum;
-    if (inp.W > 0) {
-      var rest = inp.W - sum - inp.sr_l - inp.sr_r;
-      text += ' · 남는 폭 ' + rest + (rest > 0 ? '(옆벽 SR 로 채울 폭)' : '');
-    }
-    els.sum.textContent = text;
-  }
-
-  function renderOut(lines) {
-    var box = els.out;
-    while (box.childNodes.length > 1) { box.removeChild(box.lastChild); }
-    if (!lines.length) { box.appendChild(el('p', 'dws-calc-empty', '전체 폭·천장 높이와 모듈을 넣으면 계산이 나옵니다.')); return; }
-    lines.forEach(function (l) {
-      if (l.head) { box.appendChild(el('div', 'dws-calc-head-line', '[' + l.head + ']')); return; }
-      var row = el('div', 'dws-calc-line');
-      row.appendChild(el('span', 'dws-calc-val', l.text));
-      row.appendChild(el('span', 'dws-calc-why', l.why));
-      box.appendChild(row);
-      if (l.ea) {
-        var sub = el('div', 'dws-calc-line');
-        sub.appendChild(el('span', 'dws-calc-val', 'ㄴ피닉스바 ' + l.ea + 'EA'));
-        sub.appendChild(el('span', 'dws-calc-why', '문 ' + l.q + '짝 ÷ 2 올림'));
-        box.appendChild(sub);
-      }
-    });
-  }
-
-  function renderCmp(lines, sheet) {
-    var box = els.cmp;
-    while (box.childNodes.length > 1) { box.removeChild(box.lastChild); }
-    var texts = (sheet.objects || []).filter(function (o) { return o.type === 'text'; }).map(function (o) { return o.text; });
-    var rows = C.parseBom(texts);
-    if (rows.orphans) {
-      box.appendChild(el('p', 'dws-calc-hint', '머리글 없이 친 줄 ' + rows.orphans + '개는 맞춰 보지 못했습니다. [DOOR] 같은 머리글과 한 글자 상자에 써 주세요.'));
-    }
-    if (!rows.length) {
-      box.appendChild(el('p', 'dws-calc-empty', '시트에 친 자재표가 아직 없습니다. [SR]·[DOOR] 같은 머리글 아래 줄을 읽어 맞춰 봅니다.'));
-      return;
-    }
-    var res = C.compare(lines, rows);
-    var mine = res.filter(function (r) { return r.kind !== 'extra'; });
-    var same = mine.filter(function (r) { return r.kind === 'ok'; }).length;
-    var extra = res.length - mine.length;
-    box.appendChild(el('p', 'dws-calc-score', '계산한 ' + mine.length + '줄 중 ' + same + '줄 같음' + (extra ? ' · 시트에만 있는 줄 ' + extra : '')));
-    res.forEach(function (r) {
-      var row = el('div', 'dws-calc-cmp');
-      row.appendChild(el('span', 'dws-calc-sec-name', r.sec));
-      row.appendChild(el('span', 'dws-calc-val', r.text));
-      var chip = el('span', 'dws-calc-chip dws-calc-chip-' + r.kind, r.kind === 'ok' ? KIND_NAMES.ok : r.note);
-      chip.title = KIND_NAMES[r.kind];
-      row.appendChild(chip);
-      box.appendChild(row);
-    });
+  /** 시트 글자 상자에서 [SR]·[DOOR] 머리글 아래 줄을 읽는다(맞춰 보기 재료). */
+  function sheetRows(s) {
+    var texts = (s.objects || []).filter(function (o) { return o.type === 'text'; }).map(function (o) { return o.text; });
+    return C.parseBom(texts);
   }
 
   /** 다시 계산 — 시트에 calc 가 있으면 계산 글자·규칙 판도 갱신한다(저장 때 같이 나간다). */
   function refresh() {
     var s = ctx.getSheet();
-    if (!s || !info || !inp || !els.out) { return; }
+    if (!s || !info || !inp || !els.why) { return; }
     var lines = C.calc(inp, info.rules);
     if (s.calc && s.calc.in === inp) { s.calc.out = C.toText(lines); s.calc.rules = info.label; }
-    renderSum();
-    renderOut(lines);
-    renderCmp(lines, s);
+    B.renderTop(els.top, lines, sheetRows(s), C);
+    B.renderWhy(els.why, lines);
+    F.refresh();
+    // 위 결과 칸이 자라면 아래 스크롤 구역이 줄어 치던 칸이 가려질 수 있다 — 치는 칸을 보이는 곳에 둔다
+    var ae = document.activeElement;
+    if (ae && ae !== els.body && els.body.contains(ae) && ae.scrollIntoView) { ae.scrollIntoView({ block: 'nearest' }); }
+  }
+
+  /** 규칙 한 줄 — '규칙 2판 · 도면팀·관리자만 고침 [규칙 창 열기]'. 편집은 칸 밖 규칙 창에서. */
+  function renderRulesRow() {
+    var row = els.body.appendChild(el('div', 'dws-calc-rules-row'));
+    row.appendChild(el('span', 'dws-calc-rules-text', R.labelName(info.label) + ' · 도면팀·관리자만 고침'));
+    var btn = els.rulesBtn = row.appendChild(el('button', 'dws-btn dws-calc-small', '규칙 창 열기'));
+    btn.type = 'button';
+    btn.addEventListener('click', function () {
+      D.open(info, function (next) { info = next; render(); }, ctx.toast, function () { if (els.rulesBtn) { els.rulesBtn.focus(); } });
+    });
+  }
+
+  function message(text) {
+    els.top.hidden = true;
+    els.body.appendChild(el('p', 'dws-calc-empty', text));
   }
 
   function render() {
     var s = ctx.getSheet();
     els.body.textContent = '';
-    els.out = null;
+    els.why = null;
+    els.rulesBtn = null;
     lastSheetId = s ? s.id : null;
     lastCalc = s ? s.calc : undefined;
-    if (!info) {
-      els.body.appendChild(el('p', 'dws-calc-empty', loading ? '계산 규칙을 불러오는 중입니다…' : '계산 규칙을 불러오지 못했습니다. 칸을 닫았다가 다시 열어 주세요.'));
-      return;
-    }
-    if (!s) { els.body.appendChild(el('p', 'dws-calc-empty', '왼쪽에서 제품을 골라 시트를 먼저 여세요.')); return; }
+    if (!info) { message(loading ? '계산 규칙을 불러오는 중입니다…' : '계산 규칙을 불러오지 못했습니다. 칸을 닫았다가 다시 열어 주세요.'); return; }
+    if (!s) { message('왼쪽에서 제품을 골라 시트를 먼저 여세요.'); return; }
     var product = ctx.getProduct(s);
     inp = (s.calc && s.calc.in) ? s.calc.in : C.emptyInputs(info.rules, product);
     if (!Array.isArray(inp.mods)) { inp.mods = []; }
-    els.body.appendChild(el('p', 'dws-calc-note', NOTE));
-    renderBasics(product);
-    renderMods();
-    els.out = section('계산 결과');
-    els.cmp = section('시트 자재표와 맞춰 보기');
-    var rulesHost = el('div');
-    els.body.appendChild(rulesHost);
-    R.renderEditor(rulesHost, info, function (next) { info = next; render(); }, ctx.toast);
+    els.top.hidden = false;
+    F.build(els.body, { C: C, inp: inp, rules: info.rules, product: product, editable: editable(), edit: edit, render: render, sheetId: s.id });
+    var why = F.fold(els.body, 'why');
+    why.label.textContent = '줄마다 계산 근거';
+    els.why = why.body;
+    renderRulesRow();
     refresh();
+  }
+
+  /** 칸 폭(280~420px)은 CSS 변수 --dws-calc-w 로만 바꾼다. keep 이면 이 브라우저에 기억한다. */
+  function setWidth(w, keep) {
+    w = Math.max(W_MIN, Math.min(W_MAX, Math.round(w) || W_DEF));
+    ctx.host.style.setProperty('--dws-calc-w', w + 'px');
+    els.grip.setAttribute('aria-valuenow', String(w));
+    if (keep) { try { window.localStorage.setItem(WIDTH_KEY, String(w)); } catch (_) { /* 기억 못 해도 이번 폭은 쓴다 */ } }
+    return w;
+  }
+  /** 칸 왼쪽 가장자리 손잡이 — 끌거나 ←/→ 키로 폭을 바꾼다. */
+  function initGrip() {
+    var grip = els.grip = ctx.host.appendChild(el('div', 'dws-calc-grip'));
+    grip.tabIndex = 0;
+    grip.title = '끌어서 칸 폭 바꾸기(280~420)';
+    grip.setAttribute('role', 'separator');
+    grip.setAttribute('aria-orientation', 'vertical');
+    grip.setAttribute('aria-label', '계산 칸 폭');
+    grip.setAttribute('aria-valuemin', String(W_MIN));
+    grip.setAttribute('aria-valuemax', String(W_MAX));
+    var saved = W_DEF;
+    try { saved = Number(window.localStorage.getItem(WIDTH_KEY)) || W_DEF; } catch (_) { saved = W_DEF; }
+    var cur = setWidth(saved, false), startX = 0, startW = cur, drag = false;
+    grip.addEventListener('pointerdown', function (e) {
+      drag = true; startX = e.clientX; startW = cur;
+      if (grip.setPointerCapture) { try { grip.setPointerCapture(e.pointerId); } catch (_) { /* 잡지 못해도 끌기는 된다 */ } }
+      e.preventDefault();
+    });
+    grip.addEventListener('pointermove', function (e) { if (drag) { cur = setWidth(startW + (startX - e.clientX), false); } });
+    function end() { if (drag) { drag = false; cur = setWidth(cur, true); } }
+    grip.addEventListener('pointerup', end);
+    grip.addEventListener('pointercancel', end);
+    grip.addEventListener('keydown', function (e) {
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') { return; }
+      e.preventDefault();
+      e.stopPropagation();   // 뒤 캔버스의 '고른 그림 1px 옮기기'로 새지 않게
+      cur = setWidth(cur + (e.key === 'ArrowLeft' ? 10 : -10), true);
+    });
   }
 
   /** 칸 열기·닫기. 처음 열 때 규칙 숫자를 받는다(성능 가드 G2: 쓸 때 받기). */
   function setOpen(on) {
+    if (on === isOpen) { return; }
     isOpen = on;
     ctx.host.hidden = !on;
     if (ctx.button) { ctx.button.setAttribute('aria-expanded', String(on)); ctx.button.classList.toggle('dws-btn-on', on); }
-    if (!on) { return; }
-    if (!info && !loading) {
-      loading = R.load().then(function (d) { info = d; loading = null; if (isOpen) { render(); } });
+    if (on) {
+      if (!info && !loading) {
+        loading = R.load().then(function (d) { info = d; loading = null; if (isOpen) { render(); } });
+      }
+      render();
     }
-    render();
+    if (ctx.onOpenChange) { ctx.onOpenChange(on); }   // 칸이 보인 뒤 — 마법사가 roomPlan 으로 폭 맞춤·제품 목록 접기(큼-2)
   }
   function toggle() { setOpen(!isOpen); }
+
+  /* 칸을 연 뒤 시트를 보이게 할 일(보고서 큼-2 · 실화면 QA 2026-10-25) — 화면 폭(1600)이 아니라 '시트 오른쪽이
+     칸에 가리는가'로 정한다(1920 배율 100% 에서도 [마이다]가 '[마'로 잘렸다). 폭 맞춤만으로 배율이 FOLD_BELOW
+     (80% — 100% 에서 20px 인 시트 자재표 글자가 16px) 아래로 떨어질 때만 왼쪽 제품 목록도 접는다
+     (1920: 목록은 두고 89% · 1680/1600/1366: 접고 85/80/64%).
+     o: { zoom, avail(캔버스 폭 − 좌우 여백), stageW, productsOpen } → null(가리지 않음) | { zoom(맞춤만 했을 때), fold } */
+  var FOLD_BELOW = 0.8;
+  function roomPlan(o) {
+    if (!o || !(o.avail > 0) || !(o.stageW > 0) || o.stageW * o.zoom <= o.avail + 1) { return null; }
+    var fit = Math.min(1, o.avail / o.stageW);
+    return { zoom: fit, fold: !!o.productsOpen && fit < FOLD_BELOW };
+  }
 
   /** 마법사가 시트를 다시 그릴 때마다 부른다 — 시트·calc 가 바뀌었으면 새로 그리고, 아니면 맞춰 보기만 갱신. */
   function sync() {
@@ -276,20 +179,39 @@
   function init(opts) {
     C = window.FomsBomCalc;
     R = window.FomsBomRules;
+    F = window.FomsBomForm;
+    B = window.FomsBomResults;
+    D = window.FomsBomRulesDialog;
     ctx = opts;
-    if (!C || !R || !ctx || !ctx.host) { return false; }
+    if (!C || !R || !F || !B || !D || !ctx || !ctx.host) { return false; }
     var head = ctx.host.appendChild(el('div', 'dws-calc-head'));
     head.appendChild(el('span', 'dws-calc-title', '자재표 계산'));
-    head.appendChild(el('span', 'dws-calc-badge', '그림자 판'));
+    var about = head.appendChild(el('button', 'dws-calc-info', 'ⓘ'));
+    about.type = 'button';
+    about.title = '이 칸은 무엇을 하나요?';
+    about.setAttribute('aria-label', '자재표 계산 안내');
+    about.setAttribute('aria-expanded', 'false');
+    about.setAttribute('aria-controls', 'dws-calc-note');
+    head.appendChild(el('span', 'dws-calc-badge', '시험 계산'));
     var close = head.appendChild(el('button', 'dws-calc-close', '✕'));
     close.type = 'button';
     close.title = '닫기';
     close.setAttribute('aria-label', '자재표 계산 닫기');
     close.addEventListener('click', function () { setOpen(false); });
+    els.note = ctx.host.appendChild(el('p', 'dws-calc-note', NOTE));
+    els.note.id = 'dws-calc-note';
+    els.note.hidden = true;
+    about.addEventListener('click', function () {
+      els.note.hidden = !els.note.hidden;
+      about.setAttribute('aria-expanded', String(!els.note.hidden));
+    });
+    els.top = ctx.host.appendChild(el('div', 'dws-calc-top'));   // 결과 · 맞춰 보기(아래 칸과 따로 스크롤)
+    els.top.hidden = true;
     els.body = ctx.host.appendChild(el('div', 'dws-calc-body'));
+    initGrip();
     if (ctx.button) { ctx.button.addEventListener('click', toggle); }
     return true;
   }
 
-  window.FomsBomPanel = { init: init, sync: sync, toggle: toggle };
+  window.FomsBomPanel = { init: init, sync: sync, toggle: toggle, roomPlan: roomPlan };
 })();

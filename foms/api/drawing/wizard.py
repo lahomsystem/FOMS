@@ -115,8 +115,11 @@ _PART_LABELS = (
     '서랍 단면', '부품 상세', '사진', '그림 아님', '미분류',
 )
 _PART_SOURCES = ('ai', 'user')
-_PART_FIELDS = frozenset({'label', 'src', 'ai', 'conf', 'head'})
+# arr = 자동 배치가 놓은 자리 [x, y, w, h] — 지금 자리와 견줘 사람이 옮긴 거리를 잰다(설계서 §3.2 기록).
+_PART_FIELDS = frozenset({'label', 'src', 'ai', 'conf', 'head', 'arr'})
 _PART_HEAD_RE = re.compile(r'^[A-Za-z0-9._-]{1,16}$')
+_PART_ARR_XY = (-2000, 5000)
+_PART_ARR_WH = (1, 5000)
 
 # 자재표 계산 칸(optional 시트 ``calc``) — 입력값·마지막 계산 글자·규칙 판·모드(그림자/넣기).
 # 설계 정본: docs/plans/2026-10-23-drawing-part-label-feedback-spec.md §3.3 · §3.6
@@ -421,7 +424,7 @@ def _validate_image_object(obj: dict, order_id: int) -> str | None:
 
 
 def _validate_part(part) -> str | None:
-    """optional ``part``(그림 종류 이름표) 검증 — 닫힌 목록 label·출처(ai/user)·확신 0~1·판 번호."""
+    """optional ``part``(그림 종류 이름표) 검증 — 닫힌 목록 label·출처(ai/user)·확신 0~1·판 번호·자동 배치 자리."""
     if not isinstance(part, dict) or not set(part) <= _PART_FIELDS:
         return '그림 종류 형식이 올바르지 않습니다.'
     if part.get('label') not in _PART_LABELS:
@@ -434,7 +437,22 @@ def _validate_part(part) -> str | None:
         return '그림 종류 확신 값이 올바르지 않습니다.'
     if 'head' in part and not (isinstance(part['head'], str) and _PART_HEAD_RE.match(part['head'])):
         return '그림 종류 판 번호가 올바르지 않습니다.'
+    if 'arr' in part and not _is_part_arr(part['arr']):
+        return '그림 종류 자동 배치 자리 값이 올바르지 않습니다.'
     return None
+
+
+def _is_part_arr(arr) -> bool:
+    """``part.arr`` = [x, y, w, h] 숫자 4개 — x·y −2000~5000, w·h 1~5000."""
+    if not isinstance(arr, list) or len(arr) != 4:
+        return False
+    x, y, w, h = arr
+    return (
+        _is_number_in_range(x, *_PART_ARR_XY)
+        and _is_number_in_range(y, *_PART_ARR_XY)
+        and _is_number_in_range(w, *_PART_ARR_WH)
+        and _is_number_in_range(h, *_PART_ARR_WH)
+    )
 
 
 def _validate_calc_inputs(inputs) -> str | None:

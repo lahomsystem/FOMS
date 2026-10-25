@@ -3,7 +3,8 @@
 설계 정본: docs/plans/2026-10-23-drawing-part-label-feedback-spec.md (§3.1 이름표 · §3.2 자동 배치)
 - 서버 검증(_PART_LABELS) · 마법사(PART_LABELS) · 브라우저 AI(KEY_LABELS) 의 닫힌 목록이 같아야 한다.
 - 분류기 가중치(part-head.json)는 브라우저가 그대로 읽는 꼴이어야 한다.
-- 자동 배치(part-layout.js)는 순수 계산이라 node 로 돌려 겹침·범위·띠 순서를 본다.
+- 자동 배치(part-layout.js + part-pack.js)는 순수 계산이라 node 로 돌려 결정성·칸·자재표 자리·겹침·짝 순서·
+  같은 배율·확대 상한·글자 크기(너무 작음) 판정을 본다. 치수 글자 재기(part-textsize.js)도 node 로 합성 그림을 잰다.
 """
 
 import json
@@ -19,8 +20,12 @@ from foms.api.drawing import wizard as wizard_api
 ROOT = Path(__file__).resolve().parents[2]
 JS = {
     "part_ai": ROOT / "static/js/drawing/part-ai.js",
+    "part_arrange": ROOT / "static/js/drawing/part-arrange.js",
     "part_layout": ROOT / "static/js/drawing/part-layout.js",
+    "part_pack": ROOT / "static/js/drawing/part-pack.js",
     "part_pair": ROOT / "static/js/drawing/part-pair.js",
+    "part_split": ROOT / "static/js/drawing/part-split.js",
+    "part_textsize": ROOT / "static/js/drawing/part-textsize.js",
     "wizard": ROOT / "static/js/drawing/wizard.js",
 }
 HEAD = ROOT / "static/js/drawing/part-head.json"
@@ -67,71 +72,21 @@ def test_head_json_shape_matches_browser_contract():
 
 def test_template_loads_part_scripts_deferred_with_pin():
     html = TEMPLATE.read_text(encoding="utf-8")
-    for name in ("part-ai.js", "part-layout.js", "part-pair.js"):
+    for name in ("part-ai.js", "part-pack.js", "part-layout.js", "part-split.js", "part-textsize.js", "part-arrange.js",
+                 "part-pair.js"):
         tag = re.search(r'<script src="[^"]*' + re.escape(name) + r'[^"]*"[^>]*>', html)
         assert tag, name
         assert "?v=" in tag.group(0) and " defer" in tag.group(0)
     assert 'data-head-url="' in html
+    # part-layout.js 는 part-pack.js 를 쓰고, wizard.js 는 셋 다 쓴다(defer 는 적힌 순서대로 돈다)
+    pos = {n: html.index("js/drawing/" + n) for n in ("part-pack.js", "part-layout.js", "part-split.js", "part-textsize.js",
+                                                       "part-arrange.js", "wizard.js")}
+    assert pos["part-pack.js"] < pos["part-layout.js"] < pos["part-split.js"] < pos["wizard.js"]   # 나누기 계획은 배치 계산을 쓴다
+    assert pos["part-textsize.js"] < pos["wizard.js"] and pos["part-arrange.js"] < pos["wizard.js"]
 
 
-LAYOUT_RUNNER = r"""
-global.window = {};
-require(process.argv[1]);
-const items = JSON.parse(process.argv[2]), area = JSON.parse(process.argv[3]), obs = JSON.parse(process.argv[4]);
-process.stdout.write(JSON.stringify(window.FomsPartLayout.arrange(items, area, obs)));
-"""
-
-
-def _arrange(items, area, obstacles):
-    proc = subprocess.run(
-        [_node(), "-e", LAYOUT_RUNNER, str(JS["part_layout"]), json.dumps(items), json.dumps(area), json.dumps(obstacles)],
-        capture_output=True, text=True, encoding="utf-8",
-    )
-    assert proc.returncode == 0, proc.stderr
-    return json.loads(proc.stdout)
-
-
-def _overlap(a, b):
-    return a["x"] < b["x"] + b["w"] and b["x"] < a["x"] + a["w"] and a["y"] < b["y"] + b["h"] and b["y"] < a["y"] + a["h"]
-
-
-def test_layout_keeps_inside_area_without_overlap_and_orders_bands():
-    items = [
-        {"id": "in1", "nw": 1000, "nh": 2300, "label": "정면·내부", "order": 0},
-        {"id": "door1", "nw": 1000, "nh": 2300, "label": "정면·도어", "order": 1},
-        {"id": "iso", "nw": 1600, "nh": 1500, "label": "입체·도어", "order": 2},
-        {"id": "plan", "nw": 3000, "nh": 700, "label": "평면·상판", "order": 3},
-        {"id": "drawer", "nw": 800, "nh": 800, "label": "서랍 단면", "order": 4},
-        {"id": "photo", "nw": 4000, "nh": 3000, "label": "사진", "order": 5},
-    ]
-    area = {"x0": 20, "y0": 76, "x1": 1458, "y1": 887}
-    obstacles = [{"x": 820, "y": 104, "w": 600, "h": 40}, {"x": 1000, "y": 300, "w": 300, "h": 200}]
-    res = _arrange(items, area, obstacles)
-    placed = {p["id"]: p for p in res["placed"]}
-    assert set(placed) == {it["id"] for it in items}
-    for p in placed.values():
-        assert area["x0"] <= p["x"] and p["x"] + p["w"] <= area["x1"]
-        assert area["y0"] <= p["y"] and p["y"] + p["h"] <= area["y1"]
-        assert not any(_overlap(p, o) for o in obstacles), p
-    rects = list(placed.values())
-    for i, a in enumerate(rects):
-        for b in rects[i + 1:]:
-            assert not _overlap(a, b), (a, b)
-    # 띠 순서: 큰 그림 → 평면 → 작은 그림, 같은 모듈의 내부·도어는 올린 순서대로 나란히
-    assert placed["in1"]["y"] < placed["plan"]["y"] < placed["drawer"]["y"]
-    assert placed["in1"]["x"] < placed["door1"]["x"] and placed["in1"]["y"] == placed["door1"]["y"]
-    assert placed["plan"]["h"] < placed["in1"]["h"]
-
-
-def test_layout_shrinks_and_flags_crowded_sheets():
-    area = {"x0": 20, "y0": 76, "x1": 1458, "y1": 887}
-    few = [{"id": f"m{i}", "nw": 1000, "nh": 2300, "label": "정면·내부", "order": i} for i in range(6)]
-    many = [{"id": f"m{i}", "nw": 1000, "nh": 2300, "label": "정면·내부", "order": i} for i in range(120)]
-    small = _arrange(few, area, [])
-    crowded = _arrange(many, area, [])
-    assert len(crowded["placed"]) == 120
-    assert crowded["mainH"] < small["mainH"]
-    assert small["crowded"] is False and crowded["crowded"] is True
+# 자동 배치(part-layout.js · part-pack.js · part-textsize.js · part-arrange.js) 시험은
+# test_drawing_part_layout_contract.py 에 있다(이 파일이 500줄 래칫을 넘지 않게).
 
 
 PAIR_RUNNER = r"""
@@ -188,4 +143,5 @@ def test_kitchen_pair_rule_and_hatch_formula():
     assert res["unsure"] == {"a": "입체·도어", "b": "입체·내부", "f": "정면·내부"}    # 확신이 낮아도 짝이면 정함
     assert res["kitchen"] == [True, True, False, False]
     assert abs(res["hatch"] - py_hatch) < 0.02
+    # 학습 이름표 화면(이름 딱지·Enter 맞음·여러 장 숫자키·짝 풀림 안내)은 test_drawing_part_badges.py — 500줄 래칫
 

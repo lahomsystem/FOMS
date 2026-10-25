@@ -5,7 +5,8 @@
  * - 식은 지난 자재표 670장에서 가장 많이 쓴 값을 찾은 초안이다(도면팀 확인 전).
  *   식에 들어가는 숫자(rules)는 서버 설정(/api/orders/drawing-wizard/bom-rules)에서 받는다.
  * - 옆벽 SR 은 넣은 값을 그대로 적는다. 보조목·EP 41 띠·주방 문 높이는 규칙을 못 찾아 계산하지 않는다.
- * - 시트에 사람이 친 자재표 글자를 읽어 계산과 줄마다 맞춰 본다(같음·여유·짧음·다름).
+ * - 시트에 사람이 친 자재표 글자를 읽어 계산과 줄마다 맞춰 본다(같음·여유·짧음·다름·아직 안 침).
+ * - 근거 글의 숫자에는 규칙 이름을 붙인다('(1000 − 쌍문 틈 34) ÷ 2 내림' — 보고서 2026-10-25 보통-3).
  *
  * window.FomsBomCalc = { LINES, LINE_NAMES, HANDLES, NOMOLD, sanitize, emptyInputs, calc, toText,
  *                        parseBom, compare, guessLine, guessHandle, parseSpec }
@@ -81,26 +82,31 @@
   }
 
   /* ---- 계산식 ---- */
+  // 근거 글에 붙이는 규칙 이름(규칙 창 칸 이름을 줄인 것). 숫자만 있으면 무슨 규칙인지 모른다.
+  var RULE_NAMES = {
+    door_gap_phoenix_pair: '쌍문 틈', door_gap_other_pair: '쌍문 틈', door_gap_phoenix_single: '외짝 틈',
+    door_gap_other_single: '외짝 틈', door_ceiling_margin: '띄울 높이', nomold_cut: '무몰딩 빼기',
+    rod_cut: '옷봉 빼기', maida_w_cut: '폭 빼기', maida_h_cut: '높이 빼기', sr_small_gap: '작은 틈 기준',
+    sr_minus: '틈 빼기', sheet_len: '판 길이', ep_plus_hinged: '여닫이 더하기'
+  };
+  function rn(r, key) { return RULE_NAMES[key] + ' ' + r[key]; }
+
   function doorHeight(s, r) {
     if (s.door_h > 0) { return { h: s.door_h, why: '직접 넣은 값' }; }
     if (s.line === 'nomold' && s.nomold === 'ceiling') {
       return { h: Math.floor((s.H - r.nomold_cut) / r.nomold_step) * r.nomold_step,
-        why: '천장 ' + s.H + ' − ' + r.nomold_cut + ' → ' + r.nomold_step + ' 단위 내림' };
+        why: '천장 ' + s.H + ' − ' + rn(r, 'nomold_cut') + ' → ' + r.nomold_step + ' 단위 내림' };
     }
     var std = r.door_std_heights;
     var ok = std.filter(function (h) { return h <= s.H - r.door_ceiling_margin; });
     return { h: ok.length ? ok[ok.length - 1] : std[0],
-      why: '표준 문 중 천장 ' + s.H + ' − ' + r.door_ceiling_margin + ' 이하에서 가장 큰 것' + (s.line === 'other' ? '(냉장고장·그 밖은 추정)' : '') };
+      why: '표준 문 중 천장 ' + s.H + ' − ' + rn(r, 'door_ceiling_margin') + ' 이하에서 가장 큰 것' + (s.line === 'other' ? '(냉장고장·그 밖은 추정)' : '') };
   }
   function doorWidth(w, n, s, r) {
     if (s.line === 'slide') { return { w: w, why: '슬라이딩 문 = 모듈 폭 ' + w }; }
-    var ph = s.handle === 'phoenix';
-    if (n === 1) {
-      var single = ph ? r.door_gap_phoenix_single : r.door_gap_other_single;
-      return { w: w - single, why: '외짝 ' + w + ' − ' + single };
-    }
-    var pair = ph ? r.door_gap_phoenix_pair : r.door_gap_other_pair;
-    return { w: Math.floor((w - pair) / n), why: '(' + w + ' − ' + pair + ') ÷ ' + n + ' 내림' };
+    var key = 'door_gap_' + (s.handle === 'phoenix' ? 'phoenix' : 'other') + (n === 1 ? '_single' : '_pair');
+    if (n === 1) { return { w: w - r[key], why: w + ' − ' + rn(r, key) }; }
+    return { w: Math.floor((w - r[key]) / n), why: '(' + w + ' − ' + rn(r, key) + ') ÷ ' + n + ' 내림' };
   }
   function add(map, a, b, qty, why) {
     var key = b == null ? String(a) : a + '*' + b;
@@ -125,21 +131,21 @@
       }
       if (m.drawers > 0) {
         add(maida, m.w - r.maida_w_cut, Math.round(zone / m.drawers - r.maida_h_cut), m.drawers,
-          '(' + m.w + ' − ' + r.maida_w_cut + ') × (' + zone + ' ÷ ' + m.drawers + ' − ' + r.maida_h_cut + ')');
+          '(' + m.w + ' − ' + rn(r, 'maida_w_cut') + ') × (' + zone + ' ÷ ' + m.drawers + ' − ' + rn(r, 'maida_h_cut') + ')');
       }
-      if (m.rods > 0) { add(rod, m.w - r.rod_cut, null, m.rods, m.w + ' − ' + r.rod_cut); }
+      if (m.rods > 0) { add(rod, m.w - r.rod_cut, null, m.rods, m.w + ' − ' + rn(r, 'rod_cut')); }
     });
     if (dh && s.H > 0 && s.W > 0 && s.H - dh.h > 0) {
       var gap = s.H - dh.h, q = Math.ceil(s.W / r.sheet_len);
       var small = gap <= r.sr_small_gap;
       var top = small ? r.sr_small_value : Math.ceil((gap - r.sr_minus) / r.sr_step) * r.sr_step;
-      add(sr, top, r.sheet_len, q, (small ? '위 틈 ' + gap + '(' + r.sr_small_gap + ' 이하) → ' + top
-        : '위 틈 ' + gap + ' − ' + r.sr_minus + ' → ' + r.sr_step + ' 단위 올림') + ' · 폭 ' + s.W + ' ÷ ' + r.sheet_len + ' 올림 ' + q + '장');
+      add(sr, top, r.sheet_len, q, (small ? '위 틈 ' + gap + '(' + rn(r, 'sr_small_gap') + ' 이하) → ' + top
+        : '위 틈 ' + gap + ' − ' + rn(r, 'sr_minus') + ' → ' + r.sr_step + ' 단위 올림') + ' · 폭 ' + s.W + ' ÷ ' + rn(r, 'sheet_len') + ' 올림 ' + q + '장');
     }
     [s.sr_l, s.sr_r].forEach(function (g) { if (g > 0) { add(sr, g, r.sheet_len, 1, '옆벽 SR(넣은 값)'); } });
     if (s.ep > 0 && s.D > 0) {
       var plus = (s.line === 'mold' || s.line === 'nomold') ? r.ep_plus_hinged : 0;
-      add(ep, s.D + plus, r.sheet_len, s.ep, '깊이 ' + s.D + (plus ? ' + ' + plus : ' 그대로') + ' · 길이 ' + r.sheet_len);
+      add(ep, s.D + plus, r.sheet_len, s.ep, '깊이 ' + s.D + (plus ? ' + ' + rn(r, 'ep_plus_hinged') : ' 그대로') + ' · ' + rn(r, 'sheet_len'));
     }
     var out = [];
     function push(head, map, sorter) {
@@ -210,38 +216,71 @@
     return rows;
   }
 
+  /* 짝짓기 시험 — 짝이면 {d: 차이 크기, kind?, note?}. 같은 차례 안에서는 차이가 작은 짝부터 정한다. */
+  function exact(r, l) { return (r.a === l.a && r.b === l.b) ? { d: r.q === l.q ? 0 : 0.5 } : null; }   // 수량까지 같은 줄 먼저
+  /** 한 치수는 같고 다른 치수가 ±20 안 — '여유 +13(시트 496*2160=1)'. 수량까지 다르면 빨강으로 '수량 다름'도 적는다. */
   function nearMiss(r, l) {
     var da = r.a - l.a, db = (r.b == null || l.b == null) ? 0 : r.b - l.b;
     var d = (da === 0) ? db : (db === 0 ? da : 0);
-    if (d >= 1 && d <= 20) { return { kind: 'warn', note: '여유 +' + d + '(시트 ' + r.text + ')' }; }
-    if (d <= -1 && d >= -20) { return { kind: 'bad', note: '짧음 ' + d + '(시트 ' + r.text + ')' }; }
-    return null;
+    if (!d || d > 20 || d < -20) { return null; }
+    var qty = r.q === l.q ? '' : ' · 수량 다름';
+    return { d: Math.abs(d), kind: (d > 0 && !qty) ? 'warn' : 'bad',
+      note: (d > 0 ? '여유 +' : '짧음 ') + d + qty + '(시트 ' + r.text + ')' };
+  }
+  function nearSameQty(r, l) { return r.q === l.q ? nearMiss(r, l) : null; }
+  function nearOtherQty(r, l) { return r.q !== l.q ? nearMiss(r, l) : null; }
+  var DIMS = { SR: ['폭', '길이'], EP: ['폭', '길이'], '옷봉': ['길이'] };   // 그 밖(DOOR·마이다)은 너비·높이
+  // 한 치수 차이 한도 — 넘으면 다른 물건이라 두 줄(시트에 없음·계산에 없음)로 가른다. 문 높이만 표준 높이 두 칸(200)까지
+  // (실화면 QA 2026-10-25: 옷봉 465 ↔ 시트 1200 이 '길이 -735', 문 470 ↔ 시트 900 이 '너비 -430' 한 줄로 묶였다).
+  var ONE_DIM_MAX = 100, DOOR_H_MAX = 200;
+  /** 수량이 같고 한 치수만 다른 줄 — 두 줄로 가르지 않고 '높이 +100(시트 2260)' 한 줄로. 차이는 여유·짧음과 같은 방향
+      (시트 − 계산, 시트가 크면 +) — 한 칸 안에 '높이 -100(시트 2260)'·'여유 +10(시트 975=4)'이 섞였다(실화면 QA). */
+  function oneDim(r, l) {
+    if (r.q !== l.q) { return null; }
+    var names = DIMS[l.sec] || ['너비', '높이'];
+    var i = (r.a === l.a && r.b != null && l.b != null && r.b !== l.b) ? 1 : ((r.a !== l.a && r.b === l.b) ? 0 : -1);
+    if (i < 0) { return null; }
+    var mine = i ? l.b : l.a, theirs = i ? r.b : r.a, d = theirs - mine;
+    if (Math.abs(d) > (l.sec === 'DOOR' && i ? DOOR_H_MAX : ONE_DIM_MAX)) { return null; }
+    return { d: Math.abs(d), kind: 'bad', note: names[i] + ' ' + (d > 0 ? '+' : '') + d + '(시트 ' + theirs + ')' };
   }
 
-  /** 계산 줄 ↔ 시트 줄 → [{sec, text, kind: ok|warn|bad|extra, note}]. */
+  /** 계산 줄 ↔ 시트 줄 → [{sec, text, kind: ok|warn|bad|todo|extra, note}].
+      짝짓는 차례: 꼭 맞는 줄 → 수량 같고 ±20 안 → 수량 같고 한 치수만 다름(±100, 문 높이 ±200) → 수량 다르고 ±20 안.
+      차례를 나눠야 더 나은 짝을 덜 맞는 짝이 먼저 가져가지 않는다(실화면 QA 2026-10-25: 수량을 안 보는 ±20 짝이
+      높이만 다른 같은 문 '483*2160=6 ↔ 시트 483*2260=6'을 갈라 놓았다). 같은 차례 안에서는 계산 줄 차례가 아니라
+      차이가 작은 짝부터 정한다. 시트에서 그 칸을 한 줄도 안 쳤으면 빨강 '시트에 없음' 대신 회색 '아직 안 침'. */
   function compare(lines, rows) {
+    var calcLines = (lines || []).filter(function (l) { return !l.head; });
     var used = rows.map(function () { return false; });
-    var res = [];
-    function find(l, test) {
-      for (var i = 0; i < rows.length; i++) {
-        if (!used[i] && !rows[i].bojo && rows[i].sec === l.sec && test(rows[i])) { return i; }
-      }
-      return -1;
-    }
-    (lines || []).filter(function (l) { return !l.head; }).forEach(function (l) {
-      var miss = null;
-      var idx = find(l, function (r) { return r.a === l.a && r.b === l.b; });
-      if (idx < 0) { idx = find(l, function (r) { miss = nearMiss(r, l); return !!miss; }); }
-      if (idx < 0) { res.push({ sec: l.sec, text: l.text, kind: 'bad', note: '시트에 없음' }); return; }
-      used[idx] = true;
-      var r = rows[idx];
-      if (miss) { res.push({ sec: l.sec, text: l.text, kind: miss.kind, note: miss.note }); }
-      else if (r.q === l.q) { res.push({ sec: l.sec, text: l.text, kind: 'ok', note: '같음' }); }
-      else { res.push({ sec: l.sec, text: l.text, kind: 'bad', note: '수량 다름(시트 ' + r.q + ')' }); }
-      if (l.ea) {
-        var same = r.ea === l.ea;
-        res.push({ sec: '손잡이', text: 'ㄴ피닉스바 ' + l.ea + 'EA', kind: same ? 'ok' : 'bad', note: same ? '같음' : (r.ea ? '시트 ' + r.ea + 'EA' : '시트에 없음') });
-      }
+    var hit = calcLines.map(function () { return null; });
+    var typed = {}, res = [];
+    rows.forEach(function (r) { typed[r.sec] = true; });
+    [exact, nearSameQty, oneDim, nearOtherQty].forEach(function (test) {
+      var pairs = [];
+      calcLines.forEach(function (l, li) {
+        if (hit[li]) { return; }
+        rows.forEach(function (r, i) {
+          var m = (used[i] || r.bojo || r.sec !== l.sec) ? null : test(r, l);
+          if (m) { pairs.push({ li: li, i: i, m: m }); }
+        });
+      });
+      pairs.sort(function (x, y) { return (x.m.d - y.m.d) || (x.li - y.li) || (x.i - y.i); });
+      pairs.forEach(function (p) {
+        if (!hit[p.li] && !used[p.i]) { used[p.i] = true; hit[p.li] = p; }
+      });
+    });
+    calcLines.forEach(function (l, li) {
+      var h = hit[li], r = h && rows[h.i], got;
+      if (!h) { got = typed[l.sec] ? { kind: 'bad', note: '시트에 없음' } : { kind: 'todo', note: '아직 안 침' }; }
+      else if (h.m.kind) { got = h.m; }
+      else if (r.q === l.q) { got = { kind: 'ok', note: '같음' }; }
+      else { got = { kind: 'bad', note: '수량 다름(시트 ' + r.q + ')' }; }
+      res.push({ sec: l.sec, text: l.text, kind: got.kind, note: got.note });
+      if (!l.ea) { return; }
+      var ea = { sec: '손잡이', text: 'ㄴ피닉스바 ' + l.ea + 'EA', kind: got.kind, note: got.note };   // 문 줄이 없으면 같이 없음
+      if (h) { ea.kind = r.ea === l.ea ? 'ok' : 'bad'; ea.note = r.ea === l.ea ? '같음' : (r.ea ? '시트 ' + r.ea + 'EA' : '시트에 없음'); }
+      res.push(ea);
     });
     rows.forEach(function (r, i) {
       if (!used[i]) { res.push({ sec: r.sec, text: r.text, kind: 'extra', note: r.bojo ? '보조목은 아직 계산 안 함' : '계산에 없음' }); }

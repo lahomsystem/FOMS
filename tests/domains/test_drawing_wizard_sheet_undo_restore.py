@@ -18,9 +18,11 @@ def _fn(name: str) -> str:
 
 def test_시트_전환_추가_복제_삭제가_이력을_지우지_않는다():
     assert "undoStack.length = 0" not in JS
-    # 새 편집이 redo 를 비우는 것(pushUndoSnapshot)만 남는다
-    assert JS.count("redoStack.length = 0") == 1
+    # 새 편집이 redo 를 비우는 것(pushUndoSnapshot)과 자동 배치 '시트 나누기'를 되돌릴 때(partSplitUndone —
+    # 원래 시트만 다시 나눈 상태로 돌아가면 새 시트로 옮긴 그림이 어디에도 없게 된다)만 남는다
+    assert JS.count("redoStack.length = 0") == 2
     assert "redoStack.length = 0" in _fn("pushUndoSnapshot")
+    assert "redoStack.length = 0" in _fn("partSplitUndone")
     assert "var sheetHistories = {};" in JS
     for name in ("switchSheet", "addSheet", "duplicateSheet", "deleteSheet"):
         assert "bindSheetHistory();" in _fn(name), name
