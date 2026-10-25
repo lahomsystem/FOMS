@@ -2289,6 +2289,12 @@ button.dws-sheet-renaming { display: none; }
 @media (min-width: 901px) and (max-width: 1300px) {
   #dws-zoom-label { display: none; }   /* 배율 숫자는 Ctrl+1(100%)·맞춤으로 대신 — 주문 번호 자리 확보 */
 }
+/* 1180~1279(마우스, 한 줄 앱바): 오른쪽 묶음이 13px 넘쳐 [도면방 PUSH]가 화면 밖으로 밀렸다(2026-10-26 확인).
+   글을 자르지 않고 앱바 양옆 여백·칸 사이·글 단추 안쪽 여백만 줄인다(약 24px, 1180 에서 PUSH 오른쪽 끝이 7px 안쪽). */
+@media (min-width: 1180px) and (max-width: 1279px) {
+  .dws-appbar { padding-left: 8px; padding-right: 8px; column-gap: 6px; }
+  .dws-appbar-right .dws-btn { padding-left: 7px; padding-right: 7px; }
+}
 
 /* ============================================================================
    앱바 '도구 ▾' 묶음과 폭 단계 (2026-10-25 사용성 평가 큼-1·막힘-2)
@@ -2541,7 +2547,7 @@ button.dws-sheet-renaming { display: none; }
   flex: 0 1 auto;
   max-height: 45vh;                  /* '더 보기'로 펼쳐도 아래 입력 구역이 남게(넘치면 이 칸만 스크롤) */
   overflow-y: auto;
-  padding: 10px 10px 8px 14px;
+  padding: 0 10px 8px 14px;          /* 위 여백은 머리 줄(.dws-calc-top-head) 안에 둔다 — 아래 설명 */
   background: #f5f5f7;
   border-bottom: 2px solid #0071e3;
   font-size: 13px;
@@ -2549,8 +2555,10 @@ button.dws-sheet-renaming { display: none; }
 }
 .dws-calc-top[hidden] { display: none; }
 /* 제목·요약 칩은 칸 위에 붙여 둔다 — 펼친 칸을 내려도 '결과 · 맞춰 보기'와 요약 칩이 보이게(실화면 QA 2026-10-25 V2:
-   1366×657 에서 '더 보기' 뒤 칸이 86px 내려가 제목·요약 칩·첫 줄이 머리 줄 밑에 숨었다). 칸 안쪽 여백만큼 음수 여백으로
-   넓히고 칸과 같은 바탕을 깔아, 밑으로 지나가는 줄이 위·옆 틈으로 비치지 않게 한다. */
+   1366×657 에서 '더 보기' 뒤 칸이 86px 내려가 제목·요약 칩·첫 줄이 머리 줄 밑에 숨었다). 칸 옆 안쪽 여백만큼 음수 여백으로
+   넓히고 칸과 같은 바탕을 깔아, 밑으로 지나가는 줄이 위·옆 틈으로 비치지 않게 한다.
+   위 여백은 칸이 아니라 이 줄이 가진다: 크롬은 붙는 자리(top:0)를 스크롤 칸의 위 여백 안쪽으로 잡아서, 칸에 위 여백 10px 과
+   이 줄의 음수 여백 -10px 을 함께 두면 이 줄만 10px 내려가 바로 밑의 빈 칸 안내 글·첫 결과 줄을 덮었다(스테이징 2026-10-26). */
 .dws-calc-top-head {
   position: sticky;
   top: 0;
@@ -2559,7 +2567,7 @@ button.dws-sheet-renaming { display: none; }
   flex-wrap: wrap;
   align-items: center;
   gap: 4px 8px;
-  margin: -10px -10px 0 -14px;       /* .dws-calc-top 안쪽 여백(10 10 8 14)만큼 */
+  margin: 0 -10px 0 -14px;           /* .dws-calc-top 옆 안쪽 여백(10·14)만큼 */
   padding: 10px 10px 6px 14px;
   background: #f5f5f7;
 }
