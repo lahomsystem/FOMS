@@ -153,11 +153,13 @@ def test_order_draft_delete(client, app, wizard_enabled) -> None:
             {
                 "draft_key": key,
                 "step": 1,
-                "payload": {"schema_version": 1, "step": 1, "data": {}},
+                # 값이 하나도 없으면 행을 안 만든다(빈 초안 가드) — 지울 행이 있게 이름을 넣는다.
+                "payload": {"schema_version": 1, "step": 1, "data": {"customer_name": "삭제"}},
             }
         ),
         content_type="application/json",
     )
+    assert client.get(f"/api/erp/order-draft?key={key}").get_json()["draft"] is not None
     deleted = client.delete(f"/api/erp/order-draft?key={key}")
     assert deleted.status_code == 200
     assert client.get(f"/api/erp/order-draft?key={key}").get_json()["draft"] is None
@@ -826,4 +828,4 @@ def test_wizard_submit_is_guarded_on_client() -> None:
     lock_at = send_js.index("lockSubmitButton(true);")
     assert lock_at < send_js.index("client\n      .submitOrder()")
     shell = (ROOT / "templates/orders/wizard/wizard_shell.html").read_text(encoding="utf-8")
-    assert "draft.js') }}?v=20261022a" in shell
+    assert "draft.js') }}?v=20261026b" in shell

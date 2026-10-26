@@ -11,7 +11,8 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
-from foms.services.datetime_kst import now_utc_naive
+from foms.services.datetime_kst import get_today_kst, now_utc_naive
+from foms.services.order_draft_blank import is_blank_draft_data
 
 from models import OrderDraft
 
@@ -262,12 +263,17 @@ def upsert_draft(
     payload: dict[str, Any],
     if_match: str | None = None,
     order_id: int | None = None,
-) -> OrderDraft:
+) -> OrderDraft | None:
     """Create or update draft with optional optimistic concurrency (If-Match).
 
     Concurrent first-saves of the same key (iOS keepalive overlap, two web
     workers) can miss the SELECT and both INSERT. UniqueViolation is absorbed
     as an UPDATE of the winner row — last write wins, same as a later autosave.
+
+    행이 **없고** 값이 하나도 없는 payload 면 만들지 않고 ``None`` 을 돌려준다 — 마법사를 열었다
+    닫기만 해도 생기던 빈 초안 행을 막는다(2026-10-26 설계서
+    ``docs/plans/2026-10-26-wizard-empty-draft-cleanup-spec.md`` D1). 행이 이미 있으면 빈
+    payload 라도 지금처럼 고친다(사용자가 일부러 다 지운 것일 수 있다).
     """
     key = draft_key.strip()
     if not key:
@@ -294,6 +300,9 @@ def upsert_draft(
         )
         db.flush()
         return existing
+
+    if is_blank_draft_data(validated.get("data"), today_kst=get_today_kst().strftime("%Y-%m-%d")):
+        return None
 
     return _insert_or_recover_draft(
         db,

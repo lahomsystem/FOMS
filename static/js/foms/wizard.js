@@ -1130,7 +1130,8 @@
       .submitOrder()
       .then(function (result) {
         if (result.data && result.data.success) {
-          window.location.href = readWizardExitHref(root);
+          // 끝난 마법사는 방문 기록에서 뺀다 — 뒤로 가기로 빈 마법사가 다시 열려 빈 초안이 생겼다.
+          window.location.replace(readWizardExitHref(root));
           return;
         }
         var msg = (result.data && result.data.error) || "주문 등록에 실패했습니다.";
@@ -1341,6 +1342,10 @@
         return;
       }
     });
+
+    // 여기까지가 "연 그대로" 화면이다(기본값·카드 정리 끝). 이 뒤로 아무것도 안 바뀌면 떠날 때
+    // 저장하지 않는다 — 빈 초안 행과 [복구] 전 덮어쓰기를 막는다(draft.js markBaseline).
+    draftClient.markBaseline();
 
     draftClient.load().then(function (remote) {
       if (!remote || !remote.payload) {

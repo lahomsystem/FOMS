@@ -2625,6 +2625,19 @@ function erpAppendFocusOrderParam(targetUrl, orderId) {
     }
 }
 
+/**
+ * 새 주문 화면(`/add`, 모바일에선 마법사) 주소인가.
+ * @param {string} url 비교할 주소(절대·상대).
+ * @returns {boolean} 경로가 정확히 `/add` 면 true.
+ */
+function erpIsNewOrderWizardUrl(url) {
+    try {
+        return new URL(url, window.location.origin).pathname === '/add';
+    } catch (e) {
+        return false;
+    }
+}
+
 function erpNavigateAfterStructuredSave(targetUrl) {
     if (!targetUrl) {
         window.location.href = '/erp/dashboard';
@@ -3119,6 +3132,9 @@ async function erpSaveStructuredOnce(opts = {}) {
                 const referrerInput = document.querySelector('input[name="referrer"]');
                 let targetUrl = referrerInput ? referrerInput.value : document.referrer;
                 if (!targetUrl || targetUrl.includes(window.location.pathname)) targetUrl = '/erp/dashboard';
+                // 방금 저장한 주문을 두고 "새 주문" 마법사(/add)로 돌려보내지 않는다 — 새 키로 빈 마법사가
+                // 열려 빈 초안이 쌓였다(2026-10-26 설계서 docs/plans/2026-10-26-wizard-empty-draft-cleanup-spec.md D3).
+                if (erpIsNewOrderWizardUrl(targetUrl)) targetUrl = '/erp/dashboard';
                 erpNavigateAfterStructuredSave(erpAppendFocusOrderParam(targetUrl, targetId));
             }
         }
