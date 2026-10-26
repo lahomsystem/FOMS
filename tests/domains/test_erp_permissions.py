@@ -871,5 +871,20 @@ def test_admin_mine_includes_yangsan_branch_orders():
     sales_conds = erp_permissions.build_mine_sql_filter(sales)
     assert len(erp_permissions.build_mine_sql_filter(admin)) == len(
         erp_permissions.build_mine_sql_filter(SimpleNamespace(id=1, name="이시영", username="lsy", role="USER", team="ADMIN_X"))
-    ) + 2
+    ) + 3
     assert admin_sql and sales_conds
+
+
+def test_admin_mine_includes_partner_orders():
+    """관리자의 '내 할 일만'은 협력사 주문(담당=협력사 직원)도 포함한다(영업 사용자는 아니다)."""
+    order = SimpleNamespace(manager_name="정명근 (라운즈)", partner_org_id=1, structured_data={})
+    own = SimpleNamespace(manager_name="정명근 (라운즈)", partner_org_id=None, structured_data={})
+    admin = SimpleNamespace(id=1, name="이시영", username="lsy", role="ADMIN", team="SALES")
+    sales = SimpleNamespace(id=2, name="김영업", username="kim", role="USER", team="SALES")
+    assert erp_permissions.is_order_related_to_user(order, admin)
+    assert not erp_permissions.is_order_related_to_user(own, admin)
+    assert not erp_permissions.is_order_related_to_user(order, sales)
+    admin_sql = " ".join(str(c) for c in erp_permissions.build_mine_sql_filter(admin))
+    sales_sql = " ".join(str(c) for c in erp_permissions.build_mine_sql_filter(sales))
+    assert "partner_org_id IS NOT NULL" in admin_sql
+    assert "partner_org_id" not in sales_sql
