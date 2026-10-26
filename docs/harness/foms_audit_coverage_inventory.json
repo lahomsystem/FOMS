@@ -8,11 +8,11 @@
     "log_access"
   ],
   "baselines": {
-    "total": 235,
+    "total": 236,
     "unaudited": 1
   },
   "classification_counts": {
-    "AUDITED": 204,
+    "AUDITED": 205,
     "EXEMPT": 30,
     "UNAUDITED": 1
   },
@@ -491,7 +491,7 @@
     {
       "path": "foms/api/drawing/wizard.py",
       "endpoint": "api_delete_drawing_wizard_pending",
-      "lineno": 1360,
+      "lineno": 1519,
       "methods": [
         "DELETE"
       ],
@@ -500,7 +500,16 @@
     {
       "path": "foms/api/drawing/wizard.py",
       "endpoint": "api_post_drawing_wizard_asset",
-      "lineno": 883,
+      "lineno": 1022,
+      "methods": [
+        "POST"
+      ],
+      "classification": "AUDITED"
+    },
+    {
+      "path": "foms/api/drawing/wizard.py",
+      "endpoint": "api_post_drawing_wizard_bom_rules",
+      "lineno": 1943,
       "methods": [
         "POST"
       ],
@@ -509,7 +518,7 @@
     {
       "path": "foms/api/drawing/wizard.py",
       "endpoint": "api_post_drawing_wizard_import_attachment",
-      "lineno": 950,
+      "lineno": 1089,
       "methods": [
         "POST"
       ],
@@ -518,7 +527,7 @@
     {
       "path": "foms/api/drawing/wizard.py",
       "endpoint": "api_post_drawing_wizard_presets",
-      "lineno": 1706,
+      "lineno": 1865,
       "methods": [
         "POST"
       ],
@@ -527,7 +536,7 @@
     {
       "path": "foms/api/drawing/wizard.py",
       "endpoint": "api_post_drawing_wizard_sheet_png",
-      "lineno": 1016,
+      "lineno": 1155,
       "methods": [
         "POST"
       ],
@@ -536,7 +545,7 @@
     {
       "path": "foms/api/drawing/wizard.py",
       "endpoint": "api_post_drawing_wizard_transfer_pending",
-      "lineno": 1448,
+      "lineno": 1607,
       "methods": [
         "POST"
       ],
@@ -545,7 +554,7 @@
     {
       "path": "foms/api/drawing/wizard.py",
       "endpoint": "api_post_drawing_wizard_version_snapshot",
-      "lineno": 1514,
+      "lineno": 1673,
       "methods": [
         "POST"
       ],
@@ -554,7 +563,7 @@
     {
       "path": "foms/api/drawing/wizard.py",
       "endpoint": "api_put_drawing_wizard",
-      "lineno": 728,
+      "lineno": 867,
       "methods": [
         "PUT"
       ],

@@ -78,7 +78,7 @@ def test_load_sets_hydrated_only_after_render() -> None:
 
 
 def test_load_synced_changes_never_mark_user_dirty() -> None:
-    """load() 가 스스로 켜는 dirty 2곳(drew 동기화·page_no 자동번호)은 userDirty 를 켜지 않는다.
+    """load() 가 스스로 켜는 dirty 3곳(drew 동기화·page_no 자동번호·겹친 그림 id 떼기)은 userDirty 를 켜지 않는다.
 
     사용자가 하지 않은 변경을 사용자 대신 서버에 써 넣지 않는다 — 저장 버튼은 켜되
     자동저장 대상은 아니다.
@@ -86,7 +86,7 @@ def test_load_synced_changes_never_mark_user_dirty() -> None:
     load = _fn_slice(JS, "function load() {")
 
     dirty_lines = [ln for ln in load.splitlines() if "dirty = true" in ln]
-    assert len(dirty_lines) == 2, dirty_lines
+    assert len(dirty_lines) == 3, dirty_lines
     for line in dirty_lines:
         assert "userDirty" not in line, line
     assert "userDirty = true" not in load
@@ -132,7 +132,10 @@ def test_handle_conflict_suspends_autosave_and_reads_conflict_reason() -> None:
 def test_wizard_js_asset_pin_bumped_for_autosave_guard() -> None:
     """wizard.js 내용이 바뀌었으므로 ?v= 핀을 올렸다(SW staticCacheFirst 스테일 봉합)."""
     assert "js/drawing/wizard.js') }}?v=20260911a" not in TPL
-    assert "js/drawing/wizard.js') }}?v=20261021b" in TPL
+    assert "js/drawing/wizard.js') }}?v=20261024a" not in TPL   # 2026-10-25 사용성 평가 수정으로 다시 올림
+    assert "js/drawing/wizard.js') }}?v=20261025a" not in TPL   # 2026-10-25 실화면 QA 뒤 고침으로 한 번 더 올림
+    assert "js/drawing/wizard.js') }}?v=20261025b" not in TPL   # 2026-10-25 검수 뒤 마지막 고침으로 한 번 더 올림
+    assert "js/drawing/wizard.js') }}?v=20261026f" in TPL
 
 
 def test_no_content_based_empty_canvas_block() -> None:

@@ -620,6 +620,11 @@
       "policy_id": "DRAWING_ASSIGNED",
       "rule": "/api/orders/<int:order_id>/drawing-wizard/asset"
     },
+    "erp_orders_drawing_wizard.api_post_drawing_wizard_bom_rules": {
+      "mode": "guard",
+      "policy_id": "DRAWING_TEAM",
+      "rule": "/api/orders/drawing-wizard/bom-rules"
+    },
     "erp_orders_drawing_wizard.api_post_drawing_wizard_import_attachment": {
       "mode": "guard",
       "policy_id": "DRAWING_ASSIGNED",

@@ -53,6 +53,13 @@ from foms.services.datetime_kst import now_kst, now_utc_naive
 from foms.services.erp_policy import is_drawing_workbench_participant
 from foms.services.storage import get_storage
 from foms.services.drawing_wizard_defaults import build_wizard_defaults, resolve_assignee_drew_en
+from foms.services.drawing_wizard_bom_rules import (
+    BOM_RULES_POLICY_ID,
+    DEFAULT_RULES as BOM_DEFAULT_RULES,
+    BomRulesError,
+    load_bom_rules,
+    update_bom_rules,
+)
 from foms.services.drawing_wizard_presets import (
     WIZ_PRESET_POLICY_ID,
     WizardPresetError,
@@ -100,6 +107,38 @@ _PEN_MAX_POINTS = 400
 # 펜 선 굵기(px) 허용 범위 — 팔레트 2/4/7 + select 모드 도형 편집(1~3)까지 포용하는 양수 범위.
 _PEN_MIN_WIDTH, _PEN_MAX_WIDTH = 1, 20
 _COLOR_RE = re.compile(r'^#[0-9a-fA-F]{6}$')
+
+# 그림 종류 이름표(optional ``part``) — 브라우저 AI 자동 분류 결과와 사람 수정 기록.
+# 설계 정본: docs/plans/2026-10-23-drawing-part-label-feedback-spec.md §3.1
+_PART_LABELS = (
+    '정면·내부', '정면·도어', '입체·내부', '입체·도어', '평면·상판',
+    '서랍 단면', '부품 상세', '사진', '그림 아님', '미분류',
+)
+_PART_SOURCES = ('ai', 'user')
+# arr = 자동 배치가 놓은 자리 [x, y, w, h] — 지금 자리와 견줘 사람이 옮긴 거리를 잰다(설계서 §3.2 기록).
+_PART_FIELDS = frozenset({'label', 'src', 'ai', 'conf', 'head', 'arr'})
+_PART_HEAD_RE = re.compile(r'^[A-Za-z0-9._-]{1,16}$')
+_PART_ARR_XY = (-2000, 5000)
+_PART_ARR_WH = (1, 5000)
+
+# 자재표 계산 칸(optional 시트 ``calc``) — 입력값·마지막 계산 글자·규칙 판·모드(그림자/넣기).
+# 설계 정본: docs/plans/2026-10-23-drawing-part-label-feedback-spec.md §3.3 · §3.6
+_CALC_FIELDS = frozenset({'in', 'out', 'rules', 'mode'})
+_CALC_MODES = ('shadow', 'insert')
+_CALC_RULES_RE = re.compile(r'^[A-Za-z0-9._-]{1,16}$')
+_CALC_CHOICES = {
+    'line': ('mold', 'nomold', 'slide', 'other'),
+    'handle': ('phoenix', 'other'),
+    'nomold': ('ceiling', 'std'),
+}
+_CALC_NUMBERS = {
+    'W': (0, 20000), 'D': (0, 2000), 'H': (0, 5000), 'zone': (0, 3000),
+    'door_h': (0, 5000), 'ep': (0, 4), 'sr_l': (0, 1000), 'sr_r': (0, 1000),
+}
+_CALC_MOD_NUMBERS = {'w': (0, 5000), 'doors': (0, 4), 'drawers': (0, 6), 'rods': (0, 3)}
+_MAX_CALC_MODS = 24
+_MAX_CALC_OUT_LEN = 2000
+_MAX_CALC_BYTES = 4096
 
 # 제품별 도면 시트 — 시트 승격 값(제품 리스트 인덱스)
 _MAX_PRODUCT_INDEX = 199
@@ -379,6 +418,81 @@ def _validate_image_object(obj: dict, order_id: int) -> str | None:
     for dim_key in ('natural_w', 'natural_h'):
         if dim_key in obj and not _is_number(obj.get(dim_key)):
             return '이미지 원본 치수 값이 올바르지 않습니다.'
+    if 'part' in obj:
+        return _validate_part(obj['part'])
+    return None
+
+
+def _validate_part(part) -> str | None:
+    """optional ``part``(그림 종류 이름표) 검증 — 닫힌 목록 label·출처(ai/user)·확신 0~1·판 번호·자동 배치 자리."""
+    if not isinstance(part, dict) or not set(part) <= _PART_FIELDS:
+        return '그림 종류 형식이 올바르지 않습니다.'
+    if part.get('label') not in _PART_LABELS:
+        return '그림 종류 값이 올바르지 않습니다.'
+    if part.get('src') not in _PART_SOURCES:
+        return '그림 종류 출처 값이 올바르지 않습니다.'
+    if 'ai' in part and part['ai'] not in _PART_LABELS:
+        return '그림 종류 AI 짐작 값이 올바르지 않습니다.'
+    if 'conf' in part and not _is_number_in_range(part['conf'], 0, 1):
+        return '그림 종류 확신 값이 올바르지 않습니다.'
+    if 'head' in part and not (isinstance(part['head'], str) and _PART_HEAD_RE.match(part['head'])):
+        return '그림 종류 판 번호가 올바르지 않습니다.'
+    if 'arr' in part and not _is_part_arr(part['arr']):
+        return '그림 종류 자동 배치 자리 값이 올바르지 않습니다.'
+    return None
+
+
+def _is_part_arr(arr) -> bool:
+    """``part.arr`` = [x, y, w, h] 숫자 4개 — x·y −2000~5000, w·h 1~5000."""
+    if not isinstance(arr, list) or len(arr) != 4:
+        return False
+    x, y, w, h = arr
+    return (
+        _is_number_in_range(x, *_PART_ARR_XY)
+        and _is_number_in_range(y, *_PART_ARR_XY)
+        and _is_number_in_range(w, *_PART_ARR_WH)
+        and _is_number_in_range(h, *_PART_ARR_WH)
+    )
+
+
+def _validate_calc_inputs(inputs) -> str | None:
+    """``calc.in`` — 닫힌 선택값·숫자 범위·모듈 목록(최대 24개)."""
+    allowed = set(_CALC_CHOICES) | set(_CALC_NUMBERS) | {'mods'}
+    if not isinstance(inputs, dict) or not set(inputs) <= allowed:
+        return '자재표 계산 입력 형식이 올바르지 않습니다.'
+    for key, choices in _CALC_CHOICES.items():
+        if key in inputs and inputs[key] not in choices:
+            return '자재표 계산 선택 값이 올바르지 않습니다.'
+    for key, (low, high) in _CALC_NUMBERS.items():
+        if key in inputs and not _is_number_in_range(inputs[key], low, high):
+            return '자재표 계산 숫자가 범위를 벗어났습니다.'
+    mods = inputs.get('mods', [])
+    if not isinstance(mods, list) or len(mods) > _MAX_CALC_MODS:
+        return f'자재표 계산 모듈은 최대 {_MAX_CALC_MODS}개까지 허용됩니다.'
+    for mod in mods:
+        if not isinstance(mod, dict) or not set(mod) <= set(_CALC_MOD_NUMBERS):
+            return '자재표 계산 모듈 형식이 올바르지 않습니다.'
+        for key, (low, high) in _CALC_MOD_NUMBERS.items():
+            if key in mod and not _is_number_in_range(mod[key], low, high):
+                return '자재표 계산 모듈 숫자가 범위를 벗어났습니다.'
+    return None
+
+
+def _validate_calc(calc) -> str | None:
+    """optional 시트 ``calc``(자재표 계산 칸) 검증 — 닫힌 칸·모드·규칙 판·글자 길이·크기 상한."""
+    if not isinstance(calc, dict) or not set(calc) <= _CALC_FIELDS:
+        return '자재표 계산 형식이 올바르지 않습니다.'
+    if calc.get('mode', 'shadow') not in _CALC_MODES:
+        return '자재표 계산 모드 값이 올바르지 않습니다.'
+    if 'rules' in calc and not (isinstance(calc['rules'], str) and _CALC_RULES_RE.match(calc['rules'])):
+        return '자재표 계산 규칙 판 값이 올바르지 않습니다.'
+    if 'out' in calc and not (isinstance(calc['out'], str) and len(calc['out']) <= _MAX_CALC_OUT_LEN):
+        return '자재표 계산 결과 글자가 올바르지 않습니다.'
+    inputs_error = _validate_calc_inputs(calc.get('in', {}))
+    if inputs_error:
+        return inputs_error
+    if len(json.dumps(calc, ensure_ascii=False).encode('utf-8')) > _MAX_CALC_BYTES:
+        return '자재표 계산 데이터가 너무 큽니다.'
     return None
 
 
@@ -555,7 +669,8 @@ def _validate_sheet(sheet, order_id: int) -> str | None:
 
     제품별 도면 시트 승격 값(optional): ``product_index``(제품 리스트 인덱스,
     0~199)와 ``attachment_id``(도면 탭 첨부 식별자, 양의 정수)를 허용한다. 둘 다
-    없거나 ``None`` 이면 통과(구 저장분·비-제품 시트).
+    없거나 ``None`` 이면 통과(구 저장분·비-제품 시트). 자재표 계산 칸(optional ``calc``)은
+    :func:`_validate_calc` 가 본다.
     """
     if not isinstance(sheet, dict):
         return '시트 형식이 올바르지 않습니다.'
@@ -577,6 +692,10 @@ def _validate_sheet(sheet, order_id: int) -> str | None:
         or attachment_id < 0
     ):
         return '시트 첨부 식별자 값이 올바르지 않습니다.'
+    if 'calc' in sheet:
+        calc_error = _validate_calc(sheet['calc'])
+        if calc_error:
+            return calc_error
     form = sheet.get('form')
     if not isinstance(form, dict):
         return '시트 폼 형식이 올바르지 않습니다.'
@@ -591,6 +710,21 @@ def _validate_sheet(sheet, order_id: int) -> str | None:
         if obj_error:
             return obj_error
     return None
+
+
+def _count_dup_object_ids(sheets: list) -> int:
+    """시트를 앞에서부터 보며 이미 나온 객체 id 를 다시 만난 수(시트 사이·한 시트 안 모두)."""
+    seen: set[str] = set()
+    dup = 0
+    for sheet in sheets:
+        for obj in (sheet.get('objects') or []) if isinstance(sheet, dict) else []:
+            oid = obj.get('id') if isinstance(obj, dict) else None
+            if not isinstance(oid, str) or not oid:
+                continue
+            if oid in seen:
+                dup += 1
+            seen.add(oid)
+    return dup
 
 
 def _validate_wizard_state(state, order_id: int) -> str | None:
@@ -608,6 +742,11 @@ def _validate_wizard_state(state, order_id: int) -> str | None:
         sheet_error = _validate_sheet(sheet, order_id)
         if sheet_error:
             return sheet_error
+    dup = _count_dup_object_ids(sheets)
+    if dup:
+        # 1판은 기록만 한다(설계서 2026-10-26 §1.2-3) — 운영에서 2주 동안 0건이면 거절(400)로 바꾸는 PR 을 따로 낸다.
+        # 브라우저가 불러올 때·저장 직전에 겹친 id 를 떼므로(sheet-ids.js) 여기 오는 것은 옛 화면이거나 새 버그 길이다.
+        logger.warning("DRAWING_WIZARD_DUP_OBJECT_ID order=%s dup=%s", order_id, dup)
     try:
         serialized = json.dumps(state, ensure_ascii=False).encode('utf-8')
     except (TypeError, ValueError):
@@ -1016,7 +1155,7 @@ def api_post_drawing_wizard_import_attachment(order_id):
 def api_post_drawing_wizard_sheet_png(order_id):
     """현재 시트 PNG를 '전달 대기'(``structured_data['drawing_wizard']['pending']``)로 보관한다.
 
-    multipart ``file``(PNG) + form ``sheet_id`` + optional ``sheet_name``. PNG는
+    multipart ``file``(PNG) + form ``sheet_id`` + optional ``sheet_name``·``sig``(그림 지문). PNG는
     ``orders/<id>/drawing_wizard/exports/`` 로 업로드하고, sheet_id 별 pending 항목에
     ``{key, filename, at(KST), sheet_name}`` 을 기록한다. 저장/전달 분리 원칙에 따라
     OrderAttachment(주문 '도면' 탭)은 만들지 않으며(전달은 작업실 일괄 전송이 담당),
@@ -1052,6 +1191,7 @@ def api_post_drawing_wizard_sheet_png(order_id):
         raw_sheet_id = request.form.get('sheet_id') or ''
         sheet_id = re.sub(r'[^A-Za-z0-9_-]', '', str(raw_sheet_id))[:40] or 'sheet'
         sheet_name = str(request.form.get('sheet_name') or sheet_id)[:_MAX_SHEET_NAME_LEN]
+        sig = _clean_pending_sig(request.form.get('sig'))
 
         storage = get_storage()
         result = storage.upload_file(
@@ -1095,6 +1235,8 @@ def api_post_drawing_wizard_sheet_png(order_id):
             'at': now_kst().strftime('%Y-%m-%d %H:%M'),
             'sheet_name': sheet_name,
         }
+        if sig:
+            pending[sheet_id]['sig'] = sig
         # 옛 대기 파일은 지금 어떤 도면 기록(전달된 현재본·이력·버전)도 안 쓸 때만 지운다(§10-14).
         stale = _deletable_after(db, order_id, sd, [old_key] if old_key and old_key != key else [])
         # 담당 미지정이면 저장한 도면팀 사용자를 담당으로 — 같은 잠금 쓰기(버전 +1 한 번)에 싣는다.
@@ -1124,10 +1266,24 @@ def api_post_drawing_wizard_sheet_png(order_id):
         return jsonify({'success': False, 'message': f'오류 발생: {str(e)}'}), 500
 
 
+_PENDING_SIG_RE = re.compile(r'^v\d{1,2}:[0-9a-z.]{1,32}$')
+
+
+def _clean_pending_sig(raw) -> str | None:
+    """[저장] 때 브라우저가 보낸 그림 지문(``'v1:' + sheetSig``)을 형식만 보고 받는다.
+
+    다시 연 마법사가 전달본이 '예전 것'인지 정확히 가리는 기준일 뿐이라 틀리면 거절하지 않고 버린다
+    (설계서 ``docs/plans/2026-10-26-drawing-wizard-sheet-integrity-spec.md`` §2.2).
+    """
+    s = str(raw or '').strip()
+    return s if _PENDING_SIG_RE.match(s) else None
+
+
 def _pending_list(sd: dict) -> list[dict]:
-    """``sd['drawing_wizard']['pending']`` (dict) → 목록 [{sheet_id, key, filename, at, sheet_name}].
+    """``sd['drawing_wizard']['pending']`` (dict) → 목록 [{sheet_id, key, filename, at, sheet_name, sig?}].
 
     key 가 비어있거나 항목이 dict 가 아니면 건너뛴다(방어). 삽입 순서를 그대로 유지한다.
+    ``sig`` 는 [저장] 때 그림 지문이 있을 때만 싣는다(형식이 틀린 옛 값은 뺀다).
     """
     dw = sd.get('drawing_wizard') if isinstance(sd, dict) else None
     pending = dw.get('pending') if isinstance(dw, dict) else None
@@ -1146,6 +1302,9 @@ def _pending_list(sd: dict) -> list[dict]:
                 'at': entry.get('at') or '',
                 'sheet_name': entry.get('sheet_name') or sheet_id,
             })
+            sig = _clean_pending_sig(entry.get('sig'))
+            if sig:
+                out[-1]['sig'] = sig
     return out
 
 
@@ -1758,3 +1917,68 @@ def api_post_drawing_wizard_presets():
             'mutation_receipt': result.receipt_id,
         },
     })
+
+
+@erp_orders_drawing_wizard_bp.route('/drawing-wizard/bom-rules', methods=['GET'])
+@login_required
+def api_get_drawing_wizard_bom_rules():
+    """자재표 계산 규칙 숫자(주문 무관 전역)와 기본값·고치기 권한을 반환한다(설계서 §3.6).
+
+    ``version`` 은 저장 때 If-Match 로 되보낸다(저장 없으면 0, 판 이름 ``d1``).
+    """
+    try:
+        db = get_db()
+        current_user = get_user_by_id(session.get('user_id'))
+        can_edit = evaluate_policy(POLICY_REGISTRY[BOM_RULES_POLICY_ID], current_user).allowed
+        data = dict(load_bom_rules(db), defaults=BOM_DEFAULT_RULES, can_edit=can_edit)
+        return jsonify({'success': True, 'data': data, 'error': None})
+    except Exception as e:
+        logger.error("drawing-wizard bom-rules GET failed: %s", e, exc_info=True)
+        msg = '계산 규칙을 불러오지 못했습니다.'
+        return jsonify({'success': False, 'data': None, 'error': msg, 'message': msg}), 500
+
+
+@erp_orders_drawing_wizard_bp.route('/drawing-wizard/bom-rules', methods=['POST'])
+@login_required
+def api_post_drawing_wizard_bom_rules():
+    """자재표 계산 규칙 숫자를 저장한다(전역 SystemSetting, 도면팀·관리자, 설계서 §3.6).
+
+    Body: ``{rules, settings_version?}`` · optional 헤더 ``If-Match``. 형식 위반 400 ·
+    version 누락 428 · 불일치 409(현재 version 동봉) · SecurityLog 감사. Order 는 건드리지 않는다.
+    """
+    current_user = get_user_by_id(session.get('user_id'))
+    decision = evaluate_policy(POLICY_REGISTRY[BOM_RULES_POLICY_ID], current_user)
+    if not decision.allowed:
+        return jsonify({
+            'success': False, 'data': None,
+            'error': decision.reason, 'message': decision.reason, 'code': decision.code,
+        }), decision.status
+
+    data = request.get_json(silent=True)
+    data = data if isinstance(data, dict) else {}
+    db = get_db()
+    try:
+        result = update_bom_rules(
+            db,
+            actor_user_id=getattr(current_user, 'id', None),
+            payload=data.get('rules'),
+            if_match_version=_preset_if_match(data),
+        )
+        db.commit()
+    except BomRulesError as err:
+        db.rollback()
+        payload = {
+            'success': False, 'data': None, 'error': str(err),
+            'message': str(err), 'code': err.error_code,
+        }
+        current = getattr(err, 'current_version', None)
+        if current is not None:
+            payload['current_version'] = current
+        return jsonify(payload), err.status_code
+    except Exception as e:
+        db.rollback()
+        logger.error("drawing-wizard bom-rules POST failed: %s", e, exc_info=True)
+        msg = '계산 규칙을 저장하지 못했습니다.'
+        return jsonify({'success': False, 'data': None, 'error': msg, 'message': msg}), 500
+
+    return jsonify({'success': True, 'data': dict(result, defaults=BOM_DEFAULT_RULES), 'error': None})

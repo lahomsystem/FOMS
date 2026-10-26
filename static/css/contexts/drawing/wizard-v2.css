@@ -1,0 +1,621 @@
+/* ============================================================================
+   도면 마법사 V2 — 칸 자동 배치 화면(화면 시안 K2-WizardAuto, 1440×900)
+   설계서 docs/plans/2026-10-26-drawing-wizard-v2-spec.md. V2 일 때만 싣는다(#dws-root.dws-v2).
+   - 종이 안(.dws-v2-form · .dws-v2-slots)은 스테이지 논리 좌표(1478×1040) px 이고 PNG 에 찍힌다(html2canvas — 글꼴·색 명시).
+   - 화면 둘레(.dws-ui)는 내보내기 때 숨는다(wizard.css .dws-exporting .dws-ui).
+   색: 바탕 #f5f5f7 · 글 #1d1d1f · 흐린 글 #6e6e73(흰 바탕 대비 5.0) · 선 #e5e5ea · 파랑 #0071e3 · 초록 #1a7f37 · 주황 #ff9f0a · 빨강 #d2232a
+   ============================================================================ */
+
+/* ---- V1 둘레 숨김 · 앱바 묶음 ---------------------------------------------- */
+.dws-v2 .dws-products,
+.dws-v2 .dws-products-backdrop,
+.dws-v2 .dws-appbar-panel-btn,
+.dws-v2 #dws-btn-autofill,
+.dws-v2 #dws-btn-arrange,
+.dws-v2 #dws-btn-calc,
+.dws-v2 .dws-tools-more,
+.dws-v2 .dws-zoom,
+.dws-v2 .dws-fontctl,
+.dws-v2 #dws-btn-save-all,
+.dws-v2 #dws-btn-export { display: none !important; }
+.dws-v2.dws-v2-auto .dws-appbar-center .dws-seg,
+.dws-v2.dws-v2-auto #dws-btn-preset { display: none !important; }
+.dws-v2 .dws-appbar-center { display: flex; align-items: center; gap: 10px; }
+
+.dws-v2-modes {
+  display: flex;
+  padding: 2px;
+  border-radius: 9px;
+  background: #e8e8ed;
+}
+.dws-v2-mode {
+  border: 0;
+  background: transparent;
+  color: #6e6e73;
+  font: inherit;
+  font-size: 13px;
+  padding: 6px 16px;
+  border-radius: 7px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.dws-v2-mode.dws-v2-mode-on {
+  background: #ffffff;
+  color: #1d1d1f;
+  font-weight: 700;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+.dws-v2-mode:focus-visible { outline: 2px solid #0071e3; outline-offset: 1px; }
+
+/* ---- 몸통: 왼쪽 316 · 가운데 · 오른쪽 316 ------------------------------------ */
+.dws-v2-left,
+.dws-v2-right {
+  flex: 0 0 316px;
+  width: 316px;
+  box-sizing: border-box;
+  padding: 14px;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+  min-height: 0;
+}
+.dws-v2-left { border-right: 1px solid #e5e5ea; }
+.dws-v2-right { border-left: 1px solid #e5e5ea; gap: 14px; }
+.dws-v2 .dws-calc:not([hidden]) ~ .dws-v2-right { display: none; }   /* 자재표 계산 칸을 열면 그 자리를 쓴다 */
+
+.dws-v2 .dws-canvas {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 11px 24px;
+}
+.dws-v2 .dws-canvas > .dws-stage-wrap,
+.dws-v2-banner,
+.dws-v2-drop,
+.dws-v2-legend { flex: 0 0 auto; margin-left: auto; margin-right: auto; }
+
+/* ---- 탭 줄 오른쪽 · 저장 상태 칩 -------------------------------------------- */
+.dws-v2 .dws-tabrow-side .dws-save-status { font-size: 12px; }
+
+/* ---- 왼쪽 칸 ---------------------------------------------------------------- */
+.dws-v2-tabs { display: flex; padding: 2px; border-radius: 9px; background: #e8e8ed; flex: none; }
+.dws-v2-tab {
+  flex: 1 1 0;
+  border: 0;
+  background: transparent;
+  color: #6e6e73;
+  font: inherit;
+  font-size: 12px;
+  padding: 6px 0;
+  border-radius: 7px;
+  cursor: pointer;
+}
+.dws-v2-tab.dws-v2-tab-on { background: #ffffff; color: #1d1d1f; font-weight: 700; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12); }
+.dws-v2-pane { display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+.dws-v2-pane[hidden] { display: none; }
+.dws-v2-pane-note { margin: 0; font-size: 12px; color: #6e6e73; line-height: 1.5; }
+.dws-v2-pane .dws-product-list,
+.dws-v2-pane .dws-pending,
+.dws-v2-pane .dws-photos { border: 0; }
+
+.dws-v2-kind-label { font-size: 11px; color: #6e6e73; }
+.dws-v2-kind {
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid #e5e5ea;
+  border-radius: 8px;
+  background: #ffffff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1d1d1f;
+}
+.dws-v2-cards { display: flex; flex-direction: column; gap: 6px; }
+.dws-v2-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 1px solid #e5e5ea;
+  border-radius: 10px;
+  background: #ffffff;
+}
+.dws-v2-card.dws-v2-card-drop { border-color: #0071e3; box-shadow: 0 0 0 2px rgba(0, 113, 227, 0.2); }
+.dws-v2-card-head { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.dws-v2-card-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 3px;
+  box-sizing: border-box;
+  background: #1d1d1f;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 900;
+  border-radius: 3px;
+  flex: none;
+}
+.dws-v2-card-title { font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dws-v2-chip {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 6px;
+  white-space: nowrap;
+  flex: none;
+}
+.dws-v2-chip-green { background: #e9f7ee; color: #1a7f37; }
+.dws-v2-chip-blue { background: #eef3fd; color: #0062c4; }
+.dws-v2-chip-orange { background: #fff4e0; color: #9a5a00; }
+.dws-v2-chip-gray { background: #f5f5f7; color: #6e6e73; }
+.dws-v2-card-body { display: flex; align-items: flex-start; gap: 8px; min-width: 0; }
+.dws-v2-card-info { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1 1 auto; }
+.dws-v2-card-meta { font-size: 11px; color: #6e6e73; overflow-wrap: anywhere; }
+.dws-v2-thumb {
+  flex: none;
+  width: 44px;
+  height: 38px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: #f5f5f7;
+  cursor: pointer;
+  overflow: hidden;
+}
+.dws-v2-thumb:hover,
+.dws-v2-thumb:focus-visible { border-color: #0071e3; outline: none; }
+.dws-v2-thumb-fixed { border-color: #6e6e73; }
+.dws-v2-thumb-img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.dws-v2-tags { display: flex; gap: 4px; flex-wrap: wrap; }
+.dws-v2-tag {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 9px;
+  font-size: 10px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.dws-v2-tag-ok { background: #e9f7ee; color: #1a7f37; }
+.dws-v2-tag-ai { background: #ffffff; color: #0062c4; border: 1px dashed #7aa7e0; }
+.dws-v2-tag-fixed { background: #f5f5f7; color: #3a3a3c; }
+/* AI 가 칸만 짐작한 그림 — 눌러서 세부 종류를 고른다(v2-left.js famLabels) */
+.dws-v2-tag-guess { background: #fff6e8; color: #b25000; border: 1px dashed #e8a35a; font-family: inherit; cursor: pointer; }
+.dws-v2-tag-guess:hover,
+.dws-v2-tag-guess:focus-visible { border-style: solid; outline: none; }
+.dws-v2-tag-guess:disabled { cursor: default; }
+.dws-v2-link {
+  align-self: flex-start;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  color: #0062c4;
+  cursor: pointer;
+}
+.dws-v2-link:hover { text-decoration: underline; }
+.dws-v2-choose { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; padding-top: 4px; border-top: 1px solid #e5e5ea; }
+.dws-v2-choose-text { font-size: 11px; color: #6e6e73; margin-right: 2px; }
+.dws-v2-choose-btn,
+.dws-v2-note-kind,
+.dws-v2-note-addbtn,
+.dws-v2-stamp-quick {
+  border: 1px solid #e5e5ea;
+  background: #ffffff;
+  border-radius: 6px;
+  font: inherit;
+  font-size: 11px;
+  padding: 3px 7px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.dws-v2-choose-btn:hover,
+.dws-v2-note-kind:hover,
+.dws-v2-note-addbtn:hover,
+.dws-v2-stamp-quick:hover { border-color: #0071e3; color: #0062c4; }
+.dws-v2-note-row { display: flex; align-items: center; gap: 4px; }
+.dws-v2-note-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid #e5e5ea;
+  border-radius: 6px;
+  font: inherit;
+  font-size: 12px;
+  color: #b3191f;
+  font-weight: 700;
+}
+.dws-v2-note-add .dws-v2-note-input { color: #1d1d1f; font-weight: 400; }
+.dws-v2-note-kind-site { border-style: dashed; }
+.dws-v2-note-del {
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #6e6e73;
+  font-size: 15px;
+  cursor: pointer;
+}
+.dws-v2-note-del:hover { background: #f5f5f7; color: #b3191f; }
+.dws-v2-stamp-row { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; padding-top: 6px; border-top: 1px solid #e5e5ea; }
+.dws-v2-stamp-label { width: 100%; font-size: 11px; color: #6e6e73; }
+.dws-v2-stamp-input { flex: 1 1 90px; }
+
+.dws-v2-unsorted { padding: 10px; border-radius: 10px; display: flex; flex-direction: column; gap: 6px; }
+.dws-v2-unsorted-ok { background: #f2fbf5; border: 1px solid #b6e3c4; color: #14532d; }
+.dws-v2-unsorted-warn { background: #fff8eb; border: 1px solid #f5cf8a; color: #6b3d00; }
+.dws-v2-unsorted-title { font-size: 12px; font-weight: 800; }
+.dws-v2-unsorted-text { font-size: 11px; line-height: 16px; }
+.dws-v2-unsorted-row { display: flex; align-items: center; gap: 8px; }
+.dws-v2-unsorted-select { flex: 1 1 auto; height: 30px; border: 1px solid #e5e5ea; border-radius: 6px; font: inherit; font-size: 12px; background: #ffffff; }
+
+/* ---- 가운데: 알림 띠 · 끌어 놓기 · 범례 ---------------------------------------- */
+.dws-v2-banner {
+  box-sizing: border-box;
+  min-height: 34px;
+  padding: 6px 12px;
+  border-radius: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  font-size: 12px;
+  border: 1px solid transparent;
+}
+.dws-v2-banner[hidden] { display: none; }
+.dws-v2-banner-green { background: #e9f7ee; border-color: #b6e3c4; color: #14532d; }
+.dws-v2-banner-blue { background: #eef3fd; border-color: #b9cff2; color: #0b3a75; }
+.dws-v2-banner-orange { background: #fff4e0; border-color: #f5cf8a; color: #6b3d00; }
+.dws-v2-banner-gray { background: #ffffff; border-color: #e5e5ea; color: #3a3a3c; }
+.dws-v2-banner-strong { font-weight: 800; }
+.dws-v2-banner-btn {
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  color: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+.dws-v2-banner-btn:first-of-type { margin-left: auto; }
+.dws-v2-banner-main {
+  text-decoration: none;
+  background: #0071e3;
+  color: #ffffff;
+  border-radius: 7px;
+  padding: 4px 10px;
+}
+
+.dws-v2-drop {
+  box-sizing: border-box;
+  height: 64px;
+  border: 2px dashed #b9c7dc;
+  border-radius: 12px;
+  background: #f9fbff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  font: inherit;
+  color: #1d1d1f;
+  cursor: pointer;
+  text-align: left;
+}
+.dws-v2-drop:hover,
+.dws-v2-drop.dws-v2-drop-on { border-color: #0071e3; background: #eef3fd; }
+.dws-v2-drop-ico { color: #0071e3; flex: none; }
+.dws-v2-drop-text { display: flex; flex-direction: column; gap: 2px; }
+.dws-v2-drop-main { font-size: 13px; font-weight: 700; }
+.dws-v2-drop-sub { font-size: 11px; color: #6e6e73; }
+.dws-v2-legend { display: flex; align-items: center; gap: 10px; font-size: 11px; color: #6e6e73; flex-wrap: wrap; }
+.dws-v2-legend-item { display: inline-flex; align-items: center; gap: 4px; }
+.dws-v2-dot { width: 10px; height: 10px; border-radius: 5px; }
+.dws-v2-dot-blue { background: #0071e3; }
+.dws-v2-dot-orange { background: #ff9f0a; }
+.dws-v2-dot-green { background: #1a7f37; }
+.dws-v2-zoom-label { margin-left: auto; }
+.dws-v2-zoom {
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: #ffffff;
+  border: 1px solid #e5e5ea;
+  color: #1d1d1f;
+  font: inherit;
+  font-size: 11px;
+}
+
+/* ---- 종이: 아래 띠(01 정돈 표준형, 스테이지 좌표) ------------------------------ */
+.dws-v2-form { color: #111111; }
+.dws-v2-strip {
+  position: absolute;
+  left: 43px;
+  top: 858px;
+  width: 1394px;
+  height: 139px;
+  box-sizing: border-box;
+  border-top: 2px solid #111111;
+  display: grid;
+  grid-template-columns: 192px 792px 297px minmax(0, 1fr);
+  background: #ffffff;
+}
+.dws-v2-checks {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  column-gap: 8px;
+  align-content: center;
+  align-items: start;
+  padding: 0 10px;
+  border-right: 2px solid #111111;
+}
+.dws-v2-checkcol { display: flex; flex-direction: column; gap: 3px; }
+.dws-v2-checkhead { font-size: 13px; line-height: 16px; font-weight: 800; }
+.dws-v2-chk { display: flex; align-items: center; gap: 5px; font-size: 13.5px; line-height: 17px; font-weight: 600; white-space: nowrap; }
+.dws-v2-form .dws-check { width: 15px; height: 15px; font-size: 12px; border-width: 2px; flex: none; }
+.dws-v2-info { display: grid; grid-template-rows: repeat(2, minmax(0, 1fr)); border-right: 2px solid #111111; min-width: 0; }
+.dws-v2-row { display: grid; min-height: 0; }
+.dws-v2-row1 { grid-template-columns: 108px 92px 147px minmax(0, 1fr) 147px; border-bottom: 1.5px solid #111111; }
+.dws-v2-row2 { grid-template-columns: 121px 137px 168px 126px 163px minmax(0, 1fr); }
+.dws-v2-cell {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  padding: 3px 9px;
+  border-right: 1.5px solid #111111;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.dws-v2-cell-last { border-right: 0; }
+.dws-v2-lab { font-size: 13px; line-height: 15px; font-weight: 600; color: #555555; flex: none; }
+.dws-v2-val {
+  display: block;
+  min-height: 0;
+  overflow: hidden;
+  white-space: pre-wrap;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+  outline: none;
+}
+.dws-v2-val:focus { box-shadow: inset 0 0 0 2px rgba(0, 113, 227, 0.35); }
+.dws-v2-val-big { font-size: 18px; line-height: 22px; font-weight: 800; max-height: 44px; }
+.dws-v2-val-mid { font-size: 16px; line-height: 20px; font-weight: 700; max-height: 40px; }
+.dws-v2-val-sm { font-size: 15px; line-height: 19px; font-weight: 800; max-height: 38px; }
+.dws-v2-val-xs { font-size: 14px; line-height: 18px; font-weight: 800; max-height: 36px; }
+.dws-v2-val-half { max-height: 19px; white-space: nowrap; }
+.dws-v2-w300 { display: flex; align-items: baseline; gap: 3px; min-width: 0; }
+.dws-v2-val-num { font-size: 20px; line-height: 24px; font-weight: 800; max-height: 24px; white-space: nowrap; min-width: 12px; }
+.dws-v2-unit { font-size: 13px; font-weight: 600; color: #555555; }
+.dws-v2-val-num:empty + .dws-v2-unit { visibility: hidden; }   /* 시공자수가 비면 '자'도 숨긴다 */
+.dws-v2-misc {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  padding: 5px 10px;
+  border-right: 2px solid #111111;
+  min-width: 0;
+  overflow: hidden;
+}
+.dws-v2-val-misc { font-size: 15px; line-height: 18px; font-weight: 700; max-height: 108px; }
+.dws-v2-sign { display: flex; flex-direction: column; justify-content: space-between; padding: 8px 9px; min-width: 0; }
+.dws-v2-form #dws-logo-cell { height: 34px; pointer-events: auto; cursor: pointer; }
+.dws-v2-logo .dws-logo-box { width: 100%; height: 100%; display: flex; align-items: center; justify-content: flex-start; }
+.dws-v2-logo .dws-logo-img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.dws-v2-page { display: flex; align-items: baseline; gap: 4px; }
+.dws-v2-pageval { font-size: 22px; line-height: 25px; font-weight: 800; max-height: 25px; min-width: 14px; white-space: nowrap; }
+.dws-v2-pagetotal { font-size: 14px; font-weight: 700; color: #555555; }
+.dws-v2-no { display: flex; flex-direction: column; font-size: 13px; line-height: 17px; color: #333333; white-space: nowrap; }
+.dws-v2-no-order { font-weight: 800; color: #111111; }
+.dws-v2-drew { display: flex; gap: 4px; min-width: 0; }
+.dws-v2-drew-val { display: inline-block; max-width: 72px; max-height: 17px; white-space: nowrap; }
+
+/* ---- 종이: 칸 머리 · 특이 상자 · 강조 테두리 · 자재표 칸 선(PNG 에 찍힘) ------------ */
+.dws-v2-slots {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  font-family: "Malgun Gothic", "맑은 고딕", "Apple SD Gothic Neo", sans-serif;
+  color: #111111;
+}
+.dws-v2-head {
+  position: absolute;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1.5px solid #111111;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.dws-v2-head-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  flex: none;
+  background: #111111;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 900;
+}
+.dws-v2-head-badge-word { width: auto; padding: 0 5px; font-size: 12.5px; font-weight: 800; }
+.dws-v2-head-name { font-size: 14.5px; font-weight: 800; }
+.dws-v2-head-meta { font-size: 13px; font-weight: 600; color: #555555; }
+.dws-v2-head-side { margin-left: auto; padding-left: 8px; font-size: 12.5px; color: #555555; }
+.dws-v2-bom-line { position: absolute; background: #dddddd; }
+.dws-v2-note { position: absolute; box-sizing: border-box; border: 1.5px solid #111111; }
+.dws-v2-note-site { border-style: dashed; }
+.dws-v2-stamp { position: absolute; box-sizing: border-box; border: 3px solid #d2232a; }
+
+/* ---- 종이 위 배율 표시(화면에만) ------------------------------------------------- */
+.dws-v2-badges { position: absolute; inset: 0; z-index: 12; pointer-events: none; }
+.dws-v2-pill {
+  position: absolute;
+  transform: translateX(-100%);
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  font-size: 16px;
+  font-weight: 800;
+  white-space: nowrap;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+.dws-v2-pill-blue { background: #0071e3; color: #ffffff; }
+.dws-v2-pill-orange { background: #ff9f0a; color: #1d1d1f; }
+.dws-v2-pill-green { background: #1a7f37; color: #ffffff; }
+.dws-v2-pill-gray { background: #6e6e73; color: #ffffff; }
+
+/* ---- 오른쪽 칸 '배치 확인' ----------------------------------------------------- */
+.dws-v2-right-title { margin: 0; font-size: 14px; font-weight: 800; }
+.dws-v2-summary { padding: 12px; border-radius: 12px; background: #f5f5f7; display: flex; flex-direction: column; gap: 6px; }
+.dws-v2-sum-top { display: flex; justify-content: space-between; gap: 8px; }
+.dws-v2-sum-label,
+.dws-v2-sum-name { font-size: 12px; color: #6e6e73; }
+.dws-v2-sum-name { font-size: 11px; text-align: right; }
+.dws-v2-sum-row { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+.dws-v2-sum-big { font-size: 34px; font-weight: 800; line-height: 1; }
+.dws-v2-sum-state { font-size: 12px; font-weight: 700; color: #1a7f37; }
+.dws-v2-sum-warn { color: #9a5a00; }
+.dws-v2-sum-note { font-size: 10.5px; color: #6e6e73; }
+.dws-v2-split {
+  align-self: flex-start;
+  border: 0;
+  background: #0071e3;
+  color: #ffffff;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.dws-v2-section { display: flex; flex-direction: column; gap: 6px; }
+.dws-v2-section-title { margin: 0; font-size: 12px; font-weight: 700; }
+.dws-v2-templates { display: flex; flex-direction: column; gap: 6px; }
+.dws-v2-tpl {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border: 1px solid #e5e5ea;
+  border-radius: 10px;
+  background: #ffffff;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.dws-v2-tpl:disabled { cursor: default; opacity: 0.55; }
+.dws-v2-tpl.dws-v2-tpl-on { border: 2px solid #0071e3; padding: 5px 7px; }
+.dws-v2-mini { position: relative; width: 72px; height: 53px; flex: none; background: #ffffff; border: 1px solid #c7c7cc; }
+.dws-v2-mini-slot {
+  position: absolute;
+  box-sizing: border-box;
+  background: #e8f0fc;
+  border: 1px solid #9bbcf0;
+  color: #3a6fc4;
+  font-size: 7px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.dws-v2-mini-photo { background: #e9f7ee; border-color: #9fd6b0; color: #1a7f37; }
+.dws-v2-tpl-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.dws-v2-tpl-name { font-size: 12px; font-weight: 700; color: #1d1d1f; }
+.dws-v2-tpl-meta { font-size: 11px; color: #6e6e73; }
+.dws-v2-tpl-state { font-size: 10px; font-weight: 700; color: #0062c4; }
+.dws-v2-seen { display: flex; flex-direction: column; gap: 6px; }
+.dws-v2-seen-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.dws-v2-seen-row:hover { background: #f5f5f7; }
+.dws-v2-seen-img { width: 34px; height: 28px; object-fit: contain; background: #f5f5f7; border-radius: 4px; flex: none; }
+.dws-v2-seen-text { display: flex; flex-direction: column; line-height: 15px; min-width: 0; }
+.dws-v2-seen-label { font-size: 11.5px; font-weight: 800; color: #1d1d1f; }
+.dws-v2-seen-why { font-size: 10.5px; color: #6e6e73; }
+.dws-v2-seen-empty { font-size: 11px; color: #6e6e73; }
+.dws-v2-toggles { gap: 1px; }
+.dws-v2-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 28px;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  color: #1d1d1f;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+}
+.dws-v2-switch { position: relative; width: 32px; height: 19px; border-radius: 10px; background: #c7c7cc; flex: none; }
+.dws-v2-switch::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 15px;
+  height: 15px;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  transition: left 120ms ease-out;
+}
+.dws-v2-switch-on { background: #34c759; }
+.dws-v2-switch-on::after { left: 15px; }
+.dws-v2-toggle:focus-visible .dws-v2-switch { outline: 2px solid #0071e3; outline-offset: 2px; }
+.dws-v2-right-foot { margin-top: auto; display: flex; flex-direction: column; gap: 6px; }
+.dws-v2-relayout {
+  height: 36px;
+  border-radius: 9px;
+  border: 1px solid #e5e5ea;
+  background: #ffffff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  color: #1d1d1f;
+  cursor: pointer;
+}
+.dws-v2-relayout:hover { border-color: #0071e3; color: #0062c4; }
+.dws-v2-relayout:disabled { opacity: 0.5; cursor: default; }
+
+/* ---- 좁은 창: 오른쪽 칸을 접고(1280 밑) 왼쪽 칸을 좁힌다 ------------------------------ */
+@media (max-width: 1279px) {
+  .dws-v2-right { display: none; }
+}
+@media (max-width: 1100px) {
+  .dws-v2-left { flex-basis: 260px; width: 260px; }
+}
+
+/* 칸으로 정리한 시트(자동 배치 모드)는 V1 그림 이름 딱지를 숨긴다 — 칸 머리와 겹치고, 같은 글이 왼쪽 칸 카드에 있다.
+   자유 배치 모드에서는 그대로 보인다(그림을 골라 숫자키로 고칠 때 쓴다). */
+.dws-v2.dws-v2-auto.dws-v2-laid .dws-pbadges { display: none !important; }

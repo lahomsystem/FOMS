@@ -8,6 +8,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 JS = (REPO_ROOT / "static" / "js" / "drawing" / "wizard.js").read_text(encoding="utf-8")
+SAVE_STATUS_JS = (REPO_ROOT / "static" / "js" / "drawing" / "save-status.js").read_text(encoding="utf-8")
 TPL = (REPO_ROOT / "templates" / "drawing" / "wizard.html").read_text(encoding="utf-8")
 CSS = (REPO_ROOT / "static" / "css" / "contexts" / "drawing" / "wizard.css").read_text(encoding="utf-8")
 
@@ -46,7 +47,7 @@ def test_auto_save_does_not_touch_tool_mode() -> None:
 # ---- (2b) 로컬 비상 백업 ----
 
 def test_mark_dirty_schedules_backup() -> None:
-    assert "function markDirty() { dirty = true; userDirty = true; updateSaveState(); scheduleBackup(); }" in JS
+    assert "function markDirty() { dirty = true; userDirty = true; updateSaveState(); scheduleBackup(); emitCore('change'); }" in JS
     assert "var BACKUP_DEBOUNCE_MS = 2000;" in JS
     assert "var BACKUP_MAX_CHARS = 4 * 1024 * 1024;" in JS
 
@@ -84,13 +85,21 @@ def test_restore_banner_offered_after_load() -> None:
 # ---- (3) 저장 상태 칩 ----
 
 def test_save_status_chip_states() -> None:
+    """칩 글은 save-status.js chip 이 지금 시트 기준으로 정한다(보통-5: 자동 저장과 [저장]을 가른다)."""
     assert 'id="dws-save-status"' in TPL
     chip = _fn_slice(JS, "function renderSaveStatus() {")
-    for label in ("'저장 중…'", "'저장 실패'", "'저장 안 됨'", "'저장됨 '", "자동 저장 멈춤"):
-        assert label in chip
-    assert "if (!canSave) { el.hidden = true; return; }" in chip
+    assert "if (!canSave || !window.FomsSaveStatus) { el.hidden = true; return; }" in chip
+    assert "window.FomsSaveStatus.chip(" in chip
+    for key in ("saving: saveInFlight", "failed: saveFailed", "dirty: dirty", "savedAuto: lastSaveAuto",
+                "queued: q.queued", "queuedAt: q.at", "queuedFresh: q.fresh"):
+        assert key in chip, key
+    for label in ("'저장 중…'", "'저장 실패'", "'저장 안 됨'", "자동 저장 멈춤",
+                  "'자동 저장 '", "'전달 대기함'", "'전달본 없음'", "'전달본 예전 것'"):
+        assert label in SAVE_STATUS_JS, label
+    # 두 뜻(자동 저장·전달 대기함 넣기)으로 쓰이던 '저장됨 HH:MM' 은 없앤다.
+    assert "'저장됨 '" not in SAVE_STATUS_JS and "'저장됨 '" not in chip
     assert "renderSaveStatus();" in _fn_slice(JS, "function updateSaveState() {")
-    for kind in ("saved", "saving", "dirty", "paused", "failed"):
+    for kind in ("saved", "saving", "dirty", "paused", "failed", "queued", "stale", "none"):
         assert f".dws-save-status.dws-save-status-{kind}" in CSS
 
 
@@ -99,6 +108,8 @@ def test_save_flags_failure_and_success() -> None:
     assert "saveFailed = true;" in save
     assert "saveFailed = false;" in save
     assert "lastSavedAt = new Date();" in save
+    assert "lastSaveAuto = auto;" in save   # 칩이 자동 저장과 [저장]을 가르는 근거
+    assert "lastSaveAuto = false;" in _fn_slice(JS, "function saveAll() {")
     # 기존 '저장 *' 버튼 동작은 유지
     assert "els.saveBtn.textContent = dirty ? '저장 *' : '저장';" in JS
 
@@ -108,7 +119,8 @@ def test_save_flags_failure_and_success() -> None:
 def test_error_toast_persists_with_close_and_retry() -> None:
     toast = _fn_slice(JS, "function toast(msg, opts) {")
     assert "if (opts.error) { return errorToast(msg, opts.retry); }" in toast
-    assert "}, 2600);" in toast   # 일반 토스트는 그대로 2.6초
+    # 일반 토스트는 최소 4초·긴 글은 더 오래(wizard-chrome.js toastMs — 2026-10-25 평가 보통-6, 예전 2.6초)
+    assert "toastMs(msg)" in toast and "2600" not in toast
     err = _fn_slice(JS, "function errorToast(msg, retry) {")
     assert "setTimeout(function () { t.classList.remove" not in err   # 자동으로 사라지지 않는다
     assert "'다시 시도'" in err

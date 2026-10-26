@@ -32,9 +32,11 @@ def test_photo_insert_default_480_long_side_via_import_attachment():
     assert "PHOTO_MAX_LONG = 480" in JS
     click = _fn("onPhotoClick")
     assert "function onPhotoClick(photo, cell, pos)" in click
-    assert "/drawing-wizard/import-attachment" in click
-    assert "placeImageFromKey(r.data.data.key, pos || null, 0, PHOTO_MAX_LONG)" in click
-    assert "function placeImageFromKey(key, pos, cascade, maxLong)" in JS
+    assert "importMeasurePhoto(photo, pos, function () { onPhotoClick(photo, cell); })" in click   # V2 실측 사진 자동과 같은 길
+    imp = _fn("importMeasurePhoto")
+    assert "/drawing-wizard/import-attachment" in imp
+    assert "placeImageFromKey(r.data.data.key, pos || null, 0, PHOTO_MAX_LONG)" in imp
+    assert "function placeImageFromKey(key, pos, cascade, maxLong, batch)" in JS
 
 
 def test_autofill_uses_dialog_not_confirm():

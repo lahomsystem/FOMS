@@ -279,6 +279,7 @@ ACTION_LABELS: dict[str, str] = {
     "DRAWING_WIZARD_SHEET_SAVED": "도면 마법사 시트 저장",
     "DRAWING_WIZARD_SNAPSHOT_SAVED": "도면 마법사 버전 저장",
     "DRAWING_WIZARD_PENDING_DELETED": "도면 마법사 임시본 삭제",
+    "DRAWING_WIZARD_BOM_RULES_UPDATE": "도면 마법사 자재표 계산 규칙 변경",
     "ORDER_DRAFT_SAVED": "임시 주문 저장",
     "ORDER_DRAFT_SUBMITTED": "임시 주문 제출",
     "ORDER_DRAFT_DELETED": "임시 주문 삭제",

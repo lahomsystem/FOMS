@@ -9,6 +9,7 @@ import io
 import json
 from datetime import date
 
+import pytest
 from sqlalchemy.orm.attributes import flag_modified
 from werkzeug.security import generate_password_hash
 
@@ -235,6 +236,84 @@ def test_put_rejects_data_uri_image_key(client):
     )
 
     assert resp.status_code == 400
+
+
+def test_put_keeps_image_part_label(client):
+    """그림 종류 이름표(part) — AI 짐작·사람 수정 기록이 저장 후 그대로 돌아온다."""
+    _login_participant_admin(client)
+    order = _erp_order()
+    order_id = order.id
+    state = _valid_state(order_id)
+    part = {"label": "입체·도어", "src": "user", "ai": "입체·내부", "conf": 0.62, "head": "h1"}
+    state["sheets"][0]["objects"][1]["part"] = part
+
+    put_resp = client.put(
+        f"/api/orders/{order_id}/drawing-wizard",
+        json={"state": state, "base_updated_at": None},
+    )
+    assert put_resp.status_code == 200, put_resp.get_json()
+
+    saved = client.get(f"/api/orders/{order_id}/drawing-wizard").get_json()["data"]["state"]
+    assert saved["sheets"][0]["objects"][1]["part"] == part
+
+
+@pytest.mark.parametrize("arr", [[90, 420, 620, 360], [-2000, 5000, 1, 5000], [12.0, 7.5, 300, 200]])
+def test_put_keeps_image_part_arrangement_record(client, arr):
+    """자동 배치가 놓은 자리(part.arr) — 저장 후 그대로 돌아와 사람이 옮긴 거리를 잴 수 있다(설계서 §3.2 기록)."""
+    _login_participant_admin(client)
+    order = _erp_order()
+    order_id = order.id
+    state = _valid_state(order_id)
+    part = {"label": "정면·내부", "src": "ai", "ai": "정면·내부", "conf": 0.91, "head": "h1", "arr": arr}
+    state["sheets"][0]["objects"][1]["part"] = part
+
+    put_resp = client.put(
+        f"/api/orders/{order_id}/drawing-wizard",
+        json={"state": state, "base_updated_at": None},
+    )
+    assert put_resp.status_code == 200, put_resp.get_json()
+
+    saved = client.get(f"/api/orders/{order_id}/drawing-wizard").get_json()["data"]["state"]
+    assert saved["sheets"][0]["objects"][1]["part"] == part
+
+
+@pytest.mark.parametrize(
+    "part",
+    [
+        {"label": "문짝", "src": "ai"},
+        {"label": "사진", "src": "robot"},
+        {"label": "사진", "src": "ai", "conf": 1.5},
+        {"label": "사진", "src": "ai", "ai": "아무거나"},
+        {"label": "사진", "src": "ai", "head": "h 1"},
+        {"label": "사진", "src": "ai", "extra": 1},
+        "사진",
+        # arr = 자동 배치가 놓은 자리 [x, y, w, h] — 숫자 4개, x·y −2000~5000, w·h 1~5000
+        {"label": "사진", "src": "ai", "arr": [10, 20, 30]},
+        {"label": "사진", "src": "ai", "arr": [10, 20, 30, 40, 50]},
+        {"label": "사진", "src": "ai", "arr": "10,20,30,40"},
+        {"label": "사진", "src": "ai", "arr": ["10", 20, 30, 40]},
+        {"label": "사진", "src": "ai", "arr": [True, 20, 30, 40]},
+        {"label": "사진", "src": "ai", "arr": [5001, 20, 30, 40]},
+        {"label": "사진", "src": "ai", "arr": [10, -2001, 30, 40]},
+        {"label": "사진", "src": "ai", "arr": [10, 20, 0, 40]},
+        {"label": "사진", "src": "ai", "arr": [10, 20, 30, 5001]},
+        {"label": "사진", "src": "ai", "arr": {"x": 10}},
+    ],
+)
+def test_put_rejects_bad_image_part(client, part):
+    _login_participant_admin(client)
+    order = _erp_order()
+    order_id = order.id
+    state = _valid_state(order_id)
+    state["sheets"][0]["objects"][1]["part"] = part
+
+    resp = client.put(
+        f"/api/orders/{order_id}/drawing-wizard",
+        json={"state": state, "base_updated_at": None},
+    )
+
+    assert resp.status_code == 400
+    assert "그림 종류" in resp.get_json()["message"]
 
 
 def test_put_conflict_when_base_updated_at_is_stale(client):

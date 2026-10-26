@@ -30,12 +30,17 @@ html, body {
 
 /* ---- 앱바 (반투명 화이트 글래스, 3분할 grid) ----------------------------
    겹침 원천 차단: 우측 트랙 min = max-content → 콘텐츠 이하로 절대 축소 불가
-   (flex-shrink:0 의 상위 호환). 좌측 트랙 min = 0 → 타이틀 말줄임이 압축 흡수.
-   공간이 넉넉하면 양측 1fr 동률 → 세그먼트 중앙 정렬 유지. */
+   (flex-shrink:0 의 상위 호환). 좌측 트랙 min = min-content = [나가기] + 제목 최소 폭(76px,
+   .dws-appbar-titlewrap 의 contain 으로 제목 글 길이는 빼고 잰다) → 제목은 말줄임으로만 줄고
+   0 이 되지 않으며, 가운데 도구 묶음이 [나가기]를 덮지 않는다(2026-10-25 평가 큼-1: 저장 상태 칩이 생기면
+   좌측 트랙이 0 이 되어 1920 에서 29px·1280 에서 32px 덮였다). 넘칠 몫은 폭 단계(아래 '도구 ▾' 묶음)가 줄인다.
+   좌측 트랙 상한은 제목 글 폭(--dws-left-w, wizard-appbar.js fitLeft)이다 — 남는 자리는 제목 칸이 아니라 도구 묶음
+   뒤(오른쪽 묶음 앞)에 남아서, 오른쪽 묶음 폭이 바뀌어도 가운데 도구 묶음이 제목 칸 따라 옆으로 움직이지 않는다
+   (2026-10-25 실화면 확인 V1: 칩 글이 바뀔 때마다 도구 묶음이 1920 에서 168px·1366 에서 90px 밀렸다). JS 전에는 1fr. */
 .dws-appbar {
   flex: 0 0 auto;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(max-content, 1fr);
+  grid-template-columns: minmax(min-content, var(--dws-left-w, 1fr)) auto minmax(max-content, 1fr);
   align-items: center;
   column-gap: 12px;
   height: 52px;
@@ -107,7 +112,7 @@ html, body {
 .dws-appbar-sub {
   font-size: 13px;
   font-weight: 400;
-  color: #86868b;
+  color: #6e6e73;   /* #86868b(대비 3.6) → 기준 4.5 이상 */
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -116,7 +121,11 @@ html, body {
 /* 타이틀 컬럼 래퍼: 좁은 화면에서 햄버거와 가로 배치되어도 제목/부제는 세로 스택 유지.
    데스크톱에선 .dws-appbar-left(column)의 단일 자식으로 기존 스택 모양 그대로. */
 .dws-appbar-titlewrap {
-  min-width: 0;
+  /* 남는 좌측 폭을 다 쓰되 76px('주문 #1234' 한 줄) 밑으로는 줄지 않는다. contain: inline-size 는
+     제목 글 길이를 좌측 트랙 최소 폭 계산에서 빼 준다(긴 고객명이 오른쪽 단추를 화면 밖으로 밀지 않게). */
+  flex: 1 1 auto;
+  min-width: 76px;
+  contain: inline-size;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -381,7 +390,7 @@ html, body {
 .dws-zoom { display: flex; align-items: center; gap: 8px; }
 .dws-zoom-label {
   font-size: 12px;
-  color: #86868b;
+  color: #6e6e73;   /* #86868b(대비 3.57) → 기준 4.5 이상 */
   width: 34px;
   text-align: right;
   font-variant-numeric: tabular-nums;
@@ -419,14 +428,17 @@ html, body {
 
 /* ---- 앱바 반응형 컴팩트 (겹침 방지 보조 단계) -----------------------------
    구조적 보장은 grid minmax(max-content,1fr)가 담당. 아래는 좁은 폭에서
-   세그먼트 중앙 정렬을 유지하기 위한 밀도 축소. */
-/* 1단계(≤1700px): 세그 라벨 숨김 — 아이콘만(각 버튼 title 툴팁 유지) */
-@media (max-width: 1700px) {
+   세그먼트 중앙 정렬을 유지하기 위한 밀도 축소. 폭 단계 전체 표는 아래 '앱바 도구 ▾ 묶음과 폭 단계'.
+   (자동 배치·자재표 계산 단추와 저장 상태 칩·그림 종류 칩이 늘어 1920 에서도 넘쳤다 — 2026-10-25 평가 큼-1) */
+/* 1단계(≤2399px): 세그 라벨 숨김 — 아이콘만(각 버튼 title 툴팁 유지). 1920 에서 라벨(242px)을 다 두면
+   [자동 채움]·[자동 배치]·[자재표 계산]을 그대로 둘 자리가 없다. 이것은 기본값이고, 한 줄 앱바에서는
+   wizard-appbar.js 가 남는 자리를 재서 '선택'·'텍스트'(또는 전부) 이름을 되살린다(아래 data-seg-names). */
+@media (max-width: 2399px) {
   .dws-seg-label { display: none; }
   .dws-seg-btn { padding: 6px 10px; }
 }
-/* 2단계(≤1600px): 우측 컨트롤 밀도 축소 — 저장 상태 칩·도움말(?) 버튼이 늘어 1440px 에서 제목이 눌리던 것 방지 */
-@media (max-width: 1600px) {
+/* 2단계(≤2399px): 우측 컨트롤 밀도 축소 — 저장 상태 칩·도움말(?) 버튼이 늘어 제목이 눌리던 것 방지 */
+@media (max-width: 2399px) {
   .dws-appbar { padding: 0 12px; column-gap: 10px; }
   .dws-appbar-right { gap: 6px; }
   .dws-appbar-right .dws-btn { padding: 7px 11px; }
@@ -462,12 +474,17 @@ html, body {
   }
   .dws-appbar::-webkit-scrollbar { height: 0; }   /* 스와이프 스크롤 — 스크롤바 숨김 */
 
+  /* 왼쪽 묶음([나가기]·[제품 목록]·제목)은 줄지 않는다 — 줄면 가운데 도구 묶음이 두 단추 위에 겹쳐
+     [나가기]를 누르면 '선택'이, [제품 목록]을 누르면 '텍스트 추가'가 눌렸다(2026-10-25 평가 막힘-2, 세로 태블릿 820).
+     넘치는 몫은 이 줄 전체를 옆으로 밀어 보는 가로 스크롤이 맡는다. */
   .dws-appbar-left {
-    flex: 0 1 auto;
+    flex: 0 0 auto;
+    min-width: max-content;
     flex-direction: row;
     align-items: center;
     gap: 6px;
   }
+  .dws-appbar-titlewrap { flex: 0 1 auto; min-width: 0; contain: none; }   /* 스크롤 줄에서는 제목을 다 보인다 */
   .dws-appbar-panel-btn { display: inline-flex; }
   .dws-appbar-title { max-width: 40vw; font-size: 14px; }
   /* 나가기: 좁은 화면은 아이콘만(가로 스크롤 스트립 폭 절약), 44px 터치 유지 */
@@ -485,11 +502,13 @@ html, body {
     padding: 6px;
   }
 
-  /* 앱바 드롭다운(도형/프리셋/내보내기): 가로 스크롤 스트립에 잘리지 않도록
-     뷰포트 기준 fixed 로 앱바 아래 고정 노출(한 번에 하나만 열림). */
+  /* 앱바 드롭다운(도형/프리셋/내보내기/도구): 가로 스크롤 스트립에 잘리지 않도록
+     뷰포트 기준 fixed 로 앱바 아래 고정 노출(한 번에 하나만 열림). 가로 자리는 wizard-appbar.js placeMenu 가
+     연 단추 왼쪽에 맞춘다(화면 밖으로 나갈 때만 오른쪽 끝) — right: 8px 는 JS 전 자리. */
   #dws-shape-menu,
   #dws-preset-menu,
-  #dws-export-menu {
+  #dws-export-menu,
+  #dws-tools-menu {
     position: fixed;
     top: 54px;
     right: 8px;
@@ -546,7 +565,8 @@ html, body {
 
   #dws-shape-menu,
   #dws-preset-menu,
-  #dws-export-menu { top: 58px; }
+  #dws-export-menu,
+  #dws-tools-menu { top: 58px; }
 }
 
 /* ---- 읽기 전용 배너 (애플풍 앰버) --------------------------------------- */
@@ -593,7 +613,7 @@ html, body {
   font-family: inherit;
   font-size: 13px;
   font-weight: 500;
-  padding: 6px 50px 6px 14px;
+  padding: 6px 60px 6px 14px;   /* 오른쪽 = ⧉·× 단추(각 24px) 자리 */
   border-radius: 8px;
   cursor: pointer;
   white-space: nowrap;
@@ -611,34 +631,35 @@ html, body {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
+/* 탭 ×·⧉ — 누르는 곳 24px(예전 16px, 2026-10-25 평가 '작음'). 글자색 #6e6e73(예전 #86868b 대비 3.6). */
 .dws-tab-x {
   position: absolute;
-  right: 8px;
+  right: 4px;
   top: 50%;
   transform: translateY(-50%);
-  width: 16px;
-  height: 16px;
-  line-height: 15px;
+  width: 24px;
+  height: 24px;
+  line-height: 24px;
   text-align: center;
   border-radius: 50%;
-  font-size: 13px;
-  color: #86868b;
+  font-size: 15px;
+  color: #6e6e73;
 }
 .dws-tab-x:hover { background: rgba(0, 0, 0, 0.08); color: #1d1d1f; }
 
 /* 시트 복제 버튼 — × 왼쪽. 탭이 좁으므로 hover(또는 활성 탭)일 때만 표시. */
 .dws-tab-dup {
   position: absolute;
-  right: 27px;
+  right: 30px;
   top: 50%;
   transform: translateY(-50%);
-  width: 16px;
-  height: 16px;
-  line-height: 15px;
+  width: 24px;
+  height: 24px;
+  line-height: 24px;
   text-align: center;
   border-radius: 50%;
-  font-size: 12px;
-  color: #86868b;
+  font-size: 13px;
+  color: #6e6e73;
   opacity: 0;
   pointer-events: none;
   transition: opacity 120ms ease-out, background 120ms ease-out, color 120ms ease-out;
@@ -662,6 +683,33 @@ html, body {
   transition: background 120ms ease-out;
 }
 .dws-tab-add:hover { background: #f5f5f7; }
+
+/* 탭 줄 묶음 — 왼쪽 탭(가로 스크롤) · 오른쪽 끝 자리(V1 [새 화면 V2 써 보기] · V2 저장 상태 칩, 설계서 2026-10-26 V2 §6) */
+.dws-tabrow {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  background: #f5f5f7;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.07);
+}
+.dws-tabrow .dws-tabbar { flex: 1 1 auto; min-width: 0; border-bottom: 0; }
+.dws-tabrow-side { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; padding: 0 14px 0 8px; }
+.dws-tabrow-side:empty { display: none; }
+.dws-ui-switch-btn {
+  border: 1px solid #b9cff2;
+  background: #eef3fd;
+  color: #0b3a75;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: 980px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.dws-ui-switch-btn:hover { background: #e1ebfb; }
+.dws-ui-switch-btn:focus-visible { outline: 2px solid #0a59c9; outline-offset: 2px; }
 
 /* ---- 본문 (좌: 제품 리스트 · 우: 캔버스) -------------------------------- */
 .dws-body {
@@ -781,7 +829,7 @@ html, body {
 }
 .dws-product-empty {
   font-size: 12px;
-  color: #86868b;
+  color: #6e6e73;   /* '제품 없음' — #86868b(흰 바탕 대비 3.62) → 5.07, 기준 4.5 이상 */
   padding: 14px 12px;
   text-align: center;
 }
@@ -1068,6 +1116,10 @@ html, body {
   border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 16px;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
+  /* 한글은 띄어쓰기 자리에서만 줄을 바꾼다(제목·설명이 물려받는다) — 예전엔 '만들어 시/작하세요'처럼 낱말 가운데서 끊겼다.
+     띄어쓰기 없이 아주 긴 글만 칸 끝에서 끊어 넘치지 않게 한다. */
+  word-break: keep-all;
+  overflow-wrap: break-word;
 }
 .dws-empty-ico { color: #86868b; margin-bottom: 14px; }
 .dws-empty-title {
@@ -1081,7 +1133,7 @@ html, body {
   margin: 0 0 20px;
   font-size: 13px;
   line-height: 1.5;
-  color: #86868b;
+  color: #6e6e73;   /* #86868b(흰 바탕 대비 3.6) → 5.07, 기준 4.5 이상 */
 }
 
 .dws-stage-wrap {
@@ -1091,7 +1143,9 @@ html, body {
   margin: 0 auto;
 }
 
-/* 현재 시트의 저장(전달 대기) 도면 삭제 — 캔버스 우상단 빨강 × 버튼(스테이지 위, z 우선). */
+/* 현재 시트의 전달본(전달 대기함에 넣은 그림) 지우기 — 캔버스 우상단 작은 ×(스테이지 위, z 우선).
+   예전 빨강 동그라미는 저장 직후 오류처럼 보였다 → 흰 바탕·회색 ×로 차분하게, 마우스를 올릴 때만 빨강.
+   뜻은 풍선 말(title '이 시트의 전달본 지우기')과 누를 때 확인 창이 말한다. */
 .dws-del-saved {
   position: absolute;
   top: 10px;
@@ -1102,17 +1156,37 @@ html, body {
   padding: 0;
   line-height: 28px;
   text-align: center;
-  border: 0;
+  border: 1px solid rgba(0, 0, 0, 0.16);
   border-radius: 50%;
   font-size: 18px;
-  color: #ffffff;
-  background: rgba(224, 49, 49, 0.92);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.22);
+  color: #6e6e73;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
   cursor: pointer;
-  transition: background-color 120ms ease-out, transform 80ms ease-out;
+  transition: background-color 120ms ease-out, color 120ms ease-out, border-color 120ms ease-out;
 }
-.dws-del-saved:hover { background: #c92a2a; transform: scale(1.06); }
+.dws-del-saved:hover { background: #fff3f2; color: #c0261b; border-color: rgba(192, 38, 27, 0.35); }
+.dws-del-saved:focus-visible { outline: 2px solid #0a59c9; outline-offset: 2px; }
 .dws-del-saved[hidden] { display: none; }
+
+/* 시트 이름 바꾸기 — 탭을 두 번 누르면 탭 자리에 뜨는 입력 칸(wizard.js renameSheet). 고치는 동안 탭은 숨긴다. */
+button.dws-sheet-renaming { display: none; }
+.dws-sheet-rename {
+  flex: 0 0 auto;
+  height: 30px;
+  min-width: 120px;
+  max-width: 220px;
+  padding: 0 10px;
+  border: 1px solid #0a59c9;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #1d1d1f;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: 0 0 0 3px rgba(10, 89, 201, 0.15);
+  outline: none;
+}
 
 /* 스테이지: 논리 1478x1040 고정, 줌은 CSS 변수 scale */
 .dws-stage {
@@ -1611,6 +1685,9 @@ html, body {
   display: flex;
   gap: 6px;
   padding: 6px;
+  /* 폭 상한 — JS(wizard-chrome.js placeFloating)가 '보이는 캔버스' 폭으로 다시 건다. 모자라면 두 줄로 접힌다
+     (2026-10-25 평가 큼-4: 눌린 막대에서 '비/율/고/정'·'잠/금'처럼 한 글자씩 꺾였다). */
+  max-width: calc(100vw - 16px);
   background: rgba(30, 30, 32, 0.85);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
   backdrop-filter: blur(20px) saturate(180%);
@@ -1620,7 +1697,7 @@ html, body {
   animation: dws-pop 140ms ease-out;
 }
 .dws-minitoolbar[hidden] { display: none; }
-.dws-mt-group { display: flex; gap: 6px; align-items: center; }
+.dws-mt-group { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; min-width: 0; }
 .dws-mt-group[hidden] { display: none; }
 /* 편집 중 미니바: 삭제 버튼 숨김(입력 중 오삭제 방지 — 색/굵기/크기/정렬만 노출) */
 .dws-minitoolbar.dws-mt-editing #dws-mt-del-text { display: none; }
@@ -1634,6 +1711,7 @@ html, body {
 .dws-mt-preset-menu { min-width: 120px; max-height: 260px; overflow-y: auto; }
 
 .dws-mt-select {
+  flex-shrink: 0;
   background: rgba(255, 255, 255, 0.12);
   color: #f5f5f7;
   border: 0.5px solid rgba(255, 255, 255, 0.16);
@@ -1644,6 +1722,10 @@ html, body {
   cursor: pointer;
 }
 .dws-mt-select option { color: #1d1d1f; }
+/* 그림 종류(미니 툴바) — AI 짐작은 점선, 사람이 고른 것은 초록 실선 */
+.dws-mt-part { min-width: 118px; }
+.dws-mt-part[data-src="ai"] { border-style: dashed; border-color: rgba(255, 255, 255, 0.45); }
+.dws-mt-part[data-src="user"] { border-color: #34c759; }
 .dws-mt-btn {
   background: rgba(255, 255, 255, 0.12);
   color: #f5f5f7;
@@ -1654,11 +1736,13 @@ html, body {
   padding: 6px 9px;
   cursor: pointer;
   min-width: 30px;
+  white-space: nowrap;   /* 단추 글은 한 줄로 — 자리가 모자라면 막대 자체가 두 줄로 접힌다 */
+  flex-shrink: 0;
   transition: background 120ms ease-out;
 }
 .dws-mt-btn:hover { background: rgba(255, 255, 255, 0.2); }
 .dws-mt-btn.dws-active { background: #0071e3; border-color: #0071e3; color: #fff; }
-.dws-mt-del { color: #ff8a80; }
+.dws-mt-del { color: #ffc9c2; }   /* 단추 바탕 #555557 대비 5.1(흰 도면 위 반투명 막대로 쳐도 4.9) — #ffb8b0 는 4.49·4.39 로 기준 4.5 에 못 미쳤다 */
 .dws-mt-del:hover { background: rgba(255, 69, 58, 0.22); }
 /* 잠금 / 스포이트(미니 툴바) */
 .dws-mt-btn.dws-mt-lock.dws-active { background: #f59f00; border-color: #f59f00; color: #1d1d1f; }
@@ -1666,6 +1750,7 @@ html, body {
 .dws-eyedrop-armed, .dws-eyedrop-armed canvas { cursor: crosshair; }
 
 .dws-swatch {
+  flex-shrink: 0;
   width: 20px;
   height: 20px;
   border-radius: 50%;
@@ -1688,6 +1773,8 @@ html, body {
   position: fixed;
   z-index: 94;   /* 미니바(95) 아래 — 둘은 동시 노출 안 됨 */
   display: flex;
+  flex-wrap: wrap;                  /* 보이는 캔버스가 좁으면 두 줄로(폭 상한은 JS placeFloating) */
+  max-width: calc(100vw - 16px);
   gap: 4px;
   align-items: center;
   padding: 6px;
@@ -1864,16 +1951,33 @@ html, body {
 }
 .dws-dialog-actions .dws-btn:not(.dws-btn-primary):hover { background: rgba(0, 0, 0, 0.05); }
 
+/* 자동 배치 '글자가 작아져요' 선택 창(part-arrange.js) — 본문은 진한 글자로 읽기 쉽게 */
+.dws-arrange-dialog { width: 480px; }
+.dws-arrange-msg { margin: 0 0 12px; font-size: 14px; line-height: 1.55; color: #1d1d1f; word-break: keep-all; }
+.dws-arrange-sub { margin: 0 0 12px; font-size: 13px; line-height: 1.55; color: #3a3a3c; word-break: keep-all; }
+.dws-arrange-sub:last-of-type { margin-bottom: 20px; }
+/* 단추 셋(시트 N장으로 나누기 · 그래도 이 시트에 · 나중에)은 세로로 쌓고 주 단추를 맨 위에(part-arrange.js ask 가 그 순서로 넣는다).
+   실화면 V3: 가로 한 줄에 안 들어가 1920 화면에서도 주 단추만 둘째 줄로 떨어졌다. 좁은 화면에서는 단추 글을 꺾는다. */
+.dws-arrange-dialog .dws-dialog-actions { flex-direction: column; align-items: stretch; gap: 6px; }
+.dws-arrange-dialog .dws-dialog-actions .dws-btn { justify-content: center; text-align: center; white-space: normal; line-height: 1.3; padding: 9px 14px; }
+.dws-arrange-dialog .dws-dialog-actions .dws-btn:not(.dws-btn-primary) { border-color: #d2d2d7; }
+
+/* 알림 자리. 모달 창(<dialog> showModal — 규칙 창 따위)은 브라우저 맨 위 층이라 z-index 로는 못 이긴다 →
+   창이 열려 있으면 wizard-toast.js 가 같은 클래스의 알림 자리(.dws-toast-host-modal)를 그 창 안에 만들어 거기 띄운다
+   (창에 transform 이 없어 fixed 는 화면 기준 그대로). 창이 닫히면 알림은 이 자리로 돌아온다. */
 .dws-toast-host {
   position: fixed;
   left: 50%;
   bottom: 32px;
   transform: translateX(-50%);
-  z-index: 100;
+  /* 130: 계산 칸(좁은 화면 120)·도움말(125) 위 — 820 에서 알림 글이 계산 칸 밑에 깔려 잘렸다(2026-10-25 평가 보통-6) */
+  z-index: 130;
   display: flex;
   flex-direction: column;
   gap: 8px;
   align-items: center;
+  width: max-content;               /* left:50% 라 그냥 두면 폭이 화면 절반에서 꺾인다 */
+  max-width: calc(100vw - 32px);
   pointer-events: none;
 }
 .dws-toast {
@@ -1882,6 +1986,11 @@ html, body {
   backdrop-filter: blur(20px) saturate(180%);
   color: #f5f5f7;
   font-size: 13px;
+  line-height: 1.45;
+  max-width: min(560px, calc(100vw - 32px));
+  text-align: center;
+  word-break: keep-all;             /* 긴 알림이 낱말 가운데서 끊기지 않게 */
+  overflow-wrap: break-word;
   padding: 10px 18px;
   border-radius: 980px;
   border: 0.5px solid rgba(255, 255, 255, 0.12);
@@ -2000,12 +2109,22 @@ html, body {
 .dws-autofill-count { font-size: 13px; font-weight: 600; color: #1d1d1f; margin: 4px 0 16px; min-height: 18px; }
 .dws-photo[draggable="true"] { cursor: grab; }
 /* ---- 단축키 도움말(#dws-help) — 라이트박스와 같은 오버레이 패턴 ---------- */
-.dws-help-btn {
-  min-width: 28px;
-  padding-left: 8px;
-  padding-right: 8px;
+/* 도움말 ? 단추 — 테두리 있는 32px 동그라미(예전 테두리 없는 28px 는 단추로 안 보였다, 2026-10-25 평가) */
+.dws-appbar-right .dws-zoom .dws-help-btn {
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  padding: 0;
+  justify-content: center;
+  border: 1px solid rgba(0, 0, 0, 0.22);
+  border-radius: 50%;
+  background: #ffffff;
+  color: #1d1d1f;
+  font-size: 15px;
   font-weight: 700;
 }
+.dws-appbar-right .dws-zoom .dws-help-btn:hover { background: #f5f5f7; }
 .dws-help-overlay {
   position: fixed;
   inset: 0;
@@ -2027,6 +2146,8 @@ html, body {
   border-radius: 14px;
   box-shadow: 0 24px 68px rgba(0, 0, 0, 0.35);
   overflow: hidden;
+  word-break: keep-all;             /* '창 닫/기'처럼 낱말 가운데서 끊기지 않게(2026-10-25 평가) */
+  overflow-wrap: break-word;
 }
 .dws-help-head {
   display: flex;
@@ -2079,8 +2200,9 @@ html, body {
   border-bottom-width: 2px;
   border-radius: 5px;
   background: #f5f5f7;
+  color: #1d1d1f;
   font-family: inherit;
-  font-size: 11px;
+  font-size: 12px;                  /* 11px → 12px(설명 글 최소 12px, 2026-10-25 평가) */
   line-height: 1.5;
   text-align: center;
 }
@@ -2098,24 +2220,49 @@ html, body {
   .dws-products-toggle::before,
   .dws-photos-toggle::before,
   .dws-pending-toggle::before,
-  .dws-del-saved::before {
+  .dws-del-saved::before,
+  .dws-swatch::before {
     content: "";
     position: absolute;
     left: 50%;
     top: 50%;
-    width: 36px;
-    height: 36px;
+    width: 40px;
+    height: 40px;
     transform: translate(-50%, -50%);
     border-radius: 50%;
   }
-  /* 탭은 overflow:hidden 이라 터치 영역이 잘리지 않게 높이·오른쪽 여백을 넓힌다 */
-  .dws-tab { min-height: 36px; padding-right: 74px; }
-  /* 탭 복제 버튼은 hover 가 없는 터치 기기에서도 늘 보이게, ×와 터치 영역이 덜 겹치게 간격을 넓힌다 */
+  /* 탭 ×·⧉ 는 그 자체를 40px 로(펜슬·손가락 기준, 2026-10-25 평가 '작음'). 탭은 overflow:hidden 이라
+     높이·오른쪽 여백을 함께 넓혀 누르는 곳이 잘리지 않게 한다. */
+  .dws-tab { min-height: 40px; padding-right: 84px; max-width: 240px; }
+  .dws-tab-x,
+  .dws-tab-dup { width: 40px; height: 40px; line-height: 40px; }
+  .dws-tab-x { right: 0; }
+  /* 탭 복제 버튼은 hover 가 없는 터치 기기에서도 늘 보이게 — ×와 겹치지 않게 바로 왼쪽에 */
   .dws-tab-dup {
-    right: 34px;
+    right: 40px;
     opacity: 1;
     pointer-events: auto;
   }
+  .dws-tab-add { min-height: 40px; }
+
+  /* 앱바 단추 40px — 글 단추는 높이, 아이콘·?·표 글자 단추는 가로세로 */
+  .dws-appbar-right .dws-btn { min-height: 40px; }
+  .dws-appbar-right .dws-icon-btn,
+  .dws-appbar-right .dws-fontctl .dws-btn,
+  .dws-appbar-right .dws-zoom .dws-help-btn { width: 40px; height: 40px; min-width: 40px; }
+  .dws-appbar-right .dws-btn-plain { min-width: 40px; justify-content: center; }
+  .dws-tools-menu .dws-menu-item { min-height: 40px; }
+
+  /* 미니 막대·정렬 막대 단추 40px(색 동그라미는 28px 로 보이고 누르는 곳만 40px) */
+  .dws-mt-group { gap: 8px; }
+  .dws-mt-btn,
+  .dws-mt-select { min-height: 40px; }
+  .dws-mt-btn { min-width: 40px; }
+  .dws-swatch { position: relative; width: 28px; height: 28px; }
+  .dws-align-btn { width: 40px; height: 40px; }
+
+  /* 도움말 닫기 40px */
+  .dws-help-close { width: 40px; height: 40px; }
 }
 /* ---- 저장 상태 칩(앱바) · 로컬 백업 복원 배너 · 오류 토스트 ------------------- */
 .dws-save-status {
@@ -2130,7 +2277,12 @@ html, body {
   color: #6e6e73;
 }
 .dws-save-status[hidden] { display: none; }
-.dws-save-status.dws-save-status-saved { background: #e8f5ec; color: #1d7a3a; }
+/* 지금 시트 기준(save-status.js chip): 초록 = 전달 대기함에 있음 · 회색 = 작업 내용만 저장(전달본 없음) ·
+   주황 = 고침이 아직 안 들어감(저장 안 됨 · 전달본 예전 것). 예전엔 자동 저장도 초록 '저장됨' 이라 넣은 줄 알았다. */
+.dws-save-status.dws-save-status-queued { background: #e8f5ec; color: #1d7a3a; }
+.dws-save-status.dws-save-status-saved,
+.dws-save-status.dws-save-status-none { background: rgba(0, 0, 0, 0.05); color: #515154; }
+.dws-save-status.dws-save-status-stale { background: #fff6e0; color: #8a5a00; }
 .dws-save-status.dws-save-status-saving { background: #eef4ff; color: #0a59c9; }
 .dws-save-status.dws-save-status-dirty { background: #fff6e0; color: #8a5a00; }
 .dws-save-status.dws-save-status-paused { background: #fff1e0; color: #a14a00; }
@@ -2138,11 +2290,18 @@ html, body {
 
 /* ---- 앱바 제목 공간 확보(저장 상태 칩·도움말 버튼 추가 뒤 1280~1600px 에서 제목이 0px 로 눌리고
    1366px 이하에선 오른쪽 버튼이 화면 밖으로 밀리던 것 — 실화면 계측으로 조정) ---- */
+/* 저장 상태 칩 상한 120px — '전달 대기함 09:17'(약 113px)이 시각까지 보이게. 예전 좁은 폭 상한(96·84px)은
+   시각을 잘라 없앴다. 자리는 아래 '도구 ▾' 묶음이 만든다. */
 .dws-save-status { display: inline-block; max-width: 120px; vertical-align: middle; overflow: hidden; text-overflow: ellipsis; line-height: 24px; }
-@media (min-width: 901px) and (max-width: 1600px) {
-  #dws-zoom-range { display: none; }          /* 줌은 Ctrl/Alt+휠·Ctrl+0/1·맞춤 버튼으로 */
-  .dws-save-status { max-width: 96px; }
-  .dws-appbar-title-prefix { display: none; } /* "도면 마법사 · " 를 빼고 주문 번호부터 */
+/* 줌 막대는 1920 이하에서 숨긴다 — 상태 칩 자리를 늘 잡아 두니(아래 '상태 칩 자리') 1920 에서 '선택'·'텍스트' 이름이
+   남을 자리가 모자랐다(2026-10-25 실화면 확인 V1). 줌은 Ctrl/Alt+휠·Ctrl+0/1·맞춤 버튼·배율 숫자로. */
+@media (min-width: 901px) and (max-width: 1920px) {
+  #dws-zoom-range { display: none; }
+}
+/* "도면 마법사 · " 를 빼고 주문 번호부터 — 900px 이하(옆으로 미는 줄)도 같다. 거기서만 남아 820 세로에서
+   '도면 마법사 · 주문 #2919'(152px)로 줄이 그만큼 길어졌다(2026-10-25 실화면 QA). */
+@media (max-width: 2399px) {
+  .dws-appbar-title-prefix { display: none; }
 }
 @media (min-width: 901px) and (max-width: 1440px) {
   .dws-appbar-exit { padding: 8px; min-width: 40px; justify-content: center; }
@@ -2152,10 +2311,142 @@ html, body {
   .dws-appbar { column-gap: 8px; }
   .dws-appbar-right { gap: 4px; }
   .dws-appbar-right .dws-btn { padding: 6px 8px; }
-  .dws-save-status { max-width: 84px; padding: 0 8px; }
+  .dws-save-status { padding: 0 8px; }
 }
 @media (min-width: 901px) and (max-width: 1300px) {
   #dws-zoom-label { display: none; }   /* 배율 숫자는 Ctrl+1(100%)·맞춤으로 대신 — 주문 번호 자리 확보 */
+}
+/* 1180~1279(마우스, 한 줄 앱바): 오른쪽 묶음이 13px 넘쳐 [도면방 PUSH]가 화면 밖으로 밀렸다(2026-10-26 확인).
+   글을 자르지 않고 앱바 양옆 여백·칸 사이·글 단추 안쪽 여백만 줄인다(약 24px, 1180 에서 PUSH 오른쪽 끝이 7px 안쪽). */
+@media (min-width: 1180px) and (max-width: 1279px) {
+  .dws-appbar { padding-left: 8px; padding-right: 8px; column-gap: 6px; }
+  .dws-appbar-right .dws-btn { padding-left: 7px; padding-right: 7px; }
+}
+
+/* ============================================================================
+   앱바 '도구 ▾' 묶음과 폭 단계 (2026-10-25 사용성 평가 큼-1·막힘-2)
+   한 줄에 들어갈 폭은 저장 상태 칩('전달 대기함 09:17')·'미분류 2장 ›' 칩·제목 최소 76px 를 넣고 글자 폭으로 어림했다
+   (보고서 실측 1920·1440·1366·1280 과 ±10px 로 맞춤 — 실화면 QA 에서 다시 잰다).
+     ≥2400  세그 라벨·넓은 여백 그대로
+     ≤2399  세그 아이콘만 · 여백 축소 · 제목 앞말('도면 마법사 · ') 숨김            (위 1·2단계)
+            단, 한 줄 앱바(grid)에서는 wizard-appbar.js 가 남는 자리를 재서 도구 이름을 되살린다(아래 data-seg-names)
+     ≤1920  줌 막대 숨김(상태 칩 자리를 늘 잡아 두는 몫 — 아래 '상태 칩 자리')
+     ≤1900  [자동 채움]·[자동 배치]·[자재표 계산] → '도구 ▾' 하나
+     ≤1700  표 글자 단추(A−·A+·원상 복구)도 '도구 ▾'로 · 구분선 숨김
+     ≤1440  [나가기] 아이콘만 · ≤1366 틈·여백 축소 · ≤1300 배율 숫자 숨김
+     ≤1280  '맞춤'도 '도구 ▾'로 · 세그 단추 여백 축소
+     901~1179(펜슬·손가락은 901~1279)  한 줄에 다 못 담는다 → ≤900 처럼 앱바를 옆으로 밀어 보는 줄
+   그림 종류 칩(part-status.js)은 숨기지 않는다. '미분류'·딱지 단추·저장 칩은 글이 바뀌어도 폭이 그대로인 자리에 두고,
+   '알아보는 중' 칩은 앱바 아래에 떠서 보인다(아래 '상태 칩 자리' — 칩이 뜨고 질 때 단추가 밀리지 않게).
+   ============================================================================ */
+.dws-tools-more { display: none; }                         /* 넓은 화면: 원래 단추가 보인다 */
+.dws-tools-menu .dws-tools-font,
+.dws-tools-menu .dws-tools-fit { display: none; }          /* 더 좁아질 때만 메뉴에 나온다 */
+.dws-tools-menu .dws-menu-item[hidden] { display: none; }  /* 원래 단추가 없거나 숨은 항목(syncToolsMenu) */
+.dws-tools-menu .dws-menu-item:disabled { opacity: 0.4; cursor: not-allowed; }
+.dws-tools-menu .dws-menu-item[aria-pressed="true"]::after { content: "✓"; float: right; margin-left: 14px; color: #0071e3; font-weight: 700; }
+.dws-appbar .dws-btn[hidden] { display: none; }            /* .dws-btn 의 display 가 hidden 을 이기던 것(계산 칸이 없을 때 단추 숨김) */
+/* 도구 이름(선택·텍스트·도형·펜·지우개·이미지) — 폭 단계로 미리 숨기니 1920 에서도 그림만 남았다(2026-10-25 실화면 QA).
+   wizard-appbar.js fitSegNames 가 한 줄 앱바에 남는 자리(주문 번호·고객명 다섯 글자를 남기고)를 재서 고른다:
+   all = 이름 다 · two = 자주 쓰는 '선택'·'텍스트'만 · none = 그림만. 속성이 없으면(옆으로 미는 줄·JS 전) 위 폭 단계 그대로.
+   오른쪽이 넘치면 바로 접고, 다시 펴는 쪽은 16px 더 남아야 편다(경계 폭에서 이름이 들락날락하지 않게). 상태 칩 글은
+   자리 폭을 바꾸지 않으므로(아래 '상태 칩 자리') 칩이 뜨고 져도 이름 단계는 그대로다. */
+.dws-appbar[data-seg-names="all"] .dws-seg-label,
+.dws-appbar[data-seg-names="two"] #dws-btn-select .dws-seg-label,
+.dws-appbar[data-seg-names="two"] #dws-btn-add-text .dws-seg-label { display: inline; }
+.dws-appbar[data-seg-names="none"] .dws-seg-label { display: none; }
+/* ---- 상태 칩 자리 (2026-10-25 실화면 확인 V1) ----------------------------------------
+   칩 글이 바뀔 때마다 그 왼쪽 단추([자동 채움]~[A+])와 가운데 도구 묶음이 옆으로 밀려 누르려던 단추가 손 밑에서 빠졌다
+   (1920 에서 진행 칩이 뜨면 [자동 채움] 658→490 · 새로고침 뒤 첫 편집(칩 없음→'저장 안 됨', '저장'→'저장 *') 780→690 ·
+   탭 바꿈('전달 대기함 14:33'↔'자동 저장 14:41', 딱지 단추 있고 없음) 44px). 그래서 글이 바뀌어도 폭이 그대로다:
+   - '미분류 N장 ›'·딱지 단추 묶음은 124px(미분류 칩 두 자리 장수 92 + 틈 6 + 딱지 단추 26)를 늘 잡아 두고, 비었을 때도
+     자리는 남긴 채 안 보이게만 한다. 단추는 저장 칩 쪽(오른쪽)부터 붙는다.
+   - 저장 칩은 가장 긴 글('전달 대기함 00:00' 약 113px)에 맞춘 118px 고정 폭 · 숨김일 때도 자리는 남긴다.
+   - [저장]은 '저장' 일 때도 ' *' 몫을 안 보이게 붙여 '저장 *' 와 폭이 같다(-5px = .dws-btn 의 틈).
+   - '알아보는 중' 칩은 앱바 안 자리를 쓰지 않고 앱바 바로 아래 오른쪽에 떠서 보인다(누름은 밑의 시트 탭으로 지나간다). */
+.dws-appbar .dws-part-status { min-width: 124px; justify-content: flex-end; }
+.dws-appbar .dws-part-status[hidden] { display: inline-flex; visibility: hidden; }
+.dws-appbar .dws-save-status { flex: 0 0 auto; width: 118px; text-align: center; }
+.dws-appbar .dws-save-status[hidden] { display: inline-block; visibility: hidden; }
+#dws-btn-save:not(.dws-dirty)::after { content: " *"; white-space: pre; visibility: hidden; margin-left: -5px; }
+/* '알아보는 중' 칩 — 앱바(position: relative) 밑에 뜬다. 글이 길면 글 칸만 말줄임하고 장수('3/8')는 늘 보인다
+   (part-status.js 가 글·장수를 두 칸에 나눠 넣는다). */
+.dws-appbar-right .dws-part-status-busy {
+  display: inline-flex;
+  align-items: center;
+  max-width: var(--dws-busy-max, 260px);
+  vertical-align: middle;
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 12px;
+  z-index: 2;                        /* 앱바 안 메뉴(60) 밑, 시트 탭·캔버스 위 */
+  pointer-events: none;
+  border-color: #c7d9f7;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.14);
+}
+.dws-appbar-right .dws-part-status-busy[hidden] { display: none; }
+.dws-part-status-busy-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 16px; }
+.dws-part-status-busy-count { flex: 0 0 auto; margin-left: 4px; white-space: nowrap; line-height: 16px; font-variant-numeric: tabular-nums; }
+.dws-part-status-busy-count[hidden] { display: none; }
+/* 옆으로 미는 줄(≤1179px, 펜슬·손가락은 ≤1279px)은 앱바가 스크롤 칸이라 그 밑으로 나간 칩이 잘린다 → 화면 기준으로 띄운다
+   (이 폭의 앱바는 backdrop-filter 가 없어 fixed 가 화면 기준이다 — 메뉴와 같은 방법). */
+@media (max-width: 1179px), (max-width: 1279px) and (pointer: coarse) {
+  .dws-appbar-right .dws-part-status-busy { position: fixed; top: 58px; right: 8px; }
+}
+@media (max-width: 1900px) {
+  .dws-tools-more { display: inline-flex; }
+  #dws-btn-autofill,
+  #dws-btn-arrange,
+  #dws-btn-calc { display: none; }
+}
+@media (max-width: 1700px) {
+  .dws-appbar-right .dws-fontctl,
+  .dws-appbar-right .dws-appbar-sep { display: none; }
+  .dws-tools-menu .dws-tools-font { display: block; }
+}
+@media (min-width: 901px) and (max-width: 1280px) {
+  .dws-seg-btn { padding: 6px 8px; }
+  #dws-btn-zoom-fit { display: none; }
+  .dws-tools-menu .dws-tools-fit { display: block; }
+}
+/* 901~1179px(펜슬·손가락은 901~1279px): 한 줄에 다 못 담는 폭 — ≤900 처럼 앱바를 옆으로 밀어 보는 한 줄로.
+   왼쪽 묶음은 줄지 않고, 메뉴는 앱바 스크롤에 잘리지 않게 화면 기준(fixed)으로 앱바 아래에 연다 — 가로 자리는
+   wizard-appbar.js placeMenu 가 단추 왼쪽에 맞춘다(아래 right: 8px 는 JS 전·JS 없을 때 자리). */
+@media (min-width: 901px) and (max-width: 1179px), (min-width: 901px) and (max-width: 1279px) and (pointer: coarse) {
+  .dws-appbar {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 8px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background: rgba(255, 255, 255, 0.98);
+  }
+  .dws-appbar::-webkit-scrollbar { height: 0; }
+  .dws-appbar-left { flex: 0 0 auto; min-width: max-content; }
+  .dws-appbar-titlewrap { flex: 0 1 auto; min-width: 0; contain: none; }
+  .dws-appbar-title { max-width: 30vw; }
+  .dws-appbar-center,
+  .dws-appbar-right { flex: 0 0 auto; }
+  #dws-shape-menu,
+  #dws-preset-menu,
+  #dws-export-menu,
+  #dws-tools-menu {
+    position: fixed;
+    top: 56px;
+    right: 8px;
+    left: auto;
+    max-width: calc(100vw - 16px);
+    max-height: calc(100vh - 68px);
+    overflow-y: auto;
+  }
+}
+/* 마우스로 쓰는 좁은 창: 옆으로 밀 수 있다는 걸 알게 얇은 스크롤 막대를 보인다(손가락은 밀어서 본다) */
+@media (min-width: 901px) and (max-width: 1179px) and (pointer: fine) {
+  .dws-appbar::-webkit-scrollbar { height: 6px; }
+  .dws-appbar::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.22); border-radius: 3px; }
 }
 
 .dws-restore-banner {
@@ -2206,3 +2497,450 @@ html, body {
   line-height: 1;
 }
 .dws-toast-close:hover { background: rgba(255, 255, 255, 0.2); }
+
+/* ---- 오른쪽 자재표 계산 칸(bom-panel.js, 설계서 2026-10-23 §3.6 — 그림자 판, 화면 글 '시험 계산') ----
+   배치 안 A(보고서 2026-10-25): 제목(ⓘ 안내) → 결과·맞춰 보기(고정) → 스크롤 구역(모듈 · 기본 · 근거 · 규칙 줄).
+   글자: 근거 13px #6e6e73 · 소제목 13px 굵은 검정 · 입력 테두리 #8e8e93(대비 3.26) · 칩 12px 굵게(줄바꿈 없음). */
+.dws-btn.dws-btn-on { background: #e8f1fd; border-color: rgba(0, 113, 227, 0.45); color: #0062c4; }
+.dws-calc {
+  position: relative;                /* 왼쪽 폭 손잡이(.dws-calc-grip) 기준 */
+  flex: 0 0 var(--dws-calc-w, 340px);
+  width: var(--dws-calc-w, 340px);   /* 손잡이로 280~420px(bom-panel.js setWidth) */
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+  border-left: 1px solid rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+  word-break: keep-all;              /* '빼/기'·'이하에/서' 처럼 낱말 가운데서 끊기지 않게 */
+  overflow-wrap: anywhere;
+}
+.dws-calc[hidden] { display: none; }
+.dws-calc-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 6px 0 14px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.07);
+}
+.dws-calc-title { font-size: 14px; font-weight: 700; color: #1d1d1f; white-space: nowrap; }
+.dws-calc-badge {
+  font-size: 12px;
+  color: #424245;
+  background: #f2f2f4;
+  border-radius: 980px;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+.dws-calc-info,
+.dws-calc-close {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  min-height: 32px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #6e6e73;
+  font: inherit;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+.dws-calc-close { margin-left: auto; }
+.dws-calc-info[aria-expanded="true"] { background: #e8f1fd; color: #0062c4; }
+.dws-calc-info:hover,
+.dws-calc-close:hover { background: rgba(0, 0, 0, 0.05); color: #1d1d1f; }
+.dws-calc-note {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 10px 14px;
+  background: #f5f7fa;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.07);
+  color: #424245;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.dws-calc-note[hidden] { display: none; }
+
+/* 결과 · 맞춰 보기 — 칸 맨 위에 고정(아래 스크롤 구역과 따로 움직인다).
+   아래 구역(.dws-calc-body)은 flex-basis 0 이라 근거·기본을 펴서 길어져도 이 칸을 줄이지 않는다 — 1366 에서
+   이 칸이 268→130px 로 줄어 결과가 2줄만 보이고 '더 보기'가 잘렸다(실화면 QA 2026-10-25). 칸 높이가 정말 모자라
+   아래 구역이 최소 120px 밑으로 갈 때만 이 칸이 줄어든다. */
+.dws-calc-top {
+  flex: 0 1 auto;
+  max-height: 45vh;                  /* '더 보기'로 펼쳐도 아래 입력 구역이 남게(넘치면 이 칸만 스크롤) */
+  overflow-y: auto;
+  padding: 0 10px 8px 14px;          /* 위 여백은 머리 줄(.dws-calc-top-head) 안에 둔다 — 아래 설명 */
+  background: #f5f5f7;
+  border-bottom: 2px solid #0071e3;
+  font-size: 13px;
+  color: #1d1d1f;
+}
+.dws-calc-top[hidden] { display: none; }
+/* 제목·요약 칩은 칸 위에 붙여 둔다 — 펼친 칸을 내려도 '결과 · 맞춰 보기'와 요약 칩이 보이게(실화면 QA 2026-10-25 V2:
+   1366×657 에서 '더 보기' 뒤 칸이 86px 내려가 제목·요약 칩·첫 줄이 머리 줄 밑에 숨었다). 칸 옆 안쪽 여백만큼 음수 여백으로
+   넓히고 칸과 같은 바탕을 깔아, 밑으로 지나가는 줄이 위·옆 틈으로 비치지 않게 한다.
+   위 여백은 칸이 아니라 이 줄이 가진다: 크롬은 붙는 자리(top:0)를 스크롤 칸의 위 여백 안쪽으로 잡아서, 칸에 위 여백 10px 과
+   이 줄의 음수 여백 -10px 을 함께 두면 이 줄만 10px 내려가 바로 밑의 빈 칸 안내 글·첫 결과 줄을 덮었다(스테이징 2026-10-26). */
+.dws-calc-top-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin: 0 -10px 0 -14px;           /* .dws-calc-top 옆 안쪽 여백(10·14)만큼 */
+  padding: 10px 10px 6px 14px;
+  background: #f5f5f7;
+}
+.dws-calc-top-title { font-size: 13px; font-weight: 700; color: #1d1d1f; }
+/* 요약은 길면 줄을 바꾼다 — 폭 상한이 없으면 줄바꿈 대신 칸 오른쪽 밖으로 넘쳐 '시트에만 4'가 잘렸다(1366) */
+.dws-calc-chip.dws-calc-score { white-space: normal; border-radius: 8px; max-width: 100%; box-sizing: border-box; }
+.dws-calc-res {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 8px;
+  min-height: 28px;
+  padding: 2px 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+.dws-calc-res:last-child { border-bottom: 0; }
+.dws-calc-res .dws-calc-val { flex: 0 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.dws-calc-res .dws-calc-chip { margin-left: auto; }
+.dws-calc-res-sub .dws-calc-val { font-weight: 500; }
+.dws-calc-res-extra .dws-calc-val { font-weight: 500; color: #424245; }
+.dws-calc-sec-name { flex: 0 0 48px; font-size: 12px; font-weight: 600; color: #6e6e73; }
+.dws-calc-more {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  margin-top: 2px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #0062c4;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.dws-calc-more:hover { background: rgba(0, 113, 227, 0.08); }
+.dws-calc-chip {
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+  white-space: nowrap;
+  border-radius: 980px;
+  padding: 2px 8px;
+}
+.dws-calc-chip-ok { background: #e7f6ec; color: #1b7f3b; }
+.dws-calc-chip-warn { background: #fff4e0; color: #8f5400; }
+.dws-calc-chip-bad { background: #fdecec; color: #b42318; }
+.dws-calc-chip-todo,
+.dws-calc-chip-extra { background: #ebebef; color: #55555a; }
+
+/* 스크롤 구역 — 모듈(펼침) · 기본(값이 차면 한 줄 요약) · 줄마다 계산 근거(접힘) · 규칙 줄 */
+.dws-calc-body { flex: 1 1 0; min-height: 120px; overflow-y: auto; padding: 2px 12px 24px 14px; font-size: 13px; color: #1d1d1f; }
+.dws-calc-fold { padding: 2px 0; border-bottom: 1px solid rgba(0, 0, 0, 0.07); }
+.dws-calc-fold-head { display: flex; align-items: center; gap: 8px; }
+.dws-calc-fold-btn {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-height: 36px;
+  padding: 8px 0;
+  border: 0;
+  background: transparent;
+  color: #1d1d1f;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.4;
+  text-align: left;
+  cursor: pointer;
+}
+.dws-calc-fold-mark { flex: 0 0 12px; color: #6e6e73; }
+.dws-calc-fold-label { min-width: 0; }
+.dws-calc-fold-body { padding: 0 0 10px; }
+.dws-calc-fold-body[hidden] { display: none; }
+.dws-calc-add { flex: 0 0 auto; }
+.dws-calc-fold-head .dws-calc-small { margin-top: 0; }
+.dws-calc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 10px; }
+.dws-calc-field { display: flex; flex-direction: column; gap: 3px; font-size: 13px; color: #424245; min-width: 0; }
+.dws-calc-field[hidden] { display: none; }
+.dws-calc-field input,
+.dws-calc-field select,
+.dws-calc-mods input,
+.dws-calc-mods select {
+  width: 100%;
+  min-width: 0;
+  min-height: 32px;
+  box-sizing: border-box;
+  border: 1px solid #8e8e93;         /* 대비 3.26(이전 1.38) — 빈 칸이 어디 있는지 보이게 */
+  border-radius: 6px;
+  padding: 5px 7px;
+  font: inherit;
+  font-size: 14px;
+  color: #1d1d1f;
+  background: #ffffff;
+}
+.dws-calc-field input:focus,
+.dws-calc-field select:focus,
+.dws-calc-mods input:focus,
+.dws-calc-mods select:focus { outline: 2px solid rgba(0, 113, 227, 0.45); outline-offset: 0; border-color: #0071e3; }
+.dws-calc-field input:disabled,
+.dws-calc-field select:disabled,
+.dws-calc-mods input:disabled,
+.dws-calc-mods select:disabled { background: #f5f5f7; color: #6e6e73; border-color: #c7c7cc; }
+.dws-calc-small { margin-top: 8px; min-height: 32px; padding: 6px 12px; font-size: 13px; }
+.dws-calc-mods { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.dws-calc-mods th { font-size: 12px; font-weight: 600; color: #6e6e73; text-align: left; padding: 0 3px 3px; }
+.dws-calc-mods td { padding: 2px 3px; }
+.dws-calc-mods th:first-child, .dws-calc-mods td:first-child { width: 22px; }
+.dws-calc-mods th:last-child, .dws-calc-mods td:last-child { width: 46px; }
+/* 모듈 폭 열 — 네 칸이 똑같이 나뉘어 폭 칸이 55px 일 때 숫자 칸 위아래 화살표(약 15px)와 여백 7px 에 밀려
+   '1000'이 '100'까지만 보였다(실화면 QA 2026-10-25). 폭 열을 62px 로 고정하고(칸 폭 280px 에서도 네 자리가 보임)
+   문 짝·서랍·옷봉이 남은 폭을 나눈다. 화살표는 숨기고(값은 키보드 ↑↓로도 바뀐다) 여백은 4px, 숫자 폭은 고르게. */
+.dws-calc-mods th:nth-child(2), .dws-calc-mods td:nth-child(2) { width: 62px; }
+.dws-calc-mods input,
+.dws-calc-mods select { padding-left: 4px; padding-right: 4px; font-variant-numeric: tabular-nums; }
+.dws-calc-mods input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+.dws-calc-mods input[type="number"]::-webkit-inner-spin-button,
+.dws-calc-mods input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.dws-calc-no { color: #6e6e73; font-size: 13px; font-weight: 600; }
+.dws-calc-del {
+  min-width: 40px;
+  min-height: 32px;
+  padding: 0 2px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #b42318;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.dws-calc-del:hover:not(:disabled) { background: #fdecec; }
+.dws-calc-del:disabled { color: #aeaeb2; cursor: default; }
+.dws-calc-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.dws-calc-actions .dws-calc-small { margin-top: 0; }
+.dws-calc-sum { font-size: 13px; color: #424245; }
+.dws-calc-split[hidden] { display: none; }   /* .dws-btn 의 inline-flex 가 hidden 을 이기지 않게 */
+.dws-calc-empty { margin: 0; color: #6e6e73; font-size: 13px; line-height: 1.5; }
+.dws-calc-hint { margin: 6px 0 0; font-size: 12px; line-height: 1.45; color: #6e6e73; }
+.dws-calc-mods-note { margin: 0 0 6px; }
+.dws-calc-head-line { margin-top: 8px; font-weight: 700; font-size: 13px; }
+.dws-calc-line { display: flex; flex-direction: column; gap: 1px; padding: 3px 0 3px 8px; }
+.dws-calc-val { font-variant-numeric: tabular-nums; font-weight: 600; }
+.dws-calc-why { font-size: 13px; line-height: 1.45; color: #6e6e73; }
+.dws-calc-rules-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  min-height: 32px;
+  margin-top: 10px;
+  font-size: 13px;
+  color: #424245;
+}
+.dws-calc-rules-row .dws-calc-small { margin: 0 0 0 auto; }
+
+/* 칸 폭 손잡이(왼쪽 가장자리, 끌거나 ←/→) */
+.dws-calc-grip {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 2;
+  width: 8px;
+  cursor: col-resize;
+  touch-action: none;
+}
+.dws-calc-grip:hover,
+.dws-calc-grip:focus-visible { background: rgba(0, 113, 227, 0.25); outline: none; }
+
+/* 규칙 창(bom-rules-dialog.js) — 칸 밖 대화 상자에서 18칸을 본다.
+   1366×768 에서 창이 736px 로 막혀 [닫기]·[규칙 저장] 줄이 26px 잘리고 스크롤해야 보였다(실화면 QA 2026-10-25)
+   → 창을 세로 flex 로 놓아 제목·마지막 고침·안내·단추 줄은 늘 보이고 18칸 묶음만 스크롤한다. */
+.dws-calc-rules-dialog { width: 640px; max-width: calc(100vw - 32px); max-height: calc(100vh - 32px); overflow: auto; }
+.dws-calc-rules-dialog[open] { display: flex; flex-direction: column; }
+.dws-calc-rules-dialog .dws-dialog-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 16px 20px 20px;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+.dws-calc-rules-head { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; margin-bottom: 2px; }
+.dws-calc-rules-head .dws-dialog-title { margin: 0; }
+.dws-calc-rules-body { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.dws-calc-rules-meta { flex: 0 0 auto; margin: 2px 0 0; font-size: 13px; font-weight: 600; color: #424245; }   /* 마지막 고침: 이름 · 시각 */
+.dws-calc-rules-intro { flex: 0 0 auto; margin: 2px 0 12px; }
+.dws-calc-rules-grid {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;                  /* 창이 낮으면 이 묶음만 스크롤 */
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-content: start;
+  gap: 10px 14px;
+  margin: 0 0 14px;
+  padding: 2px;                      /* 스크롤 칸 가장자리에서 입력 칸 포커스 테두리가 잘리지 않게 */
+}
+.dws-calc-rule { gap: 4px; }
+.dws-calc-rule-wide { grid-column: 1 / -1; }  /* 표준 문 높이 목록이 '…2260, 2' 로 잘리지 않게 */
+.dws-calc-rule-name { font-size: 13px; color: #424245; word-break: keep-all; }
+.dws-calc-rule-input { display: flex; align-items: center; gap: 6px; }
+.dws-calc-rule-input input { flex: 1 1 auto; }
+.dws-calc-unit { flex: 0 0 auto; font-size: 12px; color: #6e6e73; }
+.dws-calc-rule.dws-calc-changed input { border: 2px solid #b35300; padding: 4px 6px; background: #fffaf3; }
+.dws-calc-rule-base { font-size: 12px; font-weight: 600; color: #9a4700; }
+.dws-calc-rule-base[hidden] { display: none; }
+.dws-calc-rules-actions { flex: 0 0 auto; margin-top: 4px; }
+
+/* 굵은 포인터(펜슬·손가락) — 누르는 칸 40px.
+   'screen and' 를 붙인 까닭: test_drawing_wizard_help_zoom_touch 가 파일에서 마지막으로 나오는 굵은 포인터
+   미디어 덩어리(앞에 screen 이 없는 것)를 앱바·탭 터치 규칙으로 읽는다. 계산 칸 규칙은 이 덩어리에 따로 둔다. */
+@media screen and (pointer: coarse) {
+  .dws-calc-info,
+  .dws-calc-close,
+  .dws-calc-del { min-width: 40px; min-height: 40px; }
+  .dws-calc-small,
+  .dws-calc-more,
+  .dws-calc-fold-btn { min-height: 40px; }
+  .dws-calc-mods th:last-child, .dws-calc-mods td:last-child { width: 48px; }
+  .dws-calc-grip { width: 14px; }
+}
+@media (max-width: 900px) {
+  .dws-calc {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 120;   /* 좌측 제품 드로어와 같은 층 */
+    width: min(360px, 100vw);
+    box-shadow: -8px 0 24px rgba(0, 0, 0, 0.12);
+  }
+  .dws-calc-grip { display: none; }   /* 겹쳐 여는 칸이라 폭을 바꾸지 않는다 */
+}
+@media (max-width: 600px) {
+  .dws-calc-rules-grid { grid-template-columns: 1fr; }
+}
+
+/* ============================================================================
+   그림 종류 이름 딱지 · 앱바 상태 칩 (part-badges.js — 사용성 평가 큼-7·큼-8·보통-1)
+   - 딱지 층은 줌 배율이 걸린 스테이지(.dws-stage) 안에 두고 딱지만 배율을 되돌린다: 100% 이상은 늘 12px,
+     100% 아래에서는 배율을 따라 80%(9.6px)까지 준다(마지막 실화면 확인 V1 — 1366 맞춤 74% 에서 12px 딱지가 그림보다
+     커 보여 치수를 덮었다. part-badge-spot.js badgeScale 과 같은 식). 누름은 통과(pointer-events: none).
+   - .dws-ui 라 내보내기·저장 그림(.dws-exporting)에는 찍히지 않는다.
+   - AI 짐작 = 점선 흰 바탕, 사람 확인 = 초록 '✓ 종류'(조금 비친다 — 밑의 선이 아주 안 보이지 않게), 미분류 = 주황 채움
+     (글자 대비 4.5 이상 — 초록은 흰 바탕 위에서 5.0).
+   - 자리는 part-badge-spot.js 가 고른다(그림 틀 위 바깥·틀에 걸침·안쪽 위아래 중 글자를 덜 가리는 곳).
+     좁으면 앞 글('AI 72% · ')을 빼고(-short), 마우스를 올린 그림·하나만 고른 그림 위에 걸치면 흐리게(-dim),
+     하나만 고른 그림의 제 딱지는 숨김(-sel).
+   ============================================================================ */
+.dws-pbadges {
+  position: absolute;
+  inset: 0;
+  z-index: 12;                       /* 주석 캔버스(10)·표 경계선 히트존(11) 위 */
+  pointer-events: none;
+  overflow: hidden;
+}
+.dws-pbadges.dws-pbadges-off { display: none; }   /* 앱바 딱지 단추로 모두 숨김 */
+.dws-pbadge {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform: scale(calc(clamp(0.8, var(--dws-zoom, 1), 1) / var(--dws-zoom, 1)));
+  transform-origin: 0 0;
+  padding: 1px 6px;
+  border: 1.5px solid transparent;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 16px;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.22);
+  transition: opacity 0.12s ease;
+}
+.dws-pbadge-ai { background: #ffffff; color: #1d1d1f; border: 1.5px dashed #6e6e73; }
+.dws-pbadge-user { background: rgba(20, 108, 49, 0.88); color: #ffffff; border-color: transparent; }
+.dws-pbadge-unsure { background: #a54a00; color: #ffffff; border-color: #a54a00; }
+.dws-pbadge-short .dws-pbadge-pre { display: none; }   /* 그림 폭보다 길거나 가릴 때 — 종류 이름만 */
+.dws-pbadge-dim { opacity: 0.25; }                     /* 마우스를 올린 그림·하나만 고른 그림 위에 걸친 딱지 — 밑의 치수를 읽게 */
+.dws-pbadge-sel { visibility: hidden; }                /* 하나만 고른 그림 — 미니 막대가 같은 글, 회전 손잡이를 안 가리게 */
+
+/* 미니 막대 종류 칸 옆 짧은 글('AI 72%' · '확인' · '골라 주세요')과 [맞음](= Enter) 단추 */
+.dws-pbadge-hint { font-size: 12px; font-weight: 600; color: #f5f5f7; white-space: nowrap; padding: 0 2px; }
+.dws-pbadge-hint[data-kind="user"] { color: #7ee2a0; }
+.dws-pbadge-hint[data-kind="unsure"] { color: #ffb067; }
+.dws-pbadge-hint[hidden],
+.dws-pbadge-ok[hidden] { display: none; }
+.dws-mt-btn.dws-pbadge-ok { white-space: nowrap; border-color: rgba(52, 199, 89, 0.7); background: rgba(52, 199, 89, 0.2); }
+.dws-mt-btn.dws-pbadge-ok:hover { background: rgba(52, 199, 89, 0.34); }
+
+/* 앱바 칩 묶음(#dws-part-status, 저장 상태 칩 앞) — '그림 종류 알아보는 중 3/8' · '미분류 N장 ›' */
+.dws-part-status { display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto; }
+.dws-part-status[hidden] { display: none; }
+.dws-part-status-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: 980px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+}
+.dws-part-status-chip[hidden] { display: none; }
+.dws-part-status-busy { background: #eef4ff; color: #0a59c9; }
+/* 모델이 이 브라우저에 있는지 답이 오기 전(0.1초쯤)은 글 없이 장수만 — 글이 바뀌며 깜빡이지 않게(part-status.js loading null) */
+.dws-part-status-busy-text[hidden] { display: none; }
+.dws-part-status-busy-text[hidden] + .dws-part-status-busy-count { margin-left: 0; }
+.dws-part-status-unsure {
+  position: relative;
+  appearance: none;
+  -webkit-appearance: none;
+  border-color: rgba(165, 74, 0, 0.45);
+  background: #fff4e5;
+  color: #a54a00;
+  cursor: pointer;
+}
+.dws-part-status-unsure::before { content: ""; position: absolute; inset: -8px -2px; }   /* 펜슬·손가락 누름 자리 42px */
+.dws-part-status-unsure:hover { background: #ffe8cc; }
+.dws-part-status-unsure:focus-visible { outline: 2px solid #0071e3; outline-offset: 2px; }
+/* 딱지 숨기기 단추(딱지 모양 26px — 숨긴 동안은 눌린 모양에 빗금). 딱지가 붙은 그림이 있을 때만 보인다. */
+.dws-part-status-eye {
+  position: relative;
+  justify-content: center;
+  width: 26px;
+  padding: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  border-color: #d2d2d7;
+  background: #ffffff;
+  color: #424245;
+  cursor: pointer;
+}
+.dws-part-status-eye::before { content: ""; position: absolute; inset: -8px -4px; }   /* 펜슬·손가락 누름 자리 42px */
+.dws-part-status-eye:hover { background: #f5f5f7; color: #1d1d1f; }
+.dws-part-status-eye:focus-visible { outline: 2px solid #0071e3; outline-offset: 2px; }
+.dws-part-status-eye[aria-pressed="true"] { background: #e8e8ed; border-color: #86868b; color: #1d1d1f; }
+.dws-part-status-eye .dws-part-eye-slash { display: none; }
+.dws-part-status-eye[aria-pressed="true"] .dws-part-eye-slash { display: inline; }
