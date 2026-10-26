@@ -5078,8 +5078,10 @@
         splitIds = window.FomsSheetIds ? window.FomsSheetIds.splitDupIds(state.sheets, newObjId) : 0;   // 시트 사이 겹친 그림 id 떼기
       } else {
         // 저장된 도면 없음 → 빈 상태(기본 시트 자동 생성 안 함). 제품 클릭/+시트로만 시트 생성.
+        // 시트를 다 지우고 저장한 주문은 서버 상태(updated_at)가 남아 있다 — 그 시각을 버리면 다음 저장이
+        // '다른 사용자가 먼저 저장' 409 로 막혔다(스테이징 실화면 2026-10-26). 있으면 그대로 기준으로 쓴다.
         state = { v: 1, sheets: [] };
-        baseUpdatedAt = null;
+        baseUpdatedAt = (d.state && d.state.updated_at) || null;
       }
       current = 0;
       resetAllHistories();
