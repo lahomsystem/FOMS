@@ -43,6 +43,14 @@ CHANNEL_PUSH_RECORDED_EFFECT_TYPE = "CHANNEL_PUSH_RECORDED"
 #: **진짜 배달 실패가 그 안에 묻힌다**(채널톡 1,188행에서 겪은 그대로다).
 STAGE_NOTIFICATION_EFFECT_TYPE = "STAGE_NOTIFICATION"
 
+#: 물류 상태 전이(`SET_LOGISTICS_STATUS`)·보류/해제(`HOLD_ORDER`·`RELEASE_HOLD`)가 남기는 행.
+#: STAGE_NOTIFICATION 과 같은 **소비자 미구현**이다. 2026-10-16 PR #568(지방 주문 직접 완료가
+#: 물류 상태를 NONE 으로 되돌림)부터 LOGISTICS_NOTIFICATION 이 실제로 생기기 시작해 운영에
+#: DEAD 6행(2026-10-26)이 쌓였고, 매일 `worker-heartbeat-daily` 가 `dead_count` 로 빨갰다.
+#: 주문 쪽 저장은 같은 tx 라 손실은 없다. HOLD_NOTIFICATION 은 아직 0행이지만 같은 구멍이다.
+LOGISTICS_NOTIFICATION_EFFECT_TYPE = "LOGISTICS_NOTIFICATION"
+HOLD_NOTIFICATION_EFFECT_TYPE = "HOLD_NOTIFICATION"
+
 
 def handle_record_only(row: DomainSideEffectOutbox) -> None:
     """기록 전용 outbox 행을 즉시 완료 처리한다(부수효과 0).

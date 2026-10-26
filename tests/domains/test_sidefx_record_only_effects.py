@@ -23,8 +23,11 @@ from typing import Any
 
 import pytest
 
+from foms.services.orders.order_transition_service import COMMAND_REGISTRY
 from foms.services.record_only_effects import (
     CHANNEL_PUSH_RECORDED_EFFECT_TYPE,
+    HOLD_NOTIFICATION_EFFECT_TYPE,
+    LOGISTICS_NOTIFICATION_EFFECT_TYPE,
     STAGE_NOTIFICATION_EFFECT_TYPE,
     handle_record_only,
 )
@@ -139,8 +142,25 @@ def test_registered_handler_set_is_closed(monkeypatch) -> None:
         "STORAGE_DELETE", "GEOCODE", "ALIMTALK_SEND",
         "MEAS_SAME_DAY_ALERT", "NOTIFICATION",
         CHANNEL_PUSH_RECORDED_EFFECT_TYPE, STAGE_NOTIFICATION_EFFECT_TYPE,
+        LOGISTICS_NOTIFICATION_EFFECT_TYPE, HOLD_NOTIFICATION_EFFECT_TYPE,
     }
-    assert registered[STAGE_NOTIFICATION_EFFECT_TYPE].__name__ == "handle_unimplemented_consumer"
+    for effect_type in (STAGE_NOTIFICATION_EFFECT_TYPE, LOGISTICS_NOTIFICATION_EFFECT_TYPE,
+                        HOLD_NOTIFICATION_EFFECT_TYPE):
+        assert registered[effect_type].__name__ == "handle_unimplemented_consumer"
+
+
+def test_every_transition_effect_type_has_a_handler() -> None:
+    """단계 전이 등록표가 남기는 effect_type 은 전부 러너에 handler 가 있다.
+
+    2026-10-16: SET_LOGISTICS_STATUS 가 실제로 쓰이기 시작하자 LOGISTICS_NOTIFICATION 행이
+    handler 없이 DEAD 로 쌓여 운영 `worker-heartbeat-daily` 가 10일 연속 빨갰다. 만드는 쪽
+    (COMMAND_REGISTRY)과 받는 쪽(러너 등록)을 대조하는 계약이 없어서 못 잡았다.
+    """
+    registered = _registered_effect_types()
+    produced = {cmd.effect_type for cmd in COMMAND_REGISTRY.values() if cmd.effect_type}
+    assert produced, "COMMAND_REGISTRY 에서 effect_type 을 하나도 못 읽었다"
+    missing = sorted(produced - set(registered))
+    assert missing == [], f"handler 없이 DEAD 로 쌓일 effect_type: {missing}"
 
 
 def test_unregistered_effect_type_still_fails_closed() -> None:
