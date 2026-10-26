@@ -625,3 +625,30 @@ def test_round_chart_html_follows_sort_order_not_id(client) -> None:
     response = client.get(f"/erp/as/timeline/{order.id}")
     html = response.get_data(as_text=True)
     assert html.find("first.jpg") < html.find("mid.jpg") < html.find("late.jpg")
+
+
+def test_as_reregister_carries_reception_photos_to_new_entry(client) -> None:
+    """같은 건 재접수로 문구를 고치면 직전 접수 사진이 새 접수 줄로 따라온다(운영 #5736)."""
+    _login_admin(client, username="as-bind-reregister")
+    order = _as_order()
+    order_id = order.id
+    first = client.post(f"/api/orders/{order_id}/as/register", json={"as_content": "선반 재 발송"})
+    assert first.status_code == 200
+    first_id = first.get_json()["reception_log_id"]
+    photo = OrderAttachment(
+        order_id=order_id, filename="shelf.jpg", file_type="image", category="as",
+        as_log_id=first_id, storage_key=f"orders/{order_id}/shelf.jpg",
+    )
+    db_session.add(photo)
+    db_session.commit()
+    photo_id = photo.id
+
+    second = client.post(
+        f"/api/orders/{order_id}/as/register", json={"as_content": "선반 재 발송\n도어 조시"}
+    )
+    assert second.status_code == 200
+    second_id = second.get_json()["reception_log_id"]
+    assert second_id and second_id != first_id
+
+    db_session.expire_all()
+    assert db_session.get(OrderAttachment, photo_id).as_log_id == second_id

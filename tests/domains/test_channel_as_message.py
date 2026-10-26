@@ -241,3 +241,21 @@ def test_build_as_push_text_round_block_plain_texts_html() -> None:
 
     assert "- 8/13 메모: 상판 교체" in text
     assert "<" not in text
+
+
+def test_build_as_push_text_uses_latest_reception_in_same_cycle() -> None:
+    """옛 재접수가 같은 건에 접수 항목 2개를 남긴 주문(운영 #5736) — 마지막 접수가 본문이다."""
+    cycle = "c-1"
+    sd = {
+        "shipment": {
+            "as_cycles": [{"cycle_id": cycle}],
+            "as_log": [
+                {"id": "a", "type": "reception", "cycle_id": cycle, "text": "선반 재 발송"},
+                {"id": "b", "type": "reception", "cycle_id": cycle, "text": "1. 선반 재 발송 2. 도어 조시"},
+            ],
+        },
+    }
+    from foms.services.orders import as_log
+    import unittest.mock as mock
+    with mock.patch.object(as_log, "current_as_cycle_id", return_value=cycle):
+        assert as_log.current_reception_entry(sd)["id"] == "b"

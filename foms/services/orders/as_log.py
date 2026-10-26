@@ -175,6 +175,10 @@ def current_reception_entry(sd: dict | None) -> dict | None:
 
     ``shipment.as_content`` 는 접수 시점 문구라 기록 수정 전 주문에서는 낡아 있을 수 있다 —
     증상 줄·AS PUSH 처럼 "지금 접수 내용"을 보여 주는 곳은 이 항목을 먼저 읽는다.
+
+    같은 건 재접수(``_apply_reregistration``)는 cycle 을 새로 열지 않고 접수 항목을 하나 더
+    쌓는다 — 그래서 **마지막** 접수가 지금 내용이다. 첫 항목을 고르면 재접수로 고친
+    문구가 PUSH 에 실리지 않는다(운영 #5736, 2026-10-26).
     """
     cycle_id = current_as_cycle_id(sd)
     if not cycle_id:
@@ -183,7 +187,7 @@ def current_reception_entry(sd: dict | None) -> dict | None:
     if not isinstance(entries, list):
         return None
     return next((
-        e for e in entries if isinstance(e, dict) and e.get("deleted") is not True
+        e for e in reversed(entries) if isinstance(e, dict) and e.get("deleted") is not True
         and e.get("type") == "reception" and e.get("cycle_id") == cycle_id), None)
 
 

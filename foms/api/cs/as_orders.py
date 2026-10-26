@@ -63,11 +63,13 @@ from foms.services.orders.as_log import (
     coerce_client_log_type,
     current_as_cycle_id,
     current_as_round,
+    current_reception_entry,
     decorate_entry,
     migrate_legacy_into_log,
 )
 from foms.services.orders.as_upload_anchor import (
     append_as_upload_park,
+    carry_over_reception_attachments,
     lock_as_upload_anchor,
     peek_as_upload_anchor,
     promote_parked_as_attachments,
@@ -664,6 +666,11 @@ def api_as_register(order_id):
         already_logged = bool(as_content) and as_content == shipment.get("as_content") and bool(
             same_text_ids
         )
+        # 열린 건 재접수는 새 접수 항목을 쌓는다(타임라인 계약). 그 전 접수 항목에 붙은
+        # 첨부는 새 항목으로 옮겨야 한다 — 안 그러면 "수정하면 사진이 사라진다"(운영 #5736).
+        prior_reception = None if new_cycle else current_reception_entry(sd)
+        if prior_reception is not None:
+            captured_register["prior_reception_log_id"] = str(prior_reception.get("id") or "")
         if as_content and not already_logged:
             entry = append_client_log(
                 sd, log_type="reception", text=as_content,
@@ -692,6 +699,9 @@ def api_as_register(order_id):
             shipment["as_billing"] = billing
         rec_id = str(captured_register.get("reception_log_id") or "")
         if rec_id:
+            carry_over_reception_attachments(
+                db, order, captured_register.get("prior_reception_log_id") or "", rec_id,
+            )
             promote_parked_as_attachments(
                 db, order, sd, rec_id,
                 deleted_by=(user.name if user else "") or "시스템",
