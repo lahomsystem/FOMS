@@ -223,3 +223,43 @@ out.slot = withU.slots.find(s => s.key === 'unsorted');
     assert out["main"][1] >= 0.75 * out["main"][0]       # 예전엔 미분류 한 장에 큰 그림이 반으로 줄었다
     assert out["uBottom"] <= 848 and out["slot"]["w"] <= 1374
     assert out["slot"]["w"] <= 200 or out["uH"] <= 170 - 24     # 오른쪽 좁은 기둥 또는 맨 아래 낮은 줄
+
+
+def test_ai_slot_guess_places_unsure_pictures_and_titles_follow_contents():
+    """세부 확신이 낮아 미분류여도 칸 확신(form.v2_ai)이 있으면 그 칸 — 이름표는 미분류 그대로(사람 확인). 칸 이름은 든 그림 종류."""
+    out = _run(r"""
+const u = (id, ai, conf) => img(id, null, 0, 0, 600, 500, { part: { label: '미분류', src: 'ai', ai, conf } });
+const objs = [img('c1', '입체·내부', 0, 0, 1700, 1200), u('cc', '정면·도어', 0.36), u('w1', '입체·내부', 0.36),
+  u('dd', '정면·도어', 0.3), u('xx', '부품 상세', 0.2), img('t1', '평면·상판', 0, 0, 1300, 1000),
+  img('d1', '서랍 단면', 0, 0, 500, 400), img('d2', '부품 상세', 0, 0, 400, 240),
+  img('me', null, 0, 0, 600, 500, { part: { label: '미분류', src: 'user', ai: '정면·도어', conf: 0.3 } })];
+const text = 'cc=f68 w1=f76 dd=d55 me=f90 gone=i70 bad=z50';
+const guess = S.parseGuess(text);
+const g = S.group(objs, { guess });
+const ids = k => g[k].map(o => o.id);
+out.guessKeys = Object.keys(guess).sort();
+out.main = ids('main'); out.detail = ids('detail'); out.unsorted = ids('unsorted');
+out.labels = [g.labels.cc, g.labels.w1, g.lay.cc, g.lay.w1, g.lay.dd];
+out.guessed = Object.keys(g.guess).sort();
+out.titles = [S.title('main', g, false), S.title('detail', g, false), S.title('plan', g, false), S.title('unsorted', g, false)];
+const empty = S.group([], {});
+out.empty = [S.title('main', empty, false), S.title('main', empty, true), S.title('iso', empty, true), S.title('detail', empty, false)];
+const k = S.group(objs, { guess, kitchen: true });
+out.kitchen = [k.main.map(o => o.id), k.iso.map(o => o.id), S.title('main', k, true), S.title('iso', k, true)];
+out.off = S.group(objs, { guess, lowToUnsorted: false }).labels.cc;
+out.fmt = S.formatGuess(guess, objs);
+const many = {}; for (let i = 0; i < 80; i++) { many['o-' + i + 'abcdef'] = { fam: 'f', conf: 0.6 }; }
+const manyObjs = Object.keys(many).map(id => img(id, null, 0, 0, 10, 10));
+out.capLen = S.formatGuess(many, manyObjs).length;
+""")
+    assert out["guessKeys"] == ["cc", "dd", "gone", "me", "w1"]          # 모르는 칸 글자(z)는 버린다
+    assert out["main"] == ["c1", "cc", "w1"] and "dd" in out["detail"]
+    assert out["unsorted"] == ["xx", "me"]                              # 짐작 없음 · 사람이 미분류로 고름 = 미분류 칸
+    assert out["labels"] == ["미분류", "미분류", "정면·도어", "정면·내부", "부품 상세"]   # 첫 짐작이 다른 칸이면 대표 이름표
+    assert out["guessed"] == ["cc", "dd", "w1"]
+    assert out["titles"] == ["정면 · 입체", "서랍 단면 · 부품 상세", "평면 · 상판", "기타 그림"]   # 제품 이름이 아니다
+    assert out["empty"] == ["큰 그림", "정면", "입체", "상세"]
+    assert out["kitchen"] == [["cc", "w1"], ["c1"], "정면", "입체"]
+    assert out["off"] == "정면·도어"                                   # 미분류 끄기 = AI 첫 짐작 그대로
+    assert out["fmt"] == "cc=f68 w1=f76 dd=d55 me=f90"                 # 시트에 없는 그림은 뺀다
+    assert 0 < out["capLen"] <= 500                                    # 폼 한 칸 한도

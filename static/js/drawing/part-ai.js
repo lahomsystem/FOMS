@@ -9,8 +9,12 @@
  *
  * - 여러 장은 한 장씩 차례로, 사이사이 화면을 한 번 그리게 하고 돌린다(진행 칩 'n/N' 이 보이게 — 사용성 재평가 2026-10-25).
  *
- * window.FomsPartAI = { LABELS, KEY_LABELS, classify(img) → Promise<{label, ai, conf, head}|null>, warm(), threshold(),
- *   cached() → Promise<bool>(모델이 이미 이 브라우저에 있나) }
+ * - 칸 짐작(fam · famConf): 세부 종류는 헷갈려도 칸은 확신할 때가 많다(정면·도어 0.28 + 입체·도어 0.24 … = 큰 그림 0.68).
+ *   묶음 확률 합 — 큰 그림(정면 + 입체) · 상세(서랍 단면 + 부품 상세) · 평면 · 사진 · 그림 아님 — 중 가장 큰 묶음.
+ *   큰 그림이면 정면 · 입체 중 큰 쪽('front' | 'iso', 주방 두 칸용). V2 화면이 미분류 그림을 그 칸에 놓을 때 쓴다.
+ *
+ * window.FomsPartAI = { LABELS, KEY_LABELS, classify(img) → Promise<{label, ai, conf, head, fam, famConf}|null>, warm(), threshold(),
+ *   cached() → Promise<bool>(모델이 이미 이 브라우저에 있나), family(labels, probs) }
  */
 (function () {
   'use strict';
@@ -156,7 +160,22 @@
     var sum = 0;
     var exps = logits.map(function (l) { var e = Math.exp(l - maxL); sum += e; return e; });
     exps.forEach(function (e, idx) { if (e > bestP) { bestP = e; best = idx; } });
-    return { label: head.labels[best], conf: bestP / sum };
+    return { label: head.labels[best], conf: bestP / sum, probs: exps.map(function (e) { return e / sum; }) };
+  }
+
+  var GROUP = { '정면·내부': 'big', '정면·도어': 'big', '입체·내부': 'big', '입체·도어': 'big', '서랍 단면': 'detail', '부품 상세': 'detail',
+    '평면·상판': 'plan', '사진': 'photo', '그림 아님': 'none' };
+
+  /** 칸 짐작 — 묶음 확률 합이 가장 큰 묶음과 그 합. 큰 그림 묶음은 정면 · 입체 중 큰 쪽으로 돌려준다. */
+  function family(labels, probs) {
+    var sum = { big: 0, detail: 0, plan: 0, photo: 0, none: 0 }, front = 0, iso = 0, best = 'none';
+    labels.forEach(function (l, i) {
+      var p = probs[i] || 0, k = GROUP[l] || 'none';
+      sum[k] += p;
+      if (/^정면/.test(l)) { front += p; } else if (/^입체/.test(l)) { iso += p; }
+    });
+    Object.keys(sum).forEach(function (k) { if (sum[k] > sum[best]) { best = k; } });
+    return { fam: best === 'big' ? (front >= iso ? 'front' : 'iso') : best, conf: Math.round(sum[best] * 1000) / 1000 };
   }
 
   /** 모델이 이 브라우저(Cache Storage)에 이미 있나 — 진행 칩이 '모델 받는 중'을 띄울지 고른다(사용성 재평가 QA1·QA3). */
@@ -196,8 +215,9 @@
       }).then(function (out) {
         var p = predict(ctx.head, pool(out));
         var th = typeof ctx.head.threshold === 'number' ? ctx.head.threshold : 0.5;
-        var conf = Math.round(p.conf * 1000) / 1000;
-        return { label: conf >= th ? p.label : UNSURE, ai: p.label, conf: conf, head: String(ctx.head.version || 'h0') };
+        var conf = Math.round(p.conf * 1000) / 1000, fam = family(ctx.head.labels, p.probs);
+        return { label: conf >= th ? p.label : UNSURE, ai: p.label, conf: conf, head: String(ctx.head.version || 'h0'),
+          fam: fam.fam, famConf: fam.conf };
       });
     }).catch(function (err) {
       warnOnce('분류를 건너뜁니다(손으로 고르세요)', err);
@@ -208,7 +228,7 @@
   }
 
   window.FomsPartAI = {
-    LABELS: LABELS, KEY_LABELS: KEY_LABELS, UNSURE: UNSURE, classify: classify, warm: warm, cached: cached,
+    LABELS: LABELS, KEY_LABELS: KEY_LABELS, UNSURE: UNSURE, classify: classify, warm: warm, cached: cached, family: family,
     threshold: function () { return threshold; }
   };
 })();

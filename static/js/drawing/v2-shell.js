@@ -7,6 +7,8 @@
  * - 되돌리기: 사람이 한 일(올리기 · 종류 바꾸기)과 그 뒤 배치는 Ctrl+Z 한 번(그 일이 이미 남긴 사본으로 돌아간다).
  *   [다시 자동 배치] · 틀 고르기 · 켜고 끄기 · 나누기는 따로 한 번.
  * - 실측 사진 자동: 첫 배치 때 사진 그림이 없고 실측 사진이 있으면 한 장 골라 넣는다(폼 v2_photo = 'done' — 시트마다 한 번).
+ * - AI 칸 짐작: AI 이름표가 미분류(세부 확신 낮음)여도 칸 확신이 문턱을 넘으면 폼 v2_ai 에 남겨 그 칸에 놓는다(v2-slots).
+ * - 사람이 종류를 고르면(자동 배치 모드) 그 그림의 고정(손으로 옮김)을 풀어 새 종류 칸으로 보낸다 — 잠금 · 돌림은 그대로.
  *
  * window.FomsV2 = { refresh(), arrange(reason, opts), plan(), settings(), setSetting(k, v), mode(), setMode(m),
  *   relabel(id, label), selectIds(ids), split(), pickTemplate(t), unpinAll(), core }
@@ -144,6 +146,40 @@
 
   function relabel(id, label) { core.setPartLabel(id, label); }   // labels 사건 → 자동 배치 모드면 다시 배치
 
+  function sheetWith(id) {
+    return (core.state().sheets || []).filter(function (sh) { return (sh.objects || []).some(function (o) { return o.id === id; }); })[0] || null;
+  }
+
+  function writeGuess(sh, map) {
+    var text = window.FomsV2Slots.formatGuess(map, sh.objects);
+    sh.form = sh.form || {};
+    if (text) { sh.form.v2_ai = text; } else { delete sh.form.v2_ai; }
+  }
+
+  /** AI 이름표가 오면 칸 짐작을 그 시트 폼(v2_ai)에 남긴다 — 이름표가 미분류(세부 확신 낮음)이고 칸 확신이 문턱 이상일 때만. */
+  function rememberGuess(d) {
+    var sh = d.id ? sheetWith(d.id) : null, S = window.FomsV2Slots;
+    if (!sh) { return; }
+    var o = sh.objects.filter(function (x) { return x.id === d.id; })[0], p = (o && o.part) || {};
+    var map = S.parseGuess(sh.form && sh.form.v2_ai), code = { front: 'f', iso: 'i', detail: 'd' }[d.fam];
+    if (p.label === '미분류' && p.src === 'ai' && code && d.famConf >= core.threshold()) { map[d.id] = { fam: code, conf: d.famConf }; }
+    else if (!map[d.id]) { return; }
+    else { delete map[d.id]; }
+    writeGuess(sh, map);
+  }
+
+  /** 사람이 종류를 고른 그림 — 칸 짐작을 지우고, unpin 이면 손으로 옮긴 고정을 푼다(지금 자리를 배치 자리로 — 다음 배치가 옮긴다). */
+  function release(ids, unpin) {
+    var S = window.FomsV2Slots;
+    (ids || []).forEach(function (id) {
+      var sh = sheetWith(id), o = sh ? sh.objects.filter(function (x) { return x.id === id; })[0] : null;
+      if (!o || o.type !== 'image') { return; }
+      if (unpin && o.part && !o.locked && S.moved(o)) { o.part.arr = [o.x, o.y, o.w, o.h]; }
+      var map = S.parseGuess(sh.form && sh.form.v2_ai);
+      if (map[id]) { delete map[id]; writeGuess(sh, map); }
+    });
+  }
+
   function pickTemplate(t) {
     var sh = core.sheet();
     if (!sh || (t !== 'band' && t !== 'column')) { return; }
@@ -182,7 +218,12 @@
       if (awaitingPhoto && d && d.id) { autoPhoto[d.id] = true; awaitingPhoto = false; }
       if (d && !d.batch) { scheduleArrange('added'); }
     });
-    core.on('labels', function (d) { if (d && (d.by === 'user' || !d.batch)) { scheduleArrange('labels'); } });
+    core.on('labels', function (d) {
+      if (!d) { return; }
+      if (d.by === 'ai') { rememberGuess(d); }
+      else if (d.by === 'user') { release(d.ids || [d.id], mode === 'auto'); }
+      if (d.by === 'user' || !d.batch) { scheduleArrange('labels'); }
+    });
     core.on('arrange', function (d) { arrange(d && d.fromUpload ? 'late' : 'button', { undo: !(d && d.fromUpload), photo: true }); });
   }
 

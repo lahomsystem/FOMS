@@ -145,3 +145,32 @@ def test_kitchen_pair_rule_and_hatch_formula():
     assert abs(res["hatch"] - py_hatch) < 0.02
     # 학습 이름표 화면(이름 딱지·Enter 맞음·여러 장 숫자키·짝 풀림 안내)은 test_drawing_part_badges.py — 500줄 래칫
 
+
+
+FAMILY_RUNNER = r"""
+global.window = {}; global.document = { currentScript: null };
+require(process.argv[1]);
+const A = window.FomsPartAI, L = A.LABELS;
+const p = (m) => L.map(l => m[l] || 0);
+process.stdout.write(JSON.stringify([
+  A.family(L, p({'정면·도어': 0.28, '입체·도어': 0.24, '부품 상세': 0.16, '정면·내부': 0.12, '평면·상판': 0.2})),
+  A.family(L, p({'입체·내부': 0.36, '정면·내부': 0.3, '서랍 단면': 0.34})),
+  A.family(L, p({'서랍 단면': 0.3, '부품 상세': 0.29, '정면·내부': 0.25, '사진': 0.16})),
+  A.family(L, p({'평면·상판': 0.49, '정면·도어': 0.23, '부품 상세': 0.1, '입체·내부': 0.18})),
+]));
+"""
+
+
+def test_family_guess_sums_slot_probabilities():
+    """세부 종류 확신은 낮아도 칸(큰 그림 · 상세) 확신은 높다 — 묶음 확률 합으로 칸을 짐작한다(V2 가 미분류 그림을 그 칸에 놓는다)."""
+    proc = subprocess.run([_node(), "-e", FAMILY_RUNNER, str(JS["part_ai"])], capture_output=True, text=True, encoding="utf-8")
+    assert proc.returncode == 0, proc.stderr
+    big_door, big_iso, detail, plan = json.loads(proc.stdout)
+    assert big_door == {"fam": "front", "conf": 0.64}            # 정면 0.40 > 입체 0.24 → 정면, 큰 그림 합 0.64
+    assert big_iso == {"fam": "iso", "conf": 0.66}               # 입체 0.36 > 정면 0.30
+    assert detail == {"fam": "detail", "conf": 0.59}
+    assert plan == {"fam": "plan", "conf": 0.49}                  # 평면 0.49 > 큰 그림 0.41 — 한 종류뿐인 칸은 세부 확신과 같다
+    src = JS["part_ai"].read_text(encoding="utf-8")
+    assert "fam: fam.fam, famConf: fam.conf" in src
+    wiz = (ROOT / "static/js/drawing/wizard.js").read_text(encoding="utf-8")
+    assert "emitCore('labels', { id: id, by: 'ai', batch: !!batch, fam: res.fam || '', famConf: res.famConf || 0 });" in wiz

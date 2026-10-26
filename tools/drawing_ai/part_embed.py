@@ -4,6 +4,8 @@
 
 - 모델: part-head.json 의 ``model``(DINOv2-small int8, Hugging Face 커밋 고정 주소 + sha256). 받으면 sha256 을 맞춰 본다.
 - 전처리는 h1 을 가르칠 때와 같다: 흰 여백으로 정사각형 → 224×224(BICUBIC) → ImageNet 평균·표준편차.
+- 투명 그림(마법사에 올린 스케치업 PNG 대부분 — 투명 칸의 색은 검정 0,0,0)은 흰 바탕에 얹는다. 브라우저(part-ai.js)가
+  흰 캔버스에 그려 재기 때문이다. ``convert('RGB')`` 만 하면 바탕이 검게 되어 브라우저와 다른 특징으로 가르치게 된다.
 - 특징: last_hidden_state 의 [CLS, 패치 평균] 을 이어 붙이고 L2 정규화.
 - onnxruntime 은 FOMS 서버 환경(numpy 1.26.4 고정)에 넣지 않는다 — :func:`embed_files` 안에서만 부른다.
 """
@@ -22,9 +24,19 @@ MEAN = (0.485, 0.456, 0.406)
 STD = (0.229, 0.224, 0.225)
 
 
+def on_white(img: Image.Image) -> Image.Image:
+    """투명 칸이 있는 그림은 흰 바탕에 얹어 RGB 로 — 브라우저가 흰 캔버스에 그리는 것과 같게."""
+    if img.mode in ('RGBA', 'LA') or (img.mode == 'P' and 'transparency' in img.info):
+        rgba = img.convert('RGBA')
+        base = Image.new('RGBA', rgba.size, (255, 255, 255, 255))
+        base.alpha_composite(rgba)
+        return base.convert('RGB')
+    return img.convert('RGB')
+
+
 def prep(img: Image.Image) -> np.ndarray:
     """그림 1장 → (1, 3, 224, 224) float32."""
-    img = img.convert('RGB')
+    img = on_white(img)
     w, h = img.size
     side = max(w, h)
     canvas = Image.new('RGB', (side, side), (255, 255, 255))

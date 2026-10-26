@@ -38,7 +38,10 @@
     if (els.unpin) { els.unpin.addEventListener('click', function () { api.unpinAll(); }); }
   }
 
-  function labelOf(view, id) { return (view.plan.g.labels[id] || '그림').replace('·', ' · '); }
+  function labelOf(view, id) {
+    var g = view.plan.g;
+    return g.guess[id] ? String(g.lay[id] || '').replace('·', ' · ') + '?' : (g.labels[id] || '그림').replace('·', ' · ');
+  }
 
   function minIn(view, keys) {
     var g = view.plan.g, best = null;
@@ -117,11 +120,13 @@
   }
 
   function reasonOf(o, view, partner) {
-    var p = o.part || {}, bits = [];
+    var p = o.part || {}, bits = [], gs = view.plan.g.guess[o.id];
     if (p.src === 'user') { bits.push('사람이 고름'); }
     else if (typeof p.conf === 'number') { bits.push('AI 확신 ' + Math.round(p.conf * 100) + '%'); }
     else { bits.push('종류를 아직 몰라요'); }
-    if (p.ai && p.label && p.ai !== p.label && p.src !== 'user') { bits.push('규칙으로 고침'); }
+    if (gs) { bits.push('칸 확신 ' + Math.round(gs.conf * 100) + '% · 종류 확인'); }
+    else if (p.src !== 'user' && view.plan.g.labels[o.id] === '미분류' && typeof p.conf === 'number') { bits.push('확신이 낮아 미분류'); }
+    else if (p.ai && p.label && p.label !== '미분류' && p.ai !== p.label && p.src !== 'user') { bits.push('짝 규칙으로 고침'); }
     if (partner) {
       var h1 = api.core.hatch(o), h2 = api.core.hatch(partner);
       if (typeof h1 === 'number' && typeof h2 === 'number' && Math.abs(h1 - h2) >= 0.05) { bits.push(h1 > h2 ? '빗금이 짝보다 많음' : '빗금이 짝보다 적음'); }

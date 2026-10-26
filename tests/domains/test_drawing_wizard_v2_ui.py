@@ -123,3 +123,17 @@ def test_empty_saved_state_keeps_server_updated_at_as_base():
     load = JS[JS.index("  function load() {"):JS.index("  function handleConflict(")]
     empty = load[load.index("state = { v: 1, sheets: [] };"):]
     assert empty.index("baseUpdatedAt = (d.state && d.state.updated_at) || null;") < 200
+
+
+def test_v2_relabel_releases_pin_and_remembers_ai_slot_guess():
+    """사람이 종류를 고르면 손으로 옮긴 고정을 풀어 새 칸으로(자동 배치 모드) · AI 칸 짐작은 폼 v2_ai 에 · 칸 이름은 제품 이름이 아니다."""
+    shell = (ROOT / "static/js/drawing/v2-shell.js").read_text(encoding="utf-8")
+    wire = shell[shell.index("core.on('labels'"):]
+    assert wire.index("rememberGuess(d)") < wire.index("release(d.ids || [d.id], mode === 'auto')") < wire.index("scheduleArrange('labels')")
+    rel = shell[shell.index("  function release("):shell.index("  function pickTemplate(")]
+    assert "if (unpin && o.part && !o.locked && S.moved(o)) { o.part.arr = [o.x, o.y, o.w, o.h]; }" in rel
+    remember = shell[shell.index("  function rememberGuess("):shell.index("  function release(")]
+    assert "p.label === '미분류' && p.src === 'ai' && code && d.famConf >= core.threshold()" in remember
+    for name in ("v2-paper.js", "v2-left.js"):
+        src = (ROOT / "static/js/drawing" / name).read_text(encoding="utf-8")
+        assert "product_name" not in src and "FomsV2Slots.title(" in src, name

@@ -6,7 +6,8 @@
  * - apply: 고른 틀의 자리를 객체에 넣는다. 그림은 part.arr 에 놓은 자리를 남기고(사람이 옮겼는지 가린다),
  *   자리에 그대로 있던 그림 안쪽에 가운데가 있는 글자 · 도형 · 펜은 그 그림을 따라 옮긴다(치수 메모가 떨어지지 않게).
  *   새로 올린 그림(arr 없음)은 아무것도 데려가지 않는다 — 올린 자리가 우연히 메모 위일 수 있다.
- * - 폼 칸: v2_layout = 지금 놓인 틀('band'|'column'), v2_pick = 사람이 고른 틀(''|'band'|'column'), v2_kind = 제품 종류.
+ * - 폼 칸: v2_layout = 지금 놓인 틀('band'|'column'), v2_pick = 사람이 고른 틀(''|'band'|'column'), v2_kind = 제품 종류,
+ *   v2_ai = AI 칸 짐작(v2-slots parseGuess).
  *
  * window.FomsV2Plan = { build(sheet, ctx) → plan, apply(sheet, res, opts), splitGroups(plan), nowPct(plan) }
  *   ctx: { items(imgs) → [{id,nw,nh,tx,order,label}], baseline(imgs) → {id:{w,h}}, productText, settings }
@@ -29,7 +30,8 @@
     var form = (sheet && sheet.form) || {}, set = settingsOf(ctx);
     var kindAuto = S().detectKind(ctx && ctx.productText);
     var kind = form.v2_kind || kindAuto, kitchen = kind === 'kitchen';
-    var g = S().group((sheet && sheet.objects) || [], { lowToUnsorted: set.lowToUnsorted, lockMoved: set.lockMoved, kitchen: kitchen });
+    var g = S().group((sheet && sheet.objects) || [], { lowToUnsorted: set.lowToUnsorted, lockMoved: set.lockMoved, kitchen: kitchen,
+      guess: S().parseGuess(form.v2_ai) });
     var imgs = [].concat(g.photo, g.main, g.iso, g.detail, g.plan, g.unsorted);
     var items = imgs.length && ctx.items ? ctx.items(imgs) : [], byId = {};
     items.forEach(function (it) { byId[it.id] = it; });
@@ -37,7 +39,7 @@
     function movable(list) { return bySlot(list).filter(function (o) { return !g.fixed[o.id]; }); }
     var pairIn = movable(g.main.concat(g.iso, g.detail)).map(function (o) {
       var it = item(o);
-      it.label = g.labels[o.id];
+      it.label = g.lay[o.id];   // 짐작 칸 그림은 짐작 이름표로 짝을 찾는다(미분류로 두면 '그 밖' 묶음이 된다)
       return it;
     });
     var grp = window.FomsPartLayout && pairIn.length ? window.FomsPartLayout.groups(pairIn) : { units: [], small: [] };
