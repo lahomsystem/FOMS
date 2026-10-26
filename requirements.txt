@@ -1,89 +1,89 @@
 aiofiles==23.2.1
-alembic==1.16.1
-altgraph==0.17.4
-annotated-types==0.7.0
-anyio==4.9.0
+alembic==1.20.1
+altgraph==0.17.5
+annotated-types==0.8.0
+anyio==4.15.1
 bcrypt==4.3.0
 blinker==1.9.0
-bottle==0.13.3
-build==1.2.2.post1
-CacheControl==0.14.2
-cachelib==0.13.0
+bottle==0.13.4
+build==1.6.1
+CacheControl==0.14.4
+cachelib==0.17.0
 certifi==2025.4.26
 cffi==1.17.1
-charset-normalizer==3.4.1
+charset-normalizer==3.5.2
 cleo==2.1.0
-click==8.1.8
-clr_loader==0.2.7.post0
+click==8.5.0
+clr_loader==0.3.1
 colorama==0.4.6
 crashtest==0.4.1
 cryptography==44.0.2
-distlib==0.3.9
-dnspython==2.7.0
+distlib==0.4.4
+dnspython==2.9.0
 dulwich==0.22.8
-ecdsa==0.19.1
-email_validator==2.2.0
+ecdsa==0.19.2
+email_validator==2.3.0
 et_xmlfile==2.0.0
-fastapi==0.109.0
-fastjsonschema==2.21.1
+fastapi==0.161.1
+fastjsonschema==2.22.2
 filelock==3.18.0
-findpython==0.6.3
+findpython==0.8.0
 Flask==3.1.3
-Flask-Caching==2.3.1
+Flask-Caching==2.5.1
 Flask-Migrate==4.1.0
-Flask-Session==0.5.0
+Flask-Session==0.8.0
 Flask-SQLAlchemy==3.1.1
-Flask-WTF==1.1.1
-greenlet==3.2.1
+Flask-WTF==1.3.0
+greenlet==3.5.6
 gunicorn==26.2.0
 h11==0.16.0
 httpcore==1.0.9
 httpx==0.28.1
-idna==3.10
-iniconfig==2.1.0
+idna==3.20
+iniconfig==2.3.1
 installer==0.7.0
 itsdangerous==2.2.0
 jaraco.classes==3.4.0
-jaraco.context==6.0.1
-jaraco.functools==4.1.0
+jaraco.context==6.1.2
+jaraco.functools==4.6.0
 Jinja2==3.1.6
-keyring==25.6.0
-Mako==1.3.10
-MarkupSafe==3.0.2
+keyring==25.7.0
+Mako==1.4.3
+MarkupSafe==3.0.4
 more-itertools==10.7.0
-msgpack==1.1.0
-msgspec==0.19.0
+msgpack==1.2.3
+msgspec==0.22.0
 numpy==1.26.4
 packaging==25.0
 passlib==1.7.4
 pbs-installer==2025.4.9
 pefile==2023.2.7
 Pillow==12.3.0
-pkginfo==1.12.1.2
-platformdirs==4.3.7
-pluggy==1.5.0
+pkginfo==1.13.3
+platformdirs==4.13.5
+pluggy==1.7.0
 proxy_tools==0.1.0
 
 psycopg[binary]==3.3.6
-pyasn1==0.4.8
+pyasn1==0.6.4
 pycparser==2.22
-pydantic==2.11.10
-pydantic-settings==2.15.0
-pydantic_core==2.33.2
-pyproject_hooks==1.2.0
+pydantic==2.14.1
+pydantic-settings==2.16.1
+pydantic_core==2.50.1
+pyproject_hooks==1.3.3
 pytest==7.4.3
 # CI-XDIST-01: 테스트 병렬 실행(ubuntu-latest public runner = 4 vCPU).
-pytest-xdist==3.5.0
-pytest-playwright==0.5.2
+pytest-xdist==3.8.0
+pytest-playwright==0.10.0
 python-dateutil==2.9.0.post0
-python-dotenv==1.0.0
-python-jose==3.3.0
-python-multipart==0.0.6
-pythonnet==3.0.5
+python-dotenv==1.2.4
+python-jose==3.5.0
+python-multipart==0.0.32
+pythonnet==3.2.1
 pytz==2025.2
 pywin32-ctypes==0.2.3
-RapidFuzz==3.13.0
-requests==2.32.3
+RapidFuzz==3.14.6
+requests==2.34.2
 requests-toolbelt==1.0.0
 rsa==4.9.1
 segno==1.6.6
@@ -92,20 +92,20 @@ shellingham==1.5.4
 solapi==5.0.3
 six==1.17.0
 sniffio==1.3.1
-SQLAlchemy==2.0.54
+SQLAlchemy==2.1.6
 starlette==0.35.1
-tomlkit==0.13.2
+tomlkit==0.15.2
 trove-classifiers==2025.4.28.22
-typing-inspection==0.4.0
+typing-inspection==0.4.4
 typing_extensions==4.16.0
 tzdata==2025.2
-urllib3==2.4.0
-uvicorn==0.25.0
+urllib3==2.8.0
+uvicorn==0.54.0
 virtualenv==20.30.0
 waitress==3.0.2
 Werkzeug==3.1.9
-WTForms==3.2.1
-zstandard==0.23.0
+WTForms==3.2.2
+zstandard==0.25.0
 folium==0.20.0
 beautifulsoup4==4.15.0
 python-Levenshtein==0.27.5
@@ -114,8 +114,8 @@ flask-socketio==5.7.0
 python-socketio==5.17.0
 gevent==25.4.2
 
-boto3==1.43.115  # 클라우드 스토리지 지원 (Quest 2)
-holidays==0.42  # 영업일(주말/공휴일 제외) 계산용
+boto3==1.43.118  # 클라우드 스토리지 지원 (Quest 2)
+holidays==0.107  # 영업일(주말/공휴일 제외) 계산용
 
 # 성능 및 보안 확장 (Quest 14)
 redis==8.1.0
@@ -125,14 +125,14 @@ Flask-Limiter==4.1.1
 rq==2.12.0
 
 # Web Push 발송 (알림 Phase 3C). import 는 lazy — 미설치 시 app import 는 죽지 않음.
-pywebpush==2.0.0
+pywebpush==2.5.0
 
 # 데이터 최적화 (압축 및 정적 파일)
 Flask-Compress==1.25
 whitenoise==6.12.0
 
 # FOMS Brain AI provider (PG-B0A)
-google-genai==2.8.0
+google-genai==2.33.0
 
 # 외부 오류 관측 (AUDIT-LOG T10). SENTRY_DSN env 가 없으면 import 조차 하지 않는다.
-sentry-sdk[flask]==2.72.0
+sentry-sdk[flask]==2.73.0
