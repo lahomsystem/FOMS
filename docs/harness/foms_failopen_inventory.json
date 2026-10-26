@@ -5,18 +5,18 @@
   "overlap_api_error_01": "API-ERROR-01 owns response/stdout exposure (print_exc/str(e) -> log_handled_exception). This packet owns swallow classification. Sites that log via log_handled_exception are LOG_AND_CONTINUE here.",
   "marker_convention": "Silent-by-design catches carry an inline `# failopen: intentional: <reason>` (or `fail-closed`) marker; the scanner reads it as the justification. No bare allowlist, no lint-disable.",
   "baselines": {
-    "broad_total": 634,
+    "broad_total": 636,
     "unclassified": 0,
     "swallow_by_control_flow": 166
   },
   "disposition_counts": {
     "FAIL_CLOSED": 38,
     "INTENTIONAL": 17,
-    "LOG_AND_CONTINUE": 413,
+    "LOG_AND_CONTINUE": 415,
     "SWALLOW_BY_CONTROL_FLOW": 166
   },
   "owner_counts": {
-    "api": 241,
+    "api": 243,
     "audit": 2,
     "auth": 16,
     "cache": 29,
@@ -2398,7 +2398,25 @@
     },
     {
       "path": "foms/api/share.py",
-      "lineno": 1646,
+      "lineno": 1648,
+      "handler_type": "broad_exception",
+      "disposition": "LOG_AND_CONTINUE",
+      "owner": "api",
+      "has_logging": true,
+      "justification": "logs via logger/log_handled_exception"
+    },
+    {
+      "path": "foms/api/share_sms_fallback.py",
+      "lineno": 135,
+      "handler_type": "broad_exception",
+      "disposition": "LOG_AND_CONTINUE",
+      "owner": "api",
+      "has_logging": true,
+      "justification": "logs via logger/log_handled_exception"
+    },
+    {
+      "path": "foms/api/share_sms_fallback.py",
+      "lineno": 158,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "api",
@@ -4405,7 +4423,7 @@
     },
     {
       "path": "foms/services/kakao_alimtalk.py",
-      "lineno": 1019,
+      "lineno": 1048,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -4414,7 +4432,7 @@
     },
     {
       "path": "foms/services/kakao_alimtalk.py",
-      "lineno": 1109,
+      "lineno": 1138,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -5179,7 +5197,7 @@
     },
     {
       "path": "foms/services/sidefx_worker.py",
-      "lineno": 394,
+      "lineno": 398,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",
@@ -5188,7 +5206,7 @@
     },
     {
       "path": "foms/services/sidefx_worker.py",
-      "lineno": 506,
+      "lineno": 510,
       "handler_type": "broad_exception",
       "disposition": "LOG_AND_CONTINUE",
       "owner": "services",

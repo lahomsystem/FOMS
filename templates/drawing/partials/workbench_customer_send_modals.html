@@ -90,39 +90,32 @@
             {% endfor %}
           </div>
           {% endif %}
-          <div class="btn-group" role="group" aria-label="보낼 것">
-            <input type="radio" class="btn-check" name="dw-send-kind" id="dw-send-kind-drawing" value="drawing" autocomplete="off" checked>
+          {# 상담 먼저: 도면만 · 계약서만 · 도면+계약서(한 글에 버튼 둘). 따로따로는 뺐다(사용자 2026-10-24). 고객이 받는 모습 문구는
+             고른 칸의 data-consult-preview 를 그대로 보여 준다(drawing-customer-send.js refresh). #}
+          <div class="btn-group flex-wrap dw-send-choice" role="group" aria-label="보낼 것">
+            <input type="radio" class="btn-check" name="dw-send-kind" id="dw-send-kind-drawing" value="drawing" autocomplete="off" checked
+                   data-consult-preview="링크 없는 알림톡이 가요. 고객이 [문서 받기]를 누르면 상담방에 [도면 보기] 버튼이 가요.">
             <label class="btn btn-outline-primary btn-sm" for="dw-send-kind-drawing">도면만</label>
             {% if cs.consult_template %}
-            <input type="radio" class="btn-check" name="dw-send-kind" id="dw-send-kind-estimate" value="estimate" autocomplete="off">
+            <input type="radio" class="btn-check" name="dw-send-kind" id="dw-send-kind-estimate" value="estimate" autocomplete="off"
+                   data-consult-preview="링크 없는 알림톡이 가요. 고객이 [문서 받기]를 누르면 상담방에 [계약서 보기] 버튼이 가요.">
             <label class="btn btn-outline-primary btn-sm" for="dw-send-kind-estimate">계약서만</label>
             {% endif %}
-            <input type="radio" class="btn-check" name="dw-send-kind" id="dw-send-kind-bundle" value="bundle" autocomplete="off">
+            <input type="radio" class="btn-check" name="dw-send-kind" id="dw-send-kind-bundle" value="bundle" autocomplete="off"
+                   data-consult-preview="링크 없는 알림톡이 가요. 고객이 [문서 받기]를 누르면 상담방에 [도면 보기][계약서 보기] 버튼이 함께 가요.">
             <label class="btn btn-outline-primary btn-sm" for="dw-send-kind-bundle">도면+계약서</label>
           </div>
         </div>
-
-        {% if cs.consult_template %}
-        {# 상담 먼저(설계서 2026-10-20): 고객이 알림톡 [문서 받기]를 누르면 채널톡 상담으로 링크가 자동으로 간다. #}
-        <div class="mb-3">
-          <div class="small fw-semibold text-muted mb-1">도면+계약서일 때 상담방에 보내는 모양</div>
-          <div class="btn-group" role="group" aria-label="상담방에 보내는 모양">
-            <input type="radio" class="btn-check" name="dw-send-split" id="dw-send-split-together" value="together" autocomplete="off" checked>
-            <label class="btn btn-outline-secondary btn-sm" for="dw-send-split-together">한 번에</label>
-            <input type="radio" class="btn-check" name="dw-send-split" id="dw-send-split-split" value="split" autocomplete="off">
-            <label class="btn btn-outline-secondary btn-sm" for="dw-send-split-split">따로따로</label>
-          </div>
-        </div>
-        {% endif %}
 
         <div class="mb-3">
           <div class="small fw-semibold text-muted mb-1">보내는 방법</div>
           <div class="btn-group flex-wrap" role="group" aria-label="보내는 방법">
             <input type="radio" class="btn-check" name="dw-send-channel" id="dw-send-channel-kakao" value="kakao" autocomplete="off" checked>
             <label class="btn btn-outline-secondary btn-sm" for="dw-send-channel-kakao">카카오 알림톡</label>
-            {# 내 폰 문자는 모바일에서만(ERP 공유 창과 같은 규칙) — PC 폭에서는 숨긴다. #}
+            {# 내 폰 문자: 휴대폰은 문자 앱을 바로 열고, PC 는 아래 [data-self-sms-box] 에 문자 내용·복사·문자 앱 열기를
+               보여 준다(사용자 2026-10-25, drawing-customer-send-self-sms.js). #}
             <input type="radio" class="btn-check" name="dw-send-channel" id="dw-send-channel-mine" value="mine" autocomplete="off">
-            <label class="btn btn-outline-secondary btn-sm d-lg-none" for="dw-send-channel-mine">내 폰 문자</label>
+            <label class="btn btn-outline-secondary btn-sm" for="dw-send-channel-mine">내 폰 문자</label>
           </div>
         </div>
 
@@ -133,6 +126,16 @@
         <div class="small text-danger d-none" data-send-nophone>고객 휴대폰 번호가 없어요</div>
         <div class="alert alert-danger py-2 small mt-2 mb-0 d-none" role="alert" data-send-error data-foms-no-autodismiss></div>
         <div class="alert alert-success py-2 small mt-2 mb-0 d-none" role="status" data-send-status data-foms-no-autodismiss></div>
+        <div class="border rounded p-2 mt-2 d-none" data-self-sms-box>
+          <div class="small fw-semibold mb-1">내 휴대폰으로 보낼 문자 · 받는 분 <span data-self-sms-to></span></div>
+          <label class="visually-hidden" for="dw-self-sms-text">보낼 문자 내용</label>
+          <textarea class="form-control form-control-sm" id="dw-self-sms-text" rows="8" readonly></textarea>
+          <div class="d-flex gap-2 flex-wrap mt-2">
+            <button type="button" class="btn btn-primary btn-sm" data-self-sms-copy>문자 내용 복사</button>
+            <a class="btn btn-outline-secondary btn-sm" href="#" data-self-sms-open>문자 앱 열기</a>
+          </div>
+          <div class="form-text">PC 에 '휴대폰과 연결'이 있으면 [문자 앱 열기]로 바로 보낼 수 있어요. 없으면 복사해서 휴대폰 문자로 보내 주세요.</div>
+        </div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>

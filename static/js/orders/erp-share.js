@@ -516,7 +516,8 @@ var _KST_FMT = (function () {
         if (_busy || (btn && btn.disabled)) return;
         var kind = (btn && btn.getAttribute('data-share-kind')) || 'drawing';
         var kindLabel = KIND_LABELS[kind] || '문서';
-        if (!window.confirm('고객에게 ' + kindLabel + ' 열람 링크를 알림톡으로 보낼까요?')) return;
+        if (!window.confirm('고객에게 ' + kindLabel + ' 알림톡을 보낼까요?\n' +
+            '고객이 [문서 받기]를 누르면 카톡 상담으로 링크가 갑니다(카톡을 못 받으면 문자로).')) return;
         _busy = true;
         if (btn) btn.disabled = true;
         if (!(await _ensureSaved(function (msg) { window.alert(msg); }))) {
@@ -539,7 +540,7 @@ var _KST_FMT = (function () {
                     method: 'POST',
                     credentials: 'same-origin',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ token: body.data.token, consult: false }),  // 상담 먼저(링크 없는 알림톡)는 도면 탭 보내기 시트만
+                    body: JSON.stringify({ token: body.data.token }),  // 상담 먼저(서식 env 가 있으면 서버가 고른다)
                 }).then(function (res) { return res.json(); });
             })
             .then(function (body) {
@@ -562,7 +563,7 @@ var _KST_FMT = (function () {
             .finally(function () { _busy = false; if (btn) btn.disabled = false; });
     }
 
-    /** POST send-alimtalk — 문자와 대칭, 실패 시 Solapi 가 문자로 자동 대체발송. */
+    /** POST send-alimtalk — '상담 먼저'(링크 없는 알림톡)로 나가고, 카톡이 실패하면 워커가 링크 문자를 보낸다. */
     function _sendAlimtalk() {
         if (!_issued || !_issued.token) {
             _setNotice('먼저 링크를 발급하세요 — 알림톡은 발급 직후에만 보낼 수 있습니다.');
@@ -575,7 +576,7 @@ var _KST_FMT = (function () {
             method: 'POST',
             credentials: 'same-origin',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ token: _issued.token, consult: false }),  // 상담 먼저(링크 없는 알림톡)는 도면 탭 보내기 시트만
+            body: JSON.stringify({ token: _issued.token }),  // 상담 먼저(서식 env 가 있으면 서버가 고른다)
         })
             .then(function (res) { return res.json(); })
             .then(function (body) {

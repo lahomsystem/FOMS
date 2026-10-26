@@ -954,6 +954,35 @@ def _solapi_lookup_channel(message_id: str) -> str | None:
     return None
 
 
+def _solapi_lookup_status(message_id: str) -> str | None:
+    """벤더에 메시지 1건을 조회해 결과 코드(``statusCode``)를 돌려준다.
+
+    '상담 먼저' 알림톡은 문자 대체발송을 끄고 보내므로, 카톡이 실패했는지는 이 코드로만
+    안다 — ``4000`` 수신 완료, ``2000``/``3000`` 접수·전송 중, 그 밖은 실패.
+    :func:`_solapi_lookup_channel` 과 같은 격리 지점이다(테스트 monkeypatch).
+
+    Args:
+        message_id: 발송 때 남긴 벤더 id(메시지 id 또는 그룹 id).
+
+    Returns:
+        결과 코드 문자열. 벤더가 그 메시지를 모르면 ``None``. 호출 실패는 예외로 올라온다.
+    """
+    from solapi import SolapiMessageService
+    from solapi.model.request.messages.get_messages import GetMessagesRequest
+
+    service = SolapiMessageService(_env("SOLAPI_API_KEY"), _env("SOLAPI_API_SECRET"))
+    if message_id.startswith(_SOLAPI_GROUP_ID_PREFIX):
+        request = GetMessagesRequest(group_id=message_id)
+    else:
+        request = GetMessagesRequest(message_id=message_id)
+    response = service.get_messages(request)
+    for item in (getattr(response, "message_list", None) or {}).values():
+        code = getattr(item, "status_code", None)
+        if code:
+            return str(code)
+    return None
+
+
 def _parse_history_time(value: object) -> datetime.datetime | None:
     """이력에 저장된 naive UTC ISO 문자열을 datetime 으로 되돌린다(불량이면 None)."""
     if not isinstance(value, str) or not value:

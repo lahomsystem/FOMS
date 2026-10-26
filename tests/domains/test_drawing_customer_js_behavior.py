@@ -17,6 +17,7 @@ SEND_JS = "static/js/foms/drawing-customer-send.js"
 OK_JS = "static/js/foms/drawing-customer-ok.js"
 EDIT_JS = "static/js/foms/drawing-revision-edit.js"
 URGENT_JS = "static/js/foms/drawing-urgent-call-pc.js"
+SELF_SMS_JS = "static/js/foms/drawing-customer-send-self-sms.js"
 
 # 보내기 시트 가짜 DOM — 채널·번호 바꾸기는 driver 앞에서 CHANNEL·OVERRIDE·SAVE 로 정한다.
 SEND_DOM = r"""
@@ -77,12 +78,12 @@ def _urls(result: dict) -> list[str]:
     return [c["url"] for c in result["calls"]]
 
 
-def test_send_split_choice_reaches_server():
-    """상담 먼저: [따로따로]를 고르면 send-alimtalk 본문에 split=true 가 실린다(설계서 2026-10-20)."""
-    r = _send("root._sel['input[name=\"dw-send-split\"]:checked'] = makeEl({ value: 'split', checked: true });\n"
+def test_send_never_asks_for_split():
+    """상담 먼저 '따로따로'는 뺐다(사용자 2026-10-24) — 도면+계약서도 한 글(버튼 둘)로만 간다."""
+    r = _send("root._sel['#dw-send-kind-bundle-split'] = makeEl({ value: 'bundle', checked: true });\n"
               "route('/api/share/send-alimtalk/501', function () {"
               " return Resp(200, { success: true, data: { sent: true, error: null }, error: null }); });")
-    assert r["calls"][1]["body"] == {"token": "tok-secret", "source_screen": "drawing_tab", "split": True}
+    assert r["calls"][1]["body"] == {"token": "tok-secret", "source_screen": "drawing_tab"}
 
 
 def test_send_success_reloads_with_drawing_tab_marker():
@@ -211,6 +212,27 @@ def test_self_sms_opens_sms_app_with_server_text():
     assert _urls(r) == ["/api/share/create/77"]
     assert r["href"].startswith("sms:01011112222?body=")
     assert "기록되지 않아요" in r["status"]
+
+
+def test_self_sms_on_pc_shows_text_box_instead_of_sms_app():
+    """PC 폭이면 문자 앱으로 넘기지 않고 창 안에 문자 내용·복사·문자 앱 열기를 보여 준다(2026-10-25)."""
+    driver = (
+        "const CHANNEL = 'mine'; const OVERRIDE = ''; const SAVE = false;\n"
+        "window.matchMedia = function () { return { matches: true }; };\n"
+        + SEND_DOM
+        + "const box = makeEl({ cls: ['d-none'] }); const toEl = makeEl({}); const textEl = makeEl({ id: 'dw-self-sms-text' });\n"
+        "const openEl = makeEl({});\n"
+        "Object.assign(root._sel, { '[data-self-sms-box]': box, '[data-self-sms-to]': toEl,"
+        " '#dw-self-sms-text': textEl, '[data-self-sms-open]': openEl });\n"
+        "fire('click', submitBtn);\nawait flush();\n"
+        "out({ href: window.location.href, boxHidden: hidden(box), to: toEl.textContent, text: textEl.value,"
+        " open: openEl.getAttribute('href'), status: statusEl.textContent });"
+    )
+    r = run_js([SEND_JS, SELF_SMS_JS], driver)
+    assert r["href"] == ""
+    assert r["boxHidden"] is False and r["to"] == "01011112222" and r["text"] == "링크 tok"
+    assert r["open"].startswith("sms:01011112222?body=")
+    assert "휴대폰으로 보내 주세요" in r["status"]
 
 
 # --------------------------------------------------------------------------- 고객 OK · 승인
