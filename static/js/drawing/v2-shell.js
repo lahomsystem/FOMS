@@ -1,0 +1,210 @@
+/**
+ * 도면 마법사 V2 — 칸 자동 배치 화면을 마법사 엔진(window.FomsWizardCore)에 잇는다.
+ *
+ * 설계 정본: docs/plans/2026-10-26-drawing-wizard-v2-spec.md §4 · §5
+ * - 언제 배치하나(자동 배치 모드만): 같이 올린 묶음이 끝났을 때 · 그림 한 장을 올렸을 때 · 종류가 바뀌었을 때 ·
+ *   [다시 자동 배치] · 틀 · 켜고 끄기를 바꿨을 때. 시트를 열기만 해서는 옮기지 않는다. 자유 배치 모드는 저절로 옮기지 않는다.
+ * - 되돌리기: 사람이 한 일(올리기 · 종류 바꾸기)과 그 뒤 배치는 Ctrl+Z 한 번(그 일이 이미 남긴 사본으로 돌아간다).
+ *   [다시 자동 배치] · 틀 고르기 · 켜고 끄기 · 나누기는 따로 한 번.
+ * - 실측 사진 자동: 첫 배치 때 사진 그림이 없고 실측 사진이 있으면 한 장 골라 넣는다(폼 v2_photo = 'done' — 시트마다 한 번).
+ *
+ * window.FomsV2 = { refresh(), arrange(reason, opts), plan(), settings(), setSetting(k, v), mode(), setMode(m),
+ *   relabel(id, label), selectIds(ids), split(), pickTemplate(t), unpinAll(), core }
+ */
+(function () {
+  'use strict';
+  if (window.FomsV2) { return; }
+
+  var SET_KEY = 'foms.dws.v2.settings', MODE_KEY = 'foms.dws.v2.mode';
+  var core = null, settings = { lowToUnsorted: true, photoFirst: true, sameScale: true, lockMoved: true }, mode = 'auto';
+  var last = null, baseCache = { key: '', val: {} }, refreshTimer = 0, arrangeTimer = 0, autoPhoto = {}, awaitingPhoto = false;
+  var lastArranged = null;   // 마지막 배치 요약 — 알림 띠 글
+
+  function read(key) { try { return window.localStorage.getItem(key); } catch (e) { return null; } }
+  function write(key, v) { try { window.localStorage.setItem(key, v); } catch (e) { /* 사생활 보호 모드 — 이 창에서만 */ } }
+
+  function loadSettings() {
+    try { var s = JSON.parse(read(SET_KEY) || '{}'); Object.keys(settings).forEach(function (k) { if (typeof s[k] === 'boolean') { settings[k] = s[k]; } }); }
+    catch (e) { /* 기본값 */ }
+    mode = read(MODE_KEY) === 'free' ? 'free' : 'auto';
+  }
+
+  function baseline(imgs) {
+    var sh = core.sheet(), key = (sh ? sh.id : '') + '|' + imgs.map(function (o) {
+      return [o.id, o.natural_w || o.w, o.natural_h || o.h, (o.part && o.part.label) || ''].join(':');
+    }).join(';');
+    if (baseCache.key !== key) { baseCache = { key: key, val: core.baseline(imgs) }; }
+    return baseCache.val;
+  }
+
+  function buildPlan(sheet) {
+    return window.FomsV2Plan.build(sheet, { items: core.items, baseline: baseline, productText: core.productText(), settings: settings });
+  }
+
+  /** 지금 시트 화면(종이 머리 · 왼쪽 · 오른쪽 · 알림 띠)을 다시 그린다 — 여러 사건을 한 번으로 모은다. */
+  function refresh() {
+    if (refreshTimer) { return; }
+    refreshTimer = window.setTimeout(function () { refreshTimer = 0; refreshNow(); }, 60);
+  }
+
+  function refreshNow() {
+    var sheet = core.sheet();
+    last = sheet ? buildPlan(sheet) : null;
+    var pct = last ? window.FomsV2Plan.nowPct(last, sheet) : {}, minId = null, minV = Infinity;
+    if (last) {
+      Object.keys(pct).forEach(function (id) {
+        var slot = last.g.labels[id] === '사진' || last.g.unsorted.some(function (o) { return o.id === id; });
+        if (!slot && pct[id] < minV) { minV = pct[id]; minId = id; }
+      });
+    }
+    var view = { sheet: sheet, plan: last, pct: pct, minId: minId, minPct: minV === Infinity ? null : minV, autoPhoto: autoPhoto,
+      sheets: core.state().sheets.length, mode: mode, settings: settings, arranged: lastArranged,
+      layer: document.getElementById('dws-v2-slots'), badges: document.getElementById('dws-v2-badges'),
+      pageTotal: document.getElementById('dws-v2-pagetotal') };
+    var root = document.getElementById('dws-root');
+    if (root) { root.classList.toggle('dws-v2-laid', !!(last && last.laid)); }
+    window.FomsV2Paper.render(view);
+    // 아래 띠 글이 칸보다 길면 글씨만 줄인다(V1 표 엔진 대신 — wizard.js fitCellText)
+    Array.prototype.forEach.call(document.querySelectorAll('.dws-v2-form [data-dws-form-key]'), function (el) { core.fitCell(el); });
+    if (window.FomsV2Left) { window.FomsV2Left.render(view); }
+    if (window.FomsV2Right) { window.FomsV2Right.render(view); }
+    if (window.FomsV2Chrome) { window.FomsV2Chrome.render(view); }
+  }
+
+  function hasPhotoImage(sheet) {
+    return (sheet.objects || []).some(function (o) { return o.type === 'image' && o.part && o.part.label === '사진'; });
+  }
+
+  /** 실측 사진 자동 — 시트마다 한 번(v2_photo). 고르기는 v2-chrome.js(색 · 밝기 섞임 점수). */
+  function maybeAutoPhoto(sheet) {
+    if (!settings.photoFirst || !sheet || hasPhotoImage(sheet) || (sheet.form && sheet.form.v2_photo === 'done')) { return; }
+    var photos = (core.photos() || []).filter(core.photoVisible);
+    if (!photos.length || !window.FomsV2Chrome) { return; }
+    sheet.form.v2_photo = 'done';
+    window.FomsV2Chrome.pickPhoto(photos).then(function (photo) {
+      if (!photo || core.sheet() !== sheet) { return; }
+      awaitingPhoto = true;
+      return core.importPhoto(photo, null).then(function (ok) { if (!ok) { awaitingPhoto = false; } });
+    });
+  }
+
+  /** 칸 배치를 시트에 붙인다. opts: { undo: 따로 되돌리기 한 번, photo: 실측 사진 자동, template: 고른 틀 } */
+  function arrange(reason, opts) {
+    var o = opts || {}, sheet = core.sheet();
+    if (!core.canSave() || !sheet) { return false; }
+    var plan = buildPlan(sheet), key = o.template || plan.pick || plan.out.best, res = key ? plan.out[key] : null;
+    if (!res && !o.template && key !== plan.out.best) { key = plan.out.best; res = key ? plan.out[key] : null; }   // 고른 틀에 안 들어가면 되는 틀로
+    if (!res) {
+      if (reason === 'button') { core.toast('칸에 놓을 자리가 없어요 — 그림을 줄이거나 시트를 나눠 주세요'); }
+      return false;
+    }
+    if (o.undo) { core.recordUndo(); }
+    window.FomsV2Plan.apply(sheet, res, { template: key });
+    var g = plan.g, pics = g.main.length + g.iso.length + g.detail.length + g.plan.length + g.unsorted.length;
+    lastArranged = { sheetId: sheet.id, pics: pics, photos: g.photo.length, unsorted: g.unsorted.length,
+      crowded: !!res.crowded, minPct: res.minPct, reason: reason };
+    core.markDirty();
+    core.redraw();
+    core.select([]);   // 마지막에 올린 그림이 골라진 채 남으면 미니 막대가 칸을 가린다
+    if (o.photo) { maybeAutoPhoto(sheet); }
+    refresh();
+    return true;
+  }
+
+  function scheduleArrange(reason) {
+    if (mode !== 'auto') { return; }
+    if (arrangeTimer) { window.clearTimeout(arrangeTimer); }
+    arrangeTimer = window.setTimeout(function () {
+      arrangeTimer = 0;
+      if (core.editing()) { scheduleArrange(reason); return; }
+      arrange(reason, { photo: reason === 'added' });
+    }, 450);
+  }
+
+  function setSetting(k, v) {
+    if (!(k in settings)) { return; }
+    settings[k] = !!v;
+    write(SET_KEY, JSON.stringify(settings));
+    var sh = core.sheet();
+    if (mode === 'auto' && sh && sh.form && sh.form.v2_layout) { arrange('setting', { undo: true }); } else { refresh(); }
+  }
+
+  function setMode(m) {
+    mode = m === 'free' ? 'free' : 'auto';
+    write(MODE_KEY, mode);
+    var root = document.getElementById('dws-root');
+    if (root) { root.classList.toggle('dws-v2-auto', mode === 'auto'); root.classList.toggle('dws-v2-free', mode === 'free'); }
+    if (mode === 'free') { core.setTool('select'); }
+    var sh = core.sheet();
+    if (mode === 'auto' && sh && !(sh.form && sh.form.v2_layout) && (sh.objects || []).some(function (x) { return x.type === 'image'; })) {
+      arrange('mode', { undo: true, photo: true });
+    }
+    refresh();
+  }
+
+  function relabel(id, label) { core.setPartLabel(id, label); }   // labels 사건 → 자동 배치 모드면 다시 배치
+
+  function pickTemplate(t) {
+    var sh = core.sheet();
+    if (!sh || (t !== 'band' && t !== 'column')) { return; }
+    core.recordUndo();
+    sh.form.v2_pick = t;
+    arrange('template', { template: t });
+  }
+
+  function split() {
+    var sheet = core.sheet(), plan = sheet ? buildPlan(sheet) : null, groups = plan ? window.FomsV2Plan.splitGroups(plan) : null;
+    if (!groups) { core.toast('나눌 그림이 모자라요 — 큰 그림이나 상세가 두 개 이상이어야 해요'); return; }
+    var made = core.split(groups, function (fresh) {
+      var p = buildPlan(fresh), r = p.out[p.out.best];
+      if (r) { window.FomsV2Plan.apply(fresh, r, { template: p.out.best }); }
+    });
+    if (!made.length) { core.toast('시트는 10장까지예요 — 나눌 수 없어요'); return; }
+    arrange('split', {});
+    core.toast('그림 ' + groups[0].length + '장을 새 시트 "' + made[0].name + '"로 옮겨 칸에 놓았어요 · 되돌리기: 이 시트에서 Ctrl+Z');
+  }
+
+  function unpinAll() {
+    var sh = core.sheet();
+    if (!sh) { return; }
+    core.recordUndo();
+    (sh.objects || []).forEach(function (o) {
+      if (o.type === 'image' && o.part && window.FomsV2Slots.moved(o)) { o.part.arr = [o.x, o.y, o.w, o.h]; }
+    });
+    sh.form.v2_pick = '';
+    arrange('unpin', {});
+  }
+
+  function wire() {
+    ['render', 'sheet', 'loaded', 'change'].forEach(function (ev) { core.on(ev, refresh); });
+    core.on('batch', function () { if (mode === 'auto') { arrange('batch', { photo: true }); } else { refresh(); } });
+    core.on('added', function (d) {
+      if (awaitingPhoto && d && d.id) { autoPhoto[d.id] = true; awaitingPhoto = false; }
+      if (d && !d.batch) { scheduleArrange('added'); }
+    });
+    core.on('labels', function (d) { if (d && (d.by === 'user' || !d.batch)) { scheduleArrange('labels'); } });
+    core.on('arrange', function (d) { arrange(d && d.fromUpload ? 'late' : 'button', { undo: !(d && d.fromUpload), photo: true }); });
+  }
+
+  function init() {
+    core = window.FomsWizardCore;
+    if (!core || core.ui !== 'v2') { return; }
+    loadSettings();
+    window.FomsV2 = {
+      core: core, refresh: refresh, arrange: arrange, plan: function () { return last; },
+      settings: function () { return settings; }, setSetting: setSetting, mode: function () { return mode; }, setMode: setMode,
+      relabel: relabel, selectIds: function (ids) { core.select(ids); }, split: split, pickTemplate: pickTemplate, unpinAll: unpinAll
+    };
+    if (window.FomsV2Chrome) { window.FomsV2Chrome.init(window.FomsV2); }
+    if (window.FomsV2Left) { window.FomsV2Left.init(window.FomsV2); }
+    if (window.FomsV2Right) { window.FomsV2Right.init(window.FomsV2); }
+    wire();
+    setMode(mode);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init, { once: true });
+  } else {
+    init();
+  }
+})();

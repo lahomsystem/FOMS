@@ -34,6 +34,9 @@
   }
 
   var API_BASE = '/api/orders/' + ORDER_ID;
+  /* 화면 갈래 — 'v2' 면 칸 자동 배치 화면(v2-*.js, 설계서 docs/plans/2026-10-26-drawing-wizard-v2-spec.md). 엔진은 같다. */
+  var UI = CONFIG.ui === 'v2' ? 'v2' : 'v1';
+  var coreHandlers = {};   // V2 화면 연결 사건 → [처리 함수] (emitCore)
   var HTML2CANVAS_SRC = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
   /* 이미지 에셋 1장 상한 — 백엔드 `_MAX_ASSET_BYTES`(10MB)와 본문 제한 가드 캡의 정합값. */
   var MAX_ASSET_BYTES = 10 * 1024 * 1024;
@@ -406,7 +409,7 @@
     markDirty();
   }
 
-  function markDirty() { dirty = true; userDirty = true; updateSaveState(); scheduleBackup(); }
+  function markDirty() { dirty = true; userDirty = true; updateSaveState(); scheduleBackup(); emitCore('change'); }
 
   /* ---- 로컬 비상 백업(브라우저 localStorage) --------------------------------
      서버 저장 전에 탭이 죽어도 작업을 되살리도록, 변경 2초 뒤 시트 전체를 이 브라우저에 적어 둔다.
@@ -1459,6 +1462,7 @@
     var restored = selectedIds.filter(function (id) { return !!nodeById[id]; });
     if (restored.length) { selectedIds = restored; applySelection(); }
     else if (selectedIds.length) { deselect(); }
+    emitCore('render');
   }
 
   /* ---- 선택 / 미니툴바 ----------------------------------------------------
@@ -3075,6 +3079,7 @@
       markDirty();
       rebuildAnno();
       selectById(o.id);
+      emitCore('added', { id: o.id, batch: !!batch });
       classifyPlacedImage(o.id, img, batch);
     };
     img.onerror = function () { toast('이미지를 불러오지 못했습니다.'); finishPartBatch(batch, null); };
@@ -3158,6 +3163,10 @@
     if (!id) { partProgress(-1, 0, true); }   // 못 올린 그림은 진행 칩에 미리 센 장수에서 뺀다(I3)
     if (id) { batch.ids.push(id); }
     batch.left -= 1;
+    if (UI === 'v2') {   // V2 는 묶음이 끝나면 칸 배치를 스스로 정한다(v2-shell.js)
+      if (batch.left <= 0) { emitCore('batch', { ids: batch.ids.slice(), sheetId: batch.sheetId }); }
+      return;
+    }
     if (batch.left > 0 || batch.ids.length < 2) { return; }
     var s = currentSheet();
     if (!s || s.id !== batch.sheetId) { return; }
@@ -3221,6 +3230,7 @@
         applyKitchenPairs(o, img);
         if (selected === id) { syncImageToolbar(o); }
         if (late && batch) { batch.lateNamed = true; }
+        emitCore('labels', { id: id, by: 'ai', batch: !!batch });
       }
       if (!settled) { settled = true; clearTimeout(timer); finishPartBatch(batch, id); }
       else if (late && batch) { latePartName(batch); }
@@ -3333,6 +3343,7 @@
     syncImageToolbar(o);
     refreshPartBadges();
     showPartLearnTip();
+    emitCore('labels', { id: id, by: 'user' });
   }
 
   /** 여러 장을 고른 채 숫자키 — 고른 그림 전부에 같은 종류(되돌리기 한 번). 돌려주는 값 = 고른 그림 수(0 = 그림 없음). */
@@ -3349,6 +3360,7 @@
       });
       markDirty();
       refreshPartBadges();
+      emitCore('labels', { ids: plan.change.slice(), by: 'user' });
     }
     toast(plan.text + (plan.change.length ? ' (되돌리기 Ctrl+Z)' : ''));
     showPartLearnTip();
@@ -3475,6 +3487,7 @@
   /** 잠기지 않은 그림을 종류에 맞춰 놓는다(part-layout.js). 글자·도형·잠긴 그림은 비켜 가고 자재표 자리는 비워 둔다.
       치수 글자가 8px 밑으로 작아지면 그대로 넣지 않고 묻는다. 실행 취소 한 번이면 배치 전으로. */
   function autoArrangeImages(fromUpload, batch, lateMsg) {
+    if (UI === 'v2') { emitCore('arrange', { fromUpload: !!fromUpload }); return; }   // V2 는 칸 배치(v2-shell.js)
     var s = currentSheet();
     if (!canSave || !s || !window.FomsPartLayout || !window.FomsPartArrange) { return; }
     var plan = partArrangePlan(s);
@@ -3643,6 +3656,7 @@
       그림은 놓은 순서로(다시 [자동 배치] 해도 같은 순서), 그림 아래 깔린 글자(자재표)는 그림 위로 — 저장 순서도 같다. */
   function partPlace(s, res) {
     var byId = {};
+    if (s.form && s.form.v2_layout) { delete s.form.v2_layout; }   // V1 배치가 그림을 다시 놓았다 — V2 칸 머리는 '정리하기' 전까지 숨는다
     (s.objects || []).forEach(function (o) { byId[o.id] = o; });
     res.placed.forEach(function (p) {
       var o = byId[p.id];
@@ -3959,21 +3973,29 @@
     if (!currentSheet()) { toast('제품을 선택해 도면을 먼저 시작하세요.'); return; }
     if (!photo || !photo.key || cell.classList.contains('dws-photo-loading')) { return; }
     cell.classList.add('dws-photo-loading');
-    jsonFetch(API_BASE + '/drawing-wizard/import-attachment', {
+    importMeasurePhoto(photo, pos, function () { onPhotoClick(photo, cell); }).then(function () {
+      cell.classList.remove('dws-photo-loading');
+    });
+  }
+
+  /** 실측 사진 한 장을 마법사 에셋으로 복사해 지금 시트에 넣는다(import-attachment) — 넣으면 true.
+      retry = 실패 알림의 [다시 시도]. V2 실측 사진 자동(v2-shell.js)도 이 길을 쓴다. */
+  function importMeasurePhoto(photo, pos, retry) {
+    return jsonFetch(API_BASE + '/drawing-wizard/import-attachment', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
       body: JSON.stringify({ key: photo.key })
     }).then(function (r) {
-      cell.classList.remove('dws-photo-loading');
       if (r.status !== 200 || !r.data || !r.data.success || !r.data.data || !r.data.data.key) {
-        toast(failureText('실측 사진 삽입 실패', r), { error: true, retry: function () { onPhotoClick(photo, cell); } });
-        return;
+        toast(failureText('실측 사진 삽입 실패', r), { error: true, retry: retry });
+        return false;
       }
       placeImageFromKey(r.data.data.key, pos || null, 0, PHOTO_MAX_LONG);
+      return true;
     }, function (err) {
-      cell.classList.remove('dws-photo-loading');
       console.warn('[dws] import-attachment', err);
-      toast(failureText('실측 사진 삽입 실패', null), { error: true, retry: function () { onPhotoClick(photo, cell); } });
+      toast(failureText('실측 사진 삽입 실패', null), { error: true, retry: retry });
+      return false;
     });
   }
 
@@ -4223,6 +4245,17 @@
       add.addEventListener('click', addSheet);
       els.tabbar.appendChild(add);
     }
+    emitCore('sheet');
+  }
+
+  /** V1 에서 V2(칸 자동 배치 화면)로 정리한 시트를 열었다 — V2 종이에는 위쪽 체크 칸·쪽 번호 칸이 없어 그 자리에 그림이 있을 수 있다.
+      시트마다 한 번 알린다(설계서 2026-10-26 V2 §2 — V1 [자동 배치]가 다시 놓으면 V2 표시는 지워진다). */
+  var v2LaidWarned = {};
+  function warnV2Laid() {
+    var cs = currentSheet();
+    if (UI !== 'v1' || !cs || !cs.form || !cs.form.v2_layout || v2LaidWarned[cs.id]) { return; }
+    v2LaidWarned[cs.id] = true;
+    toast('새 화면(V2)에서 칸으로 정리한 시트예요 — 위쪽 체크 칸과 겹치면 [자동 배치]를 누르거나 새 화면에서 열어 주세요');
   }
 
   function switchSheet(i) {
@@ -4237,6 +4270,7 @@
     rebuildAnno();
     syncProductActive();
     updateDeleteSavedBtn();
+    warnV2Laid();
   }
 
   /** 새 시트 이름 — 이미 쓰는 이름이면 다음 번호로 넘긴다. 탭·전달 대기함·[저장] 알림이 시트 이름으로 말해서
@@ -5097,6 +5131,8 @@
       refreshPending();   // 저장된 도면(전달 대기) 미리보기 패널 초기 로드
       offerBackupRestore();   // 서버와 다른 로컬 비상 백업이 있으면 복원 배너(열람 전용이면 생략)
       hydrated = true;   // 렌더까지 끝난 뒤에만 저장 허용(성공 핸들러의 맨 마지막 문장)
+      emitCore('loaded');
+      warnV2Laid();
     }, function (err) { loadFailed = true; console.warn('[dws] load', err); toast('불러오기 오류 — 새로고침해 주세요.'); });
   }
 
@@ -6703,6 +6739,116 @@
     document.getElementById('dws-autofill-cancel').addEventListener('click', closeAutofillDialog);
   }
 
+  /* ========================================================================
+   * [8] V2 화면 연결 — 설계서 docs/plans/2026-10-26-drawing-wizard-v2-spec.md
+   * V2 모듈(v2-*.js)은 이 창구(window.FomsWizardCore)로만 마법사 상태를 읽고 바꾼다. V1 화면은 아무도 듣지 않는다.
+   * 사건: ready · loaded · sheet(탭을 다시 그림) · render(객체를 다시 그림) · change(markDirty) · added(그림 한 장 놓음)
+   *       · labels(그림 종류가 바뀜) · batch(같이 올린 묶음이 끝남) · arrange([자동 배치] — V2 가 받는다)
+   * ====================================================================== */
+  function emitCore(name, data) {
+    var list = coreHandlers[name];
+    if (!list) { return; }
+    list.slice().forEach(function (fn) {
+      try { fn(data); } catch (e) { console.warn('[dws] core ' + name, e); }
+    });
+  }
+
+  /** V2 배율 기준 — 같은 그림을 V1 자동 배치(빈 새 시트 칸)로 놓았을 때 크기 { id: {w, h} }. */
+  function v1Baseline(imgs) {
+    var L = window.FomsPartLayout, A = window.FomsPartArrange, s = currentSheet(), out = {};
+    if (!L || !A || !s || !imgs || !imgs.length) { return out; }
+    var order = A.order(imgs, partUploadSeq), fresh = partFreshPlan(s);
+    var res = L.arrange(imgs.map(function (o) { return partItem(o, order); }), fresh.area, fresh.obstacles, { reserve: fresh.reserve });
+    res.placed.forEach(function (p) { out[p.id] = { w: p.w, h: p.h }; });
+    return out;
+  }
+
+  /** V2 나누기 — groups(그림 id 묶음)마다 지금 시트 뒤에 새 시트를 만들어 옮긴다. place(sheet) = 새 시트를 칸에 놓는 V2 함수.
+      되돌리기는 V1 나누기와 같은 길(partSplitLinks): 이 시트에서 Ctrl+Z 한 번이면 새 시트와 옮긴 그림이 돌아온다. */
+  function v2SplitSheet(groups, place) {
+    var s = currentSheet();
+    var list = (groups || []).filter(function (ids) { return ids && ids.length; });
+    if (!canSave || !s || !list.length || state.sheets.length + list.length > 10) { return []; }
+    var form = cloneForm(s.form), base = cloneForm(defaults), byId = {}, moved = [], made = [];
+    form.checks = base.checks;
+    form.page_no = base.page_no;
+    (s.objects || []).forEach(function (o) { byId[o.id] = o; });
+    recordUndo();
+    var snap = undoStack[undoStack.length - 1];
+    list.forEach(function (ids, k) {
+      var sheet = newSheet(uniqueSheetName(s.name), form);
+      sheet.objects = sheet.objects.concat(ids.map(function (id) { return byId[id]; }).filter(Boolean));
+      if (typeof place === 'function') { place(sheet); }
+      state.sheets.splice(current + 1 + k, 0, sheet);
+      made.push(sheet);
+      moved = moved.concat(ids);
+    });
+    s.objects = s.objects.filter(function (o) { return moved.indexOf(o.id) < 0; });
+    partSplitLinks.push({ snap: snap, ids: moved, made: made.map(function (sh) { return { id: sh.id, sig: partSheetSig(sh) }; }) });
+    markDirty();
+    deselect();
+    renderTabs();
+    rebuildAnno();
+    return made;
+  }
+
+  function exposeCore() {
+    window.FomsWizardCore = {
+      ui: UI, stageW: STAGE_W, stageH: STAGE_H, orderId: ORDER_ID, partLabels: PART_LABELS.slice(),
+      on: function (name, fn) { (coreHandlers[name] = coreHandlers[name] || []).push(fn); },
+      state: function () { return state; },
+      sheet: currentSheet,
+      index: function () { return current; },
+      canSave: function () { return !!canSave; },
+      hydrated: function () { return !!hydrated; },
+      isDirty: function () { return !!dirty; },
+      products: function () { return products; },
+      photos: function () { return measurePhotos; },
+      photoVisible: function (p) {
+        var cs = currentSheet();
+        return photoVisibleFor(p, (cs && isFiniteNum(cs.product_index)) ? cs.product_index : -1);
+      },
+      customer: function () { return customerName; },
+      productText: function () { return sheetProductText(currentSheet()); },
+      recordUndo: recordUndo,
+      markDirty: markDirty,
+      undo: undo,
+      redraw: function () { rebuildAnno(); refreshPartBadges(); },
+      renderForm: renderForm,
+      fitCell: fitCellText,
+      select: function (ids) {
+        selectedIds = (ids || []).filter(function (id) { return !!nodeById[id]; });
+        if (selectedIds.length) { applySelection(); } else { deselect(); }
+      },
+      setPartLabel: setPartLabel,
+      addFiles: addImagesFromFiles,
+      pickFiles: function () { if (canSave && els.fileInput) { els.fileInput.click(); } },
+      importPhoto: importMeasurePhoto,
+      image: function (id) { var n = nodeById[id]; return (n && typeof n.image === 'function') ? n.image() : null; },
+      viewUrl: viewUrl,
+      hatch: function (o) { return (window.FomsPartPair && o && o.key) ? hatchOf(o) : null; },
+      threshold: partThreshold,
+      baseline: v1Baseline,
+      items: function (imgs) {   // 자동 배치 입력 [{id, nw, nh, tx, label, order}] — 치수 글자 높이 tx 는 한 번 재 둔 값
+        var order = window.FomsPartArrange ? window.FomsPartArrange.order(imgs, partUploadSeq) : {};
+        return imgs.map(function (o) { return partItem(o, order); });
+      },
+      split: v2SplitSheet,
+      rid: rid,
+      normalize: normalizeObj,
+      textSize: loadPreferredTextSize,
+      toast: toast,
+      zoom: function () { return zoom; },
+      setZoom: setZoom,
+      fitZoom: fitZoom,
+      save: save,
+      setTool: setAnnoMode,
+      editing: function () { return !!(editingTextarea || editCtx); }
+    };
+    emitCore('ready', window.FomsWizardCore);
+  }
+
+
   function init() {
     cacheDom();
     // 모바일/태블릿도 편집 허용(펜슬 프리핸드 + 두 손가락 팬/핀치). 기존 "데스크톱
@@ -6714,9 +6860,12 @@
       return;
     }
     createKonva();
-    cacheLayoutEls();
-    buildDividers();
+    if (UI === 'v1') {   // V2 아래 띠는 칸 폭을 끌어 바꾸지 않는다(새 양식 — 표 엔진·경계선 손잡이 없음)
+      cacheLayoutEls();
+      buildDividers();
+    }
     wireStatic();
+    exposeCore();
     load();
     loadUserPresets();
     // 자동 저장 타이머(단일). 실제 저장 여부는 tickAutosave 내부 게이트가 판단(canSave 포함).

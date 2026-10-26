@@ -47,7 +47,7 @@ def test_auto_save_does_not_touch_tool_mode() -> None:
 # ---- (2b) 로컬 비상 백업 ----
 
 def test_mark_dirty_schedules_backup() -> None:
-    assert "function markDirty() { dirty = true; userDirty = true; updateSaveState(); scheduleBackup(); }" in JS
+    assert "function markDirty() { dirty = true; userDirty = true; updateSaveState(); scheduleBackup(); emitCore('change'); }" in JS
     assert "var BACKUP_DEBOUNCE_MS = 2000;" in JS
     assert "var BACKUP_MAX_CHARS = 4 * 1024 * 1024;" in JS
 

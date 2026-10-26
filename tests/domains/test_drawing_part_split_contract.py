@@ -153,6 +153,7 @@ vm.createContext(ctx);
 for (const f of ['part-pack.js', 'part-layout.js', 'part-split.js', 'part-arrange.js']) { vm.runInContext(fs.readFileSync(dir + '/' + f, 'utf8'), ctx); }
 vm.runInContext([
   'var state = { sheets: [] }, current = 0, undoStack = [], redoStack = [], sheetHistories = {}, RID = 0, CHOICE = null;',
+  "var UI = 'v1'; function emitCore() {}",   // V1 화면 — V2 연결 사건은 아무도 듣지 않는다(설계서 2026-10-26 V2)
   'var canSave = true, selected = null, selectedIds = [], nodeById = {}, partTextH = {}, partUploadSeq = {}, partBatchNo = 0;',
   "var defaults = { page_no: '', product_name: '', checks: { d_site: false } };",
   'var els = { form: { querySelector: function () { return { offsetTop: 43, offsetHeight: 52 }; } } };',

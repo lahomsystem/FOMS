@@ -684,6 +684,33 @@ html, body {
 }
 .dws-tab-add:hover { background: #f5f5f7; }
 
+/* 탭 줄 묶음 — 왼쪽 탭(가로 스크롤) · 오른쪽 끝 자리(V1 [새 화면 V2 써 보기] · V2 저장 상태 칩, 설계서 2026-10-26 V2 §6) */
+.dws-tabrow {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  background: #f5f5f7;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.07);
+}
+.dws-tabrow .dws-tabbar { flex: 1 1 auto; min-width: 0; border-bottom: 0; }
+.dws-tabrow-side { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; padding: 0 14px 0 8px; }
+.dws-tabrow-side:empty { display: none; }
+.dws-ui-switch-btn {
+  border: 1px solid #b9cff2;
+  background: #eef3fd;
+  color: #0b3a75;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: 980px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.dws-ui-switch-btn:hover { background: #e1ebfb; }
+.dws-ui-switch-btn:focus-visible { outline: 2px solid #0a59c9; outline-offset: 2px; }
+
 /* ---- 본문 (좌: 제품 리스트 · 우: 캔버스) -------------------------------- */
 .dws-body {
   flex: 1 1 auto;

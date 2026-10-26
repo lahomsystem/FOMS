@@ -4,7 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>도면 마법사 — 주문 #{{ order.id }}</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/wizard.css') }}?v=20261026c">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/wizard.css') }}?v=20261026d">
+  {% if wizard_ui == 'v2' %}<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/wizard-v2.css') }}?v=20261026c">{% endif %}
   {# 도면 수정 요청 확인창 — 마법사는 공용 상단바(벨·배지·소켓)를 쓰지 않는 standalone 이라
      도면팀이 가장 오래 머무는 화면이 알림 사각지대였다(2026-09-11 실측: 수정 요청 21건 중
      8건 미독). 상단바 전체를 들이면 캔버스 단축키와 충돌하므로 확인창과 소켓만 싣는다. #}
@@ -17,7 +18,7 @@
     {% include "partials/shared/csrf_bootstrap.html" %}
 </head>
 <body>
-  <div id="dws-root" data-order-id="{{ order.id }}">
+  <div id="dws-root" data-order-id="{{ order.id }}" data-ui="{{ wizard_ui }}"{% if wizard_ui == 'v2' %} class="dws-v2 dws-v2-auto"{% endif %}>
 
     <!-- ================= 앱바 (3분할: 타이틀 · 도구 세그먼트 · 액션) ======= -->
     <header class="dws-appbar dws-ui">
@@ -39,6 +40,13 @@
 
       <!-- 중앙: 도구 세그먼트 컨트롤 -->
       <div class="dws-appbar-center">
+        {% if wizard_ui == 'v2' %}
+        {# V2 배치 방식 — 자동 배치: 그림을 칸에 저절로 · 자유 배치: V1 도구로 손으로(v2-shell.js setMode) #}
+        <div class="dws-v2-modes" role="group" aria-label="배치 방식">
+          <button type="button" class="dws-v2-mode" data-v2-mode="free" aria-pressed="false">자유 배치</button>
+          <button type="button" class="dws-v2-mode" data-v2-mode="auto" aria-pressed="true">자동 배치</button>
+        </div>
+        {% endif %}
         <div class="dws-seg" role="group" aria-label="주석 도구">
           <button type="button" class="dws-seg-btn dws-edit-ctl" id="dws-btn-select" title="선택 · 이동 (V)">
             <svg class="dws-ico" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3l7.07 17 2.51-7.39L20 10.09 3 3z"/></svg>
@@ -165,6 +173,25 @@
           </div>
         </div>
 
+        {% if wizard_ui == 'v2' %}
+        {# V2: K2 앱바처럼 PNG · 저장만 드러내고 나머지는 ⋯ 메뉴(원래 단추를 눌러 줄 뿐 — 처리·잠금 그대로, v2-chrome.js) #}
+        <button type="button" class="dws-btn" data-v2-for="dws-btn-export-png" title="지금 시트를 PNG 로 내려받기">PNG</button>
+        <div class="dws-dropdown dws-v2-more">
+          <button type="button" class="dws-btn dws-icon-btn" id="dws-v2-more" title="더 보기" aria-label="더 보기" aria-haspopup="true" aria-expanded="false" aria-controls="dws-v2-more-menu">⋯</button>
+          <div class="dws-menu dws-menu-right" id="dws-v2-more-menu" hidden>
+            <button type="button" class="dws-menu-item" data-v2-for="dws-btn-save-all">일괄 저장</button>
+            <button type="button" class="dws-menu-item" data-v2-for="dws-btn-export-all">일괄 내보내기 (폴더 저장)</button>
+            <button type="button" class="dws-menu-item" data-v2-for="dws-btn-version-history">버전 이력…</button>
+            <div class="dws-menu-sep"></div>
+            <button type="button" class="dws-menu-item" data-v2-for="dws-btn-autofill">자동 채움</button>
+            <button type="button" class="dws-menu-item" data-v2-for="dws-btn-calc">자재표 계산</button>
+            <button type="button" class="dws-menu-item" data-v2-for="dws-btn-help">단축키 도움말</button>
+            <div class="dws-menu-sep"></div>
+            <button type="button" class="dws-menu-item" data-dws-ui-switch="v1">예전 화면(V1)으로</button>
+          </div>
+        </div>
+        {% endif %}
+
         <span class="dws-appbar-sep"></span>
 
         <!-- 도면방 PUSH — 현재 전달본 도면 전부를 채널톡 도면방으로. 전달 대기(pending)는 보내지 않는다.
@@ -194,10 +221,18 @@
     </div>
 
     <!-- ================= 시트 탭 바 ================= -->
-    <div class="dws-tabbar dws-ui" id="dws-tabbar"></div>
+    <div class="dws-tabrow dws-ui">
+      <div class="dws-tabbar" id="dws-tabbar"></div>
+      {# 오른쪽 끝: V1 은 [새 화면 V2 써 보기], V2 는 저장 상태 칩 자리(v2-chrome.js 가 칩을 옮겨 온다 — K2 '자동 저장됨 10:42') #}
+      <div class="dws-tabrow-side" id="dws-v2-tabstatus">
+        {% if wizard_ui != 'v2' and can_save %}<button type="button" class="dws-ui-switch-btn" data-dws-ui-switch="v2" title="그림을 칸에 저절로 넣는 새 화면 — 언제든 예전 화면으로 돌아올 수 있어요">새 화면 V2 써 보기</button>{% endif %}
+      </div>
+    </div>
 
     <!-- ================= 본문 (좌: 제품 리스트 · 우: 캔버스) ============ -->
     <div class="dws-body">
+
+    {% if wizard_ui == 'v2' %}{% include 'drawing/partials/wizard_v2_left.html' %}{% endif %}
 
     <!-- 좌측 제품 리스트 패널(접기 가능) -->
     <aside class="dws-products dws-ui" id="dws-products">
@@ -231,6 +266,7 @@
 
     <!-- ================= 캔버스(스크롤) ================= -->
     <div class="dws-canvas" id="dws-canvas">
+      {% if wizard_ui == 'v2' %}<div class="dws-v2-banner dws-ui" id="dws-v2-banner" role="status" aria-live="polite" hidden></div>{% endif %}
       <div class="dws-stage-wrap" id="dws-stage-wrap">
 
         <!-- 현재 시트의 전달본(전달 대기함에 넣은 그림) 지우기 — 전달본 있고 편집 권한일 때만 노출(wizard.js updateDeleteSavedBtn) -->
@@ -238,6 +274,7 @@
 
         <div class="dws-stage" id="dws-stage">
 
+          {% if wizard_ui == 'v2' %}{% include 'drawing/partials/wizard_v2_form.html' %}{% else %}
           <!-- ---- 양식 레이어(§6 지오메트리) ---- -->
           <div class="dws-form" id="dws-form">
 
@@ -326,15 +363,18 @@
             <!-- DREW 서명 라인 -->
             <div class="dws-drew">DREW :&nbsp;<span class="dws-drew-val" data-dws-form-key="drew"></span></div>
           </div>
+          {% endif %}
 
           <!-- ---- 자유 주석 레이어 (Konva Stage 마운트) ---- -->
           <div class="dws-anno" id="dws-anno"></div>
+          {% if wizard_ui == 'v2' %}<div class="dws-v2-badges dws-ui" id="dws-v2-badges" aria-hidden="true"></div>{% endif %}
 
           <!-- ---- 표 경계선 드래그 히트존(열/행 폭 조절, 내보내기 숨김) ---- -->
           <div class="dws-dividers dws-ui" id="dws-dividers"></div>
 
         </div>
       </div>
+      {% if wizard_ui == 'v2' %}{% include 'drawing/partials/wizard_v2_canvas.html' %}{% endif %}
 
       <!-- ===== 빈 상태 안내 오버레이(시트 0개): 제품 클릭/+시트로만 도면 생성 =====
            글은 wizard.js updateEmptyOverlay 가 제품 수·권한을 보고 고친다(save-status.js emptyCopy — 제품 없는 주문은 빈 시트로 안내) -->
@@ -351,6 +391,7 @@
     <!-- 오른쪽 자재표 계산 칸(bom-panel.js 가 채움, 설계서 2026-10-23 §3.6 — 그림자 판, 화면 글 '시험 계산').
          배치 안 A: 제목 아래 결과·맞춰 보기 고정(bom-results.js) · 입력 묶음(bom-form.js) · 규칙 창(bom-rules-dialog.js) -->
     <aside class="dws-calc dws-ui" id="dws-calc" aria-label="자재표 계산" hidden></aside>
+    {% if wizard_ui == 'v2' %}{% include 'drawing/partials/wizard_v2_right.html' %}{% endif %}
 
     </div><!-- /.dws-body -->
 
@@ -675,7 +716,21 @@
   <script src="{{ url_for('static', filename='js/drawing/wizard-chrome.js') }}?v=20261025b" defer></script>
   <script src="{{ url_for('static', filename='js/drawing/wizard-toast.js') }}?v=20261025b" defer></script>
   <script src="{{ url_for('static', filename='js/drawing/wizard-appbar.js') }}?v=20261025c" defer></script>
-  <script src="{{ url_for('static', filename='js/drawing/wizard.js') }}?v=20261026b" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/wizard.js') }}?v=20261026d" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/wizard-ui-switch.js') }}?v=20261026a" defer></script>
+  {% if wizard_ui == 'v2' %}
+  {# V2 칸 자동 배치 화면 — 설계서 docs/plans/2026-10-26-drawing-wizard-v2-spec.md. v2-shell.js 가 마지막(나머지를 잇는다). #}
+  <script src="{{ url_for('static', filename='js/drawing/v2-slots.js') }}?v=20261026a" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/v2-pack.js') }}?v=20261026a" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/v2-layout.js') }}?v=20261026f" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/v2-plan.js') }}?v=20261026a" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/v2-paper.js') }}?v=20261026b" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/v2-notes.js') }}?v=20261026a" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/v2-left.js') }}?v=20261026b" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/v2-right.js') }}?v=20261026a" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/v2-chrome.js') }}?v=20261026b" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/v2-shell.js') }}?v=20261026d" defer></script>
+  {% endif %}
   {# 수정 요청 확인창 배선: 소켓 → 확인창. write helper 는 ack POST 의 same-origin 헤더용. #}
   <script src="https://cdn.socket.io/4.5.4/socket.io.min.js" defer integrity="sha384-/KNQL8Nu5gCHLqwqfQjA689Hhoqgi2S84SNUxC3roTe4EhJ9AfLkp8QiQcU8AMzI" crossorigin="anonymous"></script>
   <script src="{{ url_for('static', filename='js/foms/notification-write.js') }}?v=20260704a" defer></script>
