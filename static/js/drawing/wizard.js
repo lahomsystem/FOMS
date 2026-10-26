@@ -133,6 +133,7 @@
 
   function viewUrl(key) { return API_BASE + '/drawing-wizard/asset-raw?key=' + encodeURIComponent(key); }
   function rid(prefix) { return prefix + Math.random().toString(36).slice(2, 8) + Date.now().toString(36).slice(-3); }
+  function newObjId() { return rid('o-'); }
   function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
   function num(v, def) { return (typeof v === 'number' && isFinite(v)) ? v : (def || 0); }
 
@@ -4065,6 +4066,8 @@
       cell.addEventListener('click', function () { openLightbox(it.key, name); });
       els.pendingGrid.appendChild(cell);
     });
+    // 목록에 [저장] 때 지문이 있으면 그것이 기준이다(다시 연 창도 정확히 — 설계서 2026-10-26 §2.2).
+    if (window.FomsSaveStatus) { window.FomsSaveStatus.applyServerSigs(queuedSigBySheet, list); }
     if (loadedSigBySheet && window.FomsSaveStatus) {
       // 다시 연 창의 첫 목록: 이 창에서 넣지 않은 전달본은 불러온 그대로를 기준으로 삼는다(다시 열어 고치면 '전달본 예전 것').
       window.FomsSaveStatus.seedQueuedSigs(queuedSigBySheet, loadedSigBySheet, pendingSheetIds);
@@ -5027,6 +5030,7 @@
         return;
       }
       var d = r.data.data;
+      var splitIds = 0;
       canSave = !!d.can_save;
       defaults = d.defaults || {};
       products = d.products || [];
@@ -5036,6 +5040,7 @@
       if (d.state && d.state.sheets && d.state.sheets.length) {
         state = normalizeState(d.state);
         baseUpdatedAt = d.state.updated_at || null;
+        splitIds = window.FomsSheetIds ? window.FomsSheetIds.splitDupIds(state.sheets, newObjId) : 0;   // 시트 사이 겹친 그림 id 떼기
       } else {
         // 저장된 도면 없음 → 빈 상태(기본 시트 자동 생성 안 함). 제품 클릭/+시트로만 시트 생성.
         state = { v: 1, sheets: [] };
@@ -5072,6 +5077,11 @@
         // 사용자가 하지 않은 변경을 사용자 대신 서버에 써 넣지 않는다(저장 버튼은 켜되 자동저장은 하지 않는다).
         if (numbered) { dirty = true; }
       })();
+      if (splitIds) {
+        // 같은 그림이 두 시트에 있었다 — 뒤쪽 것을 새 id 로 뗐다. 지울지는 사람이 정한다(자동 저장은 하지 않고 저장만 켠다).
+        dirty = true;
+        toast('같은 그림이 두 시트에 있어 뒤쪽 시트의 그림 ' + splitIds + '장을 따로 떼었어요 — 필요 없으면 지워 주세요');
+      }
       selectedIds = [];
       selected = null;
       setAnnoMode('select');
@@ -5149,6 +5159,9 @@
       // 수동 저장만 활성 편집을 커밋·blur(자동 저장은 폼 셀 포커스/캐럿을 방해하지 않음).
       if (commitActiveEdit) { commitActiveEdit(); }
       if (document.activeElement && document.activeElement.blur) { document.activeElement.blur(); }
+    }
+    if (window.FomsSheetIds && window.FomsSheetIds.splitDupIds(state.sheets, newObjId)) {
+      rebuildAnno();   // 저장 전 한 번 더 — 겹친 그림 id 를 떼고 화면 노드도 새 id 로 다시 만든다(선택은 남은 노드만 되살린다)
     }
     saveInFlight = true;
     renderSaveStatus();   // '저장 중…'
@@ -5246,11 +5259,12 @@
   }
 
   /** PNG blob 을 '전달 대기함'(sheet-png)에 POST. 성공 시 true, 실패 시 throw(집계·재시도 판단은 호출측). */
-  function postSheetPngBlob(blob, sheet) {
+  function postSheetPngBlob(blob, sheet, sig) {
     var fd = new FormData();
     fd.append('file', blob, sheetPngFilename(sheet));
     fd.append('sheet_id', String((sheet && sheet.id) || ''));
     fd.append('sheet_name', String((sheet && sheet.name) || ''));
+    if (sig && window.FomsSaveStatus) { fd.append('sig', window.FomsSaveStatus.tagSig(sig)); }   // 넣을 때 그림 지문(다시 연 창의 기준)
     return jsonFetch(API_BASE + '/drawing-wizard/sheet-png', { method: 'POST', body: fd }).then(function (r) {
       if (r.status === 200 && r.data && r.data.success && r.data.data) { return true; }
       console.warn('[dws] sheet-png', r.status, r.data);
@@ -5263,11 +5277,12 @@
    * 보관한다(주문 '도면' 탭 저장 아님 — 담당자 전달은 도면 작업실의 일괄 전송이 담당).
    * 같은 시트(sheet_id) 재저장 시 서버가 구 PNG를 교체한다. 추가 PUT은 하지 않는다(단일·일괄 저장 공용).
    * @param {Object} sheet 저장 시점의 시트(비동기 동안 참조 고정)
+   * @param {string} [sig] 넣을 때의 그림 지문(전달 대기함 항목에 함께 남긴다)
    * @returns {Promise<true>} 실패 시 reject
    */
-  function pushSheetPng(sheet) {
+  function pushSheetPng(sheet, sig) {
     return withExportMode().then(canvasToPngBlob).then(function (blob) {
-      return postSheetPngBlob(blob, sheet);
+      return postSheetPngBlob(blob, sheet, sig);
     });
   }
 
@@ -5285,7 +5300,7 @@
       return Promise.resolve();
     }
     var sig = SS ? SS.sheetSig(cs) : '';   // 화면에 그려진 시트(되돌리기로 객체가 바뀌어도 그림은 cs 다)
-    return pushSheetPng(sheet).then(function () {
+    return pushSheetPng(sheet, sig).then(function () {
       els.saveBtn.disabled = false;
       noteQueued(sheet, sig);
       toast(SS ? SS.queuedToast(name) : '전달 대기함에 넣었어요');
@@ -5397,7 +5412,7 @@
       // 시트마다 넣을 때의 그림 지문을 적어 둔다(칩이 시트별로 '전달 대기함 HH:MM'·'전달본 예전 것'을 가른다).
       return eachSheetToBlob(function (blob, s) {
         var sig = SS ? SS.sheetSig(s) : '';
-        return postSheetPngBlob(blob, s).then(function () { noteQueued(s, sig); });
+        return postSheetPngBlob(blob, s, sig).then(function () { noteQueued(s, sig); });
       }, '일괄 저장').then(function (res) {
         switchSheet(origIdx);
         finishSaveAll();
