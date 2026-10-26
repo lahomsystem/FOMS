@@ -31,10 +31,16 @@ ERP_DRAFT_STALE_HOURS = int(os.environ.get("ERP_DRAFT_STALE_HOURS", "48"))
 # 발송(알림톡·실측 PUSH) 기록이 있는데 주문이 안 된 초안은 만료돼도 지우지 않는다. 고객·실측방은
 # 안내를 받았는데 ERP 에 주문이 없는 상태라 조용히 지우면 흔적까지 사라진다(2026-10-20 설계서
 # docs/plans/2026-10-20-wizard-push-register-safety-spec.md §3.2). 관리자 화면에서 정리한다.
-# JSON 열이라 None 을 명시 대입한 행은 SQL NULL 이 아니라 JSON 'null' 이다 — 둘 다 "기록 없음".
+# 판정은 열이 비었는지가 아니라 발송 종류 키가 있는지다 — 같은 열에 발송이 아닌 부가 표시
+# (안 보낸 초안 미등록 알림 표시)도 들어간다. 앱 쪽 정본은 ``has_send_history_clause`` 이고,
+# 이 파일은 Flask 앱을 import 하지 않으므로 키 이름을 여기 다시 적는다(테스트가 둘을 맞춘다).
+SENT_KIND_KEYS = ("alimtalk_measurement", "channeltalk_push_measure_room")
 _KEEP_SENT_DRAFTS_SQL = (
-    " AND (send_history IS NULL OR CAST(send_history AS TEXT) = 'null' OR order_id IS NOT NULL)"
+    " AND (order_id IS NOT NULL OR send_history IS NULL"
+    " OR NOT (CAST(send_history AS TEXT) LIKE :sent_kind_0"
+    " OR CAST(send_history AS TEXT) LIKE :sent_kind_1))"
 )
+_KEEP_SENT_DRAFTS_PARAMS = {f"sent_kind_{i}": f'%"{k}"%' for i, k in enumerate(SENT_KIND_KEYS)}
 
 
 def _parse_args() -> argparse.Namespace:
@@ -98,7 +104,7 @@ def run(*, execute: bool = False, session=None) -> tuple[int, int]:
     try:
         scanned_row = session.execute(
             text("SELECT COUNT(*) FROM order_drafts WHERE expires_at < :now" + _KEEP_SENT_DRAFTS_SQL),
-            {"now": now},
+            {"now": now, **_KEEP_SENT_DRAFTS_PARAMS},
         ).fetchone()
         scanned = scanned_row[0] if scanned_row else 0
 
@@ -106,7 +112,7 @@ def run(*, execute: bool = False, session=None) -> tuple[int, int]:
         if execute and scanned > 0:
             result = session.execute(
                 text("DELETE FROM order_drafts WHERE expires_at < :now" + _KEEP_SENT_DRAFTS_SQL),
-                {"now": now},
+                {"now": now, **_KEEP_SENT_DRAFTS_PARAMS},
             )
             deleted = result.rowcount
             session.commit()

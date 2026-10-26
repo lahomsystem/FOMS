@@ -28,14 +28,18 @@ _SEND_KINDS = frozenset({SEND_KIND_ALIMTALK, SEND_KIND_CHANNEL_MEASURE})
 
 
 def has_send_history_clause():
-    """발송 이력 열에 무언가 적힌 초안 조건.
+    """발송 종류 키(알림톡·실측 PUSH)가 적힌 초안 조건.
 
     열은 ``JSON`` 이라 파이썬 ``None`` 을 명시 대입하면 SQL NULL 이 아니라 JSON ``null`` 이
     들어간다 — ``IS NOT NULL`` 하나로는 그 행을 "발송함"으로 잘못 센다.
+    같은 열에 발송이 아닌 부가 표시(:func:`write_draft_send_history_meta` — 예: 안 보낸 초안에
+    미등록 알림을 보냈다는 표시)도 들어가므로 열이 비었는지가 아니라 **발송 종류 키**가 있는지를
+    본다. 그 표시만 있는 초안이 "발송함"으로 잡히면 만료돼도 지워지지 않는다.
     """
+    as_text = cast(OrderDraft.send_history, String)
     return and_(
         OrderDraft.send_history.isnot(None),
-        cast(OrderDraft.send_history, String) != "null",
+        or_(*[as_text.like(f'%"{kind}"%') for kind in sorted(_SEND_KINDS)]),
     )
 
 
