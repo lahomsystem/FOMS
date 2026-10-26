@@ -97,13 +97,17 @@ def _sweep_once(dry_run: bool) -> dict:
             recipient_user_ids=result.get("recipient_user_ids"),
         )
         result["draft_reminder"] = _draft_reminder_once(db)
+        result["draft_idle_reminder"] = _idle_draft_reminder_once(db)
         return result
     except Exception:
         db.rollback()
         raise
 
 
-def _deliver_draft_reminders(db, notification_ids, recipient_user_ids) -> int:
+def _deliver_draft_reminders(
+    db, notification_ids, recipient_user_ids,
+    notification_type=draft_send_reminder.NOTIFICATION_TYPE,
+) -> int:
     """커밋된 미등록 알림의 배지 무효화 + 실시간 + 웹푸시 enqueue. 푸시 enqueue 수를 준다."""
     recipients = sorted({int(x) for x in (recipient_user_ids or [])})
     if recipients:
@@ -113,7 +117,7 @@ def _deliver_draft_reminders(db, notification_ids, recipient_user_ids) -> int:
             {
                 "title": draft_send_reminder.TITLE,
                 "message": "",
-                "notification_type": draft_send_reminder.NOTIFICATION_TYPE,
+                "notification_type": notification_type,
                 "kind": "erp_notification",
             },
         )
@@ -146,6 +150,31 @@ def _draft_reminder_once(db) -> dict:
         "checked": reminder["checked"],
         "owner_reminded": reminder["owner_reminded"],
         "admin_reminded": reminder["admin_reminded"],
+        "pushed": pushed,
+    }
+
+
+def _idle_draft_reminder_once(db) -> dict:
+    """안 보낸 초안(고객명·연락처까지 적고 떠난 것) 작성자 알림 — 같은 루프, 실패는 기록만.
+
+    설계서: docs/plans/2026-10-26-wizard-unsent-draft-reminder-spec.md.
+    """
+    try:
+        reminder = draft_send_reminder.remind_idle_unsent_drafts(db)
+        db.commit()
+    except Exception:
+        db.rollback()
+        _LOGGER.exception("[draft-idle-reminder] sweep failed")
+        return {"error": "sweep_failed"}
+    pushed = _deliver_draft_reminders(
+        db,
+        reminder["created_notification_ids"],
+        reminder["recipient_user_ids"],
+        notification_type=draft_send_reminder.IDLE_NOTIFICATION_TYPE,
+    )
+    return {
+        "checked": reminder["checked"],
+        "owner_reminded": reminder["owner_reminded"],
         "pushed": pushed,
     }
 

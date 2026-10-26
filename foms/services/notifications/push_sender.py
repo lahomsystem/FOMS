@@ -94,6 +94,8 @@ _DEFAULT_P1_TYPES = frozenset(
         "PRODUCTION_ORDER_CHANGED",
         # 발송은 했는데 주문 등록이 안 된 마법사 초안 — 화면을 떠난 뒤라 폰으로만 닿는다.
         "DRAFT_SENT_NOT_REGISTERED",
+        # 안 보낸 초안이라도 고객명·연락처까지 적고 떠났으면 작성자 폰에 한 번 알린다.
+        "DRAFT_NOT_REGISTERED",
         # 에스컬레이션 row 는 is_urgent=False(재진입 방지)이므로 P1 로 OS push 허용.
         "URGENT_ESCALATION",
         # 앱 인증 만료는 화면을 안 보고 있어도 알려야 한다 — 만료되면 주문 수집이

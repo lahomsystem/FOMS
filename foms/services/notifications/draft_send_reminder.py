@@ -31,7 +31,9 @@ from foms.services.order_draft_service import (
     has_send_history_clause,
     write_draft_send_history_meta,
 )
-from models import Notification, OrderDraft, User
+from sqlalchemy import func
+
+from models import Notification, Order, OrderDraft, User
 from foms.services.notifications.recipients import fan_out_new_notification
 
 NOTIFICATION_TYPE = "DRAFT_SENT_NOT_REGISTERED"
@@ -39,6 +41,16 @@ TITLE = "주문 등록이 안 됐어요"
 REMINDER_KEY = "draft_send_reminder"
 OWNER_AFTER_MINUTES = 30
 ADMIN_AFTER_MINUTES = 120
+# 안 보낸 초안(고객명·연락처까지 적고 등록 없이 떠난 것) — 2026-10-26 설계서
+# docs/plans/2026-10-26-wizard-unsent-draft-reminder-spec.md. 고객에게 나간 것이 없어 발송한
+# 초안보다 느리게(60분), 작성자에게만 알린다.
+IDLE_NOTIFICATION_TYPE = "DRAFT_NOT_REGISTERED"
+IDLE_REMINDER_KEY = "draft_idle_reminder"
+IDLE_AFTER_MINUTES = 60
+# 이보다 오래 손대지 않은 초안은 보지 않는다(스윕이 1분마다 돈다 — 대상 수를 묶는다).
+IDLE_LOOKBACK_HOURS = 24
+# 같은 연락처 주문이 초안 생성 앞뒤 이 시간 안에 있으면 이미 등록한 고객으로 본다.
+IDLE_SAME_PHONE_WINDOW_HOURS = 24
 _KIND_LABELS = {
     SEND_KIND_CHANNEL_MEASURE: "실측 PUSH",
     SEND_KIND_ALIMTALK: "알림톡",
@@ -46,11 +58,15 @@ _KIND_LABELS = {
 
 __all__ = [
     "ADMIN_AFTER_MINUTES",
+    "IDLE_AFTER_MINUTES",
+    "IDLE_NOTIFICATION_TYPE",
+    "IDLE_REMINDER_KEY",
     "NOTIFICATION_TYPE",
     "OWNER_AFTER_MINUTES",
     "REMINDER_KEY",
     "TITLE",
     "last_successful_send",
+    "remind_idle_unsent_drafts",
     "remind_unregistered_sent_drafts",
 ]
 
@@ -106,11 +122,18 @@ def _customer_name(row: OrderDraft) -> str:
     return name or "이름 없는"
 
 
-def _create(db: Any, *, recipient_user_id: int, message: str, now: _dt.datetime) -> Notification:
+def _create(
+    db: Any,
+    *,
+    recipient_user_id: int,
+    message: str,
+    now: _dt.datetime,
+    notification_type: str = NOTIFICATION_TYPE,
+) -> Notification:
     """한 사람에게 알림 1건(배달은 커밋 뒤 finalize)."""
     notif = Notification(
         order_id=None,
-        notification_type=NOTIFICATION_TYPE,
+        notification_type=notification_type,
         target_type="USER",
         target_user_id=int(recipient_user_id),
         is_urgent=False,
@@ -220,6 +243,116 @@ def remind_unregistered_sent_drafts(
         "checked": len(rows),
         "owner_reminded": owner_reminded,
         "admin_reminded": admin_reminded,
+        "created_notification_ids": created,
+        "recipient_user_ids": sorted(set(recipients)),
+    }
+
+
+def _draft_data(row: OrderDraft) -> Dict[str, Any]:
+    """초안 입력값 dict(없으면 빈 dict)."""
+    payload = row.payload if isinstance(row.payload, dict) else {}
+    data = payload.get("data")
+    return data if isinstance(data, dict) else {}
+
+
+def _phone_digits(raw: Any) -> str:
+    """연락처에서 숫자만 남긴다(``010-1234-5678`` 과 ``01012345678`` 을 같게)."""
+    return "".join(ch for ch in str(raw or "") if ch.isdigit())
+
+
+def _same_phone_order_exists(db: Any, digits: str, created_at: Optional[_dt.datetime]) -> bool:
+    """같은 연락처의 (지우지 않은) 주문이 초안 생성 앞뒤 창 안에 있는가.
+
+    다른 초안으로 같은 고객을 이미 등록한 경우를 거른다 — 운영 10-21~23 이름 적힌 미등록 초안
+    8개 중 4개가 그랬다. 이름이 아니라 연락처로 본다("조윤정 (추가건" 같은 이름 꾸밈).
+    """
+    if len(digits) < 8:
+        return False
+    window = _dt.timedelta(hours=IDLE_SAME_PHONE_WINDOW_HOURS)
+    query = db.query(Order.id).filter(
+        func.replace(func.replace(Order.phone, "-", ""), " ", "") == digits,
+        Order.deleted_at.is_(None),
+    )
+    if created_at is not None:
+        query = query.filter(Order.created_at >= created_at - window)
+    return query.first() is not None
+
+
+def remind_idle_unsent_drafts(
+    db: Any, *, now: Optional[_dt.datetime] = None
+) -> Dict[str, Any]:
+    """고객명·연락처까지 적고 등록 없이 떠난(발송 없는) 초안 작성자에게 1회 알린다(커밋은 호출자).
+
+    * 대상: ``order_id`` 없음 · 발송 종류 기록 없음 · 고객명과 연락처가 둘 다 있음.
+    * 마지막 저장(``updated_at``) 뒤 :data:`IDLE_AFTER_MINUTES` 가 지나면 작성자에게 1회.
+      알린 뒤 다시 고쳐 저장하면 그 저장 기준으로 한 번 더 알릴 수 있다.
+    * 같은 연락처 주문이 이미 있으면 알리지 않는다.
+
+    알렸다는 표시는 ``send_history`` 의 :data:`IDLE_REMINDER_KEY` 에 남긴다. 발송 종류 키가 아니라
+    "발송함" 판정(``has_send_history_clause``)·만료 보호·등록 승계에 섞이지 않는다.
+
+    Args:
+        db: 세션.
+        now: 기준 시각(naive UTC). 생략하면 현재.
+
+    Returns:
+        ``{checked, owner_reminded, created_notification_ids, recipient_user_ids}``.
+    """
+    now = now if now is not None else now_utc_naive()
+    idle_cutoff = now - _dt.timedelta(minutes=IDLE_AFTER_MINUTES)
+    lookback = now - _dt.timedelta(hours=IDLE_LOOKBACK_HOURS)
+    rows = (
+        db.query(OrderDraft)
+        .filter(
+            OrderDraft.order_id.is_(None),
+            OrderDraft.user_id.isnot(None),
+            OrderDraft.updated_at <= idle_cutoff,
+            OrderDraft.updated_at >= lookback,
+        )
+        .order_by(OrderDraft.id.asc())
+        .all()  # perf-ok: 24시간 안에 손대고 60분 넘게 둔 미등록 초안만 — 하루 수십 건 상한
+    )
+    created: List[int] = []
+    recipients: List[int] = []
+    for row in rows:
+        history = row.send_history if isinstance(row.send_history, dict) else {}
+        if any(kind in history for kind in _KIND_LABELS):
+            continue  # 발송한 초안은 remind_unregistered_sent_drafts 몫
+        meta = history.get(IDLE_REMINDER_KEY)
+        reminded_for = _parse_sent_at(meta.get("for_updated_at")) if isinstance(meta, dict) else None
+        if reminded_for is not None and row.updated_at is not None and row.updated_at <= reminded_for:
+            continue
+        data = _draft_data(row)
+        name = str(data.get("customer_name") or "").strip()
+        digits = _phone_digits(data.get("phone"))
+        if not name or not digits:
+            continue
+        if _same_phone_order_exists(db, digits, row.created_at):
+            continue
+        notif = _create(
+            db,
+            recipient_user_id=int(row.user_id),
+            message=(
+                f"{name} 고객 주문을 적다가 등록하지 않고 나갔어요. "
+                "홈 화면 '작성 중' 줄에서 이어서 등록하거나 지워 주세요."
+            ),
+            now=now,
+            notification_type=IDLE_NOTIFICATION_TYPE,
+        )
+        created.append(int(notif.id))
+        recipients.append(int(row.user_id))
+        write_draft_send_history_meta(
+            db,
+            row,
+            key=IDLE_REMINDER_KEY,
+            value={
+                "owner_at": now.isoformat(),
+                "for_updated_at": row.updated_at.isoformat() if row.updated_at else None,
+            },
+        )
+    return {
+        "checked": len(rows),
+        "owner_reminded": len(created),
         "created_notification_ids": created,
         "recipient_user_ids": sorted(set(recipients)),
     }
