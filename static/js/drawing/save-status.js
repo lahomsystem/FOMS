@@ -10,12 +10,12 @@
  *   또는 막 열어서 아직 저장 전 — 작업 내용은 이미 서버에 있다)
  * - '넣은 뒤 고쳤나'는 그림 지문(sheetSig)으로 가른다. 이 창에서 넣었으면 넣을 때 지문, 다시 연 창이면
  *   불러온 그대로의 지문(seedQueuedSigs)과 견준다 — 다시 열어 고친 시트도 '전달본 예전 것'이 된다.
- * - [저장] 때 지문을 전달 대기함 항목에 함께 남긴다(sig, 'v1:' 판 표시). 목록에 지문이 있으면 그것이 기준이다
+ * - [저장] 때 지문을 전달 대기함 항목에 함께 남긴다(sig, 'v2:' 판 표시). 지문은 저장 모양·칸 이름 순으로 잰다. 목록에 지문이 있으면 그것이 기준이다
  *   (applyServerSigs) — '넣고 → 더 고치고 → 창 닫음 → 다시 엶'도 처음부터 '전달본 예전 것'이 된다.
  * - 전달 대기함 목록을 아직 못 받았으면(boxKnown false) '없음'이라고 말하지 않는다.
  *
  * window.FomsSaveStatus = { chip(st), atText(at, now), objJosa(word), sheetSig(sheet), sheetSigs(sheets),
- *                           seedQueuedSigs(queued, loaded, ids), tagSig(sig), applyServerSigs(queued, list),
+ *                           seedQueuedSigs(queued, loaded, ids), setCanon(fn), tagSig(sig), applyServerSigs(queued, list),
  *                           queuedToast(name), queueFailToast(name), allQueuedToast(ok, total, failNames),
  *                           emptyCopy(nProducts, canSave) }
  */
@@ -107,9 +107,25 @@
       뺀다: 계산 칸 입력(calc)·그림 종류 이름표(part) — 그림에 안 찍히고 AI 가 뒤늦게 바꾸기도 한다.
       자동 폭 글자의 폭(w) — 그릴 때마다 글꼴로 다시 재서 넣는 값이라(컴퓨터마다 1px 다를 수 있다)
       다시 연 뒤 손대지 않았는데 '고침'으로 보이면 안 된다. 폭을 정한 글자(autoWidth false)의 폭은 본다. */
+  var canon = null;
+
+  /** wizard.js 가 직렬화 함수(serializeSheet)를 넘긴다 — 지문은 서버에 저장되는 모양으로 잰다. 새로 만든 시트와
+      다시 불러온 시트는 화면 안 칸(기본값·글자 꼴)이 조금 달라도 저장되는 모양은 같다(2026-10-26 스테이징 실측). */
+  function setCanon(fn) { canon = (typeof fn === 'function') ? fn : null; }
+
+  /** 칸 이름 순으로 다시 담는다 — 서버(JSONB)는 칸 순서를 바꿔 돌려주므로 순서가 지문에 들어가면 안 된다. */
+  function sortKeys(v) {
+    if (Array.isArray(v)) { return v.map(sortKeys); }
+    if (!v || typeof v !== 'object') { return v; }
+    var o = {};
+    Object.keys(v).sort().forEach(function (k) { o[k] = sortKeys(v[k]); });
+    return o;
+  }
+
   function sheetSig(sheet) {
     try {
-      return digest(JSON.stringify(sheet || null, function (k, v) {
+      var src = (canon && sheet) ? canon(sheet) : sheet;
+      return digest(JSON.stringify(sortKeys(src || null), function (k, v) {
         if (k === 'calc' || k === 'part') { return undefined; }
         if (k === 'w' && this && this.type === 'text' && this.autoWidth !== false) { return undefined; }
         return v;
@@ -137,7 +153,7 @@
   }
 
   /** 서버에 남기는 지문은 판 표시를 붙인다 — 지문 계산을 바꾸면 v2 로 올려 예전 것과 섞이지 않게(설계서 2026-10-26 §2.2). */
-  var SIG_VER = 'v1';
+  var SIG_VER = 'v2';   // v1 = 칸 순서가 들어간 지문(스테이징에서만 잠깐, 2026-10-26) — 섞이지 않게 올렸다
   function tagSig(sig) { return sig ? SIG_VER + ':' + sig : ''; }
 
   /** 전달 대기함 목록의 지문(sig)을 기준으로 적는다 — 다시 연 창도 '넣은 뒤 고쳤나'를 정확히 안다.
@@ -183,7 +199,7 @@
 
   window.FomsSaveStatus = {
     chip: chip, atText: atText, objJosa: objJosa, sheetSig: sheetSig, sheetSigs: sheetSigs, seedQueuedSigs: seedQueuedSigs,
-    tagSig: tagSig, applyServerSigs: applyServerSigs,
+    setCanon: setCanon, tagSig: tagSig, applyServerSigs: applyServerSigs,
     queuedToast: queuedToast, queueFailToast: queueFailToast, allQueuedToast: allQueuedToast,
     emptyCopy: emptyCopy
   };

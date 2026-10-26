@@ -1,6 +1,6 @@
 """도면 마법사 — 전달본 지문 · 시트 사이 그림 id 겹침(설계서 docs/plans/2026-10-26-drawing-wizard-sheet-integrity-spec.md).
 
-B. [저장](sheet-png POST)이 그림 지문 ``sig``('v1:' + sheetSig)를 함께 보내면 전달 대기함 항목에 남고 목록이 돌려준다.
+B. [저장](sheet-png POST)이 그림 지문 ``sig``('v2:' + sheetSig)를 함께 보내면 전달 대기함 항목에 남고 목록이 돌려준다.
    다시 연 창은 목록의 지문을 기준으로 '전달본 예전 것'을 가린다 — 예전에는 불러온 그대로를 기준으로 삼아
    '넣고 → 더 고치고 → 자동 저장 → 창 닫음 → 다시 엶'이면 첫 편집 전까지 초록 '전달 대기함'이었다.
    형식이 틀린 지문은 거절하지 않고 버린다(옛 브라우저·옛 항목은 지금 동작 그대로).
@@ -89,12 +89,12 @@ def test_tag_sig_and_apply_server_sigs():
     out = _calls([
         ["tagSig", ["3k.abc"]], ["tagSig", [""]],
         ["applyServerSigs", [{"s1": "mine", "s9": "keep"}, [
-            {"sheet_id": "s1", "sig": "v1:srv1"},          # 목록 지문이 기준(다른 창이 넣었어도 정확히)
-            {"sheet_id": "s2", "sig": "v2:new"},           # 판이 다르면 건드리지 않는다
-            {"sheet_id": "s3", "sig": "v1:"},              # 빈 지문
-            {"sheet_id": "s4"}, None, {"sig": "v1:x"}]]],
+            {"sheet_id": "s1", "sig": "v2:srv1"},          # 목록 지문이 기준(다른 창이 넣었어도 정확히)
+            {"sheet_id": "s2", "sig": "v1:old"},           # 판이 다르면 건드리지 않는다(v1 = 칸 순서가 들어간 옛 지문)
+            {"sheet_id": "s3", "sig": "v2:"},              # 빈 지문
+            {"sheet_id": "s4"}, None, {"sig": "v2:x"}]]],
     ])
-    assert out[0] == "v1:3k.abc" and out[1] == ""
+    assert out[0] == "v2:3k.abc" and out[1] == ""
     assert out[2] == {"s1": "srv1", "s9": "keep"}
 
 
@@ -108,7 +108,7 @@ def test_reopened_window_uses_server_sig_before_first_edit():
   const S = window.FomsSaveStatus;
   rememberLoadedSheets(); hydrated = true;
   // 넣은 뒤 고치고 자동 저장한 다음 다시 열었다: 목록 지문(넣을 때) ≠ 지금 그림
-  replies.push(ok([{ key: 'k1', sheet_id: 's1', sheet_name: '도면 1', at: TODAY + ' 14:33', sig: 'v1:old.123' },
+  replies.push(ok([{ key: 'k1', sheet_id: 's1', sheet_name: '도면 1', at: TODAY + ' 14:33', sig: 'v2:old.123' },
                    { key: 'k8', sheet_id: 's8', sheet_name: '도면 8', at: TODAY + ' 14:34', sig: S.tagSig(S.sheetSig(state.sheets[1])) }]));
   refreshPending(); await tick(); out.edited = snap();
   current = 1; syncSheetSaveUi(); out.same = snap();
@@ -131,6 +131,31 @@ def test_wizard_sends_sig_on_both_save_paths():
     assert "postSheetPngBlob(blob, s, sig)" in _fn("saveAll")
     pend = _fn("renderPending")
     assert pend.index("applyServerSigs(queuedSigBySheet, list)") < pend.index("seedQueuedSigs(")   # 목록 지문이 먼저, 모르는 것만 불러온 그대로
+
+
+SIG_RUNNER = r"""
+global.window = {};
+require(process.argv[1]);
+const S = window.FomsSaveStatus;
+const a = { id: 's1', name: '도면', form: { b: '1', a: '2' }, objects: [{ id: 'o', type: 'rect', x: 1, y: 2 }] };
+const b = { objects: [{ y: 2, x: 1, type: 'rect', id: 'o' }], form: { a: '2', b: '1' }, name: '도면', id: 's1' };
+const out = { order: S.sheetSig(a) === S.sheetSig(b) };
+S.setCanon((s) => ({ id: s.id, objects: s.objects }));      // 저장 모양만 본다(화면 안 칸 차이는 지문에 안 든다)
+out.canon = S.sheetSig(Object.assign({}, a, { form: { z: 'x' } })) === S.sheetSig(a);
+out.moved = S.sheetSig(a) !== S.sheetSig(Object.assign({}, a, { objects: [{ id: 'o', type: 'rect', x: 9, y: 2 }] }));
+S.setCanon(null);
+out.reset = S.sheetSig(Object.assign({}, a, { form: { z: 'x' } })) !== S.sheetSig(a);
+process.stdout.write(JSON.stringify(out));
+"""
+
+
+def test_sheet_sig_ignores_key_order_and_uses_saved_shape():
+    """서버(JSONB)는 칸 순서를 바꿔 돌려준다 — v1 지문은 [저장] 뒤 고치지 않고 다시 열어도 '전달본 예전 것'이었다(스테이징 10-26)."""
+    proc = subprocess.run([_node(), "-e", SIG_RUNNER, str(SS_PATH)], capture_output=True, text=True, encoding="utf-8")
+    assert proc.returncode == 0, proc.stderr
+    assert json.loads(proc.stdout) == {"order": True, "canon": True, "moved": True, "reset": True}
+    load = _fn("load")
+    assert load.index("window.FomsSaveStatus.setCanon(serializeSheet);") < load.index("jsonFetch(")
 
 
 # ── A-2. 시트 사이 그림 id 겹침 떼기 ─────────────────────────────────────────
@@ -172,10 +197,36 @@ def test_wizard_splits_dup_ids_on_load_and_before_save():
     assert save.index("splitDupIds(state.sheets, newObjId)") < save.index("serializeState()")
     assert "rebuildAnno();" in save and "deselect()" not in save        # 자동 저장도 도구·선택을 건드리지 않는다
     assert "function newObjId() { return rid('o-'); }" in JS
-    assert TPL.index("js/drawing/sheet-ids.js') }}?v=20261026a") < TPL.index("js/drawing/wizard.js') }}?v=20261026a")
-    assert "js/drawing/save-status.js') }}?v=20261026a" in TPL
+    assert TPL.index("js/drawing/sheet-ids.js') }}?v=20261026a") < TPL.index("js/drawing/wizard.js') }}?v=20261026b")
+    assert "js/drawing/save-status.js') }}?v=20261026b" in TPL
 
 
 def test_node_check_sheet_ids():
     proc = subprocess.run([_node(), "--check", str(IDS_PATH)], capture_output=True, text=True, encoding="utf-8")
     assert proc.returncode == 0, proc.stderr
+
+
+# ── A-3. 서버: 겹친 id 는 1판에서 기록만 ──────────────────────────────────────
+
+
+def _rect(oid, x=10):
+    return {"id": oid, "type": "rect", "x": x, "y": 10, "w": 100, "h": 50, "stroke": "#000000", "strokeWidth": 2}
+
+
+@pytest.mark.parametrize("sheets, dup", [
+    ([[_rect("a"), _rect("b")], [_rect("a", 30)]], 1),                 # 시트 사이
+    ([[_rect("a"), _rect("a", 30)], [_rect("c")]], 1),                 # 한 시트 안
+    ([[_rect("a"), _rect("b")], [_rect("c")]], 0),                     # 음성 대조군
+])
+def test_put_logs_dup_object_ids_but_still_saves(client, caplog, sheets, dup):
+    drafter, oid = _setup(f"dup{dup}{len(sheets[0])}{sheets[0][1]['id']}")
+    _as(client, drafter)
+    state = {"v": 1, "sheets": [{"id": f"s-{i}", "name": f"도면 {i}", "form": {}, "objects": objs}
+                                for i, objs in enumerate(sheets)]}
+    with caplog.at_level("WARNING", logger=wizard_api.logger.name):
+        r = client.put(f"/api/orders/{oid}/drawing-wizard", json={"state": state, "base_updated_at": None})
+    assert r.status_code == 200, r.get_json()                       # 1판은 거절하지 않는다
+    lines = [rec.getMessage() for rec in caplog.records if "DRAWING_WIZARD_DUP_OBJECT_ID" in rec.getMessage()]
+    assert lines == ([f"DRAWING_WIZARD_DUP_OBJECT_ID order={oid} dup={dup}"] if dup else [])
+    saved = _sd(oid)["drawing_wizard"]["sheets"]
+    assert [o["id"] for s in saved for o in s["objects"]] == [o["id"] for objs in sheets for o in objs]

@@ -5020,6 +5020,7 @@
   }
 
   function load() {
+    if (window.FomsSaveStatus) { window.FomsSaveStatus.setCanon(serializeSheet); }   // 전달본 지문은 저장되는 모양으로 잰다
     hydrated = false;   // 응답·렌더가 끝나기 전에는 어떤 저장도 나가지 않는다(못 불러온 상태를 서버에 쓰지 않음)
     jsonFetch(API_BASE + '/drawing-wizard', { headers: { 'Accept': 'application/json' } }).then(function (r) {
       if (r.status !== 200 || !r.data || !r.data.success || !r.data.data) {
