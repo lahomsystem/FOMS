@@ -1,0 +1,50 @@
+{# 도면 마법사 V2 — 종이 양식(01 정돈 표준형). 설계서 docs/plans/2026-10-26-drawing-wizard-v2-spec.md §3.
+   칸 이름(data-dws-form-key · data-dws-check · #dws-logo-cell)은 V1 양식과 같다 — 자동 채움·편집·글자 줄이기·로고 고르기를
+   wizard.js 가 그대로 돌린다. 위쪽 칸 머리는 #dws-v2-slots(v2-paper.js)가 그림 자리를 보고 그린다. #}
+<div class="dws-form dws-v2-form" id="dws-form">
+  <div class="dws-outer-border"></div>
+  <div class="dws-v2-strip">
+    <div class="dws-v2-checks">
+      <div class="dws-v2-checkcol">
+        <span class="dws-v2-checkhead">도면팀</span>
+        <span class="dws-v2-chk"><span class="dws-check" data-dws-check="d_site"></span>현장확인</span>
+        <span class="dws-v2-chk"><span class="dws-check" data-dws-check="d_double"></span>더블체크</span>
+        <span class="dws-v2-chk"><span class="dws-check" data-dws-check="d_order"></span>발주확인</span>
+      </div>
+      <div class="dws-v2-checkcol">
+        <span class="dws-v2-checkhead">생산팀</span>
+        <span class="dws-v2-chk"><span class="dws-check" data-dws-check="p_prod"></span>생산확인</span>
+        <span class="dws-v2-chk"><span class="dws-check" data-dws-check="p_glass"></span>유리·거울</span>
+        <span class="dws-v2-chk"><span class="dws-check" data-dws-check="p_light"></span>조명</span>
+        <span class="dws-v2-chk"><span class="dws-check" data-dws-check="p_handle"></span>손잡이</span>
+        <span class="dws-v2-chk"><span class="dws-check" data-dws-check="p_etc"></span>부자재</span>
+      </div>
+    </div>
+    <div class="dws-v2-info">
+      <div class="dws-v2-row dws-v2-row1">
+        <div class="dws-v2-cell"><span class="dws-v2-lab">시공일자</span><span class="dws-v2-val dws-v2-val-big" data-dws-form-key="construction_date"></span></div>
+        <div class="dws-v2-cell"><span class="dws-v2-lab">고객명</span><span class="dws-v2-val dws-v2-val-big" data-dws-form-key="customer_name"></span></div>
+        <div class="dws-v2-cell"><span class="dws-v2-lab">연락처</span><span class="dws-v2-val dws-v2-val-mid" data-dws-form-key="phone"></span></div>
+        <div class="dws-v2-cell"><span class="dws-v2-lab">주소</span><span class="dws-v2-val dws-v2-val-mid" data-dws-form-key="address"></span></div>
+        <div class="dws-v2-cell dws-v2-cell-last"><span class="dws-v2-lab">영업담당</span><span class="dws-v2-val dws-v2-val-sm dws-v2-val-half" data-dws-form-key="sales_manager"></span><span class="dws-v2-val dws-v2-val-sm dws-v2-val-half" data-dws-form-key="manager_phone"></span></div>
+      </div>
+      <div class="dws-v2-row dws-v2-row2">
+        <div class="dws-v2-cell"><span class="dws-v2-lab">제품명</span><span class="dws-v2-val dws-v2-val-mid" data-dws-form-key="product_name"></span></div>
+        <div class="dws-v2-cell"><span class="dws-v2-lab">현장규격</span><span class="dws-v2-val dws-v2-val-mid" data-dws-form-key="site_spec"></span></div>
+        <div class="dws-v2-cell"><span class="dws-v2-lab">색상</span><span class="dws-v2-val dws-v2-val-sm" data-dws-form-key="color"></span></div>
+        <div class="dws-v2-cell"><span class="dws-v2-lab">손잡이</span><span class="dws-v2-val dws-v2-val-sm" data-dws-form-key="handle"></span></div>
+        <div class="dws-v2-cell"><span class="dws-v2-lab">서랍</span><span class="dws-v2-val dws-v2-val-xs" data-dws-form-key="drawer"></span></div>
+        <div class="dws-v2-cell dws-v2-cell-last"><span class="dws-v2-lab">시공자수</span><span class="dws-v2-w300"><span class="dws-v2-val dws-v2-val-num" data-dws-form-key="spec_w300"></span><span class="dws-v2-unit">자</span></span></div>
+      </div>
+    </div>
+    <div class="dws-v2-misc"><span class="dws-v2-lab">기타 · 부자재</span><span class="dws-v2-val dws-v2-val-misc" data-dws-form-key="misc"></span></div>
+    <div class="dws-v2-sign">
+      <div class="dws-v2-logo" id="dws-logo-cell" data-dws-logo>
+        <div class="dws-logo-box"><img class="dws-logo-img" id="dws-logo-img" alt="발주사 로고" hidden></div>
+      </div>
+      <div class="dws-v2-page"><span class="dws-v2-lab">장</span><span class="dws-v2-val dws-v2-pageval" data-dws-form-key="page_no"></span><span class="dws-v2-pagetotal" id="dws-v2-pagetotal">/ 1</span></div>
+      <div class="dws-v2-no"><span class="dws-v2-no-order">No.{{ order.id }}</span><span class="dws-v2-drew">DREW <span class="dws-v2-val dws-v2-drew-val" data-dws-form-key="drew"></span></span></div>
+    </div>
+  </div>
+</div>
+<div class="dws-v2-slots" id="dws-v2-slots" aria-hidden="true"></div>

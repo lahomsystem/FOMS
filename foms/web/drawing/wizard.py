@@ -7,7 +7,7 @@
 
 from typing import Any
 
-from flask import flash, g, redirect, render_template, url_for
+from flask import flash, g, redirect, render_template, request, url_for
 
 from db import get_db
 from models import Order
@@ -15,6 +15,22 @@ from foms.web.auth import login_required
 from foms.services.erp_display import _ensure_dict
 from foms.services.erp_policy import is_drawing_workbench_participant
 from foms.web.drawing.workbench import erp_drawing_workbench_bp
+
+
+_WIZARD_UIS = ('v1', 'v2')
+_WIZARD_UI_COOKIE = 'dws_ui'
+
+
+def _wizard_ui() -> str:
+    """화면 갈래 — ``?ui=v1|v2`` 가 먼저, 없으면 쿠키 ``dws_ui``(wizard-ui-switch.js 가 기억), 없으면 v1.
+
+    V2(칸 자동 배치 화면)는 같은 도면 데이터를 다른 화면으로 보여 준다(설계서
+    ``docs/plans/2026-10-26-drawing-wizard-v2-spec.md``) — 저장·권한은 갈래와 무관하다.
+    """
+    for raw in (request.args.get('ui'), request.cookies.get(_WIZARD_UI_COOKIE)):
+        if raw in _WIZARD_UIS:
+            return raw
+    return 'v1'
 
 
 @erp_drawing_workbench_bp.route('/drawing-workbench/<int:order_id>/wizard')
@@ -36,11 +52,13 @@ def erp_drawing_workbench_wizard(order_id: int) -> Any:
         current_user
         and (current_user.role == 'ADMIN' or is_drawing_workbench_participant(current_user, order))
     )
-    wizard_config = {'order_id': order.id, 'can_save': can_save}
+    wizard_ui = _wizard_ui()
+    wizard_config = {'order_id': order.id, 'can_save': can_save, 'ui': wizard_ui}
     return render_template(
         'drawing/wizard.html',
         order=order,
         customer_name=customer_name,
         can_save=can_save,
         wizard_config=wizard_config,
+        wizard_ui=wizard_ui,
     )

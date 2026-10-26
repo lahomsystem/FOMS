@@ -1,0 +1,22 @@
+{# 도면 마법사 V2 — 종이 아래: 끌어 놓기 칸 · 범례 · 화면 %. v2-chrome.js 가 배선한다(.dws-ui — PNG 에 안 찍힘). #}
+<button type="button" class="dws-v2-drop dws-ui" id="dws-v2-drop">
+  <svg class="dws-v2-drop-ico" viewBox="0 0 26 26" width="26" height="26" aria-hidden="true"><path d="M13 4v13M7.5 11.5 13 17l5.5-5.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 18v3h18v-3" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+  <span class="dws-v2-drop-text">
+    <span class="dws-v2-drop-main">스케치업 그림을 끌어 놓거나 붙여넣기 · 파일 이름은 상관없어요</span>
+    <span class="dws-v2-drop-sub">컴퓨터가 정면/입체 · 내부/도어 · 서랍 단면 · 부품을 알아보고 칸에 넣어요 (누르면 파일 고르기)</span>
+  </span>
+</button>
+<div class="dws-v2-legend dws-ui">
+  <span class="dws-v2-legend-item"><span class="dws-v2-dot dws-v2-dot-blue"></span>큰 그림 배율(지금 양식 대비)</span>
+  <span class="dws-v2-legend-item"><span class="dws-v2-dot dws-v2-dot-orange"></span>가장 작은 그림</span>
+  <span class="dws-v2-legend-item"><span class="dws-v2-dot dws-v2-dot-green"></span>사진 자동 선택</span>
+  <label class="dws-v2-zoom-label" for="dws-v2-zoom">화면 크기</label>
+  <select class="dws-v2-zoom" id="dws-v2-zoom">
+    <option value="cur">화면 100%</option>
+    <option value="fit">폭 맞춤</option>
+    <option value="50">50%</option>
+    <option value="70">70%</option>
+    <option value="100">100%</option>
+    <option value="150">150%</option>
+  </select>
+</div>
