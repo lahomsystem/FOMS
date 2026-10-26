@@ -67,6 +67,7 @@ from foms.services.drawing_wizard_presets import (
     load_wizard_presets,
     update_wizard_presets,
 )
+from foms.services import drawing_wizard_part_memory as part_memory
 from foms.services.orders.order_mutation_policy import POLICY_REGISTRY, evaluate_policy
 from foms.services.erp_product_items import build_product_items_for_order
 from foms.services.erp_display import _erp_coerce_item_price_krw
@@ -1982,3 +1983,87 @@ def api_post_drawing_wizard_bom_rules():
         return jsonify({'success': False, 'data': None, 'error': msg, 'message': msg}), 500
 
     return jsonify({'success': True, 'data': dict(result, defaults=BOM_DEFAULT_RULES), 'error': None})
+
+
+# --------------------------------------------------------------------------- #
+# 그림 종류 기억(실시간 학습) — 설계 정본 docs/plans/2026-10-26-drawing-part-memory-spec.md
+# --------------------------------------------------------------------------- #
+_PART_MEMORY_MAX_BODY = 128 * 1024
+
+
+def _part_memory_guard(order_id: int):
+    """주문·권한·몸 크기 확인 → (db, current_user, policy, data) 또는 (None, 응답)."""
+    db = get_db()
+    order = _load_order(db, order_id)
+    if not order:
+        return None, (jsonify({'success': False, 'data': None, 'error': _MSG_NOT_FOUND,
+                               'message': _MSG_NOT_FOUND}), 404)
+    current_user = get_user_by_id(session.get('user_id'))
+    if not _can_save_wizard(current_user, order):
+        return None, (jsonify({'success': False, 'data': None, 'error': _MSG_FORBIDDEN,
+                               'message': _MSG_FORBIDDEN}), 403)
+    if (request.content_length or 0) > _PART_MEMORY_MAX_BODY:
+        msg = '한 번에 보낼 수 있는 크기를 넘었습니다.'
+        return None, (jsonify({'success': False, 'data': None, 'error': msg, 'message': msg}), 413)
+    data = request.get_json(silent=True)
+    return (db, current_user, part_memory.load_policy(db), data if isinstance(data, dict) else {}), None
+
+
+@erp_orders_drawing_wizard_bp.route('/<int:order_id>/drawing-wizard/part-memory', methods=['POST'])
+@login_required
+def api_post_drawing_wizard_part_memory(order_id):
+    """그림 종류 기억 남기기 — 특징 숫자(float16 base64) · 이름표를 주문·그림 키마다 덮어쓴다(설계서 §3.2 · §3.7-1).
+
+    Body ``{items: [{key, f?, fv?, label?, src?, ai?, conf?, head?}]}`` 최대 30줄. 응답 ``{saved, missing}``
+    — missing 은 특징이 아직 없는 그림 키(브라우저가 모델이 있으면 특징만 다시 보낸다). 꺼져 있으면 ``enabled: false``.
+    """
+    ctx, error = _part_memory_guard(order_id)
+    if error:
+        return error
+    db, current_user, policy, data = ctx
+    if not policy['store']:
+        return jsonify({'success': True, 'data': {'enabled': False, 'saved': 0, 'missing': []}, 'error': None})
+    try:
+        rows = part_memory.parse_items(order_id, data.get('items'), labels=_PART_LABELS, head_re=_PART_HEAD_RE)
+        result = part_memory.save_items(db, order_id, getattr(current_user, 'id', None), rows)
+        db.commit()
+    except part_memory.PartMemoryError as err:
+        db.rollback()
+        return jsonify({'success': False, 'data': None, 'error': str(err), 'message': str(err)}), 400
+    except Exception as e:
+        db.rollback()
+        logger.error("drawing-wizard part-memory POST failed: %s", e, exc_info=True)
+        msg = '그림 종류 기억을 남기지 못했습니다.'
+        return jsonify({'success': False, 'data': None, 'error': msg, 'message': msg}), 500
+    return jsonify({'success': True, 'data': dict(result, enabled=True), 'error': None})
+
+
+@erp_orders_drawing_wizard_bp.route('/<int:order_id>/drawing-wizard/part-memory/match', methods=['POST'])
+@login_required
+def api_post_drawing_wizard_part_memory_match(order_id):
+    """그림 종류 기억 찾기(읽기만) — 새 그림이 따를 사람 종류(follow) · 같이 고칠 닮은 그림(spread).
+
+    Body ``{mode: 'follow', items: [{id, f, fv, key?, ai?, conf?}]}`` → ``{items: {id: {label, sim, n, conflict, scope}|null}}``
+    · ``{mode: 'spread', key, label, items: [{id, key, label}]}`` → ``{ids: [{id, sim}]}``. 꺼져 있으면 ``enabled: false``.
+    """
+    ctx, error = _part_memory_guard(order_id)
+    if error:
+        return error
+    db, _current_user, policy, data = ctx
+    mode = data.get('mode')
+    if mode not in ('follow', 'spread') or not policy[mode]:
+        return jsonify({'success': True, 'data': {'enabled': False}, 'error': None})
+    try:
+        if mode == 'follow':
+            items = part_memory.parse_follow_items(data.get('items'), labels=_PART_LABELS)
+            result = {'enabled': True, 'items': part_memory.follow(db, order_id, items, policy)}
+        else:
+            req = part_memory.parse_spread(order_id, data, labels=_PART_LABELS)
+            result = {'enabled': True, 'ids': part_memory.spread(db, order_id, req, policy)}
+    except part_memory.PartMemoryError as err:
+        return jsonify({'success': False, 'data': None, 'error': str(err), 'message': str(err)}), 400
+    except Exception as e:
+        logger.error("drawing-wizard part-memory match failed: %s", e, exc_info=True)
+        msg = '그림 종류 기억을 찾지 못했습니다.'
+        return jsonify({'success': False, 'data': None, 'error': msg, 'message': msg}), 500
+    return jsonify({'success': True, 'data': result, 'error': None})

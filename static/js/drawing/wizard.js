@@ -397,6 +397,7 @@
     renderForm();
     rebuildAnno();
     markDirty();
+    memoryLabelsChanged();   // 되돌린 이름표도 기억에 맞춘다
   }
 
   function redo() {
@@ -407,6 +408,7 @@
     renderForm();
     rebuildAnno();
     markDirty();
+    memoryLabelsChanged();
   }
 
   function markDirty() { dirty = true; userDirty = true; updateSaveState(); scheduleBackup(); emitCore('change'); }
@@ -1754,6 +1756,16 @@
     };
   }
 
+  /** 그림 종류 기억(part-memory.js, 설계서 docs/plans/2026-10-26-drawing-part-memory-spec.md) — 저장 권한이 있을 때만 남긴다. */
+  function initPartMemory() {
+    if (!window.FomsPartMemory || !canSave) { return; }
+    window.FomsPartMemory.init({
+      base: API_BASE, orderId: ORDER_ID, fetch: jsonFetch, policy: CONFIG.part_memory || {},
+      sheets: function () { return state.sheets || []; },
+      imageFor: function (key) { var img = _annoImgCache[key]; return (img && img.complete && img.naturalWidth) ? img : null; }
+    });
+  }
+
   /** 그림 이름 딱지·앱바 미분류 칩(part-badges.js) 연결 — 딱지 층은 줌이 걸린 스테이지 안에 둔다. */
   function initPartBadges() {
     partCheckModel();   // 모델이 이 브라우저에 있는지 미리 물어 둔다(첫 올림 때 진행 칩 글이 바뀌며 깜빡이지 않게 — V1)
@@ -1784,6 +1796,7 @@
 
   function initPartSelect() {
     initPartBadges();
+    initPartMemory();
     if (!els.mtPart || els.mtPart.options.length) { return; }
     // 숫자키를 글자 치기·전체 선택과 가르는 기록(partDigitBlocked) — 어디든 누르면(그림 고르기·끌어 고르기) 지운다
     document.addEventListener('keydown', notePartTyping, true);
@@ -3210,6 +3223,53 @@
     if (partBusy.done >= partBusy.total) { partBusy.done = 0; partBusy.total = 0; partBusy.held = 0; }
   }
 
+  /** 그림 종류 기억: 사람이 고른 비슷한 그림이 있으면 그 종류를 따른다(판 표시 '.m', 1.5초 안에 답이 없으면 AI 짐작 그대로). */
+  function memoryFollow(id, res) {
+    var mem = window.FomsPartMemory, o = findObj(id);
+    if (!mem || !res || !o) { return res; }
+    try {   // 기억이 어떻게 실패해도 AI 짐작으로 이어 간다(분류 · 배치를 막지 않는다)
+      return mem.follow(o, res).then(function (v) {
+        if (!v) { return res; }
+        mem.noteSim(id, v.sim);
+        return partWith(res, { label: v.label, head: mem.memHead(res.head) });
+      }, function () { return res; });
+    } catch (e) { return res; }
+  }
+
+  function isMemPart(part) { return !!(window.FomsPartMemory && window.FomsPartMemory.isMem(part)); }
+
+  function memoryLabelsChanged() { if (window.FomsPartMemory) { window.FomsPartMemory.labelsChanged(); } }
+
+  /** 사람이 한 장을 고르면: 이름표를 기억에 보내고, 같은 시트의 닮은 AI 이름표 그림을 같이 바꾼다(되돌리기 한 번에 이것만). */
+  function memoryAfterUserLabel(o, label) {
+    var mem = window.FomsPartMemory, s0 = currentSheet();
+    if (!mem || !s0) { return; }
+    memoryLabelsChanged();
+    if (label === '미분류') { return; }
+    mem.spread(s0, o, label).then(function (hits) {
+      var s = currentSheet(), simById = {}, changed = [];
+      if (!hits.length || s !== s0) { return; }   // 그 사이 시트를 옮겼으면 건드리지 않는다
+      hits.forEach(function (h) {
+        var x = findObj(h.id);
+        simById[h.id] = h.sim;
+        if (x && x.type === 'image' && x.part && x.part.src !== 'user' && x.part.label !== label) { changed.push(x); }
+      });
+      if (!changed.length) { return; }
+      recordUndo();
+      changed.forEach(function (x) {
+        x.part = sanitizePart(partWith(x.part, { label: label, src: 'ai', head: mem.memHead(x.part.head) }));
+        mem.noteSim(x.id, simById[x.id]);
+      });
+      markDirty();
+      refreshPartBadges();
+      if (selected) { var so = findObj(selected); if (so && so.type === 'image') { syncImageToolbar(so); } }
+      toast('비슷한 그림 ' + changed.length + '장도 같이 바꿨어요 — ' + label + ' · 되돌리기 Ctrl+Z');
+      // V2: 칸이 바뀌니 사람이 고른 것처럼 고정을 풀고 다시 배치한다(v2-shell labels 사건)
+      emitCore('labels', { ids: changed.map(function (x) { return x.id; }), by: 'user' });
+      memoryLabelsChanged();
+    });
+  }
+
   function classifyPlacedImage(id, img, batch) {
     var ai = window.FomsPartAI;
     if (!ai) { finishPartBatch(batch, id); return; }
@@ -3221,13 +3281,14 @@
       if (batch) { batch.late += 1; }
       finishPartBatch(batch, id);   // 30초가 지나면 이름 없이 먼저 놓는다 — 늦게 온 이름은 latePartName 이 받는다
     }, PART_AI_TIMEOUT_MS);
-    ai.classify(img).then(function (res) {
+    ai.classify(img).then(function (res) { return memoryFollow(id, res); }).then(function (res) {
       partProgress(0, 1);
       var o = findObj(id);   // 그 사이 지워졌거나 다른 시트로 갔으면 건너뜀
       if (res && o && o.type === 'image' && !(o.part && o.part.src === 'user')) {
         o.part = sanitizePart(partWith(o.part, { label: res.label, src: 'ai', ai: res.ai, conf: res.conf, head: res.head }));
         markDirty();
         applyKitchenPairs(o, img);
+        if (window.FomsPartMemory) { window.FomsPartMemory.remember(o, res); }   // 짝 규칙까지 거친 최종 이름표
         if (selected === id) { syncImageToolbar(o); }
         if (late && batch) { batch.lateNamed = true; }
         emitCore('labels', { id: id, by: 'ai', batch: !!batch, fam: res.fam || '', famConf: res.famConf || 0 });   // 칸 짐작은 V2 가 쓴다
@@ -3285,7 +3346,8 @@
   function applyKitchenPairs(fresh, img) {
     var pair = window.FomsPartPair, s = currentSheet();
     if (!pair || !s || !pair.isKitchen(sheetProductText(s))) { refreshPartBadges(); return; }
-    var pool = (s.objects || []).filter(function (o) { return o.type === 'image' && o.part && o.part.src === 'ai'; });
+    // 기억을 따른 이름표('.m')는 사람이 고른 근거라 빗금 어림으로 바꾸지 않는다(설계서 2026-10-26-drawing-part-memory-spec §3.4)
+    var pool = (s.objects || []).filter(function (o) { return o.type === 'image' && o.part && o.part.src === 'ai' && !isMemPart(o.part); });
     var items = pool.map(function (o) {
       return { id: o.id, ai: o.part.ai, conf: o.part.conf, label: o.part.label, hatch: hatchOf(o, o === fresh ? img : null) };
     });
@@ -3344,6 +3406,7 @@
     refreshPartBadges();
     showPartLearnTip();
     emitCore('labels', { id: id, by: 'user' });
+    memoryAfterUserLabel(o, label);
   }
 
   /** 여러 장을 고른 채 숫자키 — 고른 그림 전부에 같은 종류(되돌리기 한 번). 돌려주는 값 = 고른 그림 수(0 = 그림 없음). */
@@ -3361,6 +3424,7 @@
       markDirty();
       refreshPartBadges();
       emitCore('labels', { ids: plan.change.slice(), by: 'user' });
+      memoryLabelsChanged();
     }
     toast(plan.text + (plan.change.length ? ' (되돌리기 Ctrl+Z)' : ''));
     showPartLearnTip();
@@ -5218,6 +5282,7 @@
         lastSavedAt = new Date();
         lastSaveAuto = auto;   // 칩: 자동 저장이면 '자동 저장 HH:MM', [저장]이면 이 시트 전달본 기준
         clearBackup();   // 서버에 반영됐다 — 로컬 비상 백업은 더 필요 없다
+        memoryLabelsChanged();   // 저장된 이름표를 그림 종류 기억에 맞춘다(바뀐 줄만 보낸다)
         autoConflictWarned = false;   // 저장 성공 → 다음 충돌 시 다시 1회 경고 허용
         if (!auto) {
           // 사람이 눌러 성공했다 = 서버와 맞다. 자동 저장을 다시 켠다(멈춤·억제 모두 해제).

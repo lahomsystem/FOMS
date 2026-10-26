@@ -168,6 +168,7 @@ vm.runInContext([
   'function isFiniteNum(v) { return typeof v === "number" && isFinite(v); }',
   'function toast(m) { LOG.toasts.push(m); }',
   'function markDirty() {} function renderForm() {} function renderTabs() { LOG.tabs += 1; } function syncProductActive() {}',
+  'function memoryLabelsChanged() {}',   // 그림 종류 기억 동기화(되돌리기 · 다시 하기 뒤) — 이 시험 밖
   'function deselect() { selectedIds = []; } function applySelection() { LOG.sel = selectedIds.slice(); }',
   'function rebuildAnno() { nodeById = {}; (currentSheet() ? currentSheet().objects : []).forEach(function (o) { nodeById[o.id] = mkNode(o); }); }',
   'function mkNode(o) { return { image: function () { return null; }, getClientRect: function () {',

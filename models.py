@@ -1,7 +1,7 @@
 import datetime
 import uuid
 from sqlalchemy import (
-    Column, Integer, BigInteger, String, Text, Boolean, Date, DateTime, Float,
+    Column, Integer, BigInteger, String, Text, Boolean, Date, DateTime, Float, LargeBinary,
     Numeric, ForeignKey, func, JSON, UniqueConstraint, Index, CheckConstraint,
     DDL, event, select, text,
 )
@@ -3084,6 +3084,45 @@ class DrawingWizardPending(Base):
         Index('uq_drawing_wizard_pending_object_key', 'object_key', unique=True),
         # bounded cleanup provider 의 만료 claim hot path(만료 활성 pending 을 state,expires_at 순).
         Index('ix_drawing_wizard_pending_expiry', 'state', 'expires_at'),
+    )
+
+
+class DrawingPartMemory(Base):
+    """도면 마법사 그림 종류 기억 — 그림 특징 숫자 + 이름표(설계서 2026-10-26-drawing-part-memory-spec §3.1).
+
+    브라우저 AI(``static/js/drawing/part-ai.js``)가 이미 계산한 특징 768개(L2 정규화)를 float16
+    1,536바이트로 받아 둔다. 그림 자체는 받지 않는다. 사람이 고른 이름표(``src='user'``)는 새 그림의
+    종류를 따르는 기억이 되고, 모든 줄은 분류기를 다시 가르치는 자료가 된다. 저장·검증·찾기는
+    :mod:`foms.services.drawing_wizard_part_memory` 가 맡는다. DDL 은 migration(``partmem_00``)과 같다.
+    """
+
+    __tablename__ = 'drawing_part_memory'
+
+    id = Column(Integer, primary_key=True)
+    order_id = Column(
+        Integer, ForeignKey('orders.id', ondelete='CASCADE'), nullable=False, index=True)
+    # 마법사 그림 저장소 키(orders/<id>/drawing_wizard/assets/…) — 주문 안에서 그림 하나.
+    asset_key = Column(String(500), nullable=False)
+    # float16 × 768(특징 판 feat_v 기준). 기억 전에 올린 그림은 비어 있을 수 있다.
+    feat = Column(LargeBinary, nullable=True)
+    feat_v = Column(String(16), nullable=True)
+    # 분류 때 AI 첫 짐작(다시 가르치기 통계용) — 시트 part 의 ai·conf·head 와 같은 규칙.
+    ai = Column(String(16), nullable=True)
+    conf = Column(Float, nullable=True)
+    head = Column(String(16), nullable=True)
+    label = Column(String(16), nullable=False)
+    src = Column(String(8), nullable=False, default='ai', server_default='ai')
+    active = Column(Boolean, nullable=False, default=True, server_default='true')
+    created_by = Column(Integer, ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+    updated_by = Column(Integer, ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+    created_at = Column(DateTime, nullable=False, default=now_utc_naive, server_default=func.now())
+    # 찾기 캐시가 바뀐 줄만 다시 읽는 기준(저장 때마다 서비스가 새 시각을 넣는다).
+    updated_at = Column(
+        DateTime, nullable=False, default=now_utc_naive, server_default=func.now(), index=True)
+
+    __table_args__ = (
+        UniqueConstraint('order_id', 'asset_key', name='uq_drawing_part_memory_order_key'),
+        CheckConstraint("src IN ('ai','user')", name='ck_drawing_part_memory_src'),
     )
 
 
