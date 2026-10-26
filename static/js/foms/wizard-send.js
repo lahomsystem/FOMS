@@ -52,8 +52,10 @@
     push_in_progress: "이미 전송 처리 중입니다. 잠시 후 다시 시도해주세요",
   };
 
-  // 등록이 끝난 뒤 주문 화면 주소. 바뀐 내용 재전송은 그 화면의 PUSH 가 맡는다.
+  // PUSH 가 실패했을 때 가는 주문 화면 주소. 재전송은 그 화면의 PUSH 가 맡는다.
   var ORDER_EDIT_HREF_PREFIX = "/edit/";
+  // 등록하고 PUSH 가 다 성공하면 가는 곳(루트 data-exit-href 가 없을 때의 기본값).
+  var DASHBOARD_HREF = "/erp/dashboard";
   var REDIRECT_DELAY_MS = 1200;
 
   var TRACE_PREFIX = { alimtalk: "알림톡", channel: "실측 PUSH" };
@@ -481,7 +483,21 @@
   }
 
   /**
-   * 등록이 끝났으므로 주문 화면으로 옮긴다.
+   * 등록하고 PUSH 까지 끝났으므로 대시보드로 옮긴다(마법사 [주문 등록] 과 같은 곳).
+   * 주문 수정 화면은 입력 화면처럼 보여 "아직 등록이 안 됐다" 로 읽히기 쉽다.
+   * @param {number} delayMs 이동 전 대기(안내 문구를 읽을 시간).
+   * @returns {void}
+   */
+  function goToDashboard(delayMs) {
+    var root = document.getElementById("foms-wizard-root");
+    var href = ((root && root.getAttribute("data-exit-href")) || "").trim() || DASHBOARD_HREF;
+    window.setTimeout(function () {
+      window.location.href = href;
+    }, delayMs);
+  }
+
+  /**
+   * 등록은 됐지만 PUSH 를 다시 보내야 하므로 주문 화면으로 옮긴다.
    * @param {number|string} orderId 새 주문 번호.
    * @param {number} delayMs 이동 전 대기(안내 문구를 읽을 시간).
    * @returns {void}
@@ -550,8 +566,8 @@
         var body = result.body;
         toggleSheet(false);
         if (body && body.success === true) {
-          setStatus("등록하고 실측 PUSH 완료 — 주문 화면으로 이동합니다. 바뀌면 거기서 고치고 PUSH 를 다시 누르세요");
-          goToOrder(orderId, REDIRECT_DELAY_MS);
+          setStatus("등록하고 실측 PUSH 완료 — 대시보드로 이동합니다");
+          goToDashboard(REDIRECT_DELAY_MS);
           return;
         }
         var reason = (body && (body.message || body.error)) || reasonLabel(errorCode(result.status, body));

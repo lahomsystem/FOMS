@@ -351,4 +351,17 @@ def test_wizard_channel_button_registers_then_pushes():
     assert register_at < push_at
     assert 'push_kind: "measure_room"' in js
     assert "payload.text" not in js
-    assert "wizard-send.js') }}?v=20261022a" in shell
+    assert "wizard-send.js') }}?v=20261026a" in shell
+
+
+def test_wizard_register_and_push_success_goes_to_dashboard():
+    """등록하고 PUSH 가 다 성공하면 대시보드로 간다(주문 수정 화면은 PUSH 실패 때만)."""
+    js = (ROOT / "static/js/foms/wizard-send.js").read_text(encoding="utf-8")
+
+    success_at = js.index("등록하고 실측 PUSH 완료")
+    success_block = js[success_at:js.index("return;", success_at)]
+    assert "goToDashboard(REDIRECT_DELAY_MS)" in success_block
+    assert "goToOrder" not in success_block
+    assert 'getAttribute("data-exit-href")' in js
+    # PUSH 실패는 재전송이 필요하므로 주문 화면으로 간다.
+    assert js.count("goToOrder(orderId, 0)") == 2
