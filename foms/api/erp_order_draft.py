@@ -414,10 +414,15 @@ def api_put_order_draft() -> tuple[Any, int]:
         db.rollback()
         return jsonify({"success": False, "error": str(exc)}), 400
 
+    if row is None:
+        # 값이 하나도 없는 새 초안 — 행을 만들지 않았다. 실패가 아니므로 화면은 오프라인 큐에
+        # 넣지 않고, 4단계 발송의 강제 저장도 성공으로 받는다.
+        return jsonify({"success": True, "saved": False, "updated_at": "", "step": step}), 200
     return (
         jsonify(
             {
                 "success": True,
+                "saved": True,
                 "updated_at": format_updated_at(row.updated_at),
                 "step": row.step,
             }

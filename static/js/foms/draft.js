@@ -38,8 +38,29 @@
     // 표시해 이후 저장 경로를 전부 닫는다.
     this._submitted = false;
     this._submitResult = null;
+    // 마법사를 연 그대로(손대지 않음)면 저장하지 않는다 — 열었다 닫기만 해도 빈 초안 행이 생기고,
+    // 이어쓰기 화면에서 [복구] 전에 나가면 저장된 초안을 빈 내용으로 덮었다(2026-10-26 설계서
+    // docs/plans/2026-10-26-wizard-empty-draft-cleanup-spec.md D2). 기준은 init 끝에서 찍은 data
+    // 사본이다. [복구]·충돌 해결로 서버 내용을 받았거나 한 번이라도 저장됐으면 가드를 끈다.
+    this._baseline = null;
+    this._guardOff = false;
     this._boundFlush = this.flush.bind(this);
   }
+
+  /** 지금 화면 내용을 "연 그대로" 기준으로 찍는다(wizard.js init 끝에서 1회). */
+  FomsDraftClient.prototype.markBaseline = function () {
+    var payload = this.getPayload() || {};
+    this._baseline = JSON.stringify(payload.data || {});
+  };
+
+  /** 연 뒤로 아무것도 안 바뀌어 보낼 것이 없는가. */
+  FomsDraftClient.prototype._unchangedSinceOpen = function () {
+    if (this._guardOff || this._baseline === null) {
+      return false;
+    }
+    var payload = this.getPayload() || {};
+    return JSON.stringify(payload.data || {}) === this._baseline;
+  };
 
   FomsDraftClient.prototype._headers = function (json) {
     var headers = { "Content-Type": "application/json" };
@@ -89,6 +110,10 @@
     if (!self.draftKey || self._submitted) {
       return Promise.resolve(false);
     }
+    if (self._unchangedSinceOpen()) {
+      // 보낼 것이 없다 = 서버와 같다. 4단계 발송의 강제 저장도 성공으로 받는다.
+      return Promise.resolve(true);
+    }
     if (self._saving) {
       self._queuedFlush = true;
       return self._flushPromise || Promise.resolve(false);
@@ -124,8 +149,12 @@
           return false;
         }
         if (result.data && result.data.success) {
-          self.updatedAt = result.data.updated_at || self.updatedAt;
-          self._showAutosave();
+          // saved === false: 값이 하나도 없어 서버가 행을 만들지 않았다 — 저장 표시를 띄우지 않는다.
+          if (result.data.saved !== false) {
+            self.updatedAt = result.data.updated_at || self.updatedAt;
+            self._guardOff = true;
+            self._showAutosave();
+          }
           return true;
         }
         return false;
@@ -211,6 +240,9 @@
       self._lastKeepaliveAt = now;
       if (!self.draftKey || self._submitted) {
         return;
+      }
+      if (self._unchangedSinceOpen()) {
+        return; // 연 그대로 떠남 — 빈 행도, [복구] 전 덮어쓰기도 만들지 않는다
       }
       if (self._debounceTimer) {
         clearTimeout(self._debounceTimer);
@@ -313,6 +345,7 @@
       return;
     }
     this.updatedAt = remote.updated_at || null;
+    this._guardOff = true;
     if (this.onRecovered) {
       this.onRecovered(remote);
     }

@@ -492,7 +492,8 @@
     var root = document.getElementById("foms-wizard-root");
     var href = ((root && root.getAttribute("data-exit-href")) || "").trim() || DASHBOARD_HREF;
     window.setTimeout(function () {
-      window.location.href = href;
+      // 끝난 마법사는 방문 기록에서 뺀다(뒤로 가기로 빈 마법사가 다시 열리지 않게).
+      window.location.replace(href);
     }, delayMs);
   }
 
@@ -504,7 +505,7 @@
    */
   function goToOrder(orderId, delayMs) {
     window.setTimeout(function () {
-      window.location.href = ORDER_EDIT_HREF_PREFIX + encodeURIComponent(String(orderId));
+      window.location.replace(ORDER_EDIT_HREF_PREFIX + encodeURIComponent(String(orderId)));
     }, delayMs);
   }
 
