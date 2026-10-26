@@ -71,6 +71,8 @@
     if (part.src === 'user') {
       return { kind: 'user', note: '확인', ok: false, title: '사람이 확인한 종류 — 다음 AI 학습에 씁니다 · 바꾸려면 숫자키 1~9' };
     }
+    var memo = '사람이 고른 비슷한 그림을 따랐어요 — 틀리면 숫자키 1~9, 맞으면 Enter';   // 그림 종류 기억(head '.m')
+    if (/\.m$/.test(String(part.head || ''))) { return { kind: 'ai', note: 'AI 기억', ok: true, title: memo }; }
     var pair = pairChanged(part, th);
     var title = 'AI 짐작' + (pair && part.ai ? ' ' + part.ai : '') + (p ? '(확신 ' + p + ')' : '') +
       ' — 틀리면 숫자키 1~9, 맞으면 Enter';

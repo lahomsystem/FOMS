@@ -13,7 +13,9 @@
  *   묶음 확률 합 — 큰 그림(정면 + 입체) · 상세(서랍 단면 + 부품 상세) · 평면 · 사진 · 그림 아님 — 중 가장 큰 묶음.
  *   큰 그림이면 정면 · 입체 중 큰 쪽('front' | 'iso', 주방 두 칸용). V2 화면이 미분류 그림을 그 칸에 놓을 때 쓴다.
  *
- * window.FomsPartAI = { LABELS, KEY_LABELS, classify(img) → Promise<{label, ai, conf, head, fam, famConf}|null>, warm(), threshold(),
+ * - 특징(feat, Float32Array 768)과 특징 판(fv)도 돌려준다 — 그림 종류 기억(part-memory.js)이 서버에 남긴다. 시트에는 저장하지 않는다.
+ *
+ * window.FomsPartAI = { LABELS, KEY_LABELS, FEAT_VERSION, classify(img) → Promise<{label, ai, conf, head, fam, famConf, feat, fv}|null>, warm(), threshold(),
  *   cached() → Promise<bool>(모델이 이미 이 브라우저에 있나), family(labels, probs) }
  */
 (function () {
@@ -27,6 +29,8 @@
   var MODEL_URL = 'https://huggingface.co/onnx-community/dinov2-small/resolve/' +
     '8b1f705a3a7f6f062f6bdd21986c1583d3ef105d/onnx/model_quantized.onnx';
   var CACHE_NAME = 'foms-part-ai-v1';
+  // 특징 판 — 모델 커밋 · 전처리(흰 정사각 → 224 → CLS + 패치 평균 → L2)가 바뀌면 올린다. 그림 종류 기억이 판이 다른 특징을 섞지 않는다.
+  var FEAT_VERSION = 'f1-dv2s-8b1f';
   var SIZE = 224;
   var MEAN = [0.485, 0.456, 0.406];
   var STD = [0.229, 0.224, 0.225];
@@ -213,11 +217,12 @@
         feeds[ctx.sess.inputNames[0]] = toTensor(ctx.ort, img);
         return ctx.sess.run(feeds);
       }).then(function (out) {
-        var p = predict(ctx.head, pool(out));
+        var feat = pool(out);
+        var p = predict(ctx.head, feat);
         var th = typeof ctx.head.threshold === 'number' ? ctx.head.threshold : 0.5;
         var conf = Math.round(p.conf * 1000) / 1000, fam = family(ctx.head.labels, p.probs);
         return { label: conf >= th ? p.label : UNSURE, ai: p.label, conf: conf, head: String(ctx.head.version || 'h0'),
-          fam: fam.fam, famConf: fam.conf };
+          fam: fam.fam, famConf: fam.conf, feat: feat, fv: FEAT_VERSION };   // feat 은 시트에 저장하지 않는다(그림 종류 기억만)
       });
     }).catch(function (err) {
       warnOnce('분류를 건너뜁니다(손으로 고르세요)', err);
@@ -228,7 +233,8 @@
   }
 
   window.FomsPartAI = {
-    LABELS: LABELS, KEY_LABELS: KEY_LABELS, UNSURE: UNSURE, classify: classify, warm: warm, cached: cached, family: family,
+    LABELS: LABELS, KEY_LABELS: KEY_LABELS, UNSURE: UNSURE, FEAT_VERSION: FEAT_VERSION, classify: classify, warm: warm,
+    cached: cached, family: family,
     threshold: function () { return threshold; }
   };
 })();

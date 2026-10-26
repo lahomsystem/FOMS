@@ -511,6 +511,14 @@
       "mode": "guard",
       "rule": "/api/orders/<int:order_id>/drawing-wizard/import-attachment"
     },
+    "erp_orders_drawing_wizard.api_post_drawing_wizard_part_memory": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/drawing-wizard/part-memory"
+    },
+    "erp_orders_drawing_wizard.api_post_drawing_wizard_part_memory_match": {
+      "mode": "guard",
+      "rule": "/api/orders/<int:order_id>/drawing-wizard/part-memory/match"
+    },
     "erp_orders_drawing_wizard.api_post_drawing_wizard_presets": {
       "mode": "guard",
       "rule": "/api/orders/drawing-wizard/presets"
