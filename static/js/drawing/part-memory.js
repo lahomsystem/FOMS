@@ -161,7 +161,8 @@
     if (!on('follow') || !o || !res || !res.feat || !res.fv) { return Promise.resolve(null); }
     var id = String(o.id);
     var ask = post('/drawing-wizard/part-memory/match', { mode: 'follow', items: [{
-      id: id, f: f16b64(res.feat), fv: res.fv, key: o.key || '', ai: res.ai || '', conf: typeof res.conf === 'number' ? res.conf : 0
+      id: id, f: f16b64(res.feat), fv: res.fv, key: o.key || '', ai: res.ai || '', label: res.label || '',
+      conf: typeof res.conf === 'number' ? res.conf : 0
     }] }).then(function (d) {
       var v = (d && d.enabled && d.items) ? d.items[id] : null;
       return (v && v.label && !v.conflict) ? v : null;

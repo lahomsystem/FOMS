@@ -75,9 +75,11 @@ def _save(client, order_id, items):
     return client.post(f"/api/orders/{order_id}/drawing-wizard/part-memory", json={"items": items})
 
 
-def _follow(client, order_id, vec, *, ai="정면·내부", conf=0.4, key="", fv="f1-dv2s-8b1f"):
-    resp = client.post(f"/api/orders/{order_id}/drawing-wizard/part-memory/match", json={
-        "mode": "follow", "items": [{"id": "o-new", "f": _b64(vec), "fv": fv, "key": key, "ai": ai, "conf": conf}]})
+def _follow(client, order_id, vec, *, ai="정면·내부", conf=0.4, key="", fv="f1-dv2s-8b1f", label=None):
+    item = {"id": "o-new", "f": _b64(vec), "fv": fv, "key": key, "ai": ai, "conf": conf}
+    if label is not None:
+        item["label"] = label
+    resp = client.post(f"/api/orders/{order_id}/drawing-wizard/part-memory/match", json={"mode": "follow", "items": [item]})
     assert resp.status_code == 200, resp.get_data(as_text=True)
     return resp.get_json()["data"]["items"]["o-new"]
 
@@ -113,8 +115,9 @@ def test_confident_ai_needs_the_strict_threshold_and_conflicts_do_not_follow(cli
     # 자신 있던 AI(0.9) 짐작을 뒤집으려면 0.985 를 넘어야 한다
     assert _follow(client, second, _near(v, 0.96), ai="서랍 단면", conf=0.9) is None
     assert _follow(client, second, _near(v, 0.995), ai="서랍 단면", conf=0.9)["label"] == "부품 상세"
-    # 같은 종류면 바꿀 것이 없다
-    assert _follow(client, second, _near(v, 0.995), ai="부품 상세", conf=0.4) is None
+    # 같은 종류면 바꿀 것이 없다 — 단, AI 가 헷갈려 미분류로 둔 그림은 첫 짐작이 같아도 기억을 따른다
+    assert _follow(client, second, _near(v, 0.995), ai="부품 상세", conf=0.6, label="부품 상세") is None
+    assert _follow(client, second, _near(v, 0.96), ai="부품 상세", conf=0.3, label="미분류")["label"] == "부품 상세"
     # 문턱을 넘은 기억끼리 종류가 갈리면 따르지 않는다
     _human(client, first, "b", _near(v, 0.99, seed=7), "서랍 단면")
     got = _follow(client, second, _near(v, 0.995), ai="평면·상판", conf=0.3)
@@ -238,6 +241,8 @@ def test_decide_rules_directly():
     assert pm.decide("미분류", 0.2, [(0.96, "사진", 1)], policy)["label"] == "사진"
     assert pm.decide("평면·상판", 0.85, [(0.96, "부품 상세", 1)], policy) is None          # 자신 있던 AI → 0.985
     assert pm.decide("평면·상판", 0.3, [(0.97, "사진", 1), (0.96, "부품 상세", 2)], policy)["conflict"] is True
+    assert pm.decide("사진", 0.3, [(0.96, "사진", 1)], policy, shown="미분류")["label"] == "사진"   # 헷갈린 그림은 첫 짐작과 같아도
+    assert pm.decide("사진", 0.9, [(0.96, "사진", 1)], policy, shown="사진") is None
 
 
 def test_wizard_page_config_carries_memory_switches(client):
