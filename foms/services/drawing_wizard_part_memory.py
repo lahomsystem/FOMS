@@ -158,7 +158,7 @@ def parse_items(order_id: int, items: object, *, labels: tuple, head_re: re.Patt
 
 
 def parse_follow_items(items: object, *, labels: tuple) -> list[dict]:
-    """따르기 줄 검증 → ``[{id, vec, fv, key?, ai?, conf?}]``."""
+    """따르기 줄 검증 → ``[{id, vec, fv, key?, ai?, conf?, label?}]`` (label = 화면 이름표 — 확신이 낮으면 미분류)."""
     out = []
     for item in _items_list(items):
         if not isinstance(item, dict) or not (isinstance(item.get("id"), str) and _ID_RE.match(item["id"])):
@@ -169,10 +169,12 @@ def parse_follow_items(items: object, *, labels: tuple) -> list[dict]:
             raise PartMemoryError("그림 특징 값이 올바르지 않습니다.")
         ai = item.get("ai")
         conf = item.get("conf")
+        shown = item.get("label")
         out.append({
             "id": item["id"], "vec": vec, "fv": fv,
             "key": item.get("key") if isinstance(item.get("key"), str) else "",
             "ai": ai if ai in labels else "",
+            "label": shown if shown in labels else (ai if ai in labels else ""),
             "conf": float(conf) if isinstance(conf, (int, float)) and not isinstance(conf, bool) else 0.0,
         })
     return out
@@ -294,13 +296,16 @@ def _door_only(a: str, b: str) -> bool:
     return a != b and any(a in pair and b in pair for pair in _DOOR_PAIRS)
 
 
-def decide(head_label: str, head_conf: float, neighbors: list[tuple], policy: dict) -> Optional[dict]:
+def decide(head_label: str, head_conf: float, neighbors: list[tuple], policy: dict,
+           shown: Optional[str] = None) -> Optional[dict]:
     """이웃(닮음 큰 순 ``[(sim, label, order_id)]``) → 따를 종류 또는 None.
 
+    ``head_label`` 은 AI 첫 짐작(가장 큰 확률), ``shown`` 은 화면 이름표(확신이 문턱보다 낮으면 미분류 — 없으면 첫 짐작).
     - 가장 닮은 것이 min_sim 아래면 None. 문턱을 넘은 기억끼리 종류가 갈리면 ``{conflict: True}``.
-    - 기억 종류가 AI 짐작과 같으면 바꿀 것이 없다(None).
+    - 기억 종류가 화면 이름표와 같으면 바꿀 것이 없다(None). AI 가 헷갈려 미분류로 둔 그림은 첫 짐작이 같아도 따른다.
     - 내부/도어만 다르거나 AI 가 strict_conf 이상 자신 있던 짐작을 뒤집을 때는 min_sim_door 를 넘어야 한다.
     """
+    shown = head_label if shown is None else shown
     if not neighbors or neighbors[0][0] < policy["min_sim"]:
         return None
     agree = [n for n in neighbors if n[0] >= policy["min_sim"]]
@@ -309,9 +314,10 @@ def decide(head_label: str, head_conf: float, neighbors: list[tuple], policy: di
     if len(labels) > 1:
         return {"label": None, "sim": top_sim, "n": len(agree), "conflict": True}
     label = agree[0][1]
-    if label == head_label:
+    if label == shown:
         return None
-    strict = _door_only(label, head_label) or (head_label not in ("", UNSURE) and head_conf >= policy["strict_conf"])
+    strict = _door_only(label, head_label) or (
+        label != head_label and shown not in ("", UNSURE) and head_conf >= policy["strict_conf"])
     if strict and neighbors[0][0] < policy["min_sim_door"]:
         return None
     return {"label": label, "sim": top_sim, "n": len(agree), "conflict": False}
@@ -340,7 +346,7 @@ def follow(session: Session, order_id: int, items: list[dict], policy: dict) -> 
                     top_scope = "order" if oid == order_id else "other"
                 if len(neighbors) >= _NEIGHBORS:
                     break
-            verdict = decide(item["ai"], item["conf"], neighbors, policy)
+            verdict = decide(item["ai"], item["conf"], neighbors, policy, shown=item["label"])
             if verdict is not None:
                 verdict["scope"] = top_scope
             out[item["id"]] = verdict
