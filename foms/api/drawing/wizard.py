@@ -712,6 +712,21 @@ def _validate_sheet(sheet, order_id: int) -> str | None:
     return None
 
 
+def _count_dup_object_ids(sheets: list) -> int:
+    """시트를 앞에서부터 보며 이미 나온 객체 id 를 다시 만난 수(시트 사이·한 시트 안 모두)."""
+    seen: set[str] = set()
+    dup = 0
+    for sheet in sheets:
+        for obj in (sheet.get('objects') or []) if isinstance(sheet, dict) else []:
+            oid = obj.get('id') if isinstance(obj, dict) else None
+            if not isinstance(oid, str) or not oid:
+                continue
+            if oid in seen:
+                dup += 1
+            seen.add(oid)
+    return dup
+
+
 def _validate_wizard_state(state, order_id: int) -> str | None:
     """도면 마법사 상태 스키마·크기 캡을 검증한다(설계서 §5). 정상이면 None."""
     if not isinstance(state, dict):
@@ -727,6 +742,11 @@ def _validate_wizard_state(state, order_id: int) -> str | None:
         sheet_error = _validate_sheet(sheet, order_id)
         if sheet_error:
             return sheet_error
+    dup = _count_dup_object_ids(sheets)
+    if dup:
+        # 1판은 기록만 한다(설계서 2026-10-26 §1.2-3) — 운영에서 2주 동안 0건이면 거절(400)로 바꾸는 PR 을 따로 낸다.
+        # 브라우저가 불러올 때·저장 직전에 겹친 id 를 떼므로(sheet-ids.js) 여기 오는 것은 옛 화면이거나 새 버그 길이다.
+        logger.warning("DRAWING_WIZARD_DUP_OBJECT_ID order=%s dup=%s", order_id, dup)
     try:
         serialized = json.dumps(state, ensure_ascii=False).encode('utf-8')
     except (TypeError, ValueError):

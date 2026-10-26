@@ -1,8 +1,8 @@
 # 도면 마법사 — 시트 사이 그림 겹침 막기 · 전달본 '예전 것' 정확히 가리기 (Spec v1, 2026-10-26, B·A-2 구현)
 
-> 상태(2026-10-26): 사용자가 추천안으로 진행을 지시('계속 진행') → **B 와 A-2(브라우저 고침)만 구현**(deploy). A-1 재기·A-3 서버 기록·거절은 하지 않았다 — 운영 읽기와 서버 거절은 따로 허락받는다.
+> 상태(2026-10-26): B·A-2 구현(deploy `097d3fa6f`). 같은 날 사용자 허락으로 A-1 재기(스테이징 주문 10건 시트 13장 객체 32개 · 운영 주문 241건 시트 352장 객체 4,165개 — **겹침 0건**, 읽기 전용·숫자만)와 A-3 1판(기록만: 앱 로그 `DRAWING_WIZARD_DUP_OBJECT_ID order= dup=`)도 했다. 거절(400) 판은 운영 로그에 2주 동안 0건이 이어지면 따로 낸다(빠르면 2026-11-09).
 > 구현: `foms/api/drawing/wizard.py`(`_clean_pending_sig`·`_pending_list`), `static/js/drawing/save-status.js`(`tagSig`·`applyServerSigs`), `static/js/drawing/sheet-ids.js`(새), `wizard.js`(load·save·postSheetPngBlob·renderPending), 시험 `tests/domains/test_drawing_wizard_sheet_integrity.py`.
-> 설계와 다른 점: 지문은 `길이.섞기` 꼴이라 점(.)이 들어간다 → 서버 형식 `^v\d{1,2}:[0-9a-z.]{1,32}$`. 지문 없이 다시 넣으면 예전 지문은 항목째 사라진다(새 전달본을 '예전 것'으로 가리지 않게).
+> 설계와 다른 점: 지문은 저장 모양(`serializeSheet`)을 칸 이름 순으로 잰다 — 서버(JSONB)가 칸 순서를 바꿔 돌려줘서 v1(순서가 든 지문)은 [저장] 뒤 고치지 않고 다시 열어도 '전달본 예전 것'이었다(스테이징 실화면). 판 표시를 v2 로 올렸다. 숫자 지표는 따로 두지 않고 로그 글자로 센다(Railway 로그 `@service:<web> DRAWING_WIZARD_DUP_OBJECT_ID`). 지문은 `길이.섞기` 꼴이라 점(.)이 들어간다 → 서버 형식 `^v\d{1,2}:[0-9a-z.]{1,32}$`. 지문 없이 다시 넣으면 예전 지문은 항목째 사라진다(새 전달본을 '예전 것'으로 가리지 않게).
 > 배경: 2026-10-25 사용성 고침(설계서 `2026-10-23-drawing-part-label-feedback-spec.md` §3.8)의 '남은 것' 두 칸.
 
 ## 0. 요약
