@@ -150,6 +150,8 @@ def _assignment_ids(values: Any) -> set[int]:
 #: 관리자가 직접 처리하는 지사 담당 이름 — 관리자의 '내 할 일만' 필터에 본인 담당과 함께 넣는다
 #: (도면 알림 ``ADMIN_HANDLED_MANAGER_KEYWORD`` 와 같은 정책, 2026-10-19 사용자 요청).
 ADMIN_EXTRA_MINE_MANAGER_NAME = "양산지사"
+#: 협력사 주문(``partner_org_id`` 있음)의 담당은 협력사 직원이라 우리 직원 '내 할 일만'에
+#: 안 걸린다 — 관리자에게는 협력사 주문 전부를 함께 넣는다(2026-10-26 사용자 결정).
 
 
 def _is_admin_user(user: Any) -> bool:
@@ -200,7 +202,11 @@ def is_order_related_to_user(order: Any, user: Any, *, scope: str | None = None)
     construction_names = _assignment_names(shipment.get("construction_workers"))
 
     manager_match = bool(identities & manager_names) or (
-        _is_admin_user(user) and ADMIN_EXTRA_MINE_MANAGER_NAME.lower() in manager_names
+        _is_admin_user(user)
+        and (
+            ADMIN_EXTRA_MINE_MANAGER_NAME.lower() in manager_names
+            or getattr(order, "partner_org_id", None) is not None
+        )
     )
     sales_match = manager_match or (user_id is not None and user_id in sales_ids)
     drawing_match = bool(identities & drawing_names) or (
@@ -330,6 +336,8 @@ def build_mine_sql_filter(user: Any, scope: str | None = None) -> list[Any]:
         branch = ADMIN_EXTRA_MINE_MANAGER_NAME
         manager_conds.append(Order.manager_name.ilike(_escape_like(branch), escape="\\"))  # perf-ok: ix_orders_manager_name_trgm
         manager_conds.append(_json_string_token_condition(Order.structured_data["parties"]["manager"]["name"], branch, dialect_name=dialect_name))
+    if _is_admin_user(user):
+        manager_conds.append(Order.partner_org_id.isnot(None))  # perf-ok: ix_orders_partner_org_id
     if u_id_str:
         user_id = int(u_id_str)
         sales_conds.append(_json_int_array_condition(Order.structured_data["assignments"]["sales_assignee_user_ids"], user_id))  # perf-ok: ix_orders_sd_sales_ids_trgm
