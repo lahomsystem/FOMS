@@ -25,6 +25,7 @@ __all__ = [
     "AS_UPLOAD_PARK_FLAG",
     "AS_UPLOAD_PARK_TEXT",
     "append_as_upload_park",
+    "carry_over_reception_attachments",
     "lock_as_upload_anchor",
     "peek_as_upload_anchor",
     "promote_parked_as_attachments",
@@ -206,4 +207,42 @@ def promote_parked_as_attachments(
         attachment.as_log_id = target
         attachment.sort_order = next_sort + index
     _soft_delete_park_memos(sd, park_ids, deleted_by)
+    return len(rows)
+
+
+def carry_over_reception_attachments(
+    db: Any,
+    order: Any,
+    from_log_id: str,
+    to_log_id: str,
+) -> int:
+    """같은 건 재접수: 직전 접수 항목의 첨부를 새 접수 항목 뒤에 순서대로 옮긴다.
+
+    재접수는 새 reception 을 쌓으므로(타임라인 계약) 옮기지 않으면 사진이 옛 줄에만
+    남아 "수정하면 사진이 사라진다"(운영 #5736). 같은 id 거나 빈 값이면 no-op.
+
+    Returns:
+        옮긴 첨부 수.
+    """
+    source = str(from_log_id or "").strip()
+    target = str(to_log_id or "").strip()
+    if not source or not target or source == target:
+        return 0
+
+    from models import OrderAttachment
+
+    rows = (
+        db.query(OrderAttachment)
+        .filter(
+            OrderAttachment.order_id == order.id,
+            OrderAttachment.category == "as",
+            OrderAttachment.as_log_id == source,
+        )
+        .all()
+    )
+    rows.sort(key=attachment_sort_key)
+    next_sort = next_attachment_sort_order(db, order.id, target)
+    for index, attachment in enumerate(rows):
+        attachment.as_log_id = target
+        attachment.sort_order = next_sort + index
     return len(rows)
