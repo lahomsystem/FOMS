@@ -10,10 +10,12 @@
  *   또는 막 열어서 아직 저장 전 — 작업 내용은 이미 서버에 있다)
  * - '넣은 뒤 고쳤나'는 그림 지문(sheetSig)으로 가른다. 이 창에서 넣었으면 넣을 때 지문, 다시 연 창이면
  *   불러온 그대로의 지문(seedQueuedSigs)과 견준다 — 다시 열어 고친 시트도 '전달본 예전 것'이 된다.
+ * - [저장] 때 지문을 전달 대기함 항목에 함께 남긴다(sig, 'v1:' 판 표시). 목록에 지문이 있으면 그것이 기준이다
+ *   (applyServerSigs) — '넣고 → 더 고치고 → 창 닫음 → 다시 엶'도 처음부터 '전달본 예전 것'이 된다.
  * - 전달 대기함 목록을 아직 못 받았으면(boxKnown false) '없음'이라고 말하지 않는다.
  *
  * window.FomsSaveStatus = { chip(st), atText(at, now), objJosa(word), sheetSig(sheet), sheetSigs(sheets),
- *                           seedQueuedSigs(queued, loaded, ids),
+ *                           seedQueuedSigs(queued, loaded, ids), tagSig(sig), applyServerSigs(queued, list),
  *                           queuedToast(name), queueFailToast(name), allQueuedToast(ok, total, failNames),
  *                           emptyCopy(nProducts, canSave) }
  */
@@ -134,6 +136,22 @@
     return out;
   }
 
+  /** 서버에 남기는 지문은 판 표시를 붙인다 — 지문 계산을 바꾸면 v2 로 올려 예전 것과 섞이지 않게(설계서 2026-10-26 §2.2). */
+  var SIG_VER = 'v1';
+  function tagSig(sig) { return sig ? SIG_VER + ':' + sig : ''; }
+
+  /** 전달 대기함 목록의 지문(sig)을 기준으로 적는다 — 다시 연 창도 '넣은 뒤 고쳤나'를 정확히 안다.
+      판이 다르거나 없는 항목은 건드리지 않는다(예전 규칙: 이 창에서 넣을 때 · 불러온 그대로). queued 를 고쳐 돌려준다. */
+  function applyServerSigs(queued, list) {
+    var out = queued || {};
+    var head = SIG_VER + ':';
+    (list || []).forEach(function (it) {
+      var s = it && typeof it.sig === 'string' ? it.sig : '';
+      if (it && it.sheet_id && s.indexOf(head) === 0 && s.length > head.length) { out[it.sheet_id] = s.slice(head.length); }
+    });
+    return out;
+  }
+
   function quoted(name) {
     var n = String(name == null ? '' : name).trim() || '도면';
     return "'" + n + "'" + objJosa(n);
@@ -165,6 +183,7 @@
 
   window.FomsSaveStatus = {
     chip: chip, atText: atText, objJosa: objJosa, sheetSig: sheetSig, sheetSigs: sheetSigs, seedQueuedSigs: seedQueuedSigs,
+    tagSig: tagSig, applyServerSigs: applyServerSigs,
     queuedToast: queuedToast, queueFailToast: queueFailToast, allQueuedToast: allQueuedToast,
     emptyCopy: emptyCopy
   };

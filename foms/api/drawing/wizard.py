@@ -1135,7 +1135,7 @@ def api_post_drawing_wizard_import_attachment(order_id):
 def api_post_drawing_wizard_sheet_png(order_id):
     """현재 시트 PNG를 '전달 대기'(``structured_data['drawing_wizard']['pending']``)로 보관한다.
 
-    multipart ``file``(PNG) + form ``sheet_id`` + optional ``sheet_name``. PNG는
+    multipart ``file``(PNG) + form ``sheet_id`` + optional ``sheet_name``·``sig``(그림 지문). PNG는
     ``orders/<id>/drawing_wizard/exports/`` 로 업로드하고, sheet_id 별 pending 항목에
     ``{key, filename, at(KST), sheet_name}`` 을 기록한다. 저장/전달 분리 원칙에 따라
     OrderAttachment(주문 '도면' 탭)은 만들지 않으며(전달은 작업실 일괄 전송이 담당),
@@ -1171,6 +1171,7 @@ def api_post_drawing_wizard_sheet_png(order_id):
         raw_sheet_id = request.form.get('sheet_id') or ''
         sheet_id = re.sub(r'[^A-Za-z0-9_-]', '', str(raw_sheet_id))[:40] or 'sheet'
         sheet_name = str(request.form.get('sheet_name') or sheet_id)[:_MAX_SHEET_NAME_LEN]
+        sig = _clean_pending_sig(request.form.get('sig'))
 
         storage = get_storage()
         result = storage.upload_file(
@@ -1214,6 +1215,8 @@ def api_post_drawing_wizard_sheet_png(order_id):
             'at': now_kst().strftime('%Y-%m-%d %H:%M'),
             'sheet_name': sheet_name,
         }
+        if sig:
+            pending[sheet_id]['sig'] = sig
         # 옛 대기 파일은 지금 어떤 도면 기록(전달된 현재본·이력·버전)도 안 쓸 때만 지운다(§10-14).
         stale = _deletable_after(db, order_id, sd, [old_key] if old_key and old_key != key else [])
         # 담당 미지정이면 저장한 도면팀 사용자를 담당으로 — 같은 잠금 쓰기(버전 +1 한 번)에 싣는다.
@@ -1243,10 +1246,24 @@ def api_post_drawing_wizard_sheet_png(order_id):
         return jsonify({'success': False, 'message': f'오류 발생: {str(e)}'}), 500
 
 
+_PENDING_SIG_RE = re.compile(r'^v\d{1,2}:[0-9a-z.]{1,32}$')
+
+
+def _clean_pending_sig(raw) -> str | None:
+    """[저장] 때 브라우저가 보낸 그림 지문(``'v1:' + sheetSig``)을 형식만 보고 받는다.
+
+    다시 연 마법사가 전달본이 '예전 것'인지 정확히 가리는 기준일 뿐이라 틀리면 거절하지 않고 버린다
+    (설계서 ``docs/plans/2026-10-26-drawing-wizard-sheet-integrity-spec.md`` §2.2).
+    """
+    s = str(raw or '').strip()
+    return s if _PENDING_SIG_RE.match(s) else None
+
+
 def _pending_list(sd: dict) -> list[dict]:
-    """``sd['drawing_wizard']['pending']`` (dict) → 목록 [{sheet_id, key, filename, at, sheet_name}].
+    """``sd['drawing_wizard']['pending']`` (dict) → 목록 [{sheet_id, key, filename, at, sheet_name, sig?}].
 
     key 가 비어있거나 항목이 dict 가 아니면 건너뛴다(방어). 삽입 순서를 그대로 유지한다.
+    ``sig`` 는 [저장] 때 그림 지문이 있을 때만 싣는다(형식이 틀린 옛 값은 뺀다).
     """
     dw = sd.get('drawing_wizard') if isinstance(sd, dict) else None
     pending = dw.get('pending') if isinstance(dw, dict) else None
@@ -1265,6 +1282,9 @@ def _pending_list(sd: dict) -> list[dict]:
                 'at': entry.get('at') or '',
                 'sheet_name': entry.get('sheet_name') or sheet_id,
             })
+            sig = _clean_pending_sig(entry.get('sig'))
+            if sig:
+                out[-1]['sig'] = sig
     return out
 
 
