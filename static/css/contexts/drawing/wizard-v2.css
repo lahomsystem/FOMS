@@ -186,6 +186,11 @@
 .dws-v2-tag-ok { background: #e9f7ee; color: #1a7f37; }
 .dws-v2-tag-ai { background: #ffffff; color: #0062c4; border: 1px dashed #7aa7e0; }
 .dws-v2-tag-fixed { background: #f5f5f7; color: #3a3a3c; }
+/* AI 가 칸만 짐작한 그림 — 눌러서 세부 종류를 고른다(v2-left.js famLabels) */
+.dws-v2-tag-guess { background: #fff6e8; color: #b25000; border: 1px dashed #e8a35a; font-family: inherit; cursor: pointer; }
+.dws-v2-tag-guess:hover,
+.dws-v2-tag-guess:focus-visible { border-style: solid; outline: none; }
+.dws-v2-tag-guess:disabled { cursor: default; }
 .dws-v2-link {
   align-self: flex-start;
   border: 0;

@@ -246,3 +246,13 @@ def test_prep_and_pool_match_training_recipe():
     last = np.random.default_rng(0).normal(size=(1, 257, 384))
     v = pe.pool(last)
     assert v.shape == (768,) and abs(np.linalg.norm(v) - 1.0) < 1e-9
+
+
+def test_prep_puts_transparent_png_on_white_like_browser():
+    """마법사에 올린 스케치업 PNG 는 투명 칸의 색이 검정(0,0,0) — 흰 바탕에 얹어야 브라우저(part-ai.js 흰 캔버스)와 같은 특징이 된다."""
+    rgba = Image.new("RGBA", (200, 120), (0, 0, 0, 0))
+    rgba.paste((40, 40, 40, 255), (60, 30, 140, 90))
+    flat = Image.new("RGB", (200, 120), (255, 255, 255))
+    flat.paste((40, 40, 40), (60, 30, 140, 90))
+    assert np.allclose(pe.prep(rgba), pe.prep(flat), atol=1e-6)
+    assert np.allclose(pe.prep(rgba.convert("LA")), pe.prep(flat.convert("L")), atol=1e-6)

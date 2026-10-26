@@ -3230,7 +3230,7 @@
         applyKitchenPairs(o, img);
         if (selected === id) { syncImageToolbar(o); }
         if (late && batch) { batch.lateNamed = true; }
-        emitCore('labels', { id: id, by: 'ai', batch: !!batch });
+        emitCore('labels', { id: id, by: 'ai', batch: !!batch, fam: res.fam || '', famConf: res.famConf || 0 });   // 칸 짐작은 V2 가 쓴다
       }
       if (!settled) { settled = true; clearTimeout(timer); finishPartBatch(batch, id); }
       else if (late && batch) { latePartName(batch); }

@@ -123,14 +123,26 @@
     });
   }
 
+  /** AI 칸 짐작 그림의 '?' 를 누르면 고를 종류 — 상세는 둘, 큰 그림은 넷(주방은 그 칸 둘). */
+  function famLabels(fam, view) {
+    if (fam === 'd') { return ['서랍 단면', '부품 상세']; }
+    return view.plan.kitchen ? (fam === 'f' ? FRONT_ISO.slice(0, 2) : FRONT_ISO.slice(2)) : FRONT_ISO;
+  }
+
   function tags(list, view) {
-    var wrap = el('div', 'dws-v2-tags'), th = api.core.threshold();
+    var wrap = el('div', 'dws-v2-tags'), th = api.core.threshold(), g = view.plan.g;
     list.forEach(function (o) {
-      var p = o.part || {}, label = view.plan.g.labels[o.id] || '미분류';
-      var sure = p.src === 'user' || (typeof p.conf === 'number' && p.conf >= th);
-      var t = el('span', 'dws-v2-tag' + (sure ? ' dws-v2-tag-ok' : ' dws-v2-tag-ai'), (sure ? '✓ ' : '') + label.replace('·', ' · '));
-      t.title = p.src === 'user' ? '사람이 고른 종류' : ('AI 짐작' + (typeof p.conf === 'number' ? ' · 확신 ' + Math.round(p.conf * 100) + '%' : '') +
-        (sure ? '' : ' — 맞으면 그림을 고르고 Enter'));
+      var p = o.part || {}, label = g.labels[o.id] || '미분류', gs = g.guess[o.id];
+      var sure = !gs && (p.src === 'user' || (typeof p.conf === 'number' && p.conf >= th));
+      var t = el(gs ? 'button' : 'span', 'dws-v2-tag' + (sure ? ' dws-v2-tag-ok' : ' dws-v2-tag-ai') + (gs ? ' dws-v2-tag-guess' : ''),
+        (sure ? '✓ ' : '') + (gs ? g.lay[o.id] + '?' : label).replace('·', ' · '));
+      t.title = p.src === 'user' ? '사람이 고른 종류' : gs ? 'AI 가 칸만 짐작했어요(칸 확신 ' + Math.round(gs.conf * 100) + '%) — 눌러서 종류 고르기'
+        : ('AI 짐작' + (typeof p.conf === 'number' ? ' · 확신 ' + Math.round(p.conf * 100) + '%' : '') + (sure ? '' : ' — 맞으면 그림을 고르고 Enter'));
+      if (gs) {
+        t.type = 'button';
+        t.disabled = !api.core.canSave();
+        t.addEventListener('click', function () { chooser(t.closest('.dws-v2-card'), o.id, famLabels(gs.fam, view)); });
+      }
       wrap.appendChild(t);
       if (view.plan.g.fixed[o.id]) { var f = el('span', 'dws-v2-tag dws-v2-tag-fixed', '고정'); f.title = '손으로 옮겼거나 잠근 그림 — 다시 배치해도 그대로'; wrap.appendChild(f); }
     });
@@ -183,8 +195,9 @@
     var heads = g.bom.map(function (o) { return String(o.text || '').split('\n')[0].trim(); }).join(' ');
     out.push(card('bom', { badge: '자재', title: '자재표 ' + g.bom.length + '열', chip: '직접 입력', tone: 'gray', meta: heads || '자재표 글자가 없어요' }, [], view,
       linkBtn('자재표 계산 열기', function () { var b = $('dws-btn-calc'); if (b) { b.click(); } })));
-    [['main', L.main || 'A', plan.kitchen ? '정면' : (String(f.product_name || '').trim() || '큰 그림'), plan.kitchen ? '' : meta],
-      ['iso', L.iso || 'B', '입체', ''], ['detail', L.detail || 'B', '상세', '작은 상세'], ['plan', L.plan || 'C', '평면 · 상판', '']]
+    var T = function (k) { return window.FomsV2Slots.title(k, g, plan.kitchen); };   // 칸 이름 = 든 그림 종류(종이 머리와 같다)
+    [['main', L.main || 'A', T('main'), plan.kitchen ? '' : meta], ['iso', L.iso || 'B', T('iso'), ''],
+      ['detail', L.detail || 'B', T('detail'), '작은 상세'], ['plan', L.plan || 'C', T('plan'), '']]
       .forEach(function (k) {
         var list = g[k[0]] || [];
         if (!list.length && k[0] !== 'main') { return; }
@@ -197,16 +210,19 @@
   }
 
   function renderUnsorted(view) {
-    var box = els.unsorted, list = view.plan.g.unsorted;
+    var box = els.unsorted, list = view.plan.g.unsorted, guessed = Object.keys(view.plan.g.guess).length;
     box.textContent = '';
-    box.className = 'dws-v2-unsorted ' + (list.length ? 'dws-v2-unsorted-warn' : 'dws-v2-unsorted-ok');
-    box.appendChild(el('strong', 'dws-v2-unsorted-title', '미분류 ' + list.length + '장'));
+    box.className = 'dws-v2-unsorted ' + (list.length || guessed ? 'dws-v2-unsorted-warn' : 'dws-v2-unsorted-ok');
+    box.appendChild(el('strong', 'dws-v2-unsorted-title', '미분류 ' + (list.length + guessed) + '장'));   // 앱바 '미분류 N장' 칩과 같은 셈
+    if (guessed) {   // 칸만 짐작해 놓은 그림 — 세부 종류는 사람이 골라야 정확하다(고른 종류 = 다음 AI 학습 자료)
+      box.appendChild(el('span', 'dws-v2-unsorted-text', 'AI 가 칸만 짐작해 놓은 그림 ' + guessed + '장 — 카드의 \'?\' 표시를 눌러 종류를 골라 주세요.'));
+    }
     if (!list.length) {
-      box.appendChild(el('span', 'dws-v2-unsorted-text', '모든 그림이 칸을 찾았어요. 확신이 낮은 그림은 여기로 모여서 사람이 골라요.'));
+      if (!guessed) { box.appendChild(el('span', 'dws-v2-unsorted-text', '모든 그림이 칸을 찾았어요. 확신이 낮은 그림은 여기로 모여서 사람이 골라요.')); }
       acceptDrop(box, 'unsorted', view);
       return;
     }
-    box.appendChild(el('span', 'dws-v2-unsorted-text', '종류를 골라 주세요 — 고른 종류는 다음 AI 학습에 쓰여요.'));
+    box.appendChild(el('span', 'dws-v2-unsorted-text', (guessed ? '칸을 못 찾은 그림 ' + list.length + '장 — ' : '') + '종류를 골라 주세요 — 고른 종류는 다음 AI 학습에 쓰여요.'));
     list.forEach(function (o) {
       var row = el('div', 'dws-v2-unsorted-row');
       row.appendChild(thumb(o, view));

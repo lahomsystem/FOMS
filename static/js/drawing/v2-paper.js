@@ -55,16 +55,11 @@
       if (labels.some(function (l) { return /도어$/.test(l); })) { side.push('도어'); }
       var meta = [form.site_spec, form.color].map(function (v) { return String(v || '').replace(/\s+/g, ' ').trim(); })
         .filter(Boolean).join(' · ');
-      if (key === 'iso') { return { badge: letters.iso || 'B', name: '입체', side: side.join(' · ') }; }
-      return { badge: letters.main || 'A', name: plan.kitchen ? '정면' : (String(form.product_name || '').trim() || '큰 그림'),
-        meta: plan.kitchen ? '' : meta, side: side.join(' · ') };
+      var name = window.FomsV2Slots.title(key, g, plan.kitchen);   // 칸 이름 = 든 그림 종류(제품 이름이 아니다)
+      if (key === 'iso') { return { badge: letters.iso || 'B', name: name, side: side.join(' · ') }; }
+      return { badge: letters.main || 'A', name: name, meta: plan.kitchen ? '' : meta, side: side.join(' · ') };
     }
-    if (key === 'detail') {
-      var ls = (g.detail || []).map(function (o) { return g.labels[o.id]; });
-      var name = ls.every(function (l) { return l === '서랍 단면'; }) ? '서랍 단면'
-        : (ls.every(function (l) { return l === '부품 상세'; }) ? '부품 상세' : '상세');
-      return { badge: letters.detail || 'B', name: name };
-    }
+    if (key === 'detail') { return { badge: letters.detail || 'B', name: window.FomsV2Slots.title(key, g, plan.kitchen) }; }
     if (key === 'plan') { return { badge: letters.plan || 'C', name: '평면 · 상판' }; }
     return { badge: letters.unsorted || '?', name: '기타 그림' };
   }
