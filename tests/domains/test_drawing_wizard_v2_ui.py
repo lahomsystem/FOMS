@@ -116,3 +116,10 @@ def test_wizard_js_bridges_v2_without_v1_layout_engines():
     for api in ["sheet:", "recordUndo:", "markDirty:", "redraw:", "items:", "baseline:", "split:", "importPhoto:", "setPartLabel:",
                 "addFiles:", "select:", "normalize:", "rid:", "save:", "editing:"]:
         assert api in core, api
+
+
+def test_empty_saved_state_keeps_server_updated_at_as_base():
+    """시트를 다 지우고 저장한 주문 — 다시 열어 처음 저장할 때 409(다른 사용자가 먼저 저장)로 막히지 않게 서버 시각을 기준으로 둔다."""
+    load = JS[JS.index("  function load() {"):JS.index("  function handleConflict(")]
+    empty = load[load.index("state = { v: 1, sheets: [] };"):]
+    assert empty.index("baseUpdatedAt = (d.state && d.state.updated_at) || null;") < 200
