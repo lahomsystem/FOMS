@@ -180,6 +180,7 @@
     "foms/platform/blueprints.py::foms.api.construction",
     "foms/platform/blueprints.py::foms.api.cs",
     "foms/platform/blueprints.py::foms.api.drawing",
+    "foms/platform/blueprints.py::foms.api.drawing_agent",
     "foms/platform/blueprints.py::foms.api.erp_estimates",
     "foms/platform/blueprints.py::foms.api.erp_map",
     "foms/platform/blueprints.py::foms.api.erp_order_draft",

@@ -103,3 +103,17 @@ FOMS 에 **'AI 도면팀원'** 계정을 두고, 그 이름으로 도면팀 일�
 3. 연구 루틴 주기 — 주 1회 / 매일 / 운영 머지 때마다.
 4. AI 가 혼자 할 수 있는 범위 — 메모 · 노트 · deploy(스테이징)까지(운영은 늘 사용자).
 5. 검수 메모 처음 목록에 더하거나 뺄 것(도면팀 의견).
+
+## 8. 구현 기록
+
+- **A1 검수 메모**(2026-10-27, deploy `74e894d5`, 스테이징 V1 · V2 실화면 확인): §2 A1 구현 메모 참고.
+- **B1 학습 요약**(2026-10-27): 밤에 미리 만들지 않고 부를 때 바로 만든다(쪽 넘기기) — 크론 · 저장 칸이 필요 없다.
+  `GET /api/drawing-agent/digest?kind=summary|memory|sheets|notes&since&after&limit`(`foms/api/drawing_agent.py`,
+  `foms/services/drawing_agent_digest.py`). 토큰 원문은 서버에 없고 환경 변수 `FOMS_DRAWING_AGENT_TOKEN_SHA256` 에 sha256 지문만 —
+  지문이 없으면 404(꺼짐), 틀리면 401. 그림 key 는 sha1 앞 16자, 사람은 익명 번호, 시트는 머리칸 · 이름 · 메모 글 없이 그림 자리 ·
+  이름표 · 자재표 숫자 줄 · 계산 칸 · 검수 메모 기록만.
+- **A3 계정 · 주간 노트**(2026-10-27): 계정 `ai-drawing-agent`('AI 도면팀원')는 처음 쓸 때 만든다(비활성 · 무작위 비밀번호 · 팀 없음 —
+  로그인 못 하고 팀 알림 · 배정 후보에 안 낀다). FOMS-cron 밤 단계 `tools/cron/drawing_agent_note.py --apply` 가 그 주 노트가 없을 때만
+  노트를 만들고 도면팀에 앱 안 알림(새벽이라 폰 푸시 없음)을 남긴다. 노트 화면 `/erp/drawing-workbench/agent-note`,
+  답하기 `POST /api/drawing-agent/notes/<id>/answer`(정책 DRAWING_TEAM). 바뀐 것은 코드와 같이 가는
+  `foms/services/drawing_agent_changes.json` — 그 환경에 실제로 올라간 것만 노트에 나온다.

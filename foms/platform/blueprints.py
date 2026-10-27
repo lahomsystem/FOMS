@@ -201,6 +201,12 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
     app.register_blueprint(partner_api_bp)
     app.register_blueprint(partner_portal_bp)
 
+    # --- Lane: AI 도면팀원 학습 요약(GET /api/drawing-agent/digest, 토큰 전용 · 읽기만). 경로가 고유해
+    # shadowing 이 없고 규약대로 **뒤에만** 덧붙인다. 설계서 docs/plans/2026-10-27-drawing-ai-teammate-spec.md
+    from foms.api.drawing_agent import drawing_agent_bp
+
+    app.register_blueprint(drawing_agent_bp)
+
     # --- Lane: Infra liveness (Railway healthcheck / keep-warm 프로브) ---
     from foms.api.health import health_bp
 

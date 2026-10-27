@@ -1,0 +1,97 @@
+/* AI 도면팀원 노트(templates/drawing/agent_note.html · 설계서 2026-10-27 A3).
+   색은 FOMS 공통 토큰(--foms-*)을 쓰고, 토큰이 없을 때만 밝은 기본값으로 떨어진다. */
+.dan-page {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 20px 16px 48px;
+  color: var(--foms-text-primary, #1d1d1f);
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+.dan-head { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+.dan-avatar {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--foms-primary-soft, #e8f1fd);
+  color: var(--foms-primary, #0059b3);
+  font-weight: 700;
+}
+.dan-head-text { min-width: 0; }
+.dan-title { margin: 0; font-size: 20px; font-weight: 700; }
+.dan-sub { margin: 2px 0 0; font-size: 13px; color: var(--foms-text-secondary, #6e6e73); }
+.dan-empty {
+  padding: 24px;
+  border: 1px dashed var(--foms-border-subtle, #d2d2d7);
+  border-radius: 12px;
+  color: var(--foms-text-secondary, #6e6e73);
+  text-align: center;
+}
+.dan-note {
+  margin-bottom: 20px;
+  padding: 18px;
+  background: var(--foms-surface-base, #ffffff);
+  border: 1px solid var(--foms-border-subtle, #e5e5ea);
+  border-radius: 14px;
+}
+.dan-note-title { margin: 0 0 12px; font-size: 17px; font-weight: 700; }
+.dan-stats { list-style: none; margin: 0 0 10px; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.dan-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--foms-surface-muted, #f5f5f7);
+}
+.dan-stat-num { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.dan-stat-label { font-size: 12px; color: var(--foms-text-secondary, #6e6e73); }
+.dan-line { margin: 6px 0; font-size: 13px; line-height: 1.5; }
+.dan-h3 { margin: 16px 0 8px; font-size: 14px; font-weight: 700; }
+.dan-changes { margin: 0; padding-left: 18px; font-size: 13px; line-height: 1.55; }
+.dan-q {
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px solid var(--foms-border-subtle, #e5e5ea);
+  border-radius: 12px;
+}
+.dan-q-text { margin: 0 0 10px; font-size: 13px; line-height: 1.5; }
+.dan-q-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.dan-q-side { margin: 0; min-width: 0; }
+.dan-q-img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: contain;
+  background: #ffffff;
+  border: 1px solid var(--foms-border-subtle, #e5e5ea);
+  border-radius: 8px;
+}
+.dan-q-cap { margin-top: 6px; font-size: 12px; color: var(--foms-text-secondary, #6e6e73); }
+.dan-q-order { margin-left: 4px; }
+.dan-q-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
+.dan-btn {
+  min-height: 40px;
+  padding: 8px 14px;
+  border: 1px solid var(--foms-border-subtle, #d2d2d7);
+  border-radius: 999px;
+  background: var(--foms-surface-base, #ffffff);
+  color: var(--foms-text-primary, #1d1d1f);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.dan-btn:hover { background: var(--foms-surface-muted, #f5f5f7); }
+.dan-btn:focus-visible { outline: 2px solid var(--foms-primary, #0071e3); outline-offset: 2px; }
+.dan-btn[aria-pressed="true"] { border-color: var(--foms-primary, #0071e3); color: var(--foms-primary, #0059b3); font-weight: 600; }
+.dan-btn:disabled { opacity: 0.6; cursor: progress; }
+.dan-q-answer { font-size: 12px; color: var(--foms-text-secondary, #6e6e73); }
+.dan-q-failed .dan-q-answer { color: var(--foms-color-danger-600, #b42318); }
+@media (max-width: 560px) {
+  .dan-stats { grid-template-columns: 1fr; }
+  .dan-q-pair { grid-template-columns: 1fr; }
+}

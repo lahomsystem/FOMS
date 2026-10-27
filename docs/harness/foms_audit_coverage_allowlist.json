@@ -129,6 +129,10 @@
     {
       "key": "foms/api/drawing/wizard.py::api_post_drawing_wizard_part_memory_match",
       "reason": "그림 종류 기억 찾기(읽기만) — 아무것도 쓰지 않는다."
+    },
+    {
+      "key": "foms/api/drawing_agent.py::api_drawing_agent_note_answer",
+      "reason": "AI 도면팀원 노트 질문 답 — 학습 기억 이름표만 맞추고(주문·고객 데이터 아님) 답한 사람·시각·고른 답은 노트(SystemSetting)에 남는다."
     }
   ]
 }
