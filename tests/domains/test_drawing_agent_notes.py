@@ -253,3 +253,19 @@ def test_test_and_trashed_orders_stay_out_of_numbers_and_questions(app):
     stats = notes.label_stats(db_session, start, notes.week_start(NOW))
     assert stats["labels"] == 0 and stats["new_rows"] == 0 and stats["top_changes"] == []
     assert notes.find_questions(db_session, NOW, []) == []
+
+
+def test_review_numbers_leave_out_test_and_trashed_orders(app):
+    """검수 메모 숫자도 시험 · 휴지통 주문 시트는 세지 않는다(설계서 §9) — 같은 기록을 가진 세 주문 중 진짜 주문 하나만 센다."""
+    review = [{"id": "s1", "name": "a", "form": {}, "objects": [],
+               "review": {"off": ["dup"], "seen": ["dup", "head:phone"]}}]
+    real, test, gone = _order(review), _order(review), _order(review)
+    db_session.get(Order, test).customer_name = "CLAUDE-TEST-검수"
+    order = db_session.get(Order, gone)
+    order.status, order.deleted_at = "DELETED", "2026-10-27 12:00:00"
+    db_session.commit()
+    for oid, key, seed in ((real, "a", 31), (test, "b", 32), (gone, "c", 33)):
+        _mem(oid, key, _vec(seed), "사진", src="ai", ai="사진")
+    start = notes.week_start(NOW) - timedelta(days=7)
+    assert notes.review_stats(db_session, start, notes.week_start(NOW)) == {
+        "dup": {"seen": 1, "off": 1}, "head": {"seen": 1, "off": 0}}
