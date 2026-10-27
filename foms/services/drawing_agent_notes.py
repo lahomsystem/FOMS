@@ -10,6 +10,7 @@
   이미 물은 쌍은 다시 묻지 않는다.
 - 답(도면팀 · 관리자): 'a' = 왼쪽이 맞음 → 오른쪽 그림 기억을 왼쪽 종류로, 'b' = 반대, 'both' = 그림마다 다름(기억은 그대로).
   답은 학습 요약(digest kind=notes)으로 연구 루틴에 가서 팀 기준(docs/research/drawing-agent/TEAM-RULES.md)이 된다.
+- 숫자 · 물어볼 것은 시험 · 휴지통 주문 줄을 뺀다(drawing_wizard_part_memory.real_orders — 설계서 §9).
 """
 
 from __future__ import annotations
@@ -25,6 +26,7 @@ from sqlalchemy.orm.attributes import flag_modified
 
 from foms.services.datetime_kst import now_utc_naive
 from foms.services.drawing_agent_account import AGENT_NAME, ensure_agent_user
+from foms.services.drawing_wizard_part_memory import real_orders
 from foms.services.notifications.recipients import fan_out_new_notification
 from models import DrawingPartMemory, Notification, Order, SystemSetting
 
@@ -111,7 +113,7 @@ def _door_only(a: str, b: str) -> bool:
 
 
 def label_stats(db, start: datetime, end: datetime) -> dict[str, Any]:
-    rows = (db.query(DrawingPartMemory.ai, DrawingPartMemory.label)
+    rows = (real_orders(db.query(DrawingPartMemory.ai, DrawingPartMemory.label))
             .filter(DrawingPartMemory.src == 'user', DrawingPartMemory.active.is_(True),
                     DrawingPartMemory.updated_at >= start, DrawingPartMemory.updated_at < end).all())
     pairs: dict[tuple[str, str], int] = {}
@@ -124,14 +126,14 @@ def label_stats(db, start: datetime, end: datetime) -> dict[str, Any]:
         'agree': sum(1 for ai, label in rows if ai and ai == label),
         'changed': sum(pairs.values()),
         'top_changes': [[ai, label, n] for (ai, label), n in top],
-        'new_rows': db.query(DrawingPartMemory.id).filter(DrawingPartMemory.created_at >= start,
-                                                          DrawingPartMemory.created_at < end).count(),
+        'new_rows': real_orders(db.query(DrawingPartMemory.id)).filter(DrawingPartMemory.created_at >= start,
+                                                                       DrawingPartMemory.created_at < end).count(),
     }
 
 
 def review_stats(db, start: datetime, end: datetime) -> dict[str, dict[str, int]]:
     """그 주 그림을 다룬 주문의 시트 검수 메모 기록 — 메모마다 보인 시트 수 · 끈 시트 수."""
-    order_ids = [oid for (oid,) in db.query(DrawingPartMemory.order_id)
+    order_ids = [oid for (oid,) in real_orders(db.query(DrawingPartMemory.order_id))
                  .filter(DrawingPartMemory.updated_at >= start, DrawingPartMemory.updated_at < end)
                  .distinct().limit(MAX_REVIEW_ORDERS).all()]
     out: dict[str, dict[str, int]] = {}
@@ -154,7 +156,7 @@ def _side(row: DrawingPartMemory) -> dict[str, Any]:
 
 
 def find_questions(db, now: datetime, asked: list[str]) -> list[dict[str, Any]]:
-    rows = (db.query(DrawingPartMemory)
+    rows = (real_orders(db.query(DrawingPartMemory))
             .filter(DrawingPartMemory.src == 'user', DrawingPartMemory.active.is_(True), DrawingPartMemory.feat.isnot(None),
                     DrawingPartMemory.updated_at >= now - timedelta(days=ASK_WINDOW_DAYS))
             .order_by(DrawingPartMemory.updated_at.desc()).limit(MAX_ASK_ROWS).all())
