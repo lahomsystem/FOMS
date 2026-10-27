@@ -372,17 +372,13 @@ def test_wizard_register_and_push_success_goes_to_dashboard():
     assert js.count("goToOrder(orderId, 0)") == 2
 
 
-def test_single_button_skips_push_only_for_regional_partner_orders():
-    """실측이 필요 없는 지방 협력사 시공 주문만 PUSH 없이 ERP 등록만 한다(2026-10-27 사용자 결정)."""
+def test_single_button_always_registers_with_push():
+    """4단계 등록 버튼은 모든 주문에서 "등록하고 실측 PUSH" 다(2026-10-27 — 지방 협력사 예외도 두지 않기로)."""
     wizard = (ROOT / "static/js/foms/wizard.js").read_text(encoding="utf-8")
-    step3 = (ROOT / "templates/orders/wizard/step3_schedule.html").read_text(encoding="utf-8")
 
-    body = wizard[wizard.index("function needsMeasurePush("):]
-    body = body[:body.index(chr(10) + "  }" + chr(10))]
-    assert 'flags.regional_order && flags.regional_construction_type === "협력사 시공"' in body
-    # 비교 글자가 화면 선택지 값과 같아야 한다(값이 바뀌면 조용히 모든 주문에 PUSH 가 나간다).
-    assert '<option value="협력사 시공">' in step3
-    assert 'needsMeasurePush(root) ? "등록하고 실측 PUSH" : "주문 등록"' in wizard
+    assert 'next.textContent = step < MAX_STEP ? "다음 →" : "등록하고 실측 PUSH";' in wizard
+    assert "needsMeasurePush" not in wizard
+    assert '"주문 등록"' not in wizard
 
 
 def test_emergency_register_only_opens_when_push_cannot_go():
