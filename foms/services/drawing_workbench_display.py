@@ -5,8 +5,11 @@ from __future__ import annotations
 from typing import Any
 
 from foms.api.files import build_file_download_url, build_file_view_url
+from foms.services.datetime_kst import format_datetime_kst
+from foms.services.drawing_confirm_cleanup import stray_drawing_rows
 from foms.services.feature_flags import env_bool_or_mobile_v2
-from models import OrderAttachment
+from foms.services.order_attachment_permissions import can_delete_order_attachment
+from models import OrderAttachment, User
 
 __all__ = [
     "build_stray_drawing_files",
@@ -184,11 +187,6 @@ def build_stray_drawing_files(db: Any, order: Any, structured_data: Any, user: A
     Returns:
         ``{id, filename, view_url, thumb_url, is_image, uploader, uploaded_at, can_delete}`` 목록.
     """
-    from foms.services.datetime_kst import format_datetime_kst
-    from foms.services.drawing_confirm_cleanup import stray_drawing_rows
-    from foms.services.order_attachment_permissions import can_delete_order_attachment
-    from models import User
-
     rows = stray_drawing_rows(db, int(order.id), structured_data)
     if not rows:
         return []
