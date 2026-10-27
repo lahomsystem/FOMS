@@ -1,6 +1,13 @@
 /* 도면 작업실 '도면 칸에 따로 올라온 파일' 카드 + 전달 창 바로 반영 안내
    (설계서 docs/specs/2026-10-27-drawing-team-production-fix_SPEC.md A·C절).
    인라인 스타일 금지 규칙 때문에 전용 파일로 둔다. 색은 erp-pro 토큰을 쓴다. */
+.dw-stray-box {
+    border: 1px solid var(--bs-warning, #ffc107);
+    border-radius: 8px;
+    padding: 8px 10px;
+    background: var(--foms-surface-subtle, #fffdf5);
+}
+
 .dw-stray-list {
     display: flex;
     flex-direction: column;
