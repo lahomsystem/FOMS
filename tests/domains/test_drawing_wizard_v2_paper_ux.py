@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -271,3 +272,22 @@ def test_screen_layer_hides_on_export_and_assets_are_pinned():
     assert "into = key === 'unsorted' ? badges : layer" in paper
     for asset in ("css/contexts/drawing/wizard-v2.css", "js/drawing/v2-slots.js", "js/drawing/v2-paper.js"):
         assert f"{asset}') }}}}?v=20261027e" in TPL, asset
+
+
+def test_band_page_number_shows_sheet_position_instead_of_dash():
+    """아래 띠 '장 - / 1' → '1 / 1'(운영 점검 2026-10-27). 도면 번호가 '-'(제품 1개 주문 규칙)나 빈칸이면 몇 번째 시트인지
+    보인다 — 화면 · PNG 글만이고 저장 값 · V1 · 파일 이름 규칙은 그대로. 번호가 매겨진 시트가 있으면(여러 제품) 손대지 않는다."""
+    src = (JS_DIR / "wizard.js").read_text(encoding="utf-8")
+    assert "if (k === 'page_no' && UI === 'v2') { el.textContent = v2PageText(el.textContent); }" in src
+    fn = re.search(r"  function v2PageText\(text\) \{\n.*?\n  \}\n", src, re.S)
+    assert fn
+    script = "let state, current;\n" + fn.group(0) + r"""
+const cases = [[['-'], 0, '-'], [['-', '-'], 1, '-'], [[''], 0, ''], [['1', '2', '-'], 2, '-'], [['-'], 0, '3'], [['-'], 0, 'A']];
+process.stdout.write(JSON.stringify(cases.map(([nos, at, text]) => {
+  state = { sheets: nos.map(p => ({ form: { page_no: p } })) }; current = at; return v2PageText(text);
+})));
+"""
+    proc = subprocess.run([_node(), "-e", script], capture_output=True, text=True, encoding="utf-8")
+    assert proc.returncode == 0, proc.stderr
+    assert json.loads(proc.stdout) == ["1", "2", "1", "-", "3", "A"]
+    assert "else \"-\"" in (ROOT / "foms/services/drawing_wizard_defaults.py").read_text(encoding="utf-8")   # 저장 규칙은 그대로

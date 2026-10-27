@@ -133,7 +133,11 @@ def test_check_box_relabels_moves_focus_points_on_paper_and_takes_the_chip():
     assert ".dws-exporting .dws-ui { display: none !important; }" in wiz_css                 # PNG · 저장 그림에서 숨는 규칙
     assert "document.addEventListener('click', onChip, true);" in chk                        # 앱바 칩은 캡처 단계에서 받는다
     chip = chk[chk.index("  function onChip("):chk.index("  function init(")]
-    assert chip.index("els.box.hidden") < chip.index("e.stopPropagation();") < chip.index("show(null);")
+    assert chip.index("els.box.hidden") < chip.index("e.preventDefault();") < chip.index("show(null);")
+    # 막지 않고 표시만 — 문서 클릭(⋯ 메뉴 · V1 메뉴 닫기)이 돈다. 예전엔 stopPropagation 이라 메뉴가 열린 채 남았다(10-27)
+    assert "e.stopPropagation()" not in chip
+    status = _js("part-status.js")
+    assert "unsure.addEventListener('click', function (e) { if (!e.defaultPrevented && on.next) { on.next(); } });" in status
     assert "그림을 보고 종류를 골라 주세요" in chk and "'그 밖 ▾'" in chk
     left = _js("v2-left.js")
     assert "window.FomsV2Check.init(a);" in left and "check.render(view);" in left
@@ -171,7 +175,9 @@ def test_bom_card_adds_preset_placeholders_with_one_undo():
 
 
 def test_assets_pinned_and_check_module_loaded_before_shell():
-    for asset in ("css/contexts/drawing/wizard-v2.css", "js/drawing/wizard.js", "js/drawing/v2-left.js", "js/drawing/v2-check.js"):
+    for asset in ("css/contexts/drawing/wizard-v2.css", "js/drawing/v2-left.js"):
         assert f"{asset}') }}}}?v=20261027e" in TPL, asset
+    for asset in ("js/drawing/wizard.js", "js/drawing/v2-check.js"):   # 10-27 작은 고침(장 번호 · ⋯ 메뉴 닫힘)
+        assert f"{asset}') }}}}?v=20261027f" in TPL, asset
     pos = [TPL.index(f"js/drawing/{name}") for name in ("wizard.js", "v2-check.js", "v2-left.js", "v2-shell.js")]
     assert pos == sorted(pos)

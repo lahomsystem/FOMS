@@ -141,7 +141,8 @@
     var unsure = el('button', 'dws-part-status-chip dws-part-status-unsure');
     unsure.type = 'button';
     unsure.title = '다음 미분류 그림으로 — 숫자키 1~9로 종류를 고르세요';
-    unsure.addEventListener('click', function () { if (on.next) { on.next(); } });
+    // V2 '확인할 그림' 상자가 먼저 받으면(preventDefault — v2-check.js) 다음 그림 건너뛰기는 하지 않는다
+    unsure.addEventListener('click', function (e) { if (!e.defaultPrevented && on.next) { on.next(); } });
     var eye = el('button', 'dws-part-status-chip dws-part-status-eye');
     eye.type = 'button';
     if (document.createElementNS) { eye.appendChild(tagIcon()); }
