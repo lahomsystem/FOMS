@@ -88,6 +88,8 @@ from foms.services.notifications.notification_push_delivery import (  # noqa: E4
 )
 from foms.services.record_only_effects import (
     CHANNEL_PUSH_RECORDED_EFFECT_TYPE,
+    HOLD_NOTIFICATION_EFFECT_TYPE,
+    LOGISTICS_NOTIFICATION_EFFECT_TYPE,
     STAGE_NOTIFICATION_EFFECT_TYPE,
     handle_record_only,
     handle_unimplemented_consumer,
@@ -322,6 +324,12 @@ def main(argv: Optional[list[str]] = None) -> int:
     # DEAD 로 쌓여 dead_count 판정을 영구히 빨갛게 만들고 진짜 실패를 덮는다.
     # **알림을 구현하면 이 줄을 걷어내고 진짜 handler 를 등록한다.**
     register_handler(STAGE_NOTIFICATION_EFFECT_TYPE, handle_unimplemented_consumer,
+                     replace=True)
+    # 물류 상태·보류 전이 행도 같은 소비자 미구현이다(2026-10-16 부터 DEAD 로 쌓여 매일 점검 red).
+    # **알림을 구현하면 이 줄을 걷어내고 진짜 handler 를 등록한다.**
+    register_handler(LOGISTICS_NOTIFICATION_EFFECT_TYPE, handle_unimplemented_consumer,
+                     replace=True)
+    register_handler(HOLD_NOTIFICATION_EFFECT_TYPE, handle_unimplemented_consumer,
                      replace=True)
     # UPLOAD-02: 만료 ticket/draft cleanup 을 300s expiry scan 에 배선(별도 scheduler 없음).
     # replace=True 로 재시작·재-import 시 중복 등록을 idempotent 하게 처리한다.
